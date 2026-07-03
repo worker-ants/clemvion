@@ -3380,11 +3380,29 @@ export class ExecutionEngineService
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
 
-    this.runExecution(savedExecution, input).catch((err: unknown) => {
+    this.runExecution(savedExecution, input).catch(async (err: unknown) => {
       this.logger.error(
         `Background sub-workflow execution failed for ${executionId}: ${
           err instanceof Error ? err.message : String(err)
         }`,
+      );
+      // M-4 (06 concurrency, Option B) — setup 단계 throw(또는 runExecution 자체
+      // catch 의 2차 실패)로 execution 이 terminal 마킹되지 못하면 RUNNING/PENDING
+      // 잔류 → §7.1 stale fail(30분) 까지 방치된다. 큐 경로(:runExecutionFromQueue
+      // catch)와 동일하게 `failFirstSegmentSetup` 로 best-effort 마감한다. 그
+      // 자체의 2차 실패는 fire-and-forget 컨텍스트라 재throw 시 unhandled rejection
+      // 이 되므로 로그로만 흡수한다. (sub-workflow 는 execution routing 미등록이라
+      // releaseExecutionRouting 은 불필요.)
+      await this.failFirstSegmentSetup(executionId, err).catch(
+        (secondaryErr: unknown) => {
+          this.logger.error(
+            `failFirstSegmentSetup secondary error for ${executionId}: ${
+              secondaryErr instanceof Error
+                ? secondaryErr.message
+                : String(secondaryErr)
+            }`,
+          );
+        },
       );
     });
 

@@ -2194,6 +2194,77 @@ describe('ExecutionEngineService', () => {
           ),
         ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
       });
+
+      // M-4 (06 concurrency, Option B) — executeAsync 의 fire-and-forget
+      // `runExecution` 이 setup 단계에서 throw 하면 catch 가
+      // `failFirstSegmentSetup` 로 best-effort terminal 마감한다(RUNNING/PENDING
+      // 잔류 방지 — 큐 경로 W5 와 동일 계약).
+      type M4AsyncFailSubject = {
+        runExecution: (...args: unknown[]) => Promise<void>;
+        failFirstSegmentSetup: (
+          executionId: string,
+          error: unknown,
+        ) => Promise<void>;
+        logger: { error: jest.Mock };
+      };
+
+      it('M-4: runExecution setup throw 시 failFirstSegmentSetup 로 best-effort 마감', async () => {
+        const svc = service as unknown as M4AsyncFailSubject;
+        const runSpy = jest
+          .spyOn(svc, 'runExecution')
+          .mockRejectedValueOnce(new Error('setup-throw-m4'));
+        const failSpy = jest
+          .spyOn(svc, 'failFirstSegmentSetup')
+          .mockResolvedValue(undefined);
+
+        const result = await service.executeAsync(
+          workflowId,
+          { foo: 'bar' },
+          {
+            parentWorkspaceId: 'ws-1',
+          },
+        );
+        expect(result).toBe(executionId);
+        // fire-and-forget catch 체인(비동기)이 settle 하도록 flush.
+        await new Promise((r) => setImmediate(r));
+
+        expect(failSpy).toHaveBeenCalledWith(executionId, expect.any(Error));
+
+        runSpy.mockRestore();
+        failSpy.mockRestore();
+      });
+
+      // M-4 — `failFirstSegmentSetup` 자체가 throw(2차 실패)해도 fire-and-forget
+      // 컨텍스트라 unhandled rejection 없이 로그로 흡수한다(큐 경로 W7 와 동일).
+      it('M-4: failFirstSegmentSetup 2차 실패는 로그로 흡수 (unhandled rejection 없음)', async () => {
+        const svc = service as unknown as M4AsyncFailSubject;
+        const runSpy = jest
+          .spyOn(svc, 'runExecution')
+          .mockRejectedValueOnce(new Error('primary-error-m4'));
+        const failSpy = jest
+          .spyOn(svc, 'failFirstSegmentSetup')
+          .mockRejectedValueOnce(new Error('secondary-error-m4'));
+        const errorSpy = jest.spyOn(svc.logger, 'error');
+
+        await expect(
+          service.executeAsync(
+            workflowId,
+            { foo: 'bar' },
+            {
+              parentWorkspaceId: 'ws-1',
+            },
+          ),
+        ).resolves.toBe(executionId);
+        await new Promise((r) => setImmediate(r));
+
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('secondary error'),
+        );
+
+        runSpy.mockRestore();
+        failSpy.mockRestore();
+        errorSpy.mockRestore();
+      });
     });
   });
 
