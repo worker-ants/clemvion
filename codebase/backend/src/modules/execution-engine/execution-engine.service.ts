@@ -531,6 +531,31 @@ export class ExecutionEngineService
   }
 
   /**
+   * M-4 (06 concurrency) — `failFirstSegmentSetup` best-effort 마감 호출 + 그
+   * 자체의 2차 실패를 로그로 흡수하는 쌍. fire-and-forget/worker catch 진입점
+   * (`runExecutionFromQueue`·`executeAsync`)이 공유한다. 2차 실패가 재throw 되면
+   * BullMQ worker 로 전파돼 동일 continuation 이중 재시도(double-exec)를 유발하거나
+   * fire-and-forget 컨텍스트에서 unhandled rejection 이 되므로, 절대 전파하지 않고
+   * 로그로만 관측한다.
+   */
+  private async failFirstSegmentSetupBestEffort(
+    executionId: string,
+    error: unknown,
+  ): Promise<void> {
+    await this.failFirstSegmentSetup(executionId, error).catch(
+      (secondaryErr: unknown) => {
+        this.logger.error(
+          `failFirstSegmentSetup secondary error for ${executionId}: ${
+            secondaryErr instanceof Error
+              ? secondaryErr.message
+              : String(secondaryErr)
+          }`,
+        );
+      },
+    );
+  }
+
+  /**
    * INFO #10 (Concurrency) — 실행 단위 LLM-default-config lookup 캐시.
    * Key: `${executionId}:${workspaceId}` → cached `Promise<boolean>`.
    *
@@ -2841,20 +2866,10 @@ export class ExecutionEngineService
         }`,
       );
       this.eventEmitter.releaseExecutionRouting(executionId);
-      // W7 (ai-review) — `failFirstSegmentSetup` 자체가 throw 시 BullMQ worker 로
-      // 전파돼 동일 continuation 이중 재시도(double-exec)를 유발한다. best-effort
-      // 마감 실패는 worker 레벨 재시도보다 로그로 관측하는 것이 안전하다.
-      await this.failFirstSegmentSetup(executionId, err).catch(
-        (secondaryErr: unknown) => {
-          this.logger.error(
-            `failFirstSegmentSetup secondary error for ${executionId}: ${
-              secondaryErr instanceof Error
-                ? secondaryErr.message
-                : String(secondaryErr)
-            }`,
-          );
-        },
-      );
+      // W7 (ai-review) / M-4 — best-effort 마감 + 2차 실패 흡수. 2차 실패가 BullMQ
+      // worker 로 전파되면 동일 continuation 이중 재시도(double-exec)를 유발하므로
+      // 헬퍼가 로그로만 관측한다.
+      await this.failFirstSegmentSetupBestEffort(executionId, err);
     }
   }
 
@@ -3380,12 +3395,18 @@ export class ExecutionEngineService
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
 
-    this.runExecution(savedExecution, input).catch((err: unknown) => {
+    this.runExecution(savedExecution, input).catch(async (err: unknown) => {
       this.logger.error(
         `Background sub-workflow execution failed for ${executionId}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      // M-4 (06 concurrency, Option B) — setup 단계 throw(또는 runExecution 자체
+      // catch 의 2차 실패)로 execution 이 terminal 마킹되지 못하면 RUNNING/PENDING
+      // 잔류 → §7.1 stale fail(30분) 까지 방치된다. 큐 경로(:runExecutionFromQueue
+      // catch)와 동일 헬퍼로 best-effort 마감한다. (sub-workflow 는 execution
+      // routing 미등록이라 releaseExecutionRouting 은 불필요.)
+      await this.failFirstSegmentSetupBestEffort(executionId, err);
     });
 
     return executionId;
