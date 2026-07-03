@@ -199,6 +199,27 @@ owner: developer
 2. **developer**: `consistency-check --impl-prep` → TDD 구현 → unit + **dockerized e2e**(stale RUNNING row 주입 → re-claim → rehydrate+forward 무손실 completed; 완료노드 미재실행; RUNNING-at-crash 노드 재개 멱등) → `/ai-review`(origin/main) + critical/warning fix → `--impl-done` BLOCK:NO → PR.
 3. **plan 갱신**: 본 섹션 체크박스 + `exec-intake-queue-impl.md` PR3(L57) 상태 + `execution-engine-residual-gaps.md` G2 부분 해소 표기.
 
+### PR3 구현 설계 (코드 정밀조사 확정, 2026-07-04)
+
+**대상**: `execution-engine.service.ts`. `--impl-prep spec/5-system/` **BLOCK:NO**(`review/consistency/2026/07/04/00_12_57` — naming/rationale/convention NONE; cross_spec 1 WARNING=graph-rag `document:graph_error` 무관 기존 drift).
+
+**핵심 코드 사실**:
+- `runNodeDispatchLoop`(L1380)은 `reachable`+`pointer` 로만 dispatch, **`executedNodes` skip 없음**(cycle 은 pointer 되감기로 재실행). → case B 는 완료 노드 재실행 방지 위해 **`skipExecutedNodes` 가드 신설 필요**(§7.3 완료노드 exactly-once).
+- `rehydrateContext(execution, waitingNodeExec)`(L1166): `waitingNodeExec` 는 L1269-1275 waiting 봉투 복원에만 사용 → case B 는 **nullable 로 확장**해 skip. 완료 노드(executedNodes+nodeOutputCache)는 execution_node_log 로 복원(node-type 무관, 이미 generic).
+- `driveResumeAwaited`(L1886): RUNNING 전이(claim 시 skip) → `dispatchResumeTurn`(turn) → waiting 노드 executed+propagate → `runNodeDispatchLoop(waitingPointer+1)` → COMPLETED/parked. case B 는 **turn 단계 제거 + waiting 노드 없음**.
+- `claimResumeEntry`(L899): waiting→running 짝 claim + `recordRunningSegmentStart`. case B 는 **`running→running` started_at 조건부 re-claim** 별도 필요.
+
+**구현 단위**:
+1. **`reclaimStuckRunningExecution(threshold)`**(신규): `UPDATE Execution SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING id` — affected rows = 재구동 대상 id[]. 원자 re-claim(§7.5 case B). 각 id 에 `recordRunningSegmentStart`.
+2. **`recoverStuckExecutions` 전환**: 기존 일괄 `UPDATE…SET FAILED` 제거 → (a) `reclaimStuckRunningExecution` 로 stale RUNNING id 수집·재점유, (b) 각 id best-effort `redriveStuckExecution`(try/catch 개별 격리). lock/WAITING 제외 불변.
+3. **`redriveStuckExecution(execution)`**(신규, case B 드라이브): `rehydrateContext(execution, null)` → `loadAndBuildGraph` → reachable = seedInitial + executedNodes + 각 완료노드 propagateReachability → `runNodeDispatchLoop({pointer:0, skipExecutedNodes:true, ...})` → parked 면 return(WAITING 유지), 완료면 COMPLETED(driveResumeAwaited 완결부 재사용). 재구동 불가(RehydrationError)→`RESUME_CHECKPOINT_MISSING` terminal(markExecutionCancelled+markNodeExecutionFailed). 그 외 err→finalizeResumedExecutionOutcome. finally cleanup.
+4. **`runNodeDispatchLoop` `skipExecutedNodes?:boolean`**: `NodeDispatchLoopParams` 에 옵션 추가. reachable 체크 직후 `if(params.skipExecutedNodes && executedNodes.has(nodeId)){pointer++;continue;}` — case B 전용(§7.3 per-node 멱등 가드). case A/runExecution 무영향(미전달=false).
+5. **`rehydrateContext` waitingNodeExec nullable**: L1269-1275 를 `if(waitingNodeExec?.outputData)` 가드.
+
+**멱등/불변**: 완료 노드 재실행 0(skip 가드), RUNNING-at-crash 노드 재실행=at-least-once(§7.3), 재구동 중 fresh park→WAITING 유지+다음 재개. 신규 마이그레이션 0.
+
+**테스트**: unit — reclaimStuckRunningExecution affected 반영·recoverStuckExecutions 가 fail 대신 redrive 호출·redriveStuckExecution 완료/park/에러 분기·runNodeDispatchLoop skipExecutedNodes 완료노드 skip·rehydrateContext null waitingNodeExec. **dockerized e2e** — stale RUNNING(완료노드 있는 mid-flight) 주입→부팅 recovery→re-drive→무손실 completed + 완료노드 미재실행 검증(node_execution 카운트).
+
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 2026-06-05)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§7 L284 채택). 사용자 handoff 승인. spec 동기 갱신 완료(conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5, 1-ai-agent §12.1/§12.10/§12.13, **1-data-model §2.13 Execution 컬럼 행** — consistency W1 해소). 마이그레이션 = **V084**(#469 PR2a 가 V083 선점 → §6.2 rebase-renumber 로 V083→V084 재부여, 2026-06-05).
 - **D2 (확정 2026-06-05)**: user-defined variables 복원 = **본 plan 포함**(PR-A3). 조사 결과 복원 필요·SMALL scope(A1 패턴 재사용)라 분리 불요. 마이그레이션 V085 `Execution.user_variables jsonb`.

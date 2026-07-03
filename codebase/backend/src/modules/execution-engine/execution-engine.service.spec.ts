@@ -9,7 +9,10 @@ import {
 } from './queues/execution-run.queue';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { ExecutionEngineService } from './execution-engine.service';
-import { userMessageSignalApplies } from './ai-conversation-helpers';
+import {
+  userMessageSignalApplies,
+  RehydrationError,
+} from './ai-conversation-helpers';
 import {
   resumeCheckpointSchema,
   CREDENTIAL_CONTEXT_FIELDS,
@@ -983,10 +986,10 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // WARN #23 (Testing) — recoverStuckExecutions 가 미테스트 상태였다.
-  // WAITING_FOR_INPUT → FAILED 일괄 전환 (단일 atomic UPDATE) 검증.
-  // PR-B 추가 — SET NX 분산 lock + startedAt < now()-30분 보수 mark.
-  describe('recoverStuckExecutions', () => {
+  // PR3 (§7.1/§7.2 point3/§7.5 case B, 2026-07-04) — recoverStuckExecutions 가
+  // stale RUNNING 을 "일괄 FAILED 마킹" 이 아니라 "started_at 원자 re-claim + case B
+  // rehydration 재구동" 으로 전환됐다. 아래는 그 전환 + 회귀 가드.
+  describe('recoverStuckExecutions (PR3 — 크래시 re-drive)', () => {
     let updateExecuted: jest.Mock;
     let returning: jest.Mock;
     let andWhere: jest.Mock;
@@ -994,11 +997,14 @@ describe('ExecutionEngineService', () => {
     let setMethod: jest.Mock;
     let update: jest.Mock;
     let mockBus: { acquireLock: jest.Mock; releaseLock: jest.Mock };
+    let redriveSpy: jest.SpyInstance;
+    let segStartSpy: jest.SpyInstance;
 
     beforeEach(() => {
-      // 06 C-2 — Execution UPDATE 는 .returning('id') 로 회수 id 를 받아 자식 RUNNING
-      // NodeExecution cascade 마감에 쓴다. 기본 raw=[] (cascade no-op).
-      updateExecuted = jest.fn().mockResolvedValue({ affected: 2, raw: [] });
+      // reclaimStuckRunningExecution 의 UPDATE … RETURNING id — 기본 2건 재점유.
+      updateExecuted = jest
+        .fn()
+        .mockResolvedValue({ affected: 2, raw: [{ id: 'e1' }, { id: 'e2' }] });
       returning = jest.fn().mockReturnValue({ execute: updateExecuted });
       andWhere = jest.fn().mockReturnValue({ returning });
       where = jest.fn().mockReturnValue({ andWhere });
@@ -1011,12 +1017,31 @@ describe('ExecutionEngineService', () => {
         .continuationBus;
       mockBus.acquireLock.mockResolvedValue(true);
       mockBus.releaseLock.mockResolvedValue(true);
+      // re-drive 는 fire-and-forget 그래프 실행 — 스텁으로 격리해 re-claim/트리거만 검증.
+      redriveSpy = jest
+        .spyOn(
+          service as unknown as {
+            redriveStuckExecution: (id: string) => Promise<void>;
+          },
+          'redriveStuckExecution',
+        )
+        .mockResolvedValue(undefined);
+      segStartSpy = jest
+        .spyOn(
+          service as unknown as {
+            recordRunningSegmentStart: (id: string) => void;
+          },
+          'recordRunningSegmentStart',
+        )
+        .mockImplementation(() => {});
     });
 
-    // workflow-resumable-execution Phase 1.1 (2026-05-25) — Recovery 대상에서
-    // WAITING_FOR_INPUT 제외. RUNNING heartbeat 미응답만 stuck 으로 본다.
-    // 사용자 입력 대기 (waiting_for_input) 는 §7.5 rehydration 경로로 자연 재개.
-    it('SET NX lock 획득 후 stale (>30분) RUNNING 만 FAILED 처리', async () => {
+    afterEach(() => {
+      redriveSpy.mockRestore();
+      segStartSpy.mockRestore();
+    });
+
+    it('stale (>30분) RUNNING 을 started_at 원자 re-claim 하고 각 row 를 re-drive 한다 (FAILED 마킹 안 함)', async () => {
       const before = Date.now();
       await (
         service as unknown as { recoverStuckExecutions: () => Promise<void> }
@@ -1024,16 +1049,12 @@ describe('ExecutionEngineService', () => {
 
       expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
       expect(update).toHaveBeenCalled();
-      expect(setMethod).toHaveBeenCalled();
+      // re-claim: started_at=NOW() 로 소유권 이전 — status 를 FAILED 로 두지 않는다.
       const setArg = setMethod.mock.calls[0][0] as Record<string, unknown>;
-      expect(setArg.status).toBe(ExecutionStatus.FAILED);
-      expect((setArg.error as { message: string }).message).toContain(
-        'worker heartbeat timeout',
-      );
-      // WAITING_FOR_INPUT 회귀 가드 — 옛 메시지가 다시 나오면 안 됨.
-      expect((setArg.error as { message: string }).message).not.toContain(
-        'server restarted while waiting for user input',
-      );
+      expect(typeof setArg.startedAt).toBe('function');
+      expect(setArg.status).toBeUndefined();
+      expect(setArg.error).toBeUndefined();
+      // 대상: RUNNING + started_at < threshold.
       expect(where).toHaveBeenCalledWith('status = :status', {
         status: ExecutionStatus.RUNNING,
       });
@@ -1041,49 +1062,67 @@ describe('ExecutionEngineService', () => {
         'started_at < :threshold',
         expect.objectContaining({ threshold: expect.any(Date) }),
       );
-      // threshold 가 호출 시점 - 30분 근처인지 (±몇 초) 검증.
       const arg = (andWhere.mock.calls[0][1] as { threshold: Date }).threshold;
-      const expected = before - 30 * 60 * 1000;
-      expect(Math.abs(arg.getTime() - expected)).toBeLessThan(5_000);
+      expect(Math.abs(arg.getTime() - (before - 30 * 60 * 1000))).toBeLessThan(
+        5_000,
+      );
+      // 재점유된 각 id 를 re-drive + segment tracking baseline 기록.
+      expect(redriveSpy).toHaveBeenCalledTimes(2);
+      expect(redriveSpy).toHaveBeenCalledWith('e1');
+      expect(redriveSpy).toHaveBeenCalledWith('e2');
+      expect(segStartSpy).toHaveBeenCalledWith('e1');
+      expect(segStartSpy).toHaveBeenCalledWith('e2');
+      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
     });
 
-    // workflow-resumable-execution Phase 1.1 회귀 가드. 핵심 행동 변화 —
-    // WAITING_FOR_INPUT 은 절대 stuck recovery 대상에 포함되어선 안 된다.
-    // 옛 코드가 WHERE status = WAITING_FOR_INPUT 로 일괄 FAIL 처리하던 패턴은
-    // 재발 시 운영 회귀로 직결되므로 명시적으로 가드.
-    it('WAITING_FOR_INPUT 은 recovery WHERE 절에 절대 포함되지 않는다', async () => {
+    it('옛 fail-only 회귀 가드 — set 에 status=FAILED / WORKER_HEARTBEAT_TIMEOUT 을 쓰지 않는다', async () => {
       await (
         service as unknown as { recoverStuckExecutions: () => Promise<void> }
       ).recoverStuckExecutions();
-
-      const allWhereCalls = where.mock.calls.flat();
-      const allAndWhereCalls = andWhere.mock.calls.flat();
-      const flatStringified = [...allWhereCalls, ...allAndWhereCalls]
+      const flat = setMethod.mock.calls
+        .flat()
         .map((v) => JSON.stringify(v))
         .join(' ');
-      expect(flatStringified).not.toContain('waiting_for_input');
-      expect(flatStringified).not.toContain('WAITING_FOR_INPUT');
+      expect(flat).not.toContain('failed');
+      expect(flat).not.toContain('FAILED');
+      expect(flat).not.toContain('WORKER_HEARTBEAT_TIMEOUT');
     });
 
-    it('lock 획득 실패 시 update 를 호출하지 않는다 (다른 인스턴스가 처리 중)', async () => {
+    it('재점유 0건이면 re-drive 하지 않고 lock 만 해제한다', async () => {
+      updateExecuted.mockResolvedValueOnce({ affected: 0, raw: [] });
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+      expect(redriveSpy).not.toHaveBeenCalled();
+      expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
+    });
+
+    // 회귀 가드 — WAITING_FOR_INPUT 은 re-claim 대상에 절대 포함되지 않는다.
+    it('WAITING_FOR_INPUT 은 re-claim WHERE 절에 절대 포함되지 않는다', async () => {
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+      const flat = [...where.mock.calls.flat(), ...andWhere.mock.calls.flat()]
+        .map((v) => JSON.stringify(v))
+        .join(' ');
+      expect(flat).not.toContain('waiting_for_input');
+      expect(flat).not.toContain('WAITING_FOR_INPUT');
+    });
+
+    it('lock 획득 실패 시 re-claim/re-drive 를 하지 않는다 (다른 인스턴스가 처리 중)', async () => {
       mockBus.acquireLock.mockResolvedValueOnce(false);
       await (
         service as unknown as { recoverStuckExecutions: () => Promise<void> }
       ).recoverStuckExecutions();
-
       expect(mockBus.acquireLock).toHaveBeenCalledTimes(1);
       expect(update).not.toHaveBeenCalled();
+      expect(redriveSpy).not.toHaveBeenCalled();
     });
 
-    // ContinuationBusService.publisher 미초기화 race 회귀 방지 — recovery 는
-    // onModuleInit 이 아니라 onApplicationBootstrap 에서 실행되어야 한다.
-    // 같은 모듈 내 providers 의 onModuleInit 호출 순서가 등록 순서로만
-    // 보장되므로, ContinuationBusService 의 publisher 초기화가 끝났음이
-    // 보장되는 onApplicationBootstrap 으로 미룬다.
+    // recovery 는 onModuleInit 이 아니라 onApplicationBootstrap 에서 실행돼야 한다.
     it('onModuleInit 은 recovery 를 트리거하지 않는다', () => {
       mockBus.acquireLock.mockClear();
       service.onModuleInit();
-
       expect(mockBus.acquireLock).not.toHaveBeenCalled();
       expect(update).not.toHaveBeenCalled();
     });
@@ -1092,63 +1131,117 @@ describe('ExecutionEngineService', () => {
       mockBus.acquireLock.mockClear();
       mockBus.releaseLock.mockClear();
       await service.onApplicationBootstrap();
-
       expect(mockBus.acquireLock).toHaveBeenCalledWith('exec:recover:lock', 60);
       expect(update).toHaveBeenCalled();
-      // lock 누수 회귀 가드 — recovery 가 끝나면 반드시 release.
       expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
     });
 
-    // DB 오류 시 lock 누수 방지 검증 — try/finally 의 finally 가 동작해
-    // releaseLock 이 호출되어야 한다. 오류 자체는 호출자에게 전파된다.
-    it('DB 오류가 발생해도 lock 을 해제하고 오류를 전파한다', async () => {
+    // re-claim DB 오류 시 lock 누수 방지 (try/finally).
+    it('re-claim DB 오류가 발생해도 lock 을 해제하고 오류를 전파한다', async () => {
       updateExecuted.mockRejectedValueOnce(new Error('db down'));
-      mockBus.acquireLock.mockResolvedValueOnce(true);
       mockBus.releaseLock.mockClear();
-
       await expect(
         (
           service as unknown as { recoverStuckExecutions: () => Promise<void> }
         ).recoverStuckExecutions(),
       ).rejects.toThrow('db down');
-
       expect(mockBus.releaseLock).toHaveBeenCalledWith('exec:recover:lock');
     });
+  });
 
-    it('06 C-2 — 회수된 Execution 의 자식 RUNNING NodeExecution 도 cascade FAILED', async () => {
-      // returning('id') 가 회수된 exec id 를 돌려주면 자식 RUNNING NodeExecution 을
-      // status=RUNNING → FAILED 로 cascade 마감한다 (claim 페어링으로 stuck 된 orphan 정리).
-      updateExecuted.mockResolvedValueOnce({
-        affected: 1,
-        raw: [{ id: 'exec-stuck-1' }],
-      });
-      const nodeCascadeQb = {
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      };
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(nodeCascadeQb);
+  // PR3 — redriveStuckExecution (case B 진입) 단위. 재구동 setup 분기.
+  describe('redriveStuckExecution (PR3 case B)', () => {
+    let driveSpy: jest.SpyInstance;
+    let rehydrateSpy: jest.SpyInstance;
+    let cancelSpy: jest.SpyInstance;
 
+    beforeEach(() => {
+      driveSpy = jest
+        .spyOn(
+          service as unknown as {
+            driveStuckRedrive: (...a: unknown[]) => Promise<void>;
+          },
+          'driveStuckRedrive',
+        )
+        .mockResolvedValue(undefined);
+      rehydrateSpy = jest
+        .spyOn(
+          service as unknown as {
+            rehydrateContext: (...a: unknown[]) => Promise<unknown>;
+          },
+          'rehydrateContext',
+        )
+        .mockResolvedValue({ nodeOutputCache: {}, _executedNodes: new Set() });
+      jest
+        .spyOn(
+          service as unknown as {
+            loadAndBuildGraph: (...a: unknown[]) => Promise<unknown>;
+          },
+          'loadAndBuildGraph',
+        )
+        .mockResolvedValue({ sortedNodeIds: [] });
+      cancelSpy = jest
+        .spyOn(
+          service as unknown as {
+            markExecutionCancelled: (...a: unknown[]) => Promise<void>;
+          },
+          'markExecutionCancelled',
+        )
+        .mockResolvedValue(undefined);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('RUNNING 세그먼트면 rehydrate + driveStuckRedrive 로 재구동한다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+        workflowId: 'wf1',
+        startedAt: new Date(),
+      } as unknown as Execution);
       await (
-        service as unknown as { recoverStuckExecutions: () => Promise<void> }
-      ).recoverStuckExecutions();
+        service as unknown as {
+          redriveStuckExecution: (id: string) => Promise<void>;
+        }
+      ).redriveStuckExecution('e1');
+      expect(rehydrateSpy).toHaveBeenCalled();
+      // case B — waiting NodeExecution 없이 null 로 rehydrate.
+      expect(rehydrateSpy.mock.calls[0][1]).toBeNull();
+      expect(driveSpy).toHaveBeenCalled();
+      expect(cancelSpy).not.toHaveBeenCalled();
+    });
 
-      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
-      expect(nodeCascadeQb.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+    it('RUNNING 이 아니면(동시 cancel 등) skip — rehydrate/재구동 안 함', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: 'e1',
+        status: ExecutionStatus.CANCELLED,
+      } as unknown as Execution);
+      await (
+        service as unknown as {
+          redriveStuckExecution: (id: string) => Promise<void>;
+        }
+      ).redriveStuckExecution('e1');
+      expect(rehydrateSpy).not.toHaveBeenCalled();
+      expect(driveSpy).not.toHaveBeenCalled();
+    });
+
+    it('재구동 setup(rehydrate) 실패 시 RESUME_CHECKPOINT_MISSING terminal 로 마감한다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: 'e1',
+        status: ExecutionStatus.RUNNING,
+        workflowId: 'wf1',
+        startedAt: new Date(),
+      } as unknown as Execution);
+      rehydrateSpy.mockRejectedValueOnce(
+        new RehydrationError('RESUME_CHECKPOINT_MISSING', 'no checkpoint'),
       );
-      expect(nodeCascadeQb.where).toHaveBeenCalledWith(
-        'execution_id IN (:...ids)',
-        expect.objectContaining({ ids: ['exec-stuck-1'] }),
-      );
-      expect(nodeCascadeQb.andWhere).toHaveBeenCalledWith(
-        'status = :running',
-        expect.objectContaining({ running: NodeExecutionStatus.RUNNING }),
-      );
+      await (
+        service as unknown as {
+          redriveStuckExecution: (id: string) => Promise<void>;
+        }
+      ).redriveStuckExecution('e1');
+      expect(cancelSpy).toHaveBeenCalledWith('e1', 'RESUME_CHECKPOINT_MISSING');
+      expect(driveSpy).not.toHaveBeenCalled();
     });
   });
 

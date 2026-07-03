@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   UnprocessableEntityException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { WorkspaceId } from '../../common/decorators/workspace.decorator';
 import { CurrentUser } from '../../common/decorators';
@@ -26,6 +27,7 @@ import {
   ApiUnprocessableEntityResponse,
   ApiForbiddenResponse,
   ApiConflictResponse,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import {
   ApiOkPaginatedResponse,
@@ -190,6 +192,24 @@ export class ExecutionsController {
       }
       throw err;
     }
+    return { success: true };
+  }
+
+  /**
+   * **e2e 전용 (NODE_ENV==='test' 게이팅) — 프로덕션 표면 아님.** §7.1/§7.5 case B
+   * 크래시/재시작 re-drive 는 부팅 시(onApplicationBootstrap)에만 트리거된다.
+   * in-network e2e 러너는 backend 를 재시작할 수 없어 이 경로를 HTTP 로 검증할 수
+   * 없으므로, test 환경에서만 on-demand 스캔을 트리거한다. test 가 아니면 404 —
+   * 라우트 자체를 존재하지 않는 것처럼 취급한다. (운영용 on-demand trigger 는 PR4.)
+   */
+  @Post('_test/recover-stuck-executions')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiExcludeEndpoint()
+  async triggerStuckRecoveryForTest() {
+    if (process.env.NODE_ENV !== 'test') {
+      throw new NotFoundException();
+    }
+    await this.executionEngineService.runStuckRecoveryScan();
     return { success: true };
   }
 

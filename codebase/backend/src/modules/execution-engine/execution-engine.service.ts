@@ -734,6 +734,18 @@ export class ExecutionEngineService
   }
 
   /**
+   * §7.1/§7.5 case B 재구동을 **on-demand 로 1회 스캔** 트리거한다. 프로덕션에서는
+   * recovery 가 부팅 시(onApplicationBootstrap)에만 돌지만, e2e 는 이미 부팅된
+   * backend 를 재시작할 수 없어(in-network 러너) 재시작 크래시 re-drive 경로를
+   * HTTP 로 검증할 수 없다. 본 메서드가 그 트리거를 제공한다 — 호출자
+   * (`ExecutionsController`)가 `NODE_ENV==='test'` 로 엄격 게이팅하므로 프로덕션
+   * 표면이 아니다. (운영용 on-demand recovery 트리거는 PR4 관측성으로 별도 검토.)
+   */
+  async runStuckRecoveryScan(): Promise<void> {
+    await this.recoverStuckExecutions();
+  }
+
+  /**
    * 다중 인스턴스 환경에서 사용자 입력 (form / button / ai-message / cancel)
    * 은 어느 인스턴스로도 들어올 수 있다. ContinuationBusService 가 모든
    * 인스턴스로 메시지를 fan-out 하고, 로컬 `pendingContinuations` Map 에
@@ -1165,7 +1177,10 @@ export class ExecutionEngineService
   // C-1 step4 — EngineDriver member (RetryTurnService.applyRetryLastTurn 가 driver 경유).
   public async rehydrateContext(
     execution: Execution,
-    waitingNodeExec: NodeExecution,
+    // case A(waiting 재개)는 waiting NodeExecution 을 전달해 그 봉투를 복원한다.
+    // case B(크래시 re-drive, §7.5)는 waiting 노드가 없으므로 null — 완료 노드만
+    // execution_node_log 로 복원한다.
+    waitingNodeExec: NodeExecution | null,
   ): Promise<ExecutionContext> {
     const existing = this.contextService.getContext(execution.id);
     if (existing) return existing;
@@ -1265,8 +1280,9 @@ export class ExecutionEngineService
 
     // Waiting node 의 outputData 복원 — runExecution 의 executeNode 가 normally
     // setNodeOutput 으로 nodeOutputCache 에 채운 envelope (status=waiting_for_input
-    // + meta.interactionType) 와 동일.
-    if (waitingNodeExec.outputData) {
+    // + meta.interactionType) 와 동일. case B(크래시 re-drive)는 waiting 노드가 없어
+    // waitingNodeExec=null → 이 블록 skip(완료 노드만 위에서 복원됨).
+    if (waitingNodeExec?.outputData) {
       this.contextService.setNodeOutput(
         this.contextKeyOf(context),
         waitingNodeExec.nodeId,
@@ -1417,6 +1433,14 @@ export class ExecutionEngineService
           continue;
         }
         if (!reachable.has(nodeId)) {
+          pointer++;
+          continue;
+        }
+        // §7.3 멱등 — case B 크래시 re-drive 전용 완료 노드 skip. rehydrateContext 가
+        // execution_node_log + 완료 NodeExecution 으로 복원한 executedNodes 를 신뢰해
+        // 완료 노드를 재실행하지 않는다(exactly-once). 기본 경로(runExecution / case A)는
+        // skipExecutedNodes 미전달이라 이 가드가 꺼져 cycle 재실행(pointer 되감기)이 보존된다.
+        if (params.skipExecutedNodes && executedNodes.has(nodeId)) {
           pointer++;
           continue;
         }
@@ -2586,21 +2610,27 @@ export class ExecutionEngineService
   private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
 
   /**
-   * On server restart, mark RUNNING executions whose worker heartbeat is
-   * long-gone as FAILED.
+   * On server restart, **re-drive** RUNNING executions whose worker heartbeat is
+   * long-gone (§7.1/§7.2 point 3 / §7.5 case B — PR3, 2026-07-04).
+   *
+   * 옛 동작(일괄 `failed` 마킹)을 **제어된 re-drive** 로 전환한다: stale RUNNING 을
+   * `started_at` 조건부 원자 re-claim(`reclaimStuckRunningExecution`) 한 뒤 각 row 를
+   * §7.5 case B rehydration 으로 재구동(완료 노드 이후부터 그래프 forward, node-type
+   * 무관). §7.2 point 3("재시작 시 running 을 체크포인트에서 resume")의 일반 노드 구현.
    *
    * 다중 인스턴스 환경에서:
-   * - SET NX 분산 lock 으로 동시에 여러 인스턴스가 recovery 를 수행하지 않게
-   *   가드.
-   * - `status='running' AND startedAt < now() - 30분` 인 row 만 FAIL 처리 —
-   *   다른 인스턴스가 정상 처리 중인 신규 실행은 보존한다.
-   * - **WAITING_FOR_INPUT 은 절대 건드리지 않는다**. 사용자 입력은 며칠 후
-   *   도착할 수도 있고 노드별 `formConfig.timeout` 이 별도로 적용되므로,
-   *   본 함수가 강제로 종결시키지 않는다. 부팅 후 입력 도착 시 §7.5
-   *   rehydration 경로로 자연 재개.
+   * - SET NX 분산 boot-lock(`exec:recover:lock`)으로 동시 스캔 시작을 가드.
+   * - row 단위 `started_at` 조건부 re-claim(affected=1)은 그 안의 defense-in-depth —
+   *   lock 만료·늦은 부팅 스캔 겹침에도 같은 row 를 두 번 re-drive 하지 않는다.
+   * - `status='running' AND started_at < now() - 30분` 인 row 만 대상.
+   * - **WAITING_FOR_INPUT 은 절대 건드리지 않는다** — 사용자 입력은 며칠 후 도착할
+   *   수 있고, 입력 도착 시 §7.5 case A rehydration 으로 자연 재개.
    *
-   * SoT: spec/5-system/4-execution-engine.md §7.4 Recovery (workflow-
-   * resumable-execution Phase 1.1, 2026-05-25).
+   * BullMQ stalled-job 자동 재배달(운영 중 크래시 즉시 인계)은 PR4 로 유지되며, 본
+   * 함수의 boot-only 트리거가 poison 세그먼트의 무한 re-drive 를 자연 rate-limit 한다
+   * (부팅당 최대 1회). §8 누적 active-running 한도가 best-effort 2차 경계.
+   *
+   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.2 / §7.4 / §7.5.
    */
   private async recoverStuckExecutions(): Promise<void> {
     const acquired = await this.continuationBus.acquireLock(
@@ -2614,73 +2644,235 @@ export class ExecutionEngineService
     }
 
     try {
-      // WARN #1 (DB) — N건의 개별 save 대신 단일 atomic UPDATE. SQL 단일
-      // 문장은 내부적으로 트랜잭션 이므로 정합성 보장. durationMs 는 stuck
-      // recovery 의 정확도가 중요하지 않아 일괄 NULL 유지.
-      const finishedAt = new Date();
       const staleThreshold = new Date(
-        finishedAt.getTime() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
+        Date.now() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
       );
-      // W-21 fix (SUMMARY#W-21): error.code 구조화 — 클라이언트가 code 로
-      // 분기 가능. message 는 유지 (기존 log/display 호환).
-      const updateResult = await this.executionRepository
-        .createQueryBuilder()
-        .update(Execution)
-        .set({
-          status: ExecutionStatus.FAILED,
-          error: {
-            code: 'WORKER_HEARTBEAT_TIMEOUT',
-            message: 'Execution failed: worker heartbeat timeout',
-          },
-          finishedAt,
-        })
-        .where('status = :status', {
-          status: ExecutionStatus.RUNNING,
-        })
-        .andWhere('started_at < :threshold', { threshold: staleThreshold })
-        .returning('id')
-        .execute();
-
-      const affected = updateResult.affected ?? 0;
-      if (affected > 0) {
-        this.logger.warn(
-          `Recovered ${affected} stale execution(s) (>30min) stuck in RUNNING (worker heartbeat timeout)`,
-        );
-        // 06 C-2 — 회수된 Execution 의 자식 RUNNING NodeExecution 도 함께 마감한다.
-        // §7.5 재개 진입 원자 claim 은 Execution·NodeExecution 을 짝으로 RUNNING 전이
-        // 시키므로, 크래시로 Execution 이 stuck RUNNING 이면 그 waiting 노드도 RUNNING
-        // 으로 남는다 — Execution 을 FAILED 로 회수할 때 orphan RUNNING NodeExecution 도
-        // FAILED 처리해 stuck row 잔존을 방지한다 (Execution 이 이미 terminal 이라
-        // 재개는 없지만 데이터 정합·모니터링 목적).
-        const recoveredIds = (
-          (updateResult.raw as Array<{ id?: string }> | undefined) ?? []
-        )
-          .map((r) => r.id)
-          .filter((id): id is string => typeof id === 'string');
-        if (recoveredIds.length > 0) {
-          await this.nodeExecutionRepository
-            .createQueryBuilder()
-            .update(NodeExecution)
-            .set({
-              status: NodeExecutionStatus.FAILED,
-              error: {
-                code: 'WORKER_HEARTBEAT_TIMEOUT',
-                message: 'Node failed: parent execution heartbeat timeout',
-              },
-              finishedAt,
-            })
-            .where('execution_id IN (:...ids)', { ids: recoveredIds })
-            .andWhere('status = :running', {
-              running: NodeExecutionStatus.RUNNING,
-            })
-            .execute();
-        }
+      // (a) stale RUNNING 을 원자 re-claim(started_at 조건부 UPDATE … RETURNING).
+      //     affected rows = 본 인스턴스가 소유권을 획득한 재구동 대상.
+      const reclaimedIds =
+        await this.reclaimStuckRunningExecution(staleThreshold);
+      if (reclaimedIds.length === 0) return;
+      this.logger.warn(
+        `Re-claimed ${reclaimedIds.length} stale RUNNING execution(s) (>30min) for crash re-drive (§7.5 case B)`,
+      );
+      // (b) 각 재구동은 fire-and-forget — 부팅을 그래프 실행으로 막지 않는다.
+      //     redriveStuckExecution 이 내부 try/catch/finally 로 단말 상태를
+      //     자기 마킹하므로 reject 하지 않으나, 방어적 .catch 로 unhandled
+      //     rejection 을 차단한다. 각 row 는 이미 started_at 이 갱신돼 다른
+      //     인스턴스가 재-picking 하지 않으므로 lock 을 곧 풀어도 안전하다.
+      for (const executionId of reclaimedIds) {
+        void this.redriveStuckExecution(executionId).catch((err: unknown) => {
+          this.logger.error(
+            `Crash re-drive failed for execution ${executionId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        });
       }
     } finally {
       // 작업 완료 후 lock 을 명시 해제 — TTL 60초 만료 대기 없이 다음
       // 인스턴스가 즉시 처리할 수 있다. owner 검증이 들어가 있어 이미
       // expire 되어 다른 인스턴스가 잡은 lock 은 절대 삭제하지 않는다.
       await this.continuationBus.releaseLock(RECOVERY_LOCK_KEY);
+    }
+  }
+
+  /**
+   * §7.5 case B — stale RUNNING 세그먼트의 원자 re-claim. `started_at` 조건부
+   * 단일 UPDATE(`… SET started_at=now() WHERE status='running' AND started_at <
+   * :threshold RETURNING id`)로 소유권을 획득한다. affected rows 만 반환 — 두
+   * 인스턴스가 같은 stale row 를 동시에 잡아도 affected=1 인 쪽만 재구동한다
+   * (§1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화). `started_at`
+   * 갱신은 (i) 재-picking 방지(더 이상 stale 아님)와 (ii) recordRunningSegmentStart
+   * 로 §8 active-running 세그먼트 tracking baseline 을 겸한다.
+   *
+   * 상태 enum 은 `running → running` 불변(소유권 이전만)이라 §1.1 전이표 무변경.
+   */
+  private async reclaimStuckRunningExecution(
+    staleThreshold: Date,
+  ): Promise<string[]> {
+    const result = await this.executionRepository
+      .createQueryBuilder()
+      .update(Execution)
+      .set({ startedAt: () => 'NOW()' })
+      .where('status = :status', { status: ExecutionStatus.RUNNING })
+      .andWhere('started_at < :threshold', { threshold: staleThreshold })
+      .returning('id')
+      .execute();
+    const ids = ((result.raw as Array<{ id?: string }> | undefined) ?? [])
+      .map((r) => r.id)
+      .filter((id): id is string => typeof id === 'string');
+    // §8 — 재구동 세그먼트의 active-running tracking baseline. claimResumeEntry 가
+    // waiting 재개에서 하는 것과 동일(assertActiveTimeWithinLimit 의 in-progress 경과분).
+    for (const id of ids) this.recordRunningSegmentStart(id);
+    return ids;
+  }
+
+  /**
+   * §7.5 case B — 크래시/재시작 RUNNING 세그먼트 re-drive 드라이브. waiting 재개
+   * (case A, `driveResumeAwaited`)와 달리 도착 payload·waiting 노드·turn 핸들러가
+   * 없다. rehydrateContext 로 완료 노드(execution_node_log)를 복원한 뒤 그래프를
+   * `runNodeDispatchLoop({pointer:0, skipExecutedNodes:true})` 로 frontier 부터
+   * forward 재구동한다(임의 노드 타입 — §7.2 일반화). 완료 노드는 미재실행(§7.3).
+   *
+   * 재구동 도중 새 blocking 노드 도달 시 정상 park → WAITING 유지 + 다음
+   * continuation 이 case A 로 재개. 재구동 불가(checkpoint 부재/손상)는
+   * `RESUME_CHECKPOINT_MISSING` terminal. 본 메서드는 detached(fire-and-forget)
+   * 이므로 모든 예외를 in-band 단말 처리하고 reject 하지 않는다.
+   */
+  private async redriveStuckExecution(executionId: string): Promise<void> {
+    const savedExecution = await this.executionRepository.findOneBy({
+      id: executionId,
+    });
+    // re-claim 후 곧바로 로드 — RUNNING 이어야 한다. 아니면(동시 cancel 등) skip.
+    if (!savedExecution || savedExecution.status !== ExecutionStatus.RUNNING) {
+      this.logger.debug(
+        `[crash-redrive] execution ${executionId} 재구동 불가(status=${savedExecution?.status ?? 'absent'}) — skip.`,
+      );
+      return;
+    }
+
+    try {
+      // §7.5 / CCH-AD-05 — slow-path 재개 시 outbound routing context 재등록
+      // (case A 와 동일 — terminal event 시 자동 release). best-effort.
+      if (savedExecution.triggerId && savedExecution.workflowId) {
+        try {
+          const chatChannel = extractChatChannelFromInput(
+            savedExecution.inputData,
+          );
+          this.eventEmitter.registerExecutionRouting(executionId, {
+            triggerId: savedExecution.triggerId,
+            workflowId: savedExecution.workflowId,
+            ...(chatChannel ? { chatChannel } : {}),
+          });
+        } catch (routingErr) {
+          this.logger.warn(
+            'routing context 재등록 실패 — best-effort, 재구동 계속',
+            {
+              executionId,
+              error:
+                routingErr instanceof Error
+                  ? routingErr.message
+                  : String(routingErr),
+            },
+          );
+        }
+      }
+
+      // 완료 노드 복원 — waiting 노드가 없으므로 null. execution_node_log +
+      // 완료 NodeExecution.outputData 로 _executedNodes/nodeOutputCache 재구성.
+      const context = await this.rehydrateContext(savedExecution, null);
+      const graphState = await this.loadAndBuildGraph(
+        savedExecution.workflowId,
+      );
+      await this.driveStuckRedrive(savedExecution, context, graphState);
+    } catch (err) {
+      // rehydrateContext / loadAndBuildGraph pre-check 실패 — RESUME_* terminal.
+      // (driveStuckRedrive 내부 실패는 그 안에서 in-band 처리되므로 여기 도달 안 함.)
+      this.finalizeRehydrationCleanup(executionId);
+      if (err instanceof RehydrationError) {
+        await this.markExecutionCancelled(executionId, err.code);
+      } else {
+        await this.markExecutionCancelled(
+          executionId,
+          'RESUME_CHECKPOINT_MISSING',
+        );
+        this.logger.error(
+          `[crash-redrive] execution ${executionId} 재구동 setup 실패: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+  }
+
+  /**
+   * §7.5 case B 재구동 그래프 드라이브. `driveResumeAwaited`(case A)의 turn-이후
+   * forward + 완결/park/에러 처리 구조를 공유하되, **turn 단계(dispatchResumeTurn)와
+   * waiting 노드 처리를 제거**하고 완료 노드 이후부터 그래프를 forward 한다.
+   */
+  private async driveStuckRedrive(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    graphState: ExecutionGraphState,
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const { sortedNodeIds, nodeMap, forwardEdges, outgoingEdgeMap } =
+      graphState;
+    try {
+      // reachability seed: (트리거 + no-incoming) + 복원된 완료 노드 + 완료 노드의
+      // downstream(propagate). 완료 노드의 출력이 nodeOutputCache 에 복원돼 있으므로
+      // frontier(미완료 reachable 노드)가 reachable 로 열린다.
+      const reachable = this.graphTraversal.seedInitialReachability(
+        sortedNodeIds,
+        nodeMap,
+        forwardEdges,
+      );
+      const executedNodes = context._executedNodes ?? new Set<string>();
+      context._executedNodes = executedNodes;
+      for (const nid of executedNodes) {
+        reachable.add(nid);
+        this.graphTraversal.propagateReachability(
+          nid,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+      }
+
+      // pointer=0 + skipExecutedNodes: 완료 prefix 를 §7.3 가드로 건너뛰고
+      // frontier(미완료 reachable 노드)부터 forward. Execution 은 이미 RUNNING
+      // (re-claim)이라 상태 전이 불필요.
+      const dispatchResult = await this.runNodeDispatchLoop({
+        executionId,
+        savedExecution,
+        context,
+        graphState,
+        executedNodes,
+        reachable,
+        nodeExecutionCount: new Map<string, number>(),
+        pointer: 0,
+        input: {},
+        skipExecutedNodes: true,
+        dispatchMeta: {
+          startedAt: savedExecution.startedAt?.toISOString(),
+          mode: 'manual',
+        },
+      });
+
+      // 재구동 도중 downstream 블로킹 노드가 fresh park 하면 세그먼트 종료 —
+      // Execution 은 WAITING_FOR_INPUT 으로 남고 다음 continuation 이 case A 로 재개.
+      if (dispatchResult.parked) return;
+
+      // COMPLETED 마감 (driveResumeAwaited 완결부와 동일).
+      const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
+      if (lastNodeId) {
+        savedExecution.outputData =
+          (context.nodeOutputCache[lastNodeId] as
+            | Record<string, unknown>
+            | undefined) ?? {};
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+      }
+      const completed = await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
+      );
+      if (completed) {
+        await this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_COMPLETED,
+          { status: ExecutionStatus.COMPLETED },
+        );
+      }
+    } catch (err: unknown) {
+      // detached — 모든 예외를 in-band 단말 처리(BullMQ retry 대상 아님).
+      // ExecutionCancelledError → cancelled, 그 외 → failed (§8 타임아웃 포함).
+      await this.finalizeResumedExecutionOutcome(savedExecution, err);
+    } finally {
+      this.finalizeRehydrationCleanup(executionId);
     }
   }
 
