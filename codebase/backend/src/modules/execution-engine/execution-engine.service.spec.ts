@@ -11759,6 +11759,97 @@ describe('ExecutionEngineService', () => {
       }
     });
 
+    // 06 C-2 (W2) — driveResumeAwaited 의 RUNNING skip-guard. §7.5 원자 claim 이
+    // Execution 을 이미 WFI→RUNNING 페어링 전이시켰으면(processor 경로 → savedExecution
+    // 은 RUNNING 으로 로드) 재개 sentinel 전이(updateExecutionStatus(RUNNING))를 건너뛴다
+    // (RUNNING→RUNNING assertTransition throw 회피). legacy/직접 경로(WAITING)는 위
+    // 테스트가 정상 전이를 구동해 커버.
+    it('claim 후 Execution=RUNNING → 재개 sentinel 전이(updateExecutionStatus(RUNNING)) skip', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.RUNNING, // claim 이 이미 전이시킨 상태
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.RUNNING, // claim 후
+        outputData: {
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          output: { result: { messages: [], turnCount: 1 } },
+          _resumeCheckpoint: { messages: [], turnCount: 1, model: 'm' },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'ai_agent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg', maxTurns: 20 },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: jest.Mock;
+        buildRetryReentryState: jest.Mock;
+        runNodeDispatchLoop: jest.Mock;
+        updateExecutionStatus: jest.Mock;
+      };
+      const orchAny = aiTurnOrchestrator as unknown as {
+        processAiResumeTurn: jest.Mock;
+      };
+      const orig = {
+        load: svcAny.loadAndBuildGraph,
+        build: svcAny.buildRetryReentryState,
+        turn: orchAny.processAiResumeTurn,
+        loop: svcAny.runNodeDispatchLoop,
+        upd: svcAny.updateExecutionStatus,
+      };
+      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
+        ...twoNodeGraph,
+        sortedNodeIds: ['node-1'],
+        sortedIndexMap: new Map([['node-1', 0]]),
+        nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
+      });
+      svcAny.buildRetryReentryState = jest
+        .fn()
+        .mockReturnValue({ resumeState: {}, initialAction: undefined });
+      svcAny.runNodeDispatchLoop = jest
+        .fn()
+        .mockResolvedValue({ parked: false });
+      svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
+      orchAny.processAiResumeTurn = jest.fn().mockResolvedValue(undefined);
+
+      const { guard, timer } = makeCompletionGuard();
+      try {
+        await Promise.race([
+          subject().rehydrateAndResume(executionId, 'ne-1', {
+            type: 'ai_message',
+            message: 'hi',
+          }),
+          guard,
+        ]);
+        // 핵심: 재개 sentinel 전이(→RUNNING)는 claim 이 이미 했으므로 호출되지 않는다.
+        const calledWithRunning = svcAny.updateExecutionStatus.mock.calls.some(
+          (c) => c[1] === ExecutionStatus.RUNNING,
+        );
+        expect(calledWithRunning).toBe(false);
+      } finally {
+        clearTimeout(timer);
+        await flushPromises();
+        svcAny.loadAndBuildGraph = orig.load;
+        svcAny.buildRetryReentryState = orig.build;
+        orchAny.processAiResumeTurn = orig.turn;
+        svcAny.runNodeDispatchLoop = orig.loop;
+        svcAny.updateExecutionStatus = orig.upd;
+      }
+    });
+
     // detached drive 내부에서 발생한 RehydrationError(ai_agent _resumeCheckpoint
     // 재구성 실패 = schema drift/손상)는 worker 로 rethrow 할 수 없으므로 in-band
     // graceful 단말 처리해야 한다: Execution cancelled(RESUME_INCOMPATIBLE_STATE) +

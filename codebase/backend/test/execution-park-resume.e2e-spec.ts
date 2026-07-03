@@ -222,6 +222,95 @@ describe('Execution park → cold rehydration resume (e2e, PR-B1)', () => {
     );
   }, 60_000);
 
+  // 06 C-2 (W3) — 동시 재개(2건 병렬 continue)에도 재개 진입 원자 claim 이
+  // 이중 실행을 차단한다. form 노드 row 는 정확히 1회만 completed 로 전이하고
+  // (running 잔류 없음) Execution 은 completed 로 정합 종료. (단일 인스턴스·
+  // concurrency=1 e2e 라 실 DB row-level 레이스는 조건부 UPDATE+affected 로 설계
+  // 보장 — 본 테스트는 동시 재개 진입점의 end-to-end 이중 실행 0 을 가드한다.)
+  it('06 C-2 — 동시 재개(2 continue 병렬) → form 노드 1회만 실행·completed, 이중 실행 0', async () => {
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const form: CanvasNode = {
+      id: randomUUID(),
+      type: 'form',
+      category: 'presentation',
+      label: 'Approval Form',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        title: 'Approval',
+        fields: [{ name: 'note', type: 'text', label: 'Note' }],
+      },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, form],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: form.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+
+    const parked = await poll(
+      executionId,
+      (s) =>
+        s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+    );
+    expect(parked).toBe('waiting_for_input');
+
+    // 동일 waiting 노드에 2건의 continue 를 병렬 발행 — 각각 continuation job 을
+    // enqueue 하거나(둘 다 waiting 관측 시) 한쪽이 publisher 사전검증(§7.5.1)에서
+    // INVALID_STATE 로 거부된다. 어느 경우든 turn 은 정확히 1회만 실행돼야 한다.
+    const mkContinue = (note: string) =>
+      request(BASE_URL)
+        .post(`/api/executions/${executionId}/continue`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({ formData: { note } });
+    const [r1, r2] = await Promise.all([mkContinue('a'), mkContinue('b')]);
+    // 최소 한쪽은 수락(200/202). 나머지는 수락 또는 사전검증 거부(422 INVALID_STATE).
+    const statuses = [r1.status, r2.status];
+    expect(statuses.some((s) => s === 200 || s === 202)).toBe(true);
+    expect(statuses.every((s) => s === 200 || s === 202 || s === 422)).toBe(
+      true,
+    );
+
+    const finalStatus = await poll(executionId, (s) =>
+      TERMINAL_STATUSES.includes(s as never),
+    );
+    expect(finalStatus).toBe('completed');
+
+    // 이중 실행 0 — form 노드 row 는 정확히 1개, completed, running 잔류 없음.
+    const nodeRows = await db.query(
+      `SELECT status FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2`,
+      [executionId, form.id],
+    );
+    expect(nodeRows.rows.length).toBe(1);
+    expect(nodeRows.rows[0]?.status).toBe('completed');
+    expect(nodeRows.rows.every((r) => r.status !== 'running')).toBe(true);
+  }, 60_000);
+
   // exec-park D6 (PR-B2b) — 중첩 sub-workflow(executeInline) 안의 blocking 노드
   // park → cold rehydration 재개 무손실. 핵심 불변식: 중첩 park 시
   // `Execution.resume_call_stack`(V087) 이 호출 체인을 durable 영속하고,
