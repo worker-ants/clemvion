@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 function createMockSocket() {
   return {
     connected: false,
+    // m-3 — socket.io `active`: 연결 시도·reconnect 대기 중까지 포함.
+    active: false,
     on: vi.fn(),
     off: vi.fn(),
     once: vi.fn(),
@@ -75,6 +77,18 @@ describe("ws-client", () => {
       mockSocket.connected = true;
       client.connect("token2");
       expect(mockIo).toHaveBeenCalledTimes(1);
+    });
+
+    // m-3 (06 concurrency) — 연결 **진행 중**(active, 아직 connected=false)에 재호출
+    // 되면 disconnect+재생성(churn) 하지 않고 pending 가드로 조기 반환한다.
+    it("skips connect if socket is active (connecting) — no churn", () => {
+      const client = createWsClient();
+      client.connect("token1");
+      mockSocket.connected = false;
+      mockSocket.active = true; // 연결 시도 중
+      client.connect("token2");
+      expect(mockIo).toHaveBeenCalledTimes(1);
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
     });
 
     it("reconnects with new token if socket exists but disconnected", () => {

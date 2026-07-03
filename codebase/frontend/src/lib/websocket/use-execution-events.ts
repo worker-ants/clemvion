@@ -1013,27 +1013,39 @@ export function useExecutionEvents({
       setSnapshotReceived(false);
     };
 
-    client.on("connect", onConnect);
-    client.on("disconnect", onDisconnect);
+    // M-6 (06 concurrency) — 이중 등록 방어. 등록 직전 동일 (event, handler 참조)를
+    // off 한 뒤 on 한다. 핸들러는 stable ref(effect deps)라 정확 매칭되므로, StrictMode
+    // 이중 mount·cleanup 누락 경로에서도 리스너가 이벤트당 1개로 유지된다(부작용 없음
+    // — 동일 참조만 제거). store 적용은 snapshot 모델로 멱등이라 2차 방어.
+    const bind = (
+      event: string,
+      handler: (...args: unknown[]) => void,
+    ): void => {
+      client.off(event, handler);
+      client.on(event, handler);
+    };
+
+    bind("connect", onConnect);
+    bind("disconnect", onDisconnect);
 
     // Bind execution events BEFORE subscribing
-    client.on("execution.started", handleExecutionStarted);
-    client.on("execution.resumed", handleExecutionResumed);
-    client.on("execution.completed", handleExecutionCompleted);
-    client.on("execution.failed", handleExecutionFailed);
-    client.on("execution.cancelled", handleExecutionCancelled);
-    client.on("execution.waiting_for_input", handleWaitingForInput);
-    client.on("execution.user_message", handleUserMessage);
-    client.on("execution.ai_message", handleAiMessage);
-    client.on("execution.tool_call_started", handleToolCallStarted);
-    client.on("execution.tool_call_completed", handleToolCallCompleted);
+    bind("execution.started", handleExecutionStarted);
+    bind("execution.resumed", handleExecutionResumed);
+    bind("execution.completed", handleExecutionCompleted);
+    bind("execution.failed", handleExecutionFailed);
+    bind("execution.cancelled", handleExecutionCancelled);
+    bind("execution.waiting_for_input", handleWaitingForInput);
+    bind("execution.user_message", handleUserMessage);
+    bind("execution.ai_message", handleAiMessage);
+    bind("execution.tool_call_started", handleToolCallStarted);
+    bind("execution.tool_call_completed", handleToolCallCompleted);
 
     // Bind node events
-    client.on("execution.node.started", handleNodeStarted);
-    client.on("execution.node.completed", handleNodeCompleted);
-    client.on("execution.node.failed", handleNodeFailed);
-    client.on("execution.node.skipped", handleNodeSkipped);
-    client.on("execution.node.cancelled", handleNodeCancelled);
+    bind("execution.node.started", handleNodeStarted);
+    bind("execution.node.completed", handleNodeCompleted);
+    bind("execution.node.failed", handleNodeFailed);
+    bind("execution.node.skipped", handleNodeSkipped);
+    bind("execution.node.cancelled", handleNodeCancelled);
 
     const channel = `execution:${executionId}`;
 
@@ -1060,7 +1072,7 @@ export function useExecutionEvents({
       setSnapshotReceived(true);
     };
 
-    client.on("execution.snapshot", handleSnapshot);
+    bind("execution.snapshot", handleSnapshot);
 
     const trySubscribe = async () => {
       try {
@@ -1084,7 +1096,7 @@ export function useExecutionEvents({
         void trySubscribe();
       }
     };
-    client.on("connect", onReconnect);
+    bind("connect", onReconnect);
 
     void trySubscribe();
 
@@ -1166,8 +1178,14 @@ export function useExecutionEvents({
   useEffect(() => {
     if (!executionId) return;
     if (snapshotReceived) {
-      toast.dismiss("ws-connection-warning");
-      return;
+      // m-5 (06 concurrency) — dismiss hysteresis. snapshot 이 잠깐 도착했다 다시
+      // 끊기는 reconnect flap 에서 warning toast 를 즉시 dismiss→재표시로 깜빡이지
+      // 않도록, 짧은 지연 후 dismiss 한다. 지연 내에 다시 미수신되면(effect 재실행)
+      // cleanup 이 이 타이머를 취소해 warning 이 유지된다.
+      const dismissTimer = setTimeout(() => {
+        toast.dismiss("ws-connection-warning");
+      }, 1000);
+      return () => clearTimeout(dismissTimer);
     }
     const warnTimer = setTimeout(() => {
       toast.warning(t("executions.realtimeFallback"), {

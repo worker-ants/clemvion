@@ -140,6 +140,10 @@ export class WebsocketGateway
   handleDisconnect(client: Socket): void {
     const channels = this.subscriptions.get(client.id);
     if (channels) {
+      // M-3 — disconnect 경로의 leave 는 socket.io 가 disconnect 시 모든 room 을
+      // auto-leave 하므로 방어적·redundant 다. best-effort 로 fire-and-forget(void)
+      // 유지 — 소켓이 이미 끊기는 중이라 await 실익이 없다(명시 leave await 는
+      // 사용자 개시 unsubscribe 경로에서 수행한다).
       for (const channel of channels) {
         void client.leave(channel);
       }
@@ -257,7 +261,24 @@ export class WebsocketGateway
         },
       };
     }
-    void client.join(channel);
+    // M-3 (06 concurrency) — join 을 await 하고 실패 시 tentative-add 를 롤백한다.
+    // 현 in-memory adapter 에선 join 이 동기 완결이라 무영향이나, Redis adapter
+    // 도입 시 join 은 비동기가 되어 실패 시 clientSubs 와 실제 room 멤버십이
+    // 어긋날 수 있다(구독했다고 응답했으나 이벤트 미수신). 선제 방어.
+    try {
+      await client.join(channel);
+    } catch (err) {
+      clientSubs.delete(channel);
+      this.logger.warn(
+        `Client ${client.id} join(${channel}) 실패 — 구독 롤백: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return {
+        event: 'subscribed',
+        data: { success: false, error: 'Subscription failed — please retry' },
+      };
+    }
     this.logger.debug(`Client ${client.id} subscribed to ${channel}`);
 
     // Send a one-shot snapshot to the subscribing client only. This replaces
@@ -313,17 +334,27 @@ export class WebsocketGateway
   }
 
   @SubscribeMessage('unsubscribe')
-  handleUnsubscribe(
+  async handleUnsubscribe(
     @MessageBody() data: { channel: string },
     @ConnectedSocket() client: Socket,
-  ): { event: string; data: { success: boolean; channel: string } } {
+  ): Promise<{ event: string; data: { success: boolean; channel: string } }> {
     const { channel } = data;
     const clientSubs = this.subscriptions.get(client.id);
 
     if (clientSubs) {
       clientSubs.delete(channel);
     }
-    void client.leave(channel);
+    // M-3 — leave 도 await (best-effort). clientSubs 는 이미 정리했으므로 leave
+    // 실패는 warn 만; unsubscribe 는 성공으로 응답한다(멤버십은 disconnect 시 정리).
+    try {
+      await client.leave(channel);
+    } catch (err) {
+      this.logger.warn(
+        `Client ${client.id} leave(${channel}) 실패 (best-effort): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
     this.logger.debug(`Client ${client.id} unsubscribed from ${channel}`);
 
     return {
