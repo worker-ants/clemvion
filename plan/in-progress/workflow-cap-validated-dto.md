@@ -30,9 +30,9 @@ spec_impact:
 - [x] impl-prep consistency (spec/5-system/) — 5/5 BLOCK: NO (20_55_13)
 - [x] TDD: 검증 거부(0·음수·소수·문자열·미지키 → 400) + 정상 저장 + spread-merge 보존 유닛/e2e
 - [x] 구현 (WorkflowSettingsDto + UpdateWorkflowDto + service merge)
-- [x] TEST WORKFLOW (lint·unit(신규 11)·build·e2e(232))
-- [ ] ai-review + impl-done consistency
-- [ ] PR
+- [x] TEST WORKFLOW (lint·unit(신규 12)·build·e2e(232))
+- [x] ai-review (21_11_10 → INFO 3건 조치 → fresh 21_28_18 Critical/Warning 0) + impl-done consistency (21_27_41 BLOCK: NO)
+- [x] PR
 
 ## 후속(별도) — ImportWorkflowDto.settings opaque 비대칭
 
