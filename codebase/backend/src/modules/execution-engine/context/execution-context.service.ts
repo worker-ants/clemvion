@@ -51,8 +51,16 @@ type MutableExecutionContext = Omit<
 };
 
 /**
- * In-memory execution context management for Phase 1.
- * In production, this would be backed by Redis.
+ * **Segment-local in-memory execution context — by design (Redis store 미채택).**
+ * ExecutionContext(변수·nodeOutputCache·conversationThread 등)는 인스턴스-로컬
+ * `Map<contextKey, ExecutionContext>` 에 보관하며, park(=세그먼트 종료, full B3)·
+ * 완료 시 소멸한다. 크래시/재시작·타 인스턴스 재개는 park 시 durable commit 된
+ * PostgreSQL 컬럼(`Execution.conversation_thread`/`user_variables`/`resume_call_stack`,
+ * `NodeExecution.outputData`, `execution_node_log`)에서 §7.5 rehydration 이 재구성한다.
+ * **Redis context store 를 두지 않는다** — park-release 모델과 이중화(진실 갈림) 위험이
+ * 있고, cross-instance 는 §4.2 jobId dedup + §7.4/§7.5 rehydration 아키텍처로 이미
+ * 해소되기 때문이다 (SoT: spec/5-system/4-execution-engine.md §6.2/§9.2/§Rationale
+ * "실행 컨텍스트 in-memory + DB durable", conventions/execution-context.md).
  *
  * **Tracking logs (회귀 ③ 진단, 2026-05-25)**: createContext / deleteContext /
  * setNodeOutput (context not found 분기) 시점에 진단 로그를 남긴다. 사용자 보고

@@ -66,9 +66,10 @@
 
 ### C-3 [Critical] `ExecutionContextService` in-memory Map — 스케일아웃
 
-- [ ] 미착수 — 기존 plan [exec-intake-queue-impl.md](../exec-intake-queue-impl.md) PR3 연동 (독립 작업화 금지) — `context/execution-context.service.ts:65`
+- [x] **구현 완료 (Option A, 2026-07-04)** — spec 정직화(§6.2 저장 전략 표·§7.5 rehydration·§9.2 Redis 키 표·§9.1 sub 예시에서 미구현 Redis 실행상태 모델 제거 → 실제 in-memory segment-local + PostgreSQL durable + rehydration 으로 정정, §Rationale "실행 컨텍스트 in-memory + DB durable — Redis context store 미채택" 신규) + 코드 주석 정정(`execution-context.service.ts` 클래스 주석·`execution-engine.service.ts` segmentStartMs 주석). 2-agent 조사로 §9.2 Redis 키 6종(`:context`/`:status`/`node:output`/`:heartbeat`/`:lock`/`queue:priority`) **코드 사용 0건** 확인 — 순수 spec 정직화(실기능 결함 0, 신규 인프라 0). PR3(#795) 완료로 unblocked. branch `claude/refactor-06-c3-context-drift`. `--spec` BLOCK:NO(`review/consistency/2026/07/04/09_27_49`). — `context/execution-context.service.ts:65`
+  - **stale 가정 정정**: 아래 spec 대조 ②·옵션표·권장의 "`segmentStartMs` 소실은 PR3(Redis/DB 영속)에서 자연 해소" 는 **틀렸다** — PR3(#795)는 크래시 RUNNING re-drive 로 re-scoped 됐고 세그먼트-start 를 영속하지 않는다(spec Rationale 2026-07-04 정정). 세그먼트-start 영속은 **미확정 후속 candidate**(PR4 stalled 재배달과 함께 검토), under-count 는 수용된 trade-off.
 
-**spec 대조**: D — ① **세그먼트 간 cross-instance 는 이미 아키텍처로 해소**: §4.2 "jobId=executionId dedup 으로 active 세그먼트 항상 1개" + §7.4 "임의 인스턴스 pick up → 항상 §7.5 rehydration" — 세그먼트-로컬 in-memory 는 의도된 설계. ② `segmentStartMs` 소실은 Rationale 이 "PR2a 의도된 trade-off" 로 명시 + "PR3(Redis/DB 영속)에서 자연 해소" 로 **이미 예정**. ③ 단 §6.2 "실행 중 Redis 저장"·§9.2 `:context` 키는 현 구현(in-memory + park 시 DB durable)과 **드리프트** — spec 정직화 필요.
+**spec 대조**: D — ① **세그먼트 간 cross-instance 는 이미 아키텍처로 해소**: §4.2 "jobId=executionId dedup 으로 active 세그먼트 항상 1개" + §7.4 "임의 인스턴스 pick up → 항상 §7.5 rehydration" — 세그먼트-로컬 in-memory 는 의도된 설계. ② `segmentStartMs` 소실은 Rationale 이 "PR2a 의도된 trade-off" 로 명시(~~"PR3 에서 자연 해소"~~ — **stale, 위 정정 참조**: 미확정 후속 candidate). ③ §6.2 "실행 중 Redis 저장"·§9.2 `:context` 키 등 드리프트 — **정직화 완료(2026-07-04)**.
 
 **개선 방안**:
 
