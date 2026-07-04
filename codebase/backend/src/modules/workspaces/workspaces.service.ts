@@ -368,7 +368,11 @@ export class WorkspacesService {
   async getWorkspaceSettings(
     workspaceId: string,
     userId: string,
-  ): Promise<{ interactionAllowedOrigins: string[]; timezone?: string }> {
+  ): Promise<{
+    interactionAllowedOrigins: string[];
+    timezone?: string;
+    maxConcurrentExecutions?: number;
+  }> {
     const role = await this.getMemberRole(workspaceId, userId);
     if (!role) {
       throw new ForbiddenException({
@@ -387,11 +391,13 @@ export class WorkspacesService {
     }
     const origins = workspace.settings?.interactionAllowedOrigins;
     const tz = workspace.settings?.timezone;
+    const cap = workspace.settings?.maxConcurrentExecutions;
     return {
       interactionAllowedOrigins: Array.isArray(origins)
         ? origins.filter((o): o is string => typeof o === 'string')
         : [],
       ...(typeof tz === 'string' && tz.length > 0 ? { timezone: tz } : {}),
+      ...(typeof cap === 'number' ? { maxConcurrentExecutions: cap } : {}),
     };
   }
 

@@ -2633,22 +2633,38 @@ export class ExecutionEngineService
       DEFAULT_WORKSPACE_MAX_CONCURRENT_EXECUTIONS,
     );
     const workspaceId = workflow?.workspaceId;
-    // (c) 원자 admission — 단일 UPDATE 로 카운트-체크-전이(TOCTOU-safe). QueryBuilder
-    //     서브쿼리 대신 raw SQL(파라미터 바인딩)로 명시한다. workspace COUNT 는
-    //     execution 에 workspace_id 컬럼이 없어 workflow join. RETURNING id 로 판정.
-    const admittedRows = (await this.executionRepository.query(
-      `UPDATE execution SET status = 'running', started_at = NOW()
-       WHERE id = $1 AND status = 'pending'
-         AND (SELECT COUNT(*) FROM execution wfe
-              JOIN workflow w ON w.id = wfe.workflow_id
-              WHERE w.workspace_id = $2 AND wfe.status = 'running') < $3
-         AND (SELECT COUNT(*) FROM execution
-              WHERE workflow_id = $4 AND status = 'running') < $5
-       RETURNING id`,
-      [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
-    )) as unknown[];
-    if (admittedRows.length === 1) {
+    // (c) 원자 admission — **per-scope pg advisory lock 으로 같은 workspace 의 동시
+    //     admission 을 직렬화**한 뒤 COUNT-체크-전이한다. 조건부 UPDATE 단독으로는
+    //     서브쿼리 COUNT 가 스캔하는 다른 running 행에 락이 없어, 서로 다른 executionId
+    //     두 admission 이 같은 COUNT 스냅샷을 보고 둘 다 통과(cap 초과)하는 TOCTOU
+    //     race 가 있다(ai-review CRITICAL — 실 Postgres 재현). `pg_advisory_xact_lock`
+    //     은 트랜잭션 종료 시 자동 해제되며, workspace 단위 락이라 서로 다른 workspace
+    //     의 admission 은 병렬 진행된다. workspace COUNT 는 execution 에 workspace_id
+    //     컬럼이 없어 workflow join. (workflow 미해결 시 workflowId 를 lock key fallback.)
+    const lockKey = `exec-cap:${workspaceId ?? execution.workflowId}`;
+    const admitted = await this.executionRepository.manager.transaction(
+      async (m) => {
+        await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
+        const rows = (await m.query(
+          `UPDATE execution SET status = 'running', started_at = NOW()
+           WHERE id = $1 AND status = 'pending'
+             AND (SELECT COUNT(*) FROM execution wfe
+                  JOIN workflow w ON w.id = wfe.workflow_id
+                  WHERE w.workspace_id = $2 AND wfe.status = 'running') < $3
+             AND (SELECT COUNT(*) FROM execution
+                  WHERE workflow_id = $4 AND status = 'running') < $5
+           RETURNING id`,
+          [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
+        )) as unknown[];
+        return rows.length === 1;
+      },
+    );
+    if (admitted) {
       execution.status = ExecutionStatus.RUNNING; // → runExecution 전이 skip
+      // §8 active-running 누적 타임아웃(PR2a) — updateExecutionStatus choke point 를
+      // 우회했으므로 segmentStartMs baseline 을 여기서 보정한다(ai-review CRITICAL:
+      // 누락 시 admission 경유 실행의 첫 세그먼트가 타임아웃 가드에서 0 으로 취급됨).
+      this.recordRunningSegmentStart(executionId);
       await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_STARTED,

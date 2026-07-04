@@ -262,6 +262,14 @@ describe('ExecutionEngineService', () => {
         andWhere: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
       })),
+      // PR2b — admission advisory-lock 트랜잭션 기본 mock: query rows 1건 → admitted
+      // (runExecutionFromQueue 경유 테스트가 기존 흐름 유지). admission/deferred 전용
+      // 테스트는 manager.transaction 을 자체 재할당.
+      manager: {
+        transaction: jest.fn(async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([{ id: 'x' }]) }),
+        ),
+      },
       create: jest.fn().mockReturnValue({ ...savedExecution }),
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
         lastSaved = { ...savedExecution, ...entity };
@@ -3060,7 +3068,10 @@ describe('ExecutionEngineService', () => {
     });
 
     it('cap 여유(affected=1) → admitted: pending→running 동기화 + STARTED emit', async () => {
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(mkQb(1));
+      mockExecutionRepo.manager.transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([{ id: 'e1' }]) }),
+      );
       const spy = emitSpy();
       const exec = {
         id: 'e1',
@@ -3079,7 +3090,10 @@ describe('ExecutionEngineService', () => {
     });
 
     it('cap 초과(affected=0) → deferred: delayed 재큐', async () => {
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(mkQb(0));
+      mockExecutionRepo.manager.transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([]) }),
+      );
       const exec = {
         id: 'e2',
         workflowId: 'wf',
@@ -3117,6 +3131,22 @@ describe('ExecutionEngineService', () => {
       );
       // 5분 cancel 로 단락 → cap 검사(workflow 조회) 이전 return.
       expect(mockWorkflowRepo.findOne).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('queuedAt=null(레거시 row) → 5분 검사 skip, admission 진행', async () => {
+      mockExecutionRepo.manager.transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([{ id: 'e4' }]) }),
+      );
+      const spy = emitSpy();
+      const exec = {
+        id: 'e4',
+        workflowId: 'wf',
+        queuedAt: null,
+        status: 'pending',
+      };
+      await expect(admit(exec)).resolves.toBe('admitted');
       spy.mockRestore();
     });
   });
