@@ -257,4 +257,49 @@ describe('Workflow CRUD (e2e)', () => {
     const newId = importRes.body.data.id;
     expect(newId).not.toBe(id);
   });
+
+  it('G. import settings.maxConcurrentExecutions — round-trip 영속 + 미지키 400 (§8, patch 대칭)', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ name: uniqueName('wf-g') });
+    const id = create.body.data.id;
+
+    // cap 설정(patch) → export 에 settings 가 실린다.
+    const patch = await request(BASE_URL)
+      .patch(`/api/workflows/${id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ settings: { maxConcurrentExecutions: 5 } });
+    expect(patch.status).toBe(200);
+
+    const exportRes = await request(BASE_URL)
+      .get(`/api/workflows/${id}/export`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(exportRes.body.data.settings?.maxConcurrentExecutions).toBe(5);
+
+    // export JSON 을 그대로 import → 새 워크플로우에 settings 영속.
+    const importRes = await request(BASE_URL)
+      .post('/api/workflows/import')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send(exportRes.body.data);
+    expect([200, 201]).toContain(importRes.status);
+    const newId = importRes.body.data.id;
+    const getNew = await request(BASE_URL)
+      .get(`/api/workflows/${newId}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(getNew.body.data.settings?.maxConcurrentExecutions).toBe(5);
+
+    // 미지 settings 키 import → 400 (strict, UpdateWorkflowDto 대칭).
+    const badImport = await request(BASE_URL)
+      .post('/api/workflows/import')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ ...exportRes.body.data, settings: { bogusKey: 1 } });
+    expect(badImport.status).toBe(400);
+  });
 });

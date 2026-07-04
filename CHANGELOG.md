@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — workflow import settings validated DTO (patch 대칭)
+
+### 변경 사항
+
+1. **`POST /api/workflows/import` 의 `settings` 가 검증되는 nested DTO 로 강화** — `ImportWorkflowDto.settings` 를 opaque `@IsObject() Record<string, unknown>` 에서 strict `WorkflowSettingsDto`(`@ValidateNested @Type`)로 전환했다. `UpdateWorkflowDto.settings`(PATCH, PR #805)와 동일 strict 정책으로 같은 `Workflow.settings` jsonb 의 import·patch 검증 강도 비대칭을 해소한다. 전역 `whitelist+forbidNonWhitelisted` pipe 로 **미지 `settings` 키·비양수·비정수 `maxConcurrentExecutions` 는 이제 `400 VALIDATION_ERROR`**. export→import round-trip 은 안전(export 는 post-#805 settings 를 as-is emit, 소비 키는 `maxConcurrentExecutions` 뿐). 노드 `config` permissive 정책(soft, 사용자 hand-edit 복구)과 달리 workflow-level 실행 파라미터는 admission-gate 정합을 위해 hard-fail. SoT: `spec/2-navigation/1-workflow-list.md §3.2` + `spec/1-data-model.md §2.4`.
+
 ## Unreleased — orphan pending backstop (§8 recoverStuckExecutions)
 
 ### 변경 사항

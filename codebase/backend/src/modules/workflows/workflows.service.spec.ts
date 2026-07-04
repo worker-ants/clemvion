@@ -799,6 +799,49 @@ describe('WorkflowsService', () => {
       expect(mockTransactionManager.insert).toHaveBeenCalledTimes(1); // edges 0건 → Node 1회만
     });
 
+    it('persists validated settings.maxConcurrentExecutions on the new workflow', async () => {
+      const dto = {
+        name: 'Imported',
+        settings: { maxConcurrentExecutions: 4 },
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [],
+      };
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+      expect(mockTransactionManager.save).toHaveBeenCalledWith(
+        Workflow,
+        expect.objectContaining({ settings: { maxConcurrentExecutions: 4 } }),
+      );
+    });
+
+    it('defaults settings to {} when the import omits it', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trig',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [],
+      };
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto);
+      expect(mockTransactionManager.save).toHaveBeenCalledWith(
+        Workflow,
+        expect.objectContaining({ settings: {} }),
+      );
+    });
+
     it('remaps toolOwnerIndex to the new node UUID', async () => {
       const dto = {
         name: 'Imported',
