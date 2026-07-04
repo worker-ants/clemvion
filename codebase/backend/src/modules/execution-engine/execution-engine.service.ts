@@ -3242,8 +3242,7 @@ export class ExecutionEngineService
     //    slow path 가 routing 을 consumer 측에서 재등록하는 것과 동일 패턴.
     //
     //    jobId = executionId (1:1 enqueue) → BullMQ 가 중복 add 를 자동 dedup.
-    //    priority: 수동 실행(executedBy)을 트리거 실행보다 앞세운다(§4.3). webhook
-    //    3-tier(§4.3): **executedBy 우선** — 수동 실행(schedule "지금 실행" runNow 포함)은
+    //    priority 3-tier(§4.3): **executedBy 우선** — 수동 실행(schedule "지금 실행" runNow 포함)은
     //    `manual`. 트리거 발화(triggerId)는 호출부가 전달한 `options.triggerType`
     //    (`Trigger.type`: webhook/schedule)을 쓰고, 미전달 시 `webhook` fallback(비-HTTP
     //    트리거 방어). `manual`(1) > `webhook`(2) > `schedule`(3).
