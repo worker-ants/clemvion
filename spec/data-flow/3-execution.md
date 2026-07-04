@@ -51,8 +51,11 @@ sequenceDiagram
 
   RunQ-->>Proc: pick up (work-stealing — 임의 인스턴스)
   Proc->>Eng: runExecutionFromQueue(executionId, input)
-  Eng->>PG: SELECT execution — status === 'pending' 재검증
-  alt status !== pending (큐 대기 중 cancel 등)
+  Eng->>PG: SELECT execution — status 재검증 (3-way, PR4)
+  alt status == 'running' (BullMQ stalled 재배달 — 워커 크래시, §7.1)
+    Eng->>Eng: recordRunningSegmentStart + redriveStuckExecution(executionId)
+    Note over Eng: §7.5 case B 재구동 (완료 노드 skip) — 상세 §3.3
+  else status ∉ {pending, running} (terminal / waiting_for_input — 큐 대기 중 cancel·park 등)
     Eng-->>Proc: ack-discard (재실행 금지)
   else pending
     Eng->>Eng: routing context 재등록 (triggerId 있을 때 — consume 한 인스턴스에 등록)
@@ -60,6 +63,7 @@ sequenceDiagram
   end
 ```
 
+- **status 재검증 3-way (PR4)** — `runExecutionFromQueue` 는 재조회한 status 로 분기한다: `pending` → 정상 첫 active 세그먼트, `running` → BullMQ stalled 재배달로 판정해 §7.5 case B 재구동(`redriveStuckExecution` — §3.3), 그 외(terminal·`waiting_for_input`) → ack-discard(재실행 금지). BullMQ job lock 이 동시 처리를 막아 별도 DB claim 불요다.
 - **jobId = executionId** — Execution 생성당 정확히 1회 enqueue 이므로 BullMQ 가 동일 jobId 중복 add 를 자동 dedup 한다 (`buildExecutionRunJobId`).
 - **priority** — `manual(1) > webhook(2) > schedule(3)` (`EXECUTION_RUN_PRIORITY`). 단 현재 `ExecuteOptions` 가 trigger type 을 싣지 않아 실제로는 manual > 그 외 이분 (schedule 도 webhook 우선순위 — 의도된 임시 처리, PR2 triggerType threading 후속).
 - **attempts: 1, maxStalledCount: 1 (PR4)** — job 실패 자동 재시도는 없다(`attempts:1`). 크래시로 stall 된 세그먼트는 BullMQ 가 **같은 jobId 로 1회 자동 재배달**(`maxStalledCount:1`) → 픽업 워커의 `runExecutionFromQueue` **RUNNING 분기가 §7.5 case B 로 재구동**(멱등: 완료 노드 skip). 재배달 소진 시 `onFailed → finalizeStalledExhausted` 가 `failed`+`WORKER_HEARTBEAT_TIMEOUT`. crash 로 orphan 된 RUNNING row 는 stalled job 이 없는 케이스(전체 재시작·Redis 비영속·job 유실)에 대비해 §3.3 `recoverStuckExecutions` 부팅 backstop 도 병존한다.
