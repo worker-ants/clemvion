@@ -62,7 +62,7 @@ sequenceDiagram
 
 - **jobId = executionId** — Execution 생성당 정확히 1회 enqueue 이므로 BullMQ 가 동일 jobId 중복 add 를 자동 dedup 한다 (`buildExecutionRunJobId`).
 - **priority** — `manual(1) > webhook(2) > schedule(3)` (`EXECUTION_RUN_PRIORITY`). 단 현재 `ExecuteOptions` 가 trigger type 을 싣지 않아 실제로는 manual > 그 외 이분 (schedule 도 webhook 우선순위 — 의도된 임시 처리, PR2 triggerType threading 후속).
-- **attempts: 1, maxStalledCount: 0** — BullMQ 자동 crash-retry 미도입 (PR1~PR3 무변경; 상향은 PR4). stalled 재배달이 비멱등 노드를 이중 실행하지 않도록 차단하며, crash 로 orphan 된 RUNNING row 는 §3.3 `recoverStuckExecutions` 가 **부팅 시 §7.5 case B 로 re-drive**(PR3)한다.
+- **attempts: 1, maxStalledCount: 1 (PR4)** — job 실패 자동 재시도는 없다(`attempts:1`). 크래시로 stall 된 세그먼트는 BullMQ 가 **같은 jobId 로 1회 자동 재배달**(`maxStalledCount:1`) → 픽업 워커의 `runExecutionFromQueue` **RUNNING 분기가 §7.5 case B 로 재구동**(멱등: 완료 노드 skip). 재배달 소진 시 `onFailed → finalizeStalledExhausted` 가 `failed`+`WORKER_HEARTBEAT_TIMEOUT`. crash 로 orphan 된 RUNNING row 는 stalled job 이 없는 케이스(전체 재시작·Redis 비영속·job 유실)에 대비해 §3.3 `recoverStuckExecutions` 부팅 backstop 도 병존한다.
 - 워커는 park 가 세그먼트를 종료하므로 첫 active 세그먼트 (시작 → 첫 BLOCK/완료) 만 await 한다 — BullMQ job 이 park 내내 점유되지 않는다.
 
 ### 1.2 첫 active 세그먼트 — `runExecution` 토폴로지 루프
@@ -201,7 +201,7 @@ sequenceDiagram
 
 | 큐 | producer | consumer | payload 핵심 필드 |
 | --- | --- | --- | --- |
-| `execution-run` | `ExecutionEngineService.execute` (Execution row `pending` 저장 후 발행) | `ExecutionRunProcessor` → `runExecutionFromQueue` (work-stealing) | `{executionId, input?}` — jobId = executionId (1:1 enqueue dedup), priority manual > 트리거, `attempts:1` / `maxStalledCount:0` / `removeOnFail:false` (`execution-run.queue.ts`). [실행 엔진 §4.1~4.3](../5-system/4-execution-engine.md#41-아키텍처-target--execution-level-intake-큐) |
+| `execution-run` | `ExecutionEngineService.execute` (Execution row `pending` 저장 후 발행) | `ExecutionRunProcessor` → `runExecutionFromQueue` (work-stealing) | `{executionId, input?}` — jobId = executionId (1:1 enqueue dedup; 네이티브 stalled 는 같은 jobId 재처리라 re-enqueue 불요), priority manual > 트리거, `attempts:1` / `maxStalledCount:1` (PR4 — stalled 1회 자동 재배달 → §7.5 case B 재구동) / `removeOnFail:false` (`execution-run.queue.ts`). [실행 엔진 §4.1~4.3](../5-system/4-execution-engine.md#41-아키텍처-target--execution-level-intake-큐) |
 | `execution-continuation` | `ContinuationBusService.publish` (WS gateway / REST controller 경유) | `ContinuationExecutionProcessor` | `{type, executionId, nodeExecutionId, payload}` — jobId = `${executionId}:${nodeExecutionId}:${seq}` (Redis INCR per executionId — idempotency key). 자세한 라이프사이클은 [Spec 실행 엔진 §7.4 / §7.5](../5-system/4-execution-engine.md#74-분산-실행-multi-instance) |
 | `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, backgroundRunId?, workspaceId, workflowId, bodyEntryNodeIds[], input, variables, nodeOutputCache, expressionContext, conversationThread?, config{notifyOnFailure, maxDurationMs}` (`background-execution.queue.ts`). `backgroundRunId?`/`conversationThread?` 는 후방호환용 optional — legacy 큐 메시지엔 부재 |
 
@@ -242,9 +242,9 @@ stateDiagram-v2
   running --> waiting_for_input: 블로킹 노드 (form/button/ai_agent) — durable park
   waiting_for_input --> running: continuation-queue (BullMQ) consume — 재개 진입 원자 claim gate (§7.5, affected=1 인 단일 worker)
   waiting_for_input --> failed: AI Agent multi-turn turn 오류 (handleAiTurnError → finalizeAiNode)
-  running --> running: 부팅 시 crash 세그먼트 re-drive — recoverStuckExecutions 원자 re-claim (started_at 조건부, §7.1/§7.5 case B, PR3)
+  running --> running: crash 세그먼트 re-drive — 부팅 recoverStuckExecutions 원자 re-claim(PR3 backstop) 또는 운영 중 stalled 재배달 RUNNING 분기(PR4) (started_at 조건부, §7.1/§7.5 case B)
   running --> completed: 마지막 노드 정상 종료
-  running --> failed: retry 소진 실패 / EXECUTION_TIME_LIMIT_EXCEEDED / SERVER_INTERRUPTED (WORKER_HEARTBEAT_TIMEOUT 은 PR4 stalled 예약 — PR3 미발동)
+  running --> failed: retry 소진 실패 / EXECUTION_TIME_LIMIT_EXCEEDED / SERVER_INTERRUPTED / WORKER_HEARTBEAT_TIMEOUT (PR4 stalled 재배달 소진)
   running --> cancelled: 사용자 cancel API
   waiting_for_input --> cancelled: 사용자 cancel API
   failed --> running: execution.retry_last_turn 재진입 (opt-in allowRetryReentry — 표 밖 전이)
@@ -259,7 +259,7 @@ stateDiagram-v2
 | --- | --- |
 | (노드 오류 복사) | 어떤 노드든 retry 소진 실패 — 최초 failed NodeExecution.error + nodeId 복사 (§1.2) |
 | `EXECUTION_TIME_LIMIT_EXCEEDED` | PR2a 누적 active-running 타임아웃 — 노드 사이 `assertActiveTimeWithinLimit` 검사 (§1.2) |
-| `WORKER_HEARTBEAT_TIMEOUT` | **PR4 예약** — stalled 재배달 attempts 소진 시. **PR3 미발동** (부팅 시 stale RUNNING 은 fail 이 아니라 §3.3 re-drive) |
+| `WORKER_HEARTBEAT_TIMEOUT` | **PR4 구현** — stalled 재배달(`maxStalledCount=1`) attempts 소진 시 `finalizeStalledExhausted` 마킹. 부팅 `recoverStuckExecutions` re-drive(§3.3)는 이 코드 미사용 |
 | `SERVER_INTERRUPTED` | SIGTERM graceful shutdown grace 초과 (§3.3) |
 
 상세 가드는 `spec/5-system/4-execution-engine.md §1` 및 `state-machine.ts` (`ALLOWED_TRANSITIONS` — `PENDING → CANCELLED` 포함). `failed → running` 은 일반 표에 없고 `applyRetryLastTurn` 경로의 `allowRetryReentry` opt-in 으로만 허용된다 (`state-machine.ts` `canTransition`).
@@ -286,11 +286,12 @@ stateDiagram-v2
 
 ### 3.3 비정상 종료 회수 — crash re-drive + graceful shutdown
 
-비정상 종료된 실행을 처리하는 소스는 두 가지다. 둘 다 `WAITING_FOR_INPUT` 은 절대 건드리지 않는다 — 사용자 입력은 며칠 후 도착할 수 있고 노드별 `formConfig.timeout` 이 별도 적용되며, 입력 도착 시 §1.4 rehydration 으로 자연 재개된다.
+비정상 종료된 실행을 처리하는 소스는 세 가지다. 셋 다 `WAITING_FOR_INPUT` 은 절대 건드리지 않는다 — 사용자 입력은 며칠 후 도착할 수 있고 노드별 `formConfig.timeout` 이 별도 적용되며, 입력 도착 시 §1.4 rehydration 으로 자연 재개된다.
 
 | 소스 | 시점 | 대상 | 동작 |
 | --- | --- | --- | --- |
-| `recoverStuckExecutions` (**PR3 — re-drive**) | `onApplicationBootstrap` 1회 (`exec:recover:lock` 전역 단일 인스턴스 가드) | `status='running' AND started_at < now() - 30분` (`STUCK_RECOVERY_STALE_MS`). 다른 인스턴스가 정상 처리 중인 신규 running 은 보존 | **일괄 `failed` 마킹이 아니라** row 단위 원자 re-claim(`UPDATE … SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING`, affected=1) → **§7.5 case B rehydration 재구동**(rehydrate + 완료 노드 이후 forward, node-type 무관). 재구동 불가(checkpoint 부재/손상)만 `RESUME_CHECKPOINT_MISSING` terminal. poison 세그먼트는 부팅당 1회 재구동(자연 rate-limit) + §8 누적 한도 best-effort. (BullMQ stalled 자동 재배달·`WORKER_HEARTBEAT_TIMEOUT` 발동은 PR4 — [실행 엔진 §7.1/§7.5](../5-system/4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
+| BullMQ stalled 재배달 (**PR4 — 운영 중**) | 워커 크래시로 active 세그먼트 job(`execution-run`/`execution-continuation`) 이 stall (`stalledInterval` 30초, `maxStalledCount:1`) | stall 로 판정된 job 의 Execution (아직 `running`) | BullMQ 가 **같은 jobId 로 1회 자동 재배달** → 픽업 워커의 `runExecutionFromQueue` **RUNNING 분기**가 `recordRunningSegmentStart` + `redriveStuckExecution` 로 **§7.5 case B 재구동**(완료 노드 skip). 재배달 소진 시 `onFailed → finalizeStalledExhausted` 가 `status='running'` 조건부 `failed`+`WORKER_HEARTBEAT_TIMEOUT`. 관측은 execution-run DLQ 모니터 |
+| `recoverStuckExecutions` (**PR3 — 부팅 backstop**) | `onApplicationBootstrap` 1회 (`exec:recover:lock` 전역 단일 인스턴스 가드) | `status='running' AND started_at < now() - 30분` (`STUCK_RECOVERY_STALE_MS`). 다른 인스턴스가 정상 처리 중인 신규 running 은 보존 | **일괄 `failed` 마킹이 아니라** row 단위 원자 re-claim(`UPDATE … SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING`, affected=1) → **§7.5 case B rehydration 재구동**(rehydrate + 완료 노드 이후 forward, node-type 무관). 재구동 불가(checkpoint 부재/손상)만 `RESUME_CHECKPOINT_MISSING` terminal. poison 세그먼트는 부팅당 1회 재구동(자연 rate-limit) + §8 누적 한도 best-effort. **stalled job 이 없는 케이스**(전체 재시작·Redis 비영속·job 유실)를 PR4 stalled 재배달과 **병존**해 담당하는 backstop (은퇴하지 않음 — [실행 엔진 §7.1/§7.5](../5-system/4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
 | `ShutdownStateService.onApplicationShutdown` | SIGTERM 수신 시 | `registerInFlight` 로 **본 인스턴스가 추적 중인** NodeExecution/Execution 만 (`WHERE id IN (...)`) — grace (`SIGTERM_GRACE_MS`, 기본 30초) 동안 drain 대기 후 잔여분 | NodeExecution + Execution 각각 atomic UPDATE — `failed` + `error.code='SERVER_INTERRUPTED'`. shutdown 중 신규 실행은 503 + Retry-After 거부 |
 
 ---
