@@ -3014,8 +3014,33 @@ describe('ExecutionEngineService', () => {
       const manualOpts = mockExecutionRunQueue.add.mock.calls[0][2];
       const triggerOpts = mockExecutionRunQueue.add.mock.calls[1][2];
       expect(manualOpts.priority).toBe(EXECUTION_RUN_PRIORITY.manual);
-      // PR1: webhook/schedule 세부 구분 전 — 트리거 실행은 manual 보다 낮은 우선순위.
+      // 트리거 실행은 manual 보다 낮은 우선순위(triggerType 미지정 → webhook fallback).
       expect(triggerOpts.priority).toBeGreaterThan(manualOpts.priority);
+    });
+
+    it('triggerType threading — manual>webhook>schedule 3-tier + fallback (PR2)', async () => {
+      asRecorder();
+      await service.execute(
+        workflowId,
+        {},
+        { triggerId: 't-w', triggerType: 'webhook' },
+      );
+      await service.execute(
+        workflowId,
+        {},
+        { triggerId: 't-s', triggerType: 'schedule' },
+      );
+      // triggerType 미지정 트리거 → webhook fallback (비-HTTP 방어).
+      await service.execute(workflowId, {}, { triggerId: 't-x' });
+      const [wOpts, sOpts, fOpts] = [0, 1, 2].map(
+        (i) => mockExecutionRunQueue.add.mock.calls[i][2],
+      );
+      expect(wOpts.priority).toBe(EXECUTION_RUN_PRIORITY.webhook);
+      expect(sOpts.priority).toBe(EXECUTION_RUN_PRIORITY.schedule);
+      expect(fOpts.priority).toBe(EXECUTION_RUN_PRIORITY.webhook);
+      // 3-tier 순서: manual(1) < webhook(2) < schedule(3).
+      expect(sOpts.priority).toBeGreaterThan(wOpts.priority);
+      expect(wOpts.priority).toBeGreaterThan(EXECUTION_RUN_PRIORITY.manual);
     });
 
     it('execute() 단계에서는 routing context 를 등록하지 않는다 (worker 로 이동)', async () => {

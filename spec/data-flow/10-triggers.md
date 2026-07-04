@@ -179,7 +179,7 @@ sequenceDiagram
 | 큐 (BullMQ) | producer | consumer | payload |
 | --- | --- | --- | --- |
 | `schedule-execution` | BullMQ **job scheduler** (`upsertJobScheduler`, cron pattern+tz) — 서버 sweep 아님 | `ScheduleRunnerService` (`@Processor`) | `{ scheduleId, workspaceId }` |
-| `execution-run` | `ExecutionEngineService.execute()` — 트리거 3종 모두 pending row INSERT 후 발행. **트리거 타입이 job priority 결정** (3-tier: manual=1 > webhook=2 > schedule=3; 현재는 `executedBy` 유무로 manual/그 외 이분이라 schedule 발사도 webhook priority — 의도된 임시, triggerType threading 후속) | execution-run worker (work-stealing) | `{ executionId, input }` (jobId=executionId 로 dedup) — 상세 SoT [Spec 실행 엔진 §4.1–4.3](../5-system/4-execution-engine.md#4-worker-모델) |
+| `execution-run` | `ExecutionEngineService.execute()` — 트리거 3종 모두 pending row INSERT 후 발행. **트리거 타입이 job priority 결정** (3-tier: manual=1 > webhook=2 > schedule=3; 호출부가 `ExecuteOptions.triggerType`(`Trigger.type`) threading, `execute()` 가 `executedBy` 우선 판정 — 미전달 트리거는 webhook fallback. triggerType threading 구현 완료 2026-07-04) | execution-run worker (work-stealing) | `{ executionId, input }` (jobId=executionId 로 dedup) — 상세 SoT [Spec 실행 엔진 §4.1–4.3](../5-system/4-execution-engine.md#4-worker-모델) |
 
 큐 외 Redis sink: 공개 webhook IP rate-limit 의 **fixed-window 카운터** (`PublicWebhookQuotaService`, INCR+EXPIRE pipeline — §1.2 진입 앞단 참조).
 

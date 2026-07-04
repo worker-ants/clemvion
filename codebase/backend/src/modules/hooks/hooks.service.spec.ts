@@ -208,7 +208,12 @@ describe('HooksService', () => {
         method: 'POST',
       },
       // §A.3 호출 이력 — sourceIp(헤더에 IP 없음 → undefined), responseCode 202(성공).
-      { triggerId: 't1', sourceIp: undefined, responseCode: '202' },
+      {
+        triggerId: 't1',
+        triggerType: 'webhook',
+        sourceIp: undefined,
+        responseCode: '202',
+      },
     );
   });
 
@@ -232,7 +237,12 @@ describe('HooksService', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ __triggerSource: 'webhook' }),
-      { triggerId: 't1', sourceIp: '198.51.100.9', responseCode: '202' },
+      {
+        triggerId: 't1',
+        triggerType: 'webhook',
+        sourceIp: '198.51.100.9',
+        responseCode: '202',
+      },
     );
   });
 
@@ -395,7 +405,12 @@ describe('HooksService', () => {
     expect(executeMock).toHaveBeenCalledWith(
       'wf1',
       expect.objectContaining({ parameters: {} }),
-      { triggerId: 't1', sourceIp: undefined, responseCode: '202' },
+      {
+        triggerId: 't1',
+        triggerType: 'webhook',
+        sourceIp: undefined,
+        responseCode: '202',
+      },
     );
   });
 
@@ -632,6 +647,7 @@ describe('HooksService', () => {
         // §A.3 — chat-channel inbound 도 호출 이력에 응답코드 202 영속 (헤더에 IP 없음 → undefined).
         {
           triggerId: chatChannelTrigger.id,
+          triggerType: 'webhook',
           sourceIp: undefined,
           responseCode: '202',
         },

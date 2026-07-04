@@ -163,7 +163,9 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       const executionId = await this.executionEngineService.execute(
         workflowId,
         { __triggerSource: 'schedule', parameters },
-        { triggerId: schedule.triggerId },
+        // priority 3-tier(§4.3) — 정기 schedule 자동 발화는 최저 우선순위(schedule).
+        // (사용자 "지금 실행" runNow 는 executedBy 경로라 manual 우선순위 유지.)
+        { triggerId: schedule.triggerId, triggerType: 'schedule' },
       );
       this.logger.log(
         `Schedule ${scheduleId} triggered execution ${executionId}`,

@@ -2,6 +2,12 @@
 worktree: impl-exec-concurrency-cap
 started: 2026-06-04
 owner: developer
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/1-data-model.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/data-flow/3-execution.md
 ---
 
 # 구현 추적 — 실행엔진 분산: execution-level intake 큐

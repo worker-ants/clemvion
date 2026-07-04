@@ -197,6 +197,7 @@ export class HooksService {
       { __triggerSource: 'webhook', parameters, ...input },
       {
         triggerId: trigger.id,
+        triggerType: 'webhook', // priority 3-tier(§4.3) — webhook 발화
         // §A.3 호출 이력 — 소스 IP·응답 코드 영속 (WH-MG-05). 성공 경로는 202.
         sourceIp: clientIp,
         responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
@@ -628,6 +629,7 @@ export class HooksService {
       },
       {
         triggerId: trigger.id,
+        triggerType: 'webhook', // priority 3-tier(§4.3) — chat-channel 도 webhook 발화
         // §A.3 호출 이력 — chat-channel inbound 도 webhook POST(202)로 응답한다.
         sourceIp: clientIp,
         responseCode: WEBHOOK_ACCEPTED_RESPONSE_CODE,
