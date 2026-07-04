@@ -2633,26 +2633,21 @@ export class ExecutionEngineService
       DEFAULT_WORKSPACE_MAX_CONCURRENT_EXECUTIONS,
     );
     const workspaceId = workflow?.workspaceId;
-    // (c) 원자 admission — pending→running WHERE ws/wf running COUNT < cap
-    const res = await this.executionRepository
-      .createQueryBuilder()
-      .update(Execution)
-      .set({ status: ExecutionStatus.RUNNING, startedAt: () => 'NOW()' })
-      .where('id = :id', { id: executionId })
-      .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
-      .andWhere(
-        `(SELECT COUNT(*) FROM execution wfe ` +
-          `JOIN workflow w ON w.id = wfe.workflow_id ` +
-          `WHERE w.workspace_id = :wsId AND wfe.status = :runWs) < :wsCap`,
-        { wsId: workspaceId, runWs: ExecutionStatus.RUNNING, wsCap },
-      )
-      .andWhere(
-        `(SELECT COUNT(*) FROM execution ` +
-          `WHERE workflow_id = :wfId AND status = :runWf) < :wfCap`,
-        { wfId: execution.workflowId, runWf: ExecutionStatus.RUNNING, wfCap },
-      )
-      .execute();
-    if ((res.affected ?? 0) === 1) {
+    // (c) 원자 admission — 단일 UPDATE 로 카운트-체크-전이(TOCTOU-safe). QueryBuilder
+    //     서브쿼리 대신 raw SQL(파라미터 바인딩)로 명시한다. workspace COUNT 는
+    //     execution 에 workspace_id 컬럼이 없어 workflow join. RETURNING id 로 판정.
+    const admittedRows = (await this.executionRepository.query(
+      `UPDATE execution SET status = 'running', started_at = NOW()
+       WHERE id = $1 AND status = 'pending'
+         AND (SELECT COUNT(*) FROM execution wfe
+              JOIN workflow w ON w.id = wfe.workflow_id
+              WHERE w.workspace_id = $2 AND wfe.status = 'running') < $3
+         AND (SELECT COUNT(*) FROM execution
+              WHERE workflow_id = $4 AND status = 'running') < $5
+       RETURNING id`,
+      [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
+    )) as unknown[];
+    if (admittedRows.length === 1) {
       execution.status = ExecutionStatus.RUNNING; // → runExecution 전이 skip
       await this.eventEmitter.emitExecution(
         executionId,

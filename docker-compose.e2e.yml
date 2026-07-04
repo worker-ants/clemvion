@@ -155,6 +155,9 @@ services:
       # 와 **함께** 요구돼 단일 env 오설정으로는 프로덕션에 노출되지 않는다 (execution-crash-
       # redrive.e2e-spec.ts — §7.5 case B 크래시 re-drive 트리거). 미설정(프로덕션)이면 404.
       E2E_TEST_HOOKS: "1"
+      # PR2b — §8 동시성 cap admission gate e2e(execution-concurrency-cap.e2e-spec.ts).
+      # 큐 대기 초과 cancel 을 짧게 실증하기 위해 기본 5분 → 8초로 단축.
+      EXECUTION_QUEUE_WAIT_TIMEOUT_MS: "8000"
       # 멀티턴 AI park→재개 e2e(execution-park-resume.e2e-spec.ts) 활성화 — 실제 LLM
       # 키/호출 없이 결정적 stub 클라이언트(LlmService.createClient)로 turn-park(§4.x)·
       # rehydration(§7.5)을 검증한다. 미설정(프로덕션)이면 정상 provider 경로.
