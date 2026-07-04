@@ -752,7 +752,8 @@ export class ExecutionEngineService
   }
 
   /**
-   * §7.1/§7.5 case B 재구동을 **on-demand 로 1회 스캔** 트리거한다. 프로덕션에서는
+   * §7.1/§7.5 case B 재구동(+ §8 orphan pending cancel)을 **on-demand 로 1회 스캔**
+   * 트리거한다(`recoverStuckExecutions` 전체 위임). 프로덕션에서는
    * recovery 가 부팅 시(onApplicationBootstrap)에만 돌지만, e2e 는 이미 부팅된
    * backend 를 재시작할 수 없어(in-network 러너) 재시작 크래시 re-drive 경로를
    * HTTP 로 검증할 수 없다. 본 메서드가 그 트리거를 제공한다 — 호출자
@@ -2778,13 +2779,19 @@ export class ExecutionEngineService
   private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
 
   /**
-   * On server restart, **re-drive** RUNNING executions whose worker heartbeat is
-   * long-gone (§7.1/§7.2 point 3 / §7.5 case B — PR3, 2026-07-04).
+   * On server restart, **re-drive** stale RUNNING executions **and cancel orphan
+   * PENDING** executions (§7.1/§7.2 point 3 / §7.4 / §7.5 case B / §8 — PR3
+   * 2026-07-04, orphan pending backstop 2026-07-04).
    *
    * 옛 동작(일괄 `failed` 마킹)을 **제어된 re-drive** 로 전환한다: stale RUNNING 을
    * `started_at` 조건부 원자 re-claim(`reclaimStuckRunningExecution`) 한 뒤 각 row 를
    * §7.5 case B rehydration 으로 재구동(완료 노드 이후부터 그래프 forward, node-type
    * 무관). §7.2 point 3("재시작 시 running 을 체크포인트에서 resume")의 일반 노드 구현.
+   *
+   * **같은 스캔이 orphan `pending` 도 회수한다**(`recoverOrphanPendingExecutions`, §8):
+   * admission 재큐 job 이 소실된 대기 초과 `pending` 을 wait-timeout `cancelled` 로 마감.
+   * RUNNING 은 진행 흔적이 있어 re-drive, PENDING 은 없어 cancel(§Rationale "orphan
+   * pending backstop"). running 재점유 유무와 무관하게 항상 수행한다.
    *
    * 다중 인스턴스 환경에서:
    * - SET NX 분산 boot-lock(`exec:recover:lock`)으로 동시 스캔 시작을 가드.
@@ -2906,6 +2913,12 @@ export class ExecutionEngineService
   private async recoverOrphanPendingExecutions(): Promise<void> {
     const staleThreshold = new Date(Date.now() - resolveQueueWaitTimeoutMs());
     // queued_at IS NULL(레거시 pre-V104 row)은 LessThan 이 자연 제외한다(NULL < x = 미매치).
+    // 인덱스: `idx_execution_status(status)`(V002)로 sparse 한 pending 부분집합을 좁힌 뒤
+    // queued_at 필터. 전용 `(status, queued_at)` 복합 인덱스는 두지 않는다 — 본 스캔은
+    // boot-only/on-demand(hot-path 아님)이고 pending 집합은 admission cap+5분 timeout 으로
+    // bound 되며, stale RUNNING backstop(`reclaimStuckRunningExecution`, `status='running'
+    // AND started_at<τ`)도 동일하게 전용 복합 인덱스 없이 `idx_execution_status` 에 의존하는
+    // 기존 선례와 대칭이다(핫 execution 테이블의 write-path 인덱스 유지비 회피).
     const orphans = await this.executionRepository.find({
       where: {
         status: ExecutionStatus.PENDING,

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — orphan pending backstop (§8 recoverStuckExecutions)
+
+### 변경 사항
+
+1. **부팅 backstop 이 orphan `pending` 을 회수** — admission 재큐 job 이 소실(Redis 비영속·eviction)된 `pending` Execution 은 다시 pick up 될 job 이 없어, 큐 대기 5분 timeout(consumer pick-up 시점에만 검사)을 못 받고 영구 잔류하던 갭을 닫는다. `recoverStuckExecutions`(부팅 `onApplicationBootstrap` + test-hook) 이 stale RUNNING 재구동에 더해, `status='pending' AND queued_at < now − EXECUTION_QUEUE_WAIT_TIMEOUT_MS` 인 orphan 을 기존 `markQueueWaitTimeout`(멱등 조건부 UPDATE)으로 §8 wait-timeout `cancelled`(`EXECUTION_QUEUE_WAIT_TIMEOUT`·`cancelledBy='timeout'`)로 마감한다. RUNNING 은 진행 흔적이 있어 re-drive, PENDING 은 없어 cancel. 신규 migration·env·에러코드 없음(기존 `queued_at` V104 컬럼·`markQueueWaitTimeout` 재사용). boot-only best-effort(낮은 확률 엣지). SoT: `spec/5-system/4-execution-engine.md §8/§7.4`.
+
 ## Unreleased — workflow 동시 실행 cap validated write DTO (§8, workspace 대칭)
 
 ### 변경 사항

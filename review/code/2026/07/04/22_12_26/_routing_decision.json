@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T22:13:00Z",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced (router_safety): src 코드 변경"},
+    {"name": "performance", "selected": false, "reason": "반복문 스캔이 제한적(orphan 셋 크기)이고 단순 SELECT/UPDATE — bottleneck 없음"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계·DI 그래프·새 계층 변경 없음 — 기존 service 내 private 메서드 추가만"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced (router_safety): src 코드 변경 + spec 본문 변경(§8/§7.1/§7.4)"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety): src 코드 변경"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced (router_safety): recoverStuckExecutions 흐름 변경(early-return 제거) — global recovery 로직 부작용 검증 필수"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety): src 코드 변경 + 새 메서드 docstring/주석 품질"},
+    {"name": "testing", "selected": true, "reason": "agents_forced (router_safety): src 코드 변경 + unit/e2e 신규 테스트"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced (router_safety): plan/spec/review 문서 변경"},
+    {"name": "dependency", "selected": false, "reason": "package.json/lock 변경 없음"},
+    {"name": "database", "selected": true, "reason": "execution row 쿼리/업데이트 — LessThan operator 추가, status='pending' + queuedAt 필터 — 원자 조건부 UPDATE(markQueueWaitTimeout) 안전성"},
+    {"name": "concurrency", "selected": true, "reason": "분산 recovery lock 재사용, admission gate와 concurrent cancel race, stale pending state-transition — 동시성/원자성 검증 필수"},
+    {"name": "api_contract", "selected": false, "reason": "public HTTP route 변경 없음 — _test 훅은 내부용"},
+    {"name": "user_guide_sync", "selected": false, "reason": "내부 recovery backstop 로직 — 사용자 가이드/i18n 갱신 불필요"}
+  ],
+  "selected_count": 10,
+  "skipped_count": 4,
+  "forced": ["security", "maintainability", "requirement", "scope", "side_effect", "testing", "documentation"]
+}

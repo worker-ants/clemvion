@@ -18,6 +18,9 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *  (2-A) blocker 를 completed 로 풀면 → 재큐 tick 에 admitted → 새 실행 completed.
  *  (2-B) blocker 를 유지하면 → 큐 대기(EXECUTION_QUEUE_WAIT_TIMEOUT_MS, e2e 8초) 초과 →
  *        새 실행 cancelled + error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'.
+ *  (3) workspace-level cap: 다른 workflow 의 running 이 workspace 슬롯을 소비 → deferred.
+ *  (4) orphan pending backstop(§8): job 없이 심은 대기 초과 pending 을 recovery hook
+ *      (recoverStuckExecutions)이 wait-timeout cancelled 로 회수; 한도 이내 pending 은 보존.
  *
  * docker-compose.e2e.yml 에서 EXECUTION_QUEUE_WAIT_TIMEOUT_MS=8000 으로 단축(기본 5분).
  */
