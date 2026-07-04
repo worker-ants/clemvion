@@ -1319,7 +1319,7 @@ PR3 의 제어된 re-drive(부팅 backstop)로 멱등 재구동 메커니즘을 
 - **`recoverStuckExecutions` 은 은퇴하지 않는다 (backstop 병존)**: stalled 재배달은 **stall 된 job 이 존재할 때만** 동작한다. 전체 재시작(모든 워커 동시 종료 → 재배달할 살아있는 워커 없음)·Redis 비영속(job 자체 소실)·job 유실은 stalled job 이 없어 stalled 재배달로 커버 불가하다. 따라서 부팅 1회 스캔 backstop 을 유지한다. KB 파이프라인(`graph-extraction` stalled + `stuck-document-recovery` 부팅 backstop)도 동일하게 두 메커니즘을 병존시키는 선례다.
 - **at-least-once 경계 = PR3 모델 계승**: 완료 노드는 skip(exactly-once), RUNNING-at-crash 노드는 재실행(at-least-once). Integration 노드의 재실행 멱등은 §7.3 대로 노드의 책임이다. PR4 는 이 경계를 바꾸지 않는다.
 - **Q2 defer — under-count 미해소**: 세그먼트-start 영속(active_running_ms 정밀 flush)은 migration 이 필요해 PR4 scope 에서 제외했다(§Rationale "Graceful Shutdown … under-count 허용"). PR4 는 마이그레이션 없이 기존 컬럼만 재사용한다.
-- **잔여 zombie race**: lock 만료 후 부활하는 zombie 워커는 stalled fencing 으로 완전히 배제되지 않으나, `maxStalledCount:1`(무한 재배달 없음) + per-node COMPLETED skip 으로 blast radius 가 bound 된다(§7.5 case B 각주). 현행 fail-path 도 동일 노출이라 신규 회귀 아님.
+- **잔여 zombie race**: lock 만료 후 부활하는 zombie 워커는 stalled fencing 으로 완전히 배제되지 않으나, `maxStalledCount:1`(무한 재배달 없음) + per-node COMPLETED skip 으로 blast radius 가 bound 된다(§7.5 case B 각주). 현행 fail-path 도 동일 노출이라 신규 회귀 아님. 같은 class 의 narrow race 로, `finalizeStalledExhausted`(stalled 소진 dead-letter 마감)가 발동하는 순간 부팅 backstop `recoverStuckExecutions` 가 같은 stale RUNNING 을 re-claim 해 재구동 중이면 조건부 UPDATE(`WHERE status='running'`)가 정상 재구동을 `WORKER_HEARTBEAT_TIMEOUT` 로 잘못 마감할 수 있다("job stalled 소진 == 부팅 스캔" 이 겹치는 극히 좁은 창 한정, per-node skip 으로 완료 노드 보존). 완전 fencing 은 세그먼트-start/owner-token 영속(defer)에 의존한다.
 
 ### Pre-park read-window 정규화 — read-side 채택 + 양측 중복 방어
 

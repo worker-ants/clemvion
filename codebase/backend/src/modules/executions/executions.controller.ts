@@ -235,10 +235,15 @@ export class ExecutionsController {
   @ApiExcludeEndpoint()
   async simulateExecutionRunRedeliveryForTest(
     @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
   ) {
     if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
       throw new NotFoundException();
     }
+    // `:id` 라우트 방어 관례 — 같은 컨트롤러의 다른 `:id` 엔드포인트와 동일하게
+    // workspace 소유권을 검증한다(@Roles('owner') 는 요청자의 워크스페이스 owner
+    // 여부만 보고 id 의 소속은 보지 않음 — cross-workspace 접근 차단).
+    await this.executionsService.verifyOwnership(id, workspaceId);
     await this.executionEngineService.runExecutionFromQueue(id, {});
     return { success: true };
   }

@@ -2750,6 +2750,15 @@ export class ExecutionEngineService
    * 이라 affected=0 no-op 이고, 크래시 세그먼트가 마킹하지 못한 채 stalled 소진된
    * 경우(RUNNING 잔류)만 발동한다. 이 조건이 두 실패 경로를 자연 분기한다.
    * 자식 RUNNING NodeExecution 도 cascade 마감(유령 running 제거).
+   *
+   * ⚠️ **알려진 이론적 race(수용, §7.5 case B 각주와 동일 class)**: job 이 stalled 를
+   * 소진해 failed→onFailed 되는 순간, **부팅 backstop `recoverStuckExecutions`** 가
+   * 같은 stale RUNNING 을 re-claim 해 재구동 중일 수 있다. 그 경우 본 조건부 UPDATE
+   * (`WHERE status='running'`)가 정상 재구동 중인 세그먼트를 `WORKER_HEARTBEAT_TIMEOUT`
+   * 로 잘못 마감할 수 있다. 발생 창은 "job stalled 소진 == 서버 부팅 스캔" 이 겹치는
+   * 극히 narrow 한 순간에 한정되고, per-node COMPLETED skip 으로 완료 노드는 보존되며,
+   * 완전 fencing 은 세그먼트-start/owner-token 영속(defer, §Rationale)에 의존한다.
+   * 이는 이미 문서화된 zombie double-drive 노출과 동일 class 로, 신규 회귀가 아니다.
    */
   async finalizeStalledExhausted(executionId: string): Promise<void> {
     const finishedAt = new Date();

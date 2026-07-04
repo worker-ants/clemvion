@@ -52,9 +52,10 @@ export function resolveExecutionRunPriority(
  * 유일 키이고, BullMQ 가 동일 jobId 의 중복 add 를 자동 dedup 한다 (네트워크
  * 재시도·동시 호출에 대한 idempotency). 따라서 seq 를 붙이지 않는다.
  *
- * spec §4.2 의 `<executionId>:run:<seq>` 표기는 향후 re-enqueue(PR3/PR4 crash
- * 재개) 시나리오를 위한 일반형이다 — PR1 은 re-enqueue 하지 않으므로 seq 가
- * 불필요하고, 필요해지는 시점에 본 함수만 확장하면 된다.
+ * spec §9.2 의 `<executionId>:run:<seq>` 표기는 명시적 re-enqueue 를 도입하는
+ * 미래 변경을 위한 일반형이다. **PR4 crash 재개는 네이티브 BullMQ stalled 재배달
+ * (같은 jobId 를 그대로 재처리)** 을 쓰므로 re-enqueue 가 없어 seq 가 여전히
+ * 불필요하다 — jobId=executionId 를 유지한다. 필요해지는 시점에 본 함수만 확장한다.
  */
 export function buildExecutionRunJobId(executionId: string): string {
   return executionId;

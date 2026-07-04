@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T13:08:20Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 강제 — 실행 엔진 상태 전이·crash 세그먼트 재구동 권한 검증"
+    },
+    {
+      "name": "performance",
+      "selected": true,
+      "reason": "DLQ 모니터 polling 30초 주기·cooldown 300초 설정 최적화 검증 필요"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "runExecutionFromQueue 3-way 분기 아키텍처·stalled 재배달 진입점·redriveStuckExecution 재사용 모델"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 강제 — spec §7.1/§7.5 case B RUNNING redrive·WORKER_HEARTBEAT_TIMEOUT 의미 재정의 구현"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 강제 — recoverStuckExecutions backstop 병존·segment-start영속 defer 경계 확인"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 강제 — finalizeStalledExhausted 부작용·eventEmitter.emitExecution·자식 cascade 영향"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 강제 — 3-way switch 복잡도·finalizeStalledExhausted 새 메서드·DLQ 모니터 추가"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 강제 — 신규 finalizeStalledExhausted/stalled 재배달 로직·e2e 테스트 hook·unit test 확대"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 변경 강제 — 22개 파일 plan/spec/review 문서 업데이트·spec flip Planned→구현"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json·requirements.txt·go.mod 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·schema 변경 없음 — started_at 기존 재사용"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "BullMQ stalledInterval 30s·maxStalledCount:1 동시성 bound·Execution 원자 UPDATE 조건부·job lock 동시 처리 차단 메커니즘"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "e2e test-hook endpoint `_test/simulate-execution-run-redelivery` 신설·@Post @Roles @ApiExcludeEndpoint"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "trigger 디렉토리(codebase/backend/src/modules/execution-engine, auth, 신규 노드) 매칭·backend-labels/docs MDX 자동 갱신 불필요(내부 로직·모니터만)"
+    }
+  ],
+  "selected_count": 12,
+  "skipped_count": 2,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

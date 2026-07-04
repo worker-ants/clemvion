@@ -65,7 +65,10 @@ describe('ExecutionRunProcessor', () => {
   });
 
   it('onFailed(job 있음) 은 stalled 소진 마감을 위해 finalizeStalledExhausted(executionId) 를 호출한다 (PR4)', () => {
-    processor.onFailed(job({ executionId: 'exec-stalled-out' }), new Error('x'));
+    processor.onFailed(
+      job({ executionId: 'exec-stalled-out' }),
+      new Error('x'),
+    );
     expect(engine.finalizeStalledExhausted).toHaveBeenCalledWith(
       'exec-stalled-out',
     );
