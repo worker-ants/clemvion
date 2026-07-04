@@ -113,6 +113,14 @@ describe('UpdateWorkflowDto', () => {
       expect(errors).toEqual([]);
     });
 
+    it('accepts the @Min(1) boundary value 1', async () => {
+      const errors = await validate(
+        mk({ maxConcurrentExecutions: 1 }),
+        VALIDATE_OPTIONS,
+      );
+      expect(errors).toEqual([]);
+    });
+
     it('accepts an empty settings object (no cap change)', async () => {
       const errors = await validate(mk({}), VALIDATE_OPTIONS);
       expect(errors).toEqual([]);

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — workflow 동시 실행 cap validated write DTO (§8, workspace 대칭)
+
+### 변경 사항
+
+1. **`PATCH /api/workflows/:id` 의 `settings` 가 검증되는 nested DTO 로 강화** — 종전 opaque `Record<string, unknown>`(`@IsObject()`) 이던 `settings` 를 `WorkflowSettingsDto`(`maxConcurrentExecutions`: `@IsInt @Min(1)`)로 전환했다. workspace 의 `UpdateWorkspaceSettingsDto`(§8 admission gate) 와 대칭이며, `spec/1-data-model.md §2.4`·`spec/5-system/4-execution-engine.md §8` 이 이미 `Workflow.settings` 를 `maxConcurrentExecutions` 로 스코프한다. 전역 `whitelist+forbidNonWhitelisted` pipe 로 **미지 `settings` 키·비양수·비정수 cap 은 이제 `400`** 을 받는다(종전 무검증 통과 후 런타임 `resolveConcurrencyCap` backstop 이 defaultCap 으로 무시). **스펙 준수 클라이언트에는 영향이 없다** — backend 는 `maxConcurrentExecutions` 외 workflow settings 키를 소비하지 않으며, 프런트 `workflowsApi.update` 유일 호출부는 `{ isActive }` 만 전송한다. 서비스 `update` 는 `settings` 를 전체 교체 대신 spread-merge 해 DB 잔여 키를 보존한다(workspace 대칭). `ImportWorkflowDto.settings` 는 opaque 유지(별도 후속). SoT: `spec/5-system/4-execution-engine.md §8`.
+
 ## Unreleased — 인증 webhook 1MB body 게이트 (옵션 C) + 공개 webhook 보호 우회 fix
 
 ### 보안 수정 (Security)

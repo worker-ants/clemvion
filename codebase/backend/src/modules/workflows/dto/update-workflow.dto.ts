@@ -69,7 +69,7 @@ export class UpdateWorkflowDto {
    * 미지 키는 전역 pipe(whitelist+forbidNonWhitelisted)가 400 으로 거부한다.
    */
   @ApiPropertyOptional({
-    type: WorkflowSettingsDto,
+    type: () => WorkflowSettingsDto,
     description:
       '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한, §8)만 지원 — 미지 키는 거부(400).',
   })
