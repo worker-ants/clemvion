@@ -252,6 +252,16 @@ describe('ExecutionEngineService', () => {
     // 동일하게 동작해 기존 execute() 테스트가 그대로 통과한다.
     let lastSaved: Partial<Execution> = { ...savedExecution };
     mockExecutionRepo = {
+      // PR2b — admission gate(admitExecutionOrDefer)의 원자 조건부 UPDATE 기본 mock:
+      // affected=1 → admitted 로, runExecutionFromQueue 경유 테스트가 기존 흐름 유지.
+      // (admission/5분 cancel 전용 테스트는 자체 mkQb 로 재할당.)
+      createQueryBuilder: jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
+      })),
       create: jest.fn().mockReturnValue({ ...savedExecution }),
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
         lastSaved = { ...savedExecution, ...entity };
@@ -3010,6 +3020,104 @@ describe('ExecutionEngineService', () => {
       expect(
         mockWebsocketService.registerExecutionRouting,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  // PR2b — §8 동시성 cap admission gate 흐름 (원자성·COUNT 정확성은 e2e 가 실증).
+  describe('admitExecutionOrDefer / markQueueWaitTimeout (PR2b §8)', () => {
+    const mkQb = (affected: number) => ({
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected, raw: [] }),
+    });
+    const admit = (exec: unknown, input: unknown = {}) =>
+      (
+        service as unknown as {
+          admitExecutionOrDefer: (
+            e: unknown,
+            i: unknown,
+          ) => Promise<'admitted' | 'cancelled' | 'deferred'>;
+        }
+      ).admitExecutionOrDefer(exec, input);
+    const emitSpy = () =>
+      jest
+        .spyOn(
+          (service as unknown as { eventEmitter: { emitExecution: jest.Mock } })
+            .eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
+
+    beforeEach(() => {
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        id: 'wf',
+        workspaceId: 'ws',
+        settings: {},
+        workspace: { settings: {} },
+      });
+    });
+
+    it('cap 여유(affected=1) → admitted: pending→running 동기화 + STARTED emit', async () => {
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(mkQb(1));
+      const spy = emitSpy();
+      const exec = {
+        id: 'e1',
+        workflowId: 'wf',
+        queuedAt: new Date(),
+        status: 'pending',
+      };
+      await expect(admit(exec)).resolves.toBe('admitted');
+      expect(exec.status).toBe('running');
+      expect(spy).toHaveBeenCalledWith(
+        'e1',
+        expect.anything(),
+        expect.objectContaining({ status: 'running' }),
+      );
+      spy.mockRestore();
+    });
+
+    it('cap 초과(affected=0) → deferred: delayed 재큐', async () => {
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(mkQb(0));
+      const exec = {
+        id: 'e2',
+        workflowId: 'wf',
+        queuedAt: new Date(),
+        status: 'pending',
+      };
+      await expect(admit(exec, { a: 1 })).resolves.toBe('deferred');
+      expect(mockExecutionRunQueue.add).toHaveBeenCalledWith(
+        'execution-run',
+        { executionId: 'e2', input: { a: 1 } },
+        expect.objectContaining({ delay: expect.any(Number) }),
+      );
+    });
+
+    it('큐 대기 5분 초과 → cancelled: EXECUTION_CANCELLED cancelledBy=timeout', async () => {
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(mkQb(1));
+      const spy = emitSpy();
+      const exec = {
+        id: 'e3',
+        workflowId: 'wf',
+        queuedAt: new Date(Date.now() - 10 * 60 * 1000), // 10분 전
+        status: 'pending',
+      };
+      mockWorkflowRepo.findOne.mockClear(); // 이전 테스트 누적 호출 격리
+      await expect(admit(exec)).resolves.toBe('cancelled');
+      expect(spy).toHaveBeenCalledWith(
+        'e3',
+        expect.anything(),
+        expect.objectContaining({
+          result: { cancelledBy: 'timeout' },
+          error: expect.objectContaining({
+            code: 'EXECUTION_QUEUE_WAIT_TIMEOUT',
+          }),
+        }),
+      );
+      // 5분 cancel 로 단락 → cap 검사(workflow 조회) 이전 return.
+      expect(mockWorkflowRepo.findOne).not.toHaveBeenCalled();
+      spy.mockRestore();
     });
   });
 
@@ -15686,6 +15794,16 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
         triggerId: 'trg-w5-spy',
       });
 
+      // PR2b — admission gate 를 admitted 로 고정(runExecution throw 경로 검증 목적).
+      jest
+        .spyOn(
+          svc as unknown as {
+            admitExecutionOrDefer: (...a: unknown[]) => Promise<string>;
+          },
+          'admitExecutionOrDefer',
+        )
+        .mockResolvedValue('admitted');
+
       const runSpy = jest
         .spyOn(svc, 'runExecution')
         .mockRejectedValueOnce(new Error('setup-throw-w5'));
@@ -15785,6 +15903,16 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
         inputData: {},
         triggerId: 'trg-w7',
       });
+
+      // PR2b — admission gate 를 admitted 로 고정(runExecution throw 경로 검증 목적).
+      jest
+        .spyOn(
+          svc as unknown as {
+            admitExecutionOrDefer: (...a: unknown[]) => Promise<string>;
+          },
+          'admitExecutionOrDefer',
+        )
+        .mockResolvedValue('admitted');
 
       const runSpy = jest
         .spyOn(svc, 'runExecution')

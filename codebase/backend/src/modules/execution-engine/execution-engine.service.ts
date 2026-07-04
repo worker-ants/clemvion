@@ -34,7 +34,14 @@ import {
   extractFormFields,
   validateAllFields,
 } from '../chat-channel/shared/form-mode';
-import { resolveMaxActiveRunningMs } from './execution-limits';
+import {
+  resolveMaxActiveRunningMs,
+  resolveConcurrencyCap,
+  resolveQueueWaitTimeoutMs,
+  DEFAULT_WORKSPACE_MAX_CONCURRENT_EXECUTIONS,
+  DEFAULT_WORKFLOW_MAX_CONCURRENT_EXECUTIONS,
+  EXECUTION_ADMISSION_RETRY_DELAY_MS,
+} from './execution-limits';
 import {
   ContinuationBusService,
   RECOVERY_LOCK_KEY,
@@ -2534,6 +2541,141 @@ export class ExecutionEngineService
     }
   }
 
+  /**
+   * PR2b — §8 큐 대기 5분 초과로 admission 대기 중이던 `pending` Execution 을
+   * `cancelled` 로 마감한다. `pending` 조건부 UPDATE(이미 admitted/cancel 이면
+   * affected=0 no-op) + `execution.cancelled` emit(`cancelledBy='timeout'` — §7.5
+   * rehydration cancel 과 동일 이벤트 경로). spec §8.
+   */
+  private async markQueueWaitTimeout(executionId: string): Promise<void> {
+    const code = 'EXECUTION_QUEUE_WAIT_TIMEOUT';
+    const message = 'Execution cancelled: queue wait time exceeded';
+    try {
+      const result = await this.executionRepository
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          status: ExecutionStatus.CANCELLED,
+          error: { code, message },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
+        .execute();
+      if ((result.affected ?? 0) > 0) {
+        try {
+          await this.eventEmitter.emitExecution(
+            executionId,
+            ExecutionEventType.EXECUTION_CANCELLED,
+            {
+              status: ExecutionStatus.CANCELLED,
+              result: { cancelledBy: 'timeout' },
+              error: { code, message },
+            },
+          );
+        } catch (emitErr) {
+          this.logger.warn(
+            `markQueueWaitTimeout: EXECUTION_CANCELLED emit 실패 (cancel 은 ` +
+              `DB 반영됨) — execution=${executionId}: ${
+                emitErr instanceof Error ? emitErr.message : String(emitErr)
+              }`,
+          );
+        }
+        this.eventEmitter.releaseExecutionRouting(executionId);
+      }
+    } catch (err) {
+      this.logger.error(
+        `markQueueWaitTimeout 실패 — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * PR2b — §8 동시성 cap admission gate. `runExecutionFromQueue` 의 PENDING arm 에서
+   * `runExecution` 직전 호출. 반환:
+   *  - `'admitted'`: pending→running 원자 전이 성공(슬롯 확보) + `execution.status`
+   *    RUNNING 동기화 + `EXECUTION_STARTED` emit → 호출자는 runExecution 진행.
+   *  - `'cancelled'`: 큐 대기 5분 초과 → cancelled 마감 → 호출자 return.
+   *  - `'deferred'`: ws/wf cap 초과 → delayed 재큐 → 호출자 return.
+   *
+   * **TOCTOU**: 단일 조건부 UPDATE(`WHERE status='pending' AND ws COUNT<cap AND
+   * wf COUNT<cap`)로 카운트-체크-전이를 원자화한다 — 다수 consumer 경쟁에서도 cap
+   * 초과가 없다(pg advisory lock 불요). workspace COUNT 는 execution 에 workspace_id
+   * 컬럼이 없어 workflow join 으로 센다. admission-time 5분 검사도 여기서 수행한다
+   * (별도 스캐너 없음 — delayed 재큐가 job 을 유지, spec §8).
+   */
+  private async admitExecutionOrDefer(
+    execution: Execution,
+    input: unknown,
+  ): Promise<'admitted' | 'cancelled' | 'deferred'> {
+    const executionId = execution.id;
+    // (a) 큐 대기 5분 초과 → cancel
+    if (execution.queuedAt) {
+      const waited = Date.now() - new Date(execution.queuedAt).getTime();
+      if (waited > resolveQueueWaitTimeoutMs()) {
+        await this.markQueueWaitTimeout(executionId);
+        return 'cancelled';
+      }
+    }
+    // (b) cap 로드 — workflow.settings(wf) + workspace.settings(ws)
+    const workflow = await this.workflowRepository.findOne({
+      where: { id: execution.workflowId },
+      relations: ['workspace'],
+    });
+    const wfCap = resolveConcurrencyCap(
+      workflow?.settings,
+      DEFAULT_WORKFLOW_MAX_CONCURRENT_EXECUTIONS,
+    );
+    const wsCap = resolveConcurrencyCap(
+      workflow?.workspace?.settings,
+      DEFAULT_WORKSPACE_MAX_CONCURRENT_EXECUTIONS,
+    );
+    const workspaceId = workflow?.workspaceId;
+    // (c) 원자 admission — pending→running WHERE ws/wf running COUNT < cap
+    const res = await this.executionRepository
+      .createQueryBuilder()
+      .update(Execution)
+      .set({ status: ExecutionStatus.RUNNING, startedAt: () => 'NOW()' })
+      .where('id = :id', { id: executionId })
+      .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
+      .andWhere(
+        `(SELECT COUNT(*) FROM execution wfe ` +
+          `JOIN workflow w ON w.id = wfe.workflow_id ` +
+          `WHERE w.workspace_id = :wsId AND wfe.status = :runWs) < :wsCap`,
+        { wsId: workspaceId, runWs: ExecutionStatus.RUNNING, wsCap },
+      )
+      .andWhere(
+        `(SELECT COUNT(*) FROM execution ` +
+          `WHERE workflow_id = :wfId AND status = :runWf) < :wfCap`,
+        { wfId: execution.workflowId, runWf: ExecutionStatus.RUNNING, wfCap },
+      )
+      .execute();
+    if ((res.affected ?? 0) === 1) {
+      execution.status = ExecutionStatus.RUNNING; // → runExecution 전이 skip
+      await this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_STARTED,
+        { status: ExecutionStatus.RUNNING },
+      );
+      return 'admitted';
+    }
+    // (d) cap 초과 → delayed 재큐. jobId 생략(auto-id) 이라 현재 job 과 충돌 없이
+    //     backoff 후 재-pick up → admission 재검사. 여러 재큐가 쌓여도 첫 admitted
+    //     이후 나머지는 status!=pending → runExecutionFromQueue terminal arm 이 discard.
+    await this.executionRunQueue.add(
+      'execution-run',
+      { executionId, input },
+      {
+        delay: EXECUTION_ADMISSION_RETRY_DELAY_MS,
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
+    return 'deferred';
+  }
+
   private async markNodeExecutionFailed(
     nodeExecutionId: string,
     code:
@@ -3177,6 +3319,17 @@ export class ExecutionEngineService
       });
     }
 
+    // PR2b — §8 admission gate: 동시성 cap(workspace/workflow) 검증 + pending→running
+    // 원자 전이. cap 초과 → delayed 재큐(routing 은 재-pick up 시 재등록하므로 release),
+    // 큐 대기 5분 초과 → cancelled. admitted(전이 성공) 만 runExecution 으로 진행한다.
+    const admission = await this.admitExecutionOrDefer(execution, input);
+    if (admission !== 'admitted') {
+      if (admission === 'deferred') {
+        this.eventEmitter.releaseExecutionRouting(executionId);
+      }
+      return;
+    }
+
     // §4.x "active 세그먼트 + durable park" (exec-park D6 full B3) — `runExecution`
     // 은 park 시 즉시 반환(코루틴 해제)하므로 worker 는 첫 active 세그먼트(시작 → 첫
     // BLOCK/완료)만 await 하면 BullMQ job 이 park 내내 점유되지 않는다. 옛 detached
@@ -3184,7 +3337,7 @@ export class ExecutionEngineService
     // 세그먼트를 종료하므로 단순 `await` 로 동일 효과. setup 단계 throw 는 runExecution
     // 자체 catch 가 못 잡으므로 여기서 best-effort 마감한다.
     try {
-      await this.runExecution(execution, input);
+      await this.runExecution(execution, input, true);
     } catch (err: unknown) {
       this.logger.error(
         `Background execution failed for ${executionId}: ${
@@ -3758,18 +3911,30 @@ export class ExecutionEngineService
   private async runExecution(
     savedExecution: Execution,
     input: unknown,
+    // PR2b — 큐 경로의 admission gate 가 이미 pending→running 전이 + STARTED emit
+    // 을 했으면 true. 그 외 진입점(executeSync/executeInline 등)은 기본 false 로
+    // 여기서 정상 전이한다.
+    alreadyRunning = false,
   ): Promise<void> {
     const executionId = savedExecution.id;
     const workflowId = savedExecution.workflowId;
 
     try {
-      // 3. Transition to RUNNING
-      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_STARTED,
-        { status: ExecutionStatus.RUNNING },
-      );
+      // 3. Transition to RUNNING — PR2b: 큐 경로의 admission gate 가 이미 pending→
+      //    running 원자 전이 + EXECUTION_STARTED emit 을 했으면(alreadyRunning) 중복
+      //    전이를 건너뛴다(RUNNING→RUNNING assertTransition throw 회피). admission
+      //    미경유 경로는 alreadyRunning=false 라 정상 전이·emit 한다.
+      if (!alreadyRunning) {
+        await this.updateExecutionStatus(
+          savedExecution,
+          ExecutionStatus.RUNNING,
+        );
+        await this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_STARTED,
+          { status: ExecutionStatus.RUNNING },
+        );
+      }
 
       // 4-7. Load nodes/edges + build graph + identifyBackEdges +
       // topologicalSort + buildEdgeIndexes + nodeMap + maxNodeIterations —

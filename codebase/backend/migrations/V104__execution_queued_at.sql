@@ -1,0 +1,13 @@
+-- V104: Execution.queued_at — intake 큐 대기 진입 시각 (pending INSERT 시점).
+--
+-- PR2b 동시성 cap admission gate 의 "큐 대기 5분(EXECUTION_QUEUE_WAIT_TIMEOUT_MS) 초과 → cancelled"
+-- 판정 기준(now - queued_at). spec §8 / §2.13 참조.
+--
+-- 왜 별도 컬럼인가: started_at(RUNNING 전이 시각)은 recoverStuckExecutions 의 stale 판정
+-- (started_at < now - STUCK_RECOVERY_STALE_MS)에 쓰여 재사용하면 충돌한다. queued_at 은
+-- pending 큐 진입 시각으로 의미가 다르다.
+--
+-- DEFAULT NOW(): 신규 INSERT(execute() 의 pending row)는 큐 진입 시각으로 자동 채워진다.
+-- 기존 row 도 마이그레이션 시각으로 채워지나, 이미 running/종결 상태라 admission 대상이 아니라 무해.
+-- Postgres 11+ 는 volatile DEFAULT 라도 테이블 rewrite 없이 즉시 추가한다.
+ALTER TABLE execution ADD COLUMN queued_at TIMESTAMPTZ DEFAULT NOW();
