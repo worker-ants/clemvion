@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T21:11:10Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "DTO 검증·객체 spread-merge 만 — 반복문/I/O/비동기 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계·서비스 계층 변경 없음 — 고립된 DTO 추가"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경 (plan/in-progress, review/consistency)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/requirements/go.mod 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·SQL·스키마 변경 없음 — settings JSONB 컬럼 기존"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await/락/큐/타이머 코드 변경 없음 — 동기 DTO 검증만"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "PATCH /api/workflows/:id 엔드포인트 검증 정책 변경 — 미지 settings 키 거부(400), spec §8 admission gate 강화"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "settings 필드 기존 정의(spec §8) — 검증 강화일뿐 신규 사용자 안내 불요"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

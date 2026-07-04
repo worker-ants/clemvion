@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T21:30:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "DTO 검증 계층, I/O 루프/대용량 처리 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계/레이어 변경 없음, 기존 workflows 내 nested DTO 만"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경 (CHANGELOG.md, plan/in-progress, review output)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/lock 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션/SQL 변경 없음, JSONB 검증은 계층 변경"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/Promise/락/이벤트 변경 없음, 순수 DTO 검증"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "PATCH /api/workflows/:id 요청 검증 스키마 변경 — 400 응답 추가(미지키, 비양수)"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "backend-api-change 트리거는 매칭이나 프론트엔드 i18n/userguide 갱신 미필요 (swagger/CHANGELOG 백엔드 내 완료)"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

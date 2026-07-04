@@ -175,7 +175,14 @@ export class WorkflowsService {
     dto: UpdateWorkflowDto,
   ): Promise<Workflow> {
     const workflow = await this.findById(id, workspaceId);
-    Object.assign(workflow, dto);
+    const { settings, ...rest } = dto;
+    Object.assign(workflow, rest);
+    // settings 는 전체 교체 대신 병합 — DB 잔여 키를 보존한다(workspace
+    // updateWorkspaceSettings 의 spread-merge 대칭). DTO 검증(WorkflowSettingsDto)을
+    // 통과한 키만 전달되므로 부적합 값이 유입되지 않는다.
+    if (settings !== undefined) {
+      workflow.settings = { ...(workflow.settings ?? {}), ...settings };
+    }
     return this.workflowRepository.save(workflow);
   }
 

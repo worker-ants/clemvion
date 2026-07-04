@@ -14,6 +14,7 @@ import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
@@ -277,6 +278,57 @@ describe('WorkflowsService', () => {
       await expect(
         service.findById('nonexistent', 'ws-uuid-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update — settings spread-merge (§8 cap DTO)', () => {
+    it('merges settings into existing jsonb (preserves other keys)', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: { existingKey: 'keep' },
+      });
+      await service.update('wf-uuid-1', 'ws-uuid-1', {
+        settings: { maxConcurrentExecutions: 4 },
+      } as UpdateWorkflowDto);
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          settings: { existingKey: 'keep', maxConcurrentExecutions: 4 },
+        }),
+      );
+    });
+
+    it('leaves settings untouched when dto omits settings', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: { maxConcurrentExecutions: 2 },
+      });
+      await service.update('wf-uuid-1', 'ws-uuid-1', {
+        name: 'renamed',
+      } as UpdateWorkflowDto);
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'renamed',
+          settings: { maxConcurrentExecutions: 2 },
+        }),
+      );
+    });
+
+    it('initializes settings when the workflow has none', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: null,
+      });
+      await service.update('wf-uuid-1', 'ws-uuid-1', {
+        settings: { maxConcurrentExecutions: 7 },
+      } as UpdateWorkflowDto);
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          settings: { maxConcurrentExecutions: 7 },
+        }),
+      );
     });
   });
 
