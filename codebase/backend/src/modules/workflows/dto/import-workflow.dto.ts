@@ -15,6 +15,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ALL_NODE_TYPES } from '../../../nodes';
 import { NodeCategory } from '../../nodes/entities/node.entity';
+import { WorkflowSettingsDto } from './workflow-settings.dto';
 
 const ALLOWED_NODE_TYPES = [...ALL_NODE_TYPES];
 const ALLOWED_CATEGORIES = Object.values(NodeCategory);
@@ -157,14 +158,22 @@ export class ImportWorkflowDto {
   @IsString({ each: true })
   tags?: string[];
 
+  /**
+   * 워크플로우 실행 설정 (검증 대상 키만 허용 — 현재 `maxConcurrentExecutions`).
+   * 미지 키는 전역 pipe(whitelist+forbidNonWhitelisted)가 400 으로 거부한다.
+   * `UpdateWorkflowDto.settings`(patch)와 동일 strict DTO — 같은 `Workflow.settings`
+   * jsonb 의 import·patch 검증 대칭(§8, spec/2-navigation/1-workflow-list.md §3.2).
+   */
   @ApiPropertyOptional({
-    description: '워크플로우 설정 객체',
-    type: 'object',
-    additionalProperties: true,
+    type: () => WorkflowSettingsDto,
+    description:
+      '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한, §8)만 지원 — 미지 키는 거부(400).',
   })
   @IsOptional()
   @IsObject()
-  settings?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => WorkflowSettingsDto)
+  settings?: WorkflowSettingsDto;
 
   @ApiProperty({
     description:

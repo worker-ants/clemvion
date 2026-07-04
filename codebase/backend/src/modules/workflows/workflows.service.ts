@@ -284,7 +284,8 @@ export class WorkflowsService {
         name: dto.name,
         description: dto.description,
         tags: dto.tags ?? [],
-        settings: dto.settings ?? {},
+        // 검증된 WorkflowSettingsDto 인스턴스를 jsonb Record 로 평탄화(값은 동일).
+        settings: { ...dto.settings } as Record<string, unknown>,
         workspaceId,
         createdBy: userId,
       });

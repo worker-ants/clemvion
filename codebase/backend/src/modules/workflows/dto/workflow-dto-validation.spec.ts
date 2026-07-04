@@ -4,6 +4,7 @@ import { CreateWorkflowDto } from './create-workflow.dto';
 import { UpdateWorkflowDto } from './update-workflow.dto';
 import { SaveCanvasDto } from './save-canvas.dto';
 import { QueryWorkflowDto } from './query-workflow.dto';
+import { ImportWorkflowDto } from './import-workflow.dto';
 import { NodeCategory } from '../../nodes/entities/node.entity';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -162,6 +163,73 @@ describe('UpdateWorkflowDto', () => {
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0].property).toBe('settings');
     });
+  });
+});
+
+// §8 — ImportWorkflowDto.settings 도 UpdateWorkflowDto 와 동일한 strict WorkflowSettingsDto
+// (import vs patch 검증 대칭). ImportWorkflowDto 는 name·nodes 필수라 settings 외 필드도
+// 에러가 나므로, settings 프로퍼티에 한정해 assert 한다.
+describe('ImportWorkflowDto.settings (WorkflowSettingsDto — import·patch 대칭)', () => {
+  const mk = (settings: unknown) =>
+    plainToInstance(ImportWorkflowDto, { settings });
+  const hasSettingsError = (
+    errors: Awaited<ReturnType<typeof validate>>,
+  ): boolean => errors.some((e) => e.property === 'settings');
+
+  it('accepts a positive integer maxConcurrentExecutions', async () => {
+    const errors = await validate(
+      mk({ maxConcurrentExecutions: 5 }),
+      VALIDATE_OPTIONS,
+    );
+    expect(hasSettingsError(errors)).toBe(false);
+  });
+
+  it('accepts the @Min(1) boundary value 1', async () => {
+    const errors = await validate(
+      mk({ maxConcurrentExecutions: 1 }),
+      VALIDATE_OPTIONS,
+    );
+    expect(hasSettingsError(errors)).toBe(false);
+  });
+
+  it('accepts an empty settings object', async () => {
+    const errors = await validate(mk({}), VALIDATE_OPTIONS);
+    expect(hasSettingsError(errors)).toBe(false);
+  });
+
+  it('accepts omitted settings', async () => {
+    const errors = await validate(
+      plainToInstance(ImportWorkflowDto, { name: 'x' }),
+      VALIDATE_OPTIONS,
+    );
+    expect(hasSettingsError(errors)).toBe(false);
+  });
+
+  it.each([0, -1, 1.5])(
+    'rejects maxConcurrentExecutions=%p (@Min(1)/@IsInt)',
+    async (value) => {
+      const errors = await validate(
+        mk({ maxConcurrentExecutions: value }),
+        VALIDATE_OPTIONS,
+      );
+      expect(hasSettingsError(errors)).toBe(true);
+    },
+  );
+
+  it('rejects a non-numeric maxConcurrentExecutions', async () => {
+    const errors = await validate(
+      mk({ maxConcurrentExecutions: 'three' }),
+      VALIDATE_OPTIONS,
+    );
+    expect(hasSettingsError(errors)).toBe(true);
+  });
+
+  it('rejects an unknown settings key (forbidNonWhitelisted)', async () => {
+    const errors = await validate(
+      mk({ maxConcurrentExecutions: 3, bogusKey: 1 }),
+      VALIDATE_OPTIONS,
+    );
+    expect(hasSettingsError(errors)).toBe(true);
   });
 });
 
