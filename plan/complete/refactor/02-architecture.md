@@ -1,6 +1,6 @@
 # Refactor 백로그 — 아키텍처·확장성 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](../../in-progress/refactor/README.md). Critical 3 / Major 9 / Minor 3 — **spec 대조(2026-06-10) 후 전 항목 유효하나 C-2 의 핵심 처방 1건이 spec 명시 결정과 충돌해 수정됨**.
+> 인덱스: [README.md](./README.md). Critical 3 / Major 9 / Minor 3 — **spec 대조(2026-06-10) 후 전 항목 유효하나 C-2 의 핵심 처방 1건이 spec 명시 결정과 충돌해 수정됨**.
 > **spec 대조 판정 분포**: A 1 (M-5) / B 6 / C 0 / D 8 / E 0.
 > **중복 참조**: C-1 정량 지표는 [03-maintainability.md](./03-maintainability.md) C-1 — 분할 설계는 본 파일 소유. M-3 도 본 파일 소유.
 > **⚠️ spec 충돌 주의**: 엔진↔WebsocketService 의 forwardRef 는 `spec/5-system/4-execution-engine.md §4.4` 가 **명시적으로 의도한 설계**("`IExecutionEventEmitter` 같은 인터페이스를 도입하지 않는다", "forwardRef 는 회피해야 할 안티패턴이 아님") — 이벤트 포트 교체안은 spec 개정 선행 없이는 금지 (C-2 본문 참조).

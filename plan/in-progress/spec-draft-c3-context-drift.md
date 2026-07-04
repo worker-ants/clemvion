@@ -7,7 +7,7 @@ owner: project-planner
 # Spec draft — C-3 실행 컨텍스트 in-memory 정직화 (Redis context store 드리프트 제거)
 
 > 대상: `spec/5-system/4-execution-engine.md` §6.2 / §7.5 / §9.1 / §9.2 + Rationale.
-> 근거: `plan/in-progress/refactor/06-concurrency.md` C-3(마지막 미착수 항목). 2-agent 코드 조사로 §9.2 Redis 키 6종(`:context`/`:status`/`:output`/`:heartbeat`/`:lock`/`queue:priority`) **전부 코드 사용 0건** 확인 — Redis context store 코드 부재. 실기능 결함 없음, 순수 spec 정직화 + 소량 코드 주석.
+> 근거: `plan/complete/refactor/06-concurrency.md` C-3(마지막 미착수 항목). 2-agent 코드 조사로 §9.2 Redis 키 6종(`:context`/`:status`/`:output`/`:heartbeat`/`:lock`/`queue:priority`) **전부 코드 사용 0건** 확인 — Redis context store 코드 부재. 실기능 결함 없음, 순수 spec 정직화 + 소량 코드 주석.
 > 사용자 결정(2026-07-04): 지금 구현 + **드리프트 행 제거 + Rationale 근거 보존**.
 
 ## 변경 핵심 (한 줄)
