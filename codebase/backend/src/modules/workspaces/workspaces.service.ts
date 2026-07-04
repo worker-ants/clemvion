@@ -350,6 +350,13 @@ export class WorkspacesService {
         nextSettings = { ...nextSettings, timezone: tz };
       }
     }
+    // §8 동시성 cap — 제공 시 병합(DTO @IsInt @Min(1) 이 양의 정수 보장). 미제공은 보존.
+    if (dto.maxConcurrentExecutions !== undefined) {
+      nextSettings = {
+        ...nextSettings,
+        maxConcurrentExecutions: dto.maxConcurrentExecutions,
+      };
+    }
     workspace.settings = nextSettings;
     return this.workspaceRepository.save(workspace);
   }

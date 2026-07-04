@@ -2,10 +2,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export class UpdateWorkspaceSettingsDto {
@@ -39,4 +41,20 @@ export class UpdateWorkspaceSettingsDto {
   @IsString()
   @MaxLength(64)
   timezone?: string;
+
+  /**
+   * 워크스페이스당 동시 실행(`running` Execution) 상한 (§8 admission gate). 양의 정수만
+   * 유효하며 미설정 시 시스템 기본값(10). Parallel 노드 `config.maxConcurrency`(노드 내
+   * branch 동시성)와는 스코프가 다른 별개 설정이다.
+   */
+  @ApiPropertyOptional({
+    type: Number,
+    example: 10,
+    description:
+      '워크스페이스당 동시 실행(running Execution) 상한. 양의 정수, 미설정 시 기본 10 (spec §8 admission gate).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxConcurrentExecutions?: number;
 }
