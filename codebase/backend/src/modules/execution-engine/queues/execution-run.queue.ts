@@ -97,27 +97,8 @@ export const EXECUTION_RUN_MAX_STALLED_COUNT = 1;
  */
 export const EXECUTION_RUN_STALLED_INTERVAL_MS = 30_000;
 
-export const DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY = 1;
-
-/**
- * SoT: spec §11 `EXECUTION_RUN_WORKER_CONCURRENCY`. intake worker 의 BullMQ
- * concurrency 를 환경변수로 결정 — work-stealing 처리량·backpressure·§8 동시성
- * cap(PR2)의 토대. `resolveContinuationWorkerConcurrency` 와 동일 규약:
- * `@Processor` 데코레이터가 DI 이전 평가되므로 순수 파서, 비양수·비정수·비숫자·
- * 공학표기는 기본값 fallback (정규식 선검증).
- */
-export function resolveExecutionRunWorkerConcurrency(
-  env: NodeJS.ProcessEnv = process.env,
-): number {
-  const raw = env.EXECUTION_RUN_WORKER_CONCURRENCY;
-  if (raw === undefined || !/^\d+$/.test(raw.trim())) {
-    return DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY;
-  }
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0
-    ? parsed
-    : DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY;
-}
+// `resolveExecutionRunWorkerConcurrency` + `DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY`
+// 는 동시성 한도 파서 응집을 위해 `../execution-limits.ts` 로 이관됐다(ARCH#4).
 
 /**
  * `execution-run` job payload.

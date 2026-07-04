@@ -1,9 +1,10 @@
 import { BACKGROUND_EXECUTION_QUEUE } from '../execution-engine/queues/background-execution.queue';
-import { CONTINUATION_EXECUTION_QUEUE } from '../execution-engine/queues/continuation-execution.queue';
 import {
-  EXECUTION_RUN_QUEUE,
-  resolveExecutionRunWorkerConcurrency,
-} from '../execution-engine/queues/execution-run.queue';
+  CONTINUATION_EXECUTION_QUEUE,
+  resolveContinuationWorkerConcurrency,
+} from '../execution-engine/queues/continuation-execution.queue';
+import { EXECUTION_RUN_QUEUE } from '../execution-engine/queues/execution-run.queue';
+import { resolveExecutionRunWorkerConcurrency } from '../execution-engine/execution-limits';
 import { DOCUMENT_EMBEDDING_QUEUE } from '../knowledge-base/queues/document-embedding.queue';
 import { GRAPH_EXTRACTION_QUEUE } from '../knowledge-base/queues/graph-extraction.queue';
 import { NOTIFICATION_WEBHOOK_QUEUE } from '../external-interaction/notification-dispatcher.types';
@@ -37,14 +38,16 @@ export interface MonitoredQueue {
 }
 
 /**
- * continuation worker 의 concurrency 는 env 로 조정 가능 (기본 1).
- * 다른 큐는 worker 옵션의 정적 기본값을 그대로 반영한다.
- * SoT: spec/data-flow/0-overview.md §4 BullMQ 큐 카탈로그.
+ * continuation·execution-run worker 의 concurrency 는 env 로 조정 가능 (기본 1). 두 값 모두
+ * 각 큐 모듈이 소유한 **canonical resolver** 를 재사용해 파싱을 일원화한다(MAINT#9) — 종전
+ * inline `Number(env) || 1` 은 spec §11 이 문서화한 "비양수·비정수·비숫자→1 fallback" 계약과
+ * 어긋나(공학표기·소수 등을 loose 하게 수용) 있었다. resolver 는 정규식 선검증으로 그 계약을
+ * 그대로 구현한다. 다른 큐는 worker 옵션의 정적 기본값을 반영.
+ * SoT: spec/5-system/4-execution-engine.md §11 + spec/data-flow/0-overview.md §4 큐 카탈로그.
  */
-const continuationConcurrency =
-  Number(process.env.CONTINUATION_WORKER_CONCURRENCY) || 1;
+const continuationConcurrency = resolveContinuationWorkerConcurrency();
 
-/** execution-run intake worker concurrency (env, 기본 1) — PR1 패턴 재사용. */
+/** execution-run intake worker concurrency (env, 기본 1) — canonical resolver 재사용. */
 const executionRunConcurrency = resolveExecutionRunWorkerConcurrency();
 
 /**
