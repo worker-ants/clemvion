@@ -101,6 +101,8 @@ code:
 
 > **W-6 워크스페이스 격리 guard (`WORKFLOW_FORBIDDEN_WORKSPACE`)**: cross-workspace(또는 호출자 컨텍스트 누락) sub-workflow 호출 차단(fail-closed, [workflow §2 W-6](../4-nodes/2-flow/1-workflow.md#2-설정-ui))은 `assertSameWorkspace` 가 typed `WorkflowForbiddenWorkspaceError` 를 throw 하고, Sub-Workflow 핸들러(`mapSubWorkflowError`)가 이를 `ErrorCode.WORKFLOW_FORBIDDEN_WORKSPACE` 로 매핑해 error 포트(`output.error.code`)에 surface 한다. (코드 명명·등재 원칙: [`conventions/error-codes.md`](../conventions/error-codes.md).)
 
+> **큐 대기 초과 — `cancelled` 귀결 (위 failed 표와 구분)**: `EXECUTION_QUEUE_WAIT_TIMEOUT` — 동시 실행 cap 으로 intake 큐에서 대기하던 Execution 이 5분(env `EXECUTION_QUEUE_WAIT_TIMEOUT_MS`, 기본 `300000`ms) 초과 시 Execution `cancelled` + `error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'`. 노드 실행이 **시작되지 않은 시스템 취소**라 `failed` 가 아니라 `cancelled`(`cancelledBy='timeout'`)로 종결한다 — 아래 §1.5 `RESUME_*` 와 같은 cancelled 귀결 그룹. **PR2b(정책 정의, enforcement 후속)**. [4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한) / [WS Protocol §4.1](./6-websocket-protocol.md#41-실행-이벤트-server--client).
+
 ### 1.5 WS commands 에러 코드 (도메인 spec 참조)
 
 다음 에러 코드는 주로 WebSocket ack 응답 전용이다. 일부 코드(`SERVER_SHUTTING_DOWN`·`EXECUTION_ENQUEUE_FAILED`)는 REST 실행 제어 진입점에서 HTTP **503** 으로도 표기된다 — 행별로 명시한다 (설계 원칙: [실행 엔진 §Rationale](./4-execution-engine.md#rationale) 의 `SERVER_SHUTTING_DOWN` 503 선례). 각 코드의 정의·트리거 조건·적용 명령 범위는 해당 도메인 spec 이 SoT 이고, 본 §1.5 는 공용 카탈로그 가시성을 위한 등재 목적이다.
