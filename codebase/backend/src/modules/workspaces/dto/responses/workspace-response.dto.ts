@@ -41,6 +41,15 @@ export class WorkspaceSettingsDto {
     description: '외부 상호작용 허용 origin 목록',
   })
   interactionAllowedOrigins: string[];
+
+  @ApiProperty({
+    type: Number,
+    required: false,
+    example: 10,
+    description:
+      '워크스페이스당 동시 실행(running Execution) 상한 (미설정 시 기본 10, §8)',
+  })
+  maxConcurrentExecutions?: number;
 }
 
 /** 워크스페이스 멤버 */

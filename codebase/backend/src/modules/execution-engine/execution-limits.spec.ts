@@ -1,6 +1,11 @@
 import {
   DEFAULT_MAX_ACTIVE_RUNNING_MS,
   resolveMaxActiveRunningMs,
+  resolveConcurrencyCap,
+  resolveQueueWaitTimeoutMs,
+  DEFAULT_QUEUE_WAIT_TIMEOUT_MS,
+  DEFAULT_WORKSPACE_MAX_CONCURRENT_EXECUTIONS,
+  DEFAULT_WORKFLOW_MAX_CONCURRENT_EXECUTIONS,
 } from './execution-limits';
 import { ExecutionTimeLimitError } from './workflow-errors';
 import { ErrorCode } from '../../nodes/core/error-codes';
@@ -28,6 +33,57 @@ describe('resolveMaxActiveRunningMs', () => {
       expect(
         resolveMaxActiveRunningMs({ EXECUTION_MAX_ACTIVE_RUNNING_MS: bad }),
       ).toBe(DEFAULT_MAX_ACTIVE_RUNNING_MS);
+    }
+  });
+});
+
+describe('resolveConcurrencyCap (PR2b §8)', () => {
+  it('기본값 상수 — workspace 10 / workflow 3', () => {
+    expect(DEFAULT_WORKSPACE_MAX_CONCURRENT_EXECUTIONS).toBe(10);
+    expect(DEFAULT_WORKFLOW_MAX_CONCURRENT_EXECUTIONS).toBe(3);
+  });
+
+  it('settings.maxConcurrentExecutions 양의 정수 채택', () => {
+    expect(resolveConcurrencyCap({ maxConcurrentExecutions: 5 }, 10)).toBe(5);
+    expect(resolveConcurrencyCap({ maxConcurrentExecutions: 1 }, 3)).toBe(1);
+  });
+
+  it('미설정·null·undefined 는 defaultCap', () => {
+    expect(resolveConcurrencyCap(undefined, 10)).toBe(10);
+    expect(resolveConcurrencyCap(null, 3)).toBe(3);
+    expect(resolveConcurrencyCap({}, 10)).toBe(10);
+    expect(resolveConcurrencyCap({ other: 5 }, 7)).toBe(7);
+  });
+
+  it('0·음수·비정수·문자열·비숫자 타입은 defaultCap (무제한 옵션 없음)', () => {
+    for (const bad of [0, -1, 2.5, '5', '10', true, null, NaN, Infinity]) {
+      expect(
+        resolveConcurrencyCap(
+          { maxConcurrentExecutions: bad as unknown as number },
+          10,
+        ),
+      ).toBe(10);
+    }
+  });
+});
+
+describe('resolveQueueWaitTimeoutMs (PR2b §8)', () => {
+  it('기본값 5분(300000)', () => {
+    expect(DEFAULT_QUEUE_WAIT_TIMEOUT_MS).toBe(5 * 60 * 1000);
+    expect(resolveQueueWaitTimeoutMs({})).toBe(DEFAULT_QUEUE_WAIT_TIMEOUT_MS);
+  });
+
+  it('양의 정수 채택', () => {
+    expect(
+      resolveQueueWaitTimeoutMs({ EXECUTION_QUEUE_WAIT_TIMEOUT_MS: '60000' }),
+    ).toBe(60000);
+  });
+
+  it('0·음수·소수·공학표기·비숫자·공백은 기본값 fallback (0=무제한 없음)', () => {
+    for (const bad of ['0', '-1', '2.5', '1e6', 'abc', '', '  ']) {
+      expect(
+        resolveQueueWaitTimeoutMs({ EXECUTION_QUEUE_WAIT_TIMEOUT_MS: bad }),
+      ).toBe(DEFAULT_QUEUE_WAIT_TIMEOUT_MS);
     }
   });
 });

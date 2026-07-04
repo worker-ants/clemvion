@@ -42,6 +42,17 @@ export class Execution {
   @Column({ length: 30, default: ExecutionStatus.PENDING })
   status: ExecutionStatus;
 
+  // intake 큐 대기 진입 시각(pending INSERT). PR2b admission gate 의 큐 대기 5분
+  // 초과 판정 기준(now - queued_at, §8). started_at(RUNNING 전이 시각)과 별개.
+  // DEFAULT NOW() 로 신규 INSERT 시 자동 set (V104). 기존 row 는 NULL 가능.
+  @Column({
+    name: 'queued_at',
+    type: 'timestamptz',
+    nullable: true,
+    default: () => 'NOW()',
+  })
+  queuedAt: Date | null;
+
   @Column({ name: 'started_at', type: 'timestamptz', default: () => 'NOW()' })
   startedAt: Date;
 

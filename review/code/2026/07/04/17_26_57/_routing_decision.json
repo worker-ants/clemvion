@@ -1,0 +1,89 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T17:26:57Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 + pg_advisory_xact_lock 트랜잭션 TOCTOU 방어 검증"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "V105 인덱스 추가로 성능 개선(hot-path 최적화) — database reviewer 가 검증"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "admission gate TOCTOU 방어의 advisory lock 원자성 설계 + transaction scope 변경"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): recordRunningSegmentStart 누락 CRITICAL fix 검증 — §8 active-running 타임아웃 복구"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): fix scope 검증 — 의도 대비 범위 적절성(advisory lock scope, admitted branch 범위)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): pg_advisory_xact_lock 트랜잭션 격리·deadlock 위험 + recordRunningSegmentStart 호출 영향 검증"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): advisory lock 락키 계산(hashtext) + tx 구조 복잡도 + 주석 품질 검증"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): mock 갱신(manager.transaction advisory lock 모의) + admitted 케이스 segmentStartMs 검증 추가 여부"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec §8 flip 확인(\"enforcement 완료\" 로 정정되었는지), advisory lock 필수성 재서술"
+    },
+    {
+      "name": "dependency",
+      "selected": true,
+      "reason": "agents_forced (router_safety): docker-compose env 변경 상태 확인"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "agents_forced (router_safety): V105 인덱스 추가(workflow_id, status) + advisory lock 트랜잭션 격리 영향 검증"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "핵심 검증: pg_advisory_xact_lock 트랜잭션으로 TOCTOU race 실제 폐쇄되었는지 + workspace-scope 락 범위 적절성 + deadlock 위험"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "GET /api/workspaces/:id/settings 응답에 maxConcurrentExecutions 추가 확인 + WorkspaceSettingsDto 동기화"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "매트릭스 trigger 미매칭 — admission gate 내부 메커니즘(사용자 UI 변경 없음), GET settings 추가는 API-only"
+    }
+  ],
+  "selected_count": 13,
+  "skipped_count": 1,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database"
+  ]
+}

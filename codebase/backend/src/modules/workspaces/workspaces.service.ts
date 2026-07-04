@@ -350,6 +350,13 @@ export class WorkspacesService {
         nextSettings = { ...nextSettings, timezone: tz };
       }
     }
+    // §8 동시성 cap — 제공 시 병합(DTO @IsInt @Min(1) 이 양의 정수 보장). 미제공은 보존.
+    if (dto.maxConcurrentExecutions !== undefined) {
+      nextSettings = {
+        ...nextSettings,
+        maxConcurrentExecutions: dto.maxConcurrentExecutions,
+      };
+    }
     workspace.settings = nextSettings;
     return this.workspaceRepository.save(workspace);
   }
@@ -361,7 +368,11 @@ export class WorkspacesService {
   async getWorkspaceSettings(
     workspaceId: string,
     userId: string,
-  ): Promise<{ interactionAllowedOrigins: string[]; timezone?: string }> {
+  ): Promise<{
+    interactionAllowedOrigins: string[];
+    timezone?: string;
+    maxConcurrentExecutions?: number;
+  }> {
     const role = await this.getMemberRole(workspaceId, userId);
     if (!role) {
       throw new ForbiddenException({
@@ -380,11 +391,13 @@ export class WorkspacesService {
     }
     const origins = workspace.settings?.interactionAllowedOrigins;
     const tz = workspace.settings?.timezone;
+    const cap = workspace.settings?.maxConcurrentExecutions;
     return {
       interactionAllowedOrigins: Array.isArray(origins)
         ? origins.filter((o): o is string => typeof o === 'string')
         : [],
       ...(typeof tz === 'string' && tz.length > 0 ? { timezone: tz } : {}),
+      ...(typeof cap === 'number' ? { maxConcurrentExecutions: cap } : {}),
     };
   }
 

@@ -1,0 +1,89 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T16:58:32Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 + 사용자 입력 처리(DTO validation), DB 원자 업데이트 조건, 워크스페이스 설정 수정 권한"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "반복문/I/O/대용량 처리 최적화 변경 없음 — admission 원자 업데이트와 cap 파싱은 O(1)"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "runExecutionFromQueue에 새 admission gate layer 추가 + 워크플로우/워크스페이스 설정 로드 기준 변경"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 + spec §8 admission gate 정책 이행(cap 검증, 5분 timeout, 원자성)"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 — admission gate(pending→running) + settings sync + e2e 통합 범위 검증"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 + execution status 전이(pending→running 이중화) + 워크스페이스 settings 필드 추가 + 이벤트 emit 경로"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 + 원자 UPDATE 복잡도, 다중 조건부 로직(5분 타임아웃·cap 로드·SQL 서브쿼리)"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 + 신규 admission gate 테스트 45줄(accepted/deferred/cancelled paths) + alreadyRunning flag 보정"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec/5-system/4-execution-engine.md 변경 — §8 queue wait timeout 트리거·포착 메커니즘 설명 추가"
+    },
+    {
+      "name": "dependency",
+      "selected": true,
+      "reason": "agents_forced (router_safety): docker-compose.e2e.yml 변경 — 비용적·보안(redis 볼륨) 영향"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "agents_forced (router_safety): V104 마이그레이션(execution.queued_at) + Execution 엔티티 컬럼 추가 + raw SQL UPDATE 서브쿼리(workspace JOIN)"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "핵심 기능: 동시성 cap admission gate의 TOCTOU-safe 원자 UPDATE(pending→running) + workspace/workflow cap 동시 검증"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "workspace settings 엔드포인트에 maxConcurrentExecutions 필드 추가 + Swagger annotation — API schema 변경"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "매트릭스 trigger 미매칭 — admission gate는 내부 동시성 메커니즘(사용자 가시적 변경 아님), workspace settings 변경은 메트릭스 범위 외"
+    }
+  ],
+  "selected_count": 13,
+  "skipped_count": 1,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database"
+  ]
+}
