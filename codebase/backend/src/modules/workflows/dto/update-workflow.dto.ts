@@ -6,9 +6,11 @@ import {
   IsUUID,
   MaxLength,
   IsObject,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { WorkflowSettingsDto } from './workflow-settings.dto';
 
 export class UpdateWorkflowDto {
   /** 변경할 워크플로우 이름 (최대 255자) */
@@ -62,14 +64,18 @@ export class UpdateWorkflowDto {
   @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
   folderId?: string | null;
 
-  /** 워크플로우 실행/UI 관련 설정 객체 */
+  /**
+   * 워크플로우 실행 설정 (검증 대상 키만 허용 — 현재 `maxConcurrentExecutions`).
+   * 미지 키는 전역 pipe(whitelist+forbidNonWhitelisted)가 400 으로 거부한다.
+   */
   @ApiPropertyOptional({
-    description: '워크플로우 설정 객체 (실행/UI 관련 임의 속성)',
-    type: 'object',
-    additionalProperties: true,
-    example: { timeoutMs: 30000, retryCount: 3 },
+    type: WorkflowSettingsDto,
+    description:
+      '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한, §8)만 지원 — 미지 키는 거부(400).',
   })
   @IsOptional()
   @IsObject()
-  settings?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => WorkflowSettingsDto)
+  settings?: WorkflowSettingsDto;
 }

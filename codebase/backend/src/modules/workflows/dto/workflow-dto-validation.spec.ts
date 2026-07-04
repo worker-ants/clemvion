@@ -98,6 +98,63 @@ describe('UpdateWorkflowDto', () => {
       expect(errors.length).toBe(0);
     });
   });
+
+  // §8 admission gate — Workflow.settings.maxConcurrentExecutions 검증(nested DTO).
+  // workspace(UpdateWorkspaceSettingsDto)와 동일한 strict 정책: 양의 정수만, 미지 키 거부.
+  describe('settings (WorkflowSettingsDto)', () => {
+    const mk = (settings: unknown) =>
+      plainToInstance(UpdateWorkflowDto, { settings });
+
+    it('accepts a positive integer maxConcurrentExecutions', async () => {
+      const errors = await validate(
+        mk({ maxConcurrentExecutions: 5 }),
+        VALIDATE_OPTIONS,
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts an empty settings object (no cap change)', async () => {
+      const errors = await validate(mk({}), VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('accepts omitted settings', async () => {
+      const errors = await validate(
+        plainToInstance(UpdateWorkflowDto, { name: 'x' }),
+        VALIDATE_OPTIONS,
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it.each([0, -1, 1.5])(
+      'rejects maxConcurrentExecutions=%p (@Min(1)/@IsInt)',
+      async (value) => {
+        const errors = await validate(
+          mk({ maxConcurrentExecutions: value }),
+          VALIDATE_OPTIONS,
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors[0].property).toBe('settings');
+      },
+    );
+
+    it('rejects a non-numeric maxConcurrentExecutions', async () => {
+      const errors = await validate(
+        mk({ maxConcurrentExecutions: 'three' }),
+        VALIDATE_OPTIONS,
+      );
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects an unknown settings key (forbidNonWhitelisted — workspace 대칭)', async () => {
+      const errors = await validate(
+        mk({ maxConcurrentExecutions: 3, bogusKey: 1 }),
+        VALIDATE_OPTIONS,
+      );
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].property).toBe('settings');
+    });
+  });
 });
 
 describe('SaveCanvasDto.changeSummary', () => {

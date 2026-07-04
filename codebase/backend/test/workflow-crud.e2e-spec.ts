@@ -99,6 +99,46 @@ describe('Workflow CRUD (e2e)', () => {
     expect(get.body.data.description).toBe('after');
   });
 
+  it('B2. PATCH settings.maxConcurrentExecutions — 검증 게이트(§8, workspace 대칭)', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ name: uniqueName('wf-cap') });
+    const id = create.body.data.id;
+
+    // 0 (양의 정수 아님) → 400.
+    const zero = await request(BASE_URL)
+      .patch(`/api/workflows/${id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ settings: { maxConcurrentExecutions: 0 } });
+    expect(zero.status).toBe(400);
+
+    // 미지 settings 키 → 400 (forbidNonWhitelisted — workspace settings DTO 대칭).
+    const unknownKey = await request(BASE_URL)
+      .patch(`/api/workflows/${id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ settings: { bogusKey: 1 } });
+    expect(unknownKey.status).toBe(400);
+
+    // 양의 정수 → 200 + 후속 GET 에 영속.
+    const ok = await request(BASE_URL)
+      .patch(`/api/workflows/${id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ settings: { maxConcurrentExecutions: 5 } });
+    expect(ok.status).toBe(200);
+
+    const get = await request(BASE_URL)
+      .get(`/api/workflows/${id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(get.status).toBe(200);
+    expect(get.body.data.settings?.maxConcurrentExecutions).toBe(5);
+  });
+
   it('C. duplicate → 새 ID, " (Copy)" 접미, isActive=false', async () => {
     const baseName = uniqueName('wf-c');
     const create = await request(BASE_URL)
