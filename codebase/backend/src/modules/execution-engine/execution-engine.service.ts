@@ -116,6 +116,7 @@ import {
   buildExecutionRunJobId,
   resolveExecutionRunPriority,
   type ExecutionRunJob,
+  type ExecutionRunTriggerType,
 } from './queues/execution-run.queue';
 import {
   adaptHandlerReturn,
@@ -368,6 +369,7 @@ export type ExecuteOptions =
   | {
       executedBy: string;
       triggerId?: never;
+      triggerType?: never; // manual 은 executedBy 로 판정(§4.3) — 명시 불요
       // Replay/Re-run (decision F2) — 수동 re-run 으로 생성되는 실행에만 세팅.
       reRunOf?: string;
       chainId?: string;
@@ -384,6 +386,13 @@ export type ExecuteOptions =
   | {
       executedBy?: never;
       triggerId: string;
+      // priority 3-tier(§4.3) — intake 큐 우선순위 계산 입력. `'webhook'`/`'schedule'`
+      // (manual 은 executedBy variant 로 판정). 호출부(webhook/chat-channel/schedule)가
+      // `Trigger.type` 을 전달; 미지정 시 execute() 가 `'webhook'` fallback.
+      // ⚠️ 실행 이력 표시용 파생 필드 `Execution.triggerSource`(5-way)와 **다른 별개 필드**
+      // 다 — 본 필드는 priority 계산 전용이고 `ExecutionRunJob` payload 에는 싣지 않는다
+      // (§9.3 경계, execute() 에서 add priority 로만 소비).
+      triggerType?: ExecutionRunTriggerType;
       // webhook/chat-channel 발화 시 호출 메타데이터 (§A.3 호출 이력, WH-MG-05).
       // sourceIp: hooks.service 의 extractClientIp 결과. responseCode: webhook 호출이
       // 받는 실제 HTTP 응답 코드(성공 = '202'). 둘 다 optional → schedule 등 비-HTTP
@@ -391,7 +400,7 @@ export type ExecuteOptions =
       sourceIp?: string;
       responseCode?: string;
     }
-  | { executedBy?: never; triggerId?: never };
+  | { executedBy?: never; triggerId?: never; triggerType?: never };
 
 /**
  * 워크플로우 실행 엔진의 단일 진입점.
@@ -3234,12 +3243,13 @@ export class ExecutionEngineService
     //
     //    jobId = executionId (1:1 enqueue) → BullMQ 가 중복 add 를 자동 dedup.
     //    priority: 수동 실행(executedBy)을 트리거 실행보다 앞세운다(§4.3). webhook
-    //    vs schedule 의 세부 3-tier 구분은 ExecuteOptions 가 trigger type 을 싣지
-    //    않아 후속(triggerType threading)으로 미룬다 — 현재는 manual > 그 외.
-    // TODO(PR2): trigger type threading — ExecuteOptions 에 triggerType 필드 추가 시
-    //   'manual' | 'webhook' | 'schedule' 로 세분화. 현재 schedule 실행도 'webhook'
-    //   우선순위를 받는다(spec §4.3 3-tier 미완성 — 의도된 임시 처리).
-    const triggerType = options?.executedBy ? 'manual' : 'webhook';
+    //    3-tier(§4.3): **executedBy 우선** — 수동 실행(schedule "지금 실행" runNow 포함)은
+    //    `manual`. 트리거 발화(triggerId)는 호출부가 전달한 `options.triggerType`
+    //    (`Trigger.type`: webhook/schedule)을 쓰고, 미전달 시 `webhook` fallback(비-HTTP
+    //    트리거 방어). `manual`(1) > `webhook`(2) > `schedule`(3).
+    const triggerType: ExecutionRunTriggerType = options?.executedBy
+      ? 'manual'
+      : (options?.triggerType ?? 'webhook');
     await this.executionRunQueue.add(
       'execution-run',
       { executionId, input },

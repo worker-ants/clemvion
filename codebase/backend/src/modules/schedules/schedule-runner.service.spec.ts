@@ -217,7 +217,8 @@ describe('ScheduleRunnerService', () => {
       expect(engine.execute).toHaveBeenCalledWith(
         'wf1',
         expect.objectContaining({ parameters: expect.any(Object) }),
-        { triggerId: 'trigger-uuid' },
+        // priority 3-tier(§4.3) — 정기 schedule 자동 발화는 schedule 우선순위.
+        { triggerId: 'trigger-uuid', triggerType: 'schedule' },
       );
       // 성공 시 lastRunAt/nextRunAt 이 갱신된 상태로 schedule row 가 저장돼야
       // 다음 cron 발화 시각이 정확히 계산된다.
