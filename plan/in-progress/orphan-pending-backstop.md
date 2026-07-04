@@ -28,5 +28,5 @@ spec_impact:
 - [x] 구현 (recoverOrphanPendingExecutions + recoverStuckExecutions 통합, LessThan import)
 - [x] spec §8/§7.1/§7.4 "구현 완료" + Rationale 서브섹션 + data-flow 3(mermaid·recovery 표) 반영
 - [x] TEST WORKFLOW (lint·unit(신규 3)·build·e2e(234))
-- [ ] ai-review + impl-done consistency
-- [ ] PR
+- [x] ai-review (22_12_26 → Warning 4 조치 → fresh 22_28_18 Critical/Warning 0) + impl-done consistency (22_27_48 BLOCK: NO)
+- [x] PR

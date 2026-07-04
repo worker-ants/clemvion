@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T22:28:18Z",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced (router_safety): src 코드 변경(주석)"},
+    {"name": "performance", "selected": false, "reason": "runtime 변경 없음 — JSDoc/comment 갱신만"},
+    {"name": "architecture", "selected": false, "reason": "모듈 구조 변경 없음 — 기존 로직 설명 주석만"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced (router_safety): spec 본문 변경(§8/Rationale 확정) + plan 체크박스"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety): src 주석 추가"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced (router_safety): src 수정"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety): JSDoc/주석 품질 갱신"},
+    {"name": "testing", "selected": true, "reason": "agents_forced (router_safety): e2e 파일 헤더 시나리오 설명 갱신"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced (router_safety): CHANGELOG.md + spec + plan 문서 변경"},
+    {"name": "dependency", "selected": false, "reason": "package.json/lock 변경 없음"},
+    {"name": "database", "selected": true, "reason": "index-justification 주석 추가 + 신규 find() 쿼리 설명 완성 — orphan 스캔 인덱싱 재검증 권고"},
+    {"name": "concurrency", "selected": true, "reason": "RUNNING/PENDING 동시성 설명 주석 추가 — 멱등성/race 재확인 권고"},
+    {"name": "api_contract", "selected": false, "reason": "신규 API 표면 없음 — 기존 테스트훅 재사용만"},
+    {"name": "user_guide_sync", "selected": false, "reason": "내부 recovery 로직 문서화 — 사용자 가이드 갱신 불필요"}
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": ["security", "maintainability", "requirement", "scope", "side_effect", "testing", "documentation"]
+}
