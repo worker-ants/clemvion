@@ -168,9 +168,66 @@ owner: developer
 ## Phase 0 — 통합 baseline [A2/B 의 선행, **A1 은 제외**]
 > **조사 결과(2026-06-05)**: exec-intake-queue PR3 는 **미구현**(branch `claude/impl-exec-intake-queue` 최신이 docs 커밋 `01bca178`). 흡수할 코드가 없으므로 PR3 의 "rehydration 일반화 + 멱등 재개" 는 본 plan 이 **Phase A2/B2 에서 직접 구현**한다. fix/exec-engine-park-worker-job-release 는 #468(`9f30216f`)로 main 랜딩 → C2/W4 해소, 본 worktree 가 그 위.
 > **A1 은 Phase 0 와 독립**(consistency W6 해소): A1(conversationThread durable 영속+복원)은 `rehydrateContext` 의 thread-복원 추가 + 신규 컬럼 + park 스냅샷으로 자기완결이며, PR3 의 rehydration 일반화(비-ai 노드 확장·멱등 jobId 재검증)와 표면이 겹치지 않는다. A1 선착수 가능.
-- [ ] (A2/B2 착수 전) PR3 의 rehydration 일반화(ai_agent → 일반 노드) + 멱등 재개를 본 plan A2/B2 로 직접 구현.
+- [~] (A2/B2 착수 전) PR3 의 rehydration 일반화(ai_agent → 일반 노드) + 멱등 재개를 본 plan A2/B2 로 직접 구현. **→ 스코핑 재확정(2026-07-03): 아래 "## PR3 — 크래시 RUNNING 세그먼트 멱등 재개" 참조. "일반화(ai_agent→일반 노드)" 축은 full B3 로 이미 완료(waiting 노드 전원 `dispatchResumeTurn` generic), 실제 남은 갭 = 크래시 RUNNING(non-waiting) 세그먼트 재개.**
 - [x] (A2/B 착수 전) node-cancellation §2(`NodeExecution.status='cancelled'` enum·재개 경로)와의 직렬화 순서·status 가드 겹침 **확정(2026-06-06)**: 직렬화 순서 = 본 umbrella 의 **B3(PR-B2 dispatch-path 정리)가 선행**, node-cancellation §2(별도 worktree·미착수)는 그 결과 위로 rebase. status 가드는 PR-B1 의 `cancelParkedExecution`(WAITING NodeExecution → `cancelled` 직접 마킹, §7.4)으로 이미 확보 — B3 의 코루틴 제거가 이 DB-level terminal 가드를 침해하지 않음을 PR-B2 e2e 로 회귀 보증.
 - [x] 출처 plan 이관 표기 + cross-link **완료(2026-06-06)**: `exec-intake-queue-impl.md` PR3·`node-cancellation-infrastructure.md §2` 에 "→ exec-park-durable-resume 로 이관(직접 구현)" 표기 추가. (exec-intake-queue PR3 는 L139 조사대로 미구현이라 본 plan A2/B2 가 직접 구현)
+
+## PR3 — 크래시 RUNNING 세그먼트 멱등 재개 (스코핑 확정 2026-07-03)
+
+> 2-agent 코드 정밀조사(resume 경로 매핑 + 큐/복구 인프라) 결론. plan L171 "일반화(ai_agent→일반 노드)" 텍스트는 **full B3(PR-B2b) 이전 프레이밍**이라 실코드와 어긋나 있었다.
+
+### 스코핑 결론 — 두 "일반화" 축
+
+- **(b) waiting 노드 rehydration 을 ai/IE 너머 일반 노드로 확장 = 이미 완료(full B3).** 모든 waiting-capable 노드(form·carousel·table·chart·template·ai_agent·information_extractor)가 node-type-agnostic `dispatchResumeTurn`(`resume-turn-dispatch.ts`)으로 재개. 미커버 0개. `driveResumeAwaited`·`driveCallStackResume`·`driveResumeFrame`·`rehydrateContext` 전부 게이트 없음, 중첩 프레임 자동 상속. 유일 allow-list `CHECKPOINT_ELIGIBLE_NODE_TYPES = {ai_agent, information_extractor}`(execution-engine.service.ts:313)는 **`_resumeCheckpoint`(멀티턴 turn-state) 재구성 게이트로 의도적으로 올바름 — 확장 금지**(form/button 은 checkpoint 없이 도착 payload 로 재개).
+- **(a) 크래시 RUNNING(non-waiting) active 세그먼트 재개 = 부재. 이것이 실제 남은 작업.** `recoverStuckExecutions`(:2605-2685)는 stale RUNNING(30분)을 `FAILED`+`WORKER_HEARTBEAT_TIMEOUT` 마킹만. `execution-run` 큐 `maxStalledCount:0`/`attempts:1`(의도적, 멱등 재개 부재로 크래시 재배달 차단). 코드 주석이 "PR3/PR4 가 멱등 rehydration + stalled 일원화 도입"으로 명시(execution-run.queue.ts:18, .processor.ts:24).
+
+### 확정 범위 (사용자 결정 2026-07-03)
+
+- **Q1 = 제어된 re-drive (BullMQ auto-stalled OFF 유지).** `recoverStuckExecutions` 를 "즉시 fail" → "stale RUNNING 을 `started_at` 기반 **원자 re-claim**(`UPDATE … WHERE status='running' AND started_at < threshold RETURNING`, affected=1 = `claimResumeEntry` 패턴 일반화) 후 rehydrate + 그래프 forward 재구동"으로 전환. 신규 crash-redrive 진입점(도착 payload 없는 non-waiting 재개 — `dispatchResumeTurn` 우회, `rehydrateContext` + `runNodeDispatchLoop` forward 재사용). `runNodeDispatchLoop` 에 per-node DB status 멱등 가드(§7.2 완료노드 skip + §7.3 재검증) 추가. **신규 마이그레이션 불요**(started_at·execution_node_log·NodeExecution.status 재사용). 단일 집중 PR.
+- **Q2 = errorPolicy='continue' 세그먼트 재개 = 분리/defer**(residual-gaps G2 — schema 노출 선행 미충족·용어 매핑 미정의. 크래시-재개 인프라와 직교라 별건).
+- BullMQ stalled 자동 재배달(maxStalledCount>0)·recoverStuckExecutions 완전 대체·spec §7.1/§7.2 Planned→구현 flip 은 **PR4(별도)로 유지** — Q1 은 그 선행 인프라(멱등 re-drive 메커니즘)를 제어된 트리거(recovery loop)로 랜딩.
+
+### 미해결 결정 처리
+
+- **node-cancellation §2 직렬화 순서**: 이미 확정(B3 선행, plan L172). 추가 조치 불요.
+- **신규 마이그레이션**: 불요(위). max 버전 참고 = **V103**.
+- **at-least-once side-effect 경계**: 엔진은 "완료 노드 미재실행"(§7.2c)은 보장하나, 크래시 시점 COMPLETED 아닌 **RUNNING-at-crash 노드의 외부 side-effect(Integration write) 발생 여부는 미보장** — spec §7.3 이 Integration 멱등을 노드 설정에 위임하는 기존 모델과 정합. 이 경계를 spec 에 명시(§7.2/§7.3).
+
+### 구현 시퀀싱
+
+1. **project-planner (spec 선행)** — ✅ **완료 (2026-07-04)**: §7.1(recoverStuckExecutions: fail→제어된 re-drive)·§7.2 point3 승격(non-waiting 일반노드 재구동)·§7.3(4중 멱등 계약)·§7.5(case A waiting / case B crash 이분)·§4.1/§9.2 jobId 정정·§7.4 Recovery lock·Rationale 신규 "크래시/재시작 RUNNING 세그먼트 제어된 re-drive" + under-count 정정 반영. 동반 갱신: `data-flow/3-execution.md`(§3.1 mermaid+§3.3 표, **W3 필수**)·`error-codes.md`·`3-error-handling.md §1.4`·`1-data-model.md §2.13`(WORKER_HEARTBEAT_TIMEOUT PR3 미발동 sync). `consistency-check --spec` **BLOCK:NO** (`review/consistency/2026/07/03/23_50_01`, Critical 0, W1~W4 반영 해소). draft: `plan/in-progress/spec-draft-crash-running-redrive.md`.
+2. **developer** — 진행:
+   - [x] `consistency-check --impl-prep` BLOCK:NO (`00_12_57`).
+   - [x] 구현 (commit `11c7b2ff5`): reclaimStuckRunningExecution·redriveStuckExecution·driveStuckRedrive·runNodeDispatchLoop skipExecutedNodes·rehydrateContext nullable·test-gated recover endpoint.
+   - [x] TEST WORKFLOW 통과: **lint·unit(full)·build·dockerized e2e** 전부 green. crash-redrive e2e(commit `15c0bd036`) = stale RUNNING(codeA 완료 후 codeB 크래시)→re-claim→재구동→무손실 completed + 완료노드 미재실행. **full e2e 38 suites/227 pass.**
+   - [x] `/ai-review`(origin/main, `review/code/2026/07/04/00_57_47`, 14 reviewer) Critical 0 / Warning 10 → resolution commit `4b3a25a3a`(orphan cascade 복원·endpoint 이중게이트+@Roles('owner')·unit 4종·zombie 주석) + RESOLUTION.md. **fresh /ai-review**(`01_22_35`, 6 reviewer) **Critical 0 / Warning 0**(전 10 Warning 해소 확인) — SPEC-DRIFT 1(orphan cascade 미기재)은 spec §7.3 문장 추가로 해소.
+   - [x] `--impl-done`(`review/consistency/2026/07/04/01_21_55`, 5 checker) **BLOCK:NO**(Critical/Warning 0). plan hygiene(exec-intake PR3/PR4·G2 갱신) 조치.
+   - [x] **PR [#795](https://github.com/worker-ants/clemvion/pull/795)** (origin/main base, 2026-07-04). 5 commit: spec draft·구현·e2e 안정화·ai-review resolution·docs 수렴.
+3. **plan 갱신** — [x] exec-intake PR3(L57) 완료·PR4 유지 표기·G2 부분 해소(직접 pointer) 갱신 완료.
+
+> **PR3 종료 (2026-07-04)**: 크래시/재시작 RUNNING 세그먼트 §7.5 case B re-drive 구현·검증·머지대기 완료. umbrella 잔여: node-cancellation §2(별 worktree)·W4 cross-worktree rebase(impl-concurrency-cap-pr2b planner). refactor 06-concurrency **C-3**(본 PR3 후행)은 이 머지 후 별도 세션.
+3. **plan 갱신**: 본 섹션 체크박스 + `exec-intake-queue-impl.md` PR3(L57) 상태 + `execution-engine-residual-gaps.md` G2 부분 해소 표기.
+
+### PR3 구현 설계 (코드 정밀조사 확정, 2026-07-04)
+
+**대상**: `execution-engine.service.ts`. `--impl-prep spec/5-system/` **BLOCK:NO**(`review/consistency/2026/07/04/00_12_57` — naming/rationale/convention NONE; cross_spec 1 WARNING=graph-rag `document:graph_error` 무관 기존 drift).
+
+**핵심 코드 사실**:
+- `runNodeDispatchLoop`(L1380)은 `reachable`+`pointer` 로만 dispatch, **`executedNodes` skip 없음**(cycle 은 pointer 되감기로 재실행). → case B 는 완료 노드 재실행 방지 위해 **`skipExecutedNodes` 가드 신설 필요**(§7.3 완료노드 exactly-once).
+- `rehydrateContext(execution, waitingNodeExec)`(L1166): `waitingNodeExec` 는 L1269-1275 waiting 봉투 복원에만 사용 → case B 는 **nullable 로 확장**해 skip. 완료 노드(executedNodes+nodeOutputCache)는 execution_node_log 로 복원(node-type 무관, 이미 generic).
+- `driveResumeAwaited`(L1886): RUNNING 전이(claim 시 skip) → `dispatchResumeTurn`(turn) → waiting 노드 executed+propagate → `runNodeDispatchLoop(waitingPointer+1)` → COMPLETED/parked. case B 는 **turn 단계 제거 + waiting 노드 없음**.
+- `claimResumeEntry`(L899): waiting→running 짝 claim + `recordRunningSegmentStart`. case B 는 **`running→running` started_at 조건부 re-claim** 별도 필요.
+
+**구현 단위**:
+1. **`reclaimStuckRunningExecution(threshold)`**(신규): `UPDATE Execution SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING id` — affected rows = 재구동 대상 id[]. 원자 re-claim(§7.5 case B). 각 id 에 `recordRunningSegmentStart`.
+2. **`recoverStuckExecutions` 전환**: 기존 일괄 `UPDATE…SET FAILED` 제거 → (a) `reclaimStuckRunningExecution` 로 stale RUNNING id 수집·재점유, (b) 각 id best-effort `redriveStuckExecution`(try/catch 개별 격리). lock/WAITING 제외 불변.
+3. **`redriveStuckExecution(execution)`**(신규, case B 드라이브): `rehydrateContext(execution, null)` → `loadAndBuildGraph` → reachable = seedInitial + executedNodes + 각 완료노드 propagateReachability → `runNodeDispatchLoop({pointer:0, skipExecutedNodes:true, ...})` → parked 면 return(WAITING 유지), 완료면 COMPLETED(driveResumeAwaited 완결부 재사용). 재구동 불가(RehydrationError)→`RESUME_CHECKPOINT_MISSING` terminal(markExecutionCancelled+markNodeExecutionFailed). 그 외 err→finalizeResumedExecutionOutcome. finally cleanup.
+4. **`runNodeDispatchLoop` `skipExecutedNodes?:boolean`**: `NodeDispatchLoopParams` 에 옵션 추가. reachable 체크 직후 `if(params.skipExecutedNodes && executedNodes.has(nodeId)){pointer++;continue;}` — case B 전용(§7.3 per-node 멱등 가드). case A/runExecution 무영향(미전달=false).
+5. **`rehydrateContext` waitingNodeExec nullable**: L1269-1275 를 `if(waitingNodeExec?.outputData)` 가드.
+
+**멱등/불변**: 완료 노드 재실행 0(skip 가드), RUNNING-at-crash 노드 재실행=at-least-once(§7.3), 재구동 중 fresh park→WAITING 유지+다음 재개. 신규 마이그레이션 0.
+
+**테스트**: unit — reclaimStuckRunningExecution affected 반영·recoverStuckExecutions 가 fail 대신 redrive 호출·redriveStuckExecution 완료/park/에러 분기·runNodeDispatchLoop skipExecutedNodes 완료노드 skip·rehydrateContext null waitingNodeExec. **dockerized e2e** — stale RUNNING(완료노드 있는 mid-flight) 주입→부팅 recovery→re-drive→무손실 completed + 완료노드 미재실행 검증(node_execution 카운트).
 
 ## 미해결 결정 (사용자/planner)
 - **D1 (확정 2026-06-05)**: conversationThread 영속 = **`Execution.conversation_thread jsonb`** (spec 예고 컬럼 §4 L211/§7 L284 채택). 사용자 handoff 승인. spec 동기 갱신 완료(conversation-thread §4/§7/§8.4, 4-execution-engine §6.2/§7.5, 1-ai-agent §12.1/§12.10/§12.13, **1-data-model §2.13 Execution 컬럼 행** — consistency W1 해소). 마이그레이션 = **V084**(#469 PR2a 가 V083 선점 → §6.2 rebase-renumber 로 V083→V084 재부여, 2026-06-05).

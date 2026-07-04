@@ -73,7 +73,7 @@ code:
 |------|------|
 | `EXECUTION_TIMEOUT` | **Code 노드 스크립트 실행 타임아웃** (엔진 레벨 — execution status → `failed`, EIA `execution.failed.error.code`). **노드 출력 레이어**는 동일 타임아웃을 노드의 `output.error.code = CODE_TIMEOUT` 으로 발행한다 (핸들러 내부 분류 문자열 `EXECUTION_TIMEOUT` → `CODE_TIMEOUT` 정규화) — 두 레이어 구분 SoT: [`conventions/error-codes.md §4`](../conventions/error-codes.md#4-내부-전용-분류-코드-정규화-후-발행). 엔진 레벨 누적 실행시간 초과는 `EXECUTION_TIME_LIMIT_EXCEEDED` 를 쓴다 |
 | `EXECUTION_TIME_LIMIT_EXCEEDED` | 엔진 레벨 — 단일 Execution 의 **누적 active-running 시간**(wall-clock 아님, `waiting_for_input` 대기 제외) 초과 → `failed` ([4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한)) |
-| `WORKER_HEARTBEAT_TIMEOUT` | active 세그먼트 job 이 BullMQ stalled 재배달 attempts 를 모두 소진(terminal worker failure) → `failed` ([4-execution-engine §7.1](./4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
+| `WORKER_HEARTBEAT_TIMEOUT` | active 세그먼트 job 이 BullMQ stalled 재배달 attempts 를 모두 소진(terminal worker failure) → `failed`. **PR4 예약** — PR3 부팅 시 stale RUNNING 재개는 fail 이 아니라 re-drive(§7.5 case B)라 PR3 기간 미발동 ([4-execution-engine §7.1](./4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
 | `RECURSION_DEPTH_EXCEEDED` | 서브 워크플로우 재귀 깊이 초과 |
 | `MAX_ITERATIONS_EXCEEDED` | Loop/ForEach 최대 반복 횟수 초과 |
 | `CYCLE_DETECTED` | 워크플로우 그래프에 순환 감지 |

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   UnprocessableEntityException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ExecutionsController } from './executions.controller';
 import {
@@ -28,6 +29,7 @@ describe('ExecutionsController', () => {
 
     mockExecutionEngineService = {
       continueExecution: jest.fn(),
+      runStuckRecoveryScan: jest.fn().mockResolvedValue(undefined),
     };
 
     controller = new ExecutionsController(
@@ -150,6 +152,52 @@ describe('ExecutionsController', () => {
           ],
         },
       });
+    });
+  });
+
+  // PR3 (§7.5 case B) — e2e 전용 recover-stuck backdoor 의 프로덕션 차단 계약.
+  // 핵심 안전장치(NODE_ENV==='test' && E2E_TEST_HOOKS==='1' 아니면 404)는 e2e 가
+  // 항상 test 모드라 "정상 경로"만 타므로, 게이트 실패 시 404 는 unit 으로 가드한다.
+  describe('triggerStuckRecoveryForTest (test-only gating)', () => {
+    const orig = {
+      NODE_ENV: process.env.NODE_ENV,
+      E2E_TEST_HOOKS: process.env.E2E_TEST_HOOKS,
+    };
+    afterEach(() => {
+      process.env.NODE_ENV = orig.NODE_ENV;
+      process.env.E2E_TEST_HOOKS = orig.E2E_TEST_HOOKS;
+    });
+
+    it('NODE_ENV=test + E2E_TEST_HOOKS=1 이면 recovery 스캔을 트리거한다', async () => {
+      process.env.NODE_ENV = 'test';
+      process.env.E2E_TEST_HOOKS = '1';
+      const res = await controller.triggerStuckRecoveryForTest();
+      expect(
+        mockExecutionEngineService.runStuckRecoveryScan,
+      ).toHaveBeenCalledTimes(1);
+      expect(res).toEqual({ success: true });
+    });
+
+    it('NODE_ENV 이 test 가 아니면 404 (프로덕션 은닉)', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.E2E_TEST_HOOKS = '1';
+      await expect(
+        controller.triggerStuckRecoveryForTest(),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(
+        mockExecutionEngineService.runStuckRecoveryScan,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('E2E_TEST_HOOKS 플래그가 없으면 404 (단일 env 오설정 방어)', async () => {
+      process.env.NODE_ENV = 'test';
+      delete process.env.E2E_TEST_HOOKS;
+      await expect(
+        controller.triggerStuckRecoveryForTest(),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(
+        mockExecutionEngineService.runStuckRecoveryScan,
+      ).not.toHaveBeenCalled();
     });
   });
 

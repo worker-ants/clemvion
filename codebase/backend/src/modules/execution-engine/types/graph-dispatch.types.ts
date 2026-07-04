@@ -81,4 +81,12 @@ export interface NodeDispatchLoopParams {
   input: Record<string, unknown>;
   /** executeNode 의 meta — startedAt + mode. */
   dispatchMeta: { startedAt?: string; mode: 'manual' };
+  /**
+   * (case B 크래시 re-drive 전용, §7.3 멱등) `true` 면 이미 `executedNodes` 에 있는
+   * 노드를 dispatch 하지 않고 skip 한다 — 완료 노드 재실행 방지(exactly-once).
+   * 기본 경로(runExecution / case A waiting 재개)는 미전달(=false): cycle 재실행이
+   * pointer 되감기로 이뤄지므로 skip 하면 안 된다. case B 는 pointer=0 에서 시작해
+   * 완료 prefix 를 이 가드로 건너뛰고 frontier 부터 forward 한다.
+   */
+  skipExecutedNodes?: boolean;
 }
