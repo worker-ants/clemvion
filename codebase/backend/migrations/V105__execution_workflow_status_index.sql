@@ -12,3 +12,5 @@
 -- executeInTransaction=false 를 지정한다. IF NOT EXISTS 로 재실행 idempotent.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_execution_workflow_status
   ON execution (workflow_id, status);
+
+-- DOWN(수동 롤백 참고 — Flyway 자동 실행 아님): DROP INDEX CONCURRENTLY IF EXISTS idx_execution_workflow_status;

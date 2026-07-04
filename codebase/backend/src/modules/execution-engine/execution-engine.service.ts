@@ -2600,11 +2600,15 @@ export class ExecutionEngineService
    *  - `'cancelled'`: 큐 대기 5분 초과 → cancelled 마감 → 호출자 return.
    *  - `'deferred'`: ws/wf cap 초과 → delayed 재큐 → 호출자 return.
    *
-   * **TOCTOU**: 단일 조건부 UPDATE(`WHERE status='pending' AND ws COUNT<cap AND
-   * wf COUNT<cap`)로 카운트-체크-전이를 원자화한다 — 다수 consumer 경쟁에서도 cap
-   * 초과가 없다(pg advisory lock 불요). workspace COUNT 는 execution 에 workspace_id
-   * 컬럼이 없어 workflow join 으로 센다. admission-time 5분 검사도 여기서 수행한다
-   * (별도 스캐너 없음 — delayed 재큐가 job 을 유지, spec §8).
+   * **TOCTOU**: **per-workspace `pg_advisory_xact_lock` 트랜잭션**으로 admission 을
+   * 직렬화한 뒤 조건부 UPDATE(`WHERE status='pending' AND ws COUNT<cap AND wf COUNT<cap
+   * RETURNING`)로 카운트-체크-전이한다. **조건부 UPDATE 단독은 불충분** — 서브쿼리
+   * COUNT 가 스캔하는 다른 running 행에 락이 없어 서로 다른 execution 두 admission 이
+   * 같은 스냅샷을 보고 둘 다 통과(cap 초과)한다(ai-review CRITICAL 실증). advisory lock
+   * 이 같은 workspace 의 admission 을 순차화하고 다른 workspace 는 병렬 유지한다.
+   * workspace COUNT 는 execution 에 workspace_id 컬럼이 없어 workflow join 으로 센다.
+   * admission-time 5분 검사도 여기서 수행한다(별도 스캐너 없음 — delayed 재큐가 job
+   * 을 유지, spec §8).
    */
   private async admitExecutionOrDefer(
     execution: Execution,

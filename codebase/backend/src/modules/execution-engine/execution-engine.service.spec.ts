@@ -3073,6 +3073,16 @@ describe('ExecutionEngineService', () => {
           cb({ query: jest.fn().mockResolvedValue([{ id: 'e1' }]) }),
       );
       const spy = emitSpy();
+      // §8 active-running 타임아웃(PR2a) 회귀 가드 — admitted 는 choke point 를
+      // 우회하므로 recordRunningSegmentStart 를 직접 호출해야 한다(ai-review CRITICAL).
+      const recSpy = jest
+        .spyOn(
+          service as unknown as {
+            recordRunningSegmentStart: (id: string) => void;
+          },
+          'recordRunningSegmentStart',
+        )
+        .mockImplementation(() => undefined);
       const exec = {
         id: 'e1',
         workflowId: 'wf',
@@ -3081,12 +3091,14 @@ describe('ExecutionEngineService', () => {
       };
       await expect(admit(exec)).resolves.toBe('admitted');
       expect(exec.status).toBe('running');
+      expect(recSpy).toHaveBeenCalledWith('e1');
       expect(spy).toHaveBeenCalledWith(
         'e1',
         expect.anything(),
         expect.objectContaining({ status: 'running' }),
       );
       spy.mockRestore();
+      recSpy.mockRestore();
     });
 
     it('cap 초과(affected=0) → deferred: delayed 재큐', async () => {
