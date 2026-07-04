@@ -6,10 +6,16 @@ import type { ExecutionRunJob } from './execution-run.queue';
 
 describe('ExecutionRunProcessor', () => {
   let processor: ExecutionRunProcessor;
-  let engine: { runExecutionFromQueue: jest.Mock };
+  let engine: {
+    runExecutionFromQueue: jest.Mock;
+    finalizeStalledExhausted: jest.Mock;
+  };
 
   beforeEach(async () => {
-    engine = { runExecutionFromQueue: jest.fn().mockResolvedValue(undefined) };
+    engine = {
+      runExecutionFromQueue: jest.fn().mockResolvedValue(undefined),
+      finalizeStalledExhausted: jest.fn().mockResolvedValue(undefined),
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         ExecutionRunProcessor,
@@ -51,6 +57,18 @@ describe('ExecutionRunProcessor', () => {
     expect(() =>
       processor.onFailed(undefined, new Error('no handle')),
     ).not.toThrow();
+  });
+
+  it('onFailed(job 없음) 은 finalizeStalledExhausted 를 호출하지 않는다', () => {
+    processor.onFailed(undefined, new Error('no handle'));
+    expect(engine.finalizeStalledExhausted).not.toHaveBeenCalled();
+  });
+
+  it('onFailed(job 있음) 은 stalled 소진 마감을 위해 finalizeStalledExhausted(executionId) 를 호출한다 (PR4)', () => {
+    processor.onFailed(job({ executionId: 'exec-stalled-out' }), new Error('x'));
+    expect(engine.finalizeStalledExhausted).toHaveBeenCalledWith(
+      'exec-stalled-out',
+    );
   });
 
   // SUMMARY#11 — job 핸들 있는 경우의 onFailed 로그 경로 + opts.attempts undefined fallback

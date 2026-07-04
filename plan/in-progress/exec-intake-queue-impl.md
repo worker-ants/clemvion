@@ -55,7 +55,28 @@ PR2 이관 (코드 — 재리뷰 사이클 회피):
     - [x] **착수 전 필수 — active-running 직렬화 불변식 재검증**(PR2a --spec INFO #10 / spec §4.2): `retry_last_turn` 등 동시 active 세그먼트가 가능해지는 재진입 경로가 추가되면 `assertActiveTimeWithinLimit`↔`updateExecutionStatus` read-check-then-act 비원자성이 실 race 로 전환될 수 있음. PR2b 가 그런 경로를 만드는지 점검 후 필요 시 원자화(잠금/조건부 UPDATE). **→ 재검토 완료(2026-06-06, exec-park 후 다방면 재검토 항목 #2)**: full B3(단일 BullMQ enqueue 경로)로 동일 Execution 동시 active 세그먼트 불가 — 직렬화 불변식 통과 확인. PR2b 의 admission gate 는 "서로 다른 Execution N건 간 cap race" 로 별개 문제(advisory lock 담당).
     - [ ] (곁들임 PR2b) INFO 묶음: `resolveExecutionRunWorkerConcurrency`→`execution-limits.ts` 통합(ARCH#4), `error-codes.ts` 엔진 에러코드 레이어 분리(ARCH#5), `execution-limits.ts` 모듈 경계 JSDoc(ARCH#6), `system-status.constants.ts` concurrency 파싱 일원화(MAINT#9).
 - [x] **PR3 — 크래시 RUNNING checkpoint 재개**: **완료(2026-07-04, `exec-park-durable-resume` 로 이관·직접 구현)**. `exec-park-durable-resume.md` "## PR3 — 크래시 RUNNING 세그먼트 멱등 재개" 참조. 스코핑 재확정: "rehydration 일반화(ai_agent→일반 노드)" 축은 full B3 로 이미 완료였고, 실제 갭 = **크래시/재시작 RUNNING(non-waiting) 세그먼트의 §7.5 case B re-drive**(`recoverStuckExecutions` fail→re-claim+rehydrate+forward, `skipExecutedNodes` 멱등 가드). BullMQ auto-stalled 재배달은 PR4 유지(사용자 Q1). errorPolicy=continue 는 defer(Q2, G2). 직렬화 순서(B3 선행) 확정대로. spec §7.1/§7.2/§7.3/§7.5 갱신 완료.
-- [ ] **PR4 — stalled-job 일원화 + 관측성**: `recoverStuckExecutions` 절대 30분 일괄 fail → BullMQ stalled 재배달로 대체. `WORKER_HEARTBEAT_TIMEOUT` 의미 재정의(stalled attempts 소진). `waiting_for_input` 무관 보장 재확인. DLQ/관측성 정리. **후속 candidate(미확정)**: 세그먼트-start 영속(`segmentStartMs` in-memory → Redis/DB) — 재배달된 세그먼트가 자기 시작 시각을 알아야 active-running under-count 를 해소하므로 stalled 재배달과 자연 인접. 현재 under-count 는 수용된 trade-off(spec §Rationale "Graceful Shutdown … under-count"). PR3(#795)는 이를 해소하지 않음(re-scoped=크래시 re-drive). refactor 06 C-3 정직화(2026-07-04)가 이 candidate 를 여기로 이관.
+- [~] **PR4 — stalled-job 일원화 + 관측성** (branch `claude/exec-intake-pr4-stalled`, 2026-07-04 착수). `recoverStuckExecutions` 절대 30분 일괄 fail → BullMQ stalled 재배달로 대체. `WORKER_HEARTBEAT_TIMEOUT` 의미 재정의(stalled attempts 소진). `waiting_for_input` 무관 보장 재확인. DLQ/관측성 정리.
+
+### PR4 스코핑 확정 (2-agent 조사 + 사용자 결정 2026-07-04)
+**가치**: 운영 중 워커 크래시를 재시작 없이 즉시 인계(멀티인스턴스 HA). feasible — PR3 재구동 머신 + KB `graph-extraction.processor`(stalledInterval:30s) 선례 + `ContinuationDlqMonitorService` 패턴 + spec 배너 준비됨.
+
+**사용자 결정**: (Q1) **진행 (bounded)** — 자동 재배달 on, maxStalledCount 작게(1)로 poison blast radius bound, at-least-once=PR3 동일 모델(Integration 멱등=노드 책임). (Q2) **segment-start 영속 defer** — under-count 는 수용된 trade-off, PR4 는 마이그레이션 0.
+
+**설계**:
+1. **native stalled 채택 (핵심 단순화)**: `<executionId>:run:<seq>` re-enqueue 불요 — BullMQ 가 stalled job 을 **같은 jobId 로 재처리**. §9.2 `exec:run:seq` 는 미사용 유지(native stalled 은 seq 불요).
+2. `execution-run.queue.ts`: `EXECUTION_RUN_MAX_STALLED_COUNT 0→1`. `attempts:1`·`removeOnFail:false` 유지.
+3. `execution-run.processor.ts`: `@Processor` 에 `stalledInterval:30_000` 추가(KB 패턴). `onFailed`(stalled 소진 dead-letter): Execution 이 아직 RUNNING 이면 `failed`+`WORKER_HEARTBEAT_TIMEOUT` 마킹(현재는 로그만).
+4. **`runExecutionFromQueue` 3-way 전환 (핵심 통합점, 현재 갭)**: `status!==PENDING→ack-discard` 이분 → PENDING→정상 / **RUNNING→`await redriveStuckExecution`**(stalled 재배달=크래시 세그먼트 재구동, PR3 재사용) / terminal·WAITING→discard.
+5. **F1 — recoverStuckExecutions=backstop(은퇴 아님)**: 전체 재시작·Redis 비영속·job 유실 케이스엔 stalled job 부재 → DB 부팅 스캔만 복구. 축소 유지(KB `stuck-document-recovery` 선례). spec "은퇴"→"backstop" 정정.
+6. **F2 — fence**: BullMQ job lock(lockDuration)이 동시 처리 차단 = 주 fence. zombie(hung 워커) side-effect 이중발화는 at-least-once 수용 경계 + maxStalledCount:1 bound + PR3 skipExecutedNodes/failOrphan 로 DB 이중구동 방어. 신규 claim 불요.
+7. **execution-run DLQ 모니터**: `ContinuationDlqMonitorService` 일반화/복제(현재 continuation 전용). stalled-소진 failed job depth 관측.
+8. **spec flip**: §7.1/§7.2 PR4 Planned→구현, §9.3 maxStalledCount, §2.13, Rationale(WORKER_HEARTBEAT_TIMEOUT 재정의·recoverStuckExecutions backstop). `execution-engine.service.spec.ts` "WORKER_HEARTBEAT_TIMEOUT 미발동" 가드 테스트 revise(stalled-소진 경로 발동).
+
+**F3 (PR2b 순서)**: PR4 의 3-way switch 가 `runExecutionFromQueue` 에 먼저 랜딩 → PR2b admission gate 는 PENDING arm 에 slot(RUNNING re-drive arm 은 cap 재심사 skip). PR4 선행 권장.
+
+**F5 (defer 확정)**: segment-start 영속 = 별도 후속 candidate.
+
+**e2e**: 실 BullMQ stall 타이밍 재현은 어려우므로, PR3 의 `_test/` 훅 패턴으로 stalled 재배달 시뮬(RUNNING execution 에 대해 `runExecutionFromQueue` 직접 호출) → 3-way switch RUNNING→re-drive 무손실 completed 검증. maxStalledCount/onFailed 는 unit.
 
 ## 불변식 (구현 전 구간 유지)
 

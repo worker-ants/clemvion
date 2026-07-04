@@ -2628,9 +2628,13 @@ export class ExecutionEngineService
    * - **WAITING_FOR_INPUT 은 절대 건드리지 않는다** — 사용자 입력은 며칠 후 도착할
    *   수 있고, 입력 도착 시 §7.5 case A rehydration 으로 자연 재개.
    *
-   * BullMQ stalled-job 자동 재배달(운영 중 크래시 즉시 인계)은 PR4 로 유지되며, 본
-   * 함수의 boot-only 트리거가 poison 세그먼트의 무한 re-drive 를 자연 rate-limit 한다
-   * (부팅당 최대 1회). §8 누적 active-running 한도가 best-effort 2차 경계.
+   * **PR4 이후 = backstop**: 운영 중 워커 크래시는 BullMQ stalled-job 자동 재배달
+   * (`runExecutionFromQueue` RUNNING 분기)이 즉시 인계하므로, 본 부팅 스캔은 **stalled
+   * 이 놓치는 케이스의 안전망**이다 — (a) 전체 재시작·Redis 비영속으로 active job 이
+   * 소실된 경우, (b) enqueue 후 job 유실, (c) stalled 창(>30분)보다 오래된 잔류.
+   * 이 경우엔 재배달할 stalled job 자체가 없어 DB 부팅 스캔만 복구 가능하다(은퇴 불가 —
+   * KB `stuck-document-recovery` 와 동형). boot-only 트리거라 poison 세그먼트 re-drive
+   * 는 부팅당 최대 1회로 자연 rate-limit 된다.
    *
    * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.2 / §7.4 / §7.5.
    */
@@ -2735,6 +2739,67 @@ export class ExecutionEngineService
         running: NodeExecutionStatus.RUNNING,
       })
       .execute();
+  }
+
+  /**
+   * PR4 — BullMQ stalled 재배달이 `maxStalledCount` 를 소진해 execution-run job 이
+   * dead-letter(failed) 된 경우의 terminal 마감 (`ExecutionRunProcessor.onFailed` 호출).
+   *
+   * **status='running' 조건부**로만 `failed` + `error.code='WORKER_HEARTBEAT_TIMEOUT'`
+   * 를 마킹한다 — setup-throw 경로는 이미 terminal(`failFirstSegmentSetupBestEffort`)
+   * 이라 affected=0 no-op 이고, 크래시 세그먼트가 마킹하지 못한 채 stalled 소진된
+   * 경우(RUNNING 잔류)만 발동한다. 이 조건이 두 실패 경로를 자연 분기한다.
+   * 자식 RUNNING NodeExecution 도 cascade 마감(유령 running 제거).
+   */
+  async finalizeStalledExhausted(executionId: string): Promise<void> {
+    const finishedAt = new Date();
+    const result = await this.executionRepository
+      .createQueryBuilder()
+      .update(Execution)
+      .set({
+        status: ExecutionStatus.FAILED,
+        error: {
+          code: 'WORKER_HEARTBEAT_TIMEOUT',
+          message:
+            'Execution failed: worker crash (stalled 재배달 attempts 소진)',
+        },
+        finishedAt,
+      })
+      .where('id = :id', { id: executionId })
+      .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
+      .returning('id')
+      .execute();
+    if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
+
+    this.logger.warn(
+      `[execution-run] stalled 소진 → Execution ${executionId} failed (WORKER_HEARTBEAT_TIMEOUT)`,
+    );
+    // 자식 RUNNING NodeExecution cascade 마감 (유령 running 제거 — 옛 recoverStuck
+    // Executions cascade 와 동일).
+    await this.nodeExecutionRepository
+      .createQueryBuilder()
+      .update(NodeExecution)
+      .set({
+        status: NodeExecutionStatus.FAILED,
+        error: {
+          code: 'WORKER_HEARTBEAT_TIMEOUT',
+          message: 'Node failed: parent execution stalled (재배달 소진)',
+        },
+        finishedAt,
+      })
+      .where('execution_id = :executionId', { executionId })
+      .andWhere('status = :running', { running: NodeExecutionStatus.RUNNING })
+      .execute();
+
+    this.finalizeRehydrationCleanup(executionId);
+    await this.eventEmitter.emitExecution(
+      executionId,
+      ExecutionEventType.EXECUTION_FAILED,
+      {
+        status: ExecutionStatus.FAILED,
+        error: 'Execution failed: worker crash (stalled 재배달 소진)',
+      },
+    );
   }
 
   /**
@@ -3066,10 +3131,29 @@ export class ExecutionEngineService
       );
       return;
     }
+    // PR4 — execution-run job 은 세 갈래로 처리한다:
+    //  (a) PENDING → 정상 첫 세그먼트 시작(아래 fall-through).
+    //  (b) RUNNING → BullMQ **stalled 재배달**(워커 크래시로 lock 소실 → 다른 워커에
+    //      재배달)이다. 크래시한 active 세그먼트를 §7.5 case B 로 재구동한다(PR3
+    //      `redriveStuckExecution` 재사용). BullMQ job lock 이 동시 처리를 막으므로
+    //      별도 DB claim 불요; 완료 노드 skip·orphan RUNNING 마감은 redrive 가 담당.
+    //  (c) terminal(completed/failed/cancelled)·WAITING_FOR_INPUT → 이미 종결/park.
+    //      재실행 금지 — ack-discard.
+    if (execution.status === ExecutionStatus.RUNNING) {
+      this.logger.warn(
+        `[execution-run] Execution ${executionId} stalled 재배달 감지(status=running) — §7.5 case B 재구동.`,
+      );
+      // §8 active-running 세그먼트 tracking baseline (reclaimStuckRunningExecution 이
+      // 부팅 backstop 에서 하는 것과 동일 — stalled 재배달 경로에서 보정).
+      this.recordRunningSegmentStart(executionId);
+      await this.redriveStuckExecution(executionId);
+      return;
+    }
     if (execution.status !== ExecutionStatus.PENDING) {
-      // 큐 대기 중 cancel 됐거나(=> cancelled) 다른 경로로 이미 진행됨. 재실행 금지.
+      // 큐 대기 중 cancel 됐거나(=> cancelled) park(waiting_for_input) 등 다른 경로로
+      // 이미 진행됨. 재실행 금지.
       this.logger.debug(
-        `[execution-run] Execution ${executionId} 상태가 ${execution.status} (pending 아님) — ack-discard.`,
+        `[execution-run] Execution ${executionId} 상태가 ${execution.status} (pending/running 아님) — ack-discard.`,
       );
       return;
     }

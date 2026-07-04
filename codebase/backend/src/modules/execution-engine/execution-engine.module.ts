@@ -45,6 +45,11 @@ import {
   CONTINUATION_DLQ_MONITOR_CONFIG,
   loadContinuationDlqMonitorConfig,
 } from './continuation/continuation-dlq-monitor.config';
+import { ExecutionRunDlqMonitorService } from './queues/execution-run-dlq-monitor.service';
+import {
+  EXECUTION_RUN_DLQ_MONITOR_CONFIG,
+  loadExecutionRunDlqMonitorConfig,
+} from './queues/execution-run-dlq-monitor.config';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
@@ -124,6 +129,12 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
       // Phase 3.1 — DLQ 모니터 설정 주입 (review W-9 — env 직접 읽기 대신 factory).
       provide: CONTINUATION_DLQ_MONITOR_CONFIG,
       useFactory: () => loadContinuationDlqMonitorConfig(),
+    },
+    // PR4 — execution-run 큐 dead-letter(stalled 소진 crash) depth 모니터 + 임계 알람.
+    ExecutionRunDlqMonitorService,
+    {
+      provide: EXECUTION_RUN_DLQ_MONITOR_CONFIG,
+      useFactory: () => loadExecutionRunDlqMonitorConfig(),
     },
     ConversationThreadService,
     ExecutionEventEmitter,

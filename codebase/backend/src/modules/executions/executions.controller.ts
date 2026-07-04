@@ -221,6 +221,28 @@ export class ExecutionsController {
     return { success: true };
   }
 
+  /**
+   * **e2e 전용 backdoor (PR4) — 프로덕션 표면 아님.** BullMQ stalled 자동 재배달은 실
+   * 워커 크래시 타이밍이 있어야 발생하므로 in-network e2e 러너가 HTTP 로 재현할 수 없다.
+   * 본 훅은 stalled 재배달을 시뮬레이션한다 — 크래시로 RUNNING 잔류한 execution 에 대해
+   * `runExecutionFromQueue`(BullMQ processor 진입점)를 직접 호출해 그 **RUNNING 분기
+   * (§7.5 case B 재구동)**를 구동한다. 게이팅은 `_test/recover-stuck-executions` 와 동일
+   * (NODE_ENV==='test' && E2E_TEST_HOOKS==='1' + @Roles('owner')).
+   */
+  @Post(':id/_test/simulate-execution-run-redelivery')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Roles('owner')
+  @ApiExcludeEndpoint()
+  async simulateExecutionRunRedeliveryForTest(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
+      throw new NotFoundException();
+    }
+    await this.executionEngineService.runExecutionFromQueue(id, {});
+    return { success: true };
+  }
+
   @Post(':id/re-run')
   @HttpCode(HttpStatus.CREATED)
   @Roles('editor')
