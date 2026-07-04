@@ -1,3 +1,9 @@
+---
+worktree: exec-park-durable-resume
+started: 2026-07-03
+owner: project-planner
+---
+
 # Spec draft — 크래시/재시작 RUNNING 세그먼트 제어된 re-drive (PR3)
 
 > 대상: `spec/5-system/4-execution-engine.md` §7.1 / §7.2 / §7.3 / §7.5 + Rationale.

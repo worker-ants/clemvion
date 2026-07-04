@@ -22,22 +22,22 @@
 | [03-maintainability.md](../../complete/refactor/03-maintainability.md) | 15 | 11 (M-6·m-2 PR #522 + M-2 API_BASE_URL + C-2 ai-turn-executor 분해 #697·2차 + C-4 WS gateway helper + m-3 integrations/new 분할 + m-1 console→Logger + m-4 catch 변수명 통일 + M-1 install 보일러플레이트 helper + **C-1·M-5 포인터 닫힘**[02 C-1·M-3 완료]) | 3 (M-3 철회 + **C-3·M-4 2026-07-01 사용자 철회**) | 1 | 0 | dead-code 제거 2건 + M-2(API_BASE_URL 3001→3011) + C-2(ai-agent god-method 분해) + C-4(WS gateway helper) + m-3(integrations/new 1444→448줄 분할) + m-1(console.*→Logger + no-console 가드) + m-4(catch 변수명 통일) + M-1(install 보일러플레이트 helper) 완료. **C-1·M-5 는 02(C-1 엔진분할·M-3 streamMessage) 포인터로 닫힘**. **C-3·M-4(cafe24/makeshop 미러)는 2026-07-01 사용자 철회 — 조기 일반화 회피, spec 의도 미러 수용**. 잔여 1: M-7(inline 타입단언 50+ 미착수) |
 | [04-security.md](../../complete/refactor/04-security.md) | 14 | **14** | 0 | **0** | 0 | ✅ 2026-06-16 전 항목 종결: 코드+spec 머지(PR #570·prod-fail-closed-guards 등). isolated-vm 전환·SSRF 가드·WS authorizer |
 | [05-database.md](../../complete/refactor/05-database.md) | 15 | 11 | 4 (2철회 M-6·m-2 + 2종결 m-4·m-5) | **0** | 0 | ✅ 핵심 11건 완료(2026-06-14 batch): rotation 원자화·partial 인덱스·CTE. m-4·m-5 는 보류-종료(2026-07-02, no-action 확정 + 재트리거 조건 보존) → refactor 범위 종료 |
-| [06-concurrency.md](./06-concurrency.md) | 15 | 11 (M-1·M-5·C-1·M-7·M-2·C-2·M-3·M-6·m-3·m-5·**M-4**) | 3 (철회 m-1·m-2·m-4) | 1 (C-3) | 0 | C-2(DB 원자 claim)+잔여 배치 M-3·M-6·m-3·m-5(`13dfe96ba`)+**M-4 Option B**(executeAsync setup 2차실패 best-effort 마감, `a18a8d5a0`) 완료. 미착수 1: C-3(exec-intake PR3 연동). M-4 Option A(큐 통일)는 PR2b admission 결정과 묶어 후속 |
+| [06-concurrency.md](./06-concurrency.md) | 15 | 12 (M-1·M-5·C-1·M-7·M-2·C-2·M-3·M-6·m-3·m-5·M-4·**C-3**) | 3 (철회 m-1·m-2·m-4) | **0** | 0 | C-2(DB 원자 claim)+잔여 배치 M-3·M-6·m-3·m-5(`13dfe96ba`)+M-4 Option B(`a18a8d5a0`)+**C-3(실행 컨텍스트 in-memory 정직화 — Redis context store 드리프트 제거, 2026-07-04)** 완료 → **06 전 항목 종료**(README 이동은 백로그 전체 종료 시). M-4 Option A(큐 통일)는 PR2b admission 결정과 묶어 후속(별건) |
 | [07-dependency.md](../../complete/refactor/07-dependency.md) | 15 | 10 | 5 (3철회 M-1·M-3·m-3 + 2종결 m-5·m-7) | **0** | 0 | ✅ 2026-06-17 완료: C-1·C-2(deps-security-hygiene) + 잔여 8건 → [07-dependency-residual.md](../../complete/refactor/07-dependency-residual.md) |
 | **합계** | **104** | **82** | **20** (12철회 + 8종결) | **2** | **0** | |
 
 > **완료** = 구현·머지 또는 결정 종결(코드/spec 변경 동반). **철회·종결** = 코드 변경 없이 닫음 (철회=E 사실관계 반증 **또는 사용자 결정[조기 일반화 회피 등]** / 종결=no-action·현상유지). **잔여(미완)** = 미착수·진행중·보류 (`[ ]` 또는 `[~]`). **⚠️ A-잔존** = 잔여 중 spec/plan 이 의도된 설계로 문서화했으나 여전히 문제로 남은 항목 (착수·번복은 **사용자 결정 대상**; 결정 상태는 각기 다름 — 상세는 아래 「⚠️ 의도된 설계지만 문제」 절).
-> 완료(82) + 철회·종결(20) + 잔여(2) = 104. 처리 종료(완료+철회·종결) = 102/104.
+> 완료(83) + 철회·종결(20) + 잔여(1) = 104. 처리 종료(완료+철회·종결) = 103/104. (06 C-3 완료 2026-07-04 → 06 전 항목 종료.)
 > 철회 항목은 삭제하지 않고 `[x]` + 철회 사유(반증 근거 또는 결정 근거)로 보존.
 >
-> **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·04·05·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류, 04 는 2026-06-16 전 14항목 종결, 05 는 m-4·m-5 를 보류-종료하며 refactor 범위 종료). 잔여 작업이 남은 06(미착수 7)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지. 백로그 전체가 종료되면 README 를 포함해 refactor/ 전부 complete 로 이동.
+> **파일 위치 (2026-07-02)**: 전 항목 종료된 dimension 문서는 `plan/complete/refactor/` 로 이동했다 — 위 표에서 `../../complete/refactor/` 로 링크된 01·02·03·04·05·07·07-residual (02 는 M-5 레이어2/3 을 Phase D 로 이관·보류, 04 는 2026-06-16 전 14항목 종결, 05 는 m-4·m-5 를 보류-종료하며 refactor 범위 종료). 06(마지막 항목 C-3 를 **2026-07-04 완료** → 전 항목 종료)·본 README(마스터 인덱스)는 `plan/in-progress/refactor/` 유지 중 — 06 종료로 refactor 백로그 전체가 사실상 종료됐으므로, README 를 포함한 06 문서의 `plan/complete/refactor/` 이동은 후속 정리 turn 에서 처리한다.
 
 ## spec 대조가 바꾼 주요 사실 (요약)
 
 - **진단 정정**: 03 M-2 — 포트 불일치의 잘못된 쪽은 login/register(3011, 정답)가 아니라 **`lib/api/client.ts` 의 3001 fallback** (메인 API 클라이언트 전체가 영향 — 원안보다 심각). 07 C-1 — `@nestjs/jwt` 전이 의존 덕에 현재 프로덕션 오류 미발현(Critical→Major).
 - **spec 내부 모순 발견 2건**: 04 C-3 (http-request §4 step8 "integration 만 가드" ↔ §104 "기본 차단" — 코드 주석의 정당화는 spec 근거 0건), 06 M-1 (WS `resumed` ack 의미 ↔ §7.5.1).
 - **spec 자체가 갭인 케이스**: 04 M-6 — spec 이 "3채널만 소유 검증" 으로 명시해 코드는 정합하나 spec 이 IDOR 갭 보유 (`workflow:`/`notifications:` 무검증).
-- **spec 드리프트(구현이 따라가야 함)**: 06 M-2 (shutdown §11.4 마킹 약속 위반), 06 M-7 (seq idempotency 계약 위반 random fallback), 06 C-3 부속 (§6.2 Redis context 행 vs in-memory 구현).
+- **spec 드리프트(구현이 따라가야 함)**: 06 M-2 (shutdown §11.4 마킹 약속 위반, ✅완료), 06 M-7 (seq idempotency 계약 위반 random fallback, ✅완료), ~~06 C-3 부속 (§6.2 Redis context 행 vs in-memory 구현)~~ ✅ **정직화 완료 (2026-07-04, spec→in-memory 모델)**.
 
 ## 종합 우선순위 (P0 → P2, spec 대조 반영)
 
@@ -68,7 +68,7 @@
 15. ~~**cafe24/makeshop Base 클라이언트 통합**~~ ✅ 철회 (2026-07-01 사용자 결정 — 3번째 provider 발산 예측 불가 → 조기 일반화 회피, spec 의도 미러 수용) → [03](../../complete/refactor/03-maintainability.md) C-3·M-4
 16. ~~**ai-agent 파이프라인 분리** — spec §6.1/§6.2 단계 번호와 정렬~~ ✅ 완료 (1차 #697 setup 분해, 2차 god-method 6 helper + TurnOutputAccumulators 번들) → [03](../../complete/refactor/03-maintainability.md) C-2
 17. ~~**park-진입 dispatch 추출**~~ ✅ 완료 — PR #507 resume registry 와 대칭(`ParkEntryDispatch`, 커밋 `ecd70dd1` + spec-sync #688) → [02](../../complete/refactor/02-architecture.md) M-4
-18. **ExecutionContext 스케일아웃** — 독립 작업화 금지, exec-intake PR3 연동 → [06](./06-concurrency.md) C-3 *(잔여)*
+18. ~~**ExecutionContext 스케일아웃**~~ ✅ 완료 (2026-07-04, Option A — 실행 컨텍스트 in-memory 정직화: §6.2/§7.5/§9.2 Redis context store 드리프트 제거, 신규 인프라 0. PR3(#795) 완료로 unblocked) → [06](./06-concurrency.md) C-3
 
 ## ⚠️ 의도된 설계지만 문제 — 사용자 결정 현황 (15행 중 ✅ 완료 14 / 🔧 진행중 0 / ⏳ 결정대기 0 / ✅ 철회 1)
 
@@ -101,7 +101,7 @@
 | --- | --- | --- |
 | 04 C-1 (JWT secret) | [`../../complete/security-jwt-secret-fallback.md`](../../complete/security-jwt-secret-fallback.md) | 본문 미등재, 기존 plan 참조 + fail-closed 가드 블록 합류 |
 | 05 C-3 (node_execution 인덱스) | [`../../complete/integration-index-unify.md`](../../complete/integration-index-unify.md) 는 integration 테이블 — **별개** | 본 백로그 등재 (신규 제안으로 정정) |
-| 06 C-3 (context in-memory) | [`../exec-intake-queue-impl.md`](../exec-intake-queue-impl.md) PR3 이 정확히 커버 | cross-link, 독립 작업화 금지 |
+| 06 C-3 (context in-memory) | [`../exec-intake-queue-impl.md`](../exec-intake-queue-impl.md) PR3 이 정확히 커버 | **✅ 완료 (2026-07-04)** — PR3(#795) 완료로 unblocked, Option A spec 정직화(§6.2/§7.5/§9.2 Redis context 드리프트 제거). 조사 결과 실기능 결함 0(in-memory=의도된 설계), 순수 정직화 |
 | 02 C-1 (엔진 분할) | [`../execution-engine-residual-gaps.md`](../execution-engine-residual-gaps.md) 는 spec 갭 추적 — **별개 축** | 본 백로그 등재. `spec-sync-resume-dispatch-registry.md` 와 M-4 연계 |
 | 03 C-3/M-4 (미러 중복) | [`../../complete/makeshop-integration.md`](../../complete/makeshop-integration.md) §후속 DRY-deferral | 2026-07-01 사용자 철회 — 미러 중복은 의도 수용, deferral 트리거 예약 해제 |
 | 06 m-4 (abortSignal) | [`../../complete/node-cancellation-infrastructure.md`](../../complete/node-cancellation-infrastructure.md) | 철회 — 잔여 갭은 해당 plan 이 추적 |
@@ -112,7 +112,7 @@
 
 - ~~`1-http-request.md` §4 step8 ↔ §104 모순 해소 (04 C-3)~~ ✅ 완료 (worktree `http-ssrf-all-auth` — §4 step8 "전 인증 방식 적용" + §104 정합화 + §8.2 Rationale)
 - ~~`6-websocket-protocol.md` §3.3 검증 채널 목록 (04 M-6)~~ ✅ 완료 (PR #570 — `workflow:`·`notifications:` 2채널 추가) + ~~`resumed` ack 의미 (06 M-1)~~ ✅ 완료 (`plan/complete/spec-update-ws-resumed-ack.md`)
-- `4-execution-engine.md` §7.5 claim 문구·§6.2/§9.2 Redis context 드리프트 banner (06 C-2·C-3)
+- ~~`4-execution-engine.md` §7.5 claim 문구·§6.2/§9.2 Redis context 드리프트 banner (06 C-2·C-3)~~ ✅ 완료 (C-2 §7.5 DB claim + **C-3 §6.2/§9.2 Redis context 제거·정직화 2026-07-04**)
 - ~~`13-replay-rerun.md` §9.1 walk→CTE 1줄 (05 C-2)~~ ✅ 완료 (2026-06-14 동행), ~~`data-flow/2-auth.md` §1.4 트랜잭션 박스 (05 C-1)~~ ✅ 완료 (developer 동행, worktree `auth-refresh-rotation-atomic`)
 - `1-data-model.md` §3 인덱스 표 stale 일괄 동기화 (05 C-3 부수 발견)
 - ~~transform/filter/if-else/switch 의 "길이 200 = ReDoS 방지" 정정 (04 M-3)~~ ✅ 완료 (PR #570 — 4개 노드 spec 가 `compileUserRegex`: 길이 ≤200 + safe-regex 위험패턴 거부로 통일 서술)
