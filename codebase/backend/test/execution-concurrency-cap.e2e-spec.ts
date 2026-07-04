@@ -58,11 +58,14 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
 
   const authHeader = () => ({ Authorization: `Bearer ${ownerToken}` });
 
-  async function createCapWorkflow(): Promise<string> {
+  async function createCapWorkflow(
+    wsId: string = workspaceId,
+    workflowCap: number | null = 1,
+  ): Promise<string> {
     const res = await request(BASE_URL)
       .post('/api/workflows')
       .set(authHeader())
-      .set('X-Workspace-Id', workspaceId)
+      .set('X-Workspace-Id', wsId)
       .send({ name: uniqueName('cap-wf') });
     expect(res.status).toBe(201);
     const workflowId = res.body.data.id as string;
@@ -91,7 +94,7 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
     const save = await request(BASE_URL)
       .post(`/api/workflows/${workflowId}/save`)
       .set(authHeader())
-      .set('X-Workspace-Id', workspaceId)
+      .set('X-Workspace-Id', wsId)
       .send({
         nodes: [trigger, code],
         edges: [
@@ -105,11 +108,14 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
       });
     expect([200, 201]).toContain(save.status);
 
-    // per-workflow cap=1 (DB 직접 — settings write API 는 별도 테스트 범위).
-    await db.query(
-      `UPDATE workflow SET settings = '{"maxConcurrentExecutions":1}'::jsonb WHERE id = $1`,
-      [workflowId],
-    );
+    // per-workflow cap (DB 직접 — settings write API 는 별도 테스트 범위). workflowCap=null
+    // 이면 workflow cap 미설정(기본값 유지) — workspace-level cap 을 단독 검증할 때 사용한다.
+    if (workflowCap !== null) {
+      await db.query(`UPDATE workflow SET settings = $2::jsonb WHERE id = $1`, [
+        workflowId,
+        JSON.stringify({ maxConcurrentExecutions: workflowCap }),
+      ]);
+    }
     return workflowId;
   }
 
@@ -124,21 +130,27 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
     return id;
   }
 
-  async function execute(workflowId: string): Promise<string> {
+  async function execute(
+    workflowId: string,
+    wsId: string = workspaceId,
+  ): Promise<string> {
     const res = await request(BASE_URL)
       .post(`/api/workflows/${workflowId}/execute`)
       .set(authHeader())
-      .set('X-Workspace-Id', workspaceId)
+      .set('X-Workspace-Id', wsId)
       .send({});
     expect(res.status).toBe(202);
     return (res.body.data as { executionId: string }).executionId;
   }
 
-  async function getStatus(executionId: string): Promise<string> {
+  async function getStatus(
+    executionId: string,
+    wsId: string = workspaceId,
+  ): Promise<string> {
     const res = await request(BASE_URL)
       .get(`/api/executions/${executionId}`)
       .set(authHeader())
-      .set('X-Workspace-Id', workspaceId);
+      .set('X-Workspace-Id', wsId);
     return res.status === 200
       ? (res.body.data as { status: string }).status
       : '';
@@ -148,11 +160,12 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
     executionId: string,
     predicate: (s: string) => boolean,
     timeoutMs = 20_000,
+    wsId: string = workspaceId,
   ): Promise<string> {
     const start = Date.now();
     let last = '';
     while (Date.now() - start < timeoutMs) {
-      last = await getStatus(executionId);
+      last = await getStatus(executionId, wsId);
       if (predicate(last)) return last;
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -199,5 +212,47 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
     expect(JSON.stringify(row.rows[0]?.error ?? {})).toContain(
       'EXECUTION_QUEUE_WAIT_TIMEOUT',
     );
+  }, 40_000);
+
+  // workspace-level cap 은 workflow COUNT join 으로 workspace 전체 running 을 세므로,
+  // **다른 workflow** 의 running 도 슬롯을 소비한다(admission UPDATE 의 첫 COUNT 서브쿼리·
+  // $2/$3). 기존 두 테스트는 per-workflow cap 만 검증 → workspace cap 단독 gating 을 보강.
+  it('workspace-level cap 초과 → 다른 workflow 실행도 pending → 슬롯 해제 시 admitted', async () => {
+    // 격리된 workspace(기존 테스트의 잔여 running blocker 간섭 차단) + workspace cap=1.
+    const wsCapId = await createTeamWorkspace(
+      BASE_URL,
+      ownerToken,
+      uniqueName('WSCAP'),
+    );
+    await db.query(`UPDATE workspace SET settings = $2::jsonb WHERE id = $1`, [
+      wsCapId,
+      JSON.stringify({ maxConcurrentExecutions: 1 }),
+    ]);
+
+    // 같은 workspace 의 서로 다른 workflow A·B. workflow cap 은 기본값(여유)으로 둬서
+    // (workflowCap=null) workspace-level cap 이 단독으로 gating 하는지 검증한다.
+    const wfA = await createCapWorkflow(wsCapId, null);
+    const wfB = await createCapWorkflow(wsCapId, null);
+
+    // workflow A 에 running blocker → workspace 슬롯(1) 소진(workflow COUNT join).
+    const blocker = await insertRunningBlocker(wfA);
+
+    // workflow B 실행 → wfB 자체 cap 은 여유지만 workspace cap 이 full → deferred(pending).
+    const execId = await execute(wfB, wsCapId);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await getStatus(execId, wsCapId)).toBe('pending');
+
+    // workspace 슬롯 해제 → 재큐 tick 에 admitted → 정상 완료.
+    await db.query(
+      `UPDATE execution SET status = 'completed', finished_at = NOW() WHERE id = $1`,
+      [blocker],
+    );
+    const done = await poll(
+      execId,
+      (s) => TERMINAL_STATUSES.includes(s as never),
+      20_000,
+      wsCapId,
+    );
+    expect(done).toBe('completed');
   }, 40_000);
 });
