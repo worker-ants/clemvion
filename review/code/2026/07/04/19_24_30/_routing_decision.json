@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T19:24:30Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "우선순위 큐 로직 순수 값 매핑 — I/O·캐시·대용량 처리 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "ExecuteOptions 판별 유니온 확장 — 서비스 계층 인터페이스 계약 변경"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + spec §4.3 3-tier 요구사항 구현"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + ExecuteOptions 시그니처 확장"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + 신규 3-tier test case 추가"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경(plan/*.md, spec/*.md, review/*.md)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json·lock 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 마이그레이션·SQL·schema 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "실행 큐 우선순위 3-tier 로직 — manual>webhook>schedule 동시 스케줄링 영향"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "ExecuteOptions 필드 확장 — execute() 메서드 공개 인터페이스 계약 변경"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "PROJECT.md sync matrix 에 priority 3-tier 동반갱신 트리거 없음 — 내부 큐 로직 전용"
+    }
+  ],
+  "selected_count": 10,
+  "skipped_count": 4,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
