@@ -1167,6 +1167,99 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // §8 orphan pending backstop (2026-07-04) — admission 재큐 job 소실로 재-pick up
+  // 안 되는 대기 초과 pending 을 recoverStuckExecutions 부팅 스캔이 wait-timeout cancel.
+  describe('recoverOrphanPendingExecutions (orphan pending backstop §8)', () => {
+    let mqtSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockExecutionRepo.find = jest.fn().mockResolvedValue([]);
+      // markQueueWaitTimeout(조건부 UPDATE + emit)은 격리 스텁 — 호출만 검증.
+      mqtSpy = jest
+        .spyOn(
+          service as unknown as {
+            markQueueWaitTimeout: (id: string) => Promise<void>;
+          },
+          'markQueueWaitTimeout',
+        )
+        .mockResolvedValue(undefined);
+    });
+    afterEach(() => mqtSpy.mockRestore());
+
+    const runOrphan = () =>
+      (
+        service as unknown as {
+          recoverOrphanPendingExecutions: () => Promise<void>;
+        }
+      ).recoverOrphanPendingExecutions();
+
+    it('대기 한도 초과 pending(queued_at < now - timeout) 을 markQueueWaitTimeout 으로 cancel 한다', async () => {
+      (mockExecutionRepo.find as jest.Mock).mockResolvedValueOnce([
+        { id: 'p1' },
+        { id: 'p2' },
+      ]);
+      await runOrphan();
+      // 대상 필터: status=PENDING + queued_at < threshold(LessThan operator).
+      const findArg = (mockExecutionRepo.find as jest.Mock).mock
+        .calls[0][0] as {
+        where: { status: unknown; queuedAt: unknown };
+      };
+      expect(findArg.where.status).toBe(ExecutionStatus.PENDING);
+      expect(findArg.where.queuedAt).toBeDefined();
+      expect(mqtSpy).toHaveBeenCalledWith('p1');
+      expect(mqtSpy).toHaveBeenCalledWith('p2');
+      expect(mqtSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('초과 pending 이 없으면 아무 것도 cancel 하지 않는다', async () => {
+      (mockExecutionRepo.find as jest.Mock).mockResolvedValueOnce([]);
+      await runOrphan();
+      expect(mqtSpy).not.toHaveBeenCalled();
+    });
+
+    it('recoverStuckExecutions 는 stale running 0건이어도 orphan pending 스캔을 수행한다 (early-return 제거)', async () => {
+      const updateExecuted = jest
+        .fn()
+        .mockResolvedValue({ affected: 0, raw: [] });
+      const returning = jest.fn().mockReturnValue({ execute: updateExecuted });
+      const andWhere = jest.fn().mockReturnValue({ returning });
+      const where = jest.fn().mockReturnValue({ andWhere });
+      const setMethod = jest.fn().mockReturnValue({ where });
+      const update = jest.fn().mockReturnValue({ set: setMethod });
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue({ update });
+      const mockBus = (
+        service as unknown as {
+          continuationBus: {
+            acquireLock: jest.Mock;
+            releaseLock: jest.Mock;
+          };
+        }
+      ).continuationBus;
+      mockBus.acquireLock.mockResolvedValue(true);
+      mockBus.releaseLock.mockResolvedValue(true);
+      (mockExecutionRepo.find as jest.Mock).mockResolvedValueOnce([
+        { id: 'op' },
+      ]);
+      const redriveSpy = jest
+        .spyOn(
+          service as unknown as {
+            redriveStuckExecution: (id: string) => Promise<void>;
+          },
+          'redriveStuckExecution',
+        )
+        .mockResolvedValue(undefined);
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+      expect(redriveSpy).not.toHaveBeenCalled();
+      expect(mqtSpy).toHaveBeenCalledWith('op');
+      expect(mockBus.releaseLock).toHaveBeenCalled();
+      redriveSpy.mockRestore();
+    });
+  });
+
   // PR3 — redriveStuckExecution (case B 진입) 단위. 재구동 setup 분기.
   describe('redriveStuckExecution (PR3 case B)', () => {
     let driveSpy: jest.SpyInstance;

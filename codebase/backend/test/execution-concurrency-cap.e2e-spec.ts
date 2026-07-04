@@ -18,6 +18,9 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *  (2-A) blocker 를 completed 로 풀면 → 재큐 tick 에 admitted → 새 실행 completed.
  *  (2-B) blocker 를 유지하면 → 큐 대기(EXECUTION_QUEUE_WAIT_TIMEOUT_MS, e2e 8초) 초과 →
  *        새 실행 cancelled + error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'.
+ *  (3) workspace-level cap: 다른 workflow 의 running 이 workspace 슬롯을 소비 → deferred.
+ *  (4) orphan pending backstop(§8): job 없이 심은 대기 초과 pending 을 recovery hook
+ *      (recoverStuckExecutions)이 wait-timeout cancelled 로 회수; 한도 이내 pending 은 보존.
  *
  * docker-compose.e2e.yml 에서 EXECUTION_QUEUE_WAIT_TIMEOUT_MS=8000 으로 단축(기본 5분).
  */
@@ -128,6 +131,31 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
       [id, workflowId],
     );
     return id;
+  }
+
+  // orphan pending 시뮬 — job 없이 DB 에 직접 심은 pending row. queued_at 을
+  // 파라미터 interval 만큼 과거로 둬서 큐 대기 한도 초과/이내를 제어한다.
+  async function insertPending(
+    workflowId: string,
+    queuedAtAgo: string,
+  ): Promise<string> {
+    const id = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, queued_at)
+       VALUES ($1, $2, 'pending', NOW() - $3::interval)`,
+      [id, workflowId, queuedAtAgo],
+    );
+    return id;
+  }
+
+  // 부팅 backstop(recoverStuckExecutions) on-demand 트리거 (NODE_ENV=test 게이팅).
+  async function recoverStuck(): Promise<void> {
+    const res = await request(BASE_URL)
+      .post('/api/executions/_test/recover-stuck-executions')
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(res.status).toBe(202);
   }
 
   async function execute(
@@ -254,5 +282,38 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
       wsCapId,
     );
     expect(done).toBe('completed');
+  }, 40_000);
+
+  // §8 orphan pending backstop — admission 재큐 job 이 소실되면 그 pending 은 다시
+  // pick up 될 job 이 없어 대기 timeout 검사(admission 시점)를 못 받는다. 부팅 backstop
+  // (recoverStuckExecutions)이 대기 초과 orphan 을 wait-timeout cancel 로 회수한다.
+  it('orphan pending (job 소실·대기 초과) → recovery backstop 이 cancelled + EXECUTION_QUEUE_WAIT_TIMEOUT', async () => {
+    const workflowId = await createCapWorkflow(workspaceId, null);
+    // job 없이 심은 pending + queued_at 을 큐 대기 한도(e2e 8초) 훨씬 초과(10분)로.
+    const orphanId = await insertPending(workflowId, '10 minutes');
+
+    // 부팅 backstop on-demand 트리거.
+    await recoverStuck();
+
+    const final = await poll(orphanId, (s) => s === 'cancelled', 20_000);
+    expect(final).toBe('cancelled');
+    const row = await db.query(`SELECT error FROM execution WHERE id = $1`, [
+      orphanId,
+    ]);
+    expect(JSON.stringify(row.rows[0]?.error ?? {})).toContain(
+      'EXECUTION_QUEUE_WAIT_TIMEOUT',
+    );
+  }, 40_000);
+
+  it('한도 이내 pending 은 recovery backstop 이 건드리지 않는다 (threshold 가드)', async () => {
+    const workflowId = await createCapWorkflow(workspaceId, null);
+    // 큐 대기 한도(e2e 8초) 이내 — orphan 스캔 대상 아님.
+    const freshId = await insertPending(workflowId, '1 second');
+
+    await recoverStuck();
+
+    // 잠깐 대기해도 cancelled 로 넘어가지 않고 pending 유지.
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(await getStatus(freshId)).toBe('pending');
   }, 40_000);
 });
