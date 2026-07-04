@@ -9,7 +9,7 @@ code:
 pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
   - plan/in-progress/spec-sync-execution-engine-gaps.md
-  - plan/in-progress/exec-intake-queue-impl.md
+  - plan/in-progress/exec-intake-followups.md
   - plan/in-progress/exec-park-durable-resume.md
 ---
 
