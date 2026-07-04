@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-04T12:40:41.076628",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-execution-engine-pr4.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

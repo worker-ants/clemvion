@@ -30,6 +30,7 @@ describe('ExecutionsController', () => {
     mockExecutionEngineService = {
       continueExecution: jest.fn(),
       runStuckRecoveryScan: jest.fn().mockResolvedValue(undefined),
+      runExecutionFromQueue: jest.fn().mockResolvedValue(undefined),
     };
 
     controller = new ExecutionsController(
@@ -197,6 +198,76 @@ describe('ExecutionsController', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(
         mockExecutionEngineService.runStuckRecoveryScan,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  // PR4 (§7.1/§7.5 case B) — e2e 전용 simulate-execution-run-redelivery backdoor.
+  // 게이팅(NODE_ENV/E2E_TEST_HOOKS) + `:id` 라우트 소유권 검증(cross-workspace IDOR
+  // 차단)을 unit 으로 가드한다 (e2e 는 정상 경로만 타므로).
+  describe('simulateExecutionRunRedeliveryForTest (test-only gating + ownership)', () => {
+    const WS = 'ws-1';
+    const EXEC = 'exec-1';
+    const orig = {
+      NODE_ENV: process.env.NODE_ENV,
+      E2E_TEST_HOOKS: process.env.E2E_TEST_HOOKS,
+    };
+    afterEach(() => {
+      process.env.NODE_ENV = orig.NODE_ENV;
+      process.env.E2E_TEST_HOOKS = orig.E2E_TEST_HOOKS;
+    });
+
+    it('NODE_ENV=test + E2E_TEST_HOOKS=1 이면 소유권 검증 후 재배달을 시뮬한다', async () => {
+      process.env.NODE_ENV = 'test';
+      process.env.E2E_TEST_HOOKS = '1';
+      const res = await controller.simulateExecutionRunRedeliveryForTest(
+        EXEC,
+        WS,
+      );
+      expect(mockExecutionsService.verifyOwnership).toHaveBeenCalledWith(
+        EXEC,
+        WS,
+      );
+      expect(
+        mockExecutionEngineService.runExecutionFromQueue,
+      ).toHaveBeenCalledWith(EXEC, {});
+      expect(res).toEqual({ success: true });
+    });
+
+    it('소유권 검증 실패(cross-workspace)면 재배달을 트리거하지 않고 전파한다', async () => {
+      process.env.NODE_ENV = 'test';
+      process.env.E2E_TEST_HOOKS = '1';
+      mockExecutionsService.verifyOwnership.mockRejectedValueOnce(
+        new NotFoundException(),
+      );
+      await expect(
+        controller.simulateExecutionRunRedeliveryForTest(EXEC, WS),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(
+        mockExecutionEngineService.runExecutionFromQueue,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('NODE_ENV 이 test 가 아니면 404 (소유권 검증 이전에 은닉)', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.E2E_TEST_HOOKS = '1';
+      await expect(
+        controller.simulateExecutionRunRedeliveryForTest(EXEC, WS),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockExecutionsService.verifyOwnership).not.toHaveBeenCalled();
+      expect(
+        mockExecutionEngineService.runExecutionFromQueue,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('E2E_TEST_HOOKS 플래그가 없으면 404 (단일 env 오설정 방어)', async () => {
+      process.env.NODE_ENV = 'test';
+      delete process.env.E2E_TEST_HOOKS;
+      await expect(
+        controller.simulateExecutionRunRedeliveryForTest(EXEC, WS),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(
+        mockExecutionEngineService.runExecutionFromQueue,
       ).not.toHaveBeenCalled();
     });
   });

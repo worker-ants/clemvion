@@ -52,9 +52,10 @@ export function resolveExecutionRunPriority(
  * 유일 키이고, BullMQ 가 동일 jobId 의 중복 add 를 자동 dedup 한다 (네트워크
  * 재시도·동시 호출에 대한 idempotency). 따라서 seq 를 붙이지 않는다.
  *
- * spec §4.2 의 `<executionId>:run:<seq>` 표기는 향후 re-enqueue(PR3/PR4 crash
- * 재개) 시나리오를 위한 일반형이다 — PR1 은 re-enqueue 하지 않으므로 seq 가
- * 불필요하고, 필요해지는 시점에 본 함수만 확장하면 된다.
+ * spec §9.2 의 `<executionId>:run:<seq>` 표기는 명시적 re-enqueue 를 도입하는
+ * 미래 변경을 위한 일반형이다. **PR4 crash 재개는 네이티브 BullMQ stalled 재배달
+ * (같은 jobId 를 그대로 재처리)** 을 쓰므로 re-enqueue 가 없어 seq 가 여전히
+ * 불필요하다 — jobId=executionId 를 유지한다. 필요해지는 시점에 본 함수만 확장한다.
  */
 export function buildExecutionRunJobId(executionId: string): string {
   return executionId;
@@ -63,12 +64,12 @@ export function buildExecutionRunJobId(executionId: string): string {
 /**
  * BullMQ 큐 옵션 기본값 (PR1).
  *
- * - `attempts: 1` — PR1 은 crash-retry 를 도입하지 않는다. 멱등 resume(§7.5
- *   확장)은 PR3, BullMQ stalled-job 재배달 일원화는 PR4. attempts > 1 로 두면
- *   비멱등 노드(Integration write 등)가 이중 실행될 수 있어 명시적으로 1.
+ * - `attempts: 1` — job **실패(throw)** 시 application-level 재시도는 하지 않는다.
+ *   비멱등 노드(Integration write 등) 이중 실행 방지. (stalled 재배달은 attempts 와
+ *   별개 카운터 — 아래 `EXECUTION_RUN_MAX_STALLED_COUNT` 참조.)
  * - `removeOnComplete: true` — 정상 완료 job 즉시 제거 (Redis 메모리 보호).
- * - `removeOnFail: false` — 실패 job 보존(관측). 크래시로 orphan 된 RUNNING row
- *   는 현행대로 `recoverStuckExecutions` 가 수거(PR4 에서 stalled 로 일원화).
+ * - `removeOnFail: false` — 실패 job 보존(관측·DLQ). stalled 소진으로 failed 된
+ *   job 을 execution-run DLQ 모니터가 관측한다(§9.3).
  */
 export const EXECUTION_RUN_QUEUE_DEFAULT_OPTS = {
   attempts: 1,
@@ -77,11 +78,24 @@ export const EXECUTION_RUN_QUEUE_DEFAULT_OPTS = {
 };
 
 /**
- * worker 가 stalled(워커 사망 등) job 을 재배달하지 않도록 0 으로 둔다 — PR1 은
- * crash 재개를 구현하지 않으므로 stalled 재실행이 비멱등 노드 이중 실행을
- * 유발하면 안 된다. PR4 에서 멱등 rehydration 과 함께 상향한다.
+ * BullMQ stalled-job 재배달 한도 (PR4).
+ *
+ * 워커 크래시(OOM/SIGKILL/lock 소실) 시 BullMQ 가 job 을 stalled 로 감지해 **같은
+ * jobId 로 다른 워커에 재배달**한다 → `runExecutionFromQueue` 의 RUNNING 분기가
+ * §7.5 case B rehydration 으로 크래시 세그먼트를 재구동한다(멱등: 완료 노드 skip +
+ * orphan RUNNING 마감). **`1` 로 둔다** — poison 세그먼트(재배달마다 반복 크래시)의
+ * blast radius(= RUNNING-at-crash 비멱등 노드 재실행 횟수)를 `maxStalledCount+1` 로
+ * bound 하고, 소진 시 job → failed(dead-letter) → `WORKER_HEARTBEAT_TIMEOUT` 마킹.
+ * (PR3 의 boot-only re-drive 는 자연 rate-limit 였으나 자동 재배달은 이 한도가 bound.)
+ * spec §7.1/§7.3/§Rationale, KB `graph-extraction.processor`(동일 idiom) 참조.
  */
-export const EXECUTION_RUN_MAX_STALLED_COUNT = 0;
+export const EXECUTION_RUN_MAX_STALLED_COUNT = 1;
+
+/**
+ * stalled 감지 주기(ms). 워커가 이 주기 내 lock 갱신을 못 하면 stalled 판정.
+ * BullMQ 기본(30s)과 동일 — KB `graph-extraction.processor` 와 정렬.
+ */
+export const EXECUTION_RUN_STALLED_INTERVAL_MS = 30_000;
 
 export const DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY = 1;
 

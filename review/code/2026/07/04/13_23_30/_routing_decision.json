@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T13:25:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": false,
+      "reason": "spec 도큐먼트 변경 + 재개/복구 흐름 상세 — 인증/암호화/토큰/사용자 입력 처리 변경 없음"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "spec 문서화만. 워커 재배달·반복문·캐시 성능 이득 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 실행 엔진 아키텍처 (BullMQ stalled 재배달 도입, PR4 완료)"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 요구사항 정의 변경 (spec 1-data-model·3-error-handling·4-execution-engine)"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 상세 갱신 범위 검증 (PR4 크래시 복구 최종화)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): BullMQ stalled 로직 병입 (maxStalledCount:1 설정·finalizeStalledExhausted 추가)"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 스펙 문서 복잡도 증가 (두 트리거 병존·재배달 한계 명확화·Rationale 확장)"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 신규 PR4 코드 (stalled 재배달·DLQ 모니터) 커버 필요"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec/1-data-model·3-error-handling·4-execution-engine·data-flow/3-execution·conventions/error-codes 5개 파일 수정"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·SQL·ORM 변경 없음 (사용자 Q2 defer — migration-free)"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "BullMQ stalled 재배달(maxStalledCount:1)·affected=1 원자 재클레임·워커 크래시 경합 재검증 필요"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "API endpoint/route 변경 없음. 내부 에러 코드명(WORKER_HEARTBEAT_TIMEOUT) 의미만 재정의"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "spec 본문만 변경. 매트릭스 trigger 디렉토리(backend src/nodes) 변경 없음"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 6,
+  "forced": [
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

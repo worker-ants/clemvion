@@ -185,7 +185,7 @@ owner: developer
 
 - **Q1 = 제어된 re-drive (BullMQ auto-stalled OFF 유지).** `recoverStuckExecutions` 를 "즉시 fail" → "stale RUNNING 을 `started_at` 기반 **원자 re-claim**(`UPDATE … WHERE status='running' AND started_at < threshold RETURNING`, affected=1 = `claimResumeEntry` 패턴 일반화) 후 rehydrate + 그래프 forward 재구동"으로 전환. 신규 crash-redrive 진입점(도착 payload 없는 non-waiting 재개 — `dispatchResumeTurn` 우회, `rehydrateContext` + `runNodeDispatchLoop` forward 재사용). `runNodeDispatchLoop` 에 per-node DB status 멱등 가드(§7.2 완료노드 skip + §7.3 재검증) 추가. **신규 마이그레이션 불요**(started_at·execution_node_log·NodeExecution.status 재사용). 단일 집중 PR.
 - **Q2 = errorPolicy='continue' 세그먼트 재개 = 분리/defer**(residual-gaps G2 — schema 노출 선행 미충족·용어 매핑 미정의. 크래시-재개 인프라와 직교라 별건).
-- BullMQ stalled 자동 재배달(maxStalledCount>0)·recoverStuckExecutions 완전 대체·spec §7.1/§7.2 Planned→구현 flip 은 **PR4(별도)로 유지** — Q1 은 그 선행 인프라(멱등 re-drive 메커니즘)를 제어된 트리거(recovery loop)로 랜딩.
+- BullMQ stalled 자동 재배달(maxStalledCount>0)·spec §7.1/§7.2 Planned→구현 flip 은 **PR4(별도) 완료(2026-07-04, `maxStalledCount:1`)**. 단 **`recoverStuckExecutions` 은 완전 대체되지 않고 부팅 backstop 으로 병존**(F1 결정 — stalled job 이 없는 전체 재시작·Redis 비영속·job 유실 담당). Q1 이 랜딩한 멱등 re-drive 메커니즘을 PR4 가 stalled 트리거로도 진입.
 
 ### 미해결 결정 처리
 

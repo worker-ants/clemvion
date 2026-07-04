@@ -3013,6 +3013,91 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // PR4 — stalled 소진 dead-letter 마감 (ExecutionRunProcessor.onFailed 호출).
+  describe('finalizeStalledExhausted (PR4)', () => {
+    const mkExecQb = (affected: number) => {
+      const execute = jest.fn().mockResolvedValue({ affected, raw: [] });
+      const qb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
+        execute,
+      };
+      return qb;
+    };
+
+    it('RUNNING 이면 failed + WORKER_HEARTBEAT_TIMEOUT 마킹 + 자식 cascade + EXECUTION_FAILED emit', async () => {
+      const execQb = mkExecQb(1);
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(execQb);
+      const nodeQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(nodeQb);
+      const emitSpy = jest
+        .spyOn(
+          (
+            service as unknown as {
+              eventEmitter: {
+                emitExecution: (...a: unknown[]) => Promise<void>;
+              };
+            }
+          ).eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
+
+      await service.finalizeStalledExhausted('exec-stalled');
+
+      // 조건부 UPDATE: status=FAILED + code=WORKER_HEARTBEAT_TIMEOUT, WHERE status=running.
+      const setArg = execQb.set.mock.calls[0][0] as Record<string, unknown>;
+      expect(setArg.status).toBe(ExecutionStatus.FAILED);
+      expect((setArg.error as { code: string }).code).toBe(
+        'WORKER_HEARTBEAT_TIMEOUT',
+      );
+      expect(execQb.andWhere).toHaveBeenCalledWith('status = :running', {
+        running: ExecutionStatus.RUNNING,
+      });
+      // 자식 RUNNING NodeExecution cascade.
+      expect(nodeQb.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+      );
+      expect(emitSpy).toHaveBeenCalled();
+      emitSpy.mockRestore();
+    });
+
+    it('이미 terminal (affected=0) 이면 no-op — cascade/emit 안 함', async () => {
+      const execQb = mkExecQb(0);
+      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(execQb);
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn();
+      const emitSpy = jest
+        .spyOn(
+          (
+            service as unknown as {
+              eventEmitter: {
+                emitExecution: (...a: unknown[]) => Promise<void>;
+              };
+            }
+          ).eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
+
+      await service.finalizeStalledExhausted('exec-already-terminal');
+
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(emitSpy).not.toHaveBeenCalled();
+      emitSpy.mockRestore();
+    });
+  });
+
   describe('runExecutionFromQueue — worker 진입점 + routing context 재등록', () => {
     // routing 등록은 work-stealing 으로 job 을 실제 처리하는 인스턴스에서
     // 일어나야 terminal event 의 release 와 짝이 맞는다 → execute() 가 아니라
@@ -3072,6 +3157,57 @@ describe('ExecutionEngineService', () => {
       expect(
         mockWebsocketService.registerExecutionRouting,
       ).not.toHaveBeenCalled();
+    });
+
+    // PR4 — BullMQ stalled 재배달: RUNNING 상태 job 은 크래시 세그먼트 재구동으로 라우팅.
+    it('RUNNING (stalled 재배달) → recordRunningSegmentStart + redriveStuckExecution (runExecution 아님)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ status: ExecutionStatus.RUNNING }),
+      );
+      const svcAny = service as unknown as {
+        recordRunningSegmentStart: (id: string) => void;
+        redriveStuckExecution: (id: string) => Promise<void>;
+        runExecution: (...a: unknown[]) => Promise<void>;
+      };
+      const segSpy = jest
+        .spyOn(svcAny, 'recordRunningSegmentStart')
+        .mockImplementation(() => {});
+      const redriveSpy = jest
+        .spyOn(svcAny, 'redriveStuckExecution')
+        .mockResolvedValue(undefined);
+      const runSpy = jest
+        .spyOn(svcAny, 'runExecution')
+        .mockResolvedValue(undefined);
+      await service.runExecutionFromQueue(executionId, {});
+      await flushPromises();
+      expect(segSpy).toHaveBeenCalledWith(executionId);
+      expect(redriveSpy).toHaveBeenCalledWith(executionId);
+      expect(runSpy).not.toHaveBeenCalled();
+      segSpy.mockRestore();
+      redriveSpy.mockRestore();
+      runSpy.mockRestore();
+    });
+
+    it('terminal (cancelled) → ack-discard (재구동/실행 안 함)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ status: ExecutionStatus.CANCELLED }),
+      );
+      const svcAny = service as unknown as {
+        redriveStuckExecution: (id: string) => Promise<void>;
+        runExecution: (...a: unknown[]) => Promise<void>;
+      };
+      const redriveSpy = jest
+        .spyOn(svcAny, 'redriveStuckExecution')
+        .mockResolvedValue(undefined);
+      const runSpy = jest
+        .spyOn(svcAny, 'runExecution')
+        .mockResolvedValue(undefined);
+      await service.runExecutionFromQueue(executionId, {});
+      await flushPromises();
+      expect(redriveSpy).not.toHaveBeenCalled();
+      expect(runSpy).not.toHaveBeenCalled();
+      redriveSpy.mockRestore();
+      runSpy.mockRestore();
     });
 
     it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외', async () => {
