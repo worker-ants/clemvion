@@ -1144,6 +1144,7 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 `execution-continuation` 큐는 `removeOnFail: false` 로 운영되어 attempts (`RESUME_BULLMQ_ATTEMPTS`) 소진 job 이 `failed`(dead-letter) 상태로 누적된다. rehydration 이 구조적으로 실패하는 회귀(배포 후 `_resumeCheckpoint` schema drift — `buildRetryReentryState` 재구성 실패, 체크포인트 손상 등)는 dead-letter depth 급증으로 나타나므로 다음을 둔다:
 
 - `ContinuationDlqMonitorService` — dead-letter(`failed`) depth 와 retry backlog(`delayed`)를 주기 polling, 임계 초과 시 structured `logger.error` 알람을 cooldown 1회로 발생. **임계 초과 알람**은 log 기반을 유지(근거: [§Rationale "DLQ 모니터링 — 로그 기반 알람 선택"](#rationale) 참조). **큐 깊이(waiting/active/delayed/failed)**는 `registerQueueDepthProvider` 를 통해 `clemvion.queue.depth` ObservableGauge 로 NF-OB-07 에도 노출 — 관측(gauge)과 능동 통지(알람)를 분리한다.
+- `ExecutionRunDlqMonitorService` (PR4) — `execution-run` 큐에 대한 `ContinuationDlqMonitorService` 미러. `EXECUTION_RUN_DLQ_*` env(useFactory 주입, 서비스가 `process.env` 직접 접근 안 함)로 임계·주기·cooldown 설정. stalled 재배달 소진(`WORKER_HEARTBEAT_TIMEOUT`)이 dead-letter 로 쌓이는 것을 관측.
 - worker `onFailed` (`@OnWorkerEvent('failed')`) — 실패 1건마다 `RETRY`(attempts 잔여) / `DEAD-LETTER`(attempts 소진) 태그 + 시도 횟수 로깅.
 
 | 환경변수                               | 기본값   | 설명                                   |
@@ -1152,6 +1153,10 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 | `CONTINUATION_DLQ_MONITOR_INTERVAL_MS` | `60000`  | depth polling 주기                     |
 | `CONTINUATION_DLQ_ALARM_COOLDOWN_MS`   | `300000` | 알람 재발 최소 간격                    |
 | `CONTINUATION_DLQ_MONITOR_ENABLED`     | `true`   | `'false'` 지정 시 모니터 비활성        |
+| `EXECUTION_RUN_DLQ_ALARM_THRESHOLD`    | `20`     | `execution-run` dead-letter(`failed`) job 수 알람 임계 (PR4 — `ExecutionRunDlqMonitorService`, continuation 미러) |
+| `EXECUTION_RUN_DLQ_MONITOR_INTERVAL_MS`| `60000`  | `execution-run` depth polling 주기      |
+| `EXECUTION_RUN_DLQ_ALARM_COOLDOWN_MS`  | `300000` | `execution-run` 알람 재발 최소 간격     |
+| `EXECUTION_RUN_DLQ_MONITOR_ENABLED`    | `true`   | `'false'` 지정 시 `execution-run` 모니터 비활성 |
 
 ---
 
