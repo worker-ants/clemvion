@@ -7,7 +7,7 @@ owner: project-planner
 # spec draft — 재개(rehydration) race 보장을 DB 원자 claim 으로 (06 C-2)
 
 대상 spec: `spec/5-system/4-execution-engine.md` (§7.5·§7.4·§1.1·§1.2·Rationale) + side-effect `spec/data-flow/3-execution.md §1.4`.
-추적 plan: `plan/in-progress/refactor/06-concurrency.md` C-2 (사용자 승인 Option A, 2026-07-02).
+추적 plan: `plan/complete/refactor/06-concurrency.md` C-2 (사용자 승인 Option A, 2026-07-02).
 
 > **rev2 (2026-07-02)** — consistency-check `23_23_49` Critical(rationale_continuity) 해소. rev1 은 기존 **직접** `WFI→failed`/`WFI→completed` 전이를 "claim 후 running 경유"로 재서술했는데, 이는 Rationale L1246–1254(L1252)가 명시 기각한 "WFI→running→failed 2단계"와 구조 일치였다. rev2 는 (a) claim 을 **재개 진입 gate 로만 추가**하고 기존 finalization 전이를 재서술하지 않으며, (b) 신규 Rationale 에서 L1252 를 정면 인용해 "부분 수정" 논거(편익 맥락 변화 + 원자성 우려 실질 대응)를 명시한다.
 

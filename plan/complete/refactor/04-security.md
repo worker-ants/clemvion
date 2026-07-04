@@ -1,6 +1,6 @@
 # Refactor 백로그 — 보안 (2026-06-10 전수 감사)
 
-> 인덱스: [README.md](../../in-progress/refactor/README.md). Critical 3 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 전 항목 유효** (철회 0).
+> 인덱스: [README.md](./README.md). Critical 3 / Major 7 / Minor 4 — **spec 대조(2026-06-10) 후 전 항목 유효** (철회 0).
 > **✅ 전 14항목 종결 (2026-06-16)**: 코드 14건 모두 머지 + 동반 spec 갱신(M-1·M-3·M-5·M-6·m-2 PR #570, C-1·M-4·M-7 `prod-fail-closed-guards`, m-1 optional 2026-06-16) 완료. M-6 DI 순환은 실 부팅 e2e 로 검증. 잔여 ⏳/⚠️ 없음.
 > **spec 대조 판정 분포**: A 6 (C-2, M-2, M-3, m-2, m-3, m-4) / B 2 / C 2 (M-6, M-7 — spec 자체 갭/enforcement 비대칭) / D 4.
 > **⚠️ A(의도된 트레이드오프)였던 항목 — 모두 결정·처리 완료**: C-2(✅ isolated-vm 전환), M-2(✅ C-2 흡수), M-3(✅ safe-regex), m-4(✅ pub/sub 전파). 더 이상 결정 대기 항목 없음.

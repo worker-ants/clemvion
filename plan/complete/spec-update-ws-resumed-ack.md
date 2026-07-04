@@ -9,7 +9,7 @@ spec_impact:
 
 # spec 정정 — WS `resumed` ack 의미 + 엔진 §7.5↔§7.5.1 내부 모순 해소
 
-> 출처: `plan/in-progress/refactor/06-concurrency.md` M-1 (✅ 2026-06-10 사용자 승인 — 권고안 A 확정).
+> 출처: `plan/complete/refactor/06-concurrency.md` M-1 (✅ 2026-06-10 사용자 승인 — 권고안 A 확정).
 > developer `spec/` read-only 위반(impl-prep WARNING)으로 planner 트랙 분리됐던 항목.
 > 본 항목은 **코드 변경 없음** — spec 이 코드의 실제 동작(always-enqueue 모델)을 정직하게 기술하도록 정정.
 
