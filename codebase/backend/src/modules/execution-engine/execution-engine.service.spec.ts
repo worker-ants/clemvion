@@ -3186,6 +3186,50 @@ describe('ExecutionEngineService', () => {
       await expect(admit(exec)).resolves.toBe('admitted');
       spy.mockRestore();
     });
+
+    it('원자 UPDATE 파라미터 순서·cap 매핑 회귀: [executionId, workspaceId, wsCap, workflowId, wfCap]', async () => {
+      // ws cap(7)·wf cap(2) 를 다르게 둬서 각 파라미터가 올바른 위치에 바인딩되는지
+      // 고정한다 — 순서 뒤바뀜/cap 교차 오염(ws↔wf) 회귀 차단. advisory lock 키도
+      // workspace 범위(`exec-cap:<workspaceId>`)임을 함께 확인.
+      mockWorkflowRepo.findOne.mockResolvedValueOnce({
+        id: 'wf',
+        workspaceId: 'ws-X',
+        settings: { maxConcurrentExecutions: 2 },
+        workspace: { settings: { maxConcurrentExecutions: 7 } },
+      });
+      const queryMock = jest
+        .fn()
+        .mockResolvedValueOnce([]) // (1) SELECT pg_advisory_xact_lock(...)
+        .mockResolvedValueOnce([{ id: 'eSQL' }]); // (2) 조건부 UPDATE → admitted
+      mockExecutionRepo.manager.transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: queryMock }),
+      );
+      const spy = emitSpy();
+      const exec = {
+        id: 'eSQL',
+        workflowId: 'wf',
+        queuedAt: new Date(),
+        status: 'pending',
+      };
+      await expect(admit(exec)).resolves.toBe('admitted');
+      // (1) advisory lock — workspace 범위 키로 같은 workspace admission 직렬화.
+      expect(queryMock.mock.calls[0][0]).toContain('pg_advisory_xact_lock');
+      expect(queryMock.mock.calls[0][1]).toEqual(['exec-cap:ws-X']);
+      // (2) 조건부 UPDATE — 파라미터 순서·cap 매핑 고정. wsCap($3)=workspace.settings,
+      //     wfCap($5)=workflow.settings 로 교차 없이 매핑돼야 한다.
+      expect(queryMock.mock.calls[1][0]).toContain(
+        "UPDATE execution SET status = 'running'",
+      );
+      expect(queryMock.mock.calls[1][1]).toEqual([
+        'eSQL', // $1 executionId
+        'ws-X', // $2 workspaceId (workspace COUNT join)
+        7, // $3 wsCap (workspace.settings)
+        'wf', // $4 workflowId (workflow COUNT)
+        2, // $5 wfCap (workflow.settings)
+      ]);
+      spy.mockRestore();
+    });
   });
 
   // PR4 — stalled 소진 dead-letter 마감 (ExecutionRunProcessor.onFailed 호출).
@@ -3442,6 +3486,86 @@ describe('ExecutionEngineService', () => {
       );
       await service.runExecutionFromQueue(executionId, {});
       expect(runSpy).not.toHaveBeenCalled();
+      runSpy.mockRestore();
+    });
+
+    // ── PR2b §8 admission gate 결과별 회귀 (deferred/cancelled 는 runExecution 미호출) ──
+    // admitExecutionOrDefer 를 직접 stub 해 세 결과(admitted/deferred/cancelled)에서
+    // runExecutionFromQueue 의 후속 분기(runExecution 진행 여부·routing release)를 고정한다.
+    const admitStub = (
+      outcome: 'admitted' | 'deferred' | 'cancelled',
+    ): { admitSpy: jest.SpyInstance; runSpy: jest.SpyInstance } => {
+      const svcAny = service as unknown as {
+        admitExecutionOrDefer: (
+          ...a: unknown[]
+        ) => Promise<'admitted' | 'cancelled' | 'deferred'>;
+        runExecution: (...a: unknown[]) => Promise<void>;
+      };
+      const admitSpy = jest
+        .spyOn(svcAny, 'admitExecutionOrDefer')
+        .mockResolvedValue(outcome);
+      const runSpy = jest
+        .spyOn(svcAny, 'runExecution')
+        .mockResolvedValue(undefined);
+      return { admitSpy, runSpy };
+    };
+
+    it('admission deferred → routing 등록 후 release + runExecution 미호출', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-defer' }),
+      );
+      const { admitSpy, runSpy } = admitStub('deferred');
+      await service.runExecutionFromQueue(executionId, { a: 1 });
+      await flushPromises();
+      // routing 은 admission 이전에 등록됐다가 defer 시 해제된다(재-pick up 시 재등록).
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-defer',
+        workflowId,
+      });
+      expect(mockWebsocketService.releaseExecutionRouting).toHaveBeenCalledWith(
+        executionId,
+      );
+      expect(runSpy).not.toHaveBeenCalled();
+      admitSpy.mockRestore();
+      runSpy.mockRestore();
+    });
+
+    it('admission cancelled → runExecution 미호출 + runExecutionFromQueue 는 release 안 함 (markQueueWaitTimeout 이 처리)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-cancel' }),
+      );
+      const { admitSpy, runSpy } = admitStub('cancelled');
+      await service.runExecutionFromQueue(executionId, {});
+      await flushPromises();
+      expect(runSpy).not.toHaveBeenCalled();
+      // cancelled arm 은 deferred 와 달리 runExecutionFromQueue 에서 release 하지 않는다
+      // (routing 해제는 markQueueWaitTimeout 내부에서 수행 — 여기선 admit stub 이라 미호출).
+      expect(
+        mockWebsocketService.releaseExecutionRouting,
+      ).not.toHaveBeenCalled();
+      admitSpy.mockRestore();
+      runSpy.mockRestore();
+    });
+
+    it('admission admitted → runExecution(execution, input, true) 진행 + release 안 함', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-admit' }),
+      );
+      const { admitSpy, runSpy } = admitStub('admitted');
+      const input = { p: 1 };
+      await service.runExecutionFromQueue(executionId, input);
+      await flushPromises();
+      expect(runSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        input,
+        true,
+      );
+      expect(
+        mockWebsocketService.releaseExecutionRouting,
+      ).not.toHaveBeenCalled();
+      admitSpy.mockRestore();
       runSpy.mockRestore();
     });
 

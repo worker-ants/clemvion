@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-04T20:35:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "테스트 코드만 변경 — I/O·정렬·캐시 로직 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "테스트 헬퍼 매개변수화만 — 모듈 경계·서비스 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일(.md) 변경"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json·requirements.txt 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "테스트 코드만 변경 — migration·schema·ORM 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "workspace-level cap 다중 workflow 동시 admission 검증 — 동시성 게이트 행동 테스트"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "엔드포인트·schema·응답 구조 변경 없음"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "PROJECT.md trigger 매트릭스 해당 디렉토리 변경 없음 — 테스트만"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 6,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}
