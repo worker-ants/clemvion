@@ -476,7 +476,9 @@ export class ExecutionEngineService
    *   SIGTERM 이후 진행 중 세그먼트가 다른 worker 에 재배달되면 해당 세그먼트의
    *   active 시간이 DB 에 누락(under-count)될 수 있다. 이는 over-count(실제보다 길게
    *   측정해 정상 실행을 조기 종료)보다 덜 위험하므로 의도적으로 허용한다.
-   *   PR3 stalled-job 재배달 구현 시 세그먼트 flush 훅 추가를 검토한다.
+   *   **PR4** stalled-job 재배달 + 세그먼트-start 영속 구현 시 flush 훅 추가를 검토한다
+   *   (PR3 제어된 re-drive 는 세그먼트-start 를 영속하지 않아 under-count 미해소 —
+   *   spec §Rationale "Graceful Shutdown … under-count 허용" 2026-07-04 정정).
    */
   private readonly maxActiveRunningMs = resolveMaxActiveRunningMs();
   private readonly segmentStartMs = new Map<string, number>();
