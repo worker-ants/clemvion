@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, LessThan, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -2823,24 +2823,29 @@ export class ExecutionEngineService
       //     affected rows = 본 인스턴스가 소유권을 획득한 재구동 대상.
       const reclaimedIds =
         await this.reclaimStuckRunningExecution(staleThreshold);
-      if (reclaimedIds.length === 0) return;
-      this.logger.warn(
-        `Re-claimed ${reclaimedIds.length} stale RUNNING execution(s) (>30min) for crash re-drive (§7.5 case B)`,
-      );
-      // (b) 각 재구동은 fire-and-forget — 부팅을 그래프 실행으로 막지 않는다.
-      //     redriveStuckExecution 이 내부 try/catch/finally 로 단말 상태를
-      //     자기 마킹하므로 reject 하지 않으나, 방어적 .catch 로 unhandled
-      //     rejection 을 차단한다. 각 row 는 이미 started_at 이 갱신돼 다른
-      //     인스턴스가 재-picking 하지 않으므로 lock 을 곧 풀어도 안전하다.
-      for (const executionId of reclaimedIds) {
-        void this.redriveStuckExecution(executionId).catch((err: unknown) => {
-          this.logger.error(
-            `Crash re-drive failed for execution ${executionId}: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          );
-        });
+      if (reclaimedIds.length > 0) {
+        this.logger.warn(
+          `Re-claimed ${reclaimedIds.length} stale RUNNING execution(s) (>30min) for crash re-drive (§7.5 case B)`,
+        );
+        // (b) 각 재구동은 fire-and-forget — 부팅을 그래프 실행으로 막지 않는다.
+        //     redriveStuckExecution 이 내부 try/catch/finally 로 단말 상태를
+        //     자기 마킹하므로 reject 하지 않으나, 방어적 .catch 로 unhandled
+        //     rejection 을 차단한다. 각 row 는 이미 started_at 이 갱신돼 다른
+        //     인스턴스가 재-picking 하지 않으므로 lock 을 곧 풀어도 안전하다.
+        for (const executionId of reclaimedIds) {
+          void this.redriveStuckExecution(executionId).catch((err: unknown) => {
+            this.logger.error(
+              `Crash re-drive failed for execution ${executionId}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+          });
+        }
       }
+      // (c) orphan pending backstop (§8) — admission 재큐 job 이 소실돼(예: Redis
+      //     비영속·job 유실) 다시 pick up 되지 않는 pending row 를 회수한다. running
+      //     재점유 유무와 무관하게 항상 스캔한다(위 early-return 제거).
+      await this.recoverOrphanPendingExecutions();
     } finally {
       // 작업 완료 후 lock 을 명시 해제 — TTL 60초 만료 대기 없이 다음
       // 인스턴스가 즉시 처리할 수 있다. owner 검증이 들어가 있어 이미
@@ -2878,6 +2883,43 @@ export class ExecutionEngineService
     // waiting 재개에서 하는 것과 동일(assertActiveTimeWithinLimit 의 in-progress 경과분).
     for (const id of ids) this.recordRunningSegmentStart(id);
     return ids;
+  }
+
+  /**
+   * §8 orphan pending backstop — admission 재큐 job 이 소실된 `pending` Execution 회수.
+   *
+   * cap 초과로 delayed 재큐된 job(auto-id, jobId 없음)이 Redis 비영속·eviction 등으로
+   * 소실되면 그 `pending` row 는 다시 pick up 될 job 이 없어 영구 잔류한다. 큐 대기 5분
+   * timeout 은 consumer 가 job 을 pick up 할 때(`admitExecutionOrDefer`)만 검사되므로
+   * orphan 은 그 검사를 받지 못한다(§8 "트리거 = admission 시점 검사").
+   *
+   * **액션 = wait-timeout cancel(re-enqueue 아님)**: 큐 대기 한도를 **이미 초과한**
+   * pending(`queued_at < now - resolveQueueWaitTimeoutMs()`)만 대상으로, consumer 가
+   * pick up 했다면 admission 이전 timeout 검사로 `cancelled` 마감했을 값을 그대로 적용한다.
+   * 재큐→재검사→cancel 과 결과가 같으므로 직접 cancel 이 단순·안전하다(오래된 실행을
+   * RUNNING 으로 부활시키지 않는다). 한도 이내 orphan 은 다음 스캔에서 초과 시 회수
+   * (낮은 확률 엣지·boot-only 트리거 — best-effort). `markQueueWaitTimeout` 은 조건부
+   * UPDATE(`WHERE status='pending'`)라 동시 admit/cancel 과의 race 에 멱등이다.
+   *
+   * SoT: spec/5-system/4-execution-engine.md §8 / §7.4.
+   */
+  private async recoverOrphanPendingExecutions(): Promise<void> {
+    const staleThreshold = new Date(Date.now() - resolveQueueWaitTimeoutMs());
+    // queued_at IS NULL(레거시 pre-V104 row)은 LessThan 이 자연 제외한다(NULL < x = 미매치).
+    const orphans = await this.executionRepository.find({
+      where: {
+        status: ExecutionStatus.PENDING,
+        queuedAt: LessThan(staleThreshold),
+      },
+      select: { id: true },
+    });
+    if (orphans.length === 0) return;
+    this.logger.warn(
+      `[recovery] orphan pending ${orphans.length}건 (queue-wait 초과, job 소실 추정) — wait-timeout cancel (§8)`,
+    );
+    for (const { id } of orphans) {
+      await this.markQueueWaitTimeout(id);
+    }
   }
 
   /**
