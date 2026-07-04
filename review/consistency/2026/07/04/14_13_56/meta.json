@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-04T14:13:56.737595",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-concurrency-cap-pr2b.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
