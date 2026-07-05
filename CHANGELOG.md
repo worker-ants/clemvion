@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 실행 내역 상세 노드 서브탭 통일 (V-05)
+
+### 변경 사항
+
+1. **전용 실행 내역 상세 페이지의 노드 상세가 에디터와 동일한 서브탭 UI 제공** — 종전 실행 내역 상세(`/workflows/:id/executions/:executionId`)의 노드 상세는 Preview/Input/Output/Error 4탭뿐이었고, `spec/2-navigation/14-execution-history.md` EH-DETAIL-03·§3.3/§3.4 가 ✅구현으로 명시한 Config·LLM Usage·메시지 레벨(Response/Request/LLM Usage)·References 탭은 에디터 Run Results 드로어에만 있었다(ConversationInspector 안내문이 없는 탭을 가리키는 dangling 상태). 실행 상세 페이지가 에디터 `ResultDetail` 컴포넌트를 그대로 재사용하도록 통일해 두 surface 가 완전히 동일한 서브탭·완결 대화 인스펙터·live waiting 상호작용을 제공한다. `nodeExecution.outputData`·`inputData`·`startedAt` 가 에디터 run 결과와 동일 shape 라 데이터가 그대로 흐른다. dry-run 배지는 execution-level 플래그를 함께 반영해 비-effect 노드에서도 유지. spec 변경 불요. SoT: `spec/2-navigation/14-execution-history.md §3.3/§3.4`.
+
 ## Unreleased — 초대 수락 확인 UI + 기가입자 진입 경로 (§1.5.3, V-09)
 
 ### 변경 사항

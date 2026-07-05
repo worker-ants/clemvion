@@ -6,7 +6,7 @@ order: 2
 summary: "이 페이지에서는 실행 이력 조회, 타임라인 사용법, 노드별 I/O 확인, 에러 메시지 해석을 설명해요."
 summary_en: "How to inspect execution history, use the timeline, check per-node I/O, and read error messages."
 spec: ["spec/3-workflow-editor/3-execution.md", "spec/2-navigation/14-execution-history.md"]
-code: ["codebase/frontend/src/components/editor/run-results", "codebase/backend/src/modules/executions"]
+code: ["codebase/frontend/src/components/editor/run-results", "codebase/frontend/src/app/(main)/workflows/[id]/executions", "codebase/backend/src/modules/executions"]
 ---
 
 이 페이지에서는 **실행 이력 조회**, **Run Results 드로어의 타임라인**, **노드별 입출력 확인**, **에러 메시지 해석** 방법을 설명해요.
@@ -64,7 +64,7 @@ code: ["codebase/frontend/src/components/editor/run-results", "codebase/backend/
 
 ## 노드 상세 뷰: 서브 탭
 
-완료·실패·대기 상태의 노드는 상세 뷰 상단에 서브 탭이 나와요. AI 노드(AI Agent, Information Extractor, Text Classifier)도 동일한 탭 UI를 써요.
+완료·실패·대기 상태의 노드는 상세 뷰 상단에 서브 탭이 나와요. AI 노드(AI Agent, Information Extractor, Text Classifier)도 동일한 탭 UI를 써요. 이 서브 탭 UI는 에디터의 Run Results 드로어뿐 아니라 [전용 실행 내역 페이지](#전용-실행-내역-페이지-상세-탐색)의 실행 상세 화면에서도 완전히 동일하게 제공돼요.
 
 <FieldTable rows={[
   { name: "Preview", type: "조건부", description: "Table·Carousel·Chart·Template·Form의 시각적 프리뷰, 또는 AI 대화형 노드의 ConversationInspector, Form/버튼 대기 UI를 보여줘요." },
