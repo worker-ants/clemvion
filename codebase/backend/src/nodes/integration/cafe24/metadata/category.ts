@@ -507,7 +507,7 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'categories/{category_no}/products',
-    requiredFields: ['category_no'],
+    requiredFields: ['category_no', 'display_group'],
     fields: {
       category_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -803,7 +803,7 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'mains',
-    requiredFields: [],
+    requiredFields: ['group_name'],
     fields: {
       shop_no: {
         type: 'number',
@@ -832,7 +832,14 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'autodisplay',
-    requiredFields: ['category_no'],
+    requiredFields: [
+      'category_no',
+      'use_main',
+      'display_group',
+      'display_count',
+      'use_reservation',
+      'use_hashtag',
+    ],
     fields: {
       shop_no: {
         type: 'number',

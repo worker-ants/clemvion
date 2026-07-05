@@ -26,7 +26,7 @@ export const personalOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'carts',
-    requiredFields: ['shop_no'],
+    requiredFields: ['shop_no', 'member_id'],
     fields: {
       shop_no: {
         type: 'number',

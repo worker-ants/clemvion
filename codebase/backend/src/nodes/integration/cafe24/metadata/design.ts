@@ -100,7 +100,7 @@ export const designOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'themes/{skin_no}/pages',
-    requiredFields: ['skin_no'],
+    requiredFields: ['skin_no', 'path'],
     fields: {
       skin_no: {
         type: 'number',
@@ -130,7 +130,7 @@ export const designOperations: Cafe24OperationMetadata[] = [
     // in body, not path).
     method: 'PUT',
     path: 'themes/{skin_no}/pages',
-    requiredFields: ['skin_no'],
+    requiredFields: ['skin_no', 'path', 'source'],
     fields: {
       skin_no: {
         type: 'number',
@@ -148,7 +148,7 @@ export const designOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'DELETE',
     path: 'themes/{skin_no}/pages',
-    requiredFields: ['skin_no'],
+    requiredFields: ['skin_no', 'path'],
     fields: {
       skin_no: {
         type: 'number',
@@ -190,7 +190,7 @@ export const designOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'icons',
-    requiredFields: [],
+    requiredFields: ['id', 'group_code'],
     fields: {
       shop_no: {
         type: 'number',

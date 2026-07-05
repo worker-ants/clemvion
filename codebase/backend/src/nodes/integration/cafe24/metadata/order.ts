@@ -1,5 +1,14 @@
 import type { Cafe24OperationMetadata } from './types.js';
 
+/**
+ * Cafe24 `order` resource metadata.
+ *
+ * G-1-remaining (plan `cafe24-backlog-residual.md`, 2026-07-05): field-set 을 공식
+ * docs 카탈로그(`spec/conventions/cafe24-api-catalog/order/*.md` 요청 파라미터 표)와
+ * 전량 미러. 필드명 docs-verbatim(비동작 alias 교체), offset/limit 제외(pagination 층
+ * 주입), requiredFields = 기존 ∪ (docs-필수(✓) ∩ fields) — catalog-required-fields.spec
+ * 가드. op id/method/path/scope/restrictedApproval 는 무변경.
+ */
 export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_list',
@@ -359,7 +368,12 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/shipments',
-    requiredFields: ['order_id', 'shipping_company_code', 'tracking_no'],
+    requiredFields: [
+      'order_id',
+      'shipping_company_code',
+      'tracking_no',
+      'status',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -868,7 +882,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'refunds',
-    requiredFields: [],
+    requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: {
         type: 'number',
@@ -983,7 +997,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'cancellation',
-    requiredFields: [],
+    requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1117,7 +1131,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     method: 'POST',
     // cafe24 docs path: `exchange` (not `orders/exchanges`).
     path: 'exchange',
-    requiredFields: [],
+    requiredFields: ['order_id', 'status', 'same_product'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1195,7 +1209,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'return',
-    requiredFields: [],
+    requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1404,7 +1418,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/cancellation',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1521,7 +1535,15 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     // cafe24 docs path: `orders/{order_id}/cancellation/{claim_code}`
     // (claim_code path placeholder added).
     path: 'orders/{order_id}/cancellation/{claim_code}',
-    requiredFields: ['order_id', 'claim_code'],
+    requiredFields: [
+      'order_id',
+      'claim_code',
+      'recover_inventory',
+      'undone',
+      'add_memo_too',
+      'undone_reason_type',
+      'expose_order_detail',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -1594,7 +1616,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/completions',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'payment_code', 'data'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1626,7 +1648,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/exchange',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'status', 'same_product'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1809,7 +1831,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/{order_id}/exchangerequests',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'order_item_code', 'undone'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1866,7 +1888,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/items',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'variant_code'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1983,7 +2005,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/items/{order_item_code}/labels',
-    requiredFields: ['order_id', 'order_item_code'],
+    requiredFields: ['order_id', 'order_item_code', 'names'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2007,7 +2029,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/{order_id}/items/{order_item_code}/labels',
-    requiredFields: ['order_id', 'order_item_code'],
+    requiredFields: ['order_id', 'order_item_code', 'names'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2051,7 +2073,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/items/{order_item_code}/options',
-    requiredFields: ['order_id', 'order_item_code'],
+    requiredFields: ['order_id', 'order_item_code', 'product_bundle'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2215,7 +2237,11 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/{order_id}/payments',
-    requiredFields: ['order_id'],
+    requiredFields: [
+      'order_id',
+      'change_payment_amount',
+      'change_payment_method',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -2658,7 +2684,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/{order_id}/refunds/{refund_code}',
-    requiredFields: ['order_id', 'refund_code'],
+    requiredFields: ['order_id', 'refund_code', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2708,7 +2734,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/return',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3182,7 +3208,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/{order_id}/shortagecancellation',
-    requiredFields: ['order_id'],
+    requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3308,7 +3334,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'orders/benefits',
-    requiredFields: [],
+    requiredFields: ['order_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3418,7 +3444,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'orders/coupons',
-    requiredFields: [],
+    requiredFields: ['order_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3468,7 +3494,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/inflowgroups',
-    requiredFields: [],
+    requiredFields: ['inflow_group_id', 'inflow_group_name'],
     fields: {
       inflow_group_id: {
         type: 'string',
@@ -3489,7 +3515,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/inflowgroups/{inflow_group_id}',
-    requiredFields: ['inflow_group_id'],
+    requiredFields: ['inflow_group_id', 'inflow_group_name'],
     fields: {
       inflow_group_id: {
         type: 'string',
@@ -3543,7 +3569,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/inflowgroups/{group_id}/inflows',
-    requiredFields: ['group_id'],
+    requiredFields: ['group_id', 'inflow_id', 'inflow_name', 'inflow_icon'],
     fields: {
       group_id: {
         type: 'string',
@@ -3575,7 +3601,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/inflowgroups/{group_id}/inflows/{inflow_id}',
-    requiredFields: ['group_id', 'inflow_id'],
+    requiredFields: ['group_id', 'inflow_id', 'inflow_name', 'inflow_icon'],
     fields: {
       group_id: {
         type: 'string',
@@ -3629,7 +3655,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'orders/memos',
-    requiredFields: [],
+    requiredFields: ['order_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3733,7 +3759,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/migrations',
-    requiredFields: [],
+    requiredFields: ['order_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3822,7 +3848,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/migrations',
-    requiredFields: [],
+    requiredFields: ['order_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3928,7 +3954,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'orders/paymentamount',
-    requiredFields: [],
+    requiredFields: ['order_item_code'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3961,7 +3987,11 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orders/saleschannels',
-    requiredFields: [],
+    requiredFields: [
+      'sales_channel_id',
+      'sales_channel_name',
+      'sales_channel_icon',
+    ],
     fields: {
       sales_channel_id: {
         type: 'string',
@@ -4029,7 +4059,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'payments',
-    requiredFields: [],
+    requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -4199,7 +4229,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'return',
-    requiredFields: [],
+    requiredFields: ['order_id', 'claim_code'],
     fields: {
       shop_no: {
         type: 'number',
@@ -4358,7 +4388,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'returnrequests',
-    requiredFields: [],
+    requiredFields: ['order_id', 'reason_type', 'reason', 'request_pickup'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4425,7 +4455,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'returnrequests',
-    requiredFields: [],
+    requiredFields: ['order_id', 'order_item_code', 'undone'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4467,7 +4497,12 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'cancellation',
-    requiredFields: [],
+    requiredFields: [
+      'order_id',
+      'claim_code',
+      'recover_inventory',
+      'add_memo_too',
+    ],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4555,7 +4590,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'cancellationrequests',
-    requiredFields: [],
+    requiredFields: ['order_id', 'reason_type', 'reason'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4605,7 +4640,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'cancellationrequests',
-    requiredFields: [],
+    requiredFields: ['order_id', 'order_item_code', 'undone'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4647,7 +4682,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'cashreceipt',
-    requiredFields: [],
+    requiredFields: ['start_date', 'end_date'],
     fields: {
       start_date: {
         type: 'string',
@@ -4704,7 +4739,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'cashreceipt',
-    requiredFields: [],
+    requiredFields: ['order_id', 'type'],
     fields: {
       order_id: { type: 'string', location: 'body', description: 'Order id' },
       type: {
@@ -4732,7 +4767,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'cashreceipt/{cashreceipt_no}',
-    requiredFields: ['cashreceipt_no'],
+    requiredFields: ['cashreceipt_no', 'order_id'],
     fields: {
       cashreceipt_no: { type: 'string', location: 'path' },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4761,7 +4796,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'cashreceipt/{cashreceipt_no}/cancellation',
-    requiredFields: ['cashreceipt_no'],
+    requiredFields: ['cashreceipt_no', 'order_id', 'type'],
     fields: {
       cashreceipt_no: { type: 'string', location: 'path' },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4780,7 +4815,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'collectrequests/{request_no}',
-    requiredFields: ['request_no'],
+    requiredFields: ['request_no', 'collect_tracking_no'],
     fields: {
       request_no: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
@@ -4798,7 +4833,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'exchange',
-    requiredFields: [],
+    requiredFields: ['order_id', 'claim_code'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4899,7 +4934,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'exchangerequests',
-    requiredFields: [],
+    requiredFields: ['order_id', 'reason_type', 'reason'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -4975,7 +5010,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'exchangerequests',
-    requiredFields: [],
+    requiredFields: ['order_id', 'order_item_code', 'undone'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       order_id: { type: 'string', location: 'body', description: 'Order id' },
@@ -5018,7 +5053,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'fulfillments',
-    requiredFields: [],
+    requiredFields: ['tracking_no', 'shipping_company_code', 'status'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       tracking_no: {
@@ -5077,7 +5112,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'labels',
-    requiredFields: [],
+    requiredFields: ['name', 'order_item_code'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       name: {
@@ -5111,7 +5146,13 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'orderform/properties',
-    requiredFields: [],
+    requiredFields: [
+      'input_type',
+      'is_required',
+      'subject',
+      'available_product_type',
+      'input_scope',
+    ],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       input_type: {
@@ -5309,7 +5350,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'shipments',
-    requiredFields: [],
+    requiredFields: ['tracking_no', 'shipping_company_code', 'status'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       tracking_no: {
@@ -5353,7 +5394,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'shipments',
-    requiredFields: [],
+    requiredFields: ['shipping_code'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       shipping_code: {
@@ -5392,7 +5433,23 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'subscription/shipments',
-    requiredFields: [],
+    requiredFields: [
+      'member_id',
+      'buyer_name',
+      'buyer_zipcode',
+      'buyer_address1',
+      'buyer_address2',
+      'buyer_cellphone',
+      'buyer_email',
+      'receiver_name',
+      'receiver_zipcode',
+      'receiver_address1',
+      'receiver_address2',
+      'receiver_phone',
+      'receiver_cellphone',
+      'expected_delivery_date',
+      'subscription_shipments_cycle',
+    ],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       member_id: {
@@ -5597,7 +5654,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'subscription/shipments/{subscription_id}/items',
-    requiredFields: ['subscription_id'],
+    requiredFields: ['subscription_id', 'subscription_item_id'],
     fields: {
       subscription_id: { type: 'string', location: 'path' },
       subscription_item_id: {
@@ -5646,7 +5703,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'unpaidorders',
-    requiredFields: [],
+    requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
       start_date: {

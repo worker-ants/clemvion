@@ -1,6 +1,15 @@
 import type { Cafe24OperationMetadata } from './types.js';
 import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 
+/**
+ * Cafe24 `store` resource metadata.
+ *
+ * G-1-remaining (plan `cafe24-backlog-residual.md`, 2026-07-05): field-set 을 공식
+ * docs 카탈로그(`spec/conventions/cafe24-api-catalog/store/*.md` 요청 파라미터 표)와
+ * 전량 미러. 필드명 docs-verbatim(비동작 alias 교체), offset/limit 제외(pagination 층
+ * 주입), requiredFields = 기존 ∪ (docs-필수(✓) ∩ fields) — catalog-required-fields.spec
+ * 가드. op id/method/path/scope/restrictedApproval 는 무변경.
+ */
 export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'store_get',
@@ -105,7 +114,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'paymentgateway',
-    requiredFields: [],
+    requiredFields: ['partner_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -354,7 +363,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'financials/store',
-    requiredFields: [],
+    requiredFields: ['payment_method'],
     fields: {
       shop_no: {
         type: 'number',
@@ -457,7 +466,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'automessages/setting',
-    requiredFields: [],
+    requiredFields: ['send_method'],
     fields: {
       shop_no: {
         type: 'number',
@@ -957,7 +966,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'currency',
-    requiredFields: [],
+    requiredFields: ['shop_no', 'exchange_rate'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1060,7 +1069,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'images/setting',
-    requiredFields: [],
+    requiredFields: ['product_image_size'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1099,7 +1108,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'information',
-    requiredFields: [],
+    requiredFields: ['type'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1409,7 +1418,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'naverpay/setting',
-    requiredFields: [],
+    requiredFields: ['shop_id', 'certi_key', 'image_key'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1868,7 +1877,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/status',
-    requiredFields: [],
+    requiredFields: ['status_name_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1972,7 +1981,13 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'paymentgateway/{client_id}/paymentmethods',
-    requiredFields: ['client_id'],
+    requiredFields: [
+      'client_id',
+      'payment_method_code',
+      'payment_method',
+      'payment_method_name',
+      'payment_method_url',
+    ],
     fields: {
       client_id: {
         type: 'string',
@@ -2083,7 +2098,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'paymentmethods/{code}/paymentproviders/{name}',
-    requiredFields: ['code', 'name'],
+    requiredFields: ['code', 'name', 'display'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2345,7 +2360,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'privacy/boards',
-    requiredFields: [],
+    requiredFields: ['no'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2401,7 +2416,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'privacy/join',
-    requiredFields: [],
+    requiredFields: ['no'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2470,7 +2485,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'privacy/orders',
-    requiredFields: [],
+    requiredFields: ['no'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2539,7 +2554,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'products/display/setting',
-    requiredFields: [],
+    requiredFields: ['sorting_options'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2672,7 +2687,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'redirects',
-    requiredFields: [],
+    requiredFields: ['path', 'target'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3089,7 +3104,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'socials/kakaosync',
-    requiredFields: [],
+    requiredFields: ['rest_api_key', 'javascript_key'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       rest_api_key: {
@@ -3135,7 +3150,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'socials/naverlogin',
-    requiredFields: [],
+    requiredFields: ['use_naverlogin'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       use_naverlogin: {
@@ -3199,7 +3214,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'store/dropshipping',
-    requiredFields: [],
+    requiredFields: ['name', 'use'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       name: {
@@ -3270,7 +3285,14 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'subscription/shipments/setting',
-    requiredFields: [],
+    requiredFields: [
+      'subscription_shipments_name',
+      'product_binding_type',
+      'use_discount',
+      'subscription_shipments_cycle_type',
+      'subscription_shipments_cycle',
+      'use_order_price_condition',
+    ],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       subscription_shipments_name: {

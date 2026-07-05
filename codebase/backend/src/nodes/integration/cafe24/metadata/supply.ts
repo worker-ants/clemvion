@@ -1,5 +1,14 @@
 import type { Cafe24OperationMetadata } from './types.js';
 
+/**
+ * Cafe24 `supply` resource metadata.
+ *
+ * G-1-remaining (plan `cafe24-backlog-residual.md`, 2026-07-05): field-set 을 공식
+ * docs 카탈로그(`spec/conventions/cafe24-api-catalog/supply/*.md` 요청 파라미터 표)와
+ * 전량 미러. 필드명 docs-verbatim(비동작 alias 교체), offset/limit 제외(pagination 층
+ * 주입), requiredFields = 기존 ∪ (docs-필수(✓) ∩ fields) — catalog-required-fields.spec
+ * 가드. op id/method/path/scope/restrictedApproval 는 무변경.
+ */
 export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_list',
@@ -654,7 +663,12 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'suppliers/users',
-    requiredFields: ['supplier_code', 'user_id'],
+    requiredFields: [
+      'supplier_code',
+      'user_id',
+      'password',
+      'permission_shop_no',
+    ],
     fields: {
       user_id: {
         type: 'string',
@@ -960,7 +974,12 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'suppliers/users/{supplier_id}/regionalsurcharges',
-    requiredFields: ['supplier_id'],
+    requiredFields: [
+      'supplier_id',
+      'region_name',
+      'use_regional_surcharge',
+      'regional_surcharge_amount',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -1073,7 +1092,11 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'suppliers/users/{supplier_id}/regionalsurcharges/setting',
-    requiredFields: ['supplier_id'],
+    requiredFields: [
+      'supplier_id',
+      'use_regional_surcharge',
+      'region_setting_type',
+    ],
     fields: {
       shop_no: {
         type: 'number',

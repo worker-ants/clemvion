@@ -303,7 +303,7 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'manufacturers',
-    requiredFields: ['manufacturer_name'],
+    requiredFields: ['manufacturer_name', 'president_name'],
     fields: {
       shop_no: {
         type: 'number',

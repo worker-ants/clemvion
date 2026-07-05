@@ -63,7 +63,7 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'carriers',
-    requiredFields: [],
+    requiredFields: ['shipping_carrier_code', 'contact', 'email'],
     fields: {
       shop_no: {
         type: 'number',
@@ -495,7 +495,7 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'shippingorigins',
-    requiredFields: ['origin_name', 'address1'],
+    requiredFields: ['origin_name', 'address1', 'address2', 'country_code'],
     fields: {
       origin_name: {
         type: 'string',

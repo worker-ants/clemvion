@@ -364,7 +364,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'boards/{board_no}/articles',
-    requiredFields: ['board_no', 'title', 'content'],
+    requiredFields: ['board_no', 'title', 'content', 'writer', 'client_ip'],
     fields: {
       board_no: { type: 'number', location: 'path' },
       shop_no: {
@@ -650,7 +650,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'boards/{board_no}/articles/{article_no}/comments',
-    requiredFields: ['board_no', 'article_no', 'content'],
+    requiredFields: ['board_no', 'article_no', 'content', 'writer', 'password'],
     fields: {
       board_no: { type: 'number', location: 'path' },
       article_no: { type: 'number', location: 'path' },
@@ -775,7 +775,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'commenttemplates',
-    requiredFields: [],
+    requiredFields: ['title', 'content', 'board_type'],
     fields: {
       shop_no: {
         type: 'number',
@@ -978,7 +978,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'urgentinquiry/{article_no}/reply',
-    requiredFields: ['article_no', 'content'],
+    requiredFields: ['article_no', 'content', 'user_id'],
     fields: {
       article_no: { type: 'number', location: 'path' },
       shop_no: {
@@ -1017,7 +1017,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'urgentinquiry/{article_no}/reply',
-    requiredFields: ['article_no'],
+    requiredFields: ['article_no', 'content'],
     fields: {
       article_no: { type: 'number', location: 'path' },
       shop_no: {

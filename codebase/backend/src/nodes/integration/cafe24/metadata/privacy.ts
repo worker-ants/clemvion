@@ -2,6 +2,15 @@ import type { Cafe24OperationMetadata } from './types.js';
 import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 import { CAFE24_DATE_FIELD_CREATED_START } from './date-descriptions.js';
 
+/**
+ * Cafe24 `privacy` resource metadata.
+ *
+ * G-1-remaining (plan `cafe24-backlog-residual.md`, 2026-07-05): field-set 을 공식
+ * docs 카탈로그(`spec/conventions/cafe24-api-catalog/privacy/*.md` 요청 파라미터 표)와
+ * 전량 미러. 필드명 docs-verbatim(비동작 alias 교체), offset/limit 제외(pagination 층
+ * 주입), requiredFields = 기존 ∪ (docs-필수(✓) ∩ fields) — catalog-required-fields.spec
+ * 가드. op id/method/path/scope/restrictedApproval 는 무변경.
+ */
 export const privacyOperations: Cafe24OperationMetadata[] = [
   // cafe24 docs path: `customersprivacy` (concatenated, not `privacy/customers`).
   // Pre-2026-05-22 seed had `privacy/customers/*` which 404s — fixed to

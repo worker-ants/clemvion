@@ -2324,7 +2324,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'products/{product_no}/variants',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'variant_code'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2460,7 +2460,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/additionalimages',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'additional_image'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2487,7 +2487,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'products/{product_no}/additionalimages',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'additional_image'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2537,7 +2537,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/images',
-    requiredFields: [],
+    requiredFields: ['image'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2606,7 +2606,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/approve',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'user_id'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2633,7 +2633,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'products/{product_no}/approve',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'user_id', 'status'],
     fields: {
       shop_no: {
         type: 'number',
@@ -2776,7 +2776,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/decorationimages',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'image_list'],
     fields: {
       product_no: {
         type: 'number',
@@ -2819,7 +2819,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'products/{product_no}/decorationimages',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'image_list'],
     fields: {
       product_no: {
         type: 'number',
@@ -2962,7 +2962,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/icons',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'image_list'],
     fields: {
       product_no: {
         type: 'number',
@@ -3100,7 +3100,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/memos',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'author_id', 'memo'],
     fields: {
       product_no: {
         type: 'number',
@@ -3126,7 +3126,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'products/{product_no}/memos/{memo_no}',
-    requiredFields: ['product_no', 'memo_no'],
+    requiredFields: ['product_no', 'memo_no', 'author_id', 'memo'],
     fields: {
       product_no: {
         type: 'number',
@@ -3224,7 +3224,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/tags',
-    requiredFields: ['product_no'],
+    requiredFields: ['product_no', 'tags'],
     fields: {
       shop_no: {
         type: 'number',
@@ -3522,7 +3522,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'bundleproducts',
-    requiredFields: [],
+    requiredFields: [
+      'product_name',
+      'bundle_product_components',
+      'bundle_product_sales',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -4292,7 +4296,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'categories/{category_no}/products/count',
-    requiredFields: ['category_no'],
+    requiredFields: ['category_no', 'display_group'],
     fields: {
       shop_no: {
         type: 'number',
@@ -4320,7 +4324,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'categories/{category_no}/products',
-    requiredFields: ['category_no'],
+    requiredFields: ['category_no', 'product_no'],
     fields: {
       category_no: {
         type: 'number',
@@ -4348,7 +4352,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'categories/{category_no}/products',
-    requiredFields: ['category_no'],
+    requiredFields: ['category_no', 'display_group', 'product_no'],
     fields: {
       shop_no: {
         type: 'number',
@@ -4480,7 +4484,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'mains/{display_group}/products',
-    requiredFields: ['display_group'],
+    requiredFields: ['display_group', 'product_no'],
     fields: {
       display_group: {
         type: 'string',
@@ -4507,7 +4511,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'mains/{display_group}/products',
-    requiredFields: ['display_group'],
+    requiredFields: ['display_group', 'product_no'],
     fields: {
       display_group: {
         type: 'string',

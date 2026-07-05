@@ -398,7 +398,7 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'appstore/orders',
-    requiredFields: [],
+    requiredFields: ['order_name', 'order_amount', 'return_url'],
     fields: {
       order_name: {
         type: 'string',
@@ -431,7 +431,7 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'appstore/payments',
-    requiredFields: [],
+    requiredFields: ['start_date', 'end_date'],
     fields: {
       order_id: {
         type: 'string',
@@ -466,7 +466,7 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'appstore/payments/count',
-    requiredFields: [],
+    requiredFields: ['start_date', 'end_date'],
     fields: {
       order_id: {
         type: 'string',
@@ -546,7 +546,7 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'recipes',
-    requiredFields: [],
+    requiredFields: ['recipe_code'],
     fields: {
       recipe_code: {
         type: 'string',

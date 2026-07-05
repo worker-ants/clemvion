@@ -157,7 +157,14 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'coupons',
-    requiredFields: ['coupon_name', 'benefit_type'],
+    requiredFields: [
+      'coupon_name',
+      'benefit_type',
+      'issue_type',
+      'available_period_type',
+      'available_site',
+      'available_coupon_count_by_order',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -948,7 +955,19 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     // path. anchor `generate-coupon-code`).
     method: 'POST',
     path: 'serialcoupons',
-    requiredFields: [],
+    requiredFields: [
+      'coupon_name',
+      'benefit_type',
+      'available_period_type',
+      'available_site',
+      'available_scope',
+      'available_product',
+      'available_category',
+      'available_amount_type',
+      'available_coupon_count_by_order',
+      'serial_generate_method',
+      'serial_code_type',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -1098,7 +1117,7 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'serialcoupons/{coupon_no}/issues',
-    requiredFields: ['coupon_no'],
+    requiredFields: ['coupon_no', 'serial_code_list'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1246,7 +1265,13 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'benefits',
-    requiredFields: ['benefit_name', 'benefit_type'],
+    requiredFields: [
+      'benefit_name',
+      'benefit_type',
+      'use_benefit',
+      'benefit_division',
+      'platform_types',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -1479,7 +1504,7 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'customerevents',
-    requiredFields: [],
+    requiredFields: ['type', 'name'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1567,7 +1592,7 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'customerevents',
-    requiredFields: ['status'],
+    requiredFields: ['status', 'no'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1682,7 +1707,15 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'discountcodes',
-    requiredFields: ['discount_code'],
+    requiredFields: [
+      'discount_code',
+      'discount_code_name',
+      'discount_value',
+      'discount_truncation_unit',
+      'discount_max_price',
+      'available_start_date',
+      'available_end_date',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -1761,7 +1794,7 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'discountcodes/{discount_code_no}',
-    requiredFields: ['discount_code_no'],
+    requiredFields: ['discount_code_no', 'discount_code_name'],
     fields: {
       shop_no: {
         type: 'number',
@@ -1867,7 +1900,7 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'commonevents',
-    requiredFields: [],
+    requiredFields: ['name'],
     fields: {
       shop_no: {
         type: 'number',

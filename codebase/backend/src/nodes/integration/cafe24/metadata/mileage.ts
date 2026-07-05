@@ -29,7 +29,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'points',
-    requiredFields: ['shop_no'],
+    requiredFields: ['shop_no', 'start_date', 'end_date'],
     fields: {
       shop_no: {
         type: 'number',
@@ -91,7 +91,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'points',
-    requiredFields: ['member_id', 'amount', 'reason'],
+    requiredFields: ['member_id', 'amount', 'reason', 'type'],
     fields: {
       shop_no: {
         type: 'number',
@@ -156,7 +156,12 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'points/autoexpiration',
-    requiredFields: ['expiration_date'],
+    requiredFields: [
+      'expiration_date',
+      'interval_month',
+      'target_period_month',
+      'standard_point',
+    ],
     fields: {
       shop_no: {
         type: 'number',
@@ -239,7 +244,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     scopeType: 'read',
     method: 'GET',
     path: 'credits',
-    requiredFields: [],
+    requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: {
         type: 'number',
