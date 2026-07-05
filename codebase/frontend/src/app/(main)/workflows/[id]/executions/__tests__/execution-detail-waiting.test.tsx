@@ -78,6 +78,54 @@ function makeWaitingExecution(interactionType: "form" | "buttons" | "ai_conversa
   };
 }
 
+// V-05 — 완결(비-waiting) 실행의 노드 상세. AI 노드는 Config·LLM Usage 탭이,
+// 일반 노드는 Config 탭이 노출돼야 한다(14-execution-history §3.3/§3.4.2).
+function makeCompletedExecution(nodeType: "ai_agent" | "http_request") {
+  const isAi = nodeType === "ai_agent";
+  return {
+    id: "exec-w",
+    workflowId: "wf-1",
+    status: "completed",
+    startedAt: "2024-01-15T14:02:30Z",
+    finishedAt: "2024-01-15T14:02:31Z",
+    durationMs: 1200,
+    inputData: {},
+    outputData: null,
+    error: null,
+    nodeExecutions: [
+      {
+        id: "ne-1",
+        executionId: "exec-w",
+        nodeId: "n1",
+        status: "completed",
+        startedAt: "2024-01-15T14:02:30Z",
+        finishedAt: "2024-01-15T14:02:31Z",
+        durationMs: 1200,
+        inputData: { in: 1 },
+        outputData: {
+          config: { model: "gpt-4o", temperature: 0.5 },
+          output: { text: "done" },
+          ...(isAi
+            ? {
+                meta: {
+                  model: "gpt-4o",
+                  totalTokens: 100,
+                  requestTokens: 60,
+                  responseTokens: 40,
+                  turnCount: 1,
+                  toolCalls: 0,
+                },
+              }
+            : {}),
+        },
+        error: null,
+        retryCount: 0,
+        node: { id: "n1", type: nodeType, label: isAi ? "Agent" : "Fetch" },
+      },
+    ],
+  };
+}
+
 async function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -226,6 +274,30 @@ describe("ExecutionDetailPage - waiting interaction", () => {
       executionId: "exec-w",
       nodeId: "n1",
     });
+  });
+
+  // V-05: 완결 실행 노드 상세가 에디터 ResultDetail 과 동일 서브탭 구성을 노출.
+  it("completed AI node exposes Config and LLM Usage sub-tabs (V-05)", async () => {
+    mockGetById.mockResolvedValue(makeCompletedExecution("ai_agent"));
+    await renderPage();
+    // 완결 실행은 자동 선택이 없으므로 좌측 목록에서 노드를 클릭해 선택.
+    const nodeBtn = await screen.findByText("Agent");
+    fireEvent.click(nodeBtn);
+
+    // 노드 레벨: Config(설정) + LLM Usage(LLM 사용량) 탭이 노출돼야 한다.
+    expect(await screen.findByText("설정")).toBeInTheDocument();
+    expect(screen.getByText("LLM 사용량")).toBeInTheDocument();
+  });
+
+  it("completed non-AI node exposes Config but not LLM Usage (V-05)", async () => {
+    mockGetById.mockResolvedValue(makeCompletedExecution("http_request"));
+    await renderPage();
+    const nodeBtn = await screen.findByText("Fetch");
+    fireEvent.click(nodeBtn);
+
+    expect(await screen.findByText("설정")).toBeInTheDocument();
+    // 일반 노드는 LLM Usage 탭이 없어야 한다.
+    expect(screen.queryByText("LLM 사용량")).toBeNull();
   });
 
   it("renders conversation inspector and emits submit_message", async () => {

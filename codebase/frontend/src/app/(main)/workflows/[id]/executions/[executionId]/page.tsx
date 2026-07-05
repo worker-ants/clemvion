@@ -49,27 +49,17 @@ import {
   getStatusLabel,
   formatDuration,
 } from "@/lib/utils/execution-status";
-import { useT, type TranslationKey } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
-import { isDryRunOutput } from "@/components/editor/run-results/result-detail";
-import { PresentationContent } from "@/components/editor/run-results/renderers/presentation-renderers";
-import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
-import { ConversationInspector } from "@/components/editor/run-results/conversation-inspector";
-import { parseHistoryMessages } from "@/components/editor/run-results/conversation-utils";
-import { isConversationOutput } from "@/components/editor/run-results/output-shape";
-import { DynamicFormUI } from "@/components/editor/run-results/dynamic-form-ui";
-import { ButtonBar } from "@/components/editor/run-results/button-bar";
-import { BackgroundRunSection } from "@/components/editor/run-results/background-run-section";
-import { extractBackgroundRunId } from "@/components/editor/run-results/result-detail";
-import {
-  parseButtonConfig,
-  openExternalLink,
-} from "@/components/editor/run-results/button-config";
+// V-05 — 실행 상세 노드 패널은 에디터 run-results 의 ResultDetail 을 그대로 재사용해
+// Preview/Input/Output/Config/LLM Usage/Response/Request/References/Error 서브탭과
+// live waiting 상호작용(내부 useExecutionInteractionCommands)을 한 컴포넌트로 통일한다
+// (spec/2-navigation/14-execution-history.md §3.3/§3.4).
+import { ResultDetail } from "@/components/editor/run-results/result-detail";
 import type { NodeResult } from "@/lib/stores/execution-store";
 import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
-import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
 
 function NodeStatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -84,17 +74,6 @@ function NodeStatusIcon({ status }: { status: string }) {
     default:
       return <Clock className="h-4 w-4 text-gray-400" />;
   }
-}
-
-function JsonViewer({ data }: { data: unknown }) {
-  if (data == null) return <span className="text-[hsl(var(--muted-foreground))]">null</span>;
-
-  const formatted = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-  return (
-    <pre className="overflow-auto rounded-md bg-[hsl(var(--muted))] p-3 text-xs leading-relaxed max-h-[400px]">
-      <code>{formatted}</code>
-    </pre>
-  );
 }
 
 export default function ExecutionDetailPage({
@@ -475,7 +454,6 @@ export default function ExecutionDetailPage({
       <NodeResultsTab
         executionId={executionId}
         nodeExecutions={sortedNodeExecutions}
-        executionDryRun={execution.dryRun === true}
       />
 
       {/* Re-run 모달 (spec §10.2) — 두 진입점이 공유한다. */}
@@ -494,8 +472,6 @@ export default function ExecutionDetailPage({
   );
 }
 
-type DetailTab = "preview" | "input" | "output" | "error";
-
 function toNodeResult(ne: NodeExecutionData): NodeResult {
   const def = getNodeDefinition(ne.node?.type ?? "");
   return {
@@ -513,16 +489,14 @@ function toNodeResult(ne: NodeExecutionData): NodeResult {
 function NodeResultsTab({
   executionId,
   nodeExecutions,
-  executionDryRun,
 }: {
   executionId: string;
   nodeExecutions: NodeExecutionData[];
-  executionDryRun: boolean;
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [nodeDetailTab, setNodeDetailTab] = useState<DetailTab>("preview");
   // Tracks which conversation message (if any) the user drilled into via
-  // Preview. `null` = node-level view (whole conversation).
+  // Preview. `null` = node-level view (whole conversation). ResultDetail 이
+  // 이 인덱스를 받아 메시지 레벨(Response/Request/LLM Usage) 탭으로 전환한다.
   const [selectedMsgIndex, setSelectedMsgIndex] = useState<number | null>(null);
   // Tracks which waitingNodeId we've already auto-selected, so changes to the
   // waiting node (e.g. after resumption into a new waiting node) move the
@@ -557,15 +531,13 @@ function NodeResultsTab({
     (s) => s.resumeFromConversation,
   );
 
-  const commands = useExecutionInteractionCommands(executionId);
-
   // Derived-state pattern (not an effect): when a newly-surfaced waiting node
   // differs from the one we previously auto-selected, move the selection once.
   // The user can still click away freely afterwards.
   if (waitingNodeId && waitingNodeId !== lastAutoSelectedWaiting) {
     setLastAutoSelectedWaiting(waitingNodeId);
     setSelectedNodeId(waitingNodeId);
-    setNodeDetailTab("preview");
+    setSelectedMsgIndex(null);
   }
 
   const selectedNode = useMemo(() => {
@@ -593,44 +565,6 @@ function NodeResultsTab({
     (waitingInteractionType === "ai_conversation" ||
       waitingInteractionType === "ai_form_render");
 
-  const handleFormSubmit = (data: Record<string, unknown>) => {
-    commands.submitForm(data);
-    resumeFromForm();
-  };
-
-  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — AI Agent render_form 제출.
-  // multi-turn 컨텍스트 보존 (spec §9.7.1 + Inv-7) — `pendingFormToolCall` 만
-  // nested null patch, 나머지 affordance 보존.
-  const handleAiRenderFormSubmit = (data: Record<string, unknown>) => {
-    commands.submitForm(data);
-    resumeFromAiRenderForm();
-  };
-
-  const handlePortButtonClick = (buttonId: string) => {
-    commands.clickButton(buttonId);
-    resumeFromButtons();
-  };
-
-  const handleContinueClick = () => {
-    commands.clickContinue();
-    resumeFromButtons();
-  };
-
-  const handleLinkButtonClick = (url: string) => {
-    openExternalLink(url);
-  };
-
-  const handleSendMessage = (message: string) => {
-    if (!selectedNode) return;
-    commands.sendMessage(selectedNode.nodeId, message);
-  };
-
-  const handleEndConversation = () => {
-    if (!selectedNode) return;
-    commands.endConversation(selectedNode.nodeId);
-    resumeFromConversation();
-  };
-
   const t = useT();
 
   if (!nodeExecutions.length) {
@@ -640,37 +574,6 @@ function NodeResultsTab({
       </p>
     );
   }
-
-  const isPresentation = selectedNodeResult?.nodeCategory === "presentation";
-  // Detect any conversation-shaped output (AI Agent or Information Extractor)
-  // — used to render the conversation view inside the Preview tab while the
-  // Output tab still shows the raw produced value.
-  //
-  // Fallback (PR #273 follow-up): isConversationOutput 가 false 반환해도
-  // nodeType ∈ {ai_agent, information_extractor} 면 conversation 으로 간주.
-  // 실행 내역 페이지에서 envelope shape 가 sparse 한 케이스에서도 Preview
-  // 탭에 ConversationInspector 가 그려지도록 보장 (사용자 보고: 실행 내역
-  // 보기 timeline 누락 회귀). isMultiTurnConversation 와 동일 정책 유지로
-  // 두 surface 의 분기 일관성 확보.
-  const selectedNodeType = selectedNode?.node?.type;
-  const looksLikeConversationNode =
-    selectedNodeType === "ai_agent" ||
-    selectedNodeType === "information_extractor";
-  const isCompletedConversation =
-    !isWaitingConversation &&
-    (isConversationOutput(selectedNode?.outputData) ||
-      looksLikeConversationNode);
-
-  // Preview tab should also render when the selected node is waiting for
-  // input — even if outputData is null the page must show the interactive UI.
-  const hasPreview = !!selectedNode?.outputData || isSelectedWaiting;
-
-  const detailTabs: { id: DetailTab; labelKey: TranslationKey; show: boolean }[] = [
-    { id: "preview", labelKey: "executions.tabPreview", show: hasPreview },
-    { id: "input", labelKey: "executions.tabInput", show: true },
-    { id: "output", labelKey: "executions.tabOutput", show: true },
-    { id: "error", labelKey: "executions.tabError", show: !!selectedNode?.error },
-  ];
 
   return (
     <div className="flex gap-4 min-h-[400px]">
@@ -691,9 +594,9 @@ function NodeResultsTab({
             )}
             onClick={() => {
               setSelectedNodeId(ne.nodeId);
-              setNodeDetailTab(
-                ne.error ? "error" : (ne.outputData || ne.nodeId === waitingNodeId) ? "preview" : "output",
-              );
+              // 노드 전환 시 메시지 레벨 선택만 초기화 — ResultDetail 이 activeTab 은
+              // 노드 변경마다 자체 리셋한다(에러면 Error, 아니면 Preview).
+              setSelectedMsgIndex(null);
             }}
           >
             <NodeStatusIcon status={ne.status} />
@@ -709,160 +612,32 @@ function NodeResultsTab({
         ))}
       </div>
 
-      {/* Right: Node Detail */}
+      {/* Right: Node Detail — 에디터 run-results 의 ResultDetail 을 그대로 재사용
+          (V-05). 헤더(label/type/status/duration + dry-run 배지)·서브탭
+          (Preview/Input/Output/Config/LLM Usage/Response/Request/References/Error)·
+          완결 대화 인스펙터·BackgroundRunSection·live waiting 상호작용(내부
+          useExecutionInteractionCommands)을 한 컴포넌트가 담당한다. null result 시
+          "Select a node to view details" placeholder 를 자체 렌더. */}
       <div className="flex-1 rounded-md border border-[hsl(var(--border))] overflow-hidden">
-        {!selectedNode ? (
-          <div className="flex h-full items-center justify-center text-sm text-[hsl(var(--muted-foreground))]">
-            Select a node to view details
-          </div>
-        ) : (
-          <div className="flex flex-col h-full">
-            {/* Node header */}
-            <div className="border-b border-[hsl(var(--border))] px-4 py-3">
-              <div className="flex items-center gap-2">
-                <NodeStatusIcon status={selectedNode.status} />
-                <span className="font-medium">
-                  {selectedNode.node?.label ?? selectedNode.nodeId}
-                </span>
-                {selectedNode.node?.type && (
-                  <Badge variant="outline" className="text-xs">
-                    {selectedNode.node.type}
-                  </Badge>
-                )}
-                {(executionDryRun || isDryRunOutput(selectedNode.outputData)) && (
-                  <Badge
-                    variant="outline"
-                    className="text-xs text-purple-600 border-purple-300"
-                  >
-                    🧪 dry-run
-                  </Badge>
-                )}
-                <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
-                  {selectedNode.startedAt
-                    ? `${formatDate(selectedNode.startedAt, "datetime")} · `
-                    : ""}
-                  {formatDuration(selectedNode.durationMs)}
-                </span>
-              </div>
-            </div>
-
-            {/* Sub-tabs */}
-            <div className="flex gap-2 border-b border-[hsl(var(--border))] px-4">
-              {detailTabs
-                .filter((tab) => tab.show)
-                .map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    className={cn(
-                      "py-2 text-xs font-medium transition-colors",
-                      nodeDetailTab === tab.id
-                        ? "border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
-                        : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]",
-                    )}
-                    onClick={() => setNodeDetailTab(tab.id)}
-                  >
-                    {t(tab.labelKey)}
-                  </button>
-                ))}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-auto p-4">
-              {nodeDetailTab === "preview" && selectedNodeResult && (
-                isWaitingConversation ? (
-                  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 —
-                  // `ai_form_render` 의 활성 form 은 ConversationInspector 안
-                  // timeline 아이템 (assistant turn 의 `presentations[*].form`
-                  // payload, AssistantPresentationsBlock case "form" active
-                  // 분기) 으로 그려진다. pendingFormToolCallId / onSubmitForm
-                  // 을 prop drill 하여 active toolCallId 매칭 시 interactive
-                  // `DynamicFormUI` 렌더.
-                  <ConversationInspector
-                    result={selectedNodeResult}
-                    conversationMessages={conversationMessages}
-                    selectedItemIndex={selectedMsgIndex}
-                    isLive={true}
-                    isWaitingAiResponse={isWaitingAiResponse}
-                    conversationConfig={waitingConversationConfig}
-                    onSendMessage={handleSendMessage}
-                    onEndConversation={handleEndConversation}
-                    onSelectMessage={setSelectedMsgIndex}
-                    onBackToConversation={() => setSelectedMsgIndex(null)}
-                    pendingFormToolCallId={pendingFormToolCallId}
-                    onSubmitForm={handleAiRenderFormSubmit}
-                  />
-                ) : isWaitingForm && waitingFormConfig ? (
-                  // 그래프 Form 노드 (`interactionType: 'form'`) 의 standalone
-                  // form. `waitingFormConfig` 는 WS 이벤트마다 새 객체 참조로
-                  // 재계산되지만 `key={waitingNodeId}` 가 같으면 mount 유지 →
-                  // 입력 보존 (spec/4-nodes/6-presentation/0-common.md
-                  // §Rationale form option/state 안정화).
-                  <DynamicFormUI
-                    key={waitingNodeId ?? "no-waiting-node"}
-                    formConfig={waitingFormConfig as Record<string, unknown>}
-                    onSubmit={handleFormSubmit}
-                  />
-                ) : isWaitingButtons ? (
-                  isPresentation ? (
-                    <PresentationContent
-                      result={selectedNodeResult}
-                      onPortButtonClick={handlePortButtonClick}
-                      onLinkButtonClick={handleLinkButtonClick}
-                      previewOnly
-                    />
-                  ) : (() => {
-                    const parsed = parseButtonConfig(waitingButtonConfig);
-                    if (!parsed) return null;
-                    return (
-                      <ButtonBar
-                        buttons={parsed.buttons}
-                        onPortButtonClick={handlePortButtonClick}
-                        onLinkButtonClick={handleLinkButtonClick}
-                        onContinueClick={handleContinueClick}
-                      />
-                    );
-                  })()
-                ) : isCompletedConversation ? (
-                  <ConversationInspector
-                    result={selectedNodeResult}
-                    conversationMessages={parseHistoryMessages(selectedNode?.outputData)}
-                    selectedItemIndex={selectedMsgIndex}
-                    isLive={false}
-                    isWaitingAiResponse={false}
-                    conversationConfig={null}
-                    onSendMessage={() => {}}
-                    onEndConversation={() => {}}
-                    onSelectMessage={setSelectedMsgIndex}
-                    onBackToConversation={() => setSelectedMsgIndex(null)}
-                  />
-                ) : isPresentation ? (
-                  <PresentationContent result={selectedNodeResult} previewOnly />
-                ) : (
-                  <GenericRenderer result={selectedNodeResult} previewOnly />
-                )
-              )}
-              {nodeDetailTab === "input" && (
-                <JsonViewer data={selectedNode.inputData} />
-              )}
-              {nodeDetailTab === "output" && (
-                <JsonViewer data={selectedNode.outputData} />
-              )}
-              {nodeDetailTab === "error" && (
-                <JsonViewer data={selectedNode.error} />
-              )}
-              {selectedNode.node?.type === "background" &&
-                extractBackgroundRunId(selectedNode.outputData) && (
-                  <BackgroundRunSection
-                    executionId={executionId}
-                    backgroundRunId={extractBackgroundRunId(
-                      selectedNode.outputData,
-                    )}
-                  />
-                )}
-            </div>
-          </div>
-        )}
+        <ResultDetail
+          result={selectedNodeResult}
+          isWaitingForm={isWaitingForm}
+          formConfig={waitingFormConfig}
+          isWaitingButtons={isWaitingButtons}
+          buttonConfig={waitingButtonConfig}
+          isWaitingConversation={isWaitingConversation}
+          conversationConfig={waitingConversationConfig}
+          conversationMessages={conversationMessages}
+          selectedConversationItemIndex={selectedMsgIndex}
+          isWaitingAiResponse={isWaitingAiResponse}
+          executionId={executionId}
+          onFormSubmit={resumeFromForm}
+          onAiRenderFormSubmit={resumeFromAiRenderForm}
+          pendingFormToolCallId={pendingFormToolCallId}
+          onButtonClick={resumeFromButtons}
+          onConversationEnd={resumeFromConversation}
+          onSelectConversationItem={setSelectedMsgIndex}
+        />
       </div>
     </div>
   );
