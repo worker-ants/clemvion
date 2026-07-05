@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-07-05T22:51:15.306055",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/nodes/integration/cafe24/metadata/product-fields.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/integration/cafe24/metadata/product.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/integration/cafe24/metadata/public-meta.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/cafe24-backlog-residual.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
