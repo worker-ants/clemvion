@@ -21,6 +21,8 @@ describe('product field-set docs mirror (G-1-P)', () => {
     const list = op('product_list');
 
     it('mirrors the full docs filter set (>= 50 fields)', () => {
+      // docs `GET products` 요청 파라미터 표는 57개 필드(embed row 포함, offset/limit
+      // 제외). 하한 50 은 대량 미러가 조용히 축소되지 않도록 고정한 floor.
       expect(Object.keys(list.fields).length).toBeGreaterThanOrEqual(50);
     });
 
@@ -68,13 +70,18 @@ describe('product field-set docs mirror (G-1-P)', () => {
     expect(create.fields.supply_price?.type).toBe('string');
   });
 
-  it('product_options_create uses the docs `options` array, not the old flat option_values', () => {
-    const create = op('product_options_create');
-    expect(create.fields.options?.type).toBe('array');
-    expect(create.fields.option_values).toBeUndefined();
-    // requiredFields must stay a subset of the new fields.
-    for (const r of create.requiredFields) {
-      expect(create.fields[r]).toBeDefined();
+  it('product_options_create/update use the docs `options` array, not the old flat option_values', () => {
+    // create + update are symmetric: both dropped the old flat
+    // option_name/option_type/option_value(s) fields for the docs `options` array.
+    for (const id of ['product_options_create', 'product_options_update']) {
+      const o = op(id);
+      expect(o.fields.options?.type).toBe('array');
+      expect(o.fields.option_values).toBeUndefined();
+      expect(o.fields.option_value).toBeUndefined();
+      // requiredFields must stay a subset of the new fields.
+      for (const r of o.requiredFields) {
+        expect(o.fields[r]).toBeDefined();
+      }
     }
   });
 

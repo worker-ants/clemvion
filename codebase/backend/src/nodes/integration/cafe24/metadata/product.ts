@@ -1,3 +1,9 @@
+import {
+  CAFE24_DATE_FIELD_CREATED_START,
+  CAFE24_DATE_FIELD_CREATED_END,
+  CAFE24_DATE_FIELD_UPDATED_START,
+  CAFE24_DATE_FIELD_UPDATED_END,
+} from './date-descriptions.js';
 import type { Cafe24OperationMetadata } from './types.js';
 
 /**
@@ -168,22 +174,22 @@ export const productOperations: Cafe24OperationMetadata[] = [
       created_start_date: {
         type: 'string',
         location: 'query',
-        description: 'Created-date range start (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_CREATED_START,
       },
       created_end_date: {
         type: 'string',
         location: 'query',
-        description: 'Created-date range end (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_CREATED_END,
       },
       updated_start_date: {
         type: 'string',
         location: 'query',
-        description: 'Updated-date range start (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_UPDATED_START,
       },
       updated_end_date: {
         type: 'string',
         location: 'query',
-        description: 'Updated-date range end (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_UPDATED_END,
       },
       category: {
         type: 'number',
@@ -1748,22 +1754,22 @@ export const productOperations: Cafe24OperationMetadata[] = [
       created_start_date: {
         type: 'string',
         location: 'query',
-        description: 'Created-date range start (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_CREATED_START,
       },
       created_end_date: {
         type: 'string',
         location: 'query',
-        description: 'Created-date range end (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_CREATED_END,
       },
       updated_start_date: {
         type: 'string',
         location: 'query',
-        description: 'Updated-date range start (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_UPDATED_START,
       },
       updated_end_date: {
         type: 'string',
         location: 'query',
-        description: 'Updated-date range end (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_UPDATED_END,
       },
       category: {
         type: 'number',
@@ -3373,22 +3379,22 @@ export const productOperations: Cafe24OperationMetadata[] = [
       created_start_date: {
         type: 'string',
         location: 'query',
-        description: 'Created-date range start (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_CREATED_START,
       },
       created_end_date: {
         type: 'string',
         location: 'query',
-        description: 'Created-date range end (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_CREATED_END,
       },
       updated_start_date: {
         type: 'string',
         location: 'query',
-        description: 'Updated-date range start (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_UPDATED_START,
       },
       updated_end_date: {
         type: 'string',
         location: 'query',
-        description: 'Updated-date range end (YYYY-MM-DD, KST)',
+        description: CAFE24_DATE_FIELD_UPDATED_END,
       },
       category: {
         type: 'number',

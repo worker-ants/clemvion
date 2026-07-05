@@ -50,15 +50,15 @@ owner: developer (다음 진입자)
 #### G-1-P (pilot) — `product` 리소스 docs 전량 미러 (진행 중, worktree `fervent-albattani-8dc848`, 2026-07-05)
 
 > SoT = `spec/conventions/cafe24-api-catalog/product/*.md` 의 각 operation `#### 요청 파라미터 (Request)` 표.
-> 대상 = `codebase/backend/src/nodes/integration/cafe24/metadata/product.ts` 의 41 operation 전부.
+> 대상 = `codebase/backend/src/nodes/integration/cafe24/metadata/product.ts` 의 62 operation 전부.
 > field-set 은 어떤 가드도 검증 안 함(drift 가드는 method/path/scope 만) → 수기 대조 + 신규 타깃 테스트로 방어.
 
 - [x] 5-7. product.ts **62 op** fields docs 전량 미러 (product_list 8→57 필드 등). 비동작 alias 교체(`since/until`→`created_start_date/end`, `category_no`→`category`), `offset/limit` 제외(pagination 층), 통화필드 decimal string 유지, date 필드 §5.2 KST. constraints: product_list/count·bundleproducts_list allOrNone(created/updated/additional-info pair) + bundleproducts_create/update impliesValue(shipping_scope=C ⇒ hscode+clearance_category_code). **주의**: plan 의 "product material_composite impliesValue" 는 docs product create/update 표에 해당 필드 부재 → 적용 안 함(order refund_method 트랙에 속함, 후속). options schema docs 로 변경(flat option_values→`options` array)에 맞춰 requiredFields = existing∩new.
 - [x] 5. 신규 타깃 unit `product-fields.spec.ts` (field 수·대표필드·alias 제거·constraint 존재·offset/limit 부재). public-meta.spec `category_no`→`category` 정정.
 - [x] 8-lint/unit/build. cafe24 209 pass + metadata 105 pass(신규 포함) + backend build green. **unit 전체 1건 실패 = 본 PR 무관 pre-existing**(frontend Gate C `plan/complete/spec-code-cross-audit-2026-06-10.md` spec_impact frontmatter 부재, #825 유입 — planner 태스크 별도 스폰). e2e = **면제**(metadata-only, handler/infra 로직 무변경, cafe24 e2e 는 OAuth precheck/install 만·product op/변경필드 미참조 — #816 선례).
-- [ ] 3. `/consistency-check --impl-prep` 는 **--impl-done 으로 대체 수행**(docs-SoT 미러라 사전/사후 검사 대상 동일). 
-- [ ] 9. `/ai-review` + resolution + `/consistency-check --impl-done`
-- [ ] partial: product 외 17 resource 는 G-1-remaining 잔여로 유지 (본 PR 은 product 만) — spec frontmatter status:partial + pending_plans 등록 필요 시 확인
+- [x] 3. `/consistency-check --impl-prep` 는 **--impl-done 으로 대체 수행**(docs-SoT 미러라 사전/사후 검사 대상 동일). `--impl-done` = **BLOCK: NO** (WARNING 3건은 전부 형제 문서 SSRF/error-code pre-existing, 본 diff 무관).
+- [x] 9. `/ai-review` = LOW/Critical 0. WARNING 2건 fix: (1) date range description 을 date-descriptions.ts 공용 상수(created/updated ×4 신설)로 교체 — 17 resource 확장에도 재사용, (2) plan 개수 41→62 정정. INFO test 보강(매직넘버 주석·options_update 대칭 assertion). requirement/api_contract reviewer 는 세션 write-block 로 미기록 → scope(plan 일치 확인)+무계약변경으로 커버.
+- [ ] partial: product 외 17 resource 는 **본 goal(G-1-remaining 전체 완료)로 계속 진행 중** — Phase 2 에서 resource 별 확장. 전 resource 완료 시 partial 해소.
 
 ### G-2 — 잔존 docs 부재 ops 처리 결정 (운영 검증 후)
 
