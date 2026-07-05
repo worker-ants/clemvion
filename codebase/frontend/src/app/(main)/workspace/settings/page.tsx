@@ -14,6 +14,7 @@ import {
   ArrowRightLeft,
   Plus,
   Globe,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,6 +140,10 @@ export default function WorkspaceSettingsPage() {
             />
             <EmbedOriginsCard
               key={`embed-${currentWorkspace.id}`}
+              workspaceId={currentWorkspace.id}
+            />
+            <WorkspaceTimezoneCard
+              key={`tz-${currentWorkspace.id}`}
               workspaceId={currentWorkspace.id}
             />
           </div>
@@ -439,6 +444,109 @@ function EmbedOriginsEditor({
                 type="button"
                 onClick={() => saveMutation.mutate(origins)}
                 disabled={saveMutation.isPending}
+              >
+                {saveMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("workspace.saveSettings")}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface WorkspaceTimezoneCardProps {
+  workspaceId: string;
+}
+
+/**
+ * 워크스페이스 기본 시간대(`settings.timezone`) 편집 카드.
+ *
+ * 타임존을 명시하지 않은 스케줄이 이 값으로 fallback 한다
+ * (`schedules.service.resolveTimezone`: 명시값 > workspace settings.timezone > 'Asia/Seoul').
+ * `GET /workspaces/:id/settings` 로 현재 값을 시드(멤버 read), 저장은
+ * `PATCH /workspaces/:id/settings`(Admin+) — 다른 settings 키는 백엔드가 보존한다.
+ * IANA 유효성은 서버(`UpdateWorkspaceSettingsDto.timezone`)가 검증하고, 빈 문자열은 값을 지운다.
+ */
+function WorkspaceTimezoneCard({ workspaceId }: WorkspaceTimezoneCardProps) {
+  const settingsQuery = useQuery({
+    queryKey: ["workspace-settings", workspaceId],
+    queryFn: () => workspacesApi.getSettings(workspaceId),
+  });
+  return (
+    <WorkspaceTimezoneEditor
+      key={`tz-${workspaceId}:${settingsQuery.isSuccess ? "loaded" : "pending"}`}
+      workspaceId={workspaceId}
+      initialTimezone={settingsQuery.data?.timezone ?? ""}
+      isLoading={settingsQuery.isLoading}
+    />
+  );
+}
+
+interface WorkspaceTimezoneEditorProps {
+  workspaceId: string;
+  initialTimezone: string;
+  isLoading: boolean;
+}
+
+function WorkspaceTimezoneEditor({
+  workspaceId,
+  initialTimezone,
+  isLoading,
+}: WorkspaceTimezoneEditorProps) {
+  const t = useT();
+  const canEdit = useHasRole("admin");
+  const queryClient = useQueryClient();
+  const [timezone, setTimezone] = useState(initialTimezone);
+
+  const saveMutation = useMutation({
+    mutationFn: (next: string) =>
+      workspacesApi.updateSettings(workspaceId, { timezone: next }),
+    onSuccess: async () => {
+      toast.success(t("workspace.settingsSaved"));
+      await queryClient.invalidateQueries({
+        queryKey: ["workspace-settings", workspaceId],
+      });
+    },
+    onError: (err: unknown) => {
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.settingsSaveFailed"));
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <Clock className="h-4 w-4" />
+          {t("workspace.timezoneTitle")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {t("workspace.timezoneDesc")}
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="ws-timezone">{t("workspace.timezoneLabel")}</Label>
+            <Input
+              id="ws-timezone"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              placeholder={t("workspace.timezonePlaceholder")}
+              disabled={!canEdit || isLoading}
+              autoComplete="off"
+            />
+          </div>
+          {canEdit && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={() => saveMutation.mutate(timezone.trim())}
+                disabled={saveMutation.isPending || isLoading}
               >
                 {saveMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -131,4 +131,9 @@ export const workspace: Dict["workspace"] = {
   settingsSaveFailed: "Failed to save settings.",
   embedOriginsCacheNote: "Changes can take up to ~5 minutes to take effect (embed cache).",
   embedOriginsEmpty: "No allowed domains yet.",
+  timezoneTitle: "Default timezone",
+  timezoneDesc:
+    "The workspace default timezone applied to schedules that don't specify one. Use IANA format (e.g. Asia/Seoul); leave empty to clear.",
+  timezoneLabel: "IANA timezone",
+  timezonePlaceholder: "Asia/Seoul",
 };

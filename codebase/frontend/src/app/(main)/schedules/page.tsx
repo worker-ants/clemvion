@@ -21,7 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
+  MoreVertical,
 } from "lucide-react";
+import Link from "next/link";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +32,13 @@ import { schedulesApi, type RawSchedule } from "@/lib/api/schedules";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { RoleGate } from "@/components/auth/role-gate";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TriggerHistoryDialog } from "@/components/triggers/trigger-history-dialog";
 import {
   parseCronToVisualOrNull,
   buildCronFromVisual,
@@ -48,6 +57,7 @@ interface Schedule {
   timezone: string;
   isActive: boolean;
   nextRunAt?: string;
+  triggerId: string;
   workflowId: string;
   workflowName: string;
   parameterValues?: Record<string, unknown>;
@@ -456,6 +466,11 @@ export default function SchedulesPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [editTarget, setEditTarget] = useState<Schedule | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<{
+    triggerId: string;
+    triggerName: string;
+    workflowId: string;
+  } | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [cronTab, setCronTab] = useState<CronEditorTab>("expression");
 
@@ -484,6 +499,7 @@ export default function SchedulesPage() {
       timezone: s.timezone,
       isActive: s.isActive,
       nextRunAt: s.nextRunAt,
+      triggerId: s.trigger?.id ?? "",
       workflowId: s.trigger?.workflowId ?? "",
       workflowName: s.trigger?.workflow?.name ?? "",
       parameterValues: s.parameterValues ?? {},
@@ -1019,7 +1035,18 @@ export default function SchedulesPage() {
                         ? formatDate(schedule.nextRunAt, "datetime")
                         : "-"}
                     </td>
-                    <td className="px-4 py-3">{schedule.workflowName}</td>
+                    <td className="px-4 py-3">
+                      {schedule.workflowId ? (
+                        <Link
+                          href={`/workflows/${schedule.workflowId}`}
+                          className="text-[hsl(var(--primary))] hover:underline"
+                        >
+                          {schedule.workflowName}
+                        </Link>
+                      ) : (
+                        schedule.workflowName
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Button
@@ -1064,6 +1091,44 @@ export default function SchedulesPage() {
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </RoleGate>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={t("schedules.menuLabel")}
+                            >
+                              <MoreVertical
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={!schedule.triggerId}
+                              onSelect={() =>
+                                setHistoryTarget({
+                                  triggerId: schedule.triggerId,
+                                  triggerName: schedule.name,
+                                  workflowId: schedule.workflowId,
+                                })
+                              }
+                            >
+                              {t("schedules.viewHistory")}
+                            </DropdownMenuItem>
+                            {schedule.triggerId && (
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/triggers?triggerId=${schedule.triggerId}`}
+                                >
+                                  {t("schedules.viewInTrigger")}
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
@@ -1086,6 +1151,14 @@ export default function SchedulesPage() {
         viewMode === "calendar" && (
           <CalendarView schedules={schedules} t={t} />
         )}
+
+      <TriggerHistoryDialog
+        triggerId={historyTarget?.triggerId ?? null}
+        triggerName={historyTarget?.triggerName}
+        workflowId={historyTarget?.workflowId}
+        open={historyTarget !== null}
+        onClose={() => setHistoryTarget(null)}
+      />
     </div>
   );
 }

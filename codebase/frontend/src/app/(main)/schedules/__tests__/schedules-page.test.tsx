@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, act, cleanup, fireEvent } from "@testing-library/react";
+import userEvent, { PointerEventsCheckLevel } from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import {
@@ -24,6 +25,18 @@ vi.mock("@/lib/api/client", () => ({
     patch: vi.fn(),
     delete: vi.fn(),
   },
+}));
+
+// 실제 이력 다이얼로그를 마운트하면 /triggers/:id/history mock 없이 react-query 가
+// 요청을 시도하므로, open/triggerId 만 노출하는 경량 stub 으로 대체한다.
+vi.mock("@/components/triggers/trigger-history-dialog", () => ({
+  TriggerHistoryDialog: ({
+    open,
+    triggerId,
+  }: {
+    open: boolean;
+    triggerId: string | null;
+  }) => (open ? <div data-testid="history-dialog">{triggerId}</div> : null),
 }));
 
 import SchedulesPage from "../page";
@@ -402,5 +415,76 @@ describe("SchedulesPage — RBAC", () => {
     expect(
       screen.getByRole("button", { name: /run now/i }),
     ).toBeInTheDocument();
+  });
+});
+
+// [Spec 2-navigation/3-schedule §2.1] 워크플로 링크 + ⋮ 오버플로 메뉴(실행 이력·트리거에서 보기)
+describe("SchedulesPage — row links & overflow menu", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
+  });
+
+  function rowWithTrigger() {
+    return {
+      data: [
+        {
+          id: "s1",
+          cronExpression: "0 9 * * *",
+          timezone: "UTC",
+          isActive: true,
+          trigger: {
+            id: "t1",
+            name: "Daily",
+            workflowId: "w1",
+            workflow: { name: "WF" },
+          },
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    };
+  }
+
+  it("워크플로우 이름이 에디터(/workflows/:id) 링크로 렌더된다", async () => {
+    mockSchedulesResponse(rowWithTrigger());
+    await renderPage();
+    const link = await screen.findByRole("link", { name: "WF" });
+    expect(link).toHaveAttribute("href", "/workflows/w1");
+  });
+
+  it("⋮ 메뉴에 실행 이력·트리거에서 보기 항목, 트리거 링크는 /triggers?triggerId= 로 향한다", async () => {
+    mockSchedulesResponse(rowWithTrigger());
+    await renderPage();
+    await screen.findByText("Daily");
+    const user = userEvent.setup({
+      pointerEventsCheck: PointerEventsCheckLevel.Never,
+    });
+    await user.click(
+      screen.getByRole("button", { name: /schedule actions/i }),
+    );
+    expect(await screen.findByText(/run history/i)).toBeInTheDocument();
+    const viewInTrigger = screen.getByRole("menuitem", {
+      name: /view in trigger/i,
+    });
+    expect(viewInTrigger).toHaveAttribute("href", "/triggers?triggerId=t1");
+  });
+
+  it("실행 이력 클릭 시 이력 다이얼로그가 해당 triggerId 로 열린다", async () => {
+    mockSchedulesResponse(rowWithTrigger());
+    await renderPage();
+    await screen.findByText("Daily");
+    const user = userEvent.setup({
+      pointerEventsCheck: PointerEventsCheckLevel.Never,
+    });
+    await user.click(
+      screen.getByRole("button", { name: /schedule actions/i }),
+    );
+    await user.click(await screen.findByText(/run history/i));
+    expect(await screen.findByTestId("history-dialog")).toHaveTextContent(
+      "t1",
+    );
   });
 });

@@ -20,6 +20,7 @@ export interface RawSchedule {
   nextRunAt?: string;
   parameterValues?: Record<string, unknown>;
   trigger?: {
+    id?: string;
     name?: string;
     workflowId?: string;
     workflow?: { name?: string };
