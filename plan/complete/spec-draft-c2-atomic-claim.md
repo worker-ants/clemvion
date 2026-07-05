@@ -2,6 +2,9 @@
 worktree: refactor-06-c2-atomic-claim
 started: 2026-07-02
 owner: project-planner
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/3-execution.md
 ---
 
 # spec draft — 재개(rehydration) race 보장을 DB 원자 claim 으로 (06 C-2)

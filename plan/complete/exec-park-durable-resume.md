@@ -2,6 +2,10 @@
 worktree: exec-park-durable-resume
 started: 2026-06-05
 owner: developer
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/conventions/conversation-thread.md
 ---
 
 # Plan — park 완전 해제 + slow-path 일원화 (durable resume state)
@@ -270,7 +274,7 @@ owner: developer
 - [x] **PR-B2a follow-up (완료, #502)**: LLM_STUB_MODE 문서화·EIA §8.3·doc-sync·e2e ENCRYPTION_KEY. → `plan/complete/exec-park-b2a-followup.md`.
 - [x] **W11/W12 아키텍처 추출 (완료, #504 A~C polish)**: `ProcessTurnResult = void | ParkSignal` 타입 alias 신설(C1). `updateExecutionStatus` 멱등 가드는 **명시 미적용 결정**(C2 — `assertTransition` same-state invariant 마스킹 위험, RUNNING-skip 명시 가드 유지). → `plan/complete/exec-park-polish.md`.
 - [x] **잔여 doc polish (완료, #504 A~C polish)**: (W2/A1) `driveResumeDetached`→`driveResumeAwaited` rename + JSDoc "worker 직접 await" 정정(코드 22곳·spec 본문 6곳); (INFO8/9/A2) `execution-context.md`·`4-execution-engine.md` frontmatter `code:` 에 `shared/execution-resume/**` 등록; (INFO5/A3) `1-ai-agent §7` turn-park 단발 재진입 정정. → `plan/complete/exec-park-polish.md`.
-- [ ] **umbrella 잔여 (분리)**: PR3 rehydration 일반화(ai_agent → 일반 노드 + 멱등 재개, --impl-done I9 재검토) ← exec-park 마지막 실질 미구현 표면; node-cancellation §2(`node-cancellation-infrastructure.md`); W4 cross-worktree rebase(`impl-concurrency-cap-pr2b` — 타 worktree planner 담당, 본 plan 단독 해소 불가).
+- [x] **umbrella 잔여 (분리·종결)**: PR3 rehydration 일반화 = full B3 로 이미 완료 + 크래시 RUNNING re-drive 는 PR3 #795 로 landed; node-cancellation §2 는 named 별도 plan `node-cancellation-inflight-followups.md` 로 이관(본 plan 소관 아님); W4 cross-worktree rebase 는 `impl-concurrency-cap-pr2b`(#801) 머지로 moot. → exec-park 자체 잔여 실질 미구현 표면 0.
 > **차수 메모 (2026-06-06)**: **PR-B2b 완료** (step 8 durable nested resume → full B3 제거 → 중첩 e2e → spec flip). 7+ commits, execution-engine unit 690+ pass, dockerized e2e 176 pass, build·lint clean. ai-review 2회(step8 HIGH→resolved, full-B3 MEDIUM 0-Critical→resolved), `--impl-done` BLOCK:NO. plan 시퀀싱(8→B3) 준수, 리뷰-게이트 루프 회피(코드 fix 배치 + review/** 전용 종결 커밋).
 
 - 2026-06-05 착수. #468 머지 확인(main `9f30216f`). durability 맵 조사 완료(본 plan "현행 durability 맵").

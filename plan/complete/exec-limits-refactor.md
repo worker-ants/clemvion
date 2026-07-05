@@ -2,8 +2,7 @@
 worktree: exec-limits-refactor-ef170a
 started: 2026-07-04
 owner: developer
-spec_impact:
-  - none
+spec_impact: none
 ---
 
 # exec-limits 리팩터 묶음 (ARCH#4·ARCH#6·MAINT#9) — 동작 보존

@@ -2,6 +2,8 @@
 worktree: refactor-06-c3-context-drift
 started: 2026-07-04
 owner: project-planner
+spec_impact:
+  - spec/5-system/4-execution-engine.md
 ---
 
 # Spec draft — C-3 실행 컨텍스트 in-memory 정직화 (Redis context store 드리프트 제거)

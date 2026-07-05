@@ -2,6 +2,7 @@
 worktree: webhook-maint-backlog-f14768
 started: 2026-06-28
 owner: developer
+spec_impact: none
 ---
 
 # webhook 하드닝 후속 — 코드 유지보수 백로그 (단위 3)
@@ -40,7 +41,7 @@ owner: developer
 - [x] `/ai-review` (`review/code/2026/06/28/22_30_54`) RISK:MEDIUM, Critical 0, Warning ~10 → W-1·2·3·4·5·6·7·9
   + INFO 4·5·6·10·11 반영(RESOLUTION.md). W-8 오탐, W-10 backlog.
 - [x] `/consistency-check --impl-done` — `review/consistency/2026/06/28/22_49_52` BLOCK:NO (WARNING=plan 체크박스, 본 커밋 해소)
-- [ ] push + PR
+- [x] push + PR — PR #771 (`9d47ad8f8`) merged
 
 ## Followup 이월
 - (선택) error-handling §1.3/Rationale 에 "race-window 23505 → RESOURCE_CONFLICT(409) 필터 변환" 문장 추가(spec polish, --impl-done INFO-2).

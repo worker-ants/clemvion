@@ -3,6 +3,7 @@ worktree: competent-mirzakhani-34a96a
 started: 2026-06-28
 owner: developer
 branch: claude/webhook-extractip-consolidation
+spec_impact: none
 ---
 
 # webhook 하드닝 후속 — 코드 정리 (A+B 묶음)
@@ -28,7 +29,7 @@ PR #763(W4·W2·W1) 머지 후, 그 fresh 리뷰(review/code/2026/06/28/17_16_16
 - [x] /ai-review (19_00_30, LOW/0-Critical/3-WARNING) → WARNING 전부 FIXED (RESOLUTION)
 - [x] /consistency-check --impl-done (19_00_30, BLOCK:NO)
 - [x] fresh /ai-review --route=all (19_15_39, LOW/0/0 — security·architecture 포함 전 14 NONE) + fresh impl-done(19_15_39·19_25_02, BLOCK:NO)
-- [ ] push + PR
+- [x] push + PR — PR #765 (`8572577ca`) merged
 
 ## 범위 밖 (별도)
 - C(spec-only 단방향 포인터): 일부는 **본 PR 에 포함됨** — 1-auth §2.3 클라이언트 IP 행 분리(W1)·webhook 경로 함수명 동기화(extractClientIp→FromHeaders, 4 spec). 잔여(api-convention §5.3 echo 금지 포인터·web-chat §4 fail-open 언급)는 별도 spec 묶음.
