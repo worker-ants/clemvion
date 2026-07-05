@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-05T11:10:25.776666",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-g1-withdraw-ws-start-gate.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
