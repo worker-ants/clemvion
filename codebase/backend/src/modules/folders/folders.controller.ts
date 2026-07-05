@@ -95,7 +95,8 @@ export class FoldersController {
   @Roles('editor')
   @ApiOperation({
     summary: '폴더 수정',
-    description: '폴더의 이름·부모·정렬 순서를 부분 수정합니다.',
+    description:
+      '폴더의 이름·부모·정렬 순서를 부분 수정합니다. parentId 변경 시 생성과 동일한 계층 무결성 검증(같은 워크스페이스·비순환·최대 깊이 5)을 적용하며, 위반 시 400 VALIDATION_ERROR 입니다.',
   })
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(FolderDto, { description: '수정된 폴더' })

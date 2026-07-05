@@ -137,7 +137,7 @@ pending_plans:
 | GET | /api/folders | 폴더 목록 조회 — `sortOrder` → `name` 순 정렬. 계층 구조는 `parentId` 로 구성 |
 | GET | /api/folders/:id | 폴더 단건 조회 |
 | POST | /api/folders | 폴더 생성 (`editor`+). `parentId` 지정 시 하위로 생성. 깊이 5 초과 시 400 `VALIDATION_ERROR`, 동일 부모 아래 이름 중복 시 409 `RESOURCE_CONFLICT` (unique violation → 409 매핑, 전역 exception filter) |
-| PATCH | /api/folders/:id | 폴더 수정 (`editor`+) — 이름·부모·정렬 순서 부분 수정 |
+| PATCH | /api/folders/:id | 폴더 수정 (`editor`+) — 이름·부모·정렬 순서 부분 수정. **`parentId` 변경 시 create 와 동일한 계층 무결성 검증**: 새 부모가 같은 워크스페이스에 없거나, 자기 자신·자손이거나(순환), 이동 결과 서브트리 깊이가 5 초과면 400 `VALIDATION_ERROR`. `parentId: null` 로 루트 이동은 항상 허용 |
 | DELETE | /api/folders/:id | 폴더 삭제 (`editor`+, 204). 하위 폴더는 DB cascade 로 함께 삭제, 폴더에 속한 워크플로우는 FK SET NULL 로 루트로 이동 (워크플로우 자체는 보존) |
 
 ### 3.2 Export/Import JSON 포맷

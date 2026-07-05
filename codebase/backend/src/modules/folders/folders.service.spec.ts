@@ -91,4 +91,154 @@ describe('FoldersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('update — parentId 재검증 (V-04)', () => {
+    beforeEach(() => {
+      mockRepository.findOne.mockReset();
+      mockRepository.find.mockReset();
+    });
+
+    it('renames without parent change (no re-validation)', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        name: 'F1',
+        parentId: null,
+      });
+      const result = await service.update('f1', 'ws-uuid-1', {
+        name: 'Renamed',
+      });
+      expect(result.name).toBe('Renamed');
+      expect(mockRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('rejects self as parent (cycle → VALIDATION_ERROR)', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        parentId: null,
+      });
+      await expect(
+        service.update('f1', 'ws-uuid-1', { parentId: 'f1' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects parent in another workspace / nonexistent', async () => {
+      mockRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'f1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // findById
+        .mockResolvedValueOnce(null); // parent lookup → 없음
+      await expect(
+        service.update('f1', 'ws-uuid-1', { parentId: 'other-ws-folder' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects moving under own descendant (cycle)', async () => {
+      mockRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'f1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // findById
+        .mockResolvedValueOnce({
+          id: 'f2',
+          workspaceId: 'ws-uuid-1',
+          parentId: 'f1',
+        }); // parent(f2) lookup
+      // collectSubtree(f1): f1 의 자식 [f2], f2 의 자식 []
+      mockRepository.find
+        .mockResolvedValueOnce([{ id: 'f2', parentId: 'f1' }])
+        .mockResolvedValueOnce([]);
+      await expect(
+        service.update('f1', 'ws-uuid-1', { parentId: 'f2' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects when resulting depth exceeds max', async () => {
+      // parent 가 5단계(depth 5) + leaf(height 1) 이동 → 6 > 5.
+      mockRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'f1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // findById
+        .mockResolvedValueOnce({
+          id: 'p1',
+          workspaceId: 'ws-uuid-1',
+          parentId: 'p2',
+        }) // parent lookup
+        // getDepth(p1) 체인: p1→p2→p3→p4→p5→null = depth 5
+        .mockResolvedValueOnce({ id: 'p1', parentId: 'p2' })
+        .mockResolvedValueOnce({ id: 'p2', parentId: 'p3' })
+        .mockResolvedValueOnce({ id: 'p3', parentId: 'p4' })
+        .mockResolvedValueOnce({ id: 'p4', parentId: 'p5' })
+        .mockResolvedValueOnce({ id: 'p5', parentId: null });
+      mockRepository.find.mockResolvedValueOnce([]); // collectSubtree(f1) → leaf
+      await expect(
+        service.update('f1', 'ws-uuid-1', { parentId: 'p1' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('allows moving to root (parentId null)', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        parentId: 'p1',
+        name: 'F1',
+      });
+      const result = await service.update('f1', 'ws-uuid-1', {
+        parentId: null,
+      });
+      expect(result).toBeDefined();
+      expect(mockRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('allows a valid shallow reparent', async () => {
+      mockRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'f1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // findById
+        .mockResolvedValueOnce({
+          id: 'p1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // parent lookup
+        .mockResolvedValueOnce({ id: 'p1', parentId: null }); // getDepth(p1) → 1
+      mockRepository.find.mockResolvedValueOnce([]); // collectSubtree(f1) → leaf, height 1
+      const result = await service.update('f1', 'ws-uuid-1', {
+        parentId: 'p1',
+      });
+      expect(result).toBeDefined();
+    });
+
+    it('getDepth terminates on cyclic parent chain (no infinite loop)', async () => {
+      // 손상 데이터 a→b→a. 가드 없으면 무한루프. create 경유 getDepth('a') 호출.
+      mockRepository.findOne.mockImplementation(
+        (opts: { where: { id: string } }) => {
+          const id = opts.where.id;
+          if (id === 'a')
+            return Promise.resolve({
+              id: 'a',
+              parentId: 'b',
+              workspaceId: 'ws-uuid-1',
+            });
+          if (id === 'b')
+            return Promise.resolve({
+              id: 'b',
+              parentId: 'a',
+              workspaceId: 'ws-uuid-1',
+            });
+          return Promise.resolve(null);
+        },
+      );
+      // 무한루프면 jest timeout. 반환되면(성공/실패 무관) 가드가 종료시킨 것.
+      await service.create('ws-uuid-1', { name: 'x', parentId: 'a' });
+      expect(true).toBe(true);
+    });
+  });
 });
