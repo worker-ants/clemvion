@@ -2,7 +2,7 @@
 worktree: .claude/worktrees/webchat-widget-refactor-ff484f
 started: 2026-06-27
 owner: developer
-spec_impact: []  # behavior-preserving 리팩터 — spec 변경 없음
+spec_impact: none  # behavior-preserving 리팩터 — spec 변경 없음 (Gate C: 빈 배열 아닌 none 리터럴)
 ---
 
 # Channel Web Chat — 위젯 리팩터(B) + 테스트 보강(C)

@@ -1,10 +1,8 @@
 ---
 id: agent-memory
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/agent-memory/**
-pending_plans:
-  - plan/in-progress/ai-context-memory-followup-v2.md
 ---
 
 # Spec: Agent Memory (AI Agent 세션 간 영속 메모리)

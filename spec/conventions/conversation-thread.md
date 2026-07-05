@@ -18,7 +18,6 @@ code:
   - codebase/frontend/src/components/editor/run-results/conversation-timeline-item.tsx
   - codebase/frontend/src/components/editor/run-results/renderers/assistant-presentations-block.tsx
 pending_plans:
-  - plan/in-progress/ai-context-memory-followup-v2.md
   - plan/in-progress/exec-park-durable-resume.md
 ---
 
