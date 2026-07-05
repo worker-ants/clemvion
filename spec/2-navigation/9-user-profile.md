@@ -326,7 +326,7 @@ pending_plans:
 | POST | /api/users/me/enable-2fa | 2FA TOTP 활성화 시작 (canonical: `POST /api/auth/2fa/setup` — [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트)) |
 | POST | /api/users/me/confirm-2fa | 2FA TOTP 활성화 verify (canonical: `POST /api/auth/2fa/verify`) |
 | — | /api/auth/2fa/webauthn/* | Passkey · 보안 키 등록·인증·관리. canonical 정의는 [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
-| GET | /api/users/me/sessions | 활성 세션 목록 (family 단위, isCurrent 플래그 포함) |
+| GET | /api/users/me/sessions | 활성 세션 목록 (family 단위, isCurrent 플래그 포함). 응답 `{ data: { items: [...] } }` — 비-페이징 고정 컬렉션([api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답)) |
 | POST | /api/users/me/sessions/:familyId/revoke | 단일 세션 강제 종료 (family 전체 revoke, 비밀번호/TOTP 재인증). 일부 CDN/프록시가 DELETE 바디를 제거하는 호환성 이슈 회피를 위해 DELETE 대신 POST + `/revoke` 사용 (`sessions.controller.ts`) |
 | POST | /api/users/me/sessions/revoke-others | 현재 세션 제외 일괄 종료 (비밀번호/TOTP 재인증) |
 | GET | /api/users/me/login-history | 본인 로그인 이력 (커서 페이징, 180일 보존) |

@@ -202,7 +202,7 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 보호된 엔드포인트는 기본적으로 `@ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })`를 포함합니다.
 
 ### 2-5. 응답 wrapping
-프로젝트는 `TransformInterceptor`로 성공 응답을 `{ data: ... }`로 감쌉니다. **단, 반환 객체에 이미 top-level `data` 키가 있으면(`'data' in data` 분기) 추가 래핑 없이 그대로 pass-through 합니다** — 페이지네이션 `PaginatedResponseDto`(`{ data, pagination }`)가 대표 사례이며, 그래서 그 wire shape 는 double-wrap 이 아니라 single-wrap `{ data: [...], pagination }` 다(§5-2 `ApiOkPaginatedResponse`). Swagger 응답 스키마 표기 시에도 이 구조를 반영합니다. 단순 텍스트 설명으로 끝내거나, 필요 시 다음과 같이 표현:
+프로젝트는 `TransformInterceptor`로 성공 응답을 `{ data: ... }`로 감쌉니다. **단, 반환 객체에 이미 top-level `data` 키가 있으면(`'data' in data` 분기) 추가 래핑 없이 그대로 pass-through 합니다** — 페이지네이션 `PaginatedResponseDto`(`{ data, pagination }`)가 대표 사례이며, 그래서 그 wire shape 는 double-wrap 이 아니라 single-wrap `{ data: [...], pagination }` 다(§5-2 `ApiOkPaginatedResponse`). 비-페이징 고정 컬렉션(활성 세션·WebAuthn credential 목록)이 `{ data: { items } }` 를 직접 반환하는 경우도 동일 pass-through 분기를 탄다([api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답) 비-페이징 고정 컬렉션). Swagger 응답 스키마 표기 시에도 이 구조를 반영합니다. 단순 텍스트 설명으로 끝내거나, 필요 시 다음과 같이 표현:
 
 ```ts
 @ApiOkResponse({
@@ -302,7 +302,7 @@ async create(...) { ... }
 
 ## 6) 레거시 패턴 제거
 - `@ApiOkResponse({ schema: { type: 'object', properties: { data: { type: 'object' } } } })` 같은 "빈 껍데기" 는 반드시 DTO 기반 래퍼로 교체하세요.
-- `{ data: { items, totalItems, page, limit } }` 처럼 서비스 실제 반환 형태(`{ data, pagination }`) 와 다른 스키마는 버그입니다 — `ApiOkPaginatedResponse` 로 교체.
+- `{ data: { items, totalItems, page, limit } }` 처럼 서비스 실제 반환 형태(`{ data, pagination }`) 와 다른 스키마는 버그입니다 — `ApiOkPaginatedResponse` 로 교체. 단, `pagination` 필드가 전혀 없는 순수 `{ data: { items } }`(비-페이징 고정 컬렉션 — 활성 세션·WebAuthn credential 목록)는 이 버그 패턴이 아니라 §2-5 의 정상 pass-through 사례다([api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답)) — reflatten 하지 말 것.
 
 ---
 
@@ -314,4 +314,4 @@ Swagger UI 의 production 기본 미노출은 무인증 API 표면 정찰(엔드
 `ENABLE_SWAGGER_IN_PROD` opt-in 을 둔 이유: prod 디버깅 요구를 흡수하되 기본값은 안전하게 둔다. opt-in 시 IP 제한·Basic Auth 등 추가 인증 계층을 **기본 제공하지 않는 이유**는, prod 노출 자체가 spec 어디에도 상시 요구로 기록되지 않은 예외적 디버깅 용도이기 때문이다 — 인증 계층 구현은 그 요구가 상시화될 때 검토한다(현 시점 과투자 회피). 켜는 순간 무인증 노출 위험이 복귀하므로 일시적 용도로 한정하고, 필요 시 운영자가 reverse proxy 단에서 보호를 전치한다.
 
 ### §5 ApiOkPaginatedResponse single-wrap (pass-through 예외)
-`ApiOkPaginatedResponse` 가 문서화하는 wire shape 는 **single-wrap** `{ data: <Dto>[], pagination }` 다(§5-2). 페이지네이션 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }` — top-level `data` 키 보유)를 반환하고, `TransformInterceptor` 는 이미 `data` 키가 있는 객체를 추가 래핑 없이 pass-through(`'data' in data` 분기)하므로, §2-5 의 "성공 응답을 `{ data }` 로 감싼다"는 보편 규칙의 **유일한 예외**가 된다. 종전 헬퍼가 선언하던 double-wrap `{ data: { data, pagination } }` 은 의도된 결정이 아니라 pass-through 를 간과한 **버그**였다 — 실제 런타임(`PaginatedResponseDto`+interceptor)·e2e(`res.body.data`/`res.body.pagination` top-level)·`api-convention §5.2` 가 모두 single-wrap 이라 헬퍼·§5-2 를 그에 맞춰 정정했다. **single-wrap 을 double-wrap 으로 되돌리지 말 것** — 런타임과 어긋난다.
+`ApiOkPaginatedResponse` 가 문서화하는 wire shape 는 **single-wrap** `{ data: <Dto>[], pagination }` 다(§5-2). 페이지네이션 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }` — top-level `data` 키 보유)를 반환하고, `TransformInterceptor` 는 이미 `data` 키가 있는 객체를 추가 래핑 없이 pass-through(`'data' in data` 분기)하므로, §2-5 의 "성공 응답을 `{ data }` 로 감싼다"는 보편 규칙의 **주요 pass-through 사례**가 된다(두 번째 사례: 비-페이징 고정 컬렉션이 `{ data: { items } }` 를 직접 반환하는 경우 — [api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답) 비-페이징 고정 컬렉션. `pagination` 필드가 없어 이 §5 페이징 pass-through 와는 형태가 다르다). 종전 헬퍼가 선언하던 double-wrap `{ data: { data, pagination } }` 은 의도된 결정이 아니라 pass-through 를 간과한 **버그**였다 — 실제 런타임(`PaginatedResponseDto`+interceptor)·e2e(`res.body.data`/`res.body.pagination` top-level)·`api-convention §5.2` 가 모두 single-wrap 이라 헬퍼·§5-2 를 그에 맞춰 정정했다. **single-wrap 을 double-wrap 으로 되돌리지 말 것** — 런타임과 어긋난다.
