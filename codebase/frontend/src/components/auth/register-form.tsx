@@ -9,7 +9,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
-import { useAuthStore } from "@/lib/stores/auth-store";
 import { setAccessToken } from "@/lib/api/client";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import {
@@ -106,7 +105,18 @@ function RegisterFormInner({
     // 이미 로그인한 사용자가 초대 링크(/auth/register?invitationToken=…)로 온 경우 —
     // register 폼은 미가입자 가입 경로이므로, §1.5.3 수락 확인 페이지로 보낸다
     // (V-09 진입 경로). 미로그인 사용자만 아래 가입 폼을 사용한다.
-    if (invitationToken && useAuthStore.getState().isAuthenticated) {
+    //
+    // (auth) 라우트 그룹에는 AuthProvider 가 없어 useAuthStore 세션이 하이드레이트
+    // 되지 않는다 — 메일 링크→새 탭 진입 시 `isAuthenticated` 는 항상 false 라
+    // store 로는 기존 로그인을 감지할 수 없다. 대신 proxy.ts 가 라우팅 판단에 쓰는
+    // `has_session` 힌트 쿠키(로그인 시 auth-store 가 심고 로그아웃 시 지움)로
+    // 브라우저에 남은 세션을 감지한다. 힌트가 stale(쿠키만 남고 refresh 만료)이면
+    // accept 페이지의 AuthProvider 가 정상적으로 /login 으로 되돌린다.
+    if (
+      invitationToken &&
+      typeof document !== "undefined" &&
+      document.cookie.split("; ").includes("has_session=1")
+    ) {
       router.replace(
         `/invitations/accept?token=${encodeURIComponent(invitationToken)}`,
       );

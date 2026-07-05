@@ -113,6 +113,18 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
+  it("clears the client session and routes to /login even when server logout fails", async () => {
+    mockUser = { email: "other@example.com" };
+    mockGetByToken.mockResolvedValue(META);
+    mockLogout.mockRejectedValue(new Error("network")); // 서버 logout 실패
+    render(<AcceptInvitationContent />);
+    const btn = await screen.findByText("invitations.accept.logoutAndSwitch");
+    await userEvent.click(btn);
+    // 서버 요청이 실패해도 로컬 세션은 정리되고 /login 으로 이동해야 한다.
+    await waitFor(() => expect(setUserMock).toHaveBeenCalledWith(null));
+    expect(mockPush).toHaveBeenCalledWith("/login");
+  });
+
   it("shows error on expired/invalid token (410)", async () => {
     mockUser = { email: "invitee@example.com" };
     mockGetByToken.mockRejectedValue(

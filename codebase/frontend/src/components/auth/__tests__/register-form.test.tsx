@@ -41,7 +41,6 @@ vi.mock("sonner", () => ({
 
 import { RegisterForm } from "../register-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
 
 const VALID_TOKEN = "a".repeat(64);
 
@@ -55,7 +54,8 @@ function axiosError(status: number, body: object = {}) {
 describe("RegisterForm — invitation token flow", () => {
   beforeEach(() => {
     useLocaleStore.setState({ locale: "ko" });
-    useAuthStore.setState({ isAuthenticated: false, user: null });
+    // has_session 힌트 쿠키 정리 — 초대-리다이렉트 테스트 간 누수 방지.
+    document.cookie = "has_session=; max-age=0; path=/";
     mockPush.mockReset();
     mockReplace.mockReset();
     mockRegister.mockReset();
@@ -216,10 +216,9 @@ describe("RegisterForm — invitation token flow", () => {
   });
 
   it("redirects an already-logged-in user with a token to the accept page (§1.5.3 entry, V-09)", async () => {
-    useAuthStore.setState({
-      isAuthenticated: true,
-      user: { id: "u1", email: "x@y.com", name: "X" } as never,
-    });
+    // (auth) 그룹엔 AuthProvider 가 없어 store 하이드레이션이 없다 — 기존 세션은
+    // proxy.ts 와 동일하게 has_session 힌트 쿠키로 감지한다.
+    document.cookie = "has_session=1; path=/";
     mockGetByToken.mockResolvedValue({
       workspaceName: "WS",
       invitedByName: null,
