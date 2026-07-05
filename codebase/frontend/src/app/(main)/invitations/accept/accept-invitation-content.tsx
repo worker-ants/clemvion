@@ -52,14 +52,18 @@ export function AcceptInvitationContent() {
   useEffect(() => {
     if (!token || fetchedRef.current) return;
     fetchedRef.current = true;
+    // unmount 후 setState 방지 — register-form 의 meta 조회 패턴과 동일한 가드.
+    let cancelled = false;
     const currentLocale = useLocaleStore.getState().locale;
     (async () => {
       try {
         const m = await invitationsApi.getByToken(token);
+        if (cancelled) return;
         setMeta(m);
         const userEmail = useAuthStore.getState().user?.email;
         setStatus(userEmail && userEmail === m.email ? "ready" : "mismatch");
       } catch (err) {
+        if (cancelled) return;
         const error = err as AxiosError<{ message?: string }>;
         setErrorMessage(
           error.response?.data?.message ??
@@ -68,6 +72,9 @@ export function AcceptInvitationContent() {
         setStatus("error");
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   async function handleAccept() {

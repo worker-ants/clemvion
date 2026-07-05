@@ -134,4 +134,34 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     ).toBeInTheDocument();
     expect(mockGetByToken).not.toHaveBeenCalled();
   });
+
+  it("shows error when accept fails after clicking (ai-review testing)", async () => {
+    mockUser = { email: "invitee@example.com" };
+    mockGetByToken.mockResolvedValue(META);
+    mockAccept.mockRejectedValue(
+      new AxiosError("fail", "500", undefined, undefined, {
+        status: 500,
+        data: { message: "accept boom" },
+      } as never),
+    );
+    render(<AcceptInvitationContent />);
+    const btn = await screen.findByText("invitations.accept.accept");
+    await userEvent.click(btn);
+    await waitFor(() =>
+      expect(screen.getByText("accept boom")).toBeInTheDocument(),
+    );
+  });
+
+  it("treats a logged-out (anonymous) visitor as mismatch — no auto-accept", async () => {
+    mockUser = null;
+    mockGetByToken.mockResolvedValue(META);
+    render(<AcceptInvitationContent />);
+    await waitFor(() =>
+      expect(
+        screen.getByText("invitations.accept.logoutAndSwitch"),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("invitations.accept.accept")).toBeNull();
+    expect(mockAccept).not.toHaveBeenCalled();
+  });
 });
