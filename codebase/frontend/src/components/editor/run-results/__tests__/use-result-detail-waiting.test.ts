@@ -35,24 +35,54 @@ describe("useResultDetailWaiting", () => {
     });
   });
 
-  it("deriveFlags: buttons → isWaitingButtons", () => {
+  it("deriveFlags: buttons → isWaitingButtons (전체 플래그 배타성)", () => {
     useExecutionStore.setState({ waitingInteractionType: "buttons" });
     const { result } = renderHook(() => useResultDetailWaiting());
-    expect(result.current.deriveFlags(true).isWaitingButtons).toBe(true);
-    expect(result.current.deriveFlags(true).isWaitingForm).toBe(false);
+    expect(result.current.deriveFlags(true)).toEqual({
+      isWaitingForm: false,
+      isWaitingButtons: true,
+      isWaitingConversation: false,
+    });
+    expect(result.current.deriveFlags(false)).toEqual({
+      isWaitingForm: false,
+      isWaitingButtons: false,
+      isWaitingConversation: false,
+    });
   });
 
   it("deriveFlags: ai_form_render 는 isWaitingConversation(자체 DynamicFormUI stack 아님)이고 isWaitingForm 은 아니다", () => {
     useExecutionStore.setState({ waitingInteractionType: "ai_form_render" });
     const { result } = renderHook(() => useResultDetailWaiting());
-    const flags = result.current.deriveFlags(true);
-    expect(flags.isWaitingConversation).toBe(true);
-    expect(flags.isWaitingForm).toBe(false);
+    expect(result.current.deriveFlags(true)).toEqual({
+      isWaitingForm: false,
+      isWaitingButtons: false,
+      isWaitingConversation: true,
+    });
+    expect(result.current.deriveFlags(false)).toEqual({
+      isWaitingForm: false,
+      isWaitingButtons: false,
+      isWaitingConversation: false,
+    });
   });
 
-  it("deriveFlags: ai_conversation → isWaitingConversation", () => {
+  it("deriveFlags: ai_conversation → isWaitingConversation (전체 플래그 배타성)", () => {
     useExecutionStore.setState({ waitingInteractionType: "ai_conversation" });
     const { result } = renderHook(() => useResultDetailWaiting());
-    expect(result.current.deriveFlags(true).isWaitingConversation).toBe(true);
+    expect(result.current.deriveFlags(true)).toEqual({
+      isWaitingForm: false,
+      isWaitingButtons: false,
+      isWaitingConversation: true,
+    });
+  });
+
+  it("deriveFlags: interactionType=null 이면 전부 false (대기 없음)", () => {
+    // reset() 직후 waitingInteractionType 은 null — waiting 진입 전 상태.
+    const { result } = renderHook(() => useResultDetailWaiting());
+    expect(result.current.waitingInteractionType).toBeNull();
+    expect(result.current.deriveFlags(true)).toEqual({
+      isWaitingForm: false,
+      isWaitingButtons: false,
+      isWaitingConversation: false,
+    });
   });
 });
