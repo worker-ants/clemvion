@@ -178,7 +178,7 @@ export class WorkspacesController {
   @ApiOperation({
     summary: '워크스페이스 설정 조회(멤버)',
     description:
-      '워크스페이스 설정을 조회합니다. 현재는 외부 상호작용 허용 origin 목록(interactionAllowedOrigins)만 반환합니다. 모든 멤버가 조회 가능(편집은 Admin+).',
+      '워크스페이스 설정을 조회합니다. 외부 상호작용 허용 origin 목록(interactionAllowedOrigins), 기본 타임존(timezone, 설정된 경우), 동시 실행 상한(maxConcurrentExecutions, 설정된 경우)을 반환합니다. 모든 멤버가 조회 가능(편집은 Admin+).',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(WorkspaceSettingsDto, {

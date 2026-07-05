@@ -33,7 +33,7 @@ export class WorkspaceDto {
   slug: string;
 }
 
-/** 워크스페이스 설정 조회 응답 (현재 interactionAllowedOrigins). */
+/** 워크스페이스 설정 조회 응답 (interactionAllowedOrigins·timezone·maxConcurrentExecutions). */
 export class WorkspaceSettingsDto {
   @ApiProperty({
     type: [String],
@@ -41,6 +41,15 @@ export class WorkspaceSettingsDto {
     description: '외부 상호작용 허용 origin 목록',
   })
   interactionAllowedOrigins: string[];
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    example: 'Asia/Seoul',
+    description:
+      '워크스페이스 기본 타임존(IANA). 스케줄 타임존 미지정 시 fallback (§2.2). 미설정 시 응답에서 생략.',
+  })
+  timezone?: string;
 
   @ApiProperty({
     type: Number,

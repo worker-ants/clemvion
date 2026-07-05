@@ -32,14 +32,14 @@ export const workspacesApi = {
    */
   updateSettings: async (
     workspaceId: string,
-    patch: { interactionAllowedOrigins: string[] },
+    patch: { interactionAllowedOrigins?: string[]; timezone?: string },
   ): Promise<void> => {
     await apiClient.patch(`/workspaces/${workspaceId}/settings`, patch);
   },
   /** 워크스페이스 설정 조회 (멤버 read) — 편집기 시드용. */
   getSettings: async (
     workspaceId: string,
-  ): Promise<{ interactionAllowedOrigins: string[] }> => {
+  ): Promise<{ interactionAllowedOrigins: string[]; timezone?: string }> => {
     const { data } = await apiClient.get(`/workspaces/${workspaceId}/settings`);
     return data.data;
   },

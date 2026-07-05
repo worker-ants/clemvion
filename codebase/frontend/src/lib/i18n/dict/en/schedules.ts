@@ -78,4 +78,7 @@ export const schedules: Dict["schedules"] = {
   toggleDeactivate: "Deactivate",
   editTooltip: "Edit",
   deleteTooltip: "Delete",
+  menuLabel: "Schedule actions",
+  viewHistory: "Run history",
+  viewInTrigger: "View in trigger",
 };

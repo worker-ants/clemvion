@@ -76,4 +76,7 @@ export const schedules = {
   toggleDeactivate: "비활성화",
   editTooltip: "수정",
   deleteTooltip: "삭제",
+  menuLabel: "스케줄 작업",
+  viewHistory: "실행 이력",
+  viewInTrigger: "트리거에서 보기",
 } as const;

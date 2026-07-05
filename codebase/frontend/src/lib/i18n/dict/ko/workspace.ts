@@ -129,4 +129,9 @@ export const workspace = {
   settingsSaveFailed: "설정 저장에 실패했어요.",
   embedOriginsCacheNote: "변경 사항이 적용되기까지 최대 5분 정도 걸릴 수 있어요(임베드 캐시).",
   embedOriginsEmpty: "등록된 허용 도메인이 없어요.",
+  timezoneTitle: "기본 시간대",
+  timezoneDesc:
+    "시간대를 지정하지 않은 스케줄에 적용되는 워크스페이스 기본 시간대예요. IANA 형식(예: Asia/Seoul)으로 입력하고, 비우면 지워져요.",
+  timezoneLabel: "IANA 시간대",
+  timezonePlaceholder: "Asia/Seoul",
 } as const;
