@@ -240,5 +240,56 @@ describe('FoldersService', () => {
       await service.create('ws-uuid-1', { name: 'x', parentId: 'a' });
       expect(true).toBe(true);
     });
+
+    it('allows reparent at exactly max depth (parent depth 4 + leaf = 5)', async () => {
+      // 경계값 — 정확히 MAX_NESTING_DEPTH(5) 는 허용, 초과만 차단.
+      mockRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'f1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // findById
+        .mockResolvedValueOnce({
+          id: 'p1',
+          workspaceId: 'ws-uuid-1',
+          parentId: 'p2',
+        }) // parent lookup
+        // getDepth(p1): p1→p2→p3→p4→null = depth 4
+        .mockResolvedValueOnce({ id: 'p1', parentId: 'p2' })
+        .mockResolvedValueOnce({ id: 'p2', parentId: 'p3' })
+        .mockResolvedValueOnce({ id: 'p3', parentId: 'p4' })
+        .mockResolvedValueOnce({ id: 'p4', parentId: null });
+      mockRepository.find.mockResolvedValueOnce([]); // collectSubtree(f1) → leaf, height 1
+      const result = await service.update('f1', 'ws-uuid-1', {
+        parentId: 'p1',
+      });
+      expect(result).toBeDefined(); // 4 + 1 = 5 ≤ 5 → 허용
+    });
+
+    it('detects cycle across a multi-child, multi-level subtree (BFS 다중 frontier)', async () => {
+      // f1 서브트리: [c1, c2] → c1 의 자식 [gc1]. f1 을 gc1(손자) 아래로 이동 → cycle.
+      mockRepository.findOne
+        .mockResolvedValueOnce({
+          id: 'f1',
+          workspaceId: 'ws-uuid-1',
+          parentId: null,
+        }) // findById
+        .mockResolvedValueOnce({
+          id: 'gc1',
+          workspaceId: 'ws-uuid-1',
+          parentId: 'c1',
+        }); // parent(gc1) lookup
+      // collectSubtree(f1): L1 [c1,c2](형제 다중), L2 [gc1](c1·c2 자식 batch), L3 []
+      mockRepository.find
+        .mockResolvedValueOnce([
+          { id: 'c1', parentId: 'f1' },
+          { id: 'c2', parentId: 'f1' },
+        ])
+        .mockResolvedValueOnce([{ id: 'gc1', parentId: 'c1' }])
+        .mockResolvedValueOnce([]);
+      await expect(
+        service.update('f1', 'ws-uuid-1', { parentId: 'gc1' }),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });
