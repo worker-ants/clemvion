@@ -41,7 +41,7 @@ owner: developer (다음 진입자)
 > _(이력) 2026-06-02 BLOCKED 사유: field 전체 목록이 repo 어디에도 없고 외부 docs 가 WebFetch 로 추출 불가
 > 했음. 2026-06-03 다운로드 HTML 제공으로 해소._
 
-- [ ] **G-1-remaining** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여). **진행 방식 (사용자 결정 2026-07-05): resource 별 분리 + docs 전량 미러 (실용필드 선별 아님). 첫 PR = `product` 파일럿.**
+- [x] **G-1-remaining ✅ 완료 (2026-07-05, worktree fervent-albattani)** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여). **진행 방식 (사용자 결정 2026-07-05): resource 별 분리 + docs 전량 미러 (실용필드 선별 아님). 첫 PR = `product` 파일럿.**
   - **store field-set 확장**: store 105 endpoint docs field 비교 audit 미수행 (G-3l 에서 socials_apple_settings_get 제거 후 106→105).
   - **field-set 확장 (모든 resource)**: docs 에 있으나 metadata 에 누락된 field 추가 (예: product_list docs ~50 field vs 우리 8 field). 전 resource 적용 시 수천 줄.
   - **impliesValue metadata 적용**: 인프라 완료. 실제 ops 적용은 trigger field(refund_method, material_composite 등) 추가 후 — order cancellation/return/exchange + products create/update + bundleproducts create/update.
@@ -63,7 +63,9 @@ owner: developer (다음 진입자)
   - [x] order(104) · store(105) — 각 4-slice author-agent(op-id 명시 배정)→조립→gate 완료 커밋. order_return_create impliesValue(refund_method_code=T ⇒ refund_bank_*)로 plan 의 "order refund impliesValue" 항목 해소.
   - 규칙 일관 적용: docs-verbatim(비동작 alias 교체)·offset/limit 제외·enum/number/monetary-string·§5.2 date·requiredFields=existing∩new·valid constraints only(date-pair allOrNone·refund_method/shipping_scope/coupon/category impliesValue·customer oneOf 보존). restrictedApproval 보존.
   - [x] **전 18 resource(485 op) field-set docs 미러 완료.** TEST WORKFLOW: lint PASS·build PASS·unit 7638 pass(cafe24 metadata 105 포함). 유일 실패=본 PR 무관 pre-existing Gate C(#825 plan spec_impact, planner 태스크). e2e 면제(metadata-only, cafe24 e2e 는 OAuth 만·변경 op 미참조).
-  - [ ] 통합 `/ai-review --branch main` + `/consistency-check --impl-done` → resolution → plan complete.
+  - [x] `/consistency-check --impl-done` = **BLOCK: NO** (WARNING 1건=4-cafe24.md 예시 stale, planner 태스크 task_28baf9cb 위임).
+  - [x] 통합 `/ai-review` = MEDIUM, **CRITICAL 1건 fix 완료**: requiredFields 가 docs 필수(✓)보다 느슨해지는 계약 결함 → 신규 `catalog-required-fields.spec.ts` 전수 가드 + 262건 codemod 보강(requiredFields = 기존 ∪ docs-필수∩fields). WARNING(mileage type·docstring·테스트 커버리지·하위호환) 조치/수용. RESOLUTION: review/code/2026/07/05/23_26_29.
+  - [x] fresh `/ai-review`(fix commit 02925a49a 타깃) = **LOW, Critical 0 / Warning 0** — 수렴. **G-1-remaining 전체(18 resource·485 op) 완료.** (INFO 는 비차단 수용.)
 
 ### G-2 — 잔존 docs 부재 ops 처리 결정 (운영 검증 후)
 
