@@ -138,6 +138,8 @@ GET /api/triggers?type=webhook&status=active
 
 > `data`(배열)·`pagination` 이 **top-level 형제**다(중첩 아님). 목록 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }`)를 반환하고, 이미 `data` 키를 가진 객체는 전역 `TransformInterceptor` 가 추가 래핑 없이 pass-through 하기 때문 — §5.1 단일 리소스의 `{ data: <obj> }` 와 달리 `data` 가 한 겹 더 감싸이지 않는다. 메커니즘 상세: [Swagger 규약 §2-5 응답 wrapping](../conventions/swagger.md#2-5-응답-wrapping).
 
+> **비-페이징 고정 컬렉션** — 페이지네이션이 무의미한 소규모·본인 소유 목록(활성 세션 목록, WebAuthn credential 목록)은 `pagination` 없이 단일 `items` 배열을 `data` 아래 중첩해 `{ "data": { "items": [ ... ] } }` 형태로 반환한다. 핸들러가 `{ data: { items } }` 를 직접 반환하면 이미 top-level `data` 키를 가지므로 `TransformInterceptor` 가 추가 래핑 없이 pass-through 한다(위 페이징 목록과 동일한 `'data' in data` pass-through 경로 — [Swagger 규약 §2-5](../conventions/swagger.md#2-5-응답-wrapping)). 이는 위 페이징 목록(`data` 가 배열 그 자체 + `pagination` 형제)과 형태가 다르며, [Swagger 규약 §6](../conventions/swagger.md#6-레거시-패턴-제거) 이 "버그"로 지목하는 `{ data: { items, totalItems, page, limit } }`(페이지네이션 메타를 `items` 옆에 뒤섞은 오용)와도 다르다 — 본 컬렉션은 애초에 `pagination` 필드 자체가 없다. 결정 근거는 [Rationale](#비-페이징-고정-컬렉션은-datitems-유지-52-페이징과-형태-상이).
+
 ### 5.3 에러 응답
 
 ```json
@@ -397,3 +399,7 @@ Content-Type: application/json
 - 입력 데이터 `path` 필드 삭제 — 12-webhook §5 입력 구조에 없음.
 - Content-Type `text/plain` 삭제 — 코드는 json/form parameter 추출만.
 - Rate limit `1000 req/min(워크스페이스)` → `100 req/min(글로벌 throttler default)` — §7 표 포함.
+
+### 비-페이징 고정 컬렉션은 `{data:{items}}` 유지 (§5.2 페이징과 형태 상이)
+
+활성 세션·WebAuthn credential 목록은 페이지네이션이 무의미한 소규모 본인 소유 컬렉션으로, `{ data: { items: [...] } }` 를 반환한다. 이는 §5.2 페이징 목록(`data` 가 배열 그 자체, `pagination` 형제)과 nesting 형태가 달라 일관성 관점에서 이상적이지 않다. 그럼에도 이 형태를 **유지**하는 이유: (1) sessions·webauthn 양 엔드포인트의 백엔드(`sessions.controller.ts`·`webauthn.controller.ts` + `WebAuthnCredentialListDto`/`SessionListDto`)와 프런트(`lib/api/sessions.ts`·`passkey-card.tsx` 가 `res.data.data.items` 소비)가 이미 이 계약에 의존하는 **load-bearing** 상태이고, (2) bare-array 로 평탄화하면 백엔드 2·프런트 2 surface 를 동시 변경하는 breaking change 라 이득 대비 churn 이 크다. 따라서 spec 을 실제 계약에 맞춰 정정한다(문서 정직화). 비-페이징 목록을 bare-array `{data:[]}` 로 정규화하는 대안은 breaking 이라 별도 결정 시까지 defer. 본 `{data:{items}}` 는 [Swagger 규약 §6](../conventions/swagger.md#6-레거시-패턴-제거) 이 기각한 페이지네이션 double-wrap 버그(`{data:{items,totalItems,page,limit}}`)와 무관하다 — pagination 필드가 전혀 없는 순수 비-페이징 컬렉션에 한정된다.
