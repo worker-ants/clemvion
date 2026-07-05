@@ -123,8 +123,11 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     render(<AcceptInvitationContent />);
     const btn = await screen.findByText("invitations.accept.logoutAndSwitch");
     await userEvent.click(btn);
-    // 서버 요청이 실패해도 로컬 세션(store.logout)은 정리되고 /login 으로 이동해야 한다.
+    // 서버 logout 이 실제로 시도됐고(실패), 그럼에도 로컬 세션(store.logout)은
+    // 정리되고 /login 으로 이동해야 한다. mockLogout 단언이 없으면 try 블록을
+    // 통째로 지운 회귀도 통과해버린다(testing 리뷰 지적).
     await waitFor(() => expect(storeLogoutMock).toHaveBeenCalled());
+    expect(mockLogout).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
