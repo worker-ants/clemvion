@@ -24,7 +24,7 @@ owner: claude
 
 ## 후속 (미해결 — 별도 결정 필요)
 
-- [ ] SUMMARY §1 위반 19건의 코드 수정 vs spec 하향 결정 (developer/project-planner) — 특히 severe 3: audit-logs Admin+ 가드 부재(V-03, 보안), makeshop expired 오격하(V-01), AI 노드 override UI 필드 누락(V-02)
+- [x] SUMMARY §1 위반 19건의 코드 수정 vs spec 하향 결정 (developer/project-planner) — 특히 severe 3: audit-logs Admin+ 가드 부재(V-03, 보안), makeshop expired 오격하(V-01), AI 노드 override UI 필드 누락(V-02). **전량 결정·처리 완료**(아래 하위 V-01~V-19 전부 `[x]`, 마무리 근거 line 49). severe 3 모두 해소: V-03=PR #523, V-01=`integration-expiry-fixes`, V-02=`ai-node-override-fields`. deferred sub-scope(전 도메인 audit 확대·V-18 완전구현·Swagger 문자열)는 별도 plan/백로그·spec Planned 로 외부화.
   - [x] **V-03** (audit-logs Admin+ 가드) — PR #523 머지 완료
   - [x] **V-01** (makeshop expired 오격하) + **V-07** (§11.2 알림 정책) + **V-15** (큐 레지스트리) + V-19(rag 신호화, #511) — `integration-expiry-fixes` 브랜치(본 PR)에서 해소
   - [x] **V-06** (makeshop `services/makeshop/catalog` operations 미충전) + **V-08** (Activity 탭 라벨 namespace cafe24 고정) — `makeshop-catalog-labels` 브랜치(PR #530)에서 코드 수정 해소 (getServiceCatalog makeshop 분기 + tryTranslateLabel provider-prefix 일반화)
