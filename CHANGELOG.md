@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Switch switchValue 필수 표시(asterisk) (V-12)
+
+### 변경 사항
+
+1. **Switch 노드 설정의 `switchValue` 가 mode=value 일 때 required asterisk 를 노출** — `spec/4-nodes/1-logic/2-switch.md §8.1` 은 `switchValue` 가 mode=value 시 필수이며 UI 가 `ui.requiredWhen: { field: 'mode', equals: ['value'] }` 화이트리스트로 asterisk 를 표시한다고 명시하나, bespoke `SwitchConfig`(override-track)의 `switchValue` `ExpressionInput` 이 asterisk 를 렌더하지 않아 필수 표시가 누락됐다(requiredWhen 은 auto-form 만 소비). `ExpressionInput` 의 기존 `required` prop 에 `mode === "value"` 를 전달해 backend `switch.schema.ts` 의 `requiredWhen: {equals:['value']}` whitelist 를 override-track 에서 재현한다. 순수 시각 표시이며 런타임 검증은 `NodeHandler.validate()` 가 그대로 담당. spec 변경 불요(§8.1 이미 명시). SoT: `spec/4-nodes/1-logic/2-switch.md §8.1`.
+
 ## Unreleased — Re-run 모달 원본 ID 링크 + typed 입력 폼 (V-14)
 
 ### 변경 사항

@@ -160,6 +160,10 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
         onChange={(v) => onChange({ ...config, switchValue: v })}
         placeholder={t("nodeConfigs.logic.switchPlaceholder")}
         hint={t("nodeConfigs.logic.switchHint")}
+        // spec/4-nodes/1-logic/2-switch.md §8.1 — switchValue 는 mode=value 시 필수.
+        // auto-form 의 `ui.requiredWhen: { field: 'mode', equals: ['value'] }` 화이트리스트를
+        // bespoke override 에서 mode 비교로 재현해 required asterisk 를 노출한다.
+        required={mode === "value"}
       />
       <SectionTitle>{t("nodeConfigs.logic.cases")}</SectionTitle>
       {cases.map((c, i) => (
