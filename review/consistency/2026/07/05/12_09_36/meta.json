@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-05T12:09:36.926526",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-ai-context-memory-close.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

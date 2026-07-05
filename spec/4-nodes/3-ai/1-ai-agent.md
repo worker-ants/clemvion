@@ -16,7 +16,6 @@ code:
   - codebase/backend/src/shared/llm-tracing/llm-call-record.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
-  - plan/in-progress/ai-context-memory-followup-v2.md
   - plan/in-progress/exec-park-durable-resume.md
 ---
 

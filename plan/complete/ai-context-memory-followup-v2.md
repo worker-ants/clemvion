@@ -85,5 +85,7 @@ related_plan: plan/complete/ai-context-memory-auto.md
 
 ## Batch 2 (백엔드 리팩터) 후속 — 별건 spec PR (impl-done consistency 도출, 2026-06-27)
 > Batch 2 PR 의 impl-done(21_39_37, BLOCK:NO) + fresh ai-review 가 발견. 현재 main 기준 별도 spec PR 로 처리 (Batch 2 branch 는 #726 이전 분기라 해당 파일 behind-base 충돌 회피).
-- [ ] `node-output.md` Principle 2 meta.memory 행: `ai_agent / information_extractor` → **`ai_agent` 단독** 정정. IE 핸들러는 meta.memory 를 emit 하지 않음(코드 검증 — contextInjection 만 echo). Batch 1(#726) 오류 정정 + SoT 링크 `ai-agent §7.1` 교정.
-- [ ] `3-information-extractor.md` l.163·l.684: watermark 참조 `lastExtractionTurnSeq` → `memoryState.lastExtractionTurnSeq` (I12 정합, 하위호환 폴백 병기). canonical AGM-08(`17-agent-memory.md`)은 Batch 2 에서 갱신 완료.
+- [x] `node-output.md` Principle 2 meta.memory 행: `ai_agent / information_extractor` → **`ai_agent` 단독** 정정. **이미 main 반영(2026-07-05 재검증)** — `spec/conventions/node-output.md:90` 이 "`meta.memory?` … **ai_agent 전용**. information_extractor … meta.memory 는 echo 하지 않는다(meta.contextInjection 만)" + `ai-agent §7.1` SoT 링크 상태. stale checkbox.
+- [x] `3-information-extractor.md` watermark 참조 `lastExtractionTurnSeq` → `memoryState.lastExtractionTurnSeq`. **이미 main 반영(2026-07-05 재검증)** — `:163`·`:694` 가 "`memoryState.lastExtractionTurnSeq` — I12 …; 구 평면 키 폴백" 상태. stale checkbox.
+
+> **종결 (2026-07-05)**: 잔여 2항목이 이미 main 반영된 stale checkbox 로 확인 → plan 완료. spec-impl-evidence §3 종결: 참조 4개 spec frontmatter `pending_plans` 에서 본 plan 제거 — `0-common.md`·`17-agent-memory.md` 는 pending 소진으로 `status: partial→implemented` 승격(§3(c) 가드 요구), `1-ai-agent.md`·`conversation-thread.md` 는 타 pending 잔존으로 `partial` 유지. consistency-check --spec BLOCK:NO(12_09_36). `plan/complete/` 이동.

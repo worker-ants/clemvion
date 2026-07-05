@@ -1,6 +1,6 @@
 ---
 id: common
-status: partial
+status: implemented
 code:
   - codebase/backend/src/nodes/ai/shared/system-context-prefix.ts
   - codebase/backend/src/nodes/ai/shared/conversation-context-injection.ts
@@ -9,8 +9,6 @@ code:
   - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
   - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
   - codebase/backend/src/shared/llm-tracing/llm-call-record.ts
-pending_plans:
-  - plan/in-progress/ai-context-memory-followup-v2.md
 ---
 
 # Spec: AI 노드 공통 규약
