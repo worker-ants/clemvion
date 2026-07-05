@@ -335,7 +335,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 | `HTTP_4XX` | `400 ≤ statusCode < 500` (또는 manual redirect 한도 도달한 3xx 도달 시) | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | `{ error: <message> }` (legacy 잔재) | — (response 없음) | `0` |
-| `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·redirect 대상 재검증·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로. **`output.error.message` 는 차단된 host/IP 를 노출하지 않는 일반화 문구(`Request blocked by SSRF policy.`) — 원본 상세는 서버 로그(`logger.warn`)·Usage 로그에만 (§8.3)** | — | — | `0` |
+| `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·redirect 대상 재검증·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로. **`output.error.message` 는 차단된 host/IP 를 노출하지 않는 일반화 문구(`Request blocked by SSRF policy.`) — 원본 상세는 서버 로그(`logger.warn`)에만, Usage 로그도 일반화 (§8.3)** | — | — | `0` |
 | `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` / `INTEGRATION_CALL_FAILED`(integrationId 부재 — `requireEntity` `RESOURCE_NOT_FOUND` fallback) 모두 본 경로로 surface | — | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | IntegrationsService 미주입 또는 workspace context 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
 
@@ -361,7 +361,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 
 **문제**: `http-safety.ts` 의 SSRF 가드가 던지는 원본 메시지(`SSRF_BLOCKED: hostname "…" resolves to a restricted network range` 등)가 차단된 hostname/IP 를 그대로 담고 있어, 이를 `output.error.message` 로 클라이언트에 노출하면 내부망 구조 정찰(CWE-209) 면이 된다. Database Query(`DB_HOST_BLOCKED`)·Send Email(`EMAIL_HOST_BLOCKED`)은 이미 host/IP 미노출 일반화 문구를 쓰나 HTTP Request 만 원본을 노출하는 3-node 비대칭 상태였다([2-database-query Rationale](./2-database-query.md) 가 예고한 HTTP/Email follow-up).
 
-**결정**: `HTTP_BLOCKED` 의 `output.error.message` 를 host/IP 미노출 일반화 문구(`Request blocked by SSRF policy.`)로 통일한다(DB/Email 대칭). 원본 상세(hostname/IP)는 `logger.warn`(전 인증 방식 공통) + Usage 로그(integration 한정)로 서버에만 남긴다 — 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를 렌더하므로 UX 손실은 없다. 함께 **redirect 대상·한도 초과 SSRF 차단도 `HTTP_BLOCKED` 로 라우팅**한다 — 종전 redirect hop 의 SSRF 예외가 바깥 일반 catch 로 떨어져 오분류(`HTTP_TRANSPORT_FAILED`/`INTEGRATION_CALL_FAILED`)되던 것을 §4.2/§6 계약("redirect 한도 SSRF=HTTP_BLOCKED")에 맞춰 정정.
+**결정**: `HTTP_BLOCKED` 의 `output.error.message` 를 host/IP 미노출 일반화 문구(`Request blocked by SSRF policy.`)로 통일한다(DB/Email 대칭). 원본 상세(hostname/IP)는 `logger.warn`(전 인증 방식 공통, 서버 로그 전용)에만 남긴다 — **Usage 로그(`IntegrationUsageLog`)는 `GET /integrations/:id/activity` 로 workspace 사용자에게 raw 반환되므로, 거기에도 일반화 메시지를 기록해 정찰 면을 넓히지 않는다** (원본은 로그 파이프라인 밖으로 나가지 않는 `logger.warn` 만). 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를 렌더하므로 UX 손실은 없다. 함께 **redirect 대상·한도 초과 SSRF 차단도 `HTTP_BLOCKED` 로 라우팅**한다 — 종전 redirect hop 의 SSRF 예외가 바깥 일반 catch 로 떨어져 오분류(`HTTP_TRANSPORT_FAILED`/`INTEGRATION_CALL_FAILED`)되던 것을 §4.2/§6 계약("redirect 한도 SSRF=HTTP_BLOCKED")에 맞춰 정정.
 
 **기각된 대안**: (B) 원본을 `output.error.details` 로 옮겨 노출 — details 도 클라이언트 wire 라 정찰 면 동일. (C) message 를 빈 문자열 — `HTTP {status}` 스타일 message 계약과 어긋나고 디버깅 단서 상실.
 

@@ -26,10 +26,12 @@ const logger = new Logger('HttpRequestHandler');
 
 /**
  * SSRF 차단 시 클라이언트 노출용 일반화 메시지 — 차단된 host/IP 를 노출하지
- * 않는다(정찰 면 축소, CWE-209). 원본 상세(hostname/IP)는 `logger.warn` +
- * usage 로그로 서버에만 남는다. DB(`DB_HOST_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`)
- * 메시지 일반화와 대칭. 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로
- * 지역화 문구를 렌더하므로 이 message 는 wire 안전 목적이다.
+ * 않는다(정찰 면 축소, CWE-209). 원본 상세(hostname/IP)는 `logger.warn`(서버 로그
+ * 전용)에만 남는다 — usage 로그(`IntegrationUsageLog`)는 Activity API
+ * (`GET /integrations/:id/activity`)로 workspace 사용자에게 raw 반환되므로 거기에도
+ * 이 일반화 문구를 기록한다. DB(`DB_HOST_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`) 메시지
+ * 일반화와 대칭. 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를
+ * 렌더하므로 이 message 는 wire 안전 목적이다.
  */
 const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
 
@@ -371,8 +373,11 @@ export class HttpRequestHandler
           status: 'failed',
           durationMs: Date.now() - start,
           error: {
+            // 원본 host/IP 는 Activity 로그 API(GET /integrations/:id/activity)로
+            // workspace 사용자에게 노출되므로 usage 로그 message 도 일반화한다.
+            // 원본 상세는 logger.warn(사용자 API 미노출 경로)에만 남긴다.
             code: ErrorCode.HTTP_BLOCKED,
-            message: detail,
+            message: SSRF_BLOCKED_CLIENT_MESSAGE,
           },
           api: { method, path: extractApiPath(url) },
         }).catch(() => {});

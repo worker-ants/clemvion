@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -930,7 +931,12 @@ describe('HttpRequestHandler', () => {
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',
-          error: expect.objectContaining({ code: 'HTTP_BLOCKED' }),
+          // usage 로그 message 도 일반화 — Activity API(GET /integrations/:id/activity)로
+          // workspace 사용자에게 노출되므로 host/IP 미포함이어야 한다 (ai-review WARNING).
+          error: expect.objectContaining({
+            code: 'HTTP_BLOCKED',
+            message: 'Request blocked by SSRF policy.',
+          }),
         }),
       );
     });
@@ -1066,6 +1072,9 @@ describe('HttpRequestHandler', () => {
     it('blocks redirect to internal host with HTTP_BLOCKED + generalized message (spec §4.2/§6)', async () => {
       // start = 공인 IP(SSRF 통과) → 302 → internal IMDS. manual redirect follow
       // 가 각 hop 을 재검증하므로 redirect 대상 SSRF 차단도 HTTP_BLOCKED 로 라우팅.
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: false,
         status: 302,
@@ -1074,6 +1083,53 @@ describe('HttpRequestHandler', () => {
             h.toLowerCase() === 'location'
               ? 'http://169.254.169.254/latest/meta-data/'
               : null,
+        },
+        text: jest.fn(),
+        json: jest.fn(),
+      });
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://93.184.216.34/start',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
+      expect(output.error.code).toBe('HTTP_BLOCKED');
+      expect(output.error.message).toBe('Request blocked by SSRF policy.');
+      expect(output.error.message).not.toContain('169.254');
+      // 원본 host/IP 는 서버 로그(logger.warn)에만 보존된다.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('169.254.169.254'),
+      );
+      // usage 로그(Activity API 노출)는 일반화 — 원본 미포함.
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            code: 'HTTP_BLOCKED',
+            message: 'Request blocked by SSRF policy.',
+          }),
+        }),
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('blocks redirect chain exceeding 5 hops with HTTP_BLOCKED (spec §4.2/§6)', async () => {
+      // 매 응답이 공인 IP 로 302 → SSRF 는 통과하나 5홉 초과 시 HTTP_BLOCKED.
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 302,
+        headers: {
+          get: (h: string) =>
+            h.toLowerCase() === 'location' ? 'http://93.184.216.34/next' : null,
         },
         text: jest.fn(),
         json: jest.fn(),
@@ -1096,7 +1152,6 @@ describe('HttpRequestHandler', () => {
       };
       expect(output.error.code).toBe('HTTP_BLOCKED');
       expect(output.error.message).toBe('Request blocked by SSRF policy.');
-      expect(output.error.message).not.toContain('169.254');
     });
 
     it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
