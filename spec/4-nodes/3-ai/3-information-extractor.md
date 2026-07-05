@@ -702,7 +702,9 @@ Pre-flight 검증 (CONVENTIONS Principle 3.1 — throw):
 
 [공통 §8](./0-common.md#8-캔버스-요약) — `Info Extractor` 행 인용.
 
-`{model} · {N} fields` (outputSchema 필드 수). `mode === 'multi_turn'` 이면 `Multi Turn` 접두어 추가.
+> ⚠ **미구현(Planned)**: `summaryTemplate` 부재로 현재 Info Extractor 캔버스 요약은 표시되지 않는다([공통 §8](./0-common.md#8-캔버스-요약) 참조). 아래는 목표 포맷.
+
+목표: `{model} · {N} fields` (outputSchema 필드 수). `mode === 'multi_turn'` 이면 `Multi Turn` 접두어 추가.
 
 - single 예: `claude-sonnet-4-6 · 4 fields`
 - multi 예: `Multi Turn · claude-sonnet-4-6 · 4 fields`

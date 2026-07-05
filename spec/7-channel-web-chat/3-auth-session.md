@@ -59,6 +59,8 @@ code:
 
 ### 3.1 재로드 복원 시퀀스 (per_execution)
 
+> ⚠ **v1 구현 현황(부분)**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면만 시드한 뒤 SSE 를 연다. 아래 2단계의 **200+종료·404·복구불가 401 REST 분기와 `401 → 낙관적 refresh 1회` 는 미구현(Planned)** — 그 외 status·오류는 `catch` soft-fail 후 SSE 로 진행하며, 종료는 SSE terminal 이벤트(버퍼 5분 내 replay)로 도달한다. 아래 시퀀스는 **목표 계약**이며, 완전 구현(REST 분기·낙관적 refresh)은 후속 결정으로 남긴다.
+
 1. iframe-origin **sessionStorage**(§R6)에서 `{executionId, token, expiresAt, endpoints}` 조회 — 없으면 신규(collapsed).
 2. `GET /api/external/executions/:id` 로 현재 상태 확인 — **종료된 execution 도 `200 OK` + `status` 로 응답**한다
    ([EIA §5.3](../5-system/14-external-interaction-api.md)). EIA-IN-12 의 `410 Gone` 은 *명령*(interact)에 대한 응답
