@@ -70,5 +70,5 @@ spec_impact:
 
 - [x] /consistency-check --spec (본 draft) — BLOCK: NO (11_10_25, 5/5 clean; WARNING 2건 조치)
 - [x] spec 반영 (변경 1·2·3·5) + plan G1 WITHDRAWN (변경 4)
-- [ ] commit + PR (origin/main)
-- [ ] memory
+- [x] commit + PR (origin/main) — [#810](https://github.com/worker-ants/clemvion/pull/810)
+- [x] memory
