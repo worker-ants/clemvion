@@ -2,6 +2,8 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/4-nodes/6-presentation/4-form.md
 ---
 
 # form (Presentation) — spec 약속 대비 미구현 surface
@@ -23,13 +25,17 @@ owner: planner
 - [x] §6.2 서버측 **`validation.min`/`max`(숫자 범위)·`pattern`(정규식) 검증** — `validateFormSubmission`(chat-channel) 확장: `type:'number'` 범위 비교(min/max) + custom regex(pattern, 잘못된 regex 방어적 통과). `FormModalField` 에 `min?`/`max?`/`pattern?` + `extractFormFields` 추출. publisher chokepoint `assertFormSubmissionValid` 재사용으로 EIA/WS/UI 3 경로 공통. (form-validation-minmax-pattern PR — `form-mode.ts`·`types.ts`; 테스트 `form-mode.spec` +7 케이스)
 - [x] §6.2 서버측 **file 검증** (MIME/크기/개수) — `validateFileField`(form-mode.ts) 신규: metadata(`size`/`type`)·개수 검사, 14종 MIME/10·50MB/5 기본값. `assertFormSubmissionValid` 가 `validateAllFields` 단일 패스로 scalar+file 검증(EIA/WS/UI 3 경로 공통). (form-file-validation PR A-2)
 - [x] §1.5 file 입력 클라이언트 검증 — `DynamicFormUI`(frontend) `validateFilesClient` 가 onChange 반영 전 MIME/size/total/count reject + 에러 표시 + input clear. 메시지 i18n(`editor.runResults.formFile*` ko/en). (form-file-validation PR A-3)
-- [ ] §1 ValidationPreset(phone) — **보류 (spec Planned, form.md L63)**: preset 필드·카탈로그·서버 regex·UI hint 부재.
+- **[v2 로드맵 이관]** §1 ValidationPreset(phone) — spec `4-form.md` 가 `미구현 (Planned)` 로 명시(ValidationPreset 카탈로그 L62-67), `form.schema.ts:20-29` `validationRuleSchema` 에 `preset` 부재 확인. spec↔code 정합(live drift 없음). 추적 SoT = spec Planned 마커.
 - [x] §1 file 입력 기본값 — 14종 MIME / 10MB·50MB / count 5. `extractFormFields` 가 **file 타입 한정** 공유 기본값(`DEFAULT_FILE_*`) 주입(비-file 미오염, Principle 1.1). backend SoT + frontend 미러(CSR 번들 분리). (form-file-validation PR)
 - [x] §5.5 resumed meta.durationMs — `processFormResumeTurn` 이 resume 시 `prevStructured.meta`(durationMs=0)를 재사용하던 것을, `nodeExec.startedAt`→재개 시각 경과로 `meta.durationMs` 갱신(기존 meta 필드 보존, DB durationMs 와 동일 계산 공유). 테스트 추가.
 
 ## INFO 후속 (min/max·pattern PR 리뷰 산출 — 비차단)
 - [x] 인접 spec validation 규칙 열거 동기화 — `chat-channel-adapter.md §4.1 step 4`·§4.2 step 3·`6-system/6-websocket-protocol.md §4.2` 검증 규칙 열거에 min/max(숫자 범위)·(WS는 pattern·select/radio 포함) 추가. (spec-sync-form-validation-enum PR — impl-done 23_05_43 cross_spec INFO)
 - [x] `execution-engine.service.spec` 에 min/max·pattern 위반 시 `FormValidationError` throw 통합 케이스 1건씩 추가 — `§6.2 number min/max 위반`·`§6.2 pattern(정규식) 위반` continueExecution 통합 케이스. (form-file-validation PR — D 후속)
+
+## 종결 (2026-07-05)
+- 5인 검증 재확인: 모든 `[x]` 항목 코드-정합(stale-false 0), 유일 잔여(ValidationPreset phone)는 spec Planned + 코드 부재 = **live drift 0**.
+- spec `4-form.md` `status: partial → implemented` 승격 + `pending_plans` 제거(같은 commit). 잔여 Planned 은 spec 마커가 SoT.
 
 ## 비고
 - 근거(claim→코드부재)는 audit findings/4-nodes.md `### spec/4-nodes/6-presentation/4-form.md` 절 참조.

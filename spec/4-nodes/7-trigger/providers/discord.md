@@ -1,8 +1,6 @@
 ---
 id: discord
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-discord-gaps.md
+status: implemented
 code:
   - codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts
   - codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts

@@ -1,13 +1,11 @@
 ---
 id: telegram
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts
   - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.ts
   - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-update.parser.ts
   - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts
-pending_plans:
-  - plan/in-progress/spec-sync-telegram-gaps.md
 user_guide:
   - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.mdx
   - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.en.mdx
