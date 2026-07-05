@@ -290,6 +290,14 @@ describe('FoldersService', () => {
       await expect(
         service.update('f1', 'ws-uuid-1', { parentId: 'gc1' }),
       ).rejects.toThrow(BadRequestException);
+      // 레벨당 1쿼리(batched frontier) — L2 에서 형제 c1·c2 를 한 번의 find 로 함께
+      // 조회함을 단언한다 (frontier[0] 만 조회하는 회귀·N+1 를 검출).
+      expect(mockRepository.find).toHaveBeenNthCalledWith(2, {
+        where: [
+          { parentId: 'c1', workspaceId: 'ws-uuid-1' },
+          { parentId: 'c2', workspaceId: 'ws-uuid-1' },
+        ],
+      });
     });
   });
 });
