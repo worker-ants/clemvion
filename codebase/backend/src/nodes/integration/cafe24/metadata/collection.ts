@@ -1,5 +1,21 @@
 import type { Cafe24OperationMetadata } from './types.js';
 
+/**
+ * Cafe24 `collection` resource metadata.
+ *
+ * G-1-remaining (plan `cafe24-backlog-residual.md` §G-1-remaining, 2026-07-05):
+ * field-set 을 공식 docs 카탈로그(`spec/conventions/cafe24-api-catalog/collection/*.md`
+ * 의 각 operation `요청 파라미터` 표)와 **전량 미러**했다. 필드명은 docs Parameter 를
+ * 그대로 사용한다 — 핸들러가 field key 를 query/body 파라미터명으로 그대로 전송하므로
+ * (`cafe24.handler.ts` buildRequest), docs 명이 아닌 alias 는 Cafe24 가 인식하지 못한다.
+ *
+ * 규칙:
+ * - `offset`/`limit` 은 field 로 넣지 않는다 — paginated op 는 핸들러 pagination 층이 주입.
+ * - `requiredFields` 는 기존 계약을 보존하되 신규 fields 에 실재하는 것만 남긴다
+ *   (metadata.spec 의 subset 불변식). 새 body-required 는 constraints 로 표현하지 않고
+ *   docs 표의 조건부만 constraints 로 옮긴다.
+ * - collection 요청 표에는 date/time 필드가 없어 date-descriptions import 는 불필요.
+ */
 export const collectionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'brands_list',
@@ -9,7 +25,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'brands',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      brand_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Brand code(s), comma-separated multi-search',
+      },
+      brand_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Brand name(s), comma-separated multi-search',
+      },
+      use_brand: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Brand in-use (T=on, F=off)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -22,7 +59,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'manufacturers',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      manufacturer_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Manufacturer code(s), comma-separated multi-search',
+      },
+      manufacturer_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Manufacturer name(s), comma-separated multi-search',
+      },
+      use_manufacturer: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Manufacturer in-use (T=on, F=off)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -35,7 +93,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'trends',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      trend_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Trend code(s), comma-separated multi-search',
+      },
+      trend_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Trend name(s), comma-separated multi-search',
+      },
+      use_trend: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Trend in-use (T=on, F=off)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -49,7 +128,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'brands/count',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      brand_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Brand code(s), comma-separated multi-search',
+      },
+      brand_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Brand name(s), comma-separated multi-search',
+      },
+      use_brand: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Brand in-use (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -61,10 +161,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'brands',
     requiredFields: ['brand_name'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      brand_name: { type: 'string', location: 'body' },
-      brand_code: { type: 'string', location: 'body' },
-      brand_description: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      brand_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Brand name',
+      },
+      use_brand: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Brand in-use (T=on, F=off)',
+      },
+      search_keyword: {
+        type: 'string',
+        location: 'body',
+        description: 'Search keyword(s)',
+      },
     },
     responseShape: 'single',
   },
@@ -76,10 +194,33 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'brands/{brand_code}',
     requiredFields: ['brand_code'],
     fields: {
-      brand_code: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      brand_name: { type: 'string', location: 'body' },
-      brand_description: { type: 'string', location: 'body' },
+      brand_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Brand code',
+      },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      brand_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Brand name',
+      },
+      use_brand: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Brand in-use (T=on, F=off)',
+      },
+      search_keyword: {
+        type: 'string',
+        location: 'body',
+        description: 'Search keyword(s)',
+      },
     },
     responseShape: 'single',
   },
@@ -91,7 +232,11 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'brands/{brand_code}',
     requiredFields: ['brand_code'],
     fields: {
-      brand_code: { type: 'string', location: 'path' },
+      brand_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Brand code',
+      },
     },
     responseShape: 'single',
   },
@@ -104,7 +249,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'manufacturers/count',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      manufacturer_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Manufacturer code(s), comma-separated multi-search',
+      },
+      manufacturer_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Manufacturer name(s), comma-separated multi-search',
+      },
+      use_manufacturer: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Manufacturer in-use (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -116,8 +282,17 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'manufacturers/{manufacturer_code}',
     requiredFields: ['manufacturer_code'],
     fields: {
-      manufacturer_code: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      manufacturer_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Manufacturer code',
+      },
     },
     responseShape: 'single',
   },
@@ -130,8 +305,63 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'manufacturers',
     requiredFields: ['manufacturer_name'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      manufacturer_name: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      manufacturer_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Manufacturer name',
+      },
+      president_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Representative name',
+      },
+      email: {
+        type: 'string',
+        location: 'body',
+        description: 'Contact email',
+      },
+      phone: {
+        type: 'string',
+        location: 'body',
+        description: 'Phone number',
+      },
+      homepage: {
+        type: 'string',
+        location: 'body',
+        description: 'Homepage URL',
+      },
+      zipcode: {
+        type: 'string',
+        location: 'body',
+        description: 'Postal code',
+      },
+      address1: {
+        type: 'string',
+        location: 'body',
+        description: 'Basic address',
+      },
+      address2: {
+        type: 'string',
+        location: 'body',
+        description: 'Detailed address',
+      },
+      country_code: {
+        type: 'string',
+        location: 'body',
+        description: 'Country code',
+      },
+      use_manufacturer: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Manufacturer in-use (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -143,9 +373,68 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'manufacturers/{manufacturer_code}',
     requiredFields: ['manufacturer_code'],
     fields: {
-      manufacturer_code: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      manufacturer_name: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      manufacturer_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Manufacturer code',
+      },
+      manufacturer_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Manufacturer name',
+      },
+      president_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Representative name',
+      },
+      email: {
+        type: 'string',
+        location: 'body',
+        description: 'Contact email',
+      },
+      phone: {
+        type: 'string',
+        location: 'body',
+        description: 'Phone number',
+      },
+      homepage: {
+        type: 'string',
+        location: 'body',
+        description: 'Homepage URL',
+      },
+      zipcode: {
+        type: 'string',
+        location: 'body',
+        description: 'Postal code',
+      },
+      address1: {
+        type: 'string',
+        location: 'body',
+        description: 'Basic address',
+      },
+      address2: {
+        type: 'string',
+        location: 'body',
+        description: 'Detailed address',
+      },
+      country_code: {
+        type: 'string',
+        location: 'body',
+        description: 'Country code',
+      },
+      use_manufacturer: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Manufacturer in-use (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -157,7 +446,28 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'trends/count',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      trend_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Trend code(s), comma-separated multi-search',
+      },
+      trend_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Trend name(s), comma-separated multi-search',
+      },
+      use_trend: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Trend in-use (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -169,7 +479,27 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'classifications',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      classification_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Classification code(s), comma-separated multi-search',
+      },
+      classification_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Classification name(s), comma-separated multi-search',
+      },
+      use_classification: {
+        type: 'string',
+        location: 'query',
+        description: 'Classification in-use',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -182,7 +512,27 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'classifications/count',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      classification_code: {
+        type: 'string',
+        location: 'query',
+        description: 'Classification code(s), comma-separated multi-search',
+      },
+      classification_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Classification name(s), comma-separated multi-search',
+      },
+      use_classification: {
+        type: 'string',
+        location: 'query',
+        description: 'Classification in-use',
+      },
     },
     responseShape: 'single',
   },
@@ -194,7 +544,21 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
     path: 'origin',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      origin_place_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Origin place number',
+      },
+      origin_place_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Origin place name',
+      },
+      foreign: {
+        type: 'string',
+        location: 'query',
+        description: 'Foreign origin flag',
+      },
     },
     responseShape: 'list',
     paginated: true,

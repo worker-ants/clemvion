@@ -8,8 +8,10 @@
  */
 import type { Cafe24OperationMetadata } from './types.js';
 import {
-  CAFE24_DATE_FIELD_SINCE,
-  CAFE24_DATE_FIELD_UNTIL,
+  CAFE24_DATE_FIELD_CREATED_START,
+  CAFE24_DATE_FIELD_CREATED_END,
+  CAFE24_DATE_FIELD_UPDATED_START,
+  CAFE24_DATE_FIELD_UPDATED_END,
 } from './date-descriptions.js';
 
 export const applicationOperations: Cafe24OperationMetadata[] = [
@@ -21,8 +23,73 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'scripttags',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      script_no: {
+        type: 'string',
+        location: 'query',
+        description: 'Script unique number(s) to search',
+      },
+      src: {
+        type: 'string',
+        location: 'query',
+        description: 'Original script URL to search',
+      },
+      display_location: {
+        type: 'string',
+        location: 'query',
+        description: 'Display location code(s), comma-separated multi-search',
+      },
+      exclude_path: {
+        type: 'string',
+        location: 'query',
+        description: 'Excluded path(s), comma-separated multi-search',
+      },
+      skin_no: {
+        type: 'string',
+        location: 'query',
+        description: 'Skin number(s), comma-separated multi-search',
+      },
+      integrity: {
+        type: 'string',
+        location: 'query',
+        description: 'Sub-resource integrity hash',
+      },
+      created_start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_CREATED_START,
+      },
+      created_end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_CREATED_END,
+      },
+      updated_start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UPDATED_START,
+      },
+      updated_end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UPDATED_END,
+      },
     },
+    constraints: [
+      {
+        kind: 'allOrNone',
+        fields: ['created_start_date', 'created_end_date'],
+      },
+      {
+        kind: 'allOrNone',
+        fields: ['updated_start_date', 'updated_end_date'],
+      },
+    ],
     responseShape: 'list',
   },
   // Phase 7d — Application (apps_update + scripttags CRUD + webhooks_update + logs)
@@ -34,7 +101,17 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'apps',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      version: {
+        type: 'string',
+        location: 'body',
+        description: 'App version',
+      },
+      extension_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['section', 'embedded'],
+        description: 'Extension type (section=front HTML, embedded=auto-run)',
+      },
     },
     responseShape: 'single',
   },
@@ -46,8 +123,63 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'scripttags/count',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      script_no: {
+        type: 'string',
+        location: 'query',
+        description: 'Script unique number(s) to search',
+      },
+      src: {
+        type: 'string',
+        location: 'query',
+        description: 'Original script URL to search',
+      },
+      display_location: {
+        type: 'string',
+        location: 'query',
+        description: 'Display location code(s) to search',
+      },
+      skin_no: {
+        type: 'string',
+        location: 'query',
+        description: 'Skin number(s), comma-separated multi-search',
+      },
+      created_start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_CREATED_START,
+      },
+      created_end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_CREATED_END,
+      },
+      updated_start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UPDATED_START,
+      },
+      updated_end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UPDATED_END,
+      },
     },
+    constraints: [
+      {
+        kind: 'allOrNone',
+        fields: ['created_start_date', 'created_end_date'],
+      },
+      {
+        kind: 'allOrNone',
+        fields: ['updated_start_date', 'updated_end_date'],
+      },
+    ],
     responseShape: 'single',
   },
   {
@@ -58,8 +190,17 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'scripttags/{script_no}',
     requiredFields: ['script_no'],
     fields: {
-      script_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      script_no: {
+        type: 'string',
+        location: 'path',
+        description: 'Script unique number',
+      },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -71,15 +212,37 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'scripttags',
     requiredFields: ['src', 'display_location'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      src: { type: 'string', location: 'body', description: 'Script URL' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      src: {
+        type: 'string',
+        location: 'body',
+        description: 'Original absolute script URL',
+      },
       display_location: {
         type: 'string',
         location: 'body',
-        description: 'Comma-separated list of pages (e.g. all, product, order)',
+        description: 'Display location code(s) (e.g. all, PRODUCT_LIST)',
       },
-      exclude_path: { type: 'string', location: 'body' },
-      skin_no: { type: 'array', location: 'body' },
+      exclude_path: {
+        type: 'string',
+        location: 'body',
+        description: 'Excluded path(s)',
+      },
+      skin_no: {
+        type: 'string',
+        location: 'body',
+        description: 'Skin number(s) to apply the script to',
+      },
+      integrity: {
+        type: 'string',
+        location: 'body',
+        description: 'Sub-resource integrity hash (sha384/sha512)',
+      },
     },
     responseShape: 'single',
   },
@@ -91,11 +254,42 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'scripttags/{script_no}',
     requiredFields: ['script_no'],
     fields: {
-      script_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      src: { type: 'string', location: 'body' },
-      display_location: { type: 'string', location: 'body' },
-      exclude_path: { type: 'string', location: 'body' },
+      script_no: {
+        type: 'string',
+        location: 'path',
+        description: 'Script unique number',
+      },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      src: {
+        type: 'string',
+        location: 'body',
+        description: 'Original absolute script URL',
+      },
+      display_location: {
+        type: 'string',
+        location: 'body',
+        description: 'Display location code(s) (e.g. all, PRODUCT_LIST)',
+      },
+      exclude_path: {
+        type: 'string',
+        location: 'body',
+        description: 'Excluded path(s)',
+      },
+      skin_no: {
+        type: 'string',
+        location: 'body',
+        description: 'Skin number(s) to apply the script to',
+      },
+      integrity: {
+        type: 'string',
+        location: 'body',
+        description: 'Sub-resource integrity hash (sha384/sha512)',
+      },
     },
     responseShape: 'single',
   },
@@ -107,7 +301,11 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'scripttags/{script_no}',
     requiredFields: ['script_no'],
     fields: {
-      script_no: { type: 'number', location: 'path' },
+      script_no: {
+        type: 'string',
+        location: 'path',
+        description: 'Script unique number',
+      },
     },
     responseShape: 'single',
   },
@@ -121,7 +319,12 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'webhooks/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      reception_status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Webhook reception status (T=enabled, F=disabled)',
+      },
     },
     responseShape: 'single',
   },
@@ -133,16 +336,39 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'webhooks/logs',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: {
-        type: 'string',
+      event_no: {
+        type: 'number',
         location: 'query',
-        description: CAFE24_DATE_FIELD_SINCE,
+        description: 'Event number',
       },
-      end_date: {
+      requested_start_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_UNTIL,
+        description:
+          'Delivery range start (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-18".',
+      },
+      requested_end_date: {
+        type: 'string',
+        location: 'query',
+        description:
+          'Delivery range end (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-31".',
+      },
+      success: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Delivery success (T=success, F=fail)',
+      },
+      log_type: {
+        type: 'enum',
+        location: 'query',
+        enum: ['G', 'R', 'T'],
+        description: 'Log type (G=normal, R=resend, T=test)',
+      },
+      since_log_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Search after this log ID',
       },
     },
     responseShape: 'list',
@@ -157,7 +383,11 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'appstore/orders/{order_id}',
     requiredFields: ['order_id'],
     fields: {
-      order_id: { type: 'string', location: 'path' },
+      order_id: {
+        type: 'string',
+        location: 'path',
+        description: 'Appstore order ID to retrieve',
+      },
     },
     responseShape: 'single',
   },
@@ -170,7 +400,28 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'appstore/orders',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      order_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Order name shown to the payer',
+      },
+      order_amount: {
+        type: 'string',
+        location: 'body',
+        description: 'Order amount to charge (decimal string, KRW)',
+      },
+      return_url: {
+        type: 'string',
+        location: 'body',
+        description: 'Return URL after payment completion',
+      },
+      automatic_payment: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'F',
+        description: 'Recurring billing (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -182,16 +433,28 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'appstore/payments',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      order_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Appstore order number(s), comma-separated multi-search',
+      },
       start_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_SINCE,
+        description:
+          'Search range start (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-18".',
       },
       end_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_UNTIL,
+        description:
+          'Search range end (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-31".',
+      },
+      currency: {
+        type: 'enum',
+        location: 'query',
+        enum: ['KRW', 'USD', 'JPY', 'PHP'],
+        description: 'Currency (KRW/USD/JPY/PHP)',
       },
     },
     responseShape: 'list',
@@ -205,16 +468,28 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'appstore/payments/count',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      order_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Appstore order number(s), comma-separated multi-search',
+      },
       start_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_SINCE,
+        description:
+          'Search range start (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-18".',
       },
       end_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_UNTIL,
+        description:
+          'Search range end (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-31".',
+      },
+      currency: {
+        type: 'enum',
+        location: 'query',
+        enum: ['KRW', 'USD', 'JPY', 'PHP'],
+        description: 'Currency (KRW/USD/JPY/PHP)',
       },
     },
     responseShape: 'single',
@@ -227,16 +502,28 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'databridge/logs',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: {
+      requested_start_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_SINCE,
+        description:
+          'Delivery range start (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-18".',
       },
-      end_date: {
+      requested_end_date: {
         type: 'string',
         location: 'query',
-        description: CAFE24_DATE_FIELD_UNTIL,
+        description:
+          'Delivery range end (YYYY-MM-DD, KST, UTC+9). e.g. "2026-05-31".',
+      },
+      success: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Delivery success (T=success, F=fail)',
+      },
+      since_log_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Search after this log ID',
       },
     },
     responseShape: 'list',
@@ -249,9 +536,7 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     method: 'GET',
     path: 'recipes',
     requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
+    fields: {},
     responseShape: 'list',
     paginated: true,
   },
@@ -261,10 +546,18 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'recipes',
-    requiredFields: ['recipe_name'],
+    requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      recipe_name: { type: 'string', location: 'body' },
+      recipe_code: {
+        type: 'string',
+        location: 'body',
+        description: 'Recipe code',
+      },
+      trigger_settings: {
+        type: 'object',
+        location: 'body',
+        description: 'Trigger settings (required/optional filters)',
+      },
     },
     responseShape: 'single',
   },
@@ -276,7 +569,11 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     path: 'recipes/{recipe_code}',
     requiredFields: ['recipe_code'],
     fields: {
-      recipe_code: { type: 'string', location: 'path' },
+      recipe_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Recipe code',
+      },
     },
     responseShape: 'single',
   },
