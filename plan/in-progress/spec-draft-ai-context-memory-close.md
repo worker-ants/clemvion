@@ -61,5 +61,5 @@ exec-intake 후속 이후 group A(near-done) 트랙을 재검증하던 중, `ai-
 - [x] /consistency-check --spec (12_02_22) — BLOCK: YES(webchat spec_impact CRITICAL) → 해소(변경 7)
 - [x] /consistency-check --spec 재검증(12_09_36) → BLOCK: NO
 - [x] spec frontmatter 반영(변경 2·3·4·5) + plan checkbox/이동(변경 1·6·7) + Gate C/lifecycle unit 통과(2 files·545 tests)
-- [ ] commit + PR (origin/main)
-- [ ] memory
+- [x] commit + PR (origin/main) — [#812](https://github.com/worker-ants/clemvion/pull/812)
+- [x] memory
