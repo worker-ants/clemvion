@@ -3,8 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
 const mockRegister = vi.fn();
@@ -53,7 +54,10 @@ function axiosError(status: number, body: object = {}) {
 describe("RegisterForm — invitation token flow", () => {
   beforeEach(() => {
     useLocaleStore.setState({ locale: "ko" });
+    // has_session 힌트 쿠키 정리 — 초대-리다이렉트 테스트 간 누수 방지.
+    document.cookie = "has_session=; max-age=0; path=/";
     mockPush.mockReset();
+    mockReplace.mockReset();
     mockRegister.mockReset();
     mockCheckEmail.mockReset();
     mockGetByToken.mockReset();
@@ -209,5 +213,24 @@ describe("RegisterForm — invitation token flow", () => {
     await user.type(email, "not-an-email");
     await user.tab();
     expect(mockCheckEmail).not.toHaveBeenCalled();
+  });
+
+  it("redirects an already-logged-in user with a token to the accept page (§1.5.3 entry, V-09)", async () => {
+    // (auth) 그룹엔 AuthProvider 가 없어 store 하이드레이션이 없다 — 기존 세션은
+    // proxy.ts 와 동일하게 has_session 힌트 쿠키로 감지한다.
+    document.cookie = "has_session=1; path=/";
+    mockGetByToken.mockResolvedValue({
+      workspaceName: "WS",
+      invitedByName: null,
+      email: "x@y.com",
+      role: "editor",
+      expiresAt: "2099-01-01T00:00:00Z",
+    });
+    render(<RegisterForm invitationToken="tok-9" />);
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/invitations/accept?token=tok-9",
+      ),
+    );
   });
 });

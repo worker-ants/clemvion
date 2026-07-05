@@ -23,5 +23,9 @@ export const invitations: Dict["invitations"] = {
     missingHint: "Please use the link exactly as it appears in your invitation email.",
     goDashboard: "Go to Dashboard",
     redirectingDashboard: "Redirecting to the dashboard…",
+    mismatchTitle: "Signed in as a different account",
+    mismatchHint:
+      "This invitation was sent to {{email}}. Please sign in with that account.",
+    logoutAndSwitch: "Sign in with another account",
   },
 };

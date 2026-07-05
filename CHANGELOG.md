@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 초대 수락 확인 UI + 기가입자 진입 경로 (§1.5.3, V-09)
+
+### 변경 사항
+
+1. **이미 가입한 사용자의 다른-워크스페이스 초대 흐름이 자동수락 → 수락 확인 UI 로 전환** — `/invitations/accept` 페이지가 마운트 즉시 무조건 `acceptInvitation` 을 호출하던 것을, 토큰 메타(`GET /api/invitations/:token`)를 먼저 조회해 (a) 로그인 이메일 == 토큰 이메일이면 **[수락] 버튼**을, (b) 불일치(또는 미로그인)면 "해당 계정으로 로그인" 안내 + **로그아웃 후 전환** 버튼을 노출하도록 `§1.5.3` 대로 재작성. 사용자의 명시적 클릭 없이는 워크스페이스에 합류하지 않는다. 클라이언트 이메일 일치 검사는 UX 게이팅일 뿐이며 실제 인가는 서버(`POST /api/workspaces/invitations/accept`)가 재검증한다.
+2. **초대 메일 링크의 기가입자 진입 경로 보강** — 초대 메일은 `/auth/register?invitationToken=` 로 링크하는데, 이미 로그인한 사용자가 새 탭에서 클릭하면 미가입자용 가입 폼이 떠 혼란스러웠다. register 폼이 `has_session` 힌트 쿠키(`proxy.ts` 와 동일 신호)로 기존 세션을 감지해 `/invitations/accept?token=` 로 즉시 리다이렉트한다. `(auth)` 라우트 그룹엔 세션 하이드레이션(AuthProvider)이 없어 클라이언트 store 대신 쿠키로 판정한다. SoT: `spec/5-system/1-auth.md §1.5.3` + `spec/2-navigation/10-auth-flow.md §2.6`.
+
 ## Unreleased — workflow import settings validated DTO (patch 대칭)
 
 ### 변경 사항
