@@ -191,6 +191,8 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 - 출력 JSON 에 `_dryRun: true` 가 있으면 자동 강조
 - chain badge 에도 "dry-run" 표기 (`#3-th re-run · dry-run`)
 
+> **배지 판정 스코프**: `_dryRun` 마커는 dry-run 을 실제 mock 한 노드(`supportsDryRun` 외부 부수효과 노드, §9.2)의 output 에만 심긴다. 따라서 **실행 상세 페이지**는 노드별 `_dryRun` 마커에 더해 부모 **`Execution.dry_run`(§9.2, execution-level)** 도 함께 반영해, 마커가 없는 비-effect 노드(Logic/Flow/Data/AI 등)도 dry-run 실행에 속하면 배지를 표시한다 — "이 실행 전체가 dry-run 이었다"를 개별 노드 상세에서도 인지 가능하게. **에디터 Run Results 드로어**는 execution-level 플래그를 전달받지 않아 노드 마커 기준으로만 표시한다(두 surface 의 의도적 비대칭).
+
 ---
 
 ## 8. API
@@ -295,6 +297,8 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 
 즉 NodeExecution `_dryRun` 은 결과 표시용(UI 식별), Execution `dry_run` 은 실행 제어용(엔진 주입·복원)으로 역할이 분리된다. (초안 단계에서는 column 을 v2+ 로 연기했으나, dry-run 을 게이트가 아닌 완전 구현으로 채택하면서 위 두 제약 때문에 v1 컬럼으로 확정.)
 
+> 다만 **실행 상세 페이지 배지**는 `Execution.dry_run` 을 제어용에 더해 **표시 목적으로도 참조**한다 — `_dryRun` 마커가 없는 비-effect 노드도 dry-run 실행에 속하면 배지를 표시하기 위함(§7.4). 즉 실행 상세에서 `Execution.dry_run` 은 제어+표시 겸용, 에디터 드로어는 노드 마커만. 구현·테스트: `result-detail.tsx`·`execution-detail-waiting.test.tsx`.
+
 ---
 
 ## 10. UI 명세
@@ -335,9 +339,9 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 
 | 요소 | 기본값 | 동작 |
 | --- | --- | --- |
-| 원본 실행 헤더 | — | 원본 ID, 시작 시각, 최종 상태 표시. ID 클릭 시 새 탭으로 원본 상세 페이지 |
+| 원본 실행 헤더 | — | 원본 ID, 시작 시각, 최종 상태 표시. ID 클릭 시 **새 탭**으로 원본 상세 페이지 (실행 상세 페이지의 chain badge 원본 링크는 **같은 탭** — [14-execution-history §3.7](../2-navigation/14-execution-history.md#37-re-run-액션). 모달은 편집 컨텍스트 이탈을 막으려 새 탭, chain badge 는 내비게이션이라 같은 탭 — 의도적 구분) |
 | 외부 호출 노드 안내 | — | 본 워크플로의 `supportsDryRun: true` 노드 수를 카테고리별 집계 (`grouped by node.type`) |
-| 입력 데이터 폼 | 원본의 `inputData.parameters` | Manual Trigger parameters 스키마 기반 동적 폼. 필드 라벨/타입은 워크플로의 manual_trigger 노드 config 에서 도출 ([Spec 실행 엔진 §6.1.1](./4-execution-engine.md#611-트리거-입력-파라미터-seeding)) |
+| 입력 데이터 폼 | 원본의 `inputData.parameters` | Manual Trigger parameters 스키마 기반 동적 폼. 필드 라벨/타입은 워크플로의 manual_trigger 노드 config 에서 도출 ([Spec 실행 엔진 §6.1.1](./4-execution-engine.md#611-트리거-입력-파라미터-seeding)). **스키마 부재**(manual_trigger 노드 삭제 등) 시 원본 `inputData.parameters` 키를 untyped text 필드로 fallback 해 데이터 은닉을 피한다. 타입별 위젯: string→text·number→number·boolean→checkbox·object/array→JSON |
 | "원본 입력 그대로 사용" 토글 | OFF (편집 가능) | ON 으로 두면 폼 read-only + "재실행" 버튼이 한 클릭 경로. 프론트엔드는 토글 상태로부터 `useOriginalInput` 을 **항상 명시 전송**하므로, §8.1 의 API 기본값 `true` 는 필드를 생략한 직접 API 호출자용 안전 폴백일 뿐 UI 기본값(OFF=false)과 모순되지 않는다 |
 | "dry-run 모드" 토글 | OFF | 워크플로에 `supportsDryRun: false` 노드가 있으면 disabled + tooltip "이 워크플로는 dry-run 미지원 노드를 포함합니다 (RR-PL-01)" |
 | "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/workflows/:workflowId/executions/:newId`) |

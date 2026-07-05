@@ -303,7 +303,7 @@ pending_plans:
      ┌──────────────────────────────────┐
   ●──│  🤖 AI Agent                     │──●
      │  "Customer Bot"                  │
-     │  gpt-4o · 2 tools · 1 KB        │
+     │  gpt-4o · 1 KB                   │
      └──────────────────────────────────┘
 
      ┌──────────────────────────────────┐
@@ -395,9 +395,9 @@ pending_plans:
 | Merge | `{N} inputs · {전략}` | `3 inputs · wait_all` |
 | Background | 알림 채널 | `notify: in_app, email` |
 | Workflow | `{워크플로우 이름} · {모드}` | `Data Pipeline · sync` |
-| AI Agent | `{모델} · {N} tools · {N} KB` | `gpt-4o · 2 tools · 1 KB` |
+| AI Agent | ⚠ 미구현(Planned) — 목표 `{모델} · {N} KB · {N} MCP …`([공통 §8](../4-nodes/3-ai/0-common.md#8-캔버스-요약)). `summaryTemplate` 부재로 현재 미표시. 구 `{N} tools`(Tool Area) 폐기 | (목표) `gpt-4o · 1 KB` |
 | Text Classifier | `{모델} · {N} categories` | `gpt-4o-mini · 3 categories` |
-| Info Extractor | `{모델} · {N} fields` | `claude-sonnet · 4 fields` |
+| Info Extractor | ⚠ 미구현(Planned) — 목표 `{모델} · {N} fields`. `summaryTemplate` 부재로 현재 미표시 | (목표) `claude-sonnet · 4 fields` |
 | HTTP Request | `{METHOD} {url}` | `GET https://api.exam...` |
 | Database Query | `{{queryType\|upper}} · {{query}}` | `SELECT · SELECT * FROM us...` |
 | Send Email | `{{to.length}} recipients · {{subject}}` | `2 recipients · Welcome` |

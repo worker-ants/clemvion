@@ -119,11 +119,13 @@ KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources
 
 ## 8. 캔버스 요약
 
+> ⚠ **구현 현황**: 캔버스 요약은 `getConfigSummary`(`node-config-summary.ts`)가 노드 metadata 의 `summaryTemplate`(mustache)을 렌더해 도출한다. 현재 **Text Classifier 만** `summaryTemplate` 을 가지므로, **AI Agent·Info Extractor 는 요약이 표시되지 않는다(Planned)**. 아래 두 노드의 포맷은 목표 계약이며, 조건부 세그먼트(`· {N} KB` 등)·`Multi Turn` 접두어 조합은 현 `summaryTemplate` DSL 로 표현 불가라 전용 요약 빌더(또는 DSL 확장)를 후속으로 남긴다.
+
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| AI Agent | `{mode} · {model}`. Tool Area에 등록된 도구 수가 있으면 `· {N} tools`, Knowledge Base 연결 시 `· {N} KB`, MCP-capable Integration 이 있으면 `· {N} MCP` (외부 MCP server + Internal Bridge integration 합산 — 사용자 입장에서는 모두 "AI 가 호출하는 외부 도구 소스"이므로 카운트 일원화), 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기, `single_turn`이면 생략 | `gpt-4o · 2 tools · 1 KB · 1 MCP · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond` (multi) |
-| Text Classifier | `{model} · {N} categories` (카테고리 수) | `gpt-4o-mini · 3 categories` |
-| Info Extractor | `{model} · {N} fields` (outputSchema 필드 수). mode가 `multi_turn`이면 `Multi Turn` 접두어 추가 | `claude-sonnet · 4 fields` (single) / `Multi Turn · claude-sonnet · 4 fields` (multi) |
+| AI Agent | ⚠ **미구현(Planned)** — 목표: `{mode} · {model}`. Knowledge Base 연결 시 `· {N} KB`, MCP-capable Integration 이 있으면 `· {N} MCP` (외부 MCP server + Internal Bridge integration 합산 — 사용자 입장에서는 모두 "AI 가 호출하는 외부 도구 소스"이므로 카운트 일원화), 조건이 있으면 `· {N} cond` 추가. mode가 `multi_turn`이면 `Multi Turn` 표기. (구 `· {N} tools` 세그먼트는 Tool Area 제거(§1)로 폐기.) | (목표) `gpt-4o · 1 KB · 1 MCP · 3 cond` (single) / `Multi Turn · gpt-4o · 1 KB · 2 MCP · 2 cond` (multi) |
+| Text Classifier | `{model} · {N} categories` (카테고리 수). **구현됨**(`summaryTemplate`) | `gpt-4o-mini · 3 categories` |
+| Info Extractor | ⚠ **미구현(Planned)** — 목표: `{model} · {N} fields` (outputSchema 필드 수). mode가 `multi_turn`이면 `Multi Turn` 접두어 추가 | (목표) `claude-sonnet · 4 fields` (single) / `Multi Turn · claude-sonnet · 4 fields` (multi) |
 
 ---
 

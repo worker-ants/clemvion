@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-05T19:19:53.968055",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-cross-audit-doc-batch.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
