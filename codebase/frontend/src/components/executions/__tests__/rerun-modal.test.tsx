@@ -267,6 +267,97 @@ describe("ReRunModal", () => {
     expect(apiPostMock).not.toHaveBeenCalled();
   });
 
+  it("원본 실행 ID 를 새 탭 링크로 렌더한다 (spec §10.2)", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal();
+    const link = screen.getByText("exec-1").closest("a") as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute("href")).toBe(
+      "/workflows/wf-1/executions/exec-1",
+    );
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("manual_trigger config.parameters 스키마 기반 typed 폼을 렌더한다 (number→number, boolean→checkbox)", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: {
+              parameters: [
+                { name: "count", type: "number" },
+                { name: "flag", type: "boolean" },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-1",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { count: 3, flag: true } },
+      },
+    });
+    // 스키마 로딩(async) 후 typed 위젯으로 전환될 때까지 대기.
+    await waitFor(() => {
+      const count = screen.getByLabelText("count") as HTMLInputElement;
+      expect(count.type).toBe("number");
+    });
+    expect((screen.getByLabelText("count") as HTMLInputElement).value).toBe("3");
+    const flag = screen.getByLabelText("flag") as HTMLInputElement;
+    expect(flag.type).toBe("checkbox");
+    expect(flag.checked).toBe(true);
+  });
+
+  it("boolean 필드 토글 후 inputOverride 로 native boolean 을 전송한다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: { parameters: [{ name: "flag", type: "boolean" }] },
+          },
+        ],
+      },
+    });
+    apiPostMock.mockResolvedValue({ data: { data: { id: "exec-new" } } });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-1",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { flag: false } },
+      },
+    });
+    let flag!: HTMLInputElement;
+    await waitFor(() => {
+      flag = screen.getByLabelText("flag") as HTMLInputElement;
+      expect(flag.type).toBe("checkbox");
+    });
+    fireEvent.click(flag); // false → true
+    fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/executions/exec-1/re-run",
+        expect.objectContaining({ inputOverride: { flag: true } }),
+      );
+    });
+  });
+
   it("onSuccess 콜백이 있으면 router 대신 콜백을 호출한다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     apiPostMock.mockResolvedValue({ data: { data: { id: "exec-cb" } } });

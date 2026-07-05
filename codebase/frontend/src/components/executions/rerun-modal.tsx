@@ -103,6 +103,53 @@ function extractParameters(
   return {};
 }
 
+/**
+ * Manual Trigger 파라미터 스키마 정의 (spec/4-nodes/7-trigger/0-common.md §1).
+ * `config.parameters` 는 값이 아니라 이 shape 의 스키마 배열이다.
+ */
+type ParamType = "string" | "number" | "boolean" | "object" | "array";
+interface TriggerParameterDefinition {
+  name: string;
+  type: ParamType;
+  required?: boolean;
+  defaultValue?: unknown;
+  description?: string;
+}
+
+/** Re-run 입력 폼의 렌더 필드 — 스키마에서 도출(또는 원본 값 키 fallback). */
+interface RerunField {
+  name: string;
+  type: ParamType;
+  description?: string;
+}
+
+/** 타입별 input 표시 문자열. object/array 는 JSON 문자열로 표기. */
+function displayValue(type: ParamType, value: unknown): string {
+  if (value == null) return "";
+  if (type === "object" || type === "array") {
+    return typeof value === "string" ? value : JSON.stringify(value);
+  }
+  return String(value);
+}
+
+/**
+ * text/number input 의 raw 문자열을 파라미터 타입으로 coerce.
+ * number → 숫자(빈 문자열은 그대로 두어 편집 중 상태 보존), object/array → JSON
+ * parse(실패 시 raw 유지 — 편집 중 부분 입력 허용). backend `coerceToType`/
+ * `resolveTriggerParameters` 가 native-typed 값을 그대로 수용한다(cross_spec 확인).
+ */
+function coerceInput(type: ParamType, raw: string): unknown {
+  if (type === "number") return raw === "" ? "" : Number(raw);
+  if (type === "object" || type === "array") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
+
 export function ReRunModal({
   original,
   open,
@@ -186,12 +233,26 @@ export function ReRunModal({
     if (dryRunDisabled) setDryRun(false);
   }, [dryRunDisabled]);
 
-  const paramKeys = useMemo(
-    () => Object.keys(originalParameters),
-    [originalParameters],
-  );
+  // spec §10.2 — 입력 폼 필드는 워크플로 manual_trigger 노드 config.parameters
+  // 스키마(라벨·타입)에서 도출한다. 스키마가 없으면(노드 삭제/미로딩) 원본 런타임
+  // 값 키를 untyped text 로 fallback 해 데이터 은닉을 피한다.
+  const fields = useMemo<RerunField[]>(() => {
+    const manualNode = workflowNodes.find((n) => n.type === "manual_trigger");
+    const schema = manualNode?.config?.parameters;
+    if (Array.isArray(schema) && schema.length > 0) {
+      return (schema as TriggerParameterDefinition[]).map((p) => ({
+        name: p.name,
+        type: p.type,
+        description: p.description,
+      }));
+    }
+    return Object.keys(originalParameters).map((name) => ({
+      name,
+      type: "string" as const,
+    }));
+  }, [workflowNodes, originalParameters]);
 
-  const handleParamChange = (key: string, value: string) => {
+  const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -234,7 +295,15 @@ export function ReRunModal({
               {t("history.rerun.modal.originalLabel")}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs">{original.id}</span>
+              {/* spec §10.2 — ID 클릭 시 새 탭으로 원본 실행 상세 페이지. */}
+              <a
+                href={`/workflows/${original.workflowId}/executions/${original.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-xs text-[hsl(var(--primary))] underline underline-offset-2 hover:opacity-80"
+              >
+                {original.id}
+              </a>
               <span className="text-[hsl(var(--muted-foreground))]">
                 {formatDate(original.startedAt, "datetime")}
               </span>
@@ -262,21 +331,56 @@ export function ReRunModal({
             {t("history.rerun.useOriginalInput")}
           </label>
 
-          {/* 입력 폼 — useOriginalInput=ON 이면 read-only */}
-          {paramKeys.length > 0 && (
+          {/* 입력 폼 — manual_trigger 스키마 기반 typed 필드. ON 시 read-only */}
+          {fields.length > 0 && (
             <div className="flex flex-col gap-2">
-              {paramKeys.map((key) => (
-                <div key={key} className="flex flex-col gap-1">
-                  <Label htmlFor={`rerun-param-${key}`}>{key}</Label>
-                  <Input
-                    id={`rerun-param-${key}`}
-                    value={String(paramValues[key] ?? "")}
-                    disabled={useOriginalInput}
-                    readOnly={useOriginalInput}
-                    onChange={(e) => handleParamChange(key, e.target.value)}
-                  />
-                </div>
-              ))}
+              {fields.map((field) => {
+                const inputId = `rerun-param-${field.name}`;
+                const value = paramValues[field.name];
+                if (field.type === "boolean") {
+                  return (
+                    <label
+                      key={field.name}
+                      htmlFor={inputId}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        id={inputId}
+                        type="checkbox"
+                        checked={value === true || value === "true"}
+                        disabled={useOriginalInput}
+                        onChange={(e) => setParam(field.name, e.target.checked)}
+                      />
+                      <span>{field.name}</span>
+                      {field.description && (
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {field.description}
+                        </span>
+                      )}
+                    </label>
+                  );
+                }
+                return (
+                  <div key={field.name} className="flex flex-col gap-1">
+                    <Label htmlFor={inputId}>{field.name}</Label>
+                    <Input
+                      id={inputId}
+                      type={field.type === "number" ? "number" : "text"}
+                      value={displayValue(field.type, value)}
+                      disabled={useOriginalInput}
+                      readOnly={useOriginalInput}
+                      onChange={(e) =>
+                        setParam(field.name, coerceInput(field.type, e.target.value))
+                      }
+                    />
+                    {field.description && (
+                      <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                        {field.description}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
