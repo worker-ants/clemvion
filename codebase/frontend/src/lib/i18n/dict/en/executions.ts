@@ -66,10 +66,6 @@ export const executions: Dict["executions"] = {
   nodesPanelTitle: "Nodes",
   selectNodeHint: "Select a node to view details",
   noNodeExecutions: "No node executions recorded.",
-  tabPreview: "Preview",
-  tabInput: "Input",
-  tabOutput: "Output",
-  tabError: "Error",
   backgroundRun: {
     sectionTitle: "Background body run",
     loading: "Loading background body run info…",

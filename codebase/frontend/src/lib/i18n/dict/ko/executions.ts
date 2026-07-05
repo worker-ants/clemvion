@@ -64,10 +64,6 @@ export const executions = {
   nodesPanelTitle: "노드",
   selectNodeHint: "상세를 보려면 노드를 선택하세요",
   noNodeExecutions: "노드 실행 기록이 없어요.",
-  tabPreview: "미리보기",
-  tabInput: "입력",
-  tabOutput: "출력",
-  tabError: "오류",
   backgroundRun: {
     sectionTitle: "Background 본문 실행",
     loading: "Background 본문 실행 정보를 불러오고 있어요.",
