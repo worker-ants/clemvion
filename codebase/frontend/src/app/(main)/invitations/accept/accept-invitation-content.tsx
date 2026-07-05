@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { workspacesApi } from "@/lib/api/workspaces";
 import { invitationsApi, type InvitationMeta } from "@/lib/api/invitations";
 import { authApi } from "@/lib/api/auth";
-import { setAccessToken } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import {
@@ -105,8 +104,11 @@ export function AcceptInvitationContent() {
     } catch {
       // 로그아웃 요청이 실패해도 클라이언트 세션은 정리하고 로그인으로 보낸다.
     }
-    setAccessToken(null);
-    useAuthStore.getState().setUser(null);
+    // store 의 logout() 은 access token·`has_session` 힌트 쿠키·인증 플래그를 한꺼번에
+    // 정리한다. setUser(null) 만 쓰면 has_session 쿠키가 남아, 이후 초대 링크 재진입 시
+    // register-form 이 stale 쿠키로 잘못 리다이렉트한다(§1.5.3 진입 경로가 has_session
+    // 을 load-bearing 으로 쓰므로 로그아웃도 이 쿠키를 반드시 지워야 한다).
+    useAuthStore.getState().logout();
     router.push("/login");
   }
 

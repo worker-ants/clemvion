@@ -29,9 +29,11 @@ vi.mock("@/lib/api/auth", () => ({
 vi.mock("@/lib/api/client", () => ({ setAccessToken: vi.fn() }));
 
 let mockUser: { email: string } | null = null;
-const setUserMock = vi.fn();
+const storeLogoutMock = vi.fn();
 vi.mock("@/lib/stores/auth-store", () => ({
-  useAuthStore: { getState: () => ({ user: mockUser, setUser: setUserMock }) },
+  useAuthStore: {
+    getState: () => ({ user: mockUser, logout: storeLogoutMock }),
+  },
 }));
 vi.mock("@/lib/stores/workspace-store", () => ({
   useWorkspaceStore: (sel: (s: unknown) => unknown) =>
@@ -109,7 +111,8 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     const btn = await screen.findByText("invitations.accept.logoutAndSwitch");
     await userEvent.click(btn);
     await waitFor(() => expect(mockLogout).toHaveBeenCalled());
-    expect(setUserMock).toHaveBeenCalledWith(null);
+    // store.logout() 이 access token·has_session 쿠키·인증 플래그를 일괄 정리한다.
+    expect(storeLogoutMock).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
@@ -120,8 +123,8 @@ describe("AcceptInvitationContent (§1.5.3)", () => {
     render(<AcceptInvitationContent />);
     const btn = await screen.findByText("invitations.accept.logoutAndSwitch");
     await userEvent.click(btn);
-    // 서버 요청이 실패해도 로컬 세션은 정리되고 /login 으로 이동해야 한다.
-    await waitFor(() => expect(setUserMock).toHaveBeenCalledWith(null));
+    // 서버 요청이 실패해도 로컬 세션(store.logout)은 정리되고 /login 으로 이동해야 한다.
+    await waitFor(() => expect(storeLogoutMock).toHaveBeenCalled());
     expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
