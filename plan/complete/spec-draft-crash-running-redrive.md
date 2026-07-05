@@ -2,6 +2,9 @@
 worktree: exec-park-durable-resume
 started: 2026-07-03
 owner: project-planner
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/3-execution.md
 ---
 
 # Spec draft — 크래시/재시작 RUNNING 세그먼트 제어된 re-drive (PR3)

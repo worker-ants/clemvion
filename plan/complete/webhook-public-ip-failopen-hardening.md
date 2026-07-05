@@ -2,6 +2,11 @@
 worktree: webhook-public-ip-failopen-3800c4
 started: 2026-06-28
 owner: developer
+spec_impact:
+  - spec/7-channel-web-chat/4-security.md
+  - spec/5-system/12-webhook.md
+  - spec/5-system/1-auth.md
+  - spec/5-system/3-error-handling.md
 ---
 
 # 공개 webhook IP 미식별 fail-open 강화 (D-12)
@@ -61,8 +66,8 @@ PR #763 fresh 리뷰(review/code/2026/06/28/17_16_16) INFO #15 / 권장 7 에서
 - [x] **I-2** guard null-IP → `|| UNIDENTIFIED_IP_BUCKET` 공유 버킷 라우팅 + guard.spec(미식별 consumeStart 호출/분당·시간당 429/W14 trigger 첨부).
 - [x] TEST WORKFLOW lint·unit·build 통과. **e2e 보류(사용자 취소 → PR CI 위임)** — docker.io `flyway:10-alpine` manifest fetch `DeadlineExceeded`(레지스트리 인프라, 빌드 5회+직접 pull+classic-builder 우회+사용자 이미지 pull 후 재시도 모두 동일; 이미지 layer 는 로컬 캐시·registry root 도달·node 이미지는 로드됨 → flyway namespace 특정 차단). 코드 무관. 사용자 "e2e는 취소하고 이후 진행" 결정 → PR CI 가 e2e 독립 실행.
 - [x] `/ai-review` (`review/code/2026/06/28/21_09_41`) **RISK:LOW, Critical 0, Warning 2** → W1(plan 체크박스)·W2(sentinel hourly 테스트) + INFO 7(`??`→`||`)·8(IPv6 단언)·9(W14 단언) 반영. RESOLUTION.md 작성.
-- [ ] `/consistency-check --impl-done spec/5-system/`
-- [ ] push + PR
+- [x] `/consistency-check --impl-done spec/5-system/` — 병합 게이트 통과 (PR #770)
+- [x] push + PR — PR #770 (`d2342b40c`) merged
 
 ## 범위 경계
 - 동시 ≤3 캡(대화 종료 신호 연동)은 여전히 비목표(4-security §4) — 본 작업 밖.

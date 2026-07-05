@@ -2,8 +2,7 @@
 worktree: workflow-cap-dto-bca77e
 started: 2026-07-04
 owner: developer
-spec_impact:
-  - none
+spec_impact: none
 ---
 
 # workflow-level cap validated write DTO (exec-intake followup)

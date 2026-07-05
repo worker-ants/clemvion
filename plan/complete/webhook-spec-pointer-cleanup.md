@@ -3,6 +3,11 @@ worktree: webhook-spec-pointer-cleanup-215f48
 started: 2026-06-28
 owner: project-planner
 branch: claude/webhook-spec-pointer-cleanup-215f48
+spec_impact:
+  - spec/5-system/2-api-convention.md
+  - spec/7-channel-web-chat/4-security.md
+  - spec/5-system/1-auth.md
+  - spec/5-system/3-error-handling.md
 ---
 
 # webhook 하드닝 후속 — C 잔여: spec-only 단방향 포인터 정리
@@ -36,8 +41,8 @@ echo 금지 포인터·web-chat §4 fail-open 언급)는 별도 spec 묶음" 으
 - [x] `/consistency-check --spec` (spec write 직전 의무) — `review/consistency/2026/06/28/19_49_50` **BLOCK:NO** (LOW, Critical 0)
 - [x] spec 4개 파일 반영
 - [x] side-effect 점검 (역참조 anchor·상호링크)
-- [ ] commit `docs(spec): webhook 하드닝 C 잔여 — 단방향 포인터/역참조/Overview 결손 보강`
-- [ ] push + PR
+- [x] commit `docs(spec): webhook 하드닝 C 잔여 — 단방향 포인터/역참조/Overview 결손 보강`
+- [x] push + PR — PR #766 (`8983c1fcb`) merged
 
 ## 후속 연동 메모 (consistency WARNING 2 / INFO 8)
 - **P-2 재검토 트리거**: 단위 2 `webhook-public-ip-failopen-hardening.md` 의 IP 미식별

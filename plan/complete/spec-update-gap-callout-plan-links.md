@@ -2,6 +2,7 @@
 worktree: trigger-schedule-sync-f88604
 started: 2026-06-10
 owner: resolution-applier
+spec_impact: none
 ---
 # Spec Update Draft — 구현 갭 callout 에 plan 링크 추가
 
