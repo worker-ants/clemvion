@@ -1,8 +1,6 @@
 ---
 id: slack
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-slack-gaps.md
+status: implemented
 code:
   - codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts
   - codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts

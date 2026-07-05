@@ -1,8 +1,6 @@
 ---
 id: form
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-form-gaps.md
+status: implemented
 code:
   - codebase/backend/src/nodes/presentation/form/form.component.ts
   - codebase/backend/src/nodes/presentation/form/form.handler.ts
