@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Provider } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { TriggersService } from './triggers.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
@@ -241,6 +241,176 @@ describe('TriggersService.findOneDetail', () => {
       NotFoundException,
     );
     expect(scheduleRepo.findOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let scheduleRepo: jest.Mocked<Repository<Schedule>>;
+
+  function mockQb(rows: Trigger[]): void {
+    const qb = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      offset: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(rows.length),
+      getMany: jest.fn().mockResolvedValue(rows),
+    };
+    (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+  }
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: { createQueryBuilder: jest.fn() },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        {
+          provide: getRepositoryToken(Schedule),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: ScheduleRunnerService,
+          useValue: { registerJob: jest.fn(), removeJob: jest.fn() },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn(),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
+  });
+
+  it('여러 schedule 행을 단일 IN 배치로 enrichment 하고 webhook 행은 건드리지 않는다 (N+1 회피)', async () => {
+    const next1 = new Date('2026-05-06T00:00:00Z');
+    const next2 = new Date('2026-05-07T09:00:00Z');
+    // schedule 2건 + webhook 1건 — per-row findOne 루프로 퇴행하면 find 가
+    // 2회 호출돼 아래 toHaveBeenCalledTimes(1) 가 깨진다(배치성의 실질 가드).
+    mockQb([
+      {
+        id: 's-trig-1',
+        workspaceId: 'ws',
+        type: 'schedule',
+        name: 'daily',
+      } as unknown as Trigger,
+      {
+        id: 'w-trig',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+      } as unknown as Trigger,
+      {
+        id: 's-trig-2',
+        workspaceId: 'ws',
+        type: 'schedule',
+        name: 'weekly',
+      } as unknown as Trigger,
+    ]);
+    scheduleRepo.find.mockResolvedValue([
+      {
+        id: 's1',
+        triggerId: 's-trig-1',
+        workspaceId: 'ws',
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        nextRunAt: next1,
+      } as unknown as Schedule,
+      {
+        id: 's2',
+        triggerId: 's-trig-2',
+        workspaceId: 'ws',
+        cronExpression: '0 9 * * 1',
+        timezone: 'UTC',
+        nextRunAt: next2,
+      } as unknown as Schedule,
+    ]);
+
+    const result = await service.findAll('ws', { page: 1, limit: 20 });
+
+    // 두 schedule 행이 있어도 조회는 IN [양쪽 id] 배치 1회 — per-row 였다면 2회.
+    expect(scheduleRepo.find).toHaveBeenCalledTimes(1);
+    expect(scheduleRepo.find).toHaveBeenCalledWith({
+      where: { triggerId: In(['s-trig-1', 's-trig-2']), workspaceId: 'ws' },
+    });
+    const rows = result.data as unknown as Array<Record<string, unknown>>;
+    const sched1 = rows.find((r) => r.id === 's-trig-1')!;
+    expect(sched1.cronExpression).toBe('0 9 * * *');
+    expect(sched1.timezone).toBe('Asia/Seoul');
+    expect(sched1.nextRunAt).toBe(next1);
+    const sched2 = rows.find((r) => r.id === 's-trig-2')!;
+    expect(sched2.cronExpression).toBe('0 9 * * 1');
+    expect(sched2.nextRunAt).toBe(next2);
+    const hook = rows.find((r) => r.id === 'w-trig')!;
+    expect(hook.cronExpression).toBeUndefined();
+  });
+
+  it('schedule 행이 없으면 schedule 조회를 skip', async () => {
+    mockQb([
+      {
+        id: 'w-trig',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+      } as unknown as Trigger,
+    ]);
+    await service.findAll('ws', { page: 1, limit: 20 });
+    expect(scheduleRepo.find).not.toHaveBeenCalled();
+  });
+
+  it('schedule 행이 있으나 매칭 schedule row 부재 시 cron 필드 없이 반환', async () => {
+    mockQb([
+      {
+        id: 's-trig',
+        workspaceId: 'ws',
+        type: 'schedule',
+        name: 'daily',
+      } as unknown as Trigger,
+    ]);
+    scheduleRepo.find.mockResolvedValue([]);
+    const result = await service.findAll('ws', { page: 1, limit: 20 });
+    const row = (result.data as unknown as Array<Record<string, unknown>>)[0];
+    expect(row.cronExpression).toBeUndefined();
+    expect(row.nextRunAt).toBeUndefined();
   });
 });
 

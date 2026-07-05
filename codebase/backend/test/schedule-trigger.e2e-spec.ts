@@ -111,6 +111,38 @@ describe('Schedule trigger (e2e)', () => {
     expect(trig.rows[0].is_active).toBe(true);
   });
 
+  it('C-2. GET /api/triggers 목록이 schedule 트리거의 cron·nextRunAt 을 포함 (V-10)', async () => {
+    const cron = '15 8 * * *';
+    const create = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-list'),
+        cronExpression: cron,
+        timezone: 'Asia/Seoul',
+      });
+    expect(create.status).toBe(201);
+
+    // 목록(findAll)은 단건 조회 없이도 schedule 행을 enrichment 해야 한다.
+    const list = await request(BASE_URL)
+      .get('/api/triggers?type=schedule&limit=100')
+      .set(authHeaders());
+    expect(list.status).toBe(200);
+    const rows = list.body.data as Array<{
+      type: string;
+      cronExpression?: string;
+      timezone?: string;
+      nextRunAt?: string | null;
+    }>;
+    const row = rows.find((r) => r.cronExpression === cron);
+    expect(row).toBeDefined();
+    expect(row!.type).toBe('schedule');
+    expect(row!.timezone).toBe('Asia/Seoul');
+    expect(row!.nextRunAt).toBeDefined();
+    expect(row!.nextRunAt).not.toBeNull();
+  });
+
   it('D. PATCH cron → nextRunAt 재계산', async () => {
     const create = await request(BASE_URL)
       .post('/api/schedules')
