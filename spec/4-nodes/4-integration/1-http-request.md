@@ -335,7 +335,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 | `HTTP_4XX` | `400 ≤ statusCode < 500` (또는 manual redirect 한도 도달한 3xx 도달 시) | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | `{ error: <message> }` (legacy 잔재) | — (response 없음) | `0` |
-| `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
+| `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·redirect 대상 재검증·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로. **`output.error.message` 는 차단된 host/IP 를 노출하지 않는 일반화 문구(`Request blocked by SSRF policy.`) — 원본 상세는 서버 로그(`logger.warn`)에만, Usage 로그도 일반화 (§8.3)** | — | — | `0` |
 | `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` / `INTEGRATION_CALL_FAILED`(integrationId 부재 — `requireEntity` `RESOURCE_NOT_FOUND` fallback) 모두 본 경로로 surface | — | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | IntegrationsService 미주입 또는 workspace context 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
 
@@ -356,5 +356,13 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 **결정**: 사용자 결정(2026-06-11)으로 SSRF 가드를 **전 인증 방식 공통**으로 적용한다. 내부 서비스 접근이라는 정당 용도는 이미 `ALLOW_PRIVATE_HOST_TARGETS=true` opt-out 으로 충족되므로 `none` 전용 무가드를 둘 이유가 없다. 이로써 DB Query·Send Email 의 일관된 secure-by-default posture·`NF-SC-05`(OWASP) 와도 정합한다. Usage 로깅은 종전대로 `integration` 인증에 한정한다 (`none`/`custom` 은 활동 로그를 생성하지 않으므로) — SSRF 차단의 `error` 포트(`HTTP_BLOCKED`) 라우팅만 전 인증 공통이다.
 
 **기각된 대안**: (B) `none` 전용 별도 host allowlist env — 플래그 이원화 + 어느 spec 에도 근거 없는 신규 표면이고 DB/Email 과 posture 분기 지속. (C) 현상 유지 + "none 은 의도적 무가드" 명문화 — IMDS·내부망 SSRF 면이 그대로 열려 §4 SSRF opt-out callout 와의 모순을 봉합에 그치며, 그 용도가 이미 opt-out 으로 충족되므로 예외 정당성 없음.
+
+### 8.3 SSRF 차단 메시지 일반화 — 정찰 면 축소 (2026-07-05)
+
+**문제**: `http-safety.ts` 의 SSRF 가드가 던지는 원본 메시지(`SSRF_BLOCKED: hostname "…" resolves to a restricted network range` 등)가 차단된 hostname/IP 를 그대로 담고 있어, 이를 `output.error.message` 로 클라이언트에 노출하면 내부망 구조 정찰(CWE-209) 면이 된다. Database Query(`DB_HOST_BLOCKED`)·Send Email(`EMAIL_HOST_BLOCKED`)은 이미 host/IP 미노출 일반화 문구를 쓰나 HTTP Request 만 원본을 노출하는 3-node 비대칭 상태였다([2-database-query Rationale](./2-database-query.md) 가 예고한 HTTP/Email follow-up).
+
+**결정**: `HTTP_BLOCKED` 의 `output.error.message` 를 host/IP 미노출 일반화 문구(`Request blocked by SSRF policy.`)로 통일한다(DB/Email 대칭). 원본 상세(hostname/IP)는 `logger.warn`(전 인증 방식 공통, 서버 로그 전용)에만 남긴다 — **Usage 로그(`IntegrationUsageLog`)는 `GET /integrations/:id/activity` 로 workspace 사용자에게 raw 반환되므로, 거기에도 일반화 메시지를 기록해 정찰 면을 넓히지 않는다** (원본은 로그 파이프라인 밖으로 나가지 않는 `logger.warn` 만). 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를 렌더하므로 UX 손실은 없다. 함께 **redirect 대상·한도 초과 SSRF 차단도 `HTTP_BLOCKED` 로 라우팅**한다 — 종전 redirect hop 의 SSRF 예외가 바깥 일반 catch 로 떨어져 오분류(`HTTP_TRANSPORT_FAILED`/`INTEGRATION_CALL_FAILED`)되던 것을 §4.2/§6 계약("redirect 한도 SSRF=HTTP_BLOCKED")에 맞춰 정정.
+
+**기각된 대안**: (B) 원본을 `output.error.details` 로 옮겨 노출 — details 도 클라이언트 wire 라 정찰 면 동일. (C) message 를 빈 문자열 — `HTTP {status}` 스타일 message 계약과 어긋나고 디버깅 단서 상실.
 
 **⚠️ 운영 영향 (breaking)**: 본 변경 후 `none`/`custom` 인증으로 사설/loopback/link-local/CGNAT 대상을 호출하던 기존 self-host 워크플로는 `ALLOW_PRIVATE_HOST_TARGETS=true`(외부 egress 방화벽 전제) 를 설정하기 전까지 `HTTP_BLOCKED` 로 실패한다. 마이그레이션은 기존 환경변수 1개 설정으로 끝나며, 본 정책은 §4 SSRF opt-out callout 가 이미 명문화한 secure-by-default 의 enforcement 일치다.

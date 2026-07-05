@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ExecutionContext,
   NodeHandler,
@@ -20,6 +21,19 @@ import {
   assertSafeOutboundUrl,
 } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
+
+const logger = new Logger('HttpRequestHandler');
+
+/**
+ * SSRF 차단 시 클라이언트 노출용 일반화 메시지 — 차단된 host/IP 를 노출하지
+ * 않는다(정찰 면 축소, CWE-209). 원본 상세(hostname/IP)는 `logger.warn`(서버 로그
+ * 전용)에만 남는다 — usage 로그(`IntegrationUsageLog`)는 Activity API
+ * (`GET /integrations/:id/activity`)로 workspace 사용자에게 raw 반환되므로 거기에도
+ * 이 일반화 문구를 기록한다. DB(`DB_HOST_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`) 메시지
+ * 일반화와 대칭. 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를
+ * 렌더하므로 이 message 는 wire 안전 목적이다.
+ */
+const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
 
 /**
  * Strip URL-borne credentials before echoing on `NodeHandlerOutput.config`
@@ -346,6 +360,11 @@ export class HttpRequestHandler
       const parsed = assertSafeOutboundUrl(url);
       await assertSafeOutboundHostResolved(parsed.hostname);
     } catch (err) {
+      // 원본 상세(차단된 hostname/IP)는 서버 로그·usage 로그에만 남기고,
+      // 클라이언트 output.error.message 는 정찰 면 축소를 위해 host/IP 미노출
+      // 일반화 문구로 대체한다 (DB_HOST_BLOCKED·EMAIL_HOST_BLOCKED 대칭).
+      const detail = err instanceof Error ? err.message : String(err);
+      logger.warn(`SSRF block (http-request): ${detail}`);
       // Usage 로그는 integration 인증에 한정 (none/custom 은 활동 로그 미생성,
       // spec §4.2). SSRF 차단의 error 포트 라우팅(HTTP_BLOCKED)은 전 인증 공통.
       if (authentication === 'integration' && integrationId) {
@@ -354,8 +373,11 @@ export class HttpRequestHandler
           status: 'failed',
           durationMs: Date.now() - start,
           error: {
+            // 원본 host/IP 는 Activity 로그 API(GET /integrations/:id/activity)로
+            // workspace 사용자에게 노출되므로 usage 로그 message 도 일반화한다.
+            // 원본 상세는 logger.warn(사용자 API 미노출 경로)에만 남긴다.
             code: ErrorCode.HTTP_BLOCKED,
-            message: err instanceof Error ? err.message : String(err),
+            message: SSRF_BLOCKED_CLIENT_MESSAGE,
           },
           api: { method, path: extractApiPath(url) },
         }).catch(() => {});
@@ -364,7 +386,7 @@ export class HttpRequestHandler
       return buildPreflightErrorOutput(
         new IntegrationError(
           ErrorCode.HTTP_BLOCKED,
-          err instanceof Error ? err.message : String(err),
+          SSRF_BLOCKED_CLIENT_MESSAGE,
         ),
         configEcho,
         cappedRequestBody,
@@ -414,12 +436,30 @@ export class HttpRequestHandler
         res.headers.get('location')
       ) {
         if (hops >= 5) {
-          throw new Error('SSRF_BLOCKED: redirect chain exceeded 5 hops');
+          // spec §4.2/§6 — redirect 한도 초과 SSRF 차단도 HTTP_BLOCKED.
+          logger.warn(
+            'SSRF block (http-request): redirect chain exceeded 5 hops',
+          );
+          throw new IntegrationError(
+            ErrorCode.HTTP_BLOCKED,
+            SSRF_BLOCKED_CLIENT_MESSAGE,
+          );
         }
         const location = res.headers.get('location') as string;
         const next = new URL(location, url).toString();
-        const parsedNext = assertSafeOutboundUrl(next);
-        await assertSafeOutboundHostResolved(parsedNext.hostname);
+        // redirect 대상의 SSRF 검증 실패는 HTTP_BLOCKED 로 라우팅(원본 host/IP 는
+        // 서버 로그에만, 클라이언트엔 일반화 — preflight 경로와 대칭).
+        try {
+          assertSafeOutboundUrl(next);
+          await assertSafeOutboundHostResolved(new URL(next).hostname);
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          logger.warn(`SSRF block (http-request redirect): ${detail}`);
+          throw new IntegrationError(
+            ErrorCode.HTTP_BLOCKED,
+            SSRF_BLOCKED_CLIENT_MESSAGE,
+          );
+        }
         url = next;
         hops++;
         res = await fetch(url, fetchOptions);
@@ -492,6 +532,28 @@ export class HttpRequestHandler
     } catch (err: unknown) {
       clearTimeout(timeoutId);
       const durationMs = Date.now() - start;
+      // redirect hop 의 SSRF 차단은 IntegrationError(HTTP_BLOCKED)로 승격돼 이 catch
+      // 에 도달한다 — transport 실패로 오분류하지 말고 그 code/message(일반화)를 보존.
+      if (err instanceof IntegrationError) {
+        if (integrationId && authentication === 'integration') {
+          await this.logUsage(context, {
+            integrationId,
+            status: 'failed',
+            durationMs,
+            error: { code: err.code, message: err.message },
+            api: { method, path: extractApiPath(url) },
+          }).catch(() => {});
+        }
+        return buildPreflightErrorOutput(
+          err,
+          configEcho,
+          cappedRequestBody,
+          bodyType,
+          method,
+          url,
+          durationMs,
+        );
+      }
       const message = err instanceof Error ? err.message : String(err);
       if (integrationId && authentication === 'integration') {
         await this.logUsage(context, {
