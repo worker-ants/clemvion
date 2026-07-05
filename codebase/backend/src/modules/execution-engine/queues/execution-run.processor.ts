@@ -6,9 +6,9 @@ import {
   EXECUTION_RUN_MAX_STALLED_COUNT,
   EXECUTION_RUN_STALLED_INTERVAL_MS,
   EXECUTION_RUN_QUEUE_DEFAULT_OPTS,
-  resolveExecutionRunWorkerConcurrency,
   type ExecutionRunJob,
 } from './execution-run.queue';
+import { resolveExecutionRunWorkerConcurrency } from '../execution-limits';
 import { ExecutionEngineService } from '../execution-engine.service';
 
 /**

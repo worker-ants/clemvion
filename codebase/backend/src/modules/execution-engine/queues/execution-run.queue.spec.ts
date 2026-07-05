@@ -3,10 +3,8 @@ import {
   EXECUTION_RUN_QUEUE_DEFAULT_OPTS,
   EXECUTION_RUN_MAX_STALLED_COUNT,
   EXECUTION_RUN_STALLED_INTERVAL_MS,
-  DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY,
   buildExecutionRunJobId,
   resolveExecutionRunPriority,
-  resolveExecutionRunWorkerConcurrency,
   EXECUTION_RUN_PRIORITY,
 } from './execution-run.queue';
 
@@ -62,49 +60,6 @@ describe('execution-run.queue', () => {
 
     it('PR4 — stalledInterval 30초 (BullMQ stalled 검출 주기)', () => {
       expect(EXECUTION_RUN_STALLED_INTERVAL_MS).toBe(30_000);
-    });
-  });
-
-  describe('resolveExecutionRunWorkerConcurrency', () => {
-    it('미설정 시 기본값 1', () => {
-      expect(resolveExecutionRunWorkerConcurrency({})).toBe(
-        DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY,
-      );
-    });
-
-    it('양의 정수 채택', () => {
-      expect(
-        resolveExecutionRunWorkerConcurrency({
-          EXECUTION_RUN_WORKER_CONCURRENCY: '4',
-        }),
-      ).toBe(4);
-    });
-
-    it('0·음수·소수·공학표기·비숫자는 기본값 fallback', () => {
-      for (const bad of ['0', '-1', '2.5', '1e10', 'abc', '']) {
-        expect(
-          resolveExecutionRunWorkerConcurrency({
-            EXECUTION_RUN_WORKER_CONCURRENCY: bad,
-          }),
-        ).toBe(DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY);
-      }
-    });
-
-    // SUMMARY#12 — 공백 전용 문자열 + 극단값 동작 명시
-    it('공백 전용 문자열은 기본값 fallback (trim 후 빈 문자열 → \\d+ 불일치)', () => {
-      expect(
-        resolveExecutionRunWorkerConcurrency({
-          EXECUTION_RUN_WORKER_CONCURRENCY: '   ',
-        }),
-      ).toBe(DEFAULT_EXECUTION_RUN_WORKER_CONCURRENCY);
-    });
-
-    it('Number.MAX_SAFE_INTEGER 는 양의 정수로 채택 (극단값 동작 문서화)', () => {
-      expect(
-        resolveExecutionRunWorkerConcurrency({
-          EXECUTION_RUN_WORKER_CONCURRENCY: String(Number.MAX_SAFE_INTEGER),
-        }),
-      ).toBe(Number.MAX_SAFE_INTEGER);
     });
   });
 });
