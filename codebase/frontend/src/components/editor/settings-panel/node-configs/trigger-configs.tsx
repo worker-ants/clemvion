@@ -3,17 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { SectionTitle } from "./shared";
 import { useT } from "@/lib/i18n";
+import type { TriggerParameterDefinition } from "@/lib/api/triggers";
 
 type Config = Record<string, unknown>;
 type OnChange = (c: Config) => void;
-
-export type TriggerParameter = {
-  name: string;
-  type: "string" | "number" | "boolean" | "object" | "array";
-  required?: boolean;
-  defaultValue?: unknown;
-  description?: string;
-};
 
 export function ManualTriggerConfig({
   config,
@@ -23,7 +16,7 @@ export function ManualTriggerConfig({
   onChange: OnChange;
 }) {
   const t = useT();
-  const parameters = (config.parameters as TriggerParameter[]) ?? [];
+  const parameters = (config.parameters as TriggerParameterDefinition[]) ?? [];
 
   const addParameter = () =>
     onChange({
@@ -42,7 +35,7 @@ export function ManualTriggerConfig({
 
   const updateParameter = (
     i: number,
-    key: keyof TriggerParameter,
+    key: keyof TriggerParameterDefinition,
     val: unknown,
   ) => {
     const updated = parameters.map((p, idx) =>
@@ -85,7 +78,7 @@ export function ManualTriggerConfig({
           <select
             value={p.type}
             onChange={(e) =>
-              updateParameter(i, "type", e.target.value as TriggerParameter["type"])
+              updateParameter(i, "type", e.target.value as TriggerParameterDefinition["type"])
             }
             className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
           >

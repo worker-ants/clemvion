@@ -10,6 +10,28 @@ import { normalizePagedResponse, type PagedResult } from "./paginated";
  * 등)의 호출 형태를 그대로 보존한다. (`lib/api/executions.ts` 관례 답습.)
  */
 
+/**
+ * 트리거 입력 파라미터 스키마 정의 (spec/4-nodes/7-trigger/0-common.md §1).
+ * `config.parameters` 는 값이 아니라 이 shape 의 **스키마** 배열이다(값은 실행 시점의
+ * `output.parameters` = Record<string, unknown>). backend
+ * `execution-engine/types/trigger-parameter.types.ts` 와 이름·shape 정합 —
+ * 프런트 canonical 정의로 여기서 단일화(에디터 trigger-configs·Re-run 모달 공용).
+ */
+export type TriggerParameterType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "object"
+  | "array";
+
+export interface TriggerParameterDefinition {
+  name: string;
+  type: TriggerParameterType;
+  required?: boolean;
+  defaultValue?: unknown;
+  description?: string;
+}
+
 /** Spec Chat Channel §4.1 + §5.4.2 — config.chatChannel (응답 sanitize 후 형태). */
 export interface ChatChannelConfigView {
   provider?: string;
