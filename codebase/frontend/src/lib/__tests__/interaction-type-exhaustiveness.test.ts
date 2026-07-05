@@ -27,11 +27,17 @@ import type { ConversationTurnSource } from "@/lib/conversation/conversation-uti
 // SoT: spec/conventions/interaction-type-registry.md §1.2 column "Frontend
 // 처리 분기 위치". A new code site that branches on WaitingInteractionType
 // MUST also be added to this list (and to the spec matrix).
+//
+// The exhaustive `isWaitingForm/Buttons/Conversation` derivation shared by the
+// editor Run Results drawer and the execution-detail page lives in the
+// `use-result-detail-waiting.ts` `deriveFlags` closure (single site — the two
+// consumers delegate). The drawer's residual `isLiveConversation` only
+// distinguishes the two AI states and is a subset consumer, not an exhaustive
+// branch, so it is TS-`assertNever`-covered rather than listed here (rule 3).
 const REGISTRY_SITES = [
   "codebase/frontend/src/lib/websocket/use-execution-events.ts",
   "codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts",
-  "codebase/frontend/src/components/editor/run-results/run-results-drawer.tsx",
-  "codebase/frontend/src/app/(main)/workflows/[id]/executions/[executionId]/page.tsx",
+  "codebase/frontend/src/components/editor/run-results/use-result-detail-waiting.ts",
 ];
 
 // Derive the enum values from the actual TS type so a rename is caught

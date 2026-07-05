@@ -56,8 +56,9 @@ import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 // live waiting 상호작용(내부 useExecutionInteractionCommands)을 한 컴포넌트로 통일한다
 // (spec/2-navigation/14-execution-history.md §3.3/§3.4).
 import { ResultDetail } from "@/components/editor/run-results/result-detail";
+import { useResultDetailWaiting } from "@/components/editor/run-results/use-result-detail-waiting";
 import type { NodeResult } from "@/lib/stores/execution-store";
-import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
+import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
 
@@ -515,29 +516,23 @@ function NodeResultsTab({
   // Waiting-state selectors — populated by useExecutionEvents when the
   // execution (live or already persisted) is in `waiting_for_input`.
   const waitingNodeId = useExecutionStore((s) => s.waitingNodeId);
-  const waitingInteractionType = useExecutionStore(
-    (s) => s.waitingInteractionType,
-  );
-  const waitingFormConfig = useExecutionStore((s) => s.waitingFormConfig);
-  const waitingButtonConfig = useExecutionStore((s) => s.waitingButtonConfig);
-  const waitingConversationConfig = useExecutionStore(
-    (s) => s.waitingConversationConfig,
-  );
-  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — `ai_form_render`
-  // 의 활성 form 식별자. assistant turn 의 `presentations[*].form` 중 본
-  // toolCallId 와 일치하는 항목만 interactive `DynamicFormUI` 로 렌더 (별도
-  // surface stack 아님 — ConversationInspector 안에서 단일).
-  const pendingFormToolCallId = useExecutionStore(selectPendingFormToolCallId);
-  const conversationMessages = useExecutionStore((s) => s.conversationMessages);
-  const isWaitingAiResponse = useExecutionStore((s) => s.isWaitingAiResponse);
-  const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
-  const resumeFromAiRenderForm = useExecutionStore(
-    (s) => s.resumeFromAiRenderForm,
-  );
-  const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
-  const resumeFromConversation = useExecutionStore(
-    (s) => s.resumeFromConversation,
-  );
+  // ResultDetail 의 store 파생 입력(waiting selector·resume 콜백·pendingFormToolCallId)
+  // 을 에디터 Run Results 드로어와 공용 hook 으로 단일화(V-05 후속). 타입별 대기
+  // 플래그는 isSelectedWaiting(실행 상세 고유: selectedNodeId === waitingNodeId)에
+  // 의존하므로 deriveFlags 로 계산한다.
+  const {
+    waitingFormConfig,
+    waitingButtonConfig,
+    waitingConversationConfig,
+    conversationMessages,
+    isWaitingAiResponse,
+    pendingFormToolCallId,
+    resumeFromForm,
+    resumeFromAiRenderForm,
+    resumeFromButtons,
+    resumeFromConversation,
+    deriveFlags,
+  } = useResultDetailWaiting();
 
   // Derived-state pattern (not an effect): when a newly-surfaced waiting node
   // differs from the one we previously auto-selected, move the selection once.
@@ -560,18 +555,9 @@ function NodeResultsTab({
 
   const isSelectedWaiting =
     !!waitingNodeId && selectedNodeId === waitingNodeId;
-  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — 그래프 Form 노드
-  // (`interactionType: 'form'`) 한정으로 축소. `ai_form_render` 의 활성 form 은
-  // ConversationInspector 안 timeline 인라인 (AssistantPresentationsBlock case
-  // "form" active 분기) 으로 그려진다.
-  const isWaitingForm =
-    isSelectedWaiting && waitingInteractionType === "form";
-  const isWaitingButtons =
-    isSelectedWaiting && waitingInteractionType === "buttons";
-  const isWaitingConversation =
-    isSelectedWaiting &&
-    (waitingInteractionType === "ai_conversation" ||
-      waitingInteractionType === "ai_form_render");
+  // 타입별 대기 플래그(ai_form_render 뉘앙스 포함)는 공용 hook 의 deriveFlags 단일 정의.
+  const { isWaitingForm, isWaitingButtons, isWaitingConversation } =
+    deriveFlags(isSelectedWaiting);
 
   const t = useT();
 

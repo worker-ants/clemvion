@@ -3,7 +3,6 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   useExecutionStore,
-  selectPendingFormToolCallId,
   selectSortedNodeResults,
 } from "@/lib/stores/execution-store";
 import {
@@ -21,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ResultTimeline } from "./result-timeline";
 import { ResultDetail } from "./result-detail";
+import { useResultDetailWaiting } from "./use-result-detail-waiting";
 import { useT } from "@/lib/i18n";
 import { ReRunModal } from "@/components/executions/rerun-modal";
 import { canReRun } from "@/lib/executions/can-rerun";
@@ -105,24 +105,10 @@ export function RunResultsDrawer() {
   const nodeStatuses = useExecutionStore((s) => s.nodeStatuses);
   const nodeResults = useExecutionStore((s) => s.nodeResults);
   const waitingNodeId = useExecutionStore((s) => s.waitingNodeId);
-  const waitingFormConfig = useExecutionStore((s) => s.waitingFormConfig);
   const selectedResultNodeId = useExecutionStore(
     (s) => s.selectedResultNodeId,
   );
   const selectResultNode = useExecutionStore((s) => s.selectResultNode);
-  const waitingInteractionType = useExecutionStore(
-    (s) => s.waitingInteractionType,
-  );
-  const waitingButtonConfig = useExecutionStore((s) => s.waitingButtonConfig);
-  const waitingConversationConfig = useExecutionStore(
-    (s) => s.waitingConversationConfig,
-  );
-  const conversationMessages = useExecutionStore(
-    (s) => s.conversationMessages,
-  );
-  const isWaitingAiResponse = useExecutionStore(
-    (s) => s.isWaitingAiResponse,
-  );
   const selectedConversationItemIndex = useExecutionStore(
     (s) => s.selectedConversationItemIndex,
   );
@@ -130,20 +116,24 @@ export function RunResultsDrawer() {
     (s) => s.selectConversationItem,
   );
   const reset = useExecutionStore((s) => s.reset);
-  const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
-  const resumeFromAiRenderForm = useExecutionStore(
-    (s) => s.resumeFromAiRenderForm,
-  );
-  const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
-  const resumeFromConversation = useExecutionStore(
-    (s) => s.resumeFromConversation,
-  );
-  // spec §6.1.d.ii — `ai_form_render` 의 pending form 식별자. assistant turn
-  // 의 `presentations[*].form` payload 중 본 toolCallId 와 일치하는 항목만
-  // interactive `DynamicFormUI` 로 렌더된다. `null` 이면 모든 form payload 가
-  // display-only `FormSubmittedContent`. 早期 return 이전에 hook 을 호출해야
-  // Rules of Hooks 를 준수한다.
-  const pendingFormToolCallId = useExecutionStore(selectPendingFormToolCallId);
+  // ResultDetail 의 store 파생 입력(waiting selector·resume 콜백·pendingFormToolCallId)
+  // 을 실행 상세 페이지와 공용 hook 으로 단일화(V-05 후속). store 구독이라 Rules of
+  // Hooks 상 `status === "idle"` early return **이전**에 호출한다. 타입별 대기 플래그는
+  // isSelectedWaiting(소비처별 상이)에 의존하므로 deriveFlags 로 early return 이후 계산.
+  const {
+    waitingInteractionType,
+    waitingFormConfig,
+    waitingButtonConfig,
+    waitingConversationConfig,
+    conversationMessages,
+    isWaitingAiResponse,
+    pendingFormToolCallId,
+    resumeFromForm,
+    resumeFromAiRenderForm,
+    resumeFromButtons,
+    resumeFromConversation,
+    deriveFlags,
+  } = useResultDetailWaiting();
 
   // Re-run 진입점 (spec/5-system/13-replay-rerun.md §10.1). 드로어에서는 권한
   // 미충족 시 버튼을 hidden (disabled 아님) — 워크플로 작성 중 컨텍스트라 노이즈
@@ -315,20 +305,10 @@ export function RunResultsDrawer() {
     (selectedResult?.nodeId === waitingNodeId ||
       selectedResultNodeId === waitingNodeId);
 
-  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — `ai_form_render`
-  // 의 활성 form 의 UI 단일 진실은 assistant turn 의 timeline 인라인이다
-  // (ConversationInspector 안 AssistantPresentationsBlock 의 case "form" active
-  // 분기). 따라서 `isWaitingForm` 은 그래프 Form 노드 (`interactionType: 'form'`)
-  // 한정으로 축소 — `ai_form_render` 는 `isWaitingConversation` 만 true 이며
-  // 별도 DynamicFormUI stack 을 만들지 않는다.
-  const isWaitingForm =
-    isSelectedWaiting && waitingInteractionType === "form";
-  const isWaitingButtons =
-    isSelectedWaiting && waitingInteractionType === "buttons";
-  const isWaitingConversation =
-    isSelectedWaiting &&
-    (waitingInteractionType === "ai_conversation" ||
-      waitingInteractionType === "ai_form_render");
+  // 타입별 대기 플래그(ai_form_render 뉘앙스 포함)는 공용 hook 의 deriveFlags 가
+  // 단일 정의. isSelectedWaiting 은 드로어 고유(iteration-aware dual match)라 인자 전달.
+  const { isWaitingForm, isWaitingButtons, isWaitingConversation } =
+    deriveFlags(isSelectedWaiting);
   const isLiveConversation =
     status === "waiting_for_input" &&
     (waitingInteractionType === "ai_conversation" ||
