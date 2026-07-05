@@ -100,5 +100,5 @@ sessions 의 canonical spec 위치에도 동일 사실 반영. line 329:
 - [x] draft 확장(변경 4·5) 후 /consistency-check --spec 재실행 → BLOCK: NO (10_42_09, 5/5 clean)
 - [x] spec 반영 (변경 1·2·3·4·5 — 4 spec 파일, 7 edits)
 - [x] followups auth Critical 2건 close 반영 (exec-intake-followups.md:25) + webauthn-response.dto.ts follow-up 등록
-- [ ] commit + PR (origin/main)
-- [ ] memory
+- [x] commit + PR (origin/main) — [#809](https://github.com/worker-ants/clemvion/pull/809)
+- [x] memory
