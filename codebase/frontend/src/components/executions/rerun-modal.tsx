@@ -133,10 +133,12 @@ function displayValue(type: ParamType, value: unknown): string {
 }
 
 /**
- * text/number input 의 raw 문자열을 파라미터 타입으로 coerce.
- * number → 숫자(빈 문자열은 그대로 두어 편집 중 상태 보존), object/array → JSON
- * parse(실패 시 raw 유지 — 편집 중 부분 입력 허용). backend `coerceToType`/
- * `resolveTriggerParameters` 가 native-typed 값을 그대로 수용한다(cross_spec 확인).
+ * raw 문자열을 파라미터 타입으로 coerce. text/number input onChange 와, 스키마
+ * 늦게 도착 시 fallback string 값을 재조정하는 effect 양쪽에서 쓴다.
+ * boolean → `"true"` 비교, number → 숫자(빈 문자열은 그대로 두어 편집 중 상태 보존),
+ * object/array → JSON parse(실패 시 raw 유지 — 편집 중 부분 입력 허용). backend
+ * `coerceToType`/`resolveTriggerParameters` 가 native-typed 값을 그대로 수용한다
+ * (cross_spec 확인).
  */
 function coerceInput(type: ParamType, raw: string): unknown {
   if (type === "boolean") return raw === "true";

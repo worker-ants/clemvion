@@ -435,6 +435,59 @@ describe("ReRunModal", () => {
     expect(screen.getByLabelText("flag") as HTMLInputElement).toBeDisabled();
   });
 
+  it("fallback 구간에 편집한 문자열이 스키마 도착 후 native 타입으로 재조정된다 (side_effect 회귀)", async () => {
+    // 스키마(getNodes)를 지연 resolve 해 fallback(all-string) 구간을 재현.
+    let resolveNodes!: (v: unknown) => void;
+    apiGetMock.mockReturnValue(
+      new Promise((r) => {
+        resolveNodes = r as (v: unknown) => void;
+      }),
+    );
+    apiPostMock.mockResolvedValue({ data: { data: { id: "exec-new" } } });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-1",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { flag: false } },
+      },
+    });
+    // 스키마 로드 전: flag 는 text fallback. raw 문자열로 편집.
+    const textFlag = screen.getByLabelText("flag") as HTMLInputElement;
+    expect(textFlag.type).toBe("text");
+    fireEvent.change(textFlag, { target: { value: "true" } });
+
+    // 스키마 도착 → boolean checkbox 로 전환 + paramValues 재조정.
+    resolveNodes({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: { parameters: [{ name: "flag", type: "boolean" }] },
+          },
+        ],
+      },
+    });
+    let checkbox!: HTMLInputElement;
+    await waitFor(() => {
+      checkbox = screen.getByLabelText("flag") as HTMLInputElement;
+      expect(checkbox.type).toBe("checkbox");
+    });
+    // "true" 문자열이 native boolean true 로 재조정 → checkbox checked + 제출.
+    expect(checkbox.checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/executions/exec-1/re-run",
+        expect.objectContaining({ inputOverride: { flag: true } }),
+      );
+    });
+  });
+
   it("onSuccess 콜백이 있으면 router 대신 콜백을 호출한다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     apiPostMock.mockResolvedValue({ data: { data: { id: "exec-cb" } } });
