@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
@@ -82,7 +82,7 @@ export class TriggersService {
       status?: string;
       interactionEnabled?: boolean;
     },
-  ): Promise<PaginatedResponseDto<Trigger>> {
+  ): Promise<PaginatedResponseDto<TriggerDetail>> {
     const {
       page = 1,
       limit = 20,
@@ -126,12 +126,39 @@ export class TriggersService {
       .limit(limit)
       .getMany();
 
-    return PaginatedResponseDto.create(
-      data.map((t) => this.sanitizeChatChannelForResponse(t)),
-      totalItems,
-      page,
-      limit,
-    );
+    // [V-10 / spec 2-trigger-list §2.1] Schedule 타입 행은 목록에서도 cron 식·다음
+    // 실행 시각을 표시해야 한다. findOneDetail 의 단건 enrichment 를 목록용으로
+    // 일괄화 — 이 페이지의 schedule 트리거 id 를 모아 `triggerId IN (...)` 한 번의
+    // 조회로 붙인다(행마다 findOne 하는 N+1 회피). workflow-list §2.4·schedules
+    // findAll 의 list-level enrichment 선례와 동일 접근.
+    const scheduleTriggerIds = data
+      .filter((t) => t.type === 'schedule')
+      .map((t) => t.id);
+    const scheduleByTriggerId = new Map<string, Schedule>();
+    if (scheduleTriggerIds.length > 0) {
+      const schedules = await this.scheduleRepository.find({
+        where: { triggerId: In(scheduleTriggerIds), workspaceId },
+      });
+      for (const s of schedules) scheduleByTriggerId.set(s.triggerId, s);
+    }
+
+    const enriched: TriggerDetail[] = data.map((t) => {
+      if (t.type === 'schedule') {
+        const schedule = scheduleByTriggerId.get(t.id);
+        if (schedule) {
+          return this.sanitizeChatChannelForResponse(
+            Object.assign(t, {
+              cronExpression: schedule.cronExpression,
+              timezone: schedule.timezone,
+              nextRunAt: schedule.nextRunAt,
+            }),
+          );
+        }
+      }
+      return this.sanitizeChatChannelForResponse(t);
+    });
+
+    return PaginatedResponseDto.create(enriched, totalItems, page, limit);
   }
 
   async findById(id: string, workspaceId: string): Promise<Trigger> {

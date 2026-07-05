@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 트리거 목록에 Schedule cron·다음 실행 시각 표시 (V-10)
+
+### 변경 사항
+
+1. **`GET /api/triggers` 목록이 Schedule 트리거의 cron 식·다음 실행 시각을 포함** — 종전 `TriggersService.findAll()` 은 schedule join 없이 반환해 목록 행에 `[Schedule]` 태그의 Cron·다음 실행 시각이 비어 있었다(enrichment 는 단건 `findOneDetail` 에만 존재). `spec/2-navigation/2-trigger-list.md §2.1` 은 목록 행에 이를 명시(목업 `0 9 * * * Next: 09:00`)하고 프런트(`triggers/page.tsx`)도 이미 렌더를 기대하고 있어, 본문·응답 DTO 주석·FE 3자가 어긋난 상태였다. `findAll` 이 이 페이지의 schedule 트리거 id 를 모아 `scheduleRepository.find({ triggerId In(...) })` **배치 1회**로 `cronExpression`/`timezone`/`nextRunAt` 를 붙인다(행마다 조회하는 N+1 회피, `workflow-list §2.4`·`schedules.findAll` 의 list-level enrichment 선례와 동일). `TriggerDto` 응답 필드 3개는 이미 존재했고 JSDoc "단건 조회 시에만" → "목록·단건 모두" 로 정정. spec 변경 불요. SoT: `spec/2-navigation/2-trigger-list.md §2.1`.
+
 ## Unreleased — 실행 내역 상세 노드 서브탭 통일 (V-05)
 
 ### 변경 사항
