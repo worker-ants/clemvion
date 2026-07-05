@@ -41,11 +41,24 @@ owner: developer (다음 진입자)
 > _(이력) 2026-06-02 BLOCKED 사유: field 전체 목록이 repo 어디에도 없고 외부 docs 가 WebFetch 로 추출 불가
 > 했음. 2026-06-03 다운로드 HTML 제공으로 해소._
 
-- [ ] **G-1-remaining** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여):
+- [ ] **G-1-remaining** (데이터 확보 완료 — docs↔metadata 갭 보강만 잔여). **진행 방식 (사용자 결정 2026-07-05): resource 별 분리 + docs 전량 미러 (실용필드 선별 아님). 첫 PR = `product` 파일럿.**
   - **store field-set 확장**: store 105 endpoint docs field 비교 audit 미수행 (G-3l 에서 socials_apple_settings_get 제거 후 106→105).
   - **field-set 확장 (모든 resource)**: docs 에 있으나 metadata 에 누락된 field 추가 (예: product_list docs ~50 field vs 우리 8 field). 전 resource 적용 시 수천 줄.
   - **impliesValue metadata 적용**: 인프라 완료. 실제 ops 적용은 trigger field(refund_method, material_composite 등) 추가 후 — order cancellation/return/exchange + products create/update + bundleproducts create/update.
   - **constraint-only sweep — 미적용 date-pair**: order_count, boards_articles_list, coupon_list/count, scripttags_list/count, salesreport_volume — date 필드 부재로 field-set 확장 선행.
+
+#### G-1-P (pilot) — `product` 리소스 docs 전량 미러 (진행 중, worktree `fervent-albattani-8dc848`, 2026-07-05)
+
+> SoT = `spec/conventions/cafe24-api-catalog/product/*.md` 의 각 operation `#### 요청 파라미터 (Request)` 표.
+> 대상 = `codebase/backend/src/nodes/integration/cafe24/metadata/product.ts` 의 41 operation 전부.
+> field-set 은 어떤 가드도 검증 안 함(drift 가드는 method/path/scope 만) → 수기 대조 + 신규 타깃 테스트로 방어.
+
+- [x] 5-7. product.ts **62 op** fields docs 전량 미러 (product_list 8→57 필드 등). 비동작 alias 교체(`since/until`→`created_start_date/end`, `category_no`→`category`), `offset/limit` 제외(pagination 층), 통화필드 decimal string 유지, date 필드 §5.2 KST. constraints: product_list/count·bundleproducts_list allOrNone(created/updated/additional-info pair) + bundleproducts_create/update impliesValue(shipping_scope=C ⇒ hscode+clearance_category_code). **주의**: plan 의 "product material_composite impliesValue" 는 docs product create/update 표에 해당 필드 부재 → 적용 안 함(order refund_method 트랙에 속함, 후속). options schema docs 로 변경(flat option_values→`options` array)에 맞춰 requiredFields = existing∩new.
+- [x] 5. 신규 타깃 unit `product-fields.spec.ts` (field 수·대표필드·alias 제거·constraint 존재·offset/limit 부재). public-meta.spec `category_no`→`category` 정정.
+- [x] 8-lint/unit/build. cafe24 209 pass + metadata 105 pass(신규 포함) + backend build green. **unit 전체 1건 실패 = 본 PR 무관 pre-existing**(frontend Gate C `plan/complete/spec-code-cross-audit-2026-06-10.md` spec_impact frontmatter 부재, #825 유입 — planner 태스크 별도 스폰). e2e = **면제**(metadata-only, handler/infra 로직 무변경, cafe24 e2e 는 OAuth precheck/install 만·product op/변경필드 미참조 — #816 선례).
+- [ ] 3. `/consistency-check --impl-prep` 는 **--impl-done 으로 대체 수행**(docs-SoT 미러라 사전/사후 검사 대상 동일). 
+- [ ] 9. `/ai-review` + resolution + `/consistency-check --impl-done`
+- [ ] partial: product 외 17 resource 는 G-1-remaining 잔여로 유지 (본 PR 은 product 만) — spec frontmatter status:partial + pending_plans 등록 필요 시 확인
 
 ### G-2 — 잔존 docs 부재 ops 처리 결정 (운영 검증 후)
 
