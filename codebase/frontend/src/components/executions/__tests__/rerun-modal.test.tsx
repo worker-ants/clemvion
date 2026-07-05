@@ -358,6 +358,83 @@ describe("ReRunModal", () => {
     });
   });
 
+  it("object 필드는 JSON 으로 표시하고 편집 시 파싱해 native 값으로 전송한다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: { parameters: [{ name: "meta", type: "object" }] },
+          },
+        ],
+      },
+    });
+    apiPostMock.mockResolvedValue({ data: { data: { id: "exec-new" } } });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-1",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { meta: { a: 1 } } },
+      },
+    });
+    let input!: HTMLInputElement;
+    await waitFor(() => {
+      input = screen.getByLabelText("meta") as HTMLInputElement;
+      expect(input.value).toBe('{"a":1}'); // object → JSON 문자열 표시
+    });
+    fireEvent.change(input, { target: { value: '{"a":2}' } });
+    fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith(
+        "/executions/exec-1/re-run",
+        expect.objectContaining({ inputOverride: { meta: { a: 2 } } }),
+      );
+    });
+  });
+
+  it("Use original input ON 시 typed 위젯(checkbox)도 disabled 된다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: { parameters: [{ name: "flag", type: "boolean" }] },
+          },
+        ],
+      },
+    });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-1",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { flag: true } },
+      },
+    });
+    let flag!: HTMLInputElement;
+    await waitFor(() => {
+      flag = screen.getByLabelText("flag") as HTMLInputElement;
+      expect(flag.type).toBe("checkbox");
+    });
+    expect(flag).not.toBeDisabled();
+    fireEvent.click(
+      screen
+        .getByText("Use original input")
+        .closest("label")!
+        .querySelector("input")!,
+    );
+    expect(screen.getByLabelText("flag") as HTMLInputElement).toBeDisabled();
+  });
+
   it("onSuccess 콜백이 있으면 router 대신 콜백을 호출한다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     apiPostMock.mockResolvedValue({ data: { data: { id: "exec-cb" } } });

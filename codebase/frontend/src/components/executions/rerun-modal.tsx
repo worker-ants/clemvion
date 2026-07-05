@@ -139,6 +139,7 @@ function displayValue(type: ParamType, value: unknown): string {
  * `resolveTriggerParameters` 가 native-typed 값을 그대로 수용한다(cross_spec 확인).
  */
 function coerceInput(type: ParamType, raw: string): unknown {
+  if (type === "boolean") return raw === "true";
   if (type === "number") return raw === "" ? "" : Number(raw);
   if (type === "object" || type === "array") {
     try {
@@ -255,6 +256,29 @@ export function ReRunModal({
   const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
   };
+
+  // 스키마가 비동기 로드되면 fields 가 fallback(all-string)에서 스키마 기반(typed)으로
+  // 전환된다. 이때 fallback 구간에 raw string 으로 편집됐을 수 있는 paramValues 를 각
+  // 필드 선언 타입으로 1회 재조정한다 — 오염된 문자열이 제출 payload(inputOverride)로
+  // 새는 것을 막는다(ai-review side_effect WARNING). 이미 typed(비-string) 값은 skip
+  // 하고, fields 변경(노드 로드/원본 변경)에만 반응하며 타이핑(paramValues 변경)에는
+  // 재실행되지 않아 활성 편집을 덮어쓰지 않는다.
+  useEffect(() => {
+    setParamValues((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const f of fields) {
+        const v = next[f.name];
+        if (typeof v !== "string") continue;
+        const coerced = coerceInput(f.type, v);
+        if (coerced !== v) {
+          next[f.name] = coerced;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [fields]);
 
   const handleSubmit = async () => {
     setSubmitting(true);
