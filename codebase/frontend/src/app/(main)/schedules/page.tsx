@@ -1118,13 +1118,17 @@ export default function SchedulesPage() {
                             >
                               {t("schedules.viewHistory")}
                             </DropdownMenuItem>
-                            {schedule.triggerId && (
+                            {schedule.triggerId ? (
                               <DropdownMenuItem asChild>
                                 <Link
                                   href={`/triggers?triggerId=${schedule.triggerId}`}
                                 >
                                   {t("schedules.viewInTrigger")}
                                 </Link>
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                {t("schedules.viewInTrigger")}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>

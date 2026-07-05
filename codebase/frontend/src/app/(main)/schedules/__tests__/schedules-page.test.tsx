@@ -33,10 +33,17 @@ vi.mock("@/components/triggers/trigger-history-dialog", () => ({
   TriggerHistoryDialog: ({
     open,
     triggerId,
+    triggerName,
+    workflowId,
   }: {
     open: boolean;
     triggerId: string | null;
-  }) => (open ? <div data-testid="history-dialog">{triggerId}</div> : null),
+    triggerName?: string;
+    workflowId?: string | null;
+  }) =>
+    open ? (
+      <div data-testid="history-dialog">{`${triggerId}|${triggerName}|${workflowId}`}</div>
+    ) : null,
 }));
 
 import SchedulesPage from "../page";
@@ -483,8 +490,44 @@ describe("SchedulesPage — row links & overflow menu", () => {
       screen.getByRole("button", { name: /schedule actions/i }),
     );
     await user.click(await screen.findByText(/run history/i));
+    // 다이얼로그에 triggerId·triggerName·workflowId 가 모두 전달됨을 검증
     expect(await screen.findByTestId("history-dialog")).toHaveTextContent(
-      "t1",
+      "t1|Daily|w1",
     );
+  });
+
+  it("트리거 없는 스케줄: 워크플로 plain text, ⋮ 항목은 비활성(이력 클릭 no-op·트리거 링크 href 없음)", async () => {
+    // trigger.id·workflowId 부재 (degenerate 케이스) — 게이팅 분기 회귀 방지.
+    mockSchedulesResponse({
+      data: [
+        {
+          id: "s2",
+          cronExpression: "0 9 * * *",
+          timezone: "UTC",
+          isActive: true,
+          trigger: { name: "Orphan", workflow: { name: "WF" } },
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Orphan");
+    // 워크플로 이름은 링크가 아닌 plain text
+    expect(screen.queryByRole("link", { name: "WF" })).toBeNull();
+
+    const user = userEvent.setup({
+      pointerEventsCheck: PointerEventsCheckLevel.Never,
+    });
+    await user.click(
+      screen.getByRole("button", { name: /schedule actions/i }),
+    );
+    // "트리거에서 보기" 는 렌더되지만 링크가 아니다(비활성)
+    const viewItem = screen.getByRole("menuitem", {
+      name: /view in trigger/i,
+    });
+    expect(viewItem).not.toHaveAttribute("href");
+    // "실행 이력" 은 비활성 → 클릭해도 다이얼로그가 열리지 않는다(no-op)
+    await user.click(screen.getByRole("menuitem", { name: /run history/i }));
+    expect(screen.queryByTestId("history-dialog")).toBeNull();
   });
 });

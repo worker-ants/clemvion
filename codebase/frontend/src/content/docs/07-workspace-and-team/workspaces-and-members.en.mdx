@@ -78,9 +78,7 @@ You can adjust default behavior from the **Settings** tab in workspace managemen
 
 When you create a schedule without specifying a timezone, the workspace's **default timezone** is used. The value must be a valid IANA identifier (e.g. `Asia/Seoul`, `America/New_York`). If not set, `Asia/Seoul` is the default.
 
-<Callout type="note">
-The default timezone can currently only be set via the `timezone` field of the `PATCH /api/workspaces/:id/settings` API. There is no input UI on the settings screen yet.
-</Callout>
+You can set it from the **Default timezone** card on the **Overview** tab of the settings screen. Editing requires Admin or above; all members can view. Clearing the field and saving removes the workspace default timezone.
 
 ## Leaving · deleting
 

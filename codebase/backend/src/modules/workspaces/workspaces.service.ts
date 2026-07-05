@@ -327,14 +327,18 @@ export class WorkspacesService {
     // personal 워크스페이스에도 존재할 수 있어 interactionAllowedOrigins 편집이 정당하다(owner=admin-tier).
     // 동시 편집은 last-write-wins(전체 목록 교체 의미라 허용 가능). 향후 settings 다중 키 동시 쓰기가
     // 생기면 jsonb `||` 원자 머지 전환 고려(현재 origins 만 편집 가능하므로 키 간 lost-update 없음).
-    const normalized = (dto.interactionAllowedOrigins ?? []).map((o) =>
-      o.replace(/\/$/, ''),
-    );
-    // 타임존: 제공 시 IANA 유효성 검증 후 병합. 빈 문자열은 설정 해제(undefined)로 처리.
+    // partial patch: 각 키는 제공 시에만 병합하고 미제공 키는 기존 값을 보존한다
+    // (timezone 단독 저장이 origins 목록을 침묵 삭제하지 않도록 — timezone/maxConcurrent 와 동일 패턴).
     let nextSettings: Record<string, unknown> = {
       ...(workspace.settings ?? {}),
-      interactionAllowedOrigins: normalized,
     };
+    if (dto.interactionAllowedOrigins !== undefined) {
+      const normalized = dto.interactionAllowedOrigins.map((o) =>
+        o.replace(/\/$/, ''),
+      );
+      nextSettings = { ...nextSettings, interactionAllowedOrigins: normalized };
+    }
+    // 타임존: 제공 시 IANA 유효성 검증 후 병합. 빈 문자열은 설정 해제(undefined)로 처리.
     if (dto.timezone !== undefined) {
       const tz = dto.timezone.trim();
       if (tz.length === 0) {

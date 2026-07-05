@@ -441,6 +441,25 @@ describe('WorkspacesService', () => {
       });
     });
 
+    it('§2.2 timezone 단독 patch 는 기존 interactionAllowedOrigins 를 보존한다 (partial patch — origins 미침묵삭제)', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: { interactionAllowedOrigins: ['https://keep.example.com'] },
+      });
+      const result = await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        { timezone: 'UTC' },
+        'user-uuid-1',
+      );
+      // interactionAllowedOrigins 미제공 → 기존 목록 보존, timezone 만 병합
+      expect(result.settings).toEqual({
+        interactionAllowedOrigins: ['https://keep.example.com'],
+        timezone: 'UTC',
+      });
+    });
+
     it('§2.2 무효 timezone → INVALID_TIMEZONE BadRequest', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'admin' });
       workspaceRepo.findOne.mockResolvedValue({

@@ -94,6 +94,18 @@ describe("WorkspaceSettingsPage — default timezone", () => {
     expect(updateSettingsMock).toHaveBeenCalledWith("ws-1", { timezone: "UTC" });
   });
 
+  it("admin: 값을 비우고 저장하면 updateSettings 가 { timezone: '' } 로 호출된다(설정 해제)", async () => {
+    await renderPage();
+    const tzInput = (await screen.findByDisplayValue(
+      "Asia/Seoul",
+    )) as HTMLInputElement;
+    const user = userEvent.setup();
+    await user.clear(tzInput);
+    const card = tzInput.closest("div.space-y-4") as HTMLElement;
+    await user.click(within(card).getByRole("button", { name: /^save$/i }));
+    expect(updateSettingsMock).toHaveBeenCalledWith("ws-1", { timezone: "" });
+  });
+
   it("viewer: timezone 입력은 비활성이고 저장 버튼이 없다", async () => {
     setRole("viewer");
     await renderPage();
