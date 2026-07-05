@@ -10,7 +10,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'store',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -24,7 +29,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     fields: {},
     responseShape: 'list',
   },
-  // Phase 6b — 결제 설정 (paymentmethods / paymentgateway)
   {
     id: 'paymentmethods_list',
     description: 'List available payment methods.',
@@ -33,7 +37,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentmethods',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -43,17 +52,31 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     description: 'List the providers (PG) registered for a payment method.',
     scopeType: 'read',
     method: 'GET',
-    // cafe24 docs path: `paymentmethods/{code}/paymentproviders` (per
-    // payment-method scope, not a top-level list).
     path: 'paymentmethods/{code}/paymentproviders',
     requiredFields: ['code'],
     fields: {
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
       code: {
         type: 'string',
         location: 'path',
-        description: 'Payment method code.',
+        description: 'Payment method code',
       },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      name: {
+        type: 'string',
+        location: 'query',
+        description: 'Payment provider (PG) name',
+      },
+      display: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Payment method display (T=shown, F=hidden)',
+      },
     },
     responseShape: 'list',
   },
@@ -63,13 +86,14 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       'List the payment methods attached to a registered payment gateway.',
     scopeType: 'read',
     method: 'GET',
-    // cafe24 docs path: `paymentgateway/{client_id}/paymentmethods` (gateway-
-    // scoped, not a top-level list).
     path: 'paymentgateway/{client_id}/paymentmethods',
     requiredFields: ['client_id'],
     fields: {
-      client_id: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      client_id: {
+        type: 'string',
+        location: 'path',
+        description: 'App client ID',
+      },
     },
     responseShape: 'list',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -81,18 +105,43 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'paymentgateway',
-    requiredFields: ['pg_code', 'pg_name'],
+    requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      pg_code: { type: 'string', location: 'body' },
-      pg_name: { type: 'string', location: 'body' },
-      use_yn: {
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      partner_id: {
+        type: 'string',
+        location: 'body',
+        description: 'PG-issued merchant ID',
+      },
+      additional_information: {
+        type: 'array',
+        location: 'body',
+        description: 'Additional information (key/value entries, max 5)',
+      },
+      membership_fee_type: {
         type: 'enum',
         location: 'body',
-        enum: ['T', 'F'],
-        description: 'Enable flag (T=on, F=off)',
+        enum: ['PRE', 'PAD', 'FREE'],
+        description: 'Membership fee type (PRE=prepaid, PAD=postpaid, FREE)',
       },
-      authentication_key: { type: 'string', location: 'body' },
+      service_limit_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M'],
+        description: 'Service limit (A=all, M=members only)',
+      },
+      review_status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['AWAITING_PAYMENT', 'PENDING_REVIEW', 'APPROVED'],
+        description:
+          'Review status (AWAITING_PAYMENT, PENDING_REVIEW, APPROVED)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -105,11 +154,46 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentgateway/{client_id}',
     requiredFields: ['client_id'],
     fields: {
-      client_id: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      pg_name: { type: 'string', location: 'body' },
-      use_yn: { type: 'enum', location: 'body', enum: ['T', 'F'] },
-      authentication_key: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      client_id: {
+        type: 'string',
+        location: 'path',
+        description: 'App client ID',
+      },
+      partner_id: {
+        type: 'string',
+        location: 'body',
+        description: 'PG-issued merchant ID',
+      },
+      additional_information: {
+        type: 'array',
+        location: 'body',
+        description: 'Additional information (key/value entries, max 5)',
+      },
+      membership_fee_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['PRE', 'PAD', 'FREE'],
+        description: 'Membership fee type (PRE=prepaid, PAD=postpaid, FREE)',
+      },
+      service_limit_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M'],
+        description: 'Service limit (A=all, M=members only)',
+      },
+      review_status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['AWAITING_PAYMENT', 'PENDING_REVIEW', 'APPROVED'],
+        description:
+          'Review status (AWAITING_PAYMENT, PENDING_REVIEW, APPROVED)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -122,12 +206,21 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentgateway/{client_id}',
     requiredFields: ['client_id'],
     fields: {
-      client_id: { type: 'string', location: 'path' },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      client_id: {
+        type: 'string',
+        location: 'path',
+        description: 'App client ID',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
   },
-  // Batch 1-A — shops·activitylogs·dashboard·financials·menus
   {
     id: 'shops_get',
     description: 'Retrieve a single shop within a multi-shop mall.',
@@ -136,7 +229,11 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'shops/{shop_no}',
     requiredFields: ['shop_no'],
     fields: {
-      shop_no: { type: 'number', location: 'path' },
+      shop_no: {
+        type: 'number',
+        location: 'path',
+        description: 'Multi-shop number',
+      },
     },
     responseShape: 'single',
   },
@@ -149,28 +246,48 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'activitylogs',
     requiredFields: ['start_date', 'end_date'],
     fields: {
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
       manager_type: {
         type: 'enum',
         location: 'query',
         enum: ['P', 'A', 'S'],
-        description: 'Operator type filter (P/A/S)',
+        description: 'Operator type (P=primary, A=sub, S=supplier)',
       },
-      manager_id: { type: 'string', location: 'query' },
+      manager_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Operator ID',
+      },
       mode: {
         type: 'enum',
         location: 'query',
         enum: ['P', 'M', 'S'],
+        description: 'Mode (P=PC admin, M=mobile admin, S=legacy smart)',
       },
-      type: { type: 'string', location: 'query' },
-      content: { type: 'string', location: 'query' },
-      offset: { type: 'number', location: 'query', default: 0 },
-      limit: { type: 'number', location: 'query', default: 10 },
+      type: {
+        type: 'string',
+        location: 'query',
+        description: 'Category filter',
+      },
+      content: {
+        type: 'string',
+        location: 'query',
+        description: 'Task content',
+      },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: 'Search start date (YYYY-MM-DD, KST)',
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: 'Search end date (YYYY-MM-DD, KST)',
+      },
     },
     responseShape: 'list',
     paginated: true,
     restrictedApproval: RESTRICTED_APPROVAL.store_activitylogs,
+    constraints: [{ kind: 'allOrNone', fields: ['start_date', 'end_date'] }],
   },
   {
     id: 'activitylogs_get',
@@ -181,7 +298,11 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'activitylogs/{process_no}',
     requiredFields: ['process_no'],
     fields: {
-      process_no: { type: 'string', location: 'path' },
+      process_no: {
+        type: 'string',
+        location: 'path',
+        description: 'Task process number',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_activitylogs,
@@ -194,7 +315,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'dashboard',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -207,7 +333,16 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'financials/paymentgateway',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      payment_gateway_name: {
+        type: 'string',
+        location: 'query',
+        description: 'PG name',
+      },
+      partner_id: {
+        type: 'string',
+        location: 'query',
+        description: 'PG-issued merchant ID',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -221,7 +356,28 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'financials/store',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      payment_method: {
+        type: 'enum',
+        location: 'query',
+        enum: [
+          'card',
+          'tcash',
+          'icash',
+          'cell',
+          'deferpay',
+          'cvs',
+          'point',
+          'etc',
+        ],
+        description:
+          'Payment method code (card, tcash, icash, cell, deferpay, cvs, point, etc)',
+      },
     },
     responseShape: 'single',
   },
@@ -234,12 +390,33 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'menus',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      mode: {
+        type: 'enum',
+        location: 'query',
+        enum: ['new_pro', 'mobile_admin'],
+        description: 'Menu mode (new_pro=PC admin, mobile_admin)',
+      },
+      menu_no: {
+        type: 'string',
+        location: 'query',
+        description: 'Menu number(s), comma-separated multi-search',
+      },
+      contains_app_url: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Include app URL (T=yes, F=no)',
+      },
     },
     responseShape: 'list',
     restrictedApproval: RESTRICTED_APPROVAL.store_menus,
   },
-  // Batch 1-B — automessages·benefits·boards_setting·carts_setting
   {
     id: 'automessages_arguments_get',
     description: 'List available variables for automated messages.',
@@ -248,7 +425,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'automessages/arguments',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'list',
   },
@@ -260,7 +442,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'automessages/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -272,11 +459,23 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'automessages/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      send_method: {
-        type: 'string',
+      shop_no: {
+        type: 'number',
         location: 'body',
-        description: 'Delivery channel (e.g. sms/email).',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      send_method: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'K'],
+        description: 'Send method (S=SMS, K=KakaoTalk with SMS fallback)',
+      },
+      send_method_push: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Prioritize push send (T=yes, F=no)',
       },
     },
     responseShape: 'single',
@@ -289,7 +488,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'benefits/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -301,7 +505,105 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'benefits/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      use_gift: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use gift feature (T=on, F=off)',
+      },
+      available_payment_methods: {
+        type: 'enum',
+        location: 'body',
+        enum: ['all', 'bank_only', 'exclude_bank'],
+        description:
+          'Gift-eligible payment methods (all, bank_only, exclude_bank)',
+      },
+      allow_point_payment: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Offer gift on full point payment (T=yes, F=no)',
+      },
+      gift_calculation_scope: {
+        type: 'enum',
+        location: 'body',
+        enum: ['all', 'benefit'],
+        description: 'Gift calculation scope (all, benefit)',
+      },
+      gift_calculation_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['total_order', 'actual_payment'],
+        description: 'Gift calculation type (total_order, actual_payment)',
+      },
+      include_point_usage: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Include point usage amount (T=yes, F=no)',
+      },
+      include_shipping_fee: {
+        type: 'enum',
+        location: 'body',
+        enum: ['I', 'E'],
+        description: 'Include shipping fee (I=include, E=exclude)',
+      },
+      display_soldout_gifts: {
+        type: 'enum',
+        location: 'body',
+        enum: ['grayed', 'disabled'],
+        description: 'Sold-out gift display (grayed, disabled)',
+      },
+      gift_grant_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'A'],
+        description: 'Gift grant type (S=customer choice, A=automatic)',
+      },
+      gift_selection_mode: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'M'],
+        description: 'Gift selection mode (S=single, M=multiple)',
+      },
+      gift_grant_mode: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'M'],
+        description: 'Gift grant mode (S=single, M=multiple)',
+      },
+      gift_selection_step: {
+        type: 'enum',
+        location: 'body',
+        enum: ['order_form', 'order_complete', 'order_detail'],
+        description:
+          'Gift selection step (order_form, order_complete, order_detail)',
+      },
+      gift_available_condition: {
+        type: 'enum',
+        location: 'body',
+        enum: ['during_period', 'after_period'],
+        description: 'Gift application condition (during_period, after_period)',
+      },
+      offer_only_one_in_automatic: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description:
+          'Automatic grant quantity (T=one only, F=per purchase qty)',
+      },
+      allow_gift_review: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow gift product review (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
   },
@@ -313,7 +615,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'boards/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -325,7 +632,40 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'boards/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      admin_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Board admin name (name, nickname, shopname, storename)',
+      },
+      password_rules: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Board password rules (T=on, F=off)',
+      },
+      linked_board: {
+        type: 'string',
+        location: 'body',
+        description: 'Linked board (F=off, or board number)',
+      },
+      review_button_mode: {
+        type: 'enum',
+        location: 'body',
+        enum: ['all', 'shipbegin_date', 'shipend_date'],
+        description: 'Review button timing (all, shipbegin_date, shipend_date)',
+      },
+      spam_auto_prevention: {
+        type: 'object',
+        location: 'body',
+        description:
+          'Spam auto-prevention setting (type, site_key, secret_key)',
+      },
     },
     responseShape: 'single',
   },
@@ -337,25 +677,79 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'carts/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
   {
     id: 'carts_setting_update',
-    description: 'Update shopping-cart settings.',
-    // scopeType: docs 기본스펙 = mall.read_store (read). PUT 이지만 read scope —
-    // Cafe24 docs authoritative (plan G-3k, 2026-06-03).
     scopeType: 'read',
     method: 'PUT',
     path: 'carts/setting',
+    description: 'Update shopping-cart settings.',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      wishlist_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show wishlist in cart (T=on, F=off)',
+      },
+      add_action_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'S'],
+        description: 'Post-add action (M=go to cart, S=prompt choice)',
+      },
+      cart_item_direct_purchase: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow direct purchase of cart items (T=on, F=off)',
+      },
+      storage_period: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use cart storage period (T=on, F=off)',
+      },
+      period: {
+        type: 'string',
+        location: 'body',
+        description: 'Storage period in days (1-10,14,30)',
+      },
+      icon_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show add-to-cart icon (T=on, F=off)',
+      },
+      cart_item_option_change: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow option change in cart (T=on, F=off)',
+      },
+      discount_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show discount amount in cart (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
-  // Batch 1-C — categories_properties·coupons·currency·customers setting
   {
     id: 'categories_properties_setting_get',
     description:
@@ -365,7 +759,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'categories/properties/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -378,7 +777,40 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'categories/properties/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      strikethrough_retail_price: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Strikethrough retail price (T=on, F=off)',
+      },
+      strikethrough_price: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Strikethrough selling price (T=on, F=off)',
+      },
+      product_tax_type_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Tax type text (use, color, font_size, font_type)',
+      },
+      product_discount_price_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Discount price text (use, color, font_size, font_type)',
+      },
+      optimum_discount_price_text: {
+        type: 'object',
+        location: 'body',
+        description:
+          'Optimum discount price text (use, color, font_size, font_type)',
+      },
     },
     responseShape: 'single',
   },
@@ -390,10 +822,16 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'coupons/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
+
   {
     id: 'coupons_setting_update',
     description: 'Update coupon settings.',
@@ -402,7 +840,104 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'coupons/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      use_coupon: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use coupons (T=yes, F=no)',
+      },
+      available_issue_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'O', 'P'],
+        description: 'Coupon usage limit (A=order+product, O=order, P=product)',
+      },
+      allow_using_coupons_with_points: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use with points (T=yes, F=no)',
+      },
+      allow_using_coupons_with_discounts: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'C', 'G'],
+        description: 'Use with discounts (A=coupon+tier, C=coupon, G=tier)',
+      },
+      allow_using_product_and_order_coupons: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use product+order coupons together (T=yes, F=no)',
+      },
+      recover_coupon_setting: {
+        type: 'object',
+        location: 'body',
+        description: 'Coupon restoration settings',
+      },
+      max_coupon_count: {
+        type: 'object',
+        location: 'body',
+        description: 'Coupon usage count limits',
+      },
+      use_additional_coupon: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use additional coupons (T=yes, F=no)',
+      },
+      additional_coupon_no: {
+        type: 'array',
+        location: 'body',
+        description: 'Additional coupon numbers',
+      },
+      expiration_notice_date_setting: {
+        type: 'object',
+        location: 'body',
+        description: 'Coupon expiration notice send criteria',
+      },
+      show_coupon_to_non_members: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show to non-members (T=yes, F=no)',
+      },
+      show_group_coupon_to_non_members: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Include tier-discount coupons (T=yes, F=no)',
+      },
+      show_issued_coupon: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show issued coupons (T=yes, F=no)',
+      },
+      sorting_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'B', 'C', 'D', 'E'],
+        description: 'Sort by (A=start, B=end, C=issue, D=amount, E=rate)',
+      },
+      download_image_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['1', '2', '3', '4', '5'],
+        description: 'Download image type (1-5)',
+      },
+      background_image_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['1', '2', '3', '4', '5'],
+        description: 'Background image type (1-5)',
+      },
     },
     responseShape: 'single',
   },
@@ -413,9 +948,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     method: 'GET',
     path: 'currency',
     requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
+    fields: {},
     responseShape: 'list',
   },
   {
@@ -426,7 +959,17 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'currency',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      exchange_rate: {
+        type: 'string',
+        location: 'body',
+        description: 'Payment currency exchange rate',
+      },
     },
     responseShape: 'single',
   },
@@ -438,7 +981,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'customers/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -450,11 +998,45 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'customers/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      simple_member_join: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Signup fields (T=basic, F=detailed)',
+      },
+      member_authentication: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Signup authentication (T=yes, F=no)',
+      },
+      minimum_age_restriction: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'T', 'F'],
+        description: 'Under-14 limit (M=verify, T=allow, F=block)',
+      },
+      join_standard: {
+        type: 'enum',
+        location: 'body',
+        enum: ['id', 'email'],
+        description: 'Signup basis (id or email)',
+      },
+      use_update_birthday: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow birthday edit (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
   },
-  // Batch 1-D — images·information·kakaoalimtalk·kakaopay setting
   {
     id: 'images_setting_get',
     description: 'Retrieve product image size settings.',
@@ -463,7 +1045,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'images/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -475,7 +1062,17 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'images/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      product_image_size: {
+        type: 'object',
+        location: 'body',
+        description: 'Product image size settings',
+      },
     },
     responseShape: 'single',
   },
@@ -487,7 +1084,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'information',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -499,7 +1101,40 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'information',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      type: {
+        type: 'string',
+        location: 'body',
+        description: 'Information type',
+      },
+      display_mobile: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show on mobile (T=yes, F=no)',
+      },
+      use: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use flag (T=on, F=off)',
+      },
+      save_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'C'],
+        description: 'Save type (S=standard, C=custom)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Information content',
+      },
     },
     responseShape: 'single',
   },
@@ -511,7 +1146,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'kakaoalimtalk/profile',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -523,7 +1163,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'kakaoalimtalk/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -535,7 +1180,18 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'kakaoalimtalk/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      use_kakaoalimtalk: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use KakaoTalk notifications (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
   },
@@ -548,7 +1204,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'kakaopay/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_kakaopay_setting,
@@ -562,12 +1223,64 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'kakaopay/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      shop_key: {
+        type: 'string',
+        location: 'body',
+        description: 'Merchant unique identifier',
+      },
+      pixel_code: {
+        type: 'string',
+        location: 'body',
+        description: 'Kakao ad pixel ID',
+      },
+      use_kakaopay: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use KakaoPay (T=yes, F=no)',
+      },
+      product_detail_button_size: {
+        type: 'object',
+        location: 'body',
+        description: 'Product detail page button size',
+      },
+      basket_button_size: {
+        type: 'object',
+        location: 'body',
+        description: 'Cart page button size',
+      },
+      use_dark_mode: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use dark mode (T=on, F=off)',
+      },
+      button_authorization_key: {
+        type: 'string',
+        location: 'body',
+        description: 'Merchant button authorization key',
+      },
+      thirdparty_agree: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Third-party provision consent (T=yes, F=no)',
+      },
+      thirdparty_agree_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Third-party consent date (KST, UTC+9)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_kakaopay_setting,
   },
-  // Batch 1-E — mains_properties·mobile·naverpay·orderform setting
   {
     id: 'mains_properties_setting_get',
     description:
@@ -577,7 +1290,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'mains/properties/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -590,7 +1308,39 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'mains/properties/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      strikethrough_retail_price: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Strikethrough retail price (T=yes, F=no)',
+      },
+      strikethrough_price: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Strikethrough selling price (T=yes, F=no)',
+      },
+      product_tax_type_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Selling price tax display text',
+      },
+      product_discount_price_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Discount price display text',
+      },
+      optimum_discount_price_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Optimum discount price display text',
+      },
     },
     responseShape: 'single',
   },
@@ -602,7 +1352,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'mobile/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -614,7 +1369,18 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'mobile/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      use_mobile_page: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use mobile storefront (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
   },
@@ -627,7 +1393,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'naverpay/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_naverpay_setting,
@@ -640,7 +1411,96 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'naverpay/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      authentication_key: {
+        type: 'string',
+        location: 'body',
+        description: 'Naver common authentication key',
+      },
+      naverpay_version: {
+        type: 'string',
+        location: 'body',
+        default: '2.1',
+        description: 'Naver Pay integration version',
+      },
+      shop_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Pay center ID',
+      },
+      is_button_show: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'T',
+        description: 'Show Naver Pay button (T=yes, F=no)',
+      },
+      is_used_order: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'T',
+        description: 'Naver order integration (T=yes, F=no)',
+      },
+      is_used_review: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'T',
+        description: 'Naver review integration (T=yes, F=no)',
+      },
+      is_show_review: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'T',
+        description: 'Naver review exposure (T=yes, F=no)',
+      },
+      is_order_page: {
+        type: 'string',
+        location: 'body',
+        default: 'N',
+        description: 'Page move on Naver Pay button click',
+      },
+      certi_key: {
+        type: 'string',
+        location: 'body',
+        description: 'Naver merchant authentication key',
+      },
+      image_key: {
+        type: 'string',
+        location: 'body',
+        description: 'Naver button authentication key',
+      },
+      naver_button_pc_product: {
+        type: 'string',
+        location: 'body',
+        default: 'A|1|2',
+        description: 'Button design: PC product detail',
+      },
+      naver_button_pc_basket: {
+        type: 'string',
+        location: 'body',
+        default: 'A|1|1',
+        description: 'Button design: PC cart page',
+      },
+      naver_button_mobile_product: {
+        type: 'string',
+        location: 'body',
+        default: 'MA|1|2',
+        description: 'Button design: mobile product detail',
+      },
+      naver_button_mobile_basket: {
+        type: 'string',
+        location: 'body',
+        default: 'MA|1|1',
+        description: 'Button design: mobile cart page',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_naverpay_setting,
@@ -653,7 +1513,17 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'naverpay/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      authentication_key: {
+        type: 'string',
+        location: 'body',
+        description: 'Naver common authentication key',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_naverpay_setting,
@@ -666,7 +1536,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'orderform/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -678,11 +1553,96 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'orderform/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      buy_limit_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'A'],
+        description: 'Purchase limit (M=members only, A=everyone)',
+      },
+      guest_purchase_button_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show guest purchase button (T=yes, F=no)',
+      },
+      junior_purchase_block: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Block under-14 purchase (T=yes, F=no)',
+      },
+      reservation_order: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Reservation order (T=yes, F=no)',
+      },
+      discount_amount_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show discount amount (T=yes, F=no)',
+      },
+      order_item_delete: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow item delete in order form (T=yes, F=no)',
+      },
+      quick_signup: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Quick signup in order form (T=yes, F=no)',
+      },
+      check_order_info: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Confirm order form input (T=yes, F=no)',
+      },
+      order_form_input_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'S'],
+        description: 'Input composition (A=shipping only, S=separate)',
+      },
+      shipping_info: {
+        type: 'array',
+        location: 'body',
+        description: 'Shipping info detail settings',
+      },
+      order_info: {
+        type: 'array',
+        location: 'body',
+        description: 'Order info detail settings',
+      },
+      china_taiwan_id_input: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'China/Taiwan ID input (T=yes, F=no)',
+      },
+      print_type: {
+        type: 'object',
+        location: 'body',
+        description: 'Print button type',
+      },
+      orderform_additional_enabled: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use order form additional fields (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
   },
-  // Batch 1-F — orders·payment setting · paymentgateway_paymentmethods CUD · paymentmethods_paymentproviders_update_display · paymentservices_get
   {
     id: 'orders_setting_get',
     description: 'Retrieve order settings.',
@@ -691,7 +1651,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'orders/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -703,7 +1668,180 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'orders/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      refund_benefit_setting: {
+        type: 'enum',
+        location: 'body',
+        enum: ['F', 'T', 'U'],
+        description: 'Refund benefit basis (F=total, T=selected, U=auto)',
+      },
+      use_product_prepare_status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use product-preparing status (T=yes, F=no)',
+      },
+      use_purchase_confirmation_button: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use purchase confirmation button (T=yes, F=no)',
+      },
+      purchase_confirmation_button_set_date: {
+        type: 'string',
+        location: 'body',
+        description:
+          'Purchase confirmation button apply date (YYYY-MM-DD, KST)',
+      },
+      use_purchase_confirmation_auto_check: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use auto purchase confirmation (T=yes, F=no)',
+      },
+      purchase_confirmation_auto_check_day: {
+        type: 'number',
+        location: 'body',
+        description: 'Auto confirmation reference day (1-30)',
+      },
+      purchase_confirmation_auto_check_set_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Auto confirmation apply date (YYYY-MM-DD, KST)',
+      },
+      exchange_shipping_fee: {
+        type: 'string',
+        location: 'body',
+        description: 'Exchange shipping fee (round trip)',
+      },
+      return_shipping_fee: {
+        type: 'string',
+        location: 'body',
+        description: 'Return shipping fee (one way)',
+      },
+      auto_delivery_completion: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Delivery completion bulk check (T=yes, F=no)',
+      },
+      delivery_completion_after_days: {
+        type: 'number',
+        location: 'body',
+        description: 'Delivery completion reference day (1-30)',
+      },
+      receiver_address_modify_button_exposure: {
+        type: 'array',
+        location: 'body',
+        description: 'Address change button exposure range',
+      },
+      auto_cancel: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Auto cancel unpaid orders (T=yes, F=no)',
+      },
+      auto_cancel_cash_unit: {
+        type: 'enum',
+        location: 'body',
+        enum: ['D', 'T'],
+        description: 'Bank transfer auto-cancel unit (D=day, T=hour)',
+      },
+      auto_cancel_cash_period: {
+        type: 'number',
+        location: 'body',
+        description: 'Bank transfer auto-cancel period (1-23)',
+      },
+      auto_cancel_virtual_account_period: {
+        type: 'number',
+        location: 'body',
+        description: 'Virtual account auto-cancel period (1-10)',
+      },
+      auto_cancel_cvs_period: {
+        type: 'number',
+        location: 'body',
+        description: 'CVS payment auto-cancel period (1-10)',
+      },
+      claim_request: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Buyer cancel/exchange/return request (T=yes, F=no)',
+      },
+      claim_request_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'D'],
+        description: 'Claim request display (S=basic, D=detailed)',
+      },
+      claim_request_button_exposure: {
+        type: 'array',
+        location: 'body',
+        description: 'Claim request button exposure range',
+      },
+      claim_request_button_date_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['order_date', 'shipend_date'],
+        description: 'Claim button reference date (order_date/shipend_date)',
+      },
+      claim_request_button_period: {
+        type: 'number',
+        location: 'body',
+        description: 'Claim request button exposure period (1-365)',
+      },
+      stock_recover: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Auto stock recovery (T=default, F=individual)',
+      },
+      stock_recover_base: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F', 'M'],
+        description: 'Stock recovery default (T=auto, F=none, M=confirm)',
+      },
+      stock_recover_individual: {
+        type: 'object',
+        location: 'body',
+        description: 'Stock recovery individual settings',
+      },
+      refund_bank_account_required: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Refund account required (T=required, F=optional)',
+      },
+      refund_processing_setting: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'D'],
+        description: 'Refund processing (S=simultaneous, D=separate)',
+      },
+      claim_request_auto_accept: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Auto-accept buyer claim requests (T=yes, F=no)',
+      },
+      use_shipped_auto_check_start_day: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use bulk check start point (T=yes, F=no)',
+      },
+      shipped_auto_check_start_day: {
+        type: 'string',
+        location: 'body',
+        description:
+          'Delivery completion bulk check start date (YYYY-MM-DD, KST)',
+      },
     },
     responseShape: 'single',
   },
@@ -715,7 +1853,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'orders/status',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -727,10 +1870,31 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'orders/status',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      status_name_id: {
+        type: 'number',
+        location: 'body',
+        description: 'Order status label serial number',
+      },
+      custom_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Custom order status name',
+      },
+      reservation_custom_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Reservation order custom status name',
+      },
     },
     responseShape: 'single',
   },
+
   {
     id: 'payment_setting_get',
     description: 'Retrieve payment settings.',
@@ -739,7 +1903,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'payment/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -751,7 +1920,48 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'payment/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      use_escrow: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use escrow (T=on, F=off)',
+      },
+      use_escrow_account_transfer: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use escrow for account transfer (T=on, F=off)',
+      },
+      use_escrow_virtual_account: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use escrow for virtual account (T=on, F=off)',
+      },
+      pg_shipping_registration: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M'],
+        description: 'PG shipping registration (A=auto, M=manual)',
+      },
+      use_direct_pay: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use direct pay method (T=on, F=off)',
+      },
+      payment_display_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'L'],
+        description: 'Payment display type (T=text, L=logo icon)',
+      },
     },
     responseShape: 'single',
   },
@@ -764,8 +1974,37 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentgateway/{client_id}/paymentmethods',
     requiredFields: ['client_id'],
     fields: {
-      client_id: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      client_id: {
+        type: 'string',
+        location: 'path',
+        description: 'App client ID.',
+      },
+      payment_method_code: {
+        type: 'string',
+        location: 'body',
+        description: 'Payment method code',
+      },
+      payment_method: {
+        type: 'enum',
+        location: 'body',
+        enum: ['card', 'tcash', 'icash', 'cell', 'cvs', 'deferpay', 'etc'],
+        description: 'Payment method (card/tcash/icash/cell/cvs/deferpay/etc)',
+      },
+      payment_method_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Payment method name',
+      },
+      payment_method_url: {
+        type: 'string',
+        location: 'body',
+        description: 'Payment method image path',
+      },
+      available_shop_no: {
+        type: 'string',
+        location: 'body',
+        description: 'Available multi-shop numbers',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -779,9 +2018,37 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentgateway/{client_id}/paymentmethods/{payment_method_code}',
     requiredFields: ['client_id', 'payment_method_code'],
     fields: {
-      client_id: { type: 'string', location: 'path' },
-      payment_method_code: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      client_id: {
+        type: 'string',
+        location: 'path',
+        description: 'App client ID.',
+      },
+      payment_method_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Payment method code',
+      },
+      payment_method: {
+        type: 'enum',
+        location: 'body',
+        enum: ['card', 'tcash', 'icash', 'cell', 'cvs', 'deferpay', 'etc'],
+        description: 'Payment method (card/tcash/icash/cell/cvs/deferpay/etc)',
+      },
+      payment_method_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Payment method name',
+      },
+      payment_method_url: {
+        type: 'string',
+        location: 'body',
+        description: 'Payment method image path',
+      },
+      available_shop_no: {
+        type: 'string',
+        location: 'body',
+        description: 'Available multi-shop numbers',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -795,8 +2062,16 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentgateway/{client_id}/paymentmethods/{payment_method_code}',
     requiredFields: ['client_id', 'payment_method_code'],
     fields: {
-      client_id: { type: 'string', location: 'path' },
-      payment_method_code: { type: 'string', location: 'path' },
+      client_id: {
+        type: 'string',
+        location: 'path',
+        description: 'App client ID.',
+      },
+      payment_method_code: {
+        type: 'string',
+        location: 'path',
+        description: 'Payment method code',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -807,23 +2082,31 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       'Update the display (visibility) status of a payment method by provider.',
     scopeType: 'write',
     method: 'PUT',
-    // cafe24 docs path: `paymentmethods/{code}/paymentproviders/{name}`
-    // (per payment-method + provider — pre-2026-05-22 seed flattened both
-    // into a single `{payment_method_id}` placeholder).
     path: 'paymentmethods/{code}/paymentproviders/{name}',
     requiredFields: ['code', 'name'],
     fields: {
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
       code: {
         type: 'string',
         location: 'path',
-        description: 'Payment method code.',
+        description: 'Payment method code',
       },
       name: {
         type: 'string',
         location: 'path',
-        description: 'Payment provider name.',
+        description: 'Payment provider (PG) name',
       },
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Payment method display (T=shown, F=hidden)',
+      },
     },
     responseShape: 'single',
   },
@@ -835,11 +2118,15 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'paymentservices',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'list',
   },
-  // Batch 1-G — points·policy
   {
     id: 'points_setting_get',
     description: 'Retrieve mileage (points) settings.',
@@ -848,7 +2135,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'points/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -860,7 +2152,93 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'points/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      point_issuance_standard: {
+        type: 'enum',
+        location: 'body',
+        enum: ['C', 'P'],
+        description:
+          'Point issuance standard (C=after delivery, P=after purchase confirm)',
+      },
+      payment_period: {
+        type: 'number',
+        location: 'body',
+        description: 'Point payment period (days)',
+      },
+      name: {
+        type: 'string',
+        location: 'body',
+        description: 'Points display name',
+      },
+      format: {
+        type: 'string',
+        location: 'body',
+        description: 'Points display format',
+      },
+      round_unit: {
+        type: 'enum',
+        location: 'body',
+        enum: ['F', '0.01', '0.1', '1', '10', '100', '1000'],
+        description: 'Points rounding unit (F=none, else unit)',
+      },
+      round_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'B', 'C'],
+        description: 'Points rounding type (A=floor, B=round, C=ceil)',
+      },
+      display_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'W', 'WP', 'PW'],
+        description: 'Points display setting (P=rate, W=fixed, WP/PW=both)',
+      },
+      unusable_points_change_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'T'],
+        description: 'Unusable points change basis (M=first item, T=last item)',
+      },
+      join_point: {
+        type: 'string',
+        location: 'body',
+        description: 'Signup points (decimal string, KRW)',
+      },
+      use_email_agree_point: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use email consent points (T=on, F=off)',
+      },
+      use_sms_agree_point: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use SMS consent points (T=on, F=off)',
+      },
+      agree_change_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F', 'P'],
+        description:
+          'Consent change type at signup (T=changeable, F=fixed, P=restricted period)',
+      },
+      agree_restriction_period: {
+        type: 'enum',
+        location: 'body',
+        enum: ['1', '3', '6', '12'],
+        description: 'Consent change restriction period in months (1/3/6/12)',
+      },
+      agree_point: {
+        type: 'string',
+        location: 'body',
+        description: 'Consent points (decimal string, KRW)',
+      },
     },
     responseShape: 'single',
   },
@@ -872,7 +2250,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'policy',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -884,16 +2267,61 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'policy',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      save_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'C'],
+        default: 'S',
+        description: 'Save type (S=standard terms, C=custom terms)',
+      },
+      privacy_all: {
+        type: 'string',
+        location: 'body',
+        description: 'Full privacy policy content',
+      },
+      terms_using_mall: {
+        type: 'string',
+        location: 'body',
+        description: 'Mall terms of use',
+      },
+      use_privacy_join: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use signup privacy policy (T=on, F=off)',
+      },
+      privacy_join: {
+        type: 'string',
+        location: 'body',
+        description: 'Signup privacy policy content',
+      },
+      use_withdrawal: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use withdrawal policy (T=on, F=off)',
+      },
+      required_withdrawal: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description:
+          'Withdrawal policy consent required (T=required, F=optional)',
+      },
+      withdrawal: {
+        type: 'string',
+        location: 'body',
+        description: 'Withdrawal policy content',
+      },
     },
     responseShape: 'single',
   },
-  // privacy_* — store-scoped privacy policy settings (boards / signup / checkout).
-  // Uses `mall.{read,write}_store`; no restrictedApproval (separate from the
-  // `privacy` resource which uses `mall.{read,write}_privacy`). Body fields
-  // beyond `shop_no` follow the same minimal pattern as `policy_update` /
-  // `points_setting_update`; per-field declarations can be added incrementally
-  // once their Cafe24 docs anchors are verified.
   {
     id: 'privacy_boards_get',
     description: 'Retrieve the privacy policy shown when posting on a board.',
@@ -902,7 +2330,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'privacy/boards',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -914,7 +2347,34 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'privacy/boards',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      no: {
+        type: 'number',
+        location: 'body',
+        description: 'Consent form number',
+      },
+      use: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use flag (T=on, F=off)',
+      },
+      save_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'C'],
+        description: 'Save type (S=standard terms, C=custom terms)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Consent form content',
+      },
     },
     responseShape: 'single',
   },
@@ -926,7 +2386,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'privacy/join',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -938,7 +2403,47 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'privacy/join',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      no: {
+        type: 'number',
+        location: 'body',
+        description: 'Consent form number',
+      },
+      use: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use flag (T=on, F=off)',
+      },
+      required: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Required or optional (T=required, F=optional)',
+      },
+      display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['JOIN', 'SIMPLE_ORDER_JOIN', 'SHOPPING_PAY_EASY_JOIN'],
+        description:
+          'Display screen (JOIN/SIMPLE_ORDER_JOIN/SHOPPING_PAY_EASY_JOIN)',
+      },
+      save_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'C'],
+        description: 'Save type (S=standard terms, C=custom terms)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Consent form content',
+      },
     },
     responseShape: 'single',
   },
@@ -950,7 +2455,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'privacy/orders',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -962,11 +2472,49 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'privacy/orders',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      no: {
+        type: 'number',
+        location: 'body',
+        description: 'Consent form number',
+      },
+      use: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use flag (T=on, F=off)',
+      },
+      use_member: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use for member purchases (T=on, F=off)',
+      },
+      use_non_member: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use for non-member purchases (T=on, F=off)',
+      },
+      save_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'C'],
+        description: 'Save type (S=standard terms, C=custom terms)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Consent form content',
+      },
     },
     responseShape: 'single',
   },
-  // Batch 1-H — products_display·products_properties·products_setting · redirects · restocknotification
   {
     id: 'products_display_setting_list',
     description: 'List product-display settings entries.',
@@ -975,9 +2523,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'products/display/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      offset: { type: 'number', location: 'query', default: 0 },
-      limit: { type: 'number', location: 'query', default: 10 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -990,7 +2541,17 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'products/display/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      sorting_options: {
+        type: 'array',
+        location: 'body',
+        description: 'Product sorting options list',
+      },
     },
     responseShape: 'single',
   },
@@ -1002,7 +2563,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'products/properties/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -1014,7 +2580,39 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'products/properties/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      strikethrough_retail_price: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Strikethrough retail price (T=on, F=off)',
+      },
+      strikethrough_price: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Strikethrough selling price (T=on, F=off)',
+      },
+      product_tax_type_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Selling price tax display text settings',
+      },
+      product_discount_price_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Discount price display text settings',
+      },
+      optimum_discount_price_text: {
+        type: 'object',
+        location: 'body',
+        description: 'Optimum discount price display text settings',
+      },
     },
     responseShape: 'single',
   },
@@ -1026,7 +2624,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'products/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -1038,9 +2641,27 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'redirects',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      offset: { type: 'number', location: 'query', default: 0 },
-      limit: { type: 'number', location: 'query', default: 10 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      id: {
+        type: 'number',
+        location: 'query',
+        description: 'Redirect ID',
+      },
+      path: {
+        type: 'string',
+        location: 'query',
+        description: 'Redirect path',
+      },
+      target: {
+        type: 'string',
+        location: 'query',
+        description: 'Target location',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -1053,7 +2674,22 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'redirects',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      path: {
+        type: 'string',
+        location: 'body',
+        description: 'Redirect path',
+      },
+      target: {
+        type: 'string',
+        location: 'body',
+        description: 'Target location',
+      },
     },
     responseShape: 'single',
   },
@@ -1062,12 +2698,30 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     description: 'Update an existing URL redirect.',
     scopeType: 'write',
     method: 'PUT',
-    // cafe24 docs path placeholder: `{id}` (not `{redirect_no}`).
     path: 'redirects/{id}',
     requiredFields: ['id'],
     fields: {
-      id: { type: 'string', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      id: {
+        type: 'string',
+        location: 'path',
+        description: 'Redirect ID',
+      },
+      path: {
+        type: 'string',
+        location: 'body',
+        description: 'Redirect path',
+      },
+      target: {
+        type: 'string',
+        location: 'body',
+        description: 'Target location',
+      },
     },
     responseShape: 'single',
   },
@@ -1079,7 +2733,17 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'redirects/{id}',
     requiredFields: ['id'],
     fields: {
-      id: { type: 'string', location: 'path' },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      id: {
+        type: 'string',
+        location: 'path',
+        description: 'Redirect ID',
+      },
     },
     responseShape: 'empty',
   },
@@ -1091,10 +2755,16 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'restocknotification/setting',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
+
   {
     id: 'restocknotification_setting_update',
     description: 'Update restock-notification settings.',
@@ -1104,10 +2774,60 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      use: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use flag (T=on, F=off)',
+      },
+      is_button_show: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Show button (T=show, F=hide)',
+      },
+      expiration_period: {
+        type: 'number',
+        location: 'body',
+        description: 'Notification validity months (1/3/6/12)',
+      },
+      button_show_target: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M'],
+        description: 'Button audience (A=all, M=members)',
+      },
+      show_message_to_non_members: {
+        type: 'string',
+        location: 'body',
+        description: 'Message shown to non-members',
+      },
+      send_method: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M'],
+        description: 'Send method (A=auto, M=manual)',
+      },
+      button_show_method: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'G'],
+        description: 'Button display type (P=product, G=variant)',
+      },
+      available_product: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'P', 'E'],
+        description: 'Button target products (A=all, P=specific, E=excluded)',
+      },
+      available_product_list: {
+        type: 'array',
+        location: 'body',
+        description: 'Button target product list',
+      },
     },
     responseShape: 'single',
   },
-  // Batch 1-I — seo · shippingmanager · sms · socials (apple/kakao/naver)
   {
     id: 'seo_setting_get',
     description: 'Retrieve SEO settings.',
@@ -1129,6 +2849,144 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      common_page_title: {
+        type: 'string',
+        location: 'body',
+        description: 'Common page title tag',
+      },
+      common_page_meta_description: {
+        type: 'string',
+        location: 'body',
+        description: 'Common page description tag',
+      },
+      favicon: { type: 'string', location: 'body', description: 'Favicon URL' },
+      use_google_search_console: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use Google Search Console (T=on, F=off)',
+      },
+      google_search_console: {
+        type: 'string',
+        location: 'body',
+        description: 'Google Search Console meta tag',
+      },
+      use_naver_search_advisor: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use Naver Search Advisor (T=on, F=off)',
+      },
+      naver_search_advisor: {
+        type: 'string',
+        location: 'body',
+        description: 'Naver Search Advisor meta tag',
+      },
+      sns_share_image: {
+        type: 'string',
+        location: 'body',
+        description: 'SNS share image URL',
+      },
+      use_twitter_card: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use Twitter card (T=on, F=off)',
+      },
+      robots_text: {
+        type: 'string',
+        location: 'body',
+        description: 'Search robot access control (PC)',
+      },
+      mobile_robots_text: {
+        type: 'string',
+        location: 'body',
+        description: 'Search robot access control (mobile)',
+      },
+      use_missing_page_redirect: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use missing-page redirect (PC)',
+      },
+      missing_page_redirect_url: {
+        type: 'string',
+        location: 'body',
+        description: 'Missing-page redirect path (PC)',
+      },
+      mobile_use_missing_page_redirect: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use missing-page redirect (mobile)',
+      },
+      mobile_missing_page_redirect_url: {
+        type: 'string',
+        location: 'body',
+        description: 'Missing-page redirect path (mobile)',
+      },
+      use_sitemap_auto_update: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use sitemap auto-update (T=on, F=off)',
+      },
+      use_rss: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use RSS feed (T=on, F=off)',
+      },
+      display_group: {
+        type: 'number',
+        location: 'body',
+        description: 'Main category number',
+      },
+      header_tag: {
+        type: 'string',
+        location: 'body',
+        description: 'Head HTML (PC)',
+      },
+      footer_tag: {
+        type: 'string',
+        location: 'body',
+        description: 'Body HTML (PC)',
+      },
+      mobile_header_tag: {
+        type: 'string',
+        location: 'body',
+        description: 'Head HTML (mobile)',
+      },
+      mobile_footer_tag: {
+        type: 'string',
+        location: 'body',
+        description: 'Body HTML (mobile)',
+      },
+      og_main: {
+        type: 'object',
+        location: 'body',
+        description: 'Main screen OG settings',
+      },
+      og_product: {
+        type: 'object',
+        location: 'body',
+        description: 'Product detail OG settings',
+      },
+      og_category: {
+        type: 'object',
+        location: 'body',
+        description: 'Category OG settings',
+      },
+      og_board: {
+        type: 'object',
+        location: 'body',
+        description: 'Board OG settings',
+      },
+      llms_text: {
+        type: 'string',
+        location: 'body',
+        description: 'AI crawler access control',
+      },
     },
     responseShape: 'single',
   },
@@ -1164,6 +3022,40 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      use_sms: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use SMS (T=on, F=off)',
+      },
+      exclude_unsubscriber: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Exclude unsubscribers (T=exclude, F=include)',
+      },
+      default_sender: {
+        type: 'string',
+        location: 'body',
+        description: 'Default sender number',
+      },
+      unsubscribe_phone: {
+        type: 'string',
+        location: 'body',
+        description: 'Toll-free unsubscribe number',
+      },
+      send_method: {
+        type: 'enum',
+        location: 'body',
+        enum: ['S', 'L'],
+        description: 'Send method (S=split short, L=long)',
+      },
+      send_method_automatic: {
+        type: 'enum',
+        location: 'body',
+        enum: ['L', 'S', 'N'],
+        description: 'Auto send method (L=long, S=split short, N=short)',
+      },
     },
     responseShape: 'single',
   },
@@ -1200,6 +3092,28 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      rest_api_key: {
+        type: 'string',
+        location: 'body',
+        description: 'REST API key',
+      },
+      javascript_key: {
+        type: 'string',
+        location: 'body',
+        description: 'JavaScript key',
+      },
+      auto_login: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Auto login (T=on, F=off)',
+      },
+      use_signup_result_page: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Post-signup page (T=result page, F=immediate)',
+      },
     },
     responseShape: 'single',
   },
@@ -1224,6 +3138,22 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      use_naverlogin: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use Naver login (T=on, F=off)',
+      },
+      client_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Client ID',
+      },
+      client_secret: {
+        type: 'string',
+        location: 'body',
+        description: 'Client secret key',
+      },
     },
     responseShape: 'single',
   },
@@ -1239,7 +3169,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
-  // Batch 1-J — store_accounts · dropshipping · store_setting · subscription · taxmanager · users
   {
     id: 'store_accounts_list',
     description: 'List the bank accounts registered to the store.',
@@ -1273,6 +3202,17 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      name: {
+        type: 'string',
+        location: 'body',
+        description: 'Dropshipping supplier name',
+      },
+      use: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Account link flag (T=linked, F=unlinked)',
+      },
     },
     responseShape: 'single',
   },
@@ -1297,6 +3237,12 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      name_input_style: {
+        type: 'enum',
+        location: 'body',
+        enum: ['SEPARATE', 'COMBINED'],
+        description: 'Name input style (SEPARATE / COMBINED)',
+      },
     },
     responseShape: 'single',
   },
@@ -1309,8 +3255,11 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      offset: { type: 'number', location: 'query', default: 0 },
-      limit: { type: 'number', location: 'query', default: 10 },
+      subscription_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Subscription product setting number',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -1324,6 +3273,107 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
+      subscription_shipments_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Subscription product setting name',
+      },
+      product_binding_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'P', 'C'],
+        description: 'Product binding (A=all, P=individual, C=category)',
+      },
+      one_time_purchase: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Offer one-time purchase (T=offer, F=none)',
+      },
+      product_list: {
+        type: 'array',
+        location: 'body',
+        description: 'Applied products',
+      },
+      category_list: {
+        type: 'array',
+        location: 'body',
+        description: 'Applied categories',
+      },
+      use_discount: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use subscription discount (T=on, F=off)',
+      },
+      discount_value_unit: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'W'],
+        description: 'Discount unit (P=rate, W=amount)',
+      },
+      discount_values: {
+        type: 'array',
+        location: 'body',
+        description: 'Discount values',
+      },
+      related_purchase_quantity: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Purchase-quantity relation (T=by quantity, F=none)',
+      },
+      subscription_shipments_cycle_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Offer delivery cycle (T=on, F=off)',
+      },
+      subscription_shipments_cycle: {
+        type: 'array',
+        location: 'body',
+        description: 'Delivery cycles (1W/2W/.../1Y)',
+      },
+      subscription_shipments_count_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Set delivery count (T=on, F=off)',
+      },
+      subscription_shipments_count: {
+        type: 'array',
+        location: 'body',
+        description: 'Delivery counts (2/3/4/6/8/10/12)',
+      },
+      use_order_price_condition: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use benefit price condition (T=on, F=off)',
+      },
+      order_price_greater_than: {
+        type: 'string',
+        location: 'body',
+        description: 'Benefit price threshold (decimal string, KRW)',
+      },
+      include_regional_shipping_rate: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Include regional shipping (T=include, F=exclude)',
+      },
+      shipments_start_date: {
+        type: 'number',
+        location: 'body',
+        default: 3,
+        description: 'Delivery start day (1-30)',
+      },
+      change_option: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow option change (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -1332,13 +3382,111 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     description: 'Update a subscription shipping product by subscription_no.',
     scopeType: 'write',
     method: 'PUT',
-    // cafe24 docs path: `subscription/shipments/setting/{subscription_no}`
-    // (per-subscription scope).
     path: 'subscription/shipments/setting/{subscription_no}',
     requiredFields: ['subscription_no'],
     fields: {
       subscription_no: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
+      subscription_shipments_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Subscription product setting name',
+      },
+      product_binding_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'P', 'C'],
+        description: 'Product binding (A=all, P=individual, C=category)',
+      },
+      one_time_purchase: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Offer one-time purchase (T=offer, F=none)',
+      },
+      product_list: {
+        type: 'array',
+        location: 'body',
+        description: 'Applied products',
+      },
+      category_list: {
+        type: 'array',
+        location: 'body',
+        description: 'Applied categories',
+      },
+      use_discount: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use subscription discount (T=on, F=off)',
+      },
+      discount_value_unit: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'W'],
+        description: 'Discount unit (P=rate, W=amount)',
+      },
+      discount_values: {
+        type: 'array',
+        location: 'body',
+        description: 'Discount values',
+      },
+      related_purchase_quantity: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Purchase-quantity relation (T=by quantity, F=none)',
+      },
+      subscription_shipments_cycle_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Offer delivery cycle (T=on, F=off)',
+      },
+      subscription_shipments_cycle: {
+        type: 'array',
+        location: 'body',
+        description: 'Delivery cycles (1W/2W/.../1Y)',
+      },
+      subscription_shipments_count_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Set delivery count (T=on, F=off)',
+      },
+      subscription_shipments_count: {
+        type: 'array',
+        location: 'body',
+        description: 'Delivery counts (2/3/4/6/8/10/12)',
+      },
+      use_order_price_condition: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use benefit price condition (T=on, F=off)',
+      },
+      order_price_greater_than: {
+        type: 'string',
+        location: 'body',
+        description: 'Benefit price threshold (decimal string, KRW)',
+      },
+      include_regional_shipping_rate: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Include regional shipping (T=include, F=exclude)',
+      },
+      shipments_start_date: {
+        type: 'number',
+        location: 'body',
+        description: 'Delivery start day (1-30)',
+      },
+      change_option: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow option change (T=on, F=off)',
+      },
     },
     responseShape: 'single',
   },
@@ -1347,7 +3495,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     description: 'Delete a subscription shipping product by subscription_no.',
     scopeType: 'write',
     method: 'DELETE',
-    // cafe24 docs path: `subscription/shipments/setting/{subscription_no}`.
     path: 'subscription/shipments/setting/{subscription_no}',
     requiredFields: ['subscription_no'],
     fields: {
@@ -1363,9 +3510,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     method: 'GET',
     path: 'taxmanager',
     requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
+    fields: {},
     responseShape: 'single',
   },
   {
@@ -1376,9 +3521,23 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     path: 'users',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      offset: { type: 'number', location: 'query', default: 0 },
-      limit: { type: 'number', location: 'query', default: 10 },
+      search_type: {
+        type: 'enum',
+        location: 'query',
+        enum: ['member_Id', 'name'],
+        description: 'Search type (member_Id / name)',
+      },
+      keyword: {
+        type: 'string',
+        location: 'query',
+        description: 'Search keyword',
+      },
+      admin_type: {
+        type: 'enum',
+        location: 'query',
+        enum: ['P', 'A'],
+        description: 'Operator type (P=main, A=sub)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -1392,6 +3551,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['user_id'],
     fields: {
       user_id: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
   },
