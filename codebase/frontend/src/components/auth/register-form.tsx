@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { authApi } from "@/lib/api/auth";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { setAccessToken } from "@/lib/api/client";
 import type { OAuthProvider } from "@/lib/api/auth-providers";
 import {
@@ -100,6 +101,17 @@ function RegisterFormInner({
   const showGoogle = !isInvitationFlow && enabledProviders.includes("google");
   const showGithub = !isInvitationFlow && enabledProviders.includes("github");
   const showOauth = showGoogle || showGithub;
+
+  useEffect(() => {
+    // 이미 로그인한 사용자가 초대 링크(/auth/register?invitationToken=…)로 온 경우 —
+    // register 폼은 미가입자 가입 경로이므로, §1.5.3 수락 확인 페이지로 보낸다
+    // (V-09 진입 경로). 미로그인 사용자만 아래 가입 폼을 사용한다.
+    if (invitationToken && useAuthStore.getState().isAuthenticated) {
+      router.replace(
+        `/invitations/accept?token=${encodeURIComponent(invitationToken)}`,
+      );
+    }
+  }, [invitationToken, router]);
 
   useEffect(() => {
     // effect deps 에 `t` 를 넣지 않는 것이 의도적이다 — `useT` 는 locale 변경 시

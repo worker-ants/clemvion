@@ -8,6 +8,9 @@ code:
   - codebase/backend/src/modules/mail/**/*.ts
   - codebase/backend/src/common/guards/*.ts
   - codebase/backend/src/common/config/webauthn.config.ts
+  - codebase/frontend/src/app/(main)/invitations/accept/**
+  - codebase/frontend/src/components/auth/register-form.tsx
+  - codebase/frontend/src/lib/api/invitations.ts
 pending_plans:
   - plan/in-progress/spec-sync-auth-gaps.md
 ---
@@ -260,6 +263,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 ```
 
 토큰 이메일과 로그인 사용자의 이메일이 다르면 수락 페이지에서 "이 초대는 {토큰.email} 에게 발송되었습니다. 해당 계정으로 로그인하세요" 안내 + 로그아웃 버튼만 노출한다.
+
+> **경로·진입**: 수락 페이지는 `/invitations/accept?token=<초대토큰>` (쿼리 파라미터 `token`). 초대 메일 링크는 `/auth/register?invitationToken=` 를 가리키므로, **이미 로그인한 사용자**가 이 링크로 진입하면 register 페이지가 로그인 상태를 감지해 위 수락 페이지로 리다이렉트한다 (register 폼은 미가입자 가입 경로). 미로그인 사용자는 §1.5.2 가입 경로를 따른다.
 
 #### 1.5.4 에러 응답
 

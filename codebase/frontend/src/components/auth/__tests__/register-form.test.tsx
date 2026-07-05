@@ -3,8 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
 const mockRegister = vi.fn();
@@ -40,6 +41,7 @@ vi.mock("sonner", () => ({
 
 import { RegisterForm } from "../register-form";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 const VALID_TOKEN = "a".repeat(64);
 
@@ -53,7 +55,9 @@ function axiosError(status: number, body: object = {}) {
 describe("RegisterForm — invitation token flow", () => {
   beforeEach(() => {
     useLocaleStore.setState({ locale: "ko" });
+    useAuthStore.setState({ isAuthenticated: false, user: null });
     mockPush.mockReset();
+    mockReplace.mockReset();
     mockRegister.mockReset();
     mockCheckEmail.mockReset();
     mockGetByToken.mockReset();
@@ -209,5 +213,25 @@ describe("RegisterForm — invitation token flow", () => {
     await user.type(email, "not-an-email");
     await user.tab();
     expect(mockCheckEmail).not.toHaveBeenCalled();
+  });
+
+  it("redirects an already-logged-in user with a token to the accept page (§1.5.3 entry, V-09)", async () => {
+    useAuthStore.setState({
+      isAuthenticated: true,
+      user: { id: "u1", email: "x@y.com", name: "X" } as never,
+    });
+    mockGetByToken.mockResolvedValue({
+      workspaceName: "WS",
+      invitedByName: null,
+      email: "x@y.com",
+      role: "editor",
+      expiresAt: "2099-01-01T00:00:00Z",
+    });
+    render(<RegisterForm invitationToken="tok-9" />);
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/invitations/accept?token=tok-9",
+      ),
+    );
   });
 });

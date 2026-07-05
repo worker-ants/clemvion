@@ -21,5 +21,9 @@ export const invitations = {
     missingHint: "초대 메일에 포함된 링크를 그대로 사용해 주세요.",
     goDashboard: "대시보드로 이동",
     redirectingDashboard: "잠시 후 대시보드로 이동해요.",
+    mismatchTitle: "다른 계정으로 로그인되어 있어요",
+    mismatchHint:
+      "이 초대는 {{email}} 에게 발송되었어요. 해당 계정으로 로그인해 주세요.",
+    logoutAndSwitch: "다른 계정으로 로그인",
   },
 } as const;
