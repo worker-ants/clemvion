@@ -1,6 +1,6 @@
 ---
 id: conversation-thread
-status: partial
+status: implemented
 code:
   - codebase/backend/src/shared/conversation-thread/**
   - codebase/backend/src/modules/execution-engine/conversation-thread/**
@@ -17,8 +17,6 @@ code:
   - codebase/frontend/src/components/editor/run-results/result-timeline.tsx
   - codebase/frontend/src/components/editor/run-results/conversation-timeline-item.tsx
   - codebase/frontend/src/components/editor/run-results/renderers/assistant-presentations-block.tsx
-pending_plans:
-  - plan/in-progress/exec-park-durable-resume.md
 ---
 
 # Conversation Thread (대화 스레드)
