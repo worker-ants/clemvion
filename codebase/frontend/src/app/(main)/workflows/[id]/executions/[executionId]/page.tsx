@@ -454,6 +454,7 @@ export default function ExecutionDetailPage({
       <NodeResultsTab
         executionId={executionId}
         nodeExecutions={sortedNodeExecutions}
+        executionDryRun={execution.dryRun === true}
       />
 
       {/* Re-run 모달 (spec §10.2) — 두 진입점이 공유한다. */}
@@ -481,7 +482,12 @@ function toNodeResult(ne: NodeExecutionData): NodeResult {
     nodeCategory: def?.category ?? "unknown",
     status: ne.status,
     duration: ne.durationMs ?? undefined,
+    // ResultDetail 의 Input 탭은 result.inputData 를, 헤더 시작 시각은
+    // result.startedAt 을 읽는다 — 매핑을 빠뜨리면 Input 탭이 영구 "로드 중"
+    // placeholder 로만 뜨고 헤더 시작 시각이 사라진다(§3.3 Input 서브탭 위반).
+    startedAt: ne.startedAt,
     error: ne.error?.message,
+    inputData: ne.inputData,
     outputData: ne.outputData,
   };
 }
@@ -489,9 +495,11 @@ function toNodeResult(ne: NodeExecutionData): NodeResult {
 function NodeResultsTab({
   executionId,
   nodeExecutions,
+  executionDryRun,
 }: {
   executionId: string;
   nodeExecutions: NodeExecutionData[];
+  executionDryRun: boolean;
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   // Tracks which conversation message (if any) the user drilled into via
@@ -621,6 +629,7 @@ function NodeResultsTab({
       <div className="flex-1 rounded-md border border-[hsl(var(--border))] overflow-hidden">
         <ResultDetail
           result={selectedNodeResult}
+          executionDryRun={executionDryRun}
           isWaitingForm={isWaitingForm}
           formConfig={waitingFormConfig}
           isWaitingButtons={isWaitingButtons}

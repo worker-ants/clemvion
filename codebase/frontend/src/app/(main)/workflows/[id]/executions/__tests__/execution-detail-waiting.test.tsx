@@ -300,6 +300,26 @@ describe("ExecutionDetailPage - waiting interaction", () => {
     expect(screen.queryByText("LLM 사용량")).toBeNull();
   });
 
+  // 회귀: toNodeResult 가 inputData 를 매핑하지 않으면 Input 탭이 영구히
+  // "입력 데이터 로드 중..." placeholder 로만 뜬다(ai-review requirement CRITICAL).
+  it("completed node Input tab renders inputData, not the loading placeholder (V-05)", async () => {
+    mockGetById.mockResolvedValue(makeCompletedExecution("http_request"));
+    await renderPage();
+    fireEvent.click(await screen.findByText("Fetch"));
+    fireEvent.click(await screen.findByText("입력"));
+    expect(screen.queryByText("입력 데이터 로드 중...")).toBeNull();
+  });
+
+  // 회귀: dry-run 실행의 비-effect 노드(output 에 _dryRun 마커 없음)도
+  // execution-level 플래그로 dry-run 배지가 떠야 한다(ai-review side_effect WARNING).
+  it("shows dry-run badge on a non-effect node when the whole execution is dry-run (V-05)", async () => {
+    const exec = makeCompletedExecution("http_request");
+    mockGetById.mockResolvedValue({ ...exec, dryRun: true });
+    await renderPage();
+    fireEvent.click(await screen.findByText("Fetch"));
+    expect(await screen.findByText(/dry-run/)).toBeInTheDocument();
+  });
+
   it("renders conversation inspector and emits submit_message", async () => {
     mockGetById.mockResolvedValue(makeWaitingExecution("ai_conversation"));
     await renderPage();

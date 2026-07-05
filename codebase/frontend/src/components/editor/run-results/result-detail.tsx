@@ -829,6 +829,14 @@ function ConfigTabContent({
 interface ResultDetailProps {
   result: NodeResult | null;
   /**
+   * 실행 전체가 dry-run 인지(execution-level). node output 의 `_dryRun` 마커는
+   * effect 노드에만 심기므로(spec/5-system/13-replay-rerun §7.2/§7.3), dry-run
+   * 실행 중 정상 실행된 비-effect 노드(Logic/Flow/Data/AI 등)에도 dry-run 배지를
+   * 표시하려면 이 execution-level 플래그가 필요하다. 미전달 시 false — output
+   * 마커에만 의존하는 소비처(에디터 run-results drawer)는 기존 동작 유지.
+   */
+  executionDryRun?: boolean;
+  /**
    * spec §6.1.d.ii + spec/conventions/interaction-type-registry.md §1.2 —
    * 그래프 Form 노드 (`interactionType: 'form'`) 한정. `ai_form_render` 는
    * `isWaitingConversation` 으로 흡수되어 timeline 인라인 렌더.
@@ -869,6 +877,7 @@ interface ResultDetailProps {
 
 export function ResultDetail({
   result,
+  executionDryRun = false,
   isWaitingForm,
   formConfig,
   isWaitingButtons,
@@ -1162,7 +1171,9 @@ export function ResultDetail({
           {definition?.label ?? result.nodeType}
         </span>
         <StatusBadge status={result.status} />
-        {isDryRunOutput(result.outputData) && <DryRunBadge />}
+        {(executionDryRun || isDryRunOutput(result.outputData)) && (
+          <DryRunBadge />
+        )}
         {/* spec/conventions/conversation-thread.md §9.12 — 노드 발생 시각(절대) + 소요시간 */}
         {result.startedAt && (
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
