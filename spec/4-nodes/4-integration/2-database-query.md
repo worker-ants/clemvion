@@ -373,8 +373,10 @@ generic `INTEGRATION_CALL_FAILED` 로 surface 됐다. 이는 HTTP(`HTTP_BLOCKED`
 핸들러가 공용 가드의 plain Error 를 잡아 `IntegrationError('DB_HOST_BLOCKED')` 로 승격).
 
 - **메시지 일반화**: 클라이언트 노출 메시지는 차단된 host/IP 를 포함하지 않는다 (정찰면 축소).
-  차단 상세(원본 host)는 `logUsage` 서버 활동 로그에만 남긴다. 동일 원칙을 HTTP/Email SSRF
-  메시지 일반화 follow-up 과 공유한다.
+  차단 상세(원본 host)는 `logUsage` 서버 활동 로그에만 남긴다. 동일 원칙을 Send Email
+  (`EMAIL_HOST_BLOCKED`)과 공유하며, **HTTP Request(`HTTP_BLOCKED`)도 2026-07-05 동일 일반화
+  완료** ([1-http-request §8.3](./1-http-request.md#83-ssrf-차단-메시지-일반화--정찰-면-축소-2026-07-05)) —
+  HTTP 는 원본 상세를 `logger.warn`(전 인증 공통)으로도 보존한다.
 - **opt-out 플래그 재사용**: 별도 플래그 신설 대신 HTTP/Email 과 동일한 `ALLOW_PRIVATE_HOST_TARGETS`
   를 재사용 — integration 전반의 SSRF posture(기본 차단·self-host 만 opt-in)를 일관 유지한다.
 - **chat-channel 분류**: `DB_HOST_BLOCKED` 는 `chat-channel-adapter §3.1` 의 `DB_*` 매핑에

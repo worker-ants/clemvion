@@ -925,7 +925,8 @@ describe('HttpRequestHandler', () => {
         error: { code: string; message: string };
       };
       expect(output.error.code).toBe('HTTP_BLOCKED');
-      expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+      // 정찰 면 축소 — output.error.message 는 차단된 host/IP 미노출 일반화 문구.
+      expect(output.error.message).toBe('Request blocked by SSRF policy.');
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',
@@ -952,7 +953,8 @@ describe('HttpRequestHandler', () => {
         error: { code: string; message: string };
       };
       expect(output.error.code).toBe('HTTP_BLOCKED');
-      expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+      // 정찰 면 축소 — output.error.message 는 차단된 host/IP 미노출 일반화 문구.
+      expect(output.error.message).toBe('Request blocked by SSRF policy.');
     });
 
     // refactor 04 C-3 — SSRF guard now applies to ALL authentication methods,
@@ -975,7 +977,10 @@ describe('HttpRequestHandler', () => {
         error: { code: string; message: string };
       };
       expect(output.error.code).toBe('HTTP_BLOCKED');
-      expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+      // 정찰 면 축소 — output.error.message 는 차단된 host/IP 미노출 일반화 문구.
+      expect(output.error.message).toBe('Request blocked by SSRF policy.');
+      // 차단된 IP(169.254.169.254)가 클라이언트 메시지에 노출되지 않아야 한다.
+      expect(output.error.message).not.toContain('169.254');
       // `none` auth generates no Usage log (spec §4.2).
       expect(logUsage).not.toHaveBeenCalled();
     });
@@ -1053,9 +1058,46 @@ describe('HttpRequestHandler', () => {
           error: { code: string; message: string };
         };
         expect(output.error.code).toBe('HTTP_BLOCKED');
-        expect(output.error.message).toMatch(/SSRF_BLOCKED/);
+        // 정찰 면 축소 — output.error.message 는 차단된 host/IP 미노출 일반화 문구.
+        expect(output.error.message).toBe('Request blocked by SSRF policy.');
       },
     );
+
+    it('blocks redirect to internal host with HTTP_BLOCKED + generalized message (spec §4.2/§6)', async () => {
+      // start = 공인 IP(SSRF 통과) → 302 → internal IMDS. manual redirect follow
+      // 가 각 hop 을 재검증하므로 redirect 대상 SSRF 차단도 HTTP_BLOCKED 로 라우팅.
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: {
+          get: (h: string) =>
+            h.toLowerCase() === 'location'
+              ? 'http://169.254.169.254/latest/meta-data/'
+              : null,
+        },
+        text: jest.fn(),
+        json: jest.fn(),
+      });
+      const { service } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://93.184.216.34/start',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
+      expect(output.error.code).toBe('HTTP_BLOCKED');
+      expect(output.error.message).toBe('Request blocked by SSRF policy.');
+      expect(output.error.message).not.toContain('169.254');
+    });
 
     it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {
       const prev = process.env.ALLOW_PRIVATE_HOST_TARGETS;
