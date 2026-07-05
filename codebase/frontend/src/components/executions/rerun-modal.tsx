@@ -28,6 +28,10 @@ import { executionsApi } from "@/lib/api/executions";
 import type { ExecutionStatus } from "@/lib/api/executions";
 import { workflowsApi } from "@/lib/api/workflows";
 import type { NodeData } from "@/lib/api/workflows";
+import type {
+  TriggerParameterDefinition,
+  TriggerParameterType,
+} from "@/lib/api/triggers";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { NodeDefinition } from "@/lib/node-definitions/types";
 
@@ -103,28 +107,15 @@ function extractParameters(
   return {};
 }
 
-/**
- * Manual Trigger 파라미터 스키마 정의 (spec/4-nodes/7-trigger/0-common.md §1).
- * `config.parameters` 는 값이 아니라 이 shape 의 스키마 배열이다.
- */
-type ParamType = "string" | "number" | "boolean" | "object" | "array";
-interface TriggerParameterDefinition {
-  name: string;
-  type: ParamType;
-  required?: boolean;
-  defaultValue?: unknown;
-  description?: string;
-}
-
 /** Re-run 입력 폼의 렌더 필드 — 스키마에서 도출(또는 원본 값 키 fallback). */
 interface RerunField {
   name: string;
-  type: ParamType;
+  type: TriggerParameterType;
   description?: string;
 }
 
 /** 타입별 input 표시 문자열. object/array 는 JSON 문자열로 표기. */
-function displayValue(type: ParamType, value: unknown): string {
+function displayValue(type: TriggerParameterType, value: unknown): string {
   if (value == null) return "";
   if (type === "object" || type === "array") {
     return typeof value === "string" ? value : JSON.stringify(value);
@@ -140,7 +131,7 @@ function displayValue(type: ParamType, value: unknown): string {
  * `coerceToType`/`resolveTriggerParameters` 가 native-typed 값을 그대로 수용한다
  * (cross_spec 확인).
  */
-function coerceInput(type: ParamType, raw: string): unknown {
+function coerceInput(type: TriggerParameterType, raw: string): unknown {
   if (type === "boolean") return raw === "true";
   if (type === "number") return raw === "" ? "" : Number(raw);
   if (type === "object" || type === "array") {
