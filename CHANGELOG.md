@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Re-run 모달 원본 ID 링크 + typed 입력 폼 (V-14)
+
+### 변경 사항
+
+1. **Re-run 모달의 입력 폼이 Manual Trigger 스키마 기반 typed 동적 폼으로 전환 + 원본 ID 링크** — 종전 `rerun-modal.tsx` 는 원본 실행 ID 를 plain text 로, 입력 폼을 원본 `inputData.parameters` 키 전부를 텍스트 Input 으로만 렌더해 boolean 을 텍스트로 입력하는 등 타입 부정합 여지가 있었다(`spec/5-system/13-replay-rerun.md §10.2` 은 (a) 원본 ID 클릭 시 새 탭 상세 (b) manual_trigger 노드 config 스키마 기반 typed 폼을 명시). 이제 워크플로 manual_trigger 노드 `config.parameters` 스키마(`{name,type}`)에서 필드를 도출해 **string→text·number→number·boolean→checkbox·object/array→JSON** 위젯으로 렌더하고, 편집값을 타입에 맞게 coerce 해 전송한다(backend `resolveTriggerParameters` 가 native-typed 값 수용). 원본 ID 는 `/workflows/:wid/executions/:id` 새 탭 링크. 스키마 부재(노드 삭제 등) 시 원본 키 text fallback 으로 데이터 은닉을 피한다. spec 변경 불요(§10.2 이미 명시). SoT: `spec/5-system/13-replay-rerun.md §10.2`.
+
 ## Unreleased — 트리거 목록에 Schedule cron·다음 실행 시각 표시 (V-10)
 
 ### 변경 사항
