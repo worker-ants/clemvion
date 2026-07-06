@@ -732,6 +732,8 @@ ALTER TABLE trigger
 
 구현된 inbound rate-limit(`/interact`·status) 초과 응답은 `429 { error: { code: 'RATE_LIMITED' } }` + `Retry-After`(잔여 윈도우 초) 다. SSE 동시연결 초과는 EIA 전용 `TOO_MANY_CONNECTIONS` 로 별개 표면이다. Redis 미가용 시 rate-limiter 는 fail-open(허용)한다.
 
+> **버킷 매핑**: `/cancel`(§5.4)은 `interact command:cancel` 과 동치(EIA-IN-05)라 **interact 버킷(분당 60)에 합산** 카운트한다 — 별도 alias 로 rate-limit 을 우회하지 못하게 한다. `/refresh-token`(§5.5)은 명령/조회가 아닌 토큰 관리 표면이라 본 per-execution rate-limit **범위 밖**이며 전역 IP throttle(분당 100)만 적용된다.
+
 ### 8.5 CORS
 
 - `/api/external/executions/:id/interact`, `/stream`, `/cancel`, `/refresh-token` 은 **CORS 허용**: `Access-Control-Allow-Origin` 은 워크스페이스 설정의 `interactionAllowedOrigins` ([Spec 데이터 모델 §2.2 Workspace.settings](../1-data-model.md#22-workspace)) 기준. 미설정 시 차단 (브라우저 호출 시 사용자가 명시 설정 필요 — 설정 표면: 워크스페이스 설정 개요 탭 Admin+, `PATCH /api/workspaces/:id/settings` [9-user-profile §4.3·§6.1](../2-navigation/9-user-profile.md)). 단 **공식 웹채팅 위젯의 hosted CDN origin 은 빌트인 상수로 항상 허용**(모든 워크스페이스 공통)하고, `interactionAllowedOrigins` 는 그 외 추가 origin (BYO-UI 고객 도메인 등) 을 병합한다 — [Spec Channel Web Chat 보안 §2](../7-channel-web-chat/4-security.md).

@@ -165,11 +165,18 @@ describe('InteractionController (integration)', () => {
       );
     });
 
-    it('interact 는 @RateLimit(interact), getStatus 는 @RateLimit(status)', () => {
+    it('interact/cancel 는 @RateLimit(interact), getStatus 는 @RateLimit(status)', () => {
       expect(
         Reflect.getMetadata(
           RATE_LIMIT_META,
           InteractionController.prototype.interact,
+        ),
+      ).toBe('interact');
+      // cancel 은 interact command:cancel 과 동치라 interact 버킷 공유(우회 차단).
+      expect(
+        Reflect.getMetadata(
+          RATE_LIMIT_META,
+          InteractionController.prototype.cancel,
         ),
       ).toBe('interact');
       expect(
@@ -178,6 +185,13 @@ describe('InteractionController (integration)', () => {
           InteractionController.prototype.getStatus,
         ),
       ).toBe('status');
+      // refresh-token 은 rate-limit 범위 밖 — 메타데이터 없음.
+      expect(
+        Reflect.getMetadata(
+          RATE_LIMIT_META,
+          InteractionController.prototype.refreshToken,
+        ),
+      ).toBeUndefined();
     });
 
     it('interact / cancel method 에 @Public() 데코레이터 적용 (글로벌 JWT guard 우회)', () => {

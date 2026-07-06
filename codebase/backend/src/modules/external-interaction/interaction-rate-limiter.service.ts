@@ -37,6 +37,9 @@ export class InteractionRateLimiterService {
 
   constructor(
     @Optional() configService?: ConfigService,
+    // `INTERACTION_RATE_LIMIT_REDIS` 는 프로덕션 provider 에 등록하지 않는다 — 테스트가
+    // fake Redis 를 주입하기 위한 확장 지점이며, 런타임에는 항상 undefined 라 아래
+    // `redisConn?.getClientOrNull()`(공유 command 연결)로 fallback 한다.
     @Optional()
     @Inject('INTERACTION_RATE_LIMIT_REDIS')
     injectedRedis?: Redis,
@@ -102,19 +105,31 @@ export class InteractionRateLimiterService {
   }
 
   /**
-   * INCR 후 첫 증가(count=1)일 때만 EXPIRE 를 걸어 fixed-window 를 구성한다.
-   * (PublicWebhookQuotaService.incrWithWindow 와 동일 패턴.)
+   * INCR + (첫 증가 시) EXPIRE 를 **단일 원자적 Lua 스크립트**로 실행해 fixed-window 를
+   * 구성한다. INCR 과 EXPIRE 를 별도 왕복으로 하면(예: `PublicWebhookQuotaService`) 두 커맨드
+   * 사이 프로세스 크래시·네트워크 단절 시 TTL 없는 키가 영구 잔류해 해당 execution 이 영구
+   * rate-limit(fail-closed)되는 잔여 위험이 있다 — Lua EVAL 은 서버측에서 두 커맨드를 원자
+   * 실행해 이 창을 제거한다. (동일 패턴을 쓰는 다른 컴포넌트는 cross-cutting 후속으로 추적.)
    */
   private async incrWithWindow(
     key: string,
     windowSec: number,
   ): Promise<number> {
-    const count = await this.redis!.incr(key);
-    if (count === 1) {
-      await this.redis!.expire(key, windowSec);
-    }
-    return count;
+    const count = await this.redis!.eval(
+      InteractionRateLimiterService.INCR_WINDOW_LUA,
+      1,
+      key,
+      String(windowSec),
+    );
+    return Number(count);
   }
+
+  /** INCR 후 첫 증가면 EXPIRE — 원자 실행(위 incrWithWindow 참조). */
+  private static readonly INCR_WINDOW_LUA = `local c = redis.call('INCR', KEYS[1])
+if c == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return c`;
 
   // 공유 connection 은 RedisConnectionProvider 가 소유·종료 — 본 서비스는 quit 안 함.
 }

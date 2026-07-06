@@ -6,20 +6,25 @@ import {
 import type Redis from 'ioredis';
 
 /**
- * In-memory fake Redis — INCR / EXPIRE / TTL 만 지원. fixed-window 검증에 충분.
+ * In-memory fake Redis — EVAL(INCR+조건부 EXPIRE Lua) / TTL 만 지원. fixed-window 검증에 충분.
+ * `eval` 은 서비스가 쓰는 Lua 시맨틱(INCR 후 count===1 이면 EXPIRE)을 그대로 모사한다.
  */
 class FakeRedis {
   private counts = new Map<string, number>();
   private ttls = new Map<string, number>();
-  incr = jest.fn(async (key: string): Promise<number> => {
-    const next = (this.counts.get(key) ?? 0) + 1;
-    this.counts.set(key, next);
-    return next;
-  });
-  expire = jest.fn(async (key: string, sec: number): Promise<number> => {
-    this.ttls.set(key, sec);
-    return 1;
-  });
+  eval = jest.fn(
+    async (
+      _script: string,
+      _numKeys: number,
+      key: string,
+      windowSec: string,
+    ): Promise<number> => {
+      const next = (this.counts.get(key) ?? 0) + 1;
+      this.counts.set(key, next);
+      if (next === 1) this.ttls.set(key, Number(windowSec));
+      return next;
+    },
+  );
   ttl = jest.fn(async (key: string): Promise<number> => {
     return this.ttls.get(key) ?? -1;
   });
@@ -83,14 +88,21 @@ describe('InteractionRateLimiterService', () => {
     expect(over.retryAfterSec).toBe(60); // expire(key, 60) 로 설정된 TTL
   });
 
-  it('첫 증가에만 EXPIRE 를 건다 (fixed-window)', async () => {
+  it('INCR+EXPIRE 를 단일 원자 EVAL 로 실행 (fixed-window)', async () => {
     const redis = new FakeRedis();
     const svc = makeService(redis);
     await svc.consumeInteract('exec-1');
     await svc.consumeInteract('exec-1');
     await svc.consumeInteract('exec-1');
-    expect(redis.expire).toHaveBeenCalledTimes(1);
-    expect(redis.expire).toHaveBeenCalledWith(makeInteractKey('exec-1'), 60);
+    // consume 마다 별도 INCR/EXPIRE 왕복이 아니라 EVAL 1회 — 비원자 window 제거.
+    expect(redis.eval).toHaveBeenCalledTimes(3);
+    // 첫 EVAL 이 windowSec=60 을 인자로 받아 TTL 을 건다 (내부 count===1 분기).
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringContaining('INCR'),
+      1,
+      makeInteractKey('exec-1'),
+      '60',
+    );
   });
 
   it('interact / status 는 독립 키로 카운트', async () => {
@@ -102,8 +114,18 @@ describe('InteractionRateLimiterService', () => {
     expect((await svc.consumeInteract('exec-1')).allowed).toBe(true);
     // 같은 execution 이라도 status 는 별도 버킷이라 여전히 허용
     expect((await svc.consumeStatus('exec-1')).allowed).toBe(true);
-    expect(redis.incr).toHaveBeenCalledWith(makeInteractKey('exec-1'));
-    expect(redis.incr).toHaveBeenCalledWith(makeStatusKey('exec-1'));
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      makeInteractKey('exec-1'),
+      expect.any(String),
+    );
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      makeStatusKey('exec-1'),
+      expect.any(String),
+    );
   });
 
   it('execution 별 독립 카운트 — 다른 execution 은 서로 영향 없음', async () => {
@@ -126,7 +148,7 @@ describe('InteractionRateLimiterService', () => {
 
   it('Redis 오류 시 fail-open (allowed=true)', async () => {
     const redis = new FakeRedis();
-    redis.incr.mockRejectedValueOnce(new Error('redis down'));
+    redis.eval.mockRejectedValueOnce(new Error('redis down'));
     const svc = makeService(redis);
     const r = await svc.consumeInteract('exec-1');
     expect(r).toEqual({ allowed: true, retryAfterSec: 0 });
