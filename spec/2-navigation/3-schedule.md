@@ -1,8 +1,6 @@
 ---
 id: schedule
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-schedule-gaps.md
+status: implemented
 code:
   - codebase/frontend/src/app/(main)/schedules/page.tsx
   - codebase/frontend/src/lib/utils/cron-to-visual.ts
@@ -56,11 +54,11 @@ code:
 | 스케줄 이름 | 사용자 지정 이름 |
 | Cron 표현식 | 원본 Cron 표현식 |
 | 사람이 읽을 수 있는 설명 | Cron 표현식을 자연어로 변환한 설명 |
-| 연결된 워크플로우 | 워크플로우 이름 표기 (현재 단순 텍스트. 에디터로 이동하는 링크는 미구현/Planned) |
+| 연결된 워크플로우 | 워크플로우 이름 표기. 클릭 시 해당 워크플로우 에디터(`/workflows/{id}`)로 이동 |
 | 다음 실행 시각 | 다음 예정된 실행 시각 (절대 시간) |
 | 행 액션 | 인라인 버튼: 즉시 실행(Run), 활성/비활성 토글(Toggle), 수정(Edit), 삭제(Delete). 토글·수정·삭제는 editor 이상 권한(RoleGate)에서만 노출 |
 
-> **Planned (미구현)**: 더보기(⋮) 오버플로 메뉴와 그 안의 "실행 이력", "트리거에서 보기"(→ Trigger 목록에서 해당 트리거로 이동) 항목은 아직 구현되어 있지 않다. 현재 UI 는 위 인라인 버튼만 제공한다 (`codebase/frontend/src/app/(main)/schedules/page.tsx`).
+> 더보기(⋮) 오버플로 메뉴는 "실행 이력"(트리거 호출 이력 Dialog)과 "트리거에서 보기"(→ `/triggers?triggerId=…` 딥링크로 Trigger 목록에서 해당 트리거 상세 drawer 오픈) 항목을 제공한다. 두 항목 모두 트리거가 연결된 스케줄에서만 활성화된다 (`codebase/frontend/src/app/(main)/schedules/page.tsx`).
 
 ### 2.2 스케줄 생성/수정 다이얼로그
 
@@ -73,7 +71,7 @@ code:
 | 안내 메시지 | "스케줄을 생성하면 트리거 목록에 자동 등록됩니다" 인포 텍스트 |
 | 사람이 읽을 수 있는 미리보기 | Cron 변환 결과 실시간 표시 |
 | 다음 5회 실행 시각 | 설정된 Cron에 따른 예정 실행 시각 미리보기 |
-| 타임존 | IANA 타임존 선택. 미지정 시 서버가 **워크스페이스 설정(`settings.timezone`) → `'Asia/Seoul'`** 순으로 fallback 한다 (`SchedulesService.resolveTimezone`: 명시값 > workspace settings.timezone > 'Asia/Seoul'). 워크스페이스 타임존은 `PATCH /api/workspaces/:id/settings` 의 `timezone`(IANA 검증) 으로 설정. **frontend 잔여(Planned)**: workspace 설정 화면의 timezone 입력 UI 는 미구현 |
+| 타임존 | IANA 타임존 선택. 미지정 시 서버가 **워크스페이스 설정(`settings.timezone`) → `'Asia/Seoul'`** 순으로 fallback 한다 (`SchedulesService.resolveTimezone`: 명시값 > workspace settings.timezone > 'Asia/Seoul'). 워크스페이스 타임존은 `PATCH /api/workspaces/:id/settings` 의 `timezone`(IANA 검증) 으로 설정하며, 워크스페이스 설정 Overview 탭의 타임존 카드(IANA 입력, admin 이상)에서 편집한다 |
 
 #### 2.2.1 표현식 ↔ 시각 편집 자동 변환
 

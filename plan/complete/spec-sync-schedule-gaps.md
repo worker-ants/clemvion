@@ -1,7 +1,10 @@
 ---
-worktree: fe3-schedule-ui-d7eeab
+worktree: fe3-triggers-deeplink-0fdb24
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/2-navigation/3-schedule.md
+  - spec/2-navigation/2-trigger-list.md
 ---
 
 # schedule — spec 약속 대비 미구현 surface
@@ -28,9 +31,10 @@ owner: planner
 - **[WARNING] 테스트 게이팅 갭** (testing 리뷰): 트리거 없는 스케줄(plain text·이력 disabled·트리거링크 disabled·클릭 no-op) + timezone empty-clear + 다이얼로그 prop 전달 테스트 추가.
 - **[INFO] 메뉴 일관화** (maintainability): "트리거에서 보기"도 triggerId 부재 시 disabled(조건부 렌더→disabled 통일).
 
-## 잔여 (planner 후속 — spec-doc sync)
-- 모든 코드 항목 구현 완료. `complete/` 이동 전 필요: spec `2-navigation/3-schedule.md` §2.1(더보기 메뉴·트리거 링크·워크플로 링크) / §2.2(timezone UI) 의 "미구현 (Planned)" 마커 제거 + `status: partial → implemented` 승격 + `pending_plans` 제거 (spec-status-lifecycle 가드). spec 편집이라 **project-planner** 담당.
-- `/triggers` inbound `?triggerId=` 필터/하이라이트 follow-up (위 "트리거에서 보기" 참조).
+## 잔여 (완료 — 2026-07-06, fe3-triggers-deeplink PR)
+- [x] spec `2-navigation/3-schedule.md` §2.1(더보기 메뉴·트리거 링크·워크플로 링크) / §2.2(timezone UI) "미구현 (Planned)" 마커 제거 + `status: partial → implemented` 승격 + `pending_plans` 제거. (project-planner, `consistency-check --spec` 통과)
+- [x] `/triggers` inbound `?triggerId=` 딥링크 소비 — 착지 시 해당 트리거 상세 drawer 자동 오픈(마운트 1회 URL 파라미터 소비). `triggers/page.tsx` `selectedTriggerId` 초기값을 `useSearchParams().get("triggerId")` 로. 테스트 2건(딥링크 오픈·파라미터 없으면 미오픈). spec `2-navigation/2-trigger-list.md` §2.3 에 inbound 딥링크 진입 경로 명문화.
+  - 참고: 역방향(`/schedules?triggerId=` — triggers→schedule 링크)의 inbound 소비는 별도 잠재 갭으로 남음(본 PR 범위 밖).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 참조.
