@@ -90,6 +90,16 @@ owner: developer
   (재개)의 FAILED 마킹+dispatch 시퀀스가 중복 — 버그 A(한쪽만 배선)의 재발 패턴. 공통 헬퍼
   `finalizeFailedExecution(savedExecution, error)` 추출 검토. (기능 무해, 별도 리팩터링 PR.)
 
-## 게이트 정책
-- 3 항목 모두 spec/data-flow/8-notifications 동일 area → impl-prep 1회(area) + 구현 후 통합 ai-review + impl-done 1회.
-  (항목 3 은 코드 변경 없음 → 별도 review 불요, spec-update 로 흡수.)
+## 게이트 이행 결과 (Definition of Done)
+- [x] impl-prep consistency-check (20_58_46, BLOCK:NO)
+- [x] TEST WORKFLOW: lint·unit·build·e2e(238 pass) 통과 — 최종 commit 04386bdd4 기준 green
+- [x] `/ai-review` ×2: 초기 구현(21_23_13, 0 Critical/7 WARNING) + 엔진 버그수정 재리뷰(22_42_32, 0 Critical/5 WARNING+security). 전 WARNING 조치 or followup 이관. RESOLUTION.md 2건.
+- [x] `/consistency-check --impl-done` (23_06_30, 5 checker, **BLOCK:NO**) — spec 동기화로 SPEC-DRIFT 해소.
+- [x] 발견 버그 2건(execution_failed 미발사) 수정 + 회귀 가드(e2e·unit).
+- [x] security WARNING(에러메시지 새니타이징) 조치.
+- 커밋: 797488494(구현) · 656fc7cce(버그수정) · 04386bdd4(리뷰반영+새니타이저+spec동기화).
+
+## 잔여 (plan in-progress 유지 사유)
+- **항목 3** (dispatchEmails decouple): 분석 완료, **사용자 결정 대기** (보류 권장 vs 지금 decouple).
+- **planner 위임분**: [[spec-update-notifications-background-run-id]] 는 이미 developer 가 SPEC-DRIFT reverse-flow 로 spec 반영 완료(§2.1/§1.1/§2.19/Rationale/12-background) — planner 는 §4.4 ModuleRef 문서화(rationale WARNING) 만 잔여.
+- **아키텍처 부채 followup**: DI 순환 인스턴스화 · FAILED 종결 헬퍼 추출 (별도 리팩터링 트랙).
