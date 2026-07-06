@@ -583,6 +583,22 @@ describe('MakeshopMcpToolProvider', () => {
       expect(res.mcpErrorDelta).toBeUndefined();
     });
 
+    it('mcpErrorDelta.message 는 secret 을 redact 한다 (외부 MCP 경로와 정책 통일)', async () => {
+      await setup();
+      apiClient.call.mockRejectedValue(
+        new Error(
+          'transport failed: token=SUPERSECRET123 at https://u:p@internal/x',
+        ),
+      );
+      const res = await provider.execute(
+        makeCall(`mcp_${SID}__get_product`, {}),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.mcpErrorDelta?.message).not.toContain('SUPERSECRET123');
+      expect(res.mcpErrorDelta?.message).not.toContain('u:p@');
+      expect(res.mcpErrorDelta?.message).toContain('***');
+    });
+
     it('translates MakeshopAuthFailedError into MAKESHOP_AUTH_FAILED (§8.4 degrade path)', async () => {
       await setup();
       apiClient.call.mockRejectedValue(

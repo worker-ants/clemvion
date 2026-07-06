@@ -36,12 +36,13 @@ owner: developer
 ## 착수 체크리스트
 - [x] /consistency-check --impl-prep (22_43_22, BLOCK: NO — WARNING/INFO 는 본 PR #3 이 해소 대상)
 - [x] 구현+테스트 (① call-phase errors[] · ② redaction · ③ spec Rationale+prefix · ④ test-conn timeout)
-- [x] TEST WORKFLOW (lint·unit·build·e2e 236 통과, 2026-07-06)
-- [ ] **커밋 (리뷰 前 — author-date 가드 회귀 회피, review_gate_loop_avoidance)**
-- [ ] /ai-review + fix (RESOLUTION)
-- [ ] /consistency-check --impl-done
+- [x] TEST WORKFLOW (lint·unit·build·e2e 236 통과)
+- [x] 커밋 (리뷰 前 — d395fd7cc·88414653b·1374638ef·67279fa20 + redaction 후속)
+- [x] /ai-review — 23_20_02(LOW,2W fix)→23_40_32(clean)→00_00_54(MEDIUM, cafe24/makeshop redaction gap + §2.3, 둘 다 fix). RESOLUTION 기록.
+- [x] /consistency-check --impl-done — 23_20_02·23_40_32 BLOCK:NO, 00_00_54 BLOCK:YES(§2.3 self-contradiction)→67279fa20 fix→00_16_19 BLOCK:NO. (redaction 후속 postdate 재검증)
 - [ ] PR
 
 ## 비고
 - 잔여 미포함: §3.3 credentials.cached_capabilities 캐시(infra, Integration credentials JSONB 구조 변경) — 별도 유지.
 - 교훈(#840): 코드는 리뷰 前 커밋. 게이트는 review-postdates-code(author-date) 요구.
+- 교훈(본 PR): Edit "file not read" 실패를 놓쳐 §2.3 spec-sync 무산 → impl-done Critical 로 검출. Edit 실패 후 반드시 재확인.

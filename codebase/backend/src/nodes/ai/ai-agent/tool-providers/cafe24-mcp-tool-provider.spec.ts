@@ -726,6 +726,22 @@ describe('Cafe24McpToolProvider', () => {
       expect(res.mcpErrorDelta).toBeUndefined();
     });
 
+    it('mcpErrorDelta.message 는 secret 을 redact 한다 (외부 MCP 경로와 정책 통일)', async () => {
+      const { sid } = await setup();
+      apiClient.call.mockRejectedValue(
+        new Error(
+          'transport failed: token=SUPERSECRET123 at https://u:p@internal/x',
+        ),
+      );
+      const res = await provider.execute(
+        makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.mcpErrorDelta?.message).not.toContain('SUPERSECRET123');
+      expect(res.mcpErrorDelta?.message).not.toContain('u:p@');
+      expect(res.mcpErrorDelta?.message).toContain('***');
+    });
+
     it('returns CAFE24_MISSING_FIELDS error when required field absent', async () => {
       const { sid } = await setup();
       const res = await provider.execute(

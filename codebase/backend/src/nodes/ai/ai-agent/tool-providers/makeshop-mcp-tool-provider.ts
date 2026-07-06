@@ -15,6 +15,7 @@ import {
   McpSkipReason,
   pushMcpServerSummary,
 } from './mcp-diagnostics.js';
+import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import {
@@ -565,12 +566,14 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
         }),
         status: 'error',
         error: errInfo.message,
-        // spec §8.1 — transport/API 실패도 call-phase errors[] 누적.
+        // spec §8.1 — transport/API 실패도 call-phase errors[] 누적. 사용자 대면
+        // sink 이므로 errInfo.message(raw)를 redact 후 담는다(§8.3, 외부 MCP 경로와
+        // redaction 정책 통일).
         mcpErrorDelta: {
           integrationId: integration.id,
           phase: 'tools/call',
           code: errInfo.code,
-          message: errInfo.message,
+          message: sanitizeMcpErrorMessage(errInfo.message),
         },
       };
     }

@@ -46,7 +46,8 @@ export const MCP_ERROR_MESSAGE_MAX_LEN = 2048;
  */
 const MCP_EXTRA_SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi, '$1***@'],
-  [/([?&;]\s*token)=[^&\s;]+/gi, '$1=***'],
+  // bare `token=`/`token:` (공용은 access_token/id_token 등 labelled 만 커버).
+  [/(\btoken\s*[=:]\s*)[^&\s;'"]+/gi, '$1***'],
 ];
 
 /**
