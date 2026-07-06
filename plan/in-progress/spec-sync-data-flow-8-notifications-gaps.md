@@ -19,10 +19,10 @@ owner: developer
 - **PR3 (후속)**: 신규 발사 소스 3종 — `execution_failed`(ExecutionEngineService)·`schedule_failed`(ScheduleRunnerService)·`team_invite`(WorkspaceInvitationsService) 를 notify() 경유 발사.
 
 ## 미구현 항목
-- [ ] `NotificationsService.notify({...})` 단일 적재 표면 — 현재는 호출자가 channel 을 계산해 `createMany(entries[])` 배치 INSERT 호출. preference 확인이 서비스 밖에 흩어져 있음.
+- [x] `NotificationsService.notify({...})` 단일 적재 표면 — **PR1 완료** (`notify()` INSERT + `notification.new` emit). 기존 배치 호출자는 여전히 `createMany` 경유(두 표면 병존). preference/channel 계산은 현행 설계상 호출자 책임 유지(spec §1 표).
 - [ ] 알림 이메일 발송 경로 — `MailService` 에 알림 type 별 템플릿/발송 메서드 부재. 현재 verification / invitation / password-reset 만.
 - [ ] `email_sent_at` setter — entity·DTO 에 컬럼만 존재, 채우는 코드(발송 라이프사이클) 전무.
-- [ ] WebSocket `notification.new` emit — `WebsocketService` 에 emit 메서드 부재 (prefix `notifications:` 만 등록). follow-up phase (§4.6 의 `notification.read`/`notification.dismissed` 포함). **PR1 대상.** ⚠ 동일 gap 이 `plan/in-progress/spec-sync-websocket-protocol-gaps.md`(§4.4 `notification.new` emit)에도 등재 — PR1 완료 시 양쪽 동기 체크.
+- [x] WebSocket `notification.new` emit — **PR1 완료** (`WebsocketService.emitNotificationEvent` → `notifications:<userId>`, best-effort). §4.6 의 `notification.read`/`notification.dismissed` 멀티 디바이스 동기화는 별도 follow-up 으로 잔존. ⚠ 자매 plan `spec-sync-websocket-protocol-gaps.md` §4.4 항목도 동기 `[x]`. spec 본문 "Planned" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
 - [ ] type `execution_failed` 발사 — `ExecutionEngineService` 실행 실패 시 발사 미구현.
 - [ ] type `schedule_failed` 발사 — `ScheduleRunnerService` 발사 미구현.
 - [ ] type `marketplace_update` 발사 — 마켓플레이스 모듈 도입 시.

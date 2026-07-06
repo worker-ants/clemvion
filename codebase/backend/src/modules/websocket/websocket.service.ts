@@ -617,6 +617,9 @@ export class WebsocketService {
     if (!userId) return;
     const channel = `notifications:${userId}`;
     try {
+      // payload shape 은 WS spec §4.4 의 { id, type, title, message, resourceType,
+      // resourceId } 정확히 그대로 — 다른 이벤트의 timestamp/seq 는 여기선 붙이지
+      // 않는다 (§4.4 가 권위 shape 이고 wire 계약을 spec 밖으로 확장하지 않는다).
       this.gateway.broadcastToChannel(
         channel,
         NotificationEventType.NOTIFICATION_NEW,
@@ -627,7 +630,6 @@ export class WebsocketService {
           message: notification.message,
           resourceType: notification.resourceType ?? null,
           resourceId: notification.resourceId ?? null,
-          timestamp: new Date().toISOString(),
         },
       );
     } catch (err) {

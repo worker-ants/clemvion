@@ -689,6 +689,7 @@ describe('WebsocketService', () => {
         gateway.broadcastToChannel.mock.calls[0];
       expect(channel).toBe('notifications:user-42');
       expect(event).toBe('notification.new');
+      // WS spec §4.4 정확 shape — timestamp/seq 등 확장 필드 없음.
       expect(payload).toEqual({
         id: 'notif-1',
         type: 'execution_failed',
@@ -696,7 +697,6 @@ describe('WebsocketService', () => {
         message: 'run xyz failed',
         resourceType: 'execution',
         resourceId: 'exec-9',
-        timestamp: expect.any(String),
       });
     });
 
