@@ -13,10 +13,10 @@
  *
  * 2026-07-06 (spec-sync mcp-client 타입 확장): `serverSummaries[]` 단일 배열에서
  * 구조화 객체 (`attempted`/`serverCount`/`toolCalls`/`resourceReads`/`promptGets`/
- * `serverSummaries`/`errors`) 로 승격. build-phase 실패는 `errors[]` 에 granular
- * 코드(`MCP_TIMEOUT`/`MCP_CONNECT_FAILED`/`MCP_LIST_FAILED`)로 누적된다. call-phase
- * (`tools/call`/`resources/read`/`prompts/get`) 실패의 `errors[]` 누적은 별도
- * follow-up — 현재는 `tool_result` + `IntegrationUsageLog`(§8.3)로 완전 표면화됨.
+ * `serverSummaries`/`errors`) 로 승격. `errors[]` 는 build-phase(connect/`tools/list`,
+ * `ctx.mcpDiagnosticErrors` 경유)와 call-phase(`tools/call`/`resources/read`/`prompts/get`
+ * 등, `AgentToolResult.mcpErrorDelta` 경유) 양쪽의 서버측 실패를 granular code + phase 로
+ * 누적한다 (#840 build-phase + 후속 call-phase). client-side 실패는 tool_result 로만.
  */
 
 /**
@@ -57,7 +57,9 @@ export type McpErrorPhase =
   | 'initialize'
   | 'tools/list'
   | 'tools/call'
+  | 'resources/list'
   | 'resources/read'
+  | 'prompts/list'
   | 'prompts/get';
 
 /**

@@ -120,6 +120,14 @@ export interface AgentToolResult {
   /** `meta.ragDiagnostics` 누적용 — kbId 단위 검색 1회 기록. */
   ragDiagnosticsDelta?: KbSearchDiagnostic;
   /**
+   * `meta.mcpDiagnostics.errors[]` 누적용 — call-phase(`tools/call`/`resources/read`/
+   * `prompts/get` 등) 서버측 실패 1건. provider 가 서버 RPC 실패 시 set 하면 핸들러가
+   * choke point 에서 accumulator.errors 로 push 한다. build-phase errors[](ctx 경유
+   * push)와 대칭. INVALID_TOOL_ARGUMENTS·MCP_UNKNOWN_TOOL 등 client-side 실패는
+   * set 하지 않는다(서버 실패 아님). spec/5-system/11-mcp-client.md §6.2 / §8.1.
+   */
+  mcpErrorDelta?: McpDiagnosticError;
+  /**
    * `render_*` display-only 도구가 성공한 경우에만 set. handler 가 이 페이로드를
    * 현재 `ai_assistant` turn 의 top-level `presentations[]` 에 push 한다.
    * SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.10.

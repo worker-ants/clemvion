@@ -565,6 +565,38 @@ describe('MakeshopMcpToolProvider', () => {
           api: GET_PRODUCT_API,
         }),
       );
+      // §8.1 — API 실패는 call-phase errors[] delta 로도 보고.
+      expect(res.mcpErrorDelta).toMatchObject({
+        phase: 'tools/call',
+        code: 'MAKESHOP_404',
+        message: 'MakeShop API returned 404',
+      });
+    });
+
+    it('client-side MAKESHOP_MISSING_FIELDS 는 mcpErrorDelta 를 보고하지 않는다', async () => {
+      await setup();
+      const res = await provider.execute(
+        makeCall(`mcp_${SID}__get_board`, {}),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.status).toBe('error');
+      expect(res.mcpErrorDelta).toBeUndefined();
+    });
+
+    it('mcpErrorDelta.message 는 secret 을 redact 한다 (외부 MCP 경로와 정책 통일)', async () => {
+      await setup();
+      apiClient.call.mockRejectedValue(
+        new Error(
+          'transport failed: token=SUPERSECRET123 at https://u:p@internal/x',
+        ),
+      );
+      const res = await provider.execute(
+        makeCall(`mcp_${SID}__get_product`, {}),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.mcpErrorDelta?.message).not.toContain('SUPERSECRET123');
+      expect(res.mcpErrorDelta?.message).not.toContain('u:p@');
+      expect(res.mcpErrorDelta?.message).toContain('***');
     });
 
     it('translates MakeshopAuthFailedError into MAKESHOP_AUTH_FAILED (§8.4 degrade path)', async () => {
