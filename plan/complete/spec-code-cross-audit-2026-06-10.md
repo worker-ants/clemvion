@@ -2,6 +2,84 @@
 worktree: spec-sync-audit-998544
 started: 2026-06-10
 owner: claude
+spec_impact:
+  - spec/1-data-model.md
+  - spec/2-navigation/1-workflow-list.md
+  - spec/2-navigation/10-auth-flow.md
+  - spec/2-navigation/13-user-guide.md
+  - spec/2-navigation/14-execution-history.md
+  - spec/2-navigation/16-agent-memory.md
+  - spec/2-navigation/2-trigger-list.md
+  - spec/2-navigation/3-schedule.md
+  - spec/2-navigation/4-integration.md
+  - spec/2-navigation/5-knowledge-base.md
+  - spec/2-navigation/6-config.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/2-navigation/_layout.md
+  - spec/2-navigation/_product-overview.md
+  - spec/3-workflow-editor/1-node-common.md
+  - spec/3-workflow-editor/2-edge.md
+  - spec/3-workflow-editor/4-ai-assistant.md
+  - spec/3-workflow-editor/5-version-history.md
+  - spec/4-nodes/0-overview.md
+  - spec/4-nodes/1-logic/12-background.md
+  - spec/4-nodes/2-flow/0-common.md
+  - spec/4-nodes/2-flow/1-workflow.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/2-text-classifier.md
+  - spec/4-nodes/3-ai/3-information-extractor.md
+  - spec/4-nodes/4-integration/1-http-request.md
+  - spec/4-nodes/4-integration/4-cafe24.md
+  - spec/4-nodes/4-integration/5-makeshop.md
+  - spec/4-nodes/5-data/1-transform.md
+  - spec/4-nodes/6-presentation/0-common.md
+  - spec/4-nodes/6-presentation/1-carousel.md
+  - spec/4-nodes/6-presentation/2-table.md
+  - spec/4-nodes/6-presentation/3-chart.md
+  - spec/4-nodes/6-presentation/4-form.md
+  - spec/4-nodes/6-presentation/5-template.md
+  - spec/4-nodes/7-trigger/providers/discord.md
+  - spec/4-nodes/7-trigger/providers/slack.md
+  - spec/5-system/1-auth.md
+  - spec/5-system/10-graph-rag.md
+  - spec/5-system/12-webhook.md
+  - spec/5-system/16-system-status-api.md
+  - spec/5-system/17-agent-memory.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/4-execution-engine.md
+  - spec/5-system/5-expression-language.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/5-system/7-llm-client.md
+  - spec/5-system/8-embedding-pipeline.md
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/4-security.md
+  - spec/conventions/cafe24-api-metadata.md
+  - spec/conventions/conversation-thread.md
+  - spec/conventions/cross-node-warning-rules.md
+  - spec/conventions/data-hydration-surfaces.md
+  - spec/conventions/execution-context.md
+  - spec/conventions/i18n-userguide.md
+  - spec/conventions/makeshop-api-catalog/_overview.md
+  - spec/conventions/makeshop-api-metadata.md
+  - spec/conventions/node-cancellation.md
+  - spec/conventions/rag-evaluation.md
+  - spec/conventions/spec-impl-evidence.md
+  - spec/data-flow/0-overview.md
+  - spec/data-flow/1-audit.md
+  - spec/data-flow/10-triggers.md
+  - spec/data-flow/11-workflow.md
+  - spec/data-flow/12-workspace.md
+  - spec/data-flow/13-agent-memory.md
+  - spec/data-flow/14-chat-channel.md
+  - spec/data-flow/15-external-interaction.md
+  - spec/data-flow/2-auth.md
+  - spec/data-flow/3-execution.md
+  - spec/data-flow/4-file-storage.md
+  - spec/data-flow/5-integration.md
+  - spec/data-flow/6-knowledge-base.md
+  - spec/data-flow/7-llm-usage.md
+  - spec/data-flow/8-notifications.md
+  - spec/data-flow/9-observability.md
 ---
 
 # Spec↔Codebase 전수 상호 감사 (2026-06-10) — 역방향 커버리지 + 순방향 drift + data-flow 전면 갱신
