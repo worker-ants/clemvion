@@ -705,6 +705,62 @@ describe('ExecutionEngineService', () => {
       );
       expect(createMany).not.toHaveBeenCalled();
     });
+
+    it('notificationsService 미주입(@Optional) 이면 no-op — 예외 없음', async () => {
+      // 기본 셋업엔 @Optional 이라 미주입(undefined). guard 로 조용히 리턴.
+      await expect(
+        (
+          service as unknown as {
+            dispatchExecutionFailedNotification: (
+              e: unknown,
+              m: string,
+            ) => Promise<void>;
+          }
+        ).dispatchExecutionFailedNotification(
+          {
+            id: 'ex-4',
+            workflowId: 'wf',
+            executedBy: 'r',
+            parentExecutionId: null,
+          },
+          'boom',
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('workflow 미존재 시 createMany 미호출', async () => {
+      const createMany = jest.fn();
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue(null);
+      await callDispatch(
+        {
+          id: 'ex-5',
+          workflowId: 'wf',
+          executedBy: 'r',
+          parentExecutionId: null,
+        },
+        createMany,
+      );
+      expect(createMany).not.toHaveBeenCalled();
+    });
+
+    it('workflow 조회가 throw 해도 dispatch 는 reject 안 함 (best-effort)', async () => {
+      const createMany = jest.fn();
+      mockWorkflowRepo.findOne = jest
+        .fn()
+        .mockRejectedValue(new Error('db down'));
+      await expect(
+        callDispatch(
+          {
+            id: 'ex-6',
+            workflowId: 'wf',
+            executedBy: 'r',
+            parentExecutionId: null,
+          },
+          createMany,
+        ),
+      ).resolves.toBeUndefined();
+      expect(createMany).not.toHaveBeenCalled();
+    });
   });
 
   // W1 (SUMMARY) — `CheckpointSubject` 타입을 describe 바깥 상위 스코프로 승격해

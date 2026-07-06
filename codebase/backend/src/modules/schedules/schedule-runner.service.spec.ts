@@ -307,6 +307,46 @@ describe('ScheduleRunnerService', () => {
       await expect(service.process(job)).rejects.toThrow('engine boom');
     });
 
+    it('notify() 자체가 reject 해도 process 는 engine 에러로 rethrow (best-effort)', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('engine boom'));
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: 'owner-1',
+      } as unknown as Workflow);
+      notifications.notify.mockRejectedValue(new Error('notif down'));
+
+      await expect(service.process(job)).rejects.toThrow('engine boom');
+    });
+
+    it('workflow.createdBy 가 없으면 schedule_failed 미발사', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('engine boom'));
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: null,
+      } as unknown as Workflow);
+
+      await expect(service.process(job)).rejects.toThrow('engine boom');
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
     it('skips when schedule is inactive (no engine call, no save)', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         ...baseSchedule,

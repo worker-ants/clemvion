@@ -2667,7 +2667,7 @@ export class ExecutionEngineService
     const admitted = await this.executionRepository.manager.transaction(
       async (m) => {
         await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
-        const rows = await m.query(
+        const rows = (await m.query(
           `UPDATE execution SET status = 'running', started_at = NOW()
            WHERE id = $1 AND status = 'pending'
              AND (SELECT COUNT(*) FROM execution wfe
@@ -2677,7 +2677,7 @@ export class ExecutionEngineService
                   WHERE workflow_id = $4 AND status = 'running') < $5
            RETURNING id`,
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
-        );
+        )) as unknown[];
         return rows.length === 1;
       },
     );
@@ -4830,21 +4830,28 @@ export class ExecutionEngineService
       nodeId: node.id,
       workspaceId,
       llmConfigId: resolvedConfig.llmConfigId,
-      maxTurns: resolvedConfig.maxTurns ?? 20,
-      maxToolCalls: resolvedConfig.maxToolCalls ?? 10,
-      conditions: resolvedConfig.conditions ?? [],
-      presentationTools: resolvedConfig.presentationTools ?? [],
-      mcpServers: resumeFields.mcpServers ?? resolvedConfig.mcpServers ?? [],
+      maxTurns: (resolvedConfig.maxTurns as number | undefined) ?? 20,
+      maxToolCalls: (resolvedConfig.maxToolCalls as number | undefined) ?? 10,
+      conditions: (resolvedConfig.conditions as unknown[] | undefined) ?? [],
+      presentationTools:
+        (resolvedConfig.presentationTools as unknown[] | undefined) ?? [],
+      mcpServers:
+        (resumeFields.mcpServers as unknown[] | undefined) ??
+        (resolvedConfig.mcpServers as unknown[] | undefined) ??
+        [],
       // information_extractor config 필드 재유도 (node.config) + 고유 runtime
       // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —
       // ai_agent 핸들러가 읽지 않으며, IE 핸들러만 자기 필드를 소비한다.
-      outputSchema: resolvedConfig.outputSchema ?? [],
-      examples: resolvedConfig.examples ?? [],
-      instructions: resolvedConfig.instructions ?? '',
+      outputSchema:
+        (resolvedConfig.outputSchema as unknown[] | undefined) ?? [],
+      examples: (resolvedConfig.examples as unknown[] | undefined) ?? [],
+      instructions: (resolvedConfig.instructions as string | undefined) ?? '',
       maxCollectionRetries:
-        resolvedConfig.maxCollectionRetries ??
+        (resolvedConfig.maxCollectionRetries as number | undefined) ??
         DEFAULT_IE_MAX_COLLECTION_RETRIES,
-      partialResult: resumeFields.partialResult ?? {},
+      partialResult:
+        (resumeFields.partialResult as Record<string, unknown> | undefined) ??
+        {},
       collectionRetryCount:
         typeof resumeFields.collectionRetryCount === 'number'
           ? resumeFields.collectionRetryCount
@@ -4936,25 +4943,26 @@ export class ExecutionEngineService
     return {
       // 스키마 진화 대비 버전 stamp — 재개 시 미래 버전이면 graceful reset (§7.5).
       schemaVersion: CHECKPOINT_SCHEMA_VERSION,
-      messages: s.messages ?? [],
-      turnCount: s.turnCount ?? 0,
-      totalInputTokens: s.totalInputTokens ?? 0,
-      totalOutputTokens: s.totalOutputTokens ?? 0,
-      totalThinkingTokens: s.totalThinkingTokens ?? 0,
-      toolCalls: s.toolCalls ?? 0,
+      messages: (s.messages as unknown[] | undefined) ?? [],
+      turnCount: (s.turnCount as number | undefined) ?? 0,
+      totalInputTokens: (s.totalInputTokens as number | undefined) ?? 0,
+      totalOutputTokens: (s.totalOutputTokens as number | undefined) ?? 0,
+      totalThinkingTokens: (s.totalThinkingTokens as number | undefined) ?? 0,
+      toolCalls: (s.toolCalls as number | undefined) ?? 0,
       model: s.model,
       temperature: s.temperature,
       maxTokens: s.maxTokens,
-      knowledgeBases: s.knowledgeBases ?? [],
+      knowledgeBases: (s.knowledgeBases as unknown[] | undefined) ?? [],
       ragTopK: s.ragTopK,
       ragThreshold: s.ragThreshold,
-      ragSources: s.ragSources ?? [],
-      mcpServers: s.mcpServers ?? [],
+      ragSources: (s.ragSources as unknown[] | undefined) ?? [],
+      mcpServers: (s.mcpServers as unknown[] | undefined) ?? [],
       // information_extractor 고유 runtime state (credential-free) — IE 멀티턴
       // 재개에 필요. ai_agent 의 _resumeState 에는 부재이므로 기본값(빈 객체/0)
       // 으로 inert. allow-list 합집합 정책 (spec §1.3).
-      partialResult: s.partialResult ?? {},
-      collectionRetryCount: s.collectionRetryCount ?? 0,
+      partialResult:
+        (s.partialResult as Record<string, unknown> | undefined) ?? {},
+      collectionRetryCount: (s.collectionRetryCount as number | undefined) ?? 0,
       ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
     };
   }
