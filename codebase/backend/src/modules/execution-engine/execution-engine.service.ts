@@ -4,6 +4,7 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleInit,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -19,6 +20,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   ExecutionCancelledError,
@@ -674,6 +676,12 @@ export class ExecutionEngineService
     // 직접 호출하므로 엔진은 더 이상 retry delegator 를 잔류시키지 않는다. 단방향
     // Retry→engine(ENGINE_DRIVER) 만 유지. AiTurn/Form/Button 은 dispatch-loop·
     // resume-registry 가 그래프 순회 중 위임하므로 forwardRef 양방향 유지.
+    // 실행 실패 시 execution_failed 알림 발사 (spec/data-flow/8-notifications.md §1.1).
+    // @Optional — 프로덕션은 execution-engine.module 이 NotificationsModule 을 import 하므로
+    // 항상 주입된다. 본 서비스의 방대한 기존 TestingModule 셋업(4곳)이 각자 mock provider 를
+    // 추가하지 않아도 되도록 optional 로 두고, 미주입 시 dispatch 는 no-op(guard).
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   /**
@@ -2659,7 +2667,7 @@ export class ExecutionEngineService
     const admitted = await this.executionRepository.manager.transaction(
       async (m) => {
         await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
-        const rows = (await m.query(
+        const rows = await m.query(
           `UPDATE execution SET status = 'running', started_at = NOW()
            WHERE id = $1 AND status = 'pending'
              AND (SELECT COUNT(*) FROM execution wfe
@@ -2669,7 +2677,7 @@ export class ExecutionEngineService
                   WHERE workflow_id = $4 AND status = 'running') < $5
            RETURNING id`,
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
-        )) as unknown[];
+        );
         return rows.length === 1;
       },
     );
@@ -4395,11 +4403,70 @@ export class ExecutionEngineService
           error: err instanceof Error ? err.message : String(err),
         },
       );
+      await this.dispatchExecutionFailedNotification(
+        savedExecution,
+        errMessage,
+      );
     } finally {
       // exec-park D6 full B3 — park 가 세그먼트를 종료하므로 firstSegmentBarriers /
       // pendingContinuations 정리가 불필요하다. in-memory context / llm 캐시만 정리.
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
+    }
+  }
+
+  /**
+   * 실행 실패 시 워크플로우 owner + 실행자에게 `execution_failed` 알림 발사
+   * (spec/data-flow/8-notifications.md §1.1). **best-effort** — 발사 실패가 실행
+   * 종료(FAILED 마킹)를 되돌리면 안 되므로 예외를 삼킨다.
+   *
+   * **top-level 실행에만** 발사한다(`!parentExecutionId`). background 본문 /
+   * sub-workflow 하위 실행은 제외 — background 본문 실패는 `background_failed`
+   * (`BackgroundExecutionProcessor`)가 별도 발사하고, 사용자向 알림은 그가 시작한
+   * top-level 실행 실패에만 발생시켜 중복·노이즈를 피한다.
+   *
+   * resource_type='execution' / resource_id=executionId. (배지 attribution.
+   * `background_failed` 의 옛 NodeExecution fallback 도 동일 값을 쓰므로, 향후
+   * `findByResource('execution', …)` 도입 시 두 계열이 같은 키공간을 공유함에 주의 —
+   * 현재 소비처(`background-runs.service`)는 `background_run` 스코프로 한정.)
+   */
+  private async dispatchExecutionFailedNotification(
+    execution: Execution,
+    message: string,
+  ): Promise<void> {
+    if (execution.parentExecutionId) return;
+    if (!this.notificationsService) return;
+    try {
+      const workflow = await this.workflowRepository.findOne({
+        where: { id: execution.workflowId },
+      });
+      if (!workflow) return;
+      const recipients = [
+        ...new Set(
+          [workflow.createdBy, execution.executedBy].filter(
+            (id): id is string => !!id,
+          ),
+        ),
+      ];
+      if (recipients.length === 0) return;
+      await this.notificationsService.createMany(
+        recipients.map((userId) => ({
+          workspaceId: workflow.workspaceId,
+          userId,
+          type: 'execution_failed',
+          title: '워크플로우 실행 실패',
+          message: `워크플로우 "${workflow.name}" 실행이 실패했어요: ${message}`,
+          resourceType: 'execution',
+          resourceId: execution.id,
+          channel: 'in_app',
+        })),
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch execution_failed notification (execution=${execution.id}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 
@@ -4763,28 +4830,21 @@ export class ExecutionEngineService
       nodeId: node.id,
       workspaceId,
       llmConfigId: resolvedConfig.llmConfigId,
-      maxTurns: (resolvedConfig.maxTurns as number | undefined) ?? 20,
-      maxToolCalls: (resolvedConfig.maxToolCalls as number | undefined) ?? 10,
-      conditions: (resolvedConfig.conditions as unknown[] | undefined) ?? [],
-      presentationTools:
-        (resolvedConfig.presentationTools as unknown[] | undefined) ?? [],
-      mcpServers:
-        (resumeFields.mcpServers as unknown[] | undefined) ??
-        (resolvedConfig.mcpServers as unknown[] | undefined) ??
-        [],
+      maxTurns: resolvedConfig.maxTurns ?? 20,
+      maxToolCalls: resolvedConfig.maxToolCalls ?? 10,
+      conditions: resolvedConfig.conditions ?? [],
+      presentationTools: resolvedConfig.presentationTools ?? [],
+      mcpServers: resumeFields.mcpServers ?? resolvedConfig.mcpServers ?? [],
       // information_extractor config 필드 재유도 (node.config) + 고유 runtime
       // state 기본값 보강 (spec §1.3 합집합). ai_agent 재구성에는 inert —
       // ai_agent 핸들러가 읽지 않으며, IE 핸들러만 자기 필드를 소비한다.
-      outputSchema:
-        (resolvedConfig.outputSchema as unknown[] | undefined) ?? [],
-      examples: (resolvedConfig.examples as unknown[] | undefined) ?? [],
-      instructions: (resolvedConfig.instructions as string | undefined) ?? '',
+      outputSchema: resolvedConfig.outputSchema ?? [],
+      examples: resolvedConfig.examples ?? [],
+      instructions: resolvedConfig.instructions ?? '',
       maxCollectionRetries:
-        (resolvedConfig.maxCollectionRetries as number | undefined) ??
+        resolvedConfig.maxCollectionRetries ??
         DEFAULT_IE_MAX_COLLECTION_RETRIES,
-      partialResult:
-        (resumeFields.partialResult as Record<string, unknown> | undefined) ??
-        {},
+      partialResult: resumeFields.partialResult ?? {},
       collectionRetryCount:
         typeof resumeFields.collectionRetryCount === 'number'
           ? resumeFields.collectionRetryCount
@@ -4876,26 +4936,25 @@ export class ExecutionEngineService
     return {
       // 스키마 진화 대비 버전 stamp — 재개 시 미래 버전이면 graceful reset (§7.5).
       schemaVersion: CHECKPOINT_SCHEMA_VERSION,
-      messages: (s.messages as unknown[] | undefined) ?? [],
-      turnCount: (s.turnCount as number | undefined) ?? 0,
-      totalInputTokens: (s.totalInputTokens as number | undefined) ?? 0,
-      totalOutputTokens: (s.totalOutputTokens as number | undefined) ?? 0,
-      totalThinkingTokens: (s.totalThinkingTokens as number | undefined) ?? 0,
-      toolCalls: (s.toolCalls as number | undefined) ?? 0,
+      messages: s.messages ?? [],
+      turnCount: s.turnCount ?? 0,
+      totalInputTokens: s.totalInputTokens ?? 0,
+      totalOutputTokens: s.totalOutputTokens ?? 0,
+      totalThinkingTokens: s.totalThinkingTokens ?? 0,
+      toolCalls: s.toolCalls ?? 0,
       model: s.model,
       temperature: s.temperature,
       maxTokens: s.maxTokens,
-      knowledgeBases: (s.knowledgeBases as unknown[] | undefined) ?? [],
+      knowledgeBases: s.knowledgeBases ?? [],
       ragTopK: s.ragTopK,
       ragThreshold: s.ragThreshold,
-      ragSources: (s.ragSources as unknown[] | undefined) ?? [],
-      mcpServers: (s.mcpServers as unknown[] | undefined) ?? [],
+      ragSources: s.ragSources ?? [],
+      mcpServers: s.mcpServers ?? [],
       // information_extractor 고유 runtime state (credential-free) — IE 멀티턴
       // 재개에 필요. ai_agent 의 _resumeState 에는 부재이므로 기본값(빈 객체/0)
       // 으로 inert. allow-list 합집합 정책 (spec §1.3).
-      partialResult:
-        (s.partialResult as Record<string, unknown> | undefined) ?? {},
-      collectionRetryCount: (s.collectionRetryCount as number | undefined) ?? 0,
+      partialResult: s.partialResult ?? {},
+      collectionRetryCount: s.collectionRetryCount ?? 0,
       ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
     };
   }

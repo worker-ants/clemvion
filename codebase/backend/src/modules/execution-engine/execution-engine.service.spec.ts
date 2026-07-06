@@ -617,6 +617,96 @@ describe('ExecutionEngineService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('dispatchExecutionFailedNotification (execution_failed, spec §1.1)', () => {
+    // NotificationsService 는 @Optional 이라 본 스펙 셋업엔 미주입 — 각 케이스에서 직접
+    // mock 주입. service 는 beforeEach 로 매 테스트 재생성되므로 mutation 누수 없음.
+    async function callDispatch(
+      execution: Record<string, unknown>,
+      createMany: jest.Mock,
+    ): Promise<void> {
+      (
+        service as unknown as { notificationsService: unknown }
+      ).notificationsService = { createMany };
+      await (
+        service as unknown as {
+          dispatchExecutionFailedNotification: (
+            e: unknown,
+            m: string,
+          ) => Promise<void>;
+        }
+      ).dispatchExecutionFailedNotification(execution, 'boom');
+    }
+
+    it('top-level 실행 실패 → owner+executor 에게 execution_failed 발사', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+
+      await callDispatch(
+        {
+          id: 'ex-1',
+          workflowId: 'wf',
+          executedBy: 'runner',
+          parentExecutionId: null,
+        },
+        createMany,
+      );
+
+      expect(createMany).toHaveBeenCalledTimes(1);
+      const entries = createMany.mock.calls[0][0] as Array<
+        Record<string, unknown>
+      >;
+      expect(entries.map((e) => e.userId).sort()).toEqual(['owner', 'runner']);
+      expect(entries.every((e) => e.type === 'execution_failed')).toBe(true);
+      expect(entries[0]).toMatchObject({
+        workspaceId: 'ws',
+        resourceType: 'execution',
+        resourceId: 'ex-1',
+        channel: 'in_app',
+      });
+    });
+
+    it('owner==executor 는 dedup 되어 1건', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'same',
+      });
+
+      await callDispatch(
+        {
+          id: 'ex-2',
+          workflowId: 'wf',
+          executedBy: 'same',
+          parentExecutionId: null,
+        },
+        createMany,
+      );
+
+      expect(createMany.mock.calls[0][0]).toHaveLength(1);
+    });
+
+    it('하위 실행(parentExecutionId 존재)은 발사 안 함 (background_failed 중복 회피)', async () => {
+      const createMany = jest.fn();
+      await callDispatch(
+        {
+          id: 'ex-3',
+          workflowId: 'wf',
+          executedBy: 'r',
+          parentExecutionId: 'parent-exec',
+        },
+        createMany,
+      );
+      expect(createMany).not.toHaveBeenCalled();
+    });
+  });
+
   // W1 (SUMMARY) — `CheckpointSubject` 타입을 describe 바깥 상위 스코프로 승격해
   // checkpoint 관련 테스트 블록에서 재사용 가능하게 한다.
   type CheckpointSubject = {

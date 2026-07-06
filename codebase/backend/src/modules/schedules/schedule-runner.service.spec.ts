@@ -9,13 +9,17 @@ import {
 } from './schedule-runner.service';
 import { Schedule } from './entities/schedule.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('ScheduleRunnerService', () => {
   let service: ScheduleRunnerService;
   let nodeRepo: jest.Mocked<Repository<Node>>;
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
+  let workflowRepo: jest.Mocked<Repository<Workflow>>;
   let engine: jest.Mocked<ExecutionEngineService>;
+  let notifications: { notify: jest.Mock };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -30,6 +34,10 @@ describe('ScheduleRunnerService', () => {
           useValue: { findOne: jest.fn() },
         },
         {
+          provide: getRepositoryToken(Workflow),
+          useValue: { findOne: jest.fn() },
+        },
+        {
           provide: getQueueToken(SCHEDULE_QUEUE),
           useValue: {
             upsertJobScheduler: jest.fn(),
@@ -40,13 +48,19 @@ describe('ScheduleRunnerService', () => {
           provide: ExecutionEngineService,
           useValue: { execute: jest.fn() },
         },
+        {
+          provide: NotificationsService,
+          useValue: { notify: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
     service = moduleRef.get(ScheduleRunnerService);
     nodeRepo = moduleRef.get(getRepositoryToken(Node));
     scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
+    workflowRepo = moduleRef.get(getRepositoryToken(Workflow));
     engine = moduleRef.get(ExecutionEngineService);
+    notifications = moduleRef.get(NotificationsService);
   });
 
   describe('resolveScheduleParameters', () => {
@@ -246,6 +260,51 @@ describe('ScheduleRunnerService', () => {
       // 실패 시 schedule 의 lastRunAt 갱신은 일어나지 않아야 한다 (메타데이터
       // 정합성: 실패 발화는 "정상적으로 마지막 실행됨"으로 기록하지 않음).
       expect(scheduleRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('발사 실패(enqueue/파라미터) 시 워크플로우 owner 에게 schedule_failed 발사 후 rethrow', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('enqueue boom'));
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: 'owner-1',
+      } as unknown as Workflow);
+
+      await expect(service.process(job)).rejects.toThrow('enqueue boom');
+
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws',
+          userId: 'owner-1',
+          type: 'schedule_failed',
+          resourceType: 'schedule',
+          resourceId: 's1',
+          channel: 'in_app',
+        }),
+      );
+    });
+
+    it('알림 발사 실패해도 process 는 원래 engine 에러로 rethrow (best-effort)', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('engine boom'));
+      workflowRepo.findOne.mockRejectedValue(new Error('db down'));
+
+      await expect(service.process(job)).rejects.toThrow('engine boom');
     });
 
     it('skips when schedule is inactive (no engine call, no save)', async () => {
