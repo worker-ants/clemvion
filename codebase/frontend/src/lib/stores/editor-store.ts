@@ -586,9 +586,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // §2.2 — 자기연결(source===target)은 never valid. isValidConnection 이 드래그 중
     // 커서로 차단하지만 방어적으로 여기서도 무시한다.
     if (isSelfConnection(connection)) return;
-    // §2.2 — 동일 연결 중복은 "이미 연결되어 있습니다" 토스트로 알린다(무시).
+    // §2.2 — 동일 연결 중복은 토스트로 알리고 무시한다. 이 store 의 다른 토스트
+    // (detectContainerConflict) 와 동일하게 영문 SoT 문자열을 쓴다 (표시 계층
+    // 로컬라이즈; i18n Principle 1 하드코딩 한국어 ratchet 회피).
     if (isDuplicateConnection(get().edges, connection)) {
-      toast.error("이미 연결되어 있습니다");
+      toast.error("These nodes are already connected.");
       return;
     }
     // Reject the edge upfront if it would force a node into a different

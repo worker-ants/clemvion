@@ -597,7 +597,9 @@ describe("useEditorStore", () => {
         targetHandle: "in",
       });
       expect(useEditorStore.getState().edges).toHaveLength(1);
-      expect(toastErrorMock).toHaveBeenCalledWith("이미 연결되어 있습니다");
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "These nodes are already connected.",
+      );
     });
 
     it("정상 연결은 엣지를 추가한다", () => {

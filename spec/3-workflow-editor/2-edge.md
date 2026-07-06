@@ -65,7 +65,7 @@ pending_plans:
 | 자기 자신으로 연결 (`source === target`) | 드래그 중 커서 금지 아이콘(🚫) | 구현됨 (`isValidConnection` — `editor-store.ts`) |
 | 출력 → 출력 | 커서 금지 아이콘 | 구현됨 (React Flow 핸들 타입 강제) |
 | 입력 → 입력 | 커서 금지 아이콘 | 구현됨 (React Flow 핸들 타입 강제) |
-| 동일 연결 중복 (같은 source·sourceHandle·target·targetHandle) | "이미 연결되어 있습니다" 토스트 | 구현됨 (`onConnect` — `editor-store.ts`) |
+| 동일 연결 중복 (같은 source·sourceHandle·target·targetHandle) | "already connected" 토스트 (영문 SoT, 표시 계층 로컬라이즈) | 구현됨 (`onConnect` — `editor-store.ts`) |
 
 > 구현: `isValidConnection` (`editor-store.ts`, `<ReactFlow>` prop 으로 전달) 이 드래그 중 `source === target` 자기연결을 `false` 로 판정해 커서 🚫 로 차단한다. 출력→입력 방향과 출력↔출력/입력↔입력 금지는 React Flow 핸들 타입(source/target)이 강제한다. `onConnect` 은 드롭 시점에 자기연결(방어적 무시)·동일 연결 중복(토스트 후 무시)·컨테이너 소속 충돌(`detectContainerConflict`)을 순서대로 검사한 뒤에만 `addEdge` 한다. 순수 판정 헬퍼(`isSelfConnection`·`isDuplicateConnection`)는 `edge-utils.ts`.
 >

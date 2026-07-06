@@ -93,7 +93,7 @@ export function isSelfConnection(connection: {
 /**
  * 동일 연결 중복 여부 (§2.2). 같은 (source, sourceHandle, target, targetHandle)
  * 조합이 이미 존재하면 true. React Flow `addEdge` 도 동일 조합을 dedupe 하지만,
- * 명시 검사로 "이미 연결되어 있습니다" 토스트를 띄우기 위해 별도 판정한다.
+ * 명시 검사로 "already connected" 토스트를 띄우기 위해 별도 판정한다.
  */
 export function isDuplicateConnection(
   edges: Edge[],
