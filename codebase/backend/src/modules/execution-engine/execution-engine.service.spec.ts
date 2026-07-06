@@ -662,10 +662,11 @@ describe('ExecutionEngineService', () => {
       >;
       expect(entries.map((e) => e.userId).sort()).toEqual(['owner', 'runner']);
       expect(entries.every((e) => e.type === 'execution_failed')).toBe(true);
+      // 딥링크 계약(href.ts §3.1): resource = workflow (execution id 아님).
       expect(entries[0]).toMatchObject({
         workspaceId: 'ws',
-        resourceType: 'execution',
-        resourceId: 'ex-1',
+        resourceType: 'workflow',
+        resourceId: 'wf',
         channel: 'both',
       });
     });

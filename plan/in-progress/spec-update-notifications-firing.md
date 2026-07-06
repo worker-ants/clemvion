@@ -22,7 +22,7 @@ owner: planner
 
 ## 반영할 결정/주의 (§1.1/§2.1 + Rationale)
 
-- [x] **resource_type 공유 주의** (impl-prep naming_collision WARNING): `execution_failed` 는 `resource_type='execution'`/`resource_id=executionId` 사용 — `background_failed` 의 옛 NodeExecution fallback 과 같은 키공간. §2.1 표에 `execution_failed`→`execution` 명시 + "두 계열이 동일 값 공유(현 소비처 `background-runs` 는 `background_run` 스코프)" 각주. (코드엔 이미 상호참조 주석 존재.)
+- [x] **resource_type 공유 주의 — 해소됨**: 초기 `execution_failed` `resource_type='execution'`/`executionId` 는 (a) `background_failed` fallback 과 키공간 공유 (b) 팝오버 딥링크(`href.ts` `/workflows/<resource_id>`)가 workflow id 를 기대하는데 execution id 를 채워 404, 두 문제가 있었다. impl-done cross_spec/naming_collision CRITICAL 로 **resource_type='workflow' / resource_id=workflow.id** 로 정정 — 딥링크 정합 + 키공간 공유도 자연 해소. (§1.1 표에 반영 완료.)
 - [ ] **team_invite 이메일 2통 (side-effect 재검토) — planner 결정 대기(OPEN)**: 기존 가입자는 초대링크 이메일(`dispatchEmail`)에 더해 `team_invite`(channel=both)의 알림 이메일도 받는다 — 총 2통. spec-literal("in-app + 이메일 둘 다")로 구현했으나 UX 상 중복 가능. planner 결정: (a) 현행 유지(2통), (b) 기존 가입자에겐 초대링크 이메일 생략, (c) team_invite 를 channel=in_app 로 하향(초대링크 이메일이 email 측 담당). 결정 후 spec §1.1 team_invite 행·§관련 Rationale 에 명문화. **§1.1 배지 flip 은 PR3 에서 완료** — 본 항목(2통 UX)만 잔여로 in-progress 유지.
 
 ## 완료 조건

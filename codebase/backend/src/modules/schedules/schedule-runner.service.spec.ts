@@ -285,8 +285,8 @@ describe('ScheduleRunnerService', () => {
           workspaceId: 'ws',
           userId: 'owner-1',
           type: 'schedule_failed',
-          resourceType: 'schedule',
-          resourceId: 's1',
+          resourceType: 'workflow',
+          resourceId: 'wf1',
           channel: 'both',
         }),
       );

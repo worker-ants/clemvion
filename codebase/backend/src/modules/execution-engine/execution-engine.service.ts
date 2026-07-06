@@ -4425,10 +4425,10 @@ export class ExecutionEngineService
    * (`BackgroundExecutionProcessor`)가 별도 발사하고, 사용자向 알림은 그가 시작한
    * top-level 실행 실패에만 발생시켜 중복·노이즈를 피한다.
    *
-   * resource_type='execution' / resource_id=executionId. (배지 attribution.
-   * `background_failed` 의 옛 NodeExecution fallback 도 동일 값을 쓰므로, 향후
-   * `findByResource('execution', …)` 도입 시 두 계열이 같은 키공간을 공유함에 주의 —
-   * 현재 소비처(`background-runs.service`)는 `background_run` 스코프로 한정.)
+   * resource_type='workflow' / resource_id=**workflow.id**. 알림 팝오버 딥링크
+   * (`href.ts`, spec/2-navigation/_layout.md §3.1)가 `execution_failed` 를
+   * `/workflows/<resource_id>` 로 라우팅하며 resource_id 가 workflow id 임에 의존하므로,
+   * execution id 가 아니라 workflow id 를 채운다 (execution 단위 딥링크는 미지원).
    */
   private async dispatchExecutionFailedNotification(
     execution: Execution,
@@ -4456,8 +4456,9 @@ export class ExecutionEngineService
           type: 'execution_failed',
           title: '워크플로우 실행 실패',
           message: `워크플로우 "${workflow.name}" 실행이 실패했어요: ${message}`,
-          resourceType: 'execution',
-          resourceId: execution.id,
+          // 딥링크 계약(href.ts §3.1) — resource_id = workflow id.
+          resourceType: 'workflow',
+          resourceId: workflow.id,
           // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 이 "워크플로우 실행
           // 실패" 기본 채널을 인앱+이메일로 규정(채널 on/off 토글 미구현이라 기본값 고정).
           channel: 'both',

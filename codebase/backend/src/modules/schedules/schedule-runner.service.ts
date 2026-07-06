@@ -229,8 +229,10 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         type: 'schedule_failed',
         title: '스케줄 실행 실패',
         message: `스케줄이 워크플로우 "${workflow.name}" 실행을 시작하지 못했어요: ${message}`,
-        resourceType: 'schedule',
-        resourceId: scheduleId,
+        // 딥링크 계약(href.ts, spec/2-navigation/_layout.md §3.1) — schedule_failed 는
+        // `/workflows/<resource_id>` 로 라우팅되며 resource_id 가 workflow id 임에 의존.
+        resourceType: 'workflow',
+        resourceId: workflow.id,
         // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 "스케줄 실행 실패"
         // 기본 채널(토글 미구현이라 기본값 고정 발송).
         channel: 'both',
