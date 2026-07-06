@@ -34,6 +34,7 @@ import { SchedulesService } from './schedules.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PreviewExpressionDto } from './dto/preview-expression.dto';
+import { QueryScheduleDto } from './dto/query-schedule.dto';
 import {
   CronPreviewDto,
   ScheduleDto,
@@ -41,7 +42,6 @@ import {
 } from './dto/responses/schedule-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Schedules')
 @ApiBearerAuth('access-token')
@@ -61,7 +61,7 @@ export class SchedulesController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findAll(
     @WorkspaceId() workspaceId: string,
-    @Query() query: PaginationQueryDto,
+    @Query() query: QueryScheduleDto,
   ) {
     return this.schedulesService.findAll(workspaceId, query);
   }

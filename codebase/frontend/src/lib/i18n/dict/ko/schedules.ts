@@ -3,6 +3,10 @@ export const schedules = {
   description: "정기적으로 워크플로우를 실행할 스케줄을 관리할 수 있어요",
   new: "새 스케줄",
   empty: "등록된 스케줄이 없어요",
+  deepLink: {
+    filteredNotice: "특정 트리거의 스케줄만 표시 중이에요",
+    showAll: "전체 스케줄 보기",
+  },
   name: "이름",
   workflow: "워크플로우",
   cronExpression: "Cron 표현식",

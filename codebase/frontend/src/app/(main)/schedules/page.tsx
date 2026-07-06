@@ -492,9 +492,8 @@ export default function SchedulesPage() {
 
   const { page, setPage } = usePageParam();
   // [Spec §2.1] 트리거 목록의 "스케줄 관리에서 편집"(→ `/schedules?triggerId=…`)
-  // 딥링크로 진입하면 해당 트리거의 스케줄 행을 강조하고 한 번 스크롤한다. 서버
-  // 목록에 triggerId 필터가 없고 목록이 페이지네이션되므로 현재 페이지에 그 행이
-  // 있을 때만 강조된다(cross-page 포커스는 backend triggerId 필터 후속 필요).
+  // 딥링크로 진입하면 목록을 서버측에서 그 트리거의 스케줄로 필터(cross-page)하고,
+  // 해당 행을 강조·1회 스크롤한다. `전체 스케줄 보기` 로 필터를 해제한다.
   const searchParams = useSearchParams();
   const focusTriggerId = searchParams.get("triggerId");
   const scrolledFocusRef = useRef(false);
@@ -514,13 +513,14 @@ export default function SchedulesPage() {
     };
   }
 
-  // List view: paginated.
+  // List view: paginated. 딥링크 진입 시 triggerId 로 서버 필터(빈 값이면 미전송).
   const schedulesQuery = useQuery<{ items: Schedule[]; totalPages: number }>({
-    queryKey: ["schedules", "list", page],
+    queryKey: ["schedules", "list", page, focusTriggerId],
     queryFn: async () => {
       const { items: raw, totalPages } = await schedulesApi.list({
         page,
         limit: PAGE_SIZE,
+        ...(focusTriggerId ? { triggerId: focusTriggerId } : {}),
       });
       return { items: raw.map(mapSchedule), totalPages };
     },
@@ -966,6 +966,21 @@ export default function SchedulesPage() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {focusTriggerId && viewMode === "list" && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-4 py-2 text-sm">
+          <span className="text-[hsl(var(--muted-foreground))]">
+            {t("schedules.deepLink.filteredNotice")}
+          </span>
+          <Link
+            href="/schedules"
+            className="shrink-0 font-medium text-[hsl(var(--primary))] hover:underline"
+            data-testid="schedules-clear-trigger-filter"
+          >
+            {t("schedules.deepLink.showAll")}
+          </Link>
         </div>
       )}
 

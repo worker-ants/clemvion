@@ -5,6 +5,10 @@ export const schedules: Dict["schedules"] = {
   description: "Manage schedules that run your workflows periodically",
   new: "New schedule",
   empty: "No schedules yet",
+  deepLink: {
+    filteredNotice: "Showing schedules for one trigger only",
+    showAll: "Show all schedules",
+  },
   name: "Name",
   workflow: "Workflow",
   cronExpression: "Cron expression",

@@ -574,6 +574,47 @@ describe("SchedulesPage — inbound ?triggerId= deep-link (Spec §2.1)", () => {
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
+  it("sends triggerId to the list request so the server filters cross-page", async () => {
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+    await screen.findByText("Daily");
+
+    const listCall = apiGetMock.mock.calls.find(
+      ([url]) => url === "/schedules",
+    );
+    expect(listCall?.[1]?.params).toMatchObject({ triggerId: "t1" });
+  });
+
+  it("omits triggerId from the list request when not deep-linked", async () => {
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+    await screen.findByText("Daily");
+
+    const listCall = apiGetMock.mock.calls.find(
+      ([url]) => url === "/schedules",
+    );
+    expect(listCall?.[1]?.params?.triggerId).toBeUndefined();
+  });
+
+  it("shows a 'show all' reset link (→ /schedules) when deep-linked", async () => {
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+
+    const clear = await screen.findByTestId("schedules-clear-trigger-filter");
+    expect(clear).toHaveAttribute("href", "/schedules");
+  });
+
+  it("shows no reset link when not deep-linked", async () => {
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+    await screen.findByText("Daily");
+    expect(
+      screen.queryByTestId("schedules-clear-trigger-filter"),
+    ).toBeNull();
+  });
+
   it("highlights no row when ?triggerId= matches no schedule on the page", async () => {
     currentSearchParams = new URLSearchParams("triggerId=nope");
     mockSchedulesResponse(focusRow());
