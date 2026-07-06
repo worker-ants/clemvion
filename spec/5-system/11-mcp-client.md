@@ -78,7 +78,7 @@ AI Agent 노드가 외부 [Model Context Protocol (MCP)](https://modelcontextpro
 
 **capability 보고**: Internal Bridge 별로 capability 가 다를 수 있다 — Cafe24 는 `tools` 만 보고, `resources` / `prompts` 미보고. AI Agent 는 §5.1 노출 규칙에 따라 메타도구를 생성하지 않는다.
 
-**에러 처리**: §8 의 에러 vocabulary 그대로 적용. Cafe24 의 경우 `tool_result.error` 의 `code` 는 Cafe24 노드 §6 의 vocabulary (`CAFE24_AUTH_FAILED` 등)를 그대로 사용하며, `mcpDiagnostics.errors` 에는 동일하게 누적된다.
+**에러 처리**: §8 의 에러 vocabulary 그대로 적용. Cafe24 의 경우 `tool_result.error` 의 `code` 는 Cafe24 노드 §6 의 vocabulary (`CAFE24_AUTH_FAILED` 등)를 그대로 사용한다. 현재 이 call-phase 실패는 `tool_result.error` + `IntegrationUsageLog`(§8.3) 로 표면화되며, `mcpDiagnostics.errors[]` 로의 누적은 **Planned** (§6.2 잔여 — build-phase `errors[]` 는 외부 `McpToolProvider` 전용이고 Internal Bridge 실패는 `serverSummaries[]` 의 `skipped(skipReason)` 로 표면화된다). errors[] 누적 도입 시 Cafe24 vocabulary 도 동일하게 담긴다.
 
 > Internal Bridge 도 §8.4 의 인증 실패 자동 status 전환 정책을 따른다. 단, refresh_token 을 보유한 provider (예: cafe24) 의 401 은 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 "refresh + 1회 재시도" 자가 회복 정책이 우선 적용되며, 재시도도 401 이면 그때 §8.4 와 같은 격하. 403 은 항상 §8.4 와 동일하게 즉시 격하.
 
@@ -355,7 +355,7 @@ KB 의 `ragDiagnostics` 와 동일한 패턴으로, AI Agent 의 `meta.mcpDiagno
 
 > **구현 현황 (2026-07-06 갱신)**: `mcpDiagnostics` 는 아래 예시의 **구조화 객체** (`attempted` / `serverCount` / `toolCalls` / `resourceReads` / `promptGets` / `serverSummaries[]` / `errors[]`) 로 emit 된다 (`mcp-diagnostics.ts` `finalizeMcpDiagnostics` · `ai-turn-executor.ts buildMcpDiagnosticsMeta`). 노드 실행에서 MCP 가 1회도 시도되지 않으면 `mcpDiagnostics` 키 자체를 omit 한다 (meta lean).
 >
-> - `serverSummaries[]` 를 push 하는 provider 는 Internal Bridge (`Cafe24McpToolProvider`·`MakeshopMcpToolProvider`) 와 외부 `service_type='mcp'` 의 `McpToolProvider` **둘 다**다 — `McpToolProvider` 가 connect+list 성공 시 `connected`(toolCount), serviceType 확정 이후 status/connect/list 실패 시 `skipped`(`skipReason='error'`) serverSummary 를 push 한다 (Cafe24 와 대칭. serviceType 판정 전 lookup 실패는 double-push 회피 위해 미push).
+> - `serverSummaries[]` 를 push 하는 provider 는 Internal Bridge (`Cafe24McpToolProvider`·`MakeshopMcpToolProvider`) 와 외부 `service_type='mcp'` 의 `McpToolProvider` **둘 다**다 — `McpToolProvider` 가 connect+list 성공 시 `connected`(toolCount), serviceType 확정 이후 status/connect/list 실패 시 `skipped`(`skipReason='error'`) serverSummary 를 push 한다 (serverSummaries push 에 한해 Cafe24 와 대칭 — `errors[]` granular code push 는 `McpToolProvider` 전용이다. serviceType 판정 전 lookup 실패는 double-push 회피 위해 미push).
 > - `errors[]` 는 **build 단계**(connect/`tools/list`)의 격리된 실패를 granular code (`MCP_TIMEOUT`/`MCP_CONNECT_FAILED`/`MCP_LIST_FAILED`, §8.2) + `phase` 로 누적한다 (`McpToolProvider.openServer`, skipped serverSummary 와 병존). `serverCount` 는 `serverSummaries[]` 중 `status='connected'` 행 수, `attempted` 는 serverSummary·error·counter 중 하나라도 있으면 true 로 파생.
 > - `toolCalls` / `resourceReads` / `promptGets` 는 노드 실행의 tool 실행 지점에서 `mcp_*` 호출을 종류별(`tools/call` / `read_resource` / `get_prompt`)로 집계한다. `list_resources`/`list_prompts` discovery 메타도구는 미집계 (§8.3 의 usage 로그 제외와 정합).
 >

@@ -74,7 +74,8 @@ owner: planner
 - 코드: mcpDiagnostics 구조화 승격 + build-phase granular errors + 카운터. 8 backend 파일.
 - 테스트: mcp-diagnostics/mcp-tool-provider/executor spec 신규·보강. lint·unit·build·e2e(236) 통과.
 - spec-sync: 11-mcp-client §6.2/§8.1/§8.2 + 1-ai-agent §7.1 적용.
-- 리뷰: /ai-review 21_30_25 (LOW·Critical 0), RESOLUTION.md. impl-prep 20_59_31·impl-done 21_50_54 BLOCK:NO.
+- 리뷰: /ai-review 21_30_25(LOW)→22_04_32(LOW, testing 2 WARNING fix)→**22_25_11(NONE, clean)**. impl-prep 20_59_31 · impl-done 21_50_54/22_05_27/**22_25_11 BLOCK:NO**. (커밋 후 re-review 는 author-date 가드가 review-postdates-code 를 요구하기 때문 — review_gate_loop_avoidance 교훈: 코드는 리뷰 전에 커밋했어야 함.)
+- 22_25_11 impl-done WARNING(§2.3 Cafe24 errors[] 서술이 §6.2 Planned 와 모순) → spec-only 정정으로 해소(§2.3 line 81 + §6.2 "대칭" 괄호).
 - **잔여(별건 follow-up, plan in-progress 유지)**: call-phase errors[] 누적 / §3.3 capability 캐시 / task_fa96e218(에러 message redaction) / task_947e443e(Rationale 섹션·코드 prefix) / McpClientService TimeoutError 소비.
 
 ## 비고
