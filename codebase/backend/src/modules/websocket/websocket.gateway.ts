@@ -156,14 +156,17 @@ export class WebsocketGateway
 
       // §7.1 UNKNOWN_TYPE — Socket.IO 는 미등록 이벤트를 silent drop 하므로, onAny 로
       // 잡아 전용 코드를 `error` 이벤트로 알린다. 등록된 핸들러 이벤트(KNOWN_WS_EVENTS)는
-      // 정상 dispatch 되도록 무시한다.
+      // guard 파이프라인이 rate-limit 을 처리하므로 여기서 무시한다.
       client.onAny((event: string) => {
-        if (!KNOWN_WS_EVENTS.has(event)) {
-          client.emit('error', {
-            code: WsErrorCode.UNKNOWN_TYPE,
-            message: `Unknown message type: ${event}`,
-          });
-        }
+        if (KNOWN_WS_EVENTS.has(event)) return;
+        // 미등록 이벤트도 rate-limit 예산을 소비한다 — onAny 는 @UseGuards 파이프라인
+        // **밖**이라 별도 카운트하지 않으면 미등록 이벤트 flood 로 60/min 제한을 우회하고
+        // error emit 을 증폭할 수 있다(§7.1 하드닝의 구멍). 초과분은 조용히 drop.
+        if (!this.wsRateLimiter.consume(client.id)) return;
+        client.emit('error', {
+          code: WsErrorCode.UNKNOWN_TYPE,
+          message: `Unknown message type: ${event}`,
+        });
       });
 
       this.logger.log(`Client connected: ${client.id} (user: ${payload.sub})`);

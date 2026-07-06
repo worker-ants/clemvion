@@ -150,13 +150,13 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `background:run:{id}` | workspace 소유 검증 (비-UUID 선차단) |
 | `notifications:{userId}` | **user 단위** — JWT `sub` 와 채널의 `userId` 일치 검증 (fail-closed). `notification.new` emit 은 `emitNotificationEvent` 로 구현됨 (§4.4) |
 
-권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false` 와 평문 `error` 문자열** 로 응답한다 (전용 에러 코드 필드 없음):
+권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 그리고 구조화 `code`** 로 응답한다 (평문 `error` 에 `code` 를 additive 로 동봉 — §7.1):
 
 ```json
-{ "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution" } }
+{ "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution", "code": "FORBIDDEN" } }
 ```
 
-> **미구현 (Planned)**: §7.2 의 `{ type: 'error', payload: { code: 'FORBIDDEN', message } }` 코드 기반 거부 메시지는 구독 거부 경로에서 발행되지 않는다. 거부는 위 평문 `error` 문자열로만 표면화된다.
+> **거부 코드 매핑** (`handleSubscribe`, §7.1): 유효하지 않은 채널/필수 필드 누락 = `INVALID_MESSAGE`, 미인증 = `UNAUTHENTICATED`, 인가 실패 = `FORBIDDEN`, 구독 한도(20) 초과 = `SUBSCRIPTION_LIMIT_EXCEEDED`(§3.4), join 실패 = `INTERNAL_ERROR`. `code` 는 기존 평문 `error` 문자열에 **더해** 붙는 additive 확장이라 구 클라이언트는 계속 `error` 로 동작한다. (독립 `{ type:'error', ... }` 범용 에러 프레임은 여전히 미발행 — §7.2.)
 
 ### 3.4 최대 구독 수
 
@@ -887,7 +887,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 | `INVALID_MESSAGE` | ✅ | 유효하지 않은 채널/필수 필드 누락 시 subscribe ack 의 `code` (§3.3) |
 | `UNKNOWN_TYPE` | ✅ | 미등록 이벤트 — gateway `onAny` 가 잡아 `error` 이벤트 `{ code, message }` emit (Socket.IO 의 silent-drop 보완) |
 | `SUBSCRIPTION_LIMIT_EXCEEDED` | ✅ | 구독 한도(20) 초과 시 subscribe ack 의 `code` (§3.4) |
-| `RATE_LIMITED` | ✅ | WS 명령 빈도 제한 (**socket 당 60 msg/min** in-memory fixed-window) — `WsRateLimitGuard` 가 초과 시 `WsException` → 클라이언트 `exception` 이벤트 `{ code, message }`. 소켓은 인스턴스 상주라 Redis 불요 |
+| `RATE_LIMITED` | ✅ | WS 명령 빈도 제한 (**socket 당 60 msg/min** in-memory fixed-window) — `WsRateLimitGuard` 가 초과 시 `WsException` → 클라이언트 `exception` 이벤트 `{ code, message }`. **class-level guard** 라 `ping` 을 포함한 모든 `@SubscribeMessage` 핸들러에 적용되며, 미등록 이벤트(`onAny` 경로)도 같은 소켓 예산을 소비한다(우회 차단). 소켓은 인스턴스 상주(sticky) 전제라 Redis 불요 — 사용자/워크스페이스 단위 총량 제한이 아니라 소켓당 명령 flood 방지다 |
 
 ### 7.2 에러 메시지 형식
 

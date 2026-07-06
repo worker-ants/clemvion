@@ -43,6 +43,17 @@ describe('WsRateLimiterService', () => {
     expect(svc.consume('sock-1')).toBe(true); // 리셋되어 다시 allow
   });
 
+  it('윈도우 경계 직전(WINDOW_MS-1)에는 리셋되지 않는다 (off-by-one 가드)', () => {
+    const base = 2_000_000;
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(base);
+    for (let i = 0; i < WsRateLimiterService.LIMIT_PER_MINUTE; i++) {
+      svc.consume('sock-1');
+    }
+    // 경계 직전 — 아직 같은 윈도우라 초과 상태 유지(deny).
+    nowSpy.mockReturnValue(base + WsRateLimiterService.WINDOW_MS - 1);
+    expect(svc.consume('sock-1')).toBe(false);
+  });
+
   it('release 로 카운터 정리(누수 방지)', () => {
     svc.consume('sock-1');
     expect(svc.trackedCount).toBe(1);
