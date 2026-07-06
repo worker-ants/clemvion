@@ -40,7 +40,7 @@ owner: developer
 - [x] 커밋 (리뷰 前 — d395fd7cc·88414653b·1374638ef·67279fa20 + redaction 후속)
 - [x] /ai-review — 23_20_02(LOW,2W fix)→23_40_32(clean)→00_00_54(MEDIUM, cafe24/makeshop redaction gap + §2.3, 둘 다 fix). RESOLUTION 기록.
 - [x] /consistency-check --impl-done — 23_20_02·23_40_32 BLOCK:NO, 00_00_54 BLOCK:YES(§2.3 self-contradiction)→67279fa20 fix→00_16_19 BLOCK:NO. (redaction 후속 postdate 재검증)
-- [ ] PR
+- [x] PR (#842)
 
 ## 비고
 - 잔여 미포함: §3.3 credentials.cached_capabilities 캐시(infra, Integration credentials JSONB 구조 변경) — 별도 유지.
