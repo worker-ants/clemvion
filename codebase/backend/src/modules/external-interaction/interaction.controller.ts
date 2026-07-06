@@ -29,6 +29,10 @@ import {
 import { Public } from '../../common/decorators';
 import { InteractionGuard } from './interaction.guard';
 import type { RequestWithInteraction } from './interaction.guard';
+import {
+  InteractionRateLimitGuard,
+  RateLimit,
+} from './interaction-rate-limit.guard';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { InteractionService } from './interaction.service';
 import { InteractDto } from './dto/interact.dto';
@@ -52,12 +56,13 @@ import {
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
 @Controller('external/executions')
-@UseGuards(InteractionGuard)
+@UseGuards(InteractionGuard, InteractionRateLimitGuard)
 export class InteractionController {
   constructor(private readonly interactionService: InteractionService) {}
 
   @Public()
   @Post(':executionId/interact')
+  @RateLimit('interact')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
@@ -151,6 +156,7 @@ export class InteractionController {
 
   @Public()
   @Get(':executionId')
+  @RateLimit('status')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '실행 상태 단발 조회',

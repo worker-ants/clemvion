@@ -5,6 +5,22 @@
 export const NOTIFICATION_WEBHOOK_QUEUE = 'notification-webhook';
 
 /**
+ * Custom BullMQ backoff 전략 이름 (job opts `backoff.type` ↔ worker `settings.backoffStrategy`
+ * 매칭 키). BullMQ 내장 `exponential` 은 base*2^n (1s·2s·4s·8s·16s) 이라 Spec EIA §6.6 이
+ * 의도한 **base-4 간격**(1s·4s·16s·64s·256s)을 낼 수 없어 custom 전략을 등록한다.
+ */
+export const NOTIFICATION_BACKOFF_TYPE = 'exp-base4';
+
+/**
+ * base-4 지수 백오프 지연(ms). BullMQ `backoffStrategy(attemptsMade)` 로 호출되며,
+ * `attemptsMade` 는 방금 실패한 시도까지의 누적 횟수(1-indexed)다: 1→1s, 2→4s, 3→16s,
+ * 4→64s, 5→256s (Spec EIA §6.6). default maxAttempts=5 면 재시도 지연은 1s·4s·16s·64s 4개.
+ */
+export function notificationBackoffDelayMs(attemptsMade: number): number {
+  return 1000 * Math.pow(4, Math.max(0, attemptsMade - 1));
+}
+
+/**
  * Outbound notification job 의 페이로드.
  *
  * `deliveryId` 는 동일 이벤트 재시도 시에도 유지되는 멱등 키 (Stripe `X-Clemvion-Delivery`
