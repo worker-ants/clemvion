@@ -12,9 +12,12 @@ import {
 function makeFakeRedis() {
   const store = new Map<string, number>();
   const expires: string[] = [];
+  // pipeline 안에서 발행된 EXPIRE(NX) 호출 기록 — [key, sec, mode].
+  const pipelineExpires: Array<[string, number, string | undefined]> = [];
   const fakeRedis = {
     store,
     expires,
+    pipelineExpires,
     incr: jest.fn(async (key: string) => {
       const next = (store.get(key) ?? 0) + 1;
       store.set(key, next);
@@ -38,6 +41,14 @@ function makeFakeRedis() {
           });
           return pipe;
         }),
+        expire: jest.fn((key: string, sec: number, mode?: string) => {
+          cmds.push(async () => {
+            // EXPIRE NX 시맨틱 흉내: 기록만 남기고 1 반환.
+            pipelineExpires.push([key, sec, mode]);
+            return [null, 1] as [null, number];
+          });
+          return pipe;
+        }),
         exec: jest.fn(async () => {
           const results = await Promise.all(cmds.map((fn) => fn()));
           return results;
@@ -45,7 +56,11 @@ function makeFakeRedis() {
       };
       return pipe;
     }),
-  } as unknown as Redis & { store: Map<string, number>; expires: string[] };
+  } as unknown as Redis & {
+    store: Map<string, number>;
+    expires: string[];
+    pipelineExpires: Array<[string, number, string | undefined]>;
+  };
   return fakeRedis;
 }
 
@@ -57,21 +72,36 @@ describe('PublicWebhookQuotaService', () => {
     expect(r).toEqual({ allowed: true, reason: null });
   });
 
-  it('분당 한도 내 → allowed, 윈도우 첫 증가에만 expire', async () => {
+  it('분당 한도 내 → allowed, INCR+EXPIRE(NX) 를 매 요청 단일 pipeline 으로(원자화)', async () => {
     const redis = makeFakeRedis();
     const svc = new PublicWebhookQuotaService(undefined, redis);
     const r = await svc.consumeStart('ip-a');
     expect(r.allowed).toBe(true);
-    // min + hour 카운터 각각 첫 증가 → expire 2회
-    // expire 는 incrWithWindow 내부에서 pipeline exec 후 직접 호출
-    expect(redis.expire).toHaveBeenCalledWith(
+    // min + hour 각각 pipeline 에 EXPIRE NX 동봉 — 별도 왕복 없이 window TTL 설정.
+    expect(redis.pipelineExpires).toContainEqual([
       makeMinKey('ip-a'),
       MINUTE_WINDOW_SEC,
-    );
-    expect(redis.expire).toHaveBeenCalledWith(
+      'NX',
+    ]);
+    expect(redis.pipelineExpires).toContainEqual([
       makeHourKey('ip-a'),
       HOUR_WINDOW_SEC,
+      'NX',
+    ]);
+    // 비원자 별도-왕복 EXPIRE 는 더 이상 없어야 한다(TTL 유실 창 제거).
+    expect(redis.expire).not.toHaveBeenCalled();
+  });
+
+  it('EXPIRE(NX) 는 첫 증가뿐 아니라 매 요청 pipeline 에 실린다 — TTL 유실 self-heal', async () => {
+    const redis = makeFakeRedis();
+    const svc = new PublicWebhookQuotaService(undefined, redis);
+    await svc.consumeStart('ip-heal');
+    await svc.consumeStart('ip-heal');
+    // 두 요청 모두 min 키에 EXPIRE NX 를 실었다(NX 라 TTL 있으면 no-op — window 연장 안 함).
+    const minExpires = redis.pipelineExpires.filter(
+      ([k]) => k === makeMinKey('ip-heal'),
     );
+    expect(minExpires.length).toBe(2);
   });
 
   it('분당 한도 초과 → reason=startup_rate', async () => {
@@ -103,6 +133,7 @@ describe('PublicWebhookQuotaService', () => {
     const redis = makeFakeRedis();
     (redis.pipeline as jest.Mock).mockImplementationOnce(() => ({
       incr: jest.fn().mockReturnThis(),
+      expire: jest.fn().mockReturnThis(),
       exec: jest.fn().mockRejectedValueOnce(new Error('conn lost')),
     }));
     const svc = new PublicWebhookQuotaService(undefined, redis);
