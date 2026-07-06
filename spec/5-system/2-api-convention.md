@@ -199,6 +199,7 @@ GET /api/triggers?type=webhook&status=active
 | 초대 발송/재발송 (`POST /api/workspaces/:id/invitations` · `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준) — email-bombing 방지 `@Throttle`. provider probe 와 공통 tier 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`) | 동일 |
 | External Interaction inbound (`POST /api/external/executions/:id/interact` · `GET /api/external/executions/:id`) | interact 60 req/min · status 조회 120 req/min — **execution 당** (IP 아님). 글로벌 100/min 위에 얹히는 층. `InteractionRateLimiterService`(Redis fixed-window) + `InteractionRateLimitGuard`, 초과 시 `429 RATE_LIMITED` + `Retry-After`. SoT: [§14 External Interaction API §8.4](./14-external-interaction-api.md#84-rate-limit) | `Retry-After` |
 | External Interaction SSE 동시연결 (`GET /api/external/executions/:id/stream`) | execution 당 3 동시연결 — 초과 시 `429 TOO_MANY_CONNECTIONS`(EIA 전용). SoT: [§14 §5.2](./14-external-interaction-api.md) | — |
+| WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **socket 당** 60 msg/min (in-memory fixed-window, HTTP 아님). `WsRateLimitGuard`, 초과 시 `WsException(RATE_LIMITED)` → 클라이언트 `exception` 이벤트(HTTP status 없음). `ping` 포함 전 핸들러 + 미등록 이벤트(onAny)에 적용. SoT: [§6 WS 프로토콜 §7.1](./6-websocket-protocol.md#71-에러-코드) | — (transport: socket `exception`) |
 
 Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.
 
