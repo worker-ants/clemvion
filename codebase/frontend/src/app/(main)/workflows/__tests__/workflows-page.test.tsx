@@ -728,9 +728,9 @@ describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
       | Record<string, string>
       | undefined;
     // Documents the emitted first-page param. Like the folder-filter test, this
-    // mock's searchParams is static (router.replace is a no-op), so page stays 1
-    // regardless of setPage — this asserts the emitted value, not a live 2→1
-    // reset transition. See use-page-param mock note above.
+    // mock's searchParams is static (the next/navigation router.replace is a
+    // no-op), so page stays 1 regardless of setPage — this asserts the emitted
+    // value, not a live 2→1 reset transition.
     expect(String(lastParams?.page)).toBe("1");
   });
 
