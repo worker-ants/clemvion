@@ -21,7 +21,15 @@ import {
   PresentationCallTrace,
   PresentationSchemaViolation,
 } from './tool-providers/agent-tool-provider.interface';
-import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
+import type {
+  McpDiagnostics,
+  McpDiagnosticsAccumulator,
+} from './tool-providers/mcp-diagnostics';
+import {
+  classifyMcpCall,
+  createMcpDiagnosticsAccumulator,
+  finalizeMcpDiagnostics,
+} from './tool-providers/mcp-diagnostics';
 import type {
   ResumeState,
   RetryState,
@@ -537,7 +545,7 @@ type MultiTurnMemoryMeta = {
 interface TurnOutputAccumulators {
   ragAcc: RagAccumulator;
   turnRagAcc: RagAccumulator;
-  mcpDiagnosticsAcc: McpServerSummary[];
+  mcpDiagnosticsAcc: McpDiagnosticsAccumulator;
   presentationPayloads: PresentationPayload[];
   presentationCalls: PresentationCallTrace[];
   presentationSchemaViolations: PresentationSchemaViolation[];
@@ -860,6 +868,11 @@ export class AiTurnExecutor {
     config: Record<string, unknown>;
     turnIndex: number;
     ragGroup: RagAccumulatorGroup;
+    /**
+     * MCP 진단 누적기 — 본 batch 가 실행한 `mcp_*` 호출을 종류별(tool/resource_read/
+     * prompt_get)로 분류해 카운터를 증가시킨다. spec/5-system/11-mcp-client.md §6.2.
+     */
+    mcpDiagnosticsAcc?: McpDiagnosticsAccumulator;
     toolCallTraces: ToolCallTrace[];
     messages: ChatMessage[];
     /**
@@ -921,6 +934,16 @@ export class AiTurnExecutor {
       args.toolCallTraces.push(trace);
       args.ragGroup.pushSources(execResult.ragSourcesDelta);
       args.ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
+
+      // spec §6.2 — MCP 호출 카운터. 실제 실행된(예산 미초과) 호출만 집계하며,
+      // 성공/실패 무관하게 시도 1회로 센다. list_* discovery 메타도구는 미집계.
+      if (args.mcpDiagnosticsAcc) {
+        const kind = classifyMcpCall(trace.name);
+        if (kind === 'tool') args.mcpDiagnosticsAcc.toolCalls++;
+        else if (kind === 'resource_read')
+          args.mcpDiagnosticsAcc.resourceReads++;
+        else if (kind === 'prompt_get') args.mcpDiagnosticsAcc.promptGets++;
+      }
 
       // render_* schema-violation retry gate (spec §4.1 — 1회 재시도 후 drop).
       // The counter spans the whole AI Agent execution (caller maintains the
@@ -1330,7 +1353,7 @@ export class AiTurnExecutor {
         toolCalls: toolCallCount,
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
-        mcpServerSummaries: mcpDiagnosticsAcc,
+        mcpDiagnostics: mcpDiagnosticsAcc,
         presentationCalls:
           presentationCalls.length > 0 ? presentationCalls : undefined,
         presentationSchemaViolations:
@@ -1397,10 +1420,10 @@ export class AiTurnExecutor {
     // 도 동일 키로 노출해 멀티턴 출력과 스키마 일관성을 유지한다.
     const turnRagAcc = new RagAccumulator(knowledgeBases.length);
     const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
-    // MCP build 결과 (skipReason / connected) 누적. spec §6.2 의
-    // serverSummaries[] 가 본 array 의 1:1 echo. buildTools 호출 시 ctx 로
-    // 흘러간다. 비어있으면 meta emit 시 자동 omit (buildMcpDiagnosticsMeta).
-    const mcpDiagnosticsAcc: McpServerSummary[] = [];
+    // MCP 진단 누적 (serverSummaries / errors / 호출 카운터). spec §6.2 구조화
+    // 객체. buildTools 로 serverSummaries·errors 가, tool 실행 choke point 에서
+    // 카운터가 채워진다. attempted 아니면 meta emit 시 자동 omit.
+    const mcpDiagnosticsAcc = createMcpDiagnosticsAccumulator();
     // Render tool (`render_*`) accumulators. spec §4.1·§7.10. Single-turn
     // 은 render_form 이 silent-drop 되므로 display-only payloads 만 의미가 있다.
     const presentationPayloads: PresentationPayload[] = [];
@@ -1581,6 +1604,7 @@ export class AiTurnExecutor {
           config,
           turnIndex: 1,
           ragGroup,
+          mcpDiagnosticsAcc,
           toolCallTraces,
           messages,
           presentationPayloads,
@@ -2186,7 +2210,7 @@ export class AiTurnExecutor {
         toolCalls: toolCallCount,
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
-        mcpServerSummaries: mcpDiagnosticsAcc,
+        mcpDiagnostics: mcpDiagnosticsAcc,
         presentationCalls:
           presentationCalls.length > 0 ? presentationCalls : undefined,
         presentationSchemaViolations:
@@ -2472,10 +2496,10 @@ export class AiTurnExecutor {
     // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
     const turnRagAcc = new RagAccumulator(knowledgeBases.length);
     const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
-    // MCP build 결과 — multi-turn 은 매 turn 마다 buildTools 재호출이므로 본
+    // MCP 진단 — multi-turn 은 매 turn 마다 buildTools 재호출이므로 본
     // accumulator 도 turn 단위. 직전 turn 의 summary 는 resumeState 에 보존
     // 하지 않고 매 turn 새로 결정 — buildTools 가 결정론적이므로 안전.
-    const mcpDiagnosticsAcc: McpServerSummary[] = [];
+    const mcpDiagnosticsAcc = createMcpDiagnosticsAccumulator();
     // Render tool (`render_*`) accumulators — turn-scoped. ai_assistant turn
     // push 시 본 buffer 가 부착된다 (spec §7.10).
     const presentationPayloads: PresentationPayload[] = [];
@@ -2658,6 +2682,7 @@ export class AiTurnExecutor {
           config: turnConfig,
           turnIndex: turnCount,
           ragGroup,
+          mcpDiagnosticsAcc,
           toolCallTraces,
           messages,
           presentationPayloads,
@@ -2786,7 +2811,7 @@ export class AiTurnExecutor {
           toolCalls: toolCallCount,
           ragSources: ragAcc.getSources(),
           ragDiagnostics: ragAcc.getDiagnostics(),
-          mcpServerSummaries: mcpDiagnosticsAcc,
+          mcpDiagnostics: mcpDiagnosticsAcc,
           allPresentations: [
             ...(resumeState.allPresentations ?? []),
             ...presentationPayloads,
@@ -2988,7 +3013,7 @@ export class AiTurnExecutor {
       toolCalls: number;
       ragSources: unknown[];
       ragDiagnostics?: RagDiagnostics;
-      mcpServerSummaries?: McpServerSummary[];
+      mcpDiagnostics?: McpDiagnosticsAccumulator;
       /**
        * spec §7.10 echo — accumulated render_* payloads across all turns of
        * this multi-turn execution. Used by the execution history page that
@@ -3106,9 +3131,8 @@ export class AiTurnExecutor {
         // Auto-memory echo (spec §7) — manual 전략이면 metadata.memory 가
         // undefined 이라 키 자체가 생기지 않는다 (하위호환 불변식).
         ...(metadata.memory ? { memory: metadata.memory } : {}),
-        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(
-          metadata.mcpServerSummaries,
-        ) ?? {}),
+        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(metadata.mcpDiagnostics) ??
+          {}),
         turnDebug: turnDebugHistory ?? [],
       },
       port,
@@ -3226,7 +3250,7 @@ export class AiTurnExecutor {
       toolCalls: number;
       ragSources: unknown[];
       ragDiagnostics?: RagDiagnostics;
-      mcpServerSummaries?: McpServerSummary[];
+      mcpDiagnostics?: McpDiagnosticsAccumulator;
       /** spec §7.10 — render_* metric trace. */
       presentationCalls?: PresentationCallTrace[];
       /** spec §4.1 silent-drop trace. */
@@ -3283,9 +3307,8 @@ export class AiTurnExecutor {
         // Auto-memory echo (spec §7) — manual 전략이면 metadata.memory 가
         // undefined 이라 키 자체가 생기지 않는다 (하위호환 불변식).
         ...(metadata.memory ? { memory: metadata.memory } : {}),
-        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(
-          metadata.mcpServerSummaries,
-        ) ?? {}),
+        ...(AiTurnExecutor.buildMcpDiagnosticsMeta(metadata.mcpDiagnostics) ??
+          {}),
         ...(metadata.presentationCalls
           ? { presentationCalls: metadata.presentationCalls }
           : {}),
@@ -3336,24 +3359,25 @@ export class AiTurnExecutor {
   }
 
   /**
-   * spec/5-system/11-mcp-client.md §6.2 — buildTools 가 수집한 serverSummaries
-   * 를 meta 로 emit 할 때 쓰는 helper. 비어있으면 omit (정상 케이스에 noise
-   * 추가 안 함). 2026-05-18 시점에는 `mcpDiagnostics` 의 `serverSummaries`
-   * slice 만 채워지며 (`attempted`/`serverCount`/`toolCalls`/`resourceReads`/
-   * `promptGets`/`errors`) 는 후속 작업에서 추가 예정.
+   * spec/5-system/11-mcp-client.md §6.2 — MCP 진단 누적기를 `meta.mcpDiagnostics`
+   * 구조화 객체로 환원해 emit 할 때 쓰는 helper. MCP 가 이 노드 실행에서 1회도
+   * 시도되지 않았으면 omit (정상 케이스에 noise 추가 안 함). 시도됐으면
+   * `attempted`/`serverCount`/`toolCalls`/`resourceReads`/`promptGets`/
+   * `serverSummaries`/`errors` 전체를 emit (finalizeMcpDiagnostics).
    */
   private static buildMcpDiagnosticsMeta(
-    summaries: McpServerSummary[] | undefined,
-  ): { mcpDiagnostics: { serverSummaries: McpServerSummary[] } } | undefined {
-    if (!summaries || summaries.length === 0) return undefined;
-    return { mcpDiagnostics: { serverSummaries: summaries } };
+    acc: McpDiagnosticsAccumulator | undefined,
+  ): { mcpDiagnostics: McpDiagnostics } | undefined {
+    const diagnostics = finalizeMcpDiagnostics(acc);
+    if (!diagnostics) return undefined;
+    return { mcpDiagnostics: diagnostics };
   }
 
   private async buildTools(
     config: Record<string, unknown>,
     workspaceId: string,
     executionId?: string,
-    mcpDiagnostics?: McpServerSummary[],
+    mcpDiagnostics?: McpDiagnosticsAccumulator,
   ): Promise<ToolDef[]> {
     // 일반 도구(`tool_*`) 입력 경로는 스키마에서 제거됨 — 재작성 시 새 디자인으로 복원.
     // 스키마 .passthrough() 로 DB 의 legacy toolNodeIds/toolOverrides 는 silently
@@ -3369,7 +3393,10 @@ export class AiTurnExecutor {
           config,
           workspaceId,
           executionId,
-          mcpDiagnostics,
+          // provider 는 serverSummaries / errors 두 sub-array 로만 push 한다
+          // (카운터는 executor 소유, execute choke point 에서 증가).
+          mcpDiagnostics: mcpDiagnostics?.serverSummaries,
+          mcpDiagnosticErrors: mcpDiagnostics?.errors,
         });
         providerTools.push(...built);
       } catch (err) {

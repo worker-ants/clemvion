@@ -9,6 +9,7 @@ import type {
 } from '../../../../modules/mcp/mcp-client.service';
 import type { IntegrationsService } from '../../../../modules/integrations/integrations.service';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
+import { TimeoutError } from '../../../../common/utils/with-timeout';
 
 function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   return {
@@ -224,6 +225,110 @@ describe('McpToolProvider', () => {
           toolCount: 0,
         },
       ]);
+    });
+
+    it('§8.2 connect 실패(비-timeout) → errors[] 에 MCP_CONNECT_FAILED / phase=connect', async () => {
+      mcpClient.connect.mockRejectedValueOnce(new Error('connection refused'));
+      const mcpDiagnostics: Array<Record<string, unknown>> = [];
+      const mcpDiagnosticErrors: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-err-connect',
+        mcpDiagnostics,
+        mcpDiagnosticErrors,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnosticErrors).toEqual([
+        {
+          integrationId: integration.id,
+          phase: 'connect',
+          code: 'MCP_CONNECT_FAILED',
+          message: expect.stringContaining('connection refused'),
+        },
+      ]);
+    });
+
+    it('§8.2 connect 타임아웃 → errors[] 에 MCP_TIMEOUT / phase=connect', async () => {
+      mcpClient.connect.mockRejectedValueOnce(
+        new TimeoutError('connect Demo MCP', 10_000),
+      );
+      const mcpDiagnosticErrors: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-err-timeout',
+        mcpDiagnosticErrors,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnosticErrors).toEqual([
+        {
+          integrationId: integration.id,
+          phase: 'connect',
+          code: 'MCP_TIMEOUT',
+          message: expect.stringContaining('timed out'),
+        },
+      ]);
+    });
+
+    it('§8.2 tools/list 실패 → errors[] 에 MCP_LIST_FAILED / phase=tools/list + 세션 close', async () => {
+      const session = makeSession({
+        listTools: jest.fn().mockRejectedValue(new Error('list boom')),
+      });
+      mcpClient.connect.mockResolvedValueOnce(session);
+      const mcpDiagnosticErrors: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-err-list',
+        mcpDiagnosticErrors,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnosticErrors).toEqual([
+        {
+          integrationId: integration.id,
+          phase: 'tools/list',
+          code: 'MCP_LIST_FAILED',
+          message: expect.stringContaining('list boom'),
+        },
+      ]);
+      // 연결 후 실패는 SSE 누수 방지 위해 세션 close.
+      expect(session.close).toHaveBeenCalled();
+    });
+
+    it('§8.2 tools/list 타임아웃 → errors[] 에 MCP_TIMEOUT / phase=tools/list', async () => {
+      const session = makeSession({
+        listTools: jest
+          .fn()
+          .mockRejectedValue(new TimeoutError('tools/list Demo MCP', 10_000)),
+      });
+      mcpClient.connect.mockResolvedValueOnce(session);
+      const mcpDiagnosticErrors: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-err-list-timeout',
+        mcpDiagnosticErrors,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnosticErrors[0]).toMatchObject({
+        phase: 'tools/list',
+        code: 'MCP_TIMEOUT',
+      });
+    });
+
+    it('§8.2 status!=connected → errors[] 에 MCP_CONNECT_FAILED / phase=connect (connect 미시도)', async () => {
+      integrations.getForExecution.mockResolvedValue(
+        makeIntegration({ status: 'error', statusReason: 'auth_failed' }),
+      );
+      const mcpDiagnosticErrors: Array<Record<string, unknown>> = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-err-status',
+        mcpDiagnosticErrors,
+      } as unknown as Parameters<typeof provider.buildTools>[0]);
+      expect(mcpDiagnosticErrors[0]).toMatchObject({
+        phase: 'connect',
+        code: 'MCP_CONNECT_FAILED',
+      });
+      expect(mcpClient.connect).not.toHaveBeenCalled();
     });
 
     it('skips a tool not in enabledTools allowlist', async () => {
