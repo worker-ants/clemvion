@@ -642,6 +642,67 @@ describe('NotificationsService — dismiss', () => {
       expect(repo.update).not.toHaveBeenCalled();
     });
 
+    it("notify channel='both' — 이메일 발송 + WS emit 둘 다 (단건 경로)", async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'both' }));
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        channel: 'both',
+      });
+
+      expect(ws.emitNotificationEvent).toHaveBeenCalledTimes(1);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledWith('u1@x.com', {
+        title: 'Workflow failed',
+        message: 'run failed',
+        type: 'execution_failed',
+      });
+      expect(repo.update).toHaveBeenCalledWith('n-1', expect.any(Object));
+    });
+
+    it('notify channel 생략(default in_app) — 이메일 미발송', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      // channel 미지정 → default 'in_app' (create 가 채움) → dispatch 대상 아님.
+      repo.save.mockResolvedValue(savedRow({ channel: 'in_app' }));
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+      });
+
+      expect(userRepo.find).not.toHaveBeenCalled();
+      expect(mail.sendNotificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('발송은 성공하나 email_sent_at UPDATE 가 throw — warn 만, notify reject 안 함', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      const saved = savedRow({ channel: 'email' });
+      repo.save.mockResolvedValue(saved);
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+      mail.sendNotificationEmail.mockResolvedValue(undefined);
+      repo.update.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.notify({
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 'execution_failed',
+          title: 'Workflow failed',
+          message: 'run failed',
+          channel: 'email',
+        }),
+      ).resolves.toBe(saved);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledTimes(1);
+    });
+
     it('userRepo.find 가 throw 해도 dispatch 는 삼켜 notify 를 reject 안 함', async () => {
       repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
       const saved = savedRow({ channel: 'email' });
