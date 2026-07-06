@@ -8,6 +8,7 @@ import {
   McpHttpsRequiredError,
   McpSession,
 } from './mcp-client.service';
+import { TimeoutError } from '../../common/utils/with-timeout';
 
 function makeSession(overrides: Partial<McpSession> = {}): McpSession {
   return {
@@ -145,6 +146,36 @@ describe('McpTestConnectionService', () => {
 
     expectFailure(result, 'MCP_LIST_FAILED');
     // Even when listTools fails, the session must still be closed.
+    expect(session.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('translates connect TimeoutError to MCP_TIMEOUT (§8.2/§9)', async () => {
+    connect.mockRejectedValueOnce(
+      new TimeoutError('connect mcp.example.com', 10_000),
+    );
+
+    const result = await service.test({
+      url: 'https://mcp.example.com',
+      authType: 'none',
+    });
+
+    expectFailure(result, 'MCP_TIMEOUT');
+  });
+
+  it('translates tools/list TimeoutError to MCP_TIMEOUT (not MCP_LIST_FAILED)', async () => {
+    const session = makeSession({
+      listTools: jest
+        .fn()
+        .mockRejectedValue(new TimeoutError('tools/list', 10_000)),
+    });
+    connect.mockResolvedValueOnce(session);
+
+    const result = await service.test({
+      url: 'https://mcp.example.com',
+      authType: 'none',
+    });
+
+    expectFailure(result, 'MCP_TIMEOUT');
     expect(session.close).toHaveBeenCalledTimes(1);
   });
 

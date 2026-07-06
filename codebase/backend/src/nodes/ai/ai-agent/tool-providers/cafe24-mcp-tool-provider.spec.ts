@@ -695,6 +695,37 @@ describe('Cafe24McpToolProvider', () => {
       );
     });
 
+    it('API 4xx 는 mcpErrorDelta(phase=tools/call, CAFE24 코드)를 보고한다 — §8.1', async () => {
+      const { sid, integration } = await setup();
+      apiClient.call.mockResolvedValue({
+        status: 401,
+        body: { error: 'unauthorized' },
+        headers: {},
+        retries: 0,
+      });
+      const res = await provider.execute(
+        makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.status).toBe('error');
+      expect(res.mcpErrorDelta).toEqual({
+        integrationId: integration.id,
+        phase: 'tools/call',
+        code: 'CAFE24_AUTH_FAILED',
+        message: 'Cafe24 API returned 401',
+      });
+    });
+
+    it('client-side CAFE24_MISSING_FIELDS 는 mcpErrorDelta 를 보고하지 않는다', async () => {
+      const { sid } = await setup();
+      const res = await provider.execute(
+        makeCall(`mcp_${sid}__product_get`, {}),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.status).toBe('error');
+      expect(res.mcpErrorDelta).toBeUndefined();
+    });
+
     it('returns CAFE24_MISSING_FIELDS error when required field absent', async () => {
       const { sid } = await setup();
       const res = await provider.execute(

@@ -288,6 +288,83 @@ describe('AiTurnExecutor', () => {
       });
     });
 
+    it('provider 의 mcpErrorDelta 를 meta.mcpDiagnostics.errors[] 로 누적 — spec §8.1', async () => {
+      const mcpProvider = {
+        key: 'mcp',
+        matches: (n: string) => n.startsWith('mcp_'),
+        buildTools: async (ctx: {
+          mcpDiagnostics?: Array<Record<string, unknown>>;
+        }) => {
+          ctx.mcpDiagnostics?.push({
+            integrationId: 'i-a',
+            serviceType: 'mcp',
+            status: 'connected',
+            toolCount: 1,
+          });
+          return [
+            {
+              name: 'mcp_abcd1234__do',
+              description: 'd',
+              parameters: { type: 'object', properties: {} },
+            },
+          ];
+        },
+        // call-phase 서버 실패를 delta 로 보고.
+        execute: async (call: { id: string }) => ({
+          toolCallId: call.id,
+          content: JSON.stringify({ error: 'MCP_CALL_FAILED' }),
+          status: 'error' as const,
+          mcpErrorDelta: {
+            integrationId: 'i-a',
+            phase: 'tools/call' as const,
+            code: 'MCP_CALL_FAILED',
+            message: 'upstream 500',
+          },
+        }),
+      };
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [{ id: 't1', name: 'mcp_abcd1234__do', arguments: {} }],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: '완료.',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const executor = buildExecutor({ toolProviders: [mcpProvider] });
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'sys',
+          userPrompt: 'go',
+          mcpServers: [{ integrationId: 'i-a' }],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      const diag = (result.meta as { mcpDiagnostics?: Record<string, unknown> })
+        .mcpDiagnostics;
+      // 실패해도 toolCalls 는 시도로 집계, errors[] 에 delta 누적.
+      expect(diag).toMatchObject({
+        attempted: true,
+        toolCalls: 1,
+        errors: [
+          {
+            integrationId: 'i-a',
+            phase: 'tools/call',
+            code: 'MCP_CALL_FAILED',
+            message: 'upstream 500',
+          },
+        ],
+      });
+    });
+
     it('omits meta.mcpDiagnostics when no MCP server is configured (lean)', async () => {
       const executor = buildExecutor();
       const result = (await executor.executeSingleTurn(

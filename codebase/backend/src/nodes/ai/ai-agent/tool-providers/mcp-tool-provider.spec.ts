@@ -710,6 +710,120 @@ describe('McpToolProvider', () => {
       expect(parsed.error).toBe('MCP_CALL_FAILED');
       // Generic message — the SDK error ('upstream 500') must NOT leak.
       expect(parsed.message).not.toContain('upstream 500');
+      // §8.1 — call-phase 서버 실패는 errors[] 누적용 delta 를 함께 보고.
+      expect(result.mcpErrorDelta).toEqual({
+        integrationId: integration.id,
+        phase: 'tools/call',
+        code: 'MCP_CALL_FAILED',
+        message: 'upstream 500',
+      });
+    });
+
+    it('call 타임아웃은 MCP_TIMEOUT delta 로 보고한다 (§8.2)', async () => {
+      mcpClient.connect.mockResolvedValue(
+        makeSession({
+          callTool: jest
+            .fn()
+            .mockRejectedValue(new TimeoutError('tools/call echo', 30_000)),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const result = await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: integration.id }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        },
+      );
+      expect(JSON.parse(result.content).error).toBe('MCP_TIMEOUT');
+      expect(result.mcpErrorDelta).toMatchObject({
+        phase: 'tools/call',
+        code: 'MCP_TIMEOUT',
+      });
+    });
+
+    it('isError=true 응답은 MCP_TOOL_ERROR delta 로 보고한다', async () => {
+      mcpClient.connect.mockResolvedValue(
+        makeSession({
+          callTool: jest.fn().mockResolvedValue({
+            isError: true,
+            content: [{ type: 'text', text: 'tool blew up' }],
+          }),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const result = await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{}' },
+        {
+          config: { mcpServers: [{ integrationId: integration.id }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        },
+      );
+      expect(JSON.parse(result.content).error).toBe('MCP_TOOL_ERROR');
+      expect(result.mcpErrorDelta).toMatchObject({
+        phase: 'tools/call',
+        code: 'MCP_TOOL_ERROR',
+      });
+    });
+
+    it('read_resource 메타도구 실패는 phase=resources/read delta 로 보고한다', async () => {
+      mcpClient.connect.mockResolvedValue(
+        makeSession({
+          capabilities: { tools: {}, resources: {} },
+          readResource: jest.fn().mockRejectedValue(new Error('read boom')),
+        }),
+      );
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const result = await provider.execute(
+        {
+          id: 'tc-1',
+          name: 'mcp_aaaaaaaa__read_resource',
+          arguments: JSON.stringify({ uri: 'file://x' }),
+        },
+        {
+          config: { mcpServers: [{ integrationId: integration.id }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        },
+      );
+      expect(result.mcpErrorDelta).toMatchObject({
+        integrationId: integration.id,
+        phase: 'resources/read',
+        code: 'MCP_CALL_FAILED',
+      });
+    });
+
+    it('client-side 실패(INVALID_TOOL_ARGUMENTS/UNKNOWN_TOOL)는 errors[] delta 를 보고하지 않는다', async () => {
+      mcpClient.connect.mockResolvedValue(makeSession());
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: integration.id }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const bad = await provider.execute(
+        { id: 'tc-1', name: 'mcp_aaaaaaaa__echo', arguments: '{ nope' },
+        {
+          config: { mcpServers: [{ integrationId: integration.id }] },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        },
+      );
+      expect(JSON.parse(bad.content).error).toBe('INVALID_TOOL_ARGUMENTS');
+      expect(bad.mcpErrorDelta).toBeUndefined();
     });
 
     it('returns INVALID_TOOL_ARGUMENTS for non-JSON arguments', async () => {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import pLimit, { LimitFunction } from 'p-limit';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { TimeoutError } from '../../common/utils/with-timeout';
 
 /**
  * Identifier sent to MCP servers in `clientInfo`. The MCP spec is happy with
@@ -268,7 +269,16 @@ export class McpClientService {
     headers: Record<string, string>,
   ): Promise<McpSession> {
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), this.connectTimeoutMs);
+    // Track whether the abort was fired by *our* deadline vs the SDK/network,
+    // so a connect timeout surfaces as a distinct `TimeoutError` (→ MCP_TIMEOUT)
+    // rather than an opaque abort/transport error (→ MCP_CONNECT_FAILED). This
+    // AbortController genuinely cancels the in-flight fetch (unlike withTimeout's
+    // soft deadline), so it stays the connect-phase timeout mechanism.
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, this.connectTimeoutMs);
 
     const transport = new StreamableHTTPClientTransport(url, {
       requestInit: { headers, signal: abort.signal },
@@ -281,6 +291,11 @@ export class McpClientService {
 
     try {
       await client.connect(transport);
+    } catch (err) {
+      if (timedOut) {
+        throw new TimeoutError(`connect ${url.host}`, this.connectTimeoutMs);
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
     }

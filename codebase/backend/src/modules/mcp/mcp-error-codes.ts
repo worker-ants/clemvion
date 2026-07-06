@@ -34,11 +34,55 @@ export type McpErrorCode =
  */
 export const MCP_ERROR_MESSAGE_MAX_LEN = 2048;
 
+/** Placeholder substituted for any redacted secret span. */
+export const MCP_REDACTED_PLACEHOLDER = '[redacted]';
+
 /**
- * Strip control chars from a free-form error message and clamp to the max
- * length. Used for both DB writes and `logger.warn` so external content can
- * never break log aggregator parsers (newlines) or bloat persisted error
- * blobs.
+ * Redact credential-shaped spans from a free-form error string before it is
+ * persisted / surfaced (`mcpDiagnostics.errors[].message`, `IntegrationUsageLog`,
+ * `Integration.last_error`). External MCP servers can echo the request URL,
+ * `Authorization` header, or query string back inside their error text; without
+ * this a bearer token / api key / URL-embedded password could leak into
+ * user-visible node meta. Defense-in-depth — no known leak path, but the sink
+ * is now user-facing (spec-sync mcp-client follow-up, task_fa96e218).
+ *
+ * Covers: URL userinfo (`scheme://user:pass@host`), `Bearer <token>`,
+ * `Authorization`/`X-Api-Key`-style header assignments, and labelled query/kv
+ * secrets (`token=`, `api_key=`, `access_token=`, `secret=`, `password=`, …).
+ * Deliberately conservative — only labelled/structural secrets are touched so
+ * ordinary error prose is preserved for debugging.
+ */
+export function redactMcpSecrets(msg: string): string {
+  return (
+    msg
+      // scheme://user:pass@host  →  scheme://[redacted]@host
+      .replace(
+        /(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi,
+        `$1${MCP_REDACTED_PLACEHOLDER}@`,
+      )
+      // Bearer <token>  →  Bearer [redacted]
+      .replace(
+        /\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi,
+        `$1 ${MCP_REDACTED_PLACEHOLDER}`,
+      )
+      // Authorization: <v> / X-Api-Key: <v> / X-Auth-Token=<v>
+      .replace(
+        /\b(authorization|x-api-key|api-key|x-auth-token)(\s*[:=]\s*)\S+/gi,
+        `$1$2${MCP_REDACTED_PLACEHOLDER}`,
+      )
+      // ?token=… &api_key=… secret=… password=… (query / kv form)
+      .replace(
+        /([?&;]?\b(?:api[_-]?key|access[_-]?token|token|secret|password|pwd|auth)=)[^&\s;]+/gi,
+        `$1${MCP_REDACTED_PLACEHOLDER}`,
+      )
+  );
+}
+
+/**
+ * Strip control chars from a free-form error message, redact credential-shaped
+ * spans, and clamp to the max length. Used for both DB writes and `logger.warn`
+ * so external content can never break log aggregator parsers (newlines), leak
+ * secrets, or bloat persisted error blobs.
  */
 export function sanitizeMcpErrorMessage(raw: unknown): string {
   let msg: string;
@@ -57,5 +101,9 @@ export function sanitizeMcpErrorMessage(raw: unknown): string {
       msg = '[unserializable error]';
     }
   }
-  return msg.replace(/[\r\n\t]+/g, ' ').slice(0, MCP_ERROR_MESSAGE_MAX_LEN);
+  // Redact before clamping so a truncated tail can't leave a token half-exposed.
+  return redactMcpSecrets(msg.replace(/[\r\n\t]+/g, ' ')).slice(
+    0,
+    MCP_ERROR_MESSAGE_MAX_LEN,
+  );
 }

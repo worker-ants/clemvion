@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { withTimeout } from '../../common/utils/with-timeout';
+import { TimeoutError, withTimeout } from '../../common/utils/with-timeout';
 import {
   McpAuthError,
   McpClientService,
@@ -44,7 +44,12 @@ export type McpFailureCode =
   | 'MCP_HTTPS_REQUIRED'
   | 'MCP_AUTH_FAILED'
   | 'MCP_CONNECT_FAILED'
-  | 'MCP_LIST_FAILED';
+  | 'MCP_LIST_FAILED'
+  | 'MCP_TIMEOUT';
+
+/** Generic message body for a connect/list deadline (spec §4.4 / §8.2). */
+const GENERIC_TIMEOUT_MESSAGE =
+  'The MCP server did not respond within the allotted time. Verify the URL is reachable and the server is healthy.';
 
 /** Generic message bodies — keeps internal IPs / paths out of API responses. */
 const GENERIC_CONNECT_FAILURE_MESSAGE =
@@ -97,6 +102,14 @@ export class McpTestConnectionService {
           );
           toolCount = list.tools.length;
         } catch (err) {
+          if (err instanceof TimeoutError) {
+            this.logInternal('MCP_TIMEOUT', err);
+            return {
+              success: false,
+              code: 'MCP_TIMEOUT',
+              message: GENERIC_TIMEOUT_MESSAGE,
+            };
+          }
           this.logInternal('MCP_LIST_FAILED', err);
           return {
             success: false,
@@ -125,6 +138,14 @@ export class McpTestConnectionService {
   }
 
   private classifyConnectError(err: unknown): TestConnectionResult {
+    if (err instanceof TimeoutError) {
+      this.logInternal('MCP_TIMEOUT', err);
+      return {
+        success: false,
+        code: 'MCP_TIMEOUT',
+        message: GENERIC_TIMEOUT_MESSAGE,
+      };
+    }
     if (err instanceof McpHttpsRequiredError) {
       return {
         success: false,

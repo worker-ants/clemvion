@@ -10,7 +10,11 @@ import {
   ProviderCleanupCtx,
   ProviderExecCtx,
 } from './agent-tool-provider.interface.js';
-import { McpSkipReason, pushMcpServerSummary } from './mcp-diagnostics.js';
+import {
+  McpDiagnosticError,
+  McpSkipReason,
+  pushMcpServerSummary,
+} from './mcp-diagnostics.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import {
@@ -512,6 +516,16 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
 
       const status: 'success' | 'error' =
         result.status >= 400 ? 'error' : 'success';
+      // spec §8.1 — Cafe24 API 4xx/5xx 는 서버측 call-phase 실패 → errors[] 누적.
+      const mcpErrorDelta: McpDiagnosticError | undefined =
+        status === 'error'
+          ? {
+              integrationId: integration.id,
+              phase: 'tools/call',
+              code: this.codeForStatus(result.status),
+              message: `Cafe24 API returned ${result.status}`,
+            }
+          : undefined;
       return {
         toolCallId: call.id,
         content: JSON.stringify({
@@ -519,6 +533,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
           response: result.body,
         }),
         status,
+        ...(mcpErrorDelta ? { mcpErrorDelta } : {}),
       };
     } catch (err) {
       const errInfo = this.classifyError(err);
@@ -552,6 +567,13 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         }),
         status: 'error',
         error: errInfo.message,
+        // spec §8.1 — transport/API 실패도 call-phase errors[] 누적.
+        mcpErrorDelta: {
+          integrationId: integration.id,
+          phase: 'tools/call',
+          code: errInfo.code,
+          message: errInfo.message,
+        },
       };
     }
   }

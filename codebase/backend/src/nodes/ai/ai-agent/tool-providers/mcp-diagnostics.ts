@@ -57,7 +57,9 @@ export type McpErrorPhase =
   | 'initialize'
   | 'tools/list'
   | 'tools/call'
+  | 'resources/list'
   | 'resources/read'
+  | 'prompts/list'
   | 'prompts/get';
 
 /**

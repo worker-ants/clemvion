@@ -42,6 +42,13 @@ OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`,
 ([`3-error-handling.md §1.1·§1.3`](../5-system/3-error-handling.md))는 prefix 없이 쓰는 기존 카테고리로,
 원칙 위반 예외가 아니라 별개 범주다.
 
+> **prefix-less 공용 코드 — `INVALID_TOOL_ARGUMENTS`**: AI Agent 의 tool_use 인자 검증 실패 코드
+> ([`11-mcp-client.md §8.2`](../5-system/11-mcp-client.md#82-에러-코드-vocabulary))는 `MCP_` prefix 를
+> 붙이지 않는다 — MCP 전용이 아니라 **AI Agent 의 모든 tool provider 경로에서 공유**되는 LLM 인자
+> 검증 category 이기 때문이다(`VALIDATION_ERROR` 와 동류). LLM 이 `tool_result.error` 로 이 값을 보고
+> 다음 turn 에 인자를 보정하므로 코드 값이 곧 계약이며, `MCP_INVALID_TOOL_ARGUMENTS` 로의 rename 은
+> breaking(§2)일 뿐 의미 이득이 없다. 따라서 prefix-less 유지가 정답이며 domain-prefix 원칙 위반이 아니다.
+
 ## 2. 안정성 / rename 정책
 
 - **에러 코드 rename 은 breaking change 다** — 클라이언트가 코드 값으로 분기하므로 deprecated alias·

@@ -943,6 +943,11 @@ export class AiTurnExecutor {
         else if (kind === 'resource_read')
           args.mcpDiagnosticsAcc.resourceReads++;
         else if (kind === 'prompt_get') args.mcpDiagnosticsAcc.promptGets++;
+        // spec §8.1 — call-phase 서버측 실패는 provider 가 mcpErrorDelta 로 보고
+        // (build-phase errors[] 와 대칭). client-side 실패는 delta 미set.
+        if (execResult.mcpErrorDelta) {
+          args.mcpDiagnosticsAcc.errors.push(execResult.mcpErrorDelta);
+        }
       }
 
       // render_* schema-violation retry gate (spec §4.1 — 1회 재시도 후 drop).

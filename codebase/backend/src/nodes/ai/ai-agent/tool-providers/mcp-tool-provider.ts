@@ -4,6 +4,7 @@ import {
   withTimeout,
 } from '../../../../common/utils/with-timeout';
 import {
+  McpDiagnosticError,
   McpErrorPhase,
   pushMcpDiagnosticError,
   pushMcpServerSummary,
@@ -38,6 +39,20 @@ const META_LIST_RESOURCES = 'list_resources';
 const META_READ_RESOURCE = 'read_resource';
 const META_LIST_PROMPTS = 'list_prompts';
 const META_GET_PROMPT = 'get_prompt';
+
+/** 메타도구 → `mcpDiagnostics.errors[].phase` 매핑 (spec §8.1 단계 vocabulary). */
+const META_PHASE: Record<
+  | typeof META_LIST_RESOURCES
+  | typeof META_READ_RESOURCE
+  | typeof META_LIST_PROMPTS
+  | typeof META_GET_PROMPT,
+  McpErrorPhase
+> = {
+  [META_LIST_RESOURCES]: 'resources/list',
+  [META_READ_RESOURCE]: 'resources/read',
+  [META_LIST_PROMPTS]: 'prompts/list',
+  [META_GET_PROMPT]: 'prompts/get',
+};
 
 /** Cap for user-controlled identifier strings spliced into descriptions. */
 const MAX_DESCRIPTION_LEN = 500;
@@ -434,6 +449,12 @@ export class McpToolProvider implements AgentToolProvider {
           MCP_ERROR_CODES.TOOL_ERROR,
           'MCP tool reported an error',
           { content: (result as { content?: unknown }).content },
+          {
+            integrationId: entry.integrationId,
+            phase: 'tools/call',
+            code: MCP_ERROR_CODES.TOOL_ERROR,
+            message: 'MCP tool reported an error',
+          },
         );
       }
       this.fireUsageLog(ctx, entry, callStartedAt, 'success');
@@ -443,14 +464,17 @@ export class McpToolProvider implements AgentToolProvider {
       McpToolProvider.logger.warn(
         `${MCP_ERROR_CODES.CALL_FAILED} ${entry.integrationId}/${originalName}: ${message}`,
       );
-      // Auth failures (401/403 from the MCP server) trip the integration
-      // into an `error` state so the UI can surface "needs reauthorization"
-      // instead of a silent retry-storm. SDK error structure isn't
-      // standardized — prefer a structured `code`/`status` field if the
+      // Timeout(§4.4) → MCP_TIMEOUT. Auth failures (401/403 from the MCP server)
+      // trip the integration into an `error` state so the UI can surface "needs
+      // reauthorization" instead of a silent retry-storm. SDK error structure
+      // isn't standardized — prefer a structured `code`/`status` field if the
       // SDK exposes one, fall back to the original message regex.
-      const code = isAuthFailure(err, message)
-        ? MCP_ERROR_CODES.AUTH_FAILED
-        : MCP_ERROR_CODES.CALL_FAILED;
+      const code =
+        err instanceof TimeoutError
+          ? MCP_ERROR_CODES.TIMEOUT
+          : isAuthFailure(err, message)
+            ? MCP_ERROR_CODES.AUTH_FAILED
+            : MCP_ERROR_CODES.CALL_FAILED;
       this.fireUsageLog(ctx, entry, callStartedAt, 'failed', {
         code,
         message,
@@ -459,6 +483,13 @@ export class McpToolProvider implements AgentToolProvider {
         call.id,
         code,
         `MCP server "${entry.integrationName}" failed to execute the tool`,
+        undefined,
+        {
+          integrationId: entry.integrationId,
+          phase: 'tools/call',
+          code,
+          message,
+        },
       );
     }
   }
@@ -1018,13 +1049,19 @@ export class McpToolProvider implements AgentToolProvider {
       );
       return this.successResult(toolCallId, r);
     } catch (err) {
-      McpToolProvider.logger.warn(
-        `MCP meta tool failed (${meta}): ${err instanceof Error ? err.message : String(err)}`,
-      );
+      const message = sanitizeMcpErrorMessage(err);
+      McpToolProvider.logger.warn(`MCP meta tool failed (${meta}): ${message}`);
+      const phase: McpErrorPhase = META_PHASE[meta];
+      const code =
+        err instanceof TimeoutError
+          ? MCP_ERROR_CODES.TIMEOUT
+          : MCP_ERROR_CODES.CALL_FAILED;
       return this.errorResult(
         toolCallId,
-        'MCP_CALL_FAILED',
+        code,
         `MCP server "${entry.integrationName}" failed to execute the meta tool`,
+        undefined,
+        { integrationId: entry.integrationId, phase, code, message },
       );
     }
   }
@@ -1061,12 +1098,19 @@ export class McpToolProvider implements AgentToolProvider {
     code: string,
     message: string,
     extra?: Record<string, unknown>,
+    /**
+     * call-phase 서버측 실패일 때만 전달 — 핸들러가 `mcpDiagnostics.errors[]` 로
+     * 누적한다. client-side 실패(INVALID_TOOL_ARGUMENTS·MCP_UNKNOWN_TOOL 등)는
+     * 넘기지 않는다(서버 실패 아님).
+     */
+    errorDelta?: McpDiagnosticError,
   ): AgentToolResult {
     return {
       toolCallId,
       content: JSON.stringify({ error: code, message, ...(extra ?? {}) }),
       status: 'error',
       error: `${code}: ${message}`,
+      ...(errorDelta ? { mcpErrorDelta: errorDelta } : {}),
     };
   }
 
