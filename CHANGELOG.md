@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 알림 이메일 발송 경로 + email_sent_at 라이프사이클 (알림 파이프라인 PR2)
+
+### 변경 사항
+
+1. **`channel ∈ {email, both}` 알림이 실제 이메일로 발송되고 발송 시각(`email_sent_at`)이 기록된다** — 종전 `MailService` 는 verification/invitation/password-reset 3종만 발송하고 알림 이메일 경로·`email_sent_at` setter 가 없어, `notification.channel` 이 email/both 여도 in-app 적재만 되고 메일은 나가지 않았다(`spec/data-flow/8-notifications.md` §1·§2.2·§3 이 to-be 로 명시). 이제 `MailService.sendNotificationEmail(email, {title,message,type})` 이 **단일 범용 템플릿**(subject=알림 title, 본문=message + `/dashboard` CTA — 전용 알림 페이지가 없어 인증 랜딩의 벨 팝오버로 안내)으로 발송하고, `NotificationsService` 가 `notify()`/`createMany()` 적재 후 `channel∈{email,both}` row 에 대해 User email 을 `In(userIds)` 배치로 조회해 발송한 뒤 성공 시 `email_sent_at` 을 채운다. 전 과정 **완전 best-effort** — SMTP·해석·UPDATE 실패는 warn 로그만 남기고 재시도하지 않으며 적재(source of truth)를 되돌리지 않고, 실패한 row 의 `email_sent_at` 은 NULL 로 남는다(`spec/data-flow/8-notifications.md §3` Rationale). `type` 별 시각 템플릿은 단일 범용 템플릿으로 downscope(type별 내용은 호출자가 설정한 title/message 에 이미 인코딩) — spec 배지 flip·Rationale 정정은 별도 planner 트랙. SoT: `spec/data-flow/8-notifications.md §1/§2.2/§3`.
+
 ## Unreleased — Switch switchValue 필수 표시(asterisk) (V-12)
 
 ### 변경 사항

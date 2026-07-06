@@ -24,7 +24,10 @@ describe('NotificationsService — dismiss', () => {
     save: jest.Mock;
     find: jest.Mock;
     create: jest.Mock;
+    update: jest.Mock;
   };
+  let userRepo: { find: jest.Mock };
+  let mail: { sendNotificationEmail: jest.Mock };
   let ws: { emitNotificationEvent: jest.Mock };
   let moduleRefMock: { get: jest.Mock };
 
@@ -57,11 +60,19 @@ describe('NotificationsService — dismiss', () => {
       save: jest.fn(),
       find: jest.fn(),
       create: jest.fn(),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
+    userRepo = { find: jest.fn().mockResolvedValue([]) };
+    mail = { sendNotificationEmail: jest.fn().mockResolvedValue(undefined) };
     ws = { emitNotificationEvent: jest.fn() };
     // NotificationsService 는 WebsocketService 를 ModuleRef(strict:false) 로 지연 해석.
     moduleRefMock = { get: jest.fn().mockReturnValue(ws) };
-    service = new NotificationsService(repo as any, moduleRefMock as any);
+    service = new NotificationsService(
+      repo as any,
+      userRepo as any,
+      moduleRefMock as any,
+      mail as any,
+    );
   });
 
   describe('findAll — dismissed_at IS NULL 필터', () => {
@@ -442,6 +453,337 @@ describe('NotificationsService — dismiss', () => {
           },
         ]),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('이메일 발송 + email_sent_at (PR2, spec §1·§2.2·§3)', () => {
+    function savedRow(over: Partial<any> = {}) {
+      return {
+        id: 'n-1',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        resourceType: null,
+        resourceId: null,
+        channel: 'in_app',
+        ...over,
+      };
+    }
+
+    it("channel='in_app' 이면 이메일 미발송 (user 조회·발송 모두 skip)", async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'in_app' }));
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+      });
+
+      expect(userRepo.find).not.toHaveBeenCalled();
+      expect(mail.sendNotificationEmail).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("channel='email' 이면 발송 후 email_sent_at UPDATE", async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'email' }));
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        channel: 'email',
+      });
+
+      expect(mail.sendNotificationEmail).toHaveBeenCalledWith('u1@x.com', {
+        title: 'Workflow failed',
+        message: 'run failed',
+        type: 'execution_failed',
+      });
+      expect(repo.update).toHaveBeenCalledWith(
+        'n-1',
+        expect.objectContaining({ emailSentAt: expect.any(Date) }),
+      );
+    });
+
+    it('createMany — email/both row 만 발송, user email 은 In() 배치 조회', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        savedRow({ id: 'n-1', userId: 'u-1', channel: 'both' }),
+        savedRow({ id: 'n-2', userId: 'u-2', channel: 'in_app' }),
+        savedRow({ id: 'n-3', userId: 'u-3', channel: 'email' }),
+      ]);
+      userRepo.find.mockResolvedValue([
+        { id: 'u-1', email: 'u1@x.com' },
+        { id: 'u-3', email: 'u3@x.com' },
+      ]);
+
+      await service.createMany([
+        {
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 't',
+          title: 'a',
+          message: 'm',
+          channel: 'both',
+        },
+        {
+          workspaceId: 'ws',
+          userId: 'u-2',
+          type: 't',
+          title: 'a',
+          message: 'm',
+        },
+        {
+          workspaceId: 'ws',
+          userId: 'u-3',
+          type: 't',
+          title: 'a',
+          message: 'm',
+          channel: 'email',
+        },
+      ]);
+
+      // email/both(u-1,u-3) 만 발송, in_app(u-2) 제외. user 조회는 1회 배치.
+      expect(userRepo.find).toHaveBeenCalledTimes(1);
+      const inValue = (userRepo.find.mock.calls[0][0] as any).where.id._value;
+      expect(inValue).toEqual(['u-1', 'u-3']);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledTimes(2);
+      expect(repo.update).toHaveBeenCalledWith('n-1', expect.any(Object));
+      expect(repo.update).toHaveBeenCalledWith('n-3', expect.any(Object));
+      expect(repo.update).not.toHaveBeenCalledWith('n-2', expect.any(Object));
+    });
+
+    it('createMany — 동일 userId 다중 email 알림 모두 해당 이메일로 발송', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        savedRow({ id: 'n-1', userId: 'u-1', channel: 'email', title: 'a' }),
+        savedRow({ id: 'n-2', userId: 'u-1', channel: 'both', title: 'b' }),
+      ]);
+      // In(userIds) 는 u-1 하나로 dedup 되지만 두 알림 모두 발송돼야 한다.
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+
+      await service.createMany([
+        {
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 't',
+          title: 'a',
+          message: 'm',
+          channel: 'email',
+        },
+        {
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 't',
+          title: 'b',
+          message: 'm',
+          channel: 'both',
+        },
+      ]);
+
+      expect(userRepo.find).toHaveBeenCalledTimes(1);
+      expect((userRepo.find.mock.calls[0][0] as any).where.id._value).toEqual([
+        'u-1',
+      ]);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledTimes(2);
+      expect(mail.sendNotificationEmail).toHaveBeenNthCalledWith(
+        1,
+        'u1@x.com',
+        expect.objectContaining({ title: 'a' }),
+      );
+      expect(mail.sendNotificationEmail).toHaveBeenNthCalledWith(
+        2,
+        'u1@x.com',
+        expect.objectContaining({ title: 'b' }),
+      );
+      expect(repo.update).toHaveBeenCalledWith('n-1', expect.any(Object));
+      expect(repo.update).toHaveBeenCalledWith('n-2', expect.any(Object));
+    });
+
+    it('createMany — 배치 중 1건 발송 실패 시 나머지는 계속 (부분 실패 격리)', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        savedRow({ id: 'n-1', userId: 'u-1', channel: 'email' }),
+        savedRow({ id: 'n-2', userId: 'u-2', channel: 'email' }),
+      ]);
+      userRepo.find.mockResolvedValue([
+        { id: 'u-1', email: 'u1@x.com' },
+        { id: 'u-2', email: 'u2@x.com' },
+      ]);
+      // u-1 발송 실패, u-2 성공.
+      mail.sendNotificationEmail.mockImplementation((to: string) =>
+        to === 'u1@x.com'
+          ? Promise.reject(new Error('SMTP down'))
+          : Promise.resolve(undefined),
+      );
+
+      await expect(
+        service.createMany([
+          {
+            workspaceId: 'ws',
+            userId: 'u-1',
+            type: 't',
+            title: 'a',
+            message: 'm',
+            channel: 'email',
+          },
+          {
+            workspaceId: 'ws',
+            userId: 'u-2',
+            type: 't',
+            title: 'a',
+            message: 'm',
+            channel: 'email',
+          },
+        ]),
+      ).resolves.toBeUndefined();
+
+      // 실패한 n-1 은 email_sent_at 미갱신, 성공한 n-2 만 갱신.
+      expect(repo.update).not.toHaveBeenCalledWith('n-1', expect.any(Object));
+      expect(repo.update).toHaveBeenCalledWith('n-2', expect.any(Object));
+    });
+
+    it('발송 실패 시 warn 만 — email_sent_at 미갱신, notify 는 reject 안 함', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'email' }));
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+      mail.sendNotificationEmail.mockRejectedValue(new Error('SMTP down'));
+
+      await expect(
+        service.notify({
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 'execution_failed',
+          title: 'Workflow failed',
+          message: 'run failed',
+          channel: 'email',
+        }),
+      ).resolves.toBeDefined();
+
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('user email 이 없으면 발송 skip (email_sent_at 미갱신)', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'email' }));
+      userRepo.find.mockResolvedValue([]); // 사용자 삭제 등
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        channel: 'email',
+      });
+
+      expect(mail.sendNotificationEmail).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('user email 이 빈 문자열이면 발송 skip (!email 가드)', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'email' }));
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: '' }]);
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        channel: 'email',
+      });
+
+      expect(mail.sendNotificationEmail).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("notify channel='both' — 이메일 발송 + WS emit 둘 다 (단건 경로)", async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'both' }));
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        channel: 'both',
+      });
+
+      expect(ws.emitNotificationEvent).toHaveBeenCalledTimes(1);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledWith('u1@x.com', {
+        title: 'Workflow failed',
+        message: 'run failed',
+        type: 'execution_failed',
+      });
+      expect(repo.update).toHaveBeenCalledWith('n-1', expect.any(Object));
+    });
+
+    it('notify channel 생략(default in_app) — 이메일 미발송', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      // channel 미지정 → default 'in_app' (create 가 채움) → dispatch 대상 아님.
+      repo.save.mockResolvedValue(savedRow({ channel: 'in_app' }));
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+      });
+
+      expect(userRepo.find).not.toHaveBeenCalled();
+      expect(mail.sendNotificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('발송은 성공하나 email_sent_at UPDATE 가 throw — warn 만, notify reject 안 함', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      const saved = savedRow({ channel: 'email' });
+      repo.save.mockResolvedValue(saved);
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+      mail.sendNotificationEmail.mockResolvedValue(undefined);
+      repo.update.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.notify({
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 'execution_failed',
+          title: 'Workflow failed',
+          message: 'run failed',
+          channel: 'email',
+        }),
+      ).resolves.toBe(saved);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('userRepo.find 가 throw 해도 dispatch 는 삼켜 notify 를 reject 안 함', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      const saved = savedRow({ channel: 'email' });
+      repo.save.mockResolvedValue(saved);
+      userRepo.find.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.notify({
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 'execution_failed',
+          title: 'Workflow failed',
+          message: 'run failed',
+          channel: 'email',
+        }),
+      ).resolves.toBe(saved);
     });
   });
 });

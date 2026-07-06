@@ -1,11 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
+import { User } from '../users/entities/user.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WebsocketService } from '../websocket/websocket.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class NotificationsService {
@@ -16,7 +18,10 @@ export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly moduleRef: ModuleRef,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -256,8 +261,8 @@ export class NotificationsService {
    *
    * spec/data-flow/8-notifications.md §1 (Source → Sink) 의 단일 `notify()` 표면.
    * preference 확인·channel 계산은 현행 설계상 호출자 책임이며(spec §1 표), 본 표면은
-   * 적재 + 실시간 push 를 담당한다. 이메일 발송(`channel ∈ {email, both}`)과
-   * `email_sent_at` 라이프사이클은 후속 phase (spec §2.2 Planned).
+   * 적재 + 실시간 push({@link emitNew}) + `channel ∈ {email, both}` 시 이메일 발송
+   * ({@link dispatchEmails}, best-effort)을 담당한다.
    */
   async notify(entry: {
     workspaceId: string;
@@ -282,6 +287,7 @@ export class NotificationsService {
     if (entry.resourceId) row.resourceId = entry.resourceId;
     const saved = await this.notificationRepository.save(row);
     this.emitNew(saved);
+    await this.dispatchEmails([saved]);
     return saved;
   }
 
@@ -321,6 +327,80 @@ export class NotificationsService {
     const saved = await this.notificationRepository.save(rows);
     for (const row of saved) {
       this.emitNew(row);
+    }
+    await this.dispatchEmails(saved);
+  }
+
+  /**
+   * `channel ∈ {email, both}` 인 알림 row 에 대해 이메일을 발송하고 성공 시
+   * `email_sent_at` 을 채운다 (spec/data-flow/8-notifications.md §1·§2.2·§3).
+   *
+   * **완전 best-effort** — 적재(source of truth)는 이미 커밋됐으므로 이메일 경로의
+   * 어떤 실패도 호출자에게 전파되지 않는다 (전체 try/catch + per-row allSettled).
+   * 발송 실패는 warn 만 남기고 재시도하지 않으며, 그 row 의 `email_sent_at` 은
+   * NULL 로 남는다 (spec §3 Rationale "Email 실패는 warn 만, 재시도 없음").
+   *
+   * User email 은 대상 userId 를 `In(...)` 으로 한 번에 조회한다 (N+1 회피).
+   */
+  private async dispatchEmails(rows: Notification[]): Promise<void> {
+    try {
+      const emailRows = rows.filter(
+        (r) => r.channel === 'email' || r.channel === 'both',
+      );
+      if (emailRows.length === 0) return;
+
+      const userIds = [...new Set(emailRows.map((r) => r.userId))];
+      const users = await this.userRepository.find({
+        where: { id: In(userIds) },
+        select: { id: true, email: true },
+      });
+      const emailByUser = new Map(users.map((u) => [u.id, u.email]));
+
+      await Promise.allSettled(
+        emailRows.map((row) =>
+          this.sendOneEmail(row, emailByUser.get(row.userId)),
+        ),
+      );
+    } catch (err) {
+      // find() 등 dispatch 준비 단계 실패도 적재/emit 를 되돌리지 않는다.
+      this.logger.warn(
+        `notification email dispatch skipped (${rows.length} rows): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * 단건 알림 이메일 발송 + 성공 시 `email_sent_at` UPDATE. 실패는 warn 만(삼킴).
+   * email 주소가 없으면(사용자 삭제 등) 발송 skip.
+   */
+  private async sendOneEmail(
+    row: Notification,
+    email: string | undefined,
+  ): Promise<void> {
+    if (!email) {
+      this.logger.warn(
+        `notification email skipped — no email for user (id=${row.id}, userId=${row.userId})`,
+      );
+      return;
+    }
+    try {
+      await this.mailService.sendNotificationEmail(email, {
+        title: row.title,
+        message: row.message,
+        type: row.type,
+      });
+      await this.notificationRepository.update(row.id, {
+        emailSentAt: new Date(),
+      });
+    } catch (err) {
+      // 재시도 없음 — email_sent_at 은 NULL 로 남아 운영자가 모니터링 (spec §3).
+      this.logger.warn(
+        `notification email failed (id=${row.id}, type=${row.type}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 

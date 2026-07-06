@@ -287,4 +287,74 @@ describe('MailService', () => {
       expect(callArgs.html).toContain('&lt;script&gt;');
     });
   });
+
+  describe('sendNotificationEmail', () => {
+    it('subject=title, to=email, 알림 페이지 CTA 링크 포함', async () => {
+      await service.sendNotificationEmail('user@example.com', {
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        type: 'execution_failed',
+      });
+
+      expect(mailerService.sendMail).toHaveBeenCalledTimes(1);
+      const args = mailerService.sendMail.mock.calls[0][0];
+      expect(args.to).toBe('user@example.com');
+      expect(args.subject).toBe('Workflow failed');
+      expect(args.html).toContain('run xyz failed');
+      // 전용 /notifications 라우트는 없음 — CTA 는 인증 랜딩 /dashboard 로.
+      expect(args.html).toContain('http://localhost:3000/dashboard');
+      expect(args.text).toContain('run xyz failed');
+    });
+
+    it('console transport 이면 debug 로그 후 정상 발송', async () => {
+      const { service: consoleService, mailerService: consoleMailer } =
+        await createService({ 'mail.transport': 'console' });
+      const debugSpy = jest
+        .spyOn((consoleService as any).logger, 'debug')
+        .mockImplementation(() => undefined);
+
+      await consoleService.sendNotificationEmail('user@example.com', {
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        type: 'execution_failed',
+      });
+
+      expect(debugSpy).toHaveBeenCalled();
+      expect(consoleMailer.sendMail).toHaveBeenCalledTimes(1);
+    });
+
+    it('title/message 를 HTML escape (XSS 방어)', async () => {
+      await service.sendNotificationEmail('user@example.com', {
+        title: '<script>alert(1)</script>',
+        message: '<img src=x onerror=1>',
+        type: 'execution_failed',
+      });
+      const args = mailerService.sendMail.mock.calls[0][0];
+      expect(args.html).not.toContain('<script>');
+      expect(args.html).toContain('&lt;script&gt;');
+      expect(args.html).not.toContain('<img src=x');
+    });
+
+    it('subject 의 CR/LF 를 공백으로 치환 (헤더 인젝션 방어)', async () => {
+      await service.sendNotificationEmail('user@example.com', {
+        title: 'Workflow failed\r\nBcc: attacker@evil.com',
+        message: 'run xyz failed',
+        type: 'execution_failed',
+      });
+      const args = mailerService.sendMail.mock.calls[0][0];
+      expect(args.subject).toBe('Workflow failed Bcc: attacker@evil.com');
+      expect(args.subject).not.toMatch(/[\r\n]/);
+    });
+
+    it('발송 실패 시 throw (호출자가 best-effort 처리)', async () => {
+      mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
+      await expect(
+        service.sendNotificationEmail('user@example.com', {
+          title: 't',
+          message: 'm',
+          type: 'execution_failed',
+        }),
+      ).rejects.toThrow('SMTP down');
+    });
+  });
 });
