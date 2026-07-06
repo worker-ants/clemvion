@@ -27,6 +27,10 @@ export const workflows: Dict["workflows"] = {
     mine: "Mine",
     shared: "Shared",
   },
+  folderFilter: {
+    aria: "Folder filter",
+    all: "All folders",
+  },
   columns: {
     name: "Name",
     status: "Status",
