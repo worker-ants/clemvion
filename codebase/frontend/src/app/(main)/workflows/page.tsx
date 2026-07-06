@@ -94,15 +94,19 @@ export default function WorkflowsPage() {
   const currentWorkspace = useWorkspaceStore((s) =>
     s.workspaces.find((w) => w.id === s.currentWorkspaceId),
   );
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const isTeamWorkspace = currentWorkspace?.type === "team";
 
-  // 워크스페이스를 전환하면 ownership 을 'all' 로 리셋한다. effect 내 setState 룰
-  // (react-hooks/set-state-in-effect) 를 피하려고 store subscribe 콜백으로 처리 —
-  // 변경 알림은 React render 가 아닌 외부 store 의 이벤트라 패턴상 정당하다.
+  // 워크스페이스를 전환하면 ownership 을 'all' 로, folderId 를 '전체'(빈 값)로
+  // 리셋한다. 폴더는 워크스페이스 스코프 자원이라 이전 워크스페이스의 folderId 를
+  // 그대로 두면 새 워크스페이스에서 매칭 0건인 스테일 필터가 걸린다. effect 내
+  // setState 룰(react-hooks/set-state-in-effect) 을 피하려고 store subscribe
+  // 콜백으로 처리 — 변경 알림은 React render 가 아닌 외부 store 의 이벤트라 정당하다.
   useEffect(() => {
     return useWorkspaceStore.subscribe((next, prev) => {
       if (next.currentWorkspaceId !== prev.currentWorkspaceId) {
         setOwnership("all");
+        setFolderId("");
       }
     });
   }, []);
@@ -139,8 +143,10 @@ export default function WorkflowsPage() {
   }, []);
 
   // 폴더 필터 옵션 소스 — 현재 워크스페이스 폴더 목록. 폴더가 없으면 필터 UI 비노출.
+  // 폴더는 워크스페이스 스코프라 key 에 currentWorkspaceId 를 포함해 전환 시
+  // 새 워크스페이스의 폴더로 refetch 되게 한다(switchWorkspace 는 캐시를 비우지 않음).
   const foldersQuery = useQuery({
-    queryKey: ["folders"],
+    queryKey: ["folders", currentWorkspaceId],
     queryFn: () => foldersApi.list(),
   });
   const folders = foldersQuery.data ?? [];

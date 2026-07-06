@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { unwrap } from "./unwrap";
 
 /**
  * 폴더 도메인 typed API 카탈로그.
@@ -19,7 +20,7 @@ export interface FolderData {
 export const foldersApi = {
   /** `GET /folders` — 현재 워크스페이스의 폴더 목록. */
   list: async (): Promise<FolderData[]> => {
-    const { data } = await apiClient.get("/folders");
-    return data.data ?? [];
+    const response = await apiClient.get<{ data: FolderData[] }>("/folders");
+    return unwrap<FolderData[]>(response) ?? [];
   },
 };

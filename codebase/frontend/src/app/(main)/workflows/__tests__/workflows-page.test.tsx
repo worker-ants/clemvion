@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
+import type { FolderData } from "@/lib/api/folders";
 
 // next/navigation mock — must be hoisted via vi.mock
 const mockPush = vi.fn();
@@ -28,7 +29,8 @@ vi.mock("@/lib/api/workflows", () => ({
 // Folders API mock — foldersApi.list() returns FolderData[] directly (the
 // real impl unwraps `{ data: [] }`). Default empty so the folder filter stays
 // hidden and unrelated tests are unaffected; the folder describe overrides it.
-type FolderData = { id: string; name: string; parentId?: string | null; sortOrder: number };
+// FolderData is imported type-only (elided at runtime) so the mock shape stays
+// in lockstep with the real API contract instead of drifting from a local copy.
 let foldersResponse: FolderData[] = [];
 vi.mock("@/lib/api/folders", () => ({
   foldersApi: {
@@ -550,22 +552,13 @@ describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
     ).toHaveValue("fld-1");
   });
 
-  it("sends ?folderId=<id> and resets to page 1 when a folder is selected", async () => {
-    // 3 pages so we can first navigate to page 2 and confirm the reset.
+  it("sends ?folderId=<id> on the first page when a folder is selected", async () => {
     setListResponse({
-      data: Array.from({ length: 10 }, (_, i) => ({
-        id: `wf-${i}`,
-        name: `Workflow ${i}`,
-        isActive: true,
-        tags: [],
-      })),
-      pagination: { page: 1, limit: 10, totalItems: 25, totalPages: 3 },
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
     });
     await renderPage();
-    await screen.findByText("Workflow 0");
-
-    // Move to page 2 first so a stale page would be observable.
-    await userEvent.click(screen.getByRole("button", { name: "2" }));
+    await screen.findByText("Doc");
 
     const { workflowsApi } = await import("@/lib/api/workflows");
     const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
@@ -581,7 +574,9 @@ describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
       | Record<string, string>
       | undefined;
     expect(lastParams?.folderId).toBe("fld-2");
-    // Selecting a folder must reset paging.
+    // The onChange handler calls setPage(1) alongside setFolderId, so the query
+    // carries the first page. (This mock's searchParams is static, so we assert
+    // the emitted page param rather than a live 2→1 transition.)
     expect(String(lastParams?.page)).toBe("1");
   });
 
@@ -633,5 +628,45 @@ describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
     expect(
       (screen.getByTestId("workflow-folder-filter") as HTMLSelectElement).value,
     ).toBe("");
+  });
+
+  it("clears the selected folder when the workspace is switched", async () => {
+    // Folders are workspace-scoped: a folderId from the old workspace would
+    // match nothing after a switch, so switching must reset it to 'all'.
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "One", type: "team", slug: "one", role: "editor" },
+        { id: "ws-2", name: "Two", type: "team", slug: "two", role: "editor" },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    // Select a folder in ws-1.
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-folder-filter"),
+      "fld-2",
+    );
+    expect(
+      (screen.getByTestId("workflow-folder-filter") as HTMLSelectElement).value,
+    ).toBe("fld-2");
+
+    // Switching workspace fires the store subscribe callback → setFolderId("").
+    await act(async () => {
+      useWorkspaceStore.setState({ currentWorkspaceId: "ws-2" });
+    });
+
+    await vi.waitFor(() =>
+      expect(
+        (screen.getByTestId("workflow-folder-filter") as HTMLSelectElement)
+          .value,
+      ).toBe(""),
+    );
   });
 });

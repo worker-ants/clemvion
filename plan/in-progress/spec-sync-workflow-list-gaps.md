@@ -16,6 +16,8 @@ owner: planner
 > ?tag=/?folderId= 이미 지원)로 별도 PR.
 > **구현 진척 (2026-07-06, FE-2)**: 폴더 필터 UI(§2.3) frontend 완료. 남은 잔여 = 태그 필터 UI(§2.3, spec 멀티선택
 > vs 서버 단일 `?tag=` 결정 필요)·빈 상태 마켓플레이스 링크(§2.7, 마켓플레이스 라우트 부재) — planner 트랙.
+> **planner 후속(SPEC-DRIFT)**: 폴더 필터 구현으로 §2.3 폴더 필터 행 및 §3.1 "프론트엔드는 아직 소비하지 않는다"
+> 류 안내문이 낡음. spec 본문 현행화 필요(코드는 정합, 문구만). ai-review requirement 리뷰어 지적(2026-07-06).
 
 - [x] 정렬 UI (§2.4): frontend 정렬 드롭다운(`NativeSelect`, page.tsx) — 최신 생성순(기본)/최근 수정순/이름순/마지막 실행순. 기본 외 옵션에 `sort`/`order` 송신, page 리셋·resetFilters 연동, i18n(ko/en `workflows.sort.*`).
 - [x] "마지막 실행순" 정렬 (§2.4): backend `findAll` 이 `last_run` 시 `execution` 테이블의 워크플로별 `MAX(started_at)` correlated subquery 로 정렬(미실행 `NULLS LAST`, 고정 문자열 — injection 안전). 테스트(last_run/기본/injection 폴백) 추가.
