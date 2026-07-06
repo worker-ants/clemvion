@@ -574,6 +574,61 @@ describe("SchedulesPage — inbound ?triggerId= deep-link (Spec §2.1)", () => {
     expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
+  it("sends triggerId to the list request so the server filters cross-page", async () => {
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+    await screen.findByText("Daily");
+
+    const listCall = apiGetMock.mock.calls.find(
+      ([url]) => url === "/schedules",
+    );
+    expect(listCall?.[1]?.params).toMatchObject({ triggerId: "t1" });
+  });
+
+  it("omits triggerId from the list request when not deep-linked", async () => {
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+    await screen.findByText("Daily");
+
+    const listCall = apiGetMock.mock.calls.find(
+      ([url]) => url === "/schedules",
+    );
+    expect(listCall?.[1]?.params?.triggerId).toBeUndefined();
+  });
+
+  it("shows a 'show all' reset link (→ /schedules) when deep-linked", async () => {
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+
+    const clear = await screen.findByTestId("schedules-clear-trigger-filter");
+    expect(clear).toHaveAttribute("href", "/schedules");
+  });
+
+  it("shows no reset link when not deep-linked", async () => {
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+    await screen.findByText("Daily");
+    expect(
+      screen.queryByTestId("schedules-clear-trigger-filter"),
+    ).toBeNull();
+  });
+
+  it("keeps the reset link visible even when the filter yields no schedules (no dead-end)", async () => {
+    // Server filter returns 0 rows for this trigger → EmptyState shows, but the
+    // '전체 보기' escape must remain so the user isn't stranded on a blank list.
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse({
+      data: [],
+      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    const clear = await screen.findByTestId("schedules-clear-trigger-filter");
+    expect(clear).toHaveAttribute("href", "/schedules");
+  });
+
   it("highlights no row when ?triggerId= matches no schedule on the page", async () => {
     currentSearchParams = new URLSearchParams("triggerId=nope");
     mockSchedulesResponse(focusRow());

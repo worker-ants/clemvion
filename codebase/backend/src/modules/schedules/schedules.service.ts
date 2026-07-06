@@ -12,7 +12,7 @@ import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { CronExpressionParser } from 'cron-parser';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
@@ -57,12 +57,13 @@ export class SchedulesService {
 
   async findAll(
     workspaceId: string,
-    query: PaginationQueryDto,
+    query: QueryScheduleDto,
   ): Promise<PaginatedResponseDto<Schedule>> {
     const {
       page = 1,
       limit = 20,
       search,
+      triggerId,
       sort = 'created_at',
       order = 'desc',
     } = query;
@@ -75,6 +76,12 @@ export class SchedulesService {
 
     if (search) {
       qb.andWhere('t.name ILIKE :search', { search: `%${search}%` });
+    }
+
+    // 트리거 단일 필터 (딥링크 cross-page 포커스). 연결 트리거가 없는 스케줄은
+    // t.id 가 null 이라 자연히 제외된다.
+    if (triggerId) {
+      qb.andWhere('t.id = :triggerId', { triggerId });
     }
 
     qb.orderBy(

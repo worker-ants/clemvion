@@ -147,6 +147,44 @@ describe('SchedulesService.runNow', () => {
     });
   });
 
+  // 트리거→스케줄 딥링크(cross-page)용 triggerId 필터.
+  describe('findAll triggerId filter', () => {
+    function makeQb() {
+      const andWhere = jest.fn().mockReturnThis();
+      const qb = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere,
+        orderBy: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+        offset: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      return { qb, andWhere };
+    }
+
+    it('triggerId 지정 시 t.id = :triggerId 로 필터', async () => {
+      const { qb, andWhere } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', { triggerId: 'trg-1' });
+      expect(andWhere).toHaveBeenCalledWith('t.id = :triggerId', {
+        triggerId: 'trg-1',
+      });
+    });
+
+    it('triggerId 미지정 시 트리거 필터를 적용하지 않는다', async () => {
+      const { qb, andWhere } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', {});
+      const triggerCall = andWhere.mock.calls.find(
+        ([clause]) =>
+          typeof clause === 'string' && clause.includes('t.id = :triggerId'),
+      );
+      expect(triggerCall).toBeUndefined();
+    });
+  });
+
   describe('create — timezone fallback (§2.2)', () => {
     const baseDto = {
       workflowId: 'wf-1',

@@ -31,6 +31,8 @@ export interface RawSchedule {
 export interface ScheduleListParams {
   page: number;
   limit: number;
+  /** 트리거 단일 필터 — 딥링크(`/schedules?triggerId=…`)로 해당 트리거의 스케줄만 조회. */
+  triggerId?: string;
 }
 
 /** `POST /schedules` 생성 바디. */
