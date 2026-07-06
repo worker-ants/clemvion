@@ -2,9 +2,13 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/3-workflow-editor/5-version-history.md
 ---
 
 # spec-sync 후속 — 구조 정규화 + 동기화 중 발견된 코드 갭
+
+> **완료 종결 (2026-07-06 groom)**: §A(구조 정규화) 결정·처리 전량 확정, §B(cross-spec) 3건 재검증 결과 모두 해소(정상 계층화·이미 정렬·stale 부재), §C(코드 갭 19건) 전량 구현·PR #443(`6898c4b3c`) main 머지 확인. 대응 spec status 승격은 `plan/complete/spec-update-c-sync-promotions.md` 가 담당(이미 complete). 잔여 미해결 0건 → `complete/` 이동.
 
 > 출처: 2026-06-03 spec 전수 코드정합성 동기화 (review/spec-coverage/2026/06/03/08_05_49). origin/main(#429~#437) rebase 후 재분석 반영.
 > 본 문서는 (A) 구조 정규화 처리 결과/보류 결정, (B) 단일-파일 범위 밖 cross-spec 정리, (C) 동기화 중 발견한 **코드 측 갭/버그**(developer 영역) 를 추적한다.
@@ -16,15 +20,15 @@ owner: planner
 
 - [x] **version-history 재배치 (완료)** — `spec/2-navigation/12-workflow-version-history.md` → `spec/3-workflow-editor/5-version-history.md` 로 이동. 동반 갱신: 이동 파일 헤더 상대링크, `3-workflow-editor/_product-overview.md` 관련문서, `0-overview.md` §8 문서맵 2곳, user-guide MDX `codebase/frontend/src/content/docs/05-run-and-debug/version-history.mdx` 의 `spec:` frontmatter. docs 가드(registry/route/spec) 통과. **2-navigation 12 번은 빈칸으로 유지** (연번 체계는 향후 일괄 폐지 예정이라 cascade 재넘버링 미수행 — 사용자 결정 2026-06-03).
 - [x] **parallel 스텁 폐기 (완료)** — upstream #432 가 parallel `count` 복원 + `done` 포트 allSettled-shape 를 구현해 audit 의 severe(parallel) 가 해소됨. 내 partial 강등을 폐기(upstream `implemented` 채택)하고 `spec-sync-parallel-gaps.md` 스텁 삭제.
-- [ ] **5-system/0-overview.md 신설 — 스킵 (결정)** — `_product-overview.md`(비기능 요구사항 PRD) + `spec/0-overview.md`(시스템 아키텍처) 가 이미 진입 역할을 함. 신규 0-overview 는 중복(doc-bloat) 이라 미신설 (사용자 결정 2026-06-03).
-- [ ] **노드 카테고리 `_product-overview.md` 대칭화 — 스킵 (결정)** — `1-logic`/`2-flow`/`5-data`/`6-presentation`/`7-trigger` 의 `0-common.md` 가 공통 규약+인덱스를 겸하므로 현 패턴이 내부 일관. 강제 추가는 doc-bloat 라 미수행 (사용자 결정 2026-06-03).
-- [ ] **4-nodes/0-overview.md frontmatter — 스킵** — basename `0-overview.md` 는 spec-impl-evidence 가드 면제 대상이라 의무 아님. 추적성 이득 대비 가치 낮아 보류.
+- [x] **5-system/0-overview.md 신설 — 스킵 (결정 확정)** — `_product-overview.md`(비기능 요구사항 PRD) + `spec/0-overview.md`(시스템 아키텍처) 가 이미 진입 역할을 함. 신규 0-overview 는 중복(doc-bloat) 이라 미신설 (사용자 결정 2026-06-03). 의식적 no-op 으로 종결.
+- [x] **노드 카테고리 `_product-overview.md` 대칭화 — 스킵 (결정 확정)** — `1-logic`/`2-flow`/`5-data`/`6-presentation`/`7-trigger` 의 `0-common.md` 가 공통 규약+인덱스를 겸하므로 현 패턴이 내부 일관. 강제 추가는 doc-bloat 라 미수행 (사용자 결정 2026-06-03). 의식적 no-op 으로 종결.
+- [x] **4-nodes/0-overview.md frontmatter — 스킵 (결정 확정)** — basename `0-overview.md` 는 spec-impl-evidence 가드 면제 대상이라 의무 아님. 추적성 이득 대비 가치 낮아 미수행 종결.
 
 ## B. cross-spec 정리 (단일-파일 동기화 범위 밖, planner)
 
-- [ ] **3-workflow-editor/3-execution §10.13** — 노드 이벤트 명칭이 §8.1 의 권위 표(`execution.node.*`)와 톤 정렬 필요 (rebase 후 §8.1·§10.13 본문은 `execution.node.*` 로 정정 완료, 잔여 서술 정렬만).
-- [ ] **data-flow/9-observability** — System Status SoT 참조가 5-system/16 과 2-navigation/15 두 갈래 — 정식 `/consistency-check` 로 정리 권장.
-- [ ] **/docs 단일언어 cross-ref 점검** — 13-user-guide(현 2-navigation) 는 이중언어로 정정했으나 다른 곳의 `/docs` 단일언어 cross-ref 잔존 가능 — 점검 필요.
+- [x] **3-workflow-editor/3-execution §10.13** — 노드 이벤트 명칭이 §8.1 의 권위 표(`execution.node.*`)와 톤 정렬 필요 (rebase 후 §8.1·§10.13 본문은 `execution.node.*` 로 정정 완료, 잔여 서술 정렬만). **해소 확인(2026-07-06)**: §10.13 본문이 `execution.node.*` 표기로 이미 일관, 추가 정렬 불요.
+- [x] **data-flow/9-observability** — System Status SoT 참조가 5-system/16 과 2-navigation/15 두 갈래 — 정식 `/consistency-check` 로 정리 권장. **해소 확인(2026-07-06)**: 분기가 아니라 정상 계층화 — `data-flow/9` 가 API SoT 를 `5-system/16-system-status-api.md` 로 명시하고 `2-navigation/15` 는 UI spec 으로 상호참조. 정리 불요.
+- [x] **/docs 단일언어 cross-ref 점검** — 13-user-guide(현 2-navigation) 는 이중언어로 정정했으나 다른 곳의 `/docs` 단일언어 cross-ref 잔존 가능 — 점검 필요. **해소 확인(2026-07-06)**: 전수 점검 결과 stale 단일언어 `/docs` cross-ref 잔존 없음.
 
 ## C. 동기화 중 발견된 코드 측 갭/버그 (developer 영역)
 
