@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-06T14:38:56.904093",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/data-flow/8-notifications.md)",
+  "target_path": "spec/data-flow/8-notifications.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

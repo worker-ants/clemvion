@@ -17,7 +17,7 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
 - [ ] in-band 토큰 갱신 — `auth.refresh` (Client→Server) / `auth.refreshed` (Server→Client) WS 메시지 핸들러·emit (현재는 REST refresh + 재연결로 갈음, §1.3)
 - [ ] 서버발신 `auth.token_expired` 시스템 이벤트 emit (§4.5)
 - [ ] `execution.start` / `execution.stop` WS 명령 + `execution.start.ack` (현재 실행 시작/중단은 REST `POST /workflows/:id/execute` / `POST /executions/:id/stop`, §4.2)
-- [ ] `notifications:{userId}` 채널의 `notification.new` emit 경로 (채널 prefix 만 등록, emit 코드 부재, §4.4)
+- [ ] `notifications:{userId}` 채널의 `notification.new` emit 경로 (채널 prefix 만 등록, emit 코드 부재, §4.4) — ⚠ 동일 gap 이 `plan/in-progress/spec-sync-data-flow-8-notifications-gaps.md`(WebSocket `notification.new` emit, PR1)에서 구현 중. 그 PR 완료 시 본 항목도 동기 체크.
 - [ ] `system.maintenance` 시스템 이벤트 emit (§4.5)
 - [ ] 서버발신 application-level ping (현재 app ping 은 client→server 방향만, §5)
 - [ ] WS 명령 rate-limit (60 msg/min) + `RATE_LIMITED` 코드 (§7.1)
