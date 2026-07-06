@@ -17,6 +17,9 @@ owner: planner
 - [ ] **`GET /api/external/executions/:id` 의 currentNode / context / seq 실값** (§5.3) — 현재 `getStatus()` 가 `currentNode: null`, `context: null`, `seq: 0` placeholder 고정 반환. 노드 context·최신 seq 노출 미구현.
 - [ ] **SSE 버퍼 만료 시 `execution.replay_unavailable` emit** (§5.2 / §11 / EIA-IN-07 / EIA-NF-03) — 버퍼 내(5분) 재전송은 구현됨. 만료/누락분 silent drop 이며 만료 신호 emit 은 기존부터 계획·미구현으로 표기됨 (본 audit 신규 아님, 추적 보존).
 
+## 후속 (cross-cutting, 본 spec 밖)
+- [ ] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — item 5 에서 `InteractionRateLimiterService.incrWithWindow` 는 원자 Lua EVAL 로 구현했으나, 동일 비원자 패턴(INCR 후 별도 EXPIRE)을 쓰는 기존 컴포넌트 `PublicWebhookQuotaService`(`codebase/backend/src/modules/hooks/`)·`ChatChannelRateLimiterService` 는 그대로다. 크래시/네트워크 단절 시 TTL-less 키 영구 잔류(fail-closed 잠금) 이론 위험 — 동일 Lua EVAL 로 통일. (ai-review concurrency + impl-done plan_coherence WARNING 발. session task `task_fa5c5e84` 로도 chip 발급.)
+
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__14-external-interaction-api.md 참조.
 - 핵심 surface (REST 명령·SSE 스트림·iext/itk 토큰·HMAC 서명·SSRF·secret rotation·idempotency·CORS) 는 구현 완료. 위 항목은 hardening/배율/분산성 갭이며 기능 데드락은 아님.
