@@ -2,7 +2,7 @@ import {
   ToolCall,
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
-import type { McpServerSummary } from './mcp-diagnostics';
+import type { McpDiagnosticError, McpServerSummary } from './mcp-diagnostics';
 import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 
 /**
@@ -61,12 +61,20 @@ export interface ProviderBuildCtx {
    */
   executionId?: string;
   /**
-   * MCP build 결과 누적 슬롯 — provider 가 entry 1건을 push 하면 핸들러가
-   * `meta.mcpDiagnostics.serverSummaries` 로 emit 한다. 핸들러가 array 를
+   * MCP build 결과 누적 슬롯 — provider 가 serverSummary entry 1건을 push 하면
+   * 핸들러가 `meta.mcpDiagnostics.serverSummaries` 로 emit 한다. 핸들러가 array 를
    * 소유·관리하므로 provider 는 push 만. spec/5-system/11-mcp-client.md §6.2.
    * 미주입 (undefined) 시 provider 는 silently no-op — 진단 비활성 환경 호환.
    */
   mcpDiagnostics?: McpServerSummary[];
+  /**
+   * MCP build 단계의 격리된 실패 누적 슬롯 — provider 가 connect/list/timeout
+   * 실패를 granular 코드(`MCP_TIMEOUT`/`MCP_CONNECT_FAILED`/`MCP_LIST_FAILED`)와
+   * phase 로 push 하면 핸들러가 `meta.mcpDiagnostics.errors[]` 로 emit 한다.
+   * `mcpDiagnostics` (serverSummaries) 와 대칭 — 핸들러가 소유, 미주입 시 no-op.
+   * spec/5-system/11-mcp-client.md §6.2 / §8.1-8.2.
+   */
+  mcpDiagnosticErrors?: McpDiagnosticError[];
 }
 
 export interface ProviderExecCtx {

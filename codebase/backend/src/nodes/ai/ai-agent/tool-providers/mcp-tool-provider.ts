@@ -1,6 +1,13 @@
 import { Logger } from '@nestjs/common';
-import { withTimeout } from '../../../../common/utils/with-timeout';
-import { pushMcpServerSummary } from './mcp-diagnostics.js';
+import {
+  TimeoutError,
+  withTimeout,
+} from '../../../../common/utils/with-timeout';
+import {
+  McpErrorPhase,
+  pushMcpDiagnosticError,
+  pushMcpServerSummary,
+} from './mcp-diagnostics.js';
 import {
   ToolCall,
   ToolDef,
@@ -50,6 +57,24 @@ const MAX_RESPONSE_BYTES =
 const CALL_TIMEOUT_MS = Number(process.env.MCP_CALL_TIMEOUT_MS) || 30_000;
 const LIST_TIMEOUT_MS = Number(process.env.MCP_LIST_TIMEOUT_MS) || 10_000;
 const CONNECT_TIMEOUT_MS = Number(process.env.MCP_CONNECT_TIMEOUT_MS) || 10_000;
+
+/**
+ * Build-phase failure carrying the MCP RPC phase + granular error code, so the
+ * outer handler in {@link McpToolProvider.openServer} can populate
+ * `mcpDiagnostics.errors[]` (spec §6.2 / §8.2) with `MCP_TIMEOUT` /
+ * `MCP_CONNECT_FAILED` / `MCP_LIST_FAILED` instead of a single opaque
+ * `skipReason='error'`. `cause` preserves the original error for the message.
+ */
+class McpBuildPhaseError extends Error {
+  constructor(
+    readonly phase: McpErrorPhase,
+    readonly code: string,
+    cause: unknown,
+  ) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'McpBuildPhaseError';
+  }
+}
 
 /** McpServerRef as declared in `aiAgentNodeConfigSchema.mcpServers`. */
 interface McpServerRefConfig {
@@ -598,9 +623,10 @@ export class McpToolProvider implements AgentToolProvider {
    *   다른 provider 가 처리). spec/5-system/11-mcp-client.md §6.2 의
    *   `not_capable` skipReason vocabulary 와 정합
    * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패. throw **이전에**
-   *   `skipped(skipReason='error')` serverSummary 를 `ctx.mcpDiagnostics` 에 먼저 push 한 뒤
-   *   re-throw 한다(§6.2). caller(`Promise.allSettled`)는 빈 ToolDef[] 로 격리. (코드 granularity
-   *   `errors[]` 누적은 `mcpDiagnostics` 타입 확장 후속 — 현재는 serverSummaries[] 단일 표면)
+   *   (a) `skipped(skipReason='error')` serverSummary 를 `ctx.mcpDiagnostics` 에,
+   *   (b) phase+granular code (`MCP_TIMEOUT`/`MCP_CONNECT_FAILED`/`MCP_LIST_FAILED`)를
+   *   담은 error entry 를 `ctx.mcpDiagnosticErrors` 에 push 한 뒤 re-throw 한다
+   *   (§6.2 / §8.2). caller(`Promise.allSettled`)는 빈 ToolDef[] 로 격리.
    */
   private async openServer(
     ref: McpServerRefConfig,
@@ -622,22 +648,41 @@ export class McpToolProvider implements AgentToolProvider {
       // sessions 에 안 넣고 빈 ToolDef[] 반환.
       return null;
     }
-    // §6.2 — serviceType==='mcp' 확정 이후의 모든 실패(status/connect/list)는 외부 MCP 진단으로
-    // 의미가 있으므로 skipped serverSummary 를 push 한 뒤 re-throw 한다. (serviceType 판정 전
-    // getForExecution lookup 실패는 본 provider 가 아니라 호출자/타 provider 책임 — 여기서 push 안 함.)
+    // §6.2 / §8.2 — serviceType==='mcp' 확정 이후의 모든 실패(status/connect/list)는 외부 MCP
+    // 진단으로 의미가 있으므로 skipped serverSummary + phase·granular code error 를 push 한 뒤
+    // re-throw 한다. (serviceType 판정 전 getForExecution lookup 실패는 본 provider 가 아니라
+    // 호출자/타 provider 책임 — 여기서 push 안 함.)
     try {
       if (integration.status !== 'connected') {
-        throw new Error(
-          `Integration ${ref.integrationId} is not connected (status=${integration.status})`,
+        // status precheck 실패 = connect 불가 → connect phase / MCP_CONNECT_FAILED.
+        throw new McpBuildPhaseError(
+          'connect',
+          MCP_ERROR_CODES.CONNECT_FAILED,
+          new Error(
+            `Integration ${ref.integrationId} is not connected (status=${integration.status})`,
+          ),
         );
       }
 
-      const params = this.toConnectParams(integration);
-      const session = await withTimeout(
-        this.mcpClient.connect(params),
-        CONNECT_TIMEOUT_MS,
-        `connect ${integration.name}`,
-      );
+      let session: McpSession;
+      try {
+        const params = this.toConnectParams(integration);
+        session = await withTimeout(
+          this.mcpClient.connect(params),
+          CONNECT_TIMEOUT_MS,
+          `connect ${integration.name}`,
+        );
+      } catch (err) {
+        // connect + initialize 단계 실패 — timeout 은 MCP_TIMEOUT, 그 외(TCP/TLS/DNS/
+        // 인증·config·프로토콜 버전 불일치)는 MCP_CONNECT_FAILED (§8.2 흡수 규칙).
+        throw new McpBuildPhaseError(
+          'connect',
+          err instanceof TimeoutError
+            ? MCP_ERROR_CODES.TIMEOUT
+            : MCP_ERROR_CODES.CONNECT_FAILED,
+          err,
+        );
+      }
 
       // Once connected, *anything* that throws between here and the return must
       // close the session — otherwise the listTools timeout (review WARNING #6)
@@ -695,16 +740,38 @@ export class McpToolProvider implements AgentToolProvider {
         // Best-effort — if close itself throws we still want the original error
         // to bubble up.
         session.close().catch(() => undefined);
-        throw err;
+        // tools/list 단계 실패 — timeout 은 MCP_TIMEOUT, 그 외는 MCP_LIST_FAILED (§8.2).
+        // 이미 McpBuildPhaseError 면(방어적) 그대로 re-throw.
+        if (err instanceof McpBuildPhaseError) throw err;
+        throw new McpBuildPhaseError(
+          'tools/list',
+          err instanceof TimeoutError
+            ? MCP_ERROR_CODES.TIMEOUT
+            : MCP_ERROR_CODES.LIST_FAILED,
+          err,
+        );
       }
     } catch (err) {
-      // §6.2 — 외부 MCP(status/connect/list) 실패를 skipped 진단으로 노출 후 re-throw.
+      // §6.2 / §8.2 — 외부 MCP(status/connect/list) 실패를 (a) skipped 진단 +
+      // (b) phase·granular code error 로 노출 후 re-throw.
       pushMcpServerSummary(ctx.mcpDiagnostics, {
         integrationId: integration.id,
         serviceType: 'mcp',
         status: 'skipped',
         skipReason: 'error',
         toolCount: 0,
+      });
+      const phase: McpErrorPhase =
+        err instanceof McpBuildPhaseError ? err.phase : 'connect';
+      const code =
+        err instanceof McpBuildPhaseError
+          ? err.code
+          : MCP_ERROR_CODES.CONNECT_FAILED;
+      pushMcpDiagnosticError(ctx.mcpDiagnosticErrors, {
+        integrationId: integration.id,
+        phase,
+        code,
+        message: sanitizeMcpErrorMessage(err),
       });
       throw err;
     }

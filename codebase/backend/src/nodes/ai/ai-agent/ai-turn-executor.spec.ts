@@ -205,6 +205,100 @@ describe('AiTurnExecutor', () => {
       expect((result.meta as { toolCalls: number }).toolCalls).toBe(1);
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
     });
+
+    it('emits structured meta.mcpDiagnostics (serverSummaries + 종류별 counters) — spec §6.2', async () => {
+      // 가짜 MCP provider — buildTools 에서 connected serverSummary 를 push 하고,
+      // 일반/메타 도구를 노출한다. execute 는 성공 stub.
+      const mcpProvider = {
+        key: 'mcp',
+        matches: (n: string) => n.startsWith('mcp_'),
+        buildTools: async (ctx: {
+          mcpDiagnostics?: Array<Record<string, unknown>>;
+        }) => {
+          ctx.mcpDiagnostics?.push({
+            integrationId: 'i-a',
+            serviceType: 'mcp',
+            status: 'connected',
+            toolCount: 1,
+          });
+          return [
+            {
+              name: 'mcp_abcd1234__do',
+              description: 'd',
+              parameters: { type: 'object', properties: {} },
+            },
+          ];
+        },
+        execute: async (call: { id: string }) => ({
+          toolCallId: call.id,
+          content: '{}',
+          status: 'success' as const,
+        }),
+      };
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [
+            { id: 't1', name: 'mcp_abcd1234__do', arguments: {} },
+            { id: 't2', name: 'mcp_abcd1234__read_resource', arguments: {} },
+            { id: 't3', name: 'mcp_abcd1234__get_prompt', arguments: {} },
+            { id: 't4', name: 'mcp_abcd1234__list_resources', arguments: {} },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: '완료.',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const executor = buildExecutor({ toolProviders: [mcpProvider] });
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          systemPrompt: 'sys',
+          userPrompt: 'go',
+          mcpServers: [{ integrationId: 'i-a' }],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      const diag = (result.meta as { mcpDiagnostics?: Record<string, unknown> })
+        .mcpDiagnostics;
+      expect(diag).toEqual({
+        attempted: true,
+        serverCount: 1,
+        // do → tool, read_resource → resource, get_prompt → prompt,
+        // list_resources(discovery) → 미집계.
+        toolCalls: 1,
+        resourceReads: 1,
+        promptGets: 1,
+        serverSummaries: [
+          {
+            integrationId: 'i-a',
+            serviceType: 'mcp',
+            status: 'connected',
+            toolCount: 1,
+          },
+        ],
+        errors: [],
+      });
+    });
+
+    it('omits meta.mcpDiagnostics when no MCP server is configured (lean)', async () => {
+      const executor = buildExecutor();
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        { mode: 'single_turn', systemPrompt: 'sys', userPrompt: 'hi' },
+        baseContext,
+      )) as Record<string, unknown>;
+      expect(
+        (result.meta as { mcpDiagnostics?: unknown }).mcpDiagnostics,
+      ).toBeUndefined();
+    });
   });
 
   describe('executeMultiTurn (first-turn park)', () => {

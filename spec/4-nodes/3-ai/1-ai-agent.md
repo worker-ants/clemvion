@@ -488,6 +488,9 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
       "toolCalls": 1,
       "resourceReads": 0,
       "promptGets": 0,
+      "serverSummaries": [
+        { "integrationId": "uuid", "serviceType": "mcp", "status": "connected", "toolCount": 3 }
+      ],
       "errors": []
     },
     "turnDebug": [
