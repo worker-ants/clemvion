@@ -3,6 +3,8 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebsocketGateway } from './websocket.gateway';
 import { WebsocketService } from './websocket.service';
+import { WsRateLimiterService } from './ws-rate-limiter.service';
+import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
 import { NotificationsChannelAuthorizer } from './notifications-channel-authorizer';
@@ -42,6 +44,9 @@ import { WorkflowChannelAuthorizer } from '../workflows/workflow-channel-authori
   providers: [
     WebsocketGateway,
     WebsocketService,
+    // §7.1 — WS 명령 rate-limit(socket 당 60/min) 카운터 + 가드.
+    WsRateLimiterService,
+    WsRateLimitGuard,
     ExecutionSeqAllocator,
     // refactor 02 M-7 — `notifications:`(무서비스, userId 비교)는 WS-local authorizer.
     NotificationsChannelAuthorizer,

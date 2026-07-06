@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
+import { WsRateLimiterService } from './ws-rate-limiter.service';
+import { WsErrorCode } from './ws-error-codes';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { RetryTurnService } from '../execution-engine/retry-turn.service';
 import {
@@ -27,11 +29,13 @@ function createMockSocket(overrides: Record<string, unknown> = {}): {
   leave: jest.Mock;
   emit: jest.Mock;
   disconnect: jest.Mock;
+  onAny: jest.Mock;
 } {
   const join = jest.fn();
   const leave = jest.fn();
   const emit = jest.fn();
   const disconnect = jest.fn();
+  const onAny = jest.fn();
   const socket = {
     id: 'client-1',
     handshake: { query: {}, auth: {} },
@@ -39,9 +43,10 @@ function createMockSocket(overrides: Record<string, unknown> = {}): {
     leave,
     emit,
     disconnect,
+    onAny,
     ...overrides,
   } as unknown as Socket;
-  return { socket, join, leave, emit, disconnect };
+  return { socket, join, leave, emit, disconnect, onAny };
 }
 
 describe('WebsocketGateway', () => {
@@ -52,6 +57,7 @@ describe('WebsocketGateway', () => {
     module = await Test.createTestingModule({
       providers: [
         WebsocketGateway,
+        WsRateLimiterService,
         {
           provide: JwtService,
           useValue: {
@@ -223,6 +229,8 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Invalid channel');
+      // §3.3/§7.1 — 구조화 code 를 additive 로 동봉.
+      expect(result.data.code).toBe(WsErrorCode.INVALID_MESSAGE);
     });
 
     it('should accept valid execution channel', async () => {
@@ -596,6 +604,8 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toContain('Maximum subscriptions');
+      // §3.4/§7.1 — 전용 코드.
+      expect(result.data.code).toBe(WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED);
     });
 
     it('enforces MAX_SUBSCRIPTIONS across concurrent subscribe with deferred authorize (TOCTOU race)', async () => {
@@ -701,17 +711,43 @@ describe('WebsocketGateway', () => {
       expect(disconnect).not.toHaveBeenCalled();
       expect(getSubscriptions().has('client-valid')).toBe(true);
     });
+
+    it('§7.1 — onAny 로 미등록 이벤트에 UNKNOWN_TYPE error emit (등록 이벤트는 무시)', () => {
+      const { socket, emit, onAny } = createMockSocket({
+        id: 'client-oa',
+        handshake: { query: { token: 'valid-jwt' }, auth: {} },
+      });
+      gateway.handleConnection(socket);
+      // handleConnection 이 등록한 onAny 콜백을 캡처해 직접 호출.
+      const handler = onAny.mock.calls[0][0] as (event: string) => void;
+
+      handler('subscribe'); // 등록 이벤트 — 무시
+      expect(emit).not.toHaveBeenCalledWith(
+        'error',
+        expect.objectContaining({ code: WsErrorCode.UNKNOWN_TYPE }),
+      );
+
+      handler('bogus.command'); // 미등록 — UNKNOWN_TYPE
+      expect(emit).toHaveBeenCalledWith(
+        'error',
+        expect.objectContaining({ code: WsErrorCode.UNKNOWN_TYPE }),
+      );
+    });
   });
 
   describe('handleDisconnect', () => {
-    it('should cleanup subscriptions', () => {
+    it('should cleanup subscriptions + release rate-limit counter', () => {
       const { socket, leave } = createMockSocket({ id: 'client-1' });
       const subs = new Set(['execution:exec-1', 'workflow:wf-1']);
       getSubscriptions().set('client-1', subs);
+      const limiter = module.get(WsRateLimiterService);
+      const releaseSpy = jest.spyOn(limiter, 'release');
 
       gateway.handleDisconnect(socket);
       expect(getSubscriptions().has('client-1')).toBe(false);
       expect(leave).toHaveBeenCalledTimes(2);
+      // §7.1 — 카운터 누수 방지.
+      expect(releaseSpy).toHaveBeenCalledWith('client-1');
     });
   });
 

@@ -7,7 +7,7 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { Inject, Logger, forwardRef } from '@nestjs/common';
+import { Inject, Logger, UseGuards, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
@@ -23,9 +23,27 @@ import { ExecutionsService } from '../executions/executions.service';
 import { ExecutionEventType } from './websocket.service';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
+import { WsRateLimitGuard } from './ws-rate-limit.guard';
+import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { CHANNEL_AUTHORIZER, ChannelAuthorizer } from './channel-authorizer';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
+
+/**
+ * §7.1 UNKNOWN_TYPE 판정용 — 등록된 `@SubscribeMessage` 이벤트 화이트리스트.
+ * 이 집합에 없는 이벤트가 들어오면 `onAny` 가 UNKNOWN_TYPE `error` 를 emit 한다.
+ * 새 핸들러 추가 시 본 집합도 함께 갱신한다(핸들러↔집합 동기 유지).
+ */
+const KNOWN_WS_EVENTS: ReadonlySet<string> = new Set([
+  'subscribe',
+  'unsubscribe',
+  'ping',
+  'execution.submit_form',
+  'execution.click_button',
+  'execution.submit_message',
+  'execution.end_conversation',
+  'execution.retry_last_turn',
+]);
 
 // 'kb:' = Knowledge Base 문서 처리 진행 채널 (kb:${documentId})
 // 'background:run:' = Background 본문 실행 run-level 이벤트 채널
@@ -67,6 +85,9 @@ const MSG_NOT_AUTHORIZED_EXECUTION = 'Not authorized for this execution';
 // @Public() bypasses the global JwtAuthGuard for WebSocket message handlers.
 // Authentication is handled manually in handleConnection() via JWT verification.
 @Public()
+// §7.1 — 모든 @SubscribeMessage 핸들러에 socket 당 60 msg/min rate-limit 적용.
+// 초과 시 WsException(RATE_LIMITED) → 클라이언트 `exception` 이벤트.
+@UseGuards(WsRateLimitGuard)
 @WebSocketGateway({
   // W-1: HTTP CORS 와 동일 allowlist 적용 (단일 helper). dev/test 에서
   // CORS_ORIGINS·FRONTEND_URL 미설정 시 wildcard 로 fallback.
@@ -105,6 +126,9 @@ export class WebsocketGateway
     // forwardRef + 인라인 배열 제거). 각 도메인 모듈이 CHANNEL_AUTHORIZER multi-provider 로 등록.
     @Inject(CHANNEL_AUTHORIZER)
     private readonly channelAuthorizers: ChannelAuthorizer[],
+    // §7.1 — WS 명령 rate-limit(socket 당 60/min) 카운터. Guard 가 소비, 본 gateway 가
+    // handleDisconnect 에서 release. onAny UNKNOWN_TYPE 검출과 함께 §7.1 하드닝을 구성.
+    private readonly wsRateLimiter: WsRateLimiterService,
   ) {}
 
   handleConnection(client: Socket): void {
@@ -129,6 +153,19 @@ export class WebsocketGateway
       enrichedClient.workspaceId = payload.workspaceId;
 
       this.subscriptions.set(client.id, new Set());
+
+      // §7.1 UNKNOWN_TYPE — Socket.IO 는 미등록 이벤트를 silent drop 하므로, onAny 로
+      // 잡아 전용 코드를 `error` 이벤트로 알린다. 등록된 핸들러 이벤트(KNOWN_WS_EVENTS)는
+      // 정상 dispatch 되도록 무시한다.
+      client.onAny((event: string) => {
+        if (!KNOWN_WS_EVENTS.has(event)) {
+          client.emit('error', {
+            code: WsErrorCode.UNKNOWN_TYPE,
+            message: `Unknown message type: ${event}`,
+          });
+        }
+      });
+
       this.logger.log(`Client connected: ${client.id} (user: ${payload.sub})`);
     } catch {
       this.logger.warn(`Connection rejected: invalid token (${client.id})`);
@@ -149,6 +186,8 @@ export class WebsocketGateway
       }
     }
     this.subscriptions.delete(client.id);
+    // §7.1 — rate-limit 카운터 정리(누수 방지).
+    this.wsRateLimiter.release(client.id);
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
@@ -158,14 +197,20 @@ export class WebsocketGateway
     @ConnectedSocket() client: Socket,
   ): Promise<{
     event: string;
-    data: { success: boolean; channel?: string; error?: string };
+    // §3.3/§3.4/§7.1 — 실패 시 평문 `error` 문자열에 더해 구조화 `code` 를 additive 로
+    // 동봉한다(기존 클라이언트는 error 로 계속 동작, 신규는 code 로 분기).
+    data: { success: boolean; channel?: string; error?: string; code?: string };
   }> {
     const { channel } = data;
 
     if (!channel || !isValidChannel(channel)) {
       return {
         event: 'subscribed',
-        data: { success: false, error: 'Invalid channel' },
+        data: {
+          success: false,
+          error: 'Invalid channel',
+          code: WsErrorCode.INVALID_MESSAGE,
+        },
       };
     }
 
@@ -173,7 +218,11 @@ export class WebsocketGateway
     if (!clientSubs) {
       return {
         event: 'subscribed',
-        data: { success: false, error: 'Not authenticated' },
+        data: {
+          success: false,
+          error: 'Not authenticated',
+          code: WsErrorCode.UNAUTHENTICATED,
+        },
       };
     }
 
@@ -183,6 +232,7 @@ export class WebsocketGateway
         data: {
           success: false,
           error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+          code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
         },
       };
     }
@@ -200,7 +250,11 @@ export class WebsocketGateway
     if (!authorizer) {
       return {
         event: 'subscribed',
-        data: { success: false, error: 'Not authorized for this channel' },
+        data: {
+          success: false,
+          error: 'Not authorized for this channel',
+          code: WsErrorCode.FORBIDDEN,
+        },
       };
     }
     // workspace 가 가입되지 않은 소켓이 인가 대상 채널을 구독하려 시도하면
@@ -211,7 +265,11 @@ export class WebsocketGateway
     if (!workspaceId) {
       return {
         event: 'subscribed',
-        data: { success: false, error: 'Not authenticated' },
+        data: {
+          success: false,
+          error: 'Not authenticated',
+          code: WsErrorCode.UNAUTHENTICATED,
+        },
       };
     }
     const rejection = await authorizer.authorize(channel, {
@@ -221,7 +279,11 @@ export class WebsocketGateway
     if (rejection) {
       return {
         event: 'subscribed',
-        data: { success: false, error: rejection.error },
+        data: {
+          success: false,
+          error: rejection.error,
+          code: WsErrorCode.FORBIDDEN,
+        },
       };
     }
 
@@ -244,6 +306,7 @@ export class WebsocketGateway
         data: {
           success: false,
           error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+          code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
         },
       };
     }
@@ -258,6 +321,7 @@ export class WebsocketGateway
         data: {
           success: false,
           error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+          code: WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED,
         },
       };
     }
@@ -276,7 +340,11 @@ export class WebsocketGateway
       );
       return {
         event: 'subscribed',
-        data: { success: false, error: 'Subscription failed — please retry' },
+        data: {
+          success: false,
+          error: 'Subscription failed — please retry',
+          code: WsErrorCode.INTERNAL_ERROR,
+        },
       };
     }
     this.logger.debug(`Client ${client.id} subscribed to ${channel}`);
