@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
@@ -9,6 +9,7 @@ import { WebsocketService } from '../websocket/websocket.service';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
   /** 지연 해석된 WebsocketService 싱글턴 캐시 ({@link getWebsocket}). */
   private websocketService?: WebsocketService;
 
@@ -325,18 +326,29 @@ export class NotificationsService {
 
   /**
    * 적재된 알림 row 를 `notifications:<userId>` 채널에 `notification.new` 로 push.
-   * WS 전달은 best-effort — {@link WebsocketService.emitNotificationEvent} 가
-   * 예외를 삼키므로 적재 트랜잭션에 영향 없다.
+   *
+   * WS 전달은 **완전 best-effort** — 적재(source of truth)는 이미 커밋됐으므로 emit
+   * 경로의 어떤 실패도 호출자에게 전파되면 안 된다. `emitNotificationEvent` 가 broadcast
+   * 예외는 자체 삼키지만, 그 앞단의 {@link getWebsocket}(ModuleRef 지연 해석)도 throw
+   * 할 수 있어 여기서 통째로 감싼다 — 해석 실패든 broadcast 실패든 warn 만 남기고 삼킨다.
    */
   private emitNew(row: Notification): void {
-    this.getWebsocket().emitNotificationEvent(row.userId, {
-      id: row.id,
-      type: row.type,
-      title: row.title,
-      message: row.message,
-      resourceType: row.resourceType ?? null,
-      resourceId: row.resourceId ?? null,
-    });
+    try {
+      this.getWebsocket().emitNotificationEvent(row.userId, {
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        message: row.message,
+        resourceType: row.resourceType ?? null,
+        resourceId: row.resourceId ?? null,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `notification.new emit skipped (id=${row.id}, userId=${row.userId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private getSortColumn(sort: string): string {

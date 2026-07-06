@@ -26,6 +26,7 @@ describe('NotificationsService — dismiss', () => {
     create: jest.Mock;
   };
   let ws: { emitNotificationEvent: jest.Mock };
+  let moduleRefMock: { get: jest.Mock };
 
   // helper — chainable QB stub returning a value at the end
   function makeQb(
@@ -59,8 +60,8 @@ describe('NotificationsService — dismiss', () => {
     };
     ws = { emitNotificationEvent: jest.fn() };
     // NotificationsService 는 WebsocketService 를 ModuleRef(strict:false) 로 지연 해석.
-    const moduleRef = { get: jest.fn().mockReturnValue(ws) };
-    service = new NotificationsService(repo as any, moduleRef as any);
+    moduleRefMock = { get: jest.fn().mockReturnValue(ws) };
+    service = new NotificationsService(repo as any, moduleRefMock as any);
   });
 
   describe('findAll — dismissed_at IS NULL 필터', () => {
@@ -344,6 +345,103 @@ describe('NotificationsService — dismiss', () => {
         resourceType: null,
         resourceId: null,
       });
+    });
+  });
+
+  describe('getWebsocket — ModuleRef 지연 해석 계약 (회귀)', () => {
+    it('WebsocketService 를 strict:false 로 해석하고 1회 캐시한다', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue({
+        id: 'n',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+        resourceType: null,
+        resourceId: null,
+      });
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+      });
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+      });
+
+      // strict:false 전역 조회 — 모듈 import 없이 앱 컨텍스트에서 해석.
+      expect(moduleRefMock.get).toHaveBeenCalledWith(expect.anything(), {
+        strict: false,
+      });
+      // 캐시 — 두 번 emit 해도 해석은 1회.
+      expect(moduleRefMock.get).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('emit best-effort 격리 (회귀 — WARNING #2)', () => {
+    it('ModuleRef.get 이 throw 해도 notify 는 reject 하지 않고 saved 를 반환', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      const saved = {
+        id: 'n-1',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+        resourceType: null,
+        resourceId: null,
+      };
+      repo.save.mockResolvedValue(saved);
+      moduleRefMock.get.mockImplementation(() => {
+        throw new Error('WebsocketService not resolvable');
+      });
+
+      // 적재(save)는 이미 커밋 — emit 해석 실패가 호출자에 전파되면 안 된다.
+      await expect(
+        service.notify({
+          workspaceId: 'ws',
+          userId: 'u',
+          type: 't',
+          title: 'a',
+          message: 'm',
+        }),
+      ).resolves.toBe(saved);
+    });
+
+    it('createMany 도 ModuleRef.get throw 를 삼켜 reject 하지 않는다', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        {
+          id: 'n-1',
+          userId: 'u',
+          type: 't',
+          title: 'a',
+          message: 'm',
+          resourceType: null,
+          resourceId: null,
+        },
+      ]);
+      moduleRefMock.get.mockImplementation(() => {
+        throw new Error('WebsocketService not resolvable');
+      });
+
+      await expect(
+        service.createMany([
+          {
+            workspaceId: 'ws',
+            userId: 'u',
+            type: 't',
+            title: 'a',
+            message: 'm',
+          },
+        ]),
+      ).resolves.toBeUndefined();
     });
   });
 });
