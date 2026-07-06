@@ -161,7 +161,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 ### 3.4 최대 구독 수
 
 - 연결당 최대 동시 구독: **20개** (`MAX_SUBSCRIPTIONS_PER_CONNECTION`)
-- 초과 시 구독 ack 에 `{ success: false, error: "Maximum subscriptions (20) reached" }` 평문 문자열 반환. **전용 `SUBSCRIPTION_LIMIT_EXCEEDED` 코드는 미구현 (Planned)** — §7.1 참조.
+- 초과 시 구독 ack 에 `{ success: false, error: "Maximum subscriptions (20) reached", code: "SUBSCRIPTION_LIMIT_EXCEEDED" }` 반환 — 평문 `error` 에 더해 구조화 `code` 를 additive 로 동봉한다 (§7.1).
 
 ---
 
@@ -874,7 +874,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 ### 7.1 에러 코드
 
-**구현 현실** — transport/auth/ownership 실패용 코드는 `ws-error-codes.ts` 의 `WsErrorCode` enum 4개뿐이며, 이들은 주로 `execution.retry_last_turn.ack` 의 nested `error.code` 로 surface 된다. 구독/한도 거부는 코드가 아니라 평문 `error` 문자열로 응답한다 (§3.3·§3.4).
+**구현 현실** — `ws-error-codes.ts` 의 `WsErrorCode` enum 이 transport/auth/ownership 코드(`UNAUTHENTICATED`/`FORBIDDEN`/`NOT_FOUND`/`INTERNAL_ERROR`)에 더해 메시지 검증·구독 한도·rate-limit 코드(`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED`)까지 담는다. 구독/한도 거부는 평문 `error` 문자열에 더해 구조화 `code` 를 **additive** 로 동봉하고(§3.3·§3.4), rate-limit·미등록 이벤트는 `WsException`/`error` 이벤트의 `{ code, message }` 로 surface 된다.
 
 | 코드 | 구현 | 설명 |
 |------|------|------|
@@ -884,14 +884,14 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 | `INTERNAL_ERROR` | ✅ | 서버/transport 내부 실패 (enqueue 실패 등) — `WsErrorCode` 의 transport 레벨 코드(`retry_last_turn` 의 nested `error.code` 등). continuation 평면 ack 의 `EXECUTION_INTERNAL_ERROR`(`ErrorCode` enum, §4.2/§7.5.2)와 **별개 scope** |
 | `INVALID_EXECUTION_STATE` | ✅ | continuation 명령의 평면 `errorCode` (§4.2). publisher 사전 검증 실패 |
 | `RETRY_*` / `RESUME_*` | ✅ | retry/continuation 도메인 코드 (§4.2). `nodes/core/error-codes.ts` 의 `ErrorCode` enum |
-| `INVALID_MESSAGE` _(계획·미구현)_ | 🚧 | JSON 파싱 실패/필수 필드 누락 시 전용 코드 응답 — 미구현 |
-| `UNKNOWN_TYPE` _(계획·미구현)_ | 🚧 | 알 수 없는 메시지 type 전용 코드 — 미구현 (Socket.IO 가 미등록 이벤트를 silent drop) |
-| `SUBSCRIPTION_LIMIT_EXCEEDED` _(계획·미구현)_ | 🚧 | 한도 초과는 평문 문자열로만 응답 (§3.4) — 전용 코드 미구현 |
-| `RATE_LIMITED` _(계획·미구현)_ | 🚧 | WS 명령 빈도 제한 (60 msg/min) 자체가 미구현 |
+| `INVALID_MESSAGE` | ✅ | 유효하지 않은 채널/필수 필드 누락 시 subscribe ack 의 `code` (§3.3) |
+| `UNKNOWN_TYPE` | ✅ | 미등록 이벤트 — gateway `onAny` 가 잡아 `error` 이벤트 `{ code, message }` emit (Socket.IO 의 silent-drop 보완) |
+| `SUBSCRIPTION_LIMIT_EXCEEDED` | ✅ | 구독 한도(20) 초과 시 subscribe ack 의 `code` (§3.4) |
+| `RATE_LIMITED` | ✅ | WS 명령 빈도 제한 (**socket 당 60 msg/min** in-memory fixed-window) — `WsRateLimitGuard` 가 초과 시 `WsException` → 클라이언트 `exception` 이벤트 `{ code, message }`. 소켓은 인스턴스 상주라 Redis 불요 |
 
 ### 7.2 에러 메시지 형식
 
-명령 ack 의 실패 형태는 Socket.IO ack callback 의 `{ event, data }` 다. continuation 명령(4종)은 평면 `{ success: false, error, errorCode? }`, `retry_last_turn` 은 nested `{ success: false, ..., error: { code, message } }` 를 쓴다 (§4.2). 구독 거부는 `{ event: 'subscribed', data: { success: false, error } }` (§3.3).
+명령 ack 의 실패 형태는 Socket.IO ack callback 의 `{ event, data }` 다. continuation 명령(4종)은 평면 `{ success: false, error, errorCode? }`, `retry_last_turn` 은 nested `{ success: false, ..., error: { code, message } }` 를 쓴다 (§4.2). 구독 거부는 `{ event: 'subscribed', data: { success: false, error, code } }` — 평문 `error` + 구조화 `code`(§7.1) additive (§3.3). **rate-limit 초과(`RATE_LIMITED`)와 미등록 이벤트(`UNKNOWN_TYPE`)** 는 ack 이 아니라 각각 NestJS `exception` 이벤트·`error` 이벤트의 `{ code, message }` 로 surface 된다.
 
 ```json
 // retry_last_turn 실패 ack (nested error.code)
@@ -956,6 +956,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 - **정정한 사실 (구현 일치)**: 전송 = Socket.IO; 인증 = `handshake.query.token || handshake.auth.token` (서브프로토콜 경로 없음); 구독 ack = `{ event:'subscribed', data:{ success, channel?, error? } }`; 권한/한도 거부 = 평문 `error` 문자열 (코드 필드 없음); snapshot payload = `{ executionId, execution, timestamp }` (status/nodeExecutions 는 `execution` nest); app ping = client→server (`handlePing`); heartbeat = Socket.IO 내장; 재연결 = Socket.IO 내장 backoff; 토큰 갱신 = REST refresh + 재연결; 서버발신 이벤트 wire = `{ executionId, ...payload, seq, timestamp }` 평면 + 이벤트 이름 분리.
 - **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다. (`notification.new` emit 은 이후 구현 완료 — §4.4.)
+  - **Planned → 구현 완료 (2026-07-07)**: 위 중 **WS 에러 처리 하드닝** — 전용 에러 코드 4종(`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED`)과 socket 당 60 msg/min rate-limit — 이 구현됐다(§7.1/§3.3/§3.4/§7.2 본문 flip). subscribe ack 은 평문 `error` + 구조화 `code` additive, rate-limit 은 `WsRateLimitGuard`(class-level, in-memory per-socket), 미등록 이벤트는 `onAny`→`error{code}`. 나머지 항목(auth.refresh/token_expired·execution.start/stop·system.maintenance·server app ping·raw-WS)은 결정 필요/infra/전송계층 부적용으로 잔여.
 - **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
 - **drift 아닌 positive**: §4.2 의 continuation/retry 코드(`INVALID_EXECUTION_STATE`/`RESUME_*`/`RETRY_*`)는 코드와 정합 — 변경 없음.
 

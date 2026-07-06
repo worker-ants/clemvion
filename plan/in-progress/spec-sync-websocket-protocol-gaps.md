@@ -20,8 +20,8 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
 - [x] `notifications:{userId}` 채널의 `notification.new` emit 경로 — **완료** (`spec-sync-data-flow-8-notifications-gaps.md` PR1, `WebsocketService.emitNotificationEvent`). §4.4 spec 본문 "계획·미구현" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
 - [ ] `system.maintenance` 시스템 이벤트 emit (§4.5)
 - [ ] 서버발신 application-level ping (현재 app ping 은 client→server 방향만, §5)
-- [ ] WS 명령 rate-limit (60 msg/min) + `RATE_LIMITED` 코드 (§7.1)
-- [ ] 전용 WS 에러 코드 `INVALID_MESSAGE` / `UNKNOWN_TYPE` / `SUBSCRIPTION_LIMIT_EXCEEDED` (현재 한도/권한 거부는 평면 `error` 문자열, §3.3·§3.4·§7.1)
+- [x] WS 명령 rate-limit (socket 당 60 msg/min) + `RATE_LIMITED` 코드 (§7.1) — `WsRateLimiterService`(in-memory per-socket fixed-window) + `WsRateLimitGuard`(class-level, `WsException` → `exception` 이벤트). lint·unit·build·e2e 통과.
+- [x] 전용 WS 에러 코드 `INVALID_MESSAGE` / `UNKNOWN_TYPE` / `SUBSCRIPTION_LIMIT_EXCEEDED` (§3.3·§3.4·§7.1) — `WsErrorCode` enum 확장. subscribe ack `code` additive, 미등록 이벤트 `onAny` → `error{code}`. spec §7.1/§3.3/§3.4/§7.2 + `3-error-handling.md §1.5` 동기화. lint·unit·build·e2e 통과.
 - [ ] (raw-WS 전제) `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 인증 경로 (§1.2) — Socket.IO 전송에선 비적용. 재검토 필요 시에만.
 - [ ] (raw-WS 전제) 애플리케이션 레벨 WebSocket close code 매핑 (1000/1001/1008/4000/4001, §8) — Socket.IO 전송에선 비노출. 재검토 필요 시에만.
 
