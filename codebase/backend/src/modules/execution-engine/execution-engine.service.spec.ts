@@ -762,6 +762,95 @@ describe('ExecutionEngineService', () => {
       ).resolves.toBeUndefined();
       expect(createMany).not.toHaveBeenCalled();
     });
+
+    it('알림 메시지의 원본 예외를 새니타이징한다 (connection string redact — 이메일 노출 방어)', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+      (
+        service as unknown as { notificationsService: unknown }
+      ).notificationsService = { createMany };
+      await (
+        service as unknown as {
+          dispatchExecutionFailedNotification: (
+            e: unknown,
+            m: string,
+          ) => Promise<void>;
+        }
+      ).dispatchExecutionFailedNotification(
+        {
+          id: 'ex-7',
+          workflowId: 'wf',
+          executedBy: 'owner',
+          parentExecutionId: null,
+        },
+        'connect failed postgres://user:secret@db.internal:5432/app',
+      );
+      const entries = createMany.mock.calls[0][0] as Array<{ message: string }>;
+      // sanitizeErrorMessage 가 적용됐으면 connection string 이 redact 된다.
+      // 호출이 삭제/오배선되면 원본 URI 가 인앱+이메일로 노출 → 본 케이스가 실패.
+      expect(entries[0].message).toContain('[REDACTED_URI]');
+      expect(entries[0].message).not.toContain('postgres://');
+      expect(entries[0].message).not.toContain('secret');
+    });
+  });
+
+  describe('getNotificationsService — ModuleRef 지연 해석 (버그 B 회귀 가드)', () => {
+    // ExecutionEngineService 가 순환 그래프로 먼저 인스턴스화되면 생성자 @Optional
+    // NotificationsService 가 undefined 로 남는다. getNotificationsService 는 그 경우
+    // ModuleRef(strict:false)로 지연 해석한다. 4개 분기(주입/지연해석/throw/캐시) 검증.
+    type Svc = {
+      notificationsService?: unknown;
+      moduleRef?: { get: jest.Mock };
+      resolvedNotificationsService?: unknown;
+      getNotificationsService: () => unknown;
+    };
+    const asSvc = () => service as unknown as Svc;
+
+    it('생성자 주입이 있으면 그대로 반환 — ModuleRef 미조회', () => {
+      const injected = { createMany: jest.fn() };
+      const get = jest.fn();
+      asSvc().notificationsService = injected;
+      asSvc().moduleRef = { get };
+      asSvc().resolvedNotificationsService = undefined;
+      expect(asSvc().getNotificationsService()).toBe(injected);
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it('생성자 주입이 undefined 면 ModuleRef(strict:false)로 지연 해석', () => {
+      const resolved = { createMany: jest.fn() };
+      const get = jest.fn().mockReturnValue(resolved);
+      asSvc().notificationsService = undefined;
+      asSvc().moduleRef = { get };
+      asSvc().resolvedNotificationsService = undefined;
+      expect(asSvc().getNotificationsService()).toBe(resolved);
+      expect(get).toHaveBeenCalledTimes(1);
+    });
+
+    it('ModuleRef.get 가 throw 하면 undefined (조용히 no-op)', () => {
+      const get = jest.fn().mockImplementation(() => {
+        throw new Error('not found');
+      });
+      asSvc().notificationsService = undefined;
+      asSvc().moduleRef = { get };
+      asSvc().resolvedNotificationsService = undefined;
+      expect(asSvc().getNotificationsService()).toBeUndefined();
+    });
+
+    it('해석 결과를 캐시 — 두 번째 호출은 ModuleRef 재조회 안 함', () => {
+      const resolved = { createMany: jest.fn() };
+      const get = jest.fn().mockReturnValue(resolved);
+      asSvc().notificationsService = undefined;
+      asSvc().moduleRef = { get };
+      asSvc().resolvedNotificationsService = undefined;
+      asSvc().getNotificationsService();
+      asSvc().getNotificationsService();
+      expect(get).toHaveBeenCalledTimes(1);
+    });
   });
 
   // W1 (SUMMARY) — `CheckpointSubject` 타입을 describe 바깥 상위 스코프로 승격해

@@ -12,36 +12,18 @@ import {
   BackgroundRunEventType,
   WebsocketService,
 } from '../../websocket/websocket.service';
-
-const ERROR_MESSAGE_MAX_LENGTH = 500;
-const STACK_TRACE_PATTERN = /\s+at\s+.*\(.+\)/g;
-const CONNECTION_STRING_PATTERN =
-  /(postgres|postgresql|redis|mongodb|mysql):\/\/[^\s]+/gi;
-
-/**
- * 본문 실행 실패 메시지를 WS 이벤트 / notification 에 노출하기 전 정리.
- *
- * 길이 제한 + stack trace · connection string 패턴 제거. credential 자체는
- * `WebsocketService.sanitizePayloadForWs` 의 키 기반 마스킹이 추가로 차단하지만,
- * Error.message 안에 평문으로 들어온 경우를 보강 — defense in depth.
- */
-function sanitizeErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  const stripped = raw
-    .replace(STACK_TRACE_PATTERN, '')
-    .replace(CONNECTION_STRING_PATTERN, '[REDACTED_URI]')
-    .trim();
-  return stripped.length > ERROR_MESSAGE_MAX_LENGTH
-    ? `${stripped.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…`
-    : stripped;
-}
+// 에러 메시지 새니타이징은 top-level 실행 실패 경로(execution-engine.service)와 공유하는
+// 단일 util 로 둔다 — 한쪽만 적용돼 방어 심도가 갈리지 않도록 (security review 22_42_32).
+import { sanitizeErrorMessage } from '../sanitize-error-message';
 
 /**
  * Background 노드 큐 워커.
  *
  * Job을 받아 ExecutionEngineService에 위임해 본문 서브그래프를 실행한다.
  * 실패는 메인 워크플로우와 격리 — 실패가 메인 Execution status를 바꾸지 않으며,
- * `notifyOnFailure`가 true면 워크스페이스 Admin에게 인앱 알림을 보낸다.
+ * `notifyOnFailure`가 true면 워크스페이스 Admin에게 인앱 알림(`background_failed`)을 보낸다.
+ * 이 알림은 딥링크(resource_type/resource_id=workflow)와 per-run attribution
+ * (`background_run_id` 컬럼, V107)을 분리해 적재한다 — `dispatchFailureNotification` 참조.
  *
  * WS 이벤트 (`background:run:<id>` 채널):
  *  - `execution.background_run.started`   — process() 진입 직후
@@ -166,13 +148,13 @@ export class BackgroundExecutionProcessor extends WorkerHost {
     );
     if (recipients.length === 0) return;
 
-    // resourceType='background_run', resourceId=backgroundRunId 으로 attribution.
-    // 모니터링 API 가 notifications 필드에 정확히 매칭. backgroundRunId 가
-    // 빈 문자열이면 (옛 NodeExecution) execution 로 fallback — 옛 데이터 호환.
-    const hasRunId = !!data.backgroundRunId;
-    const resourceType = hasRunId ? 'background_run' : 'execution';
-    const resourceId = hasRunId ? data.backgroundRunId : data.executionId;
-
+    // 딥링크와 attribution 을 분리한다 (migration V107):
+    //  - resource_type='workflow' / resource_id=workflowId → 팝오버 딥링크. href.ts 가
+    //    background_failed 를 /workflows/<resource_id> 로 라우팅하며 _layout.md §3.1 은
+    //    resource_id=workflow id 를 요구(execution_failed/schedule_failed 와 일관). workflowId 는
+    //    항상 존재하므로 딥링크가 항상 정상 — 옛 execution/executionId fallback(딥링크 404) 제거.
+    //  - background_run_id → per-run attribution. background-runs 모니터링 API 가 이 컬럼으로 조회.
+    //    옛 NodeExecution(backgroundRunId 없음)은 attribution 대상 밖이라 NULL 로 둔다.
     try {
       await this.notificationsService.createMany(
         recipients.map((userId) => ({
@@ -181,8 +163,9 @@ export class BackgroundExecutionProcessor extends WorkerHost {
           type: 'background_failed',
           title: 'Background 본문 실패',
           message: `워크플로우 ${data.workflowId}의 Background 본문 실행이 실패했어요: ${message}`,
-          resourceType,
-          resourceId,
+          resourceType: 'workflow',
+          resourceId: data.workflowId,
+          backgroundRunId: data.backgroundRunId || undefined,
           channel: 'in_app',
         })),
       );

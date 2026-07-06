@@ -59,7 +59,7 @@ describe('BackgroundRunsService', () => {
   let service: BackgroundRunsService;
   let executionRepo: { createQueryBuilder: jest.Mock };
   let nodeExecutionRepo: { createQueryBuilder: jest.Mock };
-  let notificationsService: { findByResource: jest.Mock };
+  let notificationsService: { findByBackgroundRun: jest.Mock };
 
   const buildOwnershipQB = (workspaceId: string | null) => {
     const qb: Record<string, jest.Mock> = {};
@@ -106,7 +106,7 @@ describe('BackgroundRunsService', () => {
     executionRepo = { createQueryBuilder: jest.fn() };
     nodeExecutionRepo = { createQueryBuilder: jest.fn() };
     notificationsService = {
-      findByResource: jest.fn().mockResolvedValue([]),
+      findByBackgroundRun: jest.fn().mockResolvedValue([]),
     };
     service = new BackgroundRunsService(
       executionRepo as never,
@@ -468,7 +468,7 @@ describe('BackgroundRunsService', () => {
             latestFinished: null,
           }),
         );
-      notificationsService.findByResource.mockResolvedValueOnce([
+      notificationsService.findByBackgroundRun.mockResolvedValueOnce([
         {
           id: 'n1',
           type: 'background_failed',
@@ -486,8 +486,7 @@ describe('BackgroundRunsService', () => {
         'ws-1',
       );
 
-      expect(notificationsService.findByResource).toHaveBeenCalledWith(
-        'background_run',
+      expect(notificationsService.findByBackgroundRun).toHaveBeenCalledWith(
         'bg-run-id',
       );
       expect(result.notifications).toHaveLength(1);

@@ -245,7 +245,7 @@ URL 은 중첩 구조 (`executions/:id/background-runs/:id`) 를 사용한다. `
 | `nodeExecutions.data` | NodeExecution[] | 본문 노드들의 NodeExecution 레코드. `parentNodeExecutionId = <Background 노드의 NodeExecution.id>` 로 필터. shape 은 [실행 상세 조회 §5.1](../../3-workflow-editor/3-execution.md#51-노드별-입출력-데이터) 재사용 |
 | `nodeExecutions.nextCursor` | string \| null | 다음 페이지 cursor. `hasMore: false` 면 null |
 | `nodeExecutions.hasMore` | boolean | 추가 페이지 존재 여부 |
-| `notifications` | Notification[] | 본 backgroundRun 와 연관된 알림. `type: background_failed` (`config.notifyOnFailure: true` 이면 발행; 노드 실패와 `maxDurationMs` 타임아웃 양쪽을 포괄). [실행 엔진 §3.3](../../5-system/4-execution-engine.md#33-background-실행) 참조 |
+| `notifications` | Notification[] | 본 backgroundRun 와 연관된 알림. `type: background_failed` (`config.notifyOnFailure: true` 이면 발행; 노드 실패와 `maxDurationMs` 타임아웃 양쪽을 포괄). 연관 판정은 알림의 **`background_run_id` 컬럼** (V107, per-run attribution 전용) 으로 조회한다 — 딥링크용 `resource_type/resource_id`(=workflow) 와 분리 ([data-flow/8-notifications.md §2.1](../../data-flow/8-notifications.md#21-postgres)). [실행 엔진 §3.3](../../5-system/4-execution-engine.md#33-background-실행) 참조 |
 
 ### 8.3 페이지네이션
 

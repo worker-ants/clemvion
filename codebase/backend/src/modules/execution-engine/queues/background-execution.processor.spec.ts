@@ -81,12 +81,15 @@ describe('BackgroundExecutionProcessor', () => {
       type: string;
       resourceType: string;
       resourceId: string;
+      backgroundRunId?: string;
     }>;
     expect(entries).toHaveLength(2);
     expect(entries[0].type).toBe('background_failed');
-    // Background 모니터링 API 가 정확히 attribute 하도록 backgroundRunId 로 기록.
-    expect(entries[0].resourceType).toBe('background_run');
-    expect(entries[0].resourceId).toBe('bg-run-1');
+    // 딥링크: resource_type/resource_id=workflow (href.ts /workflows/<id>, _layout.md §3.1).
+    expect(entries[0].resourceType).toBe('workflow');
+    expect(entries[0].resourceId).toBe('wf-1');
+    // attribution: 별도 background_run_id 컬럼 (background-runs 모니터링 API).
+    expect(entries[0].backgroundRunId).toBe('bg-run-1');
   });
 
   it('emits BACKGROUND_RUN_STARTED and BACKGROUND_RUN_COMPLETED on success', async () => {
@@ -119,7 +122,7 @@ describe('BackgroundExecutionProcessor', () => {
     expect(failedPayload.errorMessage).toBe('boom');
   });
 
-  it('falls back to executionId for resource attribution when backgroundRunId is empty (legacy NodeExecution)', async () => {
+  it('keeps workflow deep-link and omits attribution when backgroundRunId is empty (legacy NodeExecution)', async () => {
     engine.executeBackgroundSubgraph.mockRejectedValueOnce(new Error('boom'));
     const job = makeJob({
       backgroundRunId: '',
@@ -129,9 +132,13 @@ describe('BackgroundExecutionProcessor', () => {
     const entries = notifications.createMany.mock.calls[0][0] as Array<{
       resourceType: string;
       resourceId: string;
+      backgroundRunId?: string;
     }>;
-    expect(entries[0].resourceType).toBe('execution');
-    expect(entries[0].resourceId).toBe('exec-1');
+    // 딥링크는 workflowId 로 항상 정상 (옛 execution/executionId 404 fallback 제거).
+    expect(entries[0].resourceType).toBe('workflow');
+    expect(entries[0].resourceId).toBe('wf-1');
+    // backgroundRunId 부재 → per-run attribution 없음 (컬럼 NULL).
+    expect(entries[0].backgroundRunId).toBeUndefined();
     // WS emit skipped when backgroundRunId is empty (no channel to route to).
     expect(websocket.emitBackgroundRunEvent).not.toHaveBeenCalled();
   });

@@ -18,8 +18,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *         `websocket.gateway.spec.ts` 의 unit test 4건이 이미 회귀 잠금
  *         (cross-workspace / non-UUID / DB error / success). 의존성 추가
  *         결정 시 본 spec 으로 이관.
- *   4) Background 본문 실패 시 `Notification.resourceType='background_run'` +
- *      `resourceId=backgroundRunId` 정확 attribution
+ *   4) Background 본문 실패 시 Notification 의 딥링크(resource_type/resource_id=workflow,
+ *      `_layout.md §3.1`)와 per-run attribution(`background_run_id` 컬럼, V107)이 분리 생성
  *
  * 실 BullMQ 워커가 떠 있는 e2e 인프라에서만 의미가 있다 (workflow-execution.e2e
  * 와 동일 전제).
@@ -300,28 +300,31 @@ describe('Background body monitoring (e2e)', () => {
   // 4) 본문 실패 시 알림 attribution
   // -------------------------------------------------------------------------
 
-  it('본문 실패 → Notification 이 resourceType=`background_run` + resourceId=backgroundRunId 로 생성된다', async () => {
+  it('본문 실패 → Notification 딥링크는 workflow, attribution 은 background_run_id 로 분리 생성된다', async () => {
     const workflowId = await createBackgroundFailingWorkflow();
     const { executionId, backgroundRunId } =
       await executeAndGetBackgroundRunId(workflowId);
 
     // BullMQ worker 가 본문을 처리하고 dispatchFailureNotification 까지 도달
     // 하는 데 메인 실행 종료 후 추가 시간이 필요. 최대 15초 폴링.
+    // attribution 은 background_run_id 컬럼으로 조회 (딥링크용 resource_id=workflowId 와 분리, V107).
     const deadline = Date.now() + 15_000;
     let rows: Array<{
       type: string;
       resource_type: string | null;
       resource_id: string | null;
+      background_run_id: string | null;
     }> = [];
     while (Date.now() < deadline) {
       const res = await db.query<{
         type: string;
         resource_type: string | null;
         resource_id: string | null;
+        background_run_id: string | null;
       }>(
-        `SELECT type, resource_type, resource_id
+        `SELECT type, resource_type, resource_id, background_run_id
            FROM notification
-          WHERE resource_type = 'background_run' AND resource_id = $1`,
+          WHERE background_run_id = $1`,
         [backgroundRunId],
       );
       if (res.rows.length > 0) {
@@ -334,8 +337,12 @@ describe('Background body monitoring (e2e)', () => {
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
       expect(row.type).toBe('background_failed');
-      expect(row.resource_type).toBe('background_run');
-      expect(row.resource_id).toBe(backgroundRunId);
+      // 딥링크: resource_type/resource_id 는 workflow (href.ts /workflows/<id>, _layout.md §3.1).
+      // 옛 resource_id=backgroundRunId (딥링크 404) 회귀 방지.
+      expect(row.resource_type).toBe('workflow');
+      expect(row.resource_id).toBe(workflowId);
+      // attribution: 별도 background_run_id 컬럼.
+      expect(row.background_run_id).toBe(backgroundRunId);
     }
 
     // 본문 모니터링 API 의 `notifications` 필드에도 동일 row 가 노출되어야 한다.
@@ -349,5 +356,20 @@ describe('Background body monitoring (e2e)', () => {
     }>;
     expect(notifications.length).toBeGreaterThan(0);
     expect(notifications[0].type).toBe('background_failed');
+
+    // background_run_id 는 DB 엔티티 `select: false` 라 일반 알림 목록 REST 응답에
+    // 노출되지 않아야 한다 (내부 attribution 전용, V107). owner 는 워크스페이스 admin
+    // 이라 background_failed 알림을 수신 → GET /notifications 로 확인 가능.
+    const listRes = await request(BASE_URL)
+      .get('/api/notifications')
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(listRes.status).toBe(200);
+    const listed = listRes.body.data as Array<Record<string, unknown>>;
+    const bgFailed = listed.find((n) => n.type === 'background_failed');
+    expect(bgFailed).toBeDefined();
+    // resource_id 는 딥링크용 workflow id 로 노출되나, backgroundRunId 는 미노출.
+    expect(bgFailed).not.toHaveProperty('backgroundRunId');
+    expect(bgFailed?.resourceId).toBe(workflowId);
   }, 45_000);
 });

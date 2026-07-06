@@ -395,14 +395,13 @@ export class BackgroundRunsService {
   private async fetchNotifications(
     backgroundRunId: string,
   ): Promise<BackgroundRunNotificationDto[]> {
-    // resourceType='background_run' 으로 정확 attribution. processor 변경으로
-    // 새 알림은 모두 이 형태 — 옛 (resource_type='execution') 알림은 본 API
-    // 의 범위 밖. 알림 비즈니스 규칙(정렬 등) 은 NotificationsService 에
-    // 위임 (Repository 이중 등록 회피).
-    const rows = await this.notificationsService.findByResource(
-      'background_run',
-      backgroundRunId,
-    );
+    // background_run_id 컬럼으로 per-run attribution (migration V107). 알림의
+    // resource_type/resource_id 는 딥링크용 workflow 를 담으므로 attribution 에 쓰지
+    // 않는다 — 딥링크와 attribution 을 분리 (spec/data-flow/8-notifications.md §2.1).
+    // 옛 알림(background_run_id 없음)은 본 API 범위 밖. 알림 비즈니스 규칙(정렬 등)은
+    // NotificationsService 에 위임 (Repository 이중 등록 회피).
+    const rows =
+      await this.notificationsService.findByBackgroundRun(backgroundRunId);
     return rows.map((row) => ({
       id: row.id,
       type: row.type,
