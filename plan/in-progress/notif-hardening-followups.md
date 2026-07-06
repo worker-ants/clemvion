@@ -74,9 +74,10 @@ owner: developer
   - **decouple 비용**: `dispatchEmails` 를 fire-and-forget 로 바꾸면 (a) 모든 호출자의 계약이 async 로 변함,
     (b) PR2 unit(notifications.service.spec.ts:491-561)이 `await notify()` 직후 `sendNotificationEmail`/`email_sent_at`
     를 동기 단언 → race 로 깨짐(재작성 필요). dispatchEmails 자체는 이미 완전 best-effort 라 correctness 리스크는 없음.
-- [ ] **결정 (사용자 판단 대기)**: (a) 현행 유지(보류) — 코드 변경 없음, invite 는 이미 SMTP 바운드라 수용;
-      (b) 지금 decouple — notify/createMany 의 email dispatch 를 fire-and-forget + PR2 테스트 재작성.
-      권장: **(a) 보류** + 정정된 근거를 spec Rationale 로 문서화(planner). 신규 *non-SMTP* 동기 API 경로 등장 시 (b) 재개.
+- [x] **결정 (2026-07-06, 사용자 확정)**: **(a) 보류 유지** — 코드 변경 없음. 근거: 현 동기 호출자(team_invite/invite)
+      는 이미 초대링크 이메일로 SMTP 바운드라 알림 이메일 dispatch 는 additive 일 뿐 새 hot-path latency 클래스가
+      아님. decouple 은 전 호출자 계약을 async 로 바꾸고 PR2 이메일 unit(await 직후 email_sent_at 동기 단언) 재작성을
+      요구 → 비용 대비 이득 없음. **재개 트리거**: 신규 *non-SMTP* 동기 API 경로가 notify()/createMany 를 호출하게 될 때.
 
 ## 후속(followup) — 엔진 재리뷰(22_42_32) 아키텍처/리팩터링 지적 (비차단)
 
@@ -100,6 +101,6 @@ owner: developer
 - 커밋: 797488494(구현) · 656fc7cce(버그수정) · 04386bdd4(리뷰반영+새니타이저+spec동기화).
 
 ## 잔여 (plan in-progress 유지 사유)
-- **항목 3** (dispatchEmails decouple): 분석 완료, **사용자 결정 대기** (보류 권장 vs 지금 decouple).
+- **항목 3** (dispatchEmails decouple): 분석 완료 + **사용자 확정 "보류 유지"** — 코드 변경 없음, 종결. (재개 트리거만 대기)
 - **planner 위임분**: [[spec-update-notifications-background-run-id]] 는 이미 developer 가 SPEC-DRIFT reverse-flow 로 spec 반영 완료(§2.1/§1.1/§2.19/Rationale/12-background) — planner 는 §4.4 ModuleRef 문서화(rationale WARNING) 만 잔여.
 - **아키텍처 부채 followup**: DI 순환 인스턴스화 · FAILED 종결 헬퍼 추출 (별도 리팩터링 트랙).
