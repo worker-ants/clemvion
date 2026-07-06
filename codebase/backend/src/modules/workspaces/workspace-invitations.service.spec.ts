@@ -200,7 +200,7 @@ describe('WorkspaceInvitationsService', () => {
       );
     });
 
-    it('기존 가입자(비멤버) 초대 시 team_invite 알림 발사(channel=both)', async () => {
+    it('기존 가입자(비멤버) 초대 시 team_invite 알림 발사(channel=in_app)', async () => {
       memberRepo.findOne
         .mockResolvedValueOnce({ role: 'admin' }) // requester (assertAdmin)
         .mockResolvedValueOnce(null); // invitee 는 아직 비멤버
@@ -224,7 +224,7 @@ describe('WorkspaceInvitationsService', () => {
           type: 'team_invite',
           resourceType: 'workspace_invitation',
           resourceId: 'inv-1',
-          channel: 'both',
+          channel: 'in_app',
         }),
       );
     });

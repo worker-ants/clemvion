@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-06T20:57:56.603886",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/data-flow/8-notifications.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

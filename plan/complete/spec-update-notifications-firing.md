@@ -1,7 +1,11 @@
 ---
-worktree: (unstarted)
+worktree: gracious-darwin-6b9739
 started: 2026-07-06
+completed: 2026-07-06
 owner: planner
+spec_impact:
+  - spec/data-flow/8-notifications.md
+  - spec/2-navigation/9-user-profile.md
 ---
 
 # spec-update — 발사 소스 3종 구현 반영 (Planned → 구현됨)
@@ -23,7 +27,10 @@ owner: planner
 ## 반영할 결정/주의 (§1.1/§2.1 + Rationale)
 
 - [x] **resource_type 공유 주의 — 해소됨**: 초기 `execution_failed` `resource_type='execution'`/`executionId` 는 (a) `background_failed` fallback 과 키공간 공유 (b) 팝오버 딥링크(`href.ts` `/workflows/<resource_id>`)가 workflow id 를 기대하는데 execution id 를 채워 404, 두 문제가 있었다. impl-done cross_spec/naming_collision CRITICAL 로 **resource_type='workflow' / resource_id=workflow.id** 로 정정 — 딥링크 정합 + 키공간 공유도 자연 해소. (§1.1 표에 반영 완료.)
-- [ ] **team_invite 이메일 2통 (side-effect 재검토) — planner 결정 대기(OPEN)**: 기존 가입자는 초대링크 이메일(`dispatchEmail`)에 더해 `team_invite`(channel=both)의 알림 이메일도 받는다 — 총 2통. spec-literal("in-app + 이메일 둘 다")로 구현했으나 UX 상 중복 가능. planner 결정: (a) 현행 유지(2통), (b) 기존 가입자에겐 초대링크 이메일 생략, (c) team_invite 를 channel=in_app 로 하향(초대링크 이메일이 email 측 담당). 결정 후 spec §1.1 team_invite 행·§관련 Rationale 에 명문화. **§1.1 배지 flip 은 PR3 에서 완료** — 본 항목(2통 UX)만 잔여로 in-progress 유지.
+- [x] **team_invite 이메일 2통 (side-effect 재검토) — 결정 (c) 채택 (2026-07-06)**: 기존 가입자는 초대링크 이메일(`dispatchEmail`)에 더해 `team_invite`(channel=both)의 알림 이메일도 받아 총 2통이었다. 후자는 토큰 없는 범용 알림 이메일(CTA=`/dashboard`)이라 기능적으로 더 약해 중복·혼란. 검토안: (a) 현행 유지(2통), (b) 초대링크 이메일 생략 — **기각**(생략되는 것이 유일한 수락 토큰 이메일이라 이메일 수락 경로가 사라지는 기능 회귀), (c) **team_invite 를 channel=in_app 로 하향 — 채택**(이메일 채널은 토큰 담은 초대링크 이메일이 단독 담당, 인앱 벨은 알림 record 담당). 반영: `spec/data-flow/8-notifications.md` §1.1 team_invite 행 + Rationale "team_invite 채널 — 이메일 중복 회피" 신설, `spec/2-navigation/9-user-profile.md` §5.1 팀 초대 각주, `workspace-invitations.service.ts`/`.spec.ts` `channel: 'both'→'in_app'`. `/consistency-check --spec` BLOCK:NO.
 
 ## 완료 조건
-- 위 flip + 결정 반영 + `/consistency-check --spec` BLOCK:NO. tracker `spec-sync-data-flow-8-notifications-gaps.md` 3개 체크박스는 PR3 코드 PR 에서 `[x]`.
+- [x] 위 flip + 결정 반영 + `/consistency-check --spec` BLOCK:NO. tracker `spec-sync-data-flow-8-notifications-gaps.md` 3개 체크박스는 PR3 코드 PR 에서 `[x]`.
+- [x] team_invite 2통 UX 결정 (c) 채택 — spec §1.1/§5.1/Rationale + 코드/테스트 반영, consistency BLOCK:NO (`review/consistency/2026/07/06/20_57_56/SUMMARY.md`).
+
+**완료 (2026-07-06)** — 모든 항목 처리 완료, `plan/complete/` 로 이동.
