@@ -335,6 +335,17 @@ describe('MailService', () => {
       expect(args.html).not.toContain('<img src=x');
     });
 
+    it('subject 의 CR/LF 를 공백으로 치환 (헤더 인젝션 방어)', async () => {
+      await service.sendNotificationEmail('user@example.com', {
+        title: 'Workflow failed\r\nBcc: attacker@evil.com',
+        message: 'run xyz failed',
+        type: 'execution_failed',
+      });
+      const args = mailerService.sendMail.mock.calls[0][0];
+      expect(args.subject).toBe('Workflow failed Bcc: attacker@evil.com');
+      expect(args.subject).not.toMatch(/[\r\n]/);
+    });
+
     it('발송 실패 시 throw (호출자가 best-effort 처리)', async () => {
       mailerService.sendMail.mockRejectedValueOnce(new Error('SMTP down'));
       await expect(

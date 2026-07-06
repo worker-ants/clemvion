@@ -689,6 +689,24 @@ describe('NotificationsService — dismiss', () => {
       expect(repo.update).not.toHaveBeenCalled();
     });
 
+    it('user email 이 빈 문자열이면 발송 skip (!email 가드)', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue(savedRow({ channel: 'email' }));
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: '' }]);
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run failed',
+        channel: 'email',
+      });
+
+      expect(mail.sendNotificationEmail).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
     it("notify channel='both' — 이메일 발송 + WS emit 둘 다 (단건 경로)", async () => {
       repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
       repo.save.mockResolvedValue(savedRow({ channel: 'both' }));

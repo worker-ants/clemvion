@@ -437,7 +437,10 @@ export class MailService {
     try {
       await this.mailerService.sendMail({
         to: email,
-        subject: notification.title,
+        // subject 는 이메일 헤더라 CR/LF 가 있으면 헤더 인젝션이 된다 — title 은
+        // 워크플로/통합 이름 등 사용자 입력에서 유래할 수 있으므로 개행을 공백으로
+        // 치환해 봉합한다 (본문 HTML 은 escapeHtml 이 별도로 방어).
+        subject: notification.title.replace(/[\r\n]+/g, ' '),
         html: this.buildNotificationHtml(notification, notificationsUrl),
         text: this.buildNotificationText(notification, notificationsUrl),
       });
