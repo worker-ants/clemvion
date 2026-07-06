@@ -615,6 +615,20 @@ describe("SchedulesPage — inbound ?triggerId= deep-link (Spec §2.1)", () => {
     ).toBeNull();
   });
 
+  it("keeps the reset link visible even when the filter yields no schedules (no dead-end)", async () => {
+    // Server filter returns 0 rows for this trigger → EmptyState shows, but the
+    // '전체 보기' escape must remain so the user isn't stranded on a blank list.
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse({
+      data: [],
+      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    const clear = await screen.findByTestId("schedules-clear-trigger-filter");
+    expect(clear).toHaveAttribute("href", "/schedules");
+  });
+
   it("highlights no row when ?triggerId= matches no schedule on the page", async () => {
     currentSearchParams = new URLSearchParams("triggerId=nope");
     mockSchedulesResponse(focusRow());

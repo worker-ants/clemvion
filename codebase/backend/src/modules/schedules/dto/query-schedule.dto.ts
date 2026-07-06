@@ -16,6 +16,7 @@ export class QueryScheduleDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: '트리거 UUID 필터 (해당 트리거에 연결된 스케줄만 반환)',
     format: 'uuid',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
   })
   @IsOptional()
   @IsUUID()
