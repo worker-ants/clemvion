@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, act, cleanup } from "@testing-library/react";
+import { render, screen, act, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
@@ -25,10 +25,25 @@ vi.mock("@/lib/api/workflows", () => ({
   },
 }));
 
+// Folders API mock — foldersApi.list() returns FolderData[] directly (the
+// real impl unwraps `{ data: [] }`). Default empty so the folder filter stays
+// hidden and unrelated tests are unaffected; the folder describe overrides it.
+type FolderData = { id: string; name: string; parentId?: string | null; sortOrder: number };
+let foldersResponse: FolderData[] = [];
+vi.mock("@/lib/api/folders", () => ({
+  foldersApi: {
+    list: vi.fn(() => Promise.resolve(foldersResponse)),
+  },
+}));
+
 import WorkflowsPage from "../page";
 
 function setListResponse(body: unknown) {
   listResponse = body;
+}
+
+function setFoldersResponse(body: FolderData[]) {
+  foldersResponse = body;
 }
 
 let lastQueryClient: QueryClient | null = null;
@@ -476,5 +491,147 @@ describe("WorkflowsPage — sort (NAV §2.4)", () => {
     expect(
       (screen.getByTestId("workflow-sort") as HTMLSelectElement).value,
     ).toBe("created");
+  });
+});
+
+describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    setFoldersResponse([
+      { id: "fld-1", name: "Marketing", sortOrder: 0 },
+      { id: "fld-2", name: "Sales", sortOrder: 1 },
+    ]);
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+    // Reset so the empty default leaks back to other describes regardless of
+    // execution order — the folder filter must stay hidden elsewhere.
+    setFoldersResponse([]);
+  });
+
+  it("hides the folder filter when the workspace has no folders", async () => {
+    setFoldersResponse([]);
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+    expect(screen.queryByTestId("workflow-folder-filter")).toBeNull();
+  });
+
+  it("renders the folder filter with a leading 'All folders' option when folders exist", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const select = await screen.findByTestId("workflow-folder-filter");
+    expect(select).toBeInTheDocument();
+    // First option is the "all" sentinel with an empty value.
+    const options = within(select as HTMLSelectElement).getAllByRole("option");
+    expect(options[0]).toHaveValue("");
+    expect(options[0]).toHaveTextContent(/All folders/i);
+    expect(
+      within(select as HTMLSelectElement).getByRole("option", {
+        name: "Marketing",
+      }),
+    ).toHaveValue("fld-1");
+  });
+
+  it("sends ?folderId=<id> and resets to page 1 when a folder is selected", async () => {
+    // 3 pages so we can first navigate to page 2 and confirm the reset.
+    setListResponse({
+      data: Array.from({ length: 10 }, (_, i) => ({
+        id: `wf-${i}`,
+        name: `Workflow ${i}`,
+        isActive: true,
+        tags: [],
+      })),
+      pagination: { page: 1, limit: 10, totalItems: 25, totalPages: 3 },
+    });
+    await renderPage();
+    await screen.findByText("Workflow 0");
+
+    // Move to page 2 first so a stale page would be observable.
+    await userEvent.click(screen.getByRole("button", { name: "2" }));
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-folder-filter"),
+      "fld-2",
+    );
+
+    await vi.waitFor(() => expect(listSpy).toHaveBeenCalled());
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(lastParams?.folderId).toBe("fld-2");
+    // Selecting a folder must reset paging.
+    expect(String(lastParams?.page)).toBe("1");
+  });
+
+  it("omits folderId on the default (all folders) selection", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    const firstCallParams = listSpy.mock.calls[0]?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(firstCallParams?.folderId).toBeUndefined();
+  });
+
+  it("treats a selected folder as an active filter and clears it on reset", async () => {
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // No filters yet → create CTA.
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+
+    await userEvent.selectOptions(
+      screen.getByTestId("workflow-folder-filter"),
+      "fld-1",
+    );
+
+    // Selecting a folder makes hasActiveFilters true → reset CTA appears.
+    const resetBtn = await screen.findByRole("button", {
+      name: /Reset Filters/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+
+    // Reset restores the default: folder select returns to the "all" value and
+    // the create CTA comes back.
+    await userEvent.click(resetBtn);
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+    expect(
+      (screen.getByTestId("workflow-folder-filter") as HTMLSelectElement).value,
+    ).toBe("");
   });
 });

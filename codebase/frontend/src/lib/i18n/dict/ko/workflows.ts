@@ -27,6 +27,10 @@ export const workflows = {
     mine: "내 워크플로우",
     shared: "공유된 워크플로우",
   },
+  folderFilter: {
+    aria: "폴더 필터",
+    all: "전체 폴더",
+  },
   columns: {
     name: "이름",
     status: "상태",

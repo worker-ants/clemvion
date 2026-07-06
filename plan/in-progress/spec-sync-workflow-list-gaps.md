@@ -1,5 +1,5 @@
 ---
-worktree: spec-sync-audit
+worktree: fe2-workflow-list-filters-08493f
 started: 2026-06-03
 owner: planner
 ---
@@ -14,11 +14,13 @@ owner: planner
 > **구현 진척 (2026-06-14, impl-workflow-list-gaps PR)**: 정렬(§2.4) 풀스택 — backend last_run subquery +
 > frontend 정렬 드롭다운. 태그·폴더 필터 UI(§2.3)·빈 상태 마켓플레이스 링크(§2.7)는 추가 frontend(서버는
 > ?tag=/?folderId= 이미 지원)로 별도 PR.
+> **구현 진척 (2026-07-06, FE-2)**: 폴더 필터 UI(§2.3) frontend 완료. 남은 잔여 = 태그 필터 UI(§2.3, spec 멀티선택
+> vs 서버 단일 `?tag=` 결정 필요)·빈 상태 마켓플레이스 링크(§2.7, 마켓플레이스 라우트 부재) — planner 트랙.
 
 - [x] 정렬 UI (§2.4): frontend 정렬 드롭다운(`NativeSelect`, page.tsx) — 최신 생성순(기본)/최근 수정순/이름순/마지막 실행순. 기본 외 옵션에 `sort`/`order` 송신, page 리셋·resetFilters 연동, i18n(ko/en `workflows.sort.*`).
 - [x] "마지막 실행순" 정렬 (§2.4): backend `findAll` 이 `last_run` 시 `execution` 테이블의 워크플로별 `MAX(started_at)` correlated subquery 로 정렬(미실행 `NULLS LAST`, 고정 문자열 — injection 안전). 테스트(last_run/기본/injection 폴백) 추가.
 - [ ] 태그 필터 UI 부재 (§2.3): 서버 `?tag=` 지원, **frontend 잔여**(태그 멀티 선택 UI). 별도 PR.
-- [ ] 폴더 필터 UI 부재 (§2.3): 서버 `?folderId=` 지원, **frontend 잔여**(폴더 선택 UI). 별도 PR.
+- [x] 폴더 필터 UI 부재 (§2.3): frontend 폴더 `NativeSelect`(page.tsx, `foldersApi.list()`→`GET /folders`, 폴더 존재 시에만 렌더) — 선택 시 `?folderId=` 송신·page 리셋·resetFilters 연동, i18n(ko/en `workflows.folderFilter.*`). 서버는 `?folderId=`(query-workflow.dto + `w.folder_id` andWhere) 기존 지원. (FE-2, fe2-workflow-list-filters-08493f)
 - [ ] 빈 상태 마켓플레이스 템플릿 추천 링크 (§2.7) — **frontend 잔여**. 별도 PR.
 
 ## 코드 버그 (구현 수정 필요)

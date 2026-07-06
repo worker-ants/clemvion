@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
+import { foldersApi } from "@/lib/api/folders";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,8 @@ export default function WorkflowsPage() {
   // spec/2-navigation/1-workflow-list.md §2.3 — 팀 워크스페이스에서만 의미가 있는
   // 소유 필터. `mine` / `shared` / `all` 3 옵션을 그대로 `?ownership=` 으로 매핑.
   const [ownership, setOwnership] = useState<Ownership>("all");
+  // spec/2-navigation/1-workflow-list.md §2.3 — 폴더 필터. 빈 문자열 = 전체(미송신).
+  const [folderId, setFolderId] = useState<string>("");
   const { page, setPage } = usePageParam();
   // spec/2-navigation/1-workflow-list.md §2.1 + Rationale §1 — 팀 워크스페이스에 속한
   // 모든 워크플로우는 "Shared" 로 본다. 개인 워크스페이스에서는 배지를 표시하지 않는다.
@@ -135,11 +138,26 @@ export default function WorkflowsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // 폴더 필터 옵션 소스 — 현재 워크스페이스 폴더 목록. 폴더가 없으면 필터 UI 비노출.
+  const foldersQuery = useQuery({
+    queryKey: ["folders"],
+    queryFn: () => foldersApi.list(),
+  });
+  const folders = foldersQuery.data ?? [];
+
   const workflowsQuery = useQuery<{
     items: WorkflowData[];
     total: number;
   }>({
-    queryKey: ["workflows", debouncedSearch, filter, ownership, sortKey, page],
+    queryKey: [
+      "workflows",
+      debouncedSearch,
+      filter,
+      ownership,
+      sortKey,
+      folderId,
+      page,
+    ],
     queryFn: async () => {
       const params: Record<string, string> = {
         page: String(page),
@@ -162,6 +180,8 @@ export default function WorkflowsPage() {
       if (isTeamWorkspace && ownership !== "all") {
         params.ownership = ownership;
       }
+      // §2.3 폴더 필터 — 선택 시 `?folderId=`. 빈 값(전체)은 미송신.
+      if (folderId) params.folderId = folderId;
 
       const { data } = await workflowsApi.list(params);
       const { items, totalItems } = normalizePagedResponse<WorkflowData>(
@@ -336,6 +356,7 @@ export default function WorkflowsPage() {
     !!debouncedSearch ||
     filter !== "all" ||
     sortKey !== "created" ||
+    folderId !== "" ||
     (isTeamWorkspace && ownership !== "all");
 
   function handleResetFilters() {
@@ -343,6 +364,7 @@ export default function WorkflowsPage() {
     setFilter("all");
     setOwnership("all");
     setSortKey("created");
+    setFolderId("");
     setPage(1);
   }
 
@@ -422,6 +444,26 @@ export default function WorkflowsPage() {
             ))}
           </NativeSelect>
         </div>
+        {folders.length > 0 && (
+          <div className="w-44">
+            <NativeSelect
+              aria-label={t("workflows.folderFilter.aria")}
+              value={folderId}
+              onChange={(e) => {
+                setFolderId(e.target.value);
+                setPage(1);
+              }}
+              data-testid="workflow-folder-filter"
+            >
+              <option value="">{t("workflows.folderFilter.all")}</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+        )}
         {isTeamWorkspace && (
           <div
             className="flex gap-1"
