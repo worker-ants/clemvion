@@ -2480,42 +2480,11 @@ export class ExecutionEngineService
       );
       return;
     }
-    savedExecution.status = ExecutionStatus.FAILED;
-    const errMessage = error instanceof Error ? error.message : String(error);
-    if (error instanceof Error && error.stack) {
-      this.logger.error(
-        `Execution ${executionId} (rehydrated) failed: ${errMessage}`,
-        error.stack,
-      );
-    }
-    savedExecution.error = {
-      message: errMessage,
-      // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
-      // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
-      // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
-      // PR2a — ExecutionTimeLimitError(§8 active-running 타임아웃)도 동일 sentinel 경로.
-      ...(error instanceof ErrorPortFallbackError ||
-      error instanceof ExecutionTimeLimitError
-        ? { code: error.code }
-        : {}),
-    };
-    savedExecution.finishedAt = new Date();
-    savedExecution.durationMs =
-      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
-    await this.executionRepository.save(savedExecution);
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_FAILED,
-      {
-        status: ExecutionStatus.FAILED,
-        error: errMessage,
-      },
-    );
-    // 실행 실패 알림 발사 — 초기 세그먼트 실패(runExecution catch)와 동일하게, 재개
-    // 세그먼트에서 종결된 top-level 실패도 execution_failed 를 발사해야 한다. 재개
-    // 경로(rehydration)로 종결되는 실행이 일반적이므로 여기 누락 시 대부분의 실패가
-    // 알림 없이 지나간다 (spec/data-flow/8-notifications.md §1.1, dispatch 는 best-effort).
-    await this.dispatchExecutionFailedNotification(savedExecution, errMessage);
+    // 재개 세그먼트 종결 — 초기 세그먼트(runExecution catch)와 동일한 FAILED 종결 처리를
+    // 공유 헬퍼로 위임한다 (상태·error·save·EXECUTION_FAILED emit·execution_failed dispatch).
+    await this.finalizeFailedExecution(savedExecution, error, {
+      rehydrated: true,
+    });
   }
 
   /**
@@ -4416,51 +4385,71 @@ export class ExecutionEngineService
         return;
       }
 
-      // Mark execution as failed
-      savedExecution.status = ExecutionStatus.FAILED;
-      // WARN #7 (Security) — error.stack 은 파일 경로·모듈명·내부 구조를 노출하므로
-      // DB 에 저장하지 않는다. 디버깅이 필요한 stack 정보는 서버 로그로만 기록.
-      const errMessage = err instanceof Error ? err.message : String(err);
-      if (err instanceof Error && err.stack) {
-        this.logger.error(
-          `Execution ${savedExecution.id} failed: ${errMessage}`,
-          err.stack,
-        );
-      }
-      savedExecution.error = {
-        message: errMessage,
-        // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
-        // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
-        // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
-        // PR2a — ExecutionTimeLimitError(§8 active-running 타임아웃)도 동일 sentinel 경로.
-        ...(err instanceof ErrorPortFallbackError ||
-        err instanceof ExecutionTimeLimitError
-          ? { code: err.code }
-          : {}),
-      };
-      savedExecution.finishedAt = new Date();
-      savedExecution.durationMs =
-        savedExecution.finishedAt.getTime() -
-        savedExecution.startedAt.getTime();
-      await this.executionRepository.save(savedExecution);
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_FAILED,
-        {
-          status: ExecutionStatus.FAILED,
-          error: err instanceof Error ? err.message : String(err),
-        },
-      );
-      await this.dispatchExecutionFailedNotification(
-        savedExecution,
-        errMessage,
-      );
+      // 초기 세그먼트 종결 — 재개 세그먼트(finalizeResumedExecutionOutcome)와 동일한 FAILED
+      // 종결 처리를 공유 헬퍼로 위임한다 (상태·error·save·EXECUTION_FAILED emit·execution_failed dispatch).
+      await this.finalizeFailedExecution(savedExecution, err);
     } finally {
       // exec-park D6 full B3 — park 가 세그먼트를 종료하므로 firstSegmentBarriers /
       // pendingContinuations 정리가 불필요하다. in-memory context / llm 캐시만 정리.
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
     }
+  }
+
+  /**
+   * top-level 실행을 FAILED 로 종결하는 공통 처리. **초기 세그먼트**(`runExecution` catch)와
+   * **재개 세그먼트**(`finalizeResumedExecutionOutcome`)가 공유한다 — 상태 마킹 · error 봉인
+   * (§1.4 sentinel code 보존) · `finished_at`/`duration` · DB save · `EXECUTION_FAILED` WS emit ·
+   * `execution_failed` 알림 dispatch(§1.1) 를 일원화한다.
+   *
+   * 근거: 두 종결 경로가 near-identical 블록을 각자 보유해, PR #841 에서 재개 경로에만 dispatch 가
+   * 누락돼 `execution_failed` 가 사실상 미발사되던 버그가 있었다. 단일 헬퍼로 모아 "한쪽만 갱신"
+   * 재발을 구조적으로 막는다. in-memory context/캐시 정리는 경로별로 상이하므로 호출자 finally 가 유지한다.
+   */
+  private async finalizeFailedExecution(
+    savedExecution: Execution,
+    error: unknown,
+    opts: { rehydrated?: boolean } = {},
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    savedExecution.status = ExecutionStatus.FAILED;
+    // WARN #7 (Security) — error.stack 은 파일 경로·모듈명·내부 구조를 노출하므로 DB 에 저장하지
+    // 않는다. 디버깅용 stack 은 서버 로그로만 기록.
+    const errMessage = error instanceof Error ? error.message : String(error);
+    if (error instanceof Error && error.stack) {
+      this.logger.error(
+        `Execution ${executionId}${
+          opts.rehydrated ? ' (rehydrated)' : ''
+        } failed: ${errMessage}`,
+        error.stack,
+      );
+    }
+    savedExecution.error = {
+      message: errMessage,
+      // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error 의 우발적 `.code`
+      // 가 Execution.error 로 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
+      // ExecutionTimeLimitError(§8 active-running 타임아웃)도 동일 sentinel 경로.
+      ...(error instanceof ErrorPortFallbackError ||
+      error instanceof ExecutionTimeLimitError
+        ? { code: error.code }
+        : {}),
+    };
+    savedExecution.finishedAt = new Date();
+    savedExecution.durationMs =
+      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+    await this.executionRepository.save(savedExecution);
+    await this.eventEmitter.emitExecution(
+      executionId,
+      ExecutionEventType.EXECUTION_FAILED,
+      {
+        status: ExecutionStatus.FAILED,
+        error: errMessage,
+      },
+    );
+    // 실행 실패 알림 발사 — 초기/재개 세그먼트 어느 쪽으로 종결되든 top-level 실패는
+    // execution_failed 를 발사해야 한다(재개 경로 종결이 일반적이라 누락 시 대부분의 실패가
+    // 알림 없이 지나감, spec/data-flow/8-notifications.md §1.1, dispatch 는 best-effort).
+    await this.dispatchExecutionFailedNotification(savedExecution, errMessage);
   }
 
   /**
