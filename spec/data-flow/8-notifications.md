@@ -334,7 +334,8 @@ emit 은 점 표기 이벤트 type (`notification.new`) 과 `notifications:<user
 1. `dispatchEmail`→`MailService.sendWorkspaceInvitationEmail` — **수락 토큰을 담은 초대 링크 이메일**.
    subject `Clemvion - "<ws>" 워크스페이스 초대`, CTA "초대 수락하기" → `/auth/register?invitationToken=…`.
    기존 가입자도 이 링크로 로그인·이메일 일치가 감지되어 accept 흐름으로 분기한다
-   ([`spec/5-system/1-auth.md §1.5.2`](../5-system/1-auth.md)).
+   ([`spec/5-system/1-auth.md §1.5.3`](../5-system/1-auth.md) — 이미 가입한 사용자가 다른
+   워크스페이스에 초대된 경우의 흐름).
 2. `dispatchTeamInviteNotification`→`team_invite` 알림 record — 벨(in_app) + (channel 이 `email`/`both`
    이면) `MailService.sendNotificationEmail`. 후자는 **토큰 없는 범용 알림 템플릿**으로 subject 는
    title(`워크스페이스 초대`), CTA 는 "알림 보기" → `/dashboard` 다.
