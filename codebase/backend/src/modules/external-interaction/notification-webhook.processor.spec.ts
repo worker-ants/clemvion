@@ -180,7 +180,9 @@ describe('NotificationWebhookProcessor.process', () => {
     expect(outboundRateLimiter.consume).toHaveBeenCalledWith('trg-1');
     const update = triggerRepo.update.mock.calls.at(-1);
     expect(update?.[1].notificationHealth).toBe('degraded');
-    expect(update?.[1].notificationLastError).toContain('Outbound rate exceeded');
+    expect(update?.[1].notificationLastError).toContain(
+      'Outbound rate exceeded',
+    );
   });
 
   it('HMAC 헤더 — 발신 서명을 검증 헬퍼로 verify 통과', async () => {

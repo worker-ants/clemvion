@@ -41,7 +41,11 @@ function makeSvc(redis: Redis | null): OutboundNotificationRateLimiterService {
 describe('OutboundNotificationRateLimiterService', () => {
   it('한도(60/분) 이내는 exceeded=false, 초과(61번째)는 true', async () => {
     const svc = makeSvc(makeFakeRedis());
-    for (let i = 0; i < OutboundNotificationRateLimiterService.LIMIT_PER_MINUTE; i++) {
+    for (
+      let i = 0;
+      i < OutboundNotificationRateLimiterService.LIMIT_PER_MINUTE;
+      i++
+    ) {
       expect(await svc.consume('trg-1')).toBe(false);
     }
     expect(await svc.consume('trg-1')).toBe(true); // 61번째 초과
@@ -49,7 +53,11 @@ describe('OutboundNotificationRateLimiterService', () => {
 
   it('trigger 별 독립 카운트', async () => {
     const svc = makeSvc(makeFakeRedis());
-    for (let i = 0; i < OutboundNotificationRateLimiterService.LIMIT_PER_MINUTE; i++) {
+    for (
+      let i = 0;
+      i < OutboundNotificationRateLimiterService.LIMIT_PER_MINUTE;
+      i++
+    ) {
       await svc.consume('trg-1');
     }
     expect(await svc.consume('trg-1')).toBe(true);
