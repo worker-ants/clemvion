@@ -590,4 +590,27 @@ describe("SchedulesPage — inbound ?triggerId= deep-link (Spec §2.1)", () => {
     await screen.findByText("Daily");
     expect(screen.queryByTestId("schedule-focused-row")).toBeNull();
   });
+
+  it("does not blank-match a trigger-less schedule when ?triggerId= is empty", async () => {
+    // Guards `!!focusTriggerId`: an empty param ("") must not match a schedule
+    // whose triggerId is also "" (no linked trigger).
+    currentSearchParams = new URLSearchParams("triggerId=");
+    mockSchedulesResponse({
+      data: [
+        {
+          id: "s1",
+          cronExpression: "0 9 * * *",
+          timezone: "UTC",
+          isActive: true,
+          // No `trigger` → mapSchedule sets triggerId = "".
+          name: "Orphan",
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+
+    await screen.findByText("Orphan");
+    expect(screen.queryByTestId("schedule-focused-row")).toBeNull();
+  });
 });
