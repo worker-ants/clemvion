@@ -4,10 +4,7 @@ import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { WsErrorCode } from './ws-error-codes';
 
-function makeCtx(
-  type: 'ws' | 'http',
-  clientId = 'sock-1',
-): ExecutionContext {
+function makeCtx(type: 'ws' | 'http', clientId = 'sock-1'): ExecutionContext {
   return {
     getType: () => type,
     switchToWs: () => ({

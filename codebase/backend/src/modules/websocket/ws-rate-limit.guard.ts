@@ -25,7 +25,8 @@ export class WsRateLimitGuard implements CanActivate {
     if (!this.limiter.consume(client.id)) {
       throw new WsException({
         code: WsErrorCode.RATE_LIMITED,
-        message: 'WS 명령 빈도 제한(분당 60건)을 초과했습니다. 잠시 후 다시 시도해 주세요.',
+        message:
+          'WS 명령 빈도 제한(분당 60건)을 초과했습니다. 잠시 후 다시 시도해 주세요.',
       });
     }
     return true;
