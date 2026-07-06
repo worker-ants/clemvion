@@ -561,6 +561,53 @@ describe('NotificationsService — dismiss', () => {
       expect(repo.update).not.toHaveBeenCalledWith('n-2', expect.any(Object));
     });
 
+    it('createMany — 동일 userId 다중 email 알림 모두 해당 이메일로 발송', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        savedRow({ id: 'n-1', userId: 'u-1', channel: 'email', title: 'a' }),
+        savedRow({ id: 'n-2', userId: 'u-1', channel: 'both', title: 'b' }),
+      ]);
+      // In(userIds) 는 u-1 하나로 dedup 되지만 두 알림 모두 발송돼야 한다.
+      userRepo.find.mockResolvedValue([{ id: 'u-1', email: 'u1@x.com' }]);
+
+      await service.createMany([
+        {
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 't',
+          title: 'a',
+          message: 'm',
+          channel: 'email',
+        },
+        {
+          workspaceId: 'ws',
+          userId: 'u-1',
+          type: 't',
+          title: 'b',
+          message: 'm',
+          channel: 'both',
+        },
+      ]);
+
+      expect(userRepo.find).toHaveBeenCalledTimes(1);
+      expect((userRepo.find.mock.calls[0][0] as any).where.id._value).toEqual([
+        'u-1',
+      ]);
+      expect(mail.sendNotificationEmail).toHaveBeenCalledTimes(2);
+      expect(mail.sendNotificationEmail).toHaveBeenNthCalledWith(
+        1,
+        'u1@x.com',
+        expect.objectContaining({ title: 'a' }),
+      );
+      expect(mail.sendNotificationEmail).toHaveBeenNthCalledWith(
+        2,
+        'u1@x.com',
+        expect.objectContaining({ title: 'b' }),
+      );
+      expect(repo.update).toHaveBeenCalledWith('n-1', expect.any(Object));
+      expect(repo.update).toHaveBeenCalledWith('n-2', expect.any(Object));
+    });
+
     it('createMany — 배치 중 1건 발송 실패 시 나머지는 계속 (부분 실패 격리)', async () => {
       repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
       repo.save.mockResolvedValue([
