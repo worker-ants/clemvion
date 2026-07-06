@@ -36,10 +36,28 @@ owner: developer
 - [x] `background-monitoring.e2e-spec.ts` — assertion 갱신 (workflow/workflowId + background_run_id) [작성; TEST WORKFLOW 에서 검증]
 - [x] spec-update draft `spec-update-notifications-background-run-id.md` (§2.1/§2.19/§1.1/Rationale + 12-background §8.2) → planner 위임
 
-## 항목 2 — execution_failed 통합 e2e
+## 항목 2 — execution_failed 통합 e2e (+ e2e 가 적발한 선존 PR3 버그 2건 수정)
+
+> **핵심 성과**: 신규 e2e 가 `execution_failed` 가 **실제로는 전혀 발사되지 않던** 선존 결함 2건을 적발.
+> unit 화이트박스(mock)만 있어 그동안 은폐돼 있었다. 실 인프라 e2e 로 격리 후 근인 진단(격리 docker
+> 컨테이너 backend 로그 계측)·수정.
+>
+> **버그 A — 재개 세그먼트 실패 경로 dispatch 누락**: 일반 실행은 대부분 rehydration(재개) 세그먼트로
+> 종결되며 그 종결 핸들러 `finalizeResumedExecutionOutcome` 가 FAILED 마킹만 하고
+> `dispatchExecutionFailedNotification` 를 호출하지 않았다 (PR3 는 초기 세그먼트 `runExecution` catch 에만
+> dispatch 배선). → `finalizeResumedExecutionOutcome` FAILED 분기에 dispatch 추가 (초기 세그먼트와 동일).
+>
+> **버그 B — notificationsService @Optional undefined**: `ExecutionEngineService` 는 WebsocketModule 등과
+> forwardRef 순환 그래프라 NotificationsModule 보다 먼저 인스턴스화 → 생성자 `@Optional NotificationsService`
+> 가 **undefined** 로 남아 dispatch 가 guard 에서 항상 no-op. (background processor 는 비-optional·후행
+> 인스턴스화라 정상 → `background_failed` 는 발사됐음.) → `getNotificationsService()` 가 ModuleRef(strict:false)
+> 로 런타임 지연 해석하도록 수정 (notifications.service.ts 가 WebsocketService 를 푸는 것과 동일 패턴).
+>
+> 두 버그 모두 e2e 없이는 검출 불가였다 — 항목 2 의 실질 가치.
 
 - [x] impl-prep (동일 area, 항목1과 공유)
-- [x] 신규 e2e `execution-failed-notification.e2e-spec.ts` 작성 [TEST WORKFLOW 에서 검증]:
+- [x] 버그 A/B 수정 (`execution-engine.service.ts`) + 진단 계측 제거
+- [x] 신규 e2e `execution-failed-notification.e2e-spec.ts` 작성 [TEST WORKFLOW 에서 검증, 격리 실행 2/2 pass 확인]:
   - Test1: top-level 실행 실패(manual_trigger→code syntax error) → `execution_failed` **정확히 1건**
     (owner==executor dedup), resource_type='workflow'/resource_id=workflowId, channel='both', resource_id≠executionId.
   - Test2: Background 본문 실패(메인 격리 완료) → `background_failed` 만 발사, 같은 workflow 의 `execution_failed` **0건**.

@@ -262,6 +262,10 @@ export class NotificationsService {
    * preference 확인·channel 계산은 현행 설계상 호출자 책임이며(spec §1 표), 본 표면은
    * 적재 + 실시간 push({@link emitNew}) + `channel ∈ {email, both}` 시 이메일 발송
    * ({@link dispatchEmails}, best-effort)을 담당한다.
+   *
+   * `resourceType`/`resourceId` 는 팝오버 딥링크 계약(`_layout.md §3.1`)의 라우팅 키다.
+   * `backgroundRunId` 는 그와 분리된 per-run attribution 전용(background_failed 만 사용,
+   * REST 미노출 — migration V107, {@link findByBackgroundRun}).
    */
   async notify(entry: {
     workspaceId: string;
@@ -295,6 +299,8 @@ export class NotificationsService {
   /**
    * Persist a batch of notifications in a single INSERT. Safe against empty
    * arrays (no-op). Used by background workers that fan out to many users.
+   * 엔트리별 `resourceType`/`resourceId` 는 딥링크 라우팅 키, `backgroundRunId` 는
+   * 분리된 per-run attribution 전용(background_failed, REST 미노출 — V107).
    * 저장된 각 row 에 대해 `notification.new` WS emit — 기존 배치 호출자
    * (background/alerts/integration) 도 실시간 push 를 확보한다 (spec §1·§2.2).
    */

@@ -290,6 +290,81 @@ describe('NotificationsService — dismiss', () => {
     });
   });
 
+  describe('findByBackgroundRun — background_run_id 기준 attribution (V107)', () => {
+    it('background_run_id WHERE + createdAt ASC 로 조회한다', async () => {
+      const rows = [{ id: 'n1', type: 'background_failed' }];
+      repo.find.mockResolvedValue(rows);
+
+      const result = await service.findByBackgroundRun('bg-run-1');
+
+      expect(repo.find).toHaveBeenCalledWith({
+        where: { backgroundRunId: 'bg-run-1' },
+        order: { createdAt: 'ASC' },
+      });
+      expect(result).toBe(rows);
+    });
+  });
+
+  describe('backgroundRunId attribution 세팅 (V107)', () => {
+    it('notify — backgroundRunId 를 딥링크(resource*)와 함께 저장 row 에 반영', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      let savedRow: any;
+      repo.save.mockImplementation((r: any) => {
+        savedRow = r;
+        return Promise.resolve({ id: 'n1', ...r });
+      });
+
+      await service.notify({
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        type: 'background_failed',
+        title: 't',
+        message: 'm',
+        resourceType: 'workflow',
+        resourceId: 'wf-1',
+        backgroundRunId: 'bg-run-1',
+      });
+
+      expect(savedRow.resourceType).toBe('workflow');
+      expect(savedRow.resourceId).toBe('wf-1');
+      expect(savedRow.backgroundRunId).toBe('bg-run-1');
+    });
+
+    it('createMany — 엔트리별 backgroundRunId 반영, 부재 시 미설정', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      let savedRows: any[] = [];
+      repo.save.mockImplementation((rows: any[]) => {
+        savedRows = rows;
+        return Promise.resolve(rows.map((r, i) => ({ id: `n${i}`, ...r })));
+      });
+
+      await service.createMany([
+        {
+          workspaceId: 'ws-1',
+          userId: 'u1',
+          type: 'background_failed',
+          title: 't',
+          message: 'm',
+          resourceType: 'workflow',
+          resourceId: 'wf-1',
+          backgroundRunId: 'bg-1',
+        },
+        {
+          workspaceId: 'ws-1',
+          userId: 'u2',
+          type: 'execution_failed',
+          title: 't',
+          message: 'm',
+          resourceType: 'workflow',
+          resourceId: 'wf-1',
+        },
+      ]);
+
+      expect(savedRows[0].backgroundRunId).toBe('bg-1');
+      expect(savedRows[1].backgroundRunId).toBeUndefined();
+    });
+  });
+
   describe('createMany — 저장 후 per-row WS emit (spec §1·§2.2)', () => {
     it('빈 배열은 no-op — save·emit 모두 미호출', async () => {
       await service.createMany([]);

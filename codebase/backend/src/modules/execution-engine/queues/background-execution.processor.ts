@@ -41,7 +41,9 @@ function sanitizeErrorMessage(err: unknown): string {
  *
  * Job을 받아 ExecutionEngineService에 위임해 본문 서브그래프를 실행한다.
  * 실패는 메인 워크플로우와 격리 — 실패가 메인 Execution status를 바꾸지 않으며,
- * `notifyOnFailure`가 true면 워크스페이스 Admin에게 인앱 알림을 보낸다.
+ * `notifyOnFailure`가 true면 워크스페이스 Admin에게 인앱 알림(`background_failed`)을 보낸다.
+ * 이 알림은 딥링크(resource_type/resource_id=workflow)와 per-run attribution
+ * (`background_run_id` 컬럼, V107)을 분리해 적재한다 — `dispatchFailureNotification` 참조.
  *
  * WS 이벤트 (`background:run:<id>` 채널):
  *  - `execution.background_run.started`   — process() 진입 직후

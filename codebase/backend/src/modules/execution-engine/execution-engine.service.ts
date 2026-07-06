@@ -7,6 +7,7 @@ import {
   Optional,
   forwardRef,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, LessThan, Repository } from 'typeorm';
 import {
@@ -677,12 +678,38 @@ export class ExecutionEngineService
     // Retry→engine(ENGINE_DRIVER) 만 유지. AiTurn/Form/Button 은 dispatch-loop·
     // resume-registry 가 그래프 순회 중 위임하므로 forwardRef 양방향 유지.
     // 실행 실패 시 execution_failed 알림 발사 (spec/data-flow/8-notifications.md §1.1).
-    // @Optional — 프로덕션은 execution-engine.module 이 NotificationsModule 을 import 하므로
-    // 항상 주입된다. 본 서비스의 방대한 기존 TestingModule 셋업(4곳)이 각자 mock provider 를
-    // 추가하지 않아도 되도록 optional 로 두고, 미주입 시 dispatch 는 no-op(guard).
+    // @Optional — 방대한 기존 TestingModule 셋업(4곳)이 mock provider 를 추가하지 않아도
+    // 되도록 optional. **주의**: 본 서비스는 WebsocketModule 등과 forwardRef 순환 그래프에
+    // 속해 NotificationsModule 보다 먼저 인스턴스화될 수 있어, 생성자 @Optional 주입이
+    // undefined 로 남는다(과거 execution_failed 미발사 버그의 근인). 따라서 실제 사용 시엔
+    // {@link getNotificationsService} 가 ModuleRef(strict:false)로 런타임 지연 해석한다.
     @Optional()
     private readonly notificationsService?: NotificationsService,
+    @Optional()
+    private readonly moduleRef?: ModuleRef,
   ) {}
+
+  private resolvedNotificationsService?: NotificationsService | null;
+
+  /**
+   * NotificationsService 를 안전하게 해석한다. 생성자 @Optional 주입이 순환 그래프
+   * 인스턴스화 순서로 undefined 인 경우를 대비해 ModuleRef(strict:false)로 지연 해석하고
+   * 결과를 캐시한다. 어느 경로로도 못 찾으면 undefined → 호출부가 no-op 한다.
+   */
+  private getNotificationsService(): NotificationsService | undefined {
+    if (this.notificationsService) return this.notificationsService;
+    if (this.resolvedNotificationsService !== undefined) {
+      return this.resolvedNotificationsService ?? undefined;
+    }
+    let svc: NotificationsService | undefined;
+    try {
+      svc = this.moduleRef?.get(NotificationsService, { strict: false });
+    } catch {
+      svc = undefined;
+    }
+    this.resolvedNotificationsService = svc ?? null;
+    return svc;
+  }
 
   /**
    * perf #14 — 실행 경로마다 재조회되던 정적 env 2종의 read-once 캐시.
@@ -2473,6 +2500,11 @@ export class ExecutionEngineService
         error: errMessage,
       },
     );
+    // 실행 실패 알림 발사 — 초기 세그먼트 실패(runExecution catch)와 동일하게, 재개
+    // 세그먼트에서 종결된 top-level 실패도 execution_failed 를 발사해야 한다. 재개
+    // 경로(rehydration)로 종결되는 실행이 일반적이므로 여기 누락 시 대부분의 실패가
+    // 알림 없이 지나간다 (spec/data-flow/8-notifications.md §1.1, dispatch 는 best-effort).
+    await this.dispatchExecutionFailedNotification(savedExecution, errMessage);
   }
 
   /**
@@ -4435,7 +4467,8 @@ export class ExecutionEngineService
     message: string,
   ): Promise<void> {
     if (execution.parentExecutionId) return;
-    if (!this.notificationsService) return;
+    const notificationsService = this.getNotificationsService();
+    if (!notificationsService) return;
     try {
       const workflow = await this.workflowRepository.findOne({
         where: { id: execution.workflowId },
@@ -4449,7 +4482,7 @@ export class ExecutionEngineService
         ),
       ];
       if (recipients.length === 0) return;
-      await this.notificationsService.createMany(
+      await notificationsService.createMany(
         recipients.map((userId) => ({
           workspaceId: workflow.workspaceId,
           userId,

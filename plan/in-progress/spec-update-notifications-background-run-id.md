@@ -33,6 +33,9 @@ owner: planner
       명시 (딥링크=workflow, attribution=background_run_id) — `execution_failed`/`schedule_failed` 행과 대칭.
 - [ ] `spec/data-flow/8-notifications.md` Rationale — "딥링크와 attribution 을 별도 컬럼으로 분리한 이유"
       항 추가 (option b [href.ts background_run 라우팅] 기각 근거 포함: backgroundRunId 단독 주소지정 불가).
+      **backfill 없음 명시**: V107 이전 적재된 `background_failed` row 는 resource_type='background_run'/
+      background_run_id=NULL 상태로 남아 backfill 하지 않는다 — 배포 이전 알림은 background-runs 모니터링
+      API(`fetchNotifications`)의 attribution 범위 밖(과거 알림은 이미 소비됐고 소급 표시 가치 낮음, 의도된 trade-off).
 - [ ] `spec/1-data-model.md §2.19` — Notification 필드 표에 `background_run_id UUID?` 행 추가.
 - [ ] `spec/4-nodes/1-logic/12-background.md §8.2` — 모니터링 API 응답 `notifications` 필드 설명이
       attribution 을 `background_run_id` 기준으로 서술하도록 갱신 (구 resource_type='background_run' 서술 정정).
