@@ -45,6 +45,7 @@ import {
   type TriggerListParams,
   type CreateTriggerBody,
 } from "@/lib/api/triggers";
+import { useSearchParams } from "next/navigation";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { getWebhookUrl } from "@/lib/utils/webhook-url";
 import { useT, type TranslationKey } from "@/lib/i18n";
@@ -157,7 +158,13 @@ export default function TriggersPage() {
   const t = useT();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
+  // [Spec §2.3] 스케줄 목록의 "트리거에서 보기"(→ `/triggers?triggerId=…`) 딥링크로
+  // 진입하면 해당 트리거 상세 drawer 를 바로 연다. 마운트 시 1회 URL 파라미터를
+  // 초기 selection 으로 소비한다(이후 사용자 조작은 URL 과 독립).
+  const searchParams = useSearchParams();
+  const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(
+    () => searchParams.get("triggerId"),
+  );
   const [showDialog, setShowDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TriggerDeleteTarget | null>(
     null,

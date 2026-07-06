@@ -28,8 +28,19 @@ vi.mock("@/lib/api/client", () => ({
   },
 }));
 
+// Renders a marker only while open so tests can assert which trigger the drawer
+// was opened for (deep-link) without pulling in the real drawer's data fetching.
 vi.mock("@/components/triggers/trigger-detail-drawer", () => ({
-  TriggerDetailDrawer: () => null,
+  TriggerDetailDrawer: ({
+    open,
+    triggerId,
+  }: {
+    open: boolean;
+    triggerId: string | null;
+  }) =>
+    open ? (
+      <div data-testid="trigger-detail-drawer" data-trigger-id={triggerId ?? ""} />
+    ) : null,
 }));
 
 // INFO-14: TriggerHistoryDialog mock — 페이지 테스트 격리성 확보.
@@ -297,5 +308,40 @@ describe("TriggersPage — auth column", () => {
     await screen.findByText("Hook A");
     expect(await screen.findByText("Configured")).toBeInTheDocument();
     expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
+  });
+});
+
+describe("TriggersPage — inbound ?triggerId= deep-link (Spec §2.3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
+    cleanup();
+  });
+
+  it("opens the detail drawer for the trigger named in ?triggerId= on landing", async () => {
+    // Deep-link from the schedule list's "트리거에서 보기" (→ /triggers?triggerId=…).
+    currentSearchParams = new URLSearchParams("triggerId=trg-42");
+    mockTriggersResponse({
+      data: [],
+      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    const drawer = await screen.findByTestId("trigger-detail-drawer");
+    expect(drawer).toHaveAttribute("data-trigger-id", "trg-42");
+  });
+
+  it("does not open the drawer when no ?triggerId= is present", async () => {
+    mockTriggersResponse({
+      data: [],
+      pagination: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // The drawer's open state is derived synchronously from the URL param at
+    // mount, so absence is observable right after the initial render.
+    expect(screen.queryByTestId("trigger-detail-drawer")).toBeNull();
   });
 });
