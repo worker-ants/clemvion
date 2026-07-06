@@ -31,6 +31,10 @@ export const workflows = {
     aria: "폴더 필터",
     all: "전체 폴더",
   },
+  tagFilter: {
+    aria: "태그 필터",
+    placeholder: "태그로 필터",
+  },
   columns: {
     name: "이름",
     status: "상태",

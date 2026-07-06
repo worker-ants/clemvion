@@ -16,6 +16,7 @@ import {
   Upload,
   History,
   Users,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { workflowsApi, type WorkflowData } from "@/lib/api/workflows";
@@ -88,6 +89,11 @@ export default function WorkflowsPage() {
   const [ownership, setOwnership] = useState<Ownership>("all");
   // spec/2-navigation/1-workflow-list.md §2.3 — 폴더 필터. 빈 문자열 = 전체(미송신).
   const [folderId, setFolderId] = useState<string>("");
+  // spec/2-navigation/1-workflow-list.md §2.3 + Rationale §4 — 단일 태그 필터.
+  // 서버 `?tag=` 단일 계약(`= ANY(tags)`)에 맞춘 free-text. 검색과 동일하게
+  // debounce 하며 빈 문자열 = 전체(미송신).
+  const [tagFilter, setTagFilter] = useState("");
+  const [debouncedTag, setDebouncedTag] = useState("");
   const { page, setPage } = usePageParam();
   // spec/2-navigation/1-workflow-list.md §2.1 + Rationale §1 — 팀 워크스페이스에 속한
   // 모든 워크플로우는 "Shared" 로 본다. 개인 워크스페이스에서는 배지를 표시하지 않는다.
@@ -131,6 +137,15 @@ export default function WorkflowsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // §2.3 태그 필터도 검색과 동일하게 debounce 하고, 확정 시 page 를 리셋한다.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTag(tagFilter);
+      setPageRef.current(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [tagFilter]);
+
   // Close menu on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -162,6 +177,7 @@ export default function WorkflowsPage() {
       ownership,
       sortKey,
       folderId,
+      debouncedTag,
       page,
     ],
     queryFn: async () => {
@@ -188,6 +204,10 @@ export default function WorkflowsPage() {
       }
       // §2.3 폴더 필터 — 선택 시 `?folderId=`. 빈 값(전체)은 미송신.
       if (folderId) params.folderId = folderId;
+      // §2.3 태그 필터 — 입력 시 `?tag=` 단일값. 빈 값(전체)은 미송신.
+      // 검색 필터와 동일하게 trim 하지 않는다 — 공백-only 입력은 서버 `= ANY(tags)`
+      // 에서 안전하게 0건으로 수렴하며, 두 텍스트 필터의 동작을 일관되게 유지한다.
+      if (debouncedTag) params.tag = debouncedTag;
 
       const { data } = await workflowsApi.list(params);
       const { items, totalItems } = normalizePagedResponse<WorkflowData>(
@@ -363,6 +383,7 @@ export default function WorkflowsPage() {
     filter !== "all" ||
     sortKey !== "created" ||
     folderId !== "" ||
+    !!debouncedTag ||
     (isTeamWorkspace && ownership !== "all");
 
   function handleResetFilters() {
@@ -371,6 +392,8 @@ export default function WorkflowsPage() {
     setOwnership("all");
     setSortKey("created");
     setFolderId("");
+    setTagFilter("");
+    setDebouncedTag("");
     setPage(1);
   }
 
@@ -449,6 +472,20 @@ export default function WorkflowsPage() {
               </option>
             ))}
           </NativeSelect>
+        </div>
+        <div className="relative w-44">
+          <Tag
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+            aria-hidden
+          />
+          <Input
+            aria-label={t("workflows.tagFilter.aria")}
+            placeholder={t("workflows.tagFilter.placeholder")}
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className="pl-9"
+            data-testid="workflow-tag-filter"
+          />
         </div>
         {folders.length > 0 && (
           <div className="w-44">

@@ -674,3 +674,136 @@ describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
     );
   });
 });
+
+describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders the tag filter input", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+    expect(screen.getByTestId("workflow-tag-filter")).toBeInTheDocument();
+  });
+
+  it("sends ?tag=<value> (debounced) on the first page when a tag is typed", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: ["sales"] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.type(screen.getByTestId("workflow-tag-filter"), "sales");
+
+    // The 300ms debounce fires within waitFor's window, then the query re-runs
+    // carrying tag=sales.
+    await vi.waitFor(() => {
+      const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+        | Record<string, string>
+        | undefined;
+      expect(lastParams?.tag).toBe("sales");
+    });
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string>
+      | undefined;
+    // Documents the emitted first-page param. Like the folder-filter test, this
+    // mock's searchParams is static (the next/navigation router.replace is a
+    // no-op), so page stays 1 regardless of setPage — this asserts the emitted
+    // value, not a live 2→1 reset transition.
+    expect(String(lastParams?.page)).toBe("1");
+  });
+
+  it("omits tag on the empty (default) input", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    const firstCallParams = listSpy.mock.calls[0]?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(firstCallParams?.tag).toBeUndefined();
+  });
+
+  it("currently sends a whitespace-only tag as-is (no trimming, matching the search filter)", async () => {
+    // Pins the intentional no-trim behavior: like search, a whitespace-only
+    // entry is sent verbatim (server `= ANY(tags)` safely yields 0 rows) and
+    // counts as an active filter. If trimming is ever added, this test flips.
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.type(screen.getByTestId("workflow-tag-filter"), "   ");
+
+    await vi.waitFor(() => {
+      const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+        | Record<string, string>
+        | undefined;
+      expect(lastParams?.tag).toBe("   ");
+    });
+    // Whitespace-only still flips hasActiveFilters → reset CTA is shown.
+    expect(
+      await screen.findByRole("button", { name: /Reset Filters/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("treats a typed tag as an active filter and clears it on reset", async () => {
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // No filters yet → create CTA.
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+
+    await userEvent.type(screen.getByTestId("workflow-tag-filter"), "sales");
+
+    // Once the debounce promotes the tag, hasActiveFilters flips → reset CTA.
+    const resetBtn = await screen.findByRole("button", {
+      name: /Reset Filters/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+
+    await userEvent.click(resetBtn);
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+    expect(
+      (screen.getByTestId("workflow-tag-filter") as HTMLInputElement).value,
+    ).toBe("");
+  });
+});

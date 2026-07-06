@@ -31,6 +31,10 @@ export const workflows: Dict["workflows"] = {
     aria: "Folder filter",
     all: "All folders",
   },
+  tagFilter: {
+    aria: "Filter by tag",
+    placeholder: "Filter by tag",
+  },
   columns: {
     name: "Name",
     status: "Status",
