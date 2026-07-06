@@ -23,6 +23,8 @@ export function CanvasMinimap() {
     <>
       <Panel
         position="bottom-right"
+        // When the minimap is shown, lift the toggle above it: the minimap is
+        // ~150px tall (@xyflow default) + its ~8px bottom offset + a small gap.
         className={visible ? "mb-[168px]" : ""}
       >
         <Button

@@ -17,6 +17,16 @@ export const MAX_ZOOM = 2;
 const MIN_ZOOM_PERCENT = Math.round(MIN_ZOOM * 100);
 const MAX_ZOOM_PERCENT = Math.round(MAX_ZOOM * 100);
 
+/** Slider granularity in percentage points. */
+const ZOOM_STEP = 5;
+
+/**
+ * Shared `fitView` options so every Fit affordance (this overlay's Fit button,
+ * the canvas's `onInit`, and the `fit-view` context-menu action) frames the
+ * graph identically. Exported alongside the zoom bounds as the single source.
+ */
+export const FIT_VIEW_OPTIONS = { padding: 0.2 } as const;
+
 /**
  * Bottom-left overlay: zoom out/in buttons, a zoom-level slider + live percent
  * readout, and Fit. Spec §6 / §3.1 — the slider and percent were previously
@@ -54,7 +64,7 @@ export function ZoomControls() {
         type="range"
         min={MIN_ZOOM_PERCENT}
         max={MAX_ZOOM_PERCENT}
-        step={5}
+        step={ZOOM_STEP}
         value={sliderPercent}
         onChange={(e) => zoomTo(Number(e.target.value) / 100, { duration: 0 })}
         aria-label={t("common.aria.zoomLevel")}
@@ -80,7 +90,7 @@ export function ZoomControls() {
         variant="outline"
         size="icon"
         className="h-8 w-8"
-        onClick={() => fitView({ padding: 0.2 })}
+        onClick={() => fitView(FIT_VIEW_OPTIONS)}
         aria-label={t("common.aria.fitToView")}
       >
         <Maximize size={14} aria-hidden="true" />

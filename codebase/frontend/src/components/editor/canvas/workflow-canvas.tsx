@@ -42,9 +42,9 @@ import { HasDefaultLlmConfigProvider } from "./has-default-llm-config-context";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
-import { ZoomControls, MIN_ZOOM, MAX_ZOOM } from "./zoom-controls";
+import { ZoomControls, MIN_ZOOM, MAX_ZOOM, FIT_VIEW_OPTIONS } from "./zoom-controls";
 import { CanvasMinimap } from "./canvas-minimap";
-import { isWorkflowEmpty } from "@/lib/node-definitions/is-trigger";
+import { isWorkflowEmpty, isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { useT, useLocale } from "@/lib/i18n";
 import {
   translateNodeCategory,
@@ -190,7 +190,7 @@ export function WorkflowCanvas() {
   const canDeleteNode = useCallback(
     (nodeId: string) => {
       const node = nodes.find((n) => n.id === nodeId);
-      return node?.data?.type !== "manual_trigger";
+      return isNodeDeletable((node?.data as { type?: string })?.type);
     },
     [nodes],
   );
@@ -396,7 +396,7 @@ export function WorkflowCanvas() {
           );
           break;
         case "fit-view":
-          reactFlowInstance.current?.fitView({ padding: 0.2 });
+          reactFlowInstance.current?.fitView(FIT_VIEW_OPTIONS);
           break;
       }
       setCanvasContextMenu(null);
@@ -500,7 +500,7 @@ export function WorkflowCanvas() {
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
     reactFlowInstance.current = instance;
-    instance.fitView({ padding: 0.2 });
+    instance.fitView(FIT_VIEW_OPTIONS);
   }, []);
 
   const defaultEdgeOptions = useMemo(

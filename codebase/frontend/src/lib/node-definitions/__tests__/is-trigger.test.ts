@@ -3,6 +3,7 @@ import type { Node } from "@xyflow/react";
 import {
   findFirstTriggerNode,
   hasOnlyTriggerNodes,
+  isNodeDeletable,
   isTriggerNode,
   isWorkflowEmpty,
 } from "../is-trigger";
@@ -76,6 +77,23 @@ describe("isWorkflowEmpty", () => {
     expect(
       isWorkflowEmpty([node("1", { category: "logic", type: "if_else" })]),
     ).toBe(false);
+  });
+});
+
+describe("isNodeDeletable", () => {
+  it("manual_trigger 는 삭제 불가", () => {
+    expect(isNodeDeletable("manual_trigger")).toBe(false);
+  });
+
+  it("다른 트리거(웹훅·스케줄)와 일반 노드는 삭제 가능", () => {
+    expect(isNodeDeletable("webhook_trigger")).toBe(true);
+    expect(isNodeDeletable("schedule_trigger")).toBe(true);
+    expect(isNodeDeletable("if_else")).toBe(true);
+    expect(isNodeDeletable("ai_agent")).toBe(true);
+  });
+
+  it("type 이 undefined 면 삭제 가능(permissive)", () => {
+    expect(isNodeDeletable(undefined)).toBe(true);
   });
 });
 

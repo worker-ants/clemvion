@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 캔버스 미니맵·줌 슬라이더/퍼센트·노드 삭제 버튼 (canvas UX spec-sync §5.4·§6·§7)
+
+### 변경 사항
+
+1. **워크플로우 에디터 캔버스에 미니맵·줌 슬라이더·노드 ✕ 삭제 버튼이 추가된다** — `spec/3-workflow-editor/0-canvas.md §3.1/§5.4/§6/§7` 이 "미구현 (Planned)" 로 두었던 세 어포던스를 구현하고 spec 본문을 구현 상태로 동기화했다. (a) **§7 미니맵** — @xyflow `MiniMap` 을 우하단에 렌더(`pannable`/`zoomable` 로 미니맵 내 드래그·스크롤 뷰포트 이동/줌) + 토글 버튼으로 표시/숨김(`canvas-minimap.tsx`). (b) **§6/§3.1 줌** — 좌하단 오버레이에 줌 레벨 슬라이더(25%~200%) + 실시간 퍼센트 표시를 추가(기존 inline `ZoomControls` 를 `zoom-controls.tsx` 로 분리), ReactFlow `minZoom`/`maxZoom` 을 슬라이더 범위와 동일하게 정합(`MIN_ZOOM`/`MAX_ZOOM` 단일 출처). (c) **§5.4 노드 삭제 버튼** — 노드 우상단 ✕ 원형 버튼(hover fade-in·선택 시 상시 표시), 클릭 시 연결 엣지까지 함께 삭제. Manual Trigger(진입점, 삭제 불가) 와 워크플로우 실행 중에는 숨김. 삭제 가능 판정은 `isNodeDeletable()` 단일 헬퍼로 통합해 ✕ 버튼·Delete 키·우클릭 메뉴가 같은 규칙을 참조한다. 신규 서버 API 없음(클라이언트 사이드 전용). i18n `common.aria` 키(zoomLevel·minimap·toggleMinimap) KO/EN 동시 추가, UI 투어 문서 동반 갱신. SoT: `spec/3-workflow-editor/0-canvas.md §3.1/§5.4/§6/§7`.
+
 ## Unreleased — 알림 신규 발사 소스 execution_failed·schedule_failed·team_invite (알림 파이프라인 PR3)
 
 ### 변경 사항

@@ -6,6 +6,7 @@ import type { NodeProps, Node } from "@xyflow/react";
 import { AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
+import { isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useEditorStore } from "@/lib/stores/editor-store";
@@ -82,7 +83,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const executionStatus = useExecutionStore((s) => s.status);
   const isExecuting =
     executionStatus === "running" || executionStatus === "waiting_for_input";
-  const showDeleteButton = data.type !== "manual_trigger" && !isExecuting;
+  const showDeleteButton = isNodeDeletable(data.type) && !isExecuting;
 
   // Cross-node graphWarningRules (parallel-p2 결정 D + E + I) — store 에 로컬
   // 평가된 결과 중 이 노드(id) 에 해당하는 항목만 추려 severity 별 배지를
