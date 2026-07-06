@@ -10,9 +10,10 @@ owner: planner
 > 관련 spec: spec/5-system/14-external-interaction-api.md
 
 ## 미구현 항목
-- [ ] **Outbound notification backoff 배율** (§3.1 EIA-NX-06 / §6.6) — spec 본래 의도는 base-4 간격 (1s/4s/16s/64s/256s) 이나 현 구현은 BullMQ default `exponential` (base delay 1s, base*2^n → 1s/2s/4s/8s/16s). 4배율은 custom backoff strategy 필요. (`notification-dispatcher.service.ts` `delay: 1000`)
+- [x] **Outbound notification backoff 배율** (§3.1 EIA-NX-06 / §6.6) — base-4 (1s/4s/16s/64s/256s) custom BullMQ backoffStrategy 로 구현. worker `settings.backoffStrategy` + `NOTIFICATION_BACKOFF_TYPE`. spec §3.1/§6.6/data-flow-15 동기화. lint·unit·build·e2e 통과.
 - [ ] **분산(다중 인스턴스) SSE / notification fan-out** (§R10) — 현재 `SseAdapter`·`NotificationFanout` 모두 단일 sink `WebsocketService.executionEvents$` 를 in-process(in-memory) RxJS 구독만 하고 Redis pub/sub 발행/구독이 없음. 코드 주석상 "v1 single-instance, 분산 fan-out follow-up". 다중 인스턴스에서 외부 SSE 클라이언트가 임의 인스턴스 접속 가능하려면 Redis pub/sub 도입 필요.
-- [ ] **Per-execution / per-trigger rate-limit 및 `RATE_LIMITED` 429** (§5.1 에러 표 / §8.4 / §3.1 EIA-NX-11) — inbound `/interact` (분당 60), status 조회 (분당 120), outbound notification (trigger 당 분당 60) rate-limit 미구현. 구현된 유일한 429 는 SSE 동시연결 초과(`TOO_MANY_CONNECTIONS`). `RATE_LIMITED` 코드·`Retry-After` 헤더 부재. **구현 시 동반**: user-guide `codebase/frontend/src/content/docs/02-nodes/triggers.mdx`·`triggers.en.mdx` 의 inbound `429 RATE_LIMITED` 행 "(Planned — not yet implemented)" 마킹 제거 + 60건/분 수치 실제 한도로 재확정.
+- [x] **Inbound per-execution rate-limit 및 `RATE_LIMITED` 429** (§5.1 / §8.4 rows 1·3) — `/interact` 60/분·status 120/분 (execution 당). `InteractionRateLimiterService`(Redis fixed-window, fail-open) + `InteractionRateLimitGuard` + `@RateLimit`. `429 RATE_LIMITED` + `Retry-After`. spec §5.1/§8.4/§3.1 EIA-NX-11 + §2-api-convention §7 + user-guide triggers.mdx/en.mdx 동기화. lint·unit·build·e2e 통과.
+- [ ] **Outbound per-trigger rate-limit + 폭주 시 `notificationHealth=degraded`** (§8.4 row 4 / §3.1 EIA-NX-11, 권장) — inbound 와 분리한 잔여. 초과 시 동작(큐 적재 + degraded 표시)이 health 표면과 결합돼 카운터+degraded 를 한 벌로 후속 구현. (rate-limit 인프라 `InteractionRateLimiterService` 는 재사용 가능.)
 - [ ] **`GET /api/external/executions/:id` 의 currentNode / context / seq 실값** (§5.3) — 현재 `getStatus()` 가 `currentNode: null`, `context: null`, `seq: 0` placeholder 고정 반환. 노드 context·최신 seq 노출 미구현.
 - [ ] **SSE 버퍼 만료 시 `execution.replay_unavailable` emit** (§5.2 / §11 / EIA-IN-07 / EIA-NF-03) — 버퍼 내(5분) 재전송은 구현됨. 만료/누락분 silent drop 이며 만료 신호 emit 은 기존부터 계획·미구현으로 표기됨 (본 audit 신규 아님, 추적 보존).
 
