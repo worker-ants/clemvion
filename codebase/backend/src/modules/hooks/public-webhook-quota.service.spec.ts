@@ -11,22 +11,22 @@ import {
 /** INCR/EXPIRE/pipeline/quit 만 흉내내는 in-memory fake Redis. */
 function makeFakeRedis() {
   const store = new Map<string, number>();
-  const expires: string[] = [];
-  // pipeline 안에서 발행된 EXPIRE(NX) 호출 기록 — [key, sec, mode].
-  const pipelineExpires: Array<[string, number, string | undefined]> = [];
+  // TTL 이 걸린 키 집합 — `EXPIRE ... NX` no-op 시맨틱을 흉내내기 위해 추적한다.
+  const ttlSet = new Set<string>();
+  // pipeline EXPIRE(NX) 호출 기록 — [key, sec, mode, result(1=set / 0=no-op)].
+  const pipelineExpires: Array<[string, number, string | undefined, number]> =
+    [];
   const fakeRedis = {
     store,
-    expires,
+    ttlSet,
     pipelineExpires,
     incr: jest.fn(async (key: string) => {
       const next = (store.get(key) ?? 0) + 1;
       store.set(key, next);
       return next;
     }),
-    expire: jest.fn(async (key: string, _sec: number) => {
-      expires.push(key);
-      return 1;
-    }),
+    // 별도-왕복 EXPIRE 는 더 이상 쓰이지 않아야 한다 — 음성 단언 전용.
+    expire: jest.fn(async () => 1),
     on: jest.fn(),
     quit: jest.fn(async () => 'OK'),
     pipeline: jest.fn(() => {
@@ -43,9 +43,12 @@ function makeFakeRedis() {
         }),
         expire: jest.fn((key: string, sec: number, mode?: string) => {
           cmds.push(async () => {
-            // EXPIRE NX 시맨틱 흉내: 기록만 남기고 1 반환.
-            pipelineExpires.push([key, sec, mode]);
-            return [null, 1] as [null, number];
+            // EXPIRE NX: TTL 이 이미 있으면 no-op(0), 없으면 설정(1).
+            const alreadyHasTtl = mode === 'NX' && ttlSet.has(key);
+            const result = alreadyHasTtl ? 0 : 1;
+            if (!alreadyHasTtl) ttlSet.add(key);
+            pipelineExpires.push([key, sec, mode, result]);
+            return [null, result] as [null, number];
           });
           return pipe;
         }),
@@ -58,8 +61,8 @@ function makeFakeRedis() {
     }),
   } as unknown as Redis & {
     store: Map<string, number>;
-    expires: string[];
-    pipelineExpires: Array<[string, number, string | undefined]>;
+    ttlSet: Set<string>;
+    pipelineExpires: Array<[string, number, string | undefined, number]>;
   };
   return fakeRedis;
 }
@@ -77,31 +80,38 @@ describe('PublicWebhookQuotaService', () => {
     const svc = new PublicWebhookQuotaService(undefined, redis);
     const r = await svc.consumeStart('ip-a');
     expect(r.allowed).toBe(true);
-    // min + hour 각각 pipeline 에 EXPIRE NX 동봉 — 별도 왕복 없이 window TTL 설정.
+    // min + hour 각각 pipeline 에 EXPIRE NX 동봉 — 별도 왕복 없이 window TTL 설정(result=1).
     expect(redis.pipelineExpires).toContainEqual([
       makeMinKey('ip-a'),
       MINUTE_WINDOW_SEC,
       'NX',
+      1,
     ]);
     expect(redis.pipelineExpires).toContainEqual([
       makeHourKey('ip-a'),
       HOUR_WINDOW_SEC,
       'NX',
+      1,
     ]);
     // 비원자 별도-왕복 EXPIRE 는 더 이상 없어야 한다(TTL 유실 창 제거).
     expect(redis.expire).not.toHaveBeenCalled();
   });
 
-  it('EXPIRE(NX) 는 첫 증가뿐 아니라 매 요청 pipeline 에 실린다 — TTL 유실 self-heal', async () => {
+  it('EXPIRE(NX) 는 매 요청 pipeline 에 실리되 TTL 있으면 no-op — window 미연장 + 유실 self-heal', async () => {
     const redis = makeFakeRedis();
     const svc = new PublicWebhookQuotaService(undefined, redis);
+    const minKey = makeMinKey('ip-heal');
     await svc.consumeStart('ip-heal');
     await svc.consumeStart('ip-heal');
-    // 두 요청 모두 min 키에 EXPIRE NX 를 실었다(NX 라 TTL 있으면 no-op — window 연장 안 함).
-    const minExpires = redis.pipelineExpires.filter(
-      ([k]) => k === makeMinKey('ip-heal'),
-    );
-    expect(minExpires.length).toBe(2);
+    const minExpires = () =>
+      redis.pipelineExpires.filter(([k]) => k === minKey);
+    // 매 요청 EXPIRE NX 를 실었다(2회). 첫 번째만 TTL 설정(1), 두 번째는 NX no-op(0)
+    // → fixed-window 를 연장하지 않는다.
+    expect(minExpires().map(([, , , result]) => result)).toEqual([1, 0]);
+    // TTL 유실 시뮬레이션 — 다음 요청의 EXPIRE NX 가 다시 TTL 을 설정해 self-heal.
+    redis.ttlSet.delete(minKey);
+    await svc.consumeStart('ip-heal');
+    expect(minExpires()[2][3]).toBe(1);
   });
 
   it('분당 한도 초과 → reason=startup_rate', async () => {
