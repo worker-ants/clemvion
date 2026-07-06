@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
 import {
   NOTIFICATION_WEBHOOK_QUEUE,
+  NOTIFICATION_BACKOFF_TYPE,
   NotificationWebhookJob,
 } from './notification-dispatcher.types';
 
@@ -31,7 +32,8 @@ export class NotificationDispatcher {
    * 새 delivery 를 큐에 적재. `deliveryId` 가 명시되지 않으면 UUID v4 자동 생성.
    * BullMQ jobId = deliveryId 로 자동 dedup — 같은 deliveryId 로 재 enqueue 해도 1건만 실행.
    *
-   * 재시도 정책 ([Spec EIA §6.6]): default 5 회, exponential backoff (1s / 4s / 16s / 64s / 256s).
+   * 재시도 정책 ([Spec EIA §6.6]): default 5 회, base-4 backoff (1s / 4s / 16s / 64s / 256s) —
+   * worker `settings.backoffStrategy` 가 계산하는 custom 전략(`NOTIFICATION_BACKOFF_TYPE`).
    * 호출자가 trigger 의 retry config 를 미리 읽고 attempts 를 override 할 수 있다.
    *
    * Redis / BullMQ 가 미가용 (queue 없음) 시 fail-open 으로 로그만 남기고 skip. notification 은
@@ -56,7 +58,9 @@ export class NotificationDispatcher {
     await this.queue.add(`notify:${job.eventType}`, payload, {
       jobId: deliveryId, // dedup
       attempts: opts.attempts ?? 5,
-      backoff: { type: 'exponential', delay: 1000 }, // 1s, 2s, 4s, 8s, 16s — BullMQ exponential 의 default base*2^n
+      // base-4 custom backoff (1s·4s·16s·64s·256s, Spec EIA §6.6). 지연 계산은
+      // worker(NotificationWebhookProcessor)의 settings.backoffStrategy 가 담당.
+      backoff: { type: NOTIFICATION_BACKOFF_TYPE },
       removeOnComplete: { age: 24 * 60 * 60, count: 1000 }, // 24h
       removeOnFail: { age: 7 * 24 * 60 * 60 }, // 7d (debug 용)
     });

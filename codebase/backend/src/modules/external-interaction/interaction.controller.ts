@@ -20,6 +20,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import {
@@ -29,6 +30,10 @@ import {
 import { Public } from '../../common/decorators';
 import { InteractionGuard } from './interaction.guard';
 import type { RequestWithInteraction } from './interaction.guard';
+import {
+  InteractionRateLimitGuard,
+  RateLimit,
+} from './interaction-rate-limit.guard';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { InteractionService } from './interaction.service';
 import { InteractDto } from './dto/interact.dto';
@@ -52,12 +57,13 @@ import {
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
 @Controller('external/executions')
-@UseGuards(InteractionGuard)
+@UseGuards(InteractionGuard, InteractionRateLimitGuard)
 export class InteractionController {
   constructor(private readonly interactionService: InteractionService) {}
 
   @Public()
   @Post(':executionId/interact')
+  @RateLimit('interact')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
@@ -82,6 +88,10 @@ export class InteractionController {
     description: 'EXECUTION_TERMINATED (이미 종료된 execution).',
   })
   @ApiNotFoundResponse({ description: 'EXECUTION_NOT_FOUND' })
+  @ApiTooManyRequestsResponse({
+    description:
+      'RATE_LIMITED — execution 당 분당 60건(interact 버킷, /cancel 포함) 초과. `Retry-After`(잔여 윈도우 초) 헤더 동봉. §8.4.',
+  })
   async interact(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Body() dto: InteractDto,
@@ -99,6 +109,7 @@ export class InteractionController {
 
   @Public()
   @Post(':executionId/cancel')
+  @RateLimit('interact')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
@@ -111,6 +122,10 @@ export class InteractionController {
   @ApiUnauthorizedResponse({ description: 'TOKEN_*' })
   @ApiGoneResponse({ description: 'EXECUTION_TERMINATED' })
   @ApiNotFoundResponse({ description: 'EXECUTION_NOT_FOUND' })
+  @ApiTooManyRequestsResponse({
+    description:
+      'RATE_LIMITED — interact 버킷(분당 60) 공유. `Retry-After` 헤더 동봉. §8.4.',
+  })
   async cancel(
     @Param('executionId', new ParseUUIDPipe()) _executionId: string,
     @Body() _dto: CancelDto,
@@ -151,6 +166,7 @@ export class InteractionController {
 
   @Public()
   @Get(':executionId')
+  @RateLimit('status')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '실행 상태 단발 조회',
@@ -161,6 +177,10 @@ export class InteractionController {
   @ApiOkWrappedResponse(ExecutionStatusDto)
   @ApiUnauthorizedResponse({ description: 'TOKEN_*' })
   @ApiNotFoundResponse({ description: 'EXECUTION_NOT_FOUND' })
+  @ApiTooManyRequestsResponse({
+    description:
+      'RATE_LIMITED — execution 당 분당 120건(status 버킷) 초과. `Retry-After` 헤더 동봉. §8.4.',
+  })
   async getStatus(
     @Param('executionId', new ParseUUIDPipe()) _executionId: string,
     @Req() req: RequestWithInteraction,

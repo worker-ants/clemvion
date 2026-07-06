@@ -2,6 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
+import { WsRateLimiterService } from './ws-rate-limiter.service';
+import { WsRateLimitGuard } from './ws-rate-limit.guard';
+import { WsErrorCode } from './ws-error-codes';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { RetryTurnService } from '../execution-engine/retry-turn.service';
 import {
@@ -27,11 +30,13 @@ function createMockSocket(overrides: Record<string, unknown> = {}): {
   leave: jest.Mock;
   emit: jest.Mock;
   disconnect: jest.Mock;
+  onAny: jest.Mock;
 } {
   const join = jest.fn();
   const leave = jest.fn();
   const emit = jest.fn();
   const disconnect = jest.fn();
+  const onAny = jest.fn();
   const socket = {
     id: 'client-1',
     handshake: { query: {}, auth: {} },
@@ -39,9 +44,10 @@ function createMockSocket(overrides: Record<string, unknown> = {}): {
     leave,
     emit,
     disconnect,
+    onAny,
     ...overrides,
   } as unknown as Socket;
-  return { socket, join, leave, emit, disconnect };
+  return { socket, join, leave, emit, disconnect, onAny };
 }
 
 describe('WebsocketGateway', () => {
@@ -52,6 +58,7 @@ describe('WebsocketGateway', () => {
     module = await Test.createTestingModule({
       providers: [
         WebsocketGateway,
+        WsRateLimiterService,
         {
           provide: JwtService,
           useValue: {
@@ -223,6 +230,8 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Invalid channel');
+      // §3.3/§7.1 — 구조화 code 를 additive 로 동봉.
+      expect(result.data.code).toBe(WsErrorCode.INVALID_MESSAGE);
     });
 
     it('should accept valid execution channel', async () => {
@@ -596,6 +605,8 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toContain('Maximum subscriptions');
+      // §3.4/§7.1 — 전용 코드.
+      expect(result.data.code).toBe(WsErrorCode.SUBSCRIPTION_LIMIT_EXCEEDED);
     });
 
     it('enforces MAX_SUBSCRIPTIONS across concurrent subscribe with deferred authorize (TOCTOU race)', async () => {
@@ -701,17 +712,107 @@ describe('WebsocketGateway', () => {
       expect(disconnect).not.toHaveBeenCalled();
       expect(getSubscriptions().has('client-valid')).toBe(true);
     });
+
+    it('§7.1 — onAny 로 미등록 이벤트에 UNKNOWN_TYPE error emit (등록 이벤트는 무시)', () => {
+      const { socket, emit, onAny } = createMockSocket({
+        id: 'client-oa',
+        handshake: { query: { token: 'valid-jwt' }, auth: {} },
+      });
+      gateway.handleConnection(socket);
+      // handleConnection 이 등록한 onAny 콜백을 캡처해 직접 호출.
+      const handler = onAny.mock.calls[0][0] as (event: string) => void;
+
+      handler('subscribe'); // 등록 이벤트 — 무시
+      expect(emit).not.toHaveBeenCalledWith(
+        'error',
+        expect.objectContaining({ code: WsErrorCode.UNKNOWN_TYPE }),
+      );
+
+      handler('bogus.command'); // 미등록 — UNKNOWN_TYPE
+      expect(emit).toHaveBeenCalledWith(
+        'error',
+        expect.objectContaining({ code: WsErrorCode.UNKNOWN_TYPE }),
+      );
+    });
   });
 
   describe('handleDisconnect', () => {
-    it('should cleanup subscriptions', () => {
+    it('should cleanup subscriptions + release rate-limit counter', () => {
       const { socket, leave } = createMockSocket({ id: 'client-1' });
       const subs = new Set(['execution:exec-1', 'workflow:wf-1']);
       getSubscriptions().set('client-1', subs);
+      const limiter = module.get(WsRateLimiterService);
+      const releaseSpy = jest.spyOn(limiter, 'release');
 
       gateway.handleDisconnect(socket);
       expect(getSubscriptions().has('client-1')).toBe(false);
       expect(leave).toHaveBeenCalledTimes(2);
+      // §7.1 — 카운터 누수 방지.
+      expect(releaseSpy).toHaveBeenCalledWith('client-1');
+    });
+  });
+
+  describe('§7.1 rate-limit 하드닝 배선', () => {
+    it('class-level @UseGuards 에 WsRateLimitGuard 바인딩 (실배선 회귀 가드)', () => {
+      // e2e(socket.io-client) 부재를 보완 — 데코레이터 위치·providers 누락 시 실패.
+      const guards = Reflect.getMetadata('__guards__', WebsocketGateway) as
+        | unknown[]
+        | undefined;
+      expect(guards).toBeDefined();
+      expect(guards!.some((g) => g === WsRateLimitGuard)).toBe(true);
+    });
+
+    it('KNOWN_WS_EVENTS 화이트리스트가 @SubscribeMessage 등록 목록과 정확히 일치 (drift 가드)', () => {
+      // KNOWN_WS_EVENTS 는 gateway 모듈-로컬 상수라 export 하지 않으므로, 대신
+      // 두 진실 원천을 대조: (a) @SubscribeMessage 메타데이터에서 도출한 실제 등록
+      // 이벤트 집합, (b) onAny 콜백이 무시(=known)하는 이벤트 집합. 신규 핸들러 추가
+      // 시 KNOWN_WS_EVENTS 갱신을 빠뜨리면 (b)가 (a)를 못 따라가 본 테스트가 실패한다.
+      const proto = WebsocketGateway.prototype as Record<string, unknown>;
+      const registered = new Set<string>();
+      for (const name of Object.getOwnPropertyNames(proto)) {
+        const fn = proto[name];
+        if (typeof fn !== 'function') continue; // getter/constructor 등 스킵
+        // MESSAGE_MAPPING_METADATA='websockets:message_mapping', MESSAGE_METADATA='message'
+        const isMapping = Reflect.getMetadata('websockets:message_mapping', fn);
+        if (!isMapping) continue;
+        const event = Reflect.getMetadata('message', fn) as string;
+        registered.add(event);
+      }
+      expect(registered.size).toBeGreaterThan(0);
+
+      // onAny 콜백을 캡처해, 등록된 각 이벤트가 known(=emit 안 함)인지 확인.
+      const { socket, emit, onAny } = createMockSocket({
+        id: 'client-drift',
+        handshake: { query: { token: 'valid-jwt' }, auth: {} },
+      });
+      gateway.handleConnection(socket);
+      const onAnyHandler = onAny.mock.calls[0][0] as (event: string) => void;
+      for (const event of registered) {
+        emit.mockClear();
+        onAnyHandler(event);
+        // 등록 이벤트는 UNKNOWN_TYPE 를 emit 하면 안 된다(= KNOWN_WS_EVENTS 에 포함).
+        expect(emit).not.toHaveBeenCalledWith(
+          'error',
+          expect.objectContaining({ code: WsErrorCode.UNKNOWN_TYPE }),
+        );
+      }
+    });
+
+    it('미등록 이벤트도 rate-limit 예산 소비 — 초과 시 UNKNOWN_TYPE emit drop (우회 차단)', () => {
+      const limiter = module.get(WsRateLimiterService);
+      // 소켓 예산을 미리 소진.
+      for (let i = 0; i < WsRateLimiterService.LIMIT_PER_MINUTE; i++) {
+        limiter.consume('client-flood');
+      }
+      const { socket, emit, onAny } = createMockSocket({
+        id: 'client-flood',
+        handshake: { query: { token: 'valid-jwt' }, auth: {} },
+      });
+      gateway.handleConnection(socket);
+      const onAnyHandler = onAny.mock.calls[0][0] as (event: string) => void;
+      emit.mockClear();
+      onAnyHandler('bogus.flood'); // 예산 초과 상태 — drop
+      expect(emit).not.toHaveBeenCalled();
     });
   });
 

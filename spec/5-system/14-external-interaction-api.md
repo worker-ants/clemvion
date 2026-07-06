@@ -56,12 +56,12 @@ code:
 | EIA-NX-03 | 페이로드는 HMAC-SHA256 으로 서명하여 `X-Clemvion-Signature: t=<unix>,v1=<hex>` 헤더로 전송 (Stripe-style). 알고리즘 식별자는 [Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac) 의 화이트리스트 표기 (`sha256` / `sha512`) 와 동일 값을 trigger config 에 보관하되 (`hmacAlgorithm: 'sha256'`), 외부 표면 (notification.signing.algorithm) 에서는 `hmac-sha256` / `hmac-sha512` 의 명시적 prefix 형태로 노출해 inbound webhook 검증과 outbound notification 서명의 알고리즘 출처를 분리한다 (§R12) | 필수 |
 | EIA-NX-04 | 동일 이벤트는 동일 `X-Clemvion-Delivery: <uuid>` 헤더로 식별 — 재시도 시 같은 ID 유지 (at-least-once 보장) | 필수 |
 | EIA-NX-05 | 이벤트 발송 전 execution 상태를 재조회해 stale notification 차단 (예: `waiting_for_input` 발송 직전에 이미 `cancelled` 라면 발송 생략) | 필수 |
-| EIA-NX-06 | 2xx 응답만 성공으로 간주. 그 외 / 타임아웃 → 지수 백오프 재시도 (default 5회). **현재 구현은 BullMQ `exponential` backoff (base delay 1s, base*2^n → 1s/2s/4s/8s/16s)** ([`notification-dispatcher.service.ts`](../../codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts) `delay: 1000`). spec 이 본래 의도한 base-4 간격 (1s/4s/16s/64s/256s) 은 **미구현 (Planned)** — §6.6 참조 | 필수 |
+| EIA-NX-06 | 2xx 응답만 성공으로 간주. 그 외 / 타임아웃 → 지수 백오프 재시도 (default 5회). **구현됨**: base-4 custom backoff (1s/4s/16s/64s/256s) — worker `settings.backoffStrategy`(`NotificationWebhookProcessor`) + job opts `backoff.type = NOTIFICATION_BACKOFF_TYPE` ([`notification-dispatcher.service.ts`](../../codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts)). BullMQ 내장 exponential 이 base-2 뿐이라 custom 전략을 등록했다 — §6.6 참조 | 필수 |
 | EIA-NX-07 | 최종 실패 시 트리거의 `notificationHealth` 필드를 `'degraded'` 로 갱신 (트리거 자동 비활성화 금지 — 사용자 승인 필요) | 필수 |
 | EIA-NX-08 | 페이로드 안에 `seq` (= execution 내 monotonic counter, WebSocket §2.2 와 동일 값) 동봉 — 클라이언트가 정렬·dedupe 가능 | 필수 |
 | EIA-NX-09 | URL 은 `https://` 만 허용. 개발 환경 환경변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 예외 | 필수 |
 | EIA-NX-10 | SSRF 방지: 사설 IP·메타데이터 IP·loopback 차단. 워크스페이스 단위 allowlist 설정 가능 | 필수 |
-| EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. 초과분은 큐에 적재, 폭주 시 가장 오래된 이벤트부터 폐기하지 않고 `notificationHealth=degraded` 표시 — **미구현 (Planned)** | 권장 |
+| EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. 초과분은 큐에 적재, 폭주 시 가장 오래된 이벤트부터 폐기하지 않고 `notificationHealth=degraded` 표시 — **미구현 (Planned)**. 초과 시 동작이 `notificationHealth=degraded`(§3.1 EIA-NX-07 계열) 와 결합돼 있어, inbound rate-limit(§8.4·구현됨)과 달리 outbound 카운터 + degraded 표시를 한 벌로 후속 구현한다 | 권장 |
 | EIA-NX-12 | secret rotation API (`POST /api/triggers/:id/notification/rotate-secret`) 지원 — old secret 은 grace 24h 병행 검증 | 권장 |
 
 ### 3.2 Inbound Interaction (REST + SSE)
@@ -341,7 +341,7 @@ POST /api/external/executions/550e8400-.../interact
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
 | `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled |
-| `429 Too Many Requests` | `RATE_LIMITED` | inbound rate-limit 초과 — **미구현 (Planned)**: 현재 `/interact`·status 조회에 per-execution rate-limit 이 적용되지 않아 본 코드는 발생하지 않는다. 구현된 유일한 429 는 SSE 동시연결 초과(`TOO_MANY_CONNECTIONS`, §5.2). §8.4 참조 |
+| `429 Too Many Requests` | `RATE_LIMITED` | **구현됨**: inbound per-execution rate-limit 초과 (`/interact` 분당 60 · status 조회 분당 120, §8.4) — `InteractionRateLimitGuard` 가 `Retry-After`(잔여 윈도우 초) 헤더와 함께 반환한다. 시스템 전역 429 default 코드(`RATE_LIMITED`)를 그대로 사용하며, SSE 동시연결 초과의 EIA 전용 `TOO_MANY_CONNECTIONS`(§5.2)와는 **별개 표면**이다. (WebSocket 프로토콜 §7.1 의 동명 코드와도 발행 지점이 다른 별도 구현.) |
 
 > **`X-Refresh-Token-Url` 헤더 (모든 401 토큰 실패 공통)**: 위 `401 TOKEN_*` 응답에는 `InteractionGuard.deny()` 가 `X-Refresh-Token-Url` 헤더를 무조건 동봉한다 (EIA-AU-06, §3.3). 클라이언트가 토큰 갱신 진입점(§5.5)을 일관되게 발견하도록 하기 위함이며, `TOKEN_REVOKED`(execution 종료)·`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`(범위/용도 불일치)는 헤더를 따라가도 새 유효 토큰을 받지 못할 수 있다(복구 불가 신호).
 > **토큰 실패 status 통일 근거**: 모든 토큰류 실패(`invalid`/`expired`/`revoked`/`scope`/`audience`)는 단일 `401` status 로 수렴한다 — scope/audience 불일치를 `403`(인가 실패)으로 세분하면 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해 §8.2 HMAC 실패 통일(algorithm-leak 차단) 정신과 어긋난다. EIA 토큰은 execution-scoped 이라 scope 불일치는 사실상 "이 리소스에 대한 인증 실패" 에 가깝다 (결정 근거 §Rationale R14).
@@ -632,7 +632,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 | 성공 기준 | HTTP `2xx` |
 | 타임아웃 | 10초 |
 | 재시도 횟수 | default 5회 (`notification.retry.maxAttempts`) |
-| backoff | **구현됨**: BullMQ `exponential` (base delay 1s, base*2^n → 1s · 2s · 4s · 8s · 16s). **Planned (미구현)**: spec 본래 의도의 base-4 간격 (1s · 4s · 16s · 64s · 256s) — BullMQ default exponential 식이 base*2^n 이라 현 구현은 2배율. 4배율 적용은 custom backoff strategy 필요 |
+| backoff | **구현됨**: base-4 custom backoff (1s · 4s · 16s · 64s · 256s) — worker `settings.backoffStrategy`(`NotificationWebhookProcessor`) 가 `1000·4^(attemptsMade-1)` 을 반환하고 job opts 는 `backoff.type = NOTIFICATION_BACKOFF_TYPE` 로 이를 참조한다. BullMQ 내장 `exponential` 은 base-2(base*2^n) 뿐이라 custom 전략으로 대체했다 |
 | 동일 이벤트 식별 | `X-Clemvion-Delivery` 헤더 UUID (재시도해도 같음) |
 | 최종 실패 시 | Trigger.`notificationHealth = 'degraded'`. 자동 비활성화 금지 (사용자 승인 필요). 실패 이력은 trigger 상세 화면에 표시 |
 | Stale 차단 | 발송 직전 execution 상태 재조회 — 이미 cancelled 면 발송 skip |
@@ -721,14 +721,18 @@ ALTER TABLE trigger
 
 ### 8.4 Rate Limit
 
+> 아래 execution/trigger 단위 세부 한도는 전역 `UserThrottlerGuard`(IP 기준 분당 100 req, `app.module.ts` 의 `APP_GUARD`) **위에** 얹히는 층이다 (Webhook §WH-SC-05 동형). 한 IP 가 여러 execution 을 다뤄도 execution 별로 독립 카운트되며, 두 층은 각각 초과 시 429 를 반환한다.
+
 | 대상 | 한도 | 구현 상태 |
 |------|------|------|
-| Inbound 명령 (`/interact`) | execution 당 분당 60 | **미구현 (Planned)** — per-execution rate-limit 가 코드에 없음 |
+| Inbound 명령 (`/interact`) | execution 당 분당 60 | **구현됨** — `InteractionRateLimiterService`(Redis fixed-window, fail-open) + `InteractionRateLimitGuard`. 초과 시 `429 RATE_LIMITED` + `Retry-After` |
 | SSE 동시 연결 | execution 당 3 | **구현됨** — 초과 시 `429 TOO_MANY_CONNECTIONS` ([`interaction-stream.controller.ts`](../../codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts)) |
-| 단발 status 조회 | execution 당 분당 120 | **미구현 (Planned)** |
-| Outbound notification 발송 | trigger 당 분당 60 | **미구현 (Planned)** — EIA-NX-11 (권장) 미구현, §3.1 참조 |
+| 단발 status 조회 | execution 당 분당 120 | **구현됨** — 위 rate-limiter 의 별도 버킷. 초과 시 `429 RATE_LIMITED` + `Retry-After` |
+| Outbound notification 발송 | trigger 당 분당 60 | **미구현 (Planned)** — EIA-NX-11 (권장). 초과 시 동작이 `notificationHealth=degraded` 와 결합돼 있어 카운터+degraded 표시를 한 벌로 후속 구현, §3.1 참조 |
 
-구현된 제한(SSE 동시 연결)의 초과 응답은 `429 Too Many Requests` 다. Planned 항목의 `Retry-After` 헤더·`RATE_LIMITED` 코드는 해당 rate-limit 구현 시 함께 추가된다.
+구현된 inbound rate-limit(`/interact`·status) 초과 응답은 `429 { error: { code: 'RATE_LIMITED' } }` + `Retry-After`(잔여 윈도우 초) 다. SSE 동시연결 초과는 EIA 전용 `TOO_MANY_CONNECTIONS` 로 별개 표면이다. Redis 미가용 시 rate-limiter 는 fail-open(허용)한다.
+
+> **버킷 매핑**: `/cancel`(§5.4)은 `interact command:cancel` 과 동치(EIA-IN-05)라 **interact 버킷(분당 60)에 합산** 카운트한다 — 별도 alias 로 rate-limit 을 우회하지 못하게 한다. `/refresh-token`(§5.5)은 명령/조회가 아닌 토큰 관리 표면이라 본 per-execution rate-limit **범위 밖**이며 전역 IP throttle(분당 100)만 적용된다.
 
 ### 8.5 CORS
 

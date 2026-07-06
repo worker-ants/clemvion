@@ -117,6 +117,10 @@ code:
 | `EXECUTION_MESSAGE_TOO_LONG` | `submit_message` 의 메시지가 최대 길이 초과 (publisher 측 동기 검증, typed `MessageTooLongError`) | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단) |
 | `EXECUTION_INTERNAL_ERROR` | continuation 처리 중 typed `ExecutionError` 가 아닌 내부 에러의 generic fallback. ack `error` 는 고정 generic 문자열이며 내부 message 는 client 미전달(서버 로그 전용) — 누출 차단 게이트 | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단) |
 | `EXECUTION_ENQUEUE_FAILED` | REST `POST /executions/:id/stop` 의 WAITING cancel 경로에서 continuation publish(BullMQ `queue.add`) 자체가 실패한 케이스 — `publish` 가 `queued:false`(Redis 장애 등 **enqueue 미진입**)를 반환. HTTP 진입점은 **503** 으로 표기하고 Execution 은 `waiting_for_input` 유지(failed 아님), 재시도 권장. `SERVER_SHUTTING_DOWN` 503 선례와 동형이며, worker 측 **비동기** 실패(`RESUME_*` — enqueue 수락 후 재개 실패)와 구별된다 | [실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance) |
+| `INVALID_MESSAGE` | subscribe 등 WS 메시지의 유효하지 않은 채널/필수 필드 누락. subscribe ack 의 `code` (평문 `error` + additive) | [WS Protocol §7.1](./6-websocket-protocol.md#71-에러-코드) / §3.3 |
+| `UNKNOWN_TYPE` | 미등록 이벤트 type. gateway `onAny` 가 `error` 이벤트 `{ code, message }` 로 알림 (Socket.IO silent-drop 보완) | [WS Protocol §7.1](./6-websocket-protocol.md#71-에러-코드) |
+| `SUBSCRIPTION_LIMIT_EXCEEDED` | 소켓 구독 한도(20) 초과. subscribe ack 의 `code` | [WS Protocol §7.1](./6-websocket-protocol.md#71-에러-코드) / §3.4 |
+| `RATE_LIMITED` | WS 명령 빈도 제한(socket 당 60 msg/min) 초과. `WsRateLimitGuard` 가 `WsException` → 클라이언트 `exception` 이벤트 `{ code, message }`. EIA REST `/interact` 의 동명 `RATE_LIMITED`(HTTP 429, §1.6)와는 표면·전송이 다른 별개 발행 | [WS Protocol §7.1](./6-websocket-protocol.md#71-에러-코드) |
 
 > `INVALID_EXECUTION_STATE` 와 동일 의미의 REST 코드는 §1.3 의 `INVALID_STATE` (422) — 두 layer 의 routing 분기 가시성을 위해 의도적으로 분리. 상세: [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state).
 

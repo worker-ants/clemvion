@@ -3,15 +3,16 @@
 import { memo, useEffect, useMemo } from "react";
 import { Handle, Position, useStore, useUpdateNodeInternals } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
+import { isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
-import { useLocale } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import {
   translateNodePortLabel,
   translateGraphWarning,
@@ -72,6 +73,17 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
 
   const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
   const showSummary = useStore(zoomSelector);
+
+  // §5.4 노드 삭제 버튼 — 호버/선택 시 노드 우상단에 나타나는 ✕ 어포던스.
+  // Manual Trigger 는 삭제 불가(§9.2)라 버튼을 숨기고, 워크플로우 실행 중에는
+  // 편집을 차단하기 위해 숨긴다. 클릭은 Delete 키와 동일하게 removeNode 로
+  // 연결 엣지까지 함께 제거한다(§5.4.3).
+  const t = useT();
+  const removeNode = useEditorStore((s) => s.removeNode);
+  const executionStatus = useExecutionStore((s) => s.status);
+  const isExecuting =
+    executionStatus === "running" || executionStatus === "waiting_for_input";
+  const showDeleteButton = isNodeDeletable(data.type) && !isExecuting;
 
   // Cross-node graphWarningRules (parallel-p2 결정 D + E + I) — store 에 로컬
   // 평가된 결과 중 이 노드(id) 에 해당하는 항목만 추려 severity 별 배지를
@@ -144,7 +156,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   return (
     <div
       className={cn(
-        "w-[180px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm transition-shadow",
+        "group relative w-[180px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm transition-shadow",
         selected && "ring-2 ring-[hsl(var(--ring))] shadow-md",
         data.isDisabled && "opacity-50",
         // Cross-node graph-warning ring — only when execution status isn't
@@ -159,6 +171,27 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         statusStyles,
       )}
     >
+      {/* §5.4 삭제 버튼 — 노드 우상단 외곽 20×20 원형. 호버 시 fade in(200ms),
+          선택 상태면 항상 표시. `nodrag`/`nopan` 으로 버튼 조작이 노드 드래그·
+          캔버스 팬으로 새지 않게 한다. */}
+      {showDeleteButton && (
+        <button
+          type="button"
+          data-testid="node-delete-button"
+          aria-label={t("editor.deleteNode")}
+          className={cn(
+            "nodrag nopan absolute -right-2 -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] shadow-sm transition-opacity duration-200 hover:bg-red-500 hover:text-white",
+            selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeNode(id);
+          }}
+        >
+          <X className="h-3 w-3" aria-hidden="true" />
+        </button>
+      )}
+
       {/* Header bar */}
       <div
         className="flex items-center gap-2 rounded-t-lg px-3 py-2"

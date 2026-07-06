@@ -4,6 +4,11 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { InteractionController } from './interaction.controller';
 import { InteractionService } from './interaction.service';
 import { InteractionGuard } from './interaction.guard';
+import {
+  InteractionRateLimitGuard,
+  RATE_LIMIT_META,
+} from './interaction-rate-limit.guard';
+import { InteractionRateLimiterService } from './interaction-rate-limiter.service';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { InteractionTokenService } from './interaction-token.service';
 import { Trigger } from '../triggers/entities/trigger.entity';
@@ -41,6 +46,16 @@ describe('InteractionController (integration)', () => {
         { provide: InteractionTokenService, useValue: {} },
         { provide: getRepositoryToken(Trigger), useValue: {} },
         { provide: getRepositoryToken(Execution), useValue: {} },
+        // 신규 rate-limit 가드/서비스 — 실제 실행은 e2e 가 검증. 모듈 빌드 시점
+        // DI resolve 를 위해 provider 등록만 필요 (rate-limiter 는 mock).
+        {
+          provide: InteractionRateLimiterService,
+          useValue: {
+            consumeInteract: jest.fn(),
+            consumeStatus: jest.fn(),
+          },
+        },
+        InteractionRateLimitGuard,
         InteractionGuard,
         IdempotencyInterceptor,
       ],
@@ -136,13 +151,47 @@ describe('InteractionController (integration)', () => {
   });
 
   describe('controller 메타데이터 — Guard / @Public / @ApiBearerAuth 바인딩', () => {
-    it('class-level UseGuards 에 InteractionGuard 등록', () => {
+    it('class-level UseGuards 에 InteractionGuard + InteractionRateLimitGuard 등록', () => {
       const guards = Reflect.getMetadata(
         '__guards__',
         InteractionController,
       ) as unknown[];
       expect(guards).toBeDefined();
       expect(guards.some((g) => g === InteractionGuard)).toBe(true);
+      // rate-limit 가드는 인증(InteractionGuard) 뒤에 배치돼 인증된 요청만 카운트.
+      expect(guards.some((g) => g === InteractionRateLimitGuard)).toBe(true);
+      expect(guards.indexOf(InteractionGuard)).toBeLessThan(
+        guards.indexOf(InteractionRateLimitGuard),
+      );
+    });
+
+    it('interact/cancel 는 @RateLimit(interact), getStatus 는 @RateLimit(status)', () => {
+      expect(
+        Reflect.getMetadata(
+          RATE_LIMIT_META,
+          InteractionController.prototype.interact,
+        ),
+      ).toBe('interact');
+      // cancel 은 interact command:cancel 과 동치라 interact 버킷 공유(우회 차단).
+      expect(
+        Reflect.getMetadata(
+          RATE_LIMIT_META,
+          InteractionController.prototype.cancel,
+        ),
+      ).toBe('interact');
+      expect(
+        Reflect.getMetadata(
+          RATE_LIMIT_META,
+          InteractionController.prototype.getStatus,
+        ),
+      ).toBe('status');
+      // refresh-token 은 rate-limit 범위 밖 — 메타데이터 없음.
+      expect(
+        Reflect.getMetadata(
+          RATE_LIMIT_META,
+          InteractionController.prototype.refreshToken,
+        ),
+      ).toBeUndefined();
     });
 
     it('interact / cancel method 에 @Public() 데코레이터 적용 (글로벌 JWT guard 우회)', () => {

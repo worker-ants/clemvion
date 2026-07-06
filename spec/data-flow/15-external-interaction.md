@@ -171,7 +171,7 @@ sequenceDiagram
   end
   Fan->>Fan: payload.triggerId 없으면 skip (수동 실행) / trigger.config.notification.events 구독 검사
   Fan->>Disp: enqueue(envelope) — 트랜잭션 commit 후 시점 (EIA-RL-04)
-  Disp->>Q: add(jobId=deliveryId — dedup, attempts 5, exponential backoff)
+  Disp->>Q: add(jobId=deliveryId — dedup, attempts 5, base-4 backoff 1s·4s·16s·64s·256s — §6.6)
   Q->>Proc: process(job)
   Proc->>PG: trigger 재조회 (삭제됐으면 skip) + SSRF 검사 + stale 검사
   Proc->>Proc: secret resolve (secretRef → secret store) + v2 secondary → HMAC 서명
@@ -245,7 +245,7 @@ POST /api/triggers/:id/notification/rotate-secret 류 API (TriggersService.rotat
 | Redis | `iext:blacklist:<jti>` | terminal event / refresh 시 SET | TTL = 원 JWT exp 까지. Redis 미가용 시 fail-open (검증도 fail-open + warn) |
 | Redis | `interaction:idempotency:<key>` | 2xx 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. 4xx (`VALIDATION_ERROR` 등) 캐시 제외 ([Spec EIA §R8]) |
 | Redis | `exec:seq:<executionId>` | `INCR` — SSE `id:`/notification `seq` 공용 카운터 | terminal event 후 해제 ([`spec/5-system/6-websocket-protocol.md`](../5-system/6-websocket-protocol.md)) |
-| BullMQ | `notification-webhook` | `NotificationDispatcher.enqueue` → `NotificationWebhookProcessor` | jobId=deliveryId dedup, attempts 5 exponential backoff, removeOnComplete 24h / removeOnFail 7d |
+| BullMQ | `notification-webhook` | `NotificationDispatcher.enqueue` → `NotificationWebhookProcessor` | jobId=deliveryId dedup, attempts 5, base-4 custom backoff (1s·4s·16s·64s·256s — worker `settings.backoffStrategy`, §6.6), removeOnComplete 24h / removeOnFail 7d |
 | BullMQ | `notification-secret-rotator` | hourly repeatable (`0 * * * *`) → v2 승격 | upsertJobScheduler 멱등 — 멀티 인스턴스 전역 1회 |
 | BullMQ | `terminal-revoke-reconcile` | per-minute repeatable (`* * * * *`) → terminal `execution` 의 잔존 `execution_token` sweep → `revokeAllForExecution` (`TerminalRevokeReconcilerService`) | upsertJobScheduler 멱등 — 멀티 인스턴스 전역 1회. live fast-path(§1.4) 누락분의 **at-least-once 보강** ([EIA §3.4 EIA-RL-06 · §9.3 · R15](../5-system/14-external-interaction-api.md)). `execution_token` 자체가 durable outbox — 전용 테이블 없음 |
 | BullMQ | `execution-continuation` | interact dispatch 의 sink (publisher = ContinuationBus) | 큐 자체의 단일 진실은 [실행 data-flow](./3-execution.md) |

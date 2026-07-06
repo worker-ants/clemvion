@@ -11,6 +11,7 @@ import {
 import {
   NOTIFICATION_WEBHOOK_QUEUE,
   NotificationWebhookJob,
+  notificationBackoffDelayMs,
 } from './notification-dispatcher.types';
 import {
   buildSignatureHeader,
@@ -52,10 +53,19 @@ function truncate(msg: string, max: number): string {
  * HTTP POST (10s timeout) → 결과에 따라 health 갱신.
  *
  * BullMQ 가 attempts/backoff 로 재시도를 자동 관리한다. 본 process() 가 throw 하면 BullMQ 가
- * exponential backoff 로 재시도 (default 5회). 최종 실패 시 `notification_health='degraded'` +
- * `notification_last_error` 갱신, trigger 자체는 비활성화하지 않음 ([Spec EIA §R6]).
+ * base-4 custom backoff 로 재시도 (default 5회, 1s·4s·16s·64s·256s — §6.6). 최종 실패 시
+ * `notification_health='degraded'` + `notification_last_error` 갱신, trigger 자체는
+ * 비활성화하지 않음 ([Spec EIA §R6]).
+ *
+ * `settings.backoffStrategy` 는 job opts `backoff.type = NOTIFICATION_BACKOFF_TYPE` 에 대응해
+ * base-4 지연을 반환한다 (BullMQ 내장 exponential 은 base-2 뿐이라 custom 필요).
  */
-@Processor(NOTIFICATION_WEBHOOK_QUEUE)
+@Processor(NOTIFICATION_WEBHOOK_QUEUE, {
+  settings: {
+    backoffStrategy: (attemptsMade: number): number =>
+      notificationBackoffDelayMs(attemptsMade),
+  },
+})
 export class NotificationWebhookProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationWebhookProcessor.name);
 

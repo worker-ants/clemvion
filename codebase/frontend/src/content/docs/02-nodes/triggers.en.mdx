@@ -289,7 +289,7 @@ Key error responses:
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | Response header `X-Refresh-Token-Url` points to the refresh endpoint |
 | `409 Conflict` | `STATE_MISMATCH` | Command does not match current node / execution state |
 | `410 Gone` | `EXECUTION_TERMINATED` | Execution already finished |
-| `429 Too Many Requests` | `RATE_LIMITED` | More than 60 inbound commands per minute per execution (Planned — not yet implemented) |
+| `429 Too Many Requests` | `RATE_LIMITED` | More than 60 command submissions per minute, or more than 120 status lookups (`GET`) per minute, per execution. The response includes a `Retry-After` header telling you when to retry. This applies on top of — not instead of — the instance-wide 100 req/min limit described in [Response codes](#response-codes) above |
 
 ### Inbound event stream (SSE)
 

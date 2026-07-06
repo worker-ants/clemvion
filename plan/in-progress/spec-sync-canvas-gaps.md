@@ -10,10 +10,12 @@ owner: planner
 > 관련 spec: spec/3-workflow-editor/0-canvas.md
 
 ## 미구현 항목
-- [ ] §7 미니맵 — @xyflow `MiniMap` 오버레이/뷰포트 사각형/토글 (workflow-canvas.tsx 에 렌더 부재)
-- [ ] §6/§3.1 줌 슬라이더 + 줌 퍼센트 표시 (현재 ZoomControls 는 줌인/줌아웃/Fit 버튼 3개만)
-- [ ] §5.4 노드 우상단 ✕ 삭제 버튼 (custom-node.tsx 부재 — 삭제는 우클릭/Delete 키만)
+- [x] §7 미니맵 — @xyflow `MiniMap` 오버레이/뷰포트 사각형/토글 (`canvas-minimap.tsx` 신설, workflow-canvas 렌더). lint·unit·build·e2e(236) 통과.
+- [x] §6/§3.1 줌 슬라이더 + 줌 퍼센트 표시 (`zoom-controls.tsx` 로 ZoomControls 분리 + 슬라이더 25~200%·실시간 퍼센트, ReactFlow minZoom/maxZoom 정합). lint·unit·build·e2e 통과.
+- [x] §5.4 노드 우상단 ✕ 삭제 버튼 (`custom-node.tsx` — hover fade-in/선택 상시, manual_trigger·실행 중 숨김, removeNode). lint·unit·build·e2e 통과.
+  > spec 본문 §3.1/§5.4/§6/§7 "미구현 (Planned)" 주석도 구현됨으로 동기화 (commit b6f317edf). /ai-review·/consistency-check --impl-done 는 REVIEW WORKFLOW 에서 수행.
 - [ ] §11.3 컨테이너 삭제 Delete/Ungroup 확인 다이얼로그 (editor-store removeNode 는 제거+containerId 재계산만)
+  > 잔여 범위 축소: §5.4 ✕ 버튼은 컨테이너에도 이미 렌더됨(공용 `custom-node.tsx`). 남은 것은 **확인 다이얼로그(Delete/Ungroup 선택)** 뿐 — ✕ 버튼·Delete 키·우클릭 모두 현재 즉시 removeNode(사실상 Ungroup). spec §11.3 본문 동기화 완료.
 - [ ] §10 미바인딩 단축키: Ctrl+C/V/D/A, Escape, Space+드래그, Ctrl++/-/0/1, Ctrl+Shift+R
 - [ ] §3.3 Ctrl+C/V 복사·붙여넣기 clipboard 로직 (복제는 우클릭 메뉴 duplicate 만)
 - [ ] §4.1 팔레트 Recent 섹션 / Installed(마켓플레이스) 섹션

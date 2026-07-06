@@ -1,4 +1,8 @@
 import { NotificationDispatcher } from './notification-dispatcher.service';
+import {
+  NOTIFICATION_BACKOFF_TYPE,
+  notificationBackoffDelayMs,
+} from './notification-dispatcher.types';
 import type { Queue } from 'bullmq';
 
 type AnyMock = jest.Mock;
@@ -47,8 +51,19 @@ describe('NotificationDispatcher.enqueue', () => {
     expect(opts).toMatchObject({
       jobId: result.deliveryId,
       attempts: 5,
-      backoff: { type: 'exponential', delay: 1000 },
+      // base-4 custom backoff (§6.6) — worker settings.backoffStrategy 가 지연 계산.
+      backoff: { type: NOTIFICATION_BACKOFF_TYPE },
     });
+  });
+
+  it('base-4 backoff 지연 — 1s / 4s / 16s / 64s / 256s (§6.6)', () => {
+    expect(notificationBackoffDelayMs(1)).toBe(1_000);
+    expect(notificationBackoffDelayMs(2)).toBe(4_000);
+    expect(notificationBackoffDelayMs(3)).toBe(16_000);
+    expect(notificationBackoffDelayMs(4)).toBe(64_000);
+    expect(notificationBackoffDelayMs(5)).toBe(256_000);
+    // 방어: 0/음수 attemptsMade 는 최소 1s (BullMQ 는 1-indexed 로만 호출).
+    expect(notificationBackoffDelayMs(0)).toBe(1_000);
   });
 
   it('명시 deliveryId 가 있으면 그대로 사용 (재시도 시 동일 키)', async () => {

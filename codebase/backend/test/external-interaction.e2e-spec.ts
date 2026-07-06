@@ -302,4 +302,42 @@ describe('External Interaction API (e2e)', () => {
     expect(res.body.error.details[0].field).toBe('email');
     expect(res.body.error.details[0].code).toBe('INVALID_FIELD');
   });
+
+  it('H. /interact per-execution rate-limit 초과 → 429 RATE_LIMITED + Retry-After (§8.4)', async () => {
+    // execution 당 분당 60 한도(InteractionRateLimiterService, Redis fixed-window).
+    // fresh execution 이라 카운터가 0 에서 시작 — 61+ 요청 중 초과분이 429.
+    // rate-limit 가드는 handler 이전에 실행되므로 command 결과(202/410 등)와 무관하게 카운트된다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionId, workflowId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+
+    // 61 요청 병렬 발사 — Redis INCR 은 원자적이라 정확히 60 통과 후 초과분 429.
+    const N = 61;
+    const responses = await Promise.all(
+      Array.from({ length: N }, () =>
+        request(BASE_URL)
+          .post(`/api/external/executions/${executionId}/interact`)
+          .set('Authorization', `Bearer ${iextToken}`)
+          .send({ command: 'cancel' }),
+      ),
+    );
+
+    const rateLimited = responses.filter((r) => r.status === 429);
+    // 최소 1건은 한도 초과 429 여야 한다 (61 > 60).
+    expect(rateLimited.length).toBeGreaterThanOrEqual(1);
+    const first429 = rateLimited[0];
+    expect(first429.body.error.code).toBe('RATE_LIMITED');
+    // Retry-After 헤더로 재시도 대기 시간(초) 안내.
+    expect(first429.headers['retry-after']).toBeDefined();
+    expect(Number(first429.headers['retry-after'])).toBeGreaterThan(0);
+    // 429 는 SSE 전용 TOO_MANY_CONNECTIONS 와 다른 코드여야 한다 (별개 표면).
+    expect(first429.body.error.code).not.toBe('TOO_MANY_CONNECTIONS');
+  }, 30_000);
 });

@@ -29,3 +29,17 @@ export function isWorkflowEmpty(nodes: Node[]): boolean {
 export function findFirstTriggerNode(nodes: Node[]): Node | undefined {
   return nodes.find(isTriggerNode);
 }
+
+/**
+ * 노드를 삭제할 수 있는지 판정하는 단일 출처.
+ *
+ * Manual Trigger 는 워크플로우의 진입점이라 삭제할 수 없어요 (spec
+ * 3-workflow-editor/0-canvas.md §5.4.2·§9.2). 웹훅·스케줄 등 다른 트리거는
+ * 삭제 가능해요. `custom-node.tsx` 의 ✕ 삭제 버튼 렌더 게이트와
+ * `workflow-canvas.tsx` 의 `canDeleteNode`(Delete 키·우클릭 메뉴)가 같은 규칙을
+ * 참조하도록 이 헬퍼로 통합해요. (실행 중 버튼 숨김은 §5.4.2 가 버튼에만 요구하는
+ * 별개 조건이라 호출부에서 따로 결합해요.)
+ */
+export function isNodeDeletable(nodeType: string | undefined): boolean {
+  return nodeType !== "manual_trigger";
+}
