@@ -106,10 +106,11 @@ export class InteractionRateLimiterService {
 
   /**
    * INCR + (첫 증가 시) EXPIRE 를 **단일 원자적 Lua 스크립트**로 실행해 fixed-window 를
-   * 구성한다. INCR 과 EXPIRE 를 별도 왕복으로 하면(예: `PublicWebhookQuotaService`) 두 커맨드
-   * 사이 프로세스 크래시·네트워크 단절 시 TTL 없는 키가 영구 잔류해 해당 execution 이 영구
-   * rate-limit(fail-closed)되는 잔여 위험이 있다 — Lua EVAL 은 서버측에서 두 커맨드를 원자
-   * 실행해 이 창을 제거한다. (동일 패턴을 쓰는 다른 컴포넌트는 cross-cutting 후속으로 추적.)
+   * 구성한다. INCR 과 EXPIRE 를 별도 왕복으로 하면 두 커맨드 사이 프로세스 크래시·네트워크
+   * 단절 시 TTL 없는 키가 영구 잔류해 해당 execution 이 영구 rate-limit(fail-closed)되는
+   * 잔여 위험이 있다 — Lua EVAL 은 서버측에서 두 커맨드를 원자 실행해 이 창을 제거한다.
+   * (자매 rate-limiter `PublicWebhookQuotaService`·`ChatChannelRateLimiterService` 는 같은
+   * 위험을 `INCR + EXPIRE ... NX` 단일 pipeline 으로 해소한다 — 전략만 다르고 self-heal 은 동일.)
    */
   private async incrWithWindow(
     key: string,

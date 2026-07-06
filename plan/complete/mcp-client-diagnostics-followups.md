@@ -2,6 +2,9 @@
 worktree: mcp-client-diagnostics-followups-878f42
 started: 2026-07-06
 owner: developer
+spec_impact:
+  - spec/5-system/11-mcp-client.md
+  - spec/conventions/error-codes.md
 ---
 
 # mcp-client 진단 — #840 후속 4종 (단일 PR)

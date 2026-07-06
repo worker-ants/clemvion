@@ -108,18 +108,24 @@ export class PublicWebhookQuotaService {
   }
 
   /**
-   * fixed-window 원자적 증가 — pipeline 으로 INCR + NX-EXPIRE 단일 왕복(W7/W15).
-   * pipeline 결과는 [incrResult, expireResult] 배열. count=1 일 때만 EXPIRE 를 건다.
-   * ioredis pipeline 은 배열 결과이므로 타입 캐스팅 필요.
+   * fixed-window 증가 — `INCR` + `EXPIRE ... NX` 를 **단일 pipeline** 으로 매 요청 함께
+   * 보낸다 (`ChatChannelRateLimiterService.incrWithWindow` 와 동일 패턴).
+   *
+   * 과거엔 `INCR` 만 pipeline 으로 보내고 `count===1` 일 때만 **별도 왕복** `EXPIRE` 를
+   * 걸었는데, 두 커맨드 사이 프로세스 크래시·네트워크 단절 시 `EXPIRE` 가 유실되면 TTL
+   * 없는 키가 영구 잔류해 해당 IP 버킷이 영영 rate-limit 에 걸리는(fail-closed 잠금)
+   * 잔여 위험이 있었다 — 이 서비스 전체 정책은 fail-open 인데 그 키만 예외적으로
+   * fail-closed 로 굳는다. `EXPIRE ... NX` 를 **매 요청** 같은 pipeline 으로 보내면
+   * (a) 첫 증가에 window TTL 을 걸고 (b) 과거 TTL 유실분도 다음 요청이 self-heal 한다
+   * (NX 라 TTL 이 이미 있으면 no-op — window 를 연장하지 않아 fixed-window 유지).
    */
   private async incrWithWindow(
     key: string,
     windowSec: number,
   ): Promise<number> {
-    // pipeline: INCR → 결과 확인 → 필요 시 EXPIRE
-    // 단일 왕복으로 최악 4 RTT 를 2 RTT 로 단축(W15).
     const pipeline = this.redis!.pipeline();
     pipeline.incr(key);
+    pipeline.expire(key, windowSec, 'NX');
     const results = await pipeline.exec();
     // exec() 결과: [[err, value], ...] | null
     if (!results || results.length === 0) {
@@ -127,12 +133,6 @@ export class PublicWebhookQuotaService {
     }
     const [incrErr, count] = results[0] as [Error | null, number];
     if (incrErr) throw incrErr;
-
-    // 키가 새로 생성된 첫 증가(=1)일 때만 TTL 설정(W7: 비원자 EXPIRE 분리 안전성 확보).
-    // count=1 이면 키가 방금 생성된 것이므로 EXPIRE 를 건다.
-    if (count === 1) {
-      await this.redis!.expire(key, windowSec);
-    }
     return count;
   }
 
