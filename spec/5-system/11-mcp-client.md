@@ -78,7 +78,7 @@ AI Agent 노드가 외부 [Model Context Protocol (MCP)](https://modelcontextpro
 
 **capability 보고**: Internal Bridge 별로 capability 가 다를 수 있다 — Cafe24 는 `tools` 만 보고, `resources` / `prompts` 미보고. AI Agent 는 §5.1 노출 규칙에 따라 메타도구를 생성하지 않는다.
 
-**에러 처리**: §8 의 에러 vocabulary 그대로 적용. Cafe24 의 경우 `tool_result.error` 의 `code` 는 Cafe24 노드 §6 의 vocabulary (`CAFE24_AUTH_FAILED` 등)를 그대로 사용한다. 현재 이 call-phase 실패는 `tool_result.error` + `IntegrationUsageLog`(§8.3) 로 표면화되며, `mcpDiagnostics.errors[]` 로의 누적은 **Planned** (§6.2 잔여 — build-phase `errors[]` 는 외부 `McpToolProvider` 전용이고 Internal Bridge 실패는 `serverSummaries[]` 의 `skipped(skipReason)` 로 표면화된다). errors[] 누적 도입 시 Cafe24 vocabulary 도 동일하게 담긴다.
+**에러 처리**: §8 의 에러 vocabulary 그대로 적용. Cafe24 의 경우 `tool_result.error` 의 `code` 는 Cafe24 노드 §6 의 vocabulary (`CAFE24_AUTH_FAILED` 등)를 그대로 사용하며, 이 call-phase 실패(API 4xx/5xx·transport)는 `tool_result.error` + `IntegrationUsageLog`(§8.3)에 더해 **`mcpDiagnostics.errors[]` 에도 동일 vocabulary·`phase='tools/call'` 로 누적**된다(`AgentToolResult.mcpErrorDelta` 경유, §6.2). build-phase `errors[]`(connect/`tools/list`)는 외부 `McpToolProvider` 전용이고, Internal Bridge 의 build 단계 실패는 `serverSummaries[]` 의 `skipped(skipReason)` 로 표면화된다 — errors[] 는 call 단계 표면.
 
 > Internal Bridge 도 §8.4 의 인증 실패 자동 status 전환 정책을 따른다. 단, refresh_token 을 보유한 provider (예: cafe24) 의 401 은 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 "refresh + 1회 재시도" 자가 회복 정책이 우선 적용되며, 재시도도 401 이면 그때 §8.4 와 같은 격하. 403 은 항상 §8.4 와 동일하게 즉시 격하.
 
