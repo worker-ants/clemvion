@@ -561,6 +561,49 @@ describe('NotificationsService — dismiss', () => {
       expect(repo.update).not.toHaveBeenCalledWith('n-2', expect.any(Object));
     });
 
+    it('createMany — 배치 중 1건 발송 실패 시 나머지는 계속 (부분 실패 격리)', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        savedRow({ id: 'n-1', userId: 'u-1', channel: 'email' }),
+        savedRow({ id: 'n-2', userId: 'u-2', channel: 'email' }),
+      ]);
+      userRepo.find.mockResolvedValue([
+        { id: 'u-1', email: 'u1@x.com' },
+        { id: 'u-2', email: 'u2@x.com' },
+      ]);
+      // u-1 발송 실패, u-2 성공.
+      mail.sendNotificationEmail.mockImplementation((to: string) =>
+        to === 'u1@x.com'
+          ? Promise.reject(new Error('SMTP down'))
+          : Promise.resolve(undefined),
+      );
+
+      await expect(
+        service.createMany([
+          {
+            workspaceId: 'ws',
+            userId: 'u-1',
+            type: 't',
+            title: 'a',
+            message: 'm',
+            channel: 'email',
+          },
+          {
+            workspaceId: 'ws',
+            userId: 'u-2',
+            type: 't',
+            title: 'a',
+            message: 'm',
+            channel: 'email',
+          },
+        ]),
+      ).resolves.toBeUndefined();
+
+      // 실패한 n-1 은 email_sent_at 미갱신, 성공한 n-2 만 갱신.
+      expect(repo.update).not.toHaveBeenCalledWith('n-1', expect.any(Object));
+      expect(repo.update).toHaveBeenCalledWith('n-2', expect.any(Object));
+    });
+
     it('발송 실패 시 warn 만 — email_sent_at 미갱신, notify 는 reject 안 함', async () => {
       repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
       repo.save.mockResolvedValue(savedRow({ channel: 'email' }));

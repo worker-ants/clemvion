@@ -423,7 +423,10 @@ export class MailService {
     email: string,
     notification: { title: string; message: string; type: string },
   ): Promise<void> {
-    const notificationsUrl = `${this.frontendUrl}/notifications`;
+    // 알림은 전용 페이지가 아니라 사이드바 벨 팝오버로 노출되므로, CTA 는 인증
+    // 랜딩(`/dashboard`, auth redirect 의 canonical 타겟)으로 보낸다 — 거기서
+    // 벨 팝오버로 알림을 확인. 전용 `/notifications` 라우트는 존재하지 않는다.
+    const notificationsUrl = `${this.frontendUrl}/dashboard`;
 
     if (this.transport === MAIL_TRANSPORT_CONSOLE) {
       this.logger.debug(
@@ -486,6 +489,7 @@ export class MailService {
     notification: { title: string; message: string },
     notificationsUrl: string,
   ): string {
+    // plain text 파트라 HTML escape 불요 (렌더 컨텍스트가 마크업 아님).
     return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}`;
   }
 }

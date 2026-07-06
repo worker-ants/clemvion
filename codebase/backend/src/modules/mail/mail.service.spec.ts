@@ -301,8 +301,26 @@ describe('MailService', () => {
       expect(args.to).toBe('user@example.com');
       expect(args.subject).toBe('Workflow failed');
       expect(args.html).toContain('run xyz failed');
-      expect(args.html).toContain('http://localhost:3000/notifications');
+      // 전용 /notifications 라우트는 없음 — CTA 는 인증 랜딩 /dashboard 로.
+      expect(args.html).toContain('http://localhost:3000/dashboard');
       expect(args.text).toContain('run xyz failed');
+    });
+
+    it('console transport 이면 debug 로그 후 정상 발송', async () => {
+      const { service: consoleService, mailerService: consoleMailer } =
+        await createService({ 'mail.transport': 'console' });
+      const debugSpy = jest
+        .spyOn((consoleService as any).logger, 'debug')
+        .mockImplementation(() => undefined);
+
+      await consoleService.sendNotificationEmail('user@example.com', {
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        type: 'execution_failed',
+      });
+
+      expect(debugSpy).toHaveBeenCalled();
+      expect(consoleMailer.sendMail).toHaveBeenCalledTimes(1);
     });
 
     it('title/message 를 HTML escape (XSS 방어)', async () => {

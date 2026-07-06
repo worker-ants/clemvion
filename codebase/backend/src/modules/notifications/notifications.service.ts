@@ -261,8 +261,8 @@ export class NotificationsService {
    *
    * spec/data-flow/8-notifications.md §1 (Source → Sink) 의 단일 `notify()` 표면.
    * preference 확인·channel 계산은 현행 설계상 호출자 책임이며(spec §1 표), 본 표면은
-   * 적재 + 실시간 push 를 담당한다. 이메일 발송(`channel ∈ {email, both}`)과
-   * `email_sent_at` 라이프사이클은 후속 phase (spec §2.2 Planned).
+   * 적재 + 실시간 push({@link emitNew}) + `channel ∈ {email, both}` 시 이메일 발송
+   * ({@link dispatchEmails}, best-effort)을 담당한다.
    */
   async notify(entry: {
     workspaceId: string;

@@ -12,7 +12,7 @@ owner: planner
 ## 배경
 
 PR2 가 구현한 것:
-- `codebase/backend/src/modules/mail/mail.service.ts` — `sendNotificationEmail(email, {title,message,type})` **단일 범용 템플릿**(subject=title, 본문=message + `/notifications` CTA). 실패 시 throw.
+- `codebase/backend/src/modules/mail/mail.service.ts` — `sendNotificationEmail(email, {title,message,type})` **단일 범용 템플릿**(subject=title, 본문=message + `/dashboard` CTA(전용 알림 페이지 없음 — 인증 랜딩에서 벨 팝오버로 확인)). 실패 시 throw.
 - `codebase/backend/src/modules/notifications/notifications.service.ts` — `notify()`/`createMany()` 저장 후 `dispatchEmails()`: `channel∈{email,both}` row 에 User email(`In(userIds)` 배치) 발송 → 성공 시 `email_sent_at=now` UPDATE. 완전 best-effort(warn only, 재시도 없음, 실패 시 `email_sent_at` NULL 유지).
 
 ## flip / 정정 대상 (planner 편집) — `spec/data-flow/8-notifications.md`
