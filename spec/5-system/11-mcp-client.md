@@ -360,6 +360,8 @@ KB 의 `ragDiagnostics` 와 동일한 패턴으로, AI Agent 의 `meta.mcpDiagno
 > - `toolCalls` / `resourceReads` / `promptGets` 는 노드 실행의 tool 실행 지점에서 `mcp_*` 호출을 종류별(`tools/call` / `read_resource` / `get_prompt`)로 집계한다. `list_resources`/`list_prompts` discovery 메타도구는 미집계 (§8.3 의 usage 로그 제외와 정합).
 >
 > **잔여 (Planned)**: ① **call 단계**(`tools/call`/`resources/read`/`prompts/get`) 실패의 `errors[]` 누적 — 현재는 `tool_result` + `IntegrationUsageLog`(§8.3) 로 표면화 (§8.1 표의 "errors 에도 누적" 중 call-phase 부분). ② §3.3 `credentials.cached_capabilities` 캐시. 추적: `plan/in-progress/spec-sync-mcp-client-gaps.md`.
+>
+> **구현 노트 — provider 입력 슬롯 vs meta 출력의 shape 구분**: provider(`AgentToolProvider.buildTools`)는 진단을 **두 개의 sub-array 슬롯** 으로만 push 한다 — `ProviderBuildCtx.mcpDiagnostics`(= `serverSummaries[]`, `McpServerSummary[]`)와 `ProviderBuildCtx.mcpDiagnosticErrors`(= `errors[]`, `McpDiagnosticError[]`). 최종 `meta.mcpDiagnostics`(구조화 `McpDiagnostics` 객체)는 핸들러(executor)가 이 두 sub-array + 실행 카운터를 `finalize` 해 조립한다. 즉 `ProviderBuildCtx.mcpDiagnostics`(입력 슬롯, 배열)와 `meta.mcpDiagnostics`(출력, 객체)는 **이름은 유사하나 계층·shape 가 다르다** — provider 는 요약 배열만 채우고 객체 조립·카운터는 핸들러 책임이다.
 
 ```json
 {

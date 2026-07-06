@@ -410,6 +410,94 @@ describe('AiTurnExecutor', () => {
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
     });
 
+    it('multi-turn: max_turns 종결 output 에 구조화 meta.mcpDiagnostics(카운터 포함) emit — spec §6.2', async () => {
+      const mcpProvider = {
+        key: 'mcp',
+        matches: (n: string) => n.startsWith('mcp_'),
+        buildTools: async (ctx: {
+          mcpDiagnostics?: Array<Record<string, unknown>>;
+        }) => {
+          ctx.mcpDiagnostics?.push({
+            integrationId: 'i-a',
+            serviceType: 'mcp',
+            status: 'connected',
+            toolCount: 1,
+          });
+          return [
+            {
+              name: 'mcp_abcd1234__do',
+              description: 'd',
+              parameters: { type: 'object', properties: {} },
+            },
+          ];
+        },
+        execute: async (call: { id: string }) => ({
+          toolCallId: call.id,
+          content: '{}',
+          status: 'success' as const,
+        }),
+      };
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [{ id: 't1', name: 'mcp_abcd1234__do', arguments: {} }],
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'tool_calls',
+        })
+        .mockResolvedValueOnce({
+          content: '처리했습니다.',
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+      const executor = buildExecutor({ toolProviders: [mcpProvider] });
+      // turnCount 19 + maxTurns 20 → 이번 턴 종결 시 max_turns ended.
+      const state = {
+        ...resumeState(),
+        turnCount: 19,
+        maxTurns: 20,
+        mcpServers: [{ integrationId: 'i-a' }],
+      };
+      const result = (await executor.processMultiTurnMessage(
+        'go',
+        state,
+      )) as Record<string, unknown>;
+
+      expect(result.port).toBe('max_turns');
+      const diag = (result.meta as { mcpDiagnostics?: Record<string, unknown> })
+        .mcpDiagnostics;
+      expect(diag).toMatchObject({
+        attempted: true,
+        serverCount: 1,
+        toolCalls: 1,
+        resourceReads: 0,
+        promptGets: 0,
+        serverSummaries: [
+          {
+            integrationId: 'i-a',
+            serviceType: 'mcp',
+            status: 'connected',
+            toolCount: 1,
+          },
+        ],
+        errors: [],
+      });
+    });
+
+    it('multi-turn: MCP 미구성 시 meta.mcpDiagnostics omit (lean)', async () => {
+      const executor = buildExecutor();
+      const state = { ...resumeState(), turnCount: 19, maxTurns: 20 };
+      const result = (await executor.processMultiTurnMessage(
+        'go',
+        state,
+      )) as Record<string, unknown>;
+      expect(result.port).toBe('max_turns');
+      expect(
+        (result.meta as { mcpDiagnostics?: unknown }).mcpDiagnostics,
+      ).toBeUndefined();
+    });
+
     it('재개 시 turnDebugHistory/allPresentations 를 누적·보존 (M-7 enrich 회귀 가드)', async () => {
       // z.custom enrich 로 array 캐스트를 제거한 뒤에도 이전 turn 의
       // turnDebugHistory(prepend+append)·allPresentations(보존)가 다음

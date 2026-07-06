@@ -93,6 +93,12 @@ describe('classifyMcpCall', () => {
     // identifier 자체가 read_resource 와 정확히 일치할 때만 메타로 판정.
     expect(classifyMcpCall('mcp_abcd1234__read_resource_x')).toBe('tool');
   });
+
+  it('__ 미포함 mcp_ 이름(비정상)은 방어적으로 tool 로 분류 (실무상 미도달)', () => {
+    // executor 는 buildTools 가 만든 `mcp_<sid>__<tool>` 만 넘기므로 __ 없는
+    // 이름은 도달하지 않는다. 도달해도 카운터를 깨지 않도록 tool 기본값 고정.
+    expect(classifyMcpCall('mcp_abcd1234')).toBe('tool');
+  });
 });
 
 describe('finalizeMcpDiagnostics', () => {
@@ -152,6 +158,30 @@ describe('finalizeMcpDiagnostics', () => {
     });
     const out = finalizeMcpDiagnostics(acc);
     expect(out?.errors).toEqual([]);
+  });
+
+  it('connected 여러 건 + skipped 혼재 시 serverCount 는 connected 만 센다', () => {
+    const acc = createMcpDiagnosticsAccumulator();
+    pushMcpServerSummary(acc.serverSummaries, {
+      integrationId: 'i-a',
+      serviceType: 'mcp',
+      status: 'connected',
+      toolCount: 2,
+    });
+    pushMcpServerSummary(acc.serverSummaries, {
+      integrationId: 'i-b',
+      serviceType: 'cafe24',
+      status: 'connected',
+      toolCount: 5,
+    });
+    pushMcpServerSummary(acc.serverSummaries, {
+      integrationId: 'i-c',
+      serviceType: 'mcp',
+      status: 'skipped',
+      skipReason: 'error',
+      toolCount: 0,
+    });
+    expect(finalizeMcpDiagnostics(acc)?.serverCount).toBe(2);
   });
 
   it('summary 없이 호출 카운터만 있어도 attempted=true', () => {
