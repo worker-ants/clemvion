@@ -356,5 +356,20 @@ describe('Background body monitoring (e2e)', () => {
     }>;
     expect(notifications.length).toBeGreaterThan(0);
     expect(notifications[0].type).toBe('background_failed');
+
+    // background_run_id 는 DB 엔티티 `select: false` 라 일반 알림 목록 REST 응답에
+    // 노출되지 않아야 한다 (내부 attribution 전용, V107). owner 는 워크스페이스 admin
+    // 이라 background_failed 알림을 수신 → GET /notifications 로 확인 가능.
+    const listRes = await request(BASE_URL)
+      .get('/api/notifications')
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(listRes.status).toBe(200);
+    const listed = listRes.body.data as Array<Record<string, unknown>>;
+    const bgFailed = listed.find((n) => n.type === 'background_failed');
+    expect(bgFailed).toBeDefined();
+    // resource_id 는 딥링크용 workflow id 로 노출되나, backgroundRunId 는 미노출.
+    expect(bgFailed).not.toHaveProperty('backgroundRunId');
+    expect(bgFailed?.resourceId).toBe(workflowId);
   }, 45_000);
 });

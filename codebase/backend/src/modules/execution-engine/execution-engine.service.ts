@@ -8,6 +8,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import { sanitizeErrorMessage } from './sanitize-error-message';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, LessThan, Repository } from 'typeorm';
 import {
@@ -4488,7 +4489,10 @@ export class ExecutionEngineService
           userId,
           type: 'execution_failed',
           title: '워크플로우 실행 실패',
-          message: `워크플로우 "${workflow.name}" 실행이 실패했어요: ${message}`,
+          // 원본 노드 예외 메시지에 내부 호스트명·연결 문자열·경로가 담길 수 있어,
+          // 인앱+이메일(외부 SMTP) 노출 전 background 경로와 동일하게 새니타이징한다
+          // (security review 22_42_32 WARNING — 방어 심도 통일).
+          message: `워크플로우 "${workflow.name}" 실행이 실패했어요: ${sanitizeErrorMessage(message)}`,
           // 딥링크 계약(href.ts §3.1) — resource_id = workflow id.
           resourceType: 'workflow',
           resourceId: workflow.id,

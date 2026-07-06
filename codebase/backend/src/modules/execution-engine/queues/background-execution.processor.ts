@@ -12,29 +12,9 @@ import {
   BackgroundRunEventType,
   WebsocketService,
 } from '../../websocket/websocket.service';
-
-const ERROR_MESSAGE_MAX_LENGTH = 500;
-const STACK_TRACE_PATTERN = /\s+at\s+.*\(.+\)/g;
-const CONNECTION_STRING_PATTERN =
-  /(postgres|postgresql|redis|mongodb|mysql):\/\/[^\s]+/gi;
-
-/**
- * 본문 실행 실패 메시지를 WS 이벤트 / notification 에 노출하기 전 정리.
- *
- * 길이 제한 + stack trace · connection string 패턴 제거. credential 자체는
- * `WebsocketService.sanitizePayloadForWs` 의 키 기반 마스킹이 추가로 차단하지만,
- * Error.message 안에 평문으로 들어온 경우를 보강 — defense in depth.
- */
-function sanitizeErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  const stripped = raw
-    .replace(STACK_TRACE_PATTERN, '')
-    .replace(CONNECTION_STRING_PATTERN, '[REDACTED_URI]')
-    .trim();
-  return stripped.length > ERROR_MESSAGE_MAX_LENGTH
-    ? `${stripped.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…`
-    : stripped;
-}
+// 에러 메시지 새니타이징은 top-level 실행 실패 경로(execution-engine.service)와 공유하는
+// 단일 util 로 둔다 — 한쪽만 적용돼 방어 심도가 갈리지 않도록 (security review 22_42_32).
+import { sanitizeErrorMessage } from '../sanitize-error-message';
 
 /**
  * Background 노드 큐 워커.
