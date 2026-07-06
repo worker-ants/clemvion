@@ -666,7 +666,7 @@ describe('ExecutionEngineService', () => {
         workspaceId: 'ws',
         resourceType: 'execution',
         resourceId: 'ex-1',
-        channel: 'in_app',
+        channel: 'both',
       });
     });
 

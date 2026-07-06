@@ -231,7 +231,9 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         message: `스케줄이 워크플로우 "${workflow.name}" 실행을 시작하지 못했어요: ${message}`,
         resourceType: 'schedule',
         resourceId: scheduleId,
-        channel: 'in_app',
+        // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 "스케줄 실행 실패"
+        // 기본 채널(토글 미구현이라 기본값 고정 발송).
+        channel: 'both',
       });
     } catch (err) {
       this.logger.error(

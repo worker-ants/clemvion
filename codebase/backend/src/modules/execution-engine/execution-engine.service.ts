@@ -4458,7 +4458,9 @@ export class ExecutionEngineService
           message: `워크플로우 "${workflow.name}" 실행이 실패했어요: ${message}`,
           resourceType: 'execution',
           resourceId: execution.id,
-          channel: 'in_app',
+          // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 이 "워크플로우 실행
+          // 실패" 기본 채널을 인앱+이메일로 규정(채널 on/off 토글 미구현이라 기본값 고정).
+          channel: 'both',
         })),
       );
     } catch (err) {

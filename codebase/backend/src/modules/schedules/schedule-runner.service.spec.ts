@@ -287,7 +287,7 @@ describe('ScheduleRunnerService', () => {
           type: 'schedule_failed',
           resourceType: 'schedule',
           resourceId: 's1',
-          channel: 'in_app',
+          channel: 'both',
         }),
       );
     });
