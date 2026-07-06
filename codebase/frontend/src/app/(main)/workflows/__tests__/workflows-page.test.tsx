@@ -662,11 +662,15 @@ describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
       useWorkspaceStore.setState({ currentWorkspaceId: "ws-2" });
     });
 
-    await vi.waitFor(() =>
-      expect(
-        (screen.getByTestId("workflow-folder-filter") as HTMLSelectElement)
-          .value,
-      ).toBe(""),
+    // Generous timeout: the reset flows through a store subscribe callback and a
+    // folders refetch, which can brush the 1000ms default on a cold start.
+    await vi.waitFor(
+      () =>
+        expect(
+          (screen.getByTestId("workflow-folder-filter") as HTMLSelectElement)
+            .value,
+        ).toBe(""),
+      { timeout: 3000 },
     );
   });
 });
