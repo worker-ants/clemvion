@@ -18,7 +18,7 @@ owner: planner
 - [ ] **SSE 버퍼 만료 시 `execution.replay_unavailable` emit** (§5.2 / §11 / EIA-IN-07 / EIA-NF-03) — 버퍼 내(5분) 재전송은 구현됨. 만료/누락분 silent drop 이며 만료 신호 emit 은 기존부터 계획·미구현으로 표기됨 (본 audit 신규 아님, 추적 보존).
 
 ## 후속 (cross-cutting, 본 spec 밖)
-- [ ] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — item 5 에서 `InteractionRateLimiterService.incrWithWindow` 는 원자 Lua EVAL 로 구현했으나, 동일 비원자 패턴(INCR 후 별도 EXPIRE)을 쓰는 기존 컴포넌트 `PublicWebhookQuotaService`(`codebase/backend/src/modules/hooks/`)·`ChatChannelRateLimiterService` 는 그대로다. 크래시/네트워크 단절 시 TTL-less 키 영구 잔류(fail-closed 잠금) 이론 위험 — 동일 Lua EVAL 로 통일. (ai-review concurrency + impl-done plan_coherence WARNING 발. session task `task_fa5c5e84` 로도 chip 발급.)
+- [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__14-external-interaction-api.md 참조.
