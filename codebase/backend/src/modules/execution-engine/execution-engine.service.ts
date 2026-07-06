@@ -2448,6 +2448,11 @@ export class ExecutionEngineService
    * `RehydrationError` 는 호출 측(`driveResumeAwaited` catch / `rehydrateAndResume`
    * outer)이 `markExecutionCancelled` 로 직접 처리하므로 여기로 넘기지 않는다
    * (도달 시 방어적으로 failed 처리).
+   *
+   * **side-effect**: `failed` 종결 시 top-level 실행에 대해 `execution_failed` 알림도 발사한다
+   * (best-effort, `dispatchExecutionFailedNotification`, spec/data-flow/8-notifications.md §1.1).
+   * 일반 실행은 대부분 재개 세그먼트로 종결되므로 초기 세그먼트(`runExecution` catch)와 동일하게
+   * 여기서도 발사해야 누락이 없다.
    */
   private async finalizeResumedExecutionOutcome(
     savedExecution: Execution,

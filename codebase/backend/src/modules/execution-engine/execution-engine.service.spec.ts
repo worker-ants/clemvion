@@ -762,6 +762,41 @@ describe('ExecutionEngineService', () => {
       ).resolves.toBeUndefined();
       expect(createMany).not.toHaveBeenCalled();
     });
+
+    it('알림 메시지의 원본 예외를 새니타이징한다 (connection string redact — 이메일 노출 방어)', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+      (
+        service as unknown as { notificationsService: unknown }
+      ).notificationsService = { createMany };
+      await (
+        service as unknown as {
+          dispatchExecutionFailedNotification: (
+            e: unknown,
+            m: string,
+          ) => Promise<void>;
+        }
+      ).dispatchExecutionFailedNotification(
+        {
+          id: 'ex-7',
+          workflowId: 'wf',
+          executedBy: 'owner',
+          parentExecutionId: null,
+        },
+        'connect failed postgres://user:secret@db.internal:5432/app',
+      );
+      const entries = createMany.mock.calls[0][0] as Array<{ message: string }>;
+      // sanitizeErrorMessage 가 적용됐으면 connection string 이 redact 된다.
+      // 호출이 삭제/오배선되면 원본 URI 가 인앱+이메일로 노출 → 본 케이스가 실패.
+      expect(entries[0].message).toContain('[REDACTED_URI]');
+      expect(entries[0].message).not.toContain('postgres://');
+      expect(entries[0].message).not.toContain('secret');
+    });
   });
 
   describe('getNotificationsService — ModuleRef 지연 해석 (버그 B 회귀 가드)', () => {
