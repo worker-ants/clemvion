@@ -4,12 +4,14 @@ import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { WebsocketService } from '../websocket/websocket.service';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    private readonly websocketService: WebsocketService,
   ) {}
 
   /**
@@ -227,8 +229,45 @@ export class NotificationsService {
   }
 
   /**
+   * 단일 알림 적재 표면 — 한 사용자에게 알림 1건을 INSERT 하고 즉시
+   * `notification.new` WS emit 한다. 배치가 필요한 fan-out 호출자는 {@link createMany}.
+   *
+   * spec/data-flow/8-notifications.md §1 (Source → Sink) 의 단일 `notify()` 표면.
+   * preference 확인·channel 계산은 현행 설계상 호출자 책임이며(spec §1 표), 본 표면은
+   * 적재 + 실시간 push 를 담당한다. 이메일 발송(`channel ∈ {email, both}`)과
+   * `email_sent_at` 라이프사이클은 후속 phase (spec §2.2 Planned).
+   */
+  async notify(entry: {
+    workspaceId: string;
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    resourceType?: string;
+    resourceId?: string;
+    channel?: 'in_app' | 'email' | 'both';
+  }): Promise<Notification> {
+    const row = this.notificationRepository.create({
+      workspaceId: entry.workspaceId,
+      userId: entry.userId,
+      type: entry.type,
+      title: entry.title,
+      message: entry.message,
+      channel: entry.channel ?? 'in_app',
+      isRead: false,
+    });
+    if (entry.resourceType) row.resourceType = entry.resourceType;
+    if (entry.resourceId) row.resourceId = entry.resourceId;
+    const saved = await this.notificationRepository.save(row);
+    this.emitNew(saved);
+    return saved;
+  }
+
+  /**
    * Persist a batch of notifications in a single INSERT. Safe against empty
    * arrays (no-op). Used by background workers that fan out to many users.
+   * 저장된 각 row 에 대해 `notification.new` WS emit — 기존 배치 호출자
+   * (background/alerts/integration) 도 실시간 push 를 확보한다 (spec §1·§2.2).
    */
   async createMany(
     entries: Array<{
@@ -257,7 +296,26 @@ export class NotificationsService {
       if (e.resourceId) row.resourceId = e.resourceId;
       return row;
     });
-    await this.notificationRepository.save(rows);
+    const saved = await this.notificationRepository.save(rows);
+    for (const row of saved) {
+      this.emitNew(row);
+    }
+  }
+
+  /**
+   * 적재된 알림 row 를 `notifications:<userId>` 채널에 `notification.new` 로 push.
+   * WS 전달은 best-effort — {@link WebsocketService.emitNotificationEvent} 가
+   * 예외를 삼키므로 적재 트랜잭션에 영향 없다.
+   */
+  private emitNew(row: Notification): void {
+    this.websocketService.emitNotificationEvent(row.userId, {
+      id: row.id,
+      type: row.type,
+      title: row.title,
+      message: row.message,
+      resourceType: row.resourceType ?? null,
+      resourceId: row.resourceId ?? null,
+    });
   }
 
   private getSortColumn(sort: string): string {

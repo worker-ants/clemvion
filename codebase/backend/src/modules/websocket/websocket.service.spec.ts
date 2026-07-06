@@ -672,4 +672,72 @@ describe('WebsocketService', () => {
       expect(fanout.payload.nodeId).toBe('node-1');
     });
   });
+
+  describe('emitNotificationEvent', () => {
+    it('`notifications:<userId>` 채널에 notification.new 를 spec §4.4 shape 으로 emit', () => {
+      service.emitNotificationEvent('user-42', {
+        id: 'notif-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        resourceType: 'execution',
+        resourceId: 'exec-9',
+      });
+
+      expect(gateway.broadcastToChannel).toHaveBeenCalledTimes(1);
+      const [channel, event, payload] =
+        gateway.broadcastToChannel.mock.calls[0];
+      expect(channel).toBe('notifications:user-42');
+      expect(event).toBe('notification.new');
+      expect(payload).toEqual({
+        id: 'notif-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        resourceType: 'execution',
+        resourceId: 'exec-9',
+        timestamp: expect.any(String),
+      });
+    });
+
+    it('resource attribution 누락 시 payload resource* 를 null 로 정규화', () => {
+      service.emitNotificationEvent('user-1', {
+        id: 'notif-2',
+        type: 'team_invite',
+        title: 'Invited',
+        message: 'welcome',
+      });
+
+      const payload = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(payload.resourceType).toBeNull();
+      expect(payload.resourceId).toBeNull();
+    });
+
+    it('userId 가 비면 no-op (채널 식별 불가)', () => {
+      service.emitNotificationEvent('', {
+        id: 'notif-3',
+        type: 'x',
+        title: 't',
+        message: 'm',
+      });
+      expect(gateway.broadcastToChannel).not.toHaveBeenCalled();
+    });
+
+    it('broadcast 예외를 삼켜 적재 경로를 깨지 않는다 (best-effort)', () => {
+      gateway.broadcastToChannel.mockImplementation(() => {
+        throw new Error('socket server not ready');
+      });
+      expect(() =>
+        service.emitNotificationEvent('user-1', {
+          id: 'notif-4',
+          type: 'x',
+          title: 't',
+          message: 'm',
+        }),
+      ).not.toThrow();
+    });
+  });
 });

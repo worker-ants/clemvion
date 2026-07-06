@@ -190,6 +190,29 @@ export enum BackgroundRunEventType {
 }
 
 /**
+ * 사용자 알림 도메인 이벤트. 채널: `notifications:<userId>`.
+ * 권위 정의: spec/5-system/6-websocket-protocol.md §4.4 (`notification.new`).
+ */
+export enum NotificationEventType {
+  NOTIFICATION_NEW = 'notification.new',
+}
+
+/**
+ * Wire payload for {@link NotificationEventType.NOTIFICATION_NEW}.
+ * spec/5-system/6-websocket-protocol.md §4.4 의 shape
+ * `{ id, type, title, message, resourceType, resourceId }`. `resourceType` /
+ * `resourceId` 는 리소스 attribution 이 없는 알림에서 null.
+ */
+export interface NotificationNewPayload {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  resourceType?: string | null;
+  resourceId?: string | null;
+}
+
+/**
  * WARN #10 (Security) — credential-like 키를 가진 필드를 WS 이벤트 페이로드에서
  * 마스킹. 핸들러가 echo 하지 말아야 할 자격증명 (password, apiKey, token, secret,
  * credentials.access_token 등) 이 노드 output / meta 에 실수로 포함된 경우에
@@ -574,5 +597,45 @@ export class WebsocketService {
       ...sanitizedPayload,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  /**
+   * 사용자 알림 실시간 push — `notifications:<userId>` 채널에 `notification.new` emit.
+   * spec/data-flow/8-notifications.md §1·§2.2 + spec/5-system/6-websocket-protocol.md §4.4.
+   *
+   * 채널 authorizer(`NotificationsChannelAuthorizer`, JWT `sub` == userId)가 이미
+   * fail-closed 로 배치돼 있어 다른 사용자 채널로 새지 않는다 (WS spec §3.3 Rationale).
+   *
+   * best-effort — WS 전달 실패가 알림 적재(source of truth)를 되돌리면 안 되므로
+   * broadcast 예외를 삼키고 warn log 만 남긴다 (spec 의 "이메일 실패는 warn 만" 기조 동형).
+   * `userId` 가 비면 no-op (채널 식별 불가).
+   */
+  emitNotificationEvent(
+    userId: string,
+    notification: NotificationNewPayload,
+  ): void {
+    if (!userId) return;
+    const channel = `notifications:${userId}`;
+    try {
+      this.gateway.broadcastToChannel(
+        channel,
+        NotificationEventType.NOTIFICATION_NEW,
+        {
+          id: notification.id,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          resourceType: notification.resourceType ?? null,
+          resourceId: notification.resourceId ?? null,
+          timestamp: new Date().toISOString(),
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `notification.new emit failed (userId=${userId}, id=${notification.id}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 }
