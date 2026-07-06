@@ -61,7 +61,7 @@ code:
 | EIA-NX-08 | 페이로드 안에 `seq` (= execution 내 monotonic counter, WebSocket §2.2 와 동일 값) 동봉 — 클라이언트가 정렬·dedupe 가능 | 필수 |
 | EIA-NX-09 | URL 은 `https://` 만 허용. 개발 환경 환경변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 예외 | 필수 |
 | EIA-NX-10 | SSRF 방지: 사설 IP·메타데이터 IP·loopback 차단. 워크스페이스 단위 allowlist 설정 가능 | 필수 |
-| EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. 초과분은 큐에 적재, 폭주 시 가장 오래된 이벤트부터 폐기하지 않고 `notificationHealth=degraded` 표시 — **미구현 (Planned)**. 초과 시 동작이 `notificationHealth=degraded`(§3.1 EIA-NX-07 계열) 와 결합돼 있어, inbound rate-limit(§8.4·구현됨)과 달리 outbound 카운터 + degraded 표시를 한 벌로 후속 구현한다 | 권장 |
+| EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. **구현됨**: 초과분도 **폐기하지 않고 그대로 발송**하되(무손실), 발송 성공 시 분당 60 초과면 `notificationHealth=degraded` 로 표시한다 (`OutboundNotificationRateLimiterService` Redis fixed-window + `NotificationWebhookProcessor`). 즉 "throttle"이 아니라 폭주 감지 → health 플래그. degraded 는 EIA-NX-07(발송 실패)와 필드를 공유하므로 원인은 `notification_last_error`(폭주 전용 메시지)로 구분한다 (§Rationale R-outbound-flood) | 권장 |
 | EIA-NX-12 | secret rotation API (`POST /api/triggers/:id/notification/rotate-secret`) 지원 — old secret 은 grace 24h 병행 검증 | 권장 |
 
 ### 3.2 Inbound Interaction (REST + SSE)
@@ -728,7 +728,7 @@ ALTER TABLE trigger
 | Inbound 명령 (`/interact`) | execution 당 분당 60 | **구현됨** — `InteractionRateLimiterService`(Redis fixed-window, fail-open) + `InteractionRateLimitGuard`. 초과 시 `429 RATE_LIMITED` + `Retry-After` |
 | SSE 동시 연결 | execution 당 3 | **구현됨** — 초과 시 `429 TOO_MANY_CONNECTIONS` ([`interaction-stream.controller.ts`](../../codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts)) |
 | 단발 status 조회 | execution 당 분당 120 | **구현됨** — 위 rate-limiter 의 별도 버킷. 초과 시 `429 RATE_LIMITED` + `Retry-After` |
-| Outbound notification 발송 | trigger 당 분당 60 | **미구현 (Planned)** — EIA-NX-11 (권장). 초과 시 동작이 `notificationHealth=degraded` 와 결합돼 있어 카운터+degraded 표시를 한 벌로 후속 구현, §3.1 참조 |
+| Outbound notification 발송 | trigger 당 분당 60 | **구현됨** — `OutboundNotificationRateLimiterService`(Redis fixed-window INCR+EXPIRE NX). 초과분도 폐기 없이 발송하되 발송 성공 시 초과면 `notificationHealth=degraded`(폭주 표시, 무손실). throttle 아님 — §3.1 EIA-NX-11 참조 |
 
 구현된 inbound rate-limit(`/interact`·status) 초과 응답은 `429 { error: { code: 'RATE_LIMITED' } }` + `Retry-After`(잔여 윈도우 초) 다. SSE 동시연결 초과는 EIA 전용 `TOO_MANY_CONNECTIONS` 로 별개 표면이다. Redis 미가용 시 rate-limiter 는 fail-open(허용)한다.
 
@@ -1146,3 +1146,12 @@ SSE 표면까지 전달되지만 웹채팅 위젯은 node-level 핸들러가 없
 
 **위젯 reducer 재사용**: 위젯은 `execution.message` 를 기존 `AI_MESSAGE` reducer(text/presentations 분리 렌더 지원)로
 dispatch 하되 text 를 비워 presentation 만 렌더한다 — 이중 말풍선(텍스트+표현 중복)을 방지하기 위함.
+
+### R-outbound-flood. Outbound rate-limit(EIA-NX-11) 은 throttle 이 아니라 degraded 플래그 — `notificationHealth` 두 원인 공유 (결정 2026-07-07)
+
+**채택**: outbound notification 의 trigger 당 분당 60 제한을 초과해도 **알림을 폐기·지연하지 않고 그대로 발송**하고, 발송 성공 시 초과했으면 `notificationHealth='degraded'` 로 표시만 한다. `notification_last_error` 에 폭주 전용 메시지(`Outbound rate exceeded …`)를 넣어, EIA-NX-07(5회 연속 발송 실패)의 degraded 와 **원인을 구분**한다.
+
+- **드롭/지연 대안 기각**: 스펙 EIA-NX-11 이 "가장 오래된 이벤트부터 폐기하지 않고" 를 명시한다 — 알림은 실행 결과의 부수 통지라 유실은 관측성 손실이다. 따라서 진짜 throttle(초과분 drop/delay)이 아니라 "폭주 감지 → health 플래그"로 구현한다.
+- **degraded 필드 공유(두 원인) 채택 근거**: 발송 실패(EIA-NX-07)와 폭주(EIA-NX-11)가 같은 `notificationHealth='degraded'` 를 쓴다. 별도 `flooded` enum 값을 신설하는 대안은 V059 CHECK 제약·UI·history 3중 마이그레이션을 부르는데, 두 상태 모두 "이 trigger 의 outbound 가 정상 아님" 이라는 동일 운영 신호라 실익이 작다. 대신 `notification_last_error` 로 원인을 구분한다 (impl-prep cross_spec WARNING 반영).
+- **healthy 복귀**: 폭주가 멎어 분당 60 이내로 성공 발송하면 다음 성공이 `healthy` 로 되돌린다 — degraded 는 폭주가 지속되는 동안만 유지되는 transient 신호다.
+- **발송(send) 시점 카운트**: 카운터는 `NotificationWebhookProcessor` 의 발송 성공 분기에서 증가한다("발송" 기준, §8.4). 실패-재시도 경로는 이미 EIA-NX-07 degraded 가 담당하므로 폭주 카운트에서 사실상 제외된다.
