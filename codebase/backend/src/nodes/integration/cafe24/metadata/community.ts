@@ -1,5 +1,22 @@
 import type { Cafe24OperationMetadata } from './types.js';
 
+/**
+ * Cafe24 `community` resource metadata.
+ *
+ * G-1 (plan `cafe24-backlog-residual.md` §G-1-remaining):
+ * field-set 을 공식 docs 카탈로그(`spec/conventions/cafe24-api-catalog/community/*.md`
+ * 의 각 operation `요청 파라미터` 표)와 **전량 미러**했다. 필드명은 docs Parameter 를
+ * 그대로 사용한다 — 핸들러가 field key 를 query/body 파라미터명으로 그대로 전송하므로
+ * (`cafe24.handler.ts` buildRequest), docs 명이 아닌 alias 는 Cafe24 가 인식하지 못한다.
+ * 이 과정에서 과거 비동작 alias(commenttemplate 의 `template_name`/`template_content`
+ * → docs `title`/`content`)를 docs 명으로 교체했다.
+ *
+ * 규칙:
+ * - `offset`/`limit` 은 field 로 넣지 않는다 — paginated op 는 핸들러 pagination 층이 주입.
+ * - `requiredFields` 는 기존 계약 ∩ 신규 fields keys. docs 로 없어진 필드는 제거.
+ * - 새 body-required 는 requiredFields 에 추가하지 않고 constraints 로 표현.
+ * - date/time 필드 description 은 §5.2 (KST / YYYY-MM-DD 명시).
+ */
 export const communityOperations: Cafe24OperationMetadata[] = [
   {
     id: 'boards_list',
@@ -9,7 +26,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     path: 'boards',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -23,10 +45,106 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['board_no'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      article_no: {
+        type: 'string',
+        location: 'query',
+        description: 'Article number(s), comma-separated multi-search',
+      },
+      board_category_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Board category number',
+      },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: 'Search (write-date) range start (YYYY-MM-DD, KST)',
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description:
+          'Search range end (YYYY-MM-DD, KST); max 1-year span per call',
+      },
+      input_channel: {
+        type: 'enum',
+        location: 'query',
+        enum: ['P', 'M'],
+        description: 'Input channel (P=PC, M=mobile)',
+      },
+      search: {
+        type: 'enum',
+        location: 'query',
+        enum: ['subject', 'content', 'writer_name', 'product', 'member_id'],
+        description: 'Search field scope',
+      },
+      keyword: {
+        type: 'string',
+        location: 'query',
+        description: 'Search keyword',
+      },
+      reply_status: {
+        type: 'enum',
+        location: 'query',
+        enum: ['N', 'P', 'C'],
+        description: 'Reply status (N=none, P=in-progress, C=done)',
+      },
+      comment: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Has comments (T=yes, F=no)',
+      },
+      attached_file: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Has attached file (T=yes, F=no)',
+      },
+      article_type: {
+        type: 'string',
+        location: 'query',
+        description:
+          'Article type(s), comma-separated (all/normal/notice/fixed)',
+      },
+      product_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Product number',
+      },
+      has_product: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Has product info (T=yes, F=no)',
+      },
+      is_notice: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Is notice (T=yes, F=no)',
+      },
+      is_display: {
+        type: 'enum',
+        location: 'query',
+        enum: ['T', 'F'],
+        description: 'Is displayed (T=yes, F=no)',
+      },
+      supplier_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Supplier id',
+      },
     },
     responseShape: 'list',
     paginated: true,
+    constraints: [{ kind: 'allOrNone', fields: ['start_date', 'end_date'] }],
   },
   // Phase 7c — Community boards CRUD + comments + commenttemplates + urgentinquiry
   {
@@ -38,7 +156,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['board_no'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -51,9 +174,187 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['board_no'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      board_name: { type: 'string', location: 'body' },
-      use_board: { type: 'enum', location: 'body', enum: ['T', 'F'] },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      use_board: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use board (T=on, F=off)',
+      },
+      use_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Display board (T=on, F=off)',
+      },
+      use_top_image: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use top image (T=on, F=off)',
+      },
+      top_image_url: {
+        type: 'string',
+        location: 'body',
+        description: 'Top image URL',
+      },
+      attached_file: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Allow file attachment (T=on, F=off)',
+      },
+      attached_file_size_limit: {
+        type: 'number',
+        location: 'body',
+        description: 'Attached-file size limit (Byte)',
+      },
+      use_category: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use category (T=on, F=off)',
+      },
+      categories: {
+        type: 'array',
+        location: 'body',
+        description: 'Category info',
+      },
+      secret_only: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Secret-only posts (T=secret only, F=choose)',
+      },
+      admin_confirm: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Admin confirm feature (T=on, F=off)',
+      },
+      comment_author_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['N', 'U', 'I'],
+        description: 'Comment author display (N=name, U=nick, I=id)',
+      },
+      comment_author_protection: {
+        type: 'object',
+        location: 'body',
+        description: 'Comment author protection setting',
+      },
+      spam_auto_prevention: {
+        type: 'object',
+        location: 'body',
+        description: 'Spam auto-prevention setting',
+      },
+      reply_feature: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Reply feature (T=on, F=off)',
+      },
+      write_permission: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'V', 'I', 'N', 'G'],
+        description: 'Write permission (A/V/I/N/G)',
+      },
+      write_member_group_no: {
+        type: 'array',
+        location: 'body',
+        description: 'Write-permission member group numbers',
+      },
+      write_permission_extra: {
+        type: 'object',
+        location: 'body',
+        description: 'Write-permission extra setting',
+      },
+      reply_permission: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'M', 'N', 'G'],
+        description: 'Reply-write permission (A/M/N/G)',
+      },
+      reply_member_group_no: {
+        type: 'array',
+        location: 'body',
+        description: 'Reply-permission member group numbers',
+      },
+      author_display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['N', 'U', 'I'],
+        description: 'Author display (N=name, U=nick, I=id)',
+      },
+      author_protection: {
+        type: 'object',
+        location: 'body',
+        description: 'Author protection setting',
+      },
+      board_guide: {
+        type: 'string',
+        location: 'body',
+        description: 'Board guide text',
+      },
+      admin_title_fixed: {
+        type: 'object',
+        location: 'body',
+        description: 'Admin fixed post-title setting',
+      },
+      admin_reply_fixed: {
+        type: 'object',
+        location: 'body',
+        description: 'Admin fixed reply-title setting',
+      },
+      input_form: {
+        type: 'object',
+        location: 'body',
+        description: 'Post input-form setting',
+      },
+      page_size: {
+        type: 'number',
+        location: 'body',
+        description: 'Posts per page',
+      },
+      product_page_size: {
+        type: 'number',
+        location: 'body',
+        description: 'Posts per page on product detail',
+      },
+      page_display_count: {
+        type: 'number',
+        location: 'body',
+        description: 'Page display count',
+      },
+      use_comment: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Use comments (T=on, F=off)',
+      },
+      board_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Board name',
+      },
+      board_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['1', '2', '5'],
+        description: 'Board type (1=admin, 2=general, 5=product)',
+      },
+      article_display_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['A', 'T', 'F'],
+        description: 'Article display (A=all, T=with-file, F=without-file)',
+      },
     },
     responseShape: 'single',
   },
@@ -63,14 +364,150 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'boards/{board_no}/articles',
-    requiredFields: ['board_no', 'title', 'content'],
+    requiredFields: ['board_no', 'title', 'content', 'writer', 'client_ip'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      title: { type: 'string', location: 'body' },
-      content: { type: 'string', location: 'body' },
-      writer_name: { type: 'string', location: 'body' },
-      writer_email: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      writer: {
+        type: 'string',
+        location: 'body',
+        description: 'Writer name',
+      },
+      title: { type: 'string', location: 'body', description: 'Title' },
+      content: { type: 'string', location: 'body', description: 'Content' },
+      client_ip: {
+        type: 'string',
+        location: 'body',
+        description: 'Writer IP address',
+      },
+      reply_article_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Parent article number to reply to',
+      },
+      created_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Created date (YYYY-MM-DD, KST)',
+      },
+      writer_email: {
+        type: 'string',
+        location: 'body',
+        description: 'Writer email',
+      },
+      member_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Member id',
+      },
+      notice: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Notice (T=on, F=off)',
+      },
+      fixed: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Fixed post (T=on, F=off)',
+      },
+      deleted: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F', 'B'],
+        description: 'Delete flag (T=deleted, F=live, B=pre-register)',
+      },
+      reply: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: '1:1 inquiry reply flag (T=on, F=off)',
+      },
+      rating: {
+        type: 'number',
+        location: 'body',
+        description: 'Rating (1-5)',
+      },
+      sales_channel: {
+        type: 'string',
+        location: 'body',
+        description: 'Sales channel',
+      },
+      secret: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Secret post (T=on, F=off)',
+      },
+      password: {
+        type: 'string',
+        location: 'body',
+        description: 'Post password',
+      },
+      reply_mail: {
+        type: 'enum',
+        location: 'body',
+        enum: ['Y', 'N'],
+        description: '1:1 inquiry reply-mail (Y=on, N=off)',
+      },
+      board_category_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Board category number',
+      },
+      nick_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Nickname',
+      },
+      input_channel: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'M'],
+        description: 'Input channel (P=PC, M=mobile)',
+      },
+      reply_user_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Operator id handling the reply',
+      },
+      reply_status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['N', 'P', 'C'],
+        description: 'Reply status (N=none, P=in-progress, C=done)',
+      },
+      product_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Product number',
+      },
+      category_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Category number',
+      },
+      order_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Order id',
+      },
+      naverpay_review_id: {
+        type: 'string',
+        location: 'body',
+        description: 'NaverPay review id',
+      },
+      attach_file_urls: {
+        type: 'array',
+        location: 'body',
+        description: 'Attached file details (name/url)',
+      },
     },
     responseShape: 'single',
   },
@@ -84,9 +521,82 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     fields: {
       board_no: { type: 'number', location: 'path' },
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      title: { type: 'string', location: 'body' },
-      content: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      title: { type: 'string', location: 'body', description: 'Title' },
+      content: { type: 'string', location: 'body', description: 'Content' },
+      rating: {
+        type: 'number',
+        location: 'body',
+        description: 'Rating (1-5)',
+      },
+      sales_channel: {
+        type: 'string',
+        location: 'body',
+        description: 'Sales channel',
+      },
+      board_category_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Board category number',
+      },
+      display: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Display (T=on, F=off)',
+      },
+      notice: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Notice (T=on, F=off)',
+      },
+      fixed: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Fixed post (T=on, F=off)',
+      },
+      display_time_start_hour: {
+        type: 'number',
+        location: 'body',
+        description: 'Display start hour',
+      },
+      display_time_end_hour: {
+        type: 'number',
+        location: 'body',
+        description: 'Display end hour',
+      },
+      attach_file_url1: {
+        type: 'string',
+        location: 'body',
+        description: 'Attached file URL 1',
+      },
+      attach_file_url2: {
+        type: 'string',
+        location: 'body',
+        description: 'Attached file URL 2',
+      },
+      attach_file_url3: {
+        type: 'string',
+        location: 'body',
+        description: 'Attached file URL 3',
+      },
+      attach_file_url4: {
+        type: 'string',
+        location: 'body',
+        description: 'Attached file URL 4',
+      },
+      attach_file_url5: {
+        type: 'string',
+        location: 'body',
+        description: 'Attached file URL 5',
+      },
     },
     responseShape: 'single',
   },
@@ -100,7 +610,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     fields: {
       board_no: { type: 'number', location: 'path' },
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -114,7 +629,17 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     fields: {
       board_no: { type: 'number', location: 'path' },
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      comment_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Comment number',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -125,13 +650,68 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'boards/{board_no}/articles/{article_no}/comments',
-    requiredFields: ['board_no', 'article_no', 'content'],
+    requiredFields: ['board_no', 'article_no', 'content', 'writer', 'password'],
     fields: {
       board_no: { type: 'number', location: 'path' },
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      content: { type: 'string', location: 'body' },
-      writer_name: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Comment content',
+      },
+      writer: {
+        type: 'string',
+        location: 'body',
+        description: 'Writer name',
+      },
+      password: {
+        type: 'string',
+        location: 'body',
+        description: 'Comment password',
+      },
+      member_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Member id',
+      },
+      rating: {
+        type: 'number',
+        location: 'body',
+        description: 'Comment rating (1-5)',
+      },
+      secret: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Secret post (T=on, F=off)',
+      },
+      parent_comment_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Parent comment number',
+      },
+      input_channel: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'M'],
+        description: 'Input channel (P=PC, M=mobile)',
+      },
+      created_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Created date (YYYY-MM-DD, KST)',
+      },
+      attach_file_urls: {
+        type: 'array',
+        location: 'body',
+        description: 'Attached file details (name/url)',
+      },
     },
     responseShape: 'single',
   },
@@ -146,7 +726,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
       board_no: { type: 'number', location: 'path' },
       article_no: { type: 'number', location: 'path' },
       comment_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -158,7 +743,28 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     path: 'commenttemplates',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      board_type: {
+        type: 'enum',
+        location: 'query',
+        enum: ['1', '2', '3', '4', '5', '6', '7', '11'],
+        description: 'Board type code',
+      },
+      title: {
+        type: 'string',
+        location: 'query',
+        description: 'Template title (partial)',
+      },
+      since_comment_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Search after this template number',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -169,11 +775,30 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'commenttemplates',
-    requiredFields: ['template_name', 'template_content'],
+    requiredFields: ['title', 'content', 'board_type'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      template_name: { type: 'string', location: 'body' },
-      template_content: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      title: {
+        type: 'string',
+        location: 'body',
+        description: 'Template title',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Template content',
+      },
+      board_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['1', '2', '3', '4', '5', '6', '7', '11'],
+        description: 'Board type code',
+      },
     },
     responseShape: 'single',
   },
@@ -187,7 +812,17 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['board_no'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      since_comment_no: {
+        type: 'number',
+        location: 'query',
+        description: 'Search after this comment number',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -201,7 +836,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['board_no'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -214,9 +854,32 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['board_no'],
     fields: {
       board_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      meta_title: { type: 'string', location: 'body' },
-      meta_description: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      meta_title: {
+        type: 'string',
+        location: 'body',
+        description: 'Browser title meta',
+      },
+      meta_author: {
+        type: 'string',
+        location: 'body',
+        description: 'Meta tag Author',
+      },
+      meta_description: {
+        type: 'string',
+        location: 'body',
+        description: 'Meta tag Description',
+      },
+      meta_keywords: {
+        type: 'string',
+        location: 'body',
+        description: 'Meta tag Keywords',
+      },
     },
     responseShape: 'single',
   },
@@ -229,7 +892,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['comment_no'],
     fields: {
       comment_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -242,9 +910,28 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['comment_no'],
     fields: {
       comment_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      template_name: { type: 'string', location: 'body' },
-      template_content: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      title: {
+        type: 'string',
+        location: 'body',
+        description: 'Template title',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Template content',
+      },
+      board_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['1', '2', '3', '4', '5', '6', '7', '11'],
+        description: 'Board type code',
+      },
     },
     responseShape: 'single',
   },
@@ -257,6 +944,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['comment_no'],
     fields: {
       comment_no: { type: 'number', location: 'path' },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -270,7 +963,12 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['article_no'],
     fields: {
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
   },
@@ -280,11 +978,36 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'urgentinquiry/{article_no}/reply',
-    requiredFields: ['article_no', 'content'],
+    requiredFields: ['article_no', 'content', 'user_id'],
     fields: {
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      content: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Reply content',
+      },
+      status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['F', 'I', 'T'],
+        description: 'Reply status (F=unhandled, I=in-progress, T=done)',
+      },
+      user_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Operator id handling the reply',
+      },
+      attach_file_urls: {
+        type: 'array',
+        location: 'body',
+        description: 'Attached file details (name/url)',
+      },
     },
     responseShape: 'single',
   },
@@ -294,11 +1017,36 @@ export const communityOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'urgentinquiry/{article_no}/reply',
-    requiredFields: ['article_no'],
+    requiredFields: ['article_no', 'content'],
     fields: {
       article_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      content: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Reply content',
+      },
+      status: {
+        type: 'enum',
+        location: 'body',
+        enum: ['F', 'I', 'T'],
+        description: 'Reply status (F=unhandled, I=in-progress, T=done)',
+      },
+      user_id: {
+        type: 'string',
+        location: 'body',
+        description: 'Operator id handling the reply',
+      },
+      attach_file_urls: {
+        type: 'array',
+        location: 'body',
+        description: 'Attached file details (name/url)',
+      },
     },
     responseShape: 'single',
   },

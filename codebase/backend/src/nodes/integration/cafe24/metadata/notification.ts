@@ -1,6 +1,15 @@
 import type { Cafe24OperationMetadata } from './types.js';
 import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 
+/**
+ * Cafe24 `notification` resource metadata.
+ *
+ * G-1-remaining (plan `cafe24-backlog-residual.md`, 2026-07-05): field-set 을 공식
+ * docs 카탈로그(`spec/conventions/cafe24-api-catalog/notification/*.md` 요청 파라미터 표)와
+ * 전량 미러. 필드명 docs-verbatim(비동작 alias 교체), offset/limit 제외(pagination 층
+ * 주입), requiredFields = 기존 ∪ (docs-필수(✓) ∩ fields) — catalog-required-fields.spec
+ * 가드. op id/method/path/scope/restrictedApproval 는 무변경.
+ */
 export const notificationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'sms_send',
@@ -8,12 +17,54 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'sms',
-    requiredFields: ['sender', 'receiver', 'content'],
+    requiredFields: ['content', 'sender_no'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      sender: { type: 'string', location: 'body' },
-      receiver: { type: 'string', location: 'body' },
-      content: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      sender_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Sender id (unique serial number of the sender)',
+      },
+      content: {
+        type: 'string',
+        location: 'body',
+        description: 'Message body',
+      },
+      recipients: {
+        type: 'array',
+        location: 'body',
+        description: 'Recipient phone numbers (max 100)',
+      },
+      member_id: {
+        type: 'array',
+        location: 'body',
+        description: 'Member ids (max 100)',
+      },
+      group_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Member group number (0=all groups)',
+      },
+      exclude_unsubscriber: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'T',
+        description: 'Exclude unsubscribers (T=exclude, F=include)',
+      },
+      type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['SMS', 'LMS'],
+        default: 'SMS',
+        description: 'Send type (SMS=short, LMS=long)',
+      },
+      title: { type: 'string', location: 'body', description: 'Title' },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -25,9 +76,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     method: 'GET',
     path: 'sms/balance',
     requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
+    fields: {},
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
@@ -39,9 +88,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     method: 'GET',
     path: 'sms/senders',
     requiredFields: [],
-    fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-    },
+    fields: {},
     responseShape: 'list',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
@@ -53,9 +100,42 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     path: 'sms/receivers',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
-      member_id: { type: 'string', location: 'query' },
-      cellphone: { type: 'string', location: 'query' },
+      recipient_type: {
+        type: 'enum',
+        location: 'query',
+        enum: ['ALL', 'S', 'A'],
+        description: 'Recipient type (ALL=all, S=supplier, A=operator)',
+      },
+      supplier_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Supplier name',
+      },
+      supplier_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Supplier id',
+      },
+      user_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Operator name',
+      },
+      user_id: {
+        type: 'string',
+        location: 'query',
+        description: 'Operator id',
+      },
+      manager_name: {
+        type: 'string',
+        location: 'query',
+        description: 'Manager name',
+      },
+      cellphone: {
+        type: 'string',
+        location: 'query',
+        description: 'Mobile phone number',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -68,7 +148,12 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     path: 'automails',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -80,9 +165,37 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'automails',
-    requiredFields: [],
+    requiredFields: ['type'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      type: {
+        type: 'string',
+        location: 'body',
+        description: 'Mail item (automails_typecode)',
+      },
+      use_customer: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Customer (T=use, F=off)',
+      },
+      use_admin: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Operator (T=use, F=off)',
+      },
+      use_supplier: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Supplier (T=use, F=off)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -95,7 +208,12 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     path: 'recipientgroups',
     requiredFields: [],
     fields: {
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -109,8 +227,17 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     path: 'recipientgroups/{group_no}',
     requiredFields: ['group_no'],
     fields: {
-      group_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'query', default: 1 },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      group_no: {
+        type: 'number',
+        location: 'path',
+        description: 'Distribution group number',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -123,10 +250,24 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'customers/{member_id}/invitation',
-    requiredFields: ['member_id'],
+    requiredFields: ['member_id', 'invitation_type'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      member_id: { type: 'string', location: 'path' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      member_id: {
+        type: 'string',
+        location: 'path',
+        description: 'Member id',
+      },
+      invitation_type: {
+        type: 'string',
+        location: 'body',
+        description: 'Account activation invitation channel',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -140,8 +281,128 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     path: 'recipientgroups',
     requiredFields: ['group_name'],
     fields: {
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      group_name: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      group_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Distribution group name',
+      },
+      group_description: {
+        type: 'string',
+        location: 'body',
+        description: 'Distribution group description',
+      },
+      news_mail: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F', 'D'],
+        description: 'News mail opt-in (T=allow, F=off, D=never)',
+      },
+      sms: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Mobile message opt-in (T=receive, F=off)',
+      },
+      member_group_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Member group number',
+      },
+      member_class: {
+        type: 'enum',
+        location: 'body',
+        enum: ['p', 'c', 'f'],
+        description: 'Member class (p=personal, c=business, f=foreigner)',
+      },
+      member_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['vip', 'poor'],
+        description: 'Member type (vip=special, poor=bad member)',
+      },
+      join_path: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'M'],
+        description: 'Join path (P=PC, M=mobile)',
+      },
+      inflow_path: {
+        type: 'string',
+        location: 'body',
+        description: 'Inflow path',
+      },
+      inflow_path_detail: {
+        type: 'string',
+        location: 'body',
+        description: 'Inflow path detail',
+      },
+      date_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['join', 'birthday', 'wedding', 'partner'],
+        description:
+          'Search date type (join, birthday, wedding, partner birthday)',
+      },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Search start date (YYYY-MM-DD, KST)',
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Search end date (YYYY-MM-DD, KST)',
+      },
+      solar_calendar: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Solar calendar (T=solar, F=lunar)',
+      },
+      age_min: {
+        type: 'number',
+        location: 'body',
+        description: 'Age search minimum',
+      },
+      age_max: {
+        type: 'number',
+        location: 'body',
+        description: 'Age search maximum',
+      },
+      gender: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'F'],
+        description: 'Gender (M=male, F=female)',
+      },
+      available_points_min: {
+        type: 'number',
+        location: 'body',
+        description: 'Points search minimum',
+      },
+      available_points_max: {
+        type: 'number',
+        location: 'body',
+        description: 'Points search maximum',
+      },
+      use_mobile_app: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Mobile app usage (T=use, F=off)',
+      },
+      plusapp_member_join: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Brand-app joined member (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -152,11 +413,135 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'recipientgroups/{group_no}',
-    requiredFields: ['group_no'],
+    requiredFields: ['group_no', 'group_name'],
     fields: {
-      group_no: { type: 'number', location: 'path' },
-      shop_no: { type: 'number', location: 'body', default: 1 },
-      group_name: { type: 'string', location: 'body' },
+      shop_no: {
+        type: 'number',
+        location: 'body',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      group_no: {
+        type: 'number',
+        location: 'path',
+        description: 'Distribution group number',
+      },
+      group_name: {
+        type: 'string',
+        location: 'body',
+        description: 'Distribution group name',
+      },
+      group_description: {
+        type: 'string',
+        location: 'body',
+        description: 'Distribution group description',
+      },
+      news_mail: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F', 'D'],
+        description: 'News mail opt-in (T=allow, F=off, D=never)',
+      },
+      sms: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Mobile message opt-in (T=receive, F=off)',
+      },
+      member_group_no: {
+        type: 'number',
+        location: 'body',
+        description: 'Member group number',
+      },
+      member_class: {
+        type: 'enum',
+        location: 'body',
+        enum: ['p', 'c', 'f'],
+        description: 'Member class (p=personal, c=business, f=foreigner)',
+      },
+      member_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['vip', 'poor'],
+        description: 'Member type (vip=special, poor=bad member)',
+      },
+      join_path: {
+        type: 'enum',
+        location: 'body',
+        enum: ['P', 'M'],
+        description: 'Join path (P=PC, M=mobile)',
+      },
+      inflow_path: {
+        type: 'string',
+        location: 'body',
+        description: 'Inflow path',
+      },
+      inflow_path_detail: {
+        type: 'string',
+        location: 'body',
+        description: 'Inflow path detail',
+      },
+      date_type: {
+        type: 'enum',
+        location: 'body',
+        enum: ['join', 'birthday', 'wedding', 'partner'],
+        description:
+          'Search date type (join, birthday, wedding, partner birthday)',
+      },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Search start date (YYYY-MM-DD, KST)',
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: 'Search end date (YYYY-MM-DD, KST)',
+      },
+      solar_calendar: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Solar calendar (T=solar, F=lunar)',
+      },
+      age_min: {
+        type: 'number',
+        location: 'body',
+        description: 'Age search minimum',
+      },
+      age_max: {
+        type: 'number',
+        location: 'body',
+        description: 'Age search maximum',
+      },
+      gender: {
+        type: 'enum',
+        location: 'body',
+        enum: ['M', 'F'],
+        description: 'Gender (M=male, F=female)',
+      },
+      available_points_min: {
+        type: 'number',
+        location: 'body',
+        description: 'Points search minimum',
+      },
+      available_points_max: {
+        type: 'number',
+        location: 'body',
+        description: 'Points search maximum',
+      },
+      use_mobile_app: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Mobile app usage (T=use, F=off)',
+      },
+      plusapp_member_join: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        description: 'Brand-app joined member (T=yes, F=no)',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,
@@ -169,7 +554,17 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     path: 'recipientgroups/{group_no}',
     requiredFields: ['group_no'],
     fields: {
-      group_no: { type: 'number', location: 'path' },
+      shop_no: {
+        type: 'number',
+        location: 'query',
+        default: 1,
+        description: 'Multi-shop number (default 1)',
+      },
+      group_no: {
+        type: 'number',
+        location: 'path',
+        description: 'Distribution group number',
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.notification,

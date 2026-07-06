@@ -44,9 +44,11 @@ describe('toPublicSupportedOperation', () => {
     const meta = findCafe24Operation('product', 'product_list')!;
     const pub = toPublicSupportedOperation(meta, 'product');
     const shopNo = pub.fields.find((f) => f.name === 'shop_no');
-    const categoryNo = pub.fields.find((f) => f.name === 'category_no');
+    // G-1-P: docs filter param is `category` (not the old non-functional
+    // `category_no` alias); it is an optional filter.
+    const category = pub.fields.find((f) => f.name === 'category');
     expect(shopNo?.required).toBe(true); // requiredFields = ['shop_no']
-    expect(categoryNo?.required).toBe(false);
+    expect(category?.required).toBe(false);
   });
 
   it('forwards field.location so the UI can group path / query / body', () => {

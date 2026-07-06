@@ -25,3 +25,23 @@ export const CAFE24_DATETIME_FIELD_START = `ISO8601 datetime (KST, UTC+9) — pr
 
 /** Promotion / event 의 종료 시각 (datetime, body 입력). */
 export const CAFE24_DATETIME_FIELD_END = `ISO8601 datetime (KST, UTC+9) — promotion/event end time. e.g. "2026-05-31T23:59:59+09:00". ${KST_NOTE}`;
+
+// ---------------------------------------------------------------------------
+// List-search date-range 필드 (YYYY-MM-DD, KST). Cafe24 list/count endpoint 의
+// `created_start_date`/`created_end_date`/`updated_start_date`/`updated_end_date`
+// 처럼 등록일·수정일 검색 범위를 나타내는 query 필드에 쓴다. 각 쌍은 함께
+// 제공돼야 하므로(op 의 allOrNone constraint), description 을 한 곳에서 관리해
+// 30+ resource 의 동일 패턴 row 표현을 일관화한다 (§5.2 KST 명시 준수).
+// ---------------------------------------------------------------------------
+
+/** 등록일 검색 범위 시작 (created_start_date). */
+export const CAFE24_DATE_FIELD_CREATED_START = `Created-date range start (YYYY-MM-DD, KST). ${KST_NOTE}`;
+
+/** 등록일 검색 범위 종료 (created_end_date). */
+export const CAFE24_DATE_FIELD_CREATED_END = `Created-date range end (YYYY-MM-DD, KST). ${KST_NOTE}`;
+
+/** 수정일 검색 범위 시작 (updated_start_date). */
+export const CAFE24_DATE_FIELD_UPDATED_START = `Updated-date range start (YYYY-MM-DD, KST). ${KST_NOTE}`;
+
+/** 수정일 검색 범위 종료 (updated_end_date). */
+export const CAFE24_DATE_FIELD_UPDATED_END = `Updated-date range end (YYYY-MM-DD, KST). ${KST_NOTE}`;
