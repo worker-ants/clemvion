@@ -87,10 +87,11 @@ owner: developer
   순환이라 NotificationsModule 보다 먼저 인스턴스화 → 생성자 `@Optional` 의존성이 조용히 undefined 가 되는
   함정이 구조적으로 잔존(이번엔 ModuleRef 지연해석으로 우회). **신규 `@Optional` 의존성 추가 시 동일 함정 주의.**
   근본 해소(이벤트 기반 디커플링 등 순환 그래프 축소)는 별도 트랙. (execution-engine 리팩터링 backlog 후보.)
-- [ ] **[리팩터링] 초기/재개 세그먼트 FAILED 종결 중복**: `runExecution` catch(초기)와 `finalizeResumedExecutionOutcome`
-  (재개)의 FAILED 마킹+dispatch 시퀀스가 중복 — 버그 A(한쪽만 배선)의 재발 패턴. 공통 헬퍼
-  `finalizeFailedExecution(savedExecution, error)` 추출 검토. (기능 무해, 별도 리팩터링 PR.)
-- [ ] **[planner] spec §4.4 ModuleRef 문서화** — [[spec-update-notifications-background-run-id]] 후속 항목 참조.
+- [x] **[리팩터링] 초기/재개 세그먼트 FAILED 종결 중복** — **완료** ([[notif-followup-refactor]], PR): 공통 헬퍼
+  `finalizeFailedExecution(savedExecution, error, {rehydrated?})` 추출로 `runExecution` catch·`finalizeResumedExecutionOutcome`
+  일원화 (behavior-preserving). 버그 A 재발 구조적 차단.
+- [x] **[spec §4.4 ModuleRef 문서화]** — **완료** ([[notif-followup-refactor]], PR): §4.4 순환 의존 처리를
+  forwardRef / ModuleRef(strict:false) 2종 + 적용 기준 표로 구조화. rationale WARNING 해소.
 
 ## 게이트 이행 결과 (Definition of Done)
 - [x] impl-prep consistency-check (20_58_46, BLOCK:NO)
@@ -102,6 +103,8 @@ owner: developer
 - 커밋: 797488494(구현) · 656fc7cce(버그수정) · 04386bdd4(리뷰반영+새니타이저+spec동기화).
 
 ## 잔여 (plan in-progress 유지 사유)
-- **항목 3** (dispatchEmails decouple): 분석 완료 + **사용자 확정 "보류 유지"** — 코드 변경 없음, 종결. (재개 트리거만 대기)
-- **planner 위임분**: [[spec-update-notifications-background-run-id]] 는 이미 developer 가 SPEC-DRIFT reverse-flow 로 spec 반영 완료(§2.1/§1.1/§2.19/Rationale/12-background) — planner 는 §4.4 ModuleRef 문서화(rationale WARNING) 만 잔여.
-- **아키텍처 부채 followup**: DI 순환 인스턴스화 · FAILED 종결 헬퍼 추출 (별도 리팩터링 트랙).
+- **항목 3** (dispatchEmails decouple): 분석 완료 + 사용자 확정 "보류 유지" — 코드 변경 없음, 종결.
+- **team_invite 이메일 2통 UX**: planner 가 channel=`in_app`(벨만, 초대링크 이메일이 이메일 담당)으로 확정·머지 — **종결**.
+- **FAILED 종결 헬퍼 추출 · spec §4.4 문서화**: [[notif-followup-refactor]] PR 로 **완료**.
+- **유일 잔여 = DI 순환 그래프 근본 축소 (backlog)**: 위 §후속 첫 항목([ ]). forwardRef/ModuleRef 우회가 아닌 순환
+  자체 제거로, 대규모 behavior-risky 아키텍처 작업이라 착수 미정 backlog. 본 plan 은 이 backlog 추적을 위해 in-progress 유지.
