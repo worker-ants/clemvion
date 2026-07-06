@@ -674,3 +674,103 @@ describe("WorkflowsPage — folder filter (NAV §2.3)", () => {
     );
   });
 });
+
+describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders the tag filter input", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+    expect(screen.getByTestId("workflow-tag-filter")).toBeInTheDocument();
+  });
+
+  it("sends ?tag=<value> (debounced) on the first page when a tag is typed", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: ["sales"] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.type(screen.getByTestId("workflow-tag-filter"), "sales");
+
+    // The 300ms debounce fires within waitFor's window.
+    await vi.waitFor(() => {
+      const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+        | Record<string, string>
+        | undefined;
+      expect(lastParams?.tag).toBe("sales");
+    });
+    const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(String(lastParams?.page)).toBe("1");
+  });
+
+  it("omits tag on the empty (default) input", async () => {
+    setListResponse({
+      data: [{ id: "wf-0", name: "Doc", isActive: true, tags: [] }],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Doc");
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    const firstCallParams = listSpy.mock.calls[0]?.[0] as
+      | Record<string, string>
+      | undefined;
+    expect(firstCallParams?.tag).toBeUndefined();
+  });
+
+  it("treats a typed tag as an active filter and clears it on reset", async () => {
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // No filters yet → create CTA.
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+
+    await userEvent.type(screen.getByTestId("workflow-tag-filter"), "sales");
+
+    // Once the debounce promotes the tag, hasActiveFilters flips → reset CTA.
+    const resetBtn = await screen.findByRole("button", {
+      name: /Reset Filters/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+
+    await userEvent.click(resetBtn);
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+    expect(
+      (screen.getByTestId("workflow-tag-filter") as HTMLInputElement).value,
+    ).toBe("");
+  });
+});
