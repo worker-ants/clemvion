@@ -716,7 +716,8 @@ describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
 
     await userEvent.type(screen.getByTestId("workflow-tag-filter"), "sales");
 
-    // The 300ms debounce fires within waitFor's window.
+    // The 300ms debounce fires within waitFor's window, then the query re-runs
+    // carrying tag=sales.
     await vi.waitFor(() => {
       const lastParams = listSpy.mock.calls.at(-1)?.[0] as
         | Record<string, string>
@@ -726,6 +727,10 @@ describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
     const lastParams = listSpy.mock.calls.at(-1)?.[0] as
       | Record<string, string>
       | undefined;
+    // Documents the emitted first-page param. Like the folder-filter test, this
+    // mock's searchParams is static (router.replace is a no-op), so page stays 1
+    // regardless of setPage — this asserts the emitted value, not a live 2→1
+    // reset transition. See use-page-param mock note above.
     expect(String(lastParams?.page)).toBe("1");
   });
 
@@ -743,6 +748,34 @@ describe("WorkflowsPage — tag filter (NAV §2.3)", () => {
       | Record<string, string>
       | undefined;
     expect(firstCallParams?.tag).toBeUndefined();
+  });
+
+  it("currently sends a whitespace-only tag as-is (no trimming, matching the search filter)", async () => {
+    // Pins the intentional no-trim behavior: like search, a whitespace-only
+    // entry is sent verbatim (server `= ANY(tags)` safely yields 0 rows) and
+    // counts as an active filter. If trimming is ever added, this test flips.
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    const { workflowsApi } = await import("@/lib/api/workflows");
+    const listSpy = workflowsApi.list as unknown as ReturnType<typeof vi.fn>;
+    listSpy.mockClear();
+
+    await userEvent.type(screen.getByTestId("workflow-tag-filter"), "   ");
+
+    await vi.waitFor(() => {
+      const lastParams = listSpy.mock.calls.at(-1)?.[0] as
+        | Record<string, string>
+        | undefined;
+      expect(lastParams?.tag).toBe("   ");
+    });
+    // Whitespace-only still flips hasActiveFilters → reset CTA is shown.
+    expect(
+      await screen.findByRole("button", { name: /Reset Filters/i }),
+    ).toBeInTheDocument();
   });
 
   it("treats a typed tag as an active filter and clears it on reset", async () => {

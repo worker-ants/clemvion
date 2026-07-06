@@ -205,6 +205,8 @@ export default function WorkflowsPage() {
       // §2.3 폴더 필터 — 선택 시 `?folderId=`. 빈 값(전체)은 미송신.
       if (folderId) params.folderId = folderId;
       // §2.3 태그 필터 — 입력 시 `?tag=` 단일값. 빈 값(전체)은 미송신.
+      // 검색 필터와 동일하게 trim 하지 않는다 — 공백-only 입력은 서버 `= ANY(tags)`
+      // 에서 안전하게 0건으로 수렴하며, 두 텍스트 필터의 동작을 일관되게 유지한다.
       if (debouncedTag) params.tag = debouncedTag;
 
       const { data } = await workflowsApi.list(params);
