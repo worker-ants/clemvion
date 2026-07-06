@@ -81,15 +81,16 @@ owner: developer
 
 ## 후속(followup) — 엔진 재리뷰(22_42_32) 아키텍처/리팩터링 지적 (비차단)
 
-엔진 버그 A/B 수정 재리뷰에서 나온 구조적 지적. 기능은 정상(0 Critical, e2e·unit 검증)이나 장기 부채로 이월:
+엔진 버그 A/B 수정 재리뷰에서 나온 구조적 지적. 기능은 정상(0 Critical, e2e·unit 검증)이나 장기 부채로 이월(**미완 — 별도 트랙**):
 
-- **[아키텍처 부채] DI 순환 인스턴스화 순서**: `ExecutionEngineService` 가 WebsocketModule 등과 forwardRef
+- [ ] **[아키텍처 부채] DI 순환 인스턴스화 순서**: `ExecutionEngineService` 가 WebsocketModule 등과 forwardRef
   순환이라 NotificationsModule 보다 먼저 인스턴스화 → 생성자 `@Optional` 의존성이 조용히 undefined 가 되는
   함정이 구조적으로 잔존(이번엔 ModuleRef 지연해석으로 우회). **신규 `@Optional` 의존성 추가 시 동일 함정 주의.**
   근본 해소(이벤트 기반 디커플링 등 순환 그래프 축소)는 별도 트랙. (execution-engine 리팩터링 backlog 후보.)
-- **[리팩터링] 초기/재개 세그먼트 FAILED 종결 중복**: `runExecution` catch(초기)와 `finalizeResumedExecutionOutcome`
+- [ ] **[리팩터링] 초기/재개 세그먼트 FAILED 종결 중복**: `runExecution` catch(초기)와 `finalizeResumedExecutionOutcome`
   (재개)의 FAILED 마킹+dispatch 시퀀스가 중복 — 버그 A(한쪽만 배선)의 재발 패턴. 공통 헬퍼
   `finalizeFailedExecution(savedExecution, error)` 추출 검토. (기능 무해, 별도 리팩터링 PR.)
+- [ ] **[planner] spec §4.4 ModuleRef 문서화** — [[spec-update-notifications-background-run-id]] 후속 항목 참조.
 
 ## 게이트 이행 결과 (Definition of Done)
 - [x] impl-prep consistency-check (20_58_46, BLOCK:NO)
