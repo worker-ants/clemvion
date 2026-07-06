@@ -58,7 +58,9 @@ describe('NotificationsService — dismiss', () => {
       create: jest.fn(),
     };
     ws = { emitNotificationEvent: jest.fn() };
-    service = new NotificationsService(repo as any, ws as any);
+    // NotificationsService 는 WebsocketService 를 ModuleRef(strict:false) 로 지연 해석.
+    const moduleRef = { get: jest.fn().mockReturnValue(ws) };
+    service = new NotificationsService(repo as any, moduleRef as any);
   });
 
   describe('findAll — dismissed_at IS NULL 필터', () => {

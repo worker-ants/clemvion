@@ -1,19 +1,16 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Notification } from './entities/notification.entity';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
-import { WebsocketModule } from '../websocket/websocket.module';
 
+// WebsocketModule 을 여기서 import 하지 않는다 — NotificationsModule 은
+// nodes 배럴 초기화 경로(integrations→notifications→…) 안에 있어, WebsocketModule
+// (→workflows→import-workflow.dto 의 top-level `[...ALL_NODE_TYPES]` spread) 를 file-level
+// 로 import 하면 require 순환이 생겨 ALL_NODE_TYPES 가 미초기화된다. NotificationsService
+// 는 WebsocketService 를 ModuleRef(strict:false) 로 지연 해석해 순환을 회피한다.
 @Module({
-  // WebsocketModule 은 forwardRef — WebsocketModule → forwardRef(ExecutionEngineModule)
-  // → NotificationsModule(background_failed createMany) → WebsocketModule 로 이어지는
-  // 모듈 순환을 끊는다. WebsocketService 는 NotificationsService 에 의존하지 않으므로
-  // provider 레벨 forwardRef 는 불필요 (모듈 import 레벨만).
-  imports: [
-    TypeOrmModule.forFeature([Notification]),
-    forwardRef(() => WebsocketModule),
-  ],
+  imports: [TypeOrmModule.forFeature([Notification])],
   controllers: [NotificationsController],
   providers: [NotificationsService],
   exports: [NotificationsService],

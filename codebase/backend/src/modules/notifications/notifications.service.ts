@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
@@ -8,11 +9,31 @@ import { WebsocketService } from '../websocket/websocket.service';
 
 @Injectable()
 export class NotificationsService {
+  /** 지연 해석된 WebsocketService 싱글턴 캐시 ({@link getWebsocket}). */
+  private websocketService?: WebsocketService;
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
-    private readonly websocketService: WebsocketService,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * WebsocketService 를 앱 컨텍스트에서 지연 해석한다 (strict:false 전역 조회).
+   *
+   * NotificationsModule 이 WebsocketModule 을 file-level 로 import 하면 nodes 배럴
+   * 초기화 중 require 순환(→ workflows → import-workflow.dto 의 `[...ALL_NODE_TYPES]`
+   * 미초기화)이 발생하므로, 모듈 import 대신 ModuleRef 로 실행 시점에 싱글턴을 해석해
+   * 캐시한다. WebsocketService 는 default singleton 이라 1회 해석 후 재사용 안전.
+   */
+  private getWebsocket(): WebsocketService {
+    if (!this.websocketService) {
+      this.websocketService = this.moduleRef.get(WebsocketService, {
+        strict: false,
+      });
+    }
+    return this.websocketService;
+  }
 
   /**
    * 특정 리소스에 attribute 된 알림 전체 조회 (createdAt ASC).
@@ -308,7 +329,7 @@ export class NotificationsService {
    * 예외를 삼키므로 적재 트랜잭션에 영향 없다.
    */
   private emitNew(row: Notification): void {
-    this.websocketService.emitNotificationEvent(row.userId, {
+    this.getWebsocket().emitNotificationEvent(row.userId, {
       id: row.id,
       type: row.type,
       title: row.title,
