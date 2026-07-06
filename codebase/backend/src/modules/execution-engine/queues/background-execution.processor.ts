@@ -166,13 +166,13 @@ export class BackgroundExecutionProcessor extends WorkerHost {
     );
     if (recipients.length === 0) return;
 
-    // resourceType='background_run', resourceId=backgroundRunId 으로 attribution.
-    // 모니터링 API 가 notifications 필드에 정확히 매칭. backgroundRunId 가
-    // 빈 문자열이면 (옛 NodeExecution) execution 로 fallback — 옛 데이터 호환.
-    const hasRunId = !!data.backgroundRunId;
-    const resourceType = hasRunId ? 'background_run' : 'execution';
-    const resourceId = hasRunId ? data.backgroundRunId : data.executionId;
-
+    // 딥링크와 attribution 을 분리한다 (migration V107):
+    //  - resource_type='workflow' / resource_id=workflowId → 팝오버 딥링크. href.ts 가
+    //    background_failed 를 /workflows/<resource_id> 로 라우팅하며 _layout.md §3.1 은
+    //    resource_id=workflow id 를 요구(execution_failed/schedule_failed 와 일관). workflowId 는
+    //    항상 존재하므로 딥링크가 항상 정상 — 옛 execution/executionId fallback(딥링크 404) 제거.
+    //  - background_run_id → per-run attribution. background-runs 모니터링 API 가 이 컬럼으로 조회.
+    //    옛 NodeExecution(backgroundRunId 없음)은 attribution 대상 밖이라 NULL 로 둔다.
     try {
       await this.notificationsService.createMany(
         recipients.map((userId) => ({
@@ -181,8 +181,9 @@ export class BackgroundExecutionProcessor extends WorkerHost {
           type: 'background_failed',
           title: 'Background 본문 실패',
           message: `워크플로우 ${data.workflowId}의 Background 본문 실행이 실패했어요: ${message}`,
-          resourceType,
-          resourceId,
+          resourceType: 'workflow',
+          resourceId: data.workflowId,
+          backgroundRunId: data.backgroundRunId || undefined,
           channel: 'in_app',
         })),
       );

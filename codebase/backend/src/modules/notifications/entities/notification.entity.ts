@@ -43,6 +43,13 @@ export class Notification {
   @Column({ name: 'resource_id', type: 'uuid', nullable: true })
   resourceId: string;
 
+  // Background 본문 실패(background_failed) 알림의 per-run attribution 키.
+  // 딥링크(resource_type/resource_id=workflow)와 분리된 내부 전용 컬럼 —
+  // background-runs 모니터링 API 만 소비, REST 응답에는 노출하지 않는다
+  // (spec/data-flow/8-notifications.md §2.1, migration V107).
+  @Column({ name: 'background_run_id', type: 'uuid', nullable: true })
+  backgroundRunId: string | null;
+
   @Column({ name: 'is_read', default: false })
   isRead: boolean;
 

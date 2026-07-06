@@ -14,8 +14,8 @@ export class NotificationDto {
   @ApiProperty({ format: 'uuid' })
   userId: string;
 
-  /** 알림 타입 */
-  @ApiProperty({ example: 'workflow.failed' })
+  /** 알림 타입 (snake_case enum — data-model §2.19) */
+  @ApiProperty({ example: 'execution_failed' })
   type: string;
 
   /** 제목 */
@@ -27,19 +27,21 @@ export class NotificationDto {
   message: string;
 
   /**
-   * 관련 리소스 타입. 알림 유형에 따라 `execution` (일반 실행 관련),
-   * `background_run` (Background 본문 실패 — Background 모니터링 API §8 참조)
-   * 등이 들어간다. 클라이언트는 unknown 값을 dead link 로 처리해야 한다.
+   * 관련 리소스 타입 — 팝오버 딥링크 계약(`_layout.md §3.1`)의 라우팅 키.
+   * 알림 유형에 따라 `workflow` (실행/스케줄/Background 실패 — `/workflows/<resourceId>`),
+   * `integration` (통합 관련 — `/integrations/<resourceId>`),
+   * `workspace_invitation` (팀 초대) 등이 들어간다. 클라이언트는 unknown 값을 dead link 로 처리한다.
+   * (Background 본문 실패의 per-run attribution 은 REST 에 노출되지 않는 내부 컬럼 `background_run_id` 가 담당.)
    */
   @ApiPropertyOptional({
     nullable: true,
-    example: 'execution',
+    example: 'workflow',
     description:
-      '연관 리소스 종류 — 현재 발행되는 값: `execution`, `background_run`',
+      '연관 리소스 종류 (딥링크 라우팅 키) — 현재 발행되는 값: `workflow`, `integration`, `workspace_invitation`',
   })
   resourceType?: string | null;
 
-  /** 관련 리소스 UUID */
+  /** 관련 리소스 UUID (딥링크 대상 — 실패 알림은 workflow id) */
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   resourceId?: string | null;
 

@@ -42,18 +42,17 @@ export class NotificationsService {
   }
 
   /**
-   * 특정 리소스에 attribute 된 알림 전체 조회 (createdAt ASC).
+   * Background 본문 실행(backgroundRun) 단위로 attribute 된 알림 조회 (createdAt ASC).
    *
-   * 다른 모듈(예: Background 본문 모니터링 API)이 알림 정보를 자기 응답에
-   * 포함시킬 때 Repository 를 직접 주입받지 않고 본 서비스에 위임할 수
-   * 있도록 분리. 비즈니스 규약(예: 정렬 기준)을 단일 sink 에 모은다.
+   * `background_failed` 알림은 딥링크용 resource_type/resource_id 에 workflow 를 담고
+   * (spec §1.1·_layout.md §3.1 딥링크 계약), per-run attribution 은 별도 `background_run_id`
+   * 컬럼으로 분리한다 (migration V107). Background 본문 모니터링 API(background-runs.service)가
+   * 알림 정보를 자기 응답에 동봉할 때, Repository 를 직접 주입받지 않고 본 서비스에 위임한다
+   * (비즈니스 규약·정렬 기준을 단일 sink 에 모음, spec/data-flow/8-notifications.md §2.1).
    */
-  async findByResource(
-    resourceType: string,
-    resourceId: string,
-  ): Promise<Notification[]> {
+  async findByBackgroundRun(backgroundRunId: string): Promise<Notification[]> {
     return this.notificationRepository.find({
-      where: { resourceType, resourceId },
+      where: { backgroundRunId },
       order: { createdAt: 'ASC' },
     });
   }
@@ -272,6 +271,7 @@ export class NotificationsService {
     message: string;
     resourceType?: string;
     resourceId?: string;
+    backgroundRunId?: string;
     channel?: 'in_app' | 'email' | 'both';
   }): Promise<Notification> {
     const row = this.notificationRepository.create({
@@ -285,6 +285,7 @@ export class NotificationsService {
     });
     if (entry.resourceType) row.resourceType = entry.resourceType;
     if (entry.resourceId) row.resourceId = entry.resourceId;
+    if (entry.backgroundRunId) row.backgroundRunId = entry.backgroundRunId;
     const saved = await this.notificationRepository.save(row);
     this.emitNew(saved);
     await this.dispatchEmails([saved]);
@@ -306,6 +307,7 @@ export class NotificationsService {
       message: string;
       resourceType?: string;
       resourceId?: string;
+      backgroundRunId?: string;
       channel?: 'in_app' | 'email' | 'both';
     }>,
   ): Promise<void> {
@@ -322,6 +324,7 @@ export class NotificationsService {
       });
       if (e.resourceType) row.resourceType = e.resourceType;
       if (e.resourceId) row.resourceId = e.resourceId;
+      if (e.backgroundRunId) row.backgroundRunId = e.backgroundRunId;
       return row;
     });
     const saved = await this.notificationRepository.save(rows);

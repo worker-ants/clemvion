@@ -29,7 +29,7 @@ import { BackgroundRunChannelAuthorizer } from './background-runs/background-run
       Node,
     ]),
     ExecutionEngineModule,
-    // BackgroundRunsService 가 NotificationsService.findByResource() 에
+    // BackgroundRunsService 가 NotificationsService.findByBackgroundRun() 에
     // 위임 — Notification Repository 를 본 모듈에서 직접 forFeature 등록
     // 하지 않는다 (단일 ownership 유지).
     NotificationsModule,
