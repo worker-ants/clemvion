@@ -6,7 +6,6 @@ import {
   Background,
   BackgroundVariant,
   Panel,
-  useReactFlow,
 } from "@xyflow/react";
 import type { ReactFlowInstance, Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -21,10 +20,7 @@ import {
   modelConfigsApi,
   MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
 } from "@/lib/api/model-configs";
-import { Button } from "@/components/ui/button";
 import {
-  ZoomIn,
-  ZoomOut,
   Maximize,
   Trash2,
   Settings,
@@ -46,6 +42,8 @@ import { HasDefaultLlmConfigProvider } from "./has-default-llm-config-context";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
+import { ZoomControls, MIN_ZOOM, MAX_ZOOM } from "./zoom-controls";
+import { CanvasMinimap } from "./canvas-minimap";
 import { isWorkflowEmpty } from "@/lib/node-definitions/is-trigger";
 import { useT, useLocale } from "@/lib/i18n";
 import {
@@ -560,12 +558,15 @@ export function WorkflowCanvas() {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         deleteKeyCode={["Delete", "Backspace"]}
         className="bg-[hsl(var(--background))]"
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
         <ZoomControls />
+        <CanvasMinimap />
         <Panel position="top-right" className="pointer-events-none mr-6 mt-6">
           <CanvasEmptyState visible={isWorkflowEmpty(nodes)} />
         </Panel>
@@ -725,42 +726,5 @@ export function WorkflowCanvas() {
     </div>
     </HasDefaultLlmConfigProvider>
     </TooltipProvider>
-  );
-}
-
-function ZoomControls() {
-  const t = useT();
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
-
-  return (
-    <Panel position="bottom-left" className="flex gap-1">
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => zoomIn()}
-        aria-label={t("common.aria.zoomIn")}
-      >
-        <ZoomIn size={14} aria-hidden="true" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => zoomOut()}
-        aria-label={t("common.aria.zoomOut")}
-      >
-        <ZoomOut size={14} aria-hidden="true" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-8 w-8"
-        onClick={() => fitView({ padding: 0.2 })}
-        aria-label={t("common.aria.fitToView")}
-      >
-        <Maximize size={14} aria-hidden="true" />
-      </Button>
-    </Panel>
   );
 }

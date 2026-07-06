@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import type { NodeProps, Node } from "@xyflow/react";
 
 // Mock @xyflow/react
@@ -16,13 +16,20 @@ vi.mock("@xyflow/react", () => ({
   useUpdateNodeInternals: () => vi.fn(),
 }));
 
-// Mock execution store — supports per-test overrides via mockNodeStatus
+// Mock execution store — supports per-test overrides via mockNodeStatus (per
+// node) and mockExecStatus (workflow-level, gates the §5.4 delete button).
 let mockNodeStatus: { status: string } | null = null;
+let mockExecStatus = "idle";
 vi.mock("@/lib/stores/execution-store", () => ({
-  useExecutionStore: (selector: (s: { nodeStatuses: Map<string, { status: string }> }) => unknown) => {
+  useExecutionStore: (
+    selector: (s: {
+      nodeStatuses: Map<string, { status: string }>;
+      status: string;
+    }) => unknown,
+  ) => {
     const map = new Map<string, { status: string }>();
     if (mockNodeStatus) map.set("node-1", mockNodeStatus);
-    return selector({ nodeStatuses: map });
+    return selector({ nodeStatuses: map, status: mockExecStatus });
   },
 }));
 
@@ -41,6 +48,7 @@ vi.mock("@/components/ui/tooltip", () => ({
 import { CustomNode } from "../custom-node";
 import { HasDefaultLlmConfigProvider } from "../has-default-llm-config-context";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import { useEditorStore } from "@/lib/stores/editor-store";
 import type { NodeDefinition } from "@/lib/node-definitions";
 
 beforeAll(() => {
@@ -241,6 +249,7 @@ describe("CustomNode", () => {
   beforeEach(() => {
     mockZoom = 1;
     mockNodeStatus = null;
+    mockExecStatus = "idle";
   });
 
   // --- Summary rendering ---
@@ -601,5 +610,57 @@ describe("CustomNode", () => {
     });
     expect(container.querySelector('[data-testid="handle-cond-1"]')).toBeInTheDocument();
     expect(screen.getByText("Valid")).toBeInTheDocument();
+  });
+
+  // --- §5.4 노드 삭제 버튼 ---
+
+  it("renders the delete button as a hover affordance by default", () => {
+    renderNode();
+    const btn = screen.getByTestId("node-delete-button");
+    // Hidden until hover: opacity-0 with group-hover reveal.
+    expect(btn.className).toContain("opacity-0");
+    expect(btn.className).toContain("group-hover:opacity-100");
+  });
+
+  it("keeps the delete button visible when the node is selected", () => {
+    renderNode({}, { selected: true });
+    const btn = screen.getByTestId("node-delete-button");
+    expect(btn.className).toContain("opacity-100");
+    expect(btn.className).not.toContain("opacity-0");
+  });
+
+  it("does not render the delete button for manual_trigger (undeletable)", () => {
+    renderNode({
+      type: "manual_trigger",
+      label: "Start",
+      config: {},
+      category: "trigger",
+    });
+    expect(screen.queryByTestId("node-delete-button")).not.toBeInTheDocument();
+  });
+
+  it("hides the delete button while the workflow is running", () => {
+    mockExecStatus = "running";
+    renderNode();
+    expect(screen.queryByTestId("node-delete-button")).not.toBeInTheDocument();
+  });
+
+  it("hides the delete button while waiting for input mid-run", () => {
+    mockExecStatus = "waiting_for_input";
+    renderNode();
+    expect(screen.queryByTestId("node-delete-button")).not.toBeInTheDocument();
+  });
+
+  it("removes the node (id) when the delete button is clicked", () => {
+    const removeSpy = vi
+      .spyOn(useEditorStore.getState(), "removeNode")
+      .mockImplementation(() => {});
+    try {
+      renderNode();
+      fireEvent.click(screen.getByTestId("node-delete-button"));
+      expect(removeSpy).toHaveBeenCalledWith("node-1");
+    } finally {
+      removeSpy.mockRestore();
+    }
   });
 });
