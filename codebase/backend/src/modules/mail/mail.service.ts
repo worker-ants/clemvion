@@ -407,4 +407,85 @@ export class MailService {
   ): string {
     return `안녕하세요, ${name}님!\n\n계정 로그인 이메일이 ${newEmail} (으)로 변경되었습니다.\n본인이 변경하셨다면 별도 조치가 필요 없습니다.\n본인이 요청하지 않으셨다면 계정이 도용됐을 수 있으니, 아래 링크에서 즉시 비밀번호를 재설정해 주세요:\n\n${resetUrl}`;
   }
+
+  /**
+   * 알림 이메일 발송 — `channel ∈ {email, both}` 인 `notification` row 에 대해
+   * `NotificationsService` 가 호출한다 (spec/data-flow/8-notifications.md §1·§2.2).
+   *
+   * **단일 범용 템플릿** — subject=알림 title, 본문=message + 알림 페이지 CTA.
+   * type 별 시각 템플릿은 downscope (type별 내용은 호출자가 설정한 title/message 에
+   * 이미 인코딩됨; spec 정정은 spec-update-notifications-email plan/planner).
+   *
+   * 발송 실패 시 throw — best-effort/재시도 없음 정책(spec §3 Rationale)은 호출자
+   * (`NotificationsService`)가 catch 하여 warn + `email_sent_at` NULL 유지로 처리한다.
+   */
+  async sendNotificationEmail(
+    email: string,
+    notification: { title: string; message: string; type: string },
+  ): Promise<void> {
+    const notificationsUrl = `${this.frontendUrl}/notifications`;
+
+    if (this.transport === MAIL_TRANSPORT_CONSOLE) {
+      this.logger.debug(
+        `Notification email for ${email} (${notification.type}): ${notification.title}`,
+      );
+    }
+
+    try {
+      await this.mailerService.sendMail({
+        to: email,
+        subject: notification.title,
+        html: this.buildNotificationHtml(notification, notificationsUrl),
+        text: this.buildNotificationText(notification, notificationsUrl),
+      });
+      this.logger.log(
+        `Notification email sent to ${email} (${notification.type})`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to send notification email to ${email}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      throw err;
+    }
+  }
+
+  private buildNotificationHtml(
+    notification: { title: string; message: string },
+    notificationsUrl: string,
+  ): string {
+    const safeTitle = this.escapeHtml(notification.title);
+    const safeMessage = this.escapeHtml(notification.message);
+    return `
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;padding:40px;">
+        <tr><td>
+          <h1 style="margin:0 0 24px;font-size:24px;color:#111;">Clemvion</h1>
+          <p style="margin:0 0 16px;font-size:16px;color:#111;font-weight:600;">${safeTitle}</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#555;white-space:pre-line;">${safeMessage}</p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+            <tr><td style="background:#111;border-radius:6px;padding:12px 32px;">
+              <a href="${notificationsUrl}" style="color:#fff;text-decoration:none;font-size:14px;font-weight:600;">알림 보기</a>
+            </td></tr>
+          </table>
+          <p style="margin:0;font-size:12px;color:#999;word-break:break-all;">${notificationsUrl}</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`.trim();
+  }
+
+  private buildNotificationText(
+    notification: { title: string; message: string },
+    notificationsUrl: string,
+  ): string {
+    return `${notification.title}\n\n${notification.message}\n\n알림 보기:\n${notificationsUrl}`;
+  }
 }
