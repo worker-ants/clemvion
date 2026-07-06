@@ -3,6 +3,8 @@ import {
   McpHttpsRequiredError,
   McpInvalidHeaderError,
 } from './mcp-client.service';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { TimeoutError } from '../../common/utils/with-timeout';
 
 const mockClientInstances: Array<{
   connect: jest.Mock;
@@ -176,6 +178,78 @@ describe('McpClientService', () => {
           service.connect({ url: 'file:///etc/passwd', authType: 'none' }),
         ).rejects.toThrow(McpHttpsRequiredError);
       });
+    });
+  });
+
+  describe('connect — timeout classification', () => {
+    // 전체 mock client shape (connect 만 override) — connect 가 reject 하므로
+    // 나머지 메서드는 호출되지 않지만 배열 원소 타입을 만족시킨다.
+    const fullMock = (
+      connect: jest.Mock,
+    ): (typeof mockClientInstances)[number] => ({
+      connect,
+      close: jest.fn().mockResolvedValue(undefined),
+      listTools: jest.fn().mockResolvedValue({ tools: [] }),
+      callTool: jest.fn(),
+      listResources: jest.fn(),
+      readResource: jest.fn(),
+      listPrompts: jest.fn(),
+      getPrompt: jest.fn(),
+      getServerCapabilities: jest.fn().mockReturnValue({}),
+      getServerVersion: jest
+        .fn()
+        .mockReturnValue({ name: 'x', version: '1.0.0' }),
+    });
+
+    it('connect 가 deadline 만료(abort)로 실패하면 TimeoutError 를 throw 한다', async () => {
+      jest.useFakeTimers();
+      try {
+        (Client as jest.Mock).mockImplementationOnce(() => {
+          // transport 의 abort signal 이 발동하면 reject — connectInner 의 타이머가
+          // deadline 만료 시 abort() 를 부른다.
+          const instance = fullMock(
+            jest.fn().mockImplementation((transport: unknown) => {
+              const { signal } = (
+                transport as {
+                  options: { requestInit: { signal: AbortSignal } };
+                }
+              ).options.requestInit;
+              return new Promise((_resolve, reject) => {
+                signal.addEventListener('abort', () =>
+                  reject(new Error('The operation was aborted')),
+                );
+              });
+            }),
+          );
+          mockClientInstances.push(instance);
+          return instance;
+        });
+        const p = service.connect({
+          url: 'https://mcp.example.com',
+          authType: 'none',
+        });
+        const assertion = expect(p).rejects.toBeInstanceOf(TimeoutError);
+        await jest.advanceTimersByTimeAsync(10_000);
+        await assertion;
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('connect 가 타임아웃 아닌 이유로 실패하면 원본 에러를 전파한다 (TimeoutError 아님)', async () => {
+      (Client as jest.Mock).mockImplementationOnce(() => {
+        const instance = fullMock(
+          jest.fn().mockRejectedValue(new Error('ECONNREFUSED 10.0.0.5')),
+        );
+        mockClientInstances.push(instance);
+        return instance;
+      });
+      const err = await service
+        .connect({ url: 'https://mcp.example.com', authType: 'none' })
+        .catch((err_: unknown) => err_);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(TimeoutError);
+      expect((err as Error).message).toContain('ECONNREFUSED');
     });
   });
 

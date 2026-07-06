@@ -776,36 +776,47 @@ describe('McpToolProvider', () => {
       });
     });
 
-    it('read_resource 메타도구 실패는 phase=resources/read delta 로 보고한다', async () => {
-      mcpClient.connect.mockResolvedValue(
-        makeSession({
-          capabilities: { tools: {}, resources: {} },
-          readResource: jest.fn().mockRejectedValue(new Error('read boom')),
-        }),
-      );
-      await provider.buildTools({
-        config: { mcpServers: [{ integrationId: integration.id }] },
-        workspaceId: 'ws-1',
-        executionId: 'exec-1',
-      });
-      const result = await provider.execute(
-        {
-          id: 'tc-1',
-          name: 'mcp_aaaaaaaa__read_resource',
-          arguments: JSON.stringify({ uri: 'file://x' }),
-        },
-        {
+    // META_PHASE 매핑 전수 검증 — 4종 메타도구 실패가 각자의 phase 로 delta 보고.
+    it.each([
+      ['list_resources', 'listResources', 'resources/list', {}],
+      ['read_resource', 'readResource', 'resources/read', { uri: 'file://x' }],
+      ['list_prompts', 'listPrompts', 'prompts/list', {}],
+      ['get_prompt', 'getPrompt', 'prompts/get', { name: 'p' }],
+    ] as const)(
+      '메타도구 %s 실패는 phase=%s delta 로 보고한다',
+      async (tool, sessionMethod, phase, args) => {
+        mcpClient.connect.mockResolvedValue(
+          makeSession({
+            capabilities: { tools: {}, resources: {}, prompts: {} },
+            [sessionMethod]: jest
+              .fn()
+              .mockRejectedValue(new Error('meta boom')),
+          }),
+        );
+        await provider.buildTools({
           config: { mcpServers: [{ integrationId: integration.id }] },
           workspaceId: 'ws-1',
           executionId: 'exec-1',
-        },
-      );
-      expect(result.mcpErrorDelta).toMatchObject({
-        integrationId: integration.id,
-        phase: 'resources/read',
-        code: 'MCP_CALL_FAILED',
-      });
-    });
+        });
+        const result = await provider.execute(
+          {
+            id: 'tc-1',
+            name: `mcp_aaaaaaaa__${tool}`,
+            arguments: JSON.stringify(args),
+          },
+          {
+            config: { mcpServers: [{ integrationId: integration.id }] },
+            workspaceId: 'ws-1',
+            executionId: 'exec-1',
+          },
+        );
+        expect(result.mcpErrorDelta).toMatchObject({
+          integrationId: integration.id,
+          phase,
+          code: 'MCP_CALL_FAILED',
+        });
+      },
+    );
 
     it('client-side 실패(INVALID_TOOL_ARGUMENTS/UNKNOWN_TOOL)는 errors[] delta 를 보고하지 않는다', async () => {
       mcpClient.connect.mockResolvedValue(makeSession());

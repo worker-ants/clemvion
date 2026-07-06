@@ -60,7 +60,9 @@ export function redactMcpSecrets(msg: string): string {
         /(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi,
         `$1${MCP_REDACTED_PLACEHOLDER}@`,
       )
-      // Bearer <token>  →  Bearer [redacted]
+      // Bearer <token>  →  Bearer [redacted]. `{8,}` 은 실제 토큰(대개 수십자+)만
+      // 노리고 `Bearer of` 같은 평문 오탐을 피하는 하한 — 짧은 우발 매치보다 긴
+      // credential 매치가 목표.
       .replace(
         /\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi,
         `$1 ${MCP_REDACTED_PLACEHOLDER}`,
