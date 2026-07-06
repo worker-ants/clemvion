@@ -19,7 +19,10 @@ import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { evaluateGraphWarningRulesForGraph } from '../../nodes/core/graph-warning-rule';
+import {
+  evaluateGraphWarningRulesForGraph,
+  evaluateGraphCycleWarnings,
+} from '../../nodes/core/graph-warning-rule';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
@@ -518,10 +521,15 @@ export class WorkflowsService {
       this.nodeRepository.find({ where: { workflowId } }),
       this.edgeRepository.find({ where: { workflowId } }),
     ]);
-    const results = evaluateGraphWarningRulesForGraph(
-      { nodes, edges },
-      (type) => this.registry.getComponent(type)?.metadata.graphWarningRules,
-    );
+    const results = [
+      ...evaluateGraphWarningRulesForGraph(
+        { nodes, edges },
+        (type) => this.registry.getComponent(type)?.metadata.graphWarningRules,
+      ),
+      // graph 전역 사이클 경고 (warning-only) — canvas 로컬 평가와 동일 규칙을
+      // backend 응답에도 포함해 두 surface 가 일치하게 한다.
+      ...evaluateGraphCycleWarnings({ nodes, edges }),
+    ];
     const errors = results.filter((r) => r.severity === 'error');
     if (opts.throwOnError && errors.length > 0) {
       throw new BadRequestException({

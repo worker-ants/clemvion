@@ -97,6 +97,7 @@ export function WorkflowCanvas() {
   const onNodesChange = useEditorStore((s) => s.onNodesChange);
   const onEdgesChange = useEditorStore((s) => s.onEdgesChange);
   const onConnect = useEditorStore((s) => s.onConnect);
+  const isValidConnection = useEditorStore((s) => s.isValidConnection);
   const addNode = useEditorStore((s) => s.addNode);
   const removeNode = useEditorStore((s) => s.removeNode);
   const selectNode = useEditorStore((s) => s.selectNode);
@@ -542,6 +543,7 @@ export function WorkflowCanvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        isValidConnection={isValidConnection}
         onInit={onInit}
         onDrop={onDrop}
         onDragOver={onDragOver}

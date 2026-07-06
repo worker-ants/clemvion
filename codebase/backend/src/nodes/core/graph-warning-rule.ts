@@ -1,6 +1,7 @@
 import {
   evaluateGraphWarningRules as evaluateGraphWarningRulesPure,
   evaluateGraphWarningRulesForGraph as evaluateGraphWarningRulesForGraphPure,
+  evaluateGraphCycleWarnings as evaluateGraphCycleWarningsPure,
   GraphRuleEdge,
   GraphRuleNode,
   type GraphWarningRule,
@@ -102,4 +103,17 @@ export function evaluateGraphWarningRulesForGraph(
     toRuleGraph(graph),
     nodeMetadataResolver,
   );
+}
+
+/**
+ * graph 전역 사이클(탈출 불가 무한 루프) 경고 평가 (entity shape). per-node-type
+ * rule 과 달리 그래프 전체를 1회 순회하는 graph-level 규칙이라 별도 진입점으로
+ * 노출한다. severity 'warning' 만 발행하므로 저장을 차단하지 않고 canvas 배지로만
+ * 드러난다 (warn-not-block, spec/3-workflow-editor/2-edge.md §2.2/§2.3).
+ */
+export function evaluateGraphCycleWarnings(graph: {
+  nodes: readonly Node[];
+  edges: readonly Edge[];
+}): GraphWarningRuleResult[] {
+  return evaluateGraphCycleWarningsPure(toRuleGraph(graph));
 }

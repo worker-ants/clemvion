@@ -78,6 +78,42 @@ export function buildEdgeData(
 }
 
 /**
+ * 자기 자신으로의 연결 여부 (source === target). §2.2 — 항상 금지(never valid).
+ * `isValidConnection` 이 드래그 중 커서 🚫 로 차단한다.
+ */
+export function isSelfConnection(connection: {
+  source?: string | null;
+  target?: string | null;
+}): boolean {
+  return (
+    connection.source != null && connection.source === connection.target
+  );
+}
+
+/**
+ * 동일 연결 중복 여부 (§2.2). 같은 (source, sourceHandle, target, targetHandle)
+ * 조합이 이미 존재하면 true. React Flow `addEdge` 도 동일 조합을 dedupe 하지만,
+ * 명시 검사로 "이미 연결되어 있습니다" 토스트를 띄우기 위해 별도 판정한다.
+ */
+export function isDuplicateConnection(
+  edges: Edge[],
+  connection: {
+    source?: string | null;
+    target?: string | null;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  },
+): boolean {
+  return edges.some(
+    (e) =>
+      e.source === connection.source &&
+      e.target === connection.target &&
+      (e.sourceHandle ?? null) === (connection.sourceHandle ?? null) &&
+      (e.targetHandle ?? null) === (connection.targetHandle ?? null),
+  );
+}
+
+/**
  * Get connected edge IDs for a given node.
  */
 export function getConnectedEdgeIds(nodeId: string, edges: Edge[]): Set<string> {

@@ -10,7 +10,10 @@ import {
   translateGraphWarning,
   translateBackendError,
 } from "../backend-labels";
-import { GRAPH_WARNING_RULES_BY_TYPE } from "@workflow/graph-warning-rules";
+import {
+  GRAPH_WARNING_RULES_BY_TYPE,
+  UNESCAPABLE_CYCLE_RULE_ID,
+} from "@workflow/graph-warning-rules";
 
 /**
  * Backend ↔ frontend i18n parity guard.
@@ -295,9 +298,14 @@ describe.runIf(hasBackend)("backend-labels parity (영문 SoT → ko 매핑)", (
  */
 describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
   it("P3-C-1: 등재된 모든 graphWarningRule ruleId 가 GRAPH_WARNING_KO 에 매핑돼요", () => {
-    const ruleIds = Object.values(GRAPH_WARNING_RULES_BY_TYPE)
-      .flatMap((rules) => rules.map((r) => r.id))
-      .sort();
+    const ruleIds = [
+      // per-node-type rules
+      ...Object.values(GRAPH_WARNING_RULES_BY_TYPE).flatMap((rules) =>
+        rules.map((r) => r.id),
+      ),
+      // graph-level rules (GRAPH_WARNING_RULES_BY_TYPE 밖의 그래프 전역 규칙)
+      UNESCAPABLE_CYCLE_RULE_ID,
+    ].sort();
     const koKeys = new Set(Object.keys(GRAPH_WARNING_KO));
     const missing = ruleIds.filter((id) => !koKeys.has(id));
     expect(
