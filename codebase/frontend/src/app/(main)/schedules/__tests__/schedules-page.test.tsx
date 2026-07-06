@@ -531,3 +531,63 @@ describe("SchedulesPage — row links & overflow menu", () => {
     expect(screen.queryByTestId("history-dialog")).toBeNull();
   });
 });
+
+describe("SchedulesPage — inbound ?triggerId= deep-link (Spec §2.1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
+    // jsdom doesn't implement scrollIntoView; the focus ref callback calls it.
+    Element.prototype.scrollIntoView = vi.fn();
+    cleanup();
+  });
+
+  function focusRow() {
+    return {
+      data: [
+        {
+          id: "s1",
+          cronExpression: "0 9 * * *",
+          timezone: "UTC",
+          isActive: true,
+          trigger: {
+            id: "t1",
+            name: "Daily",
+            workflowId: "w1",
+            workflow: { name: "WF" },
+          },
+        },
+      ],
+      pagination: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    };
+  }
+
+  it("highlights and scrolls to the schedule row matching ?triggerId= on landing", async () => {
+    // Deep-link from the trigger list's "스케줄 관리에서 편집" (→ /schedules?triggerId=…).
+    currentSearchParams = new URLSearchParams("triggerId=t1");
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+
+    const focused = await screen.findByTestId("schedule-focused-row");
+    expect(focused).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("highlights no row when ?triggerId= matches no schedule on the page", async () => {
+    currentSearchParams = new URLSearchParams("triggerId=nope");
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+
+    await screen.findByText("Daily");
+    expect(screen.queryByTestId("schedule-focused-row")).toBeNull();
+  });
+
+  it("highlights no row when no ?triggerId= is present", async () => {
+    mockSchedulesResponse(focusRow());
+    await renderPage();
+
+    await screen.findByText("Daily");
+    expect(screen.queryByTestId("schedule-focused-row")).toBeNull();
+  });
+});

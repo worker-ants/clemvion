@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import { CronExpressionParser } from "cron-parser";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { schedulesApi, type RawSchedule } from "@/lib/api/schedules";
+import { useSearchParams } from "next/navigation";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { RoleGate } from "@/components/auth/role-gate";
@@ -490,6 +491,13 @@ export default function SchedulesPage() {
   );
 
   const { page, setPage } = usePageParam();
+  // [Spec §2.1] 트리거 목록의 "스케줄 관리에서 편집"(→ `/schedules?triggerId=…`)
+  // 딥링크로 진입하면 해당 트리거의 스케줄 행을 강조하고 한 번 스크롤한다. 서버
+  // 목록에 triggerId 필터가 없고 목록이 페이지네이션되므로 현재 페이지에 그 행이
+  // 있을 때만 강조된다(cross-page 포커스는 backend triggerId 필터 후속 필요).
+  const searchParams = useSearchParams();
+  const focusTriggerId = searchParams.get("triggerId");
+  const scrolledFocusRef = useRef(false);
   // Raw row shape from /schedules lives in lib/api/schedules (RawSchedule).
   function mapSchedule(s: RawSchedule): Schedule {
     return {
@@ -1007,8 +1015,28 @@ export default function SchedulesPage() {
                 const description = getCronDescription(
                   schedule.cronExpression,
                 );
+                const isFocused =
+                  !!focusTriggerId && schedule.triggerId === focusTriggerId;
                 return (
-                  <tr key={schedule.id}>
+                  <tr
+                    key={schedule.id}
+                    data-testid={
+                      isFocused ? "schedule-focused-row" : undefined
+                    }
+                    ref={
+                      isFocused
+                        ? (el) => {
+                            if (el && !scrolledFocusRef.current) {
+                              scrolledFocusRef.current = true;
+                              el.scrollIntoView?.({ block: "center" });
+                            }
+                          }
+                        : undefined
+                    }
+                    className={cn(
+                      isFocused && "bg-[hsl(var(--accent))]",
+                    )}
+                  >
                     <td className="px-4 py-3">
                       <span
                         className={cn(

@@ -60,6 +60,8 @@ code:
 
 > 더보기(⋮) 오버플로 메뉴는 "실행 이력"(트리거 호출 이력 Dialog)과 "트리거에서 보기"(→ `/triggers?triggerId=…` 딥링크로 Trigger 목록에서 해당 트리거 상세 drawer 오픈) 항목을 제공한다. 두 항목 모두 트리거가 연결된 스케줄에서만 활성화된다 (`codebase/frontend/src/app/(main)/schedules/page.tsx`).
 
+> **inbound `?triggerId=` 딥링크**: [트리거 목록](./2-trigger-list.md#21-트리거-목록-항목)의 "스케줄 관리에서 편집"(→ `/schedules?triggerId=…`)으로 진입하면, 해당 트리거의 스케줄 행을 강조 표시하고 한 번 스크롤해 보여준다. 목록은 페이지네이션되고 서버 목록에 triggerId 필터가 없으므로, **현재 페이지에 그 행이 있을 때만** 강조된다(cross-page 포커스는 backend triggerId 필터 신설이 필요한 후속). 강조는 시각 표시일 뿐 편집 다이얼로그를 자동으로 열지는 않는다.
+
 ### 2.2 스케줄 생성/수정 다이얼로그
 
 | 필드 | 설명 |
