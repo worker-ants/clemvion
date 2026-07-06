@@ -24,6 +24,7 @@ import {
 } from '../../common/utils/ssrf-safe-url.util';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { isSecretRef } from '../secret-store/secret-ref';
+import { OutboundNotificationRateLimiterService } from './outbound-notification-rate-limiter.service';
 
 const HTTP_TIMEOUT_MS = 10_000;
 const STALE_ELIGIBLE_EVENTS = new Set<string>([
@@ -75,6 +76,8 @@ export class NotificationWebhookProcessor extends WorkerHost {
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
     private readonly secrets: SecretResolverService,
+    // §8.4/EIA-NX-11 — trigger 당 분당 60건 outbound 발송 빈도 감지(폭주 시 degraded 표시).
+    private readonly outboundRateLimiter: OutboundNotificationRateLimiterService,
   ) {
     super();
   }
@@ -270,7 +273,18 @@ export class NotificationWebhookProcessor extends WorkerHost {
     }
 
     if (res.status >= 200 && res.status < 300) {
-      await this.markHealthy(triggerId);
+      // §8.4/EIA-NX-11 — 발송 성공. 단 이 trigger 의 outbound 발송 빈도가 분당 60 을
+      // 넘으면(폭주) 알림은 그대로 나가되(폐기 없음) degraded 로 표시해 endpoint 폭주를
+      // 알린다. 원인은 notification_last_error 로 "발송 실패" degraded 와 구분한다.
+      const flooding = await this.outboundRateLimiter.consume(triggerId);
+      if (flooding) {
+        await this.markDegraded(
+          triggerId,
+          `Outbound rate exceeded — trigger 당 분당 ${OutboundNotificationRateLimiterService.LIMIT_PER_MINUTE}건 초과(폭주). 알림은 계속 발송되나 수신 endpoint 부하를 확인하세요.`,
+        );
+      } else {
+        await this.markHealthy(triggerId);
+      }
       return;
     }
 

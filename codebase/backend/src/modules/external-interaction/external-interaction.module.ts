@@ -16,6 +16,7 @@ import { SseAdapter } from './sse-adapter.service';
 import { InteractionGuard } from './interaction.guard';
 import { InteractionRateLimitGuard } from './interaction-rate-limit.guard';
 import { InteractionRateLimiterService } from './interaction-rate-limiter.service';
+import { OutboundNotificationRateLimiterService } from './outbound-notification-rate-limiter.service';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { InteractionService } from './interaction.service';
 import { InteractionController } from './interaction.controller';
@@ -66,6 +67,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     InteractionGuard,
     InteractionRateLimitGuard,
     InteractionRateLimiterService,
+    OutboundNotificationRateLimiterService,
     IdempotencyInterceptor,
     InteractionService,
     TerminalRevokeReconcilerService,

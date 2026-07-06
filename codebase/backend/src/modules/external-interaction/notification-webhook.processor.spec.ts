@@ -96,6 +96,7 @@ describe('NotificationWebhookProcessor.process', () => {
   let executionRepo: RepoMocks;
   let fetchSpy: jest.Mock;
   let secrets: jest.Mocked<SecretResolverService>;
+  let outboundRateLimiter: { consume: jest.Mock };
 
   beforeEach(() => {
     triggerRepo = makeTriggerRepo() as unknown as RepoMocks;
@@ -103,10 +104,13 @@ describe('NotificationWebhookProcessor.process', () => {
     secrets = makeSecretsMock();
     // default: secrets.resolve throws (legacy plaintext fallback path used)
     (secrets.resolve as jest.Mock).mockRejectedValue(new Error('not found'));
+    // §8.4/EIA-NX-11 — 기본은 "폭주 아님"(false). 폭주 케이스는 테스트에서 override.
+    outboundRateLimiter = { consume: jest.fn().mockResolvedValue(false) };
     processor = new NotificationWebhookProcessor(
       triggerRepo as never,
       executionRepo as never,
       secrets as never,
+      outboundRateLimiter as never,
     );
     fetchSpy = jest.fn();
     (globalThis as unknown as { fetch: Mock }).fetch = fetchSpy;
@@ -161,6 +165,22 @@ describe('NotificationWebhookProcessor.process', () => {
       notificationHealth: 'healthy',
       notificationLastError: null,
     });
+  });
+
+  it('성공 + outbound 폭주(§8.4/EIA-NX-11) → healthy 대신 degraded(폭주 원인), 발송은 그대로', async () => {
+    triggerRepo.findOne.mockResolvedValue(makeTrigger());
+    fetchSpy.mockResolvedValue({ status: 200, statusText: 'OK' });
+    outboundRateLimiter.consume.mockResolvedValue(true); // 분당 60 초과
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    // 알림은 그대로 발송(폐기 없음).
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // healthy 로 마감하지 않고 degraded — 원인은 last_error 로 "발송 실패"와 구분.
+    expect(outboundRateLimiter.consume).toHaveBeenCalledWith('trg-1');
+    const update = triggerRepo.update.mock.calls.at(-1);
+    expect(update?.[1].notificationHealth).toBe('degraded');
+    expect(update?.[1].notificationLastError).toContain('Outbound rate exceeded');
   });
 
   it('HMAC 헤더 — 발신 서명을 검증 헬퍼로 verify 통과', async () => {
