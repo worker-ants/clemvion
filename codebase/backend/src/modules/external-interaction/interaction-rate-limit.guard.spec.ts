@@ -82,8 +82,8 @@ describe('InteractionRateLimitGuard', () => {
     let caught: HttpException | undefined;
     try {
       await guard.canActivate(ctx);
-    } catch (e) {
-      caught = e as HttpException;
+    } catch (err) {
+      caught = err as HttpException;
     }
     expect(caught).toBeInstanceOf(HttpException);
     expect(caught!.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
