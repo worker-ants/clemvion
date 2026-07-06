@@ -262,6 +262,13 @@ pending_plans:
 | 마켓플레이스 업데이트 | 인앱 | O |
 | 팀 초대 | 인앱 + 이메일 | X (항상 발송) |
 
+> **팀 초대의 "이메일" 은 초대 링크 이메일이 담당** — 기존 가입자(비멤버) 초대 시 이메일은
+> 수락 토큰을 담은 초대 링크 이메일(`MailService.sendWorkspaceInvitationEmail`)이 발송하고,
+> `team_invite` 알림 record 자체는 channel=`in_app`(벨)만 발사한다. 알림 record 를 `both` 로 두면
+> 토큰 없는 범용 알림 이메일이 초대 링크 이메일과 중복되기 때문이다. 즉 이 행의 "인앱 + 이메일"은
+> 제품 레벨에서 유효하되(벨 알림 + 초대 링크 이메일 둘 다 도달), 이메일 발송 주체가 알림 파이프라인이
+> 아니라 초대 흐름이다. 근거: [`spec/data-flow/8-notifications.md §Rationale "team_invite 채널 — 이메일 중복 회피"`](../data-flow/8-notifications.md#team_invite-채널--이메일-중복-회피-channelin_app).
+
 ### 5.2 알림 센터 (벨 아이콘 클릭 시)
 
 ```

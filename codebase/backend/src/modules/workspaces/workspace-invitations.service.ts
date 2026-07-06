@@ -163,7 +163,7 @@ export class WorkspaceInvitationsService {
       token,
     );
 
-    // 초대 대상 이메일이 이미 가입자(비멤버)면 in-app + 이메일 알림 발사
+    // 초대 대상 이메일이 이미 가입자(비멤버)면 in-app 알림(벨) 발사
     // (spec/data-flow/8-notifications.md §1.1 team_invite). existingUser 가 멤버였다면
     // 위에서 이미 ConflictException 이므로, 여기 도달한 existingUser 는 비멤버다.
     if (existingUser) {
@@ -180,9 +180,13 @@ export class WorkspaceInvitationsService {
   }
 
   /**
-   * 기존 가입자에게 `team_invite` 알림 발사 (spec §1.1). channel='both' — spec 이
-   * "in-app 알림 + 이메일 둘 다" 를 명시. 초대 링크 이메일(`dispatchEmail`)과는 별개의
-   * 알림이다. **best-effort** — 발사 실패가 초대 생성을 되돌리면 안 되므로 삼킨다.
+   * 기존 가입자에게 `team_invite` 알림 발사 (spec §1.1). channel='in_app' — 이메일
+   * 채널은 위 `dispatchEmail`(수락 토큰을 담은 초대 링크 이메일)이 담당하므로, 알림
+   * record 의 이메일 발송을 켜면 토큰 없는 범용 알림 이메일이 중복 발송된다(§Rationale
+   * "team_invite 채널 — 이메일 중복 회피"). 따라서 알림 record 는 벨(in_app)만 담당하고
+   * 이메일은 초대 링크 이메일 1통으로 일원화한다. §5.1 "팀 초대=인앱+이메일"의 이메일은
+   * 이 초대 링크 이메일로 충족된다. **best-effort** — 발사 실패가 초대 생성을 되돌리면
+   * 안 되므로 삼킨다.
    */
   private async dispatchTeamInviteNotification(
     userId: string,
@@ -200,7 +204,7 @@ export class WorkspaceInvitationsService {
         message: `${inviterName ?? '관리자'}님이 "${workspaceName}" 워크스페이스에 초대했어요.`,
         resourceType: 'workspace_invitation',
         resourceId: invitationId,
-        channel: 'both',
+        channel: 'in_app',
       });
     } catch (err) {
       this.logger.error(
