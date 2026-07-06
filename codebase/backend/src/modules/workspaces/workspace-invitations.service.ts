@@ -24,6 +24,7 @@ import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { User } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
@@ -65,6 +66,7 @@ export class WorkspaceInvitationsService {
     private readonly userRepository: Repository<User>,
     private readonly mailService: MailService,
     private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /** Admin+ invites an email address to a team workspace. */
@@ -161,7 +163,52 @@ export class WorkspaceInvitationsService {
       token,
     );
 
+    // 초대 대상 이메일이 이미 가입자(비멤버)면 in-app + 이메일 알림 발사
+    // (spec/data-flow/8-notifications.md §1.1 team_invite). existingUser 가 멤버였다면
+    // 위에서 이미 ConflictException 이므로, 여기 도달한 existingUser 는 비멤버다.
+    if (existingUser) {
+      await this.dispatchTeamInviteNotification(
+        existingUser.id,
+        workspaceId,
+        workspace.name,
+        inviter?.name ?? null,
+        saved.id,
+      );
+    }
+
     return saved;
+  }
+
+  /**
+   * 기존 가입자에게 `team_invite` 알림 발사 (spec §1.1). channel='both' — spec 이
+   * "in-app 알림 + 이메일 둘 다" 를 명시. 초대 링크 이메일(`dispatchEmail`)과는 별개의
+   * 알림이다. **best-effort** — 발사 실패가 초대 생성을 되돌리면 안 되므로 삼킨다.
+   */
+  private async dispatchTeamInviteNotification(
+    userId: string,
+    workspaceId: string,
+    workspaceName: string,
+    inviterName: string | null,
+    invitationId: string,
+  ): Promise<void> {
+    try {
+      await this.notificationsService.notify({
+        workspaceId,
+        userId,
+        type: 'team_invite',
+        title: '워크스페이스 초대',
+        message: `${inviterName ?? '관리자'}님이 "${workspaceName}" 워크스페이스에 초대했어요.`,
+        resourceType: 'workspace_invitation',
+        resourceId: invitationId,
+        channel: 'both',
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch team_invite notification (invitation=${invitationId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**

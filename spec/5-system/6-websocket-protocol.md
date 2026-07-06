@@ -148,7 +148,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `workflow:{workflowId}` | workspace 소유 검증 (`WorkflowsService.findById(workflowId, workspaceId)`, 비-UUID 선차단) |
 | `kb:{documentId}` | workspace 문서 소유 검증 |
 | `background:run:{id}` | workspace 소유 검증 (비-UUID 선차단) |
-| `notifications:{userId}` | **user 단위** — JWT `sub` 와 채널의 `userId` 일치 검증. emit 은 미구현(Planned)이나 누락 재발 방지를 위해 authorizer 를 선제 배치 (fail-closed) |
+| `notifications:{userId}` | **user 단위** — JWT `sub` 와 채널의 `userId` 일치 검증 (fail-closed). `notification.new` emit 은 `emitNotificationEvent` 로 구현됨 (§4.4) |
 
 권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false` 와 평문 `error` 문자열** 로 응답한다 (전용 에러 코드 필드 없음):
 
@@ -740,15 +740,15 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 상태 전이 및 의미는 [`spec/5-system/8-embedding-pipeline.md §9.2`](./8-embedding-pipeline.md#92-상태-전이) 와 직접 대응된다.
 
-### 4.4 알림 이벤트 (Server → Client) — _계획·미구현_
+### 4.4 알림 이벤트 (Server → Client)
 
 채널: `notifications:{userId}`
 
-> **미구현 (Planned)**: `notifications:` 채널 prefix 는 gateway 의 `VALID_CHANNEL_PREFIXES` 에 등록되어 구독은 가능하지만, **`notification.new` 를 emit 하는 backend 코드가 없다** (검색 결과 emit 경로 부재). 따라서 현재 이 채널로 전송되는 이벤트는 없다 — 알림 실시간 push 는 향후 항목.
+> `notifications:` 채널 prefix 는 gateway 의 `VALID_CHANNEL_PREFIXES` 에 등록되어 구독 가능하며, `NotificationsService` 가 알림 적재(`notify()`/`createMany`) 직후 `WebsocketService.emitNotificationEvent` 로 `notification.new` 를 발행한다(best-effort). 데이터 흐름은 [`data-flow/8-notifications.md`](../data-flow/8-notifications.md).
 
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
-| `notification.new` _(계획·미구현)_ | `{ id, type, title, message, resourceType, resourceId }` | 새 알림 (emit 미구현) |
+| `notification.new` | `{ id, type, title, message, resourceType, resourceId }` | 새 알림 (적재 직후 즉시 emit) |
 
 ### 4.5 시스템 이벤트
 
@@ -955,8 +955,8 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 본 spec 초안은 "native/raw WebSocket 프로토콜" 을 전제로 `{ type, id, payload }` 프레임·`Sec-WebSocket-Protocol` 서브프로토콜 인증·`auth.refresh`/`auth.refreshed` in-band 갱신·`execution.start`/`execution.stop` WS 명령·서버발신 30s/10s app ping·raw close code(1000/1001/1008/4000/4001)·`{type:'error',code}` 프레임을 약속했다. 그러나 구현(`websocket.gateway.ts` / `websocket.service.ts` / 프론트 `ws-client.ts`)은 **Socket.IO** (namespace `/ws`) 기반이고, 위 raw-WS 표면 중 다수가 부재하거나 형태가 다르다.
 
 - **정정한 사실 (구현 일치)**: 전송 = Socket.IO; 인증 = `handshake.query.token || handshake.auth.token` (서브프로토콜 경로 없음); 구독 ack = `{ event:'subscribed', data:{ success, channel?, error? } }`; 권한/한도 거부 = 평문 `error` 문자열 (코드 필드 없음); snapshot payload = `{ executionId, execution, timestamp }` (status/nodeExecutions 는 `execution` nest); app ping = client→server (`handlePing`); heartbeat = Socket.IO 내장; 재연결 = Socket.IO 내장 backoff; 토큰 갱신 = REST refresh + 재연결; 서버발신 이벤트 wire = `{ executionId, ...payload, seq, timestamp }` 평면 + 이벤트 이름 분리.
-- **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`notification.new` emit·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다.
-- **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·notification.new emit·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
+- **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다. (`notification.new` emit 은 이후 구현 완료 — §4.4.)
+- **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
 - **drift 아닌 positive**: §4.2 의 continuation/retry 코드(`INVALID_EXECUTION_STATE`/`RESUME_*`/`RETRY_*`)는 코드와 정합 — 변경 없음.
 
 ### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)
@@ -1045,4 +1045,4 @@ retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "do
 §3.3 의 소유검증 채널 목록에 `workflow:{workflowId}`(workspace 소유 검증, `execution:` 동형)와 `notifications:{userId}`(JWT `sub` 일치 검증)를 추가했다. `channelAuthorizers` 는 OCP 구조라 배열 항목 추가만으로 격리적으로 확장된다.
 
 - **`workflow:` — 실존 IDOR 차단**: 에디터 실행 알림 emit(`workflow:{workflowId}`)이 실존하므로, 타 workspace 의 `workflowId` 를 추측한 사용자가 이벤트를 수신할 수 있었다. `WorkflowsService.findById(workflowId, workspaceId)`(미소유/부재 시 NotFound throw — ID enumeration 차단)로 join 전 동기 차단한다.
-- **`notifications:` — emit 미구현인데도 authorizer 선제 배치 (fail-closed)**: `notifications:` 는 현재 `notification.new` emit 경로가 없어 실피해는 0 이다(§4.4 Planned). 그럼에도 authorizer 를 **먼저** 배치한 이유는, emit 이 후행 phase 에서 도입될 때 인가 누락이 그대로 사용자간 알림 누출로 현실화되는 패턴(enforcement 비대칭)을 구조적으로 차단하기 위함이다 — "emit 없을 때 authorizer 먼저" 가 fail-closed 원칙에 부합하고, JWT `sub` 비교라 구현 비용도 수 줄에 불과하다. (기각된 대안: emit 구현 시점에 authorizer 동반 추가 — emit plan 이 인가 추가를 기억해야 하는 프로세스 의존이라 누락 재발 위험이 커 기각.)
+- **`notifications:` — emit 도입 전에 authorizer 를 선제 배치했다 (fail-closed)**: authorizer 는 `notification.new` emit 경로가 아직 없던 시점에 **먼저** 배치됐다 — emit 이 후행 phase 에서 도입될 때 인가 누락이 그대로 사용자간 알림 누출로 현실화되는 패턴(enforcement 비대칭)을 구조적으로 차단하기 위함. "emit 없을 때 authorizer 먼저" 가 fail-closed 원칙에 부합하고, JWT `sub` 비교라 구현 비용도 수 줄에 불과했다. (기각된 대안: emit 구현 시점에 authorizer 동반 추가 — emit plan 이 인가 추가를 기억해야 하는 프로세스 의존이라 누락 재발 위험이 커 기각.) 이후 emit(`emitNotificationEvent`)이 실제 도입되면서 이 선제 배치가 의도대로 인가를 이미 갖춘 채 활성화됐다.

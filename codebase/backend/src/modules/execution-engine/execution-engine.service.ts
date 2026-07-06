@@ -4,6 +4,7 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleInit,
+  Optional,
   forwardRef,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -19,6 +20,7 @@ import {
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   ExecutionCancelledError,
@@ -674,6 +676,12 @@ export class ExecutionEngineService
     // 직접 호출하므로 엔진은 더 이상 retry delegator 를 잔류시키지 않는다. 단방향
     // Retry→engine(ENGINE_DRIVER) 만 유지. AiTurn/Form/Button 은 dispatch-loop·
     // resume-registry 가 그래프 순회 중 위임하므로 forwardRef 양방향 유지.
+    // 실행 실패 시 execution_failed 알림 발사 (spec/data-flow/8-notifications.md §1.1).
+    // @Optional — 프로덕션은 execution-engine.module 이 NotificationsModule 을 import 하므로
+    // 항상 주입된다. 본 서비스의 방대한 기존 TestingModule 셋업(4곳)이 각자 mock provider 를
+    // 추가하지 않아도 되도록 optional 로 두고, 미주입 시 dispatch 는 no-op(guard).
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   /**
@@ -4395,11 +4403,73 @@ export class ExecutionEngineService
           error: err instanceof Error ? err.message : String(err),
         },
       );
+      await this.dispatchExecutionFailedNotification(
+        savedExecution,
+        errMessage,
+      );
     } finally {
       // exec-park D6 full B3 — park 가 세그먼트를 종료하므로 firstSegmentBarriers /
       // pendingContinuations 정리가 불필요하다. in-memory context / llm 캐시만 정리.
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
+    }
+  }
+
+  /**
+   * 실행 실패 시 워크플로우 owner + 실행자에게 `execution_failed` 알림 발사
+   * (spec/data-flow/8-notifications.md §1.1). **best-effort** — 발사 실패가 실행
+   * 종료(FAILED 마킹)를 되돌리면 안 되므로 예외를 삼킨다.
+   *
+   * **top-level 실행에만** 발사한다(`!parentExecutionId`). background 본문 /
+   * sub-workflow 하위 실행은 제외 — background 본문 실패는 `background_failed`
+   * (`BackgroundExecutionProcessor`)가 별도 발사하고, 사용자向 알림은 그가 시작한
+   * top-level 실행 실패에만 발생시켜 중복·노이즈를 피한다.
+   *
+   * resource_type='workflow' / resource_id=**workflow.id**. 알림 팝오버 딥링크
+   * (`href.ts`, spec/2-navigation/_layout.md §3.1)가 `execution_failed` 를
+   * `/workflows/<resource_id>` 로 라우팅하며 resource_id 가 workflow id 임에 의존하므로,
+   * execution id 가 아니라 workflow id 를 채운다 (execution 단위 딥링크는 미지원).
+   */
+  private async dispatchExecutionFailedNotification(
+    execution: Execution,
+    message: string,
+  ): Promise<void> {
+    if (execution.parentExecutionId) return;
+    if (!this.notificationsService) return;
+    try {
+      const workflow = await this.workflowRepository.findOne({
+        where: { id: execution.workflowId },
+      });
+      if (!workflow) return;
+      const recipients = [
+        ...new Set(
+          [workflow.createdBy, execution.executedBy].filter(
+            (id): id is string => !!id,
+          ),
+        ),
+      ];
+      if (recipients.length === 0) return;
+      await this.notificationsService.createMany(
+        recipients.map((userId) => ({
+          workspaceId: workflow.workspaceId,
+          userId,
+          type: 'execution_failed',
+          title: '워크플로우 실행 실패',
+          message: `워크플로우 "${workflow.name}" 실행이 실패했어요: ${message}`,
+          // 딥링크 계약(href.ts §3.1) — resource_id = workflow id.
+          resourceType: 'workflow',
+          resourceId: workflow.id,
+          // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 이 "워크플로우 실행
+          // 실패" 기본 채널을 인앱+이메일로 규정(채널 on/off 토글 미구현이라 기본값 고정).
+          channel: 'both',
+        })),
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch execution_failed notification (execution=${execution.id}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 

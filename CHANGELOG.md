@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 알림 신규 발사 소스 execution_failed·schedule_failed·team_invite (알림 파이프라인 PR3)
+
+### 변경 사항
+
+1. **워크플로우 실행 실패·스케줄 시작 실패·팀 초대 시 알림이 발사된다** — 종전 `notification.type` 의 `execution_failed`/`schedule_failed`/`team_invite` 는 DB CHECK 에 허용값으로만 존재하고 이를 발사하는 코드가 없었다(`spec/data-flow/8-notifications.md §1.1` 이 to-be 로 명시). 이제 세 소스가 발사한다. 모두 **best-effort**(발사 실패가 원 흐름을 되돌리지 않음): (a) `execution_failed` — 실행이 FAILED 로 종료될 때 워크플로우 owner + 실행자에게. **top-level 실행에만** 발사(`!parentExecutionId`)해 background 본문/sub-workflow 하위 실행은 제외 — background 본문 실패는 기존 `background_failed` 가 담당하므로 중복을 피한다. (b) `schedule_failed` — 스케줄이 execution 을 **시작하지 못했을 때**(파라미터 해석·enqueue 실패) 워크플로우 owner 에게. 시작된 execution 의 이후 실패는 `execution_failed` 가 커버한다. (c) `team_invite` — 초대 대상 이메일이 **이미 가입자(비멤버)** 일 때 그 사용자에게. 세 알림 모두 **인앱 + 이메일**(`channel: 'both'`) — `spec/2-navigation/9-user-profile.md §5.1` 이 세 유형의 기본 채널을 인앱+이메일로 규정(채널 토글 미구현이라 기본값 고정 발송). 신규 마이그레이션 없음(V070 CHECK 에 세 타입 선재). SoT: `spec/data-flow/8-notifications.md §1.1`.
+
 ## Unreleased — 알림 이메일 발송 경로 + email_sent_at 라이프사이클 (알림 파이프라인 PR2)
 
 ### 변경 사항

@@ -15,6 +15,7 @@ import {
 } from './jobs/workspace-invitations-pruner.service';
 import { MailModule } from '../mail/mail.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 // RolesGuard 는 AppModule 의 APP_GUARD 로 등록되어 전역에서 동작한다.
 // RolesGuard 는 WorkspacesService 에 의존하므로, 이 모듈을 @Global 로 export 해두면
@@ -30,6 +31,8 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
     ]),
     MailModule,
     AuditLogsModule,
+    // team_invite 알림 발사 (순환 무관 — NotificationsModule 은 MailModule/forFeature 만 의존).
+    NotificationsModule,
     BullModule.registerQueue({ name: WORKSPACE_INVITATIONS_PRUNER_QUEUE }),
   ],
   controllers: [WorkspacesController, InvitationsController],

@@ -5,7 +5,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
 import { Node } from '../nodes/entities/node.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
@@ -29,10 +31,13 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
     @InjectQueue(SCHEDULE_QUEUE)
     private readonly queue: Queue<ScheduleJobData>,
     @Inject(ExecutionEngineService)
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly notificationsService: NotificationsService,
   ) {
     super();
   }
@@ -188,7 +193,56 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
       this.logger.error(
         `Failed to execute schedule ${scheduleId}: ${err instanceof Error ? err.message : String(err)}`,
       );
+      await this.dispatchScheduleFailedNotification(
+        scheduleId,
+        workspaceId,
+        workflowId,
+        err instanceof Error ? err.message : String(err),
+      );
       throw err;
+    }
+  }
+
+  /**
+   * 스케줄이 워크플로우 실행을 **시작하지 못했을 때**(파라미터 해석·enqueue 실패)
+   * 워크플로우 owner 에게 `schedule_failed` 알림 발사
+   * (spec/data-flow/8-notifications.md §1.1). execution 이 시작된 뒤의 async 실패는
+   * `execution_failed` 가 별도로 커버한다.
+   *
+   * **best-effort** — 알림 발사 실패가 BullMQ 재시도 결정(catch 의 rethrow)을
+   * 흔들지 않도록 예외를 삼킨다.
+   */
+  private async dispatchScheduleFailedNotification(
+    scheduleId: string,
+    workspaceId: string,
+    workflowId: string,
+    message: string,
+  ): Promise<void> {
+    try {
+      const workflow = await this.workflowRepository.findOne({
+        where: { id: workflowId },
+      });
+      if (!workflow?.createdBy) return;
+      await this.notificationsService.notify({
+        workspaceId,
+        userId: workflow.createdBy,
+        type: 'schedule_failed',
+        title: '스케줄 실행 실패',
+        message: `스케줄이 워크플로우 "${workflow.name}" 실행을 시작하지 못했어요: ${message}`,
+        // 딥링크 계약(href.ts, spec/2-navigation/_layout.md §3.1) — schedule_failed 는
+        // `/workflows/<resource_id>` 로 라우팅되며 resource_id 가 workflow id 임에 의존.
+        resourceType: 'workflow',
+        resourceId: workflow.id,
+        // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 "스케줄 실행 실패"
+        // 기본 채널(토글 미구현이라 기본값 고정 발송).
+        channel: 'both',
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch schedule_failed notification (schedule=${scheduleId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
   }
 

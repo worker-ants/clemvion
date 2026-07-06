@@ -73,6 +73,7 @@ describe('WorkspaceInvitationsService', () => {
   let mailService: { sendWorkspaceInvitationEmail: Mock };
   let dataSource: DataSource;
   let updateMock: Mock;
+  let notifications: { notify: Mock };
 
   beforeEach(() => {
     invitationRepo = repo();
@@ -82,6 +83,7 @@ describe('WorkspaceInvitationsService', () => {
     mailService = {
       sendWorkspaceInvitationEmail: jest.fn().mockResolvedValue(undefined),
     };
+    notifications = { notify: jest.fn().mockResolvedValue(undefined) };
     const built = buildDataSource({ invitationRepo, memberRepo });
     dataSource = built.dataSource;
     updateMock = built.updateMock;
@@ -92,6 +94,7 @@ describe('WorkspaceInvitationsService', () => {
       userRepo as never,
       mailService as never,
       dataSource,
+      notifications as never,
     );
   });
 
@@ -195,6 +198,73 @@ describe('WorkspaceInvitationsService', () => {
         'Alice',
         result.token,
       );
+    });
+
+    it('기존 가입자(비멤버) 초대 시 team_invite 알림 발사(channel=both)', async () => {
+      memberRepo.findOne
+        .mockResolvedValueOnce({ role: 'admin' }) // requester (assertAdmin)
+        .mockResolvedValueOnce(null); // invitee 는 아직 비멤버
+      workspaceRepo.findOne.mockResolvedValueOnce({
+        id: 'ws-1',
+        name: 'Team',
+        type: 'team',
+      });
+      userRepo.findOne
+        .mockResolvedValueOnce({ id: 'user-9', email: 'ex@x.com' }) // existingUser
+        .mockResolvedValueOnce({ id: 'inviter', name: 'Bob' }); // inviter
+      invitationRepo.findOne.mockResolvedValueOnce(null);
+      invitationRepo.save.mockResolvedValueOnce({ id: 'inv-1' });
+
+      await service.invite('ws-1', 'EX@x.com', 'editor', 'inviter');
+
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          userId: 'user-9',
+          type: 'team_invite',
+          resourceType: 'workspace_invitation',
+          resourceId: 'inv-1',
+          channel: 'both',
+        }),
+      );
+    });
+
+    it('신규(미가입) 이메일 초대 시 team_invite 미발사', async () => {
+      memberRepo.findOne.mockResolvedValueOnce({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValueOnce({
+        id: 'ws-1',
+        name: 'Team',
+        type: 'team',
+      });
+      userRepo.findOne
+        .mockResolvedValueOnce(null) // existingUser = 없음
+        .mockResolvedValueOnce({ id: 'inviter', name: 'Bob' });
+      invitationRepo.findOne.mockResolvedValueOnce(null);
+
+      await service.invite('ws-1', 'new@x.com', 'editor', 'inviter');
+
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('team_invite 발사 실패해도 invite 는 성공(best-effort)', async () => {
+      memberRepo.findOne
+        .mockResolvedValueOnce({ role: 'admin' })
+        .mockResolvedValueOnce(null);
+      workspaceRepo.findOne.mockResolvedValueOnce({
+        id: 'ws-1',
+        name: 'Team',
+        type: 'team',
+      });
+      userRepo.findOne
+        .mockResolvedValueOnce({ id: 'user-9', email: 'ex@x.com' })
+        .mockResolvedValueOnce({ id: 'inviter', name: 'Bob' });
+      invitationRepo.findOne.mockResolvedValueOnce(null);
+      invitationRepo.save.mockResolvedValueOnce({ id: 'inv-1' });
+      notifications.notify.mockRejectedValueOnce(new Error('notif down'));
+
+      await expect(
+        service.invite('ws-1', 'ex@x.com', 'editor', 'inviter'),
+      ).resolves.toBeDefined();
     });
 
     it('does not roll back invitation row when mail fails', async () => {
@@ -509,6 +579,7 @@ describe('WorkspaceInvitationsService', () => {
         userRepo as never,
         mailService as never,
         built.dataSource,
+        notifications as never,
       );
       invitationRepo.findOne.mockResolvedValueOnce({
         id: 'inv-1',
