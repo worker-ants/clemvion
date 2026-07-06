@@ -25,6 +25,8 @@ describe('NotificationsService — dismiss', () => {
     find: jest.Mock;
     create: jest.Mock;
   };
+  let ws: { emitNotificationEvent: jest.Mock };
+  let moduleRefMock: { get: jest.Mock };
 
   // helper — chainable QB stub returning a value at the end
   function makeQb(
@@ -56,7 +58,10 @@ describe('NotificationsService — dismiss', () => {
       find: jest.fn(),
       create: jest.fn(),
     };
-    service = new NotificationsService(repo as any);
+    ws = { emitNotificationEvent: jest.fn() };
+    // NotificationsService 는 WebsocketService 를 ModuleRef(strict:false) 로 지연 해석.
+    moduleRefMock = { get: jest.fn().mockReturnValue(ws) };
+    service = new NotificationsService(repo as any, moduleRefMock as any);
   });
 
   describe('findAll — dismissed_at IS NULL 필터', () => {
@@ -202,6 +207,241 @@ describe('NotificationsService — dismiss', () => {
           createdAt: expect.any(Object), // MoreThanOrEqual(...)
         }),
       );
+    });
+  });
+
+  describe('notify — 단일 적재 + WS emit (spec §1)', () => {
+    it('INSERT 후 저장된 row 로 notification.new emit 하고 saved 를 반환', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      const saved = {
+        id: 'notif-1',
+        userId: 'user-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        resourceType: 'execution',
+        resourceId: 'exec-9',
+      };
+      repo.save.mockResolvedValue(saved);
+
+      const result = await service.notify({
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        resourceType: 'execution',
+        resourceId: 'exec-9',
+      });
+
+      expect(repo.save).toHaveBeenCalledTimes(1);
+      // 저장된 row(생성된 id 포함)의 값으로 emit — 입력이 아니라 saved 기준.
+      expect(ws.emitNotificationEvent).toHaveBeenCalledTimes(1);
+      expect(ws.emitNotificationEvent).toHaveBeenCalledWith('user-1', {
+        id: 'notif-1',
+        type: 'execution_failed',
+        title: 'Workflow failed',
+        message: 'run xyz failed',
+        resourceType: 'execution',
+        resourceId: 'exec-9',
+      });
+      expect(result).toBe(saved);
+    });
+
+    it('resource attribution 이 없으면 emit payload 의 resource* 는 null', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue({
+        id: 'notif-2',
+        userId: 'user-2',
+        type: 'team_invite',
+        title: 'Invited',
+        message: 'welcome',
+        resourceType: null,
+        resourceId: null,
+      });
+
+      await service.notify({
+        workspaceId: 'ws-1',
+        userId: 'user-2',
+        type: 'team_invite',
+        title: 'Invited',
+        message: 'welcome',
+      });
+
+      expect(ws.emitNotificationEvent).toHaveBeenCalledWith('user-2', {
+        id: 'notif-2',
+        type: 'team_invite',
+        title: 'Invited',
+        message: 'welcome',
+        resourceType: null,
+        resourceId: null,
+      });
+    });
+  });
+
+  describe('createMany — 저장 후 per-row WS emit (spec §1·§2.2)', () => {
+    it('빈 배열은 no-op — save·emit 모두 미호출', async () => {
+      await service.createMany([]);
+      expect(repo.save).not.toHaveBeenCalled();
+      expect(ws.emitNotificationEvent).not.toHaveBeenCalled();
+    });
+
+    it('저장된 각 row 에 대해 notification.new emit', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        {
+          id: 'n-1',
+          userId: 'user-a',
+          type: 'background_failed',
+          title: 'A',
+          message: 'ma',
+          resourceType: 'execution',
+          resourceId: 'e-1',
+        },
+        {
+          id: 'n-2',
+          userId: 'user-b',
+          type: 'background_failed',
+          title: 'B',
+          message: 'mb',
+          resourceType: undefined,
+          resourceId: undefined,
+        },
+      ]);
+
+      await service.createMany([
+        {
+          workspaceId: 'ws-1',
+          userId: 'user-a',
+          type: 'background_failed',
+          title: 'A',
+          message: 'ma',
+          resourceType: 'execution',
+          resourceId: 'e-1',
+        },
+        {
+          workspaceId: 'ws-1',
+          userId: 'user-b',
+          type: 'background_failed',
+          title: 'B',
+          message: 'mb',
+        },
+      ]);
+
+      expect(ws.emitNotificationEvent).toHaveBeenCalledTimes(2);
+      expect(ws.emitNotificationEvent).toHaveBeenNthCalledWith(1, 'user-a', {
+        id: 'n-1',
+        type: 'background_failed',
+        title: 'A',
+        message: 'ma',
+        resourceType: 'execution',
+        resourceId: 'e-1',
+      });
+      expect(ws.emitNotificationEvent).toHaveBeenNthCalledWith(2, 'user-b', {
+        id: 'n-2',
+        type: 'background_failed',
+        title: 'B',
+        message: 'mb',
+        resourceType: null,
+        resourceId: null,
+      });
+    });
+  });
+
+  describe('getWebsocket — ModuleRef 지연 해석 계약 (회귀)', () => {
+    it('WebsocketService 를 strict:false 로 해석하고 1회 캐시한다', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue({
+        id: 'n',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+        resourceType: null,
+        resourceId: null,
+      });
+
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+      });
+      await service.notify({
+        workspaceId: 'ws',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+      });
+
+      // strict:false 전역 조회 — 모듈 import 없이 앱 컨텍스트에서 해석.
+      expect(moduleRefMock.get).toHaveBeenCalledWith(expect.anything(), {
+        strict: false,
+      });
+      // 캐시 — 두 번 emit 해도 해석은 1회.
+      expect(moduleRefMock.get).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('emit best-effort 격리 (회귀 — WARNING #2)', () => {
+    it('ModuleRef.get 이 throw 해도 notify 는 reject 하지 않고 saved 를 반환', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      const saved = {
+        id: 'n-1',
+        userId: 'u',
+        type: 't',
+        title: 'a',
+        message: 'm',
+        resourceType: null,
+        resourceId: null,
+      };
+      repo.save.mockResolvedValue(saved);
+      moduleRefMock.get.mockImplementation(() => {
+        throw new Error('WebsocketService not resolvable');
+      });
+
+      // 적재(save)는 이미 커밋 — emit 해석 실패가 호출자에 전파되면 안 된다.
+      await expect(
+        service.notify({
+          workspaceId: 'ws',
+          userId: 'u',
+          type: 't',
+          title: 'a',
+          message: 'm',
+        }),
+      ).resolves.toBe(saved);
+    });
+
+    it('createMany 도 ModuleRef.get throw 를 삼켜 reject 하지 않는다', async () => {
+      repo.create.mockImplementation((v: unknown) => ({ ...(v as object) }));
+      repo.save.mockResolvedValue([
+        {
+          id: 'n-1',
+          userId: 'u',
+          type: 't',
+          title: 'a',
+          message: 'm',
+          resourceType: null,
+          resourceId: null,
+        },
+      ]);
+      moduleRefMock.get.mockImplementation(() => {
+        throw new Error('WebsocketService not resolvable');
+      });
+
+      await expect(
+        service.createMany([
+          {
+            workspaceId: 'ws',
+            userId: 'u',
+            type: 't',
+            title: 'a',
+            message: 'm',
+          },
+        ]),
+      ).resolves.toBeUndefined();
     });
   });
 });

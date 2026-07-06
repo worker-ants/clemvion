@@ -1,16 +1,40 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { WebsocketService } from '../websocket/websocket.service';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+  /** 지연 해석된 WebsocketService 싱글턴 캐시 ({@link getWebsocket}). */
+  private websocketService?: WebsocketService;
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /**
+   * WebsocketService 를 앱 컨텍스트에서 지연 해석한다 (strict:false 전역 조회).
+   *
+   * NotificationsModule 이 WebsocketModule 을 file-level 로 import 하면 nodes 배럴
+   * 초기화 중 require 순환(→ workflows → import-workflow.dto 의 `[...ALL_NODE_TYPES]`
+   * 미초기화)이 발생하므로, 모듈 import 대신 ModuleRef 로 실행 시점에 싱글턴을 해석해
+   * 캐시한다. WebsocketService 는 default singleton 이라 1회 해석 후 재사용 안전.
+   */
+  private getWebsocket(): WebsocketService {
+    if (!this.websocketService) {
+      this.websocketService = this.moduleRef.get(WebsocketService, {
+        strict: false,
+      });
+    }
+    return this.websocketService;
+  }
 
   /**
    * 특정 리소스에 attribute 된 알림 전체 조회 (createdAt ASC).
@@ -227,8 +251,45 @@ export class NotificationsService {
   }
 
   /**
+   * 단일 알림 적재 표면 — 한 사용자에게 알림 1건을 INSERT 하고 즉시
+   * `notification.new` WS emit 한다. 배치가 필요한 fan-out 호출자는 {@link createMany}.
+   *
+   * spec/data-flow/8-notifications.md §1 (Source → Sink) 의 단일 `notify()` 표면.
+   * preference 확인·channel 계산은 현행 설계상 호출자 책임이며(spec §1 표), 본 표면은
+   * 적재 + 실시간 push 를 담당한다. 이메일 발송(`channel ∈ {email, both}`)과
+   * `email_sent_at` 라이프사이클은 후속 phase (spec §2.2 Planned).
+   */
+  async notify(entry: {
+    workspaceId: string;
+    userId: string;
+    type: string;
+    title: string;
+    message: string;
+    resourceType?: string;
+    resourceId?: string;
+    channel?: 'in_app' | 'email' | 'both';
+  }): Promise<Notification> {
+    const row = this.notificationRepository.create({
+      workspaceId: entry.workspaceId,
+      userId: entry.userId,
+      type: entry.type,
+      title: entry.title,
+      message: entry.message,
+      channel: entry.channel ?? 'in_app',
+      isRead: false,
+    });
+    if (entry.resourceType) row.resourceType = entry.resourceType;
+    if (entry.resourceId) row.resourceId = entry.resourceId;
+    const saved = await this.notificationRepository.save(row);
+    this.emitNew(saved);
+    return saved;
+  }
+
+  /**
    * Persist a batch of notifications in a single INSERT. Safe against empty
    * arrays (no-op). Used by background workers that fan out to many users.
+   * 저장된 각 row 에 대해 `notification.new` WS emit — 기존 배치 호출자
+   * (background/alerts/integration) 도 실시간 push 를 확보한다 (spec §1·§2.2).
    */
   async createMany(
     entries: Array<{
@@ -257,7 +318,37 @@ export class NotificationsService {
       if (e.resourceId) row.resourceId = e.resourceId;
       return row;
     });
-    await this.notificationRepository.save(rows);
+    const saved = await this.notificationRepository.save(rows);
+    for (const row of saved) {
+      this.emitNew(row);
+    }
+  }
+
+  /**
+   * 적재된 알림 row 를 `notifications:<userId>` 채널에 `notification.new` 로 push.
+   *
+   * WS 전달은 **완전 best-effort** — 적재(source of truth)는 이미 커밋됐으므로 emit
+   * 경로의 어떤 실패도 호출자에게 전파되면 안 된다. `emitNotificationEvent` 가 broadcast
+   * 예외는 자체 삼키지만, 그 앞단의 {@link getWebsocket}(ModuleRef 지연 해석)도 throw
+   * 할 수 있어 여기서 통째로 감싼다 — 해석 실패든 broadcast 실패든 warn 만 남기고 삼킨다.
+   */
+  private emitNew(row: Notification): void {
+    try {
+      this.getWebsocket().emitNotificationEvent(row.userId, {
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        message: row.message,
+        resourceType: row.resourceType ?? null,
+        resourceId: row.resourceId ?? null,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `notification.new emit skipped (id=${row.id}, userId=${row.userId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private getSortColumn(sort: string): string {
