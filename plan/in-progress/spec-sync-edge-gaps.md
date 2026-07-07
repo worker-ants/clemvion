@@ -10,7 +10,7 @@ owner: planner
 > 관련 spec: spec/3-workflow-editor/2-edge.md
 > 주의: AI Agent Tool Area(§7) 관련 재설계는 별도 plan `ai-agent-tool-connection-rewrite.md` 가 담당 — 본 plan 은 엣지 생성/유효성/실행상태/데이터미리보기 갭만 추적한다.
 
-## ✅ §2.2/§2.3 결정·구현 완료 — warn-not-block (2026-07-07)
+## ✅ §2.2/§2.3 결정·구현 완료 — warn-not-block (2026-07-07, PR #845)
 
 2026-07-06 impl-prep BLOCK(Critical 2건, `review/consistency/2026/07/06/20_56_05/SUMMARY.md`)이 드러낸 두 충돌을 사용자 결정(A: warn-not-block)으로 해소하고 구현 완료:
 
