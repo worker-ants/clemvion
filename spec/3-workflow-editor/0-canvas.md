@@ -425,6 +425,8 @@ pending_plans:
 | 커스텀/마켓플레이스 노드 | configSchema의 첫 2개 필드를 `key: value` 형태로 표시 |
 | 사용자 레이블 미설정 | 2번째 줄(레이블)이 없으면 요약이 2번째 줄로 올라감 |
 
+> **`⚠ Missing X` 배지의 판정 메커니즘 (두 배지는 서로 다른 경로)**: `⚠ Missing integration` 은 **렌더러 전용 cross-entity 판정**이다 — `warningRules`/`warnWhen` DSL 은 노드 자신의 config 만 평가하므로 integration 실재(삭제) 여부에 닿지 못한다. 캔버스 렌더러(`custom-node.tsx`)가 워크스페이스 integration 목록을 조회해 `config.integrationId` 실재를 대조하며, graph-warning 배지(`AlertTriangle`)와 구분되는 연결 끊김 아이콘(`Unplug`)을 쓴다 ([4-nodes/4-integration/0-common §5](../4-nodes/4-integration/0-common.md#5-캔버스-요약)). 반면 `⚠ Missing workflow` 는 write-time 스냅샷(`workflowName`)을 이용한 config-only `warnWhen`(`workflowId && !workflowName`, `workflow.schema.ts`) 이라 표준 schema DSL 경로다.
+
 ### 5.4 노드 삭제 버튼
 
 > **구현됨** (`custom-node.tsx`): 노드 우상단 ✕ 삭제 버튼. 우클릭 메뉴 "삭제"·Delete/Backspace 키(ReactFlow `deleteKeyCode`)에 더한 추가 어포던스로, 클릭 시 `requestNodeDelete` 로 연결 엣지까지 함께 제거한다. **예외**: 자식이 있는 컨테이너 노드는 즉시 삭제하지 않고 §11.3 확인 다이얼로그(Delete-all vs Ungroup)를 거친다. 아래 명세는 일반 노드·빈 컨테이너 기준이다.
