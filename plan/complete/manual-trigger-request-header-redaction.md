@@ -2,6 +2,12 @@
 worktree: review-main-4d72c9
 started: 2026-07-07
 owner: planner
+spec_impact:
+  - spec/5-system/12-webhook.md
+  - spec/4-nodes/7-trigger/1-manual-trigger.md
+  - spec/5-system/5-expression-language.md
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/10-triggers.md
 ---
 
 # Manual Trigger `output.request.headers` 민감값 마스킹 (기존 갭)
