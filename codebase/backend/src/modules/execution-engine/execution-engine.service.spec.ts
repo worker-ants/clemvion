@@ -799,6 +799,61 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  describe('finalizeFailedExecution — 초기·재개 세그먼트 공유 FAILED 종결 (버그 A 회귀 가드)', () => {
+    // runExecution catch(초기)·finalizeResumedExecutionOutcome(재개) 가 공유하는 공통 헬퍼.
+    // 재개 경로 종결이 status 마킹 + DB save + EXECUTION_FAILED emit + execution_failed dispatch 를
+    // 모두 수행하는지 직접 검증 — PR #841 버그 A(재개 경로 dispatch 누락) 재발 가드.
+    it('재개(rehydrated) 종결이 status·save·EXECUTION_FAILED emit·execution_failed dispatch 를 모두 수행', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+      (
+        service as unknown as { notificationsService: unknown }
+      ).notificationsService = { createMany };
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      const saved: Record<string, unknown> = {
+        id: 'ex-fail-1',
+        workflowId: 'wf',
+        executedBy: 'owner',
+        parentExecutionId: null,
+        startedAt: new Date(),
+      };
+
+      await (
+        service as unknown as {
+          finalizeFailedExecution: (
+            e: unknown,
+            err: unknown,
+            o?: unknown,
+          ) => Promise<void>;
+        }
+      ).finalizeFailedExecution(saved, new Error('boom'), { rehydrated: true });
+
+      expect(saved.status).toBe(ExecutionStatus.FAILED);
+      expect(mockExecutionRepo.save).toHaveBeenCalled();
+      // EXECUTION_FAILED WS emit (payload 에 FAILED 상태 포함)
+      expect(emitSpy).toHaveBeenCalledWith(
+        'ex-fail-1',
+        expect.anything(),
+        expect.objectContaining({ status: ExecutionStatus.FAILED }),
+      );
+      // 재개 세그먼트 경로에서도 execution_failed 발사 — 버그 A 가 누락시켰던 바로 그 dispatch
+      expect(createMany).toHaveBeenCalledTimes(1);
+      expect(
+        (createMany.mock.calls[0][0] as Array<{ type: string }>)[0].type,
+      ).toBe('execution_failed');
+    });
+  });
+
   describe('getNotificationsService — ModuleRef 지연 해석 (버그 B 회귀 가드)', () => {
     // ExecutionEngineService 가 순환 그래프로 먼저 인스턴스화되면 생성자 @Optional
     // NotificationsService 가 undefined 로 남는다. getNotificationsService 는 그 경우
