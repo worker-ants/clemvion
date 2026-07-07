@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-07-07T23:06:58.461220",
+  "files": [
+    {
+      "file_path": "codebase/frontend/src/components/editor/canvas/zoom-controls.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
