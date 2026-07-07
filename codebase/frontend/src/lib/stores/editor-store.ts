@@ -68,8 +68,12 @@ interface EditorState {
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: (connection: Connection) => void;
-  /** §2.2 — 드래그 중 유효성. 자기연결은 false(커서 🚫). 중복/사이클은 onConnect·경고가 담당. */
-  isValidConnection: (connection: Connection) => boolean;
+  /**
+   * §2.2 — 드래그 중 유효성. 자기연결은 false(커서 🚫). 중복/사이클은 onConnect·경고가 담당.
+   * React Flow `IsValidConnection<Edge>` 시그니처와 맞추기 위해 `Connection | Edge` 를 받는다
+   * (재연결 시 기존 Edge 로도 호출됨).
+   */
+  isValidConnection: (connection: Connection | Edge) => boolean;
   addNode: (node: Node) => void;
   removeNode: (id: string) => void;
   updateNodeConfig: (id: string, config: Record<string, unknown>) => void;
