@@ -16,18 +16,26 @@ import {
  * 드러낸다 (spec/3-workflow-editor/2-edge.md §2.2/§2.3, warn-not-block 결정 2026-07-07).
  *
  * @remarks 라우팅 판정은 런타임 `_selectedPort` 의 **정적 근사**다 — 아래 타입 집합은
- * 조건/케이스 기반으로 출력 포트를 선택하는 노드들이다. 근사라 (a) 실제로는 탈출 가능한
- * 순환을 경고하지 않고(under-warn 안전 지향), (b) 새 라우팅 노드 타입 추가 시 집합 갱신이
- * 필요하다. advisory 경고라 근사의 부정확성은 치명적이지 않다.
+ * 조건/케이스 기반으로 출력 포트를 선택하는(=`output.port` 를 설정하는) 노드들로,
+ * spec/5-system/4-execution-engine.md §5.3 의 "조건 분기 노드" 정의와 **동일해야 한다**
+ * (`if-else`, `switch`, `text-classifier`, `http-request`, `ai-agent`). 이 SoT 에 있는
+ * 타입을 빠뜨리면 실제로는 탈출 가능한 순환에 false-positive 경고(over-warn)가 발생한다
+ * (예: http_request 의 success/error 포트 back-edge). 새 조건 분기 노드 타입이 §5.3 에
+ * 추가되면 본 집합도 함께 갱신한다. advisory 경고라 근사의 부정확성은 치명적이지 않다.
  */
 export const UNESCAPABLE_CYCLE_RULE_ID = 'graph:unescapable-cycle';
 
-/** 런타임에 `_selectedPort` 로 출력 포트를 선택할 수 있는(=순환 탈출 가능) 노드 타입 근사. */
+/**
+ * 런타임에 `_selectedPort` 로 출력 포트를 선택할 수 있는(=순환 탈출 가능) 노드 타입.
+ * SoT: spec/5-system/4-execution-engine.md §5.3 조건 분기 노드
+ * (`if-else`·`switch`·`text-classifier`·`http-request`·`ai-agent`).
+ */
 const BRANCH_NODE_TYPES: ReadonlySet<string> = new Set([
   'switch',
   'if_else',
-  'ai_agent',
   'text_classifier',
+  'http_request',
+  'ai_agent',
 ]);
 
 /**

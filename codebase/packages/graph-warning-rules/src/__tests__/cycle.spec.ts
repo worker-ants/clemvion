@@ -42,8 +42,14 @@ describe('evaluateGraphCycleWarnings', () => {
     expect(evaluateGraphCycleWarnings(graph)).toEqual([]);
   });
 
-  it('if_else / ai_agent / text_classifier 도 분기 노드로 인정', () => {
-    for (const branchType of ['if_else', 'ai_agent', 'text_classifier']) {
+  it('if_else / ai_agent / text_classifier / http_request 도 분기 노드로 인정', () => {
+    // SoT: execution-engine §5.3 조건 분기 노드 전체 (switch 는 위 케이스에서 커버).
+    for (const branchType of [
+      'if_else',
+      'ai_agent',
+      'text_classifier',
+      'http_request',
+    ]) {
       const graph: GraphRuleGraph = {
         nodes: [node('a', 'action'), node('br', branchType)],
         edges: [edge('a', 'br'), edge('br', 'a')],
