@@ -1,124 +1,49 @@
-This page explains what the in-editor **AI Assistant** is, how to open and close it, and how the conversation flow turns natural-language requests into nodes and edges. A hands-on tour where the Assistant builds a 4-node workflow from a single sentence is in [Walkthrough](/docs/03-workflow-editor/walkthrough).
+This page walks through what the workflow editor is and how its screen is laid out. The workflow editor is where you place nodes on a canvas and link them with connections to build automation logic visually. The detailed mechanics of each region are covered in the pages that follow.
 
-## In one sentence
+## The editor's five regions
 
-The AI Assistant is a **chat companion that places nodes and edges on the canvas in response to natural-language requests**. Even fuzzy asks like "add an order-cancellation process" are handled in three stages — clarify → propose plan → execute — with explicit checkpoints for you to step in.
+- **Header** (top) — Click the back arrow (←) to return to the [workflow list](/workflows). Click the workflow name in the center to rename it inline. The header also shows the save-status text, Undo/Redo, the `🤖` AI Assistant toggle, the `Save` button, the `▶ Run` button (with a dropdown for run options), and the `⋮` more menu (version history, execution history, export, delete).
+- **Node palette** (left) — Lists nodes by category, with search and a recently-used section. Covered in detail in [Working the canvas](/docs/03-workflow-editor/canvas-basics).
+- **Canvas** (center) — The workspace where you place nodes and link them with connections. Node manipulation is covered in [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes), and connections in [Connecting nodes](/docs/03-workflow-editor/connecting-nodes).
+- **Settings panel / AI Assistant panel** (right, conditional) — Clicking a node opens the settings panel; clicking `🤖` opens the AI Assistant panel. They share the same slot, so only one is open at a time. See [Node settings panel](/docs/03-workflow-editor/settings-panel) and [AI Assistant overview](/docs/03-workflow-editor/ai-assistant) for details.
+- **Run Results drawer** (bottom, appears while running) — Opens along the bottom when you run a workflow, showing per-node execution results. See [Running a workflow](/docs/05-run-and-debug/running-a-workflow) for how to trigger a run.
 
-## Where it lives and how to open it
+<Callout type="note">The settings panel and the AI Assistant panel share the same right-hand slot. Selecting a node closes the assistant, and opening the assistant clears the node selection.</Callout>
 
-- **Location**: docked 360px panel on the right side of the workflow editor. It shares the slot with the node settings panel: opening the Assistant deselects any node, and closing it lets you bring settings back.
-- **Shortcut**: `Cmd/Ctrl + /` toggles the Assistant panel. Works anywhere on the canvas.
-- **Default state**: closed. The first time you open the panel, you'll see the empty-state intro.
+## Entering and leaving the editor
 
-<Callout type="note">There's no toolbar button on purpose — the shortcut is meant to be the universal way in.</Callout>
+- Clicking an item in the [workflow list](/workflows) opens that workflow's editor.
+- Clicking **Create Workflow** in the list takes you straight into an empty canvas. A single Manual Trigger node is already placed there, so you can immediately attach the next node.
+- Clicking the back arrow (←) takes you back to the [workflow list](/workflows).
 
-### Empty-state intro
+When you have unsaved changes, the header's status text says "Unsaved changes" ("Saving..." while a save is in flight, "Saved" once it finishes). Check this indicator and save before you leave for the list.
 
-When the panel is empty, you see:
+## Saving, at a glance
 
-- Title: "How can I help?"
-- Subtitle: "Describe the workflow you want in plain language and I'll build it with you."
-- Four example prompt buttons — clicking one fills the input automatically.
-  - "Add an order-cancellation process"
-  - "Add an Authorization header to the HTTP node"
-  - "Review the current workflow and suggest improvements"
-  - One more (an arrange/cleanup example)
+- **Manual save**: Use the header's `Save` button or `Ctrl+S` (`Cmd+S` on Mac) to save immediately. The button is disabled when there's nothing to save.
+- **Auto-save before a run**: When you run the workflow with `▶ Run`, any unsaved changes are saved first, right before execution — so a run always uses the latest canvas.
+- The relationship between saving and version history, plus importing/exporting workflow JSON, is covered in [Saving, auto-save, and import/export](/docs/03-workflow-editor/saving-and-sharing).
 
-## The three-stage loop
+## Starting from an empty canvas
 
-Every request flows through these three stages. Simple requests skip parts of the loop; ambiguous or high-impact requests pass through all three.
+A new workflow starts with just a trigger node. If there's no node attached after the trigger yet, a "Let's finish this workflow" prompt card appears in the top-right corner of the canvas.
 
-<FlowDiagram steps={[
-  { title: "Clarify", sub: "explore · ask" },
-  { title: "Propose Plan", sub: "plan card · approval" },
-  { title: "Execute", sub: "edit nodes/edges" },
-]} />
+- The card shows a 3-step checklist (① drag the next node from the palette ② connect it to the trigger's output port ③ run it to see the result), a "Learn more" link next to each step, and a "Open starter guide" button that opens [Your first workflow](/docs/01-getting-started/first-workflow).
+- The card fades out once you add a first non-trigger node. You can also dismiss it directly with the close button in its top-right corner.
 
-<FieldTable rows={[
-  { name: "① Clarify", required: false, type: "explore + question", description: "When a request is fuzzy, the Assistant inspects the canvas, related workflows, and integrations, then asks you for the missing context. The canvas does not change.", default: "-" },
-  { name: "② Propose Plan", required: false, type: "plan card + approval", description: "When two or more nodes are involved or domain decisions are needed, the Assistant lays out the steps in a checkable plan card. Nothing is applied until you approve.", default: "-" },
-  { name: "③ Execute", required: false, type: "canvas mutations", description: "Carries out the approved plan: add, connect, update, or delete nodes. Changes apply immediately and are reversible with `Ctrl+Z`.", default: "-" }
-]} />
+## What this section covers
 
-### Plan card UX
+- [Working the canvas](/docs/03-workflow-editor/canvas-basics) — viewport panning/zoom, adding nodes from the palette, the minimap
+- [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes) — selecting, moving, duplicating, deleting, disabling, status display
+- [Connecting nodes](/docs/03-workflow-editor/connecting-nodes) — ports, connection validity, colors, cleaning up stale connections
+- [Node settings panel](/docs/03-workflow-editor/settings-panel) — fields, expressions, JSON mode, Use Default Output
+- [Containers and AI Agent tools](/docs/03-workflow-editor/containers-and-tools) — groups, nesting, connecting AI Agent tools
+- [Saving, auto-save, and import/export](/docs/03-workflow-editor/saving-and-sharing) — how saving works, versions, importing/exporting JSON
+- [Keyboard shortcuts](/docs/03-workflow-editor/keyboard-shortcuts) — the full editor shortcut reference
+- [AI Assistant overview](/docs/03-workflow-editor/ai-assistant) — building and editing workflows from natural language
 
-In stage ②, the plan card has the following parts:
+## Tips & references
 
-- **Title** and **summary** — what's about to happen, in one or two lines.
-- **Step checkboxes** — each step starts as ◯ (pending), turns ✓ (done, green) as it runs, or ⚠ (red) on failure.
-- **Open questions** — when a decision is left to you, an amber callout lists the questions. **Reply in the regular message input at the bottom**; there's no separate answer form.
-- **"Approve & continue" button** — kicks off stage ③. Until you click it, nothing on the canvas changes.
-
-<Callout type="tip">
-If part of the plan looks off, don't hit Approve — just chat back like "drop X and add Y instead." The Assistant replaces the active plan card with a revised one.
-</Callout>
-
-## What tools the Assistant can call
-
-While processing a request, the Assistant calls tools that show up as small badges under each message — so you can always see what it actually did.
-
-<FieldTable rows={[
-  { name: "Explore (read-only)", required: false, type: "no canvas changes", description: "Inspect the current workflow, search and read other workflows, list integrations and knowledge bases, look up node schemas, fetch recent run results. None of these mutate the canvas.", default: "-" },
-  { name: "Edit (canvas mutations)", required: false, type: "Undo-able", description: "Add / update / remove nodes and edges. Every edit lands in the same Undo stack as your manual edits, so `Ctrl+Z` reverses them.", default: "-" },
-  { name: "Plan / control", required: false, type: "flow control", description: "Used to present or clear an active plan card and to signal the end of a turn.", default: "-" }
-]} />
-
-<Callout type="note">
-The Assistant **never executes the workflow on its own**. The `Run` button is always yours. It can read the results of a run you've triggered and propose fixes from there.
-</Callout>
-
-## Sessions and persistence
-
-The Assistant keeps **one chat session per workflow**. Sessions are stored on the server, so refreshing the page or signing in from another device picks up where you left off.
-
-- **Auto-create** — the first message creates the session. Use the `+` button in an empty panel to start a fresh session at any time.
-- **Auto title** — the first user message becomes the session title (small gray text below the panel header).
-- **History** — up to 50 recent sessions per workflow are retained. v1 doesn't expose a session-switcher inside the panel, so to revisit an older session you either click `+` to start a new one or let the most recent one auto-restore.
-- **Per user** — sessions aren't shared with teammates. Other members of a team workspace each get their own.
-
-## Model selection
-
-The **Model** dropdown at the top of the panel lets you change the LLM provider mid-session. The default is the highest-priority LLM config registered in your workspace. The new selection takes effect on your next message. Configure providers under [Model settings](/docs/06-integrations-and-config/models).
-
-## Diagnosing runs and applying fixes
-
-The Assistant can't trigger executions, but it can **read the results of runs you trigger** and point you at the broken node.
-
-<Steps>
-<Step>After a run, ask the Assistant something like "Why did it fail?" or "Check the Lead Router result."</Step>
-<Step>The Assistant looks up recent runs and the timeline of the relevant one, reading the failed node and its upstream input/output. (Sensitive fields are masked.)</Step>
-<Step>If it can identify the cause, it proposes a fix as a plan card. Approve to patch the node config.</Step>
-<Step>Click `Run` again to verify.</Step>
-</Steps>
-
-## Current limits
-
-<Callout type="warn">
-The items below are currently out of scope for the Assistant.
-</Callout>
-
-<FieldTable rows={[
-  { name: "Editing across workflows", required: false, type: "one session = one workflow", description: "A session is bound to a single workflow. To work on multiple workflows, open the Assistant inside each.", default: "-" },
-  { name: "Direct execution from Assistant", required: false, type: "user clicks Run", description: "By design, only the user triggers `Run`. This avoids surprise executions while the Assistant is editing.", default: "-" },
-  { name: "Sharing sessions with the team", required: false, type: "personal sessions", description: "Assistant sessions are personal and are not shared with other team members.", default: "-" },
-  { name: "Offline use", required: false, type: "online required", description: "The Assistant streams from the LLM provider in real time. The panel still opens offline but messages can't be sent.", default: "-" }
-]} />
-
-## Common errors
-
-| Situation | What you see | What to do |
-| --- | --- | --- |
-| No LLM config registered | "Please register an LLM configuration first." with a link to settings | Click through to [Model settings](/docs/06-integrations-and-config/models) and register an OpenAI/Anthropic/etc. provider |
-| Selected LLM config deleted | "We can't find the selected LLM config — please pick another." | Pick another from the model dropdown, or fall back to the workspace default |
-| Provider rate-limited | Red error bubble — "Try again in a moment." | Wait briefly, then resend or click "Continue" to resume the same flow |
-| Slow / timed-out response | "The response is taking longer than expected. Retry?" | Click retry or send a new message |
-| Tool call failed | Red badge below the message with code + short description | The Assistant retries on the next turn. If it keeps failing, edit the node yourself or steer it differently |
-| Tool-call budget exceeded | A "Continue" button appears above the input | Click it to extend the same flow into the next turn |
-| Session expired or deleted externally | "Session expired — starting a new conversation." | A new session is created automatically; just keep typing |
-
-## Tips & notes
-
-- For an end-to-end demo, follow the [Walkthrough](/docs/03-workflow-editor/walkthrough) — natural language to a 4-node workflow, step by step.
-- The AI Assistant and the [AI Agent node](/docs/02-nodes/ai) are different things. **The Assistant is an in-editor helper**; **the AI Agent node is an LLM call running inside a workflow**. The Assistant may include AI Agent nodes in the workflows it builds.
-- Edits made by the Assistant share the same Undo stack as your own. If you don't like a change, hit `Ctrl+Z` and tell the Assistant what to do differently.
-- Tool badges always show under the message, so when in doubt about what the Assistant just did, check the badges.
+- If this is your first time, check out [UI tour](/docs/01-getting-started/ui-tour) and [Your first workflow](/docs/01-getting-started/first-workflow) first to get the overall flow quickly.
+- The anatomy of a node itself (ports, config schema, error policy) is covered in [Node overview](/docs/02-nodes/overview).
+- Power-user tip: before you run the workflow or close the tab, check that the header status text reads "Saved". If it says "Unsaved changes", press `Ctrl+S` first to be safe.

@@ -1,0 +1,80 @@
+This page explains how to fill in fields, use expressions, edit as raw JSON, and define a default output to fall back on when a node fails — all inside the **settings panel** that opens when you click a node.
+
+Click a node on the canvas and a settings panel opens on the right. This panel holds every value that decides what the node does — its type-specific fields, its label, its error-handling policy, and notes.
+
+<Callout type="warn">
+The settings panel doesn't save as you type. On the Settings tab you need to click **Save Changes** at the bottom, and on the Code tab you need to click **Apply JSON**, before your edits actually reach the node. If you click another node or switch tabs before saving, whatever you were editing is lost.
+</Callout>
+
+## Opening and closing the panel
+
+- Click a node on the canvas to open the panel. The header shows the node's icon and current label, and the ✕ button deselects the node and closes the panel.
+- Clicking a different node immediately switches the panel to that node's settings — as the warning above notes, any unsaved edits on the previous node are gone.
+- The panel has 3 tabs at the top.
+
+<FieldTable rows={[
+  { name: "Settings", required: false, type: "default tab", description: "Edit the node's type-specific fields plus shared fields like label, error handling, and notes.", default: "-" },
+  { name: "Code", required: false, type: "JSON edit", description: "Edit the entire node configuration directly as JSON text.", default: "-" },
+  { name: "Info", required: false, type: "read-only", description: "Shows the node's description, its input/output port list, and the most recent run result (status, duration, error, output data).", default: "-" }
+]} />
+
+The settings panel shares the same right-hand slot as the [AI Assistant](/docs/03-workflow-editor/ai-assistant) panel. Opening the assistant automatically deselects the node and closes the settings panel; closing the assistant and clicking a node again reopens the settings panel.
+
+## Filling in fields
+
+At the top of the Settings tab is the **Label** field. It's the name shown on the canvas, and reusing another node's name blocks saving and shows a red border with an inline message.
+
+Below the label come fields that vary by node type. An HTTP Request node shows URL, method, and header fields; an If/Else node shows a condition field; and so on. Every node's field set is covered one by one in the [node catalog](/docs/02-nodes/overview).
+
+Some fields have a question-mark icon next to their label. Clicking it opens a popover with a short explanation, and, where useful, a "Learn more →" link that opens the relevant manual page in a new tab.
+
+Below the type-specific fields come fields most nodes share. **Manual Trigger** is the exception — since it's the workflow's starting point, it has no error-handling or disable option.
+
+<FieldTable rows={[
+  { name: "Error Handling", required: false, type: "dropdown", description: "Decides how the workflow proceeds when this node errors. Options and their runtime behavior are covered in [Error handling](/docs/05-run-and-debug/error-handling).", default: "Stop Workflow" },
+  { name: "Disable this node", required: false, type: "checkbox", description: "Checking this skips the node entirely during runs. See [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes) for details.", default: "unchecked" },
+  { name: "Notes", required: false, type: "text", description: "A free-form note for this node. Markdown is supported.", default: "empty" }
+]} />
+
+## Writing expressions
+
+Wrap a value in `{{ }}` to reference dynamic values — a previous node's result, a variable, and so on.
+
+<Example title="Referencing a previous node's result">
+```ts
+{{ $input.email }}
+```
+</Example>
+
+Typing `{{` pops up autocomplete with the nodes and variables actually reachable from the current node. Navigate with arrow keys and pick with Enter or Tab. `Ctrl`/`Cmd` + `Space` opens the same list in a dedicated variable picker panel instead.
+
+- Syntax errors are shown in red.
+- Referencing a node or variable that isn't reachable from the current node shows an amber warning.
+
+Full expression syntax and the list of available references are covered in [Expression basics](/docs/04-expression-language/basics) and [Variables and context](/docs/04-expression-language/variables-and-context).
+
+## Editing everything at once as JSON
+
+The Code tab lets you view and edit the entire node configuration as JSON text. Edit the value and click **Apply JSON** to save it. If the JSON is invalid, applying is blocked and an "Invalid JSON" message appears.
+
+The Code tab is handy for changing several fields at once or comparing two nodes' settings side by side — copy the whole configuration as text to compare, or paste back only the parts you need.
+
+## Defining a default output (Use Default Output)
+
+Choosing **Use Default Output** under Error Handling means that when this node fails, instead of stopping the workflow it forwards a value you set ahead of time.
+
+<Steps>
+<Step>Select **Use Default Output** from the Error Handling dropdown.</Step>
+<Step>Enter the value to forward in the **Default Output (JSON)** editor that appears. Example: `{"result": null, "status": "fallback"}`</Step>
+<Step>If the JSON is invalid, the border turns red and saving is blocked. Clicking **Reset to Default** restores an empty object `{}`.</Step>
+<Step>Saving with the editor left empty means `null` is used as the output value at runtime.</Step>
+</Steps>
+
+For exactly when and how this value reaches the next node, and how it differs from the other error-handling options, see [Error handling](/docs/05-run-and-debug/error-handling).
+
+## Tips & notes
+
+- After changing a field, click the save button before clicking another node or switching tabs — nothing is kept until you save.
+- Copying the full configuration from the Code tab saves you from re-entering fields one by one when building several similar nodes.
+- If a node you expect is missing from the expression autocomplete list, check whether it's actually connected to the current node — unreachable nodes are hidden from the list.
+- For working with the canvas as a whole, and for adding, arranging, and deleting nodes, continue with [Workflow editor overview](/docs/03-workflow-editor/overview) and [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes).

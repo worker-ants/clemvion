@@ -1,0 +1,77 @@
+A node does nothing on its own. Data only flows from one node to the next once you draw an edge from an **output port** to an **input port**. This page covers how to tell ports apart, how to draw edges, which connections are allowed or blocked, how to read edges by color, and how edges that are no longer valid get cleaned up automatically.
+
+## Understanding ports
+
+- Input ports sit on the **left** side of a node. This is where it receives the previous node's result.
+- Output ports sit on the **right** side of a node. This is where it sends its result to the next node.
+- Most nodes have a single output port, but [branch nodes](/docs/02-nodes/logic) like If/Else and Switch split into multiple ports based on their conditions. If/Else has two ports (`True`, `False`); Switch has one port per case (`Case 1`, `Case 2`, ... `Default`).
+- Some nodes — Text Classifier, Carousel, and similar — have a **port count that changes with configuration**. Adding or removing categories or buttons adds or removes ports to match. These dynamic ports keep their edges even if you rename them or reorder them. Deleting a port, however, also deletes any edge connected to it.
+
+<Callout type="note">
+A single input port can receive multiple edges (merging results from several nodes). A single output port can also send out multiple edges (fanning the same result out to several nodes).
+</Callout>
+
+## Drawing an edge
+
+1. Press and hold on the **output port** of the starting node, then drag. A dashed, temporary edge follows your cursor.
+2. Release over the **input port** of the node you want to connect to.
+3. If the drop target is valid, a solid edge is created. If you release over an invalid target (empty canvas, another output port, the same node, and so on), the temporary edge disappears and nothing happens.
+
+While dragging, the port under your cursor turns green when the connection is valid and shows a block icon (🚫) when it isn't, so you get instant feedback.
+
+## Connection rules
+
+The canvas prevents structurally meaningless connections from being created in the first place.
+
+<FieldTable rows={[
+  { name: "Output → input", required: true, type: "Allowed", description: "You can only connect an output port to an input port.", default: "-" },
+  { name: "1 output → N inputs", required: true, type: "Allowed", description: "One output can branch out to multiple nodes.", default: "-" },
+  { name: "N outputs → 1 input", required: true, type: "Allowed", description: "Multiple nodes' outputs can merge into a single input.", default: "-" },
+  { name: "Connecting a node to itself", required: false, type: "Blocked", description: "A node's own output and input can't be connected. The block icon appears mid-drag.", default: "-" },
+  { name: "Output → output / input → input", required: false, type: "Blocked", description: "Ports of the same kind can't be connected to each other.", default: "-" },
+  { name: "Duplicate connection", required: false, type: "Blocked", description: "Trying to reconnect two ports that are already connected shows a message and is ignored.", default: "-" }
+]} />
+
+<Callout type="note">
+**Cyclic connections aren't blocked.** A flow that loops back to an earlier node — like a retry or polling loop — is treated as valid workflow design as long as it can exit through a branch node such as If/Else or Switch. A cycle that loops back *without* passing through a branch node, with no way to escape, gets a yellow warning badge on the affected node instead. It doesn't block saving or running.
+</Callout>
+
+Connections that cross a container's boundary (Loop, ForEach, Map) follow separate rules. See [Containers and AI Agent tools](/docs/03-workflow-editor/containers-and-tools) for details.
+
+## Reading edges
+
+Edges are colored based on the type of their starting port, so you can tell flows apart at a glance even in a complex workflow.
+
+<FieldTable rows={[
+  { name: "Data port", required: false, type: "Green", description: "General data flow. Most node outputs fall into this category.", default: "-" },
+  { name: "System port", required: false, type: "Blue", description: "Pre-defined control outputs a node exposes. Examples: AI Agent's `out`/`user_ended`/`max_turns`, a container's `done`.", default: "-" },
+  { name: "Error port", required: false, type: "Red", description: "The error-handling path. Appears on nodes whose error policy is `Route to Error Port`.", default: "-" },
+  { name: "Container port", required: false, type: "Purple", description: "The body-entry (`body`) path of containers like Loop, ForEach, and Map.", default: "-" }
+]} />
+
+- Each edge ends in an **arrowhead** so you can see the direction data flows at a glance. The arrow is the same color as the edge.
+- Clicking an edge selects it and thickens the line.
+- **Hovering or selecting a node** highlights every edge connected to it and dims the rest. **Hovering over an edge itself** highlights just that edge and adds a subtle glow to both endpoint nodes. Edge hover takes priority over node hover, and node hover takes priority over node selection.
+
+## Editing edges
+
+- **Clicking** an edge selects it.
+- With an edge selected, pressing `Delete` or `Backspace` removes just that edge. Both connected nodes remain.
+- **Deleting a node also removes any edges attached to it.** Other editing actions like deleting or duplicating nodes are covered in [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes).
+
+## Edges that clean up automatically
+
+Changing a node's configuration after you've saved a workflow can change its port layout. For example, switching an AI Agent from single-turn to multi-turn removes its `out` port, and deleting a Switch case removes that case's port.
+
+Any edge that ends up **pointing at a port that no longer exists** is automatically removed when you open the workflow. If one or more edges are removed, a toast tells you how many. This cleanup applies to what you see on screen first — it's only confirmed on the server once you actually save (`Ctrl+S`, `Save`, or the auto-save that runs right before a run). If you close the workflow without saving, the edges stored on the server are untouched.
+
+<Callout type="tip">
+If you see the auto-cleanup toast often, it's a sign that a recent config change no longer matches your existing wiring. Give the canvas a quick scan before saving and reconnect anything that's missing.
+</Callout>
+
+## Tips & references
+
+- The result of a connected node can be referenced from the next node's settings using an expression. See [Expression basics](/docs/04-expression-language/basics) for the syntax.
+- Even when edges themselves are created without issue, other structural rules can still reject a save or show a warning badge (for example, Parallel nesting limits). [Validation errors](/docs/05-run-and-debug/validation-errors) covers that yellow-badge system in more detail, including cases similar to the cycle warning here.
+- After connecting nodes, fill in the details in the [settings panel](/docs/03-workflow-editor/settings-panel) so the node is ready to run.
+- If you'd like an overview of the canvas layout and its four work areas first, start with the [editor overview](/docs/03-workflow-editor/overview).

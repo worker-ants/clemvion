@@ -1,0 +1,88 @@
+---
+title: "노드 연결하기"
+title_en: "Connecting nodes"
+section: "03-workflow-editor"
+order: 4
+summary: "출력 포트에서 입력 포트로 연결선을 그어 데이터 흐름을 만드는 방법과, 연결 유효성 규칙·엣지 색상·순환 경고를 정리해요."
+summary_en: "Draw edges from output to input ports to build data flow, and understand connection validity, edge colors, and cycle warnings."
+spec: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/1-node-common.md"]
+code: ["codebase/frontend/src/components/editor/canvas/custom-edge.tsx", "codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts", "codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx", "codebase/frontend/src/lib/stores/editor-store.ts"]
+---
+
+노드는 그 자체로는 아무 일도 하지 않아요. **출력 포트**에서 **입력 포트**로 연결선을 그어야 비로소 한 노드의 결과가 다음 노드로 흘러가요. 이 페이지에서는 포트를 구분하는 법, 연결선을 긋는 방법, 어떤 연결이 허용·금지되는지, 연결선을 색으로 읽는 법, 그리고 더 이상 유효하지 않은 연결선이 자동으로 정리되는 방식을 정리해요.
+
+## 포트 이해하기
+
+- 노드 **왼쪽**에는 입력 포트가 있어요. 이전 노드의 결과를 받는 자리예요.
+- 노드 **오른쪽**에는 출력 포트가 있어요. 이 노드의 결과를 다음 노드로 내보내는 자리예요.
+- 대부분의 노드는 출력 포트가 1개지만, If/Else·Switch 같은 [분기 노드](/docs/02-nodes/logic)는 조건마다 포트가 나뉘어요. If/Else는 `True`·`False` 두 개, Switch는 케이스 개수만큼(`Case 1`, `Case 2`, ... `Default`) 포트가 생겨요.
+- Text Classifier·Carousel처럼 **설정에 따라 포트 수가 바뀌는 노드**도 있어요. 카테고리나 버튼을 추가·삭제하면 그만큼 포트도 함께 늘거나 줄어요. 이런 동적 포트는 이름을 바꾸거나 순서를 바꿔도 연결선이 그대로 유지돼요. 다만 포트 자체를 삭제하면 거기 연결돼 있던 연결선도 함께 사라져요.
+
+<Callout type="note">
+입력 포트 하나에는 여러 연결선이 모일 수 있어요(여러 노드의 결과를 하나로 합류). 출력 포트 하나에서도 여러 연결선을 뻗을 수 있어요(같은 결과를 여러 노드로 분기).
+</Callout>
+
+## 연결선 긋기
+
+1. 시작 노드의 **출력 포트**를 마우스로 누른 채 드래그해요. 점선으로 된 임시 연결선이 커서를 따라와요.
+2. 연결하려는 노드의 **입력 포트** 위에서 마우스를 놓아요.
+3. 유효한 자리라면 실선 연결선이 만들어져요. 유효하지 않은 자리(빈 캔버스, 출력 포트끼리, 같은 노드 등)에서 놓으면 임시 연결선이 사라지고 아무 일도 일어나지 않아요.
+
+드래그하는 동안 포인터가 올라간 자리가 연결 가능하면 초록으로, 불가능하면 금지 표시(🚫)로 바로 알 수 있어요.
+
+## 연결 규칙
+
+캔버스는 구조적으로 의미 없는 연결을 애초에 만들어지지 않도록 막아요.
+
+<FieldTable rows={[
+  { name: "출력 → 입력", required: true, type: "허용", description: "출력 포트에서 입력 포트로만 연결할 수 있어요.", default: "-" },
+  { name: "1개 출력 → N개 입력", required: true, type: "허용", description: "하나의 출력에서 여러 노드로 분기할 수 있어요.", default: "-" },
+  { name: "N개 출력 → 1개 입력", required: true, type: "허용", description: "여러 노드의 출력을 하나의 입력으로 합류시킬 수 있어요.", default: "-" },
+  { name: "자기 자신에게 연결", required: false, type: "금지", description: "같은 노드의 출력과 입력끼리는 연결할 수 없어요. 드래그 중 금지 표시로 바로 막혀요.", default: "-" },
+  { name: "출력 → 출력 / 입력 → 입력", required: false, type: "금지", description: "같은 종류의 포트끼리는 연결할 수 없어요.", default: "-" },
+  { name: "동일한 연결 중복", required: false, type: "금지", description: "이미 연결된 두 포트를 다시 연결하려 하면 안내 메시지가 뜨고 무시돼요.", default: "-" }
+]} />
+
+<Callout type="note">
+**순환 연결 자체는 막지 않아요.** 재시도·폴링처럼 이전 노드로 되돌아오는 흐름은 If/Else·Switch 같은 분기 노드를 거쳐 빠져나갈 수 있는 한 정상적인 워크플로우 설계로 인정돼요. 다만 분기 노드를 거치지 않고 되돌아오는, 빠져나갈 방법이 없는 순환은 해당 노드에 노란 경고 배지로 표시돼요. 저장이나 실행을 막지는 않아요.
+</Callout>
+
+컨테이너(Loop·ForEach·Map) 안팎을 넘나드는 연결은 별도 규칙을 따라요. 자세한 내용은 [컨테이너와 AI Agent 도구](/docs/03-workflow-editor/containers-and-tools)에서 다뤄요.
+
+## 연결선 읽기
+
+연결선은 시작 포트의 종류에 따라 색이 달라서, 복잡한 워크플로우에서도 흐름을 한눈에 구분할 수 있어요.
+
+<FieldTable rows={[
+  { name: "데이터 포트", required: false, type: "초록색", description: "일반 데이터 흐름이에요. 대부분의 노드 출력이 여기 해당해요.", default: "-" },
+  { name: "시스템 포트", required: false, type: "파란색", description: "노드가 미리 정의해 둔 제어용 출력이에요. 예: AI Agent의 `out`·`user_ended`·`max_turns`, 컨테이너의 `done`.", default: "-" },
+  { name: "에러 포트", required: false, type: "빨간색", description: "에러 처리 경로예요. 에러 정책이 `Route to Error Port`인 노드에서 나타나요.", default: "-" },
+  { name: "컨테이너 포트", required: false, type: "보라색", description: "Loop·ForEach·Map 같은 컨테이너의 본문 진입(`body`) 경로예요.", default: "-" }
+]} />
+
+- 연결선 끝에는 **화살표**가 있어서 데이터가 흐르는 방향을 바로 알 수 있어요. 화살표 색은 연결선 색과 같아요.
+- 연결선을 클릭하면 더 두꺼운 선으로 선택 표시가 돼요.
+- **노드에 마우스를 올리거나 클릭해 선택**하면 그 노드에 연결된 모든 연결선이 강조되고 나머지는 흐릿해져요. **연결선 자체에 마우스를 올리면** 그 연결선만 강조되고 양쪽 노드에 은은한 표시가 함께 나타나요. 연결선 hover가 노드 hover보다, 노드 hover가 노드 선택보다 우선해요.
+
+## 연결선 편집
+
+- 연결선을 **클릭**하면 선택돼요.
+- 선택한 상태에서 `Delete` 또는 `Backspace`를 누르면 연결선만 삭제돼요. 양쪽 노드는 그대로 남아요.
+- **노드를 삭제하면 그 노드에 붙어 있던 연결선도 함께 사라져요.** 노드 삭제·복제 같은 다른 편집 동작은 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서 다뤄요.
+
+## 자동으로 정리되는 연결선
+
+워크플로우를 저장한 뒤 노드 설정을 바꾸면 포트 구성이 달라질 수 있어요. 예를 들어 AI Agent를 단일 턴에서 멀티 턴으로 바꾸면 `out` 포트가 사라지고, Switch의 케이스를 지우면 그 케이스 포트도 함께 사라져요.
+
+이렇게 **더 이상 존재하지 않는 포트를 가리키는 연결선**은 워크플로우를 열 때 자동으로 정리돼요. 하나 이상 정리되면 몇 개가 제거됐는지 알려 주는 안내 토스트가 떠요. 이 정리는 화면에만 먼저 반영되고, 실제로 저장(`Ctrl+S`·`Save` 또는 실행 직전 자동 저장)하는 순간 서버에 확정돼요 — 저장하지 않고 창을 닫으면 서버에 저장된 연결선은 그대로예요.
+
+<Callout type="tip">
+자동 정리 토스트가 자주 보인다면, 최근에 바꾼 노드 설정이 기존 연결 구조와 어긋난다는 신호예요. 저장하기 전에 캔버스를 한 번 훑어보고 빠진 연결을 다시 이어 주면 좋아요.
+</Callout>
+
+## 팁 & 참고
+
+- 연결한 노드의 결과는 다음 노드의 설정에서 표현식으로 참조할 수 있어요. 문법은 [표현식 기본](/docs/04-expression-language/basics)에서 확인해요.
+- 연결선 자체는 문제없이 만들어졌어도 저장이 거부되거나 경고 배지가 뜨는 다른 구조적 규칙(예: Parallel 중첩 제한)이 있어요. 순환 경고와 같은 노란 배지 체계를 [유효성 오류](/docs/05-run-and-debug/validation-errors)에서 더 자세히 다뤄요.
+- 노드를 연결한 뒤에는 [설정 패널](/docs/03-workflow-editor/settings-panel)에서 세부 필드를 채워야 실행 가능한 상태가 돼요.
+- 캔버스 전체 구조와 4개 작업 영역이 궁금하다면 [에디터 개요](/docs/03-workflow-editor/overview)에서 먼저 훑어봐요.

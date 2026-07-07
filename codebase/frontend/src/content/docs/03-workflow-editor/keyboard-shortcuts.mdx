@@ -1,0 +1,76 @@
+---
+title: "키보드 단축키"
+title_en: "Keyboard shortcuts"
+section: "03-workflow-editor"
+order: 8
+summary: "워크플로우 에디터에서 쓸 수 있는 키보드 단축키를 한 표로 모아 정리해요."
+summary_en: "Every keyboard shortcut available in the workflow editor, gathered into one reference table."
+spec: ["spec/3-workflow-editor/0-canvas.md"]
+code: ["codebase/frontend/src/components/editor/workflow-editor.tsx", "codebase/frontend/src/components/editor/canvas/quick-add-nav.ts"]
+---
+
+이 페이지에서는 워크플로우 에디터에서 쓸 수 있는 키보드 단축키를 목적별로 묶어 한 표로 정리해요. 자주 쓰는 동작일수록 마우스보다 키보드가 훨씬 빨라요.
+
+아래 표의 `Ctrl`은 Windows·Linux 기준이에요. Mac에서는 `Ctrl` 대신 `Cmd`를 눌러요.
+
+## 저장·실행
+
+<FieldTable rows={[
+  { name: "Ctrl+S", required: false, type: "저장", description: "지금 워크플로우를 즉시 저장해요.", default: "-" },
+  { name: "Ctrl+Shift+R", required: false, type: "실행 결과 드로어 토글", description: "화면 하단의 실행 결과 드로어를 펼치거나 접어요.", default: "-" }
+]} />
+
+## 편집
+
+<FieldTable rows={[
+  { name: "Ctrl+C", required: false, type: "복사", description: "선택한 노드와, 양 끝이 모두 선택 안에 포함된 연결선을 함께 복사해요.", default: "-" },
+  { name: "Ctrl+V", required: false, type: "붙여넣기", description: "복사한 노드를 원본에서 살짝 떨어진 자리에 고유한 이름으로 붙여넣어요.", default: "-" },
+  { name: "Ctrl+D", required: false, type: "복제", description: "클립보드는 그대로 두고 선택한 노드를 그 자리에서 바로 복제해요.", default: "-" },
+  { name: "Ctrl+A", required: false, type: "전체 선택", description: "캔버스의 모든 노드를 한 번에 선택해요.", default: "-" },
+  { name: "Delete · Backspace", required: false, type: "삭제", description: "선택한 노드나 연결선을 지워요.", default: "-" },
+  { name: "Ctrl+Z", required: false, type: "실행 취소(Undo)", description: "마지막 편집을 취소해요.", default: "-" },
+  { name: "Ctrl+Y · Ctrl+Shift+Z", required: false, type: "다시 실행(Redo)", description: "취소한 편집을 다시 적용해요.", default: "-" }
+]} />
+
+<Callout type="note">
+`Ctrl+C`/`Ctrl+V`/`Ctrl+D`/`Ctrl+A`는 이름·표현식 같은 텍스트 입력 필드에 포커스가 있을 때는 동작하지 않아요. 텍스트를 자유롭게 입력할 수 있도록 하기 위해서예요. 저장·실행 취소·다시 실행·AI 어시스턴트 토글은 입력 필드에서도 그대로 동작해요.
+</Callout>
+
+## 선택·이동
+
+<FieldTable rows={[
+  { name: "Escape", required: false, type: "선택 해제", description: "선택을 풀어요. 실행 결과 드로어에 포커스가 있는 상태라면 먼저 캔버스로 포커스를 되돌리고, 다시 누르면 선택이 풀려요.", default: "-" },
+  { name: "Space + 드래그", required: false, type: "패닝", description: "Space를 누른 채 드래그하면 캔버스를 손으로 잡고 옮기듯 이동해요.", default: "-" }
+]} />
+
+## 보기(줌)
+
+<FieldTable rows={[
+  { name: "Ctrl + '+'", required: false, type: "줌 인", description: "캔버스를 확대해요.", default: "-" },
+  { name: "Ctrl + '-'", required: false, type: "줌 아웃", description: "캔버스를 축소해요.", default: "-" },
+  { name: "Ctrl+0", required: false, type: "줌 100%", description: "줌 레벨을 100%로 되돌려요.", default: "-" },
+  { name: "Ctrl+1", required: false, type: "화면 맞춤", description: "모든 노드가 보이도록 캔버스를 자동으로 맞춰요(Fit to View).", default: "-" }
+]} />
+
+## 빠른 노드 추가 팝업
+
+캔버스 빈 곳을 더블클릭하면 뜨는 노드 검색 팝업 안에서 쓰는 단축키예요.
+
+<FieldTable rows={[
+  { name: "↑ / ↓", required: false, type: "이동", description: "후보 노드 목록에서 하이라이트를 위아래로 옮겨요.", default: "-" },
+  { name: "Enter", required: false, type: "추가", description: "하이라이트된 노드를 더블클릭한 위치에 추가해요.", default: "-" },
+  { name: "Escape", required: false, type: "닫기", description: "팝업을 닫아요.", default: "-" }
+]} />
+
+## AI 어시스턴트
+
+<FieldTable rows={[
+  { name: "Cmd/Ctrl + /", required: false, type: "패널 토글", description: "캔버스 어디서든 AI 어시스턴트 패널을 열고 닫아요.", default: "-" }
+]} />
+
+## 팁 & 참고
+
+- 뷰포트 이동·줌·팔레트로 노드 추가하는 방법은 [캔버스 다루기](/docs/03-workflow-editor/canvas-basics)에서 자세히 다뤄요.
+- 노드 선택·복사·삭제·비활성화의 세부 동작은 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서 확인해요.
+- `Cmd/Ctrl + /`로 열고 닫는 AI 어시스턴트의 전체 흐름은 [AI 어시스턴트 개요](/docs/03-workflow-editor/ai-assistant)에서 자세히 다뤄요.
+- 에디터 전반의 화면 구성은 [워크플로우 에디터 개요](/docs/03-workflow-editor/overview)에서 큰 그림으로 볼 수 있어요.

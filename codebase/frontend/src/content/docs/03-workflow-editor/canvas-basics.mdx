@@ -1,0 +1,104 @@
+---
+title: "캔버스 다루기"
+title_en: "Working with the canvas"
+section: "03-workflow-editor"
+order: 2
+summary: "캔버스를 이동·확대하고, 팔레트에서 노드를 꺼내 배치하는 방법을 정리해요. 미니맵과 빠른 노드 추가 팝업도 다뤄요."
+summary_en: "Move and zoom the canvas, and place nodes from the palette — including the minimap and the quick-add popup."
+spec: ["spec/3-workflow-editor/0-canvas.md"]
+code: ["codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx", "codebase/frontend/src/components/editor/palette/node-palette.tsx", "codebase/frontend/src/components/editor/canvas/canvas-minimap.tsx", "codebase/frontend/src/components/editor/canvas/zoom-controls.tsx", "codebase/frontend/src/components/editor/canvas/quick-add-nav.ts"]
+---
+
+캔버스는 [워크플로우](/docs/02-nodes/overview)를 그리는 무한한 2D 공간이에요. 이 페이지에서는 캔버스를 이동·확대하는 방법과, 좌측 팔레트에서 노드를 꺼내 캔버스에 배치하는 방법을 정리해요. 노드를 선택·이동·복제·삭제하는 방법은 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서, 노드끼리 연결선으로 잇는 방법은 [노드 연결하기](/docs/03-workflow-editor/connecting-nodes)에서 다뤄요. 에디터 전체 화면 구성이 궁금하면 [에디터 개요](/docs/03-workflow-editor/overview)를 먼저 살펴봐요.
+
+## 캔버스 이동·확대
+
+<FieldTable rows={[
+  { name: "패닝(이동)", required: false, type: "드래그 / Space", description: "빈 영역을 마우스로 드래그하거나, `Space` 키를 누른 채 드래그해요.", default: "-" },
+  { name: "줌 인/아웃", required: false, type: "마우스 휠", description: "휠을 굴려요. 확대·축소 중심은 커서 위치예요.", default: "-" },
+  { name: "줌 인/아웃 (대안)", required: false, type: "Ctrl+휠 / 핀치", description: "`Ctrl` 키를 누른 채 휠을 굴리거나, 트랙패드에서 두 손가락 핀치 제스처를 사용해요.", default: "-" },
+  { name: "줌 버튼으로 조절", required: false, type: "좌하단 오버레이", description: "축소(−)·확대(+) 버튼과 줌 레벨 슬라이더, 현재 줌 퍼센트가 함께 있어요.", default: "-" },
+  { name: "화면에 맞추기", required: false, type: "Fit 버튼", description: "모든 노드가 보이도록 뷰포트를 자동으로 조정해요.", default: "-" }
+]} />
+
+줌 범위는 **25%~200%**예요. 좌하단 슬라이더도 이 범위 안에서 5%씩 움직이고, 옆에 현재 퍼센트가 실시간으로 표시돼요.
+
+<Callout type="tip">
+자주 쓰는 동작은 키보드로도 할 수 있어요. `Ctrl` + `+`/`-`로 확대·축소, `Ctrl` + `0`으로 100% 복귀, `Ctrl` + `1`로 화면 맞추기예요. 전체 목록은 [키보드 단축키](/docs/03-workflow-editor/keyboard-shortcuts)에서 확인해요.
+</Callout>
+
+## 미니맵
+
+캔버스 우하단에는 워크플로우 전체를 축소해서 보여주는 미니맵이 있어요.
+
+| 기능 | 설명 |
+| --- | --- |
+| 조감도 | 전체 워크플로우를 축소된 형태로 보여줘요 |
+| 뷰포트 표시 | 현재 화면에 보이는 영역을 사각형으로 표시해요 |
+| 뷰포트 이동 | 미니맵 안을 드래그하거나 스크롤하면 캔버스 뷰포트가 그만큼 이동하거나 확대·축소돼요 |
+| 표시/숨김 | 미니맵 위의 토글 버튼을 눌러 켜고 꺼요 |
+
+큰 워크플로우에서 특정 영역으로 빠르게 이동할 때 특히 유용해요.
+
+## 노드 팔레트
+
+캔버스 좌측에는 노드를 검색하고 꺼내 쓰는 팔레트가 있어요.
+
+### 카테고리
+
+노드는 **Trigger**, **Logic**, **Flow**, **AI**, **Integration**, **Data**, **Presentation** 7개 카테고리로 나뉘어 있어요. 카테고리 헤더를 클릭하면 그 카테고리를 접거나 펼칠 수 있어요.
+
+### 검색과 최근 사용
+
+상단 검색창에 입력하면 노드 이름을 실시간으로 필터링해요. 카테고리를 몰라도 이름만 알면 바로 찾을 수 있어요.
+
+팔레트 상단의 **최근 사용** 섹션은 최근에 추가한 노드 타입을 최대 5개까지 최신순으로 모아 보여줘요(같은 타입은 한 번만, Manual Trigger는 제외돼요). 검색어를 입력하는 중에는 카테고리 목록과 겹치지 않도록 이 섹션이 숨겨져요.
+
+### 패널 접기
+
+검색창 옆의 토글 버튼을 누르면 팔레트 전체가 아이콘만 남는 좁은 레일로 접혀요. 같은 자리의 버튼을 다시 누르면 원래대로 펼쳐져요. 캔버스 작업 공간을 넓게 쓰고 싶을 때 유용해요.
+
+## 노드를 추가하는 세 가지 방법
+
+<Steps>
+<li>
+
+**팔레트에서 캔버스로 드래그해요.** 원하는 노드를 팔레트에서 캔버스의 원하는 위치까지 끌어다 놓으면 그 자리에 노드가 추가돼요.
+
+</li>
+<li>
+
+**팔레트 항목을 클릭해요.** 노드가 현재 화면 중앙에 추가돼요. 같은 노드를 반복해서 클릭하면 서로 겹치지 않도록 위치가 조금씩 어긋나요. 키보드로도 가능해요 — 항목에 포커스를 둔 뒤 `Enter` 또는 `Space`를 누르면 클릭과 동일하게 동작해요.
+
+</li>
+<li>
+
+**캔버스 빈 곳을 더블클릭해요.** 더블클릭한 위치에 노드 검색 팝업이 열려요. 타이핑하면 즉시 필터링되고, `↑`/`↓`로 하이라이트를 이동(목록 끝에서 순환)한 뒤 `Enter`를 누르면 더블클릭한 자리에 노드가 배치돼요. `Escape`를 누르면 팝업이 닫혀요.
+
+</li>
+</Steps>
+
+빈 영역을 우클릭해도 같은 노드 검색 팝업을 열 수 있어요 — 컨텍스트 메뉴의 **노드 추가** 항목을 선택해요. 이 메뉴에는 붙여넣기·전체 선택·화면 맞춤 항목도 함께 있어요. 노드를 우클릭했을 때 뜨는 메뉴(설정 열기·복제·삭제 등)는 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서 다뤄요.
+
+<Callout type="note">
+Manual Trigger는 워크플로우당 1개만 있을 수 있어요. 팔레트에서 다시 추가하려고 드래그해도 무시돼요.
+</Callout>
+
+## 빈 캔버스에서 시작
+
+새 워크플로우를 만들면 시작 노드(Manual Trigger)가 자동으로 하나 생겨요. 트리거 노드 외에 다른 노드가 없는 상태에서는 캔버스 우측 상단에 "워크플로우를 이어서 완성해봐요" 안내 카드가 나타나요.
+
+<FieldTable rows={[
+  { name: "① 다음 노드를 드래그해요", required: false, type: "팔레트 → 캔버스", description: "좌측 팔레트에서 원하는 노드를 캔버스로 끌어와 트리거 옆에 놓아요.", default: "-" },
+  { name: "② 트리거 출력 포트에 연결해요", required: false, type: "포트 연결", description: "트리거 노드의 출력 포트에서 선을 끌어 새 노드의 입력 포트에 이어요.", default: "-" },
+  { name: "③ 실행해서 결과를 확인해요", required: false, type: "Run", description: "상단의 Run 버튼으로 워크플로우를 실행하고 결과를 확인해요.", default: "-" }
+]} />
+
+각 항목 옆의 **자세히** 링크를 누르면 관련 매뉴얼 페이지가 새 탭으로 열려요. 카드 아래의 **시작 가이드 열기** 버튼을 누르면 [첫 워크플로우 만들기](/docs/01-getting-started/first-workflow) 가이드가 새 탭으로 열려요. 비트리거 노드를 하나라도 추가하면 카드가 서서히 사라져요.
+
+## 팁 & 참고
+
+- 팔레트 검색은 카테고리를 가리지 않고 노드 이름을 통째로 필터링해요. 어떤 카테고리에 있는지 기억나지 않아도 이름만 알면 바로 찾을 수 있어요.
+- 최근 사용 노드는 세션 동안만 유지돼요. 새로고침하거나 다른 워크플로우를 열면 초기화돼요.
+- 어디에 놓을지 고민된다면 일단 아무 곳에나 노드를 추가하고 나중에 옮겨도 괜찮아요. 이동 방법은 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서 확인해요.
+- 큰 워크플로우를 다룰 땐 미니맵과 화면 맞추기 버튼을 함께 쓰면 전체 구조를 잃지 않고 빠르게 이동할 수 있어요.
