@@ -7,6 +7,11 @@ vi.mock("../../api/workflows", () => ({
   },
 }));
 
+const { toastErrorMock } = vi.hoisted(() => ({ toastErrorMock: vi.fn() }));
+vi.mock("sonner", () => ({
+  toast: { error: toastErrorMock, success: vi.fn() },
+}));
+
 // `@workflow/graph-warning-rules` 는 실제 평가 로직을 그대로 사용하되,
 // `evaluateGraphWarningRulesForGraph` 만 per-test 로 throw 시킬 수 있도록
 // spy 로 감싼다 (W14 catch 경로 회귀 가드). 평문 호출 시엔 실제 구현 위임.
@@ -58,6 +63,7 @@ const initialState = {
 describe("useEditorStore", () => {
   beforeEach(() => {
     useEditorStore.setState(initialState);
+    toastErrorMock.mockClear();
   });
 
   it("has correct initial state", () => {
@@ -554,6 +560,82 @@ describe("useEditorStore", () => {
 
       expect(ok).toBe(false);
       expect(saveCanvasMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // §2.2 금지 연결 — 자기연결/중복 하드 차단. 사이클은 warn-not-block(배지)이라
+  // 여기서 막지 않는다.
+  describe("onConnect — 금지 연결 하드 차단 (§2.2)", () => {
+    it("자기연결(source===target)은 엣지를 추가하지 않는다", () => {
+      useEditorStore.setState({ nodes: [makeNode("a")], edges: [] });
+      useEditorStore.getState().onConnect({
+        source: "a",
+        target: "a",
+        sourceHandle: "out",
+        targetHandle: "in",
+      });
+      expect(useEditorStore.getState().edges).toHaveLength(0);
+    });
+
+    it("동일 연결 중복은 토스트 + 엣지 미추가", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("a"), makeNode("b")],
+        edges: [
+          {
+            id: "a-b",
+            source: "a",
+            target: "b",
+            sourceHandle: "out",
+            targetHandle: "in",
+          } as Edge,
+        ],
+      });
+      useEditorStore.getState().onConnect({
+        source: "a",
+        target: "b",
+        sourceHandle: "out",
+        targetHandle: "in",
+      });
+      expect(useEditorStore.getState().edges).toHaveLength(1);
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "These nodes are already connected.",
+      );
+    });
+
+    it("정상 연결은 엣지를 추가한다", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("a"), makeNode("b")],
+        edges: [],
+      });
+      useEditorStore.getState().onConnect({
+        source: "a",
+        target: "b",
+        sourceHandle: "out",
+        targetHandle: "in",
+      });
+      expect(useEditorStore.getState().edges).toHaveLength(1);
+    });
+  });
+
+  describe("isValidConnection — 드래그 중 자기연결 커서 차단 (§2.2)", () => {
+    it("자기연결은 false", () => {
+      const valid = useEditorStore.getState().isValidConnection({
+        source: "a",
+        target: "a",
+        sourceHandle: "out",
+        targetHandle: "in",
+      });
+      expect(valid).toBe(false);
+    });
+
+    it("서로 다른 노드 간 연결은 true (중복/사이클은 여기서 막지 않음)", () => {
+      const valid = useEditorStore.getState().isValidConnection({
+        source: "a",
+        target: "b",
+        sourceHandle: "out",
+        targetHandle: "in",
+      });
+      expect(valid).toBe(true);
     });
   });
 });

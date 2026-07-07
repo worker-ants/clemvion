@@ -636,6 +636,8 @@ export const GRAPH_WARNING_KO: Record<string, string> = {
     '병렬 노드 "{{node}}" 의 분기 안에 중첩된 병렬 "{{child}}" 가 있고, 그 분기 안에 또 다른 병렬 "{{grand}}" 가 있어요. 병렬 중첩은 2단계까지만 지원해요.',
   "parallel:nested-concurrency-cap":
     '병렬 "{{node}}"(동시 실행 {{outerEffective}}) 안의 중첩 병렬 "{{child}}"(동시 실행 {{innerEffective}}) 를 곱하면 {{product}} 으로 한도 {{cap}} 을 넘어요. 실행 시 안쪽 동시 실행 수가 자동으로 줄어들어요.',
+  "graph:unescapable-cycle":
+    "이 노드가 분기 없는 순환에 연결돼 있어요 — 루프를 빠져나갈 분기 노드가 없어 무한히 반복될 수 있어요. 되돌아오는 연결(back-edge)은 분기 노드(스위치·조건 분기)에서 내보내세요.",
 };
 
 function pickKo(

@@ -6,6 +6,7 @@ import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
 import { toast } from "sonner";
 import {
   evaluateGraphWarningRulesForGraph,
+  evaluateGraphCycleWarnings,
   GRAPH_WARNING_RULES_BY_TYPE,
 } from "@workflow/graph-warning-rules";
 import type {
@@ -14,7 +15,11 @@ import type {
 } from "@workflow/graph-warning-rules";
 import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
-import { buildEdgeData } from "@/lib/utils/edge-utils";
+import {
+  buildEdgeData,
+  isSelfConnection,
+  isDuplicateConnection,
+} from "@/lib/utils/edge-utils";
 import { useCanvasHoverStore } from "./canvas-hover-store";
 import { registerAssistantEditorBridge } from "./assistant-editor-bridge";
 
@@ -63,6 +68,12 @@ interface EditorState {
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: (connection: Connection) => void;
+  /**
+   * §2.2 — 드래그 중 유효성. 자기연결은 false(커서 🚫). 중복/사이클은 onConnect·경고가 담당.
+   * React Flow `IsValidConnection<Edge>` 시그니처와 맞추기 위해 `Connection | Edge` 를 받는다
+   * (재연결 시 기존 Edge 로도 호출됨).
+   */
+  isValidConnection: (connection: Connection | Edge) => boolean;
   addNode: (node: Node) => void;
   removeNode: (id: string) => void;
   updateNodeConfig: (id: string, config: Record<string, unknown>) => void;
@@ -576,6 +587,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   onConnect: (connection) => {
+    // §2.2 — 자기연결(source===target)은 never valid. isValidConnection 이 드래그 중
+    // 커서로 차단하지만 방어적으로 여기서도 무시한다.
+    if (isSelfConnection(connection)) return;
+    // §2.2 — 동일 연결 중복은 토스트로 알리고 무시한다. 이 store 의 다른 토스트
+    // (detectContainerConflict) 와 동일하게 영문 SoT 문자열을 쓴다 (표시 계층
+    // 로컬라이즈; i18n Principle 1 하드코딩 한국어 ratchet 회피).
+    if (isDuplicateConnection(get().edges, connection)) {
+      toast.error("These nodes are already connected.");
+      return;
+    }
     // Reject the edge upfront if it would force a node into a different
     // container than the one it already belongs to. Otherwise the wire would
     // appear connected in the canvas while the container assignment silently
@@ -602,6 +623,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isDirty: true,
       };
     });
+  },
+
+  isValidConnection: (connection) => {
+    // §2.2 — 자기연결만 하드 차단(드래그 중 커서 🚫). 중복은 onConnect 가 토스트로,
+    // 사이클은 graph warning 배지로 처리하므로 여기서 막지 않는다(warn-not-block).
+    return !isSelfConnection(connection);
   },
 
   addNode: (node) => {
@@ -865,10 +892,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { nodes, edges } = get();
     try {
       const graph = mapToRuleGraph(nodes, edges);
-      const results = evaluateGraphWarningRulesForGraph(
-        graph,
-        (type) => GRAPH_WARNING_RULES_BY_TYPE[type],
-      );
+      const results = [
+        ...evaluateGraphWarningRulesForGraph(
+          graph,
+          (type) => GRAPH_WARNING_RULES_BY_TYPE[type],
+        ),
+        // §2.2/§2.3 warn-not-block — 분기 노드 없는 순환(탈출 불가 무한루프) 경고.
+        // per-type 규칙과 달리 그래프 전체 1회 평가라 별도 함수.
+        ...evaluateGraphCycleWarnings(graph),
+      ];
       const hasError = results.some((r) => r.severity === "error");
       const hasWarning = results.some((r) => r.severity === "warning");
       // GraphWarningRuleResult 는 store 의 graphWarnings.results shape 과 동일.

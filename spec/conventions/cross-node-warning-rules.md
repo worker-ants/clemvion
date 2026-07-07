@@ -82,11 +82,13 @@ export interface GraphWarningRuleResult {
 - frontend 는 canvas/store 의 node·edge 를 동일 pure shape 로 매핑(`mapToRuleGraph`)해 패키지 유틸을 **로컬 실행**.
 - frontend 가 rule 을 type 으로 해석하도록 패키지가 `GRAPH_WARNING_RULES_BY_TYPE: Readonly<Record<string, readonly GraphWarningRule[]>>` 맵을 export.
 
+- **graph-level 규칙 (per-node-type 아님)**: 특정 node type 에 귀속되지 않고 그래프 전체를 1회 순회해 평가하는 규칙은 `GraphWarningRule`/`GRAPH_WARNING_RULES_BY_TYPE` 대신 **독립 함수 `(GraphRuleGraph) => GraphWarningRuleResult[]`** 로 export 한다 (예: `evaluateGraphCycleWarnings` — 탈출 불가 순환 탐지, `rules/cycle.ts`). caller(backend `getGraphWarnings` / frontend `evaluateGraphWarningsLocal`)가 per-type 결과 배열과 **spread 로 병합**해 동일 `GraphWarningRuleResult[]` surface 로 노출한다. 결과 shape·severity·i18n(§4, Principle 3-C) 규약은 per-type 규칙과 동일하다. `GRAPH_WARNING_RULES_BY_TYPE` 밖이므로 P3-C-1 i18n 가드는 graph-level ruleId 를 별도로 열거해 매핑을 강제한다.
+
 ## 4. severity 정책
 
 | severity | workflow save endpoint | frontend canvas | 사용 예 |
 |---|---|---|---|
-| `error` | 저장 reject (400 Bad Request, response 에 rule.message 포함) | 빨간 배지 + 저장 버튼 disabled | 깊이 위반, cycle, 명백한 invariant 깨짐 |
+| `error` | 저장 reject (400 Bad Request, response 에 rule.message 포함) | 빨간 배지 + 저장 버튼 disabled | 깊이 위반(`parallel:nested-depth-exceeded`), 명백한 invariant 깨짐 (graph-level 탈출 불가 순환은 §8 `graph:unescapable-cycle` = **warning** — 편집기 warn-not-block, [2-edge.md §2.3](../3-workflow-editor/2-edge.md#23-순환-참조--경고하되-차단하지-않음-warn-not-block)) |
 | `warning` | 저장 통과 (로깅 / response 에 포함) | 노란 배지 + 저장은 가능 | 운영 환경 risk 가 있지만 runtime safety net 이 있는 케이스 (예: concurrency cap silent clamp) |
 
 ## 5. 평가 시점 — 3중 가드 (parallel-p2 결정 E)
@@ -125,12 +127,13 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 |---|---|---|---|
 | Parallel | `parallel:nested-depth-exceeded` | error | 외부 Parallel 의 분기 body 에 내부 Parallel + 그 분기 body 에 또 Parallel → depth 3 reject (parallel-p2 결정 #3) |
 | Parallel | `parallel:nested-concurrency-cap` | warning | 외부 effectiveConcurrency × 내부 effectiveConcurrency > 32 시 warning (runtime silent clamp 가 안전망 — parallel-p2 결정 #3 + D) |
+| (graph-level) | `graph:unescapable-cycle` | warning | 분기 노드 없이 탈출 불가한 순환(pass-through back-edge)을 그 source 노드에 경고. 컨테이너 loopback(`targetHandle==='emit'`)·컨테이너 진입(`sourceHandle==='body'`)은 예외. 편집기 warn-not-block ([spec/3-workflow-editor/2-edge.md §2.3](../3-workflow-editor/2-edge.md#23-순환-참조--경고하되-차단하지-않음-warn-not-block)) |
 
 ## 9. 향후 확장 (본 컨벤션 범위 밖)
 
 - Loop / ForEach 의 중첩 깊이 정책 (도입 시)
 - Map / Filter 의 부모 컨테이너 contextual 검증
-- workflow-level graph 검증 (cyclic, unreachable — 현 runtime 검증과 합칠지 분리할지)
+- ~~workflow-level graph 검증 (cyclic, unreachable)~~ → **cyclic 은 구현됨** (`graph:unescapable-cycle`, §8 · 편집기 warn-not-block). `unreachable`(도달 불가 노드) 탐지는 미도입.
 
 ## Rationale
 

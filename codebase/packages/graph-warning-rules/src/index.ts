@@ -54,6 +54,13 @@ export {
   parallelGraphWarningRules,
 } from './rules/parallel';
 
+// graph-level 규칙 (per-node-type 아님) — 그래프 전체를 1회 순회. backend save +
+// frontend canvas 가 per-type 결과와 합쳐 사용한다. (§9 workflow-level graph 검증.)
+export {
+  UNESCAPABLE_CYCLE_RULE_ID,
+  evaluateGraphCycleWarnings,
+} from './rules/cycle';
+
 import { GraphWarningRule } from './types';
 import { parallelGraphWarningRules } from './rules/parallel';
 

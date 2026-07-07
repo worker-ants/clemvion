@@ -6,6 +6,8 @@ import {
   getConnectedEdgeIds,
   dropStaleEdges,
   enrichEdgesWithPortData,
+  isSelfConnection,
+  isDuplicateConnection,
   PORT_TYPE_COLORS,
 } from "../edge-utils";
 import type { Node, Edge } from "@xyflow/react";
@@ -172,6 +174,75 @@ describe("getConnectedEdgeIds", () => {
     const selfLoopEdges: Edge[] = [{ id: "e1", source: "a", target: "a" }];
     const ids = getConnectedEdgeIds("a", selfLoopEdges);
     expect(ids).toEqual(new Set(["e1"]));
+  });
+});
+
+describe("isSelfConnection (§2.2)", () => {
+  it("source === target 이면 true", () => {
+    expect(isSelfConnection({ source: "a", target: "a" })).toBe(true);
+  });
+
+  it("서로 다른 노드면 false", () => {
+    expect(isSelfConnection({ source: "a", target: "b" })).toBe(false);
+  });
+
+  it("source 나 target 이 null 이면 false (미완성 드래그)", () => {
+    expect(isSelfConnection({ source: null, target: null })).toBe(false);
+    expect(isSelfConnection({ source: "a", target: null })).toBe(false);
+  });
+});
+
+describe("isDuplicateConnection (§2.2)", () => {
+  const edges: Edge[] = [
+    { id: "e1", source: "a", target: "b", sourceHandle: "out", targetHandle: "in" },
+  ];
+
+  it("같은 (source, sourceHandle, target, targetHandle) 조합이면 true", () => {
+    expect(
+      isDuplicateConnection(edges, {
+        source: "a",
+        target: "b",
+        sourceHandle: "out",
+        targetHandle: "in",
+      }),
+    ).toBe(true);
+  });
+
+  it("sourceHandle 이 다르면 false (다른 포트에서 나가는 별개 연결)", () => {
+    expect(
+      isDuplicateConnection(edges, {
+        source: "a",
+        target: "b",
+        sourceHandle: "error",
+        targetHandle: "in",
+      }),
+    ).toBe(false);
+  });
+
+  it("target 이 다르면 false", () => {
+    expect(
+      isDuplicateConnection(edges, {
+        source: "a",
+        target: "c",
+        sourceHandle: "out",
+        targetHandle: "in",
+      }),
+    ).toBe(false);
+  });
+
+  it("handle 없음(null/undefined) 은 동등 취급", () => {
+    const noHandleEdges: Edge[] = [{ id: "e1", source: "a", target: "b" }];
+    expect(
+      isDuplicateConnection(noHandleEdges, { source: "a", target: "b" }),
+    ).toBe(true);
+    expect(
+      isDuplicateConnection(noHandleEdges, {
+        source: "a",
+        target: "b",
+        sourceHandle: null,
+        targetHandle: undefined,
+      }),
+    ).toBe(true);
   });
 });
 

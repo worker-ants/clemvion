@@ -1,6 +1,7 @@
 import {
   evaluateGraphWarningRules,
   evaluateGraphWarningRulesForGraph,
+  evaluateGraphCycleWarnings,
   GraphWarningRule,
 } from './graph-warning-rule';
 import type { Node } from '../../modules/nodes/entities/node.entity';
@@ -196,6 +197,51 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
       expect(hasError).toBe(true);
       expect(hasWarning).toBe(true);
       expect(results).toHaveLength(3); // a: err + warn, b: warn only
+    });
+  });
+
+  describe('evaluateGraphCycleWarnings — entity → 순수 shape 매핑', () => {
+    it('분기 노드 없는 순환은 back-edge source 에 warning (entity shape)', () => {
+      const a = makeNode('a', 'http');
+      const b = makeNode('b', 'http');
+      const graph = {
+        nodes: [a, b],
+        edges: [makeEdge('e1', 'a', 'b'), makeEdge('e2', 'b', 'a')],
+      };
+      const results = evaluateGraphCycleWarnings(graph);
+      expect(results).toHaveLength(1);
+      expect(results[0].ruleId).toBe('graph:unescapable-cycle');
+      expect(results[0].severity).toBe('warning');
+      expect(results[0].nodeId).toBe('b');
+    });
+
+    it('컨테이너 반복(body/emit) 엣지는 순환으로 보지 않음', () => {
+      const loop = makeNode('loop', 'loop');
+      const child = makeNode('child', 'http');
+      const graph = {
+        nodes: [loop, child],
+        edges: [
+          makeEdge('e1', 'loop', 'child', 'body'),
+          // 자식 → 컨테이너 emit 수집 (targetPort='emit')
+          {
+            id: 'e2',
+            sourceNodeId: 'child',
+            targetNodeId: 'loop',
+            sourcePort: 'out',
+            targetPort: 'emit',
+            workflowId: 'wf-1',
+          } as unknown as Edge,
+        ],
+      };
+      expect(evaluateGraphCycleWarnings(graph)).toEqual([]);
+    });
+
+    it('순환이 없으면 빈 배열', () => {
+      const graph = {
+        nodes: [makeNode('a', 'http'), makeNode('b', 'http')],
+        edges: [makeEdge('e1', 'a', 'b')],
+      };
+      expect(evaluateGraphCycleWarnings(graph)).toEqual([]);
     });
   });
 

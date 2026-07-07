@@ -56,25 +56,32 @@ pending_plans:
 | 1개의 출력 포트 → N개의 입력 포트 | 하나의 출력에서 여러 노드로 분기 가능 |
 | N개의 출력 포트 → 1개의 입력 포트 | 여러 노드의 출력이 하나의 입력으로 합류 가능 |
 
-### 2.2 금지되는 연결 (대부분 미구현 · Planned)
+### 2.2 금지되는 연결
 
-| 규칙 | 시각적 피드백 |
-|------|--------------|
-| 자기 자신으로 연결 | 커서 금지 아이콘(🚫) |
-| 출력 → 출력 | 커서 금지 아이콘 |
-| 입력 → 입력 | 커서 금지 아이콘 |
-| 동일 연결 중복 | "이미 연결되어 있습니다" 툴팁 |
-| 순환 참조 (Cycle) | "순환 연결은 허용되지 않습니다" 툴팁 |
+구조적으로 의미가 없는 연결은 **하드 차단**한다 (엣지 자체가 생기지 않는다).
 
-> 현재 구현: `onConnect` (`editor-store.ts` `onConnect`) 는 `detectContainerConflict` (컨테이너 소속 충돌) 만 검사한 뒤 곧바로 `addEdge` 한다. `source === target` 자기연결, 출력→출력 / 입력→입력 방향 검사, 동일 연결 중복 검사, 그에 따른 커서 금지 아이콘·툴팁은 **아직 없다**. 출력→입력 방향 자체는 React Flow 핸들 타입(source/target)으로 강제된다.
+| 규칙 | 시각적 피드백 | 구현 |
+|------|--------------|------|
+| 자기 자신으로 연결 (`source === target`) | 드래그 중 커서 금지 아이콘(🚫) | 구현됨 (`isValidConnection` — `editor-store.ts`) |
+| 출력 → 출력 | 커서 금지 아이콘 | 구현됨 (React Flow 핸들 타입 강제) |
+| 입력 → 입력 | 커서 금지 아이콘 | 구현됨 (React Flow 핸들 타입 강제) |
+| 동일 연결 중복 (같은 source·sourceHandle·target·targetHandle) | "already connected" 토스트 (영문 SoT, 표시 계층 로컬라이즈) | 구현됨 (`onConnect` — `editor-store.ts`) |
 
-### 2.3 순환 참조 탐지 (미구현 · Planned)
+> 구현: `isValidConnection` (`editor-store.ts`, `<ReactFlow>` prop 으로 전달) 이 드래그 중 `source === target` 자기연결을 `false` 로 판정해 커서 🚫 로 차단한다. 출력→입력 방향과 출력↔출력/입력↔입력 금지는 React Flow 핸들 타입(source/target)이 강제한다. `onConnect` 은 드롭 시점에 자기연결(방어적 무시)·동일 연결 중복(토스트 후 무시)·컨테이너 소속 충돌(`detectContainerConflict`)을 순서대로 검사한 뒤에만 `addEdge` 한다. 순수 판정 헬퍼(`isSelfConnection`·`isDuplicateConnection`)는 `edge-utils.ts`.
+>
+> 자기연결·동일 연결 중복은 **DB 레벨 제약과 동일한 invariant** 를 캔버스가 선제 차단하는 이중 방어다 — [Spec 데이터 모델 §2.7 Edge](../1-data-model.md#27-edge) 의 `source_node_id != target_node_id` 및 `(source_node_id, source_port, target_node_id, target_port)` UNIQUE 가 최종 안전망이다.
+>
+> **순환은 여기서 차단하지 않는다** — §2.3 참조 (warn-not-block).
 
-- 엣지 생성 시 DAG(Directed Acyclic Graph) 검증 수행
-- 새 엣지가 사이클을 생성하는지 DFS로 확인
-- 예외: Loop, ForEach 노드 내부의 `body` 포트에서 자신의 입력으로 돌아오는 것은 허용 (이는 노드 내부 반복이지 그래프 사이클이 아님)
+### 2.3 순환 참조 — 경고하되 차단하지 않음 (warn-not-block)
 
-> 현재 구현: 엣지 생성 시 DFS 사이클 검사·DAG 검증은 클라이언트 `onConnect` 에 없다 (`editor-store.ts` `onConnect`). 사이클 차단·툴팁은 미구현이며, 본 절은 계획 사양이다.
+캔버스는 사이클 생성을 **막지 않는다**. 실행 엔진이 분기 노드(Switch/If-Else 등)의 포트 라우팅을 통한 back-edge 순환(재시도·폴링 루프)을 **정식 지원**하기 때문이다 (spec/5-system/4-execution-engine.md). 대신 **탈출 불가로 판정되는 위험한 순환만 경고 배지**로 드러낸다.
+
+- 그래프 전체를 DFS로 1회 순회해 back-edge(순환)를 탐지한다.
+- back-edge 의 **source 노드가 분기 노드가 아니면**(= 조건/케이스로 출력 포트를 선택하지 못하는 pass-through 노드) 그 순환은 정적으로 탈출 불가로 보고 해당 노드에 **`graph:unescapable-cycle` 경고**(severity `warning`, 노란 배지)를 붙인다. back-edge source 가 분기 노드면 탈출 가능으로 보고 경고하지 않는다.
+- **예외 (순환으로 보지 않음)**: 컨테이너 반복 구조 엣지. 컨테이너 → 자식 진입(`sourceHandle === 'body'`)과 **자식 → 조상 컨테이너의 `emit` 포트 수집(`targetHandle === 'emit'`)** 은 노드 내부 반복이지 그래프 사이클이 아니므로 검사에서 제외한다. (loopback 방향의 SoT 는 backend `shadow-workflow.ts` `CONTAINER_LOOPBACK_PORTS = {'emit'}` — 자식이 조상 컨테이너의 `emit` 로 돌아간다.)
+
+> 구현: graph-level 규칙 `evaluateGraphCycleWarnings` (`@workflow/graph-warning-rules` `rules/cycle.ts`) 가 위 판정을 수행한다. frontend canvas 는 `editor-store.ts` `evaluateGraphWarningsLocal` 에서 per-node-type 규칙 결과와 합쳐 배지로 노출하고, backend 는 `GET /workflows/:id/graph-warnings` 응답(`workflows.service.ts` `getGraphWarnings`)에 동일 결과를 포함해 두 surface 가 일치한다. severity 가 `warning` 이라 저장을 차단하지 않는다. 분기 노드 판정은 런타임 `_selectedPort` 의 **정적 근사**(rule 파일의 `BRANCH_NODE_TYPES` 집합)이며, advisory 경고라 근사의 부정확성은 치명적이지 않다.
 
 ---
 
@@ -216,3 +223,9 @@ pending_plans:
 ### R-1. 로드 시 stale 엣지 자동 제거 + 경고 토스트 (§8) (2026-06-10)
 
 저장 시점 이후 노드 config 변경으로 포트가 사라진 엣지는 React Flow 가 `Couldn't create edge for source handle id` 경고를 찍고 끊어진 stub 으로 렌더된다. 이를 로드 시점에 `dropStaleEdges` 로 일괄 정리하되, 워크플로우가 **암묵적으로 변형**되는 동작이므로 경고 토스트로 반드시 사용자에게 알리고, 영구 반영은 기존 저장 흐름(사용자 저장 시)에 위임한다. 조용한 자동 수정 대신 "정리 + 고지 + 저장 시 확정" 을 채택한 결정이다.
+
+### R-2. 순환 참조 — 편집기는 경고(warn), 어시스턴트 도구는 차단(block) (§2.3) (2026-07-07)
+
+초기 §2.3 는 "엣지 생성 시 DAG 검증 → 사이클이면 차단" 을 계획했으나 미구현 상태였다. 그 사이 실행 엔진이 **분기 노드(Switch/If-Else 등)의 포트 라우팅을 통한 back-edge 순환**(재시도·폴링 루프)을 정식 지원하게 되면서, "모든 사이클 차단" 은 정당한 워크플로를 막게 되어 더 이상 옳지 않다. 그래서 **편집기(사람이 그리는 캔버스)는 warn-not-block** 으로 확정했다: 사이클 생성 자체는 허용하고, **분기 노드로 탈출할 수 없는 순환**(pass-through 노드에 back-edge)만 `graph:unescapable-cycle` 경고 배지로 드러낸다.
+
+반면 backend `shadow-workflow.ts` (workflow-assistant LLM 도구)는 **여전히 사이클을 hard error 로 차단**한다 — 이는 divergence 가 아니라 **surface 별 요구가 다르기 때문**이다: 사람은 분기 노드로 탈출하는 순환을 의도적으로 그릴 수 있어야 하지만(그래서 경고), LLM 이 자동 생성하는 도구 호출 시퀀스는 결정론적 DAG 로 검증·순서화되어야 안전하다(그래서 차단). 두 판정 모두 **컨테이너 반복 loopback(`targetHandle === 'emit'`)은 예외**로 두어 SoT(`CONTAINER_LOOPBACK_PORTS = {'emit'}`)를 공유한다. 편집기의 분기 노드 탈출 판정은 런타임 `_selectedPort` 의 정적 근사라 advisory 경고에 그치며, 저장을 막지 않는다.
