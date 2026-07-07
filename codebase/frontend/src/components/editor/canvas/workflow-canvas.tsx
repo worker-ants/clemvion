@@ -45,6 +45,12 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { workflowsApi } from "@/lib/api/workflows";
 import { CustomNode } from "./custom-node";
 import { HasDefaultLlmConfigProvider } from "./has-default-llm-config-context";
+import {
+  IntegrationListProvider,
+  deriveIntegrationIds,
+  INTEGRATIONS_LIST_QUERY_KEY,
+} from "./integration-list-context";
+import { integrationsApi } from "@/lib/api/integrations";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
@@ -156,6 +162,25 @@ export function WorkflowCanvas() {
   // Provided to every CustomNode via context so AI nodes can render their
   // config summary without each subscribing to the llm-configs query.
   const hasDefaultLlmConfig = defaultLlmConfigId !== null;
+
+  // §5 ⚠ Missing integration 배지용 — 워크스페이스 integration 목록을 canvas 에서
+  // 한 번만 조회해 Context 로 내려준다. per-node useQuery 구독(N개 노드 = N개
+  // 구독)을 피하는 llmConfig 패턴과 동일. custom-node 렌더러가 자기
+  // config.integrationId 실재를 이 집합과 대조한다.
+  const { data: integrationListData, isLoading: integrationListLoading } =
+    useQuery({
+      queryKey: INTEGRATIONS_LIST_QUERY_KEY,
+      queryFn: () => integrationsApi.list({ limit: 100 }),
+      staleTime: 5 * 60 * 1000,
+    });
+  const integrationIds = useMemo(
+    () => deriveIntegrationIds(integrationListData, integrationListLoading),
+    [integrationListData, integrationListLoading],
+  );
+  const integrationListValue = useMemo(
+    () => ({ integrationIds }),
+    [integrationIds],
+  );
 
   const buildInitialConfig = useCallback(
     (nodeType: string, defaultConfig: Record<string, unknown> | undefined) =>
@@ -656,6 +681,7 @@ export function WorkflowCanvas() {
   return (
     <TooltipProvider delayDuration={300}>
     <HasDefaultLlmConfigProvider value={hasDefaultLlmConfig}>
+    <IntegrationListProvider value={integrationListValue}>
     <div
       ref={reactFlowWrapper}
       className="h-full w-full"
@@ -882,6 +908,7 @@ export function WorkflowCanvas() {
         />
       )}
     </div>
+    </IntegrationListProvider>
     </HasDefaultLlmConfigProvider>
     </TooltipProvider>
   );

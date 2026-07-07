@@ -4,10 +4,8 @@ import { memo, useEffect, useMemo } from "react";
 import { Handle, Position, useStore, useUpdateNodeInternals } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
 import { AlertTriangle, Unplug, X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
-import { integrationsApi } from "@/lib/api/integrations";
 import { isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
@@ -22,6 +20,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
 import { useHasDefaultLlmConfig } from "./has-default-llm-config-context";
+import { useIntegrationIds } from "./integration-list-context";
 
 type CustomNodeData = {
   type: string;
@@ -46,8 +45,9 @@ const zoomSelector = (s: { transform: number[] }) => s.transform[2] >= 0.5;
 // `mcp-server-selector` 의 missing 대조와 동일한 패턴이고, 색은 캔버스
 // `⚠ Missing workflow` 와 같은 앰버 계열이되(설정 패널 셀렉터의 red 와는 별개)
 // graph-warning 배지(AlertTriangle)와 구분되게 Unplug(연결 끊김) 아이콘을 쓴다.
-// 별도 컴포넌트로 분리해 integration 노드에서만 mount → 그 외 노드는 integration
-// 목록 쿼리를 호출하지 않는다. SoT: spec/4-nodes/4-integration/0-common.md §5.
+// 목록은 `WorkflowCanvas` 가 한 번 조회해 Context 로 내려준다(per-node useQuery
+// 구독 회피 — has-default-llm-config 와 동일 패턴). 집합이 null 이면(로딩 중이거나
+// 목록 미완전) 억제해 위양성을 피한다. SoT: spec/4-nodes/4-integration/0-common.md §5.
 function MissingIntegrationBadge({
   integrationId,
   pushToRight,
@@ -56,19 +56,8 @@ function MissingIntegrationBadge({
   pushToRight: boolean;
 }) {
   const t = useT();
-  // 캔버스 전용 무필터 목록 키 — 설정 패널 셀렉터의 serviceType 필터 포함 키
-  // (["integrations","list",{serviceType}]) 와 구분되며, category=integration 노드
-  // 전반이 같은 키로 공유(React Query dedupe)해 목록을 한 번만 조회한다.
-  const { data: integrationList, isLoading } = useQuery({
-    queryKey: ["integrations", "list"],
-    queryFn: () => integrationsApi.list({ limit: 100 }),
-    staleTime: 5 * 60 * 1000,
-  });
-  // 목록 로딩 중에는 억제해 위양성(로딩 지연을 삭제로 오판)을 피한다.
-  const isMissing =
-    !isLoading &&
-    integrationList !== undefined &&
-    !integrationList.data.some((i) => i.id === integrationId);
+  const integrationIds = useIntegrationIds();
+  const isMissing = integrationIds !== null && !integrationIds.has(integrationId);
   if (!isMissing) return null;
   return (
     <Tooltip>
@@ -212,11 +201,17 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const showBodySummary = !isContainer && showSummary && summary && !isWarning;
 
   // §5 ⚠ Missing integration — category=integration 노드가 참조하는
-  // integrationId. 실재 대조는 <MissingIntegrationBadge> 가 담당하며, 값이 있을
-  // 때만 mount 해 그 외 노드가 integration 목록 쿼리를 돌리지 않게 한다.
-  const integrationId =
+  // integrationId. http_request 만 integrationId 가 `authentication ===
+  // "integration"` 일 때만 유효하다(다른 인증 모드에선 미사용 필드 —
+  // schema `visibleWhen`). 그 조건이 아니면 잔존 필드값에 배지를 걸지 않아
+  // 오탐을 막는다. 나머지 통합 노드는 integrationId 가 무조건 필수라 category
+  // 만으로 충분하다. 실재 대조는 <MissingIntegrationBadge> 가 담당한다.
+  const usesIntegrationId =
     data.category === "integration" &&
-    typeof data.config.integrationId === "string"
+    (data.type !== "http_request" ||
+      data.config.authentication === "integration");
+  const integrationId =
+    usesIntegrationId && typeof data.config.integrationId === "string"
       ? data.config.integrationId
       : "";
 
@@ -328,9 +323,8 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         )}
         {/* §5 Missing integration 배지 — 참조하던 Integration 이 삭제된 잔존
             참조일 때. graph-warning(AlertTriangle) 배지와 구분되는 Unplug 아이콘·
-            별도 슬롯. integration 노드에서만 mount 되어(값이 있을 때만) 그 외
-            노드는 integration 목록 쿼리를 돌리지 않는다. ml-auto 는 앞선 우측
-            정렬 요소가 없을 때만 부여해 슬롯 중복을 피한다. */}
+            별도 슬롯. integrationId 가 유효할 때만 mount 한다. ml-auto 는 앞선
+            우측 정렬 요소가 없을 때만 부여해 슬롯 중복을 피한다. */}
         {integrationId !== "" && (
           <MissingIntegrationBadge
             integrationId={integrationId}
