@@ -31,6 +31,7 @@ export const integrations = {
   connectionTestSuccess: "연결 테스트에 성공했어요",
   connectionTestFailed: "연결 테스트에 실패했어요: {{error}}",
   deletedMcpLabel: "삭제된 MCP ({{idShort}}…)",
+  missingIntegration: "연결된 통합을 찾을 수 없어요 (삭제됨)",
   loadFailed: "통합을 불러올 수 없어요",
   empty: "연결된 통합이 없어요",
   addIntegration: "통합 추가",

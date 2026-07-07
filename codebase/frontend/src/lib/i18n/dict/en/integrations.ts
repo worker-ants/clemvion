@@ -33,6 +33,7 @@ export const integrations: Dict["integrations"] = {
   connectionTestSuccess: "Connection test succeeded",
   connectionTestFailed: "Connection failed: {{error}}",
   deletedMcpLabel: "Removed MCP ({{idShort}}…)",
+  missingIntegration: "Integration not found (deleted)",
   loadFailed: "Failed to load integrations",
   empty: "No integrations yet",
   addIntegration: "Add Integration",

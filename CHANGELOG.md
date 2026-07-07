@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 삭제된 Integration 참조 캔버스 경고 배지 `⚠ Missing integration` (4-integration §5)
+
+### 변경 사항
+
+1. **Integration 노드가 참조하던 통합이 삭제되면 캔버스 노드 헤더에 `⚠ Missing integration`(앰버) 배지가 표시된다** — `spec/4-nodes/4-integration/0-common.md §5` 가 "계획(미구현)" 으로 두었던 배지를 구현하고 5개 통합 노드 spec(§7 캔버스 요약)·`spec/3-workflow-editor/0-canvas.md §5.3.5` 를 동기화했다. 이 판정은 schema `warningRules` 로 표현할 수 없다 — `when` DSL 평가기(`evaluateWhen(expr, config)`)가 노드 자신의 config 만 봐서 "그 `integrationId` 가 실재하는가" 라는 cross-entity 검증에 닿지 못하기 때문이다(plan `spec-sync-integration-common-gaps` 옵션 A 채택). 따라서 **렌더러 전용 cross-entity 판정**으로 구현했다: 캔버스(`workflow-canvas.tsx`)가 워크스페이스 integration 목록을 무필터 키 `["integrations","list"]` 로 **한 번** 조회해 실재 id 집합을 Context(`integration-list-context.ts`)로 내려주고, 각 노드 렌더러(`custom-node.tsx` `MissingIntegrationBadge`)가 자기 `config.integrationId` 를 그 집합과 대조한다(per-node `useQuery` 구독을 피하는 `hasDefaultLlmConfig` 패턴과 동일). 정상 삭제 경로는 사용 중 통합 삭제를 백엔드가 차단(`INTEGRATION_IN_USE`)하므로 본 배지는 버전 복원·레거시 등 **잔존 참조 방어 표식**이다. 위양성 방지 가드: 목록 로딩 중·페이지네이션 미완전(전체 미확보) 시 억제, `http_request` 는 `authentication==='integration'` 조건부 필드라 그 외 인증 모드의 잔존값 제외. graph-warning 배지(`AlertTriangle`)와 구분되는 `Unplug`(연결 끊김) 아이콘. i18n `integrations.missingIntegration` KO/EN 동시 추가. 신규 서버 API 없음(기존 `GET /integrations` 재사용). SoT: `spec/4-nodes/4-integration/0-common.md §5`.
+
 ## Unreleased — 캔버스 키보드 단축키 · 클립보드 복붙 · 컨테이너 삭제 확인 다이얼로그 (canvas UX spec-sync §10·§3.3·§11.3)
 
 ### 변경 사항

@@ -194,7 +194,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 
 ## 7. 캔버스 요약
 
-[공통 §5](./0-common.md#5-캔버스-요약) — `MakeShop` 행. 요약 포맷: `{resource} · {operation}` (예: `product · get-product`). 연결 Integration 삭제 시 `⚠ Missing integration` — **계획 (미구현)**, [공통 §5](./0-common.md#5-캔버스-요약) 의 미구현 항목 참조.
+[공통 §5](./0-common.md#5-캔버스-요약) — `MakeShop` 행. 요약 포맷: `{resource} · {operation}` (예: `product · get-product`). 연결 Integration 삭제 시 캔버스 렌더러가 `⚠ Missing integration` (앰버색) 배지를 표시한다 ([공통 §5](./0-common.md#5-캔버스-요약) — 렌더러 전용 cross-entity 표식).
 
 ## 8. AI Agent 노출 (Internal MCP Bridge)
 

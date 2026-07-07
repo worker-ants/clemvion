@@ -355,7 +355,7 @@ config 형식 자체가 잘못된 경우 (e.g. `integrationId is required` / `qu
 
 ## 7. 캔버스 요약
 
-[공통 §5](./0-common.md#5-캔버스-요약) — `Database Query` 행 인용. `summaryTemplate: {{queryType|upper}} · {{query}}` (라인 40자 초과 시 잘림). 전체 query 를 truncate 표시하며("첫 줄" 은 DSL 줄분리 미지원), Integration 이 삭제된 경우 `⚠ Missing integration` 배지는 미구현(티어3 — `plan/in-progress/spec-sync-integration-common-gaps.md`).
+[공통 §5](./0-common.md#5-캔버스-요약) — `Database Query` 행 인용. `summaryTemplate: {{queryType|upper}} · {{query}}` (라인 40자 초과 시 잘림). 전체 query 를 truncate 표시하며("첫 줄" 은 DSL 줄분리 미지원), 연결된 Integration 이 삭제된 경우 캔버스 렌더러가 `⚠ Missing integration` (앰버) 배지를 표시한다 ([공통 §5](./0-common.md#5-캔버스-요약) — 렌더러 전용 cross-entity 표식).
 
 예시:
 - `SELECT · SELECT id, name FROM users WH...`

@@ -341,7 +341,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 
 ## 7. 캔버스 요약
 
-[공통 §5](./0-common.md#5-캔버스-요약) — `HTTP Request` 행 인용 (`{method} {url}`, URL 35자 초과 시 잘림). 연결된 Integration 이 삭제된 경우 `⚠ Missing integration` (앰버색).
+[공통 §5](./0-common.md#5-캔버스-요약) — `HTTP Request` 행 인용 (`{method} {url}`, URL 35자 초과 시 잘림). 연결된 Integration 이 삭제된 경우 캔버스 렌더러가 `⚠ Missing integration` (앰버색) 배지를 표시한다 ([공통 §5](./0-common.md#5-캔버스-요약) — 렌더러 전용 cross-entity 표식). 단 HTTP Request 는 `integrationId` 가 `authentication === "integration"` 일 때만 유효한 조건부 필드이므로, 다른 인증 모드의 잔존 `integrationId` 에는 배지가 걸리지 않는다.
 
 ## 8. Rationale
 

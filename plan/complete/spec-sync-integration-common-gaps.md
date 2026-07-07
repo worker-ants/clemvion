@@ -9,10 +9,12 @@ owner: planner
 > 출처: 2026-06-03 spec-vs-code audit (review/spec-coverage/2026/06/03/08_05_49). 본 spec 을 `partial` 로 강등하며 분리한 미구현 항목 추적.
 > 관련 spec: spec/4-nodes/4-integration/0-common.md
 
+> **✅ 완료 (2026-07-08)**: 3개 미구현 항목 전부 해소 — db-query/send-email 요약 downscope 구현(2026-06-03), Missing integration 배지 옵션 A 구현(2026-07-08, 본 PR). `0-common.md` frontmatter `status: partial → implemented`, `pending_plans` 제거. 본 plan 은 `plan/complete/` 로 이동.
+
 ## 미구현 항목
 - [x] §5 Database Query 캔버스 요약 — `database-query.schema.ts` `summaryTemplate: {{queryType|upper}} · {{query}}` (2026-06-03 구현, downscope: DSL 줄분리 미지원으로 "첫 줄" 대신 전체 query truncate).
 - [x] §5 Send Email 캔버스 요약 — `send-email.schema.ts` `summaryTemplate: {{to.length}} recipients · {{subject}}` (2026-06-03 구현, downscope: 배열 슬라이스/조건 카운트 미지원으로 "to: {수신자} +N" 대신 수신자 수 + 제목).
-- [ ] §5 `⚠ Missing integration` 배지 — 삭제된 Integration 참조를 감지해 캔버스 요약에 앰버 배지를 표시하는 warningRule/렌더 로직. 현재 docs mdx 에만 기술, 코드 부재. **티어3 (cross-entity 검증 — warningRule DSL 밖, 아키텍처 결정 필요, 보류).**
+- [x] §5 `⚠ Missing integration` 배지 — 삭제된 Integration 참조 시 캔버스 노드 헤더에 앰버 배지 표시. **옵션 A (렌더러 전용 cross-entity 판정) 확정·구현 (2026-07-08)**: warningRule DSL 은 config-only(`evaluateWhen(expr, config)`) 라 cross-entity 표현 불가 → canvas(`workflow-canvas.tsx`)가 integration 목록을 한 번 조회해 Context(`integration-list-context.ts`)로 제공, `custom-node.tsx` `MissingIntegrationBadge` 가 `config.integrationId` 실재를 대조(per-node useQuery 구독 회피 — `hasDefaultLlmConfig` 패턴). `http_request` 는 `authentication==='integration'` 조건부, 목록 미확정/미완전 시 억제(위양성 방지). 백엔드·DSL 무변경. spec 커밋 `1794aae98`·`8b18eb2d8`, 구현 PR (본 PR).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__4-integration__0-common.md 참조.
