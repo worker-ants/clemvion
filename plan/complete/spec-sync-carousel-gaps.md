@@ -71,9 +71,9 @@ owner: planner
 - 옵션 A(프리뷰에 세 시각형 포팅) 대비: 인터랙션 없는 디버그 화면에 시각 충실도를 투자하지 않고, 시각적 진실은 이미 웹챗에 존재하므로 제품 약속 손실 없음. 옵션 C(강등) 대비: `layout` 은 웹챗에서 실사용 중이라 제거 불가.
 - 사용자 선택: 이미지 **완전 제외(순수 텍스트)** 가 아니라 **lazy 썸네일/링크 유지** (이미지 URL 매핑 확인 빈도 고려).
 
-## 구현 착수 (developer) — Planned (본 PR)
+## 구현 완료 (developer, 2026-07-07)
 
-- [ ] spec §1(layout 행)·§4(렌더 노트)를 two-surface 로 개정 (인터랙티브 채널 시각 레이아웃 / 프리뷰 텍스트 포워드).
-- [ ] `CarouselContent`(`presentation-renderers.tsx`)를 텍스트 포워드로: `config.layout` 참조해 배지 표시, 이미지 `loading="lazy"` 썸네일 + URL 접근, 슬라이드별 제목·설명·버튼 라벨 나열.
-- [ ] `presentation-renderers.test.tsx` 에 layout 배지·lazy 이미지·렌더 케이스 추가.
-- [ ] carousel spec frontmatter `status: partial → implemented`, 본 plan 완료 이동.
+- [x] spec §1(layout 행)·§4(렌더 노트) two-surface 개정 + 파급 4문서(0-common §6.1·3-execution·14-execution-history) 정합 + `## Rationale` R-1.
+- [x] `CarouselContent`(`presentation-renderers.tsx`) 텍스트 포워드: `config.layout` 배지 + 슬라이드 수, 이미지 `loading="lazy"` 썸네일 + 원본 URL 링크(새 탭), 제목·설명·버튼 라벨 나열.
+- [x] `presentation-renderers.test.tsx` 9 신규(배지·lazy·링크·no-eager·text-forward·static-mode·config>data 우선순위·data 폴백).
+- [x] carousel spec frontmatter `status: partial → implemented` + 본 plan 완료 이동.
