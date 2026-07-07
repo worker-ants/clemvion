@@ -773,6 +773,39 @@ describe("useEditorStore", () => {
       expect(state.undoStack).toHaveLength(1);
     });
 
+    it("paste·duplicate 도 recent 를 기록한다 — addNode 우회 경로 (§4.1)", () => {
+      // duplicateSelection: 복제한 타입 기록
+      useRecentNodesStore.setState({ recentNodeTypes: [] });
+      useEditorStore.setState({
+        nodes: [
+          makeNode("a", {
+            selected: true,
+            data: { type: "http_request", label: "H" },
+          }),
+        ],
+        edges: [],
+      });
+      useEditorStore.getState().duplicateSelection();
+      expect(useRecentNodesStore.getState().recentNodeTypes).toContain(
+        "http_request",
+      );
+
+      // pasteClipboard: 붙여넣은 타입 기록
+      useRecentNodesStore.setState({ recentNodeTypes: [] });
+      useEditorStore.setState({
+        nodes: [
+          makeNode("x", {
+            selected: true,
+            data: { type: "code", label: "C" },
+          }),
+        ],
+        edges: [],
+      });
+      useEditorStore.getState().copySelection();
+      useEditorStore.getState().pasteClipboard();
+      expect(useRecentNodesStore.getState().recentNodeTypes).toContain("code");
+    });
+
     it("duplicateSelection: 동일 라벨 노드 2개 동시 복제 시 각각 유니크 라벨 부여", () => {
       // 같은 label("Dup") 을 가진 두 노드를 함께 복제 → 서로 충돌 없이 유니크화.
       useEditorStore.setState({

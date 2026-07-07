@@ -580,6 +580,19 @@ function cloneNodesWithOffset(
   return { nodes, edges };
 }
 
+/**
+ * §4.1 — 노드 배열의 각 타입을 최근 사용으로 기록한다. `addNode`(단일 choke point)를
+ * 우회하는 배치 경로(paste/duplicate)에서 사용한다. set 업데이터 밖에서 호출해 순수성을
+ * 지킨다.
+ */
+function recordRecentNodeTypesFrom(nodes: Node[]): void {
+  const recent = useRecentNodesStore.getState();
+  for (const n of nodes) {
+    const type = (n.data as { type?: string } | undefined)?.type;
+    if (type) recent.recordRecentNodeType(type);
+  }
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
   workflowName: "Untitled Workflow",
@@ -735,8 +748,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nodes: [...state.nodes, node],
       isDirty: true,
     }));
-    // §4.1 — 노드 추가의 단일 choke point. 모든 경로(드롭·팔레트 클릭·빠른추가·
-    // 복제·assistant)가 여기를 지나므로 최근 사용 노드 타입을 균일하게 기록한다.
+    // §4.1 — 노드 추가의 주 choke point (드롭·팔레트 클릭·빠른추가·assistant add_node·
+    // 우클릭 복제). 최근 사용 노드 타입을 기록한다. 단, addNode 를 우회하는 배치 경로
+    // (Ctrl+V paste·Ctrl+D duplicateSelection)는 각자 recordRecentNodeTypesFrom 로 기록한다.
     const type = (node.data as { type?: string } | undefined)?.type;
     if (type) useRecentNodesStore.getState().recordRecentNodeType(type);
   },
@@ -812,6 +826,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isDirty: true,
       };
     });
+    // §4.1 — paste 는 addNode(recent choke point)를 우회하므로 붙여넣은 타입을 여기서
+    // 기록한다 (set 업데이터는 순수하게 유지). clone 은 원본 타입을 그대로 보유한다.
+    recordRecentNodeTypesFrom(clip.nodes);
   },
 
   duplicateSelection: () => {
@@ -844,6 +861,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isDirty: true,
       };
     });
+    // §4.1 — duplicate 도 addNode 를 우회하므로 복제한 타입을 recent 로 기록.
+    recordRecentNodeTypesFrom(selected);
   },
 
   selectAll: () => {

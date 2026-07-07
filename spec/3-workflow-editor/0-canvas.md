@@ -166,7 +166,7 @@ pending_plans:
 
 ### 4.1 구조
 
-> **구현**: `⏱ Recent` 섹션은 최근 사용 노드 타입을 팔레트 상단에 표시한다 (`node-palette.tsx` — 세션 한정·최대 5개·최신순·중복 제거·manual_trigger 제외, 검색 중에는 숨김). 최근 사용은 `editor-store.addNode`(드롭·팔레트 클릭·빠른추가·복제·assistant 모든 추가 경로의 단일 choke point)가 `recent-nodes-store` 에 기록한다.
+> **구현 (ED-PL-04)**: `⏱ Recent` 섹션은 최근 사용 노드 타입을 팔레트 상단에 표시한다 (`node-palette.tsx` — 세션 한정·최대 5개·최신순·중복 제거·manual_trigger 제외, 검색 중에는 숨김). 최근 사용은 `editor-store.addNode`(드롭·팔레트 클릭·빠른추가·우클릭 복제·assistant)가 `recent-nodes-store` 에 기록하고, `addNode` 를 우회하는 배치 경로(Ctrl+V 붙여넣기·Ctrl+D 복제)는 `recordRecentNodeTypesFrom` 으로 별도 기록한다.
 > **미구현 (Planned)**: `▼ Installed`(마켓플레이스) 섹션은 아직 렌더되지 않는다 — 마켓플레이스 모듈 도입 후로 미룬다 (backlog, §Rationale 참조).
 
 ```
@@ -230,7 +230,7 @@ pending_plans:
 | 검색 | 노드 이름 실시간 필터링 |
 | 카테고리 접기/펼치기 | 섹션 헤더 클릭 |
 | 드래그 | 캔버스로 드래그하여 노드 추가 |
-| 클릭 | 현재 뷰포트 중앙에 노드 추가 (반복 클릭 시 겹치지 않도록 소량 지터). 키보드 접근성: 아이템에 포커스 후 Enter/Space 도 동일. 캔버스 접근은 `palette-canvas-bridge` 경유(ED-PL-04) |
+| 클릭 | 현재 뷰포트 중앙에 노드 추가 (반복 클릭 시 겹치지 않도록 소량 지터). 키보드 접근성: 아이템에 포커스 후 Enter/Space 도 동일. 캔버스 접근은 `palette-canvas-bridge` 경유 |
 | 패널 접기 | 검색 헤더의 토글 버튼으로 팔레트를 아이콘 레일(펼치기 버튼만)로 접기/펼치기 (ED-PL-03) |
 
 ### 4.3 빠른 노드 추가 팝업

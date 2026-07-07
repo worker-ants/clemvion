@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../../canvas/node-icon", () => ({
@@ -129,5 +129,15 @@ describe("NodePalette", () => {
     render(<NodePalette />);
     await user.click(screen.getByText("If/Else"));
     expect(addNodeFromPaletteMock).toHaveBeenCalledWith("if_else");
+  });
+
+  it("Enter/Space on a focused palette item also adds the node (§4.2 a11y)", () => {
+    render(<NodePalette />);
+    const item = screen.getByText("AI Agent").closest('[role="button"]')!;
+    fireEvent.keyDown(item, { key: "Enter" });
+    expect(addNodeFromPaletteMock).toHaveBeenCalledWith("ai_agent");
+    addNodeFromPaletteMock.mockClear();
+    fireEvent.keyDown(item, { key: " " });
+    expect(addNodeFromPaletteMock).toHaveBeenCalledWith("ai_agent");
   });
 });

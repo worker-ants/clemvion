@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -208,13 +208,26 @@ function PaletteItem({
   const label = translateNodeLabel(node.label, locale) ?? node.label;
   const description =
     translateNodeDescription(node.description, locale) ?? node.description;
+  // 드래그로 노드를 추가한 직후(onDrop) 브라우저가 click 을 이어 발생시키면 클릭
+  // 핸들러가 노드를 한 번 더 추가할 수 있다 — 드래그 여부를 ref 로 추적해 그 click 을
+  // 무시한다 (드래그와 클릭은 보통 배타적이나 방어적으로 가드).
+  const draggingRef = useRef(false);
   // §4.2 — 클릭(또는 Enter/Space)으로 캔버스 중앙에 노드 추가. 드래그도 그대로 유지.
   const handleAdd = () => addNodeFromPalette(node.type);
   return (
     <div
       draggable
-      onDragStart={(e) => onDragStart(e, node.type)}
-      onClick={handleAdd}
+      onDragStart={(e) => {
+        draggingRef.current = true;
+        onDragStart(e, node.type);
+      }}
+      onDragEnd={() => {
+        draggingRef.current = false;
+      }}
+      onClick={() => {
+        if (draggingRef.current) return;
+        handleAdd();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

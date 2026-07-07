@@ -66,6 +66,11 @@ import {
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
 
+// §4.2 팔레트 클릭 노드 배치 지터 — 반복 클릭 시 노드가 정확히 겹치지 않도록 뷰포트
+// 중앙에서 소량 어긋나게 둔다. JITTER_CYCLE 회마다 0 으로 되돌아간다(계단식 오프셋).
+const PALETTE_ADD_JITTER_CYCLE = 5;
+const PALETTE_ADD_JITTER_STEP_PX = 24;
+
 function getExistingLabels(nodes: RFNode[]): string[] {
   return nodes.map(
     (n) => (n.data as Record<string, unknown>).label as string,
@@ -541,7 +546,8 @@ export function WorkflowCanvas() {
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2,
         });
-        const jitter = (nodes.length % 5) * 24;
+        const jitter =
+          (nodes.length % PALETTE_ADD_JITTER_CYCLE) * PALETTE_ADD_JITTER_STEP_PX;
         flowPosition = { x: center.x + jitter, y: center.y + jitter };
       }
       buildAndAddNode(nodeType, flowPosition);
@@ -569,48 +575,16 @@ export function WorkflowCanvas() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-
       const nodeType = event.dataTransfer.getData("application/reactflow-type");
-      if (!nodeType) return;
-
-      const definition = getNodeDefinition(nodeType);
-      if (!definition) return;
-
-      if (nodeType === "manual_trigger") {
-        const hasTrigger = nodes.some((n) => n.data?.type === "manual_trigger");
-        if (hasTrigger) return;
-      }
-
-      if (!reactFlowInstance.current) return;
-
+      if (!nodeType || !reactFlowInstance.current) return;
+      // 드롭 위치를 flow 좌표로 변환해 공용 빌더로 위임 (§4.2 클릭·§4.3 빠른추가와 동일 경로).
       const position = reactFlowInstance.current.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
-
-      pushUndo();
-
-      const existingLabels = nodes.map(
-        (n) => (n.data as Record<string, unknown>).label as string,
-      );
-      const baseLabel =
-        translateNodeLabel(definition.label, locale) ?? definition.label;
-      const newNode = {
-        id: crypto.randomUUID(),
-        type: "custom",
-        position,
-        data: {
-          type: nodeType,
-          label: generateUniqueLabel(baseLabel, existingLabels),
-          config: buildInitialConfig(nodeType, definition.defaultConfig),
-          category: definition.category,
-          isDisabled: false,
-        },
-      };
-
-      addNode(newNode);
+      buildAndAddNode(nodeType, position);
     },
-    [addNode, pushUndo, nodes, buildInitialConfig, locale],
+    [buildAndAddNode],
   );
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
