@@ -1,14 +1,3 @@
----
-title: "Discord integration"
-title_en: "Discord integration"
-section: "06-integrations-and-config"
-order: 8
-summary: "Connect a Discord bot as a Chat Channel on a Webhook trigger to interact with workflows via slash commands / buttons / modals."
-summary_en: "Connect a Discord bot as a Chat Channel on a Webhook trigger to interact with workflows via slash commands / buttons / modals."
-spec: ["spec/4-nodes/7-trigger/providers/discord.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
-code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts"]
----
-
 Connect a Discord bot as your workflow's interface, and users can drive workflows via `/workflow start` slash commands, button clicks, and modal text inputs.
 
 <Callout type="warn">
