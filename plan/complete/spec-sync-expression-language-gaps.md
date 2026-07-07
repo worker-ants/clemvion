@@ -40,7 +40,7 @@ owner: planner
 
 spec 반영 + 아래 코드 표면 구현 완료(본 PR). TEST WORKFLOW(lint·unit 7832·build·e2e 242) 전부 통과.
 
-- [x] **결정1 `$trigger`** — `ExecutionContext.triggerData`(신규 `TriggerExpressionData`) + `CreateContextOptions.triggerData`; `extractTriggerData(Execution.inputData)` 를 **main(`runExecution`)·재수화(`rehydrateContext`)·Background 본문 전파** 세 경로에 배선; `buildExpressionContext` 가 `$trigger`(headers 값 마스킹 via `sanitizeResponseHeaders`) 노출, 부재 시 `{}`. (당초 "background v1 {}" 계획을 상회해 Background 본문에도 전파.)
+- [x] **결정1 `$trigger`** — `ExecutionContext.triggerData`(신규 `TriggerExpressionData`) + `CreateContextOptions.triggerData`; `extractTriggerData(Execution.inputData)` 를 **신규 실행(`runExecution`)·크래시 재수화(`rehydrateContext`)** 두 컨텍스트 빌드 경로에 배선; `buildExpressionContext` 가 `$trigger`(headers 값 마스킹 via `sanitizeResponseHeaders`) 노출, 부재 시 `{}`. background sub-graph 는 v1 범위 밖(`$trigger = {}`, spec §4.5 후속 과제).
 - [x] **결정2 `$env`** — `app.config.expressionEnvAllowlist`(`EXPRESSION_ENV_ALLOWLIST`, 콤마 파싱) + `ExpressionResolverService` 에 `ConfigService` 주입; allowlist 키만 `$env = { KEY: process.env.KEY }` 노출, 미설정/빈 값이면 `{}` fail-closed.
 - [x] 테스트: resolver unit($trigger redaction·빈 폴백·full-expr 해소·$env gate/allowlist), trigger-data.util unit(webhook/manual/schedule 추출), `trigger-expression.e2e`($trigger.body/method webhook 해소 + manual graceful `{}` 회귀).
 
