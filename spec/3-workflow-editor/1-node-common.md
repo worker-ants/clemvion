@@ -298,7 +298,7 @@ widget id → 컴포넌트 매핑의 SoT 는 frontend `auto-form/widget-registry
 | 변수 | `{{ $var.myVariable }}` | 선언된 변수 참조 |
 | 실행 컨텍스트 | `{{ $execution.id }}` | 현재 실행 ID |
 | 현재 시간 | `{{ $now }}` | 현재 타임스탬프 |
-| 환경 변수 | `{{ $env.MY_VAR }}` | 환경 변수 (셀프 호스팅) |
+| 환경 변수 | `{{ $env.MY_VAR }}` | 환경 변수 (운영자 `EXPRESSION_ENV_ALLOWLIST` opt-in 키만 — [expression-language §4.5](../5-system/5-expression-language.md#45-trigger--env-런타임-주입)) |
 | Loop 인덱스 | `{{ $loop.index }}` | 현재 반복 인덱스 |
 | ForEach 항목 | `{{ $item }}` | ForEach의 현재 항목 |
 | JSON Path | `{{ $input.data[0].name }}` | 중첩 객체/배열 접근 |

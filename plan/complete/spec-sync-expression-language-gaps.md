@@ -10,8 +10,8 @@ owner: planner
 > 관련 spec: spec/5-system/5-expression-language.md
 
 ## 미구현 항목
-- [ ] `$trigger` 런타임 주입 — `ExpressionResolverService.buildExpressionContext` 가 `$trigger` 를 컨텍스트에 주입하지 않음. 엔진 타입(`ExpressionContext.$trigger`)·에디터 자동완성(`ROOT_VARIABLES`)에는 노출되어, 사용자가 입력하면 실행 시 undefined/참조 에러로 이어질 수 있음. **⚠ 결정 필요**: trigger 데이터를 담을 `ExecutionContext` 신규 필드 + webhook/trigger payload→`$trigger` shape (`$trigger.body.event` 등) 설계. decision-free 아님 → planner.
-- [ ] `$env` 런타임 주입 — 동일하게 `buildExpressionContext` 가 `$env`(셀프 호스팅 환경 변수)를 주입하지 않음. 엔진 타입·에디터 자동완성에만 존재. **⚠ 결정 필요**: spec §의 "allowlist 기반 노출, self-hosting only" 보안 allowlist 설계. decision-free 아님 → planner.
+- [x] `$trigger` 런타임 주입 — `ExecutionContext.triggerData` 필드 + `buildExpressionContext` 가 `$trigger`(webhook transport flat shape, 민감 헤더 마스킹) 주입, 부재 시 `{}` (2026-07-07 구현, 결정1-A).
+- [x] `$env` 런타임 주입 — `EXPRESSION_ENV_ALLOWLIST` opt-in allowlist 키만 `$env` 노출, 미설정 시 `{}` fail-closed (2026-07-07 구현, 결정2-A).
 - [x] `$thread` 에디터 자동완성 노출 — `expression-constants.ts` `ROOT_VARIABLES` 에 `$thread` 추가 (2026-06-03 groom). spec §4.4 marker flip 완료.
 
 ## 처리 결과 (2026-06-03 groom)
@@ -26,6 +26,23 @@ owner: planner
 
 ## 파생 처리 (2026-06-03 spec-inprogress-impl2)
 - foreach-gaps 결정(a)에서 파생: `$itemIsFirst`/`$itemIsLast` top-level 변수도 함께 노출(ROOT_VARIABLES + resolver + expression-language §4 표). $thread 자동완성과 별개의 ForEach 항목 플래그. $trigger/$env 런타임 주입은 여전히 티어3 보류.
+
+## 결정 기록 (2026-07-07, 사용자 확정)
+
+두 티어3 항목의 설계 결정을 사용자가 확정(둘 다 권장안 A). **spec 반영 완료(§4.5 신설 + §4.1 두 행 + §8.5), 구현 착수 전(Planned).**
+
+| 결정 | 채택 | 요지 | 승인 근거 |
+| --- | --- | --- | --- |
+| 1. `$trigger` 런타임 주입 | **A** | `ExecutionContext.triggerData` 필드 + flat `$trigger.{body,headers,query,method}`(TriggerExecutionInput §6.1.1 webhook transport; `parameters` 는 `$params`) 노출. **동반**: 민감 헤더(Authorization/Cookie/X-Api-Key…) 값 마스킹(`sanitizeResponseHeaders` 재사용) + manual/schedule 은 `$trigger={}` graceful 폴백. | 엔진 타입·자동완성·spec 예시가 이미 flat shape 향해 정합 비용 최소. 자동완성이 이미 광고 중이라 보류 자체가 UX 함정. |
+| 2. `$env` allowlist | **A** | `EXPRESSION_ENV_ALLOWLIST`(콤마 키 목록) **운영자 opt-in** 만으로 게이팅 — 별도 전역 `DEPLOYMENT_MODE` 축 미신설(운영자만 env 설정 가능 → SaaS 는 미설정 → `$env={}`; 0-overview §5 "설정만으로 전환"을 최소 표면으로 실현). | secret 유출 표면 0(opt-in). spec §8.5 "allowlist 기반, self-hosting only" 를 opt-in 으로 충족. 3·4 는 `buildExpressionContext` 주입 레이어 공통이라 한 PR. (cross_spec CRITICAL 반영: `$trigger` 6필드 SoT 정합·`method` 포함; DEPLOYMENT_MODE 축 신설 회피.) |
+
+## 구현 완료 (developer, 2026-07-07)
+
+spec 반영 + 아래 코드 표면 구현 완료(본 PR). TEST WORKFLOW(lint·unit 7832·build·e2e 242) 전부 통과.
+
+- [x] **결정1 `$trigger`** — `ExecutionContext.triggerData`(신규 `TriggerExpressionData`) + `CreateContextOptions.triggerData`; `extractTriggerData(Execution.inputData)` 를 **main(`runExecution`)·재수화(`rehydrateContext`)·Background 본문 전파** 세 경로에 배선; `buildExpressionContext` 가 `$trigger`(headers 값 마스킹 via `sanitizeResponseHeaders`) 노출, 부재 시 `{}`. (당초 "background v1 {}" 계획을 상회해 Background 본문에도 전파.)
+- [x] **결정2 `$env`** — `app.config.expressionEnvAllowlist`(`EXPRESSION_ENV_ALLOWLIST`, 콤마 파싱) + `ExpressionResolverService` 에 `ConfigService` 주입; allowlist 키만 `$env = { KEY: process.env.KEY }` 노출, 미설정/빈 값이면 `{}` fail-closed.
+- [x] 테스트: resolver unit($trigger redaction·빈 폴백·full-expr 해소·$env gate/allowlist), trigger-data.util unit(webhook/manual/schedule 추출), `trigger-expression.e2e`($trigger.body/method webhook 해소 + manual graceful `{}` 회귀).
 
 ## 결정 옵션 (2026-06-13)
 
