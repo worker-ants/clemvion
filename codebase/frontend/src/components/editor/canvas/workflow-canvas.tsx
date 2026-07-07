@@ -642,9 +642,13 @@ export function WorkflowCanvas() {
   }, [searchQuery, definitionsMap, definitionsOrder]);
 
   // §4.3 — 검색어가 바뀌면(팝업 열림 시 ""로 리셋 포함) 하이라이트를 첫 항목으로.
-  useEffect(() => {
+  // effect 대신 렌더 중 이전 값 비교로 조정한다 (React "adjust state on change" 패턴 —
+  // effect 내 setState 로 인한 cascading render 회피).
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery);
     setHighlightedIndex(0);
-  }, [searchQuery]);
+  }
 
   // §4.3 빠른 노드 추가 팝업 키보드 핸들러. ArrowUp/Down 이동, Enter 선택, Escape 닫기.
   // `stopPropagation` 으로 전역 keydown(§3.2 선택 해제·§10.12 드로어 복귀)보다 팝업이
