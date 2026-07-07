@@ -25,6 +25,8 @@ import { WorkspaceMember } from './entities/workspace-member.entity';
 import { User } from '../users/entities/user.entity';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
@@ -67,6 +69,7 @@ export class WorkspaceInvitationsService {
     private readonly mailService: MailService,
     private readonly dataSource: DataSource,
     private readonly notificationsService: NotificationsService,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   /** Admin+ invites an email address to a team workspace. */
@@ -175,6 +178,18 @@ export class WorkspaceInvitationsService {
         saved.id,
       );
     }
+
+    // 감사 로그(best-effort). 초대 발급은 mode='invitation' 으로 직접 추가(direct_add)와 구분.
+    // resourceId 는 초대 row(saved.id) — 아직 멤버 row 가 없으므로(수락 시 생성). raw 이메일은
+    // details 에 저장하지 않는다(PII 최소화, user.email_changed 와 동일 원칙) — 초대 row 로 상관.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: AUDIT_ACTIONS.MEMBER_INVITED,
+      resourceType: 'member',
+      resourceId: saved.id,
+      details: { mode: 'invitation', role },
+    });
 
     return saved;
   }

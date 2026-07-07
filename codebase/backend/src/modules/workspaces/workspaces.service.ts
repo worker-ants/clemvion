@@ -184,6 +184,14 @@ export class WorkspacesService {
       joinedAt: new Date(),
     });
     await this.memberRepository.save(member);
+    // 감사 로그(best-effort). 팀 워크스페이스 생성은 조직 경계 신설이므로 audit 대상(결정4=B).
+    await this.auditLogsService.record({
+      workspaceId: saved.id,
+      userId,
+      action: AUDIT_ACTIONS.WORKSPACE_CREATED,
+      resourceType: 'workspace',
+      resourceId: saved.id,
+    });
     return saved;
   }
 
@@ -253,7 +261,17 @@ export class WorkspacesService {
       role,
       joinedAt: new Date(),
     });
-    return this.memberRepository.save(member);
+    const savedMember = await this.memberRepository.save(member);
+    // 감사 로그(best-effort). 직접 멤버 추가는 초대 흐름과 구분되게 mode='direct_add'.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: AUDIT_ACTIONS.MEMBER_INVITED,
+      resourceType: 'member',
+      resourceId: savedMember.id,
+      details: { mode: 'direct_add', memberUserId: user.id, role },
+    });
+    return savedMember;
   }
 
   /** 멤버 역할 변경(Admin+). owner 부여/박탈은 차단. */
@@ -279,8 +297,19 @@ export class WorkspacesService {
         message: 'owner 역할은 별도 양도 흐름이 필요합니다.',
       });
     }
+    const previousRole = member.role;
     member.role = role;
-    return this.memberRepository.save(member);
+    const saved = await this.memberRepository.save(member);
+    // 감사 로그(best-effort). 역할 변경 전/후를 details 에 남긴다.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGED,
+      resourceType: 'member',
+      resourceId: memberId,
+      details: { from: previousRole, to: role, memberUserId: member.userId },
+    });
+    return saved;
   }
 
   /** 워크스페이스 이름 변경 (Admin+). 길이 검증은 DTO가 선행 수행한다. */
@@ -300,7 +329,17 @@ export class WorkspacesService {
       });
     }
     workspace.name = name.trim();
-    return this.workspaceRepository.save(workspace);
+    const saved = await this.workspaceRepository.save(workspace);
+    // 감사 로그(best-effort). 어떤 필드가 바뀌었는지 details.field 로 구분.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: AUDIT_ACTIONS.WORKSPACE_UPDATED,
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      details: { field: 'name' },
+    });
+    return saved;
   }
 
   /**
@@ -362,7 +401,17 @@ export class WorkspacesService {
       };
     }
     workspace.settings = nextSettings;
-    return this.workspaceRepository.save(workspace);
+    const saved = await this.workspaceRepository.save(workspace);
+    // 감사 로그(best-effort). settings 변경(origins·timezone·maxConcurrent)은 field='settings'.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKSPACE_UPDATED,
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      details: { field: 'settings' },
+    });
+    return saved;
   }
 
   /**
@@ -491,6 +540,7 @@ export class WorkspacesService {
       });
     }
 
+    let leftMembershipId: string | undefined;
     await this.memberRepository.manager.transaction(async (manager) => {
       const memRepo = manager.getRepository(WorkspaceMember);
 
@@ -517,7 +567,19 @@ export class WorkspacesService {
           });
         }
       }
+      // remove() 는 in-memory 엔티티의 id 를 지우므로 커밋 후 감사용으로 미리 캡처한다.
+      leftMembershipId = membership.id;
       await memRepo.remove(membership);
+    });
+
+    // 감사 로그는 트랜잭션 커밋 후 best-effort. 자가 탈퇴는 mode='left' 로 admin 제거(removed)와 구분.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: AUDIT_ACTIONS.MEMBER_REMOVED,
+      resourceType: 'member',
+      resourceId: leftMembershipId ?? requesterId,
+      details: { mode: 'left', memberUserId: requesterId },
     });
   }
 
@@ -643,7 +705,18 @@ export class WorkspacesService {
       });
     }
     await this.assertAdmin(workspaceId, requesterId);
+    // remove() 는 in-memory id 를 지우므로 감사용으로 미리 캡처한다.
+    const removedMemberUserId = member.userId;
     await this.memberRepository.remove(member);
+    // 감사 로그(best-effort). admin 에 의한 제거는 mode='removed' 로 자가 탈퇴(left)와 구분.
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: requesterId,
+      action: AUDIT_ACTIONS.MEMBER_REMOVED,
+      resourceType: 'member',
+      resourceId: memberId,
+      details: { mode: 'removed', memberUserId: removedMemberUserId },
+    });
   }
 
   private async assertMembership(

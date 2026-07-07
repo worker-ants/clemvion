@@ -931,4 +931,192 @@ describe('WorkspacesService', () => {
       ).rejects.toMatchObject({ response: { code: 'WORKSPACE_NOT_FOUND' } });
     });
   });
+
+  // 결정4=B (spec-sync-data-flow-12-workspace-gaps): workspace/member CRUD 감사 로깅.
+  // workspace.deleted 는 audit_log.workspace_id ON DELETE CASCADE 제약으로 영속 불가 →
+  // 의도적 미기록 (아래 별도 케이스로 부재를 회귀 검증).
+  describe('audit logging (결정4=B)', () => {
+    function getAudit(): { record: jest.Mock } {
+      return (
+        service as unknown as { auditLogsService: { record: jest.Mock } }
+      ).auditLogsService;
+    }
+
+    it('records workspace.created on createTeam', async () => {
+      const audit = getAudit();
+      await service.createTeam('user-uuid-1', 'My Team');
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.WORKSPACE_CREATED,
+          resourceType: 'workspace',
+          resourceId: 'ws-uuid-1',
+        }),
+      );
+    });
+
+    it('records workspace.updated (field=name) on renameWorkspace', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      const audit = getAudit();
+      await service.renameWorkspace('ws-uuid-1', 'New Name', 'user-uuid-1');
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.WORKSPACE_UPDATED,
+          resourceType: 'workspace',
+          resourceId: 'ws-uuid-1',
+          details: { field: 'name' },
+        }),
+      );
+    });
+
+    it('records workspace.updated (field=settings) on updateWorkspaceSettings', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: {},
+      });
+      const audit = getAudit();
+      await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        { interactionAllowedOrigins: ['https://a.com'] } as never,
+        'user-uuid-1',
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.WORKSPACE_UPDATED,
+          resourceType: 'workspace',
+          resourceId: 'ws-uuid-1',
+          details: { field: 'settings' },
+        }),
+      );
+    });
+
+    it('records member.invited (mode=direct_add) on addMemberByEmail', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      // getMemberRole(admin) → then existing-member lookup returns null.
+      memberRepo.findOne
+        .mockResolvedValueOnce({ role: 'admin' })
+        .mockResolvedValueOnce(null);
+      (
+        service as unknown as { userRepository: { findOne: jest.Mock } }
+      ).userRepository.findOne.mockResolvedValue({ id: 'user-added' });
+      memberRepo.save.mockResolvedValue({ id: 'mem-added' });
+      const audit = getAudit();
+      await service.addMemberByEmail(
+        'ws-uuid-1',
+        'added@example.com',
+        'editor',
+        'user-uuid-1',
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.MEMBER_INVITED,
+          resourceType: 'member',
+          resourceId: 'mem-added',
+          details: expect.objectContaining({ mode: 'direct_add' }),
+        }),
+      );
+    });
+
+    it('records member.role_changed (from/to) on updateMemberRole', async () => {
+      // getMemberRole(admin) for assertAdmin, then the member being changed.
+      memberRepo.findOne
+        .mockResolvedValueOnce({ role: 'admin' })
+        .mockResolvedValueOnce({
+          id: 'mem-x',
+          role: 'viewer',
+          userId: 'user-x',
+          workspaceId: 'ws-uuid-1',
+        });
+      memberRepo.save.mockImplementation((m: unknown) => Promise.resolve(m));
+      const audit = getAudit();
+      await service.updateMemberRole(
+        'ws-uuid-1',
+        'mem-x',
+        'editor',
+        'user-uuid-1',
+      );
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGED,
+          resourceType: 'member',
+          resourceId: 'mem-x',
+          details: expect.objectContaining({ from: 'viewer', to: 'editor' }),
+        }),
+      );
+    });
+
+    it('records member.removed (mode=removed) on admin removeMember', async () => {
+      // member lookup (not self, not owner), then assertAdmin getMemberRole(admin).
+      memberRepo.findOne
+        .mockResolvedValueOnce({
+          id: 'mem-y',
+          role: 'editor',
+          userId: 'user-y',
+          workspaceId: 'ws-uuid-1',
+        })
+        .mockResolvedValueOnce({ role: 'admin' });
+      const audit = getAudit();
+      await service.removeMember('ws-uuid-1', 'mem-y', 'user-uuid-1');
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.MEMBER_REMOVED,
+          resourceType: 'member',
+          resourceId: 'mem-y',
+          details: expect.objectContaining({ mode: 'removed' }),
+        }),
+      );
+    });
+
+    it('records member.removed (mode=left) on leaveWorkspace', async () => {
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-self',
+        role: 'editor',
+        userId: 'user-uuid-1',
+        workspaceId: 'ws-uuid-1',
+      });
+      const audit = getAudit();
+      await service.leaveWorkspace('ws-uuid-1', 'user-uuid-1');
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: AUDIT_ACTIONS.MEMBER_REMOVED,
+          resourceType: 'member',
+          details: expect.objectContaining({ mode: 'left' }),
+        }),
+      );
+    });
+
+    it('does NOT record any workspace.deleted action (CASCADE constraint)', () => {
+      // 회귀 가드: audit_log.workspace_id ON DELETE CASCADE 로 삭제 감사는 영속 불가라
+      // AUDIT_ACTIONS 에 workspace.deleted 자체가 없어야 한다.
+      expect(
+        Object.values(AUDIT_ACTIONS as Record<string, string>),
+      ).not.toContain('workspace.deleted');
+    });
+  });
 });
