@@ -744,3 +744,83 @@ describe("PresentationContent — isSelected guard for undefined ids (spec §10.
     expect(onPortButtonClick).toHaveBeenCalledWith("btn-b");
   });
 });
+
+// 실행이력 프리뷰 = 텍스트 포워드 데이터 뷰 (spec 4-nodes/6-presentation/0-common §6.1,
+// 1-carousel §4 옵션 D). 시각 레이아웃(card/image/minimal) 재구성은 인터랙티브 채널
+// (웹챗 위젯)이 담당하고, 프리뷰는 layout 을 배지로만 노출 + 이미지는 lazy 썸네일/링크.
+describe("CarouselContent — text-forward preview (layout badge + lazy thumbnail)", () => {
+  it("renders a layout badge reflecting config.layout (renderer now references config.layout)", () => {
+    render(
+      <CarouselContent
+        data={{ items: [{ title: "A" }] }}
+        config={{ layout: "minimal" }}
+      />,
+    );
+    expect(screen.getByText(/layout:/i).textContent).toMatch(/minimal/);
+  });
+
+  it("defaults the layout badge to 'card' when layout is unset", () => {
+    render(<CarouselContent data={{ items: [{ title: "A" }] }} />);
+    expect(screen.getByText(/layout:/i).textContent).toMatch(/card/);
+  });
+
+  it("shows the slide count", () => {
+    render(
+      <CarouselContent
+        data={{ items: [{ title: "A" }, { title: "B" }] }}
+        config={{ layout: "card" }}
+      />,
+    );
+    expect(screen.getByText(/2 slides/)).toBeDefined();
+  });
+
+  it("renders images as lazy-loaded thumbnails wrapped in a URL link (no eager load)", () => {
+    const { container } = render(
+      <CarouselContent
+        data={{ items: [{ title: "A", image: "https://ex.com/a.png" }] }}
+        config={{ layout: "card" }}
+      />,
+    );
+    const img = container.querySelector("img");
+    expect(img?.getAttribute("loading")).toBe("lazy");
+    expect(img?.getAttribute("src")).toBe("https://ex.com/a.png");
+    // 이미지 URL 매핑 확인용 — 원본 URL 링크(새 탭).
+    const link = container.querySelector('a[href="https://ex.com/a.png"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("target")).toBe("_blank");
+    expect(link?.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("does not render an image element when the item has no valid http image URL", () => {
+    const { container } = render(
+      <CarouselContent
+        data={{ items: [{ title: "A", image: "javascript:alert(1)" }] }}
+        config={{ layout: "minimal" }}
+      />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("lists slide title, description and button labels (text-forward)", () => {
+    render(
+      <CarouselContent
+        data={{
+          items: [
+            {
+              title: "Slide T",
+              description: "Slide D",
+              buttons: [
+                { id: "b1", label: "Go", type: "link", url: "https://x.com" },
+              ],
+            },
+          ],
+        }}
+        config={{ layout: "card" }}
+        onLinkButtonClick={() => {}}
+      />,
+    );
+    expect(screen.getByText("Slide T")).toBeDefined();
+    expect(screen.getByText("Slide D")).toBeDefined();
+    expect(screen.getByText("Go")).toBeDefined();
+  });
+});

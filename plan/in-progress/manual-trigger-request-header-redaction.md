@@ -1,5 +1,5 @@
 ---
-worktree: TBD
+worktree: (unstarted)
 started: 2026-07-07
 owner: planner
 ---
