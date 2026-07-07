@@ -600,6 +600,7 @@ describe('WorkspaceInvitationsService', () => {
         mailService as never,
         built.dataSource,
         notifications as never,
+        auditLogs as never,
       );
       invitationRepo.findOne.mockResolvedValueOnce({
         id: 'inv-1',

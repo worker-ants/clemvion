@@ -26,8 +26,8 @@ owner: planner
 
 - [x] **결정4 audit** — `audit-action.const.ts` 에 5액션(workspace.created/updated + member.invited/role_changed/removed) + `workspaces.service`/`workspace-invitations.service` record 호출. **`workspace.deleted` 제외** — `audit_log.workspace_id` ON DELETE CASCADE(V001) 로 삭제 감사 row 영속 불가(구현 중 발견한 구조적 제약; 12-workspace §Rationale·1-auth §4.1 주 반영).
 - [x] **결정3 마이그레이션** — V108 **fail-loud 가드**(중복 personal 검출 시 RAISE + operator 수동 해소; 자동 dedup 은 20여 CASCADE FK 로 데이터 유실 위험이라 배제) + V109 `CREATE UNIQUE INDEX CONCURRENTLY uq_workspace_personal_owner`(.conf executeInTransaction=false).
-- [x] **결정2 클레임 rename + dual-read** — `auth.service` accessPayload `activeWorkspaceId`; `jwt.strategy`(passReqToCallback)가 `activeWorkspaceId → 헤더 → legacy workspaceId → personal → 첫 멤버십` 순 확정+멤버십 검증; `websocket.gateway` dual-read; decorator 우선순위 token>header.
-- [x] **결정1 switch 엔드포인트 + FE** — `POST /api/auth/workspaces/:id/switch` + `AuthService.switchWorkspace`(generateTokens targetWorkspaceId); FE `workspace-store.switchWorkspace` async→`/switch` 호출→토큰 저장, `auth-provider` reconcile-on-load, 헤더 fallback.
+- [x] **결정2 클레임 rename + dual-read** — `auth.service` accessPayload `activeWorkspaceId`; `jwt.strategy` 가 토큰 클레임(`activeWorkspaceId ?? workspaceId`)의 멤버십을 검증해 `request.user.workspaceId` 확정(비멤버·부재 시 personal→첫 멤버십, 헤더는 읽지 않음); `websocket.gateway` dual-read. **워크스페이스 컨텍스트는 header-first**: `workspace.decorator`·`RolesGuard` 가 `X-Workspace-Id` 헤더 우선(전환기 하위호환), 헤더 없으면 토큰 클레임 사용. (초기 token-first 구현이 e2e 워크스페이스 격리 회귀를 유발 → header-first 로 정정, commit `0ae4dad0e`.)
+- [x] **결정1 switch 엔드포인트 + FE** — `POST /api/auth/workspaces/:id/switch`(`ParseUUIDPipe`) + `AuthService.switchWorkspace` 가 `signAccessToken` 으로 **access token 만** 재발급(refresh 무회전, commit `f99dad4bd`); FE `workspace-store.switchWorkspace` async→`/switch` 호출→토큰 저장(실패 toast + out-of-order 가드), `auth-provider` reconcile-on-load, 헤더는 header-first 하위호환으로 유지.
 
 ## 미구현 항목 (원 audit — 위 결정으로 처리, 구현 완료)
 - [x] 워크스페이스 전환 플로우(§1.5) — 결정1=A. switch 엔드포인트+FE 구현.
