@@ -3,7 +3,7 @@ title: "노드 연결하기"
 title_en: "Connecting nodes"
 section: "03-workflow-editor"
 order: 4
-summary: "출력 포트에서 입력 포트로 연결선을 그어 데이터 흐름을 만드는 방법과, 연결 유효성 규칙·엣지 색상·순환 경고를 정리해요."
+summary: "출력 포트에서 입력 포트로 연결선을 그어 데이터 흐름을 만드는 방법과, 연결 유효성 규칙·연결선 색상·순환 경고를 정리해요."
 summary_en: "Draw edges from output to input ports to build data flow, and understand connection validity, edge colors, and cycle warnings."
 spec: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/1-node-common.md"]
 code: ["codebase/frontend/src/components/editor/canvas/custom-edge.tsx", "codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts", "codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx", "codebase/frontend/src/lib/stores/editor-store.ts"]
@@ -85,4 +85,4 @@ code: ["codebase/frontend/src/components/editor/canvas/custom-edge.tsx", "codeba
 - 연결한 노드의 결과는 다음 노드의 설정에서 표현식으로 참조할 수 있어요. 문법은 [표현식 기본](/docs/04-expression-language/basics)에서 확인해요.
 - 연결선 자체는 문제없이 만들어졌어도 저장이 거부되거나 경고 배지가 뜨는 다른 구조적 규칙(예: Parallel 중첩 제한)이 있어요. 순환 경고와 같은 노란 배지 체계를 [유효성 오류](/docs/05-run-and-debug/validation-errors)에서 더 자세히 다뤄요.
 - 노드를 연결한 뒤에는 [설정 패널](/docs/03-workflow-editor/settings-panel)에서 세부 필드를 채워야 실행 가능한 상태가 돼요.
-- 캔버스 전체 구조와 4개 작업 영역이 궁금하다면 [에디터 개요](/docs/03-workflow-editor/overview)에서 먼저 훑어봐요.
+- 캔버스 전체 구조와 화면 구성이 궁금하다면 [에디터 개요](/docs/03-workflow-editor/overview)에서 먼저 훑어봐요.
