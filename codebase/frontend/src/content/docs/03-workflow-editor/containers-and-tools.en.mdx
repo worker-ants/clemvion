@@ -1,0 +1,92 @@
+This page covers **container nodes**, which group other nodes together and run them repeatedly, and how AI Agent nodes connect to tools. Containers are Loop, ForEach, and Map — nodes that run child nodes inside themselves on each iteration. AI Agent tools aren't a separate canvas area — they live as settings on the node itself.
+
+## Container nodes
+
+**Loop**, **ForEach**, and **Map** are the three container nodes. A container runs its children inside `body`, collects each iteration's result through `emit`, and sends the aggregate out through `done`. (The Background node has a similar execution flow but doesn't use a container box — it connects flatly through a `background` port, so the rules on this page don't apply to it.)
+
+### Visual appearance
+
+A container node is drawn as **the same size card** as any other node. It's not a large box that wraps its children — it's a regular node card whose header shows an iteration summary (e.g. `10x · break condition`). Child nodes can be placed anywhere on the canvas; instead of visual containment, a small `in <Container Name>` badge appears just under a child node's header to show membership.
+
+### How a node becomes a child
+
+There's no dedicated field in the settings panel for assigning children. Membership is determined **only by connections**, and it's recalculated automatically every time a connection changes.
+
+<Steps>
+<Step>Connecting the container's `body` port to a node forces that node into the container as a child. If it's already a child of a different container, the connection is rejected and a warning tells you to detach it from that container first.</Step>
+<Step>Connecting from a child node onward to another node (chaining) automatically pulls the next node into the same container, as long as that node doesn't already belong to a container. If the two nodes already belong to different containers, nothing changes — the connection is allowed but membership stays as-is.</Step>
+<Step>Connecting the last node in the chain to the container's `emit` port designates it as the node whose output is collected on every iteration. Again, the connection is rejected if it already belongs to a different container.</Step>
+</Steps>
+
+Removing the `body` connection automatically clears that node's membership (unless it's still connected to `emit` or sits mid-chain, in which case those rules keep it assigned). Deleting a container or a child node also triggers a full recalculation based on the remaining connections, so no stale membership is left behind. Reopening a workflow runs the same recalculation from the saved connections, so membership stays consistent automatically.
+
+<Callout type="tip">
+There's no drag-and-drop way to place a node inside a container. To change membership, reconnect the edges instead.
+</Callout>
+
+### Constraints
+
+<FieldTable rows={[
+  { name: "No trigger children", required: false, type: "connection rejected", description: "Trigger nodes like Manual Trigger can't become children of a container. The connection is rejected automatically, and running the workflow also fails with an error.", default: "-" },
+  { name: "No self-reference", required: false, type: "structural", description: "A container can't be its own child.", default: "-" },
+  { name: "No container cycles", required: false, type: "runtime error", description: "Assigning one of a container's own descendant containers as its parent creates a cycle. This is rejected as an error at run time.", default: "-" },
+  { name: "Exactly one emit", required: false, type: "runtime error", description: "The container's emit port must have exactly one child node connected. Zero or two-or-more connections cause the run to fail.", default: "-" },
+  { name: "No blocking nodes", required: false, type: "design constraint", description: "Nodes that pause and wait for user input — Form, button-response waits, Multi Turn AI Agent — can't be used inside a container's body.", default: "-" },
+  { name: "No internal cycles", required: false, type: "design constraint", description: "You can't create a back-edge (cycle) inside a container's body.", default: "-" }
+]} />
+
+<Callout type="warn">
+Connecting a trigger as a child, or connecting a node that already belongs to another container, is blocked the moment you try it. A cyclic container structure or a wrong emit count still saves fine, but fails with an error **when you run** the workflow.
+</Callout>
+
+## Nesting
+
+You can place one container inside another. The inner container is itself a child that follows the same `body`/`emit` rules as the outer one, and its header carries a membership badge pointing to the outer container too. There's no separate nesting-depth indicator or background tint — follow the membership badges to see how many levels deep a node sits.
+
+<Callout type="note">
+The Parallel node also has multiple branches, but it isn't a container — it's a regular node with multiple branch ports. The separate depth limit that applies when nesting Parallel nodes is covered in [Validation Errors](/docs/05-run-and-debug/validation-errors).
+</Callout>
+
+## Deleting containers
+
+Trying to delete a container that has children opens a confirmation dialog. All three delete paths — the ✕ button, the right-click "Delete" menu item, and the `Delete`/`Backspace` key — go through the same dialog.
+
+<FieldTable rows={[
+  { name: "Delete container and all children", required: false, type: "full delete", description: "Deletes the container together with every child node that belongs to it and their related connections.", default: "-" },
+  { name: "Ungroup: keep children, remove container only", required: false, type: "default choice", description: "Removes only the container; its children are promoted to the top level. Connections between the children are kept.", default: "-" }
+]} />
+
+An empty container with no children is deleted immediately, with no confirmation dialog. The dialog's default selection is **Ungroup** — the non-destructive option.
+
+<Callout type="note">
+When you select multiple nodes and delete them together, any container with children in that selection is handled separately through its own confirmation dialog, while the rest of the selection is deleted right away.
+</Callout>
+
+The general delete methods for regular nodes — the delete button, right-click menu, and keyboard shortcut — are covered in [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes).
+
+## Connecting AI Agent to tools
+
+There's currently no dedicated tool area shown on the canvas for AI Agent nodes. The tools an AI Agent can call aren't attached by dragging nodes onto the canvas — they're managed from the node's **settings panel**.
+
+- **Knowledge Base connections** — selecting a Knowledge Base in the settings panel automatically registers it as a RAG search tool.
+- **MCP Server connections** — connecting an MCP server in the settings panel exposes that server's tools to the LLM.
+
+Both live as settings on the AI Agent node itself — neither appears as a separate node or connection on the canvas. So there's no drag-to-attach interaction like containers have, and deleting an AI Agent node doesn't show a container-style confirmation dialog — since its tools aren't separate canvas nodes but configuration values, there's nothing else to lose.
+
+<Callout type="tip">
+Field-level options for Knowledge Bases and MCP servers are covered in the [AI node](/docs/02-nodes/ai). Creating and managing Knowledge Bases themselves is covered in [Knowledge Base](/docs/06-integrations-and-config/knowledge-base), and registering MCP servers in [MCP Server Integration](/docs/06-integrations-and-config/mcp-servers).
+</Callout>
+
+## Connections inside a container
+
+A connection can't cross a container's boundary directly. A node outside the container can't connect straight to one inside, and vice versa — all data has to pass through the container's `body`/`emit` ports. Because the inside of a container is a loop structure, it's excluded from the workflow-wide cycle check, and nested containers are each validated independently at their own level.
+
+General connection rules — edge colors, validity checks, and automatic cleanup of broken connections — are covered in [Connecting nodes](/docs/03-workflow-editor/connecting-nodes).
+
+## Tips & notes
+
+- Field-level settings and the execution model for container nodes (Loop/ForEach/Map) are covered in detail in [Logic nodes](/docs/02-nodes/logic).
+- To check a node's membership, look for the `in <Container Name>` badge under its header — no badge means it's a top-level node.
+- To change container membership, reconnect the edges rather than dragging — detaching from `body`/`emit` clears membership along with it.
+- The list of tools an AI Agent calls and settings like max tool calls are covered in the [AI node](/docs/02-nodes/ai).
+- If you're new to the editor's overall layout and what each area does, [Workflow editor overview](/docs/03-workflow-editor/overview) is a good place to start.

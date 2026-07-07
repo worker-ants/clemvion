@@ -1,0 +1,58 @@
+This page covers **when a workflow gets saved**, how saving relates to **versions**, and how to export and import a workflow as a **JSON file**. Use it whenever you want to keep your own backup or move a workflow to a different workspace.
+
+## Saving
+
+- **Manual save**: Click the `Save` button in the header, or press `Ctrl+S` (`Cmd+S` on Mac), to save the current canvas immediately. The button is disabled when there's nothing to save.
+- **Auto-save on run**: When you click `Run` (whether running the whole workflow or running from a selected node) and there are unsaved changes, the editor automatically saves them right before the run starts. This means every run always uses the latest state of the canvas.
+- The small status text in the header tells you exactly where things stand: **Saving...** → **Unsaved changes** → **Saved**.
+
+<Callout type="tip">
+Get in the habit of checking that the header text has switched to "Saved" after a big change — that way you know your work is safely stored before you close the tab or head back to [Workflows](/workflows).
+</Callout>
+
+<Callout type="note">
+The `Save` button is temporarily disabled while there's an unresolved graph error. Hover over the button to see what's wrong. Error and warning badges are covered in detail in [Validation errors](/docs/05-run-and-debug/validation-errors).
+</Callout>
+
+## How saving relates to versions
+
+Versions aren't created on a timer — a new version snapshot is only created **at the moment an actual save happens**:
+
+- When you save manually with the `Save` button or `Ctrl+S` — a new version is created only if there was something to save.
+- When the editor auto-saves right before a run — that snapshot also becomes a new version.
+
+Each version comes with an auto-generated change summary describing what changed. Browsing the version list, comparing two points in time, and restoring an older state are all covered in [Version history](/docs/05-run-and-debug/version-history).
+
+## Exporting to JSON
+
+Download a workflow as a JSON file to back it up, hand it to a teammate, or move it to a different workspace. Export works the same way from two places.
+
+<Steps>
+  <Step>From inside the editor: open the `⋮` (more) menu at the top right of the header and click **Export**.</Step>
+  <Step>From [Workflows](/workflows): open the `⋯` menu on the row for the workflow you want and click **Export**.</Step>
+  <Step>A `.json` file named after the workflow downloads immediately.</Step>
+</Steps>
+
+The exported JSON contains the workflow's name, description, tags, settings, and its nodes and connections. It does not include execution history or version history — export is meant to move the **canvas structure**, not run data.
+
+## Importing a JSON file
+
+<Steps>
+  <Step>On the [Workflows](/workflows) page, click the **Import Workflow** button near the top.</Step>
+  <Step>Choose the `.json` file you exported earlier.</Step>
+  <Step>Once the import finishes, a new workflow appears in the list.</Step>
+</Steps>
+
+Importing never overwrites an existing workflow — it **always adds a new one**. If the file is corrupted or isn't in the right format, you'll see an error notice.
+
+<Callout type="note">
+The **Import Workflow** button is only shown to members with editor role or higher.
+</Callout>
+
+To move a workflow to a different workspace, [switch workspaces](/docs/07-workspace-and-team/workspaces-and-members) first, then import the same file — it's added as a new workflow in that workspace.
+
+## Tips & notes
+
+- [Workflow editor overview](/docs/03-workflow-editor/overview) walks through the whole header area first, so you can see at a glance where the save, run, and more menu live.
+- All editor shortcuts, including the save shortcut, are collected in [Keyboard shortcuts](/docs/03-workflow-editor/keyboard-shortcuts).
+- Power-user tip: save with `Ctrl+S` right before starting a big refactor — that moment is kept as a version, giving you a checkpoint you can always return to in [Version history](/docs/05-run-and-debug/version-history).

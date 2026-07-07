@@ -1,0 +1,91 @@
+---
+title: "노드 설정 패널"
+title_en: "The node settings panel"
+section: "03-workflow-editor"
+order: 5
+summary: "노드를 클릭하면 열리는 설정 패널에서 필드를 채우고, 표현식을 쓰고, JSON 모드로 전환하고, 기본 출력값을 정의하는 방법을 정리해요."
+summary_en: "Fill in fields, use expressions, switch to JSON mode, and define a default output — all from the settings panel that opens when you click a node."
+spec: ["spec/3-workflow-editor/1-node-common.md"]
+code: ["codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx", "codebase/frontend/src/components/editor/settings-panel/auto-form/schema-form.tsx", "codebase/frontend/src/components/editor/expression/expression-input.tsx"]
+---
+
+이 페이지에서는 노드를 클릭했을 때 열리는 **설정 패널**에서 필드를 채우고, 표현식을 쓰고, JSON으로 직접 편집하고, 에러가 나도 흘려보낼 기본 출력값을 정하는 방법을 설명해요.
+
+캔버스에서 노드를 클릭하면 우측에 설정 패널이 열려요. 이 패널 안에서 노드가 무엇을 할지 결정하는 값 — 노드 유형별 고유 필드, 이름표, 에러 처리 방식, 메모 — 을 모두 편집할 수 있어요.
+
+<Callout type="warn">
+설정 패널은 값을 바꾼다고 바로 저장되지 않아요. Settings 탭은 하단의 **변경 저장** 버튼을, Code 탭은 **JSON 적용** 버튼을 눌러야 편집한 내용이 노드에 반영돼요. 저장하기 전에 다른 노드를 클릭하거나 탭을 바꾸면 편집 중이던 내용이 사라지니 주의해요.
+</Callout>
+
+## 패널 열기·닫기
+
+- 캔버스에서 노드를 클릭하면 우측에 패널이 열려요. 헤더에는 노드 아이콘과 현재 이름표가 보이고, ✕ 버튼을 누르면 선택이 풀리며 패널이 닫혀요.
+- 다른 노드를 클릭하면 그 노드의 설정으로 바로 바뀌어요 — 위 안내처럼, 이전 노드에서 저장하지 않은 변경은 그대로 사라져요.
+- 패널 상단에는 3개 탭이 있어요.
+
+<FieldTable rows={[
+  { name: "Settings", required: false, type: "기본 탭", description: "노드 유형별 고유 필드와 이름표·에러 처리·메모 같은 공통 필드를 편집해요.", default: "-" },
+  { name: "Code", required: false, type: "JSON 편집", description: "노드 설정 전체를 JSON 텍스트로 직접 편집해요.", default: "-" },
+  { name: "Info", required: false, type: "읽기 전용", description: "노드 설명, 입력·출력 포트 목록, 가장 최근 실행 결과(상태·소요 시간·에러·출력 데이터)를 보여줘요.", default: "-" }
+]} />
+
+설정 패널은 [AI 어시스턴트](/docs/03-workflow-editor/ai-assistant) 패널과 같은 우측 자리를 공유해요. 어시스턴트를 열면 노드 선택이 자동으로 풀리며 설정 패널이 닫히고, 어시스턴트를 닫은 뒤 노드를 다시 클릭하면 설정 패널이 열려요.
+
+## 필드 채우기
+
+Settings 탭 맨 위에는 **레이블** 필드가 있어요. 캔버스에 표시되는 노드 이름이고, 다른 노드와 같은 이름을 쓰면 저장이 막히면서 빨간 테두리와 안내 문구가 떠요.
+
+레이블 아래에는 노드 유형에 따라 달라지는 고유 필드가 나와요. 예를 들어 HTTP Request 노드에는 URL·메서드·헤더 필드가, If/Else 노드에는 조건식 필드가 나오는 식이에요. 노드별 필드는 [노드 카탈로그](/docs/02-nodes/overview)에서 하나씩 정리해요.
+
+일부 필드는 라벨 옆에 물음표 아이콘이 붙어 있어요. 클릭하면 짧은 설명이 담긴 팝업이 뜨고, 필요하면 "자세히 보기 →" 링크로 매뉴얼의 해당 부분을 새 탭에서 열 수 있어요.
+
+고유 필드 아래에는 대부분의 노드가 공유하는 필드가 이어져요. 다만 **Manual Trigger**는 워크플로우의 시작점이라 에러 처리·비활성화 항목이 나타나지 않아요.
+
+<FieldTable rows={[
+  { name: "Error Handling", required: false, type: "드롭다운", description: "이 노드에서 에러가 났을 때 워크플로우를 어떻게 진행할지 정해요. 옵션과 실행 시 동작은 [에러 처리](/docs/05-run-and-debug/error-handling)에서 자세히 다뤄요.", default: "워크플로우 중단" },
+  { name: "Disable this node", required: false, type: "체크박스", description: "체크하면 실행에서 이 노드를 완전히 건너뛰어요. 자세한 동작은 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서 설명해요.", default: "해제" },
+  { name: "Notes", required: false, type: "텍스트", description: "이 노드에 대한 메모예요. 마크다운으로 적을 수 있어요.", default: "빈 값" }
+]} />
+
+## 표현식 쓰기
+
+필드 값 자리에 `{{ }}`로 감싼 표현식을 넣으면 이전 노드의 결과나 변수 같은 동적 값을 참조할 수 있어요.
+
+<Example title="이전 노드 결과 참조">
+```ts
+{{ $input.email }}
+```
+</Example>
+
+`{{`를 입력하면 지금 노드에서 실제로 접근 가능한 노드·변수 목록이 자동완성 팝업으로 떠요. 화살표 키로 고르고 Enter나 Tab으로 선택해요. `Ctrl`/`Cmd` + `Space`를 누르면 같은 목록을 별도 변수 선택 패널로 열어 찾아볼 수도 있어요.
+
+- 문법 오류는 빨간색으로 표시돼요.
+- 지금 노드에서 접근할 수 없는 노드·변수를 참조하면 주황색 경고가 떠요.
+
+표현식 문법 전체와 사용 가능한 참조 목록은 [표현식 기초](/docs/04-expression-language/basics)와 [변수와 컨텍스트](/docs/04-expression-language/variables-and-context)에서 자세히 다뤄요.
+
+## JSON으로 한 번에 편집하기
+
+Code 탭에서는 노드 설정 전체를 JSON 텍스트로 직접 보고 고칠 수 있어요. 값을 수정한 뒤 **JSON 적용** 버튼을 누르면 저장돼요. JSON 문법이 잘못됐으면 적용이 막히고 "잘못된 JSON" 안내가 떠요.
+
+여러 필드를 한 번에 바꾸거나 다른 노드의 설정과 나란히 비교하고 싶을 때 Code 탭이 편해요 — 전체 설정을 텍스트로 복사해서 비교하거나, 원하는 부분만 골라 다시 붙여 넣을 수 있어요.
+
+## 기본 출력값 정의하기 (Use Default Output)
+
+Error Handling에서 **기본 출력 사용**을 고르면, 이 노드가 실패했을 때 워크플로우를 멈추는 대신 미리 정해 둔 값을 출력으로 흘려보내요.
+
+<Steps>
+<Step>Error Handling 드롭다운에서 **기본 출력 사용**을 선택해요.</Step>
+<Step>펼쳐지는 **기본 출력 (JSON)** 에디터에 흘려보낼 값을 입력해요. 예: `{"result": null, "status": "fallback"}`</Step>
+<Step>JSON이 유효하지 않으면 테두리가 빨갛게 바뀌고 저장이 막혀요. **기본값으로 초기화** 버튼을 누르면 빈 객체 `{}`로 되돌아가요.</Step>
+<Step>값을 비운 채로 저장하면 실행 시 `null`이 출력값으로 쓰여요.</Step>
+</Steps>
+
+이 값이 실제로 언제, 어떻게 다음 노드로 전달되는지, 다른 에러 처리 옵션과 어떻게 다른지는 [에러 처리](/docs/05-run-and-debug/error-handling)에서 다뤄요.
+
+## 팁 & 참고
+
+- 필드를 고친 뒤에는 다른 노드를 클릭하거나 탭을 바꾸기 전에 저장 버튼부터 눌러요 — 저장 전 내용은 유지되지 않아요.
+- Code 탭에서 전체 설정을 복사해 두면 비슷한 노드를 여러 개 만들 때 필드를 하나씩 옮겨 적지 않아도 돼요.
+- 표현식 자동완성 목록에 원하는 노드가 안 보인다면, 그 노드가 지금 노드와 실제로 연결돼 있는지부터 확인해요 — 연결되지 않은 노드는 목록에서 숨겨져요.
+- 캔버스 전체 다루기와 노드 추가·정렬·삭제는 [워크플로우 에디터 개요](/docs/03-workflow-editor/overview)와 [노드 편집과 정리](/docs/03-workflow-editor/editing-nodes)에서 이어서 볼 수 있어요.

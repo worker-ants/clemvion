@@ -88,7 +88,7 @@ config 스키마에서 `toolNodeIds` / `toolOverrides` 필드와, 캔버스의 A
 ### 7. 매뉴얼 업데이트
 
 - [ ] `codebase/frontend/src/content/docs/02-nodes/ai.mdx` (또는 해당 페이지) — 도구 연결 사용법 추가
-- [ ] `codebase/frontend/src/content/docs/03-workflow-editor/walkthrough.mdx` — Tool Area / 도구 등록 흐름 walkthrough 갱신
+- [ ] `codebase/frontend/src/content/docs/03-workflow-editor/containers-and-tools.mdx` — 새 도구 연결 모델 반영 (현재는 Tool Area 제거 상태를 반영해 "설정 패널의 Knowledge Base·MCP 연결"만 서술. 재설계 확정 시 갱신)
 
 ### 8. REVIEW
 

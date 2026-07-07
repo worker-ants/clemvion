@@ -1,0 +1,93 @@
+The canvas is the infinite 2D space where you draw a [workflow](/docs/02-nodes/overview). This page covers moving and zooming the canvas, plus placing nodes from the palette on the left. Selecting, moving, duplicating, and deleting nodes are covered in [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes), and connecting nodes with edges is covered in [Connecting nodes](/docs/03-workflow-editor/connecting-nodes). If you want the full editor layout first, see the [Editor overview](/docs/03-workflow-editor/overview).
+
+## Move and zoom the canvas
+
+<FieldTable rows={[
+  { name: "Pan (move)", required: false, type: "Drag / Space", description: "Drag an empty area with the mouse, or hold `Space` while dragging.", default: "-" },
+  { name: "Zoom in/out", required: false, type: "Mouse wheel", description: "Scroll the wheel. Zoom centers on the cursor position.", default: "-" },
+  { name: "Zoom in/out (alt)", required: false, type: "Ctrl+wheel / pinch", description: "Hold `Ctrl` while scrolling, or use a two-finger pinch gesture on a trackpad.", default: "-" },
+  { name: "Zoom buttons", required: false, type: "Bottom-left overlay", description: "Zoom-out(−)/zoom-in(+) buttons, a zoom-level slider, and the current zoom percent, all together.", default: "-" },
+  { name: "Fit to view", required: false, type: "Fit button", description: "Automatically adjusts the viewport so every node is visible.", default: "-" }
+]} />
+
+The zoom range is **25%–200%**. The bottom-left slider moves in 5% steps within that range, and the current percent is shown live next to it.
+
+<Callout type="tip">
+The most common actions have keyboard equivalents too: `Ctrl` + `+`/`-` to zoom, `Ctrl` + `0` to return to 100%, and `Ctrl` + `1` to fit the view. See the full list on [Keyboard shortcuts](/docs/03-workflow-editor/keyboard-shortcuts).
+</Callout>
+
+## Minimap
+
+The bottom-right corner of the canvas has a minimap showing the whole workflow at a glance.
+
+| Feature | Description |
+| --- | --- |
+| Bird's-eye view | Shows the entire workflow scaled down |
+| Viewport indicator | A rectangle marks the area currently visible on screen |
+| Move the viewport | Drag or scroll inside the minimap to move or zoom the canvas viewport by the same amount |
+| Show/hide | A toggle button above the minimap turns it on and off |
+
+This is especially handy for jumping to a distant part of a large workflow.
+
+## Node palette
+
+The left side of the canvas has a palette for searching and pulling out nodes.
+
+### Categories
+
+Nodes are grouped into 7 categories: **Trigger**, **Logic**, **Flow**, **AI**, **Integration**, **Data**, and **Presentation**. Click a category header to collapse or expand it.
+
+### Search and recently used
+
+Typing in the search box at the top filters node names in real time. You don't need to remember which category a node lives in — just search by name.
+
+The **Recent** section at the top of the palette shows up to 5 recently added node types, newest first (each type appears once, and Manual Trigger is excluded). This section is hidden while you're searching, since it would otherwise overlap with the filtered category list.
+
+### Collapsing the panel
+
+Click the toggle button next to the search box to collapse the whole palette into a narrow icon-only rail. Click the same spot again to expand it back. Useful when you want more room for the canvas.
+
+## Three ways to add a node
+
+<Steps>
+<li>
+
+**Drag from the palette to the canvas.** Drag the node you want from the palette to wherever you want it on the canvas, and it's added right there.
+
+</li>
+<li>
+
+**Click a palette item.** The node is added at the center of the current viewport. Clicking the same node repeatedly offsets each new one slightly so they don't stack exactly on top of each other. This also works from the keyboard — focus the item and press `Enter` or `Space` to do the same thing as a click.
+
+</li>
+<li>
+
+**Double-click an empty spot on the canvas.** A node search popup opens right where you double-clicked. Typing filters the list instantly; use `↑`/`↓` to move the highlight (it wraps at the ends), then `Enter` to place the highlighted node at that same spot. Press `Escape` to close the popup.
+
+</li>
+</Steps>
+
+Right-clicking an empty area opens the same node search popup — choose **Add node** from the context menu. That menu also has paste, select-all, and fit-to-view items. The menu that appears when you right-click a node (open settings, duplicate, delete, and so on) is covered in [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes).
+
+<Callout type="note">
+A workflow can only have one Manual Trigger. Dragging another one from the palette is ignored.
+</Callout>
+
+## Starting from an empty canvas
+
+Creating a new workflow automatically adds one starter node (Manual Trigger). While the canvas has no nodes other than a trigger, a "Let's finish building your workflow" card appears in the top-right corner.
+
+<FieldTable rows={[
+  { name: "① Drag the next node", required: false, type: "Palette → canvas", description: "Drag the node you want from the palette and drop it next to the trigger.", default: "-" },
+  { name: "② Connect the trigger's output", required: false, type: "Port connection", description: "Drag a line from the trigger node's output port to the new node's input port.", default: "-" },
+  { name: "③ Run and check the result", required: false, type: "Run", description: "Use the Run button at the top to execute the workflow and check the result.", default: "-" }
+]} />
+
+Clicking **Learn more** next to each item opens the related manual page in a new tab. Clicking **Open starter guide** below the card opens the [Building your first workflow](/docs/01-getting-started/first-workflow) guide in a new tab. Once you add any non-trigger node, the card fades out.
+
+## Tips & notes
+
+- Palette search filters by node name across every category, so you don't need to remember which category a node belongs to.
+- Recently used nodes only last for the current session — refreshing or opening a different workflow resets the list.
+- If you're not sure where to place a node, just add it anywhere and move it later. See [Editing and organizing nodes](/docs/03-workflow-editor/editing-nodes) for how to move nodes.
+- For large workflows, combining the minimap with the fit-to-view button keeps you oriented while moving around quickly.

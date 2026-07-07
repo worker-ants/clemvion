@@ -26,8 +26,6 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "temperature", required: false, type: "float", description: "Overrides the LLMConfig default.", default: "-"},
   {name: "maxTokens", required: false, type: "integer", description: "Max tokens.", default: "-"},
   {name: "maxToolCalls", required: false, type: "integer", description: "Max tool calls.", default: "10"},
-  {name: "Tool nodes (Tool Area)", required: false, type: "Node list", description: "Nodes dropped into the canvas Tool Area are auto-registered as the agent's tools. Managed purely by drag and drop — no explicit setting.", default: "None"},
-  {name: "toolOverrides", required: false, type: "ToolOverride[]", description: "Per-tool name/description/input-mapping overrides.", default: "[]"},
   {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Automatic Conversation Thread injection scope. `none` sends only system+user, `thread` injects the full workflow thread, and `lastN` injects only the most recent N turns.", default: "none"},
   {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"},
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
@@ -311,8 +309,8 @@ In Multi Turn mode, leaving `inputField` empty skips the initial LLM call and wa
 
 ## Tips & notes
 
-- This page covers the **AI Agent node that runs inside a workflow**. The in-editor [AI Assistant](/docs/03-workflow-editor/overview) is a separate feature — a chat companion that builds workflows for you. Workflows the Assistant generates may contain AI Agent nodes.
-- Registering a tool is as simple as dropping the node into the canvas **Tool Area**. The AI Agent picks it up as a callable tool, and condition tools are auto-separated so their names don't clash with regular ones.
+- This page covers the **AI Agent node that runs inside a workflow**. The in-editor [AI Assistant](/docs/03-workflow-editor/ai-assistant) is a separate feature — a chat companion that builds workflows for you. Workflows the Assistant generates may contain AI Agent nodes.
+- The tools an AI Agent can call are **connected from its settings panel** — the tools of the **Knowledge Bases** (RAG search) you attach via `knowledgeBases` and the **MCP servers** you attach via `mcpServers` are exposed to the LLM, and the condition branches defined in `conditions` act as tools too. (Registering an arbitrary workflow node as a tool by dragging it onto the canvas isn't currently available.)
 - LLM provider connections are managed under [Model settings](/docs/06-integrations-and-config/models); Knowledge Base setup lives in [Knowledge Base](/docs/06-integrations-and-config/knowledge-base); MCP server registration and tool-exposure policy is in [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
 - Multi Turn execution history is inspectable per turn (request/response/token usage) via the Conversation Inspector. Details: [Run results](/docs/05-run-and-debug/run-results).
 - Power-user tip: when `responseFormat=json`, the LLM returns a structure matching your schema. If you add, remove, or rename fields, also check downstream `{{ $node["AI Agent"].output.result.response.field }}` references.

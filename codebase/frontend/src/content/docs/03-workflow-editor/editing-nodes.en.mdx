@@ -1,0 +1,124 @@
+This page covers how to select, move, copy, duplicate, and delete nodes that are already on the canvas. It also covers **disabling** a node when you want to skip it during a run without deleting it, and how to read the status and configuration summary shown on a node card. For adding new nodes to the canvas, see [Working with the canvas](/docs/03-workflow-editor/canvas-basics); for wiring nodes together with connections, see [Connecting nodes](/docs/03-workflow-editor/connecting-nodes).
+
+## Quick reference
+
+<FieldTable rows={[
+  { name: "Select (single)", required: false, type: "Click", description: "Clicking a node selects only that node and clears any previous selection.", default: "-" },
+  { name: "Select (multi)", required: false, type: "Shift+click · drag", description: "Shift-click adds or removes a node from the selection. Dragging over empty space draws a lasso that selects everything inside it.", default: "-" },
+  { name: "Select all", required: false, type: "Ctrl+A", description: "Selects every node in the workflow.", default: "-" },
+  { name: "Move", required: false, type: "Drag", description: "Drag a selected node to move it. If multiple nodes are selected, they move together.", default: "-" },
+  { name: "Copy", required: false, type: "Ctrl+C", description: "Copies the selected nodes — and any connection whose both endpoints are inside the selection — to the app's internal clipboard.", default: "-" },
+  { name: "Paste", required: false, type: "Ctrl+V", description: "Places the copied nodes near their original position, offset slightly.", default: "-" },
+  { name: "Duplicate", required: false, type: "Ctrl+D", description: "Duplicates the selected nodes in place without touching the clipboard.", default: "-" },
+  { name: "Delete", required: false, type: "Delete · ✕ button", description: "Removes the selected nodes along with their connected lines.", default: "-" },
+  { name: "Disable", required: false, type: "Settings panel checkbox", description: "Skips the node during a run while leaving it and its connections in place.", default: "-" }
+]} />
+
+See the full list in the [keyboard shortcuts reference](/docs/03-workflow-editor/keyboard-shortcuts).
+
+## Selecting nodes
+
+- **Click**: Selects only that node and clears any previous selection.
+- **Shift + click**: Adds the node to the current selection, or removes it if it's already selected.
+- **Drag over empty space**: Draws a rectangular lasso; every node it touches gets selected.
+- **Ctrl + A**: Selects every node in the workflow — the same as "Select all" in the empty-canvas right-click menu.
+- **Escape**: Clears the selection. If focus is currently inside the run-results drawer, Escape first returns focus to the canvas — press it again to clear the selection. The run-results drawer is covered in [Viewing run results](/docs/05-run-and-debug/run-results).
+- **Click on empty space**: Clears the selection and closes any open settings panel.
+
+## Moving, copying, and duplicating
+
+Drag a node to move it wherever you want. If several nodes are selected and you drag one of them, the whole selection moves together.
+
+**Copy and paste (Ctrl+C / Ctrl+V)** let you reuse a selected group of nodes as-is.
+
+- `Ctrl+C`: Copies the selected nodes, along with any connection whose **both** endpoints are inside the selection. Connections leading outside the selection are not copied.
+- `Ctrl+V`: Pastes the copied nodes near their original position, offset down and to the right. Labels are automatically made unique, and internal connections are rewired to the new nodes. Using "Paste" from the canvas right-click menu instead places the nodes at the position you clicked.
+
+**Duplicate (Ctrl+D)** creates a copy of the selected nodes right where they are, without touching the clipboard. "Duplicate" in a node's right-click menu does the same thing.
+
+<Callout type="note">
+The Manual Trigger node that starts a workflow can only exist once per workflow, so it can't be duplicated — its "Duplicate" menu item shows as disabled.
+</Callout>
+
+## Deleting nodes
+
+There are two ways to remove a node.
+
+- **Delete or Backspace key**: Removes the selected node(s).
+- **The ✕ button in a node's top-right corner**: Appears on hover or when the node is selected. Clicking it removes just that node.
+
+Both methods also remove any connections attached to the node. If you delete something by accident, `Ctrl+Z` undoes it.
+
+### Deleting a container that has children
+
+Container nodes like Loop, ForEach, and Map can hold other nodes inside them. What happens when you delete one depends on whether it has children.
+
+<Steps>
+<Step>A container with no children, and any regular node, is deleted immediately with no confirmation.</Step>
+<Step>Deleting a container that has children opens a confirmation dialog with two choices.</Step>
+<Step>**Ungroup** (selected by default): Only the container is removed. Its children are promoted to top-level nodes, and the connections between the children are kept.</Step>
+<Step>**Delete container and all children**: The container, all of its children, and their connections are removed together.</Step>
+</Steps>
+
+This confirmation appears the same way no matter which delete path you use — the ✕ button, the "Delete" right-click item, or the Delete key. Container structure and membership rules are covered in more depth in [Containers and AI Agent tools](/docs/03-workflow-editor/containers-and-tools).
+
+<Callout type="note">
+The Manual Trigger node is the workflow's starting point, so it can't be deleted — it doesn't even show a ✕ delete button.
+</Callout>
+
+## Disabling a node
+
+When you want to **skip a node during a run** without deleting it, disable it instead. The node and its connections stay on the canvas exactly as they are, but the run passes over that node and continues to the next one.
+
+There are two ways to toggle it:
+
+- Select the node to open its [settings panel](/docs/03-workflow-editor/settings-panel) and turn on the "Disable this node" checkbox at the bottom.
+- Right-click the node and choose "Disable" (or "Enable" to turn it back on) from the context menu.
+
+A disabled node is shown **faded out** on the canvas so it's easy to spot at a glance.
+
+<Callout type="tip">
+Deleting and disabling serve different purposes. Disable a node when you want to temporarily leave it — and its connections — out of the run; delete it when you want it gone for good.
+</Callout>
+
+## Node names and notes
+
+Use the Name field in the [settings panel](/docs/03-workflow-editor/settings-panel) to change the label shown on a node. Whatever you set there appears on the second line of the node's card on the canvas.
+
+- Node names must be unique within a workflow. Trying to rename a node to one that's already taken blocks the save and shows an inline error.
+- The Notes field lets you leave a free-form memo about the node — handy for explaining to collaborators why it's configured the way it is.
+
+Field-level settings and expression input are covered next in [Node settings panel](/docs/03-workflow-editor/settings-panel).
+
+## Reading node status and the configuration summary
+
+The node card alone tells you a lot — what it's configured to do, and (during a run) how far it's gotten.
+
+### Configuration summary
+
+The third line of a node's body shows a short summary of its key setting. An HTTP Request node, for example, shows something like `GET https://api.example.c...` — the method and URL. Long text is truncated with an ellipsis, and hovering shows the full text in a tooltip. The summary updates in real time as you change the configuration. Zooming the canvas out below 50%, though, hides the summary line, leaving just the icon, type name, and label.
+
+### Missing-configuration warning
+
+If a required setting is left empty, a yellow warning triangle appears at the top-right of the node header. Hovering it explains exactly what's missing. An HTTP Request node without a URL shows a warning, for instance, and a Send Email node without a recipient does too — the exact message depends on the node type. The Manual Trigger node has no required settings, so it never shows this warning.
+
+### Execution status
+
+While a workflow is running, each node shows which stage it's currently in.
+
+| Status | What you see |
+| --- | --- |
+| Waiting | No special indicator |
+| Running | A blue border pulses |
+| Success | Green border + a check icon |
+| Run failed | Red border + an error icon. Click it to see error details |
+| Skipped | Faded to gray (disabled nodes, or paths a condition didn't take) |
+
+This indicator stays on the canvas until the next run starts. For the full detail of what each node actually received and produced, and why something failed, see [Viewing run results](/docs/05-run-and-debug/run-results). For how to start a run in the first place, see [Running a workflow](/docs/05-run-and-debug/running-a-workflow).
+
+## Tips & notes
+
+- To move or delete several nodes together, widen your selection first with Shift-click or a drag-lasso — it's much faster than one at a time.
+- Pasted or duplicated nodes get an automatically unique name, but it's worth renaming them to something recognizable in the [settings panel](/docs/03-workflow-editor/settings-panel) so they don't get confusing later.
+- Grouping nodes into containers is a good way to tidy up a large workflow — membership rules are covered in [Containers and AI Agent tools](/docs/03-workflow-editor/containers-and-tools).
+- For the bigger picture — including adding and connecting nodes — see the [workflow editor overview](/docs/03-workflow-editor/overview).

@@ -74,13 +74,13 @@ They cover opposite directions. **Authentication** issues and manages the auth m
 
 ## Q18. How do I let an AI Agent call an external tool — e.g. an internal search engine?
 
-For **workflow-internal nodes**, drop them onto the canvas's Tool Area. For **external systems** (internal search, Slack, GitHub, etc.), connect them via an **MCP server**. Register the server under [Integrations](/integrations), then add it to the AI Agent's `MCP Servers` field. The LLM will then call the server's tools automatically. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
+For **external systems** (internal search, Slack, GitHub, etc.), connect them via an **MCP server**. Register the server under [Integrations](/integrations), then add it to the AI Agent's `MCP Servers` field. The LLM will then call the server's tools automatically. To let it search your internal documents, you can also attach a **Knowledge Base** to expose it as a RAG tool. See [MCP server integration](/docs/06-integrations-and-config/mcp-servers).
 
 ## Q19. What's the difference between the AI Assistant and the AI Agent node?
 
 They sound similar but live in different places and play different roles.
 
-- The **AI Assistant** is an **in-editor chat companion**. Open it with `Cmd/Ctrl + /` and ask in natural language; it adds and edits nodes on the canvas for you. It's the feature you use to *build* a workflow. Full guide: [AI Assistant overview](/docs/03-workflow-editor/overview).
+- The **AI Assistant** is an **in-editor chat companion**. Open it with `Cmd/Ctrl + /` and ask in natural language; it adds and edits nodes on the canvas for you. It's the feature you use to *build* a workflow. Full guide: [AI Assistant overview](/docs/03-workflow-editor/ai-assistant).
 - The **AI Agent node** is an **LLM call that runs inside a workflow**. You drop it on the canvas and configure the system prompt, user prompt, RAG, and tools — at run time it calls the LLM and produces an answer. It's a *part* of a workflow. Field reference: [AI nodes](/docs/02-nodes/ai).
 
 The two are complementary: workflows the Assistant builds for you may include AI Agent nodes.

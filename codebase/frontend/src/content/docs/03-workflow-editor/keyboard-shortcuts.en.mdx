@@ -1,0 +1,65 @@
+This page gathers every keyboard shortcut available in the workflow editor into one reference table, grouped by purpose. Frequent actions are much faster with the keyboard than the mouse.
+
+`Ctrl` below refers to Windows/Linux. On Mac, press `Cmd` instead of `Ctrl`.
+
+## Save and execution
+
+<FieldTable rows={[
+  { name: "Ctrl+S", required: false, type: "Save", description: "Saves the current workflow immediately.", default: "-" },
+  { name: "Ctrl+Shift+R", required: false, type: "Toggle Run Results drawer", description: "Expands or collapses the Run Results drawer at the bottom of the screen.", default: "-" }
+]} />
+
+## Editing
+
+<FieldTable rows={[
+  { name: "Ctrl+C", required: false, type: "Copy", description: "Copies the selected nodes, plus any edges whose endpoints are both inside the selection.", default: "-" },
+  { name: "Ctrl+V", required: false, type: "Paste", description: "Pastes the copied nodes slightly offset from the originals, with unique names.", default: "-" },
+  { name: "Ctrl+D", required: false, type: "Duplicate", description: "Duplicates the selected nodes in place, without touching the clipboard.", default: "-" },
+  { name: "Ctrl+A", required: false, type: "Select all", description: "Selects every node on the canvas at once.", default: "-" },
+  { name: "Delete · Backspace", required: false, type: "Delete", description: "Deletes the selected nodes or edges.", default: "-" },
+  { name: "Ctrl+Z", required: false, type: "Undo", description: "Undoes the last edit.", default: "-" },
+  { name: "Ctrl+Y · Ctrl+Shift+Z", required: false, type: "Redo", description: "Re-applies an edit you undid.", default: "-" }
+]} />
+
+<Callout type="note">
+`Ctrl+C`/`Ctrl+V`/`Ctrl+D`/`Ctrl+A` don't fire while a text input (like a name or expression field) has focus, so you can type freely. Save, Undo/Redo, and the AI assistant toggle keep working even inside text fields.
+</Callout>
+
+## Selection and navigation
+
+<FieldTable rows={[
+  { name: "Escape", required: false, type: "Deselect", description: "Clears the selection. If the Run Results drawer has focus, Escape returns focus to the canvas first — press it again to clear the selection.", default: "-" },
+  { name: "Space + drag", required: false, type: "Panning", description: "Hold Space and drag to pan the canvas like grabbing it with your hand.", default: "-" }
+]} />
+
+## View (zoom)
+
+<FieldTable rows={[
+  { name: "Ctrl + '+'", required: false, type: "Zoom in", description: "Zooms in on the canvas.", default: "-" },
+  { name: "Ctrl + '-'", required: false, type: "Zoom out", description: "Zooms out on the canvas.", default: "-" },
+  { name: "Ctrl+0", required: false, type: "100% zoom", description: "Resets the zoom level to 100%.", default: "-" },
+  { name: "Ctrl+1", required: false, type: "Fit to view", description: "Automatically fits the canvas so every node is visible.", default: "-" }
+]} />
+
+## Quick-add popup
+
+These shortcuts work inside the node search popup that opens when you double-click empty canvas space.
+
+<FieldTable rows={[
+  { name: "↑ / ↓", required: false, type: "Move", description: "Moves the highlight up or down through the candidate node list.", default: "-" },
+  { name: "Enter", required: false, type: "Add", description: "Adds the highlighted node at the position you double-clicked.", default: "-" },
+  { name: "Escape", required: false, type: "Close", description: "Closes the popup.", default: "-" }
+]} />
+
+## AI assistant
+
+<FieldTable rows={[
+  { name: "Cmd/Ctrl + /", required: false, type: "Toggle panel", description: "Opens and closes the AI assistant panel from anywhere on the canvas.", default: "-" }
+]} />
+
+## Tips & notes
+
+- Viewport panning, zooming, and adding nodes from the palette are covered in detail in [Working with the canvas](/docs/03-workflow-editor/canvas-basics).
+- For the finer points of selecting, copying, deleting, and disabling nodes, see [Editing and arranging nodes](/docs/03-workflow-editor/editing-nodes).
+- The full AI assistant flow, including the `Cmd/Ctrl + /` toggle, is covered in [AI assistant overview](/docs/03-workflow-editor/ai-assistant).
+- For the editor's overall layout, see [Workflow editor overview](/docs/03-workflow-editor/overview).

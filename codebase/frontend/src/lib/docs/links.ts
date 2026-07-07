@@ -25,7 +25,16 @@ export const DOCS = {
   },
   workflowEditor: {
     overview: "/docs/03-workflow-editor/overview",
-    walkthrough: "/docs/03-workflow-editor/walkthrough",
+    canvasBasics: "/docs/03-workflow-editor/canvas-basics",
+    editingNodes: "/docs/03-workflow-editor/editing-nodes",
+    connectingNodes: "/docs/03-workflow-editor/connecting-nodes",
+    settingsPanel: "/docs/03-workflow-editor/settings-panel",
+    containersAndTools: "/docs/03-workflow-editor/containers-and-tools",
+    savingAndSharing: "/docs/03-workflow-editor/saving-and-sharing",
+    keyboardShortcuts: "/docs/03-workflow-editor/keyboard-shortcuts",
+    aiAssistant: "/docs/03-workflow-editor/ai-assistant",
+    aiAssistantWalkthrough:
+      "/docs/03-workflow-editor/ai-assistant-walkthrough",
   },
   expression: {
     basics: "/docs/04-expression-language/basics",

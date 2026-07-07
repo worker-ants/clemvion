@@ -46,8 +46,16 @@ code:
 │   ├── integrations       # Integration 노드
 │   └── presentation       # Presentation 노드
 ├── 03-workflow-editor/
-│   ├── overview           # AI 어시스턴트 개요 (UI · 대화 루프 · 도구 · 세션 · v1 한계 · 오류)
-│   └── walkthrough        # AI 어시스턴트 직접 써 보기 (자연어 → 4-노드 워크플로우)
+│   ├── overview                  # 워크플로우 에디터 개요 (화면 구성 · 진입/이탈 · 저장 모델 · 서브페이지 인덱스)
+│   ├── canvas-basics             # 캔버스 다루기 (뷰포트 · 팔레트 · 노드 추가 · 미니맵)
+│   ├── editing-nodes             # 노드 편집과 정리 (선택 · 이동 · 복제 · 삭제 · 비활성화 · 상태 표시)
+│   ├── connecting-nodes          # 노드 연결하기 (포트 · 엣지 유효성 · 색상 · stale 정리)
+│   ├── settings-panel            # 노드 설정 패널 (필드 · 표현식 · JSON 모드 · Use Default Output)
+│   ├── containers-and-tools      # 컨테이너와 AI Agent 도구 (그룹 · 중첩 · 설정 패널 기반 도구 연결)
+│   ├── saving-and-sharing        # 저장·자동저장·가져오기/내보내기
+│   ├── keyboard-shortcuts        # 키보드 단축키 레퍼런스
+│   ├── ai-assistant              # AI 어시스턴트 개요 (UI · 대화 루프 · 도구 · 세션 · v1 한계 · 오류)
+│   └── ai-assistant-walkthrough  # AI 어시스턴트 직접 써 보기 (자연어 → 4-노드 워크플로우)
 ├── 04-expression-language/
 │   ├── basics             # 표현식 기본
 │   ├── variables-and-context  # 변수·컨텍스트
@@ -56,7 +64,8 @@ code:
 │   ├── running-a-workflow # 실행 방법
 │   ├── run-results        # 실행 이력 조회
 │   ├── error-handling     # 에러 정책
-│   └── version-history    # 버전 히스토리
+│   ├── version-history    # 버전 히스토리
+│   └── validation-errors  # 그래프 검증 오류 (저장 거부·경고)
 ├── 06-integrations-and-config/
 │   ├── integration-management  # 통합 관리
 │   ├── models                 # 모델 설정 (Chat/Embedding/Rerank 통합)
@@ -67,6 +76,7 @@ code:
 │   ├── slack                  # Slack 채널 연동
 │   ├── telegram               # Telegram 채널 연동
 │   ├── web-chat               # 임베드형 웹채팅 위젯 연동
+│   ├── web-chat-sdk           # 웹채팅 SDK 직접 통합
 │   ├── makeshop               # MakeShop 채널 연동
 │   └── agent-memory           # 에이전트 메모리
 ├── 07-workspace-and-team/
