@@ -428,7 +428,7 @@ export class AuthController {
   @ApiOperation({
     summary: '활성 워크스페이스 전환',
     description:
-      '대상 워크스페이스 멤버십을 검증하고 Access Token 을 activeWorkspaceId=대상 으로 재발급합니다(Refresh Token 쿠키도 회전). 토큰이 활성 워크스페이스의 단일 진실이므로 이후 요청부터 전환이 적용됩니다. 비멤버면 403 NOT_A_MEMBER.',
+      '대상 워크스페이스 멤버십을 검증하고 Access Token 만 activeWorkspaceId=대상 으로 재발급합니다. Refresh Token 은 워크스페이스와 무관한 opaque UUID 라 회전하지 않습니다(쿠키 불변). 전환기 하위호환으로 X-Workspace-Id 헤더가 있으면 header-first 로 우선하며, 헤더가 없으면 토큰의 활성 워크스페이스 클레임이 적용됩니다. 비멤버면 403 NOT_A_MEMBER.',
   })
   @ApiParam({ name: 'id', description: '전환할 워크스페이스 ID (UUID)' })
   @ApiOkWrappedResponse(AccessTokenDto, {
