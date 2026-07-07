@@ -67,6 +67,29 @@ describe("loadDocsIndex", () => {
   });
 });
 
+describe("실제 docs — 섹션별 order 유일성 (IA 드리프트 가드)", () => {
+  // 섹션 내 order 중복/충돌은 런타임 에러 없이 사이드바 표시 순서만 조용히
+  // 어긋나므로 코드 리뷰로만 잡히던 회귀다. 실제 콘텐츠 디렉터리를 스캔해
+  // 섹션마다 order 값이 유일한지 결정적으로 단언한다. (ai-review 2026-07-08 W2)
+  const contentRoot = path.resolve(__dirname, "..", "..", "..", "content", "docs");
+  const realIndex = loadDocsIndex(contentRoot, { includeDrafts: true });
+
+  it.each(realIndex.sections.map((s) => s.key))(
+    "섹션 '%s' 페이지의 order 는 서로 중복되지 않아요",
+    (sectionKey) => {
+      const section = realIndex.sections.find((s) => s.key === sectionKey);
+      const orders = (section?.pages ?? []).map((p) => p.frontmatter.order);
+      const duplicates = [
+        ...new Set(orders.filter((o, i) => orders.indexOf(o) !== i)),
+      ];
+      expect(
+        duplicates,
+        `섹션 ${sectionKey} 에 중복된 order: ${duplicates.join(", ")}`,
+      ).toEqual([]);
+    },
+  );
+});
+
 describe("getDocBySlug", () => {
   it("슬러그로 문서를 찾아요", () => {
     const index = loadDocsIndex(fixturesRoot, { includeDrafts: true });
