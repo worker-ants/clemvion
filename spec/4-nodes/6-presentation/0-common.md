@@ -180,10 +180,9 @@ Presentation 5 노드 (Carousel / Table / Chart / Form / Template) 모두 공통
 
 | 항목 | 설명 |
 |------|------|
-| 렌더링 | `output.items` 배열을 `layout` 설정에 따라 카드/이미지/미니멀 형태로 표시 |
-| 인터랙션 | 좌/우 화살표로 슬라이드 탐색. 현재 슬라이드 인디케이터 (예: 3/10) |
-| 이미지 | `imageField` 지정 시 이미지 렌더링. 로드 실패 시 placeholder |
-| 빈 데이터 | "No items to display" 메시지 |
+| 렌더링 | **텍스트 포워드 데이터 뷰** — `output.items`(dynamic) / `config.items`(static) 를 가로 스크롤 리스트로 나열하고 슬라이드별 제목·설명·버튼 라벨을 표시. `config.layout`(card/image/minimal) 값은 **배지**로 노출한다 — 시각 레이아웃(image=이미지 지배·설명 생략, minimal=텍스트 전용, card=이미지+제목+설명) 재구성은 인터랙티브 채널이 담당한다([1-carousel §4](./1-carousel.md#4-실행-로직)). 프리뷰는 이미 실행이 끝난 과거 스냅샷이라 인터랙션이 불가하므로 시각 재현보다 데이터·이미지 매핑 확인에 최적화한다 |
+| 이미지 | `imageField`/`image` 지정 시 **lazy 로딩 썸네일**로 표시(+URL 확인 가능). 로드 실패 시 placeholder. 다수 이미지의 eager 로드는 피한다 |
+| 빈 데이터 | "No items" 메시지 (`mode` 힌트 동봉) |
 | **버튼 대기 중** (`waiting_for_input`) | 카드 리스트 아래 **버튼 바** 표시. port 버튼 클릭 시 `execution.click_button` WS 명령 전송 → 해당 포트로 실행 재개. link 버튼 클릭 시 새 탭에서 URL 열기 (실행 상태 변경 없음). link 전용 시 `[Continue →]` 암시적 버튼 표시 → `__continue__` ID로 WS 명령. 버튼 클릭 시까지 무제한 대기 (외부 cancel/종료 외에는 타임아웃 없음) |
 | **버튼 클릭 후** | "Button clicked: {label}" + 클릭 시각, 클릭자 정보 표시 |
 

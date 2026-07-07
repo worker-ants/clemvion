@@ -57,3 +57,23 @@ owner: planner
 **권장안**: **옵션 A**. 본 항목은 이미 2026-06-03 groom 에서 "decision-free 아님 → planner 결정 필요"로 재분류됐고(상단 ⚠ 섹션), spec 이 단일 진실인 본 프로젝트에서 UX 형태를 spec 에 먼저 확정하는 것이 drift 를 남기지 않는 정공법이다. dropdown·schema enum 이 이미 세 값을 노출 중이라 옵션 C 의 강등은 오히려 하위호환 정리 비용이 더 크다.
 
 **트레이드오프**: 옵션 A 채택 시 (1) `project-planner` 가 §2 에 `image`/`minimal` ASCII mockup + §4 변형 규칙을 추가하는 spec write 가 필요하고, 그 직전 `consistency-check --spec`(0-common 레이아웃 규약·node-output convention 과의 정합) 의무 통과가 선행된다. (2) 이후 `developer` 가 `CarouselContent`(:194) 에 `chartType` switch(:309) 패턴의 `layout` switch 를 추가 — 기존 카드 마크업(:229-289)을 `card` 분기로 보존하고 `image`/`minimal` 분기를 신설, 착수 직전 `consistency-check --impl-prep` 통과. (3) `presentation-renderers.test.tsx` 에 세 layout 값별 렌더 분기 검증 케이스 추가. (4) 완료 후 `spec/4-nodes/6-presentation/1-carousel.md` frontmatter `status: partial` → `complete` 승격 및 §1/§4 의 "(Planned)" 단서 제거.
+
+## 결정 기록 (2026-07-07, 사용자 확정) — 옵션 D: two-surface 분리
+
+재조사에서 드러난 결정적 사실: `layout`(card/image/minimal)은 **이미 웹챗 위젯**(`codebase/channel-web-chat/src/widget/components/presentations.tsx` `CarouselView`)에서 완전히 구현·소비되고 있다 — `image` 는 이미지 지배(설명 생략), `minimal` 은 텍스트 전용(이미지 생략), `card` 는 이미지+제목+설명, 한 번에 한 슬라이드 + prev/next 내비. 즉 **인터랙티브 채널에서는 세 변형이 이미 살아있다**. 미구현 표면은 오직 **실행이력/run-results 디버그 프리뷰**(`presentation-renderers.tsx` `CarouselContent`)뿐이다.
+
+이 프리뷰는 **이미 실행이 끝난 과거 스냅샷 → 인터랙션 불가**하고, 세 CSS 레이아웃을 픽셀 충실히 포팅해도 값어치가 낮으며 이미지 다수 eager 로드는 낭비다. 따라서:
+
+| 결정 | 채택 | 요지 |
+| --- | --- | --- |
+| carousel `layout` 렌더 | **D (two-surface)** | **인터랙티브 채널(웹챗)** = 시각 레이아웃 준수(기구현). **실행이력 프리뷰** = 픽셀 재현 대신 **텍스트 포워드 데이터 뷰**(슬라이드별 제목·설명·버튼 라벨 + `layout` 배지 + **lazy 썸네일/URL**). 디버그 목적(데이터·이미지 매핑 확인)에 최적화하고 이미지 eager 로드를 제거. |
+
+- 옵션 A(프리뷰에 세 시각형 포팅) 대비: 인터랙션 없는 디버그 화면에 시각 충실도를 투자하지 않고, 시각적 진실은 이미 웹챗에 존재하므로 제품 약속 손실 없음. 옵션 C(강등) 대비: `layout` 은 웹챗에서 실사용 중이라 제거 불가.
+- 사용자 선택: 이미지 **완전 제외(순수 텍스트)** 가 아니라 **lazy 썸네일/링크 유지** (이미지 URL 매핑 확인 빈도 고려).
+
+## 구현 완료 (developer, 2026-07-07)
+
+- [x] spec §1(layout 행)·§4(렌더 노트) two-surface 개정 + 파급 4문서(0-common §6.1·3-execution·14-execution-history) 정합 + `## Rationale` R-1.
+- [x] `CarouselContent`(`presentation-renderers.tsx`) 텍스트 포워드: `config.layout` 배지 + 슬라이드 수, 이미지 `loading="lazy"` 썸네일 + 원본 URL 링크(새 탭), 제목·설명·버튼 라벨 나열.
+- [x] `presentation-renderers.test.tsx` 9 신규(배지·lazy·링크·no-eager·text-forward·static-mode·config>data 우선순위·data 폴백).
+- [x] carousel spec frontmatter `status: partial → implemented` + 본 plan 완료 이동.

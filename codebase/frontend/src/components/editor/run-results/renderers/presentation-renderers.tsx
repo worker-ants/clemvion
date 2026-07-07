@@ -224,23 +224,46 @@ export function CarouselContent({ data, config, selectedButtonId, onPortButtonCl
   }
 
   const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
+  // config.layout(SoT, Principle 7) → data.layout 폴백 → 'card'. 실행이력 프리뷰는
+  // 시각 레이아웃(card/image/minimal)을 재현하지 않고 값을 배지로만 노출한다 — 시각
+  // 재구성은 인터랙티브 채널(웹챗 위젯)이 담당 (spec 0-common §6.1 / 1-carousel §4).
+  const layout =
+    (config?.layout as string) ?? (data.layout as string) ?? "card";
 
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
-      {items.map((item, i) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 text-[10px] text-[hsl(var(--muted-foreground))]">
+        <span className="rounded-full border border-[hsl(var(--border))] px-1.5 py-0.5 font-medium uppercase tracking-wide">
+          layout: {layout}
+        </span>
+        <span>
+          {items.length} slide{items.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {items.map((item, i) => (
         <div
           key={i}
           className="shrink-0 w-[180px] rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2 flex flex-col"
         >
           {isHttpUrl(item.image) && (
-            <div className="h-20 rounded bg-[hsl(var(--accent))] mb-1.5 overflow-hidden">
+            // 이미지 매핑 확인용 — lazy 로딩 썸네일 + 원본 URL 링크(새 탭). 다수 이미지의
+            // eager 로드를 피하고(spec 0-common §6.1), title 로 URL hover 확인 가능.
+            <a
+              href={item.image}
+              target="_blank"
+              rel="noreferrer noopener"
+              title={item.image}
+              className="block h-16 rounded bg-[hsl(var(--accent))] mb-1.5 overflow-hidden"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.image}
                 alt={item.title ?? ""}
+                loading="lazy"
                 className="h-full w-full object-cover"
               />
-            </div>
+            </a>
           )}
           <p className="text-xs font-medium truncate">{item.title}</p>
           {item.description && (
@@ -286,6 +309,7 @@ export function CarouselContent({ data, config, selectedButtonId, onPortButtonCl
           )}
         </div>
       ))}
+      </div>
     </div>
   );
 }
