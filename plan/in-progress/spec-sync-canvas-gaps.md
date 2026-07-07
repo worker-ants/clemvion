@@ -14,10 +14,9 @@ owner: planner
 - [x] §6/§3.1 줌 슬라이더 + 줌 퍼센트 표시 (`zoom-controls.tsx` 로 ZoomControls 분리 + 슬라이더 25~200%·실시간 퍼센트, ReactFlow minZoom/maxZoom 정합). lint·unit·build·e2e 통과.
 - [x] §5.4 노드 우상단 ✕ 삭제 버튼 (`custom-node.tsx` — hover fade-in/선택 상시, manual_trigger·실행 중 숨김, removeNode). lint·unit·build·e2e 통과.
   > spec 본문 §3.1/§5.4/§6/§7 "미구현 (Planned)" 주석도 구현됨으로 동기화 (commit b6f317edf). /ai-review·/consistency-check --impl-done 는 REVIEW WORKFLOW 에서 수행.
-- [ ] §11.3 컨테이너 삭제 Delete/Ungroup 확인 다이얼로그 (editor-store removeNode 는 제거+containerId 재계산만)
-  > 잔여 범위 축소: §5.4 ✕ 버튼은 컨테이너에도 이미 렌더됨(공용 `custom-node.tsx`). 남은 것은 **확인 다이얼로그(Delete/Ungroup 선택)** 뿐 — ✕ 버튼·Delete 키·우클릭 모두 현재 즉시 removeNode(사실상 Ungroup). spec §11.3 본문 동기화 완료.
-- [ ] §10 미바인딩 단축키: Ctrl+C/V/D/A, Escape(선택 해제분), Space+드래그, Ctrl++/-/0/1 (Ctrl+Shift+R·Escape[드로어 복귀]는 §10.12 로 **기구현** — 본 목록에서 제외)
-- [ ] §3.3 Ctrl+C/V 복사·붙여넣기 clipboard 로직 (복제는 우클릭 메뉴 duplicate 만)
+- [x] §11.3 컨테이너 삭제 Delete/Ungroup 확인 다이얼로그 — `container-delete-dialog.tsx`(라디오: Delete-all vs Ungroup, Ungroup 기본). ✕ 버튼·우클릭(`requestNodeDelete`)·Delete 키(`onBeforeDelete`) 세 경로 경유. 빈 컨테이너·일반 노드는 즉시 삭제. `confirmContainerDelete(mode)`. spec §11.3/§11.2.1 동기화. lint·unit·build·e2e 통과.
+- [x] §10 단축키: Ctrl+C/V/D/A·Escape(드로어 복귀 우선 분기)·Space 패닝(`panActivationKeyCode`)·Ctrl++/-/0/1(줌, 캔버스 컴포넌트). `isEditableTarget` 가드(shared util). spec §10 표 구현됨 flip + Ctrl+Shift+R/Escape 오기재 정정. lint·unit·build·e2e 통과.
+- [x] §3.3 Ctrl+C/V 복사·붙여넣기 + Ctrl+D 복제 — `editorClipboard` 앱 내부 상태. copySelection/pasteClipboard/duplicateSelection(신규 id·오프셋·유니크 라벨·엣지 재연결·containerId 재도출). 캔버스 우클릭 "붙여넣기"(클릭 위치). spec §3.3/§3.5 동기화. lint·unit·build·e2e 통과.
 - [ ] §4.1 팔레트 Recent 섹션 / Installed(마켓플레이스) 섹션
 - [ ] §4.2 팔레트 아이템 클릭으로 노드 추가 (현재 드래그 앤 드롭만) + 팔레트 패널 접기 토글
 - [ ] §4.3 빠른 노드 추가 팝업의 Enter 선택 / Escape 취소 키보드 핸들링
