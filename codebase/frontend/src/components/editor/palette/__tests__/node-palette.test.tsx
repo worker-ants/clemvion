@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("../../canvas/node-icon", () => ({
   NodeIcon: ({ name }: { name: string }) => <span data-testid="node-icon">{name}</span>,
+}));
+
+const { addNodeFromPaletteMock } = vi.hoisted(() => ({
+  addNodeFromPaletteMock: vi.fn(),
+}));
+vi.mock("@/lib/stores/palette-canvas-bridge", () => ({
+  addNodeFromPalette: addNodeFromPaletteMock,
+  registerPaletteCanvasBridge: vi.fn(),
 }));
 
 import { NodePalette } from "../node-palette";
@@ -27,6 +35,7 @@ function makeNode(type: string, category: NodeDefinition["category"], label: str
 }
 
 beforeEach(() => {
+  addNodeFromPaletteMock.mockClear();
   useLocaleStore.setState({ locale: "en" });
   useNodeDefinitionsStore.setState({
     status: "ready",
@@ -45,11 +54,15 @@ beforeEach(() => {
   });
 });
 
+// PaletteItem 노드도 role=button(§4.2 클릭 추가) 이라, 카테고리 헤더는 testid 로 질의한다.
+const categoryHeaders = () => screen.getAllByTestId("palette-category-header");
+const categoryHeaderByText = (text: string) =>
+  categoryHeaders().find((h) => (h.textContent ?? "").includes(text));
+
 describe("NodePalette", () => {
   it("renders all category headers from the store in order", () => {
     render(<NodePalette />);
-    const headers = screen.getAllByRole("button");
-    const labels = headers.map((h) => h.textContent ?? "");
+    const labels = categoryHeaders().map((h) => h.textContent ?? "");
     expect(labels[0]).toContain("Trigger");
     expect(labels[1]).toContain("Logic");
     expect(labels[2]).toContain("AI");
@@ -57,7 +70,7 @@ describe("NodePalette", () => {
 
   it("applies each category's color as a bullet background", () => {
     render(<NodePalette />);
-    const triggerHeader = screen.getByRole("button", { name: /Trigger/ });
+    const triggerHeader = categoryHeaderByText("Trigger")!;
     const bullet = triggerHeader.querySelector("span.h-2.w-2");
     expect(bullet).toBeTruthy();
     expect((bullet as HTMLElement).style.backgroundColor).toBe("rgb(245, 158, 11)");
@@ -73,7 +86,7 @@ describe("NodePalette", () => {
   it("collapses a category when its header is clicked", async () => {
     const user = userEvent.setup();
     render(<NodePalette />);
-    const aiHeader = screen.getByRole("button", { name: /AI/ });
+    const aiHeader = categoryHeaderByText("AI")!;
     expect(screen.getByText("AI Agent")).toBeInTheDocument();
     await user.click(aiHeader);
     expect(screen.queryByText("AI Agent")).not.toBeInTheDocument();
@@ -84,8 +97,8 @@ describe("NodePalette", () => {
     render(<NodePalette />);
     const search = screen.getByPlaceholderText("Search nodes...");
     await user.type(search, "manual");
-    expect(screen.queryByRole("button", { name: /Logic/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Trigger/ })).toBeInTheDocument();
+    expect(categoryHeaderByText("Logic")).toBeUndefined();
+    expect(categoryHeaderByText("Trigger")).toBeTruthy();
   });
 
   it("omits categories not present in the store (no hardcoded list)", () => {
@@ -95,8 +108,36 @@ describe("NodePalette", () => {
       ],
     });
     render(<NodePalette />);
-    expect(screen.queryByRole("button", { name: /Trigger/ })).not.toBeInTheDocument();
-    const logicHeader = screen.getByRole("button", { name: /Logic/ });
+    expect(categoryHeaderByText("Trigger")).toBeUndefined();
+    const logicHeader = categoryHeaderByText("Logic")!;
     expect(within(logicHeader).getByText("Logic")).toBeInTheDocument();
+  });
+
+  it("collapses the whole palette to an icon rail and reopens it (§4.2)", async () => {
+    const user = userEvent.setup();
+    render(<NodePalette />);
+    // 접기 → 카테고리 헤더가 사라지고 펼치기 버튼만 남는다.
+    await user.click(screen.getByLabelText("Collapse palette"));
+    expect(screen.queryAllByTestId("palette-category-header")).toHaveLength(0);
+    // 다시 펼치기.
+    await user.click(screen.getByLabelText("Expand palette"));
+    expect(categoryHeaders().length).toBeGreaterThan(0);
+  });
+
+  it("clicking a palette item adds the node via the canvas bridge (§4.2)", async () => {
+    const user = userEvent.setup();
+    render(<NodePalette />);
+    await user.click(screen.getByText("If/Else"));
+    expect(addNodeFromPaletteMock).toHaveBeenCalledWith("if_else");
+  });
+
+  it("Enter/Space on a focused palette item also adds the node (§4.2 a11y)", () => {
+    render(<NodePalette />);
+    const item = screen.getByText("AI Agent").closest('[role="button"]')!;
+    fireEvent.keyDown(item, { key: "Enter" });
+    expect(addNodeFromPaletteMock).toHaveBeenCalledWith("ai_agent");
+    addNodeFromPaletteMock.mockClear();
+    fireEvent.keyDown(item, { key: " " });
+    expect(addNodeFromPaletteMock).toHaveBeenCalledWith("ai_agent");
   });
 });

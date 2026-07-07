@@ -32,6 +32,7 @@ vi.mock("@workflow/graph-warning-rules", async () => {
 });
 
 import { useEditorStore } from "../editor-store";
+import { useRecentNodesStore } from "../recent-nodes-store";
 import { workflowsApi } from "../../api/workflows";
 
 const saveCanvasMock = vi.mocked(workflowsApi.saveCanvas);
@@ -125,6 +126,17 @@ describe("useEditorStore", () => {
     it("pushes undo snapshot before adding", () => {
       useEditorStore.getState().addNode(makeNode("1"));
       expect(useEditorStore.getState().undoStack).toHaveLength(1);
+    });
+
+    it("records the node type as recently used (§4.1)", () => {
+      // §4.1 — addNode 는 최근 사용 노드 타입 기록의 단일 choke point.
+      useRecentNodesStore.setState({ recentNodeTypes: [] });
+      useEditorStore
+        .getState()
+        .addNode(
+          makeNode("1", { data: { type: "ai_agent", label: "AI" } }),
+        );
+      expect(useRecentNodesStore.getState().recentNodeTypes[0]).toBe("ai_agent");
     });
   });
 
@@ -759,6 +771,39 @@ describe("useEditorStore", () => {
       expect(state.nodes).toHaveLength(5); // 3 + 복제 2
       expect(state.editorClipboard).toBeNull(); // 클립보드 미변경
       expect(state.undoStack).toHaveLength(1);
+    });
+
+    it("paste·duplicate 도 recent 를 기록한다 — addNode 우회 경로 (§4.1)", () => {
+      // duplicateSelection: 복제한 타입 기록
+      useRecentNodesStore.setState({ recentNodeTypes: [] });
+      useEditorStore.setState({
+        nodes: [
+          makeNode("a", {
+            selected: true,
+            data: { type: "http_request", label: "H" },
+          }),
+        ],
+        edges: [],
+      });
+      useEditorStore.getState().duplicateSelection();
+      expect(useRecentNodesStore.getState().recentNodeTypes).toContain(
+        "http_request",
+      );
+
+      // pasteClipboard: 붙여넣은 타입 기록
+      useRecentNodesStore.setState({ recentNodeTypes: [] });
+      useEditorStore.setState({
+        nodes: [
+          makeNode("x", {
+            selected: true,
+            data: { type: "code", label: "C" },
+          }),
+        ],
+        edges: [],
+      });
+      useEditorStore.getState().copySelection();
+      useEditorStore.getState().pasteClipboard();
+      expect(useRecentNodesStore.getState().recentNodeTypes).toContain("code");
     });
 
     it("duplicateSelection: 동일 라벨 노드 2개 동시 복제 시 각각 유니크 라벨 부여", () => {
