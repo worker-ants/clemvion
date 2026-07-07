@@ -44,7 +44,11 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-// Request interceptor: attach access token + current workspace id
+// Request interceptor: attach access token + (fallback) current workspace id.
+// 활성 워크스페이스의 단일 진실은 access token 의 activeWorkspaceId 클레임이다(결정1).
+// X-Workspace-Id 는 이제 하위호환 fallback 으로만 첨부한다 — 서버 jwt.strategy 가
+// activeWorkspaceId → 헤더 → legacy workspaceId → personal 순으로 확정하므로 정상 경로에선
+// 토큰 클레임이 우선하고 헤더는 클레임 부재(레거시 토큰) 시에만 소비된다.
 apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {

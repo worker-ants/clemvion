@@ -3,7 +3,9 @@
 import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { usersApi } from "@/lib/api/users";
+import { switchWorkspaceApi, decodeActiveWorkspaceId } from "@/lib/api/auth";
 import {
   refreshAccessToken,
   setSessionRestoreInProgress,
@@ -41,6 +43,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         setAuthenticated(accessToken, user);
+
+        // reconcile-on-load (결정1): /auth/refresh 로 재발급된 토큰은 활성 워크스페이스가
+        // personal/first 로 재해석된다(refresh 는 클레임 미보존). 이전에 선택했던
+        // 워크스페이스(persisted)와 다르면 /switch 로 재조정해 팀 컨텍스트를 복원한다.
+        const persisted = useWorkspaceStore.getState().currentWorkspaceId;
+        if (persisted && persisted !== decodeActiveWorkspaceId(accessToken)) {
+          try {
+            await switchWorkspaceApi(persisted);
+          } catch {
+            // 비멤버(탈퇴·삭제) 등으로 전환 실패 → persisted 를 비워 다음 setWorkspaces 가
+            // default 워크스페이스로 정렬하도록 한다.
+            useWorkspaceStore.setState({ currentWorkspaceId: null });
+          }
+        }
       } catch {
         logout();
         // Only redirect if current path is not already a public auth route
