@@ -69,6 +69,8 @@ pending_plans:
 
 > 구현: `isValidConnection` (`editor-store.ts`, `<ReactFlow>` prop 으로 전달) 이 드래그 중 `source === target` 자기연결을 `false` 로 판정해 커서 🚫 로 차단한다. 출력→입력 방향과 출력↔출력/입력↔입력 금지는 React Flow 핸들 타입(source/target)이 강제한다. `onConnect` 은 드롭 시점에 자기연결(방어적 무시)·동일 연결 중복(토스트 후 무시)·컨테이너 소속 충돌(`detectContainerConflict`)을 순서대로 검사한 뒤에만 `addEdge` 한다. 순수 판정 헬퍼(`isSelfConnection`·`isDuplicateConnection`)는 `edge-utils.ts`.
 >
+> 자기연결·동일 연결 중복은 **DB 레벨 제약과 동일한 invariant** 를 캔버스가 선제 차단하는 이중 방어다 — [Spec 데이터 모델 §2.7 Edge](../1-data-model.md#27-edge) 의 `source_node_id != target_node_id` 및 `(source_node_id, source_port, target_node_id, target_port)` UNIQUE 가 최종 안전망이다.
+>
 > **순환은 여기서 차단하지 않는다** — §2.3 참조 (warn-not-block).
 
 ### 2.3 순환 참조 — 경고하되 차단하지 않음 (warn-not-block)

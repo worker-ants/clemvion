@@ -177,7 +177,12 @@ sequenceDiagram
   Proc->>Proc: secret resolve (secretRef → secret store) + v2 secondary → HMAC 서명
   Proc->>Ext: HTTP POST (10s timeout, X-Clemvion-* 헤더 + X-Clemvion-Signature)
   alt 2xx
-    Proc->>PG: UPDATE trigger SET notification_health='healthy', notification_last_error=NULL
+    Proc->>Proc: OutboundNotificationRateLimiterService.consume(triggerId)<br/>— trigger 당 분당 발송 카운트 (Redis, fail-open)
+    alt 폭주 (>60/분)
+      Proc->>PG: UPDATE trigger SET notification_health='degraded',<br/>notification_last_error='Outbound rate exceeded …' (발송은 계속 — 폐기 아님)
+    else 정상
+      Proc->>PG: UPDATE trigger SET notification_health='healthy', notification_last_error=NULL
+    end
   else 실패
     Proc-->>Q: throw → backoff 재시도. 최종 attempt 실패 시 notification_health='degraded' + last_error
   end
@@ -199,6 +204,11 @@ sequenceDiagram
 - **실패 정책**: 최종 실패 시에도 trigger 자체는 비활성화하지 않는다 ([Spec EIA §R6]) —
   `notification_health` / `notification_last_error` (500자 truncate) 갱신만. BullMQ
   `removeOnComplete` 24h / `removeOnFail` 7d.
+- **outbound 폭주 감지**: 발송 성공(2xx)마다 `OutboundNotificationRateLimiterService.consume`
+  (Redis fixed-window `INCR`+`EXPIRE NX`, fail-open) 로 trigger 당 분당 발송 수를 세고, 60건 초과
+  시 `healthy` 대신 `notification_health='degraded'` + 폭주 전용 `notification_last_error`(발송
+  실패 degraded 와 원인 구분) 로 표시한다. **폐기(throttle) 아님** — 초과분도 계속 발송하며 수신
+  endpoint 부하만 알린다 (EIA §8.4 / §3.1 EIA-NX-11, §Rationale R-outbound-flood).
 
 ### 1.5 Notification signing secret 회전
 
