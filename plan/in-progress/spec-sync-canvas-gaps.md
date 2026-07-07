@@ -16,7 +16,7 @@ owner: planner
   > spec 본문 §3.1/§5.4/§6/§7 "미구현 (Planned)" 주석도 구현됨으로 동기화 (commit b6f317edf). /ai-review·/consistency-check --impl-done 는 REVIEW WORKFLOW 에서 수행.
 - [ ] §11.3 컨테이너 삭제 Delete/Ungroup 확인 다이얼로그 (editor-store removeNode 는 제거+containerId 재계산만)
   > 잔여 범위 축소: §5.4 ✕ 버튼은 컨테이너에도 이미 렌더됨(공용 `custom-node.tsx`). 남은 것은 **확인 다이얼로그(Delete/Ungroup 선택)** 뿐 — ✕ 버튼·Delete 키·우클릭 모두 현재 즉시 removeNode(사실상 Ungroup). spec §11.3 본문 동기화 완료.
-- [ ] §10 미바인딩 단축키: Ctrl+C/V/D/A, Escape, Space+드래그, Ctrl++/-/0/1, Ctrl+Shift+R
+- [ ] §10 미바인딩 단축키: Ctrl+C/V/D/A, Escape(선택 해제분), Space+드래그, Ctrl++/-/0/1 (Ctrl+Shift+R·Escape[드로어 복귀]는 §10.12 로 **기구현** — 본 목록에서 제외)
 - [ ] §3.3 Ctrl+C/V 복사·붙여넣기 clipboard 로직 (복제는 우클릭 메뉴 duplicate 만)
 - [ ] §4.1 팔레트 Recent 섹션 / Installed(마켓플레이스) 섹션
 - [ ] §4.2 팔레트 아이템 클릭으로 노드 추가 (현재 드래그 앤 드롭만) + 팔레트 패널 접기 토글
