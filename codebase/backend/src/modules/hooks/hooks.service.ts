@@ -12,6 +12,7 @@ import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
+import { sanitizeResponseHeaders } from '../../nodes/integration/_base/sanitize-response-headers.util';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import {
   TriggerParameterValidationException,
@@ -192,9 +193,17 @@ export class HooksService {
     //    the Manual Trigger handler can record `meta.source: 'webhook'` and
     //    group `body`/`headers`/`query`/`method` under `output.request.*`
     //    instead of spreading them at the top level (CONVENTIONS Principle 1).
+    //    민감 헤더 값은 저장 직전 마스킹한다 (spec 12-webhook §5.3) — 인증(§3, HMAC/IP)은
+    //    위에서 raw 헤더로 이미 완료됐으므로 무영향. inputData·output.request·$trigger 전반이
+    //    이 masked 헤더를 참조한다.
     const executionId = await this.executionEngineService.execute(
       trigger.workflowId,
-      { __triggerSource: 'webhook', parameters, ...input },
+      {
+        __triggerSource: 'webhook',
+        parameters,
+        ...input,
+        headers: sanitizeResponseHeaders(input.headers),
+      },
       {
         triggerId: trigger.id,
         triggerType: 'webhook', // priority 3-tier(§4.3) — webhook 발화
@@ -618,7 +627,9 @@ export class HooksService {
         __triggerSource: 'webhook',
         parameters: {},
         body: input.body,
-        headers: input.headers,
+        // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증은
+        // 위 parseUpdate/adapter 에서 raw rawBody 로 이미 수행됨.
+        headers: sanitizeResponseHeaders(input.headers),
         query: input.query,
         method: input.method,
         chatChannel: {

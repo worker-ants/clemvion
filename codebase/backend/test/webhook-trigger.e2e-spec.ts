@@ -109,6 +109,41 @@ describe('Webhook trigger (e2e)', () => {
     ).toBeDefined();
   });
 
+  it('A2. webhook 민감 헤더는 Execution.inputData 에 [REDACTED] 로 저장, 비민감은 보존 (spec 12-webhook §5.3)', async () => {
+    const path = crypto.randomUUID();
+    await createWebhookTrigger(uniqueName('hook-mask'), path);
+
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${path}`)
+      .set('Authorization', 'Bearer super-secret-xyz')
+      .set('X-Api-Key', 'k-abc')
+      .set('X-Event-Type', 'order.created')
+      .send({ payload: 'hi' });
+    expect(res.status).toBe(202);
+    const executionId = (res.body.data as { executionId: string }).executionId;
+
+    // Execution row 는 execute() 가 inputData 와 함께 저장 — 짧은 폴링으로 조회.
+    let inputData: Record<string, unknown> | null = null;
+    for (let i = 0; i < 15; i++) {
+      const r = await db.query<{ input_data: Record<string, unknown> }>(
+        `SELECT input_data FROM execution WHERE id = $1`,
+        [executionId],
+      );
+      if (r.rows[0]?.input_data) {
+        inputData = r.rows[0].input_data;
+        break;
+      }
+      await new Promise((r2) => setTimeout(r2, 200));
+    }
+    expect(inputData).not.toBeNull();
+    const headers = inputData!.headers as Record<string, string>;
+    // 민감 헤더 값 마스킹.
+    expect(headers.authorization).toBe('[REDACTED]');
+    expect(headers['x-api-key']).toBe('[REDACTED]');
+    // 비민감 커스텀 헤더는 원본 보존.
+    expect(headers['x-event-type']).toBe('order.created');
+  });
+
   it('B. 미존재 endpointPath → 404 TRIGGER_NOT_FOUND', async () => {
     const res = await request(BASE_URL)
       .post('/api/hooks/no-such-path-xyz')

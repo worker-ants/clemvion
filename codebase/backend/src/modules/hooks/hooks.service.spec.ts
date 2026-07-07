@@ -217,6 +217,43 @@ describe('HooksService', () => {
     );
   });
 
+  it('민감 헤더는 execute inputData 에 [REDACTED] 로 마스킹, 비민감 헤더는 보존 (spec 12-webhook §5.3)', async () => {
+    triggerRepo.findOne.mockResolvedValue(activeTrigger);
+    triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      type: 'manual_trigger',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [] },
+    } as unknown as Node);
+    engine.execute.mockResolvedValue('exec-mask');
+
+    const headers = {
+      authorization: 'Bearer secret-xyz',
+      cookie: 'session=abc',
+      'x-api-key': 'k-123',
+      'content-type': 'application/json',
+      'x-event-type': 'order.created',
+    };
+    await service.handleWebhook('abc', { ...input, headers });
+
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf1',
+      expect.objectContaining({
+        __triggerSource: 'webhook',
+        headers: {
+          authorization: '[REDACTED]',
+          cookie: '[REDACTED]',
+          'x-api-key': '[REDACTED]',
+          'content-type': 'application/json',
+          'x-event-type': 'order.created',
+        },
+      }),
+      expect.anything(),
+    );
+  });
+
   it('§A.3 호출 이력 — X-Forwarded-For 소스 IP + 응답코드 202 를 execute options 로 전달', async () => {
     triggerRepo.findOne.mockResolvedValue(activeTrigger);
     triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
