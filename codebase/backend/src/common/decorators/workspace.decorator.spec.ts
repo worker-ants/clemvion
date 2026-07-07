@@ -51,24 +51,24 @@ describe('WorkspaceId decorator', () => {
     );
   }
 
-  it('should return workspace ID from X-Workspace-Id header', () => {
-    const ctx = createMockContext(
-      { 'x-workspace-id': 'header-workspace-uuid' },
-      { workspaceId: 'jwt-workspace-uuid' },
-    );
+  it('should return workspace ID from X-Workspace-Id header when no token workspace (fallback)', () => {
+    // 토큰 SoT 전환(결정1): 헤더는 request.user.workspaceId 부재 시에만 소비되는 fallback.
+    const ctx = createMockContext({ 'x-workspace-id': 'header-workspace-uuid' });
 
     const result = factory(undefined, ctx);
     expect(result).toBe('header-workspace-uuid');
   });
 
-  it('should prefer header over JWT workspaceId', () => {
+  it('should prefer JWT (token SoT) over X-Workspace-Id header', () => {
+    // 종전엔 헤더 우선이었으나 결정1(토큰 단일 진실)로 반전 — jwt.strategy 가 이미
+    // activeWorkspaceId→헤더→legacy→personal 순으로 확정한 request.user.workspaceId 를 신뢰.
     const ctx = createMockContext(
       { 'x-workspace-id': 'header-id' },
       { workspaceId: 'jwt-id' },
     );
 
     const result = factory(undefined, ctx);
-    expect(result).toBe('header-id');
+    expect(result).toBe('jwt-id');
   });
 
   it('should return workspace ID from JWT when header is not present', () => {

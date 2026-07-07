@@ -421,6 +421,36 @@ export class AuthController {
     return { data: { accessToken: result.accessToken } };
   }
 
+  @Post('workspaces/:id/switch')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '활성 워크스페이스 전환',
+    description:
+      '대상 워크스페이스 멤버십을 검증하고 Access Token 을 activeWorkspaceId=대상 으로 재발급합니다(Refresh Token 쿠키도 회전). 토큰이 활성 워크스페이스의 단일 진실이므로 이후 요청부터 전환이 적용됩니다. 비멤버면 403 NOT_A_MEMBER.',
+  })
+  @ApiParam({ name: 'id', description: '전환할 워크스페이스 ID' })
+  @ApiOkWrappedResponse(AccessTokenDto, {
+    description: '전환된 워크스페이스로 재발급된 Access Token',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 필요(JWT)' })
+  async switchWorkspace(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') targetWorkspaceId: string,
+    @Req() req: Express.Request,
+    @Res({ passthrough: true }) res: Express.Response,
+  ) {
+    const result = await this.authService.switchWorkspace(
+      user.sub,
+      targetWorkspaceId,
+      authContextFromRequest(req),
+    );
+    setRefreshTokenCookie(res, result.refreshToken, {
+      cookieDomain: this.cookieDomain,
+    });
+    return { data: { accessToken: result.accessToken } };
+  }
+
   @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)

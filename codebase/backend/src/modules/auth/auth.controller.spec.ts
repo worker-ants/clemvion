@@ -36,6 +36,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
+      switchWorkspace: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
     oauthService = {
@@ -62,6 +63,36 @@ describe('AuthController', () => {
       totpService,
       auditLogsService,
     );
+  });
+
+  describe('switchWorkspace', () => {
+    it('re-issues token, rotates refresh cookie, and returns the new accessToken', async () => {
+      const user = { sub: 'user-1' } as never;
+      const req = { headers: {} } as never;
+      authService.switchWorkspace.mockResolvedValue({
+        accessToken: 'switched-access',
+        refreshToken: 'rotated-refresh',
+      });
+
+      const result = await controller.switchWorkspace(
+        user,
+        'ws-target',
+        req,
+        mockRes as never,
+      );
+
+      expect(authService.switchWorkspace).toHaveBeenCalledWith(
+        'user-1',
+        'ws-target',
+        expect.any(Object),
+      );
+      expect(result).toEqual({ data: { accessToken: 'switched-access' } });
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'refreshToken',
+        'rotated-refresh',
+        expect.objectContaining({ httpOnly: true, path: '/api/auth' }),
+      );
+    });
   });
 
   describe('refresh', () => {

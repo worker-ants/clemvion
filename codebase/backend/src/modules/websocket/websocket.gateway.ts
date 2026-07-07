@@ -146,11 +146,18 @@ export class WebsocketGateway
         return;
       }
 
-      const payload: { sub: string; workspaceId?: string } =
-        this.jwtService.verify(token);
+      // 활성 워크스페이스 클레임은 activeWorkspaceId(결정2 = B). 전환기 dual-read 로
+      // legacy workspaceId 도 수용한다 — 본 게이트웨이는 HTTP 전략과 별개로 raw decode 하므로
+      // 여기서도 명시적으로 dual-read 한다.
+      const payload: {
+        sub: string;
+        activeWorkspaceId?: string;
+        workspaceId?: string;
+      } = this.jwtService.verify(token);
       const enrichedClient = client as AuthenticatedSocket;
       enrichedClient.userId = payload.sub;
-      enrichedClient.workspaceId = payload.workspaceId;
+      enrichedClient.workspaceId =
+        payload.activeWorkspaceId ?? payload.workspaceId;
 
       this.subscriptions.set(client.id, new Set());
 
