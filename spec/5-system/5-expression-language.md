@@ -237,9 +237,9 @@ webhook 트리거로 시작된 실행에서 HTTP 요청 구성요소를 **flat s
 | `$trigger.query` | Object | 쿼리스트링 파라미터 |
 | `$trigger.method` | String | HTTP 메서드 (`POST` 등) |
 
-- **`parameters` 는 `$trigger` 에 없다**: `TriggerExecutionInput.parameters`(트리거 스키마로 정규화된 파라미터)는 `$input.parameters`·`$params` 로 노출되며(§4.1), `$trigger` 는 raw HTTP transport(`body`/`headers`/`query`/`method`)만 담는다. Manual Trigger 노드의 `output.request.{method,headers,query,body}`([4-nodes/7-trigger/1-manual-trigger §5.2](../4-nodes/7-trigger/1-manual-trigger.md))와 **필드 이름 집합**은 동일하나, `$trigger.headers` 는 아래 redaction 이 적용된 **표현식 전용 안전 뷰**라는 점이 다르다 — Manual Trigger 의 `output.request.headers` 는 노드 출력 원본(마스킹 미적용)이다. (후자의 unmasked 헤더가 `NodeExecution.output_data`·실행 이력으로 노출되는 것은 본 표현식 작업 범위 밖의 기존 사안 — 별도 plan `manual-trigger-request-header-redaction` 으로 이관.)
+- **`parameters` 는 `$trigger` 에 없다**: `TriggerExecutionInput.parameters`(트리거 스키마로 정규화된 파라미터)는 `$input.parameters`·`$params` 로 노출되며(§4.1), `$trigger` 는 raw HTTP transport(`body`/`headers`/`query`/`method`)만 담는다. Manual Trigger 노드의 `output.request.{method,headers,query,body}`([4-nodes/7-trigger/1-manual-trigger §5.2](../4-nodes/7-trigger/1-manual-trigger.md))와 **필드 이름 집합**이 동일하며, **헤더 마스킹도 양쪽에 동일 적용**된다 — 민감 헤더 값은 webhook ingestion 시점에 `[REDACTED]` 로 마스킹되어 `Execution.inputData`·`output.request.headers`·`$trigger.headers` 전반이 masked 이다 ([12-webhook §5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion)).
 - **데이터 소스·재수화**: webhook adapter(`HooksService`)가 `execute()` 에 `{ parameters, body, headers, query, method }` + `{ __triggerSource: 'webhook' }` 를 전달해 `Execution.inputData` 에 영속한다(§6.1.1 Webhook 행). 컨텍스트 빌드 시 이 payload 의 transport 필드에서 `$trigger` 를 구성하며, park→resume([§7.5 rehydration](./4-execution-engine.md#75-resume-after-restart-rehydration)) 시 `Execution.inputData`(durable)에서 동일하게 복원된다 — `$trigger` 는 in-memory 컨텍스트가 아니라 durable `inputData` 파생값이라 재수화 후에도 `{}` 로 비지 않는다.
-- **민감 헤더 redaction**: `$trigger.headers` 는 `Authorization`·`Cookie`·`X-Api-Key`·`X-Auth-Token` 등 인증/시크릿성 헤더의 **값이 `[REDACTED]` 로 마스킹**된 뷰로 노출된다 (키는 유지, 통합 노드의 `sanitizeResponseHeaders` blacklist 재사용 — exact + substring `auth`/`token`/`secret`/`cookie`/`credential`/`password`/`api-key`). 표현식이 곧 시크릿 유출 채널이 되지 않도록 주입 단계에서 마스킹.
+- **민감 헤더 redaction**: `$trigger.headers` 는 `Authorization`·`Cookie`·`X-Api-Key`·`X-Auth-Token` 등 인증/시크릿성 헤더의 **값이 `[REDACTED]` 로 마스킹**되어 노출된다 (키는 유지, 통합 노드의 `sanitizeResponseHeaders` blacklist 재사용 — exact + substring `auth`/`token`/`secret`/`cookie`/`credential`/`password`/`api-key`). **1차 마스킹은 webhook ingestion 시점**(`Execution.inputData` 저장 전, [12-webhook §5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion))이며, `buildTriggerView` 의 재적용은 idempotent defense-in-depth(비-webhook 경로가 triggerData 에 raw 헤더를 넣더라도 표현식에 새지 않도록).
 - **빈 payload 폴백**: manual 실행·schedule 실행·webhook 이 아닌 진입 경로에는 transport payload 가 없으므로 **`$trigger = {}`** 를 주입한다. 이때 `{{ $trigger.body.event }}` 는 `EXPR_REFERENCE_ERROR` 대신 `undefined`(optional chaining 친화)로 graceful 하게 떨어진다.
 - **v1 범위**: background sub-graph(별도 job 컨텍스트)는 부모 실행의 payload 를 승계하지 않고 `$trigger = {}` 로 둔다(후속 과제).
 
@@ -528,7 +528,7 @@ for (const { id, label } of nodesWithOutput) {
 | 코드 인젝션 | `eval` 사용 금지. 자체 파서/평가기만 사용 |
 | DoS (복잡한 표현식) | 평가 시간 제한 (100ms) + 중첩 깊이 제한 (100) |
 | 데이터 유출 (`$env`) | `$env` 는 배포 운영자가 `EXPRESSION_ENV_ALLOWLIST` 로 **명시 opt-in 한 키만** 노출. 미설정(SaaS 기본) 시 `{}`. secret(DB URL/JWT/API key)은 opt-in 아니면 절대 미노출 ([§4.5](#45-trigger--env-런타임-주입) · [0-overview §5](../0-overview.md#5-배포-방식)) |
-| 데이터 유출 (`$trigger`) | `$trigger.headers` 는 `Authorization`/`Cookie`/`X-Api-Key` 등 민감 헤더를 주입 단계에서 redact (통합 노드 `sanitizeResponseHeaders` blacklist 재사용) |
+| 데이터 유출 (`$trigger`) | `$trigger.headers` 는 `Authorization`/`Cookie`/`X-Api-Key` 등 민감 헤더를 redact — 1차 마스킹은 webhook ingestion 시점([12-webhook §5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion)), `buildTriggerView` 재적용은 idempotent (통합 노드 `sanitizeResponseHeaders` blacklist 재사용) |
 | 재귀 해석 공격 | 1회 패스만 수행. 평가 결과에 `{{ }}`가 있어도 재평가 안 함 |
 
 ---

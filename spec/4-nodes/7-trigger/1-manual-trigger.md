@@ -138,7 +138,7 @@ webhook 진입 시 어댑터가 `input` 으로 `{ __triggerSource: 'webhook', pa
 |------|------|------|------|
 | `output.request` | object | runtime — webhook adapter | webhook transport 컨텍스트 묶음. Manual / Schedule 어댑터에서는 **`output.request` 자체가 생략**됨 |
 | `output.request.method` | string | runtime — webhook adapter | HTTP method |
-| `output.request.headers` | object | runtime — webhook adapter | HTTP headers (소문자 키) |
+| `output.request.headers` | object | runtime — webhook adapter | HTTP headers (소문자 키). **민감 헤더 값은 `[REDACTED]` 마스킹** — webhook adapter 가 ingestion 시 마스킹한 `inputData.headers` 를 그대로 노출하므로 핸들러에 별도 마스킹 로직은 없다 ([12-webhook §5.3](../../5-system/12-webhook.md#53-민감-헤더-마스킹-ingestion)) |
 | `output.request.query` | object | runtime — webhook adapter | URL query string parsed |
 | `output.request.body` | unknown | runtime — webhook adapter | HTTP body. content-type 에 따라 object / string / Buffer |
 

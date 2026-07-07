@@ -87,7 +87,8 @@ sequenceDiagram
     end
     AC->>PG: UPDATE auth_config SET last_used_at=now (fire-and-forget, 성공 시)
   end
-  Hk->>Eng: execute(workflowId, inputData={__triggerSource:'webhook', parameters, body, headers, query, method}, {triggerId: trigger.id})
+  Hk->>Hk: sanitizeResponseHeaders(headers) — 민감 헤더 [REDACTED] 마스킹 (인증 후·저장 전, 12-webhook §5.3)
+  Hk->>Eng: execute(workflowId, inputData={__triggerSource:'webhook', parameters, body, headers(masked), query, method}, {triggerId: trigger.id})
   Hk->>PG: UPDATE trigger SET last_triggered_at=now
   Eng-->>Hk: executionId
   Hk-->>Ext: 202 { executionId } (interaction.enabled 면 status:'pending' + interaction token/endpoints 동봉)

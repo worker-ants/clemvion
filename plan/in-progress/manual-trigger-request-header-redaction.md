@@ -1,5 +1,5 @@
 ---
-worktree: (unstarted)
+worktree: review-main-4d72c9
 started: 2026-07-07
 owner: planner
 ---
@@ -18,12 +18,26 @@ owner: planner
 
 이는 `$trigger` 작업 이전부터 존재한 갭(표현식 PR 이 도입한 것 아님)이며, `$trigger` 는 오히려 마스킹된 안전 뷰를 제공한다. 두 노출 표면의 redaction 정책이 비대칭이다.
 
-## 미구현 항목 / 결정 필요
+## 결정 (2026-07-07, 사용자 확정) — Ingestion(저장 시점) 마스킹
 
-- [ ] **결정**: Manual Trigger `output.request.headers` 에도 `sanitizeResponseHeaders` 마스킹을 적용할 것인가?
-  - 찬성: 실행 이력 secret 노출 표면 제거(표현식 뷰와 일관).
-  - 검토 포인트: `output.request.headers` 를 소비하는 다운스트림 노드가 **원본 헤더 값**(예: 서명 검증용 `X-Signature`)을 필요로 하는 use-case 가 있는지 — 있다면 전량 마스킹은 회귀. 이 경우 (a) 표현식/이력 노출 시점 마스킹 vs (b) 저장 시점 마스킹 중 택.
-- [ ] project-planner 로 위임해 spec/4-nodes/7-trigger/1-manual-trigger.md §5.2 + spec/2-navigation/14-execution-history.md 의 redaction 정책 명문화.
+재조사에서 노출 표면이 3곳으로 확인됨 (플랜 당초 framing 보다 넓음):
+1. `NodeExecution.output_data` → manual_trigger `output.request.headers` (execution 상세).
+2. `Execution.inputData.headers` (execution 상세 + Re-run 모달 + Input 탭).
+3. background-run 상세 `inputData.headers`.
+
+execution 상세 read 는 `verifyOwnership(workspaceId)` 만 게이트 → **워크스페이스 전 멤버**가 raw 인증 헤더(Authorization/Cookie 등) 열람 가능.
+
+**결정: ingestion(저장) 시점 마스킹** (사용자 확정, display 시점 대비 추천안):
+- `hooks.service` 의 두 webhook `execute()` 지점(generic §7 step 8b, chatChannel §7 step 7e)에서 **인증 검증(§4) 이후·`inputData` 저장 이전** `input.headers` 를 `sanitizeResponseHeaders` blacklist 로 마스킹.
+- 효과: `inputData`·`output.request.headers`·`$trigger.headers` 3표면 + 향후 신규 read 경로까지 단일 소스로 [REDACTED]. secret at-rest 제거.
+- 근거: (a) HMAC/IP/토큰 인증은 마스킹 전 raw 헤더로 이미 수행·§A.3 기록 → 무영향. (b) `output.request.headers` raw 소비 다운스트림 노드 0건 (grep 확인). (c) 비민감 커스텀 헤더는 blacklist 미매칭이라 보존. (d) `$trigger.headers` view-mask 는 idempotent 재적용(defense-in-depth 유지).
+- 기각 — display 시점: raw at-rest 잔존 + 모든 read 경로(execution/background-run/신규) 개별 마스킹 필요(whack-a-mole).
+
+## 구현 (2026-07-07)
+
+- [x] spec: `12-webhook §5.3`(신설 SoT) + WH-EP-06·§5·§8·Rationale + §7 참조, `manual-trigger §5.2`(output.request.headers masked), `expression §4.5·§8.5`(양쪽 masked — deferral 해소), `4-execution-engine §6.1.1`·`data-flow/10-triggers §1.2` 시퀀스 cross-ref.
+- [x] impl: `hooks.service` 2 지점(generic + chatChannel) execute 직전 `sanitizeResponseHeaders(input.headers)` 마스킹.
+- [ ] 테스트: hooks unit(masked headers to execute) + webhook e2e(inputData.headers·output.request.headers·$trigger.headers 마스킹).
 
 ## 비고
 
