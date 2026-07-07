@@ -697,6 +697,43 @@ describe('HooksService', () => {
       expect(res).toMatchObject({ executionId: 'exec-cc-1' });
     });
 
+    it('chatChannel 경로도 민감 헤더를 execute inputData 에 [REDACTED] 로 마스킹 (spec 12-webhook §5.3)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-mask',
+        channelUserKey: 'user-1',
+        command: { kind: 'text_message', text: 'hi' },
+        idempotencyKey: '2001',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue(null);
+      engine.execute.mockResolvedValue('exec-cc-mask');
+
+      await service.handleWebhook('abc', {
+        ...chatInput,
+        headers: {
+          'x-telegram-bot-api-secret-token': 'super-secret',
+          'x-slack-signature': 'v0=abc',
+          'x-forwarded-for': '203.0.113.9',
+        },
+      });
+
+      expect(engine.execute).toHaveBeenCalledWith(
+        chatChannelTrigger.workflowId,
+        expect.objectContaining({
+          __triggerSource: 'webhook',
+          headers: {
+            'x-telegram-bot-api-secret-token': '[REDACTED]',
+            'x-slack-signature': '[REDACTED]',
+            // 비민감 헤더는 보존 (sourceIp 추출은 마스킹 전 raw 로 수행).
+            'x-forwarded-for': '203.0.113.9',
+          },
+        }),
+        expect.anything(),
+      );
+    });
+
     // W-12: chat-channel 경로에서 X-Forwarded-For 헤더가 있을 때 sourceIp 가 전달되는지 단언.
     // webhook 경로(handleWebhook)의 XFF 테스트와 대칭 — chat-channel 도 clientIp 로컬 변수
     // 패턴으로 추출하므로 헤더 유무와 무관하게 일관된 동작을 보장한다 (W-9, W-12).

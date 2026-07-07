@@ -193,9 +193,9 @@ export class HooksService {
     //    the Manual Trigger handler can record `meta.source: 'webhook'` and
     //    group `body`/`headers`/`query`/`method` under `output.request.*`
     //    instead of spreading them at the top level (CONVENTIONS Principle 1).
-    //    민감 헤더 값은 저장 직전 마스킹한다 (spec 12-webhook §5.3) — 인증(§3, HMAC/IP)은
-    //    위에서 raw 헤더로 이미 완료됐으므로 무영향. inputData·output.request·$trigger 전반이
-    //    이 masked 헤더를 참조한다.
+    //    민감 헤더 값은 저장 직전 마스킹한다 (spec 12-webhook §5.3) — 인증(§4, HMAC/IP)은
+    //    위 step 3(verifyWebhookRequest)에서 raw 헤더로 이미 완료됐으므로 무영향. inputData·
+    //    output.request·$trigger 전반이 이 masked 헤더를 참조한다.
     const executionId = await this.executionEngineService.execute(
       trigger.workflowId,
       {
@@ -501,7 +501,7 @@ export class HooksService {
           // 여기서 file 검증은 불필요하다. file 검증(validateFileField)은 EIA/WS/UI 의
           // submit_form publisher chokepoint(execution-engine assertFormSubmissionValid)에서만 수행.
           const verr = validateFormSubmission(
-            filteredFields as Record<string, string>,
+            filteredFields,
             state.pendingFormModal!.fields,
           );
           if (verr) {
@@ -627,8 +627,8 @@ export class HooksService {
         __triggerSource: 'webhook',
         parameters: {},
         body: input.body,
-        // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증은
-        // 위 parseUpdate/adapter 에서 raw rawBody 로 이미 수행됨.
+        // 민감 헤더 마스킹 (spec 12-webhook §5.3) — chatChannel provider 서명 검증
+        // (chatChannelInboundAuthenticator.verify)은 위에서 raw 로 이미 수행됨.
         headers: sanitizeResponseHeaders(input.headers),
         query: input.query,
         method: input.method,

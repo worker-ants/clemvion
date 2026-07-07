@@ -1,11 +1,16 @@
 /**
- * Sanitisation policy for HTTP response headers echoed on
- * `NodeHandlerOutput.output.responseHeaders` (CONVENTIONS Principle 7).
+ * Sanitisation policy for HTTP header **values** — reused across three
+ * surfaces (name-based blacklist, so it applies to request or response
+ * headers alike):
+ *   1. integration nodes' `NodeHandlerOutput.output.responseHeaders`
+ *      (CONVENTIONS Principle 7) — the original use;
+ *   2. webhook **request** headers at ingestion
+ *      (`HooksService`, spec/5-system/12-webhook.md §5.3);
+ *   3. the `$trigger.headers` expression view (`buildTriggerView`).
  *
- * Workflow authors may chain a follow-up node that reads
- * `$node["X"].output.responseHeaders.Authorization` to debug an upstream
- * call. Echoing such headers verbatim would leak credentials into the
- * NodeExecution row, websocket events, and expression auto-complete data.
+ * Echoing auth/secret headers verbatim would leak credentials into the
+ * NodeExecution / Execution row, websocket events, execution-history reads,
+ * and expression auto-complete data.
  *
  * Strategy — header **names** are preserved (so the consumer can still see
  * which headers were present) but the **value** is replaced with
@@ -45,6 +50,10 @@ const SUBSTRING_BLACKLIST = [
   'cookie',
   'credential',
   'password',
+  // 서명 헤더 — `X-Hub-Signature-256`(webhook HMAC), `X-Slack-Signature`,
+  // `X-Signature-Ed25519`/`X-Signature-Timestamp`(Discord) 등 request-bound digest.
+  // 인증 검증은 마스킹 전 raw 로 완료되고 다운스트림 raw 소비처가 없으므로 값 마스킹.
+  'signature',
 ];
 
 function isSensitiveHeaderName(name: string): boolean {

@@ -137,11 +137,14 @@ describe('Webhook trigger (e2e)', () => {
     }
     expect(inputData).not.toBeNull();
     const headers = inputData!.headers as Record<string, string>;
-    // 민감 헤더 값 마스킹.
+    // 민감 헤더 값 마스킹 (execution 상세 API 가 이 inputData 를 반환 — 워크스페이스 멤버 노출 표면).
     expect(headers.authorization).toBe('[REDACTED]');
     expect(headers['x-api-key']).toBe('[REDACTED]');
     // 비민감 커스텀 헤더는 원본 보존.
     expect(headers['x-event-type']).toBe('order.created');
+    // 파생 표면(manual_trigger `output.request.headers`, `$trigger.headers`)은 위 masked
+    // inputData 를 그대로 소비하므로 마스킹된다 — 핸들러 pass-through(handler unit)·
+    // buildTriggerView(resolver unit) 로 결정적 커버, 여기선 primary durable surface 만 확인.
   });
 
   it('B. 미존재 endpointPath → 404 TRIGGER_NOT_FOUND', async () => {
