@@ -88,7 +88,7 @@ export interface GraphWarningRuleResult {
 
 | severity | workflow save endpoint | frontend canvas | 사용 예 |
 |---|---|---|---|
-| `error` | 저장 reject (400 Bad Request, response 에 rule.message 포함) | 빨간 배지 + 저장 버튼 disabled | 깊이 위반, cycle, 명백한 invariant 깨짐 |
+| `error` | 저장 reject (400 Bad Request, response 에 rule.message 포함) | 빨간 배지 + 저장 버튼 disabled | 깊이 위반(`parallel:nested-depth-exceeded`), 명백한 invariant 깨짐 (graph-level 탈출 불가 순환은 §8 `graph:unescapable-cycle` = **warning** — 편집기 warn-not-block, [2-edge.md §2.3](../3-workflow-editor/2-edge.md#23-순환-참조--경고하되-차단하지-않음-warn-not-block)) |
 | `warning` | 저장 통과 (로깅 / response 에 포함) | 노란 배지 + 저장은 가능 | 운영 환경 risk 가 있지만 runtime safety net 이 있는 케이스 (예: concurrency cap silent clamp) |
 
 ## 5. 평가 시점 — 3중 가드 (parallel-p2 결정 E)
