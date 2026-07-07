@@ -217,6 +217,43 @@ describe('HooksService', () => {
     );
   });
 
+  it('민감 헤더는 execute inputData 에 [REDACTED] 로 마스킹, 비민감 헤더는 보존 (spec 12-webhook §5.3)', async () => {
+    triggerRepo.findOne.mockResolvedValue(activeTrigger);
+    triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      type: 'manual_trigger',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [] },
+    } as unknown as Node);
+    engine.execute.mockResolvedValue('exec-mask');
+
+    const headers = {
+      authorization: 'Bearer secret-xyz',
+      cookie: 'session=abc',
+      'x-api-key': 'k-123',
+      'content-type': 'application/json',
+      'x-event-type': 'order.created',
+    };
+    await service.handleWebhook('abc', { ...input, headers });
+
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf1',
+      expect.objectContaining({
+        __triggerSource: 'webhook',
+        headers: {
+          authorization: '[REDACTED]',
+          cookie: '[REDACTED]',
+          'x-api-key': '[REDACTED]',
+          'content-type': 'application/json',
+          'x-event-type': 'order.created',
+        },
+      }),
+      expect.anything(),
+    );
+  });
+
   it('§A.3 호출 이력 — X-Forwarded-For 소스 IP + 응답코드 202 를 execute options 로 전달', async () => {
     triggerRepo.findOne.mockResolvedValue(activeTrigger);
     triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
@@ -658,6 +695,43 @@ describe('HooksService', () => {
         expect.objectContaining({ executionId: 'exec-cc-1' }),
       );
       expect(res).toMatchObject({ executionId: 'exec-cc-1' });
+    });
+
+    it('chatChannel 경로도 민감 헤더를 execute inputData 에 [REDACTED] 로 마스킹 (spec 12-webhook §5.3)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-mask',
+        channelUserKey: 'user-1',
+        command: { kind: 'text_message', text: 'hi' },
+        idempotencyKey: '2001',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue(null);
+      engine.execute.mockResolvedValue('exec-cc-mask');
+
+      await service.handleWebhook('abc', {
+        ...chatInput,
+        headers: {
+          'x-telegram-bot-api-secret-token': 'super-secret',
+          'x-slack-signature': 'v0=abc',
+          'x-forwarded-for': '203.0.113.9',
+        },
+      });
+
+      expect(engine.execute).toHaveBeenCalledWith(
+        chatChannelTrigger.workflowId,
+        expect.objectContaining({
+          __triggerSource: 'webhook',
+          headers: {
+            'x-telegram-bot-api-secret-token': '[REDACTED]',
+            'x-slack-signature': '[REDACTED]',
+            // 비민감 헤더는 보존 (sourceIp 추출은 마스킹 전 raw 로 수행).
+            'x-forwarded-for': '203.0.113.9',
+          },
+        }),
+        expect.anything(),
+      );
     });
 
     // W-12: chat-channel 경로에서 X-Forwarded-For 헤더가 있을 때 sourceIp 가 전달되는지 단언.

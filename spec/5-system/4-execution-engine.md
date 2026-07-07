@@ -734,6 +734,8 @@ type TriggerExecutionInput = {
   parameters?: Record<string, unknown>;
   // webhook 한정 추가 필드
   body?: unknown;
+  // 민감 헤더 값은 ingestion 시 [REDACTED] 마스킹된 상태로 seeding 된다
+  // (webhook adapter — spec/5-system/12-webhook.md §5.3). 인증은 마스킹 전 raw 로 수행.
   headers?: Record<string, string>;
   query?: Record<string, string>;
   method?: string;
