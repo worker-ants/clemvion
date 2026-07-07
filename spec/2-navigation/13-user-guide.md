@@ -51,7 +51,7 @@ code:
 │   ├── editing-nodes             # 노드 편집과 정리 (선택 · 이동 · 복제 · 삭제 · 비활성화 · 상태 표시)
 │   ├── connecting-nodes          # 노드 연결하기 (포트 · 엣지 유효성 · 색상 · stale 정리)
 │   ├── settings-panel            # 노드 설정 패널 (필드 · 표현식 · JSON 모드 · Use Default Output)
-│   ├── containers-and-tools      # 컨테이너와 도구 영역 (그룹 · 중첩 · AI Agent Tool Area)
+│   ├── containers-and-tools      # 컨테이너와 AI Agent 도구 (그룹 · 중첩 · 설정 패널 기반 도구 연결)
 │   ├── saving-and-sharing        # 저장·자동저장·가져오기/내보내기
 │   ├── keyboard-shortcuts        # 키보드 단축키 레퍼런스
 │   ├── ai-assistant              # AI 어시스턴트 개요 (UI · 대화 루프 · 도구 · 세션 · v1 한계 · 오류)

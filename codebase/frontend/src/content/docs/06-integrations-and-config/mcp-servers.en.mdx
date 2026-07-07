@@ -2,7 +2,7 @@ This page covers how to register an external **MCP (Model Context Protocol) serv
 
 ## What MCP is, and when to use it
 
-MCP is a protocol that lets an LLM call **tools**, **resources**, and **prompts** hosted by external systems in a standard way. The difference from the regular workflow Tool Area (where you drag a node onto the canvas) is that **the tool itself lives in another system**.
+MCP is a protocol that lets an LLM call **tools**, **resources**, and **prompts** hosted by external systems in a standard way. The defining trait is that **the tool itself lives in another system** — attach an MCP server to an AI Agent and that server's tools are exposed to the LLM.
 
 Good fits:
 
@@ -86,6 +86,6 @@ When the LLM calls a tool, the AI Agent uses the integration's credentials to ca
 
 - If the LLM keeps picking the wrong tool, narrow the catalog via `enabledTools` or clarify intent in `toolOverrides.description`.
 - `includeResources` and `includePrompts` only have effect when the server actually reports those capabilities. The integration detail page lists what the server supports.
-- To expose **internal workflow nodes** as tools, use the canvas Tool Area instead. External-system tools go through MCP; internal nodes go through Tool Area.
+- To let the agent search your internal documents, attach a **Knowledge Base** to the AI Agent to expose it as a RAG tool. External-system tools go through MCP; internal knowledge search goes through a Knowledge Base.
 - AI Agent condition branching, KB usage, and general tool behavior live in [AI nodes](/docs/02-nodes/ai).
 - Integration UI flow and permissions are described in [Managing integrations](/docs/06-integrations-and-config/integration-management).
