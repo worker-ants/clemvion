@@ -2,6 +2,8 @@
 worktree: notif-followup-refactor-8c7ad2
 started: 2026-07-07
 owner: developer
+spec_impact:
+  - spec/5-system/4-execution-engine.md
 ---
 
 # 알림 하드닝 후속 — 리팩터링 + spec §4.4 문서화
