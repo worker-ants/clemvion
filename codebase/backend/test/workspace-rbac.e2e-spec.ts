@@ -78,6 +78,60 @@ describe('Workspace RBAC (e2e)', () => {
     expect(own.status).toBe(201);
   });
 
+  it('S. POST /auth/workspaces/:id/switch — 멤버 200(헤더 없이 토큰 클레임으로 전환), 비멤버 403, malformed 400', async () => {
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('switch-own'),
+      db,
+    );
+    const wsTeam = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('SwTeam'),
+    );
+
+    // 멤버 전환 → 200 + 새 access token 발급.
+    const sw = await request(BASE_URL)
+      .post(`/api/auth/workspaces/${wsTeam}/switch`)
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .send();
+    expect(sw.status).toBe(200);
+    const switchedToken = sw.body?.data?.accessToken as string;
+    expect(switchedToken).toBeTruthy();
+
+    // 전환된 토큰은 X-Workspace-Id 헤더 없이도 wsTeam 컨텍스트로 동작한다
+    // (활성 워크스페이스 = 토큰 activeWorkspaceId 클레임 = wsTeam) → write 201.
+    const writeInTeam = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${switchedToken}`)
+      .send({ name: 'switched-token-write' });
+    expect(writeInTeam.status).toBe(201);
+
+    // 비멤버 워크스페이스로 전환 시도 → 403 NOT_A_MEMBER.
+    const stranger = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('switch-stranger'),
+      db,
+    );
+    const strangerWs = await createTeamWorkspace(
+      BASE_URL,
+      stranger.accessToken,
+      uniqueName('Str'),
+    );
+    const forbidden = await request(BASE_URL)
+      .post(`/api/auth/workspaces/${strangerWs}/switch`)
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .send();
+    expect(forbidden.status).toBe(403);
+
+    // malformed :id (비-UUID) → 400 (ParseUUIDPipe).
+    const malformed = await request(BASE_URL)
+      .post('/api/auth/workspaces/not-a-uuid/switch')
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .send();
+    expect(malformed.status).toBe(400);
+  });
+
   it('B. viewer 는 워크플로우 생성 불가 (403), editor 는 가능 (201)', async () => {
     const owner = await registerAndLogin(
       BASE_URL,

@@ -713,6 +713,40 @@ describe('WebsocketGateway', () => {
       expect(getSubscriptions().has('client-valid')).toBe(true);
     });
 
+    it('결정2: enriches socket workspaceId from activeWorkspaceId claim', () => {
+      const jwt = module.get(JwtService);
+      (jwt.verify as jest.Mock).mockReturnValueOnce({
+        sub: 'user-1',
+        activeWorkspaceId: 'ws-active',
+      });
+      const { socket } = createMockSocket({
+        id: 'client-active',
+        handshake: { query: { token: 'valid-jwt' }, auth: {} },
+      });
+
+      gateway.handleConnection(socket);
+      expect((socket as Socket & { workspaceId?: string }).workspaceId).toBe(
+        'ws-active',
+      );
+    });
+
+    it('결정2 dual-read: falls back to legacy workspaceId claim when activeWorkspaceId absent', () => {
+      const jwt = module.get(JwtService);
+      (jwt.verify as jest.Mock).mockReturnValueOnce({
+        sub: 'user-1',
+        workspaceId: 'ws-legacy',
+      });
+      const { socket } = createMockSocket({
+        id: 'client-legacy',
+        handshake: { query: { token: 'valid-jwt' }, auth: {} },
+      });
+
+      gateway.handleConnection(socket);
+      expect((socket as Socket & { workspaceId?: string }).workspaceId).toBe(
+        'ws-legacy',
+      );
+    });
+
     it('§7.1 — onAny 로 미등록 이벤트에 UNKNOWN_TYPE error emit (등록 이벤트는 무시)', () => {
       const { socket, emit, onAny } = createMockSocket({
         id: 'client-oa',

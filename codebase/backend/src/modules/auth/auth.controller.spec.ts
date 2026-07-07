@@ -66,32 +66,21 @@ describe('AuthController', () => {
   });
 
   describe('switchWorkspace', () => {
-    it('re-issues token, rotates refresh cookie, and returns the new accessToken', async () => {
+    it('re-issues only the access token (no refresh rotation) and returns it', async () => {
       const user = { sub: 'user-1' } as never;
-      const req = { headers: {} } as never;
       authService.switchWorkspace.mockResolvedValue({
         accessToken: 'switched-access',
-        refreshToken: 'rotated-refresh',
       });
 
-      const result = await controller.switchWorkspace(
-        user,
-        'ws-target',
-        req,
-        mockRes as never,
-      );
+      const result = await controller.switchWorkspace(user, 'ws-target');
 
       expect(authService.switchWorkspace).toHaveBeenCalledWith(
         'user-1',
         'ws-target',
-        expect.any(Object),
       );
       expect(result).toEqual({ data: { accessToken: 'switched-access' } });
-      expect(mockRes.cookie).toHaveBeenCalledWith(
-        'refreshToken',
-        'rotated-refresh',
-        expect.objectContaining({ httpOnly: true, path: '/api/auth' }),
-      );
+      // 전환은 refresh cookie 를 건드리지 않는다(access token 만 재발급).
+      expect(mockRes.cookie).not.toHaveBeenCalled();
     });
   });
 

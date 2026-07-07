@@ -5,6 +5,10 @@ import { persist, createJSONStorage } from "zustand/middleware";
 
 export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
 
+// 연타 시 out-of-order 방지용 최신 전환 대상. switchWorkspace 응답이 도착했을 때 이 값과
+// 다르면(그 사이 더 최근 전환이 시작됨) 늦게 도착한 응답의 상태 반영을 버린다.
+let latestSwitchTarget: string | null = null;
+
 export interface WorkspaceSummary {
   id: string;
   name: string;
@@ -45,14 +49,32 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         const state = get();
         if (!state.workspaces.some((w) => w.id === id)) return;
         if (state.currentWorkspaceId === id) return;
+        latestSwitchTarget = id;
         try {
-          // 토큰 SoT: 먼저 서버에서 activeWorkspaceId=id 로 재발급받아 메모리 토큰을 교체한 뒤
-          // currentWorkspaceId 를 갱신한다(providers.tsx 구독이 캐시 클리어·전환 토스트 발사).
+          // 토큰 SoT: 먼저 서버에서 activeWorkspaceId=id 로 access token 을 재발급받아 메모리
+          // 토큰을 교체한 뒤 currentWorkspaceId 를 갱신한다(providers.tsx 구독이 캐시 클리어·
+          // 전환 토스트 발사). 연타로 더 최근 전환이 시작됐으면 늦게 온 응답은 버린다.
           const { switchWorkspaceApi } = await import("../api/auth");
           await switchWorkspaceApi(id);
+          if (latestSwitchTarget !== id) return;
           set({ currentWorkspaceId: id });
         } catch {
-          // 전환 실패(NOT_A_MEMBER·네트워크) 시 현재 선택을 유지한다(부분 전환 방지).
+          // 전환 실패(NOT_A_MEMBER·네트워크) 시 현재 선택을 유지하고(부분 전환 방지) 사용자에게
+          // 알린다 — 단, 그 사이 더 최근 전환이 시작됐으면 침묵한다(stale 실패 알림 방지).
+          if (latestSwitchTarget !== id) return;
+          try {
+            const [{ toast }, { translate }, { useLocaleStore }] =
+              await Promise.all([
+                import("sonner"),
+                import("../i18n"),
+                import("./locale-store"),
+              ]);
+            toast.error(
+              translate(useLocaleStore.getState().locale, "workspace.switchFailed"),
+            );
+          } catch {
+            // 토스트 표시 실패는 무시(치명적 아님).
+          }
         }
       },
       reset: () => set({ workspaces: [], currentWorkspaceId: null, loaded: false }),

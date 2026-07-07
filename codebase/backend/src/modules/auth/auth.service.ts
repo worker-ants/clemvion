@@ -1022,15 +1022,16 @@ export class AuthService {
    */
   /**
    * 활성 워크스페이스 전환 (data-flow/12-workspace §1.5, 결정1 = A).
-   * 대상 워크스페이스 멤버십을 검증하고(비멤버 `403 NOT_A_MEMBER`) access token 을
-   * `activeWorkspaceId=targetWorkspaceId` 로 재발급한다 (refresh 도 회전). 토큰이 활성
-   * 워크스페이스의 단일 진실이므로 헤더 없이도 다음 요청부터 전환이 적용된다.
+   * 대상 워크스페이스 멤버십을 검증하고(비멤버 `403 NOT_A_MEMBER`) **access token 만**
+   * `activeWorkspaceId=targetWorkspaceId` 로 재발급한다. refresh token 은 워크스페이스와
+   * 무관한 opaque UUID 라 회전하지 않는다 — 매 전환마다 새 refresh family 를 만들면 세션이
+   * 누적되고 구 토큰이 orphan 으로 남을 뿐이므로. 토큰이 활성 워크스페이스의 단일 진실이라
+   * 헤더 없이도 다음 요청부터 전환이 적용되고, 다음 `refresh` 는 기존 refresh 로 동작한다.
    */
   async switchWorkspace(
     userId: string,
     targetWorkspaceId: string,
-    ctx: AuthContext = {},
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{ accessToken: string }> {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException({
@@ -1040,13 +1041,28 @@ export class AuthService {
     }
     // 멤버십 검증은 resolveTokenWorkspaceContext(targetWorkspaceId) 가 수행 —
     // 비멤버면 ForbiddenException(NOT_A_MEMBER) 를 던진다.
-    return this.generateTokens(
+    const context = await this.resolveTokenWorkspaceContext(
       user,
-      false,
-      undefined,
-      ctx,
-      undefined,
       targetWorkspaceId,
+    );
+    return { accessToken: this.signAccessToken(user, context) };
+  }
+
+  /** access token 서명 — 활성 워크스페이스 클레임은 activeWorkspaceId (결정2 = B). */
+  private signAccessToken(
+    user: User,
+    context: { workspaceId: string; role: string },
+  ): string {
+    return this.jwtService.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        // jwt.strategy 가 activeWorkspaceId ?? workspaceId 로 dual-read 하며,
+        // 서명은 신규 필드만 발행한다.
+        activeWorkspaceId: context.workspaceId,
+        role: context.role,
+      },
+      { expiresIn: 900 }, // 15분
     );
   }
 
@@ -1059,27 +1075,10 @@ export class AuthService {
     // 묶기 위한 optional manager. 미전달 시(login/OAuth 경로) 기존 repository 사용 —
     // 호출처 무변경. JWT sign 은 DB 무관이라 트랜잭션 밖에서 선계산된다.
     manager?: EntityManager,
-    // 워크스페이스 전환(switchWorkspace) 시 대상 워크스페이스. 지정되면 멤버십을 검증하고
-    // 그 워크스페이스를 activeWorkspaceId 로 서명한다(비멤버면 NOT_A_MEMBER).
-    targetWorkspaceId?: string,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const context = await this.resolveTokenWorkspaceContext(
-      user,
-      targetWorkspaceId,
-    );
+    const context = await this.resolveTokenWorkspaceContext(user);
 
-    const accessPayload = {
-      sub: user.id,
-      email: user.email,
-      // 활성 워크스페이스 클레임 = activeWorkspaceId (결정2 = B). jwt.strategy 가
-      // activeWorkspaceId ?? workspaceId 로 dual-read 하며, 서명은 신규 필드만 발행한다.
-      activeWorkspaceId: context.workspaceId,
-      role: context.role,
-    };
-
-    const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: 900, // 15분
-    });
+    const accessToken = this.signAccessToken(user, context);
 
     // refresh token 생성
     const rawRefreshToken = uuidv4();

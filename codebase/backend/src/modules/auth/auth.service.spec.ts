@@ -987,7 +987,6 @@ describe('AuthService', () => {
       const result = await service.switchWorkspace(
         'user-uuid-1',
         'target-ws-1',
-        {},
       );
 
       expect(result.accessToken).toBe('mock-access-token');
@@ -1004,6 +1003,8 @@ describe('AuthService', () => {
       );
       // 전환 경로는 personal 재해석을 하지 않는다(대상 멤버십만 검증).
       expect(workspacesService.findPersonalWorkspace).not.toHaveBeenCalled();
+      // 전환은 access token 만 재발급 — refresh token 은 생성하지 않는다(회전 없음).
+      expect(refreshTokenRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException NOT_A_MEMBER when target membership is absent', async () => {
@@ -1011,7 +1012,7 @@ describe('AuthService', () => {
       workspacesService.getMemberRole.mockResolvedValue(null);
 
       await expect(
-        service.switchWorkspace('user-uuid-1', 'foreign-ws', {}),
+        service.switchWorkspace('user-uuid-1', 'foreign-ws'),
       ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
 
@@ -1019,7 +1020,7 @@ describe('AuthService', () => {
       usersService.findById.mockResolvedValue(null as never);
 
       await expect(
-        service.switchWorkspace('ghost', 'ws', {}),
+        service.switchWorkspace('ghost', 'ws'),
       ).rejects.toMatchObject({ response: { code: 'TOKEN_INVALID' } });
     });
   });

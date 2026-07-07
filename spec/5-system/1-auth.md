@@ -480,7 +480,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | POST | /api/auth/2fa/webauthn/recovery-codes/regenerate | WebAuthn 복구 코드 재발급. **인증 필수** (JWT) + 본문에 `password` 재확인. 기존 미사용 코드 폐기 후 10개 새로 발급. TOTP 의 `/api/auth/2fa/disable` 과 대칭적인 네임스페이스 (TOTP 측 복구 코드 재발급은 현재 미지원 — 비활성→재활성으로 재발급) |
 | POST | /api/auth/logout | 로그아웃 (호출 디바이스 family 전체 revoke) |
 | POST | /api/auth/refresh | 토큰 갱신 |
-| POST | /api/auth/workspaces/:id/switch | 워크스페이스 전환 — 대상 멤버십 검증(비멤버 `403 NOT_A_MEMBER`) 후 access token 을 `activeWorkspaceId=:id` 로 재발급 + refresh rotate. `JwtAuthGuard`. 상세 [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급) |
+| POST | /api/auth/workspaces/:id/switch | 워크스페이스 전환 — 대상 멤버십 검증(비멤버 `403 NOT_A_MEMBER`) 후 **access token 만** `activeWorkspaceId=:id` 로 재발급(refresh 무회전 — 워크스페이스 무관 opaque UUID). `:id` 는 `ParseUUIDPipe`. `JwtAuthGuard`. 상세 [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급) |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |
 | POST | /api/auth/reset-password | 비밀번호 재설정 |
 | GET | /api/auth/oauth/providers | 백엔드에 자격증명이 설정된 활성 OAuth provider 목록. **인증 불요** (`@Public`), `Cache-Control: private, max-age=300`. 비어 있으면 클라이언트가 SSO UI 미노출 |

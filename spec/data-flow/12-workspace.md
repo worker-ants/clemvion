@@ -110,7 +110,7 @@ sequenceDiagram
 
 ### 1.5 워크스페이스 전환 (토큰 재발급)
 
-> **구현.** `POST /api/auth/workspaces/:id/switch` → `AuthService.switchWorkspace` 가 대상 워크스페이스 멤버십을 검증하고(비멤버 `403 NOT_A_MEMBER`) access token 을 **활성 워크스페이스가 대상으로 바뀐 채 재발급**한다 (refresh 는 rotate). 토큰이 활성 워크스페이스의 **단일 진실**이며, `X-Workspace-Id` 헤더는 하위호환 fallback 으로만 남는다(§Overview / Rationale). JWT payload 의 워크스페이스 클레임 필드명은 `activeWorkspaceId` 다 (전환기 dual-read: 아래 Rationale 참조).
+> **구현.** `POST /api/auth/workspaces/:id/switch` → `AuthService.switchWorkspace` 가 대상 워크스페이스 멤버십을 검증하고(비멤버 `403 NOT_A_MEMBER`) **access token 만** `activeWorkspaceId=대상` 으로 재발급한다. **refresh token 은 회전하지 않는다** — refresh 는 워크스페이스와 무관한 opaque UUID 라, 전환마다 새 family 를 만들면 세션이 누적되고 구 토큰이 orphan 으로 남을 뿐이다(refresh cookie 불변). 토큰이 활성 워크스페이스의 **단일 진실**이며, `X-Workspace-Id` 헤더는 전환기 header-first 하위호환으로 유지된다(§Overview / Rationale). JWT payload 의 워크스페이스 클레임 필드명은 `activeWorkspaceId` 다 (전환기 dual-read: 아래 Rationale 참조).
 
 ```mermaid
 sequenceDiagram
@@ -122,8 +122,8 @@ sequenceDiagram
   alt 멤버 아님
     Svc-->>C: 403 NOT_A_MEMBER
   end
-  Svc->>Svc: generateTokens(targetWorkspaceId=:id) — activeWorkspaceId=:id 로 서명
-  Svc-->>C: { accessToken } + rotated refresh cookie
+  Svc->>Svc: signAccessToken — activeWorkspaceId=:id 로 서명 (refresh 무회전)
+  Svc-->>C: { accessToken } (refresh cookie 불변)
 ```
 
 > **전환이 작동하려면 인증 전략도 토큰 클레임을 존중해야 한다.** 종전 `jwt.strategy.validate` 는 매 요청 personal workspace 로 재해석해 토큰의 workspace 클레임을 무시했다. switch 재발급이 효력을 가지려면 전략이 토큰의 `activeWorkspaceId`(dual-read: 없으면 legacy `workspaceId`)를 읽어 멤버십을 검증하고 그 워크스페이스를 `request.user.workspaceId` 로 채택한다 — 클레임이 없거나(legacy 토큰) 멤버십이 사라졌으면 personal→첫 멤버십으로 graceful fallback. **전환기 하위호환**: `WorkspaceId` 데코레이터·`RolesGuard` 는 `X-Workspace-Id` 헤더가 있으면 그 워크스페이스를 우선 사용하고(header-first, 두 곳 동일 규칙이라 컨텍스트 일관), 헤더가 없으면 위 `request.user.workspaceId`(토큰 클레임)를 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 컨텍스트의 단일 진실이 된다.
@@ -325,6 +325,11 @@ find-or-create + catch-refind 폴백)가 이중 방어한다 (team 다중 소유
 (`spec-sync-data-flow-12-workspace-gaps` 결정3 = B, 2026-07-07).
 
 > **마이그레이션 안전**: 인덱스는 `CREATE UNIQUE INDEX CONCURRENTLY`(트랜잭션 밖, V109 `.conf`
-> `executeInTransaction=false`)로 생성하고, 그 직전 **dedup 마이그레이션(V108)** 이 owner 당 중복 personal 을
-> 정리한다 — tie-break 는 **가장 오래된 행 유지**(`created_at ASC`), 나머지의 `workspace_member` 는 생존 행으로
-> re-point 후 삭제. 삭제는 되돌릴 수 없으므로(DOWN 파괴적) 적용 전 운영 환경에서 중복 존재 사전 count 확인.
+> `executeInTransaction=false`)로 생성하고, 그 직전 **V108 은 fail-loud 사전 검증 가드**다 — owner 당 중복
+> personal 이 있으면 `RAISE EXCEPTION` 으로 배포를 즉시 중단시킬 뿐 **어떤 row 도 자동 삭제·re-point 하지
+> 않는다**. 중복이 검출되면 operator 가 안내된 `array_agg` 조회로 확인해 수동으로 병합/삭제한 뒤 재배포해야
+> V109 인덱스 빌드가 진행된다. **자동 dedup(삭제/병합)을 배제한 이유**: `workspace(id)` 를 참조하는
+> `ON DELETE CASCADE` FK 가 ~20개 테이블에 걸쳐 있어, 중복 personal 을 자동 삭제하면 그 하위 데이터가 cascade
+> 로 함께 소실되고, 반대로 모든 자식 row 를 keeper 로 re-point 하는 것은 테이블 열거 누락·membership 중복 등
+> 새로운 위험을 만든다. 중복 personal 은 애초에 `findOrCreatePersonalWorkspace` 가 방지하는 app invariant
+> 위반이므로 자동 파괴보다 operator 수동 처리가 안전하다(V108 파일 주석에 상세).

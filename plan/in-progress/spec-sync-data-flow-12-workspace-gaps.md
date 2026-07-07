@@ -11,16 +11,16 @@ owner: planner
 
 ## 결정 기록 (2026-07-07, 사용자 확정)
 
-4개 결정 옵션(§"결정 옵션 (2026-06-13)")에 대해 사용자가 채택안을 확정. **spec 반영 완료, 구현 착수 전(Planned).** 구현 표면은 아래 §구현 착수 phase 로 추적.
+4개 결정 옵션(§"결정 옵션 (2026-06-13)")에 대해 사용자가 채택안을 확정. **spec 반영 완료, 구현 완료(본 PR).** 구현 표면은 아래 §구현 완료 phase 참조.
 
 | 결정 | 채택 | plan 권장 대비 | 승인 근거 |
 | --- | --- | --- | --- |
 | 1. 전환 모델 | **A** (토큰 재발급 switch) + **full 마이그레이션** | 권장 A 일치 | 검증 진입점 1곳 수렴(info-leak↓). 추가 확인: 헤더 전환이 이미 FE(`workspace-store`+axios 인터셉터)로 작동 중이라, 5A 는 "빠진 기능"이 아니라 헤더→토큰 모델 **FE+BE 동시 마이그레이션**. `jwt.strategy` 가 토큰 클레임 존중하도록 변경 + FE `switchWorkspace` 가 `/switch` 호출로 전환(사용자 2026-07-07 방향 검토 후 "토큰 SoT 풀" 승인). |
 | 2. 클레임 명명 | **B** (`workspaceId`→`activeWorkspaceId`, dual-read) | **권장 A(유지)와 다름 — 사용자 override** | 사용자 명시 선택(2026-07-07). dual-read(`activeWorkspaceId ?? workspaceId`, write 는 activeWorkspaceId) 로 legacy 토큰 15분 롤오버 보호 후 cleanup. |
-| 3. personal 유니크 DB | **B** (부분 유니크 인덱스) | 권장 B 일치 | 무결성 invariant → DB defense-in-depth. dedup(V108, keep-oldest+member re-point) 선행 + `CREATE UNIQUE INDEX CONCURRENTLY`(V109). |
+| 3. personal 유니크 DB | **B** (부분 유니크 인덱스) | 권장 B 일치 | 무결성 invariant → DB defense-in-depth. V108 **fail-loud 가드**(중복 personal 검출 시 RAISE, 자동 삭제·re-point 안 함 — ~20 CASCADE FK 데이터 유실 위험) 선행 + `CREATE UNIQUE INDEX CONCURRENTLY`(V109). |
 | 4. audit 범위 | **B** (`workspace.*`+`member.*` 전체) | 권장 B 일치 | 명명 확정(비용 0), 감사는 전부/일관부재일 때 가치. |
 
-## 구현 착수 (developer) — Planned
+## 구현 완료 (developer)
 
 각 결정의 spec 은 반영됨(§1.5·§2.1·§4·Rationale, 1-auth §2.2/§3.3/§4.1/§5, audit-actions §3, 1-audit §1.1). 아래 코드 표면 **구현 완료** (본 PR):
 
