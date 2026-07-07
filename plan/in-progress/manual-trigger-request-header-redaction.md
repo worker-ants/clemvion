@@ -37,7 +37,8 @@ execution 상세 read 는 `verifyOwnership(workspaceId)` 만 게이트 → **워
 
 - [x] spec: `12-webhook §5.3`(신설 SoT) + WH-EP-06·§5·§8·Rationale + §7 참조, `manual-trigger §5.2`(output.request.headers masked), `expression §4.5·§8.5`(양쪽 masked — deferral 해소), `4-execution-engine §6.1.1`·`data-flow/10-triggers §1.2` 시퀀스 cross-ref.
 - [x] impl: `hooks.service` 2 지점(generic + chatChannel) execute 직전 `sanitizeResponseHeaders(input.headers)` 마스킹.
-- [ ] 테스트: hooks unit(masked headers to execute) + webhook e2e(inputData.headers·output.request.headers·$trigger.headers 마스킹).
+- [x] 테스트: hooks unit(generic + chatChannel 경로 masked headers) + webhook e2e A2(inputData.headers + output.request.headers 마스킹). $trigger.headers 마스킹은 기존 resolver spec 커버.
+- [x] ai-review 조치: `sanitizeResponseHeaders` blacklist 에 `signature` substring 추가(X-Hub-Signature-256/X-Slack-Signature/Discord 서명 헤더 마스킹) + chatChannel 마스킹 테스트 + 주석 정정(§4 인증).
 
 ## 비고
 
