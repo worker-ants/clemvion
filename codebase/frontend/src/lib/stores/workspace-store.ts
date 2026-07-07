@@ -24,10 +24,10 @@ interface WorkspaceState {
 
 /**
  * 현재 선택된 워크스페이스 ID와 사용자가 속한 목록을 보관해요.
- * 활성 워크스페이스의 단일 진실은 access token 의 `activeWorkspaceId` 클레임이에요(결정1).
- * 전환은 `switchWorkspace` 가 `/auth/workspaces/:id/switch` 로 토큰을 재발급받아 이뤄지고,
- * `currentWorkspaceId`(localStorage 영속)는 UI 표시·reconcile-on-load 힌트예요.
- * axios 인터셉터의 `X-Workspace-Id` 헤더는 이제 하위호환 **fallback** 으로만 첨부돼요.
+ * 활성 워크스페이스는 access token 의 `activeWorkspaceId` 클레임으로 확정돼요(결정1). 전환은
+ * `switchWorkspace` 가 `/auth/workspaces/:id/switch` 로 토큰을 재발급받아 이뤄지고,
+ * `currentWorkspaceId`(localStorage 영속)는 UI 표시 + axios 인터셉터의 `X-Workspace-Id` 헤더
+ * (전환기 하위호환, 서버가 header-first 로 우선 소비) + reconcile-on-load 힌트로 쓰여요.
  */
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(

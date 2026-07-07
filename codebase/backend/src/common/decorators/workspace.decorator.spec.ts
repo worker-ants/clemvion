@@ -51,29 +51,29 @@ describe('WorkspaceId decorator', () => {
     );
   }
 
-  it('should return workspace ID from X-Workspace-Id header when no token workspace (fallback)', () => {
-    // 토큰 SoT 전환(결정1): 헤더는 request.user.workspaceId 부재 시에만 소비되는 fallback.
-    const ctx = createMockContext({
-      'x-workspace-id': 'header-workspace-uuid',
-    });
+  it('should return workspace ID from X-Workspace-Id header', () => {
+    const ctx = createMockContext(
+      { 'x-workspace-id': 'header-workspace-uuid' },
+      { workspaceId: 'jwt-workspace-uuid' },
+    );
 
     const result = factory(undefined, ctx);
     expect(result).toBe('header-workspace-uuid');
   });
 
-  it('should prefer JWT (token SoT) over X-Workspace-Id header', () => {
-    // 종전엔 헤더 우선이었으나 결정1(토큰 단일 진실)로 반전 — jwt.strategy 가 이미
-    // activeWorkspaceId→헤더→legacy→personal 순으로 확정한 request.user.workspaceId 를 신뢰.
+  it('should prefer header over JWT workspaceId (header-first, RolesGuard 와 동일)', () => {
+    // 하위호환: X-Workspace-Id 헤더가 있으면 토큰 클레임(user.workspaceId)보다 우선한다.
+    // RolesGuard 도 동일 header-first 규칙이라 두 곳의 워크스페이스 컨텍스트가 일관된다.
     const ctx = createMockContext(
       { 'x-workspace-id': 'header-id' },
       { workspaceId: 'jwt-id' },
     );
 
     const result = factory(undefined, ctx);
-    expect(result).toBe('jwt-id');
+    expect(result).toBe('header-id');
   });
 
-  it('should return workspace ID from JWT when header is not present', () => {
+  it('should return workspace ID from JWT (token 활성 워크스페이스) when header is not present', () => {
     const ctx = createMockContext({}, { workspaceId: 'jwt-workspace-uuid' });
 
     const result = factory(undefined, ctx);

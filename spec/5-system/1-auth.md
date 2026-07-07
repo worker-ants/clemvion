@@ -309,7 +309,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 }
 ```
 
-> **활성 워크스페이스 클레임 = `activeWorkspaceId`** (구현, 전환기 dual-read). 필드명을 `workspaceId` → `activeWorkspaceId` 로 rename 했다(`spec-sync-data-flow-12-workspace-gaps` 결정2 = B, 2026-07-07; 권장안 A(유지)와 다른 사용자 명시 선택). read site 는 `activeWorkspaceId ?? workspaceId` 로 legacy 토큰을 함께 수용하고(`jwt.strategy`·`websocket.gateway`), write(서명, `auth.service.generateTokens`)는 `activeWorkspaceId` 만 발행한다 (rollover window = access token TTL 15분, 이후 별도 cleanup 에서 legacy fallback 제거). 활성 워크스페이스 전환은 `POST /api/auth/workspaces/:id/switch`(§5) 로 이 클레임을 재발급한다 — 토큰이 활성 워크스페이스의 단일 진실이며 `X-Workspace-Id` 헤더는 fallback. 상세: [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급).
+> **활성 워크스페이스 클레임 = `activeWorkspaceId`** (구현, 전환기 dual-read). 필드명을 `workspaceId` → `activeWorkspaceId` 로 rename 했다(`spec-sync-data-flow-12-workspace-gaps` 결정2 = B, 2026-07-07; 권장안 A(유지)와 다른 사용자 명시 선택). read site 는 `activeWorkspaceId ?? workspaceId` 로 legacy 토큰을 함께 수용하고(`jwt.strategy`·`websocket.gateway`), write(서명, `auth.service.generateTokens`)는 `activeWorkspaceId` 만 발행한다 (rollover window = access token TTL 15분, 이후 별도 cleanup 에서 legacy fallback 제거). 활성 워크스페이스 전환은 `POST /api/auth/workspaces/:id/switch`(§5) 로 이 클레임을 재발급한다. 전환기 하위호환으로 `X-Workspace-Id` 헤더가 있으면 데코레이터·`RolesGuard` 가 header-first 로 우선 사용하고, 헤더가 없으면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다. 상세: [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급).
 
 ### 2.3 세션 정책
 
@@ -383,7 +383,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ```
 1. 요청 수신 → Access Token 검증
-2. Token에서 활성 워크스페이스(`activeWorkspaceId`, dual-read 로 legacy `workspaceId` 포함), role 추출 — `jwt.strategy` 가 클레임의 멤버십을 검증해 활성값을 확정한다: `activeWorkspaceId` → `X-Workspace-Id` 헤더(rollout fallback) → legacy `workspaceId` → personal → 첫 멤버십. 비멤버·부재 시 personal fallback (§2.2 · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급))
+2. 활성 워크스페이스·role 확정 — `jwt.strategy` 가 토큰 클레임(`activeWorkspaceId`, dual-read 로 legacy `workspaceId`)의 멤버십을 검증해 `request.user.workspaceId` 를 확정한다(비멤버·부재 시 personal→첫 멤버십). 워크스페이스 컨텍스트는 **header-first**: `WorkspaceId` 데코레이터·`RolesGuard` 가 `X-Workspace-Id` 헤더가 있으면 그 워크스페이스를 우선 사용하고(전환기 하위호환), 없으면 토큰 클레임을 사용한다 (§2.2 · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급))
 3. 요청 리소스가 해당 워크스페이스에 속하는지 확인
 4. 역할이 해당 액션에 대한 권한을 가지는지 확인
 5. 권한 없음 → 403 Forbidden

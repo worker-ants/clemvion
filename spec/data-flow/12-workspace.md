@@ -19,9 +19,9 @@ personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts` — `@Controller('workspaces')`. 생성/멤버/초대 발급·수락(`POST /api/workspaces/invitations/accept`)·전체 워크스페이스 HTTP 엔드포인트
 - `codebase/backend/src/modules/workspaces/invitations.controller.ts` — `@Controller('invitations')`. **공개** 토큰 메타 조회(`GET /api/invitations/:token`) 단일 엔드포인트 (가입 페이지 prefill 용)
 
-활성 워크스페이스의 **단일 진실은 access token 의 `activeWorkspaceId` 클레임**이며, 전환은 토큰 재발급(§1.5)으로 이뤄진다. `jwt.strategy` 가 토큰 클레임의 멤버십을 검증해 활성 워크스페이스를 확정한다. `X-Workspace-Id` 헤더는 하위호환 fallback 으로만 수용되며(아래 Rationale), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. (전환기 dual-read: `activeWorkspaceId` 부재 시 legacy `workspaceId` 클레임 수용 — Rationale 참고.)
+활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(전환기 dual-read 로 legacy `workspaceId` 도 수용), 전환은 토큰 재발급(§1.5, `POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `jwt.strategy` 가 클레임의 멤버십을 검증해 `request.user.workspaceId` 를 확정하고(비멤버·부재 시 personal→첫 멤버십 fallback), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. **전환기 하위호환**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 **우선**(header-first) 사용한다(헤더 스푸핑은 RolesGuard 멤버십 검증이 403 으로 차단). 클라이언트가 헤더를 떼면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다(아래 Rationale).
 
-> **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§4 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)·`X-Workspace-Id` 헤더 fallback 은 레거시 세션 보호용으로 유지된다.
+> **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§4 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)와 `X-Workspace-Id` 헤더 header-first(전환기 하위호환)는 레거시 세션·미마이그레이션 클라이언트 보호용으로 유지된다.
 
 ---
 
@@ -126,11 +126,11 @@ sequenceDiagram
   Svc-->>C: { accessToken } + rotated refresh cookie
 ```
 
-> **전환이 작동하려면 인증 전략도 토큰 클레임을 존중해야 한다.** 종전 `jwt.strategy.validate` 는 매 요청 personal workspace 로 재해석해 토큰의 workspace 클레임을 무시했다. switch 재발급이 효력을 가지려면 전략이 토큰의 `activeWorkspaceId`(dual-read: 없으면 legacy `workspaceId`)를 읽어 멤버십을 검증하고 그 워크스페이스를 활성값으로 채택한다 — 클레임이 없거나(legacy 토큰) 멤버십이 사라졌으면 personal 로 graceful fallback. 이로써 토큰이 컨텍스트의 진실원이 되고 헤더는 fallback 으로 강등된다.
+> **전환이 작동하려면 인증 전략도 토큰 클레임을 존중해야 한다.** 종전 `jwt.strategy.validate` 는 매 요청 personal workspace 로 재해석해 토큰의 workspace 클레임을 무시했다. switch 재발급이 효력을 가지려면 전략이 토큰의 `activeWorkspaceId`(dual-read: 없으면 legacy `workspaceId`)를 읽어 멤버십을 검증하고 그 워크스페이스를 `request.user.workspaceId` 로 채택한다 — 클레임이 없거나(legacy 토큰) 멤버십이 사라졌으면 personal→첫 멤버십으로 graceful fallback. **전환기 하위호환**: `WorkspaceId` 데코레이터·`RolesGuard` 는 `X-Workspace-Id` 헤더가 있으면 그 워크스페이스를 우선 사용하고(header-first, 두 곳 동일 규칙이라 컨텍스트 일관), 헤더가 없으면 위 `request.user.workspaceId`(토큰 클레임)를 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 컨텍스트의 단일 진실이 된다.
 >
 > **refresh 후 활성 워크스페이스**: refresh token 은 클레임을 담지 않는 opaque UUID 라, 전환 후 다음 `refresh` 는 워크스페이스를 DB 로 재해석한다(personal-or-first). v1 에서 전환은 필요 시 재호출로 충분하며, refresh 전반의 sticky 활성 워크스페이스는 후속 과제.
 
-> **프론트 전환 마이그레이션 (토큰 SoT, 결정1 = A full)**: 종전 프론트는 `workspace-store.switchWorkspace(id)` 가 `currentWorkspaceId` 를 localStorage 에 저장하고 axios 인터셉터가 `X-Workspace-Id` 헤더로 첨부하는 **헤더 전용** 모델이었다. 이제 `switchWorkspace` 는 `POST /api/auth/workspaces/:id/switch` 를 호출해 재발급된 access token 을 저장하고, 헤더 첨부는 fallback 으로만 남긴다(토큰이 진실원). **롤아웃 안전**: 배포 직후 기존 세션은 (a) legacy 토큰(클레임 `workspaceId` 만)·(b) 헤더로 지정된 team 컨텍스트를 갖는다 — `jwt.strategy` 의 우선순위 `activeWorkspaceId`(신규) → `X-Workspace-Id` 헤더(fallback) → legacy `workspaceId` → personal 로 in-flight 세션을 보존하고, 프론트는 로드 시 저장된 `currentWorkspaceId` 와 토큰의 활성 워크스페이스가 다르면 `/switch` 로 재조정한다. dual-read/header-fallback 은 access TTL(15분) 롤오버 후 별도 cleanup 에서 제거.
+> **프론트 전환 마이그레이션 (토큰 SoT, 결정1 = A full)**: 종전 프론트는 `workspace-store.switchWorkspace(id)` 가 `currentWorkspaceId` 를 localStorage 에 저장하고 axios 인터셉터가 `X-Workspace-Id` 헤더로 첨부하는 **헤더 전용** 모델이었다. 이제 `switchWorkspace` 는 `POST /api/auth/workspaces/:id/switch` 를 호출해 재발급된 access token 을 저장하고(토큰 sync), 헤더 첨부는 유지한다(전환기 header-first 하위호환). **롤아웃 안전**: 배포 직후 기존 세션은 (a) legacy 토큰(클레임 `workspaceId` 만)·(b) 헤더로 지정된 team 컨텍스트를 갖는다 — 데코레이터·`RolesGuard` 의 header-first 규칙이 헤더의 team 컨텍스트를 그대로 보존하고(토큰 클레임은 헤더 부재 시 권위), 프론트는 로드 시 저장된 `currentWorkspaceId` 와 토큰의 활성 워크스페이스가 다르면 `/switch` 로 토큰을 재조정한다(reconcile-on-load). 향후 프론트가 헤더 첨부를 제거하면 토큰 클레임이 단일 진실이 된다 — 그 시점에 dual-read 도 access TTL(15분) 롤오버 후 cleanup.
 
 ### 1.6 역할 변경 / 소유권 이전
 
@@ -262,17 +262,23 @@ stateDiagram-v2
 
 ## Rationale
 
-### 활성 워크스페이스의 단일 진실 = 토큰 클레임 (헤더는 fallback)
+### 활성 워크스페이스 = 토큰 클레임 (전환기 header-first 하위호환)
 
-활성 워크스페이스는 **access token 의 `activeWorkspaceId` 클레임이 진실원**이며, 전환은 토큰 재발급(§1.5)으로만
-이뤄진다. `jwt.strategy.validate` 가 토큰 클레임이 가리키는 워크스페이스의 멤버십을 검증하고 그 값을 활성값으로
-채택한다 — 클레임이 없거나(legacy 토큰·회원가입 직후) 멤버십이 사라졌으면 personal 로 graceful fallback. 이로써
-멤버십 검증이 인증 진입점 1곳으로 수렴한다.
+활성 워크스페이스는 **access token 의 `activeWorkspaceId` 클레임**으로 확정되며, 전환은 토큰 재발급(§1.5)으로
+이뤄진다. `jwt.strategy.validate` 가 토큰 클레임이 가리키는 워크스페이스의 멤버십을 검증하고 그 값을
+`request.user.workspaceId` 로 채택한다 — 클레임이 없거나(legacy 토큰·회원가입 직후) 멤버십이 사라졌으면
+personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이 활성 워크스페이스의 단일 진실이 되어
+멤버십 검증이 인증 진입점 1곳으로 수렴하는 것이며(header-first 모델의 info-leak 위험 — 멤버십 RBAC 가 모든
+핸들러에 누락 없이 깔린다는 분산된 전제에 의존 — 해소), 이 전환의 인프라(전환 엔드포인트·토큰 클레임 존중)를
+도입했다 (`spec-sync-data-flow-12-workspace-gaps` 결정1 = A, 2026-07-07).
 
-`X-Workspace-Id` 헤더는 하위호환 **fallback** 으로만 남는다: 토큰 클레임이 활성 워크스페이스를 정하고, 헤더는
-클레임 부재 시의 보조 지정 수단이다(과거 유일 전환 수단에서 강등). 헤더 우선 모델은 멤버십 RBAC 가 모든
-핸들러에 누락 없이 깔린다는 분산된 전제에 의존해 info-leak 위험이 핸들러 수에 비례했기에, 토큰 단일 진실
-모델(검증 진입점 수렴)로 전환했다 (`spec-sync-data-flow-12-workspace-gaps` 결정1 = A, 2026-07-07).
+**전환기 하위호환 — header-first**: 기존 클라이언트·e2e 는 `X-Workspace-Id` 헤더로 워크스페이스를 전환한다.
+호환을 깨지 않기 위해 `WorkspaceId` 데코레이터·`RolesGuard` 는 헤더가 있으면 그 워크스페이스를 **우선** 사용하고
+(header-first, 두 곳 동일 규칙이라 컨텍스트·role 검증 대상이 일관), 헤더가 없으면 위 `request.user.workspaceId`
+(토큰 클레임)를 사용한다. 헤더 스푸핑(비멤버 워크스페이스 지정)은 `RolesGuard` 의 멤버십 검증이 403 으로 차단하므로
+info-leak 이 커지지 않는다. **완전한 토큰 SoT(및 검증 수렴)는 클라이언트가 헤더 첨부를 제거한 시점에 실현**되며,
+그때까지 헤더는 authoritative 한 전환 수단으로 유지된다. `/switch` 는 그 사이에도 토큰 클레임을 활성 워크스페이스와
+동기화해 둔다(헤더 제거 시 즉시 SoT 가 되도록).
 
 > **클레임 dual-read (전환기)**: 필드명을 `workspaceId` → `activeWorkspaceId` 로 rename 하되(결정2 = B), 전환기
 > 동안 read site 는 `activeWorkspaceId ?? workspaceId` 로 legacy 토큰을 함께 수용한다. write(서명)는

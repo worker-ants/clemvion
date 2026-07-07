@@ -1,14 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import type { Request } from 'express';
 import { JwtStrategy } from './jwt.strategy';
 import { UsersService } from '../../users/users.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
-
-/** validate(req, payload) 용 최소 Request stub (헤더 override 가능). */
-const reqWith = (headers: Record<string, string> = {}): Request =>
-  ({ headers }) as unknown as Request;
 
 describe('JwtStrategy', () => {
   let strategy: JwtStrategy;
@@ -69,7 +64,7 @@ describe('JwtStrategy', () => {
     );
     workspacesService.getMemberRole.mockResolvedValue('owner');
 
-    const result = await strategy.validate(reqWith(), validPayload);
+    const result = await strategy.validate(validPayload);
 
     expect(result).toEqual({
       sub: 'user-uuid-1',
@@ -90,7 +85,7 @@ describe('JwtStrategy', () => {
   it('should throw UnauthorizedException when user not found', async () => {
     usersService.findById.mockResolvedValue(null);
 
-    await expect(strategy.validate(reqWith(), validPayload)).rejects.toThrow(
+    await expect(strategy.validate(validPayload)).rejects.toThrow(
       UnauthorizedException,
     );
   });
@@ -101,7 +96,7 @@ describe('JwtStrategy', () => {
       emailVerified: false,
     } as never);
 
-    await expect(strategy.validate(reqWith(), validPayload)).rejects.toThrow(
+    await expect(strategy.validate(validPayload)).rejects.toThrow(
       UnauthorizedException,
     );
   });
@@ -110,7 +105,7 @@ describe('JwtStrategy', () => {
     usersService.findById.mockResolvedValue(mockUser as never);
     workspacesService.findPersonalWorkspace.mockResolvedValue(null);
 
-    await expect(strategy.validate(reqWith(), validPayload)).rejects.toThrow(
+    await expect(strategy.validate(validPayload)).rejects.toThrow(
       UnauthorizedException,
     );
   });
@@ -122,7 +117,7 @@ describe('JwtStrategy', () => {
     );
     workspacesService.getMemberRole.mockResolvedValue(null);
 
-    const result = await strategy.validate(reqWith(), validPayload);
+    const result = await strategy.validate(validPayload);
 
     expect(result.role).toBe('member');
   });
@@ -136,7 +131,7 @@ describe('JwtStrategy', () => {
       new Error('DB connection error'),
     );
 
-    await expect(strategy.validate(reqWith(), validPayload)).rejects.toThrow(
+    await expect(strategy.validate(validPayload)).rejects.toThrow(
       'DB connection error',
     );
   });
@@ -147,7 +142,7 @@ describe('JwtStrategy', () => {
       usersService.findById.mockResolvedValue(mockUser as never);
       workspacesService.getMemberRole.mockResolvedValue('admin');
 
-      const result = await strategy.validate(reqWith(), {
+      const result = await strategy.validate({
         ...validPayload,
         activeWorkspaceId: 'team-ws-9',
       });
@@ -170,7 +165,7 @@ describe('JwtStrategy', () => {
       usersService.findById.mockResolvedValue(mockUser as never);
       workspacesService.getMemberRole.mockResolvedValue('editor');
 
-      const result = await strategy.validate(reqWith(), {
+      const result = await strategy.validate({
         ...validPayload,
         workspaceId: 'legacy-ws-3',
       });
@@ -183,37 +178,21 @@ describe('JwtStrategy', () => {
       );
     });
 
-    it('rollout: X-Workspace-Id header overrides legacy workspaceId when no activeWorkspaceId', async () => {
-      usersService.findById.mockResolvedValue(mockUser as never);
-      workspacesService.getMemberRole.mockResolvedValue('viewer');
-
-      const result = await strategy.validate(
-        reqWith({ 'x-workspace-id': 'header-ws-7' }),
-        { ...validPayload, workspaceId: 'legacy-ws-3' },
-      );
-
-      // 우선순위: activeWorkspaceId(없음) → 헤더(있음) → legacy workspaceId.
-      expect(result.workspaceId).toBe('header-ws-7');
-      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
-        'header-ws-7',
-        'user-uuid-1',
-      );
-    });
-
-    it('activeWorkspaceId wins over both header and legacy workspaceId', async () => {
+    it('prefers activeWorkspaceId over legacy workspaceId (dual-read)', async () => {
       usersService.findById.mockResolvedValue(mockUser as never);
       workspacesService.getMemberRole.mockResolvedValue('owner');
 
-      const result = await strategy.validate(
-        reqWith({ 'x-workspace-id': 'header-ws-7' }),
-        {
-          ...validPayload,
-          activeWorkspaceId: 'active-ws-1',
-          workspaceId: 'legacy-ws-3',
-        },
-      );
+      const result = await strategy.validate({
+        ...validPayload,
+        activeWorkspaceId: 'active-ws-1',
+        workspaceId: 'legacy-ws-3',
+      });
 
       expect(result.workspaceId).toBe('active-ws-1');
+      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
+        'active-ws-1',
+        'user-uuid-1',
+      );
     });
 
     it('falls back to personal when claimed workspace membership is gone (graceful)', async () => {
@@ -226,7 +205,7 @@ describe('JwtStrategy', () => {
         mockWorkspace as never,
       );
 
-      const result = await strategy.validate(reqWith(), {
+      const result = await strategy.validate({
         ...validPayload,
         activeWorkspaceId: 'stale-ws',
       });
@@ -244,7 +223,7 @@ describe('JwtStrategy', () => {
         { id: 'team-first', role: 'editor' } as never,
       ]);
 
-      const result = await strategy.validate(reqWith(), {
+      const result = await strategy.validate({
         ...validPayload,
         activeWorkspaceId: 'stale-ws',
       });
