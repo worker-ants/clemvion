@@ -21,16 +21,8 @@ import type { NodeResult } from "@/lib/stores/execution-store";
 import { cn } from "@/lib/utils/cn";
 
 const CHART_COLORS = [
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
-  "#6366f1",
-  "#84cc16",
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#84cc16",
 ];
 
 function isHttpUrl(url: unknown): url is string {
@@ -66,78 +58,17 @@ function isButtonSelected(
 // 검증해 잘못된 값은 무시된다.
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
-    "div",
-    "span",
-    "p",
-    "br",
-    "hr",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "ul",
-    "ol",
-    "li",
-    "a",
-    "img",
-    "table",
-    "thead",
-    "tbody",
-    "tr",
-    "th",
-    "td",
-    "strong",
-    "em",
-    "b",
-    "i",
-    "u",
-    "code",
-    "pre",
-    "blockquote",
-    "svg",
-    "path",
-    "g",
-    "rect",
-    "circle",
-    "line",
-    "polyline",
-    "polygon",
-    "text",
+    "div", "span", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
+    "ul", "ol", "li", "a", "img", "table", "thead", "tbody", "tr", "th", "td",
+    "strong", "em", "b", "i", "u", "code", "pre", "blockquote",
+    "svg", "path", "g", "rect", "circle", "line", "polyline", "polygon", "text",
   ],
   ALLOWED_ATTR: [
-    "class",
-    "href",
-    "src",
-    "alt",
-    "width",
-    "height",
-    "target",
-    "rel",
-    "colspan",
-    "rowspan",
-    "viewBox",
-    "d",
-    "fill",
-    "stroke",
-    "stroke-width",
-    "transform",
-    "x",
-    "y",
-    "cx",
-    "cy",
-    "r",
-    "rx",
-    "ry",
-    "x1",
-    "y1",
-    "x2",
-    "y2",
-    "font-size",
-    "text-anchor",
-    "dominant-baseline",
-    "points",
+    "class", "href", "src", "alt", "width", "height",
+    "target", "rel", "colspan", "rowspan",
+    "viewBox", "d", "fill", "stroke", "stroke-width", "transform",
+    "x", "y", "cx", "cy", "r", "rx", "ry", "x1", "y1", "x2", "y2",
+    "font-size", "text-anchor", "dominant-baseline", "points",
   ],
 };
 
@@ -147,29 +78,27 @@ function sanitizeHtml(html: string): string {
 
 /** Basic markdown to HTML conversion for template preview */
 function markdownToHtml(md: string): string {
-  return (
-    md
-      // Headers
-      .replace(/^######\s+(.+)$/gm, "<h6>$1</h6>")
-      .replace(/^#####\s+(.+)$/gm, "<h5>$1</h5>")
-      .replace(/^####\s+(.+)$/gm, "<h4>$1</h4>")
-      .replace(/^###\s+(.+)$/gm, "<h3>$1</h3>")
-      .replace(/^##\s+(.+)$/gm, "<h2>$1</h2>")
-      .replace(/^#\s+(.+)$/gm, "<h1>$1</h1>")
-      // Bold and italic
-      .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      // Code
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      // Horizontal rule
-      .replace(/^---$/gm, "<hr>")
-      // Line breaks
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br>")
-      .replace(/^(.+)/, "<p>$1")
-      .replace(/(.+)$/, "$1</p>")
-  );
+  return md
+    // Headers
+    .replace(/^######\s+(.+)$/gm, "<h6>$1</h6>")
+    .replace(/^#####\s+(.+)$/gm, "<h5>$1</h5>")
+    .replace(/^####\s+(.+)$/gm, "<h4>$1</h4>")
+    .replace(/^###\s+(.+)$/gm, "<h3>$1</h3>")
+    .replace(/^##\s+(.+)$/gm, "<h2>$1</h2>")
+    .replace(/^#\s+(.+)$/gm, "<h1>$1</h1>")
+    // Bold and italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Code
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    // Horizontal rule
+    .replace(/^---$/gm, "<hr>")
+    // Line breaks
+    .replace(/\n\n/g, "</p><p>")
+    .replace(/\n/g, "<br>")
+    .replace(/^(.+)/, "<p>$1")
+    .replace(/(.+)$/, "$1</p>");
 }
 
 export function JsonContent({ data }: { data: unknown }) {
@@ -191,20 +120,14 @@ function normalizeColumns(raw: unknown, firstRow: unknown): ColumnDef[] {
     return raw.map((col) => {
       if (typeof col === "object" && col !== null && "field" in col) {
         const c = col as Record<string, unknown>;
-        return {
-          field: String(c.field ?? ""),
-          label: String(c.label ?? c.field ?? ""),
-        };
+        return { field: String(c.field ?? ""), label: String(c.label ?? c.field ?? "") };
       }
       return { field: String(col), label: String(col) };
     });
   }
   // Fallback: infer from first row keys
   if (firstRow && typeof firstRow === "object") {
-    return Object.keys(firstRow as Record<string, unknown>).map((k) => ({
-      field: k,
-      label: k,
-    }));
+    return Object.keys(firstRow as Record<string, unknown>).map((k) => ({ field: k, label: k }));
   }
   return [];
 }
@@ -243,7 +166,9 @@ export function TableContent({ data }: { data: Record<string, unknown> }) {
             >
               {columns.map((col, ci) => (
                 <td key={`${col.field ?? ""}-${ci}`} className="px-3 py-1">
-                  {String((row as Record<string, unknown>)[col.field] ?? "")}
+                  {String(
+                    (row as Record<string, unknown>)[col.field] ?? "",
+                  )}
                 </td>
               ))}
             </tr>
@@ -266,55 +191,16 @@ interface CarouselContentProps {
   onLinkButtonClick?: (url: string) => void;
 }
 
-export function CarouselContent({
-  data,
-  config,
-  selectedButtonId,
-  onPortButtonClick,
-  onLinkButtonClick,
-}: CarouselContentProps) {
+export function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, onLinkButtonClick }: CarouselContentProps) {
   // dynamic 모드: backend 가 `output.items` 채움.
   // static 모드: backend 가 `output: {}` 반환 — 슬라이드 정의는 `config.items` (Principle 1.1 직교).
   const items = ((data.items as
-    | Array<{
-        title?: string;
-        description?: string;
-        image?: string;
-        buttons?: Array<{
-          id: string;
-          label: string;
-          type?: string;
-          url?: string;
-          style?: string;
-        }>;
-      }>
+    | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
     | undefined) ??
     (config?.items as
-      | Array<{
-          title?: string;
-          description?: string;
-          image?: string;
-          buttons?: Array<{
-            id: string;
-            label: string;
-            type?: string;
-            url?: string;
-            style?: string;
-          }>;
-        }>
+      | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
       | undefined)) as
-    | Array<{
-        title?: string;
-        description?: string;
-        image?: string;
-        buttons?: Array<{
-          id: string;
-          label: string;
-          type?: string;
-          url?: string;
-          style?: string;
-        }>;
-      }>
+    | Array<{ title?: string; description?: string; image?: string; buttons?: Array<{ id: string; label: string; type?: string; url?: string; style?: string }> }>
     | undefined;
 
   if (!items || items.length === 0) {
@@ -356,73 +242,73 @@ export function CarouselContent({
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {items.map((item, i) => (
-          <div
-            key={i}
-            className="shrink-0 w-[180px] rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2 flex flex-col"
-          >
-            {isHttpUrl(item.image) && (
-              // 이미지 매핑 확인용 — lazy 로딩 썸네일 + 원본 URL 링크(새 탭). 다수 이미지의
-              // eager 로드를 피하고(spec 0-common §6.1), title 로 URL hover 확인 가능.
-              <a
-                href={item.image}
-                target="_blank"
-                rel="noreferrer noopener"
-                title={item.image}
-                className="block h-16 rounded bg-[hsl(var(--accent))] mb-1.5 overflow-hidden"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.image}
-                  alt={item.title ?? ""}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              </a>
-            )}
-            <p className="text-xs font-medium truncate">{item.title}</p>
-            {item.description && (
-              <p className="text-[10px] text-[hsl(var(--muted-foreground))] line-clamp-2 mt-0.5">
-                {item.description}
-              </p>
-            )}
-            {item.buttons && item.buttons.length > 0 && (
-              <div className="mt-auto pt-1.5 flex flex-col gap-1">
-                {/* Compound key — render_carousel emitted by an LLM may
+        <div
+          key={i}
+          className="shrink-0 w-[180px] rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-2 flex flex-col"
+        >
+          {isHttpUrl(item.image) && (
+            // 이미지 매핑 확인용 — lazy 로딩 썸네일 + 원본 URL 링크(새 탭). 다수 이미지의
+            // eager 로드를 피하고(spec 0-common §6.1), title 로 URL hover 확인 가능.
+            <a
+              href={item.image}
+              target="_blank"
+              rel="noreferrer noopener"
+              title={item.image}
+              className="block h-16 rounded bg-[hsl(var(--accent))] mb-1.5 overflow-hidden"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.image}
+                alt={item.title ?? ""}
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
+            </a>
+          )}
+          <p className="text-xs font-medium truncate">{item.title}</p>
+          {item.description && (
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))] line-clamp-2 mt-0.5">
+              {item.description}
+            </p>
+          )}
+          {item.buttons && item.buttons.length > 0 && (
+            <div className="mt-auto pt-1.5 flex flex-col gap-1">
+              {/* Compound key — render_carousel emitted by an LLM may
                   produce duplicate / undefined btn.id; idx fallback. */}
-                {item.buttons.map((btn, bi) => {
-                  // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 —
-                  // defense-in-depth guard. See isButtonSelected() above.
-                  const isSelected = isButtonSelected(selectedButtonId, btn.id);
-                  return (
-                    <button
-                      key={`${btn.id ?? ""}-${bi}`}
-                      type="button"
-                      disabled={!isInteractive && !isSelected}
-                      className={cn(
-                        "w-full rounded px-2 py-0.5 text-[10px] transition-colors truncate",
-                        isSelected
-                          ? "border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                          : isInteractive
-                            ? "border border-[hsl(var(--input))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80 cursor-pointer"
-                            : "border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]",
-                      )}
-                      onClick={() => {
-                        if (isSelected) return;
-                        if (btn.type === "link" && isHttpUrl(btn.url)) {
-                          onLinkButtonClick?.(btn.url);
-                        } else {
-                          onPortButtonClick?.(btn.id);
-                        }
-                      }}
-                    >
-                      {btn.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ))}
+              {item.buttons.map((btn, bi) => {
+                // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 —
+                // defense-in-depth guard. See isButtonSelected() above.
+                const isSelected = isButtonSelected(selectedButtonId, btn.id);
+                return (
+                  <button
+                    key={`${btn.id ?? ""}-${bi}`}
+                    type="button"
+                    disabled={!isInteractive && !isSelected}
+                    className={cn(
+                      "w-full rounded px-2 py-0.5 text-[10px] transition-colors truncate",
+                      isSelected
+                        ? "border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : isInteractive
+                          ? "border border-[hsl(var(--input))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))]/80 cursor-pointer"
+                          : "border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))]",
+                    )}
+                    onClick={() => {
+                      if (isSelected) return;
+                      if (btn.type === "link" && isHttpUrl(btn.url)) {
+                        onLinkButtonClick?.(btn.url);
+                      } else {
+                        onPortButtonClick?.(btn.id);
+                      }
+                    }}
+                  >
+                    {btn.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
       </div>
     </div>
   );
@@ -439,9 +325,7 @@ export function ChartContent({
   // backend `output.rendered` (SVG snapshot) 의존은 폐기됨 — `output.data` (런타임 집계) + `config.{chartType, title}` 로 재구성.
   const chartType = (config?.chartType as string) ?? "bar";
   const title = config?.title as string | undefined;
-  const points = Array.isArray(data.data)
-    ? (data.data as Array<Record<string, unknown>>)
-    : [];
+  const points = Array.isArray(data.data) ? (data.data as Array<Record<string, unknown>>) : [];
 
   if (points.length === 0) return <JsonContent data={data} />;
 
@@ -454,13 +338,7 @@ export function ChartContent({
             <XAxis dataKey="x" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="y"
-              stroke={CHART_COLORS[0]}
-              strokeWidth={2}
-              dot={{ r: 3 }}
-            />
+            <Line type="monotone" dataKey="y" stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
           </LineChart>
         );
       case "area":
@@ -470,13 +348,7 @@ export function ChartContent({
             <XAxis dataKey="x" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
-            <Area
-              type="monotone"
-              dataKey="y"
-              stroke={CHART_COLORS[0]}
-              fill={CHART_COLORS[0]}
-              fillOpacity={0.3}
-            />
+            <Area type="monotone" dataKey="y" stroke={CHART_COLORS[0]} fill={CHART_COLORS[0]} fillOpacity={0.3} />
           </AreaChart>
         );
       case "pie":
@@ -569,9 +441,7 @@ export function TemplateContent({
       <div className="rounded border border-[hsl(var(--border))] p-3">
         <div
           className="prose prose-sm max-w-none overflow-auto text-xs"
-          dangerouslySetInnerHTML={{
-            __html: sanitizeHtml(markdownToHtml(content)),
-          }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(markdownToHtml(content)) }}
         />
       </div>
     );
@@ -585,17 +455,15 @@ export function TemplateContent({
   );
 }
 
-export function FormSubmittedContent({
-  data,
-}: {
-  data: Record<string, unknown>;
-}) {
+export function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
   // Form submission payload lives at `output.interaction.data` per
   // CONVENTIONS §4.5 (Stage 3 of the node-specs-improvement rollout,
   // completed). Legacy executions may still carry `submittedData`
   // (pre-migration) or `formData` (earliest drafts); fall through those
   // paths so historical run records render without a migration backfill.
-  const interaction = data.interaction as { data?: unknown } | undefined;
+  const interaction = data.interaction as
+    | { data?: unknown }
+    | undefined;
   const interactionData =
     interaction && typeof interaction === "object"
       ? (interaction.data as Record<string, unknown> | undefined)
@@ -678,9 +546,7 @@ export function PresentationContent({
     data = raw.previousOutput as Record<string, unknown>;
     const interaction = raw.interaction as Record<string, unknown>;
     selectedButtonId =
-      typeof interaction.buttonId === "string"
-        ? interaction.buttonId
-        : undefined;
+      typeof interaction.buttonId === "string" ? interaction.buttonId : undefined;
   }
 
   let preview: React.ReactNode;
@@ -731,9 +597,7 @@ export function PresentationContent({
     url?: string;
     style?: string;
   }>;
-  const buttonItemMap = btnConfig?.buttonItemMap as
-    | Record<string, number>
-    | undefined;
+  const buttonItemMap = btnConfig?.buttonItemMap as Record<string, number> | undefined;
   const buttons = buttonItemMap
     ? allButtons.filter((btn) => !(btn.id in buttonItemMap))
     : allButtons;

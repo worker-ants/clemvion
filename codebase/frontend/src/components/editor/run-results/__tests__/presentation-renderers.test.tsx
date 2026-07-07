@@ -823,4 +823,37 @@ describe("CarouselContent — text-forward preview (layout badge + lazy thumbnai
     expect(screen.getByText("Slide D")).toBeDefined();
     expect(screen.getByText("Go")).toBeDefined();
   });
+
+  it("renders static-mode slides from config.items (output.items absent)", () => {
+    // static 모드: backend 는 output:{} 반환, 슬라이드는 config.items 참조 (Principle 1.1).
+    render(
+      <CarouselContent
+        data={{}}
+        config={{ layout: "image", items: [{ title: "Static S" }] }}
+      />,
+    );
+    expect(screen.getByText("Static S")).toBeDefined();
+    expect(screen.getByText(/layout:/i).textContent).toMatch(/image/);
+    expect(screen.getByText(/1 slide\b/)).toBeDefined();
+  });
+
+  it("prefers config.layout over data.layout (config echo is SoT)", () => {
+    render(
+      <CarouselContent
+        data={{ items: [{ title: "A" }], layout: "card" }}
+        config={{ layout: "image" }}
+      />,
+    );
+    expect(screen.getByText(/layout:/i).textContent).toMatch(/image/);
+  });
+
+  it("falls back to data.layout when config.layout is absent", () => {
+    render(
+      <CarouselContent
+        data={{ items: [{ title: "A" }], layout: "minimal" }}
+        config={{}}
+      />,
+    );
+    expect(screen.getByText(/layout:/i).textContent).toMatch(/minimal/);
+  });
 });
