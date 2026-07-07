@@ -937,9 +937,8 @@ describe('WorkspacesService', () => {
   // 의도적 미기록 (아래 별도 케이스로 부재를 회귀 검증).
   describe('audit logging (결정4=B)', () => {
     function getAudit(): { record: jest.Mock } {
-      return (
-        service as unknown as { auditLogsService: { record: jest.Mock } }
-      ).auditLogsService;
+      return (service as unknown as { auditLogsService: { record: jest.Mock } })
+        .auditLogsService;
     }
 
     it('records workspace.created on createTeam', async () => {

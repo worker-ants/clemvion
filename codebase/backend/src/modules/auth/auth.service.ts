@@ -1040,7 +1040,14 @@ export class AuthService {
     }
     // 멤버십 검증은 resolveTokenWorkspaceContext(targetWorkspaceId) 가 수행 —
     // 비멤버면 ForbiddenException(NOT_A_MEMBER) 를 던진다.
-    return this.generateTokens(user, false, undefined, ctx, undefined, targetWorkspaceId);
+    return this.generateTokens(
+      user,
+      false,
+      undefined,
+      ctx,
+      undefined,
+      targetWorkspaceId,
+    );
   }
 
   private async generateTokens(

@@ -54,7 +54,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const rawHeader = req.headers?.['x-workspace-id'];
-    const headerWorkspaceId = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+    const headerWorkspaceId = Array.isArray(rawHeader)
+      ? rawHeader[0]
+      : rawHeader;
     const claimed =
       payload.activeWorkspaceId ?? headerWorkspaceId ?? payload.workspaceId;
 
@@ -69,12 +71,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // fallback: personal 우선, 없으면 첫 멤버십(초대 가입자 보호) — sign 측
     // resolveTokenWorkspaceContext 와 동일 순서.
-    const personal = await this.workspacesService.findPersonalWorkspace(user.id);
+    const personal = await this.workspacesService.findPersonalWorkspace(
+      user.id,
+    );
     if (personal) {
       const role =
         (await this.workspacesService.getMemberRole(personal.id, user.id)) ??
         'member';
-      return { sub: user.id, email: user.email, workspaceId: personal.id, role };
+      return {
+        sub: user.id,
+        email: user.email,
+        workspaceId: personal.id,
+        role,
+      };
     }
 
     const memberships = await this.workspacesService.listForUser(user.id);

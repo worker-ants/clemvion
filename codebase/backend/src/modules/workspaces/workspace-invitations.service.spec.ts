@@ -208,7 +208,10 @@ describe('WorkspaceInvitationsService', () => {
           userId: 'user-1',
           action: 'member.invited',
           resourceType: 'member',
-          details: expect.objectContaining({ mode: 'invitation', role: 'editor' }),
+          details: expect.objectContaining({
+            mode: 'invitation',
+            role: 'editor',
+          }),
         }),
       );
       const recordArg = auditLogs.record.mock.calls[0][0] as {

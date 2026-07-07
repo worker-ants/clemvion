@@ -53,7 +53,9 @@ describe('WorkspaceId decorator', () => {
 
   it('should return workspace ID from X-Workspace-Id header when no token workspace (fallback)', () => {
     // 토큰 SoT 전환(결정1): 헤더는 request.user.workspaceId 부재 시에만 소비되는 fallback.
-    const ctx = createMockContext({ 'x-workspace-id': 'header-workspace-uuid' });
+    const ctx = createMockContext({
+      'x-workspace-id': 'header-workspace-uuid',
+    });
 
     const result = factory(undefined, ctx);
     expect(result).toBe('header-workspace-uuid');
