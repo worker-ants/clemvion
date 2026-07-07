@@ -2,6 +2,11 @@
 worktree: hopeful-wozniak-a22f76
 started: 2026-07-06
 owner: developer
+spec_impact:
+  - spec/data-flow/8-notifications.md
+  - spec/1-data-model.md
+  - spec/4-nodes/1-logic/12-background.md
+  - spec/5-system/4-execution-engine.md
 ---
 
 # 알림 파이프라인 후속 하드닝 3건
@@ -83,10 +88,15 @@ owner: developer
 
 엔진 버그 A/B 수정 재리뷰에서 나온 구조적 지적. 기능은 정상(0 Critical, e2e·unit 검증)이나 장기 부채로 이월(**미완 — 별도 트랙**):
 
-- [ ] **[아키텍처 부채] DI 순환 인스턴스화 순서**: `ExecutionEngineService` 가 WebsocketModule 등과 forwardRef
-  순환이라 NotificationsModule 보다 먼저 인스턴스화 → 생성자 `@Optional` 의존성이 조용히 undefined 가 되는
-  함정이 구조적으로 잔존(이번엔 ModuleRef 지연해석으로 우회). **신규 `@Optional` 의존성 추가 시 동일 함정 주의.**
-  근본 해소(이벤트 기반 디커플링 등 순환 그래프 축소)는 별도 트랙. (execution-engine 리팩터링 backlog 후보.)
+- [x] **[아키텍처 부채] DI 순환 인스턴스화 순서 — 재검토 확정(2026-07-07): 근본 축소 미착수(backlog 종료)**:
+  `ExecutionEngineService` 가 WebsocketModule 등과 forwardRef 순환이라 NotificationsModule 보다 먼저
+  인스턴스화 → 생성자 `@Optional` 의존성이 조용히 undefined 가 되는 함정. **재검토 결론**: 제거 가능했던 순환
+  (engine→Retry)은 이미 §후속④(PR #638)에서 제거됐고, **남은 순환(AiTurn/Form/Button)은 dispatch-loop·
+  resume-registry 가 그래프 순회 중 위임하는 "구조적 필수"** 로 이미 결정됨(spec §4.4 / 1581행). 이벤트 기반
+  디커플링 등 "근본 축소" 는 그 결정과 배치되는 대규모·고위험 재설계이며 실익이 낮다. undefined 함정의 실질
+  리스크(버그 B silent no-op)는 이미 **ModuleRef 지연해석 + §4.4 문서화(forwardRef/ModuleRef 선택 기준 표) +
+  "신규 @Optional 순환 의존 주의" 명문**으로 완화·봉인됨. → **backlog 로도 착수 계획 없음(종료)**. 향후 새 순환
+  의존을 추가하는 사람은 §4.4 표를 따른다.
 - [x] **[리팩터링] 초기/재개 세그먼트 FAILED 종결 중복** — **완료** ([[notif-followup-refactor]], PR): 공통 헬퍼
   `finalizeFailedExecution(savedExecution, error, {rehydrated?})` 추출로 `runExecution` catch·`finalizeResumedExecutionOutcome`
   일원화 (behavior-preserving). 버그 A 재발 구조적 차단.
@@ -102,9 +112,13 @@ owner: developer
 - [x] security WARNING(에러메시지 새니타이징) 조치.
 - 커밋: 797488494(구현) · 656fc7cce(버그수정) · 04386bdd4(리뷰반영+새니타이저+spec동기화).
 
-## 잔여 (plan in-progress 유지 사유)
+## 종료 (모든 항목 처리 완료 — 2026-07-07 재검토로 잔여 backlog 도 종결)
 - **항목 3** (dispatchEmails decouple): 분석 완료 + 사용자 확정 "보류 유지" — 코드 변경 없음, 종결.
 - **team_invite 이메일 2통 UX**: planner 가 channel=`in_app`(벨만, 초대링크 이메일이 이메일 담당)으로 확정·머지 — **종결**.
-- **FAILED 종결 헬퍼 추출 · spec §4.4 문서화**: [[notif-followup-refactor]] PR 로 **완료**.
-- **유일 잔여 = DI 순환 그래프 근본 축소 (backlog)**: 위 §후속 첫 항목([ ]). forwardRef/ModuleRef 우회가 아닌 순환
-  자체 제거로, 대규모 behavior-risky 아키텍처 작업이라 착수 미정 backlog. 본 plan 은 이 backlog 추적을 위해 in-progress 유지.
+- **FAILED 종결 헬퍼 추출 · spec §4.4 문서화**: [[notif-followup-refactor]] PR(#850) 로 **완료**.
+- **DI 순환 그래프 근본 축소**: 위 §후속 첫 항목 — 재검토 결과 **미착수 확정(종료)**. 남은 순환은 "구조적 필수"
+  (§후속④ #638 결정) + forwardRef/ModuleRef 봉인·§4.4 문서화로 완결. 근본 축소는 실익 낮은 대규모 재설계라 계획 없음.
+- **부수 확인**: impl-done cross_spec 이 지적했던 `Execution.error` shape "drift"(§2.13 vs 코드)는 **오탐** — §2.13 은
+  nodeId shape 를 강제하지 않고 코드 `{message, code?}` 는 node-output §3.2 와 정합. 조치 불요.
+
+→ 잔여 actionable 항목 0. 본 plan 을 `plan/complete/` 로 이동.
