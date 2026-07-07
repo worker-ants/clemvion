@@ -15,6 +15,8 @@ import type {
 } from "@workflow/graph-warning-rules";
 import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
+import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
+import { PASTE_DUPLICATE_OFFSET } from "@/lib/utils/editor-keyboard";
 import {
   buildEdgeData,
   isSelfConnection,
@@ -34,6 +36,22 @@ interface EditorState {
   nodes: Node[];
   edges: Edge[];
   selectedNodeId: string | null;
+
+  /**
+   * §3.3 캔버스 클립보드 — 복사된 노드/엣지 스냅샷 (앱 내부 상태, OS 텍스트
+   * 클립보드와 별개). null 이면 붙여넣기 no-op. 기존 `useCopyToClipboard`(OS
+   * 텍스트 복사) 와 구분하기 위해 이름에 `editor` 를 붙였다.
+   */
+  editorClipboard: { nodes: Node[]; edges: Edge[] } | null;
+  /**
+   * §11.3 컨테이너 삭제 확인 다이얼로그 대상. 자식이 있는 컨테이너 삭제 요청 시
+   * set 되고, workflow-canvas 가 구독해 다이얼로그를 렌더한다. null 이면 닫힘.
+   */
+  pendingContainerDelete: {
+    id: string;
+    label: string;
+    childCount: number;
+  } | null;
 
   // Version history panel
   versionHistoryOpen: boolean;
@@ -76,6 +94,36 @@ interface EditorState {
   isValidConnection: (connection: Connection | Edge) => boolean;
   addNode: (node: Node) => void;
   removeNode: (id: string) => void;
+  /** §3.3 선택된 노드(+양끝이 선택에 포함된 내부 엣지)를 editorClipboard 로 복사. 선택 없으면 no-op. */
+  copySelection: () => void;
+  /**
+   * §3.3 editorClipboard 를 붙여넣기 — 신규 id·오프셋 배치·유니크 라벨·containerId
+   * 재도출. `anchor` 지정 시 복사 묶음의 좌상단이 anchor 에 오도록, 미지정 시 원본
+   * 대비 +40,+40 오프셋. 붙여넣은 노드가 새 선택이 된다. clipboard null 이면 no-op.
+   */
+  pasteClipboard: (anchor?: { x: number; y: number }) => void;
+  /** §3.3 Ctrl+D — 선택된 노드(+내부 엣지)를 클립보드 경유 없이 즉시 복제 (단일 undo). */
+  duplicateSelection: () => void;
+  /** §3.2 Ctrl+A — 모든 노드 선택. */
+  selectAll: () => void;
+  /** §3.2 Escape — 모든 노드 선택 해제. */
+  deselectAll: () => void;
+  /**
+   * §11.3 삭제 요청 진입점 (✕ 버튼·우클릭 메뉴). 자식 있는 컨테이너면 확인
+   * 다이얼로그를 띄우고, 그 외(일반 노드·빈 컨테이너)는 즉시 removeNode.
+   */
+  requestNodeDelete: (id: string) => void;
+  /** §11.3 자식 있는 컨테이너 여부 (Delete 키 `onBeforeDelete` 확인용). */
+  needsContainerDeleteConfirm: (id: string) => boolean;
+  /** §11.3 컨테이너 삭제 확인 다이얼로그 열기 (`pendingContainerDelete` set). */
+  openContainerDeleteConfirm: (id: string) => void;
+  /**
+   * §11.3 다이얼로그 확정. `"deleteAll"` = 컨테이너 + 자식(containerId===id) cascade
+   * 삭제. `"ungroup"` = 컨테이너 노드만 제거(자식은 top-level 승격 — 기존 removeNode).
+   */
+  confirmContainerDelete: (mode: "deleteAll" | "ungroup") => void;
+  /** §11.3 다이얼로그 취소. */
+  cancelContainerDelete: () => void;
   updateNodeConfig: (id: string, config: Record<string, unknown>) => void;
   /**
    * 단일 top-level config 필드 값을 병합 반영한다. `updateNodeConfig` 는
@@ -484,6 +532,53 @@ function mapToRuleGraph(
   return { nodes: ruleNodes, edges: ruleEdges };
 }
 
+/**
+ * §3.3 — 노드/엣지 묶음을 신규 id·위치 오프셋·유니크 라벨로 복제한다 (copy/paste·
+ * duplicate 공용 순수 함수). edge 는 remap 된 신규 id 로 source/target 을 다시 잇고,
+ * containerId 는 null 로 초기화한 뒤 caller 가 `deriveContainerAssignments` 로 엣지
+ * 기반 재도출한다 (§11.2.1 "엣지가 멤버십의 단일 진실"). 복제본은 selected=true 로
+ * 표시해 붙여넣기 직후 새 선택이 되게 한다.
+ */
+function cloneNodesWithOffset(
+  sourceNodes: Node[],
+  sourceEdges: Edge[],
+  existingLabels: string[],
+  offset: { x: number; y: number },
+): { nodes: Node[]; edges: Edge[] } {
+  const idRemap = new Map<string, string>();
+  for (const n of sourceNodes) idRemap.set(n.id, crypto.randomUUID());
+
+  // 라벨 풀에 새로 부여한 라벨을 누적해, 같은 라벨 노드를 여럿 복제해도 충돌 없이
+  // 각각 유니크한 라벨을 받게 한다.
+  const labelPool = new Set(existingLabels);
+  const nodes = sourceNodes.map((n) => {
+    const data = (n.data as Record<string, unknown>) ?? {};
+    const oldLabel = typeof data.label === "string" ? data.label : "";
+    const label = generateUniqueLabel(oldLabel, [...labelPool]);
+    labelPool.add(label);
+    return {
+      ...n,
+      id: idRemap.get(n.id)!,
+      position: { x: n.position.x + offset.x, y: n.position.y + offset.y },
+      selected: true,
+      data: { ...data, label, containerId: null },
+    };
+  });
+
+  // 양끝이 모두 복제 대상인 엣지만 재연결한다 (copySelection/duplicate 진입부에서
+  // 이미 내부 엣지로 필터링되지만, remap 안전을 위해 방어적으로 확인).
+  const edges = sourceEdges
+    .filter((e) => idRemap.has(e.source) && idRemap.has(e.target))
+    .map((e) => ({
+      ...e,
+      id: crypto.randomUUID(),
+      source: idRemap.get(e.source)!,
+      target: idRemap.get(e.target)!,
+    }));
+
+  return { nodes, edges };
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
   workflowName: "Untitled Workflow",
@@ -492,6 +587,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  editorClipboard: null,
+  pendingContainerDelete: null,
   undoStack: [],
   redoStack: [],
   versionHistoryOpen: false,
@@ -657,6 +754,169 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     });
   },
+
+  copySelection: () => {
+    const { nodes, edges } = get();
+    const selected = nodes.filter((n) => n.selected);
+    if (selected.length === 0) return;
+    const ids = new Set(selected.map((n) => n.id));
+    // 양끝이 모두 선택에 포함된 엣지만 클립보드에 담는다 (§3.3 "선택된 노드+연결된 엣지").
+    const internalEdges = edges.filter(
+      (e) => ids.has(e.source) && ids.has(e.target),
+    );
+    // deep-ish clone + selected 플래그 제거 (붙여넣기 시점에 새로 selected 부여).
+    const clonedNodes = selected.map((n) => ({
+      ...n,
+      selected: false,
+      data: { ...(n.data as Record<string, unknown>) },
+    }));
+    const clonedEdges = internalEdges.map((e) => ({ ...e }));
+    set({ editorClipboard: { nodes: clonedNodes, edges: clonedEdges } });
+  },
+
+  pasteClipboard: (anchor) => {
+    const clip = get().editorClipboard;
+    if (!clip || clip.nodes.length === 0) return;
+    get().pushUndo();
+    set((state) => {
+      // anchor 지정 시 복사 묶음의 좌상단이 anchor 로 오도록 오프셋 계산, 아니면 기본 오프셋.
+      let offset: { x: number; y: number } = PASTE_DUPLICATE_OFFSET;
+      if (anchor) {
+        const minX = Math.min(...clip.nodes.map((n) => n.position.x));
+        const minY = Math.min(...clip.nodes.map((n) => n.position.y));
+        offset = { x: anchor.x - minX, y: anchor.y - minY };
+      }
+      const existingLabels = state.nodes
+        .map((n) => (n.data as { label?: string })?.label)
+        .filter((l): l is string => typeof l === "string");
+      const cloned = cloneNodesWithOffset(
+        clip.nodes,
+        clip.edges,
+        existingLabels,
+        offset,
+      );
+      // 기존 선택을 해제하고 붙여넣은 노드를 새 선택으로 만든다.
+      const deselectedExisting = state.nodes.map((n) =>
+        n.selected ? { ...n, selected: false } : n,
+      );
+      const allNodes = [...deselectedExisting, ...cloned.nodes];
+      const allEdges = [...state.edges, ...cloned.edges];
+      return {
+        nodes: deriveContainerAssignments(allNodes, allEdges),
+        edges: allEdges,
+        isDirty: true,
+      };
+    });
+  },
+
+  duplicateSelection: () => {
+    const { nodes, edges } = get();
+    const selected = nodes.filter((n) => n.selected);
+    if (selected.length === 0) return;
+    get().pushUndo();
+    set((state) => {
+      const ids = new Set(selected.map((n) => n.id));
+      const internalEdges = edges.filter(
+        (e) => ids.has(e.source) && ids.has(e.target),
+      );
+      const existingLabels = state.nodes
+        .map((n) => (n.data as { label?: string })?.label)
+        .filter((l): l is string => typeof l === "string");
+      const cloned = cloneNodesWithOffset(
+        selected,
+        internalEdges,
+        existingLabels,
+        PASTE_DUPLICATE_OFFSET,
+      );
+      const deselectedExisting = state.nodes.map((n) =>
+        n.selected ? { ...n, selected: false } : n,
+      );
+      const allNodes = [...deselectedExisting, ...cloned.nodes];
+      const allEdges = [...state.edges, ...cloned.edges];
+      return {
+        nodes: deriveContainerAssignments(allNodes, allEdges),
+        edges: allEdges,
+        isDirty: true,
+      };
+    });
+  },
+
+  selectAll: () => {
+    set((state) => ({
+      nodes: state.nodes.map((n) => (n.selected ? n : { ...n, selected: true })),
+    }));
+  },
+
+  deselectAll: () => {
+    set((state) => ({
+      nodes: state.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+      selectedNodeId: null,
+    }));
+  },
+
+  needsContainerDeleteConfirm: (id) => {
+    const { nodes } = get();
+    const node = nodes.find((n) => n.id === id);
+    if (!node || !isContainerNode(node)) return false;
+    return nodes.some((n) => getContainerId(n) === id);
+  },
+
+  openContainerDeleteConfirm: (id) => {
+    const { nodes } = get();
+    const node = nodes.find((n) => n.id === id);
+    if (!node) return;
+    const label = (node.data as { label?: string })?.label ?? id;
+    const childCount = nodes.filter((n) => getContainerId(n) === id).length;
+    set({ pendingContainerDelete: { id, label, childCount } });
+  },
+
+  requestNodeDelete: (id) => {
+    if (get().needsContainerDeleteConfirm(id)) {
+      get().openContainerDeleteConfirm(id);
+      return;
+    }
+    // 일반 노드 또는 빈 컨테이너 (§11.3.3) — 확인 없이 즉시 삭제.
+    get().removeNode(id);
+  },
+
+  confirmContainerDelete: (mode) => {
+    const pending = get().pendingContainerDelete;
+    if (!pending) return;
+    const id = pending.id;
+    if (mode === "ungroup") {
+      // 기존 removeNode 가 곧 Ungroup — 컨테이너만 제거하고 body 엣지 소멸로 자식이
+      // top-level 로 승격된다 (§11.3.2 Ungroup).
+      get().removeNode(id);
+      set({ pendingContainerDelete: null });
+      return;
+    }
+    // deleteAll — 컨테이너 + containerId 가 이를 가리키는 직접 자식 cascade 삭제
+    // (§11.3.2). 중첩 손자(자식 컨테이너의 자식)는 자식 컨테이너 제거로 stranded
+    // 되며 deriveContainerAssignments 가 top-level 로 승격시킨다(비파괴적).
+    get().pushUndo();
+    set((state) => {
+      const toRemove = new Set<string>([id]);
+      for (const n of state.nodes) {
+        if (getContainerId(n) === id) toRemove.add(n.id);
+      }
+      const remainingNodes = state.nodes.filter((n) => !toRemove.has(n.id));
+      const remainingEdges = state.edges.filter(
+        (e) => !toRemove.has(e.source) && !toRemove.has(e.target),
+      );
+      return {
+        nodes: deriveContainerAssignments(remainingNodes, remainingEdges),
+        edges: remainingEdges,
+        selectedNodeId:
+          state.selectedNodeId && toRemove.has(state.selectedNodeId)
+            ? null
+            : state.selectedNodeId,
+        isDirty: true,
+        pendingContainerDelete: null,
+      };
+    });
+  },
+
+  cancelContainerDelete: () => set({ pendingContainerDelete: null }),
 
   updateNodeConfig: (id, config) => {
     set((state) => ({

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 캔버스 키보드 단축키 · 클립보드 복붙 · 컨테이너 삭제 확인 다이얼로그 (canvas UX spec-sync §10·§3.3·§11.3)
+
+### 변경 사항
+
+1. **워크플로 에디터에 키보드 단축키·클립보드 복붙·컨테이너 삭제 확인 다이얼로그가 추가된다** — `spec/3-workflow-editor/0-canvas.md §10/§3.3/§11.3` 이 "미구현 (Planned)" 로 두었던 세 묶음을 구현하고 spec 본문을 동기화했다. (a) **§10 단축키** — Ctrl+C/V/D/A(복사·붙여넣기·복제·전체선택)·Escape(선택 해제, 단 Run Results 드로어 포커스 시 §10.12 캔버스 복귀가 우선)·Space 패닝(`panActivationKeyCode`)·Ctrl++/-/0/1(줌). 입력 필드 포커스 중에는 가로채지 않는다(`isEditableTarget` 가드). 키→액션 매핑은 순수 함수(`resolveEditorShortcut`/`resolveZoomShortcut`)로 분리해 단위 테스트한다. 줌은 ReactFlow 인스턴스가 필요해 캔버스 컴포넌트에서 처리한다. (b) **§3.3 클립보드** — 앱 내부 상태 `editorClipboard`(OS 텍스트 클립보드와 별개)로 `copySelection`/`pasteClipboard`/`duplicateSelection`. 붙여넣기는 신규 id·오프셋(+40)·유니크 라벨·엣지 신규 id 재연결·`containerId` 엣지 기반 재도출. 캔버스 우클릭 메뉴에 "붙여넣기"(클릭 위치 기준) 추가. (c) **§11.3 컨테이너 삭제** — 자식이 있는 컨테이너 삭제 시 "컨테이너+자식 전체 삭제" vs "그룹 해제(자식 유지)" 확인 다이얼로그(`container-delete-dialog.tsx`, Ungroup 기본). ✕ 버튼·우클릭 메뉴(`requestNodeDelete`)·Delete 키(ReactFlow `onBeforeDelete`) 세 경로 모두 경유하며, 다중 선택 시 확인 대상 컨테이너만 부분 취소하고 나머지는 정상 삭제한다. 빈 컨테이너·일반 노드는 즉시 삭제. 신규 서버 API 없음(클라이언트 사이드 전용). i18n `editor.pasteMenu`·`editor.containerDelete.*` KO/EN 동시 추가. SoT: `spec/3-workflow-editor/0-canvas.md §10/§3.2/§3.3/§3.5/§11.3`.
+
 ## Unreleased — edge 자기연결/중복 하드차단 + 탈출불가 순환 warn-not-block · outbound 알림 폭주 degraded (spec-sync edge §2.2/§2.3 · EIA §8.4)
 
 ### 변경 사항

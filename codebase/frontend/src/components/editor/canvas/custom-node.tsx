@@ -76,10 +76,11 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
 
   // §5.4 노드 삭제 버튼 — 호버/선택 시 노드 우상단에 나타나는 ✕ 어포던스.
   // Manual Trigger 는 삭제 불가(§9.2)라 버튼을 숨기고, 워크플로우 실행 중에는
-  // 편집을 차단하기 위해 숨긴다. 클릭은 Delete 키와 동일하게 removeNode 로
-  // 연결 엣지까지 함께 제거한다(§5.4.3).
+  // 편집을 차단하기 위해 숨긴다. 클릭은 `requestNodeDelete` 로 위임해 §11.3 확인
+  // 다이얼로그(자식 있는 컨테이너)를 거치거나, 그 외에는 즉시 연결 엣지까지 함께
+  // 삭제한다(§5.4.3).
   const t = useT();
-  const removeNode = useEditorStore((s) => s.removeNode);
+  const requestNodeDelete = useEditorStore((s) => s.requestNodeDelete);
   const executionStatus = useExecutionStore((s) => s.status);
   const isExecuting =
     executionStatus === "running" || executionStatus === "waiting_for_input";
@@ -185,7 +186,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
           )}
           onClick={(e) => {
             e.stopPropagation();
-            removeNode(id);
+            requestNodeDelete(id);
           }}
         >
           <X className="h-3 w-3" aria-hidden="true" />

@@ -1,13 +1,18 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Panel,
 } from "@xyflow/react";
-import type { ReactFlowInstance, Node as RFNode, Edge as RFEdge } from "@xyflow/react";
+import type {
+  ReactFlowInstance,
+  Node as RFNode,
+  Edge as RFEdge,
+  OnBeforeDelete,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +30,7 @@ import {
   Trash2,
   Settings,
   Copy,
+  ClipboardPaste,
   EyeOff,
   Eye,
   Plus,
@@ -44,7 +50,10 @@ import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { ZoomControls, MIN_ZOOM, MAX_ZOOM, FIT_VIEW_OPTIONS } from "./zoom-controls";
 import { CanvasMinimap } from "./canvas-minimap";
+import { ContainerDeleteDialog } from "./container-delete-dialog";
 import { isWorkflowEmpty, isNodeDeletable } from "@/lib/node-definitions/is-trigger";
+import { isEditableTarget } from "@/lib/utils/is-editable-target";
+import { resolveZoomShortcut } from "@/lib/utils/editor-keyboard";
 import { useT, useLocale } from "@/lib/i18n";
 import {
   translateNodeCategory,
@@ -99,7 +108,14 @@ export function WorkflowCanvas() {
   const onConnect = useEditorStore((s) => s.onConnect);
   const isValidConnection = useEditorStore((s) => s.isValidConnection);
   const addNode = useEditorStore((s) => s.addNode);
-  const removeNode = useEditorStore((s) => s.removeNode);
+  const requestNodeDelete = useEditorStore((s) => s.requestNodeDelete);
+  const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
+  const editorClipboard = useEditorStore((s) => s.editorClipboard);
+  const pendingContainerDelete = useEditorStore((s) => s.pendingContainerDelete);
+  const confirmContainerDelete = useEditorStore(
+    (s) => s.confirmContainerDelete,
+  );
+  const cancelContainerDelete = useEditorStore((s) => s.cancelContainerDelete);
   const selectNode = useEditorStore((s) => s.selectNode);
   const pushUndo = useEditorStore((s) => s.pushUndo);
   const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
@@ -358,7 +374,8 @@ export function WorkflowCanvas() {
         }
         case "delete":
           if (canDeleteNode(nodeId)) {
-            removeNode(nodeId);
+            // §11.3 — 자식 있는 컨테이너면 확인 다이얼로그, 그 외 즉시 삭제.
+            requestNodeDelete(nodeId);
           }
           break;
       }
@@ -370,7 +387,7 @@ export function WorkflowCanvas() {
       selectNode,
       pushUndo,
       addNode,
-      removeNode,
+      requestNodeDelete,
       canDeleteNode,
       updateNodeConfig,
       onNodesChange,
@@ -391,6 +408,10 @@ export function WorkflowCanvas() {
           });
           setSearchQuery("");
           break;
+        case "paste":
+          // §3.3 — 클립보드를 우클릭 위치에 붙여넣는다 (묶음 좌상단이 클릭 지점).
+          pasteClipboard(canvasContextMenu.flowPosition);
+          break;
         case "select-all":
           onNodesChange(
             nodes.map((n) => ({ type: "select" as const, id: n.id, selected: true })),
@@ -402,8 +423,63 @@ export function WorkflowCanvas() {
       }
       setCanvasContextMenu(null);
     },
-    [canvasContextMenu, nodes, onNodesChange],
+    [canvasContextMenu, nodes, onNodesChange, pasteClipboard],
   );
+
+  // §11.3 — Delete/Backspace 삭제 시 자식 있는 컨테이너는 즉시 삭제하지 않고 확인
+  // 다이얼로그를 띄운다. 다중 선택에 확인 대상 컨테이너와 일반 노드가 섞여 있으면,
+  // 확인 대상(및 그에 연결된 엣지)만 이번 삭제에서 제외(부분 취소)하고 나머지는 정상
+  // 삭제한다 — ReactFlow 의 `{nodes, edges}` 부분 반환. 확인 대상 중 첫 번째에 대해
+  // 다이얼로그를 열고, 확정 시 deleteAll/ungroup 이 실제 삭제를 수행한다.
+  const onBeforeDelete = useCallback<OnBeforeDelete>(
+    async ({ nodes: deleting, edges: deletingEdges }) => {
+      const store = useEditorStore.getState();
+      const confirmNodes = deleting.filter((n) =>
+        store.needsContainerDeleteConfirm(n.id),
+      );
+      if (confirmNodes.length === 0) return true;
+      store.openContainerDeleteConfirm(confirmNodes[0].id);
+      const confirmIds = new Set(confirmNodes.map((n) => n.id));
+      const allowedNodes = deleting.filter((n) => !confirmIds.has(n.id));
+      // 확인 대상 컨테이너에 연결된 엣지는 그대로 두고(다이얼로그가 처리), 나머지만 삭제.
+      const allowedEdges = deletingEdges.filter(
+        (e) => !confirmIds.has(e.source) && !confirmIds.has(e.target),
+      );
+      return { nodes: allowedNodes, edges: allowedEdges };
+    },
+    [],
+  );
+
+  // §10 — 캔버스 스코프 줌 단축키 (Ctrl/Cmd + +/-/0/1). 전역 핸들러(workflow-editor)는
+  // ReactFlow 인스턴스에 접근할 수 없어 인스턴스를 쥔 본 컴포넌트에서 처리한다. 키 매핑·
+  // 입력 필드 가드는 순수 함수(resolveZoomShortcut)로 분리해 단위 테스트한다.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      const typing = !!active && isEditableTarget(active);
+      const action = resolveZoomShortcut(e, typing);
+      if (!action) return;
+      const instance = reactFlowInstance.current;
+      if (!instance) return;
+      e.preventDefault();
+      switch (action) {
+        case "zoom-in":
+          void instance.zoomIn();
+          break;
+        case "zoom-out":
+          void instance.zoomOut();
+          break;
+        case "zoom-reset":
+          void instance.zoomTo(1);
+          break;
+        case "fit-view":
+          void instance.fitView(FIT_VIEW_OPTIONS);
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Add node from search popup
   const handleAddNodeFromSearch = useCallback(
@@ -556,6 +632,7 @@ export function WorkflowCanvas() {
         onEdgeMouseLeave={onEdgeMouseLeave}
         onPaneContextMenu={onPaneContextMenu}
         onPaneClick={onPaneClick}
+        onBeforeDelete={onBeforeDelete}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
@@ -563,6 +640,7 @@ export function WorkflowCanvas() {
         minZoom={MIN_ZOOM}
         maxZoom={MAX_ZOOM}
         deleteKeyCode={["Delete", "Backspace"]}
+        panActivationKeyCode="Space"
         className="bg-[hsl(var(--background))]"
         proOptions={{ hideAttribution: true }}
       >
@@ -657,6 +735,15 @@ export function WorkflowCanvas() {
           </button>
           <button
             type="button"
+            onClick={() => handleCanvasMenuAction("paste")}
+            disabled={!editorClipboard}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ClipboardPaste className="h-4 w-4" />
+            {t("editor.pasteMenu")}
+          </button>
+          <button
+            type="button"
             onClick={() => handleCanvasMenuAction("select-all")}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[hsl(var(--accent))]"
           >
@@ -724,6 +811,16 @@ export function WorkflowCanvas() {
             )}
           </div>
         </div>
+      )}
+
+      {/* §11.3 컨테이너 삭제 확인 다이얼로그 (자식 있는 컨테이너 삭제 시) */}
+      {pendingContainerDelete && (
+        <ContainerDeleteDialog
+          containerLabel={pendingContainerDelete.label}
+          childCount={pendingContainerDelete.childCount}
+          onConfirm={confirmContainerDelete}
+          onCancel={cancelContainerDelete}
+        />
       )}
     </div>
     </HasDefaultLlmConfigProvider>
