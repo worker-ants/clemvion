@@ -1,13 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   evaluate,
   ExpressionContext as EngineContext,
   buildDisambiguatedKeys,
 } from '@workflow/expression-engine';
-import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import {
+  ExecutionContext,
+  TriggerExpressionData,
+} from '../../../nodes/core/node-handler.interface';
 import { Node } from '../../nodes/entities/node.entity';
 import { EXPRESSION_EXCLUSIONS } from './expression-exclusions';
 import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
+import { sanitizeResponseHeaders } from '../../../nodes/integration/_base/sanitize-response-headers.util';
 
 const FULL_EXPRESSION_PATTERN = /^\s*\{\{(.+)\}\}\s*$/s;
 const MAX_DEPTH = 10;
@@ -15,6 +20,8 @@ const MAX_DEPTH = 10;
 @Injectable()
 export class ExpressionResolverService {
   private readonly logger = new Logger(ExpressionResolverService.name);
+
+  constructor(private readonly configService: ConfigService) {}
 
   /**
    * Build the expression context from execution state.
@@ -105,7 +112,51 @@ export class ExpressionResolverService {
       // `text` lazily renders via thread-renderer so consumers that don't
       // touch it pay no cost.
       $thread: this.buildThreadView(executionContext.conversationThread),
+      // Trigger transport (webhook) + self-hosting env allowlist
+      // (spec/5-system/5-expression-language §4.5). Empty objects (not undefined)
+      // so `$trigger.body` / `$env.KEY` resolve to undefined instead of throwing
+      // EXPR_REFERENCE_ERROR (§6.2).
+      $trigger: this.buildTriggerView(executionContext.triggerData),
+      $env: this.buildEnvView(),
     };
+  }
+
+  /**
+   * `$trigger` — webhook transport flat view (spec §4.5). 민감 헤더 값은
+   * `sanitizeResponseHeaders`(통합 노드 blacklist 재사용)로 마스킹한다. transport 가
+   * 없는 실행(manual/schedule/background)은 빈 객체를 반환해 `$trigger.body` 가
+   * `EXPR_REFERENCE_ERROR` 대신 `undefined` 로 graceful 하게 떨어지게 한다.
+   */
+  private buildTriggerView(
+    trigger: TriggerExpressionData | undefined,
+  ): Record<string, unknown> {
+    if (!trigger) return {};
+    const view: Record<string, unknown> = {};
+    if ('body' in trigger) view.body = trigger.body;
+    if (trigger.headers)
+      view.headers = sanitizeResponseHeaders(trigger.headers);
+    if (trigger.query) view.query = trigger.query;
+    if (trigger.method !== undefined) view.method = trigger.method;
+    return view;
+  }
+
+  /**
+   * `$env` — 운영자 opt-in allowlist(`EXPRESSION_ENV_ALLOWLIST`, 콤마 구분)에 나열된
+   * 키만 `process.env` 에서 노출한다 (spec §4.5/§8.5). 미설정/빈 값이면 빈 객체 —
+   * secret 은 opt-in 이 아니면 절대 노출되지 않는다. 배포 운영자만 env 를 설정할 수
+   * 있으므로 이 opt-in 이 곧 self-hosting 게이팅이다.
+   */
+  private buildEnvView(): Record<string, string> {
+    const raw = this.configService.get<string>('app.expressionEnvAllowlist');
+    if (!raw) return {};
+    const env: Record<string, string> = {};
+    for (const key of raw.split(',')) {
+      const trimmed = key.trim();
+      if (!trimmed) continue;
+      const value = process.env[trimmed];
+      if (value !== undefined) env[trimmed] = value;
+    }
+    return env;
   }
 
   private buildThreadView(thread: ExecutionContext['conversationThread']):

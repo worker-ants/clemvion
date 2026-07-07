@@ -63,5 +63,9 @@ export const appConfig = registerAs('app', () => {
     frontendUrl,
     encryptionKey: process.env.ENCRYPTION_KEY || '',
     cookieDomain: computeCookieDomain(frontendUrl, url),
+    // expression `$env` 노출 allowlist — 운영자 opt-in 콤마 구분 키 목록
+    // (spec/5-system/5-expression-language.md §4.5). 미설정이면 $env = {}.
+    // 배포 운영자만 설정 가능하므로 이 opt-in 이 self-hosting 게이팅 역할을 한다.
+    expressionEnvAllowlist: process.env.EXPRESSION_ENV_ALLOWLIST || '',
   };
 });

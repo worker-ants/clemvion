@@ -1,4 +1,5 @@
 import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import type { TriggerExpressionData } from '../../../nodes/core/node-handler.interface';
 
 /**
  * Background 노드의 자식 흐름을 비동기로 실행하기 위한 BullMQ 큐 이름.
@@ -54,6 +55,14 @@ export interface BackgroundExecutionJob {
    * back to an empty thread. New enqueue paths must always populate this.
    */
   conversationThread?: ConversationThread;
+  /**
+   * Snapshot of context.triggerData at enqueue time — webhook transport
+   * (body/headers/query/method) 를 background 본문의 `$trigger` 표현식에도
+   * 노출한다 (spec/5-system/5-expression-language §4.5). manual/schedule 실행은
+   * 부재(`undefined`) → 본문에서 `$trigger = {}`. Optional: 본 필드 도입 전
+   * enqueue 된 in-flight 레거시 payload 는 미보유 → 본문 `$trigger = {}` 로 폴백.
+   */
+  triggerData?: TriggerExpressionData;
   /** Background 노드 본문의 구성: 알림·타임아웃 정책. */
   config: {
     notifyOnFailure: boolean;

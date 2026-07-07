@@ -19,9 +19,15 @@ function makeNode(id: string, label: string, type = 'http_request'): Node {
 
 describe('ExpressionResolverService', () => {
   let service: ExpressionResolverService;
+  let envAllowlist: string | undefined;
 
   beforeEach(() => {
-    service = new ExpressionResolverService();
+    envAllowlist = undefined;
+    const configService = {
+      get: (key: string) =>
+        key === 'app.expressionEnvAllowlist' ? envAllowlist : undefined,
+    } as unknown as import('@nestjs/config').ConfigService;
+    service = new ExpressionResolverService(configService);
   });
 
   describe('resolveConfig', () => {
@@ -256,6 +262,128 @@ describe('ExpressionResolverService', () => {
       expect((ctx.$node as any)['Transform']).toEqual({
         output: { transformed: true },
       });
+    });
+
+    // spec/5-system/5-expression-language §4.5 — $trigger / $env 런타임 주입
+    function baseExec(
+      overrides: Partial<ExecutionContext> = {},
+    ): ExecutionContext {
+      return {
+        executionId: 'exec-1',
+        workflowId: 'wf-1',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
+        recursionDepth: 0,
+        ...overrides,
+      };
+    }
+
+    it('$trigger — exposes webhook transport (body/query/method) with sensitive headers masked', () => {
+      const execContext = baseExec({
+        triggerData: {
+          body: { event: 'push' },
+          query: { ref: 'main' },
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: 'Bearer secret-token',
+            cookie: 'session=abc',
+            'x-api-key': 'k-123',
+          },
+        },
+      });
+      const ctx = service.buildExpressionContext(
+        null,
+        execContext,
+        new Map<string, Node>(),
+      );
+      const trigger = ctx.$trigger as Record<string, any>;
+      expect(trigger.body).toEqual({ event: 'push' });
+      expect(trigger.query).toEqual({ ref: 'main' });
+      expect(trigger.method).toBe('POST');
+      // non-sensitive kept, sensitive values masked (keys retained).
+      expect(trigger.headers['content-type']).toBe('application/json');
+      expect(trigger.headers.authorization).not.toContain('secret-token');
+      expect(trigger.headers.cookie).not.toContain('abc');
+      expect(trigger.headers['x-api-key']).not.toContain('k-123');
+    });
+
+    it('$trigger — full expression `{{ $trigger.body.event }}` resolves through resolveConfig', () => {
+      const execContext = baseExec({
+        triggerData: { body: { event: 'push' }, method: 'POST' },
+      });
+      const ctx = service.buildExpressionContext(
+        null,
+        execContext,
+        new Map<string, Node>(),
+      );
+      const resolved = service.resolveConfig(
+        {
+          operations: [
+            {
+              type: 'set_field',
+              field: 'echoedEvent',
+              value: '{{ $trigger.body.event }}',
+            },
+            {
+              type: 'set_field',
+              field: 'echoedMethod',
+              value: '{{ $trigger.method }}',
+            },
+          ],
+        },
+        ctx,
+      );
+      const ops = resolved.operations as Array<Record<string, unknown>>;
+      expect(ops[0].value).toBe('push');
+      expect(ops[1].value).toBe('POST');
+    });
+
+    it('$trigger — empty object (not undefined) when no triggerData (manual/schedule)', () => {
+      const ctx = service.buildExpressionContext(
+        null,
+        baseExec(),
+        new Map<string, Node>(),
+      );
+      // {} so `$trigger.body` → undefined instead of EXPR_REFERENCE_ERROR.
+      expect(ctx.$trigger).toEqual({});
+      expect((ctx.$trigger as any).body).toBeUndefined();
+    });
+
+    it('$env — exposes only EXPRESSION_ENV_ALLOWLIST keys from process.env', () => {
+      envAllowlist = 'EXPR_TEST_ALLOWED, EXPR_TEST_MISSING';
+      process.env.EXPR_TEST_ALLOWED = 'visible';
+      process.env.EXPR_TEST_SECRET = 'do-not-leak';
+      delete process.env.EXPR_TEST_MISSING;
+      try {
+        const ctx = service.buildExpressionContext(
+          null,
+          baseExec(),
+          new Map<string, Node>(),
+        );
+        const env = ctx.$env as Record<string, string>;
+        expect(env.EXPR_TEST_ALLOWED).toBe('visible');
+        // not on allowlist → never exposed.
+        expect(env.EXPR_TEST_SECRET).toBeUndefined();
+        // on allowlist but unset in process.env → omitted.
+        expect(env.EXPR_TEST_MISSING).toBeUndefined();
+      } finally {
+        delete process.env.EXPR_TEST_ALLOWED;
+        delete process.env.EXPR_TEST_SECRET;
+      }
+    });
+
+    it('$env — empty object when EXPRESSION_ENV_ALLOWLIST unset (SaaS default)', () => {
+      envAllowlist = undefined;
+      const ctx = service.buildExpressionContext(
+        null,
+        baseExec(),
+        new Map<string, Node>(),
+      );
+      expect(ctx.$env).toEqual({});
     });
 
     it('builds context with loop/item context', () => {
