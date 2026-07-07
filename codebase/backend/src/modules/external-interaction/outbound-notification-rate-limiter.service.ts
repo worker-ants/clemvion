@@ -28,6 +28,11 @@ export class OutboundNotificationRateLimiterService {
   static readonly WINDOW_SEC = 60;
 
   constructor(
+    // `OUTBOUND_NOTIF_RL_REDIS` 토큰은 **프로덕션 provider 에 등록하지 않는다** — 유닛
+    // 테스트가 fake Redis 를 주입하기 위한 확장점일 뿐이라 런타임에는 항상 `undefined`
+    // 로 해석된다. 실제 연결은 `@Global RedisModule` 이 export 하는 `RedisConnectionProvider`
+    // 로 fallback 한다(sibling `InteractionRateLimiterService` 와 동일 패턴). 토큰 미등록은
+    // 버그가 아니라 의도된 설계다.
     @Optional()
     @Inject('OUTBOUND_NOTIF_RL_REDIS')
     injectedRedis?: Redis,

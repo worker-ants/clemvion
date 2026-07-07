@@ -639,6 +639,79 @@ describe('WorkflowsService', () => {
     });
   });
 
+  // spec-sync edge §2.3 — getGraphWarnings 가 per-type 규칙 결과에 graph-level
+  // cycle 경고를 병합하는 지점(warn-not-block)의 통합 테스트.
+  describe('getGraphWarnings — graph-level cycle 병합 (§2.3)', () => {
+    const cycleNode = (id: string) =>
+      ({ id, type: 'action', workflowId: 'wf-uuid-1' }) as unknown as Node;
+    const cycleEdge = (id: string, source: string, target: string) =>
+      ({
+        id,
+        sourceNodeId: source,
+        targetNodeId: target,
+        sourcePort: 'out',
+        targetPort: 'in',
+        workflowId: 'wf-uuid-1',
+      }) as unknown as Edge;
+
+    beforeEach(() => {
+      // per-node-type 규칙 없음 → cycle 규칙만 발화하도록.
+      mockRegistry.getComponent.mockReturnValue(undefined);
+    });
+
+    it('분기 노드 없는 순환이면 graph:unescapable-cycle 경고를 결과에 포함하고 저장을 막지 않는다', async () => {
+      // a → b → c → a (모두 pass-through action) — 탈출 불가 순환.
+      mockNodeRepository.find.mockResolvedValue([
+        cycleNode('a'),
+        cycleNode('b'),
+        cycleNode('c'),
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([
+        cycleEdge('e1', 'a', 'b'),
+        cycleEdge('e2', 'b', 'c'),
+        cycleEdge('e3', 'c', 'a'),
+      ]);
+
+      const { results, hasError, hasWarning } =
+        await service.getGraphWarnings('wf-uuid-1');
+
+      expect(results.some((r) => r.ruleId === 'graph:unescapable-cycle')).toBe(
+        true,
+      );
+      expect(hasWarning).toBe(true);
+      // cycle 은 severity=warning 이라 저장 차단 대상(error)이 아니다.
+      expect(hasError).toBe(false);
+    });
+
+    it('throwOnError=true 여도 순환 경고(warning)만으로는 throw 하지 않는다', async () => {
+      mockNodeRepository.find.mockResolvedValue([
+        cycleNode('a'),
+        cycleNode('b'),
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([
+        cycleEdge('e1', 'a', 'b'),
+        cycleEdge('e2', 'b', 'a'),
+      ]);
+
+      await expect(
+        service.getGraphWarnings('wf-uuid-1', { throwOnError: true }),
+      ).resolves.toMatchObject({ hasWarning: true, hasError: false });
+    });
+
+    it('순환이 없으면 cycle 경고가 없다', async () => {
+      mockNodeRepository.find.mockResolvedValue([
+        cycleNode('a'),
+        cycleNode('b'),
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([cycleEdge('e1', 'a', 'b')]);
+
+      const { results } = await service.getGraphWarnings('wf-uuid-1');
+      expect(results.some((r) => r.ruleId === 'graph:unescapable-cycle')).toBe(
+        false,
+      );
+    });
+  });
+
   describe('exportWorkflow', () => {
     it('emits containerIndex / toolOwnerIndex instead of UUIDs', async () => {
       mockRepository.findOne.mockResolvedValue(mockWorkflow);

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — edge 자기연결/중복 하드차단 + 탈출불가 순환 warn-not-block · outbound 알림 폭주 degraded (spec-sync edge §2.2/§2.3 · EIA §8.4)
+
+### 변경 사항
+
+1. **워크플로 에디터가 자기연결·중복 연결은 막고, 사이클은 막지 않되 위험한 순환만 경고한다** — `spec/3-workflow-editor/2-edge.md §2.2/§2.3` 이 "대부분 미구현 (Planned)" 로 두었던 연결 유효성 규칙을 구현·동기화했다. (a) **§2.2 하드 차단** — 자기연결(`source===target`)은 `isValidConnection`(React Flow prop) 이 드래그 중 커서 🚫 로, 동일 연결 중복(같은 source·sourceHandle·target·targetHandle)은 `onConnect` 이 토스트로 차단(순수 헬퍼 `edge-utils.ts` `isSelfConnection`/`isDuplicateConnection`). (b) **§2.3 warn-not-block** — 실행 엔진이 분기 노드(Switch/If-Else) back-edge 순환을 정식 지원하므로 캔버스는 사이클을 막지 않고, 분기 노드 없이 탈출 불가한 순환만 `graph:unescapable-cycle`(severity `warning`) 배지로 경고한다. 그래프 전역 DFS back-edge 탐지를 `@workflow/graph-warning-rules` 신규 graph-level 규칙 `evaluateGraphCycleWarnings`(`rules/cycle.ts`) 로 구현하고, 컨테이너 loopback(`targetHandle==='emit'`)·진입(`sourceHandle==='body'`) 엣지는 예외 처리(SoT `shadow-workflow.ts` `CONTAINER_LOOPBACK_PORTS={'emit'}`). frontend `editor-store.ts` `evaluateGraphWarningsLocal` 과 backend `getGraphWarnings` 가 per-type 결과에 cycle 결과를 병합해 두 surface 가 일치한다. 편집기는 warn, workflow-assistant 도구(`shadow-workflow.ts`)는 여전히 hard-block — surface 별 요구 차이(`2-edge.md §Rationale R-2`). i18n `GRAPH_WARNING_KO['graph:unescapable-cycle']` KO 템플릿 + P3-C-1 가드 확장. 신규 서버 API 없음(기존 `GET /workflows/:id/graph-warnings` 재사용). SoT: `spec/3-workflow-editor/2-edge.md §2.2/§2.3`, `spec/conventions/cross-node-warning-rules.md §3/§8/§9`.
+
+2. **outbound 알림이 trigger 당 분당 60건을 넘으면 폐기 없이 계속 발송하되 `notificationHealth=degraded` 로 표시한다** — `spec/5-system/14-external-interaction-api.md §8.4 row4 / §3.1 EIA-NX-11` 이 권장한 outbound 폭주 감지를 구현했다. `OutboundNotificationRateLimiterService`(Redis fixed-window `INCR`+`EXPIRE NX` 단일 pipeline, fail-open) 가 발송 성공마다 카운트하고, `NotificationWebhookProcessor` 성공 분기가 한도 초과 시 `markHealthy` 대신 `markDegraded` + 폭주 전용 `notification_last_error`(발송 실패 degraded 와 원인 구분) 로 표시한다. **throttle(폐기) 아님** — 초과분도 발송하며 수신 endpoint 부하만 알린다. SoT: `spec/5-system/14-external-interaction-api.md §8.4/§3.1`, `§Rationale R-outbound-flood`.
+
 ## Unreleased — 캔버스 미니맵·줌 슬라이더/퍼센트·노드 삭제 버튼 (canvas UX spec-sync §5.4·§6·§7)
 
 ### 변경 사항
