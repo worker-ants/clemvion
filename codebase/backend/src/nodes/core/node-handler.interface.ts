@@ -1,6 +1,33 @@
 import type { ConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import type { ResumeCallStackFrame } from '../../shared/execution-resume/resume-call-stack.types';
 
+/**
+ * webhook 트리거의 HTTP transport 파생 데이터 — expression `$trigger` 의 소스.
+ * `TriggerExecutionInput`(4-execution-engine §6.1.1)의 webhook 한정 필드와 동형이다
+ * (`parameters` 는 제외 — `$params`/`$input.parameters` 로 노출). headers 는 lowercase
+ * 키이며, `$trigger` 노출 시점에 민감 헤더 값이 마스킹된다.
+ */
+export interface TriggerExpressionData {
+  body?: unknown;
+  headers?: Record<string, string>;
+  query?: Record<string, string>;
+  method?: string;
+}
+
+/**
+ * webhook adapter 가 engine input(→ `Execution.inputData`)에 stamp 하는 HTTP
+ * transport 키. `$trigger` 추출(`extractTriggerData`)과 Manual Trigger 핸들러의
+ * webhook 후방 탐지(`detectTriggerSource`)가 **동일 집합**을 판정 기준으로 써야
+ * 하므로 단일 SoT 로 공유한다 — 필드 추가/변경 시 한쪽만 갱신돼 두 판정이
+ * 어긋나는 drift 를 방지.
+ */
+export const TRIGGER_TRANSPORT_KEYS = [
+  'body',
+  'headers',
+  'query',
+  'method',
+] as const;
+
 export interface ExecutionContext {
   executionId: string;
   workflowId: string;
@@ -101,6 +128,16 @@ export interface ExecutionContext {
     isFirst: boolean;
     isLast: boolean;
   };
+  /**
+   * webhook 트리거 실행의 HTTP transport payload — expression `$trigger` 의 데이터
+   * 소스 (spec/5-system/5-expression-language.md §4.5). `rehydrateContext`(신규+resume
+   * 공통 진입점)가 durable 한 `Execution.inputData`(`__triggerSource='webhook'`)에서 1회
+   * 추출해 주입한다 — 재수화 후에도 `{}` 로 비지 않도록 in-memory 가 아니라 inputData 파생.
+   * expression resolver 전용 파생 소스이며 (핸들러는 소비하지 않는다), `buildExpressionContext`
+   * 가 `$trigger.{body,headers,query,method}` 로 노출한다 (headers 값은 주입 시점 마스킹).
+   * manual/schedule/background 등 transport 가 없는 경로는 미설정 → `$trigger = {}`.
+   */
+  triggerData?: TriggerExpressionData;
   expressionContext?: Record<string, unknown>;
   /**
    * 노드 정의에 저장된 **원본 config** (expression 평가 전). 핸들러가

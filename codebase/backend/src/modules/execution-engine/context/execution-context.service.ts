@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   ExecutionContext,
   NodeHandlerOutput,
+  TriggerExpressionData,
 } from '../../../nodes/core/node-handler.interface';
 import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
 import {
@@ -36,6 +37,13 @@ export interface CreateContextOptions {
    * (spec: conversation-thread §4·§8.4, 4-execution-engine §7.5)
    */
   conversationThread?: MutableConversationThread;
+  /**
+   * webhook 트리거 HTTP transport — expression `$trigger` 의 소스
+   * (spec/5-system/5-expression-language.md §4.5). `rehydrateContext` 가
+   * `Execution.inputData`(`__triggerSource='webhook'`)에서 추출해 전달한다.
+   * transport 가 없는 경로(manual/schedule/background)는 미지정 → `$trigger = {}`.
+   */
+  triggerData?: TriggerExpressionData;
 }
 
 /**
@@ -89,6 +97,7 @@ export class ExecutionContextService {
       recursionDepth,
       contextKey,
       conversationThread,
+      triggerData,
     } = options;
     const key = contextKey ?? executionId;
     const existing = this.contexts.get(key);
@@ -112,6 +121,7 @@ export class ExecutionContextService {
       engineResolvedConfigCache: {},
       recursionDepth: recursionDepth ?? 0,
       conversationThread: conversationThread ?? createEmptyConversationThread(),
+      ...(triggerData ? { triggerData } : {}),
     };
     this.contexts.set(key, context);
     return context;
