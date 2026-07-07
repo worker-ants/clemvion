@@ -3,9 +3,11 @@
 import { memo, useEffect, useMemo } from "react";
 import { Handle, Position, useStore, useUpdateNodeInternals } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Unplug, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
+import { integrationsApi } from "@/lib/api/integrations";
 import { isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
@@ -34,6 +36,61 @@ type CustomNodeType = Node<CustomNodeData, "custom">;
 // useStore with a boolean selector: only re-renders when crossing the 50% zoom threshold.
 // useViewport() would re-render on every pan/zoom change, which is expensive with many nodes.
 const zoomSelector = (s: { transform: number[] }) => s.transform[2] >= 0.5;
+
+// §5 ⚠ Missing integration 배지 — Integration 노드가 참조하는 integration 이
+// 워크스페이스 목록에 없을(= 삭제된 잔존 참조) 때 캔버스 노드 헤더에 앰버 배지를
+// 렌더한다. 이 판정은 warningRules DSL 로는 표현할 수 없다: 평가기가 노드 자신의
+// config 만 보므로 cross-entity(integration 실재) 존재 검증에 닿지 못한다. 따라서
+// 렌더러 전용 cross-entity 판정이며, config 스냅샷 warnWhen DSL 을 쓰는
+// `⚠ Missing workflow` 와는 다른 경로다. 존재-판정은 설정 패널
+// `mcp-server-selector` 의 missing 대조와 동일한 패턴이고, 색은 캔버스
+// `⚠ Missing workflow` 와 같은 앰버 계열이되(설정 패널 셀렉터의 red 와는 별개)
+// graph-warning 배지(AlertTriangle)와 구분되게 Unplug(연결 끊김) 아이콘을 쓴다.
+// 별도 컴포넌트로 분리해 integration 노드에서만 mount → 그 외 노드는 integration
+// 목록 쿼리를 호출하지 않는다. SoT: spec/4-nodes/4-integration/0-common.md §5.
+function MissingIntegrationBadge({
+  integrationId,
+  pushToRight,
+}: {
+  integrationId: string;
+  pushToRight: boolean;
+}) {
+  const t = useT();
+  // 캔버스 전용 무필터 목록 키 — 설정 패널 셀렉터의 serviceType 필터 포함 키
+  // (["integrations","list",{serviceType}]) 와 구분되며, category=integration 노드
+  // 전반이 같은 키로 공유(React Query dedupe)해 목록을 한 번만 조회한다.
+  const { data: integrationList, isLoading } = useQuery({
+    queryKey: ["integrations", "list"],
+    queryFn: () => integrationsApi.list({ limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+  });
+  // 목록 로딩 중에는 억제해 위양성(로딩 지연을 삭제로 오판)을 피한다.
+  const isMissing =
+    !isLoading &&
+    integrationList !== undefined &&
+    !integrationList.data.some((i) => i.id === integrationId);
+  if (!isMissing) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cn(
+            "shrink-0 inline-flex items-center justify-center rounded-full p-0.5 bg-amber-400 text-amber-950",
+            pushToRight && "ml-auto",
+          )}
+          role="img"
+          aria-label="missing integration"
+          data-testid="missing-integration-badge"
+        >
+          <Unplug className="h-3 w-3" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        {t("integrations.missingIntegration")}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) {
   const definition = getNodeDefinition(data.type);
@@ -154,6 +211,15 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const showHeaderSummary = isContainer && showSummary && summary && !isWarning;
   const showBodySummary = !isContainer && showSummary && summary && !isWarning;
 
+  // §5 ⚠ Missing integration — category=integration 노드가 참조하는
+  // integrationId. 실재 대조는 <MissingIntegrationBadge> 가 담당하며, 값이 있을
+  // 때만 mount 해 그 외 노드가 integration 목록 쿼리를 돌리지 않게 한다.
+  const integrationId =
+    data.category === "integration" &&
+    typeof data.config.integrationId === "string"
+      ? data.config.integrationId
+      : "";
+
   return (
     <div
       className={cn(
@@ -259,6 +325,19 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
               {graphWarningMessage}
             </TooltipContent>
           </Tooltip>
+        )}
+        {/* §5 Missing integration 배지 — 참조하던 Integration 이 삭제된 잔존
+            참조일 때. graph-warning(AlertTriangle) 배지와 구분되는 Unplug 아이콘·
+            별도 슬롯. integration 노드에서만 mount 되어(값이 있을 때만) 그 외
+            노드는 integration 목록 쿼리를 돌리지 않는다. ml-auto 는 앞선 우측
+            정렬 요소가 없을 때만 부여해 슬롯 중복을 피한다. */}
+        {integrationId !== "" && (
+          <MissingIntegrationBadge
+            integrationId={integrationId}
+            pushToRight={
+              !showHeaderSummary && !showHeaderWarning && !graphWarningSeverity
+            }
+          />
         )}
       </div>
 
