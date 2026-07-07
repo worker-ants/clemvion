@@ -44,7 +44,11 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-// Request interceptor: attach access token + current workspace id
+// Request interceptor: attach access token + current workspace id.
+// 활성 워크스페이스는 access token 의 activeWorkspaceId 클레임으로 확정된다(결정1). 다만 전환기
+// 하위호환으로 서버(WorkspaceId 데코레이터·RolesGuard)는 X-Workspace-Id 헤더가 있으면 그것을
+// 우선(header-first) 사용하므로, 여기서 헤더를 계속 첨부한다. switchWorkspace 는 /switch 로 토큰
+// 클레임도 함께 동기화하며, 향후 이 헤더 첨부를 제거하면 토큰 클레임이 단일 진실이 된다.
 apiClient.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) {

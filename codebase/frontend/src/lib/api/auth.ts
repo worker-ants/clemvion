@@ -1,4 +1,39 @@
-import { apiClient } from "./client";
+import { apiClient, setAccessToken } from "./client";
+
+/**
+ * 활성 워크스페이스 전환 (data-flow/12-workspace §1.5, 결정1).
+ * `/auth/workspaces/:id/switch` 로 access token 을 activeWorkspaceId=id 로 재발급받아
+ * 메모리에 저장한다. 토큰이 활성 워크스페이스의 단일 진실이므로 헤더 없이도 이후 요청에
+ * 전환이 적용된다(비멤버면 서버가 403 NOT_A_MEMBER).
+ */
+export async function switchWorkspaceApi(workspaceId: string): Promise<void> {
+  const { data } = await apiClient.post<{ data: { accessToken: string } }>(
+    `/auth/workspaces/${workspaceId}/switch`,
+  );
+  const token = data?.data?.accessToken;
+  if (token) setAccessToken(token);
+}
+
+/**
+ * access token(JWT)의 활성 워크스페이스 클레임을 디코드한다 — activeWorkspaceId(신규),
+ * 전환기 dual-read 로 legacy workspaceId 도 수용. 서명 검증은 하지 않으며(서버 신뢰)
+ * reconcile-on-load 비교 용도로만 payload 를 읽는다.
+ */
+export function decodeActiveWorkspaceId(token: string): string | null {
+  try {
+    const segment = token.split(".")[1];
+    if (!segment) return null;
+    const b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "===".slice((b64.length + 3) % 4);
+    const json = JSON.parse(atob(padded)) as {
+      activeWorkspaceId?: string;
+      workspaceId?: string;
+    };
+    return json.activeWorkspaceId ?? json.workspaceId ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export interface RegisterData {
   name: string;

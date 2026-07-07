@@ -51,8 +51,8 @@ audit 는 "일어난 일" 의 기록이다. verb 시제는 아래 세 패턴 중
 | auth_config | 현재형 (§2.2) | `create`, `update`, `delete`, `regenerate`, `reveal` | 구현 |
 | execution | 도메인 동사 (§2.3) | `re_run` | 구현 |
 | workspace | 도메인 동사 (§2.3) | `transfer_ownership` | 구현 |
-| workspace | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
-| member | 과거분사 (§2.1) | `invited`, `role_changed`, `removed` | 미구현 |
+| workspace | 과거분사 (§2.1) | `created`, `updated` | 구현 (`deleted` 제외 — 아래 주) |
+| member | 과거분사 (§2.1) | `invited`, `role_changed`, `removed` | 구현 |
 | workflow | 과거분사 (§2.1) | `created`, `updated`, `deleted`, `executed` | 미구현 |
 | trigger | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
 | schedule | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
@@ -60,7 +60,9 @@ audit 는 "일어난 일" 의 기록이다. verb 시제는 아래 세 패턴 중
 
 > `model_config` 에 `reveal` 이 없는 것은 ModelConfig 에 평문 reveal 엔드포인트가 없기 때문이다(`auth_config.reveal` 과 대비). `set_default` 는 과거분사가 부자연스러워 §2.2 현재형으로 묶이며, 토큰 구분자는 §1 규약대로 언더스코어다.
 
-> **`workspace` 가 두 패턴에 걸치는 이유**: `transfer_ownership` 은 소유권 이전이라는 **단일 트랜잭션 행위**(§2.3)이고, `created`/`updated`/`deleted` 은 일반 CRUD 생애주기(§2.1)다. 같은 resource 라도 행위 성격에 따라 패턴이 다를 수 있다 — 분류 기준은 resource 이름이 아니라 **그 verb 가 어느 패턴에 속하는가**다.
+> **`workspace` 가 두 패턴에 걸치는 이유**: `transfer_ownership` 은 소유권 이전이라는 **단일 트랜잭션 행위**(§2.3)이고, `created`/`updated` 은 일반 CRUD 생애주기(§2.1)다. 같은 resource 라도 행위 성격에 따라 패턴이 다를 수 있다 — 분류 기준은 resource 이름이 아니라 **그 verb 가 어느 패턴에 속하는가**다.
+
+> **`workspace.deleted` 는 레지스트리에 없다 (구조적 제외).** 명명 규약상으론 `deleted`(과거분사, §2.1)가 자연스럽지만, `audit_log.workspace_id` 가 `ON DELETE CASCADE`(V001)라 삭제 감사 row 가 워크스페이스와 함께 소멸해 영속 불가하므로 `AUDIT_ACTIONS` 에 두지 않는다. 명명 문제가 아니라 워크스페이스-scoped audit 모델의 구조적 제약이다. 근거: [`data-flow/12-workspace §Rationale "workspace.deleted 감사 제외"`](../data-flow/12-workspace.md) · [`data-flow/1-audit §1.1`](../data-flow/1-audit.md).
 
 > 구현 여부·커버리지 갭의 ground truth 는 [data-flow/1-audit.md §1.1](../data-flow/1-audit.md). 미구현 액션은 `AUDIT_ACTIONS` 에 아직 없으며, 구현 시 위 표기 그대로 추가한다.
 

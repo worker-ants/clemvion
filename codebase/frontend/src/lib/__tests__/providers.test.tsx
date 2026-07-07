@@ -5,6 +5,12 @@ import { useQuery, QueryClient } from "@tanstack/react-query";
 import { Providers } from "../providers";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
+// switchWorkspace 는 이제 /switch 로 토큰을 재발급받은 뒤 currentWorkspaceId 를 갱신한다.
+// 그 API 호출을 스텁해 전환이 성공적으로 완료되게 한다(캐시 무효화 구독 트리거).
+vi.mock("@/lib/api/auth", () => ({
+  switchWorkspaceApi: vi.fn().mockResolvedValue(undefined),
+}));
+
 const WORKSPACE_A = {
   id: "ws-a",
   name: "A",
@@ -83,7 +89,7 @@ describe("Providers workspace switch invalidation", () => {
     resolveFetch = () => {};
 
     await act(async () => {
-      useWorkspaceStore.getState().switchWorkspace(WORKSPACE_B.id);
+      await useWorkspaceStore.getState().switchWorkspace(WORKSPACE_B.id);
     });
 
     expect(cancelSpy).toHaveBeenCalledTimes(1);

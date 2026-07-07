@@ -73,6 +73,7 @@ export const workspace: Dict["workspace"] = {
     viewerDesc: "Read-only access",
   },
   switched: "Switched to '{{name}}'",
+  switchFailed: "Couldn't switch workspace. Please try again in a moment.",
   tabOverview: "Overview",
   tabMembers: "Members",
   tabDanger: "Danger zone",

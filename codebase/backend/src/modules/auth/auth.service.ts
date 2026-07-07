@@ -4,6 +4,7 @@ import {
   Logger,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -1019,6 +1020,52 @@ export class AuthService {
    *
    * @internal 트랜잭션 컨텍스트 전파 전용 — `public` 승격 금지(trust boundary 확장 방지).
    */
+  /**
+   * 활성 워크스페이스 전환 (data-flow/12-workspace §1.5, 결정1 = A).
+   * 대상 워크스페이스 멤버십을 검증하고(비멤버 `403 NOT_A_MEMBER`) **access token 만**
+   * `activeWorkspaceId=targetWorkspaceId` 로 재발급한다. refresh token 은 워크스페이스와
+   * 무관한 opaque UUID 라 회전하지 않는다 — 매 전환마다 새 refresh family 를 만들면 세션이
+   * 누적되고 구 토큰이 orphan 으로 남을 뿐이므로. 토큰이 활성 워크스페이스의 단일 진실이라
+   * 헤더 없이도 다음 요청부터 전환이 적용되고, 다음 `refresh` 는 기존 refresh 로 동작한다.
+   */
+  async switchWorkspace(
+    userId: string,
+    targetWorkspaceId: string,
+  ): Promise<{ accessToken: string }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException({
+        code: 'TOKEN_INVALID',
+        message: 'Invalid token or unverified account',
+      });
+    }
+    // 멤버십 검증은 resolveTokenWorkspaceContext(targetWorkspaceId) 가 수행 —
+    // 비멤버면 ForbiddenException(NOT_A_MEMBER) 를 던진다.
+    const context = await this.resolveTokenWorkspaceContext(
+      user,
+      targetWorkspaceId,
+    );
+    return { accessToken: this.signAccessToken(user, context) };
+  }
+
+  /** access token 서명 — 활성 워크스페이스 클레임은 activeWorkspaceId (결정2 = B). */
+  private signAccessToken(
+    user: User,
+    context: { workspaceId: string; role: string },
+  ): string {
+    return this.jwtService.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        // jwt.strategy 가 activeWorkspaceId ?? workspaceId 로 dual-read 하며,
+        // 서명은 신규 필드만 발행한다.
+        activeWorkspaceId: context.workspaceId,
+        role: context.role,
+      },
+      { expiresIn: 900 }, // 15분
+    );
+  }
+
   private async generateTokens(
     user: User,
     rememberMe = false,
@@ -1031,16 +1078,7 @@ export class AuthService {
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const context = await this.resolveTokenWorkspaceContext(user);
 
-    const accessPayload = {
-      sub: user.id,
-      email: user.email,
-      workspaceId: context.workspaceId,
-      role: context.role,
-    };
-
-    const accessToken = this.jwtService.sign(accessPayload, {
-      expiresIn: 900, // 15분
-    });
+    const accessToken = this.signAccessToken(user, context);
 
     // refresh token 생성
     const rawRefreshToken = uuidv4();
@@ -1082,7 +1120,24 @@ export class AuthService {
    */
   private async resolveTokenWorkspaceContext(
     user: User,
+    targetWorkspaceId?: string,
   ): Promise<{ workspaceId: string; role: string }> {
+    // 전환 대상이 지정되면 멤버십을 검증해 그 워크스페이스를 활성값으로 확정한다
+    // (data-flow/12-workspace §1.5 switchWorkspace). 비멤버면 전환 거부.
+    if (targetWorkspaceId) {
+      const role = await this.workspacesService.getMemberRole(
+        targetWorkspaceId,
+        user.id,
+      );
+      if (!role) {
+        throw new ForbiddenException({
+          code: 'NOT_A_MEMBER',
+          message: '해당 워크스페이스의 멤버가 아닙니다.',
+        });
+      }
+      return { workspaceId: targetWorkspaceId, role };
+    }
+
     const personal = await this.workspacesService.findPersonalWorkspace(
       user.id,
     );

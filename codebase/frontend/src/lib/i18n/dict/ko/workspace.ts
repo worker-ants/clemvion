@@ -71,6 +71,7 @@ export const workspace = {
     viewerDesc: "읽기만 가능",
   },
   switched: "'{{name}}'(으)로 이동했어요",
+  switchFailed: "워크스페이스 전환에 실패했어요. 잠시 후 다시 시도해 주세요.",
   tabOverview: "개요",
   tabMembers: "멤버",
   tabDanger: "위험 영역",

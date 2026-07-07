@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   ParseEnumPipe,
   Query,
   Req,
@@ -418,6 +419,31 @@ export class AuthController {
     setRefreshTokenCookie(res, result.refreshToken, {
       cookieDomain: this.cookieDomain,
     });
+    return { data: { accessToken: result.accessToken } };
+  }
+
+  @Post('workspaces/:id/switch')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '활성 워크스페이스 전환',
+    description:
+      '대상 워크스페이스 멤버십을 검증하고 Access Token 만 activeWorkspaceId=대상 으로 재발급합니다. Refresh Token 은 워크스페이스와 무관한 opaque UUID 라 회전하지 않습니다(쿠키 불변). 전환기 하위호환으로 X-Workspace-Id 헤더가 있으면 header-first 로 우선하며, 헤더가 없으면 토큰의 활성 워크스페이스 클레임이 적용됩니다. 비멤버면 403 NOT_A_MEMBER.',
+  })
+  @ApiParam({ name: 'id', description: '전환할 워크스페이스 ID (UUID)' })
+  @ApiOkWrappedResponse(AccessTokenDto, {
+    description: '전환된 워크스페이스로 재발급된 Access Token',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 필요(JWT)' })
+  async switchWorkspace(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) targetWorkspaceId: string,
+  ) {
+    // 전환은 access token 만 재발급한다(refresh 무회전) — refresh cookie 는 건드리지 않는다.
+    const result = await this.authService.switchWorkspace(
+      user.sub,
+      targetWorkspaceId,
+    );
     return { data: { accessToken: result.accessToken } };
   }
 

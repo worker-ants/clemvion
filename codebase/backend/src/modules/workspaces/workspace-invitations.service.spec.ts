@@ -74,6 +74,7 @@ describe('WorkspaceInvitationsService', () => {
   let dataSource: DataSource;
   let updateMock: Mock;
   let notifications: { notify: Mock };
+  let auditLogs: { record: Mock };
 
   beforeEach(() => {
     invitationRepo = repo();
@@ -84,6 +85,7 @@ describe('WorkspaceInvitationsService', () => {
       sendWorkspaceInvitationEmail: jest.fn().mockResolvedValue(undefined),
     };
     notifications = { notify: jest.fn().mockResolvedValue(undefined) };
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
     const built = buildDataSource({ invitationRepo, memberRepo });
     dataSource = built.dataSource;
     updateMock = built.updateMock;
@@ -95,6 +97,7 @@ describe('WorkspaceInvitationsService', () => {
       mailService as never,
       dataSource,
       notifications as never,
+      auditLogs as never,
     );
   });
 
@@ -198,6 +201,23 @@ describe('WorkspaceInvitationsService', () => {
         'Alice',
         result.token,
       );
+      // 결정4=B: 초대 발급은 member.invited(mode=invitation) 로 감사. raw 이메일은 미저장(PII).
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-1',
+          userId: 'user-1',
+          action: 'member.invited',
+          resourceType: 'member',
+          details: expect.objectContaining({
+            mode: 'invitation',
+            role: 'editor',
+          }),
+        }),
+      );
+      const recordArg = auditLogs.record.mock.calls[0][0] as {
+        details: Record<string, unknown>;
+      };
+      expect(recordArg.details).not.toHaveProperty('email');
     });
 
     it('기존 가입자(비멤버) 초대 시 team_invite 알림 발사(channel=in_app)', async () => {
@@ -580,6 +600,7 @@ describe('WorkspaceInvitationsService', () => {
         mailService as never,
         built.dataSource,
         notifications as never,
+        auditLogs as never,
       );
       invitationRepo.findOne.mockResolvedValueOnce({
         id: 'inv-1',

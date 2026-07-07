@@ -50,15 +50,20 @@ code:
 | 케밥 케이스 | `/api/knowledge-bases`, `/api/auth-configs` |
 | 중첩은 2단계까지 | `/api/knowledge-bases/:id/documents` |
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요 시) |
-| **예외 — RPC-style sub-channel action**: `/api/{resource}/{id}/{channel}/{action}` 형태의 동작 호출은 허용 (e.g. `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`). 자원 자체가 아닌 sub-channel 의 부작용 동작 (`rotate-*`, `revoke-*`, `disable-*` 등) 이며 URL 만으로 자원·채널·동작을 식별 가능해야 하기 때문 | (좌측 예시 참조) |
+| **예외 — RPC-style sub-channel action**: `/api/{resource}/{id}/{channel}/{action}` 형태의 동작 호출은 허용 (e.g. `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`). 자원 자체가 아닌 sub-channel 의 부작용 동작 (`rotate-*`, `revoke-*`, `disable-*`, `switch` 등) 이며 URL 만으로 자원·채널·동작을 식별 가능해야 하기 때문 | (좌측 예시 참조) |
 
 ### 2.3 워크스페이스 스코핑
 
-모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다.
-워크스페이스 ID는 JWT에서 추출하거나 헤더로 전달.
+모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다. 활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(`jwt.strategy` 가 멤버십 검증 후 `request.user.workspaceId` 로 채택), 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. **전환기 하위호환 — header-first**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 우선 사용하고, 헤더가 없으면 토큰 클레임을 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 진실이 된다. 결정 우선순위·전환 플로우·마이그레이션의 SoT 는 [`data-flow/12-workspace.md §1.5`](../data-flow/12-workspace.md).
+
+> **상태(2026-07-07, 구현 완료)**: 위 모델은 구현됐다 (`spec-sync-data-flow-12-workspace-gaps` 결정1·2). `jwt.strategy` 가 토큰 클레임(dual-read `activeWorkspaceId ?? workspaceId`)의 멤버십을 검증해 활성값을 확정하고, 데코레이터·`RolesGuard` 는 header-first 로 헤더를 우선한다(전환기 하위호환).
 
 ```
+# 전환기: X-Workspace-Id 헤더가 있으면 header-first 로 우선
 X-Workspace-Id: {workspace-uuid}
+
+# 헤더가 없으면 토큰 클레임(activeWorkspaceId)이 활성 워크스페이스
+Authorization: Bearer {access-token}   # payload.activeWorkspaceId
 ```
 
 #### 시스템 전역 API 예외

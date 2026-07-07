@@ -42,6 +42,7 @@ describe('JwtStrategy', () => {
           useValue: {
             findPersonalWorkspace: jest.fn(),
             getMemberRole: jest.fn(),
+            listForUser: jest.fn().mockResolvedValue([]),
           },
         },
       ],
@@ -133,5 +134,102 @@ describe('JwtStrategy', () => {
     await expect(strategy.validate(validPayload)).rejects.toThrow(
       'DB connection error',
     );
+  });
+
+  // 결정1·2 (토큰 SoT + activeWorkspaceId dual-read):
+  describe('활성 워크스페이스 클레임 존중 (결정1·2)', () => {
+    it('honors activeWorkspaceId claim when the user is a member (no personal re-derive)', async () => {
+      usersService.findById.mockResolvedValue(mockUser as never);
+      workspacesService.getMemberRole.mockResolvedValue('admin');
+
+      const result = await strategy.validate({
+        ...validPayload,
+        activeWorkspaceId: 'team-ws-9',
+      });
+
+      expect(result).toEqual({
+        sub: 'user-uuid-1',
+        email: 'test@example.com',
+        workspaceId: 'team-ws-9',
+        role: 'admin',
+      });
+      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
+        'team-ws-9',
+        'user-uuid-1',
+      );
+      // 클레임이 유효하면 personal 재해석을 하지 않는다.
+      expect(workspacesService.findPersonalWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('dual-read: honors legacy workspaceId claim when activeWorkspaceId is absent', async () => {
+      usersService.findById.mockResolvedValue(mockUser as never);
+      workspacesService.getMemberRole.mockResolvedValue('editor');
+
+      const result = await strategy.validate({
+        ...validPayload,
+        workspaceId: 'legacy-ws-3',
+      });
+
+      expect(result.workspaceId).toBe('legacy-ws-3');
+      expect(result.role).toBe('editor');
+      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
+        'legacy-ws-3',
+        'user-uuid-1',
+      );
+    });
+
+    it('prefers activeWorkspaceId over legacy workspaceId (dual-read)', async () => {
+      usersService.findById.mockResolvedValue(mockUser as never);
+      workspacesService.getMemberRole.mockResolvedValue('owner');
+
+      const result = await strategy.validate({
+        ...validPayload,
+        activeWorkspaceId: 'active-ws-1',
+        workspaceId: 'legacy-ws-3',
+      });
+
+      expect(result.workspaceId).toBe('active-ws-1');
+      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
+        'active-ws-1',
+        'user-uuid-1',
+      );
+    });
+
+    it('falls back to personal when claimed workspace membership is gone (graceful)', async () => {
+      usersService.findById.mockResolvedValue(mockUser as never);
+      // claimed workspace → 비멤버(null), personal → owner.
+      workspacesService.getMemberRole
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce('owner');
+      workspacesService.findPersonalWorkspace.mockResolvedValue(
+        mockWorkspace as never,
+      );
+
+      const result = await strategy.validate({
+        ...validPayload,
+        activeWorkspaceId: 'stale-ws',
+      });
+
+      expect(result.workspaceId).toBe('workspace-uuid-1');
+      expect(result.role).toBe('owner');
+      expect(workspacesService.findPersonalWorkspace).toHaveBeenCalled();
+    });
+
+    it('falls back to first membership when user has no personal workspace (invitation sign-up)', async () => {
+      usersService.findById.mockResolvedValue(mockUser as never);
+      workspacesService.getMemberRole.mockResolvedValue(null); // claimed 비멤버
+      workspacesService.findPersonalWorkspace.mockResolvedValue(null);
+      workspacesService.listForUser.mockResolvedValue([
+        { id: 'team-first', role: 'editor' } as never,
+      ]);
+
+      const result = await strategy.validate({
+        ...validPayload,
+        activeWorkspaceId: 'stale-ws',
+      });
+
+      expect(result.workspaceId).toBe('team-first');
+      expect(result.role).toBe('editor');
+    });
   });
 });

@@ -18,10 +18,20 @@
  * 컨텍스트가 있는 controller 경계(`users.controller`·`auth.controller`·`webauthn.controller`)
  * 에서 수행한다 (1-auth §4.1 + §Rationale 4.1.B; data-flow/1-audit.md §1.1).
  *
- * spec §4.1 의 Planned 액션(workflow.* · trigger.* · schedule.* · member.* ·
- * model_config.* · workspace.created/updated/deleted)은 미구현이라 본 const 에 없다 —
- * 구현 시 추가한다 (data-flow/1-audit.md §1.1 목표 커버리지; 명칭은 1-auth §4.1 +
- * §Rationale 4.1.A 확정 표기).
+ * workspace.created/updated 와 member.invited/role_changed/removed 는
+ * spec-sync-data-flow-12-workspace-gaps 결정4(B, 2026-07-07)로 구현됐다 —
+ * workspaces.service 가 workspace/member CRUD 를, workspace-invitations.service 가
+ * member.invited(초대 생성)를 기록한다 (data-flow/1-audit.md §1.1; 1-auth §4.1).
+ *
+ * **workspace.deleted 는 의도적으로 audit 하지 않는다**: `audit_log.workspace_id` 는
+ * `REFERENCES workspace(id) ON DELETE CASCADE` (V001) 라, 워크스페이스 삭제 감사 row 는
+ * 삭제와 함께 cascade 제거되어(또는 삭제 후 INSERT 시 FK 위반) 영속될 수 없다. 워크스페이스
+ * 범위 audit 모델의 구조적 제약이며, 삭제 이력은 별도 비-scoped 저장소가 필요하다(범위 밖).
+ * (data-flow/1-audit.md §1.1 Rationale; 12-workspace §4).
+ *
+ * spec §4.1 의 나머지 Planned 액션(workflow.* · trigger.* · schedule.* ·
+ * model_config.*)은 미구현이라 본 const 에 없다 — 구현 시 추가한다
+ * (data-flow/1-audit.md §1.1 목표 커버리지; 명칭은 1-auth §4.1 + §Rationale 4.1.A 확정 표기).
  */
 export const AUDIT_ACTIONS = {
   INTEGRATION_CREATED: 'integration.created',
@@ -31,6 +41,11 @@ export const AUDIT_ACTIONS = {
   INTEGRATION_SCOPE_CHANGED: 'integration.scope_changed',
   INTEGRATION_REAUTHORIZED: 'integration.reauthorized',
   WORKSPACE_TRANSFER_OWNERSHIP: 'workspace.transfer_ownership',
+  WORKSPACE_CREATED: 'workspace.created',
+  WORKSPACE_UPDATED: 'workspace.updated',
+  MEMBER_INVITED: 'member.invited',
+  MEMBER_ROLE_CHANGED: 'member.role_changed',
+  MEMBER_REMOVED: 'member.removed',
   EXECUTION_RE_RUN: 'execution.re_run',
   AUTH_CONFIG_CREATE: 'auth_config.create',
   AUTH_CONFIG_UPDATE: 'auth_config.update',

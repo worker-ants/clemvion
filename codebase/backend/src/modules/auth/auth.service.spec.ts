@@ -979,6 +979,52 @@ describe('AuthService', () => {
     });
   });
 
+  describe('switchWorkspace (결정1)', () => {
+    it('re-issues access token signed with activeWorkspaceId when the user is a member', async () => {
+      usersService.findById.mockResolvedValue(mockUser as User);
+      workspacesService.getMemberRole.mockResolvedValue('admin');
+
+      const result = await service.switchWorkspace(
+        'user-uuid-1',
+        'target-ws-1',
+      );
+
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
+        'target-ws-1',
+        'user-uuid-1',
+      );
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeWorkspaceId: 'target-ws-1',
+          role: 'admin',
+        }),
+        expect.anything(),
+      );
+      // 전환 경로는 personal 재해석을 하지 않는다(대상 멤버십만 검증).
+      expect(workspacesService.findPersonalWorkspace).not.toHaveBeenCalled();
+      // 전환은 access token 만 재발급 — refresh token 은 생성하지 않는다(회전 없음).
+      expect(refreshTokenRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException NOT_A_MEMBER when target membership is absent', async () => {
+      usersService.findById.mockResolvedValue(mockUser as User);
+      workspacesService.getMemberRole.mockResolvedValue(null);
+
+      await expect(
+        service.switchWorkspace('user-uuid-1', 'foreign-ws'),
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+    });
+
+    it('throws when user not found', async () => {
+      usersService.findById.mockResolvedValue(null as never);
+
+      await expect(
+        service.switchWorkspace('ghost', 'ws'),
+      ).rejects.toMatchObject({ response: { code: 'TOKEN_INVALID' } });
+    });
+  });
+
   describe('verifyEmail', () => {
     it('should verify email and create workspace in transaction', async () => {
       const unverifiedUser = {

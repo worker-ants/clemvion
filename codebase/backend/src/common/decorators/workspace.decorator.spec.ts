@@ -61,7 +61,9 @@ describe('WorkspaceId decorator', () => {
     expect(result).toBe('header-workspace-uuid');
   });
 
-  it('should prefer header over JWT workspaceId', () => {
+  it('should prefer header over JWT workspaceId (header-first, RolesGuard 와 동일)', () => {
+    // 하위호환: X-Workspace-Id 헤더가 있으면 토큰 클레임(user.workspaceId)보다 우선한다.
+    // RolesGuard 도 동일 header-first 규칙이라 두 곳의 워크스페이스 컨텍스트가 일관된다.
     const ctx = createMockContext(
       { 'x-workspace-id': 'header-id' },
       { workspaceId: 'jwt-id' },
@@ -71,7 +73,7 @@ describe('WorkspaceId decorator', () => {
     expect(result).toBe('header-id');
   });
 
-  it('should return workspace ID from JWT when header is not present', () => {
+  it('should return workspace ID from JWT (token 활성 워크스페이스) when header is not present', () => {
     const ctx = createMockContext({}, { workspaceId: 'jwt-workspace-uuid' });
 
     const result = factory(undefined, ctx);

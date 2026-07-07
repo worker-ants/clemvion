@@ -37,10 +37,10 @@ sequenceDiagram
   ALS->>PG: INSERT audit_log (...)
 ```
 
-`AuditLogsService.record` 의 실제 호출자는 **7개 위치(4개 service 모듈 + 3개 auth/user controller) 18개
-call site 전수**다. 워크스페이스 도메인 CRUD 는 해당 service 가, `user.*` 인증 이벤트는 세션
-workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B). 이 표가 현재 코드에서
-실제로 기록되는 action 의 SoT 다:
+`AuditLogsService.record` 의 실제 호출자는 **8개 위치(5개 service 모듈 + 3개 auth/user controller)**
+다. 워크스페이스·멤버 도메인 CRUD 는 `workspaces.service`·`workspace-invitations.service` 가, `user.*`
+인증 이벤트는 세션 workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B). 이 표가 현재
+코드에서 실제로 기록되는 action 의 SoT 다:
 
 | Writer module | action | resource_type | 비고 |
 | --- | --- | --- | --- |
@@ -51,6 +51,12 @@ workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B
 | 〃 | `integration.scope_changed` | integration | OAuth scope 변경 |
 | 〃 | `integration.reauthorized` | integration | 재인가 — **OAuth provider 없는 통합의 reset 경로 전용** (`details.mode='reset'`). OAuth 통합 재인증은 `oauth/begin` 위임이라 begin·callback 어디서도 미기록 (커버리지 갭, [4-integration §14.3](../2-navigation/4-integration.md)) |
 | `workspaces/workspaces.service.ts` | `workspace.transfer_ownership` | workspace | 소유권 이전 |
+| 〃 | `workspace.created` | workspace | 팀 워크스페이스 생성 (`createTeam`) |
+| 〃 | `workspace.updated` | workspace | 이름/설정 변경 (`renameWorkspace`·`updateWorkspaceSettings`, `details.field`) |
+| 〃 | `member.invited` | member | 직접 추가 (`addMemberByEmail`, `details.mode='direct_add'`) |
+| 〃 | `member.role_changed` | member | 역할 변경 (`updateMemberRole`, `details.from/to`) |
+| 〃 | `member.removed` | member | 멤버 제거/자가 탈퇴 (`removeMember`·`leaveWorkspace`, `details.mode='removed'\|'left'`) |
+| `workspaces/workspace-invitations.service.ts` | `member.invited` | member | 초대 발급 (`invite`, `details.mode='invitation'` — raw 이메일 미저장, PII) |
 | `executions/executions.service.ts` | `execution.re_run` | execution | 재실행. details 에 `originalExecutionId`·`chainId`·`dryRun`·`inputModified` |
 | `auth-configs/auth-configs.service.ts` | `auth_config.create` | auth_config | 생성 |
 | 〃 | `auth_config.update` | auth_config | 수정 |
@@ -74,10 +80,12 @@ workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B
   은 이제 `AuditAction` union (`audit-logs/audit-action.const.ts` 의 `AUDIT_ACTIONS`) 으로 타입
   강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
-  `workflow.*` / `trigger.*` / `member.*` / `schedule.*` / `workspace.created·updated·deleted` /
+  `workflow.*` / `trigger.*` / `schedule.*` /
   `model_config.*`(create/update/delete/set_default — 구 `llm_config.*`/`rerank_config.*` 통합) 액션은
   **여전히 미구현**이다 — workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가
-  전혀 없다. spec §4.1 표는 목표 커버리지, 위 표가 현재 구현이다.
+  전혀 없다. spec §4.1 표는 목표 커버리지, 위 표가 현재 구현이다. (`workspace.created·updated` 와 `member.*`
+  는 위 표대로 **구현됨** — 결정4 = B, 2026-07-07. **`workspace.deleted` 는 의도적 미기록** — `audit_log.workspace_id`
+  ON DELETE CASCADE 로 삭제 감사 row 가 영속 불가하기 때문이다, [12-workspace §Rationale](./12-workspace.md).)
   인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **구현됐다** —
   **액터의 현재 세션 `workspaceId`** 에 귀속해(모두 인증 세션 발생, schema 변경 없음) controller 경계
   (`users`·`auth`·`webauthn`)에서 기록한다. 무인증 password-reset 은 workspace 없음으로

@@ -36,6 +36,7 @@ describe('AuthController', () => {
       logout: jest.fn(),
       resendVerification: jest.fn(),
       verifyPasswordForUser: jest.fn(),
+      switchWorkspace: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
     oauthService = {
@@ -62,6 +63,25 @@ describe('AuthController', () => {
       totpService,
       auditLogsService,
     );
+  });
+
+  describe('switchWorkspace', () => {
+    it('re-issues only the access token (no refresh rotation) and returns it', async () => {
+      const user = { sub: 'user-1' } as never;
+      authService.switchWorkspace.mockResolvedValue({
+        accessToken: 'switched-access',
+      });
+
+      const result = await controller.switchWorkspace(user, 'ws-target');
+
+      expect(authService.switchWorkspace).toHaveBeenCalledWith(
+        'user-1',
+        'ws-target',
+      );
+      expect(result).toEqual({ data: { accessToken: 'switched-access' } });
+      // 전환은 refresh cookie 를 건드리지 않는다(access token 만 재발급).
+      expect(mockRes.cookie).not.toHaveBeenCalled();
+    });
   });
 
   describe('refresh', () => {
