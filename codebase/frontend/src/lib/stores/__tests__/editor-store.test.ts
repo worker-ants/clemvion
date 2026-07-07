@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import type { Node, Edge } from "@xyflow/react";
+import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import type { NodeDefinition } from "@/lib/node-definitions";
 
 vi.mock("../../api/workflows", () => ({
   workflowsApi: {
@@ -55,10 +57,44 @@ const initialState = {
   nodes: [] as Node[],
   edges: [] as Edge[],
   selectedNodeId: null,
+  editorClipboard: null,
+  pendingContainerDelete: null,
   undoStack: [],
   redoStack: [],
   saveCount: 0,
 };
+
+// isContainerNode 는 getNodeDefinition(type)?.isContainer 를 본다 — 컨테이너 삭제
+// 테스트(§11.3)를 위해 node-definitions 스토어에 loop/foreach/map 을 컨테이너로 seed.
+beforeAll(() => {
+  const make = (
+    type: string,
+    extras: Partial<NodeDefinition>,
+  ): NodeDefinition => ({
+    type,
+    category: "logic",
+    label: type,
+    description: "",
+    icon: "Box",
+    color: "#000",
+    inputs: [],
+    outputs: [],
+    defaultConfig: {},
+    configSchema: {},
+    ...extras,
+  });
+  useNodeDefinitionsStore.setState({
+    status: "ready",
+    error: null,
+    order: ["loop", "foreach", "map", "action"],
+    definitions: {
+      loop: make("loop", { isContainer: true }),
+      foreach: make("foreach", { isContainer: true }),
+      map: make("map", { isContainer: true }),
+      action: make("action", {}),
+    },
+  });
+});
 
 describe("useEditorStore", () => {
   beforeEach(() => {
@@ -636,6 +672,211 @@ describe("useEditorStore", () => {
         targetHandle: "in",
       });
       expect(valid).toBe(true);
+    });
+  });
+
+  // §3.2/§3.3 클립보드·선택 액션
+  describe("copy / paste / duplicate / select (§3.2/§3.3)", () => {
+    const sel = (id: string, x = 0, y = 0): Node =>
+      makeNode(id, { position: { x, y }, selected: true });
+
+    it("copySelection: 선택 노드 + 양끝이 선택된 내부 엣지만 클립보드에 담는다", () => {
+      useEditorStore.setState({
+        nodes: [sel("a", 0, 0), sel("b", 100, 0), makeNode("c")],
+        edges: [makeEdge("a", "b"), makeEdge("b", "c")],
+      });
+      useEditorStore.getState().copySelection();
+      const clip = useEditorStore.getState().editorClipboard!;
+      expect(clip.nodes.map((n) => n.id).sort()).toEqual(["a", "b"]);
+      expect(clip.edges).toHaveLength(1); // a→b (내부), b→c 제외
+      expect(clip.edges[0].source).toBe("a");
+      // 클립보드 노드는 selected 해제된 스냅샷
+      expect(clip.nodes.every((n) => !n.selected)).toBe(true);
+    });
+
+    it("copySelection: 선택 없으면 no-op (클립보드 null 유지)", () => {
+      useEditorStore.setState({ nodes: [makeNode("a")], edges: [] });
+      useEditorStore.getState().copySelection();
+      expect(useEditorStore.getState().editorClipboard).toBeNull();
+    });
+
+    it("pasteClipboard: 신규 id·오프셋·유니크 라벨로 추가하고 붙여넣은 노드를 선택한다", () => {
+      useEditorStore.setState({
+        nodes: [sel("a", 10, 10), sel("b", 30, 10)],
+        edges: [makeEdge("a", "b")],
+      });
+      useEditorStore.getState().copySelection();
+      useEditorStore.getState().pasteClipboard();
+      const state = useEditorStore.getState();
+      expect(state.nodes).toHaveLength(4); // 원본 2 + 붙여넣기 2
+      // 원본 id 는 유지, 신규 노드는 새 id
+      const newNodes = state.nodes.filter((n) => n.id !== "a" && n.id !== "b");
+      expect(newNodes).toHaveLength(2);
+      // 오프셋 +40,+40
+      const pastedA = newNodes.find(
+        (n) => (n.data as { label?: string }).label === "Node a 2",
+      )!;
+      expect(pastedA.position).toEqual({ x: 50, y: 50 });
+      // 붙여넣은 노드 selected, 원본 deselected
+      expect(newNodes.every((n) => n.selected)).toBe(true);
+      expect(
+        state.nodes.filter((n) => n.id === "a" || n.id === "b").every((n) => !n.selected),
+      ).toBe(true);
+      // 내부 엣지도 신규 id 로 재연결
+      expect(state.edges).toHaveLength(2);
+      expect(state.isDirty).toBe(true);
+      expect(state.undoStack).toHaveLength(1);
+    });
+
+    it("pasteClipboard: anchor 지정 시 묶음 좌상단이 anchor 로 온다", () => {
+      useEditorStore.setState({
+        nodes: [sel("a", 100, 100), sel("b", 140, 100)],
+        edges: [],
+      });
+      useEditorStore.getState().copySelection();
+      useEditorStore.getState().pasteClipboard({ x: 0, y: 0 });
+      const newNodes = useEditorStore
+        .getState()
+        .nodes.filter((n) => n.id !== "a" && n.id !== "b");
+      const minX = Math.min(...newNodes.map((n) => n.position.x));
+      const minY = Math.min(...newNodes.map((n) => n.position.y));
+      expect({ x: minX, y: minY }).toEqual({ x: 0, y: 0 });
+    });
+
+    it("pasteClipboard: 클립보드 null 이면 no-op", () => {
+      useEditorStore.setState({ nodes: [makeNode("a")], edges: [] });
+      useEditorStore.getState().pasteClipboard();
+      expect(useEditorStore.getState().nodes).toHaveLength(1);
+    });
+
+    it("duplicateSelection: 선택 노드+내부 엣지를 클립보드 없이 즉시 복제", () => {
+      useEditorStore.setState({
+        nodes: [sel("a"), sel("b"), makeNode("c")],
+        edges: [makeEdge("a", "b")],
+      });
+      useEditorStore.getState().duplicateSelection();
+      const state = useEditorStore.getState();
+      expect(state.nodes).toHaveLength(5); // 3 + 복제 2
+      expect(state.editorClipboard).toBeNull(); // 클립보드 미변경
+      expect(state.undoStack).toHaveLength(1);
+    });
+
+    it("selectAll / deselectAll", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("a"), makeNode("b")],
+        edges: [],
+        selectedNodeId: "a",
+      });
+      useEditorStore.getState().selectAll();
+      expect(useEditorStore.getState().nodes.every((n) => n.selected)).toBe(true);
+      useEditorStore.getState().deselectAll();
+      const state = useEditorStore.getState();
+      expect(state.nodes.every((n) => !n.selected)).toBe(true);
+      expect(state.selectedNodeId).toBeNull();
+    });
+  });
+
+  // §11.3 컨테이너 삭제 확인 다이얼로그 (loop = 실제 컨테이너 타입)
+  describe("container delete (§11.3)", () => {
+    const container = (id: string): Node =>
+      makeNode(id, { data: { type: "loop", label: `Loop ${id}` } });
+    const child = (id: string, containerId: string): Node =>
+      makeNode(id, { data: { type: "action", label: `Child ${id}`, containerId } });
+
+    it("needsContainerDeleteConfirm: 자식 있는 컨테이너만 true", () => {
+      useEditorStore.setState({
+        nodes: [container("loop"), child("c1", "loop"), makeNode("plain")],
+        edges: [],
+      });
+      const s = useEditorStore.getState();
+      expect(s.needsContainerDeleteConfirm("loop")).toBe(true);
+      expect(s.needsContainerDeleteConfirm("plain")).toBe(false);
+    });
+
+    it("needsContainerDeleteConfirm: 빈 컨테이너는 false", () => {
+      useEditorStore.setState({ nodes: [container("loop")], edges: [] });
+      expect(useEditorStore.getState().needsContainerDeleteConfirm("loop")).toBe(
+        false,
+      );
+    });
+
+    it("requestNodeDelete: 자식 있는 컨테이너면 다이얼로그를 열고 삭제하지 않는다", () => {
+      useEditorStore.setState({
+        nodes: [container("loop"), child("c1", "loop")],
+        edges: [],
+      });
+      useEditorStore.getState().requestNodeDelete("loop");
+      const s = useEditorStore.getState();
+      expect(s.pendingContainerDelete).toEqual({
+        id: "loop",
+        label: "Loop loop",
+        childCount: 1,
+      });
+      expect(s.nodes).toHaveLength(2); // 아직 미삭제
+    });
+
+    it("requestNodeDelete: 일반 노드는 즉시 삭제", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("plain"), makeNode("keep")],
+        edges: [],
+      });
+      useEditorStore.getState().requestNodeDelete("plain");
+      const s = useEditorStore.getState();
+      expect(s.nodes.map((n) => n.id)).toEqual(["keep"]);
+      expect(s.pendingContainerDelete).toBeNull();
+    });
+
+    it("requestNodeDelete: 빈 컨테이너는 즉시 삭제", () => {
+      useEditorStore.setState({ nodes: [container("loop")], edges: [] });
+      useEditorStore.getState().requestNodeDelete("loop");
+      expect(useEditorStore.getState().nodes).toHaveLength(0);
+    });
+
+    it("confirmContainerDelete('ungroup'): 컨테이너만 제거, 자식은 top-level 승격", () => {
+      useEditorStore.setState({
+        nodes: [container("loop"), child("c1", "loop"), child("c2", "loop")],
+        edges: [],
+        pendingContainerDelete: { id: "loop", label: "Loop loop", childCount: 2 },
+      });
+      useEditorStore.getState().confirmContainerDelete("ungroup");
+      const s = useEditorStore.getState();
+      expect(s.nodes.map((n) => n.id).sort()).toEqual(["c1", "c2"]);
+      // 승격된 자식의 containerId 는 null
+      expect(
+        s.nodes.every((n) => (n.data as { containerId?: string }).containerId == null),
+      ).toBe(true);
+      expect(s.pendingContainerDelete).toBeNull();
+    });
+
+    it("confirmContainerDelete('deleteAll'): 컨테이너+자식 cascade 삭제", () => {
+      useEditorStore.setState({
+        nodes: [
+          container("loop"),
+          child("c1", "loop"),
+          child("c2", "loop"),
+          makeNode("outside"),
+        ],
+        edges: [makeEdge("c1", "c2"), makeEdge("outside", "c1")],
+        pendingContainerDelete: { id: "loop", label: "Loop loop", childCount: 2 },
+      });
+      useEditorStore.getState().confirmContainerDelete("deleteAll");
+      const s = useEditorStore.getState();
+      expect(s.nodes.map((n) => n.id)).toEqual(["outside"]);
+      // 삭제 노드에 연결된 엣지 모두 제거
+      expect(s.edges).toHaveLength(0);
+      expect(s.pendingContainerDelete).toBeNull();
+    });
+
+    it("cancelContainerDelete: 다이얼로그만 닫고 아무것도 삭제 안 함", () => {
+      useEditorStore.setState({
+        nodes: [container("loop"), child("c1", "loop")],
+        edges: [],
+        pendingContainerDelete: { id: "loop", label: "Loop loop", childCount: 1 },
+      });
+      useEditorStore.getState().cancelContainerDelete();
+      const s = useEditorStore.getState();
+      expect(s.pendingContainerDelete).toBeNull();
+      expect(s.nodes).toHaveLength(2);
     });
   });
 });
