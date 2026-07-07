@@ -277,7 +277,7 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 에디터 실행 시와 동일한 시각적 렌더링을 제공한다:
 - **Table**: 테이블 형태로 rows/columns 표시
-- **Carousel**: 카드 슬라이드 또는 rendered HTML
+- **Carousel**: 가로 스크롤 텍스트 포워드 카드 리스트 (제목·설명·버튼 라벨 + `layout` 배지 + lazy 썸네일) — 시각 레이아웃 재구성은 인터랙티브 채널 담당 ([presentation 공통 §6.1](../4-nodes/6-presentation/0-common.md#61-carousel))
 - **Chart**: SVG/rendered HTML 차트
 - **Template**: 포맷(html/markdown/text)에 따른 프리뷰
 - **Form**: 제출된 form 데이터 표시
