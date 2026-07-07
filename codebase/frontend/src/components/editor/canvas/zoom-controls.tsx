@@ -50,7 +50,13 @@ export function ZoomControls() {
   );
 
   return (
-    <Panel position="bottom-left" className="flex items-center gap-1">
+    <Panel
+      position="bottom-left"
+      // Give the bar an opaque surface so it stays legible over nodes/edges
+      // behind it — matches the minimap's framed look (border + radius) for a
+      // consistent set of canvas overlays.
+      className="flex items-center gap-1 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-1 shadow-sm"
+    >
       <Button
         variant="outline"
         size="icon"
