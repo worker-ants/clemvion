@@ -562,7 +562,7 @@ pending_plans:
 | Ctrl + + / - | 줌 인/아웃 | 구현됨 |
 | Ctrl + 0 | 줌 100% | 구현됨 |
 | Ctrl + 1 | Fit to View | 구현됨 |
-| Ctrl + Shift + R | Run Results 드로어 펼침/접힘 토글 | 구현됨 (상세: [실행 §10.12](./3-execution.md#1012-run-results-드로어-단축키)) |
+| Ctrl + Shift + R | Run Results 드로어 펼침/접힘 토글 | 구현됨 (상세: [실행 §10.12](./3-execution.md#1012-단축키)) |
 
 ---
 
