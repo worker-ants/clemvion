@@ -54,6 +54,9 @@ import { ContainerDeleteDialog } from "./container-delete-dialog";
 import { isWorkflowEmpty, isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { isEditableTarget } from "@/lib/utils/is-editable-target";
 import { resolveZoomShortcut } from "@/lib/utils/editor-keyboard";
+import { registerPaletteCanvasBridge } from "@/lib/stores/palette-canvas-bridge";
+import { nextHighlightedIndex, clampHighlightedIndex } from "./quick-add-nav";
+import { cn } from "@/lib/utils/cn";
 import { useT, useLocale } from "@/lib/i18n";
 import {
   translateNodeCategory,
@@ -99,6 +102,8 @@ export function WorkflowCanvas() {
   const [nodeSearchPopup, setNodeSearchPopup] =
     useState<NodeSearchPopupState | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // §4.3 빠른 노드 추가 팝업의 키보드 하이라이트 인덱스 (ArrowUp/Down 이동, Enter 선택).
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const lastClickTime = useRef(0);
 
   const nodes = useEditorStore((s) => s.nodes);
@@ -481,28 +486,26 @@ export function WorkflowCanvas() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Add node from search popup
-  const handleAddNodeFromSearch = useCallback(
-    (nodeType: string) => {
-      if (!nodeSearchPopup) return;
+  // 노드 타입 + flow 좌표로 노드를 생성·추가하는 공용 빌더. 빠른추가 팝업(§4.3)과
+  // 팔레트 클릭(§4.2)이 공유한다. manual_trigger 단일 인스턴스 가드 포함(§9.2).
+  const buildAndAddNode = useCallback(
+    (nodeType: string, flowPosition: { x: number; y: number }) => {
       const definition = getNodeDefinition(nodeType);
       if (!definition) return;
-
       if (nodeType === "manual_trigger") {
         const hasTrigger = nodes.some((n) => n.data?.type === "manual_trigger");
         if (hasTrigger) return;
       }
-
       pushUndo();
       const existingLabels = nodes.map(
         (n) => (n.data as Record<string, unknown>).label as string,
       );
       const baseLabel =
         translateNodeLabel(definition.label, locale) ?? definition.label;
-      const newNode = {
+      addNode({
         id: crypto.randomUUID(),
         type: "custom",
-        position: nodeSearchPopup.flowPosition,
+        position: flowPosition,
         data: {
           type: nodeType,
           label: generateUniqueLabel(baseLabel, existingLabels),
@@ -510,12 +513,47 @@ export function WorkflowCanvas() {
           category: definition.category,
           isDisabled: false,
         },
-      };
-      addNode(newNode);
+      });
+    },
+    [nodes, pushUndo, addNode, buildInitialConfig, locale],
+  );
+
+  // Add node from search popup (§4.3)
+  const handleAddNodeFromSearch = useCallback(
+    (nodeType: string) => {
+      if (!nodeSearchPopup) return;
+      buildAndAddNode(nodeType, nodeSearchPopup.flowPosition);
       setNodeSearchPopup(null);
     },
-    [nodeSearchPopup, nodes, pushUndo, addNode, buildInitialConfig, locale],
+    [nodeSearchPopup, buildAndAddNode],
   );
+
+  // §4.2 — 팔레트 아이템 클릭으로 노드 추가. 현재 뷰포트 중앙에 배치하되, 반복 클릭
+  // 시 정확히 겹치지 않도록 소량 지터를 준다. palette-canvas-bridge 로 팔레트에서 호출.
+  const handleAddNodeAtCenter = useCallback(
+    (nodeType: string) => {
+      const instance = reactFlowInstance.current;
+      const wrapper = reactFlowWrapper.current;
+      let flowPosition = { x: 0, y: 0 };
+      if (instance && wrapper) {
+        const rect = wrapper.getBoundingClientRect();
+        const center = instance.screenToFlowPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        });
+        const jitter = (nodes.length % 5) * 24;
+        flowPosition = { x: center.x + jitter, y: center.y + jitter };
+      }
+      buildAndAddNode(nodeType, flowPosition);
+    },
+    [nodes, buildAndAddNode],
+  );
+
+  // 팔레트가 이 캔버스의 노드 추가 핸들러를 브리지로 호출할 수 있게 등록/해제.
+  useEffect(() => {
+    registerPaletteCanvasBridge(handleAddNodeAtCenter);
+    return () => registerPaletteCanvasBridge(null);
+  }, [handleAddNodeAtCenter]);
 
   const closeAllMenus = useCallback(() => {
     setNodeContextMenu(null);
@@ -602,6 +640,40 @@ export function WorkflowCanvas() {
         n.category.toLowerCase().includes(q),
     );
   }, [searchQuery, definitionsMap, definitionsOrder]);
+
+  // §4.3 — 검색어가 바뀌면(팝업 열림 시 ""로 리셋 포함) 하이라이트를 첫 항목으로.
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [searchQuery]);
+
+  // §4.3 빠른 노드 추가 팝업 키보드 핸들러. ArrowUp/Down 이동, Enter 선택, Escape 닫기.
+  // `stopPropagation` 으로 전역 keydown(§3.2 선택 해제·§10.12 드로어 복귀)보다 팝업이
+  // 우선하도록 한다 — 팝업이 열려 있으면 Escape 는 팝업 닫기가 최우선.
+  const handleSearchPopupKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((i) =>
+          nextHighlightedIndex(i, "down", filteredNodes.length),
+        );
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((i) =>
+          nextHighlightedIndex(i, "up", filteredNodes.length),
+        );
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const idx = clampHighlightedIndex(highlightedIndex, filteredNodes.length);
+        const def = filteredNodes[idx];
+        if (def) handleAddNodeFromSearch(def.type);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setNodeSearchPopup(null);
+      }
+    },
+    [filteredNodes, highlightedIndex, handleAddNodeFromSearch],
+  );
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -775,6 +847,7 @@ export function WorkflowCanvas() {
               placeholder={t("editor.searchNodesPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchPopupKeyDown}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-[hsl(var(--muted-foreground))]"
               autoFocus
             />
@@ -785,17 +858,25 @@ export function WorkflowCanvas() {
                 {t("editor.noNodesFound")}
               </div>
             ) : (
-              filteredNodes.map((def) => {
+              filteredNodes.map((def, idx) => {
                 const label =
                   translateNodeLabel(def.label, locale) ?? def.label;
                 const category =
                   translateNodeCategory(def.category, locale) ?? def.category;
+                const isHighlighted =
+                  idx ===
+                  clampHighlightedIndex(highlightedIndex, filteredNodes.length);
                 return (
                   <button
                     key={def.type}
                     type="button"
                     onClick={() => handleAddNodeFromSearch(def.type)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-[hsl(var(--accent))]"
+                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    aria-selected={isHighlighted}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-[hsl(var(--accent))]",
+                      isHighlighted && "bg-[hsl(var(--accent))]",
+                    )}
                   >
                     <span
                       className="h-2 w-2 rounded-full"

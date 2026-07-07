@@ -24,6 +24,7 @@ import {
 } from "@/lib/utils/edge-utils";
 import { useCanvasHoverStore } from "./canvas-hover-store";
 import { registerAssistantEditorBridge } from "./assistant-editor-bridge";
+import { useRecentNodesStore } from "./recent-nodes-store";
 
 interface EditorState {
   // Workflow metadata
@@ -734,6 +735,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nodes: [...state.nodes, node],
       isDirty: true,
     }));
+    // §4.1 — 노드 추가의 단일 choke point. 모든 경로(드롭·팔레트 클릭·빠른추가·
+    // 복제·assistant)가 여기를 지나므로 최근 사용 노드 타입을 균일하게 기록한다.
+    const type = (node.data as { type?: string } | undefined)?.type;
+    if (type) useRecentNodesStore.getState().recordRecentNodeType(type);
   },
 
   removeNode: (id) => {

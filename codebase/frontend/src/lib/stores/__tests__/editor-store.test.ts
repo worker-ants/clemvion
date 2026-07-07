@@ -32,6 +32,7 @@ vi.mock("@workflow/graph-warning-rules", async () => {
 });
 
 import { useEditorStore } from "../editor-store";
+import { useRecentNodesStore } from "../recent-nodes-store";
 import { workflowsApi } from "../../api/workflows";
 
 const saveCanvasMock = vi.mocked(workflowsApi.saveCanvas);
@@ -125,6 +126,17 @@ describe("useEditorStore", () => {
     it("pushes undo snapshot before adding", () => {
       useEditorStore.getState().addNode(makeNode("1"));
       expect(useEditorStore.getState().undoStack).toHaveLength(1);
+    });
+
+    it("records the node type as recently used (§4.1)", () => {
+      // §4.1 — addNode 는 최근 사용 노드 타입 기록의 단일 choke point.
+      useRecentNodesStore.setState({ recentNodeTypes: [] });
+      useEditorStore
+        .getState()
+        .addNode(
+          makeNode("1", { data: { type: "ai_agent", label: "AI" } }),
+        );
+      expect(useRecentNodesStore.getState().recentNodeTypes[0]).toBe("ai_agent");
     });
   });
 
