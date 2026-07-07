@@ -23,9 +23,11 @@ import { AssistantPanel } from "./assistant-panel/assistant-panel";
 
 // `isEditableTarget` 은 canvas 의 줌 단축키 핸들러와 공유하기 위해 shared util 로
 // 이동했다 (workflow-editor ↔ workflow-canvas 순환 import 회피). 기존 import 경로
-// 호환을 위해 여기서 re-export 한다.
-export { isEditableTarget } from "@/lib/utils/is-editable-target";
+// 호환을 위해 아래에서 재노출한다.
 import { isEditableTarget } from "@/lib/utils/is-editable-target";
+import { resolveEditorShortcut } from "@/lib/utils/editor-keyboard";
+
+export { isEditableTarget };
 
 export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
@@ -94,82 +96,64 @@ export function WorkflowEditor() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const isMod = e.ctrlKey || e.metaKey;
       // §3.2/§3.3 — 입력류 요소 포커스 여부. 텍스트 필드 안에서는 복사/붙여넣기/
       // 전체선택/선택해제 단축키를 가로채지 않는다 (기존 Ctrl+S/Z/Y 는 전역 유지).
       const active = document.activeElement as HTMLElement | null;
       const typing = !!active && isEditableTarget(active);
 
-      if (isMod && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      }
+      // 키 조합 → 액션 매핑은 순수 함수(resolveEditorShortcut)로 분리해 단위 테스트한다.
+      const action = resolveEditorShortcut(e, typing);
+      if (!action) return;
 
-      if (isMod && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        redo();
-      }
-
-      if (isMod && e.key === "s") {
-        e.preventDefault();
-        void saveAndInvalidate();
-      }
-
-      if (isMod && e.key === "/") {
-        e.preventDefault();
-        toggleAssistant();
-      }
-
-      // §3.3 — Ctrl/Cmd+C: 선택 노드(+내부 엣지) 복사. (편집 필드에서는 양보.)
-      if (isMod && !typing && e.key === "c") {
-        e.preventDefault();
-        copySelection();
-        return;
-      }
-      // §3.3 — Ctrl/Cmd+V: 클립보드 붙여넣기.
-      if (isMod && !typing && e.key === "v") {
-        e.preventDefault();
-        pasteClipboard();
-        return;
-      }
-      // §3.3 — Ctrl/Cmd+D: 선택 노드 즉시 복제 (브라우저 북마크 기본동작 차단).
-      if (isMod && !typing && e.key === "d") {
-        e.preventDefault();
-        duplicateSelection();
-        return;
-      }
-      // §3.2 — Ctrl/Cmd+A: 전체 선택.
-      if (isMod && !typing && e.key === "a") {
-        e.preventDefault();
-        selectAll();
-        return;
-      }
-
-      // §10.12 — Ctrl/Cmd+Shift+R: Run Results 드로어 펼침/접힘 토글. 브라우저
-      // 하드 리로드(기본 동작)를 막는다 (spec 이 의도적으로 택한 키 조합).
-      if (isMod && e.shiftKey && (e.key === "r" || e.key === "R")) {
-        e.preventDefault();
-        toggleDrawerExpanded();
-        return;
-      }
-
-      // Escape — 우선순위 분기 (§3.2/§10, §10.12). ① Run Results 드로어에 포커스가
-      // 있고 편집 필드가 아니면 캔버스로 포커스 복귀(§10.12) 후 early-return. ②
-      // 그 외 편집 필드가 아니면 노드 선택 해제(§3.2). 편집 필드에서는 그 요소가
-      // Escape 를 처리하도록 양보한다.
-      if (e.key === "Escape") {
-        if (
-          active &&
-          active.closest("[data-run-results-drawer]") &&
-          !typing
-        ) {
+      switch (action) {
+        case "undo":
           e.preventDefault();
-          canvasFocusRef.current?.focus();
-          return;
-        }
-        if (!typing) {
-          deselectAll();
-        }
+          undo();
+          break;
+        case "redo":
+          e.preventDefault();
+          redo();
+          break;
+        case "save":
+          e.preventDefault();
+          void saveAndInvalidate();
+          break;
+        case "toggle-assistant":
+          e.preventDefault();
+          toggleAssistant();
+          break;
+        case "copy":
+          e.preventDefault();
+          copySelection();
+          break;
+        case "paste":
+          e.preventDefault();
+          pasteClipboard();
+          break;
+        case "duplicate":
+          // 브라우저 북마크(Ctrl+D) 기본동작 차단.
+          e.preventDefault();
+          duplicateSelection();
+          break;
+        case "select-all":
+          e.preventDefault();
+          selectAll();
+          break;
+        case "toggle-drawer":
+          // 브라우저 하드 리로드(Ctrl+Shift+R) 기본동작 차단 (§10.12).
+          e.preventDefault();
+          toggleDrawerExpanded();
+          break;
+        case "escape":
+          // 우선순위 분기 (§3.2/§10.12). ① Run Results 드로어 포커스(편집 필드 제외)
+          // → 캔버스 복귀. ② 그 외 편집 필드가 아니면 선택 해제. 편집 필드에서는 양보.
+          if (active && active.closest("[data-run-results-drawer]") && !typing) {
+            e.preventDefault();
+            canvasFocusRef.current?.focus();
+          } else if (!typing) {
+            deselectAll();
+          }
+          break;
       }
     },
     [

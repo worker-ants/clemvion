@@ -761,6 +761,26 @@ describe("useEditorStore", () => {
       expect(state.undoStack).toHaveLength(1);
     });
 
+    it("duplicateSelection: 동일 라벨 노드 2개 동시 복제 시 각각 유니크 라벨 부여", () => {
+      // 같은 label("Dup") 을 가진 두 노드를 함께 복제 → 서로 충돌 없이 유니크화.
+      useEditorStore.setState({
+        nodes: [
+          makeNode("a", { selected: true, data: { type: "action", label: "Dup" } }),
+          makeNode("b", { selected: true, data: { type: "action", label: "Dup" } }),
+        ],
+        edges: [],
+      });
+      useEditorStore.getState().duplicateSelection();
+      const state = useEditorStore.getState();
+      // 복제본 2개(신규 id)의 라벨은 서로 다르고, 원본 라벨 "Dup" 과도 겹치지 않는다.
+      const cloneLabels = state.nodes
+        .filter((n) => n.id !== "a" && n.id !== "b")
+        .map((n) => (n.data as { label?: string }).label);
+      expect(cloneLabels).toHaveLength(2);
+      expect(new Set(cloneLabels).size).toBe(2); // 두 복제본 라벨 서로 다름
+      expect(cloneLabels).not.toContain("Dup"); // 원본과도 다름
+    });
+
     it("selectAll / deselectAll", () => {
       useEditorStore.setState({
         nodes: [makeNode("a"), makeNode("b")],
@@ -865,6 +885,32 @@ describe("useEditorStore", () => {
       // 삭제 노드에 연결된 엣지 모두 제거
       expect(s.edges).toHaveLength(0);
       expect(s.pendingContainerDelete).toBeNull();
+    });
+
+    it("confirmContainerDelete('deleteAll'): 3단 중첩 — 직접 자식만 cascade, 손자는 top-level 승격(비파괴)", () => {
+      // loop → innerLoop(loop 의 자식 컨테이너) → grandchild(innerLoop 의 자식).
+      // loop deleteAll 시 직접 자식(innerLoop)만 제거되고, 손자 grandchild 의 containerId
+      // 는 innerLoop 를 가리켜 toRemove 에 없으므로 살아남아 top-level 로 승격된다.
+      useEditorStore.setState({
+        nodes: [
+          container("loop"),
+          makeNode("innerLoop", {
+            data: { type: "loop", label: "Inner", containerId: "loop" },
+          }),
+          makeNode("grandchild", {
+            data: { type: "action", label: "GC", containerId: "innerLoop" },
+          }),
+        ],
+        edges: [],
+        pendingContainerDelete: { id: "loop", label: "Loop loop", childCount: 1 },
+      });
+      useEditorStore.getState().confirmContainerDelete("deleteAll");
+      const s = useEditorStore.getState();
+      // loop + innerLoop 제거, grandchild 는 top-level 로 생존
+      expect(s.nodes.map((n) => n.id)).toEqual(["grandchild"]);
+      expect(
+        (s.nodes[0].data as { containerId?: string | null }).containerId,
+      ).toBeNull();
     });
 
     it("cancelContainerDelete: 다이얼로그만 닫고 아무것도 삭제 안 함", () => {

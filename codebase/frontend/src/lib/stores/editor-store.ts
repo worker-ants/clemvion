@@ -16,6 +16,7 @@ import type {
 import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
+import { PASTE_DUPLICATE_OFFSET } from "@/lib/utils/editor-keyboard";
 import {
   buildEdgeData,
   isSelfConnection,
@@ -778,8 +779,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!clip || clip.nodes.length === 0) return;
     get().pushUndo();
     set((state) => {
-      // anchor 지정 시 복사 묶음의 좌상단이 anchor 로 오도록 오프셋 계산, 아니면 +40,+40.
-      let offset = { x: 40, y: 40 };
+      // anchor 지정 시 복사 묶음의 좌상단이 anchor 로 오도록 오프셋 계산, 아니면 기본 오프셋.
+      let offset: { x: number; y: number } = PASTE_DUPLICATE_OFFSET;
       if (anchor) {
         const minX = Math.min(...clip.nodes.map((n) => n.position.x));
         const minY = Math.min(...clip.nodes.map((n) => n.position.y));
@@ -821,10 +822,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const existingLabels = state.nodes
         .map((n) => (n.data as { label?: string })?.label)
         .filter((l): l is string => typeof l === "string");
-      const cloned = cloneNodesWithOffset(selected, internalEdges, existingLabels, {
-        x: 40,
-        y: 40,
-      });
+      const cloned = cloneNodesWithOffset(
+        selected,
+        internalEdges,
+        existingLabels,
+        PASTE_DUPLICATE_OFFSET,
+      );
       const deselectedExisting = state.nodes.map((n) =>
         n.selected ? { ...n, selected: false } : n,
       );

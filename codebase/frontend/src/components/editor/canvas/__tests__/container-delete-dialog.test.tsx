@@ -67,12 +67,7 @@ describe("ContainerDeleteDialog (§11.3)", () => {
         onCancel={onCancel}
       />,
     );
-    // Cancel 은 첫 번째 버튼 (variant outline). testid 없는 버튼 중 Delete 아닌 것.
-    const buttons = screen.getAllByRole("button");
-    const cancelBtn = buttons.find(
-      (b) => b.getAttribute("data-testid") !== "container-delete-confirm-btn",
-    )!;
-    fireEvent.click(cancelBtn);
+    fireEvent.click(screen.getByTestId("container-delete-cancel-btn"));
     expect(onCancel).toHaveBeenCalled();
   });
 });

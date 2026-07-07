@@ -136,9 +136,14 @@ This is where you actually draw a workflow. It has four regions.
   {name: "Ctrl+S", required: false, type: "Save", description: "Save the current workflow.", default: "-"},
   {name: "Ctrl+C / Ctrl+V", required: false, type: "Copy/Paste", description: "Duplicate the selected nodes and their connections as a group.", default: "-"},
   {name: "Ctrl+D", required: false, type: "Duplicate", description: "Copy the selected node right next to itself.", default: "-"},
-  {name: "Delete", required: false, type: "Delete", description: "Remove the selected node or connection. Hovering or selecting a node also reveals a ✕ button in its top-right corner that does the same thing (connected connections are removed too).", default: "-"},
+  {name: "Ctrl+A", required: false, type: "Select all", description: "Select every node on the canvas at once.", default: "-"},
+  {name: "Delete", required: false, type: "Delete", description: "Remove the selected node or connection. Hovering or selecting a node also reveals a ✕ button in its top-right corner that does the same thing (connected connections are removed too). Deleting a container node that has child nodes first opens a confirmation dialog asking you to choose between \"Delete container and all children\" and \"Ungroup — keep children\". Empty containers and regular nodes are removed immediately without a confirmation.", default: "-"},
+  {name: "Escape", required: false, type: "Deselect", description: "Clear the current selection. If the Run Results drawer has focus, it returns focus to the canvas instead of deselecting.", default: "-"},
+  {name: "Space + drag", required: false, type: "Pan", description: "Hold Space and drag to pan the canvas.", default: "-"},
   {name: "Ctrl+Z / Ctrl+Y", required: false, type: "Undo/Redo", description: "Undo or redo the last action.", default: "-"},
-  {name: "Fit", required: false, type: "Fit view", description: "Zoom to fit all nodes in view.", default: "-"}
+  {name: "Ctrl+Plus / Ctrl+Minus", required: false, type: "Zoom in/out", description: "Zoom the canvas in or out.", default: "-"},
+  {name: "Ctrl+0", required: false, type: "Zoom to 100%", description: "Reset the zoom level to 100%.", default: "-"},
+  {name: "Ctrl+1", required: false, type: "Fit view", description: "Zoom to fit all nodes in view.", default: "-"}
 ]} />
 
 <Callout type="tip">

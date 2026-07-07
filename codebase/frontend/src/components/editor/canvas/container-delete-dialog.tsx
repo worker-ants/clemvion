@@ -74,7 +74,12 @@ export function ContainerDeleteDialog({
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={onCancel}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            data-testid="container-delete-cancel-btn"
+          >
             {t("editor.containerDelete.cancel")}
           </Button>
           <Button

@@ -53,6 +53,7 @@ import { CanvasMinimap } from "./canvas-minimap";
 import { ContainerDeleteDialog } from "./container-delete-dialog";
 import { isWorkflowEmpty, isNodeDeletable } from "@/lib/node-definitions/is-trigger";
 import { isEditableTarget } from "@/lib/utils/is-editable-target";
+import { resolveZoomShortcut } from "@/lib/utils/editor-keyboard";
 import { useT, useLocale } from "@/lib/i18n";
 import {
   translateNodeCategory,
@@ -107,7 +108,6 @@ export function WorkflowCanvas() {
   const onConnect = useEditorStore((s) => s.onConnect);
   const isValidConnection = useEditorStore((s) => s.isValidConnection);
   const addNode = useEditorStore((s) => s.addNode);
-  const removeNode = useEditorStore((s) => s.removeNode);
   const requestNodeDelete = useEditorStore((s) => s.requestNodeDelete);
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard);
   const editorClipboard = useEditorStore((s) => s.editorClipboard);
@@ -387,7 +387,6 @@ export function WorkflowCanvas() {
       selectNode,
       pushUndo,
       addNode,
-      removeNode,
       requestNodeDelete,
       canDeleteNode,
       updateNodeConfig,
@@ -427,44 +426,55 @@ export function WorkflowCanvas() {
     [canvasContextMenu, nodes, onNodesChange, pasteClipboard],
   );
 
-  // §11.3 — Delete/Backspace 로 자식 있는 컨테이너를 지우려 하면 즉시 삭제하지 않고
-  // 확인 다이얼로그를 띄운다. onBeforeDelete 가 false 를 반환해 ReactFlow 기본 삭제를
-  // 취소하고, 다이얼로그의 선택(deleteAll/ungroup)이 실제 삭제를 수행한다. (일반 노드·
-  // 빈 컨테이너는 true 를 반환해 기존 deleteKeyCode → onNodesChange 경로로 삭제된다.)
-  const onBeforeDelete = useCallback<OnBeforeDelete>(async ({ nodes: deleting }) => {
-    const store = useEditorStore.getState();
-    const confirmTarget = deleting.find((n) =>
-      store.needsContainerDeleteConfirm(n.id),
-    );
-    if (confirmTarget) {
-      store.openContainerDeleteConfirm(confirmTarget.id);
-      return false;
-    }
-    return true;
-  }, []);
+  // §11.3 — Delete/Backspace 삭제 시 자식 있는 컨테이너는 즉시 삭제하지 않고 확인
+  // 다이얼로그를 띄운다. 다중 선택에 확인 대상 컨테이너와 일반 노드가 섞여 있으면,
+  // 확인 대상(및 그에 연결된 엣지)만 이번 삭제에서 제외(부분 취소)하고 나머지는 정상
+  // 삭제한다 — ReactFlow 의 `{nodes, edges}` 부분 반환. 확인 대상 중 첫 번째에 대해
+  // 다이얼로그를 열고, 확정 시 deleteAll/ungroup 이 실제 삭제를 수행한다.
+  const onBeforeDelete = useCallback<OnBeforeDelete>(
+    async ({ nodes: deleting, edges: deletingEdges }) => {
+      const store = useEditorStore.getState();
+      const confirmNodes = deleting.filter((n) =>
+        store.needsContainerDeleteConfirm(n.id),
+      );
+      if (confirmNodes.length === 0) return true;
+      store.openContainerDeleteConfirm(confirmNodes[0].id);
+      const confirmIds = new Set(confirmNodes.map((n) => n.id));
+      const allowedNodes = deleting.filter((n) => !confirmIds.has(n.id));
+      // 확인 대상 컨테이너에 연결된 엣지는 그대로 두고(다이얼로그가 처리), 나머지만 삭제.
+      const allowedEdges = deletingEdges.filter(
+        (e) => !confirmIds.has(e.source) && !confirmIds.has(e.target),
+      );
+      return { nodes: allowedNodes, edges: allowedEdges };
+    },
+    [],
+  );
 
   // §10 — 캔버스 스코프 줌 단축키 (Ctrl/Cmd + +/-/0/1). 전역 핸들러(workflow-editor)는
-  // ReactFlow 인스턴스에 접근할 수 없어 인스턴스를 쥔 본 컴포넌트에서 처리한다. 입력
-  // 필드 포커스 중에는 브라우저 기본 동작을 가로채지 않는다.
+  // ReactFlow 인스턴스에 접근할 수 없어 인스턴스를 쥔 본 컴포넌트에서 처리한다. 키 매핑·
+  // 입력 필드 가드는 순수 함수(resolveZoomShortcut)로 분리해 단위 테스트한다.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
       const active = document.activeElement as HTMLElement | null;
-      if (active && isEditableTarget(active)) return;
+      const typing = !!active && isEditableTarget(active);
+      const action = resolveZoomShortcut(e, typing);
+      if (!action) return;
       const instance = reactFlowInstance.current;
       if (!instance) return;
-      if (e.key === "=" || e.key === "+") {
-        e.preventDefault();
-        void instance.zoomIn();
-      } else if (e.key === "-") {
-        e.preventDefault();
-        void instance.zoomOut();
-      } else if (e.key === "0") {
-        e.preventDefault();
-        void instance.zoomTo(1);
-      } else if (e.key === "1") {
-        e.preventDefault();
-        void instance.fitView(FIT_VIEW_OPTIONS);
+      e.preventDefault();
+      switch (action) {
+        case "zoom-in":
+          void instance.zoomIn();
+          break;
+        case "zoom-out":
+          void instance.zoomOut();
+          break;
+        case "zoom-reset":
+          void instance.zoomTo(1);
+          break;
+        case "fit-view":
+          void instance.fitView(FIT_VIEW_OPTIONS);
+          break;
       }
     };
     window.addEventListener("keydown", onKeyDown);
