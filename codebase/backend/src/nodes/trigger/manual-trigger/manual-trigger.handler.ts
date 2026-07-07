@@ -1,8 +1,9 @@
-import type {
-  NodeHandler,
-  ValidationResult,
-  ExecutionContext,
-  NodeHandlerOutput,
+import {
+  TRIGGER_TRANSPORT_KEYS,
+  type NodeHandler,
+  type ValidationResult,
+  type ExecutionContext,
+  type NodeHandlerOutput,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import type { TriggerParameterDefinition } from '../../../modules/execution-engine/types/trigger-parameter.types';
@@ -32,8 +33,6 @@ interface ManualTriggerInput {
   [key: string]: unknown;
 }
 
-const TRANSPORT_KEYS = ['body', 'headers', 'query', 'method'] as const;
-
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -49,7 +48,7 @@ function detectTriggerSource(
   // 2. Backward-resilient detection: if input carries any HTTP transport
   //    field (body / headers / query / method) the adapter must be webhook.
   //    Manual / schedule adapters only ever pass `{ parameters }`.
-  if (input && TRANSPORT_KEYS.some((k) => k in input)) {
+  if (input && TRIGGER_TRANSPORT_KEYS.some((k) => k in input)) {
     return 'webhook';
   }
   // 3. Default to manual — schedule adapters that omit the marker are

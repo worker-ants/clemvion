@@ -11494,6 +11494,60 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    // $trigger durable 복원 (spec 5-expression-language §4.5) — resume 경로도
+    // Execution.inputData(webhook transport)에서 triggerData 를 재추출해 주입한다.
+    it('restores triggerData from webhook Execution.inputData (resume 후에도 $trigger 비지 않음)', async () => {
+      const execution = {
+        id: 'exec-rehydrate-trigger',
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        recursionDepth: 0,
+        dryRun: false,
+        conversationThread: null,
+        inputData: {
+          __triggerSource: 'webhook',
+          parameters: { orderId: '1' },
+          body: { event: 'push' },
+          headers: { 'content-type': 'application/json' },
+          query: { ref: 'main' },
+          method: 'POST',
+        },
+      };
+      ctxSubject().contextService.deleteContext('exec-rehydrate-trigger');
+
+      const ctx = await ctxSubject().rehydrateContext(
+        execution,
+        waitingNodeExec,
+      );
+
+      expect((ctx as { triggerData?: unknown }).triggerData).toEqual({
+        body: { event: 'push' },
+        headers: { 'content-type': 'application/json' },
+        query: { ref: 'main' },
+        method: 'POST',
+      });
+    });
+
+    it('leaves triggerData undefined for manual inputData (resume → $trigger = {})', async () => {
+      const execution = {
+        id: 'exec-rehydrate-manual',
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        recursionDepth: 0,
+        dryRun: false,
+        conversationThread: null,
+        inputData: { __triggerSource: 'manual', parameters: {} },
+      };
+      ctxSubject().contextService.deleteContext('exec-rehydrate-manual');
+
+      const ctx = await ctxSubject().rehydrateContext(
+        execution,
+        waitingNodeExec,
+      );
+
+      expect((ctx as { triggerData?: unknown }).triggerData).toBeUndefined();
+    });
+
     // PR-A3 — user-defined variables 무손실 복원 (spec §6.1/§6.2/§7.5).
     it('restores user-defined variables from Execution.user_variables (park 이전 변수를 park 이후 참조)', async () => {
       const execution = {

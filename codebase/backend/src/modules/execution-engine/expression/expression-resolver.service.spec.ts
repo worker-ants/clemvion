@@ -386,6 +386,37 @@ describe('ExpressionResolverService', () => {
       expect(ctx.$env).toEqual({});
     });
 
+    it('$env — empty string allowlist yields {} (app.config real default is empty string)', () => {
+      // app.config.expressionEnvAllowlist 는 미설정 시 undefined 가 아니라 ''.
+      envAllowlist = '';
+      const ctx = service.buildExpressionContext(
+        null,
+        baseExec(),
+        new Map<string, Node>(),
+      );
+      expect(ctx.$env).toEqual({});
+    });
+
+    it('$env — trims whitespace and skips empty segments in allowlist', () => {
+      envAllowlist = ' EXPR_TEST_WS , , EXPR_TEST_EMPTY ,,';
+      process.env.EXPR_TEST_WS = 'trimmed';
+      delete process.env.EXPR_TEST_EMPTY;
+      try {
+        const ctx = service.buildExpressionContext(
+          null,
+          baseExec(),
+          new Map<string, Node>(),
+        );
+        const env = ctx.$env as Record<string, string>;
+        // 앞뒤 공백이 있어도 trim 후 정확히 매칭.
+        expect(env.EXPR_TEST_WS).toBe('trimmed');
+        // 빈 세그먼트(',,', 공백만)는 무시 — process.env[''] 조회 없음.
+        expect(env['']).toBeUndefined();
+      } finally {
+        delete process.env.EXPR_TEST_WS;
+      }
+    });
+
     it('builds context with loop/item context', () => {
       const nodeMap = new Map<string, Node>();
       const execContext: ExecutionContext = {

@@ -1,10 +1,9 @@
-import type { TriggerExpressionData } from '../../../nodes/core/node-handler.interface';
+import {
+  TRIGGER_TRANSPORT_KEYS,
+  type TriggerExpressionData,
+} from '../../../nodes/core/node-handler.interface';
 
-// webhook adapter 가 Execution.inputData 에 stamp 하는 HTTP transport 키
-// (TriggerExecutionInput 의 webhook 한정 필드, 4-execution-engine §6.1.1).
-const TRANSPORT_KEYS = ['body', 'headers', 'query', 'method'] as const;
-
-function isPlainRecord(value: unknown): value is Record<string, string> {
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
@@ -36,13 +35,17 @@ export function extractTriggerData(
   // (manual/schedule adapter 는 transport 를 절대 싣지 않는다 — manual-trigger.handler 와 동일 규칙).
   const isWebhook =
     source === 'webhook' ||
-    (source === undefined && TRANSPORT_KEYS.some((k) => k in input));
+    (source === undefined && TRIGGER_TRANSPORT_KEYS.some((k) => k in input));
   if (!isWebhook) return undefined;
 
   const data: TriggerExpressionData = {};
   if ('body' in input) data.body = input.body;
-  if (isPlainRecord(input.headers)) data.headers = input.headers;
-  if (isPlainRecord(input.query)) data.query = input.query;
+  // webhook adapter(hooks.controller)가 헤더/쿼리를 string 값만 담아 stamp 하므로
+  // (비-string 은 이미 제외됨) plain-record 확인 후 string 맵으로 취급한다.
+  if (isPlainRecord(input.headers))
+    data.headers = input.headers as Record<string, string>;
+  if (isPlainRecord(input.query))
+    data.query = input.query as Record<string, string>;
   if (typeof input.method === 'string') data.method = input.method;
   return data;
 }

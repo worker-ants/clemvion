@@ -6502,8 +6502,6 @@ export class ExecutionEngineService
       variables: { ...context.variables },
       nodeOutputCache: { ...context.nodeOutputCache },
       expressionContext: { ...(context.expressionContext ?? {}) },
-      // webhook transport 를 background 본문 `$trigger` 로 전파 (§4.5). 부재 시 폴백 {}.
-      ...(context.triggerData ? { triggerData: context.triggerData } : {}),
       conversationThread: threadSnapshot,
       config: {
         notifyOnFailure: config.notifyOnFailure === true,
@@ -6548,9 +6546,6 @@ export class ExecutionEngineService
     context.variables = { ...job.variables };
     context.nodeOutputCache = { ...job.nodeOutputCache };
     context.expressionContext = { ...job.expressionContext };
-    // webhook transport 스냅샷 복원 — 본문 표현식이 `$trigger.*` 를 참조할 수 있게 한다
-    // (§4.5). 레거시 payload(필드 부재)는 undefined → `$trigger = {}` 폴백.
-    if (job.triggerData) context.triggerData = job.triggerData;
     // Use the enqueue-time snapshot (already turns-cloned) — pushes from
     // here onward stay inside the background subgraph (§3.2 isolation).
     // Backward-compat: jobs enqueued before the conversationThread field was

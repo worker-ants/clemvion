@@ -14,6 +14,20 @@ export interface TriggerExpressionData {
   method?: string;
 }
 
+/**
+ * webhook adapter 가 engine input(→ `Execution.inputData`)에 stamp 하는 HTTP
+ * transport 키. `$trigger` 추출(`extractTriggerData`)과 Manual Trigger 핸들러의
+ * webhook 후방 탐지(`detectTriggerSource`)가 **동일 집합**을 판정 기준으로 써야
+ * 하므로 단일 SoT 로 공유한다 — 필드 추가/변경 시 한쪽만 갱신돼 두 판정이
+ * 어긋나는 drift 를 방지.
+ */
+export const TRIGGER_TRANSPORT_KEYS = [
+  'body',
+  'headers',
+  'query',
+  'method',
+] as const;
+
 export interface ExecutionContext {
   executionId: string;
   workflowId: string;
