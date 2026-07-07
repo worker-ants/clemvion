@@ -51,8 +51,8 @@ audit 는 "일어난 일" 의 기록이다. verb 시제는 아래 세 패턴 중
 | auth_config | 현재형 (§2.2) | `create`, `update`, `delete`, `regenerate`, `reveal` | 구현 |
 | execution | 도메인 동사 (§2.3) | `re_run` | 구현 |
 | workspace | 도메인 동사 (§2.3) | `transfer_ownership` | 구현 |
-| workspace | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
-| member | 과거분사 (§2.1) | `invited`, `role_changed`, `removed` | 미구현 |
+| workspace | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 (결정 완료·착수 전) |
+| member | 과거분사 (§2.1) | `invited`, `role_changed`, `removed` | 미구현 (결정 완료·착수 전) |
 | workflow | 과거분사 (§2.1) | `created`, `updated`, `deleted`, `executed` | 미구현 |
 | trigger | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
 | schedule | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |

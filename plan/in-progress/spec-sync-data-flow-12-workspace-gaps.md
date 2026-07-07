@@ -9,11 +9,31 @@ owner: planner
 > 출처: 2026-06-03 spec-vs-code audit (review/spec-coverage/2026/06/03/08_05_49). data-flow 문서라 frontmatter status 강제 대상은 아니나, 본문이 현재형으로 약속한 미구현 surface 를 분리 추적한다.
 > 관련 spec: spec/data-flow/12-workspace.md
 
-## 미구현 항목
-- [ ] 워크스페이스 전환 플로우(§1.5) — `POST /api/auth/workspaces/:id/switch` 엔드포인트·`switchWorkspace` 서비스·프론트 호출 전부 부재. 전환=토큰 재발급 모델 미구현 (현재는 `X-Workspace-Id` 헤더로만 컨텍스트 지정).
-- [ ] JWT payload 워크스페이스 클레임 필드명 정합 — spec 이 가정한 `activeWorkspaceId` 는 코드에 없고 실제는 `workspaceId`. 전환 모델 구현 시 명명 확정 필요.
-- [ ] `(owner_id, type) UNIQUE` DB 레벨 강제 — 현재 TypeORM `@Unique` 데코레이터만 존재, 마이그레이션 SQL 에 대응 제약 없음. personal workspace 중복 방지를 DB 제약으로 추가할지 결정 필요.
-- [ ] 워크스페이스 액션 audit 적재 범위 — 현재 `workspace.transfer_ownership` 1건만 기록. create/delete/rename/member 변경 등 audit 적재 여부 결정 필요(과거 spec 은 `workspace.*` 전체 적재로 약속).
+## 결정 기록 (2026-07-07, 사용자 확정)
+
+4개 결정 옵션(§"결정 옵션 (2026-06-13)")에 대해 사용자가 채택안을 확정. **spec 반영 완료, 구현 착수 전(Planned).** 구현 표면은 아래 §구현 착수 phase 로 추적.
+
+| 결정 | 채택 | plan 권장 대비 | 승인 근거 |
+| --- | --- | --- | --- |
+| 1. 전환 모델 | **A** (토큰 재발급 switch) + **full 마이그레이션** | 권장 A 일치 | 검증 진입점 1곳 수렴(info-leak↓). 추가 확인: 헤더 전환이 이미 FE(`workspace-store`+axios 인터셉터)로 작동 중이라, 5A 는 "빠진 기능"이 아니라 헤더→토큰 모델 **FE+BE 동시 마이그레이션**. `jwt.strategy` 가 토큰 클레임 존중하도록 변경 + FE `switchWorkspace` 가 `/switch` 호출로 전환(사용자 2026-07-07 방향 검토 후 "토큰 SoT 풀" 승인). |
+| 2. 클레임 명명 | **B** (`workspaceId`→`activeWorkspaceId`, dual-read) | **권장 A(유지)와 다름 — 사용자 override** | 사용자 명시 선택(2026-07-07). dual-read(`activeWorkspaceId ?? workspaceId`, write 는 activeWorkspaceId) 로 legacy 토큰 15분 롤오버 보호 후 cleanup. |
+| 3. personal 유니크 DB | **B** (부분 유니크 인덱스) | 권장 B 일치 | 무결성 invariant → DB defense-in-depth. dedup(V108, keep-oldest+member re-point) 선행 + `CREATE UNIQUE INDEX CONCURRENTLY`(V109). |
+| 4. audit 범위 | **B** (`workspace.*`+`member.*` 전체) | 권장 B 일치 | 명명 확정(비용 0), 감사는 전부/일관부재일 때 가치. |
+
+## 구현 착수 (developer) — Planned
+
+각 결정의 spec 은 반영됨(§1.5·§2.1·§4·Rationale, 1-auth §2.2/§3.3/§4.1/§5, audit-actions §3, 1-audit §1.1). 아래 코드 표면은 **미착수**이며 안전 순서로 구현한다 (본 PR):
+
+- [ ] **결정4 audit** — `audit-action.const.ts` 에 6액션 + `workspaces.service`/`workspace-invitations.service` record 호출.
+- [ ] **결정3 마이그레이션** — V108 dedup(keep-oldest+member re-point) + V109 `CREATE UNIQUE INDEX CONCURRENTLY uq_workspace_personal_owner`.
+- [ ] **결정2 클레임 rename + dual-read** — `auth.service` accessPayload `activeWorkspaceId`; `jwt.strategy` 가 `activeWorkspaceId ?? workspaceId` 존중+멤버십 검증(비멤버/부재 personal fallback); `websocket.gateway` dual-read; decorator 우선순위 token>header.
+- [ ] **결정1 switch 엔드포인트 + FE** — `POST /api/auth/workspaces/:id/switch` + `AuthService.switchWorkspace`(generateTokens targetWorkspaceId); FE `workspace-store.switchWorkspace` 가 `/switch` 호출→토큰 저장, 헤더 fallback.
+
+## 미구현 항목 (원 audit — 위 결정으로 처리)
+- [ ] 워크스페이스 전환 플로우(§1.5) — 결정1=A. 구현 착수 phase 참조.
+- [ ] JWT payload 클레임 명명 — 결정2=B(`activeWorkspaceId`).
+- [ ] `(owner_id) WHERE type=personal` 부분 유니크 — 결정3=B(V108/V109).
+- [ ] 워크스페이스 액션 audit 확대 — 결정4=B(`workspace.*`+`member.*`).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/data-flow/data-flow__12-workspace.md 참조.
