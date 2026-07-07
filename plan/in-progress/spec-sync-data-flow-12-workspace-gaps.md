@@ -22,22 +22,23 @@ owner: planner
 
 ## 구현 착수 (developer) — Planned
 
-각 결정의 spec 은 반영됨(§1.5·§2.1·§4·Rationale, 1-auth §2.2/§3.3/§4.1/§5, audit-actions §3, 1-audit §1.1). 아래 코드 표면은 **미착수**이며 안전 순서로 구현한다 (본 PR):
+각 결정의 spec 은 반영됨(§1.5·§2.1·§4·Rationale, 1-auth §2.2/§3.3/§4.1/§5, audit-actions §3, 1-audit §1.1). 아래 코드 표면 **구현 완료** (본 PR):
 
-- [ ] **결정4 audit** — `audit-action.const.ts` 에 6액션 + `workspaces.service`/`workspace-invitations.service` record 호출.
-- [ ] **결정3 마이그레이션** — V108 dedup(keep-oldest+member re-point) + V109 `CREATE UNIQUE INDEX CONCURRENTLY uq_workspace_personal_owner`.
-- [ ] **결정2 클레임 rename + dual-read** — `auth.service` accessPayload `activeWorkspaceId`; `jwt.strategy` 가 `activeWorkspaceId ?? workspaceId` 존중+멤버십 검증(비멤버/부재 personal fallback); `websocket.gateway` dual-read; decorator 우선순위 token>header.
-- [ ] **결정1 switch 엔드포인트 + FE** — `POST /api/auth/workspaces/:id/switch` + `AuthService.switchWorkspace`(generateTokens targetWorkspaceId); FE `workspace-store.switchWorkspace` 가 `/switch` 호출→토큰 저장, 헤더 fallback.
+- [x] **결정4 audit** — `audit-action.const.ts` 에 5액션(workspace.created/updated + member.invited/role_changed/removed) + `workspaces.service`/`workspace-invitations.service` record 호출. **`workspace.deleted` 제외** — `audit_log.workspace_id` ON DELETE CASCADE(V001) 로 삭제 감사 row 영속 불가(구현 중 발견한 구조적 제약; 12-workspace §Rationale·1-auth §4.1 주 반영).
+- [x] **결정3 마이그레이션** — V108 **fail-loud 가드**(중복 personal 검출 시 RAISE + operator 수동 해소; 자동 dedup 은 20여 CASCADE FK 로 데이터 유실 위험이라 배제) + V109 `CREATE UNIQUE INDEX CONCURRENTLY uq_workspace_personal_owner`(.conf executeInTransaction=false).
+- [x] **결정2 클레임 rename + dual-read** — `auth.service` accessPayload `activeWorkspaceId`; `jwt.strategy`(passReqToCallback)가 `activeWorkspaceId → 헤더 → legacy workspaceId → personal → 첫 멤버십` 순 확정+멤버십 검증; `websocket.gateway` dual-read; decorator 우선순위 token>header.
+- [x] **결정1 switch 엔드포인트 + FE** — `POST /api/auth/workspaces/:id/switch` + `AuthService.switchWorkspace`(generateTokens targetWorkspaceId); FE `workspace-store.switchWorkspace` async→`/switch` 호출→토큰 저장, `auth-provider` reconcile-on-load, 헤더 fallback.
 
-## 미구현 항목 (원 audit — 위 결정으로 처리)
-- [ ] 워크스페이스 전환 플로우(§1.5) — 결정1=A. 구현 착수 phase 참조.
-- [ ] JWT payload 클레임 명명 — 결정2=B(`activeWorkspaceId`).
-- [ ] `(owner_id) WHERE type=personal` 부분 유니크 — 결정3=B(V108/V109).
-- [ ] 워크스페이스 액션 audit 확대 — 결정4=B(`workspace.*`+`member.*`).
+## 미구현 항목 (원 audit — 위 결정으로 처리, 구현 완료)
+- [x] 워크스페이스 전환 플로우(§1.5) — 결정1=A. switch 엔드포인트+FE 구현.
+- [x] JWT payload 클레임 명명 — 결정2=B(`activeWorkspaceId`, dual-read).
+- [x] `(owner_id) WHERE type=personal` 부분 유니크 — 결정3=B(V108 가드/V109 인덱스).
+- [x] 워크스페이스 액션 audit 확대 — 결정4=B(`workspace.created/updated`+`member.*`; `workspace.deleted` 는 CASCADE 로 구조적 제외).
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/data-flow/data-flow__12-workspace.md 참조.
-- 본문은 위 항목들을 "미구현 (Planned)" 또는 "현재 미적재/미강제" 로 명시 표기하도록 이미 패치됨.
+- spec 본문은 구현 완료에 맞춰 "구현" 으로 승격됨(§Overview 상태 노트·§1.5·§2.1·§4·Rationale, 1-auth §2.2/§3.3/§4.1/§5, audit-actions §3, 1-audit §1.1, api-convention §2.3).
+- 구현 중 발견: `workspace.deleted` 감사는 `audit_log.workspace_id` ON DELETE CASCADE 로 영속 불가 → 제외(spec Rationale 반영). V108 은 자동 dedup 대신 fail-loud 가드(20여 CASCADE FK 데이터 유실 위험).
 
 ---
 

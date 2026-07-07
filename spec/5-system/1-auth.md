@@ -309,7 +309,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 }
 ```
 
-> **활성 워크스페이스 클레임 = `activeWorkspaceId`** — **결정 완료·구현 착수 전(Planned)**. 필드명을 현재 `workspaceId` 에서 `activeWorkspaceId` 로 rename 하기로 결정했다(`spec-sync-data-flow-12-workspace-gaps` 결정2 = B, 2026-07-07; 권장안 A(유지)와 다른 사용자 명시 선택). 위 예시는 착수 대상(target) payload 다 — 종전 코드는 `workspaceId` 를 서명한다. 구현 시 전환기 dual-read 로 read site 는 `activeWorkspaceId ?? workspaceId` 로 legacy 토큰을 함께 수용하고, write(서명)는 `activeWorkspaceId` 만 발행한다 (rollover window = access token TTL 15분). 활성 워크스페이스 전환은 `POST /api/auth/workspaces/:id/switch`(§5) 로 이 클레임을 재발급한다 — 토큰이 활성 워크스페이스의 단일 진실이며 `X-Workspace-Id` 헤더는 fallback. 상세: [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급).
+> **활성 워크스페이스 클레임 = `activeWorkspaceId`** (구현, 전환기 dual-read). 필드명을 `workspaceId` → `activeWorkspaceId` 로 rename 했다(`spec-sync-data-flow-12-workspace-gaps` 결정2 = B, 2026-07-07; 권장안 A(유지)와 다른 사용자 명시 선택). read site 는 `activeWorkspaceId ?? workspaceId` 로 legacy 토큰을 함께 수용하고(`jwt.strategy`·`websocket.gateway`), write(서명, `auth.service.generateTokens`)는 `activeWorkspaceId` 만 발행한다 (rollover window = access token TTL 15분, 이후 별도 cleanup 에서 legacy fallback 제거). 활성 워크스페이스 전환은 `POST /api/auth/workspaces/:id/switch`(§5) 로 이 클레임을 재발급한다 — 토큰이 활성 워크스페이스의 단일 진실이며 `X-Workspace-Id` 헤더는 fallback. 상세: [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급).
 
 ### 2.3 세션 정책
 
@@ -383,7 +383,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ```
 1. 요청 수신 → Access Token 검증
-2. Token에서 활성 워크스페이스(target: `activeWorkspaceId`; 종전 `workspaceId`), role 추출 — 착수 대상 계약에서는 `jwt.strategy` 가 클레임의 멤버십을 검증해 활성값을 확정한다(부재·비멤버 시 personal fallback). **결정 완료·구현 착수 전**이며, 종전 구현은 매 요청 personal workspace 로 재해석한다 (§2.2 · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급))
+2. Token에서 활성 워크스페이스(`activeWorkspaceId`, dual-read 로 legacy `workspaceId` 포함), role 추출 — `jwt.strategy` 가 클레임의 멤버십을 검증해 활성값을 확정한다: `activeWorkspaceId` → `X-Workspace-Id` 헤더(rollout fallback) → legacy `workspaceId` → personal → 첫 멤버십. 비멤버·부재 시 personal fallback (§2.2 · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급))
 3. 요청 리소스가 해당 워크스페이스에 속하는지 확인
 4. 역할이 해당 액션에 대한 권한을 가지는지 확인
 5. 권한 없음 → 403 Forbidden
@@ -406,10 +406,13 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 카테고리 | action |
 |----------|------|
 | Integration | `integration.created`, `integration.updated`, `integration.deleted`, `integration.rotated`, `integration.scope_changed`, `integration.reauthorized` |
-| 워크스페이스 | `workspace.transfer_ownership` |
+| 워크스페이스 | `workspace.transfer_ownership`, `workspace.created`, `workspace.updated` (결정4 = B) |
+| 멤버 | `member.invited`, `member.role_changed`, `member.removed` (결정4 = B) — `workspaces.service`(직접 추가/역할/제거·탈퇴) + `workspace-invitations.service`(초대 발급) |
 | 실행 (재실행) | `execution.re_run` |
 | 설정 | `auth_config.create`, `auth_config.update`, `auth_config.delete`, `auth_config.regenerate`, `auth_config.reveal` |
 | 인증 (워크스페이스 컨텍스트) | `user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled`, `user.email_changed`(이메일 변경 확인 `POST /users/me/email-change/verify`, §1.1.B — **details 에 raw 이메일 미저장**, Rationale 1.1.B-6) — 액터의 현재 세션 `workspaceId` 에 귀속, controller 경계 기록 (`users.controller`·`auth.controller`·`webauthn.controller`). 상세 [data-flow §1.1](../data-flow/1-audit.md) + §Rationale 4.1.B |
+
+> **`workspace.deleted` 는 감사하지 않는다 (구조적 제약).** 결정4 는 workspace CRUD 전체 감사를 의도했으나, `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)라 삭제 감사 row 는 삭제와 함께 cascade 제거되거나(삭제 전 기록) FK 위반(삭제 후 기록)으로 영속 불가하다. 따라서 `AUDIT_ACTIONS` 에 `workspace.deleted` 를 두지 않는다. 상세: [data-flow/12-workspace §Rationale "workspace.deleted 감사 제외"](../data-flow/12-workspace.md) · [data-flow/1-audit §1.1](../data-flow/1-audit.md).
 
 > **읽기측 계약 — `action` 은 닫힌 enum 이 아니다.** 쓰기측은 위 `AUDIT_ACTIONS` union 으로 타입 강제되지만, `AuditLog.action` 자체는 **DB 자유 문자열 컬럼**이다 (application 레벨 union 으로만 좁히고 DB CHECK 는 두지 않는다 — 액션 추가가 잦아 마이그레이션 비용을 피하기 위함, [data-flow §1.1](../data-flow/1-audit.md)). audit 불변 원칙상 과거 row 에는 현재 union 밖의 **레거시 값이 존재할 수 있다** (예: cross-audit G-02 이전 `execution.re_run` 의 구 표기 `re_run_initiated` — 신규 row 부터 정정됐고 기존 row 는 그대로 보존). 따라서 조회 API 응답(`AuditLogDto.action`)의 소비자는 `action` 을 닫힌 enum 으로 단정하지 말고 union 밖 값을 graceful 하게 처리한다 (`AuditLogDto.action` 의 OpenAPI 설명도 동일 계약을 명시).
 
@@ -417,8 +420,6 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 | 카테고리 | Planned action |
 |----------|------|
-| 워크스페이스 | `workspace.created`, `workspace.updated`, `workspace.deleted` — **결정 완료·구현 착수 전**(`spec-sync-data-flow-12-workspace-gaps` 결정4 = B, 2026-07-07): 구현 시 `workspaces.service` 가 기록 |
-| 멤버 | `member.invited`, `member.role_changed`, `member.removed` — **결정 완료·구현 착수 전**(결정4 = B): 구현 시 `workspaces.service`·`workspace-invitations.service` 가 기록 |
 | 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted`, `workflow.executed` |
 | 트리거 | `trigger.created`, `trigger.updated`, `trigger.deleted` |
 | 스케줄 | `schedule.created`, `schedule.updated`, `schedule.deleted` |
@@ -479,7 +480,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | POST | /api/auth/2fa/webauthn/recovery-codes/regenerate | WebAuthn 복구 코드 재발급. **인증 필수** (JWT) + 본문에 `password` 재확인. 기존 미사용 코드 폐기 후 10개 새로 발급. TOTP 의 `/api/auth/2fa/disable` 과 대칭적인 네임스페이스 (TOTP 측 복구 코드 재발급은 현재 미지원 — 비활성→재활성으로 재발급) |
 | POST | /api/auth/logout | 로그아웃 (호출 디바이스 family 전체 revoke) |
 | POST | /api/auth/refresh | 토큰 갱신 |
-| POST | /api/auth/workspaces/:id/switch | 워크스페이스 전환 — 대상 멤버십 검증(비멤버 `403 NOT_A_MEMBER`) 후 access token 을 `activeWorkspaceId=:id` 로 재발급 + refresh rotate. `JwtAuthGuard`. **결정 완료·구현 착수 전(Planned)** — `spec-sync-data-flow-12-workspace-gaps` 결정1. 상세 [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급) |
+| POST | /api/auth/workspaces/:id/switch | 워크스페이스 전환 — 대상 멤버십 검증(비멤버 `403 NOT_A_MEMBER`) 후 access token 을 `activeWorkspaceId=:id` 로 재발급 + refresh rotate. `JwtAuthGuard`. 상세 [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급) |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |
 | POST | /api/auth/reset-password | 비밀번호 재설정 |
 | GET | /api/auth/oauth/providers | 백엔드에 자격증명이 설정된 활성 OAuth provider 목록. **인증 불요** (`@Public`), `Cache-Control: private, max-age=300`. 비어 있으면 클라이언트가 SSO UI 미노출 |

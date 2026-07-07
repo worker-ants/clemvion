@@ -56,7 +56,7 @@ code:
 
 모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다. **활성 워크스페이스의 단일 진실은 access token 의 `activeWorkspaceId` 클레임**이며, 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `X-Workspace-Id` 헤더는 **하위호환 fallback** 으로만 유지된다 (레거시 세션·아직 마이그레이션되지 않은 클라이언트). 결정 우선순위·전환 플로우·마이그레이션의 SoT 는 [`data-flow/12-workspace.md §1.5`](../data-flow/12-workspace.md).
 
-> **상태(2026-07-07)**: 위 토큰-SoT 모델은 **결정 완료·구현 착수 전(Planned)** 이다 (`spec-sync-data-flow-12-workspace-gaps` 결정1·2). 종전 동작은 `X-Workspace-Id` 헤더 우선·JWT `workspaceId` 클레임이며, 본 절은 착수 대상 계약(target contract)을 기술한다.
+> **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델은 구현됐다 (`spec-sync-data-flow-12-workspace-gaps` 결정1·2). `jwt.strategy` 가 `activeWorkspaceId → X-Workspace-Id 헤더 → legacy workspaceId → personal` 순으로 활성 워크스페이스를 확정하며, 전환기 dual-read 로 legacy `workspaceId` 클레임도 함께 수용한다.
 
 ```
 # 정상 경로: 토큰 클레임이 활성 워크스페이스를 지정 (헤더 불필요)

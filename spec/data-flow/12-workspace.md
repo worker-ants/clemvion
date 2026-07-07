@@ -21,7 +21,7 @@ personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로
 
 활성 워크스페이스의 **단일 진실은 access token 의 `activeWorkspaceId` 클레임**이며, 전환은 토큰 재발급(§1.5)으로 이뤄진다. `jwt.strategy` 가 토큰 클레임의 멤버십을 검증해 활성 워크스페이스를 확정한다. `X-Workspace-Id` 헤더는 하위호환 fallback 으로만 수용되며(아래 Rationale), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. (전환기 dual-read: `activeWorkspaceId` 부재 시 legacy `workspaceId` 클레임 수용 — Rationale 참고.)
 
-> **상태(2026-07-07)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 **결정 완료·구현 착수 전(Planned)** 이다. 종전 구현은 `X-Workspace-Id` 헤더 전용 전환·`workspaceId` 클레임·personal 재해석 전략이며, 본 문서는 착수 대상 계약을 기술한다. 구현 표면 추적: [`plan/in-progress/spec-sync-data-flow-12-workspace-gaps.md §구현 착수`](../../plan/in-progress/spec-sync-data-flow-12-workspace-gaps.md).
+> **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§4 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)·`X-Workspace-Id` 헤더 fallback 은 레거시 세션 보호용으로 유지된다.
 
 ---
 
@@ -106,11 +106,11 @@ sequenceDiagram
 2. `INSERT INTO workspace_member` (초대된 team workspace, `role=invitation.role`) — `invitationsService.consumeForRegistration()` 가 멤버십 삽입 + 초대 수락(accepted_at/by) 을 함께 수행
 3. `UPDATE workspace_invitation SET accepted_at, accepted_by` (위 consume 단계에 포함)
 
-> **personal workspace 는 이 경로에서 생성하지 않는다.** 초대받은 team workspace 가 가입 시 active workspace 의 진실원이며, JWT `workspaceId` 도 그 team 으로 발급된다 (`auth.service.ts` `resolveTokenWorkspaceContext`: "invitationToken sign-ups must NOT trigger a personal workspace"). personal workspace 는 일반(비초대) 가입 경로에서만 자동 생성된다.
+> **personal workspace 는 이 경로에서 생성하지 않는다.** 초대받은 team workspace 가 가입 시 active workspace 의 진실원이며, JWT `activeWorkspaceId` 클레임(전환기 dual-read 로 legacy `workspaceId` 도 수용)도 그 team 으로 발급된다 (`auth.service.ts` `resolveTokenWorkspaceContext`: "invitationToken sign-ups must NOT trigger a personal workspace"). personal workspace 는 일반(비초대) 가입 경로에서만 자동 생성된다.
 
 ### 1.5 워크스페이스 전환 (토큰 재발급)
 
-> **결정 완료(2026-07-07) · 구현 착수 전(Planned).** 이 절은 착수 대상 계약(contract)이다 — 코드 구현은 본 PR 후속 커밋에서 이뤄지며 그때 이 마커를 `구현`으로 승격한다 (추적: [`plan/in-progress/spec-sync-data-flow-12-workspace-gaps.md §구현 착수`](../../plan/in-progress/spec-sync-data-flow-12-workspace-gaps.md)). `POST /api/auth/workspaces/:id/switch` → `AuthService.switchWorkspace` 가 대상 워크스페이스 멤버십을 검증하고 access token 을 **활성 워크스페이스가 대상으로 바뀐 채 재발급**한다 (refresh 는 rotate). 토큰이 활성 워크스페이스의 **단일 진실**이며, `X-Workspace-Id` 헤더는 하위호환 fallback 으로만 남는다(§Overview / Rationale). JWT payload 의 워크스페이스 클레임 필드명은 `activeWorkspaceId` 다 (전환기 dual-read: 아래 Rationale 참조).
+> **구현.** `POST /api/auth/workspaces/:id/switch` → `AuthService.switchWorkspace` 가 대상 워크스페이스 멤버십을 검증하고(비멤버 `403 NOT_A_MEMBER`) access token 을 **활성 워크스페이스가 대상으로 바뀐 채 재발급**한다 (refresh 는 rotate). 토큰이 활성 워크스페이스의 **단일 진실**이며, `X-Workspace-Id` 헤더는 하위호환 fallback 으로만 남는다(§Overview / Rationale). JWT payload 의 워크스페이스 클레임 필드명은 `activeWorkspaceId` 다 (전환기 dual-read: 아래 Rationale 참조).
 
 ```mermaid
 sequenceDiagram
@@ -196,7 +196,7 @@ non-team 워크스페이스 동작은 `403 WORKSPACE_TYPE_MISMATCH`.
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `workspace` | 생성 | INSERT `name, type IN (personal/team), owner_id, slug, settings={}, created_at` | `slug UNIQUE` (V001 컬럼 제약). personal 유일성(owner 당 1개)은 **부분 유니크 인덱스** `uq_workspace_personal_owner ON workspace (owner_id) WHERE type='personal'` (V109 — **결정 완료·구현 착수 전**, V108 dedup 선행) 로 DB 강제 예정 + 앱 레이어(`findOrCreatePersonalWorkspace`) 이중 방어(현행). team 다중 소유는 허용(broad `(owner_id, type)` UNIQUE 아님, 아래 Rationale) |
+| `workspace` | 생성 | INSERT `name, type IN (personal/team), owner_id, slug, settings={}, created_at` | `slug UNIQUE` (V001 컬럼 제약). personal 유일성(owner 당 1개)은 **부분 유니크 인덱스** `uq_workspace_personal_owner ON workspace (owner_id) WHERE type='personal'` (V109, V108 dedup 가드 선행) 로 DB 강제 + 앱 레이어(`findOrCreatePersonalWorkspace`) 이중 방어. team 다중 소유는 허용(broad `(owner_id, type)` UNIQUE 아님, 아래 Rationale) |
 | `workspace` | 소유권 이전 | UPDATE `owner_id` | — |
 | `workspace` | 삭제 (§1.10) | DELETE (선행: 동일 트랜잭션에서 `workspace_invitation`·`workspace_member` 명시 삭제) | — |
 | `workspace_member` | 가입·초대 수락·직접 추가(§1.9) | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` |
@@ -256,7 +256,7 @@ stateDiagram-v2
 | Auth 도메인 | cross-ref | 일반(비초대) 회원가입 시 personal workspace 자동 생성(초대 가입은 미생성, §1.4). token payload 의 활성 워크스페이스 필드는 `activeWorkspaceId`(전환기 dual-read 로 legacy `workspaceId` 도 수용). [`auth.md`](./2-auth.md) |
 | Mail 도메인 | 내부 → 외부 | 초대 메일 SMTP |
 | Redis / BullMQ | 내부 → Redis | 만료 초대 정리 repeatable 잡 `workspace-invitations-pruner` (§1.2·§3.1). 큐 마스터 카탈로그·모니터링 등재는 [`0-overview.md §4`](./0-overview.md#4-bullmq-큐-카탈로그) + `MONITORED_QUEUES`. |
-| Audit 도메인 | cross-ref | 현재 `audit_log` 에 적재되는 워크스페이스 액션은 `workspace.transfer_ownership` **1건뿐**이다 (`workspaces.service.ts` `transferOwnership`). create/delete/rename/member 변경 등은 아직 미적재. [`audit.md`](./1-audit.md) |
+| Audit 도메인 | cross-ref | `audit_log` 에 적재되는 워크스페이스/멤버 액션: `workspace.transfer_ownership`·`workspace.created`·`workspace.updated`(`workspaces.service.ts`), `member.invited`·`member.role_changed`·`member.removed`(`workspaces.service.ts`), `member.invited`(초대 발급, `workspace-invitations.service.ts`). **`workspace.deleted` 는 제외** — `audit_log.workspace_id` ON DELETE CASCADE(V001) 로 삭제 감사 row 가 영속 불가(Rationale "workspace.deleted 감사 제외"). [`audit.md`](./1-audit.md) |
 
 ---
 
@@ -284,7 +284,18 @@ stateDiagram-v2
 > 코드·정정된 spec 본문이 모두 `workspaceId` 라 명명 변경의 이득이 문서로 보완 가능한 반면 비용(토큰 호환·dual-read
 > 과도기)이 실질적이라는 이유. 그러나 사용자가 명시적으로 **옵션 B(rename)** 를 선택했다(2026-07-07). 전환=재발급
 > 모델에서 "활성(active) 워크스페이스" 라는 의미를 필드명이 직접 드러내는 편이 낫다는 판단이며, dual-read 로 과도기
-> 비용을 흡수한다. **이 절 전체(토큰 SoT·rename·dual-read)는 결정 완료·구현 착수 전(Planned)** 이다 (§Overview 상태 노트).
+> 비용을 흡수한다. **이 절 전체(토큰 SoT·rename·dual-read)는 구현됐다** (§Overview 상태 노트).
+
+### workspace.deleted 감사 제외 (구조적 제약)
+
+결정4(audit 확대)는 workspace CRUD 전체를 감사하려 했으나, **`workspace.deleted` 는 의도적으로 기록하지
+않는다**. `audit_log.workspace_id` 는 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)라, 워크스페이스
+삭제 감사 row 는 (a) 삭제 전 기록하면 워크스페이스 삭제 시 cascade 로 함께 제거되고, (b) 삭제 후 기록하면
+FK 대상이 사라져 INSERT 가 위반된다 — 어느 쪽이든 영속 불가하다. 이는 "워크스페이스 범위(workspace-scoped)로
+적재되고 워크스페이스와 함께 소멸하는" 현 audit 모델의 구조적 귀결이다 (그 모델에서는 `workspace.created`/
+`updated` 감사도 워크스페이스가 삭제되면 함께 사라진다 — audit 는 워크스페이스 생존 기간의 포렌식이다).
+삭제 이력 자체를 남기려면 워크스페이스에 종속되지 않는 별도 저장소가 필요하며 이는 본 결정 범위 밖이다.
+자동 dedup 대신 V108 fail-loud 가드를 택한 이유와 동일한 계열의 제약이다(§2.1 · V108 주석).
 
 ### `workspace_invitation.email` 일치 강제
 
