@@ -283,7 +283,7 @@ ws(s)://{base_url}/ws?token={access_token}
 | 용도 | 방향 | 이벤트 |
 |------|------|--------|
 | 워크플로우 실행 상태 | Server → Client | execution.*, node.* |
-| 실행 제어 | Client → Server | execution.start/stop/continue _(계획·미구현 — [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server))_ |
+| 실행 제어 | Client → Server | execution.start/stop _(비채택 won't-do — REST 대체)_ · execution.continue _(계획·미구현 — 브레이크포인트 로드맵)_ ([6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) |
 | KB 문서 상태 (임베딩·그래프 추출) | Server → Client | document:embedding_*, document:graph_* (채널 `kb:{documentId}`) |
 
 ### 10.4 재연결

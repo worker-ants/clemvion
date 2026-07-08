@@ -17,6 +17,13 @@ const TERMINAL_EVENT_TYPES = new Set([
   'execution.cancelled',
 ]);
 
+/**
+ * [Spec EIA §5.2 / §11 EIA-IN-07·EIA-NF-03] 재연결 replay 가 5분 buffer 로 요청 범위를
+ * 완전히 재생하지 못할 때(만료 또는 cap 폐기로 중간 seq 유실) 1회 발송하는 control frame.
+ * 내부 WS 의 `replay.unavailable` 과 의미는 같으나 SSE `execution.*` namespace 컨벤션을 따른다.
+ */
+const REPLAY_UNAVAILABLE_EVENT_TYPE = 'execution.replay_unavailable';
+
 interface BufferedEntry {
   seq: number;
   receivedAt: number;
@@ -87,16 +94,80 @@ export class SseAdapter implements OnModuleInit, OnModuleDestroy {
       this.subscribers.set(subscriber.executionId, set);
     }
     set.add(subscriber);
-    // 누락분 replay
+    // 누락분 replay (buffer 가 요청 범위를 못 채우면 replay_unavailable 신호).
+    // Last-Event-Id 는 정수 seq 지만 공개 표면(`?lastEventId=`)으로 소수/malformed 가 올 수
+    // 있어 floor 로 정규화한다 — 그러지 않으면 `lastEventId+1` 이 어떤 정수 seq 와도 안 맞아
+    // 연속 buffer 도 gap 으로 오탐한다.
     if (typeof lastEventId === 'number' && lastEventId >= 0) {
-      const buffer = this.buffers.get(subscriber.executionId) ?? [];
-      const cutoff = Date.now() - BUFFER_RETENTION_MS;
-      for (const entry of buffer) {
-        if (entry.seq <= lastEventId) continue;
-        if (entry.receivedAt < cutoff) continue;
-        subscriber.push(entry.event);
-      }
+      this.replayOrSignalUnavailable(subscriber, Math.floor(lastEventId));
     }
+  }
+
+  /**
+   * 재연결 replay — `lastEventId` 이후 이벤트를 5분 buffer 에서 재전송한다. 단 buffer 가
+   * 요청 범위를 **완전히** 재생하지 못하면(만료 또는 `MAX_BUFFER_PER_EXEC` cap 으로 중간 seq
+   * 유실) 부분 replay 대신 `execution.replay_unavailable` 을 **한 번** push → 클라이언트는
+   * `GET /api/external/executions/:id` 로 현재 상태를 REST 재조회한다.
+   * (Spec EIA §5.2 / EIA-IN-07 / EIA-NF-03 — 만료분 silent drop 을 명시 신호로 대체.)
+   */
+  private replayOrSignalUnavailable(
+    subscriber: SseSubscriber,
+    lastEventId: number,
+  ): void {
+    const buffer = this.buffers.get(subscriber.executionId) ?? [];
+    // 클라이언트가 아직 못 받은 이벤트. (만료됐지만 아직 배열에 남은 항목도 포함해서 센다 —
+    // seq > lastEventId 인 항목이 하나도 없으면 클라이언트가 최신까지 수신했다는 뜻이므로
+    // 누락이 아니다.)
+    const wanted = buffer.filter((e) => e.seq > lastEventId);
+    if (wanted.length === 0) {
+      // 최신까지 수신함(또는 실행이 아직 그 이후 이벤트를 내지 않음) → 누락 없음, live 로 이어짐.
+      return;
+    }
+    const cutoff = Date.now() - BUFFER_RETENTION_MS;
+    const replayable = wanted
+      .filter((e) => e.receivedAt >= cutoff)
+      .sort((a, b) => a.seq - b.seq);
+    // seq 는 monotonic 이라 만료·cap 폐기는 항상 앞쪽부터 발생한다. 재생 가능한 가장 이른
+    // seq 가 `lastEventId + 1` 이 아니면 그 사이 구간이 유실된 것 → 완전 replay 불가. 선두뿐
+    // 아니라 배열 중간에 hole(예: seq 유실로 `[6,7,9]`)이 있어도 gap 으로 판정한다 — 이
+    // 기능이 없애려는 바로 그 silent drop 을 놓치지 않도록 전 구간 연속성을 확인한다.
+    const contiguous =
+      replayable.length > 0 &&
+      replayable[0].seq === lastEventId + 1 &&
+      replayable.every(
+        (e, i) => i === 0 || e.seq === replayable[i - 1].seq + 1,
+      );
+    if (!contiguous) {
+      subscriber.push(
+        this.buildReplayUnavailableEvent(subscriber.executionId, lastEventId),
+      );
+      return;
+    }
+    for (const entry of replayable) {
+      subscriber.push(entry.event);
+    }
+  }
+
+  /**
+   * `execution.replay_unavailable` control frame 을 구성. 재연결 응답 전용이라 monotonic
+   * 스트림 위치가 아니며 `seq: 0` sentinel 을 쓴다 (`interaction-stream.controller` 의
+   * `writeSseFrame` 이 seq<=0 이면 SSE `id:` 라인을 생략 → client 의 Last-Event-Id 오염 방지).
+   */
+  private buildReplayUnavailableEvent(
+    executionId: string,
+    lastEventId: number,
+  ): ExecutionChannelEvent {
+    return {
+      executionId,
+      eventType: REPLAY_UNAVAILABLE_EVENT_TYPE,
+      seq: 0,
+      payload: {
+        executionId,
+        lastEventId,
+        message:
+          'Requested events are no longer available in the 5-minute replay buffer. Re-fetch current state via GET /api/external/executions/:id.',
+      },
+    };
   }
 
   unsubscribe(subscriber: SseSubscriber): void {

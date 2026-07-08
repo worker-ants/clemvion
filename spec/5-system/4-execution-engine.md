@@ -1233,7 +1233,7 @@ SIGTERM 수신 시 동작 계약 — k8s 재배포 / Docker Compose `docker comp
 
 1. **새 Execution 시작 거부**. 새 Execution 을 시작하는 HTTP 진입점(`POST /api/workflows/:id/execute`, 단일 노드 `POST /api/workflows/:id/nodes/:nodeId/execute`)이 **503 Service Unavailable** 응답. response body 는 표준 API 에러 shape (`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`, [Spec API 규약](./2-api-convention.md)), `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더 동봉. LB drain 동안 traffic 이 다른 인스턴스로 라우팅.
 
-   > **구현 범위**: HTTP 진입점(`POST /api/workflows/:id/execute` + 단일 노드 `POST /api/workflows/:id/nodes/:nodeId/execute`) gate 가 구현됨 — 실행 시작은 **REST 전용**이라 이 두 진입점으로 시작 gate 가 완결된다. WS `execution.start` 는 [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) 에 **계획·미구현(Planned)** 경로로만 정의돼 있고(WS gateway 에 핸들러 부재), 그 Planned WS 시작 경로가 향후 도입되면 동일한 SIGTERM 503 gate 를 함께 적용한다.
+   > **구현 범위**: HTTP 진입점(`POST /api/workflows/:id/execute` + 단일 노드 `POST /api/workflows/:id/nodes/:nodeId/execute`) gate 가 구현됨 — 실행 시작은 **REST 전용**이라 이 두 진입점으로 시작 gate 가 완결된다. WS `execution.start` 는 [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) 에서 **비채택(won't-do)** 으로 종결됐다(REST 대체·핸들러 부재, 근거 §Rationale `R-wontdo-rawws-rest`) — 실행 시작이 REST 전용이라 위 두 진입점 gate 로 완결되며 WS 시작 경로 확장 계획은 없다.
 
 2. BullMQ `execution-run` / `execution-continuation` / `background-execution` 의 active job 처리 중인 worker 는 현재 세그먼트(노드)를 완료까지 진행. 신규 job consume 중단. (한 세그먼트 내부 노드 dispatch 는 큐 미경유 in-process while-loop — §2.1 / §9.3)
 3. **WAITING_FOR_INPUT 상태의 Execution 은 건드리지 않음** — DB 상태 그대로 두고 in-memory resolver 만 자연 소실. 사용자 입력 도착 시 §7.5 rehydration 으로 재개.

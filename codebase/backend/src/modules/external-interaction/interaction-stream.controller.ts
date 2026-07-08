@@ -145,18 +145,26 @@ export class InteractionStreamController {
  *
  * Frame format:
  *   event: <eventType>
- *   id: <seq>
+ *   id: <seq>            # 실행-scope monotonic seq(>0) 를 가진 이벤트만
  *   data: <JSON.stringify(payload)>
  *   (빈 줄)
+ *
+ * `id:` 규약: 실행-scope monotonic seq(1부터)를 가진 이벤트만 `id:` 를 싣는다. control
+ * frame(`execution.replay_unavailable`, seq=0)은 스트림 위치가 아니므로 `id:` 를 생략한다 —
+ * 브라우저 native EventSource 의 Last-Event-Id 가 0 으로 오염돼 다음 자동 재연결이 전체
+ * replay(`?lastEventId=0`)를 촉발하는 것을 막는다 (Spec EIA §5.2 / §5.3 seq sentinel 관례와 정합).
+ *
+ * @internal 단위 테스트(`interaction-stream.controller.spec.ts`)를 위해 export.
  */
-function writeSseFrame(res: Response, event: ExecutionChannelEvent): void {
-  const lines = [
-    `event: ${event.eventType}`,
-    `id: ${event.seq}`,
-    `data: ${JSON.stringify(event.payload)}`,
-    '',
-    '',
-  ];
+export function writeSseFrame(
+  res: Response,
+  event: ExecutionChannelEvent,
+): void {
+  const lines = [`event: ${event.eventType}`];
+  if (Number.isFinite(event.seq) && event.seq > 0) {
+    lines.push(`id: ${event.seq}`);
+  }
+  lines.push(`data: ${JSON.stringify(event.payload)}`, '', '');
   try {
     res.write(lines.join('\n'));
   } catch {
