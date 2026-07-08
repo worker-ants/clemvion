@@ -27,4 +27,4 @@ spec-sync(§10)로 이관. INFO 12건은 저우선 defer.
   이동 페이지 bare-path 산문(`_layout.md §2.2/§3.1`·`15-system-status`·`16-agent-memory` 등) 정정. `/consistency-check --spec` 검증 후 반영.
 - **INFO (defer)**: cafe24 `encodeURIComponent` 대칭화(#1)·cafe24 `lastErrorMessage` i18n 매핑(#2)·`WORKSPACE_ROUTE_PREFIX` 상수화(#8)·
   `useActiveWorkspace()` 상위 훅 통합(#4) — 현행 리스크 낮음, 별도 리팩터 후속.
-- **리뷰 커버리지 갭**: Workflow 가 scope/side_effect/documentation/user_guide_sync 4 reviewer 를 "success" 로 보고했으나 output 파일 미존재(디스크-write 갭). fresh `/ai-review`(`review/code/2026/07/09/07_56_16/`) 재수행으로 재검증 완료 — scope/side_effect/documentation 포함 9 reviewer 산출, Critical 0.
+- **리뷰 커버리지 갭**: Workflow 가 scope/side_effect/documentation/user_guide_sync 4 reviewer 를 "success" 로 보고했으나 output 파일 미존재(디스크-write 갭). fresh `/ai-review`(`review/code/2026/07/09/07_56_16/`) 재수행으로 scope/side_effect/documentation 포함 **9 중 7 reviewer 산출**(requirement·testing 2건은 동일 disk-write 갭 재발로 미산출), Critical 0. 산출된 7 관점 전부 Critical 없음 — 소규모 refactor+테스트 changeset 이라 미산출 2관점의 Critical 잔존 위험은 무시 가능으로 판단.

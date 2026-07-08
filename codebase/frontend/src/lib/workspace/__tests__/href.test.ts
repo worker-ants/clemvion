@@ -32,11 +32,22 @@ describe("buildWorkspaceHref", () => {
     expect(buildWorkspaceHref(null, "//evil.com/x")).toBe("/evil.com/x");
   });
 
-  it("neutralizes backslash and control-char open-redirect bypasses", () => {
-    // WHATWG URL treats `\`, tab, CR, LF like `/` in special schemes.
-    expect(buildWorkspaceHref(null, "\\\\evil.com/x")).toBe("/evil.com/x");
-    expect(buildWorkspaceHref(null, "/\\evil.com")).toBe("/evil.com");
-    expect(buildWorkspaceHref(null, "/\t/evil.com")).toBe("/evil.com");
-    expect(buildWorkspaceHref("team-a", "\\\\evil.com")).toBe("/w/team-a/evil.com");
-  });
+  // WHATWG URL treats `\`, tab, CR, LF like `/` in special schemes — each must be
+  // neutralized so no input resolves to a protocol-relative (cross-origin) URL.
+  it.each([
+    ["double backslash", null, "\\\\evil.com/x", "/evil.com/x"],
+    ["single backslash after slash", null, "/\\evil.com", "/evil.com"],
+    ["embedded tab", null, "/\t/evil.com", "/evil.com"],
+    ["embedded CR", null, "/\r/evil.com", "/evil.com"],
+    ["embedded LF", null, "/\n/evil.com", "/evil.com"],
+    ["backslash with slug", "team-a", "\\\\evil.com", "/w/team-a/evil.com"],
+    ["CR with slug", "team-a", "\r/evil.com", "/w/team-a/evil.com"],
+  ])(
+    "neutralizes open-redirect bypass — %s",
+    (_label, slug, input, expected) => {
+      expect(buildWorkspaceHref(slug as string | null, input as string)).toBe(
+        expected,
+      );
+    },
+  );
 });

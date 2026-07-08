@@ -57,8 +57,8 @@ export interface ReRunModalProps {
   open: boolean;
   onClose: () => void;
   /**
-   * 재실행 성공 콜백. 미지정 시 app router 로
-   * `/workflows/:workflowId/executions/:newId` 로 네비게이션한다.
+   * 재실행 성공 콜백. 미지정 시 app router 로 활성 워크스페이스 slug 경로
+   * `/w/<slug>/workflows/:workflowId/executions/:newId` 로 네비게이션한다.
    */
   onSuccess?: (newExecutionId: string) => void;
 }
@@ -288,7 +288,10 @@ export function ReRunModal({
         onSuccess(result.id);
       } else {
         router.push(
-          `/workflows/${original.workflowId}/executions/${result.id}`,
+          buildWorkspaceHref(
+            slug,
+            `/workflows/${original.workflowId}/executions/${result.id}`,
+          ),
         );
       }
       onClose();

@@ -9,6 +9,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 const apiGetMock = vi.fn();
 const apiPostMock = vi.fn();
@@ -103,6 +104,8 @@ describe("ReRunModal", () => {
     vi.clearAllMocks();
     cleanup();
     useLocaleStore.setState({ locale: "en" });
+    // slug 는 store 파생 — 케이스 간 누수 방지(기본 slug null → bare path).
+    useWorkspaceStore.getState().reset();
     routerPushMock.mockReset();
     toastErrorMock.mockReset();
   });
@@ -208,6 +211,26 @@ describe("ReRunModal", () => {
       );
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("re-run 성공 후 활성 워크스페이스가 있으면 slug 경로로 라우팅한다", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws", name: "W", type: "personal", slug: "team-x", role: "owner" },
+      ],
+      currentWorkspaceId: "ws",
+      loaded: true,
+    });
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    apiPostMock.mockResolvedValue({ data: { data: { id: "exec-new" } } });
+    seedDefinitions([]);
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Re-run" }));
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith(
+        "/w/team-x/workflows/wf-1/executions/exec-new",
+      );
+    });
   });
 
   it("기본(default) 입력 편집 모드에서 inputOverride 를 함께 전송한다", async () => {
