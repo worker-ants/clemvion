@@ -223,9 +223,17 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         where: { id: workflowId },
       });
       if (!workflow?.createdBy) return;
+      const owner = workflow.createdBy;
+      // §5.1 기본 인앱+이메일(opt-out) — 사용자가 `scheduleFailedEmail=false` 로 끄면
+      // 인앱만. channel 계산은 호출자 책임(data-flow/8-notifications §1).
+      const channelByUser =
+        await this.notificationsService.resolveOptOutEmailChannels(
+          [owner],
+          'scheduleFailedEmail',
+        );
       await this.notificationsService.notify({
         workspaceId,
-        userId: workflow.createdBy,
+        userId: owner,
         type: 'schedule_failed',
         title: '스케줄 실행 실패',
         message: `스케줄이 워크플로우 "${workflow.name}" 실행을 시작하지 못했어요: ${message}`,
@@ -233,9 +241,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         // `/workflows/<resource_id>` 로 라우팅되며 resource_id 가 workflow id 임에 의존.
         resourceType: 'workflow',
         resourceId: workflow.id,
-        // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 "스케줄 실행 실패"
-        // 기본 채널(토글 미구현이라 기본값 고정 발송).
-        channel: 'both',
+        channel: channelByUser.get(owner) ?? 'both',
       });
     } catch (err) {
       this.logger.error(

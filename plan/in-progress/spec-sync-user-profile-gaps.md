@@ -16,8 +16,11 @@ owner: planner
 > entity+migration+모듈, 슬러그 라우팅은 frontend.
 
 - [ ] 아바타 이미지 **파일 업로드** 엔드포인트 (§6.1 `POST /api/users/me/avatar`) — **대형(스토리지 서빙)**: S3Service.upload 는 key 만 반환하고 공개 URL 메서드가 없어, 업로드 + 서빙 GET 엔드포인트(key→URL) 전략 설계 선행. 별도 PR.
-- [ ] 알림 설정 조회/수정 (§6.2 `GET/PATCH /api/notifications/settings`) — **대형(신규 entity)**: NotificationSettings entity + migration + 모듈/서비스/컨트롤러/DTO 신설. 별도 PR.
-- [ ] 이메일 일일 요약 토글 (§5.3) — 위 알림 설정 저장소에 종속(별도 PR).
+- [x] 알림 설정 조회/수정 (§6.2 `GET/PATCH /api/notifications/settings`) — **완료 (2026-07-08)**. **재검증: store 는 이미 존재**(`user.notification_preferences` JSONB V010, `integrationExpiryEmail`) — 신규 entity 아님. 구현: 엔드포인트 신설(GET get-or-default·PATCH 부분머지) + prefs shape 확장(`executionFailedEmail`/`scheduleFailedEmail`) + DTO + **caller-side opt-out enforcement**(execution/schedule 실패 dispatch 가 `resolveOptOutEmailChannels` 로 채널 계산 — "channel 계산=호출자 책임" 불변식 보존). 응답=기본값 해소값(FE 오독 방지). spec §6.2 flip·§5.1 캡션/각주·§5.3 갱신. unit(notifications+schedule+execution dispatch)·lint·build.
+  - **impl-prep 반영**: enforcement 중앙화(notify 내부)는 8-notifications "호출자 책임" 불변식 위반(CRITICAL) → caller-side 유지. `marketplace_update`(§5.1 인앱 only·opt-in·미발사)·`integration_expired`(기존 opt-in) 는 opt-out 집합 제외.
+  - [ ] **(후속) in_app 채널 뮤팅** (§5.1 "채널별" — 인앱 알림 항상 표시, 뮤팅 미구현).
+  - [ ] **(후속, planner) 4-integration §11.2/§11.3 필드명 동기화** — 옛 `notifyIntegrationExpiryByEmail`→`integrationExpiryEmail` (코드/9-user-profile 는 이미 `integrationExpiryEmail`; 기본값 서술은 이미 정합) + §11.3 stale 클래스명 `NotificationDispatcher` 정정.
+- [ ] 이메일 일일 요약 토글 (§5.3) — 저장소는 존재하나 **집계·발송 job + 전용 토글** 미구현(별도 PR).
 - [x] 테마 `System` (OS 자동 추종) 옵션 (§2.0/§2.1) — **backend + frontend 완료**: backend `UpdateMeDto.USER_THEMES`·`UserProfileDto` enum 에 `'system'` 추가(User.theme varchar(10) default 'light' — migration 불요). frontend `ServerTheme` 타입·profile sync guard·`ProfilePreferencesCard` 라벨/토글 옵션·i18n(ko/en `themeSystem`) 추가 — theme-store 는 이미 `prefers-color-scheme` 적용 보유. dto 검증 7건 테스트. (ai-review 가 frontend ripple WARNING 3건을 잡아 동반 구현으로 완결.)
 - [ ] 워크스페이스 전환 시 슬러그 URL 라우팅 (§3 `/w/[slug]/...`) — **frontend**: `/w/[slug]` 라우트 구조(Next.js app router) 신설. 별도 frontend PR.
 

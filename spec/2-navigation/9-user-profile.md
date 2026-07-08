@@ -252,15 +252,17 @@ pending_plans:
 
 ### 5.1 알림 유형별 채널
 
-> **구현 상태**: 아래 "사용자 변경 가능 (채널별 on/off)" 컬럼은 **미구현 (Planned)**. 알림 설정 조회/수정 엔드포인트(`GET/PATCH /api/notifications/settings`, §6.2)와 설정 저장 entity 가 없어, 현재는 표의 기본 채널로 고정 발송된다. (`profile/alerts` 페이지는 채널 on/off 설정이 아니라 별개의 **알림 규칙(failure_rate/duration/llm_cost 임계치)** 관리 화면이다 — §5.4.)
+> **구현 상태 (부분)**: **이메일 채널 on/off 는 구현**됐다 — `user.notification_preferences` JSONB(V010) + `GET/PATCH /api/notifications/settings`(§6.2). 발사 시 채널 계산은 호출자(발사원) 책임이며(data-flow/8-notifications §1), 실행/스케줄 실패는 `NotificationsService.resolveOptOutEmailChannels` 로 사용자 토글을 반영한다. **범위**: (a) **인앱(in_app) 채널 뮤팅은 미구현(Planned)** — 인앱 알림은 항상 벨에 표시. (b) **`마켓플레이스 업데이트`** 는 §5.1상 기본 인앱 only(opt-in)이며 아직 미발사 → 이번 토글 대상 아님(발사 도입 시 opt-in 으로). (c) 이메일 요약(§5.3)은 별도 Planned. (`profile/alerts` 페이지는 채널 설정이 아니라 별개의 **알림 규칙(failure_rate/duration/llm_cost 임계치)** 관리 화면이다 — §5.4.)
 
 | 항목 | 기본 채널 | 사용자 변경 가능 |
 |------|-----------|-----------------|
-| 워크플로우 실행 실패 | 인앱 + 이메일 | O (채널별 on/off) |
-| 스케줄 실행 실패 | 인앱 + 이메일 | O |
-| Integration 만료 | 인앱 + 이메일 | O |
-| 마켓플레이스 업데이트 | 인앱 | O |
+| 워크플로우 실행 실패 | 인앱 + 이메일 | O (이메일 opt-out — 기본 on, `executionFailedEmail`) |
+| 스케줄 실행 실패 | 인앱 + 이메일 | O (이메일 opt-out — 기본 on, `scheduleFailedEmail`) |
+| Integration 만료 | 인앱 (+ 이메일은 opt-in) [^int-email] | O (이메일 opt-in — 기본 off, `integrationExpiryEmail`) |
+| 마켓플레이스 업데이트 | 인앱 | O (미발사 — 도입 시 이메일 opt-in) |
 | 팀 초대 | 인앱 + 이메일 | X (항상 발송) |
+
+[^int-email]: Integration 만료/조치필요 이메일의 **실제 기본값은 OFF(opt-in)** 다 — `notify` 파이프라인이 아니라 노티파이어가 `notification_preferences.integrationExpiryEmail === true` 일 때만 이메일을 붙인다 ([4-integration §11.3](./4-integration.md)). 위 "기본 채널" 열의 "인앱"은 기본 상태, "(+이메일은 opt-in)"은 활성화 후 도달 채널이며, 이는 4-integration §11.2 의 기본 `in_app` 과 이미 정합한다. 남은 표면 차이는 **필드명** — 4-integration §11.2/§11.3 은 옛 이름 `notifyIntegrationExpiryByEmail` 로 서술하나 코드/본 문서는 `integrationExpiryEmail` 이다. 이 필드명 동기화는 planner 후속(`plan/in-progress/spec-sync-user-profile-gaps.md`).
 
 > **팀 초대의 "이메일" 은 초대 링크 이메일이 담당** — 기존 가입자(비멤버) 초대 시 이메일은
 > 수락 토큰을 담은 초대 링크 이메일(`MailService.sendWorkspaceInvitationEmail`)이 발송하고,
@@ -301,12 +303,12 @@ pending_plans:
 | 항목 | 설명 |
 |------|------|
 | 즉시 발송 | 실행 실패, Integration 만료, 팀 초대 |
-| 일일 요약 | 하루 동안의 실패 요약. **미구현 (Planned)** — "설정 가능" 토글은 §5.1 의 알림 설정 저장소가 없어 동작하지 않음 |
+| 일일 요약 | 하루 동안의 실패 요약. **미구현 (Planned)** — 설정 저장소(§5.1 `notification_preferences`)는 존재하나, 일일 요약 **집계·발송 job 과 전용 토글**이 미구현이라 아직 동작하지 않음(별도 PR) |
 | 수신 거부 | 이메일 하단 unsubscribe 링크 |
 
 ### 5.4 알림 규칙 화면 (`/profile/alerts`)
 
-§5.1 의 채널 on/off 설정(미구현)과 별개로, **워크스페이스 단위 알림 규칙(Alert Rule)** 을 관리하는 화면이다. 실패율·평균 실행 시간·LLM 비용이 임계값을 넘으면 알림이 발사된다 — 평가 동작·스케줄은 [data-flow/9-observability.md §1.3](../data-flow/9-observability.md#13-alerts-evaluator) 참조. API 계약은 §6.3.
+§5.1 의 채널 설정(이메일 on/off 구현·인앱 뮤팅 미구현)과 별개로, **워크스페이스 단위 알림 규칙(Alert Rule)** 을 관리하는 화면이다. 실패율·평균 실행 시간·LLM 비용이 임계값을 넘으면 알림이 발사된다 — 평가 동작·스케줄은 [data-flow/9-observability.md §1.3](../data-flow/9-observability.md#13-alerts-evaluator) 참조. API 계약은 §6.3.
 
 | 항목 | 내용 |
 |------|------|
@@ -366,8 +368,8 @@ pending_plans:
 | POST | /api/notifications/mark-all-read | 전체 읽음 처리 |
 | POST | /api/notifications/dismiss-all | 전체 알림 닫기 (soft delete 일괄, `mark-all-read` 와 독립) |
 | POST | /api/notifications/:id/dismiss | 알림 단건 닫기 (soft delete, 멱등) |
-| ~~GET~~ | ~~/api/notifications/settings~~ | 알림 설정 조회 — **미구현 (Planned)**. 라우트·저장 entity 부재 (§5.1 채널 on/off 와 연동) |
-| ~~PATCH~~ | ~~/api/notifications/settings~~ | 알림 설정 수정 — **미구현 (Planned)** |
+| GET | /api/notifications/settings | 알림 이메일 채널 토글 조회 (기본값 해소 — §5.1) |
+| PATCH | /api/notifications/settings | 알림 이메일 채널 토글 부분 수정 (제공 키만 머지) |
 
 ### 6.3 알림 규칙 API
 

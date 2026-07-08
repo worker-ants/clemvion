@@ -623,10 +623,14 @@ describe('ExecutionEngineService', () => {
     async function callDispatch(
       execution: Record<string, unknown>,
       createMany: jest.Mock,
+      channelMap: Map<string, 'both' | 'in_app'> = new Map(),
     ): Promise<void> {
       (
         service as unknown as { notificationsService: unknown }
-      ).notificationsService = { createMany };
+      ).notificationsService = {
+        createMany,
+        resolveOptOutEmailChannels: jest.fn().mockResolvedValue(channelMap),
+      };
       await (
         service as unknown as {
           dispatchExecutionFailedNotification: (
@@ -669,6 +673,38 @@ describe('ExecutionEngineService', () => {
         resourceId: 'wf',
         channel: 'both',
       });
+    });
+
+    it('executionFailedEmail=off(opt-out) 수신자는 channel 인앱만 (per-recipient)', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      mockWorkflowRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'wf',
+        name: 'W',
+        workspaceId: 'ws',
+        createdBy: 'owner',
+      });
+
+      // owner 는 이메일 off → in_app, runner 는 기본 both.
+      await callDispatch(
+        {
+          id: 'ex-pref',
+          workflowId: 'wf',
+          executedBy: 'runner',
+          parentExecutionId: null,
+        },
+        createMany,
+        new Map<string, 'both' | 'in_app'>([
+          ['owner', 'in_app'],
+          ['runner', 'both'],
+        ]),
+      );
+
+      const entries = createMany.mock.calls[0][0] as Array<
+        Record<string, unknown>
+      >;
+      const byUser = new Map(entries.map((e) => [e.userId, e.channel]));
+      expect(byUser.get('owner')).toBe('in_app');
+      expect(byUser.get('runner')).toBe('both');
     });
 
     it('owner==executor 는 dedup 되어 1건', async () => {
@@ -773,7 +809,12 @@ describe('ExecutionEngineService', () => {
       });
       (
         service as unknown as { notificationsService: unknown }
-      ).notificationsService = { createMany };
+      ).notificationsService = {
+        createMany,
+        resolveOptOutEmailChannels: jest
+          .fn()
+          .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+      };
       await (
         service as unknown as {
           dispatchExecutionFailedNotification: (
@@ -813,7 +854,12 @@ describe('ExecutionEngineService', () => {
       });
       (
         service as unknown as { notificationsService: unknown }
-      ).notificationsService = { createMany };
+      ).notificationsService = {
+        createMany,
+        resolveOptOutEmailChannels: jest
+          .fn()
+          .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+      };
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
       ).eventEmitter;

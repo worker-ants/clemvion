@@ -19,7 +19,10 @@ describe('ScheduleRunnerService', () => {
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let workflowRepo: jest.Mocked<Repository<Workflow>>;
   let engine: jest.Mocked<ExecutionEngineService>;
-  let notifications: { notify: jest.Mock };
+  let notifications: {
+    notify: jest.Mock;
+    resolveOptOutEmailChannels: jest.Mock;
+  };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -50,7 +53,12 @@ describe('ScheduleRunnerService', () => {
         },
         {
           provide: NotificationsService,
-          useValue: { notify: jest.fn().mockResolvedValue(undefined) },
+          useValue: {
+            notify: jest.fn().mockResolvedValue(undefined),
+            resolveOptOutEmailChannels: jest
+              .fn()
+              .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+          },
         },
       ],
     }).compile();
@@ -289,6 +297,35 @@ describe('ScheduleRunnerService', () => {
           resourceId: 'wf1',
           channel: 'both',
         }),
+      );
+    });
+
+    it('scheduleFailedEmail=off(opt-out) 인 owner 는 channel 인앱만', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(new Error('enqueue boom'));
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: 'owner-1',
+      } as unknown as Workflow);
+      notifications.resolveOptOutEmailChannels.mockResolvedValue(
+        new Map<string, 'both' | 'in_app'>([['owner-1', 'in_app']]),
+      );
+
+      await expect(service.process(job)).rejects.toThrow('enqueue boom');
+
+      expect(
+        notifications.resolveOptOutEmailChannels,
+      ).toHaveBeenCalledWith(['owner-1'], 'scheduleFailedEmail');
+      expect(notifications.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'in_app' }),
       );
     });
 

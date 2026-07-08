@@ -26,7 +26,11 @@ describe('NotificationsService — dismiss', () => {
     create: jest.Mock;
     update: jest.Mock;
   };
-  let userRepo: { find: jest.Mock };
+  let userRepo: {
+    find: jest.Mock;
+    findOne: jest.Mock;
+    update: jest.Mock;
+  };
   let mail: { sendNotificationEmail: jest.Mock };
   let ws: { emitNotificationEvent: jest.Mock };
   let moduleRefMock: { get: jest.Mock };
@@ -62,7 +66,11 @@ describe('NotificationsService — dismiss', () => {
       create: jest.fn(),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
-    userRepo = { find: jest.fn().mockResolvedValue([]) };
+    userRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     mail = { sendNotificationEmail: jest.fn().mockResolvedValue(undefined) };
     ws = { emitNotificationEvent: jest.fn() };
     // NotificationsService 는 WebsocketService 를 ModuleRef(strict:false) 로 지연 해석.
@@ -859,6 +867,86 @@ describe('NotificationsService — dismiss', () => {
           channel: 'email',
         }),
       ).resolves.toBe(saved);
+    });
+  });
+
+  describe('알림 설정 (§6.2) — getSettings / updateSettings / resolveOptOutEmailChannels', () => {
+    it('getSettings — prefs 없으면 타입별 기본값 해소 (integration off/opt-in, failures on/opt-out)', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'u-1',
+        notificationPreferences: {},
+      });
+      const s = await service.getSettings('u-1');
+      expect(s).toEqual({
+        integrationExpiryEmail: false,
+        executionFailedEmail: true,
+        scheduleFailedEmail: true,
+      });
+    });
+
+    it('getSettings — 저장된 값이 기본값보다 우선', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'u-1',
+        notificationPreferences: {
+          integrationExpiryEmail: true,
+          executionFailedEmail: false,
+        },
+      });
+      const s = await service.getSettings('u-1');
+      expect(s).toMatchObject({
+        integrationExpiryEmail: true,
+        executionFailedEmail: false,
+        scheduleFailedEmail: true, // 미설정 → 기본 on
+      });
+    });
+
+    it('updateSettings — 제공 키만 머지(다른 키 보존) 후 해소값 반환', async () => {
+      userRepo.findOne.mockResolvedValue({
+        id: 'u-1',
+        notificationPreferences: { integrationExpiryEmail: true },
+      });
+      const s = await service.updateSettings('u-1', {
+        executionFailedEmail: false,
+      });
+      expect(userRepo.update).toHaveBeenCalledWith('u-1', {
+        notificationPreferences: {
+          integrationExpiryEmail: true,
+          executionFailedEmail: false,
+        },
+      });
+      expect(s).toMatchObject({
+        integrationExpiryEmail: true, // 보존
+        executionFailedEmail: false, // 갱신
+        scheduleFailedEmail: true,
+      });
+    });
+
+    it('updateSettings — 사용자 없으면 NotFound', async () => {
+      userRepo.findOne.mockResolvedValue(null);
+      await expect(service.updateSettings('nope', {})).rejects.toThrow();
+    });
+
+    it('resolveOptOutEmailChannels — pref false → in_app, 아니면 both, 미조회 사용자는 map 부재', async () => {
+      userRepo.find.mockResolvedValue([
+        { id: 'a', notificationPreferences: { executionFailedEmail: false } },
+        { id: 'b', notificationPreferences: {} },
+      ]);
+      const map = await service.resolveOptOutEmailChannels(
+        ['a', 'b', 'c'],
+        'executionFailedEmail',
+      );
+      expect(map.get('a')).toBe('in_app');
+      expect(map.get('b')).toBe('both');
+      expect(map.has('c')).toBe(false); // 미조회 → 호출부가 ?? 'both' 폴백
+    });
+
+    it('resolveOptOutEmailChannels — 빈 배열이면 조회 없이 빈 map', async () => {
+      const map = await service.resolveOptOutEmailChannels(
+        [],
+        'scheduleFailedEmail',
+      );
+      expect(map.size).toBe(0);
+      expect(userRepo.find).not.toHaveBeenCalled();
     });
   });
 });

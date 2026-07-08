@@ -5,6 +5,7 @@ import {
   Patch,
   Param,
   Query,
+  Body,
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
@@ -23,6 +24,8 @@ import {
 } from '../../common/swagger';
 import { NotificationsService } from './notifications.service';
 import { QueryNotificationDto } from './dto/query-notification.dto';
+import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
+import { NotificationSettingsDto } from './dto/responses/notification-settings-response.dto';
 import {
   MarkAllReadResultDto,
   NotificationDto,
@@ -70,6 +73,38 @@ export class NotificationsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.notificationsService.getUnreadCount(workspaceId, user.sub);
+  }
+
+  @Get('settings')
+  @ApiOperation({
+    summary: '알림 설정 조회',
+    description:
+      '로그인 사용자의 알림 이메일 채널 토글을 반환합니다. JSONB 에 값이 없어도 타입별 기본값(integration=off/opt-in, 실행·스케줄 실패=on/opt-out)이 적용된 해소값입니다.',
+  })
+  @ApiOkWrappedResponse(NotificationSettingsDto, { description: '알림 설정' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async getSettings(
+    @CurrentUser() user: JwtPayload,
+  ): Promise<NotificationSettingsDto> {
+    return this.notificationsService.getSettings(user.sub);
+  }
+
+  @Patch('settings')
+  @ApiOperation({
+    summary: '알림 설정 수정',
+    description:
+      '알림 이메일 채널 토글을 부분 수정합니다(제공된 키만 머지). 수정 후 해소값을 반환합니다.',
+  })
+  @ApiOkWrappedResponse(NotificationSettingsDto, {
+    description: '수정된 알림 설정',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '사용자를 찾을 수 없음' })
+  async updateSettings(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateNotificationSettingsDto,
+  ): Promise<NotificationSettingsDto> {
+    return this.notificationsService.updateSettings(user.sub, dto);
   }
 
   @Patch(':id/read')
