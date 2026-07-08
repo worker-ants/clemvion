@@ -292,6 +292,26 @@ info-leak 이 커지지 않는다. **완전한 토큰 SoT(및 검증 수렴)는 
 > 모델에서 "활성(active) 워크스페이스" 라는 의미를 필드명이 직접 드러내는 편이 낫다는 판단이며, dual-read 로 과도기
 > 비용을 흡수한다. **이 절 전체(토큰 SoT·rename·dual-read)는 구현됐다** (§Overview 상태 노트).
 
+### URL slug = FE 라우팅 SoT (≠ backend 인가 SoT)
+
+프론트는 활성 워크스페이스를 **URL 경로**(`/w/<slug>/...`)로 반영한다(2-navigation/9-user-profile §3, 구현 완료).
+`(main)/w/[slug]` layout 이 slug 를 워크스페이스로 해소해 위 토큰-SoT 흐름을 구동한다. 핵심 불변식:
+
+- **계층 분리**: URL slug 는 **FE 라우팅의 SoT** 일 뿐, **backend 인가의 SoT 가 아니다**. 인가는 여전히 위
+  header-first(`X-Workspace-Id`) → 토큰 클레임(`activeWorkspaceId`) 모델이 결정하며, slug 라우팅은 그 위에서
+  헤더가 유래하는 값의 출처만 바꾼다. 따라서 이 절의 격리 모델·우선순위·`RolesGuard` 403 은 **무번복**이다
+  (slug 라우팅이 token-first 로의 회귀를 의미하지 않는다 — token-first 는 격리 회귀로 이미 기각됨).
+- **`X-Workspace-Id` 헤더 유지가 전제**: slug 라우팅은 axios 인터셉터의 헤더 첨부(`client.ts`) 지속을 전제로
+  설계됐다. 헤더 제거는 본 범위 밖 별도 결정이며, 라우팅이 그것을 앞당기지 않는다.
+- **FE 멤버십 체크 = UX 전용**: `[slug]` layout 의 비멤버/무효 slug → default 워크스페이스 redirect 는 **편의**
+  이며 인가 경계가 아니다. 헤더 스푸핑은 `RolesGuard` 가 이미 403 으로 차단한다.
+- **reconcile 방향 = URL 우선**: cold-load(딥링크·북마크) 시 `[slug]` layout 이 URL 워크스페이스로 store·토큰을
+  재조정한다. `/w/<slug>` 라우트에서는 §1.5 의 store-우선 reconcile-on-load 대신 **URL 우선**이 적용된다(레이스
+  방지 — AuthProvider 는 `pathname` 이 `/w/` 로 시작하면 persisted reconcile 을 건너뛴다). slug 없는 라우트
+  (에디터·docs·catch-all)에서는 종전대로 localStorage 힌트 기준.
+- **slug 불변**: slug 는 생성 시 `team-<uuid8>`/개인 규칙으로 확정되고 이후 불변(`workspace.slug` UNIQUE, V001).
+  rename 은 name 만 바꾸고 URL 을 바꾸지 않으므로 딥링크가 안정적이다.
+
 ### workspace.deleted 감사 제외 (구조적 제약)
 
 결정4(audit 확대)는 workspace CRUD 전체를 감사하려 했으나, **`workspace.deleted` 는 의도적으로 기록하지

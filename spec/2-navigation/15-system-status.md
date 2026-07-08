@@ -9,7 +9,7 @@ code:
 
 > 관련 문서: [PRD 내비게이션](./_product-overview.md#39-system-status-시스템-상태) · [Spec 레이아웃](./_layout.md) · [Spec 시스템 상태 API](../5-system/16-system-status-api.md) · [Spec 통계 화면](./7-statistics.md)
 
-전체 시스템(BullMQ 큐)이 정상 운영 중인지를 집계 지표로 보여주는 읽기 전용 status 화면. 경로 `/system-status`.
+전체 시스템(BullMQ 큐)이 정상 운영 중인지를 집계 지표로 보여주는 읽기 전용 status 화면. 경로 `/w/<slug>/system-status` (활성 워크스페이스 slug 기준 — [_layout §2.2](./_layout.md#22-메뉴-항목)).
 
 ## 1. 화면 구조
 

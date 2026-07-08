@@ -439,8 +439,8 @@ code:
 
 ### 7.2 로그인 후 리다이렉트
 
-- 로그인 성공 시 `redirect` 파라미터가 있으면 해당 URL로 이동
-- 없으면 기본: `/dashboard` (대시보드)
+- 로그인 성공 시 `redirect` 파라미터가 있으면 해당 URL로 이동 (슬러그 경로 `/w/<slug>/…` 는 그대로, 구 무-slug 경로는 아래 catch-all 이 흡수)
+- 없으면 기본: `/dashboard` — 이는 `(main)/[...rest]` catch-all 이 **활성 워크스페이스의 `/w/<slug>/dashboard`** 로 해소한다 (URL slug = FE 라우팅 SoT, [9-user-profile §3](./9-user-profile.md#3-워크스페이스-전환)). 로그인 폼은 slug 를 알기 전이라 `/dashboard` 로 보내고, 워크스페이스 목록 로드 후 catch-all 이 slug URL 로 forward 한다 (redirect-only 중간 경로라 flash 허용).
 
 ### 7.3 로그아웃
 

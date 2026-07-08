@@ -82,6 +82,8 @@ code:
 | 12 | Agent Memory | 두뇌 회로 아이콘 (BrainCircuit) | /agent-memory | 에이전트 장기 메모리 조회·관리. 상세는 [Agent Memory](./16-agent-memory.md) 참조 |
 | 13 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
+> **경로는 활성 워크스페이스 기준**: 위 표의 경로는 논리 경로이며, 실제 URL 은 `/w/<slug>/<경로>` 로 렌더된다 (사이드바가 `buildWorkspaceHref(slug, path)` 로 생성; URL slug = FE 라우팅 SoT, [9-user-profile §3](./9-user-profile.md#3-워크스페이스-전환)). 구 무-slug 경로로 진입하면 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다. **예외 — User Guide(`/docs`)는 워크스페이스 무관 콘텐츠라 slug 밖으로 유지**한다(에디터 `/workflows/[id]`·인증 `(auth)` 도 동일).
+
 <!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(11) 이후에 배치한다. -->
 
 ### 2.3 사이드바 동작
@@ -120,6 +122,8 @@ code:
     | `execution_failed` · `background_failed` · `schedule_failed` | `/workflows/<resource_id>` (resource_id = workflow id) | `/workflows` |
     | `team_invite` | `/profile` (id 불요) | — |
     | 그 외 / type 없음 | 라우팅 없음 | — |
+
+    > **slug 흡수**: `href.ts` 가 반환하는 위 경로는 무-slug 형태다. `(main)` 페이지 경로(`/integrations/…`·`/profile`)는 클릭 시 `(main)/[...rest]` catch-all 이 활성 워크스페이스의 `/w/<slug>/…` 로 흡수한다(URL slug = FE 라우팅 SoT). **예외 — `/workflows/<id>`(실패류)는 에디터 라우트라 phase 1 에서 slug 밖**이므로 그대로다. 알림은 항상 발사 시점 활성 워크스페이스 스코프라(8-notifications §1) 흡수가 안전하다.
 
   - 팝오버 헤더 우측 메뉴에 "모두 읽음 처리"(`POST /notifications/mark-all-read`) 와 "모두 지우기"(`POST /notifications/dismiss-all`) 일괄 액션을 분리해 노출한다. 두 액션은 독립이며 한쪽이 다른쪽을 함의하지 않는다.
   - 자세한 read/dismiss 라이프사이클·DTO·type 발사 조건은 [data-flow/8-notifications.md](../data-flow/8-notifications.md#3-상태-전이) (§1.1 type 분류, §3-§4 상태 전이) 참조.
