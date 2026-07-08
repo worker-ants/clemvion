@@ -11,6 +11,9 @@ export function buildWorkspaceHref(
   slug: string | null | undefined,
   path: string,
 ): string {
-  const clean = path.startsWith("/") ? path : `/${path}`;
+  // 선두 슬래시를 하나로 정규화한다 — protocol-relative(`//host`) 입력이 open-redirect 로
+  // 이어지지 않도록(특히 slug 폴백 분기가 caller path 를 그대로 반환하므로). `//evil.com` →
+  // `/evil.com`(same-origin), `/foo`·`foo` → `/foo`.
+  const clean = `/${String(path).replace(/^\/+/, "")}`;
   return slug ? `/w/${slug}${clean}` : clean;
 }

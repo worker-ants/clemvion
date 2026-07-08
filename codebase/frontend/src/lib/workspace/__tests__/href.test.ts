@@ -23,4 +23,12 @@ describe("buildWorkspaceHref", () => {
   it("falls back to the bare path when slug is undefined", () => {
     expect(buildWorkspaceHref(undefined, "/profile")).toBe("/profile");
   });
+
+  it("collapses protocol-relative leading slashes (open-redirect defense)", () => {
+    // `//evil.com/x` must not survive as a protocol-relative URL.
+    expect(buildWorkspaceHref("team-a", "//evil.com/x")).toBe(
+      "/w/team-a/evil.com/x",
+    );
+    expect(buildWorkspaceHref(null, "//evil.com/x")).toBe("/evil.com/x");
+  });
 });

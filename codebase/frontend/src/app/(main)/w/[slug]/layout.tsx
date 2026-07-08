@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { useWorkspaces } from "@/lib/workspace/use-workspaces";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { resolveFallbackWorkspace } from "@/lib/workspace/resolve-fallback";
 
 /**
  * `/w/[slug]/...` 워크스페이스 컨텍스트 layout.
@@ -53,8 +54,7 @@ export default function WorkspaceSlugLayout({
   // 무효/비멤버 slug → default 워크스페이스 dashboard (UX 전용).
   useEffect(() => {
     if (!loaded || resolved || workspaces.length === 0) return;
-    const fallback =
-      workspaces.find((w) => w.id === currentWorkspaceId) ?? workspaces[0];
+    const fallback = resolveFallbackWorkspace(workspaces, currentWorkspaceId);
     if (fallback) {
       router.replace(buildWorkspaceHref(fallback.slug, "/dashboard"));
     }

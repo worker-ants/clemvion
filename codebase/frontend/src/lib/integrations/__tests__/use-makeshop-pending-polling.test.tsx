@@ -44,6 +44,7 @@ vi.mock("@/lib/api/integrations", () => ({
 }));
 
 import { useMakeshopPendingPolling } from "../use-makeshop-pending-polling";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 function makeRow(overrides: Record<string, unknown>) {
   return {
@@ -81,6 +82,8 @@ describe("useMakeshopPendingPolling", () => {
     mockReplace.mockReset();
     toastSuccess.mockReset();
     getMock.mockReset();
+    // slug 는 store 파생 — 케이스 간 누수 방지 (기본 slug null → bare path).
+    useWorkspaceStore.getState().reset();
   });
 
   afterEach(() => {
@@ -96,6 +99,23 @@ describe("useMakeshopPendingPolling", () => {
       expect(result.current.poll?.status).toBe("pending_install"),
     );
     expect(result.current.timedOut).toBe(false);
+  });
+
+  it("routes to the slug-prefixed detail path when a workspace is active", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws", name: "W", type: "personal", slug: "team-x", role: "owner" },
+      ],
+      currentWorkspaceId: "ws",
+      loaded: true,
+    });
+    getMock.mockResolvedValue(makeRow({ status: "connected" }));
+    renderHook(() => useMakeshopPendingPolling("int-ms-1"), { wrapper });
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/w/team-x/integrations/int-ms-1",
+      ),
+    );
   });
 
   it("transitions on connected — invalidates list + routes to detail", async () => {

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { useWorkspaces } from "@/lib/workspace/use-workspaces";
 import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { resolveFallbackWorkspace } from "@/lib/workspace/resolve-fallback";
 
 /**
  * `(main)` 그룹의 slug 없는 경로를 활성 워크스페이스 slug 로 흡수하는 catch-all 리다이렉트.
@@ -28,8 +29,7 @@ export default function WorkspaceRedirect() {
 
   useEffect(() => {
     if (!loaded) return;
-    const active =
-      workspaces.find((w) => w.id === currentWorkspaceId) ?? workspaces[0];
+    const active = resolveFallbackWorkspace(workspaces, currentWorkspaceId);
     if (!active) return;
     const rest = Array.isArray(params.rest) ? params.rest : [];
     const path = rest.length > 0 ? `/${rest.join("/")}` : "/dashboard";
