@@ -131,7 +131,7 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 
 ## 9. 향후 확장 (본 컨벤션 범위 밖)
 
-- Loop / ForEach 의 중첩 깊이 정책 (도입 시)
+- ~~Loop / ForEach 의 중첩 깊이 정책~~ → **미도입 확정** (2026-07-08): 컨테이너 중첩은 허용하되 깊이 상한·레벨별 시각 표시를 두지 않기로 결정 ([canvas §11.4 / §Rationale R-4](../3-workflow-editor/0-canvas.md#114-중첩)). 사이클만 `CONTAINER_CYCLE` 로 거부.
 - Map / Filter 의 부모 컨테이너 contextual 검증
 - ~~workflow-level graph 검증 (cyclic, unreachable)~~ → **cyclic 은 구현됨** (`graph:unescapable-cycle`, §8 · 편집기 warn-not-block). `unreachable`(도달 불가 노드) 탐지는 미도입.
 
