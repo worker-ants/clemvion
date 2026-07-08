@@ -138,7 +138,9 @@ ExecutionEngine → WebsocketService.emitExecutionEvent/emitNodeEvent
 GET /api/external/executions/:id/stream  (InteractionGuard — EventSource 호환 위해 ?token= 쿼리 허용)
   → 동시 구독 3개 초과 시 429 TOO_MANY_CONNECTIONS
   → Last-Event-Id 헤더(또는 ?lastEventId=) 이후 seq 를 buffer 에서 replay → live 합류
+     · buffer 가 요청 범위를 못 채우면(만료/폐기 gap) execution.replay_unavailable(seq=0) 1회 emit → 클라 REST 재조회
   → frame: `event: <eventType>` / `id: <seq>` / `data: <JSON payload>` + 15s heartbeat comment
+     · control frame(execution.replay_unavailable, seq≤0)은 `id:` 라인 생략
   → terminal event (execution.completed/failed/cancelled) 발송 후 자동 종료
 ```
 

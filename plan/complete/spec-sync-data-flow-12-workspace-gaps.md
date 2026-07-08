@@ -2,9 +2,15 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/data-flow/12-workspace.md
+  - spec/5-system/1-auth.md
+  - spec/5-system/2-api-convention.md
 ---
 
 # data-flow/12-workspace — spec 약속 대비 미구현 surface
+
+> **완료 (2026-07-08 grooming)**: 4개 결정 전량 채택·구현·spec 반영 완료(switch 엔드포인트 `POST /api/auth/workspaces/:id/switch`, `activeWorkspaceId` dual-read 클레임, V108/V109 personal 유니크 가드/인덱스, `workspace.*`/`member.*` audit 5액션 — `workspace.deleted` 는 CASCADE 로 구조적 제외). 재검증(2026-07-08)에서 코드 실재 확인. 미해결 항목 0 → `complete/` 이동.
 
 > 출처: 2026-06-03 spec-vs-code audit (review/spec-coverage/2026/06/03/08_05_49). data-flow 문서라 frontmatter status 강제 대상은 아니나, 본문이 현재형으로 약속한 미구현 surface 를 분리 추적한다.
 > 관련 spec: spec/data-flow/12-workspace.md

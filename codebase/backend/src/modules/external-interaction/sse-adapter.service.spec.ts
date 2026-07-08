@@ -1,5 +1,7 @@
 import { Subject } from 'rxjs';
+import type { Response } from 'express';
 import { SseAdapter, SseSubscriber } from './sse-adapter.service';
+import { writeSseFrame } from './interaction-stream.controller';
 import type {
   ExecutionChannelEvent,
   WebsocketService,
@@ -159,6 +161,125 @@ describe('SseAdapter', () => {
     adapter.onModuleDestroy();
     expect(adapter.subscriberCount('exec-1')).toBe(0);
     expect(adapter.bufferSize('exec-1')).toBe(0);
+  });
+
+  describe('execution.replay_unavailable — 버퍼 gap 시 재조회 신호 (§5.2 / EIA-IN-07 / EIA-NF-03)', () => {
+    it('cap 폐기로 gap → replay_unavailable 1회 emit, 부분 replay 안 함', () => {
+      // seq 1..1010 → MAX_BUFFER_PER_EXEC(1000) 상한으로 seq 1..10 폐기, buffer=[11..1010]
+      for (let i = 1; i <= 1010; i++) {
+        subject.next(ev('exec-1', 'execution.node.started', i));
+      }
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 5); // 클라는 seq>5 원하나 6..10 은 폐기됨
+      expect(pushed).toHaveLength(1);
+      expect(pushed[0].eventType).toBe('execution.replay_unavailable');
+      expect(pushed[0].seq).toBe(0);
+      expect(pushed[0].payload).toMatchObject({
+        executionId: 'exec-1',
+        lastEventId: 5,
+      });
+    });
+
+    it('버퍼 만료(>5분)로 gap → replay_unavailable emit', () => {
+      jest.useFakeTimers();
+      try {
+        jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+        subject.next(ev('exec-1', 'execution.started', 1));
+        subject.next(ev('exec-1', 'execution.node.started', 2));
+        jest.setSystemTime(new Date('2026-01-01T00:06:00Z')); // 6분 경과 → 5분 buffer 만료
+        const { sub, pushed } = makeSub('exec-1');
+        adapter.subscribe(sub, 1); // seq>1 원하나 seq2 만료
+        expect(pushed).toHaveLength(1);
+        expect(pushed[0].eventType).toBe('execution.replay_unavailable');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('연속(contiguous) buffer → 정상 replay, replay_unavailable 미emit', () => {
+      subject.next(ev('exec-1', 'execution.started', 1));
+      subject.next(ev('exec-1', 'execution.node.started', 2));
+      subject.next(ev('exec-1', 'execution.node.completed', 3));
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 1);
+      expect(pushed.map((e) => e.seq)).toEqual([2, 3]);
+      expect(
+        pushed.some((e) => e.eventType === 'execution.replay_unavailable'),
+      ).toBe(false);
+    });
+
+    it('lastEventId=0 첫 연결 seed — buffer 가 seq1 부터면 gap 아님, 전체 replay', () => {
+      subject.next(ev('exec-1', 'execution.started', 1));
+      subject.next(ev('exec-1', 'execution.node.started', 2));
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 0);
+      expect(pushed.map((e) => e.seq)).toEqual([1, 2]);
+      expect(
+        pushed.some((e) => e.eventType === 'execution.replay_unavailable'),
+      ).toBe(false);
+    });
+
+    it('lastEventId=0 인데 초기 이벤트가 폐기됐으면 gap → replay_unavailable', () => {
+      for (let i = 1; i <= 1010; i++) {
+        subject.next(ev('exec-1', 'execution.node.started', i));
+      }
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 0); // seq1 부터의 전체 seed 불가(buffer=[11..1010])
+      expect(pushed).toHaveLength(1);
+      expect(pushed[0].eventType).toBe('execution.replay_unavailable');
+    });
+
+    it('클라이언트가 최신까지 수신했으면(wanted 없음) replay_unavailable 미emit', () => {
+      subject.next(ev('exec-1', 'execution.started', 1));
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 1); // seq>1 없음 → 누락 아님
+      expect(pushed).toEqual([]);
+    });
+
+    it('소수 lastEventId 는 floor 로 정규화 — 연속 buffer 오탐 없이 정상 replay', () => {
+      subject.next(ev('exec-1', 'execution.started', 1));
+      subject.next(ev('exec-1', 'execution.node.started', 2));
+      subject.next(ev('exec-1', 'execution.node.completed', 3));
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 1.5); // floor(1.5)=1 → seq>1 replay
+      expect(pushed.map((e) => e.seq)).toEqual([2, 3]);
+      expect(
+        pushed.some((e) => e.eventType === 'execution.replay_unavailable'),
+      ).toBe(false);
+    });
+
+    it('배열 중간 hole(seq 유실) 도 gap 으로 판정 → replay_unavailable', () => {
+      // 연속이 아닌 seq 를 직접 주입(3 유실) — 선두만 보는 판정이면 놓칠 케이스.
+      subject.next(ev('exec-1', 'execution.started', 1));
+      subject.next(ev('exec-1', 'execution.node.started', 2));
+      subject.next(ev('exec-1', 'execution.node.completed', 4));
+      const { sub, pushed } = makeSub('exec-1');
+      adapter.subscribe(sub, 0); // 재생가능 [1,2,4] — 1→2 연속이나 2→4 hole
+      expect(pushed).toHaveLength(1);
+      expect(pushed[0].eventType).toBe('execution.replay_unavailable');
+    });
+
+    it('wiring — seq=0 replay_unavailable 가 writeSseFrame 통과 시 `id:` 없는 프레임', () => {
+      for (let i = 1; i <= 1010; i++) {
+        subject.next(ev('exec-1', 'execution.node.started', i));
+      }
+      const chunks: string[] = [];
+      const res = {
+        write: (s: string) => {
+          chunks.push(s);
+          return true;
+        },
+      } as unknown as Response;
+      const wired: SseSubscriber = {
+        id: 'wired',
+        executionId: 'exec-1',
+        push: (e) => writeSseFrame(res, e), // 실제 컨트롤러 직렬화 경로
+      };
+      adapter.subscribe(wired, 5); // cap 폐기 gap
+      const lines = chunks.join('').split('\n');
+      expect(lines).toContain('event: execution.replay_unavailable');
+      expect(lines.some((l) => l.startsWith('id:'))).toBe(false);
+    });
   });
 
   // W-3 passthrough 검증: SseAdapter 는 executionEvents$ 에서 받은 payload 를

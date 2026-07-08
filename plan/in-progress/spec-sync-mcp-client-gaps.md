@@ -17,10 +17,10 @@ owner: planner
 > cluster** 로 묶여 별도 PR 권장 — ProviderBuildCtx.mcpDiagnostics 인터페이스 + buildMcpDiagnosticsMeta +
 > 전 push 사이트 동시 변경. §3.3 capability 캐시는 Integration 엔티티 credentials 구조 변경(infra)으로 별도.
 
-- [ ] §6.2 `mcpDiagnostics` 의 `attempted`/`serverCount`/`toolCalls`/`resourceReads`/`promptGets`/`errors[]` 필드 emit — **타입 확장 cluster**: 현재 `mcpDiagnostics` 가 `McpServerSummary[]` 단일 배열이라, 위 필드를 담으려면 구조화 객체로 승격 필요(전 소비/생산처 동시 변경).
+- [x] §6.2 `mcpDiagnostics` 의 `attempted`/`serverCount`/`toolCalls`/`resourceReads`/`promptGets`/`errors[]` 필드 emit — **완료 (2026-07-06 타입확장 cluster PR)**: `McpDiagnosticsAccumulator` 구조화 승격 + `buildMcpDiagnosticsMeta` 파생. 코드/테스트/spec-sync 전량 반영 확인(아래 §완료 요약).
 - [x] §6.2 외부 `service_type='mcp'` 통합의 진단 표면 노출 — **완료**: `McpToolProvider.materializeServer` 가 connect+list 성공 시 connected serverSummary(toolCount) push, `openServer` 가 serviceType=mcp 확정 이후 status/connect/list 실패 시 skipped(skipReason=error) push(Cafe24 Internal Bridge 와 대칭). serviceType 판정 전 lookup 실패는 미push(double-push 회피). 테스트 2건.
-- [ ] §8.2 `MCP_TIMEOUT` 코드 emit — **타입 확장 cluster**: 코드 granularity 는 `errors[]` 필드(위)에 담겨야 의미 — skipReason vocabulary(error/expired_*/...)에는 timeout/connect/list 값이 없음.
-- [ ] §8.2 `MCP_CONNECT_FAILED` / `MCP_LIST_FAILED` buildTools surface — **타입 확장 cluster**: 동상. 현재는 skipped(skipReason=error)로 일괄 표면화, 코드 분류는 errors[] 도입 시.
+- [x] §8.2 `MCP_TIMEOUT` 코드 emit — **완료 (2026-07-06 타입확장 cluster PR)**: `with-timeout.ts` `TimeoutError` 기반 build-phase 분류로 `mcp-tool-provider.ts` `errors[]` push. 확인.
+- [x] §8.2 `MCP_CONNECT_FAILED` / `MCP_LIST_FAILED` buildTools surface — **완료 (2026-07-06 타입확장 cluster PR)**: connect/status precheck→`MCP_CONNECT_FAILED`, tools/list→`MCP_LIST_FAILED` phase 분류 emit. 확인.
 - [ ] §3.3 `credentials.cached_capabilities` capability 캐시 — **보류 (infra)**: Integration 엔티티 credentials JSONB 구조 변경 + preview test 저장 경로. spec L142-148 Planned(캐시는 hint, 실행 시 재조회).
 
 ## 타입 확장 cluster — 착수 설계 (2026-07-06)
