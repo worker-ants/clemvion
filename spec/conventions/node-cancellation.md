@@ -4,6 +4,7 @@ status: partial
 code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
+  - codebase/backend/src/nodes/integration/database-query/database-query.handler.ts
   - codebase/backend/src/modules/executions/executions.controller.ts
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
@@ -41,9 +42,9 @@ pending_plans:
 |---|---|
 | `fetch(url, init)` | `init.signal = context.abortSignal` (자체 timeout 과 결합 시 cascade — 본 컨벤션 §4). **구현됨** (HTTP 노드) |
 | Anthropic SDK | `client.messages.create({ ..., signal })`. **구현됨** (AI 노드 — ai-agent / text-classifier / information-extractor). **단, IE(`information-extractor`) 의 multi-turn resume/continuation 경로(`processMultiTurnMessage`)는 abort 컨텍스트가 없어 signal 미전파 — 초기 실행 경로(`executeMultiTurn`)만 전파.** resume 경로는 turn 경계에서 abort 체크를 도입하는 별도 작업으로 추적 (`node-cancellation-infrastructure.md`). |
-| PostgreSQL (`pg`) | `client.cancel()` 호출을 `signal.addEventListener('abort', ...)` 으로 등록. **미구현 (Planned)** — 현재 DB 노드는 진입 직전 `abortSignal?.aborted` 사전 체크만 (in-flight 쿼리 중단 X) |
-| MongoDB | driver 의 `signal` 옵션 직접 전달. **미구현 (Planned)** |
-| Email (nodemailer) | connection close 를 signal abort 시 등록. **미구현 (Planned)** — 현재 Email 노드는 진입 직전 사전 체크만 |
+| PostgreSQL (`pg`) / MySQL (`mysql2`) | `signal.addEventListener('abort', ...)` 로 in-flight 취소 등록. **구현됨** — abort 시 **별도 pool 연결**로 PG `SELECT pg_cancel_backend(<pid>)` / MySQL `KILL QUERY <threadId>` 를 발행해 진행 중 쿼리만 끊는다(연결 유지). 취소로 인한 driver 에러(PG `57014`/MySQL `ER_QUERY_INTERRUPTED`)는 catch 에서 `AbortError` 로 재throw 해 `cancelled` 로 분류(§5). best-effort — 취소 권한(PG owner / MySQL `PROCESS`)·타이밍에 의존하며 실패해도 무해. 정상 완료 시 리스너 해제(누수 방지). |
+| MongoDB | driver 의 `signal` 옵션 직접 전달. **미구현 (Planned)** — 현 DB 노드는 pg/mysql 만 지원(mongo 미도입) |
+| Email (nodemailer) | **의도적 best-effort — in-flight 미채택**. `transporter.close()` 를 전송 중 호출하면 부분/중복 전송 리스크가 있어 진입 직전 `abortSignal?.aborted` 사전 체크만 유지한다(SMTP 전송은 통상 단시간). 향후 안전한 중단 방식이 확인되면 재검토. |
 | OpenAI SDK | `client.chat.completions.create({ ..., signal })` (OpenAI 사용 노드 도입 시) |
 
 abort 시 throw 되는 `AbortError` 류는 노드가 그대로 throw — 엔진의 `errorPolicyHandler` 가 그 에러를 cancelled 의미로 분류한다 (별도 처리 없음).
@@ -131,8 +132,8 @@ if (upstream) {
 | AI 노드 signal 단위 테스트 | ✓ | `text-classifier.handler.spec.ts` · `information-extractor.handler.spec.ts`(single-turn; multi-turn 초기 경로는 W4) · `ai-agent.handler.spec.ts`(SUMMARY#16) — `context.abortSignal` 이 `llmService.chat` 으로 전파됨을 검증 |
 | Parallel `cancel-others-on-fail` 통합 | ✓ | `parallel-executor.ts` — `errorPolicy==='cancel-others-on-fail'` 시 그룹 `AbortController` 생성, 첫 분기 실패 시 abort, upstream cascade (parallel-p2 §5) |
 | 사용자 cancel (`POST /executions/:id/stop` + 툴바 Stop) | ✓ | `executions.controller.ts` / `executions.service.ts` / `editor-toolbar.tsx` (§2.3) |
-| DB 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`database-query.handler.ts` — 진입 직전 `abortSignal?.aborted` → AbortError). in-flight `pg.client.cancel` 은 미구현 (Planned) |
-| Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP `transporter.close()` 는 미구현 (Planned) |
+| DB 노드 signal 전파 | ✓ | 사전 abort 체크 + **in-flight 취소** (`database-query.handler.ts` — abort 시 별도 연결로 PG `pg_cancel_backend`/MySQL `KILL QUERY`, 취소 driver 에러→`AbortError` 재throw). 단위 테스트 `database-query.handler.spec.ts` 의 `in-flight cancellation (node-cancellation §2.1)` describe |
+| Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP 중단은 **의도적 best-effort(미채택)** — `transporter.close()` 부분/중복 전송 리스크 |
 | chat-channel 노드 signal 전파 | — | 미구현 (Planned) |
 | MakeShop 노드 signal 전파 | — | 미구현 (Planned) — `makeshop-api.client.ts` 는 자체 timeout 용 `AbortController` 만 사용, `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2) 모두 없음. `node-cancellation-infrastructure.md` 추적 |
 | Cafe24 노드 signal 전파 | — | 미구현 (Planned) — MakeShop 과 동일 상태 (`cafe24-api.client.ts`). `node-cancellation-infrastructure.md` 추적 |

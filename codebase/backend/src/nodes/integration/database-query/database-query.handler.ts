@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
-import { Pool, PoolClient } from 'pg';
+import { Pool, Client as PgClient } from 'pg';
 import {
   createPool as mysqlCreatePool,
+  createConnection as mysqlCreateConnection,
   Pool as MysqlPool,
   ResultSetHeader,
   RowDataPacket,
@@ -63,7 +64,47 @@ export type QueryType =
 
 const POOL_MAX_CONNECTIONS = 5;
 const POOL_IDLE_TIMEOUT_MS = 30_000;
+// in-flight 취소용 일회성 연결의 connect / 취소-쿼리 timeout (짧게 — best-effort).
+const CANCEL_CONNECT_TIMEOUT_MS = 2_000;
+const CANCEL_QUERY_TIMEOUT_MS = 2_000;
 const logger = new Logger('DatabaseQueryHandler');
+
+/** `AbortError` (name 기반) — 엔진이 `cancelled` 로 분류하는 표준 취소 에러. */
+function makeAbortError(): Error {
+  const err = new Error('Operation aborted');
+  err.name = 'AbortError';
+  return err;
+}
+
+/**
+ * `promise` 가 settle 하거나 `ms` 경과 중 먼저 발생하는 시점에 resolve(항상 void,
+ * 절대 reject 안 함). 취소 명령이 무한 pending 해 호출부의 `release()` 를 막지
+ * 않도록 상한을 건다 — 타임아웃 시 호출부의 `end()` 가 일회성 연결을 닫아 서버측
+ * pending 쿼리도 함께 정리된다.
+ */
+function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void promise
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+  });
+}
+
+/** PG `57014 query_canceled` — 우리가 발행한 `pg_cancel_backend` 로 인한 취소. */
+function isPgQueryCanceled(err: unknown): boolean {
+  return err instanceof Error && (err as { code?: string }).code === '57014';
+}
+
+/** MySQL `ER_QUERY_INTERRUPTED`(1317) — 우리가 발행한 `KILL QUERY` 로 인한 취소. */
+function isMysqlQueryInterrupted(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const e = err as { code?: string; errno?: number };
+  return e.code === 'ER_QUERY_INTERRUPTED' || e.errno === 1317;
+}
 
 export class DatabaseQueryHandler
   extends IntegrationHandlerBase
@@ -134,9 +175,10 @@ export class DatabaseQueryHandler
   ): Promise<NodeHandlerOutput> {
     // parallel-p2-followups §1 (2026-05-30) — node-cancellation 컨벤션.
     // 노드 진입 직전 이미 abort 된 경우 (cancel-others-on-fail 첫 분기 실패
-    // 후 dispatch 된 케이스) 즉시 throw. 진행 중 abort 의 처리는 driver 별
-    // cancel 메커니즘 (best-effort) — 후속 PR 에서 PostgreSQL pg.client.cancel
-    // 등 추가. 본 PR 은 사전 체크 + best-effort 명시.
+    // 후 dispatch 된 케이스) 즉시 throw. 진행 중(in-flight) abort 는 driver 별
+    // cancel(§2.1)로 처리한다 — PG `pg_cancel_backend(pid)` / MySQL `KILL QUERY
+    // <threadId>` 를 **일회성 별도 연결**로 발행(executePostgres/executeMysql). 취소로
+    // 인한 driver 에러(57014/ER_QUERY_INTERRUPTED)만 `AbortError` 로 재throw 해 `cancelled` 분류.
     if (context.abortSignal?.aborted) {
       const err = new Error('Operation was aborted before database query');
       err.name = 'AbortError';
@@ -239,12 +281,14 @@ export class DatabaseQueryHandler
               creds as DbCredentials,
               query,
               parameters,
+              context.abortSignal,
             )
           : await this.executePostgres(
               integrationId,
               creds as DbCredentials,
               query,
               parameters,
+              context.abortSignal,
             );
       const durationMs = Date.now() - start;
       await this.logUsage(context, {
@@ -268,6 +312,14 @@ export class DatabaseQueryHandler
         error: toLogError(err),
         api: { method: apiMethod, path: driver },
       }).catch(() => {});
+      // node-cancellation §5 — in-flight 취소로 `executePostgres`/`executeMysql`
+      // 이 던진 `AbortError` (쿼리 취소로 driver 가 reject → AbortError 승격)는 D4
+      // error-포트 매핑을 우회해 그대로 재throw → 엔진이 노드를 `cancelled` 로 분류.
+      // `abortSignal.aborted` 광의 판정이 아니라 **실제 AbortError 만** 재throw 해,
+      // 취소와 무관한 실패(resolve/SSRF/파라미터 파싱 등)를 오분류하지 않는다.
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw err;
+      }
       // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
       // SSRF 차단 → `DB_HOST_BLOCKED` 등) 는 그대로 code 를 surface, 그 외 (SQL
       // throw 등) 는 driver-specific mapper 로 분류. SSRF guard 의 plain Error 는
@@ -296,33 +348,67 @@ export class DatabaseQueryHandler
     creds: DbCredentials,
     query: string,
     parameters: unknown[],
+    abortSignal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
     const pool = this.resolveMysqlPool(integrationId, creds);
     // mysql2 uses `?` placeholders. Convert `$1, $2, ...` from the
     // PostgreSQL-flavoured UI hint into positional `?` marks. Parameters
     // are still bound positionally against `parameters[]`.
     const sql = convertPgPlaceholders(query);
-    const [rawRows, fields] = await pool.query(sql, parameters);
-    if (Array.isArray(rawRows)) {
-      const rows = rawRows as RowDataPacket[];
-      return {
-        rows,
-        rowCount: rows.length,
-        fields: Array.isArray(fields)
-          ? fields.map((f) => ({
-              name: f.name,
-              dataTypeID: f.columnType,
-            }))
-          : undefined,
-      };
+    // getConnection 으로 명시 획득 — in-flight cancel(§2.1)에 connection `threadId`
+    // 가 필요하다. abort 시 **일회성 별도 연결**로 `KILL QUERY <threadId>` 를 발행해
+    // 진행 중 쿼리만 끊는다(연결은 유지). best-effort — 권한(PROCESS)·타이밍에 의존.
+    const connection = await pool.getConnection();
+    // connect 대기 중 abort → 쿼리 시작 없이 즉시 취소(pre-dispatch 와 동일).
+    if (abortSignal?.aborted) {
+      connection.release();
+      throw makeAbortError();
     }
-    const header = rawRows as ResultSetHeader;
-    return {
-      rows: [],
-      rowCount: header.affectedRows ?? 0,
-      insertId: header.insertId,
-      fields: [],
+    const threadId =
+      typeof connection.threadId === 'number' ? connection.threadId : undefined;
+    let cancelPromise: Promise<void> | undefined;
+    const onAbort = () => {
+      cancelPromise = this.cancelMysqlQuery(creds, threadId);
     };
+    if (abortSignal)
+      abortSignal.addEventListener('abort', onAbort, { once: true });
+    try {
+      const [rawRows, fields] = await connection.query(sql, parameters);
+      if (Array.isArray(rawRows)) {
+        const rows = rawRows as RowDataPacket[];
+        return {
+          rows,
+          rowCount: rows.length,
+          fields: Array.isArray(fields)
+            ? fields.map((f) => ({
+                name: f.name,
+                dataTypeID: f.columnType,
+              }))
+            : undefined,
+        };
+      }
+      const header = rawRows as ResultSetHeader;
+      return {
+        rows: [],
+        rowCount: header.affectedRows ?? 0,
+        insertId: header.insertId,
+        fields: [],
+      };
+    } catch (err) {
+      // 우리가 발행한 `KILL QUERY` 로 인한 취소(ER_QUERY_INTERRUPTED)만 `AbortError`
+      // 로 승격(→ cancelled, §5). abort 중 우연히 겹친 무관한 실패는 원래 에러 그대로
+      // 보존(오분류 방지, ai-review WARNING).
+      if (abortSignal?.aborted && isMysqlQueryInterrupted(err)) {
+        throw makeAbortError();
+      }
+      throw err;
+    } finally {
+      if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+      // 취소 명령을 connection 반환 **전에** 완료시킨다 — 지연된 취소가 재사용된
+      // 연결의 무관한 쿼리를 죽이는 것을 방지(cancelPromise 는 절대 reject 안 함).
+      if (cancelPromise) await cancelPromise;
+      connection.release();
+    }
   }
 
   private async executePostgres(
@@ -330,11 +416,26 @@ export class DatabaseQueryHandler
     creds: DbCredentials,
     query: string,
     parameters: unknown[],
+    abortSignal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
     const pool = this.resolvePgPool(integrationId, creds);
-    let client: PoolClient | undefined;
+    const client = await pool.connect();
+    // connect 대기 중 abort → 쿼리 시작 없이 즉시 취소(pre-dispatch 와 동일).
+    if (abortSignal?.aborted) {
+      client.release();
+      throw makeAbortError();
+    }
+    // in-flight cancel(§2.1): abort 시 backend PID 로 **일회성 별도 연결**에서
+    // `pg_cancel_backend` 를 발행해 진행 중 쿼리를 57014 로 취소한다(연결은 유지).
+    // `processID` 는 런타임엔 존재하나 `PoolClient` 타입에 미선언 → 명시 cast.
+    const pid = (client as unknown as { processID?: number }).processID;
+    let cancelPromise: Promise<void> | undefined;
+    const onAbort = () => {
+      cancelPromise = this.cancelPgBackend(creds, pid);
+    };
+    if (abortSignal)
+      abortSignal.addEventListener('abort', onAbort, { once: true });
     try {
-      client = await pool.connect();
       const result = await client.query(query, parameters);
       return {
         rows: result.rows,
@@ -344,8 +445,84 @@ export class DatabaseQueryHandler
           dataTypeID: f.dataTypeID,
         })),
       };
+    } catch (err) {
+      // 우리가 발행한 `pg_cancel_backend` 로 인한 취소(57014)만 `AbortError` 로 승격
+      // (→ cancelled, §5). 무관한 실패는 원래 에러 보존(오분류 방지).
+      if (abortSignal?.aborted && isPgQueryCanceled(err)) {
+        throw makeAbortError();
+      }
+      throw err;
     } finally {
-      client?.release();
+      if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+      if (cancelPromise) await cancelPromise;
+      client.release();
+    }
+  }
+
+  /**
+   * PG in-flight 취소 — 캐시 pool 과 **분리된 일회성 연결**로 `pg_cancel_backend`
+   * 를 발행한다. 공유 pool 을 쓰면 pool 포화 시(취소가 가장 필요한 상황) 취소가
+   * 빈 슬롯을 기다리다 데드락에 빠지므로 전용 연결을 쓴다. connect timeout 을 짧게
+   * 걸어 무한 대기를 막고, 실패는 삼켜 best-effort 유지(절대 reject 안 함).
+   */
+  private async cancelPgBackend(
+    creds: DbCredentials,
+    pid: number | undefined,
+  ): Promise<void> {
+    if (typeof pid !== 'number') return;
+    const client = new PgClient({
+      ...buildPgConnection(creds),
+      connectionTimeoutMillis: CANCEL_CONNECT_TIMEOUT_MS,
+    });
+    try {
+      await client.connect();
+      // 취소 쿼리에도 상한 — pending 시 finally 의 end() 가 연결을 닫아 정리.
+      await settleWithin(
+        client.query('SELECT pg_cancel_backend($1)', [pid]),
+        CANCEL_QUERY_TIMEOUT_MS,
+      );
+    } catch (err) {
+      logger.debug(
+        `pg in-flight cancel best-effort 실패: ${sanitizeMessage(err instanceof Error ? err.message : String(err))}`,
+      );
+    } finally {
+      await client.end().catch(() => {});
+    }
+  }
+
+  /**
+   * MySQL in-flight 취소 — 일회성 별도 연결로 `KILL QUERY <threadId>` 발행.
+   * (PG 와 동일한 pool-격리·타임아웃·best-effort 정책.)
+   */
+  private async cancelMysqlQuery(
+    creds: DbCredentials,
+    threadId: number | undefined,
+  ): Promise<void> {
+    if (typeof threadId !== 'number') return;
+    let connection:
+      | Awaited<ReturnType<typeof mysqlCreateConnection>>
+      | undefined;
+    try {
+      connection = await mysqlCreateConnection({
+        host: creds.host,
+        port: creds.port,
+        user: creds.username,
+        password: creds.password,
+        database: creds.database,
+        ssl: buildMysqlSsl(creds.ssl),
+        connectTimeout: CANCEL_CONNECT_TIMEOUT_MS,
+      });
+      // threadId 는 driver 정수라 문자열 보간이 injection-safe.
+      await settleWithin(
+        connection.query(`KILL QUERY ${threadId}`),
+        CANCEL_QUERY_TIMEOUT_MS,
+      );
+    } catch (err) {
+      logger.debug(
+        `mysql in-flight cancel best-effort 실패: ${sanitizeMessage(err instanceof Error ? err.message : String(err))}`,
+      );
+    } finally {
+      if (connection) await connection.end().catch(() => {});
     }
   }
 
