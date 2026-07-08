@@ -212,7 +212,7 @@ pending_plans:
 | 발생 조건 | 저장 이후 노드의 dynamic-port 구성이 바뀐 경우 — 예: AI Agent `single_turn` → `multi_turn` 전환으로 `out` 포트 소멸, Information Extractor 모드 전환, Switch/Classifier 케이스 삭제 |
 | 제거 판정 | source 노드의 유효 출력 포트 집합(`resolveDynamicPorts` 결과)에 `sourceHandle` 이 없거나, target 노드의 유효 입력 포트 집합에 `targetHandle` 이 없으면 제거. 노드 정의를 찾을 수 없는 노드는 검증을 건너뛴다 (permissive) |
 | 사용자 알림 | 1개 이상 제거 시 경고 토스트 표시 (`editor.autoCleanedEdgesFull`, 제거 개수 포함) — 암묵적 삭제가 조용히 지나가지 않도록 한다 |
-| 영구 반영 시점 | 제거는 로드 시 store 진입 전에 일어나며, **사용자가 저장(Ctrl+S / 자동 저장)할 때 서버에 확정**된다. 저장하지 않고 닫으면 DB 의 엣지는 유지 |
+| 영구 반영 시점 | 제거는 로드 시 store 진입 전에 일어나며, **사용자가 저장(`Ctrl+S`·`Save` / 실행 직전 저장)할 때 서버에 확정**된다. 저장하지 않고 닫으면 DB 의 엣지는 유지 |
 
 > 유사 사례: 캔버스 로드 시 `containerId` 재계산 ([Spec 캔버스 §11](./0-canvas.md#11-컨테이너-노드)).
 

@@ -21,6 +21,7 @@ owner: planner
 - [ ] §4.1 팔레트 **Installed(마켓플레이스) 섹션** — 마켓플레이스 모듈(`marketplace-and-plugin-sdk.md`) 의존, backlog 유지. (Recent 와 분리)
 - [x] §4.2 팔레트 아이템 클릭으로 노드 추가(뷰포트 중앙+지터, `palette-canvas-bridge`) + 패널 접기 토글(아이콘 레일). **PR #847**.
 - [x] §4.3 빠른 노드 추가 팝업 키보드 — ↑/↓ 하이라이트·Enter 선택·Escape 닫기(팝업 우선, `stopPropagation`). 순수 리듀서 `quick-add-nav`. **PR #847**.
+- [x] §8 자동 저장 + PRD §5 ED-SP-05(설정 즉시 반영) — **spec 정정으로 해소(구현 안 함, 방향 반대)**. 2초 디바운스 타이머 자동 저장·오프라인 로컬 초안·동시편집 충돌 감지·설정 즉시 반영은 모두 미구현이며, 현재의 명시 저장(수동 `Ctrl+S`·`Save` + 실행 직전 저장)·설정 `변경 저장`/`JSON 적용` 모델이 의도된 설계로 확인됨(사용자 결정 2026-07-08). §8/§8.1·§5.3·PRD ED-SP-05/SV-02/AI-17·2-edge §8·4-ai-assistant·**0-overview §3.3·4-nodes/0-overview §1.4**(cross-cutting SoT 전파, consistency Critical 2건 해소) 의 저장 참조를 현재 동작으로 정정 + 0-canvas `Rationale R-3` 기록. 유저 가이드는 PR #855 에서 이미 현재 동작 서술. 타이머 자동 저장·오프라인 초안 부활은 별도 기획 판단으로 남김.
 - [ ] §11.4 중첩 최대 깊이(3) 제한 enforcement + 초과 토스트 + 레벨별 배경 틴트 (단, §11.2 "시각 containment 미사용" 과의 정합성 재정의 선행 필요)
 
 ## 비고
