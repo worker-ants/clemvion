@@ -1,8 +1,6 @@
 ---
 id: llm-client
-status: partial
-pending_plans:
-  - plan/in-progress/rag-rerank-followup.md
+status: implemented
 code:
   - codebase/backend/src/modules/llm/clients/*.ts
   - codebase/backend/src/modules/llm/llm-client.factory.ts

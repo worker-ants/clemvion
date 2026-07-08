@@ -11,6 +11,10 @@ const queryMock = jest.fn();
 const releaseMock = jest.fn();
 const endMock = jest.fn();
 const onMock = jest.fn();
+// one-off cancel connection (`new pg.Client()`) — pg_cancel_backend (in-flight cancel)
+const pgCancelConnectMock = jest.fn();
+const pgCancelQueryMock = jest.fn();
+const pgCancelEndMock = jest.fn();
 
 jest.mock('pg', () => ({
   Pool: jest.fn().mockImplementation(() => ({
@@ -18,20 +22,42 @@ jest.mock('pg', () => ({
       connectMock().then(() => ({
         query: (...args: unknown[]) => queryMock(...args),
         release: () => releaseMock(),
+        processID: 12345, // backend PID — in-flight cancel target
       })),
     end: () => endMock(),
     on: (...args: unknown[]) => onMock(...args),
   })),
+  // Cancel uses a one-off Client (isolated from the capped pool).
+  Client: jest.fn().mockImplementation(() => ({
+    connect: () => pgCancelConnectMock(),
+    query: (...args: unknown[]) => pgCancelQueryMock(...args),
+    end: () => pgCancelEndMock(),
+  })),
 }));
 
-const mysqlQueryMock = jest.fn();
+const mysqlQueryMock = jest.fn(); // getConnection().query — the actual query
+const mysqlReleaseMock = jest.fn();
 const mysqlEndMock = jest.fn();
+// one-off cancel connection (`createConnection()`) — KILL QUERY (in-flight cancel)
+const mysqlCancelQueryMock = jest.fn();
+const mysqlCancelEndMock = jest.fn();
 
 jest.mock('mysql2/promise', () => ({
   createPool: jest.fn().mockImplementation(() => ({
-    query: (...args: unknown[]) => mysqlQueryMock(...args),
+    getConnection: () =>
+      Promise.resolve({
+        query: (...args: unknown[]) => mysqlQueryMock(...args),
+        release: () => mysqlReleaseMock(),
+        threadId: 42, // connection thread id — KILL QUERY target
+      }),
     end: () => mysqlEndMock(),
   })),
+  // Cancel uses a one-off connection (isolated from the capped pool).
+  createConnection: () =>
+    Promise.resolve({
+      query: (...args: unknown[]) => mysqlCancelQueryMock(...args),
+      end: () => mysqlCancelEndMock(),
+    }),
 }));
 
 function ctx(): ExecutionContext {
@@ -123,9 +149,15 @@ describe('DatabaseQueryHandler', () => {
     releaseMock.mockReset();
     endMock.mockReset().mockResolvedValue(undefined);
     onMock.mockReset();
+    pgCancelConnectMock.mockReset().mockResolvedValue(undefined);
+    pgCancelQueryMock.mockReset().mockResolvedValue({ rows: [] });
+    pgCancelEndMock.mockReset().mockResolvedValue(undefined);
     jest.requireMock('pg').Pool.mockClear();
     mysqlQueryMock.mockReset();
+    mysqlReleaseMock.mockReset();
     mysqlEndMock.mockReset().mockResolvedValue(undefined);
+    mysqlCancelQueryMock.mockReset().mockResolvedValue([[], []]);
+    mysqlCancelEndMock.mockReset().mockResolvedValue(undefined);
     jest.requireMock('mysql2/promise').createPool.mockClear();
   });
 
@@ -257,6 +289,130 @@ describe('DatabaseQueryHandler', () => {
       expect(connectMock).toHaveBeenCalledTimes(2);
       expect(releaseMock).toHaveBeenCalledTimes(2);
       await handler.shutdown();
+    });
+
+    describe('in-flight cancellation (node-cancellation §2.1)', () => {
+      const mysqlIntegration = {
+        id: 'int-1',
+        name: 'Primary MySQL',
+        serviceType: 'database',
+        status: 'connected',
+        credentials: {
+          driver: 'mysql',
+          host: 'db.example.com',
+          port: 3306,
+          database: 'app',
+          username: 'u',
+          password: 'p',
+        },
+      };
+
+      it('PG: 진행 중 abort → 별도 연결로 pg_cancel_backend 발행 + AbortError(cancelled)', async () => {
+        const { service } = makeService();
+        const controller = new AbortController();
+        // 쿼리 시작 시 외부 abort 가 도착한 것으로 시뮬레이트 → driver 가 57014 로 reject
+        queryMock.mockImplementation(() => {
+          controller.abort();
+          const e = new Error(
+            'canceling statement due to user request',
+          ) as Error & { code?: string };
+          e.code = '57014';
+          return Promise.reject(e);
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        await expect(
+          handler.execute(
+            null,
+            { integrationId: 'int-1', query: 'SELECT pg_sleep(10)' },
+            { ...ctx(), abortSignal: controller.signal },
+          ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        // 캐시 pool 과 격리된 일회성 연결(new Client)로 backend PID 취소
+        expect(pgCancelQueryMock).toHaveBeenCalledWith(
+          'SELECT pg_cancel_backend($1)',
+          [12345],
+        );
+        expect(pgCancelEndMock).toHaveBeenCalled(); // 취소 연결 닫힘
+        expect(releaseMock).toHaveBeenCalled();
+        await handler.shutdown();
+      });
+
+      it('MySQL: 진행 중 abort → 별도 연결로 KILL QUERY 발행 + AbortError', async () => {
+        const { service } = makeService({ integration: mysqlIntegration });
+        const controller = new AbortController();
+        mysqlQueryMock.mockImplementation(() => {
+          controller.abort();
+          const e = new Error('Query execution was interrupted') as Error & {
+            code?: string;
+          };
+          e.code = 'ER_QUERY_INTERRUPTED';
+          return Promise.reject(e);
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        await expect(
+          handler.execute(
+            null,
+            { integrationId: 'int-1', query: 'SELECT SLEEP(10)' },
+            { ...ctx(), abortSignal: controller.signal },
+          ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        expect(mysqlCancelQueryMock).toHaveBeenCalledWith('KILL QUERY 42');
+        expect(mysqlReleaseMock).toHaveBeenCalled();
+        await handler.shutdown();
+      });
+
+      it('정상 완료 시 cancel 미발행 + abort 리스너 해제(누수 방지)', async () => {
+        const { service } = makeService();
+        queryMock.mockResolvedValue({ rows: [{ id: 1 }], rowCount: 1 });
+        const controller = new AbortController();
+        const removeSpy = jest.spyOn(controller.signal, 'removeEventListener');
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          { ...ctx(), abortSignal: controller.signal },
+        )) as { port: string };
+        expect(out.port).toBe('success');
+        expect(pgCancelQueryMock).not.toHaveBeenCalled(); // 취소 미발행
+        expect(removeSpy).toHaveBeenCalled(); // 리스너 해제됨
+        await handler.shutdown();
+      });
+
+      it('abortSignal 없으면 취소 배선 no-op (정상 경로 무영향)', async () => {
+        const { service } = makeService();
+        queryMock.mockResolvedValue({ rows: [], rowCount: 0 });
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as { port: string };
+        expect(out.port).toBe('success');
+        expect(pgCancelQueryMock).not.toHaveBeenCalled();
+        await handler.shutdown();
+      });
+
+      it('abort 중이라도 취소와 무관한 실패(비-57014)는 cancelled 오분류 안 함 → error 포트', async () => {
+        const { service } = makeService();
+        const controller = new AbortController();
+        queryMock.mockImplementation(() => {
+          controller.abort();
+          const e = new Error('permission denied') as Error & {
+            code?: string;
+          };
+          e.code = '42501'; // insufficient_privilege — 취소가 아닌 무관한 실패
+          return Promise.reject(e);
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          { ...ctx(), abortSignal: controller.signal },
+        )) as { port: string };
+        // AbortError(cancelled) 가 아니라 실제 에러가 error 포트로 매핑돼야 함
+        expect(out.port).toBe('error');
+        await handler.shutdown();
+      });
     });
 
     it('parses JSON array string parameters', async () => {

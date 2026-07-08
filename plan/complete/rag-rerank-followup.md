@@ -2,8 +2,17 @@
 worktree: rag-rerank-impl
 started: 2026-06-04
 owner: developer
+spec_impact:
+  - spec/5-system/9-rag-search.md
+  - spec/5-system/7-llm-client.md
+  - spec/2-navigation/5-knowledge-base.md
+  - spec/2-navigation/6-config.md
+  - spec/5-system/1-auth.md
+  - spec/1-data-model.md
 ---
 # RAG 리랭킹 후속 (P1 PoC 이후 미구현 surface)
+
+> **완료 (2026-07-08 grooming)**: 구현 surface(cross_encoder_llm·KB Reranking UI·RerankConfig 관리 UI·RBAC·Rationale·RerankConfig 리소스 spec 완결성) 전량 `[x]` 확인. `[~]` 2건은 해소: provider 확장=DROP(2026-06-05 결정), conditional escalate=메커니즘 rag-dynamic-cut D2 로 구현·정량 임계 A/B 는 `rag-quality-improvement §7.B`(P0 baseline)로 이관. `7-llm-client` pending_plans 가 본 plan 단독이라 status→implemented 승격(lifecycle guard c). `9-rag-search` 는 rag-dynamic-cut 잔존으로 partial 유지. → `complete/` 이동.
 
 > 본 plan 은 [`rag-rerank-impl.md`](./rag-rerank-impl.md) PoC 가 구현하지 않은 spec surface 를 추적한다.
 > 관련 spec frontmatter `pending_plans` 가 본 파일을 가리킨다 (spec-impl-evidence §3).

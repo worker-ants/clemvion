@@ -1,5 +1,5 @@
 ---
-worktree: (unstarted)
+worktree: grooming-small-dev-08a15a
 started: 2026-06-28
 owner: developer
 ---
@@ -22,27 +22,29 @@ owner: developer
 
 ## 작업 단위
 
-### 1. Database 노드 driver-level in-flight cancel
+### 1. Database 노드 driver-level in-flight cancel — ✅ DONE (2026-07-08)
 
-현황: pre-dispatch abort 가드만 구현·테스트됨 (`database-query.handler.ts:140`, spec `:1025`). 쿼리 시작 후 in-flight cancel 미지원.
+현황: pre-dispatch abort 가드만 구현·테스트됨 (`database-query.handler.ts:140`). 쿼리 시작 후 in-flight cancel 미지원 → **구현 완료**.
 
-- [ ] 사용 중 driver 의 cancel 지원 확인 (PostgreSQL `pg`: `client.cancel()` / 별도 cancel connection, MySQL `mysql2`: connection destroy, MongoDB: `signal` option 직접 지원 등)
-- [ ] driver 별 `context.abortSignal` → in-flight cancel 전파 구현 (signal listener 등록 + abort 시 driver cancel 호출, 정상 완료 시 listener 해제로 누수 방지)
-- [ ] 단위 테스트 — 실행 중 abort 시 쿼리가 driver-level 로 중단되는지 (mock driver 의 cancel 호출 검증)
+- [x] 사용 중 driver 의 cancel 지원 확인 — PG(`pg`): 별도 연결에서 `SELECT pg_cancel_backend(client.processID)` (57014). MySQL(`mysql2`): `getConnection()` 으로 `threadId` 확보 후 별도 연결에서 `KILL QUERY <threadId>`. Mongo 는 현 노드 미지원(pg/mysql 만).
+- [x] driver 별 `context.abortSignal` → in-flight cancel 전파 구현 — abort 리스너 등록 + 완료 시 `removeEventListener` 해제(누수 방지). **취소 driver 에러는 catch 에서 `AbortError` 재throw → `cancelled` 분류**(§5, impl-prep CRITICAL — 그러지 않으면 error 포트로 흡수돼 failed 오분류). execute() catch 는 `err.name==='AbortError'` 만 재throw(광의 `abortSignal.aborted` 아님 — 무관 실패 오분류 방지, ai-review WARNING).
+  - **ai-review CRITICAL 반영**: (1) 취소는 **캐시 pool 이 아닌 일회성 연결**(`new PgClient`/`createConnection`, `connectTimeout` 2s)로 발행 — 공유 pool(max 5) 사용 시 포화 상황에서 취소가 빈 슬롯을 기다리다 데드락. (2) 취소 promise 를 `connection.release()` **전에 await** — 지연된 취소가 재사용된 연결의 무관한 쿼리를 죽이는 cross-kill 방지. (3) connect 대기 중 abort 는 쿼리 시작 없이 즉시 `AbortError` throw(no-op 취소 후 쿼리 완주하던 race 제거). 취소 실패는 `logger.debug` + swallow(best-effort).
+- [x] 단위 테스트 — `database-query.handler.spec.ts` `in-flight cancellation (§2.1)` describe 4건: PG cancel(일회성 Client→pg_cancel_backend+연결 close+AbortError)·MySQL cancel(KILL QUERY+AbortError)·정상완료 시 미발행+리스너해제·signal 부재 no-op. 90 pass.
 
-### 2. Send Email (SMTP) in-flight connection close
+### 2. Send Email (SMTP) in-flight connection close — 🚫 won't-do (best-effort 유지, 2026-07-08 결정)
 
-현황: pre-dispatch 가드만 구현·테스트됨 (`send-email.handler.ts:87`, spec `:776`). 전송 시작 후 in-flight 중단 미지원.
+현황: pre-dispatch 가드만 구현. **설계결정 = in-flight 중단 미채택**.
 
-- [ ] nodemailer `transporter` 의 in-flight 중단 방식 검토 (`transporter.close()` 가 진행 중 SMTP 전송에 미치는 영향 — 부분 전송/중복 전송 리스크 평가 포함)
-- [ ] `context.abortSignal` → abort 시 `transporter.close()` 전파 구현 (안전하다고 판단될 경우)
-- [ ] 단위 테스트 — 실행 중 abort 시 transporter 가 close 되는지 (mock transporter 검증)
+- [x] nodemailer `transporter` in-flight 중단 검토 → **미채택**: `transporter.close()` 를 전송 중 호출하면 부분 전송/중복 전송 리스크가 있고 SMTP 전송은 통상 단시간이라 이득 < 리스크. 진입 직전 사전 abort 체크만 유지(§5 계약 충족). spec `node-cancellation.md` §2.1 Email row·§6 표를 "의도적 best-effort(미채택)"로 정정. 향후 안전한 중단 방식 확인 시 재검토.
+- [x] ~~transporter.close 전파 구현~~ — 위 결정으로 미구현(의도).
+- [x] ~~단위 테스트~~ — 코드 변경 없음(사전 체크는 기존 테스트가 커버).
 
 ### 3. e2e — 다단계 워크플로우 cancel 전파
 
 본체 plan §7.2 이관.
 
 - [ ] e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal(사용자 Stop 버튼 / timeout)이 진행 중 노드까지 전파돼 `cancelled` 상태로 확정되는지
+  > **잔여(2026-07-08)**: DB in-flight cancel 배선·AbortError→cancelled 분류는 단위 테스트(§1)로 결정적 검증됨. 다단계 in-flight cancel e2e 는 **느린 쿼리 + 타이밍 맞춘 외부 cancel** 이 필요해 non-deterministic(flaky) 리스크가 커 별도 후속으로 남긴다. 사용자 cancel→`cancelled` 확정의 기본 경로는 본체 `node-cancellation-infrastructure.md`(완료) e2e 가 이미 커버.
 
 ## 수용 기준
 

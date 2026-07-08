@@ -170,7 +170,7 @@ sequenceDiagram
 단일 KB 호출이면서 `rerank_mode ∈ (cross_encoder, cross_encoder_llm)` 일 때만 진입하는 검색
 후처리 경로 (SoT [RAG 검색 §3.3](../5-system/9-rag-search.md)). agentic 경로(KB tool)는 항상
 단일 KB 로 호출하므로 이 분기가 적용된다. 멀티-KB 리랭크는 후속
-(`plan/in-progress/rag-rerank-followup.md`).
+(`plan/complete/rag-rerank-followup.md`).
 
 ```mermaid
 sequenceDiagram

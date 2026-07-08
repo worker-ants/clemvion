@@ -220,13 +220,14 @@ export interface ExecutionContext {
    *
    * **소비자** (signal 을 fetch / SDK 인자로 전파하는 handler):
    *  - HTTP — `fetch(url, { signal })`
-   *  - DB — driver 의 cancel 지원 (PostgreSQL `client.cancel()` 등)
+   *  - DB — abort 시 별도 연결로 PG `pg_cancel_backend`/MySQL `KILL QUERY`
+   *    (in-flight 취소, best-effort — node-cancellation §2.1)
    *  - AI — Anthropic / OpenAI SDK 의 `signal` 옵션
+   *  - Email — 사전 abort 체크만 (in-flight SMTP 중단은 의도적 best-effort 미채택)
    *  - signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 무시 가능 — best-effort
    *
    * 미설정 (= 활성 cancellation 컨텍스트 없음) 이면 노드는 평소처럼 동작.
-   * 본 PR 의 범위는 type + HTTP 노드 1개의 signal 전파 — DB / AI / Email /
-   * chat-channel 은 후속 PR 에서 점진 통합.
+   * chat-channel 노드의 signal 전파는 후속 PR 에서 점진 통합.
    */
   abortSignal?: AbortSignal;
   /**
