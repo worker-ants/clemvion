@@ -37,14 +37,14 @@ executions/page)·**auth-group**(callback·verify-email·login/register-form)·*
 (registry·locale-sync·scope-list-panel `/docs/...`)는 bare 유지 → **편집 대상 ~22 파일**.
 
 - [x] 0. consistency-check --impl-prep — BLOCK:YES(Critical 1) → **docs-exclusion 으로 해소**(위 참조). WARNING 은 §8 확장으로 흡수
-- [ ] 1. helper: `buildWorkspaceHref(slug,path)`(null-safe) + `useWorkspaceSlug()` + `useWorkspaces()` (+unit, 각 JSDoc 1줄로 store hook 과 구분)
-- [ ] 2. git mv 26 페이지(docs 제외) `(main)/*` → `(main)/w/[slug]/*` + `git show` 검증
-- [ ] 3. `(main)/w/[slug]/layout.tsx` (resolve+reconcile gate, 중첩); `(main)/layout.tsx` 무변경(chrome 상속)
-- [ ] 4. `(main)/[...rest]/page.tsx` catch-all 리다이렉트(query/hash 보존)
-- [ ] 5. 내부 (main) 링크 slug 화(~22파일, buildWorkspaceHref)
-- [ ] 6. switchWorkspace 네비게이션화(sidebar 스위처·create-team·accept-invite·workspace/settings → 새 slug dashboard)
-- [ ] 7. AuthProvider: pathname `/w/` 면 persisted reconcile skip(URL 우선)
-- [ ] 8. TEST WORKFLOW (lint·unit·build·e2e) + 링크 회귀 테스트
+- [x] 1. helper: `buildWorkspaceHref`(null-safe)·`useWorkspaceSlug`·`useWorkspaces` (+unit 8)
+- [x] 2. git mv 26 페이지(docs 제외) `(main)/*` → `(main)/w/[slug]/*` (순수 rename 검증)
+- [x] 3. `(main)/w/[slug]/layout.tsx` (resolve+reconcile gate); `(main)/layout.tsx` 무변경 (+unit 4)
+- [x] 4. `(main)/[...rest]/page.tsx` catch-all 리다이렉트(query/hash 보존) (+unit 5)
+- [x] 5. 내부 (main) 링크 slug 화(~27파일, buildWorkspaceHref; editor `/workflows/<id>`·auth·docs bare)
+- [x] 6. switchWorkspace 네비게이션화(sidebar·create-team·accept-invite·settings → 새 slug dashboard) (+unit)
+- [x] 7. AuthProvider: pathname `/w/` 면 persisted reconcile skip(URL 우선)
+- [x] 8. TEST WORKFLOW ✅ lint(0 err)·unit(5093 pass)·build(route 충돌 0, `/[...rest]`·`/docs`·`/workflows/[id]` 공존)·e2e(backend 243 + FE Playwright 44, slug-routing 4종 신규) + 링크 회귀(profile·schedules·execution-detail 테스트가 slug href 단언)
 - [ ] 9. /ai-review + fix + /consistency-check --impl-done (실 재검증 게이트)
 - [ ] 10. spec 반영(planner 위임): **범위 확장**(impl-prep WARNING#2 반영) — 9-user-profile §3 flip·12-workspace Rationale·10-auth-flow §7.2 + 이동 페이지 spec 들의 frontmatter `code:` glob `(main)/<page>`→`(main)/w/[slug]/<page>` 일괄 정정 + `_layout.md §2.2/§3.1` 경로표·`0-dashboard §5`·`1-workflow-list §2.6` bare-path 산문 slug-aware 갱신 + spec-sync-user-profile-gaps 트래커 체크
 
