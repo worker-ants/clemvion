@@ -1,8 +1,52 @@
 ---
-worktree: workspace-slug-routing-08a15a
+worktree: workspace-slug-routing-de2b12
 started: 2026-07-08
 owner: developer
 ---
+
+## Phase 1 구현 체크리스트 (2026-07-08 착수, 워크트리 de2b12)
+
+> 접근: 한 PR(중간 상태가 빌드 불가라 슬라이스 불가). editor·auth·**docs 는 slug 밖 유지**.
+> 리다이렉트 전략: `(main)/[...rest]` catch-all 클라이언트 리다이렉트가 구 무-slug 경로·알림
+> 딥링크·로그인후 `/dashboard` 를 활성 slug 로 흡수(auth-group·root 코드는 무변경 — 순 효과가
+> §7.2 를 만족). 내부 (main)→(main) 링크는 `buildWorkspaceHref` 로 직접 slug 화(플래시 회피).
+> editor 링크(`/workflows/<id>` 정확히)는 bare 유지(phase 2).
+
+### docs 는 phase 1 slug 밖 (결정 — Critical 해소)
+
+**결정**: `/docs`(제품 유저 가이드)는 **워크스페이스 무관 콘텐츠**이고, 라우팅이 **서버 사이드
+`redirect()`**(`docs/page.tsx`·`docs/[...slug]/page.tsx`·`localizedDocsHref`·`registry.ts`)로 절대
+`/docs/<locale>/...` 를 조립한다. slug 화하려면 (a) docs `[...slug]` 파라미터를 워크스페이스
+`[slug]` 와 충돌 회피 위해 리네임 + (b) 전 docs 서버 서브시스템에 워크스페이스 slug 를 스레딩해야
+하는데, 워크스페이스마다 동일한 콘텐츠에 대해 리스크 대비 이득이 없다. → **docs 는 `(main)/docs`
+유지**(editor·auth 처럼). `(main)/layout.tsx` 무변경으로 사이드바 chrome 은 그대로 상속, catch-all
+은 specific route 우선이라 docs 를 자연 제외.
+
+> **impl-prep(2026-07-08) Critical 해소**: consistency-check 가 잡은 유일 Critical =
+> `[slug]`(`/w/[slug]`) vs docs `[...slug]` 파라미터 충돌은 **docs 를 옮기지 않으므로 발생 자체가
+> 없다**(nesting 부재). 체크가 오히려 이 scope 결정을 독립 검증. 파라미터 리네임·`13-user-guide.md`
+> 갱신 **불요**. 남은 findings 는 전부 plan 완결성 WARNING/pre-existing spec 갭 → §8 spec-sync 확장
+> 으로 반영, FE 착수 블로커 아님. `slug` 는 이미 DB UNIQUE(`workspace.entity.ts:39`
+> `@Column({unique:true})`·V001·data-flow-12 §2.1) → `/w/<slug>` 해소 무모호(WARNING#1 은
+> 1-data-model §2.2 문서 갭, planner INFO). 실 재검증 게이트 = §9 `--impl-done`(코드+spec 대조).
+
+### 링크 파일 수 (34 → 실제 편집 ~22)
+
+raw grep 34개 절대링크 파일 중 **editor-internal `/workflows/<id>`**(dashboard·workflows page·
+executions/page)·**auth-group**(callback·verify-email·login/register-form)·**docs-internal**
+(registry·locale-sync·scope-list-panel `/docs/...`)는 bare 유지 → **편집 대상 ~22 파일**.
+
+- [x] 0. consistency-check --impl-prep — BLOCK:YES(Critical 1) → **docs-exclusion 으로 해소**(위 참조). WARNING 은 §8 확장으로 흡수
+- [ ] 1. helper: `buildWorkspaceHref(slug,path)`(null-safe) + `useWorkspaceSlug()` + `useWorkspaces()` (+unit, 각 JSDoc 1줄로 store hook 과 구분)
+- [ ] 2. git mv 26 페이지(docs 제외) `(main)/*` → `(main)/w/[slug]/*` + `git show` 검증
+- [ ] 3. `(main)/w/[slug]/layout.tsx` (resolve+reconcile gate, 중첩); `(main)/layout.tsx` 무변경(chrome 상속)
+- [ ] 4. `(main)/[...rest]/page.tsx` catch-all 리다이렉트(query/hash 보존)
+- [ ] 5. 내부 (main) 링크 slug 화(~22파일, buildWorkspaceHref)
+- [ ] 6. switchWorkspace 네비게이션화(sidebar 스위처·create-team·accept-invite·workspace/settings → 새 slug dashboard)
+- [ ] 7. AuthProvider: pathname `/w/` 면 persisted reconcile skip(URL 우선)
+- [ ] 8. TEST WORKFLOW (lint·unit·build·e2e) + 링크 회귀 테스트
+- [ ] 9. /ai-review + fix + /consistency-check --impl-done (실 재검증 게이트)
+- [ ] 10. spec 반영(planner 위임): **범위 확장**(impl-prep WARNING#2 반영) — 9-user-profile §3 flip·12-workspace Rationale·10-auth-flow §7.2 + 이동 페이지 spec 들의 frontmatter `code:` glob `(main)/<page>`→`(main)/w/[slug]/<page>` 일괄 정정 + `_layout.md §2.2/§3.1` 경로표·`0-dashboard §5`·`1-workflow-list §2.6` bare-path 산문 slug-aware 갱신 + spec-sync-user-profile-gaps 트래커 체크
 
 # 워크스페이스 슬러그 URL 라우팅 (`/w/[slug]/...`)
 
