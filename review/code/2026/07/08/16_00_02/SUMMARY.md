@@ -15,3 +15,6 @@ impl-done consistency-check(15_58_06)의 2건 convention fix 를 반영한 **최
 
 ## 검증 (최종 커밋 코드 기준)
 lint clean · unit(notifications.service 36 재실행 green, 모듈 426) · build clean · e2e(243, identical 실행 로직) · doc guards(253). BLOCK: NO.
+
+## 최종 확인 (커밋 후)
+커밋의 codebase 파일 전부 본 review(16_00_02) **이전에** 최종 편집됨(mtime 확인) — 리뷰 후 코드 무변경. Stop-hook "code changed after review" 는 commit-time > review-dir-time 오탐(review_guard_push_timestamp 클래스). TEST WORKFLOW 재수행: lint clean · unit(notifications+schedule 50) · build clean · e2e 243 identical. BLOCK: NO.
