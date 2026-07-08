@@ -2,7 +2,7 @@
 id: schedule
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/schedules/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/schedules/page.tsx
   - codebase/frontend/src/lib/utils/cron-to-visual.ts
   - codebase/backend/src/modules/schedules/schedules.controller.ts
   - codebase/backend/src/modules/schedules/schedules.service.ts
@@ -58,7 +58,7 @@ code:
 | 다음 실행 시각 | 다음 예정된 실행 시각 (절대 시간) |
 | 행 액션 | 인라인 버튼: 즉시 실행(Run), 활성/비활성 토글(Toggle), 수정(Edit), 삭제(Delete). 토글·수정·삭제는 editor 이상 권한(RoleGate)에서만 노출 |
 
-> 더보기(⋮) 오버플로 메뉴는 "실행 이력"(트리거 호출 이력 Dialog)과 "트리거에서 보기"(→ `/triggers?triggerId=…` 딥링크로 Trigger 목록에서 해당 트리거 상세 drawer 오픈) 항목을 제공한다. 두 항목 모두 트리거가 연결된 스케줄에서만 활성화된다 (`codebase/frontend/src/app/(main)/schedules/page.tsx`).
+> 더보기(⋮) 오버플로 메뉴는 "실행 이력"(트리거 호출 이력 Dialog)과 "트리거에서 보기"(→ `/triggers?triggerId=…` 딥링크로 Trigger 목록에서 해당 트리거 상세 drawer 오픈) 항목을 제공한다. 두 항목 모두 트리거가 연결된 스케줄에서만 활성화된다 (`codebase/frontend/src/app/(main)/w/[slug]/schedules/page.tsx`).
 
 > **inbound `?triggerId=` 딥링크**: [트리거 목록](./2-trigger-list.md#21-트리거-목록-항목)의 "스케줄 관리에서 편집"(→ `/schedules?triggerId=…`)으로 진입하면, 목록을 **서버측에서 그 트리거의 스케줄로 필터**(§4 `?triggerId=`)해 보여준다. 서버 필터라 대상 스케줄이 몇 번째 페이지에 있든(cross-page) 항상 찾으며, 해당 행을 강조하고 한 번 스크롤한다. 필터 중임을 알리는 안내와 **"전체 스케줄 보기"**(→ `/schedules`) 해제 링크를 목록 위에 표시한다. 강조는 시각 표시일 뿐 편집 다이얼로그를 자동으로 열지는 않는다.
 

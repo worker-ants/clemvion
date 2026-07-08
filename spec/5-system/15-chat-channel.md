@@ -12,7 +12,7 @@ code:
   - codebase/backend/test/chat-channel-slack.e2e-spec.ts
   - codebase/backend/test/chat-channel-discord.e2e-spec.ts
   - codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
-  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts

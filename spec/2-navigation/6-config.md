@@ -2,8 +2,8 @@
 id: config
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/authentication/**
-  - codebase/frontend/src/app/(main)/models/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/authentication/**
+  - codebase/frontend/src/app/(main)/w/[slug]/models/page.tsx
   - codebase/frontend/src/components/models/model-config-manager.tsx
   - codebase/frontend/src/lib/api/model-configs.ts
   - codebase/backend/src/modules/auth-configs/**

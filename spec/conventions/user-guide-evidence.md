@@ -34,7 +34,7 @@ code:
 ```mdx
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="chatChannelProvider"
   describes="트리거 목록의 webhook Chat Channel provider 식별자"
 />
@@ -98,7 +98,7 @@ GUI 흐름 절은 **반드시 `<ImplAnchor kind="ui-entry">` 동반**:
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="chatChannelProvider"
   describes="트리거 목록의 webhook Chat Channel provider 식별자"
 />

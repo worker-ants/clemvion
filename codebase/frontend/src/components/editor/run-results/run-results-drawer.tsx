@@ -22,6 +22,8 @@ import { ResultTimeline } from "./result-timeline";
 import { ResultDetail } from "./result-detail";
 import { useResultDetailWaiting } from "./use-result-detail-waiting";
 import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { ReRunModal } from "@/components/executions/rerun-modal";
 import { canReRun } from "@/lib/executions/can-rerun";
 import { executionsApi } from "@/lib/api/executions";
@@ -75,6 +77,7 @@ export function RunResultsDrawer() {
   const t = useT();
   const params = useParams();
   const workflowId = params?.id as string | undefined;
+  const slug = useWorkspaceSlug();
   // 펼침 상태는 store 로 승격 — §10.12 Ctrl+Shift+R 단축키와 헤더 셰브론이
   // 동일 상태를 토글한다 (옛 로컬 useState 는 키보드 핸들러에서 접근 불가).
   const expanded = useExecutionStore((s) => s.drawerExpanded);
@@ -353,7 +356,7 @@ export function RunResultsDrawer() {
         <div className="flex items-center gap-1">
           {workflowId && (
             <a
-              href={`/workflows/${workflowId}/executions`}
+              href={buildWorkspaceHref(slug, `/workflows/${workflowId}/executions`)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-2 py-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"

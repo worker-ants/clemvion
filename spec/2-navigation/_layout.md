@@ -141,7 +141,7 @@ code:
 |------|-----------|
 | 워크스페이스 전환 | 사용자 영역 위의 **독립 워크스페이스 스위처** 블록(개인/팀 그룹 + 현재 워크스페이스 표시 + 전환). |
 | 워크스페이스 관리 | 워크스페이스 스위처 하단 "여기 설정"(`/workspace/settings`) 링크 + 새 팀 워크스페이스 생성. 권한별 노출은 해당 페이지에서 처리. |
-| 테마 전환 | 사이드바가 아니라 **프로필 환경설정 카드**(`/profile`, theme=light/dark 토글, 라이브 프리뷰)에 위치. 구현: `app/(main)/profile/components/profile-preferences-card.tsx`. |
+| 테마 전환 | 사이드바가 아니라 **프로필 환경설정 카드**(`/profile`, theme=light/dark 토글, 라이브 프리뷰)에 위치. 구현: `app/(main)/w/[slug]/profile/components/profile-preferences-card.tsx`. |
 | 알림 설정 | **미구현 (Planned)** — 알림 기본 설정 surface 는 아직 없다. (`/profile/alerts` 는 실패율·duration·LLM 비용 *알림 룰* 페이지로, 본 항목과 별개.) |
 
 ---

@@ -6,6 +6,7 @@ const mockReplace = vi.fn();
 let mockPathname = "/workflows/abc";
 // ErrorPage / error.tsx 가 usePathname 으로 loginHref·redirect 대상을 구성하므로 mock 한다.
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ replace: mockReplace }),
   usePathname: () => mockPathname,
 }));

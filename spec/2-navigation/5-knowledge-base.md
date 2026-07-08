@@ -2,8 +2,8 @@
 id: knowledge-base
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/knowledge-bases/page.tsx
-  - codebase/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/knowledge-bases/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/knowledge-bases/[id]/page.tsx
   - codebase/frontend/src/components/knowledge-base/*.tsx
   - codebase/frontend/src/components/knowledge-base/embedding-model-recommendation.ts
   - codebase/frontend/src/components/knowledge-base/graph-constants.ts

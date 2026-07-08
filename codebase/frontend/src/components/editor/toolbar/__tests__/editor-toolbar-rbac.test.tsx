@@ -5,6 +5,7 @@ import { useWorkspaceStore, type WorkspaceRole } from "@/lib/stores/workspace-st
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 

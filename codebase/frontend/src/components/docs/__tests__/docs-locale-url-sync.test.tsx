@@ -6,6 +6,7 @@ const replace = vi.fn();
 let mockPathname = "/docs/ko/01-getting-started/what-is-this";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ replace }),
   usePathname: () => mockPathname,
 }));

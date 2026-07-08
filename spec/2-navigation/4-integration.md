@@ -2,10 +2,10 @@
 id: integration
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/integrations/page.tsx
-  - codebase/frontend/src/app/(main)/integrations/new/page.tsx
-  - codebase/frontend/src/app/(main)/integrations/[id]/**
-  - codebase/frontend/src/app/(main)/integrations/_shared/*.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/**
+  - codebase/frontend/src/app/(main)/w/[slug]/integrations/_shared/*.tsx
   - codebase/frontend/src/lib/integrations/*.ts
   - codebase/frontend/src/lib/api/integrations.ts
   - codebase/frontend/src/lib/api/integration-error-codes.ts
@@ -1477,7 +1477,7 @@ Cafe24 admin "앱으로 가기" / Cafe24 Developers "테스트 실행" 의 HMAC 
 
 **해결안**: 상세 페이지 Overview 탭에 `Cafe24AppUrlCard` 를 추가해 App URL/Redirect URI 를 복사 버튼과 함께 노출 (§4.2 표 참조). 백엔드는 `IntegrationDto.appUrl: string | null` 필드를 Cafe24 Private 한정으로 계산해 응답에 포함하며, `install_token` 자체는 별도 필드로 노출하지 않는다 — App URL path segment 안에 이미 포함되며 별도 필드 노출은 (a) 중복, (b) 식별자가 두 곳에 분산되어 클라이언트가 어느 값으로 비교해야 할지 혼동, (c) 향후 path 형식 변경 시 양쪽 필드 동기화 부담, 세 가지 이유로 회피.
 
-**새 등록 흐름과의 일관성**: `codebase/frontend/src/app/(main)/integrations/new/page.tsx` 의 `Cafe24PrivatePending` 컴포넌트와 동일한 복사 UX 패턴(라벨 + 모노스페이스 URL + 복사 버튼 + 1줄 안내) 을 재사용해 사용자 혼동을 줄인다.
+**새 등록 흐름과의 일관성**: `codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx` 의 `Cafe24PrivatePending` 컴포넌트와 동일한 복사 UX 패턴(라벨 + 모노스페이스 URL + 복사 버튼 + 1줄 안내) 을 재사용해 사용자 혼동을 줄인다.
 
 **HMAC 검증 진단 로그 보강**: 본 변경과 함께 `handleInstall` 의 HMAC 실패 3 분기 (mall_id 불일치 / client_secret 부재 / HMAC 자체 불일치) 가 동일 `CAFE24_INSTALL_INVALID_HMAC` 응답을 반환하는 옛 동작은 유지하되 (응답 코드 단일화 정책 유지 — capability-token 가정 보호), `logger.warn` 로 어느 분기인지·URL mall_id 와 DB mall_id 의 일치 여부·DB app_type/status/status_reason·install_token prefix+suffix 4자를 기록한다. `client_secret` 자체는 절대 로그에 남기지 않는다 — `SECRET_LEAK_PATTERNS` 정책과 일관.
 

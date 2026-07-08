@@ -3,6 +3,7 @@ import { render, cleanup, waitFor } from "@testing-library/react";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push, replace: vi.fn(), back: vi.fn() }),
 }));
 vi.mock("next/link", () => ({

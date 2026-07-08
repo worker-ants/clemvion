@@ -23,6 +23,7 @@ vi.mock("@/lib/api/client", () => ({
 
 const routerPushMock = vi.fn();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: routerPushMock }),
 }));
 

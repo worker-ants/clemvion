@@ -8,7 +8,7 @@ code:
   - codebase/backend/src/modules/mail/**/*.ts
   - codebase/backend/src/common/guards/*.ts
   - codebase/backend/src/common/config/webauthn.config.ts
-  - codebase/frontend/src/app/(main)/invitations/accept/**
+  - codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**
   - codebase/frontend/src/components/auth/register-form.tsx
   - codebase/frontend/src/lib/api/invitations.ts
 pending_plans:

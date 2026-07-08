@@ -6,6 +6,8 @@ import { Loader2, Activity, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useT, useLocale } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { executionsApi } from "@/lib/api/executions";
 import { loadHistoricalExecution } from "@/lib/websocket/apply-execution-snapshot";
 import { TriggerCell } from "@/components/executions/trigger-cell";
@@ -39,6 +41,7 @@ export function ExecutionHistoryPanel({
 }) {
   const t = useT();
   const locale = useLocale();
+  const slug = useWorkspaceSlug();
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const historyQuery = useQuery({
@@ -92,7 +95,7 @@ export function ExecutionHistoryPanel({
           </h3>
           <div className="flex items-center gap-1">
             <a
-              href={`/workflows/${workflowId}/executions`}
+              href={buildWorkspaceHref(slug, `/workflows/${workflowId}/executions`)}
               target="_blank"
               rel="noopener noreferrer"
               className="px-2 py-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"

@@ -4,6 +4,7 @@ import { renderHook, act } from "@testing-library/react";
 const mockReplace = vi.fn();
 let currentSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
   usePathname: () => "/workflows",
   useSearchParams: () => currentSearchParams,

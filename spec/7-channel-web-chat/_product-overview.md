@@ -64,7 +64,7 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 | A | **위젯 SPA** | `codebase/channel-web-chat/` (Next.js CSR 전용, **구현 시 신설**) | iframe 내부 채팅 UI. static export → CDN |
 | B | **SDK** | `codebase/packages/web-chat-sdk/` → loader 스니펫 + `@workflow/web-chat` npm | host↔iframe bridge + 공개 JS API. EIA 호출은 기존 `@workflow/sdk` 재사용. SPA 와 분리 패키지 |
 | C | **샘플** | SDK 패키지의 `examples/` | 스니펫·npm 두 경로 시연 |
-| D | **운영 콘솔** | `codebase/frontend/src/app/(main)/web-chat/**` (admin 메뉴) | 제품 내 위젯 *소비자* surface — 인스턴스 생성·외형 빌더·설치 스니펫·라이브 미리보기. 위젯을 합치지 않고 loader+iframe 으로 임베드. 상세 [5-admin-console](./5-admin-console.md) |
+| D | **운영 콘솔** | `codebase/frontend/src/app/(main)/w/[slug]/web-chat/**` (admin 메뉴) | 제품 내 위젯 *소비자* surface — 인스턴스 생성·외형 빌더·설치 스니펫·라이브 미리보기. 위젯을 합치지 않고 loader+iframe 으로 임베드. 상세 [5-admin-console](./5-admin-console.md) |
 
 ## Rationale
 

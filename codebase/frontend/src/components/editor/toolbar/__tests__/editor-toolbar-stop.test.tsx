@@ -5,6 +5,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 vi.mock("next/link", () => ({

@@ -4,6 +4,7 @@ import { render, waitFor, screen } from "@testing-library/react";
 // Mock next/navigation
 const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ replace: mockReplace }),
   usePathname: () => "/dashboard",
 }));

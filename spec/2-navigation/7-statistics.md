@@ -2,7 +2,7 @@
 id: statistics
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/statistics/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/statistics/page.tsx
   - codebase/backend/src/modules/statistics/**
 ---
 

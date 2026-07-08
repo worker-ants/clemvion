@@ -2,8 +2,8 @@
 id: user-profile
 status: partial
 code:
-  - codebase/frontend/src/app/(main)/profile/**
-  - codebase/frontend/src/app/(main)/workspace/settings/**
+  - codebase/frontend/src/app/(main)/w/[slug]/profile/**
+  - codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/**
   - codebase/frontend/src/components/workspace/**
   - codebase/frontend/src/lib/stores/workspace-store.ts
   - codebase/frontend/src/lib/stores/theme-store.ts

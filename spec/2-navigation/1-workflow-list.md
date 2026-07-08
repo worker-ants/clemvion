@@ -2,7 +2,7 @@
 id: workflow-list
 status: partial
 code:
-  - codebase/frontend/src/app/(main)/workflows/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/workflows/page.tsx
   - codebase/frontend/src/lib/api/workflows.ts
   - codebase/backend/src/modules/workflows/dto/**
   - codebase/backend/src/modules/workflows/workflows.service.ts

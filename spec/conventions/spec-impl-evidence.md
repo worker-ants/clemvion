@@ -61,7 +61,7 @@ status: implemented                        # 5 값 중 하나
 code:                                      # status 에 따라 검증 다름
   - codebase/backend/src/modules/chat-channel/**
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
-  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx
 pending_plans:                             # status: partial 일 때 의무
   - plan/in-progress/<name>.md
 user_guide:                                # 선택. 가이드 페이지 cross-link
@@ -170,7 +170,7 @@ status: implemented
 code:
   - codebase/backend/src/modules/chat-channel/**
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
-  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx
 user_guide:                                # 선택 필드 — KO/EN 로케일 쌍 모두 등재 (§2.1)
   - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.mdx
   - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.en.mdx

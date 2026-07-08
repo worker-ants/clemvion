@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 
 /** Polling cadence while the row is still `pending_install`. */
 export const MAKESHOP_PENDING_POLL_MS = 3000;
@@ -60,6 +62,7 @@ export function useMakeshopPendingPolling(
   const router = useRouter();
   const queryClient = useQueryClient();
   const t = useT();
+  const slug = useWorkspaceSlug();
   const transitionedRef = useRef(false);
   const [timedOut, setTimedOut] = useState(false);
 
@@ -95,9 +98,14 @@ export function useMakeshopPendingPolling(
       void queryClient.invalidateQueries({ queryKey: ["integrations"] });
       // encodeURIComponent guards against path-traversal in integrationId
       // (INFO4 — UUID format expected; encode as an additional belt-and-suspenders).
-      router.replace(`/integrations/${encodeURIComponent(integrationId)}`);
+      router.replace(
+        buildWorkspaceHref(
+          slug,
+          `/integrations/${encodeURIComponent(integrationId)}`,
+        ),
+      );
     }
-  }, [poll, router, queryClient, integrationId, t]);
+  }, [poll, router, queryClient, integrationId, t, slug]);
 
   // Map statusReason to a safe i18n message. Raw backend error text (HMAC
   // trace, token exchange detail) is never passed through to the UI (W7).

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Users } from "lucide-react";
@@ -17,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { workspacesApi } from "@/lib/api/workspaces";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { useT } from "@/lib/i18n";
 
 interface Props {
@@ -26,6 +28,7 @@ interface Props {
 
 export function CreateTeamWorkspaceDialog({ open, onOpenChange }: Props) {
   const t = useT();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces);
   const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
@@ -40,8 +43,10 @@ export function CreateTeamWorkspaceDialog({ open, onOpenChange }: Props) {
       queryClient.invalidateQueries({ queryKey: ["workspaces", "list"] });
       // switchWorkspace triggers the global `workspace.switched` toast in
       // providers.tsx; skip a redundant "created" toast to avoid stacking two.
-      switchWorkspace(created.id);
+      void switchWorkspace(created.id);
       onOpenChange(false);
+      // 새 워크스페이스의 slug URL 로 이동 (URL = 활성 워크스페이스 라우팅 SoT).
+      router.push(buildWorkspaceHref(created.slug, "/dashboard"));
     },
     onError: (err: unknown) => {
       const msg =

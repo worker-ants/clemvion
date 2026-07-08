@@ -34,6 +34,7 @@ Object.defineProperty(window, "matchMedia", {
 // ─── next/navigation mock ─────────────────────────────────────────────────
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: mockPush, back: vi.fn() }),
   usePathname: () => "/dashboard",
 }));

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { useEditorStore } from "@/lib/stores/editor-store";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { useAssistantStore } from "@/lib/stores/assistant-store";
@@ -47,6 +49,9 @@ export function EditorToolbar() {
   const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
+  // 에디터는 phase 1 에서 slug 밖(`/workflows/[id]`)이라 URL 에 slug 가 없다 —
+  // store 의 활성 워크스페이스에서 slug 를 파생해 목록으로 되돌아가는 링크를 만든다.
+  const slug = useWorkspaceSlug();
 
   const workflowId = useEditorStore((s) => s.workflowId);
   const workflowName = useEditorStore((s) => s.workflowName);
@@ -367,20 +372,20 @@ export function EditorToolbar() {
       // 60s default staleTime keeps the deleted row visible on the list.
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      router.push("/workflows");
+      router.push(buildWorkspaceHref(slug, "/workflows"));
     } catch (error) {
       console.error("Delete failed:", error);
     }
     setDeleteConfirmOpen(false);
     setMoreDropdownOpen(false);
-  }, [workflowId, router, queryClient]);
+  }, [workflowId, router, queryClient, slug]);
 
   return (
     <>
       <div className="flex h-12 shrink-0 items-center border-b border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3">
         {/* Left section: back + breadcrumb */}
         <div className="flex items-center gap-1.5">
-          <Link href="/workflows">
+          <Link href={buildWorkspaceHref(slug, "/workflows")}>
             <Button
               variant="ghost"
               size="icon"

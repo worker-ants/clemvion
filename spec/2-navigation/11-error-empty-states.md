@@ -8,12 +8,12 @@ code:
   - codebase/frontend/src/app/global-error.tsx
   - codebase/frontend/src/app/(main)/error.tsx
   - codebase/frontend/src/app/(main)/not-found.tsx
-  - codebase/frontend/src/app/(main)/dashboard/page.tsx
-  - codebase/frontend/src/app/(main)/workflows/page.tsx
-  - codebase/frontend/src/app/(main)/integrations/page.tsx
-  - codebase/frontend/src/app/(main)/workflows/[id]/executions/page.tsx
-  - codebase/frontend/src/app/(main)/triggers/page.tsx
-  - codebase/frontend/src/app/(main)/schedules/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/dashboard/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/workflows/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/schedules/page.tsx
 ---
 
 # Spec: 에러 페이지 / 빈 상태 UI

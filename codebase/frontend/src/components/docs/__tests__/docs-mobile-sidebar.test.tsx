@@ -15,6 +15,7 @@ import { __resetForTesting } from "@/components/ui/slide-drawer";
 // `localizedDocsHref` 가 locale prefix 를 붙이므로 활성 페이지 매칭은 prefix 포함.
 let currentPathname = "/docs/ko/02-nodes/ai";
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   usePathname: () => currentPathname,
   useRouter: () => ({
     push: vi.fn(),

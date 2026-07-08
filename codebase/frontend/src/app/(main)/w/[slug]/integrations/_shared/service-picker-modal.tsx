@@ -1,0 +1,89 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { FocusScope } from "@radix-ui/react-focus-scope";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import { ServiceIcon } from "./service-icons";
+import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
+import type { ServiceDefinition } from "@/lib/api/integrations";
+
+interface Props {
+  services: ServiceDefinition[];
+  onClose: () => void;
+}
+
+export function ServicePickerModal({ services, onClose }: Props) {
+  const t = useT();
+  const router = useRouter();
+  const slug = useWorkspaceSlug();
+  const titleId = React.useId();
+
+  // Esc 닫기 — SlideDrawer 와 동일 패턴.
+  React.useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const pick = (type: string) => {
+    router.push(
+      buildWorkspaceHref(slug, `/integrations/new?service=${type}&step=auth`),
+    );
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      {/* role="dialog" + aria-modal + FocusScope — SlideDrawer 와 동일한
+          a11y 패턴으로 통일 (review W-4). */}
+      <FocusScope asChild loop trapped>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="w-full max-w-lg rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-lg"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <h2 id={titleId} className="text-lg font-semibold">
+              {t("common.aria.addIntegration")}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label={t("common.close")}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          <p className="mb-4 text-sm text-[hsl(var(--muted-foreground))]">
+            Select a service to connect.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {services.map((s) => (
+              <button
+                key={s.type}
+                type="button"
+                onClick={() => pick(s.type)}
+                className="flex flex-col items-center gap-2 rounded-lg border border-[hsl(var(--border))] p-4 text-sm font-medium transition-colors hover:border-[hsl(var(--primary))] hover:bg-[hsl(var(--accent))]"
+              >
+                <ServiceIcon type={s.type} className="h-6 w-6" aria-hidden="true" />
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      </FocusScope>
+    </div>
+  );
+}

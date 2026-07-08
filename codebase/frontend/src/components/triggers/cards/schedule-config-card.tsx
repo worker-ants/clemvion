@@ -2,11 +2,14 @@ import { type TriggerDetail } from "@/lib/api/triggers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 export function ScheduleConfigurationCard({ trigger }: { trigger: TriggerDetail }) {
   const t = useT();
+  const slug = useWorkspaceSlug();
   return (
     <Card>
       <CardHeader>
@@ -49,7 +52,10 @@ export function ScheduleConfigurationCard({ trigger }: { trigger: TriggerDetail 
         </dl>
         <div className="border-t border-[hsl(var(--border))] pt-3 text-xs space-y-1">
           <Link
-            href={`/schedules?triggerId=${encodeURIComponent(trigger.id)}`}
+            href={buildWorkspaceHref(
+              slug,
+              `/schedules?triggerId=${encodeURIComponent(trigger.id)}`,
+            )}
             className="inline-flex items-center gap-1 text-[hsl(var(--primary))] hover:underline"
           >
             {t("triggers.detail.editInSchedule")}

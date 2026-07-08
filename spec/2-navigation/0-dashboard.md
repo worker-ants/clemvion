@@ -2,7 +2,7 @@
 id: dashboard
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/dashboard/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/dashboard/page.tsx
   - codebase/backend/src/modules/dashboard/dashboard.controller.ts
   - codebase/backend/src/modules/dashboard/dashboard.service.ts
   - codebase/backend/src/modules/dashboard/dto/responses/dashboard-response.dto.ts

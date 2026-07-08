@@ -2,7 +2,7 @@
 id: system-status
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/system-status/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/system-status/page.tsx
 ---
 
 # Spec: 시스템 상태 화면

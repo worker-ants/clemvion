@@ -23,6 +23,7 @@ const hoisted = vi.hoisted(() => ({
 const { mockReplace, toastSuccess, getMock } = hoisted;
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({
     replace: hoisted.mockReplace,
     push: vi.fn(),

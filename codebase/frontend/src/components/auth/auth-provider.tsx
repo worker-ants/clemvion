@@ -47,8 +47,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // reconcile-on-load (결정1): /auth/refresh 로 재발급된 토큰은 활성 워크스페이스가
         // personal/first 로 재해석된다(refresh 는 클레임 미보존). 이전에 선택했던
         // 워크스페이스(persisted)와 다르면 /switch 로 재조정해 팀 컨텍스트를 복원한다.
+        //
+        // URL 우선 (슬러그 라우팅): `/w/<slug>/...` 라우트에서는 `[slug]` layout 이 URL 기준으로
+        // reconcile 하므로(data-flow-12 §1.5 — "URL 있으면 URL 우선, 없으면 localStorage"),
+        // 여기 persisted(localStorage) 기준 reconcile 은 건너뛴다 — 그렇지 않으면 딥링크가 담은
+        // 워크스페이스와 마지막으로 선택한 워크스페이스가 이중으로 /switch 를 태워 레이스가 난다.
+        // slug 없는 라우트(editor·catch-all·docs)에서만 localStorage 힌트로 재조정한다.
+        const onWorkspaceSlugRoute = pathname.startsWith("/w/");
         const persisted = useWorkspaceStore.getState().currentWorkspaceId;
-        if (persisted && persisted !== decodeActiveWorkspaceId(accessToken)) {
+        if (
+          !onWorkspaceSlugRoute &&
+          persisted &&
+          persisted !== decodeActiveWorkspaceId(accessToken)
+        ) {
           try {
             await switchWorkspaceApi(persisted);
           } catch {

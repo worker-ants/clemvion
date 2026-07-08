@@ -30,6 +30,7 @@ vi.mock("@/components/llm-config/model-combobox", () => ({
 const mockSetPage = vi.fn();
 let currentSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   usePathname: () => "/models",
   useSearchParams: () => currentSearchParams,
