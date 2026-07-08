@@ -45,8 +45,12 @@ executions/page)·**auth-group**(callback·verify-email·login/register-form)·*
 - [x] 6. switchWorkspace 네비게이션화(sidebar·create-team·accept-invite·settings → 새 slug dashboard) (+unit)
 - [x] 7. AuthProvider: pathname `/w/` 면 persisted reconcile skip(URL 우선)
 - [x] 8. TEST WORKFLOW ✅ lint(0 err)·unit(5093 pass)·build(route 충돌 0, `/[...rest]`·`/docs`·`/workflows/[id]` 공존)·e2e(backend 243 + FE Playwright 44, slug-routing 4종 신규) + 링크 회귀(profile·schedules·execution-detail 테스트가 slug href 단언)
-- [ ] 9. /ai-review + fix + /consistency-check --impl-done (실 재검증 게이트)
-- [ ] 10. spec 반영(planner 위임): **범위 확장**(impl-prep WARNING#2 반영) — 9-user-profile §3 flip·12-workspace Rationale·10-auth-flow §7.2 + 이동 페이지 spec 들의 frontmatter `code:` glob `(main)/<page>`→`(main)/w/[slug]/<page>` 일괄 정정 + `_layout.md §2.2/§3.1` 경로표·`0-dashboard §5`·`1-workflow-list §2.6` bare-path 산문 slug-aware 갱신 + spec-sync-user-profile-gaps 트래커 체크
+- [x] 9. /ai-review(**4라운드, 전부 Critical 0**) + fix + /consistency-check --impl-done(BLOCK:NO)로 수렴. round1 6W·round2 4W·round3 6W(**real bug**: rerun-modal 재실행 slug 누락 → fix+테스트)·round4 2W(구조 후속 defer). 조치: security open-redirect 강화(backslash/제어문자)·DRY resolveFallbackWorkspace(3소비처)·use-workspaces/setWorkspaces/slug-branch 테스트·CHANGELOG·spec 각주. 각 라운드 RESOLUTION.md 기록. (주: 초회가 주간 한도로 중단→익일 재개; reviewer disk-write 갭은 저위험 기록)
+- [x] 10. spec 반영 완료: 9-user-profile §3 flip·12-workspace Rationale(슬러그 라우팅 불변식)·10-auth-flow §7.2·`_layout §2.2/§3.1` 경로표·11-error §1.3(무효 slug=FE redirect)·0-dashboard·1-workflow-list·14-execution-history·15-system-status·16-agent-memory·4-ai-assistant·13-replay-rerun bare-path 각주 + frontmatter `code:` glob 일괄 미러(코드 커밋 포함) + spec-sync-user-profile-gaps 트래커 §3 체크
+
+## 잔여(후속, 본 PR 범위 밖)
+- editor(`/workflows/[id]`) slug화 = **phase 2**. docs(`/docs`)는 워크스페이스 무관이라 slug 밖 유지(설계).
+- ai-review INFO(저우선): cafe24 `encodeURIComponent` 대칭·cafe24 `lastErrorMessage` i18n·`WORKSPACE_ROUTE_PREFIX` 상수화·`useActiveWorkspace()` 상위 훅 통합 — 별도 리팩터.
 
 # 워크스페이스 슬러그 URL 라우팅 (`/w/[slug]/...`)
 
