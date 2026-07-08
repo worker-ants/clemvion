@@ -2,6 +2,9 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+// 활성/폴백 워크스페이스 해소 규칙의 단일 진실. `[slug]` layout·catch-all 리다이렉트와 동일
+// 규칙을 공유한다(resolve-fallback 은 `WorkspaceSummary` 를 type-only import 하므로 런타임 순환 없음).
+import { resolveFallbackWorkspace } from "@/lib/workspace/resolve-fallback";
 
 export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
 
@@ -40,9 +43,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       currentWorkspaceId: null,
       loaded: false,
       setWorkspaces: (list) => {
-        const current = get().currentWorkspaceId;
-        const stillExists = current && list.some((w) => w.id === current);
-        const next = stillExists ? current : list[0]?.id ?? null;
+        // 현재 워크스페이스가 목록에 남아있으면 유지, 없으면 첫 워크스페이스로 — 공용 규칙 위임.
+        const next =
+          resolveFallbackWorkspace(list, get().currentWorkspaceId)?.id ?? null;
         set({ workspaces: list, currentWorkspaceId: next, loaded: true });
       },
       switchWorkspace: async (id) => {

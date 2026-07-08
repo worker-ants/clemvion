@@ -19,7 +19,7 @@ spec-sync(§10)로 이관. INFO 12건은 저우선 defer.
 - **lint**: 통과 (fix 파일 0 issue; repo 잔여 11 warning 은 pre-existing·무관 파일)
 - **unit**: 통과 (260 files, 5102 pass / 1 skip — 신규 +9)
 - **build**: 통과 (route 충돌 0 — `/[...rest]`·`/docs/[...slug]`·`/workflows/[id]`·`/w/[slug]/*` 공존)
-- **e2e**: 통과 (backend supertest 243 + FE Playwright 44, slug-routing 4종). fix 후 재수행 결과는 아래 §재검증 참조
+- **e2e**: 통과 (backend supertest 243 + FE Playwright 44, slug-routing 4종). fix 후 재수행 결과는 후속 세션 `review/code/2026/07/09/07_56_16/`(fresh ai-review, LOW·Critical 0) 참조
 
 ## 보류·후속 항목
 
@@ -27,4 +27,4 @@ spec-sync(§10)로 이관. INFO 12건은 저우선 defer.
   이동 페이지 bare-path 산문(`_layout.md §2.2/§3.1`·`15-system-status`·`16-agent-memory` 등) 정정. `/consistency-check --spec` 검증 후 반영.
 - **INFO (defer)**: cafe24 `encodeURIComponent` 대칭화(#1)·cafe24 `lastErrorMessage` i18n 매핑(#2)·`WORKSPACE_ROUTE_PREFIX` 상수화(#8)·
   `useActiveWorkspace()` 상위 훅 통합(#4) — 현행 리스크 낮음, 별도 리팩터 후속.
-- **리뷰 커버리지 갭**: Workflow 가 scope/side_effect/documentation/user_guide_sync 4 reviewer 를 "success" 로 보고했으나 output 파일 미존재(디스크-write 갭). fresh `/ai-review` 재수행으로 재검증(§재검증).
+- **리뷰 커버리지 갭**: Workflow 가 scope/side_effect/documentation/user_guide_sync 4 reviewer 를 "success" 로 보고했으나 output 파일 미존재(디스크-write 갭). fresh `/ai-review`(`review/code/2026/07/09/07_56_16/`) 재수행으로 재검증 완료 — scope/side_effect/documentation 포함 9 reviewer 산출, Critical 0.

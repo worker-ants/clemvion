@@ -344,7 +344,7 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | 입력 데이터 폼 | 원본의 `inputData.parameters` | Manual Trigger parameters 스키마 기반 동적 폼. 필드 라벨/타입은 워크플로의 manual_trigger 노드 config 에서 도출 ([Spec 실행 엔진 §6.1.1](./4-execution-engine.md#611-트리거-입력-파라미터-seeding)). **스키마 부재**(manual_trigger 노드 삭제 등) 시 원본 `inputData.parameters` 키를 untyped text 필드로 fallback 해 데이터 은닉을 피한다. 타입별 위젯: string→text·number→number·boolean→checkbox·object/array→JSON |
 | "원본 입력 그대로 사용" 토글 | OFF (편집 가능) | ON 으로 두면 폼 read-only + "재실행" 버튼이 한 클릭 경로. 프론트엔드는 토글 상태로부터 `useOriginalInput` 을 **항상 명시 전송**하므로, §8.1 의 API 기본값 `true` 는 필드를 생략한 직접 API 호출자용 안전 폴백일 뿐 UI 기본값(OFF=false)과 모순되지 않는다 |
 | "dry-run 모드" 토글 | OFF | 워크플로에 `supportsDryRun: false` 노드가 있으면 disabled + tooltip "이 워크플로는 dry-run 미지원 노드를 포함합니다 (RR-PL-01)" |
-| "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/workflows/:workflowId/executions/:newId`) |
+| "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/w/<slug>/workflows/:workflowId/executions/:newId`, 활성 워크스페이스 slug 기준 — [2-navigation/_layout §2.2](../2-navigation/_layout.md#22-메뉴-항목)) |
 | "취소" 버튼 | — | 모달 닫기. 변경 입력 폐기 |
 
 ### 10.3 Chain 표시

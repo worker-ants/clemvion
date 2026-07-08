@@ -18,6 +18,8 @@ code:
 
 대시보드(`/dashboard`)는 로그인 후 최초 랜딩 화면이다. 워크플로우 상태와 최근 실행 이력을 한눈에 파악하고, 빠른 액션을 수행할 수 있다.
 
+> **경로 표기 규약**: 본 문서의 `(main)` 경로(`/dashboard`·`/workflows`·`/workflows/:id/executions/:executionId` 등)는 활성 워크스페이스 기준 `/w/<slug>/...` 로 렌더된다(URL slug = FE 라우팅 SoT, [_layout §2.2](./_layout.md#22-메뉴-항목)). 에디터 canvas `/workflows/:id` 는 phase 1 에서 slug 밖이다.
+
 ---
 
 ## 2. 화면 구성

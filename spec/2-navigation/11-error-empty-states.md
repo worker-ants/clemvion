@@ -65,6 +65,7 @@ code:
 | 500 감지 | API 응답 5xx 수신 시 서버 에러 페이지 표시 |
 | 네트워크 오류 | API 호출 실패 (네트워크 타임아웃, DNS 실패 등) 시 표시 |
 | 사이드바 표시 | 401: 숨김, 403/404/500/네트워크: 표시 (로그인 상태 유지 중이므로) |
+| 무효/비멤버 워크스페이스 slug | **404/403 아님** — `/w/<slug>/...` 의 slug 가 해석 실패(존재하지 않거나 비멤버)하면 `[slug]` layout 이 default 워크스페이스로 **FE 레벨 편의 redirect** 한다(인가 경계가 아니며, 헤더 스푸핑 등 실제 인가는 backend `RolesGuard` 403 이 담당). 상세: [9-user-profile §3](./9-user-profile.md#3-워크스페이스-전환), `codebase/frontend/src/app/(main)/w/[slug]/layout.tsx`(`resolveFallbackWorkspace`). |
 
 ---
 

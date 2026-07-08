@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 워크스페이스 슬러그 URL 라우팅 phase 1 (`/w/[slug]/...`) (2-navigation/9-user-profile §3)
+
+### 변경 사항
+
+1. **활성 워크스페이스가 URL 경로(`/w/<slug>/...`)로 반영된다** — `spec/2-navigation/9-user-profile.md §3` 이 "미구현(Planned)" 으로 두었던 슬러그 라우팅을 구현했다(FE-only, backend 무변경). `(main)/*` 26 페이지를 `(main)/w/[slug]/*` 로 이동하고, 신규 `(main)/w/[slug]/layout.tsx` 가 slug→워크스페이스를 해소해 **reconcile(URL 우선)** 한다 — resolved-id ≠ 활성 id 면 기존 `switchWorkspace`(→ `X-Workspace-Id` 헤더 + `/switch` 토큰 재발급) 로 재조정하고, 정합될 때까지 페이지 렌더를 gate 한다. **URL slug = FE 라우팅 SoT 이며 backend 인가 SoT 가 아니다** — header-first→토큰 클레임 인가 모델(#859)·`X-Workspace-Id` 헤더 첨부는 불변. 무효/비멤버 slug 는 default 워크스페이스로 조용히 redirect(UX 편의, 인가 경계는 `RolesGuard` 403). `(main)/[...rest]` catch-all 이 구 무-slug 경로·알림 딥링크·`/`·로그인후 `/dashboard` 를 활성 slug 로 흡수한다(query/hash 보존). 내부 링크는 `buildWorkspaceHref(slug, path)`(open-redirect 방어 포함) 헬퍼로 slug 화하고, 활성/폴백 워크스페이스 해소는 `resolveFallbackWorkspace` 단일 규칙을 공유한다. **에디터(`/workflows/[id]`)·유저 가이드(`/docs`)·인증(`(auth)`)은 phase 1 에서 slug 밖**(에디터 slug화는 phase 2). spec 동기화: `9-user-profile §3` flip·`data-flow/12-workspace` Rationale(슬러그 라우팅 불변식)·`10-auth-flow §7.2`·`_layout §2.2/§3.1`. SoT: `spec/2-navigation/9-user-profile.md §3`.
+
 ## Unreleased — 삭제된 Integration 참조 캔버스 경고 배지 `⚠ Missing integration` (4-integration §5)
 
 ### 변경 사항

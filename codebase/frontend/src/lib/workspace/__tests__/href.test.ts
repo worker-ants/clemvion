@@ -31,4 +31,12 @@ describe("buildWorkspaceHref", () => {
     );
     expect(buildWorkspaceHref(null, "//evil.com/x")).toBe("/evil.com/x");
   });
+
+  it("neutralizes backslash and control-char open-redirect bypasses", () => {
+    // WHATWG URL treats `\`, tab, CR, LF like `/` in special schemes.
+    expect(buildWorkspaceHref(null, "\\\\evil.com/x")).toBe("/evil.com/x");
+    expect(buildWorkspaceHref(null, "/\\evil.com")).toBe("/evil.com");
+    expect(buildWorkspaceHref(null, "/\t/evil.com")).toBe("/evil.com");
+    expect(buildWorkspaceHref("team-a", "\\\\evil.com")).toBe("/w/team-a/evil.com");
+  });
 });
