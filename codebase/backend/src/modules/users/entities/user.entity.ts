@@ -137,7 +137,14 @@ export class User {
 
   @Column({ name: 'notification_preferences', type: 'jsonb', default: {} })
   notificationPreferences: {
+    // Integration 만료/조치필요 이메일 — **opt-in**(누락/false = 이메일 off).
+    // 4-integration §11.3, integration 노티파이어가 caller-side 로 적용.
     integrationExpiryEmail?: boolean;
+    // 워크플로우/스케줄 실행 실패 이메일 — **opt-out**(누락/true = 이메일 on,
+    // 9-user-profile §5.1 기본 인앱+이메일). 사용자가 false 로 끄면 인앱만.
+    // 발사원 dispatch 가 `NotificationsService.resolveOptOutEmailChannels` 로 적용.
+    executionFailedEmail?: boolean;
+    scheduleFailedEmail?: boolean;
   };
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

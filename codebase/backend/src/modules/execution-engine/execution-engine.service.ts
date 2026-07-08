@@ -4487,6 +4487,14 @@ export class ExecutionEngineService
         ),
       ];
       if (recipients.length === 0) return;
+      // §5.1 기본 채널 = 인앱+이메일(opt-out). 사용자가 `executionFailedEmail=false`
+      // 로 끄면 인앱만. channel 계산은 호출자 책임(data-flow/8-notifications §1)이라
+      // 발사원이 prefs 를 해소해 per-recipient channel 을 넘긴다.
+      const channelByUser =
+        await notificationsService.resolveOptOutEmailChannels(
+          recipients,
+          'executionFailedEmail',
+        );
       await notificationsService.createMany(
         recipients.map((userId) => ({
           workspaceId: workflow.workspaceId,
@@ -4500,9 +4508,7 @@ export class ExecutionEngineService
           // 딥링크 계약(href.ts §3.1) — resource_id = workflow id.
           resourceType: 'workflow',
           resourceId: workflow.id,
-          // 인앱 + 이메일 — spec/2-navigation/9-user-profile.md §5.1 이 "워크플로우 실행
-          // 실패" 기본 채널을 인앱+이메일로 규정(채널 on/off 토글 미구현이라 기본값 고정).
-          channel: 'both',
+          channel: channelByUser.get(userId) ?? 'both',
         })),
       );
     } catch (err) {

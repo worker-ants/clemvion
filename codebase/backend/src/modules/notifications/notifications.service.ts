@@ -5,6 +5,8 @@ import { In, IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
+import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
+import { NotificationSettingsDto } from './dto/responses/notification-settings-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WebsocketService } from '../websocket/websocket.service';
 import { MailService } from '../mail/mail.service';
@@ -338,6 +340,89 @@ export class NotificationsService {
       this.emitNew(row);
     }
     await this.dispatchEmails(saved);
+  }
+
+  /**
+   * 알림 설정(이메일 채널 토글) 조회 — spec/2-navigation/9-user-profile.md §6.2.
+   * JSONB 에 키가 없어도 타입별 기본값을 적용한 **해소값**을 반환한다
+   * (integration=opt-in 기본 false, failures=opt-out 기본 true).
+   */
+  async getSettings(userId: string): Promise<NotificationSettingsDto> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: { id: true, notificationPreferences: true },
+    });
+    return this.resolveSettings(user?.notificationPreferences);
+  }
+
+  /**
+   * 알림 설정 부분 수정 — 제공된 키만 기존 JSONB 에 머지(다른 키 보존).
+   */
+  async updateSettings(
+    userId: string,
+    patch: UpdateNotificationSettingsDto,
+  ): Promise<NotificationSettingsDto> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: { id: true, notificationPreferences: true },
+    });
+    if (!user) {
+      // 플랫 `{code, message}` — 코드베이스의 다른 USER_NOT_FOUND 발행처와 동일 shape.
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found',
+      });
+    }
+    const merged = { ...(user.notificationPreferences ?? {}) };
+    for (const key of [
+      'integrationExpiryEmail',
+      'executionFailedEmail',
+      'scheduleFailedEmail',
+    ] as const) {
+      if (patch[key] !== undefined) merged[key] = patch[key];
+    }
+    await this.userRepository.update(userId, {
+      notificationPreferences: merged,
+    });
+    return this.resolveSettings(merged);
+  }
+
+  private resolveSettings(
+    prefs: User['notificationPreferences'] | undefined,
+  ): NotificationSettingsDto {
+    const p = prefs ?? {};
+    return {
+      integrationExpiryEmail: p.integrationExpiryEmail ?? false, // opt-in
+      executionFailedEmail: p.executionFailedEmail ?? true, // opt-out
+      scheduleFailedEmail: p.scheduleFailedEmail ?? true, // opt-out
+    };
+  }
+
+  /**
+   * opt-out 이메일 타입(실행/스케줄 실패)의 발사원 dispatch 가 **caller-side** 로
+   * 채널을 계산할 때 쓰는 헬퍼 — 수신자별 `<prefKey> === false` 면 이메일 제외
+   * (`in_app`), 아니면 기본 `both`(§5.1). "channel 계산은 호출자 책임"
+   * (data-flow/8-notifications §1) 불변식을 지키며(발사원이 결과 channel 을 넘김)
+   * prefs 조회만 재사용한다 — `notify()`/`createMany` 의 적재 경로엔 개입하지 않는다.
+   */
+  async resolveOptOutEmailChannels(
+    userIds: string[],
+    prefKey: 'executionFailedEmail' | 'scheduleFailedEmail',
+  ): Promise<Map<string, 'both' | 'in_app'>> {
+    const map = new Map<string, 'both' | 'in_app'>();
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return map;
+    const users = await this.userRepository.find({
+      where: { id: In(ids) },
+      select: { id: true, notificationPreferences: true },
+    });
+    for (const u of users) {
+      map.set(
+        u.id,
+        u.notificationPreferences?.[prefKey] === false ? 'in_app' : 'both',
+      );
+    }
+    return map;
   }
 
   /**
