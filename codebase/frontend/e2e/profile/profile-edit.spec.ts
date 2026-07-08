@@ -163,10 +163,10 @@ test.describe("/profile readonly + 인라인 편집", () => {
     await expect(page.getByTestId("profile-info-edit")).toBeVisible();
     await expect(page.getByTestId("profile-pref-edit")).toBeVisible();
 
-    // 비밀번호 카드는 sub-route 로의 링크로 노출
+    // 비밀번호 카드는 sub-route 로의 링크로 노출 (slug-aware — 9-user-profile §3)
     await expect(page.getByTestId("profile-change-password-link")).toHaveAttribute(
       "href",
-      "/profile/change-password",
+      "/w/personal-alice/profile/change-password",
     );
   });
 
