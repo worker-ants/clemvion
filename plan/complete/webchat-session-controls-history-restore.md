@@ -6,6 +6,7 @@ status: complete
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/2-sdk.md
   - spec/7-channel-web-chat/3-auth-session.md
 ---
 

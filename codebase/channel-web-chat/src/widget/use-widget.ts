@@ -302,8 +302,8 @@ export function useWidget() {
       }
     } catch (e) {
       // 이 start 가 teardown(새 대화/종료)으로 대체됐으면 옛 실패로 최신 상태를 덮지 않는다 —
-      // try 의 두 gen 검사(:289·:299)와 대칭. 미검사 시 stale 실패가 startedRef 를 재개방(중복
-      // execution)하거나 진행 중 새 대화 phase 를 옛 에러로 ERROR 덮어쓸 수 있다(concurrency).
+      // try 블록의 두 gen 검사(BOOTED 직전·openStream 직전)와 대칭. 미검사 시 stale 실패가
+      // startedRef 를 재개방(중복 execution)하거나 진행 중 새 대화 phase 를 옛 에러로 덮을 수 있다.
       if (startGenRef.current !== gen) return;
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
