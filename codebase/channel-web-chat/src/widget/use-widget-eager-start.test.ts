@@ -483,3 +483,52 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(esUrl).toContain("lastEventId=0");
   });
 });
+
+describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
+  it("대기 중 ai_conversation(nodeId 보유) → end_conversation(graceful) 전송 후 ended + 저장세션 정리", async () => {
+    const { fetchMock, getEs } = installControllableSse();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    // ai_conversation waiting 진입 — waitingNodeId 포함 → pending.nodeId 확정.
+    act(() =>
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        nodeOutput: { conversationConfig: {} },
+        conversationThread: { turns: [] },
+      }),
+    );
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
+    const body = JSON.parse((interactCalls(fetchMock)[0][1] as RequestInit).body as string);
+    expect(body.command).toBe("end_conversation");
+    expect(body.nodeId).toBe("n1");
+    expect(result.current.state.phase).toBe("ended");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  it("진행 중(streaming, 비 ai_conversation) → 범용 cancel 전송 후 ended", async () => {
+    const { fetchMock } = installControllableSse();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    // webhook 202 후 waiting 미도착 → phase streaming, pending null.
+    await waitFor(() => expect(result.current.state.phase).toBe("streaming"));
+
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
+    const body = JSON.parse((interactCalls(fetchMock)[0][1] as RequestInit).body as string);
+    expect(body.command).toBe("cancel");
+    expect(result.current.state.phase).toBe("ended");
+  });
+});

@@ -383,6 +383,41 @@ export function useWidget() {
     dispatch({ type: "NEW_CHAT" });
     void start();
   }, [teardownSession, start, clearQueue]);
+  /**
+   * 대화 종료(§3.1) — 헤더 "대화 종료" 컨트롤. 대기 중 AI 대화(`awaiting_user_message` +
+   * `ai_conversation`)면 graceful `end_conversation`(워크플로우가 이어서 완료), 그 외 phase
+   * (booting/streaming/buttons/form)면 범용 `cancel` 로 execution 을 종료한다. 명령 성패와 무관하게
+   * **사용자 의도대로 optimistic 하게 로컬 세션을 정리하고 `[ended]` 로 전이**한다(토큰은 종료 시
+   * invalidate 되며 SSE terminal 이벤트도 병행 도달). 명령 실패(410/네트워크)는 진단만 남긴다.
+   */
+  const endConversation = useCallback(async () => {
+    const session = sessionRef.current;
+    const client = clientRef.current;
+    if (session && client) {
+      const graceful =
+        state.phase === "awaiting_user_message" &&
+        state.pending?.type === "ai_conversation" &&
+        !!state.pending?.nodeId;
+      const command: InteractCommand = graceful
+        ? { command: "end_conversation", nodeId: state.pending!.nodeId, reason: "user_ended" }
+        : { command: "cancel", reason: "user_ended" };
+      try {
+        await client.interact(session.endpoints, session.token, command);
+      } catch (e) {
+        console.warn(
+          "[widget] endConversation 명령 실패(로컬 종료 진행):",
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+    // optimistic 로컬 종료 — teardown(SSE→타이머→저장세션) 후 ref 초기화·큐 비우고 ENDED.
+    teardownSession();
+    sessionRef.current = null;
+    startedRef.current = false;
+    clearQueue();
+    dispatch({ type: "ENDED", reason: "user_ended" });
+    bridgeRef.current?.sendEvent("conversationEnded", { reason: "user_ended" });
+  }, [state.phase, state.pending, teardownSession, clearQueue]);
   // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
   const show = useCallback(() => dispatch({ type: "SHOW" }), []);
   const hide = useCallback(() => dispatch({ type: "HIDE" }), []);
@@ -493,7 +528,7 @@ export function useWidget() {
     state,
     config,
     // I3: start 는 open() 이 자동 호출 — 외부 직접 호출 불필요. 하위 호환 목적으로 노출 유지.
-    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat, show, hide, updateProfile, sendResize },
+    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat, endConversation, show, hide, updateProfile, sendResize },
   };
 }
 

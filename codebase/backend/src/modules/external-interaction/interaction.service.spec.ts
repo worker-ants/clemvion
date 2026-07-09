@@ -534,4 +534,99 @@ describe('InteractionService.getStatus', () => {
     expect(r.currentNode).toBeNull();
     expect(r.context).toBeNull();
   });
+
+  // EIA §R17 재조정(2026-07-09): waiting_for_input 시 durable conversation_thread 를
+  // context.conversationThread 로 동봉해 위젯 새로고침 히스토리 복원을 지원한다.
+  const DURABLE_THREAD = {
+    id: 'default',
+    nextSeq: 2,
+    turns: [
+      {
+        seq: 0,
+        nodeId: 'n1',
+        nodeType: 'ai_agent',
+        source: 'ai_user',
+        text: '안녕',
+        timestamp: 't0',
+      },
+      {
+        seq: 1,
+        nodeId: 'n1',
+        nodeType: 'ai_agent',
+        source: 'ai_assistant',
+        text: '반갑습니다',
+        timestamp: 't1',
+      },
+    ],
+    totalChars: 7,
+  };
+
+  it('waiting_for_input(ai_conversation) — durable conversationThread 를 context 에 동봉 (히스토리 복원)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        conversationThread: DURABLE_THREAD as never,
+      }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: {
+        meta: { interactionType: 'ai_conversation' },
+        conversationConfig: { placeholder: '메시지 입력' },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.context).toMatchObject({
+      interactionType: 'ai_conversation',
+      waitingNodeId: 'n1',
+      conversationThread: DURABLE_THREAD,
+    });
+  });
+
+  it('waiting_for_input(buttons) — durable conversationThread 도 동봉', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        conversationThread: DURABLE_THREAD as never,
+      }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      outputData: {
+        meta: { interactionType: 'buttons' },
+        config: { buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] } },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.context).toMatchObject({
+      interactionType: 'buttons',
+      waitingNodeId: 'n1',
+      conversationThread: DURABLE_THREAD,
+    });
+  });
+
+  it('waiting_for_input — conversation_thread 가 null(배포 이전 row)이면 conversationThread 키 미동봉', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        conversationThread: null as never,
+      }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: { meta: { interactionType: 'ai_conversation' } },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.context).toMatchObject({
+      interactionType: 'ai_conversation',
+      waitingNodeId: 'n1',
+    });
+    expect(r.context).not.toHaveProperty('conversationThread');
+  });
 });

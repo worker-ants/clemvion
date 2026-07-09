@@ -24,9 +24,22 @@ export interface DisplayMessage {
   presentations?: Array<Record<string, unknown>>;
 }
 
+/**
+ * 사용자 발화로 취급하는 백엔드 `ConversationTurnSource`(WS §4.4.5 / conversation-thread §1.1):
+ * form/carousel 등 presentation 제출(`presentation_user`)과 AI 대화의 사용자 turn(`ai_user`).
+ * 그 외(`ai_assistant`/`ai_tool`/`system`, 또는 미상)는 assistant 측으로 본다.
+ */
+const USER_TURN_SOURCES = new Set<string>(["presentation_user", "ai_user", "user"]);
+
+/**
+ * turn → 말풍선 role. 명시 `role`(라이브 dispatch·구형 fixture) 이 있으면 우선하고, 없으면 wire
+ * `source`(백엔드 5값)를 user/assistant 로 축약한다 — 새로고침 복원 thread 는 `role` 없이
+ * source 만 실려 오므로(EIA getStatus / SSE waiting) 이 매핑이 없으면 전부 assistant 로 렌더된다.
+ * 매핑 SoT: spec/7-channel-web-chat/1-widget-app §2.
+ */
 function roleOf(turn: ConversationTurn): "user" | "assistant" {
   if (turn.role) return turn.role;
-  // source 기반 휴리스틱: injected(system 주입) 는 assistant 측 컨텍스트로 본다.
+  if (turn.source && USER_TURN_SOURCES.has(turn.source)) return "user";
   return "assistant";
 }
 

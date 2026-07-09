@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { isTextInputSurface, type WidgetState } from "@/lib/widget-state";
 import type { BootMessage } from "../host-bridge";
 import { Composer } from "./composer";
@@ -12,7 +13,15 @@ interface PanelActions {
   clickButton: (buttonId: string) => void;
   submitForm: (data: Record<string, unknown>) => void;
   newChat: () => void;
+  endConversation: () => void;
 }
+
+/** 진행 중 대화 phase — 헤더 세션 컨트롤(새 대화/종료) 노출 조건(§3.1: 대화 없음·ended 면 미노출). */
+const ACTIVE_PHASES: ReadonlyArray<WidgetState["phase"]> = [
+  "booting",
+  "streaming",
+  "awaiting_user_message",
+];
 
 interface PanelProps {
   state: WidgetState;
@@ -36,17 +45,71 @@ export function Panel({ state, config, actions }: PanelProps) {
   const isEnded = phase === "ended";
   const fresh = messages.length === 0;
   const welcomeSuggestions = config.welcome?.suggestions ?? config.launcher?.suggestions ?? [];
+  // 헤더 세션 컨트롤 노출 — 진행 중 대화에서만(대화 없음·ended 는 CTA/신규 시작으로 충분, §3.1).
+  const showSessionControls = ACTIVE_PHASES.includes(phase);
+  // 새 대화/종료 실행 전 가벼운 확인(2단계) — 진행 중 대화·히스토리 유실 오조작 방지(§3.1).
+  const [confirming, setConfirming] = useState<null | "new" | "end">(null);
 
   return (
     <section className="wc-panel" aria-label="채팅 패널">
       <header className="wc-panel-header">
         <span className="wc-panel-title">{config.headerTitle ?? "AI 어시스턴트"}</span>
-        <button type="button" className="wc-panel-close" aria-label="닫기" onClick={actions.close}>
-          ✕
-        </button>
+        <div className="wc-panel-actions">
+          {showSessionControls && (
+            <>
+              <button
+                type="button"
+                className="wc-panel-action"
+                onClick={() => setConfirming("new")}
+              >
+                새 대화
+              </button>
+              <button
+                type="button"
+                className="wc-panel-action"
+                onClick={() => setConfirming("end")}
+              >
+                대화 종료
+              </button>
+            </>
+          )}
+          <button type="button" className="wc-panel-close" aria-label="닫기" onClick={actions.close}>
+            ✕
+          </button>
+        </div>
       </header>
 
       <div className="wc-panel-body">
+        {confirming && (
+          <div className="wc-confirm" role="alertdialog" aria-label="확인">
+            <span>
+              {confirming === "new"
+                ? "새 대화를 시작할까요? 현재 대화 내용은 사라져요."
+                : "대화를 종료할까요? 종료하면 이어서 대화할 수 없어요."}
+            </span>
+            <div className="wc-confirm-actions">
+              <button
+                type="button"
+                className="wc-confirm-yes"
+                onClick={() => {
+                  if (confirming === "new") actions.newChat();
+                  else actions.endConversation();
+                  setConfirming(null);
+                }}
+              >
+                {confirming === "new" ? "새 대화 시작" : "대화 종료"}
+              </button>
+              <button
+                type="button"
+                className="wc-confirm-no"
+                onClick={() => setConfirming(null)}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
+
         {config.welcome?.text && (
           <div className="wc-bubble-msg wc-assistant">{config.welcome.text}</div>
         )}

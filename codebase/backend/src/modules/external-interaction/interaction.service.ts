@@ -221,11 +221,16 @@ export class InteractionService {
   /**
    * [EIA §5.3] 단발 상태 조회 — 현재 execution 상태와 waiting_for_input 컨텍스트 반환.
    *
-   * **보안 제약**: `nodeOutput` / `outputData` 는 SSE `waiting_for_input` payload 와
-   * 동일하게 **공개 EIA 표면**(SSE + 본 REST 엔드포인트)으로 흘러간다. 실행 엔진·노드
-   * 핸들러는 민감 중간 결과(API 키, PII 등)를 `NodeExecution.outputData` 에 기록하면
-   * 안 된다. 허용되는 데이터는 EIA 클라이언트가 렌더에 필요한 interaction 메타(버튼 설정,
-   * 폼 스키마, conversation config)로 한정한다 (node-execution.entity.ts `@Index` JSDoc 참조).
+   * **보안 제약**: `nodeOutput` / `outputData` / `conversationThread` 는 SSE `waiting_for_input`
+   * payload 와 동일하게 **공개 EIA 표면**(SSE + 본 REST 엔드포인트)으로 흘러간다. 실행 엔진·노드
+   * 핸들러는 민감 중간 결과(API 키, PII 등)를 `NodeExecution.outputData` 또는 conversation turn 텍스트에
+   * 기록하면 안 된다. 허용되는 데이터는 EIA 클라이언트가 렌더에 필요한 interaction 메타(버튼 설정,
+   * 폼 스키마, conversation config)와 대화 히스토리로 한정한다 (node-execution.entity.ts `@Index` JSDoc 참조).
+   *
+   * **`conversationThread` (durable 동봉, EIA §R17 재조정 2026-07-09)**: `waiting_for_input` 시
+   * durable 스냅샷(`Execution.conversation_thread`)을 SSE 와 동일 wire shape 으로 동봉해 위젯의
+   * **새로고침 히스토리 복원**을 5분 SSE buffer·서버 재시작·인스턴스 스위치와 무관하게 지원한다.
+   * 이미 SSE `waiting_for_input` 으로 공개 중인 데이터라 신규 민감 표면이 아니다.
    *
    * `seq` 는 항상 `SSE_SEQ_PLACEHOLDER(0)` — REST 단발 응답에서는 in-memory SSE seq 에
    * 접근할 수 없다. 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다.
@@ -243,10 +248,16 @@ export class InteractionService {
     // SSE waiting 이벤트를 구독 전 emit race 로 놓친 클라이언트가 본 응답으로 현재 표면을
     // 시드할 수 있도록, SSE `waiting_for_input` wire payload 와 **동일 형식**(interactionType /
     // waitingNodeId / buttonConfig / nodeOutput)으로 구성한다 → 위젯이 `parseWaitingForInput`
-    // 을 그대로 재사용. conversationThread snapshot 은 SSE replay 가 권위라 여기선 생략한다.
+    // 을 그대로 재사용. 아울러 `conversationThread` 는 durable 스냅샷(`Execution.conversation_thread`,
+    // park 시 commit)에서 동봉해 **새로고침 히스토리 복원**을 5분 SSE buffer·서버 재시작과 무관하게
+    // 지원한다 (EIA §R17 재조정 2026-07-09 — 종전엔 SSE 전용 권위라 생략했음). `seq` 만 SSE 권위.
     let currentNode: ExecutionStatusDto['currentNode'] = null;
     let context: ExecutionStatusDto['context'] = null;
     if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
+      // durable park 스냅샷 = SSE `waiting_for_input` 이 싣는 `cloneThread(context.conversationThread)`
+      // 와 동일 wire shape (park 시 stageDurableResumeSnapshot 이 commit). null(배포 이전 row /
+      // park 이력 없음)이면 미동봉 — 위젯 threadToMessages 가 undefined 를 빈 배열로 graceful 처리.
+      const conversationThread = execution.conversationThread ?? undefined;
       const nodeExec = await this.nodeExecutionRepository.findOne({
         where: {
           executionId: ctx.executionId,
@@ -277,19 +288,21 @@ export class InteractionService {
         };
         const bc = structured.config?.buttonConfig ?? structured.buttonConfig;
         if (interactionType === 'buttons' && bc) {
-          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }.
+          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }, conversationThread top-level.
           context = {
             interactionType,
             waitingNodeId: nodeExec.nodeId,
             buttonConfig: { buttons: bc.buttons, nodeOutput: out },
+            ...(conversationThread ? { conversationThread } : {}),
           };
         } else if (interactionType) {
           // form / ai_conversation: parseWaitingForInput 이 nodeOutput.formConfig /
-          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉.
+          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉. conversationThread top-level.
           context = {
             interactionType,
             waitingNodeId: nodeExec.nodeId,
             nodeOutput: out,
+            ...(conversationThread ? { conversationThread } : {}),
           };
         }
       }

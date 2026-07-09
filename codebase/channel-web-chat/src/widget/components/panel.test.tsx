@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { Panel } from "./panel";
 import type { WidgetState } from "@/lib/widget-state";
 
@@ -22,6 +22,7 @@ const BASE_ACTIONS = {
   clickButton: vi.fn(),
   submitForm: vi.fn(),
   newChat: vi.fn(),
+  endConversation: vi.fn(),
 };
 
 function makeState(overrides: Partial<WidgetState>): WidgetState {
@@ -168,5 +169,92 @@ describe("Panel — AI 처리 중 전송 버튼 로딩 표시 (§R6)", () => {
     );
     expect(screen.queryByLabelText("AI 응답 중")).toBeNull();
     expect(screen.getByLabelText("전송")).not.toHaveAttribute("aria-busy");
+  });
+});
+
+describe("Panel — 헤더 세션 컨트롤(새 대화/종료) + 가벼운 확인 (§3.1)", () => {
+  it("진행 중(awaiting_user_message) 이면 '새 대화'·'대화 종료' 컨트롤 노출", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    // 헤더 컨트롤(라벨은 '새 대화' / '대화 종료'). ended CTA '새 대화 시작' 과 라벨로 구분.
+    expect(screen.getByRole("button", { name: "새 대화" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "대화 종료" })).not.toBeNull();
+  });
+
+  it("ended 면 헤더 세션 컨트롤 미노출(대화 종료 CTA 로 충분)", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "ended", messages: [{ role: "assistant", text: "끝", source: "live" }] })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "새 대화" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "대화 종료" })).toBeNull();
+  });
+
+  it("collapsed/panel(대화 시작 전) 이면 헤더 세션 컨트롤 미노출", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "panel" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "새 대화" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "대화 종료" })).toBeNull();
+  });
+
+  it("'대화 종료' 클릭 → 확인 바 노출, 즉시 endConversation 호출 안 함", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "대화 종료" }));
+    expect(screen.getByRole("alertdialog")).not.toBeNull();
+    expect(BASE_ACTIONS.endConversation).not.toHaveBeenCalled();
+  });
+
+  it("확인 바에서 '대화 종료' 확정 → endConversation 호출", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "대화 종료" }));
+    // 확인 바 내부 확정 버튼(같은 라벨) — alertdialog 스코프에서 클릭.
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(dialog.querySelector(".wc-confirm-yes") as HTMLButtonElement);
+    expect(BASE_ACTIONS.endConversation).toHaveBeenCalledTimes(1);
+    expect(BASE_ACTIONS.newChat).not.toHaveBeenCalled();
+  });
+
+  it("'새 대화' 확인 → newChat 호출, '취소' → 아무 액션 없음", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "awaiting_user_message" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    // 취소 경로.
+    fireEvent.click(screen.getByRole("button", { name: "새 대화" }));
+    fireEvent.click(screen.getByRole("alertdialog").querySelector(".wc-confirm-no") as HTMLButtonElement);
+    expect(BASE_ACTIONS.newChat).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    // 확정 경로.
+    fireEvent.click(screen.getByRole("button", { name: "새 대화" }));
+    fireEvent.click(screen.getByRole("alertdialog").querySelector(".wc-confirm-yes") as HTMLButtonElement);
+    expect(BASE_ACTIONS.newChat).toHaveBeenCalledTimes(1);
   });
 });
