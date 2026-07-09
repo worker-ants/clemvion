@@ -47,13 +47,24 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 ## 워크플로 체크리스트
 
 - [x] consistency-check --impl-prep / --spec / --impl-done (rebase 전, 동일 spec 영역) BLOCK:NO
-- [ ] rebase 후 재검증: lint/unit/build/e2e
-- [ ] rebase 후 /ai-review (genuine diff)
-- [ ] rebase 후 /consistency-check --impl-done (genuine diff)
-- [ ] PR
+- [x] rebase 후 재검증: lint/unit/build/e2e 전부 PASS (e2e 247)
+- [x] rebase 후 /ai-review (genuine diff) — LOW, Critical 0 / WARNING 0 (`review/code/2026/07/10/01_46_28/`) + INFO 3건 fix + RESOLUTION.md
+- [x] rebase 후 /consistency-check --impl-done (genuine diff) — BLOCK:NO, Critical 0 (`review/consistency/2026/07/10/01_46_28/`)
+- [ ] PR (push + gh pr create)
 
-## 잔여 follow-up (별도 project-planner 트랙, 본 PR 범위 밖)
+## 잔여 follow-up (별도 project-planner 트랙, 본 PR 범위 밖 — 상세 인라인)
 
-- [ ] 7-llm-usage 인접 문서 정정 4건 (6-knowledge-base/13-agent-memory "모든 LLM 호출 적재",
-      7-statistics/9-user-profile workflowId 캐비어트, 1-data-model LlmUsageLog 서브섹션,
-      4-execution-engine/1-ai-agent 재구성 3분류 문구). backup 브랜치 `spec-update-7-llm-usage.md` 참조.
+> 근거를 로컬 backup 브랜치에 의존하지 않도록 상세를 여기 인라인한다(consistency
+> plan_coherence WARNING 반영). 원 draft: backup 브랜치 `backup-pre-rebase-elastic-shannon`
+> 커밋 `7a270a923` 의 `plan/in-progress/spec-update-7-llm-usage.md` (로컬 전용, 미푸시).
+
+- [ ] `spec/data-flow/6-knowledge-base.md:348` · `spec/data-flow/13-agent-memory.md:231` —
+      "모든 LLM 호출은 `llm_usage_log` 적재" stale 문구를 "chat 계열만 적재 / embed 계열 미적재
+      (§1.3)" 로 정정 (두 파일 동일 문구, 이번 PR §1.3 확정과 상충).
+- [ ] `spec/data-flow/7-statistics.md` §3 · `spec/2-navigation/9-user-profile.md` §6.3 —
+      `workflowId` 스코프 계약의 attribution 갭 캐비어트 재검토(노드 발까지 채워져 갭 축소).
+- [ ] `spec/1-data-model.md` — `LlmUsageLog` 전용 서브섹션 신설 검토 (자매 로그 `IntegrationUsageLog`
+      §2.10.1 은 보유).
+- [ ] `spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4 —
+      credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`, caller opts
+      전달, node.config 재유도 불가)" 문구 추가 (consistency rationale_continuity WARNING 반영).

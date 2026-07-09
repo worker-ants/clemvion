@@ -110,7 +110,7 @@ usage 적재 정책:
 | `RerankService` listwise LLM grading (`cross_encoder_llm` escalate 시, `knowledge-base/search/rerank.service.ts`) | chat | context 미전달, 전부 NULL |
 | AgentMemory 추출 processor (BullMQ, `agent-memory/queues/agent-memory-extraction.processor.ts`) | chat | context 미전달, 전부 NULL |
 
-> **attribution 채움 현황**: 멀티턴 AI 노드(AI Agent / Information Extractor)와 Text Classifier 는 첫 턴·resume 턴 모두 `workflow_id / execution_id / node_execution_id` 를 채운다(2026-07 완결 — resume 턴은 재구성 `state` 경유). `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)는 이제 노드 발 사용량을 반영한다. **잔여 NULL** 은 워크플로우 밖·non-node caller(`GraphExtractionService`·`RerankService` listwise·AgentMemory 추출 processor)와 노드 내부지만 미배선인 AI Agent 메모리 롤링 요약 압축뿐이다. 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
+> **attribution 채움 현황**: 멀티턴 AI 노드(AI Agent / Information Extractor)는 첫 턴·resume 턴 모두, Text Classifier(단발 — resume 없음)는 호출 시점에 `workflow_id / execution_id / node_execution_id` 를 채운다(2026-07 완결 — resume 턴은 재구성 `state` 경유). `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)는 이제 노드 발 사용량을 반영한다. **잔여 NULL** 은 워크플로우 밖·non-node caller(`GraphExtractionService`·`RerankService` listwise·AgentMemory 추출 processor)와 노드 내부지만 미배선인 AI Agent 메모리 롤링 요약 압축뿐이다. 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
 
 **embed 계열 (usage_log 미적재):**
 

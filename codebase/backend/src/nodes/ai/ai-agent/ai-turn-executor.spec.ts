@@ -504,6 +504,8 @@ describe('AiTurnExecutor', () => {
       const state = {
         ...resumeState(),
         conditions: [{ id: 'c1', label: 'c', prompt: 'p' }],
+        workflowId: 'wf-1',
+        nodeExecutionId: 'nodeexec-row-1',
       };
       const result = (await executor.processMultiTurnMessage(
         'go',
@@ -515,6 +517,19 @@ describe('AiTurnExecutor', () => {
       const next = result._resumeState as { toolCalls: number };
       expect(next.toolCalls).toBe(1);
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      // [Spec 7-llm-usage §1.3] tool-loop 후속(2번째) chat 호출도 동일 llmContext 로
+      // attribution 을 채워야 한다 (ai-review INFO#3 — 간접 커버 → 직접 단언).
+      const secondCallCtx = mockLlmService.chat.mock.calls[1][2] as Record<
+        string,
+        unknown
+      >;
+      expect(secondCallCtx).toEqual(
+        expect.objectContaining({
+          workflowId: 'wf-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'nodeexec-row-1',
+        }),
+      );
     });
 
     it('multi-turn: max_turns 종결 output 에 구조화 meta.mcpDiagnostics(카운터 포함) emit — spec §6.2', async () => {
