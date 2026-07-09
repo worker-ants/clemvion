@@ -15,64 +15,6 @@ code:
 
 ---
 
-## Overview (제품 정의)
-
-워크플로우 실행 내역 기능은 사용자가 특정 워크플로우의 모든 실행 이력을 조회하고, 개별 실행의 노드별 상세 결과를 확인할 수 있는 기능이다. 대시보드, 워크플로우 목록, 에디터 등 다양한 진입점에서 접근할 수 있다. 화면은 목록(`/w/<slug>/workflows/:id/executions`)과 상세(`.../:executionId`) 2단계로 구성한다 (활성 워크스페이스 slug 기준; 에디터 canvas `/workflows/:id` 도 슬러그 라우팅 phase 2 부터 slug 기준) — 기술 명세는 본문 [§1 개요](#1-개요) 이하.
-
-### 배경
-
-현재 실행 결과는 워크플로우 에디터 내부에서만 확인할 수 있어, 과거 실행 이력을 돌아보거나 특정 워크플로우의 실행 패턴을 파악하기 어렵다. 대시보드의 Recent Executions에서 워크플로우를 클릭해도 아무 동작이 없으며, 실행 이력을 체계적으로 탐색할 수 있는 별도의 화면이 필요하다.
-
-### 목표
-
-- 워크플로우별 실행 이력을 한눈에 파악
-- 개별 실행의 노드별 상세 결과 확인 (I/O 데이터, 에러, 타임라인)
-- 실패한 실행의 원인을 빠르게 진단
-- 기존 화면(대시보드, 워크플로우 목록, 에디터)과 자연스러운 네비게이션
-
-### 요구사항
-
-#### 실행 내역 목록 페이지 (EH-LIST)
-
-| ID | 요구사항 | 우선순위 | 상태 |
-|----|----------|----------|-------|
-| EH-LIST-01 | 해당 워크플로우의 전체 실행 이력을 테이블 형태로 표시 | 필수 | ✅ |
-| EH-LIST-02 | 각 행에 상태, 시작 시간, 소요 시간, 트리거 출처(`triggerSource` 5종 — §2.4 Trigger 열) 표시 | 필수 | ✅ |
-| EH-LIST-03 | 상태별 필터링 (All, Completed, Failed, Running, Cancelled, Waiting for Input) | 필수 | ✅ |
-| EH-LIST-04 | 정렬 지원 (시작 시간, 소요 시간, 상태) | 필수 | ✅ |
-| EH-LIST-05 | 페이지네이션 (페이지당 20건) | 필수 | ✅ |
-| EH-LIST-06 | 행 클릭 시 실행 상세 페이지로 이동 | 필수 | ✅ |
-| EH-LIST-07 | 헤더에 워크플로우 이름, 에디터로 이동 링크 표시 | 필수 | ✅ |
-| EH-LIST-08 | 실행 이력이 없을 때 빈 상태 안내 표시 | 필수 | ✅ |
-
-#### 실행 상세 페이지 (EH-DETAIL)
-
-| ID | 요구사항 | 우선순위 | 상태 |
-|----|----------|----------|-------|
-| EH-DETAIL-01 | 실행 요약 정보 표시 (상태, 시작/종료 시간, 소요 시간, 노드 실행 현황) | 필수 | ✅ |
-| EH-DETAIL-02 | 노드 결과 패널: 좌측 노드 목록 + 우측 노드 상세 (2분할 레이아웃) | 필수 | ✅ |
-| EH-DETAIL-03 | 노드 상세 서브 탭: Preview / Input / Output / Config / Error. AI 노드는 LLM Usage 탭 추가. AI Multi Turn 타임라인에서 assistant 메시지 선택 시 Preview / Response / Request / LLM Usage 구성으로 전환 | 필수 | ✅ |
-| EH-DETAIL-04 | 실패한 노드 하이라이트 및 에러 메시지 표시 | 필수 | ✅ |
-| EH-DETAIL-05 | Skipped 상태 노드는 목록에서 제외 | 필수 | ✅ |
-| EH-DETAIL-06 | Preview 탭: Presentation 노드는 시각적 프리뷰, AI Agent 노드는 대화 내역 + 메시지별 상세, 일반 노드는 상태 요약 (**단일 AI Agent 노드 범위**; 여러 노드를 가로지르는 통합 ConversationThread 뷰는 EH-DETAIL-12) | 필수 | ✅ |
-| EH-DETAIL-07 | Preview 탭: 버튼이 있는 노드는 모든 버튼 표시 + 선택된 버튼 하이라이트 | 필수 | ✅ |
-| EH-DETAIL-08 | 실행 목록으로 돌아가기 네비게이션 | 필수 | ✅ |
-| EH-DETAIL-09 | 이전/다음 실행으로 이동 | 권장 | ✅ |
-| EH-DETAIL-10 | 실행 상세 헤더에 "Re-run" 버튼 + 입력 미리보기·편집 모달. dry-run 토글 포함. 권한·dry-run 미지원 시 disabled + tooltip. 모달 명세는 [Spec Re-run §10.2](../5-system/13-replay-rerun.md#102-re-run-모달) | 필수 | ✅ |
-| EH-DETAIL-11 | Re-run chain 표시 — `re_run_of != null` 인 실행은 chain badge ("#N-th re-run · dry-run · 원본: <ID>") + "View chain" 드롭다운. 모델은 [Spec Re-run §RR-PL-05](../5-system/13-replay-rerun.md#rr-pl-05--chain-추적-모델-e3) | 필수 | ✅ |
-| EH-DETAIL-12 | (v2) cross-node **ConversationThread 재구성 view** — 여러 노드의 presentation/AI turn 을 seq·timestamp·source 로 interleave 한 통합 대화 뷰. NodeExecution 분산 저장(`output.interaction` + `output.result.messages`)에서 재구성하는 derived view (park resume durable 스냅샷과 목적·소비처 분리). 정책·UI 미정. 모델은 [Spec Conversation Thread §7](../conventions/conversation-thread.md#7-v2-로드맵). 로드맵: [§6.3](../0-overview.md#63-로드맵--미구현-) | 권장 | ❌ (v2) |
-
-#### 진입점 (EH-NAV)
-
-| ID | 요구사항 | 우선순위 | 상태 |
-|----|----------|----------|-------|
-| EH-NAV-01 | Dashboard의 Recent Executions 행 클릭 시 해당 실행의 상세 페이지로 이동 | 필수 | ✅ |
-| EH-NAV-02 | Workflow List 페이지에서 각 워크플로우의 실행 내역 링크 제공 | 필수 | ✅ |
-| EH-NAV-03 | 워크플로우 에디터에서 과거 실행 내역 페이지로 이동 링크 제공 | 필수 | ✅ |
-| EH-NAV-04 | 에디터의 AI Assistant 가 read-only 도구로 현재 워크플로의 실행 목록/상세 조회 가능 (상세: [Spec 3-workflow-editor §10.9 ED-AI-35~38](../3-workflow-editor/_product-overview.md#109-실행-결과-조회-진단수정)) | 필수 | ✅ (`get_workflow_executions` / `get_execution_details` 도구 — `workflow-assistant/tools/explore-tools.service.ts`. 직계 자식 1 depth 포함 + `subExecutionsTruncatedDepth` 힌트, `maskSensitiveFields` 자동 마스킹, running / waiting_for_input 부분 타임라인 허용) |
-
----
-
 ## 1. 개요
 
 워크플로우 실행 내역은 두 개의 페이지로 구성된다:
@@ -525,6 +467,6 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 ### R-6. EH-DETAIL-06(단일 노드) 과 EH-DETAIL-12(cross-node v2) 를 별도 ID 로 분리한 이유
 
-원래 `EH-DETAIL-06` 하나가 두 개의 서로 다른 요구사항을 가리켰다 — (a) 이 문서의 "단일 AI Agent 노드 Preview 탭"(✅ 구현 완료) 과 (b) `1-ai-agent.md`·`conventions/conversation-thread.md`·`conventions/data-hydration-surfaces.md` 가 참조하는 "여러 노드를 가로지르는 cross-node ConversationThread 재구성 view"(v2, 미구현). 한 ID 가 완료·미해결 두 상태를 동시에 뜻해 EH-ID 기반 상태 판정(spec-coverage 등)이 오판할 수 있었고, `conversation-thread.md` 는 "§EH-DETAIL-06 의 재구성 정책에 위임" 한다고 했으나 이 문서엔 그 정책이 없어 **dangling 위임**이었다. 그래서 cross-node 재구성에 신규 `EH-DETAIL-12`(❌ v2)를 발급해 참조를 이관하고, `EH-DETAIL-06` 은 단일 노드 범위(✅)로 고정했다. `14-execution-history.md` 는 §6.1 요구사항이 전부 구현돼 `status: implemented` 를 유지하되, v2 항목 EH-DETAIL-12 는 저장소 선례(Graph RAG·conversation-thread v2)대로 [`0-overview.md §6.3` 로드맵](../0-overview.md#63-로드맵--미구현-)에 미러 등재해 추적한다(`partial`+`pending_plans` 전환 불요). 배경: 슬러그 라우팅 하드닝(#866) `--impl-done` cross_spec 이 지적한 pre-existing 드리프트를 별건으로 정정.
+원래 `EH-DETAIL-06` 하나가 두 개의 서로 다른 요구사항을 가리켰다 — (a) "단일 AI Agent 노드 Preview 탭"(✅ 구현 완료) 과 (b) `1-ai-agent.md`·`conventions/conversation-thread.md`·`conventions/data-hydration-surfaces.md` 가 참조하는 "여러 노드를 가로지르는 cross-node ConversationThread 재구성 view"(v2, 미구현). 한 ID 가 완료·미해결 두 상태를 동시에 뜻해 EH-ID 기반 상태 판정(spec-coverage 등)이 오판할 수 있었고, `conversation-thread.md` 는 "§EH-DETAIL-06 의 재구성 정책에 위임" 한다고 했으나 그 정책이 어디에도 정의돼 있지 않아 **dangling 위임**이었다. 그래서 cross-node 재구성에 신규 `EH-DETAIL-12`(❌ v2)를 발급해 참조를 이관하고, `EH-DETAIL-06` 은 단일 노드 범위(✅)로 고정했다. (EH-* 요구사항 정의는 nav 영역 SoT 인 [`_product-overview.md §3.15`](./_product-overview.md#315-execution-history-실행-내역) 에 있다.) 실행 내역 요구사항이 전부 구현돼 `14-execution-history.md` 는 `status: implemented` 를 유지하되, v2 항목 EH-DETAIL-12 는 저장소 선례(Graph RAG·conversation-thread v2)대로 [`0-overview.md §6.3` 로드맵](../0-overview.md#63-로드맵--미구현-)에 미러 등재해 추적한다(`partial`+`pending_plans` 전환 불요). 배경: 슬러그 라우팅 하드닝(#866) `--impl-done` cross_spec 이 지적한 pre-existing 드리프트를 별건으로 정정.
 
 > Re-run 버튼·chain 추적(§3.7)의 설계 결정은 [Spec Re-run/Replay `## Rationale`](../5-system/13-replay-rerun.md#rationale) 이 SoT — 본 문서는 화면 배치만 정의한다.
