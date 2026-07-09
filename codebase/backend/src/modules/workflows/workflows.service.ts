@@ -469,7 +469,13 @@ export class WorkflowsService {
       changeSummary: `Restored from v${target.version}`,
     };
 
-    return this.saveCanvas(workflowId, workspaceId, userId, dto, true);
+    return this.saveCanvas(
+      workflowId,
+      workspaceId,
+      userId,
+      dto,
+      /* skipParamSchemaValidation */ true,
+    );
   }
 
   private buildSnapshot(
