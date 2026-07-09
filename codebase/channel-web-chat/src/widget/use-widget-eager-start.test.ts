@@ -532,6 +532,36 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     expect(result.current.state.phase).toBe("ended");
   });
 
+  it("endConversation 2회 연속 호출 → 재진입 가드로 두 번째는 no-op(명령 미중복)", async () => {
+    const { fetchMock, getEs } = installControllableSse();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    act(() =>
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        nodeOutput: { conversationConfig: {} },
+        conversationThread: { turns: [] },
+      }),
+    );
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    expect(result.current.state.phase).toBe("ended");
+    const interactAfterFirst = interactCalls(fetchMock).length; // end_conversation 1회.
+    // 두 번째 호출 — 이미 `ended` 라 phase 가드로 즉시 반환, 추가 명령 발사 없음.
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+    expect(interactCalls(fetchMock).length).toBe(interactAfterFirst);
+  });
+
   it("대기 중 buttons(비 ai_conversation) → graceful 아님, 범용 cancel 전송", async () => {
     const { fetchMock, getEs } = installControllableSse();
     const { result } = renderHook(() => useWidget());

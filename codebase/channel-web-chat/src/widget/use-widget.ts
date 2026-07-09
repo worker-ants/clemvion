@@ -424,7 +424,7 @@ export function useWidget() {
       state.pending?.type === "ai_conversation" &&
       !!state.pending?.nodeId;
     const command: InteractCommand = graceful
-      ? { command: "end_conversation", nodeId: state.pending!.nodeId, reason }
+      ? { command: "end_conversation", nodeId: state.pending?.nodeId, reason }
       : { command: "cancel", reason };
     // SSE 선차단 + optimistic 종료(중복 종료 이벤트 경합 제거).
     resetSessionRefs();

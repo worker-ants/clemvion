@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   widgetReducer,
   initialState,
+  isActiveConversationPhase,
   isTextInputSurface,
+  type WidgetPhase,
   type WidgetState,
 } from "./widget-state";
 
@@ -19,6 +21,22 @@ describe("isTextInputSurface — 자유 텍스트 표면 판정(§R6)", () => {
   });
   it("form → 비텍스트 표면(false)", () => {
     expect(isTextInputSurface({ type: "form" })).toBe(false);
+  });
+});
+
+// 헤더 세션 컨트롤(새 대화/종료) 노출 게이트 — 대화 확립(streaming/awaiting) 에서만 true.
+// booting 제외가 핵심(중복 webhook·미발사 cancel 차단, §2/§3.1) — WidgetPhase 7값 전수 진리표로 고정.
+describe("isActiveConversationPhase — 세션 컨트롤 노출 게이트", () => {
+  it.each<[WidgetPhase, boolean]>([
+    ["collapsed", false],
+    ["panel", false],
+    ["booting", false], // webhook in-flight·세션 미확립 — 컨트롤 미노출(중복 webhook·미발사 cancel 방지)
+    ["streaming", true],
+    ["awaiting_user_message", true],
+    ["ended", false],
+    ["blocked", false],
+  ])("phase=%s → %s", (phase, expected) => {
+    expect(isActiveConversationPhase(phase)).toBe(expected);
   });
 });
 

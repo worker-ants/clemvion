@@ -2,7 +2,7 @@
 worktree: webchat-session-history-0e9639
 started: 2026-07-09
 owner: developer
-status: in-progress
+status: complete
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/7-channel-web-chat/1-widget-app.md
