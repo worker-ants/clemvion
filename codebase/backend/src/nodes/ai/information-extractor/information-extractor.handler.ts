@@ -148,6 +148,15 @@ interface MultiTurnState {
   /** 첫 멀티턴 진입의 nodeId — 종결 push 시 NodeRef 구성용 (전략 무관 운반). */
   nodeId?: string;
   /**
+   * llm_usage_log attribution (spec/data-flow/7-llm-usage.md §1.3). resume 턴은
+   * context 를 받지 않으므로, engine 의 `buildRetryReentryState` 가 재구성 state 에
+   * 실어주는 workflowId(execution)·nodeExecutionId(현재 turn row PK) 를 그대로
+   * 소비해 LLM 호출 컨텍스트로 전달한다. `nodeId`(정의 id)와 구분 — attribution
+   * FK 는 반드시 NodeExecution row PK(`nodeExecutionId`)여야 한다.
+   */
+  workflowId?: string;
+  nodeExecutionId?: string;
+  /**
    * 첫 멀티턴 진입의 **평가된** 메모리 config 스냅샷 (memory-strategy-extend-ie).
    * rawConfig 는 `{{...}}` 템플릿이 보존된 미평가 값이라 scope key resolve 에
    * 부적합하므로, 종결 추출에 필요한 평가값(memoryKey/llmConfigId/model/모델 폴백/
@@ -874,10 +883,17 @@ export class InformationExtractorHandler implements NodeHandler {
         llmCalls,
         // resume(continuation) 경로 — cancel-others-on-fail 같은 abort 컨텍스트가
         // 없으므로 signal 미전파 (optional). 초기 실행 경로(executeMultiTurn)만 전파.
-        // [Spec 7-llm-usage §1.3] 재개 경로에서는 state 에 저장된 executionId/nodeId 로
-        // attribution 최대 제공 (workflowId 는 state 에 없어 null, 추후 개선 가능).
+        // [Spec 7-llm-usage §1.3] 재개 경로 attribution — engine 의 buildRetryReentryState
+        // 가 재구성 state 에 실어준 workflowId(execution) 와 nodeExecutionId(현재 turn 의
+        // NodeExecution row PK)를 소비한다. 과거 회귀: nodeExecutionId 에 state.nodeId(정의
+        // id)를 넣어 llm_usage_log.node_execution_id 에 잘못된 FK 가 적재되던 것을 교정
+        // (첫 턴 사이트가 context.nodeExecutionId 를 쓰는 것과 대칭).
         llmContext: state.executionId
-          ? { executionId: state.executionId, nodeExecutionId: state.nodeId }
+          ? {
+              executionId: state.executionId,
+              workflowId: state.workflowId,
+              nodeExecutionId: state.nodeExecutionId,
+            }
           : undefined,
       },
       state.outputSchema,
@@ -1830,6 +1846,10 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
         | undefined,
       executionId: raw.executionId as string | undefined,
       nodeId: raw.nodeId as string | undefined,
+      // [Spec 7-llm-usage §1.3] resume 턴 attribution — buildRetryReentryState 가
+      // 재구성 state 에 주입한 workflowId / NodeExecution row PK 를 운반.
+      workflowId: raw.workflowId as string | undefined,
+      nodeExecutionId: raw.nodeExecutionId as string | undefined,
       memoryConfig: raw.memoryConfig as Record<string, unknown> | undefined,
       memoryState:
         extractionSeq !== undefined

@@ -4910,6 +4910,8 @@ export class ExecutionEngineService
       // `if (ctx.nodeExecutionId && ctx.workflowId)` 가 false 가 돼 통합 사용 로그가
       // 조용히 누락된다(§4.6 활동 탭 공백). `nodeExecutionId` 는 노드 단위 값이라 context
       // 가 운반하지 않으므로 호출측(대기/재시도 NodeExecution row)이 opts 로 주입한다.
+      // 동일 두 필드를 IE / ai_agent resume 핸들러가 llm_usage_log 의 workflow_id/
+      // node_execution_id attribution 으로도 소비한다(data-flow/7-llm-usage §1.3).
       workflowId: execution.workflowId,
       nodeExecutionId: opts?.nodeExecutionId,
       workspaceId,

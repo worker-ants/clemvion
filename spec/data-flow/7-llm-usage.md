@@ -102,15 +102,15 @@ usage 적재 정책:
 
 | Caller | 호출 종류 | usage_log 컨텍스트 필드 |
 | --- | --- | --- |
-| `AI Agent` 노드 (`nodes/ai/ai-agent/ai-agent.handler.ts`, chat 호출 4곳) | chat (tool calling 포함) | **context 미전달 → `workflow_id / execution_id / node_execution_id` 전부 NULL** (현행 한계 — abortSignal 만 opts 로 전달) |
-| `Text Classifier` (`text-classifier.handler.ts`) / `Information Extractor` (`information-extractor.handler.ts` `traceChat`) 노드 | chat | 동일 — context 미전달, 전부 NULL |
-| AI Agent 자동 메모리 롤링 요약 압축 (`nodes/ai/shared/agent-memory-injection.ts`) | chat | context 미전달, 전부 NULL |
+| `AI Agent` 노드 (`ai-turn-executor.ts` — 단발 `executeSingleTurn` + 멀티턴 resume `processMultiTurnMessage` 메인 chat + tool-call 후속 chat) | chat (tool calling 포함) | **`workflow_id / execution_id / node_execution_id` 채움**. 단발/첫 턴은 `context.*`, resume 턴은 재구성 `state.*`(엔진 `buildRetryReentryState` 가 현재 turn 의 NodeExecution row PK 를 state 에 주입) |
+| `Text Classifier` (`text-classifier.handler.ts`) / `Information Extractor` (`information-extractor.handler.ts` `traceChat`) 노드 | chat | **채움**. Text Classifier 단발(`context.*`), Information Extractor 첫 턴(`context.*`) + resume 턴(`state.*`) |
+| AI Agent 자동 메모리 롤링 요약 압축 (`nodes/ai/shared/agent-memory-injection.ts`) | chat | `context` 미전달 → `workflow_id / execution_id / node_execution_id` 전부 NULL (노드 내부 실행이나 아직 미배선 — 잔여 갭) |
 | `WorkflowAssistantStreamService` (`workflow-assistant-stream.service.ts`) | chatStream | `workflow_id` 만 채움 (`{ workflowId: session.workflowId }`). usage 는 assistant message row (`WorkflowAssistantStreamService → AssistantTurnPersistenceService.persistAssistantTurn` → `appendMessage.usage`, M-3 분할) 와 usage_log **양쪽**에 적재 |
 | `GraphExtractionService` (KB graph 추출, `knowledge-base/graph/graph-extraction.service.ts`) | chat | context 미전달, 전부 NULL. `timeoutMs` + `disableInnerRetry` (외부 `retryWithBackoff` 가 재시도 통제) |
 | `RerankService` listwise LLM grading (`cross_encoder_llm` escalate 시, `knowledge-base/search/rerank.service.ts`) | chat | context 미전달, 전부 NULL |
 | AgentMemory 추출 processor (BullMQ, `agent-memory/queues/agent-memory-extraction.processor.ts`) | chat | context 미전달, 전부 NULL |
 
-> **attribution 갭**: 노드 발 LLM 호출은 `workflow_id` 가 NULL 이라 `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)에서 **전부 누락**된다 (워크스페이스 단위 집계는 `workspace_id` 자동 채움으로 정상). 원인·증상·결정 상태 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
+> **attribution 채움 현황**: 멀티턴 AI 노드(AI Agent / Information Extractor)와 Text Classifier 는 첫 턴·resume 턴 모두 `workflow_id / execution_id / node_execution_id` 를 채운다(2026-07 완결 — resume 턴은 재구성 `state` 경유). `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)는 이제 노드 발 사용량을 반영한다. **잔여 NULL** 은 워크플로우 밖·non-node caller(`GraphExtractionService`·`RerankService` listwise·AgentMemory 추출 processor)와 노드 내부지만 미배선인 AI Agent 메모리 롤링 요약 압축뿐이다. 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
 
 **embed 계열 (usage_log 미적재):**
 
@@ -160,10 +160,10 @@ usage 적재 정책:
 | --- | --- | --- |
 | Knowledge Base | cross-ref | embed (청크 적재·query — **usage 미적재**) + chat (graph 추출·LLM grading rerank — usage 적재, context NULL). 리랭크 cross-encoder 호출은 별도 계통 |
 | Agent Memory | cross-ref | 추출 processor chat + 롤링 요약 압축 chat (usage 적재, context NULL) / 저장·recall embed (미적재). [Spec Agent Memory](../5-system/17-agent-memory.md) |
-| Execution | cross-ref | AI 노드 호출 진입. **현재 노드 핸들러가 `LlmCallContext` 를 전달하지 않아 노드 발 행의 workflow/execution/node 컨텍스트는 NULL** (§1.3) |
-| Workflow Assistant | cross-ref | session 메시지 turn 종료 시점 usage 적재 (message row + log). `workflow_id` 를 채우는 유일한 caller |
-| Dashboard / Statistics | downstream | `llm_usage_log` 집계 (`statistics.service.ts` — provider·model 별 / 일자별 SUM). `workflowId` 필터는 현재 assistant 호출만 잡힌다 |
-| Alerts | downstream | `llm_cost` 룰 — window 내 `SUM(cost_usd)` 임계 비교 (`alerts-evaluator.service.ts`). workflow 스코프 룰은 동일한 attribution 갭의 영향을 받는다 |
+| Execution | cross-ref | AI 노드 호출 진입. **노드 핸들러(AI Agent / Text Classifier / Information Extractor)가 `LlmCallContext` 로 workflow/execution/node_execution 을 채운다 — 첫 턴은 `ExecutionContext`, resume 턴은 재구성 `state`** (§1.3) |
+| Workflow Assistant | cross-ref | session 메시지 turn 종료 시점 usage 적재 (message row + log). `workflow_id` 를 채운다 (노드 핸들러와 함께 — 유일 caller 아님) |
+| Dashboard / Statistics | downstream | `llm_usage_log` 집계 (`statistics.service.ts` — provider·model 별 / 일자별 SUM). `workflowId` 필터는 노드 발 + assistant 사용량을 잡는다 (잔여 non-node·워크플로우 밖 caller 만 누락, §1.3) |
+| Alerts | downstream | `llm_cost` 룰 — window 내 `SUM(cost_usd)` 임계 비교 (`alerts-evaluator.service.ts`). workflow 스코프 룰은 노드 발 사용량을 반영한다 (잔여 non-node caller 만 갭) |
 
 ---
 
@@ -190,11 +190,19 @@ unique index (entity `model_config_workspace_kind_default_unique`) 로 DB 단에
 
 `workflow_id / execution_id / node_execution_id / llm_config_id` 가 모두 nullable 인 이유는 호출
 경로마다 컨텍스트가 다르기 때문이다 (KB graph 추출·메모리 추출처럼 워크플로우 밖 호출이 실재).
-다만 구판 문서가 약속했던 "AI 노드 호출은 세 ID 를 모두 채운다" 는 현행 코드와 다르다 — 노드
-핸들러 3종 (AI Agent / Text Classifier / Information Extractor) 모두 `LlmCallContext` 를 전달하지
-않아 노드 발 행의 컨텍스트가 전부 NULL 이고, `workflow_id` 를 채우는 caller 는 Workflow
-Assistant 뿐이다. 따라서 `WHERE workflow_id = ?` 식 워크플로우별 비용 집계는 현재 assistant
-사용량만 반영한다 (노드 핸들러가 `ExecutionContext` 의 ID 들을 전달하도록 고치는 코드 수정 vs
-spec 차원의 집계 의미 재정의가 결정 대상). 워크스페이스 단위 집계는 `config.workspaceId` 자동
-채움 덕에 컨텍스트 누락과 무관하게 온전하다. (구판의 "LlmPreviewService 는 모두 NULL 로 적재"
-서술도 폐기 — preview 는 listModels 전용이라 usage 행 자체를 만들지 않는다)
+**결정: 코드 수정 채택 (완료).** "AI 노드 호출은 세 ID 를 모두 채운다" 를 spec 차원 집계 의미
+재정의가 아니라 **핸들러가 `ExecutionContext` 의 ID 를 `LlmCallContext` 로 전달하도록 고치는 코드
+수정** 으로 실현했다. 진행: PR #519(첫 턴/단발 경로) → 2026-07(멀티턴 **resume 턴** — Information
+Extractor 및 AI Agent). resume 턴은 핸들러가 `ExecutionContext` 대신 재구성 `state` 만 받으므로,
+엔진 `buildRetryReentryState` 가 재구성 state 에 `workflow_id` 와 현재 turn 의 **NodeExecution
+row PK**(`node_execution_id`) 를 주입하고(첫 턴이 쓰는 `context.nodeExecutionId` 와 대칭), 핸들러가
+이를 소비한다 — 과거 IE resume 이 `node_execution_id` 자리에 Node **정의** id 를 오적재하던 회귀도
+이때 교정됐다. 따라서 노드 핸들러 3종(AI Agent / Text Classifier / Information Extractor)은 이제
+`workflow_id / execution_id / node_execution_id` 를 채우며, `WHERE workflow_id = ?` 식 집계가
+노드 발 사용량을 반영한다.
+
+**잔여 NULL** 은 (a) 워크플로우 **밖** 호출이라 애초에 노드 컨텍스트가 없는 caller
+(`GraphExtractionService`·AgentMemory 추출 processor)와 (b) `LlmCallContext` 가 아직 배선되지 않은
+caller(`RerankService` listwise grading, AI Agent 자동 메모리 롤링 요약 압축)뿐이다 — (a)는 의도된
+누락, (b)는 후속 배선 여지. 워크스페이스 단위 집계는 `config.workspaceId` 자동 채움 덕에 컨텍스트
+누락과 무관하게 온전하다. (`LlmPreviewService` 는 listModels 전용이라 usage 행 자체를 만들지 않는다)
