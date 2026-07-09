@@ -1,6 +1,8 @@
 import {
+  deepRedactSecrets,
   LAST_ERROR_MESSAGE_MAX_LEN,
   redactSecrets,
+  redactSecretsInJsonString,
   sanitizeLastErrorMessage,
 } from './sanitize-error-message';
 
@@ -78,5 +80,75 @@ describe('sanitizeLastErrorMessage (mask + truncate)', () => {
     const out = sanitizeLastErrorMessage(long);
     expect(out.length).toBe(LAST_ERROR_MESSAGE_MAX_LEN + 1); // +1 for the '…'
     expect(out.endsWith('…')).toBe(true);
+  });
+});
+
+describe('deepRedactSecrets (recursive, copy-on-change)', () => {
+  it('masks value-pattern secrets in nested string leaves', () => {
+    const input = {
+      a: 'clean',
+      b: { note: 'Authorization: Bearer sk-DEEP-1' },
+      c: ['plain', 'api_key=AKIADEEP2'],
+    };
+    const out = deepRedactSecrets(input) as typeof input;
+    expect(out.b.note).not.toContain('sk-DEEP-1');
+    expect(out.c[1]).not.toContain('AKIADEEP2');
+    expect(out.a).toBe('clean');
+  });
+
+  it('masks bare values under credential-named keys (key-based)', () => {
+    const input = { config: { api_key: 'AKIABARE1', name: 'ok' } };
+    const out = deepRedactSecrets(input) as typeof input;
+    expect(out.config.api_key).toBe('***');
+    expect(out.config.name).toBe('ok'); // non-credential key untouched
+  });
+
+  it('returns the same reference when nothing is masked (copy-on-change)', () => {
+    const input = { a: 'clean', b: { c: ['no', 'secrets', 'here'] } };
+    expect(deepRedactSecrets(input)).toBe(input);
+  });
+
+  it('does not mutate the input', () => {
+    const input = { note: 'Bearer sk-NOMUT-3' };
+    deepRedactSecrets(input);
+    expect(input.note).toBe('Bearer sk-NOMUT-3');
+  });
+
+  it('passes through non-string primitives', () => {
+    expect(deepRedactSecrets(42)).toBe(42);
+    expect(deepRedactSecrets(null)).toBe(null);
+    expect(deepRedactSecrets(true)).toBe(true);
+  });
+});
+
+describe('redactSecretsInJsonString (JSON-safe)', () => {
+  it('masks a secret inside a JSON string while keeping it valid JSON', () => {
+    const json = '{"headers":{"Authorization":"Bearer sk-JSON-9"},"n":1}';
+    const out = redactSecretsInJsonString(json);
+    expect(out).not.toContain('sk-JSON-9');
+    const parsed = JSON.parse(out) as {
+      headers: { Authorization: string };
+      n: number;
+    };
+    expect(parsed.headers.Authorization).toContain('***');
+    expect(parsed.n).toBe(1);
+  });
+
+  it('does NOT corrupt JSON structure (regression: `{"api_key":"x"}` must not become `{***}`)', () => {
+    const json = '{"api_key":"AKIAJSON10"}';
+    const out = redactSecretsInJsonString(json);
+    expect(() => JSON.parse(out)).not.toThrow();
+    expect(out).not.toContain('AKIAJSON10');
+  });
+
+  it('falls back to flat masking for non-JSON input', () => {
+    const out = redactSecretsInJsonString('not json: Bearer sk-FLAT-11');
+    expect(out).not.toContain('sk-FLAT-11');
+    expect(out).toContain('***');
+  });
+
+  it('returns input unchanged when the JSON has no secrets', () => {
+    const json = '{"a":1,"b":"hello"}';
+    expect(redactSecretsInJsonString(json)).toBe(json);
   });
 });

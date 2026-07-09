@@ -25,7 +25,11 @@ import {
   NodeEventType,
 } from '../websocket/websocket.service';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
-import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
+import {
+  deepRedactSecrets,
+  redactSecrets,
+  sanitizeLastErrorMessage,
+} from '../../shared/utils/sanitize-error-message';
 import { extractRetryAfterMs } from '../../shared/utils/retry-after';
 import {
   adaptHandlerReturn,
@@ -729,11 +733,19 @@ export class AiTurnOrchestrator {
           // 정확한 row 에 message 를 라우팅한다.
           nodeExecutionId: nodeExec?.id,
           nodeId: node.id,
-          message: nextConv.message,
+          // EIA §R17 — `execution.ai_message` 는 SSE·webhook·Chat Channel(외부
+          // 발송) 로 나가는 공개 표면이므로 free-text/구조화 필드를 egress 마스킹.
+          message: redactSecrets(nextConv.message),
           turnCount: nextConv.turnCount,
-          messages: nextConv.messages,
+          messages: deepRedactSecrets(nextConv.messages) as Array<
+            Record<string, unknown>
+          >,
           ...(nextConv.presentations
-            ? { presentations: nextConv.presentations }
+            ? {
+                presentations: deepRedactSecrets(
+                  nextConv.presentations,
+                ) as typeof nextConv.presentations,
+              }
             : {}),
           metadata: {
             model: nextResumeState.model,
@@ -847,11 +859,19 @@ export class AiTurnOrchestrator {
         // 같은 nodeId 의 conversation 이 여러 row 일 수 있다.
         nodeExecutionId: nodeExec?.id,
         nodeId: node.id,
-        message: responseText,
+        // EIA §R17 — 공개 표면(SSE·webhook·Chat Channel) egress 마스킹. (위 waiting
+        // branch 와 동일 정책; 내부 WS 는 sanitizePayloadForWs 만.)
+        message: redactSecrets(responseText),
         turnCount,
-        messages: condMessages,
+        messages: deepRedactSecrets(condMessages) as Array<
+          Record<string, unknown>
+        >,
         ...(terminalPresentations
-          ? { presentations: terminalPresentations }
+          ? {
+              presentations: deepRedactSecrets(
+                terminalPresentations,
+              ) as typeof terminalPresentations,
+            }
           : {}),
         metadata: {
           model: metaSource.model,

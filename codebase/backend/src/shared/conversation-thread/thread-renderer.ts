@@ -2,7 +2,11 @@ import {
   ConversationThread,
   ConversationTurn,
 } from './conversation-thread.types';
-import { redactSecrets } from '../utils/sanitize-error-message';
+import {
+  deepRedactSecrets,
+  redactSecrets,
+  redactSecretsInJsonString,
+} from '../utils/sanitize-error-message';
 
 /**
  * Snapshot a ConversationThread so the caller can pass the result outside the
@@ -30,11 +34,13 @@ export function cloneThread(thread: ConversationThread): ConversationThread {
  * API keys / Bearer tokens / Authorization headers through the public
  * `getStatus` (REST) or SSE `waiting_for_input` surfaces.
  *
- * **Masked (free text)**: `turns[].text` and `runningSummary`.
- * **NOT masked (structured payloads, out of scope)**: `turns[].data`,
- * `turns[].toolCalls[].arguments` (a raw JSON string — token-level masking would
- * corrupt the JSON), and `turns[].presentations[].payload`. Deep, JSON-safe
- * redaction of these structured fields is a documented follow-up (EIA §R17).
+ * **Masked fields**:
+ * - `turns[].text` and `runningSummary` — free text via `redactSecrets`.
+ * - `turns[].data` and `turns[].presentations[].payload` — structured objects,
+ *   deep-walked with `deepRedactSecrets` (string leaves only).
+ * - `turns[].toolCalls[].arguments` — a raw JSON string, masked JSON-safely
+ *   (`redactSecretsInJsonString`: parse → deep-redact leaves → re-serialize) so
+ *   the tool-call JSON stays valid.
  *
  * SoT: spec/5-system/14-external-interaction-api.md §R17 (public surface
  * hardening) + spec/conventions/conversation-thread.md §8.4. Both the REST
@@ -47,9 +53,9 @@ export function cloneThread(thread: ConversationThread): ConversationThread {
  * thread, where the conservative shared patterns (notably `Bearer\s+\S+`) can
  * false-positive on ordinary conversational prose and silently corrupt context.
  *
- * Only turns that actually change are re-allocated; unchanged (frozen) turns are
- * returned by reference (mirrors `applyCap`'s truncation copy strategy). The
- * input thread is never mutated.
+ * Copy-on-change throughout: turns/fields with nothing to mask are returned by
+ * reference (mirrors `applyCap`'s truncation copy strategy). The input thread is
+ * never mutated.
  */
 export function redactThreadForPublic(
   thread: ConversationThread,
@@ -65,12 +71,34 @@ export function redactThreadForPublic(
 
 function redactTurnForPublic(turn: ConversationTurn): ConversationTurn {
   const text = redactSecrets(turn.text);
-  // Only the free-text `text` field is masked. Structured fields (`data`,
-  // `toolCalls[].arguments` JSON, `presentations[].payload`) are left intact —
-  // token-level masking would corrupt their structure (e.g. break the tool-call
-  // arguments JSON). Frozen turns: only re-allocate when `text` actually changed.
-  if (text === turn.text) return turn;
-  return { ...turn, text };
+  const data =
+    turn.data !== undefined
+      ? (deepRedactSecrets(turn.data) as Record<string, unknown>)
+      : undefined;
+  const toolCalls = turn.toolCalls?.map((tc) => {
+    const args = redactSecretsInJsonString(tc.arguments);
+    return args === tc.arguments ? tc : { ...tc, arguments: args };
+  });
+  const presentations = turn.presentations?.map((p) => {
+    const payload = deepRedactSecrets(p.payload) as Record<string, unknown>;
+    return payload === p.payload ? p : { ...p, payload };
+  });
+
+  const changed =
+    text !== turn.text ||
+    data !== turn.data ||
+    (toolCalls !== undefined &&
+      toolCalls.some((tc, i) => tc !== turn.toolCalls?.[i])) ||
+    (presentations !== undefined &&
+      presentations.some((p, i) => p !== turn.presentations?.[i]));
+  if (!changed) return turn; // frozen turn preserved by reference
+  return {
+    ...turn,
+    text,
+    ...(turn.data !== undefined ? { data } : {}),
+    ...(toolCalls !== undefined ? { toolCalls } : {}),
+    ...(presentations !== undefined ? { presentations } : {}),
+  };
 }
 
 /** spec/conventions/conversation-thread.md §5.3 */

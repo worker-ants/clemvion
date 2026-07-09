@@ -265,11 +265,12 @@ describe('redactThreadForPublic (EIA egress secret masking §R17)', () => {
     expect(out.turns[0].text).not.toContain('hunter2');
   });
 
-  it('leaves structured toolCalls[].arguments JSON intact (out of scope — token masking would corrupt JSON)', () => {
-    // Regression: token-level masking of a raw JSON string breaks the JSON
-    // (`{"api_key":"AKIA..."}` -> `{***}` fails JSON.parse). Structured fields
-    // are intentionally NOT scanned; JSON-safe redaction is a documented follow-up.
-    const argsJson = '{"headers":{"api_key":"AKIAIOSFODNN7EXAMPLE"}}';
+  it('masks toolCalls[].arguments JSON-safely (secret masked, JSON still valid)', () => {
+    // A raw JSON string must be parsed → deep-redacted → re-serialized so the
+    // secret is masked WITHOUT corrupting the JSON (`{"api_key":"x"}` must not
+    // become `{***}`, which fails JSON.parse).
+    const argsJson =
+      '{"url":"https://x","headers":{"Authorization":"Bearer sk-live-TOOLARG-77"}}';
     const thread = makeThread([
       makeTurn({
         source: 'ai_assistant',
@@ -278,18 +279,46 @@ describe('redactThreadForPublic (EIA egress secret masking §R17)', () => {
       }),
     ]);
     const out = redactThreadForPublic(thread);
-    // Preserved verbatim → still valid, parseable JSON.
-    expect(out.turns[0].toolCalls?.[0].arguments).toBe(argsJson);
-    expect(() =>
-      JSON.parse(out.turns[0].toolCalls![0].arguments),
-    ).not.toThrow();
+    const masked = out.turns[0].toolCalls![0].arguments;
+    expect(masked).not.toContain('sk-live-TOOLARG-77');
+    // Still valid JSON, and the non-secret structure/keys survive.
+    const parsed = JSON.parse(masked) as {
+      url: string;
+      headers: { Authorization: string };
+    };
+    expect(parsed.url).toBe('https://x');
+    expect(parsed.headers.Authorization).toContain('***');
   });
 
-  it('leaves structured turn.data intact (out of scope)', () => {
-    const data = { api_key: 'AKIAIOSFODNN7EXAMPLE' };
+  it('deep-masks secrets in structured turn.data (string leaves)', () => {
+    const data = { nested: { note: 'key is api_key=AKIAIOSFODNN7EXAMPLE' } };
     const thread = makeThread([makeTurn({ text: 'hi', data })]);
     const out = redactThreadForPublic(thread);
-    expect(out.turns[0].data).toEqual(data);
+    const outData = out.turns[0].data as { nested: { note: string } };
+    expect(outData.nested.note).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(outData.nested.note).toContain('***');
+  });
+
+  it('deep-masks secrets in presentations[].payload', () => {
+    const thread = makeThread([
+      makeTurn({
+        source: 'ai_assistant',
+        text: 'render',
+        presentations: [
+          {
+            type: 'table',
+            toolCallId: 't1',
+            renderedAt: 'r',
+            payload: { rows: [['token', 'Bearer sk-live-PRES-9']] },
+          },
+        ],
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(JSON.stringify(out.turns[0].presentations)).not.toContain(
+      'sk-live-PRES-9',
+    );
+    expect(JSON.stringify(out.turns[0].presentations)).toContain('***');
   });
 
   it('masks secret-shaped tokens in runningSummary', () => {

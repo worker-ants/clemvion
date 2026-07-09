@@ -56,6 +56,77 @@ export function redactSecrets(raw: string): string {
 }
 
 /**
+ * Object keys whose (string) value is masked wholesale, regardless of the value's
+ * own shape — a secret stored as a bare value (`{"api_key":"AKIA…"}`) matches no
+ * value-level pattern, so key-name matching is the only way to catch it. Mirrors
+ * the WS-layer `CREDENTIAL_KEY_PATTERN` (websocket.service) intentionally; both
+ * defend the same class at different layers.
+ */
+const CREDENTIAL_KEY_PATTERN =
+  /^(password|passwd|pwd|api[_-]?key|secret|token|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
+
+/**
+ * Recursively mask secrets in a structured value (objects/arrays walked
+ * depth-first): every **string leaf** is run through {@link redactSecrets}
+ * (value-pattern masking), and any string value under a credential-named key
+ * ({@link CREDENTIAL_KEY_PATTERN}) is masked wholesale to `***`. Non-string
+ * leaves pass through. **Copy-on-change**: subtrees with nothing masked are
+ * returned by the same reference (mirrors `sanitizePayloadForWs`), so the input
+ * is never mutated and unchanged structures keep their identity.
+ *
+ * Use for structured public-surface fields (e.g. conversation-thread
+ * `turns[].data` / `presentations[].payload`, `ai_message.messages[]`) where a
+ * flat string-level `redactSecrets` cannot reach nested string values.
+ */
+export function deepRedactSecrets(value: unknown): unknown {
+  if (typeof value === 'string') return redactSecrets(value);
+  if (Array.isArray(value)) {
+    let mutated = false;
+    const out = value.map((v) => {
+      const r = deepRedactSecrets(v);
+      if (r !== v) mutated = true;
+      return r;
+    });
+    return mutated ? out : value;
+  }
+  if (value !== null && typeof value === 'object') {
+    let result: Record<string, unknown> | null = null;
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const r =
+        typeof v === 'string' && v.length > 0 && CREDENTIAL_KEY_PATTERN.test(k)
+          ? '***'
+          : deepRedactSecrets(v);
+      if (r !== v) {
+        if (!result) result = { ...(value as Record<string, unknown>) };
+        result[k] = r;
+      }
+    }
+    return result ?? value;
+  }
+  return value;
+}
+
+/**
+ * JSON-safe secret masking for a **raw JSON string** (e.g. an LLM tool call's
+ * `arguments`). Token-level masking of the raw string would corrupt the JSON
+ * (`{"api_key":"x"}` → `{***}`), so we parse → {@link deepRedactSecrets} the
+ * string leaves → re-serialize. When the input is not valid JSON it is plain
+ * text, so `redactSecrets` is applied directly (no structure to corrupt).
+ * Returns the input unchanged when nothing was masked.
+ */
+export function redactSecretsInJsonString(raw: string): string {
+  if (typeof raw !== 'string' || raw.length === 0) return raw;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return redactSecrets(raw);
+  }
+  const red = deepRedactSecrets(parsed);
+  return red === parsed ? raw : JSON.stringify(red);
+}
+
+/**
  * Mask secret tokens in `raw` and truncate to {@link LAST_ERROR_MESSAGE_MAX_LEN}.
  * Safe to call with non-string or empty values — returns the input unchanged.
  */

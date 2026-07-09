@@ -740,6 +740,50 @@ describe('AiTurnOrchestrator', () => {
       ).toBe(true);
     });
 
+    // (b2) AI_MESSAGE 공개 표면(SSE·webhook·Chat Channel) egress secret 마스킹 (EIA §R17).
+    it('(b2) AI_MESSAGE emit 의 message·messages secret 은 egress 마스킹 (EIA §R17)', async () => {
+      const processMultiTurnMessage = jest.fn().mockResolvedValue({
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            message: 'reply Authorization: Bearer sk-AIMSG-LEAK-1',
+            messages: [
+              { role: 'assistant', content: 'note api_key=AKIA-AIMSG-2' },
+            ],
+            turnCount: 1,
+          },
+        },
+        meta: {},
+        status: 'waiting_for_input',
+        _resumeState: { messages: [], turnCount: 1, model: 'gpt' },
+      });
+      handlerRegistry.register(
+        'ai_agent',
+        {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(),
+          processMultiTurnMessage,
+          endMultiTurnConversation: jest.fn(),
+        } as unknown as NodeHandler,
+        { kind: 'blocking', interaction: 'ai_conversation' },
+      );
+      contextService.createContext(executionId, workflowId);
+
+      await invoke(executionId, null);
+
+      const call = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.AI_MESSAGE,
+      );
+      const payload = call?.[2] as {
+        message: string;
+        messages: unknown;
+      };
+      expect(payload.message).not.toContain('sk-AIMSG-LEAK-1');
+      expect(payload.message).toContain('***');
+      expect(JSON.stringify(payload.messages)).not.toContain('AKIA-AIMSG-2');
+      expect(JSON.stringify(payload.messages)).toContain('***');
+    });
+
     // (c) nodeExecutionRepository.save 가 throw → error 로깅 후 recover, turn 은
     //     계속 진행 ({ ended:false }) 하고 후속 emit 도 정상 수행.
     it('(c) waiting 반환 + nodeExecutionRepository.save throw → error 로깅 후 recover, { ended:false }', async () => {
