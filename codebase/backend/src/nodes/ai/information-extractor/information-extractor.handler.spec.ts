@@ -913,6 +913,42 @@ describe('InformationExtractorHandler', () => {
       // Partial extraction is preserved alongside the error envelope.
       expect(getResult(output).endReason).toBe('error');
     });
+
+    // [Spec 7-llm-usage §1.3] resume 턴 attribution 회귀 고정. buildRetryReentryState
+    // 가 재구성 state 에 실어주는 workflowId + NodeExecution row PK(nodeExecutionId)를
+    // llmContext 로 소비해야 하며, 과거처럼 nodeId(정의 id)를 node_execution_id 로
+    // 넣으면 안 된다 (llm_usage_log.node_execution_id 는 NodeExecution row FK).
+    it('resume turn passes row PK nodeExecutionId + workflowId to llmService.chat (not the node definition id)', async () => {
+      mockLlmService.chat.mockResolvedValue(
+        finalizeCall({ senderName: 'John', orderNumber: 'ORD-777' }),
+      );
+
+      // nodeId(정의)와 nodeExecutionId(row PK)를 서로 다른 값으로 둬 혼동을 배제.
+      await handler.processMultiTurnMessage(
+        'ORD-777 입니다',
+        buildState({
+          executionId: 'exec-attr-1',
+          workflowId: 'wf-attr-1',
+          nodeId: 'node-def-1',
+          nodeExecutionId: 'nodeexec-row-1',
+        }),
+      );
+
+      // traceChat → llmService.chat 의 3번째 인자가 LlmCallContext.
+      const llmContext = mockLlmService.chat.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(llmContext).toEqual(
+        expect.objectContaining({
+          executionId: 'exec-attr-1',
+          workflowId: 'wf-attr-1',
+          nodeExecutionId: 'nodeexec-row-1',
+        }),
+      );
+      // 회귀 방지: 정의 id 가 row PK 자리에 유입되면 안 된다.
+      expect(llmContext.nodeExecutionId).not.toBe('node-def-1');
+    });
   });
 
   describe('collection retry loop', () => {

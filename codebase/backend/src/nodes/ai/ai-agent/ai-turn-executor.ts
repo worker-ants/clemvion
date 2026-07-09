@@ -2591,14 +2591,28 @@ export class AiTurnExecutor {
     // an all-optional superset; the push sites below always supply every field.
     const llmCalls: LlmCallRecord[] = [];
     const toolCallTraces: ToolCallTrace[] = [];
+    // [Spec 7-llm-usage §1.3] resume 턴 attribution — resume state 는 ExecutionContext 를
+    // 운반하지 않으므로, engine 의 buildRetryReentryState 가 재구성 state 에 실어준
+    // workflowId / nodeExecutionId(현재 turn 의 NodeExecution row PK) / executionId 를
+    // llmContext 로 전달한다. single-turn(executeSingleTurn)이 context.* 를 쓰는 것과
+    // 대칭 — 미전달 시 llm_usage_log 의 해당 컬럼이 NULL 로 적재되는 갭이 남는다.
+    const llmContext = {
+      workflowId: state.workflowId as string | undefined,
+      executionId,
+      nodeExecutionId: state.nodeExecutionId as string | undefined,
+    };
     let callStart = Date.now();
-    let result = await this.llmService.chat(llmConfig, {
-      model,
-      messages,
-      temperature,
-      maxTokens,
-      tools: toolsDef,
-    });
+    let result = await this.llmService.chat(
+      llmConfig,
+      {
+        model,
+        messages,
+        temperature,
+        maxTokens,
+        tools: toolsDef,
+      },
+      llmContext,
+    );
     llmCalls.push({
       requestPayload: chatParams,
       responsePayload: result,
@@ -2672,9 +2686,11 @@ export class AiTurnExecutor {
         );
       }
 
-      // single-turn 과 동일하게 단일 진입점을 사용. resume state 는 새 turn 의
-      // nodeId/nodeExecutionId 를 운반하지 않으므로 ?? '' fallback 만 다르다.
-      // (usage logs / WS 이벤트는 원래 waiting NodeExecution 에 귀속)
+      // single-turn 과 동일하게 단일 진입점을 사용. resume state 의 nodeId 는 정의 id
+      // 라 ?? '' fallback 만 다르다. workflowId / nodeExecutionId 는 engine 의
+      // buildRetryReentryState 가 재구성 state 에 실어주므로(§7-llm-usage §1.3) 현재
+      // turn 의 NodeExecution row PK 로 attribution 이 채워진다 (usage logs / WS 이벤트는
+      // 그 waiting NodeExecution row 에 귀속; 전달 부재 시 undefined → NULL).
       const { executedCount: providerExecuted, blockingFormRender } =
         await this.executeProviderToolBatch({
           calls: classification.providerToolCalls,
@@ -2727,13 +2743,18 @@ export class AiTurnExecutor {
         tools: toolsDef,
       };
       callStart = Date.now();
-      result = await this.llmService.chat(llmConfig, {
-        model,
-        messages,
-        temperature,
-        maxTokens,
-        tools,
-      });
+      result = await this.llmService.chat(
+        llmConfig,
+        {
+          model,
+          messages,
+          temperature,
+          maxTokens,
+          tools,
+        },
+        // [Spec 7-llm-usage §1.3] tool-call 루프 내 후속 chat 도 동일 attribution 전달.
+        llmContext,
+      );
       llmCalls.push({
         requestPayload: loopReq,
         responsePayload: result,

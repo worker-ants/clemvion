@@ -438,6 +438,36 @@ describe('AiTurnExecutor', () => {
       expect(output.result.messages.length).toBeGreaterThanOrEqual(3);
     });
 
+    // [Spec 7-llm-usage §1.3] resume 턴 attribution 회귀 고정. resume 메인 chat 호출은
+    // engine 이 재구성 state 에 실어준 workflowId + NodeExecution row PK(nodeExecutionId)
+    // 를 llmContext(3번째 인자)로 전달해야 하며, nodeId(정의 id)를 넣으면 안 된다
+    // (llm_usage_log.node_execution_id 는 NodeExecution row FK).
+    it('passes llmContext (workflowId/executionId/nodeExecutionId row PK) to the resume-turn LLM chat', async () => {
+      const executor = buildExecutor();
+      // nodeId(정의)와 nodeExecutionId(row PK)를 서로 다른 값으로 둬 혼동 배제.
+      await executor.processMultiTurnMessage('환불 문의입니다', {
+        ...resumeState(),
+        workflowId: 'wf-1',
+        nodeId: 'node-def-1',
+        nodeExecutionId: 'nodeexec-row-1',
+      });
+
+      // chat(config, params, context, opts) — 3번째 인자가 LlmCallContext.
+      const llmContext = mockLlmService.chat.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(llmContext).toEqual(
+        expect.objectContaining({
+          workflowId: 'wf-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'nodeexec-row-1',
+        }),
+      );
+      // 회귀 방지: 정의 id 가 row PK 자리에 유입되면 안 된다.
+      expect(llmContext.nodeExecutionId).not.toBe('node-def-1');
+    });
+
     it('routes to max_turns when the turn budget is exhausted', async () => {
       const executor = buildExecutor();
       const state = { ...resumeState(), turnCount: 19, maxTurns: 20 };
@@ -474,6 +504,8 @@ describe('AiTurnExecutor', () => {
       const state = {
         ...resumeState(),
         conditions: [{ id: 'c1', label: 'c', prompt: 'p' }],
+        workflowId: 'wf-1',
+        nodeExecutionId: 'nodeexec-row-1',
       };
       const result = (await executor.processMultiTurnMessage(
         'go',
@@ -485,6 +517,19 @@ describe('AiTurnExecutor', () => {
       const next = result._resumeState as { toolCalls: number };
       expect(next.toolCalls).toBe(1);
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      // [Spec 7-llm-usage §1.3] tool-loop 후속(2번째) chat 호출도 동일 llmContext 로
+      // attribution 을 채워야 한다 (ai-review INFO#3 — 간접 커버 → 직접 단언).
+      const secondCallCtx = mockLlmService.chat.mock.calls[1][2] as Record<
+        string,
+        unknown
+      >;
+      expect(secondCallCtx).toEqual(
+        expect.objectContaining({
+          workflowId: 'wf-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'nodeexec-row-1',
+        }),
+      );
     });
 
     it('multi-turn: max_turns 종결 output 에 구조화 meta.mcpDiagnostics(카운터 포함) emit — spec §6.2', async () => {
