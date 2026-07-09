@@ -251,6 +251,34 @@ export function useExpressionSuggestions(
       };
     }
 
+    // $params. → shortcut for `$input.parameters` (resolver: expression-resolver
+    // .service `paramsFromInput`). Sub-keys are the trigger parameter names,
+    // sourced from the same input sample/schema as $input but descended into
+    // `.parameters`. For a trigger's direct successor the schema's `parameters`
+    // is enriched with the declared param names (§7.2 enricher); for any other
+    // node input.parameters is absent, so this yields no keys (no false hints,
+    // symmetric with $input on an entry node).
+    if (trimmedToken.startsWith("$params.")) {
+      const fieldPrefix = trimmedToken.slice(8);
+      const rawParams = expressionData.inputSample.parameters;
+      const paramsSample =
+        rawParams && typeof rawParams === "object" && !Array.isArray(rawParams)
+          ? (rawParams as Record<string, unknown>)
+          : {};
+      const paramsSchema = expressionData.inputSchema?.properties
+        ?.parameters as JsonSchemaNode | undefined;
+      const { suggestions, leafLength } = buildNestedSuggestions(
+        paramsSample,
+        fieldPrefix,
+        paramsSchema,
+      );
+      return {
+        suggestions,
+        tokenStart: end - leafLength,
+        tokenEnd: end,
+      };
+    }
+
     // $var. → variable suggestions
     if (trimmedToken.startsWith("$var.")) {
       const varPrefix = trimmedToken.slice(5);

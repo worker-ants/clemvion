@@ -158,6 +158,66 @@ describe("useExpressionSuggestions - nested paths", () => {
     });
   });
 
+  // $params ≡ $input.parameters (resolver `paramsFromInput`). Its sub-keys are
+  // the trigger parameter names, sourced from the same input sample/schema as
+  // $input descended into `.parameters` (the enriched inputSchema for a
+  // trigger's direct successor).
+  describe("$params suggestions", () => {
+    // inputSchema mirrors what use-expression-context threads for a predecessor:
+    // the predecessor's `.output` content, whose `parameters` is enriched with
+    // the Manual Trigger's declared param names (spec §7.2 enricher).
+    const inputSchema = {
+      type: "object",
+      properties: {
+        parameters: {
+          type: "object",
+          properties: {
+            region: { type: "string" },
+            count: { type: "number" },
+          },
+        },
+      },
+    };
+
+    it("shows $params in root suggestions", () => {
+      const expr = "{{ $par }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr));
+      expect(suggestions.map((s) => s.label)).toContain("$params");
+    });
+
+    it("suggests trigger param names from the enriched schema for $params.", () => {
+      const expr = "{{ $params. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        inputSchema,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["region", "count"]);
+    });
+
+    it("suggests param names from the runtime sample for $params.", () => {
+      const expr = "{{ $params. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        inputSample: { parameters: { region: "인천" } },
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["region"]);
+    });
+
+    it("filters $params sub-keys by prefix", () => {
+      const expr = "{{ $params.re }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        inputSchema,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["region"]);
+    });
+
+    it("returns empty for $params. when input has no parameters (non-successor node)", () => {
+      const expr = "{{ $params. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        inputSample: { someOtherField: 1 },
+      });
+      expect(suggestions).toEqual([]);
+    });
+  });
+
   describe("$node nested suggestions", () => {
     const nodeData = {
       availableNodes: [
