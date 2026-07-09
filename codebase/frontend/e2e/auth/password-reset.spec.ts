@@ -45,7 +45,7 @@ test.describe("Forgot / reset password", () => {
 
     await expect(
       page.getByText(/발송|sent|확인해 주세요|check your email/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
   });
 
   test("reset-password — 유효 토큰 → 폼 표시, 제출 성공 → /login", async ({
@@ -117,6 +117,6 @@ test.describe("Forgot / reset password", () => {
     // ("auth.resetPassword.genericFailed" = "비밀번호 재설정에 실패..."). 폭넓게 매칭.
     await expect(
       page.getByText(/만료|expired|invalid|유효하지 않|실패|reset|토큰/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
   });
 });

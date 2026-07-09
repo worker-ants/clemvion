@@ -177,6 +177,6 @@ test.describe("Workspace members page", () => {
     // 성공 메시지 또는 다이얼로그 닫힘.
     await expect(
       page.getByText(/초대|invited|발송|sent/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
   });
 });

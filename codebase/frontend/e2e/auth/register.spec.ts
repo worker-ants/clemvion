@@ -110,7 +110,7 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
     // 우선 → fallback i18n("auth.register.genericFailed") = "회원가입에 실패..."
     await expect(
       page.getByText(/이미 가입|already|duplicate|회원가입에 실패|registration/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
   });
 
   test("약관 미체크 → submit 비활성 또는 거절", async ({ page }) => {
@@ -142,7 +142,7 @@ test.describe("Register form — 일반 가입 (no invitation)", () => {
       await submit.click();
       await expect(
         page.getByText(/약관|terms|agree/i).first(),
-      ).toBeVisible({ timeout: 3_000 });
+      ).toBeVisible();
     } else {
       expect(isDisabled).toBe(true);
     }
