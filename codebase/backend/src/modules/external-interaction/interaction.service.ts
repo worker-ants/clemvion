@@ -287,22 +287,25 @@ export class InteractionService {
           buttonConfig?: { buttons?: unknown };
         };
         const bc = structured.config?.buttonConfig ?? structured.buttonConfig;
+        // 공통 필드 선조립 — interactionType/waitingNodeId + (durable) conversationThread top-level.
+        // 분기별로 buttonConfig(buttons) 또는 nodeOutput(form/ai) 만 확장한다.
+        const base = {
+          interactionType,
+          waitingNodeId: nodeExec.nodeId,
+          ...(conversationThread ? { conversationThread } : {}),
+        };
         if (interactionType === 'buttons' && bc) {
-          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }, conversationThread top-level.
+          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }.
           context = {
-            interactionType,
-            waitingNodeId: nodeExec.nodeId,
+            ...base,
             buttonConfig: { buttons: bc.buttons, nodeOutput: out },
-            ...(conversationThread ? { conversationThread } : {}),
           };
         } else if (interactionType) {
           // form / ai_conversation: parseWaitingForInput 이 nodeOutput.formConfig /
-          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉. conversationThread top-level.
+          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉.
           context = {
-            interactionType,
-            waitingNodeId: nodeExec.nodeId,
+            ...base,
             nodeOutput: out,
-            ...(conversationThread ? { conversationThread } : {}),
           };
         }
       }

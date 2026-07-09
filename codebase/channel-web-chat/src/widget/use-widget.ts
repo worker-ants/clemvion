@@ -115,6 +115,10 @@ export function useWidget() {
   // eager 시작 가드(§R6) — 패널 open 시 execution 을 1회만 시작. 재open·중복 open 에서 재시작 방지.
   // 세션 복원/새 대화 시 재설정. true = 이미 시작(또는 진행 중).
   const startedRef = useRef(false);
+  // start() 세대 토큰 — teardown(새 대화/대화 종료/종료 이벤트)이 in-flight start() 를 무효화한다.
+  // start() 는 webhook POST await 후 자기 gen 이 여전히 최신일 때만 persist/openStream 을 진행한다 →
+  // booting/초기 streaming 중 종료·새 대화가 옛 execution 을 되살리는 race 차단(teardown 이 gen 증가).
+  const startGenRef = useRef(0);
 
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약·cancelled 가드는 useTokenRefresh 캡슐화(§B).
   const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({ sessionRef, clientRef, configRef });
@@ -130,6 +134,8 @@ export function useWidget() {
    * 종료 이벤트(handleEiaEvent)·newChat 공통 경로. dispatch/ref 초기화는 호출부가 맥락에 맞게 수행.
    */
   const teardownSession = useCallback(() => {
+    // gen 증가 → in-flight start() 의 캡처 gen 을 stale 화해 persist/openStream 을 스킵시킨다.
+    startGenRef.current++;
     closeStream();
     clearRefreshTimer();
     if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
@@ -271,11 +277,16 @@ export function useWidget() {
     if (!cfg || !client) return;
     if (startedRef.current || sessionRef.current) return; // 이미 시작/복원됨 → 중복 시작 방지.
     startedRef.current = true;
+    // 이 start 의 세대 캡처 — await 사이에 teardown(새 대화/대화 종료)이 발생하면 gen 이 달라져 무효화된다.
+    const gen = ++startGenRef.current;
     dispatch({ type: "START" });
     try {
       const res = await client.startConversation(cfg.triggerEndpointPath, {
         profile: cfg.profile,
       });
+      // webhook POST 왕복 중 종료/새 대화로 이 start 가 대체됐으면 여기서 중단 —
+      // 옛 execution 을 persist/openStream 으로 되살리지 않는다(booting-중-종료 race).
+      if (startGenRef.current !== gen) return;
       dispatch({ type: "BOOTED", executionId: res.executionId });
       bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
       const session = persist(cfg, res);
@@ -284,6 +295,8 @@ export function useWidget() {
         // (1) getStatus 로 현재 표면을 시드하고, (2) openStream 을 lastEventId="0" 으로 열어
         // buffer 의 누락 이벤트(seq≥1)를 replay 받는다.
         await seedWaitingFromStatus(client, session);
+        // seed await 사이 종료/새 대화로 대체됐으면 SSE 를 열지 않는다(streaming-초기 종료 race).
+        if (startGenRef.current !== gen) return;
         openStream(session, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
@@ -369,38 +382,54 @@ export function useWidget() {
     dispatch({ type: "CLOSE" });
     bridgeRef.current?.sendEvent("close");
   }, []);
-  /** 새 대화 — 기존 세션/스트림 정리 후 새 execution 을 eager 시작(§R6).
-   * 순서 의존: closeStream → 타이머 정리(W9) → clearSession → ref 초기화 → dispatch → start.
-   * closeStream 먼저 → sessionRef 무효화 전에 SSE 닫기. 타이머 정리가 그 뒤 → null 된 sessionRef 에
-   * 쓰기 시도를 방지(W9). startedRef=false 가 dispatch 전에 → start() 재진입 가능 상태 확보. */
-  const newChat = useCallback(() => {
-    // 기존 세션 리소스 정리(SSE → 갱신 타이머 → 저장 세션). 순서 의존(W9)은 teardownSession 내부.
+  /**
+   * 세션 ref·큐·타이머·SSE·저장세션 공통 정리 — newChat·endConversation 공용.
+   * 순서 의존(W9)은 teardownSession 내부: closeStream → 타이머 정리 → clearSession(+ start gen 증가).
+   * 이후 sessionRef null → startedRef false(start 재진입 허용) → 큐 비움(이전 대화 텍스트 누수 차단, I1).
+   * dispatch/start 등 맥락별 후속은 호출부가 수행한다.
+   */
+  const resetSessionRefs = useCallback(() => {
     teardownSession();
     sessionRef.current = null;
     startedRef.current = false;
-    // I1: 이전 대화 booting 중 큐된 텍스트가 새 대화 첫 waiting 에서 flush 되는 누수 차단.
     clearQueue();
+  }, [teardownSession, clearQueue]);
+  /** 새 대화 — 기존 세션/스트림 정리 후 새 execution 을 eager 시작(§R6). */
+  const newChat = useCallback(() => {
+    resetSessionRefs();
     dispatch({ type: "NEW_CHAT" });
     void start();
-  }, [teardownSession, start, clearQueue]);
+  }, [resetSessionRefs, start]);
   /**
    * 대화 종료(§3.1) — 헤더 "대화 종료" 컨트롤. 대기 중 AI 대화(`awaiting_user_message` +
-   * `ai_conversation`)면 graceful `end_conversation`(워크플로우가 이어서 완료), 그 외 phase
-   * (booting/streaming/buttons/form)면 범용 `cancel` 로 execution 을 종료한다. 명령 성패와 무관하게
-   * **사용자 의도대로 optimistic 하게 로컬 세션을 정리하고 `[ended]` 로 전이**한다(토큰은 종료 시
-   * invalidate 되며 SSE terminal 이벤트도 병행 도달). 명령 실패(410/네트워크)는 진단만 남긴다.
+   * `ai_conversation`, **waiting nodeId 확정 시**)면 graceful `end_conversation`(워크플로우가 이어서
+   * 완료), 그 외(booting/streaming/buttons/form, 또는 ai_conversation 이라도 nodeId 미확정)면 범용
+   * `cancel` 로 execution 을 종료한다.
+   *
+   * **순서(부작용 WARNING #1)**: SSE 를 **먼저** 닫고(resetSessionRefs) optimistic `[ended]` 로 전이한
+   * 뒤에 종료 명령을 best-effort 로 발사한다 — 명령이 유발하는 terminal SSE 이벤트가 handleEiaEvent 로
+   * **중복 종료(conversationEnded 2회 발사)** 를 일으키지 않도록 스트림을 선차단한다. 명령 성패와 무관하게
+   * 로컬은 이미 종료 상태이며(토큰은 종료 시 invalidate) 명령 실패(410/네트워크)는 진단만 남긴다.
+   * 이미 `[ended]`(예: SSE terminal 선도달) 면 no-op.
    */
   const endConversation = useCallback(async () => {
+    if (state.phase === "ended") return; // 이미 종료됨 → 중복 dispatch/sendEvent 방지.
+    // 명령 라우팅·대상 정보는 정리 이전 상태/세션으로 확정.
     const session = sessionRef.current;
     const client = clientRef.current;
+    const graceful =
+      state.phase === "awaiting_user_message" &&
+      state.pending?.type === "ai_conversation" &&
+      !!state.pending?.nodeId;
+    const command: InteractCommand = graceful
+      ? { command: "end_conversation", nodeId: state.pending!.nodeId, reason: "user_ended" }
+      : { command: "cancel", reason: "user_ended" };
+    // SSE 선차단 + optimistic 종료(중복 종료 이벤트 경합 제거).
+    resetSessionRefs();
+    dispatch({ type: "ENDED", reason: "user_ended" });
+    bridgeRef.current?.sendEvent("conversationEnded", { reason: "user_ended" });
+    // best-effort 백엔드 종료 — 실패해도 로컬은 이미 종료.
     if (session && client) {
-      const graceful =
-        state.phase === "awaiting_user_message" &&
-        state.pending?.type === "ai_conversation" &&
-        !!state.pending?.nodeId;
-      const command: InteractCommand = graceful
-        ? { command: "end_conversation", nodeId: state.pending!.nodeId, reason: "user_ended" }
-        : { command: "cancel", reason: "user_ended" };
       try {
         await client.interact(session.endpoints, session.token, command);
       } catch (e) {
@@ -410,14 +439,7 @@ export function useWidget() {
         );
       }
     }
-    // optimistic 로컬 종료 — teardown(SSE→타이머→저장세션) 후 ref 초기화·큐 비우고 ENDED.
-    teardownSession();
-    sessionRef.current = null;
-    startedRef.current = false;
-    clearQueue();
-    dispatch({ type: "ENDED", reason: "user_ended" });
-    bridgeRef.current?.sendEvent("conversationEnded", { reason: "user_ended" });
-  }, [state.phase, state.pending, teardownSession, clearQueue]);
+  }, [state.phase, state.pending, resetSessionRefs]);
   // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
   const show = useCallback(() => dispatch({ type: "SHOW" }), []);
   const hide = useCallback(() => dispatch({ type: "HIDE" }), []);

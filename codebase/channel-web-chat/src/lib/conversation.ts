@@ -27,9 +27,10 @@ export interface DisplayMessage {
 /**
  * 사용자 발화로 취급하는 백엔드 `ConversationTurnSource`(WS §4.4.5 / conversation-thread §1.1):
  * form/carousel 등 presentation 제출(`presentation_user`)과 AI 대화의 사용자 turn(`ai_user`).
- * 그 외(`ai_assistant`/`ai_tool`/`system`, 또는 미상)는 assistant 측으로 본다.
+ * 그 외(`ai_assistant`/`ai_tool`/`system`, 또는 미상)는 assistant 측으로 본다. (명시 `role` 이 있으면
+ * roleOf 가 이 매핑보다 우선하므로, wire 에 존재하지 않는 리터럴을 방어적으로 넣지 않는다.)
  */
-const USER_TURN_SOURCES = new Set<string>(["presentation_user", "ai_user", "user"]);
+const USER_TURN_SOURCES = new Set<string>(["presentation_user", "ai_user"]);
 
 /**
  * turn → 말풍선 role. 명시 `role`(라이브 dispatch·구형 fixture) 이 있으면 우선하고, 없으면 wire

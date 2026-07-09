@@ -531,4 +531,141 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     expect(body.command).toBe("cancel");
     expect(result.current.state.phase).toBe("ended");
   });
+
+  it("대기 중 buttons(비 ai_conversation) → graceful 아님, 범용 cancel 전송", async () => {
+    const { fetchMock, getEs } = installControllableSse();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    // buttons waiting 진입 — pending.type=buttons(비 ai_conversation) → end_conversation 조건 불충족.
+    act(() =>
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "buttons",
+        waitingNodeId: "n1",
+        buttonConfig: { buttons: [{ buttonId: "b1", label: "예" }] },
+        conversationThread: { turns: [] },
+      }),
+    );
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
+    const body = JSON.parse((interactCalls(fetchMock)[0][1] as RequestInit).body as string);
+    expect(body.command).toBe("cancel");
+    expect(result.current.state.phase).toBe("ended");
+  });
+
+  it("종료 명령이 실패(410)해도 optimistic 로컬 종료 유지 — phase=ended, 저장세션 정리", async () => {
+    let latest: ControllableEventSource | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      // interact 는 410 Gone 으로 실패 — endConversation 은 이를 삼키고 로컬 종료를 유지해야 한다.
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: false, status: 410, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", class {
+      constructor() { latest = new ControllableEventSource(); return latest; }
+      addEventListener() {}
+      close() {}
+    });
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.phase).toBe("streaming"));
+
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    // 명령은 410 으로 실패했지만 로컬은 종료 상태를 유지하고 저장세션도 정리됐다.
+    expect(result.current.state.phase).toBe("ended");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    expect(latest).not.toBeNull();
+  });
+
+  it("booting 중(webhook in-flight) 종료 → 뒤늦게 도착한 start 결과가 세션을 되살리지 않음(gen guard)", async () => {
+    let resolveWebhook: ((v: unknown) => void) | null = null;
+    let esCreated = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return new Promise((r) => {
+          resolveWebhook = r as (v: unknown) => void;
+        });
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCreated++;
+        }
+        addEventListener() {}
+        close() {}
+      },
+    );
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    // webhook POST 가 아직 pending — booting 상태(세션 미persist).
+    await waitFor(() => expect(result.current.state.phase).toBe("booting"));
+
+    // booting 중 종료 → 세션 없음이라 명령 없이 로컬 ended.
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    expect(result.current.state.phase).toBe("ended");
+
+    // 뒤늦게 webhook 이 202 로 resolve — in-flight start 는 gen stale 이라 persist/openStream 을 건너뛴다.
+    await act(async () => {
+      resolveWebhook?.({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          data: {
+            executionId: "e1",
+            status: "pending",
+            interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+          },
+        }),
+      });
+      await Promise.resolve();
+    });
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+
+    // 되살아나지 않음: ended 유지, SSE 미개설, 저장세션 없음.
+    expect(result.current.state.phase).toBe("ended");
+    expect(esCreated).toBe(0);
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
 });

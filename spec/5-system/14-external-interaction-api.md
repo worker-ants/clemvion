@@ -437,7 +437,9 @@ AI 가 생성한 `execution.ai_message` 와 의미적으로 구분되는 정적 
 > [conversation-thread §4·§8.4](../conventions/conversation-thread.md))을 SSE `waiting_for_input` 과 **동일 wire 형식**으로
 > 동봉한다 — 새로고침 복원(reload)이 5분 SSE 버퍼에 의존하지 않고 buffer 만료·서버 재시작·인스턴스 스위치와 무관하게
 > 전체 히스토리를 복원하기 위함(근거 §R17). `seq`(항상 `0` placeholder)만은 SSE replay(`Last-Event-Id`/첫 연결
-> `lastEventId=0`)가 권위이며 REST 단발 응답은 in-memory seq 카운터에 접근하지 않는다.
+> `lastEventId=0`)가 권위이며 REST 단발 응답은 in-memory seq 카운터에 접근하지 않는다. durable thread 가 없는 경우
+> (배포 이전 row·park 이력 없음)에는 `context.conversationThread` **키를 생략**한다(형제 필드의 `null` 관례와 달리 키
+> 부재 — SSE wire 도 동일하게 present-when-available, 위젯은 부재를 빈 히스토리로 graceful 처리).
 
 ```jsonc
 GET /api/external/executions/{executionId}

@@ -61,7 +61,8 @@ spec_impact:
 - [x] 백엔드 unit (getStatus thread) — interaction.service.spec 31 passed (신규 3건)
 - [x] 프런트 unit (roleOf 매핑, 세션 컨트롤, endConversation) — web-chat 262 passed
 - [x] consistency-check --spec — BLOCK: NO (WARNING #1·INFO #1·#2 반영, 나머지 pre-existing)
-- [ ] /ai-review (구현 완료 후 강제)
+- [x] /ai-review — Critical 0, WARNING 8 전량 반영 + INFO 다수(RESOLUTION.md). fresh review 로 재검증
+- [x] race guard(startGenRef) — booting-중-종료/새대화가 in-flight start 되살리는 것 차단(리뷰 INFO#1)
 - [~] e2e — **스킵(정당)**: 변경은 getStatus 의 additive read-only 필드(durable thread 노출)로 실행
       엔진 상태전이·park/resume 로직 무변경. external-interaction e2e 는 getStatus context/conversationThread
       를 단언하지 않아 회귀 경로 없음. 프런트(web-chat)는 vitest 전용(e2e 없음). 단위테스트로 충분.

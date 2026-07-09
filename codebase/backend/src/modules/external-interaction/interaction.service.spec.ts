@@ -609,6 +609,22 @@ describe('InteractionService.getStatus', () => {
     });
   });
 
+  it('종료(COMPLETED) execution 은 conversationThread 를 노출하지 않는다 (context null — 회귀 가드)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    // durable thread 가 있어도 waiting 이 아니면 context 자체가 null 이어야 한다.
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        conversationThread: DURABLE_THREAD as never,
+        outputData: { final: 'value' },
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.context).toBeNull();
+    // waiting 이 아니므로 대기 NodeExecution 조회도 하지 않는다.
+    expect(nodeRepo.findOne).not.toHaveBeenCalled();
+  });
+
   it('waiting_for_input — conversation_thread 가 null(배포 이전 row)이면 conversationThread 키 미동봉', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(
