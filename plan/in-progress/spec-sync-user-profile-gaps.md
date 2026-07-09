@@ -22,7 +22,7 @@ owner: planner
   - [ ] **(후속, planner) 4-integration §11.2/§11.3 필드명 동기화** — 옛 `notifyIntegrationExpiryByEmail`→`integrationExpiryEmail` (코드/9-user-profile 는 이미 `integrationExpiryEmail`; 기본값 서술은 이미 정합) + §11.3 stale 클래스명 `NotificationDispatcher` 정정.
 - [ ] 이메일 일일 요약 토글 (§5.3) — 저장소는 존재하나 **집계·발송 job + 전용 토글** 미구현(별도 PR).
 - [x] 테마 `System` (OS 자동 추종) 옵션 (§2.0/§2.1) — **backend + frontend 완료**: backend `UpdateMeDto.USER_THEMES`·`UserProfileDto` enum 에 `'system'` 추가(User.theme varchar(10) default 'light' — migration 불요). frontend `ServerTheme` 타입·profile sync guard·`ProfilePreferencesCard` 라벨/토글 옵션·i18n(ko/en `themeSystem`) 추가 — theme-store 는 이미 `prefers-color-scheme` 적용 보유. dto 검증 7건 테스트. (ai-review 가 frontend ripple WARNING 3건을 잡아 동반 구현으로 완결.)
-- [x] 워크스페이스 전환 시 슬러그 URL 라우팅 (§3 `/w/[slug]/...`) — **frontend 완료** (`plan/in-progress/workspace-slug-routing.md`, phase 1): `(main)/w/[slug]` 라우트 구조 신설(26페이지 이동)·slug 해소 layout(reconcile URL 우선)·`(main)/[...rest]` catch-all·`buildWorkspaceHref` 링크 헬퍼·switchWorkspace 네비게이션화. §3 flip·data-flow-12 Rationale·10-auth-flow §7.2·_layout §2.2/§3.1 반영. editor(`/workflows/[id]`)·docs(`/docs`)는 phase 1 slug 밖(후속).
+- [x] 워크스페이스 전환 시 슬러그 URL 라우팅 (§3 `/w/[slug]/...`) — **frontend 완료** (`plan/complete/workspace-slug-routing.md`, phase 1): `(main)/w/[slug]` 라우트 구조 신설(26페이지 이동)·slug 해소 layout(reconcile URL 우선)·`(main)/[...rest]` catch-all·`buildWorkspaceHref` 링크 헬퍼·switchWorkspace 네비게이션화. §3 flip·data-flow-12 Rationale·10-auth-flow §7.2·_layout §2.2/§3.1 반영. editor(`/workflows/[id]`)·docs(`/docs`)는 phase 1 slug 밖(후속).
 
 ## 비고
 - §6.1 세션 단건 종료는 spec 의 `DELETE .../:familyId` 가 아니라 실제 `POST .../:familyId/revoke` 로 구현됨 — 이는 의도된 설계(프록시 DELETE 바디 제거 회피)라 spec 본문을 코드에 맞게 정정만 했고 미구현 항목은 아님.

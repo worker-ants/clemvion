@@ -2,6 +2,34 @@
 worktree: workspace-slug-routing-de2b12
 started: 2026-07-08
 owner: developer
+spec_impact:
+  - spec/2-navigation/0-dashboard.md
+  - spec/2-navigation/1-workflow-list.md
+  - spec/2-navigation/10-auth-flow.md
+  - spec/2-navigation/11-error-empty-states.md
+  - spec/2-navigation/14-execution-history.md
+  - spec/2-navigation/15-system-status.md
+  - spec/2-navigation/16-agent-memory.md
+  - spec/2-navigation/2-trigger-list.md
+  - spec/2-navigation/3-schedule.md
+  - spec/2-navigation/4-integration.md
+  - spec/2-navigation/5-knowledge-base.md
+  - spec/2-navigation/6-config.md
+  - spec/2-navigation/7-statistics.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/2-navigation/_layout.md
+  - spec/3-workflow-editor/4-ai-assistant.md
+  - spec/4-nodes/7-trigger/providers/discord.md
+  - spec/4-nodes/7-trigger/providers/slack.md
+  - spec/5-system/1-auth.md
+  - spec/5-system/13-replay-rerun.md
+  - spec/5-system/15-chat-channel.md
+  - spec/7-channel-web-chat/5-admin-console.md
+  - spec/7-channel-web-chat/_product-overview.md
+  - spec/conventions/spec-impl-evidence.md
+  - spec/conventions/user-guide-evidence.md
+  - spec/data-flow/12-workspace.md
+  - spec/data-flow/13-agent-memory.md
 ---
 
 ## Phase 1 구현 체크리스트 (2026-07-08 착수, 워크트리 de2b12)
