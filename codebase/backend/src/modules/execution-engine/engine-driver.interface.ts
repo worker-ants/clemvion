@@ -82,7 +82,7 @@ export interface ReentryStateDriver {
     node: Node,
     context: ExecutionContext,
     retryState: Record<string, unknown>,
-    opts?: { resumeMode?: boolean },
+    opts?: { resumeMode?: boolean; nodeExecutionId?: string },
   ): {
     resumeState: Record<string, unknown>;
     initialAction: ContinuationPayload | undefined;

@@ -104,7 +104,9 @@ export class AiTurnOrchestrator {
         ctx.node,
         ctx.context,
         ctx.resumeCheckpoint as Record<string, unknown>,
-        { resumeMode: true },
+        // #501 회귀 — resume 턴의 통합 usage-log attribution 을 위해 대기
+        // NodeExecution row id 를 재구성 state 에 재주입한다 (checkpoint 미영속).
+        { resumeMode: true, nodeExecutionId: ctx.nodeExec?.id },
       ));
     } catch (err) {
       throw new RehydrationError(

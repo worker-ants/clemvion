@@ -116,6 +116,9 @@ export const resumeStateSchema = z
     executionId: z.string(),
     nodeId: z.string(),
     workflowId: z.string(),
+    // 노드 단위 context-binding — 재개 시 대기/재시도 NodeExecution row id 로
+    // 재유도(persist 금지). resume 턴 통합 usage-log attribution 에 필요(#501).
+    nodeExecutionId: z.string(),
     maxTurns: z.number(),
     maxToolCalls: z.number(),
     conditions: z.array(z.unknown()),
@@ -150,6 +153,7 @@ export const CREDENTIAL_CONTEXT_FIELDS = [
   'executionId',
   'nodeId',
   'workflowId',
+  'nodeExecutionId',
   'maxTurns',
   'maxToolCalls',
   'conditions',
