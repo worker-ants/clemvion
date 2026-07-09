@@ -438,7 +438,7 @@ export class AiTurnOrchestrator {
 
     const initialConv = buildConversationConfigFromOutput(
       structuredOutput,
-      structuredConfig as Record<string, unknown> | undefined,
+      structuredConfig,
     );
 
     await this.eventEmitter.emitExecution(
@@ -467,12 +467,15 @@ export class AiTurnOrchestrator {
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
             ? { config: structuredConfig }
             : {}),
-          conversationConfig: {
+          // EIA §R17 — conversationConfig 는 message/messages(같은 AI 텍스트)를
+          // 실어 공개 표면으로 나가므로 egress 마스킹(ai_message/thread 우회 차단).
+          // turnDebug.llmCalls(에디터 전용 원문)는 건드리지 않도록 여기만 마스킹.
+          conversationConfig: deepRedactSecrets({
             ...initialConv,
             ...(initialPendingFormToolCall
               ? { pendingFormToolCall: initialPendingFormToolCall }
               : {}),
-          },
+          }) as Record<string, unknown>,
           // run-results UI 의 References / LLM Usage 탭이 진행 중에도 동작하도록
           // _resumeState 의 누적치를 meta.* 로 펼쳐 노출. _resumeState 자체는
           // system prompt / llmConfigId 등 internal 필드를 포함하므로 client 에
@@ -811,10 +814,11 @@ export class AiTurnOrchestrator {
             ...(adaptedConfig && Object.keys(adaptedConfig).length > 0
               ? { config: adaptedConfig }
               : {}),
-            conversationConfig: {
+            // EIA §R17 — conversationConfig egress 마스킹 (위 initial emit 과 동일).
+            conversationConfig: deepRedactSecrets({
               ...nextConv,
               ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
-            },
+            }) as Record<string, unknown>,
             // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
             // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
             // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)

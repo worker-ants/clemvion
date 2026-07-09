@@ -345,6 +345,28 @@ describe('redactThreadForPublic (EIA egress secret masking §R17)', () => {
     expect(out.turns[1]).toBe(thread.turns[1]);
   });
 
+  it('preserves turn reference when structured fields are present but hold no secret', () => {
+    // Copy-on-change must hold even when data/toolCalls/presentations exist —
+    // a naive "always re-allocate if field present" would break identity.
+    const turn = makeTurn({
+      seq: 0,
+      source: 'ai_assistant',
+      text: 'clean reply',
+      data: { choice: 'yes', count: 3 },
+      toolCalls: [{ id: 't', name: 'kb', arguments: '{"q":"hours"}' }],
+      presentations: [
+        {
+          type: 'table',
+          toolCallId: 't',
+          renderedAt: 'r',
+          payload: { rows: [['a', 'b']] },
+        },
+      ],
+    });
+    const out = redactThreadForPublic(makeThread([turn]));
+    expect(out.turns[0]).toBe(turn);
+  });
+
   it('does not mutate the input thread or its turns', () => {
     const turn = makeTurn({
       text: 'Authorization: Bearer secrettoken0987654321',

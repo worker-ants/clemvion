@@ -119,6 +119,33 @@ describe('deepRedactSecrets (recursive, copy-on-change)', () => {
     expect(deepRedactSecrets(null)).toBe(null);
     expect(deepRedactSecrets(true)).toBe(true);
   });
+
+  it('masks a credential-named key whose value is an object/array (wholesale, any type)', () => {
+    const input = {
+      token: { nested: 'AKIAOBJ1', deeper: { x: 1 } },
+      list_secret: ['a', 'b'],
+    };
+    const out = deepRedactSecrets(input) as Record<string, unknown>;
+    // Named credential keys are masked wholesale regardless of value shape,
+    // mirroring sanitizePayloadForWs.
+    expect(out.token).toBe('***');
+  });
+
+  it('handles a JSON-string leaf JSON-safely (no corruption)', () => {
+    // A string leaf that is itself JSON (tool-call arguments) must not be
+    // flat-masked into invalid JSON.
+    const input = { args: '{"Authorization":"Bearer sk-LEAF-1"}' };
+    const out = deepRedactSecrets(input) as { args: string };
+    expect(() => JSON.parse(out.args)).not.toThrow();
+    expect(out.args).not.toContain('sk-LEAF-1');
+  });
+
+  it('caps recursion depth (deep nesting is masked wholesale, no stack blowup)', () => {
+    // Build nesting deeper than MAX_REDACT_DEPTH.
+    let deep: Record<string, unknown> = { leaf: 'Bearer sk-DEEP-END' };
+    for (let i = 0; i < 25; i++) deep = { n: deep };
+    expect(() => deepRedactSecrets(deep)).not.toThrow();
+  });
 });
 
 describe('redactSecretsInJsonString (JSON-safe)', () => {
@@ -150,5 +177,12 @@ describe('redactSecretsInJsonString (JSON-safe)', () => {
   it('returns input unchanged when the JSON has no secrets', () => {
     const json = '{"a":1,"b":"hello"}';
     expect(redactSecretsInJsonString(json)).toBe(json);
+  });
+
+  it('does not JSON-parse bare numeric strings (avoids large-integer precision loss)', () => {
+    // A big-int-as-text is not a JSON object/array, so it must be treated as flat
+    // text (unchanged), NOT parsed and re-serialized (which would lose precision).
+    const bigIntStr = '900719925474099123';
+    expect(redactSecretsInJsonString(bigIntStr)).toBe(bigIntStr);
   });
 });

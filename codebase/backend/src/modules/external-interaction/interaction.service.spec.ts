@@ -647,6 +647,34 @@ describe('InteractionService.getStatus', () => {
     expect(ctx.conversationThread.turns[0].text).toContain('***');
   });
 
+  it('waiting_for_input — nodeOutput.conversationConfig 의 secret 도 마스킹 (bypass 차단, EIA §R17)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: {
+        meta: { interactionType: 'ai_conversation' },
+        conversationConfig: {
+          placeholder: '메시지 입력',
+          message: 'reply Authorization: Bearer sk-NODEOUT-LEAK',
+          headers: { api_key: 'AKIA-NODEOUT-2' },
+        },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const nodeOutput = (r.context as { nodeOutput: Record<string, unknown> })
+      .nodeOutput;
+    const blob = JSON.stringify(nodeOutput);
+    expect(blob).not.toContain('sk-NODEOUT-LEAK');
+    expect(blob).not.toContain('AKIA-NODEOUT-2');
+    expect(blob).toContain('***');
+    // 비-secret 필드는 보존.
+    expect(blob).toContain('메시지 입력');
+  });
+
   it('종료(COMPLETED) execution 은 conversationThread 를 노출하지 않는다 (context null — 회귀 가드)', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     // durable thread 가 있어도 waiting 이 아니면 context 자체가 null 이어야 한다.

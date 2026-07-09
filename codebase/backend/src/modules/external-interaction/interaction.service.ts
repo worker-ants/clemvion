@@ -37,6 +37,7 @@ import {
   InteractionRequestContext,
 } from './interaction.guard';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
+import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
   ExecutionStatus.COMPLETED,
@@ -157,8 +158,7 @@ export class InteractionService {
     return {
       executionId: ctx.executionId,
       accepted: true,
-      currentStatus:
-        (refreshed?.status as InteractAckDto['currentStatus']) ?? 'running',
+      currentStatus: refreshed?.status ?? 'running',
     };
   }
 
@@ -273,7 +273,13 @@ export class InteractionService {
         relations: ['node'],
       });
       if (nodeExec?.node) {
-        const out = nodeExec.outputData ?? {};
+        // EIA §R17 — nodeOutput 도 공개 표면. conversationConfig.message/messages
+        // 등 자유 텍스트/구조화 필드의 secret 을 마스킹(값 패턴 + credential 키).
+        // conversationThread·ai_message 와 동일 데이터가 여기로 우회 노출되던 갭 차단.
+        const out = deepRedactSecrets(nodeExec.outputData ?? {}) as Record<
+          string,
+          unknown
+        >;
         const meta = (out.meta ?? {}) as { interactionType?: string };
         const rawInteractionType = meta.interactionType ?? null;
         const interactionType =
@@ -324,11 +330,11 @@ export class InteractionService {
       context,
       result:
         execution.status === ExecutionStatus.COMPLETED
-          ? ((execution.outputData ?? null) as Record<string, unknown> | null)
+          ? (execution.outputData ?? null)
           : null,
       error:
         execution.status === ExecutionStatus.FAILED
-          ? ((execution.outputData ?? null) as Record<string, unknown> | null)
+          ? (execution.outputData ?? null)
           : null,
       seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (

@@ -1158,12 +1158,21 @@ interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/a
 - **`execution.ai_message` 라이브 이벤트 (강제됨)**: 같은 AI turn 텍스트가 `AI_MESSAGE.message`/`.messages[]`/
   `.presentations[]` 로도 emit 되며(§5.2) SSE 스트림·아웃바운드 webhook fanout·Chat Channel(텔레그램 등 능동 발송)
   로 흘러간다. 두 emit site(ai-turn-orchestrator 의 waiting/terminal branch)에서 `redactSecrets`(message)/
-  `deepRedactSecrets`(messages·presentations)로 egress 마스킹한다. **내부 WS(인증된 워크스페이스 에디터)** wire
-  envelope 은 이 emit-site 마스킹을 그대로 받지만(`llmCalls` 처럼 external-only strip 이 아님), 공개 표면 노출이
-  목적이라 수용한다 — 즉 여기서도 egress 시점 마스킹이다.
-- **`outputData`/`nodeOutput` 키 allowlist (미구현·잔여)**: `nodeOutput` 이 노출하는 **키 집합**을 렌더 필수 메타로
-  제한하는 런타임 allowlist 필터는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다. 현재는
-  `withInteractionMeta` 관례 + `getStatus` JSDoc 제약으로만 명문화돼 있다.
+  `deepRedactSecrets`(messages·presentations)로 egress 마스킹한다. `messages[].toolCalls[].arguments`(중첩 JSON
+  문자열)도 `deepRedactSecrets` 의 JSON-safe leaf 처리로 깨지지 않게 마스킹된다.
+  - **내부 WS·Chat Channel 도 마스킹됨(수용된 trade-off)**: 이 마스킹은 emit-site 라 내부 WS(에디터) wire envelope
+    과 Chat Channel 능동 발송(텔레그램/슬랙/디스코드)에도 적용된다. 보수적 패턴(특히 `Bearer\s+\S+`, `pwd:`)이
+    기술 대화체에 false-positive 하면 이미 사용자에게 전달된 응답이 `***` 로 바뀔 수 있다. **보안 우선**(실 secret 을
+    외부 채널로 흘리지 않음)으로 이 rare FP 를 수용하며, 에디터는 external-only strip 되지 않는 `llmCalls` 디버그로
+    원문을 확인할 수 있다. participant-vs-observer 분리 egress(예: 관찰자 표면만 마스킹)는 후속 개선 여지.
+- **`nodeOutput.conversationConfig` (강제됨 — bypass 차단)**: `waiting_for_input` emit 과 `getStatus` 는
+  `nodeOutput.conversationConfig.{message,messages,presentations}` 로 위 ai_message·thread 와 **동일한 AI 텍스트**를
+  실어 나른다. 이 표면이 마스킹을 우회하지 않도록, ai-turn-orchestrator 의 두 waiting emit 은 conversationConfig 를
+  `deepRedactSecrets` 로 마스킹하고(에디터 전용 `turnDebug.llmCalls` 는 건드리지 않음), `getStatus` 는 `nodeOutput`
+  전체를 `deepRedactSecrets` 로 마스킹한다(REST 는 sanitizePayloadForWs 미적용 경로라 필수).
+- **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
+  제한하는 런타임 allowlist 필터(SSE 는 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어)는 위 값/키
+  기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.
 
 ### R18. `execution.message` — 표시-전용 presentation 노드 자동 진행 메시지 신설 (결정 2026-06-25)
 
