@@ -61,17 +61,28 @@ function collectE2eFiles(dir: string = E2E_DIR, acc: string[] = []): string[] {
   return acc;
 }
 
+/**
+ * 한 줄에서 전역 미만 bare-numeric timeout 값들을 추출한다. 프로덕션 스캔
+ * (`findSubGlobalTimeouts`)과 self-test 가 **이 단일 헬퍼로 판정 로직을 공유**한다 — 분리
+ * 재구현하면 임계값 비교(`v < global`)를 바꿔도 self-test 가 회귀를 못 잡는 drift 가 생긴다.
+ */
+function subGlobalTimeoutsInLine(line: string, global: number): number[] {
+  const hits: number[] = [];
+  for (const m of line.matchAll(TIMEOUT_LITERAL)) {
+    const value = toNumber(m[1]);
+    if (value < global) hits.push(value);
+  }
+  return hits;
+}
+
 /** 전역 미만 bare-numeric timeout 리터럴을 가진 위치를 `e2e` 상대경로:line=value 로. */
 function findSubGlobalTimeouts(global: number): string[] {
   const offenders: string[] = [];
   for (const file of collectE2eFiles()) {
     const lines = fs.readFileSync(file, "utf8").split("\n");
     lines.forEach((line, i) => {
-      for (const m of line.matchAll(TIMEOUT_LITERAL)) {
-        const value = toNumber(m[1]);
-        if (value < global) {
-          offenders.push(`${path.relative(E2E_DIR, file)}:${i + 1}=${value}`);
-        }
+      for (const value of subGlobalTimeoutsInLine(line, global)) {
+        offenders.push(`${path.relative(E2E_DIR, file)}:${i + 1}=${value}`);
       }
     });
   }
@@ -81,33 +92,24 @@ function findSubGlobalTimeouts(global: number): string[] {
 describe("no sub-global timeout override in e2e specs", () => {
   const GLOBAL = readGlobalExpectTimeout();
 
-  it(`has no bare-numeric timeout below the global expect.timeout (${
-    // 표시용 — 실패 메시지에 전역값 노출
-    "parsed from playwright.config.ts"
-  })`, () => {
+  // 타이틀에 파싱된 전역값을 노출 — 실패 시 어느 임계값 기준인지 즉시 드러난다.
+  it(`has no bare-numeric timeout below the global expect.timeout (${GLOBAL}) in e2e specs`, () => {
     // 위반 시: 해당 timeout 리터럴을 제거해 전역 기본에 위임하거나, 전역 이상값/명명 상수로 바꾼다.
     expect(findSubGlobalTimeouts(GLOBAL)).toEqual([]);
   });
 
   // regex/파싱 self-test — "현재 위반 0건"만으로는 검출 로직 약화(정규식/파싱 실수)를 놓쳐 가드가
   // 조용히 무력화된다. 알려진 sub-global 은 검출, 전역 이상/명명 상수는 통과임을 고정한다.
+  // self-test 는 프로덕션 스캔과 **동일한** `subGlobalTimeoutsInLine` 을 검증한다(별도 재구현
+  // 아님) — 이 판정 로직이 곧 파일 스캔 파이프라인의 심장부라 여기서 회귀를 고정하면 drift 가 없다.
   describe("검출 로직 true/false positives", () => {
-    function scanLine(line: string, global: number): number[] {
-      const hits: number[] = [];
-      for (const m of line.matchAll(TIMEOUT_LITERAL)) {
-        const v = toNumber(m[1]);
-        if (v < global) hits.push(v);
-      }
-      return hits;
-    }
-
     it.each([
       ["언더스코어 5_000", "await expect(x).toBeVisible({ timeout: 5_000 });", [5000]],
       ["plain 3000", ").toBeVisible({ timeout: 3000 });", [3000]],
       ["경계 바로 아래 9_999", "{ timeout: 9_999 }", [9999]],
       ["waitForURL sub-global", "page.waitForURL(/x/, { timeout: 5_000 })", [5000]],
     ])("검출: %s", (_label, src, expected) => {
-      expect(scanLine(src, 10_000)).toEqual(expected);
+      expect(subGlobalTimeoutsInLine(src, 10_000)).toEqual(expected);
     });
 
     it.each([
@@ -117,13 +119,14 @@ describe("no sub-global timeout override in e2e specs", () => {
       ["hard-sleep(별개 API)", "await page.waitForTimeout(500);"],
       ["timeout 아닌 숫자", "const workers = 2000;"],
     ])("통과: %s", (_label, src) => {
-      expect(scanLine(src, 10_000)).toEqual([]);
+      expect(subGlobalTimeoutsInLine(src, 10_000)).toEqual([]);
     });
   });
 
   it("가드가 fail-open 하지 않는다 (E2E 트리·config 해소)", () => {
     expect(fs.existsSync(E2E_DIR)).toBe(true);
     expect(fs.existsSync(PLAYWRIGHT_CONFIG)).toBe(true);
+    // e2e 스펙이 최소 이 정도는 수집돼야 빈 트리에 fail-open(offender 0 위양성) 하지 않음을 보장.
     expect(collectE2eFiles().length).toBeGreaterThan(10);
     expect(GLOBAL).toBeGreaterThanOrEqual(10_000);
   });
