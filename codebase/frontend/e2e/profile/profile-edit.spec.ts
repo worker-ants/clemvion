@@ -254,7 +254,7 @@ test.describe("/profile readonly + 인라인 편집", () => {
       newPassword: "new-password-456",
     });
 
-    // /profile 으로 리다이렉트
-    await page.waitForURL(/\/profile$/, { timeout: 10_000 });
+    // /profile 으로 리다이렉트 (client-side navigation — 부하 시 여유 필요, Tier 3)
+    await page.waitForURL(/\/profile$/, { timeout: 15_000 });
   });
 });

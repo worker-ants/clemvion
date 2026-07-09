@@ -224,8 +224,11 @@ services:
     profiles: ["test"]
 
   # frontend playwright. 본 spec 들은 page.route 로 backend 호출을 mock 해 backend
-  # 의존성이 없다 (backend e2e 가 별도로 통신 정합성을 보장). dev 서버는
-  # playwright.config 의 webServer 가 자동으로 띄운다.
+  # 의존성이 없다 (backend e2e 가 별도로 통신 정합성을 보장). 이 서비스는
+  # CI="true"(아래 environment) 로 실행되므로, playwright.config 의 webServer 가
+  # dev 서버가 아니라 **production 빌드**(`next build && next start`)를 자동 기동한다
+  # — next dev 의 온디맨드 컴파일·비결정적 hydration 이 client-nav flake 의 뿌리라
+  # CI 는 prod 빌드로 안정화한다 (playwright.config Tier 2 주석 참조).
   playwright-runner:
     # W-58 — frontend package.json 의 @playwright/test ^1.59 과 동일 major.minor
     # 로 정렬. browser binary / Node modules 간 호환성을 보장한다.

@@ -51,7 +51,7 @@ test.describe("Login form (mock-based)", () => {
     // 성공 토스트가 잠시 보였다가 사라진다.
     await expect(
       page.getByText(/로그인에 성공|Signed in successfully|signed in/i),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
   });
 
   test("401 → 에러 메시지 + 폼 유지 (이메일 보존)", async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe("Login form (mock-based)", () => {
     // sonner toast 로 표시된다. 다소 폭넓게 매칭.
     await expect(
       page.getByText(/실패|일치하지 않|invalid|failed|incorrect/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
 
     // 이메일은 유지 (사용자가 다시 타이핑할 필요 없음).
     await expect(email).toHaveValue("bad@example.com");
@@ -122,7 +122,7 @@ test.describe("Login form (mock-based)", () => {
     // 헤딩이 보여야 함.
     await expect(
       page.getByText(/2단계 인증|Two-factor|TOTP/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
   });
 
   test("'비밀번호 찾기' 링크 → /forgot-password 이동", async ({ page }) => {

@@ -61,7 +61,7 @@ test.describe("Register page — invitation token flow", () => {
     // 사용자에게 "더 이상 유효하지 않은 초대" 안내.
     await expect(
       page.getByText(/만료|expired|already used|이미 사용/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible();
 
     // submit 버튼이 disabled 상태.
     const submit = page.getByRole("button", {
