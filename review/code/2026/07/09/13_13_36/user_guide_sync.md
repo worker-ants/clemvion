@@ -1,0 +1,23 @@
+### 발견사항
+
+- **[WARNING]** Manual Trigger 파라미터 이름 검증이 이제 **저장 시점**(`POST /:id/save`)에도 강제되는데, 유저 가이드(`02-nodes/triggers.mdx`/`.en.mdx`)의 관련 Callout 은 여전히 "실행 시점에만 거부" 로 읽히는 문구로 stale 하다.
+  - 변경 파일: `codebase/backend/src/modules/workflows/workflows.service.ts` (`validateManualTrigger` 신규 `INVALID_TRIGGER_PARAMETERS` 저장 시점 게이트), `codebase/frontend/src/components/editor/settings-panel/node-configs/trigger-configs.tsx` (동일 규칙의 inline 프론트 검증 신설, `nodeConfigs.trigger.errorName*` 3키)
+  - 매트릭스 항목: PROJECT.md §변경 유형 → 갱신 위치 매핑의 "노드 schema 변경 (필드 추가·라벨 변경)" 행 — "(a) `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx` 의 FieldTable" + §자주 누락되는 항목의 "노드 schema 변경 vs 가이드 본문 — dict 키만 갱신하고 `02-nodes/<cat>.mdx` 의 FieldTable 미갱신. 가이드 본문이 spec 과 어긋남" 패턴과 동일 성격 (필드 자체가 아니라 필드 검증 시점이라는 문서화된 동작이 바뀜). `doc-sync-matrix.json` 의 `node-schema-change` 행 glob(`codebase/backend/src/nodes/**`)이 기계적으로는 fire 하지 않는데, 이는 이번 PR 이 검증 로직을 `NodeHandler.validate()`(nodes/** 하위) 가 아니라 `workflows.service.ts` → `execution-engine/utils` 를 직접 호출하는 방식으로 넣었기 때문(이전 리뷰 라운드 `architecture.md` WARNING 1 이 지적한 우회와 동일 원인) — glob 이 놓치는 사각지대이므로 semantic 판단으로 매칭.
+  - 누락된 동반 갱신: `codebase/frontend/src/content/docs/02-nodes/triggers.mdx:61-63`, `codebase/frontend/src/content/docs/02-nodes/triggers.en.mdx:50-52`
+  - 상세: 두 페이지의 `<Callout type="warn">` 는 각각 "파라미터 이름이 중복되면 validate가 실패하고 **실행도** 거부돼요" / "Duplicate parameter names fail validation and **the run** is rejected." 로, 지금까지는 사실상 "저장은 되고 실행할 때만 막힌다"로 읽힌다. 이번 diff 는 정확히 그 전제를 깬다 — `saveCanvas`(`POST /:id/save`, 캔버스 저장·`restoreVersion` 제외)가 이제 malformed/중복/식별자 위반 이름을 저장 즉시 `400 INVALID_TRIGGER_PARAMETERS` 로 거부한다(`workflows.service.ts:594-616`). 사용자는 캔버스에서 트리거 파라미터 이름을 잘못 입력하면 실행 버튼을 누르기도 전에 저장이 막히는데, 가이드는 여전히 "실행 시점" 문구만 제공해 사용자가 "왜 저장조차 안 되지?" 하고 혼란스러울 수 있다. 이미 만들어진 후속 plan(`plan/in-progress/spec-update-manual-trigger-save-time-error-code.md`)은 `spec/4-nodes/7-trigger/1-manual-trigger.md` §6, `spec/data-flow/11-workflow.md`, `spec/data-flow/10-triggers.md`, `spec/5-system/3-error-handling.md` 등 **내부 spec** 문서만 반영 대상으로 명시하고 있고, 실제 사용자가 열람하는 `codebase/frontend/src/content/docs/02-nodes/triggers.mdx`(+`.en.mdx`)는 목록에 없다 — 이번 매칭은 이전 리뷰 라운드(`review/code/2026/07/09/11_08_21/documentation.md`)가 다룬 spec 동기화와는 별개의, 아직 아무 곳에도 추적되지 않는 유저 가이드 갭이다.
+  - 제안: `02-nodes/triggers.mdx`/`.en.mdx` 의 해당 Callout 을 "저장 시점(`Save`)에도 즉시 거부돼요" 식으로 보강하거나, 새 문장을 추가(예: "이름 규칙을 어기면 `Save` 시점에 바로 막혀요 — Run 을 누르기 전에 설정 패널의 인라인 에러로 안내돼요"). 프론트 인라인 에러 UI(신규 `errorNameRequired`/`errorNameInvalid`/`errorNameDuplicate`)가 이미 이 시점을 사용자에게 보여주므로, 가이드에서 그 UX 를 함께 언급하면 자연스럽다. `spec-update-manual-trigger-save-time-error-code.md` 의 반영 대상 체크리스트에 이 두 파일을 추가하거나, 별도 항목으로 이번 PR 범위에 포함할 것을 권고.
+
+- **[INFO]** 재사용된 `INVALID_TRIGGER_PARAMETERS` 코드가 `ERROR_KO` 에 여전히 매핑돼 있지 않음 — 단, 이번 PR 이 새로 만든 갭은 아님(회색 지대)
+  - 변경 파일: `codebase/backend/src/modules/workflows/workflows.service.ts:594-616`(신규 저장 시점 발행 지점 추가)
+  - 매트릭스 항목: `doc-sync-matrix.json` `new-error-code` 행 — trigger glob 이 `codebase/backend/src/nodes/core/error-codes.ts` 인데 이번 diff 는 그 파일을 건드리지 않았고, `INVALID_TRIGGER_PARAMETERS` 자체도 `ErrorCode` enum 소속이 아니라 컨트롤러/서비스에 하드코딩된 문자열 리터럴이라(`grep` 확인) 엄밀히는 "신규 errorCode 발행" 트리거가 기계적으로 매칭되지 않는다. 이 코드는 이미 실행 시점(`workflows.controller.ts:309`)에 발행되던 기존 코드이고, `ERROR_KO` 미등록 상태도 이번 PR 이전부터였다(pre-existing gap) — 이번 PR 은 발행 지점(엔드포인트)만 하나 늘렸다.
+  - 누락된 동반 갱신: `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `ERROR_KO["INVALID_TRIGGER_PARAMETERS"]` (+ `backend-labels.test.ts` 의 `LOCALIZED_ERROR_CODES` 등록)
+  - 상세: `ERROR_KO`/`LOCALIZED_ERROR_CODES` 가드는 progressive allowlist 라 CI 는 통과하지만, 이번 diff 로 이 코드의 노출 표면이 "실행 버튼을 눌렀을 때"에서 "캔버스를 저장할 때"로 넓어져 사용자가 마주칠 빈도가 늘어난다. 동일 사안이 직전 리뷰 라운드의 `api_contract.md`(INFO)에서도 지적됐고 `RESOLUTION.md` 는 W5(spec 문서화, 비차단)로만 추적했을 뿐 `ERROR_KO` 등록 자체는 별도 조치가 없었다.
+  - 제안: 필수는 아니나(가드가 아직 강제하지 않음), `ERROR_KO`/`LOCALIZED_ERROR_CODES` 에 `INVALID_TRIGGER_PARAMETERS` 를 등록해 저장/실행 두 경로 모두 한국어 메시지가 노출되도록 하는 것을 후속 plan(`spec-update-manual-trigger-save-time-error-code.md` 또는 별도)에 명시적으로 포함 검토.
+
+### 요약
+
+`doc-sync-matrix.json` 의 20개 행 중 이번 diff 는 "신규 UI 문자열(TSX)"(파라미터 이름 검증 에러 3종, `dict/{ko,en}/nodeConfigs.ts` 양쪽 동시 등록 — **정상 이행, 위반 없음**)와 "spec 자체에 누락·오류가 있다고 판단됨"(`plan/in-progress/spec-update-manual-trigger-save-time-error-code.md` 신설 후 project-planner 위임 — **정상 이행**) 두 행에 명확히 매칭되고, "노드 schema 변경"(glob 미스매치지만 semantic 하게 해당) 행에서 유저 가이드(`02-nodes/triggers.mdx`+`.en.mdx`) 갱신 누락 1건(WARNING)을 발견했다. 그 외 `error-codes.ts`·`nodes/**`·`content/docs/*` 신규 디렉토리·`packages/expression-engine`·`auth/**` 등 나머지 트리거는 이번 diff 와 무관하다. `INVALID_TRIGGER_PARAMETERS` 의 `ERROR_KO` 미등록은 이번 PR 이 새로 만든 결함이 아닌 pre-existing 회색 지대라 INFO 로만 기록.
+
+### 위험도
+
+MEDIUM
