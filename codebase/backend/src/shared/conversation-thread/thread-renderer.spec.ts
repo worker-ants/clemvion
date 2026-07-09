@@ -4,6 +4,7 @@ import {
   MAX_INJECTED_CHARS,
   MAX_INJECTED_TURNS,
   MAX_TURN_TEXT_CHARS,
+  redactThreadForPublic,
   renderInteractionText,
   renderThreadAsSystemText,
 } from './thread-renderer';
@@ -230,6 +231,118 @@ describe('cloneThread (Background isolation §3.2)', () => {
     expect(clone.id).toBe(original.id);
     expect(clone.nextSeq).toBe(original.nextSeq);
     expect(clone.totalChars).toBe(original.totalChars);
+  });
+});
+
+describe('redactThreadForPublic (EIA egress secret masking §R17)', () => {
+  function makeThread(turns: ConversationTurn[]): ConversationThread {
+    return {
+      id: 'default',
+      nextSeq: turns.length,
+      turns,
+      totalChars: turns.reduce((n, t) => n + t.text.length, 0),
+    };
+  }
+
+  it('masks Bearer tokens in turn text', () => {
+    const thread = makeThread([
+      makeTurn({
+        source: 'ai_tool',
+        text: 'called API with Authorization: Bearer sk-live-abc123DEF.tok',
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0].text).not.toContain('sk-live-abc123DEF');
+    expect(out.turns[0].text).toContain('***');
+  });
+
+  it('masks secret-keyword assignments (api_key / password / secret)', () => {
+    const thread = makeThread([
+      makeTurn({ text: 'api_key=AKIAIOSFODNN7EXAMPLE and password: hunter2' }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0].text).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(out.turns[0].text).not.toContain('hunter2');
+  });
+
+  it('masks secret-shaped tokens inside toolCalls[].arguments', () => {
+    const thread = makeThread([
+      makeTurn({
+        source: 'ai_assistant',
+        text: 'calling tool',
+        toolCalls: [
+          {
+            id: 'tc1',
+            name: 'http_request',
+            arguments: '{"header":"Authorization: Bearer leakedtoken12345"}',
+          },
+        ],
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0].toolCalls?.[0].arguments).not.toContain(
+      'leakedtoken12345',
+    );
+    expect(out.turns[0].toolCalls?.[0].arguments).toContain('***');
+    // Non-secret tool metadata is preserved.
+    expect(out.turns[0].toolCalls?.[0].name).toBe('http_request');
+  });
+
+  it('masks secret-shaped tokens in runningSummary', () => {
+    const thread: ConversationThread = {
+      ...makeThread([makeTurn({ text: 'hi' })]),
+      runningSummary: 'user shared client_secret=super-secret-value earlier',
+    };
+    const out = redactThreadForPublic(thread);
+    expect(out.runningSummary).not.toContain('super-secret-value');
+    expect(out.runningSummary).toContain('***');
+  });
+
+  it('returns clean turns by reference (no re-allocation when nothing to mask)', () => {
+    const thread = makeThread([
+      makeTurn({ seq: 0, text: 'hello there' }),
+      makeTurn({ seq: 1, source: 'ai_assistant', text: '반갑습니다' }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    // Wrapper + turns array are fresh (safe to hand outside the boundary)...
+    expect(out).not.toBe(thread);
+    expect(out.turns).not.toBe(thread.turns);
+    // ...but unchanged turn objects are shared (mirrors applyCap copy strategy).
+    expect(out.turns[0]).toBe(thread.turns[0]);
+    expect(out.turns[1]).toBe(thread.turns[1]);
+  });
+
+  it('does not mutate the input thread or its turns', () => {
+    const turn = makeTurn({
+      text: 'Authorization: Bearer secrettoken0987654321',
+    });
+    const thread = makeThread([turn]);
+    redactThreadForPublic(thread);
+    expect(thread.turns[0].text).toBe(
+      'Authorization: Bearer secrettoken0987654321',
+    );
+    expect(thread.turns[0]).toBe(turn);
+  });
+
+  it('preserves non-text metadata (seq, nodeId, source, timestamp)', () => {
+    const thread = makeThread([
+      makeTurn({
+        seq: 7,
+        nodeId: 'node-x',
+        source: 'ai_tool',
+        text: 'token=Bearer abcdefghijklmnop',
+        timestamp: '2026-07-09T00:00:00.000Z',
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0]).toMatchObject({
+      seq: 7,
+      nodeId: 'node-x',
+      source: 'ai_tool',
+      timestamp: '2026-07-09T00:00:00.000Z',
+    });
+    expect(out.nextSeq).toBe(thread.nextSeq);
+    expect(out.id).toBe(thread.id);
   });
 });
 

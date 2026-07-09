@@ -2,6 +2,7 @@ import {
   ConversationThread,
   ConversationTurn,
 } from './conversation-thread.types';
+import { redactSecrets } from '../utils/sanitize-error-message';
 
 /**
  * Snapshot a ConversationThread so the caller can pass the result outside the
@@ -13,6 +14,55 @@ import {
  */
 export function cloneThread(thread: ConversationThread): ConversationThread {
   return { ...thread, turns: [...thread.turns] };
+}
+
+/**
+ * Public EIA egress boundary for a ConversationThread. Clones (so the result
+ * can be handed outside the mutation boundary) **and** masks secret-shaped
+ * tokens (`SECRET_LEAK_PATTERNS`) in every text-bearing field, so a node handler
+ * that violates the "no secrets in turn text" invariant cannot leak API keys /
+ * Bearer tokens / Authorization headers through the public `getStatus` (REST) or
+ * SSE `waiting_for_input` surfaces.
+ *
+ * SoT: spec/5-system/14-external-interaction-api.md §R17 (public surface
+ * hardening) + spec/conventions/conversation-thread.md §8.4. Both the REST
+ * `getStatus` response and the SSE waiting emits route through this single
+ * helper so the two paths stay consistent.
+ *
+ * **Egress-only, by design**: internal consumers — LLM context injection,
+ * durable park snapshot (`Execution.conversation_thread`), Background body — keep
+ * the faithful text. Redacting at write time would also mutate the LLM-injected
+ * thread, where the conservative shared patterns (notably `Bearer\s+\S+`) can
+ * false-positive on ordinary conversational prose and silently corrupt context.
+ *
+ * Only turns that actually change are re-allocated; unchanged (frozen) turns are
+ * returned by reference (mirrors `applyCap`'s truncation copy strategy). The
+ * input thread is never mutated.
+ */
+export function redactThreadForPublic(
+  thread: ConversationThread,
+): ConversationThread {
+  return {
+    ...thread,
+    ...(thread.runningSummary !== undefined
+      ? { runningSummary: redactSecrets(thread.runningSummary) }
+      : {}),
+    turns: thread.turns.map(redactTurnForPublic),
+  };
+}
+
+function redactTurnForPublic(turn: ConversationTurn): ConversationTurn {
+  const text = redactSecrets(turn.text);
+  // Raw JSON-string tool arguments ride the same public wire; mask them too.
+  const toolCalls = turn.toolCalls?.map((tc) => {
+    const args = redactSecrets(tc.arguments);
+    return args === tc.arguments ? tc : { ...tc, arguments: args };
+  });
+  const toolCallsChanged =
+    toolCalls !== undefined &&
+    toolCalls.some((tc, i) => tc !== turn.toolCalls?.[i]);
+  if (text === turn.text && !toolCallsChanged) return turn;
+  return { ...turn, text, ...(toolCalls !== undefined ? { toolCalls } : {}) };
 }
 
 /** spec/conventions/conversation-thread.md §5.3 */

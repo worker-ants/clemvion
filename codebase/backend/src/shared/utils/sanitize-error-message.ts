@@ -29,15 +29,34 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
 ];
 
 /**
- * Mask secret tokens in `raw` and truncate to {@link LAST_ERROR_MESSAGE_MAX_LEN}.
- * Safe to call with non-string or empty values — returns the input unchanged.
+ * Mask secret-shaped tokens in `raw` using {@link SECRET_LEAK_PATTERNS}, without
+ * length truncation. Safe to call with non-string or empty values — returns the
+ * input unchanged.
+ *
+ * Distinct from {@link sanitizeLastErrorMessage} (which additionally truncates):
+ * conversation-thread EIA egress redaction reuses this mask-only variant because
+ * turn text is user-visible history with its own char caps, so it must not be
+ * clipped to 200 chars. Reuse keeps a single SECRET_LEAK_PATTERNS source of truth.
+ *
+ * `String.prototype.replace` fully resets each `g`-flagged regex's `lastIndex`
+ * per call, so sharing the stateful patterns across callers is safe.
  */
-export function sanitizeLastErrorMessage(raw: string): string {
+export function redactSecrets(raw: string): string {
   if (typeof raw !== 'string' || raw.length === 0) return raw;
   let masked = raw;
   for (const pattern of SECRET_LEAK_PATTERNS) {
     masked = masked.replace(pattern, '***');
   }
+  return masked;
+}
+
+/**
+ * Mask secret tokens in `raw` and truncate to {@link LAST_ERROR_MESSAGE_MAX_LEN}.
+ * Safe to call with non-string or empty values — returns the input unchanged.
+ */
+export function sanitizeLastErrorMessage(raw: string): string {
+  if (typeof raw !== 'string' || raw.length === 0) return raw;
+  const masked = redactSecrets(raw);
   return masked.length > LAST_ERROR_MESSAGE_MAX_LEN
     ? masked.slice(0, LAST_ERROR_MESSAGE_MAX_LEN) + '…'
     : masked;

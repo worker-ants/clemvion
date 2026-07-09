@@ -24,7 +24,7 @@ import {
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
-import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
+import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
 import { extractRetryAfterMs } from '../../shared/utils/retry-after';
 import {
@@ -455,8 +455,9 @@ export class AiTurnOrchestrator {
         // 유지 (snapshot reconcile 의 nested 읽기 / 기존 e2e assertion 안전 보존).
         interactionType: initialInteractionType,
         // Live thread snapshot for UI (spec/conventions/conversation-thread.md §4
-        // + spec/5-system/6-websocket-protocol.md §4.4.5).
-        conversationThread: cloneThread(context.conversationThread),
+        // + spec/5-system/6-websocket-protocol.md §4.4.5). Secret-masked at this
+        // public EIA egress boundary (EIA §R17 / conversation-thread §8.4).
+        conversationThread: redactThreadForPublic(context.conversationThread),
         nodeOutput: {
           interactionType: initialInteractionType,
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
@@ -769,8 +770,10 @@ export class AiTurnOrchestrator {
       // via contextService — single Map access.
       const liveThread =
         this.contextService.getContext(contextKey)?.conversationThread;
+      // Secret-masked at this public EIA egress boundary (multi-turn follow-up
+      // waiting emit) — EIA §R17 / conversation-thread §8.4.
       const conversationThreadSnapshot = liveThread
-        ? cloneThread(liveThread)
+        ? redactThreadForPublic(liveThread)
         : undefined;
       await this.eventEmitter.emitExecution(
         executionId,

@@ -36,6 +36,7 @@ import {
   ExternalInteractionRequestContext,
   InteractionRequestContext,
 } from './interaction.guard';
+import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
   ExecutionStatus.COMPLETED,
@@ -226,6 +227,8 @@ export class InteractionService {
    * 핸들러는 민감 중간 결과(API 키, PII 등)를 `NodeExecution.outputData` 또는 conversation turn 텍스트에
    * 기록하면 안 된다. 허용되는 데이터는 EIA 클라이언트가 렌더에 필요한 interaction 메타(버튼 설정,
    * 폼 스키마, conversation config)와 대화 히스토리로 한정한다 (node-execution.entity.ts `@Index` JSDoc 참조).
+   * `conversationThread` 의 turn 텍스트 불변식은 SSE 와 공유하는 `redactThreadForPublic` 로 egress 시
+   * 런타임 마스킹돼 자동 강제된다 (EIA §R17). `outputData`/`nodeOutput` 키-allowlist 는 별개 잔여 항목.
    *
    * **`conversationThread` (durable 동봉, EIA §R17 재조정 2026-07-09)**: `waiting_for_input` 시
    * durable 스냅샷(`Execution.conversation_thread`)을 SSE 와 동일 wire shape 으로 동봉해 위젯의
@@ -254,10 +257,13 @@ export class InteractionService {
     let currentNode: ExecutionStatusDto['currentNode'] = null;
     let context: ExecutionStatusDto['context'] = null;
     if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
-      // durable park 스냅샷 = SSE `waiting_for_input` 이 싣는 `cloneThread(context.conversationThread)`
-      // 와 동일 wire shape (park 시 stageDurableResumeSnapshot 이 commit). null(배포 이전 row /
+      // durable park 스냅샷 = SSE `waiting_for_input` 이 싣는 `redactThreadForPublic(context.conversationThread)`
+      // 와 동일 wire shape (park 시 stageDurableResumeSnapshot 이 commit). SSE 와 동일 helper 로
+      // secret-mask 하여 REST·SSE 양 경로 일관 (EIA §R17 / conversation-thread §8.4). null(배포 이전 row /
       // park 이력 없음)이면 미동봉 — 위젯 threadToMessages 가 undefined 를 빈 배열로 graceful 처리.
-      const conversationThread = execution.conversationThread ?? undefined;
+      const conversationThread = execution.conversationThread
+        ? redactThreadForPublic(execution.conversationThread)
+        : undefined;
       const nodeExec = await this.nodeExecutionRepository.findOne({
         where: {
           executionId: ctx.executionId,
