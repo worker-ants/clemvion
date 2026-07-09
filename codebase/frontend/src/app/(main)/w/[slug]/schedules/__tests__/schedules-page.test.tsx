@@ -456,11 +456,12 @@ describe("SchedulesPage — row links & overflow menu", () => {
     };
   }
 
-  it("워크플로우 이름이 에디터(/workflows/:id) 링크로 렌더된다", async () => {
+  it("워크플로우 이름이 에디터(/w/<slug>/workflows/:id) slug 링크로 렌더된다", async () => {
+    // 슬러그 라우팅 phase 2: 에디터 캔버스 링크는 활성 워크스페이스 slug 를 붙인다.
     mockSchedulesResponse(rowWithTrigger());
     await renderPage();
     const link = await screen.findByRole("link", { name: "WF" });
-    expect(link).toHaveAttribute("href", "/workflows/w1");
+    expect(link).toHaveAttribute("href", "/w/team-1/workflows/w1");
   });
 
   it("⋮ 메뉴에 실행 이력·트리거에서 보기 항목, 트리거 링크는 /triggers?triggerId= 로 향한다", async () => {

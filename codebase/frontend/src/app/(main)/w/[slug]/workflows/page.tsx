@@ -35,7 +35,7 @@ import { timeAgo } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildExecutionHref } from "@/lib/workspace/href";
+import { buildEditorHref, buildExecutionHref } from "@/lib/workspace/href";
 
 type FilterStatus = "all" | "active" | "inactive";
 type Ownership = "all" | "mine" | "shared";
@@ -232,7 +232,7 @@ export default function WorkflowsPage() {
       // Default staleTime is 60s (providers.tsx) — without this invalidate,
       // returning to the list within that window shows stale cache.
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
-      router.push(`/workflows/${workflow.id}`);
+      router.push(buildEditorHref(slug, workflow.id));
     },
     onError: () => {
       toast.error(t("workflows.createFailed"));
@@ -337,7 +337,7 @@ export default function WorkflowsPage() {
       setOpenMenuId(null);
       switch (action) {
         case "edit":
-          router.push(`/workflows/${workflow.id}`);
+          router.push(buildEditorHref(slug, workflow.id));
           break;
         case "executions":
           router.push(buildExecutionHref(slug, workflow.id));
@@ -614,7 +614,7 @@ export default function WorkflowsPage() {
                         <button
                           className="font-medium hover:underline text-left"
                           onClick={() =>
-                            router.push(`/workflows/${workflow.id}`)
+                            router.push(buildEditorHref(slug, workflow.id))
                           }
                         >
                           {workflow.name}

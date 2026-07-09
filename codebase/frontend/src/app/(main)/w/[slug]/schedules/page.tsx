@@ -33,7 +33,7 @@ import { useSearchParams } from "next/navigation";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildEditorHref, buildWorkspaceHref } from "@/lib/workspace/href";
 import { RoleGate } from "@/components/auth/role-gate";
 import {
   DropdownMenu,
@@ -1084,7 +1084,7 @@ export default function SchedulesPage() {
                     <td className="px-4 py-3">
                       {schedule.workflowId ? (
                         <Link
-                          href={`/workflows/${schedule.workflowId}`}
+                          href={buildEditorHref(slug, schedule.workflowId)}
                           className="text-[hsl(var(--primary))] hover:underline"
                         >
                           {schedule.workflowName}

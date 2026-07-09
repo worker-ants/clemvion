@@ -50,7 +50,7 @@ import { usePageParam } from "@/lib/hooks/use-page-param";
 import { getWebhookUrl } from "@/lib/utils/webhook-url";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildEditorHref, buildWorkspaceHref } from "@/lib/workspace/href";
 import { RoleGate, useHasRole } from "@/components/auth/role-gate";
 import {
   SLACK_SIGNING_SECRET_REGEX,
@@ -713,7 +713,7 @@ export default function TriggersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Link
-                      href={`/workflows/${trigger.workflowId}`}
+                      href={buildEditorHref(slug, trigger.workflowId)}
                       className="text-[hsl(var(--primary))] hover:underline"
                       onClick={(e) => e.stopPropagation()}
                     >
