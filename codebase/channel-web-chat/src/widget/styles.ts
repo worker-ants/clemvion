@@ -12,6 +12,8 @@ export const widgetStyles = `
 .wc-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #f0f0f0; }
 .wc-panel-title { font-weight: 600; }
 .wc-panel-actions { display: flex; align-items: center; gap: 6px; }
+/* wc-panel-action: 헤더 세션 컨트롤(새 대화/대화 종료) 전용 — 퀵 액션(.wc-action, buttons 표면의
+   click_button 발사)과는 별개 클래스/역할(서버 명령 아님, 로컬 세션 제어). 통합 금지. */
 .wc-panel-action { border: 1px solid #e5e7eb; background: #fff; border-radius: 12px; padding: 4px 10px; font-size: 12px; color: #4b5563; cursor: pointer; white-space: nowrap; }
 .wc-panel-action:hover { background: #f9fafb; }
 .wc-panel-close { border: 0; background: none; font-size: 16px; cursor: pointer; }
