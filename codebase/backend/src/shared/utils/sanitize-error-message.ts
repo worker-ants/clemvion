@@ -16,7 +16,11 @@ export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
  *
  * 2026-05-16 (SEC-C2) — Cafe24 가 token endpoint 에러 응답에 `client-secret`
  * (하이픈) 또는 `secret: ...` 단독 키워드를 echo 하는 사례가 운영 로그에서
- * 확인되어 패턴을 확장. */
+ * 확인되어 패턴을 확장.
+ *
+ * 2026-07-09 — Authorization 패턴을 첫 토큰(`\S+`)이 아니라 **줄 끝까지** 마스킹하도록
+ * 확장. 종전엔 `Authorization: Basic dXNlcjpwYXNz` 에서 스킴(`Basic`)만 마스킹되고
+ * 값에 공백이 있는 스킴(Basic/Digest)의 자격증명이 노출됐다. */
 export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // OAuth-style bearer tokens
   /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
@@ -24,8 +28,9 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   /"?\b(client[_-]secret|access[_-]token|refresh[_-]token|id[_-]token|api[_-]key|password|passwd|pwd)"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
   // 단독 `secret` 키워드
   /"?\bsecret"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
-  // Authorization header values
-  /\bAuthorization:\s*\S+/gi,
+  // Authorization header values — mask the entire value to end-of-line so
+  // space-containing credentials (Basic/Digest base64) aren't partially exposed.
+  /\bAuthorization:[^\r\n]*/gi,
 ];
 
 /**

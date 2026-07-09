@@ -1142,16 +1142,24 @@ interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/a
 를 동봉하므로 이들은 **공개 EIA 표면**으로 흘러간다. 노드 핸들러는 여기에 민감 중간결과(secret·내부 토큰 등)를
 기록하지 않아야 한다.
 
-- **`conversationThread` turn 텍스트 (강제됨)**: "노드 핸들러는 turn 텍스트에 민감정보(API 키·Bearer 토큰·
+- **`conversationThread` **자유 텍스트** (강제됨)**: "노드 핸들러는 turn 텍스트에 민감정보(API 키·Bearer 토큰·
   Authorization 헤더 등)를 남기지 않는다"는 불변식은 이제 **런타임 강제**된다 — REST `getStatus` 와 SSE
-  `waiting_for_input` emit 이 **공유하는 단일 helper `redactThreadForPublic`** 가 egress 시 `turns[].text` ·
-  `turns[].toolCalls[].arguments` · `runningSummary` 를 [`SECRET_LEAK_PATTERNS`](../conventions/conversation-thread.md)
-  (에러 메시지 sanitizer 와 동일 SoT `shared/utils/sanitize-error-message.ts`)로 마스킹한다. 두 경로가 같은 helper 를
-  거치므로 REST·SSE 표면이 일관되게 스크럽된다.
+  `waiting_for_input` emit 이 **공유하는 단일 helper `redactThreadForPublic`** 가 egress 시 자유 텍스트 필드
+  `turns[].text` 와 `runningSummary` 를 `SECRET_LEAK_PATTERNS`(에러 메시지 sanitizer 와 동일 SoT
+  `shared/utils/sanitize-error-message.ts`)로 마스킹한다. 두 경로가 같은 helper 를 거치므로 REST·SSE 표면이
+  일관되게 스크럽된다.
   - **egress-only(의도)**: 내부 소비처(LLM 컨텍스트 주입, durable park 스냅샷 `Execution.conversation_thread`,
     Background body)는 faithful 텍스트를 유지한다. 저장 시점(append) redaction 은 LLM 주입 thread 까지 변형하고,
     보수적 공유 패턴(특히 `Bearer\s+\S+`)이 평문 대화에 false-positive 하면 컨텍스트를 조용히 손상시키므로 채택하지
     않았다. 따라서 **DB-at-rest 최소화(append-time redaction)는 문서화된 후속 항목**이다(데이터 최소화가 요구가 될 때).
+  - **구조화 필드는 미스캔(잔여)**: `turns[].data`·`turns[].toolCalls[].arguments`(raw JSON 문자열)·
+    `turns[].presentations[].payload` 는 구조화 payload 라 **토큰 단위 마스킹이 JSON/구조를 깨뜨린다** — 이번
+    범위에서 제외한다. JSON-safe deep redaction(파싱→문자열 값만 마스킹→재직렬화)은 후속 하드닝 항목이다.
+- **`execution.ai_message` 라이브 이벤트는 미커버(잔여·별개 표면)**: 같은 AI turn 텍스트가 `AI_MESSAGE.message`/
+  `.messages[]` 로도 emit 되며(§5.2), 이 이벤트는 SSE 스트림·아웃바운드 webhook fanout·Chat Channel(텔레그램 등
+  능동 발송)로 흘러가는데 **본 마스킹을 거치지 않는다**. conversationThread(durable 스냅샷의 재노출)와 달리
+  ai_message 는 **라이브 응답 전달**이라 신뢰 경계가 다르고(사용자 채널 발송 포함), source 마스킹은 사용자向 응답까지
+  변형하므로 별도 설계가 필요하다 — 후속 하드닝 항목.
 - **`outputData`/`nodeOutput` 키 allowlist (미구현·잔여)**: `nodeOutput` 이 노출하는 **키 집합**을 렌더 필수 메타로
   제한하는 런타임 allowlist 필터는 위 텍스트 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다. 현재는
   `withInteractionMeta` 관례 + `getStatus` JSDoc 제약으로만 명문화돼 있다.

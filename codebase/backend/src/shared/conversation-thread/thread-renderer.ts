@@ -6,9 +6,15 @@ import { redactSecrets } from '../utils/sanitize-error-message';
 
 /**
  * Snapshot a ConversationThread so the caller can pass the result outside the
- * mutation boundary (Background dispatch, WS emit) without leaking the live
- * `turns` reference. ConversationTurn objects are immutable post-push so a
- * deeper clone is unnecessary — only the wrapper + turns array are cloned.
+ * mutation boundary (Background dispatch, durable park-snapshot staging) without
+ * leaking the live `turns` reference. ConversationTurn objects are immutable
+ * post-push so a deeper clone is unnecessary — only the wrapper + turns array
+ * are cloned.
+ *
+ * **Not for public EIA emit** — this does NOT mask secrets. The public
+ * `getStatus` / SSE `waiting_for_input` surfaces must use
+ * {@link redactThreadForPublic} instead; `cloneThread` is for internal
+ * consumers (durable snapshot, Background isolation) that keep faithful text.
  *
  * SoT: spec/conventions/conversation-thread.md §3.2 (Background isolation).
  */
@@ -19,10 +25,16 @@ export function cloneThread(thread: ConversationThread): ConversationThread {
 /**
  * Public EIA egress boundary for a ConversationThread. Clones (so the result
  * can be handed outside the mutation boundary) **and** masks secret-shaped
- * tokens (`SECRET_LEAK_PATTERNS`) in every text-bearing field, so a node handler
- * that violates the "no secrets in turn text" invariant cannot leak API keys /
- * Bearer tokens / Authorization headers through the public `getStatus` (REST) or
- * SSE `waiting_for_input` surfaces.
+ * tokens (`SECRET_LEAK_PATTERNS`) in the thread's **free-text** fields, so a
+ * node handler that violates the "no secrets in turn text" invariant cannot leak
+ * API keys / Bearer tokens / Authorization headers through the public
+ * `getStatus` (REST) or SSE `waiting_for_input` surfaces.
+ *
+ * **Masked (free text)**: `turns[].text` and `runningSummary`.
+ * **NOT masked (structured payloads, out of scope)**: `turns[].data`,
+ * `turns[].toolCalls[].arguments` (a raw JSON string — token-level masking would
+ * corrupt the JSON), and `turns[].presentations[].payload`. Deep, JSON-safe
+ * redaction of these structured fields is a documented follow-up (EIA §R17).
  *
  * SoT: spec/5-system/14-external-interaction-api.md §R17 (public surface
  * hardening) + spec/conventions/conversation-thread.md §8.4. Both the REST
@@ -53,16 +65,12 @@ export function redactThreadForPublic(
 
 function redactTurnForPublic(turn: ConversationTurn): ConversationTurn {
   const text = redactSecrets(turn.text);
-  // Raw JSON-string tool arguments ride the same public wire; mask them too.
-  const toolCalls = turn.toolCalls?.map((tc) => {
-    const args = redactSecrets(tc.arguments);
-    return args === tc.arguments ? tc : { ...tc, arguments: args };
-  });
-  const toolCallsChanged =
-    toolCalls !== undefined &&
-    toolCalls.some((tc, i) => tc !== turn.toolCalls?.[i]);
-  if (text === turn.text && !toolCallsChanged) return turn;
-  return { ...turn, text, ...(toolCalls !== undefined ? { toolCalls } : {}) };
+  // Only the free-text `text` field is masked. Structured fields (`data`,
+  // `toolCalls[].arguments` JSON, `presentations[].payload`) are left intact —
+  // token-level masking would corrupt their structure (e.g. break the tool-call
+  // arguments JSON). Frozen turns: only re-allocate when `text` actually changed.
+  if (text === turn.text) return turn;
+  return { ...turn, text };
 }
 
 /** spec/conventions/conversation-thread.md §5.3 */

@@ -265,27 +265,31 @@ describe('redactThreadForPublic (EIA egress secret masking §R17)', () => {
     expect(out.turns[0].text).not.toContain('hunter2');
   });
 
-  it('masks secret-shaped tokens inside toolCalls[].arguments', () => {
+  it('leaves structured toolCalls[].arguments JSON intact (out of scope — token masking would corrupt JSON)', () => {
+    // Regression: token-level masking of a raw JSON string breaks the JSON
+    // (`{"api_key":"AKIA..."}` -> `{***}` fails JSON.parse). Structured fields
+    // are intentionally NOT scanned; JSON-safe redaction is a documented follow-up.
+    const argsJson = '{"headers":{"api_key":"AKIAIOSFODNN7EXAMPLE"}}';
     const thread = makeThread([
       makeTurn({
         source: 'ai_assistant',
         text: 'calling tool',
-        toolCalls: [
-          {
-            id: 'tc1',
-            name: 'http_request',
-            arguments: '{"header":"Authorization: Bearer leakedtoken12345"}',
-          },
-        ],
+        toolCalls: [{ id: 'tc1', name: 'http_request', arguments: argsJson }],
       }),
     ]);
     const out = redactThreadForPublic(thread);
-    expect(out.turns[0].toolCalls?.[0].arguments).not.toContain(
-      'leakedtoken12345',
-    );
-    expect(out.turns[0].toolCalls?.[0].arguments).toContain('***');
-    // Non-secret tool metadata is preserved.
-    expect(out.turns[0].toolCalls?.[0].name).toBe('http_request');
+    // Preserved verbatim → still valid, parseable JSON.
+    expect(out.turns[0].toolCalls?.[0].arguments).toBe(argsJson);
+    expect(() =>
+      JSON.parse(out.turns[0].toolCalls![0].arguments),
+    ).not.toThrow();
+  });
+
+  it('leaves structured turn.data intact (out of scope)', () => {
+    const data = { api_key: 'AKIAIOSFODNN7EXAMPLE' };
+    const thread = makeThread([makeTurn({ text: 'hi', data })]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0].data).toEqual(data);
   });
 
   it('masks secret-shaped tokens in runningSummary', () => {

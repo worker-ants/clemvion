@@ -15,6 +15,20 @@ describe('redactSecrets (mask-only)', () => {
     expect(redactSecrets('Authorization: Bearer xyz')).not.toContain('xyz');
   });
 
+  it('masks space-containing Authorization credentials (Basic/Digest) to end of line', () => {
+    // Regression: a `\S+`-terminated pattern only masked the scheme, leaking the
+    // base64 credential. Full-value masking must hide `dXNlcjpwYXNz`.
+    const out = redactSecrets('Authorization: Basic dXNlcjpwYXNz');
+    expect(out).not.toContain('dXNlcjpwYXNz');
+    expect(out).toContain('***');
+    // ...but not bleed past the line.
+    const two = redactSecrets(
+      'Authorization: Basic dXNlcjpwYXNz\nnext line ok',
+    );
+    expect(two).toContain('next line ok');
+    expect(two).not.toContain('dXNlcjpwYXNz');
+  });
+
   it.each([
     ['client_secret=super', 'super'],
     ['access_token: "abc123"', 'abc123'],
