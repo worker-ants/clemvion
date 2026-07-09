@@ -559,6 +559,32 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     expect(result.current.state.phase).toBe("ended");
   });
 
+  it("ai_conversation 대기이지만 waitingNodeId 부재 → graceful 조건 불충족, cancel 폴백", async () => {
+    const { fetchMock, getEs } = installControllableSse();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    // waitingNodeId 없이 ai_conversation waiting → pending.nodeId 미확정 → end_conversation 불가.
+    act(() =>
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: {} },
+        conversationThread: { turns: [] },
+      }),
+    );
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
+    const body = JSON.parse((interactCalls(fetchMock)[0][1] as RequestInit).body as string);
+    expect(body.command).toBe("cancel");
+    expect(result.current.state.phase).toBe("ended");
+  });
+
   it("종료 명령이 실패(410)해도 optimistic 로컬 종료 유지 — phase=ended, 저장세션 정리", async () => {
     let latest: ControllableEventSource | null = null;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {

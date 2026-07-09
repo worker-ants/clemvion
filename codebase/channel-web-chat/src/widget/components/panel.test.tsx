@@ -173,8 +173,8 @@ describe("Panel — AI 처리 중 전송 버튼 로딩 표시 (§R6)", () => {
 });
 
 describe("Panel — 헤더 세션 컨트롤(새 대화/종료) + 가벼운 확인 (§3.1)", () => {
-  it.each(["booting", "streaming", "awaiting_user_message"] as const)(
-    "진행 중(%s) 이면 '새 대화'·'대화 종료' 컨트롤 노출",
+  it.each(["streaming", "awaiting_user_message"] as const)(
+    "대화 확립(%s) 이면 '새 대화'·'대화 종료' 컨트롤 노출",
     (phase) => {
       render(<Panel state={makeState({ phase })} config={BASE_CONFIG} actions={BASE_ACTIONS} />);
       // 헤더 컨트롤(라벨 '새 대화' / '대화 종료'). ended CTA '새 대화 시작' 과 라벨로 구분.
@@ -182,6 +182,12 @@ describe("Panel — 헤더 세션 컨트롤(새 대화/종료) + 가벼운 확�
       expect(screen.getByRole("button", { name: "대화 종료" })).not.toBeNull();
     },
   );
+
+  it("booting(세션 미확립·webhook in-flight) 이면 컨트롤 미노출 — 중복 webhook·미발사 cancel 차단", () => {
+    render(<Panel state={makeState({ phase: "booting" })} config={BASE_CONFIG} actions={BASE_ACTIONS} />);
+    expect(screen.queryByRole("button", { name: "새 대화" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "대화 종료" })).toBeNull();
+  });
 
   it("ended 면 헤더 세션 컨트롤 미노출(대화 종료 CTA 로 충분)", () => {
     render(

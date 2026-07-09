@@ -28,7 +28,7 @@ interface PanelProps {
 
 type ConfirmKind = "new" | "end";
 
-/** 세션 컨트롤 확인바 문구·확정 라벨·실행 액션을 한 곳에서 조회(WARNING #5 — 분기 3중 중복 제거). */
+/** 세션 컨트롤 확인바 문구·확정 라벨·실행 액션을 한 곳에서 조회(문구/라벨/액션 3중 분기 중복 제거). */
 const CONFIRM_COPY: Record<
   ConfirmKind,
   { message: string; confirmLabel: string; action: (a: PanelActions) => void }
@@ -103,7 +103,7 @@ export function Panel({ state, config, actions }: PanelProps) {
               <button
                 type="button"
                 className="wc-confirm-yes"
-                // 헤더 컨트롤과 접근성 이름을 분리(confirm 확정 버튼) — getByRole 구분 가능(WARNING #4).
+                // 헤더 컨트롤과 접근성 이름을 분리(confirm 확정 버튼) — 동명 버튼 getByRole 구분 가능.
                 aria-label={`${CONFIRM_COPY[confirming].confirmLabel} 확정`}
                 onClick={() => {
                   CONFIRM_COPY[confirming].action(actions);

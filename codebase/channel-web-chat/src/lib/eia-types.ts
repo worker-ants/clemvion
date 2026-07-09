@@ -30,8 +30,8 @@ export type ExternalInteractionType = "form" | "buttons" | "ai_conversation";
  *
  * wire(WS §4.4.5 / EIA §5.3 getStatus)의 `conversationThread.turns[i].source` 는 백엔드
  * `ConversationTurnSource` 5값(`presentation_user`/`ai_user`/`ai_assistant`/`ai_tool`/`system`,
- * [conversation-thread §1.1](../../../spec/conventions/conversation-thread.md))이다. 위젯은 이를
- * 말풍선 role 로 축약해 렌더한다(매핑 SoT: `conversation.roleOf` + [1-widget-app §2](../../../spec/7-channel-web-chat/1-widget-app.md)).
+ * [conversation-thread §1.1](../../../../spec/conventions/conversation-thread.md))이다. 위젯은 이를
+ * 말풍선 role 로 축약해 렌더한다(매핑 SoT: `conversation.roleOf` + [1-widget-app §2](../../../../spec/7-channel-web-chat/1-widget-app.md)).
  * `live`/`injected` 는 emit `messages[].source`(§4.4.6) 및 위젯 로컬 라이브 dispatch 의 2값 마커로,
  * 하위 호환·테스트 fixture 를 위해 union 에 함께 유지한다.
  */

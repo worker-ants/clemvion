@@ -32,13 +32,16 @@ export function isTextInputSurface(pending: PendingInteraction | null): boolean 
 }
 
 /**
- * 진행 중 대화 phase 판정 — 헤더 세션 컨트롤(새 대화/대화 종료) 노출 조건(§3.1).
- * `booting`/`streaming`/`awaiting_user_message` 에서만 true — 대화 시작 전(`collapsed`/`panel`)·
- * 종료(`ended`)·차단(`blocked`)에서는 컨트롤을 노출하지 않는다. phase 파생 로직은 본 모듈에 단일화
- * (`isTextInputSurface` 선례) — 프레젠테이션 컴포넌트가 결과만 소비한다.
+ * 대화가 **확립된** phase 판정 — 헤더 세션 컨트롤(새 대화/대화 종료) 노출 조건(§3.1).
+ * `streaming`/`awaiting_user_message` 에서만 true. `booting`(webhook POST in-flight, 세션 미persist)은
+ * **제외** — 이 구간에 컨트롤을 노출하면 (a) 대화 종료가 서버 취소 명령을 못 보내고(sessionRef null),
+ * (b) 새 대화 재클릭이 in-flight `start()` 와 겹쳐 중복 webhook 을 발사할 수 있다. 세션이 확립된 뒤
+ * (streaming = webhook 202 수신·persist 완료)에만 노출해 두 부작용을 원천 차단한다(직전 start 정착 보장).
+ * 대화 시작 전(`collapsed`/`panel`)·종료(`ended`)·차단(`blocked`)에서도 미노출. phase 파생 로직은 본 모듈에
+ * 단일화(`isTextInputSurface` 선례) — 프레젠테이션 컴포넌트가 결과만 소비한다.
  */
 export function isActiveConversationPhase(phase: WidgetPhase): boolean {
-  return phase === "booting" || phase === "streaming" || phase === "awaiting_user_message";
+  return phase === "streaming" || phase === "awaiting_user_message";
 }
 
 export interface WidgetState {

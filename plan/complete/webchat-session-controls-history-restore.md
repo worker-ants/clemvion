@@ -58,11 +58,14 @@ spec_impact:
 - `panel.tsx`/`widget-app.tsx`: 헤더 세션 컨트롤 + 인라인 confirm.
 
 ## 검증
-- [x] 백엔드 unit (getStatus thread) — interaction.service.spec 31 passed (신규 3건)
-- [x] 프런트 unit (roleOf 매핑, 세션 컨트롤, endConversation) — web-chat 262 passed
+- [x] 백엔드 unit (getStatus thread) — interaction.service.spec 32 passed (신규 4건: ai/buttons/null/COMPLETED)
+- [x] 프런트 unit (roleOf 매핑, 세션 컨트롤, endConversation, race guard) — web-chat 269 passed
 - [x] consistency-check --spec — BLOCK: NO (WARNING #1·INFO #1·#2 반영, 나머지 pre-existing)
-- [x] /ai-review — Critical 0, WARNING 8 전량 반영 + INFO 다수(RESOLUTION.md). fresh review 로 재검증
-- [x] race guard(startGenRef) — booting-중-종료/새대화가 in-flight start 되살리는 것 차단(리뷰 INFO#1)
+- [x] /ai-review 라운드1 (18_44_10) — Critical 0, WARNING 8 전량 반영 + INFO 다수(RESOLUTION.md)
+- [x] /ai-review 라운드2 (19_06_55, fresh) — Critical 0, WARNING 3(side_effect·doc·concurrency[journal 복원])
+      전량 반영: **booting 을 세션 컨트롤 노출에서 제외**(중복 webhook·미발사 cancel 동시 해소) + JSDoc 링크
+      정정 + 저비용 INFO(Set<TurnSource>·상수화·주석) — RESOLUTION 2 참조. 반영분 커버 위해 라운드3 fresh review.
+- [x] race guard(startGenRef) — streaming 초기 in-flight start 무효화(리뷰 반영)
 - [~] e2e — **스킵(정당)**: 변경은 getStatus 의 additive read-only 필드(durable thread 노출)로 실행
       엔진 상태전이·park/resume 로직 무변경. external-interaction e2e 는 getStatus context/conversationThread
       를 단언하지 않아 회귀 경로 없음. 프런트(web-chat)는 vitest 전용(e2e 없음). 단위테스트로 충분.
@@ -70,3 +73,6 @@ spec_impact:
 ## 잔여/후속
 - 복원된 thread turn 의 presentation shape(백엔드 `PresentationPayload {type,toolCallId,renderedAt,payload}`)는
   위젯 렌더 envelope(`{config,output}`)와 달라 별도 매핑 필요 — 텍스트 히스토리 복원 범위 밖, 후속 검토.
+- host `resetSession`(newChat)-during-booting 중복 webhook 엣지 — pre-existing(원래 newChat 도 startedRef 재개방),
+  본 PR 은 UI 경로만 booting 제외로 차단. host-API 엣지 GC/가드는 backlog(planner).
+- durable thread REST redaction·새 대화 orphan GC — 방어심화 backlog(R17/spec WARNING 명문).

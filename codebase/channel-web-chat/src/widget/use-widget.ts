@@ -401,19 +401,21 @@ export function useWidget() {
     void start();
   }, [resetSessionRefs, start]);
   /**
-   * 대화 종료(§3.1) — 헤더 "대화 종료" 컨트롤. 대기 중 AI 대화(`awaiting_user_message` +
-   * `ai_conversation`, **waiting nodeId 확정 시**)면 graceful `end_conversation`(워크플로우가 이어서
-   * 완료), 그 외(booting/streaming/buttons/form, 또는 ai_conversation 이라도 nodeId 미확정)면 범용
-   * `cancel` 로 execution 을 종료한다.
+   * 대화 종료(§3.1) — 헤더 "대화 종료" 컨트롤. UI 상 대화가 확립된(streaming/awaiting) 뒤에만 노출되므로
+   * 호출 시 세션·토큰이 존재한다(§2 헤더 게이팅). 대기 중 AI 대화(`awaiting_user_message` + `ai_conversation`,
+   * **waiting nodeId 확정 시**)면 graceful `end_conversation`(워크플로우가 이어서 완료), 그 외(응답 대기
+   * streaming, `buttons`/`form` 대기, 또는 ai_conversation 이라도 nodeId 미확정)면 범용 `cancel` 로 종료한다.
    *
-   * **순서(부작용 WARNING #1)**: SSE 를 **먼저** 닫고(resetSessionRefs) optimistic `[ended]` 로 전이한
-   * 뒤에 종료 명령을 best-effort 로 발사한다 — 명령이 유발하는 terminal SSE 이벤트가 handleEiaEvent 로
-   * **중복 종료(conversationEnded 2회 발사)** 를 일으키지 않도록 스트림을 선차단한다. 명령 성패와 무관하게
-   * 로컬은 이미 종료 상태이며(토큰은 종료 시 invalidate) 명령 실패(410/네트워크)는 진단만 남긴다.
-   * 이미 `[ended]`(예: SSE terminal 선도달) 면 no-op.
+   * **종료 순서**: SSE 를 **먼저** 닫고(resetSessionRefs) optimistic `[ended]` 로 전이한 뒤 종료 명령을
+   * best-effort 로 발사한다 — 명령이 유발하는 terminal SSE 이벤트가 handleEiaEvent 로 **중복 종료
+   * (conversationEnded 2회 발사)** 를 일으키지 않도록 스트림을 선차단한다. 명령 성패와 무관하게 로컬은
+   * 이미 종료 상태이며(토큰은 종료 시 invalidate) 명령 실패(410/네트워크)는 진단만 남긴다. 이미
+   * `[ended]`(예: SSE terminal 선도달) 면 no-op. (session 부재 방어: 프로그램적으로 booting 중 호출돼
+   * 세션이 아직 없으면 명령을 건너뛰고 로컬만 종료 — TTL 정리.)
    */
   const endConversation = useCallback(async () => {
     if (state.phase === "ended") return; // 이미 종료됨 → 중복 dispatch/sendEvent 방지.
+    const reason = "user_ended";
     // 명령 라우팅·대상 정보는 정리 이전 상태/세션으로 확정.
     const session = sessionRef.current;
     const client = clientRef.current;
@@ -422,12 +424,12 @@ export function useWidget() {
       state.pending?.type === "ai_conversation" &&
       !!state.pending?.nodeId;
     const command: InteractCommand = graceful
-      ? { command: "end_conversation", nodeId: state.pending!.nodeId, reason: "user_ended" }
-      : { command: "cancel", reason: "user_ended" };
+      ? { command: "end_conversation", nodeId: state.pending!.nodeId, reason }
+      : { command: "cancel", reason };
     // SSE 선차단 + optimistic 종료(중복 종료 이벤트 경합 제거).
     resetSessionRefs();
-    dispatch({ type: "ENDED", reason: "user_ended" });
-    bridgeRef.current?.sendEvent("conversationEnded", { reason: "user_ended" });
+    dispatch({ type: "ENDED", reason });
+    bridgeRef.current?.sendEvent("conversationEnded", { reason });
     // best-effort 백엔드 종료 — 실패해도 로컬은 이미 종료.
     if (session && client) {
       try {
