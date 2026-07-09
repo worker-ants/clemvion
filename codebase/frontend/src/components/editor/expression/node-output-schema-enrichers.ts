@@ -10,13 +10,19 @@
 
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
-/** Matches the OutputField.type enum declared in information-extractor schema. */
-const INFO_EXTRACTOR_TYPE_MAP: Record<string, string> = {
+/**
+ * Shared identity guard for node config type enums whose values are already
+ * JSON-schema types — Information Extractor's `OutputField.type` and Manual
+ * Trigger's param `type` both declare exactly `string|number|boolean|object|
+ * array`. Anything outside the enum falls back to `string`. (Form fields have
+ * their own non-identity map — `date`/`file`/`select` etc. — see below.)
+ */
+const JSON_SCHEMA_IDENTITY_TYPE_MAP: Record<string, string> = {
   string: "string",
   number: "number",
   boolean: "boolean",
-  array: "array",
   object: "object",
+  array: "array",
 };
 
 /**
@@ -76,7 +82,7 @@ export function enrichInfoExtractorOutputSchema(
     const declaredType =
       typeof f.type === "string" ? f.type : undefined;
     userProps[f.name] = {
-      type: INFO_EXTRACTOR_TYPE_MAP[declaredType ?? "string"] ?? "string",
+      type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
       ...(typeof f.description === "string" && f.description
         ? { description: f.description }
         : {}),
@@ -310,5 +316,73 @@ export function enrichTransformOutputSchema(
   };
   if (!cloned.properties) cloned.properties = {};
   cloned.properties.output = outputNode;
+  return cloned;
+}
+
+/**
+ * Manual Trigger resolves each declared parameter into `output.parameters.<name>`
+ * (the name-keyed runtime object), while `config.parameters` stays the raw
+ * definition *array* — same name, orthogonal shape (manual-trigger spec §4/§5.1,
+ * CONVENTIONS Principle 1.1). The base outputSchema declares `output.parameters`
+ * as an open record (`z.record`), so param names aren't hinted. Project
+ * `config.parameters[].name` into `output.parameters.<name>` so
+ * `$node["Manual Trigger"].output.parameters.<name>` — and, for a direct
+ * successor, `$input.parameters.<name>` — autocompletes pre-run, steering users
+ * to the resolved values instead of the array-shaped `config.parameters.<name>`,
+ * which never resolves by name. (This does not feed the `$params` root variable,
+ * whose sub-key autocomplete is a separate concern.)
+ *
+ * Mirrors {@link enrichFormOutputSchema}: tolerant fall-through when the base
+ * schema shape doesn't expose the expected nesting, and warns in dev so schema
+ * drift between backend and frontend is surfaced early.
+ */
+export function enrichManualTriggerOutputSchema(
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  const params = config?.parameters as
+    | Array<{ name?: unknown; type?: unknown; description?: unknown }>
+    | undefined;
+  if (!Array.isArray(params) || params.length === 0) return baseSchema;
+
+  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
+  for (const p of params) {
+    if (!isSafeFieldName(p?.name)) continue;
+    const declaredType = typeof p.type === "string" ? p.type : undefined;
+    userProps[p.name] = {
+      type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
+      ...(typeof p.description === "string" && p.description
+        ? { description: p.description }
+        : {}),
+    };
+  }
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned =
+    typeof structuredClone === "function"
+      ? structuredClone(baseSchema)
+      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
+  const outputNode = cloned.properties?.output;
+  if (!outputNode || typeof outputNode !== "object") {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[expression-autocomplete] Manual Trigger outputSchema missing `output` property; parameter hints skipped.",
+      );
+    }
+    return cloned;
+  }
+  if (!outputNode.properties) outputNode.properties = {};
+  const existingParams = outputNode.properties.parameters;
+  const existingParamsProps =
+    existingParams &&
+    typeof existingParams === "object" &&
+    existingParams.properties
+      ? existingParams.properties
+      : {};
+  outputNode.properties.parameters = {
+    type: "object",
+    properties: { ...existingParamsProps, ...userProps },
+  };
   return cloned;
 }

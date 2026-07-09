@@ -412,7 +412,7 @@ webhook 트리거로 시작된 실행에서 HTTP 요청 구성요소를 **flat s
 | 노드 목록 | 현재 워크플로우의 모든 노드 라벨 |
 | 함수 목록 | 내장 함수 레지스트리 (정적) |
 
-**config 기반 스키마 보강 (enricher)** — 미실행 상태에서도 사용자가 config 로 선언한 출력 필드가 힌트되도록, 4개 노드 타입은 노드 인스턴스의 config 를 노드 유형의 정적 기본 스키마에 투영한다 (`node-output-schema-enrichers.ts`, `$input` 스키마와 `$node["Label"].output` 드릴다운 양쪽에 적용 — `use-expression-context.ts`):
+**config 기반 스키마 보강 (enricher)** — 미실행 상태에서도 사용자가 config 로 선언한 출력 필드가 힌트되도록, 5개 노드 타입은 노드 인스턴스의 config 를 노드 유형의 정적 기본 스키마에 투영한다 (`node-output-schema-enrichers.ts`, `$input` 스키마와 `$node["Label"].output` 드릴다운 양쪽에 적용 — `use-expression-context.ts`):
 
 | 노드 타입 | 투영 규칙 |
 |-----------|-----------|
@@ -420,6 +420,7 @@ webhook 트리거로 시작된 실행에서 HTTP 요청 구성요소를 **flat s
 | `form` | `config.fields[].name` → `.output.interaction.data.<field>` |
 | `table` | `config.columns[].field` → `.output.rows[i].<field>` |
 | `transform` | `set_field` 의 `field` / `rename_field` 의 `to` → `.output.<name>` |
+| `manual_trigger` | `config.parameters[].name` → `.output.parameters.<name>` (param `type` 로 매핑) |
 
 안전장치: unsafe 키(`__proto__`/`constructor`/`prototype`, 비식별자) 거부, expression 값 키(`{{ }}` 포함 — 런타임 키 미확정) skip, 중첩 경로(`user.name`) skip. 기본 스키마 shape 이 보강을 허용하지 않으면 기본 스키마로 silent fallback (UX 힌트 전용 — 실행 동작에 영향 없음).
 

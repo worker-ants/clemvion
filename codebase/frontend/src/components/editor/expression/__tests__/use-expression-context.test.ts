@@ -680,4 +680,68 @@ describe("useExpressionContext", () => {
       });
     });
   });
+
+  // Guards the enrichManualTriggerOutputSchema wiring at BOTH call sites in
+  // use-expression-context (the $node output projection and the $input
+  // predecessor fallback). Unit tests cover the enricher itself; these assert
+  // the hook actually threads a manual_trigger node's config.parameters into
+  // the autocomplete schema on both paths (regression guard for a dropped
+  // `else if` branch).
+  describe("manual_trigger enricher wiring", () => {
+    // Envelope base schema mirroring the backend manualTriggerOutputSchema:
+    // output.parameters is an open record (no `properties`) until enriched.
+    const manualTriggerDef = {
+      outputSchema: {
+        type: "object",
+        properties: {
+          config: {
+            type: "object",
+            properties: { parameters: { type: "array" } },
+          },
+          output: {
+            type: "object",
+            properties: { parameters: { type: "object" } },
+          },
+        },
+      },
+    };
+
+    it("projects config.parameters into the $node output schema (availableNodes)", () => {
+      nodeDefinitionsState = { definitions: { manual_trigger: manualTriggerDef } };
+      editorState = {
+        nodes: [
+          makeNode("start", "manual_trigger", "Start", {
+            parameters: [{ name: "region", type: "string" }],
+          }),
+          makeNode("n2", "transform", "Echo"),
+        ],
+        edges: [makeEdge("start", "n2")],
+      };
+      const { result } = renderHook(() => useExpressionContext("n2"));
+      const start = result.current.availableNodes.find(
+        (n: { label: string }) => n.label === "Start",
+      );
+      const params =
+        start?.outputSchema?.properties?.output?.properties?.parameters;
+      expect(params?.properties).toEqual({ region: { type: "string" } });
+    });
+
+    it("projects config.parameters into the $input schema (predecessor fallback)", () => {
+      nodeDefinitionsState = { definitions: { manual_trigger: manualTriggerDef } };
+      editorState = {
+        nodes: [
+          makeNode("start", "manual_trigger", "Start", {
+            parameters: [{ name: "region", type: "string" }],
+          }),
+          makeNode("n2", "transform", "Echo"),
+        ],
+        edges: [makeEdge("start", "n2")],
+      };
+      const { result } = renderHook(() => useExpressionContext("n2"));
+      // inputSchema is descended one level into `.output`, so `parameters` is
+      // now top-level under it.
+      const params = result.current.inputSchema?.properties?.parameters;
+      expect(params?.properties).toEqual({ region: { type: "string" } });
+    });
+  });
 });
