@@ -407,4 +407,42 @@ describe('External Interaction API (e2e)', () => {
     // 비-secret 은 보존 (마스킹이 구조를 깨지 않음).
     expect(wire).toContain('msg');
   }, 30_000);
+
+  it('J. getStatus wire — terminal result(COMPLETED) outputData 의 secret 도 마스킹 (EIA §R17)', async () => {
+    // 헤드라인 변경분: COMPLETED result 의 outputData 가 실 DB round-trip 으로도 마스킹되는지.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, output_data, started_at, finished_at)
+       VALUES ($1, $2, 'completed', $3, NOW(), NOW())`,
+      [
+        executionId,
+        workflowId,
+        JSON.stringify({
+          summary: 'done ok',
+          creds: { authorization: 'Bearer sk-E2E-RESULT-LEAK' },
+          api_key: 'AKIA-E2E-RESULT-KEY',
+        }),
+      ],
+    );
+
+    const token = mintInteractionToken(executionId);
+    const res = await request(BASE_URL)
+      .get(`/api/external/executions/${executionId}`)
+      .set('x-forwarded-for', nextE2eClientIp())
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    // 응답은 { data: ExecutionStatusDto } 로 래핑된다 (전역 인터셉터).
+    const body = res.body.data;
+    expect(body.status).toBe('completed');
+    const wire = JSON.stringify(body.result);
+    expect(wire).not.toContain('sk-E2E-RESULT-LEAK');
+    expect(wire).not.toContain('AKIA-E2E-RESULT-KEY');
+    expect(wire).toContain('***');
+    // 정상 결과 데이터는 보존.
+    expect(body.result.summary).toBe('done ok');
+  }, 30_000);
 });
