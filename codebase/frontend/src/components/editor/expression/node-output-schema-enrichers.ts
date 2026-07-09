@@ -210,9 +210,11 @@ export function enrichInfoExtractorOutputSchema(
 
 /**
  * Form node fills `output.interaction.data` at submission time with each
- * user-declared field's submitted value. Project `config.fields[].name` into
- * the static outputSchema so `.output.interaction.data.<field>` autocompletes
- * before the form is ever filled.
+ * user-declared field's submitted value (see codebase/backend/.../form.handler.ts
+ * + execution-engine.service.ts `waitForFormSubmission` — check those on a
+ * backend shape change). Project `config.fields[].name` into the static
+ * outputSchema so `.output.interaction.data.<field>` autocompletes before the
+ * form is ever filled.
  */
 export function enrichFormOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
@@ -276,7 +278,11 @@ export function enrichTableOutputSchema(
         };
       }),
     (outputNode, userProps) => {
-      const existingRows = outputNode.properties!.rows;
+      // Self-contained defensive init (matches getOrCreateObjectChild /
+      // mergeLeafProps) rather than relying on the caller having set
+      // `properties` a frame above.
+      if (!outputNode.properties) outputNode.properties = {};
+      const existingRows = outputNode.properties.rows;
       const rowsNode: JsonSchemaNode =
         existingRows && typeof existingRows === "object"
           ? existingRows
@@ -293,7 +299,7 @@ export function enrichTableOutputSchema(
         type: "object",
         properties: { ...existingRowProps, ...userProps },
       };
-      outputNode.properties!.rows = rowsNode;
+      outputNode.properties.rows = rowsNode;
     },
     "Table",
   );
@@ -384,21 +390,30 @@ export function enrichManualTriggerOutputSchema(
   );
 }
 
+type OutputSchemaEnricher = (
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+) => JsonSchemaNode | undefined;
+
 /**
  * Registry mapping node `type` → its outputSchema enricher. Consumers
  * (`use-expression-context`) dispatch through this single table instead of a
  * per-call-site `if/else` chain, so a new node type is wired in exactly once.
+ *
+ * Built on a null prototype (and frozen) so a `nodeType` that happens to match
+ * an `Object.prototype` key (`constructor`/`hasOwnProperty`/`toString`/…) can't
+ * resolve a prototype method as a dispatch target — bracket access on an
+ * arbitrary runtime string returns `undefined` for anything not a registered
+ * own key.
  */
-export const OUTPUT_SCHEMA_ENRICHERS: Record<
-  string,
-  (
-    baseSchema: JsonSchemaNode | undefined,
-    config: Record<string, unknown> | undefined,
-  ) => JsonSchemaNode | undefined
-> = {
-  information_extractor: enrichInfoExtractorOutputSchema,
-  form: enrichFormOutputSchema,
-  table: enrichTableOutputSchema,
-  transform: enrichTransformOutputSchema,
-  manual_trigger: enrichManualTriggerOutputSchema,
-};
+export const OUTPUT_SCHEMA_ENRICHERS: Readonly<
+  Record<string, OutputSchemaEnricher>
+> = Object.freeze(
+  Object.assign(Object.create(null) as Record<string, OutputSchemaEnricher>, {
+    information_extractor: enrichInfoExtractorOutputSchema,
+    form: enrichFormOutputSchema,
+    table: enrichTableOutputSchema,
+    transform: enrichTransformOutputSchema,
+    manual_trigger: enrichManualTriggerOutputSchema,
+  }),
+);

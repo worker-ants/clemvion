@@ -572,17 +572,30 @@ describe("enrichManualTriggerOutputSchema", () => {
 // enrichment sites; guard that every enricher is wired in exactly once so a new
 // node type can't be added to one site and missed at the other.
 describe("OUTPUT_SCHEMA_ENRICHERS registry", () => {
-  it("maps each node type to its enricher function", () => {
-    expect(OUTPUT_SCHEMA_ENRICHERS).toEqual({
-      information_extractor: enrichInfoExtractorOutputSchema,
-      form: enrichFormOutputSchema,
-      table: enrichTableOutputSchema,
-      transform: enrichTransformOutputSchema,
-      manual_trigger: enrichManualTriggerOutputSchema,
-    });
+  it("maps each node type to its enricher function (own keys only)", () => {
+    expect(Object.keys(OUTPUT_SCHEMA_ENRICHERS).sort()).toEqual([
+      "form",
+      "information_extractor",
+      "manual_trigger",
+      "table",
+      "transform",
+    ]);
+    expect(OUTPUT_SCHEMA_ENRICHERS.information_extractor).toBe(
+      enrichInfoExtractorOutputSchema,
+    );
+    expect(OUTPUT_SCHEMA_ENRICHERS.form).toBe(enrichFormOutputSchema);
+    expect(OUTPUT_SCHEMA_ENRICHERS.table).toBe(enrichTableOutputSchema);
+    expect(OUTPUT_SCHEMA_ENRICHERS.transform).toBe(enrichTransformOutputSchema);
+    expect(OUTPUT_SCHEMA_ENRICHERS.manual_trigger).toBe(
+      enrichManualTriggerOutputSchema,
+    );
   });
 
-  it("returns undefined for an unregistered node type (no dispatch)", () => {
+  it("does not resolve unregistered types or Object.prototype keys (safe dispatch)", () => {
     expect(OUTPUT_SCHEMA_ENRICHERS["http_request"]).toBeUndefined();
+    // Null-prototype registry: prototype-key node types can't resolve a method.
+    expect(OUTPUT_SCHEMA_ENRICHERS["constructor"]).toBeUndefined();
+    expect(OUTPUT_SCHEMA_ENRICHERS["hasOwnProperty"]).toBeUndefined();
+    expect(OUTPUT_SCHEMA_ENRICHERS["toString"]).toBeUndefined();
   });
 });
