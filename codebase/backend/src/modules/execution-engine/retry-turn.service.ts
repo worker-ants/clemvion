@@ -346,6 +346,9 @@ export class RetryTurnService {
       node,
       context,
       retryState,
+      // #501 회귀 — 재시도 턴의 통합 usage-log attribution 을 위해 spawn 된
+      // RUNNING NodeExecution row id 를 재구성 state 에 재주입한다 (checkpoint 미영속).
+      { nodeExecutionId: spawnedRow.id },
     );
     // nodeOutputCache 에 `{ _resumeState }` envelope 주입 (handleAiMessageTurn /
     // finalizeAiNode 가 읽는다). structuredOutputCache 도 seed 해 finalize 가

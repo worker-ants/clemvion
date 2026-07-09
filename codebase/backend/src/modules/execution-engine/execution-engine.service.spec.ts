@@ -965,7 +965,7 @@ describe('ExecutionEngineService', () => {
       node: unknown,
       context: unknown,
       retryState: Record<string, unknown>,
-      opts?: { resumeMode?: boolean },
+      opts?: { resumeMode?: boolean; nodeExecutionId?: string },
     ) => { resumeState: Record<string, unknown>; initialAction: unknown };
     contextService: {
       createContext: (
@@ -11969,6 +11969,27 @@ describe('ExecutionEngineService', () => {
       expect(resumeState.turnCount).toBe(3);
     });
 
+    // 회귀(#501) — 멀티턴 resume 턴 통합 사용 로그 attribution. 재구성된 resumeState 가
+    // `workflowId`(execution 에서)·`nodeExecutionId`(opts 에서)를 재주입해야, resume 턴
+    // provider-tool 실행(ai-turn-executor.ts:2684)이 cafe24/makeshop/mcp provider 의
+    // logUsage 게이트 `if (ctx.nodeExecutionId && ctx.workflowId)` 를 통과한다. 두 필드는
+    // checkpoint allow-list 로 persist 에서 제거되고 재개 시 재유도 대상이다(§1.3).
+    it('buildRetryReentryState re-injects workflowId (execution) + nodeExecutionId (opts) into the reconstructed resumeState (#501 regression)', () => {
+      const cp = cpSubject();
+      const ctx = cp.contextService.createContext('exec-attr-1', 'wf-attr', {
+        initialVariables: { __workspaceId: 'ws-1' },
+      });
+      const { resumeState } = cp.buildRetryReentryState(
+        { id: 'exec-attr-1', workflowId: 'wf-attr', startedAt: new Date() },
+        { id: 'node-1', type: 'ai_agent', config: { mode: 'multi_turn' } },
+        ctx,
+        { messages: [], turnCount: 1 },
+        { resumeMode: true, nodeExecutionId: 'ne-attr-1' },
+      );
+      expect(resumeState.workflowId).toBe('wf-attr');
+      expect(resumeState.nodeExecutionId).toBe('ne-attr-1');
+    });
+
     it('buildRetryReentryState applies defensive defaults for a legacy checkpoint missing core fields', () => {
       const cp = cpSubject();
       const ctx = cp.contextService.createContext('exec-a2a-2', 'wf-1', {
@@ -13525,6 +13546,47 @@ describe('ExecutionEngineService', () => {
       const seedArg = setOutputSpy.mock.calls[0][2] as Record<string, unknown>;
       expect(seedArg).toMatchObject({ foo: 'bar', _resumeState: resumeState });
       expect(aiSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // #501 회귀 가드 — handleAiResumeTurn 은 대기 NodeExecution row id 를
+    // buildRetryReentryState 에 nodeExecutionId 로 넘겨야 resume 턴 통합 usage-log
+    // attribution(cafe24/makeshop/mcp)이 복원된다.
+    it('handleAiResumeTurn: 대기 NodeExecution id 를 buildRetryReentryState 에 nodeExecutionId 로 전달 (#501)', async () => {
+      const svc = service as unknown as DispatchSubject;
+      const buildSpy = jest
+        .spyOn(svc, 'buildRetryReentryState')
+        .mockReturnValue({ resumeState: { messages: [] } });
+      jest.spyOn(svc, 'contextKeyOf').mockReturnValue('ctx-key');
+      jest
+        .spyOn(
+          (
+            aiTurnOrchestrator as unknown as {
+              contextService: { setNodeOutput: unknown };
+            }
+          ).contextService as { setNodeOutput: (...a: unknown[]) => void },
+          'setNodeOutput',
+        )
+        .mockImplementation(() => undefined);
+      jest
+        .spyOn(aiTurnOrchestrator, 'processAiResumeTurn')
+        .mockResolvedValue(PARK_RELEASED);
+
+      await aiTurnOrchestrator.handleAiResumeTurn(
+        makeCtx({
+          node: { id: 'ai1', type: 'ai_agent' },
+          isAiConversation: true,
+          resumeCheckpoint: { schemaVersion: 1 },
+          nodeExec: { id: 'ne-resume-1' },
+        }) as never,
+      );
+
+      expect(buildSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ nodeExecutionId: 'ne-resume-1' }),
+      );
     });
   });
 

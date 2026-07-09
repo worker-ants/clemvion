@@ -4847,7 +4847,7 @@ export class ExecutionEngineService
     node: Node,
     context: ExecutionContext,
     retryState: Record<string, unknown>,
-    opts?: { resumeMode?: boolean },
+    opts?: { resumeMode?: boolean; nodeExecutionId?: string },
   ): {
     resumeState: Record<string, unknown>;
     initialAction: ContinuationPayload | undefined;
@@ -4904,6 +4904,14 @@ export class ExecutionEngineService
         typeof resumeFields.toolCalls === 'number' ? resumeFields.toolCalls : 0,
       executionId: execution.id,
       nodeId: node.id,
+      // 회귀(#501) — context-binding 필드는 checkpoint allow-list(buildResumeCheckpoint)
+      // 로 persist 에서 제거되므로 재개 시 재유도한다. `workflowId`/`nodeExecutionId` 가
+      // 빠지면 resume 턴 provider-tool(cafe24/makeshop/mcp)의 usage-log 게이트
+      // `if (ctx.nodeExecutionId && ctx.workflowId)` 가 false 가 돼 통합 사용 로그가
+      // 조용히 누락된다(§4.6 활동 탭 공백). `nodeExecutionId` 는 노드 단위 값이라 context
+      // 가 운반하지 않으므로 호출측(대기/재시도 NodeExecution row)이 opts 로 주입한다.
+      workflowId: execution.workflowId,
+      nodeExecutionId: opts?.nodeExecutionId,
       workspaceId,
       llmConfigId: resolvedConfig.llmConfigId,
       maxTurns: resolvedConfig.maxTurns ?? 20,
