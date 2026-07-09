@@ -340,4 +340,71 @@ describe('External Interaction API (e2e)', () => {
     // 429 는 SSE 전용 TOO_MANY_CONNECTIONS 와 다른 코드여야 한다 (별개 표면).
     expect(first429.body.error.code).not.toBe('TOO_MANY_CONNECTIONS');
   }, 30_000);
+
+  it('I. getStatus wire — conversation_thread·nodeOutput 의 secret 이 `***` 로 마스킹 (EIA §R17)', async () => {
+    // 실 DB 에 waiting execution + secret 포함 thread/nodeOutput 을 seed 하고, 실제
+    // getStatus wire 응답이 마스킹돼 나가는지 end-to-end 로 검증한다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const nodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'ai_agent', 'ai', 'Agent', $3, 0, 0, NOW(), NOW())`,
+      [nodeId, workflowId, JSON.stringify({ mode: 'multi_turn' })],
+    );
+    const executionId = randomUUID();
+    const thread = {
+      id: 'default',
+      nextSeq: 1,
+      totalChars: 40,
+      turns: [
+        {
+          seq: 0,
+          nodeId,
+          nodeLabel: 'Agent',
+          nodeType: 'ai_agent',
+          source: 'ai_tool',
+          text: 'called with Authorization: Bearer sk-E2E-THREAD-LEAK',
+          timestamp: '2026-07-10T00:00:00.000Z',
+        },
+      ],
+    };
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, conversation_thread, started_at)
+       VALUES ($1, $2, 'waiting_for_input', $3, NOW())`,
+      [executionId, workflowId, JSON.stringify(thread)],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, output_data, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', $4, NOW())`,
+      [
+        randomUUID(),
+        executionId,
+        nodeId,
+        JSON.stringify({
+          meta: { interactionType: 'ai_conversation' },
+          conversationConfig: {
+            placeholder: 'msg',
+            message: 'reply api_key=AKIA-E2E-NODEOUT',
+          },
+        }),
+      ],
+    );
+
+    const token = mintInteractionToken(executionId);
+    const res = await request(BASE_URL)
+      .get(`/api/external/executions/${executionId}`)
+      .set('x-forwarded-for', nextE2eClientIp())
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const wire = JSON.stringify(res.body);
+    // 실 secret 은 wire 어디에도 남지 않는다.
+    expect(wire).not.toContain('sk-E2E-THREAD-LEAK');
+    expect(wire).not.toContain('AKIA-E2E-NODEOUT');
+    expect(wire).toContain('***');
+    // 비-secret 은 보존 (마스킹이 구조를 깨지 않음).
+    expect(wire).toContain('msg');
+  }, 30_000);
 });

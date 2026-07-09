@@ -81,6 +81,14 @@ function looksLikeJson(s: string): boolean {
 }
 
 /**
+ * Depth-0 result cache keyed by input object identity — mirrors
+ * `sanitizePayloadForWs`'s `SANITIZE_CACHE`. A payload re-emitted N times (e.g.
+ * ForEach fanout) is deep-walked once. WeakMap so entries are GC'd with the
+ * object; only depth-0 is cached (subtrees are reached via a cache-hit parent).
+ */
+const DEEP_REDACT_CACHE = new WeakMap<object, unknown>();
+
+/**
  * Recursively mask secrets in a structured value (objects/arrays walked
  * depth-first):
  * - **string leaf**: masked JSON-safely — if it is itself JSON
@@ -106,6 +114,18 @@ export function deepRedactSecrets(value: unknown, depth = 0): unknown {
   }
   if (value === null || typeof value !== 'object') return value;
   if (depth >= MAX_REDACT_DEPTH) return '***';
+  // depth-0 cache: same object identity → walk once (mirrors sanitizePayloadForWs).
+  if (depth === 0) {
+    const cached = DEEP_REDACT_CACHE.get(value);
+    if (cached !== undefined) return cached;
+  }
+  const result = deepRedactObject(value, depth);
+  if (depth === 0) DEEP_REDACT_CACHE.set(value, result);
+  return result;
+}
+
+/** Object/array walk for {@link deepRedactSecrets} (value is a non-null object). */
+function deepRedactObject(value: object, depth: number): unknown {
   if (Array.isArray(value)) {
     let mutated = false;
     const out = value.map((v) => {

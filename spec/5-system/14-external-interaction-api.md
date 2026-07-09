@@ -1165,14 +1165,16 @@ interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/a
     기술 대화체에 false-positive 하면 이미 사용자에게 전달된 응답이 `***` 로 바뀔 수 있다. **보안 우선**(실 secret 을
     외부 채널로 흘리지 않음)으로 이 rare FP 를 수용하며, 에디터는 external-only strip 되지 않는 `llmCalls` 디버그로
     원문을 확인할 수 있다. participant-vs-observer 분리 egress(예: 관찰자 표면만 마스킹)는 후속 개선 여지.
-- **`nodeOutput.conversationConfig` (강제됨 — bypass 차단)**: `waiting_for_input` emit 과 `getStatus` 는
-  `nodeOutput.conversationConfig.{message,messages,presentations}` 로 위 ai_message·thread 와 **동일한 AI 텍스트**를
-  실어 나른다. 이 표면이 마스킹을 우회하지 않도록, ai-turn-orchestrator 의 두 waiting emit 은 conversationConfig 를
-  `deepRedactSecrets` 로 마스킹하고(에디터 전용 `turnDebug.llmCalls` 는 건드리지 않음), `getStatus` 는 `nodeOutput`
-  전체를 `deepRedactSecrets` 로 마스킹한다(REST 는 sanitizePayloadForWs 미적용 경로라 필수).
+- **`nodeOutput.conversationConfig` + terminal `result`/`error` (강제됨 — bypass 차단)**: `waiting_for_input` emit 과
+  `getStatus` 는 `nodeOutput.conversationConfig.{message,messages,presentations}` 로 위 ai_message·thread 와 **동일한
+  AI 텍스트**를 실어 나른다. 이 표면이 마스킹을 우회하지 않도록, ai-turn-orchestrator 의 두 waiting emit 은
+  conversationConfig 를 `deepRedactSecrets` 로 마스킹하고(에디터 전용 `turnDebug.llmCalls` 는 건드리지 않음),
+  `getStatus` 는 `nodeOutput` 전체 + terminal `result`(COMPLETED)/`error`(FAILED)의 `outputData` 를
+  `deepRedactSecrets` 로 마스킹한다(REST 는 sanitizePayloadForWs 미적용 경로라 필수). 마스킹은 secret-shape 만
+  치환(정상 결과 데이터는 copy-on-change 로 보존).
 - **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
-  제한하는 런타임 allowlist 필터(SSE 는 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어)는 위 값/키
-  기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.
+  제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
+  config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.
 
 ### R18. `execution.message` — 표시-전용 presentation 노드 자동 진행 메시지 신설 (결정 2026-06-25)
 
