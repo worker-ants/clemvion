@@ -7,7 +7,7 @@ code:
   - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
   - codebase/frontend/src/lib/stores/editor-store.ts
   - codebase/frontend/src/lib/utils/edge-utils.ts
-  - codebase/frontend/src/app/(editor)/workflows/[id]/editor-loader.tsx
+  - codebase/frontend/src/app/(editor)/w/[slug]/workflows/[id]/editor-loader.tsx
   - codebase/backend/src/modules/edges/**
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md

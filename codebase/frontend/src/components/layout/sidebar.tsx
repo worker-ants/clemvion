@@ -439,7 +439,7 @@ export function Sidebar() {
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {navItems.map((item) => {
             const href = buildWorkspaceHref(slug, item.href);
-            // slug 라우트에선 `/w/<slug><href>`, editor 등 slug 밖에선 bare href 로 활성 판정.
+            // slug 라우트에선 `/w/<slug><href>`, slug 밖 라우트(docs 등)에선 bare href 로 활성 판정.
             const isActive =
               pathname.startsWith(href) || pathname.startsWith(item.href);
             const label = t(item.labelKey);

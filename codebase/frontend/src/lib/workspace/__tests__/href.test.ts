@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildWorkspaceHref, buildExecutionHref } from "../href";
+import { buildWorkspaceHref, buildExecutionHref, buildEditorHref } from "../href";
 
 describe("buildWorkspaceHref", () => {
   it("prefixes an absolute path with /w/<slug>", () => {
@@ -69,5 +69,19 @@ describe("buildExecutionHref", () => {
     expect(buildExecutionHref(null, "wf-1", "exec-2")).toBe(
       "/workflows/wf-1/executions/exec-2",
     );
+  });
+});
+
+describe("buildEditorHref", () => {
+  it("builds the slug-prefixed editor canvas path", () => {
+    expect(buildEditorHref("team-a", "wf-1")).toBe("/w/team-a/workflows/wf-1");
+  });
+
+  it("falls back to the bare canvas path when slug is null (catch-all absorbs)", () => {
+    expect(buildEditorHref(null, "wf-1")).toBe("/workflows/wf-1");
+  });
+
+  it("falls back to the bare path when slug is undefined", () => {
+    expect(buildEditorHref(undefined, "wf-1")).toBe("/workflows/wf-1");
   });
 });

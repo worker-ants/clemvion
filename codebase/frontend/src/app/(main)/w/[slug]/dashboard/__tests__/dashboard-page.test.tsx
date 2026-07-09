@@ -105,3 +105,33 @@ describe("DashboardPage — recent executions row navigation", () => {
     );
   });
 });
+
+describe("DashboardPage — recent workflows editor navigation (phase 2)", () => {
+  const RECENT_WORKFLOW = {
+    id: "wf-9",
+    name: "Recent WF",
+    isActive: true,
+    updatedAt: "2024-01-15T14:02:30Z",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "Team", type: "team", slug: "team-x", role: "editor" },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    getSummary.mockResolvedValue(SUMMARY);
+    getRecentWorkflows.mockResolvedValue([RECENT_WORKFLOW]);
+    getRecentExecutions.mockResolvedValue([]);
+  });
+
+  it("recent-workflow click navigates to the slug-prefixed editor (buildEditorHref)", async () => {
+    await renderPage();
+    fireEvent.click(await screen.findByText("Recent WF"));
+    expect(mockPush).toHaveBeenCalledWith("/w/team-x/workflows/wf-9");
+  });
+});

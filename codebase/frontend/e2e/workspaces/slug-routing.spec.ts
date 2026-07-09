@@ -69,4 +69,45 @@ test.describe("workspace slug routing", () => {
       timeout: 15_000,
     });
   });
+
+  // 슬러그 라우팅 phase 2: 에디터 캔버스(/workflows/<id>)도 slug 아래로 편입.
+  test("bare editor path (/workflows/<id>) is absorbed into the slug", async ({
+    page,
+  }) => {
+    await mockAuth(page);
+    // 구 북마크·실패류 알림이 발행하는 bare 에디터 경로 → catch-all 이 활성 slug 로 forward.
+    await page.goto("/workflows/wf-e2e");
+    await page.waitForURL(new RegExp(`/w/${SLUG}/workflows/wf-e2e`), {
+      timeout: 15_000,
+    });
+  });
+
+  test("editor deep-link (/w/<slug>/workflows/<id>) resolves under the slug gate", async ({
+    page,
+  }) => {
+    await mockAuth(page);
+    // 에디터 로더의 3 요청을 최소 응답으로 스텁 (라우팅 검증이 목적).
+    const wf = { id: "wf-e2e", name: "E2E WF" };
+    await page.route(/\/api\/workflows\/wf-e2e$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: wf }),
+      }),
+    );
+    await page.route(/\/api\/workflows\/wf-e2e\/(nodes|edges)$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      }),
+    );
+
+    await page.goto(`/w/${SLUG}/workflows/wf-e2e`);
+
+    // slug 게이트가 URL 워크스페이스로 정합 → 무효-slug fallback(dashboard) 으로 튕기지 않고
+    // 에디터 경로가 그대로 유지된다.
+    await page.waitForLoadState("networkidle");
+    expect(new URL(page.url()).pathname).toBe(`/w/${SLUG}/workflows/wf-e2e`);
+  });
 });

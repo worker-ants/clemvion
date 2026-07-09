@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
 import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildEditorHref } from "@/lib/workspace/href";
 import { useHasRole } from "@/components/auth/role-gate";
 import { Loader2, Pencil } from "lucide-react";
 import Link from "next/link";
@@ -27,6 +29,7 @@ export function OverviewCard({
   onSaved: () => void;
 }) {
   const t = useT();
+  const slug = useWorkspaceSlug();
   const canEdit = useHasRole("editor");
   const { editing, setEditing, cancelEdit } = useCardEditToggle();
   const [nameValue, setNameValue] = useState(trigger.name);
@@ -148,7 +151,7 @@ export function OverviewCard({
             </dt>
             <dd>
               <Link
-                href={`/workflows/${trigger.workflowId}`}
+                href={buildEditorHref(slug, trigger.workflowId)}
                 className="text-[hsl(var(--primary))] hover:underline"
               >
                 {trigger.workflowName}

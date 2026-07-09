@@ -49,8 +49,8 @@ export function EditorToolbar() {
   const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
-  // 에디터는 phase 1 에서 slug 밖(`/workflows/[id]`)이라 URL 에 slug 가 없다 —
-  // store 의 활성 워크스페이스에서 slug 를 파생해 목록으로 되돌아가는 링크를 만든다.
+  // 에디터도 슬러그 라우팅 phase 2 부터 `/w/<slug>/workflows/[id]` 라 URL 에서 slug 를 얻는다
+  // (useWorkspaceSlug 이 URL 우선, 없으면 store 폴백) — 목록으로 되돌아가는 링크 등에 쓴다.
   const slug = useWorkspaceSlug();
 
   const workflowId = useEditorStore((s) => s.workflowId);

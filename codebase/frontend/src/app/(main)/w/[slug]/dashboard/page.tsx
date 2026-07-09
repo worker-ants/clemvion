@@ -32,7 +32,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { timeAgo, formatDuration } from "@/lib/utils/date";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildExecutionHref } from "@/lib/workspace/href";
+import { buildEditorHref, buildExecutionHref } from "@/lib/workspace/href";
 import { TriggerCell } from "@/components/executions/trigger-cell";
 
 function SummaryCardSkeleton() {
@@ -104,7 +104,7 @@ export default function DashboardPage() {
       // shows up when the user returns within React Query's 60s staleTime.
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      router.push(`/workflows/${workflow.id}`);
+      router.push(buildEditorHref(slug, workflow.id));
     },
     onError: () => {
       toast.error(t("workflows.createFailed"));
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                   <tr
                     key={workflow.id}
                     className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5] cursor-pointer"
-                    onClick={() => router.push(`/workflows/${workflow.id}`)}
+                    onClick={() => router.push(buildEditorHref(slug, workflow.id))}
                   >
                     <td className="px-4 py-3 font-medium">{workflow.name}</td>
                     <td className="px-4 py-3">

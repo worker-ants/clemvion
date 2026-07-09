@@ -308,7 +308,8 @@ info-leak 이 커지지 않는다. **완전한 토큰 SoT(및 검증 수렴)는 
 - **reconcile 방향 = URL 우선**: cold-load(딥링크·북마크) 시 `[slug]` layout 이 URL 워크스페이스로 store·토큰을
   재조정한다. `/w/<slug>` 라우트에서는 §1.5 의 store-우선 reconcile-on-load 대신 **URL 우선**이 적용된다(레이스
   방지 — AuthProvider 는 `pathname` 이 `/w/` 로 시작하면 persisted reconcile 을 건너뛴다). slug 없는 라우트
-  (에디터·docs·catch-all)에서는 종전대로 localStorage 힌트 기준.
+  (docs·catch-all)에서는 종전대로 localStorage 힌트 기준. (에디터는 슬러그 라우팅 phase 2 부터 `/w/<slug>/workflows/[id]`
+  아래라 이 예시에서 제외 — `/w/` 라우트로서 slug 게이트가 URL 우선 reconcile 한다.)
 - **slug 불변**: slug 는 생성 시 `team-<uuid8>`/개인 규칙으로 확정되고 이후 불변(`workspace.slug` UNIQUE, V001).
   rename 은 name 만 바꾸고 URL 을 바꾸지 않으므로 딥링크가 안정적이다.
 

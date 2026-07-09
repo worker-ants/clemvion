@@ -32,7 +32,7 @@ import {
 } from "@/lib/utils/execution-status";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildExecutionHref } from "@/lib/workspace/href";
+import { buildEditorHref, buildExecutionHref } from "@/lib/workspace/href";
 
 const PAGE_SIZE = 20;
 
@@ -168,7 +168,7 @@ export default function ExecutionListPage({
         </div>
         <Button
           variant="outline"
-          onClick={() => router.push(`/workflows/${workflowId}`)}
+          onClick={() => router.push(buildEditorHref(slug, workflowId))}
         >
           <ExternalLink className="mr-2 h-4 w-4" />
           {t("executions.openInEditor")}
@@ -199,7 +199,7 @@ export default function ExecutionListPage({
           action={
             <Button
               variant="outline"
-              onClick={() => router.push(`/workflows/${workflowId}`)}
+              onClick={() => router.push(buildEditorHref(slug, workflowId))}
             >
               <ExternalLink className="mr-2 h-4 w-4" />
               {t("executions.openInEditor")}

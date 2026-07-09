@@ -52,7 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // reconcile 하므로(data-flow-12 §1.5 — "URL 있으면 URL 우선, 없으면 localStorage"),
         // 여기 persisted(localStorage) 기준 reconcile 은 건너뛴다 — 그렇지 않으면 딥링크가 담은
         // 워크스페이스와 마지막으로 선택한 워크스페이스가 이중으로 /switch 를 태워 레이스가 난다.
-        // slug 없는 라우트(editor·catch-all·docs)에서만 localStorage 힌트로 재조정한다.
+        // slug 없는 라우트(catch-all·docs)에서만 localStorage 힌트로 재조정한다. (에디터는
+        // 슬러그 라우팅 phase 2 부터 `/w/<slug>/workflows/[id]` 아래라 이 분기가 아닌 slug 게이트가
+        // reconcile 한다.)
         const onWorkspaceSlugRoute = pathname.startsWith("/w/");
         const persisted = useWorkspaceStore.getState().currentWorkspaceId;
         if (

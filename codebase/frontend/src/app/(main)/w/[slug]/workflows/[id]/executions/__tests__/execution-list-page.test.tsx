@@ -201,6 +201,22 @@ describe("ExecutionListPage", () => {
     expect(mockPush).toHaveBeenCalledWith("/workflows/wf-1");
   });
 
+  it("navigates to the slug-prefixed editor on 'Open in Editor' when a workspace is active", async () => {
+    // slug 라우팅 phase 2: 에디터 링크(buildEditorHref)도 활성 slug 를 붙여야 한다.
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "Team", type: "team", slug: "team-x", role: "editor" },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    await renderPage();
+    const editorLink = await screen.findByText("Open in Editor");
+    fireEvent.click(editorLink);
+
+    expect(mockPush).toHaveBeenCalledWith("/w/team-x/workflows/wf-1");
+  });
+
   it("displays node execution counts", async () => {
     await renderPage();
     await screen.findAllByText("Completed");

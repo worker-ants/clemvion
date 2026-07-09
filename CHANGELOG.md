@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 워크스페이스 슬러그 URL 라우팅 phase 2 — 에디터 slug화 (2-navigation/9-user-profile §3)
+
+### 변경 사항
+
+1. **워크플로 에디터 캔버스가 활성 워크스페이스 slug URL(`/w/<slug>/workflows/<id>`)로 렌더된다** — phase 1(#865)에서 slug 밖으로 남긴 에디터를 `/w/<slug>/workflows/<id>` 로 편입했다(FE-only, backend 무변경). `(editor)/workflows/[id]` 라우트를 `(editor)/w/[slug]/workflows/[id]` 로 옮기고, phase 1 의 slug 해소·**reconcile(URL 우선)**·무효-slug redirect·정합 전 gate 로직을 공용 `<WorkspaceSlugGate>`(`lib/workspace/workspace-slug-gate.tsx`)로 추출해 `(main)/w/[slug]` 와 에디터 layout 이 공유한다(에디터는 `EditorContent` 풀스크린 chrome 유지). 두 route group 이 `/w/[slug]` prefix 를 공유하되 leaf page 가 달라 충돌하지 않는다. 에디터 딥링크(목록/대시보드 create-then-push·행 클릭·트리거/스케줄/통합 카드·실행 목록 "Open in Editor")는 신규 `buildEditorHref(slug, workflowId)` 헬퍼로 slug 화하고, raw `/workflows/<id>` 리터럴은 `no-raw-editor-href` guard 로 CI 차단한다(알림 딥링크·REST API 경로는 예외). 구 bare `/workflows/<id>`(북마크·실패류 알림)는 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다. **URL slug = FE 라우팅 SoT ≠ backend 인가 SoT** 불변(header-first→토큰 클레임·`X-Workspace-Id` 헤더 유지). spec 동기화: `9-user-profile §3`·`_layout §2.2/§3.1`·`0-dashboard`·`1-workflow-list`·`14-execution-history`·`3-workflow-editor/2-edge` frontmatter·`data-flow/12-workspace` Rationale(reconcile 방향). SoT: `spec/2-navigation/9-user-profile.md §3`.
+
 ## Unreleased — 워크스페이스 슬러그 URL 라우팅 phase 1 (`/w/[slug]/...`) (2-navigation/9-user-profile §3)
 
 ### 변경 사항

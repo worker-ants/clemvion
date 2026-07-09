@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildEditorHref } from "@/lib/workspace/href";
 import type { UsageWorkflow } from "@/lib/api/integrations";
 import type { TFunction } from "@/lib/i18n";
 
@@ -32,6 +34,7 @@ export function UsageNodeList({
    */
   variant?: "tab" | "dialog";
 }) {
+  const slug = useWorkspaceSlug();
   return (
     <div className="divide-y rounded-lg border border-[hsl(var(--border))]">
       {usages.map((w) => (
@@ -39,7 +42,7 @@ export function UsageNodeList({
           <div className="flex items-center gap-2">
             {variant === "tab" ? (
               <Link
-                href={`/workflows/${w.workflowId}`}
+                href={buildEditorHref(slug, w.workflowId)}
                 className="font-medium hover:underline"
               >
                 {w.workflowName}
@@ -73,7 +76,7 @@ export function UsageNodeList({
           </ul>
           {variant === "dialog" && (
             <Link
-              href={`/workflows/${w.workflowId}`}
+              href={buildEditorHref(slug, w.workflowId)}
               className="mt-2 inline-flex items-center gap-1 text-sm text-[hsl(var(--primary))] hover:underline"
             >
               {t("integrations.usageOpenWorkflow")}
