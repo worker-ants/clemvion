@@ -18,7 +18,7 @@ import {
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
-import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
+import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 import { toEngineFlatShape } from './handler-output.adapter';
 import {
   PARK_RELEASED,
@@ -133,8 +133,9 @@ export class FormInteractionService {
         nodeOutput,
         // Live ConversationThread snapshot so UI can render the running
         // thread panel (spec/conventions/conversation-thread.md §4 +
-        // spec/5-system/6-websocket-protocol.md §4.4.5).
-        conversationThread: cloneThread(context.conversationThread),
+        // spec/5-system/6-websocket-protocol.md §4.4.5). Secret-masked at this
+        // public EIA egress boundary (EIA §R17 / conversation-thread §8.4).
+        conversationThread: redactThreadForPublic(context.conversationThread),
       },
     );
 

@@ -740,6 +740,118 @@ describe('AiTurnOrchestrator', () => {
       ).toBe(true);
     });
 
+    // (b2) AI_MESSAGE 공개 표면(SSE·webhook·Chat Channel) egress secret 마스킹 (EIA §R17).
+    it('(b2) AI_MESSAGE emit 의 message·messages secret 은 egress 마스킹 (EIA §R17)', async () => {
+      const processMultiTurnMessage = jest.fn().mockResolvedValue({
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            message: 'reply Authorization: Bearer sk-AIMSG-LEAK-1',
+            messages: [
+              { role: 'assistant', content: 'note api_key=AKIA-AIMSG-2' },
+            ],
+            turnCount: 1,
+          },
+        },
+        meta: {},
+        status: 'waiting_for_input',
+        _resumeState: { messages: [], turnCount: 1, model: 'gpt' },
+      });
+      handlerRegistry.register(
+        'ai_agent',
+        {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(),
+          processMultiTurnMessage,
+          endMultiTurnConversation: jest.fn(),
+        } as unknown as NodeHandler,
+        { kind: 'blocking', interaction: 'ai_conversation' },
+      );
+      contextService.createContext(executionId, workflowId);
+
+      await invoke(executionId, null);
+
+      const call = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.AI_MESSAGE,
+      );
+      const payload = call?.[2] as {
+        message: string;
+        messages: unknown;
+      };
+      expect(payload.message).not.toContain('sk-AIMSG-LEAK-1');
+      expect(payload.message).toContain('***');
+      expect(JSON.stringify(payload.messages)).not.toContain('AKIA-AIMSG-2');
+      expect(JSON.stringify(payload.messages)).toContain('***');
+    });
+
+    // (b3) terminal branch(정상 turn 종료 emit)의 message/messages/presentations 마스킹.
+    it('(b3) 종료 turn AI_MESSAGE emit 의 message·messages·presentations secret 마스킹 (terminal branch)', async () => {
+      const processMultiTurnMessage = jest.fn().mockResolvedValue({
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            response: 'final Authorization: Bearer sk-TERM-LEAK-1',
+            messages: [
+              {
+                role: 'assistant',
+                content: 'done',
+                toolCalls: [
+                  {
+                    id: 'tc',
+                    name: 'http',
+                    arguments: '{"api_key":"AKIA-TERM-ARG"}',
+                  },
+                ],
+              },
+            ],
+            presentations: [
+              {
+                type: 'table',
+                payload: { rows: [['h', 'Bearer sk-TERM-PRES-3']] },
+              },
+            ],
+            turnCount: 2,
+          },
+        },
+        meta: { turnDebug: [] },
+        status: 'ended',
+        port: 'ended',
+        _resumeState: { messages: [], turnCount: 2, model: 'gpt' },
+      });
+      handlerRegistry.register(
+        'ai_agent',
+        {
+          validate: () => ({ valid: true, errors: [] }),
+          execute: jest.fn(),
+          processMultiTurnMessage,
+          endMultiTurnConversation: jest.fn(),
+        } as unknown as NodeHandler,
+        { kind: 'blocking', interaction: 'ai_conversation' },
+      );
+      contextService.createContext(executionId, workflowId);
+
+      await invoke(executionId, { id: 'ne-term', startedAt: new Date() });
+
+      const call = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) => c[1] === ExecutionEventType.AI_MESSAGE,
+      );
+      expect(call).toBeDefined();
+      const payload = call?.[2] as { message: string };
+      const blob = JSON.stringify(call?.[2]);
+      expect(payload.message).not.toContain('sk-TERM-LEAK-1');
+      expect(blob).not.toContain('AKIA-TERM-ARG');
+      expect(blob).not.toContain('sk-TERM-PRES-3');
+      expect(blob).toContain('***');
+      // messages[].toolCalls[].arguments JSON 은 깨지지 않아야 한다.
+      const msgs = (
+        call?.[2] as {
+          messages: Array<{ toolCalls?: Array<{ arguments: string }> }>;
+        }
+      ).messages;
+      const argStr = msgs[0]?.toolCalls?.[0]?.arguments;
+      if (argStr) expect(() => JSON.parse(argStr)).not.toThrow();
+    });
+
     // (c) nodeExecutionRepository.save 가 throw → error 로깅 후 recover, turn 은
     //     계속 진행 ({ ended:false }) 하고 후속 emit 도 정상 수행.
     it('(c) waiting 반환 + nodeExecutionRepository.save throw → error 로깅 후 recover, { ended:false }', async () => {

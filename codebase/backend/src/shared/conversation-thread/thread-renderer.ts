@@ -2,17 +2,103 @@ import {
   ConversationThread,
   ConversationTurn,
 } from './conversation-thread.types';
+import {
+  deepRedactSecrets,
+  redactSecrets,
+  redactSecretsInJsonString,
+} from '../utils/sanitize-error-message';
 
 /**
  * Snapshot a ConversationThread so the caller can pass the result outside the
- * mutation boundary (Background dispatch, WS emit) without leaking the live
- * `turns` reference. ConversationTurn objects are immutable post-push so a
- * deeper clone is unnecessary — only the wrapper + turns array are cloned.
+ * mutation boundary (Background dispatch, durable park-snapshot staging) without
+ * leaking the live `turns` reference. ConversationTurn objects are immutable
+ * post-push so a deeper clone is unnecessary — only the wrapper + turns array
+ * are cloned.
+ *
+ * **Not for public EIA emit** — this does NOT mask secrets. The public
+ * `getStatus` / SSE `waiting_for_input` surfaces must use
+ * {@link redactThreadForPublic} instead; `cloneThread` is for internal
+ * consumers (durable snapshot, Background isolation) that keep faithful text.
  *
  * SoT: spec/conventions/conversation-thread.md §3.2 (Background isolation).
  */
 export function cloneThread(thread: ConversationThread): ConversationThread {
   return { ...thread, turns: [...thread.turns] };
+}
+
+/**
+ * Public EIA egress boundary for a ConversationThread. Clones (so the result
+ * can be handed outside the mutation boundary) **and** masks secret-shaped
+ * tokens (`SECRET_LEAK_PATTERNS`) in the thread's **free-text** fields, so a
+ * node handler that violates the "no secrets in turn text" invariant cannot leak
+ * API keys / Bearer tokens / Authorization headers through the public
+ * `getStatus` (REST) or SSE `waiting_for_input` surfaces.
+ *
+ * **Masked fields**:
+ * - `turns[].text` and `runningSummary` — free text via `redactSecrets`.
+ * - `turns[].data` and `turns[].presentations[].payload` — structured objects,
+ *   deep-walked with `deepRedactSecrets` (string leaves only).
+ * - `turns[].toolCalls[].arguments` — a raw JSON string, masked JSON-safely
+ *   (`redactSecretsInJsonString`: parse → deep-redact leaves → re-serialize) so
+ *   the tool-call JSON stays valid.
+ *
+ * SoT: spec/5-system/14-external-interaction-api.md §R17 (public surface
+ * hardening) + spec/conventions/conversation-thread.md §8.4. Both the REST
+ * `getStatus` response and the SSE waiting emits route through this single
+ * helper so the two paths stay consistent.
+ *
+ * **Egress-only, by design**: internal consumers — LLM context injection,
+ * durable park snapshot (`Execution.conversation_thread`), Background body — keep
+ * the faithful text. Redacting at write time would also mutate the LLM-injected
+ * thread, where the conservative shared patterns (notably `Bearer\s+\S+`) can
+ * false-positive on ordinary conversational prose and silently corrupt context.
+ *
+ * Copy-on-change throughout: turns/fields with nothing to mask are returned by
+ * reference (mirrors `applyCap`'s truncation copy strategy). The input thread is
+ * never mutated.
+ */
+export function redactThreadForPublic(
+  thread: ConversationThread,
+): ConversationThread {
+  return {
+    ...thread,
+    ...(thread.runningSummary !== undefined
+      ? { runningSummary: redactSecrets(thread.runningSummary) }
+      : {}),
+    turns: thread.turns.map(redactTurnForPublic),
+  };
+}
+
+function redactTurnForPublic(turn: ConversationTurn): ConversationTurn {
+  const text = redactSecrets(turn.text);
+  const data =
+    turn.data !== undefined
+      ? (deepRedactSecrets(turn.data) as Record<string, unknown>)
+      : undefined;
+  const toolCalls = turn.toolCalls?.map((tc) => {
+    const args = redactSecretsInJsonString(tc.arguments);
+    return args === tc.arguments ? tc : { ...tc, arguments: args };
+  });
+  const presentations = turn.presentations?.map((p) => {
+    const payload = deepRedactSecrets(p.payload) as Record<string, unknown>;
+    return payload === p.payload ? p : { ...p, payload };
+  });
+
+  const changed =
+    text !== turn.text ||
+    data !== turn.data ||
+    (toolCalls !== undefined &&
+      toolCalls.some((tc, i) => tc !== turn.toolCalls?.[i])) ||
+    (presentations !== undefined &&
+      presentations.some((p, i) => p !== turn.presentations?.[i]));
+  if (!changed) return turn; // frozen turn preserved by reference
+  return {
+    ...turn,
+    text,
+    ...(turn.data !== undefined ? { data } : {}),
+    ...(toolCalls !== undefined ? { toolCalls } : {}),
+    ...(presentations !== undefined ? { presentations } : {}),
+  };
 }
 
 /** spec/conventions/conversation-thread.md §5.3 */

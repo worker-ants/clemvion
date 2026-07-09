@@ -21,7 +21,7 @@ import {
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
-import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
+import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 import {
   PARK_RELEASED,
   type ProcessTurnResult,
@@ -417,8 +417,9 @@ export class ButtonInteractionService {
         // 미정 row 를 timeline 마지막으로 보내는 것을 방지.
         startedAt: nodeExec?.startedAt?.toISOString?.(),
         interactionType: 'buttons',
-        // Live thread snapshot for UI (button waiting tick).
-        conversationThread: cloneThread(context.conversationThread),
+        // Live thread snapshot for UI (button waiting tick). Secret-masked at
+        // this public EIA egress boundary (EIA §R17 / conversation-thread §8.4).
+        conversationThread: redactThreadForPublic(context.conversationThread),
         buttonConfig: {
           buttons,
           nodeOutput: nodeOutputForEvent,

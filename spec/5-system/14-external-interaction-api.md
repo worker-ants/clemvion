@@ -1129,18 +1129,50 @@ interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/a
 도 "buffer 만료 시 `GET /:id` snapshot(현재 `conversationThread`)으로 재동기화"를 이미 계약으로 두어 본 생략과
 모순이었다. 따라서 `getStatus` 가 waiting 시 durable thread 를 동봉하도록 **좁게 확장**해 reload 복원을 buffer 무관·
 재시작 무관으로 견고화한다. 표면 확장은 **이미 SSE `waiting_for_input` 으로 공개 중인 `conversationThread` 를 REST
-단발 응답에도 read-only 로 노출**하는 것뿐이라 신규 민감 데이터 표면이 아니다(아래 outputData 표면 제약과 동일 정책 —
-노드 핸들러는 thread turn 텍스트에 민감 중간결과를 남기지 않는다).
+단발 응답에도 read-only 로 노출**하는 것뿐이라 신규 민감 데이터 표면이 아니다(아래 "표면 제약(보안)" 과 동일 정책 —
+노드 핸들러는 thread turn 텍스트에 민감 중간결과를 남기지 않으며, 이 불변식은 `redactThreadForPublic` egress 마스킹으로
+런타임 강제된다).
 
 **기각 대안**: (a) *SSE 전용 유지 + buffer 만료 시 위젯이 재조회* — 그 재조회(`getStatus`)가 thread 를 안 주므로
 순환(만료 시 되살릴 소스 부재)이라 문제를 못 푼다. (b) *`NodeExecution.output_data` 분산 저장에서 thread 재구성* —
 `runningSummary` 등 thread 메타가 per-node 에 없어 무손실 복원 불가([conversation-thread §8.4](../conventions/conversation-thread.md)
 가 이미 동일 사유로 기각). durable 컬럼 직접 노출이 무손실·단순해 채택.
 
-**outputData 표면 제약(보안)**: `getStatus`·SSE fanout 모두 `NodeExecution.outputData` 를 `nodeOutput` 으로 동봉하므로
-이 컬럼은 **공개 EIA 표면**으로 흘러간다. 노드 핸들러는 `outputData` 에 민감 중간결과(secret·내부 토큰 등)를 기록하지
-않아야 한다(현재 `withInteractionMeta` 관례 + `getStatus` JSDoc 제약으로 명문화). 허용 키 런타임 allowlist 필터는 후속
-하드닝 항목이다.
+**표면 제약(보안)**: `getStatus`·SSE fanout 모두 `NodeExecution.outputData`(→`nodeOutput`)와 `conversationThread`
+를 동봉하므로 이들은 **공개 EIA 표면**으로 흘러간다. 노드 핸들러는 여기에 민감 중간결과(secret·내부 토큰 등)를
+기록하지 않아야 한다.
+
+- **`conversationThread` (강제됨)**: "노드 핸들러는 turn 텍스트에 민감정보(API 키·Bearer 토큰·Authorization 헤더
+  등)를 남기지 않는다"는 불변식은 이제 **런타임 강제**된다 — REST `getStatus` 와 SSE `waiting_for_input` emit 이
+  **공유하는 단일 helper `redactThreadForPublic`** 가 egress 시 마스킹한다(두 경로가 같은 helper 를 거쳐 REST·SSE
+  일관). 모든 마스킹은 `shared/utils/sanitize-error-message.ts` 의 `SECRET_LEAK_PATTERNS`/`CREDENTIAL_KEY_PATTERN`
+  (에러 메시지 sanitizer 와 동일 SoT)을 재사용한다.
+  - **자유 텍스트**: `turns[].text`·`runningSummary` → `redactSecrets`(값 패턴).
+  - **구조화 필드**: `turns[].data`·`presentations[].payload` → `deepRedactSecrets`(문자열 leaf 값 패턴 + credential
+    키 이름 매칭). `turns[].toolCalls[].arguments`(raw JSON 문자열) → `redactSecretsInJsonString`(파싱→deep
+    redaction→재직렬화)로 **JSON 을 깨지 않고** 마스킹한다.
+  - **egress-only(의도)**: 내부 소비처(LLM 컨텍스트 주입, durable park 스냅샷 `Execution.conversation_thread`,
+    Background body)는 faithful 텍스트를 유지한다. 저장 시점(append) redaction 은 LLM 주입 thread 까지 변형하고,
+    보수적 공유 패턴(특히 `Bearer\s+\S+`)이 평문 대화에 false-positive 하면 컨텍스트를 조용히 손상시키므로 채택하지
+    않았다. 따라서 **DB-at-rest 최소화(append-time redaction)는 문서화된 후속 항목**이다(데이터 최소화가 요구가 될 때).
+- **`execution.ai_message` 라이브 이벤트 (강제됨)**: 같은 AI turn 텍스트가 `AI_MESSAGE.message`/`.messages[]`/
+  `.presentations[]` 로도 emit 되며(§5.2) SSE 스트림·아웃바운드 webhook fanout·Chat Channel(텔레그램 등 능동 발송)
+  로 흘러간다. 두 emit site(ai-turn-orchestrator 의 waiting/terminal branch)에서 `redactSecrets`(message)/
+  `deepRedactSecrets`(messages·presentations)로 egress 마스킹한다. `messages[].toolCalls[].arguments`(중첩 JSON
+  문자열)도 `deepRedactSecrets` 의 JSON-safe leaf 처리로 깨지지 않게 마스킹된다.
+  - **내부 WS·Chat Channel 도 마스킹됨(수용된 trade-off)**: 이 마스킹은 emit-site 라 내부 WS(에디터) wire envelope
+    과 Chat Channel 능동 발송(텔레그램/슬랙/디스코드)에도 적용된다. 보수적 패턴(특히 `Bearer\s+\S+`, `pwd:`)이
+    기술 대화체에 false-positive 하면 이미 사용자에게 전달된 응답이 `***` 로 바뀔 수 있다. **보안 우선**(실 secret 을
+    외부 채널로 흘리지 않음)으로 이 rare FP 를 수용하며, 에디터는 external-only strip 되지 않는 `llmCalls` 디버그로
+    원문을 확인할 수 있다. participant-vs-observer 분리 egress(예: 관찰자 표면만 마스킹)는 후속 개선 여지.
+- **`nodeOutput.conversationConfig` (강제됨 — bypass 차단)**: `waiting_for_input` emit 과 `getStatus` 는
+  `nodeOutput.conversationConfig.{message,messages,presentations}` 로 위 ai_message·thread 와 **동일한 AI 텍스트**를
+  실어 나른다. 이 표면이 마스킹을 우회하지 않도록, ai-turn-orchestrator 의 두 waiting emit 은 conversationConfig 를
+  `deepRedactSecrets` 로 마스킹하고(에디터 전용 `turnDebug.llmCalls` 는 건드리지 않음), `getStatus` 는 `nodeOutput`
+  전체를 `deepRedactSecrets` 로 마스킹한다(REST 는 sanitizePayloadForWs 미적용 경로라 필수).
+- **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
+  제한하는 런타임 allowlist 필터(SSE 는 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어)는 위 값/키
+  기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.
 
 ### R18. `execution.message` — 표시-전용 presentation 노드 자동 진행 메시지 신설 (결정 2026-06-25)
 

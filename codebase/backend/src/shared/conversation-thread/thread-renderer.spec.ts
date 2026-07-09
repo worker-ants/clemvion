@@ -4,6 +4,7 @@ import {
   MAX_INJECTED_CHARS,
   MAX_INJECTED_TURNS,
   MAX_TURN_TEXT_CHARS,
+  redactThreadForPublic,
   renderInteractionText,
   renderThreadAsSystemText,
 } from './thread-renderer';
@@ -230,6 +231,173 @@ describe('cloneThread (Background isolation §3.2)', () => {
     expect(clone.id).toBe(original.id);
     expect(clone.nextSeq).toBe(original.nextSeq);
     expect(clone.totalChars).toBe(original.totalChars);
+  });
+});
+
+describe('redactThreadForPublic (EIA egress secret masking §R17)', () => {
+  function makeThread(turns: ConversationTurn[]): ConversationThread {
+    return {
+      id: 'default',
+      nextSeq: turns.length,
+      turns,
+      totalChars: turns.reduce((n, t) => n + t.text.length, 0),
+    };
+  }
+
+  it('masks Bearer tokens in turn text', () => {
+    const thread = makeThread([
+      makeTurn({
+        source: 'ai_tool',
+        text: 'called API with Authorization: Bearer sk-live-abc123DEF.tok',
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0].text).not.toContain('sk-live-abc123DEF');
+    expect(out.turns[0].text).toContain('***');
+  });
+
+  it('masks secret-keyword assignments (api_key / password / secret)', () => {
+    const thread = makeThread([
+      makeTurn({ text: 'api_key=AKIAIOSFODNN7EXAMPLE and password: hunter2' }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0].text).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(out.turns[0].text).not.toContain('hunter2');
+  });
+
+  it('masks toolCalls[].arguments JSON-safely (secret masked, JSON still valid)', () => {
+    // A raw JSON string must be parsed → deep-redacted → re-serialized so the
+    // secret is masked WITHOUT corrupting the JSON (`{"api_key":"x"}` must not
+    // become `{***}`, which fails JSON.parse).
+    const argsJson =
+      '{"url":"https://x","headers":{"Authorization":"Bearer sk-live-TOOLARG-77"}}';
+    const thread = makeThread([
+      makeTurn({
+        source: 'ai_assistant',
+        text: 'calling tool',
+        toolCalls: [{ id: 'tc1', name: 'http_request', arguments: argsJson }],
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    const masked = out.turns[0].toolCalls![0].arguments;
+    expect(masked).not.toContain('sk-live-TOOLARG-77');
+    // Still valid JSON, and the non-secret structure/keys survive.
+    const parsed = JSON.parse(masked) as {
+      url: string;
+      headers: { Authorization: string };
+    };
+    expect(parsed.url).toBe('https://x');
+    expect(parsed.headers.Authorization).toContain('***');
+  });
+
+  it('deep-masks secrets in structured turn.data (string leaves)', () => {
+    const data = { nested: { note: 'key is api_key=AKIAIOSFODNN7EXAMPLE' } };
+    const thread = makeThread([makeTurn({ text: 'hi', data })]);
+    const out = redactThreadForPublic(thread);
+    const outData = out.turns[0].data as { nested: { note: string } };
+    expect(outData.nested.note).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    expect(outData.nested.note).toContain('***');
+  });
+
+  it('deep-masks secrets in presentations[].payload', () => {
+    const thread = makeThread([
+      makeTurn({
+        source: 'ai_assistant',
+        text: 'render',
+        presentations: [
+          {
+            type: 'table',
+            toolCallId: 't1',
+            renderedAt: 'r',
+            payload: { rows: [['token', 'Bearer sk-live-PRES-9']] },
+          },
+        ],
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(JSON.stringify(out.turns[0].presentations)).not.toContain(
+      'sk-live-PRES-9',
+    );
+    expect(JSON.stringify(out.turns[0].presentations)).toContain('***');
+  });
+
+  it('masks secret-shaped tokens in runningSummary', () => {
+    const thread: ConversationThread = {
+      ...makeThread([makeTurn({ text: 'hi' })]),
+      runningSummary: 'user shared client_secret=super-secret-value earlier',
+    };
+    const out = redactThreadForPublic(thread);
+    expect(out.runningSummary).not.toContain('super-secret-value');
+    expect(out.runningSummary).toContain('***');
+  });
+
+  it('returns clean turns by reference (no re-allocation when nothing to mask)', () => {
+    const thread = makeThread([
+      makeTurn({ seq: 0, text: 'hello there' }),
+      makeTurn({ seq: 1, source: 'ai_assistant', text: '반갑습니다' }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    // Wrapper + turns array are fresh (safe to hand outside the boundary)...
+    expect(out).not.toBe(thread);
+    expect(out.turns).not.toBe(thread.turns);
+    // ...but unchanged turn objects are shared (mirrors applyCap copy strategy).
+    expect(out.turns[0]).toBe(thread.turns[0]);
+    expect(out.turns[1]).toBe(thread.turns[1]);
+  });
+
+  it('preserves turn reference when structured fields are present but hold no secret', () => {
+    // Copy-on-change must hold even when data/toolCalls/presentations exist —
+    // a naive "always re-allocate if field present" would break identity.
+    const turn = makeTurn({
+      seq: 0,
+      source: 'ai_assistant',
+      text: 'clean reply',
+      data: { choice: 'yes', count: 3 },
+      toolCalls: [{ id: 't', name: 'kb', arguments: '{"q":"hours"}' }],
+      presentations: [
+        {
+          type: 'table',
+          toolCallId: 't',
+          renderedAt: 'r',
+          payload: { rows: [['a', 'b']] },
+        },
+      ],
+    });
+    const out = redactThreadForPublic(makeThread([turn]));
+    expect(out.turns[0]).toBe(turn);
+  });
+
+  it('does not mutate the input thread or its turns', () => {
+    const turn = makeTurn({
+      text: 'Authorization: Bearer secrettoken0987654321',
+    });
+    const thread = makeThread([turn]);
+    redactThreadForPublic(thread);
+    expect(thread.turns[0].text).toBe(
+      'Authorization: Bearer secrettoken0987654321',
+    );
+    expect(thread.turns[0]).toBe(turn);
+  });
+
+  it('preserves non-text metadata (seq, nodeId, source, timestamp)', () => {
+    const thread = makeThread([
+      makeTurn({
+        seq: 7,
+        nodeId: 'node-x',
+        source: 'ai_tool',
+        text: 'token=Bearer abcdefghijklmnop',
+        timestamp: '2026-07-09T00:00:00.000Z',
+      }),
+    ]);
+    const out = redactThreadForPublic(thread);
+    expect(out.turns[0]).toMatchObject({
+      seq: 7,
+      nodeId: 'node-x',
+      source: 'ai_tool',
+      timestamp: '2026-07-09T00:00:00.000Z',
+    });
+    expect(out.nextSeq).toBe(thread.nextSeq);
+    expect(out.id).toBe(thread.id);
   });
 });
 

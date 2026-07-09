@@ -24,8 +24,12 @@ import {
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
-import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
-import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
+import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
+import {
+  deepRedactSecrets,
+  redactSecrets,
+  sanitizeLastErrorMessage,
+} from '../../shared/utils/sanitize-error-message';
 import { extractRetryAfterMs } from '../../shared/utils/retry-after';
 import {
   adaptHandlerReturn,
@@ -434,7 +438,7 @@ export class AiTurnOrchestrator {
 
     const initialConv = buildConversationConfigFromOutput(
       structuredOutput,
-      structuredConfig as Record<string, unknown> | undefined,
+      structuredConfig,
     );
 
     await this.eventEmitter.emitExecution(
@@ -455,19 +459,23 @@ export class AiTurnOrchestrator {
         // 유지 (snapshot reconcile 의 nested 읽기 / 기존 e2e assertion 안전 보존).
         interactionType: initialInteractionType,
         // Live thread snapshot for UI (spec/conventions/conversation-thread.md §4
-        // + spec/5-system/6-websocket-protocol.md §4.4.5).
-        conversationThread: cloneThread(context.conversationThread),
+        // + spec/5-system/6-websocket-protocol.md §4.4.5). Secret-masked at this
+        // public EIA egress boundary (EIA §R17 / conversation-thread §8.4).
+        conversationThread: redactThreadForPublic(context.conversationThread),
         nodeOutput: {
           interactionType: initialInteractionType,
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
             ? { config: structuredConfig }
             : {}),
-          conversationConfig: {
+          // EIA §R17 — conversationConfig 는 message/messages(같은 AI 텍스트)를
+          // 실어 공개 표면으로 나가므로 egress 마스킹(ai_message/thread 우회 차단).
+          // turnDebug.llmCalls(에디터 전용 원문)는 건드리지 않도록 여기만 마스킹.
+          conversationConfig: deepRedactSecrets({
             ...initialConv,
             ...(initialPendingFormToolCall
               ? { pendingFormToolCall: initialPendingFormToolCall }
               : {}),
-          },
+          }) as Record<string, unknown>,
           // run-results UI 의 References / LLM Usage 탭이 진행 중에도 동작하도록
           // _resumeState 의 누적치를 meta.* 로 펼쳐 노출. _resumeState 자체는
           // system prompt / llmConfigId 등 internal 필드를 포함하므로 client 에
@@ -728,11 +736,19 @@ export class AiTurnOrchestrator {
           // 정확한 row 에 message 를 라우팅한다.
           nodeExecutionId: nodeExec?.id,
           nodeId: node.id,
-          message: nextConv.message,
+          // EIA §R17 — `execution.ai_message` 는 SSE·webhook·Chat Channel(외부
+          // 발송) 로 나가는 공개 표면이므로 free-text/구조화 필드를 egress 마스킹.
+          message: redactSecrets(nextConv.message),
           turnCount: nextConv.turnCount,
-          messages: nextConv.messages,
+          messages: deepRedactSecrets(nextConv.messages) as Array<
+            Record<string, unknown>
+          >,
           ...(nextConv.presentations
-            ? { presentations: nextConv.presentations }
+            ? {
+                presentations: deepRedactSecrets(
+                  nextConv.presentations,
+                ) as typeof nextConv.presentations,
+              }
             : {}),
           metadata: {
             model: nextResumeState.model,
@@ -769,8 +785,10 @@ export class AiTurnOrchestrator {
       // via contextService — single Map access.
       const liveThread =
         this.contextService.getContext(contextKey)?.conversationThread;
+      // Secret-masked at this public EIA egress boundary (multi-turn follow-up
+      // waiting emit) — EIA §R17 / conversation-thread §8.4.
       const conversationThreadSnapshot = liveThread
-        ? cloneThread(liveThread)
+        ? redactThreadForPublic(liveThread)
         : undefined;
       await this.eventEmitter.emitExecution(
         executionId,
@@ -796,10 +814,11 @@ export class AiTurnOrchestrator {
             ...(adaptedConfig && Object.keys(adaptedConfig).length > 0
               ? { config: adaptedConfig }
               : {}),
-            conversationConfig: {
+            // EIA §R17 — conversationConfig egress 마스킹 (위 initial emit 과 동일).
+            conversationConfig: deepRedactSecrets({
               ...nextConv,
               ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
-            },
+            }) as Record<string, unknown>,
             // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
             // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
             // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)
@@ -844,11 +863,19 @@ export class AiTurnOrchestrator {
         // 같은 nodeId 의 conversation 이 여러 row 일 수 있다.
         nodeExecutionId: nodeExec?.id,
         nodeId: node.id,
-        message: responseText,
+        // EIA §R17 — 공개 표면(SSE·webhook·Chat Channel) egress 마스킹. (위 waiting
+        // branch 와 동일 정책; 내부 WS 는 sanitizePayloadForWs 만.)
+        message: redactSecrets(responseText),
         turnCount,
-        messages: condMessages,
+        messages: deepRedactSecrets(condMessages) as Array<
+          Record<string, unknown>
+        >,
         ...(terminalPresentations
-          ? { presentations: terminalPresentations }
+          ? {
+              presentations: deepRedactSecrets(
+                terminalPresentations,
+              ) as typeof terminalPresentations,
+            }
           : {}),
         metadata: {
           model: metaSource.model,

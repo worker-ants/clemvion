@@ -609,6 +609,72 @@ describe('InteractionService.getStatus', () => {
     });
   });
 
+  it('waiting_for_input — durable thread turn 텍스트의 secret 은 egress 시 마스킹 (EIA §R17)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    const threadWithSecret = {
+      id: 'default',
+      nextSeq: 1,
+      turns: [
+        {
+          seq: 0,
+          nodeId: 'n1',
+          nodeType: 'ai_agent',
+          source: 'ai_tool',
+          text: 'API replied Authorization: Bearer sk-live-LEAKED-9988',
+          timestamp: 't0',
+        },
+      ],
+      totalChars: 52,
+    };
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        conversationThread: threadWithSecret as never,
+      }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: { meta: { interactionType: 'ai_conversation' } },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const ctx = r.context as {
+      conversationThread: { turns: { text: string }[] };
+    };
+    expect(ctx.conversationThread.turns[0].text).not.toContain(
+      'sk-live-LEAKED-9988',
+    );
+    expect(ctx.conversationThread.turns[0].text).toContain('***');
+  });
+
+  it('waiting_for_input — nodeOutput.conversationConfig 의 secret 도 마스킹 (bypass 차단, EIA §R17)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: {
+        meta: { interactionType: 'ai_conversation' },
+        conversationConfig: {
+          placeholder: '메시지 입력',
+          message: 'reply Authorization: Bearer sk-NODEOUT-LEAK',
+          headers: { api_key: 'AKIA-NODEOUT-2' },
+        },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const nodeOutput = (r.context as { nodeOutput: Record<string, unknown> })
+      .nodeOutput;
+    const blob = JSON.stringify(nodeOutput);
+    expect(blob).not.toContain('sk-NODEOUT-LEAK');
+    expect(blob).not.toContain('AKIA-NODEOUT-2');
+    expect(blob).toContain('***');
+    // 비-secret 필드는 보존.
+    expect(blob).toContain('메시지 입력');
+  });
+
   it('종료(COMPLETED) execution 은 conversationThread 를 노출하지 않는다 (context null — 회귀 가드)', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     // durable thread 가 있어도 waiting 이 아니면 context 자체가 null 이어야 한다.

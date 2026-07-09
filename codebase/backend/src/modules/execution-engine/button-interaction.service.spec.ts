@@ -169,6 +169,50 @@ describe('ButtonInteractionService', () => {
       );
     });
 
+    it('waiting emit 의 conversationThread turn 텍스트 secret 은 egress 마스킹 (EIA §R17 — SSE 경로)', async () => {
+      const nodeId = 'node-btn-secret';
+      const buttonConfig: ButtonConfig = {
+        buttons: [{ id: 'b1', type: 'port', label: 'B1' }],
+      };
+      const ctx = seedButtonContext(nodeId, buttonConfig);
+      // 노드 핸들러가 turn 텍스트에 secret 을 남긴 위반 상황을 시뮬레이션.
+      conversationThreadService.appendAiAssistantMessage(ctx, {
+        node: { id: nodeId, label: 'B', type: 'buttons' },
+        content: 'response Authorization: Bearer sk-live-SSE-LEAK-42',
+      });
+      mockNodeExecutionRepository.findOne.mockResolvedValueOnce({
+        id: 'ne-park',
+        nodeId,
+        startedAt: new Date(),
+      });
+
+      await service.waitForButtonInteraction(
+        makeExecution(),
+        execId,
+        makeButtonNode(nodeId),
+        ctx,
+        [],
+      );
+
+      const call = mockEventEmitter.emitExecution.mock.calls.find(
+        (c) =>
+          (c[2] as { conversationThread?: unknown })?.conversationThread !==
+          undefined,
+      );
+      const payload = call?.[2] as {
+        conversationThread?: { turns: { text: string }[] };
+      };
+      const texts = (payload.conversationThread?.turns ?? [])
+        .map((t) => t.text)
+        .join(' ');
+      expect(texts).not.toContain('sk-live-SSE-LEAK-42');
+      expect(texts).toContain('***');
+      // 원본 in-memory thread(LLM/durable 경로)는 faithful 유지 — egress-only.
+      expect(ctx.conversationThread.turns.at(-1)?.text).toContain(
+        'sk-live-SSE-LEAK-42',
+      );
+    });
+
     it('buttonConfig 부재 → MISSING_BUTTON_CONFIG throw', async () => {
       const nodeId = 'node-btn-missing';
       const ctx = contextService.createContext(execId, wfId);
