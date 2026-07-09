@@ -86,4 +86,23 @@ describe("VariablePicker container scope gating", () => {
     fireEvent.click(getByText("기본 제공"));
     expect(queryByText("$today")).toBeNull();
   });
+
+  // $params was added to ROOT_VARIABLES, which flows into BUILT_IN_PICKER_VARIABLES
+  // (it is not on the $input/$node/$var exclusion list). Guard that surface.
+  it("exposes $params in the Built-in section and inserts it literally on click", () => {
+    const onInsert = vi.fn();
+    const { getByText } = render(
+      <VariablePicker
+        expressionData={makeData()}
+        onInsert={onInsert}
+        open={true}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(getByText("기본 제공"));
+    const item = getByText("$params");
+    expect(item).not.toBeNull();
+    fireEvent.click(item);
+    expect(onInsert).toHaveBeenCalledWith("$params");
+  });
 });

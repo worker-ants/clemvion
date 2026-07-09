@@ -29,8 +29,9 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
 `output.parameters.<name>` (타입은 param 의 `type` 으로 매핑)으로 projection 하여
 `$node["Manual Trigger"].output.parameters.<name>` (및 직속 successor 의
 `$input.parameters.<name>`) 이 실행 전에도 자동완성되게 한다. 기존 4개 enricher 와
-동일 패턴·동일 안전장치. (주의: `$params` 루트 변수의 하위키 자동완성은 별개
-관심사로 본 enricher 영향권 밖 — ai-review WARNING #1 정정.)
+동일 패턴·동일 안전장치. (`$params.<name>` 하위키 자동완성도 직속 successor 한정으로
+본 enricher 가 채운 `inputSchema.parameters` 를 재사용한다 — 후속
+[`trigger-params-autocomplete.md`](trigger-params-autocomplete.md) 에서 구현.)
 
 ## 수정 대상
 
@@ -67,8 +68,9 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
   축약 표기를 `output.parameters: $params` 로 명확화 (§3.2/§5.1 JSON 예시와 통일).
   사용자가 겪은 `config.parameters` vs `output.parameters` 혼동과 동일 계열의 문서 정밀성 이슈.
   (impl-prep + ai-review 양쪽 지적, pre-existing.)
-- [ ] (frontend, 후속) `$params.<name>` root shortcut 하위키 자동완성 — `$params` 는 root
-  변수 목록 미등록이라 본 enricher 영향권 밖. [`node-output-redesign/manual-trigger.md`](node-output-redesign/manual-trigger.md) line 140 잔여 항목과 동일.
+- [x] (frontend, 후속) `$params.<name>` root shortcut 하위키 자동완성 — **해소** (2026-07-10,
+  [`trigger-params-autocomplete.md`](trigger-params-autocomplete.md)): `ROOT_VARIABLES` 에 `$params` 추가 +
+  `$params.` drill 핸들러(소스 = `$input.parameters`). [`node-output-redesign/manual-trigger.md`](node-output-redesign/manual-trigger.md) line 140 도 완전 해소로 갱신.
 - [ ] (refactor, 후속) enricher DRY: 공용 `projectFieldsIntoSchema` 헬퍼 + `ENRICHERS`
   디스패치 테이블 (ai-review W3/W4). 기존 4개 enricher 동반 수정이라 별도 PR — 6번째
   enricher 추가 시점 트리거.

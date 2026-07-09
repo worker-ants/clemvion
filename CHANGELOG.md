@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — `$params.<name>` 표현식 자동완성 (5-system/5-expression §7.1)
+
+### 변경 사항
+
+1. **에디터 표현식 자동완성이 `$params` 를 최상위 변수로 노출하고 `$params.<name>` 하위키를 힌트한다** — `trigger-param-output-enricher`(§7.2 enricher) 후속. spec 은 이미 `$params`(= `$input.parameters` 단축, §5:171·manual-trigger §5:150)를 규정했으나 프론트 자동완성엔 미등록이라 `$params` 가 후보로도 안 떴다. `ROOT_VARIABLES` 에 `$params`(expandable) 를 추가하고 `$params.` drill 핸들러를 추가해, `$params ≡ $input.parameters` 소스(트리거 직속 successor 는 enricher 로 enrich 된 `inputSchema.parameters`)에서 파라미터 이름을 자동완성한다. 값 없는 노드에선 하위키가 비어(오도 없음) `$input` 과 동일 정책. 프론트 전용 UX 힌트로 런타임·엔진·백엔드 무변경, spec 변경 없음(구현 catch-up). §7.1 트리거 조건 표에 `$params.` 행 동기화. SoT: `spec/5-system/5-expression-language.md §7.1`.
+
 ## Unreleased — Manual Trigger 파라미터 표현식 자동완성 힌트 (5-system/5-expression §7.2)
 
 ### 변경 사항

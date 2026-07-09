@@ -25,6 +25,11 @@ export interface RootVariable extends Suggestion {
  */
 export const ROOT_VARIABLES: RootVariable[] = [
   { label: "$input", insertText: "$input", type: "variable", detail: "Previous node output", isExpandable: true },
+  // Shortcut for $input.parameters (resolver `paramsFromInput`). Unlike
+  // $input/$node/$var it has no dedicated variable-picker section, so it is left
+  // OUT of BUILT_IN_PICKER_VARIABLES' exclusion list below — i.e. it shows as a
+  // flat built-in (literal insert), same as $trigger/$env/$execution.
+  { label: "$params", insertText: "$params", type: "variable", detail: "Trigger parameters shortcut (= $input.parameters)", isExpandable: true },
   { label: "$node", insertText: '$node["', type: "variable", detail: "Specific node output", isExpandable: true },
   { label: "$var", insertText: "$var", type: "variable", detail: "Workflow variables", isExpandable: true },
   { label: "$execution", insertText: "$execution", type: "variable", detail: "Execution context", isExpandable: true },
