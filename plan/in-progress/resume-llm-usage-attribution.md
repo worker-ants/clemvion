@@ -68,3 +68,12 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 - [ ] `spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4 —
       credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`, caller opts
       전달, node.config 재유도 불가)" 문구 추가 (consistency rationale_continuity WARNING 반영).
+
+### 최종 /ai-review(02_09_15) INFO — 선택적 후속 (review-loop 재무장 방지로 본 PR 미포함)
+
+- [ ] `ai-turn-executor.ts:2599` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1 — 필드
+      오탈자 컴파일 타임 차단, 저비용·고가치. 코드 변경이라 별도 PR 로).
+- [ ] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
+      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정).
+- [ ] IE `runTurnWithCollectionRetries` collection-retry 루프에 ai_agent tool-loop 와 대칭인
+      2번째 chat attribution 단언 테스트 추가(INFO#4).
