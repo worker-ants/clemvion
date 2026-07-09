@@ -410,6 +410,10 @@ export const nodeConfigs = {
     inputParametersHint: "다운스트림 노드에서 {{ $params.<name> }} 또는 {{ $input.parameters.<name> }}로 접근합니다.",
     parameterLabel: "파라미터 {{index}}",
     parameterNamePlaceholder: "파라미터 이름 (예: orderId)",
+    errorNameRequired: "파라미터 이름을 입력하세요.",
+    errorNameInvalid:
+      "이름은 영문자·밑줄로 시작하고 영문자·숫자·밑줄만 쓸 수 있어요.",
+    errorNameDuplicate: "파라미터 이름이 중복돼요.",
     typeString: "문자열",
     typeNumber: "숫자",
     typeBoolean: "불리언",

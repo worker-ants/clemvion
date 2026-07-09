@@ -1,12 +1,18 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 import { SectionTitle } from "./shared";
 import { useT } from "@/lib/i18n";
 import type { TriggerParameterDefinition } from "@/lib/api/triggers";
 
 type Config = Record<string, unknown>;
 type OnChange = (c: Config) => void;
+
+// Mirror of the backend identifier rule (resolve-trigger-parameters.ts). A name
+// that fails this is rejected by the save-time gate (validateManualTrigger), so
+// flag it inline here to give immediate feedback instead of a save-time 400.
+const PARAM_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function ManualTriggerConfig({
   config,
@@ -17,6 +23,20 @@ export function ManualTriggerConfig({
 }) {
   const t = useT();
   const parameters = (config.parameters as TriggerParameterDefinition[]) ?? [];
+
+  const nameCounts = parameters.reduce<Record<string, number>>((acc, p) => {
+    if (p.name) acc[p.name] = (acc[p.name] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const nameError = (p: TriggerParameterDefinition): string | null => {
+    if (!p.name) return t("nodeConfigs.trigger.errorNameRequired");
+    if (!PARAM_NAME_RE.test(p.name))
+      return t("nodeConfigs.trigger.errorNameInvalid");
+    if ((nameCounts[p.name] ?? 0) > 1)
+      return t("nodeConfigs.trigger.errorNameDuplicate");
+    return null;
+  };
 
   const addParameter = () =>
     onChange({
@@ -50,31 +70,40 @@ export function ManualTriggerConfig({
       <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
         {t("nodeConfigs.trigger.inputParametersHint")}
       </span>
-      {parameters.map((p, i) => (
-        <div
-          key={i}
-          className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              {t("nodeConfigs.trigger.parameterLabel", { index: i + 1 })}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5"
-              onClick={() => removeParameter(i)}
-              aria-label={t("nodeConfigs.trigger.removeParameterAria", { index: i + 1 })}
-            >
-              <X size={10} />
-            </Button>
-          </div>
-          <Input
-            value={p.name}
-            onChange={(e) => updateParameter(i, "name", e.target.value)}
-            placeholder={t("nodeConfigs.trigger.parameterNamePlaceholder")}
-            className="h-7 text-xs"
-          />
+      {parameters.map((p, i) => {
+        const nameErr = nameError(p);
+        return (
+          <div
+            key={i}
+            className="flex flex-col gap-1 rounded border border-[hsl(var(--border))] p-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                {t("nodeConfigs.trigger.parameterLabel", { index: i + 1 })}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5"
+                onClick={() => removeParameter(i)}
+                aria-label={t("nodeConfigs.trigger.removeParameterAria", { index: i + 1 })}
+              >
+                <X size={10} />
+              </Button>
+            </div>
+            <Input
+              value={p.name}
+              onChange={(e) => updateParameter(i, "name", e.target.value)}
+              placeholder={t("nodeConfigs.trigger.parameterNamePlaceholder")}
+              aria-invalid={nameErr !== null}
+              className={cn(
+                "h-7 text-xs",
+                nameErr && "border-red-500 focus-visible:ring-red-500",
+              )}
+            />
+            {nameErr && (
+              <span className="text-[10px] text-red-500">{nameErr}</span>
+            )}
           <select
             value={p.type}
             onChange={(e) =>
@@ -111,8 +140,9 @@ export function ManualTriggerConfig({
             placeholder={t("nodeConfigs.trigger.descriptionPlaceholder")}
             className="h-7 text-xs"
           />
-        </div>
-      ))}
+          </div>
+        );
+      })}
       <Button
         variant="outline"
         size="sm"

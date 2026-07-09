@@ -412,6 +412,10 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     inputParametersHint: "Downstream nodes can access via {{ $params.<name> }} or {{ $input.parameters.<name> }}.",
     parameterLabel: "Parameter {{index}}",
     parameterNamePlaceholder: "Parameter name (e.g. orderId)",
+    errorNameRequired: "Parameter name is required.",
+    errorNameInvalid:
+      "Name must start with a letter or underscore and use only letters, digits, and underscores.",
+    errorNameDuplicate: "Parameter name is duplicated.",
     typeString: "String",
     typeNumber: "Number",
     typeBoolean: "Boolean",

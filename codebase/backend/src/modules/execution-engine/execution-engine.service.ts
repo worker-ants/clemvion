@@ -2067,7 +2067,13 @@ export class ExecutionEngineService
 
       // 남은 그래프 traversal — `runNodeDispatchLoop` 가 공통 helper
       // (resumeGraphAfterRetry 와 공유, PR #365 ai-review WARNING #10 해소).
-      // savedExecution 의 input 은 재기동 후 사라졌으므로 빈 객체로 대체.
+      // workflowInput 은 durable `Execution.inputData` 를 재사용한다 — 재진입 시
+      // 아직 실행되지 않은 no-incoming 진입 노드(Manual Trigger)가 원래의 트리거
+      // 입력(`{ parameters, __triggerSource, ... }`)을 받아 `output.parameters` 를
+      // 정상 산출하게 한다. 빈 객체로 대체하면 트리거가 `input={}` 를 받아
+      // `output.parameters:{}` 가 되어 다운스트림 `$node[...].output.parameters` /
+      // `$params` 표현식이 전부 빈값이 된다. 이미 완료된 노드는 skip 되므로 본
+      // 값은 미완료 진입 노드에만 영향한다.
       const dispatchResult = await this.runNodeDispatchLoop({
         executionId,
         savedExecution,
@@ -2077,7 +2083,7 @@ export class ExecutionEngineService
         reachable,
         nodeExecutionCount,
         pointer,
-        input: {},
+        input: savedExecution.inputData ?? {},
         dispatchMeta: {
           startedAt: savedExecution.startedAt?.toISOString(),
           mode: 'manual',
@@ -2408,7 +2414,9 @@ export class ExecutionEngineService
       reachable,
       nodeExecutionCount,
       pointer,
-      input: {},
+      // Durable trigger input on re-entry (see runNodeDispatchLoop caller in
+      // resumeGraphAfterRetry) — keeps Manual Trigger output.parameters intact.
+      input: savedExecution.inputData ?? {},
       dispatchMeta: {
         startedAt: savedExecution.startedAt?.toISOString(),
         mode: 'manual',
@@ -3188,7 +3196,11 @@ export class ExecutionEngineService
         reachable,
         nodeExecutionCount: new Map<string, number>(),
         pointer: 0,
-        input: {},
+        // Durable trigger input on stalled-redelivery re-drive — an entry node
+        // (Manual Trigger) not yet completed before the crash still gets its
+        // original `{ parameters, __triggerSource, ... }` so output.parameters
+        // resolves instead of collapsing to {}.
+        input: savedExecution.inputData ?? {},
         skipExecutedNodes: true,
         dispatchMeta: {
           startedAt: savedExecution.startedAt?.toISOString(),

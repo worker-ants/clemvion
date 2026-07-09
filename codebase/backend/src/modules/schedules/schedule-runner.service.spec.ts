@@ -321,9 +321,10 @@ describe('ScheduleRunnerService', () => {
 
       await expect(service.process(job)).rejects.toThrow('enqueue boom');
 
-      expect(
-        notifications.resolveOptOutEmailChannels,
-      ).toHaveBeenCalledWith(['owner-1'], 'scheduleFailedEmail');
+      expect(notifications.resolveOptOutEmailChannels).toHaveBeenCalledWith(
+        ['owner-1'],
+        'scheduleFailedEmail',
+      );
       expect(notifications.notify).toHaveBeenCalledWith(
         expect.objectContaining({ channel: 'in_app' }),
       );

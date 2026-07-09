@@ -25,6 +25,8 @@ import {
 } from '../../nodes/core/graph-warning-rule';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
+import { toTriggerParameterErrorDetails } from '../execution-engine/types/trigger-parameter.types';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 const MANUAL_TRIGGER_DEFAULT_POSITION = { x: 250, y: 300 };
@@ -288,7 +290,7 @@ export class WorkflowsService {
         description: dto.description,
         tags: dto.tags ?? [],
         // 검증된 WorkflowSettingsDto 인스턴스를 jsonb Record 로 평탄화(값은 동일).
-        settings: { ...dto.settings } as Record<string, unknown>,
+        settings: { ...dto.settings },
         workspaceId,
         createdBy: userId,
       });
@@ -584,6 +586,27 @@ export class WorkflowsService {
       throw new BadRequestException(
         'Workflow cannot contain more than one Manual Trigger node',
       );
+    }
+    // Reject malformed parameter definitions at save time. spec
+    // 4-nodes/7-trigger/1-manual-trigger.md §6 places these structural checks
+    // at "저장 시점" (handler.validate). Without this gate an invalid slot
+    // (e.g. a leftover empty-name row) persists silently; at runtime it then
+    // either strips every parameter's default (loadTriggerParameterSchema
+    // discards the whole schema) or fails the run with a generic
+    // INVALID_NODE_CONFIG (the engine's handler.validate pre-flight). Blocking
+    // here surfaces the precise per-field error immediately, on save.
+    const params = (
+      triggerNodes[0].config as { parameters?: unknown } | undefined
+    )?.parameters;
+    if (params !== undefined) {
+      const errors = validateTriggerParameterSchema(params);
+      if (errors.length > 0) {
+        throw new BadRequestException({
+          code: 'INVALID_TRIGGER_PARAMETERS',
+          message: 'Manual Trigger has an invalid parameter schema',
+          details: toTriggerParameterErrorDetails(errors),
+        });
+      }
     }
   }
 
