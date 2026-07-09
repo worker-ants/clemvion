@@ -29,6 +29,17 @@ CI 에서 `retries: 2` 를 도입해 순간 timing flake 를 흡수한다(안정
    "재시도로 통과 = 여전히 미해결" 을 명시적으로 추적. 근본 원인(prod 빌드 hydration·query
    해소 타이밍) 해소 시 리스트에서 제거.
 
+## 곁가지 — sub-global timeout override 재발 방지 가드
+
+> 파생: 안정화 fix 커밋 fresh 리뷰(`review/code/2026/07/09/18_39_22/`) INFO 2.
+
+전역 `expect.timeout`(10_000) **미만**의 하드코딩 timeout override 가 스펙에 흩뿌려지면
+전역 상향(Tier 3)의 slack 이 그 스펙에 닿지 못한다(동일 anti-pattern 이 16_38_12→18_39_22
+두 세션에 걸쳐 지적·수정된 이력). discipline 에만 의존하지 않도록 **CI lint 단계에
+"전역 기본 미만 sub-global timeout override 검출" grep/ESLint 가드**를 추가하거나,
+`PROJECT.md` §e2e 작성 패턴에 "positive wait 는 전역 기본에 위임, 개별 override 는 전역
+초과 시에만" 을 명문화한다.
+
 ## 비고
 
 - 안정화 PR 자체는 flaky 의 **발생 빈도**를 줄인다(prod 빌드 Tier 2·전역 timeout Tier 3).

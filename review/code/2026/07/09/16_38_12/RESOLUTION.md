@@ -24,7 +24,7 @@
 - **lint**: 통과 (`stage=lint status=PASS`, log `_test_logs/lint-20260709-183338.log`).
 - **unit**: 미재수행 — 본 변경은 e2e 스펙(`*.spec.ts`)·config/yaml 주석·plan md 뿐으로 unit 대상(`*.test.tsx`) 파일 무변경(직교). 동 세션 직전 5196 pass.
 - **build**: 미재수행 — Next build 대상(src) 파일 무변경. `playwright.config.ts`·e2e 스펙·docker-compose·plan 은 build 산출물에 미포함(직교).
-- **e2e**: 통과 (`stage=e2e status=PASS tests=247 passed` duration=163s, log `_test_logs/e2e-20260709-183434.log`). 하드코딩 timeout 제거는 assert 를 더 관대하게만 만들어 통과 스펙을 깨지 않음 — retry 없이 clean 통과로 확인.
+- **e2e**: 통과. **정정(fresh 리뷰 18_39_22 Critical 1 반영)**: `run-test.sh e2e`(=`make e2e-test`)는 **backend Jest e2e(247 tests)만** 실행하며 본 변경 대상인 frontend Playwright 스펙은 포함하지 않는다 — Playwright 는 `make e2e-test-full`(backend Jest + `playwright-runner`)로만 실행된다. 이를 재실행해 실검증: **frontend Playwright e2e 46 passed (50.2s, retry·flaky 0, clean)** + backend Jest 247 passed (log `_test_logs/e2e-full-playwright-20260709-185331.log`, EXIT=0). 하드코딩 timeout 제거는 assert 를 더 관대하게만 만들어 통과 스펙을 깨지 않음을 실증.
 
 ## 보류·후속 항목
 
