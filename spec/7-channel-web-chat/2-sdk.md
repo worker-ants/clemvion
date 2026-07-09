@@ -96,7 +96,7 @@ chat.shutdown();
 | host → iframe | `wc:command` | `open`/`close`/`show`/`hide`/`sendMessage(text)`/`updateProfile`/`shutdown`/`resetSession` |
 | iframe → host | `wc:ready` | 위젯 로드 완료 |
 | iframe → host | `wc:resize` | `{ width, height, state: 'collapsed' \| 'expanded' }`. **hidden/blocked 시**(위젯이 `visible=false` 또는 host `hide()` 명령으로 숨겨진 경우) `{ width: 0, height: 0, state: 'collapsed' }` 를 emit 해 host 의 iframe 박스 점유를 제거한다. |
-| iframe → host | `wc:event` | `{ name, data }` — `name` ∈ `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded`, `data` 는 이벤트별 페이로드 |
+| iframe → host | `wc:event` | `{ name, data }` — `name` ∈ `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded`, `data` 는 이벤트별 페이로드. `conversationEnded.data.reason` 은 **열린 문자열**(닫힌 enum 아님) — SSE terminal 이벤트명(`execution.completed`/`failed`/`cancelled`) 또는 위젯 로컬 종료 사유(`user_ended` = 헤더 "대화 종료", `gone` = 410) 등. host 는 특정 값에 강결합하지 말고 "종료됨" 신호로만 소비한다 |
 - **origin 검증 필수**(양방향 `event.origin` 화이트리스트). 토큰·대화 내용은 iframe 내부 유지, host 로 비노출.
 - **`resetSession` 명령**: 현재 대화를 처음부터 다시 시작한다 — 위젯이 SSE 연결을 닫고 저장 세션(sessionStorage,
   [3-auth-session §R6](./3-auth-session.md))을 비운 뒤 새 execution 을 시작(`newChat`: closeStream→clearSession→start). 운영 콘솔 **라이브 미리보기의 "새 세션"

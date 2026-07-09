@@ -433,8 +433,13 @@ AI 가 생성한 `execution.ai_message` 와 의미적으로 구분되는 정적 
 > 이는 SSE `waiting_for_input` **wire payload 와 동일 형식**이라 위젯이 `parseWaitingForInput` 으로 그대로 시드할 수 있고,
 > 첫 노드가 SSE 구독 전 emit 되는 race(빠른 buttons/carousel)에서 현재 표면을 복구하는 1차 경로가 된다
 > ([`interaction.service.ts` `getStatus()`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)).
-> 단 `conversationThread` snapshot 과 `seq`(항상 `0` placeholder)는 SSE replay(`Last-Event-Id`/첫 연결 `lastEventId=0`)가
-> 권위이며 만료 전 5분 buffer 에서 보정한다.
+> **`context.conversationThread`** 에는 durable 스냅샷(`Execution.conversation_thread` jsonb,
+> [conversation-thread §4·§8.4](../conventions/conversation-thread.md))을 SSE `waiting_for_input` 과 **동일 wire 형식**으로
+> 동봉한다 — 새로고침 복원(reload)이 5분 SSE 버퍼에 의존하지 않고 buffer 만료·서버 재시작·인스턴스 스위치와 무관하게
+> 전체 히스토리를 복원하기 위함(근거 §R17). `seq`(항상 `0` placeholder)만은 SSE replay(`Last-Event-Id`/첫 연결
+> `lastEventId=0`)가 권위이며 REST 단발 응답은 in-memory seq 카운터에 접근하지 않는다. durable thread 가 없는 경우
+> (배포 이전 row·park 이력 없음)에는 `context.conversationThread` **키를 생략**한다(형제 필드의 `null` 관례와 달리 키
+> 부재 — SSE wire 도 동일하게 present-when-available, 위젯은 부재를 빈 히스토리로 graceful 처리).
 
 ```jsonc
 GET /api/external/executions/{executionId}
@@ -1096,7 +1101,7 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 
 과거 spec 은 §5 서두에서 "예외 2: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path)" 으로 기술했으나 이는 구현과 어긋난 표기였다. ack body 를 반환하는 쪽을 채택한 이유: (1) 클라이언트가 명령 수신 직후 관측된 `currentStatus`(즉시 또 `waiting_for_input` 진입 가능)를 SSE 구독 전에 1회성으로 확인할 수 있어 UX 가 매끄럽다. (2) `accepted: true` 가 큐 적재 성공의 명시 신호다. (3) 다른 §5.x 엔드포인트와 동일하게 `{ data: ... }` 봉투로 일관 처리된다 — `interact` 만 no-content 예외로 두면 클라이언트 언랩 로직이 분기된다. body 가 비동기 진행의 **확정** 상태가 아님(202)은 유지되며, 확정 상태는 SSE/단발 조회로 받는다.
 
-### R17. `getStatus` 의 `currentNode`/`context` 실값 노출 (null placeholder 부분 번복) + SSE 역할 분담 + outputData 표면 제약 (결정 2026-06-25)
+### R17. `getStatus` 의 `currentNode`/`context` 실값 노출 (null placeholder 부분 번복) + SSE 역할 분담 + outputData 표면 제약 (결정 2026-06-25, `conversationThread` reload 노출 재조정 2026-07-09)
 
 **경위**: 초기 V1 은 §5.3 `getStatus` 의 `currentNode`/`context` 를 항상 `null`, `seq` 를 `0` placeholder 로 두고
 상세 표면은 SSE `waiting_for_input` 페이로드를 권위로 삼았다(git `5b468d37` 이전).
@@ -1109,12 +1114,28 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/ai_conversation→`nodeOutput`)를 실값으로
 반환하도록 **좁게 확장**했다(현재 대기 `NodeExecution.outputData` 에서 복원).
 
-**SSE 와의 역할 분담**: REST `getStatus` = **현재 표면 1회 시드**(race·새로고침 복구). SSE = **`seq`·
-`conversationThread`·이후 이벤트의 권위**. 그래서 `getStatus.context` 는 SSE `waiting_for_input` wire 형식과 동일하게
-만들어 위젯이 `parseWaitingForInput` 을 재사용하고, `conversationThread`·`seq`(여전히 `SSE_SEQ_PLACEHOLDER=0` —
-REST 단발 응답은 in-memory seq 카운터에 접근하지 않음)는 SSE 가 권위로 유지한다. 위젯의 `seedWaitingFromStatus` 는
-**soft-fail**(HTTP 오류 시 `console.warn` 후 진행) — SSE replay 가 1차 복구 경로라 REST 시드 실패가 대화 흐름을
-막지 않는다.
+**SSE 와의 역할 분담**: REST `getStatus` = **현재 표면 시드 + 새로고침 히스토리 복원**. SSE = **`seq`·라이브 증분
+이벤트(이후 `waiting_for_input`/`ai_message`)의 권위**. `getStatus.context` 는 SSE `waiting_for_input` wire 형식과
+동일하게 만들어 위젯이 `parseWaitingForInput` 을 재사용하며, **`conversationThread` 는 durable 스냅샷
+(`Execution.conversation_thread` jsonb, park 시 commit — [conversation-thread §4·§8.4](../conventions/conversation-thread.md))
+에서 실값으로 동봉**한다. `seq` 만은 `SSE_SEQ_PLACEHOLDER=0` 로 두고(REST 단발 응답은 in-memory seq 카운터에 접근
+불가) SSE 가 권위로 보정한다. 위젯의 `seedWaitingFromStatus` 는 **soft-fail**(HTTP 오류 시 `console.warn` 후 진행) —
+실패해도 SSE replay 가 buffer 내에서 보강한다.
+
+**`conversationThread` 노출로의 재조정(2026-07-09)**: 초기 R17 은 `conversationThread` 를 **SSE 전용 권위**로 두고
+`getStatus` 에서 생략했다(5분 buffer replay 로 보정 전제). 그러나 buffer 만료(>5분)·서버 재시작·인스턴스 스위치 후
+새로고침이면 replay 가 불가해 위젯이 히스토리를 잃는다 — durable thread(`Execution.conversation_thread`)는 이미
+무손실 영속돼 있는데도 노출 표면이 없어 복원 불가였다. 웹채팅 [1-widget-app §3.1](../7-channel-web-chat/1-widget-app.md)
+도 "buffer 만료 시 `GET /:id` snapshot(현재 `conversationThread`)으로 재동기화"를 이미 계약으로 두어 본 생략과
+모순이었다. 따라서 `getStatus` 가 waiting 시 durable thread 를 동봉하도록 **좁게 확장**해 reload 복원을 buffer 무관·
+재시작 무관으로 견고화한다. 표면 확장은 **이미 SSE `waiting_for_input` 으로 공개 중인 `conversationThread` 를 REST
+단발 응답에도 read-only 로 노출**하는 것뿐이라 신규 민감 데이터 표면이 아니다(아래 outputData 표면 제약과 동일 정책 —
+노드 핸들러는 thread turn 텍스트에 민감 중간결과를 남기지 않는다).
+
+**기각 대안**: (a) *SSE 전용 유지 + buffer 만료 시 위젯이 재조회* — 그 재조회(`getStatus`)가 thread 를 안 주므로
+순환(만료 시 되살릴 소스 부재)이라 문제를 못 푼다. (b) *`NodeExecution.output_data` 분산 저장에서 thread 재구성* —
+`runningSummary` 등 thread 메타가 per-node 에 없어 무손실 복원 불가([conversation-thread §8.4](../conventions/conversation-thread.md)
+가 이미 동일 사유로 기각). durable 컬럼 직접 노출이 무손실·단순해 채택.
 
 **outputData 표면 제약(보안)**: `getStatus`·SSE fanout 모두 `NodeExecution.outputData` 를 `nodeOutput` 으로 동봉하므로
 이 컬럼은 **공개 EIA 표면**으로 흘러간다. 노드 핸들러는 `outputData` 에 민감 중간결과(secret·내부 토큰 등)를 기록하지

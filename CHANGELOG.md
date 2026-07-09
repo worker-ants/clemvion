@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯 세션 컨트롤(새 대화/대화 종료) + 새로고침 히스토리 복원 (7-channel-web-chat §1·§3)
+
+### 변경 사항
+
+1. **임베드 웹채팅 위젯에 "새 대화"·"대화 종료" 헤더 컨트롤이 추가되고, 새로고침 후 대화 히스토리가 복원된다** — 두 사용자 리포트("세션 종료/신규 세션 수단 없음", "새로고침하면 히스토리가 사라짐")를 해소했다. **① 세션 컨트롤**: 대화가 확립된(`streaming`/`awaiting_user_message`) 뒤에만 패널 헤더에 두 컨트롤을 노출하고(대화 없음·`booting`(webhook in-flight, 세션 미확립)·`[ended]` 는 미노출 — booting 노출 시 종료가 서버 취소를 못 보내거나 중복 webhook 을 발사할 수 있어 세션 확립 후로 게이트), 둘 다 인라인 2단계 **가벼운 확인** 후 실행한다(`spec/7-channel-web-chat/1-widget-app.md §2·§3.1`). "대화 종료"는 대기 중 AI 대화(`awaiting_user_message`+`ai_conversation`, waiting nodeId 확정 시)면 graceful `end_conversation`, 그 외 phase 면 범용 `cancel` 을 발사하고 위젯은 SSE 를 먼저 닫은 뒤 optimistic 하게 `[ended]` 로 전이한다(종료 명령이 유발하는 terminal SSE 이벤트와 경합해 `conversationEnded` 콜백이 2회 발사되지 않도록 스트림 선차단 + 이미-종료 가드). "새 대화"는 저장 세션/스트림을 정리하고 새 execution 을 시작한다(이전 execution 은 명시 종료 없이 서버에서 `waiting_for_input` 잔존, 토큰만 TTL/idle 만료). booting/초기 streaming 중 종료·새 대화가 in-flight `start()` 를 무효화하도록 세대 토큰(gen guard)을 도입해 옛 execution 이 되살아나는 race 를 차단했다. **② 히스토리 복원(2겹 수정)**: (a) **백엔드** — `InteractionService.getStatus()` 가 `waiting_for_input` 시 durable `Execution.conversation_thread`(V084)를 `context.conversationThread` 로 SSE 와 동일 wire shape 으로 동봉한다 → 5분 SSE buffer·서버 재시작·인스턴스 스위치와 무관하게 전체 히스토리를 복원한다(`spec/5-system/14-external-interaction-api.md §5.3·§R17` 재조정 — 종전엔 conversationThread 를 SSE 전용 권위로 두어 getStatus 에서 생략했으나, 웹채팅 §3.1 의 "buffer 만료 시 getStatus snapshot 폴백" 계약과 모순이라 durable 컬럼 read-only 노출로 정합화). (b) **프런트** — 위젯 `conversation.roleOf` 가 wire 의 백엔드 5-source(`presentation_user`·`ai_user`→user, `ai_assistant`·`ai_tool`·`system`→assistant)를 말풍선 role 로 축약한다 — 종전엔 `turn.role` 만 봐서 복원 thread 가 전부 assistant 로 뒤집혔다(위젯 테스트가 실제 wire 가 보내지 않는 `role` 형태를 먹여 통과 중이던 잘못된 계약도 정정). backend 는 additive read-only 확장(신규 저장·계산·마이그레이션 없음), FE 는 CSR 위젯 전용. SoT: `spec/7-channel-web-chat/1-widget-app.md`·`3-auth-session.md`·`spec/5-system/14-external-interaction-api.md`.
+
 ## Unreleased — 워크스페이스 슬러그 URL 라우팅 phase 2 — 에디터 slug화 (2-navigation/9-user-profile §3)
 
 ### 변경 사항

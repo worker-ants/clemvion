@@ -25,14 +25,31 @@ export interface HookStartResponse {
 /** EIA 외부 interactionType — 3값(form/buttons/ai_conversation). render_form 은 ai_conversation 통합. */
 export type ExternalInteractionType = "form" | "buttons" | "ai_conversation";
 
-/** conversationThread.turns 의 source 마커 (live/injected). */
-export type TurnSource = "live" | "injected";
+/**
+ * conversationThread.turns 의 source 마커.
+ *
+ * wire(WS §4.4.5 / EIA §5.3 getStatus)의 `conversationThread.turns[i].source` 는 백엔드
+ * `ConversationTurnSource` 5값(`presentation_user`/`ai_user`/`ai_assistant`/`ai_tool`/`system`,
+ * [conversation-thread §1.1](../../../../spec/conventions/conversation-thread.md))이다. 위젯은 이를
+ * 말풍선 role 로 축약해 렌더한다(매핑 SoT: `conversation.roleOf` + [1-widget-app §2](../../../../spec/7-channel-web-chat/1-widget-app.md)).
+ * `live`/`injected` 는 emit `messages[].source`(§4.4.6) 및 위젯 로컬 라이브 dispatch 의 2값 마커로,
+ * 하위 호환·테스트 fixture 를 위해 union 에 함께 유지한다.
+ */
+export type TurnSource =
+  | "live"
+  | "injected"
+  | "presentation_user"
+  | "ai_user"
+  | "ai_assistant"
+  | "ai_tool"
+  | "system";
 
 export interface ConversationTurn {
   source?: TurnSource;
   text?: string;
   nodeLabel?: string;
   data?: Record<string, unknown>;
+  /** 명시 role — 있으면 source 매핑보다 우선(라이브 dispatch·구형 fixture 호환). */
   role?: "user" | "assistant";
   /** carousel/table/chart/template presentation 페이로드(메시지 타임라인 inline 렌더). */
   presentations?: Array<Record<string, unknown>>;

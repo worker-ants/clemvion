@@ -157,8 +157,10 @@ export class Execution {
   //   rehydration(§7.5)이 여기서 thread를 무손실 복원(runningSummary 포함).
   //   NULL = park 한 적 없는 실행 / 배포 이전 row → rehydration 은 빈 thread 시작.
   //   실행 이력 SoT(NodeExecution.output_data)와 목적·소비처 분리.
-  //   API 응답 DTO 미포함 — 내부 rehydration 전용 (execution-response.dto.ts 에 노출 없음).
-  //   spec: conversation-thread §4·§8.4, 4-execution-engine §6.2/§7.5, 1-data-model §2.13.
+  //   내부 실행/이력 DTO(ExecutionDto/ExecutionDetailDto/execution-response.dto.ts) 미포함.
+  //   단 EIA `getStatus`(ExecutionStatusDto.context.conversationThread, EIA §5.3/§R17)는 waiting_for_input
+  //   시 이 스냅샷을 **read-only** 로 노출한다(웹채팅 새로고침 히스토리 복원 — SSE waiting wire 와 동일 shape).
+  //   spec: conversation-thread §4·§8.4, 4-execution-engine §6.2/§7.5, 1-data-model §2.13, 14-external-interaction-api §R17.
   @Column({ name: 'conversation_thread', type: 'jsonb', nullable: true })
   conversationThread: ConversationThread | null;
 

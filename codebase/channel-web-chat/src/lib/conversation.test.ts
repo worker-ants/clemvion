@@ -40,6 +40,40 @@ describe("threadToMessages", () => {
     expect(msgs[0].source).toBe("injected");
   });
 
+  // 실제 wire(WS §4.4.5 / EIA getStatus)의 conversationThread.turns[i] 는 role 없이 백엔드 5-source
+  // 만 실어 온다 — 새로고침 복원 시 이 매핑이 없으면 사용자 발화가 전부 assistant 로 뒤집힌다.
+  it("wire source → role 매핑: presentation_user·ai_user → user, ai_assistant → assistant", () => {
+    const msgs = threadToMessages({
+      turns: [
+        { source: "presentation_user", text: "name=Alice" },
+        { source: "ai_user", text: "[user-input]주문 상태 확인해줘[/user-input]" },
+        { source: "ai_assistant", text: "어떤 주문 번호인가요?" },
+        { source: "ai_user", text: "ORD-12345" },
+      ],
+    });
+    expect(msgs.map((m) => m.role)).toEqual(["user", "user", "assistant", "user"]);
+    // [user-input] 마커는 표시 전 strip.
+    expect(msgs[1].text).toBe("주문 상태 확인해줘");
+  });
+
+  it("ai_tool·system source → assistant 로 축약", () => {
+    const msgs = threadToMessages({
+      turns: [
+        { source: "ai_tool", text: "도구 결과" },
+        { source: "system", text: "안내" },
+      ],
+    });
+    expect(msgs.every((m) => m.role === "assistant")).toBe(true);
+  });
+
+  it("명시 role 은 source 매핑보다 우선(라이브 dispatch·구형 fixture 호환)", () => {
+    const msgs = threadToMessages({
+      // source 는 assistant 성향이지만 명시 role=user 가 우선.
+      turns: [{ source: "ai_assistant", role: "user", text: "x" }],
+    });
+    expect(msgs[0].role).toBe("user");
+  });
+
   it("빈/누락 thread 는 빈 배열", () => {
     expect(threadToMessages(undefined)).toEqual([]);
     expect(threadToMessages({ turns: [] })).toEqual([]);

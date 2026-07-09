@@ -39,13 +39,13 @@ unread, 그리고 eager 시작(패널 open 시 워크플로우 시작, §R6)·C1
 **패널(expanded)**:
 | UI 요소 | 데이터 출처 | 동작 |
 |---|---|---|
-| 헤더 (봇 이름, 닫기) | boot `headerTitle` (아바타·뒤로 버튼은 차기 phase — 현재 닫기(✕)만 렌더) | 닫기 → collapsed (대화 유지) |
+| 헤더 (봇 이름, 세션 컨트롤, 닫기) | boot `headerTitle` (아바타·뒤로 버튼은 차기 phase) | **새 대화**·**대화 종료**·닫기(✕) 렌더. 닫기 → collapsed(대화 유지). 새 대화/대화 종료 동작·트리거는 §3.1 — 둘 다 인라인 **가벼운 확인**(2단계 confirm) 후 실행해 진행 중 대화·히스토리 유실 오조작을 막는다. **세션 컨트롤은 대화가 확립된(`streaming`/`awaiting_user_message`) 뒤에만 노출**한다 — `booting`(webhook POST in-flight, 세션 미persist)·시작 전(`collapsed`/`panel`)·`[ended]` 에서는 미노출. booting 노출 시 (a) 종료가 서버 취소 명령을 못 보내고(세션 미확립), (b) "새 대화" 재클릭이 in-flight 시작과 겹쳐 중복 webhook 을 발사할 수 있어, 세션 확립 후로 게이트한다 |
 | 환영 메시지 | boot `welcome` (정적 config) | 패널 open 시 즉시 표시(워크플로우 시작 전 클라이언트 렌더) |
 | 퀵 액션 버튼 | `waiting_for_input.buttonConfig` | 탭 → `click_button` |
 | 추천 질문 | boot `welcome.suggestions`/`launcher.suggestions` (정적) | 탭 → `submit_message` |
-| 메시지 리스트 | **1차 소스 = `waiting_for_input.conversationThread.turns` snapshot**(WS §4.4.5). `ai_message.messages[]` raw 직접 노출 금지 | source 마커(`live`/`injected`)별 렌더. `[user-input]…[/user-input]` strip(§4) |
+| 메시지 리스트 | **1차 소스 = `waiting_for_input.conversationThread.turns` snapshot**(WS §4.4.5) + 로컬 라이브 dispatch. `ai_message.messages[]` raw 직접 노출 금지 | turn `source`([conversation-thread §1.1](../conventions/conversation-thread.md) 백엔드 5값)를 말풍선 role 로 축약 렌더 — `presentation_user`·`ai_user`→**user**, `ai_assistant`·`ai_tool`·`system`→**assistant**. `[user-input]…[/user-input]` strip([conversation-thread §9.5](../conventions/conversation-thread.md)). 새로고침 복원 시에도 이 매핑으로 과거 user/assistant 구분을 유지한다(복원 thread 는 EIA `getStatus` 가 durable 스냅샷으로 반환 — §3.1) |
 | Form (다중 필드) | `waiting_for_input.formConfig` | 필드 렌더·검증 → `submit_form`. 실패 시 `error.details[{field,message,code}]` 표시·재제출 |
-| presentation(carousel/table/chart/template) inline | `ai_message.presentations[]` / `waiting_for_input` | 전체 타입 inline 렌더(AI Agent §7.10) |
+| presentation(carousel/table/chart/template) inline | `ai_message.presentations[]` / `waiting_for_input` | 전체 타입 inline 렌더(AI Agent §7.10). **알려진 제약(Planned)**: 라이브 경로는 위젯 envelope(`{config,output}`)로 렌더하나, **새로고침 복원 thread 의 turn presentation 은 백엔드 `PresentationPayload`(`{type,toolCallId,renderedAt,payload}`) shape** 이라 위젯 렌더러가 graceful 하게 무시(빈 렌더)한다 — 복원 시 텍스트 히스토리는 유지되고 presentation 재현은 후속(shape 매핑) 과제다 |
 | 입력창 | — | 엔터/전송 → `submit_message`. **활성 조건**: `awaiting_user_message` + **텍스트 표면**일 때만 자유 텍스트 입력 활성. 텍스트 표면 = `ai_conversation` 또는 `pending=null`(ai_conversation 도달 전 과도 상태) — 즉 `buttons`/`form` 이 **아닌** 표면(판정 SoT `widget-state.isTextInputSurface`). booting/streaming 중이거나 현재 표면이 `buttons`/`form` 이면 비활성(사용자는 선택/제출로 응답). **비활성 외형**: idle(빈 입력·buttons/form) 전송 버튼은 중립 회색; **booting/streaming(AI 처리 중)** 에는 스피너 + `aria-busy=true` + `aria-label="AI 응답 중"` 로 '응답 중' 표시(흐린 반투명 비활성이 고장처럼 보이지 않게) |
 | 첨부·이모지 | — | v1 비활성/숨김 (Form file upload 연동 시 활성) |
 | AI 면책 푸터 | boot `disclaimer` (정적) | 표시 전용 |
@@ -72,16 +72,21 @@ unread, 그리고 eager 시작(패널 open 시 워크플로우 시작, §R6)·C1
 - **`firstMessage` 미사용**: webhook payload 는 `profile` 만 싣는다. 첫 사용자 텍스트도 일반 `submit_message` 로 전송되어
   AI 첫 턴이 된다(multi_turn 은 trigger 입력을 첫 턴으로 소비하지 않음 — [AI Agent §6.2](../4-nodes/3-ai/1-ai-agent.md)). 근거 §R6.
 - **재open**: close 후 재open 은 새 execution 을 시작하지 않고 §3.1 의 세션 복원(`executionId`+토큰)으로 기존 대화를 잇는다.
+- **헤더 세션 컨트롤(§3.1)**: 대화가 확립된(streaming/awaiting_user_message) 뒤 사용자가 헤더의 **"대화 종료"** 로
+  `[ended]` 전이, **"새 대화"** 로 현재 세션을 버리고 `[booting]` 재시작할 수 있다(둘 다 가벼운 확인 후). `booting`
+  구간에는 컨트롤을 노출하지 않는다(§2 헤더 행 — 중복 webhook·미발사 cancel 방지). 다이어그램의 `new chat` 화살표는
+  `[ended]` CTA 뿐 아니라 이 헤더 컨트롤(streaming/awaiting 발원)에서도 발생한다. **"대화 종료" 도 대칭 edge**
+  (`[streaming]`/`[awaiting_user_message]` → `[ended]`)로, ASCII 다이어그램에는 미도시이며 §3.1 표가 SoT 다.
 
 ### 3.1 채팅 종료 / 새로 시작 / 세션 지속
 
 | 동작 | 트리거 | EIA 처리 | 위젯 상태 |
 |---|---|---|---|
 | 닫기 (collapse) | 헤더 닫기 / 런처 토글 | execution `waiting_for_input` 유지, **SSE 연결도 유지** | 패널만 숨김. **닫힌 사이 도착한 in-flight 메시지(예: AI 응답)는 버퍼링 → unread 배지, 재open 시 렌더**. 재open 시 그대로 |
-| 대화 종료 (end) | 명시 "대화 종료" 또는 `completed` | `end_conversation` → execution 종료, 토큰 invalidate | `[ended]` — transcript 읽기전용 + "새 대화 시작" CTA |
-| 새 대화 (restart) | `[ended]` CTA 또는 명시 리셋 | 새 `POST /api/hooks/:path` → 새 executionId/token | transcript 초기화(구분선) 후 `[booting]` |
+| 대화 종료 (end) | **헤더 "대화 종료"**(대화 확립 후=streaming/awaiting, 가벼운 확인) 또는 `completed` | 대기 중 AI 대화(`awaiting_user_message` + `ai_conversation`, waiting nodeId 확정)면 `end_conversation`(graceful — 워크플로우가 이어서 완료), 그 외(응답 대기 streaming, 또는 `buttons`/`form` 대기 표면, ai_conversation 이라도 nodeId 미확정)면 `cancel`(범용 종료) → execution 종료·토큰 invalidate. 위젯은 **SSE 를 먼저 닫고** optimistic 하게 세션 정리 + `[ended]` 전이한 뒤 종료 명령을 best-effort 로 발사한다(선차단으로 terminal 이벤트 중복 종료 경합 제거). 명령이 실패/거부(410 Gone·409 STATE_MISMATCH·네트워크)해도 로컬은 이미 종료 상태를 유지한다 — 사용자 의도(종료)를 우선한다. (컨트롤은 세션 확립 후에만 노출되므로 종료 시 세션·토큰이 항상 존재 — §2 헤더 행) | `[ended]` — transcript 읽기전용 + "새 대화 시작" CTA |
+| 새 대화 (restart) | `[ended]` CTA · **헤더 "새 대화"**(가벼운 확인 후) · host `resetSession` | 저장 세션/스트림 정리 후 새 `POST /api/hooks/:path` → 새 executionId/token. 이전 execution 은 **명시 종료 명령을 보내지 않으므로** 서버에선 `waiting_for_input` 로 잔존하며([4-execution-engine §7.4·§7.5](../5-system/4-execution-engine.md) 무기한 보존 불변식), 위젯 측 **토큰만** TTL/idle 로 만료된다([3-auth-session §R6](./3-auth-session.md)). 즉시 서버 종료가 필요하면 "대화 종료"(`cancel`/`end_conversation`)를 쓴다. **알려진 제약(Planned)**: 헤더 컨트롤은 `booting` 을 제외해 세션 확립 후에만 노출되므로 UI 경로에서는 중복 webhook 이 없으나, host `resetSession` 은 booting 중에도 호출 가능해 in-flight `start()` 와 겹쳐 중복 `POST /api/hooks/` 를 발사할 수 있다(pre-existing — 위젯 gen guard 는 client 상태 오염만 차단). host-API 측 가드/드레인은 backlog | transcript 초기화(구분선) 후 `[booting]` |
 | 토큰 만료/서버 타임아웃 | per_execution 만료(refresh 실패) 또는 idle → `410 Gone` | — | `[ended]` + "대화 종료, 새로 시작" 안내 |
-| 페이지 새로고침/이동 | 호스트 reload → iframe 재로드 | — | **(b) 복원**: `executionId`+단명 토큰을 iframe-origin **sessionStorage**(같은 탭 reload 는 유지·탭 종료 시 소거, [3-auth-session §R6](./3-auth-session.md)) 저장 → `GET /:id`+SSE(`Last-Event-Id`) 재연결. 만료/410 이면 [ended] |
+| 페이지 새로고침/이동 | 호스트 reload → iframe 재로드 | — | **(b) 복원**: `executionId`+단명 토큰을 iframe-origin **sessionStorage**(같은 탭 reload 는 유지·탭 종료 시 소거, [3-auth-session §R6](./3-auth-session.md)) 저장 → `GET /:id`(**`waiting_for_input` 상태면** durable `conversationThread` 동봉 — 그 경우 5분 SSE buffer 무관·서버 재시작 무관하게 전체 히스토리 복원, [EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) + SSE(`Last-Event-Id`) 재연결. 만료/410 이면 [ended] |
 
 - proactive(봇 선발화)는 비목표. 단 진행 중 대화의 in-flight 이벤트는 위와 같이 캡처(unread).
 - 다중 세션(유저당 여러 대화) 목록은 비목표 — 식별(추후) + 유저별 execution 목록 API 신설 전제.

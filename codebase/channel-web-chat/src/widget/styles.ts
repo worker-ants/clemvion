@@ -11,7 +11,17 @@ export const widgetStyles = `
 .wc-root[data-position="bottom-left"] .wc-panel { right: auto; left: 16px; }
 .wc-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #f0f0f0; }
 .wc-panel-title { font-weight: 600; }
+.wc-panel-actions { display: flex; align-items: center; gap: 6px; }
+/* wc-panel-action: 헤더 세션 컨트롤(새 대화/대화 종료) 전용 — 퀵 액션(.wc-action, buttons 표면의
+   click_button 발사)과는 별개 클래스/역할(서버 명령 아님, 로컬 세션 제어). 통합 금지. */
+.wc-panel-action { border: 1px solid #e5e7eb; background: #fff; border-radius: 12px; padding: 4px 10px; font-size: 12px; color: #4b5563; cursor: pointer; white-space: nowrap; }
+.wc-panel-action:hover { background: #f9fafb; }
 .wc-panel-close { border: 0; background: none; font-size: 16px; cursor: pointer; }
+/* 세션 컨트롤(새 대화/종료) 실행 전 가벼운 확인 바 (§3.1). */
+.wc-confirm { display: flex; flex-direction: column; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #7c2d12; }
+.wc-confirm-actions { display: flex; gap: 8px; }
+.wc-confirm-yes { border: 0; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; background: #dc2626; color: #fff; }
+.wc-confirm-no { border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; background: #fff; color: #374151; }
 .wc-panel-body { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .wc-messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .wc-bubble-msg { max-width: 80%; padding: 8px 12px; border-radius: 12px; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
