@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { SRC, collectSourceFiles, findRawHrefOffenders } from "./href-guard-utils";
 
 /**
  * Guard: 에디터 캔버스 경로(`/workflows/<id>`)는 **반드시** `buildEditorHref(slug, workflowId)` 로
@@ -13,7 +14,7 @@ import path from "node:path";
  *
  * regex 는 **경로가 `${id}` 에서 끝나는**(닫는 backtick 이 `}` 바로 뒤) 리터럴만 매칭하므로 실행
  * 경로(`/workflows/${id}/executions`, 별도 guard)와 겹치지 않는다. `router.push(` prefix 를 요구하지
- * 않아 개행 분리된 멀티라인 호출도 잡는다.
+ * 않아 개행 분리된 멀티라인 호출도 잡는다. 소스 트리 수집·스캔 골격은 `href-guard-utils.ts` 를 공유한다.
  *
  * 예외(네비게이션이 아닌 정당한 `/workflows/${id}` 생성처):
  *  - `lib/workspace/href.ts` — `buildEditorHref` 헬퍼 자신.
@@ -25,39 +26,17 @@ import path from "node:path";
 // 리터럴만(하위 세그먼트 없는 에디터 캔버스 경로) 매칭.
 const RAW_EDITOR_HREF = /`\/workflows\/\$\{[^`]*?\}`/;
 
-const SRC = path.join(__dirname, "..", "..", "..");
 const HELPER = path.join(SRC, "lib", "workspace", "href.ts");
 const API_DIR = path.join(SRC, "lib", "api");
 const NOTIF_HREF = path.join(SRC, "lib", "notifications", "href.ts");
 
 function isExempt(f: string): boolean {
-  return (
-    f === HELPER ||
-    f === NOTIF_HREF ||
-    f.startsWith(API_DIR + path.sep)
-  );
-}
-
-function collectSourceFiles(dir: string, acc: string[] = []): string[] {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name === "__tests__" || entry.name === "node_modules") continue;
-      collectSourceFiles(full, acc);
-    } else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
-      acc.push(full);
-    }
-  }
-  return acc;
+  return f === HELPER || f === NOTIF_HREF || f.startsWith(API_DIR + path.sep);
 }
 
 describe("no raw editor href literals (use buildEditorHref)", () => {
   it("has no `/workflows/<id>` raw literals outside the helper/api/notifications", () => {
-    const offenders = collectSourceFiles(SRC)
-      .filter((f) => !isExempt(f))
-      .filter((f) => RAW_EDITOR_HREF.test(fs.readFileSync(f, "utf8")))
-      .map((f) => path.relative(SRC, f));
-    expect(offenders).toEqual([]);
+    expect(findRawHrefOffenders(RAW_EDITOR_HREF, isExempt)).toEqual([]);
   });
 
   // regex self-test — "현재 위반 0건"만으로는 정규식 약화(이스케이프 실수)를 놓쳐 guard 가 조용히
@@ -88,6 +67,6 @@ describe("no raw editor href literals (use buildEditorHref)", () => {
     expect(fs.existsSync(HELPER)).toBe(true);
     expect(fs.existsSync(NOTIF_HREF)).toBe(true);
     expect(fs.existsSync(API_DIR)).toBe(true);
-    expect(collectSourceFiles(SRC).length).toBeGreaterThan(50);
+    expect(collectSourceFiles().length).toBeGreaterThan(50);
   });
 });
