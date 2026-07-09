@@ -31,6 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { timeAgo, formatDuration } from "@/lib/utils/date";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildExecutionHref } from "@/lib/workspace/href";
 import { TriggerCell } from "@/components/executions/trigger-cell";
 
 function SummaryCardSkeleton() {
@@ -72,6 +74,7 @@ const statusIcon: Record<string, string> = {
 export default function DashboardPage() {
   const t = useT();
   const router = useRouter();
+  const slug = useWorkspaceSlug();
   const queryClient = useQueryClient();
 
   const summaryQuery = useQuery<DashboardSummary>({
@@ -279,7 +282,11 @@ export default function DashboardPage() {
                     className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5] cursor-pointer"
                     onClick={() =>
                       router.push(
-                        `/workflows/${execution.workflowId}/executions/${execution.id}`,
+                        buildExecutionHref(
+                          slug,
+                          execution.workflowId,
+                          execution.id,
+                        ),
                       )
                     }
                   >

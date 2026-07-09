@@ -23,7 +23,7 @@ import { ResultDetail } from "./result-detail";
 import { useResultDetailWaiting } from "./use-result-detail-waiting";
 import { useT } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildExecutionHref } from "@/lib/workspace/href";
 import { ReRunModal } from "@/components/executions/rerun-modal";
 import { canReRun } from "@/lib/executions/can-rerun";
 import { executionsApi } from "@/lib/api/executions";
@@ -356,7 +356,7 @@ export function RunResultsDrawer() {
         <div className="flex items-center gap-1">
           {workflowId && (
             <a
-              href={buildWorkspaceHref(slug, `/workflows/${workflowId}/executions`)}
+              href={buildExecutionHref(slug, workflowId)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-2 py-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"

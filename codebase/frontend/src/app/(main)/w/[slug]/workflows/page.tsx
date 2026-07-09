@@ -35,7 +35,7 @@ import { timeAgo } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildExecutionHref } from "@/lib/workspace/href";
 
 type FilterStatus = "all" | "active" | "inactive";
 type Ownership = "all" | "mine" | "shared";
@@ -340,9 +340,7 @@ export default function WorkflowsPage() {
           router.push(`/workflows/${workflow.id}`);
           break;
         case "executions":
-          router.push(
-            buildWorkspaceHref(slug, `/workflows/${workflow.id}/executions`),
-          );
+          router.push(buildExecutionHref(slug, workflow.id));
           break;
         case "duplicate":
           duplicateMutation.mutate(workflow.id);

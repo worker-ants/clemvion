@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
@@ -270,6 +270,51 @@ describe("ExecutionDetailPage - Failed Execution", () => {
 
     expect(await screen.findByText("Failed")).toBeDefined();
     expect(screen.getAllByText(/Connection timeout/).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("ExecutionDetailPage - prev/next navigation (slug-aware)", () => {
+  // 리스트를 started_at desc(최신 우선)로 두고, 가운데 실행(exec-1)을 본다.
+  // prev = 더 오래된(index+1) = exec-old, next = 더 최신(index-1) = exec-new.
+  // 이 두 사이트는 PR #865 에서 slug 를 빠뜨린 bare-push latent 버그였다.
+  const list = [
+    makeExecution({ id: "exec-new", executedBy: "user-me" }),
+    makeExecution({ id: "exec-1", executedBy: "user-me" }),
+    makeExecution({ id: "exec-old", executedBy: "user-me" }),
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    setupAuth("editor"); // workspace-store 에 slug "ws" 시딩
+    mockGetById.mockResolvedValue(list[1]);
+    mockGetByWorkflow.mockResolvedValue({
+      data: list,
+      pagination: { page: 1, limit: 100, totalItems: 3, totalPages: 1 },
+    });
+    mockGetChain.mockResolvedValue([]);
+  });
+
+  it("Prev → 더 오래된 실행으로 slug 경로 이동", async () => {
+    await renderPage("exec-1");
+    await screen.findByText("Completed");
+    const prev = screen.getByRole("button", { name: "Prev" });
+    await waitFor(() => expect(prev).not.toBeDisabled());
+    fireEvent.click(prev);
+    expect(mockPush).toHaveBeenCalledWith(
+      "/w/ws/workflows/wf-1/executions/exec-old",
+    );
+  });
+
+  it("Next → 더 최신 실행으로 slug 경로 이동", async () => {
+    await renderPage("exec-1");
+    await screen.findByText("Completed");
+    const next = screen.getByRole("button", { name: "Next" });
+    await waitFor(() => expect(next).not.toBeDisabled());
+    fireEvent.click(next);
+    expect(mockPush).toHaveBeenCalledWith(
+      "/w/ws/workflows/wf-1/executions/exec-new",
+    );
   });
 });
 

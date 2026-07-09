@@ -6,7 +6,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import { triggersApi } from "@/lib/api/triggers";
 import { useT } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildExecutionHref } from "@/lib/workspace/href";
 import { formatDate } from "@/lib/utils/date";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -141,10 +141,7 @@ export function TriggerHistoryDialog({
                   <li key={entry.id}>
                     {workflowId ? (
                       <Link
-                        href={buildWorkspaceHref(
-                          slug,
-                          `/workflows/${workflowId}/executions/${entry.id}`,
-                        )}
+                        href={buildExecutionHref(slug, workflowId, entry.id)}
                         className={`${rowClass} hover:bg-[hsl(var(--muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]`}
                         aria-label={t("triggers.history.viewExecution", {
                           startedAt: startedAtLabel,

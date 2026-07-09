@@ -51,7 +51,7 @@ import {
 } from "@/lib/utils/execution-status";
 import { useT } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildExecutionHref } from "@/lib/workspace/href";
 import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
 // V-05 — 실행 상세 노드 패널은 에디터 run-results 의 ResultDetail 을 그대로 재사용해
 // Preview/Input/Output/Config/LLM Usage/Response/Request/References/Error 서브탭과
@@ -246,7 +246,7 @@ export default function ExecutionDetailPage({
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => router.push(buildWorkspaceHref(slug, `/workflows/${workflowId}/executions`))}
+          onClick={() => router.push(buildExecutionHref(slug, workflowId))}
         >
           {t("executions.backToExecutions")}
         </Button>
@@ -261,7 +261,7 @@ export default function ExecutionDetailPage({
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => router.push(buildWorkspaceHref(slug, `/workflows/${workflowId}/executions`))}
+          onClick={() => router.push(buildExecutionHref(slug, workflowId))}
         >
           {t("executions.backToExecutions")}
         </Button>
@@ -278,7 +278,7 @@ export default function ExecutionDetailPage({
             variant="ghost"
             size="icon"
             onClick={() =>
-              router.push(buildWorkspaceHref(slug, `/workflows/${workflowId}/executions`))
+              router.push(buildExecutionHref(slug, workflowId))
             }
           >
             <ArrowLeft className="h-4 w-4" />
@@ -297,7 +297,7 @@ export default function ExecutionDetailPage({
             onClick={() =>
               adjacentQuery.data?.prev &&
               router.push(
-                `/workflows/${workflowId}/executions/${adjacentQuery.data.prev}`,
+                buildExecutionHref(slug, workflowId, adjacentQuery.data.prev),
               )
             }
           >
@@ -311,7 +311,7 @@ export default function ExecutionDetailPage({
             onClick={() =>
               adjacentQuery.data?.next &&
               router.push(
-                `/workflows/${workflowId}/executions/${adjacentQuery.data.next}`,
+                buildExecutionHref(slug, workflowId, adjacentQuery.data.next),
               )
             }
           >
@@ -409,10 +409,7 @@ export default function ExecutionDetailPage({
                 <span className="text-[hsl(var(--muted-foreground))]">
                   {t("history.rerun.chainOrigin")}:{" "}
                   <Link
-                    href={buildWorkspaceHref(
-                      slug,
-                      `/workflows/${workflowId}/executions/${execution.reRunOf}`,
-                    )}
+                    href={buildExecutionHref(slug, workflowId, execution.reRunOf)}
                     className="font-mono text-[hsl(var(--primary))] hover:underline"
                   >
                     #{execution.reRunOf}
@@ -432,10 +429,7 @@ export default function ExecutionDetailPage({
                   {sortedChain.map((item) => (
                     <DropdownMenuItem key={item.id} asChild>
                       <Link
-                        href={buildWorkspaceHref(
-                          slug,
-                          `/workflows/${workflowId}/executions/${item.id}`,
-                        )}
+                        href={buildExecutionHref(slug, workflowId, item.id)}
                         className="flex items-center gap-2"
                       >
                         <span className="font-mono text-xs">#{item.id}</span>

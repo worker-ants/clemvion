@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils/cn";
+import { isSafeInternalPath } from "@/lib/workspace/safe-path";
 
 const DASHBOARD_PATH = "/dashboard";
 
@@ -33,15 +34,12 @@ const ICONS: Record<ErrorVariant, LucideIcon> = Object.freeze({
 });
 
 /**
- * open-redirect 방지: 앱 내부 절대경로(`/foo`)만 redirect 대상으로 허용한다.
- * `//evil.com` 은 브라우저가 외부 도메인으로 해석할 수 있으므로 거부한다.
+ * open-redirect 방지: 앱 내부 절대경로(`/foo`)만 redirect 대상으로 허용한다. protocol-relative
+ * (`//evil.com`·`\\evil.com`·`/\evil.com`)와 제어문자(tab/CR/LF) 우회는 거부한다 —
+ * `buildWorkspaceHref` 와 동일한 공용 정규화(`isSafeInternalPath`)를 공유한다.
  */
 export function isSafeRedirectPath(pathname: string | null): boolean {
-  return (
-    typeof pathname === "string" &&
-    pathname.startsWith("/") &&
-    !pathname.startsWith("//")
-  );
+  return isSafeInternalPath(pathname);
 }
 
 /** SSR 안전한 현재 페이지 새로고침 (network 폴백). */

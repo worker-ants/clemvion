@@ -9,6 +9,7 @@ import {
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 const mockPush = vi.fn();
 const mockBack = vi.fn();
@@ -108,6 +109,12 @@ describe("ExecutionListPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useLocaleStore.setState({ locale: "en" });
+    // slug 는 store 파생 — 케이스 간 누수 방지(기본 empty → slug null → bare path).
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
   });
 
   it("renders workflow name and executions title", async () => {
@@ -160,6 +167,30 @@ describe("ExecutionListPage", () => {
     fireEvent.click(rows[0]);
 
     expect(mockPush).toHaveBeenCalledWith("/workflows/wf-1/executions/exec-1");
+  });
+
+  it("navigates to the slug-prefixed detail on row click when a workspace is active", async () => {
+    // slug-누락 회귀 가드: 활성 워크스페이스가 있으면 `/w/<slug>/...` 로 이동해야 한다.
+    // (위 테스트는 slug=null 폴백 = bare path 를 검증하므로, 이 케이스가 없으면
+    //  buildExecutionHref 로의 배선이 slug 를 빠뜨려도(PR #865 회귀) 통과해버린다.)
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "Team", type: "team", slug: "team-x", role: "editor" },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    await renderPage();
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll("tbody tr").length,
+      ).toBeGreaterThan(0);
+    });
+    fireEvent.click(document.querySelectorAll("tbody tr")[0]);
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/w/team-x/workflows/wf-1/executions/exec-1",
+    );
   });
 
   it("navigates to editor on 'Open in Editor' click", async () => {
