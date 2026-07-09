@@ -41,8 +41,8 @@ spec 은 이미 `$params` 를 규정한다:
 - [x] TEST: **lint PASS / unit PASS(48 파일) / build PASS / e2e PASS(247)** — origin/main(#877) rebase 후 재수행(stale-base 교정). 백엔드 무회귀.
 - [x] /ai-review — **MEDIUM / Critical 0 / Warning 3** (rebased base, 범위 정상). W1(picker 테스트)·W2(방어가드 테스트) fix, W3(DRY) 후속. INFO#1(JSDoc 정정)·#5(주석)·#6(tokenStart 테스트)·CHANGELOG·§7.1 행 fix. 누락 3 reviewer journal 확인 전부 LOW. SUMMARY·RESOLUTION 기록(`review/code/2026/07/10/00_52_26/`).
 - [x] 리뷰 fix 후 unit 재통과 (suggestions+picker 62)
-- [ ] 최종 TEST WORKFLOW 재수행 (lint/unit/build/e2e)
-- [ ] (spec code-glob 매칭) consistency-check --impl-done spec/5-system/
+- [x] 최종 TEST WORKFLOW: **lint PASS / unit PASS(48) / build PASS / e2e PASS(247)** (e2e 1차 postgres 시작 실패는 docker 디스크 압박 — `make e2e-down`+prune 으로 21GB 확보 후 재시도 통과, transient 확정)
+- [x] (spec code-glob 매칭) consistency-check --impl-done spec/5-system/ — **BLOCK: NO** (5 checker 전원 실제 diff 기준 NONE/0 Critical). Workflow BLOCK:YES 는 오탐(orchestrator payload 가 무관 target 1-auth/10-graph-rag 전달 + 3파일 FS-flakiness). checker 들은 실제 `git diff` 자가보정 검토(journal 확인), convention 은 실제 diff 로 Agent 재실행 → NONE. 5파일 전수 확보.
 
 ## 비고
 - spec 변경 없음(이미 규정). enricher(§7.2)가 만든 inputSchema.parameters 를 재사용.
