@@ -16994,4 +16994,30 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
       );
     });
   });
+
+  // Regression guard for the re-entry fix: all three re-entry/redrive dispatch
+  // sites (driveResumeAwaited / driveResumeFrame / driveStuckRedrive) pass this
+  // helper's result as `input`. If it ever regresses to `{}`, an un-completed
+  // entry node (Manual Trigger) loses its params on re-drive.
+  describe('reentryWorkflowInput (durable trigger input on re-entry)', () => {
+    const call = (exec: unknown): unknown =>
+      (
+        service as unknown as {
+          reentryWorkflowInput: (e: unknown) => unknown;
+        }
+      ).reentryWorkflowInput(exec);
+
+    it('returns the durable Execution.inputData verbatim', () => {
+      const inputData = {
+        parameters: { region: '인천' },
+        __triggerSource: 'manual',
+      };
+      expect(call({ inputData })).toEqual(inputData);
+    });
+
+    it('falls back to {} when inputData is null or undefined', () => {
+      expect(call({ inputData: null })).toEqual({});
+      expect(call({})).toEqual({});
+    });
+  });
 });

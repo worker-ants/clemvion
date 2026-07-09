@@ -1415,6 +1415,29 @@ export class ExecutionEngineService
   }
 
   /**
+   * 재진입(park-resume / stalled-redelivery re-drive) 시 `runNodeDispatchLoop`
+   * 에 넘길 workflowInput. durable `Execution.inputData` 를 재사용한다 — 재진입
+   * 시 아직 실행되지 않은 no-incoming 진입 노드(Manual Trigger)가 원래의 트리거
+   * 입력(`{ parameters, __triggerSource, ... }`)을 받아 `output.parameters` 를
+   * 정상 산출하게 한다. 빈 객체로 대체하면 트리거가 `input={}` 를 받아
+   * `output.parameters:{}` 가 되고 다운스트림 `$node[...].output.parameters` /
+   * `$params` 표현식이 전부 빈값이 된다. 이미 완료된 노드는 skip 되므로 이 값은
+   * predecessor 미실행 노드(진입 트리거 + back-edge 재진입 타깃 등 `gatherNodeInput`
+   * 폴백이 닿는 지점)에만 영향하며, 실제 실행 경로도 동일 폴백을 쓴다.
+   *
+   * **의도적 예외**: AI multi-turn retry 재진입(`retry-turn.service.ts`
+   * `resumeGraphAfterRetry`)은 이 helper 를 쓰지 않고 `input: {}` 를 유지한다 —
+   * 완료된 중간 AI 노드를 `_retryState` 로 재구동하므로 진입 트리거가 재실행되지
+   * 않고, 그 경로의 `$input.*` 미해소는 spec 5-system/4-execution-engine.md §retry
+   * 에 문서화된 동작이다.
+   */
+  private reentryWorkflowInput(
+    savedExecution: Execution,
+  ): Record<string, unknown> {
+    return savedExecution.inputData ?? {};
+  }
+
+  /**
    * Pointer 기반 node dispatch loop — `resumeFromCheckpoint` 와
    * `resumeGraphAfterRetry` 가 공유 (이전엔 약 175라인 중복 — PR #365 ai-review
    * WARNING #10 해소).
@@ -1452,28 +1475,6 @@ export class ExecutionEngineService
    *
    * @internal — EngineDriver 계약(ENGINE_DRIVER)을 통해서만 호출. 모듈 외부 직접 참조 금지.
    */
-  /**
-   * 재진입(park-resume / stalled-redelivery re-drive) 시 `runNodeDispatchLoop`
-   * 에 넘길 workflowInput. durable `Execution.inputData` 를 재사용한다 — 재진입
-   * 시 아직 실행되지 않은 no-incoming 진입 노드(Manual Trigger)가 원래의 트리거
-   * 입력(`{ parameters, __triggerSource, ... }`)을 받아 `output.parameters` 를
-   * 정상 산출하게 한다. 빈 객체로 대체하면 트리거가 `input={}` 를 받아
-   * `output.parameters:{}` 가 되고 다운스트림 `$node[...].output.parameters` /
-   * `$params` 표현식이 전부 빈값이 된다. 이미 완료된 노드는 skip 되므로 미완료
-   * 진입 노드에만 영향한다.
-   *
-   * **의도적 예외**: AI multi-turn retry 재진입(`retry-turn.service.ts`
-   * `resumeGraphAfterRetry`)은 이 helper 를 쓰지 않고 `input: {}` 를 유지한다 —
-   * 완료된 중간 AI 노드를 `_retryState` 로 재구동하므로 진입 트리거가 재실행되지
-   * 않고, 그 경로의 `$input.*` 미해소는 spec 5-system/4-execution-engine.md §retry
-   * 에 문서화된 동작이다.
-   */
-  private reentryWorkflowInput(
-    savedExecution: Execution,
-  ): Record<string, unknown> {
-    return savedExecution.inputData ?? {};
-  }
-
   // C-1 step4 — EngineDriver member (RetryTurnService.resumeGraphAfterRetry 가 driver 경유).
   public async runNodeDispatchLoop(
     params: NodeDispatchLoopParams,

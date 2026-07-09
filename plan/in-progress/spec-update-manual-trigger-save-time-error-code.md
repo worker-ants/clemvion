@@ -32,10 +32,13 @@ spec_area: spec/4-nodes/7-trigger/1-manual-trigger.md
       (저장 시점 검증 코드 링크) — convention_compliance WARNING.
 - [ ] (rationale_continuity WARNING) `restoreVersion` 이 저장 게이트를 skip 하는
       비대칭을 해당 spec 의 `## Rationale` 에 근거 기재.
-- [ ] (user_guide_sync WARNING, re-review) 유저 가이드
-      `codebase/frontend/src/content/docs/02-nodes/triggers.mdx` + `.en.mdx` 의
-      Callout 이 파라미터 이름 검증을 "실행 시점에만 거부" 로 읽히게 stale — 저장
-      시점(`Save`)에도 즉시 거부됨을 반영(프론트 inline 에러 UI 포함).
+- [x] (user_guide_sync WARNING) 유저 가이드
+      `codebase/frontend/src/content/docs/02-nodes/triggers.mdx` + `.en.mdx`
+      Callout 을 저장 시점(`Save`) 거부 + 프론트 inline 에러로 갱신 — **same-turn
+      처리 완료**(developer 소관 codebase content).
+- [ ] (re-review W5) spec §6 표·코드 주석의 "handler.validate (저장 시점)" 표현이
+      실제로는 `WorkflowsService.validateManualTrigger()` 가 `validateTriggerParameterSchema`
+      를 직접 호출하는 우회 구현임을 각주로 명시(네이밍 정정).
 
 ## 비고
 
