@@ -69,7 +69,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 
 | Trigger | 함수 |
 |---|---|
-| ConversationThread 재구성 view | EH-DETAIL-06 — 실행 이력의 thread 재구성 |
+| ConversationThread 재구성 view | EH-DETAIL-12 — 실행 이력의 cross-node thread 재구성 (v2) |
 
 ---
 

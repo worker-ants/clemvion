@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-09T12:17:40.816719",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-eh-detail-06-id-split.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

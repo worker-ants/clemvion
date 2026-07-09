@@ -92,6 +92,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 영역 | 내용 |
 |------|------|
 | **Graph RAG 후속 (P2+)** | community detection / 글로벌 요약 / 도메인별 entity 타입 사전 / KB 단위 prompt override. P0~P2 본체는 §6.1 에서 ✅. 상세: [PRD 9 §8](./5-system/10-graph-rag.md#8-미결--후속-검토). |
+| **실행 상세 cross-node ConversationThread 뷰** | 여러 노드의 presentation/AI turn 을 seq·timestamp·source 로 interleave 한 통합 대화 뷰 재구성 (derived view). 단일 AI Agent 노드 Preview 는 §6.1 EH-DETAIL-06 ✅. 상세: [Execution History EH-DETAIL-12](./2-navigation/14-execution-history.md), [Conversation Thread §7](./conventions/conversation-thread.md#7-v2-로드맵). |
 | **조직(상위) 레벨 Integration 공유** | 워크스페이스 단위 Integration 공유·RBAC 는 §6.1 에서 ✅ (NAV-IN-07 ✅). 미구현 잔여는 **여러 워크스페이스를 가로지르는** 조직(상위) 단위 공유 — 후속 단계에서 도입 예정. |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
