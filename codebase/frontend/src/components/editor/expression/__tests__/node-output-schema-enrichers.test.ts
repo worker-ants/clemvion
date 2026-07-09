@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   enrichFormOutputSchema,
   enrichInfoExtractorOutputSchema,
+  enrichManualTriggerOutputSchema,
   enrichTableOutputSchema,
   enrichTransformOutputSchema,
 } from "../node-output-schema-enrichers";
@@ -437,5 +438,131 @@ describe("enrichTransformOutputSchema", () => {
       operations: [{ type: "set_field", field: "x", value: 1 }],
     });
     expect(transformBaseSchema).toEqual(clone);
+  });
+});
+
+// Manual Trigger resolves each declared parameter into `output.parameters.<name>`
+// (name-keyed object), while `config.parameters` stays the raw definition array.
+// The enricher projects config.parameters[].name into output.parameters so
+// `$node["Manual Trigger"].output.parameters.<name>` autocompletes pre-run.
+// Base shape mirrors the backend manualTriggerOutputSchema: output.parameters is
+// an open record (no `properties`) until enriched.
+const manualTriggerBaseSchema: JsonSchemaNode = {
+  type: "object",
+  properties: {
+    config: {
+      type: "object",
+      properties: { parameters: { type: "array" } },
+    },
+    output: {
+      type: "object",
+      properties: {
+        parameters: { type: "object" },
+      },
+    },
+  },
+};
+
+describe("enrichManualTriggerOutputSchema", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns undefined when baseSchema is undefined", () => {
+    expect(enrichManualTriggerOutputSchema(undefined, {})).toBeUndefined();
+  });
+
+  it("returns base schema unchanged when parameters is empty or missing", () => {
+    expect(enrichManualTriggerOutputSchema(manualTriggerBaseSchema, undefined)).toBe(
+      manualTriggerBaseSchema,
+    );
+    expect(
+      enrichManualTriggerOutputSchema(manualTriggerBaseSchema, { parameters: [] }),
+    ).toBe(manualTriggerBaseSchema);
+    expect(
+      enrichManualTriggerOutputSchema(manualTriggerBaseSchema, {
+        parameters: "not-array",
+      }),
+    ).toBe(manualTriggerBaseSchema);
+  });
+
+  it("injects declared params under output.parameters with type mapping", () => {
+    const result = enrichManualTriggerOutputSchema(manualTriggerBaseSchema, {
+      parameters: [
+        { name: "region", type: "string", defaultValue: "인천", description: "지역" },
+        { name: "count", type: "number" },
+        { name: "verbose", type: "boolean" },
+        { name: "payload", type: "object" },
+        { name: "items", type: "array" },
+      ],
+    });
+    const params = result?.properties?.output?.properties?.parameters;
+    expect(params?.properties).toEqual({
+      region: { type: "string", description: "지역" },
+      count: { type: "number" },
+      verbose: { type: "boolean" },
+      payload: { type: "object" },
+      items: { type: "array" },
+    });
+  });
+
+  it("falls back to 'string' for missing or unknown param types", () => {
+    const result = enrichManualTriggerOutputSchema(manualTriggerBaseSchema, {
+      parameters: [
+        { name: "noType" },
+        { name: "weird", type: "not-a-type" },
+      ],
+    });
+    const params = result?.properties?.output?.properties?.parameters;
+    expect(params?.properties?.noType).toEqual({ type: "string" });
+    expect(params?.properties?.weird).toEqual({ type: "string" });
+  });
+
+  it("skips unsafe prototype keys and invalid identifiers", () => {
+    const result = enrichManualTriggerOutputSchema(manualTriggerBaseSchema, {
+      parameters: [
+        { name: "__proto__", type: "string" },
+        { name: "has space", type: "string" },
+        { name: "1bad", type: "string" },
+        { name: "good_name", type: "string" },
+      ],
+    });
+    const params = result?.properties?.output?.properties?.parameters;
+    expect(Object.keys(params?.properties ?? {})).toEqual(["good_name"]);
+  });
+
+  it("does not mutate the base schema", () => {
+    const clone: JsonSchemaNode = JSON.parse(
+      JSON.stringify(manualTriggerBaseSchema),
+    );
+    enrichManualTriggerOutputSchema(manualTriggerBaseSchema, {
+      parameters: [{ name: "region", type: "string" }],
+    });
+    expect(manualTriggerBaseSchema).toEqual(clone);
+  });
+
+  it("warns and returns cloned schema when output property is missing", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const shape: JsonSchemaNode = {
+      type: "object",
+      properties: { other: { type: "string" } },
+    };
+    const result = enrichManualTriggerOutputSchema(shape, {
+      parameters: [{ name: "region", type: "string" }],
+    });
+    expect(result).not.toBe(shape);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("creates output.parameters.properties when it is an open record", () => {
+    const shape: JsonSchemaNode = {
+      type: "object",
+      properties: { output: { type: "object" } },
+    };
+    const result = enrichManualTriggerOutputSchema(shape, {
+      parameters: [{ name: "region", type: "string", defaultValue: "인천" }],
+    });
+    const params = result?.properties?.output?.properties?.parameters;
+    expect(params?.properties).toEqual({ region: { type: "string" } });
   });
 });

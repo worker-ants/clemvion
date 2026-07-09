@@ -10,6 +10,7 @@ import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expressio
 import {
   enrichFormOutputSchema,
   enrichInfoExtractorOutputSchema,
+  enrichManualTriggerOutputSchema,
   enrichTableOutputSchema,
   enrichTransformOutputSchema,
 } from "./node-output-schema-enrichers";
@@ -194,6 +195,11 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
               inputSchema,
               sourceData?.config as Record<string, unknown> | undefined,
             );
+          } else if (inputSchema && sourceType === "manual_trigger") {
+            inputSchema = enrichManualTriggerOutputSchema(
+              inputSchema,
+              sourceData?.config as Record<string, unknown> | undefined,
+            );
           }
           // `outputSchema` is declared as the canonical envelope shape
           // `{ config, output, meta, port, status }`. `$input.*` binds to
@@ -247,6 +253,8 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
         outputSchema = enrichTableOutputSchema(outputSchema, config);
       } else if (nodeType === "transform") {
         outputSchema = enrichTransformOutputSchema(outputSchema, config);
+      } else if (nodeType === "manual_trigger") {
+        outputSchema = enrichManualTriggerOutputSchema(outputSchema, config);
       }
       return {
         id: n.id,

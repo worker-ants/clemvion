@@ -20,6 +20,19 @@ const INFO_EXTRACTOR_TYPE_MAP: Record<string, string> = {
 };
 
 /**
+ * Matches the Manual Trigger param `type` enum (manual-trigger.schema.ts).
+ * These names are already JSON-schema types, so this is an identity guard —
+ * anything outside the enum falls back to `string`.
+ */
+const MANUAL_TRIGGER_TYPE_MAP: Record<string, string> = {
+  string: "string",
+  number: "number",
+  boolean: "boolean",
+  object: "object",
+  array: "array",
+};
+
+/**
  * Matches the Form node's `config.fields[].type` enum (form.schema.ts).
  * `date` and `file` are upstream-only UI types; at runtime they arrive as
  * strings, so we surface a plain `string` hint for both. `checkbox` renders
@@ -310,5 +323,71 @@ export function enrichTransformOutputSchema(
   };
   if (!cloned.properties) cloned.properties = {};
   cloned.properties.output = outputNode;
+  return cloned;
+}
+
+/**
+ * Manual Trigger resolves each declared parameter into `output.parameters.<name>`
+ * (the name-keyed runtime object), while `config.parameters` stays the raw
+ * definition *array* — same name, orthogonal shape (manual-trigger spec §4/§5.1,
+ * CONVENTIONS Principle 1.1). The base outputSchema declares `output.parameters`
+ * as an open record (`z.record`), so param names aren't hinted. Project
+ * `config.parameters[].name` into `output.parameters.<name>` so
+ * `$node["Manual Trigger"].output.parameters.<name>` (and `$params.<name>`)
+ * autocompletes pre-run — steering users to the resolved values instead of the
+ * array-shaped `config.parameters.<name>`, which never resolves by name.
+ *
+ * Mirrors {@link enrichFormOutputSchema}: tolerant fall-through when the base
+ * schema shape doesn't expose the expected nesting, and warns in dev so schema
+ * drift between backend and frontend is surfaced early.
+ */
+export function enrichManualTriggerOutputSchema(
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  const params = config?.parameters as
+    | Array<{ name?: unknown; type?: unknown; description?: unknown }>
+    | undefined;
+  if (!Array.isArray(params) || params.length === 0) return baseSchema;
+
+  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
+  for (const p of params) {
+    if (!isSafeFieldName(p?.name)) continue;
+    const declaredType = typeof p.type === "string" ? p.type : undefined;
+    userProps[p.name] = {
+      type: MANUAL_TRIGGER_TYPE_MAP[declaredType ?? "string"] ?? "string",
+      ...(typeof p.description === "string" && p.description
+        ? { description: p.description }
+        : {}),
+    };
+  }
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned =
+    typeof structuredClone === "function"
+      ? structuredClone(baseSchema)
+      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
+  const outputNode = cloned.properties?.output;
+  if (!outputNode || typeof outputNode !== "object") {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "[expression-autocomplete] Manual Trigger outputSchema missing `output` property; parameter hints skipped.",
+      );
+    }
+    return cloned;
+  }
+  if (!outputNode.properties) outputNode.properties = {};
+  const existingParams = outputNode.properties.parameters;
+  const existingParamsProps =
+    existingParams &&
+    typeof existingParams === "object" &&
+    existingParams.properties
+      ? existingParams.properties
+      : {};
+  outputNode.properties.parameters = {
+    type: "object",
+    properties: { ...existingParamsProps, ...userProps },
+  };
   return cloned;
 }
