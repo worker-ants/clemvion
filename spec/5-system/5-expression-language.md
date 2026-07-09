@@ -420,7 +420,7 @@ webhook 트리거로 시작된 실행에서 HTTP 요청 구성요소를 **flat s
 | `form` | `config.fields[].name` → `.output.interaction.data.<field>` |
 | `table` | `config.columns[].field` → `.output.rows[i].<field>` |
 | `transform` | `set_field` 의 `field` / `rename_field` 의 `to` → `.output.<name>` |
-| `manual_trigger` | `config.parameters[].name` → `.output.parameters.<name>` (param `type` 로 타입 매핑). `config.parameters` 는 배열 정의라 이름 접근 불가 — 사용자를 name-keyed `output.parameters` 로 유도 (Manual Trigger §4/§5.1) |
+| `manual_trigger` | `config.parameters[].name` → `.output.parameters.<name>` (param `type` 로 매핑) |
 
 안전장치: unsafe 키(`__proto__`/`constructor`/`prototype`, 비식별자) 거부, expression 값 키(`{{ }}` 포함 — 런타임 키 미확정) skip, 중첩 경로(`user.name`) skip. 기본 스키마 shape 이 보강을 허용하지 않으면 기본 스키마로 silent fallback (UX 힌트 전용 — 실행 동작에 영향 없음).
 

@@ -27,8 +27,10 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
 
 `enrichManualTriggerOutputSchema` 추가 — `config.parameters[].name` 을
 `output.parameters.<name>` (타입은 param 의 `type` 으로 매핑)으로 projection 하여
-`$node["Manual Trigger"].output.parameters.<name>` / `$params.<name>` 이 실행 전에도
-자동완성되게 한다. 기존 4개 enricher 와 동일 패턴·동일 안전장치.
+`$node["Manual Trigger"].output.parameters.<name>` (및 직속 successor 의
+`$input.parameters.<name>`) 이 실행 전에도 자동완성되게 한다. 기존 4개 enricher 와
+동일 패턴·동일 안전장치. (주의: `$params` 루트 변수의 하위키 자동완성은 별개
+관심사로 본 enricher 영향권 밖 — ai-review WARNING #1 정정.)
 
 ## 수정 대상
 
@@ -55,14 +57,21 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
 ## 워크플로 체크
 
 - [x] consistency-check --impl-prep spec/4-nodes/7-trigger/ — **BLOCK: NO** (5 checker, Critical 0; convention_compliance 위험도 LOW). "금번 작업은 구현 착수를 막을 컨벤션 이슈 없음" 명시. (SUMMARY·plan_coherence.md 는 FS-write flakiness 로 디스크 미기록 — journal 5 result 확인)
-- [x] TEST: lint PASS / unit PASS(40) / build PASS(frontend, 부트스트랩 후). e2e: 프론트 autocomplete 전용·런타임 무변경 → 면제 후보(화이트리스트 확인)
-- [ ] /ai-review + SUMMARY/RESOLUTION
-- [ ] (spec code-glob 매칭 시) consistency-check --impl-done
+- [x] /ai-review — **RISK LOW / Critical 0 / Warning 5**. W1(문서 과잉주장)·W2(TYPE_MAP 중복)·W5(배선 통합테스트) fix, W3·W4(enricher DRY 리팩터) 후속 백로그. SUMMARY·RESOLUTION 기록(`review/code/2026/07/09/23_15_51/`)
+- [x] 리뷰 fix 후 unit 재통과 (enrichers 40 + wiring 2 = 71 passed)
+- [x] TEST WORKFLOW 최종 재수행: **lint PASS / unit PASS(48 파일) / build PASS / e2e PASS(247)** (화이트리스트상 `.ts` 포함 → 면제 불가, 전체 e2e 수행 — 백엔드 무변경 무회귀)
+- [x] (spec code-glob 매칭) consistency-check --impl-done spec/5-system/ — **BLOCK: NO** (Critical 0). WARNING 1(관련 plan 체크박스 미반영)·INFO 3 전부 해소(§7.2 행 축약, node-output-redesign line 140 부분해소 주석, 후속 체크박스화). `rationale_continuity` 는 FS-write flakiness 로 직접 Agent 재실행 → **위험도 NONE**(닫힌 집합 제약 아님·값 아닌 이름만 투영이라 Principle 1.1 무위반).
 
-## 후속 (spec 문서, 비차단 — project-planner)
-- convention_compliance WARNING: `spec/4-nodes/7-trigger/0-common.md §3` 표의 `output: $params`
+## 후속 (비차단)
+- [ ] (spec, project-planner) `spec/4-nodes/7-trigger/0-common.md §3` 표의 `output: $params`
   축약 표기를 `output.parameters: $params` 로 명확화 (§3.2/§5.1 JSON 예시와 통일).
   사용자가 겪은 `config.parameters` vs `output.parameters` 혼동과 동일 계열의 문서 정밀성 이슈.
+  (impl-prep + ai-review 양쪽 지적, pre-existing.)
+- [ ] (frontend, 후속) `$params.<name>` root shortcut 하위키 자동완성 — `$params` 는 root
+  변수 목록 미등록이라 본 enricher 영향권 밖. [`node-output-redesign/manual-trigger.md`](node-output-redesign/manual-trigger.md) line 140 잔여 항목과 동일.
+- [ ] (refactor, 후속) enricher DRY: 공용 `projectFieldsIntoSchema` 헬퍼 + `ENRICHERS`
+  디스패치 테이블 (ai-review W3/W4). 기존 4개 enricher 동반 수정이라 별도 PR — 6번째
+  enricher 추가 시점 트리거.
 
 ## 비고
 
