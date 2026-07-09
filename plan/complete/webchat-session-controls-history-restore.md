@@ -71,9 +71,10 @@ spec_impact:
       엔진 상태전이·park/resume 로직 무변경. external-interaction e2e 는 getStatus context/conversationThread
       를 단언하지 않아 회귀 경로 없음. 프런트(web-chat)는 vitest 전용(e2e 없음). 단위테스트로 충분.
 
-## 잔여/후속
-- 복원된 thread turn 의 presentation shape(백엔드 `PresentationPayload {type,toolCallId,renderedAt,payload}`)는
-  위젯 렌더 envelope(`{config,output}`)와 달라 별도 매핑 필요 — 텍스트 히스토리 복원 범위 밖, 후속 검토.
-- host `resetSession`(newChat)-during-booting 중복 webhook 엣지 — pre-existing(원래 newChat 도 startedRef 재개방),
-  본 PR 은 UI 경로만 booting 제외로 차단. host-API 엣지 GC/가드는 backlog(planner).
-- durable thread REST redaction·새 대화 orphan GC — 방어심화 backlog(R17/spec WARNING 명문).
+## 잔여/후속 (spec 본문에 Planned 로 durable 명문화 — complete 이관 후 추적 표면 보존)
+- 복원된 thread turn 의 presentation shape(백엔드 `PresentationPayload`)↔위젯 envelope(`{config,output}`) 매핑
+  → **spec `1-widget-app.md §2 presentation 행 "알려진 제약(Planned)"`** 로 명문화. 텍스트 히스토리 복원 범위 밖.
+- host `resetSession`(newChat)-during-booting 중복 webhook 엣지(pre-existing) → **spec `1-widget-app.md §3.1 새 대화 행
+  "알려진 제약(Planned)"`** 로 명문화. 위젯 gen guard 는 client 오염만 차단, host-API 가드/드레인은 backlog(planner).
+- durable thread REST redaction·새 대화 orphan GC → **EIA `14-external-interaction-api.md §R17`(redaction allowlist
+  후속 하드닝)·`1-widget-app.md §3.1`(orphan TTL)** 에 명문. 방어심화 backlog.
