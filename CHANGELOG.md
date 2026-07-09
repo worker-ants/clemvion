@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Manual Trigger 파라미터 표현식 자동완성 힌트 (5-system/5-expression §7.2)
+
+### 변경 사항
+
+1. **에디터 표현식 자동완성이 Manual Trigger 의 `output.parameters.<name>` 를 실행 전에도 힌트한다** — 한 사용자 워크플로에서 AI Agent userPrompt 가 `{{$node["Manual Trigger"].config.parameters.region}}` 로 작성돼 값이 빈값으로 전달됐다. `config.parameters` 는 정의 **배열**(이름 접근 불가)이고 해석된 값은 name-keyed `output.parameters` 에 있는데, 에디터가 그 경로를 힌트하지 못해 혼동을 유발했다. 기존 Form/Table/Transform/InfoExtractor 4개 enricher 와 동일 패턴으로 `enrichManualTriggerOutputSchema` 를 추가해, 노드 `config.parameters[].name` 을 정적 outputSchema 의 `output.parameters.<name>`(param `type` 매핑)로 투영한다 — `$node["Manual Trigger"].output.parameters.<name>`(및 직속 successor 의 `$input.parameters.<name>`)이 실행 전에도 자동완성된다. 프론트 전용 UX 힌트로 런타임 검증·엔진·백엔드 output shape 은 무변경. `spec/5-system/5-expression-language.md §7.2` enricher 표에 `manual_trigger` 행 동기화(4→5개 노드 타입). SoT: `spec/5-system/5-expression-language.md §7.2`.
+
 ## Unreleased — 웹채팅 위젯 세션 컨트롤(새 대화/대화 종료) + 새로고침 히스토리 복원 (7-channel-web-chat §1·§3)
 
 ### 변경 사항

@@ -10,21 +10,14 @@
 
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
-/** Matches the OutputField.type enum declared in information-extractor schema. */
-const INFO_EXTRACTOR_TYPE_MAP: Record<string, string> = {
-  string: "string",
-  number: "number",
-  boolean: "boolean",
-  array: "array",
-  object: "object",
-};
-
 /**
- * Matches the Manual Trigger param `type` enum (manual-trigger.schema.ts).
- * These names are already JSON-schema types, so this is an identity guard —
- * anything outside the enum falls back to `string`.
+ * Shared identity guard for node config type enums whose values are already
+ * JSON-schema types — Information Extractor's `OutputField.type` and Manual
+ * Trigger's param `type` both declare exactly `string|number|boolean|object|
+ * array`. Anything outside the enum falls back to `string`. (Form fields have
+ * their own non-identity map — `date`/`file`/`select` etc. — see below.)
  */
-const MANUAL_TRIGGER_TYPE_MAP: Record<string, string> = {
+const JSON_SCHEMA_IDENTITY_TYPE_MAP: Record<string, string> = {
   string: "string",
   number: "number",
   boolean: "boolean",
@@ -89,7 +82,7 @@ export function enrichInfoExtractorOutputSchema(
     const declaredType =
       typeof f.type === "string" ? f.type : undefined;
     userProps[f.name] = {
-      type: INFO_EXTRACTOR_TYPE_MAP[declaredType ?? "string"] ?? "string",
+      type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
       ...(typeof f.description === "string" && f.description
         ? { description: f.description }
         : {}),
@@ -333,9 +326,11 @@ export function enrichTransformOutputSchema(
  * CONVENTIONS Principle 1.1). The base outputSchema declares `output.parameters`
  * as an open record (`z.record`), so param names aren't hinted. Project
  * `config.parameters[].name` into `output.parameters.<name>` so
- * `$node["Manual Trigger"].output.parameters.<name>` (and `$params.<name>`)
- * autocompletes pre-run — steering users to the resolved values instead of the
- * array-shaped `config.parameters.<name>`, which never resolves by name.
+ * `$node["Manual Trigger"].output.parameters.<name>` — and, for a direct
+ * successor, `$input.parameters.<name>` — autocompletes pre-run, steering users
+ * to the resolved values instead of the array-shaped `config.parameters.<name>`,
+ * which never resolves by name. (This does not feed the `$params` root variable,
+ * whose sub-key autocomplete is a separate concern.)
  *
  * Mirrors {@link enrichFormOutputSchema}: tolerant fall-through when the base
  * schema shape doesn't expose the expected nesting, and warns in dev so schema
@@ -356,7 +351,7 @@ export function enrichManualTriggerOutputSchema(
     if (!isSafeFieldName(p?.name)) continue;
     const declaredType = typeof p.type === "string" ? p.type : undefined;
     userProps[p.name] = {
-      type: MANUAL_TRIGGER_TYPE_MAP[declaredType ?? "string"] ?? "string",
+      type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
       ...(typeof p.description === "string" && p.description
         ? { description: p.description }
         : {}),
