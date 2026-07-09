@@ -153,6 +153,31 @@ describe("WorkflowsPage — pagination", () => {
     expect(mockPush).toHaveBeenCalledWith("/workflows/new-wf");
   });
 
+  it("pushes to the slug-prefixed editor after create when a workspace is active", async () => {
+    // slug 라우팅 phase 2: create-then-push 는 buildEditorHref 로 slug 를 붙여야 한다.
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws-1", name: "Team", type: "team", slug: "team-x", role: "editor" },
+      ],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    createMock.mockResolvedValue({
+      data: { data: { id: "new-wf", name: "New", isActive: true, tags: [] } },
+    });
+    await renderPage();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    );
+    await vi.waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/w/team-x/workflows/new-wf"),
+    );
+  });
+
   it("tolerates legacy response shape (bare array under `data`)", async () => {
     // Some older deployments may return data: WorkflowData[] without a
     // pagination block. Page should still render without crashing.
