@@ -32,4 +32,8 @@ ai-review 결과: 위험도 **CRITICAL**, Critical 1 / Warning 11. 아래와 같
 
 - **W4** 식별자 정규식 공유 패키지 추출 (별도 그루밍)
 - **W6** 실 데이터의 잔존 malformed `config.parameters` 정리 마이그레이션 (배포 전 조회 → 운영 판단)
-- **W5** `INVALID_TRIGGER_PARAMETERS` 저장 시점 재사용의 spec §6/data-flow 문서화 — impl-done consistency 결과에 따라 project-planner 위임 여부 결정
+- **W5** `INVALID_TRIGGER_PARAMETERS` 저장 시점 재사용의 spec §6/data-flow 문서화 — impl-done consistency(BLOCK: NO)가 동일 WARNING 재확인 → `plan/in-progress/spec-update-manual-trigger-save-time-error-code.md` 로 project-planner 위임(비차단)
+
+## impl-done consistency 결과
+
+`/consistency-check --impl-done spec/4-nodes/7-trigger/1-manual-trigger.md` → **BLOCK: NO** (5 checker 전원 재확인, Critical 0). WARNING 은 전부 저장 시점 에러코드/`restoreVersion` 예외의 spec 문서 완결성 항목 → 위 spec-update follow-up 으로 이관.

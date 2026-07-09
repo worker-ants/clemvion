@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-09T11:39:56.918542",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/4-nodes/7-trigger/1-manual-trigger.md, diff-base=origin/main)",
+  "target_path": "spec/4-nodes/7-trigger/1-manual-trigger.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
