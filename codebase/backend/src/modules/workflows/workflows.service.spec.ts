@@ -1400,7 +1400,48 @@ describe('WorkflowsService', () => {
           name: 'Snapshot Name',
           changeSummary: 'Restored from v2',
         }),
+        // skipParamSchemaValidation — historical snapshots may pre-date the
+        // save-time parameter gate and must not be blocked on restore.
+        true,
       );
+    });
+
+    it('restores a snapshot with a malformed trigger parameter without a 400', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        currentVersion: 3,
+      });
+      mockWorkflowVersionsService.findOne.mockResolvedValue({
+        id: 'v-uuid-1',
+        workflowId: 'wf-uuid-1',
+        version: 2,
+        snapshot: {
+          name: 'Legacy',
+          nodes: [
+            {
+              id: 'node-1',
+              type: 'manual_trigger',
+              category: NodeCategory.TRIGGER,
+              label: 'Manual Trigger',
+              positionX: 0,
+              positionY: 0,
+              // empty-name slot — would 400 on a normal /save, but a restore
+              // of pre-gate data must still succeed.
+              config: { parameters: [{ name: '', type: 'string' }] },
+            },
+          ],
+          edges: [],
+        },
+      });
+
+      await expect(
+        service.restoreVersion(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'v-uuid-1',
+          'user-uuid-1',
+        ),
+      ).resolves.toBeDefined();
     });
   });
 });

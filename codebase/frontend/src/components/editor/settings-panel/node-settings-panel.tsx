@@ -149,7 +149,6 @@ function SettingsTab({
 }) {
   const t = useT();
   const nodes = useEditorStore((s) => s.nodes);
-  const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
   const [label, setLabel] = useState(nodeData.label);
   const [isDisabled, setIsDisabled] = useState(nodeData.isDisabled ?? false);
   const [nodeConfig, setNodeConfig] = useState<Record<string, unknown>>(
@@ -191,16 +190,8 @@ function SettingsTab({
   const handleConfigChange = useCallback(
     (newConfig: Record<string, unknown>) => {
       setNodeConfig(newConfig);
-      // Commit node-specific config edits to the store immediately (and mark
-      // the workflow dirty) instead of only holding them in local state until
-      // the "Save changes" button. Without this, config edits — e.g. a Manual
-      // Trigger parameter + its defaultValue — are lost on Run because
-      // saveBeforeRun only persists when isDirty and only reads store config.
-      // newConfig is spread from the current config, so notes / errorHandling
-      // (committed separately by handleSave) are preserved.
-      updateNodeConfig(nodeId, newConfig);
     },
-    [nodeId, updateNodeConfig],
+    [],
   );
 
   const isDuplicateLabel = useMemo(() => {
