@@ -50,8 +50,13 @@ retry-last-turn 양 경로 동시 수정).
 
 ## 워크플로 체크리스트
 
-- [ ] 3. consistency-check --impl-prep/impl-done (spec 연결 시 impl-done 로 검증)
+- [x] 3. consistency-check --impl-done — **BLOCK: NO** (spec/5-system/4-execution-engine.md, 5 checker C0/W0)
 - [x] 5. 회귀 테스트 선작성 (buildRetryReentryState 가 workflowId/nodeExecutionId 재주입)
 - [x] 6. 구현
-- [ ] 8. TEST WORKFLOW — lint[x]·unit[x]·build[x]·e2e[ ]
-- [ ] 9. REVIEW WORKFLOW (/ai-review + fix + impl-done)
+- [x] 8. TEST WORKFLOW — lint[x]·unit[x]·build[x]·e2e[x] (2회, e2e 247 pass)
+- [x] 9. REVIEW WORKFLOW — /ai-review[x] (LOW, C0/W0, INFO polish 반영) · RESOLUTION.md[x] · impl-done[x] BLOCK:NO
+
+## 외부 follow-up (본 PR 스코프 밖, 별도 추적)
+
+- `task_1543860b` — IE(information_extractor) resume `llmContext` 의 유사 attribution 갭(`nodeExecutionId=state.nodeId`·`workflowId` 누락). 본 fix 로 state 필드가 채워져 소비만 고치면 됨.
+- `task_0d2f2342` — spec-sync(planner): §1.3 재유도 문구 세분화 + resume-turn usage-log attribution 불변식 1줄 명시(현재 회귀 테스트로만 강제) + §10.3/§10.4 헤딩 넘버링 드리프트(pre-existing).

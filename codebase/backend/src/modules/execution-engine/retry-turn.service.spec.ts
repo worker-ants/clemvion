@@ -451,6 +451,26 @@ describe('RetryTurnService', () => {
       });
     });
 
+    // #501 회귀 가드 — 재시도 재진입은 spawn 된 RUNNING NodeExecution row id 를
+    // buildRetryReentryState 에 `nodeExecutionId` 로 넘겨야 한다. 이게 빠지면 재구성된
+    // resume state 의 nodeExecutionId 가 undefined 가 돼 resume 턴 provider-tool
+    // (cafe24/makeshop/mcp)의 usage-log 게이트가 false 로 skip 된다.
+    it('passes the spawned NodeExecution id to buildRetryReentryState (#501 usage-log attribution)', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(PARK_RELEASED);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      expect(mockDriver.buildRetryReentryState).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ nodeExecutionId: SPAWNED_ID }),
+      );
+    });
+
     // W-6 — 재진입이 ExecutionCancelledError 를 던지면 failRetryExecution 이
     // EXECUTION_CANCELLED (FAILED 아님) 를 emit 하고 Execution.status=CANCELLED.
     it('emits EXECUTION_CANCELLED (not FAILED) when re-entry throws ExecutionCancelledError', async () => {

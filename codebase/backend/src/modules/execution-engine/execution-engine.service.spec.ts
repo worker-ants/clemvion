@@ -13547,6 +13547,47 @@ describe('ExecutionEngineService', () => {
       expect(seedArg).toMatchObject({ foo: 'bar', _resumeState: resumeState });
       expect(aiSpy).toHaveBeenCalledTimes(1);
     });
+
+    // #501 회귀 가드 — handleAiResumeTurn 은 대기 NodeExecution row id 를
+    // buildRetryReentryState 에 nodeExecutionId 로 넘겨야 resume 턴 통합 usage-log
+    // attribution(cafe24/makeshop/mcp)이 복원된다.
+    it('handleAiResumeTurn: 대기 NodeExecution id 를 buildRetryReentryState 에 nodeExecutionId 로 전달 (#501)', async () => {
+      const svc = service as unknown as DispatchSubject;
+      const buildSpy = jest
+        .spyOn(svc, 'buildRetryReentryState')
+        .mockReturnValue({ resumeState: { messages: [] } });
+      jest.spyOn(svc, 'contextKeyOf').mockReturnValue('ctx-key');
+      jest
+        .spyOn(
+          (
+            aiTurnOrchestrator as unknown as {
+              contextService: { setNodeOutput: unknown };
+            }
+          ).contextService as { setNodeOutput: (...a: unknown[]) => void },
+          'setNodeOutput',
+        )
+        .mockImplementation(() => undefined);
+      jest
+        .spyOn(aiTurnOrchestrator, 'processAiResumeTurn')
+        .mockResolvedValue(PARK_RELEASED);
+
+      await aiTurnOrchestrator.handleAiResumeTurn(
+        makeCtx({
+          node: { id: 'ai1', type: 'ai_agent' },
+          isAiConversation: true,
+          resumeCheckpoint: { schemaVersion: 1 },
+          nodeExec: { id: 'ne-resume-1' },
+        }) as never,
+      );
+
+      expect(buildSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ nodeExecutionId: 'ne-resume-1' }),
+      );
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────

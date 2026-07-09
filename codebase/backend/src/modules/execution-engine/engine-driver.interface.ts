@@ -76,6 +76,10 @@ export interface ReentryStateDriver {
    * AI resume(§7.5) ↔ retry-last-turn 재진입이 공유하는 `_resumeState`
    * 재구성기. `_resumeCheckpoint`/`_retryState` 로 turn-state 를 복원하고,
    * retry 모드에서는 replay 용 initialAction 을 함께 만든다.
+   *
+   * @param opts.nodeExecutionId 대기/재시도 NodeExecution row 의 PK. checkpoint
+   *   allow-list 로 persist 되지 않아 재개 시 호출측이 주입한다. 재구성 state 에
+   *   재유도돼 resume 턴 provider-tool 의 통합 usage-log attribution(§4.6)에 쓰인다(#501).
    */
   buildRetryReentryState(
     execution: Execution,
