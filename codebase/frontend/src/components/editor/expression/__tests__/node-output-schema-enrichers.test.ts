@@ -5,6 +5,7 @@ import {
   enrichManualTriggerOutputSchema,
   enrichTableOutputSchema,
   enrichTransformOutputSchema,
+  OUTPUT_SCHEMA_ENRICHERS,
 } from "../node-output-schema-enrichers";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 
@@ -564,5 +565,24 @@ describe("enrichManualTriggerOutputSchema", () => {
     });
     const params = result?.properties?.output?.properties?.parameters;
     expect(params?.properties).toEqual({ region: { type: "string" } });
+  });
+});
+
+// The registry is the single dispatch point for use-expression-context's two
+// enrichment sites; guard that every enricher is wired in exactly once so a new
+// node type can't be added to one site and missed at the other.
+describe("OUTPUT_SCHEMA_ENRICHERS registry", () => {
+  it("maps each node type to its enricher function", () => {
+    expect(OUTPUT_SCHEMA_ENRICHERS).toEqual({
+      information_extractor: enrichInfoExtractorOutputSchema,
+      form: enrichFormOutputSchema,
+      table: enrichTableOutputSchema,
+      transform: enrichTransformOutputSchema,
+      manual_trigger: enrichManualTriggerOutputSchema,
+    });
+  });
+
+  it("returns undefined for an unregistered node type (no dispatch)", () => {
+    expect(OUTPUT_SCHEMA_ENRICHERS["http_request"]).toBeUndefined();
   });
 });
