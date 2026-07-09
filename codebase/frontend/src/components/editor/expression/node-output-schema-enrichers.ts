@@ -327,10 +327,11 @@ export function enrichTransformOutputSchema(
  * as an open record (`z.record`), so param names aren't hinted. Project
  * `config.parameters[].name` into `output.parameters.<name>` so
  * `$node["Manual Trigger"].output.parameters.<name>` — and, for a direct
- * successor, `$input.parameters.<name>` — autocompletes pre-run, steering users
- * to the resolved values instead of the array-shaped `config.parameters.<name>`,
- * which never resolves by name. (This does not feed the `$params` root variable,
- * whose sub-key autocomplete is a separate concern.)
+ * successor, `$input.parameters.<name>` and its `$params.<name>` shortcut —
+ * autocompletes pre-run, steering users to the resolved values instead of the
+ * array-shaped `config.parameters.<name>`, which never resolves by name. (The
+ * `$params.` drill in use-expression-suggestions reads this same enriched
+ * `inputSchema.parameters` for the direct successor.)
  *
  * Mirrors {@link enrichFormOutputSchema}: tolerant fall-through when the base
  * schema shape doesn't expose the expected nesting, and warns in dev so schema

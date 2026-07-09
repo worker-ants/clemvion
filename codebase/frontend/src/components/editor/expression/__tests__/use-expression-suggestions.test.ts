@@ -216,6 +216,28 @@ describe("useExpressionSuggestions - nested paths", () => {
       });
       expect(suggestions).toEqual([]);
     });
+
+    it("falls back to empty for non-object parameters (null / array / primitive)", () => {
+      const expr = "{{ $params. }}";
+      for (const parameters of [null, [1, 2], "str", 42] as unknown[]) {
+        const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+          inputSample: { parameters } as Record<string, unknown>,
+        });
+        expect(suggestions).toEqual([]);
+      }
+    });
+
+    it("sets tokenStart/tokenEnd to replace only the leaf prefix for $params.", () => {
+      const expr = "{{ $params.re }}";
+      const { tokenStart, tokenEnd } = makeSuggestions(
+        expr,
+        cursorAfterExpr(expr),
+        { inputSchema },
+      );
+      // leaf prefix is "re" (2 chars) ending right before " }}"
+      expect(tokenEnd - tokenStart).toBe(2);
+      expect(expr.slice(tokenStart, tokenEnd)).toBe("re");
+    });
   });
 
   describe("$node nested suggestions", () => {

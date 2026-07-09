@@ -29,8 +29,9 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
 `output.parameters.<name>` (타입은 param 의 `type` 으로 매핑)으로 projection 하여
 `$node["Manual Trigger"].output.parameters.<name>` (및 직속 successor 의
 `$input.parameters.<name>`) 이 실행 전에도 자동완성되게 한다. 기존 4개 enricher 와
-동일 패턴·동일 안전장치. (주의: `$params` 루트 변수의 하위키 자동완성은 별개
-관심사로 본 enricher 영향권 밖 — ai-review WARNING #1 정정.)
+동일 패턴·동일 안전장치. (`$params.<name>` 하위키 자동완성도 직속 successor 한정으로
+본 enricher 가 채운 `inputSchema.parameters` 를 재사용한다 — 후속
+[`trigger-params-autocomplete.md`](trigger-params-autocomplete.md) 에서 구현.)
 
 ## 수정 대상
 

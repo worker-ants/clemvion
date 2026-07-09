@@ -38,8 +38,10 @@ spec 은 이미 `$params` 를 규정한다:
 
 ## 워크플로 체크
 - [x] consistency-check --impl-prep spec/5-system/ — **BLOCK: NO** (5 checker 0 Critical; naming/rationale NONE, cross/convention LOW=내 변경 무관 인접문서, plan_coherence LOW WARNING=상위 후속 2건 갱신 절차 누락). Workflow 자동 BLOCK:YES 는 FS-flakiness 오탐(4/5 파일 미기록), journal 로 전수 확인. **WARNING 해소**: node-output-redesign line 140 완전해소 + enricher 후속 체크박스 체크.
-- [x] TEST: lint PASS / unit PASS(expression 243) / build PASS. e2e: 화이트리스트상 `.ts` 포함 → 필수, 커밋 후 수행
-- [ ] /ai-review + SUMMARY/RESOLUTION
+- [x] TEST: **lint PASS / unit PASS(48 파일) / build PASS / e2e PASS(247)** — origin/main(#877) rebase 후 재수행(stale-base 교정). 백엔드 무회귀.
+- [x] /ai-review — **MEDIUM / Critical 0 / Warning 3** (rebased base, 범위 정상). W1(picker 테스트)·W2(방어가드 테스트) fix, W3(DRY) 후속. INFO#1(JSDoc 정정)·#5(주석)·#6(tokenStart 테스트)·CHANGELOG·§7.1 행 fix. 누락 3 reviewer journal 확인 전부 LOW. SUMMARY·RESOLUTION 기록(`review/code/2026/07/10/00_52_26/`).
+- [x] 리뷰 fix 후 unit 재통과 (suggestions+picker 62)
+- [ ] 최종 TEST WORKFLOW 재수행 (lint/unit/build/e2e)
 - [ ] (spec code-glob 매칭) consistency-check --impl-done spec/5-system/
 
 ## 비고
