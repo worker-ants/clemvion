@@ -2,7 +2,7 @@
 id: nav-agent-memory
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/agent-memory/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/agent-memory/page.tsx
   - codebase/frontend/src/lib/api/agent-memories.ts
 ---
 
@@ -11,7 +11,7 @@ code:
 > 관련 문서: [PRD 내비게이션](./_product-overview.md) · [Spec 레이아웃](./_layout.md) · [Spec Agent Memory 저장소·API](../5-system/17-agent-memory.md) · [Spec AI Agent 노드](../4-nodes/3-ai/1-ai-agent.md)
 
 AI Agent 노드의 `memoryStrategy: 'persistent'` 로 누적된 영속 메모리를 워크스페이스 멤버가
-scope 별로 조회하고 정리(삭제)하는 관리 화면. 경로 `/agent-memory`. 데이터·API 계약은
+scope 별로 조회하고 정리(삭제)하는 관리 화면. 경로 `/w/<slug>/agent-memory` (활성 워크스페이스 slug 기준 — [_layout §2.2](./_layout.md#22-메뉴-항목)). 데이터·API 계약은
 [Agent Memory §6](../5-system/17-agent-memory.md#6-메모리-관리-api-조회삭제-admin-surface) 가 SoT.
 
 ## 1. 화면 구조

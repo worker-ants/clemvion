@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ErrorPage, errorToVariant, isSafeRedirectPath } from "../error-page";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   usePathname: () => "/workflows/abc",
 }));
 

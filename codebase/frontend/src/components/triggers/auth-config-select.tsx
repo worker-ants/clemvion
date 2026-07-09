@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 
 export interface AuthConfigOption {
   id: string;
@@ -45,6 +47,7 @@ export function AuthConfigSelect({
   id?: string;
 }) {
   const t = useT();
+  const slug = useWorkspaceSlug();
   const { data: configs = [], isLoading, isError } = useAuthConfigs();
 
   return (
@@ -70,7 +73,7 @@ export function AuthConfigSelect({
         </p>
       )}
       <a
-        href="/authentication"
+        href={buildWorkspaceHref(slug, "/authentication")}
         target="_blank"
         rel="noreferrer"
         className="inline-block text-xs text-[hsl(var(--primary))] hover:underline"

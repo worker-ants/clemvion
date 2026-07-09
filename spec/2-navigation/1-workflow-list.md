@@ -2,7 +2,7 @@
 id: workflow-list
 status: partial
 code:
-  - codebase/frontend/src/app/(main)/workflows/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/workflows/page.tsx
   - codebase/frontend/src/lib/api/workflows.ts
   - codebase/backend/src/modules/workflows/dto/**
   - codebase/backend/src/modules/workflows/workflows.service.ts
@@ -100,7 +100,7 @@ pending_plans:
 | 액션 | 동작 |
 |------|------|
 | 편집 | 에디터로 진입 |
-| 실행 내역 | `/workflows/:id/executions` 로 이동. 라벨은 i18n `workflows.executionHistory` (ko "실행 내역" / en "Execution History") |
+| 실행 내역 | `/w/<slug>/workflows/:id/executions` 로 이동(활성 워크스페이스 slug 기준 — [_layout §2.2](./_layout.md#22-메뉴-항목); 에디터 canvas `/workflows/:id` 는 slug 밖). 라벨은 i18n `workflows.executionHistory` (ko "실행 내역" / en "Execution History") |
 | 복제 | 워크플로우 복사본 생성 (이름에 "(Copy)" 추가) |
 | 내보내기 | JSON 파일로 다운로드 |
 | 활성/비활성 | 상태 토글. 비활성 시 트리거/스케줄 중지 |

@@ -5,6 +5,7 @@ import { LivePreview } from "../live-preview";
 import { DEFAULT_DRAFT } from "../use-appearance-draft";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
   usePathname: () => "/web-chat",
   useSearchParams: () => new URLSearchParams(),

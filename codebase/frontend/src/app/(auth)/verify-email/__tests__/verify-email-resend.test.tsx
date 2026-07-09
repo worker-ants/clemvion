@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => searchParams,
 }));

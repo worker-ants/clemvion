@@ -4,6 +4,7 @@ import GlobalError from "../global-error";
 
 // ErrorPage 내부에서 usePathname 으로 loginHref 를 구성하므로 mock 한다.
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   usePathname: () => "/x",
 }));
 

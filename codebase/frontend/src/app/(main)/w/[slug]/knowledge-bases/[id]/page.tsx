@@ -1,0 +1,1019 @@
+"use client";
+
+import { useState, useRef, use } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  knowledgeBasesApi,
+  type KnowledgeBaseData,
+  type DocumentData,
+  type KbGraphStats,
+  type KbEmbeddingStats,
+  type RerankMode,
+} from "@/lib/api/knowledge-bases";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  KbFormBody,
+  type KbFormTab,
+} from "@/components/knowledge-base/kb-form-body";
+import { UnsearchableBanner } from "@/components/knowledge-base/unsearchable-banner";
+import { EntityList } from "@/components/knowledge-base/entity-list";
+import { RelationList } from "@/components/knowledge-base/relation-list";
+import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
+import {
+  modelConfigsApi,
+  MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
+  MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+  MODEL_CONFIGS_RERANK_LIST_QUERY_KEY,
+} from "@/lib/api/model-configs";
+import { buildEmbeddingConfigPayload, embeddingConfigChanged } from "@/lib/kb/embedding-payload";
+import { useKbEvents } from "@/lib/websocket/use-kb-events";
+import { RoleGate } from "@/components/auth/role-gate";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Upload,
+  Loader2,
+  Trash2,
+  RefreshCw,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Settings,
+} from "lucide-react";
+import { useT, type TranslationKey } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
+
+// 'error' = in-flight 재시도 중 일시 오류 (자동으로 다시 시도됨)
+// 'failed' = 최대 재시도 소진 또는 비재시도성 오류로 인한 최종 실패 (사용자 액션 필요)
+const STATUS_CONFIG: Record<
+  string,
+  {
+    icon: React.ReactNode;
+    labelKey: TranslationKey;
+    variant: "success" | "warning" | "destructive" | "outline";
+  }
+> = {
+  completed: {
+    icon: <CheckCircle className="h-3 w-3" />,
+    labelKey: "knowledgeBases.statusReady",
+    variant: "success",
+  },
+  processing: {
+    icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    labelKey: "knowledgeBases.statusProcessing",
+    variant: "warning",
+  },
+  pending: {
+    icon: <Clock className="h-3 w-3" />,
+    labelKey: "knowledgeBases.statusPending",
+    variant: "outline",
+  },
+  error: {
+    // 일시 오류 — 자동 재시도 중 (회전 아이콘으로 "다시 시도하고 있음" 의미 강조)
+    icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    labelKey: "knowledgeBases.statusRetrying",
+    variant: "warning",
+  },
+  failed: {
+    icon: <XCircle className="h-3 w-3" />,
+    labelKey: "knowledgeBases.statusFailed",
+    variant: "destructive",
+  },
+};
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export default function KnowledgeBaseDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const t = useT();
+  const slug = useWorkspaceSlug();
+  const { id } = use(params);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showKbReEmbedConfirm, setShowKbReEmbedConfirm] = useState(false);
+  const [showKbReExtractConfirm, setShowKbReExtractConfirm] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<KbFormTab>("basic");
+  const [formName, setFormName] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formEmbeddingModelConfigId, setFormEmbeddingModelConfigId] =
+    useState("");
+  const [formChunkSize, setFormChunkSize] = useState("1000");
+  const [formChunkOverlap, setFormChunkOverlap] = useState("200");
+  const [formExtractionLlmConfigId, setFormExtractionLlmConfigId] =
+    useState("");
+  const [formMaxHops, setFormMaxHops] = useState("1");
+  const [formVectorSeedTopK, setFormVectorSeedTopK] = useState("5");
+  const [formExpandedChunkLimit, setFormExpandedChunkLimit] = useState("15");
+  const [formRerankMode, setFormRerankMode] = useState<RerankMode>("off");
+  const [formRerankConfigId, setFormRerankConfigId] = useState("");
+  const [formRerankCandidateK, setFormRerankCandidateK] = useState("50");
+  const [formRerankScoreThreshold, setFormRerankScoreThreshold] = useState("");
+  const [formRerankLlmConfigId, setFormRerankLlmConfigId] = useState("");
+
+  const { data: kb, isLoading: kbLoading } = useQuery<KnowledgeBaseData>({
+    queryKey: ["knowledge-base", id],
+    queryFn: async () => {
+      const res = await knowledgeBasesApi.getById(id);
+      return res.data ?? res;
+    },
+  });
+
+  // kb-documents 는 WS 가 캐시 invalidate 를 트리거하지만, WS 단절 / 신규 업로드 직후
+  // useKbEvents 가 새 documentId 채널을 구독하기 전 race 같은 케이스를 대비해 polling fallback.
+  // 진행 중일 때만 10s, 모두 정착되면 120s 로 완화. (kb-embedding-stats / kb-graph-stats 와 동일 패턴)
+  const { data: docsData, isLoading: docsLoading } = useQuery({
+    queryKey: ["kb-documents", id],
+    queryFn: () => knowledgeBasesApi.getDocuments(id),
+    refetchInterval: () => {
+      const stats = queryClient.getQueryData<KbEmbeddingStats>([
+        "kb-embedding-stats",
+        id,
+      ]);
+      const stillProcessing =
+        !stats ||
+        stats.reembedStatus === "in_progress" ||
+        stats.pendingDocumentCount > 0;
+      return stillProcessing ? 10_000 : 120_000;
+    },
+  });
+  const documents: DocumentData[] = docsData?.data ?? docsData ?? [];
+
+  // WS 이벤트 구독 — backend EmbeddingService/GraphExtractionService 의 retry/failed/progress
+  // 이벤트가 들어오면 즉시 캐시 invalidate. 5s polling 은 fallback.
+  useKbEvents(
+    id,
+    documents.map((d) => d.id),
+  );
+
+  // settings 다이얼로그가 열렸을 때만 LLMConfig 목록을 fetch (임베딩/추출 select 둘 다 사용).
+  const { data: chatModelConfigs = [] } = useQuery({
+    queryKey: MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("chat"),
+    staleTime: 30_000,
+    enabled: showSettings,
+  });
+
+  // settings 다이얼로그가 열렸을 때만 rerank ModelConfig 목록을 fetch (리랭킹 select 용).
+  const { data: rerankConfigs = [] } = useQuery({
+    queryKey: MODEL_CONFIGS_RERANK_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("rerank"),
+    staleTime: 30_000,
+    enabled: showSettings,
+  });
+
+  // settings 다이얼로그가 열렸을 때만 kind=embedding ModelConfig 목록을 fetch (임베딩 1급 select 용).
+  // MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY 공유로 create-dialog / default-hook 과 캐시 일치 보장.
+  const { data: embeddingModelConfigs = [] } = useQuery({
+    queryKey: MODEL_CONFIGS_EMBEDDING_LIST_QUERY_KEY,
+    queryFn: () => modelConfigsApi.list("embedding"),
+    staleTime: 30_000,
+    enabled: showSettings,
+  });
+
+  // graph 모드 KB 의 추출 진행 상태 / 통계. 5초 polling 으로 추출 진행을 따라간다.
+  // 단, 모든 문서가 completed/failed 로 정착된 상태에서는 1분 polling 으로 완화.
+  const isGraphMode = kb?.ragMode === "graph";
+  const { data: graphStats } = useQuery<KbGraphStats>({
+    queryKey: ["kb-graph-stats", id],
+    queryFn: () => knowledgeBasesApi.getGraphStats(id),
+    enabled: isGraphMode,
+    refetchInterval: (query) => {
+      const data = query.state.data as KbGraphStats | undefined;
+      if (!data) return 5_000;
+      // pending = 'pending'|'processing'|'error' (in-flight 재시도 포함). 0 이면 더 폴링 안 함.
+      const stillProcessing =
+        data.reextractStatus === "in_progress" || data.pendingDocumentCount > 0;
+      return stillProcessing ? 5_000 : 60_000;
+    },
+  });
+
+  // 임베딩 진행 통계 (vector/graph 모드 무관). graph 통계와 동일 패턴.
+  const { data: embeddingStats } = useQuery<KbEmbeddingStats>({
+    queryKey: ["kb-embedding-stats", id],
+    queryFn: () => knowledgeBasesApi.getEmbeddingStats(id),
+    enabled: !!kb,
+    refetchInterval: (query) => {
+      const data = query.state.data as KbEmbeddingStats | undefined;
+      if (!data) return 5_000;
+      const stillProcessing =
+        data.reembedStatus === "in_progress" || data.pendingDocumentCount > 0;
+      return stillProcessing ? 5_000 : 60_000;
+    },
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => knowledgeBasesApi.uploadDocument(id, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      // The KB list shows `documentCount` per collection — keep it fresh.
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      toast.success(t("knowledgeBases.documentUploaded"));
+    },
+    onError: () => toast.error(t("knowledgeBases.uploadFailedShort")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (docId: string) => knowledgeBasesApi.removeDocument(id, docId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      toast.success(t("knowledgeBases.documentDeleted"));
+      setDeleteTarget(null);
+    },
+    onError: () => toast.error(t("knowledgeBases.documentDeleteFailed")),
+  });
+
+  const reEmbedMutation = useMutation({
+    mutationFn: (docId: string) => knowledgeBasesApi.reEmbed(id, docId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      toast.success(t("knowledgeBases.reembedStarted"));
+    },
+    onError: () => toast.error(t("knowledgeBases.reembedFailed")),
+  });
+
+  type KbUpdatePayload = {
+    name?: string;
+    description?: string;
+    embeddingModelConfigId?: string | null;
+    chunkSize?: number;
+    chunkOverlap?: number;
+    extractionLlmConfigId?: string;
+    maxHops?: number;
+    vectorSeedTopK?: number;
+    expandedChunkLimit?: number;
+    rerankMode?: RerankMode;
+    rerankConfigId?: string;
+    rerankCandidateK?: number;
+    rerankScoreThreshold?: number;
+    rerankLlmConfigId?: string;
+  };
+  const updateMutation = useMutation({
+    mutationFn: (payload: KbUpdatePayload) =>
+      knowledgeBasesApi.update(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-bases"] });
+      toast.success(t("knowledgeBases.updated"));
+      setShowSettings(false);
+    },
+    onError: () => toast.error(t("knowledgeBases.updateFailed")),
+  });
+
+  const kbReEmbedMutation = useMutation({
+    mutationFn: () => knowledgeBasesApi.reEmbedAll(id),
+    onSuccess: ({ documentCount }) => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      toast.success(
+        t("knowledgeBases.kbReembedStarted", { count: documentCount }),
+      );
+      setShowKbReEmbedConfirm(false);
+    },
+    onError: () => toast.error(t("knowledgeBases.kbReembedFailed")),
+  });
+
+  const [retryFailedScope, setRetryFailedScope] = useState<
+    "embedding" | "graph" | null
+  >(null);
+  const retryFailedMutation = useMutation({
+    mutationFn: (scope: "embedding" | "graph") =>
+      knowledgeBasesApi.retryFailed(id, scope),
+    onSuccess: ({ embeddingRequeued, graphRequeued }) => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["kb-graph-stats", id] });
+      queryClient.invalidateQueries({ queryKey: ["kb-embedding-stats", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      toast.success(
+        t("knowledgeBases.kbRetryFailedStarted", {
+          embedding: embeddingRequeued,
+          graph: graphRequeued,
+        }),
+      );
+      setRetryFailedScope(null);
+    },
+    onError: () => toast.error(t("knowledgeBases.kbRetryFailedFailed")),
+  });
+
+  const kbReExtractMutation = useMutation({
+    mutationFn: () => knowledgeBasesApi.reExtractAll(id),
+    onSuccess: ({ documentCount }) => {
+      queryClient.invalidateQueries({ queryKey: ["kb-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", id] });
+      queryClient.invalidateQueries({ queryKey: ["kb-graph-stats", id] });
+      toast.success(
+        t("knowledgeBases.kbReExtractStarted", { count: documentCount }),
+      );
+      setShowKbReExtractConfirm(false);
+    },
+    onError: () => toast.error(t("knowledgeBases.kbReExtractFailed")),
+  });
+
+  function openSettings() {
+    if (!kb) return;
+    setSettingsTab("basic");
+    setFormName(kb.name);
+    setFormDescription(kb.description ?? "");
+    setFormEmbeddingModelConfigId(kb.embeddingModelConfigId ?? "");
+    setFormChunkSize(String(kb.chunkSize));
+    setFormChunkOverlap(String(kb.chunkOverlap));
+    setFormExtractionLlmConfigId(kb.extractionLlmConfigId ?? "");
+    setFormMaxHops(String(kb.maxHops));
+    setFormVectorSeedTopK(String(kb.vectorSeedTopK));
+    setFormExpandedChunkLimit(String(kb.expandedChunkLimit));
+    setFormRerankMode(kb.rerankMode ?? "off");
+    setFormRerankConfigId(kb.rerankConfigId ?? "");
+    setFormRerankCandidateK(String(kb.rerankCandidateK ?? 50));
+    setFormRerankScoreThreshold(
+      kb.rerankScoreThreshold != null ? String(kb.rerankScoreThreshold) : "",
+    );
+    setFormRerankLlmConfigId(kb.rerankLlmConfigId ?? "");
+    setShowSettings(true);
+  }
+
+  function handleSaveSettings() {
+    if (!kb) return;
+    if (!formName.trim()) {
+      setSettingsTab("basic");
+      toast.error(t("knowledgeBases.nameRequired"));
+      return;
+    }
+    const cs = parseInt(formChunkSize, 10);
+    if (Number.isNaN(cs) || cs < 100 || cs > 8000) {
+      setSettingsTab("embedding");
+      toast.error(t("knowledgeBases.chunkSizeInvalid"));
+      return;
+    }
+    const co = parseInt(formChunkOverlap, 10);
+    if (Number.isNaN(co) || co < 0 || co > 2000) {
+      setSettingsTab("embedding");
+      toast.error(t("knowledgeBases.chunkOverlapInvalid"));
+      return;
+    }
+    const isGraph = kb.ragMode === "graph";
+    let mh = kb.maxHops;
+    let vsk = kb.vectorSeedTopK;
+    let ecl = kb.expandedChunkLimit;
+    if (isGraph) {
+      mh = parseInt(formMaxHops, 10);
+      if (Number.isNaN(mh) || mh < 1 || mh > 2) {
+        setSettingsTab("graph");
+        toast.error(t("knowledgeBases.maxHopsInvalid"));
+        return;
+      }
+      vsk = parseInt(formVectorSeedTopK, 10);
+      if (Number.isNaN(vsk) || vsk < 1 || vsk > 50) {
+        setSettingsTab("graph");
+        toast.error(t("knowledgeBases.vectorSeedTopKInvalid"));
+        return;
+      }
+      ecl = parseInt(formExpandedChunkLimit, 10);
+      if (Number.isNaN(ecl) || ecl < 1 || ecl > 100) {
+        setSettingsTab("graph");
+        toast.error(t("knowledgeBases.expandedChunkLimitInvalid"));
+        return;
+      }
+    }
+    const payload: KbUpdatePayload = {};
+    if (formName !== kb.name) payload.name = formName;
+    if ((formDescription ?? "") !== (kb.description ?? "")) {
+      payload.description = formDescription;
+    }
+    // 임베딩 1급 경로: backend is now authoritative for embeddingModel (WARNING #2 fix).
+    // We only send embeddingModelConfigId; backend derives embeddingModel server-side.
+    // embeddingConfigChanged() centralises the comparison (WARNING #10 fix).
+    if (embeddingConfigChanged(formEmbeddingModelConfigId, kb.embeddingModelConfigId)) {
+      // buildEmbeddingConfigPayload returns {} when configId is empty (ws-default → send null explicitly).
+      const embPayload = buildEmbeddingConfigPayload(formEmbeddingModelConfigId, embeddingModelConfigs);
+      payload.embeddingModelConfigId = embPayload.embeddingModelConfigId ?? null;
+    }
+    if (cs !== kb.chunkSize) payload.chunkSize = cs;
+    if (co !== kb.chunkOverlap) payload.chunkOverlap = co;
+    if (isGraph) {
+      const newExtCfg = formExtractionLlmConfigId || "";
+      const curExtCfg = kb.extractionLlmConfigId ?? "";
+      if (newExtCfg !== curExtCfg) payload.extractionLlmConfigId = newExtCfg;
+      if (mh !== kb.maxHops) payload.maxHops = mh;
+      if (vsk !== kb.vectorSeedTopK) payload.vectorSeedTopK = vsk;
+      if (ecl !== kb.expandedChunkLimit) payload.expandedChunkLimit = ecl;
+    }
+
+    // ──────── 리랭킹 (rag_mode 무관, 검색 시점 적용이라 항상 편집 가능) ────────
+    const curRerankMode = kb.rerankMode ?? "off";
+    const rerankOn = formRerankMode !== "off";
+    let rck = kb.rerankCandidateK ?? 50;
+    if (rerankOn) {
+      rck = parseInt(formRerankCandidateK, 10);
+      if (Number.isNaN(rck) || rck < 1 || rck > 200) {
+        setSettingsTab("rerank");
+        toast.error(t("knowledgeBases.rerankCandidateKInvalid"));
+        return;
+      }
+    }
+    if (formRerankMode !== curRerankMode) payload.rerankMode = formRerankMode;
+    if (rerankOn) {
+      const newRerankCfg = formRerankConfigId || "";
+      const curRerankCfg = kb.rerankConfigId ?? "";
+      // backend update DTO 는 @IsUUID() 라 빈 문자열을 보낼 수 없다 → 값이 있을 때만 전송.
+      if (newRerankCfg && newRerankCfg !== curRerankCfg) {
+        payload.rerankConfigId = newRerankCfg;
+      }
+      if (rck !== (kb.rerankCandidateK ?? 50)) payload.rerankCandidateK = rck;
+      // threshold: 값이 있을 때만 전송. 비우면 기존 값 유지(backend 가 null 미수용).
+      if (formRerankScoreThreshold.trim()) {
+        const th = parseFloat(formRerankScoreThreshold);
+        if (!Number.isNaN(th) && th !== (kb.rerankScoreThreshold ?? null)) {
+          payload.rerankScoreThreshold = th;
+        }
+      }
+      if (formRerankMode === "cross_encoder_llm") {
+        const newRerankLlm = formRerankLlmConfigId || "";
+        const curRerankLlm = kb.rerankLlmConfigId ?? "";
+        if (newRerankLlm && newRerankLlm !== curRerankLlm) {
+          payload.rerankLlmConfigId = newRerankLlm;
+        }
+      }
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setShowSettings(false);
+      return;
+    }
+    updateMutation.mutate(payload);
+  }
+
+  function handleFiles(files: FileList | null) {
+    if (!files) return;
+    for (let i = 0; i < files.length; i++) {
+      uploadMutation.mutate(files[i]);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  }
+
+  if (kbLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push(buildWorkspaceHref(slug, "/knowledge-bases"))}
+            aria-label={t("common.back")}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{kb?.name}</h1>
+            {kb?.description && (
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                {kb.description}
+              </p>
+            )}
+          </div>
+        </div>
+        <RoleGate minRole="editor">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowKbReEmbedConfirm(true)}
+              disabled={kbReEmbedMutation.isPending}
+            >
+              {kbReEmbedMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              {t("knowledgeBases.kbReembedAll")}
+            </Button>
+            {isGraphMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowKbReExtractConfirm(true)}
+                disabled={kbReExtractMutation.isPending}
+              >
+                {kbReExtractMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                {t("knowledgeBases.kbReExtractAll")}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={openSettings}>
+              <Settings className="mr-2 h-4 w-4" />
+              {t("knowledgeBases.settingsTitle")}
+            </Button>
+          </div>
+        </RoleGate>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <span
+          className={`rounded px-2 py-0.5 font-mono text-xs ${
+            isGraphMode
+              ? "bg-[hsl(var(--primary)/0.15)] text-[hsl(var(--primary))]"
+              : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+          }`}
+        >
+          {isGraphMode
+            ? t("knowledgeBases.graphBadge")
+            : t("knowledgeBases.vectorBadge")}
+        </span>
+        <span>
+          {t("knowledgeBases.model")}: <code className="font-mono">{kb?.embeddingModel}</code>
+        </span>
+        {kb?.embeddingDimension != null && (
+          <span>
+            {t("knowledgeBases.embeddingDimension")}: {kb.embeddingDimension}
+          </span>
+        )}
+        <span>{t("knowledgeBases.chunk")}: {kb?.chunkSize} / {t("knowledgeBases.overlap")}: {kb?.chunkOverlap}</span>
+        <span>{t("knowledgeBases.documentsCount", { count: kb?.documentCount ?? 0 })}</span>
+      </div>
+
+      {/* 검색 불가 배너 — embeddingDimension == null (검색 제외), 진행 박스 위 상단 (spec 2-navigation/5-knowledge-base §2.4.1·R-3).
+          배너는 KB REST 응답(+WS) 의 reembedStatus 를, 아래 진행 박스는 embeddingStats 폴링의 reembedStatus 를 본다 —
+          출처가 의도적으로 다르며(재임베딩 직후 일시적 불일치 가능) 배너는 KB 자체 상태만 반영한다. */}
+      {kb && kb.embeddingDimension == null && (
+        <UnsearchableBanner
+          reembedStatus={kb.reembedStatus}
+          onReembed={() => setShowKbReEmbedConfirm(true)}
+          pending={kbReEmbedMutation.isPending}
+        />
+      )}
+
+      {embeddingStats && (
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
+          <div className="mb-2 text-sm font-medium">
+            {t("knowledgeBases.embeddingProgressTitle")}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="flex items-center gap-2">
+              {embeddingStats.pendingDocumentCount === 0 &&
+              embeddingStats.failedDocumentCount === 0 ? (
+                <CheckCircle className="h-4 w-4 text-[hsl(var(--success,142_71%_45%))]" />
+              ) : embeddingStats.pendingDocumentCount > 0 ? (
+                <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+              ) : (
+                <XCircle className="h-4 w-4 text-[hsl(var(--destructive))]" />
+              )}
+              {t("knowledgeBases.embeddingCompletedDocs", {
+                count: embeddingStats.completedDocumentCount,
+              })}{" "}
+              / {embeddingStats.totalDocumentCount}
+            </span>
+            {embeddingStats.failedDocumentCount > 0 && (
+              <>
+                <span className="font-mono text-[hsl(var(--destructive))]">
+                  {t("knowledgeBases.embeddingFailedDocs", {
+                    count: embeddingStats.failedDocumentCount,
+                  })}
+                </span>
+                <RoleGate minRole="editor">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRetryFailedScope("embedding")}
+                    disabled={retryFailedMutation.isPending}
+                  >
+                    <RefreshCw className="mr-1 h-3 w-3" />
+                    {t("knowledgeBases.kbRetryFailed")}
+                  </Button>
+                </RoleGate>
+              </>
+            )}
+            {embeddingStats.reembedStatus === "in_progress" && (
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.statusProcessing")}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isGraphMode && graphStats && (
+        <div className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-4">
+          <div className="mb-2 text-sm font-medium">
+            {t("knowledgeBases.graphBuildStatus")}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="flex items-center gap-2">
+              {graphStats.pendingDocumentCount === 0 &&
+              graphStats.failedDocumentCount === 0 ? (
+                <CheckCircle className="h-4 w-4 text-[hsl(var(--success,142_71%_45%))]" />
+              ) : graphStats.pendingDocumentCount > 0 ? (
+                <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+              ) : (
+                <XCircle className="h-4 w-4 text-[hsl(var(--destructive))]" />
+              )}
+              {t("knowledgeBases.graphExtractedDocs", {
+                count: graphStats.extractedDocumentCount,
+              })}{" "}
+              / {graphStats.totalDocumentCount}
+            </span>
+            {graphStats.failedDocumentCount > 0 && (
+              <>
+                <span className="font-mono text-[hsl(var(--destructive))]">
+                  {t("knowledgeBases.graphFailedDocs", {
+                    count: graphStats.failedDocumentCount,
+                  })}
+                </span>
+                <RoleGate minRole="editor">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRetryFailedScope("graph")}
+                    disabled={retryFailedMutation.isPending}
+                  >
+                    <RefreshCw className="mr-1 h-3 w-3" />
+                    {t("knowledgeBases.kbRetryFailed")}
+                  </Button>
+                </RoleGate>
+              </>
+            )}
+            <span className="font-mono">
+              {graphStats.entityCount} {t("knowledgeBases.graphEntities")} ·{" "}
+              {graphStats.relationCount} {t("knowledgeBases.graphRelations")}
+            </span>
+            {graphStats.reextractStatus === "in_progress" && (
+              <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.statusProcessing")}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {kb && (
+        <Dialog open={showSettings} onOpenChange={setShowSettings}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t("knowledgeBases.settingsTitle")}</DialogTitle>
+            </DialogHeader>
+            <KbFormBody
+              activeTab={settingsTab}
+              onActiveTabChange={setSettingsTab}
+              ragMode={kb.ragMode}
+              formName={formName}
+              setFormName={setFormName}
+              formDescription={formDescription}
+              setFormDescription={setFormDescription}
+              formEmbeddingModelConfigId={formEmbeddingModelConfigId}
+              setFormEmbeddingModelConfigId={setFormEmbeddingModelConfigId}
+              embeddingModelConfigs={embeddingModelConfigs}
+              currentEmbeddingDimension={kb.embeddingDimension}
+              formChunkSize={formChunkSize}
+              setFormChunkSize={setFormChunkSize}
+              formChunkOverlap={formChunkOverlap}
+              setFormChunkOverlap={setFormChunkOverlap}
+              formExtractionLlmConfigId={formExtractionLlmConfigId}
+              setFormExtractionLlmConfigId={setFormExtractionLlmConfigId}
+              formMaxHops={formMaxHops}
+              setFormMaxHops={setFormMaxHops}
+              formVectorSeedTopK={formVectorSeedTopK}
+              setFormVectorSeedTopK={setFormVectorSeedTopK}
+              formExpandedChunkLimit={formExpandedChunkLimit}
+              setFormExpandedChunkLimit={setFormExpandedChunkLimit}
+              formRerankMode={formRerankMode}
+              setFormRerankMode={setFormRerankMode}
+              formRerankConfigId={formRerankConfigId}
+              setFormRerankConfigId={setFormRerankConfigId}
+              formRerankCandidateK={formRerankCandidateK}
+              setFormRerankCandidateK={setFormRerankCandidateK}
+              formRerankScoreThreshold={formRerankScoreThreshold}
+              setFormRerankScoreThreshold={setFormRerankScoreThreshold}
+              formRerankLlmConfigId={formRerankLlmConfigId}
+              setFormRerankLlmConfigId={setFormRerankLlmConfigId}
+              rerankConfigs={rerankConfigs}
+              chatModelConfigs={chatModelConfigs}
+              embeddingModelChanged={
+                formEmbeddingModelConfigId !== (kb.embeddingModelConfigId ?? "")
+              }
+            />
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowSettings(false)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                onClick={handleSaveSettings}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("knowledgeBases.settingsSave")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <ConfirmModal
+        open={showKbReEmbedConfirm}
+        title={t("knowledgeBases.kbReembedConfirmTitle")}
+        message={
+          isGraphMode
+            ? t("knowledgeBases.kbReembedConfirmMessageGraph")
+            : t("knowledgeBases.kbReembedConfirmMessage")
+        }
+        confirmLabel={t("knowledgeBases.kbReembedAll")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setShowKbReEmbedConfirm(false)}
+        onConfirm={() => kbReEmbedMutation.mutate()}
+        pending={kbReEmbedMutation.isPending}
+      />
+
+      <ConfirmModal
+        open={retryFailedScope !== null}
+        title={t("knowledgeBases.kbRetryFailedConfirmTitle")}
+        message={
+          retryFailedScope === "graph"
+            ? t("knowledgeBases.kbRetryFailedConfirmGraph")
+            : t("knowledgeBases.kbRetryFailedConfirmEmbedding")
+        }
+        confirmLabel={t("knowledgeBases.kbRetryFailed")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setRetryFailedScope(null)}
+        onConfirm={() => {
+          if (retryFailedScope) retryFailedMutation.mutate(retryFailedScope);
+        }}
+        pending={retryFailedMutation.isPending}
+      />
+
+      <ConfirmModal
+        open={showKbReExtractConfirm}
+        title={t("knowledgeBases.kbReExtractConfirmTitle")}
+        message={t("knowledgeBases.kbReExtractConfirmMessage")}
+        confirmLabel={t("knowledgeBases.kbReExtractAll")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setShowKbReExtractConfirm(false)}
+        onConfirm={() => kbReExtractMutation.mutate()}
+        pending={kbReExtractMutation.isPending}
+      />
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title={t("knowledgeBases.documentDeleteTitle")}
+        message={t("knowledgeBases.documentDeleteMessageFull")}
+        confirmLabel={t("common.delete")}
+        cancelLabel={t("common.cancel")}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() =>
+          deleteTarget && deleteMutation.mutate(deleteTarget)
+        }
+        pending={deleteMutation.isPending}
+        destructive
+      />
+
+      {(() => {
+        const documentsPanel = (
+          <div className="space-y-4">
+            <div
+              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+                isDragging
+                  ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.05)]"
+                  : "border-[hsl(var(--border))]"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+            >
+              <Upload className="mb-2 h-8 w-8 text-[hsl(var(--muted-foreground))]" />
+              <p className="mb-1 text-sm text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.dragDropHere")}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+              >
+                {uploadMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("knowledgeBases.browseFiles")}
+              </Button>
+              <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.supportedTypes")}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept=".txt,.md,.pdf,.csv"
+                multiple
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </div>
+
+            {docsLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-[hsl(var(--muted-foreground))]" />
+              </div>
+            )}
+
+            {!docsLoading && documents.length === 0 && (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                {t("knowledgeBases.noDocumentsHint")}
+              </p>
+            )}
+
+            {!docsLoading && documents.length > 0 && (
+              <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+                <table className="w-full text-sm">
+                  <thead className="bg-[hsl(var(--muted))]">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.name")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.type")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnSize")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.status")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("knowledgeBases.columnChunks")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("common.actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[hsl(var(--border))]">
+                    {documents.map((doc) => {
+                      const status = STATUS_CONFIG[doc.embeddingStatus] ?? STATUS_CONFIG.pending;
+                      return (
+                        <tr key={doc.id}>
+                          <td className="px-4 py-3 font-medium">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                              {doc.name}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 uppercase text-xs font-mono">
+                            {doc.fileType}
+                          </td>
+                          <td className="px-4 py-3 text-[hsl(var(--muted-foreground))]">
+                            {formatFileSize(doc.fileSize)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {(doc.embeddingRetryCount ?? 0) > 0 ||
+                            doc.embeddingErrorMessage ? (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-block cursor-help">
+                                      <Badge variant={status.variant}>
+                                        <span className="mr-1">
+                                          {status.icon}
+                                        </span>
+                                        {t(status.labelKey)}
+                                      </Badge>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    className="max-w-xs"
+                                  >
+                                    {(doc.embeddingRetryCount ?? 0) > 0 && (
+                                      <div className="text-xs font-medium">
+                                        {t("knowledgeBases.retryAttemptInfo", {
+                                          count:
+                                            doc.embeddingRetryCount ?? 0,
+                                        })}
+                                      </div>
+                                    )}
+                                    {doc.embeddingErrorMessage && (
+                                      <div className="mt-1 text-xs">
+                                        <span className="font-medium">
+                                          {t("knowledgeBases.lastError")}:
+                                        </span>{" "}
+                                        {doc.embeddingErrorMessage}
+                                      </div>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <Badge variant={status.variant}>
+                                <span className="mr-1">{status.icon}</span>
+                                {t(status.labelKey)}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">{doc.chunkCount}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title={t("knowledgeBases.reembedTooltip")}
+                                disabled={reEmbedMutation.isPending}
+                                onClick={() => reEmbedMutation.mutate(doc.id)}
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[hsl(var(--destructive))]"
+                                onClick={() => setDeleteTarget(doc.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+
+        if (!isGraphMode) return documentsPanel;
+        return (
+          <Tabs defaultValue="documents">
+            <TabsList>
+              <TabsTrigger value="documents">
+                {t("knowledgeBases.tabDocuments")}
+              </TabsTrigger>
+              <TabsTrigger value="entities">
+                {t("knowledgeBases.tabEntities")}
+              </TabsTrigger>
+              <TabsTrigger value="relations">
+                {t("knowledgeBases.tabRelations")}
+              </TabsTrigger>
+              <TabsTrigger value="graph">
+                {t("knowledgeBases.tabGraph")}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="documents">{documentsPanel}</TabsContent>
+            <TabsContent value="entities">
+              <EntityList kbId={id} />
+            </TabsContent>
+            <TabsContent value="relations">
+              <RelationList kbId={id} />
+            </TabsContent>
+            <TabsContent value="graph">
+              <GraphVisualization kbId={id} />
+            </TabsContent>
+          </Tabs>
+        );
+      })()}
+    </div>
+  );
+}

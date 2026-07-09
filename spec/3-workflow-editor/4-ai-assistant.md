@@ -285,7 +285,7 @@ interface ExecutionDetailsResponse {
 
 1. `get_execution_details` 로 원본 실행 정보를 조회해 사용자에게 요약 제시 (status / 노드 통계 / 실패 원인 등)
 2. "Re-run 은 외부 부수효과 정책 (RR-PL-01) 에 따라 사용자가 실행 상세 페이지에서 직접 트리거해야 합니다 — `[⟳ Re-run]` 버튼 ([Spec 실행 내역 §3.7](../2-navigation/14-execution-history.md#37-re-run-액션)) 을 사용하세요" 안내
-3. 실행 상세 페이지로의 deep link 제공 — `/workflows/:workflowId/executions/:executionId`
+3. 실행 상세 페이지로의 deep link 제공 — `/w/<slug>/workflows/:workflowId/executions/:executionId` (활성 워크스페이스 slug 기준 — [2-navigation/_layout §2.2](../2-navigation/_layout.md#22-메뉴-항목))
 
 i18n 안내 키는 [Spec Re-run §10.4 i18n 키](../5-system/13-replay-rerun.md#104-i18n-키) 의 `history.rerun.assistantBlocked` 참조.
 

@@ -12,6 +12,7 @@ const hoisted = vi.hoisted(() => ({
 const { mockReplace, toastSuccess, getMock } = hoisted;
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({
     replace: hoisted.mockReplace,
     push: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@/lib/api/integrations", () => ({
 }));
 
 import { useCafe24PendingPolling } from "../use-cafe24-pending-polling";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 function makeRow(overrides: Record<string, unknown>) {
   return {
@@ -69,6 +71,8 @@ describe("useCafe24PendingPolling", () => {
     mockReplace.mockReset();
     toastSuccess.mockReset();
     getMock.mockReset();
+    // slug 는 store 파생이므로 케이스 간 누수 방지 — 기본은 비활성(slug null → bare path).
+    useWorkspaceStore.getState().reset();
   });
 
   afterEach(() => {
@@ -93,6 +97,21 @@ describe("useCafe24PendingPolling", () => {
       expect(mockReplace).toHaveBeenCalledWith("/integrations/int-1"),
     );
     expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("routes to the slug-prefixed detail path when a workspace is active", async () => {
+    useWorkspaceStore.setState({
+      workspaces: [
+        { id: "ws", name: "W", type: "personal", slug: "team-x", role: "owner" },
+      ],
+      currentWorkspaceId: "ws",
+      loaded: true,
+    });
+    getMock.mockResolvedValue(makeRow({ status: "connected" }));
+    renderHook(() => useCafe24PendingPolling("int-1"), { wrapper });
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith("/w/team-x/integrations/int-1"),
+    );
   });
 
   it("surfaces lastError.message as the diagnostic when callback recorded a failure", async () => {

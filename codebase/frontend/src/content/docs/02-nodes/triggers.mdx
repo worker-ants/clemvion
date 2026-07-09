@@ -6,7 +6,7 @@ order: 2
 summary: "워크플로우의 시작점인 Manual Trigger를 설명하고, 웹훅·스케줄이 같은 파라미터 스키마를 공유하는 이유, 그리고 외부 시스템이 웹훅으로 시작한 실행과 인터랙션을 주고받는 방법을 짚어요."
 summary_en: "Explains the Manual Trigger that starts workflows, why webhooks and schedules share the same parameter schema, and how external systems can interact with executions that webhooks start."
 spec: ["spec/4-nodes/7-trigger/0-common.md", "spec/5-system/12-webhook.md", "spec/5-system/14-external-interaction-api.md", "spec/2-navigation/6-config.md"]
-code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts", "codebase/frontend/src/app/(main)/authentication/page.tsx", "codebase/frontend/src/components/triggers/auth-config-select.tsx"]
+code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts", "codebase/frontend/src/app/(main)/w/[slug]/authentication/page.tsx", "codebase/frontend/src/components/triggers/auth-config-select.tsx"]
 ---
 
 이 페이지에서는 트리거 노드의 역할과 설정 방법을 설명해요. 현재 캔버스에 배치 가능한 트리거 노드는 **Manual Trigger** 한 종류이고, 웹훅과 스케줄은 별도의 트리거 시스템에서 같은 파라미터 스키마를 공유하는 방식으로 동작해요.
@@ -109,7 +109,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/authentication/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/authentication/page.tsx"
   symbol="AuthenticationPage"
   describes="Authentication 페이지 — 인증 설정 목록 조회·생성·재발급·Reveal"
 />
@@ -349,7 +349,7 @@ Webhook 트리거에 Chat Channel 을 설정하면 외부 챗봇이 워크플로
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="createMutation"
   describes="트리거 생성 dialog 의 Chat Channel 섹션 — 3 provider (telegram / slack / discord)"
 />
@@ -386,7 +386,7 @@ curl -X POST https://<your-host>/api/triggers \
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="createMutation"
   describes="트리거 생성 dialog 의 Chat Channel 섹션 — Slack provider 분기 (botToken + inboundSigningPlaintext)"
 />
@@ -399,7 +399,7 @@ curl -X POST https://<your-host>/api/triggers \
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="createMutation"
   describes="트리거 생성 dialog 의 Chat Channel 섹션 — Discord provider 분기 (botToken + inboundSigningPlaintext = ed25519 public key)"
 />

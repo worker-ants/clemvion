@@ -4,6 +4,7 @@ import type { DocsSection } from "@/lib/docs/registry";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   usePathname: () => "/docs/ko/02-nodes/ai",
 }));
 

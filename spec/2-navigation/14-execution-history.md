@@ -2,7 +2,7 @@
 id: execution-history
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/workflows/[id]/executions/**
+  - codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/**
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/executions/dto/responses/execution-response.dto.ts
   - codebase/backend/src/modules/executions/dto/query-execution.dto.ts
@@ -17,7 +17,7 @@ code:
 
 ## Overview (제품 정의)
 
-워크플로우 실행 내역 기능은 사용자가 특정 워크플로우의 모든 실행 이력을 조회하고, 개별 실행의 노드별 상세 결과를 확인할 수 있는 기능이다. 대시보드, 워크플로우 목록, 에디터 등 다양한 진입점에서 접근할 수 있다. 화면은 목록(`/workflows/:id/executions`)과 상세(`.../:executionId`) 2단계로 구성한다 — 기술 명세는 본문 [§1 개요](#1-개요) 이하.
+워크플로우 실행 내역 기능은 사용자가 특정 워크플로우의 모든 실행 이력을 조회하고, 개별 실행의 노드별 상세 결과를 확인할 수 있는 기능이다. 대시보드, 워크플로우 목록, 에디터 등 다양한 진입점에서 접근할 수 있다. 화면은 목록(`/w/<slug>/workflows/:id/executions`)과 상세(`.../:executionId`) 2단계로 구성한다 (활성 워크스페이스 slug 기준; 에디터 canvas `/workflows/:id` 는 phase 1 에서 slug 밖) — 기술 명세는 본문 [§1 개요](#1-개요) 이하.
 
 ### 배경
 
@@ -490,7 +490,7 @@ i18n 키와 에러 매핑은 [Spec Re-run §10.4 i18n 키](../5-system/13-replay
 ## 7. 라우팅
 
 ```
-codebase/frontend/src/app/(main)/workflows/[id]/executions/
+codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 ├── page.tsx                    # 실행 내역 목록 페이지
 └── [executionId]/
     └── page.tsx                # 실행 상세 페이지

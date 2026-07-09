@@ -98,7 +98,7 @@ Webhook trigger authentication works by linking an **auth config** you create in
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/authentication/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/authentication/page.tsx"
   symbol="AuthenticationPage"
   describes="Authentication page — list, create, regenerate, and reveal auth configs"
 />
@@ -338,7 +338,7 @@ Three providers are currently supported:
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="createMutation"
   describes="Chat Channel section in the trigger create dialog — 3 providers (telegram / slack / discord)"
 />
@@ -375,7 +375,7 @@ curl -X POST https://<your-host>/api/triggers \
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="createMutation"
   describes="Trigger create dialog — Slack provider branch (botToken + inboundSigningPlaintext)"
 />
@@ -388,7 +388,7 @@ curl -X POST https://<your-host>/api/triggers \
 
 <ImplAnchor
   kind="ui-entry"
-  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  file="codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx"
   symbol="createMutation"
   describes="Trigger create dialog — Discord provider branch (botToken + inboundSigningPlaintext = ed25519 public key)"
 />

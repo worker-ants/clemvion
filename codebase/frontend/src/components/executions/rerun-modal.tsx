@@ -23,6 +23,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { formatDate } from "@/lib/utils/date";
 import { executionsApi } from "@/lib/api/executions";
 import type { ExecutionStatus } from "@/lib/api/executions";
@@ -55,8 +57,8 @@ export interface ReRunModalProps {
   open: boolean;
   onClose: () => void;
   /**
-   * 재실행 성공 콜백. 미지정 시 app router 로
-   * `/workflows/:workflowId/executions/:newId` 로 네비게이션한다.
+   * 재실행 성공 콜백. 미지정 시 app router 로 활성 워크스페이스 slug 경로
+   * `/w/<slug>/workflows/:workflowId/executions/:newId` 로 네비게이션한다.
    */
   onSuccess?: (newExecutionId: string) => void;
 }
@@ -151,6 +153,7 @@ export function ReRunModal({
   onSuccess,
 }: ReRunModalProps) {
   const t = useT();
+  const slug = useWorkspaceSlug();
   const router = useRouter();
 
   // Node definitions — external-call 카운트 + dry-run 적용성 판정에 필요.
@@ -285,7 +288,10 @@ export function ReRunModal({
         onSuccess(result.id);
       } else {
         router.push(
-          `/workflows/${original.workflowId}/executions/${result.id}`,
+          buildWorkspaceHref(
+            slug,
+            `/workflows/${original.workflowId}/executions/${result.id}`,
+          ),
         );
       }
       onClose();
@@ -314,7 +320,10 @@ export function ReRunModal({
             <div className="flex flex-wrap items-center gap-2">
               {/* spec §10.2 — ID 클릭 시 새 탭으로 원본 실행 상세 페이지. */}
               <a
-                href={`/workflows/${original.workflowId}/executions/${original.id}`}
+                href={buildWorkspaceHref(
+                  slug,
+                  `/workflows/${original.workflowId}/executions/${original.id}`,
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono text-xs text-[hsl(var(--primary))] underline underline-offset-2 hover:opacity-80"

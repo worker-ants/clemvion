@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { useT } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 
 /** Polling cadence while the row is still `pending_install`. */
 export const PRIVATE_PENDING_POLL_MS = 3000;
@@ -44,6 +46,7 @@ export function useCafe24PendingPolling(
   const router = useRouter();
   const queryClient = useQueryClient();
   const t = useT();
+  const slug = useWorkspaceSlug();
   const transitionedRef = useRef(false);
   const [timedOut, setTimedOut] = useState(false);
 
@@ -77,9 +80,9 @@ export function useCafe24PendingPolling(
       transitionedRef.current = true;
       toast.success(t("integrations.oauthCompletedToast"));
       void queryClient.invalidateQueries({ queryKey: ["integrations"] });
-      router.replace(`/integrations/${integrationId}`);
+      router.replace(buildWorkspaceHref(slug, `/integrations/${integrationId}`));
     }
-  }, [poll, router, queryClient, integrationId, t]);
+  }, [poll, router, queryClient, integrationId, t, slug]);
 
   const lastErrorMessage =
     poll?.status === "pending_install"

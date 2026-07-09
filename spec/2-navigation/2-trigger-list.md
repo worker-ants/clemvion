@@ -2,7 +2,7 @@
 id: trigger-list
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx
   - codebase/frontend/src/components/triggers/*.tsx
   - codebase/frontend/src/lib/utils/webhook-url.ts
   - codebase/backend/src/modules/triggers/triggers.controller.ts

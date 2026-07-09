@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 

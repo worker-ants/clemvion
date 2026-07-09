@@ -2,7 +2,7 @@
 id: web-chat-admin-console
 status: implemented
 code:
-  - codebase/frontend/src/app/(main)/web-chat/**
+  - codebase/frontend/src/app/(main)/w/[slug]/web-chat/**
   - codebase/frontend/src/components/web-chat/**
   - codebase/frontend/src/lib/web-chat/**
 ---

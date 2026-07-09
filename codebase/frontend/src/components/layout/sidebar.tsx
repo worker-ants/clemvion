@@ -43,8 +43,10 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSidebarStore, selectCollapsed } from "@/lib/stores/sidebar-store";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
+import { useWorkspaces } from "@/lib/workspace/use-workspaces";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildWorkspaceHref } from "@/lib/workspace/href";
 import { authApi } from "@/lib/api/auth";
-import { workspacesApi } from "@/lib/api/workspaces";
 import { apiClient } from "@/lib/api/client";
 import { CreateTeamWorkspaceDialog } from "@/components/workspace/create-team-workspace-dialog";
 import { Logo, LogoMark } from "@/components/ui/logo";
@@ -161,9 +163,23 @@ export function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  const setWorkspaces = useWorkspaceStore((s) => s.setWorkspaces);
   const switchWorkspace = useWorkspaceStore((s) => s.switchWorkspace);
   const currentWorkspace = workspaces.find((w) => w.id === currentWorkspaceId);
+  const slug = useWorkspaceSlug();
+
+  // 워크스페이스 전환 = 새 slug URL 로 네비게이션. 토큰 switch 를 먼저 시작하고(store→헤더 정합)
+  // 대상 dashboard 로 이동한다 — `[slug]` layout 이 store 정합 전까지 gate 해 wrong-workspace
+  // 쿼리를 막으므로, 안전을 위해 항상 dashboard 로 보낸다(구 리소스 id 이월 방지).
+  const handleSwitchWorkspace = useCallback(
+    (id: string) => {
+      const target = workspaces.find((w) => w.id === id);
+      setWorkspaceMenuOpen(false);
+      if (!target || id === currentWorkspaceId) return;
+      void switchWorkspace(id);
+      router.push(buildWorkspaceHref(target.slug, "/dashboard"));
+    },
+    [workspaces, currentWorkspaceId, switchWorkspace, router],
+  );
 
   // Sidebar store for shared collapsed state
   const collapsed = useSidebarStore(selectCollapsed);
@@ -180,17 +196,8 @@ export function Sidebar() {
 
   const hidden = isSmall && !mobileOpen;
 
-  // Workspace list
-  useQuery({
-    queryKey: ["workspaces", "list"],
-    queryFn: async () => {
-      const list = await workspacesApi.list();
-      setWorkspaces(list);
-      return list;
-    },
-    staleTime: 60_000,
-    enabled: !!user,
-  });
+  // Workspace list — slug 해소·리다이렉트가 목록에 의존하므로 공유 훅으로 fetch (queryKey dedup).
+  useWorkspaces();
 
   // Notification unread count
   const unreadQuery = useQuery<number>({
@@ -401,7 +408,7 @@ export function Sidebar() {
         <div className="flex h-14 items-center px-4">
           {!collapsed && (
             <Link
-              href="/dashboard"
+              href={buildWorkspaceHref(slug, "/dashboard")}
               aria-label={t("sidebar.productName")}
               className="flex items-center"
             >
@@ -410,7 +417,7 @@ export function Sidebar() {
           )}
           {collapsed && (
             <Link
-              href="/dashboard"
+              href={buildWorkspaceHref(slug, "/dashboard")}
               aria-label={t("sidebar.productName")}
               className="mx-auto flex items-center"
             >
@@ -431,12 +438,15 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {navItems.map((item) => {
-            const isActive = pathname.startsWith(item.href);
+            const href = buildWorkspaceHref(slug, item.href);
+            // slug 라우트에선 `/w/<slug><href>`, editor 등 slug 밖에선 bare href 로 활성 판정.
+            const isActive =
+              pathname.startsWith(href) || pathname.startsWith(item.href);
             const label = t(item.labelKey);
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive
@@ -647,10 +657,7 @@ export function Sidebar() {
                   title: t("sidebar.yourWorkspaces"),
                   items: workspaces.filter((w) => w.type === "personal"),
                   currentWorkspaceId,
-                  onSelect: (id) => {
-                    switchWorkspace(id);
-                    setWorkspaceMenuOpen(false);
-                  },
+                  onSelect: handleSwitchWorkspace,
                   typeLabel: t("workspace.personal"),
                   getRoleLabel: (r) => t(roleLabelKey(r)),
                 })}
@@ -658,10 +665,7 @@ export function Sidebar() {
                   title: t("sidebar.teamWorkspaces"),
                   items: workspaces.filter((w) => w.type === "team"),
                   currentWorkspaceId,
-                  onSelect: (id) => {
-                    switchWorkspace(id);
-                    setWorkspaceMenuOpen(false);
-                  },
+                  onSelect: handleSwitchWorkspace,
                   typeLabel: t("workspace.team"),
                   getRoleLabel: (r) => t(roleLabelKey(r)),
                 })}
@@ -678,7 +682,7 @@ export function Sidebar() {
                     {t("sidebar.newTeamWorkspace")}
                   </button>
                   <Link
-                    href="/workspace/settings"
+                    href={buildWorkspaceHref(slug, "/workspace/settings")}
                     onClick={() => setWorkspaceMenuOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
                   >
@@ -755,7 +759,7 @@ export function Sidebar() {
                 )}
               </div>
               <Link
-                href="/profile"
+                href={buildWorkspaceHref(slug, "/profile")}
                 onClick={() => setUserMenuOpen(false)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
               >

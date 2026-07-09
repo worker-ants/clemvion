@@ -4,6 +4,7 @@ import RootNotFound from "../not-found";
 import MainNotFound from "../(main)/not-found";
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   usePathname: () => "/missing",
 }));
 

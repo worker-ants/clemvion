@@ -63,3 +63,38 @@ describe("workspace-store switchWorkspace", () => {
     expect(toastErrorMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("workspace-store setWorkspaces (resolveFallbackWorkspace 위임)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useWorkspaceStore.getState().reset();
+  });
+
+  it("keeps the current workspace when it still exists in the new list", () => {
+    useWorkspaceStore.setState({ currentWorkspaceId: WS_B.id });
+    useWorkspaceStore.getState().setWorkspaces([WS_A, WS_B]);
+    const s = useWorkspaceStore.getState();
+    expect(s.currentWorkspaceId).toBe(WS_B.id);
+    expect(s.loaded).toBe(true);
+    expect(s.workspaces).toHaveLength(2);
+  });
+
+  it("falls back to the first workspace when the current id is gone", () => {
+    useWorkspaceStore.setState({ currentWorkspaceId: "ws-removed" });
+    useWorkspaceStore.getState().setWorkspaces([WS_A, WS_B]);
+    expect(useWorkspaceStore.getState().currentWorkspaceId).toBe(WS_A.id);
+  });
+
+  it("selects the first workspace when none was active", () => {
+    useWorkspaceStore.getState().setWorkspaces([WS_A, WS_B]);
+    expect(useWorkspaceStore.getState().currentWorkspaceId).toBe(WS_A.id);
+  });
+
+  it("sets currentWorkspaceId to null and loaded=true for an empty list", () => {
+    useWorkspaceStore.setState({ currentWorkspaceId: WS_A.id });
+    useWorkspaceStore.getState().setWorkspaces([]);
+    const s = useWorkspaceStore.getState();
+    expect(s.currentWorkspaceId).toBeNull();
+    expect(s.loaded).toBe(true);
+  });
+});
