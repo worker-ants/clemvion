@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import { buildExecutionHref } from "@/lib/workspace/href";
 import { formatDate } from "@/lib/utils/date";
 import { executionsApi } from "@/lib/api/executions";
 import type { ExecutionStatus } from "@/lib/api/executions";
@@ -288,10 +288,7 @@ export function ReRunModal({
         onSuccess(result.id);
       } else {
         router.push(
-          buildWorkspaceHref(
-            slug,
-            `/workflows/${original.workflowId}/executions/${result.id}`,
-          ),
+          buildExecutionHref(slug, original.workflowId, result.id),
         );
       }
       onClose();
@@ -320,10 +317,7 @@ export function ReRunModal({
             <div className="flex flex-wrap items-center gap-2">
               {/* spec §10.2 — ID 클릭 시 새 탭으로 원본 실행 상세 페이지. */}
               <a
-                href={buildWorkspaceHref(
-                  slug,
-                  `/workflows/${original.workflowId}/executions/${original.id}`,
-                )}
+                href={buildExecutionHref(slug, original.workflowId, original.id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono text-xs text-[hsl(var(--primary))] underline underline-offset-2 hover:opacity-80"

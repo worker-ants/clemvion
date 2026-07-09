@@ -31,6 +31,8 @@ import {
   formatDuration,
 } from "@/lib/utils/execution-status";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
+import { buildExecutionHref } from "@/lib/workspace/href";
 
 const PAGE_SIZE = 20;
 
@@ -86,6 +88,7 @@ export default function ExecutionListPage({
   const t = useT();
   const { id: workflowId } = use(params);
   const router = useRouter();
+  const slug = useWorkspaceSlug();
 
   const [filter, setFilter] = useState<FilterValue>("all");
   const [page, setPage] = useState(1);
@@ -260,7 +263,7 @@ export default function ExecutionListPage({
                       className="border-b border-[hsl(var(--border))] last:border-b-0 hover:bg-[hsl(var(--muted))/0.5] cursor-pointer"
                       onClick={() =>
                         router.push(
-                          `/workflows/${workflowId}/executions/${execution.id}`,
+                          buildExecutionHref(slug, workflowId, execution.id),
                         )
                       }
                     >

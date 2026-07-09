@@ -1,4 +1,4 @@
-import type { WorkspaceSummary } from "@/lib/stores/workspace-store";
+import type { WorkspaceSummary } from "@/lib/workspace/types";
 
 /**
  * 활성 워크스페이스(있으면), 없으면 첫 워크스페이스를 해소한다 (없으면 null).

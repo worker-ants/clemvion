@@ -3,22 +3,17 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 // 활성/폴백 워크스페이스 해소 규칙의 단일 진실. `[slug]` layout·catch-all 리다이렉트와 동일
-// 규칙을 공유한다(resolve-fallback 은 `WorkspaceSummary` 를 type-only import 하므로 런타임 순환 없음).
+// 규칙을 공유한다. 공용 타입은 `lib/workspace/types` 로 분리했고 resolve-fallback 은 거기서
+// 직접 import 하므로 store ↔ resolve-fallback 런타임 순환이 구조적으로 없다.
 import { resolveFallbackWorkspace } from "@/lib/workspace/resolve-fallback";
+import type { WorkspaceRole, WorkspaceSummary } from "@/lib/workspace/types";
 
-export type WorkspaceRole = "owner" | "admin" | "editor" | "viewer";
+// 하위호환: 종전 `@/lib/stores/workspace-store` 에서 타입을 import 하던 소비처(16곳)를 위해 re-export.
+export type { WorkspaceRole, WorkspaceSummary } from "@/lib/workspace/types";
 
 // 연타 시 out-of-order 방지용 최신 전환 대상. switchWorkspace 응답이 도착했을 때 이 값과
 // 다르면(그 사이 더 최근 전환이 시작됨) 늦게 도착한 응답의 상태 반영을 버린다.
 let latestSwitchTarget: string | null = null;
-
-export interface WorkspaceSummary {
-  id: string;
-  name: string;
-  type: "personal" | "team";
-  slug: string;
-  role: WorkspaceRole;
-}
 
 interface WorkspaceState {
   workspaces: WorkspaceSummary[];

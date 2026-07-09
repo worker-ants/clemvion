@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildWorkspaceHref } from "../href";
+import { buildWorkspaceHref, buildExecutionHref } from "../href";
 
 describe("buildWorkspaceHref", () => {
   it("prefixes an absolute path with /w/<slug>", () => {
@@ -50,4 +50,24 @@ describe("buildWorkspaceHref", () => {
       );
     },
   );
+});
+
+describe("buildExecutionHref", () => {
+  it("builds the execution list path (no executionId)", () => {
+    expect(buildExecutionHref("team-a", "wf-1")).toBe(
+      "/w/team-a/workflows/wf-1/executions",
+    );
+  });
+
+  it("builds the execution detail path (with executionId)", () => {
+    expect(buildExecutionHref("team-a", "wf-1", "exec-2")).toBe(
+      "/w/team-a/workflows/wf-1/executions/exec-2",
+    );
+  });
+
+  it("falls back to the bare path when slug is null (catch-all absorbs)", () => {
+    expect(buildExecutionHref(null, "wf-1", "exec-2")).toBe(
+      "/workflows/wf-1/executions/exec-2",
+    );
+  });
 });
