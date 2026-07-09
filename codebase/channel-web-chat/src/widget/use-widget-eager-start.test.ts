@@ -724,4 +724,101 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     expect(esCreated).toBe(0);
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
   });
+
+  it("booting 중 종료 후 옛 webhook 이 뒤늦게 실패(reject)해도 stale start catch 가 상태를 덮지 않음", async () => {
+    let rejectWebhook: ((e: unknown) => void) | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return new Promise((_res, rej) => {
+          rejectWebhook = rej as (e: unknown) => void;
+        });
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", class {
+      addEventListener() {}
+      close() {}
+    });
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.phase).toBe("booting"));
+    // 종료 → 로컬 ended + in-flight start 무효화(gen++).
+    await act(async () => {
+      await result.current.actions.endConversation();
+    });
+    expect(result.current.state.phase).toBe("ended");
+
+    // 옛 webhook 이 뒤늦게 reject → stale start 의 catch. gen 검사로 early-return → 상태 무변.
+    await act(async () => {
+      rejectWebhook?.(new Error("late 503"));
+      await Promise.resolve();
+    });
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+    // 옛 실패가 phase 를 덮거나(ERROR) error 를 세팅하지 않는다(가드 없으면 error 세팅됨).
+    expect(result.current.state.phase).toBe("ended");
+    expect(result.current.state.error).toBeUndefined();
+  });
+
+  it("submit_message 명령이 410(Gone) → phase ended (대화 종료됨, host conversationEnded 통지 경로)", async () => {
+    let latest: ControllableEventSource | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      // 명령은 410 Gone — sendCommand 가 ENDED(reason gone) + host conversationEnded 통지.
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: false, status: 410, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", class {
+      constructor() { latest = new ControllableEventSource(); return latest; }
+      addEventListener() {}
+      close() {}
+    });
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    act(() =>
+      latest?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        nodeOutput: { conversationConfig: {} },
+        conversationThread: { turns: [] },
+      }),
+    );
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+
+    await act(async () => {
+      result.current.actions.submitMessage("안녕");
+    });
+    // interact 410 → ENDED(reason gone) → phase ended.
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
 });

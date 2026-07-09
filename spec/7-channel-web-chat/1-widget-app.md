@@ -75,7 +75,8 @@ unread, 그리고 eager 시작(패널 open 시 워크플로우 시작, §R6)·C1
 - **헤더 세션 컨트롤(§3.1)**: 대화가 확립된(streaming/awaiting_user_message) 뒤 사용자가 헤더의 **"대화 종료"** 로
   `[ended]` 전이, **"새 대화"** 로 현재 세션을 버리고 `[booting]` 재시작할 수 있다(둘 다 가벼운 확인 후). `booting`
   구간에는 컨트롤을 노출하지 않는다(§2 헤더 행 — 중복 webhook·미발사 cancel 방지). 다이어그램의 `new chat` 화살표는
-  `[ended]` CTA 뿐 아니라 이 헤더 컨트롤(streaming/awaiting 발원)에서도 발생한다.
+  `[ended]` CTA 뿐 아니라 이 헤더 컨트롤(streaming/awaiting 발원)에서도 발생한다. **"대화 종료" 도 대칭 edge**
+  (`[streaming]`/`[awaiting_user_message]` → `[ended]`)로, ASCII 다이어그램에는 미도시이며 §3.1 표가 SoT 다.
 
 ### 3.1 채팅 종료 / 새로 시작 / 세션 지속
 

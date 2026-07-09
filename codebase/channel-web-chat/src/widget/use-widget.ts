@@ -301,6 +301,10 @@ export function useWidget() {
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
+      // 이 start 가 teardown(새 대화/종료)으로 대체됐으면 옛 실패로 최신 상태를 덮지 않는다 —
+      // try 의 두 gen 검사(:289·:299)와 대칭. 미검사 시 stale 실패가 startedRef 를 재개방(중복
+      // execution)하거나 진행 중 새 대화 phase 를 옛 에러로 ERROR 덮어쓸 수 있다(concurrency).
+      if (startGenRef.current !== gen) return;
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
@@ -317,6 +321,9 @@ export function useWidget() {
         if (e instanceof EiaError && e.status === 410) {
           if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
           dispatch({ type: "ENDED", reason: "gone" });
+          // 410 Gone(대화 종료됨)도 host 에 종료 통지 — SSE terminal·user_ended 와 동일하게
+          // conversationEnded 를 발사해 모든 종료 경로의 host 통지를 일관되게 한다(2-sdk §3 wc:event).
+          bridgeRef.current?.sendEvent("conversationEnded", { reason: "gone" });
         } else {
           dispatch({ type: "ERROR", message: errMessage(e) });
         }
