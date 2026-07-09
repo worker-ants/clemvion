@@ -25,6 +25,8 @@ import {
 } from '../../nodes/core/graph-warning-rule';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
+import { toTriggerParameterErrorDetails } from '../execution-engine/types/trigger-parameter.types';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 const MANUAL_TRIGGER_DEFAULT_POSITION = { x: 250, y: 300 };
@@ -386,11 +388,15 @@ export class WorkflowsService {
     workspaceId: string,
     userId: string,
     dto: SaveCanvasDto,
+    // `restoreVersion` passes true: a historical snapshot may pre-date the
+    // parameter-schema gate, and restoring it must not be blocked by data that
+    // was valid when saved. User-initiated `POST /:id/save` keeps the gate on.
+    skipParamSchemaValidation = false,
   ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
     const workflow = await this.findById(id, workspaceId);
 
     // Server-side validation: Manual Trigger must exist and be unique
-    this.validateManualTrigger(dto);
+    this.validateManualTrigger(dto, skipParamSchemaValidation);
     this.validateUniqueLabels(dto);
 
     return this.dataSource.transaction(async (manager) => {
@@ -463,7 +469,13 @@ export class WorkflowsService {
       changeSummary: `Restored from v${target.version}`,
     };
 
-    return this.saveCanvas(workflowId, workspaceId, userId, dto);
+    return this.saveCanvas(
+      workflowId,
+      workspaceId,
+      userId,
+      dto,
+      /* skipParamSchemaValidation */ true,
+    );
   }
 
   private buildSnapshot(
@@ -571,7 +583,10 @@ export class WorkflowsService {
     }
   }
 
-  private validateManualTrigger(dto: SaveCanvasDto): void {
+  private validateManualTrigger(
+    dto: SaveCanvasDto,
+    skipParamSchemaValidation = false,
+  ): void {
     const triggerNodes = dto.nodes.filter(
       (n) => n.type === MANUAL_TRIGGER_TYPE,
     );
@@ -584,6 +599,28 @@ export class WorkflowsService {
       throw new BadRequestException(
         'Workflow cannot contain more than one Manual Trigger node',
       );
+    }
+    // Reject malformed parameter definitions at save time. spec
+    // 4-nodes/7-trigger/1-manual-trigger.md §6 places these structural checks
+    // at "저장 시점" (handler.validate). Without this gate an invalid slot
+    // (e.g. a leftover empty-name row) persists silently; at runtime it then
+    // either strips every parameter's default (loadTriggerParameterSchema
+    // discards the whole schema) or fails the run with a generic
+    // INVALID_NODE_CONFIG (the engine's handler.validate pre-flight). Blocking
+    // here surfaces the precise per-field error immediately, on save.
+    if (skipParamSchemaValidation) return;
+    const params = (
+      triggerNodes[0].config as { parameters?: unknown } | undefined
+    )?.parameters;
+    if (params !== undefined) {
+      const errors = validateTriggerParameterSchema(params);
+      if (errors.length > 0) {
+        throw new BadRequestException({
+          code: 'INVALID_TRIGGER_PARAMETERS',
+          message: 'Manual Trigger has an invalid parameter schema',
+          details: toTriggerParameterErrorDetails(errors),
+        });
+      }
     }
   }
 

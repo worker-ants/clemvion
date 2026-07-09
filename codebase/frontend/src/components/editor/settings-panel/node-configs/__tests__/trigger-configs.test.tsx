@@ -73,4 +73,58 @@ describe("ManualTriggerConfig", () => {
     fireEvent.click(screen.getByLabelText(/Remove parameter 1/i));
     expect(onChange).toHaveBeenCalledWith({ parameters: [] });
   });
+
+  it("flags an empty parameter name as required", () => {
+    render(
+      <ManualTriggerConfig
+        config={{ parameters: [{ name: "", type: "string" }] }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Parameter name is required/i)).toBeInTheDocument();
+  });
+
+  it("flags a name that violates the identifier rule", () => {
+    render(
+      <ManualTriggerConfig
+        config={{ parameters: [{ name: "my region", type: "string" }] }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/must start with a letter or underscore/i),
+    ).toBeInTheDocument();
+  });
+
+  it("flags duplicate parameter names", () => {
+    render(
+      <ManualTriggerConfig
+        config={{
+          parameters: [
+            { name: "region", type: "string" },
+            { name: "region", type: "number" },
+          ],
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getAllByText(/Parameter name is duplicated/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("shows no error for a well-formed unique name", () => {
+    render(
+      <ManualTriggerConfig
+        config={{ parameters: [{ name: "region", type: "string" }] }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByText(/Parameter name is required/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/is duplicated/i),
+    ).not.toBeInTheDocument();
+  });
 });

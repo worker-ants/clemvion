@@ -6,6 +6,12 @@
 
 1. **활성 워크스페이스가 URL 경로(`/w/<slug>/...`)로 반영된다** — `spec/2-navigation/9-user-profile.md §3` 이 "미구현(Planned)" 으로 두었던 슬러그 라우팅을 구현했다(FE-only, backend 무변경). `(main)/*` 26 페이지를 `(main)/w/[slug]/*` 로 이동하고, 신규 `(main)/w/[slug]/layout.tsx` 가 slug→워크스페이스를 해소해 **reconcile(URL 우선)** 한다 — resolved-id ≠ 활성 id 면 기존 `switchWorkspace`(→ `X-Workspace-Id` 헤더 + `/switch` 토큰 재발급) 로 재조정하고, 정합될 때까지 페이지 렌더를 gate 한다. **URL slug = FE 라우팅 SoT 이며 backend 인가 SoT 가 아니다** — header-first→토큰 클레임 인가 모델(#859)·`X-Workspace-Id` 헤더 첨부는 불변. 무효/비멤버 slug 는 default 워크스페이스로 조용히 redirect(UX 편의, 인가 경계는 `RolesGuard` 403). `(main)/[...rest]` catch-all 이 구 무-slug 경로·알림 딥링크·`/`·로그인후 `/dashboard` 를 활성 slug 로 흡수한다(query/hash 보존). 내부 링크는 `buildWorkspaceHref(slug, path)`(open-redirect 방어 포함) 헬퍼로 slug 화하고, 활성/폴백 워크스페이스 해소는 `resolveFallbackWorkspace` 단일 규칙을 공유한다. **에디터(`/workflows/[id]`)·유저 가이드(`/docs`)·인증(`(auth)`)은 phase 1 에서 slug 밖**(에디터 slug화는 phase 2). spec 동기화: `9-user-profile §3` flip·`data-flow/12-workspace` Rationale(슬러그 라우팅 불변식)·`10-auth-flow §7.2`·`_layout §2.2/§3.1`. SoT: `spec/2-navigation/9-user-profile.md §3`.
 
+## Unreleased — Manual Trigger `defaultValue` 파라미터가 실행에서 무시되던 버그 수정 (4-nodes/7-trigger §4/§5.1/§6)
+
+### 변경 사항
+
+1. **Manual Trigger 에 `defaultValue` 를 지정해도 `output.parameters` 가 비고 다운스트림 `$node["…"].output.parameters.*`/`$params.*` 표현식이 전부 빈값이던 버그를 고쳤다** — 실측(save→execute→engine e2e) 결과 세 결함이 겹쳐 있었다. (a) **엔진 재진입 input 소실**: `runNodeDispatchLoop` 의 3개 재진입/redrive 호출부(`driveResumeAwaited`/`driveResumeFrame`/`driveStuckRedrive`)가 `input: {}` 를 전달 — "재기동 후 input 소멸" 이라는 주석과 달리 `Execution.inputData` 는 durable 컬럼이라, 아직 미완료인 진입 노드(Manual Trigger)가 빈 입력을 받아 `output.parameters:{}` 를 산출했다. 이제 `savedExecution.inputData ?? {}` 를 넘긴다(완료 노드는 skip 되므로 미완료 진입 노드에만 영향; AI multi-turn retry 경로는 spec 문서화된 `$input` 미해소 동작이라 의도적으로 제외). (b) **트리거 조회**: `loadTriggerParameterSchema` 가 `category=TRIGGER` 로 조회해 category 누락/불일치 manual_trigger 노드(프론트 `is-trigger.ts` 가 방어하는 실존 케이스)를 놓쳤다 — `type='manual_trigger'` 조회로 교체. (c) **저장 검증**: `saveCanvas` 가 파라미터 스키마를 검증하지 않아 빈 이름 슬롯 등 malformed 정의가 조용히 영속됐다 — `validateManualTrigger` 가 저장 시점에 `400 INVALID_TRIGGER_PARAMETERS` 로 차단(spec §6, 버전 복원은 예외). 프론트 `ManualTriggerConfig` 는 빈/식별자위반/중복 이름을 inline 표시. SoT: `spec/4-nodes/7-trigger/1-manual-trigger.md §4/§5.1/§6`.
+
 ## Unreleased — 삭제된 Integration 참조 캔버스 경고 배지 `⚠ Missing integration` (4-integration §5)
 
 ### 변경 사항

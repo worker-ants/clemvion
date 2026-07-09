@@ -564,7 +564,11 @@ export class RetryTurnService {
 
     // 5. 그래프 traversal loop — `runNodeDispatchLoop` 가 공통 helper
     // (resumeFromCheckpoint 와 공유, PR #365 ai-review WARNING #10 해소).
-    // input 은 retry 경로엔 의미 없으므로 빈 객체.
+    // input 은 retry 경로엔 의미 없으므로 빈 객체 — **의도적으로** 다른 재진입
+    // 경로(`ExecutionEngineService.reentryWorkflowInput`)와 달리
+    // `savedExecution.inputData` 를 쓰지 않는다. 사유·spec 근거는 그 helper 의
+    // "의도적 예외" 주석 참조(요약: 완료된 중간 AI 노드만 `_retryState` 로 재구동,
+    // 진입 트리거는 재실행 안 됨, `$input.*` 미해소는 §retry 문서화 동작).
     const dispatchResult = await this.driver.runNodeDispatchLoop({
       executionId,
       savedExecution,

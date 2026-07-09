@@ -48,7 +48,7 @@ POST /workflows/:id/execute
 </Example>
 
 <Callout type="warn">
-Duplicate parameter names fail validation and the run is rejected. Names must be made of **letters, digits, and underscores** only — no Korean characters, hyphens, or spaces.
+Parameter names must be made of **letters, digits, and underscores** only (no Korean characters, hyphens, or spaces) and can't be duplicated. Violations are flagged inline in the editor and also rejected on **Save** — blocked before the run.
 </Callout>
 
 ### Ports
