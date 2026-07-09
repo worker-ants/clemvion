@@ -41,4 +41,34 @@ describe("no raw execution href literals (use buildExecutionHref)", () => {
       .map((f) => path.relative(SRC, f));
     expect(offenders).toEqual([]);
   });
+
+  // regex 자체의 self-test — "현재 위반 0건" 검증만으로는 정규식이 (이스케이프 실수 등으로)
+  // 조용히 약화돼도 그 시점에 우연히 위반이 없으면 통과해 guard 가 무력화된다. 알려진 위반은
+  // 반드시 match, 안전한 형태는 반드시 non-match 임을 고정해 그 fail-open 을 차단한다.
+  describe("RAW_EXECUTION_HREF true/false positives", () => {
+    it.each([
+      ["목록 리터럴", "router.push(`/workflows/${workflowId}/executions`)"],
+      ["상세 리터럴", "`/workflows/${id}/executions/${execId}`"],
+      ["replace 경유", "router.replace(`/workflows/${wf}/executions`)"],
+    ])("matches a raw execution literal — %s", (_label, src) => {
+      expect(RAW_EXECUTION_HREF.test(src)).toBe(true);
+    });
+
+    it.each([
+      ["헬퍼 호출", "buildExecutionHref(slug, workflowId, executionId)"],
+      ["에디터 canvas 경로(executions 아님)", "`/workflows/${id}`"],
+      ["다른 하위 경로", "`/workflows/${id}/settings`"],
+      // 문자열 연결식은 탐지 대상 밖(문서화된 의도적 한계) — 여기 고정해 회귀 시 드러나게 한다.
+      ["문자열 연결(알려진 미탐지)", '"/workflows/" + id + "/executions"'],
+    ])("does not match a safe form — %s", (_label, src) => {
+      expect(RAW_EXECUTION_HREF.test(src)).toBe(false);
+    });
+  });
+
+  // SRC 경로 결합(상대 깊이) sanity — 테스트 파일 위치가 바뀌어 SRC 가 엉뚱한 곳을 가리키면
+  // 스캔이 아무 파일도 못 찾고 fail-open(빈 offenders 로 통과)한다. 헬퍼 실존을 앵커로 확인.
+  it("resolves SRC correctly (guard does not fail open)", () => {
+    expect(fs.existsSync(HELPER)).toBe(true);
+    expect(collectSourceFiles(SRC).length).toBeGreaterThan(50);
+  });
 });

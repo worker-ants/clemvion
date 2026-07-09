@@ -26,7 +26,9 @@ export function buildWorkspaceHref(
  * 실행 경로는 `(main)` 라우트라 **항상 slug 를 붙여야** 하는데(에디터 canvas `/workflows/<id>` 와
  * 달리 bare 예외가 없다), 리터럴이 여러 소비처에 흩어져 한 곳이 slug 를 빠뜨리는 회귀가 있었다
  * (PR #865 rerun-modal). 경로 조립을 단일화해 그 클래스를 구조적으로 제거한다.
- * `no-restricted-syntax` lint 룰이 raw `/workflows/…/executions` 리터럴을 금지해 이 헬퍼 사용을 강제한다.
+ * `__tests__/no-raw-execution-href.test.ts` guard 가 raw `/workflows/…/executions` 리터럴을
+ * 소스에서 금지해(ESLint AST 는 템플릿 리터럴 quasi 분해로 매칭이 취약하므로 소스텍스트 스캔으로
+ * 대체) 이 헬퍼 사용을 강제한다.
  */
 export function buildExecutionHref(
   slug: string | null | undefined,
