@@ -155,7 +155,7 @@ pending_plans:
 - **cold-load reconcile = URL 우선**: `[slug]` layout mount 시 resolved-id ≠ 활성 id 면 URL 에 맞춰 `switchWorkspace` 로 재조정한다(store 우선 아님). 무효/비멤버 slug 는 default 워크스페이스로 redirect — **UX 편의이며 인가 경계가 아니다**(유일 강제 지점은 backend `RolesGuard` 403). 구 무-slug 경로·알림 딥링크·`/`는 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다(query/hash 보존).
 - backend 인가 모델은 **불변**: header-first(`X-Workspace-Id`) → 토큰 클레임(`activeWorkspaceId`). URL slug 는 FE 라우팅 SoT 일 뿐 **backend 인가 SoT 가 아니다**(계층 분리 — [data-flow/12-workspace.md](../data-flow/12-workspace.md) Rationale).
 - 선택된 워크스페이스에 따라 사이드바 메뉴의 데이터 범위 변경.
-- **phase 1 범위 밖(slug 무관)**: 에디터(`/workflows/[id]`, store 컨텍스트 사용 — slug화는 phase 2)·유저 가이드(`/docs`, 워크스페이스 무관 콘텐츠)·인증(`/login` 등 `(auth)` 그룹).
+- **slug 밖 유지(워크스페이스 무관·별 그룹)**: 유저 가이드(`/docs`, 워크스페이스 무관 콘텐츠)·인증(`/login` 등 `(auth)` 그룹). 에디터(`/workflows/[id]`)는 슬러그 라우팅 phase 2 에서 `(editor)/w/[slug]/workflows/[id]` 로 편입돼 `/w/<slug>/workflows/<id>` 로 렌더되며, `(main)/w/[slug]` 와 동일한 slug 게이트로 URL 우선 reconcile 한다.
 
 ---
 
