@@ -7,13 +7,7 @@ import {
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
 import { getAllFunctionNames, buildDisambiguatedKeys } from "@workflow/expression-engine";
-import {
-  enrichFormOutputSchema,
-  enrichInfoExtractorOutputSchema,
-  enrichManualTriggerOutputSchema,
-  enrichTableOutputSchema,
-  enrichTransformOutputSchema,
-} from "./node-output-schema-enrichers";
+import { OUTPUT_SCHEMA_ENRICHERS } from "./node-output-schema-enrichers";
 import {
   getAncestorsInScope,
   getContainerChain,
@@ -175,28 +169,9 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
         const sourceType = sourceData?.type as string | undefined;
         if (sourceType) {
           inputSchema = nodeDefinitions[sourceType]?.outputSchema;
-          if (inputSchema && sourceType === "information_extractor") {
-            inputSchema = enrichInfoExtractorOutputSchema(
-              inputSchema,
-              sourceData?.config as Record<string, unknown> | undefined,
-            );
-          } else if (inputSchema && sourceType === "form") {
-            inputSchema = enrichFormOutputSchema(
-              inputSchema,
-              sourceData?.config as Record<string, unknown> | undefined,
-            );
-          } else if (inputSchema && sourceType === "table") {
-            inputSchema = enrichTableOutputSchema(
-              inputSchema,
-              sourceData?.config as Record<string, unknown> | undefined,
-            );
-          } else if (inputSchema && sourceType === "transform") {
-            inputSchema = enrichTransformOutputSchema(
-              inputSchema,
-              sourceData?.config as Record<string, unknown> | undefined,
-            );
-          } else if (inputSchema && sourceType === "manual_trigger") {
-            inputSchema = enrichManualTriggerOutputSchema(
+          const enrich = OUTPUT_SCHEMA_ENRICHERS[sourceType];
+          if (inputSchema && enrich) {
+            inputSchema = enrich(
               inputSchema,
               sourceData?.config as Record<string, unknown> | undefined,
             );
@@ -245,16 +220,9 @@ export function useExpressionContext(selectedNodeId: string | null): ExpressionD
       const definition = nodeDefinitions[nodeType];
       const config = data.config as Record<string, unknown> | undefined;
       let outputSchema = definition?.outputSchema;
-      if (nodeType === "information_extractor") {
-        outputSchema = enrichInfoExtractorOutputSchema(outputSchema, config);
-      } else if (nodeType === "form") {
-        outputSchema = enrichFormOutputSchema(outputSchema, config);
-      } else if (nodeType === "table") {
-        outputSchema = enrichTableOutputSchema(outputSchema, config);
-      } else if (nodeType === "transform") {
-        outputSchema = enrichTransformOutputSchema(outputSchema, config);
-      } else if (nodeType === "manual_trigger") {
-        outputSchema = enrichManualTriggerOutputSchema(outputSchema, config);
+      const enrich = OUTPUT_SCHEMA_ENRICHERS[nodeType];
+      if (enrich) {
+        outputSchema = enrich(outputSchema, config);
       }
       return {
         id: n.id,

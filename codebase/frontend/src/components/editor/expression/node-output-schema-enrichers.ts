@@ -6,6 +6,13 @@
  *
  * These enrichers are a frontend-only concern: the returned schema augments
  * autocomplete suggestions, it is not part of runtime validation.
+ *
+ * Shared skeleton: all enrichers (1) short-circuit to the base schema when
+ * there is nothing to project, (2) clone the base before mutating, (3) project
+ * `config`-declared names into a nested location. Four of them merge into the
+ * existing `output` node via {@link enrichByProjecting}; Transform is the
+ * exception — it REPLACES `output` wholesale. New node types plug in by adding
+ * one entry to {@link OUTPUT_SCHEMA_ENRICHERS} at the bottom.
  */
 
 import type { JsonSchemaNode } from "@/lib/node-definitions/types";
@@ -53,263 +60,285 @@ function isSafeFieldName(name: unknown): name is string {
   return SAFE_IDENTIFIER_RE.test(name);
 }
 
+/** Deep-clone a schema before mutating (structuredClone with a JSON fallback). */
+function cloneSchema(schema: JsonSchemaNode): JsonSchemaNode {
+  return typeof structuredClone === "function"
+    ? structuredClone(schema)
+    : (JSON.parse(JSON.stringify(schema)) as JsonSchemaNode);
+}
+
+/**
+ * Walk each config item through `extractOne`, collecting `name → schema` pairs
+ * into a null-prototype object (prototype-pollution safe). `extractOne` returns
+ * `null` to skip an item (unsafe/absent name, expression-valued key, etc.).
+ */
+function collectProps(
+  items: unknown[],
+  extractOne: (
+    item: Record<string, unknown>,
+  ) => { name: string; schema: JsonSchemaNode } | null,
+): Record<string, JsonSchemaNode> {
+  const props: Record<string, JsonSchemaNode> = Object.create(null);
+  for (const item of items) {
+    const r = extractOne((item ?? {}) as Record<string, unknown>);
+    if (r) props[r.name] = r.schema;
+  }
+  return props;
+}
+
+/**
+ * Get-or-create an object-typed child at `parent.properties[key]`, preserving
+ * an existing node (used for intermediate wrapper nodes like `result` /
+ * `interaction`). Ensures `.properties` exists and returns the child.
+ */
+function getOrCreateObjectChild(
+  parent: JsonSchemaNode,
+  key: string,
+): JsonSchemaNode {
+  if (!parent.properties) parent.properties = {};
+  const existing = parent.properties[key];
+  const node: JsonSchemaNode =
+    existing && typeof existing === "object"
+      ? existing
+      : { type: "object", properties: {} };
+  if (!node.properties) node.properties = {};
+  parent.properties[key] = node;
+  return node;
+}
+
+/**
+ * Replace the leaf `parent.properties[key]` with an object node whose
+ * `properties` are the existing leaf props merged with `userProps`. Matches the
+ * per-enricher leaf assignment (the base leaf is an open record, so its other
+ * fields are intentionally dropped).
+ */
+function mergeLeafProps(
+  parent: JsonSchemaNode,
+  key: string,
+  userProps: Record<string, JsonSchemaNode>,
+): void {
+  if (!parent.properties) parent.properties = {};
+  const existing = parent.properties[key];
+  const existingProps =
+    existing && typeof existing === "object" && existing.properties
+      ? existing.properties
+      : {};
+  parent.properties[key] = {
+    type: "object",
+    properties: { ...existingProps, ...userProps },
+  };
+}
+
+/**
+ * Shared skeleton for enrichers that MERGE projected props into a nested
+ * location under the existing `output` node (info_extractor / form / table /
+ * manual_trigger). Handles the empty-source short-circuit, the safe clone, and
+ * the missing-`output` dev-warn fallback; the caller supplies the source
+ * extraction (`buildUserProps`) and the final `attach`.
+ *
+ * Transform is intentionally NOT routed through here — it replaces `output`
+ * wholesale rather than merging into it.
+ */
+function enrichByProjecting(
+  baseSchema: JsonSchemaNode | undefined,
+  rawItems: unknown,
+  buildUserProps: (items: unknown[]) => Record<string, JsonSchemaNode>,
+  attach: (
+    outputNode: JsonSchemaNode,
+    userProps: Record<string, JsonSchemaNode>,
+  ) => void,
+  warnLabel: string,
+): JsonSchemaNode | undefined {
+  if (!baseSchema) return baseSchema;
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return baseSchema;
+
+  const userProps = buildUserProps(rawItems);
+  if (Object.keys(userProps).length === 0) return baseSchema;
+
+  const cloned = cloneSchema(baseSchema);
+  const outputNode = cloned.properties?.output;
+  if (!outputNode || typeof outputNode !== "object") {
+    // The backend schema shape changed; autocomplete can't enrich without the
+    // expected nesting. Warn so the mismatch is visible in dev builds.
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        `[expression-autocomplete] ${warnLabel} outputSchema missing \`output\` property; dynamic field hints skipped.`,
+      );
+    }
+    return cloned;
+  }
+  if (!outputNode.properties) outputNode.properties = {};
+  attach(outputNode, userProps);
+  return cloned;
+}
+
 /**
  * Information Extractor declares user-configured output fields inside each
  * node instance's `config.outputSchema`. Project those names into the static
  * outputSchema so autocomplete can hint `.output.result.extracted.<name>`
- * even before the node has executed.
- *
- * Silent cases are intentionally tolerant because this feeds UX hints only:
- * an undefined base schema, an empty/absent fields array, or a schema that
- * doesn't expose `output.properties.result.properties` all simply fall back
- * to the base. When the base schema shape prevents enrichment we log a
- * warning so schema drift between backend and frontend is noticed during
- * development.
+ * even before the node has executed. Tolerant fall-through (undefined base,
+ * empty fields, missing `output`) feeds UX hints only.
  */
 export function enrichInfoExtractorOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
   config: Record<string, unknown> | undefined,
 ): JsonSchemaNode | undefined {
-  if (!baseSchema) return baseSchema;
-  const fields = config?.outputSchema as
-    | Array<{ name?: unknown; type?: unknown; description?: unknown }>
-    | undefined;
-  if (!Array.isArray(fields) || fields.length === 0) return baseSchema;
-
-  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
-  for (const f of fields) {
-    if (!isSafeFieldName(f?.name)) continue;
-    const declaredType =
-      typeof f.type === "string" ? f.type : undefined;
-    userProps[f.name] = {
-      type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
-      ...(typeof f.description === "string" && f.description
-        ? { description: f.description }
-        : {}),
-    };
-  }
-  if (Object.keys(userProps).length === 0) return baseSchema;
-
-  const cloned =
-    typeof structuredClone === "function"
-      ? structuredClone(baseSchema)
-      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
-  const outputNode = cloned.properties?.output;
-  if (!outputNode || typeof outputNode !== "object") {
-    // The backend schema shape changed; autocomplete can't enrich without
-    // the expected nesting. Warn so the mismatch is visible in dev builds.
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[expression-autocomplete] Information Extractor outputSchema missing `output` property; dynamic field hints skipped.",
-      );
-    }
-    return cloned;
-  }
-
-  if (!outputNode.properties) outputNode.properties = {};
-  const existingResult = outputNode.properties.result;
-  const existingResultNode =
-    existingResult && typeof existingResult === "object"
-      ? existingResult
-      : ({ type: "object", properties: {} } as JsonSchemaNode);
-  if (!existingResultNode.properties) existingResultNode.properties = {};
-  const existingExtracted = existingResultNode.properties.extracted;
-  const existingExtractedProps =
-    existingExtracted &&
-    typeof existingExtracted === "object" &&
-    existingExtracted.properties
-      ? existingExtracted.properties
-      : {};
-  existingResultNode.properties.extracted = {
-    type: "object",
-    properties: { ...existingExtractedProps, ...userProps },
-  };
-  outputNode.properties.result = existingResultNode;
-  return cloned;
+  return enrichByProjecting(
+    baseSchema,
+    config?.outputSchema,
+    (items) =>
+      collectProps(items, (f) => {
+        if (!isSafeFieldName(f?.name)) return null;
+        const declaredType = typeof f.type === "string" ? f.type : undefined;
+        return {
+          name: f.name,
+          schema: {
+            type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
+            ...(typeof f.description === "string" && f.description
+              ? { description: f.description }
+              : {}),
+          },
+        };
+      }),
+    (outputNode, userProps) => {
+      const result = getOrCreateObjectChild(outputNode, "result");
+      mergeLeafProps(result, "extracted", userProps);
+    },
+    "Information Extractor",
+  );
 }
 
 /**
  * Form node fills `output.interaction.data` at submission time with each
- * user-declared field's submitted value (see codebase/backend/.../form.handler.ts +
- * execution-engine.service.ts `waitForFormSubmission`). Project
- * `config.fields[].name` into the static outputSchema so autocomplete can
- * hint `.output.interaction.data.<field>` before the form is ever filled.
- *
- * Mirrors {@link enrichInfoExtractorOutputSchema}: tolerant fall-through when
- * the base schema shape doesn't expose the expected nesting, and warns in dev
- * so schema drift between backend and frontend is surfaced early.
+ * user-declared field's submitted value (see codebase/backend/.../form.handler.ts
+ * + execution-engine.service.ts `waitForFormSubmission` — check those on a
+ * backend shape change). Project `config.fields[].name` into the static
+ * outputSchema so `.output.interaction.data.<field>` autocompletes before the
+ * form is ever filled.
  */
 export function enrichFormOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
   config: Record<string, unknown> | undefined,
 ): JsonSchemaNode | undefined {
-  if (!baseSchema) return baseSchema;
-  const fields = config?.fields as
-    | Array<{ name?: unknown; type?: unknown; label?: unknown }>
-    | undefined;
-  if (!Array.isArray(fields) || fields.length === 0) return baseSchema;
-
-  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
-  for (const f of fields) {
-    if (!isSafeFieldName(f?.name)) continue;
-    const declaredType = typeof f.type === "string" ? f.type : undefined;
-    userProps[f.name] = {
-      type: FORM_FIELD_TYPE_MAP[declaredType ?? "text"] ?? "string",
-      ...(typeof f.label === "string" && f.label
-        ? { description: f.label }
-        : {}),
-    };
-  }
-  if (Object.keys(userProps).length === 0) return baseSchema;
-
-  const cloned =
-    typeof structuredClone === "function"
-      ? structuredClone(baseSchema)
-      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
-  const outputNode = cloned.properties?.output;
-  if (!outputNode || typeof outputNode !== "object") {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[expression-autocomplete] Form outputSchema missing `output` property; dynamic field hints skipped.",
-      );
-    }
-    return cloned;
-  }
-
-  if (!outputNode.properties) outputNode.properties = {};
-  const existingInteraction = outputNode.properties.interaction;
-  const interactionNode =
-    existingInteraction && typeof existingInteraction === "object"
-      ? existingInteraction
-      : ({ type: "object", properties: {} } as JsonSchemaNode);
-  if (!interactionNode.properties) interactionNode.properties = {};
-  const existingData = interactionNode.properties.data;
-  const existingDataProps =
-    existingData &&
-    typeof existingData === "object" &&
-    existingData.properties
-      ? existingData.properties
-      : {};
-  interactionNode.properties.data = {
-    type: "object",
-    properties: { ...existingDataProps, ...userProps },
-  };
-  outputNode.properties.interaction = interactionNode;
-  return cloned;
+  return enrichByProjecting(
+    baseSchema,
+    config?.fields,
+    (items) =>
+      collectProps(items, (f) => {
+        if (!isSafeFieldName(f?.name)) return null;
+        const declaredType = typeof f.type === "string" ? f.type : undefined;
+        return {
+          name: f.name,
+          schema: {
+            type: FORM_FIELD_TYPE_MAP[declaredType ?? "text"] ?? "string",
+            ...(typeof f.label === "string" && f.label
+              ? { description: f.label }
+              : {}),
+          },
+        };
+      }),
+    (outputNode, userProps) => {
+      const interaction = getOrCreateObjectChild(outputNode, "interaction");
+      mergeLeafProps(interaction, "data", userProps);
+    },
+    "Form",
+  );
 }
 
 /**
  * Table node populates `output.rows[i].<field>` from `config.columns[].field`
  * at execute time. Project each column's `field` (when it's a plain
- * identifier, not an expression) into the static outputSchema so
+ * identifier, not an expression) into `rows.items` so
  * `$node["Table"].output.rows[...].<field>` autocompletes pre-run.
  *
  * Expression-valued `field` entries (containing `{{ ... }}`) are skipped —
  * their runtime key isn't derivable from config alone. Labels are noted as
- * descriptions so the autocomplete hint surfaces them next to the key.
+ * descriptions. (Attaches to `rows.items` — array items, not a keyed property —
+ * so it does not use the shared `mergeLeafProps`.)
  */
 export function enrichTableOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
   config: Record<string, unknown> | undefined,
 ): JsonSchemaNode | undefined {
-  if (!baseSchema) return baseSchema;
-  const columns = config?.columns as
-    | Array<{ field?: unknown; label?: unknown }>
-    | undefined;
-  if (!Array.isArray(columns) || columns.length === 0) return baseSchema;
-
-  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
-  for (const c of columns) {
-    const fieldName = typeof c?.field === "string" ? c.field : undefined;
-    if (!fieldName) continue;
-    if (fieldName.includes("{{")) continue; // expression — unknowable key
-    if (!isSafeFieldName(fieldName)) continue;
-    userProps[fieldName] = {
-      ...(typeof c.label === "string" && c.label
-        ? { description: c.label }
-        : {}),
-    };
-  }
-  if (Object.keys(userProps).length === 0) return baseSchema;
-
-  const cloned =
-    typeof structuredClone === "function"
-      ? structuredClone(baseSchema)
-      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
-  const outputNode = cloned.properties?.output;
-  if (!outputNode || typeof outputNode !== "object") {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[expression-autocomplete] Table outputSchema missing `output` property; column hints skipped.",
-      );
-    }
-    return cloned;
-  }
-  if (!outputNode.properties) outputNode.properties = {};
-  const existingRows = outputNode.properties.rows;
-  const rowsNode =
-    existingRows && typeof existingRows === "object"
-      ? existingRows
-      : ({ type: "array" } as JsonSchemaNode);
-  const existingItems =
-    rowsNode.items && typeof rowsNode.items === "object"
-      ? rowsNode.items
-      : ({ type: "object", properties: {} } as JsonSchemaNode);
-  const existingRowProps =
-    existingItems.properties && typeof existingItems.properties === "object"
-      ? existingItems.properties
-      : {};
-  rowsNode.items = {
-    type: "object",
-    properties: { ...existingRowProps, ...userProps },
-  };
-  outputNode.properties.rows = rowsNode;
-  return cloned;
+  return enrichByProjecting(
+    baseSchema,
+    config?.columns,
+    (items) =>
+      collectProps(items, (c) => {
+        const fieldName = typeof c?.field === "string" ? c.field : undefined;
+        if (!fieldName) return null;
+        if (fieldName.includes("{{")) return null; // expression — unknowable key
+        if (!isSafeFieldName(fieldName)) return null;
+        return {
+          name: fieldName,
+          schema:
+            typeof c.label === "string" && c.label
+              ? { description: c.label }
+              : {},
+        };
+      }),
+    (outputNode, userProps) => {
+      // Self-contained defensive init (matches getOrCreateObjectChild /
+      // mergeLeafProps) rather than relying on the caller having set
+      // `properties` a frame above.
+      if (!outputNode.properties) outputNode.properties = {};
+      const existingRows = outputNode.properties.rows;
+      const rowsNode: JsonSchemaNode =
+        existingRows && typeof existingRows === "object"
+          ? existingRows
+          : { type: "array" };
+      const existingItems =
+        rowsNode.items && typeof rowsNode.items === "object"
+          ? rowsNode.items
+          : ({ type: "object", properties: {} } as JsonSchemaNode);
+      const existingRowProps =
+        existingItems.properties && typeof existingItems.properties === "object"
+          ? existingItems.properties
+          : {};
+      rowsNode.items = {
+        type: "object",
+        properties: { ...existingRowProps, ...userProps },
+      };
+      outputNode.properties.rows = rowsNode;
+    },
+    "Table",
+  );
 }
 
 /**
  * Transform node mutates the input in place — its output shape is the input
- * plus whatever `config.operations` explicitly create (`set_field`) or
- * rename (`rename_field` → `to`). The enricher surfaces those top-level
- * targets so `$node["Transform"].output.<name>` autocompletes pre-run.
+ * plus whatever `config.operations` explicitly create (`set_field`) or rename
+ * (`rename_field` → `to`). Surface those top-level targets so
+ * `$node["Transform"].output.<name>` autocompletes pre-run.
  *
- * Nested paths ("user.name") are skipped: projecting only the top segment
- * ("user") would over-claim — the key might be a shared ancestor for
- * multiple operations — and walking into the path would duplicate work the
- * runtime sample already handles.
+ * Nested paths ("user.name") are skipped: projecting only the top segment would
+ * over-claim. Unlike the other enrichers this REPLACES `output` (declared as
+ * `z.unknown()` in the base schema) rather than merging into it, so it does not
+ * use {@link enrichByProjecting}.
  */
 export function enrichTransformOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
   config: Record<string, unknown> | undefined,
 ): JsonSchemaNode | undefined {
   if (!baseSchema) return baseSchema;
-  const operations = config?.operations as
-    | Array<Record<string, unknown>>
-    | undefined;
+  const operations = config?.operations;
   if (!Array.isArray(operations) || operations.length === 0) return baseSchema;
 
-  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
-  for (const op of operations) {
+  const userProps = collectProps(operations, (op) => {
     const type = typeof op?.type === "string" ? op.type : undefined;
     if (type === "set_field" && typeof op.field === "string") {
-      if (op.field.includes(".")) continue;
-      if (!isSafeFieldName(op.field)) continue;
-      userProps[op.field] = {};
-    } else if (type === "rename_field" && typeof op.to === "string") {
-      if (op.to.includes(".")) continue;
-      if (!isSafeFieldName(op.to)) continue;
-      userProps[op.to] = {};
+      if (op.field.includes(".") || !isSafeFieldName(op.field)) return null;
+      return { name: op.field, schema: {} };
     }
-  }
+    if (type === "rename_field" && typeof op.to === "string") {
+      if (op.to.includes(".") || !isSafeFieldName(op.to)) return null;
+      return { name: op.to, schema: {} };
+    }
+    return null;
+  });
   if (Object.keys(userProps).length === 0) return baseSchema;
 
-  const cloned =
-    typeof structuredClone === "function"
-      ? structuredClone(baseSchema)
-      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
-  // Transform's `output` is declared as `z.unknown()` in the base schema
-  // (shape varies per-operation), so convert it to an object node here
-  // before attaching projected properties.
+  const cloned = cloneSchema(baseSchema);
   const outputNode: JsonSchemaNode = {
     type: "object",
     properties: { ...userProps },
@@ -332,58 +361,59 @@ export function enrichTransformOutputSchema(
  * array-shaped `config.parameters.<name>`, which never resolves by name. (The
  * `$params.` drill in use-expression-suggestions reads this same enriched
  * `inputSchema.parameters` for the direct successor.)
- *
- * Mirrors {@link enrichFormOutputSchema}: tolerant fall-through when the base
- * schema shape doesn't expose the expected nesting, and warns in dev so schema
- * drift between backend and frontend is surfaced early.
  */
 export function enrichManualTriggerOutputSchema(
   baseSchema: JsonSchemaNode | undefined,
   config: Record<string, unknown> | undefined,
 ): JsonSchemaNode | undefined {
-  if (!baseSchema) return baseSchema;
-  const params = config?.parameters as
-    | Array<{ name?: unknown; type?: unknown; description?: unknown }>
-    | undefined;
-  if (!Array.isArray(params) || params.length === 0) return baseSchema;
-
-  const userProps: Record<string, JsonSchemaNode> = Object.create(null);
-  for (const p of params) {
-    if (!isSafeFieldName(p?.name)) continue;
-    const declaredType = typeof p.type === "string" ? p.type : undefined;
-    userProps[p.name] = {
-      type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
-      ...(typeof p.description === "string" && p.description
-        ? { description: p.description }
-        : {}),
-    };
-  }
-  if (Object.keys(userProps).length === 0) return baseSchema;
-
-  const cloned =
-    typeof structuredClone === "function"
-      ? structuredClone(baseSchema)
-      : (JSON.parse(JSON.stringify(baseSchema)) as JsonSchemaNode);
-  const outputNode = cloned.properties?.output;
-  if (!outputNode || typeof outputNode !== "object") {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn(
-        "[expression-autocomplete] Manual Trigger outputSchema missing `output` property; parameter hints skipped.",
-      );
-    }
-    return cloned;
-  }
-  if (!outputNode.properties) outputNode.properties = {};
-  const existingParams = outputNode.properties.parameters;
-  const existingParamsProps =
-    existingParams &&
-    typeof existingParams === "object" &&
-    existingParams.properties
-      ? existingParams.properties
-      : {};
-  outputNode.properties.parameters = {
-    type: "object",
-    properties: { ...existingParamsProps, ...userProps },
-  };
-  return cloned;
+  return enrichByProjecting(
+    baseSchema,
+    config?.parameters,
+    (items) =>
+      collectProps(items, (p) => {
+        if (!isSafeFieldName(p?.name)) return null;
+        const declaredType = typeof p.type === "string" ? p.type : undefined;
+        return {
+          name: p.name,
+          schema: {
+            type: JSON_SCHEMA_IDENTITY_TYPE_MAP[declaredType ?? "string"] ?? "string",
+            ...(typeof p.description === "string" && p.description
+              ? { description: p.description }
+              : {}),
+          },
+        };
+      }),
+    (outputNode, userProps) => {
+      mergeLeafProps(outputNode, "parameters", userProps);
+    },
+    "Manual Trigger",
+  );
 }
+
+type OutputSchemaEnricher = (
+  baseSchema: JsonSchemaNode | undefined,
+  config: Record<string, unknown> | undefined,
+) => JsonSchemaNode | undefined;
+
+/**
+ * Registry mapping node `type` → its outputSchema enricher. Consumers
+ * (`use-expression-context`) dispatch through this single table instead of a
+ * per-call-site `if/else` chain, so a new node type is wired in exactly once.
+ *
+ * Built on a null prototype (and frozen) so a `nodeType` that happens to match
+ * an `Object.prototype` key (`constructor`/`hasOwnProperty`/`toString`/…) can't
+ * resolve a prototype method as a dispatch target — bracket access on an
+ * arbitrary runtime string returns `undefined` for anything not a registered
+ * own key.
+ */
+export const OUTPUT_SCHEMA_ENRICHERS: Readonly<
+  Record<string, OutputSchemaEnricher>
+> = Object.freeze(
+  Object.assign(Object.create(null) as Record<string, OutputSchemaEnricher>, {
+    information_extractor: enrichInfoExtractorOutputSchema,
+    form: enrichFormOutputSchema,
+    table: enrichTableOutputSchema,
+    transform: enrichTransformOutputSchema,
+    manual_trigger: enrichManualTriggerOutputSchema,
+  }),
+);
