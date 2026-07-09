@@ -17002,7 +17002,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
   describe('reentryWorkflowInput (durable trigger input on re-entry)', () => {
     const call = (exec: unknown): unknown =>
       (
-        service as unknown as {
+        svcMetrics as unknown as {
           reentryWorkflowInput: (e: unknown) => unknown;
         }
       ).reentryWorkflowInput(exec);

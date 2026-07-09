@@ -29,9 +29,13 @@ CI 에서 `retries: 2` 를 도입해 순간 timing flake 를 흡수한다(안정
    "재시도로 통과 = 여전히 미해결" 을 명시적으로 추적. 근본 원인(prod 빌드 hydration·query
    해소 타이밍) 해소 시 리스트에서 제거.
 
-## 곁가지 — sub-global timeout override 재발 방지 가드
+## 곁가지 — sub-global timeout override 재발 방지 가드 — ✅ 완료
 
 > 파생: 안정화 fix 커밋 fresh 리뷰(`review/code/2026/07/09/18_39_22/`) INFO 2.
+> **해소(branch `claude/e2e-timeout-override-guard-5d0c86`)**: unit 가드
+> `codebase/frontend/src/__tests__/e2e-no-sub-global-timeout.test.ts` — `e2e/**` 의
+> bare-numeric `timeout: N`(N < `playwright.config.ts` 의 `expect.timeout`) 를 CI(unit)로 차단.
+> 전역값은 config 에서 파싱(SoT 동기). `PROJECT.md §Frontend e2e 패턴` 에 컨벤션 명문화.
 
 전역 `expect.timeout`(10_000) **미만**의 하드코딩 timeout override 가 스펙에 흩뿌려지면
 전역 상향(Tier 3)의 slack 이 그 스펙에 닿지 못한다(동일 anti-pattern 이 16_38_12→18_39_22
