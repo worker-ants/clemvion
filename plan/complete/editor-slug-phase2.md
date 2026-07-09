@@ -77,6 +77,9 @@ FE-only, backend 무변경(X-Workspace-Id 헤더·header-first 인가 불변 —
   usage-node-list.tsx·overview-card.tsx 3곳은 defer** — 근거: 소스 배선(`useWorkspaceSlug()`→`buildEditorHref`)
   정확성 확인됨 + `buildEditorHref` unit 테스트 + `no-raw-editor-href` guard(리터럴 CI 차단)로 커버. e2e
   `slug-routing.spec.ts`는 URL-레벨 deep-link/redirect 검증(위 3페이지 클릭-스루는 미포함) — 후속 여력 시 추가.
+  - **→ defer 해소(후속 PR)**: triggers/usage-node-list/overview-card 3곳에 slug-present 클릭-스루 회귀
+    테스트 추가(`triggers-page.test.tsx`·신규 `usage-node-list.test.tsx`·`overview-card.test.tsx`). e2e
+    클릭-스루는 여전히 미포함(단위 레벨 회귀 가드로 충분).
 
 ## 주의 (조사 발견)
 

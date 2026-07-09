@@ -172,6 +172,15 @@ describe("TriggersPage — RBAC", () => {
     ).toBeInTheDocument();
   });
 
+  it("workflow 이름이 slug 경로 에디터 링크로 렌더된다 (buildEditorHref, phase 2)", async () => {
+    // setRole 이 활성 워크스페이스 slug "team-1" 을 시딩 → 에디터 링크에 slug 가 붙어야 한다.
+    setRole("editor");
+    mockTriggersResponse(row());
+    await renderPage();
+    const link = (await screen.findByText("WF")).closest("a");
+    expect(link).toHaveAttribute("href", "/w/team-1/workflows/w1");
+  });
+
   it("Viewer: Add webhook 비노출 (⋮ 메뉴는 read-only 항목용으로 유지)", async () => {
     setRole("viewer");
     mockTriggersResponse(row());
