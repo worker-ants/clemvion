@@ -1,7 +1,16 @@
 ---
 worktree: editor-slug-phase2-f9a46b
 started: 2026-07-09
+completed: 2026-07-09
 owner: developer
+spec_impact:
+  - spec/2-navigation/9-user-profile.md
+  - spec/2-navigation/_layout.md
+  - spec/2-navigation/0-dashboard.md
+  - spec/2-navigation/1-workflow-list.md
+  - spec/2-navigation/14-execution-history.md
+  - spec/3-workflow-editor/2-edge.md
+  - spec/data-flow/12-workspace.md
 ---
 
 # 워크스페이스 슬러그 라우팅 phase 2 — 에디터 slug화
@@ -53,7 +62,9 @@ FE-only, backend 무변경(X-Workspace-Id 헤더·header-first 인가 불변 —
 - [~] TEST WORKFLOW — lint(0-err)·unit(265 files, 5170 pass, 신규 게이트/에디터 layout/양 가드 포함)·
   build(101/101, **두 그룹 /w/[slug] 공존 충돌 없음 실증**) 통과. e2e(slug-routing.spec.ts 에 에디터
   deep-link·bare 리다이렉트 2건 추가) 실행 중.
-- [ ] REVIEW WORKFLOW — `/ai-review` + `/consistency-check --impl-done`.
+- [x] REVIEW WORKFLOW — `/ai-review` 3라운드(13_37_11 W5→조치, 14_06_57 W2→조치, 14_29_29 W3=문서/추적성
+  only, Critical 0 수렴) + `/consistency-check --impl-done`(14_08_26 BLOCK: NO). RESOLUTION:
+  review/code/2026/07/09/14_06_57/RESOLUTION.md.
 
 ## 구현 노트
 - **라우트 구조 검증**: `next build` 산출에 `/w/[slug]/workflows/[id]`(에디터, (editor) 그룹) +
@@ -61,6 +72,11 @@ FE-only, backend 무변경(X-Workspace-Id 헤더·header-first 인가 불변 —
 - **guard 가치 실증**: `no-raw-editor-href` 가드가 스코핑에서 놓친 bare 에디터 링크 2곳(executions
   목록 "Open in Editor" 171·202)을 발굴 → 이관.
 - **환경**: fresh 워크트리 `@workflow/*` dist 미빌드 → `pnpm install` 재실행으로 워크스페이스 심링크 생성(1회).
+- **buildEditorHref 콜사이트 회귀 테스트 커버리지**: slug-present 단언을 schedules·execution-list
+  "Open in Editor"·workflows create-then-push·dashboard recent-workflow 4곳에 확보. **triggers/page.tsx:716·
+  usage-node-list.tsx·overview-card.tsx 3곳은 defer** — 근거: 소스 배선(`useWorkspaceSlug()`→`buildEditorHref`)
+  정확성 확인됨 + `buildEditorHref` unit 테스트 + `no-raw-editor-href` guard(리터럴 CI 차단)로 커버. e2e
+  `slug-routing.spec.ts`는 URL-레벨 deep-link/redirect 검증(위 3페이지 클릭-스루는 미포함) — 후속 여력 시 추가.
 
 ## 주의 (조사 발견)
 
