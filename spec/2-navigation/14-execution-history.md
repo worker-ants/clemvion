@@ -54,12 +54,13 @@ code:
 | EH-DETAIL-03 | 노드 상세 서브 탭: Preview / Input / Output / Config / Error. AI 노드는 LLM Usage 탭 추가. AI Multi Turn 타임라인에서 assistant 메시지 선택 시 Preview / Response / Request / LLM Usage 구성으로 전환 | 필수 | ✅ |
 | EH-DETAIL-04 | 실패한 노드 하이라이트 및 에러 메시지 표시 | 필수 | ✅ |
 | EH-DETAIL-05 | Skipped 상태 노드는 목록에서 제외 | 필수 | ✅ |
-| EH-DETAIL-06 | Preview 탭: Presentation 노드는 시각적 프리뷰, AI Agent 노드는 대화 내역 + 메시지별 상세, 일반 노드는 상태 요약 | 필수 | ✅ |
+| EH-DETAIL-06 | Preview 탭: Presentation 노드는 시각적 프리뷰, AI Agent 노드는 대화 내역 + 메시지별 상세, 일반 노드는 상태 요약 (**단일 AI Agent 노드 범위**; 여러 노드를 가로지르는 통합 ConversationThread 뷰는 EH-DETAIL-12) | 필수 | ✅ |
 | EH-DETAIL-07 | Preview 탭: 버튼이 있는 노드는 모든 버튼 표시 + 선택된 버튼 하이라이트 | 필수 | ✅ |
 | EH-DETAIL-08 | 실행 목록으로 돌아가기 네비게이션 | 필수 | ✅ |
 | EH-DETAIL-09 | 이전/다음 실행으로 이동 | 권장 | ✅ |
 | EH-DETAIL-10 | 실행 상세 헤더에 "Re-run" 버튼 + 입력 미리보기·편집 모달. dry-run 토글 포함. 권한·dry-run 미지원 시 disabled + tooltip. 모달 명세는 [Spec Re-run §10.2](../5-system/13-replay-rerun.md#102-re-run-모달) | 필수 | ✅ |
 | EH-DETAIL-11 | Re-run chain 표시 — `re_run_of != null` 인 실행은 chain badge ("#N-th re-run · dry-run · 원본: <ID>") + "View chain" 드롭다운. 모델은 [Spec Re-run §RR-PL-05](../5-system/13-replay-rerun.md#rr-pl-05--chain-추적-모델-e3) | 필수 | ✅ |
+| EH-DETAIL-12 | (v2) cross-node **ConversationThread 재구성 view** — 여러 노드의 presentation/AI turn 을 seq·timestamp·source 로 interleave 한 통합 대화 뷰. NodeExecution 분산 저장(`output.interaction` + `output.result.messages`)에서 재구성하는 derived view (park resume durable 스냅샷과 목적·소비처 분리). 정책·UI 미정. 모델은 [Spec Conversation Thread §7](../conventions/conversation-thread.md#7-v2-로드맵). 로드맵: [§6.3](../0-overview.md#63-로드맵--미구현-) | 권장 | ❌ (v2) |
 
 #### 진입점 (EH-NAV)
 
@@ -521,5 +522,9 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 ### R-5. 노드 상세 Config 탭이 viewer 롤에도 노출되지만 안전한 이유
 
 §3.3 노드 상세의 **Config 탭**(§10.6.1 SoT)은 노드 핸들러가 echo 한 실행 시 config 를 표시한다. `GET /api/executions/:id` 는 별도 `@Roles` 게이트 없이 워크스페이스 멤버 전원(viewer 포함)이 조회 가능하므로 Config 탭도 viewer 에게 노출된다. 그러나 config echo 는 엔진 boundary(`handler-output.adapter.ts` 의 `maskSensitiveFields`)에서 DB·WS·REST 모든 경로에 **보편 마스킹**되어 내려오므로(민감 필드는 저장 시점에 이미 마스킹), 노출 자체가 새로운 시크릿 유출 경로를 만들지 않는다. 즉 안전성은 **롤 게이팅이 아니라 서버 boundary masking parity** 에 의존한다 — 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것이 상시 불변식이다.
+
+### R-6. EH-DETAIL-06(단일 노드) 과 EH-DETAIL-12(cross-node v2) 를 별도 ID 로 분리한 이유
+
+원래 `EH-DETAIL-06` 하나가 두 개의 서로 다른 요구사항을 가리켰다 — (a) 이 문서의 "단일 AI Agent 노드 Preview 탭"(✅ 구현 완료) 과 (b) `1-ai-agent.md`·`conventions/conversation-thread.md`·`conventions/data-hydration-surfaces.md` 가 참조하는 "여러 노드를 가로지르는 cross-node ConversationThread 재구성 view"(v2, 미구현). 한 ID 가 완료·미해결 두 상태를 동시에 뜻해 EH-ID 기반 상태 판정(spec-coverage 등)이 오판할 수 있었고, `conversation-thread.md` 는 "§EH-DETAIL-06 의 재구성 정책에 위임" 한다고 했으나 이 문서엔 그 정책이 없어 **dangling 위임**이었다. 그래서 cross-node 재구성에 신규 `EH-DETAIL-12`(❌ v2)를 발급해 참조를 이관하고, `EH-DETAIL-06` 은 단일 노드 범위(✅)로 고정했다. `14-execution-history.md` 는 §6.1 요구사항이 전부 구현돼 `status: implemented` 를 유지하되, v2 항목 EH-DETAIL-12 는 저장소 선례(Graph RAG·conversation-thread v2)대로 [`0-overview.md §6.3` 로드맵](../0-overview.md#63-로드맵--미구현-)에 미러 등재해 추적한다(`partial`+`pending_plans` 전환 불요). 배경: 슬러그 라우팅 하드닝(#866) `--impl-done` cross_spec 이 지적한 pre-existing 드리프트를 별건으로 정정.
 
 > Re-run 버튼·chain 추적(§3.7)의 설계 결정은 [Spec Re-run/Replay `## Rationale`](../5-system/13-replay-rerun.md#rationale) 이 SoT — 본 문서는 화면 배치만 정의한다.
