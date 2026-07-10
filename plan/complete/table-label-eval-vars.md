@@ -60,7 +60,7 @@ After: "| `table` | `columns` | 셀(`field`)은 행(item)마다 개별 평가(`$
 ## 워크플로 (project-planner)
 - [x] consistency-check --spec — 1차(18_19_18) cross_spec WARNING(expression.md §4.1/§8.3.3 동일 불일치)·rationale WARNING(## Rationale 기록) → scope 확장(expression.md 포함)+Rationale 추가. 2차(18_29_10) **BLOCK:NO** 전수(journal 확보) — INFO만(R-4→§4 앵커·em dash→마침표, 반영)
 - [x] spec 반영 (table.md 1a 가용열·1b §4 cross-ref·1c ## Rationale + expression.md 2a §4.1·2b §8.3.3) + **spec-link-integrity 11/11 PASS** (table §1 `#1-설정-config`·workflow-list §4 앵커 실측)
-- [ ] plan complete 이동
+- [x] plan complete 이동 (커밋 cd5d90494 spec 반영 → 본 chore(plan))
 
 ## 범위 밖
 - 에디터 자동완성 과잉 제안(라벨에도 `$sourceItem` 제안)은 UX 힌트로 런타임과 무관(#888 §7.1 note 가 이미 위임). 본 정정으로 그 위임 참조가 정확해짐.
