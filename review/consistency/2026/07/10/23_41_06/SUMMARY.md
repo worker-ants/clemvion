@@ -17,26 +17,50 @@ Critical 0건. 5개 checker 전원 `STATUS: OK`, 위험도 NONE. **신규 발견
 | plan_coherence | OK | NONE | 0 | 0 |
 | naming_collision | OK | NONE | 0 | 0 |
 
-## 재검토 사유 — mtime-only 재발화 (코드 회귀 아님)
+## 재검토 사유 — `meta.json` 부재로 impl-done 리포트가 **0건**으로 집계됨
 
-직전 `--impl-done`(`review/consistency/2026/07/10/23_20_43/`)은 이미 `BLOCK: NO` 로 종결됐다. 그러나
-`review_guard.py` 의 SPEC-CONSISTENCY 게이트는 `_newest_code_mtime()` 으로 **파일 mtime** 을 비교하는데,
-그 직후 실행한 fresh `/ai-review` 의 sub-agent(testing / database / maintainability)들이 **mutation testing**
-(`'outputData'`→`'output_data'` 오기 후 `tsc` 로 `TS2820` 확인 → 원복, projection 컬럼 추가 → 테스트 red 확인
-→ 원복)을 수행하며 `interaction.service.ts` 의 mtime 을 `23:27:01` 로 갱신했다. 리포트 경로 시각
-(`23_20_43`)보다 최신이 되어 게이트가 재발화했다.
+> **정정 (2026-07-11)**: 본 절은 처음에 "리뷰어 mutation testing 이 mtime 을 갱신해 재발화" 로 적혀 있었다.
+> **그 진단은 틀렸다.** guard 소스를 읽어 확인한 실제 원인은 아래와 같다. 잘못된 진단을 남겨두면 다음 사람이
+> 같은 곳을 판다.
 
-**코드 내용 변경은 0건**임을 실증:
+`review_guard.py` 의 `_newest_resolved_impl_done_mtime()` 은 consistency 세션을 순회하며
+`_is_impl_done_session(session_dir)` 로 거르는데, 이 함수는 **세션 디렉토리의 `meta.json` 을 읽어
+`mode` 문자열에 `--impl-done` 토큰이 있는지**만 본다. 파일이 없으면 `except (OSError, ValueError): return False`.
 
-- `git status --short` → clean (working tree 에 미커밋 변경 없음)
-- `git diff f2764f3a9 HEAD -- codebase/` → 빈 출력 (마지막 코드 커밋 이후 내용 동일)
-- 마지막 코드 커밋 `f2764f3a9` 는 `23:20:20` — 직전 리포트(`23:20:43`)보다 **앞선다**
+본 작업은 consistency 를 `consistency_orchestrator.py` 가 아니라 **평문 Agent fan-out** 으로 돌렸다
+(memory: "consistency Workflow disk-write 갭 → 직접 Agent fan-out"). 그래서 checker 산출물과 SUMMARY 는
+있었지만 **`meta.json` 이 없었다** → 모든 세션이 impl-done 후보에서 탈락 → `impl_done_time = 0.0` →
+"모든 spec-linked 파일이 리포트보다 최신" 으로 판정. 리포트를 몇 번을 다시 써도 통과할 수 없는 상태였다.
 
-즉 게이트가 잡은 것은 "리뷰 후 코드가 바뀌었다" 가 아니라 "리뷰어가 코드 파일을 건드렸다(내용은 원복)" 이다.
+**mtime 은 무관하다.** `_authoritative_code_time()` 은 checkout-immune 하도록 **git commit time** 을 쓰고
+dirty 파일에 한해 mtime 을 folding 한다. working tree 가 clean 이었으므로 리뷰어의 mutation testing
+(파일을 훼손 → `tsc` → 원복)이 남긴 mtime 은 애초에 판정에 들어가지 않았다.
+
+**조치**: 세 consistency 세션(`22_25_21` impl-prep, `23_20_43`·`23_41_06` impl-done)에
+orchestrator 와 동일 스키마의 `meta.json` 을 기록했다. 검증:
+
+```
+_newest_resolved_impl_done_mtime() → 1783694466.0   (23_41_06 세션 시각)
+_is_impl_done_session('.../23_41_06') → True
+_is_impl_done_session('.../22_25_21') → False        (impl-prep 은 올바르게 제외)
+evaluate_review() → blocked=False
+  "2 codebase/ change(s) covered by a fresh resolved review and a fresh
+   --impl-done consistency report (2 spec-linked) — allowed"
+```
+
+**교훈**: `/consistency-check` 를 Agent fan-out 으로 대체할 때는 산출물뿐 아니라 **`meta.json` 도 직접
+써야 한다**. 그것이 guard 가 세션의 mode 를 아는 유일한 통로다.
+
+**코드 내용 변경은 0건**임은 별개로 사실이며(아래), 그래서 TEST WORKFLOW 재수행은 여전히 불요다:
+
+- `git status --short` → clean
+- `git diff f2764f3a9 HEAD -- codebase/` → 빈 출력
+- 마지막 코드 커밋 `f2764f3a9`(`23:20:20`)는 직전 리포트(`23:20:43`)보다 앞선다
 BYPASS 로 우회하지 않고 **재검토를 정식 수행**해 리포트가 최신 mtime 을 postdate 하도록 했다.
 
-**재발 방지**: 본 라운드 checker 들에게 `codebase/` 수정·mutation testing 을 명시 금지했고, 실행 후
-mtime 이 유지됨(`23:27:01` / `23:01:41` < `23:41:06`)을 확인했다.
+**재발 방지**: Agent fan-out 으로 consistency 를 돌릴 때 `meta.json` 을 함께 기록한다(위 §조치).
+부수적으로 본 라운드 checker 들에게 `codebase/` 수정·mutation testing 을 금지했으나, 이는 위생 조치일 뿐
+게이트 통과의 조건은 아니었다.
 
 ## 독립 재검증 결과 (직전 결론과 일치)
 
