@@ -84,4 +84,5 @@ convention_compliance checker 가 이를 **CRITICAL(SoT 붕괴 — 코드가 닫
 - [x] /consistency-check --impl-done (최종, `review/consistency/2026/07/10/22_22_19/`) — 최초 **BLOCK:YES**
       (convention_compliance CRITICAL: §1.3 SoT drift) → §1.3 4개 위치 정정 반영 후 재검증 **BLOCK:NO**.
       RESOLUTION.md 작성.
-- [ ] PR
+- [x] PR — https://github.com/worker-ants/clemvion/pull/900 (base main, rebased onto #899). 머지 후
+      plan 을 `plan/complete/` 로 이동.
