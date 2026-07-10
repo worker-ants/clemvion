@@ -3,6 +3,10 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import {
+  isReservedVariableName,
+  reservedVariableNameError,
+} from '../_shared/reserved-variable-name.util';
 
 export const modOperationSchema = z.enum([
   'set',
@@ -131,6 +135,10 @@ export function validateVariableModificationConfig(config: unknown): string[] {
         errors.push(
           `modifications[${i}].variable is required and must be a string`,
         );
+      } else if (isReservedVariableName(m.variable)) {
+        // L1 — 리터럴 이름만 잡는다. `{{ }}` 표현식으로 만들어지는 이름은 해석
+        // 후에야 알 수 있어 handler.execute (L2) 가 잡는다.
+        errors.push(reservedVariableNameError(`modifications[${i}].variable`));
       }
       if (!m.operation || !VALID_OPERATIONS.has(m.operation as string)) {
         errors.push(

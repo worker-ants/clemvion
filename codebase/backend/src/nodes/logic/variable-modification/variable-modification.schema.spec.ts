@@ -83,6 +83,48 @@ describe('validateVariableModificationConfig (imperative)', () => {
       ).toBe(true);
     }
   });
+
+  // L1 — 예약 prefix (`spec/conventions/execution-context.md` 원칙 5).
+  it('rejects a target variable starting with the reserved "__" prefix', () => {
+    expect(
+      validateVariableModificationConfig({
+        modifications: [{ variable: '__workspaceId', operation: 'set' }],
+      }),
+    ).toContain(
+      'modifications[0].variable must not start with reserved prefix "__"',
+    );
+  });
+
+  it('reports the offending index for reserved names', () => {
+    expect(
+      validateVariableModificationConfig({
+        modifications: [
+          { variable: 'ok', operation: 'set' },
+          { variable: '__dryRun', operation: 'set' },
+        ],
+      }),
+    ).toContain(
+      'modifications[1].variable must not start with reserved prefix "__"',
+    );
+  });
+
+  it('allows a single-underscore target (원칙 4 는 top-level 전용)', () => {
+    expect(
+      validateVariableModificationConfig({
+        modifications: [{ variable: '_private', operation: 'set' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('does not stack the reserved error on top of the missing-variable error', () => {
+    const errors = validateVariableModificationConfig({
+      modifications: [{ operation: 'set' }],
+    });
+    expect(errors).toContain(
+      'modifications[0].variable is required and must be a string',
+    );
+    expect(errors.join('\n')).not.toContain('reserved prefix');
+  });
 });
 
 describe('evaluateMetadataBlockingErrors integration (variable_modification)', () => {

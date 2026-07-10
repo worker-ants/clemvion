@@ -690,4 +690,69 @@ describe('VariableModificationHandler', () => {
       });
     });
   });
+
+  // L2 — 예약 prefix 강제의 **실질 지점**. `execute` 는 표현식이 이미 해석된
+  // config 를 받으므로, `variable: "{{ $input.x }}"` 가 `__workspaceId` 로
+  // 평가되는 경우는 여기서만 잡힌다 (저장 게이트 L0·pre-flight L1 은 원본만 본다).
+  describe('reserved "__" prefix — runtime (resolved) guard', () => {
+    it('throws before any of the six write branches can clobber a system var', async () => {
+      context.variables['__workspaceId'] = 'ws-original';
+
+      await expect(
+        handler.execute(
+          {},
+          {
+            modifications: [
+              { variable: '__workspaceId', operation: 'set', value: 'pwned' },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/RESERVED_VARIABLE_NAME/);
+
+      expect(context.variables['__workspaceId']).toBe('ws-original');
+    });
+
+    // `set` 이외 연산도 같은 루프 가드를 지나므로 전 분기가 막힌다.
+    it.each(['set', 'increment', 'decrement', 'append', 'push', 'pop'])(
+      'blocks the %s operation on a reserved target',
+      async (operation) => {
+        context.variables['__dryRun'] = true;
+        await expect(
+          handler.execute(
+            {},
+            { modifications: [{ variable: '__dryRun', operation, value: 1 }] },
+            context,
+          ),
+        ).rejects.toThrow(/RESERVED_VARIABLE_NAME/);
+        expect(context.variables['__dryRun']).toBe(true);
+      },
+    );
+
+    it('names the offending index and the resolved value', async () => {
+      await expect(
+        handler.execute(
+          {},
+          {
+            modifications: [
+              { variable: 'ok', operation: 'set', value: 1 },
+              { variable: '__x', operation: 'set', value: 2 },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/modifications\[1\]\.variable.*__x/);
+    });
+
+    it('allows a single-underscore target', async () => {
+      await handler.execute(
+        {},
+        {
+          modifications: [{ variable: '_private', operation: 'set', value: 7 }],
+        },
+        context,
+      );
+      expect(context.variables['_private']).toBe(7);
+    });
+  });
 });

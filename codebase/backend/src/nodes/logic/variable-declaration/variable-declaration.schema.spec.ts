@@ -69,6 +69,46 @@ describe('validateVariableDeclarationConfig (imperative)', () => {
       }),
     ).toContain('variables[0].type is required and must be a string');
   });
+
+  // L1 — 예약 prefix (`spec/conventions/execution-context.md` 원칙 5).
+  // 리터럴 이름만 여기서 잡힌다. `{{ }}` 로 만들어지는 이름은 handler(L2) 몫.
+  it('rejects a variable name starting with the reserved "__" prefix', () => {
+    expect(
+      validateVariableDeclarationConfig({
+        variables: [{ name: '__workspaceId', type: 'string' }],
+      }),
+    ).toContain('variables[0].name must not start with reserved prefix "__"');
+  });
+
+  it('reports the offending index for reserved names', () => {
+    expect(
+      validateVariableDeclarationConfig({
+        variables: [
+          { name: 'ok', type: 'string' },
+          { name: '__dryRun', type: 'boolean' },
+        ],
+      }),
+    ).toContain('variables[1].name must not start with reserved prefix "__"');
+  });
+
+  it('allows a single-underscore name (원칙 4 는 top-level 전용, variables 맵과 무관)', () => {
+    expect(
+      validateVariableDeclarationConfig({
+        variables: [{ name: '_private', type: 'string' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('does not stack the reserved error on top of the missing-name error', () => {
+    // name 이 비어 있으면 required 에러만 나와야 한다 (else-if 분기 고정).
+    const errors = validateVariableDeclarationConfig({
+      variables: [{ type: 'string' }],
+    });
+    expect(errors).toContain(
+      'variables[0].name is required and must be a string',
+    );
+    expect(errors.join('\n')).not.toContain('reserved prefix');
+  });
 });
 
 describe('evaluateMetadataBlockingErrors integration (variable_declaration)', () => {
