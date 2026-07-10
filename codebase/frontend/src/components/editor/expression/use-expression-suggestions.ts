@@ -141,6 +141,58 @@ function buildNestedSuggestions(
 }
 
 /**
+ * Root prefixes whose `<prefix>.` drill resolves to nested-field suggestions via
+ * {@link buildNestedSuggestions}. Each entry supplies the runtime sample and
+ * (optionally) the static schema to project from; `available` gates a prefix so
+ * that when its source is absent the token falls through to the root-variable
+ * list instead of returning empty (preserves the `$sourceItem`/`$dataSource`
+ * table-context guard). `$var.` and `$node[...]` use bespoke handlers, not this
+ * table. Adding a nested-drill root = one entry here.
+ */
+const NESTED_DRILL_SOURCES: ReadonlyArray<{
+  prefix: string;
+  getSample: (d: ExpressionData) => Record<string, unknown>;
+  getSchema?: (d: ExpressionData) => JsonSchemaNode | undefined;
+  available?: (d: ExpressionData) => boolean;
+}> = [
+  {
+    prefix: "$input.",
+    getSample: (d) => d.inputSample,
+    getSchema: (d) => d.inputSchema,
+  },
+  {
+    // Shortcut for `$input.parameters` (resolver `paramsFromInput`): the trigger
+    // parameter names, sourced from the same input sample/schema as $input but
+    // descended into `.parameters`. For a trigger's direct successor the schema's
+    // `parameters` is enriched with declared param names (§7.2 enricher); for any
+    // other node `input.parameters` is absent → no keys (symmetric with $input on
+    // an entry node).
+    prefix: "$params.",
+    getSample: (d) => {
+      const raw = d.inputSample.parameters;
+      return raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : {};
+    },
+    getSchema: (d) =>
+      d.inputSchema?.properties?.parameters as JsonSchemaNode | undefined,
+  },
+  {
+    // Table node context only — `available` gate mirrors the old
+    // `&& expressionData.sourceItemSample` so a missing sample falls through.
+    prefix: "$sourceItem.",
+    getSample: (d) => d.sourceItemSample as Record<string, unknown>,
+    available: (d) => !!d.sourceItemSample,
+  },
+  {
+    // Data source array item — same shape/source as $sourceItem.
+    prefix: "$dataSource.",
+    getSample: (d) => d.sourceItemSample as Record<string, unknown>,
+    available: (d) => !!d.sourceItemSample,
+  },
+];
+
+/**
  * Compute expression suggestions based on cursor position and expression data.
  */
 export function useExpressionSuggestions(
@@ -236,41 +288,18 @@ export function useExpressionSuggestions(
       };
     }
 
-    // $input. → input field suggestions (supports nested paths, static schema fallback)
-    if (trimmedToken.startsWith("$input.")) {
-      const fieldPrefix = trimmedToken.slice(7);
+    // `<root>.` nested-field drill ($input / $params / $sourceItem / $dataSource)
+    // — dispatched through NESTED_DRILL_SOURCES so each root is wired once. A
+    // prefix whose `available` gate is false falls through to the root-variable
+    // list below (preserves the table-context guard for $sourceItem/$dataSource).
+    for (const src of NESTED_DRILL_SOURCES) {
+      if (!trimmedToken.startsWith(src.prefix)) continue;
+      if (src.available && !src.available(expressionData)) continue;
+      const fieldPrefix = trimmedToken.slice(src.prefix.length);
       const { suggestions, leafLength } = buildNestedSuggestions(
-        expressionData.inputSample,
+        src.getSample(expressionData),
         fieldPrefix,
-        expressionData.inputSchema,
-      );
-      return {
-        suggestions,
-        tokenStart: end - leafLength,
-        tokenEnd: end,
-      };
-    }
-
-    // $params. → shortcut for `$input.parameters` (resolver: expression-resolver
-    // .service `paramsFromInput`). Sub-keys are the trigger parameter names,
-    // sourced from the same input sample/schema as $input but descended into
-    // `.parameters`. For a trigger's direct successor the schema's `parameters`
-    // is enriched with the declared param names (§7.2 enricher); for any other
-    // node input.parameters is absent, so this yields no keys (no false hints,
-    // symmetric with $input on an entry node).
-    if (trimmedToken.startsWith("$params.")) {
-      const fieldPrefix = trimmedToken.slice(8);
-      const rawParams = expressionData.inputSample.parameters;
-      const paramsSample =
-        rawParams && typeof rawParams === "object" && !Array.isArray(rawParams)
-          ? (rawParams as Record<string, unknown>)
-          : {};
-      const paramsSchema = expressionData.inputSchema?.properties
-        ?.parameters as JsonSchemaNode | undefined;
-      const { suggestions, leafLength } = buildNestedSuggestions(
-        paramsSample,
-        fieldPrefix,
-        paramsSchema,
+        src.getSchema?.(expressionData),
       );
       return {
         suggestions,
@@ -295,34 +324,6 @@ export function useExpressionSuggestions(
       return {
         suggestions,
         tokenStart: end - varPrefix.length,
-        tokenEnd: end,
-      };
-    }
-
-    // $sourceItem. → source item field suggestions (table nodes only)
-    if (trimmedToken.startsWith("$sourceItem.") && expressionData.sourceItemSample) {
-      const fieldPrefix = trimmedToken.slice(12);
-      const { suggestions, leafLength } = buildNestedSuggestions(
-        expressionData.sourceItemSample,
-        fieldPrefix,
-      );
-      return {
-        suggestions,
-        tokenStart: end - leafLength,
-        tokenEnd: end,
-      };
-    }
-
-    // $dataSource. → data source array item field suggestions (table nodes only, same shape as $sourceItem)
-    if (trimmedToken.startsWith("$dataSource.") && expressionData.sourceItemSample) {
-      const fieldPrefix = trimmedToken.slice(12);
-      const { suggestions, leafLength } = buildNestedSuggestions(
-        expressionData.sourceItemSample,
-        fieldPrefix,
-      );
-      return {
-        suggestions,
-        tokenStart: end - leafLength,
         tokenEnd: end,
       };
     }
