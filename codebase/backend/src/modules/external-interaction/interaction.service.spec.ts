@@ -524,6 +524,48 @@ describe('InteractionService.getStatus', () => {
     });
   });
 
+  // interactionType 이 sound discriminator 가 아님을 고정하는 가드 — buttons 인데
+  // buttonConfig 복원에 실패하면 nodeOutput 변형으로 fallthrough 한다. 이 케이스가
+  // 있기 때문에 OpenAPI 스키마에 discriminator 를 선언할 수 없다 (Swagger 규약 §1-4).
+  it('waiting_for_input — buttons 인데 buttonConfig 부재면 nodeOutput 변형으로 fallthrough', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      // meta.interactionType 은 buttons 인데 config.buttonConfig / buttonConfig 둘 다 없음.
+      outputData: { meta: { interactionType: 'buttons' } },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const ctx = r.context as Record<string, unknown>;
+    expect(ctx.interactionType).toBe('buttons');
+    // 판별은 interactionType 이 아니라 키 존재로 한다.
+    expect('nodeOutput' in ctx).toBe(true);
+    expect('buttonConfig' in ctx).toBe(false);
+  });
+
+  // API 규약 §5.4 — conversationThread 는 present-when-available(키 생략), 형제는 null.
+  it('waiting_for_input — durable thread 부재 시 conversationThread 키 자체를 생략한다 (null 아님)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        conversationThread: null as never,
+      }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: { meta: { interactionType: 'ai_conversation' } },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const ctx = r.context as Record<string, unknown>;
+    expect(Object.keys(ctx)).not.toContain('conversationThread');
+    expect(ctx.conversationThread).toBeUndefined();
+  });
+
   it('waiting_for_input — 대기 NodeExecution 없으면 currentNode/context null', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(

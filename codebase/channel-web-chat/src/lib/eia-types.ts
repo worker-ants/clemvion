@@ -128,7 +128,12 @@ export interface ExecutionStatus {
   id: string;
   workflowId?: string;
   status: string;
-  currentNode?: string | null;
+  /** waiting_for_input 시에만 실값. 그 외 `null`. 스칼라가 아니라 객체다 (백엔드 `CurrentNodeDto`). */
+  currentNode?: {
+    id: string;
+    type: string;
+    interactionType: ExternalInteractionType | null;
+  } | null;
   context?: Record<string, unknown> | null;
   result?: unknown;
   error?: unknown;

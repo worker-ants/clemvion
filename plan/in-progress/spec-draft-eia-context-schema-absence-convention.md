@@ -161,14 +161,25 @@ cross-ref:
 
 ## 체크리스트
 
-- [x] `/consistency-check --spec` 통과 — **BLOCK: NO** (Critical 0 / Warning 5 / Info 6). 세션 `review/consistency/2026/07/10/22_30_47/`. Warning 5건 전부 본 draft 에 반영 완료.
-- [ ] `spec/conventions/swagger.md` §1-4 개정 + §5-2 **각주**(행 아님) + Rationale 2항목
-- [ ] `spec/5-system/2-api-convention.md` §5.4 신설(소급 미적용 캐리브 포함) + Rationale 1항목
-- [ ] `spec/5-system/14-external-interaction-api.md` §5.3 예시 JSON 정정(+`seq: 0`) + §5.3/§R17 cross-ref (§5.4 는 파일명 qualify)
-- [ ] `plan/in-progress/spec-sync-external-interaction-api-gaps.md` 의 `[x] getStatus currentNode/context 실값` 항목에 본 draft 로의 cross-ref 1줄 (추적성 — 두 문서는 축이 다름: 런타임 실값 vs OpenAPI 스키마 표현)
-- [ ] 구현 위임 (developer):
-  - `responses.dto.ts` — oneOf 봉투 variant DTO + `@ApiExtraModels`
-  - ⚠️ **명명 가드**: variant DTO 에 `ExecutionContext*` 접두를 **쓰지 말 것**. `ExecutionContext` 는 엔진이 노드 핸들러에 주입하는 런타임 컨텍스트의 이름이고 SoT 는 [`execution-context.md`](../../spec/conventions/execution-context.md) — EIA `getStatus.context` 와 **전혀 다른 개념**이다. `WaitingForInputContextDto` 등 프런트 `eia-types.ts` 의 기존 `WaitingForInputEvent` 명명과 정렬한다.
-  - `responses.dto.ts:57-58` JSDoc 정정 — 현행 "클라이언트는 `currentNode.interactionType` 으로 분기" 는 unsound discriminator 가정을 담고 있다(위 Rationale 참조).
-  - `eia-types.ts:131` `currentNode?: string | null` → 객체 타입 정정 (실제 wire 는 `{id,type,interactionType}`)
-  - 테스트 + `/ai-review`
+- [x] `/consistency-check --spec` 통과 — **BLOCK: NO** (Critical 0 / Warning 5 / Info 6). 세션 `review/consistency/2026/07/10/22_30_47/`. Warning 5건 전부 반영 완료.
+- [x] `spec/conventions/swagger.md` §1-4 개정 + §5-2 **각주**(행 아님) + Rationale 3항목 — `a02db4f9a`
+- [x] `spec/5-system/2-api-convention.md` §5.4 신설(소급 미적용 캐리브 포함) + Rationale 1항목 — `a02db4f9a`
+- [x] `spec/5-system/14-external-interaction-api.md` §5.3 예시 JSON 정정(+`seq: 0`) + §5.3/§R17 cross-ref (§5.4 파일명 qualify) — `a02db4f9a`
+- [x] `plan/in-progress/spec-sync-external-interaction-api-gaps.md` 축-분리 cross-ref — `a02db4f9a`
+- [x] `/consistency-check --impl-prep` 통과 — **BLOCK: NO** (Critical 0 / Warning 1 / Info 8). 세션 `review/consistency/2026/07/10/22_50_15/`
+- [x] 구현:
+  - [x] `responses.dto.ts` — `ButtonsContextDto` / `NodeOutputContextDto` oneOf 봉투 (discriminator 없음) + `@ApiExtraModels`. 명명 가드 준수 (`ExecutionContext*` 접두 회피).
+  - [x] `CurrentNodeDto` 신설 — `currentNode` 도 닫힌 shape 인데 `additionalProperties` 였다 (§1-4 Rationale 이 인용한 바로 그 드리프트 실증 사례). impl-prep 에서 cross_spec·rationale_continuity 2인 독립 제안.
+  - [x] `result`/`error` 에 `nullable: true` 추가 — §5.4 "null 필드는 nullable 선언" 미준수였음. 신규 스키마 테스트가 검출.
+  - [x] `responses.dto.ts` stale JSDoc 정정 (unsound discriminator 가정 제거)
+  - [x] `eia-types.ts` `currentNode` 타입 드리프트 정정 (`string|null` → 객체)
+  - [x] `interaction.service.ts` — `base` 에 `WaitingContextBase` 명시 annotate (object spread 가 literal 을 widening). **런타임 wire 무변경**
+- [x] 테스트: `responses.dto.spec.ts` 신규 14건(실 OpenAPI 문서 생성 검증 — dangling `$ref` 포착) + `interaction.service.spec.ts` 2건(buttons fallthrough · conversationThread 키 생략)
+- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS · e2e PASS (249)
+- [ ] `/ai-review` + Critical/Warning 0
+- [ ] `/consistency-check --impl-done`
+
+## 후속 (본 PR 밖)
+
+- `external-interaction` 모듈의 `dto/responses.dto.ts` flat 파일 → `dto/responses/` 서브디렉토리 이관 (swagger.md §5-1. 25개 모듈 중 본 모듈만 미준수 — impl-prep W1).
+- 위젯 `eia-types.ts` 의 `ExecutionStatus.context` 를 `ButtonsContext | NodeOutputContext` 로 좁히기 (현재 backend 만 정밀화돼 타입 비대칭).
