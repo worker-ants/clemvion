@@ -377,6 +377,7 @@ Recent calls (latest 20)
 - 데이터 출처: `GET /api/integrations/:id/activity?limit=20&days=7` (응답 shape 은 §9.3 참조)
 - 실패 행 클릭 시 에러 요약 팝오버 표시 + `Execution detail →` 링크
 - catalog 라벨 i18n: cafe24 의 `apiLabel` (`cafe24.<resource>.<operation>`) 은 `GET /api/integrations/services/cafe24/catalog` (§9.3) 응답의 `labelKey` 와 frontend i18n dict 를 결합해 KO/EN 라벨로 렌더. makeshop 도 동일 (`makeshop.<resource>.<operation>` + `services/makeshop/catalog`). 그 외 통합은 `apiLabel` 이 NULL 이라 endpoint 만 표시
+- **연결 안 됨 배너 (§4.1 status)**: 통합 `status ≠ connected` (`error` / `expired` / `pending_install`) 이면 활동 목록·빈 상태 **위에** 경고 배너를 노출한다 — 이 상태에서는 **새 호출이 기록되지 않으므로**(AI Agent 는 MCP bridge 가 미연결 통합의 tool 을 노출하지 않아 호출 자체가 없고, 직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 즉시 실패), 단순 "활동 없음"(빈 상태)과 구분해 원인을 알린다. 배너는 상태 확인·재연결로 유도하는 **[개요 탭] 이동 버튼**을 포함한다. `connected` 이지만 곧 만료(expires-soon)인 경우는 여전히 기록되므로 배너를 노출하지 않는다.
 
 ### 4.7 Danger zone 탭
 
