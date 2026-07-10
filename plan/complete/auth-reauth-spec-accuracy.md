@@ -110,11 +110,11 @@ After:
 - [x] consistency-check --spec (1차 10_11_30) — naming_collision **BLOCK:YES**(draft 산문 PASSWORD_INVALID/INVALID_PASSWORD 오귀속 2 CRITICAL) → 코드검증값으로 전면 정정. 나머지 4 checker BLOCK:NO
 - [x] consistency-check 재확인 (10_33_54, 정정 draft) — **BLOCK:NO** (naming CRITICAL 해소·LOW, rationale_continuity NONE "모범적 drift 정정"). WARNING 1(event vs failure_reason 혼동)·INFO 1(dead pointer)도 spec 반영 시 정정. plan_coherence FS-flakiness 재실행 확인
 - [x] spec 반영 (변경 1·2·3) + **spec-link-integrity 11/11 PASS** (§1.2.1 역링크 `#121-2fa--webauthn--재인증-코드-도메인-spec-참조`·§2.3.D `#23d--23-재인증-흐름-정합화-구현11b-4-정렬` 실측 일치)
-- [ ] plan complete 이동
+- [x] plan complete 이동 (커밋 422668593 spec 반영 + 491edbeef 1.1.B-4 정정 → 본 chore(plan))
 
 ## 범위 밖 (별도)
 
 - A) expression §7.1/§8.4.2 자동완성 표에 `$sourceItem`/`$dataSource` 행 — 별 PR(다른 도메인).
 - `INVALID_PASSWORD`·`NOT_A_MEMBER`·`PASSWORD_REQUIRED` 카탈로그 등재 — 도메인 spec 문서화 선행, 별 후속.
-- WebAuthn/이메일 OTP 재인증 실제 구현 — `refactor-auth-reverify-unify` 영역(미지원 유지).
+- WebAuthn/이메일 OTP 재인증 실제 구현 — 미착수(별도 plan 필요, 현재 미지원 유지).
 - `task_10ac843b`(§2.3 3자 불일치) 는 본 작업이 실질 해소.
