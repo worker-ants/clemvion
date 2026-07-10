@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { stripUserInputMarkers, threadToMessages } from "./conversation";
+import { classifyPresentation, toCarousel, toChart, toTable, toTemplate } from "./presentation";
 import type { ConversationThread } from "./eia-types";
 
 describe("stripUserInputMarkers", () => {
@@ -122,5 +123,71 @@ describe("threadToMessages — presentations 처리 (I13)", () => {
     // presentations 빈 배열 + text 없음 → 포함하지 않음(filter 조건).
     expect(msgs).toHaveLength(1);
     expect(msgs[0].text).toBe("유효");
+  });
+});
+
+// 새로고침 복원(EIA getStatus → context.conversationThread) 회귀 가드.
+// durable thread 의 turn.presentations[] 는 백엔드 PresentationPayload{type,toolCallId,renderedAt,payload}
+// 이며(ai-agent §7.10, source='ai_assistant' 한정), 라이브 노드 경로의 {config,output} envelope 과 shape 이 다르다.
+// 위젯은 두 shape 을 모두 수용해야 한다 — spec/7-channel-web-chat/1-widget-app §2.
+describe("threadToMessages — 복원 thread 의 PresentationPayload", () => {
+  const payloadOf = (type: string, payload: Record<string, unknown>) => ({
+    type,
+    toolCallId: `call_${type}`,
+    renderedAt: "2026-07-10T00:00:00.000Z",
+    payload,
+  });
+
+  const restoredThread: ConversationThread = {
+    // 실제 wire: role 없이 source 만. presentations 는 ai_assistant turn 에만 실린다.
+    turns: [
+      { source: "ai_user", text: "[user-input]상품 보여줘[/user-input]" },
+      {
+        source: "ai_assistant",
+        text: "아래와 같습니다",
+        presentations: [
+          payloadOf("carousel", { layout: "card", items: [{ title: "상품A" }] }),
+          payloadOf("table", { columns: [{ field: "n", label: "이름" }], rows: [{ n: "행1" }] }),
+          payloadOf("chart", { chartType: "bar", data: [{ x: "A", y: 1 }] }),
+          payloadOf("template", { content: "**굵게**", outputFormat: "markdown" }),
+        ],
+      },
+    ],
+  };
+
+  it("복원 turn 의 presentations 를 보존하고 role 은 source 로 축약", () => {
+    const msgs = threadToMessages(restoredThread);
+    expect(msgs.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(msgs[0].presentations).toBeUndefined();
+    expect(msgs[1].presentations).toHaveLength(4);
+    expect(msgs[1].text).toBe("아래와 같습니다");
+  });
+
+  it("보존된 4종 payload 가 렌더러 분류(classifyPresentation)를 통과", () => {
+    const msgs = threadToMessages(restoredThread);
+    expect(msgs[1].presentations!.map((p) => classifyPresentation(p))).toEqual([
+      "carousel",
+      "table",
+      "chart",
+      "template",
+    ]);
+  });
+
+  it("복원 payload 가 렌더 데이터로 정규화(payload → envelope)", () => {
+    const [carousel, table, chart, template] = threadToMessages(restoredThread)[1].presentations!;
+    expect(toCarousel(carousel).items[0].title).toBe("상품A");
+    expect(toTable(table).rows).toEqual([{ n: "행1" }]);
+    expect(toChart(chart).points).toEqual([{ x: "A", y: 1 }]);
+    expect(toTemplate(template).rendered).toBe("**굵게**");
+  });
+
+  // presentation-only 복원 turn(텍스트 없이 표시물만) 도 메시지로 살아남아야 한다.
+  it("text 없는 복원 presentation turn 도 메시지로 포함", () => {
+    const msgs = threadToMessages({
+      turns: [{ source: "ai_assistant", presentations: [payloadOf("chart", { chartType: "pie", data: [] })] }],
+    });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe("assistant");
+    expect(classifyPresentation(msgs[0].presentations![0])).toBe("chart");
   });
 });

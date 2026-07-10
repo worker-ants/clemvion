@@ -107,9 +107,15 @@ const PRESENTATION_KINDS = new Set<PresentationKind>(["carousel", "table", "char
 /**
  * 위젯이 받는 presentation 의 두 shape 을 통일된 `{ config, output }` envelope 로 정규화한다:
  * - standalone presentation 노드(`execution.message`/`waiting_for_input`): `{ config, output }` — 그대로.
- * - AI 에이전트 `render_*` 도구(`ai_message.presentations[]`): `PresentationPayload { type, toolCallId, renderedAt, payload }`
+ * - AI 에이전트 `render_*` 도구(`ai_message.presentations[]` · 복원 thread `turn.presentations[]`):
+ *   `PresentationPayload { type, toolCallId, renderedAt, payload, truncation? }`
  *   — 데이터가 `.payload` 에 중첩되므로 payload 를 config·output 양쪽으로 펼친다(to* 가 두 곳을 모두 읽으므로 안전).
  *   config·output 은 **payload 의 별도 shallow 사본** — 한쪽 변이가 다른 쪽을 오염시키지 않게 aliasing 을 끊는다.
+ *
+ * `truncation` 은 `payload` **바깥** top-level 필드다(AI Agent §7.10). 노드 경로가 output 안에 직접 싣는
+ * `output.{rowsTruncated|itemsTruncated|rowsTotalCount|itemsTotalCount}` 와 **동등한 메타**이므로
+ * ([Presentation 공통 §10.4](spec/4-nodes/6-presentation/0-common.md)) output 으로 흡수한다 — 흡수하지 않으면
+ * `toTable` 이 잘림을 보지 못해 1MB cap 배너가 영영 뜨지 않는다.
  * 두 출처 모두 위젯이 inline 렌더해야 한다 (spec/7-channel-web-chat/1-widget-app §2 · AI Agent §7.10).
  */
 function asEnvelope(p: unknown): {
@@ -119,7 +125,8 @@ function asEnvelope(p: unknown): {
   const o = asRecord(p);
   if (typeof o.type === "string" && o.payload && typeof o.payload === "object") {
     const payload = asRecord(o.payload);
-    return { config: { ...payload }, output: { ...payload } };
+    // truncation 부재 시 asRecord 가 {} 를 주므로 spread 는 no-op.
+    return { config: { ...payload }, output: { ...payload, ...asRecord(o.truncation) } };
   }
   return { config: asRecord(o.config), output: asRecord(o.output) };
 }

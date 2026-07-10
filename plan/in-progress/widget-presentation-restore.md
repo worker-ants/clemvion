@@ -68,10 +68,33 @@ spec 변경 불요. 메인 프런트엔드는 이 필드를 이미 소비한다(
 
 ### 4-2. 구현 (후속 developer 트랙)
 
-- [ ] `asEnvelope` 가 `PresentationPayload.truncation` 을 `output` 으로 흡수(`rowsTruncated`/`itemsTruncated`/
+- [x] `asEnvelope` 가 `PresentationPayload.truncation` 을 `output` 으로 흡수(`rowsTruncated`/`itemsTruncated`/
       `rowsTotalCount`/`itemsTotalCount`) → `toTable.truncated` 정상 동작.
-- [ ] 회귀 테스트 — 복원 thread turn 의 4종 presentation 렌더(`conversation.test.ts` + 렌더 테스트).
-- [ ] 회귀 테스트 — AI `render_table` truncation 배너 노출.
+- [x] 회귀 테스트 — 복원 thread turn 의 4종 presentation 렌더(`conversation.test.ts` + `presentations.test.tsx`).
+- [x] 회귀 테스트 — AI `render_table` truncation 배너 노출.
+
+> TDD red 확인: 신규 테스트 중 **truncation 2건만 실패**하고 복원 4종 렌더는 처음부터 통과 —
+> §1 의 "이미 구현됨" 실증을 테스트가 재확인했다. 따라서 프로덕션 수정은 `asEnvelope` 1곳뿐.
+
+### 4-3. 워크플로 체크리스트
+
+- [x] `/consistency-check --spec` (22_27_45) — BLOCK: NO. WARNING 1 해소, INFO 3·4 반영.
+- [x] `/consistency-check --impl-prep spec/7-channel-web-chat/` (22_41_55) — BLOCK: NO.
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · e2e PASS(249)
+- [ ] `/ai-review`
+- [ ] `/consistency-check --impl-done`
+
+## 5. 본 PR 범위 밖 — 팔로우업 (impl-prep WARNING 3건)
+
+impl-prep(22_41_55)이 검출한 WARNING 3건은 모두 **본 변경과 무관한 사전 존재 spec drift** 이며 planner 소관:
+
+1. `spec/7-channel-web-chat/4-security.md` §4 가 EIA §8.4 `/interact` rate-limit(분당 60)을 "Planned" 로 오기재
+   — SoT(EIA §8.4)는 "구현됨"(`InteractionRateLimiterService`). 중복 서술이 drift 원인.
+2. `spec/2-navigation/_product-overview.md` NAV-WC-06(라이브 미리보기) 상태가 🚧 stale — 실제 완료(#web-chat-console).
+3. `embed-config` 응답의 `{ data }` 봉투 표기가 `3-auth-session.md` §3 step 0 · `4-security.md` §3-①/I3 3곳 누락
+   (런타임 영향 없음, 순수 문서 정정).
+
+→ 본 PR 은 위젯 코드 + §2 계약 정정에 한정한다. 위 3건은 별도 spec-only 팔로우업으로 분리.
 
 ## Rationale
 

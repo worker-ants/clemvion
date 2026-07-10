@@ -197,6 +197,52 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
   it("classifyPresentation — form 타입은 fast-path 제외 → null (presentations[] 비대상)", () => {
     expect(classifyPresentation({ type: "form", toolCallId: "t", payload: { fields: [] } })).toBeNull();
   });
+
+  // truncation 은 payload 바깥 top-level 필드(ai-agent §7.10) — payload 만 펼치면 유실된다.
+  // 노드 table 은 output.rowsTruncated 를 직접 싣지만(table.handler), AI render_table 은 여기에만 싣는다.
+  // spec 6-presentation/0-common §10.4: 두 위치는 "동등한 메타".
+  it("toTable — top-level truncation.rowsTruncated 를 truncated 로 흡수", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { columns: [{ field: "n", label: "N" }], rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true, rowsTotalCount: 2000 },
+    });
+    expect(tb.rows).toEqual([{ n: "a" }]);
+    expect(tb.truncated).toBe(true);
+  });
+
+  // 1MB 초과여도 잘림이 실제로 없었으면 rowsTruncated=false 로 온다(render-tool-provider) — 배너 금지.
+  it("toTable — truncation.rowsTruncated=false 면 truncated=false", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: false, rowsTotalCount: 1 },
+    });
+    expect(tb.truncated).toBe(false);
+  });
+
+  it("toCarousel — top-level truncation 이 있어도 items 파싱은 그대로", () => {
+    const c = toCarousel({
+      type: "carousel",
+      toolCallId: "t",
+      payload: { layout: "card", items: [{ title: "A" }] },
+      truncation: { itemsTruncated: true, itemsTotalCount: 500 },
+    });
+    expect(c.items.map((i) => i.title)).toEqual(["A"]);
+    expect(c.layout).toBe("card");
+  });
+
+  // payload 내부 값이 top-level truncation 에 덮이지 않아야 한다(노드 envelope 의미 보존).
+  it("toTable — payload.rowsTruncated=true 는 truncation 부재 시에도 유지", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }], rowsTruncated: true },
+    });
+    expect(tb.truncated).toBe(true);
+  });
 });
 
 describe("converters — {config,output} envelope 회귀(하위 호환)", () => {
