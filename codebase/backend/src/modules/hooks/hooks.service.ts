@@ -4,6 +4,7 @@ import {
   NotFoundException,
   GoneException,
   BadRequestException,
+  ConflictException,
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -21,6 +22,7 @@ import {
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
 import type { InternalInteractionRequestContext } from '../external-interaction/interaction.guard';
+import type { InteractDto } from '../external-interaction/dto/interact.dto';
 import { ExecutionsService } from '../executions/executions.service';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
@@ -703,6 +705,17 @@ export class HooksService {
   /**
    * Active execution 의 inbound 인터랙션 명령을 EIA InteractionService 로 in-process forwarding.
    * Spec [EIA-AU-08] — `scope: 'in_process_trusted'` 로 ctx 합성, token 검증 우회.
+   *
+   * **표면 불일치(409 `STATE_MISMATCH`) 는 graceful**: 본 메서드는 대기 노드의 인터랙션
+   * 표면을 알지 못한 채 `text_message → submit_message` / `button_callback → click_button`
+   * 로 고정 매핑한다. 따라서 form/buttons 대기 중 자유 텍스트가 도착하는 등의 조합은
+   * publisher 사전 검증(실행 엔진 §7.5.1 표면 매트릭스)이 거부한다 — 종전엔 이 조합이
+   * 빈 폼 제출·엉뚱한 포트 분기로 **조용히 오처리**됐다.
+   *
+   * 거부를 그대로 throw 하면 webhook 이 5xx 를 반환해 provider 가 같은 update 를 무한
+   * 재시도한다. 따라서 삼키되 **반드시 warn 로그를 남긴다** (§10.9 "silent skip 금지" +
+   * 본 파일의 모든 catch 관례). 사용자 대상 안내 문구(`languageHints` 신규 키)는 후속
+   * 항목 — `plan/in-progress/eia-command-waiting-surface-guard.md` F-2.
    */
   private async forwardToInteractionService(
     trigger: Trigger,
@@ -713,30 +726,39 @@ export class HooksService {
     // button_callback → click_button (Button Presentation, Phase 3 에서 구체화).
     // file_upload / contact_share → submit_form (Form, Phase 4 에서 구체화).
     // v1 PR-A 는 text_message → submit_message 만 의미 있음.
-    if (update.command.kind === 'text_message') {
-      const ctx: InternalInteractionRequestContext = {
-        executionId,
-        triggerId: trigger.id,
-        scope: 'in_process_trusted',
-      };
-      await this.interactionService.interact(ctx, {
-        command: 'submit_message',
-        nodeId: 'chat-channel',
-        message: update.command.text,
-      });
-    } else if (update.command.kind === 'button_callback') {
-      const ctx: InternalInteractionRequestContext = {
-        executionId,
-        triggerId: trigger.id,
-        scope: 'in_process_trusted',
-      };
-      await this.interactionService.interact(ctx, {
-        command: 'click_button',
-        nodeId: 'chat-channel',
-        buttonId: update.command.callbackData,
-      });
-    }
+    const ctx: InternalInteractionRequestContext = {
+      executionId,
+      triggerId: trigger.id,
+      scope: 'in_process_trusted',
+    };
+    const dto: InteractDto | undefined =
+      update.command.kind === 'text_message'
+        ? {
+            command: 'submit_message',
+            nodeId: 'chat-channel',
+            message: update.command.text,
+          }
+        : update.command.kind === 'button_callback'
+          ? {
+              command: 'click_button',
+              nodeId: 'chat-channel',
+              buttonId: update.command.callbackData,
+            }
+          : undefined;
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
+    if (!dto) return;
+    try {
+      await this.interactionService.interact(ctx, dto);
+    } catch (err) {
+      if (err instanceof ConflictException) {
+        this.logger.warn(
+          `chat-channel inbound '${dto.command}' 이 현재 대기 표면과 맞지 않아 거부됨 ` +
+            `(execution=${executionId} trigger=${trigger.id}): ${err.message}`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 
   /**

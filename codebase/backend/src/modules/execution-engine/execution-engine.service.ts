@@ -51,6 +51,12 @@ import {
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
+import {
+  isCommandAllowedOnSurface,
+  readPersistedInteractionType,
+  resolveWaitingSurface,
+  type WaitingSurfaceCommand,
+} from './waiting-surface-guard';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import {
@@ -4605,8 +4611,10 @@ export class ExecutionEngineService
     // spec/4-nodes/6-presentation/0-common.md §10.9 — sentinel wrap 책임.
     // raw formData 를 그대로 publish 하지 않고 `{ type: 'form_submitted',
     // formData }` 로 wrap 한 뒤 publish.
-    const nodeExecutionId =
-      await this.resolveWaitingNodeExecutionId(executionId);
+    const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
+      executionId,
+      'form_submitted',
+    );
     // publisher 측 동기 field 검증 — 실패 시 publish 전에 throw 해 execution 을
     // waiting 유지(재제출 가능). EIA 는 400 VALIDATION_ERROR, WS ack 는 errorCode
     // 매핑 (FormValidationError extends ExecutionError). spec form §4·§6.2 / EIA §5.1.
@@ -4714,8 +4722,10 @@ export class ExecutionEngineService
     executionId: string,
     buttonId: string,
   ): Promise<ContinuationPublishResult> {
-    const nodeExecutionId =
-      await this.resolveWaitingNodeExecutionId(executionId);
+    const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
+      executionId,
+      'button_click',
+    );
     const jobId = await this.continuationBus.publish({
       type: 'button_click',
       executionId,
@@ -4740,8 +4750,10 @@ export class ExecutionEngineService
         message.length,
       );
     }
-    const nodeExecutionId =
-      await this.resolveWaitingNodeExecutionId(executionId);
+    const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
+      executionId,
+      'ai_message',
+    );
     const jobId = await this.continuationBus.publish({
       type: 'ai_message',
       executionId,
@@ -4757,8 +4769,10 @@ export class ExecutionEngineService
   async endAiConversation(
     executionId: string,
   ): Promise<ContinuationPublishResult> {
-    const nodeExecutionId =
-      await this.resolveWaitingNodeExecutionId(executionId);
+    const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
+      executionId,
+      'ai_end_conversation',
+    );
     const jobId = await this.continuationBus.publish({
       type: 'ai_end_conversation',
       executionId,
@@ -5143,21 +5157,33 @@ export class ExecutionEngineService
    * - 0건 — Execution 이 다른 상태(running / completed / cancelled / failed)거나
    *   nodeId 미일치.
    * - 2건 이상 — invariant 위반 (정상은 1건). race 또는 데이터 손상 의심. warn 후 거부.
+   * - 표면 불일치 — {@link assertCommandMatchesWaitingSurface} 참조.
    *
    * DB lookup 자체의 infra 실패는 `INVALID_EXECUTION_STATE` 가 아닌 원본 에러로
    * 재던져 caller (WS handler: 일반 실패 ack / REST: 500) 가 재시도하도록 한다.
+   *
+   * - 표면(interactionType) 불일치 — 대기 노드가 노출한 인터랙션 표면이 도착 명령을
+   *   받지 않는다 ({@link SURFACE_ALLOWED_COMMANDS}). form/buttons 의 resume 처리기는
+   *   도착 payload 의 `type` 을 보지 않고 노드 표면으로만 선택되므로 (`dispatchResumeTurn`),
+   *   이종 명령이 통과하면 조용히 오처리된다 (form: 빈 폼 제출 / buttons: 엉뚱한 포트 분기).
+   *   publish 전에 거부해 execution 을 `waiting_for_input` 으로 보존한다.
+   *
+   * @param expectedCommand 도착 명령의 continuation payload type. 대기 표면과의
+   *        적합성 검증에만 쓰인다 (`cancel` / `retry_last_turn` 은 표면 무관이라
+   *        본 resolver 를 거치지 않는다).
    */
   private async resolveWaitingNodeExecutionId(
     executionId: string,
+    expectedCommand: WaitingSurfaceCommand,
   ): Promise<string> {
-    let rows: Array<{ id: string }>;
+    let rows: Array<{ id: string; nodeId: string; outputData: unknown }>;
     try {
       rows = await this.nodeExecutionRepository.find({
         where: {
           executionId,
           status: NodeExecutionStatus.WAITING_FOR_INPUT,
         },
-        select: { id: true, nodeId: true, startedAt: true },
+        select: { id: true, nodeId: true, startedAt: true, outputData: true },
         order: { startedAt: 'DESC' },
       });
     } catch (err) {
@@ -5187,7 +5213,70 @@ export class ExecutionEngineService
         `multiple (${rows.length}) WAITING_FOR_INPUT NodeExecutions for execution=${executionId} (invariant violation)`,
       );
     }
+    await this.assertCommandMatchesWaitingSurface(
+      executionId,
+      rows[0],
+      expectedCommand,
+    );
     return rows[0].id;
+  }
+
+  /**
+   * [spec §7.5.1] 대기 노드 표면 ↔ 도착 명령 적합성 검증 (publisher 사전 검증).
+   *
+   * 표면 판정은 `dispatchResumeTurn` / `dispatchParkEntry` 의 selects 술어를 그대로
+   * 미러링한다 (`resolveWaitingSurface` — form 은 정적 handler metadata, buttons/ai 는
+   * 영속된 `outputData` 의 interactionType). publisher 가 "worker 가 실제로 고를
+   * 처리기" 를 정확히 예측해야 오처리를 사전에 막을 수 있기 때문이다.
+   *
+   * **fail-closed** — 표면 판정 불가 시에도 거부한다. 그 행은 `dispatchResumeTurn` 도
+   * 매칭 처리기를 못 찾아 `RESUME_CHECKPOINT_MISSING` 으로 실패하므로(단, `form` 은
+   * 정적 metadata 로 항상 판정되므로 여기 도달하지 않는다), publish 전 동기 거부가
+   * execution 을 waiting 으로 보존해 복구 가능성이 높다. (§7.5 rehydration 의
+   * `RESUME_*` fail-fast 와 동일 방향 — 자매 게이트 `dispatchResumeTurn` 도 fail-closed.)
+   *
+   * client 응답에는 `InvalidExecutionStateError` 의 고정 메시지만 나가고, 대기 노드의
+   * 실제 표면·nodeId 는 `serverDetail`(서버 로그 전용)에만 남는다 (§7.5.2).
+   */
+  private async assertCommandMatchesWaitingSurface(
+    executionId: string,
+    row: { id: string; nodeId: string; outputData: unknown },
+    expectedCommand: WaitingSurfaceCommand,
+  ): Promise<void> {
+    const node = await this.nodeRepository.findOne({
+      where: { id: row.nodeId },
+      select: { id: true, type: true },
+    });
+    if (!node) {
+      this.logger.warn(
+        `assertCommandMatchesWaitingSurface — 대기 NodeExecution=${row.id} 의 node=${row.nodeId} 부재. INVALID_EXECUTION_STATE 거부.`,
+      );
+      throw new InvalidExecutionStateError(
+        `waiting node ${row.nodeId} not found for execution=${executionId}`,
+      );
+    }
+    const meta = this.handlerRegistry.getMetadata(node.type);
+    const surface = resolveWaitingSurface({
+      blockingInteraction:
+        meta.kind === 'blocking' ? meta.interaction : undefined,
+      interactionType: readPersistedInteractionType(row.outputData),
+    });
+    if (!surface) {
+      this.logger.warn(
+        `assertCommandMatchesWaitingSurface — execution=${executionId} node=${row.nodeId} (type=${node.type}) 의 대기 표면을 판정할 수 없음 (interactionType 부재). INVALID_EXECUTION_STATE 거부.`,
+      );
+      throw new InvalidExecutionStateError(
+        `cannot resolve waiting surface for node=${row.nodeId} (type=${node.type}) of execution=${executionId}`,
+      );
+    }
+    if (!isCommandAllowedOnSurface(surface, expectedCommand)) {
+      this.logger.debug(
+        `assertCommandMatchesWaitingSurface — execution=${executionId} 는 '${surface}' 표면에서 대기 중이라 '${expectedCommand}' 를 받지 않는다. INVALID_EXECUTION_STATE 거부.`,
+      );
+      throw new InvalidExecutionStateError(
+        `command '${expectedCommand}' is not allowed while waiting on a '${surface}' interaction (execution=${executionId}, node=${row.nodeId})`,
+      );
+    }
   }
 
   /**

@@ -66,6 +66,14 @@ const SSE_SEQ_PLACEHOLDER = 0;
  *   submit_message   → ExecutionEngineService.continueAiConversation(executionId, message)
  *   end_conversation → ExecutionEngineService.endAiConversation(executionId)
  *   cancel           → ExecutionsService.stop(executionId)
+ *
+ * **대기 표면 검증은 본 service 가 하지 않는다** — `assertWaiting` 은 execution 이
+ * `waiting_for_input` 인지만 본다. "명령이 현재 대기 노드의 인터랙션 표면에 허용되는가"
+ * (예: Form 대기 중 `end_conversation` 거부) 는 4종 명령이 공유하는 publisher chokepoint
+ * (`resolveWaitingNodeExecutionId` → `assertCommandMatchesWaitingSurface`, 실행 엔진
+ * §7.5.1) 가 검증하며, throw 된 `InvalidExecutionStateError` 를 아래 `dispatchContinuation`
+ * 이 409 `STATE_MISMATCH` 로 매핑한다. WS gateway 도 같은 chokepoint 를 지나므로 두 표면이
+ * 자동으로 정합한다 (facade 원칙 §R5/§R10).
  */
 @Injectable()
 export class InteractionService {

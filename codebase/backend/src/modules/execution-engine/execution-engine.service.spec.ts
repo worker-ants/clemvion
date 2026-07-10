@@ -310,11 +310,20 @@ describe('ExecutionEngineService', () => {
       // Phase 2.3 (변경 2.3) — resolveWaitingNodeExecutionId 의 publisher 측 lookup.
       // 기본값: WAITING_FOR_INPUT row 1건 존재 (정상 케이스). 0건/다중 row throw
       // 경로는 개별 테스트에서 mockResolvedValueOnce 로 override.
-      find: jest
-        .fn()
-        .mockResolvedValue([
-          { id: 'ne-waiting', nodeId: 'n-wait', startedAt: new Date() },
-        ]),
+      //
+      // `outputData.meta.interactionType` 은 표면 매트릭스 가드
+      // (`assertCommandMatchesWaitingSurface`, §7.5.1) 의 판정 입력이다. 기본값을
+      // `ai_conversation` 으로 두어 4종 명령을 모두 허용시킨다 — publish 경로 자체를
+      // 검증하는 대다수 테스트가 표면 가드에 걸리지 않게. form/buttons 표면의 거부
+      // 경로는 전용 describe 블록이 override 로 검증한다.
+      find: jest.fn().mockResolvedValue([
+        {
+          id: 'ne-waiting',
+          nodeId: 'n-wait',
+          startedAt: new Date(),
+          outputData: { meta: { interactionType: 'ai_conversation' } },
+        },
+      ]),
     };
 
     mockNodeRepo = {
@@ -323,6 +332,9 @@ describe('ExecutionEngineService', () => {
       // 기본값 null → form field 검증 skip (form 검증 무관 테스트의 기존 동작 유지).
       // 폼 검증 테스트는 form 노드 config 를 mockResolvedValueOnce 로 override.
       findOneBy: jest.fn().mockResolvedValue(null),
+      // assertCommandMatchesWaitingSurface 의 대기 노드 타입 lookup (정적 blocking
+      // metadata 판정용). 위 `find` 기본 row 와 짝을 이루는 AI 노드.
+      findOne: jest.fn().mockResolvedValue({ id: 'n-wait', type: 'ai_agent' }),
     };
 
     mockEdgeRepo = {
@@ -1026,8 +1038,15 @@ describe('ExecutionEngineService', () => {
       recursionDepth: 0,
     });
     // resolveWaitingNodeExecutionId(find) → 단일 WAITING row 반환 (nodeExecutionId 확정).
+    // `outputData` 는 park 이 실제로 영속한 envelope 그대로 — 표면 매트릭스 가드
+    // (§7.5.1) 가 `meta.interactionType` 을 여기서 읽는다.
     mockNodeExecutionRepo.find.mockResolvedValueOnce([
-      { id: neId, nodeId: waitingNodeId, startedAt: new Date() },
+      {
+        id: neId,
+        nodeId: waitingNodeId,
+        startedAt: new Date(),
+        outputData: rawPersisted,
+      },
     ]);
     // rehydrateAndResume 의 NodeExecution lookup (findOneBy by id).
     mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
@@ -1040,6 +1059,8 @@ describe('ExecutionEngineService', () => {
     });
     // rehydrateAndResume 의 Node 정의 lookup (findOneBy by id).
     mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(nodeDef);
+    // assertCommandMatchesWaitingSurface 의 대기 노드 타입 lookup (findOne by id).
+    mockNodeRepo.findOne = jest.fn().mockResolvedValue(nodeDef);
   };
 
   describe('executeInline — Sub-Workflow parent linking', () => {
@@ -2061,6 +2082,159 @@ describe('ExecutionEngineService', () => {
         InvalidExecutionStateError,
       );
       expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    // ────────────────────────────────────────────────────────────────────────
+    // spec §7.5.1 — 대기 표면 ↔ 명령 매트릭스 (publisher 사전 검증).
+    //
+    // 회귀 가드: 종전엔 표면 검사가 없어 이종 명령이 publish 됐고, resume 처리기는
+    // 도착 payload 의 type 이 아니라 노드 표면으로 선택되므로 **조용히 오처리**됐다.
+    //   - form 대기 + end_conversation → 빈 폼이 제출된 것처럼 노드 COMPLETED
+    //   - buttons 대기 + 비-button_click → resolveButtonInteraction (d) fallback 이
+    //     엉뚱한 'continue' 포트로 그래프를 분기
+    // 이제 publish 전에 동기 거부되고 execution 은 waiting_for_input 으로 보존된다.
+    // ────────────────────────────────────────────────────────────────────────
+    describe('표면 매트릭스 가드 (§7.5.1)', () => {
+      /** 지정한 표면으로 대기 중인 단일 WAITING row 를 무장한다. */
+      const armWaitingSurface = (
+        interactionType: string | undefined,
+        nodeType = 'carousel',
+      ): void => {
+        mockNodeExecutionRepo.find.mockResolvedValueOnce([
+          {
+            id: 'ne-waiting',
+            nodeId: 'n-wait',
+            startedAt: new Date(),
+            outputData:
+              interactionType === undefined
+                ? {}
+                : { meta: { interactionType } },
+          },
+        ]);
+        mockNodeRepo.findOne = jest
+          .fn()
+          .mockResolvedValue({ id: 'n-wait', type: nodeType });
+      };
+
+      /** form 노드는 정적 blocking metadata 로 표면이 결정된다 (persisted meta 무관). */
+      const armStaticFormSurface = (): void => {
+        jest
+          .spyOn(handlerRegistry, 'getMetadata')
+          .mockReturnValue({ kind: 'blocking', interaction: 'form' });
+        armWaitingSurface(undefined, 'form');
+      };
+
+      it('form 대기 + end_conversation → INVALID_EXECUTION_STATE, publish 안 함 (재현된 결함)', async () => {
+        armStaticFormSurface();
+        await expect(
+          service.endAiConversation('exec-form'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('form 대기 + submit_message → INVALID_EXECUTION_STATE, publish 안 함', async () => {
+        armStaticFormSurface();
+        await expect(
+          service.continueAiConversation('exec-form', 'hi'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('form 대기 + click_button → INVALID_EXECUTION_STATE, publish 안 함', async () => {
+        armStaticFormSurface();
+        await expect(
+          service.continueButtonClick('exec-form', 'btn-1'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('form 대기 + submit_form → 통과 (publish)', async () => {
+        armStaticFormSurface();
+        await service.continueExecution('exec-form', { answer: 'yes' });
+        expect(mockBus.publish).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'continue' }),
+        );
+      });
+
+      it('buttons 대기 + end_conversation → INVALID_EXECUTION_STATE, publish 안 함', async () => {
+        armWaitingSurface('buttons');
+        await expect(
+          service.endAiConversation('exec-btn'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('buttons 대기 + submit_form → INVALID_EXECUTION_STATE (엉뚱한 continue 포트 분기 차단)', async () => {
+        armWaitingSurface('buttons');
+        await expect(
+          service.continueExecution('exec-btn', { a: 1 }),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('buttons 대기 + click_button → 통과 (publish)', async () => {
+        armWaitingSurface('buttons');
+        await service.continueButtonClick('exec-btn', 'btn-1');
+        expect(mockBus.publish).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'button_click' }),
+        );
+      });
+
+      // AI 표면은 의도적으로 관대하다 — Presentation §10.9 의 stale button_click
+      // graceful re-park invariant + AI Agent §6.2 step 2.c 의 render_form 응답
+      // (form_submitted) 을 보존해야 한다. 여기서 좁히면 두 계약이 깨진다.
+      it.each([['ai_conversation'], ['ai_form_render']])(
+        '%s 대기 — 4종 명령 모두 통과',
+        async (interactionType) => {
+          for (const publish of [
+            () => service.endAiConversation('exec-ai'),
+            () => service.continueAiConversation('exec-ai', 'hi'),
+            () => service.continueButtonClick('exec-ai', 'btn-1'),
+            () => service.continueExecution('exec-ai', { a: 1 }),
+          ]) {
+            mockBus.publish.mockClear();
+            armWaitingSurface(interactionType, 'ai_agent');
+            await expect(publish()).resolves.toBeDefined();
+            expect(mockBus.publish).toHaveBeenCalledTimes(1);
+          }
+        },
+      );
+
+      // fail-closed — 표면 판정 불가 row 는 `dispatchResumeTurn` 도 매칭 처리기를
+      // 못 찾아 RESUME_CHECKPOINT_MISSING 으로 실패한다 (form 은 정적 metadata 로
+      // 항상 판정되므로 여기 도달 불가). publish 전 동기 거부가 execution 을
+      // waiting 으로 보존한다.
+      it('표면 판정 불가(interactionType 부재, 비-form 노드) → INVALID_EXECUTION_STATE', async () => {
+        armWaitingSurface(undefined, 'carousel');
+        await expect(
+          service.continueButtonClick('exec-legacy', 'btn-1'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('대기 node row 부재 → INVALID_EXECUTION_STATE', async () => {
+        mockNodeExecutionRepo.find.mockResolvedValueOnce([
+          { id: 'ne-waiting', nodeId: 'n-gone', startedAt: new Date() },
+        ]);
+        mockNodeRepo.findOne = jest.fn().mockResolvedValue(null);
+        await expect(
+          service.endAiConversation('exec-nonode'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      // client 응답에는 고정 메시지만 — 대기 노드 표면/nodeId 는 serverDetail 전용 (§7.5.2).
+      it('거부 메시지는 client-safe 고정 문자열, 상세는 serverDetail 에만', async () => {
+        armStaticFormSurface();
+        const err = await service
+          .endAiConversation('exec-form')
+          .catch((err_: InvalidExecutionStateError) => err_);
+        expect(err).toBeInstanceOf(InvalidExecutionStateError);
+        expect(err.message).toBe('Execution is not waiting for input.');
+        expect(err.message).not.toContain('n-wait');
+        expect(err.serverDetail).toContain('ai_end_conversation');
+        expect(err.serverDetail).toContain('form');
+      });
     });
 
     it('applyContinuation continue — payload 를 그대로 rehydrateAndResume 로 forward (spec §10.9 raw forward)', async () => {
