@@ -20,7 +20,7 @@ code:
 
 본 문서는 제품 전반의 **에러 처리 정책**을 단일 진실로 정의한다 — 에러 코드 분류 체계(시스템·인증/인가·유효성·실행·WS commands·EIA REST·webhook·KB/Graph RAG 도메인, §1), 공식 에러 응답 봉투(`{ error: { code, message, requestId, details? } }`, §2), 노드 레벨 에러 처리 정책(Stop Workflow / Skip / Default Output / Retry / Route to Error Port, §3), 워크플로우 레벨 자동 재시도(§4), 클라이언트 에러 처리 흐름·토스트(§5), 로깅 레벨·민감정보 마스킹(§6), 헬스 체크(§7)다.
 
-에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 정의·트리거 조건의 상세 SoT 가 도메인 spec 에 있는 코드(2FA/WebAuthn §1.2.1·WS commands §1.5·EIA REST §1.6·webhook §1.7·KB/Graph RAG §1.8)는 해당 도메인 spec 을 SoT 로 참조하고 본 §1 에는 **공용 카탈로그 가시성**을 위해 등재만 한다 — 이 중 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)은 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목이다. 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
+에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 정의·트리거 조건의 상세 SoT 가 도메인 spec 에 있는 코드(2FA/WebAuthn §1.2.1·WS commands §1.5·EIA REST §1.6·webhook §1.7·KB/Graph RAG §1.8·워크스페이스 멤버 직접추가 §1.9)는 해당 도메인 spec 을 SoT 로 참조하고 본 §1 에는 **공용 카탈로그 가시성**을 위해 등재만 한다 — 이 중 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)은 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목이다. 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
 
 ---
 
@@ -184,6 +184,18 @@ code:
 |------|--------|------|-----------|
 | `KB_REEXTRACT_IN_PROGRESS` | 409 | KB 전체 재추출(`re-extract`) 동시 호출을 `reextract_status` 컬럼 atomic compare-and-swap 으로 차단 (재임베딩 잠금과 동일 패턴) | [10-graph-rag.md §5.1](./10-graph-rag.md#51-추출--재추출) |
 | `KB_REEMBED_IN_PROGRESS` | 409 | KB 전체 재임베딩(`re-embed`) 동시 호출을 `reembed_status` 컬럼 atomic compare-and-swap 으로 차단 (`embedding_dimension` 도 NULL 로 초기화) | [8-embedding-pipeline.md §7.3](./8-embedding-pipeline.md#73-재임베딩) |
+
+### 1.9 워크스페이스 멤버 직접 추가 에러 코드 (도메인 spec 참조)
+
+`POST /api/workspaces/:id/members`(`WorkspacesService.addMemberByEmail`, 기가입 사용자 직접 합류) 전용 코드. 정의·트리거 SoT 는 [data-flow/12-workspace §1.9](../data-flow/12-workspace.md#19-멤버-직접-추가-기가입-사용자)이고 본 절은 공용 카탈로그 가시성 등재다. 모두 `UPPER_SNAKE_CASE`([conventions/error-codes.md](../conventions/error-codes.md)).
+
+| 코드 | status | 설명 | 도메인 SoT |
+|------|--------|------|-----------|
+| `CANNOT_ASSIGN_OWNER` | 403 | 직접 추가로 `role=owner` 부여 불가(owner 는 소유권 이전 경로로만) | [data-flow §1.9](../data-flow/12-workspace.md#19-멤버-직접-추가-기가입-사용자) |
+| `ALREADY_A_MEMBER` | 409 | 이미 멤버인 사용자 재추가 | [data-flow §1.9](../data-flow/12-workspace.md#19-멤버-직접-추가-기가입-사용자) |
+| `WORKSPACE_TYPE_MISMATCH` | 403 | non-team 워크스페이스에 직접 추가 시도 | [data-flow §1.9](../data-flow/12-workspace.md#19-멤버-직접-추가-기가입-사용자) |
+
+> 위 UPPER_SNAKE 코드는 초대 흐름(`workspace-invitations.service.ts`)의 lowercase `already_a_member`·`workspace_type_mismatch`(§1.2 초대 발급·수락, [error-codes.md §3](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리) historical-artifact)와 **동일 의미·별개 wire 코드**다(다른 모듈·케이스 컨벤션, 의도적 분리·통합 금지). 같은 경로의 `USER_NOT_FOUND`(404, 미가입 이메일)·`WORKSPACE_NOT_FOUND`(404, 워크스페이스 미존재)는 `workspaces.service` 전역 CRUD 공통 generic 코드라 직접-추가 distinctive 가 아니어서 본 절 미등재다. 전환·탈퇴 경로의 `NOT_A_MEMBER`(403)는 §1.2.
 
 ---
 
@@ -479,7 +491,8 @@ GET /api/health
 
 - **§1 카탈로그 완결성 — 2FA/WebAuthn(§1.2.1)·KB/Graph RAG(§1.8) 도메인 등재**: [`conventions/error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)이 본 §1 을 "제품 전체 에러 코드 카탈로그 SoT" 로 선언하나, `1-auth.md`(WebAuthn/2FA)·`10-graph-rag.md`(KB) 도메인 코드가 §1 에 미등재였다. 이를 §1.5~§1.7 이 이미 쓰던 "도메인 spec 참조(정의 SoT 는 도메인 spec, 본 §1 은 공용 카탈로그 가시성 등재)" 패턴으로 완결했다 — 새 원칙 도입도 코드 재정의도 아니다. **spec 에 문서화된 코드만 등재**하며, 코드에만 존재하고 도메인 spec 본문 미문서였던 재인증 세부 코드(`REAUTH_REQUIRED`/`PASSWORD_INVALID`/`TOTP_INVALID`)는 dangling SoT 를 피해 "spec 문서화 → 등재" 순서의 후속으로 남겼고, 이는 아래 §2.3 정합화 bullet 에서 완결했다.
 - **§2.3 재인증 흐름 정합화 + 세부 코드 등재 (drift 정정, 위 완결성 bullet 후속)**: `1-auth.md §2.3` "강제 종료 재인증" 행이 구현(`verifyReauth`=password OR TOTP)·Rationale 1.1.B-4·`9-user-profile.md` 코퍼스 합의와 달리 "WebAuthn/이메일 OTP 대체 + §1.4.2 우선순위" 로 과대 서술(미구현 대안)돼 있어, 실제 지원(password OR TOTP)으로 정렬하고 WebAuthn·이메일 OTP 재인증을 "현재 미지원(1.1.B-4)" 으로 명시했다([1-auth.md §2.3.D](./1-auth.md#23d--23-재인증-흐름-정합화-구현11b-4-정렬)). 이로써 §2.3 이 재인증 세부 코드의 SoT 가 되어 위 완결성 bullet 이 "후속으로 남긴" 3코드를 §1.2.1 에 등재했다. #882 §1.2.1 주석의 status 오기(`REAUTH_REQUIRED` 403→400·`PASSWORD_INVALID` 400→401)와 "로그인 TOTP 실패는 별도 code 없이 `totp_failed` 로만" 서술도 코드 기준으로 정정했다(`PASSWORD_INVALID` 는 `verifyReauth`·`verifyPasswordForUser` 발행이며 로그인은 `LOGIN_FAILED`). `PASSWORD_INVALID`(재인증/2FA·WebAuthn 관리)는 비밀번호 변경 코드 `INVALID_PASSWORD` 와 별개다.
-- **§1 카탈로그 완결성 종결 — #882/#887 deferred 잔여 등재**: #882·#887 이 "본문 문서화 → 등재" 후속으로 남긴 `NOT_A_MEMBER`(403)·`INVALID_PASSWORD`(401)·`PASSWORD_REQUIRED`(401)를 등재했다. `PASSWORD_REQUIRED` 는 `verifyPasswordForUser` 의 missing 케이스라 그 mismatch 형제 `PASSWORD_INVALID` 와 동일 §1.2.1 에, `NOT_A_MEMBER`·`INVALID_PASSWORD` 는 §1.2 에 배치(둘 다 401/403 auth 코드로 §1.2 의 401/403/423 구조 부합 — §1.3 유효성 400/404/409/422 아님). `PASSWORD_REQUIRED` 는 `1-auth.md §5`(민감 동작 재확인 note)로·`INVALID_PASSWORD` 는 `§2.3` 본문 note(reauth 코드 L334 선례 대칭)로 코드·status 본문 문서화, `NOT_A_MEMBER` 는 기존 §5 본문 참조. 4중 근접명명(`INVALID_PASSWORD`≠`PASSWORD_INVALID`≠`PASSWORD_REQUIRED`≠`REAUTH_REQUIRED`)은 각 설명에 명시 구분. **범위 한정**: workspace 직접-추가 경로 코드(`ALREADY_A_MEMBER`·`WORKSPACE_TYPE_MISMATCH`, `workspaces.service.ts`)는 #882/#887 deferred 목록 밖이라 본 pass 범위 아님(별도 완결성 pass).
+- **§1 카탈로그 완결성 종결 — #882/#887 deferred 잔여 등재**: #882·#887 이 "본문 문서화 → 등재" 후속으로 남긴 `NOT_A_MEMBER`(403)·`INVALID_PASSWORD`(401)·`PASSWORD_REQUIRED`(401)를 등재했다. `PASSWORD_REQUIRED` 는 `verifyPasswordForUser` 의 missing 케이스라 그 mismatch 형제 `PASSWORD_INVALID` 와 동일 §1.2.1 에, `NOT_A_MEMBER`·`INVALID_PASSWORD` 는 §1.2 에 배치(둘 다 401/403 auth 코드로 §1.2 의 401/403/423 구조 부합 — §1.3 유효성 400/404/409/422 아님). `PASSWORD_REQUIRED` 는 `1-auth.md §5`(민감 동작 재확인 note)로·`INVALID_PASSWORD` 는 `§2.3` 본문 note(reauth 코드 L334 선례 대칭)로 코드·status 본문 문서화, `NOT_A_MEMBER` 는 기존 §5 본문 참조. 4중 근접명명(`INVALID_PASSWORD`≠`PASSWORD_INVALID`≠`PASSWORD_REQUIRED`≠`REAUTH_REQUIRED`)은 각 설명에 명시 구분. **범위 한정**: workspace 직접-추가 경로 코드(`ALREADY_A_MEMBER`·`WORKSPACE_TYPE_MISMATCH`, `workspaces.service.ts`)는 #882/#887 deferred 목록 밖이라 본 pass 범위 아님(별도 완결성 pass — §1.9 로 완결).
+- **§1.9 워크스페이스 멤버 직접 추가 코드 등재 (#893 후속 완결성 pass)**: #893 이 "별도 pass" 로 남긴 직접-추가 경로(`addMemberByEmail`) UPPER_SNAKE 코드 `CANNOT_ASSIGN_OWNER`(403)·`ALREADY_A_MEMBER`(409)·`WORKSPACE_TYPE_MISMATCH`(403)를 §1.5~§1.8 도메인-참조 패턴으로 §1.9 신설 등재했다. SoT=data-flow §1.9. 초대 흐름 lowercase 동명 코드(`already_a_member`·`workspace_type_mismatch`)와 wire-별개임을 note 로 명시(error-codes.md §3 정합). §1.2(401/403/423)에 409 를 섞지 않고 status 열 서브섹션으로 둔 것은 §1.5~§1.8 선례. generic `USER_NOT_FOUND`·`WORKSPACE_NOT_FOUND`(404)는 도메인 distinctive 아니라 제외. 그 외 workspace role/membership 관리 코드(`SOLE_OWNER_CANNOT_LEAVE` 등)는 별도 pass.
 - **`MODEL_CONFIG_NOT_FOUND`(404) 와 `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리 (PR4b)**: 구 단일 코드는
   id 지정 경로의 "지정 config 부재"(404)와 id 미지정 경로의 "워크스페이스 default 미설정"(400)을 한
   코드로 묶어 동일 코드가 404/400 두 status 를 갖는 모호성이 있었다. id 경로는 `MODEL_CONFIG_NOT_FOUND`(404,
