@@ -4,6 +4,7 @@ worktree: expression-enricher-dry-fbb5ce
 started: 2026-07-10
 owner: developer
 spec_area: spec/5-system/5-expression-language.md
+spec_impact: none
 ---
 
 ## 배경

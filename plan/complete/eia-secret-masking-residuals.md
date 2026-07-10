@@ -3,6 +3,8 @@ worktree: conversation-thread-secret-hardening-6477bb (branch claude/eia-secret-
 started: 2026-07-10
 completed: 2026-07-10
 owner: developer
+spec_impact:
+  - spec/5-system/14-external-interaction-api.md
 ---
 
 > **완료 (2026-07-10)**: 코드 항목(P1-2·P2-6·P3-7) 구현+검증, 결정 항목(P1-1 현행유지·P1-3 보류) 확정. 잔여(observer-vs-participant 분리·일반 nodeOutput allowlist·DB-at-rest·author-config 값-embedded)는 spec §R17 에 문서화.
