@@ -15,6 +15,9 @@ on:
       - '.claude.project.json'
       - 'PROJECT.md'
       - '.github/workflows/harness-checks.yml'
+      # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
+      # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
+      - 'scripts/report_playwright_flaky.py'
 
 concurrency:
   group: harness-checks-${{ github.ref }}
