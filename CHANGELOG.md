@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — continuation 명령 ↔ 대기 노드 표면 검증 (5-system/4-execution-engine §7.5.1)
+
+### 변경 사항
+
+1. **인터랙션 명령이 현재 대기 노드의 표면과 맞지 않으면 publish 전에 거부된다** — 종전엔 `execution.status === 'waiting_for_input'` 만 검사해, 이종 명령이 continuation bus 로 흘러갔다. resume 처리기는 도착 payload 의 `type` 이 아니라 **대기 노드의 표면**으로 선택되므로(`dispatchResumeTurn`), 이 조합은 에러 없이 **조용히 오처리**됐다: Form 대기 중 `end_conversation`/`submit_message`/`click_button` 은 sentinel 불일치 폴백을 타 **빈 폼이 제출된 것처럼** 노드를 완료시켰고(ConversationThread 에 가짜 `form_submitted` 까지 append), Buttons 대기 중 비-`click_button` 은 `resolveButtonInteraction` 의 fallback 을 타 **엉뚱한 `continue` 포트로 그래프를 분기**시켰다. 이제 4종 명령이 공유하는 publisher chokepoint(`resolveWaitingNodeExecutionId`)가 표면 매트릭스를 강제한다 — `form` 대기는 `submit_form` 만, `buttons` 대기는 `click_button` 만 받고, `ai_conversation`/`ai_form_render` 는 4종을 모두 받는다(AI 핸들러의 기존 관용 보존: Presentation §10.9 의 stale `button_click` graceful re-park, AI Agent §6.2 step 2.c 의 `render_form` 응답). 표면 판정은 `dispatchResumeTurn`/`dispatchParkEntry` 의 selects 술어를 미러링하며, 판정 불가 행은 fail-closed 거부한다(그 행은 worker 에서 `RESUME_CHECKPOINT_MISSING` 로 실행이 죽으므로 동기 거부가 `waiting_for_input` 을 보존해 낫다). 신규 에러 코드는 없다 — 기존 `InvalidExecutionStateError` 를 재사용해 진입점별 매핑이 자동 파생된다(EIA REST `409 STATE_MISMATCH` / WS ack `INVALID_EXECUTION_STATE` / REST `/continue` `422 INVALID_STATE`). 이미 `EIA-IN-13`(필수)과 EIA §5.1 에러 표가 약속하던 동작의 구현이다. chat-channel in-process forwarding 은 대기 표면을 모른 채 명령을 고정 매핑하므로 `STATE_MISMATCH` 를 warn 로그와 함께 삼킨다(그대로 throw 하면 webhook 5xx → provider 무한 재시도). 표면 판정에 필요한 `interactionType` 문자열만 JSONB path 로 투영해 hot path 가 `output_data` 전체(AI 멀티턴의 누적 `_resumeCheckpoint.messages`)를 읽지 않는다. SoT: `spec/5-system/4-execution-engine.md §7.5.1` · `spec/5-system/14-external-interaction-api.md §5.1`.
+
 ## Unreleased — KB WebSocket 이벤트 count drift 정정 (5-system/6-websocket-protocol §4.3)
 
 ### 변경 사항

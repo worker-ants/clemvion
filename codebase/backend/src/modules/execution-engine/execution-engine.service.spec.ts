@@ -27,6 +27,7 @@ import {
   FormValidationError,
   WorkflowForbiddenWorkspaceError,
 } from './workflow-errors';
+import { resolveWaitingSurface } from './waiting-surface-guard';
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -232,6 +233,10 @@ describe('ExecutionEngineService', () => {
   let mockExecutionRepo: Record<string, jest.Mock>;
   let mockNodeExecutionRepo: Record<string, jest.Mock>;
   let mockNodeRepo: Record<string, jest.Mock>;
+  // resolveWaitingNodeExecutionId 의 단일 JOIN 쿼리(§7.5.1) 제어 — raw 행 / infra 실패.
+  let waitingRawRows: Array<Record<string, unknown>>;
+  let waitingQueryError: Error | null;
+  let mockWaitingQb: Record<string, jest.Mock>;
   let mockEdgeRepo: Record<string, jest.Mock>;
   let mockWorkflowRepo: Record<string, jest.Mock>;
   let mockExecutionNodeLogRepo: Record<string, jest.Mock>;
@@ -307,23 +312,37 @@ describe('ExecutionEngineService', () => {
             startedAt: new Date(),
           });
         }),
+      find: jest.fn().mockResolvedValue([]),
       // Phase 2.3 (변경 2.3) — resolveWaitingNodeExecutionId 의 publisher 측 lookup.
-      // 기본값: WAITING_FOR_INPUT row 1건 존재 (정상 케이스). 0건/다중 row throw
-      // 경로는 개별 테스트에서 mockResolvedValueOnce 로 override.
-      //
-      // `outputData.meta.interactionType` 은 표면 매트릭스 가드
-      // (`assertCommandMatchesWaitingSurface`, §7.5.1) 의 판정 입력이다. 기본값을
-      // `ai_conversation` 으로 두어 4종 명령을 모두 허용시킨다 — publish 경로 자체를
-      // 검증하는 대다수 테스트가 표면 가드에 걸리지 않게. form/buttons 표면의 거부
-      // 경로는 전용 describe 블록이 override 로 검증한다.
-      find: jest.fn().mockResolvedValue([
-        {
-          id: 'ne-waiting',
-          nodeId: 'n-wait',
-          startedAt: new Date(),
-          outputData: { meta: { interactionType: 'ai_conversation' } },
-        },
-      ]),
+      // 단일 JOIN 쿼리(대기 행 + node.type + interactionType JSONB path 투영).
+      // 반환 행은 `waitingRawRows`, infra 실패는 `waitingQueryError` 로 제어한다.
+      createQueryBuilder: jest.fn(() => mockWaitingQb),
+    };
+
+    // 기본값: WAITING_FOR_INPUT row 1건 (정상 케이스). 표면은 `ai_conversation` —
+    // 4종 명령을 모두 허용하므로 publish 경로 자체를 검증하는 대다수 테스트가 표면
+    // 가드에 걸리지 않는다. form/buttons 거부 경로는 전용 describe 가 override 한다.
+    waitingRawRows = [
+      {
+        id: 'ne-waiting',
+        nodeId: 'n-wait',
+        nodeType: 'ai_agent',
+        interactionType: 'ai_conversation',
+      },
+    ];
+    waitingQueryError = null;
+    mockWaitingQb = {
+      innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn(() =>
+        waitingQueryError
+          ? Promise.reject(waitingQueryError)
+          : Promise.resolve(waitingRawRows),
+      ),
     };
 
     mockNodeRepo = {
@@ -332,9 +351,6 @@ describe('ExecutionEngineService', () => {
       // 기본값 null → form field 검증 skip (form 검증 무관 테스트의 기존 동작 유지).
       // 폼 검증 테스트는 form 노드 config 를 mockResolvedValueOnce 로 override.
       findOneBy: jest.fn().mockResolvedValue(null),
-      // assertCommandMatchesWaitingSurface 의 대기 노드 타입 lookup (정적 blocking
-      // metadata 판정용). 위 `find` 기본 row 와 짝을 이루는 AI 노드.
-      findOne: jest.fn().mockResolvedValue({ id: 'n-wait', type: 'ai_agent' }),
     };
 
     mockEdgeRepo = {
@@ -1037,17 +1053,26 @@ describe('ExecutionEngineService', () => {
       startedAt: new Date(),
       recursionDepth: 0,
     });
-    // resolveWaitingNodeExecutionId(find) → 단일 WAITING row 반환 (nodeExecutionId 확정).
-    // `outputData` 는 park 이 실제로 영속한 envelope 그대로 — 표면 매트릭스 가드
-    // (§7.5.1) 가 `meta.interactionType` 을 여기서 읽는다.
-    mockNodeExecutionRepo.find.mockResolvedValueOnce([
+    // resolveWaitingNodeExecutionId 의 단일 JOIN 쿼리 → WAITING row 1건.
+    // `interactionType` 은 park 이 실제로 영속한 envelope 에서 뽑는다 (하드코딩 아님)
+    // — 프로덕션의 JSONB path 투영(`meta.interactionType` 우선, flat root fallback)
+    // 과 동일 규칙이라 form/buttons/ai 세 표면을 비-vacuous 하게 커버한다.
+    const meta = rawPersisted.meta as Record<string, unknown> | undefined;
+    const persistedInteractionType =
+      (typeof meta?.interactionType === 'string'
+        ? meta.interactionType
+        : undefined) ??
+      (typeof rawPersisted.interactionType === 'string'
+        ? rawPersisted.interactionType
+        : null);
+    waitingRawRows = [
       {
         id: neId,
         nodeId: waitingNodeId,
-        startedAt: new Date(),
-        outputData: rawPersisted,
+        nodeType: nodeDef.type,
+        interactionType: persistedInteractionType,
       },
-    ]);
+    ];
     // rehydrateAndResume 의 NodeExecution lookup (findOneBy by id).
     mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
       id: neId,
@@ -1059,8 +1084,6 @@ describe('ExecutionEngineService', () => {
     });
     // rehydrateAndResume 의 Node 정의 lookup (findOneBy by id).
     mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(nodeDef);
-    // assertCommandMatchesWaitingSurface 의 대기 노드 타입 lookup (findOne by id).
-    mockNodeRepo.findOne = jest.fn().mockResolvedValue(nodeDef);
   };
 
   describe('executeInline — Sub-Workflow parent linking', () => {
@@ -2028,7 +2051,7 @@ describe('ExecutionEngineService', () => {
     // Phase 2.3 (변경 2.3) — spec §7.5.1 publisher 측 사전 검증. WAITING row 가
     // 0건이면 BullMQ enqueue 를 시도하지 않고 INVALID_EXECUTION_STATE 로 즉시 거부.
     it('continueExecution — WAITING NodeExecution 0건이면 INVALID_EXECUTION_STATE throw + publish 안 함', async () => {
-      mockNodeExecutionRepo.find.mockResolvedValueOnce([]);
+      waitingRawRows = [];
       await expect(
         service.continueExecution('exec-none', { name: 'Bob' }),
       ).rejects.toBeInstanceOf(InvalidExecutionStateError);
@@ -2036,14 +2059,14 @@ describe('ExecutionEngineService', () => {
     });
 
     it('continueExecution — throw 된 InvalidExecutionStateError.code === INVALID_EXECUTION_STATE', async () => {
-      mockNodeExecutionRepo.find.mockResolvedValueOnce([]);
+      waitingRawRows = [];
       await expect(
         service.continueExecution('exec-none', {}),
       ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_STATE' });
     });
 
     it('continueButtonClick — WAITING row 0건이면 INVALID_EXECUTION_STATE throw + publish 안 함', async () => {
-      mockNodeExecutionRepo.find.mockResolvedValueOnce([]);
+      waitingRawRows = [];
       await expect(
         service.continueButtonClick('exec-none', 'btn-x'),
       ).rejects.toBeInstanceOf(InvalidExecutionStateError);
@@ -2058,10 +2081,10 @@ describe('ExecutionEngineService', () => {
           'warn',
         )
         .mockImplementation(() => undefined);
-      mockNodeExecutionRepo.find.mockResolvedValueOnce([
-        { id: 'ne-a', nodeId: 'n1', startedAt: new Date() },
-        { id: 'ne-b', nodeId: 'n2', startedAt: new Date() },
-      ]);
+      waitingRawRows = [
+        { id: 'ne-a', nodeId: 'n1', nodeType: 'form', interactionType: 'form' },
+        { id: 'ne-b', nodeId: 'n2', nodeType: 'form', interactionType: 'form' },
+      ];
       await expect(
         service.continueExecution('exec-dup', {}),
       ).rejects.toBeInstanceOf(InvalidExecutionStateError);
@@ -2073,15 +2096,28 @@ describe('ExecutionEngineService', () => {
     });
 
     it('continueExecution — DB lookup infra 실패는 INVALID_EXECUTION_STATE 가 아닌 원본 에러로 전파', async () => {
-      mockNodeExecutionRepo.find.mockRejectedValueOnce(
-        new Error('connection terminated'),
-      );
+      waitingQueryError = new Error('connection terminated');
       const rejection = service.continueExecution('exec-dberr', {});
       await expect(rejection).rejects.toThrow('connection terminated');
       await expect(rejection).rejects.not.toBeInstanceOf(
         InvalidExecutionStateError,
       );
       expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    // 표면 판정에 필요한 문자열 하나만 투영한다 — `output_data` JSONB 컬럼 전체를
+    // 싣지 않는다 (AI 멀티턴의 `_resumeCheckpoint.messages` 는 turn 마다 누적).
+    it('publisher lookup 은 output_data 컬럼 전체를 select 하지 않는다 (JSONB path 투영)', async () => {
+      await service.continueAiConversation('exec-1', 'hi');
+      const selected = [
+        ...mockWaitingQb.select.mock.calls,
+        ...mockWaitingQb.addSelect.mock.calls,
+      ].map((c) => String(c[0]));
+      expect(selected.some((s) => /interactionType/.test(s))).toBe(true);
+      // 컬럼 전체(`ne.output_data` 단독)를 select 한 호출이 없어야 한다.
+      expect(selected).not.toContain('ne.output_data');
+      expect(selected).not.toContain('ne.outputData');
+      expect(mockWaitingQb.innerJoin).toHaveBeenCalledWith('ne.node', 'n');
     });
 
     // ────────────────────────────────────────────────────────────────────────
@@ -2100,20 +2136,14 @@ describe('ExecutionEngineService', () => {
         interactionType: string | undefined,
         nodeType = 'carousel',
       ): void => {
-        mockNodeExecutionRepo.find.mockResolvedValueOnce([
+        waitingRawRows = [
           {
             id: 'ne-waiting',
             nodeId: 'n-wait',
-            startedAt: new Date(),
-            outputData:
-              interactionType === undefined
-                ? {}
-                : { meta: { interactionType } },
+            nodeType,
+            interactionType: interactionType ?? null,
           },
-        ]);
-        mockNodeRepo.findOne = jest
-          .fn()
-          .mockResolvedValue({ id: 'n-wait', type: nodeType });
+        ];
       };
 
       /** form 노드는 정적 blocking metadata 로 표면이 결정된다 (persisted meta 무관). */
@@ -2212,15 +2242,68 @@ describe('ExecutionEngineService', () => {
         expect(mockBus.publish).not.toHaveBeenCalled();
       });
 
-      it('대기 node row 부재 → INVALID_EXECUTION_STATE', async () => {
-        mockNodeExecutionRepo.find.mockResolvedValueOnce([
-          { id: 'ne-waiting', nodeId: 'n-gone', startedAt: new Date() },
-        ]);
-        mockNodeRepo.findOne = jest.fn().mockResolvedValue(null);
+      // 대기 노드 정의가 사라진 행은 `innerJoin('ne.node')` 이 걸러 0건이 되므로
+      // 위 "WAITING row 0건" 경로와 동일하게 INVALID_EXECUTION_STATE 로 수렴한다.
+      it('대기 node 정의 부재(JOIN 탈락) → 0건과 동일하게 INVALID_EXECUTION_STATE', async () => {
+        waitingRawRows = [];
         await expect(
           service.endAiConversation('exec-nonode'),
         ).rejects.toBeInstanceOf(InvalidExecutionStateError);
         expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      // 불변식 — publisher 의 표면 판정(`resolveWaitingSurface`)이 **worker 가 실제로 고르는**
+      // `resumeTurnRegistry` 의 selects 와 어긋나면, 가드가 통과시킨 명령이 여전히 엉뚱한
+      // 처리기로 흘러간다 (이 PR 이 고치는 버그 클래스의 재도입). park-entry 쪽 대칭은
+      // waiting-surface-guard.spec.ts 가, worker 쪽 대칭은 여기서 가드한다.
+      it('resumeTurnRegistry 의 selects 와 resolveWaitingSurface 판정이 일치한다', () => {
+        const registry = (
+          service as unknown as {
+            resumeTurnRegistry: ReadonlyArray<{
+              kind: string;
+              selects: (sel: unknown) => boolean;
+            }>;
+          }
+        ).resumeTurnRegistry;
+
+        const cases = [
+          { nodeType: 'form', interactionType: undefined, blocking: 'form' },
+          { nodeType: 'carousel', interactionType: 'buttons' },
+          { nodeType: 'ai_agent', interactionType: 'ai_conversation' },
+          { nodeType: 'ai_agent', interactionType: 'ai_form_render' },
+          {
+            nodeType: 'information_extractor',
+            interactionType: 'ai_conversation',
+          },
+          { nodeType: 'carousel', interactionType: undefined },
+        ] as const;
+
+        for (const c of cases) {
+          const registryKind = registry.find((h) =>
+            h.selects({
+              node: { id: 'n', type: c.nodeType },
+              blockingInteraction:
+                'blocking' in c
+                  ? (c as { blocking: string }).blocking
+                  : undefined,
+              persistedInteractionType: c.interactionType,
+              isAiConversation:
+                c.interactionType === 'ai_conversation' ||
+                c.interactionType === 'ai_form_render',
+              // ai 분기는 checkpoint 존재를 추가로 요구한다 — publisher 가 알 수 없는
+              // worker-시점 상태라, 그 조건을 만족시킨 상태에서 표면 판정만 비교한다.
+              hasResumeCheckpoint: true,
+            }),
+          )?.kind;
+          const surface = resolveWaitingSurface({
+            blockingInteraction:
+              'blocking' in c
+                ? (c as { blocking: string }).blocking
+                : undefined,
+            interactionType: c.interactionType,
+          });
+          expect(surface).toBe(registryKind);
+        }
       });
 
       // client 응답에는 고정 메시지만 — 대기 노드 표면/nodeId 는 serverDetail 전용 (§7.5.2).

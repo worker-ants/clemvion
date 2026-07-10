@@ -5,6 +5,7 @@ import {
   GoneException,
   BadRequestException,
   ConflictException,
+  HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -716,6 +717,13 @@ export class HooksService {
    * 재시도한다. 따라서 삼키되 **반드시 warn 로그를 남긴다** (§10.9 "silent skip 금지" +
    * 본 파일의 모든 catch 관례). 사용자 대상 안내 문구(`languageHints` 신규 키)는 후속
    * 항목 — `plan/in-progress/eia-command-waiting-surface-guard.md` F-2.
+   *
+   * 삼키는 범위는 **`STATE_MISMATCH` 코드로 한정**한다. `ConflictException` 타입 전체로
+   * 판정하면 `IDEMPOTENCY_KEY_CONFLICT` 등 다른 409 사유까지 흡수하게 된다(현재는 in-process
+   * 호출이라 도달 불가하나 암묵적 안전 속성에 의존하지 않는다). `STATE_MISMATCH` 자체는
+   * 표면 불일치 외에 "이미 waiting 을 벗어남"·"WAITING row 0/다중" race 도 포함하며, 어느
+   * 쪽이든 provider 재시도로는 해결되지 않으므로 동일하게 삼킨다 — 원인 구분은 아래 로그의
+   * 서버측 message 가 담는다.
    */
   private async forwardToInteractionService(
     trigger: Trigger,
@@ -750,10 +758,12 @@ export class HooksService {
     try {
       await this.interactionService.interact(ctx, dto);
     } catch (err) {
-      if (err instanceof ConflictException) {
+      const conflict =
+        err instanceof ConflictException ? readErrorBody(err) : undefined;
+      if (conflict?.code === 'STATE_MISMATCH') {
         this.logger.warn(
           `chat-channel inbound '${dto.command}' 이 현재 대기 표면과 맞지 않아 거부됨 ` +
-            `(execution=${executionId} trigger=${trigger.id}): ${err.message}`,
+            `(execution=${executionId} trigger=${trigger.id}): ${conflict.message ?? '(상세 없음)'}`,
         );
         return;
       }
@@ -1051,4 +1061,26 @@ function isSlackUrlVerification(body: unknown): boolean {
 function isDiscordPing(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 1;
+}
+
+/**
+ * NestJS `HttpException` 의 응답 body 에서 `{ error: { code, message } }` (API 규약 §5.3)
+ * 를 추출한다.
+ *
+ * `err.message` 를 쓰면 안 된다 — `HttpException.initMessage()` 는 응답 객체의 **top-level**
+ * `message` 만 message 로 승격하는데, 본 프로젝트의 예외는 `message` 를 `error` 아래에
+ * 중첩하므로 `err.message` 가 항상 `'Conflict Exception'` 같은 클래스 기본 문자열이 된다.
+ */
+function readErrorBody(
+  err: HttpException,
+): { code?: string; message?: string } | undefined {
+  const body = err.getResponse();
+  if (!body || typeof body !== 'object') return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== 'object') return undefined;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return {
+    code: typeof code === 'string' ? code : undefined,
+    message: typeof message === 'string' ? message : undefined,
+  };
 }

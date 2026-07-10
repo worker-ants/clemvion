@@ -867,7 +867,52 @@ describe('HooksService', () => {
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('현재 대기 표면과 맞지 않아 거부됨'),
       );
+      // 로그가 실제 진단 메시지를 싣는지 — `err.message` 는 body 가 nested 라 항상
+      // 'Conflict Exception' 이 되므로 `getResponse().error.message` 를 써야 한다.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('surface mismatch'),
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Conflict Exception'),
+      );
       warnSpy.mockRestore();
+    });
+
+    // 삼키는 범위는 `STATE_MISMATCH` 코드로 한정 — 다른 409 사유는 전파한다
+    // (ConflictException 타입 전체로 판정하면 IDEMPOTENCY_KEY_CONFLICT 도 흡수됨).
+    it('STATE_MISMATCH 가 아닌 409 는 삼키지 않고 전파', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'dup' },
+        idempotencyKey: '1005',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'IDEMPOTENCY_KEY_CONFLICT', message: 'dup key' },
+        }),
+      );
+
+      await expect(
+        service.handleWebhook('abc', chatInput),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('표면 불일치 외의 예외는 그대로 전파 (삼키지 않음)', async () => {

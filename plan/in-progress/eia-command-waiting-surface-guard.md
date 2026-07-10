@@ -71,8 +71,9 @@ Spec 근거 — 이미 약속된 계약의 구현:
 - [x] 테스트 선작성 (unit + e2e)
 - [x] 구현 — `resolveWaitingNodeExecutionId(executionId, expectedCommand)` + `waiting-surface-guard.ts`
 - [x] e2e 비-vacuity 실증 — 가드 비활성 시 `end_conversation` 이 **202** 반환(재현), 가드 복원 시 409
-- [x] TEST WORKFLOW (lint / unit / build / e2e 모두 PASS)
-- [ ] `/ai-review` + Critical/Warning 0
+- [x] TEST WORKFLOW (lint / unit / build / e2e 모두 PASS — buttons 표면 회귀 e2e 추가)
+- [x] `/ai-review` (`review/code/2026/07/11/00_03_25/`) Critical 0 / Warning 12 →
+      코드 조치 8건(#1·#2·#3·#4·#5·#6·#10·#11·#12) fix + RESOLUTION.md, 나머지는 후속 이관
 - [ ] `/consistency-check --impl-done spec/5-system`
 - [ ] spec 동기 (project-planner 위임 — 아래 S-1)
 
@@ -108,8 +109,21 @@ status='waiting_for_input'` 로 규정하고 "매칭 row 0건 … 또는 nodeId 
 (또는 `scope: 'in_process_trusted'` 에 대한 명시적 면제를 spec 에 등재). 그 뒤에야 nodeId
 일치 검사를 넣을 수 있다.
 
-### F-2. 채팅 채널 native form modal 대기 중 텍스트 입력의 graceful 안내
+### F-2. 채팅 채널 표면 불일치 입력의 graceful 안내 (form **및 buttons**)
 
-본 PR 이후 `hooks.service.forwardToInteractionService` 의 `submit_message` 가 form 대기 중
-`InvalidExecutionStateError` 로 거부된다 (종전: 빈 폼 조용히 제출 — 이것이 버그였다).
-사용자에게 "폼을 열어 제출해 주세요" 안내를 보내는 graceful 경로가 필요하다.
+본 PR 이후 `hooks.service.forwardToInteractionService` 의 고정 매핑(`text_message → submit_message`,
+`button_callback → click_button`)이 대기 표면과 어긋나면 `STATE_MISMATCH` 로 거부되고, 현재는
+warn 로그만 남기고 삼킨다. 두 케이스 모두 사용자에게 아무 피드백이 없다:
+
+- **form 대기 + 자유 텍스트** (native modal 미개봉) — 종전: 빈 폼 조용히 제출(버그)
+- **buttons 대기 + 자유 텍스트** — 종전: 엉뚱한 `continue` 포트 분기(버그)
+
+`languageHints` 신규 키(예: `surfaceMismatch`)를 `spec/5-system/15-chat-channel.md` §4.1 표에
+등재하고 best-effort 안내를 발송해야 한다. chat-channel spec 의 CCH-ERR-04("silently swallow
+금지") 관례상 필요.
+
+### F-3. 외부 EIA 클라이언트 대상 breaking behavior 공지 여부 결정 (project-planner)
+
+본 PR 은 종전 202 를 반환하던 명령 조합을 409 로 바꾼다. "버그 수정"(EIA-IN-13 이 이미 이 거부를
+약속) 이므로 코드 되돌림 대상은 아니나, 이 프로젝트는 URL 비버저닝 단일 버전 운영이고 EIA 문서에
+breaking-change 공지 절차가 없다. 공지 필요 여부·채널을 planner 가 명시적으로 결정할 것.

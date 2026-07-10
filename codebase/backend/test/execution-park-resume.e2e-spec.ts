@@ -343,6 +343,118 @@ describe('Execution park → cold rehydration resume (e2e, PR-B1)', () => {
     );
   }, 60_000);
 
+  // 표면 매트릭스의 두 번째 축 — buttons 대기.
+  //
+  // form 표면은 정적 handler metadata 로 판정되지만, buttons 표면은 **영속된
+  // `node_execution.output_data` 의 `meta.interactionType`** 을 실제 Postgres JSONB 에서
+  // 되읽어야 판정된다 (publisher 가 JSONB path 로 투영). 따라서 이 축은 mock unit 으로
+  // 검증할 수 없다.
+  //
+  // 회귀 가드: 종전엔 buttons 대기 중 비-`button_click` 명령이 `resolveButtonInteraction`
+  // 의 (d) fallback 을 타 **엉뚱한 'continue' 포트로 그래프가 분기**됐다 (form 처럼 데이터가
+  // 오염되진 않지만 실행 경로가 조용히 바뀌는 동형 무결성 결함).
+  it('buttons 대기 중 EIA end_conversation → 409 STATE_MISMATCH, 엉뚱한 continue 포트 분기 없음', async () => {
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const approveBtnId = 'approve';
+    const tmpl: CanvasNode = {
+      id: randomUUID(),
+      type: 'template',
+      category: 'presentation',
+      label: 'Approve?',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        template: '승인하시겠습니까?',
+        buttons: [{ id: approveBtnId, label: '승인', type: 'port' }],
+      },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, tmpl],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: tmpl.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      ),
+    ).toBe('waiting_for_input');
+
+    // 영속된 표면이 실제로 buttons 인지 확인 (publisher 가 이 값을 JSONB path 로 읽는다).
+    const parked = await db.query(
+      `SELECT output_data -> 'meta' ->> 'interactionType' AS itype
+         FROM node_execution
+        WHERE execution_id = $1 AND node_id = $2
+        ORDER BY started_at DESC LIMIT 1`,
+      [executionId, tmpl.id],
+    );
+    expect(parked.rows[0]?.itype).toBe('buttons');
+
+    const rejected = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionId)}`)
+      .send({ command: 'end_conversation', nodeId: tmpl.id });
+    expect(rejected.status).toBe(409);
+    expect(rejected.body.error.code).toBe('STATE_MISMATCH');
+
+    // 거부 후에도 대기 유지 — 'continue' 포트로 조용히 분기하지 않았다.
+    const stillWaiting = await db.query(
+      `SELECT status FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(stillWaiting.rows[0]?.status).toBe('waiting_for_input');
+
+    // 정상 명령(click_button)은 통과해 선택 포트로 재개된다.
+    const accepted = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionId)}`)
+      .send({
+        command: 'click_button',
+        nodeId: tmpl.id,
+        buttonId: approveBtnId,
+      });
+    expect(accepted.status).toBe(202);
+    expect(
+      await poll(executionId, (s) => TERMINAL_STATUSES.includes(s as never)),
+    ).toBe('completed');
+    const resumed = await db.query(
+      `SELECT output_data FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, tmpl.id],
+    );
+    // 선택된 포트가 'continue' 가 아니라 실제 클릭한 버튼 포트여야 한다.
+    expect(JSON.stringify(resumed.rows[0]?.output_data ?? {})).toContain(
+      approveBtnId,
+    );
+  }, 60_000);
+
   // 06 C-2 (W3) — 동시 재개(2건 병렬 continue)에도 재개 진입 원자 claim 이
   // 이중 실행을 차단한다. form 노드 row 는 정확히 1회만 completed 로 전이하고
   // (running 잔류 없음) Execution 은 completed 로 정합 종료. (단일 인스턴스·

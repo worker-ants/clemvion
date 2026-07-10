@@ -5,7 +5,7 @@ import type { ContinuationPayload } from './queues/continuation-execution.queue'
  * `kind` 와 같은 어휘를 쓴다 (form → buttons → ai_conversation).
  *
  * `ai_form_render` 는 별도 표면이 아니라 `ai_conversation` 에 흡수된다 — 두 registry 와
- * 동일 정책 ([interaction-type-registry §1.2](../../../../spec/conventions/interaction-type-registry.md)).
+ * 동일 정책 ([interaction-type-registry §1.2](../../../../../spec/conventions/interaction-type-registry.md)).
  */
 export type WaitingSurface = 'form' | 'buttons' | 'ai_conversation';
 
