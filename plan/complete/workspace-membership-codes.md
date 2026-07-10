@@ -62,7 +62,7 @@ UPPER_SNAKE 코드 등재. 이들은 초대 흐름 lowercase 코드(`already_a_m
 ## 워크플로 (project-planner)
 - [x] consistency-check --spec (18_01_11) — **BLOCK:NO** (naming_collision NONE·rationale_continuity NONE "모범 사례"; convention·naming FS-flakiness → journal 복구 전수 확보). cross_spec WARNING 2(USER_NOT_FOUND §1.1 오참조·WORKSPACE_NOT_FOUND 비대칭) 반영
 - [x] spec 반영 (§1 intro·§1.9 신설·Rationale bullet + #893 tail pointer) + **spec-link-integrity 11/11 PASS**
-- [ ] plan complete 이동
+- [x] plan complete 이동 (커밋 259d311dd spec 반영 → 본 chore(plan))
 
 ## 범위 밖
 - 그 외 workspace 코드(`SOLE_OWNER_CANNOT_LEAVE`·`CANNOT_REMOVE_OWNER`·`OWNER_ROLE_PROTECTED`·`TARGET_*` 등 role/membership 관리)는 별도 pass — 본 pass 는 직접-추가 경로 distinctive 코드에 한정.
