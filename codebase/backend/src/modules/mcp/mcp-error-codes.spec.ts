@@ -5,14 +5,14 @@ import {
 } from './mcp-error-codes';
 
 describe('redactMcpSecrets', () => {
-  it('URL userinfo(user:pass@host) 를 마스킹하되 호스트는 보존한다 (MCP 전용 패턴)', () => {
+  it('URL userinfo(user:pass@host) 를 마스킹하되 scheme·호스트는 보존한다 (공용 SoT 패턴)', () => {
     const out = redactMcpSecrets(
       'connect failed https://alice:s3cr3t@mcp.example.com/rpc',
     );
     expect(out).not.toContain('s3cr3t');
     expect(out).not.toContain('alice:');
-    expect(out).toContain('mcp.example.com');
-    expect(out).toContain('***');
+    // 공용 SECRET_LEAK_PATTERNS 가 흡수 — scheme 보존 `scheme://***@host`.
+    expect(out).toContain('https://***@mcp.example.com/rpc');
   });
 
   it('쿼리스트링 bare token 을 마스킹하고 비-시크릿 파라미터는 보존 (MCP 전용 패턴)', () => {
