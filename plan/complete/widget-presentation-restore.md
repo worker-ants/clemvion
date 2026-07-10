@@ -2,6 +2,11 @@
 worktree: widget-presentation-restore-357c22
 started: 2026-07-10
 owner: planner
+spec_impact:
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/0-architecture.md
+  - spec/7-channel-web-chat/_product-overview.md
+  - spec/conventions/conversation-thread.md
 ---
 
 # 웹채팅 위젯 — 복원 thread presentation 재현 (spec 정정 + truncation parity)
@@ -84,32 +89,30 @@ spec 변경 불요. 메인 프런트엔드는 이 필드를 이미 소비한다(
 - [x] `/ai-review --branch origin/main` (23_04_23) — CRITICAL 0 / WARNING 1(documentation). fix + RESOLUTION.md.
       ※ summary 의 `WARNING=0` 은 오집계(workflow disk-write 갭으로 documentation·side_effect 미반영) —
       journal 복구로 정정. fix 후 TEST WORKFLOW 전 단계 재통과.
-- [ ] fresh `/ai-review` (fix 커버)
-- [ ] `/consistency-check --impl-done`
+- [x] fresh `/ai-review` (fix 커버, 23_26_31) — CRITICAL 0 / WARNING 0 (RISK LOW)
+- [x] `/consistency-check --impl-done spec/7-channel-web-chat/` (23_26_33) — BLOCK: NO.
+      WARNING 2건(0-architecture §3 `execution.message` 행 누락 · sibling PR #899 미흡수) 모두 해소.
+- [x] **PR [#901](https://github.com/worker-ants/clemvion/pull/901) 머지 완료** (2026-07-10, squash `ab5abc1a6`)
 
 ## 5. 본 PR 범위 밖 — 팔로우업 (impl-prep WARNING 3건)
 
 impl-prep(22_41_55)이 검출한 WARNING 3건은 모두 **본 변경과 무관한 사전 존재 spec drift** 이며 planner 소관.
 `complete/` 이동 게이트가 checkbox 를 스캔하므로 산문 위임이 아닌 추적 가능한 항목으로 등재한다(impl-done INFO #2):
 
-- [ ] `spec/7-channel-web-chat/4-security.md` §4 가 EIA §8.4 `/interact` rate-limit(분당 60)을 "Planned" 로 오기재
+- [x] `spec/7-channel-web-chat/4-security.md` §4 가 EIA §8.4 `/interact` rate-limit(분당 60)을 "Planned" 로 오기재
       — SoT(EIA §8.4)는 "구현됨"(`InteractionRateLimiterService`). 중복 서술이 drift 원인.
-- [ ] `spec/2-navigation/_product-overview.md` NAV-WC-06(라이브 미리보기) 상태가 🚧 stale — 실제 완료(web-chat-console).
-- [ ] `embed-config` 응답의 `{ data }` 봉투 표기가 `3-auth-session.md` §3 step 0 · `4-security.md` §3-①/I3 3곳 누락
+- [x] `spec/2-navigation/_product-overview.md` NAV-WC-06(라이브 미리보기) 상태가 🚧 stale — 실제 완료(web-chat-console).
+- [x] `embed-config` 응답의 `{ data }` 봉투 표기가 `3-auth-session.md` §3 step 0 · `4-security.md` §3-①/I3 누락
       (런타임 영향 없음, 순수 문서 정정).
 
-→ 본 PR 은 위젯 코드 + §2 계약 정정에 한정한다. 위 3건은 **본 plan 을 `complete/` 로 옮기기 전에** 별도
-spec-only 팔로우업 plan(`plan/in-progress/spec-fix-webchat-eia-drift.md`)으로 분리하거나 여기서 해소해야 한다.
+→ #901 은 위젯 코드 + §2 계약 정정에 한정했다. 위 3건은 후속 spec-only PR 에서
+[`spec-fix-webchat-eia-drift`](./spec-fix-webchat-eia-drift.md) 로 **전부 해소**했다(같은 PR 에서 함께 `complete/` 이동).
 
-## 6. 후속 항목 (ai-review 23_04_23 에서 이관)
+## 6. 후속 항목 (ai-review 23_04_23 에서 이관) — **별도 트래커로 분리 완료**
 
-- [ ] **위젯 truncation 배너에 총 개수 노출** (requirement #3) — 메인 FE(`assistant-presentations-block.tsx:316`)
-      는 `truncation.{rowsTotalCount|itemsTotalCount}` 를 배너에 함께 표시하나, 위젯은 `truncated: boolean` 만
-      소비한다. `TableData`/`CarouselData` 에 `totalCount?: number` 를 더하는 표면 확장이라 별도 결정 필요.
-      (이번 diff 가 만든 회귀 아님 — spec 도 count 표시를 강제하지 않음.)
-- [ ] **카루셀 잘림 배너 미구현** (testing #12) — `asEnvelope` 는 `itemsTruncated` 를 흡수하지만 `CarouselData`
-      에 `truncated` 필드가 없어 소비처가 없다. 배너 구현 시 table 과 대칭인 렌더 테스트 동반.
-- [ ] (선택) 테스트 헬퍼 `payloadOf` 중복 — 3번째 파일로 반복이 늘면 공용 fixture 로 추출 (maintainability #8·#10).
+- [x] 세 항목(위젯 truncation 배너 총 개수 노출 · 카루셀 잘림 배너 · 테스트 헬퍼 `payloadOf` 중복)을
+      [`webchat-widget-presentation-followups`](../in-progress/webchat-widget-presentation-followups.md) 로 이관했다.
+      전부 **표면 확장**이라 planner 의 표시 계약 결정이 선행돼야 하므로 버그 수정 PR 에 섞지 않았다.
 
 ## Rationale
 

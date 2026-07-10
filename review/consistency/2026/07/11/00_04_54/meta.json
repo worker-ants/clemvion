@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-11T00:04:54.928888",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-fix-webchat-eia-drift.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
