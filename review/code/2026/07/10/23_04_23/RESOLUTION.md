@@ -9,17 +9,17 @@
 
 | SUMMARY # | 등급 | 발견사항 | 조치 | commit |
 |---|---|---|---|---|
-| documentation #1 | **WARNING** | 파일 상단 모듈 헤더 주석이 `truncation?` 를 누락해 `asEnvelope` JSDoc 과 shape 정의 불일치(stale 주석) | 헤더 shape (2) 서술에 `truncation?` 추가 + "cap 메타는 payload 바깥 top-level" 명시 | `f0be7ffc0` |
-| side_effect #1 | INFO | `output` 에만 truncation 을 통째로 spread → `config`/`output` 대칭 파괴. 현재 키 충돌은 없으나 코드에 고정돼 있지 않아, 장래 payload/truncation shape 확장 시 렌더 필드가 조용히 덮일 수 있음 | 통째 spread → **명시적 4-키 화이트리스트**(`TRUNCATION_KEYS` + `truncationMeta()`)로 병합 범위를 봉인. 미등록 키 흡수 금지 회귀 테스트 추가 | `f0be7ffc0` |
-| maintainability #9 | INFO | "값 충돌 시 truncation 우선" 우선순위가 주석에 미명시 | JSDoc 에 병합 규칙(흡수는 output 한정 / 충돌 시 top-level truncation 우선 + 근거) 명시 | `f0be7ffc0` |
-| testing #11 | INFO | 충돌 우선순위를 고정하는 테스트 부재 — spread 순서를 뒤집는 리팩터가 조용히 통과 | `payload.rowsTruncated:true` + `truncation.rowsTruncated:false` → `truncated=false` lock-in 테스트 추가 | `f0be7ffc0` |
-| testing #13 | INFO | `truncation` 이 non-object(`null`/문자열)일 때의 방어를 잠그는 테스트 부재 | `truncation: null` / `"garbage"` no-op 테스트 추가 | `f0be7ffc0` |
-| documentation #2 | INFO | TS 주석 안 마크다운 링크 문법이 파일 내 다른 spec 참조 관례와 불일치 | plain 텍스트 표기로 통일 | `f0be7ffc0` |
+| documentation #1 | **WARNING** | 파일 상단 모듈 헤더 주석이 `truncation?` 를 누락해 `asEnvelope` JSDoc 과 shape 정의 불일치(stale 주석) | 헤더 shape (2) 서술에 `truncation?` 추가 + "cap 메타는 payload 바깥 top-level" 명시 | `da3d2672c` |
+| side_effect #1 | INFO | `output` 에만 truncation 을 통째로 spread → `config`/`output` 대칭 파괴. 현재 키 충돌은 없으나 코드에 고정돼 있지 않아, 장래 payload/truncation shape 확장 시 렌더 필드가 조용히 덮일 수 있음 | 통째 spread → **명시적 4-키 화이트리스트**(`TRUNCATION_KEYS` + `truncationMeta()`)로 병합 범위를 봉인. 미등록 키 흡수 금지 회귀 테스트 추가 | `da3d2672c` |
+| maintainability #9 | INFO | "값 충돌 시 truncation 우선" 우선순위가 주석에 미명시 | JSDoc 에 병합 규칙(흡수는 output 한정 / 충돌 시 top-level truncation 우선 + 근거) 명시 | `da3d2672c` |
+| testing #11 | INFO | 충돌 우선순위를 고정하는 테스트 부재 — spread 순서를 뒤집는 리팩터가 조용히 통과 | `payload.rowsTruncated:true` + `truncation.rowsTruncated:false` → `truncated=false` lock-in 테스트 추가 | `da3d2672c` |
+| testing #13 | INFO | `truncation` 이 non-object(`null`/문자열)일 때의 방어를 잠그는 테스트 부재 | `truncation: null` / `"garbage"` no-op 테스트 추가 | `da3d2672c` |
+| documentation #2 | INFO | TS 주석 안 마크다운 링크 문법이 파일 내 다른 spec 참조 관례와 불일치 | plain 텍스트 표기로 통일 | `da3d2672c` |
 | security #1·#2, scope #5·#6·#7, requirement #4, documentation #3·#4 | INFO | "조치 불요" 로 명시된 확인성 기록 | 조치 없음 | — |
 
 ## TEST 결과
 
-fix commit(`f0be7ffc0`) 이후 TEST WORKFLOW 1단계부터 재수행:
+fix commit(`da3d2672c`) 이후 TEST WORKFLOW 1단계부터 재수행:
 
 - lint: **통과** (`_test_logs/lint-20260710-231752.log`)
 - unit: **통과** (`_test_logs/unit-20260710-231847.log`) — 위젯 3파일 87건 green
