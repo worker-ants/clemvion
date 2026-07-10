@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — KB WebSocket 이벤트 count drift 정정 (5-system/6-websocket-protocol §4.3)
+
+### 변경 사항
+
+1. **frontend `useKbEvents` 가 backend `KbEventType` union 권위(11종)에 정렬된다** — frontend `KB_EVENT_NAMES` 가 union 에 없는 `document:graph_error` 를 구독해 count drift(frontend 12 vs union 11)가 있었다. graph `_error` 는 emit 경로가 없어 #443 에서 union 에서 제거됐고(`data-flow/6-knowledge-base.md §2.5` 권위 기록), graph 오류는 `_retry`/`_failed` 로만 신호한다. 죽은 `graph_error` 구독을 제거하고(→11종, backend emit 무변경이라 no-op), closure-local `KB_EVENT_NAMES` 를 module-scope `export` 로 승격해 union↔구독 parity 회귀 테스트(`use-kb-events.test.ts`)를 추가했다. 백엔드 union 자체는 이미 11종이라 무변경(JSDoc 만 "12개"→"11종" 정정). spec 정합: `6-websocket-protocol §4.3`, `8-embedding-pipeline §8.1/§8.2`, `10-graph-rag §6/KB-GR-OB-02`, `2-navigation/5-knowledge-base`. `document:embedding_error` 는 union 선언분(미emit·forward-compat)이라 유지. 런타임 동작 무변경. SoT: `spec/5-system/6-websocket-protocol.md §4.3`.
+
 ## Unreleased — `$params.<name>` 표현식 자동완성 (5-system/5-expression §7.1)
 
 ### 변경 사항

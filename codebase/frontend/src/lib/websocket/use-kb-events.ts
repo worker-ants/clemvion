@@ -6,6 +6,30 @@ import { getWsClient } from "./ws-client";
 import { ensureFreshAccessToken, getAccessToken } from "../api/client";
 
 /**
+ * KB 채널(`kb:${documentId}`) 구독 이벤트 이름 — backend `WebsocketService` 의 `KbEventType`
+ * union(권위 정의)과 1:1 (총 11종: embedding 6 + graph 5). 여기 없는 이름을 backend 가 emit
+ * 하면 이 훅은 수신하지 못한다(= 캐시 미갱신). union 과의 drift 회귀는
+ * `__tests__/use-kb-events.test.ts` 가 감시한다.
+ *
+ * NOTE: `document:embedding_error` 는 union 에 선언돼 있으나 현재 backend emit 경로가 없다
+ * (일시 오류는 `_retry` 로 통지) — forward-compat 목적으로 구독만 유지. graph 에는 대응하는
+ * `_error` 이벤트가 없다 (emit 경로가 없어 #443 에서 union 에서 제거됨).
+ */
+export const KB_EVENT_NAMES = [
+  "document:embedding_started",
+  "document:embedding_progress",
+  "document:embedding_completed",
+  "document:embedding_error",
+  "document:embedding_retry",
+  "document:embedding_failed",
+  "document:graph_started",
+  "document:graph_progress",
+  "document:graph_completed",
+  "document:graph_retry",
+  "document:graph_failed",
+] as const;
+
+/**
  * Backend 의 EmbeddingService / GraphExtractionService 가 문서별로 emit 하는 KB 이벤트를
  * `kb:${documentId}` 채널로 구독한다. 어떤 이벤트가 와도 KB 상세 페이지의 React Query
  * 캐시(`kb-documents`, `kb-graph-stats`, `kb-embedding-stats`, `knowledge-base`)를
@@ -14,9 +38,8 @@ import { ensureFreshAccessToken, getAccessToken } from "../api/client";
  * 5s polling fallback 은 페이지 useQuery 에 그대로 두어 WS 단절 시에도 progress 가
  * 따라가도록 한다. 둘이 동시에 동작해도 React Query dedup 이 합쳐주므로 안전.
  *
- * 이벤트 종류 (backend WebsocketService.emitExecutionEvent 가 emit):
- *   document:embedding_started / _progress / _completed / _error / _retry / _failed
- *   document:graph_started     / _progress / _completed / _error / _retry / _failed
+ * 구독 이벤트(11종)와 그 권위·`_error` 취급은 {@link KB_EVENT_NAMES} 의 docblock 참조.
+ * 어떤 이벤트가 와도 handler 는 payload 무시하고 캐시 invalidate 만 한다.
  *
  * documentIds 배열이 바뀔 때마다 구독을 재계산. (문서 신규 업로드/삭제 시 자동 반영)
  */
@@ -63,21 +86,6 @@ export function useKbEvents(
       scheduleInvalidate();
     };
 
-    const KB_EVENT_NAMES = [
-      "document:embedding_started",
-      "document:embedding_progress",
-      "document:embedding_completed",
-      "document:embedding_error",
-      "document:embedding_retry",
-      "document:embedding_failed",
-      "document:graph_started",
-      "document:graph_progress",
-      "document:graph_completed",
-      "document:graph_error",
-      "document:graph_retry",
-      "document:graph_failed",
-    ] as const;
-
     (async () => {
       try {
         // 1) auth: 페이지 진입 시 WS 가 아직 connect 안 됐을 수 있으니 freshen + connect.
@@ -112,7 +120,7 @@ export function useKbEvents(
 
         for (const ch of channels) ws.subscribe(ch);
 
-        // 3) event listener — KB 이벤트 12종 모두 동일 handler.
+        // 3) event listener — KB 이벤트 11종 모두 동일 handler.
         for (const name of KB_EVENT_NAMES) ws.on(name, handler);
 
         // cleanup 단계에서 ackHandler 도 함께 off — closure 로 ref 캡처.

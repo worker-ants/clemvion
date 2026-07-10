@@ -140,7 +140,7 @@ code:
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|------|
 | KB-GR-OB-01 | 추출에 사용된 LLM 토큰을 LLMUsageLog 에 기록 (기존 사용량 추적과 동일 채널) | 필수 | ✅ (`LlmService.chat` 호출 boundary 에서 자동 기록) |
-| KB-GR-OB-02 | 추출 진행 / 완료 / 에러 이벤트를 WebSocket 으로 노출 (KB 상세 실시간 갱신) | 필수 | ✅ (`document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed`. `_error` 는 타입 union 에만 dead-declared, 미emit) |
+| KB-GR-OB-02 | 추출 진행 / 완료 / 에러 이벤트를 WebSocket 으로 노출 (KB 상세 실시간 갱신) | 필수 | ✅ (`document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed`. graph 에는 `_error` 이벤트가 없다 — emit 경로가 없어 #443 에서 union 제거. 에러는 `_retry`(일시)·`_failed`(최종)로 노출) |
 | KB-GR-OB-03 | KB 단위 entity / relation 카운트는 캐시 컬럼으로 유지 (조회 시 매번 SELECT COUNT 회피) | 권장 | ✅ (V025 `entity_count` / `relation_count` 컬럼) |
 
 ---
@@ -548,7 +548,7 @@ LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최
 | `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 (in-flight 일시 오류 신호) |
 | `document:graph_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 
-> `document:graph_error` 는 `websocket.service.ts` 의 이벤트 타입 union 에 선언돼 있으나 `graph-extraction.service.ts` 에서 실제로 emit 하지 않는다 (dead-declared). in-flight 일시 오류는 `document:graph_retry`, 최종 실패는 `document:graph_failed` 로만 신호한다.
+> `document:graph_error` 이벤트는 **존재하지 않는다** — emit 경로가 없어 `websocket.service.ts` 의 `KbEventType` union 에서 #443 에서 제거됐다 (data-flow §2.5). in-flight 일시 오류는 `document:graph_retry`, 최종 실패는 `document:graph_failed` 로만 신호한다. (임베딩 쪽 `document:embedding_error` 는 대칭 자리에 union 선언만 남아 있으나 마찬가지로 미emit.)
 
 ---
 
