@@ -79,6 +79,9 @@ jobs:
       # 위 e2e 실패 시에도 flaky 정보를 함께 남긴다. (plan: e2e-retry-visibility-followup)
       - name: Surface flaky (retry-passed) tests
         if: always()
+        # 스크립트가 이미 항상 exit 0 이지만, 예상 밖 상황(python 부재 등)에도 이 관측용 step 이
+        # job 결론을 뒤집지 않도록 이중 방어.
+        continue-on-error: true
         run: python3 scripts/report_playwright_flaky.py codebase/frontend/playwright-report/results.json
 
       - name: Upload playwright report on failure

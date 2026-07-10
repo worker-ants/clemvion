@@ -20,7 +20,7 @@ export default defineConfig({
   // 다만 CI 게이트(exit code)는 flaky 를 green 으로 취급하므로, 아래 json reporter 산출물을
   // `scripts/report_playwright_flaky.py`(e2e.yml 의 always() step)가 파싱해 GitHub step
   // summary + ::warning:: 어노테이션으로 flaky 를 능동 노출한다
-  // (plan/in-progress/e2e-retry-visibility-followup.md).
+  // (plan/complete/e2e-retry-visibility-followup.md).
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 2 : undefined,
   // Tier 3: 부하 상황(러너 병렬 실행)에서 assertion·test 대기 여유. 기존 스펙들이 명시 10s 를

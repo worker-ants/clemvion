@@ -329,6 +329,19 @@ python3 scripts/check-doc-links.py
 - 검사 항목: 파일 경로 존재 여부, anchor (`#section`) 가 대상 파일 헤딩 슬러그에 매칭되는지, MDX `spec:` 배열의 모든 경로 존재 여부
 - PR 머지 전 또는 spec 헤딩을 변경한 후 한 번씩 돌려서 cross-reference 깨짐을 잡는 용도
 
+### Playwright flaky surfacing
+
+`retries` 로 통과한 flaky 테스트(exit 0=green 이라 그냥 묻힘)를 Playwright JSON 리포트에서 추출해 GitHub step summary + `::warning::` 어노테이션으로 노출한다.
+
+```bash
+python3 scripts/report_playwright_flaky.py [<results.json 경로>]
+```
+
+- 의존성 없음 (Python 3 표준 라이브러리만). 로직은 `.claude/tests/test_report_playwright_flaky.py` 가 검증(harness-checks)
+- **항상 exit 0** — flaky 는 비차단 관측 신호(리포트 부재·파싱 실패·예상 밖 스키마에도 CI 무영향)
+- `.github/workflows/e2e.yml` 의 `e2e-frontend` job 이 `make e2e-test-full` 뒤 `if: always()` 로 호출. 리포트 경로 SoT=스크립트 `DEFAULT_REPORT`(= e2e.yml 인자 = `playwright.config.ts` json `outputFile`, cross-file 가드로 정합 강제)
+- 배경: `plan/complete/e2e-retry-visibility-followup.md`, PR #872(retries 도입)
+
 ### 운영 스크립트 (`codebase/backend/scripts`)
 
 NestJS 앱을 부팅하지 않고 단발성 도구만 실행하는 스크립트들. 모두 `ts-node` (devDependencies) 로 실행한다.
