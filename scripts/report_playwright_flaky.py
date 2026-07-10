@@ -22,7 +22,8 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 # 리포트 경로 SoT. `.github/workflows/e2e.yml` step 인자 · `playwright.config.ts` 의
 # json reporter `outputFile` 과 **반드시 일치**해야 하며(경로가 어긋나면 스크립트가 조용히
@@ -130,6 +131,7 @@ def _gha_escape(value: str) -> str:
 
 
 def _emit_annotations(flaky: list[dict]) -> None:
+    """각 flaky 를 `::warning::` 어노테이션으로 출력(값은 `_gha_escape` 로 방어)."""
     for f in flaky:
         # ::warning:: 는 job 을 실패시키지 않는다. file/title 은 저장소 내부값이지만 방어적으로 escape.
         print(
@@ -170,7 +172,7 @@ def main(argv: list[str]) -> int:
             f"[flaky-report] flaky {len(flaky)}건"
             + (" — 위 목록/step summary 참조" if flaky else " (clean)")
         )
-    except Exception as exc:  # noqa: BLE001 — 관측 스크립트라 어떤 예외도 CI 를 깨면 안 됨
+    except Exception as exc:  # 의도적 broad except — 관측 스크립트라 어떤 예외도 CI 를 깨면 안 됨
         print(f"[flaky-report] 처리 중 예외(무시, 빌드 영향 없음): {exc!r}")
     return 0  # flaky 는 non-blocking — 항상 성공 종료
 

@@ -2,7 +2,9 @@
 
 CI 워크플로(`.github/workflows/e2e.yml`)가 Playwright JSON 리포트에서 flaky(재시도로 통과)
 테스트를 뽑아 노출하는데, 그 파싱/노출 로직이 조용히 회귀하면 flaky 관측 자체가 무력화된다.
-stdlib unittest 로 harness-checks 에서 게이트한다(트리거 paths 에 `scripts/**` 포함 필수).
+stdlib unittest 로 harness-checks 에서 게이트한다 — 단, harness-checks 트리거는 `scripts/**`
+글롭이 아니라 **개별 경로 등재**(migration-check.yml 선례)이므로, `scripts/` 밑에 harness 로
+검증할 스크립트를 새로 추가할 때마다 `harness-checks.yml` `paths` 에 그 경로를 각각 등재해야 한다.
 """
 
 from __future__ import annotations
@@ -148,6 +150,7 @@ class RenderMarkdownTest(unittest.TestCase):
         self.assertIn("`e2e/a.spec.ts:12`", md)
         self.assertIn("`e2e/b.spec.ts`", md)  # line 0 이면 위치에 :line 생략
         self.assertIn("테스트 1", md)
+        self.assertIn("테스트 2", md)  # 다건 렌더 — 두 번째 이후 행 누락 회귀 가드
 
     def test_pipe_in_title_is_escaped(self):
         md = flaky.render_markdown([{"file": "f", "title": "a | b", "line": 1, "retries": 1}])
@@ -180,7 +183,21 @@ class WriteStepSummaryTest(unittest.TestCase):
 class GhaEscapeTest(unittest.TestCase):
     def test_newlines_and_percent_escaped(self):
         self.assertEqual(flaky._gha_escape("a\nb"), "a%0Ab")
+        self.assertEqual(flaky._gha_escape("a\rb"), "a%0Db")
         self.assertEqual(flaky._gha_escape("100%"), "100%25")
+
+    def test_emit_annotations_escapes_title(self):
+        import contextlib
+        import io
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            flaky._emit_annotations(
+                [{"file": "e2e/a.spec.ts", "title": "줄1\n줄2", "line": 7, "retries": 1}]
+            )
+        out = buf.getvalue()
+        self.assertIn("::warning file=e2e/a.spec.ts,line=7::", out)
+        self.assertIn("줄1%0A줄2", out)  # 개행이 escape 되어 어노테이션이 깨지지 않음
 
 
 class MainIntegrationTest(unittest.TestCase):
@@ -214,9 +231,10 @@ class MainIntegrationTest(unittest.TestCase):
         self.assertEqual(rc, 0)
 
     def test_unexpected_schema_does_not_crash(self):
-        # suites 가 리스트 아님 → find_flaky 내부 예외 가능성. main 은 그래도 exit 0 이어야 함.
-        rc, _ = self._run_main({"suites": "표준아님"})
+        # suites 가 리스트 아님 → find_flaky 내부 예외. main 은 그래도 exit 0, 부분 summary 미기록.
+        rc, written = self._run_main({"suites": "표준아님"})
         self.assertEqual(rc, 0)
+        self.assertEqual(written, "")  # 예외가 render/write 전에 발생 → summary 오염 없음
 
     def test_missing_report_returns_zero(self):
         self.assertEqual(flaky.main(["prog", str(REPO_ROOT / "does-not-exist.json")]), 0)
