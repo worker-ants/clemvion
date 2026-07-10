@@ -333,6 +333,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 > **재인증 에러 코드** (`verifyReauth` — 강제 종료·revoke-others·이메일 변경 §1.1.B 공용): 비밀번호/TOTP 어느 자격도 미입력·미충족 → `REAUTH_REQUIRED`(400) · 비밀번호 불일치 → `PASSWORD_INVALID`(401) · TOTP 불일치 → `TOTP_INVALID`(401) · 재인증 수단 부재(OAuth-only) → `REAUTH_NOT_AVAILABLE`(403). `PASSWORD_INVALID` 는 2FA 비활성화·WebAuthn credential 관리의 비밀번호 재확인(`AuthService.verifyPasswordForUser`)과, `TOTP_INVALID` 는 로그인 2FA 검증과 **동일 코드**를 공유한다. 공용 카탈로그 등재는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증-코드-도메인-spec-참조).
 
+> **비밀번호 변경 실패 코드**: `POST /users/me/change-password` 의 현재 비밀번호 재확인 실패(미설정 OAuth-only·불일치)는 `INVALID_PASSWORD`(401, `users.service.changePassword`)를 반환한다 — 재인증 `PASSWORD_INVALID`(위 재인증 note)·`login_history.failure_reason` 동명 감사값과 **별개 wire 코드**다.
+
 ### 2.4 토큰 갱신 플로우
 
 ```
@@ -500,6 +502,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 인증 설정(AuthConfig) CRUD 엔드포인트(`/api/auth-configs/*` — 평문 노출 `POST /api/auth-configs/:id/reveal` 포함)는 [설정 spec §A.4](../2-navigation/6-config.md) 의 표가 단일 SoT 다. 본 문서는 그 권한·감사만 다룬다 — RBAC 매트릭스 §3.2, 감사 액션 §4.1(`auth_config.*`), reveal 권한 분리 근거는 §3.2 하단 주석 참조.
 
 `POST /api/auth/register` 는 본문에 `invitationToken?` 을 받아 [§1.5.2 흐름](#152-흐름-미가입자-가입-경로) 의 트랜잭션을 수행한다.
+
+> **민감 동작 비밀번호 재확인 코드**: 2FA 비활성화(`/api/auth/2fa/disable`)·WebAuthn 복구 코드 재발급(`/api/auth/2fa/webauthn/recovery-codes/regenerate`) 등 민감 동작의 비밀번호 재확인은 `AuthService.verifyPasswordForUser` 를 재사용한다 — 비밀번호 미설정(OAuth-only)·미입력 → `PASSWORD_REQUIRED`(401), 불일치 → `PASSWORD_INVALID`(401). 세션-revoke·이메일 변경 재인증(`verifyReauth`, §2.3, missing→`REAUTH_REQUIRED` 400)과는 **별도 헬퍼**이며 status·코드가 다르다. 공용 카탈로그는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증-코드-도메인-spec-참조).
 
 ---
 
