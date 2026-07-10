@@ -17,8 +17,9 @@ export default defineConfig({
   // 로컬은 0(디버깅 시 즉시 실패가 유용).
   // 회귀 은폐 방지: list/html reporter 는 retry 로 통과한 테스트를 "flaky"(passed 와 구분)로
   // 별도 집계하므로 retry 가 결함을 완전히 가리지는 않는다 — run 로그에서 flaky 수가 보인다.
-  // 다만 CI 게이트(exit code)는 flaky 를 green 으로 취급하므로, flaky 를 PR 코멘트로 노출하거나
-  // known-flaky quarantine 으로 추적하는 CI 레벨 surfacing 은 후속 과제
+  // 다만 CI 게이트(exit code)는 flaky 를 green 으로 취급하므로, 아래 json reporter 산출물을
+  // `scripts/report_playwright_flaky.py`(e2e.yml 의 always() step)가 파싱해 GitHub step
+  // summary + ::warning:: 어노테이션으로 flaky 를 능동 노출한다
   // (plan/in-progress/e2e-retry-visibility-followup.md).
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 2 : undefined,
@@ -26,7 +27,13 @@ export default defineConfig({
   // 흩뿌리던 것을 전역 기본으로 끌어올려 미명시 assert 도 slack 을 갖게 한다.
   timeout: 45_000,
   expect: { timeout: 10_000 },
-  reporter: [["list"], ["html", { open: "never" }]],
+  // json = flaky surfacing 스크립트의 머신 판독용(playwright-report/ 는 host-mount 라 CI step
+  // 이 읽는다). html/list 는 사람용. outputFile 은 config(=frontend) 기준 상대경로.
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    ["json", { outputFile: "playwright-report/results.json" }],
+  ],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3012",
     trace: "retain-on-failure",

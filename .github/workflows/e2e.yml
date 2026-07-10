@@ -74,6 +74,13 @@ jobs:
       - name: Run frontend playwright (mocked backend)
         run: make e2e-test-full
 
+      # retry(재시도)로 통과한 flaky 테스트는 exit 0(green)이라 그냥 묻힌다. json 리포트를
+      # 파싱해 step summary + ::warning:: 로 노출한다(비차단 — 항상 exit 0). always() 라
+      # 위 e2e 실패 시에도 flaky 정보를 함께 남긴다. (plan: e2e-retry-visibility-followup)
+      - name: Surface flaky (retry-passed) tests
+        if: always()
+        run: python3 scripts/report_playwright_flaky.py codebase/frontend/playwright-report/results.json
+
       - name: Upload playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
