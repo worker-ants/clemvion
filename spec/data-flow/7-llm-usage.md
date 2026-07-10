@@ -160,7 +160,7 @@ usage 적재 정책:
 | --- | --- | --- |
 | Knowledge Base | cross-ref | embed (청크 적재·query — **usage 미적재**) + chat (graph 추출·LLM grading rerank — usage 적재, context NULL). 리랭크 cross-encoder 호출은 별도 계통 |
 | Agent Memory | cross-ref | 추출 processor chat + 롤링 요약 압축 chat (usage 적재, context NULL) / 저장·recall embed (미적재). [Spec Agent Memory](../5-system/17-agent-memory.md) |
-| Execution | cross-ref | AI 노드 호출 진입. **노드 핸들러(AI Agent / Text Classifier / Information Extractor)가 `LlmCallContext` 로 workflow/execution/node_execution 을 채운다 — 첫 턴은 `ExecutionContext`, resume 턴은 재구성 `state`** (§1.3) |
+| Execution | cross-ref | AI 노드 호출 진입. **노드 핸들러 3종(AI Agent / Text Classifier / Information Extractor)이 `LlmCallContext` 로 workflow/execution/node_execution 을 채운다 — 호출 시점은 `ExecutionContext`, 멀티턴 2종(AI Agent / Information Extractor)의 resume 턴은 재구성 `state`** (Text Classifier 는 단발 — resume 턴 없음) (§1.3) |
 | Workflow Assistant | cross-ref | session 메시지 turn 종료 시점 usage 적재 (message row + log). `workflow_id` 를 채운다 (노드 핸들러와 함께 — 유일 caller 아님) |
 | Dashboard / Statistics | downstream | `llm_usage_log` 집계 (`statistics.service.ts` — provider·model 별 / 일자별 SUM). `workflowId` 필터는 노드 발 + assistant 사용량을 잡는다 (잔여 non-node·워크플로우 밖 caller 만 누락, §1.3) |
 | Alerts | downstream | `llm_cost` 룰 — window 내 `SUM(cost_usd)` 임계 비교 (`alerts-evaluator.service.ts`). workflow 스코프 룰은 노드 발 사용량을 반영한다 (잔여 non-node caller 만 갭) |

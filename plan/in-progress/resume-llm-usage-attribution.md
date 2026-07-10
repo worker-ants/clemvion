@@ -58,22 +58,30 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 > plan_coherence WARNING 반영). 원 draft: backup 브랜치 `backup-pre-rebase-elastic-shannon`
 > 커밋 `7a270a923` 의 `plan/in-progress/spec-update-7-llm-usage.md` (로컬 전용, 미푸시).
 
-- [ ] `spec/data-flow/6-knowledge-base.md:348` · `spec/data-flow/13-agent-memory.md:231` —
+- [x] `spec/data-flow/6-knowledge-base.md:348` · `spec/data-flow/13-agent-memory.md:231` —
       "모든 LLM 호출은 `llm_usage_log` 적재" stale 문구를 "chat 계열만 적재 / embed 계열 미적재
-      (§1.3)" 로 정정 (두 파일 동일 문구, 이번 PR §1.3 확정과 상충).
-- [ ] `spec/data-flow/7-statistics.md` §3 · `spec/2-navigation/9-user-profile.md` §6.3 —
-      `workflowId` 스코프 계약의 attribution 갭 캐비어트 재검토(노드 발까지 채워져 갭 축소).
-- [ ] `spec/1-data-model.md` — `LlmUsageLog` 전용 서브섹션 신설 검토 (자매 로그 `IntegrationUsageLog`
-      §2.10.1 은 보유).
-- [ ] `spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4 —
-      credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`, caller opts
-      전달, node.config 재유도 불가)" 문구 추가 (consistency rationale_continuity WARNING 반영).
+      (§1.3)" 로 정정 (두 파일 동일 문구, 이번 PR §1.3 확정과 상충). **완료** (docs PR).
+- [x] ~~`spec/data-flow/7-statistics.md`~~ `spec/2-navigation/7-statistics.md` §3 ·
+      `spec/2-navigation/9-user-profile.md` §6.3 — `workflowId` 스코프 계약의 attribution 갭 캐비어트
+      재검토. **no-op 종결**: 두 파일 모두 현재 main 에 해당 캐비어트 문구가 **부재**(이미 리워딩/제거됨).
+      원 항목의 경로 `spec/data-flow/7-statistics.md` 는 오기 — 실제 경로는 `spec/2-navigation/`.
+- [x] `spec/1-data-model.md` — `LlmUsageLog` 전용 서브섹션 신설. **완료**: `### 2.24 LlmUsageLog`
+      (docs PR). `§2.16.1` 은 구 `RerankConfig` 가 쓰던 번호라 재사용하지 않았고, `llm_usage_log` 의
+      CASCADE 소유자가 `ModelConfig` 가 아닌 `Workspace` 라서 `.1` 자식이 아닌 최상위 절로 신설.
+- [x] ~~`spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4~~ —
+      credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`)" 문구 추가.
+      **no-op 종결**: #884 가 이미 반영했다 — `spec/4-nodes/3-ai/1-ai-agent.md:720` 과 실제 2채널 서술
+      위치인 `spec/5-system/4-execution-engine.md` **§1.3**(§7.4 아님 — 원 항목의 섹션 참조가 stale.
+      §7.4 는 "분산 실행(Multi-instance)") 이 "조작 필드 / 식별 필드" 2채널로 기술하며 식별 필드에
+      `nodeExecutionId` 가 명시돼 있다. 별도 3번째 분류는 불필요.
 
 ### 최종 /ai-review(02_09_15) INFO — 선택적 후속 (review-loop 재무장 방지로 본 PR 미포함)
 
 - [ ] `ai-turn-executor.ts:2599` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1 — 필드
       오탈자 컴파일 타임 차단, 저비용·고가치. 코드 변경이라 별도 PR 로).
-- [ ] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
-      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정).
+- [x] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
+      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정). **완료** (docs PR).
+      consistency cross-spec 이 잡아낸 세 번째 사이트 `spec/data-flow/7-llm-usage.md` §4 Execution 행
+      (SoT 문서 자신)도 함께 정정.
 - [ ] IE `runTurnWithCollectionRetries` collection-retry 루프에 ai_agent tool-loop 와 대칭인
       2번째 chat attribution 단언 테스트 추가(INFO#4).

@@ -228,7 +228,7 @@ watermark 는 멀티턴 `_resumeState` 로 영속한다 (Redis 직렬화 — 신
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
 | LLM 도메인 | 외부 | 추출 chat + 저장/회수 embed — `llm_config_id` 해석 (`LlmService.resolveConfig`) |
-| LLM Usage | cross-ref | 모든 LLM 호출은 `llm_usage_log` 적재 — [`llm-usage.md`](./7-llm-usage.md) |
+| LLM Usage | cross-ref | **chat 계열만** `llm_usage_log` 적재 — 추출·롤링 요약 압축 chat 은 적재(context NULL), 저장/회수 embed 는 미적재 (§1.3) — [`llm-usage.md`](./7-llm-usage.md) |
 | Execution 도메인 | cross-ref | AI Agent / Info Extractor 핸들러가 recall·enqueue 호출부. 멀티턴 resume state 가 watermark 운반 — [`execution.md`](./3-execution.md) |
 | Conversation Thread | cross-ref | 추출 입력 turn 의 출처 (frozen turn 의 shallow-copy 스냅샷). 요약(summary_buffer)은 thread 측 저장 — [conversation-thread 규약](../conventions/conversation-thread.md) |
 | Knowledge Base | cross-ref | pgvector 인프라 패턴(가변 차원 vector + 차원별 partial HNSW + `LlmService.embed`)을 미러 — [`knowledge-base.md`](./6-knowledge-base.md). 테이블·큐는 완전 분리 |

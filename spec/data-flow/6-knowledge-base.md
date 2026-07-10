@@ -345,7 +345,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | LLM 도메인 | 외부 | embed / chat 호출, `llm_config_id` 해석 |
 | cross-encoder rerank provider | 외부 | `model_config` (kind=rerank) 행이 정의하는 endpoint (tei / cohere) — §2.4 |
-| LLM Usage | cross-ref | 모든 LLM 호출은 `llm_usage_log` 적재 — [`llm-usage.md`](./7-llm-usage.md) |
+| LLM Usage | cross-ref | **chat 계열만** `llm_usage_log` 적재 — graph 추출·listwise rerank grading chat 은 적재(context NULL), 청크/query embed 는 미적재 (§1.3) — [`llm-usage.md`](./7-llm-usage.md) |
 | File Storage | cross-ref | KB 가 S3 의 유일한 production 사용처 — [`file-storage.md`](./4-file-storage.md) |
 | Execution 도메인 | cross-ref | AI Agent 노드가 KB tool 로 RAG 검색 호출 |
 | RAG 평가 하네스 | cross-ref | 오프라인 `eval/` CLI — 합성 골든셋 + 검색 지표로 검색 품질 회귀 측정. SoT [`conventions/rag-evaluation.md`](../conventions/rag-evaluation.md) |
