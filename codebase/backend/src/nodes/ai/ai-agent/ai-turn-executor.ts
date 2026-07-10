@@ -1160,8 +1160,11 @@ export class AiTurnExecutor {
         workspaceId,
         executionId: context.executionId,
         // [Spec 7-llm-usage §1.3] 요약 압축 attribution — single-turn 은 context 가용.
-        workflowId: context.workflowId,
-        nodeExecutionId: context.nodeExecutionId,
+        llmContext: {
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+          nodeExecutionId: context.nodeExecutionId,
+        },
         queryText: userPrompt,
         tailMode: 'prepend',
       });
@@ -2292,8 +2295,11 @@ export class AiTurnExecutor {
       executionId: executionId ?? '',
       // [Spec 7-llm-usage §1.3] 요약 압축 attribution — multi-turn resume 은 재구성
       // state 경유(엔진 buildRetryReentryState 주입분). context 미운반 경로라 state.*.
-      workflowId: state.workflowId as string | undefined,
-      nodeExecutionId: state.nodeExecutionId as string | undefined,
+      llmContext: {
+        workflowId: state.workflowId as string | undefined,
+        executionId: executionId ?? undefined,
+        nodeExecutionId: state.nodeExecutionId as string | undefined,
+      },
       queryText: userMessage,
       tailMode: 'system-only',
     });

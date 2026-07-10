@@ -68,6 +68,12 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 - [ ] `spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4 —
       credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`, caller opts
       전달, node.config 재유도 불가)" 문구 추가 (consistency rationale_continuity WARNING 반영).
+- [ ] **(PR `ai-usage-attribution-hardening` = B1+C1 배선 후 필수)** `spec/data-flow/7-llm-usage.md`
+      §1.3 표 L107 · 요약문 L113 · §4 Agent Memory 행 L162 · Rationale L189~206 의 "AI Agent 자동
+      메모리 롤링 요약 압축 = 미배선/전부 NULL/잔여 갭" 서술을 "첫 턴/단발 = `context.*`, resume =
+      `state.*` 채움"으로 정정 (C1 이 배선 완료 → 다른 AI 노드 row 와 동일 패턴). 잔여 NULL 은
+      `RerankService` listwise + GraphExtraction/AgentMemory 추출 processor(워크플로 밖)만.
+      (plan_coherence WARNING 반영 — 이 항목이 PR-2 scope 에서 누락되지 않도록 명시.)
 
 ### 최종 /ai-review(02_09_15) INFO — 선택적 후속 (review-loop 재무장 방지로 본 PR 미포함)
 

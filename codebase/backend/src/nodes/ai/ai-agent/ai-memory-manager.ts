@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
-import type { LlmService } from '../../../modules/llm/llm.service';
+import type { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
 import {
   DEFAULT_MEMORY_TOKEN_BUDGET,
   DEFAULT_MEMORY_TOP_K,
@@ -115,13 +115,12 @@ export class AiMemoryManager {
     executionId: string;
     /**
      * [Spec 7-llm-usage §1.3] 롤링 요약 압축 chat 의 llm_usage_log attribution.
-     * caller 가 명시 전달한다 — single-turn/첫 턴은 `context.workflowId`/
-     * `context.nodeExecutionId`, multi-turn resume 은 재구성 `state.*`(엔진
-     * buildRetryReentryState 주입분). `config` 에서 파생하지 않는다 — single-turn
-     * 의 `config` 는 사용자 노드 config 라 이 키들이 없어 항상 NULL 이 되기 때문.
+     * caller 가 조립해 전달한다 — single-turn/첫 턴은 `context.*`, multi-turn resume
+     * 은 재구성 `state.*`(엔진 buildRetryReentryState 주입분). `config` 에서 파생하지
+     * 않는다(single-turn 의 `config` 는 사용자 노드 config 라 해당 키가 없음).
+     * `buildSummaryBufferUpdate` 와 동일한 `LlmCallContext` 추상화를 그대로 forward.
      */
-    workflowId?: string;
-    nodeExecutionId?: string;
+    llmContext?: LlmCallContext;
     /** 회수 쿼리 텍스트 (현재 사용자 메시지 / 최근 컨텍스트). */
     queryText: string;
     /**
@@ -247,14 +246,9 @@ export class AiMemoryManager {
       llmConfig: summaryLlmConfig,
       model: resolvedSummaryModel,
       llmService: this.llmService,
-      // [Spec 7-llm-usage §1.3] 롤링 요약 압축 chat 의 llm_usage_log attribution.
-      // 세 필드 모두 caller 가 명시 전달한 값 — single-turn 은 context.*, multi-turn
-      // resume 은 재구성 state.*. (executionId 는 타입상 필수지만 방어적으로 falsy→undefined.)
-      llmContext: {
-        workflowId: args.workflowId,
-        executionId: args.executionId || undefined,
-        nodeExecutionId: args.nodeExecutionId,
-      },
+      // [Spec 7-llm-usage §1.3] caller 가 조립한 llmContext 를 그대로 forward
+      // (single-turn=context.*, multi-turn resume=state.*).
+      llmContext: args.llmContext,
     });
 
     // 갱신된 요약을 in-memory thread 에 반영 (다음 turn 재사용 — Redis 직렬화로
