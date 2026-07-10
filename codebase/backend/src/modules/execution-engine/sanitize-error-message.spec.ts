@@ -49,4 +49,28 @@ describe('sanitizeErrorMessage', () => {
       'node timed out after 30s',
     );
   });
+
+  it('does not truncate at exactly the cap (500 chars stay whole)', () => {
+    const exact = 'x'.repeat(500);
+    const out = sanitizeErrorMessage(new Error(exact));
+    expect(out.length).toBe(500);
+    expect(out.endsWith('…')).toBe(false);
+  });
+
+  it('truncates at cap+1 (501 chars → 500 + ellipsis)', () => {
+    const out = sanitizeErrorMessage(new Error('x'.repeat(501)));
+    expect(out.length).toBe(501); // 500 kept + '…'
+    expect(out.endsWith('…')).toBe(true);
+  });
+
+  it('masks BEFORE truncating (a secret near the cap is fully masked, not partially exposed)', () => {
+    // Secret placed so the raw token would straddle the 500-char cap; masking
+    // must run first so the whole token becomes *** rather than a truncated tail.
+    const prefix = 'y'.repeat(480);
+    const out = sanitizeErrorMessage(
+      new Error(`${prefix} Authorization: Bearer sk-live-BOUNDARY-abcdef". `),
+    );
+    expect(out).not.toContain('sk-live-BOUNDARY');
+    expect(out).toContain('***');
+  });
 });

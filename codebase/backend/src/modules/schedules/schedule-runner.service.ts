@@ -8,6 +8,7 @@ import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { sanitizeErrorMessage } from '../execution-engine/sanitize-error-message';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
@@ -236,7 +237,10 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         userId: owner,
         type: 'schedule_failed',
         title: '스케줄 실행 실패',
-        message: `스케줄이 워크플로우 "${workflow.name}" 실행을 시작하지 못했어요: ${message}`,
+        // 파라미터 평가/실행 예외가 echo 한 내부 호스트·연결문자열·secret 토큰이
+        // 인앱+이메일(외부 SMTP) 로 새지 않도록, execution-failed/background 실패 알림과
+        // 동일하게 새니타이징한다 (EIA §R17 잔여 — 방어 심도 통일).
+        message: `스케줄이 워크플로우 "${workflow.name}" 실행을 시작하지 못했어요: ${sanitizeErrorMessage(message)}`,
         // 딥링크 계약(href.ts, spec/2-navigation/_layout.md §3.1) — schedule_failed 는
         // `/workflows/<resource_id>` 로 라우팅되며 resource_id 가 workflow id 임에 의존.
         resourceType: 'workflow',
