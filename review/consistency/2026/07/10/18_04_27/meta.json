@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-10T18:04:27.944855",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-integration-error-code-doc-fix.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
