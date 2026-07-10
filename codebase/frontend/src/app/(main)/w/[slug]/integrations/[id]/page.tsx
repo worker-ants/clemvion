@@ -40,6 +40,7 @@ import {
   type Locale,
 } from "@/lib/i18n";
 import { tryTranslateLabel } from "./activity-label";
+import { ActivityDisconnectedBanner } from "./activity-disconnected-banner";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
@@ -201,6 +202,8 @@ export default function IntegrationDetailPage({
         <ActivityTab
           integrationId={id}
           serviceType={integration.serviceType}
+          status={integration.status}
+          onNavigate={setTab}
           t={t}
         />
       )}
@@ -606,10 +609,14 @@ function UsageTab({ integrationId, t }: { integrationId: string; t: TFunction })
 function ActivityTab({
   integrationId,
   serviceType,
+  status,
+  onNavigate,
   t,
 }: {
   integrationId: string;
   serviceType: string;
+  status: IntegrationDto["status"];
+  onNavigate: (tab: Tab) => void;
   t: TFunction;
 }) {
   const locale = useLocale();
@@ -643,10 +650,23 @@ function ActivityTab({
     );
   }
 
+  // §4.6 — 통합이 connected 가 아니면 새 활동이 기록되지 않으므로, 빈 상태/목록 위에
+  // "연결 안 됨" 배너를 노출해 "활동 없음" 과 구분한다 (connected 면 null).
+  const disconnectedBanner = (
+    <ActivityDisconnectedBanner
+      status={status}
+      onGoToOverview={() => onNavigate("overview")}
+      t={t}
+    />
+  );
+
   if (!data || data.items.length === 0) {
     return (
-      <div className="rounded-lg border border-[hsl(var(--border))] p-6 text-sm text-[hsl(var(--muted-foreground))]">
-        {t("integrations.activityEmpty")}
+      <div className="space-y-4">
+        {disconnectedBanner}
+        <div className="rounded-lg border border-[hsl(var(--border))] p-6 text-sm text-[hsl(var(--muted-foreground))]">
+          {t("integrations.activityEmpty")}
+        </div>
       </div>
     );
   }
@@ -655,6 +675,7 @@ function ActivityTab({
 
   return (
     <div className="space-y-4">
+      {disconnectedBanner}
       <div className="rounded-lg border border-[hsl(var(--border))] p-4 text-sm">
         {t("integrations.activitySummary", { total: data.summary.totalCalls, rate })}
       </div>

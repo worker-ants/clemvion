@@ -132,6 +132,10 @@ export const integrations: Dict["integrations"] = {
   deleteBlockedClose: "Close",
   activityEmpty: "No calls recorded in the last 7 days.",
   activitySummary: "Last 7 days: {{total}} calls · {{rate}}% success",
+  activityDisconnectedTitle: "New activity isn't being recorded",
+  activityDisconnectedHint:
+    "This integration isn't connected, so new calls aren't being logged. Check its status and reconnect on the Overview tab.",
+  activityDisconnectedAction: "View status",
   activityWhen: "When",
   activityApi: "API",
   activityApiUnknown: "—",

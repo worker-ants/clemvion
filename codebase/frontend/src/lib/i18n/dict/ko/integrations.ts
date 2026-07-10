@@ -128,6 +128,10 @@ export const integrations = {
   deleteBlockedClose: "닫기",
   activityEmpty: "최근 7일간 호출 기록이 없어요.",
   activitySummary: "최근 7일: {{total}}회 호출 · 성공률 {{rate}}%",
+  activityDisconnectedTitle: "새 활동이 기록되지 않고 있어요",
+  activityDisconnectedHint:
+    "이 통합이 연결되어 있지 않아 새 호출이 기록되지 않아요. 개요 탭에서 상태를 확인하고 다시 연결하세요.",
+  activityDisconnectedAction: "상태 확인",
   activityWhen: "시간",
   activityApi: "API",
   activityApiUnknown: "—",
