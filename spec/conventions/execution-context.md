@@ -60,6 +60,15 @@ interface ParallelBranchContext extends ExecutionContext {
 - `_callStack?: ResumeCallStackFrame[]` — 중첩 `executeInline` 호출 체인을 park/재개하기 위한 엔진 내부 프레임 스택. fresh park 시 durable `Execution.resume_call_stack`(V087) 으로 영속되고, rehydration 이 이 스택으로 sub-workflow 프레임을 frame-by-frame 재진입한다. **핸들러 비소비** — 엔진(`driveCallStackResume`/`driveResumeFrame`)만 참조한다. spec 참조: [execution-engine §7.5](../5-system/4-execution-engine.md#75-resume-after-restart-rehydration).
 - `_contextKey?: string` — `ExecutionContextService` 의 in-memory `Map<key, ExecutionContext>` 라우팅 키. **기본값 = `executionId`** (비-background context 는 항상 동일 → 동작 불변). background 서브그래프 한정으로 `bg:<executionId>:<backgroundRunId>` 형태의 별도 키를 쓴다. **in-memory Map 라우팅 전용** — Redis 키 패턴([execution-engine §9.1](../5-system/4-execution-engine.md#91-키-패턴))과 무관하다.
 
+### 원칙 5 — `variables.__*` 시스템 예약 네임스페이스 (double-underscore)
+
+`ExecutionContext.variables` 는 사용자 정의 워크플로 변수 맵이지만, 엔진이 실행 시작 시 **시스템 값**을 `__`(double-underscore) prefix 키로 이 맵에 주입한다. 이 `__*` 는 **예약 prefix 네임스페이스**로 취급한다 — 사용자 변수는 `__` 를 쓰지 않는 것을 규약으로 한다(단, 아래 "강제 갭" 참조).
+
+- 선례(코드 SoT `node-handler.interface.ts` JSDoc): `__workspaceId`(실행 시작 시 `workflow.workspaceId` 주입 — Integration 조회·LLM 설정 등 워크스페이스 단위 리소스 해소), `__workspaceName`(`Workspace.name` 복제 — AI System Context Prefix), `__workspaceTimezone`(`Workspace.settings.timezone`, IANA — System Context Prefix·Schedule default timezone 해소), `__dryRun`(Re-run dry-run 모드 — [replay-rerun §7.2](../5-system/13-replay-rerun.md)). 신규 시스템 주입 값은 반드시 `__` prefix 를 쓴다.
+- **top-level `_`-prefix(원칙 4)와 구분**: 원칙 4 는 `ExecutionContext` **최상위**의 엔진 전용 필드(`_resumeState`·`_contextKey` 등, 핸들러 계약 비노출)이고, 본 원칙은 사용자-표면 `variables` **맵 내부**에 주입되는 시스템 값이다 — 스코프(top-level vs. `variables` 맵)와 prefix(단일 `_` vs. 이중 `__`)가 모두 다르다.
+- 영속 정책: park durable 영속(`Execution.user_variables`)은 **시스템 `__*` 를 제외**하고(`filterUserVariables` — `!key.startsWith('__')`) 사용자 정의분만 저장하며, 재개 시 엔진이 `__*` 를 재주입한다 ([execution-engine §6.1 컨텍스트 구조 / §6.2 저장 전략](../5-system/4-execution-engine.md#61-컨텍스트-구조)).
+- **강제 갭 (잔여 리스크)**: 본 예약은 현재 **규약일 뿐 노드 레벨에서 강제되지 않는다** — Variable Declaration/Modification 노드가 `__` 이름을 거부하지 않으므로 (a) 사용자가 `__workspaceId` 등 시스템 키를 덮어쓰거나 (b) `__` 로 시작하는 사용자 변수가 위 park 필터에 무조건 drop 돼 재개 후 silent 소실될 수 있다. 스키마 레벨 거부 가드는 **현재 미도입**이며 예약은 규약에 의존한다 — 강제 도입 시 선례는 carousel `button.id` 의 `__item_` prefix schema-level reject.
+
 ## 2. 새 필드 추가 결정 규칙
 
 | 질문 | 예 | 아니오 |
