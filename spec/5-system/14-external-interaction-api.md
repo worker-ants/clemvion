@@ -338,7 +338,7 @@ POST /api/external/executions/550e8400-.../interact
 | `401 Unauthorized` | `TOKEN_SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 (다른 execution 의 토큰). 인가 실패이나 §8.2 정보 노출 최소화 정신에 따라 403 이 아닌 **401 토큰 실패 계열로 통일** — [data-flow §15](../data-flow/15-external-interaction.md) 의 `scope_mismatch→TOKEN_SCOPE_MISMATCH`·`interaction.guard.ts` 와 동일 |
 | `401 Unauthorized` | `TOKEN_AUDIENCE_MISMATCH` | 토큰 `aud` 가 `interaction` 이 아님 (다른 용도 토큰). 동일 401 토큰 실패 계열 ([data-flow §15](../data-flow/15-external-interaction.md) `audience_mismatch→TOKEN_AUDIENCE_MISMATCH`) |
 | `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음 |
-| `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기 |
+| `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 다른 nodeId, 또는 **대기 노드의 인터랙션 표면과 명령 불일치** — `buttons` 대기에 `submit_form`, `form` 대기에 `end_conversation` 등). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기. 표면별 허용 집합: `form`=`submit_form`, `buttons`=`click_button`, `ai_conversation`/`ai_form_render`=4종 모두 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
 | `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled |
 | `429 Too Many Requests` | `RATE_LIMITED` | **구현됨**: inbound per-execution rate-limit 초과 (`/interact` 분당 60 · status 조회 분당 120, §8.4) — `InteractionRateLimitGuard` 가 `Retry-After`(잔여 윈도우 초) 헤더와 함께 반환한다. 시스템 전역 429 default 코드(`RATE_LIMITED`)를 그대로 사용하며, SSE 동시연결 초과의 EIA 전용 `TOO_MANY_CONNECTIONS`(§5.2)와는 **별개 표면**이다. (WebSocket 프로토콜 §7.1 의 동명 코드와도 발행 지점이 다른 별도 구현.) |
@@ -581,6 +581,15 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > - `context.conversationThread` → **`conversationThread`** (최상위)
 >
 > 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseWaitingForInput`. (WS §4.4 도 `nodeId` 로 표기돼 wire 와 drift — 별도 backlog.)
+
+> **`expectedCommands` 는 권장 광고 필드**: 위 `interaction.expectedCommands` 는 클라이언트에
+> "다음에 보낼 만한" 명령을 안내하는 힌트다. 서버가 강제하는 표면별 허용 집합과는 다를 수 있다 —
+> 특히 `ai_conversation`/`ai_form_render` 대기 중에는 서버가 4종을 모두 수용하지만(관용/graceful
+> fallback: `render_form` 응답 `submit_form`, stale `button_click` graceful re-park — §6.2 step 2.c ·
+> [Presentation §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)),
+> `expectedCommands` 는 그중 권장 명령만 나열한다. 서버측 강제 매트릭스의 SoT 는
+> [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)
+> (표면 불일치 = 409 `STATE_MISMATCH`). `expectedCommands` 자체는 현재 미구현 문서 필드다.
 
 ### 6.3 페이로드 — `execution.completed`
 

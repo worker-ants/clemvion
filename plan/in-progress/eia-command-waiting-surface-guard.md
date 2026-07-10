@@ -75,23 +75,25 @@ Spec 근거 — 이미 약속된 계약의 구현:
 - [x] `/ai-review` 다회 수렴 — `00_03_25`(W12→코드 8건 fix)·`00_49_34`(SoT 통합)·
       `01_17_12`(rehydration SoT 재사용)·`01_34_58`(0/0 clean). Critical 0.
 - [x] `/consistency-check --impl-done` (`review/consistency/2026/07/11/01_35_17/`) **BLOCK: NO**
-      (Critical 0/5 checker. 반복 WARNING=spec 본문 열거 lag → S-1 로 추적)
-- [ ] spec 동기 (project-planner 위임 — 아래 S-1) ← 진행 중
+      (Critical 0/5 checker. 반복 WARNING=spec 본문 열거 lag → S-1 로 해소)
+- [x] spec 동기 (project-planner, `review/consistency/2026/07/11/01_47_51/` `--spec` BLOCK:NO) — S-1 완료 (아래)
 
-## spec 동기 (project-planner 위임 대상)
+## spec 동기 (S-1) — **완료** (project-planner, 2026-07-11)
 
-에러 코드·요구사항 ID 신설은 없다 (EIA-IN-13 필수 + §5.1 `STATE_MISMATCH` 행이 이미 본 동작을
-약속). 남은 것은 **문서가 코드보다 좁아진 열거 갭**:
+`--spec` 검토 `review/consistency/2026/07/11/01_47_51/` **BLOCK: NO** 후 5개 위치 반영. 신규
+에러 코드·요구사항 ID 없음(EIA-IN-13 + §5.1 `STATE_MISMATCH` 이 이미 약속한 동작의 열거 정정).
 
-- `spec/5-system/4-execution-engine.md` §7.5.1 표에 3번째 행("표면(interactionType) 불일치") +
-  `## Rationale` 항목 신설 (왜 form/buttons 는 엄격하고 ai 는 관대한가 / 왜 신규 코드 미도입 /
-  왜 fail-closed).
-- `spec/5-system/14-external-interaction-api.md` §5.1 `STATE_MISMATCH` 행 예시 보강,
-  §6.2 `expectedCommands` 가 서버 수용 범위보다 좁다는 각주 (`expectedCommands` 는 미구현 문서 필드).
-- `spec/4-nodes/6-presentation/0-common.md` §10.9 — buttons 대기 중 비-`button_click` 은 이제
-  publisher 단계에서 거부됨을 명시 (기존 (d) `continue` 폴백은 도달 불가).
-- `spec/3-workflow-editor/3-execution.md` §9 — `POST /continue` 의 422 조건 확장 서술.
-- `spec/conventions/interaction-type-registry.md` — 표면 매트릭스 cross-ref (권장).
+- [x] `spec/5-system/4-execution-engine.md` §7.5.1 표 3번째 행("표면(interactionType) 불일치") +
+  `## Rationale` "대기 표면 ↔ 명령 매트릭스" 항목 신설.
+- [x] `spec/5-system/14-external-interaction-api.md` §5.1 `STATE_MISMATCH` 예시 보강 +
+  §6.2 `expectedCommands` 각주(권장 광고 필드·서버 4종 수용, 미구현 문서 필드).
+- [x] `spec/4-nodes/6-presentation/0-common.md` §10.9 buttons 대기 비-`button_click` publisher 거부 대칭 서술.
+- [x] `spec/3-workflow-editor/3-execution.md` §9 `POST /continue` 422 조건 확장(Form 표면 아니면 거부).
+- [x] `spec/conventions/interaction-type-registry.md` §1.1 표면 가드 소비처 cross-ref + `code:` frontmatter.
+
+착수 예정 시 계획했던 §7.5.1 L1041 receiver 서술 변경은 **미채택** — 그 문단의 "nodeId 미일치"
+서술은 F-1(assertNodeId nodeId 일치 미검사)의 pre-existing 갭 영역이라, 표면 케이스만 추가하고
+lookup-key 서술은 F-1 트랙에서 다룬다(consistency plan_coherence 지적 반영).
 
 ## 후속 항목 (본 PR 범위 밖)
 

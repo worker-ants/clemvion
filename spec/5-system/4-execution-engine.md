@@ -1044,6 +1044,7 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 | --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
 | 매칭 row 0건                            | `INVALID_EXECUTION_STATE`                 | Execution 이 다른 상태(`running` / `completed` / `cancelled` / `failed`)거나 nodeId 미일치 |
 | 동일 매칭 row 2건 이상 (invariant 위반) | `INVALID_EXECUTION_STATE` + `logger.warn` | 일반적으로 발생 불가. race 또는 데이터 손상 의심                                           |
+| 표면(interactionType) 불일치            | `INVALID_EXECUTION_STATE`                 | 대기 노드가 노출한 인터랙션 표면이 도착 명령을 받지 않음. `form` 대기=`submit_form` 만, `buttons` 대기=`click_button` 만, `ai_conversation`/`ai_form_render` 대기=4종 모두 허용. 표면 판정 불가 행(비-`form` + `interactionType` 부재)도 fail-closed 거부. 근거 §Rationale "대기 표면 ↔ 명령 매트릭스" |
 
 `INVALID_EXECUTION_STATE` 는 동일 의미를 표현하는 **두 layer 의 코드** 중 WS 쪽 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 를 반환한다 (의도적 분리: WS ack 와 REST 422 의 routing 분기가 클라이언트에서 동일 코드를 다르게 처리해야 하는 혼동을 회피).
 
@@ -1280,6 +1281,34 @@ SIGTERM 수신 시 동작 계약 — k8s 재배포 / Docker Compose `docker comp
 ---
 
 ## Rationale
+
+### 대기 표면 ↔ 명령 매트릭스 publisher 사전 검증 (§7.5.1, 2026-07-11)
+
+`assertWaiting`(execution.status=='waiting_for_input')만으로는 이종 명령을 못 막는다. 재개
+처리기(`dispatchResumeTurn`)는 도착 continuation payload 의 `type` 이 아니라 **대기 노드의
+표면**으로 선택되므로, 표면과 맞지 않는 명령이 통과하면 조용히 오처리됐다 — `form` 대기는
+sentinel 불일치 폴백으로 **빈 폼이 제출된 것처럼** 완료됐고, `buttons` 대기는
+`resolveButtonInteraction` 의 else(d) fallback 으로 **엉뚱한 `continue` 포트로 그래프가 분기**했다.
+그래서 `resolveWaitingNodeExecutionId` 가 대기 노드의 표면을 판정해 도착 명령의 허용 여부를
+publish 전에 검사한다(위 §7.5.1 표 3번째 행).
+
+- **왜 `form`/`buttons` 는 자기 명령만, `ai_conversation`/`ai_form_render` 는 4종 모두 허용인가**:
+  AI 표면은 이미 이종 명령을 정상 수신하도록 설계됐다 — `render_form` 응답(`form_submitted`,
+  [AI Agent §6.2 step 2.c](../4-nodes/3-ai/1-ai-agent.md))과 stale `button_click` 의 graceful
+  re-park invariant([Presentation §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)).
+  여기서 4종을 좁히면 그 두 계약이 깨진다. `form`/`buttons` 는 단일 목적 표면이라 자기 명령만
+  받는 것이 자연스럽다.
+- **왜 신규 코드를 만들지 않는가**: 기존 `InvalidExecutionStateError` 를 그대로 재사용해
+  진입점별 매핑(WS ack `INVALID_EXECUTION_STATE` / REST `/continue` 422 `INVALID_STATE` / EIA
+  409 `STATE_MISMATCH`)이 자동 파생된다. 이 거부는 이미 [EIA-IN-13](./14-external-interaction-api.md)
+  필수 요구사항 + [EIA §5.1](./14-external-interaction-api.md) `STATE_MISMATCH` 행이 약속한
+  동작이라, 코드가 그 미이행 갭을 메운 것이지 새 계약이 아니다.
+- **왜 fail-closed(판정 불가도 거부)인가**: 자매 게이트 `dispatchResumeTurn` 도 매칭 처리기를
+  못 찾으면 fail-closed(`RESUME_CHECKPOINT_MISSING`)이며, 표면 판정 불가 행은 worker 에서 어차피
+  그 에러로 실행이 죽는다(`form` 은 정적 handler metadata 로 항상 판정되므로 이 케이스에 도달
+  안 함). publish 전 동기 거부는 execution 을 `waiting_for_input` 으로 보존해 복구 가능성이
+  높다. 프로젝트의 fail-open 선례는 인프라 가용성(Redis/DB) 시나리오 한정이고, 데이터 정합성
+  게이트는 fail-closed 가 원칙이다(sub-workflow workspace 격리 fail-closed 전환 선례와 동방향).
 
 ### continuation publish 실패 동기 surface 통일 (C-1·M-7)
 
