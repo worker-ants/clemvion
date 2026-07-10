@@ -4,6 +4,8 @@ branch: claude/ai-usage-attribution-hardening-358929
 started: 2026-07-10
 owner: developer
 spec: spec/data-flow/7-llm-usage.md §1.3
+spec_impact:
+  - spec/data-flow/7-llm-usage.md
 precedent: PR #879 (resume 턴 llm_usage_log attribution) 의 follow-up B1+C1
 ---
 
