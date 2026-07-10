@@ -537,6 +537,11 @@ describe('InteractionService.getStatus', () => {
 
   // EIA §R17 재조정(2026-07-09): waiting_for_input 시 durable conversation_thread 를
   // context.conversationThread 로 동봉해 위젯 새로고침 히스토리 복원을 지원한다.
+  //
+  // 주의 — 아래 waiting 테스트들은 `mockResolvedValue` 로 **모든** findOne 호출에 같은 객체를
+  // 돌려주므로 getStatus 의 1단계/2단계를 구분하지 못한다(구현이 2단계 분리를 되돌려도 green).
+  // 여기서 검증하는 건 wire 형식뿐이고, 2단계 조회 자체와 thread 의 마스킹 배선은 아래
+  // `describe('... 컬럼 projection (2단계 조회)')` 가 select 분기 mock 으로 가드한다.
   const DURABLE_THREAD = {
     id: 'default',
     nextSeq: 2,
@@ -751,6 +756,7 @@ describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', 
     return ((call as { select?: string[] }).select ?? []).slice();
   }
 
+  /** 구현의 리터럴을 import 하지 않고 독립 재기술한다 (black-box: 구현이 바뀌면 여기가 fail). */
   const BASE_COLUMNS = [
     'id',
     'status',
@@ -760,7 +766,27 @@ describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', 
     'outputData',
   ];
 
-  it('1단계는 응답 조립에 쓰이는 컬럼만 select — conversationThread 는 제외', async () => {
+  function whereOf(call: unknown): unknown {
+    return (call as { where?: unknown }).where;
+  }
+
+  const THREAD = {
+    id: 'default',
+    nextSeq: 1,
+    turns: [
+      {
+        seq: 0,
+        nodeId: 'n1',
+        nodeType: 'ai_agent',
+        source: 'ai_user',
+        text: '안녕',
+        timestamp: 't0',
+      },
+    ],
+    totalChars: 2,
+  };
+
+  it('1단계는 응답 조립에 쓰이는 컬럼만 select — 초과·누락 모두 불가', async () => {
     const { service, repo } = makeMocks();
     repo.findOne.mockResolvedValue(
       makeExecution({ status: ExecutionStatus.RUNNING }),
@@ -768,7 +794,8 @@ describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', 
     await service.getStatus(IEXT_CTX);
     const select = selectOf(repo.findOne.mock.calls[0][0]);
     // 누락되면 응답 필드가 조용히 비거나 fallback 으로 대체된다 (특히 startedAt/finishedAt → updatedAt).
-    expect(select).toEqual(expect.arrayContaining(BASE_COLUMNS));
+    // 초과되면 이 PR 의 목적(필요한 컬럼만)이 무너지므로 정확 집합 비교한다.
+    expect(select.slice().sort()).toEqual(BASE_COLUMNS.slice().sort());
     expect(select).not.toContain('conversationThread');
   });
 
@@ -799,6 +826,44 @@ describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', 
     expect(selectOf(repo.findOne.mock.calls[1][0])).toContain(
       'conversationThread',
     );
+  });
+
+  // 인가 경계: EIA 토큰은 특정 executionId 로 scope 된다. 2단계 쿼리가 1단계와 다른 execution 을
+  // 조회하면 남의 대화 히스토리가 새어나간다 — select 단언만으로는 이 클래스의 버그를 못 잡는다.
+  it('2단계 조회는 1단계와 동일한 executionId 로 스코프된다 (인가 경계)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue(null);
+    await service.getStatus(IEXT_CTX);
+    expect(whereOf(repo.findOne.mock.calls[0][0])).toEqual({
+      id: IEXT_CTX.executionId,
+    });
+    expect(whereOf(repo.findOne.mock.calls[1][0])).toEqual({
+      id: IEXT_CTX.executionId,
+    });
+    expect(whereOf(nodeRepo.findOne.mock.calls[0][0])).toMatchObject({
+      executionId: IEXT_CTX.executionId,
+      status: 'waiting_for_input',
+    });
+  });
+
+  // waiting 이면 thread 와 nodeExec 를 함께 띄우므로, 대기 노드를 못 찾으면 thread 는 조회됐지만
+  // 버려진다(context 조립이 `if (nodeExec?.node)` 안에서만 일어남). 의도된 동작임을 고정한다.
+  it('waiting + 대기 nodeExec 없음 — thread 가 있어도 context/currentNode 는 null', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockImplementation((opts: unknown) =>
+      Promise.resolve(
+        selectOf(opts).includes('conversationThread')
+          ? { id: 'exec-1', conversationThread: THREAD }
+          : makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+      ),
+    );
+    nodeRepo.findOne.mockResolvedValue(null);
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.currentNode).toBeNull();
+    expect(r.context).toBeNull();
   });
 
   // EIA §R17 "표면 제약(보안)": REST getStatus 와 SSE waiting_for_input emit 이 공유하는

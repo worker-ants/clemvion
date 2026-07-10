@@ -49,7 +49,9 @@ PR #874(EIA §R17 재조정)로 `Execution.conversation_thread` jsonb 가 `conte
 - [x] 6. 구현 — 2단계 조회 + `Promise.all` 병렬
 - [x] 7. 테스트 보강 — 대상 spec 41/41 green
 - [x] 8. TEST WORKFLOW — lint PASS(54s) / unit PASS(75s) / build PASS(140s) / e2e PASS(170s, 43 suite · 249 test, 0 fail). `execution-park-resume.e2e-spec.ts` · `external-interaction.e2e-spec.ts` 둘 다 PASS 확인 (상태전이 회귀 없음).
-- [ ] 9. REVIEW WORKFLOW — `/ai-review` + `/consistency-check --impl-done`
+- [x] 9a. REVIEW WORKFLOW — `/ai-review` (10 reviewer, **Critical 0** / Warning 4). SUMMARY+RESOLUTION: `review/code/2026/07/10/22_47_32/`. Warning 4건 + INFO 3건 전량 fix, TEST WORKFLOW 재통과(e2e 249/249).
+- [ ] 9b. `/consistency-check --impl-done spec/5-system/14-external-interaction-api.md` (spec `code:` glob 매칭 → 의무)
+- [ ] 9c. fresh `/ai-review` (fix 커버) — resolution 후 원 리뷰 stale
 
 ## impl-prep Warning (구현 중 처리 의무)
 
