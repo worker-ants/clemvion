@@ -6,6 +6,12 @@
 
 1. **frontend `useKbEvents` 가 backend `KbEventType` union 권위(11종)에 정렬된다** — frontend `KB_EVENT_NAMES` 가 union 에 없는 `document:graph_error` 를 구독해 count drift(frontend 12 vs union 11)가 있었다. graph `_error` 는 emit 경로가 없어 #443 에서 union 에서 제거됐고(`data-flow/6-knowledge-base.md §2.5` 권위 기록), graph 오류는 `_retry`/`_failed` 로만 신호한다. 죽은 `graph_error` 구독을 제거하고(→11종, backend emit 무변경이라 no-op), closure-local `KB_EVENT_NAMES` 를 module-scope `export` 로 승격해 union↔구독 parity 회귀 테스트(`use-kb-events.test.ts`)를 추가했다. 백엔드 union 자체는 이미 11종이라 무변경(JSDoc 만 "12개"→"11종" 정정). spec 정합: `6-websocket-protocol §4.3`, `8-embedding-pipeline §8.1/§8.2`, `10-graph-rag §6/KB-GR-OB-02`, `2-navigation/5-knowledge-base`. `document:embedding_error` 는 union 선언분(미emit·forward-compat)이라 유지. 런타임 동작 무변경. SoT: `spec/5-system/6-websocket-protocol.md §4.3`.
 
+## Unreleased — 통합 상세 활동 탭 "연결 안 됨" 안내 배너 (2-navigation/4-integration §4.6)
+
+### 변경 사항
+
+1. **통합이 연결되어 있지 않으면(`error`/`expired`/`pending_install`) 활동 탭에 "연결 안 됨" 경고 배너를 노출한다** — 이 상태에서는 AI Agent 가 MCP bridge 로 미연결 통합의 tool 을 노출하지 않아 호출 자체가 없고(직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 즉시 실패), 새 활동이 기록되지 않는다. 종전엔 활동 탭이 단순 "활동 없음" 빈 상태만 보여줘 사용자가 "기록이 없는 것" 과 "통합이 끊겨 기록이 안 되는 것" 을 구분하지 못했다. 이제 활동 목록·빈 상태 위에 [Inline Alert](spec/0-overview.md §3.4)를 얹어 원인을 알리고, "상태 확인" 버튼으로 개요 탭(상태·재연결)으로 유도한다. 톤은 §3.4 status→tone escalation 에 맞춰 `error`=red, `expired`/`pending_install`=warning(amber) 으로 헤더 `StatusBadge` 신호와 일치시킨다. `connected`(곧 만료 expires-soon 포함)는 여전히 기록되므로 미노출. 프론트 전용(백엔드·API 무변경). SoT: `spec/2-navigation/4-integration.md §4.6` · `spec/0-overview.md §3.4`.
+
 ## Unreleased — `$params.<name>` 표현식 자동완성 (5-system/5-expression §7.1)
 
 ### 변경 사항

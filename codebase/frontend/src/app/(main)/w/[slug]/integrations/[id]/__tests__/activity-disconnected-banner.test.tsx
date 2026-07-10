@@ -39,9 +39,10 @@ describe("ActivityDisconnectedBanner", () => {
   });
 
   it.each(["error", "expired", "pending_install"] as const)(
-    "%s 상태면 경고 배너 + [상태 확인] 버튼을 노출한다",
+    "%s 상태면 role=status 경고 배너 + [상태 확인] 버튼을 노출한다",
     (status) => {
       render(<Shell status={status} />);
+      expect(screen.getByRole("status")).toBeInTheDocument();
       expect(
         screen.getByText("새 활동이 기록되지 않고 있어요"),
       ).toBeInTheDocument();
@@ -50,6 +51,19 @@ describe("ActivityDisconnectedBanner", () => {
       ).toBeInTheDocument();
     },
   );
+
+  // §3.4 status→tone escalation — error 는 red, 그 외 미연결은 warning(amber).
+  it("error 상태는 red 톤으로 escalation 한다 (헤더 StatusBadge 와 신호 일치)", () => {
+    render(<Shell status="error" />);
+    const banner = screen.getByRole("status");
+    expect(banner.className).toMatch(/red/);
+    expect(banner.className).not.toMatch(/amber/);
+  });
+
+  it("expired/pending_install 는 warning(amber) 톤이다", () => {
+    render(<Shell status="expired" />);
+    expect(screen.getByRole("status").className).toMatch(/amber/);
+  });
 
   it("버튼 클릭 시 onGoToOverview 를 호출한다 (개요 탭 이동)", async () => {
     const onGoToOverview = vi.fn();

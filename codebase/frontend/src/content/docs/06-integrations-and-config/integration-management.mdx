@@ -64,7 +64,7 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
   { name: "Security", type: "탭", required: "항상", description: "비OAuth 연동은 `Rotate credentials` 폼에서 새 값으로 교체해요. 연결 테스트에 성공해야 실제 저장이 커밋돼요." },
   { name: "Scope & Permissions", type: "탭", required: "OAuth", description: "현재 scope를 확인하고 추가 scope를 요청해요. `insufficient_scope` 에러일 때 누락 항목이 빨간 배지로 표시돼요." },
   { name: "Usage", type: "탭", required: "항상", description: "연동을 참조하는 워크플로우·노드 목록이 나와요. `Open in editor` 링크로 바로 이동해요." },
-  { name: "Activity", type: "탭", required: "항상", description: "최근 7일간 호출 기록을 API · 상태 · 소요 · 오류 열로 확인해요. `API` 열에는 어떤 endpoint 가 호출됐는지 표시돼요. Cafe24 통합은 operation 라벨을, 그 외 서비스는 HTTP 메서드와 경로를 그대로 보여줘요. 두 값이 모두 없으면 `—` 로 표시해요." },
+  { name: "Activity", type: "탭", required: "항상", description: "최근 7일간 호출 기록을 API · 상태 · 소요 · 오류 열로 확인해요. `API` 열에는 어떤 endpoint 가 호출됐는지 표시돼요. Cafe24 통합은 operation 라벨을, 그 외 서비스는 HTTP 메서드와 경로를 그대로 보여줘요. 두 값이 모두 없으면 `—` 로 표시해요. 연동이 연결 안 됨(`error` · `expired` · `pending_install`) 상태면 새 호출이 기록되지 않아 목록 위에 경고 배너가 뜨고, `상태 확인` 버튼으로 Overview 탭에서 상태 확인·재연결할 수 있어요." },
   { name: "Danger zone", type: "탭", required: "Admin", description: "삭제 · Personal ↔ Organization 범위 전환. 사용처가 있으면 삭제가 차단되고, 삭제 차단 다이얼로그가 열려 사용 중인 워크플로우·노드 목록과 각 워크플로우로 가는 바로가기 링크를 보여줘요. AI Agent의 MCP 서버로 참조되는 노드는 `MCP` 배지로 표시돼요." }
 ]} />
 

@@ -34,5 +34,5 @@ AI Agent MCP bridge 가 통합을 skip(미연결 통합 tool 미노출) → 새 
 
 ## 워크플로
 
-- [ ] TEST WORKFLOW — lint[ ]·unit[frontend 5272 pass, 전체 대기]·build[ ]·e2e[ ]
-- [ ] REVIEW WORKFLOW (/ai-review + impl-done)
+- [x] TEST WORKFLOW — lint[x]·unit[x]·build[x]·e2e[x](249) (초회 + fix 후 재통과)
+- [~] REVIEW WORKFLOW — /ai-review(LOW·C0·W3)·impl-done(BLOCK:NO·W2) → WARNING 조치(톤 escalation·Inline Alert 등재·CHANGELOG·user-guide·role=status) + RESOLUTION.md. wiring 스모크 테스트 1건 defer(근거). fresh 재검토 대기
