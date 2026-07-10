@@ -104,13 +104,13 @@ usage 적재 정책:
 | --- | --- | --- |
 | `AI Agent` 노드 (`ai-turn-executor.ts` — 단발 `executeSingleTurn` + 멀티턴 resume `processMultiTurnMessage` 메인 chat + tool-call 후속 chat) | chat (tool calling 포함) | **`workflow_id / execution_id / node_execution_id` 채움**. 단발/첫 턴은 `context.*`, resume 턴은 재구성 `state.*`(엔진 `buildRetryReentryState` 가 현재 turn 의 NodeExecution row PK 를 state 에 주입) |
 | `Text Classifier` (`text-classifier.handler.ts`) / `Information Extractor` (`information-extractor.handler.ts` `traceChat`) 노드 | chat | **채움**. Text Classifier 단발(`context.*`), Information Extractor 첫 턴(`context.*`) + resume 턴(`state.*`) |
-| AI Agent 자동 메모리 롤링 요약 압축 (`nodes/ai/shared/agent-memory-injection.ts`) | chat | `context` 미전달 → `workflow_id / execution_id / node_execution_id` 전부 NULL (노드 내부 실행이나 아직 미배선 — 잔여 갭) |
+| AI Agent 자동 메모리 롤링 요약 압축 (`nodes/ai/shared/agent-memory-injection.ts`) | chat | **채움**. 단발/첫 턴은 `context.*`, resume 턴은 재구성 `state.*` (AI Agent 메인 chat 과 동일 패턴 — `AiMemoryManager.injectMemoryContext` 가 `buildSummaryBufferUpdate` 로 `llmContext` 전달) |
 | `WorkflowAssistantStreamService` (`workflow-assistant-stream.service.ts`) | chatStream | `workflow_id` 만 채움 (`{ workflowId: session.workflowId }`). usage 는 assistant message row (`WorkflowAssistantStreamService → AssistantTurnPersistenceService.persistAssistantTurn` → `appendMessage.usage`, M-3 분할) 와 usage_log **양쪽**에 적재 |
 | `GraphExtractionService` (KB graph 추출, `knowledge-base/graph/graph-extraction.service.ts`) | chat | context 미전달, 전부 NULL. `timeoutMs` + `disableInnerRetry` (외부 `retryWithBackoff` 가 재시도 통제) |
 | `RerankService` listwise LLM grading (`cross_encoder_llm` escalate 시, `knowledge-base/search/rerank.service.ts`) | chat | context 미전달, 전부 NULL |
 | AgentMemory 추출 processor (BullMQ, `agent-memory/queues/agent-memory-extraction.processor.ts`) | chat | context 미전달, 전부 NULL |
 
-> **attribution 채움 현황**: 멀티턴 AI 노드(AI Agent / Information Extractor)는 첫 턴·resume 턴 모두, Text Classifier(단발 — resume 없음)는 호출 시점에 `workflow_id / execution_id / node_execution_id` 를 채운다(2026-07 완결 — resume 턴은 재구성 `state` 경유). `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)는 이제 노드 발 사용량을 반영한다. **잔여 NULL** 은 워크플로우 밖·non-node caller(`GraphExtractionService`·`RerankService` listwise·AgentMemory 추출 processor)와 노드 내부지만 미배선인 AI Agent 메모리 롤링 요약 압축뿐이다. 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
+> **attribution 채움 현황**: 멀티턴 AI 노드(AI Agent / Information Extractor)는 첫 턴·resume 턴 모두, Text Classifier(단발 — resume 없음)는 호출 시점에 `workflow_id / execution_id / node_execution_id` 를 채운다(2026-07 완결 — resume 턴은 재구성 `state` 경유). AI Agent 자동 메모리 롤링 요약 압축 chat 도 노드 발 실행이므로 동일하게 채운다(단발 `context.*`/resume `state.*`, 2026-07 완결). `WHERE workflow_id = ?` 기반 워크플로우별 비용 집계(Statistics `workflowId` 필터·Alerts `llm_cost` workflow 스코프)는 이제 노드 발 사용량을 반영한다. **잔여 NULL** 은 워크플로우 밖 caller(`GraphExtractionService`·AgentMemory 추출 processor)와 노드 실행 중이나 아직 미배선인 `RerankService` listwise 뿐이다(§Rationale (a)/(b) 구분). 상세는 [§Rationale](#rationale) 의 "`llm_usage_log` 의 nullable context 컬럼들" 항에 일원화 — 단일 진실.
 
 **embed 계열 (usage_log 미적재):**
 
@@ -159,7 +159,7 @@ usage 적재 정책:
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
 | Knowledge Base | cross-ref | embed (청크 적재·query — **usage 미적재**) + chat (graph 추출·LLM grading rerank — usage 적재, context NULL). 리랭크 cross-encoder 호출은 별도 계통 |
-| Agent Memory | cross-ref | 추출 processor chat + 롤링 요약 압축 chat (usage 적재, context NULL) / 저장·recall embed (미적재). [Spec Agent Memory](../5-system/17-agent-memory.md) |
+| Agent Memory | cross-ref | 추출 processor chat(워크플로우 밖 — context NULL) + 롤링 요약 압축 chat(노드 발 — context 채움: 단발 `context.*`/resume `state.*`). usage 적재. / 저장·recall embed (미적재). [Spec Agent Memory](../5-system/17-agent-memory.md) |
 | Execution | cross-ref | AI 노드 호출 진입. **노드 핸들러(AI Agent / Text Classifier / Information Extractor)가 `LlmCallContext` 로 workflow/execution/node_execution 을 채운다 — 첫 턴은 `ExecutionContext`, resume 턴은 재구성 `state`** (§1.3) |
 | Workflow Assistant | cross-ref | session 메시지 turn 종료 시점 usage 적재 (message row + log). `workflow_id` 를 채운다 (노드 핸들러와 함께 — 유일 caller 아님) |
 | Dashboard / Statistics | downstream | `llm_usage_log` 집계 (`statistics.service.ts` — provider·model 별 / 일자별 SUM). `workflowId` 필터는 노드 발 + assistant 사용량을 잡는다 (잔여 non-node·워크플로우 밖 caller 만 누락, §1.3) |
@@ -199,10 +199,12 @@ row PK**(`node_execution_id`) 를 주입하고(첫 턴이 쓰는 `context.nodeEx
 이를 소비한다 — 과거 IE resume 이 `node_execution_id` 자리에 Node **정의** id 를 오적재하던 회귀도
 이때 교정됐다. 따라서 노드 핸들러 3종(AI Agent / Text Classifier / Information Extractor)은 이제
 `workflow_id / execution_id / node_execution_id` 를 채우며, `WHERE workflow_id = ?` 식 집계가
-노드 발 사용량을 반영한다.
+노드 발 사용량을 반영한다. 추가로 AI Agent 자동 메모리 롤링 요약 압축 chat(`agent-memory-injection.ts`
+`buildSummaryBufferUpdate`)도 2026-07 에 배선돼 단발/첫 턴은 `context.*`, resume 턴은 재구성 `state.*` 로
+세 ID 를 채운다(`AiMemoryManager.injectMemoryContext` 가 caller 별로 `LlmCallContext` 전달).
 
 **잔여 NULL** 은 (a) 워크플로우 **밖** 호출이라 애초에 노드 컨텍스트가 없는 caller
 (`GraphExtractionService`·AgentMemory 추출 processor)와 (b) `LlmCallContext` 가 아직 배선되지 않은
-caller(`RerankService` listwise grading, AI Agent 자동 메모리 롤링 요약 압축)뿐이다 — (a)는 의도된
+caller(`RerankService` listwise grading)뿐이다 — (a)는 의도된
 누락, (b)는 후속 배선 여지. 워크스페이스 단위 집계는 `config.workspaceId` 자동 채움 덕에 컨텍스트
 누락과 무관하게 온전하다. (`LlmPreviewService` 는 listModels 전용이라 usage 행 자체를 만들지 않는다)

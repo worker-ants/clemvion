@@ -548,6 +548,36 @@ describe('buildSummaryBufferUpdate — token budget + cache-protection invariant
     expect(update.summarized).toBe(true);
     expect(update.runningSummary).toBe('MERGED SUMMARY');
     expect(update.summarizedUpToSeq).toBeGreaterThan(1);
+    // llmContext 미전달(하위호환) 시 chat 3번째 인자는 undefined 여야 한다.
+    expect(llm.chat.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it('passes llmContext to the summary chat for llm_usage_log attribution (Spec 7-llm-usage §1.3)', async () => {
+    const llm = makeLlmServiceMock('SUMMARY');
+    const big = 'w'.repeat(400);
+    const turns = [0, 1, 2, 3, 4, 5].map((s) => turn(s, big));
+    await buildSummaryBufferUpdate({
+      turns,
+      runningSummary: undefined,
+      summarizedUpToSeq: undefined,
+      tokenBudget: 300,
+      systemPromptText: 'sys',
+      llmConfig,
+      model: 'gpt-4o',
+      llmService: llm,
+      llmContext: {
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        nodeExecutionId: 'nodeexec-row-1',
+      },
+    });
+    expect(llm.chat).toHaveBeenCalledTimes(1);
+    // chat(config, params, context) — 3번째 인자가 LlmCallContext.
+    expect(llm.chat.mock.calls[0][2]).toEqual({
+      workflowId: 'wf-1',
+      executionId: 'exec-1',
+      nodeExecutionId: 'nodeexec-row-1',
+    });
   });
 
   it('falls back to no-change when the summary LLM returns empty content', async () => {

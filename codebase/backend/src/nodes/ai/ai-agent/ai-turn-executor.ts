@@ -8,7 +8,7 @@ import {
 } from '../../core/node-handler.interface';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
-import { LlmService } from '../../../modules/llm/llm.service';
+import { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
   ToolCall,
@@ -1159,6 +1159,12 @@ export class AiTurnExecutor {
         summaryModelConfigId: config.summaryModelConfigId as string | undefined,
         workspaceId,
         executionId: context.executionId,
+        // [Spec 7-llm-usage §1.3] 요약 압축 attribution — single-turn 은 context 가용.
+        llmContext: {
+          workflowId: context.workflowId,
+          executionId: context.executionId,
+          nodeExecutionId: context.nodeExecutionId,
+        },
         queryText: userPrompt,
         tailMode: 'prepend',
       });
@@ -2287,6 +2293,13 @@ export class AiTurnExecutor {
       summaryModelConfigId: state.summaryModelConfigId as string | undefined,
       workspaceId,
       executionId: executionId ?? '',
+      // [Spec 7-llm-usage §1.3] 요약 압축 attribution — multi-turn resume 은 재구성
+      // state 경유(엔진 buildRetryReentryState 주입분). context 미운반 경로라 state.*.
+      llmContext: {
+        workflowId: state.workflowId as string | undefined,
+        executionId: executionId ?? undefined,
+        nodeExecutionId: state.nodeExecutionId as string | undefined,
+      },
       queryText: userMessage,
       tailMode: 'system-only',
     });
@@ -2596,7 +2609,9 @@ export class AiTurnExecutor {
     // workflowId / nodeExecutionId(현재 turn 의 NodeExecution row PK) / executionId 를
     // llmContext 로 전달한다. single-turn(executeSingleTurn)이 context.* 를 쓰는 것과
     // 대칭 — 미전달 시 llm_usage_log 의 해당 컬럼이 NULL 로 적재되는 갭이 남는다.
-    const llmContext = {
+    // 명시 타입 주석 — 필드 오탈자를 TS excess-property check 로 컴파일 타임에 차단
+    // (attribution 필드 오사입 회귀 방지, ai-review INFO#1).
+    const llmContext: LlmCallContext = {
       workflowId: state.workflowId as string | undefined,
       executionId,
       nodeExecutionId: state.nodeExecutionId as string | undefined,

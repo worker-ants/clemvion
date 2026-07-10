@@ -68,12 +68,19 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 - [ ] `spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4 —
       credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`, caller opts
       전달, node.config 재유도 불가)" 문구 추가 (consistency rationale_continuity WARNING 반영).
+- [x] **(PR `ai-usage-attribution-hardening` = B1+C1 배선 후 필수 → 그 PR 에서 완료)**
+      `spec/data-flow/7-llm-usage.md` §1.3 표 L107 · 요약문 L113 · §4 Agent Memory 행 L162 ·
+      Rationale L189~206 의 "AI Agent 자동 메모리 롤링 요약 압축 = 미배선/전부 NULL/잔여 갭" 서술을
+      "첫 턴/단발 = `context.*`, resume = `state.*` 채움"으로 정정 (C1 이 배선 완료 → 다른 AI 노드
+      row 와 동일 패턴). 잔여 NULL 은 `RerankService` listwise + GraphExtraction/AgentMemory 추출
+      processor(워크플로 밖)만. **최종 consistency CRITICAL(SoT) 로 PR-2 분리 대신 PR-1
+      (`ai-usage-attribution-hardening`) 에 포함해 해소** — drift window 0.
 
 ### 최종 /ai-review(02_09_15) INFO — 선택적 후속 (review-loop 재무장 방지로 본 PR 미포함)
 
-- [ ] `ai-turn-executor.ts:2599` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1 — 필드
-      오탈자 컴파일 타임 차단, 저비용·고가치. 코드 변경이라 별도 PR 로).
+- [x] `ai-turn-executor.ts` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1) →
+      **후속 plan `ai-usage-attribution-hardening.md` B1 로 처리(PR-1)**.
 - [ ] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
-      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정).
+      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정) → PR-3(B2) 예정.
 - [ ] IE `runTurnWithCollectionRetries` collection-retry 루프에 ai_agent tool-loop 와 대칭인
-      2번째 chat attribution 단언 테스트 추가(INFO#4).
+      2번째 chat attribution 단언 테스트 추가(INFO#4) → PR-3(B3) 예정.
