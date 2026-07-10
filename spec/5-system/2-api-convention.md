@@ -169,6 +169,29 @@ GET /api/triggers?type=webhook&status=active
 - `details`: 선택 필드 (검증 오류 등 추가 컨텍스트 존재 시에만 동봉). 검증 오류 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조이며 `field` 는 중첩 경로(`nodes[3].type`)를 유지한다.
 - `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 413=`PAYLOAD_TOO_LARGE`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
 
+### 5.4 부재 표현 — `null` vs 키 생략
+
+값이 없음을 나타내는 방식은 두 가지다. **한 응답 안에 섞여도 무방하나, 필드별로 근거가 있어야 한다.**
+
+| 표현 | 의미 | 선택 기준 |
+|------|------|----------|
+| `null` (키 present) | 이 필드는 응답 계약에 **상시 존재**하며, 지금은 값이 없다 | **기본값.** 소비자가 키 존재를 전제하고 값만 분기하면 되는 스칼라·객체 필드 |
+| **키 생략** | present-when-available — 값이 있을 때만 동봉한다 | (a) 같은 데이터를 싣는 **다른 표면(SSE/WS wire)과 형식을 일치**시켜야 할 때, (b) 선택적 부가 컨텍스트라 소비자가 부재를 정상 경로로 다룰 때 |
+
+- **기본은 `null`** 이다. 키 생략은 (a)/(b) 중 하나에 해당할 때만 쓰고, **그 필드를 문서화하는 절에 사유를 명시**한다.
+- DTO 선언이 wire 를 반영해야 한다 — 키를 생략하는 필드는 `@ApiPropertyOptional` + `field?: T` (`| null` 금지), `null` 을 쓰는 필드는 `@ApiPropertyOptional({ nullable: true })` + `field?: T | null`. ([Swagger 규약 §1-3](../conventions/swagger.md#1-3-optional-필드))
+- 클라이언트는 두 표현 모두 안전하게 다뤄야 한다 — optional chaining(`a?.b`)은 `undefined` 와 `null` 을 함께 short-circuit 하므로 대개 단일 가드로 충분하다.
+- **소급 적용 대상 아님**: 본 규칙은 **앞으로 도입·변경되는 필드**에 적용한다. 이미 문서화된 키 생략 필드(`mcpDiagnostics`, cafe24 `status`·`requiresCafe24Approval`, chat-channel `details.statusCode` 등)는 기준 (b) 를 충족하는 것으로 간주하고 사유 문구를 소급 요구하지 않는다.
+
+기존 선례 (본 절은 신규 발명이 아니라 관행의 성문화다):
+
+| 표현 | 선례 |
+|------|------|
+| `null` | [§8.2](#82-cursor-기반-대량-nodeexecution-등) `nextCursor`("없으면 `null`") · [EIA §5.3](./14-external-interaction-api.md) `currentNode`/`result`/`error` |
+| 키 생략 | [§5.3](#53-에러-응답) `details`("선택 필드 — 존재 시에만 동봉") · [EIA §5.3](./14-external-interaction-api.md) `context.conversationThread` |
+
+> 실사례: [EIA §5.3](./14-external-interaction-api.md) 의 `getStatus` 응답은 `currentNode`/`result`/`error` 를 `null` 로, `context.conversationThread` 를 **키 생략**으로 둔다 — 후자는 기준 (a) 때문이다. 근거는 [Rationale](#왜-conversationthread-를-null-로-정규화하지-않는가-54).
+
 ---
 
 ## 6. HTTP 상태 코드
@@ -411,3 +434,11 @@ Content-Type: application/json
 ### 비-페이징 고정 컬렉션은 `{data:{items}}` 유지 (§5.2 페이징과 형태 상이)
 
 활성 세션·WebAuthn credential 목록은 페이지네이션이 무의미한 소규모 본인 소유 컬렉션으로, `{ data: { items: [...] } }` 를 반환한다. 이는 §5.2 페이징 목록(`data` 가 배열 그 자체, `pagination` 형제)과 nesting 형태가 달라 일관성 관점에서 이상적이지 않다. 그럼에도 이 형태를 **유지**하는 이유: (1) sessions·webauthn 양 엔드포인트의 백엔드(`sessions.controller.ts`·`webauthn.controller.ts` + `WebAuthnCredentialListDto`/`SessionListDto`)와 프런트(`lib/api/sessions.ts`·`passkey-card.tsx` 가 `res.data.data.items` 소비)가 이미 이 계약에 의존하는 **load-bearing** 상태이고, (2) bare-array 로 평탄화하면 백엔드 2·프런트 2 surface 를 동시 변경하는 breaking change 라 이득 대비 churn 이 크다. 따라서 spec 을 실제 계약에 맞춰 정정한다(문서 정직화). 비-페이징 목록을 bare-array `{data:[]}` 로 정규화하는 대안은 breaking 이라 별도 결정 시까지 defer. 본 `{data:{items}}` 는 [Swagger 규약 §6](../conventions/swagger.md#6-레거시-패턴-제거) 이 기각한 페이지네이션 double-wrap 버그(`{data:{items,totalItems,page,limit}}`)와 무관하다 — pagination 필드가 전혀 없는 순수 비-페이징 컬렉션에 한정된다.
+
+### 왜 `conversationThread` 를 `null` 로 정규화하지 않는가 (§5.4)
+
+`GET /api/external/executions/:id` 한 응답 안에서 `currentNode`/`result`/`error` 는 `null` 이고 `context.conversationThread` 는 키 생략이다. 한 응답에 부재 표현이 섞이는 것은 언뜻 결함으로 보이므로, 왜 정규화하지 않는지 기록한다.
+
+SSE `execution.waiting_for_input` 이벤트도 `conversationThread` 를 **present-when-available** 로 싣는다. [EIA §5.3/§R17](./14-external-interaction-api.md) 은 REST `context` 를 SSE wire 와 **동일 형식**으로 유지하는 것을 명시 계약으로 두며, 위젯이 두 표면에 같은 파서(`parseWaitingForInput`)를 쓰는 것이 그 계약 위에 서 있다. `conversationThread` 만 REST 에서 `null` 로 정규화하면 두 표면의 형식이 갈려 파서 재사용이 깨진다 — 응답 내부의 표면적 일관성을 얻는 대신 표면 간 실질 일관성을 잃는 교환이다.
+
+따라서 이것은 §5.4 기준 (a)(다른 표면과의 wire parity)의 **원형 사례**이며, 정규화 대상이 아니라 규칙의 근거 사례로 둔다. 소비 측 안전성은 별도로 확인됐다 — 위젯의 `threadToMessages` 가 optional chaining(`!thread?.turns?.length`)으로 `undefined`·`null` 을 함께 short-circuit 한다.

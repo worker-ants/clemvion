@@ -31,6 +31,7 @@ import {
   ExecutionStatusDto,
   InteractAckDto,
   RefreshTokenResponseDto,
+  type WaitingContextBaseDto,
 } from './dto/responses.dto';
 import {
   ExternalInteractionRequestContext,
@@ -339,26 +340,28 @@ export class InteractionService {
           buttonConfig?: { buttons?: unknown };
         };
         const bc = structured.config?.buttonConfig ?? structured.buttonConfig;
-        // 공통 필드 선조립 — interactionType/waitingNodeId + (durable) conversationThread top-level.
-        // 분기별로 buttonConfig(buttons) 또는 nodeOutput(form/ai) 만 확장한다.
-        const base = {
-          interactionType,
-          waitingNodeId: nodeExec.nodeId,
-          ...(conversationThread ? { conversationThread } : {}),
-        };
-        if (interactionType === 'buttons' && bc) {
-          // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }.
-          context = {
-            ...base,
-            buttonConfig: { buttons: bc.buttons, nodeOutput: out },
+        if (interactionType) {
+          // 공통 필드 선조립 — interactionType/waitingNodeId + (durable) conversationThread top-level.
+          // conversationThread 는 값이 있을 때만 키를 얹는다 (present-when-available, API 규약 §5.4).
+          // 명시 annotate 필수 — spread 가 interactionType 리터럴을 string 으로 넓힌다.
+          // (지우면 아래 context 대입이 컴파일 에러로 드러난다.)
+          const base: WaitingContextBaseDto = {
+            interactionType,
+            waitingNodeId: nodeExec.nodeId,
+            ...(conversationThread ? { conversationThread } : {}),
           };
-        } else if (interactionType) {
-          // form / ai_conversation: parseWaitingForInput 이 nodeOutput.formConfig /
-          // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉.
-          context = {
-            ...base,
-            nodeOutput: out,
-          };
+          context =
+            interactionType === 'buttons' && bc
+              ? // SSE 와 동일 wire: buttonConfig = { buttons, nodeOutput }.
+                {
+                  ...base,
+                  buttonConfig: { buttons: bc.buttons, nodeOutput: out },
+                }
+              : // form / ai_conversation: parseWaitingForInput 이 nodeOutput.formConfig /
+                // nodeOutput.conversationConfig 를 읽는다 → nodeOutput 그대로 동봉.
+                // buttonConfig 를 복원하지 못한 buttons 도 여기로 fallthrough 하므로
+                // interactionType 은 variant 판별자가 될 수 없다 (Swagger 규약 §1-4).
+                { ...base, nodeOutput: out };
         }
       }
     }
