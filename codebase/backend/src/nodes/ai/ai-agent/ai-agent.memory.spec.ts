@@ -456,7 +456,7 @@ describe('AiAgentHandler — auto-memory strategy', () => {
     });
 
     it('compresses oldest turns + sets runningSummary when over budget', async () => {
-      const context = makeContext();
+      const context = makeContext({ nodeExecutionId: 'ne-row-1' });
       // Seed many large turns from another node so working memory exceeds budget.
       const big = 'w'.repeat(500);
       for (let i = 0; i < 6; i++) {
@@ -510,6 +510,14 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       };
       const systemMsg = mainCall.messages.find((m) => m.role === 'system');
       expect(systemMsg?.content).toContain('ROLLING SUMMARY');
+      // [Spec 7-llm-usage §1.3] 요약 압축 chat(첫 호출)도 context 의 attribution 을
+      // 채워야 한다 — single-turn 은 config 에 workflow/nodeExecution 키가 없어 과거엔
+      // NULL 로 적재되던 회귀를 고정한다 (ai-review Critical#1).
+      expect(mockLlmService.chat.mock.calls[0][2]).toMatchObject({
+        workflowId: 'wf-1',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-row-1',
+      });
     });
   });
 

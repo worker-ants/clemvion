@@ -12,6 +12,12 @@
 
 1. **통합이 연결되어 있지 않으면(`error`/`expired`/`pending_install`) 활동 탭에 "연결 안 됨" 경고 배너를 노출한다** — 이 상태에서는 AI Agent 가 MCP bridge 로 미연결 통합의 tool 을 노출하지 않아 호출 자체가 없고(직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 즉시 실패), 새 활동이 기록되지 않는다. 종전엔 활동 탭이 단순 "활동 없음" 빈 상태만 보여줘 사용자가 "기록이 없는 것" 과 "통합이 끊겨 기록이 안 되는 것" 을 구분하지 못했다. 이제 활동 목록·빈 상태 위에 [Inline Alert](spec/0-overview.md §3.4)를 얹어 원인을 알리고, "상태 확인" 버튼으로 개요 탭(상태·재연결)으로 유도한다. 톤은 §3.4 status→tone escalation 에 맞춰 `error`=red, `expired`/`pending_install`=warning(amber) 으로 헤더 `StatusBadge` 신호와 일치시킨다. `connected`(곧 만료 expires-soon 포함)는 여전히 기록되므로 미노출. 프론트 전용(백엔드·API 무변경). SoT: `spec/2-navigation/4-integration.md §4.6` · `spec/0-overview.md §3.4`.
 
+## Unreleased — AI Agent 자동 메모리 롤링 요약 압축 chat 의 llm_usage_log attribution 배선 (data-flow/7-llm-usage §1.3)
+
+### 변경 사항
+
+1. **AI Agent 자동 메모리(`summary_buffer`/`persistent`) 롤링 요약 압축 LLM 호출이 `llm_usage_log` 의 `workflow_id`/`execution_id`/`node_execution_id` 를 채우도록 배선했다** — 노드 내부에서 실행되는데도 이 요약 압축 chat 만 attribution 이 전부 NULL 로 남던 잔여 갭(#879 후속)을 해소한다. `AiMemoryManager.injectMemoryContext` 가 요약 압축(`buildSummaryBufferUpdate`) chat 에 `LlmCallContext` 를 전달하도록 하고, 세 필드를 caller 가 명시 전달한다 — **single-turn** 경로는 `context.workflowId`/`context.nodeExecutionId`(엔진이 노드 실행 직전 주입), **multi-turn resume** 경로는 재구성 `state.*`(엔진 `buildRetryReentryState` 주입분). 과거 `config` 파생 방식은 single-turn 의 `config` 가 사용자 노드 config 라 해당 키가 없어 항상 NULL 이 되던 문제가 있었다. 이로써 워크플로우별 LLM 비용 집계(Statistics `workflowId` 필터·Alerts)에 메모리 압축 사용량도 반영된다. SoT: `spec/data-flow/7-llm-usage.md §1.3`.
+
 ## Unreleased — `$params.<name>` 표현식 자동완성 (5-system/5-expression §7.1)
 
 ### 변경 사항

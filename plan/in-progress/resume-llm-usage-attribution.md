@@ -71,9 +71,9 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 
 ### 최종 /ai-review(02_09_15) INFO — 선택적 후속 (review-loop 재무장 방지로 본 PR 미포함)
 
-- [ ] `ai-turn-executor.ts:2599` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1 — 필드
-      오탈자 컴파일 타임 차단, 저비용·고가치. 코드 변경이라 별도 PR 로).
+- [x] `ai-turn-executor.ts` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1) →
+      **후속 plan `ai-usage-attribution-hardening.md` B1 로 처리(PR-1)**.
 - [ ] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
-      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정).
+      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정) → PR-3(B2) 예정.
 - [ ] IE `runTurnWithCollectionRetries` collection-retry 루프에 ai_agent tool-loop 와 대칭인
-      2번째 chat attribution 단언 테스트 추가(INFO#4).
+      2번째 chat attribution 단언 테스트 추가(INFO#4) → PR-3(B3) 예정.

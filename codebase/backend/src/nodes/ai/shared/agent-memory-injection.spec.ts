@@ -548,6 +548,8 @@ describe('buildSummaryBufferUpdate — token budget + cache-protection invariant
     expect(update.summarized).toBe(true);
     expect(update.runningSummary).toBe('MERGED SUMMARY');
     expect(update.summarizedUpToSeq).toBeGreaterThan(1);
+    // llmContext 미전달(하위호환) 시 chat 3번째 인자는 undefined 여야 한다.
+    expect(llm.chat.mock.calls[0][2]).toBeUndefined();
   });
 
   it('passes llmContext to the summary chat for llm_usage_log attribution (Spec 7-llm-usage §1.3)', async () => {
