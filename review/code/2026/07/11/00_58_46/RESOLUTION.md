@@ -19,8 +19,10 @@
   관례 준수. 무조치.
 
 ## TEST WORKFLOW (최종)
-- lint PASS / build PASS / **unit PASS**(backend 400 suites·7963 tests + frontend 271 files·5319 tests +
-  기타 패키지 — 전량) / **e2e PASS 249**. env 카비어트 없음.
+- (리뷰 상태) lint PASS / build PASS / **unit PASS**(backend 400 suites·7963 tests + frontend 271 files·
+  5319 tests + 기타 패키지 — 전량) / **e2e PASS 249**. env 카비어트 없음.
+- **재수행(L2815 fix + #904/#906 rebase 후 최종 HEAD)**: lint/build/unit(전량)/**e2e PASS 250** 재확인
+  — L2815 는 순수 타입 변경이라 동작 불변, rebase 는 무관 파일(external-interaction·A-track docs)만.
 - B4 는 behavior-preserving(순수 타입 단언) — testing reviewer mutation test 로 B3 유효성 실증.
 
 **Critical 0 / Warning 0 — 병합 가능.**
