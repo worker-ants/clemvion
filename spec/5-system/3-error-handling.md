@@ -60,8 +60,11 @@ code:
 | `WEBAUTHN_INVALID` | 401 | WebAuthn 로그인 2FA verify 실패 (counter 역행 케이스 포함 — 세부는 `login_history.failure_reason=WEBAUTHN_COUNTER_REGRESSION`) | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
 | `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
 | `REAUTH_NOT_AVAILABLE` | 403 | `password_hash`·2FA 모두 없는 OAuth-only 계정의 재인증 수단 부재 (이메일 변경·§2.3 세션-revoke 재인증 상류 공용) | [1-auth.md §2.3](./1-auth.md#23-세션-정책) |
+| `REAUTH_REQUIRED` | 400 | 재인증 자격증명 미입력·미충족(비밀번호/TOTP 어느 것도 검증 불가) | [1-auth.md §2.3](./1-auth.md#23-세션-정책) |
+| `PASSWORD_INVALID` | 401 | 비밀번호 재확인 불일치 — 재인증(§2.3 `verifyReauth`)·2FA 비활성화/WebAuthn 관리 재확인(`verifyPasswordForUser`) 공용 | [1-auth.md §2.3](./1-auth.md#23-세션-정책) |
+| `TOTP_INVALID` | 401 | TOTP 코드 불일치 — 재인증(§2.3)·로그인 2FA 공용 | [1-auth.md §2.3](./1-auth.md#23-세션-정책) |
 
-> 위 표는 도메인 spec(`1-auth.md`) 본문에 문서화된 코드만 등재한다. 로그인 2FA TOTP 실패는 별도 API `code` 없이 `login_history` 이벤트값 `totp_failed`(§4.3)로 남는다. **재인증(§2.3 `verifyReauth`) 흐름의 세부 코드 `REAUTH_REQUIRED`(403)·`PASSWORD_INVALID`(400)·`TOTP_INVALID`(401)(`sessions.service.ts`)는 아직 `1-auth.md` 본문에 개별 문서화돼 있지 않아 본 등재에서 제외한다 — "1-auth.md 문서화 → 카탈로그 등재" 순서의 후속으로 추적**(`NOT_A_MEMBER`·`INVALID_PASSWORD` 도 동일).
+> 위 표는 도메인 spec(`1-auth.md`) 본문에 문서화된 코드만 등재한다. 로그인 실패 자체는 `LOGIN_FAILED`(§1.2) API 코드로 반환되며(`PASSWORD_INVALID` 아님), 감사는 `login_history` 의 `event`(`totp_failed` 등 lower_snake)·`failure_reason`(`TOTP_INVALID`·`INVALID_PASSWORD` 등 UPPER_SNAKE 사유값, §4.3 · [1-data-model §2.18.2](../1-data-model.md))로 남는다. 재인증(§2.3 `verifyReauth`) 세부 코드 `REAUTH_REQUIRED`(400)·`PASSWORD_INVALID`(401)·`TOTP_INVALID`(401)는 §2.3 문서화 완료로 위 표에 등재했다 — `PASSWORD_INVALID` 는 2FA 비활성화·WebAuthn 관리 재확인(`verifyPasswordForUser`)과, `TOTP_INVALID` 는 로그인 2FA 와 동일 코드다. **근접 명명 주의**: `PASSWORD_INVALID`(재인증·재확인)는 비밀번호 *변경* 실패 코드 `INVALID_PASSWORD`(`users.service.ts changePassword`, §1.3 별도 등재 예정)와 **다른 코드**다. 아직 도메인 spec 본문 미문서인 `INVALID_PASSWORD`(비밀번호 변경)·`NOT_A_MEMBER`(워크스페이스 멤버십)·`PASSWORD_REQUIRED`(`verifyPasswordForUser` 비밀번호 미입력)는 "spec 문서화 → 등재" 순서의 후속으로 남긴다.
 
 ### 1.3 유효성 검증 에러
 
@@ -471,7 +474,8 @@ GET /api/health
 
 ## Rationale
 
-- **§1 카탈로그 완결성 — 2FA/WebAuthn(§1.2.1)·KB/Graph RAG(§1.8) 도메인 등재**: [`conventions/error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)이 본 §1 을 "제품 전체 에러 코드 카탈로그 SoT" 로 선언하나, `1-auth.md`(WebAuthn/2FA)·`10-graph-rag.md`(KB) 도메인 코드가 §1 에 미등재였다. 이를 §1.5~§1.7 이 이미 쓰던 "도메인 spec 참조(정의 SoT 는 도메인 spec, 본 §1 은 공용 카탈로그 가시성 등재)" 패턴으로 완결했다 — 새 원칙 도입도 코드 재정의도 아니다. **spec 에 문서화된 코드만 등재**하며, 코드에만 존재하고 도메인 spec 본문 미문서인 재인증 세부 코드(`REAUTH_REQUIRED`/`PASSWORD_INVALID`/`TOTP_INVALID`)는 dangling SoT 를 피해 "spec 문서화 → 등재" 순서의 후속으로 남긴다.
+- **§1 카탈로그 완결성 — 2FA/WebAuthn(§1.2.1)·KB/Graph RAG(§1.8) 도메인 등재**: [`conventions/error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)이 본 §1 을 "제품 전체 에러 코드 카탈로그 SoT" 로 선언하나, `1-auth.md`(WebAuthn/2FA)·`10-graph-rag.md`(KB) 도메인 코드가 §1 에 미등재였다. 이를 §1.5~§1.7 이 이미 쓰던 "도메인 spec 참조(정의 SoT 는 도메인 spec, 본 §1 은 공용 카탈로그 가시성 등재)" 패턴으로 완결했다 — 새 원칙 도입도 코드 재정의도 아니다. **spec 에 문서화된 코드만 등재**하며, 코드에만 존재하고 도메인 spec 본문 미문서였던 재인증 세부 코드(`REAUTH_REQUIRED`/`PASSWORD_INVALID`/`TOTP_INVALID`)는 dangling SoT 를 피해 "spec 문서화 → 등재" 순서의 후속으로 남겼고, 이는 아래 §2.3 정합화 bullet 에서 완결했다.
+- **§2.3 재인증 흐름 정합화 + 세부 코드 등재 (drift 정정, 위 완결성 bullet 후속)**: `1-auth.md §2.3` "강제 종료 재인증" 행이 구현(`verifyReauth`=password OR TOTP)·Rationale 1.1.B-4·`9-user-profile.md` 코퍼스 합의와 달리 "WebAuthn/이메일 OTP 대체 + §1.4.2 우선순위" 로 과대 서술(미구현 대안)돼 있어, 실제 지원(password OR TOTP)으로 정렬하고 WebAuthn·이메일 OTP 재인증을 "현재 미지원(1.1.B-4)" 으로 명시했다([1-auth.md §2.3.D](./1-auth.md#23d--23-재인증-흐름-정합화-구현11b-4-정렬)). 이로써 §2.3 이 재인증 세부 코드의 SoT 가 되어 위 완결성 bullet 이 "후속으로 남긴" 3코드를 §1.2.1 에 등재했다. #882 §1.2.1 주석의 status 오기(`REAUTH_REQUIRED` 403→400·`PASSWORD_INVALID` 400→401)와 "로그인 TOTP 실패는 별도 code 없이 `totp_failed` 로만" 서술도 코드 기준으로 정정했다(`PASSWORD_INVALID` 는 `verifyReauth`·`verifyPasswordForUser` 발행이며 로그인은 `LOGIN_FAILED`). `PASSWORD_INVALID`(재인증/2FA·WebAuthn 관리)는 비밀번호 변경 코드 `INVALID_PASSWORD` 와 별개다.
 - **`MODEL_CONFIG_NOT_FOUND`(404) 와 `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리 (PR4b)**: 구 단일 코드는
   id 지정 경로의 "지정 config 부재"(404)와 id 미지정 경로의 "워크스페이스 default 미설정"(400)을 한
   코드로 묶어 동일 코드가 404/400 두 status 를 갖는 모호성이 있었다. id 경로는 `MODEL_CONFIG_NOT_FOUND`(404,

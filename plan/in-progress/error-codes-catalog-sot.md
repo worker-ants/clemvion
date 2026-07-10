@@ -49,9 +49,10 @@ failure_reason 제외).
 - [x] consistency-check --spec — **BLOCK: NO** (최종). 최초 실행이 **CRITICAL(dead anchor `#23-강제-종료-세션-revoke`→`#23-세션-정책`, build-blocking link-integrity fail)** + MEDIUM(§1.8 `KB_REEMBED_IN_PROGRESS` 누락)을 발견(journal 확인 — summary 는 FS-flakiness 로 오탐 BLOCK:NO). 둘 다 fix: 앵커 정정 + KB_REEMBED 등재 + per-row SoT 앵커/헤더 통일. **link-integrity 11/11 PASS** + convention Agent 재실행 LOW/0 Critical.
 
 ## 후속 (비차단, 별도 완결성 pass)
-- [ ] **재인증(§2.3) 흐름 코드 spec 문서화 → 등재**: `REAUTH_REQUIRED`(403)·`PASSWORD_INVALID`(400)·
-  `TOTP_INVALID`(401) 는 `sessions.service.ts`(`verifyReauth`) 에 실재하나 `1-auth.md` 본문에
-  개별 문서화가 없다. "1-auth.md §2.3 에 코드 문서화 → §1.2.1 등재" 순서 필요(naming_collision INFO).
+- [x] **재인증(§2.3) 흐름 코드 spec 문서화 → 등재** — `auth-reauth-spec-accuracy` PR 로 완결(2026-07-10).
+  `1-auth.md §2.3` 에 재인증 에러 코드 note + Rationale §2.3.D 문서화 → `§1.2.1` 등재.
+  **status 정정**(당초 오기): `REAUTH_REQUIRED`=**400**(BadRequest)·`PASSWORD_INVALID`=**401**(Unauthorized)·
+  `TOTP_INVALID`=**401**. 동시에 §2.3 "WebAuthn/이메일 OTP 대체" drift 도 password OR TOTP 로 정정.
 - [ ] `NOT_A_MEMBER`(403, workspace switch)·`INVALID_PASSWORD`(change-password) 도 §1 미등재 —
   동일 완결성 pass 에서 흡수. (이번 PR 은 spec 에 이미 문서화된 8코드만 등재 — dangling SoT 방지.)
 
