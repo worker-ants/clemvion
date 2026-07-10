@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/shared/conversation-thread/**
   - codebase/backend/src/modules/execution-engine/conversation-thread/**
+  - codebase/backend/src/modules/external-interaction/interaction.service.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts
   - codebase/backend/src/nodes/ai/shared/conversation-context-injection.ts
@@ -211,7 +212,7 @@ race-free.
 | 단계 | 저장소 | 비고 |
 |---|---|---|
 | 실행 중 | `ExecutionContext` (실행 엔진 §6.2) | `ExecutionContextService.createContext` 가 빈 thread (`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`) 로 초기화. 재시작·타 인스턴스 재개 시 `rehydrateContext` 는 이 thread 를 복원하지 못하므로(아래 park 스냅샷이 durable 복원원) thread 무손실 재개는 park 스냅샷에 의존한다 |
-| `waiting_for_input` park 진입 시 | PostgreSQL `Execution.conversation_thread jsonb NULL` | **durable resume 스냅샷**. 각 park (`waitForFormSubmission` / `waitForButtonInteraction` / `waitForAiConversation`) 직전 `context.conversationThread` 전체(`runningSummary`/`summarizedUpToSeq` 포함) 를 commit. rehydration (execution-engine §7.5) 이 이 컬럼에서 thread 를 무손실 복원 — derived-view 재구성에 의존하지 않는다 |
+| `waiting_for_input` park 진입 시 | PostgreSQL `Execution.conversation_thread jsonb NULL` | **durable resume 스냅샷**. 각 park (`waitForFormSubmission` / `waitForButtonInteraction` / `waitForAiConversation`) 직전 `context.conversationThread` 전체(`runningSummary`/`summarizedUpToSeq` 포함) 를 commit. rehydration (execution-engine §7.5) 이 이 컬럼에서 thread 를 무손실 복원 — derived-view 재구성에 의존하지 않는다. **소비처는 (a) rehydration(내부 무손실 재개), (b) SSE `waiting_for_input` emit, (c) `GET /api/external/executions/:id`(`getStatus`) REST 읽기 전용 — 세 곳이며, (b)·(c) 공개 표면은 `redactThreadForPublic` 로 egress 마스킹된다 (§8.4).** |
 | 실행 후 (이력 view) | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 **실행 이력 화면**의 SoT. 이 경로의 thread view 는 재구성 가능한 derived view (EH-DETAIL-12) — durable resume 스냅샷과 목적·소비처가 분리된다 |
 | WS payload | `EXECUTION_WAITING_FOR_INPUT` 의 `conversationThread` snapshot 동봉 (선택) | UI 가 라이브 thread 표시 가능 |
 
@@ -326,6 +327,8 @@ race-free.
 
 **storybook 도입 기각**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공한다. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요하지만 별도 인프라 의존이 크다 — §7 v2 로드맵의 "시각 회귀 인프라" 항목으로 이관.
 
+**적용 surface 범위**: §8.1 의 3중 신호 강제와 본 절의 UI 계약 SoT 격상은 모두 **에디터/콘솔 디버깅 surface** 를 대상으로 한 결정이다. 임베드형 채널 위젯은 §9.1/§9.2 를 따르지 않고 2-way 말풍선으로 축약하며(§9 서두 스코프 예외 blockquote · [7-channel-web-chat §2](../7-channel-web-chat/1-widget-app.md#2-화면-구조)), 이는 결정의 번복이 아니라 적용 범위 분리다 — §8.1 이 막으려던 "사용자 발화 오인" 위험은 위젯의 `presentation_user`·`ai_user`→user 매핑이 그대로 회피한다.
+
 ### 8.3 `system_error` source 신설
 
 **결정**: 멀티턴 AI Agent (또는 추후 다른 LLM 노드) 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인으로 표시되는 `system_error` source 를 신설. 시각·인터랙션·payload 단일 정의는 §1.1.1 / §1.2.1 / §9.1.
@@ -388,6 +391,8 @@ sequenceDiagram
 ## 9. 미리보기 UI 렌더 규칙
 
 Conversation Preview / history view 가 `conversationThread` snapshot 을 source 별로 렌더하는 강제 규약. `source` enum 1:1 시각 매핑(§9.1)·3중 구분 신호(§9.2)·데이터 소스 선택(§9.3)을 정의한다 (SoT 격상 근거 §8.2).
+
+> **스코프 예외 — 임베드형 채널 위젯**: 본 절의 강제 규약은 **에디터/콘솔의 디버깅 surface**(conversation Preview 탭·실행 트리 timeline·실행 이력 상세)를 대상으로 한다. 임베드 웹채팅 위젯([7-channel-web-chat §2](../7-channel-web-chat/1-widget-app.md#2-화면-구조))은 임베드 제약(호스트 페이지 안 좁은 패널·최종 사용자 대상)상 §9.1 의 source 별 시각 매핑과 §9.2 의 3중 구분 신호를 따르지 않고, `presentation_user`·`ai_user`→**user** / `ai_assistant`·`ai_tool`·`system`→**assistant** 의 **2-way 말풍선**으로 의도적 축약 렌더한다. (§9.1 표는 6행이지만 그중 `system_error` 는 frontend-합성 source 라(§1.1.1) 위젯 wire 에 애초 도달하지 않는다 — 위젯이 수신하는 도메인은 backend enum 5값뿐이다.) 단 §9.3(1차 소스 = `conversationThread.turns`)·§9.4(emit raw 노출 금지)·§9.5(LLM-facing 마커 strip)는 위젯에도 그대로 강제된다.
 
 ### 9.1 source 별 시각 매핑 (강제)
 
