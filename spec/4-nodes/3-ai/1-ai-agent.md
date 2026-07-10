@@ -16,7 +16,6 @@ code:
   - codebase/backend/src/shared/llm-tracing/llm-call-record.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
-  - plan/in-progress/exec-park-durable-resume.md
 ---
 
 # Spec: AI Agent
@@ -715,10 +714,10 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 > | 필드 | 생명주기 | 영속 | 소비 |
 > | --- | --- | --- | --- |
 > | `_resumeState` | **한 turn 처리 세그먼트 내부에서만 존재** — park(waiting_for_input)는 항상 코루틴/컨텍스트를 해제하므로(turn-단위 park, [실행 엔진 §1.3](../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status)) turn 사이 in-memory 유지 없음. DB 영속 시 `stripControlFields()` 가 **full state 는 무조건 제거** (credential / rawConfig / turn debug 포함 가능) | 비영속 (turn 세그먼트 한정) | 다음 turn 재개 시 §7.5 rehydration 이 `_resumeCheckpoint` 에서 재구성 → turn 처리 후 새 `_resumeCheckpoint` 로 갱신 영속 |
-> | `_resumeCheckpoint` (**ai_agent · information_extractor** — IE 는 `partialResult`/`collectionRetryCount` 추가, [실행 엔진 §1.3](../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status)) | waiting_for_input 진입·매 turn 영속 시점에 엔진이 `_resumeState` 의 **credential-strip 부분집합**을 운반. **`stripControlFields()` 가 보존** → DB 영속. `_retryState` 와 동일 masking 정책이되 **TTL(`expiresAt`) 없음**(대화는 장시간 후에도 재개 가능) · `lastUserMessage` 없음(재개 시 도착한 사용자 메시지를 그대로 처리) | `NodeExecution.outputData._resumeCheckpoint` (DB JSONB) | **매 turn 재개** 시 엔진이 로드 — 모든 turn 재개가 §7.5 rehydration 단일 경로(같은 인스턴스/재시작/타 인스턴스 동일) → `schemaVersion` 검사 → `node.config` 재평가로 context-binding 필드 재유도 → `_resumeState` 재구성(핵심 필드 누락 시 기본값 보강) → multi-turn loop 재진입. 부재/손상/미래 버전 시 graceful reset (§7.5 `RESUME_INCOMPATIBLE_STATE`) |
+> | `_resumeCheckpoint` (**ai_agent · information_extractor** — IE 는 `partialResult`/`collectionRetryCount` 추가, [실행 엔진 §1.3](../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status)) | waiting_for_input 진입·매 turn 영속 시점에 엔진이 `_resumeState` 의 **credential-strip 부분집합**을 운반. **`stripControlFields()` 가 보존** → DB 영속. `_retryState` 와 동일 masking 정책이되 **TTL(`expiresAt`) 없음**(대화는 장시간 후에도 재개 가능) · `lastUserMessage` 없음(재개 시 도착한 사용자 메시지를 그대로 처리) | `NodeExecution.outputData._resumeCheckpoint` (DB JSONB) | **매 turn 재개** 시 엔진이 로드 — 모든 turn 재개가 §7.5 rehydration 단일 경로(같은 인스턴스/재시작/타 인스턴스 동일) → `schemaVersion` 검사 → context-binding 필드 재유도(조작 필드=`node.config` 재평가 / 식별 필드 `workflowId`·`nodeExecutionId`·`workspaceId`=호출측 컨텍스트, [§1.3](../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status)) → `_resumeState` 재구성(핵심 필드 누락 시 기본값 보강) → multi-turn loop 재진입. 부재/손상/미래 버전 시 graceful reset (§7.5 `RESUME_INCOMPATIBLE_STATE`) |
 > | `_retryState` | retryable error 종결 시점에 `buildMultiTurnFinalOutput` 이 운반. **`stripControlFields()` 가 보존** → DB 영속 | `NodeExecution.outputData._retryState` (DB JSONB) | WS `execution.retry_last_turn` 명령이 `nodeExecutionId` 로 lookup → `expiresAt` 검증 → 새 NodeExecution row spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비 후 `RETRY_STATE_NOT_FOUND` 응답 |
 >
-> 세 필드 모두 credential / context-binding 필드(`llmConfigId` 가 가리키는 provider secret, `workspaceId` 등)는 미동봉이며 (`maskSensitiveFields` boundary strip), 재개 시 `node.config` 에서 재유도한다. `_resumeCheckpoint` 와 `_retryState` 는 **재구성 로직(`buildRetryReentryState`)을 공유**한다 — 차이는 trigger(restart-resume vs. retry 명령)와 lifecycle(상시 vs. error-once)뿐이다.
+> 세 필드 모두 credential / context-binding 필드(`llmConfigId` 가 가리키는 provider secret, `workspaceId` 등)는 미동봉이며 (`maskSensitiveFields` boundary strip), 재개 시 두 채널로 재유도된다 — 조작 필드(`llmConfigId`/`maxTurns` 등)는 `node.config` 재평가로, 식별 필드(`workflowId`/`nodeExecutionId`/`workspaceId`)는 호출측 컨텍스트에서 (2 채널 상세·usage-log attribution 불변식은 [실행 엔진 §1.3](../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status)). `_resumeCheckpoint` 와 `_retryState` 는 **재구성 로직(`buildRetryReentryState`)을 공유**한다 — 차이는 trigger(restart-resume vs. retry 명령)와 lifecycle(상시 vs. error-once)뿐이다.
 >
 > 세 필드의 SoT 는 [CONVENTIONS node-output Principle 4.2 / 4.2.1](../../conventions/node-output.md#42-폐기할-필드--구조) + [Spec 실행 엔진 §1.3](../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status).
 
