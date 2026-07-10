@@ -35,4 +35,8 @@ AI Agent MCP bridge 가 통합을 skip(미연결 통합 tool 미노출) → 새 
 ## 워크플로
 
 - [x] TEST WORKFLOW — lint[x]·unit[x]·build[x]·e2e[x](249) (초회 + fix 후 재통과)
-- [~] REVIEW WORKFLOW — /ai-review(LOW·C0·W3)·impl-done(BLOCK:NO·W2) → WARNING 조치(톤 escalation·Inline Alert 등재·CHANGELOG·user-guide·role=status) + RESOLUTION.md. wiring 스모크 테스트 1건 defer(근거). fresh 재검토 대기
+- [x] REVIEW WORKFLOW — /ai-review·impl-done 초회 WARNING 전량 조치(톤 escalation·Inline Alert 등재·CHANGELOG·user-guide·role=status) + RESOLUTION.md → **fresh 재검토 C0/W0·BLOCK:NO**(journal 회수 확인). wiring 테스트 defer(근거), 잔여 pre-existing 문서 stale 은 planner 후속 `task_6f46d7eb`
+
+## 외부 follow-up (본 PR 스코프 밖)
+
+- `task_6f46d7eb` — pre-existing 문서 stale: `INTEGRATION_NOT_CONNECTED` vs `INTEGRATION_INCOMPLETE`(§6·0-common §4.2). 신규 §4.6 은 정확, planner doc-only 정정.
