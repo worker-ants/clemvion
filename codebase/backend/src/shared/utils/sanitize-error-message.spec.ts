@@ -73,6 +73,14 @@ describe('redactSecrets (mask-only)', () => {
     expect(redactSecrets('amqp://guest:s3cr3t@mq')).toContain('amqp://***@mq');
   });
 
+  it('masks a password containing an embedded colon (whole credential → ***)', () => {
+    // Password segment allows ':' (bounded by the `@` lookahead), so the full
+    // `user:pa:ss` credential is masked rather than leaving a tail exposed.
+    const out = redactSecrets('https://admin:pa:ss@host/x');
+    expect(out).not.toContain('pa:ss');
+    expect(out).toContain('https://***@host/x');
+  });
+
   it('masks an alg=none JWT (empty/absent signature segment)', () => {
     const jwt = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTEyMyJ9.';
     const out = redactSecrets(`token=${jwt} rejected`);

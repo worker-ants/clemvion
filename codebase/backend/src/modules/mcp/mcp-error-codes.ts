@@ -60,10 +60,10 @@ const MCP_EXTRA_SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
  * user-visible node meta. Defense-in-depth — no known leak path, but the sink
  * is now user-facing (spec-sync mcp-client follow-up, task_fa96e218).
  *
- * **재사용**: bearer 토큰·`Authorization` 헤더·labelled secret(`client_secret`/
- * `access_token`/`api_key`/`password`/…) 는 공용 {@link SECRET_LEAK_PATTERNS}
- * (여러 모듈이 이미 소비하는 SoT)를 그대로 적용하고, 위 {@link MCP_EXTRA_SECRET_PATTERNS}
- * (URL userinfo·bare token)만 MCP 전용으로 얹는다. cap 은 `sanitizeMcpErrorMessage`
+ * **재사용**: bearer 토큰·`Authorization` 헤더·URL userinfo(`scheme://***@host`)·bare JWT·
+ * labelled secret(`client_secret`/`access_token`/`api_key`/`password`/…) 는 공용
+ * {@link SECRET_LEAK_PATTERNS}(여러 모듈이 이미 소비하는 SoT)를 그대로 적용하고, 위
+ * {@link MCP_EXTRA_SECRET_PATTERNS}(bare `token=`)만 MCP 전용으로 얹는다. cap 은 `sanitizeMcpErrorMessage`
  * 가 §8.2 의 2048(공용 200 과 별개 — MCP 서버 에러가 더 길 수 있음)로 적용한다.
  */
 export function redactMcpSecrets(msg: string): string {
