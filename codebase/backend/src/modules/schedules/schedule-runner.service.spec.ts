@@ -300,6 +300,34 @@ describe('ScheduleRunnerService', () => {
       );
     });
 
+    it('schedule_failed 알림 message 의 secret 토큰은 마스킹 (EIA §R17 — 이메일 누출 차단)', async () => {
+      scheduleRepo.findOne.mockResolvedValue(baseSchedule);
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockRejectedValue(
+        new Error('upstream 401 Authorization: Bearer sk-live-SCHED-LEAK'),
+      );
+      workflowRepo.findOne.mockResolvedValue({
+        id: 'wf1',
+        name: 'W',
+        createdBy: 'owner-1',
+      } as unknown as Workflow);
+
+      await expect(service.process(job)).rejects.toThrow();
+
+      const call = notifications.notify.mock.calls.find(
+        (c) => (c[0] as { type?: string })?.type === 'schedule_failed',
+      );
+      const msg = (call?.[0] as { message: string }).message;
+      expect(msg).not.toContain('sk-live-SCHED-LEAK');
+      expect(msg).toContain('***');
+    });
+
     it('scheduleFailedEmail=off(opt-out) 인 owner 는 channel 인앱만', async () => {
       scheduleRepo.findOne.mockResolvedValue(baseSchedule);
       nodeRepo.findOne.mockResolvedValue({
