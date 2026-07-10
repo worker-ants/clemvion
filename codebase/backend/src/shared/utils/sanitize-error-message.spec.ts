@@ -71,11 +71,27 @@ describe('redactSecrets (mask-only)', () => {
     expect(redactSecrets('amqp://guest:s3cr3t@mq')).not.toContain('s3cr3t');
   });
 
+  it('masks an alg=none JWT (empty/absent signature segment)', () => {
+    const jwt = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTEyMyJ9.';
+    const out = redactSecrets(`token=${jwt} rejected`);
+    expect(out).not.toContain('eyJzdWIiOiJ1c2VyLTEyMyJ9');
+    expect(out).toContain('***');
+  });
+
+  it('masks userinfo before an IPv6 host', () => {
+    const out = redactSecrets('https://admin:s3cret@[::1]:8080/x');
+    expect(out).not.toContain('s3cret');
+    expect(out).not.toContain('admin:');
+    expect(out).toContain('[::1]:8080/x'); // host survives
+  });
+
   it.each([
     'the eyeball tracker eyJustKidding word', // `ey`-word, not a JWT triple
     'visit https://example.com/eyJ-looks-like for docs', // URL, no userinfo
     'ratio was 3:4 at scale', // colon in prose
     'see http://localhost:3000/health', // host:port, no userinfo `user:pass@`
+    'ipv6 endpoint https://[::1]:8080/health up', // IPv6 host, no userinfo
+    'clone git@github.com:org/repo.git done', // SSH shorthand (no `://`)
   ])('does not false-positive on %s', (clean) => {
     expect(redactSecrets(clean)).toBe(clean);
   });
