@@ -54,6 +54,7 @@ import type { ContinuationPayload } from './queues/continuation-execution.queue'
 import {
   coalesceInteractionType,
   isCommandAllowedOnSurface,
+  readPersistedInteractionType,
   resolveWaitingSurface,
   type WaitingSurfaceCommand,
 } from './waiting-surface-guard';
@@ -106,7 +107,6 @@ import {
   coerceErrorPolicy,
 } from './utils/coerce-container-param';
 import { extractBackgroundRunId } from './utils/extract-background-run-id';
-import { toRecord } from './utils/to-record';
 import type { ResumeCheckpoint } from './utils/resume-state.schema';
 import {
   ExecutionContext,
@@ -1711,14 +1711,13 @@ export class ExecutionEngineService
     opts: { node: Node; nodeExec: NodeExecution; payload: unknown },
   ): Promise<void> {
     // Persisted interaction type — meta.interactionType (preferred) or top-level
-    // (legacy / blocking ai_form_render path).
+    // (legacy / blocking ai_form_render path). 판정 규칙 SoT 는
+    // `readPersistedInteractionType`(= `coalesceInteractionType`) 한 곳 — publisher
+    // 표면 가드와 동일 규칙(meta 우선·string-guard)을 재개 경로도 공유한다.
     const cachedOutput = context.nodeOutputCache[opts.node.id] as
       | Record<string, unknown>
       | undefined;
-    const cachedMeta = toRecord(cachedOutput?.meta);
-    const persistedInteractionType =
-      (cachedMeta.interactionType as string | undefined) ??
-      (cachedOutput?.interactionType as string | undefined);
+    const persistedInteractionType = readPersistedInteractionType(cachedOutput);
 
     // Multi-turn AI 재개 (§7.5) — `_resumeCheckpoint` (credential-strip 부분집합)
     // 가 DB 영속돼 있으면 `node.config` 재평가로 `_resumeState` 를 재구성해 재개한다
