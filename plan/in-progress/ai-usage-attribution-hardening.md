@@ -40,17 +40,19 @@ PR #879 의 최종 /ai-review INFO 후속 (PR-1/3):
       채우는지 실값 왕복 검증 (`ai-turn-executor.ts:2298~2302` 조립 — IE nodeId↔nodeExecutionId 동일
       클래스 회귀 방지). manager 레이어 forwarding 테스트(`ai-memory-manager.spec`)는 주석 정정(INFO#3).
 
-## TEST WORKFLOW
+## TEST WORKFLOW (최종 `0fa772406` 전수 재수행 — stop-hook 요구 반영)
 
-- [x] lint PASS
-- [x] backend jest 전수 PASS (399 suites / 7927 tests) + 영향 3 spec 108
-- [x] backend build(tsc) 0 errors (B1 타입 검증)
-- [x] e2e PASS (247, dockerized)
-- [!] **frontend vitest/build**: fresh-worktree `@workflow/expression-engine` **stale dist**
-      부트스트랩 이슈로 실패(frontend node_modules 를 main 심링크 → main 은 #878/#880 이전
-      커밋이라 expression-engine dist 가 origin/main frontend 소스와 불일치). **본 diff 는
-      backend 4파일 전용·frontend 0파일**이라 provably 무관. 전량 frontend 부트스트랩(node_modules
-      복사 + 워크트리 패키지 빌드)은 backend-only PR 에 비례하지 않아 미수행.
+- [x] lint PASS (backend + frontend, 36s)
+- [x] build PASS (backend + frontend, tsc — 100s; **frontend 빌드도 통과**)
+- [x] unit: **backend 400 suites 전량 PASS**. `ai-agent.memory.spec`(resume-path 신규 포함) 등 영향 spec 그린.
+- [x] e2e PASS (249, dockerized, 156s)
+- [!] **unit 중 frontend vitest 만 실패** — fresh-worktree **React 중복 해소** 이슈(`Cannot read
+      properties of null (reading 'useCallback')`): 루트 hoisted `react` 와 심링크된 `codebase/frontend/
+      node_modules` 의 react/react-dom 이 vitest 리졸버에서 2개 인스턴스로 갈라져 dispatcher=null.
+      실패 스펙(LocaleSync·auth-provider·providers·model-config)은 전부 **AI 노드와 무관**하고 **본 diff =
+      frontend 0파일**이라 provably 무관. 같은 코드가 frontend **build·lint 는 통과** = 코드 결함 아님(vitest
+      리졸버 한정 env). 루트 node_modules 전량 dedup 부트스트랩(1.3G)은 backend-only PR 에 비례하지 않아
+      미수행. → 진단 완료(단정 아님). 참조: [[reference_worktree_node_modules_bootstrap]].
 
 ## SPEC-DRIFT (본 PR 에서 해소 — 최종 consistency CRITICAL 반영)
 
