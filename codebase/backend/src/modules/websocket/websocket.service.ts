@@ -329,8 +329,16 @@ function stripExternalOnlyFields(
 }
 
 /**
- * Knowledge Base 도메인 이벤트 — frontend `useKbEvents` 가 구독하는 12개 이벤트.
- * 채널 명명규약: `kb:${documentId}`. (execution: 채널과 구분)
+ * Knowledge Base 도메인 이벤트 — KB 이벤트의 **권위 정의**. frontend `useKbEvents`
+ * (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다. 채널 명명규약: `kb:${documentId}`.
+ * (execution: 채널과 구분)
+ *
+ * 총 11종 = embedding 6 + graph 5:
+ * - `document:embedding_error` 는 선언돼 있으나 현재 emit 경로가 없다 — 일시 오류는
+ *   `embedding_status='error'` 전환과 함께 `_retry` 로 통지한다 (data-flow §2.5). union
+ *   멤버로 남겨 forward-compat 을 확보한다.
+ * - graph 에는 대응하는 `document:graph_error` 가 없다 — emit 경로가 없어 #443 에서 union
+ *   에서 제거했다. graph 의 일시 오류도 `_retry`, 최종 실패는 `_failed` 로만 신호한다.
  */
 export type KbEventType =
   | 'document:embedding_started'

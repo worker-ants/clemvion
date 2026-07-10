@@ -719,7 +719,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 ### 4.3 KB 문서 이벤트 (Server → Client)
 
-채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `WebsocketService.emitKbEvent` 의 `KbEventType` union (12개).
+채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `WebsocketService` 의 `KbEventType` union (11개 = embedding 6 + graph 5). frontend `useKbEvents` (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다.
 
 **임베딩 이벤트 (6개):**
 
@@ -728,15 +728,15 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `document:embedding_started` | `{ documentId, knowledgeBaseId }` | processing 시작 |
 | `document:embedding_progress` | `{ documentId, progress: number }` | 청크 배치 완료마다 (0~100) |
 | `document:embedding_completed` | `{ documentId, chunkCount }` | 완료 |
-| `document:embedding_error` | `{ documentId, error: string }` | in-flight 일시 오류 — `_retry` 또는 `_failed` 가 곧 따라온다. 영구 실패 신호로 사용하지 말 것 |
+| `document:embedding_error` | `{ documentId, error: string }` | union 에 **선언돼 있으나 현재 emit 경로 없음** — 일시 오류는 `embedding_status='error'` 전환과 함께 `_retry` 로 통지된다 (data-flow §2.5). union 멤버로 남겨 forward-compat 확보. 영구 실패 신호로 사용하지 말 것 |
 | `document:embedding_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
 | `document:embedding_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 
-**그래프 추출 이벤트 (6개):** `rag_mode = 'graph'` KB 문서에 대해 동일 채널로 추가 emit.
+**그래프 추출 이벤트 (5개):** `rag_mode = 'graph'` KB 문서에 대해 동일 채널로 추가 emit.
 
 | 이벤트 type | 설명 |
 |-------------|------|
-| `document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed` | 임베딩 이벤트와 1:1 대응. payload 상세는 [`spec/5-system/10-graph-rag.md §6`](./10-graph-rag.md) 참조 |
+| `document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed` | 임베딩과 달리 `_error` 이벤트가 없다 (emit 경로가 없어 #443 에서 union 제거 — 일시 오류는 `_retry`, 최종 실패는 `_failed`). payload 상세는 [`spec/5-system/10-graph-rag.md §6`](./10-graph-rag.md) 참조 |
 
 상태 전이 및 의미는 [`spec/5-system/8-embedding-pipeline.md §9.2`](./8-embedding-pipeline.md#92-상태-전이) 와 직접 대응된다.
 
