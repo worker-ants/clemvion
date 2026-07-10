@@ -6,12 +6,12 @@ Critical 0 / Warning 5. Warning 5건 **전부 수정**(defer 없음). 수동 처
 
 | SUMMARY # | 검출 reviewer | 내용 | 조치 | commit |
 | --- | --- | --- | --- | --- |
-| W1 | documentation | `responses.dto.ts` 의 spec 상대링크 4곳이 5단계(`../`×5)라 `codebase/spec/...` 로 깨짐. 루트까지는 6단계 | 4곳 `../`×6 으로 정정. `os.path.exists` 로 4/4 EXISTS 재검증 | `d47e0d4d5` |
-| W2 | maintainability | `WaitingContextBaseDto`(abstract·비-export) vs `WaitingContextBase`(export type) 근접 동명 쌍. 후자가 부모 대신 **형제** `NodeOutputContextDto` 에서 `Pick` — variant 가 필드를 override 하면 조용히 어긋남 | `WaitingContextBaseDto` 를 export 하고 `WaitingContextBase` alias **삭제**. 서비스는 base 클래스로 직접 annotate. export 사유(spread widening)를 클래스 JSDoc 에 명시 | `d47e0d4d5` |
-| W3 | testing | `expect(context.type).not.toBe('object')` — 어떤 값이든 통과하는 약한 negative assertion | `toBeUndefined()` 로 강화 | `d47e0d4d5` |
-| W4 | testing | `currentNode.allOf ?? [{ $ref: currentNode.$ref }]` — `??` 우측이 영구 도달 불가(죽은 분기) | 실측 확정 shape(`allOf`)을 직접 단언 | `d47e0d4d5` |
-| W5(a) | testing | 신규 `conversationThread` 부재 테스트가 기존 테스트와 실질 중복(동일 fixture `ai_conversation`+`null` thread) | 미커버 조합인 **`buttons` variant + thread 부재**로 교체 | `d47e0d4d5` |
-| W5(b) | testing | 본 PR 핵심 대상인 `buttons`/`buttonConfig` variant 의 **e2e 커버리지 전무**(`ai_conversation` 만 존재) | `external-interaction.e2e-spec.ts` 에 `I-2` 신규 — 실 HTTP+DB round-trip 으로 buttonConfig variant 선택·`nodeOutput` 키 부재·`conversationThread` 키 생략·형제 `null` 공존을 함께 검증 | `d47e0d4d5` |
+| W1 | documentation | `responses.dto.ts` 의 spec 상대링크 4곳이 5단계(`../`×5)라 `codebase/spec/...` 로 깨짐. 루트까지는 6단계 | 4곳 `../`×6 으로 정정. `os.path.exists` 로 4/4 EXISTS 재검증 | `efc9e791e` |
+| W2 | maintainability | `WaitingContextBaseDto`(abstract·비-export) vs `WaitingContextBase`(export type) 근접 동명 쌍. 후자가 부모 대신 **형제** `NodeOutputContextDto` 에서 `Pick` — variant 가 필드를 override 하면 조용히 어긋남 | `WaitingContextBaseDto` 를 export 하고 `WaitingContextBase` alias **삭제**. 서비스는 base 클래스로 직접 annotate. export 사유(spread widening)를 클래스 JSDoc 에 명시 | `efc9e791e` |
+| W3 | testing | `expect(context.type).not.toBe('object')` — 어떤 값이든 통과하는 약한 negative assertion | `toBeUndefined()` 로 강화 | `efc9e791e` |
+| W4 | testing | `currentNode.allOf ?? [{ $ref: currentNode.$ref }]` — `??` 우측이 영구 도달 불가(죽은 분기) | 실측 확정 shape(`allOf`)을 직접 단언 | `efc9e791e` |
+| W5(a) | testing | 신규 `conversationThread` 부재 테스트가 기존 테스트와 실질 중복(동일 fixture `ai_conversation`+`null` thread) | 미커버 조합인 **`buttons` variant + thread 부재**로 교체 | `efc9e791e` |
+| W5(b) | testing | 본 PR 핵심 대상인 `buttons`/`buttonConfig` variant 의 **e2e 커버리지 전무**(`ai_conversation` 만 존재) | `external-interaction.e2e-spec.ts` 에 `I-2` 신규 — 실 HTTP+DB round-trip 으로 buttonConfig variant 선택·`nodeOutput` 키 부재·`conversationThread` 키 생략·형제 `null` 공존을 함께 검증 | `efc9e791e` |
 
 ### 미조치 (INFO, 근거)
 
