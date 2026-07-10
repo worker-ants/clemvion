@@ -91,13 +91,15 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
   it('context 는 additionalProperties 로 뭉개지지 않는다 (회귀 가드)', () => {
     const context = executionStatus.properties?.context as SchemaObject;
     expect(context.additionalProperties).toBeUndefined();
-    expect(context.type).not.toBe('object');
+    // 열린 map 이면 `type: 'object'` 가 붙는다. oneOf 스키마에는 type 이 없다.
+    expect(context.type).toBeUndefined();
   });
 
   it('currentNode 는 CurrentNodeDto 를 $ref 하고 nullable 이다', () => {
     const currentNode = executionStatus.properties?.currentNode as SchemaObject;
     expect(currentNode.nullable).toBe(true);
-    expect(currentNode.allOf ?? [{ $ref: currentNode.$ref }]).toEqual([
+    // @nestjs/swagger 는 description 이 동반된 $ref 를 allOf 로 wrap 한다.
+    expect(currentNode.allOf).toEqual([
       { $ref: getSchemaPath(CurrentNodeDto) },
     ]);
   });

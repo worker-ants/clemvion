@@ -408,6 +408,61 @@ describe('External Interaction API (e2e)', () => {
     expect(wire).toContain('msg');
   }, 30_000);
 
+  it('I-2. getStatus wire — buttons 노드는 buttonConfig variant, thread 부재 시 키 생략 (EIA §5.3 / API 규약 §5.4)', async () => {
+    // context 는 판별자 없는 닫힌 2-variant union 이다. 실 HTTP + DB round-trip 으로
+    // (a) buttons + buttonConfig → buttonConfig variant 가 선택되고 nodeOutput 키가 없는지,
+    // (b) durable thread 가 없으면 conversationThread 가 `null` 이 아니라 **키 자체 부재**인지 확인.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const nodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'carousel', 'presentation', 'Carousel', $3, 0, 0, NOW(), NOW())`,
+      [nodeId, workflowId, JSON.stringify({})],
+    );
+    const executionId = randomUUID();
+    // conversation_thread 컬럼을 채우지 않는다 (durable park 이력 없음).
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionId, workflowId],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, output_data, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', $4, NOW())`,
+      [
+        randomUUID(),
+        executionId,
+        nodeId,
+        JSON.stringify({
+          meta: { interactionType: 'buttons' },
+          config: { buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] } },
+        }),
+      ],
+    );
+
+    const token = mintInteractionToken(executionId);
+    const res = await request(BASE_URL)
+      .get(`/api/external/executions/${executionId}`)
+      .set('x-forwarded-for', nextE2eClientIp())
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const context = res.body.data.context;
+    // (a) buttonConfig variant — nodeOutput 키는 실리지 않는다.
+    expect(context.interactionType).toBe('buttons');
+    expect(context.waitingNodeId).toBe(nodeId);
+    expect(context.buttonConfig.buttons).toEqual([{ id: 'b1', label: '문의' }]);
+    expect(Object.keys(context)).not.toContain('nodeOutput');
+    // (b) 키 생략 — `null` 이 아니라 부재.
+    expect(Object.keys(context)).not.toContain('conversationThread');
+    // 형제 필드는 `null` 관례 (부재 표현 2종이 한 응답에 공존).
+    expect(res.body.data.result).toBeNull();
+    expect(res.body.data.error).toBeNull();
+    expect(res.body.data.currentNode.interactionType).toBe('buttons');
+  }, 30_000);
+
   it('J. getStatus wire — terminal result(COMPLETED) outputData 의 secret 도 마스킹 (EIA §R17)', async () => {
     // 헤드라인 변경분: COMPLETED result 의 outputData 가 실 DB round-trip 으로도 마스킹되는지.
     const { workflowId } = await createTriggerWithInteraction(db, {

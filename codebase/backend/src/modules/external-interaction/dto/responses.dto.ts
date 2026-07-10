@@ -80,9 +80,15 @@ export class CurrentNodeDto {
  *
  * 봉투만 스키마화하고 내부 payload 는 열린 map 으로 남긴다 — 노드 타입별 자유 형식이라
  * 클래스로 고정하면 노드 output 규약(`spec/conventions/node-output.md`)과 SoT 가 이중화된다.
- * [Swagger 규약 §1-4](../../../../../spec/conventions/swagger.md).
+ * [Swagger 규약 §1-4](../../../../../../spec/conventions/swagger.md).
+ *
+ * `abstract` 이지만 export 한다 — `getStatus` 조립부가 분기 전 공통 필드를 선조립할 때 이 타입으로
+ * **명시 annotate** 해야 하기 때문이다. object spread 는 fresh literal 타입을 넓히므로
+ * (`interactionType` 이 `string` 이 된다) annotation 없이는 두 variant 에 assignable 하지 않다.
+ * 구조적 타이핑이라 객체 리터럴 대입에 `new` 는 불필요하고, `@ApiExtraModels` 에 등록하지 않으므로
+ * OpenAPI 에 phantom 스키마가 생기지도 않는다.
  */
-abstract class WaitingContextBaseDto {
+export abstract class WaitingContextBaseDto {
   /** 현재 대기 중인 인터랙션 종류. **variant 판별자가 아니다** (아래 `ExecutionStatusDto.context` 주석 참조). */
   @ApiProperty({ enum: ['form', 'buttons', 'ai_conversation'] })
   interactionType: 'form' | 'buttons' | 'ai_conversation';
@@ -93,11 +99,11 @@ abstract class WaitingContextBaseDto {
 
   /**
    * 대화 히스토리 durable 스냅샷. 형태 SoT 는
-   * [conversation-thread §1.3](../../../../../spec/conventions/conversation-thread.md).
+   * [conversation-thread §1.3](../../../../../../spec/conventions/conversation-thread.md).
    *
    * **부재 시 키 자체를 생략**한다(present-when-available) — 형제 `result`/`error` 의 `null` 관례와 다르며,
    * SSE `waiting_for_input` wire 와 형식을 일치시키기 위함이다. 따라서 `| null` 을 쓰지 않는다.
-   * [API 규약 §5.4](../../../../../spec/5-system/2-api-convention.md).
+   * [API 규약 §5.4](../../../../../../spec/5-system/2-api-convention.md).
    */
   @ApiPropertyOptional({
     description:
@@ -135,18 +141,6 @@ export class NodeOutputContextDto extends WaitingContextBaseDto {
   })
   nodeOutput: Record<string, unknown>;
 }
-
-/**
- * 두 variant 의 공통 봉투 필드. `getStatus` 조립부가 분기 전 선조립하는 부분의 타입.
- *
- * 조립부는 이 타입으로 **명시 annotate** 해야 한다 — object spread 가 fresh literal 타입을
- * 넓히기 때문에(`interactionType` 이 `string` 으로 widening) annotation 없이는 variant DTO 에
- * assignable 하지 않다.
- */
-export type WaitingContextBase = Pick<
-  NodeOutputContextDto,
-  'interactionType' | 'waitingNodeId' | 'conversationThread'
->;
 
 /**
  * `GET /api/external/executions/:id` 단발 상태 조회 응답. [Spec EIA §5.3].
@@ -194,7 +188,7 @@ export class ExecutionStatusDto {
    *
    * 판별자 없는 `oneOf` — `discriminator` 를 선언하면 SDK 생성기가 `buttons` 를 항상
    * `ButtonsContextDto` 로 narrowing 해 fallthrough 케이스에서 런타임 `undefined` 접근이 된다.
-   * [Swagger 규약 §1-4](../../../../../spec/conventions/swagger.md).
+   * [Swagger 규약 §1-4](../../../../../../spec/conventions/swagger.md).
    */
   @ApiPropertyOptional({
     description:

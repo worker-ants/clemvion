@@ -31,7 +31,7 @@ import {
   ExecutionStatusDto,
   InteractAckDto,
   RefreshTokenResponseDto,
-  type WaitingContextBase,
+  type WaitingContextBaseDto,
 } from './dto/responses.dto';
 import {
   ExternalInteractionRequestContext,
@@ -344,7 +344,8 @@ export class InteractionService {
           // 공통 필드 선조립 — interactionType/waitingNodeId + (durable) conversationThread top-level.
           // conversationThread 는 값이 있을 때만 키를 얹는다 (present-when-available, API 규약 §5.4).
           // 명시 annotate 필수 — spread 가 interactionType 리터럴을 string 으로 넓힌다.
-          const base: WaitingContextBase = {
+          // (지우면 아래 context 대입이 컴파일 에러로 드러난다.)
+          const base: WaitingContextBaseDto = {
             interactionType,
             waitingNodeId: nodeExec.nodeId,
             ...(conversationThread ? { conversationThread } : {}),

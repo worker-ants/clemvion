@@ -547,7 +547,9 @@ describe('InteractionService.getStatus', () => {
   });
 
   // API 규약 §5.4 — conversationThread 는 present-when-available(키 생략), 형제는 null.
-  it('waiting_for_input — durable thread 부재 시 conversationThread 키 자체를 생략한다 (null 아님)', async () => {
+  // ai_conversation + thread 부재는 아래 별 테스트가 이미 커버하므로, 여기서는 미커버 조합인
+  // buttons variant + thread 부재를 검증한다 (버튼 노드도 durable thread 없이 대기할 수 있다).
+  it('waiting_for_input(buttons) — durable thread 부재 시 conversationThread 키 자체를 생략 (null 아님)', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(
       makeExecution({
@@ -557,11 +559,15 @@ describe('InteractionService.getStatus', () => {
     );
     nodeRepo.findOne.mockResolvedValue({
       nodeId: 'n1',
-      node: { type: 'ai_agent' },
-      outputData: { meta: { interactionType: 'ai_conversation' } },
+      node: { type: 'Carousel' },
+      outputData: {
+        meta: { interactionType: 'buttons' },
+        config: { buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] } },
+      },
     });
     const r = await service.getStatus(IEXT_CTX);
     const ctx = r.context as Record<string, unknown>;
+    expect('buttonConfig' in ctx).toBe(true);
     expect(Object.keys(ctx)).not.toContain('conversationThread');
     expect(ctx.conversationThread).toBeUndefined();
   });

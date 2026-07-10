@@ -174,9 +174,12 @@ cross-ref:
   - [x] `responses.dto.ts` stale JSDoc 정정 (unsound discriminator 가정 제거)
   - [x] `eia-types.ts` `currentNode` 타입 드리프트 정정 (`string|null` → 객체)
   - [x] `interaction.service.ts` — `base` 에 `WaitingContextBase` 명시 annotate (object spread 가 literal 을 widening). **런타임 wire 무변경**
-- [x] 테스트: `responses.dto.spec.ts` 신규 14건(실 OpenAPI 문서 생성 검증 — dangling `$ref` 포착) + `interaction.service.spec.ts` 2건(buttons fallthrough · conversationThread 키 생략)
-- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS · e2e PASS (249)
-- [ ] `/ai-review` + Critical/Warning 0
+- [x] 테스트: `responses.dto.spec.ts` 신규 15건(실 OpenAPI 문서 생성 검증 — dangling `$ref` 포착. pre-change DTO 스왑 시 13건 FAIL 함을 리뷰어가 실측) + `interaction.service.spec.ts` 2건(buttons fallthrough · buttons+thread 부재 키 생략) + `external-interaction.e2e-spec.ts` `I-2` 1건(실 wire buttonConfig variant)
+- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS · e2e PASS (250)
+- [x] `/ai-review` (9 reviewer) — **Critical 0 / Warning 5**, 위험도 LOW. 세션 `review/code/2026/07/10/23_20_33/`
+- [x] Warning 5건 전부 fix + `RESOLUTION.md` (defer 0건) — 링크 off-by-one · `WaitingContextBase` 명명 · 약한 assertion 2건 · 테스트 중복/e2e 갭
+- [x] fix 후 TEST WORKFLOW 재통과 (e2e 250)
+- [x] `origin/main` rebase (PR #899 선병합 — 충돌 없음)
 - [ ] `/consistency-check --impl-done`
 
 ## 후속 (본 PR 밖)
