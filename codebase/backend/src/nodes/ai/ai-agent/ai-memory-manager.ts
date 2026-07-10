@@ -1,6 +1,9 @@
 import { Logger } from '@nestjs/common';
 import type { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
-import type { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
+import type {
+  LlmService,
+  LlmCallContext,
+} from '../../../modules/llm/llm.service';
 import {
   DEFAULT_MEMORY_TOKEN_BUDGET,
   DEFAULT_MEMORY_TOP_K,

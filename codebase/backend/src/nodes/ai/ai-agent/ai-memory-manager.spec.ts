@@ -321,7 +321,11 @@ describe('AiMemoryManager', () => {
         text: big,
         nodeLabel: 'Prev',
       }));
-      const mgr = new AiMemoryManager(llm, threadFake(turns, turns), agentMemFake());
+      const mgr = new AiMemoryManager(
+        llm,
+        threadFake(turns, turns),
+        agentMemFake(),
+      );
       const llmContext = {
         workflowId: 'wf-x',
         executionId: 'exec-x',
