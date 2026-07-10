@@ -53,8 +53,9 @@ failure_reason 제외).
   `1-auth.md §2.3` 에 재인증 에러 코드 note + Rationale §2.3.D 문서화 → `§1.2.1` 등재.
   **status 정정**(당초 오기): `REAUTH_REQUIRED`=**400**(BadRequest)·`PASSWORD_INVALID`=**401**(Unauthorized)·
   `TOTP_INVALID`=**401**. 동시에 §2.3 "WebAuthn/이메일 OTP 대체" drift 도 password OR TOTP 로 정정.
-- [ ] `NOT_A_MEMBER`(403, workspace switch)·`INVALID_PASSWORD`(change-password) 도 §1 미등재 —
-  동일 완결성 pass 에서 흡수. (이번 PR 은 spec 에 이미 문서화된 8코드만 등재 — dangling SoT 방지.)
+- [x] `NOT_A_MEMBER`(403)·`INVALID_PASSWORD`(401)·`PASSWORD_REQUIRED`(401, §1.2.1 각주 원출처)도 §1 등재 —
+  **해소**(PR catalog-residual-codes, 2026-07-10). `NOT_A_MEMBER`·`INVALID_PASSWORD`→§1.2, `PASSWORD_REQUIRED`→§1.2.1(형제 `PASSWORD_INVALID` 옆). 각 코드 본문 문서화(§5 note·§2.3 note) 선행으로 dangling SoT 방지 게이트 충족.
+  (이 plan 자신의 complete 이동은 별개 — 설계 리스트 L27/L29 stale 미체크 + `spec_impact` frontmatter 부재는 #882 구조 정리 몫.)
 
 ## 비고
 - 순수 spec 문서 정합(카탈로그 가시성). 코드·런타임·API 동작 무변경.
