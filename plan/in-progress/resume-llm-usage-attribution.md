@@ -58,16 +58,20 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 > plan_coherence WARNING 반영). 원 draft: backup 브랜치 `backup-pre-rebase-elastic-shannon`
 > 커밋 `7a270a923` 의 `plan/in-progress/spec-update-7-llm-usage.md` (로컬 전용, 미푸시).
 
-- [ ] `spec/data-flow/6-knowledge-base.md:348` · `spec/data-flow/13-agent-memory.md:231` —
-      "모든 LLM 호출은 `llm_usage_log` 적재" stale 문구를 "chat 계열만 적재 / embed 계열 미적재
-      (§1.3)" 로 정정 (두 파일 동일 문구, 이번 PR §1.3 확정과 상충).
-- [ ] `spec/data-flow/7-statistics.md` §3 · `spec/2-navigation/9-user-profile.md` §6.3 —
-      `workflowId` 스코프 계약의 attribution 갭 캐비어트 재검토(노드 발까지 채워져 갭 축소).
-- [ ] `spec/1-data-model.md` — `LlmUsageLog` 전용 서브섹션 신설 검토 (자매 로그 `IntegrationUsageLog`
-      §2.10.1 은 보유).
-- [ ] `spec/5-system/4-execution-engine.md` §7.4 재구성 설명 + `spec/4-nodes/3-ai/1-ai-agent.md` §7.4 —
-      credential/context-binding 2분류 서술에 3번째 "턴 가변 식별자(`nodeExecutionId`, caller opts
-      전달, node.config 재유도 불가)" 문구 추가 (consistency rationale_continuity WARNING 반영).
+> **A1~A4 처분(PR-2 `spec-llm-usage-adjacent-docs`, 2026-07-11)**: 별도 project-planner 트랙에서
+> 처리. 착수 시점 origin/main(`ab5abc1a6`) 대조로 A2/A4 는 #877/#879/#900 이 이미 해소했음이 확인돼
+> **genuine = A1+A3**. 상세: 그 plan.
+
+- [x] **(A1, PR-2 완료)** `spec/data-flow/6-knowledge-base.md:348` · `spec/data-flow/13-agent-memory.md:231` —
+      "모든 LLM 호출은 `llm_usage_log` 적재" → "chat 계열만 적재 (embed 계열 미적재) — §1.3" 정정.
+- [x] **(A2, PR-2 검증=no-op)** `spec/2-navigation/7-statistics.md` §2.5 · `spec/2-navigation/9-user-profile.md`
+      §6.3 — attribution 갭 stale 캐비어트가 **존재하지 않음**(권위 서술은 `7-llm-usage.md §4` 에 일원화,
+      이미 정확). 변경 불요. (초안의 `data-flow/7-statistics.md §3` 경로도 오기 — 실제 `2-navigation/7-statistics.md`.)
+- [x] **(A3, PR-2 완료)** `spec/1-data-model.md` §2.16.1 `LlmUsageLog` full 필드 표 서브섹션 신설
+      (IntegrationUsageLog §2.10.1 동형) + ERD 트리 + §3 인덱스 표 + 7-llm-usage 역링크.
+- [x] **(A4, PR-2 검증=no-op)** `spec/5-system/4-execution-engine.md`(§1.3/§7.5) · `spec/4-nodes/3-ai/1-ai-agent.md`
+      (§7.4 `_resumeCheckpoint` 표 L717) 는 **이미** "조작 필드(`node.config`) / 식별 필드(`workflowId`·
+      `nodeExecutionId`·`workspaceId`, 호출측 컨텍스트) 재유도" 3-way 구분을 서술(#877/#879). 변경 불요.
 - [x] **(PR `ai-usage-attribution-hardening` = B1+C1 배선 후 필수 → 그 PR 에서 완료)**
       `spec/data-flow/7-llm-usage.md` §1.3 표 L107 · 요약문 L113 · §4 Agent Memory 행 L162 ·
       Rationale L189~206 의 "AI Agent 자동 메모리 롤링 요약 압축 = 미배선/전부 NULL/잔여 갭" 서술을
