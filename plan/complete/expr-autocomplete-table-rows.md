@@ -47,7 +47,7 @@ behavior 는 이미 병합 완료 → **문서 갭만 메우는 additive 변경*
 - [x] consistency-check --spec (10_59_05) — **BLOCK:NO** (Critical 0). naming_collision 디스크 기록, 4개 checker journal 복구. WARNING 3(cross_spec table.md 확산·plan_coherence suggestions 후속·convention 트리거열) + INFO 반영
 - [x] spec 반영 (§7.1 2행+note·§8.4.2 2행+표현식시작 보강) + **spec-link-integrity 11/11 PASS** (§4.1 `#41-변수-목록`·table.md 링크 유효)
 - [x] suggestions-prefix-dry.md §후속 갱신 (자동완성 행·§2.3 재인증 항목 해소 표기) — plan_coherence WARNING
-- [ ] plan complete 이동
+- [x] plan complete 이동 (커밋 5ac677824 spec 반영 → 본 chore(plan))
 
 ## 발견 처분 (consistency WARNING)
 - cross_spec: `table.md §1↔§4` label 평가 변수 가용성 내부 불일치 → 내 note 를 "에디터 노출" 로 한정 + §4.1·table.md cross-ref(field/label 미주장). table.md 정정은 **별도 task `task_986b1dbe`** 로 분리.
