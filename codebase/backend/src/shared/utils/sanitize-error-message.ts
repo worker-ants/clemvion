@@ -20,7 +20,13 @@ export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
  *
  * 2026-07-09 — Authorization 패턴을 첫 토큰(`\S+`)이 아니라 **줄 끝까지** 마스킹하도록
  * 확장. 종전엔 `Authorization: Basic dXNlcjpwYXNz` 에서 스킴(`Basic`)만 마스킹되고
- * 값에 공백이 있는 스킴(Basic/Digest)의 자격증명이 노출됐다. */
+ * 값에 공백이 있는 스킴(Basic/Digest)의 자격증명이 노출됐다.
+ *
+ * 2026-07-10 — 키워드/접두사 없이 노출되는 두 형태를 추가(EIA §R17 잔여 하드닝):
+ * (a) bare JWT(`eyJ...` header.payload[.signature]) — `Bearer` 접두사·`token=` 키워드가
+ *     없으면 종전 패턴이 전혀 못 잡았다. (b) non-DB URI userinfo(`scheme://user:pass@host`)
+ *     — 실행 엔진 sanitizer 의 CONNECTION_STRING_PATTERN 은 DB 스킴만 strip 하고, 키워드
+ *     패턴(`password=`)도 URL 내장 자격증명은 매칭 못 해 `https://admin:pw@host` 가 새어나갔다. */
 export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // OAuth-style bearer tokens
   /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
@@ -31,6 +37,13 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // Authorization header values — mask the entire value to end-of-line so
   // space-containing credentials (Basic/Digest base64) aren't partially exposed.
   /\bAuthorization:[^\r\n]*/gi,
+  // Bare JWT (no `Bearer`/`token=` context): `eyJ`-prefixed header.payload with an
+  // optional signature segment. The `eyJ` anchor (base64url of `{"`) + two long
+  // base64url runs keeps false positives on ordinary prose negligible.
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_-]+)?/g,
+  // URI-embedded userinfo credentials (`scheme://user:pass@host`) for ANY scheme —
+  // masks through the `@` so the password can't leak; host/path remain for context.
+  /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s:@]+@/gi,
 ];
 
 /**
