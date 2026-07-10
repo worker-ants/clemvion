@@ -18,9 +18,9 @@ code:
 
 ## Overview
 
-본 문서는 제품 전반의 **에러 처리 정책**을 단일 진실로 정의한다 — 에러 코드 분류 체계(시스템·인증/인가·유효성·실행·WS commands·EIA REST·webhook 도메인, §1), 공식 에러 응답 봉투(`{ error: { code, message, requestId, details? } }`, §2), 노드 레벨 에러 처리 정책(Stop Workflow / Skip / Default Output / Retry / Route to Error Port, §3), 워크플로우 레벨 자동 재시도(§4), 클라이언트 에러 처리 흐름·토스트(§5), 로깅 레벨·민감정보 마스킹(§6), 헬스 체크(§7)다.
+본 문서는 제품 전반의 **에러 처리 정책**을 단일 진실로 정의한다 — 에러 코드 분류 체계(시스템·인증/인가·유효성·실행·WS commands·EIA REST·webhook·KB/Graph RAG 도메인, §1), 공식 에러 응답 봉투(`{ error: { code, message, requestId, details? } }`, §2), 노드 레벨 에러 처리 정책(Stop Workflow / Skip / Default Output / Retry / Route to Error Port, §3), 워크플로우 레벨 자동 재시도(§4), 클라이언트 에러 처리 흐름·토스트(§5), 로깅 레벨·민감정보 마스킹(§6), 헬스 체크(§7)다.
 
-에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)이 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목은 해당 도메인 spec 참조로 등재한다. 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
+에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 정의·트리거 조건의 상세 SoT 가 도메인 spec 에 있는 코드(2FA/WebAuthn §1.2.1·WS commands §1.5·EIA REST §1.6·webhook §1.7·KB/Graph RAG §1.8)는 해당 도메인 spec 을 SoT 로 참조하고 본 §1 에는 **공용 카탈로그 가시성**을 위해 등재만 한다 — 이 중 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)은 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목이다. 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
 
 ---
 
@@ -46,6 +46,22 @@ code:
 | `ADMIN_REQUIRED` | Admin 권한 필요 | 워크스페이스 Owner/Admin 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`WorkspacesService.assertAdmin()` 발행) | 403 |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과 | 423 |
+
+#### 1.2.1 2FA / WebAuthn / 재인증 코드 (도메인 spec 참조)
+
+다음 코드는 2FA(TOTP·WebAuthn/Passkey)·재인증 흐름 전용이다. 정의·트리거 조건·상태의 SoT 는 [1-auth.md §1.4(2FA/WebAuthn)](./1-auth.md#14-2fa-two-factor-authentication)·[§2.3(재인증)](./1-auth.md#23-세션-정책)·§5(API 엔드포인트)이고, 본 절은 공용 카탈로그 가시성을 위한 등재다. 모두 `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md))을 따른다.
+
+| 코드 | status | 설명 | 도메인 SoT |
+|------|--------|------|-----------|
+| `WEBAUTHN_DISABLED` | 503 | WebAuthn 기능 비활성(env 미설정 + 폴백 미허용) 시 WebAuthn 엔드포인트 전체가 반환 | [1-auth.md §1.4.3](./1-auth.md#143-webauthn-환경변수-옵션-기능) |
+| `WEBAUTHN_VERIFY_FAILED` | 400 | WebAuthn credential 등록 verify 실패 | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
+| `INVALID_OPTIONS_TOKEN` | 400 | WebAuthn register/verify 의 optionsToken(단명 서명 토큰) 무효 | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
+| `CHALLENGE_INVALID` | 401 | WebAuthn authenticate/options 의 challengeToken(mfa_challenge JWT) 검증 실패 | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
+| `WEBAUTHN_INVALID` | 401 | WebAuthn 로그인 2FA verify 실패 (counter 역행 케이스 포함 — 세부는 `login_history.failure_reason=WEBAUTHN_COUNTER_REGRESSION`) | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
+| `RECOVERY_CODE_INVALID` | 401 | WebAuthn 복구 코드로 2FA 통과 실패 | [1-auth.md §5](./1-auth.md#5-api-엔드포인트) |
+| `REAUTH_NOT_AVAILABLE` | 403 | `password_hash`·2FA 모두 없는 OAuth-only 계정의 재인증 수단 부재 (이메일 변경·§2.3 세션-revoke 재인증 상류 공용) | [1-auth.md §2.3](./1-auth.md#23-세션-정책) |
+
+> 위 표는 도메인 spec(`1-auth.md`) 본문에 문서화된 코드만 등재한다. 로그인 2FA TOTP 실패는 별도 API `code` 없이 `login_history` 이벤트값 `totp_failed`(§4.3)로 남는다. **재인증(§2.3 `verifyReauth`) 흐름의 세부 코드 `REAUTH_REQUIRED`(403)·`PASSWORD_INVALID`(400)·`TOTP_INVALID`(401)(`sessions.service.ts`)는 아직 `1-auth.md` 본문에 개별 문서화돼 있지 않아 본 등재에서 제외한다 — "1-auth.md 문서화 → 카탈로그 등재" 순서의 후속으로 추적**(`NOT_A_MEMBER`·`INVALID_PASSWORD` 도 동일).
 
 ### 1.3 유효성 검증 에러
 
@@ -153,6 +169,15 @@ code:
 | `AUTH_FAILED` | 401 | webhook 인증 실패 — type 무관 단일 응답(enumeration·정보 노출 차단, [Spec Webhook §4](./12-webhook.md#4-인증-방식)). `is_active=false` AuthConfig·서명/토큰 불일치·`ip_whitelist` 불일치 모두 동일 코드 ([WH-SC-04·WH-SC-09](./12-webhook.md#인증-및-보안)) | 구현 |
 
 > **`error.details[].code` (필드별 사유, 구현)**: `MISSING_REQUIRED_FIELD`(required 파라미터 누락)·`TYPE_COERCION_FAILED`(선언 타입으로 coerce 불가)·`INVALID_SCHEMA`(스키마 구조 위반)는 `INVALID_WEBHOOK_PAYLOAD` 봉투의 `details[]` 항목 코드다. 내부 분류 문자열(`missing_required`/`coerce_failed`/`invalid_schema`)을 `toTriggerParameterErrorDetails`(`execution-engine/types/trigger-parameter.types.ts`)가 위 public field code 로 정규화해 throw 하고 `GlobalExceptionFilter` 가 `details` 를 봉투로 전달한다 — [Spec Webhook §5.2](./12-webhook.md#52-400-응답-형식). Manual 실행 경로의 `INVALID_TRIGGER_PARAMETERS` 도 동일 헬퍼를 쓴다. §2.1 의 generic `details[].code`(`INVALID_FIELD`)와 동일 레이어다.
+
+### 1.8 KB / Graph RAG 도메인 에러 코드 (도메인 spec 참조)
+
+다음 코드는 Knowledge Base(재임베딩/재추출) 도메인 전용이다. 정의·트리거 조건의 SoT 는 [10-graph-rag.md](./10-graph-rag.md)(재추출)·[8-embedding-pipeline.md](./8-embedding-pipeline.md)(재임베딩)이고, 본 절은 공용 카탈로그 가시성을 위한 등재다. `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md))을 따른다.
+
+| 코드 | status | 설명 | 도메인 SoT |
+|------|--------|------|-----------|
+| `KB_REEXTRACT_IN_PROGRESS` | 409 | KB 전체 재추출(`re-extract`) 동시 호출을 `reextract_status` 컬럼 atomic compare-and-swap 으로 차단 (재임베딩 잠금과 동일 패턴) | [10-graph-rag.md §5.1](./10-graph-rag.md#51-추출--재추출) |
+| `KB_REEMBED_IN_PROGRESS` | 409 | KB 전체 재임베딩(`re-embed`) 동시 호출을 `reembed_status` 컬럼 atomic compare-and-swap 으로 차단 (`embedding_dimension` 도 NULL 로 초기화) | [8-embedding-pipeline.md §7.3](./8-embedding-pipeline.md#73-재임베딩) |
 
 ---
 
@@ -446,6 +471,7 @@ GET /api/health
 
 ## Rationale
 
+- **§1 카탈로그 완결성 — 2FA/WebAuthn(§1.2.1)·KB/Graph RAG(§1.8) 도메인 등재**: [`conventions/error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)이 본 §1 을 "제품 전체 에러 코드 카탈로그 SoT" 로 선언하나, `1-auth.md`(WebAuthn/2FA)·`10-graph-rag.md`(KB) 도메인 코드가 §1 에 미등재였다. 이를 §1.5~§1.7 이 이미 쓰던 "도메인 spec 참조(정의 SoT 는 도메인 spec, 본 §1 은 공용 카탈로그 가시성 등재)" 패턴으로 완결했다 — 새 원칙 도입도 코드 재정의도 아니다. **spec 에 문서화된 코드만 등재**하며, 코드에만 존재하고 도메인 spec 본문 미문서인 재인증 세부 코드(`REAUTH_REQUIRED`/`PASSWORD_INVALID`/`TOTP_INVALID`)는 dangling SoT 를 피해 "spec 문서화 → 등재" 순서의 후속으로 남긴다.
 - **`MODEL_CONFIG_NOT_FOUND`(404) 와 `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리 (PR4b)**: 구 단일 코드는
   id 지정 경로의 "지정 config 부재"(404)와 id 미지정 경로의 "워크스페이스 default 미설정"(400)을 한
   코드로 묶어 동일 코드가 404/400 두 status 를 갖는 모호성이 있었다. id 경로는 `MODEL_CONFIG_NOT_FOUND`(404,
