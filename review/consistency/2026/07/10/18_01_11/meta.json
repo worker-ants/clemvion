@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-10T18:01:11.973380",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/workspace-membership-codes.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
