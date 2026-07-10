@@ -77,7 +77,7 @@ stale 였던 것을 `reset --hard origin/main` 으로 교정(plan_coherence WARN
 - [x] consistency-check --spec — 4라운드 수렴 후 **BLOCK:NO**(15_38_35). rationale_continuity 가 매 라운드 gate 를 정밀화(형제분리→ALREADY_A_MEMBER cross-ref→gate passing-mention→body-vs-Rationale), FS-flakiness 로 summary 가 CRITICAL 반복 누락 → journal/단독 재실행 복구. 최종 3코드 본문 문서화(NOT_A_MEMBER §5·PASSWORD_REQUIRED §5 note·INVALID_PASSWORD §2.3 body note)로 게이트 충족
 - [x] spec 반영 (1a §5 note·1b §2.3 note·2a §1.2 2행·2b §1.2.1 PASSWORD_REQUIRED·2c §1.2.1 주석·2d Rationale) + **spec-link-integrity 11/11 PASS**
 - [x] `error-codes-catalog-sot.md §후속` L56 체크박스 갱신 (3코드 흡수 명시). 그 plan 자신의 complete 이동은 defer(설계 리스트 stale·spec_impact 부재 = #882 구조 정리 몫)
-- [ ] plan complete 이동
+- [x] plan complete 이동 (커밋 84d9a4f15 spec 반영 → 본 chore(plan))
 
 ## 범위 밖
 - WebAuthn/이메일 OTP 재인증 실제 구현 — 미착수(별도 plan).
