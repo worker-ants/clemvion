@@ -56,19 +56,29 @@ describe('redactSecrets (mask-only)', () => {
     expect(out).toContain('***');
   });
 
-  it('masks URI-embedded userinfo credentials (any scheme, through the @)', () => {
+  it('masks URI userinfo scheme-preservingly (only user:pass → ***, scheme/host survive)', () => {
     const out = redactSecrets(
       'connect https://admin:supersecret@internal.example.com/path failed',
     );
     expect(out).not.toContain('supersecret');
     expect(out).not.toContain('admin:');
-    // host/path survive for context.
-    expect(out).toContain('internal.example.com/path');
+    // scheme-preserving: `scheme://***@host/path`.
+    expect(out).toContain('https://***@internal.example.com/path');
   });
 
   it('masks non-DB URI userinfo too (redis/custom schemes)', () => {
-    expect(redactSecrets('redis://u:p4ss@cache:6379')).not.toContain('p4ss');
-    expect(redactSecrets('amqp://guest:s3cr3t@mq')).not.toContain('s3cr3t');
+    expect(redactSecrets('redis://u:p4ss@cache:6379')).toContain(
+      'redis://***@cache:6379',
+    );
+    expect(redactSecrets('amqp://guest:s3cr3t@mq')).toContain('amqp://***@mq');
+  });
+
+  it('masks a password containing an embedded colon (whole credential → ***)', () => {
+    // Password segment allows ':' (bounded by the `@` lookahead), so the full
+    // `user:pa:ss` credential is masked rather than leaving a tail exposed.
+    const out = redactSecrets('https://admin:pa:ss@host/x');
+    expect(out).not.toContain('pa:ss');
+    expect(out).toContain('https://***@host/x');
   });
 
   it('masks an alg=none JWT (empty/absent signature segment)', () => {

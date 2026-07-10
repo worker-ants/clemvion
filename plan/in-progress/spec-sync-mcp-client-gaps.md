@@ -76,7 +76,7 @@ owner: planner
 - spec-sync: 11-mcp-client §6.2/§8.1/§8.2 + 1-ai-agent §7.1 적용.
 - 리뷰: /ai-review 21_30_25(LOW)→22_04_32(LOW, testing 2 WARNING fix)→**22_25_11(NONE, clean)**. impl-prep 20_59_31 · impl-done 21_50_54/22_05_27/**22_25_11 BLOCK:NO**. (커밋 후 re-review 는 author-date 가드가 review-postdates-code 를 요구하기 때문 — review_gate_loop_avoidance 교훈: 코드는 리뷰 전에 커밋했어야 함.)
 - 22_25_11 impl-done WARNING(§2.3 Cafe24 errors[] 서술이 §6.2 Planned 와 모순) → spec-only 정정으로 해소(§2.3 line 81 + §6.2 "대칭" 괄호).
-- **잔여(별건 follow-up, plan in-progress 유지)**: call-phase errors[] 누적 / §3.3 capability 캐시 / task_fa96e218(에러 message redaction) / task_947e443e(Rationale 섹션·코드 prefix) / McpClientService TimeoutError 소비.
+- **잔여 이관 완료 (2026-07-06, PR #842 → [`plan/complete/mcp-client-diagnostics-followups.md`](../complete/mcp-client-diagnostics-followups.md))**: call-phase errors[] 누적 / task_fa96e218(에러 message redaction) / task_947e443e(Rationale 섹션·코드 prefix) / McpClientService TimeoutError 소비 4건 전부 완료. task_fa96e218 의 URL-userinfo(`scheme://user:pass@host`) 서브스코프는 2026-07-10 후속(PR `mcp-userinfo-dedup`)에서 공용 `SECRET_LEAK_PATTERNS` SoT 로 최종 통합(중복 MCP 전용 패턴 제거·scheme 보존 `scheme://***@host`). **따라서 본 in-progress plan 의 유일한 실질 잔여는 §3.3 `credentials.cached_capabilities` 캐시(infra 보류, 위 §미구현 항목 L24)뿐.**
 
 ## 비고
 - 각 항목의 근거(claim→코드부재/불일치)는 audit findings/5-system/5-system__11-mcp-client.md 참조.

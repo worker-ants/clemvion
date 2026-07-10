@@ -39,13 +39,14 @@ export const MCP_ERROR_MESSAGE_MAX_LEN = 2048;
 /**
  * MCP 전용 추가 마스킹 패턴 — 공용 {@link SECRET_LEAK_PATTERNS} 가 다루지 않는
  * 케이스만 담는다 (secret-redaction SoT 파편화 방지):
- *  - connect URL userinfo (`scheme://user:pass@host`): 외부 MCP 서버가 에러에 요청
- *    URL 을 그대로 echo 하는 경우. 공용 패턴에는 없음.
  *  - 쿼리스트링 bare `token=` : 공용은 `access_token`/`api_key` 등 labelled 만 커버.
  * placeholder 는 공용과 동일하게 `***` 로 통일한다.
+ *
+ * 2026-07-10 — connect URL userinfo(`scheme://user:pass@host`) 패턴은 공용
+ * {@link SECRET_LEAK_PATTERNS} 가 동형(scheme 보존 `scheme://***@host`)으로 흡수해
+ * 여기서 제거했다 — 두 곳에 중복 유지하던 것을 SoT 로 통합(spec §8.3 동기화).
  */
 const MCP_EXTRA_SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi, '$1***@'],
   // bare `token=`/`token:` (공용은 access_token/id_token 등 labelled 만 커버).
   [/(\btoken\s*[=:]\s*)[^&\s;'"]+/gi, '$1***'],
 ];
@@ -59,10 +60,10 @@ const MCP_EXTRA_SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
  * user-visible node meta. Defense-in-depth — no known leak path, but the sink
  * is now user-facing (spec-sync mcp-client follow-up, task_fa96e218).
  *
- * **재사용**: bearer 토큰·`Authorization` 헤더·labelled secret(`client_secret`/
- * `access_token`/`api_key`/`password`/…) 는 공용 {@link SECRET_LEAK_PATTERNS}
- * (여러 모듈이 이미 소비하는 SoT)를 그대로 적용하고, 위 {@link MCP_EXTRA_SECRET_PATTERNS}
- * (URL userinfo·bare token)만 MCP 전용으로 얹는다. cap 은 `sanitizeMcpErrorMessage`
+ * **재사용**: bearer 토큰·`Authorization` 헤더·URL userinfo(`scheme://***@host`)·bare JWT·
+ * labelled secret(`client_secret`/`access_token`/`api_key`/`password`/…) 는 공용
+ * {@link SECRET_LEAK_PATTERNS}(여러 모듈이 이미 소비하는 SoT)를 그대로 적용하고, 위
+ * {@link MCP_EXTRA_SECRET_PATTERNS}(bare `token=`)만 MCP 전용으로 얹는다. cap 은 `sanitizeMcpErrorMessage`
  * 가 §8.2 의 2048(공용 200 과 별개 — MCP 서버 에러가 더 길 수 있음)로 적용한다.
  */
 export function redactMcpSecrets(msg: string): string {
