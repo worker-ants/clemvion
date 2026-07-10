@@ -182,7 +182,7 @@ pending → running ──┤─ failed
 
 | `interaction.type` | `data` 형태                                | 적용 노드                                       |
 | ------------------ | ------------------------------------------ | ----------------------------------------------- |
-| `form_submitted`   | `{ [fieldName]: value }`                   | `form`                                          |
+| `form_submitted`   | `{ [fieldName]: value, via?: 'ai_render' }` (`via: 'ai_render'` sentinel 은 AI Agent `render_form` 응답 한정 — [§4.5 SoT](../conventions/node-output.md)) | `form` / `ai_agent`(`render_form`) |
 | `button_click`     | `{ buttonId, buttonLabel, selectedItem? }` | `carousel` / `table` / `chart` / `template`     |
 | `button_continue`  | `{ buttonId, buttonLabel, url?, selectedItem? }` | link 타입 버튼 (CONVENTIONS §4.5)              |
 | `message_received` | `{ content, role: "user" }`                | `ai_agent` / `information_extractor` multi-turn |
