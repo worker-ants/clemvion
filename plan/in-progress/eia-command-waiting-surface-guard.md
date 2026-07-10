@@ -72,10 +72,11 @@ Spec 근거 — 이미 약속된 계약의 구현:
 - [x] 구현 — `resolveWaitingNodeExecutionId(executionId, expectedCommand)` + `waiting-surface-guard.ts`
 - [x] e2e 비-vacuity 실증 — 가드 비활성 시 `end_conversation` 이 **202** 반환(재현), 가드 복원 시 409
 - [x] TEST WORKFLOW (lint / unit / build / e2e 모두 PASS — buttons 표면 회귀 e2e 추가)
-- [x] `/ai-review` (`review/code/2026/07/11/00_03_25/`) Critical 0 / Warning 12 →
-      코드 조치 8건(#1·#2·#3·#4·#5·#6·#10·#11·#12) fix + RESOLUTION.md, 나머지는 후속 이관
-- [ ] `/consistency-check --impl-done spec/5-system`
-- [ ] spec 동기 (project-planner 위임 — 아래 S-1)
+- [x] `/ai-review` 다회 수렴 — `00_03_25`(W12→코드 8건 fix)·`00_49_34`(SoT 통합)·
+      `01_17_12`(rehydration SoT 재사용)·`01_34_58`(0/0 clean). Critical 0.
+- [x] `/consistency-check --impl-done` (`review/consistency/2026/07/11/01_35_17/`) **BLOCK: NO**
+      (Critical 0/5 checker. 반복 WARNING=spec 본문 열거 lag → S-1 로 추적)
+- [ ] spec 동기 (project-planner 위임 — 아래 S-1) ← 진행 중
 
 ## spec 동기 (project-planner 위임 대상)
 
