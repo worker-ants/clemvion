@@ -83,9 +83,36 @@ order?: 'asc' | 'desc';
 ```
 
 ### 1-4. nested / enum / union
+
 - enum: `@ApiProperty({ enum: MyEnum, enumName: 'MyEnum' })`
 - nested object: `@ApiProperty({ type: () => NestedDto })`
-- union 또는 dynamic: `@ApiProperty({ type: 'object', additionalProperties: true })`
+
+**닫힌 union (variant 집합이 코드로 확정)** — variant 별 DTO 클래스를 만들고, 클래스에 `@ApiExtraModels`, 필드에 `oneOf` + `getSchemaPath` 를 건다.
+
+```ts
+@ApiExtraModels(ButtonsContextDto, NodeOutputContextDto)
+export class ExecutionStatusDto {
+  /** waiting_for_input 시의 인터랙션 표면. 노드 종류에 따라 두 변형 중 하나. */
+  @ApiPropertyOptional({
+    oneOf: [
+      { $ref: getSchemaPath(ButtonsContextDto) },
+      { $ref: getSchemaPath(NodeOutputContextDto) },
+    ],
+    nullable: true,
+  })
+  context?: ButtonsContextDto | NodeOutputContextDto | null;
+}
+```
+
+- variant 를 **한 필드 값으로 무손실 판별**할 수 있을 때만 `discriminator: { propertyName }` 을 덧붙인다. 판별 필드가 variant 간에 값을 공유하면(= 판별자가 unsound) `discriminator` 를 **생략**한다 — 선언해 두면 SDK 생성기가 잘못 narrowing 해 런타임 `undefined` 접근을 만든다. 근거: [§Rationale — discriminator 는 판별자가 sound 할 때만](#discriminator-는-판별자가-sound-할-때만-1-4).
+- 응답 **body 전체**가 union 이면 property 레벨 대신 공용 헬퍼 `ApiOkWrappedOneOfResponse` (§5-2) 를 쓴다.
+
+**열린/동적 map (키 집합이 런타임 결정)** — `@ApiProperty({ type: 'object', additionalProperties: true })`.
+
+- 노드 타입별 자유 payload(`nodeOutput`), 사용자 정의 변수 맵 등 **실제로 키가 열려 있는** 경우에 한한다.
+- **"타입을 특정하기 번거롭다"는 사유로 쓰지 않는다** — variant 집합이 코드로 확정되면 위 닫힌 union 항목이 맞다. (§6 의 "빈 껍데기 스키마 금지"와 같은 취지.)
+
+> **적용 범위 — 신규 변경 한정**: 기존 `additionalProperties: true` 필드를 일괄 소급 스키마화하지 않는다. 본 절의 가치는 "이미 있는 것의 정리"가 아니라 "앞으로의 불투명 누적 방지"다 ([`execution-context.md`](./execution-context.md) §원칙 3 과 동일 취지).
 
 ### 1-5. `writeOnly` / `readOnly` — 보안 민감 + 응답 sanitize 필드
 
@@ -266,6 +293,8 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 
 각 헬퍼는 내부에서 `ApiExtraModels(Dto)` + `getSchemaPath(Dto)` 를 자동 수행합니다.
 
+> 위 표는 `common/swagger/` 가 export 하는 **호출형 헬퍼 함수**의 인벤토리다. 응답 body 전체가 아니라 **DTO 의 한 필드**가 닫힌 union 인 경우는 대응 헬퍼가 없고, `@ApiExtraModels` + `@ApiProperty({ oneOf: [...] })` 데코레이터 조합을 직접 쓴다 (§1-4).
+
 ### 5-3. 사용 예
 ```ts
 import {
@@ -312,6 +341,26 @@ async create(...) { ... }
 Swagger UI 의 production 기본 미노출은 무인증 API 표면 정찰(엔드포인트·DTO 구조 노출)을 차단하기 위함이다. 게이팅을 `isSwaggerEnabled(env)` 단일 함수로 분리한 이유는 OAUTH/LLM stub 가드와 **동형 패턴**(`NODE_ENV` 기반 분기 + opt-in env)으로 통일해 운영자 멘탈 모델을 단일화하고 단위 테스트로 분기를 고정하기 위함이다.
 
 `ENABLE_SWAGGER_IN_PROD` opt-in 을 둔 이유: prod 디버깅 요구를 흡수하되 기본값은 안전하게 둔다. opt-in 시 IP 제한·Basic Auth 등 추가 인증 계층을 **기본 제공하지 않는 이유**는, prod 노출 자체가 spec 어디에도 상시 요구로 기록되지 않은 예외적 디버깅 용도이기 때문이다 — 인증 계층 구현은 그 요구가 상시화될 때 검토한다(현 시점 과투자 회피). 켜는 순간 무인증 노출 위험이 복귀하므로 일시적 용도로 한정하고, 필요 시 운영자가 reverse proxy 단에서 보호를 전치한다.
+
+### §1-4 닫힌 union 을 `additionalProperties` 로 뭉개지 않는다
+
+종전 §1-4 는 "union 또는 dynamic" 을 한 줄로 묶어 둘 다 `additionalProperties: true` 로 안내했다. 그 결과 **variant 집합이 코드로 확정된 필드**까지 Swagger 상 빈 객체로 노출돼, 생성 SDK·손수 작성 클라이언트 타입이 wire 와 드리프트해도 잡히지 않았다. 실증 사례: EIA `getStatus` 의 `context` 가 `Record<string, unknown> | null` 로 선언된 동안, 위젯의 `eia-types.ts` 는 형제 필드 `currentNode` 를 `string | null` 로 잘못 선언했고(실제 wire 는 객체) 아무 검증도 이를 포착하지 못했다. 코드는 이미 규약보다 앞서 있었다 — `api-wrapped.ts` 의 `ApiOkWrappedOneOfResponse` 가 **응답 레벨** `oneOf` 를 제공하고 있었고, 없던 것은 **property 레벨** 대응물뿐이었다.
+
+"열림"은 **키 집합이 런타임에 결정된다**는 사실 진술이지, 타입을 적기 번거롭다는 편의 표현이 아니다. 두 경우를 문장 하나로 묶어 둔 것이 혼동의 원인이었으므로 절을 분리했다. 다만 기존 필드의 일괄 소급 재선언은 요구하지 않는다 — [`execution-context.md`](./execution-context.md) §원칙 3 이 같은 이유(광범위 회귀 위험 대비 낮은 효용)로 신규 변경에만 분류 규칙을 적용하는 것과 동형이다.
+
+### `discriminator` 는 판별자가 sound 할 때만 (§1-4)
+
+OpenAPI `discriminator.propertyName` 은 "그 필드 값 → variant" 매핑이 **전단사**임을 SDK 생성기에 약속한다. 약속이 깨지면 생성기는 조용히 잘못된 variant 로 narrowing 한다.
+
+EIA `getStatus.context` 가 그 반례다. `interactionType` 은 언뜻 판별자로 보이지만, `buttons` 는 `buttonConfig` 를 실은 변형과 (핸들러가 `buttonConfig` 를 싣지 못해 fallthrough 한) `nodeOutput` 변형 **양쪽**에 나타난다. `discriminator: { propertyName: 'interactionType' }` 을 선언하면 SDK 는 모든 `buttons` 응답을 `buttonConfig` 변형으로 narrowing 하고, fallthrough 케이스에서 `context.buttonConfig.buttons` 접근이 런타임 `undefined` 가 된다. 따라서 `oneOf` 만 선언하고 판별은 **키 존재**(`'buttonConfig' in context`)로 남긴다.
+
+fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 변경이라 [EIA §5.3/§R17](../5-system/14-external-interaction-api.md) 의 SSE parity 계약을 건드린다 — 별건으로 둔다. 본 규칙은 `api-wrapped.ts` `wrapOneOfDataSchema` 의 기존 JSDoc("호출자는 모든 DTO 가 동일 `propertyName` 필드를 보유함을 보장해야 한다")을 규약 레벨로 승격한 것이다.
+
+### 왜 EIA `context` 는 봉투만 스키마화하고 내부는 열어 두는가 (§1-4)
+
+`nodeOutput` 과 `buttonConfig.buttons` 는 노드 타입별 자유 payload(`formConfig`/`conversationConfig`/임의 키)로, §1-4 가 말하는 **진짜 열린 map** 이다. 클래스로 고정하면 노드 타입이 늘 때마다 DTO 가 따라 늘고, 공용 노드 output 규약([`./node-output.md`](./node-output.md) — `1-node-common.md` 등 여러 노드 문서가 참조하는 독립 conventions 문서)과 SoT 가 이중화된다. 봉투(`interactionType`/`waitingNodeId`/`conversationThread`/변형 키)만 닫고 내부는 열어 두는 것이 두 규약의 책임 경계와 일치한다.
+
+같은 이유로 `ConversationThreadDto` 도 만들지 않는다 — [`./conversation-thread.md`](./conversation-thread.md) **§1.3(자료구조)** 이 thread shape(`turns[]`/`source`/`totalChars`/`nextSeq`)의 SoT 이고(§4 는 영속화 단계, §8.4 는 durable 컬럼 채택 근거), Swagger DTO 로 재선언하면 두 문서가 갈린다. 봉투에서는 open object 로 두고 description 이 `conversation-thread.md` 를 지목한다.
 
 ### §5 ApiOkPaginatedResponse single-wrap (pass-through 예외)
 `ApiOkPaginatedResponse` 가 문서화하는 wire shape 는 **single-wrap** `{ data: <Dto>[], pagination }` 다(§5-2). 페이지네이션 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }` — top-level `data` 키 보유)를 반환하고, `TransformInterceptor` 는 이미 `data` 키가 있는 객체를 추가 래핑 없이 pass-through(`'data' in data` 분기)하므로, §2-5 의 "성공 응답을 `{ data }` 로 감싼다"는 보편 규칙의 **주요 pass-through 사례**가 된다(두 번째 사례: 비-페이징 고정 컬렉션이 `{ data: { items } }` 를 직접 반환하는 경우 — [api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답) 비-페이징 고정 컬렉션. `pagination` 필드가 없어 이 §5 페이징 pass-through 와는 형태가 다르다). 종전 헬퍼가 선언하던 double-wrap `{ data: { data, pagination } }` 은 의도된 결정이 아니라 pass-through 를 간과한 **버그**였다 — 실제 런타임(`PaginatedResponseDto`+interceptor)·e2e(`res.body.data`/`res.body.pagination` top-level)·`api-convention §5.2` 가 모두 single-wrap 이라 헬퍼·§5-2 를 그에 맞춰 정정했다. **single-wrap 을 double-wrap 으로 되돌리지 말 것** — 런타임과 어긋난다.
