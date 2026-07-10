@@ -401,7 +401,11 @@ webhook 트리거로 시작된 실행에서 HTTP 요청 구성요소를 **flat s
 | `$params.` 입력 | 트리거 파라미터 이름 목록 (`$input.parameters` 단축 — 트리거 직속 successor 한정) |
 | `$node["` 입력 | 현재 워크플로우의 노드 이름 목록 |
 | `$var.` 입력 | 워크플로우에서 선언된 변수 목록 |
+| `$sourceItem.` 입력 | 현재 행 항목 필드 목록 (Table 노드 컬럼 표현식 편집 시 — 실행 결과 행 샘플 기반) |
+| `$dataSource.` 입력 | 원본 데이터 배열 요소 필드 목록 (Table 노드, `$sourceItem` 과 동일 행 샘플 기반) |
 | 함수 이름 일부 입력 | 매칭되는 내장 함수 목록 + 시그니처 |
+
+> Table 노드 컬럼 표현식을 편집할 때는 최상위 참조 변수 목록(`{{`)에 [§4.1](#41-변수-목록)의 Table 노드 한정 컨텍스트 변수(`$sourceItem`·`$sourceItemIndex`·`$dataSource`)가 추가로 표시된다(다른 노드 컨텍스트엔 미표시). 이는 **에디터 자동완성 노출**이며, 런타임 가용 범위(`field` vs `label` 평가 차이 포함)는 [Table 노드 §1·§4](../4-nodes/6-presentation/2-table.md)를 따른다.
 
 ### 7.2 자동완성 데이터 소스
 
@@ -517,8 +521,10 @@ for (const { id, label } of nodesWithOutput) {
 | `$node["` | 워크플로우 내 노드 라벨 목록 (노드 선택 드롭다운) | editor store의 nodes |
 | `$node["Label"].output.` | 해당 노드의 출력 필드 목록 | 해당 노드의 마지막 실행 결과 |
 | `$var.` | 선언된 변수 목록 | Variable Declaration 노드의 config |
+| `$sourceItem.` | **(Table 노드 한정)** 현재 행 항목 필드 목록 | 실행 결과 행 샘플(`sourceItemSample`) |
+| `$dataSource.` | **(Table 노드 한정)** 원본 배열 요소 필드 목록 | 실행 결과 행 샘플(동일) |
 | 함수명 입력 | 매칭 내장 함수 + 시그니처 | 함수 레지스트리 (정적) |
-| 표현식 시작 | `$input`, `$node`, `$var`, `$execution`, ... | 내장 참조 변수 목록 |
+| 표현식 시작 | `$input`, `$node`, `$var`, `$execution`, ... (Table 노드 컨텍스트에선 `$sourceItem`·`$sourceItemIndex`·`$dataSource` 추가) | 내장 참조 변수 목록 |
 
 - 미실행 워크플로우: 함수명과 `$` 변수 카테고리만 제안, 필드 제안은 "(워크플로우를 먼저 실행하세요)" 힌트 표시
 - 화살표 키 네비게이션, Enter/Tab 선택, Escape 닫기
