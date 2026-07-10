@@ -182,7 +182,7 @@ code:
 | `$trigger` | Object | 트리거 데이터 (webhook `{ body, headers, query, method }` flat shape, 민감 헤더 값 redacted; manual/schedule 은 `{}`). 상세 [§4.5](#45-trigger--env-런타임-주입) | `{{ $trigger.body.event }}` |
 | `$thread` | Object | Conversation Thread 변수 — 사용자 인터랙션 + AI 대화 turn 누적. [§4.4](#44-thread-속성) | `{{ $thread.length }}` |
 
-> **Table 노드 한정 컨텍스트**: Table 노드의 컬럼 표현식 평가 시 추가로 `$sourceItem`(현재 행 항목), `$sourceItemIndex`(행 인덱스), `$dataSource`(원본 데이터 배열)가 주입된다.
+> **Table 노드 한정 컨텍스트**: Table 노드 컬럼 셀(`field`) 표현식 평가 시 `$sourceItem`(현재 행 항목)·`$sourceItemIndex`(행 인덱스)·`$dataSource`(원본 데이터 배열)가 주입된다. 라벨(`label`) 표현식(dynamic 모드 1회 평가)에는 `$dataSource` 만 주입된다(라벨은 행 단위가 아님) — 상세는 [Table 노드 §1](../4-nodes/6-presentation/2-table.md#1-설정-config).
 
 ### 4.2 `$execution` 속성
 
@@ -494,7 +494,7 @@ for (const { id, label } of nodesWithOutput) {
 | 핸들러 | 제외 키 | 사유 |
 |--------|---------|------|
 | `code` | `code` | 원시 JavaScript 코드. 자체 런타임(`$input`, `$vars`, `$execution`)으로 실행 |
-| `table` | `columns` | 컬럼 표현식은 행(item)마다 `TableHandler` 내부에서 개별 평가된다 (`$sourceItem` 등 행 컨텍스트 사용) |
+| `table` | `columns` | 셀(`field`)은 행(item)마다 개별 평가(`$sourceItem`/`$sourceItemIndex`/`$dataSource`), 라벨(`label`)은 dynamic 모드 1회 `$dataSource` 컨텍스트로 평가 — `TableHandler` 내부 ([2-table §1](../4-nodes/6-presentation/2-table.md#1-설정-config)) |
 | `filter` | `conditions` | 조건은 표현식이 아니라 각 배열 항목 기준의 필드 경로다 |
 | `loop` | `breakCondition` | 반복마다 재평가되어야 한다 (현재 `$loop`/`$var`/`$node[...]` 참조). dispatch 시점에 미리 해석하면 i=0 에 고정되고 첫 반복 전엔 `$loop` 가 undefined 라 에러가 난다 |
 

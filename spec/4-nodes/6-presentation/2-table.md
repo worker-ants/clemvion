@@ -42,13 +42,13 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 | sortable | Boolean? | ✗ | 정렬 가능 여부 |
 | format | String? | ✗ | 날짜/숫자 포맷 문자열 |
 
-**Per-item 표현식 변수** (`columns[*].field` / `columns[*].label` 평가 시 추가 제공):
+**Per-item 표현식 변수**: 컬럼 표현식 평가 시 아래 변수가 추가 주입된다 — 단 주입 범위가 **셀(`columns[*].field`, 행마다 평가)** 과 **라벨(`columns[*].label`, dynamic 모드 1회 평가, §4-7)** 에서 다르다:
 
-| 변수 | 타입 | 설명 |
-|------|------|------|
-| `$dataSource` | `unknown[]` | 정규화된 데이터 소스 배열 전체 |
-| `$sourceItem` | `unknown` | 현재 순회 중인 배열 항목 |
-| `$sourceItemIndex` | `number` | 현재 항목의 0-based 인덱스 |
+| 변수 | 타입 | 가용 | 설명 |
+|------|------|------|------|
+| `$dataSource` | `unknown[]` | 셀·라벨 | 정규화된 데이터 소스 배열 전체 |
+| `$sourceItem` | `unknown` | 셀만 | 현재 순회 중인 배열 항목 (라벨은 행 단위가 아니므로 미주입) |
+| `$sourceItemIndex` | `number` | 셀만 | 현재 항목의 0-based 인덱스 (라벨 미주입) |
 
 기존 변수(`$input`, `$var`, `$node`, `$execution` 등)도 동시 사용 가능. `columns` 는 [표현식 제외 목록(`expression-exclusions.table`)](../../../codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts) 에 등록되어 핸들러가 per-row 컨텍스트로 평가한다 (엔진이 사전 평가하지 않음).
 
@@ -153,7 +153,7 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 4. `sortBy` 가 지정되면 `sortOrder` 에 따라 `dataRows` 정렬. null 비교는 "non-null 우선" 규칙(`aVal != null && bVal != null && aVal < bVal ? -1 : 1`)을 쓴 뒤 `desc` 면 부호를 반전하므로, **`asc` 에서는 null 이 뒤로, `desc` 에서는 null 이 앞으로** 간다 (양쪽 모두 끝으로 모으지는 않음). 출처: `table.handler.ts:118-126`.
 5. `pageSize` 가 truthy 이면 `dataRows = dataRows.slice(0, pageSize)`.
 6. **Cap 적용**: `truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES)` — 직렬화 후 1MB 초과 시 tail 부터 element 단위로 잘라낸다 ([공통 §4](./0-common.md#4-출력-포맷-principle-11--43--45)).
-7. **컬럼 라벨 평가** (dynamic 모드 한정): label 에 `{{` 가 포함된 컬럼만 `$dataSource` 컨텍스트로 평가 → `resolvedColumns`. `output.columns` 에 surface.
+7. **컬럼 라벨 평가** (dynamic 모드 한정): label 에 `{{` 가 포함된 컬럼만 `$dataSource` 컨텍스트로 평가(§1 표의 라벨 가용 범위 — `$sourceItem`/`$sourceItemIndex` 미주입) → `resolvedColumns`. `output.columns` 에 surface.
 8. **출력 구성** (D5, 2026-05-17 — backend HTML snapshot 폐기): `output.rows` 에 cap 적용된 `cappedRows.value`, `output.columns` 에 `resolvedColumns` 를 surface 한다. backend 는 더 이상 HTML 을 생성하지 않으며, frontend `TableContent` 가 `rows` + `columns` 로 직접 렌더한다 (cap 으로 잘린 행은 `rows` 에 포함되지 않으므로 누출 없음). 출처: `table.handler.ts:21-24,148-158`.
 9. **버튼 분기**:
    - `buttons.length > 0` → §5.4 (waiting). 엔진이 사용자 입력 수신 후 §5.5 (resumed).
@@ -375,3 +375,9 @@ Table 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는
 
 - 버튼 없음: `{N} columns` (pagination 활성화 시 `· pagination` 추가)
 - 버튼 있음: `{N} columns · {N} buttons`
+
+## Rationale
+
+### R-1. §1 라벨 per-item 변수 서술 정정 (번복 아님)
+
+§1 은 당초 `columns[*].field`·`columns[*].label` **둘 다** `$sourceItem`/`$sourceItemIndex`/`$dataSource` 3종을 제공한다고 서술했으나, 이는 의도적 설계 결정이 아니라 §4-7·`table.handler.ts`(`resolveColumnLabels`: label 은 dynamic 모드 1회·`$dataSource` 컨텍스트만) 와 애초에 어긋난 부정확 서술이었다. 라벨은 행 단위로 평가되지 않으므로 `$sourceItem`/`$sourceItemIndex` 가 무의미하다. §1 을 코드 진실(field=3종 / label=`$dataSource`만)로 정정한다 — 결정의 *번복*이 아니라 최초 *확정*이다(cf. [워크플로우 목록 §4 태그 필터 단일화](../../2-navigation/1-workflow-list.md#4-태그-필터는-단일-free-text-로-하향-2026-07-06) 의 동일 프레이밍). 표현식 spec `5-expression-language.md §4.1`·§8.3.3 의 동일 과대 서술도 함께 정합화했다.
