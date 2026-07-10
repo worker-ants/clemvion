@@ -2,6 +2,10 @@
 worktree: eia-execution-context-schema-9bb60b
 started: 2026-07-10
 owner: planner
+spec_impact:
+  - spec/conventions/swagger.md
+  - spec/5-system/2-api-convention.md
+  - spec/5-system/14-external-interaction-api.md
 ---
 
 # spec-draft — EIA `getStatus.context` 스키마화 + 부재 표현 규칙 명문화
@@ -175,14 +179,15 @@ cross-ref:
   - [x] `eia-types.ts` `currentNode` 타입 드리프트 정정 (`string|null` → 객체)
   - [x] `interaction.service.ts` — `base` 에 `WaitingContextBase` 명시 annotate (object spread 가 literal 을 widening). **런타임 wire 무변경**
 - [x] 테스트: `responses.dto.spec.ts` 신규 15건(실 OpenAPI 문서 생성 검증 — dangling `$ref` 포착. pre-change DTO 스왑 시 13건 FAIL 함을 리뷰어가 실측) + `interaction.service.spec.ts` 2건(buttons fallthrough · buttons+thread 부재 키 생략) + `external-interaction.e2e-spec.ts` `I-2` 1건(실 wire buttonConfig variant)
-- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS · e2e PASS (250)
+- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS · e2e PASS (249)
 - [x] `/ai-review` (9 reviewer) — **Critical 0 / Warning 5**, 위험도 LOW. 세션 `review/code/2026/07/10/23_20_33/`
 - [x] Warning 5건 전부 fix + `RESOLUTION.md` (defer 0건) — 링크 off-by-one · `WaitingContextBase` 명명 · 약한 assertion 2건 · 테스트 중복/e2e 갭
-- [x] fix 후 TEST WORKFLOW 재통과 (e2e 250)
+- [x] fix 후 TEST WORKFLOW 재통과 (e2e 249 → **250**, 신규 `I-2` 1건)
 - [x] `origin/main` rebase (PR #899 선병합 — 충돌 없음)
-- [ ] `/consistency-check --impl-done`
+- [x] `/consistency-check --impl-done` — **BLOCK: NO** (Critical 0 / Warning 0 / Info 5). 세션 `review/consistency/2026/07/10/23_46_04/`
 
-## 후속 (본 PR 밖)
+## 후속
 
-- `external-interaction` 모듈의 `dto/responses.dto.ts` flat 파일 → `dto/responses/` 서브디렉토리 이관 (swagger.md §5-1. 25개 모듈 중 본 모듈만 미준수 — impl-prep W1).
-- 위젯 `eia-types.ts` 의 `ExecutionStatus.context` 를 `ButtonsContext | NodeOutputContext` 로 좁히기 (현재 backend 만 정밀화돼 타입 비대칭).
+본 PR 의 미해결 항목은 0건. 리뷰 게이트에서 비차단으로 분리 합의된 잔여 3건은 별도 plan 으로 이관했다 → [`eia-context-schema-followups.md`](../in-progress/eia-context-schema-followups.md)
+
+의도적 미조치(재검토 불요) 2건도 같은 문서의 §비고 에 근거와 함께 기록.
