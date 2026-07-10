@@ -691,6 +691,35 @@ describe('InteractionService.getStatus', () => {
     expect(nodeRepo.findOne).not.toHaveBeenCalled();
   });
 
+  it('COMPLETED result / FAILED error 의 outputData secret 도 마스킹 (EIA §R17)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        outputData: {
+          summary: 'ok',
+          headers: { authorization: 'Bearer sk-RESULT-LEAK' },
+        } as never,
+      }),
+    );
+    const completed = await service.getStatus(IEXT_CTX);
+    const rblob = JSON.stringify(completed.result);
+    expect(rblob).not.toContain('sk-RESULT-LEAK');
+    expect(rblob).toContain('***');
+    expect(rblob).toContain('ok'); // 정상 결과 데이터 보존
+
+    repo.findOne.mockResolvedValueOnce(
+      makeExecution({
+        status: ExecutionStatus.FAILED,
+        outputData: { message: 'boom', api_key: 'AKIA-ERR-LEAK' } as never,
+      }),
+    );
+    const failed = await service.getStatus(IEXT_CTX);
+    const eblob = JSON.stringify(failed.error);
+    expect(eblob).not.toContain('AKIA-ERR-LEAK');
+    expect(eblob).toContain('***');
+  });
+
   it('waiting_for_input — conversation_thread 가 null(배포 이전 row)이면 conversationThread 키 미동봉', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(

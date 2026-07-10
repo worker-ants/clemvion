@@ -328,13 +328,21 @@ export class InteractionService {
       status: execution.status as ExecutionStatusDto['status'],
       currentNode,
       context,
+      // EIA §R17 — terminal outputData(result/error)도 공개 표면. secret-shape 만
+      // 마스킹(정상 결과 데이터는 deepRedactSecrets 의 copy-on-change 로 보존).
       result:
         execution.status === ExecutionStatus.COMPLETED
-          ? (execution.outputData ?? null)
+          ? (deepRedactSecrets(execution.outputData ?? null) as Record<
+              string,
+              unknown
+            > | null)
           : null,
       error:
         execution.status === ExecutionStatus.FAILED
-          ? (execution.outputData ?? null)
+          ? (deepRedactSecrets(execution.outputData ?? null) as Record<
+              string,
+              unknown
+            > | null)
           : null,
       seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (

@@ -146,6 +146,14 @@ describe('deepRedactSecrets (recursive, copy-on-change)', () => {
     for (let i = 0; i < 25; i++) deep = { n: deep };
     expect(() => deepRedactSecrets(deep)).not.toThrow();
   });
+
+  it('caches by object identity (repeated calls return the same masked result)', () => {
+    const input = { note: 'Bearer sk-CACHE-1', ok: 'plain' };
+    const first = deepRedactSecrets(input) as { note: string };
+    // Same input object → cached result reference (walked once).
+    expect(deepRedactSecrets(input)).toBe(first);
+    expect(first.note).not.toContain('sk-CACHE-1');
+  });
 });
 
 describe('redactSecretsInJsonString (JSON-safe)', () => {
