@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯 presentation `truncation` 유실 수정 + 복원 렌더 회귀 가드 (7-channel-web-chat/1-widget-app §2)
+
+### 변경 사항
+
+1. **AI `render_table` 이 1MB cap 으로 행을 잘라도 위젯에 "일부 행만 표시됩니다" 배너가 뜨지 않던 버그를 고쳤다** — `PresentationPayload.truncation` 은 `payload` **바깥** top-level 필드인데(AI Agent §7.10), 위젯 `asEnvelope` 가 `payload` 만 펼쳐 구조적으로 이 필드를 볼 수 없었다. 그 결과 `toTable` 의 `output.rowsTruncated` 판정이 항상 `false` 였다. 복원 경로만이 아니라 라이브 `ai_message` 경로에도 있던 기존 버그다. standalone table 노드는 `output.rowsTruncated` 를 output 안에 직접 실어 정상 동작했고 메인 프런트엔드(`assistant-presentations-block`)는 `truncation` 을 이미 소비하고 있어, 위젯만 outlier 였다. Presentation 공통 §10.4 가 두 위치를 "동등한 메타" 로 규정하므로 코드를 spec 에 맞춘다(spec 변경 없음). 병합은 알려진 4개 cap 키(`rowsTruncated`/`itemsTruncated`/`rowsTotalCount`/`itemsTotalCount`) 화이트리스트로 한정해, 장래 shape 확장이 payload 의 동명 렌더 필드를 조용히 덮지 않게 봉인했다.
+2. **`1-widget-app.md` §2 의 "알려진 제약(Planned)" 서술을 정정했다(문서)** — "새로고침 복원 thread 의 presentation 은 위젯 렌더러가 graceful 하게 무시(빈 렌더)한다" 는 서술은 실측과 달랐다. 렌더러는 `asEnvelope`/`classifyPresentation` 으로 `{config,output}` 과 `PresentationPayload` 두 shape 을 이미 모두 수용하고 있었고, 복원 thread 의 carousel/table/chart/template 4종이 무수정 상태에서 정상 렌더됨을 실증했다. **진짜 남은 제약은 원인이 다르다** — durable thread 의 `turn.presentations[]` 는 `source: 'ai_assistant'` 한정이라 AI `render_*` 표시물만 영속되고, 표시-전용 presentation *노드*의 표시물은 SSE `execution.message` 로만 오므로 새로고침 복원 대상이 아니다. 이 경계를 SoT(`conversation-thread.md` §2.1)·소비 문서(`1-widget-app.md` §2·§3.1·R8)·영역 백로그(`_product-overview.md` §2 비목표) 3곳에 등재했다. `0-architecture.md` §3 EIA 매핑 표에 누락돼 있던 `execution.message` 행도 함께 보강. 런타임 동작 무변경(문서). SoT: `spec/7-channel-web-chat/1-widget-app.md` §2·R8.
+3. **회귀 가드 3계층 추가** — 복원 thread turn 의 `PresentationPayload` 4종 passthrough·분류·정규화(`conversation.test.ts`), DOM 렌더·port 버튼·truncation 배너(`presentations.test.tsx`), truncation 흡수·병합 우선순위·malformed 입력 no-op·미등록 키 미흡수(`presentation.test.ts`).
+
 ## Unreleased — KB WebSocket 이벤트 count drift 정정 (5-system/6-websocket-protocol §4.3)
 
 ### 변경 사항
