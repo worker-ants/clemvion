@@ -3,6 +3,8 @@ worktree: llm-usage-resume-followups
 started: 2026-07-11
 owner: developer
 spec: spec/data-flow/7-llm-usage.md §1.3
+spec_impact:
+  - spec/5-system/4-execution-engine.md
 precedent: PR #879/#900 resume attribution 후속 (B-track, INFO#3/#4 + resume state 타이핑)
 ---
 
