@@ -16,7 +16,10 @@ import type { ConversationTurn } from '../../../shared/conversation-thread/conve
 import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
 import { ChatMessage } from '../../../modules/llm/interfaces/llm-client.interface';
 import type { ModelConfig } from '../../../modules/model-config/entities/model-config.entity';
-import type { LlmService } from '../../../modules/llm/llm.service';
+import type {
+  LlmService,
+  LlmCallContext,
+} from '../../../modules/llm/llm.service';
 import type { RecalledMemory } from '../../../modules/agent-memory/agent-memory.service';
 import type { ExtractionTurnSnapshot } from '../../../modules/agent-memory/queues/agent-memory-extraction.queue';
 import type { ThreadHolder } from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
@@ -276,6 +279,12 @@ export interface BuildSummaryBufferArgs {
   llmConfig: ModelConfig;
   model: string;
   llmService: LlmService;
+  /**
+   * [Spec 7-llm-usage §1.3] 요약 압축 chat 의 llm_usage_log attribution.
+   * 노드 내부 실행이라 caller(memory manager)가 executionId/workflowId/
+   * nodeExecutionId 를 전달하면 채워진다. 미전달 시 NULL(기존 동작).
+   */
+  llmContext?: LlmCallContext;
 }
 
 /**
@@ -300,6 +309,7 @@ export async function buildSummaryBufferUpdate(
     llmConfig,
     model,
     llmService,
+    llmContext,
   } = args;
 
   const noChange: SummaryBufferUpdate = {
@@ -369,12 +379,17 @@ export async function buildSummaryBufferUpdate(
     : `다음 대화 turn 들을 하나의 간결한 요약으로 압축하라. 사실·선호·결정·미해결 ` +
       `항목을 보존하고, 인사말·잡담은 생략하라. 요약만 출력하라.\n\n${compressText}`;
 
-  const result = await llmService.chat(llmConfig, {
-    model,
-    messages: [{ role: 'user', content: summaryPrompt }],
-    maxTokens: SUMMARY_MAX_TOKENS,
-    responseFormat: 'text',
-  });
+  const result = await llmService.chat(
+    llmConfig,
+    {
+      model,
+      messages: [{ role: 'user', content: summaryPrompt }],
+      maxTokens: SUMMARY_MAX_TOKENS,
+      responseFormat: 'text',
+    },
+    // [Spec 7-llm-usage §1.3] 요약 압축도 노드 발 chat 이므로 attribution 전달.
+    llmContext,
+  );
 
   const newSummary = (result.content ?? '').trim();
   if (!newSummary) {

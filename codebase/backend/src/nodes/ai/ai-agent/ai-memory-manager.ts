@@ -238,6 +238,14 @@ export class AiMemoryManager {
       llmConfig: summaryLlmConfig,
       model: resolvedSummaryModel,
       llmService: this.llmService,
+      // [Spec 7-llm-usage §1.3] 롤링 요약 압축 chat 의 llm_usage_log attribution.
+      // executionId 는 명시 인자, workflowId/nodeExecutionId 는 config(=resume state,
+      // 엔진 buildRetryReentryState 가 주입)에서 읽는다. 첫 턴 등 미주입 시 undefined→NULL.
+      llmContext: {
+        workflowId: args.config.workflowId as string | undefined,
+        executionId: args.executionId || undefined,
+        nodeExecutionId: args.config.nodeExecutionId as string | undefined,
+      },
     });
 
     // 갱신된 요약을 in-memory thread 에 반영 (다음 turn 재사용 — Redis 직렬화로
