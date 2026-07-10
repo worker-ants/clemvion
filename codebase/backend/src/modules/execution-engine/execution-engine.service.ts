@@ -52,6 +52,7 @@ import {
 } from './continuation/continuation-bus.service';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import {
+  coalesceInteractionType,
   isCommandAllowedOnSurface,
   resolveWaitingSurface,
   type WaitingSurfaceCommand,
@@ -59,14 +60,16 @@ import {
 
 /**
  * `resolveWaitingNodeExecutionId` 의 단일 JOIN 쿼리가 반환하는 raw 행.
- * `interactionType` 은 `output_data` 의 JSONB path 투영 (structured `meta` 우선,
- * legacy flat root fallback) — 컬럼 전체를 싣지 않기 위한 projection 이라 `null` 가능.
+ * `metaInteractionType` / `flatInteractionType` 은 `output_data` blob 전체 대신
+ * 두 JSONB path 만 투영한 raw 값이다 (`null` 가능). precedence·string-guard 는
+ * `coalesceInteractionType` 이 단독 소유한다 (SQL 은 순수 추출만).
  */
 interface WaitingNodeRow {
   id: string;
   nodeId: string;
   nodeType: string;
-  interactionType: string | null;
+  metaInteractionType: string | null;
+  flatInteractionType: string | null;
 }
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
@@ -5196,11 +5199,16 @@ export class ExecutionEngineService
         .select('ne.id', 'id')
         .addSelect('ne.node_id', 'nodeId')
         .addSelect('n.type', 'nodeType')
-        // structured envelope 의 `meta.interactionType` 우선, legacy flat root fallback —
-        // `readPersistedInteractionType` 와 동일 규칙을 SQL 로 표현한다.
+        // 표면 판정에 필요한 두 raw 값만 투영한다 (`output_data` blob 전체 미포함).
+        // precedence(meta 우선)·string-guard 는 `coalesceInteractionType` 이 소유하므로,
+        // 여기서는 COALESCE 로 규칙을 재현하지 않고 두 경로를 그대로 뽑아 넘긴다.
         .addSelect(
-          `COALESCE(ne.output_data -> 'meta' ->> 'interactionType', ne.output_data ->> 'interactionType')`,
-          'interactionType',
+          `ne.output_data -> 'meta' ->> 'interactionType'`,
+          'metaInteractionType',
+        )
+        .addSelect(
+          `ne.output_data ->> 'interactionType'`,
+          'flatInteractionType',
         )
         .where('ne.execution_id = :executionId', { executionId })
         .andWhere('ne.status = :status', {
@@ -5272,7 +5280,10 @@ export class ExecutionEngineService
     const surface = resolveWaitingSurface({
       blockingInteraction:
         meta.kind === 'blocking' ? meta.interaction : undefined,
-      interactionType: row.interactionType ?? undefined,
+      interactionType: coalesceInteractionType(
+        row.metaInteractionType,
+        row.flatInteractionType,
+      ),
     });
     if (!surface) {
       this.logger.warn(

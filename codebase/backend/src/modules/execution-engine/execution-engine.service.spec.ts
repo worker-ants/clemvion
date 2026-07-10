@@ -327,7 +327,8 @@ describe('ExecutionEngineService', () => {
         id: 'ne-waiting',
         nodeId: 'n-wait',
         nodeType: 'ai_agent',
-        interactionType: 'ai_conversation',
+        metaInteractionType: 'ai_conversation',
+        flatInteractionType: null,
       },
     ];
     waitingQueryError = null;
@@ -1054,23 +1055,24 @@ describe('ExecutionEngineService', () => {
       recursionDepth: 0,
     });
     // resolveWaitingNodeExecutionId 의 단일 JOIN 쿼리 → WAITING row 1건.
-    // `interactionType` 은 park 이 실제로 영속한 envelope 에서 뽑는다 (하드코딩 아님)
-    // — 프로덕션의 JSONB path 투영(`meta.interactionType` 우선, flat root fallback)
-    // 과 동일 규칙이라 form/buttons/ai 세 표면을 비-vacuous 하게 커버한다.
+    // meta/flat interactionType 은 park 이 실제로 영속한 envelope 에서 뽑는다
+    // (하드코딩 아님) — 프로덕션의 두 JSONB path 투영과 동형이라 form/buttons/ai
+    // 세 표면을 비-vacuous 하게 커버한다. precedence 결합은 프로덕션과 동일하게
+    // `coalesceInteractionType` 이 수행한다.
     const meta = rawPersisted.meta as Record<string, unknown> | undefined;
-    const persistedInteractionType =
-      (typeof meta?.interactionType === 'string'
-        ? meta.interactionType
-        : undefined) ??
-      (typeof rawPersisted.interactionType === 'string'
-        ? rawPersisted.interactionType
-        : null);
     waitingRawRows = [
       {
         id: neId,
         nodeId: waitingNodeId,
         nodeType: nodeDef.type,
-        interactionType: persistedInteractionType,
+        metaInteractionType:
+          typeof meta?.interactionType === 'string'
+            ? meta.interactionType
+            : null,
+        flatInteractionType:
+          typeof rawPersisted.interactionType === 'string'
+            ? rawPersisted.interactionType
+            : null,
       },
     ];
     // rehydrateAndResume 의 NodeExecution lookup (findOneBy by id).
@@ -2082,8 +2084,20 @@ describe('ExecutionEngineService', () => {
         )
         .mockImplementation(() => undefined);
       waitingRawRows = [
-        { id: 'ne-a', nodeId: 'n1', nodeType: 'form', interactionType: 'form' },
-        { id: 'ne-b', nodeId: 'n2', nodeType: 'form', interactionType: 'form' },
+        {
+          id: 'ne-a',
+          nodeId: 'n1',
+          nodeType: 'form',
+          metaInteractionType: 'form',
+          flatInteractionType: null,
+        },
+        {
+          id: 'ne-b',
+          nodeId: 'n2',
+          nodeType: 'form',
+          metaInteractionType: 'form',
+          flatInteractionType: null,
+        },
       ];
       await expect(
         service.continueExecution('exec-dup', {}),
@@ -2113,7 +2127,15 @@ describe('ExecutionEngineService', () => {
         ...mockWaitingQb.select.mock.calls,
         ...mockWaitingQb.addSelect.mock.calls,
       ].map((c) => String(c[0]));
-      expect(selected.some((s) => /interactionType/.test(s))).toBe(true);
+      // meta·flat 두 경로를 각각 투영한다 (precedence 결합은 TS 가 소유).
+      expect(
+        selected.some((s) => /'meta'\s*->>\s*'interactionType'/.test(s)),
+      ).toBe(true);
+      expect(
+        selected.some(
+          (s) => /->>\s*'interactionType'/.test(s) && !/'meta'/.test(s),
+        ),
+      ).toBe(true);
       // 컬럼 전체(`ne.output_data` 단독)를 select 한 호출이 없어야 한다.
       expect(selected).not.toContain('ne.output_data');
       expect(selected).not.toContain('ne.outputData');
@@ -2131,17 +2153,25 @@ describe('ExecutionEngineService', () => {
     // 이제 publish 전에 동기 거부되고 execution 은 waiting_for_input 으로 보존된다.
     // ────────────────────────────────────────────────────────────────────────
     describe('표면 매트릭스 가드 (§7.5.1)', () => {
-      /** 지정한 표면으로 대기 중인 단일 WAITING row 를 무장한다. */
+      /**
+       * 지정한 표면으로 대기 중인 단일 WAITING row 를 무장한다. 기본은 structured
+       * envelope 경로(`metaInteractionType`); `via: 'flat'` 이면 legacy flat root
+       * 경로로 넣어 `coalesceInteractionType` 의 fallback 분기를 exercise 한다.
+       */
       const armWaitingSurface = (
         interactionType: string | undefined,
         nodeType = 'carousel',
+        via: 'meta' | 'flat' = 'meta',
       ): void => {
         waitingRawRows = [
           {
             id: 'ne-waiting',
             nodeId: 'n-wait',
             nodeType,
-            interactionType: interactionType ?? null,
+            metaInteractionType:
+              via === 'meta' ? (interactionType ?? null) : null,
+            flatInteractionType:
+              via === 'flat' ? (interactionType ?? null) : null,
           },
         ];
       };
@@ -2210,6 +2240,25 @@ describe('ExecutionEngineService', () => {
         );
       });
 
+      // legacy flat root 경로(`output_data.interactionType`, meta 부재)도 표면 판정에
+      // 쓰인다 — `coalesceInteractionType` 의 fallback 분기. structured meta 만 있는
+      // 기본 케이스와 동일 결과여야 한다.
+      it('buttons 대기 (legacy flat root interactionType) + end_conversation → 거부', async () => {
+        armWaitingSurface('buttons', 'carousel', 'flat');
+        await expect(
+          service.endAiConversation('exec-btn-flat'),
+        ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+        expect(mockBus.publish).not.toHaveBeenCalled();
+      });
+
+      it('buttons 대기 (legacy flat root interactionType) + click_button → 통과', async () => {
+        armWaitingSurface('buttons', 'carousel', 'flat');
+        await service.continueButtonClick('exec-btn-flat', 'btn-1');
+        expect(mockBus.publish).toHaveBeenCalledWith(
+          expect.objectContaining({ type: 'button_click' }),
+        );
+      });
+
       // AI 표면은 의도적으로 관대하다 — Presentation §10.9 의 stale button_click
       // graceful re-park invariant + AI Agent §6.2 step 2.c 의 render_form 응답
       // (form_submitted) 을 보존해야 한다. 여기서 좁히면 두 계약이 깨진다.
@@ -2242,9 +2291,12 @@ describe('ExecutionEngineService', () => {
         expect(mockBus.publish).not.toHaveBeenCalled();
       });
 
-      // 대기 노드 정의가 사라진 행은 `innerJoin('ne.node')` 이 걸러 0건이 되므로
-      // 위 "WAITING row 0건" 경로와 동일하게 INVALID_EXECUTION_STATE 로 수렴한다.
-      it('대기 node 정의 부재(JOIN 탈락) → 0건과 동일하게 INVALID_EXECUTION_STATE', async () => {
+      // 노드 정의가 사라진 행은 `innerJoin('ne.node')` 이 실 DB 에서 걸러 0건이 된다
+      // (`node_id` 는 NOT NULL + ON DELETE CASCADE FK 라 orphan 자체가 DB 레벨에서
+      // 사실상 발생 불가). 그 결과는 "WAITING row 0건" 과 동형이다 — 여기서는 mock 이
+      // JOIN SQL 을 대체하므로 **동형 결과(빈 rawRows)만** 검증하고, 실제 JOIN 탈락
+      // semantics 는 e2e(실 Postgres)가 커버한다.
+      it('JOIN 탈락(빈 rawRows) → INVALID_EXECUTION_STATE', async () => {
         waitingRawRows = [];
         await expect(
           service.endAiConversation('exec-nonode'),

@@ -1,5 +1,6 @@
 import {
   SURFACE_ALLOWED_COMMANDS,
+  coalesceInteractionType,
   isCommandAllowedOnSurface,
   readPersistedInteractionType,
   resolveWaitingSurface,
@@ -157,6 +158,29 @@ describe('waiting-surface-guard', () => {
         expect(cmds.length).toBeGreaterThan(0);
         for (const c of cmds) expect(ALL_COMMANDS).toContain(c);
       }
+    });
+  });
+
+  // precedence·string-guard 규칙의 단일 SoT — publisher chokepoint 의 SQL 은 두 raw
+  // 값만 뽑아 이 함수로 결합한다 (규칙 자체는 SQL 이 아니라 여기).
+  describe('coalesceInteractionType', () => {
+    it('meta 우선 (둘 다 있으면 meta)', () => {
+      expect(coalesceInteractionType('buttons', 'form')).toBe('buttons');
+    });
+
+    it('meta 부재 → flat fallback', () => {
+      expect(coalesceInteractionType(null, 'buttons')).toBe('buttons');
+      expect(coalesceInteractionType(undefined, 'buttons')).toBe('buttons');
+    });
+
+    it('둘 다 부재 → undefined', () => {
+      expect(coalesceInteractionType(null, null)).toBeUndefined();
+      expect(coalesceInteractionType(undefined, undefined)).toBeUndefined();
+    });
+
+    it('비-문자열은 무시 (string-guard)', () => {
+      expect(coalesceInteractionType(7, 'buttons')).toBe('buttons');
+      expect(coalesceInteractionType({}, null)).toBeUndefined();
     });
   });
 

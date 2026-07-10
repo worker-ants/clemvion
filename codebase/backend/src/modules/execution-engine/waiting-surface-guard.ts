@@ -99,10 +99,28 @@ export function isCommandAllowedOnSurface(
 }
 
 /**
- * 영속된 `NodeExecution.outputData` 에서 interactionType 을 읽는다.
- * structured envelope 의 `meta.interactionType` 우선, legacy flat root fallback —
+ * 영속된 interactionType 판정 규칙의 **단일 SoT** — structured envelope 의
+ * `meta.interactionType` 우선, legacy flat root fallback. 문자열이 아닌 값은 무시한다.
  * 엔진의 in-memory `getInteractionType` (structured cache → flat cache) 와 동형이며
  * §7.5 rehydration 의 `persistedInteractionType` 계산과 정확히 같은 규칙이다.
+ *
+ * publisher chokepoint 는 `output_data` blob 전체를 싣지 않으려고 SQL 에서 두 경로의
+ * raw 값(`meta ->> 'interactionType'`, `->> 'interactionType'`)만 투영한 뒤 본 함수로
+ * 결합한다 — **precedence·string-guard 로직은 SQL 이 아니라 여기 한 곳에만** 둔다.
+ */
+export function coalesceInteractionType(
+  metaInteractionType: unknown,
+  flatInteractionType: unknown,
+): string | undefined {
+  if (typeof metaInteractionType === 'string') return metaInteractionType;
+  if (typeof flatInteractionType === 'string') return flatInteractionType;
+  return undefined;
+}
+
+/**
+ * 영속된 `NodeExecution.outputData` 객체 전체에서 interactionType 을 읽는다
+ * ({@link coalesceInteractionType} 위임). in-memory 캐시(객체)를 가진 소비처용 —
+ * SQL 투영 경로는 raw 두 값으로 `coalesceInteractionType` 를 직접 호출한다.
  */
 export function readPersistedInteractionType(
   outputData: unknown,
@@ -110,11 +128,9 @@ export function readPersistedInteractionType(
   if (outputData === null || typeof outputData !== 'object') return undefined;
   const out = outputData as Record<string, unknown>;
   const meta = out.meta;
-  if (meta !== null && typeof meta === 'object') {
-    const metaType = (meta as Record<string, unknown>).interactionType;
-    if (typeof metaType === 'string') return metaType;
-  }
-  return typeof out.interactionType === 'string'
-    ? out.interactionType
-    : undefined;
+  const metaType =
+    meta !== null && typeof meta === 'object'
+      ? (meta as Record<string, unknown>).interactionType
+      : undefined;
+  return coalesceInteractionType(metaType, out.interactionType);
 }
