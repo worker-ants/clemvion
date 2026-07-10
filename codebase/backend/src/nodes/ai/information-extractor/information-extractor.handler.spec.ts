@@ -1018,6 +1018,54 @@ describe('InformationExtractorHandler', () => {
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
     });
 
+    // [Spec 7-llm-usage §1.3] collection-retry 루프의 2번째(재시도) chat 도 동일 llmContext 로
+    // attribution 을 채워야 한다. runTurnWithCollectionRetries 가 for(;;) 각 iteration 의 traceChat
+    // 에 params.llmContext 를 전파하는데(WARNING#5), 기존 테스트는 calls[0][2](첫 chat)만 단언하고
+    // 재시도 chat 은 미검증이었다. ai_agent tool-loop 2번째 chat 단언(ai-turn-executor.spec)과 대칭
+    // 회귀 고정 (ai-review INFO#4).
+    it('collection-retry loop passes attribution (llmContext) to the 2nd retry chat too', async () => {
+      mockLlmService.chat
+        .mockResolvedValueOnce(
+          finalizeCall(
+            { senderName: 'John', orderNumber: null },
+            { callId: 'c1' },
+          ),
+        )
+        .mockResolvedValueOnce(
+          finalizeCall(
+            { senderName: 'John', orderNumber: 'O-42' },
+            { callId: 'c2' },
+          ),
+        );
+
+      // nodeId(정의)와 nodeExecutionId(row PK)를 서로 다른 값으로 둬 혼동을 배제.
+      await handler.processMultiTurnMessage(
+        'ORD-42',
+        retryState({
+          executionId: 'exec-cr-1',
+          workflowId: 'wf-cr-1',
+          nodeId: 'node-def-cr',
+          nodeExecutionId: 'nodeexec-row-cr',
+        }),
+      );
+
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      // 재시도(2번째) chat 의 3번째 인자(LlmCallContext)가 row PK·workflowId·executionId 를 담아야 한다.
+      const secondCallCtx = mockLlmService.chat.mock.calls[1][2] as Record<
+        string,
+        unknown
+      >;
+      expect(secondCallCtx).toEqual(
+        expect.objectContaining({
+          executionId: 'exec-cr-1',
+          workflowId: 'wf-cr-1',
+          nodeExecutionId: 'nodeexec-row-cr',
+        }),
+      );
+      // 회귀 방지: 정의 id 가 row PK 자리에 유입되면 안 된다.
+      expect(secondCallCtx.nodeExecutionId).not.toBe('node-def-cr');
+    });
+
     it('routes to error port after exceeding maxCollectionRetries', async () => {
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({ senderName: null, orderNumber: null }),
