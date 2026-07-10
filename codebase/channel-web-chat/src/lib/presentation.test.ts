@@ -243,6 +243,38 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     });
     expect(tb.truncated).toBe(true);
   });
+
+  // 병합 우선순위 lock-in — spread 순서를 뒤집는 리팩터가 조용히 통과하지 못하게 한다.
+  it("toTable — payload 와 truncation 이 같은 키를 가지면 top-level truncation 우선", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }], rowsTruncated: true },
+      truncation: { rowsTruncated: false },
+    });
+    expect(tb.truncated).toBe(false);
+  });
+
+  // truncation 이 비객체(null/문자열)여도 흡수 로직이 터지지 않아야 한다.
+  it("toTable — truncation 이 null/문자열이면 무시(no-op)", () => {
+    const base = { type: "table", toolCallId: "t", payload: { rows: [{ n: "a" }] } };
+    expect(toTable({ ...base, truncation: null }).truncated).toBe(false);
+    expect(toTable({ ...base, truncation: "garbage" }).truncated).toBe(false);
+    expect(toTable({ ...base, truncation: null }).rows).toEqual([{ n: "a" }]);
+  });
+
+  // 알려진 4개 cap 키만 흡수 — truncation 에 낯선 키가 와도 payload 의 렌더 필드를 덮지 않는다.
+  it("toTable — truncation 의 미등록 키는 output 으로 흡수하지 않음", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { columns: [{ field: "n", label: "N" }], rows: [{ n: "a" }] },
+      // `rows` 는 truncation 예약 키가 아니므로 payload 의 rows 가 살아남아야 한다.
+      truncation: { rowsTruncated: true, rows: [] },
+    });
+    expect(tb.rows).toEqual([{ n: "a" }]);
+    expect(tb.truncated).toBe(true);
+  });
 });
 
 describe("converters — {config,output} envelope 회귀(하위 호환)", () => {
