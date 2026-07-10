@@ -130,7 +130,7 @@ usage 적재 정책:
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
 | `model_config` | 생성·갱신 | INSERT/UPDATE `workspace_id, kind, provider, name, api_key (encrypted), base_url?, default_model, default_params, dimension?, is_default` | V001(구 llm_config)→`(V088)` rename + kind/dimension. `model_config_workspace_kind_default_unique` (`(workspace_id, kind) WHERE is_default=true`) UNIQUE partial `(V089)` — kind 별 default 1개. (구 `llm_config` 시절 `@Index` 선언만 있고 SQL 마이그레이션이 없던 `llm_config_workspace_default_unique` 는 본 통합에서 V089 가 SQL 로 실제 생성하며 대체됨 — 이전의 "DB 단 강제 부재, application 트랜잭션만으로 보장" 상태를 해소.) |
-| `llm_usage_log` | chat 계열 호출 후 | INSERT `workspace_id, workflow_id?, execution_id?, node_execution_id?, llm_config_id?, provider, model, prompt_tokens, completion_tokens, total_tokens, thinking_tokens? (V018), cost_usd?` | V014/V018. `(workspace_id, created_at DESC)`, `(provider, model, created_at DESC)`, `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (partial) 통계용 |
+| `llm_usage_log` ([데이터 모델 §2.16.1](../1-data-model.md#2161-llmusagelog)) | chat 계열 호출 후 | INSERT `workspace_id, workflow_id?, execution_id?, node_execution_id?, llm_config_id?, provider, model, prompt_tokens, completion_tokens, total_tokens, thinking_tokens? (V018), cost_usd?` | V014/V018. `(workspace_id, created_at DESC)`, `(provider, model, created_at DESC)`, `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (partial) 통계용 |
 | `knowledge_base.embedding_model_config_id` | KB 임베딩 config 선택 | V091. NULL → ws default 폴백 | FK `ON DELETE SET NULL` |
 
 ### 2.2 외부
