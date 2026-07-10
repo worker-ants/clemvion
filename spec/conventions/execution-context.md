@@ -5,6 +5,7 @@ code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/modules/execution-engine/context/execution-context.service.ts
   - codebase/backend/src/shared/execution-resume/resume-call-stack.types.ts
+  - codebase/backend/src/nodes/logic/_shared/reserved-variable-name.util.ts
 ---
 
 # ExecutionContext 설계 규약 (God Object 방지)

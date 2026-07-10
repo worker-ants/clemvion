@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/logic/variable-declaration/variable-declaration.*.ts
   - codebase/backend/src/modules/execution-engine/utils/coerce-type.ts
+  - codebase/backend/src/nodes/logic/_shared/reserved-variable-name.util.ts
 ---
 
 # Spec: Variable Declaration

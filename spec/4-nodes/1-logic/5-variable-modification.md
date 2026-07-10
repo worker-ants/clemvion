@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/logic/variable-modification/variable-modification.*.ts
   - codebase/backend/src/nodes/logic/_shared/value-masking.util.ts
+  - codebase/backend/src/nodes/logic/_shared/reserved-variable-name.util.ts
 ---
 
 # Spec: Variable Modification
