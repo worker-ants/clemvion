@@ -38,13 +38,8 @@ export const KB_EVENT_NAMES = [
  * 5s polling fallback 은 페이지 useQuery 에 그대로 두어 WS 단절 시에도 progress 가
  * 따라가도록 한다. 둘이 동시에 동작해도 React Query dedup 이 합쳐주므로 안전.
  *
- * 구독 이벤트는 backend `WebsocketService` 의 `KbEventType` union(권위 정의)과 1:1 정렬한다
- * — {@link KB_EVENT_NAMES} 참조. 총 11종:
- *   embedding: started / progress / completed / error / retry / failed (6)
- *   graph:     started / progress / completed / retry / failed         (5)
- * `document:embedding_error` 는 union 에 선언돼 있으나 backend emit 경로가 없다(일시 오류는
- * `_retry` 로 통지) — 구독은 forward-compat 목적. graph 에는 `_error` 이벤트가 없다
- * (emit 경로가 없어 #443 에서 union 에서 제거됨).
+ * 구독 이벤트(11종)와 그 권위·`_error` 취급은 {@link KB_EVENT_NAMES} 의 docblock 참조.
+ * 어떤 이벤트가 와도 handler 는 payload 무시하고 캐시 invalidate 만 한다.
  *
  * documentIds 배열이 바뀔 때마다 구독을 재계산. (문서 신규 업로드/삭제 시 자동 반영)
  */

@@ -408,7 +408,7 @@ IVFFlat 단일 인덱스에서 차원별 partial HNSW (V022 `vector` + V023 `hal
 
 `retry-failed` API 의 `scope: 'all'` 은 초기 `spec/2-navigation/5-knowledge-base.md §2.4.1` 표기에서 누락되어 있었다. 본 spec §9.4 와 정합화하여 API 표에도 추가. 프론트엔드 UI 는 vector / graph 두 분리 버튼 구조라 두 단일 값만 사용하고, `'all'` 은 운영/스크립트용으로 보존.
 
-WebSocket 채널 명명을 KB 단위(`embedding:{knowledgeBaseId}`) 에서 **문서 단위**(`kb:${documentId}`) 로 전환. backend `KbEventType` union (12개 이벤트) 과 `emitKbEvent` 구현이 권위이며, frontend `useKbEvents` 가 동일하게 구독한다. 점 표기(`embedding.started`) → 콜론+언더스코어 표기(`document:embedding_started`) 도 backend 정렬.
+WebSocket 채널 명명을 KB 단위(`embedding:{knowledgeBaseId}`) 에서 **문서 단위**(`kb:${documentId}`) 로 전환. backend `KbEventType` union 과 `emitKbEvent` 구현이 권위이며, frontend `useKbEvents` 가 동일하게 구독한다. ~~union 12개 이벤트~~ → graph `_error` 는 emit 경로가 없어 #443 에서 union 에서 제거돼 현재 **11개**(embedding 6 + graph 5)다 (§8.1/§8.2 본문 및 [`data-flow/6-knowledge-base.md §2.5`](../data-flow/6-knowledge-base.md) 와 정합). 점 표기(`embedding.started`) → 콜론+언더스코어 표기(`document:embedding_started`) 도 backend 정렬.
 
 `kb:graph_stats_updated` 이벤트는 spec 에 포함하지 않는다. `kb-stats.helper.ts` 가 `emitExecutionEvent` 로 호출해 채널이 `execution:kb:…` 로 prefix 되어 frontend 의 `kb:` 구독에 도달하지 못하는 dead path 이며 type union 에도 없다 (`as never` 강제 캐스트).
 

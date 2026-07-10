@@ -179,7 +179,7 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 └──────────────────────────────────────────────────────────┘
 ```
 
-- WebSocket 이벤트 (`document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed`) 로 실시간 갱신. KB 단위 통계는 `document:graph_completed` payload 의 `entityCount` / `relationCount` 또는 REST `GET /:id/graph/stats` 폴링으로 조회
+- WebSocket 이벤트 (`document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed`) 로 실시간 갱신 (graph 에는 `_error` 이벤트가 없다 — emit 경로가 없어 #443 에서 union 제거; 오류는 `_retry`·`_failed` 로 노출). KB 단위 통계는 `document:graph_completed` payload 의 `entityCount` / `relationCount` 또는 REST `GET /:id/graph/stats` 폴링으로 조회
 - "Re-extract entire KB" 액션은 `POST /api/knowledge-bases/:kbId/re-extract` 호출 (확인 모달)
 
 #### 2.7.2 P1: Entity / Relation 목록 화면

@@ -7,6 +7,11 @@ import { KB_EVENT_NAMES } from "../use-kb-events";
  * 한다. 과거 frontend 가 backend 에 없는 `document:graph_error` 를 구독해 count drift(12 vs
  * 11)가 발생했다(#443 에서 backend union 은 graph `_error` 제거). 이 테스트는 그 재발을
  * 감시한다 — 새 KB 이벤트 추가/삭제 시 backend union 과 함께 이 목록도 갱신해야 통과한다.
+ *
+ * 한계: 이는 **frontend 측 단방향 미러**다. TS 타입(`KbEventType`)은 런타임에 소거되고
+ * FE/BE 가 별도 배포 단위(shared 이벤트명 패키지 없음)라, 기대 배열을 여기 하드코딩해
+ * frontend 의 누락·오타·count drift 만 잡는다. backend 가 union 을 먼저 바꾸는 반대 방향
+ * drift 는 못 잡으므로, union 변경 시 이 목록·기대값 동반 갱신을 리뷰에서 확인해야 한다.
  */
 describe("KB_EVENT_NAMES ↔ backend KbEventType union parity", () => {
   const embedding = KB_EVENT_NAMES.filter((n) =>
