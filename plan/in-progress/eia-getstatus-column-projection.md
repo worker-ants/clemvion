@@ -48,7 +48,7 @@ PR #874(EIA §R17 재조정)로 `Execution.conversation_thread` jsonb 가 `conte
 - [x] 5. 테스트 선작성 — projection/2단계/W1 마스킹/W2 updatedAt/재조회 null 5건. red 확인(3 fail).
 - [x] 6. 구현 — 2단계 조회 + `Promise.all` 병렬
 - [x] 7. 테스트 보강 — 대상 spec 41/41 green
-- [ ] 8. TEST WORKFLOW — lint / unit / build / e2e
+- [x] 8. TEST WORKFLOW — lint PASS(54s) / unit PASS(75s) / build PASS(140s) / e2e PASS(170s, 43 suite · 249 test, 0 fail). `execution-park-resume.e2e-spec.ts` · `external-interaction.e2e-spec.ts` 둘 다 PASS 확인 (상태전이 회귀 없음).
 - [ ] 9. REVIEW WORKFLOW — `/ai-review` + `/consistency-check --impl-done`
 
 ## impl-prep Warning (구현 중 처리 의무)
