@@ -272,6 +272,8 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 
 각 변수의 `type`은 `string` / `number` / `boolean` / `array` / `object`예요. `defaultValue`는 표현식으로도 지정할 수 있어요.
 
+변수 이름은 `__`(밑줄 두 개)로 시작할 수 없어요 — 시스템이 예약한 이름이라, 저장하거나 실행할 때 에러가 나요.
+
 ### 예시
 
 <Example title="카운터와 누적 목록 선언">
@@ -298,6 +300,8 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 ]} />
 
 지원 연산: `set`, `increment`, `decrement`, `append`(string), `push`/`pop`(array), `set_field`/`delete_field`(object).
+
+대상 변수 이름은 `__`(밑줄 두 개)로 시작할 수 없어요 — 시스템 예약 이름이에요.
 
 ### 예시
 

@@ -62,7 +62,7 @@ interface ParallelBranchContext extends ExecutionContext {
 
 ### 원칙 5 — `variables.__*` 시스템 예약 네임스페이스 (double-underscore)
 
-`ExecutionContext.variables` 는 사용자 정의 워크플로 변수 맵이지만, 엔진이 실행 시작 시 **시스템 값**을 `__`(double-underscore) prefix 키로 이 맵에 주입한다. 이 `__*` 는 **예약 prefix 네임스페이스**로 취급한다 — 사용자 변수는 `__` 를 쓰지 않는 것을 규약으로 한다(단, 아래 "강제 갭" 참조).
+`ExecutionContext.variables` 는 사용자 정의 워크플로 변수 맵이지만, 엔진이 실행 시작 시 **시스템 값**을 `__`(double-underscore) prefix 키로 이 맵에 주입한다. 이 `__*` 는 **예약 prefix 네임스페이스**로 취급한다 — 사용자 변수는 `__` 를 쓸 수 없다(강제 방식은 아래 "강제 (3계층)" 참조).
 
 - 선례(코드 SoT `node-handler.interface.ts` JSDoc): `__workspaceId`(실행 시작 시 `workflow.workspaceId` 주입 — Integration 조회·LLM 설정 등 워크스페이스 단위 리소스 해소), `__workspaceName`(`Workspace.name` 복제 — AI System Context Prefix), `__workspaceTimezone`(`Workspace.settings.timezone`, IANA — System Context Prefix·Schedule default timezone 해소), `__dryRun`(Re-run dry-run 모드 — [replay-rerun §7.2](../5-system/13-replay-rerun.md)). 신규 시스템 주입 값은 반드시 `__` prefix 를 쓴다.
 - **top-level `_`-prefix(원칙 4)와 구분**: 원칙 4 는 `ExecutionContext` **최상위**의 엔진 전용 필드(`_resumeState`·`_contextKey` 등, 핸들러 계약 비노출)이고, 본 원칙은 사용자-표면 `variables` **맵 내부**에 주입되는 시스템 값이다 — 스코프(top-level vs. `variables` 맵)와 prefix(단일 `_` vs. 이중 `__`)가 모두 다르다.
@@ -71,7 +71,8 @@ interface ParallelBranchContext extends ExecutionContext {
   - **L0 저장 시점** — `WorkflowsService.saveCanvas` / `importWorkflow` 가 리터럴 `__` 이름을 400 (`RESERVED_VARIABLE_NAME`, `details.offenders[]`)으로 거부한다. `restoreVersion` 은 사전-게이트 스냅샷 복원이라 이 게이트를 건너뛴다(`validateManualTrigger` 파라미터 스키마 게이트와 동일한 legacy-data escape).
   - **L1 pre-flight** — 두 노드의 `validateConfig` 가 리터럴 `__` 이름을 반환하고, 엔진이 `INVALID_NODE_CONFIG` 로 실행 직전 차단한다. 저장 게이트를 우회해 들어온 데이터의 backstop.
   - **L2 런타임** — 핸들러 `execute` 가 **해석된** 이름을 재검사해 throw 한다. `{{ }}` 로 만들어진 이름은 오직 여기서만 실제 값이 드러나므로 이 계층이 예약의 **실질 강제 지점**이다. 코드 SoT: [`reserved-variable-name.util.ts`](../../codebase/backend/src/nodes/logic/_shared/reserved-variable-name.util.ts). 선례: carousel `button.id` 의 `__item_` prefix schema-level reject.
-- **강제 범위 밖 (잔여 리스크)**: **Code 노드**(`$vars` 전체 atomic replace, `nodes/data/code/code.handler.ts`)는 사용자 코드가 `$vars.__workspaceId` 를 써도 필터 없이 `context.variables` 를 통째로 덮어쓴다. 임의 코드 실행 노드에 이름 화이트리스트를 강제하는 것은 별개 결정이라 본 강제 범위 밖이다(§Rationale). 또한 park 필터(`filterUserVariables` — `!key.startsWith('__')`)는 여전히 `__*` 를 drop 하지만, L0/L1/L2 강제로 사용자 정의 `__*` 변수가 애초에 생기지 않으므로 (b) silent 소실 리스크는 두 변수 노드 경로에서는 해소된다.
+- **강제 범위 밖 (잔여 리스크 — Code 노드)**: **Code 노드**(`$vars` 전체 atomic replace, `nodes/data/code/code.handler.ts`)는 사용자 코드가 `$vars.__workspaceId` 를 써도 필터 없이 `context.variables` 를 통째로 덮어쓴다. `__workspaceId` 는 Integration 자격증명 조회(`getForExecution(id, workspaceId)`)·LLM config 해소·sub-workflow dispatch 의 워크스페이스 스코프 **신뢰 경계**로 소비되므로, Code 노드로 이를 위조하면 원칙적으로 cross-workspace 리소스 접근을 시도할 수 있다. 이는 **본 PR 이 도입한 것이 아니라 기존부터 존재하던 리스크**이며, 임의 코드 실행 노드에 이름 화이트리스트를 강제하는 것은 Code 노드 격리·계약에 대한 별개 결정이라 본 강제 범위 밖이다(§Rationale). 근본 하드닝(워크스페이스 식별자를 사용자-가변 `variables` 맵 밖으로 이동)은 별도 후속 트랙. 또한 park 필터(`filterUserVariables` — `!key.startsWith('__')`)는 여전히 `__*` 를 drop 하지만, L0/L1/L2 강제로 **두 변수 노드 경로에서는** 사용자 정의 `__*` 변수가 애초에 생기지 않으므로 (b) silent 소실 리스크가 해소된다.
+- **import 경로**: `importWorkflow` 는 `restoreVersion` 과 달리 legacy-data escape 가 없다 — 가져오는 JSON 은 이 워크스페이스의 과거 스냅샷이 아니라 새 데이터이므로 리터럴 `__` 이름을 400 으로 거부한다. 규칙 도입 이전에 export 한 워크플로를 다시 import 하면 이 게이트에 걸릴 수 있으나(사용자가 JSON 의 이름을 고쳐 재시도), 그런 워크플로는 어차피 park drop 으로 반쯤 깨져 있던 상태다.
 
 ## 2. 새 필드 추가 결정 규칙
 

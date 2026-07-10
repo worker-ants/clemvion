@@ -92,7 +92,7 @@ code:
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> Variable Declaration 은 단일 출력 pass-through 노드이므로 §5.1 단일 케이스로 구성된다 (분기 / 에러 포트 없음 — config 검증 실패는 §6 pre-flight throw).
+> Variable Declaration 은 단일 출력 pass-through 노드이므로 §5.1 단일 케이스로 구성된다 (분기 / 에러 포트 없음). 검증 실패는 §6 참조 — 대부분 pre-flight throw 이나, 예약 `__` 이름의 런타임 해석 후 검사(§6 L2)만은 실행 중 throw 된다.
 
 ### 5.1 Case: 정상 (단일 출력 `out`)
 

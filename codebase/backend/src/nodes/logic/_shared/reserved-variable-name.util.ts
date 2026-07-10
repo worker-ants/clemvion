@@ -30,6 +30,10 @@ export const RESERVED_VARIABLE_PREFIX = '__';
  */
 export const RESERVED_VARIABLE_NAME_CODE = 'RESERVED_VARIABLE_NAME';
 
+/**
+ * 세 계층 공통 술어 — "이 이름이 예약 네임스페이스인가". non-string 은 false
+ * (이름 required/type 검사가 그 에러를 담당하므로 여기서 중복 보고하지 않는다).
+ */
 export function isReservedVariableName(name: unknown): boolean {
   return typeof name === 'string' && name.startsWith(RESERVED_VARIABLE_PREFIX);
 }
