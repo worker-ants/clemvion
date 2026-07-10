@@ -48,6 +48,38 @@ describe('redactSecrets (mask-only)', () => {
     expect(redactSecrets(clean)).toBe(clean);
   });
 
+  it('masks a bare JWT (no Bearer prefix)', () => {
+    const jwt =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+    const out = redactSecrets(`invalid token: ${jwt}`);
+    expect(out).not.toContain(jwt);
+    expect(out).toContain('***');
+  });
+
+  it('masks URI-embedded userinfo credentials (any scheme, through the @)', () => {
+    const out = redactSecrets(
+      'connect https://admin:supersecret@internal.example.com/path failed',
+    );
+    expect(out).not.toContain('supersecret');
+    expect(out).not.toContain('admin:');
+    // host/path survive for context.
+    expect(out).toContain('internal.example.com/path');
+  });
+
+  it('masks non-DB URI userinfo too (redis/custom schemes)', () => {
+    expect(redactSecrets('redis://u:p4ss@cache:6379')).not.toContain('p4ss');
+    expect(redactSecrets('amqp://guest:s3cr3t@mq')).not.toContain('s3cr3t');
+  });
+
+  it.each([
+    'the eyeball tracker eyJustKidding word', // `ey`-word, not a JWT triple
+    'visit https://example.com/eyJ-looks-like for docs', // URL, no userinfo
+    'ratio was 3:4 at scale', // colon in prose
+    'see http://localhost:3000/health', // host:port, no userinfo `user:pass@`
+  ])('does not false-positive on %s', (clean) => {
+    expect(redactSecrets(clean)).toBe(clean);
+  });
+
   it('does NOT truncate long masked output (unlike sanitizeLastErrorMessage)', () => {
     const long = 'clean prose. '.repeat(50); // > 200 chars, no secrets
     expect(long.length).toBeGreaterThan(LAST_ERROR_MESSAGE_MAX_LEN);
