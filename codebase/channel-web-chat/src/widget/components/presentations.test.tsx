@@ -358,3 +358,81 @@ describe("PresentationList", () => {
     expect(container.firstChild).toBeNull();
   });
 });
+
+// 새로고침 복원 경로 회귀 가드 — durable thread turn.presentations[] 는 PresentationPayload shape.
+// spec/7-channel-web-chat/1-widget-app §2: 렌더러는 {config,output} 과 PresentationPayload 를 모두 수용.
+describe("복원 thread presentation (PresentationPayload) 렌더", () => {
+  const payloadOf = (type: string, payload: Record<string, unknown>, truncation?: unknown) => ({
+    type,
+    toolCallId: `call_${type}`,
+    renderedAt: "2026-07-10T00:00:00.000Z",
+    payload,
+    ...(truncation ? { truncation } : {}),
+  });
+
+  it("carousel/table/chart/template 4종 모두 렌더", () => {
+    render(
+      <PresentationList
+        presentations={[
+          payloadOf("carousel", { layout: "card", items: [{ title: "상품A" }] }),
+          payloadOf("table", { columns: [{ field: "n", label: "이름" }], rows: [{ n: "행1" }] }),
+          payloadOf("chart", { chartType: "bar", data: [{ x: "A", y: 1 }] }),
+          payloadOf("template", { content: "안내문", outputFormat: "text" }),
+        ]}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("wc-carousel")).toBeInTheDocument();
+    expect(screen.getByTestId("wc-table")).toBeInTheDocument();
+    expect(screen.getByTestId("wc-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("wc-template")).toBeInTheDocument();
+    // 내용까지 실제로 그려졌는지 — testid 만 보면 빈 렌더 회귀를 놓친다.
+    expect(screen.getByText("상품A")).toBeInTheDocument();
+    expect(screen.getByText("행1")).toBeInTheDocument();
+    expect(screen.getByText("안내문")).toBeInTheDocument();
+  });
+
+  it("복원 carousel 의 port 버튼 클릭 → onButton 디스패치", () => {
+    const onButton = vi.fn();
+    render(
+      <PresentationList
+        presentations={[
+          payloadOf("carousel", {
+            layout: "card",
+            items: [{ title: "상품A", buttons: [{ id: "btn_1", label: "담기", type: "port" }] }],
+          }),
+        ]}
+        onButton={onButton}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "담기" }));
+    expect(onButton).toHaveBeenCalledWith("btn_1");
+  });
+
+  // truncation 은 payload 바깥 top-level — 흡수하지 않으면 잘림 배너가 영영 안 뜬다(ai-agent §7.10 / 공통 §10.4).
+  it("AI render_table 의 top-level truncation → 잘림 배너 노출", () => {
+    render(
+      <PresentationList
+        presentations={[
+          payloadOf(
+            "table",
+            { columns: [{ field: "n", label: "N" }], rows: [{ n: "a" }] },
+            { rowsTruncated: true, rowsTotalCount: 2000 },
+          ),
+        ]}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("일부 행만 표시됩니다.")).toBeInTheDocument();
+  });
+
+  it("truncation 없으면 잘림 배너 미노출", () => {
+    render(
+      <PresentationList
+        presentations={[payloadOf("table", { columns: [{ field: "n", label: "N" }], rows: [{ n: "a" }] })]}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("일부 행만 표시됩니다.")).not.toBeInTheDocument();
+  });
+});

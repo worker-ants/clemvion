@@ -38,6 +38,10 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 - SDK 활용 **샘플 프로젝트**.
 
 **비목표 (v1 → 백로그)**
+- 표시-전용 presentation **노드** 표시물의 **새로고침 복원** — durable thread 에는 AI `render_*` 표시물만
+  영속되므로(`turn.presentations[]` 는 `source: 'ai_assistant'` 한정) 노드 표시물은 라이브 세션 한정이다.
+  확장은 [conversation-thread §1.1](../conventions/conversation-thread.md) 의 backend 5-source enum 확장을
+  요구 → v2 검토. 라이브 렌더 및 AI `render_*` 표시물 복원은 v1 범위([`1-widget-app §2`](./1-widget-app.md)).
 - 파일 첨부 / 이모지 picker (Form file upload 연동 시).
 - 음성/통화, 상담원 핸드오프, 프로액티브(봇 선발화) 메시지.
 - 위젯 외형의 **per-workspace 테마/브랜딩 관리 콘솔**(워크스페이스 단위 외형 JSON 서빙·테마 라이브러리) — 백로그.
