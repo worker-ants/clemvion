@@ -301,9 +301,13 @@ describe('AiMemoryManager', () => {
       expect(res.messages[2]).toEqual({ role: 'assistant', content: 'b' });
     });
 
-    it('multi-turn(system-only) 압축 시 요약 chat 에 caller 의 llmContext 를 그대로 전달한다 (§1.3, resume=state.*)', async () => {
-      // WARNING#2 대칭 커버: single-turn 은 ai-agent.memory.spec 이, multi-turn resume
-      // 경로(state.* 조립)는 여기서 injectMemoryContext→요약 chat forwarding 을 고정한다.
+    it('multi-turn(system-only) 압축 시 injectMemoryContext 가 caller 의 llmContext 를 요약 chat 3번째 인자로 손실 없이 전달한다 (§1.3, manager 레이어 forwarding 계약)', async () => {
+      // 본 테스트는 manager 레이어의 forwarding 계약만 고정한다: caller 가 만든
+      // llmContext 리터럴이 injectMemoryContext→buildSummaryBufferUpdate→요약 chat 의
+      // 3번째 인자로 그대로 전달되는지. state.* → llmContext 실제 조립(resume 경로)의
+      // 실값 왕복 검증은 ai-agent.memory.spec 의 "multi-turn resume: summary 압축 chat 이
+      // 재주입된 state.* 를 …" 테스트가, single-turn(context.*) 은 "compresses oldest
+      // turns" 회귀 테스트가 담당한다 (WARNING#1/#2 대칭 커버 — 레이어별 분담).
       const summaryChat = jest.fn().mockResolvedValue({
         content: 'ROLLING SUMMARY',
         usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },

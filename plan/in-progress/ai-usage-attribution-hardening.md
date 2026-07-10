@@ -25,6 +25,9 @@ PR #879 의 최종 /ai-review INFO 후속 (PR-1/3):
       `context.*`, **multi-turn resume**(`applyMultiTurnTurnMemory`)은 `state.*`. (초기 구현은
       config 파생이라 single-turn 의 config=사용자 노드 config 에 키가 없어 NULL 이던 버그를 리뷰가
       포착 → 명시 파라미터로 교정.) 노드 발 attribution 갭 완전 해소.
+- [x] **SPEC (§1.3 정정)** `spec/data-flow/7-llm-usage.md`: C1 배선으로 stale 해진 4개 위치(표 L107·
+      콜아웃 L113·§4 L162·Rationale)를 "AI Agent 메모리 롤링 요약 압축 = context 채움(단발 `context.*`/
+      resume `state.*`)" 으로 정정. 최종 consistency CRITICAL(SoT 붕괴) 해소 — 아래 §SPEC-DRIFT 참조.
 
 ## 테스트
 
@@ -32,6 +35,10 @@ PR #879 의 최종 /ai-review INFO 후속 (PR-1/3):
       + llmContext 미전달 시 undefined (하위호환)
 - [x] `ai-agent.memory.spec`: **single-turn `summary_buffer` 압축**이 `context.*`(workflowId/
       executionId/nodeExecutionId) 를 요약 chat llmContext 로 채우는지 (Critical#1 회귀 고정)
+- [x] **(최종 리뷰 WARNING#1)** `ai-agent.memory.spec`: **multi-turn resume `summary_buffer` 압축**이
+      재주입된 `state.workflowId`/`state.executionId`/`state.nodeExecutionId` 를 요약 chat llmContext 로
+      채우는지 실값 왕복 검증 (`ai-turn-executor.ts:2298~2302` 조립 — IE nodeId↔nodeExecutionId 동일
+      클래스 회귀 방지). manager 레이어 forwarding 테스트(`ai-memory-manager.spec`)는 주석 정정(INFO#3).
 
 ## TEST WORKFLOW
 
@@ -45,18 +52,36 @@ PR #879 의 최종 /ai-review INFO 후속 (PR-1/3):
       backend 4파일 전용·frontend 0파일**이라 provably 무관. 전량 frontend 부트스트랩(node_modules
       복사 + 워크트리 패키지 빌드)은 backend-only PR 에 비례하지 않아 미수행.
 
-## SPEC-DRIFT (PR-2 로 이관 — cross-ref)
+## SPEC-DRIFT (본 PR 에서 해소 — 최종 consistency CRITICAL 반영)
 
 C1 이 AI Agent 메모리 압축을 배선하므로 `spec/data-flow/7-llm-usage.md §1.3` 표 L107·요약문 L113·
 §4 표·Rationale 의 "AI Agent 자동 메모리 롤링 요약 압축 = 미배선/잔여 NULL" 서술이 stale 해진다
-(single-turn·multi-turn 양 경로 채움). 이 정정은 **PR-2(A-track project-planner spec PR)** 에서
-A1~A4(선행 plan `plan/in-progress/resume-llm-usage-attribution.md` §"잔여 follow-up" 61~70행)와
-함께 §1.3 row 를 "첫 턴/resume 모두 `context.*`/`state.*` 채움"으로 반영. 병합 순서: PR-1 → PR-2
-연속으로 drift window 최소화(리뷰 WARNING 반영).
+(single-turn·multi-turn 양 경로 채움).
+
+최초엔 이 정정을 PR-2(A-track)로 분리하려 했으나, 최종 `/consistency-check --impl-done` 에서
+convention_compliance checker 가 이를 **CRITICAL(SoT 붕괴 — 코드가 닫은 갭을 spec 이 여전히
+"미배선"으로 서술)로 판정, BLOCK: YES**. code-review·consistency 두 SUMMARY 모두 "drift window 0
+을 위해 §1.3 정정을 **본 PR 에 포함**" 을 권고했고, rationale_continuity 는 이 정정이 Rationale 이
+이미 결정한 방향의 실현(신규 설계 아님, factual 정정)임을 확인했다. #879 선례(developer PR 이 동일
+파일의 결합된 spec 정정을 함께 배선)도 있어 **본 PR 에 §1.3 4개 위치 정정을 포함해 해소**:
+
+- [x] §1.3 표 L107 행: "context 미전달 → 전부 NULL" → "**채움**(단발 `context.*`/resume `state.*`)"
+- [x] §1.3 콜아웃 L113: 잔여 NULL 목록에서 "AI Agent 메모리 롤링 요약 압축" 제거 + 노드 발 채움 서술 추가
+- [x] §4 Agent Memory 행 L162: "롤링 요약 압축 chat (context NULL)" → "노드 발 — context 채움(추출 processor 만 NULL)"
+- [x] Rationale (b) 항: 잔여 NULL 에서 메모리 압축 제거(→ RerankService listwise 단독), 진행 이력에 2026-07 배선 추가
+
+> PR-2(A-track)에는 §1.3 memory-row 정정(구 A5)이 **본 PR 로 이동**했으므로 나머지 A1~A4(인접 문서
+> 6-knowledge-base.md·13-agent-memory.md·7-statistics.md·9-user-profile.md·1-data-model.md·
+> 4-execution-engine.md §7.4 등)만 남는다. 선행 plan `resume-llm-usage-attribution.md` §"잔여
+> follow-up" 참조.
 
 ## 워크플로
 
-- [x] /ai-review — HIGH(Critical#1: single-turn 미배선) → 명시 파라미터 교정 + 회귀 테스트로 해소.
-      WARNING(CHANGELOG·spec-drift·plan cross-ref) 반영. RESOLUTION.md 작성.
-- [x] /consistency-check --impl-done — BLOCK:NO (flaky checker 재실행 후 확정)
+- [x] /ai-review (초기) — HIGH(Critical#1: single-turn 미배선) → 명시 파라미터 교정 + 회귀 테스트로 해소.
+- [x] /ai-review (최종, `review/code/2026/07/10/22_22_19/`) — MEDIUM, Critical 0. WARNING#1(resume
+      `state.*` 조립 실값 미검증) → `ai-agent.memory.spec` 에 resume-path 회귀 테스트 추가. INFO#3(manager
+      forwarding 테스트 오해 주석) 정정. RESOLUTION.md 작성.
+- [x] /consistency-check --impl-done (최종, `review/consistency/2026/07/10/22_22_19/`) — 최초 **BLOCK:YES**
+      (convention_compliance CRITICAL: §1.3 SoT drift) → §1.3 4개 위치 정정 반영 후 재검증 **BLOCK:NO**.
+      RESOLUTION.md 작성.
 - [ ] PR

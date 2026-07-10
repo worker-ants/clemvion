@@ -392,6 +392,79 @@ describe('AiAgentHandler — auto-memory strategy', () => {
       expect(firstNonSystem?.role).toBe('user');
     });
 
+    it('multi-turn resume: summary 압축 chat 이 재주입된 state.* 를 llm_usage_log llmContext 로 채운다 (attribution 회귀 고정 — ai-turn-executor.ts:2298~2302)', async () => {
+      // single-turn 경로(context.*)는 위 "compresses oldest turns" 회귀 테스트가
+      // 이미 실값 검증한다. resume 경로는 핸들러가 context 대신 재구성 state 만
+      // 받으므로 `state.workflowId`/`state.executionId`/`state.nodeExecutionId` →
+      // 요약 chat 3번째 인자(LlmCallContext) 조립을 별도로 실값 왕복 검증한다.
+      // (동일 클래스 오배선 — IE nodeId↔nodeExecutionId 혼용, 커밋 2db810893 — 재발 방지.)
+      const context = makeContext();
+      const big = 'w'.repeat(600);
+      for (let i = 0; i < 6; i++) {
+        conversationThreadService.appendAiAssistantMessage(context, {
+          node: { id: 'agent-prev', label: 'Prev', type: 'ai_agent' },
+          content: big,
+        });
+      }
+      const handler = buildHandler();
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          llmConfigId: 'cfg-1',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 50,
+          memoryStrategy: 'summary_buffer',
+          memoryTokenBudget: 200,
+        },
+        context,
+      );
+      const state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      // 엔진 buildRetryReentryState 가 resume 턴마다 재주입하는 attribution 식별자를
+      // 시뮬레이션 (checkpoint 미영속 — CREDENTIAL_CONTEXT_FIELDS. 프로덕션은 매 turn
+      // 엔진이 현재 NodeExecution row PK 와 함께 state 에 주입한다).
+      state.workflowId = 'wf-resume';
+      state.executionId = 'exec-resume';
+      state.nodeExecutionId = 'ne-resume-row';
+
+      // resume 턴: seeded 예산 초과 → 요약 chat(첫 호출) + 메인 chat.
+      mockLlmService.chat.mockClear();
+      mockLlmService.chat
+        .mockResolvedValueOnce({
+          content: 'ROLLING SUMMARY',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        })
+        .mockResolvedValueOnce({
+          content: 'answer',
+          usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+
+      const r = await handler.processMultiTurnMessage('질문', state);
+
+      // 압축이 실제로 발생(요약 chat 발생)했는지 확인 — 이 단언의 전제.
+      const meta = (r as { meta?: Record<string, unknown> }).meta ?? {};
+      expect(meta.memory).toMatchObject({
+        strategy: 'summary_buffer',
+        summarized: true,
+      });
+
+      // 요약(압축) chat 이 첫 호출. 그 3번째 인자(LlmCallContext)가 재주입 state.* 를
+      // Node 정의 id 가 아니라 그대로 담아야 한다 (workflow_id/execution_id/node_execution_id).
+      expect(mockLlmService.chat.mock.calls[0][2]).toMatchObject({
+        workflowId: 'wf-resume',
+        executionId: 'exec-resume',
+        nodeExecutionId: 'ne-resume-row',
+      });
+    });
+
     it('multi-turn: manual 전략은 누적 messages 무변경 (물리 압축 회귀 금지)', async () => {
       const context = makeContext();
       const big = 'w'.repeat(600);
