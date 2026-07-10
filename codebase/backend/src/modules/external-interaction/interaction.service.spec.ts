@@ -741,3 +741,148 @@ describe('InteractionService.getStatus', () => {
     expect(r.context).not.toHaveProperty('conversationThread');
   });
 });
+
+// getStatus 는 2단계 조회다: (1) 얇은 status projection, (2) `waiting_for_input` 일 때만
+// `conversation_thread` 재조회. 응답 동봉은 waiting 한정인데 종전엔 DB fetch 가 상태 무관이라
+// 상한 500 turn × 4000자(≒2MB) jsonb 를 폴링마다 실어 왔다.
+describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', () => {
+  /** 두 단계는 `select` 배열로 구분된다. */
+  function selectOf(call: unknown): string[] {
+    return ((call as { select?: string[] }).select ?? []).slice();
+  }
+
+  const BASE_COLUMNS = [
+    'id',
+    'status',
+    'workflowId',
+    'startedAt',
+    'finishedAt',
+    'outputData',
+  ];
+
+  it('1단계는 응답 조립에 쓰이는 컬럼만 select — conversationThread 는 제외', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.RUNNING }),
+    );
+    await service.getStatus(IEXT_CTX);
+    const select = selectOf(repo.findOne.mock.calls[0][0]);
+    // 누락되면 응답 필드가 조용히 비거나 fallback 으로 대체된다 (특히 startedAt/finishedAt → updatedAt).
+    expect(select).toEqual(expect.arrayContaining(BASE_COLUMNS));
+    expect(select).not.toContain('conversationThread');
+  });
+
+  it('비-waiting 상태는 Execution 을 1회만 조회 (thread 재조회 없음)', async () => {
+    for (const status of [
+      ExecutionStatus.RUNNING,
+      ExecutionStatus.PENDING,
+      ExecutionStatus.COMPLETED,
+      ExecutionStatus.FAILED,
+      ExecutionStatus.CANCELLED,
+    ]) {
+      const { service, repo, nodeRepo } = makeMocks();
+      repo.findOne.mockResolvedValue(makeExecution({ status }));
+      await service.getStatus(IEXT_CTX);
+      expect(repo.findOne).toHaveBeenCalledTimes(1);
+      expect(nodeRepo.findOne).not.toHaveBeenCalled();
+    }
+  });
+
+  it('waiting_for_input 일 때만 2단계로 conversationThread 를 재조회', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue(null);
+    await service.getStatus(IEXT_CTX);
+    expect(repo.findOne).toHaveBeenCalledTimes(2);
+    expect(selectOf(repo.findOne.mock.calls[1][0])).toContain(
+      'conversationThread',
+    );
+  });
+
+  // EIA §R17 "표면 제약(보안)": REST getStatus 와 SSE waiting_for_input emit 이 공유하는
+  // 단일 helper `redactThreadForPublic` 로 egress 마스킹한다. thread 를 별도 재조회 결과에서
+  // 읽도록 바뀌어도 이 배선이 유지돼야 한다 — 1단계 row 에는 thread 가 아예 없음을 강제해
+  // "2단계 결과를 마스킹해 동봉" 을 고정한다.
+  it('2단계 재조회 결과의 thread 도 redactThreadForPublic 를 통과 (secret egress 가드)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    const threadWithSecret = {
+      id: 'default',
+      nextSeq: 1,
+      turns: [
+        {
+          seq: 0,
+          nodeId: 'n1',
+          nodeType: 'ai_agent',
+          source: 'ai_tool',
+          text: 'API replied Authorization: Bearer sk-live-STAGE2-LEAK',
+          timestamp: 't0',
+        },
+      ],
+      totalChars: 52,
+    };
+    repo.findOne.mockImplementation((opts: unknown) =>
+      Promise.resolve(
+        selectOf(opts).includes('conversationThread')
+          ? { id: 'exec-1', conversationThread: threadWithSecret }
+          : // 1단계 row 에는 thread 가 실려 오지 않는다 (projection 제외).
+            makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+      ),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: { meta: { interactionType: 'ai_conversation' } },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const ctx = r.context as {
+      conversationThread: { turns: { text: string }[] };
+    };
+    expect(ctx.conversationThread.turns[0].text).not.toContain(
+      'sk-live-STAGE2-LEAK',
+    );
+    expect(ctx.conversationThread.turns[0].text).toContain('***');
+  });
+
+  it('2단계 재조회가 null(조회 간 row 소멸)이면 conversationThread 키 미동봉', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockImplementation((opts: unknown) =>
+      Promise.resolve(
+        selectOf(opts).includes('conversationThread')
+          ? null
+          : makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+      ),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'ai_agent' },
+      outputData: { meta: { interactionType: 'ai_conversation' } },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.context).toMatchObject({ waitingNodeId: 'n1' });
+    expect(r.context).not.toHaveProperty('conversationThread');
+  });
+
+  // startedAt/finishedAt 이 projection 에서 빠지면 `finishedAt ?? startedAt ?? new Date()` 의
+  // 마지막 fallback 이 먹어 "현재 시각" 이 조용히 반환된다. 형식(string) 단언만으론 못 잡는다.
+  it('updatedAt — finishedAt 우선, 없으면 startedAt 의 실값 (fallback 침묵 회귀 가드)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        finishedAt: new Date('2026-05-22T03:04:05Z'),
+      }),
+    );
+    expect((await service.getStatus(IEXT_CTX)).updatedAt).toBe(
+      '2026-05-22T03:04:05.000Z',
+    );
+
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.RUNNING }),
+    );
+    expect((await service.getStatus(IEXT_CTX)).updatedAt).toBe(
+      '2026-05-21T00:00:00.000Z',
+    );
+  });
+});

@@ -235,12 +235,29 @@ export class InteractionService {
    * **새로고침 히스토리 복원**을 5분 SSE buffer·서버 재시작·인스턴스 스위치와 무관하게 지원한다.
    * 이미 SSE `waiting_for_input` 으로 공개 중인 데이터라 신규 민감 표면이 아니다.
    *
+   * **조회는 2단계**: 얇은 status projection 으로 먼저 읽고, `waiting_for_input` 일 때만
+   * `conversation_thread` 를 재조회한다 (수 MB 까지 자라는 컬럼을 상태 무관하게 싣지 않기 위함).
+   * wire 형식은 두 경로 모두 동일 — 조회 최적화일 뿐 응답 계약(§5.3)에는 영향이 없다.
+   *
    * `seq` 는 항상 `SSE_SEQ_PLACEHOLDER(0)` — REST 단발 응답에서는 in-memory SSE seq 에
    * 접근할 수 없다. 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다.
    */
   async getStatus(ctx: InteractionRequestContext): Promise<ExecutionStatusDto> {
+    // 1단계 — 얇은 status 우선 조회. 응답 조립에 실제로 쓰이는 컬럼만 projection 한다.
+    // `conversation_thread` 를 여기서 빼는 것이 핵심: 그 jsonb 는 상한 500 turn × turn 당 4000자
+    // (conversation-thread §4) 라 수 MB 까지 자라는데, 응답 동봉은 `waiting_for_input` 한정이라
+    // 나머지 상태(폴링이 잦은 running/pending, 종료 후 completed/failed)에서는 통째로 읽어
+    // 버리는 비용만 남는다. 2단계에서 필요할 때만 가져온다.
     const execution = await this.executionRepository.findOne({
       where: { id: ctx.executionId },
+      select: [
+        'id',
+        'status',
+        'workflowId',
+        'startedAt', // updatedAt fallback
+        'finishedAt', // updatedAt 우선값
+        'outputData', // result / error
+      ],
     });
     if (!execution) {
       throw new NotFoundException({
@@ -257,21 +274,31 @@ export class InteractionService {
     let currentNode: ExecutionStatusDto['currentNode'] = null;
     let context: ExecutionStatusDto['context'] = null;
     if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
+      // 2단계 — durable thread 는 이 분기에서만 필요하므로 여기서 재조회한다. 대기 NodeExecution
+      // 조회와 독립이라 병렬로 띄워, 추가 왕복이 latency 로 드러나지 않게 한다.
+      // 1단계와의 간극에 상태가 바뀌어도 응답은 스냅샷이라 무해하고, row 가 사라지면 아래
+      // null 분기가 "durable thread 없음" 과 같은 graceful 경로로 흡수한다.
+      const [threadRow, nodeExec] = await Promise.all([
+        this.executionRepository.findOne({
+          where: { id: ctx.executionId },
+          select: ['id', 'conversationThread'],
+        }),
+        this.nodeExecutionRepository.findOne({
+          where: {
+            executionId: ctx.executionId,
+            status: NodeExecutionStatus.WAITING_FOR_INPUT,
+          },
+          order: { startedAt: 'DESC' },
+          relations: ['node'],
+        }),
+      ]);
       // durable park 스냅샷 = SSE `waiting_for_input` 이 싣는 `redactThreadForPublic(context.conversationThread)`
       // 와 동일 wire shape (park 시 stageDurableResumeSnapshot 이 commit). SSE 와 동일 helper 로
       // secret-mask 하여 REST·SSE 양 경로 일관 (EIA §R17 / conversation-thread §8.4). null(배포 이전 row /
       // park 이력 없음)이면 미동봉 — 위젯 threadToMessages 가 undefined 를 빈 배열로 graceful 처리.
-      const conversationThread = execution.conversationThread
-        ? redactThreadForPublic(execution.conversationThread)
+      const conversationThread = threadRow?.conversationThread
+        ? redactThreadForPublic(threadRow.conversationThread)
         : undefined;
-      const nodeExec = await this.nodeExecutionRepository.findOne({
-        where: {
-          executionId: ctx.executionId,
-          status: NodeExecutionStatus.WAITING_FOR_INPUT,
-        },
-        order: { startedAt: 'DESC' },
-        relations: ['node'],
-      });
       if (nodeExec?.node) {
         // EIA §R17 — nodeOutput 도 공개 표면. conversationConfig.message/messages
         // 등 자유 텍스트/구조화 필드의 secret 을 마스킹(값 패턴 + credential 키).
