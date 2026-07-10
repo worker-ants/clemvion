@@ -1018,6 +1018,54 @@ describe('InformationExtractorHandler', () => {
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
     });
 
+    // [Spec 7-llm-usage §1.3] collection-retry 로 발생하는 2번째 chat 도 첫 호출과
+    // 동일한 attribution 을 채워야 한다 — runTurnWithCollectionRetries 는 루프의 매
+    // 반복에 params.llmContext 를 넘긴다. ai_agent tool-loop 2번째 chat 단언
+    // (ai-turn-executor.spec.ts) 과 대칭 (ai-review INFO#4 — 간접 커버 → 직접 단언).
+    // 주의: retryState() 기본값엔 executionId 가 없어 handler 가 llmContext 를
+    // undefined 로 넘긴다. 세 식별 필드를 명시 주입해야 유의미한 단언이 된다.
+    it('passes the same llmContext attribution to the retried (2nd) chat call', async () => {
+      mockLlmService.chat
+        .mockResolvedValueOnce(
+          finalizeCall(
+            { senderName: 'John', orderNumber: null },
+            { callId: 'c1' },
+          ),
+        )
+        .mockResolvedValueOnce(
+          finalizeCall(
+            { senderName: 'John', orderNumber: 'O-99' },
+            { callId: 'c2' },
+          ),
+        );
+
+      await handler.processMultiTurnMessage(
+        'ORD-99',
+        retryState({
+          executionId: 'exec-attr-2',
+          workflowId: 'wf-attr-2',
+          nodeId: 'node-def-2',
+          nodeExecutionId: 'nodeexec-row-2',
+        }),
+      );
+
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      const expectedContext = expect.objectContaining({
+        executionId: 'exec-attr-2',
+        workflowId: 'wf-attr-2',
+        nodeExecutionId: 'nodeexec-row-2',
+      });
+      // traceChat → llmService.chat 의 3번째 인자가 LlmCallContext.
+      expect(mockLlmService.chat.mock.calls[0][2]).toEqual(expectedContext);
+      expect(mockLlmService.chat.mock.calls[1][2]).toEqual(expectedContext);
+      // 회귀 방지: 정의 id 가 row PK 자리에 유입되면 안 된다 (재시도 호출에도 적용).
+      const retriedContext = mockLlmService.chat.mock.calls[1][2] as Record<
+        string,
+        unknown
+      >;
+      expect(retriedContext.nodeExecutionId).not.toBe('node-def-2');
+    });
+
     it('routes to error port after exceeding maxCollectionRetries', async () => {
       mockLlmService.chat.mockResolvedValue(
         finalizeCall({ senderName: null, orderNumber: null }),

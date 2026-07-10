@@ -8,7 +8,10 @@ import {
 } from '../../core/node-handler.interface';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
-import { LlmService } from '../../../modules/llm/llm.service';
+import {
+  LlmService,
+  type LlmCallContext,
+} from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
   ToolCall,
@@ -2596,7 +2599,11 @@ export class AiTurnExecutor {
     // workflowId / nodeExecutionId(현재 turn 의 NodeExecution row PK) / executionId 를
     // llmContext 로 전달한다. single-turn(executeSingleTurn)이 context.* 를 쓰는 것과
     // 대칭 — 미전달 시 llm_usage_log 의 해당 컬럼이 NULL 로 적재되는 갭이 남는다.
-    const llmContext = {
+    // 명시 타입 주석 필수: TS 의 excess-property check 는 fresh object literal 을 인자로
+    // 직접 넘길 때만 걸린다. 단발 경로(executeSingleTurn)는 리터럴을 chat() 에 직접 넘겨
+    // 이미 보호되지만, 여기처럼 const 에 담으면 `nodeExecutionID` 류 오탈자가 조용히
+    // 누락돼 그 컬럼이 NULL 로 적재된다 — #501 회귀의 실패 모드 그 자체다.
+    const llmContext: LlmCallContext = {
       workflowId: state.workflowId as string | undefined,
       executionId,
       nodeExecutionId: state.nodeExecutionId as string | undefined,
