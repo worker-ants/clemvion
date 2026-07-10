@@ -54,6 +54,25 @@ const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
 const SSE_SEQ_PLACEHOLDER = 0;
 
 /**
+ * `getStatus()` 1단계 조회가 읽는 컬럼 — 응답 조립에 실제로 쓰이는 것만.
+ *
+ * `satisfies` 로 `keyof Execution` 을 강제한다: 컬럼명을 오기하면(예: snake_case `output_data`)
+ * 런타임에 `undefined` 가 되어 조용히 잘못된 응답이 나가는 대신 **컴파일이 깨진다**.
+ * 반환 DTO 에 필드를 추가할 때 이 배열도 함께 늘려야 한다 —
+ * 특히 `updatedAt` 은 `finishedAt ?? startedAt ?? new Date()` 라 누락 시 "현재 시각" 으로 침묵 회귀한다.
+ *
+ * `conversation_thread` 는 의도적으로 제외 — `waiting_for_input` 에서만 2단계로 읽는다.
+ */
+const STATUS_PROJECTION_COLUMNS = [
+  'id',
+  'status',
+  'workflowId',
+  'startedAt',
+  'finishedAt',
+  'outputData',
+] satisfies (keyof Execution)[];
+
+/**
  * [Spec EIA §5] — Inbound interaction REST endpoint 의 비즈니스 로직.
  *
  * 본 service 는 facade — 토큰 검증은 InteractionGuard 가 이미 통과시킨 상태에서 호출된다.
@@ -235,12 +254,22 @@ export class InteractionService {
    * **새로고침 히스토리 복원**을 5분 SSE buffer·서버 재시작·인스턴스 스위치와 무관하게 지원한다.
    * 이미 SSE `waiting_for_input` 으로 공개 중인 데이터라 신규 민감 표면이 아니다.
    *
+   * **조회는 2단계**: 얇은 status projection 으로 먼저 읽고, `waiting_for_input` 일 때만
+   * `conversation_thread` 를 재조회한다 (수 MB 까지 자라는 컬럼을 상태 무관하게 싣지 않기 위함).
+   * wire 형식은 두 경로 모두 동일 — 조회 최적화일 뿐 응답 계약(§5.3)에는 영향이 없다.
+   *
    * `seq` 는 항상 `SSE_SEQ_PLACEHOLDER(0)` — REST 단발 응답에서는 in-memory SSE seq 에
    * 접근할 수 없다. 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다.
    */
   async getStatus(ctx: InteractionRequestContext): Promise<ExecutionStatusDto> {
+    // 1단계 — 얇은 status 우선 조회. `conversation_thread` 를 여기서 빼는 것이 핵심이다.
+    // 그 jsonb 는 turn 이 최대 500개(§4 storage cap)이고 turn 텍스트는 저장 시점에 truncate 되지
+    // 않으므로(4000자 cap 은 LLM 주입 시점 §5.3 전용) 행이 수 MB 까지 자란다. 그런데 응답 동봉은
+    // `waiting_for_input` 한정이라, 나머지 상태(폴링이 잦은 running/pending, 종료 후 completed/failed)
+    // 에서는 TOAST 청크를 읽어 역직렬화한 뒤 그대로 버리는 비용만 남는다. 2단계에서만 가져온다.
     const execution = await this.executionRepository.findOne({
       where: { id: ctx.executionId },
+      select: STATUS_PROJECTION_COLUMNS,
     });
     if (!execution) {
       throw new NotFoundException({
@@ -257,21 +286,32 @@ export class InteractionService {
     let currentNode: ExecutionStatusDto['currentNode'] = null;
     let context: ExecutionStatusDto['context'] = null;
     if (execution.status === ExecutionStatus.WAITING_FOR_INPUT) {
+      // 2단계 — durable thread 는 이 분기에서만 필요하므로 여기서 재조회한다. 대기 NodeExecution
+      // 조회와 독립이라 병렬로 띄운다. 이 경로의 쿼리 수는 2→3 으로 늘지만 **왕복 depth 는 2 로
+      // 그대로**다 (종전에도 execution → nodeExecution 순차 2회였다). 늘어난 1회는 PK 단건 조회다.
+      // 1단계와의 간극에 상태가 바뀌어도 응답은 스냅샷이라 무해하고(thread 는 park 커밋 시점에만
+      // 갱신된다), row 가 사라지면 아래 null 분기가 "durable thread 없음" graceful 경로로 흡수한다.
+      const [threadRow, nodeExec] = await Promise.all([
+        this.executionRepository.findOne({
+          where: { id: ctx.executionId },
+          select: ['id', 'conversationThread'],
+        }),
+        this.nodeExecutionRepository.findOne({
+          where: {
+            executionId: ctx.executionId,
+            status: NodeExecutionStatus.WAITING_FOR_INPUT,
+          },
+          order: { startedAt: 'DESC' },
+          relations: ['node'],
+        }),
+      ]);
       // durable park 스냅샷 = SSE `waiting_for_input` 이 싣는 `redactThreadForPublic(context.conversationThread)`
       // 와 동일 wire shape (park 시 stageDurableResumeSnapshot 이 commit). SSE 와 동일 helper 로
       // secret-mask 하여 REST·SSE 양 경로 일관 (EIA §R17 / conversation-thread §8.4). null(배포 이전 row /
       // park 이력 없음)이면 미동봉 — 위젯 threadToMessages 가 undefined 를 빈 배열로 graceful 처리.
-      const conversationThread = execution.conversationThread
-        ? redactThreadForPublic(execution.conversationThread)
+      const conversationThread = threadRow?.conversationThread
+        ? redactThreadForPublic(threadRow.conversationThread)
         : undefined;
-      const nodeExec = await this.nodeExecutionRepository.findOne({
-        where: {
-          executionId: ctx.executionId,
-          status: NodeExecutionStatus.WAITING_FOR_INPUT,
-        },
-        order: { startedAt: 'DESC' },
-        relations: ['node'],
-      });
       if (nodeExec?.node) {
         // EIA §R17 — nodeOutput 도 공개 표면. conversationConfig.message/messages
         // 등 자유 텍스트/구조화 필드의 secret 을 마스킹(값 패턴 + credential 키).
