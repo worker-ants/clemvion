@@ -889,6 +889,15 @@ describe("useExpressionSuggestions - nested paths", () => {
       expect(suggestions.map((s) => s.label)).toEqual(["id", "name", "nested"]);
     });
 
+    it("suggests nested fields for $dataSource.nested. (parity with $sourceItem)", () => {
+      const expr = "{{ $dataSource.nested. }}";
+      const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {
+        isTableContext: true,
+        sourceItemSample,
+      });
+      expect(suggestions.map((s) => s.label)).toEqual(["key"]);
+    });
+
     it("does not suggest $dataSource. fields when sourceItemSample is null", () => {
       const expr = "{{ $dataSource. }}";
       const { suggestions } = makeSuggestions(expr, cursorAfterExpr(expr), {

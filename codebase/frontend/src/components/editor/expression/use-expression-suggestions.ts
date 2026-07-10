@@ -151,9 +151,12 @@ function buildNestedSuggestions(
  */
 const NESTED_DRILL_SOURCES: ReadonlyArray<{
   prefix: string;
-  getSample: (d: ExpressionData) => Record<string, unknown>;
+  // Returns the runtime sample to drill into, or `undefined` to decline the
+  // prefix so the token falls through to the root-variable list (replaces the
+  // old `$sourceItem`/`$dataSource` `&& sourceItemSample` guard — the `undefined`
+  // signal keeps availability and sample resolution in one type-checked place).
+  getSample: (d: ExpressionData) => Record<string, unknown> | undefined;
   getSchema?: (d: ExpressionData) => JsonSchemaNode | undefined;
-  available?: (d: ExpressionData) => boolean;
 }> = [
   {
     prefix: "$input.",
@@ -178,17 +181,15 @@ const NESTED_DRILL_SOURCES: ReadonlyArray<{
       d.inputSchema?.properties?.parameters as JsonSchemaNode | undefined,
   },
   {
-    // Table node context only — `available` gate mirrors the old
-    // `&& expressionData.sourceItemSample` so a missing sample falls through.
+    // Table node context only — `undefined` when no source item is in scope so
+    // the token falls through to the root-variable list.
     prefix: "$sourceItem.",
-    getSample: (d) => d.sourceItemSample as Record<string, unknown>,
-    available: (d) => !!d.sourceItemSample,
+    getSample: (d) => d.sourceItemSample ?? undefined,
   },
   {
-    // Data source array item — same shape/source as $sourceItem.
+    // Data source array item — same source as $sourceItem.
     prefix: "$dataSource.",
-    getSample: (d) => d.sourceItemSample as Record<string, unknown>,
-    available: (d) => !!d.sourceItemSample,
+    getSample: (d) => d.sourceItemSample ?? undefined,
   },
 ];
 
@@ -294,10 +295,11 @@ export function useExpressionSuggestions(
     // list below (preserves the table-context guard for $sourceItem/$dataSource).
     for (const src of NESTED_DRILL_SOURCES) {
       if (!trimmedToken.startsWith(src.prefix)) continue;
-      if (src.available && !src.available(expressionData)) continue;
+      const sample = src.getSample(expressionData);
+      if (sample === undefined) continue; // source not in scope → fall through
       const fieldPrefix = trimmedToken.slice(src.prefix.length);
       const { suggestions, leafLength } = buildNestedSuggestions(
-        src.getSample(expressionData),
+        sample,
         fieldPrefix,
         src.getSchema?.(expressionData),
       );
