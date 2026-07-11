@@ -50,6 +50,11 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 - 호스트 제공 사용자 식별키(impersonation 방지 서명 포함) — 추후. v1 은 **익명만**.
 - 유저당 다중 세션 목록 노출 — 전제(식별 + 유저별 execution 목록 API) 필요, 백로그.
 - React/Vue 프레임워크 wrapper — v1 은 framework-agnostic JS API + 타입만.
+- **위젯 UI 다국어화(EN 등)** — v1 위젯은 **Korean-only**. `BootConfig.locale`([2-sdk §4](./2-sdk.md#4-boot-config-스키마)) 필드는
+  수용·플럼되지만 **현재 위젯 UI 언어를 바꾸지 않는다**(accepted-but-inert) — EN 지원 착수 시 위젯 UI 언어 선택자로 활성화될
+  **reserved** 필드다(삭제 아님, 근거 [2-sdk §R6](./2-sdk.md)). 위젯 문자열은 dict indirection 없이 인라인 한국어(해요체)로
+  두며 [i18n-userguide 적용 범위](../conventions/i18n-userguide.md#적용-범위-scope)의 Principle 1·2 스코프 밖이다(문체·글로서리
+  Principle 6 은 적용).
 
 ## 3. 사용 시나리오
 
