@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   BadRequestException,
+  ConflictException,
   GoneException,
   NotFoundException,
   UnauthorizedException,
@@ -813,6 +814,138 @@ describe('HooksService', () => {
         }),
       );
       expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    // 실행 엔진 §7.5.1 표면 매트릭스 — 본 forwarding 은 대기 노드의 표면을 모른 채
+    // text_message → submit_message 로 고정 매핑하므로, form/buttons 대기 중에는
+    // publisher 가 409 STATE_MISMATCH 로 거부한다. 그대로 throw 하면 webhook 이 5xx 를
+    // 반환해 provider 가 같은 update 를 무한 재시도하므로 삼키되 warn 을 남긴다
+    // (§10.9 "silent skip 금지"). 종전엔 이 조합이 빈 폼 제출로 조용히 오처리됐다.
+    it('표면 불일치(409 STATE_MISMATCH) forwarding 은 warn 후 삼킴 — webhook 재시도 루프 방지', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'form 대기 중 텍스트' },
+        idempotencyKey: '1003',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: 'surface mismatch' },
+        }),
+      );
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      // throw 하지 않는다 (webhook 은 정상 ack).
+      await expect(
+        service.handleWebhook('abc', chatInput),
+      ).resolves.toBeDefined();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('현재 대기 표면과 맞지 않아 거부됨'),
+      );
+      // 로그가 실제 진단 메시지를 싣는지 — `err.message` 는 body 가 nested 라 항상
+      // 'Conflict Exception' 이 되므로 `getResponse().error.message` 를 써야 한다.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('surface mismatch'),
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Conflict Exception'),
+      );
+      warnSpy.mockRestore();
+    });
+
+    // 삼키는 범위는 `STATE_MISMATCH` 코드로 한정 — 다른 409 사유는 전파한다
+    // (ConflictException 타입 전체로 판정하면 IDEMPOTENCY_KEY_CONFLICT 도 흡수됨).
+    it('STATE_MISMATCH 가 아닌 409 는 삼키지 않고 전파', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'dup' },
+        idempotencyKey: '1005',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'IDEMPOTENCY_KEY_CONFLICT', message: 'dup key' },
+        }),
+      );
+
+      await expect(
+        service.handleWebhook('abc', chatInput),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('표면 불일치 외의 예외는 그대로 전파 (삼키지 않음)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'boom' },
+        idempotencyKey: '1004',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new Error('redis down'),
+      );
+
+      await expect(service.handleWebhook('abc', chatInput)).rejects.toThrow(
+        'redis down',
+      );
     });
 
     it('CCH-NF-03 — per-chat 분당 rate-limit 초과 시 처리 생략(202 ignored) + chat_channel_health=degraded, execution 미시작 (R-CC-19)', async () => {

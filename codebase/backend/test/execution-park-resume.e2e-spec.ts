@@ -33,6 +33,22 @@ const MANUAL_TRIGGER_TYPE = 'manual_trigger';
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const;
 
+// backend-e2e 의 JWT_SECRET (docker-compose.e2e.yml) — interaction-token 을 backend 와
+// 동일 키로 mint 하기 위함. runner env 에 미주입이면 compose 값으로 fallback
+// (테스트 전용 시크릿, repo 에 공개됨).
+const JWT_SECRET =
+  process.env.JWT_SECRET ?? 'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
+
+/** InteractionTokenService.issuePerExecution 과 동형의 iext_* 토큰을 직접 mint. */
+function mintInteractionToken(executionId: string): string {
+  const jwt = sign(
+    { sub: executionId, aud: 'interaction', jti: randomUUID() },
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: 3600 },
+  );
+  return `iext_${jwt}`;
+}
+
 interface CanvasNode {
   id: string;
   type: string;
@@ -219,6 +235,223 @@ describe('Execution park → cold rehydration resume (e2e, PR-B1)', () => {
     expect(completedNode.rows[0]?.status).toBe('completed');
     expect(JSON.stringify(completedNode.rows[0]?.output_data ?? {})).toContain(
       'hello-from-e2e',
+    );
+  }, 60_000);
+
+  // 실행 엔진 §7.5.1 — 대기 표면 ↔ 명령 매트릭스 (publisher 사전 검증).
+  //
+  // 회귀 가드: 종전엔 표면 검사가 없어 EIA `end_conversation` 이 form 대기 노드로
+  // publish 됐고, resume 처리기는 도착 payload 의 type 이 아니라 노드 표면으로만
+  // 선택되므로(`dispatchResumeTurn`) `{type:'ai_end_conversation'}` 이 sentinel
+  // 불일치 폴백으로 formData 취급돼 **빈 폼이 제출된 것처럼 execution 이 완료**됐다.
+  // 이제 409 STATE_MISMATCH 로 거부되고 execution 은 waiting_for_input 을 유지하며,
+  // 뒤이은 정상 submit_form 이 무손실로 재개한다.
+  it('form 대기 중 EIA end_conversation → 409 STATE_MISMATCH, execution 은 waiting 유지 후 정상 재개', async () => {
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const form: CanvasNode = {
+      id: randomUUID(),
+      type: 'form',
+      category: 'presentation',
+      label: 'Approval Form',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        title: 'Approval',
+        fields: [{ name: 'note', type: 'text', label: 'Note' }],
+      },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, form],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: form.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      ),
+    ).toBe('waiting_for_input');
+
+    // form 대기 노드에 AI 대화 종료 명령 — publisher 가 동기 거부해야 한다.
+    const rejected = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionId)}`)
+      .send({ command: 'end_conversation', nodeId: form.id });
+    expect(rejected.status).toBe(409);
+    expect(rejected.body.error.code).toBe('STATE_MISMATCH');
+    // 내부 상세(대기 nodeId·표면)는 serverDetail 전용 — client 응답에 미노출.
+    expect(JSON.stringify(rejected.body)).not.toContain(form.id);
+
+    // 거부 후에도 execution 은 대기 유지 — 빈 폼 제출로 오처리되지 않았다.
+    const stillWaiting = await db.query(
+      `SELECT status FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(stillWaiting.rows[0]?.status).toBe('waiting_for_input');
+    const nodeStillWaiting = await db.query(
+      `SELECT status FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, form.id],
+    );
+    expect(nodeStillWaiting.rows[0]?.status).toBe('waiting_for_input');
+
+    // 정상 명령(submit_form)은 그대로 통과해 무손실 완료.
+    const continueRes = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/continue`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ formData: { note: 'after-rejected-end' } });
+    expect([200, 202]).toContain(continueRes.status);
+    expect(
+      await poll(executionId, (s) => TERMINAL_STATUSES.includes(s as never)),
+    ).toBe('completed');
+    const completedNode = await db.query(
+      `SELECT output_data FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, form.id],
+    );
+    expect(JSON.stringify(completedNode.rows[0]?.output_data ?? {})).toContain(
+      'after-rejected-end',
+    );
+  }, 60_000);
+
+  // 표면 매트릭스의 두 번째 축 — buttons 대기.
+  //
+  // form 표면은 정적 handler metadata 로 판정되지만, buttons 표면은 **영속된
+  // `node_execution.output_data` 의 `meta.interactionType`** 을 실제 Postgres JSONB 에서
+  // 되읽어야 판정된다 (publisher 가 JSONB path 로 투영). 따라서 이 축은 mock unit 으로
+  // 검증할 수 없다.
+  //
+  // 회귀 가드: 종전엔 buttons 대기 중 비-`button_click` 명령이 `resolveButtonInteraction`
+  // 의 (d) fallback 을 타 **엉뚱한 'continue' 포트로 그래프가 분기**됐다 (form 처럼 데이터가
+  // 오염되진 않지만 실행 경로가 조용히 바뀌는 동형 무결성 결함).
+  it('buttons 대기 중 EIA end_conversation → 409 STATE_MISMATCH, 엉뚱한 continue 포트 분기 없음', async () => {
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const approveBtnId = 'approve';
+    const tmpl: CanvasNode = {
+      id: randomUUID(),
+      type: 'template',
+      category: 'presentation',
+      label: 'Approve?',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        template: '승인하시겠습니까?',
+        buttons: [{ id: approveBtnId, label: '승인', type: 'port' }],
+      },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, tmpl],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: tmpl.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+
+    expect(
+      await poll(
+        executionId,
+        (s) =>
+          s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+      ),
+    ).toBe('waiting_for_input');
+
+    // 영속된 표면이 실제로 buttons 인지 확인 (publisher 가 이 값을 JSONB path 로 읽는다).
+    const parked = await db.query(
+      `SELECT output_data -> 'meta' ->> 'interactionType' AS itype
+         FROM node_execution
+        WHERE execution_id = $1 AND node_id = $2
+        ORDER BY started_at DESC LIMIT 1`,
+      [executionId, tmpl.id],
+    );
+    expect(parked.rows[0]?.itype).toBe('buttons');
+
+    const rejected = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionId)}`)
+      .send({ command: 'end_conversation', nodeId: tmpl.id });
+    expect(rejected.status).toBe(409);
+    expect(rejected.body.error.code).toBe('STATE_MISMATCH');
+
+    // 거부 후에도 대기 유지 — 'continue' 포트로 조용히 분기하지 않았다.
+    const stillWaiting = await db.query(
+      `SELECT status FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(stillWaiting.rows[0]?.status).toBe('waiting_for_input');
+
+    // 정상 명령(click_button)은 통과해 선택 포트로 재개된다.
+    const accepted = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionId)}`)
+      .send({
+        command: 'click_button',
+        nodeId: tmpl.id,
+        buttonId: approveBtnId,
+      });
+    expect(accepted.status).toBe(202);
+    expect(
+      await poll(executionId, (s) => TERMINAL_STATUSES.includes(s as never)),
+    ).toBe('completed');
+    const resumed = await db.query(
+      `SELECT output_data FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, tmpl.id],
+    );
+    // 선택된 포트가 'continue' 가 아니라 실제 클릭한 버튼 포트여야 한다.
+    expect(JSON.stringify(resumed.rows[0]?.output_data ?? {})).toContain(
+      approveBtnId,
     );
   }, 60_000);
 
@@ -502,13 +735,6 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
   let ownerToken: string;
   let workspaceId: string;
 
-  // backend-e2e 의 JWT_SECRET (docker-compose.e2e.yml) — interaction-token 을
-  // backend 와 동일 키로 mint 하기 위함. runner env 에 미주입이면 compose 값으로
-  // fallback (테스트 전용 시크릿, repo 에 공개됨).
-  const JWT_SECRET =
-    process.env.JWT_SECRET ??
-    'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
-
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
@@ -530,16 +756,6 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
   });
 
   const authHeader = () => ({ Authorization: `Bearer ${ownerToken}` });
-
-  /** InteractionTokenService.issuePerExecution 과 동형의 iext_* 토큰을 직접 mint. */
-  function mintInteractionToken(executionId: string): string {
-    const jwt = sign(
-      { sub: executionId, aud: 'interaction', jti: randomUUID() },
-      JWT_SECRET,
-      { algorithm: 'HS256', expiresIn: 3600 },
-    );
-    return `iext_${jwt}`;
-  }
 
   async function createWorkflow(): Promise<string> {
     const res = await request(BASE_URL)

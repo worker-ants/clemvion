@@ -4,6 +4,8 @@ import {
   NotFoundException,
   GoneException,
   BadRequestException,
+  ConflictException,
+  HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -21,6 +23,7 @@ import {
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
 import type { InternalInteractionRequestContext } from '../external-interaction/interaction.guard';
+import type { InteractDto } from '../external-interaction/dto/interact.dto';
 import { ExecutionsService } from '../executions/executions.service';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
@@ -703,6 +706,24 @@ export class HooksService {
   /**
    * Active execution 의 inbound 인터랙션 명령을 EIA InteractionService 로 in-process forwarding.
    * Spec [EIA-AU-08] — `scope: 'in_process_trusted'` 로 ctx 합성, token 검증 우회.
+   *
+   * **표면 불일치(409 `STATE_MISMATCH`) 는 graceful**: 본 메서드는 대기 노드의 인터랙션
+   * 표면을 알지 못한 채 `text_message → submit_message` / `button_callback → click_button`
+   * 로 고정 매핑한다. 따라서 form/buttons 대기 중 자유 텍스트가 도착하는 등의 조합은
+   * publisher 사전 검증(실행 엔진 §7.5.1 표면 매트릭스)이 거부한다 — 종전엔 이 조합이
+   * 빈 폼 제출·엉뚱한 포트 분기로 **조용히 오처리**됐다.
+   *
+   * 거부를 그대로 throw 하면 webhook 이 5xx 를 반환해 provider 가 같은 update 를 무한
+   * 재시도한다. 따라서 삼키되 **반드시 warn 로그를 남긴다** (§10.9 "silent skip 금지" +
+   * 본 파일의 모든 catch 관례). 사용자 대상 안내 문구(`languageHints` 신규 키)는 후속
+   * 항목 — `plan/in-progress/eia-command-waiting-surface-guard.md` F-2.
+   *
+   * 삼키는 범위는 **`STATE_MISMATCH` 코드로 한정**한다. `ConflictException` 타입 전체로
+   * 판정하면 `IDEMPOTENCY_KEY_CONFLICT` 등 다른 409 사유까지 흡수하게 된다(현재는 in-process
+   * 호출이라 도달 불가하나 암묵적 안전 속성에 의존하지 않는다). `STATE_MISMATCH` 자체는
+   * 표면 불일치 외에 "이미 waiting 을 벗어남"·"WAITING row 0/다중" race 도 포함하며, 어느
+   * 쪽이든 provider 재시도로는 해결되지 않으므로 동일하게 삼킨다 — 원인 구분은 아래 로그의
+   * 서버측 message 가 담는다.
    */
   private async forwardToInteractionService(
     trigger: Trigger,
@@ -713,30 +734,41 @@ export class HooksService {
     // button_callback → click_button (Button Presentation, Phase 3 에서 구체화).
     // file_upload / contact_share → submit_form (Form, Phase 4 에서 구체화).
     // v1 PR-A 는 text_message → submit_message 만 의미 있음.
-    if (update.command.kind === 'text_message') {
-      const ctx: InternalInteractionRequestContext = {
-        executionId,
-        triggerId: trigger.id,
-        scope: 'in_process_trusted',
-      };
-      await this.interactionService.interact(ctx, {
-        command: 'submit_message',
-        nodeId: 'chat-channel',
-        message: update.command.text,
-      });
-    } else if (update.command.kind === 'button_callback') {
-      const ctx: InternalInteractionRequestContext = {
-        executionId,
-        triggerId: trigger.id,
-        scope: 'in_process_trusted',
-      };
-      await this.interactionService.interact(ctx, {
-        command: 'click_button',
-        nodeId: 'chat-channel',
-        buttonId: update.command.callbackData,
-      });
-    }
+    const ctx: InternalInteractionRequestContext = {
+      executionId,
+      triggerId: trigger.id,
+      scope: 'in_process_trusted',
+    };
+    const dto: InteractDto | undefined =
+      update.command.kind === 'text_message'
+        ? {
+            command: 'submit_message',
+            nodeId: 'chat-channel',
+            message: update.command.text,
+          }
+        : update.command.kind === 'button_callback'
+          ? {
+              command: 'click_button',
+              nodeId: 'chat-channel',
+              buttonId: update.command.callbackData,
+            }
+          : undefined;
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
+    if (!dto) return;
+    try {
+      await this.interactionService.interact(ctx, dto);
+    } catch (err) {
+      const conflict =
+        err instanceof ConflictException ? readErrorBody(err) : undefined;
+      if (conflict?.code === 'STATE_MISMATCH') {
+        this.logger.warn(
+          `chat-channel inbound '${dto.command}' 이 현재 대기 표면과 맞지 않아 거부됨 ` +
+            `(execution=${executionId} trigger=${trigger.id}): ${conflict.message ?? '(상세 없음)'}`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 
   /**
@@ -1029,4 +1061,26 @@ function isSlackUrlVerification(body: unknown): boolean {
 function isDiscordPing(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 1;
+}
+
+/**
+ * NestJS `HttpException` 의 응답 body 에서 `{ error: { code, message } }` (API 규약 §5.3)
+ * 를 추출한다.
+ *
+ * `err.message` 를 쓰면 안 된다 — `HttpException.initMessage()` 는 응답 객체의 **top-level**
+ * `message` 만 message 로 승격하는데, 본 프로젝트의 예외는 `message` 를 `error` 아래에
+ * 중첩하므로 `err.message` 가 항상 `'Conflict Exception'` 같은 클래스 기본 문자열이 된다.
+ */
+function readErrorBody(
+  err: HttpException,
+): { code?: string; message?: string } | undefined {
+  const body = err.getResponse();
+  if (!body || typeof body !== 'object') return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== 'object') return undefined;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return {
+    code: typeof code === 'string' ? code : undefined,
+    message: typeof message === 'string' ? message : undefined,
+  };
 }
