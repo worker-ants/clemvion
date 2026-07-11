@@ -253,7 +253,22 @@ describe("widgetReducer — WAITING threadMessages 병합(mergeMessages, 복원 
     expect(s.messages).toHaveLength(4);
   });
 
-  it("threadMessages 없는 WAITING → 기존 messages 불변(표면만 갱신)", () => {
+  it("빈 배열 스냅샷(threadMessages=[]) → local 비면 빈 유지, 비어있지 않으면 로컬 보존", () => {
+    // 프로덕션 흔한 경로: conversationThread 가 빈(신규 대화 초입·첫 waiting) → threadToMessages([]) === [].
+    // mergeMessages([], []) = [] (0>=0), mergeMessages(local, []) 는 local 유지 — 빈 스냅샷이 라이브 메시지를
+    // 지우지 않는다(짧은 스냅샷 보존 규칙의 length-0 경계).
+    const empty = widgetReducer({ ...initialState, messages: [] }, waiting([]));
+    expect(empty.messages).toEqual([]);
+    const local = [user("q1"), bot("a1")];
+    const kept = widgetReducer({ ...initialState, messages: local }, waiting([]));
+    expect(kept.messages).toEqual(local);
+    expect(kept.messages).toHaveLength(2);
+  });
+
+  it("threadMessages 부재(undefined) WAITING → 기존 messages 불변(타입 레벨 방어 분기)", () => {
+    // WAITING.threadMessages 는 optional 이지만 두 프로덕션 dispatch 호출부(use-widget.ts handleEiaEvent·
+    // seedWaitingFromStatus)는 항상 threadToMessages(...) 배열을 전달한다(undefined 미도달). 따라서 이 분기는
+    // 리듀서 타입 계약상의 방어 코드로, 도달 시 표면(pending)만 갱신하고 messages 참조를 재할당하지 않음을 고정한다.
     const local = [user("q1"), bot("a1")];
     const s = widgetReducer({ ...initialState, messages: local }, waiting(undefined));
     expect(s.messages).toBe(local); // 참조까지 동일(불필요한 재할당 없음)
