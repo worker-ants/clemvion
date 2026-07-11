@@ -250,7 +250,7 @@ stateDiagram-v2
   running --> completed: 마지막 노드 정상 종료
   running --> failed: retry 소진 실패 / EXECUTION_TIME_LIMIT_EXCEEDED / SERVER_INTERRUPTED / WORKER_HEARTBEAT_TIMEOUT (PR4 stalled 재배달 소진)
   running --> cancelled: 사용자 cancel API
-  waiting_for_input --> cancelled: 사용자 cancel API
+  waiting_for_input --> cancelled: 사용자 cancel API · 공개 위젯 idle-wait backstop(WEBCHAT_IDLE_TIMEOUT — 익명 per_execution 토큰 영구 만료+grace, EIA-RL-07)
   failed --> running: execution.retry_last_turn 재진입 (opt-in allowRetryReentry — 표 밖 전이)
   completed --> [*]
   failed --> [*]
