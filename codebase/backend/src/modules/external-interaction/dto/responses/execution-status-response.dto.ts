@@ -4,58 +4,7 @@ import {
   ApiPropertyOptional,
   getSchemaPath,
 } from '@nestjs/swagger';
-import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
-
-/**
- * `POST /api/external/executions/:id/interact` / `/cancel` 의 ack body.
- *
- * [Spec EIA §5.1 / §5.4]. 명령 수신 직후의 동기 응답 — 실제 노드 진행은 비동기.
- * `currentStatus` 는 명령 직후 본 endpoint 가 관측한 최근 상태.
- */
-export class InteractAckDto {
-  @ApiProperty({ format: 'uuid' })
-  executionId: string;
-
-  @ApiProperty({ example: true, description: '명령이 큐에 적재됨' })
-  accepted: boolean;
-
-  @ApiPropertyOptional({
-    enum: [
-      'pending',
-      'running',
-      'waiting_for_input',
-      'completed',
-      'failed',
-      'cancelled',
-    ],
-    description:
-      '명령 수신 직후 관측된 execution status. 즉시 다른 상태로 전이될 수 있으므로 SSE 스트림으로 확정 상태를 받는 것을 권장.',
-  })
-  currentStatus?:
-    | 'pending'
-    | 'running'
-    | 'waiting_for_input'
-    | 'completed'
-    | 'failed'
-    | 'cancelled';
-}
-
-/**
- * `POST /api/external/executions/:id/refresh-token` 응답. [Spec EIA §5.5].
- */
-export class RefreshTokenResponseDto {
-  @ApiProperty({
-    description: 'iext_ prefixed JWT (단명, default 1h).',
-    example: 'iext_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  })
-  token: string;
-
-  @ApiProperty({
-    description: 'ISO 8601 만료 시각.',
-    example: '2026-05-21T01:00:00.000Z',
-  })
-  expiresAt: string;
-}
+import type { ConversationThread } from '../../../../shared/conversation-thread/conversation-thread.types';
 
 /** waiting_for_input 상태에서 현재 입력을 대기 중인 노드. [Spec EIA §5.3]. */
 export class CurrentNodeDto {
@@ -80,7 +29,7 @@ export class CurrentNodeDto {
  *
  * 봉투만 스키마화하고 내부 payload 는 열린 map 으로 남긴다 — 노드 타입별 자유 형식이라
  * 클래스로 고정하면 노드 output 규약(`spec/conventions/node-output.md`)과 SoT 가 이중화된다.
- * [Swagger 규약 §1-4](../../../../../../spec/conventions/swagger.md).
+ * [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md).
  *
  * `abstract` 이지만 export 한다 — `getStatus` 조립부가 분기 전 공통 필드를 선조립할 때 이 타입으로
  * **명시 annotate** 해야 하기 때문이다. object spread 는 fresh literal 타입을 넓히므로
@@ -99,11 +48,11 @@ export abstract class WaitingContextBaseDto {
 
   /**
    * 대화 히스토리 durable 스냅샷. 형태 SoT 는
-   * [conversation-thread §1.3](../../../../../../spec/conventions/conversation-thread.md).
+   * [conversation-thread §1.3](../../../../../../../spec/conventions/conversation-thread.md).
    *
    * **부재 시 키 자체를 생략**한다(present-when-available) — 형제 `result`/`error` 의 `null` 관례와 다르며,
    * SSE `waiting_for_input` wire 와 형식을 일치시키기 위함이다. 따라서 `| null` 을 쓰지 않는다.
-   * [API 규약 §5.4](../../../../../../spec/5-system/2-api-convention.md).
+   * [API 규약 §5.4](../../../../../../../spec/5-system/2-api-convention.md).
    */
   @ApiPropertyOptional({
     description:
@@ -188,7 +137,7 @@ export class ExecutionStatusDto {
    *
    * 판별자 없는 `oneOf` — `discriminator` 를 선언하면 SDK 생성기가 `buttons` 를 항상
    * `ButtonsContextDto` 로 narrowing 해 fallthrough 케이스에서 런타임 `undefined` 접근이 된다.
-   * [Swagger 규약 §1-4](../../../../../../spec/conventions/swagger.md).
+   * [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md).
    */
   @ApiPropertyOptional({
     description:

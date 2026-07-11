@@ -38,11 +38,9 @@ import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { InteractionService } from './interaction.service';
 import { InteractDto } from './dto/interact.dto';
 import { CancelDto } from './dto/cancel.dto';
-import {
-  ExecutionStatusDto,
-  InteractAckDto,
-  RefreshTokenResponseDto,
-} from './dto/responses.dto';
+import { ExecutionStatusDto } from './dto/responses/execution-status-response.dto';
+import { InteractAckDto } from './dto/responses/interact-ack-response.dto';
+import { RefreshTokenResponseDto } from './dto/responses/refresh-token-response.dto';
 
 /**
  * [Spec EIA §5] — External Interaction API 의 inbound REST endpoint.
