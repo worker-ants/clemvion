@@ -527,6 +527,102 @@ describe('WorkflowsService', () => {
       });
     });
 
+    // L0 — `variables.__*` 예약 네임스페이스 (spec/conventions/execution-context.md
+    // 원칙 5). 저장 시점에 막지 않으면 엔진 pre-flight 가 실행 도중에야 터진다.
+    // `validateManualTrigger` 의 파라미터 스키마 게이트와 같은 논리.
+    const varNodeDto = (
+      type: 'variable_declaration' | 'variable_modification',
+      config: Record<string, unknown>,
+    ) => ({
+      nodes: [
+        {
+          id: 'node-1',
+          type: 'manual_trigger',
+          category: NodeCategory.TRIGGER,
+          label: 'Manual Trigger',
+          positionX: 0,
+          positionY: 0,
+          config: {},
+        },
+        {
+          id: 'node-2',
+          type,
+          category: NodeCategory.LOGIC,
+          label: 'Vars',
+          positionX: 100,
+          positionY: 200,
+          config,
+        },
+      ],
+      edges: [],
+    });
+
+    it('should reject a variable_declaration whose name uses the reserved "__" prefix', async () => {
+      const dto = varNodeDto('variable_declaration', {
+        variables: [{ name: '__workspaceId', type: 'string' }],
+      });
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'RESERVED_VARIABLE_NAME' }),
+      });
+    });
+
+    it('should reject a variable_modification whose target uses the reserved "__" prefix', async () => {
+      const dto = varNodeDto('variable_modification', {
+        modifications: [{ variable: '__dryRun', operation: 'set' }],
+      });
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'RESERVED_VARIABLE_NAME' }),
+      });
+    });
+
+    it('should report the offending node and field in the error details', async () => {
+      const dto = varNodeDto('variable_declaration', {
+        variables: [
+          { name: 'ok', type: 'string' },
+          { name: '__x', type: 'string' },
+        ],
+      });
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          details: {
+            offenders: [
+              { node: 'node-2', field: 'variables[1].name', name: '__x' },
+            ],
+          },
+        }),
+      });
+    });
+
+    it('should accept a single-underscore variable name', async () => {
+      const dto = varNodeDto('variable_declaration', {
+        variables: [{ name: '_private', type: 'string' }],
+      });
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).resolves.toBeDefined();
+    });
+
+    // 저장 게이트는 리터럴만 본다 — `{{ }}` 이름은 통과시키고 런타임(L2)이 잡는다.
+    it('should not reject an expression-valued variable name at save time', async () => {
+      const dto = varNodeDto('variable_declaration', {
+        variables: [{ name: '{{ $input.dynamicName }}', type: 'string' }],
+      });
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).resolves.toBeDefined();
+    });
+
     it('should accept a trigger with a well-formed parameter schema', async () => {
       const dto = {
         nodes: [
@@ -1082,6 +1178,81 @@ describe('WorkflowsService', () => {
         service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto),
       ).rejects.toThrow(ConflictException);
     });
+
+    // L0 — importWorkflow 는 restoreVersion 과 달리 legacy-data escape 가 없다.
+    // 가져오는 JSON 은 새 데이터이므로 예약 이름 게이트가 항상 켜져 있다.
+    it('rejects an imported variable node with a reserved "__" name', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trigger',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'variable_declaration',
+            category: NodeCategory.LOGIC,
+            label: 'Vars',
+            positionX: 100,
+            positionY: 0,
+            config: { variables: [{ name: '__workspaceId', type: 'string' }] },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'RESERVED_VARIABLE_NAME' }),
+      });
+    });
+
+    // import 노드는 아직 id 가 없어 offender.node 가 label 로 폴백함을 고정.
+    it('falls back to the node label in import offender details (no id yet)', async () => {
+      const dto = {
+        name: 'Imported',
+        nodes: [
+          {
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trigger',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            type: 'variable_modification',
+            category: NodeCategory.LOGIC,
+            label: 'MyVarsNode',
+            positionX: 100,
+            positionY: 0,
+            config: {
+              modifications: [{ variable: '__dryRun', operation: 'set' }],
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.importWorkflow('ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          details: {
+            offenders: [
+              {
+                node: 'MyVarsNode',
+                field: 'modifications[0].variable',
+                name: '__dryRun',
+              },
+            ],
+          },
+        }),
+      });
+    });
   });
 
   describe('importWorkflow — config defaults & LLM 주입', () => {
@@ -1400,8 +1571,9 @@ describe('WorkflowsService', () => {
           name: 'Snapshot Name',
           changeSummary: 'Restored from v2',
         }),
-        // skipParamSchemaValidation — historical snapshots may pre-date the
-        // save-time parameter gate and must not be blocked on restore.
+        // skipLegacyDataGates — historical snapshots may pre-date a save-time
+        // gate (trigger param schema, reserved variable names) and must not be
+        // blocked on restore.
         true,
       );
     });
@@ -1428,6 +1600,54 @@ describe('WorkflowsService', () => {
               // empty-name slot — would 400 on a normal /save, but a restore
               // of pre-gate data must still succeed.
               config: { parameters: [{ name: '', type: 'string' }] },
+            },
+          ],
+          edges: [],
+        },
+      });
+
+      await expect(
+        service.restoreVersion(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          'v-uuid-1',
+          'user-uuid-1',
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    // Same legacy-data escape as the trigger-parameter gate: a snapshot saved
+    // before the reserved-name rule existed must still restore. The reserved
+    // name will surface at runtime (L2) instead.
+    it('restores a snapshot with a reserved "__" variable name without a 400', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        currentVersion: 3,
+      });
+      mockWorkflowVersionsService.findOne.mockResolvedValue({
+        id: 'v-uuid-1',
+        workflowId: 'wf-uuid-1',
+        version: 2,
+        snapshot: {
+          name: 'Legacy',
+          nodes: [
+            {
+              id: 'node-1',
+              type: 'manual_trigger',
+              category: NodeCategory.TRIGGER,
+              label: 'Manual Trigger',
+              positionX: 0,
+              positionY: 0,
+              config: {},
+            },
+            {
+              id: 'node-2',
+              type: 'variable_declaration',
+              category: NodeCategory.LOGIC,
+              label: 'Vars',
+              positionX: 100,
+              positionY: 200,
+              config: { variables: [{ name: '__legacy', type: 'string' }] },
             },
           ],
           edges: [],

@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — `variables.__*` 예약 네임스페이스 3계층 강제 (conventions/execution-context 원칙 5)
+
+### Breaking changes
+
+1. **Variable Declaration / Variable Modification 노드의 변수 이름에 `__`(double-underscore) prefix 를 금지한다.** `variables.__*` 는 엔진이 실행 시작 시 `__workspaceId`·`__dryRun` 등 시스템 값을 주입하는 예약 네임스페이스인데(execution-context 원칙 5), 지금까지 규약일 뿐 강제가 없어 사용자가 시스템 키를 덮어쓰거나, `__` 사용자 변수가 park/resume 시 `filterUserVariables` 에 **관찰 불가능하게 drop** 되어 조용히 소실됐다. 이제 신규 코드 `RESERVED_VARIABLE_NAME` 으로 3계층 강제한다 — **L0** 저장 시점(`WorkflowsService.saveCanvas`/`importWorkflow` → 400, `details.offenders[]`; `restoreVersion` 은 legacy-data escape 로 면제), **L1** pre-flight `validateConfig`(→ `INVALID_NODE_CONFIG`), **L2** `handler.execute` 런타임 throw. **어느 계층도 단독으로 충분하지 않다**: 변수 이름 필드는 `{{ }}` 표현식 대상이라(두 노드는 `EXPRESSION_EXCLUSIONS` 에 없다) L0/L1 은 해석 전 리터럴만 보고, `name: "{{ $input.x }}"` 가 런타임에 `__workspaceId` 로 평가되는 경우는 오직 L2(해석 후)만 잡는다 — L2 가 예약의 실질 강제 지점이다.
+2. **영향받는 워크플로**: 기존에 `__foo` 변수를 선언·수정하던 워크플로는 재저장 시 400, 또는 다음 실행 시 노드 throw 로 실패한다. 그러나 그런 변수는 이미 재개 시 조용히 소실되던 반쯤 깨진 상태였다 — 조용한 데이터 손실을 명시적 실패로 바꾼다. Variable Declaration §6 이 의도적으로 채택한 "관찰 가능한" silent skip/fallback(`meta.skipped`/`meta.coercionWarnings` 로 가시화)과는 다른 종류의 침묵(park drop)만 대상이다.
+
+### 범위 밖 (잔여 리스크)
+
+3. **Code 노드**(`$vars` 전체 atomic replace, `nodes/data/code/code.handler.ts`)는 사용자 코드가 `$vars.__workspaceId` 를 쓰면 필터 없이 덮어쓴다. 임의 코드 실행 노드에 변수-이름 화이트리스트를 강제하는 것은 별개 결정이라 본 강제 범위 밖으로 두고, 원칙 5 "강제 범위 밖" 절에 정직하게 등재했다.
+
+SoT: `spec/conventions/execution-context.md` 원칙 5 · `spec/5-system/3-error-handling.md` §1.3 · `spec/4-nodes/1-logic/{4,5}-*.md` §6.
+
+## Unreleased — 웹채팅 위젯 presentation `truncation` 유실 수정 + 복원 렌더 회귀 가드 (7-channel-web-chat/1-widget-app §2)
+
+### 변경 사항
+
+1. **AI `render_table` 이 1MB cap 으로 행을 잘라도 위젯에 "일부 행만 표시됩니다" 배너가 뜨지 않던 버그를 고쳤다** — `PresentationPayload.truncation` 은 `payload` **바깥** top-level 필드인데(AI Agent §7.10), 위젯 `asEnvelope` 가 `payload` 만 펼쳐 구조적으로 이 필드를 볼 수 없었다. 그 결과 `toTable` 의 `output.rowsTruncated` 판정이 항상 `false` 였다. 복원 경로만이 아니라 라이브 `ai_message` 경로에도 있던 기존 버그다. standalone table 노드는 `output.rowsTruncated` 를 output 안에 직접 실어 정상 동작했고 메인 프런트엔드(`assistant-presentations-block`)는 `truncation` 을 이미 소비하고 있어, 위젯만 outlier 였다. Presentation 공통 §10.4 가 두 위치를 "동등한 메타" 로 규정하므로 코드를 spec 에 맞춘다(spec 변경 없음). 병합은 알려진 4개 cap 키(`rowsTruncated`/`itemsTruncated`/`rowsTotalCount`/`itemsTotalCount`) 화이트리스트로 한정해, 장래 shape 확장이 payload 의 동명 렌더 필드를 조용히 덮지 않게 봉인했다.
+2. **`1-widget-app.md` §2 의 "알려진 제약(Planned)" 서술을 정정했다(문서)** — "새로고침 복원 thread 의 presentation 은 위젯 렌더러가 graceful 하게 무시(빈 렌더)한다" 는 서술은 실측과 달랐다. 렌더러는 `asEnvelope`/`classifyPresentation` 으로 `{config,output}` 과 `PresentationPayload` 두 shape 을 이미 모두 수용하고 있었고, 복원 thread 의 carousel/table/chart/template 4종이 무수정 상태에서 정상 렌더됨을 실증했다. **진짜 남은 제약은 원인이 다르다** — durable thread 의 `turn.presentations[]` 는 `source: 'ai_assistant'` 한정이라 AI `render_*` 표시물만 영속되고, 표시-전용 presentation *노드*의 표시물은 SSE `execution.message` 로만 오므로 새로고침 복원 대상이 아니다. 이 경계를 SoT(`conversation-thread.md` §2.1)·소비 문서(`1-widget-app.md` §2·§3.1·R8)·영역 백로그(`_product-overview.md` §2 비목표) 3곳에 등재했다. `0-architecture.md` §3 EIA 매핑 표에 누락돼 있던 `execution.message` 행도 함께 보강. 런타임 동작 무변경(문서). SoT: `spec/7-channel-web-chat/1-widget-app.md` §2·R8.
+3. **회귀 가드 3계층 추가** — 복원 thread turn 의 `PresentationPayload` 4종 passthrough·분류·정규화(`conversation.test.ts`), DOM 렌더·port 버튼·truncation 배너(`presentations.test.tsx`), truncation 흡수·병합 우선순위·malformed 입력 no-op·미등록 키 미흡수(`presentation.test.ts`).
+
 ## Unreleased — continuation 명령 ↔ 대기 노드 표면 검증 (5-system/4-execution-engine §7.5.1)
 
 ### 변경 사항
@@ -18,6 +39,12 @@
 
 1. **통합이 연결되어 있지 않으면(`error`/`expired`/`pending_install`) 활동 탭에 "연결 안 됨" 경고 배너를 노출한다** — 이 상태에서는 AI Agent 가 MCP bridge 로 미연결 통합의 tool 을 노출하지 않아 호출 자체가 없고(직결 노드는 `INTEGRATION_NOT_CONNECTED` 로 즉시 실패), 새 활동이 기록되지 않는다. 종전엔 활동 탭이 단순 "활동 없음" 빈 상태만 보여줘 사용자가 "기록이 없는 것" 과 "통합이 끊겨 기록이 안 되는 것" 을 구분하지 못했다. 이제 활동 목록·빈 상태 위에 [Inline Alert](spec/0-overview.md §3.4)를 얹어 원인을 알리고, "상태 확인" 버튼으로 개요 탭(상태·재연결)으로 유도한다. 톤은 §3.4 status→tone escalation 에 맞춰 `error`=red, `expired`/`pending_install`=warning(amber) 으로 헤더 `StatusBadge` 신호와 일치시킨다. `connected`(곧 만료 expires-soon 포함)는 여전히 기록되므로 미노출. 프론트 전용(백엔드·API 무변경). SoT: `spec/2-navigation/4-integration.md §4.6` · `spec/0-overview.md §3.4`.
 
+## Unreleased — AI Agent 자동 메모리 롤링 요약 압축 chat 의 llm_usage_log attribution 배선 (data-flow/7-llm-usage §1.3)
+
+### 변경 사항
+
+1. **AI Agent 자동 메모리(`summary_buffer`/`persistent`) 롤링 요약 압축 LLM 호출이 `llm_usage_log` 의 `workflow_id`/`execution_id`/`node_execution_id` 를 채우도록 배선했다** — 노드 내부에서 실행되는데도 이 요약 압축 chat 만 attribution 이 전부 NULL 로 남던 잔여 갭(#879 후속)을 해소한다. `AiMemoryManager.injectMemoryContext` 가 요약 압축(`buildSummaryBufferUpdate`) chat 에 `LlmCallContext` 를 전달하도록 하고, 세 필드를 caller 가 명시 전달한다 — **single-turn** 경로는 `context.workflowId`/`context.nodeExecutionId`(엔진이 노드 실행 직전 주입), **multi-turn resume** 경로는 재구성 `state.*`(엔진 `buildRetryReentryState` 주입분). 과거 `config` 파생 방식은 single-turn 의 `config` 가 사용자 노드 config 라 해당 키가 없어 항상 NULL 이 되던 문제가 있었다. 이로써 워크플로우별 LLM 비용 집계(Statistics `workflowId` 필터·Alerts)에 메모리 압축 사용량도 반영된다. SoT: `spec/data-flow/7-llm-usage.md §1.3`.
+
 ## Unreleased — `$params.<name>` 표현식 자동완성 (5-system/5-expression §7.1)
 
 ### 변경 사항
@@ -28,7 +55,7 @@
 
 ### 변경 사항
 
-1. **멀티턴 AI 노드(Information Extractor·AI Agent)의 resume 턴 LLM 호출이 `llm_usage_log` 의 workflow/execution/node_execution attribution 을 올바르게 채우도록 고쳤다** — #877 이 공유 재구성기 `buildRetryReentryState` 에 `workflowId`·`nodeExecutionId`(현재 turn 의 NodeExecution row PK)를 재주입하도록 고쳐 통합 usage-log(§4.6) 갭을 해소했는데, **LLM usage-log(`llm_usage_log`) 쪽 소비 사이트 2곳이 아직 미교정**이었다. (a) **Information Extractor resume 턴**은 `node_execution_id` 자리에 `state.nodeId`(Node **정의** id — NodeExecution row PK 아님)를 넣어 attribution FK 에 잘못된 참조를 적재하고 `workflow_id` 를 누락했다(첫 턴은 `context.*` 로 정상). 이제 재구성 `state.nodeExecutionId`/`state.workflowId` 를 소비한다(첫 턴 사이트와 대칭). (b) **AI Agent resume 턴 메인 chat 호출 2곳**(`ai-turn-executor.ts` `processMultiTurnMessage`)은 `LlmCallContext` 를 전혀 전달하지 않아 세 컬럼이 NULL 이었다 — 이제 `state.workflowId`/`executionId`/`nodeExecutionId` 를 전달한다(tool-batch 는 이미 소비 중). 이로써 노드 핸들러 3종(AI Agent·Text Classifier·Information Extractor)의 첫 턴·resume 턴 attribution 이 모두 채워진다. `spec/data-flow/7-llm-usage.md` §1.3 표·Rationale·§4 표와 `spec/5-system/4-execution-engine.md` §6.1 소비처 표를 실제 채움 현황으로 정정. SoT: `spec/data-flow/7-llm-usage.md §1.3`.
+1. **멀티턴 AI 노드(Information Extractor·AI Agent)의 resume 턴 LLM 호출이 `llm_usage_log` 의 workflow/execution/node_execution attribution 을 올바르게 채우도록 고쳤다** — #877 이 공유 재구성기 `buildRetryReentryState` 에 `workflowId`·`nodeExecutionId`(현재 turn 의 NodeExecution row PK)를 재주입하도록 고쳐 통합 usage-log(§4.6) 갭을 해소했는데, **LLM usage-log(`llm_usage_log`) 쪽 소비 사이트 2곳이 아직 미교정**이었다. (a) **Information Extractor resume 턴**은 `node_execution_id` 자리에 `state.nodeId`(Node **정의** id — NodeExecution row PK 아님)를 넣어 attribution FK 에 잘못된 참조를 적재하고 `workflow_id` 를 누락했다(첫 턴은 `context.*` 로 정상). 이제 재구성 `state.nodeExecutionId`/`state.workflowId` 를 소비한다(첫 턴 사이트와 대칭). (b) **AI Agent resume 턴 메인 chat 호출 2곳**(`ai-turn-executor.ts` `processMultiTurnMessage`)은 `LlmCallContext` 를 전혀 전달하지 않아 세 컬럼이 NULL 이었다 — 이제 `state.workflowId`/`executionId`/`nodeExecutionId` 를 전달한다(tool-batch 는 이미 소비 중). 이로써 노드 핸들러 3종(AI Agent·Text Classifier·Information Extractor)의 attribution 이 모두 채워진다 — 멀티턴(AI Agent·Information Extractor)은 첫 턴·resume 턴 모두, Text Classifier 는 단발 호출(resume 없음). `spec/data-flow/7-llm-usage.md` §1.3 표·Rationale·§4 표와 `spec/5-system/4-execution-engine.md` §6.1 소비처 표를 실제 채움 현황으로 정정. SoT: `spec/data-flow/7-llm-usage.md §1.3`.
 
 ## Unreleased — Manual Trigger 파라미터 표현식 자동완성 힌트 (5-system/5-expression §7.2)
 

@@ -67,6 +67,7 @@ EIA 의 4-레이어 분리(§1)와 iframe 격리(§2), 위젯이 사용하는 EI
 | 대화 시작 | `POST /api/hooks/:endpointPath` → `202 { data: { executionId, status, interaction: { token, expiresAt, endpoints } } }` (성공 응답은 전역 `TransformInterceptor` 가 `{ data }` 로 래핑 — webhook §3.1. 위젯은 `res.data` 언랩) | EIA §4.1 |
 | 실시간 이벤트 | `GET /api/external/executions/:id/stream` (SSE, `?token=`) | EIA §5.2 |
 | AI 메시지 | SSE `execution.ai_message` (+ `presentations[]`) | EIA §6.5 |
+| 표시 메시지 (자동 진행 presentation) | SSE `execution.message` (+ `presentations[]`) — 표시-전용 presentation 노드가 버튼 없이 자동 진행 완료할 때 발행. `ai_message` 와 달리 **AI 가 생성한 텍스트가 아니라 노드가 그린 정적 표시물**이며 `{config,output}` envelope 로 온다([1-widget-app §2](./1-widget-app.md)) | EIA §5.2·§R18 |
 | 입력 대기 진입 | SSE `execution.waiting_for_input` — **EIA 외부 `interactionType` ∈ `form`/`buttons`/`ai_conversation`** (EIA §6.2, 3값). render_form blocking 은 EIA 표면에서 **`ai_conversation` 으로 통합 노출** | EIA §6.2 |
 | AI 폼 렌더 (render_form blocking) | `ai_conversation` 페이로드의 `conversationConfig.pendingFormToolCall.formConfig` 렌더 → `submit_form`. 위젯은 `ai_conversation` 과 동일 경로 처리(별도 분기 아님). 내부 `WaitingInteractionType=ai_form_render` 와의 매핑은 [interaction-type-registry §1.2](../conventions/interaction-type-registry.md) | [AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md) |
 | 사용자 메시지 | `POST .../interact { command: "submit_message" }` | EIA §5.1 |

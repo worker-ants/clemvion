@@ -41,7 +41,7 @@ code:
 ## 3. 세션 시퀀스 (per_execution)
 
 ```
-0. (boot) 위젯: GET /api/hooks/:path/embed-config → { allowlist, enforce } 조회 → host origin soft 검증.
+0. (boot) 위젯: GET /api/hooks/:path/embed-config → { data: { allowlist, enforce } } 조회(전역 wrap, res.data 언랩) → host origin soft 검증.
        불일치 시 위젯 [blocked] (시작 차단). allowlist 빈/enforce=false 면 통과(fail-open). 상세 [4-security §3-①](./4-security.md)
 1. 패널 open(런처 클릭) → 위젯: POST /api/hooks/:path { profile }   (인증 없음. firstMessage 미동봉 — [1-widget-app §R6](./1-widget-app.md))
 2. API: 202 { data: { executionId, status: "pending", interaction: { token: iext_*, expiresAt, endpoints } } }

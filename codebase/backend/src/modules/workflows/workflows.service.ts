@@ -27,8 +27,15 @@ import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
 import { toTriggerParameterErrorDetails } from '../execution-engine/types/trigger-parameter.types';
+import {
+  RESERVED_VARIABLE_NAME_CODE,
+  RESERVED_VARIABLE_PREFIX,
+  isReservedVariableName,
+} from '../../nodes/logic/_shared/reserved-variable-name.util';
 
 const MANUAL_TRIGGER_TYPE = 'manual_trigger';
+const VARIABLE_DECLARATION_TYPE = 'variable_declaration';
+const VARIABLE_MODIFICATION_TYPE = 'variable_modification';
 const MANUAL_TRIGGER_DEFAULT_POSITION = { x: 250, y: 300 };
 
 /**
@@ -264,6 +271,11 @@ export class WorkflowsService {
     userId: string,
     dto: ImportWorkflowDto,
   ): Promise<Workflow> {
+    // Imported JSON is new data, never a historical snapshot of this
+    // workspace — the legacy-data escape that `restoreVersion` gets does not
+    // apply, so the reserved-name gate is always on here.
+    this.validateReservedVariableNames(dto.nodes);
+
     // Validate unique labels in imported nodes
     const seen = new Set<string>();
     for (const nodeDto of dto.nodes) {
@@ -388,16 +400,19 @@ export class WorkflowsService {
     workspaceId: string,
     userId: string,
     dto: SaveCanvasDto,
-    // `restoreVersion` passes true: a historical snapshot may pre-date the
-    // parameter-schema gate, and restoring it must not be blocked by data that
-    // was valid when saved. User-initiated `POST /:id/save` keeps the gate on.
-    skipParamSchemaValidation = false,
+    // `restoreVersion` passes true: a historical snapshot may pre-date a gate
+    // introduced later, and restoring it must not be blocked by data that was
+    // valid when saved. User-initiated `POST /:id/save` keeps every gate on.
+    // Currently guards the Manual Trigger parameter schema and the reserved
+    // `__` variable-name rule.
+    skipLegacyDataGates = false,
   ): Promise<{ workflow: Workflow; nodes: Node[]; edges: Edge[] }> {
     const workflow = await this.findById(id, workspaceId);
 
     // Server-side validation: Manual Trigger must exist and be unique
-    this.validateManualTrigger(dto, skipParamSchemaValidation);
+    this.validateManualTrigger(dto, skipLegacyDataGates);
     this.validateUniqueLabels(dto);
+    if (!skipLegacyDataGates) this.validateReservedVariableNames(dto.nodes);
 
     return this.dataSource.transaction(async (manager) => {
       // Update workflow name if provided
@@ -474,7 +489,7 @@ export class WorkflowsService {
       workspaceId,
       userId,
       dto,
-      /* skipParamSchemaValidation */ true,
+      /* skipLegacyDataGates */ true,
     );
   }
 
@@ -621,6 +636,74 @@ export class WorkflowsService {
           details: toTriggerParameterErrorDetails(errors),
         });
       }
+    }
+  }
+
+  /**
+   * L0 — reject literal `__`-prefixed variable names at save time.
+   *
+   * `variables.__*` is the engine's reserved system namespace
+   * (`spec/conventions/execution-context.md` 원칙 5). Without this gate the
+   * only enforcement is the engine's pre-flight `handler.validate` (L1), which
+   * fires mid-run: the workflow saves fine and then dies on its next
+   * execution. Blocking here surfaces the exact node + field immediately, the
+   * same reasoning as `validateManualTrigger`'s parameter-schema gate.
+   *
+   * Literal names only. A name written as `{{ }}` resolves at runtime, so the
+   * handlers re-check the resolved value (L2) — that is the layer that
+   * actually enforces the reservation.
+   */
+  private validateReservedVariableNames(
+    // Shared by `saveCanvas` (nodes carry `id`) and `importWorkflow` (ids are
+    // regenerated after this gate, so fall back to the label).
+    nodes: ReadonlyArray<{
+      id?: string;
+      label?: string;
+      type: string;
+      config?: unknown;
+    }>,
+  ): void {
+    const offenders: Array<{ node: string; field: string; name: string }> = [];
+
+    for (const node of nodes) {
+      const nodeRef = node.id ?? node.label ?? '';
+      if (node.type === VARIABLE_DECLARATION_TYPE) {
+        const vars = (node.config as { variables?: unknown } | undefined)
+          ?.variables;
+        if (!Array.isArray(vars)) continue;
+        vars.forEach((v, i) => {
+          const name = (v as { name?: unknown } | undefined)?.name;
+          if (isReservedVariableName(name)) {
+            offenders.push({
+              node: nodeRef,
+              field: `variables[${i}].name`,
+              name: name as string,
+            });
+          }
+        });
+      } else if (node.type === VARIABLE_MODIFICATION_TYPE) {
+        const mods = (node.config as { modifications?: unknown } | undefined)
+          ?.modifications;
+        if (!Array.isArray(mods)) continue;
+        mods.forEach((m, i) => {
+          const name = (m as { variable?: unknown } | undefined)?.variable;
+          if (isReservedVariableName(name)) {
+            offenders.push({
+              node: nodeRef,
+              field: `modifications[${i}].variable`,
+              name: name as string,
+            });
+          }
+        });
+      }
+    }
+
+    if (offenders.length > 0) {
+      throw new BadRequestException({
+        code: RESERVED_VARIABLE_NAME_CODE,
+        message: `Variable names must not start with the reserved prefix "${RESERVED_VARIABLE_PREFIX}"`,
+        details: { offenders },
+      });
     }
   }
 

@@ -439,7 +439,9 @@ AI 가 생성한 `execution.ai_message` 와 의미적으로 구분되는 정적 
 > 전체 히스토리를 복원하기 위함(근거 §R17). `seq`(항상 `0` placeholder)만은 SSE replay(`Last-Event-Id`/첫 연결
 > `lastEventId=0`)가 권위이며 REST 단발 응답은 in-memory seq 카운터에 접근하지 않는다. durable thread 가 없는 경우
 > (배포 이전 row·park 이력 없음)에는 `context.conversationThread` **키를 생략**한다(형제 필드의 `null` 관례와 달리 키
-> 부재 — SSE wire 도 동일하게 present-when-available, 위젯은 부재를 빈 히스토리로 graceful 처리).
+> 부재 — SSE wire 도 동일하게 present-when-available, 위젯은 부재를 빈 히스토리로 graceful 처리). 이 두 부재 표현의
+> 선택 기준은 [API 규약 §5.4](./2-api-convention.md#54-부재-표현--null-vs-키-생략) 가 SoT 이며, 본 필드는 그 기준
+> (a)(다른 표면과의 wire parity) 사례다.
 
 ```jsonc
 GET /api/external/executions/{executionId}
@@ -457,18 +459,25 @@ Authorization: Bearer <iext_jwt | itk_token>
     "interactionType": "form" | "buttons" | "ai_conversation" | null
   } | null,
   "context": {
-    // 노드 종류에 따라 form/button/conversation config 중 하나만 동봉
-    "formConfig":         { ... },
-    "buttonConfig":       { ... },
-    "conversationConfig": { ... },
-    "conversationThread": { ... }   // [Spec WS §4.4.5] 와 동일. messages[].source 마커 누락 시 [Conversation Thread §4.4.6 / §5.1](../conventions/conversation-thread.md) 의 폴백 ('live' 로 간주) 적용
+    "interactionType": "form" | "buttons" | "ai_conversation",
+    "waitingNodeId":   "uuid",
+    "conversationThread": { ... },  // 키 생략 가능 (present-when-available — 아래 참조).
+                                    // [Spec WS §4.4.5] 와 동일. turns[].source 마커 누락 시
+                                    // [Conversation Thread §4.4.6 / §5.1](../conventions/conversation-thread.md) 의 폴백 ('live' 로 간주) 적용
+
+    // ↓ 아래 두 키 중 정확히 하나만 present (SSE waiting_for_input wire 와 동일)
+    "buttonConfig": { "buttons": [ ... ], "nodeOutput": { ... } },  // interactionType=buttons + buttonConfig 복원 성공 시
+    "nodeOutput":   { ... }         // 그 외 — form/ai_conversation, 그리고 buttonConfig 를 복원하지 못한 buttons.
+                                    // formConfig/conversationConfig 는 이 nodeOutput **안에** 중첩된다 (top-level 아님)
   } | null,
   "result":  { ... } | null,        // completed 시
   "error":   { ... } | null,        // failed 시
-  "seq":     42,
+  "seq":     0,                     // 항상 0 placeholder — 실제 seq 는 SSE 가 권위 (위 콜아웃 참조)
   "updatedAt": "ISO8601"
 }
 ```
+
+> **`context` 는 판별자 없는 닫힌 2-variant union 이다.** `interactionType` 은 판별자가 **아니다** — `buttons` 는 `buttonConfig` 변형과 (복원 실패 시 fallthrough 한) `nodeOutput` 변형 양쪽에 나타난다. 소비자는 **키 존재**(`'buttonConfig' in context`)로 분기한다. OpenAPI 스키마는 `discriminator` 없이 `oneOf` 로 표현한다 — [Swagger 규약 §1-4](../conventions/swagger.md#1-4-nested--enum--union) 및 그 [Rationale](../conventions/swagger.md#discriminator-는-판별자가-sound-할-때만-1-4).
 
 ### 5.4 명시적 취소 — `POST /api/external/executions/:executionId/cancel`
 
@@ -1141,6 +1150,12 @@ interactionType)·`context`(buttons→`buttonConfig{buttons,nodeOutput}`, form/a
 단발 응답에도 read-only 로 노출**하는 것뿐이라 신규 민감 데이터 표면이 아니다(아래 "표면 제약(보안)" 과 동일 정책 —
 노드 핸들러는 thread turn 텍스트에 민감 중간결과를 남기지 않으며, 이 불변식은 `redactThreadForPublic` egress 마스킹으로
 런타임 강제된다).
+
+**부재 표현이 형제 필드와 다른 이유**: `conversationThread` 는 값이 없으면 **키를 생략**하고(형제 `currentNode`/`result`/`error`
+는 `null`), 이는 위 "SSE 와의 역할 분담" 이 요구하는 **wire parity** 에서 파생된다 — SSE `waiting_for_input` 도
+present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 `parseWaitingForInput` 재사용이 깨진다. 두 표현의 선택
+기준과 이 사례의 근거는 [API 규약 §5.4](./2-api-convention.md#54-부재-표현--null-vs-키-생략)(본 문서 자신의 §5.4 "명시적
+취소" 가 아니다) 및 그 [Rationale](./2-api-convention.md#왜-conversationthread-를-null-로-정규화하지-않는가-54) 참조.
 
 **기각 대안**: (a) *SSE 전용 유지 + buffer 만료 시 위젯이 재조회* — 그 재조회(`getStatus`)가 thread 를 안 주므로
 순환(만료 시 되살릴 소스 부재)이라 문제를 못 푼다. (b) *`NodeExecution.output_data` 분산 저장에서 thread 재구성* —

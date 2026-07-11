@@ -345,4 +345,72 @@ describe('VariableDeclarationHandler', () => {
       expect(context.variables['x']).toBeNull();
     });
   });
+
+  // L2 — 예약 prefix 강제의 **실질 지점**. `execute` 는 표현식이 이미 해석된
+  // config 를 받는다. 이 노드는 EXPRESSION_EXCLUSIONS 에 없으므로
+  // `name: "{{ $input.x }}"` 는 저장 게이트(L0)·pre-flight(L1)를 통과하고
+  // 여기서만 실제 이름이 드러난다.
+  describe('reserved "__" prefix — runtime (resolved) guard', () => {
+    it('throws when a resolved name starts with "__" and leaves the system var intact', async () => {
+      context.variables['__workspaceId'] = 'ws-original';
+
+      await expect(
+        handler.execute(
+          {},
+          // 엔진이 `{{ $input.x }}` 를 해석한 뒤의 config 를 흉내낸다.
+          { variables: [{ name: '__workspaceId', type: 'string' }] },
+          context,
+        ),
+      ).rejects.toThrow(/RESERVED_VARIABLE_NAME/);
+
+      // 시스템 키가 덮어써지지 않았음을 고정 — 이 가드의 존재 이유.
+      expect(context.variables['__workspaceId']).toBe('ws-original');
+    });
+
+    it('names the offending index and the resolved value', async () => {
+      await expect(
+        handler.execute(
+          {},
+          {
+            variables: [
+              { name: 'ok', type: 'string' },
+              { name: '__dryRun', type: 'boolean' },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/variables\[1\]\.name.*__dryRun/);
+    });
+
+    it('throws before writing the reserved variable (partial application is explicit)', async () => {
+      await expect(
+        handler.execute(
+          {},
+          {
+            variables: [
+              { name: 'safe', type: 'string', defaultValue: 'v' },
+              { name: '__x', type: 'string' },
+            ],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/RESERVED_VARIABLE_NAME/);
+      // 'safe' 는 예약 변수보다 앞서므로 이미 기록됐다. 노드가 실패하면 실행이
+      // 중단되므로(에러 포트 없음) 이 부분 적용은 관찰되지 않는다 — 다만 동작을
+      // 명시적으로 고정해 둔다.
+      expect(context.variables['safe']).toBe('v');
+      expect(context.variables['__x']).toBeUndefined();
+    });
+
+    it('allows a single-underscore name', async () => {
+      await handler.execute(
+        {},
+        {
+          variables: [{ name: '_private', type: 'string', defaultValue: 'v' }],
+        },
+        context,
+      );
+      expect(context.variables['_private']).toBe('v');
+    });
+  });
 });

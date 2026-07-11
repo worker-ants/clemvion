@@ -261,6 +261,8 @@ If you just want the branch results as an array, Parallel's `done` port is simpl
 
 `type` is one of `string` / `number` / `boolean` / `array` / `object`. `defaultValue` can be an expression.
 
+Variable names cannot start with `__` (double underscore) — that prefix is reserved for the system, so a name using it fails on save or at run time.
+
 ### Example
 
 <Example title="Declare a counter and a collector array">
@@ -287,6 +289,8 @@ If you just want the branch results as an array, Parallel's `done` port is simpl
 ]} />
 
 Operations: `set`, `increment`, `decrement`, `append` (string), `push`/`pop` (array), `set_field`/`delete_field` (object).
+
+The target variable name cannot start with `__` (double underscore) — that prefix is reserved for the system.
 
 ### Example
 

@@ -7,6 +7,10 @@ import {
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation.js';
 import { maskValueForLog } from '../_shared/value-masking.util.js';
 import { variableModificationNodeMetadata } from './variable-modification.schema.js';
+import {
+  isReservedVariableName,
+  reservedVariableNameRuntimeError,
+} from '../_shared/reserved-variable-name.util.js';
 
 interface Modification {
   variable: string;
@@ -57,7 +61,10 @@ export class VariableModificationHandler implements NodeHandler {
     return { valid: errors.length === 0, errors };
   }
 
-  execute(
+  // `async` 필수: 아래 예약 이름 가드는 throw 한다. non-async 함수가
+  // `Promise<T>` 를 선언한 채 동기 throw 하면 `execute(...).catch(...)` 처럼
+  // await 없이 부르는 호출부에서 잡히지 않는다.
+  async execute(
     input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
@@ -69,7 +76,19 @@ export class VariableModificationHandler implements NodeHandler {
     const coercionWarnings: CoercionWarningMeta[] = [];
     const createdVariables: string[] = [];
 
-    for (const mod of modifications) {
+    for (let i = 0; i < modifications.length; i++) {
+      const mod = modifications[i];
+      // L2 — `config` 는 이미 표현식이 해석된 상태다. 이 노드는
+      // EXPRESSION_EXCLUSIONS 에 없으므로 `variable` 이 `{{ }}` 였다면 여기서
+      // 처음으로 실제 이름을 알 수 있다. 예약 prefix 강제의 실질 지점.
+      // applyModification 안이 아니라 루프에서 거른다 — switch 의 6개 쓰기
+      // 분기 어디에도 도달하지 않게 하고, 인덱스로 정확한 경로를 보고한다.
+      if (isReservedVariableName(mod.variable)) {
+        throw reservedVariableNameRuntimeError(
+          `modifications[${i}].variable`,
+          mod.variable,
+        );
+      }
       this.applyModification(
         context,
         mod,

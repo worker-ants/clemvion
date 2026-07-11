@@ -28,6 +28,8 @@ const threadFake = (turns: FakeTurn[] = [], fullTurns?: FakeTurn[]) =>
   ({
     getThreadExcludingNode: jest.fn().mockReturnValue(turns),
     getThread: jest.fn().mockReturnValue({ turns: fullTurns ?? turns }),
+    // 압축 트리거 시 요약 상태 반영 경로 (no-op — 본 스펙은 chat 인자·주입 결과만 검증).
+    updateSummaryState: jest.fn(),
   }) as unknown as Ctor[1];
 
 const agentMemFake = (overrides: Record<string, unknown> = {}) =>
@@ -297,6 +299,54 @@ describe('AiMemoryManager', () => {
       expect(res.messages).toHaveLength(3);
       expect(res.messages[1]).toEqual({ role: 'user', content: 'a' });
       expect(res.messages[2]).toEqual({ role: 'assistant', content: 'b' });
+    });
+
+    it('multi-turn(system-only) 압축 시 injectMemoryContext 가 caller 의 llmContext 를 요약 chat 3번째 인자로 손실 없이 전달한다 (§1.3, manager 레이어 forwarding 계약)', async () => {
+      // 본 테스트는 manager 레이어의 forwarding 계약만 고정한다: caller 가 만든
+      // llmContext 리터럴이 injectMemoryContext→buildSummaryBufferUpdate→요약 chat 의
+      // 3번째 인자로 그대로 전달되는지. state.* → llmContext 실제 조립(resume 경로)의
+      // 실값 왕복 검증은 ai-agent.memory.spec 의 "multi-turn resume: summary 압축 chat 이
+      // 재주입된 state.* 를 …" 테스트가, single-turn(context.*) 은 "compresses oldest
+      // turns" 회귀 테스트가 담당한다 (WARNING#1/#2 대칭 커버 — 레이어별 분담).
+      const summaryChat = jest.fn().mockResolvedValue({
+        content: 'ROLLING SUMMARY',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'm',
+        finishReason: 'stop',
+      });
+      const llm = {
+        resolveConfig: jest.fn(),
+        chat: summaryChat,
+      } as unknown as Ctor[0];
+      const big = 'w'.repeat(500);
+      const turns: FakeTurn[] = [0, 1, 2, 3, 4, 5].map((s) => ({
+        seq: s,
+        source: 'ai_assistant',
+        text: big,
+        nodeLabel: 'Prev',
+      }));
+      const mgr = new AiMemoryManager(
+        llm,
+        threadFake(turns, turns),
+        agentMemFake(),
+      );
+      const llmContext = {
+        workflowId: 'wf-x',
+        executionId: 'exec-x',
+        nodeExecutionId: 'ne-row-x',
+      };
+      await mgr.injectMemoryContext(
+        baseInject({
+          strategy: 'summary_buffer',
+          tailMode: 'system-only',
+          config: { memoryTokenBudget: 100 },
+          target: { conversationThread: { turns } } as InjectArgs['target'],
+          llmContext,
+        }),
+      );
+      // 예산 초과 → 압축 트리거 → 요약 chat 3번째 인자가 caller 의 llmContext.
+      expect(summaryChat).toHaveBeenCalledTimes(1);
+      expect(summaryChat.mock.calls[0][2]).toEqual(llmContext);
     });
 
     it('system 메시지 없는 messages 배열은 휘발성 꼬리를 index 0 에 prepend 한다 (insertAt 폴백)', async () => {
