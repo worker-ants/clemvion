@@ -126,6 +126,8 @@ code:
 
 > **큐 대기 초과 — `cancelled` 귀결 (위 failed 표와 구분)**: `EXECUTION_QUEUE_WAIT_TIMEOUT` — 동시 실행 cap 으로 intake 큐에서 대기하던 Execution 이 5분(env `EXECUTION_QUEUE_WAIT_TIMEOUT_MS`, 기본 `300000`ms) 초과 시 Execution `cancelled` + `error.code='EXECUTION_QUEUE_WAIT_TIMEOUT'`. 노드 실행이 **시작되지 않은 시스템 취소**라 `failed` 가 아니라 `cancelled`(`cancelledBy='timeout'`)로 종결한다 — 아래 §1.5 `RESUME_*` 와 같은 cancelled 귀결 그룹. **PR2b 구현 완료**(advisory-lock admission gate 의 큐 대기 초과 마감). [4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한) / [WS Protocol §4.1](./6-websocket-protocol.md#41-실행-이벤트-server--client).
 
+> **공개 위젯 idle-wait 회수 — `cancelled` 귀결**: `WEBCHAT_IDLE_TIMEOUT` — 공개 웹채팅 위젯(`auth_config_id IS NULL`, per_execution)의 `waiting_for_input` execution 이 발급된 모든 interaction 토큰의 영구 만료 + grace 초과 시 Execution `cancelled` + `error.code='WEBCHAT_IDLE_TIMEOUT'`, `cancelledBy='timeout'`(위 큐 대기와 같은 cancelled 귀결 그룹, `error.code` 로 구분). 사용자 이탈로 이어갈 수 없는 세션의 backstop 회수 — [EIA §3.4 EIA-RL-07 / §R19](./14-external-interaction-api.md#34-신뢰성일관성) / [WS Protocol §4.1](./6-websocket-protocol.md#41-실행-이벤트-server--client).
+
 ### 1.5 WS commands 에러 코드 (도메인 spec 참조)
 
 다음 에러 코드는 주로 WebSocket ack 응답 전용이다. 일부 코드(`SERVER_SHUTTING_DOWN`·`EXECUTION_ENQUEUE_FAILED`)는 REST 실행 제어 진입점에서 HTTP **503** 으로도 표기된다 — 행별로 명시한다 (설계 원칙: [실행 엔진 §Rationale](./4-execution-engine.md#rationale) 의 `SERVER_SHUTTING_DOWN` 503 선례). 각 코드의 정의·트리거 조건·적용 명령 범위는 해당 도메인 spec 이 SoT 이고, 본 §1.5 는 공용 카탈로그 가시성을 위한 등재 목적이다.
