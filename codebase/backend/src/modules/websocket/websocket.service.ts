@@ -333,6 +333,10 @@ function stripExternalOnlyFields(
  * (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다. 채널 명명규약: `kb:${documentId}`.
  * (execution: 채널과 구분)
  *
+ * emit 경로도 이 union 을 컴파일타임에 강제한다 — `Embedding/GraphExtractionService` 의
+ * private `emitEvent(event: KbEventType, …)` 시그니처가 union 밖 이벤트명을 build 에러로
+ * 차단한다. 따라서 union 은 문서상 권위일 뿐 아니라 emit 지점에서도 실제로 강제된다.
+ *
  * 총 11종 = embedding 6 + graph 5:
  * - `document:embedding_error` 는 선언돼 있으나 현재 emit 경로가 없다 — 일시 오류는
  *   `embedding_status='error'` 전환과 함께 `_retry` 로 통지한다 (data-flow §2.5). union
