@@ -117,6 +117,10 @@ code:
 [BootConfig](./2-sdk.md#4-boot-config-스키마) 필드를 폼으로 편집한다 — `appearance{primaryColor,position}` ·
 `headerTitle` · `welcome{text,suggestions}` · `launcher{suggestions}` · `disclaimer` · `locale`.
 
+> **`locale` 은 reserved**: 저장·설치 스니펫·미리보기로 플럼되지만 **현재 위젯 UI 언어를 바꾸지 않는다**(위젯 Korean-only,
+> [2-sdk §4](./2-sdk.md#4-boot-config-스키마)) — 운영자가 `en` 을 골라도 위젯은 한국어를 렌더한다. 위젯 EN 다국어화는
+> [_product-overview §2 비목표](./_product-overview.md#2-목표--비목표).
+
 - **서버에 저장한다** — "저장" 시 트리거의 `config.interaction.appearance` 로 영속화한다(`PATCH /api/triggers/:id`,
   `interaction-config.dto.ts` 의 `WebChatAppearanceDto`). 신규 엔티티 없이 기존 trigger config 를 재사용한다.
   `mergeExternalConfig` 가 interaction 키를 통째로 교체하므로 PATCH 는 `enabled`·`tokenStrategy` 를 함께 보내 보존한다.
@@ -211,7 +215,8 @@ code:
    `launcher`·`disclaimer` 등 §4 폼 값)를 전달한다. 위젯은 `configFromQuery()` 와 `wc:boot` payload 를 머지해 적용한다.
 4. **origin 검증**: 양방향 postMessage 는 `event.origin` 을 검증한다. 동봉이면 위젯 iframe origin = 콘솔 origin(same-origin).
 5. **외형 폼만** 바뀌면 재마운트 없이 **`wc:boot` 를 재전송**해 미리보기를 갱신한다(불필요한 iframe 리로드·깜빡임 회피).
-   **`endpointPath`/`locale`** 이 바뀔 때만 iframe key 를 바꿔 재마운트하고 1–4 를 재실행한다.
+   **`endpointPath`/`locale`** 이 바뀔 때만 iframe key 를 바꿔 재마운트하고 1–4 를 재실행한다(`locale` 은 현재 reserved —
+   [2-sdk §4](./2-sdk.md#4-boot-config-스키마); 재마운트는 forward-compat 이고 현재 위젯 UI 언어는 불변).
 
 > **임베드 soft 검증과의 관계**: 위젯은 부팅 시 `GET /api/hooks/:path/embed-config` 로 host origin allowlist 를 soft 검증한다
 > ([4-security §3](./4-security.md), `use-widget.ts`). 동봉 same-origin 미리보기는 allowlist 미설정(`enforce=false`) 시 fail-open

@@ -20,9 +20,36 @@ code:
 
 # i18n / 유저 가이드 정식 규약 (Conventions)
 
-UI 다국어 문자열·백엔드 발행 라벨·사용자 가이드(`/docs`) MDX 의 갱신 누락을 차단하기 위한 **정식 규약**. 모든 신규·변경 코드가 본 규약을 위반하지 않아야 한다. `convention-compliance-checker` 가 본 문서를 자동 inheritance 하여 spec 작성·구현 착수 직전 위반을 검출한다.
+UI 다국어 문자열·백엔드 발행 라벨·사용자 가이드(`/docs`) MDX 의 갱신 누락을 차단하기 위한 **정식 규약**. 모든 신규·변경 코드가 본 규약을 위반하지 않아야 한다(적용 대상 코드 영역은 아래 [§적용 범위](#적용-범위-scope)). `convention-compliance-checker` 가 본 문서를 자동 inheritance 하여 spec 작성·구현 착수 직전 위반을 검출한다.
 
 > **위치 매핑·검증 명령**: 본 규약이 가리키는 갱신 위치와 실제 명령은 `PROJECT.md §변경 유형 → 갱신 위치 매핑` 의 표를 따른다. 본 문서는 "어떤 invariant 가 깨지면 안 되는가" 를 정의하고, `PROJECT.md` 는 "어디를 만져야 하는가" 를 정의한다.
+
+---
+
+## 적용 범위 (Scope)
+
+본 규약(특히 Principle 1·2 의 dict 키 경유·ko/en parity)은 다음 코드 영역을 대상으로 한다.
+
+- **적용 대상**:
+  - `codebase/frontend/**` — 메인 앱 UI·운영 콘솔·사용자 가이드(`/docs`). dict indirection(Principle 1·2) 전면 적용.
+  - `codebase/backend/**` — 사용자 가시 문자열의 **영문 SoT 발행처**(warningCode·노드 `label`/`hint` 등). 한국어 매핑은
+    frontend `backend-labels.ts` 가 담당한다(Principle 3) — 즉 backend 는 영문만 발행하고 매핑 파일 자체는 frontend 소재.
+  - `codebase/packages/**` — 현재 UI 렌더링(TSX) 표면 없음. UI 문자열 표면이 도입되면 본 절을 재검토한다.
+- **제외 대상 — `codebase/channel-web-chat/**` (임베드형 웹채팅 위젯 SPA)**: Principle 1·2(dict 키 경유·ko/en parity)
+  **스코프 밖**이다. 위젯은 dict layer 가 없는 독립 표면으로 사용자 가시 문자열을 **인라인 한국어**로 직접 둔다.
+  - 근거: v1 위젯 UI 는 **Korean-only** 이며 EN 다국어화는
+    [7-channel-web-chat 비목표](../7-channel-web-chat/_product-overview.md#2-목표--비목표)다. `BootConfig.locale`
+    ([2-sdk §4](../7-channel-web-chat/2-sdk.md#4-boot-config-스키마))은 수용되지만 위젯 UI 언어를 바꾸지 않는
+    **reserved/inert** 필드라, 현 시점 dict indirection 이 지역화 이득을 주지 않는다.
+  - enforcement 현실과 일치: `hardcoded-korean-ratchet`(스캔 루트 `codebase/frontend/src/{components,app,lib}`)·
+    `doc-sync-matrix`(`new-ui-string` glob `codebase/frontend/src/**/*.tsx`) 둘 다 이미 위젯을 스캔하지 않는다. 본 절은 그
+    현실의 **명문화**이지 가드 스캔 범위 변경이 아니다.
+  - **경계 주의**: 운영 콘솔(구성요소 D, `codebase/frontend/src/app/(main)/w/[slug]/web-chat/**`)은 frontend 표면이므로
+    **in-scope** — 제외되는 것은 위젯 SPA(`codebase/channel-web-chat`) 뿐이다([5-admin-console §8](../7-channel-web-chat/5-admin-console.md)
+    도 콘솔 메뉴 문자열에 Principle 1·2 적용을 명시).
+  - **여전히 적용**: 위젯의 인라인 한국어도 **Principle 6(글로서리·문체 — 해요체·금지어)** 를 따른다 — 제품 표면 간 보이스
+    일관성. 즉 dict indirection(P1·2)만 면제이고 문체(P6)는 위젯에도 그대로 적용된다.
+  - EN 위젯 지원을 착수하면 본 제외를 재검토한다.
 
 ---
 
@@ -211,3 +238,17 @@ P0 가드는 dict 키 parity 만 본다. 백엔드에 노드 추가했지만 `02
 ### 왜 .en.mdx sibling 누락은 위반이 아닌가
 
 `_i18n-conventions.md` 가 KO 본문 + 안내 배너 폴백을 정상 동작으로 명시. 영어 번역은 점진적으로 추가되는 자산이며, sibling 미존재를 hard fail 시키면 KO 작성 자체가 막혀 작성 동력을 떨어뜨린다. coverage 는 warn-only 로 별도 ratchet 화 가능 (P3 후속).
+
+### 왜 channel-web-chat 위젯은 dict-indirection 스코프 밖인가
+
+위젯(`codebase/channel-web-chat`)은 v1 에서 **Korean-only** 이고 EN 다국어화가
+[7-channel-web-chat 비목표](../7-channel-web-chat/_product-overview.md#2-목표--비목표)다. 사용자 언어가 한 종류뿐인 표면에
+dict 키 경유(Principle 1·2)를 강제하면 parity 가드·이중 사전 유지 비용만 늘고 지역화 이득은 0 이다. 위젯은 별도 빌드·별도
+배포(static export → CDN)의 독립 SPA 라 메인 앱 dict 와 물리적으로도 분리돼 있고, 실제 가드(`hardcoded-korean-ratchet`·
+`doc-sync-matrix`)도 이미 위젯을 스캔하지 않는다 — 본 스코프 절은 이 현실의 명문화다. 단 **문체(Principle 6)는 공유**해
+제품 보이스 일관성을 유지한다(위젯도 해요체·글로서리 준수).
+
+이 "글로벌 규약 + 위젯 전용 carve-out + 명시적 Rationale" 구조는 신규 발명이 아니라 [conversation-thread §9](./conversation-thread.md)
+가 동일 위젯에 대해 이미 확립한 선례(전역 UI 계약을 따르지 않고 2-way 말풍선으로 축약하며, "결정의 번복이 아니라 적용 범위
+분리")를 그대로 계승한다. `BootConfig.locale` 을 삭제하지 않고 reserved 로 두는 판단은 [2-sdk §R6](../7-channel-web-chat/2-sdk.md)
+가 별도로 다룬다. EN 위젯 지원 착수 시 본 제외를 재검토한다.
