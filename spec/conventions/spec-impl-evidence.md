@@ -125,7 +125,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 | 가드 | 대상 / 검증 | 예외 / 비고 |
 |---|---|---|
-| `spec-link-integrity.test.ts` (build 차단) | `spec/**.md` 본문 in-repo `[..](path)` 타깃 존재 + `#anchor` heading slug 대조. slug 는 실제 렌더러(`rehype-slug`=`mdast`+`github-slugger`) 파이프라인과 동등 | 생성형 `*-api-catalog/` 트리. plan/ 링크(=plan-coherence 담당) |
+| `spec-link-integrity.test.ts` (build 차단) | **(1)** `spec/**.md` 본문, **및 (2)** codebase `.ts`/`.tsx` 소스(`codebase/{backend,frontend,channel-web-chat,packages}`)의 JSDoc·주석 — in-repo `[..](path)` 타깃 존재 + `#anchor` heading slug 대조. slug 는 실제 렌더러(`rehype-slug`=`mdast`+`github-slugger`) 파이프라인과 동등 | 생성형 `*-api-catalog/` 트리. plan/ 링크(=plan-coherence 담당). **소스 스캔은 `spec/**.md` 를 가리키는 링크만**(비-spec 상대링크 제외) + build 출력(`dist`/`.next`/`build`/`node_modules`) 제외 |
 | `spec-area-index.test.ts` (build 차단) | 각 영역 폴더(≥2 sibling)에 index 문서 존재 + 모든 sibling spec 이 index 에서 링크 | `spec/conventions/`(flat reference, 무-index), 카탈로그 |
 | `plan-frontmatter.test.ts` (build 차단) | top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`(ISO)/`owner` 필수 | subfolder 클러스터, `0-`/`_` index 면제. **가드 규약 SoT = [plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md)**; 본 절은 가드 파일 등재 위치만 선언 |
 | `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan(`plan/complete/`)은 frontmatter `spec_impact` 선언 필수(spec path 목록 실존, 또는 no-op sentinel `none`/`없음`/`n/a`/`na`). plan↔spec 정합 결정을 완료 시점에 강제 | cutoff 이전 시작 plan 면제(grandfather). plan frontmatter 가드라 §4 frontmatter-evidence 가 아님. 근거 [R-8](#r-8-gate-c--plan-완료-시점-spec_impact-선언-의무화) |

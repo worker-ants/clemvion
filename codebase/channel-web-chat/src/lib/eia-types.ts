@@ -77,6 +77,11 @@ export type EiaEventName =
  * `execution-engine` 가 emit 하는 wire 필드명을 그대로 받는다(프론트엔드 store 와 동일 SoT).
  * 매핑: nodeId=`waitingNodeId`, 타입=`interactionType`(top-level), ai config=`nodeOutput.conversationConfig`,
  * buttons=`buttonConfig`, form=`nodeOutput`, thread=`conversationThread`(top-level).
+ *
+ * **`WaitingContext`(아래)와의 구분**: 본 타입은 **SSE wire** 형태(전 필드 optional + `status`/`seq`
+ * 등 SSE 전용 필드 포함)이고, `WaitingContext` 는 REST `getStatus.context` 의 **닫힌 union**(필수 필드
+ * 확정)이다. 둘은 같은 대기 상태를 서로 다른 표면에서 본 것으로, `WaitingContext ⊆ WaitingForInputEvent`
+ * (assignable)라 위젯이 한 파서(`parseWaitingForInput`)로 양쪽을 처리한다.
  */
 export interface WaitingForInputEvent {
   status?: string;
@@ -121,6 +126,46 @@ export interface ExecutionMessageEvent {
 }
 
 /**
+ * REST `getStatus` 의 `context` 두 변형이 공유하는 봉투 필드.
+ *
+ * backend `WaitingContextBaseDto`([EIA §5.3](../../../../spec/5-system/14-external-interaction-api.md))
+ * 를 미러한다. `context` 는 SSE `waiting_for_input` wire 와 **동일 형식**이라 위젯이 같은
+ * `parseWaitingForInput` 을 재사용한다 — 즉 `WaitingContext` 는 `WaitingForInputEvent` 에 assignable 하다.
+ */
+interface WaitingContextBase {
+  interactionType: ExternalInteractionType;
+  waitingNodeId: string;
+  /**
+   * 대화 히스토리 durable 스냅샷. **present-when-available** — 값이 있을 때만 키가 present 하고,
+   * 부재 시 키 자체가 생략된다(`| null` 아님, [api-convention §5.4](../../../../spec/5-system/2-api-convention.md)).
+   */
+  conversationThread?: ConversationThread;
+}
+
+/** `interactionType=buttons` 이고 buttonConfig 복원에 성공한 변형. `{ buttons, nodeOutput }`. */
+export interface ButtonsContext extends WaitingContextBase {
+  buttonConfig: Record<string, unknown>;
+}
+
+/** form/ai_conversation, 그리고 **buttonConfig 를 복원하지 못한 buttons** 변형. */
+export interface NodeOutputContext extends WaitingContextBase {
+  // NonNullable: `WaitingForInputEvent["nodeOutput"]` 는 optional 이라 `| undefined` 를 포함한다.
+  // 이 variant 에서 nodeOutput 은 **필수** 이므로 undefined 를 벗겨 required 로 강제한다.
+  nodeOutput: NonNullable<WaitingForInputEvent["nodeOutput"]>;
+}
+
+/**
+ * REST `getStatus` 의 `waiting_for_input` `context` — **판별자 없는 닫힌 2-variant union**.
+ *
+ * 분기는 discriminator 가 아니라 **키 존재**(`'buttonConfig' in context`)로 한다 — `interactionType`
+ * 은 sound 판별자가 아니다(`buttons` 가 buttonConfig 복원에 실패하면 `NodeOutputContext` 로
+ * fallthrough 한다). backend `ExecutionStatusDto.context`(`ButtonsContextDto | NodeOutputContextDto`)
+ * 미러. [EIA §5.3](../../../../spec/5-system/14-external-interaction-api.md) ·
+ * [Swagger 규약 §1-4](../../../../spec/conventions/swagger.md).
+ */
+export type WaitingContext = ButtonsContext | NodeOutputContext;
+
+/**
  * GET /api/external/executions/:id 단발 상태 조회 응답 (EIA §5.3 / EIA-IN-04).
  * 전역 TransformInterceptor 봉투(`{ data }`) 언랩 후의 shape.
  */
@@ -134,7 +179,8 @@ export interface ExecutionStatus {
     type: string;
     interactionType: ExternalInteractionType | null;
   } | null;
-  context?: Record<string, unknown> | null;
+  /** waiting_for_input 시에만 실값. 그 외 `null`. 닫힌 2-variant union — 위 `WaitingContext` 참조. */
+  context?: WaitingContext | null;
   result?: unknown;
   error?: unknown;
   seq?: number;

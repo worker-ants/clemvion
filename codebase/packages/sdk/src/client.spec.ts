@@ -1,4 +1,5 @@
 import { ClemvionClient, ClemvionApiError } from './client';
+import type { WaitingContext, ButtonsContext, NodeOutputContext } from './client';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -6,6 +7,50 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+describe('ExecutionStatus.context — 닫힌 2-variant union (타입 가드)', () => {
+  // SDK 는 context 를 소비하지 않는다(getStatus 반환만). 이 케이스들은 값이 **캐스트 없이
+  // 컴파일된다는 것**으로 타입 계약을 고정한다 — union 이 좁혀지거나 discriminator 로 바뀌면 tsc red.
+  it('키 존재로 분기 — buttons 도 nodeOutput 변형으로 fallthrough 타입된다', () => {
+    const buttons: ButtonsContext = {
+      interactionType: 'buttons',
+      waitingNodeId: 'n1',
+      buttonConfig: { buttons: [], nodeOutput: {} },
+    };
+    // interactionType='buttons' 인데 nodeOutput — discriminator 였다면 tsc red.
+    const fallthrough: NodeOutputContext = {
+      interactionType: 'buttons',
+      waitingNodeId: 'n2',
+      nodeOutput: {},
+    };
+    const ctxs: WaitingContext[] = [buttons, fallthrough];
+    for (const c of ctxs) {
+      if ('buttonConfig' in c) expect(c.buttonConfig).toBeDefined();
+      else expect(c.nodeOutput).toBeDefined();
+    }
+  });
+
+  it('conversationThread 부재 = 키 생략(`| null` 아님)', () => {
+    const c: NodeOutputContext = {
+      interactionType: 'ai_conversation',
+      waitingNodeId: 'n',
+      nodeOutput: { conversationConfig: {} },
+    };
+    expect('conversationThread' in c).toBe(false);
+  });
+
+  it('잘못된 shape 은 타입 거부 — union 닫힘 고정 (negative)', () => {
+    // 이 @ts-expect-error 는 test(ts-jest, cmd_unit 에 배선됨)가 타입체크한다 — union 이
+    // open map 으로 되돌려지면 unused directive 로 red. (build=tsc 는 tsconfig 가 *.spec.ts 를
+    // exclude 하므로 spec 을 안 본다 — 검증 통로는 test 다.)
+    // @ts-expect-error — ButtonsContext 인데 buttonConfig 필드가 없다.
+    const missingButtons: ButtonsContext = { interactionType: 'buttons', waitingNodeId: 'n' };
+    // @ts-expect-error — 두 variant 판별 키(buttonConfig|nodeOutput) 가 모두 없다.
+    const neither: WaitingContext = { interactionType: 'form', waitingNodeId: 'n' };
+    expect(missingButtons).toBeDefined();
+    expect(neither).toBeDefined();
+  });
+});
 
 describe('ClemvionClient.triggerWebhook', () => {
   it('성공 — { data: ... } 래퍼 unwrap', async () => {

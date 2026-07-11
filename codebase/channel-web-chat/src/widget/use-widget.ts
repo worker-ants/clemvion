@@ -227,9 +227,9 @@ export function useWidget() {
       try {
         const status = await client.getStatus(session.endpoints, session.token);
         if (status.status === "waiting_for_input" && status.context) {
-          const parsed = parseWaitingForInput(
-            status.context as WaitingForInputEvent,
-          );
+          // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
+          // EIA §5.3) — `as` 캐스트 불필요.
+          const parsed = parseWaitingForInput(status.context);
           dispatch({
             type: "WAITING",
             interaction: {

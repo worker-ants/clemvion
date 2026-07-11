@@ -235,6 +235,111 @@ export function findBrokenLinks(root: string): LinkViolation[] {
   return violations;
 }
 
+// ---------------------------------------------------------------------------
+// Codebase-source spec links.
+//
+// `.ts`/`.tsx` sources (JSDoc, comments) frequently link to spec docs with a
+// relative path (`[..](../../../../spec/....md)`). Those depths are hand-counted
+// and drift silently — the `spec/**`-only guard above never sees them, so an
+// off-by-N `../` resolves to a nonexistent `codebase/spec/...` unnoticed. This
+// pair mirrors the same DEAD/ANCHOR checks over the code tree, scoped to links
+// that actually target a `spec/**.md` file (non-spec relative links are out of
+// scope — this guard only catches spec-link rot).
+// ---------------------------------------------------------------------------
+
+const CODEBASE_SOURCE_ROOTS = [
+  "codebase/backend/src",
+  "codebase/frontend/src",
+  "codebase/channel-web-chat/src",
+  "codebase/packages",
+];
+const CODEBASE_SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next"]);
+// A relative link whose path part targets a spec markdown file.
+const SPEC_MD_TARGET_RE = /(^|\/)spec\/.+\.md$/;
+
+/** All `.ts`/`.tsx` under the codebase source roots (build output dirs excluded). */
+export function collectCodebaseSources(root: string): SpecMdFile[] {
+  const out: SpecMdFile[] = [];
+  for (const rel of CODEBASE_SOURCE_ROOTS) {
+    const base = path.join(root, rel);
+    if (!fs.existsSync(base)) continue;
+    const stack: string[] = [base];
+    while (stack.length > 0) {
+      const cur = stack.pop()!;
+      for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
+        const full = path.join(cur, entry.name);
+        if (entry.isDirectory()) {
+          if (!CODEBASE_SKIP_DIRS.has(entry.name)) stack.push(full);
+        } else if (
+          entry.isFile() &&
+          (full.endsWith(".ts") || full.endsWith(".tsx"))
+        ) {
+          const relPath = path.relative(root, full).split(path.sep).join("/");
+          out.push({ absPath: full, relPath });
+        }
+      }
+    }
+  }
+  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
+  return out;
+}
+
+/**
+ * Validate every `spec/**.md`-targeting relative link in codebase `.ts`/`.tsx`
+ * sources. DEAD = the resolved path does not exist (off-by-N `../`). ANCHOR =
+ * the `#fragment` does not resolve to a heading in the target spec. Links that
+ * don't target a spec markdown file are ignored.
+ */
+export function findBrokenSpecLinksInSources(root: string): LinkViolation[] {
+  const files = collectCodebaseSources(root);
+  const violations: LinkViolation[] = [];
+  const slugCache = new Map<string, Set<string>>();
+
+  for (const f of files) {
+    for (const link of extractLinks(f.absPath)) {
+      const { target } = link;
+      if (target.startsWith("#") || isExternal(target)) continue;
+
+      const hashIdx = target.indexOf("#");
+      const pathPart = hashIdx === -1 ? target : target.slice(0, hashIdx);
+      const anchor = hashIdx === -1 ? null : target.slice(hashIdx + 1);
+      if (pathPart === "" || !SPEC_MD_TARGET_RE.test(pathPart)) continue;
+
+      const resolved = path.resolve(path.dirname(f.absPath), pathPart);
+      if (!fs.existsSync(resolved)) {
+        violations.push({
+          kind: "DEAD",
+          source: f.relPath,
+          line: link.line,
+          target,
+        });
+        continue;
+      }
+
+      if (anchor) {
+        let slugs = slugCache.get(resolved);
+        if (!slugs) {
+          slugs = headingSlugs(resolved);
+          slugCache.set(resolved, slugs);
+        }
+        if (!slugs.has(decodeAnchor(anchor))) {
+          violations.push({
+            kind: "ANCHOR",
+            source: f.relPath,
+            line: link.line,
+            target,
+          });
+        }
+      }
+    }
+  }
+
+  violations.sort(
+    (a, b) => a.source.localeCompare(b.source) || a.line - b.line,
+  );
+  return violations;
+}
+
 // Anchors in these specs are written raw (CJK, not %-encoded); decode defensively
 // in case a link percent-encodes a fragment.
 function decodeAnchor(anchor: string): string {

@@ -127,7 +127,7 @@ export function SelectWidget({ ui, label, value, onChange, schema, required }: W
 
 /**
  * Renders an array<enum> schema field as a vertical checkbox list. Used by
- * AI 노드 `systemContextSections` ([Spec AI Common §11](../../../../../../spec/4-nodes/3-ai/0-common.md))
+ * AI 노드 `systemContextSections` ([Spec AI Common §11](../../../../../../../spec/4-nodes/3-ai/0-common.md))
  * — 4개 섹션 (time / timezone / workspace / node) 중 임의 부분집합 선택.
  *
  * Value 는 항상 `string[]` 이어야 하지만 비배열 입력 (legacy DB row, undefined,

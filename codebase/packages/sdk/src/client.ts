@@ -106,6 +106,39 @@ export interface TriggerWebhookResult {
   };
 }
 
+/**
+ * REST `getStatus` 의 `context` 두 변형이 공유하는 봉투 필드. backend `WaitingContextBaseDto` 미러.
+ * [Spec EIA §5.3].
+ */
+interface WaitingContextBase {
+  interactionType: 'form' | 'buttons' | 'ai_conversation';
+  waitingNodeId: string;
+  /**
+   * 대화 히스토리 durable 스냅샷. **present-when-available** — 값이 있을 때만 키가 present 하고,
+   * 부재 시 키 자체가 생략된다 (`| null` 아님, [Spec EIA §5.3 / api-convention §5.4]).
+   */
+  conversationThread?: Record<string, unknown>;
+}
+
+/** `interactionType=buttons` 이고 buttonConfig 복원에 성공한 변형. `{ buttons, nodeOutput }`. */
+export interface ButtonsContext extends WaitingContextBase {
+  buttonConfig: Record<string, unknown>;
+}
+
+/** form/ai_conversation, 그리고 **buttonConfig 를 복원하지 못한 buttons** 변형. */
+export interface NodeOutputContext extends WaitingContextBase {
+  nodeOutput: Record<string, unknown>;
+}
+
+/**
+ * `getStatus` 의 `waiting_for_input` `context` — **판별자 없는 닫힌 2-variant union**.
+ *
+ * 분기는 discriminator 가 아니라 **키 존재**(`'buttonConfig' in context`)로 한다 — `interactionType`
+ * 은 sound 판별자가 아니다(`buttons` 가 buttonConfig 복원에 실패하면 `NodeOutputContext` 로
+ * fallthrough). backend `ExecutionStatusDto.context`(`ButtonsContextDto | NodeOutputContextDto`) 미러.
+ */
+export type WaitingContext = ButtonsContext | NodeOutputContext;
+
 export interface ExecutionStatus {
   id: string;
   workflowId: string;
@@ -121,7 +154,8 @@ export interface ExecutionStatus {
     type: string;
     interactionType: 'form' | 'buttons' | 'ai_conversation' | null;
   } | null;
-  context?: Record<string, unknown> | null;
+  /** waiting_for_input 시에만 실값. 그 외 `null`. 닫힌 2-variant union — 위 `WaitingContext` 참조. */
+  context?: WaitingContext | null;
   result?: Record<string, unknown> | null;
   error?: Record<string, unknown> | null;
   seq: number;
