@@ -33,7 +33,8 @@ cmd_unit() {
   pnpm --filter backend test && \
   pnpm --filter frontend test && \
   pnpm --filter @workflow/web-chat test && \
-  pnpm --filter channel-web-chat test
+  pnpm --filter channel-web-chat test && \
+  pnpm --filter @workflow/sdk test
 }
 
 cmd_build() {
@@ -42,6 +43,7 @@ cmd_build() {
   pnpm --filter frontend build && \
   pnpm --filter @workflow/web-chat build && \
   pnpm --filter channel-web-chat build && \
+  pnpm --filter @workflow/sdk build && \
   _cmd_build_docker_images
 }
 

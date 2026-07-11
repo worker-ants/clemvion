@@ -1,8 +1,10 @@
 ---
-worktree: (unstarted)
+worktree: eia-client-context-types-33e771
 started: 2026-07-10
 owner: developer
 ---
+
+> **진행(2026-07-11)**: 아래 항목 중 **클라이언트 `context` 타입 정밀화**(위젯 + SDK)와 **spec 링크 가드 backend 확장**을 이번 PR(worktree `eia-client-context-types-33e771`)에서 처리한다. 나머지 2건(DTO 디렉토리 정규화 · swagger §1-4 본문 보강)은 범위 밖으로 남긴다.
 
 # EIA context 스키마화 — 후속 항목
 
@@ -25,6 +27,13 @@ owner: developer
 - [ ] **`terminal-revoke-reconciler.types.ts:6` 의 spec 상대링크 off-by-one** — `codebase/backend/src/modules/external-interaction/terminal-revoke-reconciler.types.ts` 의 링크가 `../`×4 인데 5단계가 필요하다. `responses.dto.ts` 에서 고친 것과 **동일 버그 클래스**(회귀 아님, 사전 존재). `spec-link-integrity.test.ts` 가드가 backend 소스를 스캔하지 않아 자동 검출되지 않는다.
   - 근거: fresh ai-review(`review/code/2026/07/10/23_59_09/`) `documentation` INFO. 원 PR 에서 미조치한 이유 = 그 커밋 범위 밖이라, 고치면 방금 통과한 fresh review 가 다시 stale 해진다.
   - **함께 검토**: backend/`channel-web-chat` 소스의 spec 상대링크를 스캔하는 가드를 `spec-link-integrity.test.ts` 에 추가할지. 이 버그 클래스가 두 번 나온 시점에서 자동화 가치가 있다.
+
+## 리뷰 후속 (ai-review 11_44_59 에서 분리 — 본 PR 밖)
+
+- [ ] **channel-web-chat 타입체크를 harness 에 배선** (C2) — `test`=`vitest run`(esbuild 타입 strip)이라 타입 테스트(`WaitingContext` 캐스트-free 컴파일, `@ts-expect-error` negative)가 실제로 타입체크되지 않는다. `typecheck`(`tsc --noEmit`)를 harness `unit`/`build` 에 넣어야 하나, 현재 **pre-existing red**(`use-widget-eager-start.test.ts` EventSource mock 타입 에러 3건, 본 PR 무관)라 먼저 그 정리가 필요. 정리 후 `tsc --noEmit` 을 stage 에 추가.
+- [ ] **spec-link 가드의 CI trigger 확대** (W-spec-link-ci) — 가드는 `codebase/frontend` vitest 에 있는데 `frontend-checks.yml` trigger paths 가 backend/channel-web-chat 를 제외한다 → PR 이 backend 링크만 바꾸면 CI 에서 이 가드가 안 돈다(harness `unit` 은 무조건 돌리므로 로컬/harness 는 커버, CI PR-trigger 만 갭). `.github/workflows/frontend-checks.yml` 의 paths 확대 또는 별도 workflow.
+- [ ] **`spec-links.ts` 중복 정리** — `collectCodebaseSources`/`findBrokenSpecLinksInSources` 가 기존 `collectSpecMarkdown`/`findBrokenLinks` 와 ~40줄 골격 중복. 파일-목록 파라미터화한 코어로 추출 여지(동작은 정확, 저우선).
+- [ ] **다른 내부 packages harness 배선** — `.claude/test-stages.sh` 가 `@workflow/sdk`(본 PR 에서 추가)·`@workflow/web-chat`·`channel-web-chat` 만 배선. `expression-engine`·`graph-warning-rules`·`node-summary`·`chat-channel-validation`·`web-chat-sdk` 는 미배선(기존 갭). 별도 검토.
 
 ## 비고
 

@@ -1,6 +1,6 @@
 // Unit tests for `MultiSelectWidget` — renders an array<enum> schema field as
 // a vertical checkbox list. Used by AI 노드 `systemContextSections` ([Spec
-// AI Common §11](../../../../../../../spec/4-nodes/3-ai/0-common.md)).
+// AI Common §11](../../../../../../../../spec/4-nodes/3-ai/0-common.md)).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";

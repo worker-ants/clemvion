@@ -149,7 +149,9 @@ export interface ButtonsContext extends WaitingContextBase {
 
 /** form/ai_conversation, 그리고 **buttonConfig 를 복원하지 못한 buttons** 변형. */
 export interface NodeOutputContext extends WaitingContextBase {
-  nodeOutput: WaitingForInputEvent["nodeOutput"];
+  // NonNullable: `WaitingForInputEvent["nodeOutput"]` 는 optional 이라 `| undefined` 를 포함한다.
+  // 이 variant 에서 nodeOutput 은 **필수** 이므로 undefined 를 벗겨 required 로 강제한다.
+  nodeOutput: NonNullable<WaitingForInputEvent["nodeOutput"]>;
 }
 
 /**

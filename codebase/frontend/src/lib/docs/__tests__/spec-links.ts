@@ -249,6 +249,7 @@ export function findBrokenLinks(root: string): LinkViolation[] {
 
 const CODEBASE_SOURCE_ROOTS = [
   "codebase/backend/src",
+  "codebase/frontend/src",
   "codebase/channel-web-chat/src",
   "codebase/packages",
 ];
