@@ -2,9 +2,15 @@
 worktree: gracious-poitras-0e068b
 started: 2026-07-12
 owner: developer
+spec_impact: none
 ---
 
-# 웹채팅 위젯 multi-turn 히스토리 복원 통합 테스트 (PR #874 후속)
+# 웹채팅 위젯 multi-turn 히스토리 복원 통합 테스트 (PR #874 후속) — 완료
+
+> **완료(2026-07-12)**: test-only characterization PR. 4 commit(261794ec6·462a23e4e·cb530720b·866d3f62d).
+> spec 본문 무변경(`spec_impact: none`) — 기존 §2/§3 문서화된 동작을 회귀 테스트로 고정.
+> 아래 "후속" 항목은 모두 **defer/외부 이관 완료**(open 항목 0): non-blocking INFO 는 backlog carve-out,
+> consistency 사전 결함 3건은 별도 task chip 으로 분리.
 
 ## 배경
 
