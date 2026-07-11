@@ -36,6 +36,7 @@ const EXPECTED_QUEUE_NAMES = [
   'workspace-invitations-pruner',
   'notification-secret-rotator',
   'terminal-revoke-reconcile',
+  'webchat-idle-reaper',
   'chat-channel-token-rotator',
   'integration-expiry-scanner',
   'alerts-evaluator',

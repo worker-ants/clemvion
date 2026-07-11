@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 공개 웹채팅 위젯 idle-wait execution 회수 reaper (EIA-RL-07, 5-system/14 §3.4·§R19)
+
+### 변경 사항
+
+1. **eager-start 후 이탈로 서버에 무기한 잔존하던 공개 위젯 `waiting_for_input` execution 을 회수하는 백엔드 backstop 을 추가했다** (§R9 결정의 PR-2, PR-1 위젯 coalesce/cancel 의 서버측 짝). 신규 `WebchatIdleReaperService`(BullMQ repeatable 분 단위, EIA-RL-06 `terminal-revoke-reconciler` 형제 패턴 — 전역 1회)가 `auth_config_id IS NULL`(익명 공개 위젯) + `per_execution` 토큰으로만 접근되는 `waiting_for_input` execution 중 **발급된 모든 토큰이 영구 만료**(`execution_token.exp_at` 전부 `< now − grace`)된 것을 회수한다. 판정 = provably un-continuable(익명 위젯은 만료 후 refresh 불가라 입력 도착 경로 소멸, §R19). 회수는 engine 신규 `markWebchatIdleTimeout`(멱등 조건부 UPDATE `WHERE status='waiting_for_input'` → `cancelled` + `cancelledBy='timeout'` + `error.code='WEBCHAT_IDLE_TIMEOUT'`, 동반 WAITING NodeExecution cancel, 후행 `execution.cancelled` emit) + `revokeAllForExecution`(EIA-RL-06 재사용). grace 는 `WEBCHAT_IDLE_REAP_GRACE_MS`(기본 1h) env. **soft-terminal** — hard-delete 아님, 이력·`GET /:id` 보존. §1.1 이 예약한 `waiting_for_input → cancelled` "타임아웃" 사유의 구현이라 §7.4 무기한 보존 불변식과 정합(엔진 recovery scanner 아닌 EIA token-lifecycle sweep). 범위=공개 위젯 한정 — 인증 트리거·per_trigger·`formConfig.timeout` 은 대상 아님. SoT: `spec/5-system/14-external-interaction-api.md §3.4 EIA-RL-07 / §R19`.
+
 ## Unreleased — 웹채팅 위젯 "새 대화" single-flight coalesce + 확립세션 best-effort cancel (7-channel-web-chat/1-widget-app §R9)
 
 ### 변경 사항

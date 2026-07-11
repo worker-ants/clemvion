@@ -9,6 +9,7 @@ import { DOCUMENT_EMBEDDING_QUEUE } from '../knowledge-base/queues/document-embe
 import { GRAPH_EXTRACTION_QUEUE } from '../knowledge-base/queues/graph-extraction.queue';
 import { NOTIFICATION_WEBHOOK_QUEUE } from '../external-interaction/notification-dispatcher.types';
 import { TERMINAL_REVOKE_RECONCILE_QUEUE } from '../external-interaction/terminal-revoke-reconciler.types';
+import { WEBCHAT_IDLE_REAPER_QUEUE } from '../external-interaction/webchat-idle-reaper.types';
 import { CAFE24_REFRESH_QUEUE } from '../integrations/cafe24-token-refresh.constants';
 import { MAKESHOP_REFRESH_QUEUE } from '../integrations/makeshop-token-refresh.constants';
 import { INTEGRATION_EXPIRY_QUEUE } from '../integrations/integration-expiry-scanner.service';
@@ -85,6 +86,7 @@ export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
     group: 'system',
     concurrency: 1,
   },
+  { name: WEBCHAT_IDLE_REAPER_QUEUE, group: 'system', concurrency: 1 },
   { name: CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE, group: 'system', concurrency: 1 },
   { name: INTEGRATION_EXPIRY_QUEUE, group: 'system', concurrency: 1 },
   { name: ALERTS_EVALUATOR_QUEUE, group: 'system', concurrency: 1 },

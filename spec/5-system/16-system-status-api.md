@@ -32,6 +32,7 @@ code:
 | workspace-invitations-pruner | system | 1 (기본) | repeatable cron (daily `0 4 * * *` Asia/Seoul) — 만료·미수락 workspace_invitation prune |
 | notification-secret-rotator | system | 1 (기본) | repeatable cron |
 | terminal-revoke-reconcile | system | 1 (기본) | repeatable cron (1분) — terminal execution 의 잔존 interaction token sweep revoke ([EIA §3.4 EIA-RL-06 / §9.3 R15](./14-external-interaction-api.md)). reconciliation cron 성격이라 `system` group (외부 연동 호출이 아닌 내부 정합 보강) |
+| webchat-idle-reaper | system | 1 (기본) | repeatable cron (1분) — 공개 위젯(`auth_config_id IS NULL`) 익명 per_execution 토큰 전 만료 `waiting_for_input` execution 을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`) 회수 + 토큰 revoke ([EIA §3.4 EIA-RL-07 / §R19](./14-external-interaction-api.md)). abandoned 세션 backstop cron 성격이라 `system` group |
 | chat-channel-token-rotator | system | 1 (기본) | repeatable cron |
 | integration-expiry-scanner | system | 1 (기본) | repeatable cron (6h) |
 | alerts-evaluator | system | 1 (기본) | repeatable cron (5분) |

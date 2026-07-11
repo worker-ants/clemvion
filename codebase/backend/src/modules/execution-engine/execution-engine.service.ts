@@ -964,6 +964,99 @@ export class ExecutionEngineService
   }
 
   /**
+   * [Spec EIA §3.4 EIA-RL-07 / §R19] 공개 웹채팅 위젯 idle-wait execution 회수 — 익명 위젯의
+   * 모든 발급 토큰이 영구 만료된 park(`waiting_for_input`) execution 을 `cancelled` 로 마감한다.
+   *
+   * `cancelParkedExecution`(WAITING 가드 + 동반 NodeExecution cancel)와 `markQueueWaitTimeout`
+   * (`error.code` + `cancelledBy:'timeout'` emit)의 합성이다. `§1.1` 전이표가 예약한
+   * `waiting_for_input → cancelled` "타임아웃" 사유의 공개 위젯 구현이며, 후행 이벤트로 종료를 알린다.
+   *
+   * - **멱등·race-safe**: `status = WAITING_FOR_INPUT` 조건부 UPDATE — 재개로 이미 RUNNING/terminal
+   *   이면 affected=0 → `false` 반환(중복 emit 회피). reaper 는 `true` 일 때만 토큰 revoke.
+   * - **best-effort**: emit 실패는 warn(취소는 DB 반영됨). DB 오류는 내부 흡수(reaper 를 죽이지 않음).
+   * - **public**: EIA reaper(`WebchatIdleReaperService`)가 다른 모듈에서 호출한다.
+   *
+   * @returns 실제로 이 호출이 `waiting_for_input → cancelled` 전이를 일으켰으면 `true`.
+   */
+  async markWebchatIdleTimeout(executionId: string): Promise<boolean> {
+    const code = 'WEBCHAT_IDLE_TIMEOUT';
+    const message =
+      'Execution cancelled: public web-chat widget idle-wait timeout';
+    try {
+      // Execution + 동반 WAITING NodeExecution 을 **단일 트랜잭션**으로 마감한다(형제
+      // `claimResumeEntry` 와 동일 패턴, review W1). 비-트랜잭션 2단계면 첫 UPDATE 커밋 후 둘째가
+      // 실패할 때 NodeExecution 이 영구 WAITING 잔류하고 Execution 만 cancelled 로 남아, 다음 tick
+      // (status=waiting_for_input 필터)에서도 재선정 안 돼 복구 경로가 없다 → 트랜잭션으로 원자화해
+      // 롤백 시 execution 이 waiting 으로 남아 다음 tick 이 재시도하게 한다.
+      let cancelled = false;
+      await this.dataSource.transaction(async (manager) => {
+        const result = await manager
+          .createQueryBuilder()
+          .update(Execution)
+          .set({
+            status: ExecutionStatus.CANCELLED,
+            error: { code, message },
+            finishedAt: new Date(),
+          })
+          .where('id = :id', { id: executionId })
+          .andWhere('status = :waiting', {
+            waiting: ExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((result.affected ?? 0) === 0) {
+          // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
+          return;
+        }
+        // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹(영구 WAITING UI·stale resolve 방지).
+        await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({
+            status: NodeExecutionStatus.CANCELLED,
+            finishedAt: new Date(),
+          })
+          .where('execution_id = :executionId', { executionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        cancelled = true;
+      });
+      if (!cancelled) return false;
+      // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관(둘 다 cancelled).
+      // park 시 잔여 in-memory(context/resolver/llm 캐시) 멱등 정리.
+      this.finalizeRehydrationCleanup(executionId);
+      try {
+        await this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_CANCELLED,
+          {
+            status: ExecutionStatus.CANCELLED,
+            result: { cancelledBy: 'timeout' },
+            error: { code, message },
+          },
+        );
+      } catch (emitErr) {
+        this.logger.warn(
+          `markWebchatIdleTimeout: EXECUTION_CANCELLED emit 실패 (cancel 은 DB ` +
+            `반영됨) — execution=${executionId}: ${
+              emitErr instanceof Error ? emitErr.message : String(emitErr)
+            }`,
+        );
+      }
+      this.eventEmitter.releaseExecutionRouting(executionId);
+      return true;
+    } catch (err) {
+      this.logger.error(
+        `markWebchatIdleTimeout 실패 — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return false;
+    }
+  }
+
+  /**
    * §7.5 재개 진입 원자 claim (06 C-2, 2026-07-02) — 비원자 SELECT 재검증 가드를
    * 대체한다. 대상 NodeExecution 을 `waiting_for_input` 조건으로 `running` 으로
    * 전이시키는 **조건부 UPDATE** 로 재개 진입을 획득한다. NodeExecution UPDATE 의
