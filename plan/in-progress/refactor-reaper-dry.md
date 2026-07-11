@@ -66,5 +66,7 @@ PR #918(webchat idle reaper)·#916 후속. `/ai-review` 가 W3/W4 중복 + namin
       W1(스코프 캐스트 문서화)·W2(spec_impact frontmatter)·W3(emit error-생략 테스트) 조치 +
       INFO 6/9 opportunistic fix. RESOLUTION.md 기록. fix 후 TEST WORKFLOW 전량 재통과
       (unit PASS · build PASS · e2e 253 tests PASS)
-- [ ] `/consistency-check --impl-done` (spec-linked: engine §4·EIA §14/§3.4 — naming sync 검증)
+- [x] `/consistency-check --impl-done spec/5-system/14-external-interaction-api.md` — **BLOCK: NO**,
+      5 checker 전원 NONE, Critical/Warning 0, INFO 5(전부 조치불요/저우선: WebChat casing 규약
+      명문화·message? 완화·.util.ts 네이밍·타 plan stale 표기 — 본 refactor 스코프 밖 별건)
 - [ ] push + PR
