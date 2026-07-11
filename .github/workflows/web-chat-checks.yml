@@ -69,8 +69,37 @@ jobs:
         run: pnpm install --frozen-lockfile --filter "channel-web-chat..."
       - name: Lint
         run: pnpm --filter channel-web-chat lint
+      # 타입 가드(위젯 eia-events.test.ts 의 @ts-expect-error negative·WaitingContext
+      # 캐스트-free 컴파일)는 이 step 이 담당한다 — vitest 는 esbuild 로 타입을 strip 하고,
+      # 아래 next build 는 앱 module graph 만 걸어 standalone *.test.ts 를 typecheck 하지 않는다.
+      - name: Typecheck
+        run: pnpm --filter channel-web-chat typecheck
       - name: Vitest (unit)
         run: pnpm --filter channel-web-chat test
-      # next build (static export) — 위젯 SPA prerender + typecheck 동반 검증.
+      # next build (static export) — 위젯 SPA prerender 검증(타입 검증은 위 Typecheck step).
       - name: Next build (static export)
         run: pnpm --filter channel-web-chat build
+
+  sdk-client:
+    # packages/sdk (@workflow/sdk) — EIA client SDK. web-chat-checks paths 에
+    # packages/sdk/** 가 있으나 이를 도는 job 이 없던 갭을 메운다(PR #912 후속).
+    name: '@workflow/sdk (test/build)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: pnpm install --frozen-lockfile --filter "@workflow/sdk..."
+      # test(ts-jest)가 타입 가드(client.spec.ts 의 @ts-expect-error negative)를 검증한다 —
+      # build(tsc)는 tsconfig 가 *.spec.ts 를 exclude 하므로 spec 을 안 본다. lint 는 SDK 에
+      # eslint.config 부재라 생략.
+      - name: Jest (unit + type guard)
+        run: pnpm --filter @workflow/sdk test
+      - name: Build (tsc)
+        run: pnpm --filter @workflow/sdk build

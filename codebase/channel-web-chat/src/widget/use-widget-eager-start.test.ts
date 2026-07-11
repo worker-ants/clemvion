@@ -91,14 +91,18 @@ function installControllableSse() {
     return Promise.reject(new Error(`unexpected fetch ${u}`));
   });
   vi.stubGlobal("fetch", fetchMock);
+  // EventSource stub: constructor 가 ControllableEventSource 인스턴스를 반환해 테스트가
+  // latest.emit() 으로 SSE 이벤트를 주입한다. anonymous class constructor 가 자신과 다른
+  // 인스턴스를 반환하면 TS 가 instance type 불일치(TS2409)를 내므로 `as unknown as this` 로
+  // 우회하고, stubGlobal 인자 타입은 `typeof EventSource` 로 캐스팅한다. 런타임 동작 불변.
   vi.stubGlobal("EventSource", class {
     constructor() {
       latest = new ControllableEventSource();
-      return latest;
+      return latest as unknown as this;
     }
     addEventListener() {}
     close() {}
-  });
+  } as unknown as typeof EventSource);
   return { fetchMock, getEs: () => latest };
 }
 
@@ -212,10 +216,10 @@ describe("useWidget — eager 시작(§R6)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", class {
-      constructor() { latestEs = new ControllableEventSource(); return latestEs; }
+      constructor() { latestEs = new ControllableEventSource(); return latestEs as unknown as this; }
       addEventListener() {}
       close() {}
-    });
+    } as unknown as typeof EventSource);
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -641,10 +645,10 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", class {
-      constructor() { latest = new ControllableEventSource(); return latest; }
+      constructor() { latest = new ControllableEventSource(); return latest as unknown as this; }
       addEventListener() {}
       close() {}
-    });
+    } as unknown as typeof EventSource);
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -794,10 +798,10 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", class {
-      constructor() { latest = new ControllableEventSource(); return latest; }
+      constructor() { latest = new ControllableEventSource(); return latest as unknown as this; }
       addEventListener() {}
       close() {}
-    });
+    } as unknown as typeof EventSource);
 
     const { result } = renderHook(() => useWidget());
     boot();
