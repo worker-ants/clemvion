@@ -50,5 +50,9 @@ hook 강제 게이트인 `--impl-done` (spec-linked 코드 변경) 은 REVIEW WO
 - [x] unit (embedding.service.spec + graph-extraction.service.spec 24 tests PASS; backend suite 8104 PASS)
 - [x] build (nest build clean — 컴파일타임 union 강제 실증)
 - [x] e2e (253 PASS)
-- [ ] /ai-review + Critical/Warning 0
-- [ ] /consistency-check --impl-done (SPEC-CONSISTENCY 가드)
+- [x] /ai-review — RISK=NONE, Critical 0 / Warning 0 (7 reviewer INFO only). SUMMARY: `review/code/2026/07/12/00_52_19/SUMMARY.md`
+- [x] /consistency-check --impl-done (scope=spec/5-system/, diff-base=origin/main) — BLOCK: NO, 5 checker NONE. INFO 3건 전부 사전존재·diff 무관. SUMMARY: `review/consistency/2026/07/12/00_58_51/SUMMARY.md`
+
+## 결과
+
+Critical/Warning 0 + BLOCK: NO → fix·RESOLUTION.md 불요. 순수 컴파일타임 타입 강화로 머지 가능.
