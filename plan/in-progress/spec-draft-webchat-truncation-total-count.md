@@ -67,4 +67,15 @@ Principle 6 위반). 본 PR 이 **바로 그 배너 라인**을 확장하므로 
 - 테스트: `presentation.test.ts`(toTable totalCount 투영) · `presentations.test.tsx`(배너 총 개수 렌더).
 - **followups 갱신(plan_coherence WARNING)**: 구현 완료 후 `webchat-widget-presentation-followups.md`
   §미구현 항목 1 을 "table 부분 해소(본 PR #), carousel 잔여(item 2 병합/의존)"로 재기술한다 —
-  planner 규약상 실완료 전 체크 금지이므로 stale 방지 위해 재기술만(항목 전체 체크 아님).
+  planner 규약상 실완료 전 체크 금지이므로 stale 방지 위해 재기술만(항목 전체 체크 아님). ✅ 반영됨.
+
+## 검증 (완료)
+
+- **TEST WORKFLOW**: lint·unit(위젯 78 tests)·build·e2e(253 tests) 전량 PASS.
+- **/ai-review**: risk LOW, Critical 0, Warning 3 → 전량 조치(CHANGELOG·followups 재기술·배너 문구 고객사
+  영향 note) + INFO 4(NaN/음수 가드 강화, 테스트 분리/보강, 문서 정정). RESOLUTION 기록.
+- **/consistency-check --impl-done** (spec/7-channel-web-chat/1-widget-app.md): **BLOCK: NO**, 5 checker
+  Critical 0 (plan_coherence·naming_collision journal 복구 — INFO만). cross_spec/rationale/naming 정합 확인.
+- **i18n WARNING(반복)**: 위젯 UI 하드코딩 한국어의 i18n-userguide 스코프 공백 — **내 diff 가 원인 아닌
+  기존 규약 침묵**(위젯은 이미 인라인 한국어·hardcoded-korean 가드 스캔 밖). 되돌림 불요. 위젯 EN
+  로컬라이제이션은 제품 정책이라 rushed 각주 대신 별건 follow-up(task_e2fc42c8)으로 라우팅.
