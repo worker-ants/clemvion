@@ -262,9 +262,9 @@ describe("WaitingContext (REST getStatus.context) — 닫힌 2-variant union", (
   });
 
   it("잘못된 shape 은 타입 거부 — union 닫힘 고정 (negative)", () => {
-    // @ts-expect-error 들은 vitest run(esbuild 타입 strip)에선 no-op 이고, `tsc --noEmit`
-    // (typecheck) 에서 검증된다 — union 이 open map 으로 되돌려지면 이 expect-error 가
-    // "사용되지 않음" 으로 tsc red 가 된다.
+    // 아래 두 지시어는 vitest run(esbuild 타입 strip)에선 no-op 이고 typecheck(tsc --noEmit)
+    // 에서만 검증된다 — union 이 open map 으로 되돌려지면 unused directive 로 red 가 된다.
+    // (이 설명 줄이 "@ts-expect-error" 로 시작하면 TS 가 pragma 로 오인하므로 문장 앞을 비운다.)
     // @ts-expect-error — ButtonsContext 인데 buttonConfig 필드가 없다.
     const missingButtons: ButtonsContext = { interactionType: "buttons", waitingNodeId: "n" };
     // @ts-expect-error — 두 variant 판별 키(buttonConfig|nodeOutput) 가 모두 없다.

@@ -30,7 +30,7 @@ owner: developer
 
 ## 리뷰 후속 (ai-review 11_44_59 에서 분리 — 본 PR 밖)
 
-- [ ] **channel-web-chat 타입체크를 harness 에 배선** (C2) — `test`=`vitest run`(esbuild 타입 strip)이라 타입 테스트(`WaitingContext` 캐스트-free 컴파일, `@ts-expect-error` negative)가 실제로 타입체크되지 않는다. `typecheck`(`tsc --noEmit`)를 harness `unit`/`build` 에 넣어야 하나, 현재 **pre-existing red**(`use-widget-eager-start.test.ts` EventSource mock 타입 에러 3건, 본 PR 무관)라 먼저 그 정리가 필요. 정리 후 `tsc --noEmit` 을 stage 에 추가.
+- [ ] **channel-web-chat 타입체크를 harness 에 배선** (C2) — `test`=`vitest run`(esbuild 타입 strip)이라 타입 테스트(`WaitingContext` 캐스트-free 컴파일, `@ts-expect-error` negative)가 실제로 타입체크되지 않는다. `typecheck`(`tsc --noEmit`)를 harness `unit`/`build` 에 넣어야 하나, 현재 **pre-existing red**(`use-widget-eager-start.test.ts`·`presentation.test.ts` 등 mock 타입 에러 ~10건, 본 PR 무관 — 실측)라 먼저 그 정리가 필요. 정리 후 `tsc --noEmit` 을 stage 에 추가.
 - [ ] **spec-link 가드의 CI trigger 확대** (W-spec-link-ci) — 가드는 `codebase/frontend` vitest 에 있는데 `frontend-checks.yml` trigger paths 가 backend/channel-web-chat 를 제외한다 → PR 이 backend 링크만 바꾸면 CI 에서 이 가드가 안 돈다(harness `unit` 은 무조건 돌리므로 로컬/harness 는 커버, CI PR-trigger 만 갭). `.github/workflows/frontend-checks.yml` 의 paths 확대 또는 별도 workflow.
 - [ ] **`spec-links.ts` 중복 정리** — `collectCodebaseSources`/`findBrokenSpecLinksInSources` 가 기존 `collectSpecMarkdown`/`findBrokenLinks` 와 ~40줄 골격 중복. 파일-목록 파라미터화한 코어로 추출 여지(동작은 정확, 저우선).
 - [ ] **다른 내부 packages harness 배선** — `.claude/test-stages.sh` 가 `@workflow/sdk`(본 PR 에서 추가)·`@workflow/web-chat`·`channel-web-chat` 만 배선. `expression-engine`·`graph-warning-rules`·`node-summary`·`chat-channel-validation`·`web-chat-sdk` 는 미배선(기존 갭). 별도 검토.

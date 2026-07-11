@@ -40,8 +40,9 @@ describe('ExecutionStatus.context — 닫힌 2-variant union (타입 가드)', (
   });
 
   it('잘못된 shape 은 타입 거부 — union 닫힘 고정 (negative)', () => {
-    // SDK 는 build=tsc 라 이 @ts-expect-error 가 build 로 검증된다 — union 이 open map 으로
-    // 되돌려지면 expect-error 가 "사용되지 않음" 으로 red.
+    // 이 @ts-expect-error 는 test(ts-jest, cmd_unit 에 배선됨)가 타입체크한다 — union 이
+    // open map 으로 되돌려지면 unused directive 로 red. (build=tsc 는 tsconfig 가 *.spec.ts 를
+    // exclude 하므로 spec 을 안 본다 — 검증 통로는 test 다.)
     // @ts-expect-error — ButtonsContext 인데 buttonConfig 필드가 없다.
     const missingButtons: ButtonsContext = { interactionType: 'buttons', waitingNodeId: 'n' };
     // @ts-expect-error — 두 variant 판별 키(buttonConfig|nodeOutput) 가 모두 없다.
