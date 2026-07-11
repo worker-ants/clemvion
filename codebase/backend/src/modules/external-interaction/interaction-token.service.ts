@@ -440,6 +440,12 @@ export class InteractionTokenService {
       RECONCILE_BATCH_MAX,
     );
     const threshold = new Date(Date.now() - Math.max(0, graceMs));
+    // `INNER JOIN e.trigger` 는 **의도적 보수 선택**(review W2): 회수는 trigger 를 join 해
+    // `auth_config_id IS NULL`(공개 익명 위젯) 임을 **확인 가능한** execution 에만 적용한다.
+    // trigger 가 삭제된(`trigger_id ON DELETE SET NULL`) execution 은 익명성을 증명할 수 없으므로
+    // (인증 트리거였을 수도) 본 위젯 reaper 의 provable 범위 밖 — LEFT JOIN 으로 넓히면 비-위젯
+    // execution 을 오회수할 위험이 있다. trigger 삭제로 고아가 된 활성 waiting execution 은 별개
+    // 관심사(trigger/workflow 삭제 시 cascade·가드)로 다룬다.
     const rows = await this.executionTokenRepository
       .createQueryBuilder('et')
       .innerJoin('et.execution', 'e')

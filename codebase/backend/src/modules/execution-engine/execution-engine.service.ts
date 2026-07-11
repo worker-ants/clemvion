@@ -983,33 +983,47 @@ export class ExecutionEngineService
     const message =
       'Execution cancelled: public web-chat widget idle-wait timeout';
     try {
-      const result = await this.executionRepository
-        .createQueryBuilder()
-        .update(Execution)
-        .set({
-          status: ExecutionStatus.CANCELLED,
-          error: { code, message },
-          finishedAt: new Date(),
-        })
-        .where('id = :id', { id: executionId })
-        .andWhere('status = :waiting', {
-          waiting: ExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
-      if ((result.affected ?? 0) === 0) {
-        // 이미 terminal / 재개로 RUNNING — 멱등 no-op.
-        return false;
-      }
-      // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹(영구 WAITING UI·stale resolve 방지).
-      await this.nodeExecutionRepository
-        .createQueryBuilder()
-        .update(NodeExecution)
-        .set({ status: NodeExecutionStatus.CANCELLED, finishedAt: new Date() })
-        .where('execution_id = :executionId', { executionId })
-        .andWhere('status = :waiting', {
-          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
+      // Execution + 동반 WAITING NodeExecution 을 **단일 트랜잭션**으로 마감한다(형제
+      // `claimResumeEntry` 와 동일 패턴, review W1). 비-트랜잭션 2단계면 첫 UPDATE 커밋 후 둘째가
+      // 실패할 때 NodeExecution 이 영구 WAITING 잔류하고 Execution 만 cancelled 로 남아, 다음 tick
+      // (status=waiting_for_input 필터)에서도 재선정 안 돼 복구 경로가 없다 → 트랜잭션으로 원자화해
+      // 롤백 시 execution 이 waiting 으로 남아 다음 tick 이 재시도하게 한다.
+      let cancelled = false;
+      await this.dataSource.transaction(async (manager) => {
+        const result = await manager
+          .createQueryBuilder()
+          .update(Execution)
+          .set({
+            status: ExecutionStatus.CANCELLED,
+            error: { code, message },
+            finishedAt: new Date(),
+          })
+          .where('id = :id', { id: executionId })
+          .andWhere('status = :waiting', {
+            waiting: ExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((result.affected ?? 0) === 0) {
+          // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
+          return;
+        }
+        // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹(영구 WAITING UI·stale resolve 방지).
+        await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({
+            status: NodeExecutionStatus.CANCELLED,
+            finishedAt: new Date(),
+          })
+          .where('execution_id = :executionId', { executionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        cancelled = true;
+      });
+      if (!cancelled) return false;
+      // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관(둘 다 cancelled).
       // park 시 잔여 in-memory(context/resolver/llm 캐시) 멱등 정리.
       this.finalizeRehydrationCleanup(executionId);
       try {

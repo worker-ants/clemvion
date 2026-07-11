@@ -518,11 +518,18 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       );
     });
 
-    it('batchLimit 은 [1, 1000] 로 clamp', async () => {
+    it('batchLimit 상한 — 초과분은 1000 으로 clamp', async () => {
       const qb = makeQB([]);
       const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
       await makeService(repo).findIdleWebchatExecutionIds(1000, 99999);
       expect(qb.limit).toHaveBeenCalledWith(1000);
+    });
+
+    it('batchLimit 하한 — 0/음수는 1 로 clamp (sibling reconcile 과 동형, review testing)', async () => {
+      const qb = makeQB([]);
+      const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
+      await makeService(repo).findIdleWebchatExecutionIds(3600000, 0);
+      expect(qb.limit).toHaveBeenCalledWith(1);
     });
   });
 

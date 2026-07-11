@@ -92,6 +92,25 @@ describe('WebchatIdleReaperService [Spec EIA §3.4 EIA-RL-07 / §R19]', () => {
     expect(tokenService.revokeAllForExecution).not.toHaveBeenCalled();
   });
 
+  it('reap: REAP_CONCURRENCY(10) 청크 경계를 넘어 전량 처리 (review testing)', async () => {
+    // 12건 → 청크 [0..9], [10..11] 두 번에 걸쳐 처리. 짝수 index 만 cancel 성공(true)로 둬
+    // 성공분만 revoke 되는지 + 청크 경계에서 누락 없이 전량 engine 호출되는지 검증.
+    const ids = Array.from({ length: 12 }, (_, i) => `e${i}`);
+    tokenService.findIdleWebchatExecutionIds.mockResolvedValue(ids);
+    engine.markWebchatIdleTimeout.mockImplementation(async (id) => {
+      const n = Number(id.slice(1));
+      return n % 2 === 0; // 짝수만 cancel 전이(true).
+    });
+    tokenService.revokeAllForExecution.mockResolvedValue({ revoked: 1 });
+
+    await service.reap();
+
+    // 12건 전량 engine 호출(청크 경계 누락 없음).
+    expect(engine.markWebchatIdleTimeout).toHaveBeenCalledTimes(12);
+    // 짝수 6건만 revoke.
+    expect(tokenService.revokeAllForExecution).toHaveBeenCalledTimes(6);
+  });
+
   it('reap: 개별 execution 실패는 fail-open — 다른 건 계속 처리, throw 안 함', async () => {
     tokenService.findIdleWebchatExecutionIds.mockResolvedValue(['bad', 'good']);
     engine.markWebchatIdleTimeout.mockImplementation(async (id) => {
