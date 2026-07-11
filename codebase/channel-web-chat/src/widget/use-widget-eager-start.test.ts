@@ -94,11 +94,11 @@ function installControllableSse() {
   vi.stubGlobal("EventSource", class {
     constructor() {
       latest = new ControllableEventSource();
-      return latest;
+      return latest as unknown as this;
     }
     addEventListener() {}
     close() {}
-  });
+  } as unknown as typeof EventSource);
   return { fetchMock, getEs: () => latest };
 }
 
@@ -212,10 +212,10 @@ describe("useWidget — eager 시작(§R6)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", class {
-      constructor() { latestEs = new ControllableEventSource(); return latestEs; }
+      constructor() { latestEs = new ControllableEventSource(); return latestEs as unknown as this; }
       addEventListener() {}
       close() {}
-    });
+    } as unknown as typeof EventSource);
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -641,10 +641,10 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", class {
-      constructor() { latest = new ControllableEventSource(); return latest; }
+      constructor() { latest = new ControllableEventSource(); return latest as unknown as this; }
       addEventListener() {}
       close() {}
-    });
+    } as unknown as typeof EventSource);
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -794,10 +794,10 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("EventSource", class {
-      constructor() { latest = new ControllableEventSource(); return latest; }
+      constructor() { latest = new ControllableEventSource(); return latest as unknown as this; }
       addEventListener() {}
       close() {}
-    });
+    } as unknown as typeof EventSource);
 
     const { result } = renderHook(() => useWidget());
     boot();
