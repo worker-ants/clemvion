@@ -17,17 +17,25 @@
  *
  * `concurrency` is floored at 1 so a mis-configured `0`/negative value degrades
  * to serial processing instead of an infinite loop.
+ *
+ * The `worker` call is wrapped in an `async` thunk so a **synchronous** throw
+ * (e.g. a non-`async` worker that throws before returning a promise) still
+ * settles as a rejected result rather than escaping `Promise.allSettled` and
+ * aborting the whole batch — the fail-open contract holds regardless of whether
+ * the worker is async.
  */
 export async function processInBatches<T, R>(
   items: readonly T[],
   concurrency: number,
-  worker: (item: T) => Promise<R>,
+  worker: (item: T) => Promise<R> | R,
 ): Promise<PromiseSettledResult<R>[]> {
   const chunkSize = Math.max(1, Math.floor(concurrency));
   const results: PromiseSettledResult<R>[] = [];
   for (let i = 0; i < items.length; i += chunkSize) {
     const chunk = items.slice(i, i + chunkSize);
-    const settled = await Promise.allSettled(chunk.map((item) => worker(item)));
+    const settled = await Promise.allSettled(
+      chunk.map(async (item) => worker(item)),
+    );
     results.push(...settled);
   }
   return results;

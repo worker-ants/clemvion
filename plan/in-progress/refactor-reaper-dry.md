@@ -5,7 +5,11 @@ started: 2026-07-11
 owner: developer
 branch: claude/reaper-dry-refactor
 spec_impact:
-  - none
+  - spec/5-system/14-external-interaction-api.md
+  - spec/7-channel-web-chat/1-widget-app.md
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/data-flow/0-overview.md
+  - spec/data-flow/15-external-interaction.md
 ---
 
 # Reaper/engine DRY 리팩터 (behavior-preserving)
@@ -43,10 +47,24 @@ PR #918(webchat idle reaper)·#916 후속. `/ai-review` 가 W3/W4 중복 + namin
   wiring/process/fail-open 골격은 동일하나, NestJS `WorkerHost`+`@Processor`(subclass)+DI 조합에
   추상 base 를 끼우는 복잡도 대비 2-워커 한정 효용이 marginal. 워커 수 증가 시 재검토.
 
+## 스코프 참고 (리뷰 후 명시)
+
+- **spec_impact 는 naming sync 뿐**: 5개 spec 문서 변경은 `WebchatIdleReaperService` 등
+  **구현 클래스/메서드명 언급의 대소문자 정합**(코드 rename 미러)일 뿐, 의미·요구사항·상태전이
+  변경 0. wire 계약(`WEBCHAT_IDLE_TIMEOUT`·큐명·env)은 불변이라 spec 의 규범적 내용은 그대로다.
+  frontmatter `spec_impact` 는 실제 touch 한 5파일을 나열(리뷰 W2 — 완료 이동 시 Gate C 정합).
+- **incidental**: `interaction-token.service.ts verifyPerExecution` 의 redundant `as { sub?;
+  aud?; jti? }` 캐스트가 `eslint --fix`(no-unnecessary-type-assertion, `payload` 가 이미 동일
+  타입 `let` 선언)로 제거됨. tsc-clean·런타임 무영향. 되돌리면 린터가 재-플래그하므로 유지하며
+  본 항목으로 추적성 확보(리뷰 W1 scope-drift 대응 — 문서화 옵션 채택).
+
 ## 워크플로
 
 - [x] TEST WORKFLOW (lint·unit·build·e2e) — 리팩터라 기존 테스트 그린 유지 + processInBatches unit 신설
       (unit: 4 spec 462 tests + full suite PASS · build PASS · e2e 253 tests PASS)
-- [ ] `/ai-review` (회귀·behavior-change 초점) + SUMMARY
+- [x] `/ai-review` (회귀·behavior-change 초점) + SUMMARY — risk LOW, Critical 0, Warning 3.
+      W1(스코프 캐스트 문서화)·W2(spec_impact frontmatter)·W3(emit error-생략 테스트) 조치 +
+      INFO 6/9 opportunistic fix. RESOLUTION.md 기록. fix 후 TEST WORKFLOW 전량 재통과
+      (unit PASS · build PASS · e2e 253 tests PASS)
 - [ ] `/consistency-check --impl-done` (spec-linked: engine §4·EIA §14/§3.4 — naming sync 검증)
 - [ ] push + PR

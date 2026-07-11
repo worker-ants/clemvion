@@ -2919,7 +2919,7 @@ describe('ExecutionEngineService', () => {
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
     });
 
-    it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit', async () => {
+    it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit (cancelledBy:user, error 키 부재)', async () => {
       mockExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockReturnValue(makeExecQb(1));
@@ -2927,6 +2927,11 @@ describe('ExecutionEngineService', () => {
       mockNodeExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockReturnValue(nodeQb);
+      // emitCancellationEvent 가 engine emitter 로 넘기는 원본 payload 를 직접 포착한다.
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest.spyOn(eventEmitter, 'emitExecution');
 
       await service.applyCancellation('exec-park-1');
 
@@ -2934,12 +2939,24 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
       // NodeExecution UPDATE 도 호출됐는지 확인 (W1/W6 핵심).
       expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
-      // EXECUTION_CANCELLED emit 확인.
+      // EXECUTION_CANCELLED emit 확인 (WS 하류).
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         'exec-park-1',
         'execution.cancelled',
         expect.objectContaining({ status: 'cancelled' }),
       );
+      // emitCancellationEvent 계약을 고정한다: cancelledBy='user' 리터럴 + **error 키 부재**
+      // (cancelParked 는 4경로 중 유일하게 error 없이 방출 — 헬퍼의 `...(error?{error}:{})`
+      // 생략 분기를 회귀로부터 보호). 정확 payload 매칭이라 error 키가 섞이면 실패한다.
+      expect(emitSpy).toHaveBeenCalledWith('exec-park-1', expect.anything(), {
+        status: 'cancelled',
+        result: { cancelledBy: 'user' },
+      });
+      const emittedPayload = emitSpy.mock.calls.find(
+        (c) => c[0] === 'exec-park-1',
+      )?.[2];
+      expect(emittedPayload).not.toHaveProperty('error');
+      emitSpy.mockRestore();
     });
 
     it('affected:0 — 이미 terminal / resume RUNNING → 멱등 no-op (emit 미호출)', async () => {

@@ -51,11 +51,30 @@ describe('processInBatches', () => {
     expect(worker).not.toHaveBeenCalled();
   });
 
-  it('concurrency 0/음수는 1(직렬)로 floor 되어 무한 루프를 피한다', async () => {
+  it.each([0, -1, -100, 2.7])(
+    'concurrency=%p 는 floor(≥1)로 정규화되어 무한 루프 없이 전량 처리한다',
+    async (concurrency) => {
+      const items = [1, 2, 3];
+      const results = await processInBatches(
+        items,
+        concurrency,
+        async (n) => n,
+      );
+      expect(
+        results.map((r) => (r.status === 'fulfilled' ? r.value : null)),
+      ).toEqual([1, 2, 3]);
+    },
+  );
+
+  it('동기적으로 throw 하는 non-async worker 도 rejected 로 격리된다 (fail-open 유지)', async () => {
     const items = [1, 2, 3];
-    const results = await processInBatches(items, 0, async (n) => n);
-    expect(
-      results.map((r) => (r.status === 'fulfilled' ? r.value : null)),
-    ).toEqual([1, 2, 3]);
+    // 일부러 async 가 아닌 함수 — n===2 에서 promise 반환 전에 동기 throw.
+    const results = await processInBatches(items, 2, (n): number => {
+      if (n === 2) throw new Error('sync boom');
+      return n;
+    });
+    expect(results[0]).toMatchObject({ status: 'fulfilled', value: 1 });
+    expect(results[1].status).toBe('rejected');
+    expect(results[2]).toMatchObject({ status: 'fulfilled', value: 3 });
   });
 });
