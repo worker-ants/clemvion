@@ -25,6 +25,14 @@
 - **build**: 통과
 - **e2e**: 통과 (253 tests; `PASS test/webchat-idle-reaper.e2e-spec.ts` 51.5s — reaper 실 Postgres 판정쿼리 + W1 트랜잭션 cancel 재검증, 만료→회수/미만료→유지)
 
+## impl-done SPEC-CONSISTENCY 게이트 (`review/consistency/2026/07/11/20_25_42/`, BLOCK: NO)
+
+journal 복구로 5/5 checker Critical 0 확정. 반영:
+- **WARNING(cross_spec·convention 수렴)**: 신규 큐 `webchat-idle-reaper` 가 `system-status-api.md §1` 큐 표 미등재(PROJECT.md 매핑 필수 위치) → **행 추가**(terminal-revoke 미러).
+- **INFO(convention)**: EIA-RL-07 행에 `WEBCHAT_IDLE_REAP_GRACE_MS`(기본 3600000ms) 명시 + §10 파일 트리에 reaper 2파일 추가 → 반영.
+- **WARNING(naming_collision)**: 신규 식별자군 `Webchat*`(WebchatIdleReaperService·markWebchatIdleTimeout 등)가 코드베이스 기존 `WebChat*`(WebChatAppearanceDto·WebChatCorsModule) casing 과 불일치 → **DEFER**: feature 는 #916-locked `WEBCHAT_IDLE_TIMEOUT`(wire error.code)와 내부 일관(`webchat`/`WEBCHAT`)이고, 코드베이스 `WebChat`/`web-chat` 정렬은 파일명·큐 문자열·미러문서 전반 wide 리네임(wire error.code 는 불변)이라 별 후속(`task_6e435243` DRY 리팩터에 병합)으로 이관. 비차단·wire/behavior 무영향.
+- **INFO(1-data-model §2.13/§2.14)**: 예시 열거·cancelled 정의 문구 보완 — 별도 정리 작업(저우선).
+
 ## 보류·후속 항목
 
 - **W3/W4 DRY 리팩터** — `conditionallyCancelExecution` 헬퍼(4 engine 메서드) + `MinuteRepeatableSweepWorker`/`processInBatches`(EIA-RL-06·07 sweep). behavior-preserving 리팩터라 별 후속 plan 으로 이관(이번 PR 강제 아님, 리뷰어 백로그 권고).
