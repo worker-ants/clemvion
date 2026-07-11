@@ -89,7 +89,7 @@ code:
 | KB-GR-EX-04 | 추출 진행 상태는 문서별로 추적 (`graph_extraction_status`: pending / processing / completed / error / failed) | 필수 | ✅ |
 | KB-GR-EX-05 | 추출 실패 시 문서 단위 재시도 가능 (KB 상세에서 "Re-extract" 액션) | 필수 | ✅ (`POST /knowledge-bases/:id/documents/:docId/re-extract`) |
 | KB-GR-EX-06 | 임베딩 재실행(`reEmbed`) 또는 KB 전체 재임베딩 시 그래프도 함께 재추출 | 필수 | ✅ |
-| KB-GR-EX-07 | 추출 비용을 사용자에게 표시 — 이번 추출에 사용된 토큰 수와 KB 누적 토큰 수 | 권장 | ✅ (`LlmService.chat` 가 자동으로 `LlmUsageLog` 기록 + KB 상세 토큰 통계) |
+| KB-GR-EX-07 | 추출 비용을 사용자에게 표시 — 이번 추출 토큰 수와 KB 누적 토큰 수 | 권장 | ❌ **비목표** — LLM 사용량은 `LlmService.chat` boundary 가 `LlmUsageLog` 에 **workspace 단위**로 기록하나(KB-GR-OB-01), **KB 단위 attribution·누적 표시는 도입하지 않는다**: `LlmUsageLog` 에 KB/document FK 가 없고 GraphExtractionService 는 context 를 의도적으로 NULL 로 남긴다([data-flow §7-llm-usage](../data-flow/7-llm-usage.md) "의도된 누락"). §8·§Rationale 참조 |
 | KB-GR-EX-08 | LLM 호출 timeout (청크 90s) + 일시 오류 자동 재시도 (1s/4s/16s 백오프, 최대 3회). 비재시도성 오류는 즉시 `failed` 전환. UI 영구 "처리중" stuck 방지 | 필수 | ✅ (V037 + `retryWithBackoff`) |
 | KB-GR-EX-09 | 최종 실패한 문서를 한 번에 재큐잉 (`POST /knowledge-bases/:id/retry-failed` `{ scope: 'graph'/'embedding'/'all' }`). 재시도 카운터·error 메시지 리셋 후 큐 add | 필수 | ✅ |
 | KB-GR-EX-10 | 부팅 시 `graph_last_attempted_at` 가 10분 전 이전인 `processing` 문서 자동 회수 (`StuckDocumentRecoveryService`) | 필수 | ✅ |
@@ -139,7 +139,7 @@ code:
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|------|
-| KB-GR-OB-01 | 추출에 사용된 LLM 토큰을 LLMUsageLog 에 기록 (기존 사용량 추적과 동일 채널) | 필수 | ✅ (`LlmService.chat` 호출 boundary 에서 자동 기록) |
+| KB-GR-OB-01 | 추출에 사용된 LLM 토큰을 `LlmUsageLog` 에 기록 (기존 사용량 추적과 동일 채널, **workspace 단위** — KB attribution 없음) | 필수 | ✅ (`LlmService.chat` 호출 boundary 에서 자동 기록. context 미전달이라 `workflow_id`/`execution_id`/`node_execution_id` 는 NULL — [data-flow §7-llm-usage](../data-flow/7-llm-usage.md) 의도된 누락) |
 | KB-GR-OB-02 | 추출 진행 / 완료 / 에러 이벤트를 WebSocket 으로 노출 (KB 상세 실시간 갱신) | 필수 | ✅ (`document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed`. graph 에는 `_error` 이벤트가 없다 — emit 경로가 없어 #443 에서 union 제거. 에러는 `_retry`(일시)·`_failed`(최종)로 노출) |
 | KB-GR-OB-03 | KB 단위 entity / relation 카운트는 캐시 컬럼으로 유지 (조회 시 매번 SELECT COUNT 회피) | 권장 | ✅ (V025 `entity_count` / `relation_count` 컬럼) |
 
@@ -167,7 +167,7 @@ code:
 | NF-GR-02 | 그래프 검색 응답 시간 | < 800ms (10만 entity·relation 기준, vector seed 포함) |
 | NF-GR-03 | 추출 실패 graceful degrade | 추출 실패 chunk 는 그래프 검색 시 vector-only fallback 으로 회수 |
 | NF-GR-04 | KB 당 entity 수 한계 | 100,000개 (P0). 초과 시 cleanup / community detection 필요 |
-| NF-GR-05 | 토큰 사용 가시성 | 추출 토큰을 LLMUsageLog 에 기록, KB 상세에서 누적 표시 |
+| NF-GR-05 | 토큰 사용 가시성 | 추출 토큰을 `LlmUsageLog` 에 **workspace 단위**로 기록(구현됨, KB-GR-OB-01). **"KB 상세에서 누적 표시"는 비목표** — KB 단위 attribution 미도입([data-flow §7-llm-usage](../data-flow/7-llm-usage.md) 의도된 NULL, §8·§Rationale) |
 
 ---
 
@@ -581,6 +581,7 @@ LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최
 - Cross-KB graph linking — KB 간 entity 통합 검색은 P2 이후 (현재는 KB 단위로 격리).
 - Graph embedding (Node2Vec 등) — 검색에 활용하지 않음 (P2 이후).
 - 자동 prompt tuning — 추출 prompt 는 시스템 prompt 고정 (P2 에 KB 단위 prompt override 검토).
+- **KB 단위 LLM 토큰 attribution / KB 상세 토큰 누적 표시** (KB-GR-EX-07·NF-GR-05) — 추출 LLM 사용량은 `LlmUsageLog` 에 **workspace 단위**로만 기록된다(KB-GR-OB-01). `LlmUsageLog` 에 KB/document FK 가 없고 `GraphExtractionService` 는 context(`workflow_id`/`execution_id`/`node_execution_id`)를 의도적으로 NULL 로 남기므로([data-flow §7-llm-usage](../data-flow/7-llm-usage.md) "의도된 누락"), KB 단위 집계·표시 경로가 스키마에 없다. 도입하려면 `LlmUsageLog` KB FK migration + GraphExtractionService context threading + 그 invariant 변경이 선행돼야 하는 별도 제품 결정이라 현 범위에서 비목표.
 
 ---
 
@@ -621,3 +622,4 @@ Graph RAG 도메인 모델 결정의 배경·근거.
 - Microsoft GraphRAG community detection / 글로벌 요약 (P2 이후)
 - Apache AGE / Neo4j 도입 (데이터 규모 임계 도달 시 검토)
 - 룰 기반 entity 추출 (LLM 추출 단일 경로)
+- **KB 단위 토큰 attribution/표시** — 추출 사용량은 workspace 단위 집계가 SoT다([data-flow §7-llm-usage](../data-flow/7-llm-usage.md) 이 GraphExtractionService context NULL 을 "의도된 누락"으로 확정). KB 단위 귀속은 그 invariant 를 뒤집는 별도 결정이므로 채택하지 않는다(§8 비-목표 상세). 종전 KB-GR-EX-07·NF-GR-05 가 이를 ✅/충족으로 오표기했던 것을 정직화(2026-07-11) — 실제로는 스키마·API·WS·UI 어디에도 KB 단위 경로가 없었다.
