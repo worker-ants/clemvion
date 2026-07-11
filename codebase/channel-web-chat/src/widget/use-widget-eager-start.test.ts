@@ -638,6 +638,73 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(result.current.state.phase).toBe("awaiting_user_message");
   });
 
+  // 새로고침 복원(N1, §R6) 통합 — 저장 세션 → applyConfig RESTORED → seedWaitingFromStatus →
+  // WAITING dispatch → mergeMessages → state.messages. 부품(conversation.threadToMessages·getStatus 시드
+  // 표면)만 개별 테스트돼 있어, 다중 turn conversationThread 가 실제 복원 시 올바른 role/text/순서로
+  // 메시지 타임라인에 시드되는지 e2e-lite 로 고정한다(복원 히스토리 유실·순서역전·role 오분류 회귀 방지).
+  it("복원 통합: getStatus 다중 turn conversationThread → state.messages 를 role/text/순서대로 시드", async () => {
+    // 저장 세션 pre-seed — applyConfig 가 이를 로드해 RESTORED + getStatus 시드 경로를 탄다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      // getStatus(GET status) — waiting_for_input + 다중 turn thread(복원 wire: role 없이 source 만).
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              id: "prev",
+              status: "waiting_for_input",
+              seq: 4,
+              context: {
+                interactionType: "ai_conversation",
+                waitingNodeId: "n1",
+                conversationThread: {
+                  turns: [
+                    // ai_user → user. [user-input] 마커는 표시 전 strip 되어야 한다.
+                    { source: "ai_user", text: "[user-input]반품하고 싶어요[/user-input]" },
+                    { source: "ai_assistant", text: "어떤 상품인가요?" },
+                    { source: "ai_user", text: "신발입니다" },
+                    { source: "ai_assistant", text: "확인했습니다. 반품 접수를 도와드릴게요." },
+                  ],
+                },
+              },
+            },
+          }),
+        } as Response);
+      }
+      // 복원 경로는 신규 webhook 을 쏘지 않아야 한다 — 방어적으로 핸들만 두고 호출 0 을 단언한다.
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({ data: {} }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useWidget());
+    boot(); // boot → applyConfig → 저장 세션 복원 → getStatus 시드(open() 불필요).
+    await waitFor(() => expect(result.current.state.messages).toHaveLength(4));
+
+    const msgs = result.current.state.messages;
+    expect(msgs.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+    expect(msgs.map((m) => m.text)).toEqual([
+      "반품하고 싶어요", // 마커 strip
+      "어떤 상품인가요?",
+      "신발입니다",
+      "확인했습니다. 반품 접수를 도와드릴게요.",
+    ]);
+    expect(msgs[0].text).not.toContain("user-input"); // strip 검증(정규식 마커 잔존 없음)
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    expect(result.current.state.pending?.type).toBe("ai_conversation");
+    expect(result.current.state.executionId).toBe("prev");
+    expect(webhookPosts(fetchMock).length).toBe(0); // 복원 세션 → 신규 시작 없음
+  });
+
   // 토큰 자동 갱신 타이머(3-auth-session §3 step7) — refreshDelayMs 순수계산은 use-widget.test.ts 가
   // 검증하고, 여기서는 실제 setTimeout 발화 → refresh-token 호출까지를 fake timer 로 결정적 검증한다.
   it("fake timer: BOOTED 후 refresh delay(만료 30분 전) 경과 → refresh-token 호출", async () => {
