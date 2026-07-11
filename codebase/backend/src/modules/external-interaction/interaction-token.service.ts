@@ -14,6 +14,7 @@ import {
 import { ExecutionToken } from './entities/execution-token.entity';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { WEBCHAT_IDLE_REAP_BATCH_LIMIT } from './webchat-idle-reaper.types';
+import { processInBatches } from '../../common/utils/process-in-batches';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -203,7 +204,7 @@ export class InteractionTokenService {
       payload = verify(jwtPart, this.secret, {
         algorithms: ['HS256'],
         audience: INTERACTION_TOKEN_AUDIENCE,
-      }) as { sub?: unknown; aud?: unknown; jti?: unknown };
+      });
     } catch (err) {
       if (err instanceof TokenExpiredError) {
         return { valid: false, reason: 'expired' };
@@ -395,21 +396,20 @@ export class InteractionTokenService {
     // per-execution revoke 는 idempotent·fail-open 이라 병렬·중복 안전. (revokeAllForExecution
     // 내부의 per-jti SET 은 보통 1~2건이라 추가 병렬화 불요.)
     let revoked = 0;
-    for (let i = 0; i < rows.length; i += RECONCILE_CONCURRENCY) {
-      const chunk = rows.slice(i, i + RECONCILE_CONCURRENCY);
-      const results = await Promise.allSettled(
-        chunk.map(({ executionId }) => this.revokeAllForExecution(executionId)),
-      );
-      results.forEach((r, idx) => {
-        if (r.status === 'fulfilled') {
-          revoked += r.value.revoked;
-        } else {
-          this.logger.warn(
-            `InteractionTokenService: reconcile revoke 실패 (executionId=${chunk[idx].executionId}) — fail-open: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
-          );
-        }
-      });
-    }
+    const results = await processInBatches(
+      rows,
+      RECONCILE_CONCURRENCY,
+      ({ executionId }) => this.revokeAllForExecution(executionId),
+    );
+    results.forEach((r, idx) => {
+      if (r.status === 'fulfilled') {
+        revoked += r.value.revoked;
+      } else {
+        this.logger.warn(
+          `InteractionTokenService: reconcile revoke 실패 (executionId=${rows[idx].executionId}) — fail-open: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`,
+        );
+      }
+    });
     if (rows.length > 0) {
       this.logger.log(
         `terminal-revoke reconciliation: ${rows.length} execution(s) swept, ${revoked} jti revoked`,
@@ -430,7 +430,7 @@ export class InteractionTokenService {
    *
    * @returns 회수 대상 executionId 목록(batchLimit clamp). 호출자(reaper)가 engine cancel + token revoke 오케스트레이션.
    */
-  async findIdleWebchatExecutionIds(
+  async findIdleWebChatExecutionIds(
     graceMs: number,
     batchLimit = WEBCHAT_IDLE_REAP_BATCH_LIMIT,
   ): Promise<string[]> {

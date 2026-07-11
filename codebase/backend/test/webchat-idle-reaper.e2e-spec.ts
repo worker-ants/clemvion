@@ -11,8 +11,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * idle-wait execution 회수 reaper.
  *
  * 판정 쿼리(`execution_token` ⋈ `execution` ⋈ `trigger`, `GROUP BY … HAVING MAX(exp_at)<now-grace`)
- * 와 engine `markWebchatIdleTimeout`(조건부 UPDATE)는 real-SQL·상태전이 의존이라 유닛 mock 으로
- * 실증 불가 → 실 Postgres 로 검증한다. `WebchatIdleReaperService` 는 분 단위 repeatable 이므로
+ * 와 engine `markWebChatIdleTimeout`(조건부 UPDATE)는 real-SQL·상태전이 의존이라 유닛 mock 으로
+ * 실증 불가 → 실 Postgres 로 검증한다. `WebChatIdleReaperService` 는 분 단위 repeatable 이므로
  * 시드 후 다음 cron tick(≤~60s)에서 회수되는 것을 poll 로 확인한다.
  *
  * 시나리오:

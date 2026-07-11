@@ -3,9 +3,10 @@ import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { InteractionTokenService } from './interaction-token.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { processInBatches } from '../../common/utils/process-in-batches';
 import {
   WEBCHAT_IDLE_REAPER_QUEUE,
-  resolveWebchatIdleReapGraceMs,
+  resolveWebChatIdleReapGraceMs,
 } from './webchat-idle-reaper.types';
 
 const REAP_JOB = 'reap-idle-webchat-executions';
@@ -30,18 +31,18 @@ const REAP_CONCURRENCY = 10;
  *
  * - 멀티 인스턴스 안전 — repeatable scheduler 의 Redis 단일 entry + 워커 락으로 `replicas:N`
  *   에서도 전역 1회. scheduler ID 를 큐명에서 파생 → orphan entry 회귀 차단.
- * - 판정 쿼리는 `InteractionTokenService.findIdleWebchatExecutionIds`, cancel+emit 은
- *   `ExecutionEngineService.markWebchatIdleTimeout`(멱등 조건부 UPDATE), 토큰 revoke 는
+ * - 판정 쿼리는 `InteractionTokenService.findIdleWebChatExecutionIds`, cancel+emit 은
+ *   `ExecutionEngineService.markWebChatIdleTimeout`(멱등 조건부 UPDATE), 토큰 revoke 는
  *   `revokeAllForExecution`(EIA-RL-06 재사용) — 본 service 는 스케줄러/오케스트레이션 어댑터.
  */
 @Injectable()
 // concurrency: 1 — 큐 레벨. sweep 내부 per-execution 병렬은 REAP_CONCURRENCY 로 별도 bound.
 @Processor(WEBCHAT_IDLE_REAPER_QUEUE, { concurrency: 1 })
-export class WebchatIdleReaperService
+export class WebChatIdleReaperService
   extends WorkerHost
   implements OnModuleInit
 {
-  private readonly logger = new Logger(WebchatIdleReaperService.name);
+  private readonly logger = new Logger(WebChatIdleReaperService.name);
 
   constructor(
     private readonly tokenService: InteractionTokenService,
@@ -78,29 +79,28 @@ export class WebchatIdleReaperService
    */
   async reap(): Promise<void> {
     try {
-      const graceMs = resolveWebchatIdleReapGraceMs();
+      const graceMs = resolveWebChatIdleReapGraceMs();
       const executionIds =
-        await this.tokenService.findIdleWebchatExecutionIds(graceMs);
+        await this.tokenService.findIdleWebChatExecutionIds(graceMs);
       if (executionIds.length === 0) return;
 
       let reaped = 0;
-      for (let i = 0; i < executionIds.length; i += REAP_CONCURRENCY) {
-        const chunk = executionIds.slice(i, i + REAP_CONCURRENCY);
-        const results = await Promise.allSettled(
-          chunk.map((id) => this.reapOne(id)),
-        );
-        results.forEach((r, idx) => {
-          if (r.status === 'fulfilled') {
-            if (r.value) reaped += 1;
-          } else {
-            this.logger.warn(
-              `webchat-idle reap 실패 (executionId=${chunk[idx]}) — fail-open: ${
-                r.reason instanceof Error ? r.reason.message : String(r.reason)
-              }`,
-            );
-          }
-        });
-      }
+      const results = await processInBatches(
+        executionIds,
+        REAP_CONCURRENCY,
+        (id) => this.reapOne(id),
+      );
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled') {
+          if (r.value) reaped += 1;
+        } else {
+          this.logger.warn(
+            `webchat-idle reap 실패 (executionId=${executionIds[idx]}) — fail-open: ${
+              r.reason instanceof Error ? r.reason.message : String(r.reason)
+            }`,
+          );
+        }
+      });
       this.logger.log(
         `webchat-idle reap: ${executionIds.length} candidate(s), ${reaped} cancelled`,
       );
@@ -119,7 +119,7 @@ export class WebchatIdleReaperService
    */
   private async reapOne(executionId: string): Promise<boolean> {
     const cancelled =
-      await this.executionEngineService.markWebchatIdleTimeout(executionId);
+      await this.executionEngineService.markWebChatIdleTimeout(executionId);
     if (cancelled) {
       // soft-terminal — 토큰 일괄 revoke(EIA-RL-06 재사용, idempotent).
       await this.tokenService.revokeAllForExecution(executionId);

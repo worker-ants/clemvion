@@ -453,7 +453,7 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
     });
   });
 
-  describe('findIdleWebchatExecutionIds — idle-wait 회수 대상 조회 [Spec EIA §3.4 EIA-RL-07 / §R19]', () => {
+  describe('findIdleWebChatExecutionIds — idle-wait 회수 대상 조회 [Spec EIA §3.4 EIA-RL-07 / §R19]', () => {
     function makeQB(rows: Array<{ executionId: string }>) {
       const qb: Record<string, Mock> = {};
       [
@@ -494,14 +494,14 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
         redis as never,
         undefined as never,
       );
-      expect(await svc.findIdleWebchatExecutionIds(1000)).toEqual([]);
+      expect(await svc.findIdleWebChatExecutionIds(1000)).toEqual([]);
     });
 
     it('waiting + auth_config_id IS NULL + MAX(exp_at)<threshold 로 executionId 조회', async () => {
       const qb = makeQB([{ executionId: 'e1' }, { executionId: 'e2' }]);
       const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
 
-      const ids = await makeService(repo).findIdleWebchatExecutionIds(3600000);
+      const ids = await makeService(repo).findIdleWebChatExecutionIds(3600000);
 
       expect(ids).toEqual(['e1', 'e2']);
       // 조건 3종 배선 확인.
@@ -521,14 +521,14 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
     it('batchLimit 상한 — 초과분은 1000 으로 clamp', async () => {
       const qb = makeQB([]);
       const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
-      await makeService(repo).findIdleWebchatExecutionIds(1000, 99999);
+      await makeService(repo).findIdleWebChatExecutionIds(1000, 99999);
       expect(qb.limit).toHaveBeenCalledWith(1000);
     });
 
     it('batchLimit 하한 — 0/음수는 1 로 clamp (sibling reconcile 과 동형, review testing)', async () => {
       const qb = makeQB([]);
       const repo = { createQueryBuilder: jest.fn().mockReturnValue(qb) };
-      await makeService(repo).findIdleWebchatExecutionIds(3600000, 0);
+      await makeService(repo).findIdleWebChatExecutionIds(3600000, 0);
       expect(qb.limit).toHaveBeenCalledWith(1);
     });
   });

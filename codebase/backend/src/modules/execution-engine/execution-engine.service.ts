@@ -938,26 +938,51 @@ export class ExecutionEngineService
       // park 시 이미 해제됐을 수 있는 in-memory 잔여(context/resolver/llm 캐시)를
       // 멱등 정리한다.
       this.finalizeRehydrationCleanup(executionId);
-      try {
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_CANCELLED,
-          {
-            status: ExecutionStatus.CANCELLED,
-            result: { cancelledBy: 'user' },
-          },
-        );
-      } catch (emitErr) {
-        this.logger.warn(
-          `cancelParkedExecution: EXECUTION_CANCELLED emit 실패 (cancel 은 DB 반영됨) — execution=${executionId}: ${
-            emitErr instanceof Error ? emitErr.message : String(emitErr)
-          }`,
-        );
-      }
+      await this.emitCancellationEvent(executionId, {
+        cancelledBy: 'user',
+        logContext: 'cancelParkedExecution',
+      });
     } catch (err) {
       this.logger.error(
         `cancelParkedExecution 실패 — execution=${executionId}: ${
           err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * `EXECUTION_CANCELLED` 를 emit 하되 emit 실패는 warn 으로 흡수한다 — cancel 은 이미 DB 에
+   * commit 됐으므로 emit(WS/채널 통지) 실패가 취소 자체를 무효화해선 안 된다. 조건부 cancel
+   * 4경로(`cancelParkedExecution`·`markExecutionCancelled`·`markQueueWaitTimeout`·
+   * `markWebChatIdleTimeout`)가 공유하던 `try{emit}catch{warn}` 보일러플레이트를 단일화한다.
+   * `error` 는 있을 때만 payload 에 실어 기존 방출 형태를 그대로 보존한다(예: `cancelParked` 는
+   * error 없이 방출). `cancelledBy` 는 닫힌 3값 union(§6.5)에 고정.
+   *
+   * @param logContext 실패 로그 prefix — 호출 메서드 식별용.
+   */
+  private async emitCancellationEvent(
+    executionId: string,
+    opts: {
+      cancelledBy: 'user' | 'system' | 'timeout';
+      error?: { code: string; message: string };
+      logContext: string;
+    },
+  ): Promise<void> {
+    try {
+      await this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_CANCELLED,
+        {
+          status: ExecutionStatus.CANCELLED,
+          result: { cancelledBy: opts.cancelledBy },
+          ...(opts.error ? { error: opts.error } : {}),
+        },
+      );
+    } catch (emitErr) {
+      this.logger.warn(
+        `${opts.logContext}: EXECUTION_CANCELLED emit 실패 (cancel 은 DB 반영됨) — execution=${executionId}: ${
+          emitErr instanceof Error ? emitErr.message : String(emitErr)
         }`,
       );
     }
@@ -974,11 +999,11 @@ export class ExecutionEngineService
    * - **멱등·race-safe**: `status = WAITING_FOR_INPUT` 조건부 UPDATE — 재개로 이미 RUNNING/terminal
    *   이면 affected=0 → `false` 반환(중복 emit 회피). reaper 는 `true` 일 때만 토큰 revoke.
    * - **best-effort**: emit 실패는 warn(취소는 DB 반영됨). DB 오류는 내부 흡수(reaper 를 죽이지 않음).
-   * - **public**: EIA reaper(`WebchatIdleReaperService`)가 다른 모듈에서 호출한다.
+   * - **public**: EIA reaper(`WebChatIdleReaperService`)가 다른 모듈에서 호출한다.
    *
    * @returns 실제로 이 호출이 `waiting_for_input → cancelled` 전이를 일으켰으면 `true`.
    */
-  async markWebchatIdleTimeout(executionId: string): Promise<boolean> {
+  async markWebChatIdleTimeout(executionId: string): Promise<boolean> {
     const code = 'WEBCHAT_IDLE_TIMEOUT';
     const message =
       'Execution cancelled: public web-chat widget idle-wait timeout';
@@ -1026,29 +1051,16 @@ export class ExecutionEngineService
       // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관(둘 다 cancelled).
       // park 시 잔여 in-memory(context/resolver/llm 캐시) 멱등 정리.
       this.finalizeRehydrationCleanup(executionId);
-      try {
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_CANCELLED,
-          {
-            status: ExecutionStatus.CANCELLED,
-            result: { cancelledBy: 'timeout' },
-            error: { code, message },
-          },
-        );
-      } catch (emitErr) {
-        this.logger.warn(
-          `markWebchatIdleTimeout: EXECUTION_CANCELLED emit 실패 (cancel 은 DB ` +
-            `반영됨) — execution=${executionId}: ${
-              emitErr instanceof Error ? emitErr.message : String(emitErr)
-            }`,
-        );
-      }
+      await this.emitCancellationEvent(executionId, {
+        cancelledBy: 'timeout',
+        error: { code, message },
+        logContext: 'markWebChatIdleTimeout',
+      });
       this.eventEmitter.releaseExecutionRouting(executionId);
       return true;
     } catch (err) {
       this.logger.error(
-        `markWebchatIdleTimeout 실패 — execution=${executionId}: ${
+        `markWebChatIdleTimeout 실패 — execution=${executionId}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -2677,26 +2689,13 @@ export class ExecutionEngineService
       // 가 0 (이미 다른 worker 가 처리) 이면 중복 emit 회피.
       if ((result.affected ?? 0) > 0) {
         // emit 은 DB cancel 성공과 독립 — emit 실패가 cancel 자체를 무효화하지
-        // 않도록 별도 try/catch 로 격리해 오해 소지 있는 "markExecutionCancelled
+        // 않도록 헬퍼가 별도 try/catch 로 격리해 오해 소지 있는 "markExecutionCancelled
         // 실패" 로그를 방지한다 (cancel 은 이미 commit 됨).
-        try {
-          await this.eventEmitter.emitExecution(
-            executionId,
-            ExecutionEventType.EXECUTION_CANCELLED,
-            {
-              status: ExecutionStatus.CANCELLED,
-              result: { cancelledBy: 'system' },
-              error: { code, message },
-            },
-          );
-        } catch (emitErr) {
-          this.logger.warn(
-            `markExecutionCancelled(${code}): EXECUTION_CANCELLED emit 실패 ` +
-              `(cancel 은 DB 에 반영됨) — execution=${executionId}: ${
-                emitErr instanceof Error ? emitErr.message : String(emitErr)
-              }`,
-          );
-        }
+        await this.emitCancellationEvent(executionId, {
+          cancelledBy: 'system',
+          error: { code, message },
+          logContext: `markExecutionCancelled(${code})`,
+        });
       }
     } catch (err) {
       this.logger.error(
@@ -2729,24 +2728,11 @@ export class ExecutionEngineService
         .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
         .execute();
       if ((result.affected ?? 0) > 0) {
-        try {
-          await this.eventEmitter.emitExecution(
-            executionId,
-            ExecutionEventType.EXECUTION_CANCELLED,
-            {
-              status: ExecutionStatus.CANCELLED,
-              result: { cancelledBy: 'timeout' },
-              error: { code, message },
-            },
-          );
-        } catch (emitErr) {
-          this.logger.warn(
-            `markQueueWaitTimeout: EXECUTION_CANCELLED emit 실패 (cancel 은 ` +
-              `DB 반영됨) — execution=${executionId}: ${
-                emitErr instanceof Error ? emitErr.message : String(emitErr)
-              }`,
-          );
-        }
+        await this.emitCancellationEvent(executionId, {
+          cancelledBy: 'timeout',
+          error: { code, message },
+          logContext: 'markQueueWaitTimeout',
+        });
         this.eventEmitter.releaseExecutionRouting(executionId);
       }
     } catch (err) {
