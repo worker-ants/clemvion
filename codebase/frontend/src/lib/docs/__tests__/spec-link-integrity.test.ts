@@ -16,9 +16,10 @@ import {
 //   - ANCHOR: the `#fragment` does not match any heading slug in the target.
 // Two scopes:
 //   1. All `spec/**.md` narrative docs (EXCEPT generated `*-api-catalog/`).
-//   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,channel-web-chat,
-//      packages}` — but only for links that target a `spec/**.md` file (JSDoc
-//      spec cross-refs, whose hand-counted `../` depth drifts silently).
+//   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,frontend,
+//      channel-web-chat,packages}` — but only for links that target a
+//      `spec/**.md` file (JSDoc spec cross-refs, whose hand-counted `../`
+//      depth drifts silently).
 // Plan-side link hygiene is handled by plan-coherence-checker, not this gate.
 // SoT: spec/conventions/spec-impl-evidence.md §4.2.
 
