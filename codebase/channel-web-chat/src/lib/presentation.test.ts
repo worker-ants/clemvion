@@ -275,6 +275,44 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     expect(tb.rows).toEqual([{ n: "a" }]);
     expect(tb.truncated).toBe(true);
   });
+
+  // §2/R8 — 흡수된 rowsTotalCount 를 totalCount 로 투영(dead field 해소, 잘림 배너 총 개수 노출).
+  it("toTable — top-level truncation.rowsTotalCount 를 totalCount 로 투영", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true, rowsTotalCount: 2000 },
+    });
+    expect(tb.truncated).toBe(true);
+    expect(tb.totalCount).toBe(2000);
+  });
+
+  it("toTable — 노드 경로 output.rowsTotalCount 도 totalCount 로 투영", () => {
+    const tb = toTable({
+      config: {},
+      output: { rows: [{ n: "a" }], rowsTruncated: true, rowsTotalCount: 42 },
+    });
+    expect(tb.totalCount).toBe(42);
+  });
+
+  it("toTable — rowsTotalCount 부재/비-number 면 totalCount=undefined", () => {
+    const noCount = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true },
+    });
+    expect(noCount.totalCount).toBeUndefined();
+    // 문자열 등 이형은 무시(투영 안 함).
+    const badCount = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true, rowsTotalCount: "2000" },
+    });
+    expect(badCount.totalCount).toBeUndefined();
+  });
 });
 
 describe("converters — {config,output} envelope 회귀(하위 호환)", () => {

@@ -39,6 +39,12 @@ export interface TableData {
   rows: Array<Record<string, unknown>>;
   buttons: PresentationButton[];
   truncated: boolean;
+  /**
+   * 잘리기 전 총 행 개수(1MB cap, [공통 §10.4] `output.rowsTotalCount`). `truncated=true` 일 때만
+   * 의미 있으며, 잘림 배너에 "총 N개 중 일부만" 으로 노출한다(메인 편집기 run-results parity).
+   * 백엔드가 실어 보내지 않으면 `undefined` → 배너는 개수 없는 폴백 문구로 표시.
+   */
+  totalCount?: number;
 }
 
 export interface ChartPoint {
@@ -223,6 +229,10 @@ export function toTable(p: unknown): TableData {
     rows,
     buttons: asButtons(config.buttons),
     truncated: output.rowsTruncated === true,
+    // 잘리기 전 총 행 개수 — truncationMeta 가 이미 흡수한 output.rowsTotalCount(§10.4).
+    // number 가 아니면(부재/이형) undefined → 배너가 개수 없는 폴백으로 표시.
+    totalCount:
+      typeof output.rowsTotalCount === "number" ? output.rowsTotalCount : undefined,
   };
 }
 
