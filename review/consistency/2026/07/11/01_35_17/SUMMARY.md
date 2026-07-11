@@ -3,6 +3,8 @@
 대상: EIA/WS continuation 명령 ↔ 대기 노드 표면 매트릭스 가드 구현
 (spec/5-system/14-external-interaction-api.md 영역 + 코드 diff vs `52f46f95f`)
 
+BLOCK: NO
+
 ## BLOCK 결정: **NO**
 
 5개 checker 모두 CRITICAL 0. 병합/push 차단 사유 없음. 반복 검출된 WARNING 은 단일

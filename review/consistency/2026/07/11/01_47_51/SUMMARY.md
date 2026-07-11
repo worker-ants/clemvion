@@ -3,6 +3,8 @@
 대상: `plan/in-progress/spec-draft-waiting-surface-guard.md` — 대기 표면 ↔ 명령 매트릭스
 가드의 spec 본문 역류 반영 (5개 위치).
 
+BLOCK: NO
+
 ## BLOCK 결정: **NO** (반영 진행)
 
 spec 본문 내용에 CRITICAL 없음. convention_compliance 가 올린 CRITICAL 1건은 **draft plan
