@@ -91,6 +91,10 @@ function installControllableSse() {
     return Promise.reject(new Error(`unexpected fetch ${u}`));
   });
   vi.stubGlobal("fetch", fetchMock);
+  // EventSource stub: constructor 가 ControllableEventSource 인스턴스를 반환해 테스트가
+  // latest.emit() 으로 SSE 이벤트를 주입한다. anonymous class constructor 가 자신과 다른
+  // 인스턴스를 반환하면 TS 가 instance type 불일치(TS2409)를 내므로 `as unknown as this` 로
+  // 우회하고, stubGlobal 인자 타입은 `typeof EventSource` 로 캐스팅한다. 런타임 동작 불변.
   vi.stubGlobal("EventSource", class {
     constructor() {
       latest = new ControllableEventSource();

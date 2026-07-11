@@ -140,7 +140,7 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     expect(c.items.length).toBe(2);
     expect(c.items[0].title).toBe("샘플상품 3");
     // item.buttons(구매하기) 먼저, itemButtons(자세히 보기) 뒤 — 병합 순서 고정.
-    expect(c.items[0]!.buttons!.map((b) => b.label)).toEqual(["구매하기", "자세히 보기"]);
+    expect(c.items[0].buttons!.map((b) => b.label)).toEqual(["구매하기", "자세히 보기"]);
     // global buttons
     expect(c.buttons.map((b) => b.label)).toEqual(["전체 상품 보기"]);
   });
@@ -288,7 +288,7 @@ describe("converters — {config,output} envelope 회귀(하위 호환)", () => 
       config: { layout: "card", itemButtons: [{ id: "d", label: "자세히", type: "port" }] },
       output: { items: [{ title: "X", buttons: [{ id: "b", label: "사기", type: "port" }] }] },
     });
-    expect(c.items[0]!.buttons!.map((b) => b.label)).toEqual(["사기", "자세히"]);
+    expect(c.items[0].buttons!.map((b) => b.label)).toEqual(["사기", "자세히"]);
   });
 });
 
