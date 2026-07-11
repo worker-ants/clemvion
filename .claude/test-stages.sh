@@ -43,6 +43,7 @@ cmd_build() {
   pnpm --filter frontend build && \
   pnpm --filter @workflow/web-chat build && \
   pnpm --filter channel-web-chat build && \
+  pnpm --filter channel-web-chat typecheck && \
   pnpm --filter @workflow/sdk build && \
   _cmd_build_docker_images
 }

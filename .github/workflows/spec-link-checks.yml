@@ -1,0 +1,60 @@
+# codebase 소스(`.ts`/`.tsx`)의 JSDoc·주석 안 spec 상대링크 부패를
+# spec-link-integrity 가드로 검증한다.
+#
+# 도입 배경: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 의 vitest 로 도는데,
+# `frontend-checks.yml` 은 `codebase/frontend/**`·`codebase/packages/**` 만 trigger 한다.
+# 그런데 이 가드가 스캔하는 영역은 `codebase/{backend,frontend,channel-web-chat,packages}`
+# 전부다(spec-impl-evidence.md §4.2). 즉 backend/channel-web-chat 소스만 바꾼 PR 은
+# 가드가 스캔하는 바로 그 영역인데도 CI 에서 가드가 안 돌던 갭이 있었다(PR #912 후속).
+#
+# frontend-checks 는 `next build`(무거움)까지 도므로 backend 변경마다 태우면 낭비다.
+# 본 workflow 는 가드 vitest 하나만 도는 lightweight 대체 트리거다.
+# (harness `unit` stage 는 무조건 frontend test 를 돌리므로 로컬/harness 는 이미 커버 —
+#  본 workflow 는 CI PR-trigger 갭만 메운다.)
+
+name: spec-link-checks
+
+on:
+  pull_request:
+    paths:
+      - 'codebase/backend/**'
+      - 'codebase/frontend/**'
+      - 'codebase/channel-web-chat/**'
+      - 'codebase/packages/**'
+      - 'spec/**'
+      - '.github/workflows/spec-link-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'codebase/backend/**'
+      - 'codebase/frontend/**'
+      - 'codebase/channel-web-chat/**'
+      - 'codebase/packages/**'
+      - 'spec/**'
+
+concurrency:
+  group: spec-link-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spec-link-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      # 가드는 frontend 패키지의 vitest 로 돈다. 스캔 대상(backend 등) 소스는
+      # checkout 으로 전체 트리가 존재하므로 fs 스캔에 문제 없다.
+      - name: Install frontend workspace
+        run: pnpm install --frozen-lockfile --filter "frontend..."
+
+      - name: spec-link-integrity guard
+        run: pnpm --filter frontend test src/lib/docs/__tests__/spec-link-integrity.test.ts
