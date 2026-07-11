@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-11T21:25:02.944860",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-graph-rag-kb-token-stats-wontdo.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
