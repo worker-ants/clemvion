@@ -4,6 +4,9 @@ import type {
   WaitingForInputEvent,
   AiMessageEvent,
   ExecutionMessageEvent,
+  WaitingContext,
+  ButtonsContext,
+  NodeOutputContext,
 } from "./eia-types";
 
 describe("parseWaitingForInput — SSE wire 형태 매핑", () => {
@@ -195,5 +198,66 @@ describe("parseMessage — execution.message(presentation 노드 자동 진행) 
       config: { chartType: "bar" },
       output: { data: [{ x: "1월", y: 10 }, { x: "2월", y: 20 }] },
     });
+  });
+});
+
+describe("WaitingContext (REST getStatus.context) — 닫힌 2-variant union", () => {
+  // 이 케이스들의 핵심은 런타임 값이 아니라 **캐스트 없이 컴파일된다는 것**이다:
+  // WaitingContext 가 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일 형식,
+  // EIA §5.3)함을 build 로 강제한다 — 타입이 좁혀져 wire 를 못 받게 되면 tsc 가 red.
+  it("ButtonsContext 는 `as` 없이 parseWaitingForInput 에 넘어간다", () => {
+    const ctx: ButtonsContext = {
+      interactionType: "buttons",
+      waitingNodeId: "n1",
+      buttonConfig: { buttons: [{ id: "b1", label: "문의" }], nodeOutput: {} },
+    };
+    const r = parseWaitingForInput(ctx);
+    expect(r.type).toBe("buttons");
+    expect(r.nodeId).toBe("n1");
+  });
+
+  it("NodeOutputContext(form) — nodeOutput.formConfig 파싱", () => {
+    const ctx: NodeOutputContext = {
+      interactionType: "form",
+      waitingNodeId: "n2",
+      nodeOutput: { formConfig: { fields: [{ name: "email" }] } },
+    };
+    const r = parseWaitingForInput(ctx);
+    expect(r.type).toBe("form");
+    expect(r.config).toEqual({ fields: [{ name: "email" }] });
+  });
+
+  it("conversationThread 는 present-when-available — 부재 시 키 생략(`| null` 아님)", () => {
+    const ctx: NodeOutputContext = {
+      interactionType: "ai_conversation",
+      waitingNodeId: "n3",
+      nodeOutput: { conversationConfig: { message: "hi" } },
+      // conversationThread 키 자체가 없다.
+    };
+    expect("conversationThread" in ctx).toBe(false);
+    expect(parseWaitingForInput(ctx).conversationThread).toBeUndefined();
+  });
+
+  it("thread 있을 땐 그대로 전달", () => {
+    const ctx: ButtonsContext = {
+      interactionType: "buttons",
+      waitingNodeId: "n4",
+      conversationThread: { turns: [{ source: "ai_user", text: "안녕" }] },
+      buttonConfig: { buttons: [] },
+    };
+    expect(parseWaitingForInput(ctx).conversationThread?.turns[0]?.text).toBe("안녕");
+  });
+
+  it("union 은 키 존재로 분기 — interactionType 은 판별자가 아님(회귀 가드)", () => {
+    // buttons 인데 buttonConfig 복원 실패 → NodeOutputContext(nodeOutput)로 fallthrough.
+    // 이 값이 컴파일된다는 것 자체가 "interactionType=buttons ⇏ ButtonsContext" 를 고정한다
+    // (discriminator 였다면 nodeOutput 없다고 tsc red).
+    const fallthrough: WaitingContext = {
+      interactionType: "buttons",
+      waitingNodeId: "n5",
+      nodeOutput: { formConfig: {} },
+    };
+    expect("buttonConfig" in fallthrough).toBe(false);
+    expect("nodeOutput" in fallthrough).toBe(true);
   });
 });

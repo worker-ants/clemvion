@@ -1,4 +1,5 @@
 import { ClemvionClient, ClemvionApiError } from './client';
+import type { WaitingContext, ButtonsContext, NodeOutputContext } from './client';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -6,6 +7,38 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+describe('ExecutionStatus.context — 닫힌 2-variant union (타입 가드)', () => {
+  // SDK 는 context 를 소비하지 않는다(getStatus 반환만). 이 케이스들은 값이 **캐스트 없이
+  // 컴파일된다는 것**으로 타입 계약을 고정한다 — union 이 좁혀지거나 discriminator 로 바뀌면 tsc red.
+  it('키 존재로 분기 — buttons 도 nodeOutput 변형으로 fallthrough 타입된다', () => {
+    const buttons: ButtonsContext = {
+      interactionType: 'buttons',
+      waitingNodeId: 'n1',
+      buttonConfig: { buttons: [], nodeOutput: {} },
+    };
+    // interactionType='buttons' 인데 nodeOutput — discriminator 였다면 tsc red.
+    const fallthrough: NodeOutputContext = {
+      interactionType: 'buttons',
+      waitingNodeId: 'n2',
+      nodeOutput: {},
+    };
+    const ctxs: WaitingContext[] = [buttons, fallthrough];
+    for (const c of ctxs) {
+      if ('buttonConfig' in c) expect(c.buttonConfig).toBeDefined();
+      else expect(c.nodeOutput).toBeDefined();
+    }
+  });
+
+  it('conversationThread 부재 = 키 생략(`| null` 아님)', () => {
+    const c: NodeOutputContext = {
+      interactionType: 'ai_conversation',
+      waitingNodeId: 'n',
+      nodeOutput: { conversationConfig: {} },
+    };
+    expect('conversationThread' in c).toBe(false);
+  });
+});
 
 describe('ClemvionClient.triggerWebhook', () => {
   it('성공 — { data: ... } 래퍼 unwrap', async () => {
