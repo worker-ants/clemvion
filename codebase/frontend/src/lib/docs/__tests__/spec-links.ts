@@ -158,16 +158,40 @@ export interface LinkViolation {
   target: string;
 }
 
+interface LinkScanOptions {
+  /**
+   * Validate pure same-file `#anchor` links against the file's own headings.
+   * Spec markdown docs self-reference their own headings; code sources have no
+   * headings, so their same-file anchors are skipped.
+   */
+  checkSelfAnchors: boolean;
+  /**
+   * Restrict path-target links to those whose path part (sans `#fragment`)
+   * matches this predicate. Omit to check every in-repo relative link.
+   */
+  targetFilter?: (pathPart: string) => boolean;
+}
+
 /**
- * Validate every in-repo markdown link in `spec/**`. Returns the list of
- * broken links (empty = healthy). A link is broken when its relative path
- * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
- * in the target markdown file (ANCHOR).
+ * Shared DEAD/ANCHOR scan over a set of files. A link is broken when its
+ * relative path target does not exist (DEAD) or its `#anchor` does not resolve
+ * to a heading slug in the target markdown file (ANCHOR). The two public entry
+ * points below differ only in the file set and the two `options` knobs.
  */
-export function findBrokenLinks(root: string): LinkViolation[] {
-  const files = collectSpecMarkdown(root);
+function findBrokenLinksInFiles(
+  files: SpecMdFile[],
+  options: LinkScanOptions,
+): LinkViolation[] {
   const violations: LinkViolation[] = [];
   const slugCache = new Map<string, Set<string>>();
+  const slugsFor = (absPath: string): Set<string> => {
+    let slugs = slugCache.get(absPath);
+    if (!slugs) {
+      slugs = headingSlugs(absPath);
+      slugCache.set(absPath, slugs);
+    }
+    return slugs;
+  };
 
   for (const f of files) {
     for (const link of extractLinks(f.absPath)) {
@@ -175,14 +199,10 @@ export function findBrokenLinks(root: string): LinkViolation[] {
 
       // Pure same-file anchor.
       if (target.startsWith("#")) {
+        if (!options.checkSelfAnchors) continue;
         const anchor = target.slice(1);
         if (anchor === "") continue;
-        let slugs = slugCache.get(f.absPath);
-        if (!slugs) {
-          slugs = headingSlugs(f.absPath);
-          slugCache.set(f.absPath, slugs);
-        }
-        if (!slugs.has(decodeAnchor(anchor))) {
+        if (!slugsFor(f.absPath).has(decodeAnchor(anchor))) {
           violations.push({
             kind: "ANCHOR",
             source: f.relPath,
@@ -199,6 +219,7 @@ export function findBrokenLinks(root: string): LinkViolation[] {
       const pathPart = hashIdx === -1 ? target : target.slice(0, hashIdx);
       const anchor = hashIdx === -1 ? null : target.slice(hashIdx + 1);
       if (pathPart === "") continue;
+      if (options.targetFilter && !options.targetFilter(pathPart)) continue;
 
       const resolved = path.resolve(path.dirname(f.absPath), pathPart);
       if (!fs.existsSync(resolved)) {
@@ -212,12 +233,7 @@ export function findBrokenLinks(root: string): LinkViolation[] {
       }
 
       if (anchor && resolved.toLowerCase().endsWith(".md")) {
-        let slugs = slugCache.get(resolved);
-        if (!slugs) {
-          slugs = headingSlugs(resolved);
-          slugCache.set(resolved, slugs);
-        }
-        if (!slugs.has(decodeAnchor(anchor))) {
+        if (!slugsFor(resolved).has(decodeAnchor(anchor))) {
           violations.push({
             kind: "ANCHOR",
             source: f.relPath,
@@ -233,6 +249,19 @@ export function findBrokenLinks(root: string): LinkViolation[] {
     (a, b) => a.source.localeCompare(b.source) || a.line - b.line,
   );
   return violations;
+}
+
+/**
+ * Validate every in-repo markdown link in `spec/**`. Returns the list of
+ * broken links (empty = healthy). A link is broken when its relative path
+ * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
+ * in the target markdown file (ANCHOR). Same-file `#anchor` links are checked
+ * against the file's own headings.
+ */
+export function findBrokenLinks(root: string): LinkViolation[] {
+  return findBrokenLinksInFiles(collectSpecMarkdown(root), {
+    checkSelfAnchors: true,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -288,56 +317,14 @@ export function collectCodebaseSources(root: string): SpecMdFile[] {
  * Validate every `spec/**.md`-targeting relative link in codebase `.ts`/`.tsx`
  * sources. DEAD = the resolved path does not exist (off-by-N `../`). ANCHOR =
  * the `#fragment` does not resolve to a heading in the target spec. Links that
- * don't target a spec markdown file are ignored.
+ * don't target a spec markdown file — and same-file `#anchor` links, since code
+ * has no headings — are ignored.
  */
 export function findBrokenSpecLinksInSources(root: string): LinkViolation[] {
-  const files = collectCodebaseSources(root);
-  const violations: LinkViolation[] = [];
-  const slugCache = new Map<string, Set<string>>();
-
-  for (const f of files) {
-    for (const link of extractLinks(f.absPath)) {
-      const { target } = link;
-      if (target.startsWith("#") || isExternal(target)) continue;
-
-      const hashIdx = target.indexOf("#");
-      const pathPart = hashIdx === -1 ? target : target.slice(0, hashIdx);
-      const anchor = hashIdx === -1 ? null : target.slice(hashIdx + 1);
-      if (pathPart === "" || !SPEC_MD_TARGET_RE.test(pathPart)) continue;
-
-      const resolved = path.resolve(path.dirname(f.absPath), pathPart);
-      if (!fs.existsSync(resolved)) {
-        violations.push({
-          kind: "DEAD",
-          source: f.relPath,
-          line: link.line,
-          target,
-        });
-        continue;
-      }
-
-      if (anchor) {
-        let slugs = slugCache.get(resolved);
-        if (!slugs) {
-          slugs = headingSlugs(resolved);
-          slugCache.set(resolved, slugs);
-        }
-        if (!slugs.has(decodeAnchor(anchor))) {
-          violations.push({
-            kind: "ANCHOR",
-            source: f.relPath,
-            line: link.line,
-            target,
-          });
-        }
-      }
-    }
-  }
-
-  violations.sort(
-    (a, b) => a.source.localeCompare(b.source) || a.line - b.line,
-  );
-  return violations;
+  return findBrokenLinksInFiles(collectCodebaseSources(root), {
+    checkSelfAnchors: false,
+    targetFilter: (pathPart) => SPEC_MD_TARGET_RE.test(pathPart),
+  });
 }
 
 // Anchors in these specs are written raw (CJK, not %-encoded); decode defensively
