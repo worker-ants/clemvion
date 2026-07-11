@@ -25,7 +25,7 @@ export const DEFAULT_WEBCHAT_IDLE_REAP_GRACE_MS = 60 * 60 * 1000; // 1시간
  * 와 동일 규약; `0`=즉시 reap 은 위험하므로 무제한/즉시 관용 없이 기본값으로 되돌린다).
  * 모듈/호출 시 평가 — 변경은 인스턴스 재시작 시 반영.
  */
-export function resolveWebchatIdleReapGraceMs(
+export function resolveWebChatIdleReapGraceMs(
   env: NodeJS.ProcessEnv = process.env,
 ): number {
   const raw = env.WEBCHAT_IDLE_REAP_GRACE_MS;

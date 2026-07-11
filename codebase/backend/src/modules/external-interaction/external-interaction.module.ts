@@ -24,7 +24,7 @@ import { InteractionStreamController } from './interaction-stream.controller';
 import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
 import { TerminalRevokeReconcilerService } from './terminal-revoke-reconciler.service';
 import { TERMINAL_REVOKE_RECONCILE_QUEUE } from './terminal-revoke-reconciler.types';
-import { WebchatIdleReaperService } from './webchat-idle-reaper.service';
+import { WebChatIdleReaperService } from './webchat-idle-reaper.service';
 import { WEBCHAT_IDLE_REAPER_QUEUE } from './webchat-idle-reaper.types';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 
@@ -39,7 +39,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
  *  - NotificationDispatcher + Processor + Fanout (R10 — facade, ExecutionEngine 외부)
  *  - SseAdapter (executionEvents$ 구독)
  *  - TerminalRevokeReconcilerService (EIA-RL-06 — terminal revoke at-least-once sweep, BullMQ repeatable)
- *  - WebchatIdleReaperService (EIA-RL-07 — 공개 위젯 idle-wait execution 회수, BullMQ repeatable)
+ *  - WebChatIdleReaperService (EIA-RL-07 — 공개 위젯 idle-wait execution 회수, BullMQ repeatable)
  *
  * 의존성: WebsocketModule (executionEvents$), TypeOrmModule.forFeature([Trigger, Execution,
  * ExecutionToken, NodeExecution]), ExecutionEngineModule + ExecutionsModule (interact dispatch),
@@ -75,7 +75,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     IdempotencyInterceptor,
     InteractionService,
     TerminalRevokeReconcilerService,
-    WebchatIdleReaperService,
+    WebChatIdleReaperService,
   ],
   exports: [
     InteractionTokenService,

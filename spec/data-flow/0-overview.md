@@ -202,7 +202,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 | `chat-channel-token-rotator` | `triggers.module.ts` | `ChatChannelTokenRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | chat_channel_token_v2 24h grace 정리 |
 | `notification-secret-rotator` | `triggers.module.ts` | `NotificationSecretRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | notification_secret_v2 24h grace 승격 |
 | `terminal-revoke-reconcile` | `external-interaction.module.ts` | `TerminalRevokeReconcilerService` (per-minute repeatable scheduler `* * * * *`) | 동일 service (`@Processor`, concurrency 1) | terminal execution 의 잔존 interaction token sweep revoke — at-least-once 보강 ([EIA §3.4 EIA-RL-06 / §9.3 R15](../5-system/14-external-interaction-api.md)) |
-| `webchat-idle-reaper` | `external-interaction.module.ts` | `WebchatIdleReaperService` (per-minute repeatable scheduler `* * * * *`) | 동일 service (`@Processor`, concurrency 1) | 공개 위젯(`auth_config_id IS NULL`) 익명 per_execution 토큰 전 만료 `waiting_for_input` execution 을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`) 회수 + 토큰 revoke — abandoned 세션 backstop ([EIA §3.4 EIA-RL-07 / §R19](../5-system/14-external-interaction-api.md)) |
+| `webchat-idle-reaper` | `external-interaction.module.ts` | `WebChatIdleReaperService` (per-minute repeatable scheduler `* * * * *`) | 동일 service (`@Processor`, concurrency 1) | 공개 위젯(`auth_config_id IS NULL`) 익명 per_execution 토큰 전 만료 `waiting_for_input` execution 을 `cancelled`(`WEBCHAT_IDLE_TIMEOUT`) 회수 + 토큰 revoke — abandoned 세션 backstop ([EIA §3.4 EIA-RL-07 / §R19](../5-system/14-external-interaction-api.md)) |
 
 > 큐가 늘어나면 본 표와 해당 도메인 spec 의 `외부 의존` 섹션 모두 갱신한다.
 > 코드 측 큐 모니터링 레지스트리 `codebase/backend/src/modules/system-status/system-status.constants.ts` 의

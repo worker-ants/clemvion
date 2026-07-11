@@ -2732,7 +2732,7 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
     });
 
-    // EIA-RL-07 markWebchatIdleTimeout — 공개 위젯 idle-wait 회수 (§R19).
+    // EIA-RL-07 markWebChatIdleTimeout — 공개 위젯 idle-wait 회수 (§R19).
     // Execution+NodeExecution UPDATE 는 dataSource.transaction 안에서 manager.createQueryBuilder
     // 로 순차 수행(review W1 원자화). tx 콜백을 in-memory 즉시 실행하고 qb 를 순서대로 반환한다.
     const makeIdleQb = (affected: number) => ({
@@ -2775,17 +2775,17 @@ describe('ExecutionEngineService', () => {
         )
         .mockImplementation(() => undefined);
 
-    it('markWebchatIdleTimeout — affected:0(재개로 이미 RUNNING/terminal) → false, emit 없음', async () => {
+    it('markWebChatIdleTimeout — affected:0(재개로 이미 RUNNING/terminal) → false, emit 없음', async () => {
       installIdleTx(0, 0);
       const emitSpy = jest.spyOn(idleEmitter(), 'emitExecution');
 
-      const result = await service.markWebchatIdleTimeout('exec-running');
+      const result = await service.markWebChatIdleTimeout('exec-running');
 
       expect(result).toBe(false);
       expect(emitSpy).not.toHaveBeenCalled();
     });
 
-    it('markWebchatIdleTimeout — affected:1 → true, WAITING 가드 UPDATE(error.code) + NodeExecution cancel + cancelledBy:timeout emit + routing release', async () => {
+    it('markWebChatIdleTimeout — affected:1 → true, WAITING 가드 UPDATE(error.code) + NodeExecution cancel + cancelledBy:timeout emit + routing release', async () => {
       const { execQb, nodeQb } = installIdleTx(1, 1);
       stubFinalize();
       const emitSpy = jest
@@ -2793,7 +2793,7 @@ describe('ExecutionEngineService', () => {
         .mockResolvedValue(undefined as never);
       const releaseSpy = jest.spyOn(idleEmitter(), 'releaseExecutionRouting');
 
-      const result = await service.markWebchatIdleTimeout('exec-idle');
+      const result = await service.markWebChatIdleTimeout('exec-idle');
 
       expect(result).toBe(true);
       // Execution UPDATE 의 set 에 WEBCHAT_IDLE_TIMEOUT error.code + WAITING 가드.
@@ -2821,7 +2821,7 @@ describe('ExecutionEngineService', () => {
     });
 
     // review W6/testing — 에러 경로.
-    it('markWebchatIdleTimeout — 트랜잭션 throw → false + emit 미발생 (DB 롤백, 다음 tick 재시도)', async () => {
+    it('markWebChatIdleTimeout — 트랜잭션 throw → false + emit 미발생 (DB 롤백, 다음 tick 재시도)', async () => {
       (
         service as unknown as { dataSource: { transaction: jest.Mock } }
       ).dataSource.transaction = jest
@@ -2829,13 +2829,13 @@ describe('ExecutionEngineService', () => {
         .mockRejectedValue(new Error('db down'));
       const emitSpy = jest.spyOn(idleEmitter(), 'emitExecution');
 
-      const result = await service.markWebchatIdleTimeout('exec-err');
+      const result = await service.markWebChatIdleTimeout('exec-err');
 
       expect(result).toBe(false);
       expect(emitSpy).not.toHaveBeenCalled();
     });
 
-    it('markWebchatIdleTimeout — emit reject 해도 cancel 은 durable → true 유지(로그만)', async () => {
+    it('markWebChatIdleTimeout — emit reject 해도 cancel 은 durable → true 유지(로그만)', async () => {
       installIdleTx(1, 1);
       stubFinalize();
       jest
@@ -2843,7 +2843,7 @@ describe('ExecutionEngineService', () => {
         .mockRejectedValue(new Error('ws disconnect') as never);
       const releaseSpy = jest.spyOn(idleEmitter(), 'releaseExecutionRouting');
 
-      const result = await service.markWebchatIdleTimeout('exec-emit-fail');
+      const result = await service.markWebChatIdleTimeout('exec-emit-fail');
 
       // 커밋 이후 emit 실패는 흡수 — cancel 은 이미 DB 반영이라 true, routing 은 여전히 release.
       expect(result).toBe(true);
@@ -2919,7 +2919,7 @@ describe('ExecutionEngineService', () => {
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
     });
 
-    it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit', async () => {
+    it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit (cancelledBy:user, error 키 부재)', async () => {
       mockExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockReturnValue(makeExecQb(1));
@@ -2927,6 +2927,11 @@ describe('ExecutionEngineService', () => {
       mockNodeExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockReturnValue(nodeQb);
+      // emitCancellationEvent 가 engine emitter 로 넘기는 원본 payload 를 직접 포착한다.
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest.spyOn(eventEmitter, 'emitExecution');
 
       await service.applyCancellation('exec-park-1');
 
@@ -2934,12 +2939,24 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
       // NodeExecution UPDATE 도 호출됐는지 확인 (W1/W6 핵심).
       expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
-      // EXECUTION_CANCELLED emit 확인.
+      // EXECUTION_CANCELLED emit 확인 (WS 하류).
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         'exec-park-1',
         'execution.cancelled',
         expect.objectContaining({ status: 'cancelled' }),
       );
+      // emitCancellationEvent 계약을 고정한다: cancelledBy='user' 리터럴 + **error 키 부재**
+      // (cancelParked 는 4경로 중 유일하게 error 없이 방출 — 헬퍼의 `...(error?{error}:{})`
+      // 생략 분기를 회귀로부터 보호). 정확 payload 매칭이라 error 키가 섞이면 실패한다.
+      expect(emitSpy).toHaveBeenCalledWith('exec-park-1', expect.anything(), {
+        status: 'cancelled',
+        result: { cancelledBy: 'user' },
+      });
+      const emittedPayload = emitSpy.mock.calls.find(
+        (c) => c[0] === 'exec-park-1',
+      )?.[2];
+      expect(emittedPayload).not.toHaveProperty('error');
+      emitSpy.mockRestore();
     });
 
     it('affected:0 — 이미 terminal / resume RUNNING → 멱등 no-op (emit 미호출)', async () => {
