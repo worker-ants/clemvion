@@ -292,8 +292,10 @@ job(매 refresh 재스케줄) 대안은 수백만 job 추적 비용 + park 의 n
 - [x] (7-a) data-flow/3-execution §3.1 전이 · (7-b) data-flow/15-external §2.2 job 카탈로그
 - [x] (8) backlog plan 갱신 (spec-sync-external-interaction-api-gaps: item A 완료화 + item B 등재)
 - [x] doc-guard(spec-link-integrity) 통과 (13/13) + mermaid-lint(data-flow/3-execution) 통과
-- [ ] commit + PR
-- [ ] **developer 위임**: 구현(위젯 single-flight/coalesce + 새 대화 cancel + 서버 idle-wait reaper) 은 별도 세션
+- [x] commit + PR (#916 머지)
+- [~] **developer 위임 (진행 중 — 이 plan 은 두 PR 완료까지 in-progress 유지)**:
+  - [x] **PR-1 (위젯)** single-flight coalesce + 확립세션 cancel — 브랜치 `claude/webchat-widget-coalesce-cancel`. impl-prep BLOCK:NO(`review/consistency/2026/07/11/17_54_21/`). TDD 25/25·lint·unit(33)·build·e2e(252) PASS. `/ai-review`(`review/code/2026/07/11/18_18_31/`) Critical 0·Warning 7 → W1(큐 누수 fix+non-vacuous 회귀)·W3·W5(브릿지)·W6(CHANGELOG)·W7 반영, W2 defer·W4 조치불요(RESOLUTION.md).
+  - [ ] **PR-2 (백엔드)** idle-wait reaper(EIA-RL-07) — 미착수(별 세션/PR)
 
 ## 구현 위임 메모 (developer 세션용)
 
