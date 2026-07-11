@@ -31,6 +31,8 @@ owner: developer
 - [ ] **spec-link 가드의 CI trigger 확대** (W-spec-link-ci) — 가드는 `codebase/frontend` vitest 에 있는데 `frontend-checks.yml` trigger paths 가 backend/channel-web-chat 를 제외한다 → PR 이 backend 링크만 바꾸면 CI 에서 이 가드가 안 돈다(harness `unit` 은 무조건 돌리므로 로컬/harness 는 커버, CI PR-trigger 만 갭). `.github/workflows/frontend-checks.yml` 의 paths 확대 또는 별도 workflow.
 - [ ] **`spec-links.ts` 중복 정리** — `collectCodebaseSources`/`findBrokenSpecLinksInSources` 가 기존 `collectSpecMarkdown`/`findBrokenLinks` 와 ~40줄 골격 중복. 파일-목록 파라미터화한 코어로 추출 여지(동작은 정확, 저우선).
 - [ ] **다른 내부 packages harness 배선** — `.claude/test-stages.sh` 가 `@workflow/sdk`(본 PR 에서 추가)·`@workflow/web-chat`·`channel-web-chat` 만 배선. `expression-engine`·`graph-warning-rules`·`node-summary`·`chat-channel-validation`·`web-chat-sdk` 는 미배선(기존 갭). 별도 검토.
+- [ ] **EventSource stub 공용 헬퍼 추출** — `use-widget-eager-start.test.ts` 4곳이 EventSource stub(`class {...} as unknown as typeof EventSource`)을 손복사한다. 기존 `installControllableSse()` 팩토리로 통합해 타입-우회 캐스트를 한 곳에 모을 것. (가드 실효성 PR ai-review 13_35_47 maintainability.)
+- [ ] **`packages/sdk` eslint 커버리지** — `@workflow/sdk` 에 `eslint.config.*` 가 없어 production 코드 lint 가 harness/CI 어디서도 안 돈다(web-chat-checks sdk-client job 도 lint 생략). eslint config 추가 + 배선. (가드 실효성 PR ai-review 13_58_56 INFO.)
 - [ ] **`spec-impl-evidence.md §4.2` 편집 절차 사후 확인** (planner/사용자) — 본 PR 에서 developer 가 가드 확장에 수반해 §4.2 SoT 표를 직접 편집했다(CLAUDE.md 상 `spec/` 는 planner 트랙). 정합화 성격이라 impl-done 이 사후 검증했으나, convention checker 가 "subagent write isolation 논리 혼동" 을 지적 — 절차상 planner 가 사후 리뷰하거나, 향후 유사 정합화의 경계를 명확히 할 것.
 
 ## 비고
