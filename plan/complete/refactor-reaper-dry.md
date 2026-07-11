@@ -69,4 +69,4 @@ PR #918(webchat idle reaper)·#916 후속. `/ai-review` 가 W3/W4 중복 + namin
 - [x] `/consistency-check --impl-done spec/5-system/14-external-interaction-api.md` — **BLOCK: NO**,
       5 checker 전원 NONE, Critical/Warning 0, INFO 5(전부 조치불요/저우선: WebChat casing 규약
       명문화·message? 완화·.util.ts 네이밍·타 plan stale 표기 — 본 refactor 스코프 밖 별건)
-- [ ] push + PR
+- [x] push + PR — https://github.com/worker-ants/clemvion/pull/920
