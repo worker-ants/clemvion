@@ -858,7 +858,10 @@ codebase/backend/src/modules/
     dto/
       interact.dto.ts
       cancel.dto.ts
-      responses.dto.ts
+      responses/                         # 응답 DTO (swagger §5-1: dto/responses/*-response.dto.ts)
+        execution-status-response.dto.ts # ExecutionStatusDto + context variant (CurrentNode/WaitingContextBase/Buttons/NodeOutput)
+        interact-ack-response.dto.ts     # InteractAckDto
+        refresh-token-response.dto.ts    # RefreshTokenResponseDto
       ...
   hooks/
     hooks.controller.ts                # 기존 — 응답에 interaction 필드 추가

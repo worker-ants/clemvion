@@ -15,7 +15,7 @@ import {
   CurrentNodeDto,
   ExecutionStatusDto,
   NodeOutputContextDto,
-} from './responses.dto';
+} from './execution-status-response.dto';
 
 /**
  * `ExecutionStatusDto` 의 OpenAPI 스키마 표현 회귀 가드.
@@ -23,9 +23,9 @@ import {
  * 실제 OpenAPI 문서를 생성해 검증한다 — 데코레이터 메타데이터만 읽으면 `@ApiExtraModels`
  * 누락으로 `$ref` 가 dangling 되는 경우를 놓친다 (variant 가 `components.schemas` 에 등재되지 않음).
  *
- * 계약 SoT: [Swagger 규약 §1-4](../../../../../../spec/conventions/swagger.md) ·
- * [API 규약 §5.4](../../../../../../spec/5-system/2-api-convention.md) ·
- * [EIA §5.3](../../../../../../spec/5-system/14-external-interaction-api.md)
+ * 계약 SoT: [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md) ·
+ * [API 규약 §5.4](../../../../../../../spec/5-system/2-api-convention.md) ·
+ * [EIA §5.3](../../../../../../../spec/5-system/14-external-interaction-api.md)
  */
 @Controller('stub')
 class StubController {

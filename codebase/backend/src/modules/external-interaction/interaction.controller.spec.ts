@@ -14,7 +14,7 @@ import { InteractionTokenService } from './interaction-token.service';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import type { InteractionRequestContext } from './interaction.guard';
-import type { InteractAckDto } from './dto/responses.dto';
+import type { InteractAckDto } from './dto/responses/interact-ack-response.dto';
 
 /**
  * NestJS 통합 spec — controller 의 routing / guard 바인딩 / service 위임을 검증.

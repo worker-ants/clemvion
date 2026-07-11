@@ -29,10 +29,10 @@ import { InteractionTokenService } from './interaction-token.service';
 import { InteractDto } from './dto/interact.dto';
 import {
   ExecutionStatusDto,
-  InteractAckDto,
-  RefreshTokenResponseDto,
   type WaitingContextBaseDto,
-} from './dto/responses.dto';
+} from './dto/responses/execution-status-response.dto';
+import { InteractAckDto } from './dto/responses/interact-ack-response.dto';
+import { RefreshTokenResponseDto } from './dto/responses/refresh-token-response.dto';
 import {
   ExternalInteractionRequestContext,
   InteractionRequestContext,
