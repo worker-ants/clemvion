@@ -405,10 +405,13 @@ export function useWidget() {
    * 새 대화(§R9) — 기존 세션/스트림 정리 후 새 execution 을 eager 시작(§R6).
    *
    * **A. single-flight coalesce**: `booting`(webhook POST in-flight·세션 미확립) 중 호출(주로 host
-   * `resetSession`)은 in-flight `start()` 에 **흡수**한다 — resetSessionRefs 가 start 가드를 재개방해
-   * **2번째 POST 를 발사하는 것을 막는다**(중복 webhook·첫 노드 부작용 2회 제거). booting 은 대화
-   * 미확립이라 흡수된 booting 세션이 곧 새 세션이다. 판정 = `startedRef.current && !sessionRef.current`
-   * (start 는 시작했으나 persist 전 — refs 라 stale closure 무관).
+   * `resetSession`)은 in-flight `start()` 에 **흡수**한다 — **조기 `return` 이 `resetSessionRefs()` 호출을
+   * 건너뜀**으로써, 그것이 `startedRef` 가드를 재개방해 2번째 `start()`/POST 를 발사하는 것을 막는다(중복
+   * webhook·첫 노드 부작용 2회 제거). booting 은 대화 미확립이라 흡수된 booting 세션이 곧 새 세션이다. 단
+   * "새 대화" 의도상 **이전 대기 큐만은 비운다**(`clearQueue`) — 흡수 세션의 첫 `awaiting_user_message`
+   * 로 직전 텍스트가 누수되는 것을 차단한다(I1 불변식 유지). 판정 = `startedRef.current && !sessionRef.current`
+   * (start 시작·persist 전 — refs 라 stale closure 무관; 현재 `WidgetPhase==='booting'` 과 동치이며
+   * R9-A 테스트가 booting phase 를 고정 검증한다 — phase 전이 추가/변경 시 이 동치를 재확인).
    *
    * **B-1. 확립 세션발 cancel**: 확립 세션(streaming/awaiting — `sessionRef.current` 존재)발이면 새 start
    * 전에 이전 execution 을 **best-effort 범용 `cancel`**(폐기이므로 graceful `end_conversation` 아님)로
@@ -416,8 +419,12 @@ export function useWidget() {
    * null) **이전에 캡처**하고, cancel 은 optimistic — 실패해도 로컬 재시작을 되돌리지 않는다(§R9-B-1).
    */
   const newChat = useCallback(() => {
-    // A. booting 중 = coalesce(in-flight start 에 흡수, 2번째 POST 미발사).
-    if (startedRef.current && !sessionRef.current) return;
+    // A. booting 중 = coalesce(in-flight start 에 흡수). resetSessionRefs 는 건너뛰되(start 가드 재개방·
+    //    in-flight 세션 파괴 방지), 이전 대기 큐는 비워 흡수 세션 텍스트 누수를 차단(I1, side_effect W1).
+    if (startedRef.current && !sessionRef.current) {
+      clearQueue();
+      return;
+    }
     // B-1. 확립 세션발이면 이전 execution 을 best-effort cancel — 정리 이전에 대상 세션/클라이언트 캡처.
     const prevSession = sessionRef.current;
     const client = clientRef.current;
@@ -434,7 +441,7 @@ export function useWidget() {
         );
     }
     void start();
-  }, [resetSessionRefs, start]);
+  }, [resetSessionRefs, start, clearQueue]);
   /**
    * 대화 종료(§3.1) — 헤더 "대화 종료" 컨트롤. UI 상 대화가 확립된(streaming/awaiting) 뒤에만 노출되므로
    * 호출 시 세션·토큰이 존재한다(§2 헤더 게이팅). 대기 중 AI 대화(`awaiting_user_message` + `ai_conversation`,

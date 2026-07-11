@@ -127,6 +127,18 @@ function boot() {
   });
 }
 
+/** host → 위젯 `wc:command` postMessage 주입 — 실제 bridge.onCommand 경로 검증용(boot() 과 동형 origin 핀). */
+function sendHostCommand(action: string, extra?: Record<string, unknown>) {
+  act(() => {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: "http://host.test",
+        data: { type: "wc:command", payload: { action, ...extra } },
+      }),
+    );
+  });
+}
+
 function webhookPosts(fetchMock: ReturnType<typeof installFetch>) {
   return fetchMock.mock.calls.filter(
     (c) => String(c[0]).includes("/api/hooks/") && (c[1] as RequestInit | undefined)?.method === "POST",
@@ -417,6 +429,99 @@ describe("useWidget — eager 시작(§R6)", () => {
     // cancel 이 시도되고(실패해도) 새 POST 는 발사된다.
     await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
     await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(2));
+  });
+
+  // R9-A W1 — booting 중 큐잉된 텍스트는 coalesce(clearQueue)로 폐기되어 흡수 세션으로 누수되지 않는다(I1).
+  it("R9-A: booting 중 큐잉 텍스트는 coalesce 시 폐기(흡수 세션 누수 없음, I1)", async () => {
+    let resolveHook!: (v: Response) => void;
+    let latestEs: ControllableEventSource | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return new Promise<Response>((r) => {
+          resolveHook = r;
+        });
+      }
+      if (u.includes("/interact")) return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      return Promise.reject(new Error(`unexpected fetch ${u}`)); // getStatus seed → soft-fail
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("EventSource", class {
+      constructor() {
+        latestEs = new ControllableEventSource();
+        return latestEs as unknown as this;
+      }
+      addEventListener() {}
+      close() {}
+    } as unknown as typeof EventSource);
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1)); // booting(미resolve)
+
+    // booting 중 텍스트 큐잉(아직 미발사 — 큐에만).
+    act(() => result.current.actions.submitMessage("누수되면 안 되는 텍스트"));
+    expect(interactCalls(fetchMock).length).toBe(0);
+
+    // booting 중 newChat → coalesce: 2번째 POST 없음 + 큐 폐기.
+    act(() => result.current.actions.newChat());
+    expect(webhookPosts(fetchMock).length).toBe(1);
+
+    // 흡수된 booting 세션 확립.
+    await act(async () => {
+      resolveHook({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          data: {
+            executionId: "e1",
+            status: "pending",
+            interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+          },
+        }),
+      } as Response);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
+    await waitFor(() => expect(latestEs).not.toBeNull());
+
+    // 첫 ai_conversation(텍스트 표면) 도달 → 큐가 남아있었다면 여기서 submit_message flush.
+    act(() => {
+      latestEs?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n1", conversationThread: [] });
+    });
+    await waitFor(() => expect(result.current.state.pending?.type).toBe("ai_conversation"));
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+
+    // coalesce 가 큐를 비웠으므로 이전 텍스트의 submit_message flush 는 발생하지 않는다.
+    const submits = interactCalls(fetchMock).filter((c) => {
+      try {
+        return JSON.parse((c[1] as RequestInit).body as string).command === "submit_message";
+      } catch {
+        return false;
+      }
+    });
+    expect(submits.length).toBe(0);
+  });
+
+  // R9-B-1 W5 — 실제 host `wc:command {action:"resetSession"}` 브릿지 경로가 newChat 을 구동하는지
+  // (기존 R9 테스트는 actions.newChat() 직접 호출만 검증).
+  it("R9-B-1: host wc:command resetSession(브릿지 경로) → 확립세션 cancel + 새 POST", async () => {
+    const fetchMock = installFetch();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
+
+    // actions.newChat() 직접 호출이 아니라 실제 host postMessage → bridge.onCommand → newChat().
+    sendHostCommand("resetSession");
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1)); // 이전 세션 best-effort cancel
+    const body = JSON.parse((interactCalls(fetchMock)[0][1] as RequestInit).body as string);
+    expect(body).toMatchObject({ command: "cancel" });
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(2)); // 새 대화 POST
   });
 
   // W8 — webhook 500 실패 → ERROR → 재open 시 새 POST 발생(startedRef 복구).
