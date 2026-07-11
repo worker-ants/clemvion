@@ -24,6 +24,8 @@ import { InteractionStreamController } from './interaction-stream.controller';
 import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
 import { TerminalRevokeReconcilerService } from './terminal-revoke-reconciler.service';
 import { TERMINAL_REVOKE_RECONCILE_QUEUE } from './terminal-revoke-reconciler.types';
+import { WebchatIdleReaperService } from './webchat-idle-reaper.service';
+import { WEBCHAT_IDLE_REAPER_QUEUE } from './webchat-idle-reaper.types';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 /**
@@ -52,6 +54,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     ]),
     BullModule.registerQueue({ name: NOTIFICATION_WEBHOOK_QUEUE }),
     BullModule.registerQueue({ name: TERMINAL_REVOKE_RECONCILE_QUEUE }),
+    BullModule.registerQueue({ name: WEBCHAT_IDLE_REAPER_QUEUE }),
     WebsocketModule,
     forwardRef(() => ExecutionsModule),
     forwardRef(() => ExecutionEngineModule),
@@ -71,6 +74,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
     IdempotencyInterceptor,
     InteractionService,
     TerminalRevokeReconcilerService,
+    WebchatIdleReaperService,
   ],
   exports: [
     InteractionTokenService,

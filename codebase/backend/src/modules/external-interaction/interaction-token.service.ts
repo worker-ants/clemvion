@@ -13,6 +13,7 @@ import {
 } from 'jsonwebtoken';
 import { ExecutionToken } from './entities/execution-token.entity';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
+import { WEBCHAT_IDLE_REAP_BATCH_LIMIT } from './webchat-idle-reaper.types';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -415,6 +416,44 @@ export class InteractionTokenService {
       );
     }
     return { swept: rows.length, revoked };
+  }
+
+  /**
+   * [Spec EIA §3.4 EIA-RL-07 / §R19] 공개 위젯 idle-wait 회수 대상 execution 조회 — 익명
+   * (`trigger.auth_config_id IS NULL`) execution 중 `waiting_for_input` 이고 **발급된 모든
+   * interaction 토큰이 영구 만료**(`MAX(exp_at) < now - grace`)된 것.
+   *
+   * per_execution 접근만 `execution_token` row 를 남기므로(EIA-AU-04) row 존재 자체가 per_execution
+   * 증거 — 별도 토큰 family 필터 불요. `MAX(exp_at)`(가장 늦게 만료되는 토큰)마저 grace 이전이면
+   * 전량 만료 ⇔ refresh 불가 ⇔ un-continuable(§R19 판정 신호). reconcileTerminalRevocations 와
+   * **동일 QueryBuilder 패턴**이되 대상 상태(terminal→waiting)·조건(aggregate + trigger join)이 다르다.
+   *
+   * @returns 회수 대상 executionId 목록(batchLimit clamp). 호출자(reaper)가 engine cancel + token revoke 오케스트레이션.
+   */
+  async findIdleWebchatExecutionIds(
+    graceMs: number,
+    batchLimit = WEBCHAT_IDLE_REAP_BATCH_LIMIT,
+  ): Promise<string[]> {
+    if (!this.executionTokenRepository) return [];
+    const safeLimit = Math.min(
+      Math.max(1, Math.floor(batchLimit)),
+      RECONCILE_BATCH_MAX,
+    );
+    const threshold = new Date(Date.now() - Math.max(0, graceMs));
+    const rows = await this.executionTokenRepository
+      .createQueryBuilder('et')
+      .innerJoin('et.execution', 'e')
+      .innerJoin('e.trigger', 't')
+      .where('e.status = :waiting', {
+        waiting: ExecutionStatus.WAITING_FOR_INPUT,
+      })
+      .andWhere('t.authConfigId IS NULL')
+      .groupBy('et.executionId')
+      .having('MAX(et.expAt) < :threshold', { threshold })
+      .select('et.executionId', 'executionId')
+      .limit(safeLimit)
+      .getRawMany<{ executionId: string }>();
+    return rows.map((r) => r.executionId);
   }
 
   // ===========================================================
