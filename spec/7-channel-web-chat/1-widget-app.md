@@ -88,6 +88,8 @@ unread, 그리고 eager 시작(패널 open 시 워크플로우 시작, §R6)·C1
 | 토큰 만료/서버 타임아웃 | per_execution 만료(재로드 시 refresh 실패)→`401`; idle-wait backstop 회수(EIA-RL-07) 후 재로드 상태조회→`200 status:cancelled`. `410 Gone` 은 *명령*(interact/cancel) 응답 전용이라 상태조회엔 안 나타남(EIA §5.3). 재로드 상태 분기 SoT=[3-auth-session §3.1](./3-auth-session.md) | — | `[ended]` + "대화 종료, 새로 시작" 안내 |
 | 페이지 새로고침/이동 | 호스트 reload → iframe 재로드 | — | **(b) 복원**: `executionId`+단명 토큰을 iframe-origin **sessionStorage**(같은 탭 reload 는 유지·탭 종료 시 소거, [3-auth-session §R6](./3-auth-session.md)) 저장 → `GET /:id`(**`waiting_for_input` 상태면** durable `conversationThread` 동봉 — 그 경우 5분 SSE buffer 무관·서버 재시작 무관하게 전체 히스토리 복원, [EIA §5.3·§R17](../5-system/14-external-interaction-api.md); 단 thread 에 영속되지 않는 표시-전용 presentation *노드* 표시물은 예외 — §2) + SSE(`Last-Event-Id`) 재연결. 만료/410 이면 [ended] |
 
+> **구현 상태 — 서버측 idle-wait backstop 은 Planned**: 본 §3.1 표·§R6·§R7·§R9 가 참조하는 **EIA-RL-07 백엔드 idle-wait reaper**(익명 위젯 토큰 영구 만료 execution 회수)는 **아직 미구현(PR-2 대기)**이다([EIA §3.4 EIA-RL-07](../5-system/14-external-interaction-api.md#34-신뢰성일관성) 구현상태 마커). **PR-1(위젯)에서 구현된 것은 client 측 A(single-flight coalesce)·B-1(확립세션 best-effort cancel)뿐**이며, 위 backstop "회수한다" 서술은 그 Planned requirement 를 가리킨다 — PR-2 랜딩 시 확정. 현재 backstop 부재 구간에는 SSE terminal(5분 버퍼) 이벤트로만 종료가 감지된다.
+
 - proactive(봇 선발화)는 비목표. 단 진행 중 대화의 in-flight 이벤트는 위와 같이 캡처(unread).
 - 다중 세션(유저당 여러 대화) 목록은 비목표 — 식별(추후) + 유저별 execution 목록 API 신설 전제.
 
