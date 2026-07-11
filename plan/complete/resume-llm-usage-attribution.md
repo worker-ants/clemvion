@@ -5,6 +5,13 @@ started: 2026-07-09
 rebased: 2026-07-10 (onto origin/main = #877)
 owner: developer
 spec: spec/data-flow/7-llm-usage.md §1.3
+spec_impact:
+  - spec/data-flow/7-llm-usage.md
+  - spec/1-data-model.md
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/6-knowledge-base.md
+  - spec/data-flow/13-agent-memory.md
+completed: 2026-07-11
 ---
 
 # 멀티턴 resume 턴 llm_usage_log attribution (IE 오적재 + ai_agent 메인 chat)
@@ -50,7 +57,7 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 - [x] rebase 후 재검증: lint/unit/build/e2e 전부 PASS (e2e 247)
 - [x] rebase 후 /ai-review (genuine diff) — LOW, Critical 0 / WARNING 0 (`review/code/2026/07/10/01_46_28/`) + INFO 3건 fix + RESOLUTION.md
 - [x] rebase 후 /consistency-check --impl-done (genuine diff) — BLOCK:NO, Critical 0 (`review/consistency/2026/07/10/01_46_28/`)
-- [ ] PR (push + gh pr create)
+- [x] PR (push + gh pr create) — **#879 머지 완료**
 
 ## 잔여 follow-up (별도 project-planner 트랙, 본 PR 범위 밖 — 상세 인라인)
 
@@ -84,7 +91,14 @@ spec: spec/data-flow/7-llm-usage.md §1.3
 
 - [x] `ai-turn-executor.ts` `llmContext` 에 `LlmCallContext` 명시 타입 주석 추가(INFO#1) →
       **후속 plan `ai-usage-attribution-hardening.md` B1 로 처리(PR-1)**.
-- [ ] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
-      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정) → PR-3(B2) 예정.
-- [ ] IE `runTurnWithCollectionRetries` collection-retry 루프에 ai_agent tool-loop 와 대칭인
-      2번째 chat attribution 단언 테스트 추가(INFO#4) → PR-3(B3) 예정.
+- [x] Text Classifier(단발, resume 없음) 모호 서술을 `spec/5-system/4-execution-engine.md` §6.1 표 셀 +
+      `CHANGELOG.md` 항목에도 전파 정정(INFO#3 — §1.3 콜아웃은 이미 정정) → **PR-3(B2)=#907 완료** (§6.1 L713
+      "Text Classifier(단발 — resume 없음)는 첫 호출의 `context.nodeExecutionId` 만" 반영).
+- [x] IE `runTurnWithCollectionRetries` collection-retry 루프에 ai_agent tool-loop 와 대칭인
+      2번째 chat attribution 단언 테스트 추가(INFO#4) → **PR-3(B3)=#907 완료**
+      (`information-extractor.handler.spec.ts` `collection-retry loop passes attribution ... 2nd retry chat`).
+
+> **종결 (2026-07-11)**: 잔여 3항목이 전부 머지된 PR(#879 본 PR·#906 A-track·#907 B-track)로 소진됐다.
+> INFO#1(B1)은 `ai-usage-attribution-hardening`(#900). task_6da430a3(hydration 헬퍼)은 **won't-do** —
+> #907 B4(`narrowResumeState`)가 오탈자-안전을 이미 달성. 근거는 `spec/5-system/4-execution-engine.md`
+> §Rationale "기각된 대안 — 재개 식별 필드 hydration 전용 헬퍼"에 기록. → `plan/complete/` 이동.
