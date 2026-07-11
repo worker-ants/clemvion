@@ -184,7 +184,7 @@ export class ChatChannelConfigDto {
   botToken: string;
 
   /**
-   * 외부 입력 금지 — [Spec Chat Channel §5.4.1 single-path](../../../spec/5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
+   * 외부 입력 금지 — [Spec Chat Channel §5.4.1 single-path](../../../../../../spec/5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
    * 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 로만 가능.
    * PATCH body 또는 POST body 에 본 필드가 포함되면 400 VALIDATION_ERROR (details.field='botTokenRef').
    * 응답에는 strip — 사용자에게 노출되지 않고 `hasBotToken: boolean` derived 필드로만 존재 여부 알림.
