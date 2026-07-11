@@ -296,22 +296,40 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     expect(tb.totalCount).toBe(42);
   });
 
-  it("toTable — rowsTotalCount 부재/비-number 면 totalCount=undefined", () => {
-    const noCount = toTable({
+  it("toTable — rowsTotalCount 부재면 totalCount=undefined", () => {
+    const tb = toTable({
       type: "table",
       toolCallId: "t",
       payload: { rows: [{ n: "a" }] },
       truncation: { rowsTruncated: true },
     });
-    expect(noCount.totalCount).toBeUndefined();
-    // 문자열 등 이형은 무시(투영 안 함).
-    const badCount = toTable({
+    expect(tb.totalCount).toBeUndefined();
+  });
+
+  // 신뢰 못 할 total(이형/NaN/Infinity/음수)은 배너에 "총 NaN개…" 로 새지 않게 undefined 로 떨군다.
+  it.each([
+    ["문자열", "2000"],
+    ["NaN", NaN],
+    ["Infinity", Infinity],
+    ["음수", -5],
+  ])("toTable — rowsTotalCount 가 %s 이면 totalCount=undefined", (_label, bad) => {
+    const tb = toTable({
       type: "table",
       toolCallId: "t",
       payload: { rows: [{ n: "a" }] },
-      truncation: { rowsTruncated: true, rowsTotalCount: "2000" },
+      truncation: { rowsTruncated: true, rowsTotalCount: bad },
     });
-    expect(badCount.totalCount).toBeUndefined();
+    expect(tb.totalCount).toBeUndefined();
+  });
+
+  // truncated=false 여도 rowsTotalCount 는 투영(값 자체는 유효). 배너 노출 여부는 소비처의 truncated 가드가 결정.
+  it("toTable — truncated=false 여도 유효 rowsTotalCount 는 totalCount 로 투영", () => {
+    const tb = toTable({
+      config: {},
+      output: { rows: [{ n: "a" }], rowsTruncated: false, rowsTotalCount: 1 },
+    });
+    expect(tb.truncated).toBe(false);
+    expect(tb.totalCount).toBe(1);
   });
 });
 

@@ -62,8 +62,8 @@ Principle 6 위반). 본 PR 이 **바로 그 배너 라인**을 확장하므로 
 
 - `presentation.ts`: `TableData` 에 `totalCount?: number` 추가, `toTable` 이 `output.rowsTotalCount`
   (number)만 투영. (CarouselData 무변경 — 별건.)
-- `presentations.tsx` `TableView`: `truncated` 배너 문구를 `총 N개 중 일부만 표시됩니다.`(totalCount
-  있을 때) / 없으면 기존 `일부 행만 표시됩니다.` 폴백.
+- `presentations.tsx` `TableView`: `truncated` 배너 문구를 `총 N개 중 일부만 표시돼요.`(totalCount
+  있을 때) / `일부 행만 표시돼요.`(폴백, 기존 `…표시됩니다.` 를 같은 라인에서 해요체로 교정) — §문체 참조.
 - 테스트: `presentation.test.ts`(toTable totalCount 투영) · `presentations.test.tsx`(배너 총 개수 렌더).
 - **followups 갱신(plan_coherence WARNING)**: 구현 완료 후 `webchat-widget-presentation-followups.md`
   §미구현 항목 1 을 "table 부분 해소(본 PR #), carousel 잔여(item 2 병합/의존)"로 재기술한다 —

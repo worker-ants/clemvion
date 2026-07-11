@@ -224,15 +224,20 @@ export function toTable(p: unknown): TableData {
   const rows = asArray<Record<string, unknown>>(
     Array.isArray(output.rows) ? output.rows : config.rows,
   );
+  // 잘리기 전 총 행 개수 — truncationMeta 가 이미 흡수한 output.rowsTotalCount(§10.4).
+  // 유한한 비음수 정수만 채택: 부재/이형/NaN/Infinity/음수는 undefined → 배너가 개수 없는
+  // 폴백으로 표시(신뢰 못 할 total 로 "총 NaN개…" 같은 문구가 새지 않게).
+  const rawTotal = output.rowsTotalCount;
+  const totalCount =
+    typeof rawTotal === "number" && Number.isFinite(rawTotal) && rawTotal >= 0
+      ? rawTotal
+      : undefined;
   return {
     columns,
     rows,
     buttons: asButtons(config.buttons),
     truncated: output.rowsTruncated === true,
-    // 잘리기 전 총 행 개수 — truncationMeta 가 이미 흡수한 output.rowsTotalCount(§10.4).
-    // number 가 아니면(부재/이형) undefined → 배너가 개수 없는 폴백으로 표시.
-    totalCount:
-      typeof output.rowsTotalCount === "number" ? output.rowsTotalCount : undefined,
+    totalCount,
   };
 }
 
