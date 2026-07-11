@@ -401,10 +401,38 @@ export function useWidget() {
     startedRef.current = false;
     clearQueue();
   }, [teardownSession, clearQueue]);
-  /** 새 대화 — 기존 세션/스트림 정리 후 새 execution 을 eager 시작(§R6). */
+  /**
+   * 새 대화(§R9) — 기존 세션/스트림 정리 후 새 execution 을 eager 시작(§R6).
+   *
+   * **A. single-flight coalesce**: `booting`(webhook POST in-flight·세션 미확립) 중 호출(주로 host
+   * `resetSession`)은 in-flight `start()` 에 **흡수**한다 — resetSessionRefs 가 start 가드를 재개방해
+   * **2번째 POST 를 발사하는 것을 막는다**(중복 webhook·첫 노드 부작용 2회 제거). booting 은 대화
+   * 미확립이라 흡수된 booting 세션이 곧 새 세션이다. 판정 = `startedRef.current && !sessionRef.current`
+   * (start 는 시작했으나 persist 전 — refs 라 stale closure 무관).
+   *
+   * **B-1. 확립 세션발 cancel**: 확립 세션(streaming/awaiting — `sessionRef.current` 존재)발이면 새 start
+   * 전에 이전 execution 을 **best-effort 범용 `cancel`**(폐기이므로 graceful `end_conversation` 아님)로
+   * 종료해 서버 orphan 을 근원 제거한다. session/client 는 resetSessionRefs(SSE 선차단·gen 증가·session
+   * null) **이전에 캡처**하고, cancel 은 optimistic — 실패해도 로컬 재시작을 되돌리지 않는다(§R9-B-1).
+   */
   const newChat = useCallback(() => {
+    // A. booting 중 = coalesce(in-flight start 에 흡수, 2번째 POST 미발사).
+    if (startedRef.current && !sessionRef.current) return;
+    // B-1. 확립 세션발이면 이전 execution 을 best-effort cancel — 정리 이전에 대상 세션/클라이언트 캡처.
+    const prevSession = sessionRef.current;
+    const client = clientRef.current;
     resetSessionRefs();
     dispatch({ type: "NEW_CHAT" });
+    if (prevSession && client) {
+      void client
+        .interact(prevSession.endpoints, prevSession.token, { command: "cancel", reason: "user_new_chat" })
+        .catch((e) =>
+          console.warn(
+            "[widget] newChat cancel 명령 실패(로컬 재시작 진행):",
+            e instanceof Error ? e.message : String(e),
+          ),
+        );
+    }
     void start();
   }, [resetSessionRefs, start]);
   /**

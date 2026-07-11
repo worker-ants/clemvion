@@ -57,6 +57,11 @@ function installFetch(overrides?: { webhookStatus?: number }) {
         }),
       } as Response);
     }
+    // interact(제출/취소/종료 명령) → 202. call-count 는 응답 성패와 무관하므로 기존
+    // interactCalls().length 단언에 영향 없음(§R9 새 대화 cancel 검증용으로 처리).
+    if (u.includes("/interact")) {
+      return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+    }
     return Promise.reject(new Error(`unexpected fetch ${u}`));
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -295,6 +300,123 @@ describe("useWidget — eager 시작(§R6)", () => {
     await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
     // 3회째 POST 없음.
     expect(webhookPosts(fetchMock).length).toBe(2);
+  });
+
+  // R9-A — booting(webhook POST in-flight, 세션 미확립) 중 resetSession/newChat 은
+  // in-flight start() 에 coalesce 되어 2번째 POST 를 발사하지 않는다(중복 webhook·첫 노드 부작용 2회 제거).
+  it("R9-A: booting 중 newChat(=host resetSession) → coalesce(2번째 POST 미발사, 흡수)", async () => {
+    let resolveHook!: (v: Response) => void;
+    const hookResponse = () =>
+      ({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          data: {
+            executionId: "e1",
+            status: "pending",
+            interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+          },
+        }),
+      }) as Response;
+    // webhook POST 를 수동 resolve 까지 in-flight 로 유지해 booting 창을 연다.
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return new Promise<Response>((r) => {
+          resolveHook = r;
+        });
+      }
+      if (u.includes("/interact")) return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+
+    // open → start() → webhook POST in-flight(booting, 미resolve).
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
+    expect(result.current.state.phase).toBe("booting");
+
+    // booting 중 newChat(host resetSession 경로) → coalesce: 2번째 POST·interact 미발사.
+    act(() => result.current.actions.newChat());
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+    expect(webhookPosts(fetchMock).length).toBe(1); // 흡수 — 여전히 1
+    expect(interactCalls(fetchMock).length).toBe(0); // booting 엔 취소 대상 세션 없음
+    expect(result.current.state.phase).toBe("booting"); // 흡수돼 여전히 booting
+
+    // in-flight POST resolve → 흡수된 booting 이 정상 streaming 확립(추가 POST 없음).
+    await act(async () => {
+      resolveHook(hookResponse());
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
+    expect(webhookPosts(fetchMock).length).toBe(1);
+  });
+
+  // R9-B-1 — 확립 세션(streaming/awaiting)발 새 대화는 새 start 전에 이전 execution 을
+  // best-effort cancel(범용, graceful 아님)로 종료한다(서버 orphan 근원 제거).
+  it("R9-B-1: 확립 세션발 newChat → 이전 execution best-effort cancel + 새 POST", async () => {
+    const fetchMock = installFetch();
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+
+    // 첫 open → POST 1, 세션 e1 확립.
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
+    expect(interactCalls(fetchMock).length).toBe(0);
+
+    // 확립 세션발 newChat → 이전 세션(e1) cancel + 새 POST.
+    act(() => result.current.actions.newChat());
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
+    // 범용 cancel 명령이 이전 세션 엔드포인트로 발사됐는지.
+    const cancelCall = interactCalls(fetchMock)[0];
+    // interact 는 joinUrl(apiBase, endpoints.submit) 로 발사 — 이전 세션(e1) interact 엔드포인트 포함.
+    expect(String(cancelCall[0])).toContain(ENDPOINTS.submit);
+    const cancelBody = JSON.parse((cancelCall[1] as RequestInit).body as string);
+    expect(cancelBody).toMatchObject({ command: "cancel" });
+    // 그리고 새 대화용 새 webhook POST(총 2회).
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(2));
+  });
+
+  // R9-B-1 optimistic — cancel 명령이 실패해도 로컬 새 대화(새 POST)는 되돌리지 않는다.
+  it("R9-B-1: newChat cancel 명령 실패해도 새 대화(새 POST) 진행", async () => {
+    // /interact → reject(취소 실패), /api/hooks → 202.
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.includes("/interact")) return Promise.reject(new Error("cancel network fail"));
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
+
+    act(() => result.current.actions.newChat());
+    // cancel 이 시도되고(실패해도) 새 POST 는 발사된다.
+    await waitFor(() => expect(interactCalls(fetchMock).length).toBe(1));
+    await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(2));
   });
 
   // W8 — webhook 500 실패 → ERROR → 재open 시 새 POST 발생(startedRef 복구).
