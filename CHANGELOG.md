@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — `variables.__*` 예약 네임스페이스 3계층 강제 (conventions/execution-context 원칙 5)
+
+### Breaking changes
+
+1. **Variable Declaration / Variable Modification 노드의 변수 이름에 `__`(double-underscore) prefix 를 금지한다.** `variables.__*` 는 엔진이 실행 시작 시 `__workspaceId`·`__dryRun` 등 시스템 값을 주입하는 예약 네임스페이스인데(execution-context 원칙 5), 지금까지 규약일 뿐 강제가 없어 사용자가 시스템 키를 덮어쓰거나, `__` 사용자 변수가 park/resume 시 `filterUserVariables` 에 **관찰 불가능하게 drop** 되어 조용히 소실됐다. 이제 신규 코드 `RESERVED_VARIABLE_NAME` 으로 3계층 강제한다 — **L0** 저장 시점(`WorkflowsService.saveCanvas`/`importWorkflow` → 400, `details.offenders[]`; `restoreVersion` 은 legacy-data escape 로 면제), **L1** pre-flight `validateConfig`(→ `INVALID_NODE_CONFIG`), **L2** `handler.execute` 런타임 throw. **어느 계층도 단독으로 충분하지 않다**: 변수 이름 필드는 `{{ }}` 표현식 대상이라(두 노드는 `EXPRESSION_EXCLUSIONS` 에 없다) L0/L1 은 해석 전 리터럴만 보고, `name: "{{ $input.x }}"` 가 런타임에 `__workspaceId` 로 평가되는 경우는 오직 L2(해석 후)만 잡는다 — L2 가 예약의 실질 강제 지점이다.
+2. **영향받는 워크플로**: 기존에 `__foo` 변수를 선언·수정하던 워크플로는 재저장 시 400, 또는 다음 실행 시 노드 throw 로 실패한다. 그러나 그런 변수는 이미 재개 시 조용히 소실되던 반쯤 깨진 상태였다 — 조용한 데이터 손실을 명시적 실패로 바꾼다. Variable Declaration §6 이 의도적으로 채택한 "관찰 가능한" silent skip/fallback(`meta.skipped`/`meta.coercionWarnings` 로 가시화)과는 다른 종류의 침묵(park drop)만 대상이다.
+
+### 범위 밖 (잔여 리스크)
+
+3. **Code 노드**(`$vars` 전체 atomic replace, `nodes/data/code/code.handler.ts`)는 사용자 코드가 `$vars.__workspaceId` 를 쓰면 필터 없이 덮어쓴다. 임의 코드 실행 노드에 변수-이름 화이트리스트를 강제하는 것은 별개 결정이라 본 강제 범위 밖으로 두고, 원칙 5 "강제 범위 밖" 절에 정직하게 등재했다.
+
+SoT: `spec/conventions/execution-context.md` 원칙 5 · `spec/5-system/3-error-handling.md` §1.3 · `spec/4-nodes/1-logic/{4,5}-*.md` §6.
+
 ## Unreleased — 웹채팅 위젯 presentation `truncation` 유실 수정 + 복원 렌더 회귀 가드 (7-channel-web-chat/1-widget-app §2)
 
 ### 변경 사항

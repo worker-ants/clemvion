@@ -3,6 +3,10 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import {
+  isReservedVariableName,
+  reservedVariableNameError,
+} from '../_shared/reserved-variable-name.util';
 
 export const varDefSchema = z
   .object({
@@ -90,6 +94,10 @@ export function validateVariableDeclarationConfig(config: unknown): string[] {
       const v = (variables[i] ?? {}) as Record<string, unknown>;
       if (!v.name || typeof v.name !== 'string') {
         errors.push(`variables[${i}].name is required and must be a string`);
+      } else if (isReservedVariableName(v.name)) {
+        // L1 — 리터럴 이름만 잡는다. `{{ }}` 표현식으로 만들어지는 이름은 해석
+        // 후에야 알 수 있어 handler.execute (L2) 가 잡는다.
+        errors.push(reservedVariableNameError(`variables[${i}].name`));
       }
       if (!v.type || typeof v.type !== 'string') {
         errors.push(`variables[${i}].type is required and must be a string`);

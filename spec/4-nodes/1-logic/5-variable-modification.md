@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/logic/variable-modification/variable-modification.*.ts
   - codebase/backend/src/nodes/logic/_shared/value-masking.util.ts
+  - codebase/backend/src/nodes/logic/_shared/reserved-variable-name.util.ts
 ---
 
 # Spec: Variable Modification
@@ -25,7 +26,7 @@ code:
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| variable | String | ✓ | 대상 변수 이름. 선언되지 않은 변수도 즉시 생성 가능 (`variable_declaration` 없이 사용 가능) |
+| variable | String | ✓ | 대상 변수 이름. 선언되지 않은 변수도 즉시 생성 가능 (`variable_declaration` 없이 사용 가능). **`__`(double-underscore) prefix 금지** — 엔진 시스템 예약 네임스페이스([execution-context 원칙 5](../../conventions/execution-context.md)). `{{ }}` 표현식으로 지정한 이름도 런타임 해석 후 검사된다(§6) |
 | operation | Enum | ✓ | 적용할 연산. 아래 §1.2 표 참조 |
 | value | Expression | | 연산에 사용할 값. `{{ }}` 표현식 지원. `pop` / `increment(default=1)` / `decrement(default=-1)` 에서는 생략 가능 |
 
@@ -98,7 +99,7 @@ code:
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> Variable Modification 은 단일 출력 pass-through 노드이므로 단일 케이스 (§5.1) 로 구성된다 (별도 분기·에러 케이스 없음 — config 검증 실패는 §1 / §4 의 pre-flight throw).
+> Variable Modification 은 단일 출력 pass-through 노드이므로 단일 케이스 (§5.1) 로 구성된다 (별도 분기·에러 포트 없음). 검증 실패는 §6 참조 — 대부분 pre-flight throw 이나, 예약 `__` 이름의 런타임 해석 후 검사(§6 L2)만은 실행 중 throw 된다.
 
 ### 5.1 Case: 정상 (단일 출력)
 
@@ -146,7 +147,7 @@ code:
 
 ## 6. 에러 코드
 
-Variable Modification 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 pre-flight (config 검증) 단계에서 throw 된다 (CONVENTIONS Principle 3.1):
+Variable Modification 은 **에러 포트를 갖지 않는다**. 대부분의 검증 실패는 pre-flight (config 검증) 단계에서 throw 되며(CONVENTIONS Principle 3.1), **단 하나의 예외가 예약 이름의 런타임 검사**다 (아래 표 시점 열):
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
@@ -155,6 +156,10 @@ Variable Modification 은 **runtime 에러 포트를 갖지 않는다**. 모든 
 | `modifications[i].variable` 누락 또는 비-string | `modifications[i].variable is required and must be a string` | handler.validate (`validateVariableModificationConfig`) |
 | `modifications[i].operation` 가 화이트리스트 미일치 (임의 문자열) | `modifications[i].operation must be one of: set, increment, decrement, append, push, pop` | handler.validate |
 | `modifications` 가 배열이 아님 | `modifications must be an array` | handler.validate |
+| `modifications[i].variable` 이 리터럴 `__` prefix | `modifications[i].variable must not start with reserved prefix "__"` | **L0** 저장 시점 (`WorkflowsService.saveCanvas`/`importWorkflow` → 400 `RESERVED_VARIABLE_NAME`) + **L1** `validateVariableModificationConfig` (→ `INVALID_NODE_CONFIG`) |
+| `modifications[i].variable` 이 **런타임 해석 후** `__` prefix (`{{ }}` 표현식이 예약 이름으로 평가) | `RESERVED_VARIABLE_NAME: modifications[i].variable resolved to "…", which starts with the reserved prefix "__"` | **L2** `handler.execute` (런타임 throw — 예약 강제의 실질 지점) |
+
+> ⚠ **예약 이름 3계층 강제** ([execution-context 원칙 5](../../conventions/execution-context.md)): `variables.__*` 는 엔진 시스템 네임스페이스라 대상 변수로 쓸 수 없다. 이름 필드는 `{{ }}` 표현식 대상이라 저장·pre-flight 검사(L0/L1)는 리터럴만 잡고, 표현식으로 만들어지는 예약 이름은 `handler.execute`(L2)가 해석 후 잡는다 — 6개 연산 전 분기가 막힌다. **breaking**: 이전에 `__foo` 를 수정하던 워크플로는 재저장 시 400 또는 실행 시 throw.
 
 > 위 메시지는 SoT 인 영문 원문이다 (warningRule: `variable-modification.schema.ts` 의 `warningRules[].message`; handler.validate: `validateVariableModificationConfig` 반환 문자열). 캔버스에서는 frontend i18n (`codebase/frontend/src/lib/i18n/backend-labels.ts`) 이 한국어로 렌더한다 — 예: "최소 1개 이상의 변경을 추가해야 합니다." / "첫 번째 변경의 대상 변수를 선택해야 합니다.".
 
