@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯 table 잘림 배너 총 개수 노출 (7-channel-web-chat/1-widget-app §2/R8)
+
+### 변경 사항
+
+1. **위젯 table 잘림 배너가 잘리기 전 총 행 개수를 함께 노출한다** — 메인 편집기 run-results(`assistant-presentations-block`, `truncated · total N`)와 parity. 종전엔 `truncated: boolean` 만 소비해 `일부 행만 표시됩니다.` 고정 문구뿐이었다. 총 개수(`rowsTotalCount`)는 이미 `truncationMeta` 가 `output` 으로 흡수하던 **dead field** 였고(직전 truncation 수정 PR #901 이 4개 cap 키를 흡수하나 `rowsTruncated` 만 소비), 이를 소비만 확장한다 — 백엔드·SSE wire·Presentation 공통 §10.4 무변경. `TableData.totalCount?`(유한 비음수만 채택 — NaN/Infinity/음수/이형은 `undefined`→폴백) 추가 + `toTable` 이 `output.rowsTotalCount` 투영. **배너 문구가 바뀐다(고객사 임베드 영향 가능)**: `총 N개 중 일부만 표시돼요.`(총 개수 있음) / `일부 행만 표시돼요.`(폴백) — 같은 배너 라인의 기존 합쇼체 `…표시됩니다.` 를 위젯 관례(해요체)로 함께 교정. **범위**: table 배너 한정 — carousel 은 잘림 배너 자체가 미구현이라 별도 후속. SoT: `spec/7-channel-web-chat/1-widget-app.md §2·R8`.
+
 ## Unreleased — 공개 웹채팅 위젯 idle-wait execution 회수 reaper (EIA-RL-07, 5-system/14 §3.4·§R19)
 
 ### 변경 사항

@@ -410,7 +410,8 @@ describe("복원 thread presentation (PresentationPayload) 렌더", () => {
   });
 
   // truncation 은 payload 바깥 top-level — 흡수하지 않으면 잘림 배너가 영영 안 뜬다(ai-agent §7.10 / 공통 §10.4).
-  it("AI render_table 의 top-level truncation → 잘림 배너 노출", () => {
+  // §2/R8: rowsTotalCount 가 있으면 총 개수를 함께 노출(메인 편집기 parity).
+  it("AI render_table 의 top-level truncation(+총 개수) → 총 개수 잘림 배너 노출", () => {
     render(
       <PresentationList
         presentations={[
@@ -423,7 +424,24 @@ describe("복원 thread presentation (PresentationPayload) 렌더", () => {
         onButton={vi.fn()}
       />,
     );
-    expect(screen.getByText("일부 행만 표시됩니다.")).toBeInTheDocument();
+    expect(screen.getByText("총 2000개 중 일부만 표시돼요.")).toBeInTheDocument();
+  });
+
+  // 잘림이지만 총 개수 부재 → 개수 없는 폴백 문구(해요체).
+  it("truncation 만 있고 총 개수 부재 → 폴백 잘림 배너", () => {
+    render(
+      <PresentationList
+        presentations={[
+          payloadOf(
+            "table",
+            { columns: [{ field: "n", label: "N" }], rows: [{ n: "a" }] },
+            { rowsTruncated: true },
+          ),
+        ]}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("일부 행만 표시돼요.")).toBeInTheDocument();
   });
 
   it("truncation 없으면 잘림 배너 미노출", () => {
@@ -433,6 +451,6 @@ describe("복원 thread presentation (PresentationPayload) 렌더", () => {
         onButton={vi.fn()}
       />,
     );
-    expect(screen.queryByText("일부 행만 표시됩니다.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/표시돼요\./)).not.toBeInTheDocument();
   });
 });

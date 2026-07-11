@@ -275,6 +275,62 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     expect(tb.rows).toEqual([{ n: "a" }]);
     expect(tb.truncated).toBe(true);
   });
+
+  // §2/R8 — 흡수된 rowsTotalCount 를 totalCount 로 투영(dead field 해소, 잘림 배너 총 개수 노출).
+  it("toTable — top-level truncation.rowsTotalCount 를 totalCount 로 투영", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true, rowsTotalCount: 2000 },
+    });
+    expect(tb.truncated).toBe(true);
+    expect(tb.totalCount).toBe(2000);
+  });
+
+  it("toTable — 노드 경로 output.rowsTotalCount 도 totalCount 로 투영", () => {
+    const tb = toTable({
+      config: {},
+      output: { rows: [{ n: "a" }], rowsTruncated: true, rowsTotalCount: 42 },
+    });
+    expect(tb.totalCount).toBe(42);
+  });
+
+  it("toTable — rowsTotalCount 부재면 totalCount=undefined", () => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true },
+    });
+    expect(tb.totalCount).toBeUndefined();
+  });
+
+  // 신뢰 못 할 total(이형/NaN/Infinity/음수)은 배너에 "총 NaN개…" 로 새지 않게 undefined 로 떨군다.
+  it.each([
+    ["문자열", "2000"],
+    ["NaN", NaN],
+    ["Infinity", Infinity],
+    ["음수", -5],
+  ])("toTable — rowsTotalCount 가 %s 이면 totalCount=undefined", (_label, bad) => {
+    const tb = toTable({
+      type: "table",
+      toolCallId: "t",
+      payload: { rows: [{ n: "a" }] },
+      truncation: { rowsTruncated: true, rowsTotalCount: bad },
+    });
+    expect(tb.totalCount).toBeUndefined();
+  });
+
+  // truncated=false 여도 rowsTotalCount 는 투영(값 자체는 유효). 배너 노출 여부는 소비처의 truncated 가드가 결정.
+  it("toTable — truncated=false 여도 유효 rowsTotalCount 는 totalCount 로 투영", () => {
+    const tb = toTable({
+      config: {},
+      output: { rows: [{ n: "a" }], rowsTruncated: false, rowsTotalCount: 1 },
+    });
+    expect(tb.truncated).toBe(false);
+    expect(tb.totalCount).toBe(1);
+  });
 });
 
 describe("converters — {config,output} envelope 회귀(하위 호환)", () => {

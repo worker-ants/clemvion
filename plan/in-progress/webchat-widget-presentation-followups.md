@@ -13,11 +13,11 @@ owner: developer
 ## 미구현 항목
 
 - [ ] **위젯 truncation 배너에 총 개수 노출** (ai-review 23_04_23 requirement #3)
-      메인 프런트엔드(`codebase/frontend/src/components/editor/run-results/renderers/assistant-presentations-block.tsx:316`)
-      는 `truncated · total {itemsTotalCount ?? rowsTotalCount}` 로 잘리기 전 총 개수를 함께 보여준다.
-      위젯은 `TableData.truncated: boolean` 만 소비해 "일부 행만 표시됩니다." 고정 문구뿐이다.
-      → `TableData`/`CarouselData` 에 `totalCount?: number` 추가 여부는 **표면 확장**이라 planner 결정 선행.
-      현행 spec(`7-channel-web-chat/1-widget-app.md` §2)은 총 개수 표시를 강제하지 않는다 — 회귀 아님.
+      — **table 부분 해소**(planner 결정 spec §2/R8 + 구현, branch `claude/webchat-truncation-total-count`):
+      `TableData.totalCount?` 추가·`toTable` 이 `output.rowsTotalCount` 투영·TableView 배너
+      `총 N개 중 일부만 표시돼요.`. **carousel 잔여**는 아래 항목 2(배너 자체가 0→1 신설)와 병합/의존
+      — carousel 배너가 생기면 `CarouselData.totalCount?` + `itemsTotalCount` 소비를 함께 처리한다.
+      (규약상 실완료 전 체크 금지 — carousel 잔여가 남아 미체크 유지.)
 
 - [ ] **카루셀 잘림 배너 미구현** (ai-review 23_04_23 testing #12)
       `asEnvelope` 는 `itemsTruncated`/`itemsTotalCount` 를 `output` 으로 흡수하지만 `CarouselData` 에

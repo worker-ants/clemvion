@@ -171,7 +171,7 @@ function cellText(v: unknown): string {
 }
 
 function TableView({ payload, onButton }: PresentationProps) {
-  const { columns, rows, buttons, truncated } = toTable(payload);
+  const { columns, rows, buttons, truncated, totalCount } = toTable(payload);
   if (!columns.length && !rows.length) return null;
   const cols = columns.length
     ? columns
@@ -196,7 +196,13 @@ function TableView({ payload, onButton }: PresentationProps) {
           ))}
         </tbody>
       </table>
-      {truncated && <div className="wc-table-truncated">일부 행만 표시됩니다.</div>}
+      {truncated && (
+        <div className="wc-table-truncated">
+          {typeof totalCount === "number"
+            ? `총 ${totalCount}개 중 일부만 표시돼요.`
+            : "일부 행만 표시돼요."}
+        </div>
+      )}
       <ButtonBar buttons={buttons} onButton={onButton} />
     </div>
   );

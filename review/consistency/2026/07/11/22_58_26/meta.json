@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-11T22:58:26.803469",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-webchat-truncation-total-count.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
