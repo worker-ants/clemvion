@@ -113,6 +113,17 @@ describe("WidgetApp", () => {
     }
   });
 
+  it("동일 인스턴스에 다른 locale 로 wc:boot 재전송 → UI 언어 불변(§4 boot 1회 고정, 변경은 재마운트로만)", async () => {
+    render(<WidgetApp />);
+    // 첫 boot en → 런처 EN 으로 고정.
+    await boot({ apiBase: "https://api.example.com", triggerEndpointPath: "t1", locale: "en", headerTitle: "B" });
+    expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+    // 같은 인스턴스(재마운트 없음)에 locale:ko 로 wc:boot 재전송 → 언어는 첫 boot 값(en) 유지, ko 로 바뀌지 않음.
+    await boot({ apiBase: "https://api.example.com", triggerEndpointPath: "t1", locale: "ko", headerTitle: "B" });
+    expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+    expect(screen.queryByLabelText("채팅 열기")).toBeNull();
+  });
+
   it("임베드 불허 host → 위젯 렌더 거부(런처도 없음)", async () => {
     // detectHostOrigin 은 document.referrer 폴백을 사용(jsdom 엔 ancestorOrigins 없음).
     Object.defineProperty(document, "referrer", {

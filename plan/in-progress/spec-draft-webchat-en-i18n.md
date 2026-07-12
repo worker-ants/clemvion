@@ -254,5 +254,9 @@ ko 는 해요체(i18n-userguide P6). EN chrome 은 **간결·정중(concise, pol
 - [x] 4. DOCUMENTATION: PROJECT.md 갱신위치 매핑 + `.claude/config/doc-sync-matrix.json` 위젯 i18n 행(row 21, test_doc_sync_matrix 7/7 pass)
 - [x] 5-6. i18n 모듈(`src/lib/i18n/{catalog,resolve-locale,context,index}`) + 배선(widget-app provider + 5 컴포넌트 + use-widget 에러 DRY) + 문자열 치환. parity/resolveLocale/context 테스트 콜로케이트
 - [x] 7. 테스트 보강: widget-app EN 렌더 + auto-detect 테스트, presentations donut aria-label ko 정정, vitest.setup navigator.language=ko-KR
-- [~] 8. TEST WORKFLOW: lint PASS. unit(웹챗 128 pass 확인)·build·e2e 진행 중
-- [ ] 9. REVIEW WORKFLOW (`/ai-review` + fix) + `/consistency-check --impl-done` + post-impl spec 캐비엇 정합(W1/W3)
+- [x] 8. TEST WORKFLOW: **lint PASS · unit PASS · build PASS · e2e PASS(253 tests)**
+- [x] post-impl spec 캐비엇 정합(W1/W3/W2/INFO): 1-widget §4·0-overview §6.1 "구현됨", 4-security §1 catalog 각주, 카루셀 followup 각주 (commit 54de6f567)
+- [~] 9. REVIEW WORKFLOW: `/ai-review --branch origin/main` 완료 (RISK MEDIUM). **disk-write gap 3 checker journal 복구 → requirement 가 CRITICAL 1건 발견**(자동 요약 "CRITICAL 0" 거짓 음성).
+  - **C1 CRITICAL fix**: `widget-app.tsx` locale 이 `useMemo([config?.locale])` 로 wc:boot 재전송에 반응해 재마운트 없이 UI 언어 변경 — spec "boot 1회 고정" 계약 위반. → **render 중 1회 확정(adjusting-state 패턴)** + 회귀 테스트. (useMemo→ref→effect→adjusting-state 로 lint 규칙 3종 회피)
+  - **WARNING 6 fix**: W1 doc-sync 재포맷 원복(1행만), W2 panel 에러 불변식 주석+테스트, W3 CHANGELOG 배포영향, W4 CHANGELOG, W5 README, W6 use-widget JSDoc. RESOLUTION.md 작성.
+  - [~] TEST WORKFLOW 재수행(lint PASS · unit·build·e2e 재실행 중) → `/consistency-check --impl-done`

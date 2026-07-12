@@ -68,5 +68,7 @@ durable `conversationThread` 동봉 → 새로고침 시 대화 히스토리 전
 가벼운 확인), 화면(런처/패널/메시지/Form/입력/면책), host↔iframe bridge(`src/widget/host-bridge`),
 rich presentation 렌더러(carousel/table/chart/template — `src/widget/components/presentations.tsx`),
 DOMPurify+marked 기반 template 안전 HTML 렌더(`src/lib/safe-html.ts`),
-차트 축 레이블·범례·툴팁(`CartesianChart`/`PieChart` inline SVG).
+차트 축 레이블·범례·툴팁(`CartesianChart`/`PieChart` inline SVG),
+chrome 문자열 ko/en i18n(`src/lib/i18n` — 위젯 로컬 catalog·`resolveLocale`·`I18nProvider`/`useTranslation`,
+`BootConfig.locale` 소비: 명시→auto-detect→ko, boot 1회 고정).
 진행 추적: [`channel-web-chat-impl.md`](../../plan/in-progress/channel-web-chat-impl.md).

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯 chrome 문자열 EN 다국어화 (`locale` 활성, 7-channel-web-chat/1-widget-app §4)
+
+### 변경 사항
+
+1. **위젯 chrome 문자열(위젯 소유 UI 프레임 문자열)을 ko/en 다국어화하고 `BootConfig.locale` 을 활성화했다** — v1 비목표(Korean-only, `locale` reserved/inert)에서 목표로 승격(#922 가 "코드 변경 없음" 스코프상 defer 하고 `2-sdk §R6` 이 예약한 활성화 경로 실행). 위젯은 별도 정적 export 번들이라 메인 앱 `frontend/src/lib/i18n/dict` 를 import 할 수 없어 **위젯 로컬 경량 catalog**(`src/lib/i18n/` — `catalog.ts` ko/en 32키·`resolveLocale`·`I18nProvider`/`useTranslation`, `{{}}` 보간, ko/en parity hard-fail 테스트)를 신설했다. 언어 해석: **명시 `locale` → 브라우저 `navigator.language`(auto-detect) → `ko` fallback**, boot 시 1회 해석해 고정(변경은 iframe 재마운트로만). 번역 범위 = 위젯 소유 chrome 한정(세션 컨트롤·확인·입력창·상태/에러·잘림 배너·차트 aria-label·헤더 기본값) — 운영자 제공 콘텐츠(`headerTitle`·`welcome`·`disclaimer`)·backend payload·AI 본문은 비대상. **배포-시점 영향(코드 변경만, 서버 데이터 무변경)**: 운영 콘솔에서 이미 `locale='en'` 으로 저장된 위젯 인스턴스는 이번 배포부터 실제 EN chrome 을 렌더한다(종전엔 저장돼도 한국어 렌더). SoT: `spec/7-channel-web-chat/1-widget-app.md §4`.
+
 ## Unreleased — 웹채팅 위젯 table 잘림 배너 총 개수 노출 (7-channel-web-chat/1-widget-app §2/R8)
 
 ### 변경 사항
