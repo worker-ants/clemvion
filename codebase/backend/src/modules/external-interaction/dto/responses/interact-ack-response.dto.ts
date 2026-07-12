@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  EXECUTION_STATUS_VALUES,
+  EIA_EXECUTION_STATUS_VALUES,
   type ExecutionStatusLiteral,
 } from './execution-status.literal';
 
@@ -18,7 +18,7 @@ export class InteractAckDto {
   accepted: boolean;
 
   @ApiPropertyOptional({
-    enum: [...EXECUTION_STATUS_VALUES],
+    enum: EIA_EXECUTION_STATUS_VALUES,
     description:
       '명령 수신 직후 관측된 execution status. 즉시 다른 상태로 전이될 수 있으므로 SSE 스트림으로 확정 상태를 받는 것을 권장.',
   })

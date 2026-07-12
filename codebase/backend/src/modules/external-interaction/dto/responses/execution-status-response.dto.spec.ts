@@ -16,6 +16,8 @@ import {
   ExecutionStatusDto,
   NodeOutputContextDto,
 } from './execution-status-response.dto';
+import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
+import { ExecutionStatus } from '../../../executions/entities/execution.entity';
 
 /**
  * `ExecutionStatusDto` 의 OpenAPI 스키마 표현 회귀 가드.
@@ -165,6 +167,19 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
           'waitingNodeId',
           'nodeOutput',
         ]),
+      );
+    });
+  });
+
+  describe('status enum — 공유 SoT (EIA_EXECUTION_STATUS_VALUES)', () => {
+    it('status.enum 은 공유 SoT 배열과 값·순서가 동일하다 (drift 가드)', () => {
+      const status = executionStatus.properties?.status as SchemaObject;
+      expect(status.enum).toEqual([...EIA_EXECUTION_STATUS_VALUES]);
+    });
+
+    it('wire SoT 는 엔티티 ExecutionStatus 상태 집합과 동일하다 (순서 무관 — 엔티티↔wire drift 가드)', () => {
+      expect([...EIA_EXECUTION_STATUS_VALUES].sort()).toEqual(
+        Object.values(ExecutionStatus).sort(),
       );
     });
   });

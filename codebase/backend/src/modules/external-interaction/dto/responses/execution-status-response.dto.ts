@@ -6,7 +6,7 @@ import {
 } from '@nestjs/swagger';
 import type { ConversationThread } from '../../../../shared/conversation-thread/conversation-thread.types';
 import {
-  EXECUTION_STATUS_VALUES,
+  EIA_EXECUTION_STATUS_VALUES,
   type ExecutionStatusLiteral,
 } from './execution-status.literal';
 
@@ -110,7 +110,7 @@ export class ExecutionStatusDto {
   @ApiProperty({ format: 'uuid' })
   workflowId: string;
 
-  @ApiProperty({ enum: [...EXECUTION_STATUS_VALUES] })
+  @ApiProperty({ enum: EIA_EXECUTION_STATUS_VALUES })
   status: ExecutionStatusLiteral;
 
   /** waiting_for_input 상태에서만 실값. 그 외에는 `null`. */
