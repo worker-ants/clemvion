@@ -35,6 +35,11 @@ owner: developer
 한다(총 개수 노출 여부 · 카루셀 배너 문구). 그 결정 없이 developer 가 임의로 UI 문구를 만들면 메인 FE 와
 비대칭이 굳는다.
 
+> **i18n 경유 (2026-07-12 위젯 chrome i18n 활성 이후):** 카루셀 배너 등 신설 chrome 문구는 하드코딩하지 않고 위젯 로컬
+> catalog(`codebase/channel-web-chat/src/lib/i18n/catalog.ts`)에 **ko/en 키를 추가**하고 `t()` 로 렌더한다(table 배너
+> `table.truncatedWithCount`/`table.truncated` 선례, SoT [1-widget-app §4](../../spec/7-channel-web-chat/1-widget-app.md)).
+> parity 가드(`catalog.test.ts`) 통과 필수.
+
 ## Rationale
 
 **R1 — #901 에서 분리한 이유.** #901 의 스코프는 "`truncation` 유실이라는 **버그** 수정" 이었다. 총 개수 노출과
