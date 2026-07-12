@@ -259,4 +259,12 @@ ko 는 해요체(i18n-userguide P6). EN chrome 은 **간결·정중(concise, pol
 - [~] 9. REVIEW WORKFLOW: `/ai-review --branch origin/main` 완료 (RISK MEDIUM). **disk-write gap 3 checker journal 복구 → requirement 가 CRITICAL 1건 발견**(자동 요약 "CRITICAL 0" 거짓 음성).
   - **C1 CRITICAL fix**: `widget-app.tsx` locale 이 `useMemo([config?.locale])` 로 wc:boot 재전송에 반응해 재마운트 없이 UI 언어 변경 — spec "boot 1회 고정" 계약 위반. → **render 중 1회 확정(adjusting-state 패턴)** + 회귀 테스트. (useMemo→ref→effect→adjusting-state 로 lint 규칙 3종 회피)
   - **WARNING 6 fix**: W1 doc-sync 재포맷 원복(1행만), W2 panel 에러 불변식 주석+테스트, W3 CHANGELOG 배포영향, W4 CHANGELOG, W5 README, W6 use-widget JSDoc. RESOLUTION.md 작성.
-  - [~] TEST WORKFLOW 재수행(lint PASS · unit·build·e2e 재실행 중) → `/consistency-check --impl-done`
+  - [x] TEST WORKFLOW 재수행: **lint·unit·build·e2e(253) PASS**. 수정분 커밋 `efaf6f474`.
+  - [x] `/consistency-check --impl-done spec/7-channel-web-chat/` **BLOCK NO**(Critical 0, review/consistency/2026/07/12/16_51_20). naming_collision WARNING 2(위젯 `Locale`/`TranslationKey` 이 frontend 동명 — **수용**: 격리 패키지·`@/*` tsconfig 무충돌, rename 은 cosmetic defer). convention INFO(데모 host 문체)=스코프 밖 수용.
+
+## 10. 후속(accept-with-rationale defer)
+비차단 cosmetic — 별도 follow-up plan 불요:
+- `_product-overview §2` 신규 목표를 "비목표" 블록 예외문구 → "목표(v1)" 목록으로 실제 이동(requirement INFO).
+- 위젯 `Locale`/`TranslationKey` → `WidgetLocale`/`WidgetTranslationKey` 개명(naming WARNING, grep 명확성).
+- `2-sdk §1` 스니펫에 `locale: 'en'` 예시(documentation INFO).
+- i18n-userguide 에 "데모 host 는 P6 스코프 밖" 명문화(반복 오탐 방지).
