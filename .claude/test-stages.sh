@@ -6,7 +6,7 @@
 # 각 함수는 직접 명령을 실행하고 exit code 를 반환합니다. stdout/stderr 는 wrapper 가
 # 잡아서 디스크에 저장하므로 자유롭게 작성하면 됩니다.
 
-# lint/unit/build 는 backend + frontend + web-chat 전부 실행한다.
+# lint/unit/build 는 backend + frontend + web-chat + 내부 공유 packages(INTERNAL_PACKAGES) 전부 실행한다.
 # 한쪽만 돌리면 cross-stack 회귀가 누락된다 (예: PR-E3 의 i18n drawer
 # t.x.y → t("x.y") 타입 오류가 backend-only 검증으로 빠져나가 0f05d3e5
 # 핫픽스가 필요했다). 단일 wrapper 호출이 전부를 커버하도록 묶어 둔다.
@@ -20,16 +20,30 @@ _ensure_deps() {
   [ -d "$(git rev-parse --show-toplevel)/node_modules" ] || pnpm install --frozen-lockfile
 }
 
+# lint/unit/build 를 균일하게 도는 내부 공유 패키지 (backend·frontend·web-chat·channel-web-chat 처럼
+# 특수 스텝이 없는 것). 단일 목록으로 cmd_lint/cmd_unit/cmd_build 3곳의 drift 를 방지한다.
+INTERNAL_PACKAGES=(
+  "@workflow/sdk"
+  "@workflow/expression-engine"
+  "@workflow/graph-warning-rules"
+  "@workflow/node-summary"
+  "@workflow/chat-channel-validation"
+)
+
+# 내부 공유 패키지 전체에 한 스테이지(lint/test/build)를 순차 실행 — 하나라도 실패 시 즉시 비제로.
+_run_internal() {
+  local stage="$1" pkg
+  for pkg in "${INTERNAL_PACKAGES[@]}"; do
+    pnpm --filter "$pkg" "$stage" || return 1
+  done
+}
+
 cmd_lint() {
   _ensure_deps && \
   pnpm --filter backend lint && \
   pnpm --filter frontend lint && \
   pnpm --filter @workflow/web-chat lint && \
-  pnpm --filter @workflow/sdk lint && \
-  pnpm --filter @workflow/expression-engine lint && \
-  pnpm --filter @workflow/graph-warning-rules lint && \
-  pnpm --filter @workflow/node-summary lint && \
-  pnpm --filter @workflow/chat-channel-validation lint && \
+  _run_internal lint && \
   pnpm --filter channel-web-chat lint
 }
 
@@ -39,11 +53,7 @@ cmd_unit() {
   pnpm --filter frontend test && \
   pnpm --filter @workflow/web-chat test && \
   pnpm --filter channel-web-chat test && \
-  pnpm --filter @workflow/sdk test && \
-  pnpm --filter @workflow/expression-engine test && \
-  pnpm --filter @workflow/graph-warning-rules test && \
-  pnpm --filter @workflow/node-summary test && \
-  pnpm --filter @workflow/chat-channel-validation test
+  _run_internal test
 }
 
 cmd_build() {
@@ -53,11 +63,7 @@ cmd_build() {
   pnpm --filter @workflow/web-chat build && \
   pnpm --filter channel-web-chat build && \
   pnpm --filter channel-web-chat typecheck && \
-  pnpm --filter @workflow/sdk build && \
-  pnpm --filter @workflow/expression-engine build && \
-  pnpm --filter @workflow/graph-warning-rules build && \
-  pnpm --filter @workflow/node-summary build && \
-  pnpm --filter @workflow/chat-channel-validation build && \
+  _run_internal build && \
   _cmd_build_docker_images
 }
 

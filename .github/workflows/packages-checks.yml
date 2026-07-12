@@ -28,10 +28,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 패키지별 독립 job(matrix) — web-chat-checks.yml 패턴과 통일. fail-fast:false 로 한 패키지가
+  # 깨져도 나머지의 실패 신호가 은폐되지 않는다(단일 job 순차 run 의 set -e 문제 회피).
   packages:
-    name: internal packages (lint/test/build)
+    name: ${{ matrix.pkg }} (lint/test/build)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - '@workflow/expression-engine'
+          - '@workflow/graph-warning-rules'
+          - '@workflow/node-summary'
+          - '@workflow/chat-channel-validation'
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -41,27 +51,10 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
       - name: Install deps
-        run: >
-          pnpm install --frozen-lockfile
-          --filter "@workflow/expression-engine..."
-          --filter "@workflow/graph-warning-rules..."
-          --filter "@workflow/node-summary..."
-          --filter "@workflow/chat-channel-validation..."
+        run: pnpm install --frozen-lockfile --filter "${{ matrix.pkg }}..."
       - name: Lint
-        run: |
-          pnpm --filter @workflow/expression-engine lint
-          pnpm --filter @workflow/graph-warning-rules lint
-          pnpm --filter @workflow/node-summary lint
-          pnpm --filter @workflow/chat-channel-validation lint
+        run: pnpm --filter "${{ matrix.pkg }}" lint
       - name: Test (jest)
-        run: |
-          pnpm --filter @workflow/expression-engine test
-          pnpm --filter @workflow/graph-warning-rules test
-          pnpm --filter @workflow/node-summary test
-          pnpm --filter @workflow/chat-channel-validation test
+        run: pnpm --filter "${{ matrix.pkg }}" test
       - name: Build (tsc)
-        run: |
-          pnpm --filter @workflow/expression-engine build
-          pnpm --filter @workflow/graph-warning-rules build
-          pnpm --filter @workflow/node-summary build
-          pnpm --filter @workflow/chat-channel-validation build
+        run: pnpm --filter "${{ matrix.pkg }}" build
