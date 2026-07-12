@@ -41,7 +41,7 @@ const EMBED_CONFIG_CACHE_SEC = 300;
 /** 실제 응답 헤더와 Swagger 문서 문자열이 공유하는 Cache-Control 값 — 단일 진실(드리프트 방지). */
 const EMBED_CONFIG_CACHE_CONTROL = `public, max-age=${EMBED_CONFIG_CACHE_SEC}`;
 /** 사용자 대면 문서용 반영 지연 상한(분). 초 상수에서 파생 — 하드코딩 드리프트 방지. */
-const EMBED_CONFIG_CACHE_MAX_MIN = Math.ceil(EMBED_CONFIG_CACHE_SEC / 60);
+const EMBED_CONFIG_CACHE_MAX_MINUTES = Math.ceil(EMBED_CONFIG_CACHE_SEC / 60);
 
 @ApiTags('Hooks')
 @Controller('hooks')
@@ -59,7 +59,7 @@ export class HooksController {
       '공개 웹챗 위젯이 부팅 시 조회하는 임베드 allowlist(캐시 가능). 워크스페이스 `interactionAllowedOrigins` 를 반환하며, 비어 있으면 제한 없음(allow-all). 위젯은 enforce=true 이고 호스트 origin 이 allowlist 에 없으면 렌더/시작을 거부한다. spec 7-channel-web-chat/4-security §3-①.\n\n**fail-open 정책**: DB 조회 실패·trigger 미존재 시 `{ allowlist: [], enforce: false }` (HTTP 200) 를 반환 — 위젯을 깨지 않는 soft 검증. 인증 webhook(authConfigId NOT NULL)도 동일하게 allow-all 반환(allowlist 노출 방지).\n\n**캐싱**: 응답에 `Cache-Control: ' +
       EMBED_CONFIG_CACHE_CONTROL +
       '` 헤더가 포함된다. 워크스페이스 allowlist 변경 후 최대 ' +
-      EMBED_CONFIG_CACHE_MAX_MIN +
+      EMBED_CONFIG_CACHE_MAX_MINUTES +
       '분 지연.',
   })
   @ApiParam({
@@ -76,7 +76,7 @@ export class HooksController {
     description: 'Cache-Control 응답 헤더 — CDN/브라우저 캐시 허용(W10).',
     headers: {
       'Cache-Control': {
-        description: `${EMBED_CONFIG_CACHE_CONTROL} — 워크스페이스 설정 변경 후 최대 ${EMBED_CONFIG_CACHE_MAX_MIN}분 반영 지연(I1).`,
+        description: `${EMBED_CONFIG_CACHE_CONTROL} — 워크스페이스 설정 변경 후 최대 ${EMBED_CONFIG_CACHE_MAX_MINUTES}분 반영 지연(I1).`,
         schema: { type: 'string', example: EMBED_CONFIG_CACHE_CONTROL },
       },
     },
@@ -86,7 +86,7 @@ export class HooksController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<EmbedConfigDto> {
     const result = await this.embedConfigService.resolve(endpointPath);
-    // 캐시 가능 — 워크스페이스 설정 변경 주기 대비 짧게(5분). trigger 존재 노출 회피 위해 동일 응답형.
+    // 캐시 가능 — 워크스페이스 설정 변경 주기 대비 짧게(EMBED_CONFIG_CACHE_SEC 초). trigger 존재 노출 회피 위해 동일 응답형.
     res.set('Cache-Control', EMBED_CONFIG_CACHE_CONTROL);
     return result;
   }

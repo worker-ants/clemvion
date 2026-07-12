@@ -19,14 +19,18 @@ spec_impact: none
 - L71: `@ApiResponse` 헤더 description 에 `${300}` + "최대 5분"
 - L72: `@ApiResponse` 헤더 example `'public, max-age=300'`
 - L82: 실제 헤더만 상수 사용 (드리프트 없음)
+- L89: `getEmbedConfig` 본문 인라인 주석 `짧게(5분)` — 리터럴 `5분` 잔존 (ai-review WARNING, 5번째 사용처)
 
 ## 방침
 
 behavior-preserving 순수 DRY 리팩터. 렌더 결과(문서 문자열·실제 헤더) byte-identical.
-초 상수에서 파생 상수 2개를 만들어 4개 사용처가 모두 상수를 참조하게 한다.
+초 상수에서 파생 상수 2개를 만들어 사용처가 모두 상수를 참조하게 한다.
 
 - `EMBED_CONFIG_CACHE_CONTROL = \`public, max-age=${EMBED_CONFIG_CACHE_SEC}\`` — 헤더 값 SoT
-- `EMBED_CONFIG_CACHE_MAX_MIN = Math.ceil(EMBED_CONFIG_CACHE_SEC / 60)` — 문서용 지연 상한(분)
+- `EMBED_CONFIG_CACHE_MAX_MINUTES = Math.ceil(EMBED_CONFIG_CACHE_SEC / 60)` — 문서용 지연 상한(분).
+  (`_MIN` 은 코드베이스에서 minimum 의미 → `_MINUTES` 컨벤션 정렬, ai-review WARNING 반영)
+- L89 주석은 리터럴 `5분` 대신 `EMBED_CONFIG_CACHE_SEC` 상수를 지목하도록 교체(드리프트 근절).
+- 단위 테스트 헤더 단언을 `stringContaining('max-age')` → 정확값 `'public, max-age=300'` 으로 강화(SoT 회귀 가드, ai-review testing INFO).
 
 ## 체크리스트
 

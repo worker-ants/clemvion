@@ -53,9 +53,10 @@ describe('HooksController', () => {
       allowlist: ['https://shop.example.com'],
       enforce: true,
     });
+    // 정확한 값으로 단언 — EMBED_CONFIG_CACHE_SEC 단일 진실이 깨지면(오타·단위 실수) 회귀를 잡는다.
     expect(res.set).toHaveBeenCalledWith(
       'Cache-Control',
-      expect.stringContaining('max-age'),
+      'public, max-age=300',
     );
     expect(embedConfigService.resolve).toHaveBeenCalledWith('abc');
   });
