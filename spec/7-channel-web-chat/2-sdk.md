@@ -43,7 +43,7 @@ code:
     headerTitle: 'AI 어시스턴트',
     welcome: { text: '안녕하세요! 무엇을 도와드릴까요?', suggestions: ['제품 소개를 받아볼 수 있나요?', '설치는 어떻게 하나요?'] },
     launcher: { suggestions: ['제품 소개를 받아볼 수 있나요?', '설치는 어떻게 하나요?'] },
-    disclaimer: 'AI는 한정된 데이터로 동작하며 …',
+    disclaimer: 'AI는 한정된 데이터로 동작하며 답변이 부정확할 수 있어요.',
     profile: { /* optional, host 가 아는 사용자 식별 정보 */ }
   });
 </script>

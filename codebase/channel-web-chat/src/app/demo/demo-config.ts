@@ -27,7 +27,7 @@ export const defaultDemoForm: DemoFormState = {
   welcomeText: "안녕하세요! 무엇을 도와드릴까요?",
   welcomeSuggestions: "제품 소개를 받아볼 수 있나요?\n설치는 어떻게 하나요?",
   launcherSuggestions: "제품 소개를 받아볼 수 있나요?",
-  disclaimer: "AI는 한정된 데이터로 동작하며 답변이 정확하지 않을 수 있습니다.",
+  disclaimer: "AI는 한정된 데이터로 동작하며 답변이 부정확할 수 있어요.",
 };
 
 /** 줄바꿈/콤마로 구분된 입력을 추천질문 배열로. 공백 trim + 빈 항목 제거. */
