@@ -8,7 +8,10 @@ import { S3Service } from '../../../common/services/s3.service';
 import { LlmService } from '../../llm/llm.service';
 import { ModelConfigService } from '../../model-config/model-config.service';
 import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
-import { WebsocketService } from '../../websocket/websocket.service';
+import {
+  WebsocketService,
+  type KbEventType,
+} from '../../websocket/websocket.service';
 import {
   parseDocument,
   parseDocumentSegments,
@@ -325,17 +328,14 @@ export class EmbeddingService {
 
   private emitEvent(
     documentId: string,
-    event: string,
+    event: KbEventType,
     payload: Record<string, unknown>,
   ): void {
     try {
       // `kb:${documentId}` 채널로 직접 broadcast (V038 fix — 기존 emitExecutionEvent 는
       // 채널을 `execution:` prefix 로 변환해 frontend 의 `kb:` subscribe 와 매칭 안 됐음).
-      this.websocketService.emitKbEvent(
-        documentId,
-        event as Parameters<typeof this.websocketService.emitKbEvent>[1],
-        payload,
-      );
+      // `event` 는 `KbEventType` 로 좁혀 union 밖 이벤트명을 컴파일타임에 차단한다.
+      this.websocketService.emitKbEvent(documentId, event, payload);
     } catch {
       // WebSocket emission is best-effort
     }
