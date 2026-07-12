@@ -1,5 +1,5 @@
 ---
-worktree: (unstarted)
+worktree: webchat-carousel-truncation-6b9553
 started: 2026-07-11
 owner: developer
 ---
@@ -12,18 +12,23 @@ owner: developer
 
 ## 미구현 항목
 
-- [ ] **위젯 truncation 배너에 총 개수 노출** (ai-review 23_04_23 requirement #3)
+- [x] **위젯 truncation 배너에 총 개수 노출** (ai-review 23_04_23 requirement #3)
       — **table 부분 해소**(planner 결정 spec §2/R8 + 구현, branch `claude/webchat-truncation-total-count`):
       `TableData.totalCount?` 추가·`toTable` 이 `output.rowsTotalCount` 투영·TableView 배너
       `총 N개 중 일부만 표시돼요.`. **carousel 잔여**는 아래 항목 2(배너 자체가 0→1 신설)와 병합/의존
       — carousel 배너가 생기면 `CarouselData.totalCount?` + `itemsTotalCount` 소비를 함께 처리한다.
-      (규약상 실완료 전 체크 금지 — carousel 잔여가 남아 미체크 유지.)
+      **완료(2026-07-12, PR webchat-carousel-truncation)**: carousel 도 `CarouselData.totalCount?` +
+      `toCarousel` 이 `output.itemsTotalCount` 투영(finite-guard toTable 대칭)·`CarouselView` 배너로 총 개수 노출.
 
-- [ ] **카루셀 잘림 배너 미구현** (ai-review 23_04_23 testing #12)
+- [x] **카루셀 잘림 배너 미구현** (ai-review 23_04_23 testing #12)
       `asEnvelope` 는 `itemsTruncated`/`itemsTotalCount` 를 `output` 으로 흡수하지만 `CarouselData` 에
       `truncated` 필드가 없어 **소비처가 없는 죽은 필드**다(`presentation.ts` `toCarousel`).
       table 과 대칭이 되려면 `CarouselData.truncated` + `CarouselView` 배너 + 렌더 테스트가 필요하다.
       1MB cap 의 carousel tail-truncate 는 백엔드에 실재한다(`render-tool-provider.ts` `applyOneMbCap`).
+      **완료(2026-07-12, PR webchat-carousel-truncation)**: `CarouselData.truncated`/`totalCount` 추가·
+      `toCarousel` 이 `output.itemsTruncated`/`itemsTotalCount` 투영·`CarouselView` 배너(`wc-carousel-truncated`,
+      `carousel.truncatedWithCount`/`carousel.truncated` ko/en i18n)·변환/렌더 테스트. spec §2/§4/R8 계약 정의.
+      channel-web-chat vitest(350, 신규 포함)·typecheck·build·catalog parity·e2e-full(playwright 46) green. ai-review 2R 반영(CHANGELOG·CSS·복원 thread 컴포넌트 테스트·asTotalCount 정수 가드).
 
 - [ ] (선택) 테스트 헬퍼 `payloadOf` 중복 (ai-review maintainability #8·#10)
       `conversation.test.ts` · `presentations.test.tsx` 2곳에 시그니처가 미묘하게 다른 채 중복 정의됨.

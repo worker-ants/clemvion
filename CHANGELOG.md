@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯 carousel 잘림 배너 + 총 개수 노출 (7-channel-web-chat/1-widget-app §2/R8)
+
+1. **위젯 carousel 잘림 배너를 신설하고 잘리기 전 총 아이템 개수를 함께 노출한다** — table 잘림 배너(#921)와 대칭. 종전 `CarouselData` 에는 `truncated`/`totalCount` 필드가 없어 `asEnvelope` 가 흡수하던 `itemsTruncated`/`itemsTotalCount` 가 **소비처 없는 dead field** 였다(#901 이 4개 cap 키를 흡수하나 carousel 은 미소비). 이를 소비만 확장 — 백엔드·SSE wire·Presentation 공통 §10.4 무변경. `CarouselData.truncated`/`totalCount?`(유한 비음수 정수만 채택, table 과 공유하는 `asTotalCount` 헬퍼) 추가 + `toCarousel` 이 `output.itemsTruncated`/`itemsTotalCount` 투영 + `CarouselView` 배너(`wc-carousel-truncated`, `.wc-table-truncated` 와 CSS 공유). 배너 문구(위젯 로컬 i18n catalog ko/en): `총 N개 중 일부만 표시돼요.`(총 개수 있음) / `일부 항목만 표시돼요.`(폴백). 동일 정합으로 `asTotalCount` 는 `Number.isInteger` 를 포함해 `toTable` 의 총 개수 판정도 spec §R8("비음수 정수")에 맞춰 tighten 했다. **배포-시점 영향(코드 변경만, 서버 데이터 무변경)**: 배포 시점에 이미 잘린 기존 AI carousel 응답이 있으면 코드 배포 즉시 배너가 소급 노출된다. SoT: `spec/7-channel-web-chat/1-widget-app.md §2·R8·§4`.
+
 ## Unreleased — 웹채팅 위젯 chrome 문자열 EN 다국어화 (`locale` 활성, 7-channel-web-chat/1-widget-app §4)
 
 ### 변경 사항

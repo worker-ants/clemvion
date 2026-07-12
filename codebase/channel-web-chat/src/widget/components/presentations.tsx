@@ -118,7 +118,7 @@ function ButtonBar({
 
 function CarouselView({ payload, onButton }: PresentationProps) {
   const t = useTranslation();
-  const { layout, items, buttons } = toCarousel(payload);
+  const { layout, items, buttons, truncated, totalCount } = toCarousel(payload);
   const [idx, setIdx] = useState(0);
   if (!items.length) return null;
   const safe = Math.min(idx, items.length - 1);
@@ -159,6 +159,13 @@ function CarouselView({ payload, onButton }: PresentationProps) {
           >
             ›
           </button>
+        </div>
+      )}
+      {truncated && (
+        <div className="wc-carousel-truncated">
+          {typeof totalCount === "number"
+            ? t("carousel.truncatedWithCount", { count: totalCount })
+            : t("carousel.truncated")}
         </div>
       )}
       <ButtonBar buttons={buttons} onButton={onButton} />

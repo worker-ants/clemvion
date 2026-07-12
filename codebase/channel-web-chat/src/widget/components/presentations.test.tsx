@@ -29,6 +29,33 @@ describe("PresentationBlock — 종류별 렌더", () => {
     expect(screen.getByText("둘째")).toBeInTheDocument();
   });
 
+  it("carousel — 잘림 배너 총 개수 노출", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: 9 },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("총 9개 중 일부만 표시돼요.")).toBeInTheDocument();
+  });
+
+  it("carousel — 잘림 배너 무개수 폴백 + 비잘림이면 배너 없음", () => {
+    const { unmount } = render(
+      <PresentationBlock
+        payload={{ output: { items: [{ title: "A" }], itemsTruncated: true } }}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("일부 항목만 표시돼요.")).toBeInTheDocument();
+    unmount();
+    render(
+      <PresentationBlock payload={{ output: { items: [{ title: "A" }] } }} onButton={vi.fn()} />,
+    );
+    expect(screen.queryByText("일부 항목만 표시돼요.")).not.toBeInTheDocument();
+  });
+
   it("table — 헤더/셀 렌더", () => {
     render(
       <PresentationBlock
@@ -425,6 +452,34 @@ describe("복원 thread presentation (PresentationPayload) 렌더", () => {
       />,
     );
     expect(screen.getByText("총 2000개 중 일부만 표시돼요.")).toBeInTheDocument();
+  });
+
+  it("AI render_carousel 의 top-level truncation(+총 개수) → 총 개수 잘림 배너 노출", () => {
+    render(
+      <PresentationList
+        presentations={[
+          payloadOf(
+            "carousel",
+            { layout: "card", items: [{ title: "상품A" }] },
+            { itemsTruncated: true, itemsTotalCount: 30 },
+          ),
+        ]}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("총 30개 중 일부만 표시돼요.")).toBeInTheDocument();
+  });
+
+  it("AI render_carousel 의 truncation 만 있고 총 개수 부재 → 폴백 잘림 배너", () => {
+    render(
+      <PresentationList
+        presentations={[
+          payloadOf("carousel", { layout: "card", items: [{ title: "상품A" }] }, { itemsTruncated: true }),
+        ]}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("일부 항목만 표시돼요.")).toBeInTheDocument();
   });
 
   // 잘림이지만 총 개수 부재 → 개수 없는 폴백 문구(해요체).

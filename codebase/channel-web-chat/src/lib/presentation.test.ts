@@ -49,6 +49,34 @@ describe("converters", () => {
     expect(c.layout).toBe("card");
     expect(c.items[0].title).toBe("S");
   });
+  it("toCarousel — output.itemsTruncated/itemsTotalCount → truncated/totalCount (toTable 대칭)", () => {
+    const c = toCarousel({
+      output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: 12 },
+    });
+    expect(c.truncated).toBe(true);
+    expect(c.totalCount).toBe(12);
+  });
+  it("toCarousel — itemsTotalCount 0 경계는 유효(총 0개…)", () => {
+    const c = toCarousel({
+      output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: 0 },
+    });
+    expect(c.totalCount).toBe(0);
+  });
+  it("toCarousel — 비잘림 기본값", () => {
+    const plain = toCarousel({ output: { items: [{ title: "A" }] } });
+    expect(plain.truncated).toBe(false);
+    expect(plain.totalCount).toBeUndefined();
+  });
+  // 신뢰 못 할 itemsTotalCount → undefined ("총 NaN개…" 유출 차단, asTotalCount 정수 가드, toTable 대칭)
+  it.each([Number.NaN, -1, Infinity, 12.5, "5"])(
+    "toCarousel — 신뢰 못 할 itemsTotalCount(%p) 는 undefined",
+    (bad) => {
+      const c = toCarousel({
+        output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: bad },
+      });
+      expect(c.totalCount).toBeUndefined();
+    },
+  );
   it("toTable — output.columns/rows", () => {
     const t = toTable({
       output: {
@@ -232,6 +260,24 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     });
     expect(c.items.map((i) => i.title)).toEqual(["A"]);
     expect(c.layout).toBe("card");
+    // §2/R8 — 흡수된 top-level truncation 의 itemsTruncated/itemsTotalCount 를 투영(toTable 대칭)
+    expect(c.truncated).toBe(true);
+    expect(c.totalCount).toBe(500);
+  });
+
+  it("toCarousel — top-level truncation 이 payload 동명 키보다 우선(우선순위 lock-in, toTable 대칭)", () => {
+    const c = toCarousel({
+      type: "carousel",
+      toolCallId: "t",
+      payload: { items: [{ title: "A" }], itemsTruncated: true },
+      truncation: { itemsTruncated: false },
+    });
+    expect(c.truncated).toBe(false);
+  });
+  it("toCarousel — truncation 이 null/문자열이면 무시(no-op, toTable 대칭)", () => {
+    const base = { type: "carousel", toolCallId: "t", payload: { items: [{ title: "A" }] } };
+    expect(toCarousel({ ...base, truncation: null }).truncated).toBe(false);
+    expect(toCarousel({ ...base, truncation: "garbage" }).truncated).toBe(false);
   });
 
   // payload 내부 값이 top-level truncation 에 덮이지 않아야 한다(노드 envelope 의미 보존).
