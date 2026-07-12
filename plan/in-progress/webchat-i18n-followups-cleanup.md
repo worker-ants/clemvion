@@ -25,9 +25,10 @@ spec_impact:
 - [x] **#8** `withNavigatorLanguage(lang, fn)` 테스트 헬퍼 추출 + auto-detect 테스트 리팩터 (testing INFO).
 
 ## 검증
-- [x] spec-link-integrity 13/13 · web-chat typecheck·lint(0 err)·unit(339) PASS
-- [~] TEST WORKFLOW (lint·unit·build·e2e) 재수행 중
-- [ ] `/ai-review` + `/consistency-check --impl-done`
+- [x] spec-link-integrity 13/13 · web-chat typecheck·lint(0 err) PASS
+- [x] TEST WORKFLOW (lint·unit·build·e2e 253) PASS
+- [x] `/ai-review` (17_29_04) — WARNING 1(Object.freeze shallow→**deepFreeze** fix + 회귀테스트, commit dd68b624d). disk-write gap 3 checker journal 복구 CRITICAL 0
+- [x] `/consistency-check --impl-done` (17_47_50) **BLOCK NO** — naming(`deepFreeze` backend 동명, local 무export 무충돌)·데모 P6 INFO 수용
 
 ## 비고
 전부 비차단 cosmetic/coverage. 기능·계약 변경 없음(타입 개명은 채널 내부 전용, 외부 소비자 없음). PR #929 의 accept-with-rationale defer 를 해소.
