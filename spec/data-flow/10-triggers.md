@@ -53,6 +53,8 @@ sequenceDiagram
 > 컨트롤러는 `WorkflowsController` (`@Post(':id/execute')`) 다. webhook(§1.2)과 동일하게
 > `__triggerSource:'manual'` 마커 + 검증된 `parameters` 가 inputData 에 스탬핑된다.
 > SIGTERM 수신 후의 503 게이트는 [Spec 실행 엔진 §11](../5-system/4-execution-engine.md#11-graceful-shutdown) 이 SoT.
+>
+> 같은 `INVALID_TRIGGER_PARAMETERS` 검증은 **저장 경로**(`POST /:id/save`, `WorkflowsService.validateManualTrigger` → `validateTriggerParameterSchema`)에서도 동일 헬퍼로 수행돼, 잘못된 파라미터 스키마를 저장 시점에 선제 거부한다(복원 경로 `restoreVersion` 은 예외 — [Manual Trigger §6](../4-nodes/7-trigger/1-manual-trigger.md#6-에러-코드)).
 
 ### 1.2 Webhook 진입
 
