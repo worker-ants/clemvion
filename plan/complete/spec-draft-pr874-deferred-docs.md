@@ -76,8 +76,8 @@ frontmatter `code:` 에 그 구현체 `interaction.service.ts` 가 없다.
 - [x] (3) conversation-thread.md frontmatter + §4 표 반영
 - [x] (I1) §8.2 말미 위젯 스코프 cross-ref 추가
 - [x] (W3) `spec-sync-external-interaction-api-gaps.md` 에 미등재 backlog 2항목 등재
-- [ ] doc-guard (spec-link-integrity) 통과
-- [ ] commit + PR
+- [x] doc-guard (spec-link-integrity) 통과 (PR #899 CI + 2026-07-12 재확인: `spec-link-integrity.test.ts` 13/13 pass)
+- [x] commit + PR → PR #899 (commit `52f46f95f`)
 
 ## consistency-check 반영 결과 (2026-07-10)
 
@@ -100,3 +100,15 @@ frontmatter `code:` 에 그 구현체 `interaction.service.ts` 가 없다.
 - **예외를 §9.1·§9.2 로 한정**: 위젯은 §9.3~§9.5 를 실제로 준수한다(`conversation.ts` 1차 소스 =
   `conversationThread.turns`, raw emit 미노출, `[user-input]` strip). 예외를 §9 전체로 넓히면
   실제보다 느슨한 계약이 되어 회귀 가드가 사라진다.
+
+## 완료 (2026-07-12 라이프사이클 마감)
+
+변경안 3건(+I1·W3)은 전부 PR #899 (commit `52f46f95f`) 로 반영·머지됐다. 잔여 체크박스 2개
+(doc-guard·commit+PR)가 미체크로 `in-progress/` 에 잔류하던 것을 consistency-check
+(`review/consistency/2026/07/12/01_41_42/`) 가 하우스키핑으로 지목 → 실제 반영을 재확인하고 마감한다.
+
+- **target 재확인**: `1-widget-app.md` §R7 (L159), `conversation-thread.md` §9 서두 blockquote (L397)·
+  §8.2 말미 cross-ref (L332)·frontmatter `code:` interaction.service.ts (L7)·§4 park 행 소비처 1문장 (L217)
+  모두 현행 main 에 존재.
+- **doc-guard**: `spec-link-integrity.test.ts` 13/13 pass (2026-07-12 재확인).
+- 미해결 follow-up 0건 → `plan/complete/` 이동. `spec_impact` frontmatter 는 이미 리스트로 선언됨 (Gate C).
