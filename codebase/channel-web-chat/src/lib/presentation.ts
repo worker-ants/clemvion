@@ -114,6 +114,15 @@ function asButtons(v: unknown): PresentationButton[] {
     }));
 }
 
+/**
+ * 잘리기 전 총 개수(§10.4 `output.{rows|items}TotalCount`) 정규화 — 유한한 비음수 **정수**만 채택.
+ * 부재/이형/NaN/Infinity/음수/소수는 undefined → 잘림 배너가 개수 없는 폴백으로 표시(신뢰 못 할
+ * total 로 "총 NaN개…" 유출 차단). SoT: spec 7-channel-web-chat/1-widget-app §R8. toTable·toCarousel 공유.
+ */
+function asTotalCount(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
+}
+
 // AI render_* 의 PresentationPayload 유효 종류 — classifyPresentation fast-path guard.
 // (form 제외: form 은 presentations[] 가 아니라 waiting_for_input(ai_form_render) 경로로 오며 별도 UI 가 렌더.)
 const PRESENTATION_KINDS = new Set<PresentationKind>(["carousel", "table", "chart", "template"]);
@@ -212,20 +221,13 @@ export function toCarousel(p: unknown): CarouselData {
   const layout = CAROUSEL_LAYOUTS.has(config.layout as string)
     ? (config.layout as CarouselData["layout"])
     : "card";
-  // 잘리기 전 총 아이템 개수 — truncationMeta 가 이미 흡수한 output.itemsTotalCount(§10.4).
-  // 유한한 비음수 정수만 채택: 부재/이형/NaN/Infinity/음수는 undefined → 배너가 개수 없는
-  // 폴백으로 표시(신뢰 못 할 total 로 "총 NaN개…" 같은 문구가 새지 않게). toTable 과 대칭.
-  const rawTotal = output.itemsTotalCount;
-  const totalCount =
-    typeof rawTotal === "number" && Number.isFinite(rawTotal) && rawTotal >= 0
-      ? rawTotal
-      : undefined;
   return {
     layout,
     items,
     buttons: asButtons(config.buttons),
+    // §2/R8 — 흡수된 output.itemsTruncated/itemsTotalCount 를 투영(dead field 해소). asTotalCount 로 toTable 과 대칭.
     truncated: output.itemsTruncated === true,
-    totalCount,
+    totalCount: asTotalCount(output.itemsTotalCount),
   };
 }
 
@@ -245,20 +247,13 @@ export function toTable(p: unknown): TableData {
   const rows = asArray<Record<string, unknown>>(
     Array.isArray(output.rows) ? output.rows : config.rows,
   );
-  // 잘리기 전 총 행 개수 — truncationMeta 가 이미 흡수한 output.rowsTotalCount(§10.4).
-  // 유한한 비음수 정수만 채택: 부재/이형/NaN/Infinity/음수는 undefined → 배너가 개수 없는
-  // 폴백으로 표시(신뢰 못 할 total 로 "총 NaN개…" 같은 문구가 새지 않게).
-  const rawTotal = output.rowsTotalCount;
-  const totalCount =
-    typeof rawTotal === "number" && Number.isFinite(rawTotal) && rawTotal >= 0
-      ? rawTotal
-      : undefined;
   return {
     columns,
     rows,
     buttons: asButtons(config.buttons),
+    // 잘리기 전 총 행 개수 — 흡수된 output.rowsTotalCount(§10.4). asTotalCount 로 toCarousel 과 대칭.
     truncated: output.rowsTruncated === true,
-    totalCount,
+    totalCount: asTotalCount(output.rowsTotalCount),
   };
 }
 

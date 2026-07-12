@@ -56,18 +56,27 @@ describe("converters", () => {
     expect(c.truncated).toBe(true);
     expect(c.totalCount).toBe(12);
   });
-  it("toCarousel — 비잘림 기본값 + 신뢰 못 할 totalCount 는 undefined", () => {
+  it("toCarousel — itemsTotalCount 0 경계는 유효(총 0개…)", () => {
+    const c = toCarousel({
+      output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: 0 },
+    });
+    expect(c.totalCount).toBe(0);
+  });
+  it("toCarousel — 비잘림 기본값", () => {
     const plain = toCarousel({ output: { items: [{ title: "A" }] } });
     expect(plain.truncated).toBe(false);
     expect(plain.totalCount).toBeUndefined();
-    // NaN/음수/Infinity/이형 → undefined ("총 NaN개…" 유출 차단, toTable 대칭)
-    for (const bad of [Number.NaN, -1, Infinity, "5"]) {
+  });
+  // 신뢰 못 할 itemsTotalCount → undefined ("총 NaN개…" 유출 차단, asTotalCount 정수 가드, toTable 대칭)
+  it.each([Number.NaN, -1, Infinity, 12.5, "5"])(
+    "toCarousel — 신뢰 못 할 itemsTotalCount(%p) 는 undefined",
+    (bad) => {
       const c = toCarousel({
         output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: bad },
       });
       expect(c.totalCount).toBeUndefined();
-    }
-  });
+    },
+  );
   it("toTable — output.columns/rows", () => {
     const t = toTable({
       output: {
@@ -251,6 +260,9 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     });
     expect(c.items.map((i) => i.title)).toEqual(["A"]);
     expect(c.layout).toBe("card");
+    // §2/R8 — 흡수된 top-level truncation 의 itemsTruncated/itemsTotalCount 를 투영(toTable 대칭)
+    expect(c.truncated).toBe(true);
+    expect(c.totalCount).toBe(500);
   });
 
   // payload 내부 값이 top-level truncation 에 덮이지 않아야 한다(노드 envelope 의미 보존).
