@@ -97,8 +97,9 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile --filter "@workflow/sdk..."
       # test(ts-jest)가 타입 가드(client.spec.ts 의 @ts-expect-error negative)를 검증한다 —
-      # build(tsc)는 tsconfig 가 *.spec.ts 를 exclude 하므로 spec 을 안 본다. lint 는 SDK 에
-      # eslint.config 부재라 생략.
+      # build(tsc)는 tsconfig 가 *.spec.ts 를 exclude 하므로 spec 을 안 본다.
+      - name: Lint
+        run: pnpm --filter @workflow/sdk lint
       - name: Jest (unit + type guard)
         run: pnpm --filter @workflow/sdk test
       - name: Build (tsc)

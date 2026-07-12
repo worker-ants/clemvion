@@ -5,9 +5,6 @@
 import dayjs from 'dayjs';
 import { TypeError, FunctionError } from '../errors';
 
-type ManipulateUnit = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second'
-  | 'years' | 'months' | 'days' | 'hours' | 'minutes' | 'seconds';
-
 function assertString(val: unknown, fnName: string): string {
   if (typeof val !== 'string') {
     throw new TypeError(`${fnName} expects a string argument, got ${typeof val}`);
