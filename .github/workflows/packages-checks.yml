@@ -1,0 +1,67 @@
+# 내부 backend-공유 패키지(@workflow/expression-engine·graph-warning-rules·node-summary·
+# chat-channel-validation)의 lint/test/build CI 가드. 종전 이 4개는 전용 CI job 이 없어
+# (backend 전용 워크플로 부재) 회귀가 PR 에서 안 잡혔다. eia-context-followups #3 — eslint config
+# 신설(각 패키지 eslint.config.mjs)로 lint 가 실효화되면서 CI 배선.
+name: packages-checks
+
+on:
+  pull_request:
+    paths:
+      - 'codebase/packages/expression-engine/**'
+      - 'codebase/packages/graph-warning-rules/**'
+      - 'codebase/packages/node-summary/**'
+      - 'codebase/packages/chat-channel-validation/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/packages-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'codebase/packages/expression-engine/**'
+      - 'codebase/packages/graph-warning-rules/**'
+      - 'codebase/packages/node-summary/**'
+      - 'codebase/packages/chat-channel-validation/**'
+      - 'pnpm-lock.yaml'
+
+concurrency:
+  group: packages-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    name: internal packages (lint/test/build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install deps
+        run: >
+          pnpm install --frozen-lockfile
+          --filter "@workflow/expression-engine..."
+          --filter "@workflow/graph-warning-rules..."
+          --filter "@workflow/node-summary..."
+          --filter "@workflow/chat-channel-validation..."
+      - name: Lint
+        run: |
+          pnpm --filter @workflow/expression-engine lint
+          pnpm --filter @workflow/graph-warning-rules lint
+          pnpm --filter @workflow/node-summary lint
+          pnpm --filter @workflow/chat-channel-validation lint
+      - name: Test (jest)
+        run: |
+          pnpm --filter @workflow/expression-engine test
+          pnpm --filter @workflow/graph-warning-rules test
+          pnpm --filter @workflow/node-summary test
+          pnpm --filter @workflow/chat-channel-validation test
+      - name: Build (tsc)
+        run: |
+          pnpm --filter @workflow/expression-engine build
+          pnpm --filter @workflow/graph-warning-rules build
+          pnpm --filter @workflow/node-summary build
+          pnpm --filter @workflow/chat-channel-validation build

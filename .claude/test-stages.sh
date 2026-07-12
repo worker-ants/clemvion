@@ -25,6 +25,11 @@ cmd_lint() {
   pnpm --filter backend lint && \
   pnpm --filter frontend lint && \
   pnpm --filter @workflow/web-chat lint && \
+  pnpm --filter @workflow/sdk lint && \
+  pnpm --filter @workflow/expression-engine lint && \
+  pnpm --filter @workflow/graph-warning-rules lint && \
+  pnpm --filter @workflow/node-summary lint && \
+  pnpm --filter @workflow/chat-channel-validation lint && \
   pnpm --filter channel-web-chat lint
 }
 
@@ -34,7 +39,11 @@ cmd_unit() {
   pnpm --filter frontend test && \
   pnpm --filter @workflow/web-chat test && \
   pnpm --filter channel-web-chat test && \
-  pnpm --filter @workflow/sdk test
+  pnpm --filter @workflow/sdk test && \
+  pnpm --filter @workflow/expression-engine test && \
+  pnpm --filter @workflow/graph-warning-rules test && \
+  pnpm --filter @workflow/node-summary test && \
+  pnpm --filter @workflow/chat-channel-validation test
 }
 
 cmd_build() {
@@ -45,6 +54,10 @@ cmd_build() {
   pnpm --filter channel-web-chat build && \
   pnpm --filter channel-web-chat typecheck && \
   pnpm --filter @workflow/sdk build && \
+  pnpm --filter @workflow/expression-engine build && \
+  pnpm --filter @workflow/graph-warning-rules build && \
+  pnpm --filter @workflow/node-summary build && \
+  pnpm --filter @workflow/chat-channel-validation build && \
   _cmd_build_docker_images
 }
 

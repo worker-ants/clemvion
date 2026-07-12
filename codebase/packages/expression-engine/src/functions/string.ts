@@ -2,7 +2,7 @@
  * Built-in string functions (14).
  */
 
-import { FunctionError, TypeError } from '../errors';
+import { TypeError } from '../errors';
 
 function assertString(val: unknown, fnName: string): string {
   if (typeof val !== 'string') {
