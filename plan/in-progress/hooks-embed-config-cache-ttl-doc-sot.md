@@ -34,14 +34,15 @@ behavior-preserving 순수 DRY 리팩터. 렌더 결과(문서 문자열·실제
 
 ## 체크리스트
 
-- [ ] 편집: hooks.controller.ts 4개 사용처 상수 참조로 교체
-- [ ] lint
-- [ ] unit test
-- [ ] build
-- [ ] e2e (백엔드 변경 — 기본 요구)
-- [ ] /ai-review + SUMMARY
-- [ ] Critical/Warning fix (있으면)
-- [ ] /consistency-check --impl-done (spec-linked: 12-webhook / 15-chat-channel / slack / discord / 14-eia / 2-api-convention)
+- [x] 편집: hooks.controller.ts 4개 사용처 상수 참조로 교체 (+ L89 주석, 단위 테스트 강화)
+- [x] lint
+- [x] unit test
+- [x] build
+- [x] e2e (백엔드 변경 — 기본 요구, 253 passed)
+- [x] /ai-review + SUMMARY (WARNING 2건: `_MIN` 네이밍·L89 주석 → fix. disk-write gap 3건 journal 복구)
+- [x] Critical/Warning fix (resolution: `refactor(hooks): … WARNING 반영`, RESOLUTION.md)
+- [x] /consistency-check --impl-done spec/5-system/12-webhook.md → BLOCK: NO (5/5 checker, disk-write gap 3건 journal 복구)
+- [ ] fresh /ai-review (fix 커밋이 원 리뷰 postdate → stale-review 가드 해소용 재확인)
 - [ ] plan complete 이동
 
 ## 비고
