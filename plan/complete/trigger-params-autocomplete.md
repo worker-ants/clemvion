@@ -4,6 +4,8 @@ worktree: trigger-params-autocomplete-30acb1
 started: 2026-07-10
 owner: developer
 spec_area: spec/5-system/5-expression-language.md
+spec_impact:
+  - spec/5-system/5-expression-language.md
 ---
 
 ## 배경
@@ -24,16 +26,16 @@ spec 은 이미 `$params` 를 규정한다:
 `$params` ≡ `$input.parameters` (resolver: `expression-resolver.service.ts:77-88`
 `paramsFromInput = inputObject.parameters`). 자동완성도 동일 소스에 매핑:
 
-- [ ] `expression-constants.ts` ROOT_VARIABLES 에 `$params`(isExpandable) 추가 —
+- [x] `expression-constants.ts` ROOT_VARIABLES 에 `$params`(isExpandable) 추가 —
       `$input` 바로 뒤, detail "Trigger parameters shortcut (= $input.parameters)".
       $input 과 동일하게 전역 root var (값 없으면 하위키 빈 결과 — $input 과 일관).
-- [ ] `use-expression-suggestions.ts` 에 `$params.` drill 핸들러 추가 —
+- [x] `use-expression-suggestions.ts` 에 `$params.` drill 핸들러 추가 —
       `buildNestedSuggestions(inputSample.parameters, prefix, inputSchema.properties.parameters)`.
       `inputSchema` 는 이미 predecessor `.output` 로 descend 돼 있어(enricher 로 트리거
       직속 successor 는 `.properties.parameters` 가 이름별로 enrich 됨).
 
 ## 테스트
-- [ ] `use-expression-suggestions.test.ts` — `$params` root 후보 노출 + `$params.` →
+- [x] `use-expression-suggestions.test.ts` — `$params` root 후보 노출 + `$params.` →
       트리거 param 이름 하위키 (enriched inputSchema 기반) + 비-successor 노드 빈 결과
 
 ## 워크플로 체크

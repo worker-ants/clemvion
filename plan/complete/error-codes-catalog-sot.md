@@ -4,6 +4,9 @@ worktree: error-codes-catalog-sot-e09193
 started: 2026-07-10
 owner: project-planner
 spec_area: spec/5-system/3-error-handling.md
+spec_impact:
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/1-auth.md
 ---
 
 ## 배경
@@ -24,9 +27,9 @@ spec_area: spec/5-system/3-error-handling.md
 §1.5(WS commands)·§1.6(EIA)·§1.7(webhook)는 이미 "정의·트리거 SoT 는 도메인 spec,
 본 절은 공용 카탈로그 가시성 등재" 패턴을 확립. 동일 패턴으로:
 
-- [ ] **auth 도메인 코드**: §1.2(인증/인가) 뒤에 도메인 참조 등재(표 또는 §1.2.x)
+- [x] **auth 도메인 코드**: §1.2(인증/인가) 뒤에 도메인 참조 등재(표 또는 §1.2.x)
       — WebAuthn/2FA/재인증 코드를 `| 코드 | HTTP | 도메인 SoT |` 로. SoT = `1-auth.md §1.4/§2.3`.
-- [ ] **KB 도메인 코드**: `KB_REEXTRACT_IN_PROGRESS`(+형제) 등재. SoT = `10-graph-rag.md`.
+- [x] **KB 도메인 코드**: `KB_REEXTRACT_IN_PROGRESS`(+형제) 등재. SoT = `10-graph-rag.md`.
       단건이면 별도 §1.8 대신 §1.1 또는 경량 note 검토.
 
 정확한 코드·HTTP·의미·SoT 위치는 enumeration 조사 결과로 확정(env var/이벤트값/

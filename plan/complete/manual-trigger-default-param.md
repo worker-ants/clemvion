@@ -3,8 +3,9 @@ title: Manual Trigger 파라미터 default 미적용 — 3지점 방어 수정
 worktree: manual-trigger-default-param-e0d395
 started: 2026-07-09
 owner: developer
-status: in-progress
+status: complete
 spec_area: spec/4-nodes/7-trigger/1-manual-trigger.md
+spec_impact: none
 ---
 
 ## 배경 / 근본 원인

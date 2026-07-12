@@ -2,6 +2,13 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/3-workflow-editor/0-canvas.md
+  - spec/3-workflow-editor/2-edge.md
+  - spec/3-workflow-editor/4-ai-assistant.md
+  - spec/4-nodes/0-overview.md
+  - spec/0-overview.md
+  - spec/conventions/cross-node-warning-rules.md
 ---
 
 # canvas — spec 약속 대비 미구현 surface
@@ -18,7 +25,7 @@ owner: planner
 - [x] §10 단축키: Ctrl+C/V/D/A·Escape(드로어 복귀 우선 분기)·Space 패닝(`panActivationKeyCode`)·Ctrl++/-/0/1(줌, 캔버스 컴포넌트). `isEditableTarget` 가드(shared util). spec §10 표 구현됨 flip + Ctrl+Shift+R/Escape 오기재 정정. lint·unit·build·e2e·ai-review(Critical 0)·consistency(BLOCK:NO) 통과. **PR #846**.
 - [x] §3.3 Ctrl+C/V 복사·붙여넣기 + Ctrl+D 복제 — `editorClipboard` 앱 내부 상태. copySelection/pasteClipboard/duplicateSelection(신규 id·오프셋·유니크 라벨·엣지 재연결·containerId 재도출). 캔버스 우클릭 "붙여넣기"(클릭 위치). spec §3.3/§3.5 동기화. lint·unit·build·e2e·ai-review(Critical 0)·consistency(BLOCK:NO) 통과. **PR #846**.
 - [x] §4.1 팔레트 **Recent 섹션** — 최근 사용 노드 타입 상단 표시(`recent-nodes-store`, 세션 한정·최대 5·최신순·manual_trigger 제외·검색 중 숨김). `addNode` 주 choke point + paste/duplicate 는 `recordRecentNodeTypesFrom` 별도 기록. **PR #847**.
-- [ ] §4.1 팔레트 **Installed(마켓플레이스) 섹션** — 마켓플레이스 모듈(`marketplace-and-plugin-sdk.md`) 의존, backlog 유지. (Recent 와 분리)
+- [x] §4.1 팔레트 **Installed(마켓플레이스) 섹션** — 마켓플레이스 모듈(`marketplace-and-plugin-sdk.md`) 의존, backlog 유지. (Recent 와 분리) **→ 마켓플레이스 백로그(`marketplace-and-plugin-sdk.md`)로 이관, 본 spec-sync plan 범위 종결.**
 - [x] §4.2 팔레트 아이템 클릭으로 노드 추가(뷰포트 중앙+지터, `palette-canvas-bridge`) + 패널 접기 토글(아이콘 레일). **PR #847**.
 - [x] §4.3 빠른 노드 추가 팝업 키보드 — ↑/↓ 하이라이트·Enter 선택·Escape 닫기(팝업 우선, `stopPropagation`). 순수 리듀서 `quick-add-nav`. **PR #847**.
 - [x] §8 자동 저장 + PRD §5 ED-SP-05(설정 즉시 반영) — **spec 정정으로 해소(구현 안 함, 방향 반대)**. 2초 디바운스 타이머 자동 저장·오프라인 로컬 초안·동시편집 충돌 감지·설정 즉시 반영은 모두 미구현이며, 현재의 명시 저장(수동 `Ctrl+S`·`Save` + 실행 직전 저장)·설정 `변경 저장`/`JSON 적용` 모델이 의도된 설계로 확인됨(사용자 결정 2026-07-08). §8/§8.1·§5.3·PRD ED-SP-05/SV-02/AI-17·2-edge §8·4-ai-assistant·**0-overview §3.3·4-nodes/0-overview §1.4**(cross-cutting SoT 전파, consistency Critical 2건 해소) 의 저장 참조를 현재 동작으로 정정 + 0-canvas `Rationale R-3` 기록. 유저 가이드는 PR #855 에서 이미 현재 동작 서술. 타이머 자동 저장·오프라인 초안 부활은 별도 기획 판단으로 남김.

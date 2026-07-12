@@ -2,6 +2,12 @@
 worktree: notif-firing-sources-547d5c
 started: 2026-06-03
 owner: developer
+spec_impact:
+  - spec/data-flow/8-notifications.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/1-data-model.md
+  - spec/4-nodes/1-logic/12-background.md
 ---
 
 # data-flow/8-notifications — spec 약속 대비 미구현 surface
@@ -29,7 +35,7 @@ owner: developer
 - [x] WebSocket `notification.new` emit — **PR1 완료** (`WebsocketService.emitNotificationEvent` → `notifications:<userId>`, best-effort). §4.6 의 `notification.read`/`notification.dismissed` 멀티 디바이스 동기화는 별도 follow-up 으로 잔존. ⚠ 자매 plan `spec-sync-websocket-protocol-gaps.md` §4.4 항목도 동기 `[x]`. spec 본문 "Planned" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
 - [x] type `execution_failed` 발사 — **PR3 완료** (`ExecutionEngineService.dispatchExecutionFailedNotification`, top-level 실행 FAILED 시 owner+executor). spec 배지 flip 은 `plan/in-progress/spec-update-notifications-firing.md`(planner) 위임.
 - [x] type `schedule_failed` 발사 — **PR3 완료** (`ScheduleRunnerService.dispatchScheduleFailedNotification`, enqueue/파라미터 실패 시 owner).
-- [ ] type `marketplace_update` 발사 — 마켓플레이스 모듈 도입 시. **마켓플레이스 backlog 차단 — 범위 밖(잔여).**
+- [x] type `marketplace_update` 발사 — 마켓플레이스 모듈 도입 시. **마켓플레이스 백로그(`marketplace-and-plugin-sdk.md`)로 이관 — 본 spec-sync plan 범위 종결.**
 - [x] type `team_invite` 발사 — **PR3 완료** (`WorkspaceInvitationsService.dispatchTeamInviteNotification`, 기존 가입자(비멤버) 초대 시 channel=both).
 
 ## 비고
