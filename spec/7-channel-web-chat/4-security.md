@@ -7,7 +7,7 @@ code:
   - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
   - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
   - codebase/backend/src/modules/hooks/embed-config.service.ts
-  - codebase/backend/src/modules/hooks/dto/responses/embed-config.dto.ts
+  - codebase/backend/src/modules/hooks/dto/responses/embed-config-response.dto.ts
   - codebase/channel-web-chat/src/widget/host-bridge.ts
   - codebase/channel-web-chat/src/lib/safe-html.ts
   - codebase/frontend/src/components/editor/assistant-panel/markdown-renderer.tsx

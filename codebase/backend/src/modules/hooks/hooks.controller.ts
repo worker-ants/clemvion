@@ -34,7 +34,7 @@ import {
 } from './public-webhook-throttle.guard';
 import { EmbedConfigService } from './embed-config.service';
 import { WebhookAcceptedDto } from './dto/responses/webhook-response.dto';
-import { EmbedConfigDto } from './dto/responses/embed-config.dto';
+import { EmbedConfigDto } from './dto/responses/embed-config-response.dto';
 
 /** embed-config 응답 캐시 max-age (초). CDN·브라우저 캐시 의존 설계 — 워크스페이스 설정 변경 후 최대 이 시간 내 반영(I17/I1). */
 const EMBED_CONFIG_CACHE_SEC = 300;
