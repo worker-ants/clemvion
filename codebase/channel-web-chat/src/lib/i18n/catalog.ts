@@ -3,9 +3,10 @@
 // 대상 = 위젯 소유 chrome 만. 운영자 제공 콘텐츠(headerTitle·welcome·disclaimer)·backend payload·AI 본문은 비대상.
 // ko/en 키 집합은 반드시 동일해야 한다(catalog.test.ts parity 가드 — hard fail).
 
-export type Locale = "ko" | "en";
+export type WidgetLocale = "ko" | "en";
 
-export const WIDGET_STRINGS = {
+// Object.freeze: `as const` 는 컴파일타임 불변만 보장 — 런타임 변형(실수/외부 조작)까지 방어적으로 차단한다.
+export const WIDGET_STRINGS = Object.freeze({
   ko: {
     // composer (입력창)
     "composer.placeholder": "메시지를 입력해 주세요.",
@@ -82,7 +83,7 @@ export const WIDGET_STRINGS = {
     "form.submit": "Submit",
     "error.generic": "Something went wrong. Please start a new chat and try again shortly.",
   },
-} as const;
+} as const);
 
 /** 번역 키 — ko 사전을 SoT 로 삼는다(en 은 parity 강제). */
-export type TranslationKey = keyof typeof WIDGET_STRINGS.ko;
+export type WidgetTranslationKey = keyof typeof WIDGET_STRINGS.ko;

@@ -38,7 +38,7 @@ code:
   ClemvionChat('boot', {
     apiBase: 'https://<api-base>',         // 배포 환경의 API origin(런타임 주입, 0-architecture §4)
     triggerEndpointPath: 'a1b2c3-...',     // 공개 webhook path (비밀 아님)
-    locale: 'ko',
+    locale: 'ko',                          // 'ko' | 'en' — 위젯 chrome UI 언어(§4·R6). 미지정 시 브라우저 auto-detect → ko
     appearance: { primaryColor: '#5B4FE9', position: 'bottom-right', zIndex: 2147483000 },
     headerTitle: 'AI 어시스턴트',
     welcome: { text: '안녕하세요! 무엇을 도와드릴까요?', suggestions: ['제품 소개를 받아볼 수 있나요?', '설치는 어떻게 하나요?'] },

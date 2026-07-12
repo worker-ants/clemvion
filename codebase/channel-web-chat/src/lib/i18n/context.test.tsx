@@ -18,6 +18,12 @@ describe("makeTranslate", () => {
   it("params 미제공 시 placeholder 유지(치환 안 함)", () => {
     expect(makeTranslate("en")("launcher.unread")).toBe("{{count}} unread messages");
   });
+
+  it("미지 키는 폴백 체인 끝에서 키 자체 반환(런타임 안전 — 타입상 도달 불가라 캐스팅으로 검증)", () => {
+    // dict[key] undefined → WIDGET_STRINGS.ko[key] undefined → key 자체. parity 가드가 실키 결손을 선차단하므로
+    // 이 경로는 정상 실행에선 도달 불가하나, 방어적 폴백이 살아있음을 확인한다.
+    expect(makeTranslate("en")("nope.missing.key" as never)).toBe("nope.missing.key");
+  });
 });
 
 // Provider 로 주입된 locale 을 컴포넌트가 useTranslation 으로 소비.

@@ -47,6 +47,7 @@ UI 다국어 문자열·백엔드 발행 라벨·사용자 가이드(`/docs`) MD
     **in-scope**(메인 앱 dict 대상) — 위젯 로컬 catalog 를 쓰는 건 위젯 SPA(`codebase/channel-web-chat`) 뿐이다([5-admin-console §8](../7-channel-web-chat/5-admin-console.md)
     은 콘솔 메뉴 문자열에 Principle 1·2 적용을 명시).
   - **문체(Principle 6)는 공유**: 위젯 chrome 도 해요체(ko)·정중 간결(en)·글로서리·금지어를 따른다 — 제품 표면 간 보이스 일관성.
+    - **단 dev-only 시뮬레이터(`codebase/channel-web-chat/src/app/demo/**`)는 P6 스코프 밖**: 배포되는 위젯 chrome 이 아니라 개발자용 데모 host 라 제품 보이스 대상이 아니다(합쇼체 잔존 무방). consistency-check 가 데모 host 문체를 반복 플래그하는 건 오탐이다.
 
 ---
 
