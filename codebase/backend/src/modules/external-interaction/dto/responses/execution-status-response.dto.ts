@@ -5,6 +5,10 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 import type { ConversationThread } from '../../../../shared/conversation-thread/conversation-thread.types';
+import {
+  EXECUTION_STATUS_VALUES,
+  type ExecutionStatusLiteral,
+} from './execution-status.literal';
 
 /** waiting_for_input 상태에서 현재 입력을 대기 중인 노드. [Spec EIA §5.3]. */
 export class CurrentNodeDto {
@@ -106,23 +110,8 @@ export class ExecutionStatusDto {
   @ApiProperty({ format: 'uuid' })
   workflowId: string;
 
-  @ApiProperty({
-    enum: [
-      'pending',
-      'running',
-      'waiting_for_input',
-      'completed',
-      'failed',
-      'cancelled',
-    ],
-  })
-  status:
-    | 'pending'
-    | 'running'
-    | 'waiting_for_input'
-    | 'completed'
-    | 'failed'
-    | 'cancelled';
+  @ApiProperty({ enum: [...EXECUTION_STATUS_VALUES] })
+  status: ExecutionStatusLiteral;
 
   /** waiting_for_input 상태에서만 실값. 그 외에는 `null`. */
   @ApiPropertyOptional({

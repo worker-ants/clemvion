@@ -1,4 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  EXECUTION_STATUS_VALUES,
+  type ExecutionStatusLiteral,
+} from './execution-status.literal';
 
 /**
  * `POST /api/external/executions/:id/interact` / `/cancel` 의 ack body.
@@ -14,22 +18,9 @@ export class InteractAckDto {
   accepted: boolean;
 
   @ApiPropertyOptional({
-    enum: [
-      'pending',
-      'running',
-      'waiting_for_input',
-      'completed',
-      'failed',
-      'cancelled',
-    ],
+    enum: [...EXECUTION_STATUS_VALUES],
     description:
       '명령 수신 직후 관측된 execution status. 즉시 다른 상태로 전이될 수 있으므로 SSE 스트림으로 확정 상태를 받는 것을 권장.',
   })
-  currentStatus?:
-    | 'pending'
-    | 'running'
-    | 'waiting_for_input'
-    | 'completed'
-    | 'failed'
-    | 'cancelled';
+  currentStatus?: ExecutionStatusLiteral;
 }
