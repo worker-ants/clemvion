@@ -111,6 +111,7 @@ export class ExecutionStatusDto {
 
 - 노드 타입별 자유 payload(`nodeOutput`), 사용자 정의 변수 맵 등 **실제로 키가 열려 있는** 경우에 한한다.
 - **"타입을 특정하기 번거롭다"는 사유로 쓰지 않는다** — variant 집합이 코드로 확정되면 위 닫힌 union 항목이 맞다. (§6 의 "빈 껍데기 스키마 금지"와 같은 취지.)
+- **예외 — 형태는 고정이나 SoT 이중화 회피로 여는 경우**: 필드의 형태가 **다른 SoT 문서에 이미 규정**돼 있고(예: EIA `getStatus` 응답의 `conversationThread` — 형태 SoT 는 [conversation-thread §1.3](./conversation-thread.md#13-conversationthread)), 그 형태를 DTO 로 다시 선언하면 두 곳을 손으로 동기화해야 하는 경우엔 열린 map(`additionalProperties`)을 유지할 수 있다. 이는 위 "번거로움" 금지의 예외 — 사유가 "타입 특정이 번거롭다"가 아니라 **"타입이 다른 SoT 에 이미 있어 재선언이 이중화"** 이기 때문이다. 이 예외를 쓸 때는 해당 DTO 의 `## Rationale` 에 "형태는 고정이지만 SoT 이중화 회피로 연다"는 근거를 명시해, 본 절만 읽고 §1-4 위반으로 오독되지 않게 한다.
 
 > **적용 범위 — 신규 변경 한정**: 기존 `additionalProperties: true` 필드를 일괄 소급 스키마화하지 않는다. 본 절의 가치는 "이미 있는 것의 정리"가 아니라 "앞으로의 불투명 누적 방지"다 ([`execution-context.md`](./execution-context.md) §원칙 3 과 동일 취지).
 
