@@ -37,15 +37,26 @@ WORKDIR /app
 COPY codebase/backend ./codebase/backend
 RUN pnpm --filter backend build
 
+# ---------- prod-deps: devDeps 를 prune 한 production node_modules ----------
+# builder(dist 빌드 완료) 위에서 --prod 로 재해소해 backend subtree 의 devDeps 를 제거한다.
+# pnpm 은 modules 재구성을 위해 node_modules 를 지웠다 다시 링크하므로 native(bcrypt/isolated-vm)를
+# 재컴파일한다 — 빌드툴(python3/make/g++)은 deps 스테이지에 있다. 내부 패키지 prepare 는
+# `[ -d dist ] || tsc` 가드라 dist 가 이미 있으면 tsc 를 스킵(주 비용은 native 재컴파일).
+# 비대화형 빌드라 removal 확인 프롬프트를 넘기려 CI=true 를 준다. backend 의 이미 빌드된 dist
+# (codebase/backend/dist)는 node_modules 밖이라 보존된다.
+FROM builder AS prod-deps
+WORKDIR /app
+RUN CI=true pnpm install --prod --frozen-lockfile --filter "backend..."
+
 # ---------- runner: runtime ----------
-# 빌드된 workspace 전체를 그대로 옮긴다. node-linker=hoisted 라 node_modules 는
-# flat(심링크 dangling 없음)이고, 내부 @workflow/* 는 codebase/packages/* 의 built
-# dist 로 해소된다. (devDeps 까지 포함 — 이미지 크기 최적화는 후속 과제.)
+# prod-deps 는 built dist + devDeps 제거된 node_modules 를 모두 포함하므로 통째로 옮긴다.
+# node-linker=hoisted 라 node_modules layout(root + backend 로컬 @workflow 링크)은 그대로 보존되고,
+# 내부 @workflow/* 는 codebase/packages/* 의 built dist 로 해소된다.
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production
 RUN corepack enable
 WORKDIR /app
-COPY --from=builder --chown=node:node /app ./
+COPY --from=prod-deps --chown=node:node /app ./
 
 USER node
 WORKDIR /app/codebase/backend
