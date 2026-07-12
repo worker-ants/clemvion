@@ -64,10 +64,11 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
 - [x] (spec code-glob 매칭) consistency-check --impl-done spec/5-system/ — **BLOCK: NO** (Critical 0). WARNING 1(관련 plan 체크박스 미반영)·INFO 3 전부 해소(§7.2 행 축약, node-output-redesign line 140 부분해소 주석, 후속 체크박스화). `rationale_continuity` 는 FS-write flakiness 로 직접 Agent 재실행 → **위험도 NONE**(닫힌 집합 제약 아님·값 아닌 이름만 투영이라 Principle 1.1 무위반).
 
 ## 후속 (비차단)
-- [ ] (spec, project-planner) `spec/4-nodes/7-trigger/0-common.md §3` 표의 `output: $params`
+- [x] (spec, project-planner) `spec/4-nodes/7-trigger/0-common.md §3` 표의 `output: $params`
   축약 표기를 `output.parameters: $params` 로 명확화 (§3.2/§5.1 JSON 예시와 통일).
   사용자가 겪은 `config.parameters` vs `output.parameters` 혼동과 동일 계열의 문서 정밀성 이슈.
-  (impl-prep + ai-review 양쪽 지적, pre-existing.)
+  (impl-prep + ai-review 양쪽 지적, pre-existing.) **완료**: §3 표(line 74) + 같은 오류를 공유하던
+  §3.2 접근 경로(`$node["X"].output.<paramName>` → `output.parameters.<paramName>`)까지 §5.1 JSON 과 정합화.
 - [x] (frontend, 후속) `$params.<name>` root shortcut 하위키 자동완성 — **해소** (2026-07-10,
   [`trigger-params-autocomplete.md`](trigger-params-autocomplete.md)): `ROOT_VARIABLES` 에 `$params` 추가 +
   `$params.` drill 핸들러(소스 = `$input.parameters`). [`node-output-redesign/manual-trigger.md`](node-output-redesign/manual-trigger.md) line 140 도 완전 해소로 갱신.
