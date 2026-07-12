@@ -232,3 +232,27 @@ ko 는 해요체(i18n-userguide P6). EN chrome 은 **간결·정중(concise, pol
   4. demo host·운영 콘솔 locale 실동작(en 선택→EN chrome, 재마운트) 확인.
   5. **동반 갱신**: `PROJECT.md §변경 유형 → 갱신 위치 매핑` 에 "위젯 chrome 문자열" 행 + `.claude/config/doc-sync-matrix.json` 위젯 i18n 행(신규 문자열 추가 시 catalog 양쪽+parity 강제).
 - **EN copy 리뷰**: §3.5 draft EN 은 착수 재료 — user-guide/글로서리 보이스로 최종 확정.
+
+## 9. 구현 트래커 (developer, 2026-07-12)
+
+**모듈 구조** (`codebase/channel-web-chat/src/lib/i18n/`):
+- `catalog.ts` — `WIDGET_STRINGS = { ko, en }` (§3.5 전 키), `type Locale='ko'|'en'`, `type TranslationKey`.
+- `resolve-locale.ts` — `resolveLocale(explicit, navigatorLang): Locale` (explicit ko/en → navigatorLang `/^en\b/i`→en → ko).
+- `context.tsx` — `I18nProvider` + `useTranslation()` → `t(key, params?)`, `{{name}}` 보간.
+- **테스트는 콜로케이트**(channel-web-chat 관례, impl-prep WARNING 4): `catalog.test.ts`(ko/en parity hard fail)·`resolve-locale.test.ts`·`context.test.tsx`(보간). `__tests__/` 서브디렉터리 금지.
+
+**배선**:
+- `widget-app.tsx`: `const locale = useMemo(()=>resolveLocale(config?.locale, navigator.language),[config?.locale])` → `<I18nProvider locale={locale}>` 로 launcher/panel 래핑. (config 도착 전엔 auto-detect 로 런처 렌더.)
+- 컴포넌트(composer·panel·launcher·dynamic-form·presentations): `const t = useTranslation()` 로 하드코딩 문자열 치환.
+- **에러**: `use-widget.ts` 는 state.error 에 ko `error.generic` **유지**(내부 신호, test W1 이 "잠시 후 새 대화로 다시 시도" 검증) — DRY 위해 catalog ko 에서 import. **표시**는 `panel.tsx` 가 `t("error.generic")` 로 지역화(렌더되는 에러는 항상 generic — BLOCKED 코드는 blocked phase=미렌더).
+
+**impl-prep WARNING 조치**(review/consistency/2026/07/12/15_33_33, BLOCK NO):
+- W4 콜로케이트 테스트 → 위 반영. W1(후속 링크)·W3(구현상태 고지)는 **구현 완료 후** spec 캐비엇 갱신에서 해소(planner touch-up: 1-widget §4·0-overview "착수 예정"→"구현됨", 후속 링크를 이 plan 으로, 2-sdk/5-admin 현재형 정합). W2 카루셀 각주는 followup plan 에 실제 추가. INFO: 4-security §1 catalog 상호참조 1줄.
+
+**체크리스트**:
+- [x] 3. `/consistency-check --impl-prep spec/7-channel-web-chat/` **BLOCK NO** (Critical 0, WARNING 4건 조치계획 수립)
+- [x] 4. DOCUMENTATION: PROJECT.md 갱신위치 매핑 + `.claude/config/doc-sync-matrix.json` 위젯 i18n 행(row 21, test_doc_sync_matrix 7/7 pass)
+- [x] 5-6. i18n 모듈(`src/lib/i18n/{catalog,resolve-locale,context,index}`) + 배선(widget-app provider + 5 컴포넌트 + use-widget 에러 DRY) + 문자열 치환. parity/resolveLocale/context 테스트 콜로케이트
+- [x] 7. 테스트 보강: widget-app EN 렌더 + auto-detect 테스트, presentations donut aria-label ko 정정, vitest.setup navigator.language=ko-KR
+- [~] 8. TEST WORKFLOW: lint PASS. unit(웹챗 128 pass 확인)·build·e2e 진행 중
+- [ ] 9. REVIEW WORKFLOW (`/ai-review` + fix) + `/consistency-check --impl-done` + post-impl spec 캐비엇 정합(W1/W3)

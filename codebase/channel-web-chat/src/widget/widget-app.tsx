@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useWidget } from "./use-widget";
 import { Launcher } from "./components/launcher";
 import { Panel } from "./components/panel";
 import { widgetStyles } from "./styles";
+import { I18nProvider, resolveLocale, currentNavigatorLang } from "@/lib/i18n";
 
 // 위젯 박스 크기(px) — host(loader/미리보기)가 iframe 엘리먼트를 이 값에 맞춘다(wc:resize, 2-sdk §3).
 // styles.ts 의 고정 치수에서 유도: 패널 360×540 + 16px 여백 = 392×572; 런처 버튼 56 + 추천 버블/여백 여유.
@@ -22,6 +23,12 @@ export default function WidgetApp() {
   const visible = state.phase !== "blocked" && !state.hidden;
   const expanded = visible && state.open && !!config;
   const { sendResize } = actions;
+  // locale 은 boot 시 1회 해석해 위젯 전역에 고정(§4): 명시 config.locale → 브라우저 auto-detect → ko.
+  // config 도착 전(런처만 렌더)에는 auto-detect 로 방문자 언어를 따른다. locale 변경은 iframe 재마운트로 반영.
+  const locale = useMemo(
+    () => resolveLocale(config?.locale, currentNavigatorLang()),
+    [config?.locale],
+  );
   useEffect(() => {
     if (!visible) {
       sendResize({ width: 0, height: 0, state: "collapsed" });
@@ -46,22 +53,24 @@ export default function WidgetApp() {
   const launcherSuggestions = config?.launcher?.suggestions ?? [];
 
   return (
-    <div className="wc-root" data-position={position} data-testid="web-chat-widget" data-phase={state.phase}>
-      <style>{widgetStyles}</style>
-      {state.open && config ? (
-        <Panel state={state} config={config} actions={actions} />
-      ) : (
-        <Launcher
-          suggestions={state.messages.length === 0 ? launcherSuggestions : []}
-          primaryColor={primaryColor}
-          unread={state.unread}
-          onOpen={actions.open}
-          onSuggestion={(text) => {
-            actions.open();
-            actions.submitMessage(text);
-          }}
-        />
-      )}
-    </div>
+    <I18nProvider locale={locale}>
+      <div className="wc-root" data-position={position} data-testid="web-chat-widget" data-phase={state.phase}>
+        <style>{widgetStyles}</style>
+        {state.open && config ? (
+          <Panel state={state} config={config} actions={actions} />
+        ) : (
+          <Launcher
+            suggestions={state.messages.length === 0 ? launcherSuggestions : []}
+            primaryColor={primaryColor}
+            unread={state.unread}
+            onOpen={actions.open}
+            onSuggestion={(text) => {
+              actions.open();
+              actions.submitMessage(text);
+            }}
+          />
+        )}
+      </div>
+    </I18nProvider>
   );
 }
