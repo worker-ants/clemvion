@@ -42,7 +42,7 @@ sequenceDiagram
   Note over C,Wf: 주 편집 경로는 캔버스 bulk save (POST /:id/save). 개별 노드/엣지 CRUD<br/>엔드포인트(POST /:id/nodes, POST /:id/edges 등)도 존재하나, 에디터는<br/>전체 캔버스 상태를 한 번에 동기화한다.
 
   C->>Wf: POST /api/workflows/:id/save {nodes[], edges[], changeSummary?}
-  Note over Wf: DTO 사전 검증 — Manual Trigger 정확히 1개 (누락/중복 시 400),<br/>노드 label 중복 거부 (DUPLICATE_NODE_LABEL)
+  Note over Wf: DTO 사전 검증 — Manual Trigger 정확히 1개 (누락/중복 시 400),<br/>Manual Trigger 파라미터 스키마 위반 시 400 INVALID_TRIGGER_PARAMETERS<br/>(restoreVersion 복원 경로는 skipLegacyDataGates 로 skip),<br/>노드 label 중복 거부 (DUPLICATE_NODE_LABEL)
   Wf->>PG: UPDATE workflow SET current_version = current_version + 1 (트랜잭션 시작)
   Wf->>PG: 노드 전체 동기화 (제출 안 된 기존 노드 삭제, upsert)
   Wf->>PG: 엣지 전부 교체 (기존 삭제 후 재삽입)

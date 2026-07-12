@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-12T18:53:26.638752",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/4-nodes/7-trigger/1-manual-trigger.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

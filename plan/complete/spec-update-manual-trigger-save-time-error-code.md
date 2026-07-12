@@ -1,10 +1,15 @@
 ---
 title: spec 반영 — Manual Trigger 저장 시점 파라미터 스키마 검증(INVALID_TRIGGER_PARAMETERS)
-worktree: (unstarted)
+worktree: spec-update-manual-trigger-savetime-7f7f2d
 started: 2026-07-09
 owner: project-planner
-status: in-progress
+status: complete
 spec_area: spec/4-nodes/7-trigger/1-manual-trigger.md
+spec_impact:
+  - spec/4-nodes/7-trigger/1-manual-trigger.md
+  - spec/data-flow/11-workflow.md
+  - spec/data-flow/10-triggers.md
+  - spec/5-system/3-error-handling.md
 ---
 
 ## 배경
@@ -19,24 +24,24 @@ spec_area: spec/4-nodes/7-trigger/1-manual-trigger.md
 
 ## 반영 대상 (project-planner)
 
-- [ ] `spec/4-nodes/7-trigger/1-manual-trigger.md` §6 에러코드 표: `invalid_schema`
+- [x] `spec/4-nodes/7-trigger/1-manual-trigger.md` §6 에러코드 표: `invalid_schema`
       행의 "처리 위치" 에 **저장 시점(`POST /:id/save`, `workflows.service.ts
       validateManualTrigger`)** 발행 경로 추가 — 실행 경로 전용이 아님을 명시.
       단, `restoreVersion` 은 예외(과거 스냅샷 복원은 게이트 skip)임을 함께 기재.
-- [ ] `spec/data-flow/11-workflow.md` `POST /:id/save` 시퀀스: `400
+- [x] `spec/data-flow/11-workflow.md` `POST /:id/save` 시퀀스: `400
       INVALID_TRIGGER_PARAMETERS` 분기 추가.
-- [ ] `spec/data-flow/10-triggers.md` L44-47 / `spec/5-system/3-error-handling.md`
+- [x] `spec/data-flow/10-triggers.md` L44-47 / `spec/5-system/3-error-handling.md`
       L155: 저장 경로도 동일 코드/헬퍼를 쓴다는 서술로 정정.
-- [ ] `spec/4-nodes/7-trigger/1-manual-trigger.md` frontmatter `code:` glob 에
+- [x] `spec/4-nodes/7-trigger/1-manual-trigger.md` frontmatter `code:` glob 에
       `codebase/backend/src/modules/workflows/workflows.service.ts` 포함 검토
       (저장 시점 검증 코드 링크) — convention_compliance WARNING.
-- [ ] (rationale_continuity WARNING) `restoreVersion` 이 저장 게이트를 skip 하는
+- [x] (rationale_continuity WARNING) `restoreVersion` 이 저장 게이트를 skip 하는
       비대칭을 해당 spec 의 `## Rationale` 에 근거 기재.
 - [x] (user_guide_sync WARNING) 유저 가이드
       `codebase/frontend/src/content/docs/02-nodes/triggers.mdx` + `.en.mdx`
       Callout 을 저장 시점(`Save`) 거부 + 프론트 inline 에러로 갱신 — **same-turn
       처리 완료**(developer 소관 codebase content).
-- [ ] (re-review W5) spec §6 표·코드 주석의 "handler.validate (저장 시점)" 표현이
+- [x] (re-review W5) spec §6 표·코드 주석의 "handler.validate (저장 시점)" 표현이
       실제로는 `WorkflowsService.validateManualTrigger()` 가 `validateTriggerParameterSchema`
       를 직접 호출하는 우회 구현임을 각주로 명시(네이밍 정정).
 
