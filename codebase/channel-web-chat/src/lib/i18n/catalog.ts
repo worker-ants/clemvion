@@ -50,7 +50,7 @@ export const WIDGET_STRINGS = deepFreeze({
     "table.truncatedWithCount": "총 {{count}}개 중 일부만 표시돼요.",
     "table.truncated": "일부 행만 표시돼요.",
     "carousel.truncatedWithCount": "총 {{count}}개 중 일부만 표시돼요.",
-    "carousel.truncated": "일부만 표시돼요.",
+    "carousel.truncated": "일부 항목만 표시돼요.",
     "chart.legend": "범례",
     "chart.cartesianLabel": "{{type}} 차트",
     "chart.pie": "원형 차트",

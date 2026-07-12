@@ -265,6 +265,21 @@ describe("PresentationPayload (AI 에이전트 render_* 도구)", () => {
     expect(c.totalCount).toBe(500);
   });
 
+  it("toCarousel — top-level truncation 이 payload 동명 키보다 우선(우선순위 lock-in, toTable 대칭)", () => {
+    const c = toCarousel({
+      type: "carousel",
+      toolCallId: "t",
+      payload: { items: [{ title: "A" }], itemsTruncated: true },
+      truncation: { itemsTruncated: false },
+    });
+    expect(c.truncated).toBe(false);
+  });
+  it("toCarousel — truncation 이 null/문자열이면 무시(no-op, toTable 대칭)", () => {
+    const base = { type: "carousel", toolCallId: "t", payload: { items: [{ title: "A" }] } };
+    expect(toCarousel({ ...base, truncation: null }).truncated).toBe(false);
+    expect(toCarousel({ ...base, truncation: "garbage" }).truncated).toBe(false);
+  });
+
   // payload 내부 값이 top-level truncation 에 덮이지 않아야 한다(노드 envelope 의미 보존).
   it("toTable — payload.rowsTruncated=true 는 truncation 부재 시에도 유지", () => {
     const tb = toTable({

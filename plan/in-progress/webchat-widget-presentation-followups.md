@@ -28,7 +28,7 @@ owner: developer
       **완료(2026-07-12, PR webchat-carousel-truncation)**: `CarouselData.truncated`/`totalCount` 추가·
       `toCarousel` 이 `output.itemsTruncated`/`itemsTotalCount` 투영·`CarouselView` 배너(`wc-carousel-truncated`,
       `carousel.truncatedWithCount`/`carousel.truncated` ko/en i18n)·변환/렌더 테스트. spec §2/§4/R8 계약 정의.
-      channel-web-chat vitest(344, 신규 포함)·typecheck·build·catalog parity·e2e-full(playwright 46) green.
+      channel-web-chat vitest(350, 신규 포함)·typecheck·build·catalog parity·e2e-full(playwright 46) green. ai-review 2R 반영(CHANGELOG·CSS·복원 thread 컴포넌트 테스트·asTotalCount 정수 가드).
 
 - [ ] (선택) 테스트 헬퍼 `payloadOf` 중복 (ai-review maintainability #8·#10)
       `conversation.test.ts` · `presentations.test.tsx` 2곳에 시그니처가 미묘하게 다른 채 중복 정의됨.

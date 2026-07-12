@@ -62,7 +62,7 @@ export const widgetStyles = `
 .wc-table { border-collapse: collapse; font-size: 13px; width: 100%; }
 .wc-table th, .wc-table td { border: 1px solid #e5e7eb; padding: 5px 8px; text-align: left; }
 .wc-table th { background: #f9fafb; font-weight: 600; }
-.wc-table-truncated { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.wc-table-truncated, .wc-carousel-truncated { font-size: 11px; color: #9ca3af; margin-top: 4px; }
 .wc-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .wc-chart-svg { width: 100%; max-width: 280px; height: auto; }
 .wc-chart-tick { font-size: 7px; fill: #6b7280; }
