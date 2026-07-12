@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "@/lib/i18n";
 
 interface FieldDef {
   name?: string;
@@ -29,6 +30,7 @@ function optionValue(o: { value: string; label?: string } | string): string {
 
 // Form 노드 (다중 필드) — 일반 렌더 → submit_form. spec 1-widget-app §2 (전체 렌더), EIA §5.1.
 export function DynamicForm({ config, onSubmit }: DynamicFormProps) {
+  const t = useTranslation();
   const fields = fieldsOf(config);
   const [values, setValues] = useState<Record<string, unknown>>({});
 
@@ -53,7 +55,7 @@ export function DynamicForm({ config, onSubmit }: DynamicFormProps) {
             </label>
             {f.type === "select" && f.options ? (
               <select id={id} required={f.required} onChange={(e) => set(name, e.target.value)}>
-                <option value="">선택</option>
+                <option value="">{t("form.selectPlaceholder")}</option>
                 {f.options.map((o) => {
                   const v = optionValue(o);
                   return (
@@ -75,7 +77,7 @@ export function DynamicForm({ config, onSubmit }: DynamicFormProps) {
         );
       })}
       <button type="submit" className="wc-form-submit">
-        제출
+        {t("form.submit")}
       </button>
     </form>
   );

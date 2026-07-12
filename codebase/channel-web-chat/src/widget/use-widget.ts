@@ -13,6 +13,7 @@ import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-ev
 import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
+import { WIDGET_STRINGS } from "@/lib/i18n";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
 import { useTokenRefresh } from "./use-token-refresh";
 import { usePendingMessageQueue } from "./use-pending-message-queue";
@@ -598,11 +599,12 @@ export function useWidget() {
   };
 }
 
-/** 사용자 노출용 일반화 에러 문구(W1·4-security §5). 임베드 위젯은 타 사이트에서 동작하므로 서버/예외 원문을
- * UI 에 직접 흘리지 않고(내부 구현·인프라 정보 노출 축소) 진단 원문은 console 로만 남긴다. 에러 → [ended] +
- * "새 대화 시작" 안내라는 기존 동작(1-widget-app §3.1)은 그대로 유지하고, 표시 문구만 일반화한다. */
-const GENERIC_ERROR_MESSAGE =
-  "일시적인 오류로 대화를 진행할 수 없어요. 잠시 후 새 대화로 다시 시도해 주세요.";
+/** 에러 발생 시 `state.error` 에 저장하는 **내부 ko 기준 신호**(진단·테스트 기준값). 실제 사용자 표시 문구는 이 상수가
+ * 아니라 `panel` 이 catalog `error.generic` 을 `t()` 로 **로케일 렌더**한다(§4) — 렌더되는 에러는 항상 이 generic 이다
+ * (ERROR→[ended]; BLOCKED 코드는 blocked phase 라 미렌더). 임베드 위젯은 타 사이트에서 동작하므로 서버/예외 원문을 UI 에
+ * 흘리지 않고(4-security §5) 진단 원문은 console 로만 남긴다. 에러 → [ended] + "새 대화 시작" 안내(1-widget-app §3.1) 동작은
+ * 유지한다. 값은 catalog 를 SoT 로 삼아 문구 중복/드리프트를 막는다. */
+const GENERIC_ERROR_MESSAGE = WIDGET_STRINGS.ko["error.generic"];
 
 function errMessage(e: unknown): string {
   // 진단 원문은 console 에만(운영 추적) — UI 비노출.

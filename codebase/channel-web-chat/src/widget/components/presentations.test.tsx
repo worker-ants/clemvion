@@ -265,9 +265,9 @@ describe("chart — donut (I9)", () => {
     expect(chart).toHaveAttribute("data-chart-type", "donut");
     const wrap = chart.querySelector(".wc-chart-pie-wrap");
     expect(wrap).not.toBeNull();
-    // aria-label should reflect donut
+    // aria-label should reflect donut (i18n: Provider 없이 렌더 → 기본 ko, §4 chart aria-label 지역화)
     const svg = chart.querySelector("svg");
-    expect(svg?.getAttribute("aria-label")).toBe("donut chart");
+    expect(svg?.getAttribute("aria-label")).toBe("도넛 차트");
     // donut hole: a white circle with r proportional to slice radius
     const circles = Array.from(chart.querySelectorAll("circle"));
     // At least one circle with fill=#fff (donut hole) should exist

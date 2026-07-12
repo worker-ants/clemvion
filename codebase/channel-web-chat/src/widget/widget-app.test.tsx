@@ -82,6 +82,48 @@ describe("WidgetApp", () => {
     postSpy.mockRestore();
   });
 
+  it("boot locale:'en' → 위젯 chrome 이 EN 으로 렌더(§4 명시 locale 우선)", async () => {
+    render(<WidgetApp />);
+    await boot({
+      apiBase: "https://api.example.com",
+      triggerEndpointPath: "t1",
+      locale: "en",
+      headerTitle: "ALF",
+      welcome: { text: "Hello!" },
+    });
+    // 명시 locale=en → 런처/패널 chrome 영문.
+    fireEvent.click(screen.getByLabelText("Open chat"));
+    expect(screen.getByLabelText("Chat panel")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message input")).toBeInTheDocument();
+    expect(screen.getByLabelText("Close")).toBeInTheDocument();
+    // 운영자 제공 콘텐츠(headerTitle·welcome)는 번역하지 않고 입력 그대로.
+    expect(screen.getByText("ALF")).toBeInTheDocument();
+    expect(screen.getByText("Hello!")).toBeInTheDocument();
+  });
+
+  it("locale 미지정 + 브라우저 en → auto-detect 로 EN 렌더(§4 우선순위 2)", () => {
+    // 이 테스트만 navigator.language 를 en 으로 덮어 auto-detect 경로를 검증(기본 setup 은 ko-KR).
+    Object.defineProperty(navigator, "language", { value: "en-US", configurable: true });
+    try {
+      render(<WidgetApp />);
+      // boot 전에도 런처는 auto-detect 언어를 따른다.
+      expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(navigator, "language", { value: "ko-KR", configurable: true });
+    }
+  });
+
+  it("동일 인스턴스에 다른 locale 로 wc:boot 재전송 → UI 언어 불변(§4 boot 1회 고정, 변경은 재마운트로만)", async () => {
+    render(<WidgetApp />);
+    // 첫 boot en → 런처 EN 으로 고정.
+    await boot({ apiBase: "https://api.example.com", triggerEndpointPath: "t1", locale: "en", headerTitle: "B" });
+    expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+    // 같은 인스턴스(재마운트 없음)에 locale:ko 로 wc:boot 재전송 → 언어는 첫 boot 값(en) 유지, ko 로 바뀌지 않음.
+    await boot({ apiBase: "https://api.example.com", triggerEndpointPath: "t1", locale: "ko", headerTitle: "B" });
+    expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
+    expect(screen.queryByLabelText("채팅 열기")).toBeNull();
+  });
+
   it("임베드 불허 host → 위젯 렌더 거부(런처도 없음)", async () => {
     // detectHostOrigin 은 document.referrer 폴백을 사용(jsdom 엔 ancestorOrigins 없음).
     Object.defineProperty(document, "referrer", {

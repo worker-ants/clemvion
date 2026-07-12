@@ -37,6 +37,22 @@ function makeState(overrides: Partial<WidgetState>): WidgetState {
   };
 }
 
+describe("Panel — 에러 렌더 (i18n error.generic, §4)", () => {
+  it("state.error 설정 시 role=alert 로 지역화 generic 문구 노출 — 원값 미노출", () => {
+    render(
+      <Panel
+        state={makeState({ phase: "ended", error: "raw-internal-signal" })}
+        config={BASE_CONFIG}
+        actions={BASE_ACTIONS}
+      />,
+    );
+    const alert = screen.getByRole("alert");
+    // 표시=catalog error.generic(Provider 없음 → ko 기본), state.error 원값이 아님.
+    expect(alert).toHaveTextContent("잠시 후 새 대화로 다시 시도");
+    expect(alert).not.toHaveTextContent("raw-internal-signal");
+  });
+});
+
 describe("Panel — Composer disabled 게이팅 (W6, §R6)", () => {
   it("phase=booting → Composer disabled", () => {
     render(

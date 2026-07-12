@@ -48,6 +48,17 @@
       "convention_ref": null
     },
     {
+      "id": "new-widget-chrome-string",
+      "change_type": "신규 위젯 chrome 문자열 (channel-web-chat)",
+      "trigger": { "globs": ["codebase/channel-web-chat/src/**/*.tsx"], "match": "semantic" },
+      "targets": [
+        "codebase/channel-web-chat/src/lib/i18n/catalog.ts 의 WIDGET_STRINGS {ko,en} 양쪽 — 위젯 로컬 catalog 키 경유 (parity 가드 fail)"
+      ],
+      "verify": "cd codebase/channel-web-chat && npm test -- i18n",
+      "guard_tests": ["catalog.test.ts"],
+      "convention_ref": "spec/conventions/i18n-userguide.md"
+    },
+    {
       "id": "integration-provider-change",
       "change_type": "통합 신규/제공자 변경",
       "trigger": { "globs": [], "match": "semantic" },

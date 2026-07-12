@@ -15,6 +15,7 @@ import {
   type PresentationButton,
 } from "@/lib/presentation";
 import { renderTemplateHtml } from "@/lib/safe-html";
+import { useTranslation } from "@/lib/i18n";
 
 // SVG chart 크기 상수 — styles.ts 와 동기화 필요 시 이 값을 기준으로 맞출 것(I16).
 const CHART_SVG_W = 280;
@@ -116,6 +117,7 @@ function ButtonBar({
 }
 
 function CarouselView({ payload, onButton }: PresentationProps) {
+  const t = useTranslation();
   const { layout, items, buttons } = toCarousel(payload);
   const [idx, setIdx] = useState(0);
   if (!items.length) return null;
@@ -139,7 +141,7 @@ function CarouselView({ payload, onButton }: PresentationProps) {
           <button
             type="button"
             className="wc-carousel-prev"
-            aria-label="이전"
+            aria-label={t("carousel.prev")}
             disabled={safe === 0}
             onClick={() => setIdx((i) => Math.max(0, i - 1))}
           >
@@ -151,7 +153,7 @@ function CarouselView({ payload, onButton }: PresentationProps) {
           <button
             type="button"
             className="wc-carousel-next"
-            aria-label="다음"
+            aria-label={t("carousel.next")}
             disabled={safe === items.length - 1}
             onClick={() => setIdx((i) => Math.min(items.length - 1, i + 1))}
           >
@@ -171,6 +173,7 @@ function cellText(v: unknown): string {
 }
 
 function TableView({ payload, onButton }: PresentationProps) {
+  const t = useTranslation();
   const { columns, rows, buttons, truncated, totalCount } = toTable(payload);
   if (!columns.length && !rows.length) return null;
   const cols = columns.length
@@ -199,8 +202,8 @@ function TableView({ payload, onButton }: PresentationProps) {
       {truncated && (
         <div className="wc-table-truncated">
           {typeof totalCount === "number"
-            ? `총 ${totalCount}개 중 일부만 표시돼요.`
-            : "일부 행만 표시돼요."}
+            ? t("table.truncatedWithCount", { count: totalCount })
+            : t("table.truncated")}
         </div>
       )}
       <ButtonBar buttons={buttons} onButton={onButton} />
@@ -261,6 +264,7 @@ function CartesianChart({
   xLabel?: string;
   yLabel?: string;
 }) {
+  const t = useTranslation();
   const W = CHART_SVG_W;
   const mL = CHART_MARGIN_LEFT;        // 좌측 여백 (y눈금 텍스트 공간)
   const mR = CHART_MARGIN_RIGHT;       // 우측 여백
@@ -328,7 +332,7 @@ function CartesianChart({
       className="wc-chart-svg"
       viewBox={`0 0 ${W} ${H}`}
       role="img"
-      aria-label={`${type} chart`}
+      aria-label={t("chart.cartesianLabel", { type })}
     >
       {/* y축 min/max 눈금 */}
       <text x={mL - 3} y={mT + 4} className="wc-chart-tick" textAnchor="end">
@@ -381,17 +385,18 @@ function PieChart({
   colors: string[];
   donut: boolean;
 }) {
+  const t = useTranslation();
   return (
     <div className="wc-chart-pie-wrap">
       <svg
         className="wc-chart-svg"
         viewBox={`0 0 ${PIE_SVG_SIZE} ${PIE_SVG_SIZE}`}
         role="img"
-        aria-label={donut ? "donut chart" : "pie chart"}
+        aria-label={donut ? t("chart.donut") : t("chart.pie")}
       >
         <PieSlices pts={pts} colors={colors} donut={donut} />
       </svg>
-      <ul className="wc-chart-legend" aria-label="범례">
+      <ul className="wc-chart-legend" aria-label={t("chart.legend")}>
         {pts.map((p, i) => (
           <li key={i}>
             <span className="wc-legend-swatch" style={{ background: colors[i % colors.length] }} />
