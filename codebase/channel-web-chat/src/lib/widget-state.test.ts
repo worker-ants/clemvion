@@ -7,6 +7,7 @@ import {
   type WidgetPhase,
   type WidgetState,
 } from "./widget-state";
+import type { DisplayMessage } from "./conversation";
 
 // 3곳(use-widget submitMessage·flush effect, panel Composer disabled)이 공유하는 핵심 판정 — 직접 단위 검증.
 describe("isTextInputSurface — 자유 텍스트 표면 판정(§R6)", () => {
@@ -204,5 +205,73 @@ describe("widgetReducer", () => {
     const s = widgetReducer(hidden, { type: "SHOW" });
     expect(s.hidden).toBe(false);
     expect(s.open).toBe(true);
+  });
+});
+
+// WAITING 의 threadMessages 병합(mergeMessages) — 새로고침 복원 시 getStatus/SSE 가 실어오는 durable
+// conversationThread snapshot 과 로컬 라이브 메시지를 합치는 분기. mergeMessages 는 비공개라 유일한 공개
+// 진입점인 WAITING 액션을 통해 두 분기(snapshot 채택 / local 보존)를 전수 고정한다.
+// SoT: widget-state.ts mergeMessages, spec/7-channel-web-chat/1-widget-app §2·§3.
+describe("widgetReducer — WAITING threadMessages 병합(mergeMessages, 복원 시드)", () => {
+  const user = (text: string): DisplayMessage => ({ role: "user", text, source: "ai_user" });
+  const bot = (text: string): DisplayMessage => ({ role: "assistant", text, source: "ai_assistant" });
+  const waiting = (threadMessages?: DisplayMessage[]) =>
+    ({ type: "WAITING", interaction: { type: "ai_conversation" }, threadMessages }) as const;
+
+  it("빈 로컬 + snapshot → snapshot 으로 시드(role/text/순서 보존)", () => {
+    const snapshot = [user("반품하고 싶어요"), bot("어떤 상품인가요?"), user("신발입니다")];
+    const s = widgetReducer({ ...initialState, messages: [] }, waiting(snapshot));
+    expect(s.messages).toEqual(snapshot);
+    expect(s.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(s.phase).toBe("awaiting_user_message");
+    expect(s.pending?.type).toBe("ai_conversation");
+  });
+
+  it("snapshot 이 로컬보다 김 → snapshot 채택(durable thread 가 부분 로컬을 대체)", () => {
+    const local = [user("반품하고 싶어요")];
+    const snapshot = [user("반품하고 싶어요"), bot("어떤 상품인가요?"), user("신발입니다")];
+    const s = widgetReducer({ ...initialState, messages: local }, waiting(snapshot));
+    expect(s.messages).toEqual(snapshot);
+    expect(s.messages).toHaveLength(3);
+  });
+
+  it("snapshot == 로컬 길이(경계) → snapshot 우선(>= — durable 이 권위)", () => {
+    // 같은 길이면 durable snapshot 을 신뢰한다(로컬 optimistic 대비 백엔드 정본 우선). `>` 가 아닌 `>=` 고정.
+    const local = [user("옛 로컬 a"), bot("옛 로컬 b")];
+    const snapshot = [user("정본 a"), bot("정본 b")];
+    const s = widgetReducer({ ...initialState, messages: local }, waiting(snapshot));
+    expect(s.messages).toEqual(snapshot);
+    expect(s.messages.map((m) => m.text)).toEqual(["정본 a", "정본 b"]);
+  });
+
+  it("snapshot 이 로컬보다 짧음 → 로컬 보존(라이브 메시지를 stale 스냅샷이 덮지 않음)", () => {
+    // getStatus/SSE replay 가 아직 반영 못한 최신 라이브 메시지가 있을 때, 더 짧은 스냅샷으로 되돌아가지 않는다.
+    const local = [user("q1"), bot("a1"), user("q2"), bot("a2")];
+    const snapshot = [user("q1"), bot("a1")];
+    const s = widgetReducer({ ...initialState, messages: local }, waiting(snapshot));
+    expect(s.messages).toEqual(local);
+    expect(s.messages).toHaveLength(4);
+  });
+
+  it("빈 배열 스냅샷(threadMessages=[]) → local 비면 빈 유지, 비어있지 않으면 로컬 보존", () => {
+    // 프로덕션 흔한 경로: conversationThread 가 빈(신규 대화 초입·첫 waiting) → threadToMessages([]) === [].
+    // mergeMessages([], []) = [] (0>=0), mergeMessages(local, []) 는 local 유지 — 빈 스냅샷이 라이브 메시지를
+    // 지우지 않는다(짧은 스냅샷 보존 규칙의 length-0 경계).
+    const empty = widgetReducer({ ...initialState, messages: [] }, waiting([]));
+    expect(empty.messages).toEqual([]);
+    const local = [user("q1"), bot("a1")];
+    const kept = widgetReducer({ ...initialState, messages: local }, waiting([]));
+    expect(kept.messages).toEqual(local);
+    expect(kept.messages).toHaveLength(2);
+  });
+
+  it("threadMessages 부재(undefined) WAITING → 기존 messages 불변(타입 레벨 방어 분기)", () => {
+    // WAITING.threadMessages 는 optional 이지만 두 프로덕션 dispatch 호출부(use-widget.ts handleEiaEvent·
+    // seedWaitingFromStatus)는 항상 threadToMessages(...) 배열을 전달한다(undefined 미도달). 따라서 이 분기는
+    // 리듀서 타입 계약상의 방어 코드로, 도달 시 표면(pending)만 갱신하고 messages 참조를 재할당하지 않음을 고정한다.
+    const local = [user("q1"), bot("a1")];
+    const s = widgetReducer({ ...initialState, messages: local }, waiting(undefined));
+    expect(s.messages).toBe(local); // 참조까지 동일(불필요한 재할당 없음)
+    expect(s.pending?.type).toBe("ai_conversation");
   });
 });

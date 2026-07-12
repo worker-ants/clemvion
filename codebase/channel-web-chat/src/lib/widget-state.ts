@@ -178,7 +178,12 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
   }
 }
 
-/** thread snapshot 과 로컬 메시지를 합치되 중복(동일 role+text 연속)을 회피. */
+/**
+ * durable thread snapshot 과 로컬 라이브 메시지 중 **하나를 통째로 선택**한다(interleave·dedup 아님):
+ * snapshot 이 로컬과 같거나 길면 정본(snapshot), 짧으면 로컬을 그대로 채택. 복원(getStatus/SSE replay)이
+ * 실어온 snapshot 이 아직 반영 못 한 최신 라이브 메시지(로컬이 더 김)를 stale snapshot 으로 되돌리지 않기
+ * 위한 length-기반 선택이다. 분기 고정: widget-state.test.ts §mergeMessages.
+ */
 function mergeMessages(local: DisplayMessage[], snapshot: DisplayMessage[]): DisplayMessage[] {
   if (snapshot.length >= local.length) return snapshot;
   return local;
