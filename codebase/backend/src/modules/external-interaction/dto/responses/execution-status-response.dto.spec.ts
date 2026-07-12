@@ -16,6 +16,7 @@ import {
   ExecutionStatusDto,
   NodeOutputContextDto,
 } from './execution-status-response.dto';
+import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
 
 /**
  * `ExecutionStatusDto` 의 OpenAPI 스키마 표현 회귀 가드.
@@ -166,6 +167,13 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
           'nodeOutput',
         ]),
       );
+    });
+  });
+
+  describe('status enum — 공유 SoT (EIA_EXECUTION_STATUS_VALUES)', () => {
+    it('status.enum 이 공유 SoT 를 반영한다 (DTO↔SoT 참조; SoT 순서·집합 불변식은 execution-status.literal.spec)', () => {
+      const status = executionStatus.properties?.status as SchemaObject;
+      expect(status.enum).toEqual([...EIA_EXECUTION_STATUS_VALUES]);
     });
   });
 });
