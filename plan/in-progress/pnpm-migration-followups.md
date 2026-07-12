@@ -21,7 +21,11 @@ owner: developer
 - frontend 는 이미 Next standalone 으로 pruned (해당 없음).
 - 검증: docker build + e2e + 이미지 크기 before/after.
 
-**완료(2026-07-12, PR pnpm-migration-followups)**: 옵션 B 변형 — 신규 `prod-deps` 스테이지(`FROM builder` + `CI=true pnpm install --prod --frozen-lockfile --filter "backend..."`)에서 devDeps 를 prune 한 뒤 runner 가 통째 COPY. `pnpm install --prod` 가 modules 를 재구성하므로 `--ignore-scripts` 없이 native(bcrypt/isolated-vm)·내부 패키지 prepare 를 재빌드(빌드툴은 deps 스테이지 존재), 비대화형이라 `CI=true`. hoisted node_modules layout(root + backend 로컬 `@workflow` 링크)·built dist 보존. 검증: docker build 성공 + e2e(253) 무회귀 + 이미지 **1.4GB → 1.23GB**(~170MB↓, devDeps·dev 툴링 제거).
+**완료(2026-07-12, PR pnpm-migration-followups)**: 옵션 B 변형 — 신규 `prod-deps` 스테이지(`FROM builder` + `CI=true pnpm install --prod --frozen-lockfile --filter "backend..."`)에서 devDeps 를 prune 한 뒤 runner 가 통째 COPY. `pnpm install --prod` 가 modules 를 재구성하므로 `--ignore-scripts` 없이 native(bcrypt/isolated-vm)·내부 패키지 prepare 를 재빌드(빌드툴은 deps 스테이지 존재), 비대화형이라 `CI=true`. hoisted node_modules layout(root + backend 로컬 `@workflow` 링크)·built dist 보존. 검증: docker build 성공 + e2e(253) 무회귀 + 이미지 **1.4GB → 1.23GB**.
+
+> **스코프 정직화(ai-review 23_21_17 실측)**: 이 170MB 절감은 **backend 자신의 devDeps(jest/eslint/ts-jest 등)** 제거분이다. **더 큰 덩어리는 남아 있다** — `node-linker=hoisted` 가 워크스페이스를 단일 flat `node_modules` 로 구체화해, `--filter "backend..."` 설치인데도 **프런트엔드 스택(`next` 169MB·`@next` 238MB(native SWC 포함)·webpack·react-dom ≈ 415MB, 최종 이미지의 ~33%)이 backend 이미지에 잔존**한다(typescript/ts-node 도 hoist 로 잔존). 본 diff 회귀 아님(구 builder 동일) — hoisted 특성. 원본 TS 소스 전체도 runner 에 잔존(dist 선별 COPY 안 함).
+>
+> **후속(별도)**: (a) **프런트엔드 스택·원본소스 제거** — §3(`node-linker=hoisted`→`strict` 전환)으로 backend node_modules 에서 타 프로젝트 deps 격리, 또는 기각됐던 옵션 A(`pnpm deploy --filter backend --prod <dir>`)로 self-contained prod dir 생성. 이미지 크기의 대부분을 좌우해 우선순위 높음. (b) **devDeps 부재 CI 스모크 가드** — 이미지 내 `node_modules/jest` 부재 assert 등으로 prod-deps 우회·오변경 자동 포착(현재 1회성 수기 검증뿐, ai-review testing WARNING).
 
 ## 2. @nestjs/swagger 11.2.7 핀 제거 + deep-import 정리 (review WARNING #6 / INFO #3,#18)
 

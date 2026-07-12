@@ -39,8 +39,9 @@ RUN pnpm --filter backend build
 
 # ---------- prod-deps: devDeps 를 prune 한 production node_modules ----------
 # builder(dist 빌드 완료) 위에서 --prod 로 재해소해 backend subtree 의 devDeps 를 제거한다.
-# pnpm 은 modules 재구성을 위해 node_modules 를 지웠다 다시 링크하므로, native(bcrypt/isolated-vm)
-# 와 내부 패키지 prepare(tsc)를 재실행해야 한다 — 빌드툴(python3/make/g++)은 deps 스테이지에 있다.
+# pnpm 은 modules 재구성을 위해 node_modules 를 지웠다 다시 링크하므로 native(bcrypt/isolated-vm)를
+# 재컴파일한다 — 빌드툴(python3/make/g++)은 deps 스테이지에 있다. 내부 패키지 prepare 는
+# `[ -d dist ] || tsc` 가드라 dist 가 이미 있으면 tsc 를 스킵(주 비용은 native 재컴파일).
 # 비대화형 빌드라 removal 확인 프롬프트를 넘기려 CI=true 를 준다. backend 의 이미 빌드된 dist
 # (codebase/backend/dist)는 node_modules 밖이라 보존된다.
 FROM builder AS prod-deps
