@@ -4,20 +4,20 @@
 // 메인 앱 frontend dict 시스템과 분리된 위젯 전용 경량 경로다.
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { WIDGET_STRINGS, type Locale, type TranslationKey } from "./catalog";
+import { WIDGET_STRINGS, type WidgetLocale, type WidgetTranslationKey } from "./catalog";
 
 export type TranslateParams = Record<string, string | number>;
-export type TranslateFn = (key: TranslationKey, params?: TranslateParams) => string;
+export type TranslateFn = (key: WidgetTranslationKey, params?: TranslateParams) => string;
 
 // 기본값 ko — Provider 밖(예: 컴포넌트 단독 렌더 테스트)에서도 한국어로 안전 폴백.
-const LocaleContext = createContext<Locale>("ko");
+const LocaleContext = createContext<WidgetLocale>("ko");
 
-export function I18nProvider({ locale, children }: { locale: Locale; children: ReactNode }) {
+export function I18nProvider({ locale, children }: { locale: WidgetLocale; children: ReactNode }) {
   return <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>;
 }
 
 /** locale 에 바인딩된 번역 함수 생성(React 밖에서도 사용 가능 — 예: 내부 에러 문구). */
-export function makeTranslate(locale: Locale): TranslateFn {
+export function makeTranslate(locale: WidgetLocale): TranslateFn {
   const dict = WIDGET_STRINGS[locale];
   return (key, params) => {
     // en 결손 시 ko 로, 그것도 없으면 키 자체로 폴백(런타임 안전 — parity 테스트가 결손을 선차단).

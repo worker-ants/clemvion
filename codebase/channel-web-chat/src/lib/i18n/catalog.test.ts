@@ -27,4 +27,11 @@ describe("WIDGET_STRINGS ko/en parity", () => {
       expect(holders(WIDGET_STRINGS.en[key]), k).toEqual(holders(WIDGET_STRINGS.ko[key]));
     }
   });
+
+  it("최상위 + leaf(ko/en) 까지 deep-freeze 됨 (런타임 변형 차단 — 주석 계약)", () => {
+    // shallow Object.freeze 는 최상위만 얼려 leaf 대입이 통과하는 함정 — deepFreeze 로 leaf 까지 보장한다.
+    expect(Object.isFrozen(WIDGET_STRINGS)).toBe(true);
+    expect(Object.isFrozen(WIDGET_STRINGS.ko)).toBe(true);
+    expect(Object.isFrozen(WIDGET_STRINGS.en)).toBe(true);
+  });
 });

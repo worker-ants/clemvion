@@ -5,7 +5,7 @@ import { useWidget } from "./use-widget";
 import { Launcher } from "./components/launcher";
 import { Panel } from "./components/panel";
 import { widgetStyles } from "./styles";
-import { I18nProvider, resolveLocale, currentNavigatorLang, type Locale } from "@/lib/i18n";
+import { I18nProvider, resolveLocale, currentNavigatorLang, type WidgetLocale } from "@/lib/i18n";
 
 // 위젯 박스 크기(px) — host(loader/미리보기)가 iframe 엘리먼트를 이 값에 맞춘다(wc:resize, 2-sdk §3).
 // styles.ts 의 고정 치수에서 유도: 패널 360×540 + 16px 여백 = 392×572; 런처 버튼 56 + 추천 버블/여백 여유.
@@ -27,7 +27,7 @@ export default function WidgetApp() {
   // 첫 boot(config 최초 수신) 시 **render 중 1회 확정**하고(React '렌더 중 상태 조정' 패턴 — setState-in-effect 보다 권장),
   // 이후 wc:boot 재전송으로 config.locale 이 바뀌어도 **무시**한다 — 언어 변경은 iframe 재마운트로만 반영된다(admin §6.1 이
   // locale 변경 시 iframe key 를 교체해 재마운트). config?.locale 을 의존성으로 재계산하면 재전송만으로 언어가 바뀌어 계약 위반.
-  const [locale, setLocale] = useState<Locale>(() => resolveLocale(undefined, currentNavigatorLang()));
+  const [locale, setLocale] = useState<WidgetLocale>(() => resolveLocale(undefined, currentNavigatorLang()));
   const [localeFrozen, setLocaleFrozen] = useState(false);
   if (!localeFrozen && config) {
     setLocaleFrozen(true);

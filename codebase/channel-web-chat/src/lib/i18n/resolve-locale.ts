@@ -1,6 +1,6 @@
 // 위젯 UI 언어 해석. SoT: spec/7-channel-web-chat/1-widget-app §4 (boot 1회 해석).
 // 우선순위: 명시 BootConfig.locale → 브라우저 navigator.language(auto-detect) → ko fallback.
-import type { Locale } from "./catalog";
+import type { WidgetLocale } from "./catalog";
 
 /**
  * @param explicit    BootConfig.locale (운영자/개발자가 명시). "ko"|"en" 이면 그대로 사용.
@@ -9,7 +9,7 @@ import type { Locale } from "./catalog";
 export function resolveLocale(
   explicit: string | undefined | null,
   navigatorLang: string | undefined | null,
-): Locale {
+): WidgetLocale {
   if (explicit === "ko" || explicit === "en") return explicit;
   if (navigatorLang && /^en([-_]|$)/i.test(navigatorLang)) return "en";
   return "ko";

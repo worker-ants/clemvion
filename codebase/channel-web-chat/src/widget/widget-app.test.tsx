@@ -27,6 +27,17 @@ beforeEach(() => {
   document.body.innerHTML = "";
 });
 
+// navigator.language 를 임시 override 후 복원(종료 시 setup 기본값 ko-KR 로 되돌림). auto-detect 경로 검증용.
+function withNavigatorLanguage(lang: string, fn: () => void) {
+  const orig = navigator.language;
+  Object.defineProperty(navigator, "language", { value: lang, configurable: true });
+  try {
+    fn();
+  } finally {
+    Object.defineProperty(navigator, "language", { value: orig, configurable: true });
+  }
+}
+
 describe("WidgetApp", () => {
   it("초기에는 런처만 렌더(패널 없음)", () => {
     render(<WidgetApp />);
@@ -102,15 +113,11 @@ describe("WidgetApp", () => {
   });
 
   it("locale 미지정 + 브라우저 en → auto-detect 로 EN 렌더(§4 우선순위 2)", () => {
-    // 이 테스트만 navigator.language 를 en 으로 덮어 auto-detect 경로를 검증(기본 setup 은 ko-KR).
-    Object.defineProperty(navigator, "language", { value: "en-US", configurable: true });
-    try {
+    // navigator.language 를 en 으로 덮어 auto-detect 경로 검증(기본 setup 은 ko-KR). boot 전에도 런처는 방문자 언어를 따른다.
+    withNavigatorLanguage("en-US", () => {
       render(<WidgetApp />);
-      // boot 전에도 런처는 auto-detect 언어를 따른다.
       expect(screen.getByLabelText("Open chat")).toBeInTheDocument();
-    } finally {
-      Object.defineProperty(navigator, "language", { value: "ko-KR", configurable: true });
-    }
+    });
   });
 
   it("동일 인스턴스에 다른 locale 로 wc:boot 재전송 → UI 언어 불변(§4 boot 1회 고정, 변경은 재마운트로만)", async () => {

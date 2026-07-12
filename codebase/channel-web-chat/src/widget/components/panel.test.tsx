@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { Panel } from "./panel";
+import { I18nProvider } from "@/lib/i18n";
 import type { WidgetState } from "@/lib/widget-state";
 
 // W6: panel.tsx Composer disabled 게이팅 + AI 처리 중 로딩 표시(§R6) 테스트.
@@ -36,6 +37,24 @@ function makeState(overrides: Partial<WidgetState>): WidgetState {
     ...overrides,
   };
 }
+
+describe("Panel — EN 확인 다이얼로그 중첩 보간 (confirm.yesAria, §4)", () => {
+  it("EN Provider → '새 대화' 확인 확정 버튼 aria-label 이 'Confirm Start new chat'", () => {
+    render(
+      <I18nProvider locale="en">
+        <Panel
+          state={makeState({ phase: "awaiting_user_message" })}
+          config={BASE_CONFIG}
+          actions={BASE_ACTIONS}
+        />
+      </I18nProvider>,
+    );
+    // 헤더 세션 컨트롤(active phase 노출) → "New chat" 클릭 → 확인 다이얼로그.
+    fireEvent.click(screen.getByRole("button", { name: "New chat" }));
+    // 확정 버튼 aria-label = t("confirm.yesAria", { label: t("confirm.newYes") }) = "Confirm Start new chat".
+    expect(screen.getByRole("button", { name: "Confirm Start new chat" })).toBeInTheDocument();
+  });
+});
 
 describe("Panel — 에러 렌더 (i18n error.generic, §4)", () => {
   it("state.error 설정 시 role=alert 로 지역화 generic 문구 노출 — 원값 미노출", () => {

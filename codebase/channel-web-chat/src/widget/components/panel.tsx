@@ -7,7 +7,7 @@ import {
   type WidgetState,
 } from "@/lib/widget-state";
 import type { BootMessage } from "../host-bridge";
-import { useTranslation, type TranslationKey } from "@/lib/i18n";
+import { useTranslation, type WidgetTranslationKey } from "@/lib/i18n";
 import { Composer } from "./composer";
 import { DynamicForm } from "./dynamic-form";
 import { PresentationList } from "./presentations";
@@ -32,7 +32,7 @@ type ConfirmKind = "new" | "end";
 /** 세션 컨트롤 확인바 문구 키·확정 라벨 키·실행 액션을 한 곳에서 조회(3중 분기 중복 제거). 문구는 렌더 시 t() 로 지역화. */
 const CONFIRM_COPY: Record<
   ConfirmKind,
-  { messageKey: TranslationKey; confirmLabelKey: TranslationKey; action: (a: PanelActions) => void }
+  { messageKey: WidgetTranslationKey; confirmLabelKey: WidgetTranslationKey; action: (a: PanelActions) => void }
 > = {
   new: {
     messageKey: "confirm.newPrompt",
