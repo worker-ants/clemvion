@@ -71,7 +71,7 @@ Trigger 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output
 | 필드 | Trigger 카테고리에서의 사용 패턴 |
 |------|----------------------------------|
 | `config` | 사용자 입력 raw echo. Manual Trigger는 `config.parameters` 가 `TriggerParameterDefinition[]` 스키마 그대로 echo (값이 아닌 schema) |
-| `output` | **수집된 파라미터 값**. Manual Trigger: `output: $params` (= `$input.parameters`). 즉 `config.parameters` 는 schema, `output` 은 evaluated 값 — 직교 (Principle 1.1) |
+| `output` | **수집된 파라미터 값**. Manual Trigger: `output.parameters: $params` (= `$input.parameters`). 즉 `config.parameters` 는 schema, `output.parameters` 는 evaluated 값 — 직교 (Principle 1.1) |
 | `meta` | 실행 메트릭만. `meta.durationMs` (보통 0 — Trigger는 외부 호출 없음). **`meta.source: 'manual' \| 'webhook' \| 'schedule'`** (필수 — 어댑터가 stamp한 `__triggerSource` 마커를 핸들러가 받아 채움) |
 | `port` | Trigger 노드는 단일 출력 → `undefined` 또는 `'out'` (메타데이터에 정의된 정적 포트) |
 | `status` | Trigger는 비-블로킹 즉시 완료 → `undefined` |
@@ -82,7 +82,7 @@ Trigger 노드는 워크플로 진입점이므로 **입력 포트가 없다** (`
 
 ### 3.2 trigger 종류별 동일 컨트랙트
 
-§1 의 표대로 Manual / Webhook / Schedule 세 트리거는 **`config.parameters` 스키마와 `output` evaluated 값이 동일 형태**다. 차이는 값 수집 방식과 검증 시점뿐. 따라서 다운스트림 노드는 트리거 종류에 의존하지 않고 `$node["X"].output.<paramName>` 또는 `$params.<paramName>` 로 동일하게 접근.
+§1 의 표대로 Manual / Webhook / Schedule 세 트리거는 **`config.parameters` 스키마와 `output` evaluated 값이 동일 형태**다. 차이는 값 수집 방식과 검증 시점뿐. 따라서 다운스트림 노드는 트리거 종류에 의존하지 않고 `$node["X"].output.parameters.<paramName>` 또는 `$params.<paramName>` 로 동일하게 접근.
 
 ## 4. 출력 구조 색인
 
