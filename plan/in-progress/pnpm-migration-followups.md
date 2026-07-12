@@ -1,7 +1,7 @@
 ---
-worktree: (unstarted)
+worktree: pnpm-migration-followups-b97d48
 started: 2026-06-20
-owner: developer (TBD)
+owner: developer
 ---
 
 # pnpm 마이그레이션 — 후속 과제
@@ -21,6 +21,8 @@ owner: developer (TBD)
 - frontend 는 이미 Next standalone 으로 pruned (해당 없음).
 - 검증: docker build + e2e + 이미지 크기 before/after.
 
+**완료(2026-07-12, PR pnpm-migration-followups)**: 옵션 B 변형 — 신규 `prod-deps` 스테이지(`FROM builder` + `CI=true pnpm install --prod --frozen-lockfile --filter "backend..."`)에서 devDeps 를 prune 한 뒤 runner 가 통째 COPY. `pnpm install --prod` 가 modules 를 재구성하므로 `--ignore-scripts` 없이 native(bcrypt/isolated-vm)·내부 패키지 prepare 를 재빌드(빌드툴은 deps 스테이지 존재), 비대화형이라 `CI=true`. hoisted node_modules layout(root + backend 로컬 `@workflow` 링크)·built dist 보존. 검증: docker build 성공 + e2e(253) 무회귀 + 이미지 **1.4GB → 1.23GB**(~170MB↓, devDeps·dev 툴링 제거).
+
 ## 2. @nestjs/swagger 11.2.7 핀 제거 + deep-import 정리 (review WARNING #6 / INFO #3,#18)
 
 `codebase/backend/src/common/swagger/api-wrapped.ts` 가 `@nestjs/swagger/dist/interfaces/open-api-spec.interface`
@@ -30,6 +32,8 @@ owner: developer (TBD)
 - deep-import 를 공개 경로로 교체 (SchemaObject 공개 re-export 없음 → openapi3-ts 등 대체 타입 소스 조사).
 - 교체 완료 시 `pnpm.overrides["@nestjs/swagger"]` 핀 제거 (= **이 작업의 명시적 완료 조건**).
 - 11.2.7 → 11.4.x changelog 의 보안 수정 여부 확인해 우선순위 결정.
+
+**조사(2026-07-12, defer)**: 실측 — `@nestjs/swagger` 11.2.7 은 `SchemaObject` 를 root 로 공개 export 하지 않고(`'SchemaObject' in require('@nestjs/swagger')` = false) openapi3-ts 를 의존하지도 않는다(미설치). 완료하려면 (a) `openapi3-ts` **신규 devDep 추가** + deep-import 3곳(`api-wrapped.ts` + EIA 응답 DTO spec 2곳: `execution-status-response.dto.spec.ts`·`interact-ack-response.dto.spec.ts`) 교체 + 타입 호환 검증, (b) 핀 제거 → 11.2.7→11.4.x **버전 bump** 의 `SwaggerModule.createDocument` 출력 회귀 검증. 신규 의존성 + 버전 bump 리스크(DTO 스키마 회귀 테스트 다수 의존)라 별 focused PR 로 분리한다. 보안 측면(11.2.7 핀이 패치 영구 차단)에서 우선순위는 있음.
 
 ## 3. node-linker=hoisted → strict 점진 전환 (review INFO #9)
 
