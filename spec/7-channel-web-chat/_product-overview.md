@@ -50,11 +50,15 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 - 호스트 제공 사용자 식별키(impersonation 방지 서명 포함) — 추후. v1 은 **익명만**.
 - 유저당 다중 세션 목록 노출 — 전제(식별 + 유저별 execution 목록 API) 필요, 백로그.
 - React/Vue 프레임워크 wrapper — v1 은 framework-agnostic JS API + 타입만.
-- **위젯 UI 다국어화(EN 등)** — v1 위젯은 **Korean-only**. `BootConfig.locale`([2-sdk §4](./2-sdk.md#4-boot-config-스키마)) 필드는
-  수용·플럼되지만 **현재 위젯 UI 언어를 바꾸지 않는다**(accepted-but-inert) — EN 지원 착수 시 위젯 UI 언어 선택자로 활성화될
-  **reserved** 필드다(삭제 아님, 근거 [2-sdk §R6](./2-sdk.md)). 위젯 문자열은 dict indirection 없이 인라인 한국어(해요체)로
-  두며 [i18n-userguide 적용 범위](../conventions/i18n-userguide.md#적용-범위-scope)의 Principle 1·2 스코프 밖이다(문체·글로서리
-  Principle 6 은 적용).
+- **위젯 UI 다국어화 — 잔여 비목표**: (i) 운영자가 *제공한* 콘텐츠(`headerTitle`·`welcome`·`launcher.suggestions`·`disclaimer`)
+  및 backend 발행 payload 의 per-locale 현지화, (ii) 위젯의 메인 앱 dict 시스템(`frontend/src/lib/i18n/dict`) 편입,
+  (iii) 인-위젯 엔드유저 언어 토글 — 모두 백로그.
+  - *단 **위젯 chrome 문자열(위젯 소유 UI 프레임 문자열)의 EN 다국어화는 2026-07-12 결정으로 목표로 승격***한다 —
+    [webchat-i18n-scope](../../plan/complete/webchat-i18n-scope.md) 가 defer 한 활성화 경로를 실행. `BootConfig.locale` 을
+    활성화(명시 → 브라우저 auto-detect → `ko` fallback)하고, chrome 문자열을 **위젯 로컬 catalog(ko/en parity)** 로 옮긴다.
+    메커니즘 SoT [1-widget-app §4](./1-widget-app.md), locale 근거 [2-sdk §R6](./2-sdk.md). chrome 은
+    [i18n-userguide 적용 범위](../conventions/i18n-userguide.md#적용-범위-scope) 상 위젯 로컬 parity 대상이나 **메인 앱 dict 기구
+    (Principle 1·2 의 구체 형식)는 여전히 미적용**, 문체 Principle 6 은 적용. 운영자 콘텐츠·AI 생성 본문은 번역 대상 아님.
 
 ## 3. 사용 시나리오
 
