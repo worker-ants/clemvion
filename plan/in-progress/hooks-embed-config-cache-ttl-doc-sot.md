@@ -42,8 +42,8 @@ behavior-preserving 순수 DRY 리팩터. 렌더 결과(문서 문자열·실제
 - [x] /ai-review + SUMMARY (WARNING 2건: `_MIN` 네이밍·L89 주석 → fix. disk-write gap 3건 journal 복구)
 - [x] Critical/Warning fix (resolution: `refactor(hooks): … WARNING 반영`, RESOLUTION.md)
 - [x] /consistency-check --impl-done spec/5-system/12-webhook.md → BLOCK: NO (5/5 checker, disk-write gap 3건 journal 복구)
-- [ ] fresh /ai-review (fix 커밋이 원 리뷰 postdate → stale-review 가드 해소용 재확인)
-- [ ] plan complete 이동
+- [x] fresh /ai-review (review/code/2026/07/12/13_04_46) → RISK=NONE, WARNING=0, 선행 WARNING 2건 해소 확인 (clean → RESOLUTION 불요)
+- [x] plan complete 이동
 
 ## 비고
 
