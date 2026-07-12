@@ -7,7 +7,6 @@ import type {
 } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
 import { InteractAckDto } from './interact-ack-response.dto';
 import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
-import { ExecutionStatus } from '../../../executions/entities/execution.entity';
 
 /**
  * `InteractAckDto` 의 OpenAPI 스키마 표현 회귀 가드.
@@ -54,18 +53,12 @@ describe('InteractAckDto — OpenAPI 스키마 (EIA §5.1 / §5.4)', () => {
     expect(interactAck).toBeDefined();
   });
 
-  it('currentStatus.enum 은 공유 SoT 배열과 값·순서가 동일하다 (drift 가드)', () => {
+  it('currentStatus.enum 이 공유 SoT 를 반영한다 (DTO↔SoT 참조; SoT 불변식은 execution-status.literal.spec)', () => {
     const currentStatus = interactAck.properties?.currentStatus as SchemaObject;
     expect(currentStatus.enum).toEqual([...EIA_EXECUTION_STATUS_VALUES]);
   });
 
   it('currentStatus 는 optional 이다 (명령 직후 미관측 가능)', () => {
     expect(interactAck.required ?? []).not.toContain('currentStatus');
-  });
-
-  it('wire SoT 는 엔티티 ExecutionStatus 상태 집합과 동일하다 (순서 무관 — 엔티티↔wire drift 가드)', () => {
-    expect([...EIA_EXECUTION_STATUS_VALUES].sort()).toEqual(
-      Object.values(ExecutionStatus).sort(),
-    );
   });
 });
