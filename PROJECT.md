@@ -119,6 +119,7 @@
 | 새 노드 추가 (`codebase/backend/src/nodes/<cat>/<name>/`) | (a) `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx` + `.en.mdx` 의 노드 항목<br>(b) `codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts` 의 노드명·필드명·placeholder·도움말<br>(c) `codebase/frontend/src/lib/i18n/backend-labels.ts` — 에러 코드·label 번역 | `pnpm --filter frontend test -- i18n docs` |
 | 노드 schema 변경 (필드 추가·라벨 변경) | (a) `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx` 의 FieldTable<br>(b) `codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts` 의 해당 키<br>(c) `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 label/errorCode | 동일 |
 | 신규 UI 문자열 (TSX) | `codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts` **양쪽** — 한쪽만 추가 금지 (parity 가드 fail) | `pnpm --filter frontend test -- i18n` |
+| 신규 위젯 chrome 문자열 (`codebase/channel-web-chat/src/**/*.tsx`) | `codebase/channel-web-chat/src/lib/i18n/catalog.ts` 의 `WIDGET_STRINGS` **{ko,en} 양쪽** — 위젯 로컬 catalog 키 경유(운영 콘솔 dict 아님, parity 가드 fail). SoT: `spec/7-channel-web-chat/1-widget-app.md` §4 | `pnpm --filter channel-web-chat test -- i18n` |
 | 통합 신규/제공자 변경 | `codebase/frontend/src/content/docs/06-integrations-and-config/<provider>.{mdx,en.mdx}` + dict 키 | `pnpm --filter frontend test -- i18n docs` |
 | 유저 가이드 신규 섹션 디렉토리 (`codebase/frontend/src/content/docs/<NN>-<name>/`) | `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` **양쪽 로케일 등록** (KO/EN 모두) | `pnpm --filter frontend test -- locale` |
 | 백엔드 API 추가·변경 | (a) controller·DTO 의 swagger jsdoc<br>(b) API 노출 변경이 사용자 안내에 영향 → 관련 user-guide 페이지 | swagger 단위 테스트 / 빌드 |
