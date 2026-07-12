@@ -27,6 +27,13 @@ export interface CarouselData {
   layout: "card" | "image" | "minimal";
   items: CarouselItem[];
   buttons: PresentationButton[];
+  truncated: boolean;
+  /**
+   * 잘리기 전 총 아이템 개수(1MB cap, [공통 §10.4] `output.itemsTotalCount`). `truncated=true` 일 때만
+   * 의미 있으며, 잘림 배너에 "총 N개 중 일부만" 으로 노출한다(메인 편집기 run-results parity).
+   * 백엔드가 실어 보내지 않으면 `undefined` → 배너는 개수 없는 폴백 문구로 표시.
+   */
+  totalCount?: number;
 }
 
 export interface TableColumn {
@@ -205,7 +212,21 @@ export function toCarousel(p: unknown): CarouselData {
   const layout = CAROUSEL_LAYOUTS.has(config.layout as string)
     ? (config.layout as CarouselData["layout"])
     : "card";
-  return { layout, items, buttons: asButtons(config.buttons) };
+  // 잘리기 전 총 아이템 개수 — truncationMeta 가 이미 흡수한 output.itemsTotalCount(§10.4).
+  // 유한한 비음수 정수만 채택: 부재/이형/NaN/Infinity/음수는 undefined → 배너가 개수 없는
+  // 폴백으로 표시(신뢰 못 할 total 로 "총 NaN개…" 같은 문구가 새지 않게). toTable 과 대칭.
+  const rawTotal = output.itemsTotalCount;
+  const totalCount =
+    typeof rawTotal === "number" && Number.isFinite(rawTotal) && rawTotal >= 0
+      ? rawTotal
+      : undefined;
+  return {
+    layout,
+    items,
+    buttons: asButtons(config.buttons),
+    truncated: output.itemsTruncated === true,
+    totalCount,
+  };
 }
 
 /**

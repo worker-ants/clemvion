@@ -29,6 +29,33 @@ describe("PresentationBlock — 종류별 렌더", () => {
     expect(screen.getByText("둘째")).toBeInTheDocument();
   });
 
+  it("carousel — 잘림 배너 총 개수 노출", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: 9 },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("총 9개 중 일부만 표시돼요.")).toBeInTheDocument();
+  });
+
+  it("carousel — 잘림 배너 무개수 폴백 + 비잘림이면 배너 없음", () => {
+    const { unmount } = render(
+      <PresentationBlock
+        payload={{ output: { items: [{ title: "A" }], itemsTruncated: true } }}
+        onButton={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("일부만 표시돼요.")).toBeInTheDocument();
+    unmount();
+    render(
+      <PresentationBlock payload={{ output: { items: [{ title: "A" }] } }} onButton={vi.fn()} />,
+    );
+    expect(screen.queryByText("일부만 표시돼요.")).not.toBeInTheDocument();
+  });
+
   it("table — 헤더/셀 렌더", () => {
     render(
       <PresentationBlock

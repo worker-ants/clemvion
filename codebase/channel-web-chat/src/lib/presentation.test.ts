@@ -49,6 +49,25 @@ describe("converters", () => {
     expect(c.layout).toBe("card");
     expect(c.items[0].title).toBe("S");
   });
+  it("toCarousel — output.itemsTruncated/itemsTotalCount → truncated/totalCount (toTable 대칭)", () => {
+    const c = toCarousel({
+      output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: 12 },
+    });
+    expect(c.truncated).toBe(true);
+    expect(c.totalCount).toBe(12);
+  });
+  it("toCarousel — 비잘림 기본값 + 신뢰 못 할 totalCount 는 undefined", () => {
+    const plain = toCarousel({ output: { items: [{ title: "A" }] } });
+    expect(plain.truncated).toBe(false);
+    expect(plain.totalCount).toBeUndefined();
+    // NaN/음수/Infinity/이형 → undefined ("총 NaN개…" 유출 차단, toTable 대칭)
+    for (const bad of [Number.NaN, -1, Infinity, "5"]) {
+      const c = toCarousel({
+        output: { items: [{ title: "A" }], itemsTruncated: true, itemsTotalCount: bad },
+      });
+      expect(c.totalCount).toBeUndefined();
+    }
+  });
   it("toTable — output.columns/rows", () => {
     const t = toTable({
       output: {
