@@ -379,6 +379,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 `interactionType` 필드로 Form 노드와 버튼 Presentation 노드를 구분한다.
 
+> **실제 wire 필드명 주의 (fanout envelope)**: 아래 JSON 은 §2.1 논리 구조 표기다. 서버발신 `execution.waiting_for_input` 의 실제 평면 wire(§2.2)는 id 를 **`nodeId` 가 아니라 `waitingNodeId`** 로 싣고, 여기에 `waitingNodeType`·`waitingNodeLabel`·`nodeExecutionId`·`startedAt`(에디터 타임라인 관측용)을 평면 병합한다. form·ai 노드 설정은 top-level `formConfig`/`conversationConfig` 가 아니라 **`nodeOutput`**(예: `nodeOutput.conversationConfig`)에 nest 되고, `buttons` 는 top-level `buttonConfig` 를 유지한다. 이 fanout envelope 은 **내부 WS store 와 EIA SSE 스트림이 공유**한다. **외부 클라이언트가 소비하는 필드 매핑의 SoT 는 [EIA §6.2 "SSE 스트림 wire 형태 주의" blockquote](./14-external-interaction-api.md#62-페이로드--executionwaiting_for_input)**(+위젯 파서 `codebase/channel-web-chat/src/lib/eia-events.ts` `parseWaitingForInput`)**이며, WS 내부 부가 식별자(`waitingNodeType`/`waitingNodeLabel`/`nodeExecutionId`/`startedAt`)는 본 §4.4 가 소유한다.** emit SoT: `form-interaction`/`button-interaction`/`ai-turn-orchestrator` 서비스의 `emitExecution(EXECUTION_WAITING_FOR_INPUT, …)`. 방식 근거는 본 문서 ## Rationale "§4.4 wire 필드 caveat" 항목.
+
 **Form 노드 (`interactionType: "form"`):**
 
 ```json
@@ -950,6 +952,14 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 - **C2 — 타임아웃 제거**: [Presentation 공통 §3·§6.1](../4-nodes/6-presentation/0-common.md) 은 버튼 클릭까지 "외부 cancel/종료 외에는 무제한 대기" 를 규정하고, 엔진 구현(`waitForButtonInteraction`)도 timeout 타이머 없이 무한 await 한다 (`timeoutAction` 은 코드에 부재). 예시의 `timeout`/`timeoutAction` 만 stale 이었으므로 제거. (대안: 공통 규약에 타임아웃 정책을 정식 도입 — 현 구현·다른 spec 이 모두 무제한 대기라 기각.)
 - **C3 — `nodeOutput` 판별자 폐지**: [Presentation 공통 §4](../4-nodes/6-presentation/0-common.md) 의 Principle 1.1.4 (`type` 판별자 래퍼 금지) 에 따라, 엔진은 `buttonConfig.nodeOutput` 으로 노드의 `NodeHandlerOutput`(`{ config, output, meta?, port?, status }`)을 그대로 실어 보낸다 (`nodeOutputForEvent = structured ?? flatNodeOutput`). 노드 종류는 상위 `payload.nodeType` 로 이미 식별되므로 `nodeOutput` 안의 `type` 판별자는 불필요·중복. 예시를 실제 5필드 구조로 교체. (대안: `nodeOutput` 전용 별도 스키마 명시 — Principle 1.1.4 와 충돌해 기각.)
+
+### §4.4 wire 필드 caveat — 직접 재작성 대신 caveat + 오너십 분리 (2026-07-14, PR #945 consistency 후속)
+
+§4.4 JSON 예시(`nodeId` + top-level `formConfig`/`conversationConfig`)는 §2.1 논리 구조 표기이나, 실제 fanout wire 는 `waitingNodeId`(+`waitingNodeType`/`waitingNodeLabel`/`nodeExecutionId`/`startedAt`) + `nodeOutput` nest 라 drift 가 있었다. §4.4 intro 에 wire 필드 caveat blockquote 를 추가해 해소한다.
+
+- **직접 재작성 대신 caveat 채택**: §2.1/§2.2 가 이미 "논리 구조 표기 + 구현현실 caveat" 패턴을 쓰고, [EIA §6.2](./14-external-interaction-api.md#62-페이로드--executionwaiting_for_input) 도 동일하게 notification 추상 JSON + SSE wire caveat blockquote 로 처리했다. 논리 nested 구조가 가독성상 유리하므로 JSON 전체를 실 wire 로 교체(가독성 저하 + 두 문서 불일치)하지 않고 caveat 로 통일했다. 과거 `plan/complete/fix-webchat-sse-field-map.md` 가 "별도 backlog" 로 이월했으나 `plan/in-progress/**` 에 미등재였던 dangling 항목을 순수 spec-doc 작업으로 여기서 종결한다.
+- **오너십 분리로 3중 복제·재-drift 회피**: 전체 매핑을 세 문서(WS/EIA/architecture)에 복제하면 새 drift 표면이 열린다. 따라서 **외부 클라이언트 소비 매핑의 SoT = EIA §6.2 blockquote**(위젯 파서 `eia-events.ts` 정합), **WS 내부 부가 식별자(`waitingNodeType`/`waitingNodeLabel`/`nodeExecutionId`/`startedAt`) = 본 §4.4 소유**로 책임을 나눴다. EIA §6.2 를 "전체 SoT" 로 격상하지 않은 이유는 그 blockquote 가 외부소비 필드만 다루는 의도적 스코프이기 때문(WS 내부 관측 필드까지 외부 표면 문서에 싣지 않는다).
+
 ### 전송 계층 정정 — raw WebSocket 프레이밍 → Socket.IO + status partial 강등 (2026-06-03 spec-vs-code audit)
 
 본 spec 초안은 "native/raw WebSocket 프로토콜" 을 전제로 `{ type, id, payload }` 프레임·`Sec-WebSocket-Protocol` 서브프로토콜 인증·`auth.refresh`/`auth.refreshed` in-band 갱신·`execution.start`/`execution.stop` WS 명령·서버발신 30s/10s app ping·raw close code(1000/1001/1008/4000/4001)·`{type:'error',code}` 프레임을 약속했다. 그러나 구현(`websocket.gateway.ts` / `websocket.service.ts` / 프론트 `ws-client.ts`)은 **Socket.IO** (namespace `/ws`) 기반이고, 위 raw-WS 표면 중 다수가 부재하거나 형태가 다르다.
