@@ -192,6 +192,23 @@ en → This conversation session has expired and cannot be resumed. Send a new m
 
 안내를 받은 사용자가 다음 메시지를 보내면 자동으로 **새 대화**가 시작돼요.
 
+### 7.4 표면 불일치 안내 키 (`surfaceMismatch`)
+
+Form 노드가 양식 제출을 기다리거나 Button Presentation 노드가 버튼 클릭을 기다리는 동안, 그와 맞지 않는 입력(예: 자유 텍스트)이 도착하면 서버가 요청을 거부해요. 이때 봇은 사용자에게 **표면 불일치 안내**를 발송해요. 운영자는 `languageHints.surfaceMismatch` 로 문구를 override 할 수 있어요.
+
+| 키 | 발송 조건 | `{statusCode}` 허용 |
+|---|---|---|
+| `surfaceMismatch` | 대기 표면과 명령 불일치 (예: Form·버튼 대기 중 자유 텍스트) | 불허 |
+
+**default 문구**:
+
+```
+ko → 지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요
+en → This input can't be accepted here right now, please use the form or buttons shown above
+```
+
+안내를 받은 사용자는 화면에 표시된 **양식**이나 **버튼**을 이용해 다시 시도하면 돼요.
+
 ## 8. 제한 사항
 
 - **1:1(private) 대화만 지원** — 그룹 채팅에서 봇에게 메시지를 보내도 무시돼요. 봇은 안내 메시지(`languageHints.groupChatRefusal`) 만 발송해요.

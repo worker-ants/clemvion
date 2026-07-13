@@ -179,6 +179,23 @@ en → This conversation session has expired and cannot be resumed. Send a new m
 
 After receiving this notice, the user's next message automatically starts a **new conversation**.
 
+### 7.4 Surface-mismatch notice key (`surfaceMismatch`)
+
+While a Form node is waiting for a submission or a Button Presentation node is waiting for a button click, if a mismatched input arrives (for example, free text) the server rejects the request. In this case the bot sends the user a **surface-mismatch notice**. Operators can override the message via `languageHints.surfaceMismatch`.
+
+| Key | Sent when | `{statusCode}` allowed |
+|---|---|---|
+| `surfaceMismatch` | Command doesn't match the wait surface (e.g. free text while waiting on a Form or buttons) | no |
+
+**default messages**:
+
+```
+ko → 지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요
+en → This input can't be accepted here right now, please use the form or buttons shown above
+```
+
+After receiving this notice, the user can retry using the **form** or **buttons** shown on screen.
+
 ## 8. Limitations
 
 - **1:1 (private) chats only** — messages in group chats are silently ignored.
