@@ -114,6 +114,92 @@ export function isDuplicateConnection(
 }
 
 /**
+ * onConnectEnd 의 connectionState 로 "출력 포트 드래그가 유효 target 없이 빈 영역(pane)에
+ * 드롭됐는가" 판정 (§1.2). React Flow 는 유효 핸들에 연결되면 `isValid=true` 를 준다 —
+ * pane 드롭·무효 target 은 `isValid` 가 `false`/`null` 이므로 `true` 가 아님으로 판정한다.
+ */
+export function isConnectionDroppedOnPane(
+  connectionState: { isValid?: boolean | null } | null | undefined,
+): boolean {
+  return !!connectionState && connectionState.isValid !== true;
+}
+
+/**
+ * 노드 정의의 첫 입력 포트 핸들 id (§1.2 자동 엣지 연결의 targetHandle). 입력 포트가 없으면
+ * (예: 트리거 노드) null — 이 경우 자동 연결을 생략한다. 신규 생성 노드는 기본 config 라
+ * static `inputs` 로 충분하다(동적 포트 해석 불필요).
+ */
+export function firstInputHandleId(
+  definition: { inputs?: Array<{ id: string }> } | null | undefined,
+): string | null {
+  return definition?.inputs?.[0]?.id ?? null;
+}
+
+/**
+ * §1.2 — onConnectEnd 의 connectionState 에서 "빈 영역 드롭 + 출력 포트 시작" 인 연결원을
+ * 추출한다. 유효 연결(onConnect 가 처리)이거나 입력 포트(target 타입)에서 시작한 역방향
+ * 드래그면 null — 후자는 §1.3 소관이라 여기서 배제한다. React Flow v12 는 fromNode/fromHandle
+ * 로 연결원을 제공한다. onConnectEnd 배선 로직을 단위 테스트 가능한 순수 함수로 분리한다.
+ */
+export function connectionDragSource(
+  connectionState:
+    | {
+        isValid?: boolean | null;
+        fromNode?: { id: string } | null;
+        fromHandle?: { id?: string | null; type?: string } | null;
+      }
+    | null
+    | undefined,
+): { nodeId: string; handleId: string | null } | null {
+  if (!isConnectionDroppedOnPane(connectionState)) return null;
+  const fromNode = connectionState?.fromNode;
+  const fromHandle = connectionState?.fromHandle;
+  if (!fromNode || fromHandle?.type !== "source") return null;
+  return { nodeId: fromNode.id, handleId: fromHandle.id ?? null };
+}
+
+/**
+ * 마우스/터치 이벤트에서 clientX/clientY 를 추출한다. React Flow 의 onConnectEnd 는 네이티브
+ * `MouseEvent | TouchEvent` 를 넘기므로 터치는 `changedTouches[0]` 에서 좌표를 읽는다. 좌표를
+ * 얻을 수 없으면(빈 터치 리스트) null.
+ */
+export function pointerClientPosition(
+  event: MouseEvent | TouchEvent,
+): { clientX: number; clientY: number } | null {
+  if ("changedTouches" in event) {
+    const t = event.changedTouches[0];
+    return t ? { clientX: t.clientX, clientY: t.clientY } : null;
+  }
+  return { clientX: event.clientX, clientY: event.clientY };
+}
+
+/**
+ * §1.2 자동 엣지 연결의 Connection 을 조립한다. 대상 노드에 입력 포트가 없으면(예: 트리거)
+ * `firstInputHandleId` 가 null 이라 연결을 생략(null 반환)한다. source→새 노드 조합은
+ * 자기연결·중복이 아니므로 `onConnect` 의 그 두 검증은 항상 통과한다(컨테이너 충돌은 현재
+ * 노드 정의상 첫 입력이 데이터 포트라 발생하지 않는다).
+ */
+export function buildAutoConnectConnection(
+  source: { nodeId: string; handleId: string | null },
+  newNodeId: string,
+  definition: { inputs?: Array<{ id: string }> } | null | undefined,
+): {
+  source: string;
+  sourceHandle: string | null;
+  target: string;
+  targetHandle: string;
+} | null {
+  const targetHandle = firstInputHandleId(definition);
+  if (!targetHandle) return null;
+  return {
+    source: source.nodeId,
+    sourceHandle: source.handleId,
+    target: newNodeId,
+    targetHandle,
+  };
+}
+
+/**
  * Get connected edge IDs for a given node.
  */
 export function getConnectedEdgeIds(nodeId: string, edges: Edge[]): Set<string> {

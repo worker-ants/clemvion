@@ -140,6 +140,34 @@ describe("useEditorStore", () => {
     });
   });
 
+  describe("onConnect — skipUndo (§1.2)", () => {
+    // 두 non-container 노드(action) — self/duplicate/container-conflict 없이 연결 성립.
+    const connectable = () =>
+      useEditorStore.setState({ nodes: [makeNode("1"), makeNode("2")] });
+    const connection = {
+      source: "1",
+      sourceHandle: "out",
+      target: "2",
+      targetHandle: "in",
+    };
+
+    it("opts 미지정이면 pushUndo 로 undoStack 이 1 늘어난다", () => {
+      connectable();
+      useEditorStore.getState().onConnect(connection);
+      const state = useEditorStore.getState();
+      expect(state.edges).toHaveLength(1);
+      expect(state.undoStack).toHaveLength(1);
+    });
+
+    it("{skipUndo:true} 면 엣지는 추가하되 undoStack 은 늘리지 않는다 (노드 생성+연결 단일 체크포인트)", () => {
+      connectable();
+      useEditorStore.getState().onConnect(connection, { skipUndo: true });
+      const state = useEditorStore.getState();
+      expect(state.edges).toHaveLength(1);
+      expect(state.undoStack).toHaveLength(0);
+    });
+  });
+
   describe("removeNode", () => {
     it("removes a node and its connected edges", () => {
       const nodes = [makeNode("1"), makeNode("2"), makeNode("3")];

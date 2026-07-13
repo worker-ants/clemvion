@@ -47,7 +47,7 @@ The **Recent** section at the top of the palette shows up to 5 recently added no
 
 Click the toggle button next to the search box to collapse the whole palette into a narrow icon-only rail. Click the same spot again to expand it back. Useful when you want more room for the canvas.
 
-## Three ways to add a node
+## Four ways to add a node
 
 <Steps>
 <li>
@@ -63,6 +63,11 @@ Click the toggle button next to the search box to collapse the whole palette int
 <li>
 
 **Double-click an empty spot on the canvas.** A node search popup opens right where you double-clicked. Typing filters the list instantly; use `↑`/`↓` to move the highlight (it wraps at the ends), then `Enter` to place the highlighted node at that same spot. Press `Escape` to close the popup.
+
+</li>
+<li>
+
+**Drag from an output port onto empty canvas.** Start dragging from a node's output port and release over an empty canvas area — a node search popup opens at that spot. Pick a node and it is created with an edge automatically drawn from that output port to the new node. This is the only method that adds a node *and* connects it in one motion. If the target node has no input port (for example, a trigger), only the node is created. See [Connecting nodes](/docs/03-workflow-editor/connecting-nodes) for details.
 
 </li>
 </Steps>
