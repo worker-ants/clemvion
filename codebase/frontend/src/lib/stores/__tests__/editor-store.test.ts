@@ -388,6 +388,33 @@ describe("useEditorStore", () => {
       const n = useEditorStore.getState().nodes.find((x) => x.id === "N");
       expect((n?.data as Record<string, unknown>)?.containerId).toBe("L");
     });
+
+    it("삽입 후 undo() 1회로 전체 취소 + undoStack 정확히 0 (단일 체크포인트, phantom 없음)", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("A"), makeNode("B")],
+        edges: [makeEdge("A", "B")],
+        undoStack: [],
+      });
+      const s = useEditorStore.getState();
+      // buildAndAddNode(중복 pushUndo 제거 후) = addNode 의 pushUndo 1회 = 단일 체크포인트.
+      s.addNode(makeNode("N"));
+      s.removeEdge("A-B", { skipUndo: true });
+      s.onConnect(
+        { source: "A", sourceHandle: "out", target: "N", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      s.onConnect(
+        { source: "N", sourceHandle: "out", target: "B", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      // 스냅샷이 정확히 1개(phantom 이중 pushUndo 없음).
+      expect(useEditorStore.getState().undoStack).toHaveLength(1);
+      useEditorStore.getState().undo();
+      const state = useEditorStore.getState();
+      expect(state.undoStack).toHaveLength(0);
+      expect(state.nodes.map((n) => n.id)).toEqual(["A", "B"]); // 새 노드 제거
+      expect(state.edges.map((e) => e.id)).toEqual(["A-B"]); // 원본 엣지 복원
+    });
   });
 
   describe("removeNode", () => {

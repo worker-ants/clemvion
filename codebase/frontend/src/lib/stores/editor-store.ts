@@ -243,6 +243,11 @@ function applyContainerAssignment(
  * blocked (different container claims the same node), or null when the edge
  * is allowed. Lets `onConnect` short-circuit and surface a toast without
  * mutating store state.
+ *
+ * COUPLING (§4.1 edge split): `buildEdgeSplitPlan`(edge-utils.ts) 의 "onConnect 2회 항상
+ * 성공" 원자성 보장은 여기 거부 분기가 source `body` / target `emit` 두 가지뿐이고 분할이 그
+ * 둘을 사전 배제한다는 데 의존한다. 이 함수에 **새 거부 분기를 추가하면** 그 분할 원자성 가정이
+ * 조용히 깨질 수 있으니 `buildEdgeSplitPlan` 의 제외 규칙(§4.1 / 2-edge.md R-3)도 함께 검토할 것.
  */
 function detectContainerConflict(
   nodes: Node[],

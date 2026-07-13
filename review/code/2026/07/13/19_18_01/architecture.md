@@ -1,0 +1,17 @@
+### 발견사항
+
+- **[WARNING]** "엣지 분할" 트랜잭션이 store 내부 단일 액션이 아니라, 프레젠테이션 레이어가 호출하는 3단계 독립 mutation 시퀀스로 구현되어 있고, 그 무결성이 store 코드베이스의 다른 부분(`detectContainerConflict`)의 내부 규칙과 암묵적으로 동기화되어야만 유지된다
+  - 위치: `codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx:726-741` (`onDrop` — `removeEdge(..., {skipUndo:true})` → `onConnect(plan.sourceToNew, ...)` → `onConnect(plan.newToTarget, ...)`), `codebase/frontend/src/lib/utils/edge-utils.ts:279-315`(`buildEdgeSplitPlan`), `codebase/frontend/src/lib/stores/editor-store.ts:247-285`(`detectContainerConflict`)
+  - 상세: "엣지 제거 + 신규 엣지 2개 생성"이라는 하나의 도메인 트랜잭션을 캡슐화하는 store 액션이 없고, `workflow-canvas.tsx`가 `removeEdge`/`onConnect`×2 세 개의 독립 public API 호출을 순서대로 오케스트레이션한다. 현재는 `buildEdgeSplitPlan`이 `isContainerBoundaryEdge`(원본 엣지 제외)와 `definition?.isContainer`(새 노드 제외) 두 가드로 `detectContainerConflict`의 유일한 거부 조건(source `body`/target `emit`)에 두 신규 Connection이 걸릴 수 없음을 "by construction" 보장한다고 JSDoc·spec R-3가 명시하는데, 이 보장은 타입 시스템이나 공유 추상화가 아니라 **`edge-utils.ts`의 가드 로직과 `editor-store.ts`의 거부 로직이 서로 어긋나지 않아야 한다는 크로스모듈 불변식**에 의존한다. `evaluateConnection`/`detectContainerConflict`에 새 거부 규칙이 추가되면 `buildEdgeSplitPlan`을 동반 갱신하지 않는 한 이 보장이 조용히 깨지고, `removeEdge` 이후 `onConnect` 중 하나만 실패하는 반쪽 그래프(원본 엣지 삭제됨, 신규 엣지 1개만 생김)가 재발할 수 있다 — undo 스택은 `buildAndAddNode`의 단일 `pushUndo`만 갖고 있어 이런 실패를 감지·복구할 근거가 없다.
+  - 제안: 이미 2회차 리뷰에서 인지·문서화(구성적 해소, 후속 이월)된 사항이나, 향후 `evaluateConnection`/`detectContainerConflict` 확장 PR 시 `buildEdgeSplitPlan`의 게이트를 동반 갱신하도록 강제하는 명시적 장치(예: 같은 파일에 "이 함수를 바꾸면 `buildEdgeSplitPlan`도 재검토" 주석 링크 이상의 컴파일 타임/테스트 수준 안전장치, 또는 근본적으로 분할을 store 단일 원자 액션으로 승격)를 우선순위 낮게 트래킹할 것.
+
+- **[INFO]** "컨테이너 경계" 판정 로직이 서로 다른 정밀도로 두 레이어에 중복 구현되어 있다 (도메인 규칙의 단일 진실 공급원 부재)
+  - 위치: `codebase/frontend/src/lib/utils/edge-utils.ts:235-248`(`isContainerBoundaryEdge` — `sourceHandle`/`targetHandle` 이름만 검사) vs. `codebase/frontend/src/lib/stores/editor-store.ts:247-285, 310-345`(`detectContainerConflict`/`propagateContainerOnConnect` — `isContainerNode(node) && handle === '...'`, 노드 타입 + 핸들명 함께 검사)
+  - 상세: 두 구현이 지금은 결과적으로 동일한 판정을 내리는데(이는 "`body`/`emit`은 컨테이너 전용 예약 핸들이라 비-컨테이너 노드가 쓰지 않는다"는 코드베이스 전반의 암묵 관례에 기반), 그 등가성은 타입이나 공용 함수로 강제되지 않고 두 곳의 JSDoc 주석으로만 문서화되어 있다. `edge-utils.ts`(순수 유틸 레이어)가 `editor-store.ts`(스토어/비즈니스 레이어)의 판정 방식을 재사용하지 않고 별도로 재구현했기 때문에, 두 로직 중 하나만 변경되면(예: 새 노드 타입이 비-컨테이너인데 `body`라는 이름의 출력 포트를 쓰게 되는 경우) 정밀도 격차가 실제 버그로 드러날 수 있다.
+  - 제안: 이미 이전 라운드에서 인지되고 "node-aware 재구현은 over-coupling"이라는 근거로 현행 유지가 채택된 사안이다. 지금 당장 조치는 불필요하나, 장기적으로는 `isContainerBoundaryEdge`가 `editor-store.ts`의 판정 함수를 참조하거나, 반대로 스토어가 `edge-utils.ts`의 판정을 단일 SoT로 재사용하는 방향으로 통합 여지를 남겨둘 것.
+
+## 요약
+이번 §4.1 엣지 분할(mid-insert) 구현은 기존 편집기 아키텍처 관행(순수 판정/조립 로직은 `edge-utils.ts`에 격리, DOM hit-test는 주입 가능한 canvas seam으로 분리, store API는 `{skipUndo}` 옵션으로 `onConnect`와 대칭 확장, 신규 엣지는 표준 `onConnect` 경로 재사용)을 잘 따르고 있으며, `editor-store.ts → edge-utils.ts` 단방향 의존만 존재해 순환 의존성도 없다. 1회차 ai-review에서 발견된 CRITICAL(컨테이너 새 노드의 `body` 첫 출력이 target을 조용히 재편입시키는 문제)은 `buildEdgeSplitPlan`의 `isContainer` 가드로 실제 코드 대조 결과 정확히 해소돼 있고, spec `## Rationale R-3`에 대안 비교와 함께 근거가 기록돼 있어 추상화 경계(컨테이너 경계 엣지·컨테이너 새 노드·무입출력 노드 제외)도 합리적이다. 다만 "엣지 제거 + 신규 엣지 2개 생성"이라는 단일 도메인 트랜잭션이 store의 원자 액션이 아니라 프레젠테이션 레이어가 순서대로 호출하는 3단계 mutation으로 남아 있고, 그 안전성이 `edge-utils.ts`와 `editor-store.ts`에 각각 독립적으로 구현된 "컨테이너 경계" 판정 로직 간의 암묵적 동기화에 의존한다는 구조적 잔여 리스크가 있다 — 둘 다 현재 스코프에서는 실질적으로 트리거되지 않으며, 이미 이전 리뷰 라운드에서 인지·문서화되고 낮은 우선순위로 이월된 사안이다. 신규로 발견된 차단급 아키텍처 결함은 없다.
+
+## 위험도
+LOW
