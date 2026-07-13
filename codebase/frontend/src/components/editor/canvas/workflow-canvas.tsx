@@ -61,6 +61,11 @@ import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { useEdgeReconnect } from "./use-edge-reconnect";
 import { useEdgeExecutionState } from "./use-edge-execution-state";
+import { useEdgeHoverPreview } from "./use-edge-hover-preview";
+import {
+  EdgeDataPreviewTooltip,
+  EdgeDataModal,
+} from "./edge-data-preview";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { ZoomControls, MIN_ZOOM, MAX_ZOOM, FIT_VIEW_OPTIONS } from "./zoom-controls";
 import { CanvasMinimap } from "./canvas-minimap";
@@ -158,6 +163,10 @@ export function WorkflowCanvas() {
   const setHoveredNode = useCanvasHoverStore((s) => s.setHoveredNode);
   const setHoveredEdge = useCanvasHoverStore((s) => s.setHoveredEdge);
 
+  // §4/§5 — 엣지 hover 데이터 미리보기(툴팁) 표시 타이밍 + "전체 데이터 보기" 모달 대상.
+  const edgeHoverPreview = useEdgeHoverPreview();
+  const [dataModalEdgeId, setDataModalEdgeId] = useState<string | null>(null);
+
   // §3.2 실행 상태 스타일(비활성 점선 / 데이터 흐름 애니메이션 / 완료 flash)을 먼저 입힌 뒤,
   // 그 위에 §3.3 hover/선택 하이라이팅을 얹는다. 실행 상태는 `edge.className`(flowing/completed)
   // 과 `edge.data.edgeInactive` 로, 하이라이팅은 className Set 병합(edge-highlighted)으로 합성된다.
@@ -239,15 +248,20 @@ export function WorkflowCanvas() {
   }, [setHoveredNode]);
 
   const onEdgeMouseEnter = useCallback(
-    (_: React.MouseEvent, edge: RFEdge) => {
+    (event: React.MouseEvent, edge: RFEdge) => {
       setHoveredEdge(edge.id);
+      // §5 — 데이터 미리보기 툴팁을 커서 위치에 예약 표시(실제 표시 여부는 실행 데이터 유무로
+      // EdgeDataPreviewTooltip 이 판단).
+      edgeHoverPreview.show(edge.id, event.clientX, event.clientY);
     },
-    [setHoveredEdge],
+    [setHoveredEdge, edgeHoverPreview],
   );
 
   const onEdgeMouseLeave = useCallback(() => {
     setHoveredEdge(null);
-  }, [setHoveredEdge]);
+    // 즉시 숨기지 않고 지연 — 커서를 툴팁으로 옮겨 "전체 데이터 보기" 클릭 가능하게.
+    edgeHoverPreview.scheduleHide();
+  }, [setHoveredEdge, edgeHoverPreview]);
 
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes }: { nodes: Array<{ id: string }> }) => {
@@ -811,6 +825,27 @@ export function WorkflowCanvas() {
           <CanvasEmptyState visible={isWorkflowEmpty(nodes)} />
         </Panel>
       </ReactFlow>
+
+      {/* §4/§5 엣지 데이터 미리보기 툴팁 + 전체 데이터 모달 */}
+      {edgeHoverPreview.preview && (
+        <EdgeDataPreviewTooltip
+          edgeId={edgeHoverPreview.preview.edgeId}
+          x={edgeHoverPreview.preview.x}
+          y={edgeHoverPreview.preview.y}
+          edges={edges}
+          onKeepAlive={edgeHoverPreview.keepAlive}
+          onDismiss={edgeHoverPreview.dismiss}
+          onOpenModal={(id) => {
+            edgeHoverPreview.dismiss();
+            setDataModalEdgeId(id);
+          }}
+        />
+      )}
+      <EdgeDataModal
+        edgeId={dataModalEdgeId}
+        edges={edges}
+        onClose={() => setDataModalEdgeId(null)}
+      />
 
       {/* Node context menu */}
       {nodeContextMenu && (
