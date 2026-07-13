@@ -263,6 +263,16 @@ export function WorkflowCanvas() {
     edgeHoverPreview.scheduleHide();
   }, [setHoveredEdge, edgeHoverPreview]);
 
+  // §5 — 모달은 hover 생명주기와 독립적으로 열고 닫는다(툴팁이 사라져도 유지).
+  const openDataModal = useCallback(
+    (id: string) => {
+      edgeHoverPreview.dismiss();
+      setDataModalEdgeId(id);
+    },
+    [edgeHoverPreview],
+  );
+  const closeDataModal = useCallback(() => setDataModalEdgeId(null), []);
+
   const onSelectionChange = useCallback(
     ({ nodes: selectedNodes }: { nodes: Array<{ id: string }> }) => {
       if (selectedNodes.length === 1) {
@@ -835,16 +845,13 @@ export function WorkflowCanvas() {
           edges={edges}
           onKeepAlive={edgeHoverPreview.keepAlive}
           onDismiss={edgeHoverPreview.dismiss}
-          onOpenModal={(id) => {
-            edgeHoverPreview.dismiss();
-            setDataModalEdgeId(id);
-          }}
+          onOpenModal={openDataModal}
         />
       )}
       <EdgeDataModal
         edgeId={dataModalEdgeId}
         edges={edges}
-        onClose={() => setDataModalEdgeId(null)}
+        onClose={closeDataModal}
       />
 
       {/* Node context menu */}

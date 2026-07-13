@@ -6,7 +6,11 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 
 const edges: Edge[] = [{ id: "e1", source: "a", target: "b" }];
 
-const seedResult = (nodeId: string, output: unknown) => {
+const seedResult = (
+  nodeId: string,
+  output: unknown,
+  status: "completed" | "running" | "failed" = "completed",
+) => {
   useExecutionStore.setState({
     nodeResults: [
       {
@@ -14,7 +18,7 @@ const seedResult = (nodeId: string, output: unknown) => {
         nodeLabel: nodeId,
         nodeType: "action",
         nodeCategory: "logic",
-        status: "completed",
+        status,
         outputData: { config: null, output },
       },
     ],
@@ -61,6 +65,22 @@ describe("EdgeDataPreviewTooltip (§4/§5)", () => {
     const tip = screen.getByRole("tooltip");
     expect(tip.textContent).toContain('"userId": 123');
     expect(tip.textContent).toContain('"items": "[3 items]"'); // 축약
+  });
+
+  it("실행 상태가 completed 가 아니어도(running) 출력이 있으면 미리보기를 렌더한다", () => {
+    seedResult("a", { partial: true }, "running");
+    render(
+      <EdgeDataPreviewTooltip
+        edgeId="e1"
+        x={0}
+        y={0}
+        edges={edges}
+        onKeepAlive={noop}
+        onDismiss={noop}
+        onOpenModal={noop}
+      />,
+    );
+    expect(screen.getByRole("tooltip").textContent).toContain('"partial": true');
   });
 
   it("'전체 데이터 보기' 클릭 시 onOpenModal 을 edgeId 로 호출한다", () => {
@@ -128,7 +148,11 @@ describe("EdgeDataModal (§5)", () => {
     const pre = screen.getByRole("dialog").querySelector("pre");
     expect(pre).not.toBeNull();
     expect(pre?.textContent).toContain('"hello": "world"');
-    expect(pre?.textContent).toContain("1"); // 배열이 축약 없이 전개됨
+    // 축약 없이 전개 — 축약 마커(`[3 items]`) 부재 + 배열 원소 전부 존재를 명시적으로 단언.
+    expect(pre?.textContent).not.toContain("[3 items]");
+    expect(pre?.textContent).toContain("1");
+    expect(pre?.textContent).toContain("2");
+    expect(pre?.textContent).toContain("3");
   });
 
   it("닫기(X) 클릭 시 onClose 를 호출한다", () => {

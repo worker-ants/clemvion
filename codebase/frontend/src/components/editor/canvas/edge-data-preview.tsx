@@ -82,7 +82,8 @@ export function EdgeDataPreviewTooltip({
       </pre>
       <div className="flex items-center justify-between border-t border-[hsl(var(--border))] px-3 py-1.5">
         <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
-          {t("editor.edgeDataSize")}: {formatBytes(summary.bytes)}
+          {t("editor.edgeDataSize")}: {summary.bytesApprox ? "~" : ""}
+          {formatBytes(summary.bytes)}
         </span>
         <button
           type="button"

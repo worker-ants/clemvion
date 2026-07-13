@@ -74,6 +74,24 @@ describe("summarizeDataForPreview (§5)", () => {
     expect(() => summarizeDataForPreview(circular)).not.toThrow();
     expect(summarizeDataForPreview(circular).bytes).toBe(0);
   });
+
+  it("작은 값은 정확 바이트(bytesApprox=false)", () => {
+    expect(summarizeDataForPreview({ a: 1 }).bytesApprox).toBe(false);
+  });
+
+  it("직렬화 100KB 초과 대용량은 인코딩 생략 근사(bytesApprox=true, bytes=char 수)", () => {
+    const big = { blob: "x".repeat(200_000) };
+    const s = summarizeDataForPreview(big);
+    expect(s.bytesApprox).toBe(true);
+    expect(s.bytes).toBe(JSON.stringify(big).length); // char 수 하한 근사
+    // 미리보기는 여전히 축약(긴 문자열 잘림)돼 렌더 비용은 작다.
+    expect(s.preview).toContain("…");
+  });
+
+  it("빈 컬렉션({}/[])은 isEmpty=false — 툴팁에 그대로 표시", () => {
+    expect(summarizeDataForPreview({}).isEmpty).toBe(false);
+    expect(summarizeDataForPreview([]).isEmpty).toBe(false);
+  });
 });
 
 describe("formatBytes (§5)", () => {
