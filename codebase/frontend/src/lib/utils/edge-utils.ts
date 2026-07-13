@@ -126,11 +126,23 @@ export function isConnectionDroppedOnPane(
 }
 
 /**
+ * 컨테이너 경계 핸들의 단일 SoT. 편집기 여러 곳이 이 두 핸들에 컨테이너 위상 의미를 부여하므로
+ * 문자열 리터럴을 흩뿌리지 않고 여기서 export 해 공유한다:
+ *  - `isContainerBoundaryEdge`/`buildEdgeSplitPlan`(§4.1 분할 제외),
+ *  - store `detectContainerConflict`(거부) / `propagateContainerOnConnect`(컨테이너 소속 전파),
+ *  - `RESERVED_INPUT_HANDLE_IDS`(emit 자동연결 제외).
+ * §4.1 분할 원자성은 store 거부 분기(source `body`/target `emit`)와 분할 제외가 **같은** 핸들
+ * 집합을 본다는 데 의존하므로, 두 소비처가 이 상수를 공유하면 커플링이 compile-time 으로 묶인다.
+ */
+export const CONTAINER_BODY_HANDLE = "body";
+export const CONTAINER_EMIT_HANDLE = "emit";
+
+/**
  * 컨테이너 loopback 수집용 예약 입력 포트 id. 자식이 조상 컨테이너의 이 포트로 돌아간다
  * (SoT: backend `shadow-workflow.ts` `CONTAINER_LOOPBACK_PORTS = {'emit'}`). 자동 연결의
  * 기본 target 에서 제외한다 — 예약 포트로 연결하면 `detectContainerConflict` 가 거부한다.
  */
-const RESERVED_INPUT_HANDLE_IDS = new Set(["emit"]);
+const RESERVED_INPUT_HANDLE_IDS = new Set([CONTAINER_EMIT_HANDLE]);
 
 /**
  * 노드 정의의 첫 **일반** 입력 포트 핸들 id (§1.2 자동 엣지 연결의 targetHandle). 예약 입력
@@ -145,6 +157,17 @@ export function firstInputHandleId(
   const inputs = definition?.inputs;
   if (!inputs) return null;
   return inputs.find((p) => !RESERVED_INPUT_HANDLE_IDS.has(p.id))?.id ?? null;
+}
+
+/**
+ * §4.1 — 새 노드의 첫 출력 포트 id. `firstInputHandleId` 의 출력판 대칭 헬퍼로, 엣지 분할
+ * 시 `새 노드 → target` 엣지의 source 핸들로 쓴다. 출력 포트가 없으면(순수 sink 노드) null →
+ * 분할 생략. (입력의 `emit` 같은 예약 출력 포트는 없어 별도 제외 셋을 두지 않는다.)
+ */
+export function firstOutputHandleId(
+  definition: { outputs?: Array<{ id: string }> } | null | undefined,
+): string | null {
+  return definition?.outputs?.[0]?.id ?? null;
 }
 
 /**
@@ -209,6 +232,116 @@ export function buildAutoConnectConnection(
     target: newNodeId,
     targetHandle,
   };
+}
+
+/**
+ * §4.1 — 컨테이너 경계 엣지 판정. `sourceHandle` 이 컨테이너 본문 진입(`body`)이거나
+ * `targetHandle` 이 컨테이너 loopback 입력(`emit`)인 엣지는 §6 emit 단일성·경계 불가침과
+ * containerId 동기화 불변식과의 상호작용이 정의되지 않아 분할 대상에서 제외한다(R-3).
+ *
+ * `body`·`emit` 은 컨테이너 전용 핸들이라(비-컨테이너 노드가 쓰지 않음) 핸들명만으로 정밀하다.
+ * 컨테이너 `done`(본문 종료 출력)은 제외하지 않는다 — Parallel Branch 도 동명 `done` 을 **일반
+ * 데이터 출력**으로 쓰므로 핸들명으로 뭉뚱그리면 그 데이터 엣지 분할이 잘못 막힌다. 컨테이너
+ * `done` 엣지 분할(`done → 새 노드`)은 body 재편입(`sourceHandle==='body'`)을 유발하지 않아 안전.
+ */
+const CONTAINER_SOURCE_HANDLES = new Set([CONTAINER_BODY_HANDLE]);
+const CONTAINER_TARGET_HANDLES = new Set([CONTAINER_EMIT_HANDLE]);
+
+export function isContainerBoundaryEdge(edge: {
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}): boolean {
+  return (
+    (edge.sourceHandle != null &&
+      CONTAINER_SOURCE_HANDLES.has(edge.sourceHandle)) ||
+    (edge.targetHandle != null &&
+      CONTAINER_TARGET_HANDLES.has(edge.targetHandle))
+  );
+}
+
+interface SplitConnection {
+  source: string;
+  sourceHandle: string | null;
+  target: string;
+  targetHandle: string | null;
+}
+
+/**
+ * §4.1 — 엣지 분할 계획. 원본 엣지(source→target) 를 제거하고 중간에 `newNodeId` 를 끼울
+ * 두 신규 Connection 을 조립한다:
+ *  - `sourceToNew`: 원본 source(+sourceHandle 보존) → 새 노드의 첫 입력 포트
+ *  - `newToTarget`: 새 노드의 첫 출력 포트 → 원본 target(+targetHandle 보존)
+ *
+ * 분할 불가 시 null: (1) 새 노드에 입력 또는 출력 포트가 없음(트리거·순수 sink), (2) 원본이
+ * 컨테이너 경계 엣지(`isContainerBoundaryEdge`), (3) **새 노드 자체가 컨테이너(Loop/ForEach/Map)**
+ * — 컨테이너의 첫 출력은 `body`(본문 진입)라 `newToTarget.sourceHandle==='body'` 가 되어 target 을
+ * 새 컨테이너 본문 자식으로 조용히 재편입하거나(Rule 1) 이미 다른 컨테이너 소속이면 연결이 거부돼
+ * 그래프가 반쪽만 이어지므로 분할 대상에서 제외한다(R-3).
+ *
+ * **원자성(by construction)**: (2)로 원본 body/emit 엣지를, (3)으로 컨테이너 새 노드를 배제하면
+ * 두 신규 Connection 은 `detectContainerConflict` 의 유일한 거부 분기(source `body` / target `emit`)에
+ * 절대 걸리지 않고, 새 노드라 자기연결·중복도 불가능하다 → `onConnect` 두 번이 항상 성공한다. 따라서
+ * 호출부가 `removeEdge` 후 `onConnect`×2 를 비원자적으로 실행해도 "반쪽 갱신" 이 발생하지 않는다.
+ * 즉 이 함수가 non-null 을 돌려주는 것 자체가 분할 안전성의 게이트다.
+ *
+ * 원본 양끝 핸들은 그대로 보존해 다중 출력(If/Else·Switch)·다중 입력 노드여도 위상이 어긋나지
+ * 않는다(다중 출력 새 노드는 첫 출력만 연결되고 나머지 분기는 수동 연결 몫이다). 두 Connection 은
+ * 호출부가 표준 `onConnect` 로 넘겨 유효성·포트색 파생을 재사용한다(순수 함수라 store/RF 의존 없음).
+ */
+export function buildEdgeSplitPlan(
+  edge: {
+    source: string;
+    sourceHandle?: string | null;
+    target: string;
+    targetHandle?: string | null;
+  },
+  newNodeId: string,
+  definition:
+    | {
+        inputs?: Array<{ id: string }>;
+        outputs?: Array<{ id: string }>;
+        isContainer?: boolean;
+      }
+    | null
+    | undefined,
+): { sourceToNew: SplitConnection; newToTarget: SplitConnection } | null {
+  if (isContainerBoundaryEdge(edge)) return null;
+  if (definition?.isContainer) return null; // 컨테이너 새 노드는 body 재편입 위험 → 제외
+  const inHandle = firstInputHandleId(definition);
+  const outHandle = firstOutputHandleId(definition);
+  if (!inHandle || !outHandle) return null;
+  return {
+    sourceToNew: {
+      source: edge.source,
+      sourceHandle: edge.sourceHandle ?? null,
+      target: newNodeId,
+      targetHandle: inHandle,
+    },
+    newToTarget: {
+      source: newNodeId,
+      sourceHandle: outHandle,
+      target: edge.target,
+      targetHandle: edge.targetHandle ?? null,
+    },
+  };
+}
+
+/**
+ * §4.1 — 드롭 지점(screen 좌표) 아래 있는 엣지의 id 를 DOM hit-test 로 찾는다. React Flow 는
+ * 각 엣지를 `.react-flow__edge[data-id]` `<g>` 로 렌더하고 `BaseEdge` 가 넓은(기본 20px) 투명
+ * interaction path 를 깔아 hover/클릭 히트영역을 만든다 — 그 영역을 그대로 재사용한다. 뷰포트/
+ * DOM 의존이라 store 밖 canvas seam 에 둔다(R-2). `doc` 를 주입 가능하게 해 단위 테스트한다.
+ */
+export function findEdgeIdAtPoint(
+  clientX: number,
+  clientY: number,
+  doc: Pick<Document, "elementFromPoint"> | undefined = typeof document !==
+  "undefined"
+    ? document
+    : undefined,
+): string | null {
+  const el = doc?.elementFromPoint(clientX, clientY);
+  return el?.closest(".react-flow__edge")?.getAttribute("data-id") ?? null;
 }
 
 /**

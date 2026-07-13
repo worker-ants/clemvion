@@ -16,7 +16,6 @@ code:
   - codebase/backend/src/modules/edges/**
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
-  - plan/in-progress/spec-sync-edge-gaps.md
 ---
 
 # Spec: 엣지 연결 규칙
@@ -150,7 +149,18 @@ pending_plans:
 | 클릭 | 엣지 선택 | 구현됨 (React Flow 기본) |
 | Delete | 선택된 엣지 삭제 | 구현됨 (`deleteKeyCode={["Delete","Backspace"]}`) |
 | 호버 | 엣지 하이라이트 + (실행 후) 전달된 데이터 미리보기 툴팁 | 구현됨 (`onEdgeMouseEnter` → `setHoveredEdge` + §5 데이터 미리보기 툴팁) |
-| 엣지 중간에 노드 드롭 | 엣지를 분리하고 중간에 노드 삽입 (source→새노드, 새노드→target) | 미구현 (Planned) |
+| 엣지 위에 노드 드롭 | 엣지를 **분할(split)**하고 중간에 노드 삽입 (source→새노드, 새노드→target) | 구현됨 (§4.1) |
+
+### 4.1 엣지 분할 — 중간 노드 삽입
+
+> **현재 구현**: 팔레트에서 노드를 드래그해 **기존 엣지 위에 드롭**하면 그 엣지를 **분할(split)**하고 중간에 노드를 삽입한다 — 원본 엣지(source→target)를 제거하고 `source→새 노드`·`새 노드→target` 두 엣지를 만든다. (§1.3 의 "분리(detach)" 는 재연결 앵커를 빈 영역에 놓아 엣지를 **삭제**하는 별개 동작 — 여기 "분할" 과 혼동하지 않는다.) `workflow-canvas.tsx` `onDrop` 이 드롭 지점의 엣지를 DOM hit-test(순수 헬퍼 `findEdgeIdAtPoint` — `.react-flow__edge[data-id]`, 뷰포트/RF 의존이라 store 밖 canvas seam)로 찾고, 순수 헬퍼 `edge-utils.ts` `buildEdgeSplitPlan` 이 두 신규 Connection 을 조립한다.
+>
+> - **포트 선택**: 새 노드의 **첫 입력 포트**(`firstInputHandleId`, 예약 `emit` 제외)를 `source→새 노드` 의 target 으로, 새 노드의 **첫 출력 포트**(`firstOutputHandleId`)를 `새 노드→target` 의 source 로 쓴다. 원본 엣지의 `sourceHandle`·`targetHandle` 은 두 신규 엣지에 **그대로 보존**된다(다중 출력 If/Else·Switch, 다중 입력 노드여도 원본 양끝 핸들 불변). **다중 출력 새 노드**(If/Else·Switch)를 삽입하면 첫 출력만 `target` 에 연결되고 나머지 분기 포트는 미연결로 남아 사용자가 수동 연결한다.
+> - **적용 범위**: 새 노드가 입력·출력 포트를 **모두 가질 때만** 분할한다. 입력이 없는 트리거·출력이 없는 노드를 드롭하거나(→ `buildEdgeSplitPlan` 이 null), 엣지가 아닌 빈 영역에 드롭하면 분할 없이 그 위치에 노드만 추가한다(`0-canvas.md` 의 일반 팔레트 드롭과 동일한 fallback).
+> - **컨테이너 새 노드 제외**: 드롭하는 새 노드 **자체가 컨테이너**(Loop/ForEach/Map, `isContainer`)면 그 첫 출력이 `body`(본문 진입)라 `새 노드→target` 이 target 을 새 컨테이너 본문 자식으로 재편입시켜 버린다 → 분할 대상에서 제외하고 노드만 추가한다(R-3).
+> - **컨테이너 경계 엣지 제외**: `sourceHandle` 이 `body`(컨테이너 본문 진입)이거나 `targetHandle` 이 `emit`(loopback 입력)인 **컨테이너 경계 엣지**는 §6(컨테이너 내부 엣지 규칙)의 emit 단일성·경계 불가침과 `0-canvas.md` containerId 동기화 불변식과의 상호작용이 아직 정의되지 않아 분할 대상에서 제외한다. 컨테이너 본문 종료 출력 `done` 엣지는 제외하지 **않는다** — Parallel Branch 도 동명 `done` 을 일반 데이터 출력으로 쓰고, `done→새 노드` 분할은 body 재편입을 유발하지 않아 안전하다.
+> - **연결·불변식(원자성)**: 분할 1회는 원본 엣지 제거 1 + `onConnect` **2회**(source→새 노드, 새 노드→target)를 발생시킨다 — `onConnect` 에 리스너를 추가하는 소비처는 "드롭 제스처당 2회" 를 전제해야 한다. 두 신규 엣지는 §1.2/§1.3 과 동일하게 표준 `onConnect`(→`evaluateConnection`) 경로를 재사용하므로 포트색 파생·유효성 검사가 그대로 적용된다. 위 제외 규칙(원본 body/emit 엣지 + 컨테이너 새 노드) 덕에 두 Connection 은 `detectContainerConflict` 의 유일한 거부 분기(source `body`/target `emit`)에 절대 걸리지 않고, 새 노드라 자기연결·중복도 불가능하다 → `onConnect` 두 번이 **항상 성공**한다. 따라서 `removeEdge` 후 `onConnect`×2 를 순차 실행해도 그래프가 반쪽만 갱신되는 원자성 문제가 구조적으로 발생하지 않는다(`buildEdgeSplitPlan` 이 non-null 을 반환하는 것 자체가 분할 안전성의 게이트). 거부 분기 핸들(`body`/`emit`)은 `edge-utils.ts` `CONTAINER_BODY_HANDLE`/`CONTAINER_EMIT_HANDLE` 공유 상수로 store 와 묶여 있다(hidden coupling 제거).
+> - **Undo**: §1.2/§1.3 과 동일하게 **단일 undo 체크포인트**로 처리한다 — 노드 추가 시 `pushUndo` 한 번, 이후 원본 엣지 제거·신규 엣지 2개 연결은 `skipUndo` 로 접어 Ctrl+Z 1회에 삽입 전체(노드+엣지 2개 제거, 원본 엣지 복원)가 함께 취소된다.
 
 ---
 
@@ -242,3 +252,13 @@ pending_plans:
 초기 §2.3 는 "엣지 생성 시 DAG 검증 → 사이클이면 차단" 을 계획했으나 미구현 상태였다. 그 사이 실행 엔진이 **분기 노드(Switch/If-Else 등)의 포트 라우팅을 통한 back-edge 순환**(재시도·폴링 루프)을 정식 지원하게 되면서, "모든 사이클 차단" 은 정당한 워크플로를 막게 되어 더 이상 옳지 않다. 그래서 **편집기(사람이 그리는 캔버스)는 warn-not-block** 으로 확정했다: 사이클 생성 자체는 허용하고, **분기 노드로 탈출할 수 없는 순환**(pass-through 노드에 back-edge)만 `graph:unescapable-cycle` 경고 배지로 드러낸다.
 
 반면 backend `shadow-workflow.ts` (workflow-assistant LLM 도구)는 **여전히 사이클을 hard error 로 차단**한다 — 이는 divergence 가 아니라 **surface 별 요구가 다르기 때문**이다: 사람은 분기 노드로 탈출하는 순환을 의도적으로 그릴 수 있어야 하지만(그래서 경고), LLM 이 자동 생성하는 도구 호출 시퀀스는 결정론적 DAG 로 검증·순서화되어야 안전하다(그래서 차단). 두 판정 모두 **컨테이너 반복 loopback(`targetHandle === 'emit'`)은 예외**로 두어 SoT(`CONTAINER_LOOPBACK_PORTS = {'emit'}`)를 공유한다. 편집기의 분기 노드 탈출 판정은 런타임 `_selectedPort` 의 정적 근사라 advisory 경고에 그치며, 저장을 막지 않는다.
+
+### R-3. 엣지 분할(mid-insert) 은 plain 데이터 엣지 + 입출력 보유 노드로 스코프 한정 (§4.1) (2026-07-13)
+
+§4.1 엣지 분할 착수 전 `consistency-check --impl-prep` 가 컨테이너 경계(`body`/`done`/`emit`) 엣지 위 분할이 §6 emit 단일성·경계 불가침, `0-canvas.md` containerId 동기화 불변식과 **어떻게 상호작용하는지 미정의**임을 드러냈다(4개 checker 수렴). 세 가지 대안을 검토했다: (a) 모든 엣지 분할 허용 — 컨테이너 경계 분할 시 새 노드가 컨테이너 안/밖 어디에 귀속되는지, emit 정확히-1개 불변식이 어떻게 유지되는지 정의가 없어 침묵 위반 위험. (b) 분할을 store 원자 액션으로 만들어 컨테이너 재계산까지 포함 — 신규 불변식 설계가 필요해 이 surface 스코프를 크게 넘김. (c) **plain(비-컨테이너-경계) 엣지로 한정하고 경계 엣지는 일반 노드 추가로 fallback** — 선택. 컨테이너 위상은 손대지 않아 기존 불변식이 자동 보존되고, 신규 엣지 2개는 표준 `onConnect` 를 재사용해 §11.2.1·§6 규칙을 그대로 탄다. 컨테이너 경계 분할이 실제 필요해지면 그때 명시 규칙과 함께 확장한다. 마찬가지로 입력/출력 포트가 없는 노드(트리거·순수 sink)는 중간 삽입이 성립하지 않아 분할을 생략하고 노드만 추가한다 — §1.2 자동 연결이 `firstInputHandleId` null 이면 연결을 생략하는 전례와 대칭이다.
+
+**후속 보강(ai-review 1회차 CRITICAL)**: 초기 구현은 원본 엣지의 경계 핸들만 걸렀고 "**드롭하는 새 노드 자체가 컨테이너**" 인 경우를 놓쳤다 — 컨테이너의 첫 출력이 `body` 라 `firstOutputHandleId` 가 `body` 를 골라 `새 노드→target` 이 `propagateContainerOnConnect` Rule 1 을 발동, target 을 새 컨테이너 본문 자식으로 조용히 재편입(또는 conflict 거부로 반쪽 그래프)시켰다. `buildEdgeSplitPlan` 에 `definition.isContainer` 가드를 추가해 컨테이너 새 노드는 분할에서 제외한다(노드만 추가). 이 제외로 두 신규 Connection 이 `detectContainerConflict` 의 body/emit 거부 분기에 걸릴 경로가 완전히 사라져 "removeEdge 후 onConnect 반쪽 실패" 원자성 우려도 **구성적으로 해소**된다(별도 store 원자 액션 불요). 또한 경계 판정을 `sourceHandle∈{body,done}` 에서 **`body` 만**으로 좁혔다 — Parallel Branch 가 컨테이너가 아님에도 동명 `done` 을 일반 데이터 출력으로 써 `done` 을 뭉뚱그리면 그 데이터 엣지 분할이 잘못 막히기 때문이고, 컨테이너 `done` 엣지 분할은 body 재편입을 유발하지 않아 안전하다.
+
+**커플링 주의**: 위 원자성 보장은 `detectContainerConflict`(editor-store.ts)의 거부 분기가 source `body` / target `emit` 두 가지뿐이라는 데 의존한다. 두 핸들 값은 `edge-utils.ts` `CONTAINER_BODY_HANDLE`/`CONTAINER_EMIT_HANDLE` 공유 상수로 `buildEdgeSplitPlan`(분할 제외)과 store `detectContainerConflict`/`propagateContainerOnConnect`(거부·전파)가 함께 import 해 compile-time 으로 묶여 있다(hidden coupling 제거). 다만 그 함수에 **새 거부 분기(다른 핸들)**가 추가되면 `buildEdgeSplitPlan` 의 제외 규칙도 함께 갱신해야 반쪽 그래프 재발을 막는다(양쪽 JSDoc 에 상호 forward-pointer 기록).
+
+**undo 단일 체크포인트 실측 보강(ai-review 3회차)**: 노드 생성 헬퍼 `buildAndAddNode` 가 자체 `pushUndo` 를 호출하고 그 안에서 `addNode`(store)가 또 `pushUndo` 해 삽입 1회가 동일 스냅샷 2개를 쌓던 잠재 결함(§1.2 도 공유)을 발견 — `buildAndAddNode` 의 중복 `pushUndo` 를 제거해 `addNode` 의 pushUndo 하나만 단일 체크포인트가 되게 정정했다. store 시퀀스(addNode→removeEdge(skipUndo)→onConnect(skipUndo)×2→undo)가 정확히 스냅샷 1개를 남기고 undo 1회로 완전 복원됨을 통합 테스트로 고정.

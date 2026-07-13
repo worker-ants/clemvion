@@ -319,6 +319,102 @@ describe("useEditorStore", () => {
       const c = useEditorStore.getState().nodes.find((n) => n.id === "c");
       expect((c?.data as Record<string, unknown>)?.containerId ?? null).toBeNull();
     });
+
+    it("{skipUndo:true} 면 엣지는 제거하되 undoStack 은 늘리지 않는다 (§4.1 분할 단일 체크포인트)", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2")],
+        edges: [makeEdge("1", "2")],
+        undoStack: [],
+      });
+      useEditorStore.getState().removeEdge("1-2", { skipUndo: true });
+      const state = useEditorStore.getState();
+      expect(state.edges).toHaveLength(0);
+      expect(state.undoStack).toHaveLength(0);
+    });
+  });
+
+  // §4.1 — onDrop 이 오케스트레이션하는 분할 시퀀스(노드 추가 → removeEdge(skipUndo) →
+  // onConnect×2(skipUndo))를 store 레벨에서 재현해 배선 회귀를 잡는다. buildEdgeSplitPlan(순수)은
+  // edge-utils.test.ts 에서 전수 커버하고, 여기선 store 합성(원자성·containerId 전파)을 검증한다.
+  describe("엣지 분할 store 시퀀스 (§4.1)", () => {
+    it("plain 엣지 분할: onConnect 2회 모두 성공해 최종 엣지가 A→N, N→B 두 개 (원자성 lock)", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("A"), makeNode("B"), makeNode("N")],
+        edges: [makeEdge("A", "B")],
+        undoStack: [],
+      });
+      const s = useEditorStore.getState();
+      s.removeEdge("A-B", { skipUndo: true });
+      s.onConnect(
+        { source: "A", sourceHandle: "out", target: "N", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      s.onConnect(
+        { source: "N", sourceHandle: "out", target: "B", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges.map((e) => `${e.source}->${e.target}`).sort()).toEqual([
+        "A->N",
+        "N->B",
+      ]);
+    });
+
+    it("Loop body 내부 체인 엣지 분할 시 새 노드가 컨테이너 containerId 를 상속한다", () => {
+      useEditorStore.setState({
+        nodes: [
+          makeNode("L", { data: { type: "loop", label: "Loop" } }),
+          makeNode("A", { data: { type: "action", label: "A", containerId: "L" } }),
+          makeNode("B", { data: { type: "action", label: "B", containerId: "L" } }),
+          makeNode("N", { data: { type: "action", label: "N" } }),
+        ],
+        edges: [
+          { id: "body", source: "L", target: "A", sourceHandle: "body", targetHandle: "in", type: "custom" },
+          { id: "A-B", source: "A", target: "B", sourceHandle: "out", targetHandle: "in", type: "custom" },
+          { id: "emit", source: "B", target: "L", sourceHandle: "out", targetHandle: "emit", type: "custom" },
+        ],
+        undoStack: [],
+      });
+      const s = useEditorStore.getState();
+      s.removeEdge("A-B", { skipUndo: true });
+      s.onConnect(
+        { source: "A", sourceHandle: "out", target: "N", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      s.onConnect(
+        { source: "N", sourceHandle: "out", target: "B", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      const n = useEditorStore.getState().nodes.find((x) => x.id === "N");
+      expect((n?.data as Record<string, unknown>)?.containerId).toBe("L");
+    });
+
+    it("삽입 후 undo() 1회로 전체 취소 + undoStack 정확히 0 (단일 체크포인트, phantom 없음)", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("A"), makeNode("B")],
+        edges: [makeEdge("A", "B")],
+        undoStack: [],
+      });
+      const s = useEditorStore.getState();
+      // buildAndAddNode(중복 pushUndo 제거 후) = addNode 의 pushUndo 1회 = 단일 체크포인트.
+      s.addNode(makeNode("N"));
+      s.removeEdge("A-B", { skipUndo: true });
+      s.onConnect(
+        { source: "A", sourceHandle: "out", target: "N", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      s.onConnect(
+        { source: "N", sourceHandle: "out", target: "B", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      // 스냅샷이 정확히 1개(phantom 이중 pushUndo 없음).
+      expect(useEditorStore.getState().undoStack).toHaveLength(1);
+      useEditorStore.getState().undo();
+      const state = useEditorStore.getState();
+      expect(state.undoStack).toHaveLength(0);
+      expect(state.nodes.map((n) => n.id)).toEqual(["A", "B"]); // 새 노드 제거
+      expect(state.edges.map((e) => e.id)).toEqual(["A-B"]); // 원본 엣지 복원
+    });
   });
 
   describe("removeNode", () => {

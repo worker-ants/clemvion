@@ -26,6 +26,8 @@ import {
   connectionDragSource,
   pointerClientPosition,
   buildAutoConnectConnection,
+  buildEdgeSplitPlan,
+  findEdgeIdAtPoint,
 } from "@/lib/utils/edge-utils";
 import {
   modelConfigsApi,
@@ -604,6 +606,9 @@ export function WorkflowCanvas() {
   // 팔레트 클릭(§4.2)이 공유한다. manual_trigger 단일 인스턴스 가드 포함(§9.2).
   // 생성된 노드 id 를 반환한다(§1.2 자동 엣지 연결이 target 으로 사용). 노드를 만들지
   // 못하면(정의 부재·트리거 중복) undefined.
+  // undo 체크포인트는 `addNode`(store) 내부의 pushUndo 하나로 충분하다 — 여기서 별도로
+  // pushUndo 하면 삽입 1회가 동일 스냅샷 2개를 쌓아 Ctrl+Z 가 phantom no-op 슬롯을 남긴다
+  // (§1.2/§4.1 skipUndo 그룹핑의 "단일 체크포인트" 전제도 이 addNode pushUndo 를 가리킨다).
   const buildAndAddNode = useCallback(
     (
       nodeType: string,
@@ -615,7 +620,6 @@ export function WorkflowCanvas() {
         const hasTrigger = nodes.some((n) => n.data?.type === "manual_trigger");
         if (hasTrigger) return undefined;
       }
-      pushUndo();
       const existingLabels = nodes.map(
         (n) => (n.data as Record<string, unknown>).label as string,
       );
@@ -636,7 +640,7 @@ export function WorkflowCanvas() {
       });
       return newId;
     },
-    [nodes, pushUndo, addNode, buildInitialConfig, locale],
+    [nodes, addNode, buildInitialConfig, locale],
   );
 
   // Add node from search popup (§4.3, §1.2)
@@ -712,9 +716,33 @@ export function WorkflowCanvas() {
         x: event.clientX,
         y: event.clientY,
       });
-      buildAndAddNode(nodeType, position);
+      // §4.1 — 드롭 지점이 기존 엣지 위면 그 엣지를 분할하고 중간에 노드를 삽입한다.
+      // hit-test 는 뷰포트/DOM 의존이라 canvas seam(순수 헬퍼 findEdgeIdAtPoint)에 둔다.
+      const droppedEdgeId = findEdgeIdAtPoint(event.clientX, event.clientY);
+      const targetEdge = droppedEdgeId
+        ? edges.find((e) => e.id === droppedEdgeId)
+        : undefined;
+      const newId = buildAndAddNode(nodeType, position);
+      // buildAndAddNode(→addNode) 의 pushUndo 가 단일 체크포인트를 남기므로 이후 엣지 수술은
+      // skipUndo 로 접는다 → Ctrl+Z 1회에 노드+엣지 2개 제거·원본 엣지 복원이 함께 취소된다.
+      if (newId && targetEdge) {
+        const plan = buildEdgeSplitPlan(
+          targetEdge,
+          newId,
+          getNodeDefinition(nodeType),
+        );
+        // plan 이 null 이면(입출력 없는 노드·컨테이너 새 노드·컨테이너 경계 엣지) 분할 없이
+        // 노드만 추가된 상태 유지. plan 이 non-null 이면 두 onConnect 는 detectContainerConflict
+        // 거부 분기에 걸릴 수 없어 항상 성공한다(buildEdgeSplitPlan JSDoc 원자성 불변식) →
+        // removeEdge 후 순차 실행해도 그래프가 반쪽만 갱신되지 않는다.
+        if (plan) {
+          removeEdge(targetEdge.id, { skipUndo: true });
+          onConnect(plan.sourceToNew, { skipUndo: true });
+          onConnect(plan.newToTarget, { skipUndo: true });
+        }
+      }
     },
-    [buildAndAddNode],
+    [buildAndAddNode, edges, removeEdge, onConnect],
   );
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
