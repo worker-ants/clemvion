@@ -507,6 +507,11 @@ describe("buildEdgeSplitPlan (§4.1)", () => {
     ).toBeNull();
   });
 
+  it("definition 이 null/undefined 여도 null (방어)", () => {
+    expect(buildEdgeSplitPlan(edge, "N", null)).toBeNull();
+    expect(buildEdgeSplitPlan(edge, "N", undefined)).toBeNull();
+  });
+
   it("컨테이너 경계 엣지는 분할 대상 제외 → null (R-3)", () => {
     expect(
       buildEdgeSplitPlan(

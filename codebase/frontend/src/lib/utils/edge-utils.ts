@@ -126,11 +126,23 @@ export function isConnectionDroppedOnPane(
 }
 
 /**
+ * 컨테이너 경계 핸들의 단일 SoT. 편집기 여러 곳이 이 두 핸들에 컨테이너 위상 의미를 부여하므로
+ * 문자열 리터럴을 흩뿌리지 않고 여기서 export 해 공유한다:
+ *  - `isContainerBoundaryEdge`/`buildEdgeSplitPlan`(§4.1 분할 제외),
+ *  - store `detectContainerConflict`(거부) / `propagateContainerOnConnect`(컨테이너 소속 전파),
+ *  - `RESERVED_INPUT_HANDLE_IDS`(emit 자동연결 제외).
+ * §4.1 분할 원자성은 store 거부 분기(source `body`/target `emit`)와 분할 제외가 **같은** 핸들
+ * 집합을 본다는 데 의존하므로, 두 소비처가 이 상수를 공유하면 커플링이 compile-time 으로 묶인다.
+ */
+export const CONTAINER_BODY_HANDLE = "body";
+export const CONTAINER_EMIT_HANDLE = "emit";
+
+/**
  * 컨테이너 loopback 수집용 예약 입력 포트 id. 자식이 조상 컨테이너의 이 포트로 돌아간다
  * (SoT: backend `shadow-workflow.ts` `CONTAINER_LOOPBACK_PORTS = {'emit'}`). 자동 연결의
  * 기본 target 에서 제외한다 — 예약 포트로 연결하면 `detectContainerConflict` 가 거부한다.
  */
-const RESERVED_INPUT_HANDLE_IDS = new Set(["emit"]);
+const RESERVED_INPUT_HANDLE_IDS = new Set([CONTAINER_EMIT_HANDLE]);
 
 /**
  * 노드 정의의 첫 **일반** 입력 포트 핸들 id (§1.2 자동 엣지 연결의 targetHandle). 예약 입력
@@ -232,8 +244,8 @@ export function buildAutoConnectConnection(
  * 데이터 출력**으로 쓰므로 핸들명으로 뭉뚱그리면 그 데이터 엣지 분할이 잘못 막힌다. 컨테이너
  * `done` 엣지 분할(`done → 새 노드`)은 body 재편입(`sourceHandle==='body'`)을 유발하지 않아 안전.
  */
-const CONTAINER_SOURCE_HANDLES = new Set(["body"]);
-const CONTAINER_TARGET_HANDLES = new Set(["emit"]);
+const CONTAINER_SOURCE_HANDLES = new Set([CONTAINER_BODY_HANDLE]);
+const CONTAINER_TARGET_HANDLES = new Set([CONTAINER_EMIT_HANDLE]);
 
 export function isContainerBoundaryEdge(edge: {
   sourceHandle?: string | null;

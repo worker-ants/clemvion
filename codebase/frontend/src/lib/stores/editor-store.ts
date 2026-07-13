@@ -21,6 +21,8 @@ import {
   buildEdgeData,
   isSelfConnection,
   isDuplicateConnection,
+  CONTAINER_BODY_HANDLE,
+  CONTAINER_EMIT_HANDLE,
 } from "@/lib/utils/edge-utils";
 import { useCanvasHoverStore } from "./canvas-hover-store";
 import { registerAssistantEditorBridge } from "./assistant-editor-bridge";
@@ -246,8 +248,10 @@ function applyContainerAssignment(
  *
  * COUPLING (§4.1 edge split): `buildEdgeSplitPlan`(edge-utils.ts) 의 "onConnect 2회 항상
  * 성공" 원자성 보장은 여기 거부 분기가 source `body` / target `emit` 두 가지뿐이고 분할이 그
- * 둘을 사전 배제한다는 데 의존한다. 이 함수에 **새 거부 분기를 추가하면** 그 분할 원자성 가정이
- * 조용히 깨질 수 있으니 `buildEdgeSplitPlan` 의 제외 규칙(§4.1 / 2-edge.md R-3)도 함께 검토할 것.
+ * 둘을 사전 배제한다는 데 의존한다. 두 핸들 값은 `edge-utils.ts` 의 `CONTAINER_BODY_HANDLE`/
+ * `CONTAINER_EMIT_HANDLE` 공유 상수로 묶여 있어 값 변경은 양쪽에 자동 반영되지만, 이 함수에
+ * **새 거부 분기(다른 핸들)를 추가하면** 그 분할 원자성 가정이 조용히 깨질 수 있으니
+ * `buildEdgeSplitPlan` 의 제외 규칙(§4.1 / 2-edge.md R-3)도 함께 검토할 것.
  */
 function detectContainerConflict(
   nodes: Node[],
@@ -262,7 +266,7 @@ function detectContainerConflict(
   // node that another container already owns.
   if (
     isContainerNode(sourceNode) &&
-    connection.sourceHandle === "body"
+    connection.sourceHandle === CONTAINER_BODY_HANDLE
   ) {
     const targetContainer = getContainerId(targetNode);
     if (targetContainer && targetContainer !== sourceNode.id) {
@@ -276,7 +280,7 @@ function detectContainerConflict(
   // this exact container.
   if (
     isContainerNode(targetNode) &&
-    connection.targetHandle === "emit"
+    connection.targetHandle === CONTAINER_EMIT_HANDLE
   ) {
     const sourceContainer = getContainerId(sourceNode);
     if (sourceContainer && sourceContainer !== targetNode.id) {
@@ -327,7 +331,7 @@ function propagateContainerOnConnect(
   // have been intercepted by detectContainerConflict already.
   if (
     isContainerNode(sourceNode) &&
-    connection.sourceHandle === "body"
+    connection.sourceHandle === CONTAINER_BODY_HANDLE
   ) {
     nextTargetContainer = sourceNode.id;
   }
@@ -335,7 +339,7 @@ function propagateContainerOnConnect(
   // Rule 2 — emit port forces the source into this container.
   if (
     isContainerNode(targetNode) &&
-    connection.targetHandle === "emit"
+    connection.targetHandle === CONTAINER_EMIT_HANDLE
   ) {
     nextSourceContainer = targetNode.id;
   }
