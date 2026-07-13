@@ -1,6 +1,7 @@
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import type { Node, Edge } from "@xyflow/react";
+import type { CSSProperties } from "react";
 
 /**
  * Port type classification for edge coloring.
@@ -366,4 +367,24 @@ export function resolveEdgeExecutionState(
     ctx.executing && sourceStatus === "completed" && targetStatus === "running";
   const completed = sourceStatus === "completed" && targetStatus === "completed";
   return { inactive: false, flowing, completed };
+}
+
+/**
+ * §3.1/§3.2 — custom-edge 의 인라인 style 조립을 순수 함수로 분리한다(단위 테스트 가능).
+ * `selected`(primary·2.5px) / `isHighlighted`(2.5px) / `inactive`(반투명 점선) 를 반영하고,
+ * 마지막에 React Flow 가 넘긴 `baseStyle` 을 스프레드해 그 값이 우선하게 한다(기존 동작 보존).
+ */
+export function buildEdgeStyle(opts: {
+  portColor: string;
+  selected: boolean;
+  isHighlighted: boolean;
+  inactive: boolean;
+  baseStyle?: CSSProperties;
+}): CSSProperties {
+  return {
+    stroke: opts.selected ? "hsl(var(--primary))" : opts.portColor,
+    strokeWidth: opts.isHighlighted || opts.selected ? 2.5 : 1.5,
+    ...(opts.inactive ? { opacity: 0.4, strokeDasharray: "6 4" } : {}),
+    ...(opts.baseStyle ?? {}),
+  };
 }

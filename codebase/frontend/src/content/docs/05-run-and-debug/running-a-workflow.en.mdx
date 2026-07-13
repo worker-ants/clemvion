@@ -125,7 +125,7 @@ Starting a run shows a status bar at the top of the editor.
 
 - Currently running node: blue pulsing border
 - Completed node: green check + elapsed time
-- Edges: animated to show data flow
+- Edges: an edge carrying data (its upstream node finished and the downstream node is running) shows dashes marching in the data-flow direction; an edge whose both endpoints have finished flashes green briefly, then settles back. Edges to a disabled (turned-off) node always appear dimmed and dashed. See [Reading edges](/docs/03-workflow-editor/connecting-nodes) for details.
 - Branch nodes: only the taken path stays bold; untaken paths fade out
 
 The **Run Results drawer** expands automatically at the bottom, showing per-node input/output/status in a timeline. Details: [Run results](/docs/05-run-and-debug/run-results).

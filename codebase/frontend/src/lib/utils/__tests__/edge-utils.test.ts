@@ -14,6 +14,7 @@ import {
   pointerClientPosition,
   buildAutoConnectConnection,
   resolveEdgeExecutionState,
+  buildEdgeStyle,
   PORT_TYPE_COLORS,
 } from "../edge-utils";
 import type { Node, Edge } from "@xyflow/react";
@@ -479,6 +480,60 @@ describe("resolveEdgeExecutionState (§3.2)", () => {
       flowing: false,
       completed: false,
     });
+  });
+
+  it("target 이 failed 면 flowing·completed 모두 false", () => {
+    expect(
+      resolveEdgeExecutionState(
+        edge,
+        ctx({ executing: true, statuses: { a: "completed", b: "failed" } }),
+      ),
+    ).toEqual({ inactive: false, flowing: false, completed: false });
+  });
+
+  it("방향 역전(source running + target completed)은 flowing 아님", () => {
+    expect(
+      resolveEdgeExecutionState(
+        edge,
+        ctx({ executing: true, statuses: { a: "running", b: "completed" } }),
+      ).flowing,
+    ).toBe(false);
+  });
+});
+
+describe("buildEdgeStyle (§3.1/§3.2)", () => {
+  const base = { portColor: "#22c55e", selected: false, isHighlighted: false, inactive: false };
+
+  it("기본: 포트색 stroke, 1.5px, opacity/dash 없음", () => {
+    const s = buildEdgeStyle(base);
+    expect(s.stroke).toBe("#22c55e");
+    expect(s.strokeWidth).toBe(1.5);
+    expect(s.opacity).toBeUndefined();
+    expect(s.strokeDasharray).toBeUndefined();
+  });
+
+  it("selected: primary stroke + 2.5px", () => {
+    const s = buildEdgeStyle({ ...base, selected: true });
+    expect(s.stroke).toBe("hsl(var(--primary))");
+    expect(s.strokeWidth).toBe(2.5);
+  });
+
+  it("isHighlighted: 2.5px (색은 포트색 유지)", () => {
+    const s = buildEdgeStyle({ ...base, isHighlighted: true });
+    expect(s.strokeWidth).toBe(2.5);
+    expect(s.stroke).toBe("#22c55e");
+  });
+
+  it("inactive: opacity 0.4 + 점선", () => {
+    const s = buildEdgeStyle({ ...base, inactive: true });
+    expect(s.opacity).toBe(0.4);
+    expect(s.strokeDasharray).toBe("6 4");
+  });
+
+  it("baseStyle 이 마지막에 스프레드돼 우선한다", () => {
+    const s = buildEdgeStyle({ ...base, baseStyle: { stroke: "red", strokeWidth: 9 } });
+    expect(s.stroke).toBe("red");
+    expect(s.strokeWidth).toBe(9);
   });
 });
 
