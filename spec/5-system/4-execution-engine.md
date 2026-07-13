@@ -1038,13 +1038,16 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 
 ### 7.5.1 Publisher 측 사전 검증 — `INVALID_EXECUTION_STATE`
 
-§7.4 의 입력 receiver (controller / WS gateway) 가 publish 직전에 `nodeId → nodeExecutionId` DB lookup 을 수행하는 단계 (`execution_id + node_id + status='waiting_for_input'`). 다음 케이스는 BullMQ enqueue 를 **시도하지 않고** client 에 즉시 동기 응답한다.
+§7.4 의 입력 receiver (controller / WS gateway) 가 publish 직전에 대기 NodeExecution 을 조회하는 단계. `resolveWaitingNodeExecutionId` 가 `execution_id + status='waiting_for_input'` 로 단일 대기 행을 찾은 뒤(정상 1건), 도착 명령의 **nodeId 와 표면**을 그 행에 대해 검증한다. 다음 케이스는 BullMQ enqueue 를 **시도하지 않고** client 에 즉시 동기 응답한다.
 
 | 케이스                                  | 응답 코드 (WS ack)                        | 원인                                                                                       |
 | --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 매칭 row 0건                            | `INVALID_EXECUTION_STATE`                 | Execution 이 다른 상태(`running` / `completed` / `cancelled` / `failed`)거나 nodeId 미일치 |
+| 매칭 row 0건                            | `INVALID_EXECUTION_STATE`                 | Execution 이 다른 상태(`running` / `completed` / `cancelled` / `failed`) — `waiting_for_input` NodeExecution 없음 |
 | 동일 매칭 row 2건 이상 (invariant 위반) | `INVALID_EXECUTION_STATE` + `logger.warn` | 일반적으로 발생 불가. race 또는 데이터 손상 의심                                           |
+| nodeId 불일치                           | `INVALID_EXECUTION_STATE`                 | 명령이 지정한 `nodeId` 가 실제 대기 노드의 nodeId 와 다름 (stale/오지정 제출을 현재 대기 노드로 오적용하지 않고 거부). **caller 가 nodeId 를 지정할 때만** 적용 — 외부 EIA `/interact`(`InteractDto.nodeId`)·WS 는 지정하고, **`scope: 'in_process_trusted'`(chat-channel 고정 매핑, 대기 nodeId 미상)는 면제**한다 (아래 exemption). 근거 §Rationale "대기 표면 ↔ 명령 매트릭스" |
 | 표면(interactionType) 불일치            | `INVALID_EXECUTION_STATE`                 | 대기 노드가 노출한 인터랙션 표면이 도착 명령을 받지 않음. `form` 대기=`submit_form` 만, `buttons` 대기=`click_button` 만, `ai_conversation`/`ai_form_render` 대기=4종 모두 허용. 표면 판정 불가 행(비-`form` + `interactionType` 부재)도 fail-closed 거부. 근거 §Rationale "대기 표면 ↔ 명령 매트릭스" |
+
+> **`in_process_trusted` nodeId 면제**: chat-channel inbound 는 `HooksService.forwardToInteractionService` 가 대기 노드의 표면·nodeId 를 알지 못한 채 `text_message → submit_message` / `button_callback → click_button` 로 **고정 매핑**한다. 따라서 이 경로는 명령에 nodeId 를 싣지 않고(`scope: 'in_process_trusted'`), publisher 도 nodeId 검사를 건너뛴다 — 표면 매트릭스 검증(위 마지막 행)은 여전히 적용되므로 form/buttons 대기 중 이종 명령은 그대로 거부된다. 이 면제는 in-process trusted 합성 ctx 에만 국한되며(외부 토큰 경로는 항상 nodeId 지정), `resolveWaitingNodeExecutionId(executionId, expectedCommand, expectedNodeId?)` 의 `expectedNodeId` optional 로 표현된다.
 
 `INVALID_EXECUTION_STATE` 는 동일 의미를 표현하는 **두 layer 의 코드** 중 WS 쪽 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 를 반환한다 (의도적 분리: WS ack 와 REST 422 의 routing 분기가 클라이언트에서 동일 코드를 다르게 처리해야 하는 혼동을 회피).
 
