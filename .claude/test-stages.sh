@@ -85,12 +85,36 @@ _cmd_build_docker_images() {
   fi
   echo "[build:docker] backend Dockerfile build 검증"
   docker build -q -f codebase/backend/Dockerfile -t clemvion-build-check/backend:latest . && \
+  _cmd_backend_image_hygiene_smoke && \
   echo "[build:docker] frontend Dockerfile build 검증" && \
   docker build -q \
     -f codebase/frontend/Dockerfile \
     --build-arg NEXT_PUBLIC_API_URL=http://localhost:3011/api \
     --build-arg NEXT_PUBLIC_WS_URL=http://localhost:3011 \
     -t clemvion-build-check/frontend:latest .
+}
+
+# backend 프로덕션 이미지 위생 스모크 — 이 이미지가 "조용히 나빠지는" 회귀를 CI 가드로 고정한다.
+# 이 클래스 회귀(구 runner 가 hoisted flat tree 통째 COPY → 프런트/테스트 스택 600MB+·backend
+# 원본 src 잔존; legacy deploy 가 직접 의존 버전을 전이 버전으로 collapse)는 지금껏 ai-review 로만
+# 잡혔지 CI 로 걸린 적이 없다. runner WORKDIR=/app/codebase/backend. typescript/ts-node 는 prod
+# closure 에 정상 포함되므로 assert 대상이 아니다 — 순수 프런트/테스트 스택만 부재 검증한다.
+_cmd_backend_image_hygiene_smoke() {
+  local img=clemvion-build-check/backend:latest
+  echo "[build:docker] backend 프로덕션 이미지 위생 스모크"
+  docker run --rm --entrypoint sh "$img" -c '
+    cd /app/codebase/backend || exit 1
+    for d in jest next @next three playwright-core; do
+      [ -d "node_modules/$d" ] && { echo "  누출: node_modules/$d (프런트/테스트 스택이 프로덕션 이미지에 잔존)"; exit 1; }
+    done
+    [ -f dist/main.js ] || { echo "  부재: dist/main.js (부팅 엔트리 누락)"; exit 1; }
+  ' || return 1
+  # 직접 의존 cron-parser 가 v5(backend ^5.5.0)로 올바로 해소됐는지 — bullmq 전이 4.9.0 으로의
+  # collapse(legacy deploy 회귀) 를 가드한다. CronExpressionParser 는 v5 전용 export.
+  docker run --rm --entrypoint node "$img" \
+    -e 'process.exit(require("cron-parser").CronExpressionParser?0:1)' \
+    || { echo "  cron-parser v5 API 부재 — backend 직접 의존이 전이 버전으로 오해소(legacy deploy 회귀)"; return 1; }
+  echo "  ok: 프런트/테스트 스택 부재 · dist/main.js 존재 · cron-parser v5 해소"
 }
 
 cmd_e2e() {

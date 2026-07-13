@@ -7,6 +7,11 @@ packages:
   - "codebase/channel-web-chat"
   - "codebase/packages/*"
 
-# 내부 workspace 패키지를 injected copy 로 링크 — pnpm v10 non-legacy `deploy`
-# 가 요구(ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE). node-linker 는 hoisted 유지.
+# backend `pnpm deploy`(non-legacy)가 요구하는 설정(ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE).
+# 이 값 덕에 deploy 산출물이 내부 @workflow/* 를 injected copy 로 격리해 패키지별 버전을
+# 올바로 해소한다(legacy flat deploy 의 direct→transitive collapse 회피).
+# 실측: 일반 `pnpm install`(frozen) 의 워크스페이스 링크는 여전히 **symlink** 다 —
+# backend·frontend·web-chat-sdk 모두 node_modules/@workflow/* 가 codebase/packages/* 로의
+# symlink 로 유지됨을 확인. 즉 dev hot-reload·frontend next.config 의 symlink 전제는 불변이고,
+# node-linker 도 hoisted 유지라 Next standalone·native 위험 없음. 실효 영향은 `pnpm deploy` 한정.
 injectWorkspacePackages: true
