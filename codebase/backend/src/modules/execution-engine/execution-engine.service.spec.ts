@@ -1991,6 +1991,25 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    // F-1 (plan eia-command-waiting-surface-guard) — expectedNodeId 전달 시 실제 대기
+    // 노드(mock nodeId='n-wait')와 대조. 일치하면 정상 publish, 불일치면 거부.
+    it('F-1 — expectedNodeId 가 대기 노드와 일치하면 정상 publish', async () => {
+      await service.continueExecution('exec-1', { name: 'Alice' }, 'n-wait');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-waiting',
+        payload: { type: 'form_submitted', formData: { name: 'Alice' } },
+      });
+    });
+
+    it('F-1 — expectedNodeId 가 대기 노드와 불일치하면 InvalidExecutionStateError + publish 안 함', async () => {
+      await expect(
+        service.continueExecution('exec-1', { name: 'Alice' }, 'wrong-node'),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
     it('cancelWaitingExecution → bus.publish({type:"cancel"}) 후 ContinuationPublishResult 반환 (C-1)', async () => {
       const result = await service.cancelWaitingExecution('exec-2');
       expect(mockBus.publish).toHaveBeenCalledWith({

@@ -743,6 +743,11 @@ export class HooksService {
     // button_callback → click_button (Button Presentation, Phase 3 에서 구체화).
     // file_upload / contact_share → submit_form (Form, Phase 4 에서 구체화).
     // v1 PR-A 는 text_message → submit_message 만 의미 있음.
+    //
+    // nodeId 는 싣지 않는다 — chat-channel 고정 매핑은 대기 nodeId 를 알지 못하고,
+    // `scope: 'in_process_trusted'` 는 publisher 의 nodeId 일치 검사에서 면제된다
+    // (spec §7.5.1 exemption / F-1). 종전엔 존재 검사만 만족시키는 `nodeId: 'chat-channel'`
+    // placeholder 를 실었으나, 실제 nodeId 가 아니라 오해를 낳아 제거했다.
     const ctx: InternalInteractionRequestContext = {
       executionId,
       triggerId: trigger.id,
@@ -752,13 +757,11 @@ export class HooksService {
       update.command.kind === 'text_message'
         ? {
             command: 'submit_message',
-            nodeId: 'chat-channel',
             message: update.command.text,
           }
         : update.command.kind === 'button_callback'
           ? {
               command: 'click_button',
-              nodeId: 'chat-channel',
               buttonId: update.command.callbackData,
             }
           : undefined;

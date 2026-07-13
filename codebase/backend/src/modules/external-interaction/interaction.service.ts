@@ -36,6 +36,7 @@ import { RefreshTokenResponseDto } from './dto/responses/refresh-token-response.
 import {
   ExternalInteractionRequestContext,
   InteractionRequestContext,
+  isInternalCtx,
 } from './interaction.guard';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
@@ -112,9 +113,13 @@ export class InteractionService {
     dto: InteractDto,
   ): Promise<InteractAckDto> {
     const execution = await this.loadAndAssertAlive(ctx.executionId);
+    // [spec §7.5.1] 외부 caller 는 대상 nodeId 를 지정하고 실제 대기 노드와 일치해야
+    // publisher 가 수용한다. in_process_trusted(chat-channel 고정 매핑, nodeId 미상)는
+    // 면제 — expectedNodeId=undefined 로 publisher 의 nodeId 검사를 건너뛴다.
+    const expectedNodeId = isInternalCtx(ctx) ? undefined : dto.nodeId;
     switch (dto.command) {
       case 'submit_form':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         if (!dto.data || typeof dto.data !== 'object') {
           throw badRequest(
             'INVALID_COMMAND',
@@ -126,11 +131,12 @@ export class InteractionService {
           this.executionEngineService.continueExecution(
             ctx.executionId,
             dto.data,
+            expectedNodeId,
           ),
         );
         break;
       case 'click_button':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         if (!dto.buttonId) {
           throw badRequest(
             'INVALID_COMMAND',
@@ -142,11 +148,12 @@ export class InteractionService {
           this.executionEngineService.continueButtonClick(
             ctx.executionId,
             dto.buttonId,
+            expectedNodeId,
           ),
         );
         break;
       case 'submit_message':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         if (typeof dto.message !== 'string' || dto.message.length === 0) {
           throw badRequest(
             'INVALID_COMMAND',
@@ -158,14 +165,18 @@ export class InteractionService {
           this.executionEngineService.continueAiConversation(
             ctx.executionId,
             dto.message,
+            expectedNodeId,
           ),
         );
         break;
       case 'end_conversation':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         this.assertWaiting(execution);
         await this.dispatchContinuation(
-          this.executionEngineService.endAiConversation(ctx.executionId),
+          this.executionEngineService.endAiConversation(
+            ctx.executionId,
+            expectedNodeId,
+          ),
         );
         break;
       case 'cancel':
@@ -425,7 +436,13 @@ export class InteractionService {
     return execution;
   }
 
-  private assertNodeId(dto: InteractDto): void {
+  /**
+   * [spec §7.5.1] 외부 caller 는 대상 nodeId 를 반드시 지정한다 (그리고 publisher 가
+   * 실제 대기 노드와 일치 검증). `in_process_trusted`(chat-channel 고정 매핑)는 대기
+   * nodeId 를 알지 못하므로 nodeId 요구·일치 검사에서 면제된다 (§7.5.1 exemption).
+   */
+  private assertNodeId(dto: InteractDto, ctx: InteractionRequestContext): void {
+    if (isInternalCtx(ctx)) return;
     if (!dto.nodeId) {
       throw badRequest(
         'INVALID_COMMAND',
