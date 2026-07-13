@@ -10,9 +10,13 @@ import {
   isDuplicateConnection,
   isConnectionDroppedOnPane,
   firstInputHandleId,
+  firstOutputHandleId,
   connectionDragSource,
   pointerClientPosition,
   buildAutoConnectConnection,
+  isContainerBoundaryEdge,
+  buildEdgeSplitPlan,
+  findEdgeIdAtPoint,
   resolveEdgeExecutionState,
   buildEdgeStyle,
   PORT_TYPE_COLORS,
@@ -411,6 +415,141 @@ describe("buildAutoConnectConnection (§1.2)", () => {
   it("대상에 입력 포트가 없으면 null — 연결 생략(트리거 등)", () => {
     expect(buildAutoConnectConnection(source, "new1", { inputs: [] })).toBeNull();
     expect(buildAutoConnectConnection(source, "new1", null)).toBeNull();
+  });
+});
+
+describe("firstOutputHandleId (§4.1)", () => {
+  it("첫 출력 포트의 id 를 반환한다", () => {
+    expect(
+      firstOutputHandleId({ outputs: [{ id: "out" }, { id: "out2" }] }),
+    ).toBe("out");
+  });
+
+  it("출력 포트가 없으면 null (순수 sink 노드 → 분할 생략)", () => {
+    expect(firstOutputHandleId({ outputs: [] })).toBeNull();
+    expect(firstOutputHandleId({})).toBeNull();
+    expect(firstOutputHandleId(null)).toBeNull();
+    expect(firstOutputHandleId(undefined)).toBeNull();
+  });
+});
+
+describe("isContainerBoundaryEdge (§4.1)", () => {
+  it("sourceHandle 이 body/done 이면 경계 엣지", () => {
+    expect(isContainerBoundaryEdge({ sourceHandle: "body" })).toBe(true);
+    expect(isContainerBoundaryEdge({ sourceHandle: "done" })).toBe(true);
+  });
+  it("targetHandle 이 emit 이면 경계 엣지(loopback)", () => {
+    expect(isContainerBoundaryEdge({ targetHandle: "emit" })).toBe(true);
+  });
+  it("일반 데이터 엣지는 false", () => {
+    expect(
+      isContainerBoundaryEdge({ sourceHandle: "out", targetHandle: "in" }),
+    ).toBe(false);
+    expect(isContainerBoundaryEdge({})).toBe(false);
+  });
+});
+
+describe("buildEdgeSplitPlan (§4.1)", () => {
+  const def = { inputs: [{ id: "in" }], outputs: [{ id: "out" }] };
+  const edge = {
+    source: "A",
+    sourceHandle: "true", // 다중 출력(If/Else) 원본 핸들
+    target: "B",
+    targetHandle: "in",
+  };
+
+  it("source→새노드·새노드→target 두 Connection 을 조립하고 원본 양끝 핸들을 보존한다", () => {
+    expect(buildEdgeSplitPlan(edge, "N", def)).toEqual({
+      sourceToNew: {
+        source: "A",
+        sourceHandle: "true",
+        target: "N",
+        targetHandle: "in",
+      },
+      newToTarget: {
+        source: "N",
+        sourceHandle: "out",
+        target: "B",
+        targetHandle: "in",
+      },
+    });
+  });
+
+  it("원본 핸들이 없으면(null) 그대로 null 로 보존", () => {
+    const plan = buildEdgeSplitPlan(
+      { source: "A", target: "B" },
+      "N",
+      def,
+    );
+    expect(plan?.sourceToNew.sourceHandle).toBeNull();
+    expect(plan?.newToTarget.targetHandle).toBeNull();
+  });
+
+  it("첫 입력 포트는 예약 emit 을 건너뛴다", () => {
+    const plan = buildEdgeSplitPlan(edge, "N", {
+      inputs: [{ id: "emit" }, { id: "in" }],
+      outputs: [{ id: "out" }],
+    });
+    expect(plan?.sourceToNew.targetHandle).toBe("in");
+  });
+
+  it("새 노드에 입력이 없으면 null (트리거)", () => {
+    expect(
+      buildEdgeSplitPlan(edge, "N", { inputs: [], outputs: [{ id: "out" }] }),
+    ).toBeNull();
+  });
+
+  it("새 노드에 출력이 없으면 null (순수 sink)", () => {
+    expect(
+      buildEdgeSplitPlan(edge, "N", { inputs: [{ id: "in" }], outputs: [] }),
+    ).toBeNull();
+  });
+
+  it("컨테이너 경계 엣지는 분할 대상 제외 → null (R-3)", () => {
+    expect(
+      buildEdgeSplitPlan(
+        { source: "L", sourceHandle: "body", target: "C", targetHandle: "in" },
+        "N",
+        def,
+      ),
+    ).toBeNull();
+    expect(
+      buildEdgeSplitPlan(
+        { source: "C", sourceHandle: "out", target: "L", targetHandle: "emit" },
+        "N",
+        def,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("findEdgeIdAtPoint (§4.1)", () => {
+  const fakeDoc = (edgeId: string | null) => ({
+    elementFromPoint: () =>
+      edgeId === null
+        ? null
+        : ({
+            closest: (sel: string) =>
+              sel === ".react-flow__edge"
+                ? { getAttribute: () => edgeId }
+                : null,
+          } as unknown as Element),
+  });
+
+  it("드롭 지점 아래 엣지의 data-id 를 반환한다", () => {
+    expect(findEdgeIdAtPoint(10, 20, fakeDoc("e1"))).toBe("e1");
+  });
+
+  it("엣지 위가 아니면(elementFromPoint null) null", () => {
+    expect(findEdgeIdAtPoint(10, 20, fakeDoc(null))).toBeNull();
+  });
+
+  it("엘리먼트가 엣지 조상을 갖지 않으면 null", () => {
+    const doc = {
+      elementFromPoint: () =>
+        ({ closest: () => null }) as unknown as Element,
+    };
+    expect(findEdgeIdAtPoint(10, 20, doc)).toBeNull();
   });
 });
 

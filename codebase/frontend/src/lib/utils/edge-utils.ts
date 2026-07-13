@@ -148,6 +148,17 @@ export function firstInputHandleId(
 }
 
 /**
+ * §4.1 — 새 노드의 첫 출력 포트 id. `firstInputHandleId` 의 출력판 대칭 헬퍼로, 엣지 분할
+ * 시 `새 노드 → target` 엣지의 source 핸들로 쓴다. 출력 포트가 없으면(순수 sink 노드) null →
+ * 분할 생략. (입력의 `emit` 같은 예약 출력 포트는 없어 별도 제외 셋을 두지 않는다.)
+ */
+export function firstOutputHandleId(
+  definition: { outputs?: Array<{ id: string }> } | null | undefined,
+): string | null {
+  return definition?.outputs?.[0]?.id ?? null;
+}
+
+/**
  * §1.2 — onConnectEnd 의 connectionState 에서 "빈 영역 드롭 + 출력 포트 시작" 인 연결원을
  * 추출한다. 유효 연결(onConnect 가 처리)이거나 입력 포트(target 타입)에서 시작한 역방향
  * 드래그면 null — 후자는 §1.3 소관이라 여기서 배제한다. React Flow v12 는 fromNode/fromHandle
@@ -209,6 +220,95 @@ export function buildAutoConnectConnection(
     target: newNodeId,
     targetHandle,
   };
+}
+
+/**
+ * §4.1 — 컨테이너 경계 엣지 판정. `sourceHandle` 이 컨테이너 출력(`body` 진입 / `done` 종료)
+ * 이거나 `targetHandle` 이 컨테이너 loopback 입력(`emit`)인 엣지는 §6 emit 단일성·경계 불가침과
+ * containerId 동기화 불변식과의 상호작용이 정의되지 않아 분할 대상에서 제외한다(R-3).
+ */
+const CONTAINER_SOURCE_HANDLES = new Set(["body", "done"]);
+const CONTAINER_TARGET_HANDLES = new Set(["emit"]);
+
+export function isContainerBoundaryEdge(edge: {
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}): boolean {
+  return (
+    (edge.sourceHandle != null &&
+      CONTAINER_SOURCE_HANDLES.has(edge.sourceHandle)) ||
+    (edge.targetHandle != null &&
+      CONTAINER_TARGET_HANDLES.has(edge.targetHandle))
+  );
+}
+
+interface SplitConnection {
+  source: string;
+  sourceHandle: string | null;
+  target: string;
+  targetHandle: string | null;
+}
+
+/**
+ * §4.1 — 엣지 분할 계획. 원본 엣지(source→target) 를 제거하고 중간에 `newNodeId` 를 끼울
+ * 두 신규 Connection 을 조립한다:
+ *  - `sourceToNew`: 원본 source(+sourceHandle 보존) → 새 노드의 첫 입력 포트
+ *  - `newToTarget`: 새 노드의 첫 출력 포트 → 원본 target(+targetHandle 보존)
+ *
+ * 분할 불가 시 null: (1) 새 노드에 입력 또는 출력 포트가 없음(트리거·순수 sink), (2) 원본이
+ * 컨테이너 경계 엣지(`isContainerBoundaryEdge`). 원본 양끝 핸들은 그대로 보존해 다중 출력
+ * (If/Else·Switch)·다중 입력 노드여도 위상이 어긋나지 않는다. 두 Connection 은 호출부가 표준
+ * `onConnect` 로 넘겨 유효성·포트색 파생을 재사용한다(순수 함수라 store/RF 의존 없음).
+ */
+export function buildEdgeSplitPlan(
+  edge: {
+    source: string;
+    sourceHandle?: string | null;
+    target: string;
+    targetHandle?: string | null;
+  },
+  newNodeId: string,
+  definition:
+    | { inputs?: Array<{ id: string }>; outputs?: Array<{ id: string }> }
+    | null
+    | undefined,
+): { sourceToNew: SplitConnection; newToTarget: SplitConnection } | null {
+  if (isContainerBoundaryEdge(edge)) return null;
+  const inHandle = firstInputHandleId(definition);
+  const outHandle = firstOutputHandleId(definition);
+  if (!inHandle || !outHandle) return null;
+  return {
+    sourceToNew: {
+      source: edge.source,
+      sourceHandle: edge.sourceHandle ?? null,
+      target: newNodeId,
+      targetHandle: inHandle,
+    },
+    newToTarget: {
+      source: newNodeId,
+      sourceHandle: outHandle,
+      target: edge.target,
+      targetHandle: edge.targetHandle ?? null,
+    },
+  };
+}
+
+/**
+ * §4.1 — 드롭 지점(screen 좌표) 아래 있는 엣지의 id 를 DOM hit-test 로 찾는다. React Flow 는
+ * 각 엣지를 `.react-flow__edge[data-id]` `<g>` 로 렌더하고 `BaseEdge` 가 넓은(기본 20px) 투명
+ * interaction path 를 깔아 hover/클릭 히트영역을 만든다 — 그 영역을 그대로 재사용한다. 뷰포트/
+ * DOM 의존이라 store 밖 canvas seam 에 둔다(R-2). `doc` 를 주입 가능하게 해 단위 테스트한다.
+ */
+export function findEdgeIdAtPoint(
+  clientX: number,
+  clientY: number,
+  doc: Pick<Document, "elementFromPoint"> | undefined = typeof document !==
+  "undefined"
+    ? document
+    : undefined,
+): string | null {
+  const el = doc?.elementFromPoint(clientX, clientY);
+  return el?.closest(".react-flow__edge")?.getAttribute("data-id") ?? null;
 }
 
 /**

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-13T18:06:53.363580",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/3-workflow-editor/)",
+  "target_path": "spec/3-workflow-editor/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

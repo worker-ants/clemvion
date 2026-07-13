@@ -99,8 +99,10 @@ interface EditorState {
    * §1.3 — 엣지를 로컬 상태에서 제거한다(undo 가능, 저장 전까지 서버 미반영). 재연결 드래그를
    * 빈 영역에 드롭(detach)했을 때 호출한다. 즉시 REST DELETE 를 쏘는 `workflowsApi.deleteEdge`
    * 와 혼동을 피하려 `removeNode` 와 대칭인 `removeEdge` 로 명명한다.
+   * opts.skipUndo — 호출자가 직전에 이미 pushUndo 한 경우(§4.1 엣지 분할처럼 "노드 추가+엣지
+   * 제거+엣지 재연결"을 하나의 undo 체크포인트로 묶을 때) 내부 pushUndo 를 건너뛴다(onConnect 대칭).
    */
-  removeEdge: (edgeId: string) => void;
+  removeEdge: (edgeId: string, opts?: { skipUndo?: boolean }) => void;
   /**
    * §2.2 — 드래그 중 유효성. 자기연결은 false(커서 🚫). 중복/사이클은 onConnect·경고가 담당.
    * React Flow `IsValidConnection<Edge>` 시그니처와 맞추기 위해 `Connection | Edge` 를 받는다
@@ -805,8 +807,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  removeEdge: (edgeId) => {
-    get().pushUndo();
+  removeEdge: (edgeId, opts) => {
+    if (!opts?.skipUndo) get().pushUndo();
     set((state) => {
       const nextEdges = state.edges.filter((e) => e.id !== edgeId);
       // 엣지 제거는 노드의 containerId 근거를 없앨 수 있어 재도출한다(onEdgesChange remove 와 동일).

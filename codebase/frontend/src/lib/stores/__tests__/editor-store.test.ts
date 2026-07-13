@@ -319,6 +319,18 @@ describe("useEditorStore", () => {
       const c = useEditorStore.getState().nodes.find((n) => n.id === "c");
       expect((c?.data as Record<string, unknown>)?.containerId ?? null).toBeNull();
     });
+
+    it("{skipUndo:true} 면 엣지는 제거하되 undoStack 은 늘리지 않는다 (§4.1 분할 단일 체크포인트)", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2")],
+        edges: [makeEdge("1", "2")],
+        undoStack: [],
+      });
+      useEditorStore.getState().removeEdge("1-2", { skipUndo: true });
+      const state = useEditorStore.getState();
+      expect(state.edges).toHaveLength(0);
+      expect(state.undoStack).toHaveLength(0);
+    });
   });
 
   describe("removeNode", () => {
