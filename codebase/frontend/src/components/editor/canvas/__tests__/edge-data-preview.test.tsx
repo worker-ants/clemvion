@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { Edge } from "@xyflow/react";
-import { EdgeDataPreviewTooltip } from "../edge-data-preview";
+import { EdgeDataPreviewTooltip, EdgeDataModal } from "../edge-data-preview";
 import { useExecutionStore } from "@/lib/stores/execution-store";
 
 const edges: Edge[] = [{ id: "e1", source: "a", target: "b" }];
@@ -79,5 +79,63 @@ describe("EdgeDataPreviewTooltip (§4/§5)", () => {
     );
     fireEvent.click(screen.getByRole("button"));
     expect(onOpenModal).toHaveBeenCalledWith("e1");
+  });
+
+  // onMouseEnter/onMouseLeave 는 시그니처가 동일(`() => void`)해 서로 바꿔 배선해도 tsc 가
+  // 통과한다 — 동작 테스트만 오배선을 잡는다(툴팁 위 hover=keepAlive, 이탈=dismiss).
+  it("툴팁 hover 진입은 onKeepAlive, 이탈은 onDismiss 로 배선된다", () => {
+    seedResult("a", { x: 1 });
+    const onKeepAlive = vi.fn();
+    const onDismiss = vi.fn();
+    render(
+      <EdgeDataPreviewTooltip
+        edgeId="e1"
+        x={0}
+        y={0}
+        edges={edges}
+        onKeepAlive={onKeepAlive}
+        onDismiss={onDismiss}
+        onOpenModal={noop}
+      />,
+    );
+    const tip = screen.getByRole("tooltip");
+    fireEvent.mouseEnter(tip);
+    expect(onKeepAlive).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+    fireEvent.mouseLeave(tip);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("EdgeDataModal (§5)", () => {
+  it("edgeId 가 null 이면 Dialog 를 렌더하지 않는다", () => {
+    render(<EdgeDataModal edgeId={null} edges={edges} onClose={noop} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("source 출력이 null 이면 리터럴 'null' 이 아닌 '데이터 없음' 문구를 보여준다", () => {
+    seedResult("a", null); // output: null — 직전 라운드 `data == null` 수정 회귀 가드
+    render(<EdgeDataModal edgeId="e1" edges={edges} onClose={noop} />);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.textContent).toContain("표시할 데이터가 없어요.");
+    // JsonContent(`<pre>`)로 리터럴 "null" 이 렌더되지 않아야 한다.
+    expect(dialog.querySelector("pre")).toBeNull();
+  });
+
+  it("정상 데이터는 JsonContent 로 축약 없이 전체를 렌더한다", () => {
+    seedResult("a", { hello: "world", items: [1, 2, 3] });
+    render(<EdgeDataModal edgeId="e1" edges={edges} onClose={noop} />);
+    const pre = screen.getByRole("dialog").querySelector("pre");
+    expect(pre).not.toBeNull();
+    expect(pre?.textContent).toContain('"hello": "world"');
+    expect(pre?.textContent).toContain("1"); // 배열이 축약 없이 전개됨
+  });
+
+  it("닫기(X) 클릭 시 onClose 를 호출한다", () => {
+    seedResult("a", { x: 1 });
+    const onClose = vi.fn();
+    render(<EdgeDataModal edgeId="e1" edges={edges} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

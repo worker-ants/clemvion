@@ -410,6 +410,49 @@ describe("useExecutionStore", () => {
     });
   });
 
+  // §5 엣지 데이터 미리보기가 소비하는 O(1) selector. `lastIndexByNodeId` 를 신뢰하되
+  // stale 인덱스는 nodeId 재확인으로 걸러낸다.
+  describe("findLatestResultByNodeId", () => {
+    it("nodeId 의 실행 결과를 O(1) 로 반환한다", () => {
+      useExecutionStore
+        .getState()
+        .addNodeResult(makeResult({ nodeExecutionId: "e1", nodeId: "n1" }));
+      expect(
+        useExecutionStore.getState().findLatestResultByNodeId("n1")
+          ?.nodeExecutionId,
+      ).toBe("e1");
+    });
+
+    it("결과가 없는 nodeId 는 undefined", () => {
+      expect(
+        useExecutionStore.getState().findLatestResultByNodeId("missing"),
+      ).toBeUndefined();
+    });
+
+    it("Loop/ForEach 로 같은 노드가 여러 번 실행되면 마지막(최신) 결과를 반환한다", () => {
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "iter-1", nodeId: "n1", status: "completed" }),
+      );
+      useExecutionStore.getState().addNodeResult(
+        makeResult({ nodeExecutionId: "iter-2", nodeId: "n1", status: "running" }),
+      );
+      const latest = useExecutionStore.getState().findLatestResultByNodeId("n1");
+      expect(latest?.nodeExecutionId).toBe("iter-2");
+      expect(latest?.status).toBe("running");
+    });
+
+    it("인덱스가 stale(다른 nodeId 가 그 슬롯에) 이면 undefined 를 반환한다", () => {
+      // raw setState 로 인덱스만 어긋나게 시딩 — 슬롯 0 은 n1 인데 map 은 ghost→0.
+      useExecutionStore.setState({
+        nodeResults: [makeResult({ nodeId: "n1" })],
+        lastIndexByNodeId: new Map([["ghost", 0]]),
+      });
+      expect(
+        useExecutionStore.getState().findLatestResultByNodeId("ghost"),
+      ).toBeUndefined();
+    });
+  });
+
   describe("completeExecution", () => {
     it("sets status to completed and clears waiting state", () => {
       useExecutionStore.getState().startExecution("exec-1");

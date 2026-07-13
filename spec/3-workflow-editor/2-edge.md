@@ -156,7 +156,7 @@ pending_plans:
 
 ## 5. 엣지 데이터 미리보기
 
-> **현재 구현**: `edge-data-preview.tsx` `EdgeDataPreviewTooltip`/`EdgeDataModal` + `use-edge-hover-preview.ts` 훅. 엣지 hover 시 `workflow-canvas.tsx` `onEdgeMouseEnter` 가 `useEdgeHoverPreview.show(edge.id, clientX, clientY)` 로 커서 위치에 툴팁을 예약한다. 툴팁은 엣지 **연결원(source) 노드의 최근 실행 출력**(`findLatestResultByNodeId` → `unwrapNodeOutput().output`)을 축약해 보여준다(실행 데이터 없으면 렌더 안 함). 축약·바이트 계산은 순수 함수 `edge-utils` 형제 `lib/utils/edge-data-preview.ts` `summarizeDataForPreview`/`formatBytes`. 엣지에서 벗어나도 짧게 지연(200ms) 후 숨겨 커서를 툴팁으로 옮겨 "전체 데이터 보기" 를 클릭할 수 있고, 클릭 시 `EdgeDataModal`(Dialog)이 축약 없는 전체 JSON 을 보여준다(모달은 hover 생명주기와 독립적으로 canvas `dataModalEdgeId` 로 열림).
+> **현재 구현**: `edge-data-preview.tsx` `EdgeDataPreviewTooltip`/`EdgeDataModal` + `use-edge-hover-preview.ts` 훅. 엣지 hover 시 `workflow-canvas.tsx` `onEdgeMouseEnter` 가 `useEdgeHoverPreview.show(edge.id, clientX, clientY)` 로 커서 위치에 툴팁을 예약한다. 툴팁은 엣지 **연결원(source) 노드의 최근 실행 출력**(`findLatestResultByNodeId` → `unwrapNodeOutput().output`)을 축약해 보여준다(실행 데이터 없으면 렌더 안 함). 축약·바이트 계산은 순수 함수 `edge-utils` 형제 `lib/utils/edge-data-preview.ts` `summarizeDataForPreview`/`formatBytes`. 엣지 진입 시 짧게 지연(90ms) 후 표시해 촘촘한 캔버스에서 커서가 여러 엣지를 스쳐 지날 때 정착하지 못한 엣지의 툴팁/직렬화를 건너뛰고(sweep 방어), 엣지에서 벗어나도 짧게 지연(200ms) 후 숨겨 커서를 툴팁으로 옮겨 "전체 데이터 보기" 를 클릭할 수 있다. 클릭 시 `EdgeDataModal`(Dialog)이 축약 없는 전체 JSON 을 보여준다(모달은 hover 생명주기와 독립적으로 canvas `dataModalEdgeId` 로 열림).
 
 실행 완료 후 엣지에 마우스 오버 시:
 
@@ -175,7 +175,7 @@ pending_plans:
 ```
 
 - 큰 데이터는 축약 표시 (배열 길이, 객체 필드 수)
-- 클릭 시 전체 데이터 모달 표시
+- 툴팁의 **"전체 데이터 보기"** 버튼 클릭 시 축약 없는 전체 데이터 모달 표시 (§4 의 "엣지 클릭 = 엣지 선택" 과 별개 — 모달은 툴팁 버튼에서만 열림)
 
 ---
 

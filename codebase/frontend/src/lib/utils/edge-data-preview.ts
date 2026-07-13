@@ -13,6 +13,7 @@
 const MAX_STRING = 80;
 const MAX_TOP_ARRAY = 5;
 const MAX_TOP_KEYS = 20;
+const BYTES_PER_KB = 1024;
 
 function abbreviate(value: unknown, depth: number): unknown {
   if (value === null) return null;
@@ -70,7 +71,8 @@ export function summarizeDataForPreview(value: unknown): EdgeDataSummary {
 
 /** 바이트 크기를 사람이 읽기 좋은 문자열로. */
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} bytes`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < BYTES_PER_KB) return `${bytes} bytes`;
+  if (bytes < BYTES_PER_KB * BYTES_PER_KB)
+    return `${(bytes / BYTES_PER_KB).toFixed(1)} KB`;
+  return `${(bytes / (BYTES_PER_KB * BYTES_PER_KB)).toFixed(1)} MB`;
 }

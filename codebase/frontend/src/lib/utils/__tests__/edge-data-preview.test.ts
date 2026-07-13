@@ -35,6 +35,26 @@ describe("summarizeDataForPreview (§5)", () => {
     expect(preview).toContain("…(2 more)");
   });
 
+  it("최상위 배열 경계값 — 정확히 5개는 축약 안 함, 6개는 '…(1 more)'", () => {
+    expect(summarizeDataForPreview([1, 2, 3, 4, 5]).preview).not.toContain(
+      "more)",
+    );
+    expect(summarizeDataForPreview([1, 2, 3, 4, 5, 6]).preview).toContain(
+      "…(1 more)",
+    );
+  });
+
+  it("최상위 객체 필드 경계값 — 정확히 20개는 전부, 21개는 '1 more fields'", () => {
+    const obj20 = Object.fromEntries(
+      Array.from({ length: 20 }, (_, i) => [`k${i}`, i]),
+    );
+    const obj21 = Object.fromEntries(
+      Array.from({ length: 21 }, (_, i) => [`k${i}`, i]),
+    );
+    expect(summarizeDataForPreview(obj20).preview).not.toContain("more fields");
+    expect(summarizeDataForPreview(obj21).preview).toContain("1 more fields");
+  });
+
   it("긴 문자열은 잘라서 … 를 붙인다", () => {
     const long = "x".repeat(200);
     const { preview } = summarizeDataForPreview({ text: long });
@@ -65,5 +85,11 @@ describe("formatBytes (§5)", () => {
   });
   it("MB", () => {
     expect(formatBytes(2 * 1024 * 1024)).toBe("2.0 MB");
+  });
+  it("경계값 — 정확히 1024 bytes 는 KB, 1024² 는 MB 로 넘어간다", () => {
+    expect(formatBytes(1023)).toBe("1023 bytes");
+    expect(formatBytes(1024)).toBe("1.0 KB");
+    expect(formatBytes(1024 * 1024 - 1)).toBe("1024.0 KB");
+    expect(formatBytes(1024 * 1024)).toBe("1.0 MB");
   });
 });
