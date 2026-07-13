@@ -83,6 +83,24 @@ describe("EdgeDataPreviewTooltip (§4/§5)", () => {
     expect(screen.getByRole("tooltip").textContent).toContain('"partial": true');
   });
 
+  it("실행 상태가 failed 여도 출력이 있으면 미리보기를 렌더한다(status 무관)", () => {
+    seedResult("a", { errorContext: "boom" }, "failed");
+    render(
+      <EdgeDataPreviewTooltip
+        edgeId="e1"
+        x={0}
+        y={0}
+        edges={edges}
+        onKeepAlive={noop}
+        onDismiss={noop}
+        onOpenModal={noop}
+      />,
+    );
+    expect(screen.getByRole("tooltip").textContent).toContain(
+      '"errorContext": "boom"',
+    );
+  });
+
   it("'전체 데이터 보기' 클릭 시 onOpenModal 을 edgeId 로 호출한다", () => {
     seedResult("a", { x: 1 });
     const onOpenModal = vi.fn();
