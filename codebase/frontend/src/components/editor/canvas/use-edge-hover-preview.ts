@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface EdgeHoverPreviewState {
   edgeId: string;
@@ -54,5 +54,13 @@ export function useEdgeHoverPreview(): {
     setPreview(null);
   }, [clearTimer]);
 
-  return { preview, show, scheduleHide, keepAlive, dismiss };
+  // unmount 시 대기 중 타이머 정리(누수·언마운트 후 setState 방지).
+  useEffect(() => clearTimer, [clearTimer]);
+
+  // 반환 객체를 memo 화해 소비처(onEdgeMouseEnter/Leave)의 콜백 참조가 매 렌더 재생성되지
+  // 않게 한다(형제 훅의 참조안정성 관례와 정렬).
+  return useMemo(
+    () => ({ preview, show, scheduleHide, keepAlive, dismiss }),
+    [preview, show, scheduleHide, keepAlive, dismiss],
+  );
 }

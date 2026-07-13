@@ -196,6 +196,11 @@ export const editor = {
   openSettings: "설정 열기",
   runThisNode: "이 노드 실행",
   duplicateBtn: "복제",
+  // §5 엣지 데이터 미리보기(Data Flow Preview)
+  edgeDataPreviewTitle: "데이터 미리보기",
+  edgeDataSize: "크기",
+  edgeViewFullData: "전체 데이터 보기",
+  edgeNoData: "표시할 데이터가 없어요.",
   enableBtn: "활성화",
   disableBtn: "비활성화",
   deleteNodeMenu: "노드 삭제",
