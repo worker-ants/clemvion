@@ -70,6 +70,8 @@ Edges are colored based on the type of their starting port, so you can tell flow
 - An edge whose both endpoints have finished **flashes green briefly, then settles back to its normal colour**.
 - An edge connected to a **disabled (turned-off) node** always appears as a **dimmed, dashed line**. Re-enabling the node restores it.
 
+**After a run finishes, hover over an edge to preview the data that flowed through it.** It shows an abbreviated view of the upstream node's output (long arrays as `[N items]`, large objects as `{N fields}`, and so on). Click **View full data** below the tooltip to open the complete JSON in a dialog. If that node hasn't run yet, no preview appears.
+
 ## Editing edges
 
 - **Clicking** an edge selects it.

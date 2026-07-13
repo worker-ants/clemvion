@@ -198,6 +198,11 @@ export const editor: Dict["editor"] = {
   openSettings: "Open Settings",
   runThisNode: "Run this node",
   duplicateBtn: "Duplicate",
+  // §5 edge Data Flow Preview
+  edgeDataPreviewTitle: "Data Flow Preview",
+  edgeDataSize: "Size",
+  edgeViewFullData: "View full data",
+  edgeNoData: "No data to show.",
   enableBtn: "Enable",
   disableBtn: "Disable",
   deleteNodeMenu: "Delete Node",

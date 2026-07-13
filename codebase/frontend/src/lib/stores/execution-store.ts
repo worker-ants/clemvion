@@ -296,6 +296,12 @@ interface ExecutionState {
     nodeExecutionId: string | undefined,
     nodeId: string,
   ) => NodeResult | undefined;
+  /**
+   * O(1) — nodeId 의 **가장 최근(마지막 도착)** 실행 결과. `lastIndexByNodeId` 인덱스를
+   * 사용한다(nodeResults 역방향 선형 스캔 대체). Loop/ForEach 로 여러 번 실행된 노드는
+   * 마지막 iteration 결과를 돌려준다. §5 엣지 데이터 미리보기 등 "최신 출력" 소비처가 공유.
+   */
+  findLatestResultByNodeId: (nodeId: string) => NodeResult | undefined;
   completeExecution: () => void;
   failExecution: (error?: string) => void;
   pauseForForm: (nodeId: string, formConfig: unknown) => void;
@@ -701,6 +707,14 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     return row && !row.nodeExecutionId && row.nodeId === nodeId
       ? row
       : undefined;
+  },
+
+  findLatestResultByNodeId: (nodeId) => {
+    const state = get();
+    const idx = state.lastIndexByNodeId.get(nodeId);
+    const row = idx !== undefined ? state.nodeResults[idx] : undefined;
+    // 인덱스가 stale(raw setState seeding 등)일 수 있어 nodeId 재확인.
+    return row?.nodeId === nodeId ? row : undefined;
   },
 
   // §9.7.1 — completeExecution 은 입력 affordance 만 클리어, conversation 은 보존
