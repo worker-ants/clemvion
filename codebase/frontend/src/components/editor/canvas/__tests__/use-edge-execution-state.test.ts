@@ -123,4 +123,39 @@ describe("useEdgeExecutionState (§3.2)", () => {
     // 판정 결과 무상태 → per-edge bail-out → 원본 엣지/배열 참조 유지.
     expect(result.current).toBe(edges);
   });
+
+  it("노드 드래그로 nodes 참조가 바뀌어도(비활성 집합 불변) 결과 배열 참조를 유지한다", () => {
+    // disabledKey 안정성 검증 — 비활성 노드가 있어 early-return 은 스킵되지만, 드래그로
+    // 노드 객체 참조만 바뀌고 isDisabled 집합이 동일하면 결과가 재생성되지 않아야 한다.
+    const edges = [edge("e1", "a", "b")];
+    const { result, rerender } = renderHook(
+      ({ nodes }) => useEdgeExecutionState(edges, nodes),
+      { initialProps: { nodes: [node("a", { isDisabled: true }), node("b")] } },
+    );
+    const first = result.current;
+    expect(first).not.toBe(edges); // 비활성 있어 매핑됨
+    // 드래그: 노드 객체는 새 참조·새 position 이지만 isDisabled 는 동일
+    rerender({
+      nodes: [
+        node("a", { isDisabled: true }),
+        { ...node("b"), position: { x: 99, y: 99 } },
+      ],
+    });
+    expect(result.current).toBe(first); // 재생성 안 됨(참조 유지)
+  });
+
+  it("비활성 노드를 다시 켜면 edgeInactive 가 해제된다(rerender 토글)", () => {
+    // 유저 가이드가 약속하는 "노드를 다시 켜면 원래대로" 동작 가드.
+    const edges = [edge("e1", "a", "b")];
+    const { result, rerender } = renderHook(
+      ({ nodes }) => useEdgeExecutionState(edges, nodes),
+      { initialProps: { nodes: [node("a", { isDisabled: true }), node("b")] } },
+    );
+    expect(
+      (result.current[0].data as { edgeInactive?: boolean }).edgeInactive,
+    ).toBe(true);
+    rerender({ nodes: [node("a"), node("b")] }); // 재활성화
+    // 비활성 0 + 미실행 + 상태 0 → early-return 원본 edges(비활성 플래그 없음)
+    expect(result.current).toBe(edges);
+  });
 });
