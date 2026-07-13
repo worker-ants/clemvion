@@ -159,7 +159,8 @@ export function WorkflowCanvas() {
   const setHoveredEdge = useCanvasHoverStore((s) => s.setHoveredEdge);
 
   // §3.2 실행 상태 스타일(비활성 점선 / 데이터 흐름 애니메이션 / 완료 flash)을 먼저 입힌 뒤,
-  // 그 위에 §3.3 hover/선택 하이라이팅을 얹는다(두 관심사가 edge.data 로 합성).
+  // 그 위에 §3.3 hover/선택 하이라이팅을 얹는다. 실행 상태는 `edge.className`(flowing/completed)
+  // 과 `edge.data.edgeInactive` 로, 하이라이팅은 className Set 병합(edge-highlighted)으로 합성된다.
   const executionEdges = useEdgeExecutionState(edges, nodes);
   const { enhancedEdges, isFocusActive, hoveredEdgeNodes } =
     useEdgeHighlighting(executionEdges);

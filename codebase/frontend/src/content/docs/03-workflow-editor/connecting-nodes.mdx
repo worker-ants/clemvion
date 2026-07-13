@@ -6,7 +6,7 @@ order: 4
 summary: "출력 포트에서 입력 포트로 연결선을 그어 데이터 흐름을 만드는 방법과, 연결 유효성 규칙·연결선 색상·순환 경고를 정리해요."
 summary_en: "Draw edges from output to input ports to build data flow, and understand connection validity, edge colors, and cycle warnings."
 spec: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/1-node-common.md"]
-code: ["codebase/frontend/src/components/editor/canvas/custom-edge.tsx", "codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts", "codebase/frontend/src/components/editor/canvas/use-edge-reconnect.ts", "codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx", "codebase/frontend/src/lib/stores/editor-store.ts", "codebase/frontend/src/lib/utils/edge-utils.ts"]
+code: ["codebase/frontend/src/components/editor/canvas/custom-edge.tsx", "codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts", "codebase/frontend/src/components/editor/canvas/use-edge-reconnect.ts", "codebase/frontend/src/components/editor/canvas/use-edge-execution-state.ts", "codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx", "codebase/frontend/src/lib/stores/editor-store.ts", "codebase/frontend/src/lib/utils/edge-utils.ts"]
 ---
 
 노드는 그 자체로는 아무 일도 하지 않아요. **출력 포트**에서 **입력 포트**로 연결선을 그어야 비로소 한 노드의 결과가 다음 노드로 흘러가요. 이 페이지에서는 포트를 구분하는 법, 연결선을 긋는 방법, 어떤 연결이 허용·금지되는지, 연결선을 색으로 읽는 법, 그리고 더 이상 유효하지 않은 연결선이 자동으로 정리되는 방식을 정리해요.
@@ -79,7 +79,7 @@ code: ["codebase/frontend/src/components/editor/canvas/custom-edge.tsx", "codeba
 
 - 데이터가 지나는 연결선(앞 노드는 끝나고 뒤 노드가 실행 중)은 **점선이 데이터 방향으로 움직여요**.
 - 양쪽 노드가 모두 끝난 연결선은 **잠깐 초록색으로 반짝인 뒤 원래 색으로 돌아와요**.
-- **비활성(끈) 노드**에 연결된 연결선은 항상 **반투명한 점선**으로 흐리게 보여요. 노드를 다시 켜면 원래대로 돌아와요.
+- **비활성(꺼진) 노드**에 연결된 연결선은 항상 **반투명한 점선**으로 흐리게 보여요. 노드를 다시 켜면 원래대로 돌아와요.
 
 ## 연결선 편집
 

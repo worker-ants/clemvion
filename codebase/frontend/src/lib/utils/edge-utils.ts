@@ -335,13 +335,14 @@ export interface EdgeExecutionState {
 /**
  * §3.2 — 실행 상태 스타일을 트리거하는 엣지 wrapper className. React Flow `edge.className` 으로
  * 부여하고 globals.css 가 소비한다. `useEdgeHighlighting` 이 className 을 Set 병합(하이라이트만
- * add/remove)하므로 hover/선택 하이라이트와 안전하게 공존한다.
+ * add/remove)하므로 hover/선택 하이라이트와 안전하게 공존한다. 기존 무접두 컨벤션
+ * (`edge-highlighted`/`edge-flow`)과 맞춰 `edge-` 접두를 쓴다.
  *  - flowing  : 마칭 점선 애니메이션(기존 `edge-flow` keyframe 재사용)
- *  - completed: 1회성 초록 flash 후 원래 포트색으로 복귀(`wc-edge-complete-flash`)
+ *  - completed: 1회성 초록 flash 후 원래 포트색으로 복귀(`edge-complete-flash`)
  * flowing 과 completed 는 상호배타(target 이 running vs completed)라 둘 중 하나만 부여된다.
  */
-export const FLOWING_EDGE_CLASS = "wc-edge-flowing";
-export const COMPLETED_EDGE_CLASS = "wc-edge-completed";
+export const FLOWING_EDGE_CLASS = "edge-flowing";
+export const COMPLETED_EDGE_CLASS = "edge-completed";
 
 /**
  * §3.2 판정 순수 함수 — 엣지 1개와 실행 컨텍스트로 상태 플래그를 계산한다. 비활성(disabled)
