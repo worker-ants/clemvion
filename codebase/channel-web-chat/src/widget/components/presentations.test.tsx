@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PresentationBlock, PresentationList } from "./presentations";
+import { payloadOf } from "@/test-support/presentation-fixtures";
 
 describe("PresentationBlock — 종류별 렌더", () => {
   it("carousel — title/desc 렌더 + nav(복수) + port 버튼 디스패치", () => {
@@ -389,14 +390,6 @@ describe("PresentationList", () => {
 // 새로고침 복원 경로 회귀 가드 — durable thread turn.presentations[] 는 PresentationPayload shape.
 // spec/7-channel-web-chat/1-widget-app §2: 렌더러는 {config,output} 과 PresentationPayload 를 모두 수용.
 describe("복원 thread presentation (PresentationPayload) 렌더", () => {
-  const payloadOf = (type: string, payload: Record<string, unknown>, truncation?: unknown) => ({
-    type,
-    toolCallId: `call_${type}`,
-    renderedAt: "2026-07-10T00:00:00.000Z",
-    payload,
-    ...(truncation ? { truncation } : {}),
-  });
-
   it("carousel/table/chart/template 4종 모두 렌더", () => {
     render(
       <PresentationList

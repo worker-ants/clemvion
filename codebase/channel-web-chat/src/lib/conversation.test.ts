@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { stripUserInputMarkers, threadToMessages } from "./conversation";
 import { classifyPresentation, toCarousel, toChart, toTable, toTemplate } from "./presentation";
 import type { ConversationThread } from "./eia-types";
+import { payloadOf } from "@/test-support/presentation-fixtures";
 
 describe("stripUserInputMarkers", () => {
   it("[user-input] 여닫는 마커 제거", () => {
@@ -131,13 +132,6 @@ describe("threadToMessages — presentations 처리 (I13)", () => {
 // 이며(ai-agent §7.10, source='ai_assistant' 한정), 라이브 노드 경로의 {config,output} envelope 과 shape 이 다르다.
 // 위젯은 두 shape 을 모두 수용해야 한다 — spec/7-channel-web-chat/1-widget-app §2.
 describe("threadToMessages — 복원 thread 의 PresentationPayload", () => {
-  const payloadOf = (type: string, payload: Record<string, unknown>) => ({
-    type,
-    toolCallId: `call_${type}`,
-    renderedAt: "2026-07-10T00:00:00.000Z",
-    payload,
-  });
-
   const restoredThread: ConversationThread = {
     // 실제 wire: role 없이 source 만. presentations 는 ai_assistant turn 에만 실린다.
     turns: [
