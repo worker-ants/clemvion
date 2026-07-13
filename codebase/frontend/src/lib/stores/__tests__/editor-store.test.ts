@@ -207,6 +207,7 @@ describe("useEditorStore", () => {
       const edges = useEditorStore.getState().edges;
       expect(edges[0].target).toBe("2"); // 원상 유지
       expect(useEditorStore.getState().undoStack).toHaveLength(0);
+      expect(toastErrorMock).not.toHaveBeenCalled(); // 자기연결은 조용히 거부
     });
 
     it("이미 존재하는 동일 연결로의 재연결은 중복으로 거부한다", () => {
@@ -225,6 +226,9 @@ describe("useEditorStore", () => {
       const e1 = useEditorStore.getState().edges.find((e) => e.id === "e1");
       expect(e1?.target).toBe("2"); // 거부되어 원상 유지
       expect(useEditorStore.getState().undoStack).toHaveLength(0);
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "These nodes are already connected.",
+      );
     });
 
     it("sourceHandle 이 바뀌는 재연결이면 포트색 data 를 재계산한다", () => {
@@ -271,6 +275,7 @@ describe("useEditorStore", () => {
       const e1 = useEditorStore.getState().edges.find((e) => e.id === "e1");
       expect(e1?.target).toBe("2"); // 거부되어 원상 유지
       expect(useEditorStore.getState().undoStack).toHaveLength(0);
+      expect(toastErrorMock).toHaveBeenCalled(); // 컨테이너 충돌 메시지 toast
     });
 
     it("자기 자신과 동일한 연결로의 재연결은 중복으로 오판하지 않는다 (제자리 재연결)", () => {
