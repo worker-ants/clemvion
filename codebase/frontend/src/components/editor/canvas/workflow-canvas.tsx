@@ -333,9 +333,9 @@ export function WorkflowCanvas() {
 
   // §1.2 — 출력 포트에서 드래그를 시작해 유효한 target 없이 빈 영역(pane)에 드롭하면, 그
   // 드롭 위치에 노드 추가 검색 팝업을 열고 선택한 노드를 연결원의 첫 입력 포트로 자동
-  // 연결한다(popup.source 에 연결원 기록 → handleAddNodeFromSearch 가 소비). React Flow v12
-  // 는 connectionState.fromNode/fromHandle 로 연결원을, isValid 로 드롭 유효성을 제공한다.
-  // 입력 포트(target 타입)에서 시작한 역방향 드래그는 §1.3 소관이라 여기서 다루지 않는다.
+  // 연결한다(`NodeSearchPopupState.dragSource` 에 연결원 기록 → handleAddNodeFromSearch 가
+  // 소비). React Flow v12 는 connectionState.fromNode/fromHandle 로 연결원을, isValid 로 드롭
+  // 유효성을 제공한다. 입력 포트(target 타입) 시작 역방향 드래그는 §1.3 소관이라 여기선 제외.
   const onConnectEnd = useCallback<OnConnectEnd>(
     (event, connectionState) => {
       // 빈 영역 드롭 + 출력 포트 시작이 아니면(유효 연결·입력 포트 역방향 §1.3) 무시.
@@ -603,10 +603,10 @@ export function WorkflowCanvas() {
       const dragSource = nodeSearchPopup.dragSource;
       const newId = buildAndAddNode(nodeType, nodeSearchPopup.flowPosition);
       // §1.2 — 출력 포트 드래그로 열린 팝업이면 생성된 노드의 첫 입력 포트로 자동 연결한다.
-      // buildAndAddNode 가 노드 생성 전에 이미 pushUndo 한 스냅샷이 유일한 체크포인트가
-      // 되도록 onConnect 에 skipUndo 를 주어, 이 "노드 생성+자동 연결" 제스처 전체가 Ctrl+Z
-      // 1회로 함께 취소되게 한다(undo 스냅샷 중복 방지). 대상에 입력 포트가 없으면 connection
-      // 이 null → 연결 생략.
+      // onConnect 에 skipUndo 를 주어 엣지 추가가 "노드는 있고 엣지는 없는" 중간 상태를 별도
+      // undo 스냅샷으로 남기지 않게 한다 → Ctrl+Z 1회로 노드와 엣지가 함께 취소된다(노드 없던
+      // 상태로 복원). skipUndo 없이는 onConnect 가 노드-only 상태를 스냅샷해 Ctrl+Z 가 엣지만
+      // 되돌리고 고아 노드를 남긴다. 대상에 입력 포트가 없으면 connection 이 null → 연결 생략.
       if (newId && dragSource) {
         const connection = buildAutoConnectConnection(
           dragSource,

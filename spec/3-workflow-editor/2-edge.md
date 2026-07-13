@@ -35,7 +35,7 @@ pending_plans:
 - 노드 선택 시 해당 노드 생성 + 자동으로 엣지 연결 (연결원의 출력 포트 → 새 노드의 첫 입력 포트)
 - 대상 노드에 입력 포트가 없으면(예: 트리거) 노드만 생성하고 자동 연결은 생략
 
-> 현재 구현: `workflow-canvas.tsx` `onConnectEnd` 가 처리한다. React Flow v12 `connectionState` 로 출력 포트(`fromHandle.type === 'source'`) 드래그가 유효 target 없이 빈 영역(`isValid !== true`)에 드롭됐는지 판정해, 드롭 위치에 노드 추가 검색 팝업(더블클릭·우클릭 메뉴와 동일한 팝업)을 열고 `NodeSearchPopupState.dragSource` 에 연결원을 기록한다. 노드 선택 시 `handleAddNodeFromSearch` 가 노드를 생성(`buildAndAddNode` 가 신규 노드 id 반환)한 뒤 `onConnect(연결원 → 새 노드의 첫 입력 포트)` 로 자동 연결하며, "노드 생성+연결"을 한 번의 undo 체크포인트로 묶는다(`onConnect` 의 `skipUndo` 옵션). 판정·조립 순수 헬퍼는 `edge-utils.ts` `connectionDragSource`/`pointerClientPosition`/`buildAutoConnectConnection`/`firstInputHandleId`. 입력 포트에서 시작한 역방향 드래그는 §1.3 소관이라 배제한다.
+> 현재 구현: `workflow-canvas.tsx` `onConnectEnd` 가 처리한다. React Flow v12 `connectionState` 로 출력 포트(`fromHandle.type === 'source'`) 드래그가 유효 target 없이 빈 영역(`isValid !== true`)에 드롭됐는지 판정해, 드롭 위치에 노드 추가 검색 팝업(더블클릭·우클릭 메뉴와 동일한 팝업)을 열고 `NodeSearchPopupState.dragSource` 에 연결원을 기록한다. 노드 선택 시 `handleAddNodeFromSearch` 가 노드를 생성(`buildAndAddNode` 가 신규 노드 id 반환)한 뒤 `onConnect(연결원 → 새 노드의 첫 입력 포트)` 로 자동 연결한다. `onConnect` 의 `skipUndo` 옵션으로 엣지 추가가 "노드는 있고 엣지는 없는" 중간 상태를 별도 undo 스냅샷으로 남기지 않게 해, Ctrl+Z 1회로 노드와 엣지를 함께 취소한다. 판정·조립 순수 헬퍼는 `edge-utils.ts` `connectionDragSource`/`pointerClientPosition`/`buildAutoConnectConnection`/`firstInputHandleId`. 입력 포트에서 시작한 역방향 드래그는 §1.3 소관이라 배제한다.
 
 ### 1.3 역방향 연결 (미구현 · Planned)
 
