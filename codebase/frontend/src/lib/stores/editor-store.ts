@@ -470,11 +470,11 @@ function propagateContainerInMap(
   let nextTarget = prevTarget;
 
   // Rule 1 — body port forces the target into this container.
-  if (isContainerNode(sourceNode) && connection.sourceHandle === 'body') {
+  if (isContainerNode(sourceNode) && connection.sourceHandle === CONTAINER_BODY_HANDLE) {
     nextTarget = sourceNode.id;
   }
   // Rule 2 — emit port forces the source into this container.
-  if (isContainerNode(targetNode) && connection.targetHandle === 'emit') {
+  if (isContainerNode(targetNode) && connection.targetHandle === CONTAINER_EMIT_HANDLE) {
     nextSource = targetNode.id;
   }
   // Rule 3 — chain propagation between two regular nodes.
