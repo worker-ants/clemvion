@@ -590,7 +590,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > - `context.formConfig` → **`nodeOutput.formConfig`** (없으면 `nodeOutput` 자체)
 > - `context.conversationThread` → **`conversationThread`** (최상위)
 >
-> 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseWaitingForInput`. (WS §4.4 도 `nodeId` 로 표기돼 wire 와 drift — 별도 backlog.)
+> 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseWaitingForInput`. ([WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 논리 표기(`nodeId`)도 동일 wire 를 가리키며, 그 문서에 실제 wire 필드 caveat 를 명시함 — 본 blockquote 는 외부 클라이언트 소비 매핑의 SoT.)
 
 > **`expectedCommands` 는 권장 광고 필드**: 위 `interaction.expectedCommands` 는 클라이언트에
 > "다음에 보낼 만한" 명령을 안내하는 힌트다. 서버가 강제하는 표면별 허용 집합과는 다를 수 있다 —
