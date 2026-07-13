@@ -359,7 +359,7 @@ export function WorkflowCanvas() {
 
   // §1.3 — 엣지 끝점 재연결 + detach(빈 영역 드롭 시 삭제) 콜백. 판정 로직은 useEdgeReconnect
   // 훅으로 분리해 renderHook 단위 테스트한다. React Flow 가 reconnectable 엣지의 앵커를 자동
-  // 렌더하므로 custom-edge 는 손대지 않고 세 콜백만 <ReactFlow> 에 배선한다.
+  // 렌더하므로 custom-edge 는 손대지 않고 onReconnect/onReconnectEnd 두 콜백만 배선한다.
   const { onReconnect: handleReconnect, onReconnectEnd } = useEdgeReconnect(
     reconnectEdgeInStore,
     removeEdge,

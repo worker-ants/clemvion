@@ -609,20 +609,24 @@ function recordRecentNodeTypesFrom(nodes: Node[]): void {
 
 /**
  * §2.2/§1.3 — 연결(신규 onConnect / 재연결 onReconnect)의 유효성을 단일 규칙으로 판정한다.
- * 반환: `null`=유효(진행), `""`=조용히 거부(toast 없음 — 자기연결), 비어있지 않은 문자열=거부
- * 하며 그 문자열을 toast 로 표시(중복·컨테이너 충돌). 중복 검사 대상 `edges` 는 호출자가
- * 넘긴다 — 재연결은 자기 자신을 제외한 목록을 전달해 "제자리 재연결" 오탐을 막는다.
+ * 반환은 판별 유니온: `{ ok: true }`=유효(진행), `{ ok: false }`=거부(자기연결은 조용히,
+ * `message` 있으면 toast 로 표시 — 중복·컨테이너 충돌). 문자열 sentinel 대신 유니온을 써서
+ * 호출부의 truthy 단축(`if (rejection)`) 실수로 자기연결이 "유효" 로 새는 것을 컴파일 타임에
+ * 막는다. 중복 검사 대상 `edges` 는 호출자가 넘긴다 — 재연결은 자기 자신을 제외한 목록을
+ * 전달해 "제자리 재연결" 오탐을 막는다.
  */
-function evaluateConnectionRejection(
+function evaluateConnection(
   nodes: Node[],
   edges: Edge[],
   connection: Connection,
-): string | null {
-  if (isSelfConnection(connection)) return "";
+): { ok: true } | { ok: false; message?: string } {
+  if (isSelfConnection(connection)) return { ok: false };
   if (isDuplicateConnection(edges, connection)) {
-    return "These nodes are already connected.";
+    return { ok: false, message: "These nodes are already connected." };
   }
-  return detectContainerConflict(nodes, connection);
+  const conflict = detectContainerConflict(nodes, connection);
+  if (conflict) return { ok: false, message: conflict };
+  return { ok: true };
 }
 
 /** 연결의 sourceHandle·source 노드 타입으로 엣지 포트색 data 를 파생한다(onConnect/onReconnect 공용). */
@@ -740,16 +744,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   onConnect: (connection, opts) => {
-    // §2.2 — 자기연결/중복/컨테이너 충돌을 단일 규칙(evaluateConnectionRejection)으로 차단.
+    // §2.2 — 자기연결/중복/컨테이너 충돌을 단일 규칙(evaluateConnection)으로 차단.
     // 자기연결은 조용히 무시(isValidConnection 이 드래그 중 커서로도 차단), 중복·충돌은 toast.
     // 영문 SoT 문자열을 쓴다(표시 계층 로컬라이즈; i18n Principle 1 하드코딩 한국어 ratchet 회피).
-    const rejection = evaluateConnectionRejection(
-      get().nodes,
-      get().edges,
-      connection,
-    );
-    if (rejection !== null) {
-      if (rejection) toast.error(rejection);
+    const result = evaluateConnection(get().nodes, get().edges, connection);
+    if (!result.ok) {
+      if (result.message) toast.error(result.message);
       return;
     }
     if (!opts?.skipUndo) get().pushUndo();
@@ -769,16 +769,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   onReconnect: (oldEdge, newConnection) => {
-    // §1.3 — 재연결도 onConnect 과 동일 규칙(evaluateConnectionRejection). 단 중복 검사는
+    // §1.3 — 재연결도 onConnect 과 동일 규칙(evaluateConnection). 단 중복 검사는
     // 재연결 중인 엣지 자신을 제외한다 — 같은 자리로 되돌리거나 한쪽 끝만 옮기는 경우가
     // "이미 연결됨" 으로 오판되지 않게 한다.
-    const rejection = evaluateConnectionRejection(
+    const result = evaluateConnection(
       get().nodes,
       get().edges.filter((e) => e.id !== oldEdge.id),
       newConnection,
     );
-    if (rejection !== null) {
-      if (rejection) toast.error(rejection);
+    if (!result.ok) {
+      if (result.message) toast.error(result.message);
       return;
     }
     get().pushUndo();

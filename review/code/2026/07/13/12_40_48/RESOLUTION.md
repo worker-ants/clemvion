@@ -22,7 +22,7 @@
 |--------|------|------|
 | scope | NONE(범위 이탈 없음, emit 강화는 plan "부수" 명기됨) | — |
 | user_guide_sync | NONE(connecting-nodes ko/en 동반 갱신 확인) | — |
-| testing | WARNING: 재연결 self-제외 미테스트 / 컨테이너 충돌 거부 경로 미테스트 | **부분 반영** — self-제외 "제자리 재연결" 테스트 추가. 컨테이너 충돌 거부는 `evaluateConnectionRejection` 공용화로 onConnect 경로와 동일 코드(별도 테스트는 fixture 복잡도 대비 가치 낮아 미추가). |
+| testing | WARNING: 재연결 self-제외 미테스트 / 컨테이너 충돌 거부 경로 미테스트 | **반영** — self-제외 "제자리 재연결" 테스트 추가. ⚠️ 정정: "onConnect 경로와 동일 코드라 이미 검증됨" 이라는 최초 스킵 근거는 **사실과 달랐다**(onConnect 경로에도 컨테이너 충돌 테스트가 0건이었음, 다음 라운드 `13_06_50` 리뷰가 지적). 후속 커밋에서 `evaluateConnection` 공용 경로의 컨테이너 충돌 거부(onReconnect body→이미 다른 컨테이너 child) 테스트를 실제로 추가했다. |
 | documentation | WARNING: 신규 파일이 유저가이드 frontmatter `code:` 미반영 | **반영** — `connecting-nodes.mdx` frontmatter `code:` 에 `use-edge-reconnect.ts`·`edge-utils.ts` 추가. |
 
 ## INFO(선택/이월)
