@@ -42,11 +42,6 @@ overrides:
   "undici@>=7.0.0 <7.28.0": ^7.28.0
   vite: ^8.0.16
   "@babel/core": ^7.29.7
-  # swagger-pin: 마이그레이션 버전 중립성 유지 — 11.2.7 고정. backend/src/common/swagger/
-  # api-wrapped.ts 가 `@nestjs/swagger/dist/interfaces/open-api-spec.interface`(SchemaObject)
-  # deep-import 을 쓰는데 11.4.x 의 `exports` 가 이 내부 경로를 차단(공개 re-export 없음).
-  # deep-import 공개경로 교체 + 핀 제거는 별도 정리 PR(§2)로 분리.
-  "@nestjs/swagger": 11.2.7
 
 # pnpm v10 은 lifecycle(build) script 를 기본 차단한다 (pnpm 10 정규 위치 — package.json
 # `pnpm.onlyBuiltDependencies` 에서 이전). 네이티브/바이너리 빌드가 필요한 패키지만 허용.

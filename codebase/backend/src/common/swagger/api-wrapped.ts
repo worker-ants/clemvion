@@ -3,13 +3,22 @@ import {
   ApiExtraModels,
   ApiOkResponse,
   ApiResponseOptions,
+  ApiResponseSchemaHost,
   ApiCreatedResponse,
   ApiAcceptedResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
-import type { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
 
 type ClassRef<T> = Type<T>;
+
+/**
+ * `@nestjs/swagger` 는 `SchemaObject` 를 공개로 re-export 하지 않고, 11.4.x 부터는
+ * `exports` 맵이 내부 deep-import(`.../dist/interfaces/open-api-spec.interface`)를
+ * 차단한다. 공개 타입 `ApiResponseSchemaHost['schema']`(= `SchemaObject & Partial<
+ * ReferenceObject>`, 즉 `ApiOkResponse({ schema })` 가 실제로 받는 타입)에서 파생해
+ * 버전 호환을 확보한다 — 별도 openapi3-ts 의존성 불필요.
+ */
+type SchemaObject = ApiResponseSchemaHost['schema'];
 
 /**
  * `{ data: <ref> }` 스키마 객체를 생성합니다.
