@@ -22,6 +22,14 @@ A single input port can receive multiple edges (merging results from several nod
 
 While dragging, the port under your cursor turns green when the connection is valid and shows a block icon (🚫) when it isn't, so you get instant feedback.
 
+## Dropping a node onto an edge to insert it
+
+Drag a node from the palette and **drop it onto an existing edge** to split that edge and insert the node in between. The original `A → B` edge is removed and replaced by two edges, `A → new node` and `new node → B`. The new node's first input and first output ports are wired up automatically, and a single `Ctrl+Z` (`⌘+Z` on Mac) undoes the whole insert (the new node and both edges together).
+
+<Callout type="note">
+In a few cases the node is just placed without splitting: nodes without an input or output port (for example, a trigger), when the node you drop is itself a container (Loop/ForEach/Map), and when you drop onto a container's body-entry (`body`) or loop-back (`emit`) edge. Inserting a multi-output node (If/Else, Switch) auto-connects only its first output; wire the remaining branches yourself.
+</Callout>
+
 ## Editing and removing edges
 
 You can grab the endpoint of an existing edge and move it.

@@ -434,12 +434,14 @@ describe("firstOutputHandleId (§4.1)", () => {
 });
 
 describe("isContainerBoundaryEdge (§4.1)", () => {
-  it("sourceHandle 이 body/done 이면 경계 엣지", () => {
+  it("sourceHandle 이 body(본문 진입)면 경계 엣지", () => {
     expect(isContainerBoundaryEdge({ sourceHandle: "body" })).toBe(true);
-    expect(isContainerBoundaryEdge({ sourceHandle: "done" })).toBe(true);
   });
   it("targetHandle 이 emit 이면 경계 엣지(loopback)", () => {
     expect(isContainerBoundaryEdge({ targetHandle: "emit" })).toBe(true);
+  });
+  it("done 은 경계가 아니다 — Parallel Branch 의 일반 데이터 출력과 동명이라 오배제 방지", () => {
+    expect(isContainerBoundaryEdge({ sourceHandle: "done" })).toBe(false);
   });
   it("일반 데이터 엣지는 false", () => {
     expect(
@@ -521,6 +523,26 @@ describe("buildEdgeSplitPlan (§4.1)", () => {
       ),
     ).toBeNull();
   });
+
+  it("새 노드 자체가 컨테이너면 null — body 재편입 위험 제외 (R-3, ai-review CRITICAL)", () => {
+    // 컨테이너 노드의 첫 출력은 body → firstOutputHandleId 가 body 를 고르면 target 이
+    // 새 컨테이너 본문 자식으로 재편입되므로, 분할 자체를 막고 노드만 추가한다.
+    expect(
+      buildEdgeSplitPlan(edge, "N", {
+        inputs: [{ id: "in" }],
+        outputs: [{ id: "body" }, { id: "done" }],
+        isContainer: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("다중 출력 비-컨테이너 노드(If/Else 등)는 첫 출력만 연결한다", () => {
+    const plan = buildEdgeSplitPlan(edge, "N", {
+      inputs: [{ id: "in" }],
+      outputs: [{ id: "true" }, { id: "false" }],
+    });
+    expect(plan?.newToTarget.sourceHandle).toBe("true"); // 첫 출력, 나머지 분기는 수동
+  });
 });
 
 describe("findEdgeIdAtPoint (§4.1)", () => {
@@ -548,6 +570,16 @@ describe("findEdgeIdAtPoint (§4.1)", () => {
     const doc = {
       elementFromPoint: () =>
         ({ closest: () => null }) as unknown as Element,
+    };
+    expect(findEdgeIdAtPoint(10, 20, doc)).toBeNull();
+  });
+
+  it("엣지 조상이 data-id 속성을 갖지 않으면 null (coalesce)", () => {
+    const doc = {
+      elementFromPoint: () =>
+        ({
+          closest: () => ({ getAttribute: () => null }),
+        }) as unknown as Element,
     };
     expect(findEdgeIdAtPoint(10, 20, doc)).toBeNull();
   });

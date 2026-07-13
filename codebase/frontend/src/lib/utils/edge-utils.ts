@@ -223,11 +223,16 @@ export function buildAutoConnectConnection(
 }
 
 /**
- * §4.1 — 컨테이너 경계 엣지 판정. `sourceHandle` 이 컨테이너 출력(`body` 진입 / `done` 종료)
- * 이거나 `targetHandle` 이 컨테이너 loopback 입력(`emit`)인 엣지는 §6 emit 단일성·경계 불가침과
+ * §4.1 — 컨테이너 경계 엣지 판정. `sourceHandle` 이 컨테이너 본문 진입(`body`)이거나
+ * `targetHandle` 이 컨테이너 loopback 입력(`emit`)인 엣지는 §6 emit 단일성·경계 불가침과
  * containerId 동기화 불변식과의 상호작용이 정의되지 않아 분할 대상에서 제외한다(R-3).
+ *
+ * `body`·`emit` 은 컨테이너 전용 핸들이라(비-컨테이너 노드가 쓰지 않음) 핸들명만으로 정밀하다.
+ * 컨테이너 `done`(본문 종료 출력)은 제외하지 않는다 — Parallel Branch 도 동명 `done` 을 **일반
+ * 데이터 출력**으로 쓰므로 핸들명으로 뭉뚱그리면 그 데이터 엣지 분할이 잘못 막힌다. 컨테이너
+ * `done` 엣지 분할(`done → 새 노드`)은 body 재편입(`sourceHandle==='body'`)을 유발하지 않아 안전.
  */
-const CONTAINER_SOURCE_HANDLES = new Set(["body", "done"]);
+const CONTAINER_SOURCE_HANDLES = new Set(["body"]);
 const CONTAINER_TARGET_HANDLES = new Set(["emit"]);
 
 export function isContainerBoundaryEdge(edge: {
@@ -256,9 +261,20 @@ interface SplitConnection {
  *  - `newToTarget`: 새 노드의 첫 출력 포트 → 원본 target(+targetHandle 보존)
  *
  * 분할 불가 시 null: (1) 새 노드에 입력 또는 출력 포트가 없음(트리거·순수 sink), (2) 원본이
- * 컨테이너 경계 엣지(`isContainerBoundaryEdge`). 원본 양끝 핸들은 그대로 보존해 다중 출력
- * (If/Else·Switch)·다중 입력 노드여도 위상이 어긋나지 않는다. 두 Connection 은 호출부가 표준
- * `onConnect` 로 넘겨 유효성·포트색 파생을 재사용한다(순수 함수라 store/RF 의존 없음).
+ * 컨테이너 경계 엣지(`isContainerBoundaryEdge`), (3) **새 노드 자체가 컨테이너(Loop/ForEach/Map)**
+ * — 컨테이너의 첫 출력은 `body`(본문 진입)라 `newToTarget.sourceHandle==='body'` 가 되어 target 을
+ * 새 컨테이너 본문 자식으로 조용히 재편입하거나(Rule 1) 이미 다른 컨테이너 소속이면 연결이 거부돼
+ * 그래프가 반쪽만 이어지므로 분할 대상에서 제외한다(R-3).
+ *
+ * **원자성(by construction)**: (2)로 원본 body/emit 엣지를, (3)으로 컨테이너 새 노드를 배제하면
+ * 두 신규 Connection 은 `detectContainerConflict` 의 유일한 거부 분기(source `body` / target `emit`)에
+ * 절대 걸리지 않고, 새 노드라 자기연결·중복도 불가능하다 → `onConnect` 두 번이 항상 성공한다. 따라서
+ * 호출부가 `removeEdge` 후 `onConnect`×2 를 비원자적으로 실행해도 "반쪽 갱신" 이 발생하지 않는다.
+ * 즉 이 함수가 non-null 을 돌려주는 것 자체가 분할 안전성의 게이트다.
+ *
+ * 원본 양끝 핸들은 그대로 보존해 다중 출력(If/Else·Switch)·다중 입력 노드여도 위상이 어긋나지
+ * 않는다(다중 출력 새 노드는 첫 출력만 연결되고 나머지 분기는 수동 연결 몫이다). 두 Connection 은
+ * 호출부가 표준 `onConnect` 로 넘겨 유효성·포트색 파생을 재사용한다(순수 함수라 store/RF 의존 없음).
  */
 export function buildEdgeSplitPlan(
   edge: {
@@ -269,11 +285,16 @@ export function buildEdgeSplitPlan(
   },
   newNodeId: string,
   definition:
-    | { inputs?: Array<{ id: string }>; outputs?: Array<{ id: string }> }
+    | {
+        inputs?: Array<{ id: string }>;
+        outputs?: Array<{ id: string }>;
+        isContainer?: boolean;
+      }
     | null
     | undefined,
 ): { sourceToNew: SplitConnection; newToTarget: SplitConnection } | null {
   if (isContainerBoundaryEdge(edge)) return null;
+  if (definition?.isContainer) return null; // 컨테이너 새 노드는 body 재편입 위험 → 제외
   const inHandle = firstInputHandleId(definition);
   const outHandle = firstOutputHandleId(definition);
   if (!inHandle || !outHandle) return null;

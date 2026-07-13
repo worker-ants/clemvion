@@ -729,7 +729,10 @@ export function WorkflowCanvas() {
           newId,
           getNodeDefinition(nodeType),
         );
-        // plan 이 null 이면(입출력 없는 노드·컨테이너 경계 엣지) 분할 없이 노드만 추가된 상태 유지.
+        // plan 이 null 이면(입출력 없는 노드·컨테이너 새 노드·컨테이너 경계 엣지) 분할 없이
+        // 노드만 추가된 상태 유지. plan 이 non-null 이면 두 onConnect 는 detectContainerConflict
+        // 거부 분기에 걸릴 수 없어 항상 성공한다(buildEdgeSplitPlan JSDoc 원자성 불변식) →
+        // removeEdge 후 순차 실행해도 그래프가 반쪽만 갱신되지 않는다.
         if (plan) {
           removeEdge(targetEdge.id, { skipUndo: true });
           onConnect(plan.sourceToNew, { skipUndo: true });
