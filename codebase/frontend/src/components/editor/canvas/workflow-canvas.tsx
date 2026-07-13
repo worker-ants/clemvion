@@ -60,6 +60,7 @@ import { integrationsApi } from "@/lib/api/integrations";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { useEdgeReconnect } from "./use-edge-reconnect";
+import { useEdgeExecutionState } from "./use-edge-execution-state";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { ZoomControls, MIN_ZOOM, MAX_ZOOM, FIT_VIEW_OPTIONS } from "./zoom-controls";
 import { CanvasMinimap } from "./canvas-minimap";
@@ -157,7 +158,12 @@ export function WorkflowCanvas() {
   const setHoveredNode = useCanvasHoverStore((s) => s.setHoveredNode);
   const setHoveredEdge = useCanvasHoverStore((s) => s.setHoveredEdge);
 
-  const { enhancedEdges, isFocusActive, hoveredEdgeNodes } = useEdgeHighlighting(edges);
+  // §3.2 실행 상태 스타일(비활성 점선 / 데이터 흐름 애니메이션 / 완료 flash)을 먼저 입힌 뒤,
+  // 그 위에 §3.3 hover/선택 하이라이팅을 얹는다. 실행 상태는 `edge.className`(flowing/completed)
+  // 과 `edge.data.edgeInactive` 로, 하이라이팅은 className Set 병합(edge-highlighted)으로 합성된다.
+  const executionEdges = useEdgeExecutionState(edges, nodes);
+  const { enhancedEdges, isFocusActive, hoveredEdgeNodes } =
+    useEdgeHighlighting(executionEdges);
 
   // AI 노드(`ai_agent` / `text_classifier` / `information_extractor`) 가 추가될
   // 때, 워크스페이스의 isDefault=true LLM Config 가 있으면 그 ID 를 노드의

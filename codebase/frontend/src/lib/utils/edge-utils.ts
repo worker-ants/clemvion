@@ -1,6 +1,7 @@
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import type { Node, Edge } from "@xyflow/react";
+import type { CSSProperties } from "react";
 
 /**
  * Port type classification for edge coloring.
@@ -318,4 +319,72 @@ export function enrichEdgesWithPortData(edges: Edge[], nodes: Node[]): Edge[] {
     const portData = buildEdgeData(edge.sourceHandle, sourceNodeType);
     return { ...edge, data: { ...(edge.data as Record<string, unknown> ?? {}), ...portData } };
   });
+}
+
+/**
+ * §3.2 — 엣지의 실행 상태별 스타일 플래그. 상호배타적 우선순위: inactive > flowing/completed.
+ *  - `inactive`  : 비활성(disabled) 노드에 연결된 엣지 → 반투명 점선(정적, 실행과 무관)
+ *  - `flowing`   : 실행 중 데이터가 지나는 엣지(source 완료 + target 실행 중) → 애니메이션 점선
+ *  - `completed` : source·target 둘 다 완료된 엣지 → 초록 flash(1회) 후 복귀
+ */
+export interface EdgeExecutionState {
+  inactive: boolean;
+  flowing: boolean;
+  completed: boolean;
+}
+
+/**
+ * §3.2 — 실행 상태 스타일을 트리거하는 엣지 wrapper className. React Flow `edge.className` 으로
+ * 부여하고 globals.css 가 소비한다. `useEdgeHighlighting` 이 className 을 Set 병합(하이라이트만
+ * add/remove)하므로 hover/선택 하이라이트와 안전하게 공존한다. 기존 무접두 컨벤션
+ * (`edge-highlighted`/`edge-flow`)과 맞춰 `edge-` 접두를 쓴다.
+ *  - flowing  : 마칭 점선 애니메이션(기존 `edge-flow` keyframe 재사용)
+ *  - completed: 1회성 초록 flash 후 원래 포트색으로 복귀(`edge-complete-flash`)
+ * flowing 과 completed 는 상호배타(target 이 running vs completed)라 둘 중 하나만 부여된다.
+ */
+export const FLOWING_EDGE_CLASS = "edge-flowing";
+export const COMPLETED_EDGE_CLASS = "edge-completed";
+
+/**
+ * §3.2 판정 순수 함수 — 엣지 1개와 실행 컨텍스트로 상태 플래그를 계산한다. 비활성(disabled)
+ * 노드는 실행에 참여하지 않으므로 flowing/completed 를 배제한다(inactive 우선). React Flow /
+ * store 에 의존하지 않아 단위 테스트가 쉽다.
+ */
+export function resolveEdgeExecutionState(
+  edge: { source: string; target: string },
+  ctx: {
+    disabledNodeIds: ReadonlySet<string>;
+    nodeStatusById: ReadonlyMap<string, string>;
+    executing: boolean;
+  },
+): EdgeExecutionState {
+  if (ctx.disabledNodeIds.has(edge.source) || ctx.disabledNodeIds.has(edge.target)) {
+    return { inactive: true, flowing: false, completed: false };
+  }
+  const sourceStatus = ctx.nodeStatusById.get(edge.source);
+  const targetStatus = ctx.nodeStatusById.get(edge.target);
+  const flowing =
+    ctx.executing && sourceStatus === "completed" && targetStatus === "running";
+  const completed = sourceStatus === "completed" && targetStatus === "completed";
+  return { inactive: false, flowing, completed };
+}
+
+/**
+ * §3.1/§3.2 — custom-edge 의 인라인 style 조립을 순수 함수로 분리한다(단위 테스트 가능).
+ * `selected`(primary·2.5px) / `isHighlighted`(2.5px) / `inactive`(반투명 점선) 를 반영하고,
+ * 마지막에 React Flow 가 넘긴 `baseStyle` 을 스프레드해 그 값이 우선하게 한다(기존 동작 보존).
+ */
+export function buildEdgeStyle(opts: {
+  portColor: string;
+  selected: boolean;
+  isHighlighted: boolean;
+  inactive: boolean;
+  baseStyle?: CSSProperties;
+}): CSSProperties {
+  return {
+    stroke: opts.selected ? "hsl(var(--primary))" : opts.portColor,
+    strokeWidth: opts.isHighlighted || opts.selected ? 2.5 : 1.5,
+    ...(opts.inactive ? { opacity: 0.4, strokeDasharray: "6 4" } : {}),
+    ...(opts.baseStyle ?? {}),
+  };
 }
