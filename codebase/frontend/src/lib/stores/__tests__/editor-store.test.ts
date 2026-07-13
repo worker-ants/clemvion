@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
-import type { Node, Edge } from "@xyflow/react";
+import type { Node, Edge, Connection } from "@xyflow/react";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { NodeDefinition } from "@/lib/node-definitions";
 
@@ -226,15 +226,29 @@ describe("useEditorStore", () => {
       expect(e1?.target).toBe("2"); // 거부되어 원상 유지
       expect(useEditorStore.getState().undoStack).toHaveLength(0);
     });
+
+    it("자기 자신과 동일한 연결로의 재연결은 중복으로 오판하지 않는다 (제자리 재연결)", () => {
+      // 중복 검사가 재연결 중인 엣지 자신을 제외하지 않으면, 끝점을 원래 포트에 그대로
+      // 놓는 "제자리 재연결" 이 자기 자신과 중복으로 거부되는 회귀가 난다.
+      seed(); // e1(1→2)
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in" } as Edge,
+        { source: "1", sourceHandle: "out", target: "2", targetHandle: "in" },
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges).toHaveLength(1);
+      expect(edges[0].target).toBe("2"); // 거부되지 않고 정상 처리
+      expect(useEditorStore.getState().undoStack).toHaveLength(1);
+    });
   });
 
-  describe("deleteEdge (§1.3 detach)", () => {
+  describe("removeEdge (§1.3 detach)", () => {
     it("엣지를 제거하고 undo 스냅샷을 남긴다", () => {
       useEditorStore.setState({
         nodes: [makeNode("1"), makeNode("2")],
         edges: [makeEdge("1", "2")],
       });
-      useEditorStore.getState().deleteEdge("1-2");
+      useEditorStore.getState().removeEdge("1-2");
       const state = useEditorStore.getState();
       expect(state.edges).toHaveLength(0);
       expect(state.undoStack).toHaveLength(1);
