@@ -23,8 +23,9 @@ import { getNodeDefinition, useNodeDefinitionsStore } from "@/lib/node-definitio
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
 import { buildNodeInitialConfig } from "@/lib/utils/build-node-initial-config";
 import {
-  isConnectionDroppedOnPane,
-  firstInputHandleId,
+  connectionDragSource,
+  pointerClientPosition,
+  buildAutoConnectConnection,
 } from "@/lib/utils/edge-utils";
 import {
   modelConfigsApi,
@@ -104,9 +105,10 @@ interface NodeSearchPopupState {
   x: number;
   y: number;
   flowPosition: { x: number; y: number };
-  // §1.2 — 출력 포트 드래그를 빈 영역에 드롭해 팝업이 열렸을 때의 연결원. 선택한 노드를
-  // 이 source 의 첫 입력 포트로 자동 연결한다. 더블클릭/우클릭 메뉴로 열린 경우엔 undefined.
-  source?: { nodeId: string; handleId: string | null };
+  // §1.2 — 출력 포트 드래그를 빈 영역에 드롭해 팝업이 열렸을 때의 연결원(드래그 시작 포트).
+  // 선택한 노드를 이 포트의 첫 입력 포트로 자동 연결한다. 더블클릭/우클릭 메뉴로 열린
+  // 경우엔 undefined. (Connection.source 문자열과 구분하려고 dragSource 로 명명.)
+  dragSource?: { nodeId: string; handleId: string | null };
 }
 
 export function WorkflowCanvas() {
@@ -294,28 +296,39 @@ export function WorkflowCanvas() {
     [],
   );
 
+  // 노드 추가 검색 팝업을 여는 공용 로직 — 열린 컨텍스트 메뉴를 닫고 지정 화면 좌표에
+  // 팝업을 띄운다. 더블클릭(§4.3)·우클릭 메뉴(add-node)·출력 포트 드래그 드롭(§1.2)이
+  // 공유한다. dragSource 가 주어지면 팝업에서 노드 선택 시 그 연결원으로 자동 연결한다.
+  const openNodeSearchPopupAt = useCallback(
+    (
+      clientX: number,
+      clientY: number,
+      flowPosition: { x: number; y: number },
+      dragSource?: { nodeId: string; handleId: string | null },
+    ) => {
+      setNodeContextMenu(null);
+      setCanvasContextMenu(null);
+      setNodeSearchPopup({ x: clientX, y: clientY, flowPosition, dragSource });
+      setSearchQuery("");
+    },
+    [],
+  );
+
   // Double-click on empty canvas
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
       const now = Date.now();
       if (now - lastClickTime.current < 300) {
         // Double click
-        setNodeContextMenu(null);
-        setCanvasContextMenu(null);
         const flowPos = reactFlowInstance.current?.screenToFlowPosition({
           x: event.clientX,
           y: event.clientY,
         }) ?? { x: 0, y: 0 };
-        setNodeSearchPopup({
-          x: event.clientX,
-          y: event.clientY,
-          flowPosition: flowPos,
-        });
-        setSearchQuery("");
+        openNodeSearchPopupAt(event.clientX, event.clientY, flowPos);
       }
       lastClickTime.current = now;
     },
-    [],
+    [openNodeSearchPopupAt],
   );
 
   // §1.2 — 출력 포트에서 드래그를 시작해 유효한 target 없이 빈 영역(pane)에 드롭하면, 그
@@ -323,27 +336,21 @@ export function WorkflowCanvas() {
   // 연결한다(popup.source 에 연결원 기록 → handleAddNodeFromSearch 가 소비). React Flow v12
   // 는 connectionState.fromNode/fromHandle 로 연결원을, isValid 로 드롭 유효성을 제공한다.
   // 입력 포트(target 타입)에서 시작한 역방향 드래그는 §1.3 소관이라 여기서 다루지 않는다.
-  const onConnectEnd = useCallback<OnConnectEnd>((event, connectionState) => {
-    if (!isConnectionDroppedOnPane(connectionState)) return; // 유효 연결은 onConnect 가 처리
-    const fromNode = connectionState.fromNode;
-    const fromHandle = connectionState.fromHandle;
-    if (!fromNode || fromHandle?.type !== "source") return; // 출력 포트 드래그만
-    const point = "changedTouches" in event ? event.changedTouches[0] : event;
-    if (!point) return;
-    const flowPos = reactFlowInstance.current?.screenToFlowPosition({
-      x: point.clientX,
-      y: point.clientY,
-    }) ?? { x: 0, y: 0 };
-    setNodeContextMenu(null);
-    setCanvasContextMenu(null);
-    setNodeSearchPopup({
-      x: point.clientX,
-      y: point.clientY,
-      flowPosition: flowPos,
-      source: { nodeId: fromNode.id, handleId: fromHandle.id ?? null },
-    });
-    setSearchQuery("");
-  }, []);
+  const onConnectEnd = useCallback<OnConnectEnd>(
+    (event, connectionState) => {
+      // 빈 영역 드롭 + 출력 포트 시작이 아니면(유효 연결·입력 포트 역방향 §1.3) 무시.
+      const dragSource = connectionDragSource(connectionState);
+      if (!dragSource) return;
+      const pos = pointerClientPosition(event);
+      if (!pos) return;
+      const flowPos = reactFlowInstance.current?.screenToFlowPosition({
+        x: pos.clientX,
+        y: pos.clientY,
+      }) ?? { x: 0, y: 0 };
+      openNodeSearchPopupAt(pos.clientX, pos.clientY, flowPos, dragSource);
+    },
+    [openNodeSearchPopupAt],
+  );
 
   // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행. dirty 캔버스를 먼저 저장해 엔진이
   // 최신 노드 설정을 실행하게 하고, 직전 실행(executionId)을 previousExecutionId 로
@@ -471,12 +478,11 @@ export function WorkflowCanvas() {
       if (!canvasContextMenu) return;
       switch (action) {
         case "add-node":
-          setNodeSearchPopup({
-            x: canvasContextMenu.x,
-            y: canvasContextMenu.y,
-            flowPosition: canvasContextMenu.flowPosition,
-          });
-          setSearchQuery("");
+          openNodeSearchPopupAt(
+            canvasContextMenu.x,
+            canvasContextMenu.y,
+            canvasContextMenu.flowPosition,
+          );
           break;
         case "paste":
           // §3.3 — 클립보드를 우클릭 위치에 붙여넣는다 (묶음 좌상단이 클릭 지점).
@@ -493,7 +499,7 @@ export function WorkflowCanvas() {
       }
       setCanvasContextMenu(null);
     },
-    [canvasContextMenu, nodes, onNodesChange, pasteClipboard],
+    [canvasContextMenu, nodes, onNodesChange, pasteClipboard, openNodeSearchPopupAt],
   );
 
   // §11.3 — Delete/Backspace 삭제 시 자식 있는 컨테이너는 즉시 삭제하지 않고 확인
@@ -594,21 +600,20 @@ export function WorkflowCanvas() {
   const handleAddNodeFromSearch = useCallback(
     (nodeType: string) => {
       if (!nodeSearchPopup) return;
-      const source = nodeSearchPopup.source;
+      const dragSource = nodeSearchPopup.dragSource;
       const newId = buildAndAddNode(nodeType, nodeSearchPopup.flowPosition);
-      // §1.2 — 출력 포트 드래그로 열린 팝업이면, 생성된 노드의 첫 입력 포트로 자동 연결한다.
-      // 대상 노드에 입력 포트가 없으면(트리거 등) targetHandle 이 null 이라 연결을 생략한다.
-      // source→새 노드 조합은 자기연결·중복이 될 수 없어 onConnect 검증을 항상 통과한다.
-      if (newId && source) {
-        const targetHandle = firstInputHandleId(getNodeDefinition(nodeType));
-        if (targetHandle) {
-          onConnect({
-            source: source.nodeId,
-            sourceHandle: source.handleId,
-            target: newId,
-            targetHandle,
-          });
-        }
+      // §1.2 — 출력 포트 드래그로 열린 팝업이면 생성된 노드의 첫 입력 포트로 자동 연결한다.
+      // buildAndAddNode 가 노드 생성 전에 이미 pushUndo 한 스냅샷이 유일한 체크포인트가
+      // 되도록 onConnect 에 skipUndo 를 주어, 이 "노드 생성+자동 연결" 제스처 전체가 Ctrl+Z
+      // 1회로 함께 취소되게 한다(undo 스냅샷 중복 방지). 대상에 입력 포트가 없으면 connection
+      // 이 null → 연결 생략.
+      if (newId && dragSource) {
+        const connection = buildAutoConnectConnection(
+          dragSource,
+          newId,
+          getNodeDefinition(nodeType),
+        );
+        if (connection) onConnect(connection, { skipUndo: true });
       }
       setNodeSearchPopup(null);
     },

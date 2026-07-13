@@ -86,7 +86,9 @@ interface EditorState {
   setWorkflowName: (name: string) => void;
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
-  onConnect: (connection: Connection) => void;
+  // opts.skipUndo — 호출자가 직전에 이미 pushUndo 한 경우(§1.2 자동 연결처럼 "노드
+  // 생성+연결"을 하나의 undo 체크포인트로 묶을 때) 내부 pushUndo 를 건너뛴다. 기본 false.
+  onConnect: (connection: Connection, opts?: { skipUndo?: boolean }) => void;
   /**
    * §2.2 — 드래그 중 유효성. 자기연결은 false(커서 🚫). 중복/사이클은 onConnect·경고가 담당.
    * React Flow `IsValidConnection<Edge>` 시그니처와 맞추기 위해 `Connection | Edge` 를 받는다
@@ -697,7 +699,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  onConnect: (connection) => {
+  onConnect: (connection, opts) => {
     // §2.2 — 자기연결(source===target)은 never valid. isValidConnection 이 드래그 중
     // 커서로 차단하지만 방어적으로 여기서도 무시한다.
     if (isSelfConnection(connection)) return;
@@ -718,7 +720,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       toast.error(conflict);
       return;
     }
-    get().pushUndo();
+    if (!opts?.skipUndo) get().pushUndo();
     set((state) => {
       const sourceNode = state.nodes.find((n) => n.id === connection.source);
       const sourceNodeType = (sourceNode?.data as { type?: string })?.type ?? "";

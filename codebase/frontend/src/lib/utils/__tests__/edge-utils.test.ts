@@ -10,6 +10,9 @@ import {
   isDuplicateConnection,
   isConnectionDroppedOnPane,
   firstInputHandleId,
+  connectionDragSource,
+  pointerClientPosition,
+  buildAutoConnectConnection,
   PORT_TYPE_COLORS,
 } from "../edge-utils";
 import type { Node, Edge } from "@xyflow/react";
@@ -289,6 +292,111 @@ describe("firstInputHandleId (§1.2)", () => {
 
   it("inputs 필드가 없어도 null", () => {
     expect(firstInputHandleId({})).toBeNull();
+  });
+});
+
+describe("connectionDragSource (§1.2)", () => {
+  const src = { id: "n1" };
+  const outHandle = { id: "out", type: "source" };
+
+  it("빈 영역 드롭 + 출력 포트 시작이면 연결원을 반환한다", () => {
+    expect(
+      connectionDragSource({ isValid: false, fromNode: src, fromHandle: outHandle }),
+    ).toEqual({ nodeId: "n1", handleId: "out" });
+  });
+
+  it("handle id 가 null 이면 handleId=null (단일 출력 포트)", () => {
+    expect(
+      connectionDragSource({
+        isValid: null,
+        fromNode: src,
+        fromHandle: { id: null, type: "source" },
+      }),
+    ).toEqual({ nodeId: "n1", handleId: null });
+  });
+
+  it("유효 연결(isValid===true)이면 null — onConnect 가 처리", () => {
+    expect(
+      connectionDragSource({ isValid: true, fromNode: src, fromHandle: outHandle }),
+    ).toBeNull();
+  });
+
+  it("입력 포트(target 타입) 시작 역방향 드래그는 null — §1.3 소관", () => {
+    expect(
+      connectionDragSource({
+        isValid: false,
+        fromNode: src,
+        fromHandle: { id: "in", type: "target" },
+      }),
+    ).toBeNull();
+  });
+
+  it("fromNode 가 없으면 null", () => {
+    expect(
+      connectionDragSource({ isValid: false, fromNode: null, fromHandle: outHandle }),
+    ).toBeNull();
+  });
+
+  it("connectionState 가 null/undefined 여도 null", () => {
+    expect(connectionDragSource(null)).toBeNull();
+    expect(connectionDragSource(undefined)).toBeNull();
+  });
+});
+
+describe("pointerClientPosition (§1.2)", () => {
+  it("마우스 이벤트에서 clientX/clientY 를 추출한다", () => {
+    expect(
+      pointerClientPosition({ clientX: 10, clientY: 20 } as unknown as MouseEvent),
+    ).toEqual({ clientX: 10, clientY: 20 });
+  });
+
+  it("터치 이벤트는 changedTouches[0] 에서 추출한다", () => {
+    expect(
+      pointerClientPosition({
+        changedTouches: [{ clientX: 5, clientY: 6 }],
+      } as unknown as TouchEvent),
+    ).toEqual({ clientX: 5, clientY: 6 });
+  });
+
+  it("빈 changedTouches 면 null", () => {
+    expect(
+      pointerClientPosition({ changedTouches: [] } as unknown as TouchEvent),
+    ).toBeNull();
+  });
+});
+
+describe("buildAutoConnectConnection (§1.2)", () => {
+  const source = { nodeId: "src", handleId: "out" };
+
+  it("대상에 입력 포트가 있으면 Connection 을 조립한다", () => {
+    expect(
+      buildAutoConnectConnection(source, "new1", { inputs: [{ id: "in" }] }),
+    ).toEqual({
+      source: "src",
+      sourceHandle: "out",
+      target: "new1",
+      targetHandle: "in",
+    });
+  });
+
+  it("source handleId 가 null 이면 sourceHandle=null 로 보존", () => {
+    expect(
+      buildAutoConnectConnection(
+        { nodeId: "src", handleId: null },
+        "new1",
+        { inputs: [{ id: "in" }] },
+      ),
+    ).toEqual({
+      source: "src",
+      sourceHandle: null,
+      target: "new1",
+      targetHandle: "in",
+    });
+  });
+
+  it("대상에 입력 포트가 없으면 null — 연결 생략(트리거 등)", () => {
+    expect(buildAutoConnectConnection(source, "new1", { inputs: [] })).toBeNull();
+    expect(buildAutoConnectConnection(source, "new1", null)).toBeNull();
   });
 });
 
