@@ -64,6 +64,12 @@ Edges are colored based on the type of their starting port, so you can tell flow
 - Clicking an edge selects it and thickens the line.
 - **Hovering or selecting a node** highlights every edge connected to it and dims the rest. **Hovering over an edge itself** highlights just that edge and adds a subtle glow to both endpoint nodes. Edge hover takes priority over node hover, and node hover takes priority over node selection.
 
+**During a run, edges show progress.**
+
+- An edge carrying data (its upstream node has finished and the downstream node is running) shows **dashes marching in the data-flow direction**.
+- An edge whose both endpoints have finished **flashes green briefly, then settles back to its normal colour**.
+- An edge connected to a **disabled (turned-off) node** always appears as a **dimmed, dashed line**. Re-enabling the node restores it.
+
 ## Editing edges
 
 - **Clicking** an edge selects it.

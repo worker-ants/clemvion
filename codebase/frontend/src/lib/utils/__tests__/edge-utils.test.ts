@@ -13,6 +13,7 @@ import {
   connectionDragSource,
   pointerClientPosition,
   buildAutoConnectConnection,
+  resolveEdgeExecutionState,
   PORT_TYPE_COLORS,
 } from "../edge-utils";
 import type { Node, Edge } from "@xyflow/react";
@@ -409,6 +410,75 @@ describe("buildAutoConnectConnection (§1.2)", () => {
   it("대상에 입력 포트가 없으면 null — 연결 생략(트리거 등)", () => {
     expect(buildAutoConnectConnection(source, "new1", { inputs: [] })).toBeNull();
     expect(buildAutoConnectConnection(source, "new1", null)).toBeNull();
+  });
+});
+
+describe("resolveEdgeExecutionState (§3.2)", () => {
+  const edge = { source: "a", target: "b" };
+  const ctx = (over?: {
+    disabled?: string[];
+    statuses?: Record<string, string>;
+    executing?: boolean;
+  }) => ({
+    disabledNodeIds: new Set(over?.disabled ?? []),
+    nodeStatusById: new Map(Object.entries(over?.statuses ?? {})),
+    executing: over?.executing ?? false,
+  });
+
+  it("source 가 비활성이면 inactive (flowing/completed 배제)", () => {
+    expect(
+      resolveEdgeExecutionState(edge, ctx({ disabled: ["a"] })),
+    ).toEqual({ inactive: true, flowing: false, completed: false });
+  });
+
+  it("target 이 비활성이어도 inactive", () => {
+    expect(
+      resolveEdgeExecutionState(edge, ctx({ disabled: ["b"] })).inactive,
+    ).toBe(true);
+  });
+
+  it("비활성이 실행 상태보다 우선 — 둘 다 completed 여도 inactive", () => {
+    expect(
+      resolveEdgeExecutionState(
+        edge,
+        ctx({ disabled: ["a"], statuses: { a: "completed", b: "completed" } }),
+      ),
+    ).toEqual({ inactive: true, flowing: false, completed: false });
+  });
+
+  it("실행 중 + source completed + target running 이면 flowing", () => {
+    expect(
+      resolveEdgeExecutionState(
+        edge,
+        ctx({ executing: true, statuses: { a: "completed", b: "running" } }),
+      ),
+    ).toEqual({ inactive: false, flowing: true, completed: false });
+  });
+
+  it("미실행이면 flowing 아님(같은 상태여도)", () => {
+    expect(
+      resolveEdgeExecutionState(
+        edge,
+        ctx({ executing: false, statuses: { a: "completed", b: "running" } }),
+      ).flowing,
+    ).toBe(false);
+  });
+
+  it("source·target 둘 다 completed 면 completed", () => {
+    expect(
+      resolveEdgeExecutionState(
+        edge,
+        ctx({ statuses: { a: "completed", b: "completed" } }),
+      ),
+    ).toEqual({ inactive: false, flowing: false, completed: true });
+  });
+
+  it("아무 상태도 없으면 전부 false (기본 스타일)", () => {
+    expect(resolveEdgeExecutionState(edge, ctx())).toEqual({
+      inactive: false,
+      flowing: false,
+      completed: false,
+    });
   });
 });
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 워크플로 편집기 엣지 실행 상태 스타일 (3-workflow-editor/2-edge §3.2)
+
+1. **실행 중·완료·비활성 상태를 엣지에 시각적으로 반영한다** (spec §3.2 "미구현 · Planned" → 구현). 신규 `use-edge-execution-state.ts` `useEdgeExecutionState` 훅이 실행 스토어(`status`/`nodeStatuses`)와 노드 `isDisabled` 를 읽어 각 엣지에 상태 스타일을 입힌다(판정 순수 함수 `edge-utils.ts` `resolveEdgeExecutionState`, 상호배타 우선순위 inactive > flowing/completed). **데이터 흐름**(실행 중 source `completed`+target `running`) → `className='wc-edge-flowing'` → globals.css 가 데이터 방향 마칭 점선(`edge-flow` keyframe 재사용) 렌더. **실행 완료**(source·target 둘 다 `completed`) → `className='wc-edge-completed'` → `wc-edge-complete-flash` 1회성 keyframe 이 초록(#22c55e)으로 잠시 표시 후 원래 포트색으로 복귀. **비활성 노드 연결**(source/target `isDisabled`) → `edge.data.edgeInactive` → `custom-edge.tsx` 가 반투명(opacity 0.4) 점선 렌더(정적, 실행 무관). 실행 상태는 `useEdgeHighlighting`(§3.3 hover/선택) **앞단**에서 합성돼 className Set 병합으로 하이라이트와 공존한다. 순수 프런트엔드 편집기 변경(백엔드·wire 무변경). SoT: `spec/3-workflow-editor/2-edge.md §3.2`.
+
 ## Unreleased — 워크플로 편집기 엣지 역방향 연결 · 기존 엣지 재연결/분리 (3-workflow-editor/2-edge §1.3)
 
 1. **기존 엣지의 끝점을 잡아 다른 포트로 끌면 재연결되고, 빈 영역에 놓으면 그 엣지가 삭제(분리)된다** (spec §1.3 "미구현 · Planned" → 구현). `workflow-canvas.tsx` 가 `onReconnect`/`onReconnectEnd` 두 콜백을 배선하고(로직은 신규 `use-edge-reconnect.ts` `useEdgeReconnect` 훅 — detach 결정을 renderHook 단위 테스트), React Flow 가 reconnectable 엣지의 앵커를 자동 렌더한다. store `onReconnect`(`editor-store.ts`)은 `reconnectEdge`(`shouldReplaceId:false` — 엣지 id 보존)로 갱신하고 `onConnect` 과 동일한 유효성(자기연결/중복/컨테이너 충돌 — 중복 검사는 재연결 중인 엣지 자신 제외; 공용 `evaluateConnection` 헬퍼로 두 경로 단일화)을 적용한 뒤 포트색 data·컨테이너 소속을 재도출한다. detach(빈 캔버스 드롭)는 store `removeEdge`(undo 가능) — `onReconnectEnd` 의 `connectionState.toNode` 가 null(=pane)일 때만 삭제하므로 무효 핸들 위 드롭(예: 자기연결)은 원상 유지된다. 재연결·삭제 각각 단일 undo 체크포인트.

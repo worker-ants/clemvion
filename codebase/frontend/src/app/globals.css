@@ -126,6 +126,28 @@ body {
   }
 }
 
+/* ===== §3.2 Edge execution-state styles ===== */
+
+/* Data flowing during execution (source completed → target running): marching
+   dashes in the data-flow direction. Reuses the `edge-flow` keyframe. */
+.wc-edge-flowing .react-flow__edge-path {
+  stroke-dasharray: 8 4;
+  animation: edge-flow 0.6s linear infinite;
+}
+
+/* Execution complete (both endpoints completed): a one-shot green flash that
+   settles back to the edge's own port colour (inline `stroke`). */
+.wc-edge-completed .react-flow__edge-path {
+  animation: wc-edge-complete-flash 1.2s ease-out;
+}
+
+@keyframes wc-edge-complete-flash {
+  0%,
+  20% {
+    stroke: #22c55e;
+  }
+}
+
 /* Glow effect for source/target nodes when edge is hovered */
 .react-flow__node.node-edge-glow > div {
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.4);

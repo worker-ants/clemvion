@@ -6,6 +6,7 @@ code:
   - codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts
   - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
   - codebase/frontend/src/components/editor/canvas/use-edge-reconnect.ts
+  - codebase/frontend/src/components/editor/canvas/use-edge-execution-state.ts
   - codebase/frontend/src/lib/stores/editor-store.ts
   - codebase/frontend/src/lib/utils/edge-utils.ts
   - codebase/frontend/src/app/(editor)/w/[slug]/workflows/[id]/editor-loader.tsx
@@ -108,11 +109,16 @@ pending_plans:
 |------|--------|------|
 | 기본 | 곡선(Bezier) 실선, 포트 타입별 색상, 1.5px | 구현됨 (`custom-edge.tsx`) |
 | 선택됨 | 2.5px, primary 색상 | 구현됨 (`custom-edge.tsx`) |
-| 데이터 흐름 (실행 중) | 애니메이션 점선 (데이터 이동 방향으로) | 미구현 (Planned) |
-| 실행 완료 | 초록색으로 잠시 변경 후 복귀 | 미구현 (Planned) |
-| 비활성 노드 연결 | 반투명 점선 | 미구현 (Planned) |
+| 데이터 흐름 (실행 중) | 애니메이션 점선 (데이터 이동 방향으로) | 구현됨 (`use-edge-execution-state.ts` + globals.css) |
+| 실행 완료 | 초록색으로 잠시 변경 후 복귀 | 구현됨 (`use-edge-execution-state.ts` + globals.css) |
+| 비활성 노드 연결 | 반투명 점선 | 구현됨 (`custom-edge.tsx`) |
 
-> `custom-edge.tsx` 는 `selected` / `isHighlighted` 에 따른 strokeWidth(1.5 / 2.5)·색상(포트색 / primary)만 처리한다. 실행 상태(애니메이션 점선·완료 초록·비활성 반투명)는 아직 엣지에 반영되지 않는다. (§3.3 하이라이팅의 흐름 애니메이션은 hover/선택 트리거로, 실행 중 데이터 흐름과는 별개다.)
+> **현재 구현**: `use-edge-execution-state.ts` `useEdgeExecutionState` 훅이 실행 스토어(`status`·`nodeStatuses`)와 노드의 `isDisabled` 를 읽어 각 엣지에 상태 스타일을 입힌다(판정 순수 함수 `edge-utils.ts` `resolveEdgeExecutionState`). 상호배타 우선순위 **inactive > flowing/completed**:
+> - **데이터 흐름(flowing)** — 실행 중(`status==='running'`) source 노드 `completed` + target 노드 `running` → `edge.className='wc-edge-flowing'` → globals.css 가 마칭 점선(`edge-flow` keyframe, source→target 방향) 렌더.
+> - **실행 완료(completed)** — source·target 둘 다 `completed` → `edge.className='wc-edge-completed'` → globals.css `wc-edge-complete-flash` 1회성 keyframe 이 초록(#22c55e)으로 잠시 표시 후 원래 포트색으로 복귀.
+> - **비활성(inactive)** — source 또는 target 노드가 `isDisabled` → `edge.data.edgeInactive` → `custom-edge.tsx` 가 반투명(opacity 0.4) 점선 렌더. 정적(실행과 무관)이며 비활성 노드는 실행에 참여하지 않으므로 flowing/completed 를 배제한다.
+>
+> 실행 상태 스타일은 `useEdgeHighlighting`(§3.3) **앞단**에서 합성돼(`className` Set 병합), hover/선택 하이라이트가 그 위에 얹힌다. (§3.3 하이라이팅의 흐름 애니메이션은 hover/선택 트리거로, 실행 중 데이터 흐름과는 별개 경로다.)
 
 ### 3.3 인터랙티브 하이라이팅
 

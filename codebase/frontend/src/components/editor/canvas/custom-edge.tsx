@@ -12,6 +12,10 @@ function CustomEdgeComponent(props: EdgeProps<CustomEdgeType>) {
   const portType = (data?.portType as EdgePortType | undefined) ?? "data";
   const portColor = PORT_TYPE_COLORS[portType];
   const isHighlighted = data?.isHighlighted === true;
+  // §3.2 — 비활성(disabled) 노드에 연결된 엣지는 반투명 점선. 데이터 흐름(animated)·완료
+  // flash(className)는 각각 React Flow 내장 애니메이션·globals.css 가 처리하므로 여기서는
+  // 정적 상태인 inactive 만 스타일링한다.
+  const inactive = data?.edgeInactive === true;
 
   const edgeStroke = props.selected
     ? "hsl(var(--primary))"
@@ -25,6 +29,7 @@ function CustomEdgeComponent(props: EdgeProps<CustomEdgeType>) {
       style={{
         stroke: edgeStroke,
         strokeWidth,
+        ...(inactive ? { opacity: 0.4, strokeDasharray: "6 4" } : {}),
         ...props.style,
       }}
       markerEnd={`url(#arrow-${portType})`}
