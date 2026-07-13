@@ -81,11 +81,12 @@ const STATUS_PROJECTION_COLUMNS = [
  * 각 dispatch 는 ExecutionEngineService / ExecutionsService 의 기존 public 메서드를 그대로
  * 재사용 (WebSocket gateway 의 명령 경로와 동일 — Spec EIA §R5/§R10 의 facade 원칙).
  *
- * dispatch 매핑 ([Spec EIA §11]):
- *   submit_form      → ExecutionEngineService.continueExecution(executionId, data)
- *   click_button     → ExecutionEngineService.continueButtonClick(executionId, buttonId)
- *   submit_message   → ExecutionEngineService.continueAiConversation(executionId, message)
- *   end_conversation → ExecutionEngineService.endAiConversation(executionId)
+ * dispatch 매핑 ([Spec EIA §11]). 외부 scope 는 `expectedNodeId`(=`dto.nodeId`)를 함께
+ * 넘겨 publisher 가 실제 대기 노드와 대조하고(§7.5.1 F-1), in_process_trusted 는 undefined:
+ *   submit_form      → ExecutionEngineService.continueExecution(executionId, data, expectedNodeId)
+ *   click_button     → ExecutionEngineService.continueButtonClick(executionId, buttonId, expectedNodeId)
+ *   submit_message   → ExecutionEngineService.continueAiConversation(executionId, message, expectedNodeId)
+ *   end_conversation → ExecutionEngineService.endAiConversation(executionId, expectedNodeId)
  *   cancel           → ExecutionsService.stop(executionId)
  *
  * **대기 표면 검증은 본 service 가 하지 않는다** — `assertWaiting` 은 execution 이

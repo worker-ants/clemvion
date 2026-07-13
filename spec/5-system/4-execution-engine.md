@@ -1044,10 +1044,19 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 | --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
 | 매칭 row 0건                            | `INVALID_EXECUTION_STATE`                 | Execution 이 다른 상태(`running` / `completed` / `cancelled` / `failed`) — `waiting_for_input` NodeExecution 없음 |
 | 동일 매칭 row 2건 이상 (invariant 위반) | `INVALID_EXECUTION_STATE` + `logger.warn` | 일반적으로 발생 불가. race 또는 데이터 손상 의심                                           |
-| nodeId 불일치                           | `INVALID_EXECUTION_STATE`                 | 명령이 지정한 `nodeId` 가 실제 대기 노드의 nodeId 와 다름 (stale/오지정 제출을 현재 대기 노드로 오적용하지 않고 거부). **caller 가 nodeId 를 지정할 때만** 적용 — 외부 EIA `/interact`(`InteractDto.nodeId`)·WS 는 지정하고, **`scope: 'in_process_trusted'`(chat-channel 고정 매핑, 대기 nodeId 미상)는 면제**한다 (아래 exemption). 근거 §Rationale "대기 표면 ↔ 명령 매트릭스" |
+| nodeId 불일치                           | `INVALID_EXECUTION_STATE`                 | 명령이 지정한 `nodeId` 가 실제 대기 노드의 nodeId 와 다름 (stale/오지정 제출을 현재 대기 노드로 오적용하지 않고 거부). **caller 가 nodeId 를 지정할 때만** 적용 — 현재 구현은 외부 EIA `/interact`(`InteractDto.nodeId`) 진입점 1곳이 지정한다. 그 외 진입점의 커버리지는 아래 표를 참조. 근거 §Rationale "대기 표면 ↔ 명령 매트릭스" |
 | 표면(interactionType) 불일치            | `INVALID_EXECUTION_STATE`                 | 대기 노드가 노출한 인터랙션 표면이 도착 명령을 받지 않음. `form` 대기=`submit_form` 만, `buttons` 대기=`click_button` 만, `ai_conversation`/`ai_form_render` 대기=4종 모두 허용. 표면 판정 불가 행(비-`form` + `interactionType` 부재)도 fail-closed 거부. 근거 §Rationale "대기 표면 ↔ 명령 매트릭스" |
 
-> **`in_process_trusted` nodeId 면제**: chat-channel inbound 는 `HooksService.forwardToInteractionService` 가 대기 노드의 표면·nodeId 를 알지 못한 채 `text_message → submit_message` / `button_callback → click_button` 로 **고정 매핑**한다. 따라서 이 경로는 명령에 nodeId 를 싣지 않고(`scope: 'in_process_trusted'`), publisher 도 nodeId 검사를 건너뛴다 — 표면 매트릭스 검증(위 마지막 행)은 여전히 적용되므로 form/buttons 대기 중 이종 명령은 그대로 거부된다. 이 면제는 in-process trusted 합성 ctx 에만 국한되며(외부 토큰 경로는 항상 nodeId 지정), `resolveWaitingNodeExecutionId(executionId, expectedCommand, expectedNodeId?)` 의 `expectedNodeId` optional 로 표현된다.
+> **nodeId 검사 진입점별 커버리지** — nodeId 불일치 거부는 `resolveWaitingNodeExecutionId(executionId, expectedCommand, expectedNodeId?)` 의 `expectedNodeId` optional 로 표현되며, caller 가 이를 채울 때만 활성화된다. 표면(interactionType) 매트릭스 검증은 아래와 무관하게 **모든** 진입점에 적용된다.
+>
+> | 진입점 | nodeId 검사 | 이유 |
+> |---|---|---|
+> | 외부 EIA REST `/interact` | **적용** (`InteractDto.nodeId` 전달) | 외부 토큰 caller 는 SSE `waiting_for_input` 의 `waitingNodeId` 를 수신하므로 대상 nodeId 를 지정할 수 있다 |
+> | chat-channel `scope: 'in_process_trusted'` | **면제** | `HooksService.forwardToInteractionService` 가 대기 노드의 nodeId 를 알지 못한 채 `text_message → submit_message` / `button_callback → click_button` 로 고정 매핑 — nodeId 를 싣지 않는다 |
+> | WS continuation (`execution.*`) | **미적용** | WS 프로토콜은 설계상 `nodeId` 를 서버에 전달·사용하지 않는다 ([§6-websocket-protocol](./6-websocket-protocol.md) — "대기 노드 식별은 server lookup"). 확장은 별도 후속(plan F-6) |
+> | REST `/continue` | **미적용** | 요청 body 에 `nodeId` 파라미터 자체가 없다 (form 제출 전용) |
+>
+> "면제"(in_process_trusted)와 "미적용"(WS/`/continue`)은 결과적으로 둘 다 nodeId 검사를 건너뛰지만, 전자는 trusted 합성 ctx 의 의도적 정책이고 후자는 해당 진입점이 nodeId 를 지정할 계약이 없어서다. 어느 쪽도 표면 매트릭스 검증은 건너뛰지 않는다.
 
 `INVALID_EXECUTION_STATE` 는 동일 의미를 표현하는 **두 layer 의 코드** 중 WS 쪽 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 를 반환한다 (의도적 분리: WS ack 와 REST 422 의 routing 분기가 클라이언트에서 동일 코드를 다르게 처리해야 하는 혼동을 회피).
 

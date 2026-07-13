@@ -814,6 +814,12 @@ describe('HooksService', () => {
           message: 'my answer',
         }),
       );
+      // F-1 — chat-channel(in_process_trusted)은 nodeId 를 싣지 않는다. 종전 fake
+      // `nodeId: 'chat-channel'` placeholder 제거 회귀 가드 (publisher 면제 경로 전제).
+      const dtoArg = interactionService.interact.mock.calls[0][1] as {
+        nodeId?: string;
+      };
+      expect(dtoArg.nodeId).toBeUndefined();
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
