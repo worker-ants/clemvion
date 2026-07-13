@@ -38,16 +38,16 @@ runner 를 `prod-deps` 통째 COPY → **`pnpm deploy` 격리 번들** COPY 로 
 - **(b) devDeps/프런트 스택 부재 CI 스모크 가드 — 완료(본 PR)**: `.claude/test-stages.sh` `_cmd_backend_image_hygiene_smoke` 추가. build 스테이지에서 프로덕션 이미지에 대해 `jest·next·@next·three·playwright-core` 부재 + `dist/main.js` 존재 + `cron-parser` v5 해소(직접 의존 오해소 회귀 가드)를 assert. 이 클래스 회귀(이미지가 조용히 나빠짐)가 지금껏 ai-review 로만 잡히던 것을 CI 가드로 고정. (typescript/ts-node 는 prod closure 정상 포함이라 제외.)
 - **잔여**: §3 full strict 전환은 별도 백로그 유지(본 작업은 `injectWorkspacePackages` 만, node-linker=hoisted 유지).
 
-> **부수 발견 — pnpm 필드 무시(우선 후속, §2 와 분리)**: pnpm 10.23 은 `package.json` 의 `pnpm.overrides`·`pnpm.onlyBuiltDependencies` 를 **더 이상 읽지 않는다**(`deploy`/`install` 시 `The "pnpm" field ... is no longer read` 경고 + `Ignored build scripts`). 현재 보안 핀(overrides 19+건, `@nestjs/swagger` 11.2.7 포함)은 **lockfile 관성으로만 유지** — 누군가 non-frozen `pnpm install` 을 돌리면 핀이 조용히 사라져 취약 버전으로 회귀할 위험(OWASP A06/A08). 정식 수정: `overrides`·`onlyBuiltDependencies` 를 `pnpm-workspace.yaml`(pnpm 10 정규 위치)로 이전 후 lockfile 재생성 — 이는 **버전 변경 없는 기계적 이전**이라 §2(swagger deep-import 교체, 버전 bump 리스크)와 **디커플해 별도 작은 PR 로 먼저** 처리 권장(ai-review dependency/security 실측 재현). 중간 안전장치로 `PROJECT.md` 버전 핀 정책에 경고 각주 추가함(본 PR).
+> **부수 발견 — pnpm 필드 무시 → 완료(2026-07-14, 본 PR)**: pnpm 10.23 은 `package.json` 의 `pnpm.overrides`·`pnpm.onlyBuiltDependencies` 를 **더 이상 읽지 않는다**(`The "pnpm" field ... is no longer read` 경고)는 사실을 실측하고, 보안 핀(overrides 20건, `@nestjs/swagger` 11.2.7 포함)이 lockfile 관성으로만 유지되던 거버넌스 공백을 해소했다. **조치**: `overrides`·`onlyBuiltDependencies` 를 `package.json` `pnpm` 필드 → `pnpm-workspace.yaml`(pnpm 10 정규 위치)로 이전 + lockfile 재생성. **검증**: (1) 경고 소멸(설정이 정규 위치에서 읽힘), (2) `--lockfile-only` 재해소가 lockfile 을 **byte-identical** 로 유지 → overrides 가 읽혀 재적용됨을 증명(무시됐다면 재해소 시 핀이 빠졌을 것), **버전 drift 0**, (3) `onlyBuiltDependencies` 허용목록(bcrypt/isolated-vm/esbuild/@swc/@tailwindcss)이 fresh Docker install 에서 native 정상 빌드, (4) lint·unit·build·e2e 통과. 이제 non-frozen `pnpm install` 에서도 핀이 보존된다. `PROJECT.md` 버전 핀 정책도 정규 위치로 갱신.
 
 ## 2. @nestjs/swagger 11.2.7 핀 제거 + deep-import 정리 (review WARNING #6 / INFO #3,#18)
 
 `codebase/backend/src/common/swagger/api-wrapped.ts` 가 `@nestjs/swagger/dist/interfaces/open-api-spec.interface`
 (`SchemaObject`) **deep-import** 을 쓰는데 swagger 11.4.x 의 `exports` 가 이 내부 경로를 차단한다.
-마이그레이션은 버전 중립성 위해 루트 `pnpm.overrides` 로 11.2.7 에 핀했다(보안 패치 영구 차단 위험).
+마이그레이션은 버전 중립성 위해 `overrides` 로 11.2.7 에 핀했다(보안 패치 영구 차단 위험). 핀 위치는 2026-07-14 `package.json` → `pnpm-workspace.yaml` 로 이전됨(§1 부수 발견).
 
 - deep-import 를 공개 경로로 교체 (SchemaObject 공개 re-export 없음 → openapi3-ts 등 대체 타입 소스 조사).
-- 교체 완료 시 `pnpm.overrides["@nestjs/swagger"]` 핀 제거 (= **이 작업의 명시적 완료 조건**).
+- 교체 완료 시 `pnpm-workspace.yaml` `overrides` 의 `@nestjs/swagger` 핀 제거 (= **이 작업의 명시적 완료 조건**).
 - 11.2.7 → 11.4.x changelog 의 보안 수정 여부 확인해 우선순위 결정.
 
 **조사(2026-07-12, defer)**: 실측 — `@nestjs/swagger` 11.2.7 은 `SchemaObject` 를 root 로 공개 export 하지 않고(`'SchemaObject' in require('@nestjs/swagger')` = false) openapi3-ts 를 의존하지도 않는다(미설치). 완료하려면 (a) `openapi3-ts` **신규 devDep 추가** + deep-import 3곳(`api-wrapped.ts` + EIA 응답 DTO spec 2곳: `execution-status-response.dto.spec.ts`·`interact-ack-response.dto.spec.ts`) 교체 + 타입 호환 검증, (b) 핀 제거 → 11.2.7→11.4.x **버전 bump** 의 `SwaggerModule.createDocument` 출력 회귀 검증. 신규 의존성 + 버전 bump 리스크(DTO 스키마 회귀 테스트 다수 의존)라 별 focused PR 로 분리한다. 보안 측면(11.2.7 핀이 패치 영구 차단)에서 우선순위는 있음.
