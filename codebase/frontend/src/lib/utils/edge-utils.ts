@@ -125,14 +125,25 @@ export function isConnectionDroppedOnPane(
 }
 
 /**
- * 노드 정의의 첫 입력 포트 핸들 id (§1.2 자동 엣지 연결의 targetHandle). 입력 포트가 없으면
- * (예: 트리거 노드) null — 이 경우 자동 연결을 생략한다. 신규 생성 노드는 기본 config 라
- * static `inputs` 로 충분하다(동적 포트 해석 불필요).
+ * 컨테이너 loopback 수집용 예약 입력 포트 id. 자식이 조상 컨테이너의 이 포트로 돌아간다
+ * (SoT: backend `shadow-workflow.ts` `CONTAINER_LOOPBACK_PORTS = {'emit'}`). 자동 연결의
+ * 기본 target 에서 제외한다 — 예약 포트로 연결하면 `detectContainerConflict` 가 거부한다.
+ */
+const RESERVED_INPUT_HANDLE_IDS = new Set(["emit"]);
+
+/**
+ * 노드 정의의 첫 **일반** 입력 포트 핸들 id (§1.2 자동 엣지 연결의 targetHandle). 예약 입력
+ * 포트(컨테이너 `emit`)는 건너뛴다 — 컨테이너 노드의 첫 입력이 `emit` 이면 그 포트로 자동
+ * 연결 시 `detectContainerConflict` 가 거부해 엣지 없는 orphan 노드가 남기 때문. 일반 입력
+ * 포트가 없으면(트리거 노드, 또는 예약 포트만 있는 경우) null — 이 경우 자동 연결을 생략한다.
+ * 신규 생성 노드는 기본 config 라 static `inputs` 로 충분하다(동적 포트 해석 불필요).
  */
 export function firstInputHandleId(
   definition: { inputs?: Array<{ id: string }> } | null | undefined,
 ): string | null {
-  return definition?.inputs?.[0]?.id ?? null;
+  const inputs = definition?.inputs;
+  if (!inputs) return null;
+  return inputs.find((p) => !RESERVED_INPUT_HANDLE_IDS.has(p.id))?.id ?? null;
 }
 
 /**

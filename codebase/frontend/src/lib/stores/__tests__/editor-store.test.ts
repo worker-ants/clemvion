@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
-import type { Node, Edge } from "@xyflow/react";
+import type { Node, Edge, Connection } from "@xyflow/react";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { NodeDefinition } from "@/lib/node-definitions";
 
@@ -165,6 +165,159 @@ describe("useEditorStore", () => {
       const state = useEditorStore.getState();
       expect(state.edges).toHaveLength(1);
       expect(state.undoStack).toHaveLength(0);
+    });
+  });
+
+  describe("onReconnect (§1.3)", () => {
+    // 노드 1,2,3(action) + 엣지 1→2. 재연결 대상은 3.
+    const seed = () => {
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2"), makeNode("3")],
+        edges: [
+          { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in", type: "custom" },
+        ],
+      });
+    };
+    const toNode3: Connection = {
+      source: "1",
+      sourceHandle: "out",
+      target: "3",
+      targetHandle: "in",
+    };
+
+    it("유효 재연결이면 엣지 끝점을 갱신하고 id 를 보존한다", () => {
+      seed();
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2" } as Edge,
+        toNode3,
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges).toHaveLength(1);
+      expect(edges[0].id).toBe("e1"); // shouldReplaceId:false — id 보존
+      expect(edges[0].target).toBe("3");
+      expect(useEditorStore.getState().undoStack).toHaveLength(1);
+    });
+
+    it("자기연결로의 재연결은 거부한다(변경 없음)", () => {
+      seed();
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2" } as Edge,
+        { source: "1", sourceHandle: "out", target: "1", targetHandle: "in" },
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges[0].target).toBe("2"); // 원상 유지
+      expect(useEditorStore.getState().undoStack).toHaveLength(0);
+      expect(toastErrorMock).not.toHaveBeenCalled(); // 자기연결은 조용히 거부
+    });
+
+    it("이미 존재하는 동일 연결로의 재연결은 중복으로 거부한다", () => {
+      // 엣지 2개: e1(1→2), e2(1→3). e1 을 1→3 으로 재연결하면 e2 와 중복.
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2"), makeNode("3")],
+        edges: [
+          { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in", type: "custom" },
+          { id: "e2", source: "1", target: "3", sourceHandle: "out", targetHandle: "in", type: "custom" },
+        ],
+      });
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2" } as Edge,
+        toNode3,
+      );
+      const e1 = useEditorStore.getState().edges.find((e) => e.id === "e1");
+      expect(e1?.target).toBe("2"); // 거부되어 원상 유지
+      expect(useEditorStore.getState().undoStack).toHaveLength(0);
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "These nodes are already connected.",
+      );
+    });
+
+    it("sourceHandle 이 바뀌는 재연결이면 포트색 data 를 재계산한다", () => {
+      // reconnectEdge 는 source/target/handle 만 갱신하므로, sourceHandle 이 바뀌면 stale 한
+      // 포트색 data 를 onReconnect 가 buildEdgeDataForConnection 으로 재계산해야 한다.
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2")],
+        edges: [
+          {
+            id: "e1", source: "1", target: "2",
+            sourceHandle: "out", targetHandle: "in",
+            type: "custom", data: { portType: "data" },
+          },
+        ],
+      });
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in" } as Edge,
+        { source: "1", sourceHandle: "error", target: "2", targetHandle: "in" },
+      );
+      const e1 = useEditorStore.getState().edges.find((e) => e.id === "e1");
+      expect(e1?.sourceHandle).toBe("error");
+      // 'error' 핸들은 error 포트색으로 재계산됨(§3.1) — stale 'data' 가 아님.
+      expect((e1?.data as Record<string, unknown>)?.portType).toBe("error");
+    });
+
+    it("컨테이너 소속 충돌이면 거부한다(엣지 미변경) — evaluateConnection 공용 경로", () => {
+      // loopA.body → c 인데 c 가 이미 loopB 의 body child → detectContainerConflict 거부.
+      // onConnect/onReconnect 이 공유하는 evaluateConnection 의 충돌 분기를 실증한다.
+      useEditorStore.setState({
+        nodes: [
+          makeNode("la", { data: { type: "loop", label: "LoopA" } }),
+          makeNode("lb", { data: { type: "loop", label: "LoopB" } }),
+          makeNode("c", { data: { type: "action", label: "C", containerId: "lb" } }),
+          makeNode("2"),
+        ],
+        edges: [
+          { id: "e1", source: "la", target: "2", sourceHandle: "body", targetHandle: "in", type: "custom" },
+        ],
+      });
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "la", target: "2", sourceHandle: "body", targetHandle: "in" } as Edge,
+        { source: "la", sourceHandle: "body", target: "c", targetHandle: "in" },
+      );
+      const e1 = useEditorStore.getState().edges.find((e) => e.id === "e1");
+      expect(e1?.target).toBe("2"); // 거부되어 원상 유지
+      expect(useEditorStore.getState().undoStack).toHaveLength(0);
+      expect(toastErrorMock).toHaveBeenCalled(); // 컨테이너 충돌 메시지 toast
+    });
+
+    it("자기 자신과 동일한 연결로의 재연결은 중복으로 오판하지 않는다 (제자리 재연결)", () => {
+      // 중복 검사가 재연결 중인 엣지 자신을 제외하지 않으면, 끝점을 원래 포트에 그대로
+      // 놓는 "제자리 재연결" 이 자기 자신과 중복으로 거부되는 회귀가 난다.
+      seed(); // e1(1→2)
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in" } as Edge,
+        { source: "1", sourceHandle: "out", target: "2", targetHandle: "in" },
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges).toHaveLength(1);
+      expect(edges[0].target).toBe("2"); // 거부되지 않고 정상 처리
+      expect(useEditorStore.getState().undoStack).toHaveLength(1);
+    });
+  });
+
+  describe("removeEdge (§1.3 detach)", () => {
+    it("엣지를 제거하고 undo 스냅샷을 남긴다", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2")],
+        edges: [makeEdge("1", "2")],
+      });
+      useEditorStore.getState().removeEdge("1-2");
+      const state = useEditorStore.getState();
+      expect(state.edges).toHaveLength(0);
+      expect(state.undoStack).toHaveLength(1);
+    });
+
+    it("컨테이너 진입(body) 엣지 제거 시 자식의 containerId 를 재도출한다", () => {
+      useEditorStore.setState({
+        nodes: [
+          makeNode("la", { data: { type: "loop", label: "LoopA" } }),
+          makeNode("c", { data: { type: "action", label: "C", containerId: "la" } }),
+        ],
+        edges: [
+          { id: "body1", source: "la", target: "c", sourceHandle: "body", targetHandle: "in", type: "custom" },
+        ],
+      });
+      useEditorStore.getState().removeEdge("body1");
+      const c = useEditorStore.getState().nodes.find((n) => n.id === "c");
+      expect((c?.data as Record<string, unknown>)?.containerId ?? null).toBeNull();
     });
   });
 

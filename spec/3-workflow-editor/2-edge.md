@@ -5,6 +5,7 @@ code:
   - codebase/frontend/src/components/editor/canvas/custom-edge.tsx
   - codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts
   - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
+  - codebase/frontend/src/components/editor/canvas/use-edge-reconnect.ts
   - codebase/frontend/src/lib/stores/editor-store.ts
   - codebase/frontend/src/lib/utils/edge-utils.ts
   - codebase/frontend/src/app/(editor)/w/[slug]/workflows/[id]/editor-loader.tsx
@@ -37,12 +38,14 @@ pending_plans:
 
 > 현재 구현: `workflow-canvas.tsx` `onConnectEnd` 가 처리한다. React Flow v12 `connectionState` 로 출력 포트(`fromHandle.type === 'source'`) 드래그가 유효 target 없이 빈 영역(`isValid !== true`)에 드롭됐는지 판정해, 드롭 위치에 노드 추가 검색 팝업(더블클릭·우클릭 메뉴와 동일한 팝업)을 열고 `NodeSearchPopupState.dragSource` 에 연결원을 기록한다. 노드 선택 시 `handleAddNodeFromSearch` 가 노드를 생성(`buildAndAddNode` 가 신규 노드 id 반환)한 뒤 `onConnect(연결원 → 새 노드의 첫 입력 포트)` 로 자동 연결한다. `onConnect` 의 `skipUndo` 옵션으로 엣지 추가가 "노드는 있고 엣지는 없는" 중간 상태를 별도 undo 스냅샷으로 남기지 않게 해, Ctrl+Z 1회로 노드와 엣지를 함께 취소한다. 판정·조립 순수 헬퍼는 `edge-utils.ts` `connectionDragSource`/`pointerClientPosition`/`buildAutoConnectConnection`/`firstInputHandleId`. 입력 포트에서 시작한 역방향 드래그는 §1.3 소관이라 배제한다.
 
-### 1.3 역방향 연결 (미구현 · Planned)
+### 1.3 역방향 연결 · 기존 엣지 재연결
 
 - 입력 포트에서 드래그 시작하면 역방향으로 엣지 생성 (드롭 대상: 출력 포트)
-- 기존 연결이 있는 입력 포트에서 드래그 시작하면 기존 엣지를 분리하여 재연결 모드
+- 기존 연결이 있는 엣지의 끝점을 드래그하면 그 엣지를 분리하여 재연결(빈 영역에 놓으면 삭제)
 
-> 현재 구현: React Flow 에 `onReconnect`/역방향 드래그 핸들러가 연결돼 있지 않다 (`workflow-canvas.tsx` `<ReactFlow>` props). 입력 포트 시작 역방향 연결·기존 엣지 분리 재연결 모두 아직 없다.
+> **역방향 연결** — React Flow strict `connectionMode`(기본)의 기본 동작으로 지원된다. 입력 포트(`target` 핸들)에서 드래그를 시작해 출력 포트(`source` 핸들)에 드롭하면 React Flow 가 Connection 을 **핸들 타입 기준으로 정규화**(source=출력 노드, target=입력 노드)한다. 우리 핸들은 `isConnectableStart`/`isConnectableEnd` 제약을 두지 않고 `onConnect`/`isValidConnection` 은 정규화된 Connection 을 방향 무관하게 처리하므로(§2.2 단위 테스트), 드래그 방향과 무관하게 항상 올바른 방향의 엣지가 생성된다 — 별도 커스텀 코드 불필요.
+>
+> **기존 엣지 재연결** — `workflow-canvas.tsx` 가 `onReconnect`/`onReconnectEnd` 두 콜백을 배선한다(로직은 `use-edge-reconnect.ts` `useEdgeReconnect` 훅). React Flow 가 reconnectable 엣지의 끝점 앵커를 자동 렌더하므로 엣지 끝점을 잡아 다른 포트로 끌면 재연결된다. store `onReconnect`(`editor-store.ts`)이 `reconnectEdge`(`shouldReplaceId:false` 로 엣지 id 보존)로 갱신하고, onConnect 과 동일한 유효성(자기연결/중복/컨테이너 충돌 — 단 중복 검사는 재연결 중인 엣지 자신을 제외; 공용 `evaluateConnection`)을 적용한 뒤 포트색 data·컨테이너 소속을 재도출한다. 끝점을 **빈 캔버스에 놓으면**(detach) `onReconnectEnd` 가 엣지를 삭제한다(store `removeEdge`, undo 가능). detach 는 **드롭 위치**로 판정한다 — `connectionState.toNode` 가 null(아무 노드에도 안 놓임=pane)일 때만 삭제하므로, 무효 핸들 위 드롭(예: 자기연결이라 유효성 거부로 재연결이 일어나지 않은 경우)은 삭제가 아니라 원상 유지된다. 재연결·삭제 각각 단일 undo 체크포인트.
 
 ---
 

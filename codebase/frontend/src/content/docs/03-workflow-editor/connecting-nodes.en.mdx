@@ -18,7 +18,17 @@ A single input port can receive multiple edges (merging results from several nod
 3. If the drop target is valid, a solid edge is created. If you release over an invalid target (another output port, the same node, and so on), the temporary edge disappears and nothing happens.
 4. **If you release over an empty canvas area,** a node search popup opens at that spot. Pick a node and it is created with an edge automatically drawn from the output port you started dragging to the new node. If the target node has no input port (for example, a trigger), only the node is created and the edge is skipped.
 
+**You can also start from an input port.** Press an input port and drag toward an output port — the same edge is created; the direction is always normalized to output → input.
+
 While dragging, the port under your cursor turns green when the connection is valid and shows a block icon (🚫) when it isn't, so you get instant feedback.
+
+## Editing and removing edges
+
+You can grab the endpoint of an existing edge and move it.
+
+- Hover over an edge and its two endpoints become grabbable. Drag an endpoint onto a different port to **reconnect** the edge to that port.
+- Drop the endpoint on empty canvas to **delete** the edge.
+- Both reconnecting and deleting can be undone with `Ctrl+Z` (`⌘+Z` on Mac). You can also select an edge and press `Delete`/`Backspace` to remove it.
 
 ## Connection rules
 

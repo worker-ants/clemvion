@@ -59,6 +59,7 @@ import {
 import { integrationsApi } from "@/lib/api/integrations";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
+import { useEdgeReconnect } from "./use-edge-reconnect";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { ZoomControls, MIN_ZOOM, MAX_ZOOM, FIT_VIEW_OPTIONS } from "./zoom-controls";
 import { CanvasMinimap } from "./canvas-minimap";
@@ -132,6 +133,10 @@ export function WorkflowCanvas() {
   const onNodesChange = useEditorStore((s) => s.onNodesChange);
   const onEdgesChange = useEditorStore((s) => s.onEdgesChange);
   const onConnect = useEditorStore((s) => s.onConnect);
+  // 셀렉터명은 인접 `onConnect` 와 다르게 지었다 — store `onReconnect` 를 그대로 쓰면
+  // 아래 canvas 콜백 `handleReconnect` 와 헷갈리므로 store 액션임을 이름으로 구분한다.
+  const reconnectEdgeInStore = useEditorStore((s) => s.onReconnect);
+  const removeEdge = useEditorStore((s) => s.removeEdge);
   const isValidConnection = useEditorStore((s) => s.isValidConnection);
   const addNode = useEditorStore((s) => s.addNode);
   const requestNodeDelete = useEditorStore((s) => s.requestNodeDelete);
@@ -350,6 +355,14 @@ export function WorkflowCanvas() {
       openNodeSearchPopupAt(pos.clientX, pos.clientY, flowPos, dragSource);
     },
     [openNodeSearchPopupAt],
+  );
+
+  // §1.3 — 엣지 끝점 재연결 + detach(빈 영역 드롭 시 삭제) 콜백. 판정 로직은 useEdgeReconnect
+  // 훅으로 분리해 renderHook 단위 테스트한다. React Flow 가 reconnectable 엣지의 앵커를 자동
+  // 렌더하므로 custom-edge 는 손대지 않고 onReconnect/onReconnectEnd 두 콜백만 배선한다.
+  const { onReconnect: handleReconnect, onReconnectEnd } = useEdgeReconnect(
+    reconnectEdgeInStore,
+    removeEdge,
   );
 
   // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행. dirty 캔버스를 먼저 저장해 엔진이
@@ -758,6 +771,8 @@ export function WorkflowCanvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
+        onReconnect={handleReconnect}
+        onReconnectEnd={onReconnectEnd}
         isValidConnection={isValidConnection}
         onInit={onInit}
         onDrop={onDrop}
