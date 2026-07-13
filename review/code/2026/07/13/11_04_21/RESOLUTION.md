@@ -34,4 +34,24 @@
 - vitest `edge-utils.test.ts`: **57 passed** (신규 헬퍼 5종 커버)
 - eslint(변경 4파일): 0 errors (기존 `aria-selected` 경고 1건은 본 변경과 무관한 팝업 결과 리스트 JSX)
 - e2e(`make e2e-test-full`): backend e2e + Playwright 46 passed (재실행)
-- fresh `/ai-review --branch origin/main`: 본 resolution 커밋 후 재검토
+- fresh `/ai-review --branch origin/main`: resolution 커밋 후 재검토 완료 → 아래 2회차 참조
+
+---
+
+# Resolution 2회차 — fresh ai-review (2026-07-13 11:28, `review/code/2026/07/13/11_28_30`)
+
+1회차 resolution 커밋(`2b775357b`) 후 fresh 검토 결과 **MEDIUM (CRITICAL 0, WARNING 4)**. CRITICAL(spec stale) 해소 확인. 신규 WARNING 4건 처리:
+
+| # | 카테고리 | 발견 | 조치 |
+|---|----------|------|------|
+| 1 | testing | `onConnect` 의 `skipUndo` 옵션 미검증 | **반영** — `editor-store.test.ts` 에 `onConnect — skipUndo (§1.2)` describe 2케이스 추가(opts 미지정 → undoStack +1, `{skipUndo:true}` → undoStack 불변). |
+| 2 | testing | `workflow-canvas.tsx` 실배선(onConnectEnd→handleAddNodeFromSearch→onConnect) 컴포넌트/e2e 미검증 | **이월** — 순수 헬퍼는 vitest 59건 전수 커버. 조합 검증(RTL + `@xyflow/react` mock)은 저장소에 canvas 컴포넌트 테스트 패턴이 없어, §1.3 오케스트레이션 훅 추출과 함께 도입(리뷰어도 "§1.3 착수 전 권고"). plan §1.3 이월 (d) 기록. |
+| 3 | user_guide_sync | `connecting-nodes.mdx`/`.en.mdx` "빈 영역 드롭 = 아무 일 없음" stale | **반영** — 빈 캔버스 드롭 케이스를 분리해 "노드 추가 팝업 + 자동 연결(입력 포트 없으면 노드만)"로 갱신, 다른 무효 target 의 "아무 일 없음"은 유지(ko/en). |
+| 4 | user_guide_sync | `canvas-basics.mdx`/`.en.mdx` "노드 추가 세 가지 방법" 에 §1.2 네 번째 방법 누락 | **반영** — 제목 "세 가지"→"네 가지"(Three→Four), `<Steps>` 에 "출력 포트를 빈 곳으로 드래그" 항목 추가, connecting-nodes 로 교차링크(ko/en). |
+
+INFO(합성 액션 승격·God Component 훅·이중 pushUndo hygiene·헬퍼 배치·좌표변환 중복)는 모두 §1.3 이월 또는 별건 백로그로 추적 — 이번 스코프 밖.
+
+## 2회차 검증
+- store test: **54 passed**(신규 skipUndo 2), edge-utils: **57 passed**, tsc clean, eslint 0 errors
+- e2e(`make e2e-test-full`): 1회차 resolution 코드에 대해 Playwright 46 passed(재실행). 2회차는 프로덕션 코드 무변경(테스트+문서+plan만).
+- fresh `/ai-review`: 2회차 커밋 후 3회차 재검토로 수렴 확인

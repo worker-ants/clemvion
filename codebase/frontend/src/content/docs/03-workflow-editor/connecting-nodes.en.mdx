@@ -15,7 +15,8 @@ A single input port can receive multiple edges (merging results from several nod
 
 1. Press and hold on the **output port** of the starting node, then drag. A dashed, temporary edge follows your cursor.
 2. Release over the **input port** of the node you want to connect to.
-3. If the drop target is valid, a solid edge is created. If you release over an invalid target (empty canvas, another output port, the same node, and so on), the temporary edge disappears and nothing happens.
+3. If the drop target is valid, a solid edge is created. If you release over an invalid target (another output port, the same node, and so on), the temporary edge disappears and nothing happens.
+4. **If you release over an empty canvas area,** a node search popup opens at that spot. Pick a node and it is created with an edge automatically drawn from the output port you started dragging to the new node. If the target node has no input port (for example, a trigger), only the node is created and the edge is skipped.
 
 While dragging, the port under your cursor turns green when the connection is valid and shows a block icon (🚫) when it isn't, so you get instant feedback.
 
