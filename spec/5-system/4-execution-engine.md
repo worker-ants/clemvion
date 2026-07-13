@@ -1052,7 +1052,7 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 > | 진입점 | nodeId 검사 | 이유 |
 > |---|---|---|
 > | 외부 EIA REST `/interact` | **적용** (`InteractDto.nodeId` 전달) | 외부 토큰 caller 는 SSE `waiting_for_input` 의 `waitingNodeId` 를 수신하므로 대상 nodeId 를 지정할 수 있다 |
-> | chat-channel `scope: 'in_process_trusted'` | **면제** | `HooksService.forwardToInteractionService` 가 대기 노드의 nodeId 를 알지 못한 채 `text_message → submit_message` / `button_callback → click_button` 로 고정 매핑 — nodeId 를 싣지 않는다 |
+> | chat-channel `scope: 'in_process_trusted'` | **면제** | trusted 합성 ctx 는 **scope 단위**로 면제된다(진입점 판정이 아님). 동기: `HooksService.forwardToInteractionService` 의 고정 매핑(`text_message → submit_message` 등)은 대기 nodeId 를 알지 못한다. 단 면제는 scope 전체에 적용되므로, nodeId 를 아는 chat-channel form 제출(`handleFormStep`, `pendingFormModal.nodeId`)도 동일 policy 로 면제된다 |
 > | WS continuation (`execution.*`) | **미적용** | WS 프로토콜은 설계상 `nodeId` 를 서버에 전달·사용하지 않는다 ([§6-websocket-protocol](./6-websocket-protocol.md) — "대기 노드 식별은 server lookup"). 확장은 별도 후속(plan F-6) |
 > | REST `/continue` | **미적용** | 요청 body 에 `nodeId` 파라미터 자체가 없다 (form 제출 전용) |
 >
