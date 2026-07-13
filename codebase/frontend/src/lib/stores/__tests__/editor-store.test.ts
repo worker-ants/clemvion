@@ -333,6 +333,63 @@ describe("useEditorStore", () => {
     });
   });
 
+  // §4.1 — onDrop 이 오케스트레이션하는 분할 시퀀스(노드 추가 → removeEdge(skipUndo) →
+  // onConnect×2(skipUndo))를 store 레벨에서 재현해 배선 회귀를 잡는다. buildEdgeSplitPlan(순수)은
+  // edge-utils.test.ts 에서 전수 커버하고, 여기선 store 합성(원자성·containerId 전파)을 검증한다.
+  describe("엣지 분할 store 시퀀스 (§4.1)", () => {
+    it("plain 엣지 분할: onConnect 2회 모두 성공해 최종 엣지가 A→N, N→B 두 개 (원자성 lock)", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("A"), makeNode("B"), makeNode("N")],
+        edges: [makeEdge("A", "B")],
+        undoStack: [],
+      });
+      const s = useEditorStore.getState();
+      s.removeEdge("A-B", { skipUndo: true });
+      s.onConnect(
+        { source: "A", sourceHandle: "out", target: "N", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      s.onConnect(
+        { source: "N", sourceHandle: "out", target: "B", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges.map((e) => `${e.source}->${e.target}`).sort()).toEqual([
+        "A->N",
+        "N->B",
+      ]);
+    });
+
+    it("Loop body 내부 체인 엣지 분할 시 새 노드가 컨테이너 containerId 를 상속한다", () => {
+      useEditorStore.setState({
+        nodes: [
+          makeNode("L", { data: { type: "loop", label: "Loop" } }),
+          makeNode("A", { data: { type: "action", label: "A", containerId: "L" } }),
+          makeNode("B", { data: { type: "action", label: "B", containerId: "L" } }),
+          makeNode("N", { data: { type: "action", label: "N" } }),
+        ],
+        edges: [
+          { id: "body", source: "L", target: "A", sourceHandle: "body", targetHandle: "in", type: "custom" },
+          { id: "A-B", source: "A", target: "B", sourceHandle: "out", targetHandle: "in", type: "custom" },
+          { id: "emit", source: "B", target: "L", sourceHandle: "out", targetHandle: "emit", type: "custom" },
+        ],
+        undoStack: [],
+      });
+      const s = useEditorStore.getState();
+      s.removeEdge("A-B", { skipUndo: true });
+      s.onConnect(
+        { source: "A", sourceHandle: "out", target: "N", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      s.onConnect(
+        { source: "N", sourceHandle: "out", target: "B", targetHandle: "in" },
+        { skipUndo: true },
+      );
+      const n = useEditorStore.getState().nodes.find((x) => x.id === "N");
+      expect((n?.data as Record<string, unknown>)?.containerId).toBe("L");
+    });
+  });
+
   describe("removeNode", () => {
     it("removes a node and its connected edges", () => {
       const nodes = [makeNode("1"), makeNode("2"), makeNode("3")];
