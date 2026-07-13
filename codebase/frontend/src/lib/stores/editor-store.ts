@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import type { Node, Edge, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
-import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
+import { applyNodeChanges, applyEdgeChanges, addEdge, reconnectEdge } from "@xyflow/react";
 import { toast } from "sonner";
 import {
   evaluateGraphWarningRulesForGraph,
@@ -89,6 +89,14 @@ interface EditorState {
   // opts.skipUndo — 호출자가 직전에 이미 pushUndo 한 경우(§1.2 자동 연결처럼 "노드
   // 생성+연결"을 하나의 undo 체크포인트로 묶을 때) 내부 pushUndo 를 건너뛴다. 기본 false.
   onConnect: (connection: Connection, opts?: { skipUndo?: boolean }) => void;
+  /**
+   * §1.3 — 기존 엣지의 끝점(source/target 앵커)을 새 포트로 재연결한다. onConnect 과 동일한
+   * 유효성(자기연결/중복/컨테이너 충돌)을 적용하되, 중복 검사에서는 재연결 중인 엣지 자신을
+   * 제외한다. `reconnectEdge`(id 보존)로 갱신 후 포트색 data·컨테이너 소속을 재도출한다.
+   */
+  onReconnect: (oldEdge: Edge, newConnection: Connection) => void;
+  /** §1.3 — 재연결 드래그를 빈 영역에 드롭(detach)했을 때 엣지를 삭제한다(undo 가능). */
+  deleteEdge: (edgeId: string) => void;
   /**
    * §2.2 — 드래그 중 유효성. 자기연결은 false(커서 🚫). 중복/사이클은 onConnect·경고가 담당.
    * React Flow `IsValidConnection<Edge>` 시그니처와 맞추기 위해 `Connection | Edge` 를 받는다
@@ -730,6 +738,65 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         state.edges,
       );
       const nextNodes = propagateContainerOnConnect(state.nodes, connection);
+      return {
+        edges: nextEdges,
+        nodes: nextNodes,
+        isDirty: true,
+      };
+    });
+  },
+
+  onReconnect: (oldEdge, newConnection) => {
+    // §1.3 — 재연결도 신규 연결과 동일 유효성. 자기연결·컨테이너 충돌은 하드 차단.
+    if (isSelfConnection(newConnection)) return;
+    // 중복 검사에서 재연결 중인 엣지 자신은 제외한다 — 같은 자리로 되돌리거나 한쪽 끝만
+    // 옮기는 경우가 "이미 연결됨" 으로 오판되지 않게 한다.
+    if (
+      isDuplicateConnection(
+        get().edges.filter((e) => e.id !== oldEdge.id),
+        newConnection,
+      )
+    ) {
+      toast.error("These nodes are already connected.");
+      return;
+    }
+    const conflict = detectContainerConflict(get().nodes, newConnection);
+    if (conflict) {
+      toast.error(conflict);
+      return;
+    }
+    get().pushUndo();
+    set((state) => {
+      // shouldReplaceId:false 로 엣지 id 를 보존한다 — 선택 상태·엣지 참조가 깨지지 않게.
+      const reconnected = reconnectEdge(oldEdge, newConnection, state.edges, {
+        shouldReplaceId: false,
+      });
+      // reconnectEdge 는 source/target/handle 만 갱신하므로, sourceHandle 이 바뀌면 포트색
+      // data 가 stale 하다. 재연결된 엣지(id 보존)의 data 를 다시 build 한다.
+      const sourceNode = state.nodes.find((n) => n.id === newConnection.source);
+      const sourceNodeType = (sourceNode?.data as { type?: string })?.type ?? "";
+      const edgeData = buildEdgeData(newConnection.sourceHandle, sourceNodeType);
+      const nextEdges = reconnected.map((e) =>
+        e.id === oldEdge.id
+          ? { ...e, data: { ...((e.data as Record<string, unknown>) ?? {}), ...edgeData } }
+          : e,
+      );
+      // source/target 이 바뀌었으므로 컨테이너 소속을 전면 재도출한다(엣지 삭제 경로와 동일).
+      const nextNodes = deriveContainerAssignments(state.nodes, nextEdges);
+      return {
+        edges: nextEdges,
+        nodes: nextNodes,
+        isDirty: true,
+      };
+    });
+  },
+
+  deleteEdge: (edgeId) => {
+    get().pushUndo();
+    set((state) => {
+      const nextEdges = state.edges.filter((e) => e.id !== edgeId);
+      // 엣지 제거는 노드의 containerId 근거를 없앨 수 있어 재도출한다(onEdgesChange remove 와 동일).
+      const nextNodes = deriveContainerAssignments(state.nodes, nextEdges);
       return {
         edges: nextEdges,
         nodes: nextNodes,

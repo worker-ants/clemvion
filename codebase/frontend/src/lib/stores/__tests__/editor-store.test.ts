@@ -168,6 +168,79 @@ describe("useEditorStore", () => {
     });
   });
 
+  describe("onReconnect (§1.3)", () => {
+    // 노드 1,2,3(action) + 엣지 1→2. 재연결 대상은 3.
+    const seed = () => {
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2"), makeNode("3")],
+        edges: [
+          { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in", type: "custom" },
+        ],
+      });
+    };
+    const toNode3: Connection = {
+      source: "1",
+      sourceHandle: "out",
+      target: "3",
+      targetHandle: "in",
+    };
+
+    it("유효 재연결이면 엣지 끝점을 갱신하고 id 를 보존한다", () => {
+      seed();
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2" } as Edge,
+        toNode3,
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges).toHaveLength(1);
+      expect(edges[0].id).toBe("e1"); // shouldReplaceId:false — id 보존
+      expect(edges[0].target).toBe("3");
+      expect(useEditorStore.getState().undoStack).toHaveLength(1);
+    });
+
+    it("자기연결로의 재연결은 거부한다(변경 없음)", () => {
+      seed();
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2" } as Edge,
+        { source: "1", sourceHandle: "out", target: "1", targetHandle: "in" },
+      );
+      const edges = useEditorStore.getState().edges;
+      expect(edges[0].target).toBe("2"); // 원상 유지
+      expect(useEditorStore.getState().undoStack).toHaveLength(0);
+    });
+
+    it("이미 존재하는 동일 연결로의 재연결은 중복으로 거부한다", () => {
+      // 엣지 2개: e1(1→2), e2(1→3). e1 을 1→3 으로 재연결하면 e2 와 중복.
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2"), makeNode("3")],
+        edges: [
+          { id: "e1", source: "1", target: "2", sourceHandle: "out", targetHandle: "in", type: "custom" },
+          { id: "e2", source: "1", target: "3", sourceHandle: "out", targetHandle: "in", type: "custom" },
+        ],
+      });
+      useEditorStore.getState().onReconnect(
+        { id: "e1", source: "1", target: "2" } as Edge,
+        toNode3,
+      );
+      const e1 = useEditorStore.getState().edges.find((e) => e.id === "e1");
+      expect(e1?.target).toBe("2"); // 거부되어 원상 유지
+      expect(useEditorStore.getState().undoStack).toHaveLength(0);
+    });
+  });
+
+  describe("deleteEdge (§1.3 detach)", () => {
+    it("엣지를 제거하고 undo 스냅샷을 남긴다", () => {
+      useEditorStore.setState({
+        nodes: [makeNode("1"), makeNode("2")],
+        edges: [makeEdge("1", "2")],
+      });
+      useEditorStore.getState().deleteEdge("1-2");
+      const state = useEditorStore.getState();
+      expect(state.edges).toHaveLength(0);
+      expect(state.undoStack).toHaveLength(1);
+    });
+  });
+
   describe("removeNode", () => {
     it("removes a node and its connected edges", () => {
       const nodes = [makeNode("1"), makeNode("2"), makeNode("3")];

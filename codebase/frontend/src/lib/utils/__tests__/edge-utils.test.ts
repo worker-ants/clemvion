@@ -293,6 +293,18 @@ describe("firstInputHandleId (§1.2)", () => {
   it("inputs 필드가 없어도 null", () => {
     expect(firstInputHandleId({})).toBeNull();
   });
+
+  it("예약 입력 포트 'emit' 은 건너뛰고 첫 일반 입력 포트를 반환한다 (§1.3 (e))", () => {
+    // 컨테이너 노드처럼 첫 입력이 'emit'(loopback 수집)이면 그 포트로 자동 연결 시
+    // detectContainerConflict 가 거부해 orphan 이 남으므로 일반 입력('in')을 택한다.
+    expect(
+      firstInputHandleId({ inputs: [{ id: "emit" }, { id: "in" }] }),
+    ).toBe("in");
+  });
+
+  it("예약 포트('emit')만 있으면 null (자동 연결 생략)", () => {
+    expect(firstInputHandleId({ inputs: [{ id: "emit" }] })).toBeNull();
+  });
 });
 
 describe("connectionDragSource (§1.2)", () => {
