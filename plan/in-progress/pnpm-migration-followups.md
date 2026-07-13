@@ -27,6 +27,17 @@ owner: developer
 >
 > **후속(별도)**: (a) **프런트엔드 스택·원본소스 제거** — §3(`node-linker=hoisted`→`strict` 전환)으로 backend node_modules 에서 타 프로젝트 deps 격리, 또는 기각됐던 옵션 A(`pnpm deploy --filter backend --prod <dir>`)로 self-contained prod dir 생성. 이미지 크기의 대부분을 좌우해 우선순위 높음. (b) **devDeps 부재 CI 스모크 가드** — 이미지 내 `node_modules/jest` 부재 assert 등으로 prod-deps 우회·오변경 자동 포착(현재 1회성 수기 검증뿐, ai-review testing WARNING).
 
+### 1-(a) 완료(2026-07-14, 옵션 A 채택 + injected deploy)
+
+runner 를 `prod-deps` 통째 COPY → **`pnpm deploy` 격리 번들** COPY 로 교체. runner 가 deploy 산출 `node_modules`(backend prod 의존만·`@workflow/*` 주입·프런트 스택 없음) + builder 산출 `dist` + `package.json` 만 선별 COPY. `files` 필드 불필요, 원본 src/test 는 deploy 중간 stage 에서 폐기.
+
+- **legacy(flat) deploy 는 채택 불가** — `--legacy` 는 backend 직접 의존 `cron-parser@^5.5.0` 을 bullmq 전이 `4.9.0` 으로 잘못 collapse(직접 의존을 버림)해 `CronExpressionParser`(v5 API)가 `undefined` → schedule 이 **유효 cron 도 400**. e2e `schedule-trigger` 가 포착. duplicate-version 을 조용히 오해소하므로 이 트리에 unsafe.
+- **해법: injected deploy** — `pnpm-workspace.yaml` 에 `injectWorkspacePackages: true` 추가(lockfile +1줄, 버전 churn 0) 후 비-legacy `pnpm deploy`. 격리 node_modules 로 패키지별 버전 정확(backend→5.5.0, bullmq→4.9.0). **`node-linker` 는 hoisted 유지** — §3(strict flip)은 미포함, Next standalone·native 위험 없음.
+- **검증**: lint·unit(14)·build·e2e(**253**, schedule-trigger 포함) 전부 통과. 이미지 **1.23GB → 551MB**(−679MB, 55%↓). native(bcrypt·isolated-vm) 런타임 로드 OK, `@workflow/*` 4개 주입+dist, ops 스크립트(`dist/scripts/cleanup-invalid-queue-jobs`·`encrypt-auth-config`)·`corepack` 보존.
+- **잔여**: (b) devDeps 부재 CI 스모크 가드는 미해결(별도). §3 full strict 전환도 별도 백로그 유지.
+
+> **부수 발견 — pnpm 필드 무시(별도 follow-up, §2·보안핀 영향)**: pnpm 10.23 은 `package.json` 의 `pnpm.overrides`·`pnpm.onlyBuiltDependencies` 를 **더 이상 읽지 않는다**(`deploy`/`install` 시 `The "pnpm" field ... is no longer read` 경고 + `Ignored build scripts`). 현재 보안 핀(overrides, `@nestjs/swagger` 11.2.7 포함)은 **lockfile 관성으로만 유지** — 누군가 non-frozen `pnpm install` 을 돌리면 핀이 사라질 위험. 정식 수정: `overrides`·`onlyBuiltDependencies` 를 `pnpm-workspace.yaml`(pnpm 10 정규 위치)로 이전 후 lockfile 재생성. §2(swagger 핀) 와 함께 다룰 것.
+
 ## 2. @nestjs/swagger 11.2.7 핀 제거 + deep-import 정리 (review WARNING #6 / INFO #3,#18)
 
 `codebase/backend/src/common/swagger/api-wrapped.ts` 가 `@nestjs/swagger/dist/interfaces/open-api-spec.interface`

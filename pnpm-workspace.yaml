@@ -6,3 +6,7 @@ packages:
   - "codebase/frontend"
   - "codebase/channel-web-chat"
   - "codebase/packages/*"
+
+# 내부 workspace 패키지를 injected copy 로 링크 — pnpm v10 non-legacy `deploy`
+# 가 요구(ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE). node-linker 는 hoisted 유지.
+injectWorkspacePackages: true
