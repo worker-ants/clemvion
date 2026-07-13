@@ -115,8 +115,9 @@ export class InteractionService {
   ): Promise<InteractAckDto> {
     const execution = await this.loadAndAssertAlive(ctx.executionId);
     // [spec §7.5.1] 외부 caller 는 대상 nodeId 를 지정하고 실제 대기 노드와 일치해야
-    // publisher 가 수용한다. in_process_trusted(chat-channel 고정 매핑, nodeId 미상)는
-    // 면제 — expectedNodeId=undefined 로 publisher 의 nodeId 검사를 건너뛴다.
+    // publisher 가 수용한다. in_process_trusted 는 **scope 단위**로 면제 —
+    // expectedNodeId=undefined 로 nodeId 검사를 건너뛴다(진입점이 nodeId 를 아는지와
+    // 무관: form 제출 handleFormStep 은 nodeId 를 알아도 동일 policy 로 면제).
     const expectedNodeId = isInternalCtx(ctx) ? undefined : dto.nodeId;
     switch (dto.command) {
       case 'submit_form':
@@ -439,8 +440,9 @@ export class InteractionService {
 
   /**
    * [spec §7.5.1] 외부 caller 는 대상 nodeId 를 반드시 지정한다 (그리고 publisher 가
-   * 실제 대기 노드와 일치 검증). `in_process_trusted`(chat-channel 고정 매핑)는 대기
-   * nodeId 를 알지 못하므로 nodeId 요구·일치 검사에서 면제된다 (§7.5.1 exemption).
+   * 실제 대기 노드와 일치 검증). `in_process_trusted`(chat-channel)는 **scope 단위**로
+   * nodeId 요구·일치 검사에서 면제된다 — nodeId 가용 여부와 무관한 정책적 면제
+   * (§7.5.1 exemption). 동기: 고정 매핑 forwarding 은 대기 nodeId 를 모른다.
    */
   private assertNodeId(dto: InteractDto, ctx: InteractionRequestContext): void {
     if (isInternalCtx(ctx)) return;

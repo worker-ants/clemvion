@@ -265,8 +265,8 @@ describe('InteractionService.interact', () => {
     });
   });
 
-  // F-1 (plan eia-command-waiting-surface-guard) — in_process_trusted(chat-channel 고정 매핑)는
-  // 대기 nodeId 를 모르므로 nodeId 요구·일치 검사에서 면제된다 (§7.5.1 exemption). 외부 scope 는
+  // F-1 (plan eia-command-waiting-surface-guard) — in_process_trusted(chat-channel)는 scope 단위로
+  // nodeId 요구·일치 검사에서 면제된다 (§7.5.1 exemption, nodeId 가용 여부 무관). 외부 scope 는
   // dto.nodeId 를 expectedNodeId 로 전달해 publisher 가 실제 대기 노드와 대조한다.
   it('F-1 — in_process_trusted 는 nodeId 없어도 수용 + expectedNodeId=undefined 로 전달', async () => {
     const { service, repo, engine } = makeMocks();

@@ -5274,9 +5274,9 @@ export class ExecutionEngineService
    *        본 resolver 를 거치지 않는다).
    * @param expectedNodeId (optional) 명령이 지정한 대상 nodeId. 지정 시 실제 대기
    *        노드의 nodeId 와 일치해야 하며, 불일치면 `InvalidExecutionStateError`
-   *        (§7.5.1 "nodeId 미일치"). 외부 EIA `/interact` 진입점만 전달하고,
-   *        `in_process_trusted`(chat-channel 고정 매핑, nodeId 미상)는 전달하지 않아
-   *        본 검사를 건너뛴다 (§7.5.1 exemption).
+   *        (§7.5.1 "nodeId 미일치"). 외부 EIA `/interact` 진입점만 전달한다.
+   *        `in_process_trusted`(chat-channel)는 **scope 단위** 면제라 전달하지 않아
+   *        본 검사를 건너뛴다 — nodeId 가용 여부와 무관 (§7.5.1 exemption).
    */
   private async resolveWaitingNodeExecutionId(
     executionId: string,
