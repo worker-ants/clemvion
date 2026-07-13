@@ -1,7 +1,8 @@
 ---
-worktree: webchat-carousel-truncation-6b9553
+worktree: execution-engine-spec-alignment-c5ec93
 started: 2026-07-11
 owner: developer
+spec_impact: none
 ---
 
 # 웹채팅 위젯 presentation 후속 (truncation 표면 확장)
@@ -30,9 +31,16 @@ owner: developer
       `carousel.truncatedWithCount`/`carousel.truncated` ko/en i18n)·변환/렌더 테스트. spec §2/§4/R8 계약 정의.
       channel-web-chat vitest(350, 신규 포함)·typecheck·build·catalog parity·e2e-full(playwright 46) green. ai-review 2R 반영(CHANGELOG·CSS·복원 thread 컴포넌트 테스트·asTotalCount 정수 가드).
 
-- [ ] (선택) 테스트 헬퍼 `payloadOf` 중복 (ai-review maintainability #8·#10)
-      `conversation.test.ts` · `presentations.test.tsx` 2곳에 시그니처가 미묘하게 다른 채 중복 정의됨.
-      리뷰어 권고대로 **3번째 소비처가 생기면** 공용 fixture 로 추출한다. 지금은 조치하지 않는다.
+- [x] (선택) 테스트 헬퍼 `payloadOf` 중복 (ai-review maintainability #8·#10)
+      `conversation.test.ts` · `presentations.test.tsx` 2곳에 시그니처가 미묘하게 다른 채 중복 정의됐었다.
+      원래 리뷰어 권고는 **3번째 소비처가 생기면** 추출이었으나, 필수 항목(1·2) 종결로 능동 작업이 끝나
+      3번째 소비처가 자연 발생할 여지가 없어졌다 — 미완 plan 을 무기한 유지하기보다 마무리 시점에 2곳을 통합한다는
+      사용자 결정으로 진행.
+      **완료(2026-07-13, 커밋 `8cc9ec4d2`)**: 상위집합 시그니처(3-param `truncation?`)를
+      `codebase/channel-web-chat/src/test-support/presentation-fixtures.ts` 로 단일화하고 두 소비처가
+      `@/` alias 로 import (콜사이트 동작 불변). channel-web-chat vitest 354·lint·build(typecheck)·
+      e2e(253) green. `/ai-review` Critical 0/Warning 1(본 plan 갱신 항목, 여기서 해소)·
+      `/consistency-check --impl-done` BLOCK: NO.
 
 ## 착수 조건
 
