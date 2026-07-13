@@ -62,3 +62,4 @@ green 안정 후 strict isolation 으로 좁혀 phantom-dependency 위생을 강
 - Docker `COPY codebase/packages` 패키지별 분리(INFO #4) — 캐시 효율 vs 복잡도 트레이드오프.
 - playwright-runner 사전 빌드 이미지로 매 실행 `pnpm install` 제거(INFO #5).
 - js-yaml moderate accept 의 CVE ID·영향 경로 문서화(INFO #2,#16) — `pnpm why js-yaml` 추적.
+- **의존성 보안 거버넌스 CI 가드**(overrides 이전 리뷰 08_25_10 security WARNING) — 현재 `pnpm-workspace.yaml` 의 `overrides`/`onlyBuiltDependencies` **내용**이 의도한 기준선과 일치하는지 검증하는 자동 가드가 없다(누군가 override 삭제 후 lockfile 재생성하면 `--frozen-lockfile` CI 통과). 또 `pnpm audit`/Dependabot(npm ecosystem)/OSV-Scanner 류 상시 취약점 스캔이 CI 에 없어 신규 CVE 는 수동 발견에만 의존(reactive). 검토: (a) 핀 집합 스냅샷 가드, (b) 정기 `pnpm audit --audit-level=high` job.
