@@ -111,7 +111,7 @@ pending_plans:
 | 선택됨 | 2.5px, primary 색상 | 구현됨 (`custom-edge.tsx`) |
 | 데이터 흐름 (실행 중) | 애니메이션 점선 (데이터 이동 방향으로) | 구현됨 (`use-edge-execution-state.ts` + globals.css) |
 | 실행 완료 | 초록색으로 잠시 변경 후 복귀 | 구현됨 (`use-edge-execution-state.ts` + globals.css) |
-| 비활성 노드 연결 | 반투명 점선 | 구현됨 (`custom-edge.tsx`) |
+| 비활성 노드 연결 | 반투명 점선 | 구현됨 (`use-edge-execution-state.ts` + `custom-edge.tsx`) |
 
 > **현재 구현**: `use-edge-execution-state.ts` `useEdgeExecutionState` 훅이 실행 스토어(`status`·`nodeStatuses`)와 노드의 `isDisabled` 를 읽어 각 엣지에 상태 스타일을 입힌다(판정 순수 함수 `edge-utils.ts` `resolveEdgeExecutionState`). 상호배타 우선순위 **inactive > flowing/completed**:
 > - **데이터 흐름(flowing)** — 실행 중(`status==='running'`) source 노드 `completed` + target 노드 `running` → `edge.className='edge-flowing'` → globals.css 가 마칭 점선(`edge-flow` keyframe, source→target 방향) 렌더.
