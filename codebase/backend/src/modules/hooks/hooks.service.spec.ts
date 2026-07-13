@@ -923,6 +923,58 @@ describe('HooksService', () => {
       );
     });
 
+    // F-2 — surfaceMismatch 안내 발송 자체가 실패해도 삼킨다(warn). 안내가 webhook
+    // 5xx 를 유발해 provider 재시도 루프를 만들면 안 되기 때문. (best-effort)
+    it('surfaceMismatch 안내 sendMessage 실패는 삼킴 — webhook 은 정상 종료 + warn', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'form 대기 중 텍스트' },
+        idempotencyKey: '1007',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: 'surface mismatch' },
+        }),
+      );
+      // 안내 발송 자체가 실패.
+      mockAdapter.sendMessage.mockRejectedValueOnce(new Error('network'));
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      // throw 하지 않는다.
+      await expect(
+        service.handleWebhook('abc', chatInput),
+      ).resolves.toBeDefined();
+      // 발송 실패 warn 이 남는다.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('surfaceMismatch 안내 sendMessage 실패'),
+      );
+      warnSpy.mockRestore();
+    });
+
     // 삼키는 범위는 `STATE_MISMATCH` 코드로 한정 — 다른 409 사유는 전파한다
     // (ConflictException 타입 전체로 판정하면 IDEMPOTENCY_KEY_CONFLICT 도 흡수됨).
     it('STATE_MISMATCH 가 아닌 409 는 삼키지 않고 전파', async () => {

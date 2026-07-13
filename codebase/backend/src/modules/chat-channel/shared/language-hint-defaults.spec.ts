@@ -11,11 +11,9 @@ import {
   SURFACE_MISMATCH_DEFAULTS,
   type LanguageLocale,
 } from './language-hint-defaults';
-
-// F-2 (plan eia-command-waiting-surface-guard) — telegram MarkdownV2 특수문자 집합.
-// surfaceMismatch default 는 렌더러 escape 를 거치지 않고 raw 로 발송되므로, 이 문자들을
-// 포함하면 telegram 이 send 를 거부(400)해 안내가 유실된다. default 는 이 집합과 disjoint 여야 한다.
-const MD_V2_SPECIALS = /[_*[\]()~`>#+\-=|{}.!]/;
+// canonical MarkdownV2 escaper 를 재사용 — 특수문자 집합을 손으로 재선언하면 telegram
+// renderer 쪽 정의가 갱신될 때 이 테스트의 안전성 보증이 stale 되어 조용히 무력화된다.
+import { escapeMarkdownV2 } from '../providers/telegram/telegram-message.renderer';
 
 describe('resolveSessionExpiredMessage (§7.5 rehydration 실패 graceful 안내)', () => {
   it('default KO / EN', () => {
@@ -68,9 +66,14 @@ describe('resolveSurfaceMismatchMessage (§4.1.1 F-2 표면 불일치 안내)', 
     );
   });
   // control-plane 경로(렌더러 escape 미적용)라 default 는 MarkdownV2 특수문자를 포함하면 안 됨.
+  // canonical escapeMarkdownV2 를 통과시켜도 원문과 동일 = 이스케이프 대상 문자가 없음.
   it('KO / EN default 는 telegram MarkdownV2 특수문자를 포함하지 않는다 (raw 발송 안전)', () => {
-    expect(SURFACE_MISMATCH_DEFAULTS.ko).not.toMatch(MD_V2_SPECIALS);
-    expect(SURFACE_MISMATCH_DEFAULTS.en).not.toMatch(MD_V2_SPECIALS);
+    expect(escapeMarkdownV2(SURFACE_MISMATCH_DEFAULTS.ko)).toBe(
+      SURFACE_MISMATCH_DEFAULTS.ko,
+    );
+    expect(escapeMarkdownV2(SURFACE_MISMATCH_DEFAULTS.en)).toBe(
+      SURFACE_MISMATCH_DEFAULTS.en,
+    );
   });
 });
 
