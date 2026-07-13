@@ -73,3 +73,21 @@ INFO(pre-existing 이중 pushUndo, 좌표변환 폴백 중복, `getNodeDefinitio
 ## 3회차 검증
 - 변경: workflow-canvas.tsx 주석 2건(inert), spec/CHANGELOG/plan 문서. 프로덕션 로직 무변경.
 - tsc/eslint/vitest 영향 없음(주석·문서만). 4회차 fresh `/ai-review` 로 수렴 최종 확인 후 push.
+
+---
+
+# Resolution 4회차 — fresh ai-review (2026-07-13 12:02, `review/code/2026/07/13/12_02_54`) → 수렴
+
+3회차 커밋(`1173bc10f`) 후 fresh 검토 결과 **LOW (CRITICAL 0, WARNING 2)** — 리뷰어 총평 "이번 diff 자체를 차단할 조치는 없다". 두 WARNING 모두 latent/의도적 이월:
+
+| # | 카테고리 | 발견 | 조치 |
+|---|----------|------|------|
+| 1 | testing | 컴포넌트 통합 테스트 부재 (4회 연속) | **이월 확정 유지** — 리뷰어가 "이 항목만으로 차단 불요" 로 최종 승인. §1.3(d) 확정 문구 유지. |
+| 2 | requirement | 컨테이너 첫 입력 포트 불변식이 JSDoc 에만 의존 + plan 이월 목록에서 누락 | **반영(plan-only)** — plan §1.3 이월 목록에 (e)로 명시 추가(예약 포트 코드 제외 강화 또는 신규 컨테이너 PR 체크리스트). latent·현재 미발생이라 코드 무변경. |
+
+INFO 11건(God Component·skipUndo SRP·dragSource 방향성·이중조회·좌표 폴백 중복·섹션 주석·단순 클릭 팝업·frontmatter code 목록·Rationale 등)은 전부 §1.3 이월 또는 선택적 후속으로 분류, 이번 diff 차단 사유 없음.
+
+## 최종 수렴
+- 4라운드: **HIGH(C1+W6) → MEDIUM(C0+W4) → MEDIUM(C0+W3) → LOW(C0+W2)**. CRITICAL 1회차 해소, 이후 실질 코드 결함 0.
+- 잔여 2 WARNING 은 latent(미발생)·의도적 이월(§1.3 동반)로, 리뷰어가 명시적으로 non-blocking 판정.
+- 4회차 조치는 plan §1.3 (e) 추가뿐(codebase 무변경) → push 가드 기준(마지막 codebase 커밋 `1173bc10f`)의 fresh 리뷰 = 12_02_54 유효. **수렴 완료, push 진행.**
