@@ -19,6 +19,7 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
+import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 import { TriggerParameterErrorDetail } from '../execution-engine/types/trigger-parameter.types';
@@ -876,6 +877,50 @@ describe('HooksService', () => {
         expect.stringContaining('Conflict Exception'),
       );
       warnSpy.mockRestore();
+    });
+
+    // F-2 (plan eia-command-waiting-surface-guard) — 표면 불일치 삼킴 시 사용자에게 best-effort
+    // 안내(languageHints.surfaceMismatch)를 발송한다. 종전엔 로그만 남기고 피드백이 없었다.
+    it('표면 불일치(STATE_MISMATCH) 시 surfaceMismatch 안내를 채널로 발송', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'form 대기 중 텍스트' },
+        idempotencyKey: '1006',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: 'surface mismatch' },
+        }),
+      );
+
+      await service.handleWebhook('abc', chatInput);
+
+      // 트리거 config 는 languageLocale 미설정 → ko default 안내.
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: 'chat-123',
+          body: { kind: 'text', text: SURFACE_MISMATCH_DEFAULTS.ko },
+        }),
+        expect.anything(),
+      );
     });
 
     // 삼키는 범위는 `STATE_MISMATCH` 코드로 한정 — 다른 409 사유는 전파한다

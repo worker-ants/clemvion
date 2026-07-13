@@ -39,6 +39,10 @@ import {
   isNativeFormAdapter,
 } from '../chat-channel/types';
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
+import {
+  resolveSurfaceMismatchMessage,
+  type LanguageLocale,
+} from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
@@ -617,6 +621,8 @@ export class HooksService {
           trigger,
           state.executionId!,
           update,
+          config,
+          adapter,
         );
       }
       await adapter.ackInteraction(update, config);
@@ -715,8 +721,9 @@ export class HooksService {
    *
    * 거부를 그대로 throw 하면 webhook 이 5xx 를 반환해 provider 가 같은 update 를 무한
    * 재시도한다. 따라서 삼키되 **반드시 warn 로그를 남긴다** (§10.9 "silent skip 금지" +
-   * 본 파일의 모든 catch 관례). 사용자 대상 안내 문구(`languageHints` 신규 키)는 후속
-   * 항목 — `plan/in-progress/eia-command-waiting-surface-guard.md` F-2.
+   * 본 파일의 모든 catch 관례). 추가로 F-2 (plan eia-command-waiting-surface-guard) 로,
+   * 사용자에게 `languageHints.surfaceMismatch` best-effort 안내를 발송한다 — 종전엔 로그만
+   * 남기고 사용자에게 아무 피드백이 없었다 (chat-channel CCH-ERR-04 "silently swallow 금지" 대칭).
    *
    * 삼키는 범위는 **`STATE_MISMATCH` 코드로 한정**한다. `ConflictException` 타입 전체로
    * 판정하면 `IDEMPOTENCY_KEY_CONFLICT` 등 다른 409 사유까지 흡수하게 된다(현재는 in-process
@@ -729,6 +736,8 @@ export class HooksService {
     trigger: Trigger,
     executionId: string,
     update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
   ): Promise<void> {
     // text_message → submit_message (AI Multi Turn).
     // button_callback → click_button (Button Presentation, Phase 3 에서 구체화).
@@ -765,6 +774,9 @@ export class HooksService {
           `chat-channel inbound '${dto.command}' 이 현재 대기 표면과 맞지 않아 거부됨 ` +
             `(execution=${executionId} trigger=${trigger.id}): ${conflict.message ?? '(상세 없음)'}`,
         );
+        // F-2 — 사용자에게 best-effort 안내 (form/buttons 대기 중 자유 텍스트 등).
+        // 발송 실패는 swallow (안내 자체가 재시도 루프를 유발하면 안 됨).
+        await this.sendSurfaceMismatchNotice(update, config, adapter);
         return;
       }
       throw err;
@@ -990,6 +1002,40 @@ export class HooksService {
     } catch (err) {
       this.logger.warn(
         `executionStillRunning sendMessage 실패 (conversationKey=${update.conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * F-2 (plan eia-command-waiting-surface-guard) — inbound 명령이 현재 대기 노드의 인터랙션
+   * 표면과 맞지 않아 publisher 가 409 `STATE_MISMATCH` 로 거부했을 때, 사용자에게 best-effort
+   * 안내 (`languageHints.surfaceMismatch`) 를 발송한다. 종전엔 warn 로그만 남기고 사용자에게
+   * 아무 피드백이 없었다.
+   *
+   * 발송 실패는 swallow (warn) — control-plane 안내가 재시도/추가 안내 루프를 유발하지 않도록.
+   * 문구는 렌더러 escape 를 거치지 않으므로 default 는 MarkdownV2-safe (language-hint-defaults.ts
+   * `SURFACE_MISMATCH_DEFAULTS` 참조).
+   */
+  private async sendSurfaceMismatchNotice(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    const text = resolveSurfaceMismatchMessage(
+      config.languageHints,
+      config.languageLocale as LanguageLocale | undefined,
+    );
+    try {
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: { kind: 'text', text },
+        },
+        config,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `surfaceMismatch 안내 sendMessage 실패 (conversationKey=${update.conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

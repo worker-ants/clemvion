@@ -7,8 +7,15 @@ import {
   FORM_OPEN_LABEL_DEFAULTS,
   resolveSessionExpiredMessage,
   SESSION_EXPIRED_DEFAULTS,
+  resolveSurfaceMismatchMessage,
+  SURFACE_MISMATCH_DEFAULTS,
   type LanguageLocale,
 } from './language-hint-defaults';
+
+// F-2 (plan eia-command-waiting-surface-guard) — telegram MarkdownV2 특수문자 집합.
+// surfaceMismatch default 는 렌더러 escape 를 거치지 않고 raw 로 발송되므로, 이 문자들을
+// 포함하면 telegram 이 send 를 거부(400)해 안내가 유실된다. default 는 이 집합과 disjoint 여야 한다.
+const MD_V2_SPECIALS = /[_*[\]()~`>#+\-=|{}.!]/;
 
 describe('resolveSessionExpiredMessage (§7.5 rehydration 실패 graceful 안내)', () => {
   it('default KO / EN', () => {
@@ -33,6 +40,37 @@ describe('resolveSessionExpiredMessage (§7.5 rehydration 실패 graceful 안내
     expect(resolveSessionExpiredMessage({ sessionExpired: '' }, 'en')).toBe(
       SESSION_EXPIRED_DEFAULTS.en,
     );
+  });
+});
+
+describe('resolveSurfaceMismatchMessage (§4.1.1 F-2 표면 불일치 안내)', () => {
+  it('default KO / EN', () => {
+    expect(resolveSurfaceMismatchMessage(undefined, 'ko')).toBe(
+      SURFACE_MISMATCH_DEFAULTS.ko,
+    );
+    expect(resolveSurfaceMismatchMessage(undefined, 'en')).toBe(
+      SURFACE_MISMATCH_DEFAULTS.en,
+    );
+  });
+  it('locale 미설정 → ko fallback', () => {
+    expect(resolveSurfaceMismatchMessage(undefined, undefined)).toBe(
+      SURFACE_MISMATCH_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.surfaceMismatch override 우선', () => {
+    expect(
+      resolveSurfaceMismatchMessage({ surfaceMismatch: '커스텀 안내' }, 'en'),
+    ).toBe('커스텀 안내');
+  });
+  it('빈 문자열 override 는 무시하고 default 사용', () => {
+    expect(resolveSurfaceMismatchMessage({ surfaceMismatch: '' }, 'ko')).toBe(
+      SURFACE_MISMATCH_DEFAULTS.ko,
+    );
+  });
+  // control-plane 경로(렌더러 escape 미적용)라 default 는 MarkdownV2 특수문자를 포함하면 안 됨.
+  it('KO / EN default 는 telegram MarkdownV2 특수문자를 포함하지 않는다 (raw 발송 안전)', () => {
+    expect(SURFACE_MISMATCH_DEFAULTS.ko).not.toMatch(MD_V2_SPECIALS);
+    expect(SURFACE_MISMATCH_DEFAULTS.en).not.toMatch(MD_V2_SPECIALS);
   });
 });
 

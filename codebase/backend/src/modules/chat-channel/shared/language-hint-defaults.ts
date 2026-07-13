@@ -151,6 +151,38 @@ export function resolveSessionExpiredMessage(
 }
 
 /**
+ * 표면 불일치 안내 (F-2 / plan eia-command-waiting-surface-guard) — 채팅 채널 inbound 명령이
+ * 현재 대기 노드의 인터랙션 표면과 맞지 않아 publisher 가 409 `STATE_MISMATCH` 로 거부했을 때,
+ * 사용자에게 "지금은 이 입력을 받을 수 없다"고 best-effort 안내하는 default 문구 (KO/EN).
+ * chat-channel spec §4.1 / §4.1.1 / CCH-ERR-04 ("silently swallow 금지") 대칭.
+ *
+ * **MarkdownV2-safe (특수문자 미포함)**: 본 문구는 `HooksService.sendSurfaceMismatchNotice` 가
+ * 렌더러를 거치지 않고 `adapter.sendMessage` 로 직접 발송한다 (control-plane notice — sessionExpired
+ * 처럼 EIA event 렌더 경로가 아니므로 provider 별 escape 가 적용되지 않는다). 따라서 default 는
+ * telegram MarkdownV2 특수문자(. ! - ( ) [ ] 등)를 피해, 세 provider (telegram / slack / discord)
+ * 모두에서 raw 로 안전하게 렌더되도록 한다. lookup 경로는 `sessionExpired` 와 동일
+ * (override → locale default → ko fallback).
+ */
+export const SURFACE_MISMATCH_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요',
+  en: "This input can't be accepted here right now, please use the form or buttons shown above",
+};
+
+/**
+ * 표면 불일치 안내 3-level lookup — (1) languageHints.surfaceMismatch override →
+ * (2) languageLocale default → (3) ko fallback. 반환값은 raw (호출자가 escape 없이 발송).
+ */
+export function resolveSurfaceMismatchMessage(
+  languageHints: Record<string, string> | undefined,
+  languageLocale: LanguageLocale | undefined,
+): string {
+  const override = languageHints?.surfaceMismatch;
+  if (typeof override === 'string' && override.length > 0) return override;
+  if (languageLocale === 'en') return SURFACE_MISMATCH_DEFAULTS.en;
+  return SURFACE_MISMATCH_DEFAULTS.ko;
+}
+
+/**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).
  * 다른 placeholder (`{nodeId}` 등) 는 literal 유지 — DTO validator 가 등록 시점에 reject 하지만,
  * runtime 도 안전 (raw 노출되어도 internal label 만, 사용자에게 의미 불명).
