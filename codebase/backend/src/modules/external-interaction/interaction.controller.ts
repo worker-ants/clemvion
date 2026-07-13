@@ -80,7 +80,7 @@ export class InteractionController {
   })
   @ApiConflictResponse({
     description:
-      'STATE_MISMATCH (waiting_for_input 아님, 또는 명령이 현재 대기 노드의 인터랙션 표면과 불일치 — 예: Form 대기 중 end_conversation) 또는 IDEMPOTENCY_KEY_CONFLICT.',
+      'STATE_MISMATCH (waiting_for_input 아님; 명령이 현재 대기 노드의 인터랙션 표면과 불일치 — 예: Form 대기 중 end_conversation; 또는 명령의 nodeId 가 실제 대기 노드와 불일치) 또는 IDEMPOTENCY_KEY_CONFLICT.',
   })
   @ApiGoneResponse({
     description: 'EXECUTION_TERMINATED (이미 종료된 execution).',
