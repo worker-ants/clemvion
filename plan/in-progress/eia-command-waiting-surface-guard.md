@@ -112,21 +112,48 @@ status='waiting_for_input'` 로 규정하고 "매칭 row 0건 … 또는 nodeId 
 (또는 `scope: 'in_process_trusted'` 에 대한 명시적 면제를 spec 에 등재). 그 뒤에야 nodeId
 일치 검사를 넣을 수 있다.
 
-### F-2. 채팅 채널 표면 불일치 입력의 graceful 안내 (form **및 buttons**)
+### F-2. 채팅 채널 표면 불일치 입력의 graceful 안내 (form **및 buttons**) — **완료 (2026-07-14)**
 
-본 PR 이후 `hooks.service.forwardToInteractionService` 의 고정 매핑(`text_message → submit_message`,
-`button_callback → click_button`)이 대기 표면과 어긋나면 `STATE_MISMATCH` 로 거부되고, 현재는
-warn 로그만 남기고 삼킨다. 두 케이스 모두 사용자에게 아무 피드백이 없다:
+`hooks.service.forwardToInteractionService` 의 고정 매핑이 대기 표면과 어긋나 `STATE_MISMATCH`
+로 거부되면 종전엔 warn 로그만 남기고 삼켜 사용자에게 아무 피드백이 없었다(빈 폼 조용히
+제출/엉뚱한 `continue` 포트 분기는 표면 가드로 이미 차단됨). CCH-ERR-04("silently swallow
+금지") 관례에 맞춰 best-effort 안내를 발송하도록 구현.
 
-- **form 대기 + 자유 텍스트** (native modal 미개봉) — 종전: 빈 폼 조용히 제출(버그)
-- **buttons 대기 + 자유 텍스트** — 종전: 엉뚱한 `continue` 포트 분기(버그)
-
-`languageHints` 신규 키(예: `surfaceMismatch`)를 `spec/5-system/15-chat-channel.md` §4.1 표에
-등재하고 best-effort 안내를 발송해야 한다. chat-channel spec 의 CCH-ERR-04("silently swallow
-금지") 관례상 필요.
+- [x] `languageHints.surfaceMismatch`(KO/EN) 신규 키 — `SURFACE_MISMATCH_DEFAULTS` +
+  `resolveSurfaceMismatchMessage`(`sessionExpired` resolver 패턴). control-plane 직접 발송이라
+  default 는 MarkdownV2-safe(특수문자 배제, 단위테스트가 canonical `escapeMarkdownV2` 로 강제).
+- [x] `sendSurfaceMismatchNotice` — STATE_MISMATCH 삼킬 때 best-effort 발송(실패는 swallow).
+- [x] spec 등재 — chat-channel §4.1 예제 + §4.1.1 표, providers/telegram.md §5.8(non-escape 예외),
+  chat-channel-adapter.md §2.3 stale "12 문구" 카운트 정정.
+- [x] 유저 가이드 telegram.mdx/.en.mdx §7.4 + 트리거 drawer `languageHintsHelp` dict(ko/en) 백필.
+- [x] TEST WORKFLOW (lint/unit/build/e2e 전부 PASS).
+- [x] `/ai-review` (`review/code/2026/07/14/00_09_28/`) — Critical 0, Warning 8→5 fix + 3 backlog(F-4/F-5).
+- [x] `/consistency-check --impl-done` (`review/consistency/2026/07/14/00_31_59/`) **BLOCK: NO**
+  (Critical 0/5 checker. WARNING 2건=본 plan 갱신 + convention 숫자 정정으로 해소).
 
 ### F-3. 외부 EIA 클라이언트 대상 breaking behavior 공지 여부 결정 (project-planner)
 
 본 PR 은 종전 202 를 반환하던 명령 조합을 409 로 바꾼다. "버그 수정"(EIA-IN-13 이 이미 이 거부를
 약속) 이므로 코드 되돌림 대상은 아니나, 이 프로젝트는 URL 비버저닝 단일 버전 운영이고 EIA 문서에
 breaking-change 공지 절차가 없다. 공지 필요 여부·채널을 planner 가 명시적으로 결정할 것.
+
+### F-4. control-plane 안내 발송 구조 정리 (F-2 ai-review architecture WARNING 이관)
+
+`review/code/2026/07/14/00_09_28/` architecture reviewer 발견 — pre-existing 패턴이라 F-2 범위 밖:
+
+- 3-level lookup resolver 3중 복제(`resolveSessionExpiredMessage`/`resolveFormOpenLabel`/
+  `resolveSurfaceMismatchMessage`)를 factory(`makeLocaleResolver`)로 통합.
+- `HooksService` 안내 발송 private 메서드 다수(`sendExecutionStillRunningNotice`/
+  `sendSurfaceMismatchNotice`/`maybeNotifyIgnored` 등)의 try/catch/warn 골격을
+  `sendBestEffortNotice` 로 추출. 중장기: chat-channel inbound 처리를 `ChatChannelInboundService`
+  로 분리하고 `HooksService.handleWebhook` 은 얇은 위임만 남김.
+
+기존 함수 포함 리팩터라 별도 PR.
+
+### F-5. control-plane raw 발송 키의 MarkdownV2-safe 불변식 DTO 강제 (F-2 ai-review architecture WARNING 이관)
+
+`surfaceMismatch`/`sessionExpired`/`executionStillRunning`/`help` 등 hooks.service 가 렌더러
+escape 없이 직접 발송하는 control-plane 키는, operator override 가 telegram MarkdownV2 특수문자를
+포함하면 raw 전송이 거부돼 안내가 유실된다(현재 default 는 단위테스트로만 강제, override 미검증).
+DTO validator 에 등록 시점 검증(특수문자 발견 시 400 또는 경고)을 추가하는 하드닝. 기존 키 전체가
+공유하는 갭이라 별도 작업.

@@ -286,7 +286,7 @@ interface ChatChannelConfig {
    * → (3) 'ko' fallback. 본 lookup 책임은 어댑터 — Convention §3.1 의 `classifyExecutionFailure`
    * helper 는 `key` 만 결정 (locale 무관).
    *
-   * @see spec/5-system/15-chat-channel.md §4.1.1 (KO/EN default 12 문구 표)
+   * @see spec/5-system/15-chat-channel.md §4.1.1 (KO/EN default 문구 표)
    */
   languageLocale?: "ko" | "en";
   languageHints?: Record<string, string>;
