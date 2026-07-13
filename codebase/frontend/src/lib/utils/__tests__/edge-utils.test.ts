@@ -8,6 +8,8 @@ import {
   enrichEdgesWithPortData,
   isSelfConnection,
   isDuplicateConnection,
+  isConnectionDroppedOnPane,
+  firstInputHandleId,
   PORT_TYPE_COLORS,
 } from "../edge-utils";
 import type { Node, Edge } from "@xyflow/react";
@@ -243,6 +245,50 @@ describe("isDuplicateConnection (§2.2)", () => {
         targetHandle: undefined,
       }),
     ).toBe(true);
+  });
+});
+
+describe("isConnectionDroppedOnPane (§1.2)", () => {
+  it("유효 핸들 연결(isValid===true)이면 false — onConnect 가 처리하므로 팝업 없음", () => {
+    expect(isConnectionDroppedOnPane({ isValid: true })).toBe(false);
+  });
+
+  it("빈 영역 드롭(isValid===false)이면 true — 노드 추가 팝업 대상", () => {
+    expect(isConnectionDroppedOnPane({ isValid: false })).toBe(true);
+  });
+
+  it("isValid 가 null(무효 target)이면 true", () => {
+    expect(isConnectionDroppedOnPane({ isValid: null })).toBe(true);
+  });
+
+  it("isValid 가 undefined 여도 true (연결 미성립)", () => {
+    expect(isConnectionDroppedOnPane({})).toBe(true);
+  });
+
+  it("connectionState 자체가 없으면 false (판정 불가 → 팝업 안 띄움)", () => {
+    expect(isConnectionDroppedOnPane(null)).toBe(false);
+    expect(isConnectionDroppedOnPane(undefined)).toBe(false);
+  });
+});
+
+describe("firstInputHandleId (§1.2)", () => {
+  it("첫 입력 포트의 id 를 반환한다", () => {
+    expect(
+      firstInputHandleId({ inputs: [{ id: "in" }, { id: "in2" }] }),
+    ).toBe("in");
+  });
+
+  it("입력 포트가 없으면 null (예: 트리거 노드 → 자동 연결 생략)", () => {
+    expect(firstInputHandleId({ inputs: [] })).toBeNull();
+  });
+
+  it("definition 이 null/undefined 여도 null", () => {
+    expect(firstInputHandleId(null)).toBeNull();
+    expect(firstInputHandleId(undefined)).toBeNull();
+  });
+
+  it("inputs 필드가 없어도 null", () => {
+    expect(firstInputHandleId({})).toBeNull();
   });
 });
 

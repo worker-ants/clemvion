@@ -114,6 +114,28 @@ export function isDuplicateConnection(
 }
 
 /**
+ * onConnectEnd 의 connectionState 로 "출력 포트 드래그가 유효 target 없이 빈 영역(pane)에
+ * 드롭됐는가" 판정 (§1.2). React Flow 는 유효 핸들에 연결되면 `isValid=true` 를 준다 —
+ * pane 드롭·무효 target 은 `isValid` 가 `false`/`null` 이므로 `true` 가 아님으로 판정한다.
+ */
+export function isConnectionDroppedOnPane(
+  connectionState: { isValid?: boolean | null } | null | undefined,
+): boolean {
+  return !!connectionState && connectionState.isValid !== true;
+}
+
+/**
+ * 노드 정의의 첫 입력 포트 핸들 id (§1.2 자동 엣지 연결의 targetHandle). 입력 포트가 없으면
+ * (예: 트리거 노드) null — 이 경우 자동 연결을 생략한다. 신규 생성 노드는 기본 config 라
+ * static `inputs` 로 충분하다(동적 포트 해석 불필요).
+ */
+export function firstInputHandleId(
+  definition: { inputs?: Array<{ id: string }> } | null | undefined,
+): string | null {
+  return definition?.inputs?.[0]?.id ?? null;
+}
+
+/**
  * Get connected edge IDs for a given node.
  */
 export function getConnectedEdgeIds(nodeId: string, edges: Edge[]): Set<string> {

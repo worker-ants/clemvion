@@ -20,7 +20,7 @@ owner: planner
 구현: graph-level 규칙 `evaluateGraphCycleWarnings`(`@workflow/graph-warning-rules` `rules/cycle.ts`) + FE `editor-store.ts` `evaluateGraphWarningsLocal` 병합 + BE `getGraphWarnings` 병합. 자기연결/중복은 `onConnect`+`isValidConnection` 하드 차단(`edge-utils.ts` `isSelfConnection`/`isDuplicateConnection`). i18n `GRAPH_WARNING_KO['graph:unescapable-cycle']` + P3-C-1 가드 확장.
 
 ## 미구현 항목
-- [ ] §1.2 출력 포트 드래그 → 빈 영역 드롭 시 노드 추가 검색 팝업 + 자동 엣지 연결 (`onConnectEnd` 핸들러 부재; 현재 팝업은 더블클릭/우클릭 메뉴로만)
+- [x] §1.2 출력 포트 드래그 → 빈 영역 드롭 시 노드 추가 검색 팝업 + 자동 엣지 연결 — 구현 완료. `workflow-canvas.tsx` 에 `onConnectEnd`(React Flow v12 `connectionState.isValid`/`fromNode`/`fromHandle` 기반) 배선: 출력 포트(`fromHandle.type==='source'`) 드래그가 빈 영역(`!isValid`)에 드롭되면 드롭 위치에 노드 추가 검색 팝업을 열고 `NodeSearchPopupState.source` 에 연결원을 기록. `buildAndAddNode` 가 신규 노드 id 를 반환하도록 리팩터하고, `handleAddNodeFromSearch` 가 노드 생성 후 `onConnect(source → 새 노드의 첫 입력 포트)` 로 자동 연결(대상 입력 포트 없으면 생략). 순수 헬퍼 `edge-utils.ts` `isConnectionDroppedOnPane`/`firstInputHandleId` + vitest 9케이스. 입력 포트 시작 역방향 드래그는 §1.3 소관으로 분리.
 - [ ] §1.3 입력 포트 시작 역방향 연결 + 기존 엣지 분리 재연결 모드 (`onReconnect`/역방향 드래그 핸들러 부재)
 - [x] §2.2 금지 연결 검사 — 자기연결(source===target) `isValidConnection` 커서 🚫 + 동일 연결 중복 `onConnect` 토스트 하드 차단 (출력→출력/입력→입력 은 React Flow 핸들 타입 강제). 순수 헬퍼 `edge-utils.ts` `isSelfConnection`/`isDuplicateConnection`.
 - [x] §2.3 사이클 — warn-not-block. 그래프 DFS back-edge 탐지 → 분기 노드 없는 탈출 불가 순환만 `graph:unescapable-cycle` 경고 배지. 컨테이너 loopback(`emit`)·진입(`body`) 예외. FE+BE 동일 규칙(`evaluateGraphCycleWarnings`). "모든 사이클 차단"·툴팁 하드블록 전제는 폐기(위 ✅ 참조).

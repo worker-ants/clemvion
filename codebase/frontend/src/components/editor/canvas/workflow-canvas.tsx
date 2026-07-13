@@ -12,6 +12,7 @@ import type {
   Node as RFNode,
   Edge as RFEdge,
   OnBeforeDelete,
+  OnConnectEnd,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -21,6 +22,10 @@ import { useEditorStore } from "@/lib/stores/editor-store";
 import { getNodeDefinition, useNodeDefinitionsStore } from "@/lib/node-definitions";
 import { generateUniqueLabel } from "@/lib/utils/generate-unique-label";
 import { buildNodeInitialConfig } from "@/lib/utils/build-node-initial-config";
+import {
+  isConnectionDroppedOnPane,
+  firstInputHandleId,
+} from "@/lib/utils/edge-utils";
 import {
   modelConfigsApi,
   MODEL_CONFIGS_CHAT_LIST_QUERY_KEY,
@@ -99,6 +104,9 @@ interface NodeSearchPopupState {
   x: number;
   y: number;
   flowPosition: { x: number; y: number };
+  // §1.2 — 출력 포트 드래그를 빈 영역에 드롭해 팝업이 열렸을 때의 연결원. 선택한 노드를
+  // 이 source 의 첫 입력 포트로 자동 연결한다. 더블클릭/우클릭 메뉴로 열린 경우엔 undefined.
+  source?: { nodeId: string; handleId: string | null };
 }
 
 export function WorkflowCanvas() {
@@ -310,6 +318,33 @@ export function WorkflowCanvas() {
     [],
   );
 
+  // §1.2 — 출력 포트에서 드래그를 시작해 유효한 target 없이 빈 영역(pane)에 드롭하면, 그
+  // 드롭 위치에 노드 추가 검색 팝업을 열고 선택한 노드를 연결원의 첫 입력 포트로 자동
+  // 연결한다(popup.source 에 연결원 기록 → handleAddNodeFromSearch 가 소비). React Flow v12
+  // 는 connectionState.fromNode/fromHandle 로 연결원을, isValid 로 드롭 유효성을 제공한다.
+  // 입력 포트(target 타입)에서 시작한 역방향 드래그는 §1.3 소관이라 여기서 다루지 않는다.
+  const onConnectEnd = useCallback<OnConnectEnd>((event, connectionState) => {
+    if (!isConnectionDroppedOnPane(connectionState)) return; // 유효 연결은 onConnect 가 처리
+    const fromNode = connectionState.fromNode;
+    const fromHandle = connectionState.fromHandle;
+    if (!fromNode || fromHandle?.type !== "source") return; // 출력 포트 드래그만
+    const point = "changedTouches" in event ? event.changedTouches[0] : event;
+    if (!point) return;
+    const flowPos = reactFlowInstance.current?.screenToFlowPosition({
+      x: point.clientX,
+      y: point.clientY,
+    }) ?? { x: 0, y: 0 };
+    setNodeContextMenu(null);
+    setCanvasContextMenu(null);
+    setNodeSearchPopup({
+      x: point.clientX,
+      y: point.clientY,
+      flowPosition: flowPos,
+      source: { nodeId: fromNode.id, handleId: fromHandle.id ?? null },
+    });
+    setSearchQuery("");
+  }, []);
+
   // 단일 노드 실행 (§1.3) — 대상 노드 1개만 실행. dirty 캔버스를 먼저 저장해 엔진이
   // 최신 노드 설정을 실행하게 하고, 직전 실행(executionId)을 previousExecutionId 로
   // 전달해 상류 노드 출력을 입력으로 자동 주입한다. 결과는 일반 실행과 동일하게
@@ -518,13 +553,18 @@ export function WorkflowCanvas() {
 
   // 노드 타입 + flow 좌표로 노드를 생성·추가하는 공용 빌더. 빠른추가 팝업(§4.3)과
   // 팔레트 클릭(§4.2)이 공유한다. manual_trigger 단일 인스턴스 가드 포함(§9.2).
+  // 생성된 노드 id 를 반환한다(§1.2 자동 엣지 연결이 target 으로 사용). 노드를 만들지
+  // 못하면(정의 부재·트리거 중복) undefined.
   const buildAndAddNode = useCallback(
-    (nodeType: string, flowPosition: { x: number; y: number }) => {
+    (
+      nodeType: string,
+      flowPosition: { x: number; y: number },
+    ): string | undefined => {
       const definition = getNodeDefinition(nodeType);
-      if (!definition) return;
+      if (!definition) return undefined;
       if (nodeType === "manual_trigger") {
         const hasTrigger = nodes.some((n) => n.data?.type === "manual_trigger");
-        if (hasTrigger) return;
+        if (hasTrigger) return undefined;
       }
       pushUndo();
       const existingLabels = nodes.map(
@@ -532,8 +572,9 @@ export function WorkflowCanvas() {
       );
       const baseLabel =
         translateNodeLabel(definition.label, locale) ?? definition.label;
+      const newId = crypto.randomUUID();
       addNode({
-        id: crypto.randomUUID(),
+        id: newId,
         type: "custom",
         position: flowPosition,
         data: {
@@ -544,18 +585,34 @@ export function WorkflowCanvas() {
           isDisabled: false,
         },
       });
+      return newId;
     },
     [nodes, pushUndo, addNode, buildInitialConfig, locale],
   );
 
-  // Add node from search popup (§4.3)
+  // Add node from search popup (§4.3, §1.2)
   const handleAddNodeFromSearch = useCallback(
     (nodeType: string) => {
       if (!nodeSearchPopup) return;
-      buildAndAddNode(nodeType, nodeSearchPopup.flowPosition);
+      const source = nodeSearchPopup.source;
+      const newId = buildAndAddNode(nodeType, nodeSearchPopup.flowPosition);
+      // §1.2 — 출력 포트 드래그로 열린 팝업이면, 생성된 노드의 첫 입력 포트로 자동 연결한다.
+      // 대상 노드에 입력 포트가 없으면(트리거 등) targetHandle 이 null 이라 연결을 생략한다.
+      // source→새 노드 조합은 자기연결·중복이 될 수 없어 onConnect 검증을 항상 통과한다.
+      if (newId && source) {
+        const targetHandle = firstInputHandleId(getNodeDefinition(nodeType));
+        if (targetHandle) {
+          onConnect({
+            source: source.nodeId,
+            sourceHandle: source.handleId,
+            target: newId,
+            targetHandle,
+          });
+        }
+      }
       setNodeSearchPopup(null);
     },
-    [nodeSearchPopup, buildAndAddNode],
+    [nodeSearchPopup, buildAndAddNode, onConnect],
   );
 
   // §4.2 — 팔레트 아이템 클릭으로 노드 추가. 현재 뷰포트 중앙에 배치하되, 반복 클릭
@@ -695,6 +752,7 @@ export function WorkflowCanvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
         onInit={onInit}
         onDrop={onDrop}
