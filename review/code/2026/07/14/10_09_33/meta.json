@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-07-14T10:09:33.988377",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/ai/ai-agent/tool-payload-budget.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/ai/ai-agent/tool-payload-budget.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/ai-agent-tool-payload-budget-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/ai-agent-tool-payload-budget-guardrail.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/08_49_37/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/08_49_37/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/08_49_37/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/08_49_37/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/08_49_37/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/09_04_19/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/09_04_19/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/09_04_19/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/09_04_19/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/09_04_19/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/07/14/09_04_19/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/4-nodes/3-ai/1-ai-agent.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/5-system/11-mcp-client.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/conventions/cross-node-warning-rules.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

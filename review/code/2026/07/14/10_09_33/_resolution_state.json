@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "started_at": "2026-07-14T10:34:00Z",
+  "summary_items_total": 9,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "970ccbbca",
+      "summary_id": 5,
+      "scope": "ai-agent/tool-payload-budget",
+      "note": "also covers W6, INFO5, INFO6, INFO9, INFO10"
+    },
+    {
+      "sha": "d8be832e1",
+      "summary_id": 1,
+      "scope": "ai-agent/ai-turn-executor",
+      "note": "also covers W2, W4, W7, INFO7"
+    },
+    {
+      "sha": "344010bb7",
+      "summary_id": 8,
+      "scope": "ai-agent/.env.example",
+      "note": "docs only"
+    },
+    {
+      "sha": "f9c818cef",
+      "summary_id": 9,
+      "scope": "CHANGELOG",
+      "note": "also covers W3"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260714-103940.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "info_items": {
+    "resolved_opportunistic": [5, 6, 7, 9, 10],
+    "deferred_no_code_change": [1, 2, 3, 4, 8]
+  }
+}
