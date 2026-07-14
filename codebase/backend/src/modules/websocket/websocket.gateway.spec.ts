@@ -1191,6 +1191,57 @@ describe('WebsocketGateway', () => {
     });
   });
 
+  // F-6 (plan eia-command-waiting-surface-guard) — WS continuation 명령이 nodeId 를 실으면
+  // publisher(§7.5.1)로 forward 해 대기 노드와 대조한다. frontend 는 submit_message/
+  // end_conversation 에 nodeId 를 이미 싣는다. click_button 은 미전송이라 undefined → skip.
+  describe('F-6 — WS nodeId → expectedNodeId forwarding', () => {
+    function authed(): Socket {
+      const { socket } = createMockSocket({ id: 'client-f6' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('handleSubmitMessage — data.nodeId 를 continueAiConversation 3번째 인자로 전달', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      await gateway.handleSubmitMessage(
+        { executionId: 'exec-1', nodeId: 'n-wait', message: 'hi' },
+        authed(),
+      );
+      expect(mockEngine.continueAiConversation).toHaveBeenCalledWith(
+        'exec-1',
+        'hi',
+        'n-wait',
+      );
+    });
+
+    it('handleEndConversation — data.nodeId 를 endAiConversation 2번째 인자로 전달', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      await gateway.handleEndConversation(
+        { executionId: 'exec-1', nodeId: 'n-wait' },
+        authed(),
+      );
+      expect(mockEngine.endAiConversation).toHaveBeenCalledWith(
+        'exec-1',
+        'n-wait',
+      );
+    });
+
+    it('handleClickButton — nodeId 미제공 시 undefined 전달 (frontend no-op)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      await gateway.handleClickButton(
+        { executionId: 'exec-1', buttonId: 'btn-1' },
+        authed(),
+      );
+      expect(mockEngine.continueButtonClick).toHaveBeenCalledWith(
+        'exec-1',
+        'btn-1',
+        undefined,
+      );
+    });
+  });
+
   describe('handleSubmitMessage (§7.5.2 leak-block, I-11)', () => {
     function authedMessageSocket(): Socket {
       const { socket } = createMockSocket({ id: 'client-msg' });
