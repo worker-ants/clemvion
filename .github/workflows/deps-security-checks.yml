@@ -1,0 +1,70 @@
+# 의존성 보안 거버넌스 가드.
+#
+# 두 가지를 강제한다:
+#   1. config-guard — pnpm-workspace.yaml 의 보안 핀(overrides)·native build 허용목록
+#      (onlyBuiltDependencies)이 기대 baseline 과 일치하는지 검증. pnpm 10.23 이
+#      package.json `pnpm` 필드를 무시하면서 핀이 pnpm-workspace.yaml 로 이전됐는데,
+#      --frozen-lockfile CI 는 override 를 지우고 lockfile 을 재생성해도 통과하므로 CVE
+#      상향 핀이 조용히 사라질 수 있다. 본 가드가 그 회귀를 PR 에서 잡는다.
+#   2. audit — `pnpm audit --audit-level=moderate` 로 신규 moderate+ 취약점을 차단.
+#      검토 후 수용한 CVE 는 pnpm-workspace.yaml 의 auditConfig.ignoreCves 로 명시 제외.
+#
+# schedule: deps 미변경이어도 신규 CVE 공시(audit DB 갱신)를 주간으로 감지한다.
+# 근거: review/code/2026/07/14/08_25_10 security WARNING, plan §4.
+
+name: deps-security-checks
+
+on:
+  pull_request:
+    paths:
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'codebase/**/package.json'
+      - 'scripts/check-pnpm-security-config.py'
+      - '.github/workflows/deps-security-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'codebase/**/package.json'
+  schedule:
+    # 매주 월요일 06:17 UTC — deps 미변경이어도 신규 CVE 를 audit DB 갱신으로 감지.
+    - cron: '17 6 * * 1'
+
+concurrency:
+  group: deps-security-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  config-guard:
+    name: pnpm 보안 설정 스냅샷 가드
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Check pnpm security config
+        run: python3 scripts/check-pnpm-security-config.py
+
+  audit:
+    name: pnpm audit (moderate+)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      # audit 은 pnpm-lock.yaml + auditConfig(pnpm-workspace.yaml) 를 읽어 레지스트리에
+      # 질의한다(node_modules 설치 불요). 수용 CVE 는 auditConfig.ignoreCves 로 제외되어
+      # 신규 moderate+ 취약점만 실패시킨다.
+      - name: pnpm audit
+        run: pnpm audit --audit-level=moderate
