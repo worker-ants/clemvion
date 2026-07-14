@@ -101,6 +101,8 @@ export interface GraphWarningRuleResult {
 
 > **보조 surface — `GET /workflows/:id/graph-warnings`** (REST, `viewer` 이상): `WorkflowsService.getGraphWarnings` 가 저장된 nodes/edges 를 로드해 `evaluateGraphWarningRulesForGraph` 를 서버 권위로 평가하고 `{ results, hasError, hasWarning }` 를 반환한다 (`workflows.controller.ts` / `workflows.service.ts`). 이 endpoint 는 3중 가드의 구성 요소가 아닌 **조회 전용 보조 API** (디버그·외부 클라이언트용) 다 — frontend canvas 는 이를 호출하지 않고 가드 ② 의 로컬 평가(`evaluateGraphWarningsLocal`)만 사용하며, frontend api client 의 `graphWarnings` 메서드는 현재 호출자가 없다.
 
+> **예외 — backend-only async rule (가드 ② 생략)**: 평가에 **async 외부 조회**(예: 통합 granted scope, live MCP tool list)가 필요한 rule 은 pure/동기·frontend-backend 공유 `@workflow/graph-warning-rules`(§6) 로 표현할 수 없다. 이런 rule 은 shared package 에 넣지 않고 backend `WorkflowsService` 가 `evaluateGraphWarnings` 결과 배열에 **append** 하는 **backend-only 평가**로 둔다. 이 경우 가드 ②(frontend 로컬 pre-evaluate)는 구조적으로 **생략**되며(frontend 는 async 조회를 할 수 없음), 가드 ①(saveCanvas)과 노드별 **런타임 가드 ③**(자기 노드 실행 시 pre-flight throw)가 안전망이 된다. severity `error` rule 이라도 이 예외가 적용될 수 있으나, 반드시 강한 런타임 가드 ③ 를 동반해야 한다. backend-only rule 은 evaluate 시점에 severity 를 계산(예: env 플래그로 `warning`↔`error` 승격)할 수 있다 — `GraphWarningRule.severity` 고정 필드 모델(§3)과 달리 직접 `GraphWarningRuleResult` 를 구성하기 때문. 현재 등재: `ai_agent:tool-payload-budget`(§8). i18n parity — backend-only rule 은 `GRAPH_WARNING_RULES_BY_TYPE` 밖이라 P3-C-1 자동 스캔에 안 잡히므로, `backend-labels.test.ts` 의 backend-only ruleId 명시 목록 + `GRAPH_WARNING_KO` KO 매핑을 수동 등록해야 한다.
+
 ## 6. SSOT 보장 (backend ↔ frontend) — shared package 채택 (옵션 A)
 
 GraphWarningRule 의 `evaluate` 가 JS 함수라 frontend / backend 가 같은 함수 정의를 실행해야 평가 결과가 일치한다. **shared package `@workflow/graph-warning-rules`** (`codebase/packages/graph-warning-rules/`) 를 단일 진실로 채택했다:
@@ -128,6 +130,7 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 | Parallel | `parallel:nested-depth-exceeded` | error | 외부 Parallel 의 분기 body 에 내부 Parallel + 그 분기 body 에 또 Parallel → depth 3 reject (parallel-p2 결정 #3) |
 | Parallel | `parallel:nested-concurrency-cap` | warning | 외부 effectiveConcurrency × 내부 effectiveConcurrency > 32 시 warning (runtime silent clamp 가 안전망 — parallel-p2 결정 #3 + D) |
 | (graph-level) | `graph:unescapable-cycle` | warning | 분기 노드 없이 탈출 불가한 순환(pass-through back-edge)을 그 source 노드에 경고. 컨테이너 loopback(`targetHandle==='emit'`)·컨테이너 진입(`sourceHandle==='body'`)은 예외. 편집기 warn-not-block ([spec/3-workflow-editor/2-edge.md §2.3](../3-workflow-editor/2-edge.md#23-순환-참조--경고하되-차단하지-않음-warn-not-block)) |
+| AI Agent (**backend-only**, §5 예외) | `ai_agent:tool-payload-budget` | warning (`AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 시 hard 초과분 `error` 승격) | 노드의 도구 정의(스키마) payload 가 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`/`_HARD_BYTES`) 초과. async 통합 scope 조회가 필요해 backend-only 평가(가드 ② 생략, 런타임 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 가 안전망). SoT: [AI Agent §4.2/§10](../4-nodes/3-ai/1-ai-agent.md) |
 
 ## 9. 향후 확장 (본 컨벤션 범위 밖)
 
