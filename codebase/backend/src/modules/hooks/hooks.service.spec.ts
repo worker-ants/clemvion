@@ -668,6 +668,50 @@ describe('HooksService', () => {
       ).resolves.toBeDefined();
     });
 
+    // F-4 — 비-group(private) unsupported 메시지 → unsupportedMessageKind 안내 분기.
+    it('F-4 — parseUpdate null + private unsupported → unsupportedMessageKind 안내 발송', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const privateInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 777, type: 'private' },
+            from: { is_bot: false },
+          },
+        },
+      };
+
+      await service.handleWebhook('abc', privateInput);
+
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: '777',
+          body: expect.objectContaining({ kind: 'text' }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    // F-4 — 봇 자기 메시지(from.is_bot=true)는 silent skip — 봇↔봇 루프 방지. 발송 없음.
+    it('F-4 — parseUpdate null + from.is_bot=true → 안내 미발송 (silent skip)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const botInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 888, type: 'private' },
+            from: { is_bot: true },
+          },
+        },
+      };
+
+      await service.handleWebhook('abc', botInput);
+
+      expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
     // C-2: 비활성 chatChannel 트리거는 410 Gone 이 아니라 202 + { executionId: 'ignored' }.
     // isActive 검사가 chatChannel 판정보다 먼저 실행되던 결함의 회귀 가드
     // (spec R-CC-12 / §5.5 비활성 trigger 행 / WH-EP-07 chatChannel 예외).
