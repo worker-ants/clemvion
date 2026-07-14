@@ -1,6 +1,6 @@
 ---
 id: cross-node-warning-rules
-status: implemented
+status: partial
 code:
   - codebase/packages/graph-warning-rules/**
   - codebase/packages/node-summary/**
@@ -12,6 +12,8 @@ code:
   - codebase/frontend/src/lib/stores/editor-store.ts
   - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
+pending_plans:
+  - plan/in-progress/ai-agent-tool-payload-budget-followups.md
 ---
 
 # Cross-Node WarningRule 컨벤션
@@ -130,7 +132,7 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 | Parallel | `parallel:nested-depth-exceeded` | error | 외부 Parallel 의 분기 body 에 내부 Parallel + 그 분기 body 에 또 Parallel → depth 3 reject (parallel-p2 결정 #3) |
 | Parallel | `parallel:nested-concurrency-cap` | warning | 외부 effectiveConcurrency × 내부 effectiveConcurrency > 32 시 warning (runtime silent clamp 가 안전망 — parallel-p2 결정 #3 + D) |
 | (graph-level) | `graph:unescapable-cycle` | warning | 분기 노드 없이 탈출 불가한 순환(pass-through back-edge)을 그 source 노드에 경고. 컨테이너 loopback(`targetHandle==='emit'`)·컨테이너 진입(`sourceHandle==='body'`)은 예외. 편집기 warn-not-block ([spec/3-workflow-editor/2-edge.md §2.3](../3-workflow-editor/2-edge.md#23-순환-참조--경고하되-차단하지-않음-warn-not-block)) |
-| AI Agent (**backend-only**, §5 예외) | `ai_agent:tool-payload-budget` | warning (`AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 시 hard 초과분 `error` 승격) | 노드의 도구 정의(스키마) payload 가 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`/`_HARD_BYTES`) 초과. async 통합 scope 조회가 필요해 backend-only 평가(가드 ② 생략, 런타임 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 가 안전망). SoT: [AI Agent §4.2/§10](../4-nodes/3-ai/1-ai-agent.md) |
+| AI Agent (**backend-only**, §5 예외) | `ai_agent:tool-payload-budget` | warning (`AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 시 hard 초과분 `error` 승격) | 노드의 도구 정의(스키마) payload 가 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`/`_HARD_BYTES`) 초과. async 통합 scope 조회가 필요해 backend-only 평가(가드 ② 생략, 런타임 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 가 안전망). **⚠ 구현 예정(Planned)** — 런타임 fail-fast 는 구현됨, config-time graph warning 은 후속 `plan/in-progress/ai-agent-tool-payload-budget-followups.md`. SoT: [AI Agent §4.2/§10](../4-nodes/3-ai/1-ai-agent.md) |
 
 ## 9. 향후 확장 (본 컨벤션 범위 밖)
 

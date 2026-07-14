@@ -61,10 +61,21 @@ owner: developer
 
 1. estimator SoT 함수 (`estimateAgentToolPayload`) + unit test.
 2. 런타임 fail-fast (buildTools 공통 헬퍼) + `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 분류(`AiTurnOrchestrator.classifyLlmError` passthrough 정합) + 구조화 details(`retryable:false`) + unit test. **(W1) single-turn 경로**: `executeSingleTurn` 은 현재 buildTools/chat 을 try/catch 없이 호출하므로(멀티턴 `handleAiMessageTurn` 과 비대칭), pre-flight throw 가 `output.error`+`error` 포트로 귀결되도록 single-turn 전용 로컬 try/catch(또는 handler 경계 catch) 를 신설한다. `node-output-redesign/ai-agent.md` 의 single-turn error 라우팅 미해결 CRITICAL 과 선행 의존 — 본 에러코드만이라도 명시 라우팅 보장.
-3. resume 턴 timeoutMs+signal 배선 + 회귀 test.
-4. saveCanvas backend-only `evaluateAiAgentToolPayloadWarnings` → `GraphWarningRuleResult` append + strict 승격 + integration test. saveCanvas 응답이 이미 graph warnings 를 포함하므로 **신규 DTO 없음**(있으면 swagger.md §5-4 체크리스트에 따라 응답 DTO/데코레이터 갱신). **(W3) i18n 가드**: `ai_agent:tool-payload-budget` 는 shared-package 밖(backend-only)이라 `backend-labels.test.ts` P3-C-1 자동 parity 스캔 사각지대 → `GRAPH_WARNING_KO['ai_agent:tool-payload-budget']` KO 매핑 추가 + `backend-labels.test.ts` 의 backend-only ruleId 명시 목록에 등록(빌드 시 KO 누락 방지).
-5. env 기본값 wiring(ConfigService namespace) + 문서.
-6. build / lint / test.
+3. ~~resume 턴 timeoutMs+signal 배선~~ → **후속 PR 로 분리** (아래 §후속 참조). 근거: resume 경로(`processMultiTurnMessage`)는 `ExecutionContext`(abortSignal 보유)를 안 받고 `state` 만 받으므로 signal plumbing 이 orchestrator→state 배선 변경을 요구(별도 설계). timeoutMs 기본값은 정상 장기 생성 regression 위험이라 신중한 default 필요. 근본 원인(payload)은 본 PR 가드레일로 해소되므로 timeout 은 defense-in-depth 후속.
+4. ~~saveCanvas backend-only `evaluateAiAgentToolPayloadWarnings`~~ → **후속 PR 로 분리** (아래 §후속). 근거: `WorkflowsService` 에 Integration repository 미주입(모듈 배선 필요) + config-time payload 추정이 Cafe24/Makeshop 정적 카탈로그 도구 재현(provider 내부 로직 재사용 refactor)을 요구 → 이미 큰 본 PR 에 무리 없이 분리 가능한 cross-module 덩어리. 런타임 fail-fast(구현됨)가 실제 안전망이므로 config-time 가시화는 후속.
+5. env 기본값: 모듈 상수(`Number(process.env.X) || fallback`, MCP_MAX_RESPONSE_BYTES 선례) — **구현됨** (tool-payload-budget.ts).
+6. build / lint / test — **통과**.
+
+### 본 PR 범위 (구현 완료)
+
+- estimator SoT (`tool-payload-budget.ts`) + 런타임 fail-fast(buildTools 공통 choke point) + single-turn error 포트 라우팅 + multi-turn(기존 catch 전파) + env + unit test. = **§4.2 런타임 + §10 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`**.
+
+### 후속 (별도 PR — `ai-agent-tool-payload-budget-followups.md`)
+
+1. **config-time 저장 경고** (§4.2 저장 경고 / §10 config 경고 / cross-node-warning-rules §5·§8 `ai_agent:tool-payload-budget`): `WorkflowsService` 에 Integration 접근 주입 → backend-only async 평가 → getGraphWarnings surface + saveCanvas strict(`GRAPH_VALIDATION_FAILED`) block + i18n(`GRAPH_WARNING_KO` + backend-labels.test.ts backend-only ruleId 등록). Cafe24/Makeshop 정적 도구 재현은 provider buildTools 로직에서 pure 함수 추출해 estimator 재사용.
+2. **resume 턴 LLM 호출 timeoutMs+signal 배선**: `processMultiTurnMessage` chat(`:2624`/`:2765`)에 app-level `timeoutMs`(신중한 default) + abortSignal(orchestrator→state plumbing). single-turn(`:1533`)도 대칭화.
+
+> spec frontmatter: 본 후속 plan 을 `ai-agent.md` · `cross-node-warning-rules.md` 의 `pending_plans` 에 등록(spec-impl-evidence). cross-node-warning-rules `status: implemented → partial`(신규 rule 미구현분).
 
 ### Phase 3 — 리뷰 (강제)
 
@@ -99,7 +110,7 @@ owner: developer
 
 > | `TOOL_DEFINITION_PAYLOAD_EXCEEDED` | buildTools 결과 도구 **정의**(스키마) 직렬화 크기가 hard 예산(`AI_AGENT_TOOL_PAYLOAD_HARD_BYTES`, 기본 256 KB) 또는 개수(`AI_AGENT_TOOL_COUNT_MAX`, 기본 128) 초과 — LLM 호출 전 pre-flight. `MAX_TOOL_CALLS_EXCEEDED`(도구 **호출 횟수** 축)와 다른 실패 지점. | false | runtime (pre-LLM) |
 
-`output.error` shape: `{ code: 'TOOL_DEFINITION_PAYLOAD_EXCEEDED', message, retryable: false, details: { totalBytes, budgetBytes, toolCount, culpritProvider? } }`. retryable 분류: `false` (설정을 바꾸지 않으면 동일 실패 — non-retryable, `_retryState` 미동봉; LLM 계열 노드 필수 필드 `retryable` 은 node-output §3.2.1 준수 — W5). `details` 구조화는 §7.9 `LLM_RATE_LIMIT` 의 `details` 선례와 동형(node-output §3.2.2 노드별 details 스키마 규약).
+`output.error` shape: `{ code: 'TOOL_DEFINITION_PAYLOAD_EXCEEDED', message, details: { retryable: false, totalBytes, budgetBytes, toolCount, culpritProvider? } }` (`retryable` 은 §7.3 형식대로 details 안). retryable 분류: `false` (설정을 바꾸지 않으면 동일 실패 — non-retryable, `_retryState` 미동봉; LLM 계열 노드 필수 필드 `retryable` 은 node-output §3.2.1 준수 — W5). `details` 구조화는 §7.9 `LLM_RATE_LIMIT` 의 `details` 선례와 동형(node-output §3.2.2 노드별 details 스키마 규약).
 
 ### D3. ai-agent.md §10 config 경고 계약 (Pre-flight 표 아래 note 신규 — cross-node-warning-rules 재사용)
 
