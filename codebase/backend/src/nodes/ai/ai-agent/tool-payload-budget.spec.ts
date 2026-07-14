@@ -218,5 +218,69 @@ describe('tool-payload-budget', () => {
       process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = 'not-a-number';
       expect(toolPayloadHardBytes()).toBe(262144);
     });
+
+    // 03 W5/W6 — 음수/0 env 는 "예산이 항상 실패" 로 고정돼 AI Agent 노드를
+    // 영구 차단할 위험이 있었다. 세 예산 전부에서 fallback 회귀를 고정한다.
+    it('falls back to defaults for "0" env values (not a kill-switch)', () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '0';
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '0';
+      process.env.AI_AGENT_TOOL_COUNT_MAX = '0';
+      expect(toolPayloadSoftBytes()).toBe(98304);
+      expect(toolPayloadHardBytes()).toBe(262144);
+      expect(toolCountMax()).toBe(128);
+    });
+
+    it('falls back to defaults for negative env values', () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '-1';
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '-262144';
+      process.env.AI_AGENT_TOOL_COUNT_MAX = '-5';
+      expect(toolPayloadSoftBytes()).toBe(98304);
+      expect(toolPayloadHardBytes()).toBe(262144);
+      expect(toolCountMax()).toBe(128);
+    });
+
+    it('a negative hard-byte budget no longer forces every tool payload to fail', () => {
+      // 회귀 재현: 하드닝 이전엔 `Number('-1') || fallback` 이 -1(truthy) 을
+      // 그대로 통과시켜 estimate.bytes(항상 >=0) > -1 이 항상 참 → hard 예산이
+      // 영구 실패 상태로 고정됐다 (AI Agent 노드 영구 차단).
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '-1';
+      expect(() => enforceToolPayloadBudget([tool('kb_a')])).not.toThrow();
+    });
+  });
+
+  describe('rethrow of non-budget errors (executor catch else-branch)', () => {
+    // enforceToolPayloadBudget 자체는 payload 예산 판정 외 다른 에러를 던지지
+    // 않지만, 03 W7 은 `executeSingleTurn` 의 catch 가 `ToolDefinitionPayload
+    // ExceededError` 가 아닌 에러를 rethrow 하는지(else 분기)를 검증한다 —
+    // 해당 회귀는 ai-turn-executor.spec.ts 에 buildTools 가 non-budget 에러를
+    // 던지도록 provider 를 주입해 고정한다 (여기서는 예산 함수 자체가 이 에러
+    // 타입 외 다른 것을 던지지 않음을 명시적으로 문서화).
+    it('enforceToolPayloadBudget only throws ToolDefinitionPayloadExceededError', () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
+      try {
+        enforceToolPayloadBudget([tool('mcp_abc__get')]);
+        throw new Error('expected enforceToolPayloadBudget to throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ToolDefinitionPayloadExceededError);
+      }
+    });
+  });
+
+  describe('pickCulpritProvider / empty perProvider (INFO9)', () => {
+    it('omits culpritProvider from error.details when perProvider is empty', () => {
+      // 빈 tools 배열로 hard byte 예산(1)을 강제 초과시켜 perProvider=[] 인
+      // 채로 throw 되게 한다 — culpritProvider 키 자체가 생략돼야 한다.
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '1';
+      let caught: ToolDefinitionPayloadExceededError | undefined;
+      try {
+        enforceToolPayloadBudget([]);
+      } catch (err) {
+        caught = err as ToolDefinitionPayloadExceededError;
+      }
+      expect(caught).toBeInstanceOf(ToolDefinitionPayloadExceededError);
+      expect(caught?.details.toolCount).toBe(0);
+      expect(caught?.details.culpritProvider).toBeUndefined();
+      expect('culpritProvider' in (caught?.details ?? {})).toBe(false);
+    });
   });
 });
