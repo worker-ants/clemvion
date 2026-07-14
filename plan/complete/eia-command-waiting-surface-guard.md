@@ -1,8 +1,14 @@
 ---
 worktree: .claude/worktrees/elegant-driscoll-eebdd6
 started: 2026-07-10
+completed: 2026-07-14
 owner: developer
 ---
+
+> **완료 (2026-07-14)**: 메인 표면 가드 + 후속 F-1~F-6 전부 구현·리뷰·consistency 종결.
+> 미채택 백로그(별도 작업): ChatChannelInboundService 분리, defaults per-provider escape 이관,
+> `expectedNodeId` options 객체화, REST `/continue` nodeId 계약, `TELEGRAM_RAW_SEND_HINT_KEYS`
+> 컴파일타임 연동, i18n-userguide chat-channel KO/EN 예외 codify, maybeNotifyIgnored 정확 문구 단언.
 
 # EIA/WS continuation 명령 ↔ 대기 표면 가드
 
