@@ -19,6 +19,7 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate-limiter.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
+import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 import { TriggerParameterErrorDetail } from '../execution-engine/types/trigger-parameter.types';
@@ -621,6 +622,96 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    // F-4 — maybeNotifyIgnored 는 sendBestEffortNotice 공유 헬퍼로 리팩터됐다. group chat →
+    // groupChatRefusal 안내를 chat.id 를 conversationKey 로 발송하는지 회귀 가드 (CCH-CV-05).
+    it('F-4 — parseUpdate null + group chat → groupChatRefusal 안내 발송 (conversationKey=chat.id)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const groupInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 4242, type: 'group' },
+            from: { is_bot: false },
+          },
+        },
+      };
+
+      await service.handleWebhook('abc', groupInput);
+
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: '4242',
+          body: expect.objectContaining({ kind: 'text' }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    // F-4 — maybeNotifyIgnored 의 발송 실패도 sendBestEffortNotice 가 swallow(warn) 한다.
+    it('F-4 — maybeNotifyIgnored sendMessage 실패는 삼킴 — webhook 정상 종료', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      mockAdapter.sendMessage.mockRejectedValueOnce(new Error('network'));
+      const groupInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 4242, type: 'supergroup' },
+            from: { is_bot: false },
+          },
+        },
+      };
+
+      await expect(
+        service.handleWebhook('abc', groupInput),
+      ).resolves.toBeDefined();
+    });
+
+    // F-4 — 비-group(private) unsupported 메시지 → unsupportedMessageKind 안내 분기.
+    it('F-4 — parseUpdate null + private unsupported → unsupportedMessageKind 안내 발송', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const privateInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 777, type: 'private' },
+            from: { is_bot: false },
+          },
+        },
+      };
+
+      await service.handleWebhook('abc', privateInput);
+
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: '777',
+          body: expect.objectContaining({ kind: 'text' }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    // F-4 — 봇 자기 메시지(from.is_bot=true)는 silent skip — 봇↔봇 루프 방지. 발송 없음.
+    it('F-4 — parseUpdate null + from.is_bot=true → 안내 미발송 (silent skip)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const botInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 888, type: 'private' },
+            from: { is_bot: true },
+          },
+        },
+      };
+
+      await service.handleWebhook('abc', botInput);
+
+      expect(mockAdapter.sendMessage).not.toHaveBeenCalled();
+    });
+
     // C-2: 비활성 chatChannel 트리거는 410 Gone 이 아니라 202 + { executionId: 'ignored' }.
     // isActive 검사가 chatChannel 판정보다 먼저 실행되던 결함의 회귀 가드
     // (spec R-CC-12 / §5.5 비활성 trigger 행 / WH-EP-07 chatChannel 예외).
@@ -813,6 +904,12 @@ describe('HooksService', () => {
           message: 'my answer',
         }),
       );
+      // F-1 — chat-channel(in_process_trusted)은 nodeId 를 싣지 않는다. 종전 fake
+      // `nodeId: 'chat-channel'` placeholder 제거 회귀 가드 (publisher 면제 경로 전제).
+      expect(interactionService.interact).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.not.objectContaining({ nodeId: expect.anything() }),
+      );
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
@@ -874,6 +971,102 @@ describe('HooksService', () => {
       );
       expect(warnSpy).not.toHaveBeenCalledWith(
         expect.stringContaining('Conflict Exception'),
+      );
+      warnSpy.mockRestore();
+    });
+
+    // F-2 (plan eia-command-waiting-surface-guard) — 표면 불일치 삼킴 시 사용자에게 best-effort
+    // 안내(languageHints.surfaceMismatch)를 발송한다. 종전엔 로그만 남기고 피드백이 없었다.
+    it('표면 불일치(STATE_MISMATCH) 시 surfaceMismatch 안내를 채널로 발송', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'form 대기 중 텍스트' },
+        idempotencyKey: '1006',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: 'surface mismatch' },
+        }),
+      );
+
+      await service.handleWebhook('abc', chatInput);
+
+      // 트리거 config 는 languageLocale 미설정 → ko default 안내.
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: 'chat-123',
+          body: { kind: 'text', text: SURFACE_MISMATCH_DEFAULTS.ko },
+        }),
+        expect.anything(),
+      );
+    });
+
+    // F-2 — surfaceMismatch 안내 발송 자체가 실패해도 삼킨다(warn). 안내가 webhook
+    // 5xx 를 유발해 provider 재시도 루프를 만들면 안 되기 때문. (best-effort)
+    it('surfaceMismatch 안내 sendMessage 실패는 삼킴 — webhook 은 정상 종료 + warn', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'form 대기 중 텍스트' },
+        idempotencyKey: '1007',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: 'surface mismatch' },
+        }),
+      );
+      // 안내 발송 자체가 실패.
+      mockAdapter.sendMessage.mockRejectedValueOnce(new Error('network'));
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      // throw 하지 않는다.
+      await expect(
+        service.handleWebhook('abc', chatInput),
+      ).resolves.toBeDefined();
+      // 발송 실패 warn 이 남는다.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('surfaceMismatch 안내 sendMessage 실패'),
       );
       warnSpy.mockRestore();
     });

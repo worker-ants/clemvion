@@ -601,9 +601,12 @@ export class WebsocketGateway
     }
 
     try {
+      // F-6 — 클라이언트가 nodeId 를 실으면 publisher 가 실제 대기 노드와 대조한다
+      // (§7.5.1 nodeId 불일치, EIA `/interact` 와 대칭). 미제공 시 undefined → 검사 skip.
       const result = await this.executionEngineService.continueButtonClick(
         data.executionId,
         data.buttonId,
+        data.nodeId,
       );
       if (!result.queued) {
         return {
@@ -668,9 +671,11 @@ export class WebsocketGateway
     }
 
     try {
+      // F-6 — nodeId 제공 시 publisher 가 대기 노드와 대조 (§7.5.1).
       const result = await this.executionEngineService.continueAiConversation(
         data.executionId,
         data.message,
+        data.nodeId,
       );
       if (!result.queued) {
         return {
@@ -732,8 +737,10 @@ export class WebsocketGateway
     }
 
     try {
+      // F-6 — nodeId 제공 시 publisher 가 대기 노드와 대조 (§7.5.1).
       const result = await this.executionEngineService.endAiConversation(
         data.executionId,
+        data.nodeId,
       );
       if (!result.queued) {
         return {

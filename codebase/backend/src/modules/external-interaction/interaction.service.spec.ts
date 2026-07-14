@@ -105,9 +105,12 @@ describe('InteractionService.interact', () => {
       data: { field1: 'a' },
     };
     const result = await service.interact(IEXT_CTX, dto);
-    expect(engine.continueExecution).toHaveBeenCalledWith('exec-1', {
-      field1: 'a',
-    });
+    expect(engine.continueExecution).toHaveBeenCalledWith(
+      'exec-1',
+      { field1: 'a' },
+      // F-1 — 외부 scope 는 dto.nodeId 를 expectedNodeId 로 전달 (publisher 가 대기 노드와 대조).
+      '550e8400-e29b-41d4-a716-446655440000',
+    );
     expect(result).toEqual({
       executionId: 'exec-1',
       accepted: true,
@@ -262,6 +265,33 @@ describe('InteractionService.interact', () => {
     });
   });
 
+  // F-1 (plan eia-command-waiting-surface-guard) — in_process_trusted(chat-channel)는 scope 단위로
+  // nodeId 요구·일치 검사에서 면제된다 (§7.5.1 exemption, nodeId 가용 여부 무관). 외부 scope 는
+  // dto.nodeId 를 expectedNodeId 로 전달해 publisher 가 실제 대기 노드와 대조한다.
+  it('F-1 — in_process_trusted 는 nodeId 없어도 수용 + expectedNodeId=undefined 로 전달', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne
+      .mockResolvedValueOnce(makeExecution())
+      .mockResolvedValueOnce(
+        makeExecution({ status: ExecutionStatus.RUNNING }),
+      );
+    const INTERNAL_CTX: InteractionRequestContext = {
+      executionId: 'exec-1',
+      triggerId: 'trg-1',
+      scope: 'in_process_trusted',
+    };
+    await service.interact(INTERNAL_CTX, {
+      command: 'submit_message',
+      message: '안녕하세요',
+    } as InteractDto);
+    // nodeId 없이도 INVALID_COMMAND 던지지 않고, publisher 에는 expectedNodeId=undefined.
+    expect(engine.continueAiConversation).toHaveBeenCalledWith(
+      'exec-1',
+      '안녕하세요',
+      undefined,
+    );
+  });
+
   it('submit_form — execution 이 waiting_for_input 아니면 STATE_MISMATCH', async () => {
     const { service, repo, engine } = makeMocks();
     repo.findOne.mockResolvedValue(
@@ -289,7 +319,11 @@ describe('InteractionService.interact', () => {
       nodeId: '550e8400-e29b-41d4-a716-446655440000',
       buttonId: 'btn-1',
     });
-    expect(engine.continueButtonClick).toHaveBeenCalledWith('exec-1', 'btn-1');
+    expect(engine.continueButtonClick).toHaveBeenCalledWith(
+      'exec-1',
+      'btn-1',
+      '550e8400-e29b-41d4-a716-446655440000',
+    );
   });
 
   it('click_button — buttonId 없으면 INVALID_COMMAND', async () => {
@@ -320,6 +354,7 @@ describe('InteractionService.interact', () => {
     expect(engine.continueAiConversation).toHaveBeenCalledWith(
       'exec-1',
       '안녕하세요',
+      '550e8400-e29b-41d4-a716-446655440000',
     );
   });
 
@@ -348,7 +383,10 @@ describe('InteractionService.interact', () => {
       command: 'end_conversation',
       nodeId: '550e8400-e29b-41d4-a716-446655440000',
     });
-    expect(engine.endAiConversation).toHaveBeenCalledWith('exec-1');
+    expect(engine.endAiConversation).toHaveBeenCalledWith(
+      'exec-1',
+      '550e8400-e29b-41d4-a716-446655440000',
+    );
   });
 
   it('cancel — executionsService.stop 호출 + waiting 아니어도 허용', async () => {

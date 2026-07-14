@@ -235,7 +235,7 @@ export const triggers = {
       "languageHints 미설정 키에 적용되는 default 문구 언어 (default ko). 실행 실패 안내(CCH-ERR-*) 등 봇 자체 안내에 사용.",
     languageHints: "안내 메시지 i18n (languageHints)",
     languageHintsHelp:
-      "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help. " +
+      "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch. " +
       "실행 실패 안내(CCH-ERR-*) 6 키: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
       "CCH-ERR-* 키에서 허용되는 placeholder: {statusCode} 1종.",
     health: "Channel 건강도",

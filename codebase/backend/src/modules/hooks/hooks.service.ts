@@ -39,6 +39,10 @@ import {
   isNativeFormAdapter,
 } from '../chat-channel/types';
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
+import {
+  resolveSurfaceMismatchMessage,
+  type LanguageLocale,
+} from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
@@ -617,6 +621,8 @@ export class HooksService {
           trigger,
           state.executionId!,
           update,
+          config,
+          adapter,
         );
       }
       await adapter.ackInteraction(update, config);
@@ -715,8 +721,9 @@ export class HooksService {
    *
    * 거부를 그대로 throw 하면 webhook 이 5xx 를 반환해 provider 가 같은 update 를 무한
    * 재시도한다. 따라서 삼키되 **반드시 warn 로그를 남긴다** (§10.9 "silent skip 금지" +
-   * 본 파일의 모든 catch 관례). 사용자 대상 안내 문구(`languageHints` 신규 키)는 후속
-   * 항목 — `plan/in-progress/eia-command-waiting-surface-guard.md` F-2.
+   * 본 파일의 모든 catch 관례). 추가로 F-2 (plan eia-command-waiting-surface-guard) 로,
+   * 사용자에게 `languageHints.surfaceMismatch` best-effort 안내를 발송한다 — 종전엔 로그만
+   * 남기고 사용자에게 아무 피드백이 없었다 (chat-channel CCH-ERR-04 "silently swallow 금지" 대칭).
    *
    * 삼키는 범위는 **`STATE_MISMATCH` 코드로 한정**한다. `ConflictException` 타입 전체로
    * 판정하면 `IDEMPOTENCY_KEY_CONFLICT` 등 다른 409 사유까지 흡수하게 된다(현재는 in-process
@@ -729,11 +736,18 @@ export class HooksService {
     trigger: Trigger,
     executionId: string,
     update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
   ): Promise<void> {
     // text_message → submit_message (AI Multi Turn).
     // button_callback → click_button (Button Presentation, Phase 3 에서 구체화).
     // file_upload / contact_share → submit_form (Form, Phase 4 에서 구체화).
     // v1 PR-A 는 text_message → submit_message 만 의미 있음.
+    //
+    // nodeId 는 싣지 않는다 — chat-channel 고정 매핑은 대기 nodeId 를 알지 못하고,
+    // `scope: 'in_process_trusted'` 는 publisher 의 nodeId 일치 검사에서 면제된다
+    // (spec §7.5.1 exemption / F-1). 종전엔 존재 검사만 만족시키는 `nodeId: 'chat-channel'`
+    // placeholder 를 실었으나, 실제 nodeId 가 아니라 오해를 낳아 제거했다.
     const ctx: InternalInteractionRequestContext = {
       executionId,
       triggerId: trigger.id,
@@ -743,13 +757,11 @@ export class HooksService {
       update.command.kind === 'text_message'
         ? {
             command: 'submit_message',
-            nodeId: 'chat-channel',
             message: update.command.text,
           }
         : update.command.kind === 'button_callback'
           ? {
               command: 'click_button',
-              nodeId: 'chat-channel',
               buttonId: update.command.callbackData,
             }
           : undefined;
@@ -765,6 +777,9 @@ export class HooksService {
           `chat-channel inbound '${dto.command}' 이 현재 대기 표면과 맞지 않아 거부됨 ` +
             `(execution=${executionId} trigger=${trigger.id}): ${conflict.message ?? '(상세 없음)'}`,
         );
+        // F-2 — 사용자에게 best-effort 안내 (form/buttons 대기 중 자유 텍스트 등).
+        // 발송 실패는 swallow (안내 자체가 재시도 루프를 유발하면 안 됨).
+        await this.sendSurfaceMismatchNotice(update, config, adapter);
         return;
       }
       throw err;
@@ -794,19 +809,13 @@ export class HooksService {
         '이 봇은 1:1 대화만 지원합니다\\.')
       : (config.languageHints?.unsupportedMessageKind ??
         '지원하지 않는 메시지 형식입니다\\.');
-    try {
-      await adapter.sendMessage(
-        {
-          conversationKey: String(chat.id),
-          body: { kind: 'text', text: announcement },
-        },
-        config,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `maybeNotifyIgnored sendMessage 실패 (chatId=${chat.id}): ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.sendBestEffortNotice(
+      String(chat.id),
+      announcement,
+      'maybeNotifyIgnored',
+      config,
+      adapter,
+    );
   }
 
   /**
@@ -966,10 +975,35 @@ export class HooksService {
   }
 
   /**
+   * control-plane 텍스트 안내의 공통 best-effort 발송 (F-4). `sendExecutionStillRunningNotice`
+   * / `sendSurfaceMismatchNotice` / `maybeNotifyIgnored` 의 try/catch/warn 골격을 한 곳에 모아
+   * 중복을 제거한다. 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가 안내 루프를
+   * 유발하지 않도록. `text` 는 렌더러 escape 를 거치지 않는 경로이므로 호출자가 provider 표면에
+   * 맞게 준비해야 한다(default 는 MarkdownV2-safe, F-5 로 override 검증).
+   */
+  private async sendBestEffortNotice(
+    conversationKey: string,
+    text: string,
+    label: string,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    try {
+      await adapter.sendMessage(
+        { conversationKey, body: { kind: 'text', text } },
+        config,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `${label} sendMessage 실패 (conversationKey=${conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
    * CCH-CV-03 (b) — execution 이 running/pending (waiting_for_input 미도달) 일 때
    * 채널에 `executionStillRunning` 안내를 발송한다 (update 는 호출자가 무시).
-   * `maybeNotifyIgnored` 와 동일한 kind:'text' 경로 — 텔레그램 MarkdownV2 는 어댑터가
-   * escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
+   * 텔레그램 MarkdownV2 는 어댑터가 escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
    */
   private async sendExecutionStillRunningNotice(
     update: ChannelUpdate,
@@ -979,19 +1013,40 @@ export class HooksService {
     const text =
       config.languageHints?.executionStillRunning ??
       '워크플로우가 처리 중입니다\\. 잠시만 기다려 주세요\\.';
-    try {
-      await adapter.sendMessage(
-        {
-          conversationKey: update.conversationKey,
-          body: { kind: 'text', text },
-        },
-        config,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `executionStillRunning sendMessage 실패 (conversationKey=${update.conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.sendBestEffortNotice(
+      update.conversationKey,
+      text,
+      'executionStillRunning',
+      config,
+      adapter,
+    );
+  }
+
+  /**
+   * F-2 (plan eia-command-waiting-surface-guard) — inbound 명령이 현재 대기 노드의 인터랙션
+   * 표면과 맞지 않아 publisher 가 409 `STATE_MISMATCH` 로 거부했을 때, 사용자에게 best-effort
+   * 안내 (`languageHints.surfaceMismatch`) 를 발송한다. 종전엔 warn 로그만 남기고 사용자에게
+   * 아무 피드백이 없었다.
+   *
+   * 문구는 렌더러 escape 를 거치지 않으므로 default 는 MarkdownV2-safe (language-hint-defaults.ts
+   * `SURFACE_MISMATCH_DEFAULTS` 참조).
+   */
+  private async sendSurfaceMismatchNotice(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    const text = resolveSurfaceMismatchMessage(
+      config.languageHints,
+      config.languageLocale as LanguageLocale | undefined,
+    );
+    await this.sendBestEffortNotice(
+      update.conversationKey,
+      text,
+      'surfaceMismatch 안내',
+      config,
+      adapter,
+    );
   }
 
   private async buildInteractionResponse(

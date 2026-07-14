@@ -36,6 +36,7 @@ import { RefreshTokenResponseDto } from './dto/responses/refresh-token-response.
 import {
   ExternalInteractionRequestContext,
   InteractionRequestContext,
+  isInternalCtx,
 } from './interaction.guard';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
@@ -80,11 +81,12 @@ const STATUS_PROJECTION_COLUMNS = [
  * 각 dispatch 는 ExecutionEngineService / ExecutionsService 의 기존 public 메서드를 그대로
  * 재사용 (WebSocket gateway 의 명령 경로와 동일 — Spec EIA §R5/§R10 의 facade 원칙).
  *
- * dispatch 매핑 ([Spec EIA §11]):
- *   submit_form      → ExecutionEngineService.continueExecution(executionId, data)
- *   click_button     → ExecutionEngineService.continueButtonClick(executionId, buttonId)
- *   submit_message   → ExecutionEngineService.continueAiConversation(executionId, message)
- *   end_conversation → ExecutionEngineService.endAiConversation(executionId)
+ * dispatch 매핑 ([Spec EIA §11]). 외부 scope 는 `expectedNodeId`(=`dto.nodeId`)를 함께
+ * 넘겨 publisher 가 실제 대기 노드와 대조하고(§7.5.1 F-1), in_process_trusted 는 undefined:
+ *   submit_form      → ExecutionEngineService.continueExecution(executionId, data, expectedNodeId)
+ *   click_button     → ExecutionEngineService.continueButtonClick(executionId, buttonId, expectedNodeId)
+ *   submit_message   → ExecutionEngineService.continueAiConversation(executionId, message, expectedNodeId)
+ *   end_conversation → ExecutionEngineService.endAiConversation(executionId, expectedNodeId)
  *   cancel           → ExecutionsService.stop(executionId)
  *
  * **대기 표면 검증은 본 service 가 하지 않는다** — `assertWaiting` 은 execution 이
@@ -112,9 +114,14 @@ export class InteractionService {
     dto: InteractDto,
   ): Promise<InteractAckDto> {
     const execution = await this.loadAndAssertAlive(ctx.executionId);
+    // [spec §7.5.1] 외부 caller 는 대상 nodeId 를 지정하고 실제 대기 노드와 일치해야
+    // publisher 가 수용한다. in_process_trusted 는 **scope 단위**로 면제 —
+    // expectedNodeId=undefined 로 nodeId 검사를 건너뛴다(진입점이 nodeId 를 아는지와
+    // 무관: form 제출 handleFormStep 은 nodeId 를 알아도 동일 policy 로 면제).
+    const expectedNodeId = isInternalCtx(ctx) ? undefined : dto.nodeId;
     switch (dto.command) {
       case 'submit_form':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         if (!dto.data || typeof dto.data !== 'object') {
           throw badRequest(
             'INVALID_COMMAND',
@@ -126,11 +133,12 @@ export class InteractionService {
           this.executionEngineService.continueExecution(
             ctx.executionId,
             dto.data,
+            expectedNodeId,
           ),
         );
         break;
       case 'click_button':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         if (!dto.buttonId) {
           throw badRequest(
             'INVALID_COMMAND',
@@ -142,11 +150,12 @@ export class InteractionService {
           this.executionEngineService.continueButtonClick(
             ctx.executionId,
             dto.buttonId,
+            expectedNodeId,
           ),
         );
         break;
       case 'submit_message':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         if (typeof dto.message !== 'string' || dto.message.length === 0) {
           throw badRequest(
             'INVALID_COMMAND',
@@ -158,14 +167,18 @@ export class InteractionService {
           this.executionEngineService.continueAiConversation(
             ctx.executionId,
             dto.message,
+            expectedNodeId,
           ),
         );
         break;
       case 'end_conversation':
-        this.assertNodeId(dto);
+        this.assertNodeId(dto, ctx);
         this.assertWaiting(execution);
         await this.dispatchContinuation(
-          this.executionEngineService.endAiConversation(ctx.executionId),
+          this.executionEngineService.endAiConversation(
+            ctx.executionId,
+            expectedNodeId,
+          ),
         );
         break;
       case 'cancel':
@@ -425,7 +438,14 @@ export class InteractionService {
     return execution;
   }
 
-  private assertNodeId(dto: InteractDto): void {
+  /**
+   * [spec §7.5.1] 외부 caller 는 대상 nodeId 를 반드시 지정한다 (그리고 publisher 가
+   * 실제 대기 노드와 일치 검증). `in_process_trusted`(chat-channel)는 **scope 단위**로
+   * nodeId 요구·일치 검사에서 면제된다 — nodeId 가용 여부와 무관한 정책적 면제
+   * (§7.5.1 exemption). 동기: 고정 매핑 forwarding 은 대기 nodeId 를 모른다.
+   */
+  private assertNodeId(dto: InteractDto, ctx: InteractionRequestContext): void {
+    if (isInternalCtx(ctx)) return;
     if (!dto.nodeId) {
       throw badRequest(
         'INVALID_COMMAND',

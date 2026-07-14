@@ -4699,6 +4699,7 @@ export class ExecutionEngineService
   async continueExecution(
     executionId: string,
     formData?: unknown,
+    expectedNodeId?: string,
   ): Promise<ContinuationPublishResult> {
     // spec/4-nodes/6-presentation/0-common.md §10.9 — sentinel wrap 책임.
     // raw formData 를 그대로 publish 하지 않고 `{ type: 'form_submitted',
@@ -4706,6 +4707,7 @@ export class ExecutionEngineService
     const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
       executionId,
       'form_submitted',
+      expectedNodeId,
     );
     // publisher 측 동기 field 검증 — 실패 시 publish 전에 throw 해 execution 을
     // waiting 유지(재제출 가능). EIA 는 400 VALIDATION_ERROR, WS ack 는 errorCode
@@ -4813,10 +4815,12 @@ export class ExecutionEngineService
   async continueButtonClick(
     executionId: string,
     buttonId: string,
+    expectedNodeId?: string,
   ): Promise<ContinuationPublishResult> {
     const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
       executionId,
       'button_click',
+      expectedNodeId,
     );
     const jobId = await this.continuationBus.publish({
       type: 'button_click',
@@ -4835,6 +4839,7 @@ export class ExecutionEngineService
   async continueAiConversation(
     executionId: string,
     message: string,
+    expectedNodeId?: string,
   ): Promise<ContinuationPublishResult> {
     if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
       throw new MessageTooLongError(
@@ -4845,6 +4850,7 @@ export class ExecutionEngineService
     const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
       executionId,
       'ai_message',
+      expectedNodeId,
     );
     const jobId = await this.continuationBus.publish({
       type: 'ai_message',
@@ -4860,10 +4866,12 @@ export class ExecutionEngineService
    */
   async endAiConversation(
     executionId: string,
+    expectedNodeId?: string,
   ): Promise<ContinuationPublishResult> {
     const nodeExecutionId = await this.resolveWaitingNodeExecutionId(
       executionId,
       'ai_end_conversation',
+      expectedNodeId,
     );
     const jobId = await this.continuationBus.publish({
       type: 'ai_end_conversation',
@@ -5264,10 +5272,16 @@ export class ExecutionEngineService
    * @param expectedCommand 도착 명령의 continuation payload type. 대기 표면과의
    *        적합성 검증에만 쓰인다 (`cancel` / `retry_last_turn` 은 표면 무관이라
    *        본 resolver 를 거치지 않는다).
+   * @param expectedNodeId (optional) 명령이 지정한 대상 nodeId. 지정 시 실제 대기
+   *        노드의 nodeId 와 일치해야 하며, 불일치면 `InvalidExecutionStateError`
+   *        (§7.5.1 "nodeId 미일치"). 전달 진입점: 외부 EIA `/interact`(항상), WS
+   *        `submit_message`/`click_button`/`end_conversation`(제공 시, F-6). `in_process_trusted`
+   *        (chat-channel)는 **scope 단위** 면제라 전달하지 않아 본 검사를 건너뛴다 (§7.5.1 exemption).
    */
   private async resolveWaitingNodeExecutionId(
     executionId: string,
     expectedCommand: WaitingSurfaceCommand,
+    expectedNodeId?: string,
   ): Promise<string> {
     let rows: WaitingNodeRow[];
     try {
@@ -5319,6 +5333,18 @@ export class ExecutionEngineService
       );
       throw new InvalidExecutionStateError(
         `multiple (${rows.length}) WAITING_FOR_INPUT NodeExecutions for execution=${executionId} (invariant violation)`,
+      );
+    }
+    // [spec §7.5.1] nodeId 미일치 거부 — caller 가 대상 nodeId 를 지정하면(외부 EIA
+    // `/interact`) 실제 대기 노드와 일치해야 한다. stale/오지정 nodeId 제출을
+    // 현재 대기 노드로 오적용하지 않고 동기 거부한다(§5.1 STATE_MISMATCH "다른 nodeId").
+    // in_process_trusted(chat-channel)는 expectedNodeId 미전달 → 이 검사 건너뜀 (exemption).
+    if (expectedNodeId !== undefined && rows[0].nodeId !== expectedNodeId) {
+      this.logger.debug(
+        `resolveWaitingNodeExecutionId — execution=${executionId} 의 대기 노드=${rows[0].nodeId} 이지만 명령 nodeId=${expectedNodeId} 불일치 — INVALID_EXECUTION_STATE 거부.`,
+      );
+      throw new InvalidExecutionStateError(
+        `command nodeId=${expectedNodeId} does not match waiting node=${rows[0].nodeId} for execution=${executionId}`,
       );
     }
     this.assertCommandMatchesWaitingSurface(

@@ -294,13 +294,59 @@ describe('External Interaction API (e2e)', () => {
     const res = await request(BASE_URL)
       .post(`/api/external/executions/${executionId}/interact`)
       .set('Authorization', `Bearer ${iextToken}`)
-      // I-16: nodeId body は assertNodeId 유무 검사만 수행 — 실제 field lookup 은
-      // node_execution row 의 nodeId 가 결정한다 (formNodeId 가 lookup key 가 아님).
+      // F-1: nodeId 는 이제 실제 대기 노드와 일치해야 한다. 여기선 formNodeId 가
+      // node_execution row 의 nodeId 와 같으므로 통과해 field 검증(§G)까지 진행된다.
       .send({ command: 'submit_form', nodeId: formNodeId, data: {} });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
     expect(res.body.error.details[0].field).toBe('email');
     expect(res.body.error.details[0].code).toBe('INVALID_FIELD');
+  });
+
+  // F-1 (plan eia-command-waiting-surface-guard) — 명령의 nodeId 가 실제 대기 노드와
+  // 다르면 publisher 가 409 STATE_MISMATCH 로 거부한다 (§7.5.1 nodeId 불일치). stale/오지정
+  // 제출을 현재 대기 노드로 오적용하지 않는다. 종전엔 assertNodeId 가 존재만 검사해 통과했다.
+  it('G-2. submit_form nodeId 가 대기 노드와 불일치 → 409 STATE_MISMATCH (F-1)', async () => {
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const waitingNodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'form', 'presentation', 'frm', $3, 0, 0, NOW(), NOW())`,
+      [
+        waitingNodeId,
+        workflowId,
+        JSON.stringify({
+          fields: [
+            { name: 'email', type: 'email', label: 'Email', required: true },
+          ],
+        }),
+      ],
+    );
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionId, workflowId],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', NOW())`,
+      [randomUUID(), executionId, waitingNodeId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const res = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      // 대기 노드는 waitingNodeId 인데 다른 nodeId 를 지정 → 거부.
+      .send({
+        command: 'submit_form',
+        nodeId: randomUUID(),
+        data: { email: 'a@b.co' },
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('STATE_MISMATCH');
   });
 
   it('H. /interact per-execution rate-limit 초과 → 429 RATE_LIMITED + Retry-After (§8.4)', async () => {

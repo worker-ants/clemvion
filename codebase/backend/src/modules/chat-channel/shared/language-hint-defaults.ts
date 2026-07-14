@@ -20,6 +20,28 @@ const logger = new Logger('ChatChannelLanguageHint');
 export type LanguageLocale = 'ko' | 'en';
 
 /**
+ * languageHints 3-level lookup resolver 공통 factory (F-4) —
+ * (1) `languageHints[overrideKey]` 사용자 override(non-empty string) → (2) `languageLocale`
+ * default → (3) ko fallback. `resolveFormOpenLabel` / `resolveSessionExpiredMessage` /
+ * `resolveSurfaceMismatchMessage` 가 문자 단위로 동일한 패턴이라 factory 로 통합해, 신규
+ * control-plane 키 추가 시 네 번째 복제가 생기지 않도록 한다.
+ */
+export function makeLocaleResolver(
+  overrideKey: string,
+  defaults: Record<LanguageLocale, string>,
+): (
+  languageHints: Record<string, string> | undefined,
+  languageLocale: LanguageLocale | undefined,
+) => string {
+  return (languageHints, languageLocale) => {
+    const override = languageHints?.[overrideKey];
+    if (typeof override === 'string' && override.length > 0) return override;
+    if (languageLocale === 'en') return defaults.en;
+    return defaults.ko;
+  };
+}
+
+/**
  * CCH-ERR-* 6 키의 default 문구 — KO/EN. 키는 `ExecutionFailureClass['key']` 와 1:1.
  * 신규 key 추가 시 본 map 도 동시 갱신 (KO/EN parity 강제).
  */
@@ -112,17 +134,12 @@ export const FORM_OPEN_LABEL_DEFAULTS: Record<LanguageLocale, string> = {
 
 /**
  * `form_modal` 버튼 라벨 3-level lookup — (1) languageHints.formOpenLabel override →
- * (2) languageLocale default → (3) ko fallback.
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
  */
-export function resolveFormOpenLabel(
-  languageHints: Record<string, string> | undefined,
-  languageLocale: LanguageLocale | undefined,
-): string {
-  const override = languageHints?.formOpenLabel;
-  if (typeof override === 'string' && override.length > 0) return override;
-  if (languageLocale === 'en') return FORM_OPEN_LABEL_DEFAULTS.en;
-  return FORM_OPEN_LABEL_DEFAULTS.ko;
-}
+export const resolveFormOpenLabel = makeLocaleResolver(
+  'formOpenLabel',
+  FORM_OPEN_LABEL_DEFAULTS,
+);
 
 /**
  * §7.5 rehydration 실패 (`RESUME_*`) 시 사용자에게 보내는 graceful 안내 default
@@ -138,17 +155,40 @@ export const SESSION_EXPIRED_DEFAULTS: Record<LanguageLocale, string> = {
 
 /**
  * 세션 만료 안내 3-level lookup — (1) languageHints.sessionExpired override →
- * (2) languageLocale default → (3) ko fallback.
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
  */
-export function resolveSessionExpiredMessage(
-  languageHints: Record<string, string> | undefined,
-  languageLocale: LanguageLocale | undefined,
-): string {
-  const override = languageHints?.sessionExpired;
-  if (typeof override === 'string' && override.length > 0) return override;
-  if (languageLocale === 'en') return SESSION_EXPIRED_DEFAULTS.en;
-  return SESSION_EXPIRED_DEFAULTS.ko;
-}
+export const resolveSessionExpiredMessage = makeLocaleResolver(
+  'sessionExpired',
+  SESSION_EXPIRED_DEFAULTS,
+);
+
+/**
+ * 표면 불일치 안내 (F-2 / plan eia-command-waiting-surface-guard) — 채팅 채널 inbound 명령이
+ * 현재 대기 노드의 인터랙션 표면과 맞지 않아 publisher 가 409 `STATE_MISMATCH` 로 거부했을 때,
+ * 사용자에게 "지금은 이 입력을 받을 수 없다"고 best-effort 안내하는 default 문구 (KO/EN).
+ * chat-channel spec §4.1 / §4.1.1 / CCH-ERR-04 ("silently swallow 금지") 대칭.
+ *
+ * **MarkdownV2-safe (특수문자 미포함)**: 본 문구는 `HooksService.sendSurfaceMismatchNotice` 가
+ * 렌더러를 거치지 않고 `adapter.sendMessage` 로 직접 발송한다 (control-plane notice — sessionExpired
+ * 처럼 EIA event 렌더 경로가 아니므로 provider 별 escape 가 적용되지 않는다). 따라서 default 는
+ * telegram MarkdownV2 특수문자(. ! - ( ) [ ] 등)를 피해, 세 provider (telegram / slack / discord)
+ * 모두에서 raw 로 안전하게 렌더되도록 한다. lookup 경로는 `sessionExpired` 와 동일
+ * (override → locale default → ko fallback).
+ */
+export const SURFACE_MISMATCH_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요',
+  en: "This input can't be accepted here right now, please use the form or buttons shown above",
+};
+
+/**
+ * 표면 불일치 안내 3-level lookup — (1) languageHints.surfaceMismatch override →
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ * 반환값은 raw (호출자가 escape 없이 발송).
+ */
+export const resolveSurfaceMismatchMessage = makeLocaleResolver(
+  'surfaceMismatch',
+  SURFACE_MISMATCH_DEFAULTS,
+);
 
 /**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).

@@ -99,14 +99,14 @@ sequenceDiagram
   Svc-->>Ext: 202 Accepted { executionId, accepted, currentStatus }
 ```
 
-dispatch 매핑 (`interaction.service.ts`):
+dispatch 매핑 (`interaction.service.ts`). 외부 scope 는 `expectedNodeId`(=`dto.nodeId`)를 함께 넘겨 publisher 가 실제 대기 노드와 대조하고([실행 엔진 §7.5.1](../5-system/4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) nodeId 불일치), `in_process_trusted`(chat-channel)는 `undefined`:
 
 | command | 위임 대상 | 비고 |
 | --- | --- | --- |
-| `submit_form` | `ExecutionEngineService.continueExecution(executionId, data)` | `nodeId`·`data` 필수 |
-| `click_button` | `ExecutionEngineService.continueButtonClick(executionId, buttonId)` | `buttonId` 필수 |
-| `submit_message` | `ExecutionEngineService.continueAiConversation(executionId, message)` | 멀티턴 AI 대화 |
-| `end_conversation` | `ExecutionEngineService.endAiConversation(executionId)` | — |
+| `submit_form` | `ExecutionEngineService.continueExecution(executionId, data, expectedNodeId)` | `nodeId`·`data` 필수 |
+| `click_button` | `ExecutionEngineService.continueButtonClick(executionId, buttonId, expectedNodeId)` | `buttonId` 필수 |
+| `submit_message` | `ExecutionEngineService.continueAiConversation(executionId, message, expectedNodeId)` | 멀티턴 AI 대화 |
+| `end_conversation` | `ExecutionEngineService.endAiConversation(executionId, expectedNodeId)` | — |
 | `cancel` (또는 `POST /:id/cancel` alias) | `ExecutionsService.stop(executionId)` | waiting 상태 불요 |
 
 - **C-1 분할 후 위임 경로**: 위 WS 명령 진입점(`continueExecution`·`continueButtonClick`·`continueAiConversation`·`endAiConversation`)은 엔진 thin delegator 로 **엔진 잔류**(continuation bus 로 publish)이며, 큐 소비 후 재개 turn 처리는 추출 협력 서비스(`processAiResumeTurn`→`AiTurnOrchestrator`, `processButtonResumeTurn`→`ButtonInteractionService`, `processFormResumeTurn`→`FormInteractionService`)에 in-process `EngineDriver` 로 위임된다 ([실행 엔진 §Rationale "C-1 god-class strangler-fig 분할"](../5-system/4-execution-engine.md#rationale)).

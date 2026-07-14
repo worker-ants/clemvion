@@ -1991,6 +1991,58 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    // F-1 (plan eia-command-waiting-surface-guard) — expectedNodeId 전달 시 실제 대기
+    // 노드(mock nodeId='n-wait')와 대조. 일치하면 정상 publish, 불일치면 거부.
+    it('F-1 — expectedNodeId 가 대기 노드와 일치하면 정상 publish', async () => {
+      await service.continueExecution('exec-1', { name: 'Alice' }, 'n-wait');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-waiting',
+        payload: { type: 'form_submitted', formData: { name: 'Alice' } },
+      });
+    });
+
+    it('F-1 — expectedNodeId 가 대기 노드와 불일치하면 InvalidExecutionStateError + publish 안 함', async () => {
+      await expect(
+        service.continueExecution('exec-1', { name: 'Alice' }, 'wrong-node'),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    // F-6 — WS 도 forward 하는 나머지 3개 continue* 도 expectedNodeId 불일치 시 동일하게 거부
+    // (인자 순서/이름 오연결 회귀 가드). mock 대기 nodeId='n-wait'.
+    it('F-6 — continueButtonClick expectedNodeId 불일치 → InvalidExecutionStateError', async () => {
+      await expect(
+        service.continueButtonClick('exec-1', 'btn-1', 'wrong-node'),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('F-6 — continueAiConversation expectedNodeId 불일치 → InvalidExecutionStateError', async () => {
+      await expect(
+        service.continueAiConversation('exec-1', 'hi', 'wrong-node'),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('F-6 — endAiConversation expectedNodeId 불일치 → InvalidExecutionStateError', async () => {
+      await expect(
+        service.endAiConversation('exec-1', 'wrong-node'),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('F-6 — continueAiConversation expectedNodeId 일치(n-wait) → 정상 publish', async () => {
+      await service.continueAiConversation('exec-1', 'hi', 'n-wait');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'ai_message',
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-waiting',
+        payload: { message: 'hi' },
+      });
+    });
+
     it('cancelWaitingExecution → bus.publish({type:"cancel"}) 후 ContinuationPublishResult 반환 (C-1)', async () => {
       const result = await service.cancelWaitingExecution('exec-2');
       expect(mockBus.publish).toHaveBeenCalledWith({

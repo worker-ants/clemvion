@@ -6,6 +6,45 @@
 2. **Behavior change (breaking): 예산 초과 시 LLM 호출 전 error 포트로 fast-fail 한다** — 신규 에러코드 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`(`output.error.details.retryable: false`, `totalBytes`/`budgetBytes`/`toolCount`/`culpritProvider` 포함). 이 변경은 **이미 예산을 초과하는 대형 도구셋을 구성한 워크스페이스에만** 영향 — 그런 설정은 이전엔 (제거된) provider timeout 까지 조용히 hang 하다 실패했고, 이제는 즉시 명확한 에러로 종결된다. 정상 규모 도구셋은 영향 없음.
 3. **신규 env 3종** (기본값은 위 회귀 재현 임계 대비 여유 있게 설정): `AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`(기본 98304 — 초과 시 warn 로깅만), `AI_AGENT_TOOL_PAYLOAD_HARD_BYTES`(기본 262144 — 초과 시 fail-fast), `AI_AGENT_TOOL_COUNT_MAX`(기본 128 — 2차 sanity, byte 예산 이내라도 초과 시 hard 와 동일 취급). `.env.example` 에 `MCP_MAX_RESPONSE_BYTES` 선례 형식으로 등재.
 4. **후속(본 PR 범위 밖)**: config-time 저장 경고(backend-only graph warning, `getGraphWarnings`/`saveCanvas` strict surface)와 resume 턴의 timeout/signal 배선은 `plan/in-progress/ai-agent-tool-payload-budget-followups.md` 로 분리했다 — 본 PR 은 런타임 fail-fast 가드레일에 스코프를 한정한다. SoT: `spec/4-nodes/3-ai/1-ai-agent.md §4.2·§10·§12.15`.
+## Unreleased — EIA/WS 대기 표면 가드 후속 정리 (F-4/F-5/F-6)
+
+### 변경 사항
+
+1. **control-plane 안내 발송 구조 정리 (F-4)** — languageHints 3-level lookup resolver 3중 복제
+   (`resolveFormOpenLabel`/`resolveSessionExpiredMessage`/`resolveSurfaceMismatchMessage`)를
+   `makeLocaleResolver` factory 로 통합하고, `HooksService` 의 안내 발송 3종
+   (`sendExecutionStillRunningNotice`/`sendSurfaceMismatchNotice`/`maybeNotifyIgnored`)의
+   try/catch/warn 골격을 `sendBestEffortNotice` 로 추출했다. 순수 리팩터(동작 보존).
+   `ChatChannelInboundService` 분리는 중장기 백로그로 유지.
+2. **telegram control-plane raw-send 키 MarkdownV2 등록 검증 (F-5)** — `HooksService` 가 렌더러
+   escape 없이 직접 발송하는 키(`help`/`groupChatRefusal`/`unsupportedMessageKind`/
+   `executionStillRunning`/`surfaceMismatch`/`formValidationFailed`/`formNextField`)는 telegram 이
+   `parse_mode: MarkdownV2` 로 보내므로, operator override 에 unescaped 특수문자가 들어가면 send
+   400 → 안내 유실됐다. `provider === 'telegram'` 한정으로 등록 시점에 검증(`LanguageHintsRawSend
+   Validator`)해 unescaped 특수문자 발견 시 `400 VALIDATION_ERROR`(`UNSAFE_TELEGRAM_MARKDOWN`)로
+   거부한다. escaped(`\.`)·slack/discord·비-raw-send 키는 제외. defaults 의 telegram escape
+   baked-in(`\\.`)이 slack/discord 에서 literal 로 노출되는 잔여 갭(발송 경로 per-provider escape 이관)은
+   별도 백로그.
+3. **WS continuation nodeId 검증 확장 (F-6)** — `execution.submit_message`/`end_conversation` 은
+   frontend 가 대기 노드 `nodeId` 를 이미 싣는데 서버가 무시했다. F-1 과 대칭으로, WS gateway 가
+   `data.nodeId` 를 publisher 로 forward 해 제공 시 대기 노드와 대조한다(불일치 → `INVALID_EXECUTION_STATE`
+   ack). `click_button` 은 nodeId optional 을 받도록 확장했으나 frontend 미전송이라 실질 no-op,
+   `execution.submit_form`·REST `/continue` 는 nodeId 파라미터 부재로 미적용. frontend 는 대기 노드의
+   정확한 nodeId 를 싣으므로 정상 흐름은 무변경(stale/오지정 제출만 거부). §6-websocket-protocol §4.2 +
+   실행 엔진 §7.5.1 커버리지 표 갱신. `expectedNodeId` 는 positional 유지(모든 실 caller 가 명시 전달 —
+   options 객체화는 비차단 백로그). `plan/in-progress/eia-command-waiting-surface-guard.md` F-4/F-5/F-6.
+
+## Unreleased — EIA `/interact` 명령의 nodeId 를 실제 대기 노드와 대조 (5-system/4-execution-engine §7.5.1)
+
+### 변경 사항
+
+1. **외부 EIA `/interact` 명령의 `nodeId` 가 실제 대기 노드와 다르면 409 `STATE_MISMATCH` 로 거부한다** (종전 202 → 409, behavior 변경) — spec §7.5.1 은 publisher lookup 키를 `execution_id + node_id + status='waiting_for_input'` 로 규정하고 "nodeId 미일치 → INVALID" 를 약속하지만, `assertNodeId` 는 `dto.nodeId` 의 **존재만** 검사하고 `resolveWaitingNodeExecutionId` 는 `exec+status` 로만 조회해 nodeId 를 무시했다. 그 결과 stale/오지정 nodeId 제출(예: UI 가 다음 노드로 넘어갔는데 이전 노드 대상 제출)이 **현재 대기 노드로 조용히 오적용**됐다(표면만 맞으면 통과). 이제 `resolveWaitingNodeExecutionId(executionId, expectedCommand, expectedNodeId?)` 가 caller 지정 nodeId 를 대기 `row.nodeId` 와 대조해 불일치 시 `InvalidExecutionStateError`(→ EIA 409 `STATE_MISMATCH`)로 거부한다. 이는 이미 EIA §5.1(`STATE_MISMATCH` "다른 nodeId")·`InteractDto.nodeId` JSDoc("대기 NodeExecution 의 graph node id 와 일치해야 한다")이 약속하던 계약의 구현이다. **커버리지**: 외부 EIA `/interact` 만 nodeId 를 지정해 검사받는다. chat-channel(`scope: 'in_process_trusted'`)은 **scope 단위**로 면제한다(고정 매핑 forwarding 은 nodeId 미상, form 제출은 nodeId 를 알더라도 동일 policy). 종전에 존재 검사만 만족시키던 `nodeId: 'chat-channel'` placeholder 는 제거했다. WS continuation·REST `/continue` 는 프로토콜/요청 설계상 nodeId 를 서버에 전달하지 않아 미적용(§7.5.1 커버리지 표, plan F-6 후속). 표면(interactionType) 매트릭스 검증은 모든 진입점에 그대로 적용된다. `plan/in-progress/eia-command-waiting-surface-guard.md` 후속 항목 F-1. SoT: `spec/5-system/4-execution-engine.md §7.5.1`.
+
+## Unreleased — 채팅 채널 표면 불일치 명령에 graceful 안내 (5-system/15-chat-channel §4.1.1 surfaceMismatch)
+
+### 변경 사항
+
+1. **채팅 채널에서 대기 노드 표면과 맞지 않는 입력이 도착하면 사용자에게 안내를 발송한다** — 직전 표면-가드 작업(continuation 명령 ↔ 대기 노드 표면 검증)으로, Form/버튼 대기 중 자유 텍스트 등 표면 불일치 명령은 publisher 가 `STATE_MISMATCH` 로 거부하고 `HooksService.forwardToInteractionService` 가 warn 로그와 함께 삼킨다(그대로 throw 하면 webhook 5xx → provider 무한 재시도). 그러나 종전엔 사용자에게 **아무 피드백이 없었다** — 봇이 조용히 무응답. 이제 `languageHints.surfaceMismatch` best-effort 안내를 발송한다(chat-channel CCH-ERR-04 "silently swallow 금지" 관례 대칭). 신규 키 `surfaceMismatch`(KO/EN)를 `language-hint-defaults.ts` `SURFACE_MISMATCH_DEFAULTS` + `resolveSurfaceMismatchMessage`(`sessionExpired` resolver 패턴)로 추가하고, spec §4.1 예제·§4.1.1 표 + telegram 유저 가이드(KO/EN §7.4)에 등재했다. 이 안내는 EIA event 렌더러(provider 별 escape)를 거치지 않고 `adapter.sendMessage` 로 직접 발송되는 control-plane 메시지라(R4 의 "어댑터가 escape" 는 `renderNode` 경로 한정), telegram MarkdownV2 특수문자를 포함하면 raw 전송이 거부된다 — 따라서 default 는 세 provider(telegram/slack/discord) 모두에서 안전하도록 특수문자를 배제했고(단위 테스트가 canonical `escapeMarkdownV2` 로 불변식 강제), providers/telegram.md §5.8 에 이 non-escape 특성을 명시했다. 발송 실패는 swallow(warn) — 안내가 재시도 루프를 유발하지 않도록. `plan/in-progress/eia-command-waiting-surface-guard.md` 후속 항목 F-2. SoT: `spec/5-system/15-chat-channel.md §4.1.1`.
 
 ## Unreleased — 워크플로 편집기 엣지 분할(중간 노드 삽입) (3-workflow-editor/2-edge §4.1)
 

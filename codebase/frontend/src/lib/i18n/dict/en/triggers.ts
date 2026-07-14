@@ -244,7 +244,7 @@ export const triggers: Dict["triggers"] = {
       "Default-phrase language for languageHints keys left unset (default ko). Used by bot-sent guidance such as execution failure notices (CCH-ERR-*).",
     languageHints: "Bot guidance i18n (languageHints)",
     languageHintsHelp:
-      "Keys for bot-sent guidance messages — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help. " +
+      "Keys for bot-sent guidance messages — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help / formOpenLabel / sessionExpired / surfaceMismatch. " +
       "Execution failure guidance (CCH-ERR-*) 6 keys: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
       "Allowed placeholder in CCH-ERR-* keys: {statusCode} only.",
     health: "Channel health",
