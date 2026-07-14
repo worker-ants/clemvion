@@ -1053,7 +1053,7 @@ park 한 노드가 중첩 sub-workflow(`executeInline`) 안에 있으면 (`Execu
 > |---|---|---|
 > | 외부 EIA REST `/interact` | **적용** (`InteractDto.nodeId` 전달) | 외부 토큰 caller 는 SSE `waiting_for_input` 의 `waitingNodeId` 를 수신하므로 대상 nodeId 를 지정할 수 있다 |
 > | chat-channel `scope: 'in_process_trusted'` | **면제** | trusted 합성 ctx 는 **scope 단위**로 면제된다(진입점 판정이 아님). 동기: `HooksService.forwardToInteractionService` 의 고정 매핑(`text_message → submit_message` 등)은 대기 nodeId 를 알지 못한다. 단 면제는 scope 전체에 적용되므로, nodeId 를 아는 chat-channel form 제출(`handleFormStep`, `pendingFormModal.nodeId`)도 동일 policy 로 면제된다 |
-> | WS continuation (`execution.*`) | **적용 (nodeId 제공 시)** (F-6) | `execution.submit_message`/`click_button`/`end_conversation` 은 명령 body 에 `nodeId` 를 실을 수 있다 — 제공되면 publisher 가 대기 노드와 대조하고, 미제공(예: `execution.submit_form`)이면 skip. WS gateway 4개 handler 가 `data.nodeId` 를 `expectedNodeId` 로 forward ([§6-websocket-protocol](./6-websocket-protocol.md#42-실행-제어-명령-client--server)). frontend 는 submit_message/end_conversation 에 대기 노드 `nodeId` 를 이미 싣는다 |
+> | WS continuation (`execution.*`) | **적용 (nodeId 제공 시)** (F-6) | `execution.submit_message`/`click_button`/`end_conversation` 은 명령 body 에 `nodeId` 를 실을 수 있다 — 제공되면 publisher 가 대기 노드와 대조하고, 미제공(예: `execution.submit_form`, nodeId 필드 없음)이면 skip. 이 3개 handler 가 `data.nodeId` 를 `expectedNodeId` 로 forward ([§6-websocket-protocol](./6-websocket-protocol.md#42-실행-제어-명령-client--server)). frontend 는 submit_message/end_conversation 에 대기 노드 `nodeId` 를 이미 싣는다 |
 > | REST `/continue` | **미적용** | 요청 body 에 `nodeId` 파라미터 자체가 없다 (form 제출 전용) |
 >
 > "면제"(in_process_trusted)와 "미적용"(`/continue`)은 결과적으로 nodeId 검사를 건너뛰지만, 전자는 trusted 합성 ctx 의 의도적 정책이고 후자는 해당 진입점이 nodeId 를 지정할 계약이 없어서다. WS 는 nodeId 를 실으면 검증하고 아니면 skip 한다 (하위호환). 어느 쪽도 표면 매트릭스 검증은 건너뛰지 않는다.

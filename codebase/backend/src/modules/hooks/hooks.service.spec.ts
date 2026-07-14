@@ -622,6 +622,52 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    // F-4 — maybeNotifyIgnored 는 sendBestEffortNotice 공유 헬퍼로 리팩터됐다. group chat →
+    // groupChatRefusal 안내를 chat.id 를 conversationKey 로 발송하는지 회귀 가드 (CCH-CV-05).
+    it('F-4 — parseUpdate null + group chat → groupChatRefusal 안내 발송 (conversationKey=chat.id)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      const groupInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 4242, type: 'group' },
+            from: { is_bot: false },
+          },
+        },
+      };
+
+      await service.handleWebhook('abc', groupInput);
+
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: '4242',
+          body: expect.objectContaining({ kind: 'text' }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    // F-4 — maybeNotifyIgnored 의 발송 실패도 sendBestEffortNotice 가 swallow(warn) 한다.
+    it('F-4 — maybeNotifyIgnored sendMessage 실패는 삼킴 — webhook 정상 종료', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+      mockAdapter.sendMessage.mockRejectedValueOnce(new Error('network'));
+      const groupInput = {
+        ...chatInput,
+        body: {
+          message: {
+            chat: { id: 4242, type: 'supergroup' },
+            from: { is_bot: false },
+          },
+        },
+      };
+
+      await expect(
+        service.handleWebhook('abc', groupInput),
+      ).resolves.toBeDefined();
+    });
+
     // C-2: 비활성 chatChannel 트리거는 410 Gone 이 아니라 202 + { executionId: 'ignored' }.
     // isActive 검사가 chatChannel 판정보다 먼저 실행되던 결함의 회귀 가드
     // (spec R-CC-12 / §5.5 비활성 trigger 행 / WH-EP-07 chatChannel 예외).

@@ -17,6 +17,7 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { firstUnescapedMarkdownV2Special } from '../../chat-channel/shared/markdown-v2';
 
 /**
  * Trigger.config.chatChannel — webhook 트리거에 외부 chat 플랫폼 어댑터를 부착하는 옵션.
@@ -166,19 +167,6 @@ export const TELEGRAM_RAW_SEND_HINT_KEYS = [
   'formNextField',
 ] as const;
 
-// MarkdownV2 특수문자 집합 (telegram-message.renderer.ts MD_V2_ESCAPE_REGEX 와 동일).
-const MD_V2_SPECIAL_CHARS = '_*[]()~`>#+-=|{}.!';
-// escape 쌍(`\X`)을 먼저 제거 → 남은 특수문자만 검출. 이미 escape 한 operator 는 통과.
-const MD_V2_ESCAPE_PAIR = /\\[_*[\]()~`>#+\-=|{}.!]/g;
-
-function firstUnescapedMdV2Special(text: string): string | null {
-  const stripped = text.replace(MD_V2_ESCAPE_PAIR, '');
-  for (const ch of stripped) {
-    if (MD_V2_SPECIAL_CHARS.includes(ch)) return ch;
-  }
-  return null;
-}
-
 function findFirstUnsafeRawSendHint(
   value: unknown,
   provider: unknown,
@@ -188,7 +176,9 @@ function findFirstUnsafeRawSendHint(
   for (const key of TELEGRAM_RAW_SEND_HINT_KEYS) {
     const text = (value as Record<string, unknown>)[key];
     if (typeof text !== 'string') continue;
-    const char = firstUnescapedMdV2Special(text);
+    // MarkdownV2 특수문자 검출은 shared SoT(firstUnescapedMarkdownV2Special) — backslash-toggle
+    // 의미론을 정확히 처리한다(연속 backslash 오탐/미탐 회피).
+    const char = firstUnescapedMarkdownV2Special(text);
     if (char !== null) return { field: `languageHints.${key}`, char };
   }
   return null;

@@ -975,12 +975,6 @@ export class HooksService {
   }
 
   /**
-   * CCH-CV-03 (b) — execution 이 running/pending (waiting_for_input 미도달) 일 때
-   * 채널에 `executionStillRunning` 안내를 발송한다 (update 는 호출자가 무시).
-   * `maybeNotifyIgnored` 와 동일한 kind:'text' 경로 — 텔레그램 MarkdownV2 는 어댑터가
-   * escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
-   */
-  /**
    * control-plane 텍스트 안내의 공통 best-effort 발송 (F-4). `sendExecutionStillRunningNotice`
    * / `sendSurfaceMismatchNotice` / `maybeNotifyIgnored` 의 try/catch/warn 골격을 한 곳에 모아
    * 중복을 제거한다. 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가 안내 루프를
@@ -1006,6 +1000,11 @@ export class HooksService {
     }
   }
 
+  /**
+   * CCH-CV-03 (b) — execution 이 running/pending (waiting_for_input 미도달) 일 때
+   * 채널에 `executionStillRunning` 안내를 발송한다 (update 는 호출자가 무시).
+   * 텔레그램 MarkdownV2 는 어댑터가 escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
+   */
   private async sendExecutionStillRunningNotice(
     update: ChannelUpdate,
     config: ChatChannelConfig,
