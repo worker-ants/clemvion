@@ -3,6 +3,14 @@ worktree: .claude/worktrees/elegant-driscoll-eebdd6
 started: 2026-07-10
 completed: 2026-07-14
 owner: developer
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/5-system/15-chat-channel.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/4-nodes/7-trigger/providers/telegram.md
+  - spec/conventions/chat-channel-adapter.md
+  - spec/data-flow/15-external-interaction.md
 ---
 
 > **완료 (2026-07-14)**: 메인 표면 가드 + 후속 F-1~F-6 전부 구현·리뷰·consistency 종결.
