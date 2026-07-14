@@ -1043,5 +1043,34 @@ describe('AiTurnExecutor', () => {
       ).rejects.toMatchObject({ code: 'TOOL_DEFINITION_PAYLOAD_EXCEEDED' });
       expect(mockLlmService.chat).not.toHaveBeenCalled();
     });
+
+    // 03 W7 — executeSingleTurn 의 buildTools try/catch 는 `Tool
+    // DefinitionPayloadExceededError` 만 흡수해 error 포트로 반환하고, 그 외
+    // 에러는 rethrow(else 분기)한다. buildTools 내부 `enforceToolPayloadBudget`
+    // 호출은 provider try/catch 로 감싸지 않으므로, malformed 도구 이름(비-string)
+    // 이 `toolProviderGroupKey` 에서 TypeError 를 유발하도록 해 non-budget 에러
+    // 전파 경로를 고정한다.
+    it('rethrows non-budget errors surfaced from buildTools instead of routing them to the error port', async () => {
+      const brokenProvider = {
+        key: 'broken',
+        matches: () => true,
+        buildTools: jest.fn().mockResolvedValue([
+          // name 이 string 이 아니면 toolProviderGroupKey(tool.name) 가 던진다 —
+          // ToolDefinitionPayloadExceededError 가 아닌 에러의 유일한 현실적 트리거.
+          { name: undefined, description: 'x', parameters: {} },
+        ]),
+        execute: jest.fn(),
+      };
+      const executor = buildExecutor({ toolProviders: [brokenProvider] });
+
+      await expect(
+        executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'sys', userPrompt: 'Hi' },
+          baseContext,
+        ),
+      ).rejects.toBeInstanceOf(TypeError);
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+    });
   });
 });
