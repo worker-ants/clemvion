@@ -141,6 +141,85 @@ export class LanguageHintsPlaceholderValidator implements ValidatorConstraintInt
   }
 }
 
+// ---------------------------------------------------------------------------
+// F-5 — telegram control-plane raw-send 키의 MarkdownV2-safety 검증
+// (plan/in-progress/eia-command-waiting-surface-guard.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * `HooksService` 가 렌더러 escape 를 거치지 않고 `adapter.sendMessage` 로 **직접** 발송하는
+ * control-plane 안내 키 (spec/5-system/15-chat-channel.md §4.1.1). telegram 은 이 텍스트를
+ * `parse_mode: MarkdownV2` 로 보내므로, unescaped 특수문자가 들어가면 send 가 400 으로 거부돼
+ * 안내가 조용히 유실된다. 따라서 telegram provider 한정으로 등록 시점에 검증한다.
+ *
+ * 제외: `formOpenLabel`(버튼 라벨 — MarkdownV2 파싱 대상 아님), `sessionExpired`(EIA event
+ * 렌더러 경로라 provider 별 escape 적용), CCH-ERR-* 6 키(위 placeholder validator scope).
+ * slack / discord 는 raw text 를 그대로 렌더하므로 대상 아님.
+ */
+export const TELEGRAM_RAW_SEND_HINT_KEYS = [
+  'help',
+  'groupChatRefusal',
+  'unsupportedMessageKind',
+  'executionStillRunning',
+  'surfaceMismatch',
+  'formValidationFailed',
+  'formNextField',
+] as const;
+
+// MarkdownV2 특수문자 집합 (telegram-message.renderer.ts MD_V2_ESCAPE_REGEX 와 동일).
+const MD_V2_SPECIAL_CHARS = '_*[]()~`>#+-=|{}.!';
+// escape 쌍(`\X`)을 먼저 제거 → 남은 특수문자만 검출. 이미 escape 한 operator 는 통과.
+const MD_V2_ESCAPE_PAIR = /\\[_*[\]()~`>#+\-=|{}.!]/g;
+
+function firstUnescapedMdV2Special(text: string): string | null {
+  const stripped = text.replace(MD_V2_ESCAPE_PAIR, '');
+  for (const ch of stripped) {
+    if (MD_V2_SPECIAL_CHARS.includes(ch)) return ch;
+  }
+  return null;
+}
+
+function findFirstUnsafeRawSendHint(
+  value: unknown,
+  provider: unknown,
+): { field: string; char: string } | null {
+  if (provider !== 'telegram') return null; // telegram 한정
+  if (value === null || typeof value !== 'object') return null;
+  for (const key of TELEGRAM_RAW_SEND_HINT_KEYS) {
+    const text = (value as Record<string, unknown>)[key];
+    if (typeof text !== 'string') continue;
+    const char = firstUnescapedMdV2Special(text);
+    if (char !== null) return { field: `languageHints.${key}`, char };
+  }
+  return null;
+}
+
+/**
+ * telegram provider 의 control-plane raw-send 키(`TELEGRAM_RAW_SEND_HINT_KEYS`) override 가
+ * unescaped MarkdownV2 특수문자를 포함하면 등록 시점에 reject (400 VALIDATION_ERROR). operator 가
+ * MarkdownV2 를 이미 escape(`\.` 등)했다면 통과. `provider` sibling 필드를 `args.object` 로 읽어
+ * telegram 에만 적용한다 (slack/discord 는 무검증).
+ */
+@ValidatorConstraint({ name: 'languageHintsRawSend', async: false })
+export class LanguageHintsRawSendValidator
+  implements ValidatorConstraintInterface
+{
+  validate(value: unknown, args: ValidationArguments): boolean {
+    const provider = (args.object as { provider?: unknown }).provider;
+    return findFirstUnsafeRawSendHint(value, provider) === null;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    // message 포맷: `UNSAFE_TELEGRAM_MARKDOWN:<field>:<char>` (placeholder validator 와 동형).
+    const provider = (args.object as { provider?: unknown }).provider;
+    const found = findFirstUnsafeRawSendHint(args.value, provider);
+    if (found) {
+      return `UNSAFE_TELEGRAM_MARKDOWN:${found.field}:${found.char}`;
+    }
+    return 'UNSAFE_TELEGRAM_MARKDOWN';
+  }
+}
+
 export class ChatChannelBotIdentityDto {
   @ApiPropertyOptional({ description: '봇의 외부 식별자 (텔레그램: bot_id).' })
   @IsOptional()
@@ -329,12 +408,16 @@ export class ChatChannelConfigDto {
       '봇이 보내는 자체 안내 메시지 i18n (groupChatRefusal / executionStarted / executionCompleted / ' +
       'CCH-ERR-* 6 키 [executionFailedThirdParty4xx / *5xx / ThirdParty / Timeout / RateLimit / Internal] 등). ' +
       'CCH-ERR-* 키의 template 안에서 허용되는 placeholder 는 {statusCode} 1종 (CCH-ERR-03). ' +
-      '다른 {...} placeholder 발견 시 400 VALIDATION_ERROR (code=UNKNOWN_PLACEHOLDER).',
+      '다른 {...} placeholder 발견 시 400 VALIDATION_ERROR (code=UNKNOWN_PLACEHOLDER). ' +
+      'provider=telegram 일 때 control-plane raw-send 키(help / groupChatRefusal / ' +
+      'unsupportedMessageKind / executionStillRunning / surfaceMismatch / formValidationFailed / ' +
+      'formNextField)는 unescaped MarkdownV2 특수문자 발견 시 400 (UNSAFE_TELEGRAM_MARKDOWN) — F-5.',
     type: 'object',
     additionalProperties: { type: 'string' },
   })
   @IsOptional()
   @IsObject()
   @Validate(LanguageHintsPlaceholderValidator)
+  @Validate(LanguageHintsRawSendValidator)
   languageHints?: Record<string, string>;
 }
