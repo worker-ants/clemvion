@@ -215,11 +215,13 @@ pending_plans:
     "rateLimitPerMinute": 60,                   // CCH-NF-03 — per-chat 분당 한도 (기본 60, 1–600). 초과분 skip + degraded
     "languageLocale": "ko",                     // "ko" | "en" — 미설정 default = "ko". 어댑터가 languageHints 미설정 시 본 locale 의 default 문구 lookup. 사용자 명시 override (languageHints[key] = "...") 가 우선.
     "languageHints": {                          // 봇이 보내는 자체 안내 메시지 i18n (사용자 override). 미설정 키는 languageLocale 의 default 문구 사용.
-      "groupChatRefusal":              "이 봇은 1:1 대화만 지원합니다.",
+      "groupChatRefusal":              "이 봇은 1:1 대화만 지원합니다\\.",  // telegram raw-send 키 → MarkdownV2 마침표 escape (F-5)
       "executionStarted":              "워크플로우를 시작합니다…",
       "executionCompleted":            "워크플로우가 완료되었습니다.",
-      "executionStillRunning":         "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",  // CCH-CV-03 의 running 케이스 안내 default
+      "executionStillRunning":         "워크플로우가 처리 중입니다\\. 잠시만 기다려 주세요\\.",  // CCH-CV-03 running 안내 default. raw-send → escape (F-5)
       "help":                          "사용 가능한 명령: /start, /cancel, /help",          // §7 명령 처리의 /help default
+      "formValidationFailed":          "입력값을 다시 확인해주세요\\.",                        // Form 다단계 client-side 검증 실패 재질문 (raw-send → escape, F-5)
+      "formNextField":                 "다음 항목을 입력해주세요\\.",                          // Form 다단계 다음 필드 prompt (raw-send → escape, F-5)
       "formOpenLabel":                 "양식 작성하기",                                      // §4.1 native modal `form_modal` 버튼 라벨 (Convention §2.2)
       "sessionExpired":                "대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다.", // §7.5 rehydration 실패(RESUME_*) graceful 안내 (§4.1.1)
       "surfaceMismatch":               "지금은 이 입력을 받을 수 없어요 화면에 표시된 양식이나 버튼을 사용해 주세요", // 대기 노드 표면과 명령 불일치(409 STATE_MISMATCH) 시 안내 (§4.1.1). control-plane 발송 → MarkdownV2-safe(특수문자 미포함)
@@ -655,7 +657,7 @@ CCH-MP-01 본문에 "Gateway 미사용 provider 는 모달/slash 입력 허용" 
 세부:
 - (a) **분류 입력 enum 의 SoT** = [`spec/5-system/3-error-handling.md §1.4 / §3.2`](./3-error-handling.md#14-워크플로우-실행-에러) 의 `ErrorCode` enum. 본 spec 은 카테고리 매핑 규칙만 (Convention §3.1) — enum 자체는 그쪽이 단일 진실.
 - (b) **unknown code fallback** 은 `executionFailedInternal`. silent swallow 금지 (CCH-ERR-04) 이유 = 운영 중 새 노드 카테고리 추가 시 missing case 를 backend 로그에서 즉시 감지 가능해야 한다. silent skip 시 enum 확장이 누락된 채 long-term drift 발생.
-- (c) **placeholder 정책** = `{statusCode}` 1종. unknown placeholder 가 raw 형태 (`{nodeId}` 등) 로 사용자에게 노출되지 않도록 DTO validator 가 등록 시점에 reject. 미허용 placeholder 가 발견되면 `400 VALIDATION_ERROR (details.field='languageHints.executionFailed*', code='UNKNOWN_PLACEHOLDER')`. `UNKNOWN_PLACEHOLDER` 는 [`spec/5-system/3-error-handling.md §2 에러 응답 형식`](./3-error-handling.md#2-에러-응답-형식) 의 `details[].code` 자리 (즉 `VALIDATION_ERROR` 의 하위 세부 코드) — `§1.3` 의 top-level `error.code` enum 자체에는 등재하지 않음.
+- (c) **placeholder 정책** = `{statusCode}` 1종. unknown placeholder 가 raw 형태 (`{nodeId}` 등) 로 사용자에게 노출되지 않도록 DTO validator 가 등록 시점에 reject. 미허용 placeholder 가 발견되면 `400 VALIDATION_ERROR`. **에러 표면 실제 형태** (`CustomValidationPipe.flattenErrors` 공통): validator 의 `defaultMessage()` 가 반환한 `UNKNOWN_PLACEHOLDER:<field>:<placeholder>` 문자열이 `details[].message` 에 원문 그대로 들어가고, `details[].code` 는 모든 constraint 위반에 대해 `INVALID_FIELD` 로 고정된다 (파이프가 code 를 파싱하지 않음). 즉 `UNKNOWN_PLACEHOLDER`/`UNSAFE_TELEGRAM_MARKDOWN`(F-5) 등의 세부 코드는 top-level `error.code`(`VALIDATION_ERROR`) 도 `details[].code`(`INVALID_FIELD`) 도 아닌 **`details[].message` prefix** 로 표면한다 — `§1.3` 의 top-level `error.code` enum 에는 등재하지 않음.
 - (d) **`chat_channel_health` 와의 의미 분리**: `chat_channel_health=degraded` 는 어댑터의 외부 API 호출 (sendMessage 등) 실패 신호 (CCH-SE-01). 본 spec 의 실패 안내는 **execution 자체의 실패** (`output.error.code` — LLM API / HTTP 노드 / 사용자 코드 실패) 안내. 두 자원이 직교적이므로 발송 자체는 `chat_channel_health` 와 무관. 단 안내 sendMessage 호출이 5초 timeout 후 retry 도 실패하면 CCH-SE-01 의 일반 정책에 따라 health=degraded 갱신 — 이건 안내 발송 메커니즘 자체의 외부 호출 실패라 정합.
 - (e) **MCP 도구 호출 실패 카테고리 반영 시점**: 현재 `3-error-handling.md §1.4` 의 enum 에 MCP 전용 코드 (`MCP_TOOL_CALL_FAILED` 등) 미정의. MCP 노드가 별 코드 enum 을 추가하면 Convention §3.1 의 분류 표에 행 추가 + 신규 i18n 키 검토. 본 spec 의 §3.5 CCH-ERR-02 화이트리스트 ({code, statusCode}) 는 그대로 유효 (MCP 도구도 HTTP-like statusCode 가 있으면 같은 placeholder 활용 가능).
 
