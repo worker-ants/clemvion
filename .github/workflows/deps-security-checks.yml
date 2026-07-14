@@ -49,7 +49,8 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install PyYAML
-        run: pip install pyyaml
+        # 재현성 위해 major 고정 (deps 재현성 원칙과 정렬). scripts/ 중 유일한 non-stdlib 의존.
+        run: pip install "pyyaml>=6,<7"
       - name: Check pnpm security config
         run: python3 scripts/check-pnpm-security-config.py
 
