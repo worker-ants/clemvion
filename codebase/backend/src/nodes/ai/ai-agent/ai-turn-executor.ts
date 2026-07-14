@@ -40,6 +40,10 @@ import {
 } from './ai-condition-evaluator';
 import { AiMemoryManager } from './ai-memory-manager';
 import { type MemoryStrategy } from './ai-agent.schema';
+import {
+  enforceToolPayloadBudget,
+  ToolDefinitionPayloadExceededError,
+} from './tool-payload-budget';
 import { injectConversationContext } from '../shared/conversation-context-injection';
 import {
   compactMessagesToTail,
@@ -566,6 +570,26 @@ const CONDITION_DEFERRAL_RESULT_MSG =
   '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.';
 const TOOL_BUDGET_EXCEEDED_ERROR = 'tool_call_budget_exceeded';
 
+/**
+ * AI Agent 노드의 single-turn / multi-turn 실행을 담당.
+ *
+ * ### `ToolDefinitionPayloadExceededError` 전파 계약 (spec §4.2/§7.3, 03 리뷰 W2)
+ *
+ * `buildTools`(공유 pre-flight) 가 도구 정의 payload 예산 초과로 throw 할 때,
+ * 두 진입점의 처리 방식은 **의도적으로 비대칭**이며 공식 계약이다 (통일은 후속
+ * plan 범위 — 여기서 임의로 변경하지 말 것):
+ *
+ *  - `executeSingleTurn` — try/catch 로 잡아 §7.3 error 포트 output 을 그대로
+ *    **return** 한다 (throw 전파 아님). 이 메서드는 엔진의 node-handler 진입점
+ *    이라 스스로 최종 output shape 을 만들어야 하기 때문이다.
+ *  - multi-turn(`processMultiTurnMessage`/`handleAiMessageTurn` 경로) — 잡지
+ *    않고 그대로 **throw** 전파한다. 상위 orchestrator 의 catch 가
+ *    `extractAiTurnErrorPayload` 로 `code`/`details` 를 passthrough 해 동일한
+ *    §7.3 error 포트 shape 을 조립하므로, 이 계층에서 다시 감쌀 필요가 없다.
+ *
+ * 두 경로 모두 최종적으로 사용자에게는 동일한 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`
+ * error 포트 output 이 도달한다 — 차이는 "어느 계층이 조립하는가" 뿐이다.
+ */
 export class AiTurnExecutor {
   constructor(
     private readonly llmService: LlmService,
@@ -1394,11 +1418,119 @@ export class AiTurnExecutor {
     );
   }
 
+  /**
+   * spec §7.1 config echo 조립 (CONVENTIONS Principle 7 — raw user input, `{{ }}`
+   * 보존). `executeSingleTurn` 이 `buildTools` 직전에 호출해, 정상 `out` 종결과
+   * §4.2 payload-budget error 종결이 **동일 shape** 를 공유하도록 한다.
+   * `executeSingleTurn` 에서 추출 (03 W1 — God Method 인라인 블록 억제).
+   */
+  private assembleSingleTurnConfigEcho(args: {
+    rawConfig: Record<string, unknown>;
+    model: string | undefined;
+    systemPrompt: string;
+    userPrompt: string;
+    responseFormat: 'text' | 'json';
+    conditions: ConditionDef[];
+    defaultModel: string;
+  }): Record<string, unknown> {
+    const {
+      rawConfig,
+      model,
+      systemPrompt,
+      userPrompt,
+      responseFormat,
+      conditions,
+      defaultModel,
+    } = args;
+    return {
+      mode: 'single_turn' as const,
+      model: rawConfig.model ?? model ?? defaultModel,
+      systemPrompt: rawConfig.systemPrompt ?? systemPrompt,
+      userPrompt: rawConfig.userPrompt ?? userPrompt,
+      responseFormat: rawConfig.responseFormat ?? responseFormat,
+      ...(rawConfig.conditions !== undefined
+        ? Array.isArray(rawConfig.conditions) &&
+          (rawConfig.conditions as unknown[]).length > 0
+          ? { conditions: rawConfig.conditions }
+          : {}
+        : conditions.length > 0
+          ? { conditions }
+          : {}),
+      // spec §11.7 — default 일치 시 생략, 명시 변경 시 echo.
+      ...pickNonDefaultSystemContext(rawConfig),
+    };
+  }
+
+  /**
+   * spec §4.2 / §7.3 — `buildTools` 를 pre-flight 실행하고, payload 예산 초과
+   * (`ToolDefinitionPayloadExceededError`)를 여기서 흡수해 §7.3 error 포트
+   * output 을 조립해 반환한다 (throw 전파 아님 — single-turn 계약, 클래스 JSDoc
+   * §전파 계약 / W2 참고). 다른 에러는 rethrow. `executeSingleTurn` 에서 추출
+   * (03 W1).
+   */
+  private async buildSingleTurnToolsOrError(args: {
+    config: Record<string, unknown>;
+    workspaceId: string;
+    context: ExecutionContext;
+    mcpDiagnosticsAcc: McpDiagnosticsAccumulator;
+    singleTurnConfigEcho: Record<string, unknown>;
+    model: string | undefined;
+    llmConfig: Awaited<ReturnType<LlmService['resolveConfig']>>;
+    preflightStartedAt: number;
+  }): Promise<{ tools: ToolDef[] } | { errorOutput: NodeHandlerOutput }> {
+    const {
+      config,
+      workspaceId,
+      context,
+      mcpDiagnosticsAcc,
+      singleTurnConfigEcho,
+      model,
+      llmConfig,
+      preflightStartedAt,
+    } = args;
+    try {
+      const tools = await this.buildTools(
+        config,
+        workspaceId,
+        context.executionId,
+        mcpDiagnosticsAcc,
+      );
+      return { tools };
+    } catch (err) {
+      if (err instanceof ToolDefinitionPayloadExceededError) {
+        return {
+          errorOutput: {
+            config: singleTurnConfigEcho,
+            output: {
+              error: {
+                code: err.code,
+                message: err.message,
+                details: err.details,
+              },
+            },
+            meta: {
+              model: model || llmConfig?.defaultModel,
+              durationMs: Date.now() - preflightStartedAt,
+            },
+            port: 'error',
+            status: 'ended',
+          },
+        };
+      }
+      throw err;
+    }
+  }
+
   async executeSingleTurn(
     _input: unknown,
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
+    // pre-flight(`buildTools`) 시작 시각 — §4.2 payload 예산 초과 실패의 error
+    // 포트 output 에서 `meta.durationMs` 산정에 쓴다. LLM turn 타이밍용
+    // `singleTurnStartedAt`(아래, LLM 첫 호출 직전)와 별개로 method 진입 시점을
+    // 잡는다 (구 `singleTurnEnteredAt` — 03 W4 개명, 두 이름 혼동 방지).
+    const preflightStartedAt = Date.now();
     const llmConfigId = config.llmConfigId as string | undefined;
     const model = config.model as string | undefined;
     const systemPrompt = (config.systemPrompt as string) || '';
@@ -1487,12 +1619,34 @@ export class AiTurnExecutor {
     const memoryMeta = memInjection.memoryMeta;
     const singleTurnInjection = memInjection.singleTurnInjection;
 
-    const tools = await this.buildTools(
+    // spec §7.1 config echo (CONVENTIONS Principle 7 — raw user input, `{{ }}`
+    // 보존). buildTools 전에 조립해 정상 `out` 종결과 §4.2 payload-budget error
+    // 종결이 **동일 shape** 를 공유하도록 한다. (03 W1 — private 헬퍼 추출)
+    const singleTurnConfigEcho = this.assembleSingleTurnConfigEcho({
+      rawConfig,
+      model,
+      systemPrompt,
+      userPrompt,
+      responseFormat,
+      conditions,
+      defaultModel: llmConfig.defaultModel,
+    });
+
+    // spec §4.2 / §7.3 — pre-flight buildTools + payload 예산 error 포트 라우팅.
+    // 전파 계약(single=return / multi=throw)은 클래스 JSDoc 참고 (03 W2).
+    // (03 W1 — private 헬퍼 추출)
+    const toolsResult = await this.buildSingleTurnToolsOrError({
       config,
       workspaceId,
-      context.executionId,
+      context,
       mcpDiagnosticsAcc,
-    );
+      singleTurnConfigEcho,
+      model,
+      llmConfig,
+      preflightStartedAt,
+    });
+    if ('errorOutput' in toolsResult) return toolsResult.errorOutput;
+    const tools = toolsResult.tools;
 
     // Per-call trace so the frontend LlmInformationTab can inspect each
     // request/response/usage even for single-turn runs (tool loop commonly
@@ -1717,24 +1871,9 @@ export class AiTurnExecutor {
       executionId: context.executionId,
     });
     return {
-      config: {
-        mode: 'single_turn' as const,
-        model: rawConfig.model ?? model ?? llmConfig.defaultModel,
-        systemPrompt: rawConfig.systemPrompt ?? systemPrompt,
-        userPrompt: rawConfig.userPrompt ?? userPrompt,
-        responseFormat: rawConfig.responseFormat ?? responseFormat,
-        ...(rawConfig.conditions !== undefined
-          ? Array.isArray(rawConfig.conditions) &&
-            (rawConfig.conditions as unknown[]).length > 0
-            ? { conditions: rawConfig.conditions }
-            : {}
-          : conditions.length > 0
-            ? { conditions }
-            : {}),
-        // spec §11.7 — `includeSystemContext` / `systemContextSections` 가 default 와
-        // 일치하면 echo 시 생략 (사용자가 명시 opt-out / sections 변경한 경우만 노출).
-        ...pickNonDefaultSystemContext(rawConfig),
-      },
+      // spec §7.1 — payload-budget error 종결과 공유하는 config echo (위에서
+      // buildTools 전에 조립). §11.7 optional 필드 생략 규약 포함.
+      config: singleTurnConfigEcho,
       output: {
         result: {
           response,
@@ -3418,6 +3557,20 @@ export class AiTurnExecutor {
     return { mcpDiagnostics: diagnostics };
   }
 
+  /**
+   * Provider(KB/MCP 등) + condition 도구를 조립하고 spec §4.2 payload 예산을
+   * 강제한다 (single-turn·multi-turn 공통 경로). Provider 개별 실패는 흡수해
+   * warn 로깅만 하지만, 조립된 전체 도구셋의 payload 예산 초과는 흡수하지 않는다
+   * — 호출자가 §7.3 error 포트로 라우팅할 신호이기 때문이다. 두 호출자가 이
+   * throw 를 다루는 방식은 비대칭이다: `executeSingleTurn` 은 잡아서 error 포트
+   * output 을 **return** 하고, multi-turn 경로는 잡지 않고 그대로 전파해 상위
+   * orchestrator(`handleAiMessageTurn`)의 catch 가 처리한다 (공식 계약: 클래스
+   * JSDoc 및 W2 참고).
+   *
+   * @throws {ToolDefinitionPayloadExceededError} 조립된 도구셋이 hard byte 예산
+   *   또는 개수 상한을 초과할 때 (`enforceToolPayloadBudget`). soft 예산 초과는
+   *   throw 하지 않고 warn 로깅만 한다.
+   */
   private async buildTools(
     config: Record<string, unknown>,
     workspaceId: string,
@@ -3455,7 +3608,12 @@ export class AiTurnExecutor {
     const conditionTools =
       this.conditionEvaluator.buildConditionTools(conditions);
 
-    return [...providerTools, ...normalTools, ...conditionTools];
+    const tools = [...providerTools, ...normalTools, ...conditionTools];
+    // spec §4.2 — 도구 정의 payload 예산 fail-fast. hard/count 초과 시 LLM 호출
+    // 전에 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` throw (single-turn·multi-turn 공통),
+    // soft 초과 시 warn 로깅만. Cafe24 383도구 전량 로드 회귀의 pre-flight 가드.
+    enforceToolPayloadBudget(tools, AiTurnExecutor.logger);
+    return tools;
   }
 
   private static readonly logger = new Logger('AiTurnExecutor');

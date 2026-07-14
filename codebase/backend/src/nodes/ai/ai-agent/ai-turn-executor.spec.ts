@@ -927,4 +927,150 @@ describe('AiTurnExecutor', () => {
       expect(cancelled!.content).toContain('user_sent_message_instead');
     });
   });
+
+  // spec §4.2 / §7.3 / §10 — buildTools 결과 도구 정의 payload 예산 fail-fast.
+  // 예산 초과 도구셋을 가짜 provider 로 주입해, single-turn 이 LLM 호출 전에
+  // error 포트 output 을 **return** 하는지 (throw 전파 아님) 를 고정한다.
+  describe('tool-definition payload budget (§4.2)', () => {
+    const HARD = 'AI_AGENT_TOOL_PAYLOAD_HARD_BYTES';
+    let savedHard: string | undefined;
+    beforeEach(() => {
+      savedHard = process.env[HARD];
+    });
+    afterEach(() => {
+      if (savedHard === undefined) delete process.env[HARD];
+      else process.env[HARD] = savedHard;
+    });
+
+    // 예산 초과 도구를 노출하는 최소 provider (mcp_ 접두 → culprit 지목 검증).
+    const bloatedProvider = () => ({
+      key: 'mcp',
+      matches: (name: string) => name.startsWith('mcp_'),
+      buildTools: jest.fn().mockResolvedValue([
+        {
+          name: 'mcp_cafe24__giant_op',
+          description: 'x'.repeat(400),
+          parameters: { type: 'object', properties: {} },
+        },
+      ]),
+      execute: jest.fn(),
+    });
+
+    it('returns the `error` port with TOOL_DEFINITION_PAYLOAD_EXCEEDED before calling the LLM', async () => {
+      process.env[HARD] = '50'; // 아주 낮게 → hard 초과 강제.
+      const provider = bloatedProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        {
+          mode: 'single_turn',
+          model: '{{ vars.model }}',
+          systemPrompt: 'sys',
+          userPrompt: 'Hi',
+          mcpServers: [{ integrationId: 'i-1' }],
+        },
+        baseContext,
+      )) as Record<string, unknown>;
+
+      expect(result.port).toBe('error');
+      expect(result.status).toBe('ended');
+      // LLM 호출 전 fail-fast — chat 미호출 (6분 hang 제거의 핵심).
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+
+      const output = result.output as {
+        error: {
+          code: string;
+          message: string;
+          details: Record<string, unknown>;
+        };
+      };
+      expect(output.error.code).toBe('TOOL_DEFINITION_PAYLOAD_EXCEEDED');
+      expect(output.error.details.retryable).toBe(false);
+      expect(output.error.details.budgetBytes).toBe(50);
+      expect(output.error.details.toolCount).toBe(1);
+      expect(output.error.details.culpritProvider).toBe('mcp:cafe24');
+      expect(output.error.message).toContain('mcpServers[].enabledTools');
+
+      // config echo (Principle 7) — raw template 보존, 정상 out 종결과 동일 shape.
+      const cfg = result.config as Record<string, unknown>;
+      expect(cfg.mode).toBe('single_turn');
+      expect(cfg.model).toBe('{{ vars.model }}');
+      const meta = result.meta as Record<string, unknown>;
+      expect(typeof meta.durationMs).toBe('number');
+    });
+
+    it('does not fire under the default (generous) budget', async () => {
+      const provider = bloatedProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+      const result = (await executor.executeSingleTurn(
+        undefined,
+        { mode: 'single_turn', systemPrompt: 'sys', userPrompt: 'Hi' },
+        baseContext,
+      )) as Record<string, unknown>;
+      expect(result.port).toBe('out');
+      expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws out of buildTools so multi-turn resume can route via extractAiTurnErrorPayload', async () => {
+      process.env[HARD] = '50';
+      const provider = bloatedProvider();
+      const executor = buildExecutor({ toolProviders: [provider] });
+      // processMultiTurnMessage 는 buildTools throw 를 감싸지 않는다 (orchestrator
+      // 의 handleAiMessageTurn try/catch → extractAiTurnErrorPayload 가 code/details
+      // 를 passthrough) — 여기선 throw 가 전파됨을 고정한다.
+      await expect(
+        executor.processMultiTurnMessage('안녕하세요', {
+          llmConfigId: 'cfg-1',
+          model: 'gpt-4o',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          knowledgeBases: [],
+          conditions: [],
+          mcpServers: [{ integrationId: 'i-1' }],
+          presentationTools: [],
+          messages: [{ role: 'system', content: 'sys' }],
+          turnCount: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalThinkingTokens: 0,
+          toolCalls: 0,
+          ragSources: [],
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          memoryStrategy: 'manual',
+        }),
+      ).rejects.toMatchObject({ code: 'TOOL_DEFINITION_PAYLOAD_EXCEEDED' });
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+    });
+
+    // 03 W7 — executeSingleTurn 의 buildTools try/catch 는 `Tool
+    // DefinitionPayloadExceededError` 만 흡수해 error 포트로 반환하고, 그 외
+    // 에러는 rethrow(else 분기)한다. buildTools 내부 `enforceToolPayloadBudget`
+    // 호출은 provider try/catch 로 감싸지 않으므로, malformed 도구 이름(비-string)
+    // 이 `toolProviderGroupKey` 에서 TypeError 를 유발하도록 해 non-budget 에러
+    // 전파 경로를 고정한다.
+    it('rethrows non-budget errors surfaced from buildTools instead of routing them to the error port', async () => {
+      const brokenProvider = {
+        key: 'broken',
+        matches: () => true,
+        buildTools: jest.fn().mockResolvedValue([
+          // name 이 string 이 아니면 toolProviderGroupKey(tool.name) 가 던진다 —
+          // ToolDefinitionPayloadExceededError 가 아닌 에러의 유일한 현실적 트리거.
+          { name: undefined, description: 'x', parameters: {} },
+        ]),
+        execute: jest.fn(),
+      };
+      const executor = buildExecutor({ toolProviders: [brokenProvider] });
+
+      await expect(
+        executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'sys', userPrompt: 'Hi' },
+          baseContext,
+        ),
+      ).rejects.toBeInstanceOf(TypeError);
+      expect(mockLlmService.chat).not.toHaveBeenCalled();
+    });
+  });
 });
