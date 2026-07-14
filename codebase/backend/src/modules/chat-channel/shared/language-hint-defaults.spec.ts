@@ -9,11 +9,30 @@ import {
   SESSION_EXPIRED_DEFAULTS,
   resolveSurfaceMismatchMessage,
   SURFACE_MISMATCH_DEFAULTS,
+  makeLocaleResolver,
   type LanguageLocale,
 } from './language-hint-defaults';
 // canonical MarkdownV2 escaper 를 재사용 — 특수문자 집합을 손으로 재선언하면 telegram
 // renderer 쪽 정의가 갱신될 때 이 테스트의 안전성 보증이 stale 되어 조용히 무력화된다.
 import { escapeMarkdownV2 } from '../providers/telegram/telegram-message.renderer';
+
+describe('makeLocaleResolver (F-4 3-level lookup factory)', () => {
+  const resolve = makeLocaleResolver('demoKey', { ko: '한글', en: 'english' });
+  it('override(non-empty) 우선', () => {
+    expect(resolve({ demoKey: '커스텀' }, 'en')).toBe('커스텀');
+  });
+  it('빈 override 는 무시 → locale default', () => {
+    expect(resolve({ demoKey: '' }, 'en')).toBe('english');
+    expect(resolve({ demoKey: '' }, 'ko')).toBe('한글');
+  });
+  it('locale 미설정/unknown → ko fallback', () => {
+    expect(resolve(undefined, undefined)).toBe('한글');
+    expect(resolve({}, 'de' as LanguageLocale)).toBe('한글');
+  });
+  it('다른 키의 override 는 영향 없음', () => {
+    expect(resolve({ otherKey: 'x' }, 'en')).toBe('english');
+  });
+});
 
 describe('resolveSessionExpiredMessage (§7.5 rehydration 실패 graceful 안내)', () => {
   it('default KO / EN', () => {

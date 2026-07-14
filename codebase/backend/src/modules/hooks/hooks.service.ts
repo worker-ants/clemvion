@@ -809,19 +809,13 @@ export class HooksService {
         '이 봇은 1:1 대화만 지원합니다\\.')
       : (config.languageHints?.unsupportedMessageKind ??
         '지원하지 않는 메시지 형식입니다\\.');
-    try {
-      await adapter.sendMessage(
-        {
-          conversationKey: String(chat.id),
-          body: { kind: 'text', text: announcement },
-        },
-        config,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `maybeNotifyIgnored sendMessage 실패 (chatId=${chat.id}): ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.sendBestEffortNotice(
+      String(chat.id),
+      announcement,
+      'maybeNotifyIgnored',
+      config,
+      adapter,
+    );
   }
 
   /**
@@ -986,6 +980,32 @@ export class HooksService {
    * `maybeNotifyIgnored` 와 동일한 kind:'text' 경로 — 텔레그램 MarkdownV2 는 어댑터가
    * escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
    */
+  /**
+   * control-plane 텍스트 안내의 공통 best-effort 발송 (F-4). `sendExecutionStillRunningNotice`
+   * / `sendSurfaceMismatchNotice` / `maybeNotifyIgnored` 의 try/catch/warn 골격을 한 곳에 모아
+   * 중복을 제거한다. 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가 안내 루프를
+   * 유발하지 않도록. `text` 는 렌더러 escape 를 거치지 않는 경로이므로 호출자가 provider 표면에
+   * 맞게 준비해야 한다(default 는 MarkdownV2-safe, F-5 로 override 검증).
+   */
+  private async sendBestEffortNotice(
+    conversationKey: string,
+    text: string,
+    label: string,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    try {
+      await adapter.sendMessage(
+        { conversationKey, body: { kind: 'text', text } },
+        config,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `${label} sendMessage 실패 (conversationKey=${conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   private async sendExecutionStillRunningNotice(
     update: ChannelUpdate,
     config: ChatChannelConfig,
@@ -994,19 +1014,13 @@ export class HooksService {
     const text =
       config.languageHints?.executionStillRunning ??
       '워크플로우가 처리 중입니다\\. 잠시만 기다려 주세요\\.';
-    try {
-      await adapter.sendMessage(
-        {
-          conversationKey: update.conversationKey,
-          body: { kind: 'text', text },
-        },
-        config,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `executionStillRunning sendMessage 실패 (conversationKey=${update.conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.sendBestEffortNotice(
+      update.conversationKey,
+      text,
+      'executionStillRunning',
+      config,
+      adapter,
+    );
   }
 
   /**
@@ -1015,7 +1029,6 @@ export class HooksService {
    * 안내 (`languageHints.surfaceMismatch`) 를 발송한다. 종전엔 warn 로그만 남기고 사용자에게
    * 아무 피드백이 없었다.
    *
-   * 발송 실패는 swallow (warn) — control-plane 안내가 재시도/추가 안내 루프를 유발하지 않도록.
    * 문구는 렌더러 escape 를 거치지 않으므로 default 는 MarkdownV2-safe (language-hint-defaults.ts
    * `SURFACE_MISMATCH_DEFAULTS` 참조).
    */
@@ -1028,19 +1041,13 @@ export class HooksService {
       config.languageHints,
       config.languageLocale as LanguageLocale | undefined,
     );
-    try {
-      await adapter.sendMessage(
-        {
-          conversationKey: update.conversationKey,
-          body: { kind: 'text', text },
-        },
-        config,
-      );
-    } catch (err) {
-      this.logger.warn(
-        `surfaceMismatch 안내 sendMessage 실패 (conversationKey=${update.conversationKey}): ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    await this.sendBestEffortNotice(
+      update.conversationKey,
+      text,
+      'surfaceMismatch 안내',
+      config,
+      adapter,
+    );
   }
 
   private async buildInteractionResponse(

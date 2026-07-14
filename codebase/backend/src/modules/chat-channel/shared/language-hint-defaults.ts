@@ -20,6 +20,28 @@ const logger = new Logger('ChatChannelLanguageHint');
 export type LanguageLocale = 'ko' | 'en';
 
 /**
+ * languageHints 3-level lookup resolver 공통 factory (F-4) —
+ * (1) `languageHints[overrideKey]` 사용자 override(non-empty string) → (2) `languageLocale`
+ * default → (3) ko fallback. `resolveFormOpenLabel` / `resolveSessionExpiredMessage` /
+ * `resolveSurfaceMismatchMessage` 가 문자 단위로 동일한 패턴이라 factory 로 통합해, 신규
+ * control-plane 키 추가 시 네 번째 복제가 생기지 않도록 한다.
+ */
+export function makeLocaleResolver(
+  overrideKey: string,
+  defaults: Record<LanguageLocale, string>,
+): (
+  languageHints: Record<string, string> | undefined,
+  languageLocale: LanguageLocale | undefined,
+) => string {
+  return (languageHints, languageLocale) => {
+    const override = languageHints?.[overrideKey];
+    if (typeof override === 'string' && override.length > 0) return override;
+    if (languageLocale === 'en') return defaults.en;
+    return defaults.ko;
+  };
+}
+
+/**
  * CCH-ERR-* 6 키의 default 문구 — KO/EN. 키는 `ExecutionFailureClass['key']` 와 1:1.
  * 신규 key 추가 시 본 map 도 동시 갱신 (KO/EN parity 강제).
  */
@@ -112,17 +134,12 @@ export const FORM_OPEN_LABEL_DEFAULTS: Record<LanguageLocale, string> = {
 
 /**
  * `form_modal` 버튼 라벨 3-level lookup — (1) languageHints.formOpenLabel override →
- * (2) languageLocale default → (3) ko fallback.
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
  */
-export function resolveFormOpenLabel(
-  languageHints: Record<string, string> | undefined,
-  languageLocale: LanguageLocale | undefined,
-): string {
-  const override = languageHints?.formOpenLabel;
-  if (typeof override === 'string' && override.length > 0) return override;
-  if (languageLocale === 'en') return FORM_OPEN_LABEL_DEFAULTS.en;
-  return FORM_OPEN_LABEL_DEFAULTS.ko;
-}
+export const resolveFormOpenLabel = makeLocaleResolver(
+  'formOpenLabel',
+  FORM_OPEN_LABEL_DEFAULTS,
+);
 
 /**
  * §7.5 rehydration 실패 (`RESUME_*`) 시 사용자에게 보내는 graceful 안내 default
@@ -138,17 +155,12 @@ export const SESSION_EXPIRED_DEFAULTS: Record<LanguageLocale, string> = {
 
 /**
  * 세션 만료 안내 3-level lookup — (1) languageHints.sessionExpired override →
- * (2) languageLocale default → (3) ko fallback.
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
  */
-export function resolveSessionExpiredMessage(
-  languageHints: Record<string, string> | undefined,
-  languageLocale: LanguageLocale | undefined,
-): string {
-  const override = languageHints?.sessionExpired;
-  if (typeof override === 'string' && override.length > 0) return override;
-  if (languageLocale === 'en') return SESSION_EXPIRED_DEFAULTS.en;
-  return SESSION_EXPIRED_DEFAULTS.ko;
-}
+export const resolveSessionExpiredMessage = makeLocaleResolver(
+  'sessionExpired',
+  SESSION_EXPIRED_DEFAULTS,
+);
 
 /**
  * 표면 불일치 안내 (F-2 / plan eia-command-waiting-surface-guard) — 채팅 채널 inbound 명령이
@@ -170,17 +182,13 @@ export const SURFACE_MISMATCH_DEFAULTS: Record<LanguageLocale, string> = {
 
 /**
  * 표면 불일치 안내 3-level lookup — (1) languageHints.surfaceMismatch override →
- * (2) languageLocale default → (3) ko fallback. 반환값은 raw (호출자가 escape 없이 발송).
+ * (2) languageLocale default → (3) ko fallback ({@link makeLocaleResolver}).
+ * 반환값은 raw (호출자가 escape 없이 발송).
  */
-export function resolveSurfaceMismatchMessage(
-  languageHints: Record<string, string> | undefined,
-  languageLocale: LanguageLocale | undefined,
-): string {
-  const override = languageHints?.surfaceMismatch;
-  if (typeof override === 'string' && override.length > 0) return override;
-  if (languageLocale === 'en') return SURFACE_MISMATCH_DEFAULTS.en;
-  return SURFACE_MISMATCH_DEFAULTS.ko;
-}
+export const resolveSurfaceMismatchMessage = makeLocaleResolver(
+  'surfaceMismatch',
+  SURFACE_MISMATCH_DEFAULTS,
+);
 
 /**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).
