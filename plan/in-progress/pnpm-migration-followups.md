@@ -52,6 +52,8 @@ runner 를 `prod-deps` 통째 COPY → **`pnpm deploy` 격리 번들** COPY 로 
 
 **조사(2026-07-12, defer)**: 실측 — `@nestjs/swagger` 11.2.7 은 `SchemaObject` 를 root 로 공개 export 하지 않고(`'SchemaObject' in require('@nestjs/swagger')` = false) openapi3-ts 를 의존하지도 않는다(미설치). 완료하려면 (a) `openapi3-ts` **신규 devDep 추가** + deep-import 3곳(`api-wrapped.ts` + EIA 응답 DTO spec 2곳: `execution-status-response.dto.spec.ts`·`interact-ack-response.dto.spec.ts`) 교체 + 타입 호환 검증, (b) 핀 제거 → 11.2.7→11.4.x **버전 bump** 의 `SwaggerModule.createDocument` 출력 회귀 검증. 신규 의존성 + 버전 bump 리스크(DTO 스키마 회귀 테스트 다수 의존)라 별 focused PR 로 분리한다. 보안 측면(11.2.7 핀이 패치 영구 차단)에서 우선순위는 있음.
 
+**완료(2026-07-14)**: 위 조사의 openapi3-ts 경로보다 **나은 방식** 확인 — `SchemaObject` 를 **공개 타입에서 파생**(`type SchemaObject = ApiResponseSchemaHost['schema']`; `ApiResponseSchemaHost` 는 root 공개 export 이고 그 `schema` 필드가 곧 `ApiOkResponse({ schema })` 가 받는 타입)해 **신규 의존성 없이** deep-import 3곳을 모두 제거. `OpenAPIObject` 는 원래부터 root 공개라 root import. `@nestjs/swagger` `^11.2.7`→`^11.4.5`(11.4.5) 상향 + `pnpm-workspace.yaml` overrides 핀 제거. **검증**: DTO 스키마 회귀 가드 3 suites/28 tests + lint·unit·build·e2e(253) 통과, `SwaggerModule.createDocument` 출력 불변, peer/라이선스 불변, 활성 CVE 0(예방적 — 향후 패치 차단 해소). `/consistency-check --impl-done` BLOCK: NO. **주의**: lockfile 재생성 시 overrides(picomatch·postcss 등) 가 latest-satisfying 으로 재평가돼 swagger 외 benign patch bump(js-yaml/nanoid/picomatch/postcss, 신규 top-level·major 없음)가 동반됨 — pnpm override 재해소의 불가피한 특성(origin/main 미포함분). base 가 origin/main 대비 2 commit behind 라 PR 전 rebase 필요.
+
 ## 3. node-linker=hoisted → strict 점진 전환 (review INFO #9)
 
 `.npmrc` 가 NestJS/Next standalone·native dep 호환을 위해 `node-linker=hoisted`(flat) 로 출발했다.
