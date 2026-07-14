@@ -52,3 +52,16 @@ onlyBuiltDependencies:
   - esbuild
   - "@swc/core"
   - "@tailwindcss/oxide"
+
+# 의존성 취약점 audit 정책 — CI(.github/workflows/deps-security-checks.yml)가
+# `pnpm audit --audit-level=moderate` 로 신규 moderate+ 취약점을 PR·주간 스케줄에서
+# 차단한다. 아래 `ignoreCves` 는 **검토 후 수용(accept)한** 취약점 — 신규 CVE 를
+# 사유 없이 억제 금지(수용은 반드시 근거·영향경로·해소 조건과 함께).
+auditConfig:
+  ignoreCves:
+    # CVE-2026-53550 (GHSA-h67p-54hq-rp68) — js-yaml <3.15.0 merge-key 이차 복잡도 DoS (moderate).
+    # 유일 경로: codebase/frontend > gray-matter > js-yaml@3.14.2 (Markdown frontmatter 파서,
+    # dev/build 툴링 전이 의존, 신뢰 입력만 처리해 실사용 노출 낮음). 패치는 js-yaml>=3.15.0
+    # 이나 gray-matter@4.x 가 js-yaml@^3.13 을 고정해 소비처 직접 상향 불가 → gray-matter
+    # 교체·상향 시 해소. plan/in-progress/pnpm-migration-followups.md §4, review 08_59_36.
+    - CVE-2026-53550
