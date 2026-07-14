@@ -37,28 +37,37 @@ WORKDIR /app
 COPY codebase/backend ./codebase/backend
 RUN pnpm --filter backend build
 
-# ---------- prod-deps: devDeps 를 prune 한 production node_modules ----------
-# builder(dist 빌드 완료) 위에서 --prod 로 재해소해 backend subtree 의 devDeps 를 제거한다.
-# pnpm 은 modules 재구성을 위해 node_modules 를 지웠다 다시 링크하므로 native(bcrypt/isolated-vm)를
-# 재컴파일한다 — 빌드툴(python3/make/g++)은 deps 스테이지에 있다. 내부 패키지 prepare 는
-# `[ -d dist ] || tsc` 가드라 dist 가 이미 있으면 tsc 를 스킵(주 비용은 native 재컴파일).
-# 비대화형 빌드라 removal 확인 프롬프트를 넘기려 CI=true 를 준다. backend 의 이미 빌드된 dist
-# (codebase/backend/dist)는 node_modules 밖이라 보존된다.
-FROM builder AS prod-deps
+# ---------- deploy: self-contained production bundle (backend prod deps only) ----------
+# 이전 runner 는 hoisted flat `/app/node_modules` 를 통째로 옮겨, `--filter "backend..."`
+# 설치임에도 node-linker=hoisted 가 워크스페이스 전체를 단일 flat 트리로 구체화한 탓에
+# 프런트엔드/테스트 스택(next·@next·three·lucide-react·playwright 등 600MB+)과 backend
+# 원본 src 까지 프로덕션 이미지에 잔존했다. `pnpm deploy` 로 backend + 그 workspace
+# 의존만 격리 설치해 self-contained 디렉터리를 만들어 그 문제를 제거한다.
+#   - `--prod`  : devDeps(jest/eslint/ts 등) 제외.
+#   - injected deploy(비-legacy): pnpm-workspace.yaml 의 `injectWorkspacePackages: true`
+#                 로 활성. 내부 @workflow/* 를 injected copy 로 주입하고, 격리(isolated)
+#                 node_modules 로 **패키지별 버전을 올바로 해소**한다. legacy(flat) deploy
+#                 는 backend 직접 의존 cron-parser@^5.5.0 을 bullmq 전이 4.9.0 으로 잘못
+#                 collapse 해 schedule 이 깨졌다(유효 cron 도 400) — 그래서 injected 사용.
+#   - target(/prod/backend) 은 워크스페이스(/app) 밖이어야 한다.
+# native(bcrypt/isolated-vm)는 install 시 재컴파일된다(빌드툴은 deps 스테이지). CI=true.
+FROM builder AS deploy
 WORKDIR /app
-RUN CI=true pnpm install --prod --frozen-lockfile --filter "backend..."
+RUN CI=true pnpm --filter=backend deploy --prod /prod/backend
 
 # ---------- runner: runtime ----------
-# prod-deps 는 built dist + devDeps 제거된 node_modules 를 모두 포함하므로 통째로 옮긴다.
-# node-linker=hoisted 라 node_modules layout(root + backend 로컬 @workflow 링크)은 그대로 보존되고,
-# 내부 @workflow/* 는 codebase/packages/* 의 built dist 로 해소된다.
+# 프로덕션에 필요한 것만 선별 COPY — deploy 산출 node_modules(prune·@workflow 주입,
+# 프런트 스택 없음) + builder 산출 dist(컴파일 결과) + package.json. deploy 디렉터리에
+# 남는 원본 src/test 잡동사니는 이 stage 로 넘어오지 않는다. WORKDIR·경로 계약
+# (/app/codebase/backend)은 compose·운영 참조 호환을 위해 그대로 둔다.
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production
 RUN corepack enable
-WORKDIR /app
-COPY --from=prod-deps --chown=node:node /app ./
+WORKDIR /app/codebase/backend
+COPY --from=deploy --chown=node:node /prod/backend/node_modules ./node_modules
+COPY --from=deploy --chown=node:node /prod/backend/package.json ./package.json
+COPY --from=builder --chown=node:node /app/codebase/backend/dist ./dist
 
 USER node
-WORKDIR /app/codebase/backend
 EXPOSE 3011
 CMD ["node", "dist/main"]

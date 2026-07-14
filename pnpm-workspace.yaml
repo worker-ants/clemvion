@@ -6,3 +6,49 @@ packages:
   - "codebase/frontend"
   - "codebase/channel-web-chat"
   - "codebase/packages/*"
+
+# backend `pnpm deploy`(non-legacy)가 요구하는 설정(ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE).
+# 이 값 덕에 deploy 산출물이 내부 @workflow/* 를 injected copy 로 격리해 패키지별 버전을
+# 올바로 해소한다(legacy flat deploy 의 direct→transitive collapse 회피).
+# 실측: 일반 `pnpm install`(frozen) 의 워크스페이스 링크는 여전히 **symlink** 다 —
+# backend·frontend·web-chat-sdk 모두 node_modules/@workflow/* 가 codebase/packages/* 로의
+# symlink 로 유지됨을 확인. 즉 dev hot-reload·frontend next.config 의 symlink 전제는 불변이고,
+# node-linker 도 hoisted 유지라 Next standalone·native 위험 없음. 실효 영향은 `pnpm deploy` 한정.
+injectWorkspacePackages: true
+
+# 보안 취약점 해소용 전이 의존성 상향 핀 (pnpm 10 정규 위치 — 이전에는 package.json 의
+# `pnpm.overrides` 였으나 pnpm 10.23 이 그 필드를 더 이상 읽지 않아 여기로 이전). pnpm
+# overrides 는 workspace-global 이므로 패키지별 충돌 항목은 버전-레인지로 스코프한다.
+# undici 는 backend=direct ^6, frontend=transitive 취약 7.x 라 7.x 취약범위만 스코프
+# (backend 6.x 불변). next>postcss 는 frontend·channel-web-chat 공통. 각 CVE 사유는
+# audit 커밋(b2bbb49e) 참조.
+overrides:
+  lodash: ^4.18.0
+  picomatch: ^4.0.4
+  liquidjs: ^10.27.0
+  ip-address: ^10.2.0
+  express-rate-limit: ^8.5.1
+  protobufjs: ^7.6.3
+  fast-uri: ^3.1.2
+  hono: ^4.12.21
+  uuid: ^13.0.2
+  ws: ^8.21.0
+  "@grpc/grpc-js": ^1.14.4
+  multer: ^2.2.0
+  form-data: ^4.0.6
+  nodemailer: ^9.0.1
+  next>postcss: ^8.5.14
+  eslint-plugin-react-hooks: 7.0.1
+  "undici@>=7.0.0 <7.28.0": ^7.28.0
+  vite: ^8.0.16
+  "@babel/core": ^7.29.7
+
+# pnpm v10 은 lifecycle(build) script 를 기본 차단한다 (pnpm 10 정규 위치 — package.json
+# `pnpm.onlyBuiltDependencies` 에서 이전). 네이티브/바이너리 빌드가 필요한 패키지만 허용.
+# 설치 시 'Ignored build scripts' 경고로 추가 항목을 발견하면 보충한다.
+onlyBuiltDependencies:
+  - isolated-vm
+  - bcrypt
+  - esbuild
+  - "@swc/core"
+  - "@tailwindcss/oxide"

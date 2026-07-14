@@ -1,10 +1,11 @@
 import { Controller, Post } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ApiOkResponse, DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import type {
-  OpenAPIObject,
-  SchemaObject,
-} from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
+import type { ApiResponseSchemaHost, OpenAPIObject } from '@nestjs/swagger';
+
+// SchemaObject 는 swagger 가 공개 export 하지 않고 11.4.x exports 맵이 deep-import 를
+// 차단하므로 공개 타입 `ApiResponseSchemaHost['schema']` 에서 파생 (common/swagger/api-wrapped.ts 참고).
+type SchemaObject = ApiResponseSchemaHost['schema'];
 import { InteractAckDto } from './interact-ack-response.dto';
 import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
 
