@@ -587,7 +587,9 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
           },
         });
         const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(errors.find((e) => e.property === 'chatChannel')).toBeUndefined();
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
       });
 
       it('통과 — telegram + 특수문자 없는 override', async () => {
@@ -600,7 +602,9 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
           },
         });
         const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(errors.find((e) => e.property === 'chatChannel')).toBeUndefined();
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
       });
 
       it('통과 — slack 은 검증 대상 아님 (unescaped . 허용)', async () => {
@@ -613,7 +617,9 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
           },
         });
         const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(errors.find((e) => e.property === 'chatChannel')).toBeUndefined();
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
       });
 
       it('통과 — telegram + 비-raw-send 키(sessionExpired, 렌더러 escape 경로)는 . 허용', async () => {
@@ -626,7 +632,9 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
           },
         });
         const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(errors.find((e) => e.property === 'chatChannel')).toBeUndefined();
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
       });
     });
   });

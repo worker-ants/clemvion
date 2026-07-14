@@ -201,9 +201,7 @@ function findFirstUnsafeRawSendHint(
  * telegram 에만 적용한다 (slack/discord 는 무검증).
  */
 @ValidatorConstraint({ name: 'languageHintsRawSend', async: false })
-export class LanguageHintsRawSendValidator
-  implements ValidatorConstraintInterface
-{
+export class LanguageHintsRawSendValidator implements ValidatorConstraintInterface {
   validate(value: unknown, args: ValidationArguments): boolean {
     const provider = (args.object as { provider?: unknown }).provider;
     return findFirstUnsafeRawSendHint(value, provider) === null;
@@ -244,7 +242,7 @@ export class ChatChannelConfigDto {
     example: 'telegram',
   })
   @IsString()
-  @IsIn(CHAT_CHANNEL_PROVIDERS as unknown as string[])
+  @IsIn(CHAT_CHANNEL_PROVIDERS)
   provider: ChatChannelProvider;
 
   @ApiProperty({
