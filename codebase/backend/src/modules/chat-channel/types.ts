@@ -2,7 +2,7 @@
  * Chat Channel 어댑터의 공통 타입.
  *
  * SoT:
- *   - [spec/conventions/chat-channel-adapter.md] — 6함수 인터페이스 + 데이터 타입 union
+ *   - [spec/conventions/chat-channel-adapter.md] — 어댑터 인터페이스 + 데이터 타입 union
  *   - [spec/5-system/15-chat-channel.md] — 시스템 동작·lifecycle·EIA 관계
  *   - [spec/4-nodes/7-trigger/providers/telegram.md] — 텔레그램 구체 명세
  */

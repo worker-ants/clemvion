@@ -354,19 +354,15 @@ export class HooksService {
       update.command.kind === 'text_message' &&
       update.command.text.trim() === '/help'
     ) {
-      await adapter.sendMessage(
-        {
-          conversationKey: update.conversationKey,
-          body: {
-            kind: 'text',
-            // control-plane 안내 — 평문 default 를 provider 별로 escape (renderNode 우회 경로).
-            text: adapter.escapeControlText(
-              config.languageHints?.help ??
-                '/start - 새 대화 시작\n/cancel - 진행 중인 대화 취소\n/help - 도움말',
-            ),
-          },
-        },
+      // control-plane 직접 발송은 모두 sendBestEffortNotice 단일 chokepoint 를 거친다
+      // (escapeControlText 강제 + 발송 실패 swallow). 평문 default 를 넘긴다.
+      await this.sendBestEffortNotice(
+        update.conversationKey,
+        config.languageHints?.help ??
+          '/start - 새 대화 시작\n/cancel - 진행 중인 대화 취소\n/help - 도움말',
+        'help',
         config,
+        adapter,
       );
       return { executionId: 'ignored' };
     }
@@ -894,37 +890,26 @@ export class HooksService {
         // v1 정책: 사용자에게 처음부터 다시 안내 (Spec 의 fieldErrors[0].field 복원은 PR-E 보강).
         formState.currentFieldIdx = 0;
         formState.partialFormData = {};
-        await adapter.sendMessage(
-          {
-            conversationKey: update.conversationKey,
-            body: {
-              kind: 'text',
-              // control-plane 안내 — 평문 default 를 provider 별로 escape.
-              text: adapter.escapeControlText(
-                config.languageHints?.formValidationFailed ??
-                  '입력값을 다시 확인해주세요.',
-              ),
-            },
-          },
+        // control-plane 직접 발송 — sendBestEffortNotice 단일 chokepoint(escapeControlText 강제).
+        await this.sendBestEffortNotice(
+          update.conversationKey,
+          config.languageHints?.formValidationFailed ??
+            '입력값을 다시 확인해주세요.',
+          'formValidationFailed',
           config,
+          adapter,
         );
       }
     } else {
       // 다음 필드 prompt — v1 stub: dispatcher 가 fieldsCatalog 없이는 정확한 prompt 생성 불가.
-      // placeholder 안내 발송.
-      await adapter.sendMessage(
-        {
-          conversationKey: update.conversationKey,
-          body: {
-            kind: 'text',
-            // control-plane 안내 — 평문 default 를 provider 별로 escape.
-            text: adapter.escapeControlText(
-              config.languageHints?.formNextField ??
-                `다음 항목을 입력해주세요. (${formState.currentFieldIdx + 1})`,
-            ),
-          },
-        },
+      // placeholder 안내 발송 (control-plane — sendBestEffortNotice 경유).
+      await this.sendBestEffortNotice(
+        update.conversationKey,
+        config.languageHints?.formNextField ??
+          `다음 항목을 입력해주세요. (${formState.currentFieldIdx + 1})`,
+        'formNextField',
         config,
+        adapter,
       );
     }
 
@@ -981,14 +966,16 @@ export class HooksService {
   }
 
   /**
-   * control-plane 텍스트 안내의 공통 best-effort 발송 (F-4). `sendExecutionStillRunningNotice`
-   * / `sendSurfaceMismatchNotice` / `maybeNotifyIgnored` 의 try/catch/warn 골격을 한 곳에 모아
-   * 중복을 제거한다. 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가 안내 루프를
-   * 유발하지 않도록.
+   * `renderNode` 를 우회하는 **모든 control-plane 텍스트 직접 발송의 단일 chokepoint** (F-4).
+   * 소비처: `sendExecutionStillRunningNotice` · `sendSurfaceMismatchNotice` · `maybeNotifyIgnored`
+   * (groupChatRefusal/unsupportedMessageKind) · `/help` · `formValidationFailed` · `formNextField`.
+   * try/catch/warn 골격을 여기 모아, 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가
+   * 안내 루프를 유발하지 않도록 한다.
    *
    * `text` 는 **평문**으로 전달한다 — `renderNode` 경로를 우회하므로 여기서 `adapter.escapeControlText`
-   * 로 provider 표면에 맞게 escape 한다 (telegram MarkdownV2 / slack mrkdwn / discord 평문). 이로써
-   * default·operator override 모두 provider 별로 올바르게 렌더된다 (F-5 등록 검증·수동 escape 불필요).
+   * 로 provider 표면에 맞게 escape 한다 (telegram MarkdownV2 / slack mrkdwn / discord 평문). escape 를
+   * 이 헬퍼 안에 캡슐화해, 새 control-plane 안내가 이 경로를 쓰기만 하면 escape 누락이 구조적으로
+   * 불가능하다 (default·operator override 모두 평문 — 수동 escape 불필요).
    */
   private async sendBestEffortNotice(
     conversationKey: string,
@@ -1040,8 +1027,7 @@ export class HooksService {
    * 안내 (`languageHints.surfaceMismatch`) 를 발송한다. 종전엔 warn 로그만 남기고 사용자에게
    * 아무 피드백이 없었다.
    *
-   * 문구는 렌더러 escape 를 거치지 않으므로 default 는 MarkdownV2-safe (language-hint-defaults.ts
-   * `SURFACE_MISMATCH_DEFAULTS` 참조).
+   * default 는 평문 — `sendBestEffortNotice`(`adapter.escapeControlText`)가 provider 별로 escape 한다.
    */
   private async sendSurfaceMismatchNotice(
     update: ChannelUpdate,

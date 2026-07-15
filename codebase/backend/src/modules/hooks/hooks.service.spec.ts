@@ -1022,6 +1022,79 @@ describe('HooksService', () => {
       );
     });
 
+    // 근본 fix — control-plane 직접 발송은 반드시 adapter.escapeControlText 를 경유한다.
+    // identity mock 을 marker 변환으로 바꿔, 발송 텍스트가 escape 산출물임을 증명(wiring 회귀 가드).
+    it('control-plane 발송은 adapter.escapeControlText 를 경유한다 (wiring)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.escapeControlText.mockImplementation(
+        (t: string) => `ESC:${t}`,
+      );
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: 'form 대기 중 텍스트' },
+        idempotencyKey: '1008',
+        receivedAt: new Date().toISOString(),
+      });
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValueOnce(
+        new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: 'surface mismatch' },
+        }),
+      );
+
+      await service.handleWebhook('abc', chatInput);
+
+      expect(mockAdapter.escapeControlText).toHaveBeenCalledWith(
+        SURFACE_MISMATCH_DEFAULTS.ko,
+      );
+      // escape 산출물이 실제 발송된다.
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: { kind: 'text', text: `ESC:${SURFACE_MISMATCH_DEFAULTS.ko}` },
+        }),
+        expect.anything(),
+      );
+    });
+
+    // /help 경로도 control-plane 직접 발송 — escapeControlText 경유 + 발송 확인.
+    it('/help → help 안내를 escapeControlText 경유로 발송 + { ignored }', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message' as const, text: '/help' },
+        idempotencyKey: '1009',
+        receivedAt: new Date().toISOString(),
+      });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toMatchObject({ executionId: 'ignored' });
+      expect(mockAdapter.escapeControlText).toHaveBeenCalled();
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationKey: 'chat-123',
+          body: expect.objectContaining({ kind: 'text' }),
+        }),
+        expect.anything(),
+      );
+    });
+
     // F-2 — surfaceMismatch 안내 발송 자체가 실패해도 삼킨다(warn). 안내가 webhook
     // 5xx 를 유발해 provider 재시도 루프를 만들면 안 되기 때문. (best-effort)
     it('surfaceMismatch 안내 sendMessage 실패는 삼킴 — webhook 은 정상 종료 + warn', async () => {

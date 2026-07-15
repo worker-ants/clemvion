@@ -67,7 +67,7 @@ pending_plans:
 | CCH-CV-02 | 첫 메시지 또는 `/start` 명령 도착 시 conversation thread 자동 생성 + 워크플로우 신규 execution 시작 | 필수 |
 | CCH-CV-03 | 같은 conversation 의 두 번째 이후 메시지는 execution 상태별 분기 처리: (a) `waiting_for_input` → 인터랙션 명령으로 forwarding, (b) `running`/`pending` (waiting_for_input 미도달) → 채널에 `languageHints.executionStillRunning` 안내 메시지 발송 + update 무시 (대기 큐 미적재, 202 ack — 정당화는 Rationale R9), (c) `completed`/`failed`/`cancelled` 또는 conversation 없음 → 새 execution 시작. `running` 케이스의 안내 default 문구 = "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." (KO inline default — §4.1.1 의 "기존 5 키" 군이라 EN default 화는 범위 밖). <br>구현: `HooksService.getActiveExecutionStatus` ([`hooks.service.ts`](../../codebase/backend/src/modules/hooks/hooks.service.ts)) 가 비-terminal status 를 반환하고, 인터랙션 forwarding 분기는 `status === waiting_for_input` 일 때만 (a) forwarding 을 수행한다. `running`/`pending` 이면 `sendExecutionStillRunningNotice` 로 (b) 안내 발송 후 `{ executionId: 'ignored' }` 로 단락 (대기 큐 미적재 — R9). (a)/(b)/(c) 모두 구현됨. | 필수 |
 | CCH-CV-04 | conversation thread metadata 가 아니라 §3.4.3 의 Redis `ChannelConversation` 레코드에 `channelUserKey` (텔레그램: `user_id`) 저장 — multi-user 확장 대비. [Conversation Thread spec](../conventions/conversation-thread.md) 자료구조는 변경하지 않음 | 권장 |
-| CCH-CV-05 | v1 은 single-user DM 만 지원. group/supergroup/channel update 도착 시 `parseUpdate` 가 `null` 반환 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성) 의 side-effect free 계약 유지) → 호출자 (`HooksService`) 가 `chat.type !== 'private'` 분기에서 `languageHints.groupChatRefusal` 안내를 `sendMessage` 별 호출로 발송 후 update 무시. 안내 발송 책임 = 어댑터 X, 호출자 O | 필수 |
+| CCH-CV-05 | v1 은 single-user DM 만 지원. group/supergroup/channel update 도착 시 `parseUpdate` 가 `null` 반환 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-어댑터-함수-책임--부작용--멱등성) 의 side-effect free 계약 유지) → 호출자 (`HooksService`) 가 `chat.type !== 'private'` 분기에서 `languageHints.groupChatRefusal` 안내를 `sendMessage` 별 호출로 발송 후 update 무시. 안내 발송 책임 = 어댑터 X, 호출자 O | 필수 |
 
 #### 3.3 노드 → 채널 UI 매핑
 
@@ -579,7 +579,7 @@ Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **
 
 `ChatChannelDispatcher` 는 모듈 단위 1회 subscription (`onModuleInit`) 패턴을 유지하지만, **per-trigger listener registry** (`ChannelListenerRegistry`) 를 도입해 다음을 보장:
 
-- `setupChannel()` 호출 시 동일 `triggerId` 의 기존 entry 가 있으면 overwrite (멱등성). registry key 는 `triggerId` 단위 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성) 의 setupChannel 멱등성 보장).
+- `setupChannel()` 호출 시 동일 `triggerId` 의 기존 entry 가 있으면 overwrite (멱등성). registry key 는 `triggerId` 단위 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-어댑터-함수-책임--부작용--멱등성) 의 setupChannel 멱등성 보장).
 - `teardownChannel()` (또는 `TriggersService.remove`) 시 해당 `triggerId` 의 entry 를 반드시 unregister — 누락 시 비활성화된 trigger 에 event 가 흘러갈 위험을 사전 차단.
 - registry entry 는 `(triggerId, provider)` value 를 가짐. 같은 trigger 가 provider 를 바꾸는 경우는 미지원 (재생성으로 처리).
 - `ChatChannelDispatcher.handle` 은 trigger DB 조회 전 `registry.has(triggerId)` 로 사전 필터링 — 미등록 trigger 의 event 는 silent skip + DB round-trip 절감.
