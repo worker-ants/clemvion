@@ -199,8 +199,11 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       // 저장 시점 payload 예산 경고(WorkflowsService, config-time-tool-budget.ts)
       // 가 같은 매핑을 공유한다 (drift 0). 여기(런타임)는 opMap 을 세션 state 에
       // 등록하고 skippedByScope 를 로깅하는 side-effect 만 담당한다.
-      const { tools: builtTools, opMap, skippedByScope } =
-        buildCafe24ToolDefsForIntegration(integration, ref.enabledTools);
+      const {
+        tools: builtTools,
+        opMap,
+        skippedByScope,
+      } = buildCafe24ToolDefsForIntegration(integration, ref.enabledTools);
       tools.push(...builtTools);
       if (skippedByScope.length > 0) {
         // Log only a sample — the full list can run into hundreds for a
@@ -762,9 +765,10 @@ function applyCafe24Allowlist(
 /**
  * cafe24 operation → JSON Schema (LLM 도구 parameters). 구
  * `Cafe24McpToolProvider.buildJsonSchema` 인스턴스 메서드에서 config-time 공유를
- * 위해 module-level pure 함수로 승격 (동작 불변).
+ * 위해 module-level pure 함수로 승격 (동작 불변). export 는 스키마 매핑을 직접
+ * 검증하는 단위 테스트용.
  */
-function buildCafe24JsonSchema(
+export function buildCafe24JsonSchema(
   op: Cafe24OperationMetadata,
 ): Record<string, unknown> {
   const properties: Record<string, unknown> = {};

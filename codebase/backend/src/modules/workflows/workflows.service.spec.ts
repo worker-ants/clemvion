@@ -843,8 +843,10 @@ describe('WorkflowsService', () => {
         cycleEdge('e3', 'c', 'a'),
       ]);
 
-      const { results, hasError, hasWarning } =
-        await service.getGraphWarnings('wf-uuid-1', 'ws-uuid-1');
+      const { results, hasError, hasWarning } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
 
       expect(results.some((r) => r.ruleId === 'graph:unescapable-cycle')).toBe(
         true,

@@ -34,7 +34,8 @@ import { buildMakeshopToolDefsForIntegration } from './tool-providers/makeshop-m
 import { RenderToolProvider } from './tool-providers/render-tool-provider';
 
 /** graph warning rule id — cross-node-warning-rules §8 등재 (backend-only). */
-export const AI_AGENT_TOOL_PAYLOAD_BUDGET_RULE_ID = 'ai_agent:tool-payload-budget';
+export const AI_AGENT_TOOL_PAYLOAD_BUDGET_RULE_ID =
+  'ai_agent:tool-payload-budget';
 
 /** ai_agent 노드 type 문자열. */
 const AI_AGENT_NODE_TYPE = 'ai_agent';
@@ -80,7 +81,7 @@ export async function evaluateAiAgentToolPayloadWarnings(
   const results: GraphWarningRuleResult[] = [];
   for (const node of nodes) {
     if (node.type !== AI_AGENT_NODE_TYPE) continue;
-    const config = (node.config ?? {}) as Record<string, unknown>;
+    const config = node.config ?? {};
     const tools = await reproduceConfigToolDefs(config, deps);
     // 재현된 도구가 없으면(비-connected·generic MCP·presentation 없음 등) 경고
     // 대상 아님 — 근사가 0 이면 skip.
@@ -130,7 +131,8 @@ async function reproduceConfigToolDefs(
     if (integration.status !== 'connected') continue;
     if (integration.serviceType === 'cafe24') {
       tools.push(
-        ...buildCafe24ToolDefsForIntegration(integration, ref.enabledTools).tools,
+        ...buildCafe24ToolDefsForIntegration(integration, ref.enabledTools)
+          .tools,
       );
     } else if (integration.serviceType === 'makeshop') {
       tools.push(
@@ -197,7 +199,9 @@ function evaluateNodeToolPayload(
 }
 
 /** perProvider 중 bytes 최대 그룹 key ("범인 provider"). 빈 배열이면 undefined. */
-function pickCulprit(perProvider: ToolPayloadPerProvider[]): string | undefined {
+function pickCulprit(
+  perProvider: ToolPayloadPerProvider[],
+): string | undefined {
   let top: ToolPayloadPerProvider | undefined;
   for (const g of perProvider) {
     if (!top || g.bytes > top.bytes) top = g;

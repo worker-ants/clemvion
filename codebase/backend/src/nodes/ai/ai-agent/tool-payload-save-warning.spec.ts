@@ -7,7 +7,7 @@ import type { Integration } from '../../../modules/integrations/entities/integra
 import {
   listAllCafe24Operations,
   scopeForOperation,
-} from '../integration/cafe24/metadata/index';
+} from '../../integration/cafe24/metadata/index';
 
 /**
  * AI Agent 저장 시점(config-time) 도구 payload 예산 경고 (spec §4.2 · §10,
@@ -107,7 +107,11 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
   it('returns [] when there are no ai_agent nodes', async () => {
     const nodes: ToolBudgetGraphNode[] = [
       { id: 'n1', type: 'manual_trigger', config: {} },
-      { id: 'n2', type: 'http', config: { mcpServers: [{ integrationId: 'x' }] } },
+      {
+        id: 'n2',
+        type: 'http',
+        config: { mcpServers: [{ integrationId: 'x' }] },
+      },
     ];
     const res = await evaluateAiAgentToolPayloadWarnings(nodes, noLoad);
     expect(res).toEqual([]);
@@ -125,13 +129,13 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
 
   it('emits a warning when a connected cafe24 catalog exceeds the soft budget', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest
-      .fn()
-      .mockResolvedValue(cafe24Integration());
+    const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['*'] }],
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
         }),
       ],
       { loadIntegration },
@@ -155,7 +159,12 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['product_list'] }],
+          mcpServers: [
+            {
+              integrationId: 'abcdef1234567890',
+              enabledTools: ['product_list'],
+            },
+          ],
         }),
       ],
       { loadIntegration },
@@ -171,7 +180,12 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['product_list'] }],
+          mcpServers: [
+            {
+              integrationId: 'abcdef1234567890',
+              enabledTools: ['product_list'],
+            },
+          ],
         }),
       ],
       { loadIntegration },
@@ -181,13 +195,19 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
   });
 
   it('promotes to error on a tool-count breach under strict-save', async () => {
-    process.env.AI_AGENT_TOOL_COUNT_MAX = '0';
+    // count 상한만 낮춘다(=1, 유효 양수 — `0` 은 킬스위치 아님이라 기본 128 로
+    // fallback 하므로 breach 를 못 만든다). 전체 카탈로그(>128 도구)를 노출해
+    // 개수 초과를 발생시키되, bytes 예산(1e8)은 넉넉히 두어 **순수 count breach**
+    // 만 검증한다.
+    process.env.AI_AGENT_TOOL_COUNT_MAX = '1';
     process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'true';
     const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['product_list'] }],
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
         }),
       ],
       { loadIntegration },
@@ -201,7 +221,12 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['product_list'] }],
+          mcpServers: [
+            {
+              integrationId: 'abcdef1234567890',
+              enabledTools: ['product_list'],
+            },
+          ],
         }),
       ],
       { loadIntegration },
@@ -217,7 +242,9 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['*'] }],
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
         }),
       ],
       { loadIntegration },
@@ -233,7 +260,9 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
-          mcpServers: [{ integrationId: 'abcdef1234567890', enabledTools: ['*'] }],
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
         }),
       ],
       { loadIntegration },
@@ -257,9 +286,7 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
 
   it('best-effort skips when the loader throws', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest
-      .fn()
-      .mockRejectedValue(new Error('db down'));
+    const loadIntegration = jest.fn().mockRejectedValue(new Error('db down'));
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -290,7 +317,11 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
   it('counts presentation render_* tools toward the budget', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
     const res = await evaluateAiAgentToolPayloadWarnings(
-      [aiAgentNode({ presentationTools: [{ type: 'table' }, { type: 'chart' }] })],
+      [
+        aiAgentNode({
+          presentationTools: [{ type: 'table' }, { type: 'chart' }],
+        }),
+      ],
       noLoad,
     );
     expect(res).toHaveLength(1);
@@ -300,9 +331,15 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
   it('evaluates each ai_agent node independently (per-node result)', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
     const nodes: ToolBudgetGraphNode[] = [
-      aiAgentNode({ presentationTools: [{ type: 'table' }] }, { id: 'a', label: 'A' }),
+      aiAgentNode(
+        { presentationTools: [{ type: 'table' }] },
+        { id: 'a', label: 'A' },
+      ),
       aiAgentNode({}, { id: 'b', label: 'B' }), // no tools → no warning
-      aiAgentNode({ presentationTools: [{ type: 'form' }] }, { id: 'c', label: 'C' }),
+      aiAgentNode(
+        { presentationTools: [{ type: 'form' }] },
+        { id: 'c', label: 'C' },
+      ),
     ];
     const res = await evaluateAiAgentToolPayloadWarnings(nodes, noLoad);
     expect(res.map((r) => r.nodeId).sort()).toEqual(['a', 'c']);

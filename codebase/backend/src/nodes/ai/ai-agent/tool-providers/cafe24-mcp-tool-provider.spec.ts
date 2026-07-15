@@ -2,6 +2,7 @@ import {
   Cafe24McpToolProvider,
   buildToolDescription,
   buildCafe24ToolDefsForIntegration,
+  buildCafe24JsonSchema,
   constraintToSuffixLine,
 } from './cafe24-mcp-tool-provider';
 import type {
@@ -1169,16 +1170,9 @@ describe('Cafe24McpToolProvider.buildJsonSchema (oneOf + empty requiredFields)',
   }
 
   it('emits allOf with anyOf only — no required clause when requiredFields empty', () => {
-    // Reach into provider internals via the same constructor as the main
-    // describe block. We do not need a real ApiClient because buildJsonSchema
-    // is pure.
-    const provider = new Cafe24McpToolProvider(
-      null as never,
-      null as never,
-    ) as unknown as {
-      buildJsonSchema: (op: Cafe24OperationMetadata) => Record<string, unknown>;
-    };
-    const schema = provider.buildJsonSchema(stubOpWithOnlyOneOf());
+    // buildCafe24JsonSchema 는 module-level pure 함수(구 provider.buildJsonSchema
+    // 인스턴스 메서드에서 config-time 공유 위해 승격) — 직접 호출해 검증한다.
+    const schema = buildCafe24JsonSchema(stubOpWithOnlyOneOf());
     expect(schema.required).toBeUndefined();
     expect(Array.isArray(schema.allOf)).toBe(true);
     const allOf = schema.allOf as Array<Record<string, unknown>>;

@@ -66,7 +66,8 @@ export function toolCountMax(): number {
  */
 export function toolBudgetStrictSave(): boolean {
   return (
-    (process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE ?? '').toLowerCase() === 'true'
+    (process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE ?? '').toLowerCase() ===
+    'true'
   );
 }
 

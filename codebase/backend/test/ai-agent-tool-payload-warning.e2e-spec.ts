@@ -47,7 +47,11 @@ describe('AI Agent tool-payload budget — config-time graph warning (e2e)', () 
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('toolbudget'), db);
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('toolbudget'),
+      db,
+    );
     token = owner.accessToken;
     userId = owner.userId;
     workspaceId = await createTeamWorkspace(
@@ -136,7 +140,8 @@ describe('AI Agent tool-payload budget — config-time graph warning (e2e)', () 
       mcpServers: [{ integrationId: intId }],
     });
 
-    const { results, hasWarning, hasError } = await getGraphWarnings(workflowId);
+    const { results, hasWarning, hasError } =
+      await getGraphWarnings(workflowId);
 
     const budget = results.find((r) => r.ruleId === RULE_ID);
     expect(budget).toBeDefined();

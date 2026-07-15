@@ -205,8 +205,11 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       // 저장 시점 payload 예산 경고(WorkflowsService, config-time-tool-budget.ts)
       // 가 같은 매핑을 공유한다 (drift 0). 여기(런타임)는 opMap 세션 등록과
       // sanitize collision 로깅 side-effect 만 담당한다.
-      const { tools: builtTools, opMap, collisions } =
-        buildMakeshopToolDefsForIntegration(integration, ref.enabledTools);
+      const {
+        tools: builtTools,
+        opMap,
+        collisions,
+      } = buildMakeshopToolDefsForIntegration(integration, ref.enabledTools);
       tools.push(...builtTools);
       for (const c of collisions) {
         // Defensive runtime guard for sanitize collisions within a sid. The
@@ -740,7 +743,11 @@ export function buildMakeshopToolDefsForIntegration(
     // overwrite the opMap entry — keep the first, record the collider.
     const existing = opMap.get(token);
     if (existing) {
-      collisions.push({ token, kept: existing.operation.id, skipped: operation.id });
+      collisions.push({
+        token,
+        kept: existing.operation.id,
+        skipped: operation.id,
+      });
       continue;
     }
     opMap.set(token, { resource, operation });
