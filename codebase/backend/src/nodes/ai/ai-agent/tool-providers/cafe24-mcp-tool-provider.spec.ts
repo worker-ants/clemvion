@@ -1,6 +1,7 @@
 import {
   Cafe24McpToolProvider,
   buildToolDescription,
+  buildCafe24ToolDefsForIntegration,
   constraintToSuffixLine,
 } from './cafe24-mcp-tool-provider';
 import type {
@@ -91,6 +92,48 @@ describe('Cafe24McpToolProvider', () => {
       integrationsService as never,
       apiClient as unknown as Cafe24ApiClient,
     );
+  });
+
+  // 저장 시점(config-time) 경고가 재사용하는 pure 추출 함수 — buildTools(런타임)
+  // 와 동일 매핑을 내야 drift 0 계약이 성립한다 (spec §4.2/§10).
+  describe('buildCafe24ToolDefsForIntegration (config-time pure 재현)', () => {
+    it('produces the exact same tools as buildTools for a connected integration', async () => {
+      const integration = makeIntegration();
+      integrationsService.getForExecution.mockResolvedValue(integration);
+      const runtimeTools = await provider.buildTools({
+        config: {
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const pure = buildCafe24ToolDefsForIntegration(integration, ['*']);
+      expect(pure.tools).toEqual(runtimeTools);
+      expect(pure.tools.length).toBeGreaterThan(0);
+      // opMap keys ↔ tool operationId 정합.
+      expect([...pure.opMap.keys()]).toContain('product_list');
+    });
+
+    it('honours the enabledTools allowlist (single op)', () => {
+      const pure = buildCafe24ToolDefsForIntegration(makeIntegration(), [
+        'product_list',
+      ]);
+      expect(pure.tools).toHaveLength(1);
+      expect(pure.tools[0].name).toBe('mcp_abcdef1234567890__product_list');
+    });
+
+    it('filters by granted scope (records skippedByScope, yields 0 tools when none granted)', () => {
+      const pure = buildCafe24ToolDefsForIntegration(
+        makeIntegration({
+          credentials: { scopes: [] } as unknown as Record<string, unknown>,
+        }),
+        ['*'],
+      );
+      expect(pure.tools).toHaveLength(0);
+      expect(pure.skippedByScope.length).toBeGreaterThan(0);
+    });
   });
 
   describe('buildTools', () => {

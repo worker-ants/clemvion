@@ -136,7 +136,9 @@ export class WorkflowsController {
   ) {
     // SUMMARY#1/2 — Repository 직접 접근 제거. 서비스 메서드로 위임해 레이어 책임 분리.
     await this.workflowsService.findById(id, workspaceId);
-    return this.workflowsService.getGraphWarnings(id);
+    // workspaceId 는 AI Agent 도구 payload 예산 경고(backend-only)가 통합을
+    // 테넌트 경계 안에서 조회하는 데 필요하다 (cross-node-warning-rules §5).
+    return this.workflowsService.getGraphWarnings(id, workspaceId);
   }
 
   @Post()

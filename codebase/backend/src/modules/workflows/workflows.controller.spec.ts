@@ -643,7 +643,7 @@ describe('WorkflowsController (graph-warnings endpoint, parallel-p2 §6)', () =>
     expect(res.results).toEqual([]);
     expect(res.hasError).toBe(false);
     expect(res.hasWarning).toBe(false);
-    expect(workflowsService.getGraphWarnings).toHaveBeenCalledWith('wf-1');
+    expect(workflowsService.getGraphWarnings).toHaveBeenCalledWith('wf-1', 'ws');
   });
 
   it('returns triggered rule results with hasError/hasWarning summary', async () => {

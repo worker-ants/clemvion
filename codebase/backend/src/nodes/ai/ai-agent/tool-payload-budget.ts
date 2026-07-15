@@ -56,6 +56,21 @@ export function toolCountMax(): number {
 }
 
 /**
+ * 저장 시점(config-time) 도구 payload 예산 경고의 severity 승격 opt-in.
+ * `true` 면 hard(또는 count) 초과분을 graph warning severity `warning`→`error` 로
+ * 승격해 `saveCanvas` 가 `GRAPH_VALIDATION_FAILED` 로 400 차단한다 (§10 / cross-node
+ * -warning-rules §5 3중 가드 ①). 기본 false — 저장 시 추정은 근사(런타임 granted
+ * scope·live MCP tool list 미확정)라 정상 설정 오차단을 피한다. 매 호출 env 읽음
+ * (다른 예산 함수와 일관, 테스트가 모듈 리로드 없이 override 가능). `'true'`
+ * (대소문자 무관) 만 opt-in — 그 외 값·미설정은 모두 false.
+ */
+export function toolBudgetStrictSave(): boolean {
+  return (
+    (process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE ?? '').toLowerCase() === 'true'
+  );
+}
+
+/**
  * tool name → provider 그룹 key ("범인 provider 지목" 용).
  *  - `mcp_<sid>__...` → `mcp:<sid>` (sid = `mcp_` 뒤 `__` 앞 세그먼트)
  *  - `kb_...`         → `kb`

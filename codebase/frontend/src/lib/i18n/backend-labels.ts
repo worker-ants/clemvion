@@ -638,6 +638,10 @@ export const GRAPH_WARNING_KO: Record<string, string> = {
     '병렬 "{{node}}"(동시 실행 {{outerEffective}}) 안의 중첩 병렬 "{{child}}"(동시 실행 {{innerEffective}}) 를 곱하면 {{product}} 으로 한도 {{cap}} 을 넘어요. 실행 시 안쪽 동시 실행 수가 자동으로 줄어들어요.',
   "graph:unescapable-cycle":
     "이 노드가 분기 없는 순환에 연결돼 있어요 — 루프를 빠져나갈 분기 노드가 없어 무한히 반복될 수 있어요. 되돌아오는 연결(back-edge)은 분기 노드(스위치·조건 분기)에서 내보내세요.",
+  // backend-only graph warning (GRAPH_WARNING_RULES_BY_TYPE 밖 — cross-node-warning
+  // -rules §5 예외). P3-C-1 가드가 backend-only ruleId 목록으로 이 매핑을 강제한다.
+  "ai_agent:tool-payload-budget":
+    'AI 에이전트 "{{node}}" 에 연결된 도구 정의가 {{bytes}} bytes({{toolCount}}개 도구)로 예산 {{budget}} bytes 를 넘어요. 프롬프트가 너무 커지면 모델이 응답하지 못할 수 있어요 — MCP 서버의 enabledTools 로 노출 도구를 줄이거나 서버를 꺼 주세요.',
 };
 
 function pickKo(

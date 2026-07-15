@@ -1,6 +1,7 @@
 import {
   MakeshopMcpToolProvider,
   buildToolDescription,
+  buildMakeshopToolDefsForIntegration,
   constraintToSuffixLine,
   sanitizeOperationId,
 } from './makeshop-mcp-tool-provider';
@@ -78,6 +79,31 @@ describe('MakeshopMcpToolProvider', () => {
       integrationsService as never,
       apiClient as unknown as MakeshopApiClient,
     );
+  });
+
+  // 저장 시점(config-time) 경고가 재사용하는 pure 추출 함수 — buildTools(런타임)
+  // 와 동일 매핑을 내야 drift 0 계약이 성립한다 (spec §4.2/§10).
+  describe('buildMakeshopToolDefsForIntegration (config-time pure 재현)', () => {
+    it('produces the exact same tools as buildTools for a connected integration', async () => {
+      const integration = makeIntegration();
+      integrationsService.getForExecution.mockResolvedValue(integration);
+      const runtimeTools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: SID }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const pure = buildMakeshopToolDefsForIntegration(integration, undefined);
+      expect(pure.tools).toEqual(runtimeTools);
+      expect(pure.tools.length).toBe(listAllMakeshopOperations().length);
+    });
+
+    it('honours the enabledTools allowlist (single bare op id)', () => {
+      const pure = buildMakeshopToolDefsForIntegration(makeIntegration(), [
+        'get-product',
+      ]);
+      expect(pure.tools).toHaveLength(1);
+      expect(pure.tools[0].name).toBe(`mcp_${SID}__get_product`);
+    });
   });
 
   describe('buildTools', () => {

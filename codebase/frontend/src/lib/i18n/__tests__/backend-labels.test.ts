@@ -297,6 +297,12 @@ describe.runIf(hasBackend)("backend-labels parity (영문 SoT → ko 매핑)", (
  * SoT: spec/conventions/i18n-userguide.md Principle 3-C.
  */
 describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
+  // backend-only graph warning ruleId (WorkflowsService 가 async 통합 조회로
+  // 평가 → shared `@workflow/graph-warning-rules` 밖이라 GRAPH_WARNING_RULES_BY_TYPE
+  // 자동 스캔 사각지대). cross-node-warning-rules §5 예외 rule 을 여기 명시 등재해
+  // KO 매핑 누락을 빌드 시 차단한다. 신규 backend-only rule 추가 시 이 목록에 등록.
+  const BACKEND_ONLY_GRAPH_WARNING_RULE_IDS = ["ai_agent:tool-payload-budget"];
+
   it("P3-C-1: 등재된 모든 graphWarningRule ruleId 가 GRAPH_WARNING_KO 에 매핑돼요", () => {
     const ruleIds = [
       // per-node-type rules
@@ -305,6 +311,8 @@ describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
       ),
       // graph-level rules (GRAPH_WARNING_RULES_BY_TYPE 밖의 그래프 전역 규칙)
       UNESCAPABLE_CYCLE_RULE_ID,
+      // backend-only rules (shared package 밖 — 수동 등록으로 parity 강제)
+      ...BACKEND_ONLY_GRAPH_WARNING_RULE_IDS,
     ].sort();
     const koKeys = new Set(Object.keys(GRAPH_WARNING_KO));
     const missing = ruleIds.filter((id) => !koKeys.has(id));

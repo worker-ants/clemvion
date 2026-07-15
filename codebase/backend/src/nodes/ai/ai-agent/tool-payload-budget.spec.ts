@@ -5,6 +5,7 @@ import {
   toolPayloadHardBytes,
   toolPayloadSoftBytes,
   toolCountMax,
+  toolBudgetStrictSave,
   ToolDefinitionPayloadExceededError,
 } from './tool-payload-budget';
 import { estimateTextTokens } from '../shared/agent-memory-injection';
@@ -27,6 +28,7 @@ describe('tool-payload-budget', () => {
     'AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES',
     'AI_AGENT_TOOL_PAYLOAD_HARD_BYTES',
     'AI_AGENT_TOOL_COUNT_MAX',
+    'AI_AGENT_TOOL_BUDGET_STRICT_SAVE',
   ] as const;
   const savedEnv: Record<string, string | undefined> = {};
   beforeEach(() => {
@@ -245,6 +247,36 @@ describe('tool-payload-budget', () => {
       // 영구 실패 상태로 고정됐다 (AI Agent 노드 영구 차단).
       process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '-1';
       expect(() => enforceToolPayloadBudget([tool('kb_a')])).not.toThrow();
+    });
+  });
+
+  describe('toolBudgetStrictSave (저장 시점 severity 승격 opt-in)', () => {
+    it('defaults to false when unset', () => {
+      delete process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE;
+      expect(toolBudgetStrictSave()).toBe(false);
+    });
+
+    it('is true only for "true" (case-insensitive)', () => {
+      process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'true';
+      expect(toolBudgetStrictSave()).toBe(true);
+      process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'TRUE';
+      expect(toolBudgetStrictSave()).toBe(true);
+      process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'True';
+      expect(toolBudgetStrictSave()).toBe(true);
+    });
+
+    it('is false for any non-"true" value (1 / yes / empty / garbage)', () => {
+      for (const v of ['1', 'yes', 'on', '', 'false', 'nope']) {
+        process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = v;
+        expect(toolBudgetStrictSave()).toBe(false);
+      }
+    });
+
+    it('reads process.env on each call (no module reload needed)', () => {
+      delete process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE;
+      expect(toolBudgetStrictSave()).toBe(false);
+      process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'true';
+      expect(toolBudgetStrictSave()).toBe(true);
     });
   });
 
