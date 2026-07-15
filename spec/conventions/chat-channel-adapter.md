@@ -73,6 +73,20 @@ interface ChatChannelAdapter {
   ackInteraction(update: ChannelUpdate, config: ChatChannelConfig): Promise<void>;
 
   /**
+   * control-plane 안내 텍스트(봇 자체 안내 — `HooksService` 가 `renderNode` 를 우회해 `sendMessage`
+   * 로 직접 발송하는 문구: surfaceMismatch / executionStillRunning / groupChatRefusal /
+   * unsupportedMessageKind / help / formValidationFailed / formNextField)를 provider 표면에 맞게
+   * escape 한다. `renderNode` 경로는 렌더러가 내부 escape 하지만 control-plane 직접 발송은 그 경로를
+   * 우회하므로, 호출자(`HooksService`)가 발송 직전 이 메서드로 escape 한다. provider 가 자기 escape
+   * 규칙을 소유해 default·operator override 모두 세 provider 에서 올바르게 렌더된다.
+   *   - telegram → MarkdownV2 escape (`escapeMarkdownV2` — renderNode 와 동일 규칙)
+   *   - slack → mrkdwn escape (`<`, `>`, `&` 만)
+   *   - discord → identity (평문 — 렌더러도 escape 안 함)
+   * pure — 외부 호출 없음. 따라서 languageHints default·override 는 모두 **평문**으로 작성한다.
+   */
+  escapeControlText(text: string): string;
+
+  /**
    * (옵션) Bot token rotation 시 *이전* token 을 외부 provider 측에서 revoke.
    *
    * Slack 의 `auth.revoke` 처럼 외부 provider 가 token revocation API 를 제공하는 경우 구현.
@@ -106,7 +120,7 @@ interface ChatChannelAdapter {
 }
 ```
 
-### 1.1 6함수 책임 / 부작용 / 멱등성
+### 1.1 어댑터 함수 책임 / 부작용 / 멱등성
 
 | 함수 | 책임 | 부작용 | 멱등성 |
 |---|---|---|---|
@@ -116,6 +130,7 @@ interface ChatChannelAdapter {
 | `renderNode` | `EiaEvent \| ChatChannelInternalEvent` payload → `ChannelMessage[]`. side-effect free. 입력 union 은 §1.2 / §1.3 정의. SoT: §R-CCA-7 (union 확장 근거) | none | pure |
 | `sendMessage` | 외부 API 호출. 재시도·rate limit 책임 | 외부 API 호출 | dedup 책임은 caller (EIA 의 `seq` + `X-Clemvion-Delivery` 그대로 어댑터 안에서 활용) |
 | `ackInteraction` | provider 가 요구하는 ack (텔레그램 `answerCallbackQuery`). provider 에 따라 noop 가능 — 함수 자체는 의무지만 구현체는 비어 있을 수 있음 | 외부 API 호출 (provider 의존) | yes |
+| `escapeControlText` | control-plane 안내 텍스트(§1 참조)를 provider 표면에 맞게 escape. `HooksService` 가 `renderNode` 우회 직접 발송 직전 호출 (telegram MarkdownV2 / slack `<>&` / discord 평문). languageHints default·override 는 평문으로 작성 | none | pure |
 | `revokeBotToken?` (옵션) | 이전 bot token 의 외부 provider 측 revocation (Slack `auth.revoke` 등). provider 가 revocation API 를 제공하면 구현, 아니면 미구현 (`undefined`). best-effort — 실패는 swallow | 외부 API 호출 (provider 의존, 옵션) | yes |
 | `openFormModal?` (옵션, `supportsNativeForm=true` 한정) | §4.1 native modal 게이팅 — `form_modal` 버튼 클릭 (`open_form_modal` command) 시 modal open. Slack 은 `views.open(trigger_id, view)` API 호출, Discord 는 webhook HTTP 응답 body `{ type: 9 }` MODAL 반환 (`OpenFormModalResult.httpResponse`). 호출자 = `HooksService` (modal 합성에 conversation state 의 `pendingFormModal.fields` 가 필요하므로 — `ackInteraction(update, config)` 시그니처는 form 필드 미보유, §R-CCA-8 b 참조) | 외부 API 호출 또는 HTTP 응답 body 합성 (provider 의존) | yes |
 | `buildFormSubmissionResponse?` (옵션, `supportsNativeForm=true` 한정) | §4.1 modal 제출 (`form_submission` command) 의 provider HTTP 응답 합성 — EIA `submit_form` 호출은 `HooksService` 담당, 본 메서드는 ack (Slack 빈 200 / Discord `{ type: 4 }` ephemeral) 또는 검증 실패 재표시 body (Slack `response_action: errors`) 만 합성. pure (외부 호출 없음, body 합성만) | none | pure |

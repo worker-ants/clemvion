@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 채팅 채널 control-plane 안내 발송 per-provider escape (F-5 근본 fix, 5-system/15-chat-channel §4.1.1)
+
+### 변경 사항
+
+1. **채팅 채널 control-plane 안내를 발송 시 provider 별로 escape 한다** — `HooksService` 가 렌더러(`renderNode`)를 우회해 `adapter.sendMessage` 로 직접 발송하는 안내(`surfaceMismatch`/`executionStillRunning`/`groupChatRefusal`/`unsupportedMessageKind`/`help`/`formValidationFailed`/`formNextField`)는 종전에 provider별 escape 를 안 거쳐, telegram default 에 `\.` 를 baked-in 했고(→ slack/discord 에서 literal 로 노출되는 cross-provider 버그) operator override 는 [#950 F-5] 등록 시점 MarkdownV2 검증(`UNSAFE_TELEGRAM_MARKDOWN`)으로 막았다. 근본 해결로 `ChatChannelAdapter.escapeControlText(text)` 를 신설해 발송 직전 provider 표면에 맞게 escape 한다(telegram=`escapeMarkdownV2` / slack=`escapeSlackMrkdwn` `<>&` / discord=평문 identity). 이로써 default·operator override 모두 **평문**으로 작성하면 세 provider 에서 올바르게 렌더되고, slack/discord literal 노출 갭이 해소된다. **F-5(등록 시점 검증)는 제거**한다 — 발송 시 자동 escape 되므로 operator override 를 거부하는 검증이 오히려 불필요·역효과(평문 마침표 override 도 이제 통과). `LanguageHintsRawSendValidator`/`TELEGRAM_RAW_SEND_HINT_KEYS`/`chat-channel/shared/markdown-v2.ts` 제거, telegram-baked default 를 평문으로 정리. F-5 는 이 근본 fix 를 예고한 interim 이었다(plan/complete/eia-command-waiting-surface-guard 백로그). SoT: `spec/conventions/chat-channel-adapter.md` `escapeControlText` · `spec/5-system/15-chat-channel.md §4.1.1`.
+
 ## Unreleased — AI Agent 도구 정의 payload 예산 가드레일 (4-nodes/3-ai/1-ai-agent §4.2·§10·§12.15)
 
 1. **AI Agent 노드가 LLM 에 노출하는 도구 정의(스키마) 전체의 직렬화 크기에 런타임 예산을 강제한다.** 배경: Cafe24 MCP 383도구 전량이 매 요청에 실려 ~118k토큰 프롬프트가 되고, 이게 provider 무관 LLM 타임아웃으로 번져 "응답 없음 / 무한 SDK 재시도"(6분 hang)로 나타난 회귀(#828 field-set 스키마 팽창 — 도구 **개수**는 불변이었고 **스키마**만 팽창해 개수 cap 만으론 못 잡음). 신규 `tool-payload-budget.ts` 의 `estimateAgentToolPayload`(직렬화 bytes 1차 지표 + approxTokens + provider 그룹별 "범인 지목")를 `buildTools` 직후 single-turn·multi-turn 공통 choke point 에서 강제한다.
