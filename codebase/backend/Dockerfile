@@ -45,11 +45,10 @@ COPY codebase/backend ./codebase/backend
 RUN pnpm --filter backend build
 
 # ---------- deploy: self-contained production bundle (backend prod deps only) ----------
-# 이전 runner 는 hoisted flat `/app/node_modules` 를 통째로 옮겨, `--filter "backend..."`
-# 설치임에도 node-linker=hoisted 가 워크스페이스 전체를 단일 flat 트리로 구체화한 탓에
-# 프런트엔드/테스트 스택(next·@next·three·lucide-react·playwright 등 600MB+)과 backend
-# 원본 src 까지 프로덕션 이미지에 잔존했다. `pnpm deploy` 로 backend + 그 workspace
-# 의존만 격리 설치해 self-contained 디렉터리를 만들어 그 문제를 제거한다.
+# `.npmrc` node-linker=isolated 라 deps/builder 스테이지의 `--filter "backend..."` 설치는
+# 이미 backend closure 만 격리한다(hoisted 시절 프런트 스택이 flat 트리로 잔존하던 문제는
+# 링커 차원에서 해소). deploy 는 그 위에서 (1) devDeps 를 prune 하고 (2) 내부 @workflow/*
+# 를 주입한 self-contained 디렉터리를 만들어 runner 가 워크스페이스 밖 산출물만 COPY 하게 한다.
 #   - `--prod`  : devDeps(jest/eslint/ts 등) 제외.
 #   - injected deploy(비-legacy): pnpm-workspace.yaml 의 `injectWorkspacePackages: true`
 #                 로 활성. 내부 @workflow/* 를 injected copy 로 주입하고, 격리(isolated)

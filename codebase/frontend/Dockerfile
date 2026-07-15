@@ -66,7 +66,9 @@ ENV HOSTNAME=0.0.0.0
 WORKDIR /app
 
 # standalone output 의 트레이싱 루트는 pnpm workspace 루트(= 컨테이너의 /app).
-# hoist 된 node_modules + codebase/frontend/server.js + codebase/packages/* 를 포함한다.
+# node-linker=isolated 라 트레이서(@vercel/nft)가 .pnpm 가상 스토어의 실제 파일과
+# codebase/packages/* symlink 를 따라가 필요한 node_modules 파일 + codebase/frontend/server.js
+# + codebase/packages/* 를 standalone 에 포함한다(격리 트리에서 standalone 런너 부팅 검증 완료).
 COPY --from=builder --chown=node:node /app/codebase/frontend/.next/standalone ./
 COPY --from=builder --chown=node:node /app/codebase/frontend/.next/static ./codebase/frontend/.next/static
 COPY --from=builder --chown=node:node /app/codebase/frontend/public ./codebase/frontend/public

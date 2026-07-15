@@ -214,9 +214,9 @@ services:
       # 가려서 deps stage 가 설치한 dev dep 가 호스트의 (잠재적으로 부재한) node_modules
       # 로 덮어씌워지지 않도록 한다.
       - ./codebase/backend:/app/codebase/backend
-      # 이미지가 설치한 node_modules(hoisted 심링크)를 anonymous volume 으로 보존.
-      # hoist 된 실제 deps 는 /app/node_modules 에 있고 호스트 mount(/app/codebase/backend)
-      # 밖이라 그대로 살아있다.
+      # 이미지가 설치한 node_modules(isolated symlink farm)를 anonymous volume 으로 보존.
+      # 실제 deps 는 /app/node_modules/.pnpm 가상 스토어에 있고 backend 의 symlink 는 이 볼륨이
+      # 유지한다 — 둘 다 호스트 mount(/app/codebase/backend) 밖이라 그대로 살아있다.
       - /app/codebase/backend/node_modules
     depends_on:
       backend-e2e:
@@ -242,8 +242,8 @@ services:
     # frontend subtree 만 --filter 로 설치한다. 루트 전체(`./`) 대신 codebase +
     # workspace 루트 파일만 선별 mount 해 .git/.claude/spec/plan/review/memory 등
     # 민감 경로 노출을 막는다. node_modules 는 anonymous volume 으로 가려 호스트(macOS)
-    # 네이티브 바이너리가 컨테이너(linux)로 새지 않게 한다 (hoisted 라 대부분
-    # /app/node_modules 에 모임 — 신규 내부 패키지 추가 시 아래 마스킹 목록도 보충).
+    # 네이티브 바이너리가 컨테이너(linux)로 새지 않게 한다 (isolated 라 실제 deps 는
+    # /app/node_modules/.pnpm 스토어에 모임 — 신규 내부 패키지 추가 시 아래 마스킹 목록도 보충).
     working_dir: /app
     volumes:
       - ./codebase:/app/codebase

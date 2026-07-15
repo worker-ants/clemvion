@@ -10,10 +10,10 @@ packages:
 # backend `pnpm deploy`(non-legacy)가 요구하는 설정(ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE).
 # 이 값 덕에 deploy 산출물이 내부 @workflow/* 를 injected copy 로 격리해 패키지별 버전을
 # 올바로 해소한다(legacy flat deploy 의 direct→transitive collapse 회피).
-# 실측: 일반 `pnpm install`(frozen) 의 워크스페이스 링크는 여전히 **symlink** 다 —
+# 실측: `node-linker=isolated`(.npmrc) 에서도 워크스페이스 링크는 **symlink** 다 —
 # backend·frontend·web-chat-sdk 모두 node_modules/@workflow/* 가 codebase/packages/* 로의
 # symlink 로 유지됨을 확인. 즉 dev hot-reload·frontend next.config 의 symlink 전제는 불변이고,
-# node-linker 도 hoisted 유지라 Next standalone·native 위험 없음. 실효 영향은 `pnpm deploy` 한정.
+# Next standalone 트레이서·native 모듈도 격리 트리에서 정상(plan §3 전환 시 both-stack e2e 로 검증).
 injectWorkspacePackages: true
 
 # 보안 취약점 해소용 전이 의존성 상향 핀 (pnpm 10 정규 위치 — 이전에는 package.json 의

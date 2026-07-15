@@ -54,10 +54,51 @@ runner 를 `prod-deps` 통째 COPY → **`pnpm deploy` 격리 번들** COPY 로 
 
 **완료(2026-07-14)**: 위 조사의 openapi3-ts 경로보다 **나은 방식** 확인 — `SchemaObject` 를 **공개 타입에서 파생**(`type SchemaObject = ApiResponseSchemaHost['schema']`; `ApiResponseSchemaHost` 는 root 공개 export 이고 그 `schema` 필드가 곧 `ApiOkResponse({ schema })` 가 받는 타입)해 **신규 의존성 없이** deep-import 3곳을 모두 제거. `OpenAPIObject` 는 원래부터 root 공개라 root import. `@nestjs/swagger` `^11.2.7`→`^11.4.5`(11.4.5) 상향 + `pnpm-workspace.yaml` overrides 핀 제거. **검증**: DTO 스키마 회귀 가드 3 suites/28 tests + lint·unit·build·e2e(253) 통과, `SwaggerModule.createDocument` 출력 불변, peer/라이선스 불변, 활성 CVE 0(예방적 — 향후 패치 차단 해소). `/consistency-check --impl-done` BLOCK: NO. **주의**: lockfile 재생성 시 overrides(picomatch·postcss 등) 가 latest-satisfying 으로 재평가돼 swagger 외 benign patch bump(js-yaml/nanoid/picomatch/postcss, 신규 top-level·major 없음)가 동반됨 — pnpm override 재해소의 불가피한 특성(origin/main 미포함분). base 가 origin/main 대비 2 commit behind 라 PR 전 rebase 필요.
 
-## 3. node-linker=hoisted → strict 점진 전환 (review INFO #9)
+## 3. node-linker=hoisted → strict(isolated) 전역 전환 (review INFO #9)
 
 `.npmrc` 가 NestJS/Next standalone·native dep 호환을 위해 `node-linker=hoisted`(flat) 로 출발했다.
 green 안정 후 strict isolation 으로 좁혀 phantom-dependency 위생을 강제하는 것을 검토.
+
+**결정(2026-07-16): GO — isolated 전역 전환 실행 + 완료.** 저리스크 spike(임시 flip → 전 계층 재검증)로
+"실제 깨지는 지점" 을 국소화한 결과, 모노레포 전역의 phantom-dependency 는 **backend 4개뿐**이고
+모두 정당한 latent 미선언 의존(선언으로 해소)이었다. 최대 리스크로 지목됐던 frontend Next standalone·
+native·workspace symlink 는 격리 트리에서 전부 green — 이득(위생 강제·latent 버그 해소) 대비 수정 비용이
+작아 GO.
+
+### 변경 요약
+- `.npmrc`: `node-linker=hoisted` → `node-linker=isolated`(pnpm 기본) + 주석 갱신.
+- `codebase/backend/package.json`: 전환으로 드러난 phantom 을 직접 의존으로 선언 —
+  prod `express@^5.2.1`(NestJS express 어댑터 API 직접 사용: `json`/`urlencoded`/`Express.*`),
+  prod `ip-address@^10.2.0`(auth-config IP/CIDR 검증), prod `dotenv@^17.4.1`(운영 ops 스크립트),
+  dev `@jest/globals@^30.0.0`(spec 파일). 모두 **기존 전이 의존의 해소 버전과 동일** — 신규 버전 0.
+- `pnpm-lock.yaml`: 위 4개 직접 의존 edge 추가(버전 churn 0). node-linker 자체는 lockfile 에 무영향.
+- 주석 갱신(stale hoisted 서술 → isolated): `pnpm-workspace.yaml`·backend/frontend `Dockerfile`·
+  `next.config.ts`·`docker-compose.e2e.yml`. (Dockerfile 빌드 **명령**은 불변 — injected `pnpm deploy`·
+  standalone COPY 레이아웃이 isolated 에서 그대로 동작.)
+
+### 검증 (both-stack 필수 — 전역 변경)
+clean install(node_modules 전량 삭제 후 재설치) 기준 전 계층 green:
+- lint PASS / unit **14** PASS / build PASS(backend clean-room Docker `nest build` 0 err +
+  frontend `next build --webpack` standalone 101/101 + widget build).
+- backend e2e **254** PASS(injected isolated deploy runner — express·ip-address·dotenv·native 런타임 해소).
+- frontend playwright e2e **46** PASS.
+- **frontend standalone 프로덕션 runner** 별도 스모크(빌드→기동→홈 307, `✓ Ready`, MODULE_NOT_FOUND 0) —
+  playwright 경로가 안 건드리는 `.next/standalone` 트레이싱 산출을 격리 심링크 기준으로 직접 검증.
+- native(bcrypt·isolated-vm) 로드 OK, 내부 @workflow/* 는 isolated 에서도 symlink 유지(next.config 전제 불변).
+
+### 핵심 발견 / 교훈
+- **lockfile 은 linker-agnostic**: hoisted→isolated 재링크에 `--frozen-lockfile` 성공 + lockfile
+  **byte-identical**. 전환은 node_modules 레이아웃만 바꾸고 해소 그래프는 불변 → 롤백도 `.npmrc` 한 줄.
+- **tsc 통과 ≠ 런타임 안전**: `express` 는 `@types/express` 가 선언돼 있어 tsc(빌드)는 통과했으나
+  런타임 `require('express')` 가 격리 deploy 번들에서 MODULE_NOT_FOUND 로 터졌다(auth.controller 부팅).
+  build 만으로는 못 잡고 **e2e 가 포착** — 전역 node_modules 변경에 both-stack e2e 의무의 실증. 재발 방지로
+  backend/src 의 미선언 value-import 를 정적 스캔(import/require/dynamic-import/re-export/side-effect)해
+  잔여 phantom 0 확인.
+- 이미지 크기 이득은 §1-(a) injected deploy 로 이미 확보됨(551MB) — isolated 의 추가 이득은 **빌드/개발
+  시점 phantom 위생의 상시 강제**(향후 미선언 의존 유입 fail-fast)와 위 latent 버그(hoist 우연 의존) 해소.
+- **후속 install 주의**: 기존 checkout(main worktree 포함)은 다음 `pnpm install` 시 isolated 로 재링크된다.
+  hoisted↔isolated 를 **in-place** 로 오가면 구 flat 트리 잔재가 남는 하이브리드가 될 수 있어, 링커 전환
+  직후 검증은 반드시 node_modules 전량 삭제 후 clean install 로 한다(본 spike 도 clean install 로 확정).
 
 ## 4. 기타 (low)
 
@@ -65,4 +106,8 @@ green 안정 후 strict isolation 으로 좁혀 phantom-dependency 위생을 강
 - ~~playwright-runner 사전 빌드 이미지로 매 실행 `pnpm install` 제거(INFO #5)~~ — **완료(2026-07-16)**: 신규 `codebase/frontend/Dockerfile.playwright-e2e`(FROM playwright v1.61.0-jammy, @playwright/test 해석 버전 정렬)가 frontend deps(closure 4개) + chromium 을 build time 에 baking. docker-compose.e2e.yml playwright-runner 를 raw 이미지+런타임 install → 사전 빌드 image/build 로 전환, command 를 `pnpm --filter frontend e2e` 로 축소(backend-e2e-runner target:deps 동형). 검증: 빌드+playwright-runner 46 tests 통과. /ai-review 0 Critical, 2 Warning(base 태그 정렬·COPY closure 4개) fix 완료.
 - ~~js-yaml moderate accept 의 CVE ID·영향 경로 문서화(INFO #2,#16)~~ — **완료(2026-07-14)**: `pnpm-workspace.yaml` `auditConfig.ignoreCves` 에 CVE-2026-53550(js-yaml <3.15.0 DoS, 경로 `frontend>gray-matter>js-yaml@3.14.2`, gray-matter 상향 전까지 수용)을 사유·영향경로·해소조건 주석과 함께 codify. 아래 CI 가드와 통합.
 - ~~**의존성 보안 거버넌스 CI 가드**(리뷰 08_25_10 security WARNING)~~ — **완료(2026-07-14)**: `.github/workflows/deps-security-checks.yml` 신설 — (a) `scripts/check-pnpm-security-config.py` 로 `overrides`(키+값)·`onlyBuiltDependencies`·`auditConfig.ignoreCves` 를 baseline 스냅샷 대조(무단 삭제·값 약화·CVE 억제 방지), (b) `pnpm audit --audit-level=moderate`(PR·push·주간 스케줄, 수용 CVE 제외). PROJECT.md 정책 문서화. 리뷰 13_00_33: 0 Critical, 2 Warning(값 검증·ignoreCves 가드) fix 완료. **잔여(사용자)**: main branch protection 에 `config-guard`/`audit` 를 required check 로 등록해야 실제 머지 차단.
-- **§4 전체 완료(2026-07-16).** 플랜 잔여는 §3(node-linker=hoisted→strict 전역 전환, 고리스크 백로그)만. + 후속(저우선): 의존성 거버넌스 branch protection required-check 등록(사용자), `@playwright/test`↔base 태그 정합 CI 가드.
+- **§1~§4 전체 완료(2026-07-16).** §3(node-linker=hoisted→isolated 전역 전환)까지 실행·검증 종료 —
+  본 plan 의 review-derived 후속 과제는 모두 소진. 남은 것은 **별개 저우선 후속 2건**뿐: (a) 의존성 거버넌스
+  `deps-security-checks` 의 `config-guard`/`audit` job 을 main branch protection required-check 로 등록(**사용자
+  액션**), (b) `@playwright/test` 해석 버전 ↔ `Dockerfile.playwright-e2e`/`docker-compose.e2e.yml` base 태그
+  major.minor 일치 CI 가드(caret drift 재발 방지). 이 2건은 §1~§4 와 독립이라 별도 plan/이슈로 이관 권장.
