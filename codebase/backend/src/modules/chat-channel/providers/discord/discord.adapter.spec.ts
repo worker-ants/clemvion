@@ -44,6 +44,16 @@ describe('DiscordAdapter', () => {
     expect(typeof adapter.ackInteraction).toBe('function');
   });
 
+  it('escapeControlText — discord 는 평문 그대로 (renderNode 와 동일, identity)', () => {
+    const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
+    expect(adapter.escapeControlText('받을 수 없어요.')).toBe(
+      '받을 수 없어요.',
+    );
+    expect(adapter.escapeControlText('/start - 새 대화')).toBe(
+      '/start - 새 대화',
+    );
+  });
+
   describe('setupChannel', () => {
     it('정상 — getApplicationMe + putApplicationCommands → botIdentity 캐시 + issuedInboundSigning 비움', async () => {
       const client = new DiscordClient();

@@ -15,7 +15,7 @@ import type {
   SetupResult,
 } from '../../types';
 import { SlackClient } from './slack-client';
-import { renderSlackEvent } from './slack-message.renderer';
+import { renderSlackEvent, escapeSlackMrkdwn } from './slack-message.renderer';
 import { parseSlackUpdate } from './slack-update.parser';
 import type { ChannelButton } from '../../types';
 
@@ -249,6 +249,14 @@ export class SlackAdapter implements NativeFormAdapter {
         `ackInteraction response_url POST 실패: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  /**
+   * control-plane 안내 escape — slack mrkdwn 은 `<`, `>`, `&` 만 escape 대상 (renderNode 경로와
+   * 동일 규칙, escapeSlackMrkdwn). 마침표 등 일반 문장부호는 그대로 렌더된다.
+   */
+  escapeControlText(text: string): string {
+    return escapeSlackMrkdwn(text);
   }
 
   /**

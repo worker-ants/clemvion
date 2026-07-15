@@ -48,6 +48,16 @@ describe('SlackAdapter', () => {
       expect(typeof adapter.ackInteraction).toBe('function');
     });
 
+    it('escapeControlText — slack mrkdwn <>& 만 escape, 마침표는 그대로', () => {
+      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+      expect(adapter.escapeControlText('a & b <c>')).toBe(
+        'a &amp; b &lt;c&gt;',
+      );
+      expect(adapter.escapeControlText('받을 수 없어요.')).toBe(
+        '받을 수 없어요.',
+      );
+    });
+
     it('teardownChannel — no-op (R-S-2)', async () => {
       const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
       await expect(

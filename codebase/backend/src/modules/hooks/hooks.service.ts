@@ -359,9 +359,11 @@ export class HooksService {
           conversationKey: update.conversationKey,
           body: {
             kind: 'text',
-            text:
+            // control-plane 안내 — 평문 default 를 provider 별로 escape (renderNode 우회 경로).
+            text: adapter.escapeControlText(
               config.languageHints?.help ??
-              '/start \\- 새 대화 시작\n/cancel \\- 진행 중인 대화 취소\n/help \\- 도움말',
+                '/start - 새 대화 시작\n/cancel - 진행 중인 대화 취소\n/help - 도움말',
+            ),
           },
         },
         config,
@@ -806,9 +808,9 @@ export class HooksService {
     const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
     const announcement = isGroup
       ? (config.languageHints?.groupChatRefusal ??
-        '이 봇은 1:1 대화만 지원합니다\\.')
+        '이 봇은 1:1 대화만 지원합니다.')
       : (config.languageHints?.unsupportedMessageKind ??
-        '지원하지 않는 메시지 형식입니다\\.');
+        '지원하지 않는 메시지 형식입니다.');
     await this.sendBestEffortNotice(
       String(chat.id),
       announcement,
@@ -897,9 +899,11 @@ export class HooksService {
             conversationKey: update.conversationKey,
             body: {
               kind: 'text',
-              text:
+              // control-plane 안내 — 평문 default 를 provider 별로 escape.
+              text: adapter.escapeControlText(
                 config.languageHints?.formValidationFailed ??
-                '입력값을 다시 확인해주세요\\.',
+                  '입력값을 다시 확인해주세요.',
+              ),
             },
           },
           config,
@@ -913,9 +917,11 @@ export class HooksService {
           conversationKey: update.conversationKey,
           body: {
             kind: 'text',
-            text:
+            // control-plane 안내 — 평문 default 를 provider 별로 escape.
+            text: adapter.escapeControlText(
               config.languageHints?.formNextField ??
-              `다음 항목을 입력해주세요\\. \\(${formState.currentFieldIdx + 1}\\)`,
+                `다음 항목을 입력해주세요. (${formState.currentFieldIdx + 1})`,
+            ),
           },
         },
         config,
@@ -978,8 +984,11 @@ export class HooksService {
    * control-plane 텍스트 안내의 공통 best-effort 발송 (F-4). `sendExecutionStillRunningNotice`
    * / `sendSurfaceMismatchNotice` / `maybeNotifyIgnored` 의 try/catch/warn 골격을 한 곳에 모아
    * 중복을 제거한다. 발송 실패는 swallow(warn) — control-plane 안내가 재시도/추가 안내 루프를
-   * 유발하지 않도록. `text` 는 렌더러 escape 를 거치지 않는 경로이므로 호출자가 provider 표면에
-   * 맞게 준비해야 한다(default 는 MarkdownV2-safe, F-5 로 override 검증).
+   * 유발하지 않도록.
+   *
+   * `text` 는 **평문**으로 전달한다 — `renderNode` 경로를 우회하므로 여기서 `adapter.escapeControlText`
+   * 로 provider 표면에 맞게 escape 한다 (telegram MarkdownV2 / slack mrkdwn / discord 평문). 이로써
+   * default·operator override 모두 provider 별로 올바르게 렌더된다 (F-5 등록 검증·수동 escape 불필요).
    */
   private async sendBestEffortNotice(
     conversationKey: string,
@@ -990,7 +999,10 @@ export class HooksService {
   ): Promise<void> {
     try {
       await adapter.sendMessage(
-        { conversationKey, body: { kind: 'text', text } },
+        {
+          conversationKey,
+          body: { kind: 'text', text: adapter.escapeControlText(text) },
+        },
         config,
       );
     } catch (err) {
@@ -1003,7 +1015,7 @@ export class HooksService {
   /**
    * CCH-CV-03 (b) — execution 이 running/pending (waiting_for_input 미도달) 일 때
    * 채널에 `executionStillRunning` 안내를 발송한다 (update 는 호출자가 무시).
-   * 텔레그램 MarkdownV2 는 어댑터가 escape 하지 않으므로 default 문구는 pre-escaped (`.` → `\.`).
+   * default 는 평문 — `sendBestEffortNotice` 가 provider 별로 escape 한다.
    */
   private async sendExecutionStillRunningNotice(
     update: ChannelUpdate,
@@ -1012,7 +1024,7 @@ export class HooksService {
   ): Promise<void> {
     const text =
       config.languageHints?.executionStillRunning ??
-      '워크플로우가 처리 중입니다\\. 잠시만 기다려 주세요\\.';
+      '워크플로우가 처리 중입니다. 잠시만 기다려 주세요.';
     await this.sendBestEffortNotice(
       update.conversationKey,
       text,

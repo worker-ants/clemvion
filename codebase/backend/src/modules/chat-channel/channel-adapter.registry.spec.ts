@@ -37,6 +37,9 @@ class FakeAdapter implements ChatChannelAdapter {
   ackInteraction(): Promise<void> {
     return Promise.resolve();
   }
+  escapeControlText(text: string): string {
+    return text;
+  }
 }
 
 describe('ChannelAdapterRegistry', () => {

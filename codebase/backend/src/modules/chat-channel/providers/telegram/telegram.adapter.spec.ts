@@ -81,6 +81,22 @@ describe('TelegramAdapter', () => {
     });
   });
 
+  describe('escapeControlText (control-plane per-provider escape)', () => {
+    it('MarkdownV2 예약문자를 backslash escape 한다', () => {
+      expect(adapter.escapeControlText('처리 중입니다.')).toBe(
+        '처리 중입니다\\.',
+      );
+      expect(adapter.escapeControlText('/start - 새 대화')).toBe(
+        '/start \\- 새 대화',
+      );
+    });
+    it('예약문자 없는 평문은 그대로', () => {
+      expect(adapter.escapeControlText('양식이나 버튼을 사용해 주세요')).toBe(
+        '양식이나 버튼을 사용해 주세요',
+      );
+    });
+  });
+
   describe('setupChannel()', () => {
     const callbackUrl = 'https://example.com/hooks/abc';
 

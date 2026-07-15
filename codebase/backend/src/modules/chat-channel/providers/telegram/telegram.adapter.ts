@@ -12,7 +12,10 @@ import {
 } from '../../types';
 import { TelegramClient } from './telegram-client';
 import { parseTelegramUpdate } from './telegram-update.parser';
-import { renderTelegramMessages } from './telegram-message.renderer';
+import {
+  renderTelegramMessages,
+  escapeMarkdownV2,
+} from './telegram-message.renderer';
 import { SecretResolverService } from '../../../secret-store/secret-resolver.service';
 
 /**
@@ -273,6 +276,14 @@ export class TelegramAdapter implements ChatChannelAdapter {
         }
       }
     }
+  }
+
+  /**
+   * control-plane 안내 escape — telegram 은 `parse_mode: MarkdownV2` 로 발송하므로
+   * MarkdownV2 예약문자를 backslash escape 한다 (renderNode 경로와 동일 규칙, escapeMarkdownV2).
+   */
+  escapeControlText(text: string): string {
+    return escapeMarkdownV2(text);
   }
 }
 

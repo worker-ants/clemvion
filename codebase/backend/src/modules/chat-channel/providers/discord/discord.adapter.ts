@@ -382,6 +382,15 @@ export class DiscordAdapter implements NativeFormAdapter {
       },
     };
   }
+
+  /**
+   * control-plane 안내 escape — discord 는 텍스트를 그대로(discord markdown) 렌더하며, 렌더러
+   * (`renderDiscordEvent`)도 별도 escape 를 하지 않는다. control-plane 발송도 같은 규칙으로
+   * 평문 그대로 보낸다 (마침표·하이픈 등은 안전; 일관성 위해 identity 유지).
+   */
+  escapeControlText(text: string): string {
+    return text;
+  }
 }
 
 function hashStringToInt(s: string): number {

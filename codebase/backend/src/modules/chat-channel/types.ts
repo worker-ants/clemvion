@@ -510,6 +510,16 @@ export interface ChatChannelAdapter {
   ): Promise<void>;
 
   /**
+   * control-plane 안내 텍스트(봇 자체 안내 — `HooksService` 가 `renderNode` 를 거치지 않고
+   * `sendMessage` 로 직접 발송하는 문구)를 provider 표면에 맞게 escape 한다. `renderNode` 경로는
+   * 렌더러가 내부적으로 escape 하지만, control-plane 직접 발송은 그 경로를 우회하므로 발송 직전
+   * 이 메서드로 escape 한다 — provider 가 자기 escape 규칙을 소유해 default·operator override
+   * 모두 세 provider 에서 올바르게 렌더된다 (telegram MarkdownV2 / slack mrkdwn `<>&` / discord 평문).
+   * pure — 외부 호출 없음. SoT: spec/conventions/chat-channel-adapter.md §Adapter Interface.
+   */
+  escapeControlText(text: string): string;
+
+  /**
    * (옵션) Bot token rotation 시 *이전* token 을 외부 provider 측에서 revoke.
    * SoT: [spec/conventions/chat-channel-adapter.md §1] Adapter Interface 의 revokeBotToken?
    * 옵션 메서드. provider 가 revocation API 를 제공하면 구현 (Slack `auth.revoke`),

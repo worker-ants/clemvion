@@ -577,6 +577,7 @@ describe('HooksService', () => {
       renderNode: jest.MockedFunction<() => Promise<unknown[]>>;
       sendMessage: jest.MockedFunction<() => Promise<unknown>>;
       ackInteraction: jest.MockedFunction<() => Promise<void>>;
+      escapeControlText: jest.MockedFunction<(t: string) => string>;
     };
 
     beforeEach(() => {
@@ -606,6 +607,8 @@ describe('HooksService', () => {
           sentAt: new Date().toISOString(),
         }),
         ackInteraction: jest.fn().mockResolvedValue(undefined),
+        // control-plane escape — 테스트는 passthrough(평문 그대로) 로 발송 텍스트를 검증한다.
+        escapeControlText: jest.fn((t: string) => t),
       };
       adapterRegistry.get.mockReturnValue(
         mockAdapter as unknown as ChatChannelAdapter,
