@@ -233,7 +233,7 @@ services:
     # frontend deps + chromium 을 build time 에 baking 한 사전 빌드 이미지 — 매 실행 pnpm
     # install + playwright install(apt) 반복을 제거한다(backend-e2e-runner 의 target:deps
     # prebuild 와 동형). @playwright/test 버전은 frontend package.json SoT, base 이미지
-    # 태그(Dockerfile.playwright-e2e 의 v1.59.1-jammy)와 major.minor 정렬 — 상향 시 함께 갱신.
+    # 태그(Dockerfile.playwright-e2e 의 v1.61.0-jammy)와 major.minor 정렬 — 상향 시 함께 갱신.
     image: clemvion-e2e/playwright-deps:latest
     build:
       context: .

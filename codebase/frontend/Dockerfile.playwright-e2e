@@ -10,9 +10,10 @@
 # 빌드 컨텍스트는 repo 루트 (pnpm workspace 앵커·lockfile·codebase/* 접근).
 #   docker build -f codebase/frontend/Dockerfile.playwright-e2e -t clemvion-e2e/playwright-deps .
 #
-# @playwright/test 버전은 frontend package.json 이 SoT — base 이미지 태그(v1.59.1-jammy)와
-# major.minor 를 맞춘다(browser binary 호환). 상향 시 여기와 docker-compose.e2e.yml 을 함께 갱신.
-FROM mcr.microsoft.com/playwright:v1.59.1-jammy
+# @playwright/test 버전은 frontend package.json 이 SoT(`^1.59.1` → lockfile resolve = 1.61.0)
+# — base 이미지 태그를 그 major.minor 에 맞춘다(browser binary + OS 공유 라이브러리 호환).
+# @playwright/test 상향(caret drift 포함) 시 이 태그와 docker-compose.e2e.yml 을 함께 갱신.
+FROM mcr.microsoft.com/playwright:v1.61.0-jammy
 
 # jammy 이미지의 corepack 동작이 CI 미검증이라 실패 시 전역 pnpm 설치로 폴백.
 RUN corepack enable || npm i -g pnpm@10.23.0
@@ -31,15 +32,23 @@ COPY codebase/packages/graph-warning-rules/package.json ./codebase/packages/grap
 COPY codebase/packages/sdk/package.json ./codebase/packages/sdk/
 COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sdk/
 
-# 내부 패키지 소스 — prepare(tsc)가 install 중 dist 를 빌드한다.
-COPY codebase/packages ./codebase/packages
+# 내부 패키지 소스 — prepare(tsc)가 install 중 dist 를 빌드한다. **frontend closure(= @workflow
+# 4개)만** COPY — sdk·web-chat-sdk(frontend 미의존)를 제외해 그 소스 변경이 이 e2e 이미지 빌드
+# 캐시를 무효화하지 않게 한다(codebase/backend/Dockerfile 동일 패턴). manifest 는 위에서 6개
+# 전부 COPY 했으므로 `--frozen-lockfile` 검증 무영향. 신규 frontend 의존 내부 패키지 추가 시
+# 여기에 COPY 를 보충한다.
+COPY codebase/packages/expression-engine ./codebase/packages/expression-engine
+COPY codebase/packages/node-summary ./codebase/packages/node-summary
+COPY codebase/packages/chat-channel-validation ./codebase/packages/chat-channel-validation
+COPY codebase/packages/graph-warning-rules ./codebase/packages/graph-warning-rules
 
 # frontend + 그 workspace 의존만 설치(playwright e2e 는 page.route 로 backend 를 mock 해
 # 위젯·backend 의존 없음). 런타임(source bind-mount + anonymous volume)이 이 node_modules 를
 # 그대로 쓴다.
 RUN pnpm install --frozen-lockfile --filter "frontend..."
 
-# chromium 을 baking — base 이미지에 브라우저가 있으나 @playwright/test patch 가 base 태그와
-# 어긋나면 런타임 "browser not found" 가 나므로, 설치된 버전 기준으로 build time 에 고정한다.
-# OS deps 는 playwright base 이미지에 이미 있어 --with-deps 불필요.
+# chromium 을 baking — base 태그가 @playwright/test(1.61.0) major.minor 와 정렬돼 base 내장
+# 브라우저로 충분하지만, patch drift 시에도 설치된 버전 기준 브라우저를 build time 에 고정하도록
+# 명시적으로 재설치한다(정렬 유지 시 사실상 no-op·캐시됨). OS deps 는 base 이미지에 이미 있어
+# --with-deps 불필요.
 RUN pnpm --filter frontend exec playwright install chromium
