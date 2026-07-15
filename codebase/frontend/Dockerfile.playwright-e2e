@@ -1,0 +1,45 @@
+# playwright-runner(frontend e2e) 사전 빌드 이미지.
+#
+# 종전 playwright-runner 는 raw `mcr.microsoft.com/playwright` 이미지에서 매 실행마다
+# `pnpm install --frozen-lockfile --filter frontend...` + `playwright install --with-deps
+# chromium`(apt) 를 command 로 돌려 e2e-test-full 이 반복적으로 느렸다. 본 이미지가 그
+# 둘을 **build time 에 baking** 해, 런타임 command 는 `pnpm --filter frontend e2e`(next
+# build + playwright 실행)만 남긴다. backend-e2e-runner 의 `target: deps` prebuild 패턴과
+# 동형이며, docker-compose.e2e.yml 이 `image:` 로 캐시를 worktree 간 공유한다.
+#
+# 빌드 컨텍스트는 repo 루트 (pnpm workspace 앵커·lockfile·codebase/* 접근).
+#   docker build -f codebase/frontend/Dockerfile.playwright-e2e -t clemvion-e2e/playwright-deps .
+#
+# @playwright/test 버전은 frontend package.json 이 SoT — base 이미지 태그(v1.59.1-jammy)와
+# major.minor 를 맞춘다(browser binary 호환). 상향 시 여기와 docker-compose.e2e.yml 을 함께 갱신.
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
+
+# jammy 이미지의 corepack 동작이 CI 미검증이라 실패 시 전역 pnpm 설치로 폴백.
+RUN corepack enable || npm i -g pnpm@10.23.0
+WORKDIR /app
+
+# Workspace anchor + 단일 lockfile. --frozen-lockfile 검증을 위해 모든 workspace
+# manifest 가 존재해야 하므로 package.json 을 먼저 전부 복사한다.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY codebase/backend/package.json ./codebase/backend/
+COPY codebase/frontend/package.json ./codebase/frontend/
+COPY codebase/channel-web-chat/package.json ./codebase/channel-web-chat/
+COPY codebase/packages/expression-engine/package.json ./codebase/packages/expression-engine/
+COPY codebase/packages/node-summary/package.json ./codebase/packages/node-summary/
+COPY codebase/packages/chat-channel-validation/package.json ./codebase/packages/chat-channel-validation/
+COPY codebase/packages/graph-warning-rules/package.json ./codebase/packages/graph-warning-rules/
+COPY codebase/packages/sdk/package.json ./codebase/packages/sdk/
+COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sdk/
+
+# 내부 패키지 소스 — prepare(tsc)가 install 중 dist 를 빌드한다.
+COPY codebase/packages ./codebase/packages
+
+# frontend + 그 workspace 의존만 설치(playwright e2e 는 page.route 로 backend 를 mock 해
+# 위젯·backend 의존 없음). 런타임(source bind-mount + anonymous volume)이 이 node_modules 를
+# 그대로 쓴다.
+RUN pnpm install --frozen-lockfile --filter "frontend..."
+
+# chromium 을 baking — base 이미지에 브라우저가 있으나 @playwright/test patch 가 base 태그와
+# 어긋나면 런타임 "browser not found" 가 나므로, 설치된 버전 기준으로 build time 에 고정한다.
+# OS deps 는 playwright base 이미지에 이미 있어 --with-deps 불필요.
+RUN pnpm --filter frontend exec playwright install chromium

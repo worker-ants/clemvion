@@ -230,9 +230,14 @@ services:
   # — next dev 의 온디맨드 컴파일·비결정적 hydration 이 client-nav flake 의 뿌리라
   # CI 는 prod 빌드로 안정화한다 (playwright.config Tier 2 주석 참조).
   playwright-runner:
-    # W-58 — frontend package.json 의 @playwright/test ^1.59 과 동일 major.minor
-    # 로 정렬. browser binary / Node modules 간 호환성을 보장한다.
-    image: mcr.microsoft.com/playwright:v1.59.1-jammy
+    # frontend deps + chromium 을 build time 에 baking 한 사전 빌드 이미지 — 매 실행 pnpm
+    # install + playwright install(apt) 반복을 제거한다(backend-e2e-runner 의 target:deps
+    # prebuild 와 동형). @playwright/test 버전은 frontend package.json SoT, base 이미지
+    # 태그(Dockerfile.playwright-e2e 의 v1.59.1-jammy)와 major.minor 정렬 — 상향 시 함께 갱신.
+    image: clemvion-e2e/playwright-deps:latest
+    build:
+      context: .
+      dockerfile: codebase/frontend/Dockerfile.playwright-e2e
     # pnpm workspace 라 frontend 단독 설치가 불가 — workspace 를 mount 하고
     # frontend subtree 만 --filter 로 설치한다. 루트 전체(`./`) 대신 codebase +
     # workspace 루트 파일만 선별 mount 해 .git/.claude/spec/plan/review/memory 등
@@ -252,11 +257,11 @@ services:
       - /app/codebase/packages/node-summary/node_modules
       - /app/codebase/packages/chat-channel-validation/node_modules
       - /app/codebase/packages/graph-warning-rules/node_modules
+    # deps·chromium 은 이미지에 baking 됨 — 런타임은 next build + playwright 실행만.
     command:
       - sh
       - -c
-      # corepack 실패 대비 fallback (jammy 이미지의 corepack 동작 CI 미검증).
-      - "(corepack enable || npm i -g pnpm@10.23.0) && pnpm install --frozen-lockfile --filter frontend... && pnpm --filter frontend exec playwright install --with-deps chromium && pnpm --filter frontend e2e"
+      - "pnpm --filter frontend e2e"
     environment:
       CI: "true"
       PLAYWRIGHT_BASE_URL: http://localhost:3012
