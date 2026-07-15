@@ -1,8 +1,28 @@
 ---
-worktree: (unstarted)
+worktree: funny-mahavira-50d003
 started: 2026-07-14
 owner: developer
 ---
+
+## 실행 체크리스트 — 항목 A (config-time 저장 경고, PR #1)
+
+- [x] 3. `/consistency-check --impl-prep spec/4-nodes/3-ai/` → BLOCK: NO (5/5 checker CRITICAL=0; WARNING 은 기존 spec 문서 수준, 본 작업 무관)
+- [x] 5-6. TDD: pure 도구 재현 함수 추출 (cafe24/makeshop) + config-time 평가 + 배선
+  - [x] `buildCafe24ToolDefsForIntegration` 추출 (buildTools drift-0 회귀 테스트)
+  - [x] `buildMakeshopToolDefsForIntegration` 추출 (동일)
+  - [x] `tool-payload-save-warning.ts` (`evaluateAiAgentToolPayloadWarnings`) + unit test
+  - [x] `toolBudgetStrictSave()` env 파서 + test
+  - [x] WorkflowsService: Integration repo 주입 + getGraphWarnings(workspaceId) append + saveCanvas error block
+  - [x] `GRAPH_WARNING_KO['ai_agent:tool-payload-budget']` + backend-labels.test P3-C-1 backend-only 목록
+- [x] spec 마감: cross-node-warning-rules status partial→implemented·§8 Planned 제거, ai-agent §10 Planned 제거, 두 spec pending_plans 정리
+- [ ] 8. TEST WORKFLOW (lint[x]·unit·build·e2e)
+- [ ] 9. `/ai-review` + resolution-applier (Critical/Warning>0 시)
+- [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/`
+- [ ] PR (항목 A 단독)
+
+> 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
+
+> 항목 B (resume 턴 timeoutMs+signal) 는 후속 PR — 본 체크리스트 완료 후 착수.
 
 # AI Agent 도구 payload 예산 가드레일 — 후속
 
