@@ -211,9 +211,14 @@ describe("useWidget — eager 시작(§R6)", () => {
    * (ai-review 02_04_13 CRITICAL#1.)
    */
   it("복원된 세션이 이미 terminal → ENDED 전이 + SSE 미오픈 + storage 부활 없음", async () => {
+    // 만료를 30분(lead) + 6초 뒤로 → refreshDelayMs ≈ 6초. fake timer 로 그 시점을 넘겨야
+    // "scheduleRefresh 가 예약됐는가" 를 실제로 단언할 수 있다. 90분(=60분 뒤 발화)이면 타이머가
+    // 영영 안 와서 refreshCalls===0 이 게이팅과 무관하게 항상 참인 decorative 단언이 된다
+    // (ai-review 2026-07-17 02_31_18 W6).
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + 30 * 60 * 1000 + 6_000).toISOString(), endpoints: ENDPOINTS }),
     );
     let refreshCalls = 0;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
@@ -244,8 +249,12 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(getEs()).toBeNull();
     // 저장 세션이 되살아나지 않는다.
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
-    // 종료된 세션 기준 토큰 갱신을 예약/호출하지 않는다.
+    // 종료된 세션 기준 토큰 갱신을 예약/호출하지 않는다 — 예약됐다면 아래 진행에서 발화한다.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
     expect(refreshCalls).toBe(0);
+    vi.useRealTimers();
   });
 
   it("저장 세션 복원 시 open() 은 새 execution 을 시작하지 않음", async () => {
@@ -1346,5 +1355,202 @@ describe("useWidget — 버퍼 만료 재동기화(execution.replay_unavailable,
     // soft-fail — 종료로 오판하지 않고 기존 흐름 유지(스트림도 살아있다).
     expect(result.current.state.phase).not.toBe("ended");
     expect(getEs()).not.toBeNull();
+  });
+});
+
+describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W5·W6·W7)", () => {
+  /** W5 — start() 직후 첫 getStatus 가 곧바로 terminal 이면 SSE 를 열지 않고 즉시 종료해야 한다. */
+  it("start() 직후 스냅샷이 terminal → openStream 미호출 + 즉시 ended", async () => {
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { executionId: "e1", status: "failed" } }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(getEs()).toBeNull(); // start() 게이팅이 openStream 을 막았다.
+  });
+
+  /**
+   * W7(a) — staleness 가드. getStatus 를 pending 으로 잡아둔 채 "새 대화"로 세션을 교체한 뒤 resolve
+   * 시키면, 지연 도착한 옛 응답이 새 대화 상태를 건드리면 안 된다(유령 WAITING / 오탐 ENDED).
+   */
+  it("stale 응답(세션 교체 후 도착)은 폐기된다 — 유령 WAITING/오탐 ENDED 없음", async () => {
+    let resolveStatus: ((r: Response) => void) | null = null;
+    let statusCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        // 2번째(폴백) 호출은 테스트가 수동으로 resolve — 그 사이 세션을 교체한다.
+        return new Promise<Response>((r) => {
+          resolveStatus = r;
+        });
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(statusCalls).toBe(1));
+
+    // 폴백 getStatus 를 in-flight 로 띄운다.
+    act(() => {
+      getEs()?.emit("execution.replay_unavailable", { executionId: "e1" });
+    });
+    await waitFor(() => expect(statusCalls).toBe(2));
+
+    // 응답 도착 전에 세션 교체(새 대화) — sessionRef 가 바뀐다.
+    act(() => result.current.actions.newChat());
+
+    // 이제 옛 응답이 도착: terminal 스냅샷이지만 stale 이므로 무시돼야 한다.
+    await act(async () => {
+      resolveStatus?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { executionId: "e1", status: "completed" } }),
+      } as Response);
+      await Promise.resolve();
+    });
+
+    // stale 폐기 — 살아있는 새 대화를 종료시키지 않는다.
+    expect(result.current.state.phase).not.toBe("ended");
+  });
+
+  /**
+   * W7(b) — endedRef dedup. **in-flight** 명령이 SSE terminal 로 종료된 *뒤* 410 을 받는 경우,
+   * host `conversationEnded` 가 SSE 경로와 410 경로에서 각각 발사되면 안 된다(1회만).
+   */
+  it("in-flight 명령의 410 이 SSE terminal 뒤 도착해도 conversationEnded 는 1회만", async () => {
+    const endedEvents: unknown[] = [];
+    // bridge 는 `parent.postMessage({ type: "wc:event", payload: { name, data } }, target)` 로 보낸다.
+    const postSpy = vi.spyOn(window.parent, "postMessage").mockImplementation(((msg: unknown) => {
+      const m = msg as { type?: string; payload?: { name?: string } };
+      if (m?.type === "wc:event" && m?.payload?.name === "conversationEnded") endedEvents.push(m);
+    }) as never);
+
+    let resolveInteract: ((r: Response) => void) | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { executionId: "e1", status: "running" } }),
+        } as Response);
+      }
+      // 명령을 in-flight 로 잡아둔다 — terminal 뒤에 410 으로 resolve.
+      if (u.includes("/interact")) {
+        return new Promise<Response>((r) => {
+          resolveInteract = r;
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(getEs()).not.toBeNull());
+
+    // ai_conversation 대기 표면 → submitMessage 가 sendCommand 로 즉시 전송된다.
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        conversationThread: { turns: [] },
+      });
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+    act(() => result.current.actions.submitMessage("in-flight 명령"));
+    await waitFor(() => expect(resolveInteract).not.toBeNull());
+
+    // (1) 명령이 떠 있는 동안 SSE terminal 도착 → finalizeEnded 1회.
+    act(() => {
+      getEs()?.emit("execution.completed", { executionId: "e1" });
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(endedEvents.length).toBe(1);
+
+    // (2) 이제 in-flight 명령이 410 으로 resolve — endedRef 가드가 재발사를 막아야 한다.
+    await act(async () => {
+      resolveInteract?.({ ok: false, status: 410, json: async () => ({}) } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(endedEvents.length).toBe(1);
+    postSpy.mockRestore();
   });
 });
