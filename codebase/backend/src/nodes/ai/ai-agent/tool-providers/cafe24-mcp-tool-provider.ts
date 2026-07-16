@@ -196,7 +196,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
 
       // 도구 정의(스키마) 재현은 세션 state 없이 pure 하므로 module-level
       // `buildCafe24ToolDefsForIntegration` 로 추출했다 — 런타임(buildTools)과
-      // 저장 시점 payload 예산 경고(WorkflowsService, config-time-tool-budget.ts)
+      // 저장 시점 payload 예산 경고(WorkflowsService, tool-payload-save-warning.ts)
       // 가 같은 매핑을 공유한다 (drift 0). 여기(런타임)는 opMap 을 세션 state 에
       // 등록하고 skippedByScope 를 로깅하는 side-effect 만 담당한다.
       const {
@@ -704,7 +704,7 @@ export interface Cafe24ConfigToolBuild {
 /**
  * connected cafe24 통합 하나가 LLM 에 노출할 ToolDef 배열 + operation lookup map
  * 을 **세션 state 없이 순수 재현**한다. `Cafe24McpToolProvider.buildTools`(런타임)
- * 와 저장 시점 도구 payload 예산 경고(`WorkflowsService` → `config-time-tool-budget.ts`)
+ * 와 저장 시점 도구 payload 예산 경고(`WorkflowsService` → `tool-payload-save-warning.ts`)
  * 가 이 단일 매핑을 공유해 drift 를 0 으로 유지한다.
  *
  * side-effect 없음 — 세션 state mutation·MCP 진단 push·토큰 refresh·로깅은 모두

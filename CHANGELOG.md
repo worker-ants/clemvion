@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — AI Agent 도구 정의 payload 예산 저장 시점 경고 (config-time graph warning)
+
+선행 런타임 fail-fast 가드레일의 후속(항목 A). 런타임 fail-fast 는 노드 실행 시점에야 발동하므로, 워크플로 **저장·조회** 시점에 도구 정의 payload 팽창을 미리 경고한다.
+
+1. **신규 backend-only graph warning `ai_agent:tool-payload-budget`.** 각 AI Agent 노드의 `presentationTools`·`mcpServers`(connected cafe24/makeshop 정적 카탈로그)로부터 config-time 도구 정의 payload 를 재현(런타임 `buildTools` 와 동일 매핑을 pure 함수로 추출·공유, drift 0)해 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`/`_HARD_BYTES`/`_COUNT_MAX`) 초과를 `GraphWarningRuleResult` 로 표면화한다. generic MCP(`service_type='mcp'`)·비-connected 통합은 live connect 필요라 best-effort skip → 기본 severity `warning`(근사 오차단 회피).
+2. **표면화는 조회 endpoint 전담**: `GET /workflows/:id/graph-warnings`(`getGraphWarnings`)가 결과 배열에 append(별도 응답 필드 신설 없음). frontend canvas 가드 ②(로컬 pre-evaluate)는 async 통합 조회 불가라 이 rule 을 계산하지 않는다(cross-node-warning-rules §5 backend-only 예외).
+3. **신규 env `AI_AGENT_TOOL_BUDGET_STRICT_SAVE`**(기본 false): true 면 저장 시 hard(또는 개수) 초과를 severity `warning`→`error` 로 승격해 `saveCanvas` 가 기존 `GRAPH_VALIDATION_FAILED`(400)로 저장을 차단한다(3중 가드 ①). 기본 off 시 `saveCanvas` 는 통합 조회 자체를 skip(도달 불가 차단 분기 비용 회피). saveCanvas 응답 계약은 불변(graph warning 미탑재).
+4. i18n: `GRAPH_WARNING_KO['ai_agent:tool-payload-budget']` 한국어 템플릿 추가(backend-only rule 이라 P3-C-1 자동 스캔 사각지대 → 명시 등록). SoT: `spec/4-nodes/3-ai/1-ai-agent.md §4.2·§10`, `spec/conventions/cross-node-warning-rules.md §5·§8`.
+
 ## Unreleased — 채팅 채널 control-plane 안내 발송 per-provider escape (F-5 근본 fix, 5-system/15-chat-channel §4.1.1)
 
 ### 변경 사항

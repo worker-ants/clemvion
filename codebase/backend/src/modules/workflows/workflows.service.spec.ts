@@ -67,11 +67,12 @@ describe('WorkflowsService', () => {
     find: jest.fn().mockResolvedValue([]),
   };
 
-  // AI Agent 저장 시점 도구 payload 예산 경고(backend-only)의 통합 조회용.
-  // 기본 null → 어떤 통합도 재현되지 않아 tool-payload 경고 0건 (기존 테스트
-  // 동작 불변). 개별 테스트가 필요 시 findOne 을 override.
+  // AI Agent 저장 시점 도구 payload 예산 경고(backend-only)의 통합 배치 조회용.
+  // 기본 [] → 어떤 통합도 재현되지 않아 tool-payload 경고 0건 (기존 테스트 동작
+  // 불변). 개별 테스트가 필요 시 find 를 override. saveCanvas 경로는 트랜잭션
+  // 매니저의 getRepository(Integration) 로 같은 mock 을 얻는다.
   const mockIntegrationRepository = {
-    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
   };
 
   const mockTransactionManager = {
@@ -83,6 +84,7 @@ describe('WorkflowsService', () => {
     find: jest.fn().mockResolvedValue([]),
     remove: jest.fn().mockResolvedValue(undefined),
     create: jest.fn().mockImplementation((_entity, data) => data),
+    getRepository: jest.fn().mockReturnValue(mockIntegrationRepository),
   };
 
   const mockDataSource = {
@@ -903,6 +905,10 @@ describe('WorkflowsService', () => {
     beforeEach(() => {
       for (const k of BUDGET_ENV) savedBudgetEnv[k] = process.env[k];
       mockRegistry.getComponent.mockReturnValue(undefined);
+      // 배치 통합 조회 mock 을 테스트별로 격리 (호출 횟수 단정용).
+      mockIntegrationRepository.find.mockClear();
+      mockIntegrationRepository.find.mockResolvedValue([]);
+      mockTransactionManager.getRepository.mockClear();
     });
     afterEach(() => {
       for (const k of BUDGET_ENV) {
@@ -933,7 +939,7 @@ describe('WorkflowsService', () => {
         },
       ]);
       mockEdgeRepository.find.mockResolvedValue([]);
-      mockIntegrationRepository.findOne.mockResolvedValue(connectedMakeshop);
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
 
       const { results, hasWarning } = await service.getGraphWarnings(
         'wf-uuid-1',
@@ -944,10 +950,13 @@ describe('WorkflowsService', () => {
         results.some((r) => r.ruleId === 'ai_agent:tool-payload-budget'),
       ).toBe(true);
       expect(hasWarning).toBe(true);
-      // 테넌트 경계 안에서 조회한다.
-      expect(mockIntegrationRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'int-1', workspaceId: 'ws-uuid-1' },
-      });
+      // 테넌트 경계 안에서 배치(단일 find) 조회한다.
+      expect(mockIntegrationRepository.find).toHaveBeenCalledTimes(1);
+      expect(mockIntegrationRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: 'ws-uuid-1' }),
+        }),
+      );
     });
 
     it('getGraphWarnings 기본(strict-save off)에서는 error 승격 없이 warning', async () => {
@@ -962,7 +971,7 @@ describe('WorkflowsService', () => {
         },
       ]);
       mockEdgeRepository.find.mockResolvedValue([]);
-      mockIntegrationRepository.findOne.mockResolvedValue(connectedMakeshop);
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
 
       const { hasError, hasWarning } = await service.getGraphWarnings(
         'wf-uuid-1',
@@ -980,7 +989,7 @@ describe('WorkflowsService', () => {
       mockTransactionManager.save.mockImplementation(
         (_entity: unknown, data: unknown) => Promise.resolve(data),
       );
-      mockIntegrationRepository.findOne.mockResolvedValue(connectedMakeshop);
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
 
       const dto: SaveCanvasDto = {
         name: 'wf',
@@ -1013,7 +1022,7 @@ describe('WorkflowsService', () => {
       });
     });
 
-    it('saveCanvas 는 기본(strict-save off)에서 payload 초과여도 통과', async () => {
+    it('saveCanvas 는 기본(strict-save off)에서 통합 조회 자체를 skip 하고 통과', async () => {
       process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
       delete process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE;
       mockRepository.findOne.mockResolvedValue(mockWorkflow);
@@ -1021,7 +1030,10 @@ describe('WorkflowsService', () => {
       mockTransactionManager.save.mockImplementation(
         (_entity: unknown, data: unknown) => Promise.resolve(data),
       );
-      mockIntegrationRepository.findOne.mockResolvedValue(connectedMakeshop);
+      // strict-save off 면 saveCanvas 는 도달 불가 차단 분기를 위한 통합 조회를
+      // 아예 하지 않는다 (dead-path 비용 회피). mockResolvedValue 는 설정하되
+      // 호출되지 않음을 아래에서 단정.
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
 
       const dto: SaveCanvasDto = {
         name: 'wf',
@@ -1050,6 +1062,9 @@ describe('WorkflowsService', () => {
       await expect(
         service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
       ).resolves.toBeDefined();
+      // strict-save off → 통합 조회(트랜잭션 매니저 repository) 미발생.
+      expect(mockTransactionManager.getRepository).not.toHaveBeenCalled();
+      expect(mockIntegrationRepository.find).not.toHaveBeenCalled();
     });
   });
 

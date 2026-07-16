@@ -202,7 +202,7 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
 
       // 도구 정의(스키마) 재현은 세션 state 없이 pure 하므로 module-level
       // `buildMakeshopToolDefsForIntegration` 로 추출했다 — 런타임(buildTools)과
-      // 저장 시점 payload 예산 경고(WorkflowsService, config-time-tool-budget.ts)
+      // 저장 시점 payload 예산 경고(WorkflowsService, tool-payload-save-warning.ts)
       // 가 같은 매핑을 공유한다 (drift 0). 여기(런타임)는 opMap 세션 등록과
       // sanitize collision 로깅 side-effect 만 담당한다.
       const {
@@ -715,7 +715,7 @@ export interface MakeshopConfigToolBuild {
  * connected makeshop 통합 하나가 LLM 에 노출할 ToolDef 배열 + operation lookup
  * map 을 **세션 state 없이 순수 재현**한다. `MakeshopMcpToolProvider.buildTools`
  * (런타임)와 저장 시점 도구 payload 예산 경고(`WorkflowsService` →
- * `config-time-tool-budget.ts`)가 이 단일 매핑을 공유해 drift 를 0 으로 유지한다.
+ * `tool-payload-save-warning.ts`)가 이 단일 매핑을 공유해 drift 를 0 으로 유지한다.
  *
  * cafe24 와 달리 granted-scope pre-filter 가 없다 (spec §8: makeshop 은 scope
  * 축이 없어 connected 통합의 모든 operation 을 노출). side-effect 없음 — 세션

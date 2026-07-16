@@ -12,8 +12,8 @@ import {
 /**
  * AI Agent 저장 시점(config-time) 도구 payload 예산 경고 (spec §4.2 · §10,
  * cross-node-warning-rules §5 · §8) 단위. connected cafe24/makeshop 정적 카탈로그
- * + presentation 재현, best-effort skip(비-connected·generic MCP·미로드),
- * soft→warning / hard→(strict)error 승격, per-node 1건을 고정한다.
+ * + presentation 재현, best-effort skip(비-connected·generic MCP·미로드), 배치
+ * 통합 조회(단일 호출), soft→warning / hard→(strict)error 승격, per-node 1건을 고정한다.
  */
 describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () => {
   const ALL_CAFE24_SCOPES: readonly string[] = Array.from(
@@ -102,7 +102,17 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     return { id: 'node-1', type: 'ai_agent', label: 'Agent', config, ...over };
   }
 
-  const noLoad = { loadIntegration: jest.fn().mockResolvedValue(null) };
+  // batch loadIntegrations mock — id별 Integration Map 을 반환.
+  const depsOf = (...ints: Integration[]) => ({
+    loadIntegrations: jest
+      .fn()
+      .mockResolvedValue(new Map(ints.map((i) => [i.id, i]))),
+  });
+  const noLoad = {
+    loadIntegrations: jest
+      .fn()
+      .mockResolvedValue(new Map<string, Integration>()),
+  };
 
   it('returns [] when there are no ai_agent nodes', async () => {
     const nodes: ToolBudgetGraphNode[] = [
@@ -115,8 +125,8 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     ];
     const res = await evaluateAiAgentToolPayloadWarnings(nodes, noLoad);
     expect(res).toEqual([]);
-    // non-ai_agent 노드의 integration 은 조회조차 하지 않는다.
-    expect(noLoad.loadIntegration).not.toHaveBeenCalled();
+    // ai_agent 노드가 없으면 통합 배치 조회조차 하지 않는다.
+    expect(noLoad.loadIntegrations).not.toHaveBeenCalled();
   });
 
   it('returns [] for an ai_agent node with no tools (empty config)', async () => {
@@ -129,7 +139,7 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
 
   it('emits a warning when a connected cafe24 catalog exceeds the soft budget', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
+    const deps = depsOf(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -138,7 +148,7 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      deps,
     );
     expect(res).toHaveLength(1);
     expect(res[0]).toMatchObject({
@@ -150,12 +160,13 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     expect(res[0].params?.node).toBe('Agent');
     expect(typeof res[0].params?.bytes).toBe('number');
     expect(res[0].params?.culprit).toContain('mcp:');
-    expect(loadIntegration).toHaveBeenCalledWith('abcdef1234567890');
+    // 통합 조회는 배치(단일 호출, id 배열).
+    expect(deps.loadIntegrations).toHaveBeenCalledTimes(1);
+    expect(deps.loadIntegrations).toHaveBeenCalledWith(['abcdef1234567890']);
   });
 
   it('stays severity=warning on a hard breach when strict-save is off', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
-    const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -167,7 +178,7 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      depsOf(cafe24Integration()),
     );
     expect(res).toHaveLength(1);
     expect(res[0].severity).toBe('warning');
@@ -176,7 +187,6 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
   it('promotes to severity=error on a hard breach when strict-save is on', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
     process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'true';
-    const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -188,7 +198,7 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      depsOf(cafe24Integration()),
     );
     expect(res).toHaveLength(1);
     expect(res[0].severity).toBe('error');
@@ -201,7 +211,6 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
     // 만 검증한다.
     process.env.AI_AGENT_TOOL_COUNT_MAX = '1';
     process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'true';
-    const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -210,14 +219,13 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      depsOf(cafe24Integration()),
     );
     expect(res).toHaveLength(1);
     expect(res[0].severity).toBe('error');
   });
 
   it('returns [] (under budget) for a small allowlisted catalog with default budgets', async () => {
-    const loadIntegration = jest.fn().mockResolvedValue(cafe24Integration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -229,16 +237,13 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      depsOf(cafe24Integration()),
     );
     expect(res).toEqual([]);
   });
 
   it('best-effort skips a non-connected integration', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest
-      .fn()
-      .mockResolvedValue(cafe24Integration({ status: 'error' }));
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -247,16 +252,13 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      depsOf(cafe24Integration({ status: 'error' })),
     );
     expect(res).toEqual([]);
   });
 
   it('best-effort skips a generic external MCP (service_type=mcp)', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest
-      .fn()
-      .mockResolvedValue(cafe24Integration({ serviceType: 'mcp' }));
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
@@ -265,53 +267,78 @@ describe('tool-payload-save-warning — evaluateAiAgentToolPayloadWarnings', () 
           ],
         }),
       ],
-      { loadIntegration },
+      depsOf(cafe24Integration({ serviceType: 'mcp' })),
     );
     expect(res).toEqual([]);
   });
 
-  it('best-effort skips when the loader returns null (not found / unreadable)', async () => {
+  it('best-effort skips when the integration is absent from the loaded map (not found / unreadable)', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest.fn().mockResolvedValue(null);
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
           mcpServers: [{ integrationId: 'missing', enabledTools: ['*'] }],
         }),
       ],
-      { loadIntegration },
+      noLoad,
     );
     expect(res).toEqual([]);
   });
 
-  it('best-effort skips when the loader throws', async () => {
+  it('best-effort skips when the batch loader throws', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest.fn().mockRejectedValue(new Error('db down'));
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
           mcpServers: [{ integrationId: 'x', enabledTools: ['*'] }],
         }),
       ],
-      { loadIntegration },
+      { loadIntegrations: jest.fn().mockRejectedValue(new Error('db down')) },
     );
     expect(res).toEqual([]);
   });
 
   it('reproduces a connected makeshop catalog', async () => {
     process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
-    const loadIntegration = jest.fn().mockResolvedValue(makeshopIntegration());
     const res = await evaluateAiAgentToolPayloadWarnings(
       [
         aiAgentNode({
           mcpServers: [{ integrationId: 'fedcba0987654321' }],
         }),
       ],
-      { loadIntegration },
+      depsOf(makeshopIntegration()),
     );
     expect(res).toHaveLength(1);
     expect(res[0].severity).toBe('warning');
     expect(res[0].params?.culprit).toContain('mcp:');
+  });
+
+  it('batches the integration lookup across multiple ai_agent nodes (single call)', async () => {
+    process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
+    const deps = depsOf(cafe24Integration());
+    const nodes: ToolBudgetGraphNode[] = [
+      aiAgentNode(
+        {
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
+        },
+        { id: 'a', label: 'A' },
+      ),
+      aiAgentNode(
+        {
+          mcpServers: [
+            { integrationId: 'abcdef1234567890', enabledTools: ['*'] },
+          ],
+        },
+        { id: 'b', label: 'B' },
+      ),
+    ];
+    const res = await evaluateAiAgentToolPayloadWarnings(nodes, deps);
+    // 두 노드가 같은 통합을 참조해도 배치 조회는 단일 호출·중복 제거된 id.
+    expect(deps.loadIntegrations).toHaveBeenCalledTimes(1);
+    expect(deps.loadIntegrations).toHaveBeenCalledWith(['abcdef1234567890']);
+    expect(res.map((r) => r.nodeId).sort()).toEqual(['a', 'b']);
   });
 
   it('counts presentation render_* tools toward the budget', async () => {

@@ -15,12 +15,13 @@ owner: developer
   - [x] WorkflowsService: Integration repo 주입 + getGraphWarnings(workspaceId) append + saveCanvas error block
   - [x] `GRAPH_WARNING_KO['ai_agent:tool-payload-budget']` + backend-labels.test P3-C-1 backend-only 목록
 - [x] spec 마감: cross-node-warning-rules status partial→implemented·§8 Planned 제거, ai-agent §10 Planned 제거, 두 spec pending_plans 정리
-- [ ] 8. TEST WORKFLOW (lint[x]·unit·build·e2e)
-- [ ] 9. `/ai-review` + resolution-applier (Critical/Warning>0 시)
+- [x] 8. TEST WORKFLOW (lint·unit·build·e2e 모두 통과, #952 base). 신규 e2e `ai-agent-tool-payload-warning.e2e-spec.ts` 통과(256/256).
+- [x] 9. `/ai-review` (11 reviewer, MEDIUM, Critical 0, Warning 7) + 수동 resolution: W1(N+1/pool/dead-path)·W3(중복)·W5(stale 주석)·W6(.env.example)·W7(CHANGELOG)·INFO#3/#6 fix, W2/W4 수용/후속. TEST WORKFLOW 재통과(lint·unit·build·e2e). RESOLUTION.md 기록.
 - [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/`
 - [ ] PR (항목 A 단독)
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
+> ⚠ **stale base 교정**: 착수 base 가 #951 이었으나 작업 중 origin/main 이 #952(e2e 인프라)로 전진 → rebase 로 교정(silent-revert 방지 + e2e 실 인프라 정합). rebase 의 deps 재설치가 jest 캐시를 무효화해 가려졌던 3건(import 경로·제거 메서드 테스트·count breach env)을 발견·수정.
 
 > 항목 B (resume 턴 timeoutMs+signal) 는 후속 PR — 본 체크리스트 완료 후 착수.
 
@@ -55,6 +56,11 @@ spec: ai-agent §4.2 "저장 시점 경고" / §10 config 경고 계약 / cross-
 - resume 경로는 `ExecutionContext`(abortSignal 보유)를 안 받고 `state` 만 받으므로, orchestrator→state(또는 options)로 abortSignal plumbing 배선 필요.
 - single-turn(`:1533`)도 현재 `timeoutMs` 부재 → 함께 대칭화.
 - 근거: 런타임 payload 가드가 근본 원인을 막지만, 그 외 사유(네트워크·모델 지연)의 hang 에 대한 defense-in-depth.
+
+## 후속 백로그 (본 plan 범위 밖 — ai-review 08_36_49 파생)
+
+- **cafe24/makeshop provider JSON schema·allowlist 중복 추출** (ai-review W4): `build{Cafe24,Makeshop}JsonSchema`·`apply{Cafe24,Makeshop}Allowlist` 가 라인 단위 100% 동일. 항목 A 에서 module-level pure 함수로 승격만 했고(신규 중복 아님), 공유 `buildJsonSchemaFromFields`/`applyAllowlist` 추출은 별도 리팩터. cafe24/makeshop metadata field shape 이 동형이라 제네릭 1개로 통합 가능.
+- **WorkflowsService↔IntegrationsService 통합 조회 parity 테스트** (ai-review W2): 모듈 순환 회피로 `loadIntegrationsForBudget` 가 `getForExecution` 판정(unreadable/not-found)을 복제 → 동작 동치성 회귀 테스트 또는 순환 없는 공용 유틸 추출.
 
 ## Rationale
 
