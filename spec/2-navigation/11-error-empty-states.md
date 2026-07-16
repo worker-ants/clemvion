@@ -8,6 +8,8 @@ code:
   - codebase/frontend/src/app/global-error.tsx
   - codebase/frontend/src/app/(main)/error.tsx
   - codebase/frontend/src/app/(main)/not-found.tsx
+  # §1.3 "`/w/<slug>` 하위 미지의 경로 → 404" 를 발생시키는 주체 (notFound() 호출부)
+  - codebase/frontend/src/app/(main)/[...rest]/page.tsx
   - codebase/frontend/src/app/(main)/w/[slug]/dashboard/page.tsx
   - codebase/frontend/src/app/(main)/w/[slug]/workflows/page.tsx
   - codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx
@@ -68,6 +70,7 @@ code:
 | 네트워크 오류 | API 호출 실패 (네트워크 타임아웃, DNS 실패 등) 시 표시 |
 | 사이드바 표시 | 401: 숨김, 403/404/500/네트워크: 표시 (로그인 상태 유지 중이므로) |
 | 무효/비멤버 워크스페이스 slug | **404/403 아님** — `/w/<slug>/...` 의 slug 가 해석 실패(존재하지 않거나 비멤버)하면 `[slug]` layout 이 렌더하는 공용 `WorkspaceSlugGate` 가 default 워크스페이스로 **FE 레벨 편의 redirect** 한다(인가 경계가 아니며, 헤더 스푸핑 등 실제 인가는 backend `RolesGuard` 403 이 담당). 상세: [9-user-profile §3](./9-user-profile.md#3-워크스페이스-전환), `codebase/frontend/src/lib/workspace/workspace-slug-gate.tsx`(폴백 규칙은 `resolve-fallback.ts` 의 `resolveFallbackWorkspace`). `(main)`·`(editor)` 양 slug layout 이 이 게이트를 공유한다(슬러그 라우팅 phase 2). |
+| `/w/<slug>` 하위 미지의 경로 | **404** — `/w/<slug>/…` 가 어떤 specific route 에도 매칭되지 않으면(예: `/w/<slug>/docs` — `/docs` 는 워크스페이스 밖 라우트) `(main)/[...rest]` catch-all 이 slug 를 재부착하지 않고 `notFound()` 로 종결한다. 재부착 시 무한 리다이렉트가 되기 때문 — [_layout.md §2.2 각주 · R-3](./_layout.md). **위 행과 구분**: 위는 *라우트는 실재하고 slug 해석만 실패* (→ 편의 redirect), 여기는 **라우트 자체가 없는** 경우다. 단 `/w/<slug>` 단독은 그 워크스페이스 dashboard 로 forward(404 아님). |
 
 ---
 

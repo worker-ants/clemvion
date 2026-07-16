@@ -1,18 +1,29 @@
 ---
 title: spec 보강 제안 — (main)/[...rest] catch-all 의 terminal 계약 명문화
-worktree: (unstarted)
+worktree: manual-trigger-default-param-e0d395
 started: 2026-07-17
 owner: project-planner
-status: in-progress
-spec_area: spec/2-navigation/_layout.md
+status: complete
+spec_impact:
+  - spec/2-navigation/_layout.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/2-navigation/10-auth-flow.md
+  - spec/2-navigation/11-error-empty-states.md
+  - spec/data-flow/12-workspace.md
+spec_area: spec/2-navigation/_layout.md, spec/2-navigation/9-user-profile.md, spec/2-navigation/10-auth-flow.md, spec/2-navigation/11-error-empty-states.md, spec/data-flow/12-workspace.md
 ---
 
 > **developer → project-planner 위임 draft.** developer 는 `spec/` 쓰기 권한이 없다
 > (CLAUDE.md §Skill 체계). 본 문서는 **제안 텍스트**이며, project-planner 가
 > `/consistency-check --spec` 통과 후 spec 본문에 반영한다.
 >
-> 선행 PR: `plan/in-progress/user-guide-routing-loop-fix.md` (구현 완료·머지 대기).
+> 선행 PR: `plan/complete/user-guide-routing-loop-fix.md` (구현 완료·머지 대기).
 > 근거 검토: `review/consistency/2026/07/17/00_32_57/SUMMARY.md` INFO #4.
+
+> **`--spec` 사전 검토 (07_03_34)**: **BLOCK: NO** — Critical 0 / Warning 0. INFO 3건 반영:
+> ① `data-flow/12-workspace.md:311` 도 catch-all 을 언급하는 **네 번째 문서** → 제안 5 로 추가,
+> ② 기각 대안이 코드 docstring·완료 plan 에만 있어 발견성이 낮음 → 제안 6(`## Rationale` 기록) 추가,
+> ③ 선행 PR 인용 경로 stale → 위에서 `plan/complete/…` 로 정정.
 
 ## 배경
 
@@ -97,10 +108,50 @@ terminal 계약을 명문화해 그 오독 경로를 닫는 것이 본 제안의
 | `_layout.md` | §2.2 line 85 (catch-all 흡수 + `/docs` slug 밖 예외), line 126 | `components/layout/**` 는 sidebar 를 덮지만 catch-all·href 헬퍼 미포함 | `codebase/frontend/src/app/(main)/[...rest]/page.tsx`<br>`codebase/frontend/src/lib/workspace/href.ts` |
 | `9-user-profile.md` | §3 line 155 ("catch-all 이 활성 slug 로 흡수") | 동일 | 동일 2경로 |
 | `10-auth-flow.md` | §7.2 ("`(main)/[...rest]` catch-all 이 … 해소한다") | 동일 | `codebase/frontend/src/app/(main)/[...rest]/page.tsx` |
+| `11-error-empty-states.md` | §1.3 표 — **제안 3 이 신설하는** "catch-all 이 `notFound()` 로 종결" 약속 | `(main)/not-found.tsx`(404 바운더리)는 있으나 그 404 를 **발생시키는 주체**인 catch-all 이 없음 | `codebase/frontend/src/app/(main)/[...rest]/page.tsx` |
+
+> **`11-error-empty-states.md` 행은 `--spec` 검토(07_03_34) convention_compliance WARNING 으로
+> 추가**됐다 — 제안 3(선택)을 채택하면 그 문서에도 제안 4 와 **동형의 갭이 새로 생긴다**는
+> 지적. 제안 3 을 채택했으므로 함께 메운다(제안 3 을 기각했다면 해당 없음).
 
 > `href.ts` 는 `_layout.md`(사이드바 링크 생성)·`9-user-profile.md`(URL slug = FE 라우팅 SoT)가
 > 함께 약속하는 surface 이므로 두 문서에 넣는 것이 맞다. `10-auth-flow.md` 는 §7.2 의 로그인 후
 > `/dashboard` 흡수만 약속하므로 catch-all 만으로 충분하다.
+
+## 제안 5 — `data-flow/12-workspace.md` 각주 (cross_spec INFO #1)
+
+`spec/data-flow/12-workspace.md:311` 도 catch-all 을 언급하는 **네 번째 문서**다(반증되지는
+않으나 같은 오독 경로를 남긴다). 해당 줄 뒤에 한 줄 추가:
+
+```markdown
+> `/w/` 로 시작하는데 매칭 실패한 경로는 catch-all 이 **흡수하지 않고 종결**한다 —
+> [2-navigation/_layout.md §2.2](../2-navigation/_layout.md) 각주 참조.
+```
+
+## 제안 6 — 기각된 대안을 `## Rationale` 에 기록 (rationale_continuity INFO #2)
+
+terminal 계약에서 **기각된 두 대안**의 근거가 현재 코드 docstring 과 완료된 plan 에만 있어
+발견성이 낮다. CLAUDE.md 의 "결정의 배경·근거 = 해당 spec 문서 끝의 `## Rationale`" 원칙에
+맞춰 `_layout.md` 의 `## Rationale` 에 항목을 추가한다:
+
+```markdown
+### catch-all 의 `/w/` 접두 terminal 계약
+
+`(main)/[...rest]` 는 slug 없는 경로를 활성 slug 로 흡수하지만, **이미 `/w/` 인 경로는
+흡수하지 않고 종결**한다(§2.2 각주). 두 대안을 기각했다:
+
+- **slug 재부착** (최초 구현): `/w/<slug>/docs` 처럼 `w/[slug]` 하위에 없는 세그먼트가
+  catch-all 로 오는데 여기에 slug 를 또 붙이면, 영원히 매칭되지 않는 경로가 사이클마다 한
+  세그먼트씩 길어진다 — `/w/a/docs` → `/w/a/w/a/docs` → … 무한 리다이렉트(실사용자 보고 회귀).
+- **`/w/<slug>` 접두를 떼고 재-forward**: `/w/<slug>/<미지>` → `/<미지>` → catch-all 이 다시
+  prefix → `/w/<slug>/<미지>` → … **ping-pong 무한루프**가 되어 증상만 바뀐다.
+
+따라서 종결이 유일한 무한루프-free 선택지이며, 404 는 [11-error-empty-states §1.3](./11-error-empty-states.md)
+("존재하지 않는 라우트 접근 → 404")의 기존 정책과 정합한다. 관련해 `buildWorkspaceHref` 는
+**의도적으로 비-idempotent** 다 — 이미 `/w/…` 인 path 를 조용히 삼키면 호출자 버그를 은폐하고
+`("team-a", "/w/team-b/x")` 의 정답이 정의되지 않는다. 이 클래스의 실패는 catch-all 의 terminal
+가드가 **가시적 404** 로 떨어뜨린다.
+```
 
 ## 반영 후 코드 측 후속
 
@@ -108,11 +159,24 @@ terminal 계약을 명문화해 그 오독 경로를 닫는 것이 본 제안의
 
 ## 체크리스트
 
-- [ ] project-planner 가 제안 1·2·4 검토 (제안 3 은 선택)
-- [ ] `/consistency-check --spec plan/in-progress/spec-update-catch-all-terminal-contract.md` → BLOCK: NO
-- [ ] spec 본문 반영 (제안 1·2, 선택적으로 3)
-- [ ] 제안 4 — 세 문서 frontmatter `code:` 글로브 보강
-- [ ] 본 plan `plan/complete/` 이동
+- [x] project-planner 가 제안 검토 — 1·2·4 채택, 3(선택)도 채택(무효 slug 행과 혼동되기 쉬워
+      구분선을 표에서 바로 읽히게 하는 값이 큼). `--spec` INFO 로 제안 5·6 추가 채택.
+- [x] `/consistency-check --spec …` (07_03_34) → **BLOCK: NO** (Critical 0 / Warning 0)
+- [x] 제안 1 — `_layout.md` §2.2 각주: terminal 계약 3-행 표 + 무한 리다이렉트 근거.
+      추가로 `workspaceScoped: false` 가 §2.2 예외의 구현 표현임을 명시(회귀 재발 방지 앵커).
+- [x] 제안 2 — `9-user-profile.md` §3: "`/w/` 접두는 흡수 대상 아님" 보정 + R-3 링크
+- [x] 제안 3 — `11-error-empty-states.md` §1.3: "`/w/<slug>` 하위 미지의 경로 → 404" 행 추가.
+      바로 위 "무효/비멤버 slug → 404 아님" 행과의 **구분선**(slug 해석 실패 vs 라우트 부재) 명시
+- [x] 제안 4 — `_layout.md`·`9-user-profile.md`·`10-auth-flow.md` frontmatter `code:` 보강
+- [x] 제안 5 — `data-flow/12-workspace.md:311` 각주 (cross_spec INFO #1)
+- [x] 제안 6 — `_layout.md` `## Rationale` R-3: 기각한 두 대안(재부착·strip 재forward)과
+      `buildWorkspaceHref` 비-idempotent 근거를 코드 docstring 에서 spec 으로 승격 (INFO #2)
+- [x] WARNING #1 조치 — 제안 3 채택으로 `11-error-empty-states.md` 에 **새로 생긴** 동형 `code:` 갭
+      (§1.3 이 "catch-all 이 notFound() 로 종결" 을 약속하는데 `code:` 엔 404 바운더리만 있고
+      그 404 를 **발생시키는 주체**인 catch-all 이 없음) → `(main)/[...rest]/page.tsx` 추가
+- [x] INFO 조치 — `spec_area` 를 실제 대상 5개 문서 콤마 나열로 정정
+- [x] 가드 검증 — `run-test.sh unit` PASS (spec-frontmatter · spec-code-paths · spec-link-integrity)
+- [x] 본 plan `plan/complete/` 이동
 
 ## 출처
 
