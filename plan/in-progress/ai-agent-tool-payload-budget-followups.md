@@ -32,7 +32,9 @@ owner: developer
 - [x] `/ai-review` (router under-select → code reviewer 직접 재실행). **concurrency CRITICAL**: `LlmService.chat` withTimeout 이 timeout signal 을 버려 타임아웃 시 요청 미취소 leak → fix(204b9aed6, signal 병합 전달 + Google chat signal + 회귀 테스트). WARNING(behavior change 문서·tool-loop/timeoutMs=0 테스트) 조치. RESOLUTION 기록.
 - [x] fix 커버 재리뷰(12_23_46): concurrency CRITICAL 해소 확인 + 신규 테스트 open-handle WARNING fix(03e02389e) + embed 동형 버그 후속 task `task_07c120ce` 위임.
 - [x] `/consistency-check --impl-done`(12_22_49): BLOCK NO (5/5 CRITICAL 0). WARNING(§12.16 LLM_TIMEOUT 서술) 정정. error-handling.md drift INFO 는 planner task 이월.
-- [ ] PR #955 갱신 (A+B)
+- [x] PR #955 갱신 (A+B) → https://github.com/worker-ants/clemvion/pull/955
+
+> **항목 A·B 완결** (PR #955). plan 은 아래 "후속 백로그" 미해소로 in-progress 유지 — provider dedup·parity 는 미착수, spec drift(task_3ac39ebd)·embed leak(task_07c120ce)은 별도 task 위임.
 - [ ] (전체 완료 시) 후속 백로그 항목 처분 후 plan/complete 이동
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
