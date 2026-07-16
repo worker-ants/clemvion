@@ -2,6 +2,11 @@
 worktree: .claude/worktrees/control-plane-provider-escape-bc344c
 started: 2026-07-14
 owner: developer
+status: complete
+spec_impact:
+  - spec/4-nodes/7-trigger/providers/telegram.md
+  - spec/5-system/15-chat-channel.md
+  - spec/conventions/chat-channel-adapter.md
 ---
 
 # control-plane 안내 발송 per-provider escape 이관 (F-5 근본 fix)
@@ -66,6 +71,13 @@ F-5 는 **interim 등록 검증**이었고, plan(eia-command-waiting-surface-gua
 - [x] F-5 제거 (LanguageHintsRawSendValidator/TELEGRAM_RAW_SEND_HINT_KEYS/@Validate/DTO 테스트/markdown-v2.ts+spec)
 - [x] spec 동기 (§4.1.1 escape-at-send / §4.1 예제 평문 / R-CC-15 F-5 제거 / providers/telegram §5.8 / chat-channel-adapter §1·§1.1)
 - [x] lint / unit 통과
-- [ ] build / e2e
-- [ ] `/ai-review` + fix
-- [ ] `/consistency-check --impl-done` BLOCK:NO
+- [x] build (PASS 93s) / e2e (PASS 254 tests, 212s)
+- [x] `/ai-review` + fix — 08_30_00 (Critical 0, Warning fix commit `2a2e3a8c7`) + 09_08_38 minimal (재무장 대응, WARNING/INFO fix). 모두 BLOCK:NO
+- [x] `/consistency-check --impl-done` — 08_57_11 BLOCK:NO
+
+## 완료 (2026-07-16)
+
+per-provider escape at send 이관 완료. 어댑터가 `escapeControlText` 로 control-plane 텍스트 escape 를
+소유하고, F-5(등록 시점 MarkdownV2 검증)는 제거됨. cross-provider `\.` literal 노출 버그도 함께 해소.
+배포 시 [마이그레이션 주의](#마이그레이션-주의--이중-escape-배포-점검-ai-review-requirementside_effect-warning) 절의
+telegram languageHints backslash 데이터 점검을 ops 로 선행할 것.
