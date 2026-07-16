@@ -834,6 +834,11 @@ export function useExecutionEvents({
         nodeType?: string;
         nodeLabel?: string;
         input?: unknown;
+        // 엔진은 실패 시에도 `nodeExec.outputData` 를 영속하고 본 payload 에
+        // 동봉한다 (spec/5-system/4-execution-engine.md §7.9 — error 종결은
+        // `output.error` + 부분 `output.result.*` 병존). 이를 버리면 대화형
+        // 노드의 미리보기가 복원 매체를 잃는다 (conversation-thread §9.9 Inv-8).
+        output?: unknown;
         startedAt?: string;
         finishedAt?: string;
         timestamp?: string;
@@ -863,7 +868,7 @@ export function useExecutionEvents({
           nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
           status: "failed",
           error: errorMessage,
-          outputData: null,
+          outputData: payload.output ?? null,
           inputData: payload.input ?? existing?.inputData,
           startedAt: payload.startedAt ?? existing?.startedAt,
         });

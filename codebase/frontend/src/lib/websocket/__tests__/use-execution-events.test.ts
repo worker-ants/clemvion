@@ -1991,6 +1991,41 @@ describe("useExecutionEvents", () => {
       expect(last.systemError?.retryAfterSec).toBeUndefined();
     });
 
+    // spec/conventions/conversation-thread.md §9.10 CT-S15 — 엔진은 실패 시에도
+    // `nodeExec.outputData` 를 영속하고 NODE_FAILED payload 에 `output` 으로
+    // 동봉한다 (spec/5-system/4-execution-engine.md §7.9). 프론트가 이를 버리면
+    // 미리보기가 복원 매체를 잃는다 (Inv-8).
+    it("CT-S15: node.failed carries conversation output into NodeResult.outputData", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      const conversationOutput = {
+        result: { messages: [{ role: "user", content: "ORD-12345" }], turnCount: 2 },
+        error: {
+          code: "LLM_CALL_FAILED",
+          message: "Request timed out.",
+          details: { retryable: true },
+        },
+      };
+
+      failed?.({
+        nodeExecutionId: "11111111-1111-4111-8111-111111111111",
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        nodeLabel: "CS Bot",
+        error: conversationOutput.error,
+        output: conversationOutput,
+      });
+
+      const result = useExecutionStore
+        .getState()
+        .nodeResults.find((r) => r.nodeId === "agent-1");
+      expect(result?.status).toBe("failed");
+      // 회귀 지점: `outputData: null` 하드코딩이면 여기서 실패한다.
+      expect(result?.outputData).toEqual(conversationOutput);
+    });
+
     it("node.completed with output.error APPENDs system_error (multi-turn AI port=error)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();

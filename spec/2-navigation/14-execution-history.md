@@ -210,7 +210,7 @@ Skipped 상태의 노드는 목록에서 제외한다.
 - 노드 이름, 타입 배지, 상태, 소요 시간
 - 서브 탭(노드 레벨): **Preview** / Input / Output / **LLM Usage** (AI 노드에서만) / Config / Error (에러가 있을 때만). 조건부로 **Meta / Port / Status / References** 도 노출된다 — 실행 상세 페이지는 에디터 Run Results 드로어와 **동일한 `ResultDetail` 컴포넌트**를 재사용하므로 서브 탭 전체 구성·조건·기본탭·auto-fallback 은 [Spec 실행 §10.6.1](../3-workflow-editor/3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드) 이 단일 진실(SoT)이다.
 - AI Multi Turn 타임라인에서 assistant 메시지를 선택하면 탭이 메시지 레벨로 전환: **Preview** / **Response** / **Request** / **LLM Usage**
-- 기본 선택 탭: 에러면 Error, outputData가 있으면 Preview, 그 외 Output (§10.6.1 의 retryable-error Preview 예외·auto-fallback 포함)
+- 기본 선택 탭: 에러면 Error, outputData가 있으면 Preview, 그 외 Output (§10.6.1 의 **AI 대화형 오류 종결 시 Preview 예외**(retryable 무관)·auto-fallback 포함)
 
 ### 3.4 Preview 탭
 
@@ -233,7 +233,7 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 #### AI Agent / Information Extractor (multi-turn) 노드
 
-완료된 대화를 채팅 스레드 형태로 표시한다:
+종결된 대화를 채팅 스레드 형태로 표시한다 — **정상 종결(`completed`)뿐 아니라 오류 종결(`failed`)도 포함**한다. 노드 `outputData` 는 실패 시에도 영속되므로(`output.error` + 부분 `output.result.*` 병존 — [Spec 실행 엔진 §7.9](../5-system/4-execution-engine.md)) 새로고침 후에도 대화가 복원되며, 마지막에 `system_error` 가 인라인 표시된다 ([Conversation Thread §9.3](../conventions/conversation-thread.md#93-데이터-소스-선택) 이력 복원 view 행 · [§9.9 Inv-8](../conventions/conversation-thread.md#99-ui-invariants)). 이력 view 의 `system_error` 는 `nodeExecutionId` 를 동봉하지 않으므로 `[다시 시도]` 버튼은 자동 suppress 된다 ([§1.2.1](../conventions/conversation-thread.md#121-system_error-data-shape)):
 - 턴 카운터, 종료 사유 표시
 - User/Assistant 메시지를 버블 형태로 나열
 - Tool Call 배지 (접기/펼치기)

@@ -861,6 +861,12 @@ function SummaryView({
   // 항목으로 노출해 KB 호출이 timeline 에 보이게 한다.
   const items = useMemo(() => {
     if (isLive) return conversationMessages;
+    // 호출자가 이미 정규 변환을 거친 items 를 넘겼으면 그대로 신뢰한다.
+    // 아래 인라인 재파싱은 spec §9.11 의 변환 함수 contract 에 없는 4번째
+    // 경로이며 `output.error` → `system_error` 합성을 하지 못한다 —
+    // `parseHistoryMessages` 가 만든 결과를 여기서 버리면 오류 종결 노드의
+    // 인라인 에러 마커가 통째로 사라진다 (§9.9 Inv-8 / §9.10 CT-S16·CT-S17).
+    if (conversationMessages.length > 0) return conversationMessages;
     const msgsRaw = resolveResultField<unknown[]>(output, "messages");
     if (!Array.isArray(msgsRaw)) return conversationMessages;
     const msgs = msgsRaw as Array<{

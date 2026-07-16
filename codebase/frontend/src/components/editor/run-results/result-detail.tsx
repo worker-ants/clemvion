@@ -996,7 +996,14 @@ export function ResultDetail({
   // https://react.dev/reference/react/useState#storing-information-from-previous-renders
   if (result && activeTabNodeId !== result.nodeId) {
     setActiveTabNodeId(result.nodeId);
-    setActiveTab(result.error ? "error" : "preview");
+    // spec/3-workflow-editor/3-execution.md §10.6.1 디폴트 탭 우선순위 —
+    // "1. Error 최우선" 의 예외: AI 대화형 노드가 오류로 종결되면 Preview 우선.
+    // system_error 가 thread 안에 인라인 표시되므로 오류 정보는 미리보기에서
+    // 그대로 읽히고, Error 탭으로 강제 점프하면 대화 시간축이 끊긴다.
+    // retryable 여부와 무관 (Rationale: conversation-thread.md §8.5).
+    const isConversationResult =
+      isWaitingConversation || isConversationOutput(result.outputData);
+    setActiveTab(result.error && !isConversationResult ? "error" : "preview");
     setHighlightTurnIndex(null);
   }
 
@@ -1036,10 +1043,14 @@ export function ResultDetail({
   const categoryColor = getCategoryColor(result.nodeCategory);
   const isPresentation = result.nodeCategory === "presentation";
 
-  const isCompletedConversation =
-    result.status === "completed" && isConversationOutput(result.outputData);
+  // spec/conventions/conversation-thread.md §9.9 Inv-8 — `status` 를 게이트로
+  // 쓰지 않는다. 엔진은 실패 시에도 outputData 를 영속·emit 하므로 (실행 엔진
+  // §7.9) status 는 대화 데이터의 존재 여부와 무관한 축이다. 옛 코드는
+  // `status === 'completed'` 를 요구해, 대화가 outputData 에 그대로 있는데도
+  // 오류 종결 노드의 미리보기 탭이 통째로 사라졌다.
+  const isConversationHistory = isConversationOutput(result.outputData);
 
-  const isConversationNode = isWaitingConversation || isCompletedConversation;
+  const isConversationNode = isWaitingConversation || isConversationHistory;
 
   // Conversation nodes (AI Agent / Information Extractor) used to take over
   // the entire detail panel — losing access to Output/Config tabs. Now they
@@ -1051,12 +1062,21 @@ export function ResultDetail({
     result.status === "failed" ||
     result.status === "waiting_for_input";
 
-  const historyMessages = isCompletedConversation
+  // spec/conventions/conversation-thread.md §9.3 "오류 종결 · live" 행 — 동일
+  // 대화의 두 매체 중 store 사본만 `system_error.nodeExecutionId` 를 보유해
+  // [다시 시도] 를 활성화할 수 있다 (§1.2.1). 해당 노드의 system_error 를 store
+  // 가 들고 있으면 (= live 세션) store 를 우선하고, 없으면 (새로고침·이력 화면)
+  // outputData 재구성으로 폴백한다 — 그 경로는 retry 를 자동 suppress 한다.
+  const hasLiveSystemError = conversationMessages.some(
+    (m) => m.type === "system_error" && m.systemError?.nodeId === result.nodeId,
+  );
+  const historyMessages = isConversationHistory
     ? parseHistoryMessages(result.outputData)
     : [];
-  const effectiveConversationMessages = isWaitingConversation
-    ? conversationMessages
-    : historyMessages;
+  const effectiveConversationMessages =
+    isWaitingConversation || hasLiveSystemError
+      ? conversationMessages
+      : historyMessages;
 
   const conversationPreview = isWaitingConversation ? (
     <ConversationInspector
@@ -1076,15 +1096,15 @@ export function ResultDetail({
       pendingFormToolCallId={pendingFormToolCallId}
       onSubmitForm={handleAiRenderFormSubmit}
     />
-  ) : isCompletedConversation ? (
-    // failed 상태의 multi-turn 종결 노드도 conversation preview 노출 — 인스펙터
-    // 가 마지막 system_error item 을 표시하고 [다시 시도] 버튼이 활성화된다.
-    // history view 도 onRetryLastTurn 을 prop 으로 받지만 history 의
-    // system_error 는 nodeId 가 빈 문자열이므로 SystemErrorRow 가 자동 suppress
-    // (showRetry = retryable && !!nodeId).
+  ) : isConversationHistory ? (
+    // 정상 종결(completed)과 오류 종결(failed) 모두 여기로 온다 — Inv-8 에 따라
+    // status 로 게이트하지 않는다. live 오류 종결은 store 사본을 써서 인스펙터의
+    // [다시 시도] 가 활성화되고, 새로고침 후 이력 화면은 outputData 재구성이라
+    // system_error 에 nodeExecutionId 가 없어 SystemErrorRow 가 자동 suppress
+    // 한다 (showRetry = retryable && !!onRetry && !!nodeExecutionId).
     <ConversationInspector
       result={result}
-      conversationMessages={historyMessages}
+      conversationMessages={effectiveConversationMessages}
       selectedItemIndex={selectedConversationItemIndex}
       isLive={false}
       isWaitingAiResponse={false}

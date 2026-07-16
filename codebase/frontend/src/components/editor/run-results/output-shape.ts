@@ -150,12 +150,20 @@ export function isConversationOutput(outputData: unknown): boolean {
   const endReason =
     (result?.endReason as string | undefined) ??
     (output.endReason as string | undefined);
+  // 종결 사유 화이트리스트는 backend 의 endReason enum 과 정합해야 한다
+  // (`ai-turn-executor.ts` — `'user_ended' | 'max_turns' | 'condition' | 'error'`,
+  // + IE/single-turn 의 `'completed'` / `'max_retries'`). `error` / `condition`
+  // 누락은 drift 였다 — 대화가 outputData 에 그대로 있는데도 미리보기가 사라졌다
+  // (spec/conventions/conversation-thread.md §9.9 Inv-8 — status·종결사유는
+  // 대화 데이터의 존재 여부와 무관한 축).
   const looksLikeConversationEnd =
     hasResultMessages &&
     (endReason === "completed" ||
       endReason === "user_ended" ||
       endReason === "max_turns" ||
-      endReason === "max_retries");
+      endReason === "max_retries" ||
+      endReason === "condition" ||
+      endReason === "error");
   // Canonical waiting shape: the structured envelope has
   // `status === 'waiting_for_input'` and `output.messages` is the live
   // conversation snapshot. This catches payloads where `meta.interactionType`

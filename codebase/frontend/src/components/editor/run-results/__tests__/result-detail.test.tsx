@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ResultDetail } from "../result-detail";
 import type { NodeResult } from "@/lib/stores/execution-store";
+import {
+  ctS15RetryableFailedConversation,
+  ctS16NonRetryableFailedConversation,
+  ctS17HistoryFailedConversation,
+} from "./fixtures/conversation-scenarios";
 
 // Mock ws-client
 vi.mock("@/lib/websocket/ws-client", () => ({
@@ -859,6 +864,96 @@ describe("ResultDetail", () => {
       expect(screen.getByText("턴 1")).toBeDefined();
       // 그리고 scrollIntoView 가 호출돼 자동 스크롤이 일어났어야 한다.
       expect(scrollSpy).toHaveBeenCalled();
+    });
+  });
+
+  // spec/conventions/conversation-thread.md §9.10 CT-S15 / CT-S16 / CT-S17
+  // — 오류 종결 대화 노드의 렌더 도달성 (§9.9 Inv-8).
+  //
+  // 회귀 배경: 옛 게이트가 `status === 'completed'` 를 요구해, 엔진이 outputData
+  // 에 대화를 그대로 실어 보냈는데도 오류 종결 노드의 미리보기 탭이 통째로
+  // 사라졌다. store 보존(Inv-6)만으로는 이 증상을 막지 못한다.
+  describe("오류 종결 대화 노드의 미리보기 도달성 (CT-S15/S16/S17, Inv-8)", () => {
+    function makeFailedAgent(outputData: unknown): NodeResult {
+      return makeResult({
+        nodeType: "ai_agent",
+        nodeCategory: "ai",
+        status: "failed",
+        error: "Request timed out.",
+        outputData,
+      });
+    }
+
+    it("CT-S15: retryable 오류 종결 — 미리보기에 대화 전체 + system_error 노출, 재시도 활성", () => {
+      const fx = ctS15RetryableFailedConversation;
+      render(
+        <ResultDetail
+          result={makeFailedAgent(fx.outputData)}
+          {...defaultProps}
+          conversationMessages={fx.storeMessages as never}
+        />,
+      );
+
+      // 미리보기 탭 자체가 존재해야 한다 (옛 회귀: 탭 소멸).
+      expect(screen.getByText("미리보기")).toBeDefined();
+      // 대화 전체가 보존돼 보인다.
+      expect(screen.getByText("주문 상태 확인")).toBeDefined();
+      expect(screen.getByText("ORD-12345")).toBeDefined();
+      // system_error 가 thread 안 마지막에 인라인 표시.
+      expect(screen.getByText(/Request timed out/)).toBeDefined();
+      // live store 사본이 nodeExecutionId 를 들고 있으므로 재시도 노출.
+      expect(screen.getByText("다시 시도")).toBeDefined();
+    });
+
+    it("CT-S16: non-retryable 오류 종결 — 기본 탭이 미리보기, 재시도 미노출", () => {
+      render(
+        <ResultDetail
+          result={makeFailedAgent(ctS16NonRetryableFailedConversation.outputData)}
+          {...defaultProps}
+        />,
+      );
+
+      // §10.6.1 예외(retryable 무관) — Error 탭으로 강제 점프하지 않는다.
+      // 이것이 본 작업이 확장해 새로 얻는 동작이다.
+      expect(screen.getByText("주문 상태 확인")).toBeDefined();
+      expect(screen.getByText(/Invalid API key/)).toBeDefined();
+      // non-retryable 은 액션 영역이 비어있다 (§9.1).
+      expect(screen.queryByText("다시 시도")).toBeNull();
+    });
+
+    it("CT-S17: 새로고침 후 이력 화면 — outputData 만으로 복원, 재시도 자동 suppress", () => {
+      const fx = ctS17HistoryFailedConversation;
+      render(
+        <ResultDetail
+          result={makeFailedAgent(fx.outputData)}
+          {...defaultProps}
+          conversationMessages={fx.storeMessages as never}
+        />,
+      );
+
+      // store 가 비어도 outputData 재구성으로 대화가 복원된다.
+      expect(screen.getByText("미리보기")).toBeDefined();
+      expect(screen.getByText("주문 상태 확인")).toBeDefined();
+      expect(screen.getByText("ORD-12345")).toBeDefined();
+      // history 합성 system_error 는 nodeExecutionId 부재 → retry suppress (§1.2.1).
+      expect(screen.queryByText("다시 시도")).toBeNull();
+    });
+
+    it("비대화형 노드는 기존대로 오류 탭 기본 — ED-EX-13 일반 원칙 보존", () => {
+      render(
+        <ResultDetail
+          result={makeResult({
+            nodeType: "http_request",
+            nodeCategory: "integration",
+            status: "failed",
+            error: "Connection timeout",
+            outputData: null,
+          })}
+          {...defaultProps}
+        />,
+      );
+
+      expect(screen.getByText(/Connection timeout/)).toBeDefined();
     });
   });
 });
