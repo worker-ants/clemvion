@@ -120,6 +120,10 @@ export function useWidget() {
   // start() 는 webhook POST await 후 자기 gen 이 여전히 최신일 때만 persist/openStream 을 진행한다 →
   // booting/초기 streaming 중 종료·새 대화가 옛 execution 을 되살리는 race 차단(teardown 이 gen 증가).
   const startGenRef = useRef(0);
+  // `seedWaitingFromStatus`(아래 정의) 를 그보다 위에 있는 `handleEiaEvent` 에서 쓰기 위한 ref 홀더.
+  const seedWaitingFromStatusRef = useRef<
+    ((client: EiaClient, session: SessionRef) => Promise<void>) | null
+  >(null);
 
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약·cancelled 가드는 useTokenRefresh 캡슐화(§B).
   const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({ sessionRef, clientRef, configRef });
@@ -168,6 +172,13 @@ export function useWidget() {
         // 렌더 경로(text/presentations 분리 렌더)를 재사용한다(이중 텍스트 방지).
         const { presentations } = parseMessage(data as ExecutionMessageEvent);
         if (presentations) dispatch({ type: "AI_MESSAGE", text: "", presentations });
+      } else if (name === "execution.replay_unavailable") {
+        // EIA 5분 버퍼 만료 — `seq > Last-Event-Id` 누락분 재전송 불가라는 서버 신호(EIA §5.2·NF-03).
+        // 1-widget-app §3.1: getStatus snapshot(현재 conversationThread, EIA §5.3)으로 폴백해
+        // 재동기화한다. **종료 신호가 아니므로 스트림·세션은 유지** — 이후 이벤트는 정상 처리된다.
+        const client = clientRef.current;
+        const session = sessionRef.current;
+        if (client && session) void seedWaitingFromStatusRef.current?.(client, session);
         // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
@@ -250,6 +261,11 @@ export function useWidget() {
     },
     [],
   );
+
+  // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만, 정의는 아래에
+  // 있다(선언 순서상 TDZ). ref 로 노출해 순환 의존/재정렬 없이 참조한다 — `seedWaitingFromStatus` 는
+  // deps `[]` 로 stable 하므로 최초 1회 대입으로 충분하다.
+  seedWaitingFromStatusRef.current = seedWaitingFromStatus;
 
   const persist = useCallback((cfg: BootMessage, res: HookStartResponse) => {
     if (!res.interaction) return null;

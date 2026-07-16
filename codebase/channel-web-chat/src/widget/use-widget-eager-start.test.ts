@@ -69,11 +69,36 @@ function installFetch(overrides?: { webhookStatus?: number }) {
 }
 
 /**
+ * `ControllableEventSource` 를 반환하는 EventSource stub 만 설치한다 (fetch 는 건드리지 않음).
+ * fetch 동작이 케이스마다 다른(deferred hook / interact 410 등) 테스트가 SSE 주입만 공유하려고
+ * 쓴다 — fetch 까지 표준으로 묶고 싶으면 {@link installControllableSse} 를 쓴다.
+ *
+ * constructor 가 자신과 다른 인스턴스를 반환하면 TS 가 instance type 불일치(TS2409)를 내므로
+ * `as unknown as this` 로 우회하고, stubGlobal 인자 타입은 `typeof EventSource` 로 캐스팅한다.
+ * 런타임 동작 불변.
+ *
+ * @returns `getEs()` — 가장 최근에 생성된 인스턴스(없으면 null). `getEs()?.emit(...)` 으로 주입.
+ */
+function installControllableEventSource(): {
+  getEs: () => ControllableEventSource | null;
+} {
+  let latest: ControllableEventSource | null = null;
+  vi.stubGlobal("EventSource", class {
+    constructor() {
+      latest = new ControllableEventSource();
+      return latest as unknown as this;
+    }
+    addEventListener() {}
+    close() {}
+  } as unknown as typeof EventSource);
+  return { getEs: () => latest };
+}
+
+/**
  * ControllableEventSource + fetch(embed-config reject, webhook 202, interact 202) 설치.
  * SSE 이벤트를 수동 주입하는 C1 flush/폐기 테스트 공용. `getEs()` 로 최신 인스턴스 접근.
  */
 function installControllableSse() {
-  let latest: ControllableEventSource | null = null;
   const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
     const u = String(url);
     if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
@@ -96,19 +121,8 @@ function installControllableSse() {
     return Promise.reject(new Error(`unexpected fetch ${u}`));
   });
   vi.stubGlobal("fetch", fetchMock);
-  // EventSource stub: constructor 가 ControllableEventSource 인스턴스를 반환해 테스트가
-  // latest.emit() 으로 SSE 이벤트를 주입한다. anonymous class constructor 가 자신과 다른
-  // 인스턴스를 반환하면 TS 가 instance type 불일치(TS2409)를 내므로 `as unknown as this` 로
-  // 우회하고, stubGlobal 인자 타입은 `typeof EventSource` 로 캐스팅한다. 런타임 동작 불변.
-  vi.stubGlobal("EventSource", class {
-    constructor() {
-      latest = new ControllableEventSource();
-      return latest as unknown as this;
-    }
-    addEventListener() {}
-    close() {}
-  } as unknown as typeof EventSource);
-  return { fetchMock, getEs: () => latest };
+  const { getEs } = installControllableEventSource();
+  return { fetchMock, getEs };
 }
 
 function boot() {
@@ -209,7 +223,6 @@ describe("useWidget — eager 시작(§R6)", () => {
   // C1 회귀 테스트 — 런처 버블/추천질문 탭 후 텍스트 유실 없음(queue-and-flush).
   it("C1: open 직후(booting) submitMessage → 첫 ai_conversation waiting 도착 시 submit_message 로 flush(텍스트 유실 없음)", async () => {
     // ControllableEventSource 로 SSE 이벤트를 수동 주입.
-    let latestEs: ControllableEventSource | null = null;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
       if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
@@ -232,11 +245,7 @@ describe("useWidget — eager 시작(§R6)", () => {
       return Promise.reject(new Error(`unexpected fetch ${u}`));
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("EventSource", class {
-      constructor() { latestEs = new ControllableEventSource(); return latestEs as unknown as this; }
-      addEventListener() {}
-      close() {}
-    } as unknown as typeof EventSource);
+    const { getEs } = installControllableEventSource();
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -253,7 +262,7 @@ describe("useWidget — eager 시작(§R6)", () => {
 
     // SSE waiting_for_input 이벤트 주입 → awaiting_user_message 진입 → flush effect 가 submit_message 호출.
     act(() => {
-      latestEs?.emit("execution.waiting_for_input", {
+      getEs()?.emit("execution.waiting_for_input", {
         type: "ai_conversation",
         nodeId: "n1",
         config: {},
@@ -434,7 +443,6 @@ describe("useWidget — eager 시작(§R6)", () => {
   // R9-A W1 — booting 중 큐잉된 텍스트는 coalesce(clearQueue)로 폐기되어 흡수 세션으로 누수되지 않는다(I1).
   it("R9-A: booting 중 큐잉 텍스트는 coalesce 시 폐기(흡수 세션 누수 없음, I1)", async () => {
     let resolveHook!: (v: Response) => void;
-    let latestEs: ControllableEventSource | null = null;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
       if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
@@ -447,14 +455,7 @@ describe("useWidget — eager 시작(§R6)", () => {
       return Promise.reject(new Error(`unexpected fetch ${u}`)); // getStatus seed → soft-fail
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("EventSource", class {
-      constructor() {
-        latestEs = new ControllableEventSource();
-        return latestEs as unknown as this;
-      }
-      addEventListener() {}
-      close() {}
-    } as unknown as typeof EventSource);
+    const { getEs } = installControllableEventSource();
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -486,11 +487,11 @@ describe("useWidget — eager 시작(§R6)", () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
-    await waitFor(() => expect(latestEs).not.toBeNull());
+    await waitFor(() => expect(getEs()).not.toBeNull());
 
     // 첫 ai_conversation(텍스트 표면) 도달 → 큐가 남아있었다면 여기서 submit_message flush.
     act(() => {
-      latestEs?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n1", conversationThread: [] });
+      getEs()?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n1", conversationThread: [] });
     });
     await waitFor(() => expect(result.current.state.pending?.type).toBe("ai_conversation"));
     await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
@@ -914,7 +915,6 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
   });
 
   it("종료 명령이 실패(410)해도 optimistic 로컬 종료 유지 — phase=ended, 저장세션 정리", async () => {
-    let latest: ControllableEventSource | null = null;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
       if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
@@ -938,11 +938,7 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
       return Promise.reject(new Error(`unexpected fetch ${u}`));
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("EventSource", class {
-      constructor() { latest = new ControllableEventSource(); return latest as unknown as this; }
-      addEventListener() {}
-      close() {}
-    } as unknown as typeof EventSource);
+    const { getEs } = installControllableEventSource();
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -956,7 +952,7 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     // 명령은 410 으로 실패했지만 로컬은 종료 상태를 유지하고 저장세션도 정리됐다.
     expect(result.current.state.phase).toBe("ended");
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
-    expect(latest).not.toBeNull();
+    expect(getEs()).not.toBeNull();
   });
 
   it("booting 중(webhook in-flight) 종료 → 뒤늦게 도착한 start 결과가 세션을 되살리지 않음(gen guard)", async () => {
@@ -1067,7 +1063,6 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
   });
 
   it("submit_message 명령이 410(Gone) → phase ended (대화 종료됨, host conversationEnded 통지 경로)", async () => {
-    let latest: ControllableEventSource | null = null;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
       if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
@@ -1091,11 +1086,7 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
       return Promise.reject(new Error(`unexpected fetch ${u}`));
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("EventSource", class {
-      constructor() { latest = new ControllableEventSource(); return latest as unknown as this; }
-      addEventListener() {}
-      close() {}
-    } as unknown as typeof EventSource);
+    const { getEs } = installControllableEventSource();
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -1103,7 +1094,7 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     act(() => result.current.actions.open());
     await waitFor(() => expect(webhookPosts(fetchMock).length).toBe(1));
     act(() =>
-      latest?.emit("execution.waiting_for_input", {
+      getEs()?.emit("execution.waiting_for_input", {
         interactionType: "ai_conversation",
         waitingNodeId: "n1",
         nodeOutput: { conversationConfig: {} },
@@ -1118,5 +1109,83 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     // interact 410 → ENDED(reason gone) → phase ended.
     await waitFor(() => expect(result.current.state.phase).toBe("ended"));
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+});
+
+describe("useWidget — 버퍼 만료 재동기화(execution.replay_unavailable, §3.1)", () => {
+  /**
+   * EIA 5분 버퍼 만료 신호를 받으면 getStatus snapshot 으로 폴백해 재동기화한다.
+   * spec `7-channel-web-chat/1-widget-app.md §3.1` — 서버 emit·리스너 등록은 기존에
+   * 있었으나 소비 분기가 없어 no-op 이던 것을 배선(2026-07-17).
+   */
+  it("replay_unavailable 수신 → getStatus 재조회로 현재 표면 재동기화(스트림 유지)", async () => {
+    let statusCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      // getStatus(= endpoints.status, GET) — 버퍼 만료 후 폴백이 조회하는 스냅샷.
+      // 첫 호출(start 직후 seed)은 waiting 표면 없음, 2번째(replay_unavailable 폴백)에서 표면 반환.
+      if (u.endsWith("/api/external/executions/e1") && init?.method === undefined) {
+        statusCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data:
+              statusCalls === 1
+                ? { executionId: "e1", status: "running" }
+                : {
+                    executionId: "e1",
+                    status: "waiting_for_input",
+                    context: {
+                      interactionType: "ai_conversation",
+                      waitingNodeId: "n-resync",
+                      conversationThread: {
+                        turns: [{ source: "ai_assistant", text: "버퍼 만료 후 복구된 메시지" }],
+                      },
+                    },
+                  },
+          }),
+        } as Response);
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    await waitFor(() => expect(statusCalls).toBe(1)); // start 직후 seed 1회
+
+    // 서버가 버퍼 만료를 알림 → 폴백 재동기화가 getStatus 를 1회 더 호출해야 한다.
+    act(() => {
+      getEs()?.emit("execution.replay_unavailable", { executionId: "e1" });
+    });
+
+    await waitFor(() => expect(statusCalls).toBe(2));
+    // 스냅샷의 현재 표면이 반영된다 — 종료가 아니므로 phase 는 ended 가 아니다.
+    await waitFor(() =>
+      expect(result.current.state.messages.some((m) => m.text === "버퍼 만료 후 복구된 메시지")).toBe(true),
+    );
+    expect(result.current.state.phase).not.toBe("ended");
   });
 });
