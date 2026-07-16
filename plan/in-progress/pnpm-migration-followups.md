@@ -71,7 +71,11 @@ native·workspace symlink 는 격리 트리에서 전부 green — 이득(위생
   prod `express@^5.2.1`(NestJS express 어댑터 API 직접 사용: `json`/`urlencoded`/`Express.*`),
   prod `ip-address@^10.2.0`(auth-config IP/CIDR 검증), prod `dotenv@^17.4.1`(운영 ops 스크립트),
   dev `@jest/globals@^30.0.0`(spec 파일). 모두 **기존 전이 의존의 해소 버전과 동일** — 신규 버전 0.
-- `pnpm-lock.yaml`: 위 4개 직접 의존 edge 추가(버전 churn 0). node-linker 자체는 lockfile 에 무영향.
+- `pnpm-lock.yaml`: 위 4개 직접 의존 edge 추가(4개 edge 자체 버전 churn 0). 신규 top-level 의존
+  추가에 따른 통상적 재해소로 dev-tooling 부수 churn 동반 — `eslint-plugin-import` peer-descriptor
+  재전개(버전 불변), `jest-validate`→`picomatch` patch 재해소(`4.0.4`→`4.0.5`, override `^4.0.4` 범위 내,
+  둘 다 기존 lockfile 에 있던 값). §2 의 "override 재해소 시 benign patch bump 동반" 선례와 동일 성격.
+  node-linker 전환 자체는 lockfile 그래프에 무영향(hoisted↔isolated 재링크는 byte-identical).
 - 주석 갱신(stale hoisted 서술 → isolated): `pnpm-workspace.yaml`·backend/frontend `Dockerfile`·
   `next.config.ts`·`docker-compose.e2e.yml`. (Dockerfile 빌드 **명령**은 불변 — injected `pnpm deploy`·
   standalone COPY 레이아웃이 isolated 에서 그대로 동작.)

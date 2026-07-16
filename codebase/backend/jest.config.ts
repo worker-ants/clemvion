@@ -17,9 +17,10 @@ const config: Config = {
   // ESM-only packages must be transformed. uuid >=12, p-limit >=4, yocto-queue;
   // otplib >=13 rewrite ships ESM + pulls ESM-only @otplib/*, @scure/base,
   // @noble/hashes (totp.service uses otplib for 2FA).
-  // The optional `\.pnpm/[^/]+/node_modules/` prefix is a leftover from a prior
-  // pnpm install — kept for forward-compat if anyone reintroduces pnpm locally,
-  // though the project itself now standardizes on npm (see CLAUDE.md).
+  // The optional `\.pnpm/[^/]+/node_modules/` prefix matches pnpm's isolated
+  // layout (node-linker=isolated, .npmrc): transitive deps resolve under
+  // `.pnpm/<pkg>@<ver>/node_modules/<pkg>` rather than a flat top-level dir, so
+  // this branch is the live path these ESM packages are found through.
   transformIgnorePatterns: [
     'node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?(?:uuid|p-limit|yocto-queue|otplib|@otplib|@scure|@noble)/)',
   ],
@@ -37,7 +38,7 @@ const config: Config = {
   // loaded at *import* time — pulled in transitively by knowledge-base parser
   // specs that never actually parse a PDF. `pdf.parser.ts` now `require`s
   // pdf-parse lazily on first parse, so the addon never loads during unit tests
-  // and `npm test -- --detectOpenHandles` reports zero handles. If a future
+  // and `pnpm test -- --detectOpenHandles` reports zero handles. If a future
   // change reintroduces a leak, that flag is the diagnostic; close the resource
   // in afterAll rather than re-adding forceExit. The run-test.sh watchdog
   // remains the backstop for a hang *during* execution.
