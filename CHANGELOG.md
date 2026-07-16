@@ -11,6 +11,8 @@
 
 > 검증: playwright e2e 신규 5건(사용자 보고 흐름 · stale `/w/<slug>/docs` 의 404 종결 · 워크스페이스 루트 forward). 유닛은 `useParams` 를 mock 하므로 실제 Next 라우트 매칭과 클라이언트 `notFound()` 실동작을 증명할 수 없어 브라우저 레벨 검증이 본질이다.
 
+SoT: `spec/2-navigation/_layout.md §2.2`(User Guide 의 slug 밖 예외), `spec/2-navigation/9-user-profile.md §3`(URL slug = FE 라우팅 SoT), `spec/2-navigation/11-error-empty-states.md §1.3`(존재하지 않는 라우트 접근 → 404).
+
 ## Unreleased — AI Agent LLM chat 호출 app-level 타임아웃 (defense-in-depth, §12.16)
 
 도구 payload 예산 가드레일의 후속(항목 B). payload 가드가 팽창發 hang 의 근본 원인을 막지만, 그 외(네트워크 지연·모델 stall)의 무기한 hang 백스톱이 없었다.
