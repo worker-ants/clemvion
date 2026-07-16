@@ -48,7 +48,10 @@ describe("plan-frontmatter guard", () => {
       fs.existsSync(path.join(root, "plan", "in-progress")),
       `repoRoot missing plan/in-progress/: ${root}`,
     ).toBe(true);
-    expect(plans.length).toBeGreaterThan(20);
+    // 하한은 "discovery 가 살아있는가" 만 본다 — in-progress plan 수는 grooming 으로
+    // 정상적으로 줄어드는 값이라 실제 개수에 가깝게 잡으면 plan 을 닫을 때마다 깨진다
+    // (2026-07-17: 종전 `> 20` 이 grooming 후 정확히 20 이 되어 발화).
+    expect(plans.length).toBeGreaterThan(5);
     // 특정 plan 파일명에 의존하지 않는다 — 그 파일이 complete/ 로 이동하면 테스트가
     // 깨지는 fragility 회피(ai-review WARNING#1). discovery 가 plan/in-progress 의
     // 실제 .md 만 반환하는지로 sanity (잘못된 디렉토리 스캔 → vacuous pass 방지).

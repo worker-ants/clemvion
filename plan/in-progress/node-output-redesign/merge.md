@@ -85,7 +85,8 @@ Merge 는 **데이터 변형 노드** (단계 1개). 여러 입력 → `outputFo
 - output shape 가변성은 merge 의 본질이므로 수정 대상 아님 — `config.outputFormat` 으로 분기 식별.
 - `meta.skippedKeys` 와 `meta.dormantFields` 는 silent 실패 가시화 (Principle 3) — 필수.
 - `meta.strategy` / `outputFormat` echo 의 의미는 약하나 호환성 영향 있어 본 plan 은 검토 항목으로만 표시 — 결정은 review 단계.
-- P1 → P2 활성화 시점에 `MERGE_TIMEOUT` 코드와 함께 `error` 포트가 추가될 가능성 (spec §6 footnote) — 본 plan 은 P1 시점 정의만 다룸.
+- ~~P1 → P2 활성화 시점에 `MERGE_TIMEOUT` 코드와 함께 `error` 포트가 추가될 가능성 (spec §6 footnote) — 본 plan 은 P1 시점 정의만 다룸.~~
+  **갱신 (2026-07-17)**: barrier 활성화가 **P2 → P3(무기한 dormant)** 로 격하됐다 — ADR [`11-merge.md §Rationale R-wontdo-async-fanin`](../../../spec/4-nodes/1-logic/11-merge.md). 근거: 활성화의 선결 조건이던 "엔진 비동기 dispatch 모델 도입" 을 실행 엔진이 **명시 기각**(`4-execution-engine.md` §4 "per-node task queue 는 채택하지 않는다"). 따라서 `MERGE_TIMEOUT`/`error` 포트 추가는 **예정된 미래가 아니며**, 엔진이 결정을 번복하지 않는 한 도입되지 않는다. 본 plan 의 P1 시점 정의는 사실상 **항구적 정의**로 봐도 무방하다.
 
 ## 구현 분석 (2026-05-16)
 
@@ -105,7 +106,7 @@ Merge 는 **데이터 변형 노드** (단계 1개). 여러 입력 → `outputFo
    - `warningRules` (`merge.schema.ts:90-113`) 가 이제 3개 정의: `merge:no-strategy` + `merge:timeout-dormant` (`when: 'timeout > 0'`) + `merge:partial-on-timeout-dormant` (`when: 'partialOnTimeout'`). → (2026-06-25) **CHANGED**: 후자 둘은 `severity` 미명시 → evaluator 기본 `blocking` (`metadata-validation.ts:evaluateMetadataValidation` declarative 기본값) 이라 `timeout>0` / `partialOnTimeout=true` 가 이제 validate 에서 **차단 에러로 집계**됨 (spec §6 명문화 — "dormant = 런타임 무영향이지 검증 무영향이 아니다"). 2026-05-16 시점엔 `merge:no-strategy` 단일이라 dormant 필드가 validate 를 통과했음.
    - **gap2 (해소)**: `merge.schema.ts:75-89` 의 주석이 frontend formatter 의 `inputCount` 필드를 schema 에 미반영 사실을 명시 — 마이그레이션 노트. → (2026-06-25) 해소: FORMATTERS 전면 제거, frontend `node-config-summary.ts:71` 이 `evaluateWarnings(config, def?.warningRules)` SSOT 직접 소비. `inputCount` 룰은 의도대로 미추가 (fan-in count 는 predecessor edge 에서 암시).
 
-4. **에러 컨트랙트 (Principle 3)**: pre-flight throw 만 — runtime `port:'error'` 없음 (spec §6 명시). 부합. P2 에서 `MERGE_TIMEOUT` 도입 가능성 footnote.
+4. **에러 컨트랙트 (Principle 3)**: pre-flight throw 만 — runtime `port:'error'` 없음 (spec §6 명시). 부합. ~~P2 에서 `MERGE_TIMEOUT` 도입 가능성 footnote.~~ → **P3 로 격하 (2026-07-17 ADR `R-wontdo-async-fanin`)** — 엔진이 per-node 비동기 dispatch 를 도입하지 않는 한 도입 예정 없음.
 
 5. **conventions Principle 0–11 위반 패턴**:
    - Principle 1.1 (config ↔ output 직교): `output` 은 runtime 변형 결과, `config.strategy` / `outputFormat` 은 raw. 직교 부합.
@@ -132,6 +133,7 @@ Merge 는 **데이터 변형 노드** (단계 1개). 여러 입력 → `outputFo
 ## 종합 개선안 (2026-05-16)
 
 - [x] (spec) `meta.strategy` / `meta.outputFormat` 중복 처리 결정 명시 — (a) 제거 후 `config.*` 만 사용, (b) 유지 (현 정책) 중 하나로 spec footnote 명문화. 호환성 영향: 다운스트림 expression 이 `$node["X"].meta.outputFormat` 을 분기 키로 사용 중일 가능성. — ✅ (2026-06-25) (b) 유지 결정 명문화: spec §5.1 표(`spec/4-nodes/1-logic/11-merge.md:138-139`) "config echo 와 의미 동일하나 meta 측에서도 분기 키로 사용 가능" + §5.2(`spec:192-193`) "meta echo, 동일한 값". 구현 echo 는 `merge.handler.ts:146-147`.
+- [ ] **(product-decision, 이관 2026-07-17)** **영구 dormant 필드의 UX 처리 확정** — `timeout` / `partialOnTimeout` 이 [ADR `R-wontdo-async-fanin`](../../../spec/4-nodes/1-logic/11-merge.md) 으로 **무기한 dormant** 확정됐음에도 schema/UI 에 계속 노출되며, 값을 설정하면 `warningRules`(`merge:timeout-dormant`·`merge:partial-on-timeout-dormant`)가 `severity` 미명시 → evaluator 기본값 **`blocking`** 으로 평가돼 **캔버스 배지 + `handler.validate` 차단 에러**를 낸다. 즉 사용자에게 "설정 가능해 보이는 필드를 설정하면 워크플로가 저장/검증에서 막히는" UX 다. 선택지: **(a) 필드 제거**(schema/UI 에서 삭제 — 기존 워크플로의 저장값 처리 필요) / **(b) severity 완화**(`warning` 으로 명시 → 배지만, 차단 안 함) / **(c) 현행 유지**(차단이 오히려 명확한 신호라는 입장). **제품 결정 사항이라 ADR 이 의도적으로 미정으로 남겼다** — 원 plan [`merge-p2-async-fanin.md`](../../complete/merge-p2-async-fanin.md) 이 `complete/` 로 종결되며 이 결정의 durable 소유자가 사라져(consistency `00_55_57` plan_coherence WARNING#3) 본 plan 이 승계한다. *(ADR 본문 말미에도 동일 이슈를 기록해 spec 측 durable 앵커를 유지.)*
 - [ ] (impl) `merge.schema.ts:37-47` 의 `timeout` zod 에 `.nonnegative()` 추가 — schema 단계에서 음수 거부. 현 handler.validate 와 중복 가드 제거 가능. 근거: `merge.handler.ts:59-61` (handler 가드만 존재) vs `merge.schema.ts:37-47` (여전히 `z.number().int().default(300)`, 2026-06-25 재확인 잔여).
 - [x] (impl) `merge.handler.ts:138-139` 의 `rawConfig.strategy ?? DEFAULT_STRATEGY` 패턴 검토 — undefined echo 가 Principle 7 의도라면 `??` 제거, default 폴백 의도라면 spec 본문에 echo 정책 명시. — ✅ (2026-06-25) default 폴백 의도로 확정·명문화: spec §4 step5(`spec:82`) + §5.1 표(`spec:131-132`)가 `rawConfig.strategy ?? 'wait_all'` (DEFAULT 폴백) echo 를 명시. 구현 `merge.handler.ts:127`(`rawConfig = context.rawConfig ?? config`), `:138-139`.
 - [ ] (impl) `merge.handler.spec.ts` 에 `rawConfig` 우선 echo 테스트 추가 — `context.rawConfig ≠ config` 케이스 (enum 필드는 의미 약하나 일관성). 2026-06-25 재확인: validate/execute describe 블록 모두 `context.rawConfig` 를 별도 세팅하는 테스트 없음 (잔여). 함께 권장: dormant warningRule blocking validate 테스트 (`timeout>0` 차단, `merge.schema.ts:100-112`).

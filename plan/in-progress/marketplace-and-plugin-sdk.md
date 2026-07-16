@@ -58,6 +58,7 @@ owner: developer
 - [ ] 사이드바 메뉴 추가 (현재 PRD 1 §2 에 명시되어 있지만 노출 안 됨)
 - [ ] 단위/통합 테스트
 - [ ] PRD 1 §3.10 NAV-MP-01~07 + PRD 4 MP-CT-01 / MP-CS-01~06 / MP-PB-01~03 부분 갱신 (워크플로 템플릿만)
+- [ ] **(이관 2026-07-17, `spec-sync-workflow-list-gaps` 종결분)** 워크플로 목록 **빈 상태의 마켓플레이스 템플릿 추천 링크** — [`spec/2-navigation/1-workflow-list.md §2.7`](../../spec/2-navigation/1-workflow-list.md) 이 약속하나 미구현(Planned). **마켓플레이스 라우트 부재가 선행 차단**이었으므로(링크할 대상이 없음) Phase A 의 `/marketplace` 페이지가 생기는 시점에 함께 구현한다. 이 항목 때문에 `1-workflow-list.md` 가 `status: partial` + `pending_plans: marketplace-and-plugin-sdk.md` 를 유지한다.
 
 ### Phase B: AI Agent 프리셋
 

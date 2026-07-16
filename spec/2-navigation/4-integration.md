@@ -940,6 +940,8 @@ window.close();
 - **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패. **백그라운드 갱신**: 6시간 주기 `cafe24-background-refresh` 잡 (§11.1) 이 `lastRotatedAt < now - 7d OR IS NULL` 인 connected cafe24 통합을 `cafe24-token-refresh` 큐로 enqueue 해 14일 idle 통합의 refresh_token 도 자동 갱신한다. **0d 만료 자가 회복**: 백그라운드 갱신이 도달하기 전 (또는 그 외 어떤 이유로) access_token 만료가 발생해 `connected-expiry` 일일 잡의 `0d` 임계에 매칭되면, scanner 가 cafe24 행을 `expired` 로 격하하는 대신 `cafe24-token-refresh` 큐로 enqueue 한다 (§11.1 표 참조). worker 가 refresh 성공 시 `last_rotated_at`/`token_expires_at` 갱신 후 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 전이. 본 정책으로 **cafe24 의 `expired` 상태는 사실상 `install_timeout` (Cafe24 Private 24h TTL) 한 가지 경로만 남는다** — refresh_token 유효 상태에서 access_token 만 만료된 케이스가 `expired` 로 격하되어 AI Agent/노드의 자가 회복 경로를 막던 회귀 해소. **멀티 인스턴스 race**: cafe24 refresh 호출의 직렬화 메커니즘은 source 에 따라 다르다.
 - `proactive` / `background`: `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화 — thundering herd / refresh_token rotation race 보호.
 - `reactive_401`: BullMQ dedup 을 우회하는 unique jobId (`${integrationId}#reactive-${Date.now()}-${rand6}`) 사용. cross-pod 직렬화는 `refreshAccessToken` 의 `pessimistic_write` row lock 으로 폴백 보호. 완료된 proactive job 으로의 dedup 회귀를 영구 차단 ([Rationale "reactive_401 jobId unique 화 — dedup 완전 우회"](#reactive_401-jobid-unique-화--dedup-완전-우회) 참고).
+- **`cafe24-token-refresh` worker 의 에러 격리 정책 (2026-07-17 명문화)**: worker 의 `process()` 는 refresh 실패를 **삼키지 않고 그대로 re-throw** 한다 → BullMQ 가 job 을 `failed` 로 마킹해 큐 메트릭·실패 목록에 드러난다. **`.catch(logger.error)` 로 흡수하지 않는다** — 흡수하면 job 이 `completed` 로 기록돼 "갱신이 조용히 실패하는" 관측 사각지대가 생긴다. 단 **`attempts: 1`** 이라 BullMQ 자동 재시도는 하지 않는다: refresh 실패는 거의 항상 terminal(refresh_token 자체 만료 / Cafe24 가 invalidate)이라 재시도해도 같은 401 을 N 번 반복하며 알림만 늘어난다. 재시도는 **호출자**(다음 API 호출의 `reactive_401`, 또는 다음 `cafe24-background-refresh` / `connected-expiry` 패스)가 자연스럽게 수행한다. 삭제된 통합(row 부재)은 실패가 아니라 **silent no-op** 으로 처리한다. 실패 자체의 사용자 표면은 이 큐가 아니라 §10.5 의 상태 전이(`error(auth_failed)`)와 §11.2 active 알림이 담당하며, 운영 관측은 [NF-OB-02/03/07 OTel 파이프라인](../5-system/_product-overview.md)이 받는다. 회귀 고정: `cafe24-token-refresh.processor.spec.ts` TEST-C2 (`process()` re-throw 단언).
+
 참고: [Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](#rationale).
 
 ---
@@ -1121,6 +1123,16 @@ Integration 생성·수정·삭제·회전·재인증·scope 전환 이벤트를
 ---
 
 ## Rationale
+
+### `cafe24-token-refresh` worker 의 에러 격리 정책 — re-throw + `attempts: 1` (2026-07-17)
+
+**결정**: worker 의 `process()` 는 refresh 실패를 **re-throw** 해 BullMQ 가 job 을 `failed` 로 마킹하게 하되, **`attempts: 1`** 로 자동 재시도는 하지 않는다 (§10.5 본문).
+
+**왜 `.catch(logger.error)` 로 흡수하지 않나**: 흡수하면 job 이 `completed` 로 기록돼 큐 메트릭·실패 목록에서 사라진다 — "토큰 갱신이 조용히 실패하는" 관측 사각지대가 생기고, 이는 refresh 실패가 결국 `error(auth_failed)` 로 사용자에게 도달하기까지의 진단 경로를 끊는다. 실패는 큐 레벨에서 드러나야 한다.
+
+**왜 그럼에도 재시도하지 않나 (`attempts: 1`)**: refresh 실패는 거의 항상 **terminal** 이다 — refresh_token 자체 만료 또는 Cafe24 가 invalidate. 자동 재시도는 같은 401 을 N 번 반복하며 알림만 증폭시킨다. 재시도는 **호출자**(다음 API 호출의 `reactive_401`, 또는 다음 `cafe24-background-refresh` / `connected-expiry` 패스)가 자연스럽게 수행하므로 큐 레벨 retry 는 잉여다. **§11.1 의 만료 스캐너 4개 job 이 `attempts: 3` 인 것과 대비된다** — 그쪽은 일시적 DB/네트워크 실패로 패스 전체가 유실되는 것을 막는 성격이라 재시도가 타당하고, 이쪽은 개별 통합의 terminal 인증 실패라 성격이 다르다. 같은 문서에 두 값이 공존하는 것은 모순이 아니라 **큐 성격의 차이**다.
+
+**왜 이 시점에 명문화하나 (defer 해제)**: 본 정책은 2026-06-02 에 [`cafe24-backlog-residual.md`](../../plan/in-progress/cafe24-backlog-residual.md) **D-2** 로 defer 됐다 — 당시 사유는 "프레임워크 로그로 충분하며, 별도 관측 도구(Sentry/Datadog 등) 선정 및 spec 명시는 **관측 인프라를 추후 일괄 도입할 때** 함께 진행". 그 전제가 **2026-06-14 충족**됐다: OTel 파이프라인(#594) 도입으로 [NF-OB-02(Prometheus 메트릭)·NF-OB-03(분산 트레이싱)·NF-OB-07(비즈니스 커스텀 메트릭)](../5-system/_product-overview.md)이 전부 구현됨. 즉 "관측 도구 선정"을 더 기다릴 이유가 없어졌고, BullMQ job 실패는 큐 메트릭으로, 그 위 운영 관측은 OTel 이 받는다. **코드는 이 정책을 이미 구현하고 있었고**(`cafe24-token-refresh.processor.ts` 의 re-throw, `.spec.ts` TEST-C2 가 회귀 고정) 남아 있던 것은 spec 명시뿐이었다 — 본 항목이 그 마지막 조각이다. *(defer 의 번복이 아니라 defer 조건 충족에 따른 예정된 재개.)*
 
 ### SMTP 연결 테스트를 `verify()` 로 구현
 

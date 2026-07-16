@@ -7,7 +7,7 @@ owner: developer
 # AI Agent 일반 도구 연결 재설계
 
 > 작성일: 2026-05-11
-> 상위 인덱스: `0-unimplemented-overview.md` §A
+> ~~상위 인덱스: `0-unimplemented-overview.md` §A~~ — **경로 정정 (2026-07-17)**: `0-unimplemented-overview.md` 는 저장소에 **존재하지 않는다**(전수 검색 0건). 폐기된 문서 구조의 잔재이며 상위 인덱스는 현재 없다.
 > 선행 plan: `plan/complete/ai-agent-tool-connection-rewrite.md` (이전 제거 작업의 사유·복원 절차)
 >
 > **관련 진행 작업 (2026-05-22 추가)**: `ai-presentation-tools.md` — `render_*` 표현 도구 가족 추가. 본 plan 의 `tool_*` 재작성과 **직교** (의도·schema 출처 모두 다름). `tool_*` 모델 확정 시 본 plan §3 Spec 작성 단계에서 `spec/4-nodes/3-ai/1-ai-agent.md` §6.1 step 3a 의 dispatcher 분류 순서 표 (현재 `cond_* → kb_* → mcp_* → render_* → tool_*` 5단계) 를 갱신해야 한다. 도구 이름 충돌 없음 (`tool_*` 와 `render_*` prefix 다름).
@@ -27,7 +27,7 @@ config 스키마에서 `toolNodeIds` / `toolOverrides` 필드와, 캔버스의 A
 ## 관련 문서
 
 - 제거 결정 사유 + 복원 절차: `plan/complete/ai-agent-tool-connection-rewrite.md`
-- PRD: `prd/3-node-system.md` §6.1 ND-AG-06/10/21, `prd/6-phase2-ai.md` §3.2 동일 ID
+- ~~PRD: `prd/3-node-system.md` §6.1 ND-AG-06/10/21, `prd/6-phase2-ai.md` §3.2 동일 ID~~ → **경로 정정 (2026-07-17)**: `prd/` 디렉토리는 **존재하지 않는다** — 제품 정의가 `spec/` 단일 폴더로 통합되며(CLAUDE.md §폴더 구조) 해당 요구사항 ID 는 [`spec/4-nodes/_product-overview.md:197,201,212`](../../spec/4-nodes/_product-overview.md) 와 [`spec/4-nodes/3-ai/_product-overview.md:66,70,81`](../../spec/4-nodes/3-ai/_product-overview.md) 로 이관됐다 (양쪽 모두 ND-AG-06/10/21 에 "제거됨 — 재작성 예정" 표기 보유).
 - Spec (현재 비활성 박스): `spec/4-nodes/3-ai/1-ai-agent.md` §1 / §Tool Area 박스
 - Spec 캔버스 (재작성 예정 박스): `spec/3-workflow-editor/0-canvas.md` §AI Agent Tool Area
 - 영향 받지 않는 정상 도구: 조건(`cond_*`), KB (`kb_*`), MCP (`mcp_*`) — `codebase/backend/src/nodes/ai/ai-agent/tool-providers/{kb-tool-provider,mcp-tool-provider}.ts`
@@ -49,11 +49,15 @@ config 스키마에서 `toolNodeIds` / `toolOverrides` 필드와, 캔버스의 A
 
 > 위 결정 사항은 plan을 진행할 사용자가 답한 후, 이 체크박스를 ✅ 처리하고 결정 내용을 본 plan §결정 기록 절에 추가한다.
 
-### 2. PRD 갱신
+### 2. PRD 갱신 → **요구사항 문서 갱신** (경로 정정 2026-07-17)
 
-- [ ] 결정에 따라 `prd/3-node-system.md` §6.1 ND-AG-06/10/21 본문 업데이트 + "재작성 예정" 표기 제거
-- [ ] `prd/6-phase2-ai.md` §3.2 ND-AG-06/10/21 동일 갱신
-- [ ] PRD 2 §10.4 ED-AI-19 등 AI Assistant 의 편집 도구 거부 정책에 영향 있는지 확인
+> **⚠ 이 절의 원 경로는 전부 무효였다**: `prd/` 디렉토리가 존재하지 않는다 — 제품 정의가 `spec/` 단일 폴더로 통합됐다(CLAUDE.md §폴더 구조). 아래는 실제 경로로 재작성한 것이며, **작업 자체는 여전히 유효**하다(§1 결정에 종속).
+
+- [ ] 결정에 따라 [`spec/4-nodes/_product-overview.md`](../../spec/4-nodes/_product-overview.md) 의 ND-AG-06(L197)/ND-AG-10(L201)/ND-AG-21(L212) 본문 업데이트 + L188 "⚠ 재작성 예정 (현재 제거됨)" 박스 제거
+- [ ] [`spec/4-nodes/3-ai/_product-overview.md`](../../spec/4-nodes/3-ai/_product-overview.md) 의 동일 ID(L66/L70/L81) + L57 "재작성 예정" 박스 동일 갱신
+- [ ] [`spec/3-workflow-editor/0-canvas.md:701`](../../spec/3-workflow-editor/0-canvas.md) 의 "재작성 예정" 박스 처리 (Tool Area — ND-AG-10 의 캔버스 표면)
+- [ ] AI Assistant 의 편집 도구 거부 정책(ED-AI-19 계열)에 영향 있는지 확인 — 현 위치는 `spec/3-workflow-editor/` 영역
+- [ ] `spec/4-nodes/3-ai/1-ai-agent.md:77`("영향 범위: ND-AG-06 / ND-AG-10 / ND-AG-21")·`:1126`(`TOOL_EXECUTION_FAILED` "재작성 후 복원 예정" placeholder) 동반 갱신
 
 ### 3. Spec 작성
 
