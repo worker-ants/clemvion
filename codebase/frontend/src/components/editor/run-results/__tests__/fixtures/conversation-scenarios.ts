@@ -332,9 +332,43 @@ export const ctS16NonRetryableFailedConversation = {
   outputData: makeErroredConversationOutput(false),
 } as const;
 
-/** CT-S17 — 새로고침 후 이력 화면: store 비어있고 outputData 만 존재. */
+/**
+ * CT-S17 — 새로고침 후 이력 화면: store 비어있고 outputData 만 존재.
+ *
+ * messages 에 tool-call 왕복을 포함한다 — 이 회귀의 본질이 "호출자(result-detail)
+ * 가 넘긴 items 가 인스펙터에서 버려지는" **배선 실패**였으므로, 미리보기가
+ * 텍스트뿐 아니라 tool row 까지 실제 배선을 통해 복원하는지 검증해야 같은 계열의
+ * 실패를 잡는다.
+ */
 export const ctS17HistoryFailedConversation = {
-  outputData: makeErroredConversationOutput(true),
+  outputData: {
+    config: { mode: "multi_turn", model: "gemma-4-26b" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "주문 상태 확인" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [{ id: "call_1", name: "kb_search", arguments: "{}" }],
+          },
+          { role: "tool", content: '["chunk1","chunk2"]', toolCallId: "call_1" },
+          { role: "assistant", content: "주문번호를 알려주세요" },
+          { role: "user", content: "ORD-12345" },
+        ],
+        turnCount: 2,
+        endReason: "error",
+      },
+      error: {
+        code: "LLM_CALL_FAILED",
+        message: "Request timed out.",
+        details: { retryable: true },
+      },
+    },
+    meta: { durationMs: 40400 },
+    port: "error",
+    status: "ended",
+  },
   storeMessages: [],
 } as const;
 

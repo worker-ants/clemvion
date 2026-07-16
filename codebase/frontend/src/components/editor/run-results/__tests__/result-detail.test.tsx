@@ -935,6 +935,11 @@ describe("ResultDetail", () => {
       expect(screen.getByText("미리보기")).toBeDefined();
       expect(screen.getByText("주문 상태 확인")).toBeDefined();
       expect(screen.getByText("ORD-12345")).toBeDefined();
+      // 이 회귀의 본질은 "호출자가 넘긴 items 가 인스펙터에서 버려지는" 배선
+      // 실패였다. 텍스트만 검증하면 같은 계열의 실패를 놓치므로, tool row 까지
+      // 실제 배선(ResultDetail → parseHistoryMessages → ConversationInspector)을
+      // 통해 복원되는지 확인한다.
+      expect(screen.getByText("kb_search")).toBeDefined();
       // history 합성 system_error 는 nodeExecutionId 부재 → retry suppress (§1.2.1).
       expect(screen.queryByText("다시 시도")).toBeNull();
     });
