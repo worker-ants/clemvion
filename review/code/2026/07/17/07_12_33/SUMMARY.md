@@ -38,6 +38,8 @@
 옛 인라인 파서는 `role:'system'` + `### Relevant Knowledge` 를 `rag` timeline 행으로 합성했으나 `parseHistoryMessages`/`messagesToConversationItems` 는 RAG 를 처리하지 않는다. 삭제로 그 행이 사라진다. **의도된 변경으로 확정한 근거**:
 
 1. **live 는 원래부터 없었다** — live 경로(`messagesToConversationItems`)에 RAG 처리가 없으므로 `rag` 행은 **history 전용 비대칭**이었다. 제거는 두 surface 를 일치시킨다 (Inv-5 의 "양 surface 동일 결과" 정신).
+
+> **정정 (2회차 side_effect WARNING 반영 — `review/code/2026/07/17/08_05_31/`)**: 위 근거 1 의 서술이 변화 크기를 과소평가했다. "live 에 없었다" 는 사실이나, **history 에서는 그 행이 실제로 렌더되고 있었다** (옛 `items` useMemo 가 history 경로에서 무조건 인라인 재파싱했으므로). 따라서 이는 "죽은 코드 정리" 가 아니라 **동작하던 기능의 의도적 삭제**다 — 근거 2·3 이 그것을 정당화하며, 구형 영속 데이터의 이력 조회 잔여 영향은 2회차 SUMMARY §RAG 판단(정정)에 기록.
 2. **프로덕션 dead** — requirement reviewer 가 독립적으로 `RagSearchService.buildContext` 의 **프로덕션 호출부가 전무**함을 확인.
 3. **대체 표면 존재** — KB 청크는 References 탭(`meta.turnDebug[].ragSources` → `turnRefIndex`)이 turn 별로 노출하는 것이 현재 SoT.
 
