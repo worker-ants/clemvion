@@ -1,6 +1,15 @@
 # Consistency Check 통합 보고서
 
-**BLOCK: NO** — 5개 checker 중 Critical 위배는 없음. 단, `rationale_continuity` 는 status=`success` 로 보고됐으나 `output_file` 이 실제로 생성되지 않아(기존 known FS-write flakiness) **내용 미확보** — 재시도 후 최종 확정 필요.
+> ## ✅ 최종 확정 (2026-07-17, main Claude): **BLOCK: NO** — 5개 전수 확보 완료
+>
+> 아래 본문이 "재시도 필요"·"내용 미확보" 로 표기한 `rationale_continuity` 는 **해소됐다** — Workflow FS-write flakiness 로 `output_file` 만 안 써졌을 뿐 결과는 workflow journal 에 있었고, **재실행 대신 journal 에서 원문을 복구**해 같은 디렉토리 `rationale_continuity.md` 에 기록했다(내용 유실 없음). 그 결과는 **WARNING 1 + INFO 2 · Critical 0 · 위험도 LOW** 이며, 이는 본문 표의 WARNING #1(`~180` 화석 잔존)·INFO 와 동일 항목이라 아래 통합 표가 이미 반영하고 있다. 따라서 5개 전수 확보 기준으로 **Critical 0 → BLOCK: NO 확정**.
+>
+> 아래 본문의 "재시도 필요" 표기는 **생성 시점의 판정**이라 시점 기록으로 보존한다(`_retry_state.json` 의 `_final_state_note` 와 동일 취지). 본 주석이 그 이후의 최종 상태다.
+> *(ai-review `01_15_40` requirement WARNING#1 반영 — SUMMARY 만 읽는 감사자가 같은 커밋 안의 복구된 `rationale_continuity.md` 와 모순된 상태를 보게 되는 문제.)*
+
+---
+
+**BLOCK: NO** (최초 판정 — 위 최종 확정으로 갱신됨) — 5개 checker 중 Critical 위배는 없음. 단, `rationale_continuity` 는 status=`success` 로 보고됐으나 `output_file` 이 실제로 생성되지 않아(기존 known FS-write flakiness) **내용 미확보** — 재시도 후 최종 확정 필요.
 
 ## 전체 위험도
 **MEDIUM** — Critical 없음. WARNING 6건(수치 화석 잔존 2곳 미정정, plan 처분(2)(3) 이행 축소/재배치, plan durable 기록 미갱신, Overview/Rationale 배치 규약 위반, 출처 표기 비일관)이 반영 전 저비용으로 해소 가능. `rationale_continuity` 미확보로 완전성은 아직 미검증.
