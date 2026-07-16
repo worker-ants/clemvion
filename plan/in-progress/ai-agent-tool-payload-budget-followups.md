@@ -17,7 +17,7 @@ owner: developer
 - [x] spec 마감: cross-node-warning-rules status partial→implemented·§8 Planned 제거, ai-agent §10 Planned 제거, 두 spec pending_plans 정리
 - [x] 8. TEST WORKFLOW (lint·unit·build·e2e 모두 통과, #952 base). 신규 e2e `ai-agent-tool-payload-warning.e2e-spec.ts` 통과(256/256).
 - [x] 9. `/ai-review` (11 reviewer, MEDIUM, Critical 0, Warning 7) + 수동 resolution: W1(N+1/pool/dead-path)·W3(중복)·W5(stale 주석)·W6(.env.example)·W7(CHANGELOG)·INFO#3/#6 fix, W2/W4 수용/후속. TEST WORKFLOW 재통과(lint·unit·build·e2e). RESOLUTION.md 기록.
-- [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/`
+- [x] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` → BLOCK: NO (5/5 CRITICAL=0). WARNING(신규 모듈 `ai-agent.md` `code:` 누락) 조치 완료.
 - [ ] PR (항목 A 단독)
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).

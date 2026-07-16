@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/ai-memory-manager.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-payload-budget.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-payload-save-warning.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.component.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/*.ts
