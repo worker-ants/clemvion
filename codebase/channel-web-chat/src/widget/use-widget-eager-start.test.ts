@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useWidget } from "./use-widget";
+import { TOKEN_REFRESH_LEAD_MS } from "./use-token-refresh";
 
 // eager 시작(§R6) — 패널 open 시 워크플로우 시작, firstMessage 미동봉, 중복 open 단일 시작.
 
@@ -171,6 +172,11 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+  // 안전망 — assert 실패로 테스트가 중단돼도 전역 상태(fake timer·spy)가 다음 테스트로 새지
+  // 않게 한다. 개별 테스트의 try/finally 보다 여기 두는 편이 향후 테스트까지 자동 보호한다
+  // (ai-review 2026-07-17 06_53_03 W4).
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("useWidget — eager 시작(§R6)", () => {
@@ -211,14 +217,14 @@ describe("useWidget — eager 시작(§R6)", () => {
    * (ai-review 02_04_13 CRITICAL#1.)
    */
   it("복원된 세션이 이미 terminal → ENDED 전이 + SSE 미오픈 + storage 부활 없음", async () => {
-    // 만료를 30분(lead) + 6초 뒤로 → refreshDelayMs ≈ 6초. fake timer 로 그 시점을 넘겨야
+    // 만료를 lead(TOKEN_REFRESH_LEAD_MS) + 6초 뒤로 → refreshDelayMs ≈ 6초. fake timer 로 그 시점을 넘겨야
     // "scheduleRefresh 가 예약됐는가" 를 실제로 단언할 수 있다. 90분(=60분 뒤 발화)이면 타이머가
     // 영영 안 와서 refreshCalls===0 이 게이팅과 무관하게 항상 참인 decorative 단언이 된다
     // (ai-review 2026-07-17 02_31_18 W6).
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + 30 * 60 * 1000 + 6_000).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), endpoints: ENDPOINTS }),
     );
     let refreshCalls = 0;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
@@ -1470,6 +1476,164 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
 
     // stale 폐기 — 살아있는 새 대화를 종료시키지 않는다.
     expect(result.current.state.phase).not.toBe("ended");
+  });
+
+  /**
+   * W5 — `applyConfig`(세션 복원) 고유의 `"stale"` 게이팅. 복원 seed 가 in-flight 인 동안 host 가
+   * 새 대화를 시작하면, 지연 도착한 옛 응답이 **새 대화의 SSE 스트림을 옛 토큰으로 탈취**하면 안 된다.
+   */
+  it("복원 seed 가 in-flight 인 동안 새 대화 시작 → stale 응답이 새 세션 스트림을 덮지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    let resolveStatus: ((r: Response) => void) | null = null;
+    let hookPosts = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        hookPosts += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "fresh",
+              status: "pending",
+              interaction: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      // 복원 seed 의 getStatus 를 수동 resolve 로 잡아둔다.
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        if (!resolveStatus) {
+          return new Promise<Response>((r) => {
+            resolveStatus = r;
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { executionId: "fresh", status: "running" } }),
+        } as Response);
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(resolveStatus).not.toBeNull()); // 복원 seed in-flight.
+
+    // seed 응답 전에 새 대화 시작 → sessionRef 교체.
+    await act(async () => {
+      result.current.actions.newChat();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(hookPosts).toBe(1));
+    const esAfterNewChat = getEs();
+
+    // 이제 옛(복원) 세션의 seed 응답이 도착 — stale 이므로 openStream 을 하면 안 된다.
+    await act(async () => {
+      resolveStatus?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { executionId: "prev", status: "waiting_for_input", context: { interactionType: "ai_conversation", waitingNodeId: "old", conversationThread: { turns: [] } } } }),
+      } as Response);
+      await Promise.resolve();
+    });
+
+    // 새 대화의 스트림이 옛 세션 토큰으로 재오픈되지 않았다(EventSource 인스턴스 불변).
+    expect(getEs()).toBe(esAfterNewChat);
+    expect(result.current.state.phase).not.toBe("ended");
+  });
+
+  /**
+   * CRITICAL (ai-review 2026-07-17 06_53_03) — cross-session stale 410.
+   * in-flight 명령이 뜬 사이 "새 대화" 로 세션이 교체되면, 옛 세션의 지연 410 이 **살아있는 새
+   * 세션을 오종료**시키면 안 된다. `seedWaitingFromStatus` 의 staleness 가드와 대칭.
+   */
+  it("세션 교체 후 도착한 옛 명령의 410 은 새 세션을 종료시키지 않는다", async () => {
+    let resolveInteract: ((r: Response) => void) | null = null;
+    let hookPosts = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        hookPosts += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: `e${hookPosts}`,
+              status: "pending",
+              interaction: { token: `iext_${hookPosts}`, expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { executionId: "e1", status: "running" } }),
+        } as Response);
+      }
+      // 첫 명령은 in-flight 로 잡아두고, 새 대화의 cancel 등 이후 명령은 즉시 202.
+      if (u.includes("/interact")) {
+        if (!resolveInteract) {
+          return new Promise<Response>((r) => {
+            resolveInteract = r;
+          });
+        }
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(getEs()).not.toBeNull());
+
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        conversationThread: { turns: [] },
+      });
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+    act(() => result.current.actions.submitMessage("옛 세션 명령"));
+    await waitFor(() => expect(resolveInteract).not.toBeNull());
+
+    // 명령이 떠 있는 동안 새 대화 → 세션 교체.
+    await act(async () => {
+      result.current.actions.newChat();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(hookPosts).toBe(2)); // 새 execution 시작됨.
+    const phaseBefore = result.current.state.phase;
+
+    // 이제 옛 세션의 410 이 도착 — 새 세션을 건드리면 안 된다.
+    await act(async () => {
+      resolveInteract?.({ ok: false, status: 410, json: async () => ({}) } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(result.current.state.phase).toBe(phaseBefore);
   });
 
   /**

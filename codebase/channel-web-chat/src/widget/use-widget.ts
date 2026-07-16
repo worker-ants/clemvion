@@ -166,10 +166,11 @@ export function useWidget() {
   /**
    * 대화 종료 확정 — 세션 정리 + `ENDED` 전이 + host 통지를 한 시퀀스로 묶는다.
    *
-   * **두 진입점이 공유한다**: (1) SSE terminal 이벤트(`handleEiaEvent`) (2) `getStatus` 스냅샷이
+   * **네 진입점이 공유한다**: (1) SSE terminal 이벤트(`handleEiaEvent`) (2) `getStatus` 스냅샷이
    * 이미 terminal 인 경우(`seedWaitingFromStatus` — 버퍼 만료 gap 중 종료돼 terminal 이벤트가
-   * 유실된 경로). 두 곳에 3줄을 복제해 두면 호출부별 처리 불일치가 컴파일·테스트로 드러나지
-   * 않으므로 헬퍼로 강제한다 (ai-review `02_04_13` W1).
+   * 유실된 경로) (3) 명령의 `410 Gone`(`sendCommand`) (4) 사용자 종료(`endConversation`).
+   * 각 곳에 3줄을 복제해 두면 호출부별 처리 불일치가 컴파일·테스트로 드러나지 않으므로 헬퍼로
+   * 강제한다 (ai-review `02_04_13` W1 → 2026-07-17 06_53_03 W1 로 진입점 4곳 확정).
    *
    * **중복 발사 방지**: `endedRef` 로 최초 1회만 수행한다 — SSE terminal 과 REST 폴백 terminal 이
    * 버퍼 gap 타이밍에 따라 같은 종료에 대해 각각 발화할 수 있어, host `conversationEnded` 가
@@ -265,8 +266,9 @@ export function useWidget() {
    * @param client - EIA 클라이언트 (session endpoint 보유).
    * @param session - 현재 세션 (executionId, token, endpoints).
    *
-   * **호출 시점**: `start()` 직후(새 실행) 및 `applyConfig()` 세션 복원 직후 — 두 경로 모두
-   * SSE 구독 이전에 호출된다. 첫 노드 race(§R6) 또는 버퍼(5분) 만료 후 복원 시
+   * **호출 시점**: `start()` 직후(새 실행)·`applyConfig()` 세션 복원 직후 — 두 경로 모두
+   * SSE 구독 이전에 호출된다. 여기에 더해 `handleEiaEvent` 의 `execution.replay_unavailable`
+   * 폴백이 **fire-and-forget** 으로 호출한다(구독 이후, 버퍼 만료 재동기화). 첫 노드 race(§R6) 또는 버퍼(5분) 만료 후 복원 시
    * SSE replay 만으로는 채울 수 없는 현재 표면을 1회 시드한다.
    *
    * **실패 정책**: soft-fail — HTTP 오류·네트워크 실패 시 `console.warn` 후 진행.
@@ -417,6 +419,11 @@ export function useWidget() {
       try {
         await client.interact(session.endpoints, session.token, command);
       } catch (e) {
+        // **staleness 가드** — 이 명령이 뜬 사이 사용자가 "새 대화"/"대화 종료" 를 했으면 세션이
+        // 교체된다. 옛 세션의 지연 도착 실패로 **살아있는 새 세션을 종료(410)시키거나 에러를 띄우면
+        // 안 된다** (`seedWaitingFromStatus` 의 동일 가드와 대칭 — 그쪽만 넣고 여기를 빠뜨려
+        // cross-session 오종료가 났었다. ai-review 2026-07-17 06_53_03 CRITICAL#1).
+        if (sessionRef.current !== session) return;
         if (e instanceof EiaError && e.status === 410) {
           // 410 Gone(대화 종료됨)도 host 에 종료 통지 — SSE terminal·user_ended 와 동일하게
           // conversationEnded 를 발사해 모든 종료 경로의 host 통지를 일관되게 한다(2-sdk §3 wc:event).
@@ -428,7 +435,7 @@ export function useWidget() {
         }
       }
     },
-    [],
+    [finalizeEnded],
   );
 
   // C1(§R6) 보류 메시지 큐 — booting/streaming 중 텍스트를 보관했다가 awaiting_user_message 진입 시 flush.
@@ -556,7 +563,11 @@ export function useWidget() {
    * 세션이 아직 없으면 명령을 건너뛰고 로컬만 종료 — TTL 정리.)
    */
   const endConversation = useCallback(async () => {
-    if (state.phase === "ended") return; // 이미 종료됨 → 중복 dispatch/sendEvent 방지.
+    // 이미 종료됨 → 중복 dispatch/sendEvent 방지. **`endedRef` 를 먼저 본다** — 아래
+    // `resetSessionRefs()` 가 `endedRef` 를 false 로 되돌리므로, 그 뒤의 `finalizeEnded` 1회 가드는
+    // 이 경로에서 무력하다. `state.phase` 는 React 배치로 커밋이 지연될 수 있어(SSE terminal 직후
+    // stale 클로저 클릭) ref 가 더 즉각적인 진실이다 (ai-review 2026-07-17 06_53_03 W2).
+    if (endedRef.current || state.phase === "ended") return;
     const reason = "user_ended";
     // 명령 라우팅·대상 정보는 정리 이전 상태/세션으로 확정.
     const session = sessionRef.current;
