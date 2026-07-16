@@ -25,13 +25,17 @@
 | lint | `.claude/tools/run-test.sh lint` | `pnpm --filter backend lint` **그리고** `pnpm --filter frontend lint` (+ web-chat) |
 | unit test (jest/vitest, in-process) | `.claude/tools/run-test.sh unit` | `pnpm --filter backend test` **그리고** `pnpm --filter frontend test` (+ web-chat) |
 | build | `.claude/tools/run-test.sh build` | `pnpm --filter backend build` **그리고** `pnpm --filter frontend build` (+ web-chat) |
-| e2e (backend supertest, ~30–60s) | `.claude/tools/run-test.sh e2e` | `make e2e-test` |
-| e2e (backend + playwright) | — | `make e2e-test-full` |
+| e2e (backend supertest + frontend playwright, ~4–5분) | `.claude/tools/run-test.sh e2e` | `make e2e-test-full` |
+| e2e (backend supertest 만, ~30–60s) | — | `make e2e-test` |
 | e2e 인프라 정리 (중간 종료 시) | — | `make e2e-down` |
 | e2e stale project 일괄 정리 (worktree 삭제 후) | — | `make e2e-prune` |
 | git hook 등록 (clone 후 1회) | — | `make setup-githooks` |
 
 **순서 근거**: e2e 는 `docker-compose.e2e.yml` 에서 backend 이미지를 빌드해 실행하므로, 로컬 `pnpm --filter backend build` 가 통과해야 e2e 도 의미가 있다. build 실패를 먼저 잡으면 docker 빌드 시간(분 단위) 낭비를 피한다.
+
+**e2e 도 cross-stack 의무**: `run-test.sh e2e` 는 `make e2e-test-full` 을 호출해 **backend supertest + frontend playwright 를 함께** 돌린다 — CI(`.github/workflows/e2e.yml`)가 `e2e-backend`·`e2e-frontend` 두 잡으로 양쪽을 반드시 돌리므로, 로컬 wrapper 도 같은 커버리지를 가져야 한다. (~2026-07-17 이전에는 `make e2e-test`(backend only)를 불러, 프론트 변경이 로컬에서 `status=PASS` 를 받아도 브라우저 테스트가 한 번도 실행되지 않고 CI 에서야 회귀가 드러났다. 사이드바 `/docs` slug 무한 중첩 회귀가 이 갭에서 나왔다 — frontend 라우팅은 unit 이 `useParams` 를 mock 하므로 실제 라우트 매칭·클라이언트 `notFound()` 동작을 **원리적으로** 검증할 수 없고 playwright 가 유일한 검증 계층이다.) backend 만 빠르게 확인하려면 `make e2e-test` 를 직접 호출하되, **TEST WORKFLOW 의 e2e 단계 통과 근거로는 인정되지 않는다**.
+
+> ⚠️ wrapper 요약줄의 `tests=256` 은 **backend jest 수만** 센다 — `run-test.sh` 의 카운트 정규식이 jest 형식(`Tests: N passed`)만 매칭하고 playwright 형식(`51 passed (52s)`)은 매칭하지 않기 때문이다(범용 wrapper라 두 러너를 한 숫자로 합산하지 않는다). **playwright 실행 여부는 이 숫자로 판단하지 말고** 로그(`_test_logs/e2e-*.log`)의 `N passed (…s)` 줄로 확인한다.
 
 **Cross-stack 의무 — 한쪽 누락 금지**: lint / unit / build 단계의 wrapper 호출은 `.claude/test-stages.sh` 안에서 backend + frontend 를 **순차 AND** 로 실행한다 (한쪽 실패 시 즉시 단계 실패). **반드시 wrapper 를 통해 호출** — `pnpm --filter backend build` 같은 단일 stack 직호출로 단계를 "통과" 처리하면 다른 한쪽 회귀 (대표 사례: PR-E3 의 trigger drawer `t.x.y` 객체 접근 → `t("x.y")` 함수 호출 타입 오류, frontend build 누락으로 main 머지 후 `0f05d3e5` 핫픽스 필요) 가 검출되지 않는다. wrapper 가 한 단계 = 양쪽 stack 묶음이라는 invariant 의 유일한 enforcer.
 
@@ -71,7 +75,7 @@
 2. 변경 set 이 §e2e 면제 화이트리스트 의 **부분집합** 인가? 화이트리스트 밖이 한 줄이라도 있으면 실행
 3. `docker info` 로 daemon 가용성 확인 — 없으면 자동 흐름은 "자동 흐름 환경 차단", 수동 흐름은 사용자 보고 후 응답 인용
 4. 이전 turn 의 stale 컨테이너가 있다면 `make e2e-down` (worktree 격리되어 있으나 충돌 시 명시 정리)
-5. `.claude/tools/run-test.sh e2e` 호출 — raw `make e2e-test` 직호출 금지 (main ctx 폭주)
+5. `.claude/tools/run-test.sh e2e` 호출 — raw `make e2e-test*` 직호출 금지 (main ctx 폭주). 특히 `make e2e-test`(backend only) 로는 **e2e 단계를 통과 처리할 수 없다** — wrapper 가 `e2e-test-full` 로 playwright 까지 묶는 것이 e2e 단계의 invariant 다
 6. 실패 시 wrapper stdout 의 마지막 30 줄로 원인 분석 → fix → TEST WORKFLOW **1단계부터** 재실행
 
 > "이미 통과했으니 다시 안 돌려도 된다" 는 검증 시점과 commit 시점의 불일치를 만들 뿐. **마지막 코드 commit 다음에 e2e 통과 줄이 있어야 한다.**
