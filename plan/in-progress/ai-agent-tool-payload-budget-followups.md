@@ -42,7 +42,7 @@ owner: developer
 > 착수 2026-07-16, base=origin/main 693e52fe1(#955 머지 후). branch `claude/ai-agent-provider-schema-dedup`.
 > W4·W2 는 ai-review(#955 항목 A 08_36_49) 파생 백로그. 두 건을 한 PR 로 처리해 본 plan 을 종결한다.
 
-- [x] 3. `/consistency-check --impl-prep spec/4-nodes/3-ai/`(13_55_11) → BLOCK: YES 이나 Critical 2건 전부 **W4/W2 무관 pre-existing spec drift**(out 포트 모순·count_max vs 카탈로그 = `task_3ac39ebd`, item B 와 동일). FS-flaky 2 checker(rationale/plan) 직접 재실행 → 신규 Critical 0. 본 리팩터는 spec 무수정이라 착수 진행. ⚠ plan_coherence WARNING: complete 이동 시 위 2 Critical 의 durable 앵커 소실 우려 → plan-complete 단계에서 처리.
+- [x] 3. `/consistency-check --impl-prep spec/4-nodes/3-ai/`(13_55_11) → BLOCK: YES 이나 Critical 2건 전부 **W4/W2 무관 pre-existing spec drift**(out 포트 모순·count_max vs 카탈로그 = `task_3ac39ebd`, item B 와 동일). FS-flaky 2 checker(rationale/plan) 직접 재실행 → 신규 Critical 0. 본 리팩터는 spec 무수정이라 착수 진행. ⚠ plan_coherence WARNING(complete 이동 시 위 2 Critical durable 앵커 소실): 신규 `plan/in-progress/spec-drift-ai-agent-outport-countmax.md` 로 durable 분리 + `1-ai-agent.md` pending_plans 등록해 해소(9.4 impl-done 조치).
 - [x] 5-7. TDD + 구현 (타깃 5 spec 181 tests 통과)
   - [x] **W4** 신규 shared `tool-providers/operation-tool-schema.ts`: `buildOperationJsonSchema(op)` + `makeEnabledToolsFilter(enabledTools)` (구조적 타입 `OperationSchemaSource`/`OperationFieldSpec` — cafe24/makeshop 동형). cafe24/makeshop metadata 무import(순수, 순환 없음).
   - [x] cafe24 provider: `buildCafe24JsonSchema`·`applyCafe24Allowlist` 제거→shared 위임. cafe24 spec 의 `buildCafe24JsonSchema` import 를 shared `buildOperationJsonSchema` 로 이행(구조적 대입 통합 확인 테스트로 유지).
@@ -52,7 +52,8 @@ owner: developer
 - [x] 8. TEST WORKFLOW (lint·unit·build·e2e 256/256 통과). eslint --fix 는 신규 spec 포맷만 재정렬(로직 무변경)·build tsc clean 로 캐스트 제거 없음 확인.
 - [x] 9. `/ai-review`(14_32_05, fallback 8 reviewer) → Critical 0, Warning 2(동일 SPEC-DRIFT). W1 spec pointer 3곳 정정(cafe24-api-metadata.md §2/§7 → operation-tool-schema.ts). I1/I2/I3 조치 불요. RESOLUTION.md 기록.
 - [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` (spec-linked 코드+spec 변경 → SPEC-CONSISTENCY 게이트)
-- [ ] PR + 본 plan 의 모든 체크박스 확인 후 plan/complete 이동 (backlog 잔여 task_3ac39ebd·task_07c120ce 는 별 task 라 이관 불필요)
+- [ ] 9.4 impl-done WARNING 조치: convention W1(`cafe24-api-metadata.md` `code:` 에 `operation-tool-schema.ts` 추가) + plan_coherence W1(위 durable 앵커 분리) → 재검증 impl-done BLOCK: NO
+- [ ] PR + 본 plan 의 모든 체크박스 확인 후 plan/complete 이동. **pre-existing spec drift 2건은 `spec-drift-ai-agent-outport-countmax.md`(in-progress 유지) 로 durable 이관됨** — 따라서 본 plan 은 W4/W2/A/B 완결로 complete 이동 가능. embed leak(`task_07c120ce`)은 별 task.
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
 > ⚠ **stale base 교정**: 착수 base 가 #951 이었으나 작업 중 origin/main 이 #952(e2e 인프라)로 전진 → rebase 로 교정(silent-revert 방지 + e2e 실 인프라 정합). rebase 의 deps 재설치가 jest 캐시를 무효화해 가려졌던 3건(import 경로·제거 메서드 테스트·count breach env)을 발견·수정.
