@@ -32,7 +32,7 @@ import type { ChannelButton } from '../../types';
  *   - inboundSigningRef = signing secret HMAC (R-S-1). Telegram server-issued 와 달리 사용자 입력.
  *     `SetupResult.issuedInboundSigning` 은 항상 비움.
  *
- * Phase 1: 6함수 stub + signing 검증.
+ * Phase 1: 핵심 함수 stub + signing 검증.
  * Phase 2 (현재): parseUpdate + setupChannel + Slack signing auth 경로.
  * Phase 3: renderNode + sendMessage (chat.postMessage / Block Kit / 시각형 v1 text).
  * Phase 4: bot token rotation 의 Slack 분기 + auth.revoke.

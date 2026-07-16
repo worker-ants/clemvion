@@ -216,6 +216,7 @@ pending_plans:
     "languageLocale": "ko",                     // "ko" | "en" — 미설정 default = "ko". 어댑터가 languageHints 미설정 시 본 locale 의 default 문구 lookup. 사용자 명시 override (languageHints[key] = "...") 가 우선.
     "languageHints": {                          // 봇이 보내는 자체 안내 메시지 i18n (사용자 override). 미설정 키는 languageLocale 의 default 문구 사용.
       "groupChatRefusal":              "이 봇은 1:1 대화만 지원합니다.",  // 평문 — 발송 시 어댑터가 provider별 escape (§4.1.1)
+      "unsupportedMessageKind":        "지원하지 않는 메시지 형식입니다.",  // 비-group 미지원 update 안내 (평문)
       "executionStarted":              "워크플로우를 시작합니다…",
       "executionCompleted":            "워크플로우가 완료되었습니다.",
       "executionStillRunning":         "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",  // CCH-CV-03 running 안내 default (평문)
@@ -549,7 +550,7 @@ providers 서브디렉토리에는 v1 단계에서 `_overview.md` 1개 + `telegr
 - `conversation-thread.md` — AI Agent / Presentation 노드가 따르는 thread 자료구조 규약
 - `cafe24-api-metadata.md` — 모든 Cafe24 endpoint 메타데이터의 row shape 규약
 
-`chat-channel-adapter.md` 는 **모든 channel provider 어댑터가 구현해야 하는 6함수 인터페이스 + 데이터 타입 union** 을 정의 — 위 세 거주자와 같은 layer (= "복수 구체 구현이 따르는 공통 계약"). 세 spec 의 역할 분리:
+`chat-channel-adapter.md` 는 **모든 channel provider 어댑터가 구현해야 하는 인터페이스(필수 함수 + 옵션 함수) + 데이터 타입 union** 을 정의 — 위 세 거주자와 같은 layer (= "복수 구체 구현이 따르는 공통 계약"). 세 spec 의 역할 분리:
 
 | 파일 | 역할 |
 |---|---|

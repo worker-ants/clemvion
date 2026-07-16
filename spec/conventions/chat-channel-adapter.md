@@ -514,11 +514,11 @@ interface ChannelAdapterRegistry {
 
 > **Rationale ID 컨벤션**: 본 컨벤션 파일의 신규 Rationale 은 **`R-CCA-N` prefix** (`CCA` = Chat Channel Adapter) 를 사용한다. 기존 `R1~R4` 는 하위 호환 유지 (rename 시 cross-link 깨짐 위험). cross-file 인용 시에는 `[CCA §R-CCA-N]` 형태로 파일 prefix 명시. 이는 [Spec Chat Channel §3.1 Rationale ID 컨벤션](../5-system/15-chat-channel.md#rationale-id-컨벤션) 의 `R-CC-N` 패턴과 동일 정신 — Convention 파일은 별 prefix `R-CCA-N` 으로 충돌 방지.
 
-### R1. 6함수 인터페이스의 책임 분리
+### R1. 어댑터 인터페이스의 책임 분리
 
 `parseUpdate` / `renderNode` 는 **pure 함수**, `setupChannel` / `teardownChannel` / `sendMessage` / `ackInteraction` 는 **side-effect 동반**. 이 분리는 어댑터 테스트 가능성을 결정 — pure 함수는 fixture 기반 단위 테스트, side-effect 함수는 mocked HTTP client 로 통합 테스트. cafe24 의 [`cafe24-api-metadata.md`](./cafe24-api-metadata.md) 메타데이터 구조와 동일한 layer 분리 패턴.
 
-### R2. 6함수 (5+1 ack) 의 의도
+### R2. 어댑터 함수(필수 코어 + ack + escapeControlText) 의 의도
 
 ack 는 provider 별 의무 여부가 다르다 (텔레그램은 callback_query 에 `answerCallbackQuery` 의무, Slack 은 일반 reply 에 ack 없음). `ackInteraction` 을 별도 함수로 분리해 provider 가 구체 동작을 노출할 수 있게 한다 (noop 구현도 가능). `sendMessage` 안에 흡수하면 어댑터마다 sendMessage 의 책임이 늘어 복잡도가 증가하고, 옵션 플래그로 처리하면 함수 signature 가 mixed concern 이 된다.
 

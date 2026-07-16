@@ -1,6 +1,6 @@
 /**
  * SlackAdapter 단위 테스트 (Phase 2).
- * provider 식별자 + 6함수 wiring + setupChannel + parseUpdate (parser 위임 검증).
+ * provider 식별자 + 핵심 함수 wiring + setupChannel + parseUpdate (parser 위임 검증).
  * Phase 3 의 renderNode / sendMessage 는 후속 turn 의 별 spec.
  */
 import { SlackAdapter } from './slack.adapter';
@@ -38,7 +38,7 @@ describe('SlackAdapter', () => {
       expect(adapter.provider).toBe('slack');
     });
 
-    it('ChatChannelAdapter 6함수 모두 노출', () => {
+    it('ChatChannelAdapter 핵심 함수 노출', () => {
       const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
       expect(typeof adapter.setupChannel).toBe('function');
       expect(typeof adapter.teardownChannel).toBe('function');

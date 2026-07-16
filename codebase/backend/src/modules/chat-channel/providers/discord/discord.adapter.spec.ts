@@ -1,5 +1,5 @@
 /**
- * DiscordAdapter 단위 테스트 — provider 식별자 + 6함수 wiring + setupChannel + parseUpdate
+ * DiscordAdapter 단위 테스트 — provider 식별자 + 핵심 함수 wiring + setupChannel + parseUpdate
  * + sendMessage 핵심 분기.
  */
 import { DiscordAdapter } from './discord.adapter';
@@ -34,7 +34,7 @@ describe('DiscordAdapter', () => {
     expect(adapter.provider).toBe('discord');
   });
 
-  it('6함수 모두 노출', () => {
+  it('핵심 함수 노출', () => {
     const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
     expect(typeof adapter.setupChannel).toBe('function');
     expect(typeof adapter.teardownChannel).toBe('function');
