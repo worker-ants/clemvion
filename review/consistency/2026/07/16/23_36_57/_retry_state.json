@@ -34,19 +34,20 @@
       "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/16/23_36_57/naming_collision.md"
     }
   ],
-  "agents_pending": [
+  "agents_pending": [],
+  "agents_success": [
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
   ],
-  "agents_success": [],
   "agents_fatal": [],
   "agent_history": {},
   "rate_limit_episodes": 0,
   "total_wait_sec": 0,
   "wake_history": [],
   "last_reset_hint_sec": null,
-  "loop_mode": false
+  "loop_mode": false,
+  "_final_state_note": "2026-07-16 최종 상태로 갱신. cross_spec·convention_compliance 는 Workflow FS-write flakiness 로 output_file 이 디스크에 안 써졌으나 결과 자체는 workflow journal 에 존재해 main Claude 가 복구·기록함(내용 유실 없음). 종전 이 파일은 pending=5/success=0 스냅샷이라 같은 디렉토리의 실제 산출물과 모순됐다 — ai-review 00_03_00 side_effect WARNING#2 반영."
 }
