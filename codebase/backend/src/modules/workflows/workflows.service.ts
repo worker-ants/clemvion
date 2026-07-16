@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
@@ -22,7 +22,12 @@ import { NodeComponentRegistry } from '../../nodes/core/node-component.registry'
 import {
   evaluateGraphWarningRulesForGraph,
   evaluateGraphCycleWarnings,
+  type GraphWarningRuleResult,
 } from '../../nodes/core/graph-warning-rule';
+import { Integration } from '../integrations/entities/integration.entity';
+import { isUnreadableCredentials } from '../integrations/services/credentials-transformer';
+import { evaluateAiAgentToolPayloadWarnings } from '../../nodes/ai/ai-agent/tool-payload-save-warning';
+import { toolBudgetStrictSave } from '../../nodes/ai/ai-agent/tool-payload-budget';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
@@ -57,6 +62,11 @@ export class WorkflowsService {
     private readonly nodeRepository: Repository<Node>,
     @InjectRepository(Edge)
     private readonly edgeRepository: Repository<Edge>,
+    // AI Agent 저장 시점 도구 payload 예산 경고(backend-only graph warning)의
+    // 통합 조회용. cross-node-warning-rules §5 예외 — async 통합 조회가 필요해
+    // shared pure rule 로 표현 불가하므로 backend-only 평가가 직접 로드한다.
+    @InjectRepository(Integration)
+    private readonly integrationRepository: Repository<Integration>,
     private readonly dataSource: DataSource,
     private readonly workflowVersionsService: WorkflowVersionsService,
     private readonly registry: NodeComponentRegistry,
@@ -302,7 +312,7 @@ export class WorkflowsService {
         description: dto.description,
         tags: dto.tags ?? [],
         // 검증된 WorkflowSettingsDto 인스턴스를 jsonb Record 로 평탄화(값은 동일).
-        settings: { ...dto.settings } as Record<string, unknown>,
+        settings: { ...dto.settings },
         workspaceId,
         createdBy: userId,
       });
@@ -432,6 +442,18 @@ export class WorkflowsService {
       // 의 안전망. SoT: spec/conventions/cross-node-warning-rules.md.
       this.evaluateGraphWarnings(savedNodes, savedEdges);
 
+      // AI Agent 저장 시점 도구 payload 예산 경고(backend-only async rule) 의
+      // 저장 차단 게이트 (3중 가드 ①). severity `error` (AI_AGENT_TOOL_BUDGET_
+      // STRICT_SAVE=true 시 hard 초과 승격) 가 하나라도 있으면 GRAPH_VALIDATION_
+      // FAILED 로 transaction rollback. flag 기본 off 면 평가 자체 skip(도달 불가
+      // 차단 분기 비용 회피). 켜져 있을 때만 트랜잭션 매니저 스코프 repository 로
+      // 통합을 배치 조회한다(추가 커넥션 미확보). 표면화는 getGraphWarnings 전담.
+      await this.evaluateToolPayloadWarningsAndThrow(
+        manager,
+        savedNodes,
+        workspaceId,
+      );
+
       // Snapshot creation runs in the same transaction so canvas + version
       // either both commit or both roll back. The pessimistic lock inside
       // createVersion serialises concurrent saves on this workflow.
@@ -534,13 +556,18 @@ export class WorkflowsService {
    * throwOnError=false(기본) 이면 결과만 반환; throwOnError=true 이면
    * severity=error 시 BadRequestException throw (saveCanvas 경로와 동일).
    *
+   * `workspaceId` 는 AI Agent 저장 시점 도구 payload 예산 경고(backend-only rule
+   * `ai_agent:tool-payload-budget`)가 통합을 테넌트 경계 안에서 배치 조회해 결과
+   * 배열에 append 하는 데 필요하다(cross-node-warning-rules §5 backend-only 예외).
+   *
    * SoT: spec/conventions/cross-node-warning-rules.md.
    */
   async getGraphWarnings(
     workflowId: string,
+    workspaceId: string,
     opts: { throwOnError?: boolean } = {},
   ): Promise<{
-    results: ReturnType<typeof evaluateGraphWarningRulesForGraph>;
+    results: GraphWarningRuleResult[];
     hasError: boolean;
     hasWarning: boolean;
   }> {
@@ -548,7 +575,14 @@ export class WorkflowsService {
       this.nodeRepository.find({ where: { workflowId } }),
       this.edgeRepository.find({ where: { workflowId } }),
     ]);
-    const results = [
+    // AI Agent 저장 시점 도구 payload 예산 경고(backend-only async rule) 를
+    // 결과 배열에 append — 이 backend-only 결과의 표면화는 본 조회 endpoint 가
+    // 전담한다 (cross-node-warning-rules §5, ai-agent §10).
+    const toolBudgetResults = await this.evaluateToolPayloadWarnings(
+      nodes,
+      workspaceId,
+    );
+    const results: GraphWarningRuleResult[] = [
       ...evaluateGraphWarningRulesForGraph(
         { nodes, edges },
         (type) => this.registry.getComponent(type)?.metadata.graphWarningRules,
@@ -556,6 +590,7 @@ export class WorkflowsService {
       // graph 전역 사이클 경고 (warning-only) — canvas 로컬 평가와 동일 규칙을
       // backend 응답에도 포함해 두 surface 가 일치하게 한다.
       ...evaluateGraphCycleWarnings({ nodes, edges }),
+      ...toolBudgetResults,
     ];
     const errors = results.filter((r) => r.severity === 'error');
     if (opts.throwOnError && errors.length > 0) {
@@ -596,6 +631,81 @@ export class WorkflowsService {
         details: { errors },
       });
     }
+  }
+
+  /**
+   * AI Agent 저장 시점 도구 payload 예산 경고 평가 (backend-only async rule).
+   * 각 ai_agent 노드의 `presentationTools`·`mcpServers`(connected cafe24/makeshop
+   * 정적 카탈로그) 로부터 config-time 도구 정의 payload 를 재현해 예산 초과를
+   * GraphWarningRuleResult 로 낸다. 통합은 그래프 전체 integrationId 를 모아 단일
+   * 배치(`In()`)로 로드(§loadIntegrationsForBudget) — 노드 수 만큼의 N+1 회피.
+   * `repo` 를 넘기면 그 스코프로 조회한다(saveCanvas 는 트랜잭션 매니저 repository
+   * 를 넘겨 추가 커넥션을 잡지 않는다). SoT: ai-agent §4.2·§10, cross-node-warning-rules §5·§8.
+   */
+  private evaluateToolPayloadWarnings(
+    nodes: Node[],
+    workspaceId: string,
+    repo: Repository<Integration> = this.integrationRepository,
+  ): Promise<GraphWarningRuleResult[]> {
+    return evaluateAiAgentToolPayloadWarnings(nodes, {
+      loadIntegrations: (ids) =>
+        this.loadIntegrationsForBudget(ids, workspaceId, repo),
+    });
+  }
+
+  /**
+   * saveCanvas 트랜잭션 내 저장 차단 게이트 (3중 가드 ①). tool-payload 경고 중
+   * severity `error` 가 있으면 기존 GRAPH_VALIDATION_FAILED 로 throw → rollback.
+   *
+   * severity `error` 는 `AI_AGENT_TOOL_BUDGET_STRICT_SAVE` opt-in 에서만 발생하므로,
+   * 그 flag 가 꺼져 있으면(기본) 평가 자체를 **skip** 한다 — 매 저장마다 도달 불가능한
+   * 차단 분기를 위해 통합 조회 비용을 지불하지 않는다. 켜져 있을 때만 트랜잭션 매니저
+   * 스코프 repository 로 조회해(추가 커넥션 미확보) 평가한다. warning 표면화는
+   * getGraphWarnings 가 전담(saveCanvas 응답 계약 불변).
+   */
+  private async evaluateToolPayloadWarningsAndThrow(
+    manager: EntityManager,
+    nodes: Node[],
+    workspaceId: string,
+  ): Promise<void> {
+    if (!toolBudgetStrictSave()) return;
+    const results = await this.evaluateToolPayloadWarnings(
+      nodes,
+      workspaceId,
+      manager.getRepository(Integration),
+    );
+    const errors = results.filter((r) => r.severity === 'error');
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        code: 'GRAPH_VALIDATION_FAILED',
+        message: `Graph validation failed: ${errors[0].message}`,
+        details: { errors },
+      });
+    }
+  }
+
+  /**
+   * budget 재현용 통합 배치 best-effort 로드 — `In(ids)` 단일 쿼리로 워크스페이스
+   * 경계 안에서 조회하고 id→Integration Map 을 만든다. runtime `getForExecution`
+   * 과 동일하게 credentials 가 entity transformer 로 복호화된 row 를 주되,
+   * not-found·credentials unreadable 은 Map 에서 제외해(해당 server 는 재현에서
+   * skip) 저장/조회를 절대 깨뜨리지 않는다.
+   */
+  private async loadIntegrationsForBudget(
+    ids: readonly string[],
+    workspaceId: string,
+    repo: Repository<Integration>,
+  ): Promise<Map<string, Integration>> {
+    const map = new Map<string, Integration>();
+    if (ids.length === 0) return map;
+    const rows = await repo.find({
+      where: { id: In([...ids]), workspaceId },
+    });
+    for (const row of rows) {
+      if (isUnreadableCredentials(row.credentials)) continue;
+      map.set(row.id, row);
+    }
+    return map;
   }
 
   private validateManualTrigger(

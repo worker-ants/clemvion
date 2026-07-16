@@ -171,10 +171,21 @@ export class LlmService implements OnModuleInit {
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
     const run = () =>
       opts?.timeoutMs && opts.timeoutMs > 0
-        ? // timeoutMs 와 abortSignal 모두 클라이언트 호출에 전달. abort 가 먼저
-          // 발화하면 SDK 가 즉시 throw, timeout 이 먼저면 withTimeout race 가 throw.
+        ? // timeoutMs 와 abortSignal 모두 클라이언트 호출에 전달. `withTimeout` 이
+          // 콜백에 넘기는 내부 timeout signal 을 호출자 `opts.signal`(execution
+          // abort) 과 **병합**해 SDK 로 전달해야, 타임아웃 발화 시 `controller.abort()`
+          // 가 실제 provider HTTP 요청을 취소한다 — 병합을 빠뜨리면(0-arity 콜백)
+          // timeout signal 이 버려져 요청이 백그라운드에 leak 된다(listModels 는
+          // 콜백 인자를 올바르게 forward). abort 가 먼저면 SDK 즉시 throw, timeout
+          // 이 먼저면 withTimeout race 가 throw.
           withTimeout(
-            () => client.chat(sanitized, opts?.signal),
+            (timeoutSignal) =>
+              client.chat(
+                sanitized,
+                opts?.signal
+                  ? AbortSignal.any([opts.signal, timeoutSignal])
+                  : timeoutSignal,
+              ),
             opts.timeoutMs,
           )
         : client.chat(sanitized, opts?.signal);

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — AI Agent LLM chat 호출 app-level 타임아웃 (defense-in-depth, §12.16)
+
+도구 payload 예산 가드레일의 후속(항목 B). payload 가드가 팽창發 hang 의 근본 원인을 막지만, 그 외(네트워크 지연·모델 stall)의 무기한 hang 백스톱이 없었다.
+
+1. **AI Agent 의 모든 LLM `chat` 호출**(single-turn `executeSingleTurn` · multi-turn `processMultiTurnMessage` resume 포함)에 **호출당 app-level 타임아웃**을 적용한다. `LlmService.chat` 의 `opts.timeoutMs>0` 이면 `withTimeout`(자체 `AbortController`)이 race 로 throw(신규 에러 코드 없음). throw 의 error 포트 귀결은 turn 종류에 따라 비대칭 — multi-turn resume 은 orchestrator 가 §10 `LLM_CALL_FAILED`(retryable)로 분류, single-turn 은 일반 chat try/catch 부재로 현재 엔진 레벨 `FAILED`(single-turn LLM 에러 라우팅 기존 gap, 본 배선 스코프 밖). `LLM_TIMEOUT`(core error-codes) 은 Workflow AI Assistant 전용 taxonomy 로 ai_agent 미사용.
+2. **신규 env `AI_AGENT_LLM_CALL_TIMEOUT_MS`**(기본 600000ms=10분, `0` 비활성). 단일 turn 이 정상적으로 10분을 넘기 어려워 정상 장기 생성 regression 없이 hang 만 상한하며 주요 provider SDK 기본 request timeout(~10분)과 정합. `.env.example` 등재.
+3. **`ResumableMessageOptions.signal` 배선**: resume 턴 chat 에 abort signal 을 전파할 executor-side plumbing 을 열었다. **단 resume 경로에는 아직 abort 소스가 없어**(초기 실행만 `ExecutionContext.abortSignal` 보유) 대개 undefined 이며, 실제 취소 signal 전파는 `node-cancellation-infrastructure` 후속이다. timeout 백스톱은 signal 과 독립 동작. SoT: `spec/4-nodes/3-ai/1-ai-agent.md §12.16`, `spec/conventions/node-cancellation.md`.
+
+## Unreleased — AI Agent 도구 정의 payload 예산 저장 시점 경고 (config-time graph warning)
+
+선행 런타임 fail-fast 가드레일의 후속(항목 A). 런타임 fail-fast 는 노드 실행 시점에야 발동하므로, 워크플로 **저장·조회** 시점에 도구 정의 payload 팽창을 미리 경고한다.
+
+1. **신규 backend-only graph warning `ai_agent:tool-payload-budget`.** 각 AI Agent 노드의 `presentationTools`·`mcpServers`(connected cafe24/makeshop 정적 카탈로그)로부터 config-time 도구 정의 payload 를 재현(런타임 `buildTools` 와 동일 매핑을 pure 함수로 추출·공유, drift 0)해 예산(`AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES`/`_HARD_BYTES`/`_COUNT_MAX`) 초과를 `GraphWarningRuleResult` 로 표면화한다. generic MCP(`service_type='mcp'`)·비-connected 통합은 live connect 필요라 best-effort skip → 기본 severity `warning`(근사 오차단 회피).
+2. **표면화는 조회 endpoint 전담**: `GET /workflows/:id/graph-warnings`(`getGraphWarnings`)가 결과 배열에 append(별도 응답 필드 신설 없음). frontend canvas 가드 ②(로컬 pre-evaluate)는 async 통합 조회 불가라 이 rule 을 계산하지 않는다(cross-node-warning-rules §5 backend-only 예외).
+3. **신규 env `AI_AGENT_TOOL_BUDGET_STRICT_SAVE`**(기본 false): true 면 저장 시 hard(또는 개수) 초과를 severity `warning`→`error` 로 승격해 `saveCanvas` 가 기존 `GRAPH_VALIDATION_FAILED`(400)로 저장을 차단한다(3중 가드 ①). 기본 off 시 `saveCanvas` 는 통합 조회 자체를 skip(도달 불가 차단 분기 비용 회피). saveCanvas 응답 계약은 불변(graph warning 미탑재).
+4. i18n: `GRAPH_WARNING_KO['ai_agent:tool-payload-budget']` 한국어 템플릿 추가(backend-only rule 이라 P3-C-1 자동 스캔 사각지대 → 명시 등록). SoT: `spec/4-nodes/3-ai/1-ai-agent.md §4.2·§10`, `spec/conventions/cross-node-warning-rules.md §5·§8`.
+
 ## Unreleased — 채팅 채널 control-plane 안내 발송 per-provider escape (F-5 근본 fix, 5-system/15-chat-channel §4.1.1)
 
 ### 변경 사항

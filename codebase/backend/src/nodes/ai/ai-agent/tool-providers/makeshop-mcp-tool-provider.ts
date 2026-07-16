@@ -199,33 +199,27 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
       }
 
       const sid = sanitizeSid(integration.id);
-      const enabled = this.applyAllowlist(ref.enabledTools);
 
-      const opMap = new Map<
-        string,
-        { resource: MakeshopResource; operation: MakeshopOperationMetadata }
-      >();
-      for (const { resource, operation } of listAllMakeshopOperations()) {
-        // allowlist matches the BARE operationId (spec §8.3).
-        if (!enabled(operation.id)) continue;
-        const token = sanitizeOperationId(operation.id);
+      // 도구 정의(스키마) 재현은 세션 state 없이 pure 하므로 module-level
+      // `buildMakeshopToolDefsForIntegration` 로 추출했다 — 런타임(buildTools)과
+      // 저장 시점 payload 예산 경고(WorkflowsService, tool-payload-save-warning.ts)
+      // 가 같은 매핑을 공유한다 (drift 0). 여기(런타임)는 opMap 세션 등록과
+      // sanitize collision 로깅 side-effect 만 담당한다.
+      const {
+        tools: builtTools,
+        opMap,
+        collisions,
+      } = buildMakeshopToolDefsForIntegration(integration, ref.enabledTools);
+      tools.push(...builtTools);
+      for (const c of collisions) {
         // Defensive runtime guard for sanitize collisions within a sid. The
         // metadata.spec test already enforces resource-local uniqueness
         // (spec §8.1), but two distinct bare ids that sanitize identically
         // would otherwise silently overwrite the opMap entry — keep the first
         // and skip the collider so dispatch stays deterministic.
-        if (opMap.has(token)) {
-          this.logger.warn(
-            `MakeShop integration ${integration.id}: operationId sanitize collision ("${opMap.get(token)!.operation.id}" vs "${operation.id}" → "${token}") — keeping first, skipping "${operation.id}"`,
-          );
-          continue;
-        }
-        opMap.set(token, { resource, operation });
-        tools.push({
-          name: `mcp_${sid}__${token}`,
-          description: buildToolDescription(operation, integration.name),
-          parameters: this.buildJsonSchema(operation),
-        });
+        this.logger.warn(
+          `MakeShop integration ${integration.id}: operationId sanitize collision ("${c.kept}" vs "${c.skipped}" → "${c.token}") — keeping first, skipping "${c.skipped}"`,
+        );
       }
 
       // One retain per (executionId, sid) pair — buildTools may run multiple
@@ -659,74 +653,6 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
     return parseMcpToolName(toolName)?.toolNameSanitized ?? null;
   }
 
-  private applyAllowlist(
-    enabledTools: string[] | undefined,
-  ): (id: string) => boolean {
-    if (!enabledTools || enabledTools.length === 0) return () => true;
-    if (enabledTools.includes('*')) return () => true;
-    const set = new Set(enabledTools);
-    return (id: string) => set.has(id);
-  }
-
-  private buildJsonSchema(
-    op: MakeshopOperationMetadata,
-  ): Record<string, unknown> {
-    const properties: Record<string, unknown> = {};
-    for (const [name, spec] of Object.entries(op.fields)) {
-      const prop: Record<string, unknown> = {};
-      if (spec.type === 'enum') {
-        prop.type = 'string';
-        if (spec.enum) prop.enum = spec.enum;
-      } else if (spec.type === 'array') {
-        prop.type = 'array';
-        prop.items = { type: 'string' };
-      } else if (spec.type === 'object') {
-        prop.type = 'object';
-        prop.additionalProperties = true;
-      } else {
-        prop.type = spec.type;
-      }
-      if (spec.description) prop.description = spec.description;
-      if (spec.default !== undefined) prop.default = spec.default;
-      properties[name] = prop;
-    }
-    const schema: Record<string, unknown> = {
-      type: 'object',
-      properties,
-    };
-
-    // Compose `required` + `oneOf` constraints (same mapping as cafe24).
-    // - No oneOf constraint: emit plain top-level `required`.
-    // - Has oneOf constraint(s): wrap in `allOf` so the AND of requiredFields
-    //   plus the AND of each oneOf (each an `anyOf` of single-field `required`
-    //   clauses) compose cleanly.
-    // - `allOrNone` / `implies` / `impliesValue` are enforced via runtime
-    //   validateMakeshopConstraints, not JSON Schema (their `not` encodings
-    //   trip LLM tool-call validators).
-    const oneOfConstraints = (op.constraints ?? []).filter(
-      (c): c is Extract<MakeshopFieldConstraint, { kind: 'oneOf' }> =>
-        c.kind === 'oneOf',
-    );
-    const requiredClause =
-      op.requiredFields.length > 0
-        ? { required: [...op.requiredFields] }
-        : null;
-
-    if (oneOfConstraints.length === 0) {
-      if (requiredClause) schema.required = requiredClause.required;
-    } else {
-      const anyOfClauses = oneOfConstraints.map((c) => ({
-        anyOf: c.fields.map((f) => ({ required: [f] })),
-      }));
-      const allOf = requiredClause
-        ? [requiredClause, ...anyOfClauses]
-        : anyOfClauses;
-      schema.allOf = allOf;
-    }
-
-    return schema;
-  }
-
   private codeForStatus(status: number): string {
     if (status === 404) return 'MAKESHOP_404';
     if (status === 422) return 'MAKESHOP_422';
@@ -763,6 +689,151 @@ export class MakeshopMcpToolProvider implements AgentToolProvider {
   private errMsg(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+/** operationId sanitize 토큰 충돌 1건 (첫 항목 유지, 후속 skip). */
+export interface MakeshopSanitizeCollision {
+  token: string;
+  /** 토큰을 선점해 유지된 bare operationId. */
+  kept: string;
+  /** 동일 토큰으로 sanitize 되어 skip 된 bare operationId. */
+  skipped: string;
+}
+
+/** connected makeshop 통합 하나의 config-time 도구 재현 결과. */
+export interface MakeshopConfigToolBuild {
+  tools: ToolDef[];
+  opMap: Map<
+    string,
+    { resource: MakeshopResource; operation: MakeshopOperationMetadata }
+  >;
+  /** sanitize 토큰 충돌로 제외된 operation 목록 (런타임은 warn 로깅). */
+  collisions: MakeshopSanitizeCollision[];
+}
+
+/**
+ * connected makeshop 통합 하나가 LLM 에 노출할 ToolDef 배열 + operation lookup
+ * map 을 **세션 state 없이 순수 재현**한다. `MakeshopMcpToolProvider.buildTools`
+ * (런타임)와 저장 시점 도구 payload 예산 경고(`WorkflowsService` →
+ * `tool-payload-save-warning.ts`)가 이 단일 매핑을 공유해 drift 를 0 으로 유지한다.
+ *
+ * cafe24 와 달리 granted-scope pre-filter 가 없다 (spec §8: makeshop 은 scope
+ * 축이 없어 connected 통합의 모든 operation 을 노출). side-effect 없음 — 세션
+ * state mutation·MCP 진단 push·collision 로깅은 caller(런타임 buildTools) 책임.
+ *
+ * 호출 전제: `integration.serviceType === 'makeshop'` · `status === 'connected'`.
+ */
+export function buildMakeshopToolDefsForIntegration(
+  integration: Integration,
+  enabledTools: string[] | undefined,
+): MakeshopConfigToolBuild {
+  const sid = sanitizeSid(integration.id);
+  const enabled = applyMakeshopAllowlist(enabledTools);
+  const opMap = new Map<
+    string,
+    { resource: MakeshopResource; operation: MakeshopOperationMetadata }
+  >();
+  const tools: ToolDef[] = [];
+  const collisions: MakeshopSanitizeCollision[] = [];
+  for (const { resource, operation } of listAllMakeshopOperations()) {
+    // allowlist matches the BARE operationId (spec §8.3).
+    if (!enabled(operation.id)) continue;
+    const token = sanitizeOperationId(operation.id);
+    // Two distinct bare ids that sanitize identically would silently
+    // overwrite the opMap entry — keep the first, record the collider.
+    const existing = opMap.get(token);
+    if (existing) {
+      collisions.push({
+        token,
+        kept: existing.operation.id,
+        skipped: operation.id,
+      });
+      continue;
+    }
+    opMap.set(token, { resource, operation });
+    tools.push({
+      name: `mcp_${sid}__${token}`,
+      description: buildToolDescription(operation, integration.name),
+      parameters: buildMakeshopJsonSchema(operation),
+    });
+  }
+  return { tools, opMap, collisions };
+}
+
+/**
+ * enabledTools allowlist → operationId 필터 함수. 빈 배열/미설정/`*` 포함 시
+ * 전체 허용. (구 인스턴스 메서드에서 config-time 공유를 위해 module-level pure
+ * 함수로 승격.)
+ */
+function applyMakeshopAllowlist(
+  enabledTools: string[] | undefined,
+): (id: string) => boolean {
+  if (!enabledTools || enabledTools.length === 0) return () => true;
+  if (enabledTools.includes('*')) return () => true;
+  const set = new Set(enabledTools);
+  return (id: string) => set.has(id);
+}
+
+/**
+ * makeshop operation → JSON Schema (LLM 도구 parameters). 구
+ * `MakeshopMcpToolProvider.buildJsonSchema` 인스턴스 메서드에서 config-time 공유를
+ * 위해 module-level pure 함수로 승격 (동작 불변).
+ */
+function buildMakeshopJsonSchema(
+  op: MakeshopOperationMetadata,
+): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const [name, spec] of Object.entries(op.fields)) {
+    const prop: Record<string, unknown> = {};
+    if (spec.type === 'enum') {
+      prop.type = 'string';
+      if (spec.enum) prop.enum = spec.enum;
+    } else if (spec.type === 'array') {
+      prop.type = 'array';
+      prop.items = { type: 'string' };
+    } else if (spec.type === 'object') {
+      prop.type = 'object';
+      prop.additionalProperties = true;
+    } else {
+      prop.type = spec.type;
+    }
+    if (spec.description) prop.description = spec.description;
+    if (spec.default !== undefined) prop.default = spec.default;
+    properties[name] = prop;
+  }
+  const schema: Record<string, unknown> = {
+    type: 'object',
+    properties,
+  };
+
+  // Compose `required` + `oneOf` constraints (same mapping as cafe24).
+  // - No oneOf constraint: emit plain top-level `required`.
+  // - Has oneOf constraint(s): wrap in `allOf` so the AND of requiredFields
+  //   plus the AND of each oneOf (each an `anyOf` of single-field `required`
+  //   clauses) compose cleanly.
+  // - `allOrNone` / `implies` / `impliesValue` are enforced via runtime
+  //   validateMakeshopConstraints, not JSON Schema (their `not` encodings
+  //   trip LLM tool-call validators).
+  const oneOfConstraints = (op.constraints ?? []).filter(
+    (c): c is Extract<MakeshopFieldConstraint, { kind: 'oneOf' }> =>
+      c.kind === 'oneOf',
+  );
+  const requiredClause =
+    op.requiredFields.length > 0 ? { required: [...op.requiredFields] } : null;
+
+  if (oneOfConstraints.length === 0) {
+    if (requiredClause) schema.required = requiredClause.required;
+  } else {
+    const anyOfClauses = oneOfConstraints.map((c) => ({
+      anyOf: c.fields.map((f) => ({ required: [f] })),
+    }));
+    const allOf = requiredClause
+      ? [requiredClause, ...anyOfClauses]
+      : anyOfClauses;
+    schema.allOf = allOf;
+  }
+
+  return schema;
 }
 
 /**

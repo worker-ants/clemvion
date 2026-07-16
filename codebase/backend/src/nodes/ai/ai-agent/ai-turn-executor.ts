@@ -44,6 +44,7 @@ import {
   enforceToolPayloadBudget,
   ToolDefinitionPayloadExceededError,
 } from './tool-payload-budget';
+import { aiAgentLlmCallTimeoutMs } from './llm-call-timeout';
 import { injectConversationContext } from '../shared/conversation-context-injection';
 import {
   compactMessagesToTail,
@@ -641,7 +642,7 @@ export class AiTurnExecutor {
    * 여러 메서드에 흩어져 있던 `state as ResumeState` 를 대체해 일관화한다.
    */
   private narrowResumeState(state: Record<string, unknown>): ResumeState {
-    return state as ResumeState;
+    return state;
   }
 
   /**
@@ -1684,7 +1685,8 @@ export class AiTurnExecutor {
         executionId: context.executionId,
         nodeExecutionId: context.nodeExecutionId,
       },
-      { signal: context.abortSignal },
+      // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃(무기한 hang 백스톱).
+      { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
     );
     llmCalls.push({
       requestPayload: firstRequest,
@@ -1749,7 +1751,7 @@ export class AiTurnExecutor {
           this.buildAiNodeRefFromContext(context, config),
           'ai_assistant',
           result.content || '',
-          result.toolCalls as ConversationTurnToolCall[] | undefined,
+          result.toolCalls,
         );
       }
 
@@ -1814,7 +1816,8 @@ export class AiTurnExecutor {
           tools,
         },
         undefined,
-        { signal: context.abortSignal },
+        // §12.16 defense-in-depth — chat 호출당 app-level 타임아웃.
+        { signal: context.abortSignal, timeoutMs: aiAgentLlmCallTimeoutMs() },
       );
       llmCalls.push({
         requestPayload: loopRequest,
@@ -2770,6 +2773,10 @@ export class AiTurnExecutor {
         tools: toolsDef,
       },
       llmContext,
+      // §12.16 defense-in-depth — resume 턴 chat 에도 app-level 타임아웃. signal 은
+      // 현재 resume 경로에 abort 소스가 없어(node-cancellation.md, follow-up)
+      // 대개 undefined 지만, 소스가 생기면 options 로 전파되도록 배선해 둔다.
+      { signal: options?.signal, timeoutMs: aiAgentLlmCallTimeoutMs() },
     );
     llmCalls.push({
       requestPayload: chatParams,
@@ -2840,7 +2847,7 @@ export class AiTurnExecutor {
           this.buildAiNodeRefFromState(state),
           'ai_assistant',
           result.content || '',
-          result.toolCalls as ConversationTurnToolCall[] | undefined,
+          result.toolCalls,
         );
       }
 
@@ -2912,6 +2919,8 @@ export class AiTurnExecutor {
         },
         // [Spec 7-llm-usage §1.3] tool-call 루프 내 후속 chat 도 동일 attribution 전달.
         llmContext,
+        // §12.16 defense-in-depth — 후속 chat 도 app-level 타임아웃 대칭 적용.
+        { signal: options?.signal, timeoutMs: aiAgentLlmCallTimeoutMs() },
       );
       llmCalls.push({
         requestPayload: loopReq,
@@ -2944,9 +2953,7 @@ export class AiTurnExecutor {
     // 증분 추출 (AGM-08): state 의 watermark 를 넘겨 이후 turn 만 추출하고, 반환된
     // 새 watermark 를 _resumeState 의 memoryState sub-namespace 로 영속한다 (I12).
     // readExtractionWatermark 는 신 namespace 우선 + 구 평면 키 폴백(하위호환).
-    const prevExtractionSeq = readExtractionWatermark(
-      state as Record<string, unknown>,
-    );
+    const prevExtractionSeq = readExtractionWatermark(state);
     const nextExtractionSeq = await this.memoryManager.scheduleMemoryExtraction(
       {
         strategy: multiTurnMemoryStrategy,
@@ -3086,7 +3093,7 @@ export class AiTurnExecutor {
           ? {
               memoryState: {
                 ...(typeof state.memoryState === 'object' && state.memoryState
-                  ? (state.memoryState as Record<string, unknown>)
+                  ? state.memoryState
                   : {}),
                 lastExtractionTurnSeq: nextExtractionSeq,
               },
@@ -3277,6 +3284,13 @@ export class AiTurnExecutor {
     // `_retryState` 를 운반한다. `_resumeState` 의 부분집합 + `expiresAt` (TTL).
     // credential (llmConfigId 가 가리키는 provider secret) 은 포함하지 않으며
     // `maskSensitiveFields` boundary 와 동일 정책. retryable !== true 면 미동봉.
+    // `details` 는 `unknown` 이라 `retryable` 접근을 위해 narrowing 캐스트가
+    // 필요하다. eslint `no-unnecessary-type-assertion` 은 tsc 와 타입 분석이
+    // 엇갈려 이를 "불필요" 로 오판정하는데, 제거하면 tsc 가 TS2339("Property
+    // 'retryable' does not exist on type '{}'")로 빌드 실패한다 — `--fix` 가 다시
+    // 지우지 못하도록 disable 로 고정. (origin/main 은 warning 을 방치했으나 본
+    // 편집에서 `eslint --fix` 가 실제로 제거해 빌드를 깬 landmine 을 확인해 명시.)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const retryDetails = (errorPayload?.details ?? undefined) as
       | { retryable?: unknown }
       | undefined;
@@ -3371,7 +3385,7 @@ export class AiTurnExecutor {
       totalOutputTokens: accounting.totalOutputTokens,
       totalThinkingTokens: source.totalThinkingTokens ?? 0,
       toolCalls: accounting.toolCalls,
-      model: (source.model as string | undefined) ?? accounting.model,
+      model: source.model ?? accounting.model,
       temperature: source.temperature,
       maxTokens: source.maxTokens,
       knowledgeBases: source.knowledgeBases ?? [],

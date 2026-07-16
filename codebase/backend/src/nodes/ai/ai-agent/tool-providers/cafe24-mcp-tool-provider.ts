@@ -193,41 +193,23 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       }
 
       const sid = sanitizeSid(integration.id);
-      const enabled = this.applyAllowlist(ref.enabledTools);
 
-      // Filter operations by what scopes Cafe24 actually granted us.
-      // The integration's `credentials.scopes` records the scopes echoed
-      // back by Cafe24's `/oauth/token` response (after PR #37) — these
-      // are the *real* permissions on the access_token, not what we asked
-      // for. Exposing an operation that requires a scope we don't hold
-      // makes the AI Agent try it and 403 with `insufficient_scope`,
-      // which (a) wastes a tool round-trip and (b) flips the integration
-      // status to `error(auth_failed)` via the 401/403 handler in
-      // Cafe24ApiClient — a UX regression because the integration WAS
-      // working fine for the scopes it actually has.
-      const grantedScopes = extractGrantedScopes(integration);
-      const opMap = new Map<
-        string,
-        { resource: Cafe24Resource; operation: Cafe24OperationMetadata }
-      >();
-      const skippedByScope: string[] = [];
-      for (const { resource, operation } of listAllCafe24Operations()) {
-        if (!enabled(operation.id)) continue;
-        const required = scopeForOperation(resource, operation);
-        if (!grantedScopes.has(required)) {
-          skippedByScope.push(`${operation.id}(needs ${required})`);
-          continue;
-        }
-        opMap.set(operation.id, { resource, operation });
-        tools.push({
-          name: `mcp_${sid}__${operation.id}`,
-          description: buildToolDescription(operation, integration.name),
-          parameters: this.buildJsonSchema(operation),
-        });
-      }
+      // 도구 정의(스키마) 재현은 세션 state 없이 pure 하므로 module-level
+      // `buildCafe24ToolDefsForIntegration` 로 추출했다 — 런타임(buildTools)과
+      // 저장 시점 payload 예산 경고(WorkflowsService, tool-payload-save-warning.ts)
+      // 가 같은 매핑을 공유한다 (drift 0). 여기(런타임)는 opMap 을 세션 state 에
+      // 등록하고 skippedByScope 를 로깅하는 side-effect 만 담당한다.
+      const {
+        tools: builtTools,
+        opMap,
+        skippedByScope,
+      } = buildCafe24ToolDefsForIntegration(integration, ref.enabledTools);
+      tools.push(...builtTools);
       if (skippedByScope.length > 0) {
         // Log only a sample — the full list can run into hundreds for a
-        // mall with a single scope granted.
+        // mall with a single scope granted. granted scope 는 추출 함수가
+        // 반환하지 않으므로 이 진단 브랜치에서만 재계산 (skip 이 있을 때만).
+        const grantedScopes = extractGrantedScopes(integration);
         this.logger.log(
           `Cafe24 integration ${integration.id} (${integration.name}) — ${skippedByScope.length} operation(s) skipped due to missing scope. granted=[${[...grantedScopes].join(',')}] sample=[${skippedByScope.slice(0, 5).join(',')}${skippedByScope.length > 5 ? ',...' : ''}]`,
         );
@@ -670,75 +652,6 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return parseMcpToolName(toolName)?.toolNameSanitized ?? null;
   }
 
-  private applyAllowlist(
-    enabledTools: string[] | undefined,
-  ): (id: string) => boolean {
-    if (!enabledTools || enabledTools.length === 0) return () => true;
-    if (enabledTools.includes('*')) return () => true;
-    const set = new Set(enabledTools);
-    return (id: string) => set.has(id);
-  }
-
-  private buildJsonSchema(
-    op: Cafe24OperationMetadata,
-  ): Record<string, unknown> {
-    const properties: Record<string, unknown> = {};
-    for (const [name, spec] of Object.entries(op.fields)) {
-      const prop: Record<string, unknown> = {};
-      if (spec.type === 'enum') {
-        prop.type = 'string';
-        if (spec.enum) prop.enum = spec.enum;
-      } else if (spec.type === 'array') {
-        prop.type = 'array';
-        prop.items = { type: 'string' };
-      } else if (spec.type === 'object') {
-        prop.type = 'object';
-        prop.additionalProperties = true;
-      } else {
-        prop.type = spec.type;
-      }
-      if (spec.description) prop.description = spec.description;
-      if (spec.default !== undefined) prop.default = spec.default;
-      properties[name] = prop;
-    }
-    const schema: Record<string, unknown> = {
-      type: 'object',
-      properties,
-    };
-
-    // Compose `required` + `oneOf` constraints (spec §2 "MCP/JSON Schema 매핑").
-    // - No oneOf constraint: emit plain top-level `required`.
-    // - Has oneOf constraint(s): wrap in `allOf` so the AND of requiredFields
-    //   plus the AND of each oneOf (each itself an `anyOf` of single-field
-    //   `required` clauses) compose cleanly. JSON Schema's own `oneOf` means
-    //   "exactly one" — we deliberately use `anyOf` for at-least-one.
-    // - `allOrNone` / `implies` kinds intentionally do NOT translate to JSON
-    //   Schema; their `not` encodings trip LLM tool-call validators. They
-    //   are enforced via description suffix + runtime `validateCafe24Constraints`.
-    const oneOfConstraints = (op.constraints ?? []).filter(
-      (c): c is Extract<Cafe24FieldConstraint, { kind: 'oneOf' }> =>
-        c.kind === 'oneOf',
-    );
-    const requiredClause =
-      op.requiredFields.length > 0
-        ? { required: [...op.requiredFields] }
-        : null;
-
-    if (oneOfConstraints.length === 0) {
-      if (requiredClause) schema.required = requiredClause.required;
-    } else {
-      const anyOfClauses = oneOfConstraints.map((c) => ({
-        anyOf: c.fields.map((f) => ({ required: [f] })),
-      }));
-      const allOf = requiredClause
-        ? [requiredClause, ...anyOfClauses]
-        : anyOfClauses;
-      schema.allOf = allOf;
-    }
-
-    return schema;
-  }
-
   private codeForStatus(status: number): string {
     if (status === 404) return 'CAFE24_404';
     if (status === 422) return 'CAFE24_422';
@@ -775,6 +688,142 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
   private errMsg(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+/** connected cafe24 통합 하나의 config-time 도구 재현 결과. */
+export interface Cafe24ConfigToolBuild {
+  tools: ToolDef[];
+  opMap: Map<
+    string,
+    { resource: Cafe24Resource; operation: Cafe24OperationMetadata }
+  >;
+  /** granted scope 부재로 제외된 operation 목록 (`id(needs scope)` 형식). */
+  skippedByScope: string[];
+}
+
+/**
+ * connected cafe24 통합 하나가 LLM 에 노출할 ToolDef 배열 + operation lookup map
+ * 을 **세션 state 없이 순수 재현**한다. `Cafe24McpToolProvider.buildTools`(런타임)
+ * 와 저장 시점 도구 payload 예산 경고(`WorkflowsService` → `tool-payload-save-warning.ts`)
+ * 가 이 단일 매핑을 공유해 drift 를 0 으로 유지한다.
+ *
+ * side-effect 없음 — 세션 state mutation·MCP 진단 push·토큰 refresh·로깅은 모두
+ * caller(런타임 buildTools) 책임이다. config-time 평가는 `tools` 만 사용한다.
+ *
+ * 호출 전제: `integration.serviceType === 'cafe24'` · `status === 'connected'`.
+ * granted scope(`credentials.scopes`) 로 필터하므로 unreadable/미보유 credentials
+ * 는 자연히 0 도구를 낸다 (unknown-permission 통합에 안전한 기본값).
+ */
+export function buildCafe24ToolDefsForIntegration(
+  integration: Integration,
+  enabledTools: string[] | undefined,
+): Cafe24ConfigToolBuild {
+  const sid = sanitizeSid(integration.id);
+  const enabled = applyCafe24Allowlist(enabledTools);
+  const grantedScopes = extractGrantedScopes(integration);
+  const opMap = new Map<
+    string,
+    { resource: Cafe24Resource; operation: Cafe24OperationMetadata }
+  >();
+  const tools: ToolDef[] = [];
+  const skippedByScope: string[] = [];
+  for (const { resource, operation } of listAllCafe24Operations()) {
+    if (!enabled(operation.id)) continue;
+    // Filter operations by what scopes Cafe24 actually granted us
+    // (`credentials.scopes`, echoed by /oauth/token). Exposing an operation
+    // whose scope we don't hold makes the AI Agent 403 (`insufficient_scope`),
+    // wasting a round-trip and flipping the integration to error(auth_failed).
+    const required = scopeForOperation(resource, operation);
+    if (!grantedScopes.has(required)) {
+      skippedByScope.push(`${operation.id}(needs ${required})`);
+      continue;
+    }
+    opMap.set(operation.id, { resource, operation });
+    tools.push({
+      name: `mcp_${sid}__${operation.id}`,
+      description: buildToolDescription(operation, integration.name),
+      parameters: buildCafe24JsonSchema(operation),
+    });
+  }
+  return { tools, opMap, skippedByScope };
+}
+
+/**
+ * enabledTools allowlist → operationId 필터 함수. 빈 배열/미설정/`*` 포함 시
+ * 전체 허용. (구 `Cafe24McpToolProvider.applyAllowlist` 인스턴스 메서드에서
+ * config-time 공유를 위해 module-level pure 함수로 승격.)
+ */
+function applyCafe24Allowlist(
+  enabledTools: string[] | undefined,
+): (id: string) => boolean {
+  if (!enabledTools || enabledTools.length === 0) return () => true;
+  if (enabledTools.includes('*')) return () => true;
+  const set = new Set(enabledTools);
+  return (id: string) => set.has(id);
+}
+
+/**
+ * cafe24 operation → JSON Schema (LLM 도구 parameters). 구
+ * `Cafe24McpToolProvider.buildJsonSchema` 인스턴스 메서드에서 config-time 공유를
+ * 위해 module-level pure 함수로 승격 (동작 불변). export 는 스키마 매핑을 직접
+ * 검증하는 단위 테스트용.
+ */
+export function buildCafe24JsonSchema(
+  op: Cafe24OperationMetadata,
+): Record<string, unknown> {
+  const properties: Record<string, unknown> = {};
+  for (const [name, spec] of Object.entries(op.fields)) {
+    const prop: Record<string, unknown> = {};
+    if (spec.type === 'enum') {
+      prop.type = 'string';
+      if (spec.enum) prop.enum = spec.enum;
+    } else if (spec.type === 'array') {
+      prop.type = 'array';
+      prop.items = { type: 'string' };
+    } else if (spec.type === 'object') {
+      prop.type = 'object';
+      prop.additionalProperties = true;
+    } else {
+      prop.type = spec.type;
+    }
+    if (spec.description) prop.description = spec.description;
+    if (spec.default !== undefined) prop.default = spec.default;
+    properties[name] = prop;
+  }
+  const schema: Record<string, unknown> = {
+    type: 'object',
+    properties,
+  };
+
+  // Compose `required` + `oneOf` constraints (spec §2 "MCP/JSON Schema 매핑").
+  // - No oneOf constraint: emit plain top-level `required`.
+  // - Has oneOf constraint(s): wrap in `allOf` so the AND of requiredFields
+  //   plus the AND of each oneOf (each itself an `anyOf` of single-field
+  //   `required` clauses) compose cleanly. JSON Schema's own `oneOf` means
+  //   "exactly one" — we deliberately use `anyOf` for at-least-one.
+  // - `allOrNone` / `implies` kinds intentionally do NOT translate to JSON
+  //   Schema; their `not` encodings trip LLM tool-call validators. They
+  //   are enforced via description suffix + runtime `validateCafe24Constraints`.
+  const oneOfConstraints = (op.constraints ?? []).filter(
+    (c): c is Extract<Cafe24FieldConstraint, { kind: 'oneOf' }> =>
+      c.kind === 'oneOf',
+  );
+  const requiredClause =
+    op.requiredFields.length > 0 ? { required: [...op.requiredFields] } : null;
+
+  if (oneOfConstraints.length === 0) {
+    if (requiredClause) schema.required = requiredClause.required;
+  } else {
+    const anyOfClauses = oneOfConstraints.map((c) => ({
+      anyOf: c.fields.map((f) => ({ required: [f] })),
+    }));
+    const allOf = requiredClause
+      ? [requiredClause, ...anyOfClauses]
+      : anyOfClauses;
+    schema.allOf = allOf;
+  }
+
+  return schema;
 }
 
 /**

@@ -10,6 +10,7 @@ import { WorkflowsService } from './workflows.service';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
+import { Integration } from '../integrations/entities/integration.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ModelConfigService } from '../model-config/model-config.service';
@@ -66,6 +67,14 @@ describe('WorkflowsService', () => {
     find: jest.fn().mockResolvedValue([]),
   };
 
+  // AI Agent 저장 시점 도구 payload 예산 경고(backend-only)의 통합 배치 조회용.
+  // 기본 [] → 어떤 통합도 재현되지 않아 tool-payload 경고 0건 (기존 테스트 동작
+  // 불변). 개별 테스트가 필요 시 find 를 override. saveCanvas 경로는 트랜잭션
+  // 매니저의 getRepository(Integration) 로 같은 mock 을 얻는다.
+  const mockIntegrationRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
   const mockTransactionManager = {
     save: jest
       .fn()
@@ -75,6 +84,7 @@ describe('WorkflowsService', () => {
     find: jest.fn().mockResolvedValue([]),
     remove: jest.fn().mockResolvedValue(undefined),
     create: jest.fn().mockImplementation((_entity, data) => data),
+    getRepository: jest.fn().mockReturnValue(mockIntegrationRepository),
   };
 
   const mockDataSource = {
@@ -112,6 +122,10 @@ describe('WorkflowsService', () => {
         { provide: getRepositoryToken(Workflow), useValue: mockRepository },
         { provide: getRepositoryToken(Node), useValue: mockNodeRepository },
         { provide: getRepositoryToken(Edge), useValue: mockEdgeRepository },
+        {
+          provide: getRepositoryToken(Integration),
+          useValue: mockIntegrationRepository,
+        },
         { provide: DataSource, useValue: mockDataSource },
         {
           provide: WorkflowVersionsService,
@@ -831,8 +845,10 @@ describe('WorkflowsService', () => {
         cycleEdge('e3', 'c', 'a'),
       ]);
 
-      const { results, hasError, hasWarning } =
-        await service.getGraphWarnings('wf-uuid-1');
+      const { results, hasError, hasWarning } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
 
       expect(results.some((r) => r.ruleId === 'graph:unescapable-cycle')).toBe(
         true,
@@ -853,7 +869,9 @@ describe('WorkflowsService', () => {
       ]);
 
       await expect(
-        service.getGraphWarnings('wf-uuid-1', { throwOnError: true }),
+        service.getGraphWarnings('wf-uuid-1', 'ws-uuid-1', {
+          throwOnError: true,
+        }),
       ).resolves.toMatchObject({ hasWarning: true, hasError: false });
     });
 
@@ -864,10 +882,189 @@ describe('WorkflowsService', () => {
       ]);
       mockEdgeRepository.find.mockResolvedValue([cycleEdge('e1', 'a', 'b')]);
 
-      const { results } = await service.getGraphWarnings('wf-uuid-1');
+      const { results } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
       expect(results.some((r) => r.ruleId === 'graph:unescapable-cycle')).toBe(
         false,
       );
+    });
+  });
+
+  // spec/4-nodes/3-ai/1-ai-agent.md §4.2·§10, cross-node-warning-rules §5·§8 —
+  // AI Agent 저장 시점 도구 payload 예산 경고(backend-only async rule)의 배선.
+  // getGraphWarnings 는 결과 배열에 append, saveCanvas 는 severity error 차단.
+  describe('AI Agent tool-payload budget (config-time warning)', () => {
+    const BUDGET_ENV = [
+      'AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES',
+      'AI_AGENT_TOOL_PAYLOAD_HARD_BYTES',
+      'AI_AGENT_TOOL_BUDGET_STRICT_SAVE',
+    ] as const;
+    const savedBudgetEnv: Record<string, string | undefined> = {};
+    beforeEach(() => {
+      for (const k of BUDGET_ENV) savedBudgetEnv[k] = process.env[k];
+      mockRegistry.getComponent.mockReturnValue(undefined);
+      // 배치 통합 조회 mock 을 테스트별로 격리 (호출 횟수 단정용).
+      mockIntegrationRepository.find.mockClear();
+      mockIntegrationRepository.find.mockResolvedValue([]);
+      mockTransactionManager.getRepository.mockClear();
+    });
+    afterEach(() => {
+      for (const k of BUDGET_ENV) {
+        if (savedBudgetEnv[k] === undefined) delete process.env[k];
+        else process.env[k] = savedBudgetEnv[k];
+      }
+    });
+
+    // makeshop 은 granted-scope pre-filter 가 없어 connected 통합의 전체 카탈로그를
+    // 재현하므로 scope 셋업 없이 도구 payload 를 확보할 수 있다.
+    const connectedMakeshop = {
+      id: 'int-1',
+      workspaceId: 'ws-uuid-1',
+      serviceType: 'makeshop',
+      name: 'Shop',
+      status: 'connected',
+      credentials: { access_token: 't' },
+    };
+
+    it('getGraphWarnings 가 connected 통합 ai_agent 노드의 payload 경고를 결과에 append', async () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
+      mockNodeRepository.find.mockResolvedValue([
+        {
+          id: 'ai-1',
+          type: 'ai_agent',
+          label: 'Agent',
+          config: { mcpServers: [{ integrationId: 'int-1' }] },
+        },
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([]);
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
+
+      const { results, hasWarning } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
+
+      expect(
+        results.some((r) => r.ruleId === 'ai_agent:tool-payload-budget'),
+      ).toBe(true);
+      expect(hasWarning).toBe(true);
+      // 테넌트 경계 안에서 배치(단일 find) 조회한다.
+      expect(mockIntegrationRepository.find).toHaveBeenCalledTimes(1);
+      expect(mockIntegrationRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ workspaceId: 'ws-uuid-1' }),
+        }),
+      );
+    });
+
+    it('getGraphWarnings 기본(strict-save off)에서는 error 승격 없이 warning', async () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
+      delete process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE;
+      mockNodeRepository.find.mockResolvedValue([
+        {
+          id: 'ai-1',
+          type: 'ai_agent',
+          label: 'Agent',
+          config: { mcpServers: [{ integrationId: 'int-1' }] },
+        },
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([]);
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
+
+      const { hasError, hasWarning } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
+      expect(hasError).toBe(false);
+      expect(hasWarning).toBe(true);
+    });
+
+    it('saveCanvas 가 strict-save + hard 초과 시 GRAPH_VALIDATION_FAILED 로 차단', async () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
+      process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE = 'true';
+      mockRepository.findOne.mockResolvedValue(mockWorkflow);
+      mockTransactionManager.find.mockResolvedValue([]);
+      mockTransactionManager.save.mockImplementation(
+        (_entity: unknown, data: unknown) => Promise.resolve(data),
+      );
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
+
+      const dto: SaveCanvasDto = {
+        name: 'wf',
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trigger',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            id: 'ai-1',
+            type: 'ai_agent',
+            category: NodeCategory.AI,
+            label: 'Agent',
+            positionX: 100,
+            positionY: 0,
+            config: { mcpServers: [{ integrationId: 'int-1' }] },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'GRAPH_VALIDATION_FAILED' }),
+      });
+    });
+
+    it('saveCanvas 는 기본(strict-save off)에서 통합 조회 자체를 skip 하고 통과', async () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_HARD_BYTES = '10';
+      delete process.env.AI_AGENT_TOOL_BUDGET_STRICT_SAVE;
+      mockRepository.findOne.mockResolvedValue(mockWorkflow);
+      mockTransactionManager.find.mockResolvedValue([]);
+      mockTransactionManager.save.mockImplementation(
+        (_entity: unknown, data: unknown) => Promise.resolve(data),
+      );
+      // strict-save off 면 saveCanvas 는 도달 불가 차단 분기를 위한 통합 조회를
+      // 아예 하지 않는다 (dead-path 비용 회피). mockResolvedValue 는 설정하되
+      // 호출되지 않음을 아래에서 단정.
+      mockIntegrationRepository.find.mockResolvedValue([connectedMakeshop]);
+
+      const dto: SaveCanvasDto = {
+        name: 'wf',
+        nodes: [
+          {
+            id: 'node-1',
+            type: 'manual_trigger',
+            category: NodeCategory.TRIGGER,
+            label: 'Trigger',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            id: 'ai-1',
+            type: 'ai_agent',
+            category: NodeCategory.AI,
+            label: 'Agent',
+            positionX: 100,
+            positionY: 0,
+            config: { mcpServers: [{ integrationId: 'int-1' }] },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+      ).resolves.toBeDefined();
+      // strict-save off → 통합 조회(트랜잭션 매니저 repository) 미발생.
+      expect(mockTransactionManager.getRepository).not.toHaveBeenCalled();
+      expect(mockIntegrationRepository.find).not.toHaveBeenCalled();
     });
   });
 
