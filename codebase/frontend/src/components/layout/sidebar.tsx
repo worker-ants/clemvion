@@ -112,24 +112,92 @@ function renderWorkspaceGroup({
   );
 }
 
+/**
+ * 글로벌 사이드바 네비게이션 항목 — spec/2-navigation/_layout.md §2.2 메뉴 표.
+ *
+ * `workspaceScoped` 는 `href` 가 `(main)/w/[slug]` 하위 라우트인지 나타낸다. `true` 면
+ * `buildWorkspaceHref` 로 활성 slug 를 붙이고(`/w/<slug><href>`), `false` 면 bare href 를
+ * 그대로 쓴다. **User Guide(`/docs`)만 `false`** — 워크스페이스 무관 콘텐츠라 slug 밖으로
+ * 유지하는 것이 spec 이다(`_layout.md` §2.2 각주 · `9-user-profile.md` §3).
+ *
+ * 플래그가 없던 시절 전 항목에 무조건 slug 를 붙여 `/w/<slug>/docs` 라는 없는 라우트를
+ * 만들었고, catch-all 이 그 경로에 slug 를 재부착하며 무한 중첩이 발생했다. 라우트의
+ * 스코프 여부는 **선언 시점에** 고정되어야 하므로 데이터에 담는다.
+ */
 const navItems = [
-  { labelKey: "sidebar.dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { labelKey: "sidebar.workflows", href: "/workflows", icon: GitBranch },
-  { labelKey: "sidebar.triggers", href: "/triggers", icon: Zap },
-  { labelKey: "sidebar.schedule", href: "/schedules", icon: Calendar },
-  { labelKey: "sidebar.webChat", href: "/web-chat", icon: MessageCircle },
-  { labelKey: "sidebar.integration", href: "/integrations", icon: Puzzle },
-  { labelKey: "sidebar.knowledgeBase", href: "/knowledge-bases", icon: BookOpen },
-  { labelKey: "sidebar.models", href: "/models", icon: Brain },
-  { labelKey: "sidebar.authentication", href: "/authentication", icon: Lock },
-  { labelKey: "sidebar.statistics", href: "/statistics", icon: BarChart3 },
-  { labelKey: "sidebar.systemStatus", href: "/system-status", icon: Activity },
-  { labelKey: "sidebar.agentMemory", href: "/agent-memory", icon: BrainCircuit },
-  { labelKey: "sidebar.userGuide", href: "/docs", icon: BookMarked },
+  {
+    labelKey: "sidebar.dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.workflows",
+    href: "/workflows",
+    icon: GitBranch,
+    workspaceScoped: true,
+  },
+  { labelKey: "sidebar.triggers", href: "/triggers", icon: Zap, workspaceScoped: true },
+  {
+    labelKey: "sidebar.schedule",
+    href: "/schedules",
+    icon: Calendar,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.webChat",
+    href: "/web-chat",
+    icon: MessageCircle,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.integration",
+    href: "/integrations",
+    icon: Puzzle,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.knowledgeBase",
+    href: "/knowledge-bases",
+    icon: BookOpen,
+    workspaceScoped: true,
+  },
+  { labelKey: "sidebar.models", href: "/models", icon: Brain, workspaceScoped: true },
+  {
+    labelKey: "sidebar.authentication",
+    href: "/authentication",
+    icon: Lock,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.statistics",
+    href: "/statistics",
+    icon: BarChart3,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.systemStatus",
+    href: "/system-status",
+    icon: Activity,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.agentMemory",
+    href: "/agent-memory",
+    icon: BrainCircuit,
+    workspaceScoped: true,
+  },
+  {
+    labelKey: "sidebar.userGuide",
+    href: "/docs",
+    icon: BookMarked,
+    workspaceScoped: false,
+  },
 ] as const satisfies ReadonlyArray<{
   labelKey: TranslationKey;
   href: string;
   icon: typeof LayoutDashboard;
+  workspaceScoped: boolean;
 }>;
 
 function useMediaQuery(query: string) {
@@ -438,8 +506,11 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {navItems.map((item) => {
-            const href = buildWorkspaceHref(slug, item.href);
-            // slug 라우트에선 `/w/<slug><href>`, slug 밖 라우트(docs 등)에선 bare href 로 활성 판정.
+            const href = item.workspaceScoped
+              ? buildWorkspaceHref(slug, item.href)
+              : item.href;
+            // slug 라우트에선 `/w/<slug><href>` 로, catch-all 이 아직 흡수하지 않은 bare 경로
+            // (`/workflows` 등 구 북마크)에선 `item.href` 로 활성 판정한다.
             const isActive =
               pathname.startsWith(href) || pathname.startsWith(item.href);
             const label = t(item.labelKey);

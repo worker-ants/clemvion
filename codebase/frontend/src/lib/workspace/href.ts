@@ -11,6 +11,14 @@ import { toSafeInternalPath } from "./safe-path";
  *
  * **보안 경계**: protocol-relative(`//host`·`\\host`) 및 제어문자 입력은 `toSafeInternalPath`
  * (open-redirect 방어 공용 정규화)로 same-origin 절대경로화된다.
+ *
+ * **비-idempotent 는 의도된 것**: 이미 `/w/…` 인 path 를 넘겨도 접두를 또 붙인다. 조용히
+ * 삼키면 호출자 버그를 은폐하고, `buildWorkspaceHref("team-a", "/w/team-b/x")` 의 올바른
+ * 답(team-a? team-b?)이 정의되지 않는다. 대신 `(main)/[...rest]` catch-all 이 `/w/` 접두
+ * 경로를 terminal 로 다뤄(재부착 금지 → dashboard forward 또는 `notFound()`) 이 클래스의
+ * 실패를 무한 리다이렉트가 아니라 **가시적 404** 로 떨어뜨린다.
+ * (`no-raw-execution-href`·`no-raw-editor-href` guard 는 *호출부가 경로 리터럴을 직접
+ * 조립* 하는 것을 막는 장치이지, 헬퍼에 idempotency 를 요구하는 관행이 아니다.)
  */
 export function buildWorkspaceHref(
   slug: string | null | undefined,
