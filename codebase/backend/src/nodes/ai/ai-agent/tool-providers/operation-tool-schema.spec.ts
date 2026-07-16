@@ -43,7 +43,7 @@ describe('buildOperationJsonSchema (cafe24/makeshop 공유 매핑)', () => {
         },
       }),
     );
-    const props = (schema.properties as Record<string, unknown>);
+    const props = schema.properties as Record<string, unknown>;
     expect(props.withEnum).toEqual({ type: 'string', enum: ['x', 'y'] });
     expect(props.bareEnum).toEqual({ type: 'string' });
   });
@@ -90,7 +90,9 @@ describe('buildOperationJsonSchema (cafe24/makeshop 공유 매핑)', () => {
   });
 
   it('requiredFields·oneOf 모두 없으면 required 키 자체를 생략한다', () => {
-    const schema = buildOperationJsonSchema(op({ fields: { a: { type: 'string' } } }));
+    const schema = buildOperationJsonSchema(
+      op({ fields: { a: { type: 'string' } } }),
+    );
     expect('required' in schema).toBe(false);
     expect('allOf' in schema).toBe(false);
   });
@@ -98,7 +100,11 @@ describe('buildOperationJsonSchema (cafe24/makeshop 공유 매핑)', () => {
   it('oneOf 제약 → allOf 로 래핑(requiredFields 절 + anyOf 절)', () => {
     const schema = buildOperationJsonSchema(
       op({
-        fields: { a: { type: 'string' }, b: { type: 'string' }, c: { type: 'string' } },
+        fields: {
+          a: { type: 'string' },
+          b: { type: 'string' },
+          c: { type: 'string' },
+        },
         requiredFields: ['a'],
         constraints: [{ kind: 'oneOf', fields: ['b', 'c'] }],
       }),
@@ -127,8 +133,10 @@ describe('buildOperationJsonSchema (cafe24/makeshop 공유 매핑)', () => {
     const schema = buildOperationJsonSchema(
       op({
         fields: {
-          a: { type: 'string' }, b: { type: 'string' },
-          c: { type: 'string' }, d: { type: 'string' },
+          a: { type: 'string' },
+          b: { type: 'string' },
+          c: { type: 'string' },
+          d: { type: 'string' },
         },
         constraints: [
           { kind: 'oneOf', fields: ['a', 'b'] },
