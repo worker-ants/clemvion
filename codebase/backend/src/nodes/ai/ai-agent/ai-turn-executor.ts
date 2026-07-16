@@ -3284,7 +3284,16 @@ export class AiTurnExecutor {
     // `_retryState` 를 운반한다. `_resumeState` 의 부분집합 + `expiresAt` (TTL).
     // credential (llmConfigId 가 가리키는 provider secret) 은 포함하지 않으며
     // `maskSensitiveFields` boundary 와 동일 정책. retryable !== true 면 미동봉.
-    const retryDetails = errorPayload?.details ?? undefined;
+    // `details` 는 `unknown` 이라 `retryable` 접근을 위해 narrowing 캐스트가
+    // 필요하다. eslint `no-unnecessary-type-assertion` 은 tsc 와 타입 분석이
+    // 엇갈려 이를 "불필요" 로 오판정하는데, 제거하면 tsc 가 TS2339("Property
+    // 'retryable' does not exist on type '{}'")로 빌드 실패한다 — `--fix` 가 다시
+    // 지우지 못하도록 disable 로 고정. (origin/main 은 warning 을 방치했으나 본
+    // 편집에서 `eslint --fix` 가 실제로 제거해 빌드를 깬 landmine 을 확인해 명시.)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    const retryDetails = (errorPayload?.details ?? undefined) as
+      | { retryable?: unknown }
+      | undefined;
     const isRetryable = retryDetails?.retryable === true;
     const retryState =
       isRetryable && retryStateSource
