@@ -1,0 +1,227 @@
+"""Harness unit tests for scripts/check-e2e-playwright-config.py.
+
+Exercises the e2e playwright/config drift guard's logic on synthetic repo
+fixtures (stdlib-only, no install), plus a smoke assertion that the *real* repo
+currently satisfies the invariant. The guard itself is wired into
+`.github/workflows/e2e.yml` (config-guard job) as the primary enforcement.
+"""
+
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from _harness import REPO_ROOT, load_module_by_path
+
+guard = load_module_by_path(
+    "check_e2e_playwright_config",
+    REPO_ROOT / "scripts" / "check-e2e-playwright-config.py",
+)
+
+# 유효(정합) fixture 기본값 — 각 테스트가 필요한 부분만 override 한다.
+DEFAULT_PW_VERSION = "1.61.0"
+DEFAULT_BASE_TAG = "v1.61.0-jammy"
+DEFAULT_PKGS = ["expression-engine", "node-summary"]
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def make_repo(
+    root: Path,
+    *,
+    pw_version: str = DEFAULT_PW_VERSION,
+    base_tag: str = DEFAULT_BASE_TAG,
+    frontend_workflow_pkgs=DEFAULT_PKGS,
+    dockerfile_copy_pkgs=None,
+    compose_mask_pkgs=None,
+    packages_on_disk=None,
+) -> None:
+    """정합 fixture repo 를 만든다. *_pkgs 를 달리 주면 drift 를 주입한다."""
+    dockerfile_copy_pkgs = (
+        DEFAULT_PKGS if dockerfile_copy_pkgs is None else dockerfile_copy_pkgs
+    )
+    compose_mask_pkgs = (
+        DEFAULT_PKGS if compose_mask_pkgs is None else compose_mask_pkgs
+    )
+    packages_on_disk = (
+        DEFAULT_PKGS if packages_on_disk is None else packages_on_disk
+    )
+
+    # codebase/packages/<pkg>/package.json — name(@workflow/<pkg>) → dir 맵.
+    for pkg in packages_on_disk:
+        _write(
+            root / "codebase" / "packages" / pkg / "package.json",
+            json.dumps({"name": f"@workflow/{pkg}", "version": "0.1.0"}),
+        )
+
+    # codebase/frontend/package.json — @workflow/* 직접 의존.
+    _write(
+        root / "codebase" / "frontend" / "package.json",
+        json.dumps(
+            {
+                "name": "frontend",
+                "dependencies": {f"@workflow/{p}": "workspace:*" for p in frontend_workflow_pkgs},
+                "devDependencies": {"@playwright/test": "^1.59.1"},
+            }
+        ),
+    )
+
+    # pnpm-lock.yaml — frontend importer 블록에 @playwright/test 해소 버전.
+    other_importer = (
+        "  codebase/backend:\n"
+        "    dependencies:\n"
+        "      '@playwright/test':\n"
+        "        specifier: ^9.9.9\n"
+        "        version: 9.9.9\n"  # frontend 블록 밖 값 — 오파싱 방지 검증용.
+    )
+    frontend_importer = (
+        "  codebase/frontend:\n"
+        "    devDependencies:\n"
+        "      '@playwright/test':\n"
+        "        specifier: ^1.59.1\n"
+        f"        version: {pw_version}\n"
+    )
+    _write(
+        root / "pnpm-lock.yaml",
+        "lockfileVersion: '9.0'\n\nimporters:\n\n" + other_importer + frontend_importer,
+    )
+
+    # Dockerfile.playwright-e2e — base 태그 + COPY 소스.
+    copy_lines = "\n".join(
+        f"COPY codebase/packages/{p} ./codebase/packages/{p}" for p in dockerfile_copy_pkgs
+    )
+    manifest_lines = "\n".join(
+        f"COPY codebase/packages/{p}/package.json ./codebase/packages/{p}/"
+        for p in dockerfile_copy_pkgs
+    )
+    _write(
+        root / "codebase" / "frontend" / "Dockerfile.playwright-e2e",
+        f"FROM mcr.microsoft.com/playwright:{base_tag}\n"
+        "WORKDIR /app\n"
+        f"{manifest_lines}\n"
+        f"{copy_lines}\n"
+        'RUN pnpm install --frozen-lockfile --filter "frontend..."\n',
+    )
+
+    # docker-compose.e2e.yml — playwright-runner 볼륨 마스킹.
+    mask_lines = "\n".join(
+        f"      - /app/codebase/packages/{p}/node_modules" for p in compose_mask_pkgs
+    )
+    _write(
+        root / "docker-compose.e2e.yml",
+        "services:\n"
+        "  playwright-runner:\n"
+        "    volumes:\n"
+        "      - ./codebase:/app/codebase\n"
+        "      - /app/codebase/frontend/node_modules\n"
+        f"{mask_lines}\n",
+    )
+
+
+class RealRepoSmokeTest(unittest.TestCase):
+    def test_real_repo_is_consistent(self):
+        # 실제 repo 가 현재 정합인지 — 가드가 살아있는 invariant 임을 확인.
+        self.assertEqual(guard.check(REPO_ROOT), [])
+
+
+class ParserTest(unittest.TestCase):
+    def test_frontend_playwright_version_reads_frontend_block_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, pw_version="1.61.0")
+            # backend importer 의 9.9.9 가 아니라 frontend 의 1.61.0 을 읽어야 한다.
+            self.assertEqual(guard.frontend_playwright_version(root), "1.61.0")
+
+    def test_base_tag_major_minor(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, base_tag="v1.61.0-jammy")
+            self.assertEqual(guard.base_tag_major_minor(root), (1, 61))
+
+    def test_copy_dirs_excludes_manifest_only_copies(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, dockerfile_copy_pkgs=["expression-engine", "node-summary"])
+            # manifest(`.../package.json`) COPY 는 제외, 소스 COPY 만.
+            self.assertEqual(
+                guard.dockerfile_copy_dirs(root), {"expression-engine", "node-summary"}
+            )
+
+    def test_workflow_closure_maps_name_to_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, frontend_workflow_pkgs=["expression-engine", "node-summary"])
+            closure, unmapped = guard.frontend_workflow_closure_dirs(root)
+            self.assertEqual(closure, {"expression-engine", "node-summary"})
+            self.assertEqual(unmapped, [])
+
+
+class CheckTest(unittest.TestCase):
+    def test_consistent_fixture_passes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            self.assertEqual(guard.check(root), [])
+
+    def test_base_tag_mismatch_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, pw_version="1.61.0", base_tag="v1.60.0-jammy")
+            failures = guard.check(root)
+            self.assertTrue(any("base image tag mismatch" in f for f in failures))
+
+    def test_patch_level_difference_still_passes(self):
+        # major.minor 만 비교 — patch 차이는 통과해야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, pw_version="1.61.2", base_tag="v1.61.0-jammy")
+            self.assertEqual(guard.check(root), [])
+
+    def test_compose_mask_missing_pkg_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(
+                root,
+                frontend_workflow_pkgs=["expression-engine", "node-summary"],
+                dockerfile_copy_pkgs=["expression-engine", "node-summary"],
+                compose_mask_pkgs=["expression-engine"],  # node-summary 누락.
+            )
+            failures = guard.check(root)
+            self.assertTrue(any("compose volume-mask set" in f for f in failures))
+            self.assertTrue(any("node-summary" in f for f in failures))
+
+    def test_dockerfile_copy_extra_pkg_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(
+                root,
+                frontend_workflow_pkgs=["expression-engine"],
+                dockerfile_copy_pkgs=["expression-engine", "node-summary"],  # 여분.
+                compose_mask_pkgs=["expression-engine"],
+                packages_on_disk=["expression-engine", "node-summary"],
+            )
+            failures = guard.check(root)
+            self.assertTrue(any("Dockerfile COPY set" in f for f in failures))
+
+    def test_unmapped_workflow_dep_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # frontend 이 @workflow/ghost 를 의존하는데 codebase/packages 에 없음.
+            make_repo(
+                root,
+                frontend_workflow_pkgs=["expression-engine", "ghost"],
+                dockerfile_copy_pkgs=["expression-engine"],
+                compose_mask_pkgs=["expression-engine"],
+                packages_on_disk=["expression-engine", "node-summary"],
+            )
+            failures = guard.check(root)
+            self.assertTrue(any("not resolvable" in f and "ghost" in f for f in failures))
+
+
+if __name__ == "__main__":
+    unittest.main()
