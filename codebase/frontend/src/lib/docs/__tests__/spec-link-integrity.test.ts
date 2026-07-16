@@ -20,7 +20,10 @@ import {
 //      channel-web-chat,packages}` — but only for links that target a
 //      `spec/**.md` file (JSDoc spec cross-refs, whose hand-counted `../`
 //      depth drifts silently).
-// Plan-side link hygiene is handled by plan-coherence-checker, not this gate.
+// Scope (1) applies no target filter: a `plan/**` link written in a spec doc IS
+// checked here and breaks the build when the plan file moves (e.g. in-progress →
+// complete). Only scope (2) filters to `spec/**.md` targets. What plan-coherence-
+// checker owns is link hygiene *inside* `plan/**` docs — not spec→plan links.
 // SoT: spec/conventions/spec-impl-evidence.md §4.2.
 
 function fmt(violations: LinkViolation[]): string {

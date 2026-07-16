@@ -13,7 +13,7 @@ spec_impact:
 ---
 # RAG P1 — D1 점수 기반 동적 컷 (+ D2 escalate 메커니즘)
 
-> SoT 로드맵: [`rag-quality-improvement.md`](./rag-quality-improvement.md) §P1·§2(D1/D2).
+> SoT 로드맵: [`rag-quality-improvement.md`](../in-progress/rag-quality-improvement.md) §P1·§2(D1/D2).
 > 본 노트 = 이번 PR 의 실행 체크리스트. D1 = 최우선(재임베딩 불요·독립).
 
 ## 설계 결정 (2026-06-06, 사용자 confirm)
@@ -30,9 +30,9 @@ spec_impact:
 
 ## 체크리스트
 
-- [ ] 0. worktree (rag-dynamic-cut-12fac1, origin/main 최신)
-- [ ] 1. 스펙 분석 (완료: 9-rag-search, 1-ai-agent, 코드 일독)
-- [ ] 2. 모호성 해소 (완료: 사용자 confirm 3건)
+- [x] 0. worktree (rag-dynamic-cut-12fac1, origin/main 최신)
+- [x] 1. 스펙 분석 (완료: 9-rag-search, 1-ai-agent, 코드 일독)
+- [x] 2. 모호성 해소 (완료: 사용자 confirm 3건)
 - [x] 3. consistency-check --impl-prep (BLOCK:YES → spec-first 로 해소, 13_24_24)
 - [x] 4a. spec 갱신 (project-planner) — 6 spec 파일 적용, consistency `--spec 14_53_44` BLOCK:NO
 - [x] 4b. 프론트 doc-sync — ai-agent FieldTable(ko/en) + backend-labels(label/hint) + KB 가이드 예시 주석
@@ -40,10 +40,18 @@ spec_impact:
 - [x] 8. TEST WORKFLOW — lint·unit·build·e2e 全 PASS (2026-06-06). 주: channel-web-chat W8 은 full-suite 타이밍 flake(격리·standalone 16/16 통과, 본 변경 무관)
 - [x] 9. /ai-review(15_47_11 LOW, fix affb8144) + 최종 재리뷰(16_08_38 LOW, disposition) + consistency `--impl-done` **BLOCK: NO** (16_24_16). 직전 2회 impl-done Critical 은 전부 FP(§3.4·gradingNoGrounding·conditional escalate 모두 spec 실재 — git·build 가드 8개 1343 통과로 반증); 실질 staleness 4건(code:/spec_impact/data-flow/data-model)만 fix.
 - [~] eval-retrieval 동적컷 전/후 지표 비교 — **데이터 의존 블록**: 실 `eval/golden.json`(populated KB + 임베딩 청크) 필요. SoT §7.B(대상 workspace/KB 지정 → `eval:golden:generate` → SME 검수) 미완. → `rag-quality-improvement.md §7.B/C` 추적. 동적 컷 동작은 신규 단위테스트(off ceiling·token-budget·escalate·gradingNoGrounding) + e2e 로 검증.
-- [x] 10. plan 정리 — rag-dynamic-cut.md **in-progress 유지**(eval-retrieval 블록 추적 + 9-rag-search pending_plans 링크 유지). D1+D2 코드/spec/리뷰/게이트 deliverable 완결.
+- [x] 10. plan 정리 — D1+D2 코드/spec/리뷰/게이트 deliverable 완결.
+  **2026-07-16 갱신 (grooming)**: 종전 "in-progress 유지" 판단을 **종결로 전환**한다. 유지 사유였던
+  두 축이 모두 해소·이관됐다 — (1) `[~] eval-retrieval` 은 본 plan 이 해결할 수 없는 **데이터 의존
+  블록**이고 이미 `rag-quality-improvement.md §7.B/C` 가 SoT 로 추적 중(이중 추적 해소).
+  (2) `9-rag-search` `pending_plans` 링크는 본 plan → [`rag-quality-improvement.md`](../in-progress/rag-quality-improvement.md)
+  로 재배선했다 — 그 spec 에 남은 미구현 표면(멀티-KB 리랭크·ef_search 정밀 튜닝·D2 정량 임계 A/B·
+  재임베딩 트리거)의 실제 책임 plan 이 rag-quality-improvement 이므로 `status: partial` 유지가
+  정직하다. 아래 비차단 후속 4건도 같은 plan §7.E 로 이관. → `complete/` 이동, 잔여 0.
 
 ### 비차단 후속 (advisory, --impl-done 16_24_16 WARNING/INFO — 게이트 BLOCK:NO·"즉시 merge 가능")
-게이트 안정성·e2e cascade·loop 방지를 위해 본 PR 에서 미적용, 후속 정리:
+> **이관 완료 (2026-07-16)**: 아래 4건은 [`rag-quality-improvement.md §7.E`](../in-progress/rag-quality-improvement.md)
+> (리뷰 backlog)로 옮겼다. 본 plan 종결 시 고아가 되지 않도록 SoT 로드맵이 승계한다.
 - 주변 spec 보강: `7-llm-client §3.6`(rerank topK=candidates.length 주석)·`10-graph-rag KB-GR-SR-05`(topK→동적 컷 표현)·`4-integration KB-AG-04`(ragTopK optional 반영).
 - `9-rag-search §3.3.2 v1 결정` 뒤 spec-draft §4.2 번복 cross-ref 1줄.
 - `ai-agent.handler.spec.ts` RerankDiagnostics fixture 에 `gradingNoGrounding:false` 추가.

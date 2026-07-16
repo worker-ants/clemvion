@@ -42,7 +42,7 @@ interface ParallelBranchContext extends ExecutionContext {
 }
 ```
 
-✅ **결정 (2026-05-30 C-1 옵션 a 채택)**: 중첩 Parallel concurrency 전파용 `parentParallelConcurrency` 는 본 원칙에 따라 `ParallelBranchContext` 로 분리한다. 이는 [Parallel 노드 §Rationale 결정 G](../4-nodes/1-logic/10-parallel.md) 가 본 필드를 `ExecutionContext` 에 직접 추가했던 것을 번복한 결정으로, 같은 문서의 결정 G 갱신과 [`parallel-p2-followups.md`](../../plan/in-progress/parallel-p2-followups.md) §7 (구현 책임 plan) 이 추적한다.
+✅ **결정 (2026-05-30 C-1 옵션 a 채택)**: 중첩 Parallel concurrency 전파용 `parentParallelConcurrency` 는 본 원칙에 따라 `ParallelBranchContext` 로 분리한다. 이는 [Parallel 노드 §Rationale 결정 G](../4-nodes/1-logic/10-parallel.md) 가 본 필드를 `ExecutionContext` 에 직접 추가했던 것을 번복한 결정으로, 같은 문서의 결정 G 갱신과 [`parallel-p2-followups.md`](../../plan/complete/parallel-p2-followups.md) §7 (구현 책임 plan) 이 추적한다.
 
 ### 원칙 3 — No runtime optional sprawl
 

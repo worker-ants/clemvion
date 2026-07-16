@@ -3,8 +3,11 @@ title: Manual Trigger output.parameters 자동완성 enricher (표현식 힌트)
 worktree: trigger-param-output-enricher-92985f
 started: 2026-07-09
 owner: developer
-status: in-progress
+status: complete
 spec_area: spec/4-nodes/7-trigger/1-manual-trigger.md
+spec_impact:
+  - spec/5-system/5-expression-language.md
+  - spec/4-nodes/7-trigger/0-common.md
 ---
 
 ## 배경 / 동기
@@ -71,10 +74,14 @@ LLM 에 전달됐다. 원인: `config.parameters` 는 **정의 배열**(`Array<{
   §3.2 접근 경로(`$node["X"].output.<paramName>` → `output.parameters.<paramName>`)까지 §5.1 JSON 과 정합화.
 - [x] (frontend, 후속) `$params.<name>` root shortcut 하위키 자동완성 — **해소** (2026-07-10,
   [`trigger-params-autocomplete.md`](trigger-params-autocomplete.md)): `ROOT_VARIABLES` 에 `$params` 추가 +
-  `$params.` drill 핸들러(소스 = `$input.parameters`). [`node-output-redesign/manual-trigger.md`](node-output-redesign/manual-trigger.md) line 140 도 완전 해소로 갱신.
-- [ ] (refactor, 후속) enricher DRY: 공용 `projectFieldsIntoSchema` 헬퍼 + `ENRICHERS`
+  `$params.` drill 핸들러(소스 = `$input.parameters`). [`node-output-redesign/manual-trigger.md`](../in-progress/node-output-redesign/manual-trigger.md) line 140 도 완전 해소로 갱신.
+- [x] (refactor, 후속) enricher DRY: 공용 `projectFieldsIntoSchema` 헬퍼 + `ENRICHERS`
   디스패치 테이블 (ai-review W3/W4). 기존 4개 enricher 동반 수정이라 별도 PR — 6번째
-  enricher 추가 시점 트리거.
+  enricher 추가 시점 트리거. **완료** (2026-07-11, `c417bd299` PR #880 "refactor(expression):
+  enricher 공통 헬퍼 + OUTPUT_SCHEMA_ENRICHERS 디스패치 테이블"): 본 plan 이 예고한 트리거
+  (6번째 enricher)를 기다리지 않고 5개 시점에 선행 실행됐다. 명명만 다르고 역할 동일 —
+  `projectFieldsIntoSchema` → [`enrichByProjecting`](../../codebase/frontend/src/components/editor/expression/node-output-schema-enrichers.ts)(L142),
+  `ENRICHERS` → `OUTPUT_SCHEMA_ENRICHERS`(L409, null-prototype+frozen). 호출측 if/else 체인도 제거됨.
 
 ## 비고
 

@@ -2,6 +2,11 @@
 worktree: funny-mahavira-50d003
 started: 2026-07-14
 owner: developer
+spec_impact:
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/conventions/cross-node-warning-rules.md
+  - spec/conventions/node-cancellation.md
+  - spec/conventions/cafe24-api-metadata.md
 ---
 
 ## 실행 체크리스트 — 항목 A (config-time 저장 경고, PR #1)

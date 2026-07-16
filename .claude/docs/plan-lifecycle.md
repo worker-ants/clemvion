@@ -4,15 +4,35 @@
 
 ## 1. 폴더 구조
 
-`plan/` 하위는 다음 두 폴더 중 하나에 위치한다. 최상위(`plan/*.md`)에는 plan 문서를 두지 않는다.
+`plan/` 하위는 다음 세 폴더 중 하나에 위치한다. 최상위(`plan/*.md`)에는 plan 문서를 두지 않는다.
 
 - **`plan/in-progress/`** — 처리할 항목이 하나라도 남아있는 plan. 새 plan 은 항상 여기에서 생성. 하위 그룹핑(예: `stages/`) 무방.
 - **`plan/complete/`** — 모든 작업·체크리스트·후속 항목까지 끝난 plan. 미완 항목이 단 하나라도 남으면 옮기지 않는다.
+- **`plan/research/`** — **작업 plan 이 아닌 리서치·분석 산출물** (경쟁 분석, 기술 조사, 시장 조사 등). §2 참조.
 - **`plan/complete/archive/from-*/`** — 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지.
 
 ## 2. 분류 기준
 
-미체크 체크박스(`[ ]`), "TODO", "남은 작업", "다음 단계", "결정 필요", 미해결 follow-up 항목이 **하나라도** 있으면 `in-progress/`.
+먼저 **작업 plan 인가 리서치 산출물인가**를 가른다.
+
+- **작업 plan** — "무엇을 만들/고칠 것인가" 의 실행 체크리스트. `in-progress/` ↔ `complete/` 라이프사이클을 탄다.
+  - 미체크 체크박스(`[ ]`), "TODO", "남은 작업", "다음 단계", "결정 필요", 미해결 follow-up 항목이 **하나라도** 있으면 `in-progress/`.
+  - 전부 끝나면 `complete/` (§3 이동 규칙).
+- **리서치 산출물** (`plan/research/`) — "현황이 어떤가 / 무엇을 알아냈나" 의 분석·조사 문서. 실행이 아니라 **참조**되기 위해 존재하므로 완료라는 종착점이 없다. 판별 신호:
+  - 문서가 스스로 성격을 "리서치/분석/조사 산출물" 로 규정한다.
+  - 체크리스트가 있어도 그것은 실행 작업이 아니라 **다른 plan 으로의 위임 인덱스**다.
+  - `owner` 가 실행 역할(developer/planner)이 아니라 전략 주체인 경우가 많다.
+
+> **왜 `research/` 를 나누나**: 리서치 문서는 `in-progress/` 정의("처리할 항목이 남은 진행 중 작업")에 맞지 않으면서도 `complete/`("모든 항목 종료")에도 못 간다 — 위임 인덱스에 미착지 항목이 남아있기 때문. 그 결과 `in-progress/` 에 영구 정체하며 **실제 진행 중 작업 목록을 오염**시키고 `plan-stale-audit.sh` 의 30일 stale 신호를 상시 발화시킨다. 세 번째 자리를 주어 라이프사이클 축과 분리한다.
+>
+> **research 문서가 낳은 실행 항목**은 `research/` 에 남기지 않고 별 plan 으로 분기해 `in-progress/` 로 보낸다 — research 문서는 그 분기를 가리키는 인덱스 역할만 한다.
+
+### 2.1 `plan/research/` 규약
+
+- **frontmatter**: `worktree`/`started`/`owner` 3필드 스키마는 동일하게 쓴다(§4). 다만 build guard `plan-frontmatter.test.ts` 의 강제 범위는 `plan/in-progress/*.md` 이므로 `research/` 는 **가드 대상 아님** — 규약상 권장이되 빌드가 막지 않는다. 미착수 리서치는 `worktree: (unstarted)`.
+- **Gate C(`spec_impact`)**: 대상 아님 — `spec-plan-completion.test.ts` 는 `plan/complete/` 만 본다.
+- **stale audit**: `plan-stale-audit.sh` 의 30일 신호 대상이 아니다(완료를 향해 가는 문서가 아니므로).
+- **`research/` → `complete/` 이동은 하지 않는다**. 리서치가 낡으면 문서 안에 갱신 노트를 달거나(권장), 완전히 무효가 되면 삭제한다.
 
 ## 3. 이동 규칙
 
