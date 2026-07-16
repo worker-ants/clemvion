@@ -18,7 +18,9 @@ owner: developer
 - [x] 8. TEST WORKFLOW (lint·unit·build·e2e 모두 통과, #952 base). 신규 e2e `ai-agent-tool-payload-warning.e2e-spec.ts` 통과(256/256).
 - [x] 9. `/ai-review` (11 reviewer, MEDIUM, Critical 0, Warning 7) + 수동 resolution: W1(N+1/pool/dead-path)·W3(중복)·W5(stale 주석)·W6(.env.example)·W7(CHANGELOG)·INFO#3/#6 fix, W2/W4 수용/후속. TEST WORKFLOW 재통과(lint·unit·build·e2e). RESOLUTION.md 기록.
 - [x] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` → BLOCK: NO (5/5 CRITICAL=0). WARNING(신규 모듈 `ai-agent.md` `code:` 누락) 조치 완료.
-- [ ] PR (항목 A 단독)
+- [x] PR (항목 A 단독) → https://github.com/worker-ants/clemvion/pull/955
+
+> 항목 A 완결. 항목 B(resume 턴 timeoutMs+signal)는 별도 후속 PR — 본 plan 은 in-progress 유지.
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
 > ⚠ **stale base 교정**: 착수 base 가 #951 이었으나 작업 중 origin/main 이 #952(e2e 인프라)로 전진 → rebase 로 교정(silent-revert 방지 + e2e 실 인프라 정합). rebase 의 deps 재설치가 jest 캐시를 무효화해 가려졌던 3건(import 경로·제거 메서드 테스트·count breach env)을 발견·수정.
