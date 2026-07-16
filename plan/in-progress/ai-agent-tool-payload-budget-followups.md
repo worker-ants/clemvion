@@ -22,12 +22,13 @@ owner: developer
 
 ## 실행 체크리스트 — 항목 B (resume 턴 timeoutMs + signal 배선, 별도 PR)
 
-> 항목 A 와 별개 concern (defense-in-depth). 아래 미착수 — 본 plan 이 in-progress 로 남는 사유.
+> 항목 A 와 별개 concern (defense-in-depth). 사용자 지시로 **PR #955 에 합류**(별 PR 아님).
 
-- [ ] `ai-turn-executor.ts` `processMultiTurnMessage` chat 호출 2곳(~:2624/:2765)에 app-level `{ timeoutMs, signal }` 배선 + single-turn(:1533) 대칭화
-- [ ] resume 경로 abortSignal plumbing (orchestrator → state/options)
-- [ ] timeoutMs env 노출 (정상 장기 생성 regression 없는 신중한 default)
-- [ ] TEST/REVIEW WORKFLOW + PR
+- [x] impl-prep `/consistency-check --impl-prep` → BLOCK: YES 이나 item B 관련(§12.16 error-routing overclaim·LLM_TIMEOUT disambiguation·scope) 조치 완료. pre-existing Critical 2건(out 포트 서술 모순·count_max vs 카탈로그)은 item B 무관 → project-planner task `task_3ac39ebd` 위임(사용자 결정)
+- [x] `ai-turn-executor.ts` chat 호출 4곳(single-turn 2·multi-turn resume 2)에 app-level `timeoutMs` 배선 (`llm-call-timeout.ts` env 파서)
+- [x] `ResumableMessageOptions.signal` 추가 → resume chat 에 signal executor-side plumbing (abort **소스**는 node-cancellation-infrastructure follow-up — spec 명시 gap)
+- [x] env `AI_AGENT_LLM_CALL_TIMEOUT_MS` (기본 600000=10분, 0 비활성) + .env.example + spec §12.16 + node-cancellation.md + CHANGELOG
+- [ ] TEST WORKFLOW (lint·unit·build·e2e) + `/ai-review` + `/consistency-check --impl-done` + PR #955 갱신
 - [ ] (전체 완료 시) 후속 백로그 항목 처분 후 plan/complete 이동
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).

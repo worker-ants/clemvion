@@ -8,6 +8,7 @@ code:
   - codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-payload-budget.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-payload-save-warning.ts
+  - codebase/backend/src/nodes/ai/ai-agent/llm-call-timeout.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts
   - codebase/backend/src/nodes/ai/ai-agent/ai-agent.component.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/*.ts
@@ -1349,3 +1350,13 @@ display-only 의 `PRESENTATION_MAX_BYTES = 1MB` 은 `carousel.items` / `table.ro
 - **왜 config 는 warn 기본(strict opt-in)인가**: 저장 시 payload 추정은 근사(런타임 granted scope·live MCP tool list 미확정)라 hard block 을 기본으로 두면 정상 설정을 오차단할 위험이 있다. 실질 안전망은 런타임 fail-fast 가 맡고, 저장 경고는 "저장 순간 가시화" 역할로 한정한다. 엄격 차단은 `AI_AGENT_TOOL_BUDGET_STRICT_SAVE` opt-in.
 - **왜 backend-only graph warning 인가**: 저장 경고를 신규 응답 필드가 아니라 [cross-node-warning-rules](../../conventions/cross-node-warning-rules.md) 의 `GraphWarningRuleResult`·severity·`GRAPH_VALIDATION_FAILED` 로 재사용한다(계약 중복 회피). 다만 이 rule 은 통합 granted scope 의 **async 조회**가 필요해 pure/동기·frontend-backend 공유 `@workflow/graph-warning-rules` 규칙으로 표현 불가 → shared package 밖 backend-only 평가로 두고, frontend 로컬 가드 ②만 예외적으로 생략한다(cross-node-warning-rules §5 예외 조항).
 - **왜 `TOOL_DEFINITION_PAYLOAD_EXCEEDED` 명명인가**: 같은 노드·실행 파일에 이미 도구 **호출 횟수** 축의 "budget"(`MAX_TOOL_CALLS_EXCEEDED`, `tool_call_budget_exceeded`)이 있다. 본 사고 자체가 "개수는 그대로, 정의 payload 만 팽창"이라는 축 혼동에서 늦게 규명됐으므로, 신규 코드는 "정의(스키마) payload 크기" 축임이 이름에서 즉시 구분돼야 한다(§10 `TOOL_*` 접두 정합).
+
+### 12.16 LLM chat 호출 app-level 타임아웃 (defense-in-depth)
+
+도구 정의 payload 가드(§4.2)는 **팽창發 hang 의 근본 원인**을 막는다. 그러나 provider 네트워크 지연·모델 stall 등 **다른 사유의 무기한 hang** 에는 앱 레벨 상한이 없었다 — 과거 사고 이전에도 chat 호출은 provider SDK 타임아웃에만 의존했다. 이를 보완해 AI Agent 의 모든 LLM `chat` 호출(single-turn `executeSingleTurn` 2곳 · multi-turn `processMultiTurnMessage` resume 2곳)에 **호출당 app-level 타임아웃**(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 600000ms=10분, `0` 비활성)을 적용한다. `LlmService.chat` 의 `opts.timeoutMs>0` 이면 `withTimeout`(자체 `AbortController`)이 race 로 throw 한다. **신규 에러 코드는 없다.**
+
+- **timeout throw 의 error 포트 귀결은 turn 종류에 따라 비대칭**이다 (§4.2 payload 예산 throw 와 동일 비대칭 — return-vs-throw 계약). **multi-turn resume** 은 이 throw 를 orchestrator(`AiTurnOrchestrator.classifyLlmError`, 공개 진입점 `extractAiTurnErrorPayload`)가 §10 `LLM_CALL_FAILED`(retryable, network timeout 계열)로 분류한다. **single-turn**(`executeSingleTurn`)은 일반 `chat` 호출을 감싸는 try/catch 가 **없어**(§4.2 의 payload throw 를 흡수하는 `buildSingleTurnToolsOrError` try/catch 는 `buildTools` pre-flight **한정**), timeout throw 가 현재 엔진 레벨 무분류 `FAILED` 로 귀결된다 — 이는 single-turn 일반 LLM 에러 라우팅의 **기존 미해결 gap**(`plan/in-progress/node-output-redesign/ai-agent.md` 추적, §7.3/§10 이 서술하는 error 포트 분류가 single-turn 일반 chat 실패에는 아직 미적용)이며, 본 timeout 배선은 그 gap 을 **신규로 만들지도 해소하지도 않는다**(스코프 밖). timeout 은 그 라우팅과 무관하게 무기한 hang 을 상한하는 것이 1차 목적이다.
+- **`LLM_CALL_FAILED` vs `LLM_TIMEOUT` disambiguation**: 본 app-level timeout(multi-turn 분류 시)은 [§5-system/7-llm-client.md](../../5-system/7-llm-client.md) 의 기존 분류(network/timeout → `LLM_CALL_FAILED`, retryable)를 따른다. `codebase/backend/src/nodes/core/error-codes.ts` 의 별도 코드 `LLM_TIMEOUT` 은 **Workflow AI Assistant 전용** taxonomy 로 ai_agent 노드 실행 경로는 사용하지 않는다.
+- **왜 기본을 non-zero(10분)로 두나**: 단일 LLM turn(1 request/response)이 정상적으로 10분을 넘는 경우는 극히 드물어(대형 output+extended thinking 도 대개 수 분) **정상 장기 생성 regression 없이** 무기한 hang 만 상한한다. 주요 provider SDK 의 기본 request timeout(~10분)과도 정합. 환경별 조정은 env(`0` 비활성 포함).
+- **왜 timeout 이 signal 과 독립인가**: `withTimeout` 은 자체 `AbortController` 로 동작하므로 노드 `abortSignal` 소스 유무와 무관하게 적용된다. 특히 **resume 경로(`processMultiTurnMessage`)는 abort 컨텍스트가 없어**(초기 실행만 `ExecutionContext.abortSignal` 보유 — [node-cancellation.md](../../conventions/node-cancellation.md)) 사용자 cancel signal 전파는 `node-cancellation-infrastructure` 후속으로 남지만, **timeout 백스톱은 그와 무관하게 지금 동작**한다. `ResumableMessageOptions.signal` 은 그 abort 소스가 도입될 때 signal 이 chat 까지 도달하도록 executor-side plumbing 을 미리 열어둔 것이다(있으면 전파, 없으면 no-op).
+- **왜 ai_agent 전용 스코프인가**: `text_classifier`/`information_extractor` 도 동일 `LlmService.chat` 을 쓰지만 본 배선은 ai_agent(`AI_AGENT_LLM_CALL_TIMEOUT_MS`)에 한정했다 — resume 다단계 tool-loop 로 hang 노출면이 가장 넓은 노드이기 때문. 다른 AI 노드로의 동일 defense-in-depth 확대(노드별 env 또는 §0-common 공통 env 승격)는 후속.

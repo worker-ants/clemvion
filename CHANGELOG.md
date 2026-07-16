@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — AI Agent LLM chat 호출 app-level 타임아웃 (defense-in-depth, §12.16)
+
+도구 payload 예산 가드레일의 후속(항목 B). payload 가드가 팽창發 hang 의 근본 원인을 막지만, 그 외(네트워크 지연·모델 stall)의 무기한 hang 백스톱이 없었다.
+
+1. **AI Agent 의 모든 LLM `chat` 호출**(single-turn `executeSingleTurn` · multi-turn `processMultiTurnMessage` resume 포함)에 **호출당 app-level 타임아웃**을 적용한다. `LlmService.chat` 의 `opts.timeoutMs>0` 이면 `withTimeout`(자체 `AbortController`)이 race 로 throw(신규 에러 코드 없음). throw 의 error 포트 귀결은 turn 종류에 따라 비대칭 — multi-turn resume 은 orchestrator 가 §10 `LLM_CALL_FAILED`(retryable)로 분류, single-turn 은 일반 chat try/catch 부재로 현재 엔진 레벨 `FAILED`(single-turn LLM 에러 라우팅 기존 gap, 본 배선 스코프 밖). `LLM_TIMEOUT`(core error-codes) 은 Workflow AI Assistant 전용 taxonomy 로 ai_agent 미사용.
+2. **신규 env `AI_AGENT_LLM_CALL_TIMEOUT_MS`**(기본 600000ms=10분, `0` 비활성). 단일 turn 이 정상적으로 10분을 넘기 어려워 정상 장기 생성 regression 없이 hang 만 상한하며 주요 provider SDK 기본 request timeout(~10분)과 정합. `.env.example` 등재.
+3. **`ResumableMessageOptions.signal` 배선**: resume 턴 chat 에 abort signal 을 전파할 executor-side plumbing 을 열었다. **단 resume 경로에는 아직 abort 소스가 없어**(초기 실행만 `ExecutionContext.abortSignal` 보유) 대개 undefined 이며, 실제 취소 signal 전파는 `node-cancellation-infrastructure` 후속이다. timeout 백스톱은 signal 과 독립 동작. SoT: `spec/4-nodes/3-ai/1-ai-agent.md §12.16`, `spec/conventions/node-cancellation.md`.
+
 ## Unreleased — AI Agent 도구 정의 payload 예산 저장 시점 경고 (config-time graph warning)
 
 선행 런타임 fail-fast 가드레일의 후속(항목 A). 런타임 fail-fast 는 노드 실행 시점에야 발동하므로, 워크플로 **저장·조회** 시점에 도구 정의 payload 팽창을 미리 경고한다.
