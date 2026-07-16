@@ -29,6 +29,18 @@
 - **docs 가드 재확인** (W1 fix 후): `codebase/frontend/src/lib/docs/__tests__/` 18 파일 **2590 passed**.
 - **consistency-check `--spec`** (`review/consistency/2026/07/16/23_36_57/`): **BLOCK: NO**, Critical 0, WARNING 4 → 전부 반영(9-rag-search 본문 stale plan 참조 2곳 정정 · rag-quality-improvement §7.C-2 체크박스 명문화 · won't-do 표기 관례 준수 · waitAll §2-E 유실 처분 Rationale 기록).
 
+## 추가 — `/consistency-check --impl-done spec/conventions/` (`review/consistency/2026/07/17/00_17_40/`)
+
+push gate 가 요구(`spec-link-integrity.test.ts` 가 `spec-impl-evidence.md` 의 `code:` 에 등재된 **spec-linked 파일**이라, 이를 수정한 뒤엔 impl-done 리포트가 그 편집을 postdate 해야 함). **최종 BLOCK: NO** (최초 BLOCK:YES 는 3개 checker 결과 미확보에 따른 절차적 판정 → journal 복구로 전수 확보 후 Critical 0 확정).
+
+| # | Checker | 발견 | 처분 |
+|---|---|---|---|
+| C1 | plan_coherence | **WARNING (실질 결함)** — `parallel-p2-followups.md` 이동 후 `plan/complete/` 내부 dead 백링크 **5곳** 잔존(`backend-msg-i18n-impl.md:12`, `cross-node-warning-rules.md:4,69,79`, `parallel-p2-followups-done.md:5`). `spec-link-integrity` 는 `spec/**.md` 만 스캔해 **build 가드 사각지대** | **fix** — 5곳 전부 `./parallel-p2-followups.md` 로 정정. 최초 sweep 이 `grep ... \| head -8` 로 잘려 놓친 건 (전수 재확인으로 0건 확인) |
+| C2 | plan_coherence | **WARNING (부가)** — `cross-node-warning-rules.md` §종결 결정이 "통합 e2e 는 `parallel-p2-followups.md` §2~4 가 소유·추적 중" 이라 서술하나, 그 plan 종결로 실제로는 부분 이행 + canvas 배지 층 **won't-do** 확정 → "다른 곳에서 진행 중" 으로 오독됨 | **fix** — 위임 귀결(2층 충족 + 배지 층 won't-do)을 명시 추가 |
+| C3 | convention_compliance | WARNING — cafe24 카탈로그 field-level 파일명 `__` 규칙이 `_overview.md §7.1` 서술과 불일치(222개 중 67개) | **이월** — checker 자신이 "실제 diff 는 규약 위반 없음" 명시. scope 전체 스냅샷에서 나온 **기존 부채**로 본 PR 변경분과 무관 → cafe24 카탈로그 트랙 |
+| C4 | cross_spec / rationale_continuity | LOW, INFO 2건 (cafe24 `webhooks` ↔ `service_type='webhook'` 명명 근접 / `spec-impl-evidence` 정정 근거를 표 인라인이 아닌 `## Rationale` 에 두기 권장) | **이월** — 둘 다 "필수 아님" 명시. 전자는 카탈로그 트랙, 후자는 표 셀 각주로도 근거가 보존되며 본 정정은 오기 교정(결정 번복 아님)이라 R-11 신설은 과함 |
+| C5 | naming_collision | 신규 식별자 0건 | 조치 불요 |
+
 ## 비고 — harness 이슈 2건 (본 PR 결함 아님)
 
 1. **Workflow FS-write flakiness 재현** (기지 이슈): consistency 5개 중 2개(cross_spec·convention_compliance), ai-review 7개 중 3개(security·scope·testing)가 `status=success` 를 반환하고도 `output_file` 미기록. **재실행 대신 workflow journal(`journal.jsonl`) 에서 원문 복구**해 디스크에 기록 — 재실행은 토큰을 이중 소모하면서 결과가 달라질 수 있어 원본 보존이 우선. 복구 후 양쪽 세션 모두 전수 확보 상태로 BLOCK/RISK 판정 확정.

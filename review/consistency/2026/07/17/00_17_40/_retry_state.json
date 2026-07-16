@@ -1,0 +1,53 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40",
+  "summary_subagent_type": "consistency-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/SUMMARY.md",
+  "subagent_invocations": [
+    {
+      "name": "cross_spec",
+      "subagent_type": "cross-spec-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/_prompts/cross_spec.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/cross_spec.md"
+    },
+    {
+      "name": "rationale_continuity",
+      "subagent_type": "rationale-continuity-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/_prompts/rationale_continuity.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/rationale_continuity.md"
+    },
+    {
+      "name": "convention_compliance",
+      "subagent_type": "convention-compliance-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/_prompts/convention_compliance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/convention_compliance.md"
+    },
+    {
+      "name": "plan_coherence",
+      "subagent_type": "plan-coherence-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/_prompts/plan_coherence.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/plan_coherence.md"
+    },
+    {
+      "name": "naming_collision",
+      "subagent_type": "naming-collision-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/_prompts/naming_collision.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/funny-mahavira-50d003/review/consistency/2026/07/17/00_17_40/naming_collision.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false,
+  "_final_state_note": "2026-07-17 최종 상태. convention_compliance·plan_coherence·naming_collision 3건은 Workflow FS-write flakiness 로 output_file 미기록이었으나 workflow journal 에서 원문 복구·기록(내용 유실 없음). SUMMARY.md 의 최초 'BLOCK: YES' 는 이 3건 미확보에 따른 절차적 판정이며, 전수 확보 후 Critical 0 확인으로 BLOCK: NO 확정 — SUMMARY.md 상단 최종 판정 주석 참조."
+}

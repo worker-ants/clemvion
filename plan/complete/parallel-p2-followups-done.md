@@ -2,7 +2,7 @@
 
 > 작성일: 2026-05-30 / 분리: 2026-06-01 (split)
 > `parallel-p2-followups.md` 의 **완료된 구현 기록**. 잔여(e2e·ai-review·user-doc·IE multi-turn signal·
-> NodeExecution.status·§7 W-1/W-2)는 [`plan/in-progress/parallel-p2-followups.md`](../in-progress/parallel-p2-followups.md) 에 유지.
+> NodeExecution.status·§7 W-1/W-2)는 [`plan/complete/parallel-p2-followups.md`](./parallel-p2-followups.md) 에 유지.
 > 분리 출처: `plan/complete/parallel-p2.md` (본체 7 PR #363~#370 완료).
 
 ## 1. signal-aware 노드 확장 — 완료분
