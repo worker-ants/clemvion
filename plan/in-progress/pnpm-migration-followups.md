@@ -110,8 +110,15 @@ clean install(node_modules 전량 삭제 후 재설치) 기준 전 계층 green:
 - ~~playwright-runner 사전 빌드 이미지로 매 실행 `pnpm install` 제거(INFO #5)~~ — **완료(2026-07-16)**: 신규 `codebase/frontend/Dockerfile.playwright-e2e`(FROM playwright v1.61.0-jammy, @playwright/test 해석 버전 정렬)가 frontend deps(closure 4개) + chromium 을 build time 에 baking. docker-compose.e2e.yml playwright-runner 를 raw 이미지+런타임 install → 사전 빌드 image/build 로 전환, command 를 `pnpm --filter frontend e2e` 로 축소(backend-e2e-runner target:deps 동형). 검증: 빌드+playwright-runner 46 tests 통과. /ai-review 0 Critical, 2 Warning(base 태그 정렬·COPY closure 4개) fix 완료.
 - ~~js-yaml moderate accept 의 CVE ID·영향 경로 문서화(INFO #2,#16)~~ — **완료(2026-07-14)**: `pnpm-workspace.yaml` `auditConfig.ignoreCves` 에 CVE-2026-53550(js-yaml <3.15.0 DoS, 경로 `frontend>gray-matter>js-yaml@3.14.2`, gray-matter 상향 전까지 수용)을 사유·영향경로·해소조건 주석과 함께 codify. 아래 CI 가드와 통합.
 - ~~**의존성 보안 거버넌스 CI 가드**(리뷰 08_25_10 security WARNING)~~ — **완료(2026-07-14)**: `.github/workflows/deps-security-checks.yml` 신설 — (a) `scripts/check-pnpm-security-config.py` 로 `overrides`(키+값)·`onlyBuiltDependencies`·`auditConfig.ignoreCves` 를 baseline 스냅샷 대조(무단 삭제·값 약화·CVE 억제 방지), (b) `pnpm audit --audit-level=moderate`(PR·push·주간 스케줄, 수용 CVE 제외). PROJECT.md 정책 문서화. 리뷰 13_00_33: 0 Critical, 2 Warning(값 검증·ignoreCves 가드) fix 완료. **잔여(사용자)**: main branch protection 에 `config-guard`/`audit` 를 required check 로 등록해야 실제 머지 차단.
-- **§1~§4 전체 완료(2026-07-16).** §3(node-linker=hoisted→isolated 전역 전환)까지 실행·검증 종료 —
-  본 plan 의 review-derived 후속 과제는 모두 소진. 남은 것은 **별개 저우선 후속 2건**뿐: (a) 의존성 거버넌스
-  `deps-security-checks` 의 `config-guard`/`audit` job 을 main branch protection required-check 로 등록(**사용자
-  액션**), (b) `@playwright/test` 해석 버전 ↔ `Dockerfile.playwright-e2e`/`docker-compose.e2e.yml` base 태그
-  major.minor 일치 CI 가드(caret drift 재발 방지). 이 2건은 §1~§4 와 독립이라 별도 plan/이슈로 이관 권장.
+- ~~**e2e playwright/config 정합 CI 가드**(§3 architecture 리뷰 INFO + §4 후속)~~ — **완료(2026-07-16)**:
+  신규 `scripts/check-e2e-playwright-config.py`(stdlib-only 정적 가드) + `.github/workflows/e2e.yml` 의
+  `config-guard` job(e2e/e2e-frontend 가 `needs` 로 fail-fast) + harness unittest
+  `.claude/tests/test_check_e2e_playwright_config.py`. 검사: (1) frontend `@playwright/test` 해석
+  major.minor ↔ `Dockerfile.playwright-e2e` base 이미지 태그(caret drift 로 브라우저 바이너리 비호환 재발
+  방지), (2) frontend `@workflow/*` 클로저 ↔ Dockerfile COPY ↔ `docker-compose.e2e.yml` 볼륨 마스킹 3자
+  일치(수동 동기화 목록의 silent drift 차단). 검증: 가드 pass + 주입 drift fail, harness 201 tests OK.
+  /ai-review 1 Critical(compose 마스킹 정규식 unanchored → 주석 오판 false-negative)·2 Warning(base 태그
+  앵커링·name≠dir 미검증) 앵커링 정규식 + 회귀 테스트로 fix.
+- **§1~§4 전체 완료(2026-07-16).** §3(node-linker=hoisted→isolated 전역 전환)까지 실행·검증 종료. 남은 것은
+  **사용자 액션 1건**뿐: 의존성 거버넌스 `deps-security-checks` 의 `config-guard`/`audit` job 을 main branch
+  protection required-check 로 등록(저장소 admin 설정 — 등록해야 실제 머지 차단). plan 이동은 이 1건 처리 후.

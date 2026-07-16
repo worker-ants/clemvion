@@ -43,17 +43,24 @@ COMPOSE = Path("docker-compose.e2e.yml")
 LOCKFILE = Path("pnpm-lock.yaml")
 PACKAGES_DIR = Path("codebase") / "packages"
 
-# `codebase/frontend:` lockfile importer 블록 안의 @playwright/test version 라인.
+# 아래 세 정규식은 모두 **라인 시작 앵커(^) + re.MULTILINE** 을 쓴다 — 주석·changelog 등에
+# 우연히 등장하는 동일 문자열을 실제 지시문/리스트 항목으로 오인(false match)하지 않기 위함.
+# (가드의 존재 이유가 "누락을 조용히 통과시키지 않는 것" 이라, 주석 잔재를 실제 마스킹으로
+# 오판하는 false-negative 를 특히 차단해야 한다.)
 _BASE_TAG_RE = re.compile(
-    r"FROM\s+mcr\.microsoft\.com/playwright:v(\d+)\.(\d+)\.\d+-\w+"
+    r"^FROM\s+mcr\.microsoft\.com/playwright:v(\d+)\.(\d+)\.\d+-\w+",
+    re.MULTILINE,
 )
 # 소스 전체 COPY (manifest `.../package.json` COPY 는 제외): `COPY codebase/packages/<x> ./...`
 _DOCKERFILE_COPY_RE = re.compile(
     r"^COPY\s+codebase/packages/([A-Za-z0-9._-]+)\s+\./codebase/packages/",
     re.MULTILINE,
 )
+# 실제 YAML volumes 리스트 항목(`- /app/.../node_modules`)에만 매치 — 주석에 남은 경로는 무시.
+# 뒤따르는 인라인 주석은 허용(형식 유연성).
 _COMPOSE_MASK_RE = re.compile(
-    r"/app/codebase/packages/([A-Za-z0-9._-]+)/node_modules\b"
+    r"^\s*-\s*/app/codebase/packages/([A-Za-z0-9._-]+)/node_modules\s*(?:#.*)?$",
+    re.MULTILINE,
 )
 
 

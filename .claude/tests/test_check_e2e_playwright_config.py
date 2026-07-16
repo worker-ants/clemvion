@@ -223,5 +223,127 @@ class CheckTest(unittest.TestCase):
             self.assertTrue(any("not resolvable" in f and "ghost" in f for f in failures))
 
 
+class AnchoringRegressionTest(unittest.TestCase):
+    """정규식이 실제 지시문/리스트 항목에만 매치하고 주석 잔재는 무시하는지 (false-match 방지)."""
+
+    def test_compose_mask_in_comment_is_not_counted(self):
+        # 실제 마스킹 라인을 삭제하고 경로를 언급하는 '주석'만 남기면, 그 패키지는 마스킹이
+        # 없는 것 → check() 가 FAIL 해야 한다(주석을 마스킹으로 오판하는 false-negative 방지).
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(
+                root,
+                frontend_workflow_pkgs=["expression-engine", "node-summary"],
+                dockerfile_copy_pkgs=["expression-engine", "node-summary"],
+                compose_mask_pkgs=["expression-engine"],  # node-summary 마스킹 실제 삭제.
+            )
+            compose = root / "docker-compose.e2e.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8")
+                + "      # removed: /app/codebase/packages/node-summary/node_modules\n",
+                encoding="utf-8",
+            )
+            self.assertNotIn("node-summary", guard.compose_mask_dirs(root))
+            failures = guard.check(root)
+            self.assertTrue(
+                any("compose volume-mask set" in f and "node-summary" in f for f in failures),
+                f"comment path must not count as a mask; got {failures}",
+            )
+
+    def test_compose_mask_with_inline_comment_still_counts(self):
+        # 실제 리스트 항목 뒤 인라인 주석은 유효 마스킹으로 세야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, compose_mask_pkgs=["expression-engine", "node-summary"])
+            compose = root / "docker-compose.e2e.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "- /app/codebase/packages/node-summary/node_modules",
+                    "- /app/codebase/packages/node-summary/node_modules  # inline note",
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                guard.compose_mask_dirs(root), {"expression-engine", "node-summary"}
+            )
+
+    def test_base_tag_in_comment_before_from_is_ignored(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, base_tag="v1.61.0-jammy")
+            dockerfile = root / "codebase" / "frontend" / "Dockerfile.playwright-e2e"
+            dockerfile.write_text(
+                "# changelog: was FROM mcr.microsoft.com/playwright:v1.55.0-jammy, bumped later\n"
+                + dockerfile.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            # 실제 FROM(v1.61) 을 읽어야 하며 주석의 v1.55 가 아니다.
+            self.assertEqual(guard.base_tag_major_minor(root), (1, 61))
+            self.assertEqual(guard.check(root), [])
+
+    def test_name_differs_from_dir_resolves_via_manifest_name(self):
+        # dir 'legacy-dir' 의 package.json name 이 dir 슬러그와 다른 '@workflow/renamed' 여도
+        # frontend 의존을 dir 로 정확히 해소해야 한다(pkgname_to_dir 존재 이유).
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            _write(
+                root / "codebase" / "packages" / "legacy-dir" / "package.json",
+                json.dumps({"name": "@workflow/renamed", "version": "0.1.0"}),
+            )
+            _write(
+                root / "codebase" / "frontend" / "package.json",
+                json.dumps(
+                    {
+                        "name": "frontend",
+                        "dependencies": {"@workflow/renamed": "workspace:*"},
+                        "devDependencies": {"@playwright/test": "^1.59.1"},
+                    }
+                ),
+            )
+            closure, unmapped = guard.frontend_workflow_closure_dirs(root)
+            self.assertEqual(closure, {"legacy-dir"})
+            self.assertEqual(unmapped, [])
+
+
+class DirectionalAndDefensiveTest(unittest.TestCase):
+    def test_dockerfile_copy_missing_pkg_fails(self):
+        # closure 에는 있는데 Dockerfile COPY 가 빠진 방향.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(
+                root,
+                frontend_workflow_pkgs=["expression-engine", "node-summary"],
+                dockerfile_copy_pkgs=["expression-engine"],  # node-summary COPY 누락.
+                compose_mask_pkgs=["expression-engine", "node-summary"],
+            )
+            failures = guard.check(root)
+            self.assertTrue(
+                any("Dockerfile COPY set" in f and "node-summary" in f for f in failures)
+            )
+
+    def test_missing_lockfile_reports_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            (root / "pnpm-lock.yaml").unlink()
+            failures = guard.check(root)
+            self.assertTrue(
+                any("resolved version" in f for f in failures),
+                f"missing lockfile must surface a failure; got {failures}",
+            )
+
+    def test_missing_dockerfile_reports_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            (root / "codebase" / "frontend" / "Dockerfile.playwright-e2e").unlink()
+            failures = guard.check(root)
+            self.assertTrue(
+                any("base image tag" in f for f in failures),
+                f"missing Dockerfile must surface a failure; got {failures}",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
