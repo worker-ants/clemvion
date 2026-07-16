@@ -120,9 +120,12 @@ export function useWidget() {
   // start() 는 webhook POST await 후 자기 gen 이 여전히 최신일 때만 persist/openStream 을 진행한다 →
   // booting/초기 streaming 중 종료·새 대화가 옛 execution 을 되살리는 race 차단(teardown 이 gen 증가).
   const startGenRef = useRef(0);
+  // 종료 1회 가드 — SSE terminal 이벤트와 REST 폴백 terminal 이 같은 종료에 대해 각각 발화해도
+  // host `conversationEnded` 를 두 번 보내지 않는다. `resetSessionRefs`(새 대화)에서 해제.
+  const endedRef = useRef(false);
   // `seedWaitingFromStatus`(아래 정의) 를 그보다 위에 있는 `handleEiaEvent` 에서 쓰기 위한 ref 홀더.
   const seedWaitingFromStatusRef = useRef<
-    ((client: EiaClient, session: SessionRef) => Promise<void>) | null
+    ((client: EiaClient, session: SessionRef) => Promise<boolean>) | null
   >(null);
 
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약·cancelled 가드는 useTokenRefresh 캡슐화(§B).
@@ -145,6 +148,32 @@ export function useWidget() {
     clearRefreshTimer();
     if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
   }, [closeStream, clearRefreshTimer]);
+
+  /**
+   * 대화 종료 확정 — 세션 정리 + `ENDED` 전이 + host 통지를 한 시퀀스로 묶는다.
+   *
+   * **두 진입점이 공유한다**: (1) SSE terminal 이벤트(`handleEiaEvent`) (2) `getStatus` 스냅샷이
+   * 이미 terminal 인 경우(`seedWaitingFromStatus` — 버퍼 만료 gap 중 종료돼 terminal 이벤트가
+   * 유실된 경로). 두 곳에 3줄을 복제해 두면 호출부별 처리 불일치가 컴파일·테스트로 드러나지
+   * 않으므로 헬퍼로 강제한다 (ai-review `02_04_13` W1).
+   *
+   * **중복 발사 방지**: `endedRef` 로 최초 1회만 수행한다 — SSE terminal 과 REST 폴백 terminal 이
+   * 버퍼 gap 타이밍에 따라 같은 종료에 대해 각각 발화할 수 있어, host `conversationEnded` 가
+   * 두 번 나가는 것을 막는다 (동 리뷰 W3).
+   *
+   * @returns 이번 호출이 실제로 종료를 수행했으면 `true`, 이미 종료된 상태라 skip 했으면 `false`.
+   */
+  const finalizeEnded = useCallback(
+    (reason: string): boolean => {
+      if (endedRef.current) return false;
+      endedRef.current = true;
+      teardownSession();
+      dispatch({ type: "ENDED", reason });
+      bridgeRef.current?.sendEvent("conversationEnded", { reason });
+      return true;
+    },
+    [teardownSession],
+  );
 
   const handleEiaEvent = useCallback(
     (name: string, data: unknown) => {
@@ -183,12 +212,10 @@ export function useWidget() {
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
         // 종료 이벤트 → 스트림·갱신 타이머·저장 세션 정리 후 ENDED 전이.
-        teardownSession();
-        dispatch({ type: "ENDED", reason: name });
-        bridgeRef.current?.sendEvent("conversationEnded", { reason: name });
+        finalizeEnded(name);
       }
     },
-    [teardownSession],
+    [finalizeEnded],
   );
 
   const openStream = useCallback(
@@ -232,26 +259,35 @@ export function useWidget() {
    * (EIA §5.3) → `parseWaitingForInput` 을 그대로 재사용.
    *
    * **종료 상태 처리**: `status` 가 terminal(`completed`/`failed`/`cancelled`)이면 표면 시드 대신
-   * 세션 정리 + `ENDED` 전이 + host 통지를 수행한다 (SSE terminal 이벤트 경로와 동일 처리).
+   * {@link finalizeEnded} 으로 세션 정리 + `ENDED` 전이 + host 통지를 수행한다.
+   *
+   * @returns **`true` = 이 호출이 대화를 종료시켰다** — 호출부는 후속 `openStream`/`scheduleRefresh`
+   *   를 **반드시 건너뛰어야 한다**(무효화된 토큰으로 SSE 재오픈 + 종료 세션 storage 부활 방지).
+   *   `false` = 정상 진행(시드했거나, stale 폐기, 또는 soft-fail).
+   *   이 반환 계약이 없던 시절 `applyConfig` 복원 경로가 teardown 직후 그대로 `openStream` 하는
+   *   회귀가 있었다 (ai-review `02_04_13` CRITICAL#1) — 세 호출부 모두 이 값으로 게이팅한다.
    *
    * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
-   * `threadToMessages` 는 pure import — 실 의존은 `teardownSession` 뿐(그 자체도 stable 콜백).
+   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded` 뿐(그 자체도 stable 콜백).
    */
   const seedWaitingFromStatus = useCallback(
-    async (client: EiaClient, session: SessionRef) => {
+    async (client: EiaClient, session: SessionRef): Promise<boolean> => {
       try {
         const status = await client.getStatus(session.endpoints, session.token);
+        // **staleness 가드** — 본 함수는 fire-and-forget 으로도 불린다(replay_unavailable 폴백).
+        // await 사이에 사용자가 "새 대화"/"대화 종료"를 하면 세션이 교체·초기화되므로, 지연 도착한
+        // 옛 응답으로 최신 세션에 유령 WAITING 을 그리거나 살아있는 새 대화를 종료 통지하면 안 된다.
+        // ref 비교(클로저 stale 회피) — 캡처한 session 이 더 이상 현재 세션이 아니면 폐기.
+        // (ai-review `02_04_13` W2.)
+        if (sessionRef.current !== session) return false;
         // 이미 종료된 execution — 정리 후 ENDED 로 전이한다. **버퍼 만료(§replay_unavailable) 경로에서
         // 특히 중요**: 5분 gap 안에 execution 이 종료됐다면 그 terminal SSE 이벤트도 버퍼에서 함께
         // 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지·재전송 안 함 — EIA R-replay-unavailable).
         // 이 분기가 없으면 위젯이 `streaming`("AI 응답 중" 스피너)에 무기한 멈춘다 — 사용자 액션이
         // 없는 구간이라 `sendCommand` 의 410 사후 복구 경로도 닿지 않는다.
         if ((TERMINAL_EVENTS as readonly string[]).includes(`execution.${status.status}`)) {
-          const reason = `execution.${status.status}`;
-          teardownSession();
-          dispatch({ type: "ENDED", reason });
-          bridgeRef.current?.sendEvent("conversationEnded", { reason });
-          return;
+          finalizeEnded(`execution.${status.status}`);
+          return true; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
         }
         if (status.status === "waiting_for_input" && status.context) {
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
@@ -267,14 +303,16 @@ export function useWidget() {
             threadMessages: threadToMessages(parsed.conversationThread),
           });
         }
+        return false;
       } catch (err) {
         console.warn(
           "[widget] getStatus seed failed:",
           err instanceof Error ? err.message : String(err),
         );
+        return false; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [teardownSession],
+    [finalizeEnded],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -329,7 +367,9 @@ export function useWidget() {
         // race(§R6) 보정 — 첫 waiting 이벤트가 SSE 구독 전 emit 되어도:
         // (1) getStatus 로 현재 표면을 시드하고, (2) openStream 을 lastEventId="0" 으로 열어
         // buffer 의 누락 이벤트(seq≥1)를 replay 받는다.
-        await seedWaitingFromStatus(client, session);
+        // 스냅샷이 이미 terminal 이면 seed 가 대화를 종료시킨다 — SSE 를 열지 않는다.
+        const ended = await seedWaitingFromStatus(client, session);
+        if (ended) return;
         // seed await 사이 종료/새 대화로 대체됐으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (startGenRef.current !== gen) return;
         openStream(session, "0");
@@ -434,6 +474,7 @@ export function useWidget() {
     teardownSession();
     sessionRef.current = null;
     startedRef.current = false;
+    endedRef.current = false; // 새 대화는 다시 종료될 수 있다 — finalizeEnded 1회 가드 해제.
     clearQueue();
   }, [teardownSession, clearQueue]);
   /**
@@ -567,7 +608,14 @@ export function useWidget() {
         startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).
         dispatch({ type: "RESTORED", executionId: saved.executionId });
         // 복원 시에도 현재 표면을 getStatus 로 시드 + SSE replay(lastEventId="0")로 누락분 보정.
-        if (clientRef.current) await seedWaitingFromStatus(clientRef.current, saved);
+        // **복원 대상이 이미 종료된 세션이면 seed 가 대화를 종료시킨다** — 그 경우 SSE 재오픈·토큰
+        // 갱신 예약을 하면 (a) 무효화된 토큰으로 스트림을 열고 (b) refreshToken 성공 시 방금
+        // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
+        // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 startGenRef 로 우연히 보호됐으나 이 경로는 무방비였다).
+        if (clientRef.current) {
+          const ended = await seedWaitingFromStatus(clientRef.current, saved);
+          if (ended) return;
+        }
         openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }

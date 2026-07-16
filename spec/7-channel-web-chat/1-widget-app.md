@@ -103,8 +103,17 @@ unread, 그리고 eager 시작(패널 open 시 워크플로우 시작, §R6)·C1
 snapshot(현재 `conversationThread`, [EIA §5.3](../5-system/14-external-interaction-api.md))으로 폴백해 재동기화한다.
 EIA 의 버퍼 만료 신호(`execution.replay_unavailable`)는 **서버 emit·위젯 리스너·소비 분기가 모두 구현**됐다
 (2026-07-17). 위젯은 이 이벤트를 받으면 `getStatus` snapshot(§5.3)으로 폴백해 현재 표면을 재동기화한다
-(`use-widget.ts` `handleEiaEvent` → `seedWaitingFromStatus`). **종료 신호가 아니므로 스트림·세션은 유지**되며 이후
-도착하는 이벤트는 정상 처리된다. 회귀 고정: `use-widget-eager-start.test.ts` §"버퍼 만료 재동기화".
+(`use-widget.ts` `handleEiaEvent` → `seedWaitingFromStatus`). 신호 자체는 종료를 뜻하지 않으므로 **기본적으로
+스트림·세션은 유지**되며 이후 도착하는 이벤트는 정상 처리된다.
+
+> **단, 스냅샷이 이미 terminal 이면 종료로 확정한다**: 버퍼(5분) gap 안에 execution 이 `completed`/`failed`/
+> `cancelled` 로 전이했다면 그 terminal 이벤트도 버퍼와 함께 유실돼 다시 오지 않는다(서버는 신호 후 연결만
+> 유지하고 재전송하지 않는다 — [EIA §Rationale `R-replay-unavailable`](../5-system/14-external-interaction-api.md)).
+> 이 경우 위젯은 표면 시드 대신 **세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지**를 수행한다.
+> 이 예외가 없으면 위젯이 `streaming`("AI 응답 중") 상태에 무기한 멈춘다 — 사용자 액션이 없는 구간이라
+> 명령 410 을 통한 사후 복구 경로도 닿지 않기 때문. 같은 판정은 **세션 복원 시점**(§3.1 재open 복원)에도
+> 적용되며, 종료로 확정되면 SSE 재오픈·토큰 갱신 예약을 하지 않는다(무효 토큰 스트림·종료 세션 storage
+> 부활 방지). 회귀 고정: `use-widget-eager-start.test.ts` §"버퍼 만료 재동기화" + "복원된 세션이 이미 terminal".
 
 ### 3.2 위젯 가시성(show/hide) · profile 갱신 · 차단(blocked)
 

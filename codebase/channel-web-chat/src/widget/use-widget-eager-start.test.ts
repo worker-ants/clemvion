@@ -204,6 +204,50 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(webhookPosts(fetchMock).length).toBe(1);
   });
 
+  /**
+   * 복원 대상 세션이 이미 terminal 이면 seed 가 대화를 종료시킨다 — 그 뒤 openStream/scheduleRefresh 를
+   * 하면 (a) 무효화된 토큰으로 SSE 를 열고 (b) refreshToken 성공 시 방금 clearSession() 한 storage 를
+   * 종료된 세션으로 되살린다. `start()` 는 startGenRef 로 우연히 보호됐으나 이 경로는 무방비였다.
+   * (ai-review 02_04_13 CRITICAL#1.)
+   */
+  it("복원된 세션이 이미 terminal → ENDED 전이 + SSE 미오픈 + storage 부활 없음", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: {} }) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        // 복원 시점에 이미 종료된 execution.
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { executionId: "prev", status: "completed" } }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    // SSE 를 열지 않는다(무효 토큰 재오픈 방지) — ControllableEventSource 가 생성된 적 없어야 한다.
+    expect(getEs()).toBeNull();
+    // 저장 세션이 되살아나지 않는다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    // 종료된 세션 기준 토큰 갱신을 예약/호출하지 않는다.
+    expect(refreshCalls).toBe(0);
+  });
+
   it("저장 세션 복원 시 open() 은 새 execution 을 시작하지 않음", async () => {
     // 사전 저장된 세션 — applyConfig 가 RESTORED 로 복원하고 startedRef=true.
     window.sessionStorage.setItem(

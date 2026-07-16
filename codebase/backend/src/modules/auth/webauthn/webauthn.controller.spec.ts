@@ -100,6 +100,35 @@ describe('WebAuthnController (audit)', () => {
       expect(webauthnService.listCredentials).toHaveBeenCalledWith(payload.sub);
     });
 
+    it('maps nullable fields (deviceName / lastUsedAt) to null', async () => {
+      const createdAt = new Date('2026-06-01T00:00:00.000Z');
+      webauthnService.listCredentials.mockResolvedValue([
+        {
+          id: 'cred-2',
+          deviceName: null,
+          transports: [],
+          lastUsedAt: null, // 한 번도 사용 안 한 credential.
+          createdAt,
+        },
+      ] as never);
+
+      const result = await controller.webauthnList(payload);
+
+      expect(result).toEqual({
+        data: {
+          items: [
+            {
+              id: 'cred-2',
+              deviceName: null,
+              transports: [],
+              lastUsedAt: null, // toISOString() 이 아니라 null 이 그대로 나와야 한다.
+              createdAt: createdAt.toISOString(),
+            },
+          ],
+        },
+      });
+    });
+
     it('keeps the { data: { items } } envelope when there are no credentials', async () => {
       webauthnService.listCredentials.mockResolvedValue([]);
 
