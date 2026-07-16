@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-17T00:35:59.007864",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "/private/tmp/claude-501/-Volumes-project-private-clemvion--claude-worktrees-funny-mahavira-50d003/2702c467-d0e9-45d0-8e50-2242f367b454/scratchpad/spec-draft-cafe24-countmax.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
