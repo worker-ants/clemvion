@@ -27,7 +27,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 빠른 preflight — playwright base 이미지 태그 ↔ @playwright/test 해소 버전,
+  # frontend @workflow 클로저 ↔ Dockerfile COPY ↔ compose 볼륨 마스킹 정합을 정적으로
+  # 검증한다(수동 동기화 목록의 silent drift 차단). 아래 e2e job 들이 needs 로 걸어 두어
+  # 설정이 어긋난 채로 30분짜리 e2e 를 낭비하지 않고 fail-fast 한다.
+  config-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Check e2e playwright/config alignment
+        run: python3 scripts/check-e2e-playwright-config.py
+
   e2e:
+    needs: config-guard
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -66,6 +82,7 @@ jobs:
           retention-days: 7
 
   e2e-frontend:
+    needs: config-guard
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

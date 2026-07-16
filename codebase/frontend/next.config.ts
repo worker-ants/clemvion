@@ -11,9 +11,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Docker/k8s 배포용 — .next/standalone 에 server.js + 필요한 파일만 자동 복사.
   output: "standalone",
-  // 트레이싱 루트는 pnpm workspace 루트(레포 루트). pnpm(node-linker=hoisted)은
-  // 의존성을 workspace 루트의 node_modules 로 hoist 하므로, 루트가 codebase/ 이면
-  // standalone file-tracer 가 hoist 된 node_modules 를 누락한다. 본 파일은
+  // 트레이싱 루트는 pnpm workspace 루트(레포 루트). node-linker=isolated 에서 의존성은
+  // 루트 node_modules/.pnpm 가상 스토어에 있고 각 패키지 node_modules 로 symlink 되며,
+  // 내부 @workflow/* 는 codebase/packages/* 로의 symlink 다. 루트를 codebase/frontend 로
+  // 좁히면 file-tracer 가 이 스토어·symlink 대상(상위 경로)을 벗어나 누락한다. 본 파일은
   // codebase/frontend/ → 두 단계 위가 workspace 루트.
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   // Local symlinked package — transpile required for bundler resolution.
