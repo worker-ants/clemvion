@@ -38,6 +38,7 @@ describe('WebAuthnController (audit)', () => {
       verifyRegistration: jest.fn(),
       deleteCredential: jest.fn(),
       regenerateRecoveryCodes: jest.fn(),
+      listCredentials: jest.fn(),
     } as unknown as jest.Mocked<WebAuthnService>;
 
     auditLogsService = {
@@ -62,6 +63,52 @@ describe('WebAuthnController (audit)', () => {
     ip: '7.7.7.7',
     socket: {},
   } as never;
+
+  // credential 목록 응답 shape 고정 — `{ data: { items: [] } }` 는 sessions·webauthn 양쪽의
+  // 백엔드·프런트가 의존하는 load-bearing 계약이라 bare array 로 낮추면 안 된다
+  // (spec `5-system/2-api-convention.md §5.2`, `5-system/1-auth.md`). `SessionsController.listSessions`
+  // 는 `sessions.controller.spec.ts` 가 동형으로 고정 중 — 그 대칭을 맞춘다.
+  describe('webauthnList', () => {
+    it('returns { data: { items } } envelope with mapped credentials', async () => {
+      const lastUsedAt = new Date('2026-07-01T00:00:00.000Z');
+      const createdAt = new Date('2026-06-01T00:00:00.000Z');
+      webauthnService.listCredentials.mockResolvedValue([
+        {
+          id: 'cred-1',
+          deviceName: 'YubiKey',
+          transports: ['usb'],
+          lastUsedAt,
+          createdAt,
+        },
+      ] as never);
+
+      const result = await controller.webauthnList(payload);
+
+      expect(result).toEqual({
+        data: {
+          items: [
+            {
+              id: 'cred-1',
+              deviceName: 'YubiKey',
+              transports: ['usb'],
+              lastUsedAt: lastUsedAt.toISOString(),
+              createdAt: createdAt.toISOString(),
+            },
+          ],
+        },
+      });
+      expect(webauthnService.listCredentials).toHaveBeenCalledWith(payload.sub);
+    });
+
+    it('keeps the { data: { items } } envelope when there are no credentials', async () => {
+      webauthnService.listCredentials.mockResolvedValue([]);
+
+      const result = await controller.webauthnList(payload);
+
+      // 빈 목록이어도 envelope 을 유지한다(bare array/null 로 축약 금지).
+      expect(result).toEqual({ data: { items: [] } });
+    });
+  });
 
   describe('webauthnRegisterVerify', () => {
     // [Spec Auth §4.1 / Rationale 4.1.B] credential 등록 = user.2fa_enabled.

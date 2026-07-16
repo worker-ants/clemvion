@@ -1138,7 +1138,7 @@ describe("useWidget — 버퍼 만료 재동기화(execution.replay_unavailable,
       }
       // getStatus(= endpoints.status, GET) — 버퍼 만료 후 폴백이 조회하는 스냅샷.
       // 첫 호출(start 직후 seed)은 waiting 표면 없음, 2번째(replay_unavailable 폴백)에서 표면 반환.
-      if (u.endsWith("/api/external/executions/e1") && init?.method === undefined) {
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
         statusCalls += 1;
         return Promise.resolve({
           ok: true,
@@ -1187,5 +1187,120 @@ describe("useWidget — 버퍼 만료 재동기화(execution.replay_unavailable,
       expect(result.current.state.messages.some((m) => m.text === "버퍼 만료 후 복구된 메시지")).toBe(true),
     );
     expect(result.current.state.phase).not.toBe("ended");
+  });
+
+  /**
+   * 버퍼 만료 gap(≥5분) 안에 execution 이 종료됐다면 그 terminal SSE 이벤트도 버퍼에서 함께
+   * 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지 — EIA R-replay-unavailable). 폴백이
+   * terminal 상태를 반영하지 않으면 위젯이 streaming 스피너에 무기한 멈춘다.
+   * (ai-review 01_42_44 requirement WARNING.)
+   */
+  it("replay_unavailable 폴백에서 execution 이 이미 종료됐으면 → ENDED 전이(무기한 streaming 방지)", async () => {
+    let statusCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        statusCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            // gap 사이에 완료됨 — terminal 이벤트는 버퍼와 함께 유실된 상태.
+            data: { executionId: "e1", status: statusCalls === 1 ? "running" : "completed" },
+          }),
+        } as Response);
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    await waitFor(() => expect(statusCalls).toBe(1));
+
+    act(() => {
+      getEs()?.emit("execution.replay_unavailable", { executionId: "e1" });
+    });
+
+    // terminal 스냅샷 → ENDED 전이 + 저장 세션 정리.
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  /** 폴백(getStatus) 자체가 실패해도 크래시 없이 기존 상태를 유지해야 한다(soft-fail). */
+  it("replay_unavailable 폴백의 getStatus 가 실패해도 크래시 없이 유지", async () => {
+    let statusCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        statusCalls += 1;
+        // 첫 seed 는 성공(running), 폴백 재조회는 네트워크 실패.
+        if (statusCalls === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error("network down"));
+      }
+      if (u.includes("/interact")) {
+        return Promise.resolve({ ok: true, status: 202, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    await waitFor(() => expect(statusCalls).toBe(1));
+
+    act(() => {
+      getEs()?.emit("execution.replay_unavailable", { executionId: "e1" });
+    });
+
+    await waitFor(() => expect(statusCalls).toBe(2));
+    // soft-fail — 종료로 오판하지 않고 기존 흐름 유지(스트림도 살아있다).
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(getEs()).not.toBeNull();
   });
 });

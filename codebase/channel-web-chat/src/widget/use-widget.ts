@@ -231,13 +231,28 @@ export function useWidget() {
    * **파싱 재사용**: `status.context` 는 SSE `waiting_for_input` wire payload 와 동일 형식
    * (EIA §5.3) → `parseWaitingForInput` 을 그대로 재사용.
    *
-   * **의존성 배열 `[]`**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
-   * `threadToMessages` 는 pure import — 클로저 캡처 없이 안전하게 빈 배열.
+   * **종료 상태 처리**: `status` 가 terminal(`completed`/`failed`/`cancelled`)이면 표면 시드 대신
+   * 세션 정리 + `ENDED` 전이 + host 통지를 수행한다 (SSE terminal 이벤트 경로와 동일 처리).
+   *
+   * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
+   * `threadToMessages` 는 pure import — 실 의존은 `teardownSession` 뿐(그 자체도 stable 콜백).
    */
   const seedWaitingFromStatus = useCallback(
     async (client: EiaClient, session: SessionRef) => {
       try {
         const status = await client.getStatus(session.endpoints, session.token);
+        // 이미 종료된 execution — 정리 후 ENDED 로 전이한다. **버퍼 만료(§replay_unavailable) 경로에서
+        // 특히 중요**: 5분 gap 안에 execution 이 종료됐다면 그 terminal SSE 이벤트도 버퍼에서 함께
+        // 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지·재전송 안 함 — EIA R-replay-unavailable).
+        // 이 분기가 없으면 위젯이 `streaming`("AI 응답 중" 스피너)에 무기한 멈춘다 — 사용자 액션이
+        // 없는 구간이라 `sendCommand` 의 410 사후 복구 경로도 닿지 않는다.
+        if ((TERMINAL_EVENTS as readonly string[]).includes(`execution.${status.status}`)) {
+          const reason = `execution.${status.status}`;
+          teardownSession();
+          dispatch({ type: "ENDED", reason });
+          bridgeRef.current?.sendEvent("conversationEnded", { reason });
+          return;
+        }
         if (status.status === "waiting_for_input" && status.context) {
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
           // EIA §5.3) — `as` 캐스트 불필요.
@@ -259,13 +274,16 @@ export function useWidget() {
         );
       }
     },
-    [],
+    [teardownSession],
   );
 
-  // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만, 정의는 아래에
-  // 있다(선언 순서상 TDZ). ref 로 노출해 순환 의존/재정렬 없이 참조한다 — `seedWaitingFromStatus` 는
-  // deps `[]` 로 stable 하므로 최초 1회 대입으로 충분하다.
-  seedWaitingFromStatusRef.current = seedWaitingFromStatus;
+  // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
+  // 선언 순서상 TDZ — ref 로 노출해 재정렬 없이 참조한다.
+  // 갱신은 render 중이 아니라 effect 에서(매 렌더) — 위 `apiRef` 와 동일 컨벤션. handleEiaEvent 는
+  // SSE 이벤트(= effect 로 연 스트림) 로만 불리므로 최초 effect 이전에 호출될 일이 없다.
+  useEffect(() => {
+    seedWaitingFromStatusRef.current = seedWaitingFromStatus;
+  });
 
   const persist = useCallback((cfg: BootMessage, res: HookStartResponse) => {
     if (!res.interaction) return null;
