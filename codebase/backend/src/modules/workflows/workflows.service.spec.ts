@@ -1066,6 +1066,64 @@ describe('WorkflowsService', () => {
       expect(mockTransactionManager.getRepository).not.toHaveBeenCalled();
       expect(mockIntegrationRepository.find).not.toHaveBeenCalled();
     });
+
+    // W2 parity(ai-review PR#955 항목 A): `loadIntegrationsForBudget` 는 runtime
+    // `IntegrationsService.getForExecution` 판정을 모듈 순환 없이 복제한다. 두 경로가
+    // 동치임을 고정한다 — (a) 복호화 실패(unreadable)는 **동일** `isUnreadableCredentials`
+    // 술어로 제외, (b) not-found 는 getForExecution 이 throw 하는 것과 달리 저장/조회를
+    // 깨지 않도록 best-effort skip. 이 divergence 는 의도된 것(경고는 advisory).
+    it('unreadable credentials 통합은 skip — getForExecution 과 동일 술어(경고 미발생)', async () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
+      mockNodeRepository.find.mockResolvedValue([
+        {
+          id: 'ai-1',
+          type: 'ai_agent',
+          label: 'Agent',
+          config: { mcpServers: [{ integrationId: 'int-1' }] },
+        },
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([]);
+      // 복호화 실패 sentinel — credentials-transformer 가 read 시 주입하는 형태
+      // (`isUnreadableCredentials` 가 `__unreadable === true` 로 판정).
+      mockIntegrationRepository.find.mockResolvedValue([
+        { ...connectedMakeshop, credentials: { __unreadable: true } },
+      ]);
+
+      const { results } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
+
+      // unreadable → 재현 도구 0 → payload 경고 없음(정상 설정 오차단 회피).
+      expect(
+        results.some((r) => r.ruleId === 'ai_agent:tool-payload-budget'),
+      ).toBe(false);
+    });
+
+    it('not-found 통합은 best-effort skip — getForExecution throw 와 달리 조회를 깨지 않음', async () => {
+      process.env.AI_AGENT_TOOL_PAYLOAD_SOFT_BYTES = '10';
+      mockNodeRepository.find.mockResolvedValue([
+        {
+          id: 'ai-1',
+          type: 'ai_agent',
+          label: 'Agent',
+          config: { mcpServers: [{ integrationId: 'missing-int' }] },
+        },
+      ]);
+      mockEdgeRepository.find.mockResolvedValue([]);
+      // 배치 조회가 그 id 를 못 찾음(삭제됨·다른 workspace) → 빈 결과.
+      mockIntegrationRepository.find.mockResolvedValue([]);
+
+      // getForExecution 은 NotFound 를 throw 하지만, 저장 시점 경고 경로는 정상
+      // resolve 하고 해당 server 기여만 skip 한다.
+      const { results } = await service.getGraphWarnings(
+        'wf-uuid-1',
+        'ws-uuid-1',
+      );
+      expect(
+        results.some((r) => r.ruleId === 'ai_agent:tool-payload-budget'),
+      ).toBe(false);
+    });
   });
 
   describe('exportWorkflow', () => {

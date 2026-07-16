@@ -2,9 +2,9 @@ import {
   Cafe24McpToolProvider,
   buildToolDescription,
   buildCafe24ToolDefsForIntegration,
-  buildCafe24JsonSchema,
   constraintToSuffixLine,
 } from './cafe24-mcp-tool-provider';
+import { buildOperationJsonSchema } from './operation-tool-schema';
 import type {
   Cafe24FieldConstraint,
   Cafe24OperationMetadata,
@@ -1170,9 +1170,10 @@ describe('Cafe24McpToolProvider.buildJsonSchema (oneOf + empty requiredFields)',
   }
 
   it('emits allOf with anyOf only — no required clause when requiredFields empty', () => {
-    // buildCafe24JsonSchema 는 module-level pure 함수(구 provider.buildJsonSchema
-    // 인스턴스 메서드에서 config-time 공유 위해 승격) — 직접 호출해 검증한다.
-    const schema = buildCafe24JsonSchema(stubOpWithOnlyOneOf());
+    // Cafe24OperationMetadata 가 shared `buildOperationJsonSchema`(구
+    // provider.buildJsonSchema 에서 통합, cafe24/makeshop 공유)에 구조적으로 대입돼
+    // 올바른 스키마를 내는지 provider-측 통합 확인. 매핑 전수는 operation-tool-schema.spec.
+    const schema = buildOperationJsonSchema(stubOpWithOnlyOneOf());
     expect(schema.required).toBeUndefined();
     expect(Array.isArray(schema.allOf)).toBe(true);
     const allOf = schema.allOf as Array<Record<string, unknown>>;

@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/integration/cafe24/metadata/**
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/operation-tool-schema.ts
   - codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts
   - codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts
   - codebase/frontend/src/lib/node-definitions/types.ts
@@ -150,7 +151,7 @@ type Cafe24FieldConstraint =
 2. `oneOf.fields` / `allOrNone.fields` 는 길이 2 이상. `implies.then` 은 길이 1 이상.
 3. `requiredFields` 의 멤버는 이미 무조건 필수이므로 `constraints` 의 fields 에 중복 등재하지 않는 것을 권장 (자동 검증은 하지 않음 — 무해. 그러나 `oneOf` 에 `requiredFields` 멤버가 들어가면 제약이 의미상 자동 만족되므로 row 작성 실수 신호다).
 
-**MCP/JSON Schema 매핑** — `cafe24-mcp-tool-provider.buildJsonSchema()` + tool description 빌더가 다음 변환을 수행한다:
+**MCP/JSON Schema 매핑** — `tool-providers/operation-tool-schema.ts` 의 `buildOperationJsonSchema()`(cafe24/makeshop 공유 pure 함수) + tool description 빌더가 다음 변환을 수행한다:
 
 | kind | JSON Schema 출력 | description suffix 한 줄 |
 |---|---|---|
@@ -388,14 +389,14 @@ for (const { resource, operation } of listAllCafe24Operations()) {
   tools.push({
     name: `mcp_${sid}__${operation.id}`,             // prefixed — provider 가 직접 부여
     description: buildToolDescription(operation, integration.name), // §2 조립 순서
-    parameters: buildJsonSchema(operation),          // requiredFields + oneOf→anyOf 결합 — §2 "MCP/JSON Schema 매핑"
+    parameters: buildOperationJsonSchema(operation),  // requiredFields + oneOf→anyOf 결합 — §2 "MCP/JSON Schema 매핑" (shared operation-tool-schema.ts)
   });
 }
 ```
 
 `buildToolDescription(operation, integrationName)` 의 조립 순서는 base description → `(Cafe24 <method> <path> — via Internal Bridge: <integrationName>)` → constraint suffix 줄(0..N) → `CAFE24_TIMEZONE_SUFFIX` 이며, 각 part 를 `'\n\n'` 로 join 한다.
 
-> 본 §7 pseudo-code 는 `constraints` 가 description suffix 및 JSON Schema `anyOf` 두 채널 모두에 어떻게 합류되는지의 한 줄 요약이다. 조립 순서·각 kind 별 변환 규칙·`allOf`/`anyOf` 결합 정확한 정의는 §2 "constraints 의 의미" 가 SoT 다 (§7 은 §2 의 derivative). 실제 production 구현은 `cafe24-mcp-tool-provider.ts` 의 `buildToolDescription()` 자유 함수와 `Cafe24McpToolProvider.buildJsonSchema()` 메서드에 자리한다.
+> 본 §7 pseudo-code 는 `constraints` 가 description suffix 및 JSON Schema `anyOf` 두 채널 모두에 어떻게 합류되는지의 한 줄 요약이다. 조립 순서·각 kind 별 변환 규칙·`allOf`/`anyOf` 결합 정확한 정의는 §2 "constraints 의 의미" 가 SoT 다 (§7 은 §2 의 derivative). 실제 production 구현은 `cafe24-mcp-tool-provider.ts` 의 `buildToolDescription()` 자유 함수와 `tool-providers/operation-tool-schema.ts` 의 `buildOperationJsonSchema()`(cafe24/makeshop 공유 pure 함수 — 두 provider 가 동일 매핑을 공유해 drift 0)에 자리한다.
 
 `Cafe24McpToolProvider.execute(call)` 는 args 를 노드 핸들러의 `fields` 와 동일하게 처리하여 `Cafe24ApiClient` 로 위임 — **노드와 MCP 가 같은 호출 경로를 공유**.
 

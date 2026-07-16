@@ -19,6 +19,7 @@ code:
   - codebase/backend/src/shared/llm-tracing/llm-call-record.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
+  - plan/in-progress/spec-drift-ai-agent-outport-countmax.md
 ---
 
 # Spec: AI Agent

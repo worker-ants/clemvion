@@ -19,6 +19,10 @@ import { sanitizeMcpErrorMessage } from '../../../../modules/mcp/mcp-error-codes
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import {
+  buildOperationJsonSchema,
+  makeEnabledToolsFilter,
+} from './operation-tool-schema.js';
+import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
   Cafe24RateLimitedError,
@@ -719,7 +723,7 @@ export function buildCafe24ToolDefsForIntegration(
   enabledTools: string[] | undefined,
 ): Cafe24ConfigToolBuild {
   const sid = sanitizeSid(integration.id);
-  const enabled = applyCafe24Allowlist(enabledTools);
+  const enabled = makeEnabledToolsFilter(enabledTools);
   const grantedScopes = extractGrantedScopes(integration);
   const opMap = new Map<
     string,
@@ -742,88 +746,10 @@ export function buildCafe24ToolDefsForIntegration(
     tools.push({
       name: `mcp_${sid}__${operation.id}`,
       description: buildToolDescription(operation, integration.name),
-      parameters: buildCafe24JsonSchema(operation),
+      parameters: buildOperationJsonSchema(operation),
     });
   }
   return { tools, opMap, skippedByScope };
-}
-
-/**
- * enabledTools allowlist → operationId 필터 함수. 빈 배열/미설정/`*` 포함 시
- * 전체 허용. (구 `Cafe24McpToolProvider.applyAllowlist` 인스턴스 메서드에서
- * config-time 공유를 위해 module-level pure 함수로 승격.)
- */
-function applyCafe24Allowlist(
-  enabledTools: string[] | undefined,
-): (id: string) => boolean {
-  if (!enabledTools || enabledTools.length === 0) return () => true;
-  if (enabledTools.includes('*')) return () => true;
-  const set = new Set(enabledTools);
-  return (id: string) => set.has(id);
-}
-
-/**
- * cafe24 operation → JSON Schema (LLM 도구 parameters). 구
- * `Cafe24McpToolProvider.buildJsonSchema` 인스턴스 메서드에서 config-time 공유를
- * 위해 module-level pure 함수로 승격 (동작 불변). export 는 스키마 매핑을 직접
- * 검증하는 단위 테스트용.
- */
-export function buildCafe24JsonSchema(
-  op: Cafe24OperationMetadata,
-): Record<string, unknown> {
-  const properties: Record<string, unknown> = {};
-  for (const [name, spec] of Object.entries(op.fields)) {
-    const prop: Record<string, unknown> = {};
-    if (spec.type === 'enum') {
-      prop.type = 'string';
-      if (spec.enum) prop.enum = spec.enum;
-    } else if (spec.type === 'array') {
-      prop.type = 'array';
-      prop.items = { type: 'string' };
-    } else if (spec.type === 'object') {
-      prop.type = 'object';
-      prop.additionalProperties = true;
-    } else {
-      prop.type = spec.type;
-    }
-    if (spec.description) prop.description = spec.description;
-    if (spec.default !== undefined) prop.default = spec.default;
-    properties[name] = prop;
-  }
-  const schema: Record<string, unknown> = {
-    type: 'object',
-    properties,
-  };
-
-  // Compose `required` + `oneOf` constraints (spec §2 "MCP/JSON Schema 매핑").
-  // - No oneOf constraint: emit plain top-level `required`.
-  // - Has oneOf constraint(s): wrap in `allOf` so the AND of requiredFields
-  //   plus the AND of each oneOf (each itself an `anyOf` of single-field
-  //   `required` clauses) compose cleanly. JSON Schema's own `oneOf` means
-  //   "exactly one" — we deliberately use `anyOf` for at-least-one.
-  // - `allOrNone` / `implies` kinds intentionally do NOT translate to JSON
-  //   Schema; their `not` encodings trip LLM tool-call validators. They
-  //   are enforced via description suffix + runtime `validateCafe24Constraints`.
-  const oneOfConstraints = (op.constraints ?? []).filter(
-    (c): c is Extract<Cafe24FieldConstraint, { kind: 'oneOf' }> =>
-      c.kind === 'oneOf',
-  );
-  const requiredClause =
-    op.requiredFields.length > 0 ? { required: [...op.requiredFields] } : null;
-
-  if (oneOfConstraints.length === 0) {
-    if (requiredClause) schema.required = requiredClause.required;
-  } else {
-    const anyOfClauses = oneOfConstraints.map((c) => ({
-      anyOf: c.fields.map((f) => ({ required: [f] })),
-    }));
-    const allOf = requiredClause
-      ? [requiredClause, ...anyOfClauses]
-      : anyOfClauses;
-    schema.allOf = allOf;
-  }
-
-  return schema;
 }
 
 /**
