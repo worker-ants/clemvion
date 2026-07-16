@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Loader2,
@@ -21,13 +21,11 @@ import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
 import { AssistantPresentationsBlock } from "./renderers/assistant-presentations-block";
-import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
 import {
   groupToolCallItems,
   isAssistantContentBlank,
-  stripInlineMarkers,
 } from "@/lib/conversation/conversation-utils";
 import type { TranslationKey } from "@/lib/i18n/core";
 
@@ -137,7 +135,12 @@ function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
 
 interface ConversationInspectorProps {
   result: NodeResult;
-  /** Live: store 가 직접 주입. History: SummaryView 내 useMemo 가 outputData.messages 에서 재가공. */
+  /**
+   * 대화 items 의 단일 소스 — 항상 호출자가 정규 변환을 마친 뒤 주입한다.
+   * Live 는 store 사본, History 는 `parseHistoryMessages(result.outputData)`
+   * 결과 (spec/conventions/conversation-thread.md §9.3 데이터 소스 선택).
+   * 본 컴포넌트는 재파싱하지 않는다 (§9.11 다중 정의 금지).
+   */
   conversationMessages: ConversationItem[];
   /**
    * Index into `conversationMessages` for the currently-selected message, or
@@ -283,11 +286,6 @@ export function ConversationInspector({
 
 // AI Agent 의 system role RAG context 메시지를 detect 하는 마커.
 // `RagSearchService.buildContext` (backend) 가 동일 prefix 로 만들어 보낸다.
-const RAG_CONTEXT_MARKER = "### Relevant Knowledge";
-
-function isRagContextContent(content: unknown): content is string {
-  return typeof content === "string" && content.includes(RAG_CONTEXT_MARKER);
-}
 
 /** SummaryView 컴팩트 라인용 결과 요약 — 전체 본문은 ToolDetail 에서 노출. */
 export function summarizeToolResult(result: unknown): string {
@@ -857,75 +855,17 @@ function SummaryView({
   // Full conversation thread (shown in both Live and History). Post-Stage-5
   // ai_agent writes messages at `output.result.messages`; legacy runs kept
   // them at `output.messages`. `resolveResultField` handles both paths.
-  // system role 메시지 중 RAG 컨텍스트(`### Relevant Knowledge`) 는 별도 "rag"
-  // 항목으로 노출해 KB 호출이 timeline 에 보이게 한다.
-  const items = useMemo(() => {
-    if (isLive) return conversationMessages;
-    // 호출자가 이미 정규 변환을 거친 items 를 넘겼으면 그대로 신뢰한다.
-    // 아래 인라인 재파싱은 spec §9.11 의 변환 함수 contract 에 없는 4번째
-    // 경로이며 `output.error` → `system_error` 합성을 하지 못한다 —
-    // `parseHistoryMessages` 가 만든 결과를 여기서 버리면 오류 종결 노드의
-    // 인라인 에러 마커가 통째로 사라진다 (§9.9 Inv-8 / §9.10 CT-S16·CT-S17).
-    if (conversationMessages.length > 0) return conversationMessages;
-    const msgsRaw = resolveResultField<unknown[]>(output, "messages");
-    if (!Array.isArray(msgsRaw)) return conversationMessages;
-    const msgs = msgsRaw as Array<{
-      role: string;
-      content: string;
-      toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
-      toolCallId?: string;
-    }>;
-    let turnCounter = 0;
-    const out: ConversationItem[] = [];
-    // toolCallId → name 매핑 (직전 assistant.toolCalls[].id 로 lookup).
-    const callNameById = new Map<string, string>();
-    for (const m of msgs) {
-      if (m.role === "user") {
-        turnCounter++;
-        out.push({
-          type: "user",
-          content: stripInlineMarkers(m.content),
-          turnIndex: turnCounter,
-        });
-      } else if (m.role === "assistant") {
-        if (m.toolCalls) {
-          for (const tc of m.toolCalls) {
-            if (tc.id) callNameById.set(tc.id, tc.name ?? "");
-          }
-        }
-        out.push({
-          type: "assistant",
-          content: stripInlineMarkers(m.content),
-          turnIndex: turnCounter,
-          assistantToolCalls: m.toolCalls?.length
-            ? m.toolCalls.map((tc) => ({
-                name: tc.name ?? "",
-                arguments: tc.arguments,
-              }))
-            : undefined,
-        });
-      } else if (m.role === "tool") {
-        const name = m.toolCallId
-          ? callNameById.get(m.toolCallId)
-          : undefined;
-        out.push({
-          type: "tool",
-          content: name ?? "(unknown tool)",
-          turnIndex: turnCounter || 1,
-          toolCallId: m.toolCallId,
-          toolResult: tryParseJson(m.content),
-        });
-      } else if (m.role === "system" && isRagContextContent(m.content)) {
-        // RAG context 는 직전 user 의 turnCounter 에 속하도록 표시한다.
-        out.push({
-          type: "rag" as ConversationItem["type"],
-          content: m.content,
-          turnIndex: turnCounter,
-        });
-      }
-    }
-    return out;
-  }, [isLive, conversationMessages, output]);
+  // 대화 items 의 단일 소스는 호출자(`result-detail.tsx`)다 — live 는 store
+  // 사본, history 는 `parseHistoryMessages(result.outputData)` 결과를 넘긴다
+  // (spec/conventions/conversation-thread.md §9.3 데이터 소스 선택).
+  //
+  // 예전에는 여기서 `output.result.messages` 를 자체 인라인 재파싱했으나, 그
+  // 경로는 §9.11 이 정의한 3개 변환 함수에 없는 4번째 경로였고 `output.error`
+  // → `system_error` 합성을 하지 못해 오류 종결 노드의 인라인 에러 마커가
+  // 사라졌다 (§9.9 Inv-8 회귀). 호출자와 동일한 소스를 중복 파싱하던 dead
+  // path 라 제거했다 — 자체 복원이 다시 필요해지면 재구현하지 말고 canonical
+  // `parseHistoryMessages` 를 import 해 위임할 것 (§9.11 다중 정의 금지).
+  const items = conversationMessages;
 
   return (
     <div className="flex flex-col gap-4">

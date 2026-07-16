@@ -259,10 +259,15 @@ export const ctS7CarryOverOutOfOrder = {
 };
 
 /**
- * CT-S15/S16/S17 — 오류 종결 대화 노드의 렌더 도달성 (Inv-8).
+ * CT-S15/S16/S17 — 오류 종결 대화 노드의 렌더 도달성 (§9.9 Inv-8).
+ *
+ * CT-S1~S7 이 tool-call 그룹·carry-over 를 다루는 것과 달리, 아래 셋은
+ * 미리보기 **탭 자체의 도달성**과 데이터 소스 선택(store vs outputData)을
+ * 다룬다 — 소비처도 `conversation-utils.test.ts` 가 아니라
+ * `result-detail.test.tsx` 다.
  *
  * 엔진은 실패 시에도 `nodeExec.outputData` 를 영속하고 `node.failed` payload 에
- * 동봉한다 (spec/5-system/4-execution-engine.md §7.9 — `output.error` + 부분
+ * 동봉한다 (spec/4-nodes/3-ai/1-ai-agent.md §7.9 — `output.error` + 부분
  * `output.result.*` 병존). 아래 output 은 그 shape 을 그대로 재현한다.
  */
 function makeErroredConversationOutput(retryable: boolean) {

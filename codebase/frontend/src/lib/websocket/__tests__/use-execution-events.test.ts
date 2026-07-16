@@ -1993,7 +1993,7 @@ describe("useExecutionEvents", () => {
 
     // spec/conventions/conversation-thread.md §9.10 CT-S15 — 엔진은 실패 시에도
     // `nodeExec.outputData` 를 영속하고 NODE_FAILED payload 에 `output` 으로
-    // 동봉한다 (spec/5-system/4-execution-engine.md §7.9). 프론트가 이를 버리면
+    // 동봉한다 (spec/4-nodes/3-ai/1-ai-agent.md §7.9). 프론트가 이를 버리면
     // 미리보기가 복원 매체를 잃는다 (Inv-8).
     it("CT-S15: node.failed carries conversation output into NodeResult.outputData", () => {
       useExecutionStore.getState().startExecution("exec-1");

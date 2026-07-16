@@ -108,6 +108,25 @@ const MULTI_TURN_INTERACTION_TYPES: ReadonlySet<string> = new Set([
   "ai_form_render",
 ]);
 
+/**
+ * 대화가 종결됐음을 나타내는 `output.result.endReason` 값 전체.
+ *
+ * backend enum 과 정합해야 한다 — `ai-turn-executor.ts` 의 multi-turn 종결
+ * (`'user_ended' | 'max_turns' | 'condition' | 'error'`) + IE/single-turn 의
+ * `'completed'` / `'max_retries'`. `error` / `condition` 누락은 drift 였고,
+ * 그 탓에 대화가 outputData 에 그대로 있는데도 미리보기가 사라졌다
+ * (spec/conventions/conversation-thread.md §9.9 Inv-8 — 종결 사유는 대화
+ * 데이터의 존재 여부와 무관한 축이다).
+ */
+const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set([
+  "completed",
+  "user_ended",
+  "max_turns",
+  "max_retries",
+  "condition",
+  "error",
+]);
+
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))
     return false;
@@ -150,20 +169,10 @@ export function isConversationOutput(outputData: unknown): boolean {
   const endReason =
     (result?.endReason as string | undefined) ??
     (output.endReason as string | undefined);
-  // 종결 사유 화이트리스트는 backend 의 endReason enum 과 정합해야 한다
-  // (`ai-turn-executor.ts` — `'user_ended' | 'max_turns' | 'condition' | 'error'`,
-  // + IE/single-turn 의 `'completed'` / `'max_retries'`). `error` / `condition`
-  // 누락은 drift 였다 — 대화가 outputData 에 그대로 있는데도 미리보기가 사라졌다
-  // (spec/conventions/conversation-thread.md §9.9 Inv-8 — status·종결사유는
-  // 대화 데이터의 존재 여부와 무관한 축).
   const looksLikeConversationEnd =
     hasResultMessages &&
-    (endReason === "completed" ||
-      endReason === "user_ended" ||
-      endReason === "max_turns" ||
-      endReason === "max_retries" ||
-      endReason === "condition" ||
-      endReason === "error");
+    typeof endReason === "string" &&
+    CONVERSATION_END_REASONS.has(endReason);
   // Canonical waiting shape: the structured envelope has
   // `status === 'waiting_for_input'` and `output.messages` is the live
   // conversation snapshot. This catches payloads where `meta.interactionType`

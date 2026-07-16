@@ -233,7 +233,7 @@ Skipped 상태의 노드는 목록에서 제외한다.
 
 #### AI Agent / Information Extractor (multi-turn) 노드
 
-종결된 대화를 채팅 스레드 형태로 표시한다 — **정상 종결(`completed`)뿐 아니라 오류 종결(`failed`)도 포함**한다. 노드 `outputData` 는 실패 시에도 영속되므로(`output.error` + 부분 `output.result.*` 병존 — [Spec 실행 엔진 §7.9](../5-system/4-execution-engine.md)) 새로고침 후에도 대화가 복원되며, 마지막에 `system_error` 가 인라인 표시된다 ([Conversation Thread §9.3](../conventions/conversation-thread.md#93-데이터-소스-선택) 이력 복원 view 행 · [§9.9 Inv-8](../conventions/conversation-thread.md#99-ui-invariants)). 이력 view 의 `system_error` 는 `nodeExecutionId` 를 동봉하지 않으므로 `[다시 시도]` 버튼은 자동 suppress 된다 ([§1.2.1](../conventions/conversation-thread.md#121-system_error-data-shape)):
+종결된 대화를 채팅 스레드 형태로 표시한다 — **정상 종결(`completed`)뿐 아니라 오류 종결(`failed`)도 포함**한다. 노드 `outputData` 는 실패 시에도 영속되므로(`output.error` + 부분 `output.result.*` 병존 — [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 새로고침 후에도 대화가 복원되며, 마지막에 `system_error` 가 인라인 표시된다 ([Conversation Thread §9.3](../conventions/conversation-thread.md#93-데이터-소스-선택) 이력 복원 view 행 · [§9.9 Inv-8](../conventions/conversation-thread.md#99-ui-invariants)). 이력 view 의 `system_error` 는 `nodeExecutionId` 를 동봉하지 않으므로 `[다시 시도]` 버튼은 자동 suppress 된다 ([§1.2.1](../conventions/conversation-thread.md#121-system_error-data-shape)):
 - 턴 카운터, 종료 사유 표시
 - User/Assistant 메시지를 버블 형태로 나열
 - Tool Call 배지 (접기/펼치기)
