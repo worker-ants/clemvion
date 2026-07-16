@@ -129,6 +129,67 @@ describe('LlmService', () => {
       expect(mockClient.chat).toHaveBeenCalledWith(params, controller.signal);
     });
 
+    // 회귀: withTimeout 콜백이 넘기는 timeout signal 이 실제로 client.chat 에
+    // 전달돼, 타임아웃 발화 시 그 signal 이 abort 상태가 되는지 고정. (과거 0-arity
+    // 콜백은 이 signal 을 버려 타임아웃이 provider 요청을 취소하지 못하고 leak.)
+    it('aborts the signal passed to client.chat when the app-level timeoutMs fires', async () => {
+      const config = {
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as never;
+      let captured: AbortSignal | undefined;
+      // client.chat 이 hang(never resolve) — timeout 타이머가 race 를 이긴다.
+      mockClient.chat.mockImplementation(
+        (_p: unknown, signal?: AbortSignal) => {
+          captured = signal;
+          return new Promise<never>(() => {});
+        },
+      );
+      const params = { model: 'gpt-4o', messages: [] as never[] };
+      await expect(
+        service.chat(config, params as never, undefined, {
+          timeoutMs: 10,
+          disableInnerRetry: true,
+        }),
+      ).rejects.toThrow(/timed out/i);
+      expect(captured).toBeDefined();
+      expect(captured!.aborted).toBe(true);
+    });
+
+    // 회귀: opts.signal(execution abort) 과 timeout signal 이 병합돼, 둘 중
+    // execution abort 만으로도 client.chat signal 이 abort 되는지 고정.
+    it('merges opts.signal with the timeout signal (execution abort propagates too)', async () => {
+      const config = {
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as never;
+      let captured: AbortSignal | undefined;
+      mockClient.chat.mockImplementation(
+        (_p: unknown, signal?: AbortSignal) => {
+          captured = signal;
+          return new Promise<never>(() => {});
+        },
+      );
+      const controller = new AbortController();
+      const params = { model: 'gpt-4o', messages: [] as never[] };
+      const call = service.chat(config, params as never, undefined, {
+        timeoutMs: 60000,
+        signal: controller.signal,
+        disableInnerRetry: true,
+      });
+      // 아직 timeout 전 — execution abort 를 발화시키면 병합 signal 도 abort.
+      controller.abort();
+      await Promise.resolve();
+      expect(captured).toBeDefined();
+      expect(captured!.aborted).toBe(true);
+      // hang promise 정리를 위해 timeout race 를 강제 종료하지 않고 call 을 버린다.
+      void call.catch(() => undefined);
+    });
+
     // spec/5-system/6-websocket-protocol.md §4.4.6 — `source` is a
     // transport-only marker for WebSocket emit. LlmService must strip it
     // before forwarding to provider clients so LLM APIs only see the

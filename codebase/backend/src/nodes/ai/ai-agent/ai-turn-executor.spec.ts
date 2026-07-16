@@ -85,17 +85,19 @@ describe('AiTurnExecutor', () => {
       expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
     });
 
-    // §12.16 defense-in-depth — single-turn chat 호출이 app-level 타임아웃 + abort
-    // signal 을 opts(4번째 인자)로 전달하는지 고정.
-    it('passes an app-level timeoutMs (§12.16) + abort signal to chat', async () => {
+    // §12.16 defense-in-depth — single-turn chat 호출이 app-level 타임아웃 +
+    // context.abortSignal 을 opts(4번째 인자)로 **실제 전파**하는지 고정.
+    it('passes an app-level timeoutMs (§12.16) + context.abortSignal to chat', async () => {
       const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
       delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS; // default 600000
       try {
+        const controller = new AbortController();
+        const ctx = { ...baseContext, abortSignal: controller.signal };
         const executor = buildExecutor();
         await executor.executeSingleTurn(
           undefined,
           { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
-          baseContext,
+          ctx,
         );
         // chat(config, params, context, opts) — 4번째 인자가 LlmCallOptions.
         const opts = mockLlmService.chat.mock.calls[0][3] as {
@@ -103,8 +105,30 @@ describe('AiTurnExecutor', () => {
           signal?: unknown;
         };
         expect(opts.timeoutMs).toBe(600000);
-        // signal 은 context.abortSignal 전파 — 키 자체는 항상 전달.
-        expect('signal' in opts).toBe(true);
+        // tautology 가 아니라 실제 context.abortSignal 이 전파돼야 한다.
+        expect(opts.signal).toBe(controller.signal);
+      } finally {
+        if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+        else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
+      }
+    });
+
+    it('propagates AI_AGENT_LLM_CALL_TIMEOUT_MS=0 (disabled) through to chat opts', async () => {
+      const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+      process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = '0';
+      try {
+        const executor = buildExecutor();
+        await executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          baseContext,
+        );
+        const opts = mockLlmService.chat.mock.calls[0][3] as {
+          timeoutMs?: number;
+        };
+        // 0 = 비활성 → 그대로 0 전파 (LlmService.chat 이 timeoutMs>0 조건에서만
+        // withTimeout 적용하므로 0 은 타임아웃 없음).
+        expect(opts.timeoutMs).toBe(0);
       } finally {
         if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
         else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
@@ -250,6 +274,16 @@ describe('AiTurnExecutor', () => {
       // cond_c1 은 미합산, do_thing(normal) 만 +1 → toolCalls === 1.
       expect((result.meta as { toolCalls: number }).toolCalls).toBe(1);
       expect(mockLlmService.chat).toHaveBeenCalledTimes(2);
+      // §12.16 — tool-loop 재호출(2번째 chat)도 1번째와 동일하게 app-level
+      // 타임아웃을 opts 로 전달하는지 (배선 대칭) 고정.
+      const firstOpts = mockLlmService.chat.mock.calls[0][3] as {
+        timeoutMs?: number;
+      };
+      const secondOpts = mockLlmService.chat.mock.calls[1][3] as {
+        timeoutMs?: number;
+      };
+      expect(typeof secondOpts.timeoutMs).toBe('number');
+      expect(secondOpts.timeoutMs).toBe(firstOpts.timeoutMs);
     });
 
     it('emits structured meta.mcpDiagnostics (serverSummaries + 종류별 counters) — spec §6.2', async () => {
@@ -601,6 +635,12 @@ describe('AiTurnExecutor', () => {
           nodeExecutionId: 'nodeexec-row-1',
         }),
       );
+      // §12.16 — resume tool-loop 후속(2번째) chat 도 app-level 타임아웃을 opts 로
+      // 대칭 전달(배선 대칭)한다.
+      const secondOpts = mockLlmService.chat.mock.calls[1][3] as {
+        timeoutMs?: number;
+      };
+      expect(typeof secondOpts.timeoutMs).toBe('number');
     });
 
     it('multi-turn: max_turns 종결 output 에 구조화 meta.mcpDiagnostics(카운터 포함) emit — spec §6.2', async () => {

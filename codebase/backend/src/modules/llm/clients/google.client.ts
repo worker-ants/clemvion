@@ -319,7 +319,7 @@ export class GoogleClient implements LLMClient {
     return { systemInstruction, contents: turns };
   }
 
-  async chat(params: ChatParams): Promise<ChatResult> {
+  async chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult> {
     const modelId = params.model || this.defaultModel;
     const { systemInstruction, contents } = this.buildContents(params);
 
@@ -333,10 +333,13 @@ export class GoogleClient implements LLMClient {
     }
 
     const hasTools = Boolean(params.tools?.length);
+    // signal 을 config.abortSignal 로 전달 — 앱 레벨 타임아웃/execution abort 가
+    // 실제 generateContent 요청을 취소하게 한다 (chatStream/listModels 와 정합).
     const config = this.buildGenerationConfig(
       params,
       hasTools,
       systemInstruction,
+      signal,
     );
 
     const response = await this.ai.models.generateContent({
