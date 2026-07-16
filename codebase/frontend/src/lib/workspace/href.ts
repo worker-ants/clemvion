@@ -1,6 +1,15 @@
 import { toSafeInternalPath } from "./safe-path";
 
 /**
+ * 워크스페이스 스코프 라우트의 첫 세그먼트 — `(main)/w/[slug]` · `(editor)/w/[slug]` 의 `w`.
+ *
+ * 링크 **생성**(`buildWorkspaceHref`)과 **판별**(`(main)/[...rest]` catch-all 의 재부착 가드)이
+ * 같은 값에 의존하므로 상수로 묶는다. 둘이 어긋나면 catch-all 이 `/w/…` 를 못 알아보고 slug 를
+ * 재부착해 무한 중첩이 재발한다.
+ */
+export const WORKSPACE_ROUTE_SEGMENT = "w";
+
+/**
  * 활성 워크스페이스 slug 를 붙인 앱 내부 절대경로를 만든다 — `/w/<slug><path>`.
  *
  * URL 이 활성 워크스페이스의 **FE 라우팅 SoT** 다 (spec/2-navigation/9-user-profile.md §3).
@@ -25,7 +34,7 @@ export function buildWorkspaceHref(
   path: string,
 ): string {
   const clean = toSafeInternalPath(path);
-  return slug ? `/w/${slug}${clean}` : clean;
+  return slug ? `/${WORKSPACE_ROUTE_SEGMENT}/${slug}${clean}` : clean;
 }
 
 /**

@@ -176,7 +176,14 @@ test.describe("user guide (/docs) is outside the workspace slug", () => {
     // 이 버그로 이미 브라우저 히스토리·북마크에 남은 URL. 재부착 없이 종결되어야 한다
     // (spec/2-navigation/11-error-empty-states.md §1.3 "존재하지 않는 라우트 접근 → 404").
     await page.goto(`/w/${SLUG}/docs`);
-    await page.waitForLoadState("networkidle");
+
+    // 404 UI 가 실제로 렌더된다 — URL 고정만 보면 "조용한 blank 렌더" 도 통과해버리므로
+    // notFound() 가 실제로 not-found 바운더리를 태웠는지까지 증명한다.
+    await expect(
+      page.getByRole("heading", { name: /페이지를 찾을 수 없습니다|Page not found/ }),
+    ).toBeVisible({ timeout: 15_000 });
+    // 404 는 사이드바를 유지한다 (11-error-empty-states.md §1.3 "사이드바 표시").
+    await expect(page.locator('nav a[href="/docs"]')).toBeVisible();
 
     const pathname = new URL(page.url()).pathname;
     // 세그먼트가 늘어나지 않았다 — `/w/<slug>/w/<slug>/docs` 로 forward 되지 않음.

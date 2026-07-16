@@ -4,7 +4,10 @@ import { useEffect, useMemo } from "react";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { useWorkspaces } from "@/lib/workspace/use-workspaces";
-import { buildWorkspaceHref } from "@/lib/workspace/href";
+import {
+  buildWorkspaceHref,
+  WORKSPACE_ROUTE_SEGMENT,
+} from "@/lib/workspace/href";
 import { resolveFallbackWorkspace } from "@/lib/workspace/resolve-fallback";
 
 /**
@@ -48,8 +51,10 @@ export default function WorkspaceRedirect() {
   );
 
   // 세그먼트 단위 비교 — `/web-chat` 처럼 'w' 로 시작하는 일반 경로와 섞이지 않는다.
-  const workspacePrefixed = rest[0] === "w";
-  // `/w/<slug>` 단독만 forward 대상. slug 가 URL 에 있으므로 store 로드를 기다릴 필요가 없다.
+  // 상수는 `buildWorkspaceHref` 의 생성부와 공유한다(생성↔판별이 어긋나면 무한 중첩 재발).
+  const workspacePrefixed = rest[0] === WORKSPACE_ROUTE_SEGMENT;
+  // `/w/<slug>` 단독(= 세그먼트 2개)만 forward 대상. slug 가 URL 에 있으므로 store 로드를
+  // 기다릴 필요가 없다.
   const workspaceRootSlug =
     workspacePrefixed && rest.length === 2 ? rest[1] : null;
 

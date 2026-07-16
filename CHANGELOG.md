@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 사용자 가이드(/docs) 진입 시 워크스페이스 slug 무한 중첩 fix
+
+사이드바 "사용자 가이드" 클릭 시 URL 이 `/w/<slug>/w/<slug>/…/docs` 로 매 리다이렉트마다 한 세그먼트씩 길어지며 가이드 페이지에 영영 도달하지 못하던 사용자 보고 회귀를 고친다.
+
+1. **사이드바 nav 항목에 `workspaceScoped` 플래그 도입.** `navItems.map` 이 예외 없이 `buildWorkspaceHref(slug, href)` 를 적용해, 워크스페이스 **밖** 라우트인 `/docs` 까지 존재하지 않는 `/w/<slug>/docs` 로 만들었다. `spec/2-navigation/_layout.md §2.2` 각주("User Guide(`/docs`)는 워크스페이스 무관 콘텐츠라 slug 밖으로 유지")가 정의한 예외를 데이터에 고정해 선언 시점에 스코프가 드러나게 했다 — `/docs` 만 `false`.
+2. **`(main)/[...rest]` catch-all 을 `/w/` 접두 경로에 대해 terminal 로.** 위 경로는 `w/[slug]` 하위에 `docs` 세그먼트가 없어 specific route 매칭에 실패해 catch-all 로 떨어지는데, 재부착 가드가 없어 slug 를 또 붙이며 무한 중첩을 **증폭**했다. 이제 `/w/<slug>` 단독은 그 워크스페이스 dashboard 로 forward(query/hash 보존), 그 외 `/w/…` 는 `notFound()` 로 종결한다(`spec/2-navigation/11-error-empty-states.md §1.3` "존재하지 않는 라우트 접근 → 404", 사이드바 유지). 접두를 떼고 재-forward 하는 대안은 `/w/<slug>/<미지>` → `/<미지>` → 다시 prefix → … ping-pong 무한루프라 미채택. 사이드바만 고치면 다른 소비처가 같은 실수를 할 때 루프가 재발하므로 두 겹을 함께 막는다.
+3. **부수 fix**: `(main)/w/[slug]/page.tsx` 부재로 `/w/<slug>` 단독 경로도 같은 루프(`/w/a` → `/w/a/w/a` → …)에 빠지던 것을 함께 해소.
+4. `buildWorkspaceHref` 는 **의도적으로 비-idempotent** 로 유지한다(근거를 `href.ts` docstring 에 기록) — 이미 `/w/…` 인 path 를 조용히 삼키면 호출자 버그를 은폐하고 `("team-a", "/w/team-b/x")` 의 정답이 정의되지 않는다. 대신 catch-all 의 terminal 가드가 이 클래스의 실패를 무한 리다이렉트가 아닌 **가시적 404** 로 떨어뜨린다.
+
+> 검증: playwright e2e 신규 5건(사용자 보고 흐름 · stale `/w/<slug>/docs` 의 404 종결 · 워크스페이스 루트 forward). 유닛은 `useParams` 를 mock 하므로 실제 Next 라우트 매칭과 클라이언트 `notFound()` 실동작을 증명할 수 없어 브라우저 레벨 검증이 본질이다.
+
 ## Unreleased — AI Agent LLM chat 호출 app-level 타임아웃 (defense-in-depth, §12.16)
 
 도구 payload 예산 가드레일의 후속(항목 B). payload 가드가 팽창發 hang 의 근본 원인을 막지만, 그 외(네트워크 지연·모델 stall)의 무기한 hang 백스톱이 없었다.

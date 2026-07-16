@@ -105,8 +105,13 @@ rest=["w","lusiaz-8c7e","docs"] → replace("/w/lusiaz-8c7e" + "/w/lusiaz-8c7e/d
       **e2e 는 `make e2e-test-full` 로 수행** — 표준 wrapper(`run-test.sh e2e` = `make e2e-test`)는
       backend e2e 만 돌리고 playwright 를 건너뛴다(§인프라 갭). 본 변경은 순수 frontend 라우팅이라
       playwright(51 passed, 신규 5건 포함)가 본질적 검증이다.
-- [ ] 9. REVIEW WORKFLOW — `/ai-review` + Critical/Warning fix
-- [ ] 10. spec 보강 draft (`spec-update-catch-all-terminal-contract.md`) → project-planner 위임
+- [x] 9. REVIEW WORKFLOW — `/ai-review` (fallback Agent fan-out, 8 reviewer) → **LOW, Critical 0,
+      Warning 6**. W#3(상수 승격)·W#5(e2e 404 렌더 검증)·W#6(CHANGELOG) fix, W#1 spec 위임 draft,
+      W#2(범위)·W#4(mock 중복) 수용/후속. RESOLUTION.md 기록 + TEST WORKFLOW 재통과
+      (lint·unit·build·e2e 256+51).
+- [x] 10. spec 보강 draft 작성 → `plan/in-progress/spec-update-catch-all-terminal-contract.md`
+      (project-planner 위임 대기 — spec 본문 반영은 planner 몫)
+- [ ] 11. `/consistency-check --impl-done spec/2-navigation/` (SPEC-CONSISTENCY 게이트)
 
 ## 인프라 갭 (본 PR 발견, 범위 밖)
 
