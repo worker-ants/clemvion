@@ -119,7 +119,7 @@ _cmd_backend_image_hygiene_smoke() {
 
 # `e2e-test`(backend only) 가 아니라 `e2e-test-full`(backend + playwright) 을 부른다.
 #
-# 근거: CI 는 `e2e-backend` 잡이 `make e2e-test`, `e2e-frontend` 잡이 `make e2e-test-full` 로
+# 근거: CI 는 `e2e` 잡이 `make e2e-test`, `e2e-frontend` 잡이 `make e2e-test-full` 로
 # **playwright 를 반드시 돌린다**(.github/workflows/e2e.yml). 여기서 `e2e-test` 만 부르면
 # TEST WORKFLOW 의 e2e 단계가 `status=PASS` 여도 **로컬에선 브라우저 테스트가 한 번도
 # 실행되지 않아** CI 에서야 프론트 회귀가 드러난다 — 로컬/CI 커버리지 불일치.

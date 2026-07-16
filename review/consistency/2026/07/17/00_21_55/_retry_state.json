@@ -34,16 +34,47 @@
       "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/consistency/2026/07/17/00_21_55/naming_collision.md"
     }
   ],
-  "agents_pending": [
+  "agents_pending": [],
+  "agents_success": [
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
   ],
-  "agents_success": [],
   "agents_fatal": [],
-  "agent_history": {},
+  "agent_history": {
+    "cross_spec": [
+      {
+        "ts": "2026-07-16T23:25:52.044879Z",
+        "status": "success"
+      }
+    ],
+    "rationale_continuity": [
+      {
+        "ts": "2026-07-16T23:25:52.080702Z",
+        "status": "success"
+      }
+    ],
+    "convention_compliance": [
+      {
+        "ts": "2026-07-16T23:25:52.116738Z",
+        "status": "success"
+      }
+    ],
+    "plan_coherence": [
+      {
+        "ts": "2026-07-16T23:25:52.148961Z",
+        "status": "success"
+      }
+    ],
+    "naming_collision": [
+      {
+        "ts": "2026-07-16T23:25:52.181389Z",
+        "status": "success"
+      }
+    ]
+  },
   "rate_limit_episodes": 0,
   "total_wait_sec": 0,
   "wake_history": [],

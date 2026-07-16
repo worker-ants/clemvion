@@ -5,7 +5,7 @@
   "router_subagent_type": "review-router",
   "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/01_07_43/_prompts/_router.md",
   "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/01_07_43/_routing_decision.json",
-  "routing_status": "pending",
+  "routing_status": "done",
   "routing_skip_reason": null,
   "agents_forced": [
     "documentation",
@@ -39,7 +39,14 @@
       "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/e2e/workspaces/slug-routing.spec.ts, codebase/frontend/src/app/(main)/[...rest]/page.tsx, codebase/frontend/src/app/(main)/__tests__/workspace-redirect.test.tsx (외 3건)"
     ]
   },
-  "agents_skipped": [],
+  "agents_skipped": [
+    "performance",
+    "architecture",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ],
   "subagent_invocations": [
     {
       "name": "security",
@@ -126,25 +133,68 @@
       "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/01_07_43/user_guide_sync.md"
     }
   ],
-  "agents_pending": [
+  "agents_pending": [],
+  "agents_success": [
     "security",
-    "performance",
-    "architecture",
     "requirement",
     "scope",
     "side_effect",
     "maintainability",
     "testing",
     "documentation",
-    "dependency",
-    "database",
-    "concurrency",
-    "api_contract",
     "user_guide_sync"
   ],
-  "agents_success": [],
   "agents_fatal": [],
-  "agent_history": {},
+  "agent_history": {
+    "security": [
+      {
+        "ts": "2026-07-16T23:25:52.636277Z",
+        "status": "success"
+      }
+    ],
+    "requirement": [
+      {
+        "ts": "2026-07-16T23:25:52.666362Z",
+        "status": "success"
+      }
+    ],
+    "scope": [
+      {
+        "ts": "2026-07-16T23:25:52.694860Z",
+        "status": "success"
+      }
+    ],
+    "side_effect": [
+      {
+        "ts": "2026-07-16T23:25:52.724730Z",
+        "status": "success"
+      }
+    ],
+    "maintainability": [
+      {
+        "ts": "2026-07-16T23:25:52.754765Z",
+        "status": "success"
+      }
+    ],
+    "testing": [
+      {
+        "ts": "2026-07-16T23:25:52.785468Z",
+        "status": "success"
+      }
+    ],
+    "documentation": [
+      {
+        "ts": "2026-07-16T23:25:52.815034Z",
+        "status": "success"
+      }
+    ],
+    "user_guide_sync": [
+      {
+        "ts": "2026-07-16T23:25:52.843661Z",
+        "status": "success"
+      }
+    ]
+  },
   "rate_limit_episodes": 0,
   "total_wait_sec": 0,
   "wake_history": [],

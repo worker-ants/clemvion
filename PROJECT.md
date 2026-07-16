@@ -33,7 +33,7 @@
 
 **순서 근거**: e2e 는 `docker-compose.e2e.yml` 에서 backend 이미지를 빌드해 실행하므로, 로컬 `pnpm --filter backend build` 가 통과해야 e2e 도 의미가 있다. build 실패를 먼저 잡으면 docker 빌드 시간(분 단위) 낭비를 피한다.
 
-**e2e 도 cross-stack 의무**: `run-test.sh e2e` 는 `make e2e-test-full` 을 호출해 **backend supertest + frontend playwright 를 함께** 돌린다 — CI(`.github/workflows/e2e.yml`)가 `e2e-backend`·`e2e-frontend` 두 잡으로 양쪽을 반드시 돌리므로, 로컬 wrapper 도 같은 커버리지를 가져야 한다. (~2026-07-17 이전에는 `make e2e-test`(backend only)를 불러, 프론트 변경이 로컬에서 `status=PASS` 를 받아도 브라우저 테스트가 한 번도 실행되지 않고 CI 에서야 회귀가 드러났다. 사이드바 `/docs` slug 무한 중첩 회귀가 이 갭에서 나왔다 — frontend 라우팅은 unit 이 `useParams` 를 mock 하므로 실제 라우트 매칭·클라이언트 `notFound()` 동작을 **원리적으로** 검증할 수 없고 playwright 가 유일한 검증 계층이다.) backend 만 빠르게 확인하려면 `make e2e-test` 를 직접 호출하되, **TEST WORKFLOW 의 e2e 단계 통과 근거로는 인정되지 않는다**.
+**e2e 도 cross-stack 의무**: `run-test.sh e2e` 는 `make e2e-test-full` 을 호출해 **backend supertest + frontend playwright 를 함께** 돌린다 — CI(`.github/workflows/e2e.yml`)가 `e2e`(backend supertest)·`e2e-frontend`(playwright) 두 잡으로 양쪽을 반드시 돌리므로, 로컬 wrapper 도 같은 커버리지를 가져야 한다. (~2026-07-17 이전에는 `make e2e-test`(backend only)를 불러, 프론트 변경이 로컬에서 `status=PASS` 를 받아도 브라우저 테스트가 한 번도 실행되지 않고 CI 에서야 회귀가 드러났다. 사이드바 `/docs` slug 무한 중첩 회귀가 이 갭에서 나왔다 — frontend 라우팅은 unit 이 `useParams` 를 mock 하므로 실제 라우트 매칭·클라이언트 `notFound()` 동작을 **원리적으로** 검증할 수 없고 playwright 가 유일한 검증 계층이다.) backend 만 빠르게 확인하려면 `make e2e-test` 를 직접 호출하되, **TEST WORKFLOW 의 e2e 단계 통과 근거로는 인정되지 않는다**.
 
 > ⚠️ wrapper 요약줄의 `tests=256` 은 **backend jest 수만** 센다 — `run-test.sh` 의 카운트 정규식이 jest 형식(`Tests: N passed`)만 매칭하고 playwright 형식(`51 passed (52s)`)은 매칭하지 않기 때문이다(범용 wrapper라 두 러너를 한 숫자로 합산하지 않는다). **playwright 실행 여부는 이 숫자로 판단하지 말고** 로그(`_test_logs/e2e-*.log`)의 `N passed (…s)` 줄로 확인한다.
 
