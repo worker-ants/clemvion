@@ -2,12 +2,21 @@
 worktree: spec-sync-audit
 started: 2026-06-03
 owner: planner
+spec_impact:
+  - spec/5-system/11-mcp-client.md
 ---
 
 # mcp-client — spec 약속 대비 미구현 surface
 
 > 출처: 2026-06-03 spec-vs-code audit (review/spec-coverage/2026/06/03/08_05_49). 본 spec(`spec/5-system/11-mcp-client.md`)을 `partial` 로 강등하며 분리한 미구현 항목 추적.
 > 관련 spec: spec/5-system/11-mcp-client.md
+>
+> **종결 (2026-07-16 grooming, 사용자 결정)**: 등재 항목 5건 중 4건 구현 완료(2026-06-14·2026-07-06),
+> 마지막 1건(§3.3 `cached_capabilities` 캐시)은 **won't-do 확정**(아래 근거). 잔여 0 → `complete/` 이동.
+> 본 plan 이 `11-mcp-client.md` 의 유일한 `pending_plans` 였고 §3.3 이 그 spec 의 유일한 미구현 표면이었으므로,
+> 같은 PR 에서 spec §3.3 을 won't-do 로 flip + `pending_plans` 제거 + `status: partial → implemented` 승격한다
+> (spec-impl-evidence §3 전이 규칙 + 가드 c). `started: 2026-06-03` 이라 Gate C `spec_impact` 는 grandfather
+> 면제이나, 본 종결 PR 이 실제로 spec 을 갱신하므로 자발 선언한다.
 
 ## 미구현 항목
 
@@ -21,7 +30,9 @@ owner: planner
 - [x] §6.2 외부 `service_type='mcp'` 통합의 진단 표면 노출 — **완료**: `McpToolProvider.materializeServer` 가 connect+list 성공 시 connected serverSummary(toolCount) push, `openServer` 가 serviceType=mcp 확정 이후 status/connect/list 실패 시 skipped(skipReason=error) push(Cafe24 Internal Bridge 와 대칭). serviceType 판정 전 lookup 실패는 미push(double-push 회피). 테스트 2건.
 - [x] §8.2 `MCP_TIMEOUT` 코드 emit — **완료 (2026-07-06 타입확장 cluster PR)**: `with-timeout.ts` `TimeoutError` 기반 build-phase 분류로 `mcp-tool-provider.ts` `errors[]` push. 확인.
 - [x] §8.2 `MCP_CONNECT_FAILED` / `MCP_LIST_FAILED` buildTools surface — **완료 (2026-07-06 타입확장 cluster PR)**: connect/status precheck→`MCP_CONNECT_FAILED`, tools/list→`MCP_LIST_FAILED` phase 분류 emit. 확인.
-- [ ] §3.3 `credentials.cached_capabilities` capability 캐시 — **보류 (infra)**: Integration 엔티티 credentials JSONB 구조 변경 + preview test 저장 경로. spec L142-148 Planned(캐시는 hint, 실행 시 재조회).
+- [x] §3.3 `credentials.cached_capabilities` capability 캐시 — **won't-do 종결 (2026-07-16, 사용자 결정)**. 종전 상태는 "보류 (infra)": Integration 엔티티 credentials JSONB 구조 변경 + preview test 저장 경로 필요.
+  **기각 근거**: (1) spec 스스로 이 캐시를 **순수 성능 최적화**로 규정한다 — "캐시는 hint 일 뿐 실행 시 재조회"(§3.3, L144·L371). 즉 미도입이 기능 결손을 낳지 않으며, 현재 노드 설정 UI 미리보기는 매번 live `initialize`(§9 연결 테스트) 결과를 쓰므로 **항상 최신**이라는 정확성 이점까지 있다. (2) 얻는 것(설정 UI 미리보기 첫 렌더 지연 단축)에 비해 치르는 비용이 크다 — Integration credentials JSONB 스키마 변경은 자격증명 저장 경로 전체에 걸친 infra 변경이고, 캐시 무효화(서버측 도구 목록 변경 감지) 문제를 새로 들여온다. (3) 2026-06-03 등재 이후 6주간 실사용 성능 불만이 제기된 바 없다 — 최적화의 전제인 측정된 병목이 부재.
+  **재개 트리거**: 설정 UI 미리보기의 live `initialize` 지연이 실측으로 문제화되면(예: 대형 카탈로그 서버에서 체감 지연) 그 때 신규 plan 으로 재제안한다. 그 시점엔 JSONB 확장 대신 별도 캐시 테이블/TTL 등 대안도 함께 검토할 것.
 
 ## 타입 확장 cluster — 착수 설계 (2026-07-06)
 
@@ -80,5 +91,5 @@ owner: planner
 
 ## 비고
 - 각 항목의 근거(claim→코드부재/불일치)는 audit findings/5-system/5-system__11-mcp-client.md 참조.
-- spec 본문은 위 항목을 "미구현 (Planned)" 으로 명시 표기 완료 (§3.3 / §6.2 / §8.2).
+- spec 본문은 위 항목을 "미구현 (Planned)" 으로 명시 표기 완료 (§3.3 / §6.2 / §8.2). **2026-07-16 갱신**: §6.2·§8.2 는 구현 완료로 표기 전환됐고(2026-07-06 타입확장 cluster PR), §3.3 은 본 종결 PR 에서 **won't-do** 로 전환 — 세 절 모두 "Planned" 표기가 남지 않는다.
 - 반대로 audit 가 지적한 §8.2 신규 코드(`MCP_TOOL_ERROR`·`MCP_UNKNOWN_TOOL`)와 §9 응답 형식(200 OK body, rotate 경로 400)·`MCP_HTTPS_REQUIRED` 정정은 spec 본문 패치로 완료(구현 일치).

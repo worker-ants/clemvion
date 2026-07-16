@@ -44,7 +44,14 @@ owner: developer
 본체 plan §7.2 이관.
 
 - [ ] e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal(사용자 Stop 버튼 / timeout)이 진행 중 노드까지 전파돼 `cancelled` 상태로 확정되는지
-  > **잔여(2026-07-08)**: DB in-flight cancel 배선·AbortError→cancelled 분류는 단위 테스트(§1)로 결정적 검증됨. 다단계 in-flight cancel e2e 는 **느린 쿼리 + 타이밍 맞춘 외부 cancel** 이 필요해 non-deterministic(flaky) 리스크가 커 별도 후속으로 남긴다. 사용자 cancel→`cancelled` 확정의 기본 경로는 본체 `node-cancellation-infrastructure.md`(완료) e2e 가 이미 커버.
+  > **잔여(2026-07-08)**: DB in-flight cancel 배선·AbortError→cancelled 분류는 단위 테스트(§1)로 결정적 검증됨. 다단계 in-flight cancel e2e 는 **느린 쿼리 + 타이밍 맞춘 외부 cancel** 이 필요해 non-deterministic(flaky) 리스크가 커 별도 후속으로 남긴다. ~~사용자 cancel→`cancelled` 확정의 기본 경로는 본체 `node-cancellation-infrastructure.md`(완료) e2e 가 이미 커버.~~
+  >
+  > **⚠ 위 마지막 문장은 사실이 아니다 — 정정 (2026-07-17 grooming, 실측)**: 본체 plan 의 e2e 는 이 항목을 커버하지 **않는다**. 오히려 [`node-cancellation-infrastructure.md:90`](../complete/node-cancellation-infrastructure.md) 이 *"(이관) e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지 → `node-cancellation-inflight-followups.md` §3 로 분리 (2026-06-28)"* 라며 **이쪽으로 넘겼다**. 즉 두 plan 이 서로에게 미루는 **순환 참조**였고, 그 결과 이 시나리오의 실제 e2e 커버리지는 **0** 이다:
+  > - `codebase/backend/test/` 에 cancel 전용 e2e 파일 **부재**.
+  > - e2e 의 `status === 'cancelled'` 단언은 `execution-concurrency-cap.e2e-spec.ts:234`·`:298`(큐 대기 타임아웃/orphan 회수)와 `webchat-idle-reaper.e2e-spec.ts`(idle reaper) 뿐 — 셋 다 **노드 dispatch 전 회수**라 in-flight 전파 검증이 아니다. (다른 파일의 `cancelled` 는 `TERMINAL_STATUSES` 상수 나열일 뿐.)
+  > - 사용자 Stop API 는 존재하나(`interaction.controller.ts`) e2e 미검증.
+  >
+  > **본 정정은 항목의 처분이 아니라 사실관계 교정이다** — flaky 리스크 판단(위 2026-07-08 노트)은 여전히 유효하므로 항목은 `[ ]` 로 열려 있다. 다만 "이미 커버되니 안전하다" 는 **잘못된 안심**을 제거한다: 결정적 하네스로 작성할지, `won't-do` 로 확정할지는 **미결정**이며 사용자 판단이 필요하다.
 
 ## 수용 기준
 

@@ -80,5 +80,10 @@ follow-up 명시.
 
 ## 의존성
 
-- 본 plan 진행 시 `plan/in-progress/merge-p2-async-fanin.md` §1 PoC 의 "EIA seq monotonic 보장
-  검증" 항목과 통합 — 같은 worktree 안에서 PoC.
+- ~~본 plan 진행 시 `plan/in-progress/merge-p2-async-fanin.md` §1 PoC 의 "EIA seq monotonic 보장
+  검증" 항목과 통합 — 같은 worktree 안에서 PoC.~~
+  **해소 (2026-07-17)**: 본 plan 은 PR #730 으로 완료됐고(`ExecutionSeqAllocator` Redis `INCR` 채택,
+  EIA-NF-06/07 정량화 + 실-Redis e2e), 통합 대상이던 `merge-p2-async-fanin` 은 **§1 PoC 를 실행하지 않고
+  ADR 로 마감**됐다 ([`plan/complete/merge-p2-async-fanin.md`](./merge-p2-async-fanin.md)) — 엔진이
+  per-node 비동기 dispatch 미채택을 확정해 PoC 의 전제가 사라졌기 때문. 따라서 본 의존성은 양쪽 모두
+  종결로 해소됐다.

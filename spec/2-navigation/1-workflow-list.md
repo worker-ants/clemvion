@@ -9,7 +9,7 @@ code:
   - codebase/backend/src/modules/workflows/workflows.module.ts
   - codebase/backend/src/modules/folders/**
 pending_plans:
-  - plan/in-progress/spec-sync-workflow-list-gaps.md
+  - plan/in-progress/marketplace-and-plugin-sdk.md
 ---
 
 # Spec: 워크플로우 목록 화면

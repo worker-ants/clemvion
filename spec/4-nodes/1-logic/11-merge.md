@@ -12,7 +12,7 @@ code:
 여러 입력 경로의 데이터를 하나로 합치는 **데이터 노드**. `strategy` 와 `outputFormat` 의 조합으로 결과 형태를 결정한다. Phase P1 순차 엔진 기준 모든 predecessor 가 이미 해소된 뒤 실행되므로 별도의 fan-in barrier 는 적용되지 않는다.
 
 > **P1 한정 동작**:
-> - `timeout` / `partialOnTimeout` 은 schema 에는 노출되어 있으나 P1 에서는 barrier 가 dormant — 0이 아닌 값(`timeout > 0`, `partialOnTimeout === true`)을 설정하면 핸들러가 warn 로그를 남긴다. 동시에 `warningRules` (`merge:timeout-dormant`, `merge:partial-on-timeout-dormant`) 가 발화하며, 이 두 룰은 `severity` 가 명시되지 않아 evaluator 기본값인 **`blocking`** 으로 평가된다 (`packages/node-summary/src/evaluator.ts` `evaluateWarnings`). 따라서 캔버스 배지로 노출될 뿐 아니라 `handler.validate` 의 `evaluateMetadataBlockingErrors` 경로를 통해 **validation 차단 에러**로도 집계된다 (§6 참조). 실제 barrier 는 P2 에서 활성화 예정.
+> - `timeout` / `partialOnTimeout` 은 schema 에는 노출되어 있으나 P1 에서는 barrier 가 dormant — 0이 아닌 값(`timeout > 0`, `partialOnTimeout === true`)을 설정하면 핸들러가 warn 로그를 남긴다. 동시에 `warningRules` (`merge:timeout-dormant`, `merge:partial-on-timeout-dormant`) 가 발화하며, 이 두 룰은 `severity` 가 명시되지 않아 evaluator 기본값인 **`blocking`** 으로 평가된다 (`packages/node-summary/src/evaluator.ts` `evaluateWarnings`). 따라서 캔버스 배지로 노출될 뿐 아니라 `handler.validate` 의 `evaluateMetadataBlockingErrors` 경로를 통해 **validation 차단 에러**로도 집계된다 (§6 참조). 실제 barrier 활성화는 **P3 (엔진이 per-node 비동기 dispatch 를 도입할 경우 재검토)** 로 격하됐다 — 종전 "P2 에서 활성화 예정" 표기는 2026-07-17 ADR 로 정정됐다 (§Rationale `R-wontdo-async-fanin`).
 > - `strategy: 'first'` 는 "먼저 도착한 입력" 이 아니라 **predecessor 키 정렬 후 첫 번째** 값을 반환한다 (Phase P1 한정).
 
 ---
@@ -215,8 +215,26 @@ Merge 는 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는
 
 > **dormant 필드의 이중 성격 주의**: `timeout` / `partialOnTimeout` 은 *실행(execute)* 에서는 결과에 영향 없는 dormant 이지만, *검증(validate)* 에서는 위 두 warningRule 이 `blocking` 으로 평가되어 차단 에러로 집계된다 (evaluator 기본 severity = `blocking`). 즉 dormant = "런타임 무영향" 이지 "검증 무영향" 이 아니다.
 
-> **Phase P2 예정**: `timeout` 이 활성화되면 `MERGE_TIMEOUT` 코드와 함께 `error` 포트 / `output.error` 가 추가될 가능성이 있다. 현 P1 에서는 미구현.
+> **P3 로 격하 (2026-07-17 ADR)**: `timeout` 이 활성화되면 `MERGE_TIMEOUT` 코드와 함께 `error` 포트 / `output.error` 가 추가될 가능성이 있다 — 그러나 그 활성화 자체가 P3 로 격하됐다(§Rationale `R-wontdo-async-fanin`). 현재 미구현이며, 엔진이 per-node 비동기 dispatch 를 도입하지 않는 한 도입 예정 없음.
 
 ## 7. 캔버스 요약
 
 [공통 §8](./0-common.md#8-캔버스-요약) — `Merge` 행 인용 (`{N} inputs · {strategy}`).
+
+## Rationale
+
+### R-wontdo-async-fanin. 비동기 fan-in barrier(`timeout`/`partialOnTimeout` 활성화) P2 → P3 격하 (ADR, 2026-07-17)
+
+**결정**: Merge 의 비동기 fan-in barrier 활성화를 **P2(다음 단계 예정) → P3(엔진이 per-node 비동기 dispatch 를 도입할 경우 재검토)** 로 격하한다. `timeout` / `partialOnTimeout` 은 **무기한 dormant** 로 유지된다.
+
+**근거 — 선결 조건이 엔진 차원에서 기각됐다**: 2026-05-11 조사는 "현 sequential 엔진에서는 의미 있는 barrier 구현이 불가능"(모든 predecessor 가 동시 해소돼 '기다릴 시간' 자체가 0)하다고 결론지었고, 활성화의 선결 조건으로 **엔진 비동기 dispatch 모델 도입**을 지목했다. 그런데 그 사이 실행 엔진이 **정반대 방향을 확정**했다 — [실행 엔진 §4·§Rationale "per-node → execution-level intake 큐"](../../5-system/4-execution-engine.md)가 "**per-node task queue(1 Worker = 1 NodeExecution)는 채택하지 않는다**", "**한 세그먼트 내부의 노드 dispatch 는 여전히 in-process while-loop — per-node `task-queue` 는 존재하지 않는다**" 로 명문화했다. 엔진은 per-node 가 아닌 **execution-level intake 큐**(1 Worker = 1 active 세그먼트)를 선택했고, 이는 컨테이너·중첩 스코프·back-edge·Parallel 의미론을 무변경으로 보존하기 위한 의도된 결정이다.
+
+즉 barrier 활성화가 요구하는 "시간차 도착 대기" 는 세그먼트 내부 dispatch 가 in-process 순차인 한 성립하지 않으며, 그 전제를 바꾸는 것은 Merge 노드 하나를 위해 엔진의 확정된 설계 결정을 번복하는 일이다. 원 plan(`merge-p2-async-fanin.md`)의 수용 기준이 규정한 "§1 PoC 결과가 비현실적이면 ADR 로 마감하고 dormant 표기를 P3 로 전환" 분기가 **PoC 실행 없이 충족**됐다 — PoC 가 답하려던 질문(엔진을 비동기 dispatch 로 재설계할 수 있는가)에 엔진 spec 이 이미 "하지 않는다" 로 답했기 때문이다.
+
+**기각한 대안**:
+- *Merge 전용 부분 비동기 처리*(원 plan §선결조건 2): 두 dispatch 모델 공존 부담 + Background 노드 호환성 처리. 노드 하나를 위해 엔진에 이질적 경로를 신설하는 비용이 얻는 값을 넘어선다.
+- *Background 노드 동기 완료 대기 옵션*(원 plan §선결조건 3): Background 의 사용자 의미(fire-and-forget)를 바꾸므로 기각.
+
+**재검토 트리거**: 엔진이 per-node 비동기 dispatch 를 도입하기로 **결정을 번복**하는 경우에 한해 본 ADR 을 재개한다. 그 결정은 Merge 가 아니라 실행 엔진 차원의 RFC 사안이다.
+
+**남은 UX 이슈 (본 ADR 범위 밖)**: `timeout`/`partialOnTimeout` 이 무기한 dormant 로 확정됐음에도 schema/UI 에 계속 노출되며, 값을 설정하면 `warningRules` 가 `severity` 미명시 → evaluator 기본값 `blocking` 으로 평가돼 **캔버스 배지 + `handler.validate` 차단 에러**를 낸다(§1 note · §6). 영구 dormant 필드를 노출한 채 설정 시 차단하는 것이 적절한지(필드 제거 vs severity 완화 vs 현행 유지)는 **제품 결정**이라 본 ADR 에서 정하지 않는다. 추적: [`plan/in-progress/node-output-redesign/merge.md`](../../../plan/in-progress/node-output-redesign/merge.md) §종합 개선안 `(product-decision)` 항목 — 원 plan 이 `complete/` 로 종결되며 소유자가 사라지지 않도록 승계시켰다.

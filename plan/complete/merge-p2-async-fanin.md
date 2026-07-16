@@ -2,12 +2,52 @@
 worktree: (unstarted)
 started: 2026-05-11
 owner: developer
+spec_impact:
+  - spec/4-nodes/1-logic/11-merge.md
 ---
 
 # Merge 노드 P2 — 비동기 fan-in barrier + timeout / partialOnTimeout 활성화
 
 > 작성일: 2026-05-11
-> 분리 출처: `../complete/logic-node-followups.md` §5 (D3 결정의 fallback 경로)
+> 분리 출처: `logic-node-followups.md` §5 (D3 결정의 fallback 경로) — *2026-05-30 삭제된 문서라 링크하지 않는다. 그 §5 의 D3 결정 내용과 본 plan 분리 경위는 아래 §결정 히스토리에 요약돼 있다 (consistency `00_55_57` INFO#3).*
+>
+> ## 🏛 ADR 로 마감 (2026-07-17, 사용자 결정) — 미착수 종결
+>
+> **본 plan 의 수용 기준(§수용 기준) 두 번째 분기가 충족돼 `complete/` 로 종결한다**:
+> *"§1 PoC 결과가 **비현실적** 이면, 본 plan 을 architectural decision record 로 마감하고 Merge spec 의
+> dormant 표기를 명시적 'P3 (엔진 비동기 모델 도입 후 재검토)' 로 전환"*.
+>
+> **§1 PoC 를 실행하지 않고 종결하는 이유 — 그 사이 엔진이 답을 확정했다**: §1 PoC 가 답하려던 질문은
+> "`runExecution` 루프를 비동기 dispatch 가능한 형태로 재설계할 수 있는가" 였다. 그런데 그 사이
+> 실행 엔진이 **정반대 방향을 명문화**했다 —
+> [`spec/5-system/4-execution-engine.md`](../../spec/5-system/4-execution-engine.md) §4 가
+> "**per-node task queue(1 Worker = 1 NodeExecution)는 채택하지 않는다**",
+> "**한 세그먼트 내부의 노드 dispatch 는 여전히 in-process while-loop — per-node `task-queue` 는
+> 존재하지 않는다**" 로 확정하고 그 근거를 §Rationale "per-node → execution-level intake 큐" 에 남겼다.
+> 엔진은 per-node 가 아니라 **execution-level intake 큐**(1 Worker = 1 active 세그먼트)를 택했고, 이는
+> 컨테이너·중첩 스코프·back-edge·Parallel 의미론을 무변경 보존하려는 **의도된 설계 결정**이다.
+> 즉 PoC 의 질문에 엔진 spec 이 이미 "하지 않는다" 로 답했으므로, PoC 를 돌리는 것은 이미 내려진
+> 결정을 재확인하는 토큰 소모일 뿐이다. 본 plan 의 §선결 조건 1(엔진 비동기 dispatch 도입)이 기각된
+> 이상 §2~§4 는 전제를 잃는다.
+>
+> **처분**:
+> - ADR 본문 → [`spec/4-nodes/1-logic/11-merge.md` §Rationale `R-wontdo-async-fanin`](../../spec/4-nodes/1-logic/11-merge.md) 에 기록
+>   (기각한 대안 2건 · 재검토 트리거 · 남은 UX 이슈 포함). `11-merge.md` 에 `## Rationale` 절 자체가
+>   없었으므로 CLAUDE.md 3섹션 구성에 맞춰 **신설**했다.
+> - spec dormant 표기 **P2 → P3** 전환 완료 (§1 note, §6 "Phase P2 예정" note).
+> - `timeout` / `partialOnTimeout` 은 **무기한 dormant** 확정.
+>
+> **재검토 트리거**: 엔진이 per-node 비동기 dispatch 도입으로 **결정을 번복**하는 경우에 한함 —
+> 그것은 Merge 가 아니라 실행 엔진 차원의 RFC 사안이다.
+>
+> **⚠ 사용자 판단 필요 (본 ADR 범위 밖, 종결과 무관)**: `timeout`/`partialOnTimeout` 이 무기한 dormant 인데도
+> schema/UI 에 노출되며, 값을 설정하면 warningRule 이 기본 severity `blocking` 으로 평가돼 **캔버스 배지 +
+> `handler.validate` 차단 에러**가 난다. 영구 dormant 필드를 노출한 채 설정 시 차단하는 것이 적절한지
+> (필드 제거 vs severity 완화 vs 현행 유지)는 제품 결정이라 여기서 정하지 않았다 — `11-merge.md`
+> §Rationale 말미에도 동일 내용을 남겨 durable 하게 추적한다.
+>
+> *`started: 2026-05-11` 이라 Gate C 는 grandfather 면제이나, 본 종결이 실제로 `11-merge.md` 를 갱신하므로
+> `spec_impact` 를 자발 선언한다.*
 
 ## Context
 
@@ -41,6 +81,10 @@ P2 의미 있는 활성화는 다음 중 하나가 선결되어야 한다:
 각 옵션의 비용은 별도 조사 필요 — 본 plan 의 첫 작업 단위.
 
 ## 작업 단위
+
+> **⛔ 전 항목 미착수 종결 (2026-07-17 ADR)**: 아래 §1~§4 의 미체크 항목은 **수행하지 않는다**.
+> §1(PoC)은 엔진이 답을 확정해 불요, §2~§4 는 §1 을 전제로 하므로 함께 무효. 상단 ADR 배너 참조.
+> 체크박스는 "미이행" 사실을 보존하기 위해 `[ ]` 그대로 둔다 — 완료가 아니라 **폐기**다.
 
 ### 1. 엔진 비동기 dispatch 가능성 검토 (필수 선결)
 
@@ -78,8 +122,8 @@ P2 의미 있는 활성화는 다음 중 하나가 선결되어야 한다:
 
 ## 수용 기준
 
-- §1 PoC 결과가 "가능" 이면 §2~§4 모두 완료
-- §1 PoC 결과가 "비현실적" 이면, 본 plan 을 **architectural decision record** 로 마감하고 Merge spec 의 dormant 표기를 명시적 "P3 (엔진 비동기 모델 도입 후 재검토)" 로 전환
+- ~~§1 PoC 결과가 "가능" 이면 §2~§4 모두 완료~~ → **미해당** (엔진이 per-node dispatch 미채택 확정)
+- [x] §1 PoC 결과가 "비현실적" 이면, 본 plan 을 **architectural decision record** 로 마감하고 Merge spec 의 dormant 표기를 명시적 "P3 (엔진 비동기 모델 도입 후 재검토)" 로 전환 → **이 분기로 종결 (2026-07-17)**. ADR = `11-merge.md` §Rationale `R-wontdo-async-fanin`, dormant 표기 P2→P3 전환 완료. 상단 배너 참조.
 
 ## 의존성·리스크
 

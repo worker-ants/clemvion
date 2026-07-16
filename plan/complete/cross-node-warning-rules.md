@@ -1,7 +1,7 @@
 # Cross-Node WarningRule 인프라 + Workflow Save Validate 확장
 
 > 작성일: 2026-05-30
-> 분리 출처: [`parallel-p2-followups.md`](../in-progress/parallel-p2-followups.md) 결정 I (cross-node warningRule 인프라를 별 plan 으로 분리)
+> 분리 출처: [`parallel-p2-followups.md`](./parallel-p2-followups.md) 결정 I (cross-node warningRule 인프라를 별 plan 으로 분리)
 > 후속 plan: `parallel-p2-followups.md` §6 (Parallel `nested-depth-exceeded` / `nested-concurrency-cap` rule 등재)
 
 ## 배경
@@ -66,7 +66,9 @@
 - [x] backend save endpoint reject (UI 우회 케이스) — `workflows.service.spec.ts` (`GRAPH_VALIDATION_FAILED`) + 실 HTTP e2e `test/graph-warning-save.e2e-spec.ts` 케이스 A (3층 중첩 Parallel → 400) / B (2층 → 200) / C (단일 → 200)
 - [x] runtime planParallelBody reject (저장 후 마이그레이션 케이스) — depth rule 자체는 shared package `graph-warning-rules/__tests__/parallel.spec.ts` + backend core `graph-warning-rule.spec.ts` (3층 중첩 → `parallel:nested-depth-exceeded`) 로 잠김. 실행 엔진은 `planParallelBody` 가 `currentDepth >= 2` 에서 `PARALLEL_NESTED_DEPTH_EXCEEDED` throw (구현 완료).
 
-> **종결 결정 (2026-06-02, 사용자 승인)**: 본 plan 의 cross-node warningRule **인프라**(타입·shared package·save-validate·canvas 평가·convention)는 100% 완료. 남은 단 한 조각인 **3중 가드를 한 흐름으로 묶는 browser+HTTP 통합 e2e** (canvas 배지 → save 400 → runtime reject 를 실 server + browser 로 한 시나리오에 검증)는 본 plan 의 인프라 scope 밖이며, 이미 [`parallel-p2-followups.md`](../in-progress/parallel-p2-followups.md) §2~4 ("e2e — 3층 중첩 Parallel 워크플로우의 canvas 배지 → save 400 reject → runtime reject 3중 가드 흐름") 가 소유·추적 중이다. 중복 추적을 피하기 위해 본 plan 에서는 닫고 그 plan 으로 위임.
+> **종결 결정 (2026-06-02, 사용자 승인)**: 본 plan 의 cross-node warningRule **인프라**(타입·shared package·save-validate·canvas 평가·convention)는 100% 완료. 남은 단 한 조각인 **3중 가드를 한 흐름으로 묶는 browser+HTTP 통합 e2e** (canvas 배지 → save 400 → runtime reject 를 실 server + browser 로 한 시나리오에 검증)는 본 plan 의 인프라 scope 밖이며, 이미 [`parallel-p2-followups.md`](./parallel-p2-followups.md) §2~4 ("e2e — 3층 중첩 Parallel 워크플로우의 canvas 배지 → save 400 reject → runtime reject 3중 가드 흐름") 가 소유·추적 중이다. 중복 추적을 피하기 위해 본 plan 에서는 닫고 그 plan 으로 위임.
+>
+> **위임처 종결 (2026-07-16 grooming — 위 위임의 최종 귀결)**: 위임받은 `parallel-p2-followups.md` 가 `plan/complete/` 로 종결되며 이 e2e 를 **부분 이행 + 부분 won't-do** 로 처분했다. 3층 중 **save-400 층**(`graph-warning-save.e2e-spec.ts:113` A/B/C, 실 HTTP+DB)과 **런타임 reject 층**(`execution-engine.service.spec.ts:5575` `toThrow(/PARALLEL_NESTED_DEPTH_EXCEEDED/)`)은 충족됐고, **canvas 배지 층의 browser e2e 는 won't-do** — `codebase/frontend/e2e/` 에 캔버스 에디터 e2e 인프라 자체가 부재해 이 시나리오 하나를 위해 신설하는 비용이 얻는 신뢰도를 넘어서며, 실 안전망은 save-400 + 런타임 2층이고 배지는 UX 힌트 계층이기 때문. **따라서 "한 흐름으로 묶는 통합 e2e" 는 결과적으로 미이행으로 종결**됐다 — 위 문단이 "다른 plan 에서 진행 중" 으로 읽히지 않도록 명시한다. 캔버스 에디터 e2e 인프라가 다른 동기로 생기면 이 시나리오가 첫 후보다.
 
 ## 수용 기준
 
@@ -76,7 +78,7 @@
 - backend/frontend SSOT 보장 (shared package 또는 동등 메커니즘)
 - cross-node warningRule convention spec 작성
 - 단위/통합/e2e 테스트가 메커니즘 잠금 — 각 가드 계층별 테스트 완료 (§6). 3중 가드를 한 흐름으로 묶는 browser+HTTP 통합 e2e 는 `parallel-p2-followups.md` §2~4 소유
-- 본 plan 완료 후 [`parallel-p2-followups.md`](../in-progress/parallel-p2-followups.md) §6 가 진행 가능 상태
+- 본 plan 완료 후 [`parallel-p2-followups.md`](./parallel-p2-followups.md) §6 가 진행 가능 상태
 
 ## 의존성·리스크
 

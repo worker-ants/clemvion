@@ -26,7 +26,7 @@ code:
 한국 이커머스 SaaS [Cafe24](https://developers.cafe24.com/docs/ko/api/admin/) 의 Admin API 를 워크플로와 AI Agent 양쪽에서 호출할 수 있게 한다.
 
 - **사용자 가치**: 쇼핑몰 운영자가 상품·주문·회원·프로모션 등 모든 Admin API endpoint 를 워크플로 노드 1개로 호출 가능. 동시에 AI Agent 에 같은 Integration 을 도구로 부여하면 LLM 이 자연어로 "어제 미발송 주문 가져와줘" 같은 작업을 수행한다.
-- **지원 범위**: Cafe24 Admin API 의 **18 카테고리 전부 (Store / Product / Order / Customer / Community / Design / Promotion / Application / Category / Collection / Supply / Shipping / Salesreport / Personal / Privacy / Mileage / Notification / Translation)**. 카테고리당 평균 ~10 operation = 총 ~180 endpoint 를 메타데이터 기반 동적 폼으로 표현한다.
+- **지원 범위**: Cafe24 Admin API 의 **18 카테고리 전부 (Store / Product / Order / Customer / Community / Design / Promotion / Application / Category / Collection / Supply / Shipping / Salesreport / Personal / Privacy / Mileage / Notification / Translation)**. 카테고리당 평균 ~27 operation = 총 **485 endpoint** 를 메타데이터 기반 동적 폼으로 표현한다 (규모 SoT: [Cafe24 API 카탈로그 §5 Coverage Matrix](../../conventions/cafe24-api-catalog/_overview.md) 합계 — 측정 근거는 §Rationale). 이 규모 때문에 AI Agent 에 Internal MCP Bridge 로 노출할 때는 도구 allowlist 가 사실상 필수다 ([AI Agent §4.2](../3-ai/1-ai-agent.md#42-도구-정의-payload-예산-tool-definition-payload-budget)).
 - **이중 활용**: Cafe24 는 본 프로젝트에서 "같은 Integration 1개가 워크플로 캔버스 노드와 AI Agent MCP 도구 양쪽에 동시 노출되는" 첫 사례다. backend 의 `Cafe24McpToolProvider` (AI Agent 핸들러의 `AgentToolProvider` 인터페이스 구현체) 가 [Spec MCP Client §2.3](../../5-system/11-mcp-client.md#23-internal-bridge-in-process) 의 in-process Internal Bridge 패턴으로 본 노드와 같은 메타데이터 테이블에서 MCP 도구 목록을 생성한다.
 
 ---
@@ -443,7 +443,12 @@ MCP 측 호출도 동일한 `IntegrationUsageLog` 에 기록된다 ([Spec MCP Cl
 
 ### 9.1 단일 노드 + 메타데이터 테이블
 
-**단일 노드 + Resource/Operation 동적 폼**: 캔버스 노드 1개 + 카테고리당 평균 ~10 endpoint 의 동적 폼. 신규 endpoint = 메타데이터 row 1 추가. endpoint 당 도메인 노드 (~180개) 는 캔버스 가독성·노드 카탈로그를 무너뜨리고, 범용 HTTP 노드 + 인증 등록 방식은 매번 URL/method 구성으로 UX 가 저하되고 rate-limit 헤더 처리를 일반화하기 어렵다. n8n / Make 의 Cafe24 노드 패턴과 동일한 결정.
+**단일 노드 + Resource/Operation 동적 폼**: 캔버스 노드 1개 + 카테고리당 평균 ~27 endpoint 의 동적 폼. 신규 endpoint = 메타데이터 row 1 추가. endpoint 당 도메인 노드 (485개) 는 캔버스 가독성·노드 카탈로그를 무너뜨리고, 범용 HTTP 노드 + 인증 등록 방식은 매번 URL/method 구성으로 UX 가 저하되고 rate-limit 헤더 처리를 일반화하기 어렵다. n8n / Make 의 Cafe24 노드 패턴과 동일한 결정.
+
+**endpoint 규모 실측 — "~180" 화석 정정 (2026-07-17)**: 본 문서는 오래도록 "카테고리당 평균 ~10 operation = 총 ~180 endpoint" 로 적어 왔으나 이는 **초기 추정치**였고 실측과 2.7배 어긋났다. 실측 **485** 를 3중 교차검증으로 확정한다 — ① 카탈로그 `status: supported` 행 485 (`spec/conventions/cafe24-api-catalog/<resource>.md` 18개 파일 status **컬럼** 집계) ② 백엔드 metadata operation 485 (`codebase/backend/src/nodes/integration/cafe24/metadata/*.ts` 18개 파일 `id:` 필드 집계) ③ `catalog-sync.spec.ts` 가 이 둘의 **양방향 일치를 build 가드로 강제**하므로 두 값은 원리적으로 다를 수 없다. 카테고리별 분포도 양쪽 완전 일치(store 105 · order 104 · product 62 · promotion 33 · customer 22 · community 21 · supply 20 · category 17 · application 17 · shipping 15 · collection 15 · notification 12 · translation 9 · design 9 · mileage 8 · privacy 6 · salesreport 5 · personal 5). [카탈로그 §5 Coverage Matrix](../../conventions/cafe24-api-catalog/_overview.md) 합계도 독립적으로 485 를 보유해 4번째 교차 확인이 된다.
+> - *측정 주의*: 단순 `grep -c supported` 는 491/486 을 준다 — `_overview.md` 의 규칙 서술·예시 행이 섞이기 때문. **status 컬럼 기준**으로 세야 485.
+> - *혼동 주의*: 2026-07-13 장애 당시 프롬프트에 실린 도구 **383개**는 그 계정의 **granted scope 로 필터된** 수이지 카탈로그 총량이 아니다. 485(카탈로그 상한)와 383(계정별 실측)은 **레이어가 다르다**.
+> - 이 정정은 위 단일 노드 결정을 **번복하지 않는다** — 오히려 "endpoint 당 도메인 노드는 캔버스를 무너뜨린다" 는 논거를 강화한다(180개도 과하지만 485개는 더 명백).
 
 ### 9.2 Internal MCP Bridge
 

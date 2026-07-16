@@ -23,11 +23,17 @@ owner: project-planner
 
 ## Critical 2 — `AI_AGENT_TOOL_COUNT_MAX=128` 기본값이 Cafe24/MakeShop 기본 연결 상시 초과
 
-- `spec/4-nodes/3-ai/1-ai-agent.md:329` (기본 128, 초과 시 hard 취급), `:1346` (§12.15 Rationale, Cafe24 383개 실측)
+> **✅ 해소 (2026-07-17)** — 처분 (1)(2)(3) 전부 이행. 아래 체크박스 참조.
+>
+> **사용자 결정 (2026-07-17)**: **경고 명문화만** 한다 — `AI_AGENT_TOOL_COUNT_MAX` **기본값 조정·런타임 변경은 하지 않는다**. 근거: bytes(`AI_AGENT_TOOL_PAYLOAD_HARD_BYTES`)가 실 안전망이고 count 는 2차 sanity cap 이라 count 상향의 실익이 제한적이며, allowlist 사용이 payload·도구 선택 정확도 양쪽에서 정상 사용 방식이기 때문. (기본값 자체의 타당성 재검토는 필요 시 별건 plan.)
+>
+> **⚠ 본 plan 의 수치 오류 정정 (2026-07-17)**: 아래 처분 (1) 원문은 "실제 카탈로그 수(**383**)로 정정" 이라 적었으나 **383 은 카탈로그 총량이 아니다** — 2026-07-13 장애 당시 **그 계정의 granted scope 로 필터된** 실측치다. 카탈로그 총량은 **485** 이며(3중 교차검증: 카탈로그 `supported` 행 = 백엔드 metadata operation = `catalog-sync.spec.ts` 양방향 강제, + `cafe24-api-catalog/_overview.md` §5 Coverage Matrix 합계가 독립 4번째 확인), 485(카탈로그 상한)와 383(계정별 실측)은 **레이어가 다르다**. spec 에는 485 를 기재했다.
+
+- `spec/4-nodes/3-ai/1-ai-agent.md:329` (기본 128, 초과 시 hard 취급), `:1346` (§12.15 Rationale, Cafe24 383개 실측 ← granted-scope 필터값)
 - vs `spec/0-overview.md` §6.1 (79-80, "모두 구현 완료"), `spec/4-nodes/4-integration/4-cafe24.md:29`·`:446` ("~180")
-- [ ] 처분 (1): `4-cafe24.md` "~180" → 실제 카탈로그 수(383)로 정정 또는 집합 차이 명시.
-- [ ] 처분 (2): `1-ai-agent.md` §1/§2 에 "Cafe24/MakeShop 은 기본값 초과 → allowlist 설정 사실상 필수" 경고 명문화.
-- [ ] 처분 (3): `spec/0-overview.md` §6.1 "구현 완료" 서술에 제약 각주.
+- [x] 처분 (1): `4-cafe24.md` "~180" → 실제 카탈로그 수로 정정 또는 집합 차이 명시. **완료** — `4-cafe24.md:29`(지원 범위)·`:446`(Rationale) 을 **485**/"카테고리당 평균 ~27" 로 정정 + §Rationale 에 3중 교차검증 근거·측정 주의(`grep -c` 오차)·383 vs 485 레이어 구분 기록. **checker 가 화석 2곳을 추가 발견**해 함께 정정: `spec/2-navigation/4-integration.md:1110`, `spec/4-nodes/3-ai/0-common.md:63` (그대로 뒀으면 spec 안에 485 와 ~180 이 공존).
+- [x] 처분 (2): `1-ai-agent.md` §1/§2 에 "Cafe24/MakeShop 은 기본값 초과 → allowlist 설정 사실상 필수" 경고 명문화. **완료** — 본체 경고는 예산 표 바로 아래 **§4.2**(예산 SoT 절)에 두고, **§1 `mcpServers` config 행에 교차링크 1줄**을 넣어 설정 시점 discoverability 를 확보했다. *(원 처분이 지정한 §1/§2 대신 §4.2 를 본체로 택한 이유: 경고의 근거가 되는 예산 표·에러코드가 §4.2 에 있어 중복 서술 없이 한 곳에서 유지되고, §1 은 config 필드 표라 긴 서술을 담기에 부적합. consistency `00_35_59` plan_coherence WARNING#3 지적 반영 — 링크로 discoverability 는 보존.)*
+- [x] 처분 (3): `spec/0-overview.md` §6.1 "구현 완료" 서술에 제약 각주. **완료** — Cafe24 행에 규모(485) 병기 + **§4.2 경고로의 제약 각주** 동반(규모만 병기하면 §6.1 만 읽고 제약을 알 수 없다는 plan_coherence WARNING#2 반영). MakeShop 행(161 > 128)도 동일 제약이라 **대칭 추가**.
 
 ## 범위 밖 (별도 task)
 

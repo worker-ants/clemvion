@@ -264,7 +264,7 @@ pending_plans:
 | 마켓플레이스 업데이트 | 인앱 | O (미발사 — 도입 시 이메일 opt-in) |
 | 팀 초대 | 인앱 + 이메일 | X (항상 발송) |
 
-[^int-email]: Integration 만료/조치필요 이메일의 **실제 기본값은 OFF(opt-in)** 다 — `notify` 파이프라인이 아니라 노티파이어가 `notification_preferences.integrationExpiryEmail === true` 일 때만 이메일을 붙인다 ([4-integration §11.3](./4-integration.md)). 위 "기본 채널" 열의 "인앱"은 기본 상태, "(+이메일은 opt-in)"은 활성화 후 도달 채널이며, 이는 4-integration §11.2 의 기본 `in_app` 과 이미 정합한다. 남은 표면 차이는 **필드명** — 4-integration §11.2/§11.3 은 옛 이름 `notifyIntegrationExpiryByEmail` 로 서술하나 코드/본 문서는 `integrationExpiryEmail` 이다. 이 필드명 동기화는 planner 후속(`plan/in-progress/spec-sync-user-profile-gaps.md`).
+[^int-email]: Integration 만료/조치필요 이메일의 **실제 기본값은 OFF(opt-in)** 다 — `notify` 파이프라인이 아니라 노티파이어가 `notification_preferences.integrationExpiryEmail === true` 일 때만 이메일을 붙인다 ([4-integration §11.3](./4-integration.md)). 위 "기본 채널" 열의 "인앱"은 기본 상태, "(+이메일은 opt-in)"은 활성화 후 도달 채널이며, 이는 4-integration §11.2 의 기본 `in_app` 과 이미 정합한다. ~~남은 표면 차이는 **필드명** — 4-integration §11.2/§11.3 은 옛 이름 `notifyIntegrationExpiryByEmail` 로 서술하나 코드/본 문서는 `integrationExpiryEmail` 이다. 이 필드명 동기화는 planner 후속(`plan/in-progress/spec-sync-user-profile-gaps.md`).~~ **해소 (2026-07-17)**: 4-integration §11.2/§11.3 을 `integrationExpiryEmail` 로 정정 완료. 같은 절이 이메일 발송자를 `NotificationDispatcher`(실제로는 EIA webhook enqueuer)로 잘못 지목하던 것도 `NotificationsService.dispatchEmails` 로 함께 정정했다.
 
 > **팀 초대의 "이메일" 은 초대 링크 이메일이 담당** — 기존 가입자(비멤버) 초대 시 이메일은
 > 수락 토큰을 담은 초대 링크 이메일(`MailService.sendWorkspaceInvitationEmail`)이 발송하고,

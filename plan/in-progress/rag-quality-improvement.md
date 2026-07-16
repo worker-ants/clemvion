@@ -1,5 +1,5 @@
 ---
-worktree: rag-quality-proposal-0c618c
+worktree: (unstarted)
 started: 2026-06-03
 owner: 사용자 본인 / planner
 ---
@@ -184,12 +184,31 @@ P6(UX) ── 독립 백로그
 ## 7. 후속 작업 추적 (P0 Phase 0+1 first-cut 완료 후, 2026-06-06)
 
 > 평가 하베스 [`rag-eval-harness.md`](../complete/rag-eval-harness.md)(PR #488 머지) 완료 후 남은 작업. 우선순위 **B → C → D**, E 는 비차단 백로그. (A=plan 위생은 본 갱신으로 처리.)
+>
+> **2026-07-16 갱신**: 선행 `rag-dynamic-cut.md`(D1+D2 메커니즘) 가 `complete/` 로 종결되면서 본 plan 이
+> [`spec/5-system/9-rag-search.md`](../../spec/5-system/9-rag-search.md) frontmatter 의 `pending_plans`
+> 를 승계했다 — 그 spec 에 남은 미구현 표면(멀티-KB 리랭크·ef_search 정밀 튜닝·D2 정량 임계 A/B·
+> 모델 변경 시 재임베딩 트리거)의 책임 plan 이 본 문서이기 때문. 따라서 본 plan 종결 전까지
+> `9-rag-search` 는 `status: partial` 을 유지하며, 종결 시 `implemented` 승격이 강제된다
+> (spec-impl-evidence §3 가드 c). 그 4건은 **§7.C-2 에 실행 가능한 체크박스로 명문화**했다
+> (consistency `23_36_57` plan_coherence WARNING#2 — 서사적 선언만 두면 "체크박스 0건 → 거짓
+> implemented 승격" 위험을 본 plan 이 스스로 재현하게 되므로). rag-dynamic-cut 의 비차단 후속
+> 4건도 §7.E 로 이관받았다.
 
 ### B. 하베스 실사용 — baseline 생성 ⭐ (다음 우선순위)
 - [ ] 대상 workspace/KB 지정 → `npm run eval:golden:generate -- --workspace-id .. --kb-id .. --sample N` 으로 실 골든셋 생성.
 - [ ] SME 스팟검수(20~30%) → `reviewed:true` 승격.
 - [ ] `npm run eval:retrieval` baseline 산출 → `rerank_mode` off↔cross_encoder delta 비교.
 - [ ] 결정: 실 `golden.json` repo 커밋 여부(고객 데이터 민감도), 적정 `--sample` 규모·KB 선정.
+
+### C-2. `9-rag-search` 승계 미구현 표면 (2026-07-16 이관 — `status: partial` 근거)
+> 본 plan 이 `spec/5-system/9-rag-search.md` 의 `pending_plans` 를 승계하며 명시화한 항목.
+> **이 4건이 전부 닫히면** 그 spec 은 `implemented` 승격이 강제된다(spec-impl-evidence §3 가드 c).
+> ③·④ 는 각각 §7.C·§7.E 에 이미 체크박스가 있어 여기서는 cross-ref 만 둔다.
+- [ ] **① 멀티-KB 리랭크** — 현재 리랭킹은 단일 KB 경로(agentic `KbToolProvider`)에만 적용. 멀티-KB 인자 검색(디버그 컨트롤러 경로)은 cosine 병합 + §3.4 동적 컷만 적용하고 리랭크 없음. SoT: `9-rag-search.md §3.3.2 "v1 범위 — 단일 KB 한정"`.
+- [ ] **② 모델 변경 시 자동 재임베딩 트리거** — `update()` 가 모델 변경 시 `embedding_dimension` 만 NULL 로 두고 재임베딩을 자동 트리거하지 않아 영구 검색불가 구멍이 생김. 현재는 "이미 검색불가가 된 상태를 알리는 경고 노출" 까지만 구현. 근본 해소(자동 재임베딩 트리거 또는 저장 차단/강제 확인)는 **비용·UX 정책 결정 선행 필요**. SoT: `9-rag-search.md §Rationale "왜 이번 범위를 경고 노출로 한정했나"`.
+- [~] ③ D2 escalate 정량 임계 A/B → §7.C 참조 (메커니즘 구현 완료, 임계 튜닝만 잔여).
+- [~] ④ `ef_search` clamp 정밀 튜닝 → §7.E 참조 (recall 보전 구현 완료, 운영 부하 기반 정밀 튜닝만 잔여).
 
 ### C. 하베스가 unblock 한 downstream (로드맵 본체)
 - [~] **D2 conditional escalate** — **메커니즘 구현 완료**(`rag-dynamic-cut` PR: 상위 점수 평탄/모호 시 escalate + '근거 없음' 전달). **정량 임계 튜닝**(cross_encoder vs cross_encoder_llm A/B)은 P0 baseline(§7.B) 실 골든셋 확보 후. §6 "P1 escalate 정량 임계" 와 연결.
@@ -203,4 +222,8 @@ P6(UX) ── 독립 백로그
 - [ ] `EVAL_CLI_ENTITIES` 최소 집합 분리, `eval-cli.module` DI 회귀 스펙.
 - [ ] `eval-retrieval.ts main()` 단계 함수 분리, 기존 마이그레이션 스크립트 `parseCliFlag` → `cli-utils` 통합.
 - [ ] perf 마이크로 최적화(ndcg log2 테이블·resolveWorkspace 배치 조회), `rag-evaluation.md` Rationale 에 D-E7(`root-entities.ts` 분리) 추가.
+- [ ] **(이관 2026-07-16, `rag-dynamic-cut` 종결분)** 주변 spec 보강 3곳 — `7-llm-client §3.6`(rerank topK=candidates.length 주석)·`10-graph-rag KB-GR-SR-05`(topK→동적 컷 표현)·`4-integration KB-AG-04`(ragTopK optional 반영).
+- [ ] **(이관 2026-07-16)** `9-rag-search §3.3.2 v1 결정` 뒤 spec-draft §4.2 번복 cross-ref 1줄.
+- [ ] **(이관 2026-07-16)** `ai-agent.handler.spec.ts` RerankDiagnostics fixture 에 `gradingNoGrounding:false` 추가.
+- [ ] **(이관 2026-07-16)** `ragTopK:5` 하드코드 fixture 4곳에 "명시 cap=5" 주석 + `undefined`(동적 컷) 케이스 추가.
 - [x] **pgvector HNSW ef_search recall 보전 (D1 wide 회수 후속)** — `rag-followup-efsearch` PR 구현: `searchVectorGroup` wide 회수를 트랜잭션 안 `SET LOCAL hnsw.ef_search = clamp(LIMIT×2, 40, 1000)`(`hnswEfSearchFor`)로 상향. graph seed(seedTopK<40) 미적용. (`ivfflat` 미사용 — partial HNSW 만 운용.) **운영 부하에 따른 clamp 범위 정밀 튜닝**(값·KB config 노출)은 측정 후 후속. SoT: `spec/5-system/9-rag-search.md §3.4`. (ai-review `16_08_38` I1 / `16_05_34` INFO8)

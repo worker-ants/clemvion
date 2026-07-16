@@ -2,6 +2,10 @@
 worktree: ai-agent-message-issue-89863c
 started: 2026-07-14
 owner: developer
+spec_impact:
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/5-system/11-mcp-client.md
+  - spec/conventions/cross-node-warning-rules.md
 ---
 
 # AI Agent 도구 정의 payload 예산 가드레일
@@ -9,6 +13,14 @@ owner: developer
 > 작성일: 2026-07-14
 > 트리거: 운영 장애 조사 (2026-07-13) — AI Agent 노드가 Gemini·Ollama 모두 응답 실패
 > 관련 spec: `spec/4-nodes/3-ai/1-ai-agent.md` (§4·§10·§12), `spec/5-system/11-mcp-client.md` (§5)
+>
+> **완료 (2026-07-16 grooming)**: Phase 1~4 전량 종료. Phase 1(spec D1~D5) = `2ccc442eb` PR #948 —
+> `1-ai-agent.md` §4.2/§10 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`/§12 Rationale, `11-mcp-client.md` §5.8,
+> `cross-node-warning-rules.md` §5 예외조항+§8 등재 전부 안착. Phase 2(구현) = `tool-payload-budget.ts`
+> + `.spec.ts`. Phase 3(/ai-review)·Phase 4(PR #948 머지) 완료.
+> 본 plan 이 §후속으로 분리 예고한 A(config-time 저장 경고)·B(resume timeoutMs+signal) 2건은
+> [`ai-agent-tool-payload-budget-followups.md`](./ai-agent-tool-payload-budget-followups.md) 로 이관돼
+> PR #955(A·B)·#956(W4/W2)으로 종료 후 `complete/` 이동 완료 — 잔여 0. → `complete/` 이동.
 
 ## 배경 (근본 원인)
 
@@ -40,7 +52,7 @@ owner: developer
 - **런타임 (안전망)**: `AiTurnExecutor.buildTools` 직후 (single-turn·resume 공통 헬퍼) 산정. hard(또는 count) 초과 시 LLM 호출 **전에** 신규 에러코드 `TOOL_DEFINITION_PAYLOAD_EXCEEDED`(non-retryable) throw — `output.error.details = { totalBytes, budgetBytes, toolCount, culpritProvider? }` 구조화(§7.9 `LLM_RATE_LIMIT` details 선례 정합) + message 에 해결법(enabledTools allowlist / 서버 off). soft 초과는 실패 안 시키고 `logger.warn` 로깅.
 - **노드 설정 변경 API**: `POST /workflows/:id/save`(`saveCanvas`) 의 `evaluateGraphWarnings` 직후 **backend-only** `evaluateAiAgentToolPayloadWarnings(nodes, workspaceId)` 를 호출해 ai_agent 노드의 `mcpServers`·`presentationTools` 로부터 payload 추정 → `GraphWarningRuleResult`(severity `warning`) 를 기존 결과 배열에 append(별도 응답 필드 신설 없음, 저장 통과+response 포함). `AI_AGENT_TOOL_BUDGET_STRICT_SAVE=true` 면 hard 초과를 severity `error` 로 승격 → 기존 `GRAPH_VALIDATION_FAILED` 로 400 차단(§cross-node-warning-rules §4·§5 가드 ① 재사용). *config 추정은 통합 granted scope 로 실제 노출 집합 재현 — 런타임 buildTools 와 동일 estimator, 단 실제 MCP connect 없이 정적 카탈로그 기반. **async 통합 scope 조회가 필요해 pure/shared `@workflow/graph-warning-rules` 규칙으로는 표현 불가 → backend-only 평가**(frontend canvas 가드 ② 는 pre-evaluate 하지 않고, 런타임 fail-fast ③ + saveCanvas ① 가 가드).* rule id: `ai_agent:tool-payload-budget`.
 - **동반**: resume 턴 chat 호출(`ai-turn-executor.ts:2624`/`:2765`)에 `{ timeoutMs, signal }` opts 배선 (single-turn `:1533` 과 대칭). 매 턴 payload 크기(bytes/count) 로깅.
-- **백로그(비포함)**: 대형 카탈로그용 compact-schema 모드(도구엔 name+짧은 설명만, 필드 상세 on-demand 조회) — 별도 plan. / (INFO#2) `evaluateAiAgentToolPayloadWarnings` 의 도구 소스는 현재 `mcpServers`·`presentationTools` — [`ai-agent-tool-connection-rewrite.md`](ai-agent-tool-connection-rewrite.md) 확정 시 `toolNodeIds` 등 신규 도구 소스가 추가되면 estimator 도 동기 갱신 필요(상호의존 추적).
+- **백로그(비포함)**: 대형 카탈로그용 compact-schema 모드(도구엔 name+짧은 설명만, 필드 상세 on-demand 조회) — 별도 plan. / (INFO#2) `evaluateAiAgentToolPayloadWarnings` 의 도구 소스는 현재 `mcpServers`·`presentationTools` — [`ai-agent-tool-connection-rewrite.md`](../in-progress/ai-agent-tool-connection-rewrite.md) 확정 시 `toolNodeIds` 등 신규 도구 소스가 추가되면 estimator 도 동기 갱신 필요(상호의존 추적).
 
 ## Phase
 

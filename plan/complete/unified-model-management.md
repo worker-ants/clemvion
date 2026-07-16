@@ -79,7 +79,7 @@ status: complete
 ### 1.3 마이그레이션 = Flyway, 현재 최신 V087
 
 - 도구: Flyway(raw SQL), 네이밍 `V<int>__<snake>.sql`, 현재 max **V087**.
-- Sqitch는 조건부·미착수(`sqitch-poc.md`), Flyway가 SoT(`spec/conventions/migrations.md`).
+- Sqitch는 조건부·미착수(`migration-tooling-evaluation.md` 부록 A — 2026-07-16 에 종전 `sqitch-poc.md` 를 흡수), Flyway가 SoT(`spec/conventions/migrations.md`).
 - → 신규 마이그레이션은 **V088~** raw SQL. append-only, NOT VALID 2-step, `-- DOWN:` 주석,
   `scripts/check-migration-versions.py --base origin/main` 가드 통과 필수.
 
