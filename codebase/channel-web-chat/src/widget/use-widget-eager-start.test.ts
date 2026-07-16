@@ -1479,6 +1479,89 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   });
 
   /**
+   * **유령 표면 회귀** — `worldGen` 단일화 이전 실재하던 버그.
+   * `teardownSession()` 은 `sessionRef` 를 null 하지 않으므로, 종전의 `sessionRef` 동일성 가드는
+   * SSE terminal 종료를 감지하지 못했다 → 종료된 위젯이 stale seed 응답으로 부활했다.
+   * (구조 검토 2026-07-17, 재현 후 세대 가드로 fix.)
+   */
+  it("seed in-flight 중 SSE terminal → stale 응답이 ended 위젯을 부활시키지 않는다", async () => {
+    let resolveStatus: ((r: Response) => void) | null = null;
+    let statusCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({
+            data: {
+              executionId: "e1",
+              status: "pending",
+              interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+            },
+          }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        // 폴백 seed — 수동 resolve 로 in-flight 유지.
+        return new Promise<Response>((r) => {
+          resolveStatus = r;
+        });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    await waitFor(() => expect(statusCalls).toBe(1));
+
+    // 1) 버퍼 만료 → seed in-flight (fire-and-forget)
+    act(() => {
+      getEs()?.emit("execution.replay_unavailable", { executionId: "e1" });
+    });
+    await waitFor(() => expect(statusCalls).toBe(2));
+
+    // 2) seed 응답 전에 SSE terminal → finalizeEnded → teardownSession (sessionRef 는 그대로!)
+    act(() => {
+      getEs()?.emit("execution.completed", { executionId: "e1" });
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+
+    // 3) 이제 stale seed 가 waiting_for_input 으로 resolve — 세대가 바뀌었으므로 폐기돼야 한다.
+    await act(async () => {
+      resolveStatus?.({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            executionId: "e1",
+            status: "waiting_for_input",
+            context: { interactionType: "ai_conversation", waitingNodeId: "ghost", conversationThread: { turns: [] } },
+          },
+        }),
+      } as Response);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.state.phase).toBe("ended"); // 부활하면 실패
+  });
+
+  /**
    * W5 — `applyConfig`(세션 복원) 고유의 `"stale"` 게이팅. 복원 seed 가 in-flight 인 동안 host 가
    * 새 대화를 시작하면, 지연 도착한 옛 응답이 **새 대화의 SSE 스트림을 옛 토큰으로 탈취**하면 안 된다.
    */
