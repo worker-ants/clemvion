@@ -168,11 +168,19 @@ describe('LlmService', () => {
         apiKey: 'encrypted',
       } as never;
       let captured: AbortSignal | undefined;
+      // 실 provider client 처럼 abort 에 반응해 reject → withTimeout race 가 settle
+      // 되어 내부 setTimeout 이 clearTimeout 된다 (open handle 누수 방지 — 프로젝트
+      // "zero open handle" 불변식, jest.config.ts).
       mockClient.chat.mockImplementation(
-        (_p: unknown, signal?: AbortSignal) => {
-          captured = signal;
-          return new Promise<never>(() => {});
-        },
+        (_p: unknown, signal?: AbortSignal) =>
+          new Promise<never>((_, reject) => {
+            captured = signal;
+            signal?.addEventListener('abort', () =>
+              reject(
+                Object.assign(new Error('aborted'), { name: 'AbortError' }),
+              ),
+            );
+          }),
       );
       const controller = new AbortController();
       const params = { model: 'gpt-4o', messages: [] as never[] };
@@ -181,13 +189,13 @@ describe('LlmService', () => {
         signal: controller.signal,
         disableInnerRetry: true,
       });
-      // 아직 timeout 전 — execution abort 를 발화시키면 병합 signal 도 abort.
+      // client.chat 이 호출돼 captured 가 set 될 때까지 한 tick 양보.
+      await new Promise((r) => setImmediate(r));
+      // 아직 timeout(60s) 전 — execution abort 를 발화시키면 병합 signal 도 abort.
       controller.abort();
-      await Promise.resolve();
+      await expect(call).rejects.toThrow();
       expect(captured).toBeDefined();
       expect(captured!.aborted).toBe(true);
-      // hang promise 정리를 위해 timeout race 를 강제 종료하지 않고 call 을 버린다.
-      void call.catch(() => undefined);
     });
 
     // spec/5-system/6-websocket-protocol.md §4.4.6 — `source` is a
