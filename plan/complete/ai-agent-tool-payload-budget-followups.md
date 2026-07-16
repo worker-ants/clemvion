@@ -35,7 +35,7 @@ owner: developer
 - [x] PR #955 갱신 (A+B) → https://github.com/worker-ants/clemvion/pull/955
 
 > **항목 A·B 완결** (PR #955). plan 은 아래 "후속 백로그" 미해소로 in-progress 유지 — provider dedup·parity 는 미착수, spec drift(task_3ac39ebd)·embed leak(task_07c120ce)은 별도 task 위임.
-- [ ] (전체 완료 시) 후속 백로그 항목 처분 후 plan/complete 이동
+- [x] (전체 완료 시) 후속 백로그 항목 처분 후 plan/complete 이동 — W4/W2 완결, pre-existing spec drift 2건은 `spec-drift-ai-agent-outport-countmax.md` durable 이관.
 
 ## 실행 체크리스트 — 후속 PR #3 (W4 provider dedup + W2 parity, 별도 PR)
 
@@ -51,9 +51,8 @@ owner: developer
   - [x] **W2** `workflows.service.spec.ts` budget describe 에 parity 회귀: unreadable(`{__unreadable:true}`) 통합 skip(=getForExecution 동일 `isUnreadableCredentials` 술어) + not-found 통합 best-effort skip(throw 아님, 의도된 divergence).
 - [x] 8. TEST WORKFLOW (lint·unit·build·e2e 256/256 통과). eslint --fix 는 신규 spec 포맷만 재정렬(로직 무변경)·build tsc clean 로 캐스트 제거 없음 확인.
 - [x] 9. `/ai-review`(14_32_05, fallback 8 reviewer) → Critical 0, Warning 2(동일 SPEC-DRIFT). W1 spec pointer 3곳 정정(cafe24-api-metadata.md §2/§7 → operation-tool-schema.ts). I1/I2/I3 조치 불요. RESOLUTION.md 기록.
-- [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` (spec-linked 코드+spec 변경 → SPEC-CONSISTENCY 게이트)
 - [x] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/`(14_46_28 BLOCK NO → WARNING 2건 조치 → 재검증 14_57_19). convention W(code: 보강)·plan_coherence W(durable 앵커) 조치. 조치가 만든 신규 CRITICAL(stub `worktree:` 누락 → plan-frontmatter.test.ts 실패)도 `worktree: (unstarted)` + 체크박스로 fix+재검증(121 pass). 잔여 cross_spec Critical 2건은 pre-existing/anchored(본 diff 무관). **BLOCK: NO**.
-- [ ] PR + 본 plan 의 모든 체크박스 확인 후 plan/complete 이동. **pre-existing spec drift 2건은 `spec-drift-ai-agent-outport-countmax.md`(in-progress 유지) 로 durable 이관됨** — 따라서 본 plan 은 W4/W2/A/B 완결로 complete 이동 가능. embed leak(`task_07c120ce`)은 별 task.
+- [x] PR + 본 plan 의 모든 체크박스 확인 후 plan/complete 이동. **pre-existing spec drift 2건은 `spec-drift-ai-agent-outport-countmax.md`(in-progress 유지) 로 durable 이관됨** — 따라서 본 plan 은 W4/W2/A/B 완결로 complete 이동. embed leak(`task_07c120ce`)은 별 task.
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
 > ⚠ **stale base 교정**: 착수 base 가 #951 이었으나 작업 중 origin/main 이 #952(e2e 인프라)로 전진 → rebase 로 교정(silent-revert 방지 + e2e 실 인프라 정합). rebase 의 deps 재설치가 jest 캐시를 무효화해 가려졌던 3건(import 경로·제거 메서드 테스트·count breach env)을 발견·수정.
