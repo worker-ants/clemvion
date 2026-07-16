@@ -284,9 +284,6 @@ export function ConversationInspector({
 // `llm-information-tab.tsx`). Preview here stays focused on the
 // conversation content for the selected message.
 
-// AI Agent 의 system role RAG context 메시지를 detect 하는 마커.
-// `RagSearchService.buildContext` (backend) 가 동일 prefix 로 만들어 보낸다.
-
 /** SummaryView 컴팩트 라인용 결과 요약 — 전체 본문은 ToolDetail 에서 노출. */
 export function summarizeToolResult(result: unknown): string {
   if (result == null) return "";
@@ -1224,7 +1221,6 @@ function SummaryView({
     </div>
   );
 }
-
 
 // ── Message input ──
 
