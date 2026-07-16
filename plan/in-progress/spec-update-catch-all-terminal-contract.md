@@ -85,16 +85,37 @@ terminal 계약을 명문화해 그 오독 경로를 닫는 것이 본 제안의
 > 혼동되기 쉽다. 두 케이스의 구분선(**slug 해석 실패** vs **라우트 부재**)을 표에서
 > 바로 읽히게 한다.
 
+## 제안 4 — frontmatter `code:` 글로브 보강 (consistency `--impl-done` 01_25_26 WARNING)
+
+`spec/conventions/spec-impl-evidence.md` §2.1 은 `code:` 를 "본 spec 이 약속한 surface 의 구현
+경로" 로 정의한다. 아래 세 문서는 **본문에서 catch-all 동작을 명시적으로 약속**하면서도 그
+구현 파일을 `code:` 로 가리키지 않는다 (build gate 는 green — 각 글로브가 다른 파일로 ≥1
+매치하므로 `spec-code-paths.test.ts` 가 통과한다. 즉 **가드가 못 잡는 완결성 갭**이다).
+
+| 문서 | 약속하는 본문 | 현재 `code:` 갭 | 추가 제안 |
+| --- | --- | --- | --- |
+| `_layout.md` | §2.2 line 85 (catch-all 흡수 + `/docs` slug 밖 예외), line 126 | `components/layout/**` 는 sidebar 를 덮지만 catch-all·href 헬퍼 미포함 | `codebase/frontend/src/app/(main)/[...rest]/page.tsx`<br>`codebase/frontend/src/lib/workspace/href.ts` |
+| `9-user-profile.md` | §3 line 155 ("catch-all 이 활성 slug 로 흡수") | 동일 | 동일 2경로 |
+| `10-auth-flow.md` | §7.2 ("`(main)/[...rest]` catch-all 이 … 해소한다") | 동일 | `codebase/frontend/src/app/(main)/[...rest]/page.tsx` |
+
+> `href.ts` 는 `_layout.md`(사이드바 링크 생성)·`9-user-profile.md`(URL slug = FE 라우팅 SoT)가
+> 함께 약속하는 surface 이므로 두 문서에 넣는 것이 맞다. `10-auth-flow.md` 는 §7.2 의 로그인 후
+> `/dashboard` 흡수만 약속하므로 catch-all 만으로 충분하다.
+
 ## 반영 후 코드 측 후속
 
-없음 — 구현은 선행 PR 에서 완료됐고 본 제안은 문서 정합화다. 반영 시
-`_layout.md` frontmatter `code:` 에 `codebase/frontend/src/app/(main)/[...rest]/page.tsx`
-가 이미 포함돼 있는지만 확인한다(미포함이면 추가).
+없음 — 구현은 선행 PR 에서 완료됐고 본 제안은 전부 문서 정합화다.
 
 ## 체크리스트
 
-- [ ] project-planner 가 제안 1·2 검토 (제안 3 은 선택)
+- [ ] project-planner 가 제안 1·2·4 검토 (제안 3 은 선택)
 - [ ] `/consistency-check --spec plan/in-progress/spec-update-catch-all-terminal-contract.md` → BLOCK: NO
-- [ ] spec 본문 반영
-- [ ] `_layout.md` frontmatter `code:` 글로브에 catch-all 경로 포함 확인
+- [ ] spec 본문 반영 (제안 1·2, 선택적으로 3)
+- [ ] 제안 4 — 세 문서 frontmatter `code:` 글로브 보강
 - [ ] 본 plan `plan/complete/` 이동
+
+## 출처
+
+- `review/consistency/2026/07/17/00_32_57/SUMMARY.md` INFO #4 (terminal 계약 spec 미문서화)
+- `review/code/2026/07/17/01_07_43/SUMMARY.md` W#1 (SPEC-DRIFT — "코드가 옳고 spec 이 못 따라간 케이스")
+- `review/consistency/2026/07/17/01_25_26/convention_compliance.md` WARNING (제안 4 의 근거)

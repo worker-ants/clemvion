@@ -111,7 +111,13 @@ rest=["w","lusiaz-8c7e","docs"] → replace("/w/lusiaz-8c7e" + "/w/lusiaz-8c7e/d
       (lint·unit·build·e2e 256+51).
 - [x] 10. spec 보강 draft 작성 → `plan/in-progress/spec-update-catch-all-terminal-contract.md`
       (project-planner 위임 대기 — spec 본문 반영은 planner 몫)
-- [ ] 11. `/consistency-check --impl-done spec/2-navigation/` (SPEC-CONSISTENCY 게이트)
+- [x] 9b. fix 커버 재리뷰 (01_27_10, 4 reviewer) — Stop 가드가 "리뷰 이후 코드 변경" 을 정확히
+      지적(상수 추출·e2e 강화는 아무도 안 본 코드였음). **Critical 0, Warning 1**(CHANGELOG
+      `SoT:` 트레일러 → fix). maintainability/side_effect/testing 전원 NONE — 원 W#3·W#5 해소 확인
+      + `buildWorkspaceHref`(30+ 소비처) 출력 불변 확인. RESOLUTION.md 기록.
+- [x] 11. `/consistency-check --impl-done spec/2-navigation/` (01_25_26) → **BLOCK: NO**.
+      5/5 전수 확보(FS-flaky 4건 직접 재실행). Critical 0. WARNING 1건(`code:` 글로브 완결성 갭)은
+      `spec/` 수정이라 위임 draft 제안 4 로 이관.
 
 ## 인프라 갭 (본 PR 발견, 범위 밖)
 
