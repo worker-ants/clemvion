@@ -20,7 +20,15 @@ owner: developer
 - [x] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` → BLOCK: NO (5/5 CRITICAL=0). WARNING(신규 모듈 `ai-agent.md` `code:` 누락) 조치 완료.
 - [x] PR (항목 A 단독) → https://github.com/worker-ants/clemvion/pull/955
 
-> 항목 A 완결. 항목 B(resume 턴 timeoutMs+signal)는 별도 후속 PR — 본 plan 은 in-progress 유지.
+## 실행 체크리스트 — 항목 B (resume 턴 timeoutMs + signal 배선, 별도 PR)
+
+> 항목 A 와 별개 concern (defense-in-depth). 아래 미착수 — 본 plan 이 in-progress 로 남는 사유.
+
+- [ ] `ai-turn-executor.ts` `processMultiTurnMessage` chat 호출 2곳(~:2624/:2765)에 app-level `{ timeoutMs, signal }` 배선 + single-turn(:1533) 대칭화
+- [ ] resume 경로 abortSignal plumbing (orchestrator → state/options)
+- [ ] timeoutMs env 노출 (정상 장기 생성 regression 없는 신중한 default)
+- [ ] TEST/REVIEW WORKFLOW + PR
+- [ ] (전체 완료 시) 후속 백로그 항목 처분 후 plan/complete 이동
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
 > ⚠ **stale base 교정**: 착수 base 가 #951 이었으나 작업 중 origin/main 이 #952(e2e 인프라)로 전진 → rebase 로 교정(silent-revert 방지 + e2e 실 인프라 정합). rebase 의 deps 재설치가 jest 캐시를 무효화해 가려졌던 3건(import 경로·제거 메서드 테스트·count breach env)을 발견·수정.
