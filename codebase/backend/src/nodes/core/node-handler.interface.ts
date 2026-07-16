@@ -378,6 +378,16 @@ export type ResumableMessageSource = 'ai_message' | 'form_submitted';
  */
 export interface ResumableMessageOptions {
   source: ResumableMessageSource;
+  /**
+   * resume 턴 LLM 호출에 전파할 abort signal (defense-in-depth cancellation).
+   * **현재 orchestrator 의 resume 경로에는 abort 소스가 없어**(초기 실행만
+   * `ExecutionContext.abortSignal` 보유) 대개 undefined 다 —
+   * spec/conventions/node-cancellation.md 가 명시한 gap 이며 abort 컨텍스트 도입은
+   * `node-cancellation-infrastructure` 후속. 본 필드는 그 소스가 생겼을 때 핸들러의
+   * chat 호출까지 signal 이 도달하도록 **executor-side plumbing 을 미리 열어둔 것**
+   * 이다(있으면 전파, 없으면 no-op). timeout 백스톱(§12.16)은 signal 과 독립 동작.
+   */
+  signal?: AbortSignal;
 }
 
 /**

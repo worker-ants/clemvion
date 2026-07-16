@@ -85,6 +85,52 @@ describe('AiTurnExecutor', () => {
       expect(mockLlmService.chat).toHaveBeenCalledTimes(1);
     });
 
+    // §12.16 defense-in-depth — single-turn chat 호출이 app-level 타임아웃 + abort
+    // signal 을 opts(4번째 인자)로 전달하는지 고정.
+    it('passes an app-level timeoutMs (§12.16) + abort signal to chat', async () => {
+      const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+      delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS; // default 600000
+      try {
+        const executor = buildExecutor();
+        await executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          baseContext,
+        );
+        // chat(config, params, context, opts) — 4번째 인자가 LlmCallOptions.
+        const opts = mockLlmService.chat.mock.calls[0][3] as {
+          timeoutMs?: number;
+          signal?: unknown;
+        };
+        expect(opts.timeoutMs).toBe(600000);
+        // signal 은 context.abortSignal 전파 — 키 자체는 항상 전달.
+        expect('signal' in opts).toBe(true);
+      } finally {
+        if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+        else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
+      }
+    });
+
+    it('honours AI_AGENT_LLM_CALL_TIMEOUT_MS override on the chat call', async () => {
+      const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+      process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = '30000';
+      try {
+        const executor = buildExecutor();
+        await executor.executeSingleTurn(
+          undefined,
+          { mode: 'single_turn', systemPrompt: 'S', userPrompt: 'Hi' },
+          baseContext,
+        );
+        const opts = mockLlmService.chat.mock.calls[0][3] as {
+          timeoutMs?: number;
+        };
+        expect(opts.timeoutMs).toBe(30000);
+      } finally {
+        if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+        else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
+      }
+    });
+
     it('degrades gracefully without an eventEmitter (telemetry omitted)', async () => {
       const executor = buildExecutor({ withEventEmitter: false });
       const result = (await executor.executeSingleTurn(
@@ -436,6 +482,31 @@ describe('AiTurnExecutor', () => {
       const output = result.output as { result: { messages: unknown[] } };
       // system + user + assistant 누적.
       expect(output.result.messages.length).toBeGreaterThanOrEqual(3);
+    });
+
+    // §12.16 defense-in-depth — resume 턴 chat 호출도 app-level 타임아웃을 opts 로
+    // 전달(초기 실행과 대칭). resume 경로 abort 소스는 아직 없어 signal 은 대개
+    // undefined 지만 timeout 백스톱은 독립 동작한다.
+    it('passes an app-level timeoutMs (§12.16) to the resume-turn chat', async () => {
+      const prev = process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+      delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS; // default 600000
+      try {
+        const executor = buildExecutor();
+        await executor.processMultiTurnMessage(
+          '환불 문의입니다',
+          resumeState(),
+        );
+        const opts = mockLlmService.chat.mock.calls[0][3] as {
+          timeoutMs?: number;
+          signal?: unknown;
+        };
+        expect(opts.timeoutMs).toBe(600000);
+        // options.signal 배선 — 소스 미도입이라 undefined 이나 키는 전달.
+        expect('signal' in opts).toBe(true);
+      } finally {
+        if (prev === undefined) delete process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS;
+        else process.env.AI_AGENT_LLM_CALL_TIMEOUT_MS = prev;
+      }
     });
 
     // [Spec 7-llm-usage §1.3] resume 턴 attribution 회귀 고정. resume 메인 chat 호출은
