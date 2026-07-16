@@ -2,7 +2,7 @@
  * Chat Channel 어댑터의 공통 타입.
  *
  * SoT:
- *   - [spec/conventions/chat-channel-adapter.md] — 6함수 인터페이스 + 데이터 타입 union
+ *   - [spec/conventions/chat-channel-adapter.md] — 어댑터 인터페이스 + 데이터 타입 union
  *   - [spec/5-system/15-chat-channel.md] — 시스템 동작·lifecycle·EIA 관계
  *   - [spec/4-nodes/7-trigger/providers/telegram.md] — 텔레그램 구체 명세
  */
@@ -508,6 +508,16 @@ export interface ChatChannelAdapter {
     update: ChannelUpdate,
     config: ChatChannelConfig,
   ): Promise<void>;
+
+  /**
+   * control-plane 안내 텍스트(봇 자체 안내 — `HooksService` 가 `renderNode` 를 거치지 않고
+   * `sendMessage` 로 직접 발송하는 문구)를 provider 표면에 맞게 escape 한다. `renderNode` 경로는
+   * 렌더러가 내부적으로 escape 하지만, control-plane 직접 발송은 그 경로를 우회하므로 발송 직전
+   * 이 메서드로 escape 한다 — provider 가 자기 escape 규칙을 소유해 default·operator override
+   * 모두 세 provider 에서 올바르게 렌더된다 (telegram MarkdownV2 / slack mrkdwn `<>&` / discord 평문).
+   * pure — 외부 호출 없음. SoT: spec/conventions/chat-channel-adapter.md §Adapter Interface.
+   */
+  escapeControlText(text: string): string;
 
   /**
    * (옵션) Bot token rotation 시 *이전* token 을 외부 provider 측에서 revoke.

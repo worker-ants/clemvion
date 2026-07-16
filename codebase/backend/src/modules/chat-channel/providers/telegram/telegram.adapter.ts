@@ -12,7 +12,10 @@ import {
 } from '../../types';
 import { TelegramClient } from './telegram-client';
 import { parseTelegramUpdate } from './telegram-update.parser';
-import { renderTelegramMessages } from './telegram-message.renderer';
+import {
+  renderTelegramMessages,
+  escapeMarkdownV2,
+} from './telegram-message.renderer';
 import { SecretResolverService } from '../../../secret-store/secret-resolver.service';
 
 /**
@@ -195,7 +198,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
         const replyMarkup = buildFormReplyMarkup(message.body.hint);
         const res = await this.client.sendMessage(botToken, {
           chat_id: chatId,
-          text: escapePromptText(message.body.label),
+          text: escapeMarkdownV2(message.body.label),
           parse_mode: 'MarkdownV2',
           ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
         });
@@ -219,7 +222,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
         const fallback = message.body.caption ?? message.body.fallbackText;
         const res = await this.client.sendMessage(botToken, {
           chat_id: chatId,
-          text: escapePromptText(fallback),
+          text: escapeMarkdownV2(fallback),
           parse_mode: 'MarkdownV2',
         });
         if (!res.ok || !res.result) {
@@ -273,6 +276,14 @@ export class TelegramAdapter implements ChatChannelAdapter {
         }
       }
     }
+  }
+
+  /**
+   * control-plane 안내 escape — telegram 은 `parse_mode: MarkdownV2` 로 발송하므로
+   * MarkdownV2 예약문자를 backslash escape 한다 (renderNode 경로와 동일 규칙, escapeMarkdownV2).
+   */
+  escapeControlText(text: string): string {
+    return escapeMarkdownV2(text);
   }
 }
 
@@ -377,13 +388,4 @@ function buildFormReplyMarkup(
     default:
       return null;
   }
-}
-
-/**
- * form_prompt 의 label 은 renderer 가 escape 하지 않은 그대로 전달 (renderer 본문은 raw, sendMessage
- * 단계에서 MarkdownV2 escape). text body 와 다른 흐름 — text 는 renderer 가 사전 escape 함.
- */
-function escapePromptText(text: string): string {
-  // text-renderer 와 같은 escape 적용.
-  return text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, '\\$1');
 }

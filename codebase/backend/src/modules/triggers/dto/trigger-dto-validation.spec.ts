@@ -556,86 +556,23 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
       });
     });
 
-    // F-5 — telegram control-plane raw-send 키의 MarkdownV2-safety 등록 시점 검증.
-    describe('raw-send 키 MarkdownV2-safety (F-5, telegram 한정)', () => {
-      it('실패 — telegram + surfaceMismatch override 에 unescaped 특수문자(.) → UNSAFE_TELEGRAM_MARKDOWN', async () => {
-        const dto = plainToInstance(CreateTriggerDto, {
-          ...baseCreate,
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:fake',
-            languageHints: { surfaceMismatch: '받을 수 없어요.' },
+    // 근본 fix (control-plane per-provider escape 이관) — 발송 시 어댑터가 escape 하므로
+    // operator 는 languageHints 를 **평문**으로 넣으면 된다. 종전 F-5 의 telegram MarkdownV2
+    // 등록 시점 거부(UNSAFE_TELEGRAM_MARKDOWN)는 제거됐다: 평문 마침표 override 도 통과한다.
+    it('통과 — telegram + control-plane 키 평문 override(마침표 포함) 수용 (F-5 검증 제거)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          languageHints: {
+            surfaceMismatch: '받을 수 없어요.',
+            executionStillRunning: '처리 중입니다. 잠시만 기다려 주세요.',
           },
-        });
-        const errors = await validate(dto, VALIDATE_OPTIONS);
-        const chatChannelError = errors.find(
-          (e) => e.property === 'chatChannel',
-        );
-        expect(chatChannelError).toBeDefined();
-        const serialized = JSON.stringify(chatChannelError);
-        expect(serialized).toContain('UNSAFE_TELEGRAM_MARKDOWN');
-        expect(serialized).toContain('surfaceMismatch');
+        },
       });
-
-      it('통과 — telegram + escaped 특수문자(\\.) 는 허용', async () => {
-        const dto = plainToInstance(CreateTriggerDto, {
-          ...baseCreate,
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:fake',
-            languageHints: { executionStillRunning: '처리 중입니다\\.' },
-          },
-        });
-        const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(
-          errors.find((e) => e.property === 'chatChannel'),
-        ).toBeUndefined();
-      });
-
-      it('통과 — telegram + 특수문자 없는 override', async () => {
-        const dto = plainToInstance(CreateTriggerDto, {
-          ...baseCreate,
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:fake',
-            languageHints: { surfaceMismatch: '양식이나 버튼을 사용해 주세요' },
-          },
-        });
-        const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(
-          errors.find((e) => e.property === 'chatChannel'),
-        ).toBeUndefined();
-      });
-
-      it('통과 — slack 은 검증 대상 아님 (unescaped . 허용)', async () => {
-        const dto = plainToInstance(CreateTriggerDto, {
-          ...baseCreate,
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-fake',
-            languageHints: { surfaceMismatch: '받을 수 없어요.' },
-          },
-        });
-        const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(
-          errors.find((e) => e.property === 'chatChannel'),
-        ).toBeUndefined();
-      });
-
-      it('통과 — telegram + 비-raw-send 키(sessionExpired, 렌더러 escape 경로)는 . 허용', async () => {
-        const dto = plainToInstance(CreateTriggerDto, {
-          ...baseCreate,
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:fake',
-            languageHints: { sessionExpired: '세션이 만료되었습니다.' },
-          },
-        });
-        const errors = await validate(dto, VALIDATE_OPTIONS);
-        expect(
-          errors.find((e) => e.property === 'chatChannel'),
-        ).toBeUndefined();
-      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeUndefined();
     });
   });
 });

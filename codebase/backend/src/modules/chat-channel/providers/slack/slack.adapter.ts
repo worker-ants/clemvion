@@ -15,7 +15,7 @@ import type {
   SetupResult,
 } from '../../types';
 import { SlackClient } from './slack-client';
-import { renderSlackEvent } from './slack-message.renderer';
+import { renderSlackEvent, escapeSlackMrkdwn } from './slack-message.renderer';
 import { parseSlackUpdate } from './slack-update.parser';
 import type { ChannelButton } from '../../types';
 
@@ -32,7 +32,7 @@ import type { ChannelButton } from '../../types';
  *   - inboundSigningRef = signing secret HMAC (R-S-1). Telegram server-issued 와 달리 사용자 입력.
  *     `SetupResult.issuedInboundSigning` 은 항상 비움.
  *
- * Phase 1: 6함수 stub + signing 검증.
+ * Phase 1: 핵심 함수 stub + signing 검증.
  * Phase 2 (현재): parseUpdate + setupChannel + Slack signing auth 경로.
  * Phase 3: renderNode + sendMessage (chat.postMessage / Block Kit / 시각형 v1 text).
  * Phase 4: bot token rotation 의 Slack 분기 + auth.revoke.
@@ -249,6 +249,14 @@ export class SlackAdapter implements NativeFormAdapter {
         `ackInteraction response_url POST 실패: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  /**
+   * control-plane 안내 escape — slack mrkdwn 은 `<`, `>`, `&` 만 escape 대상 (renderNode 경로와
+   * 동일 규칙, escapeSlackMrkdwn). 마침표 등 일반 문장부호는 그대로 렌더된다.
+   */
+  escapeControlText(text: string): string {
+    return escapeSlackMrkdwn(text);
   }
 
   /**

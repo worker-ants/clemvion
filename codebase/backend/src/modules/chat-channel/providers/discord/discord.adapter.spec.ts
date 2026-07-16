@@ -1,5 +1,5 @@
 /**
- * DiscordAdapter 단위 테스트 — provider 식별자 + 6함수 wiring + setupChannel + parseUpdate
+ * DiscordAdapter 단위 테스트 — provider 식별자 + 핵심 함수 wiring + setupChannel + parseUpdate
  * + sendMessage 핵심 분기.
  */
 import { DiscordAdapter } from './discord.adapter';
@@ -34,7 +34,7 @@ describe('DiscordAdapter', () => {
     expect(adapter.provider).toBe('discord');
   });
 
-  it('6함수 모두 노출', () => {
+  it('핵심 함수 노출', () => {
     const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
     expect(typeof adapter.setupChannel).toBe('function');
     expect(typeof adapter.teardownChannel).toBe('function');
@@ -42,6 +42,16 @@ describe('DiscordAdapter', () => {
     expect(typeof adapter.renderNode).toBe('function');
     expect(typeof adapter.sendMessage).toBe('function');
     expect(typeof adapter.ackInteraction).toBe('function');
+  });
+
+  it('escapeControlText — discord 는 평문 그대로 (renderNode 와 동일, identity)', () => {
+    const adapter = new DiscordAdapter(new DiscordClient(), makeSecretsMock());
+    expect(adapter.escapeControlText('받을 수 없어요.')).toBe(
+      '받을 수 없어요.',
+    );
+    expect(adapter.escapeControlText('/start - 새 대화')).toBe(
+      '/start - 새 대화',
+    );
   });
 
   describe('setupChannel', () => {

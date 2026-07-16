@@ -73,6 +73,20 @@ interface ChatChannelAdapter {
   ackInteraction(update: ChannelUpdate, config: ChatChannelConfig): Promise<void>;
 
   /**
+   * control-plane 안내 텍스트(봇 자체 안내 — `HooksService` 가 `renderNode` 를 우회해 `sendMessage`
+   * 로 직접 발송하는 문구: surfaceMismatch / executionStillRunning / groupChatRefusal /
+   * unsupportedMessageKind / help / formValidationFailed / formNextField)를 provider 표면에 맞게
+   * escape 한다. `renderNode` 경로는 렌더러가 내부 escape 하지만 control-plane 직접 발송은 그 경로를
+   * 우회하므로, 호출자(`HooksService`)가 발송 직전 이 메서드로 escape 한다. provider 가 자기 escape
+   * 규칙을 소유해 default·operator override 모두 세 provider 에서 올바르게 렌더된다.
+   *   - telegram → MarkdownV2 escape (`escapeMarkdownV2` — renderNode 와 동일 규칙)
+   *   - slack → mrkdwn escape (`<`, `>`, `&` 만)
+   *   - discord → identity (평문 — 렌더러도 escape 안 함)
+   * pure — 외부 호출 없음. 따라서 languageHints default·override 는 모두 **평문**으로 작성한다.
+   */
+  escapeControlText(text: string): string;
+
+  /**
    * (옵션) Bot token rotation 시 *이전* token 을 외부 provider 측에서 revoke.
    *
    * Slack 의 `auth.revoke` 처럼 외부 provider 가 token revocation API 를 제공하는 경우 구현.
@@ -106,7 +120,7 @@ interface ChatChannelAdapter {
 }
 ```
 
-### 1.1 6함수 책임 / 부작용 / 멱등성
+### 1.1 어댑터 함수 책임 / 부작용 / 멱등성
 
 | 함수 | 책임 | 부작용 | 멱등성 |
 |---|---|---|---|
@@ -116,6 +130,7 @@ interface ChatChannelAdapter {
 | `renderNode` | `EiaEvent \| ChatChannelInternalEvent` payload → `ChannelMessage[]`. side-effect free. 입력 union 은 §1.2 / §1.3 정의. SoT: §R-CCA-7 (union 확장 근거) | none | pure |
 | `sendMessage` | 외부 API 호출. 재시도·rate limit 책임 | 외부 API 호출 | dedup 책임은 caller (EIA 의 `seq` + `X-Clemvion-Delivery` 그대로 어댑터 안에서 활용) |
 | `ackInteraction` | provider 가 요구하는 ack (텔레그램 `answerCallbackQuery`). provider 에 따라 noop 가능 — 함수 자체는 의무지만 구현체는 비어 있을 수 있음 | 외부 API 호출 (provider 의존) | yes |
+| `escapeControlText` | control-plane 안내 텍스트(§1 참조)를 provider 표면에 맞게 escape. `HooksService` 가 `renderNode` 우회 직접 발송 직전 호출 (telegram MarkdownV2 / slack `<>&` / discord 평문). languageHints default·override 는 평문으로 작성 | none | pure |
 | `revokeBotToken?` (옵션) | 이전 bot token 의 외부 provider 측 revocation (Slack `auth.revoke` 등). provider 가 revocation API 를 제공하면 구현, 아니면 미구현 (`undefined`). best-effort — 실패는 swallow | 외부 API 호출 (provider 의존, 옵션) | yes |
 | `openFormModal?` (옵션, `supportsNativeForm=true` 한정) | §4.1 native modal 게이팅 — `form_modal` 버튼 클릭 (`open_form_modal` command) 시 modal open. Slack 은 `views.open(trigger_id, view)` API 호출, Discord 는 webhook HTTP 응답 body `{ type: 9 }` MODAL 반환 (`OpenFormModalResult.httpResponse`). 호출자 = `HooksService` (modal 합성에 conversation state 의 `pendingFormModal.fields` 가 필요하므로 — `ackInteraction(update, config)` 시그니처는 form 필드 미보유, §R-CCA-8 b 참조) | 외부 API 호출 또는 HTTP 응답 body 합성 (provider 의존) | yes |
 | `buildFormSubmissionResponse?` (옵션, `supportsNativeForm=true` 한정) | §4.1 modal 제출 (`form_submission` command) 의 provider HTTP 응답 합성 — EIA `submit_form` 호출은 `HooksService` 담당, 본 메서드는 ack (Slack 빈 200 / Discord `{ type: 4 }` ephemeral) 또는 검증 실패 재표시 body (Slack `response_action: errors`) 만 합성. pure (외부 호출 없음, body 합성만) | none | pure |
@@ -499,13 +514,15 @@ interface ChannelAdapterRegistry {
 
 > **Rationale ID 컨벤션**: 본 컨벤션 파일의 신규 Rationale 은 **`R-CCA-N` prefix** (`CCA` = Chat Channel Adapter) 를 사용한다. 기존 `R1~R4` 는 하위 호환 유지 (rename 시 cross-link 깨짐 위험). cross-file 인용 시에는 `[CCA §R-CCA-N]` 형태로 파일 prefix 명시. 이는 [Spec Chat Channel §3.1 Rationale ID 컨벤션](../5-system/15-chat-channel.md#rationale-id-컨벤션) 의 `R-CC-N` 패턴과 동일 정신 — Convention 파일은 별 prefix `R-CCA-N` 으로 충돌 방지.
 
-### R1. 6함수 인터페이스의 책임 분리
+### R1. 어댑터 인터페이스의 책임 분리
 
 `parseUpdate` / `renderNode` 는 **pure 함수**, `setupChannel` / `teardownChannel` / `sendMessage` / `ackInteraction` 는 **side-effect 동반**. 이 분리는 어댑터 테스트 가능성을 결정 — pure 함수는 fixture 기반 단위 테스트, side-effect 함수는 mocked HTTP client 로 통합 테스트. cafe24 의 [`cafe24-api-metadata.md`](./cafe24-api-metadata.md) 메타데이터 구조와 동일한 layer 분리 패턴.
 
-### R2. 6함수 (5+1 ack) 의 의도
+### R2. 어댑터 함수(필수 코어 + ack + escapeControlText) 의 의도
 
 ack 는 provider 별 의무 여부가 다르다 (텔레그램은 callback_query 에 `answerCallbackQuery` 의무, Slack 은 일반 reply 에 ack 없음). `ackInteraction` 을 별도 함수로 분리해 provider 가 구체 동작을 노출할 수 있게 한다 (noop 구현도 가능). `sendMessage` 안에 흡수하면 어댑터마다 sendMessage 의 책임이 늘어 복잡도가 증가하고, 옵션 플래그로 처리하면 함수 signature 가 mixed concern 이 된다.
+
+`escapeControlText` 도 같은 이유로 별도 **pure** 함수다. control-plane 안내 (`hooks.service` 의 `/help`·form 검증 실패·표면 불일치 등) 는 `renderNode` 를 우회해 raw 텍스트를 직접 `sendMessage` 로 발송하는데, provider 별 escape 규칙 (telegram MarkdownV2 / slack mrkdwn / discord plain) 이 다르므로 발송 직전 provider 별 escape 가 필요하다. 이를 `sendMessage` 안에 흡수하면 `renderNode` 가 **이미 escape 한** 출력을 `sendMessage` 가 재-escape 해 double-escape 가 발생한다 (`renderNode` 출력은 `sendMessage` 가 escape 하지 않는다는 계약과 충돌). 반대로 `renderNode` 에 흡수하면 renderNode 를 거치지 않는 control-plane 경로가 escape 를 못 받는다. 따라서 "발송 직전 raw 텍스트 escape" 만 담당하는 pure 함수를 인터페이스에 노출해 우회 경로 호출자 (`hooks.service`) 가 명시적으로 적용한다. 이는 R-CCA-5 의 인터페이스 최소주의에 대한 정당한 예외 — escape 규칙이 provider 본질적이라 pure helper 로 공유 불가하고 (provider 별 상이), 함수 *내부* 분기로도 흡수 불가하기 때문 ([R-CCA-7](#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용) 세부 참조).
 
 ### R3. EiaEvent 를 별 타입으로 정의하지 않고 EIA spec 위임
 
@@ -519,7 +536,7 @@ R4 가 예고한 "native UI 분기는 v2 옵션" 을 [R-CCA-8](#r-cca-8-native-f
 
 ### R-CCA-5. Execution Failed 분류 helper 를 Convention 에 두는 이유
 
-분류 helper 는 Convention §3.1 의 pure helper 로 둔다 — cross-provider 공통 알고리즘이라 Form 다단계 시퀀스 (§4) 와 같은 layer 이며, 어댑터별 중복 구현을 회피한다. 분류 알고리즘 자체는 provider 와 무관 (input = EIA payload, output = i18n key + placeholders, 둘 다 provider invariant). 어댑터 인터페이스에 `renderError(event)` 를 신설하면 R2 의 인터페이스 최소화 원칙에 어긋나 6함수 인터페이스 (§1) drift 가 발생하고, 분류가 provider invariant 이므로 함수 분리 이득이 없다. Spec `15-chat-channel.md` 본문에 알고리즘 표를 인라인하지 않는 이유는 알고리즘 상세 (입력 타입 / fallback 규칙 / placeholder 정책) 가 형식 규약이라 Convention 거주가 더 자연스럽기 때문 — cafe24 의 [`cafe24-api-metadata.md`](./cafe24-api-metadata.md) (형식 규약) ↔ [`4-nodes/4-integration/4-cafe24.md`](../4-nodes/4-integration/4-cafe24.md) (시스템·노드 정의) 분리 패턴과 동일. `error.message` 를 그대로 redact 해 전달하지 않는 이유는 노드 핸들러가 `error.message` 에 URL · query · DB 컬럼명 · stack · API key 일부를 흘릴 가능성 때문 — spec 차원 redact 가이드는 모든 노드 핸들러 audit 을 요구해 비현실적이라, 분류 결과 (`key`) 로 `languageHints[key]` 의 미리 검증된 generic 문구만 노출한다. 본 결정의 PII 위험 평가 상세는 [Spec Chat Channel R-CC-15 대안 2](../5-system/15-chat-channel.md#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책) 참조.
+분류 helper 는 Convention §3.1 의 pure helper 로 둔다 — cross-provider 공통 알고리즘이라 Form 다단계 시퀀스 (§4) 와 같은 layer 이며, 어댑터별 중복 구현을 회피한다. 분류 알고리즘 자체는 provider 와 무관 (input = EIA payload, output = i18n key + placeholders, 둘 다 provider invariant). 어댑터 인터페이스에 `renderError(event)` 를 신설하면 R2 의 인터페이스 최소화 원칙에 어긋나 어댑터 인터페이스 (§1) drift 가 발생하고, 분류가 provider invariant 이므로 함수 분리 이득이 없다. Spec `15-chat-channel.md` 본문에 알고리즘 표를 인라인하지 않는 이유는 알고리즘 상세 (입력 타입 / fallback 규칙 / placeholder 정책) 가 형식 규약이라 Convention 거주가 더 자연스럽기 때문 — cafe24 의 [`cafe24-api-metadata.md`](./cafe24-api-metadata.md) (형식 규약) ↔ [`4-nodes/4-integration/4-cafe24.md`](../4-nodes/4-integration/4-cafe24.md) (시스템·노드 정의) 분리 패턴과 동일. `error.message` 를 그대로 redact 해 전달하지 않는 이유는 노드 핸들러가 `error.message` 에 URL · query · DB 컬럼명 · stack · API key 일부를 흘릴 가능성 때문 — spec 차원 redact 가이드는 모든 노드 핸들러 audit 을 요구해 비현실적이라, 분류 결과 (`key`) 로 `languageHints[key]` 의 미리 검증된 generic 문구만 노출한다. 본 결정의 PII 위험 평가 상세는 [Spec Chat Channel R-CC-15 대안 2](../5-system/15-chat-channel.md#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책) 참조.
 
 세부:
 - (a) **`renderNode` 시그니처는 미변경** — 본 helper 결과는 어댑터 안에서 `renderNode` 가 직접 호출해 lookup·치환 후 `text` ChannelMessage 합성. dispatcher 가 분류 helper 와 renderNode 를 외부에서 chain 하지 않음 (provider 별 mrkdwn / MarkdownV2 / plain 텍스트 차이가 어댑터 안에서 흡수되어야 하므로).
@@ -538,7 +555,7 @@ chat channel 에서는 silent — 빈 array 를 반환한다. ai-agent multi-tur
 
 chat-channel 어댑터가 EIA outbound 5종 외에 chat-channel-internal 이벤트 (`execution.node.completed` presentation 노드 한정) 도 처리해야 한다. 비-blocking presentation 노드 (Template body, buttons 없는 Carousel/Table/Chart) 의 본문이 외부 채널에 발화되도록 하기 위함.
 
-`renderNode` 입력 union 을 확장한다 — `renderNode(event: EiaEvent | ChatChannelInternalEvent)`. 함수 개수 6 을 유지해 [R-CCA-5](#r-cca-5-execution-failed-분류-helper-를-convention-에-두는-이유) 의 "새 함수 추가 = 인터페이스 drift" 정신을 보존한다. union 패턴은 이미 EIA §6 5종 union 으로 확립돼 있어 variant 1종 추가에 해당하며, provider 어댑터 구현체는 기존 EIA 5종 분기와 동일 패턴으로 `event.type` discriminated union 분기를 추가한다. 7번째 함수 `renderPresentationNode` 신설은 R-CCA-5 가 명시 기각한 "함수 개수 증가 = 모든 provider 어댑터 contract 변경" 패턴을 재현하므로 채택하지 않는다 (`ChatChannelInternalEvent` 처리의 provider 별 차이는 함수 *내부* 분기로 흡수 가능). `EiaEvent` union 자체에 `execution.node.completed` 를 추가하면 [R3](#r3-eiaevent-를-별-타입으로-정의하지-않고-eia-spec-위임) 의 "EIA spec §6 SoT, drift 회피" 에 위배되고 `EiaEvent` type name (EIA §6 outbound 5종) 의 의미 경계가 붕괴하므로, 별도 type `ChatChannelInternalEvent` 로 분리해 의미 경계를 보존한다. EIA §6.1 outbound HTTP webhook 화이트리스트를 6종으로 확장 (`node.completed` 외부 노출) 하지 않는 이유는 외부 SDK breaking change 이며 본 갭이 chat-channel 전용 UX 라 외부 표면 확장이 불필요하기 때문.
+`renderNode` 입력 union 을 확장한다 — `renderNode(event: EiaEvent | ChatChannelInternalEvent)`. **새 함수를 추가하지 않고** 기존 함수의 시그니처만 넓혀 [R-CCA-5](#r-cca-5-execution-failed-분류-helper-를-convention-에-두는-이유) 의 "새 함수 추가 = 인터페이스 drift" 정신을 보존한다. (별개로 `escapeControlText` 는 이후 control-plane escape 근본 fix 에서 신설된 필수 함수다 — provider 마다 escape 규칙이 본질적으로 다르므로 함수 *내부* 분기로 흡수 불가라, 최소주의 원칙의 정당한 예외로 채택했다. §1 참조.) union 패턴은 이미 EIA §6 5종 union 으로 확립돼 있어 variant 1종 추가에 해당하며, provider 어댑터 구현체는 기존 EIA 5종 분기와 동일 패턴으로 `event.type` discriminated union 분기를 추가한다. 별도 함수 `renderPresentationNode` 신설은 R-CCA-5 가 명시 기각한 "함수 개수 증가 = 모든 provider 어댑터 contract 변경" 패턴을 재현하므로 채택하지 않는다 (`ChatChannelInternalEvent` 처리의 provider 별 차이는 함수 *내부* 분기로 흡수 가능). `EiaEvent` union 자체에 `execution.node.completed` 를 추가하면 [R3](#r3-eiaevent-를-별-타입으로-정의하지-않고-eia-spec-위임) 의 "EIA spec §6 SoT, drift 회피" 에 위배되고 `EiaEvent` type name (EIA §6 outbound 5종) 의 의미 경계가 붕괴하므로, 별도 type `ChatChannelInternalEvent` 로 분리해 의미 경계를 보존한다. EIA §6.1 outbound HTTP webhook 화이트리스트를 6종으로 확장 (`node.completed` 외부 노출) 하지 않는 이유는 외부 SDK breaking change 이며 본 갭이 chat-channel 전용 UX 라 외부 표면 확장이 불필요하기 때문.
 
 세부:
 
@@ -558,6 +575,6 @@ formMode capability 기반 분기 + 버튼 게이팅 + 5 fields 한계를 택한
 세부:
 
 - (a) **modal 수용 field type 제약**: provider 별로 modal 이 수용하는 field type 이 다르다 — Slack modal 은 `plain_text_input`/`static_select`/`datepicker`/`checkboxes` 를 input block 으로 지원, Discord modal 은 **TEXT_INPUT 만** 지원 (SELECT_MENU/datepicker 는 modal 밖 component). 따라서 §4.1 진입 조건은 fields ≤ 5 외에 **"전 필드가 해당 provider 의 modal 수용 타입"** 도 포함한다 (각 `providers/<name>.md §5.3` SoT). Discord 의 경우 select/radio/checkbox/date 또는 file 필드가 1개라도 있으면 fields ≤ 5 여도 §4.2 다단계 fallback (file 은 [R-D-7/R-D-9](../4-nodes/7-trigger/providers/discord.md#r-d-7-v1-file-필드-사실상-미지원-r-d-3-의-결과) v1 미지원과 정합).
-- (b) **modal open 은 전용 옵션 메서드 `openFormModal?` (+ `buildFormSubmissionResponse?`)** — `supportsNativeForm=true` provider 한정 옵션. `ackInteraction(update, config)` 시그니처는 **modal view 합성에 필요한 form 필드 (conversation state 의 `pendingFormModal.fields`) 를 받지 못하므로** (modal 합성은 fields + provider token 둘 다 필요, ack 시점엔 token 만), modal open 은 ackInteraction 내부 분기가 아닌 전용 옵션 메서드로 분리한다. R-CCA-5/R-CCA-7 의 "함수 추가 = 모든 provider contract 변경" 정신은 **옵션(`?`) 시그니처** 로 보존 — modal 미지원 provider (Telegram) 는 미구현, 기존 6함수 필수 계약 불변. `supportsNativeForm` 은 함수가 아닌 capability 플래그.
+- (b) **modal open 은 전용 옵션 메서드 `openFormModal?` (+ `buildFormSubmissionResponse?`)** — `supportsNativeForm=true` provider 한정 옵션. `ackInteraction(update, config)` 시그니처는 **modal view 합성에 필요한 form 필드 (conversation state 의 `pendingFormModal.fields`) 를 받지 못하므로** (modal 합성은 fields + provider token 둘 다 필요, ack 시점엔 token 만), modal open 은 ackInteraction 내부 분기가 아닌 전용 옵션 메서드로 분리한다. R-CCA-5/R-CCA-7 의 "함수 추가 = 모든 provider contract 변경" 정신은 **옵션(`?`) 시그니처** 로 보존 — modal 미지원 provider (Telegram) 는 미구현, 기존 필수 함수 계약 불변. `supportsNativeForm` 은 함수가 아닌 capability 플래그.
 - (c) **server-side 검증 재표시**: §4.2 의 "잘못된 필드만 다시" 정신을 modal 에서도 유지 — Slack `response_action: errors`, Discord modal 재open (§4.1 step 5).
 - (d) **production data 없음**: `formMode` default 를 `auto` 로 전환해도 기존 DB 의 `"multi_step"` 값은 의미 동일 (상위 호환 확장). production data 부재로 마이그레이션 불필요.
