@@ -1,4 +1,5 @@
 ---
+worktree: (unstarted)
 started: 2026-07-16
 owner: project-planner
 ---
@@ -18,13 +19,15 @@ owner: project-planner
 
 - `spec/4-nodes/3-ai/1-ai-agent.md:216` "Multi Turn 모드에는 **`out` 포트가 존재하지 않는다**", `:231-232` (조건 0개 multi_turn 의 `out` 엣지 dangling 처리 — 마이그레이션 절)
 - vs `spec/4-nodes/3-ai/_product-overview.md:84` (ND-AG-24 "조건 0개 시 `out` + `error` 제공 (하위 호환)"), `spec/4-nodes/_product-overview.md:215` (동일 ND-AG-24 "하위 호환") — **정반대 서술**
-- 처분: 실제 코드(`ai-agent.handler.ts`/`ai-turn-executor.ts`) out-port 동작을 확정 후 (a) 기술 spec 이 맞으면 두 `_product-overview.md` 의 하위호환 문구 삭제, (b) 반대면 `1-ai-agent.md` §3.2·마이그레이션 절 정정.
+- [ ] 처분: 실제 코드(`ai-agent.handler.ts`/`ai-turn-executor.ts`) out-port 동작을 SoT 로 확정 후 (a) 기술 spec 이 맞으면 두 `_product-overview.md` 의 하위호환 문구 삭제, 또는 (b) 반대면 `1-ai-agent.md` §3.2·마이그레이션 절 정정.
 
 ## Critical 2 — `AI_AGENT_TOOL_COUNT_MAX=128` 기본값이 Cafe24/MakeShop 기본 연결 상시 초과
 
 - `spec/4-nodes/3-ai/1-ai-agent.md:329` (기본 128, 초과 시 hard 취급), `:1346` (§12.15 Rationale, Cafe24 383개 실측)
 - vs `spec/0-overview.md` §6.1 (79-80, "모두 구현 완료"), `spec/4-nodes/4-integration/4-cafe24.md:29`·`:446` ("~180")
-- 처분: (1) `4-cafe24.md` "~180" → 실제 카탈로그 수(383)로 정정 또는 집합 차이 명시. (2) `1-ai-agent.md` §1/§2 에 "Cafe24/MakeShop 은 기본값 초과 → allowlist 설정 사실상 필수" 경고 명문화. (3) `spec/0-overview.md` §6.1 "구현 완료" 서술에 제약 각주.
+- [ ] 처분 (1): `4-cafe24.md` "~180" → 실제 카탈로그 수(383)로 정정 또는 집합 차이 명시.
+- [ ] 처분 (2): `1-ai-agent.md` §1/§2 에 "Cafe24/MakeShop 은 기본값 초과 → allowlist 설정 사실상 필수" 경고 명문화.
+- [ ] 처분 (3): `spec/0-overview.md` §6.1 "구현 완료" 서술에 제약 각주.
 
 ## 범위 밖 (별도 task)
 

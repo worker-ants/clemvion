@@ -52,7 +52,7 @@ owner: developer
 - [x] 8. TEST WORKFLOW (lint·unit·build·e2e 256/256 통과). eslint --fix 는 신규 spec 포맷만 재정렬(로직 무변경)·build tsc clean 로 캐스트 제거 없음 확인.
 - [x] 9. `/ai-review`(14_32_05, fallback 8 reviewer) → Critical 0, Warning 2(동일 SPEC-DRIFT). W1 spec pointer 3곳 정정(cafe24-api-metadata.md §2/§7 → operation-tool-schema.ts). I1/I2/I3 조치 불요. RESOLUTION.md 기록.
 - [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` (spec-linked 코드+spec 변경 → SPEC-CONSISTENCY 게이트)
-- [ ] 9.4 impl-done WARNING 조치: convention W1(`cafe24-api-metadata.md` `code:` 에 `operation-tool-schema.ts` 추가) + plan_coherence W1(위 durable 앵커 분리) → 재검증 impl-done BLOCK: NO
+- [x] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/`(14_46_28 BLOCK NO → WARNING 2건 조치 → 재검증 14_57_19). convention W(code: 보강)·plan_coherence W(durable 앵커) 조치. 조치가 만든 신규 CRITICAL(stub `worktree:` 누락 → plan-frontmatter.test.ts 실패)도 `worktree: (unstarted)` + 체크박스로 fix+재검증(121 pass). 잔여 cross_spec Critical 2건은 pre-existing/anchored(본 diff 무관). **BLOCK: NO**.
 - [ ] PR + 본 plan 의 모든 체크박스 확인 후 plan/complete 이동. **pre-existing spec drift 2건은 `spec-drift-ai-agent-outport-countmax.md`(in-progress 유지) 로 durable 이관됨** — 따라서 본 plan 은 W4/W2/A/B 완결로 complete 이동 가능. embed leak(`task_07c120ce`)은 별 task.
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
