@@ -50,7 +50,8 @@ owner: developer
   - [x] `operation-tool-schema.spec.ts` — field type/enum/array/object/description/default(0·false)/required/oneOf→allOf·anyOf(multi)·non-oneOf kind + allowlist(빈/undefined/`*`/set) 전수. 기존 drift-0 회귀(build*ToolDefsForIntegration)는 무변경 통과.
   - [x] **W2** `workflows.service.spec.ts` budget describe 에 parity 회귀: unreadable(`{__unreadable:true}`) 통합 skip(=getForExecution 동일 `isUnreadableCredentials` 술어) + not-found 통합 best-effort skip(throw 아님, 의도된 divergence).
 - [x] 8. TEST WORKFLOW (lint·unit·build·e2e 256/256 통과). eslint --fix 는 신규 spec 포맷만 재정렬(로직 무변경)·build tsc clean 로 캐스트 제거 없음 확인.
-- [ ] 9. `/ai-review` + resolution + `/consistency-check --impl-done spec/4-nodes/3-ai/`
+- [x] 9. `/ai-review`(14_32_05, fallback 8 reviewer) → Critical 0, Warning 2(동일 SPEC-DRIFT). W1 spec pointer 3곳 정정(cafe24-api-metadata.md §2/§7 → operation-tool-schema.ts). I1/I2/I3 조치 불요. RESOLUTION.md 기록.
+- [ ] 9.4 `/consistency-check --impl-done spec/4-nodes/3-ai/` (spec-linked 코드+spec 변경 → SPEC-CONSISTENCY 게이트)
 - [ ] PR + 본 plan 의 모든 체크박스 확인 후 plan/complete 이동 (backlog 잔여 task_3ac39ebd·task_07c120ce 는 별 task 라 이관 불필요)
 
 > 파일명 결정: config-time 평가 모듈은 `tool-payload-save-warning.ts` (런타임 `tool-payload-budget.ts` 와 명확히 구분 — naming-collision checker INFO 반영).
