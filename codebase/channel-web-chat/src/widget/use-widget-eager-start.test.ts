@@ -3384,4 +3384,88 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(result.current.state.pending?.nodeId).toBe("n1");
     expect(esCount).toBe(1);
   });
+
+  // **두 복원 seed 가 같은 microtask flush 에서 resolve 해도 스트림은 하나만 열린다** (이중 스트림 방지).
+  //
+  // 재현(ai-review 01_44_21 testing·side_effect·concurrency): `sessionEstablished()` seed 게이트는
+  // "seed 가 표면을 그릴 때 스트림이 열렸나" 만 본다. 그런데 `openStream` 은 seed 반환 **뒤** 호출부에서
+  // 실행되고, `await seedWaitingFromStatus` 와 `openStream` 사이엔 microtask 경계가 있다. start() 와
+  // 재전송의 두 getStatus 가 같은 flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고
+  // 통과 → 각자 continuation 에서 둘 다 `openStream` 을 호출한다(esCount=2). `openStream` 이
+  // closeStream→set 이라 최종 상태는 단일 스트림으로 수렴하지만, 두 번째 EventSource 가 낭비 생성된다.
+  //
+  // fix: `openStream` **직전**에도 `sessionEstablished()` 재확인 — seed 게이트(표면)와 짝을 이루는
+  // 스트림 게이트. 먼저 continuation 이 열면 뒤 continuation 은 여기서 멈춘다.
+  // (내 초기 JSDoc "openStream 이 seed 반환 직후 동기 실행이라 원천 차단" 은 microtask 경계를 간과한
+  //  오판이었다 — ai-review 01_44_21.)
+  it("두 복원 seed 가 같은 flush 에서 resolve 해도 EventSource 는 하나만 생성된다", async () => {
+    let esCount = 0;
+    let latestEs: ControllableEventSource | null = null;
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCount += 1;
+          latestEs = new ControllableEventSource();
+          return latestEs as unknown as this;
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof EventSource,
+    );
+
+    const webhookResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => { webhookResolvers.push(r); });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => { statusResolvers.push(r); });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const webhook202 = () =>
+      ({ ok: true, status: 202, json: async () => ({ data: {
+        executionId: "e1", status: "pending",
+        interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+      } }) }) as Response;
+    const waitingAt = (nodeId: string) =>
+      ({ ok: true, status: 200, json: async () => ({ data: {
+        executionId: "e1", status: "waiting_for_input",
+        context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+      } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 신규 방문. boot#1 → config. open → start() → webhook → persist → 자기 getStatus C.
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookResolvers.length).toBe(1));
+    await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // C
+
+    // 재전송 → 스트림 미확립 창이라 복원 분기가 e1 을 넘겨받아 자기 getStatus D.
+    await act(async () => { boot(); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(2)); // C + D
+
+    // **C 와 D 를 같은 flush 에서 resolve** — 둘 다 seed 시점엔 스트림 미열림을 보고 통과한다.
+    await act(async () => {
+      statusResolvers[0](waitingAt("n1"));
+      statusResolvers[1](waitingAt("n1"));
+      await flushAsync();
+    });
+
+    // 스트림은 하나만 생성된다(먼저 연 쪽이 이기고, 뒤는 openStream 직전 게이트에서 멈춘다).
+    expect(esCount).toBe(1);
+    expect(result.current.state.pending?.nodeId).toBe("n1");
+  });
 });

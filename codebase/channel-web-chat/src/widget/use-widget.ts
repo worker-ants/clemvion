@@ -511,9 +511,16 @@ export function useWidget() {
    * `start()` 가 진입 시점 boot 을 캡처하면 **아무것도 복원 못 하는 no-op 재전송**이 `bootGenRef` 만
    * 올려 start() 자신을 거짓 stale 처리해 **스피너에 고착**시켰다(00_51_53, 3인 재현). 두 구멍 다
    * "스트림이 실제로 열렸는가" 라는 직접 신호로 사라진다 — 열렸으면(누가 열었든) SSE 가 소유하니
-   * 스킵, 안 열렸으면 이 seed 가 그린다. `openStream` 은 seed 반환 **직후 동기 실행**이라, 경합하는
-   * 여러 시도 중 먼저 resolve 한 것이 스트림을 열고 나머지는 다음 microtask 에서 이 가드에 걸린다
-   * (이중 스트림도 원천 차단).
+   * 스킵, 안 열렸으면 이 seed 가 그린다.
+   *
+   * **이 seed 가드는 "표면 되감기" 만 막는다. "이중 스트림" 은 호출부의 짝 가드가 막는다.** `await
+   * seedWaitingFromStatus` 와 호출부의 `openStream` 사이엔 microtask 경계가 있어, 겹친 두 seed 가 같은
+   * flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고 통과한 뒤 각자 continuation 에서
+   * `openStream` 을 부를 수 있다(초기 JSDoc 이 "seed 반환 직후 동기 실행" 이라 원천 차단된다고 적었으나
+   * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 `start()`·`applyConfig` 는 `openStream`
+   * **직전**에도 `if (sessionEstablished()) return;` 로 재확인한다. `openStream` 이 closeStream→set 이라
+   * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 짝 가드로 낭비성 두 번째 EventSource 생성 자체를
+   * 없앤다.
    *
    * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`replay_unavailable`
    *   폴백만** 넘긴다 — 그건 자기 스트림의 표면을 버퍼 만료 후 **재동기화**하는 정당한 경우다(스트림
@@ -657,6 +664,11 @@ export function useWidget() {
         if (outcome !== "continue") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
+        // **seed 게이트와 짝을 이루는 스트림 게이트** — `await seedWaitingFromStatus` 와 여기 사이엔
+        // microtask 경계가 있어, 겹친 두 seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림
+        // 미열림을 보고 통과한 뒤 각자 여기서 openStream 을 부른다(이중 EventSource 생성). 먼저 continuation
+        // 이 열면 뒤 continuation 은 여기서 멈춘다 — SSE 는 하나만 소유한다(ai-review 01_44_21).
+        if (sessionEstablished()) return;
         openStream(session, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
@@ -997,6 +1009,11 @@ export function useWidget() {
           // (ai-review 2026-07-17 08_29_33 W2 · 00_51_53)
           if (isAttemptStale(attempt)) return;
         }
+        // **seed 게이트와 짝을 이루는 스트림 게이트**(start() 와 동일) — checkpoint 2 는 boot 축이라
+        // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
+        // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 여기서 막는다
+        // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
+        if (sessionEstablished()) return;
         openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
