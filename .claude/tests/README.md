@@ -25,7 +25,10 @@ third-party dependencies — hooks must run on a bare `python3`. Do not introduc
 | `test_branch_naming.py` | `worktree-*` → `claude/*` normalization: idempotent, skips main worktree / pushed branches / detached HEAD, appends a slug on collision. |
 | `test_doc_sync_matrix.py` | PROJECT.md's "변경 유형 → 갱신 위치 매핑" matrix + its JSON SSOT (`.claude/config/doc-sync-matrix.json`): JSON shape, row-count 1:1 binding with the prose table, and every referenced `*.test.ts` / `spec/...md` / trigger-glob base path exists. Reaches into `codebase/` and `spec/` on purpose (the matrix is a harness↔product binding). |
 | `test_orchestrator_state.py` | The code-review orchestrator's CLI state machine (`--update` / `--apply-routing` / `--summary-state` / `--resume`): bucket transitions, rate-limit episode/reset-hint tracking, routing selection + forced-agent retention, fallback. Driven via subprocess (the real CLI surface; also avoids the two-`_lib` import collision). |
-| `test_review_guard.py` | `review_guard.evaluate_review()` block/allow table + the `SUMMARY.md` / `RESOLUTION.md` resolved-state parser, spec `code:` glob → regex, and the spec-impl `--impl-done` Gate 2. Git/fs helpers are patched (hermetic). |
+| `test_review_guard.py` | `review_guard.evaluate_review()` block/allow table + the `SUMMARY.md` / `RESOLUTION.md` resolved-state parser, spec `code:` glob → regex, the spec-impl `--impl-done` Gate 2, and the **forced-coverage** gate (`agents_forced` reviewers must each leave a non-empty report, resolved session-relative — never from the manifest's `output_file`, which names a since-deleted worktree). Git/fs helpers are patched (hermetic). |
+| `test_consistency_orchestrator_state.py` | The consistency orchestrator's read paths (`--summary-state` / `--resume`) reconciling `_retry_state.json` with reports on disk. Exists because the two orchestrators mirror each other by duplication but only the code-review one had tests — which let a change land where the SKILLs documented self-healing that only half the pair implemented. Subprocess-driven. |
+| `test_summary_agent_contract.py` | The three summary agent definitions ↔ what `.claude/workflows/*.js` actually sends them: no file may blame the write block on terminal position (refuted 2026-07-17 — the rule is exact basename), every definition must state the basename rule, take the inlined report bodies as authoritative, persist missing per-agent files, and flag unobtained findings as a false negative. **Prose-checking on purpose** — see the convention note below. |
+| `test_workflow_scripts.py` | `.claude/workflows/*.js` syntax (parsed as the harness VM wraps them — `node --check` alone passes even a duplicate `const` on these files) + the `SHARED-BLOCK` mirror of `_lib/agent-return.mjs` staying byte-identical across the three fan-out workflows, since the sandbox forbids `import`. |
 | `test_review_guard_hardening.py` | The checkout-/rebase-immune freshness rework: porcelain rename parsing, `**/` segment-boundary globbing, the session-dir clock, dirty→mtime vs clean→author-date split, in-flight suppression, and the **rebase author-date** regression (a rebase that only rewrites committer date must not re-arm the gate). Also the **resolution-in-flight** suppression: `_resolution_in_flight` (dispatch marker + applier-started state, both TTL-bound), the `mark_`/`clear_resolution_in_flight` PreToolUse(Agent)/SubagentStop marker hooks, and the Stop guard's suppression + review-done nudge wording. The rebase case uses a **real temp git repo** — see the convention note below. |
 
 ## Conventions for new tests
@@ -43,3 +46,10 @@ third-party dependencies — hooks must run on a bare `python3`. Do not introduc
   `hooks/` and `skills/`). See `_harness.py`.
 - Assert **structural / behavioral invariants**, not prose. The `.md` agent
   definitions and docs are allowed to read differently from their SSOT.
+  **Deliberate exception:** where the document *is* the runtime spec rather than a
+  rendering of one — a sub-agent definition is the system prompt the model executes —
+  its wording is behaviour, and `test_summary_agent_contract.py` pins the load-bearing
+  phrases. That exception earned itself: a refuted explanation ("your write is blocked
+  because you are the terminal sub-agent") sat in 7 such files while the workflows had
+  begun asking those very agents to write per-agent files, and nothing caught the
+  contradiction. Keep such checks to phrases that change what the agent *does*.

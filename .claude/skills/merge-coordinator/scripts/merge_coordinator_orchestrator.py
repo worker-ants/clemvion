@@ -211,7 +211,7 @@ def branch_diff_stat(base, head):
 
 def branch_touched_files(base, head):
     """Return the list of files touched between base and head."""
-    r = _git(["git", "diff", "--name-only", f"{base}...{head}"])
+    r = _git(["git", "diff", "--no-renames", "--name-only", f"{base}...{head}"])
     if r.returncode != 0:
         return []
     return [f for f in r.stdout.strip().splitlines() if f]

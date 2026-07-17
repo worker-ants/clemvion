@@ -11,7 +11,7 @@ model: haiku
 
 `output_file` 의 본 sub-agent 특수 형식은 JSON 입니다 (다른 sub-agent 의 markdown 과 다름). STATUS 라인의 `ISSUES` 필드에는 `selected_count` 를 채웁니다 (다른 sub-agent 의 "발견 건수" 자리를 router 에서 "활성화된 reviewer 수" 의미로 재사용).
 
-> **mode=workflow** (Workflow tool 경로 — [`.claude/workflows/ai-review.js`](../workflows/ai-review.js)): invocation prompt 에 `mode=workflow` 가 오면 **파일을 Write 하지 않고** 결정 JSON(`decisions[]`)을 structured output 으로 반환합니다 (Workflow sub-agent 의 report-file Write 는 차단됨). 그 외 절차·판단 지침은 동일.
+> **mode=workflow** (Workflow tool 경로 — [`.claude/workflows/ai-review.js`](../workflows/ai-review.js)): invocation prompt 에 `mode=workflow` 가 오면 **파일을 Write 하지 않고** 결정 JSON(`decisions[]`)을 structured output 으로 반환합니다 — workflow 가 `schema` 로 structured output 을 **명시 지시**하기 때문이지, Write 가 차단돼서가 아닙니다. (하네스의 report-file 차단은 `SUMMARY.md` 계열 **basename 4종** 한정이라 본 sub-agent 의 JSON `output_file` 은 애초에 대상이 아닙니다 — [`subagent-call-contract.md §7`](../docs/subagent-call-contract.md) 실측표.) 그 외 절차·판단 지침은 동일.
 
 ## 수행 절차
 
