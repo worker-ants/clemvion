@@ -66,8 +66,16 @@
 
 ## 검증
 
-lint PASS(60s) · unit PASS(82s) · build PASS(137s).
-frontend 5513 passed(278파일) · channel-web-chat **390 passed**(22파일).
+- lint: **PASS** (60s)
+- unit: **PASS** (82s) — frontend 5513 passed(278파일, plan-frontmatter 가드 포함) ·
+  channel-web-chat **390 passed**(22파일)
+- build: **PASS** (137s)
+- e2e: **통과** — `.claude/tools/run-test.sh e2e` (`make e2e-test-full`), 317s.
+  wrapper 요약줄 `tests=256` 은 backend jest 수만 세므로(PROJECT.md §e2e) 로그로 양쪽 확인:
+  backend jest `Tests: 256 passed, 256 total` + playwright `Running 51 tests using 2 workers`
+  → **`51 passed (1.6m)`**. 면제 불가 판정 근거: 변경 set 에 `codebase/channel-web-chat/src/**`
+  의 실제 `.ts` 코드가 포함돼 §e2e 면제 화이트리스트의 부분집합이 아니다.
+
 mutation 매트릭스 6종 — SUMMARY.md 참조. 무방비였던 3개 축이 이번에 전부 고정됐다.
 </content>
 </invoke>
