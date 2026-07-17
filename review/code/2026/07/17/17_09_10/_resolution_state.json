@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "started_at": "2026-07-17T17:40:00+09:00",
+  "completed_at": "2026-07-17T17:56:00+09:00",
+  "summary_items_total": 7,
+  "items_resolved_ids": ["C1", "C2", "C3", "C4", "W1", "W2", "W3"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "2c4e96eb4", "summary_id": "C1,C2,C3,C4,W3", "scope": "harness push-guard"},
+    {"sha": "8783d7b12", "summary_id": "W2", "scope": "harness reaper test coverage"},
+    {"sha": "6d578cbbb", "summary_id": "W1", "scope": "plan doc accuracy"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "skipped_whitelisted",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": "INFO 항목 18건은 자동 수정 대상 아님 — RESOLUTION.md 보류·후속 항목에 기록만. 민감 변경 없음(harness .py/.sh + plan .md 전용, codebase/ 무변경)."
+}

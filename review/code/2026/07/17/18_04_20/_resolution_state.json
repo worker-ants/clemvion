@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "started_at": "2026-07-17T09:55:55Z",
+  "completed_at": "2026-07-17T10:10:00Z",
+  "summary_items_total": 9,
+  "items_resolved_ids": ["C1", "C2", "W1", "W2", "W3", "I1", "I2"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "W4_fail_open": "out-of-scope per SUMMARY's own suggestion column (\"이번 diff 범위 밖\") — not requested by main's 고칠 것 list",
+    "W5_perf_n_plus_1": "out-of-scope, explicitly deferred in SUMMARY suggestion column",
+    "W6_maintainability_loop": "out-of-scope, explicitly deferred in SUMMARY suggestion column",
+    "W7_concurrency_npm_race": "out-of-scope, SUMMARY itself says \"이번 PR 스코프 밖\""
+  },
+  "commits_made": [
+    {"sha": "21c69fa2b", "summary_ids": ["C1", "C2", "W1", "W2", "W3"], "scope": "harness"},
+    {"sha": "16bdd1d3d", "summary_ids": ["C1", "W2", "I1", "I2"], "scope": "harness-docs"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "skipped",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": "모든 Critical/in-scope-Warning/directed-INFO 항목 처리 완료. Critical#2 는 main 실측으로 오분류 확인 (bash -c \"cd /tmp && git push\" 는 구 정규식이 && 앵커로 이미 차단하던 회귀였음 — '신구 공통 사각지대' 아님) 후 Critical#1 의 재귀 수정으로 흡수, 별도 코드 변경 없음. Warning#4(fail-open)/#5(perf N+1)/#6(maintainability)/#7(concurrency) 는 SUMMARY 자체가 이번 diff 범위 밖으로 명시한 pre-existing/deferred 항목이라 이번 세션에서 다루지 않음 — RESOLUTION.md 보류 항목에 기록. e2e 는 PROJECT.md §e2e 면제 화이트리스트 (.claude/**, plan/**) 부분집합이라 스킵. 최종 검증: harness python suite 302/302, node --test test_agent_return.mjs 11/11, frontend plan-frontmatter.test.ts 93/93 전체 통과. commit 16bdd1d3d 메시지 본문에 단일 유니코드 손상 문자('토큰'→'토�0') 존재 확인 — 실제 코드/문서 파일에는 없음(grep 확인), no-amend 정책상 정정하지 않고 그대로 둠."
+}

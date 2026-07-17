@@ -4,14 +4,23 @@
 # LOCAL-ONLY by design: this never touches remote refs — GitHub deletes the PR
 # head branch on merge, so cleanup here is purely about the local checkout. It
 # is conservative (acts only on a strong merge signal), skips the worktree the
-# current shell is in and any worktree with uncommitted work, and FAILS SAFE
-# (leaves things in place) whenever it cannot prove a merge.
+# current shell is in, any worktree named by --keep, and any worktree with
+# uncommitted work, and FAILS SAFE (leaves things in place) whenever it cannot
+# prove a merge.
 #
 # Invoked from bootstrap-session.sh (SessionStart) and runnable by hand:
-#   .claude/tools/reap-merged-worktrees.sh [--dry-run] [--force]
+#   .claude/tools/reap-merged-worktrees.sh [--dry-run] [--force] [--keep <path>]
+#
+#   --keep <path>  Never reap this worktree (repeatable). bootstrap-session.sh
+#                  passes the session's ANCHOR worktree — the $CLAUDE_PROJECT_DIR
+#                  every hook script is resolved from. The shell-cwd skip below
+#                  does NOT cover that: after an EnterWorktree the cwd and the
+#                  anchor are different worktrees, and reaping the anchor wedges
+#                  the session (every Bash/Write/Edit hook fails to load, so it
+#                  cannot even recreate the directory).
 #
 # Detection (per worktree under .claude/worktrees/<name>/ on a claude/* branch):
-#   - skip if it is the worktree the current shell is in,
+#   - skip if it is the worktree the current shell is in, or a --keep path,
 #   - skip if it has uncommitted changes (dirty) — preserve in-flight work,
 #   - remove (worktree + local branch) IFF `gh pr view <branch>` reports MERGED.
 #     Removal uses cleanup-worktree.sh --force: a squash-merged branch is NOT an
@@ -50,10 +59,29 @@ DRY_RUN=0
 FORCE=0
 [ "${REAP_DRY_RUN:-0}" = "1" ] && DRY_RUN=1
 
+# Resolve to PHYSICAL paths (pwd -P) so a /var ↔ /private/var symlink mismatch
+# between `git worktree list` output, the session cwd and a --keep argument can
+# never defeat the skips in pass 1. Those skips are the PRIMARY guard against
+# deleting a worktree that is in use — cleanup-worktree.sh's own "current shell"
+# check is bypassed by the `cd "$main_root"` below, so they must hold on their
+# own. Defined before the argument parser because --keep normalises as it reads.
+realpath_p() { (cd "$1" 2>/dev/null && pwd -P) || printf '%s' "$1"; }
+
+# Newline-delimited set of worktree paths that must never be reaped (--keep).
+keep_paths=""
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run|-n) DRY_RUN=1 ;;
     --force|-f)   FORCE=1 ;;
+    --keep)
+      shift
+      if [ -z "${1:-}" ]; then
+        echo "reap-merged-worktrees.sh: --keep requires a path" >&2; exit 2
+      fi
+      keep_paths="${keep_paths}$(realpath_p "$1")
+"
+      ;;
     -h|--help)
       sed -n '2,/^set -u/p' "$0" | sed -e '/^set -u/d' -e 's/^# \{0,1\}//'
       exit 0
@@ -65,15 +93,16 @@ done
 
 # --- locate the main checkout (worktrees share one git common dir) -----------
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
-# Resolve to PHYSICAL paths (pwd -P) so a /var ↔ /private/var symlink mismatch
-# between `git worktree list` output and the session cwd can never defeat the
-# current-worktree skip below. That skip is the PRIMARY guard against deleting
-# the worktree we are running in — cleanup-worktree.sh's own "current shell"
-# check is bypassed by the `cd "$main_root"` here, so this must hold on its own.
-realpath_p() { (cd "$1" 2>/dev/null && pwd -P) || printf '%s' "$1"; }
 main_root=$(realpath_p "$(dirname "$common")")
 current_top=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 [ -n "$current_top" ] && current_top=$(realpath_p "$current_top")
+
+is_kept() {
+  # True when <path> was named by --keep. grep -x: whole-line match only, so a
+  # kept path can never protect a *prefix*-sharing sibling worktree.
+  [ -n "$keep_paths" ] || return 1
+  printf '%s\n' "$keep_paths" | grep -qxF -- "$1"
+}
 # Operate from the main checkout so worktree/branch ops resolve consistently.
 cd "$main_root" 2>/dev/null || exit 0
 
@@ -170,6 +199,11 @@ while IFS=$'\t' read -r wt_path wt_branch; do
   esac
   # Never touch the worktree the current shell is in (primary safety guard).
   if [ -n "$current_top" ] && [ "$wt_path" = "$current_top" ]; then
+    continue
+  fi
+  # Never touch a --keep worktree — the caller's session is anchored there.
+  # Distinct from the cwd skip above: the two diverge after an EnterWorktree.
+  if is_kept "$wt_path"; then
     continue
   fi
   # Preserve in-flight work.
