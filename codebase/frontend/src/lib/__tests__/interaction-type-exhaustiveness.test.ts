@@ -42,9 +42,16 @@ const REGISTRY_SITES = [
   "codebase/frontend/src/components/editor/run-results/use-result-detail-waiting.ts",
 ];
 
-// Derive the enum values from the actual TS type so a rename is caught
-// without a manual fix here. The type is a string union; we list the values
-// here as the test SoT and assert each matches the type via a typecheck.
+// The value list and its compile-time `Exclude` assertion both live in
+// `interaction-type-registry.ts` — a source module, so tsc actually reads
+// them (this file is under `src/**/__tests__/**`, which tsconfig excludes,
+// so an assertion written here would be dead). This test only imports that
+// list and runs the runtime grep guard below.
+//
+// Known limitation: the grep matches backtick-quoted mentions too, so a
+// JSDoc reference to a value in a registry site satisfies the guard even
+// when the real branch is missing or misspelled. Treat a green here as
+// "no site forgot the value entirely", not as proof the branch is correct.
 const ENUM_VALUES = INTERACTION_TYPE_VALUES;
 
 function readRepoFile(relPath: string): string {

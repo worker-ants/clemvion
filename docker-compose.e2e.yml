@@ -255,6 +255,7 @@ services:
       - ./.npmrc:/app/.npmrc:ro
       - /app/node_modules
       - /app/codebase/frontend/node_modules
+      - /app/codebase/packages/ai-end-reason/node_modules
       - /app/codebase/packages/expression-engine/node_modules
       - /app/codebase/packages/node-summary/node_modules
       - /app/codebase/packages/chat-channel-validation/node_modules

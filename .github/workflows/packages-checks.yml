@@ -18,6 +18,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'codebase/packages/ai-end-reason/**'
       - 'codebase/packages/expression-engine/**'
       - 'codebase/packages/graph-warning-rules/**'
       - 'codebase/packages/node-summary/**'

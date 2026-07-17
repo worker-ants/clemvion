@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { CONVERSATION_END_REASONS } from "@workflow/ai-end-reason";
 import {
   extractAiMetadata,
   extractIeSnapshot,
@@ -571,21 +572,13 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     expect(isConversationOutput(raw)).toBe(true);
   });
 
-  // 목록은 backend endReason enum 과 정합해야 한다 — `ai-turn-executor.ts` 의
-  // multi-turn 종결(`'user_ended' | 'max_turns' | 'condition' | 'error'`) +
-  // IE/single-turn 의 `'completed'` / `'max_retries'`. `condition` / `error`
-  // 가 빠져 있어 조건 라우팅·오류로 끝난 대화가 미리보기를 잃었다
-  // (spec/conventions/conversation-thread.md §9.9 Inv-8).
+  // 목록을 여기 베끼지 않고 SoT(`@workflow/ai-end-reason`) 를 순회한다 — 베낀
+  // 목록에서 `condition` / `error` 가 빠져 조건 라우팅·오류로 끝난 대화가
+  // 미리보기를 잃은 게 이 계열 회귀의 진원지였다
+  // (spec/conventions/conversation-thread.md §9.9 Inv-8). 패키지 유니온에
+  // 값이 추가되면 이 테스트가 자동으로 그 값까지 검증한다.
   it("accepts every unified endReason as a conversation terminal", () => {
-    const endReasons = [
-      "completed",
-      "user_ended",
-      "max_turns",
-      "max_retries",
-      "condition",
-      "error",
-    ] as const;
-    for (const endReason of endReasons) {
+    for (const endReason of CONVERSATION_END_REASONS) {
       const raw = {
         config: {},
         output: {

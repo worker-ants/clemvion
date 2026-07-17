@@ -423,6 +423,18 @@ export interface ResumableNodeHandler extends NodeHandler {
    * `output.error` 에 그대로 set 해야 spec §7.9 shape (`output.error` + 부분
    * `output.result.*` 병존) 가 성립. 정상 종결 (`user_ended` / `max_turns` /
    * `condition`) 에서는 caller 가 undefined 를 전달.
+   *
+   * `endReason` 이 `AiAgentEndReason` 인 것은 **이 계약이 두 구현체의 교집합만
+   * 커버한다는 뜻**이다 — IE 구현체는 자기 도메인
+   * (`InformationExtractorEndReason`: `completed` / `max_retries` / `timeout`)
+   * 으로 받으며, 어느 클래스도 `implements ResumableNodeHandler` 를 선언하지
+   * 않아 (engine 이 `isResumableNodeHandler` 런타임 가드로만 narrow) tsc 는 이
+   * 불일치를 검사하지 않는다. 현재 engine 의 범용 호출부는 `'user_ended'` /
+   * `'error'` 만 넘기고 이 둘은 두 도메인의 교집합이라 안전하지만, 그것은
+   * **타입이 아니라 호출 패턴이 지키는 안전**이다. 노드별 고유 종결값을 이
+   * 계약으로 넘기려면 먼저 제네릭화(`ResumableNodeHandler<TEndReason>`)가
+   * 필요하다 — 파라미터 타입만 `ConversationEndReason` 으로 넓히면 구현체는
+   * bivariance 로 좁은 채 통과해 port switch 가 조용히 fallthrough 한다.
    */
   endMultiTurnConversation(
     state: Record<string, unknown>,
