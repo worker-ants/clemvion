@@ -90,11 +90,13 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_CLAUDE_DIR = os.path.dirname(os.path.dirname(THIS_DIR))  # …/.claude
 
 try:
     # Reuse the default-branch resolver so "since the branch started" is
@@ -102,6 +104,18 @@ try:
     from branch_guard import _origin_default_branch  # type: ignore
 except Exception:  # pragma: no cover - import path fallback
     _origin_default_branch = None  # type: ignore
+
+# Report location/validity is shared with the orchestrator CLIs — see
+# `.claude/_shared/report_paths.py`. Both this gate and `--verify-coverage` must answer
+# "did this agent leave a report?" identically; when each kept its own copy behind a
+# "change both" comment they diverged inside one PR (the gate required non-empty, the CLI
+# only existence, so `touch security.md` passed one and failed the other).
+#
+# NOT wrapped in a try/except fallback: a silent import failure would make the coverage
+# gate pass everything, which is the failure mode it exists to prevent. Fail loudly.
+if _CLAUDE_DIR not in sys.path:
+    sys.path.insert(0, _CLAUDE_DIR)
+from _shared import report_paths as _report_paths_lib  # noqa: E402
 
 
 CODE_PREFIX = "codebase/"
@@ -369,18 +383,9 @@ def _forced_coverage_missing(session_dir: str) -> list[str]:
     Coverage is judged by **reports on disk**, not by `agents_success`: a self-reported
     status with no file behind it is exactly the fake-success this whole line of work
     exists to remove, and reading disk also makes the gate immune to a stale state file.
-
-    Paths are resolved **relative to the session dir**, never from the manifest's
-    `output_file` — that records the worktree the session ran in, which is deleted when
-    its task ends while `review/**` lives on in git. Trusting it would report every
-    long-gone worktree's session as uncovered (537/575 at measurement time) and fire on
-    almost everything. (`code_review_orchestrator._report_paths` resolves the same way for
-    `--verify-coverage`; the two enforcement points must agree — change both.)
-
-    A report must be non-empty: existence alone would let `touch security.md` satisfy the
-    whitelist, which is the same "looks done, isn't" shape the gate exists to catch. The
-    bar is deliberately low rather than structural — all 4749 committed reports are ≥254
-    bytes, so nothing real is near it.
+    What counts as a report — where it lives, and that it be non-empty — is
+    `.claude/_shared/report_paths.py`, shared verbatim with `--verify-coverage` so the
+    gate and the CLI cannot answer differently (they once did).
     """
     state_path = os.path.join(session_dir, "_retry_state.json")
     try:
@@ -398,27 +403,7 @@ def _forced_coverage_missing(session_dir: str) -> list[str]:
     forced = state.get("agents_forced") or []
     if not isinstance(forced, list) or not forced:
         return []
-    invocations = state.get("subagent_invocations")
-    if not isinstance(invocations, list):
-        invocations = []
-    missing = []
-    for inv_name in forced:
-        recorded = next(
-            (
-                i.get("output_file")
-                for i in invocations
-                if isinstance(i, dict) and i.get("name") == inv_name
-            ),
-            None,
-        ) or f"{inv_name}.md"
-        path = os.path.join(session_dir, os.path.basename(str(recorded)))
-        try:
-            if os.path.getsize(path) > 0:
-                continue
-        except OSError:
-            pass  # absent, or unreadable — either way we have no report
-        missing.append(inv_name)
-    return missing
+    return _report_paths_lib.missing_reports(session_dir, forced, state)
 
 
 def _summary_is_resolved(summary_path: str) -> bool:
