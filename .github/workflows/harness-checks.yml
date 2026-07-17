@@ -12,6 +12,9 @@ on:
       - '.claude/skills/**'
       - '.claude/tests/**'
       - '.claude/tools/**'
+      # Workflow 스크립트는 BLOCK/RISK 판정 로직을 담는데 종전 paths 에 없어, 단독 수정 시
+      # 가드(test_workflow_scripts.py: 문법 + shared-block drift)가 트리거되지 않았다.
+      - '.claude/workflows/**'
       - '.claude.project.json'
       - 'PROJECT.md'
       - '.github/workflows/harness-checks.yml'
@@ -39,3 +42,13 @@ jobs:
 
       - name: Run harness unit tests
         run: python3 -m unittest discover -s .claude/tests -p 'test_*.py'
+
+      # The workflow scripts' report-return parsing decides BLOCK/RISK, so it gets real
+      # unit tests. They are `.mjs` (node:test) because the logic is JS — the unittest
+      # discovery above only picks up `test_*.py`, so this needs its own step.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run workflow contract unit tests
+        run: node --test .claude/tests/test_agent_return.mjs

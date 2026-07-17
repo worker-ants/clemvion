@@ -25,6 +25,42 @@ a correct `BLOCK: YES`.
 
 ### Constraint the pilot uncovered — and its CORRECTED diagnosis (2026-05-30)
 
+> ## ⚠️ 재정정 (2026-07-17) — 가드는 **둘**이다. 아래 절의 "filename is irrelevant" 는 교란된 결론이다.
+>
+> 아래 5-probe 는 **bgIsolation 이 활성인 세션**(부모 미격리 bg 세션)에서 수행됐다. 그 상태에선
+> **모든 write 가 차단**되므로 파일명 규칙을 **관측할 수 없다** — `detail.md` 와 `SUMMARY.md` 가
+> "동일하게" 차단된 것은 파일명이 무관해서가 아니라 **bgIsolation 이 둘 다 삼켰기 때문**이다.
+>
+> **`EnterWorktree` 로 격리된 세션**에서 재실측하면(2026-07-17, probe `wf_61290a15-aec` ·
+> `wf_45d76e40-507`, 본 세션은 EnterWorktree 툴로 격리된 interactive 세션) bgIsolation 이
+> 비활성이라 **두 번째 가드가 드러난다** — report-file 가드는 **basename 으로 구분한다**:
+>
+> | 같은 workflow·같은 세션 | 결과 |
+> |---|---|
+> | `notes.md` · `cross_spec.md` · `RESOLUTION.md` · `SUMMARY.txt` · `my-SUMMARY.md` | **성공** |
+> | `SUMMARY.md` · `summary.md` · `REPORT.md` · `findings.md` | **차단** |
+> | 비-terminal agent → `SUMMARY.md` | **차단** (position 무관) |
+> | terminal agent → `cross_spec.md` | **성공** (position 무관) |
+>
+> 거부 메시지도 bgIsolation 이 아니라 report-file 가드의 것이다:
+> `"Subagents should return findings as text, not write report files."`
+>
+> **정리 — 두 가드는 독립이며 아래 절과 모순되지 않는다:**
+> 1. **bgIsolation 가드** (아래 절이 옳게 규명): 부모 미격리 bg 세션 → **전 write 차단**, 파일명·
+>    position 무관. 해법은 `EnterWorktree` 로 부모 세션 격리.
+> 2. **report-file 가드** (본 재정정): 격리 여부와 무관하게 **`SUMMARY.md` 계열 basename 만** 차단.
+>    → **어떤 sub-agent 도 `SUMMARY.md` 를 쓸 수 없다.**
+>
+> 따라서 아래 "Corrected design (current)" 의 **"summary 가 자기 파일을 직접 쓴다"** 는 전제는
+> **성립하지 않는다**(격리된 세션에서도 차단된다). 실제 코드는 그 설계를 채택하지 않았고 —
+> summary 는 전문을 반환하고 **main 이 멱등 Write** 한다 — 그게 유일하게 동작하는 경로다.
+> 상세 실측표: [`subagent-call-contract.md §7`](./subagent-call-contract.md).
+>
+> **단, 아래 절의 context-cost 지적은 유효하다**: 전체 보고서가 main ctx 를 왕복하는 비용은
+> 실재한다. 그래서 2026-07-17 수정은 **checker/reviewer 전문을 main 이 아니라 summary
+> sub-agent 에게만 인라인 전달**한다 — main 반환에는 `{name, status, has_report}` 만 실린다.
+> 즉 아래가 기각한 "전문을 main ctx 로" 는 되살리지 않았다.
+
 **Original (incorrect) read:** the pilot observed the terminal summary's
 `SUMMARY.md` Write being blocked while per-checker `output_file` Writes
 succeeded, and attributed it to a *"Workflow sub-agents can't write report

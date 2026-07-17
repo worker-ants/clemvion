@@ -69,21 +69,32 @@ stdout 마지막 줄 = 세션 디렉토리.
    })
 ```
 
-Workflow 동작: `Checkers` phase 에서 각 checker 를 `agentType` 으로 병렬 invoke (checker 가 자기 `prompt_file` 을 Read 하고 `output_file` 에 Write — 기존 call-contract 그대로, Workflow 내 checker write 는 허용됨). `Summary` phase 에서 `consistency-summary` 가 `mode=workflow` 로 통합 SUMMARY 마크다운을 **반환**한다 (terminal sub-agent 의 report-file Write 는 harness 가 차단하므로 파일 대신 텍스트 반환). 완료 시 task-notification.
+Workflow 동작: `Checkers` phase 에서 각 checker 를 `agentType` 으로 병렬 invoke — checker 는 `prompt_file` 을 Read 하고 `output_file` 에 Write 한 뒤 **STATUS + 보고서 전문**을 반환한다(스크립트가 prompt 에 그 규약을 덧붙인다). `Summary` phase 에서 `consistency-summary` 가 `mode=workflow` 로 **각 checker 전문을 인라인으로 받아** 통합 SUMMARY 마크다운을 **반환**한다.
+
+> **왜 전문을 반환시키나**: 하네스가 sub-agent 에게 "보고서를 파일로 쓰지 말고 텍스트로 반환하라" 고 지시하기 때문에, checker 가 `output_file` Write 를 건너뛰는 일이 잦다(실측: 한 런에서 5개 중 4개가 Write 호출 0회). 옛 방식은 summary 가 디스크에서 Read 했기에 그런 checker 의 `[CRITICAL]` 이 **BLOCK 계산에서 조용히 누락**됐다(2026-07-10 실측 3회 — `BLOCK: NO` 인데 journal 엔 CRITICAL). 인라인 전달은 그 거짓 음성을 구조적으로 제거한다. 차단되는 것은 `SUMMARY.md` **basename** 뿐이고 checker 파일은 허용된다 — terminal 여부와 무관하다 ([`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md) 실측표). 완료 시 task-notification.
 
 ### 3. SUMMARY 기록 + 결과 확인
 
 Workflow 반환값 (항상 경로+전문):
-- `summary_output` — SUMMARY 절대경로. `summary_markdown` — 통합 SUMMARY **전문 (항상 채워짐)**. `summary_written` — workflow 내 summary write 성공 여부. `block` — YES/NO.
-- `unfinished[]` — success 아닌 checker. 비어있지 않으면(rate_limit/network) 해당 checker 만 재실행.
+- `summary_output` — SUMMARY 절대경로. `summary_markdown` — 통합 SUMMARY **전문 (항상 채워짐)**. `summary_written` — workflow 내 summary write 성공 여부(**거의 항상 false 가 정상** — 하네스가 `SUMMARY.md` basename 차단). `block` — YES/NO.
+- `checkers[]` — `{name, status, has_report}`. `has_report:false` 는 그 checker 의 findings 를 **아무것도 확보 못 했다**는 뜻 → Critical 을 숨기고 있을 수 있다.
+- `recovered[]` — 계약을 어기고 파일 대신 텍스트로 전문을 반환한 checker. 스크립트가 전문을 건져 summary 에 넘겼고 파일 영속화도 지시했다. `ls` 로 확인.
+- `unfinished[]` — **전문조차 확보 못 한** checker(파일도 없고 반환 본문도 없음). 비어있지 않으면 해당 checker 만 재실행. status 가 success 가 아니어도 전문이 있으면 여기 포함되지 않는다 — 재실행 불요.
 
-**반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist** (workflow 의 terminal summary write 는 차단될 수 있고 workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 신뢰 경로는 main 의 이 Write 다). 그 다음 반환의 `block` (또는 기록한 SUMMARY 상단)으로 `BLOCK: YES/NO` 판정.
+**반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **디스크 단일 진실의 유일한 경로가 main 의 이 Write** 다. 그 다음 반환의 `block` (또는 기록한 SUMMARY 상단)으로 `BLOCK: YES/NO` 판정.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 ScheduleWakeup cross-turn quota 자동 재시도를 갖지 않는다. 사전 쓰기 게이트(대화형 실행)라 수용 가능 — 한도 시 사용자가 재호출하거나 `unfinished` checker 만 다시 돌린다.
 
 ### (fallback) 수동 Agent 경로
 
 Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--update <...> --agent <name> --status <s>` CLI + 직접 `Agent` fan-out + `Agent(consistency-summary, session_dir=<...>)` 로 동일 결과를 낼 수 있다 (state CLI 는 `test_orchestrator_state.py` 류로 검증되는 안정 인터페이스). loop_mode 시 ScheduleWakeup 재예약.
+
+> **⚠ 직접 fan-out 은 상태 기록 책임이 main 으로 넘어온다.** `--update` 를 자동 호출하지 않으므로 `_retry_state.json` 이 prepare 스냅샷(`pending=전체, success=0`)에 멈춘 채 커밋된다 — 같은 세션 SUMMARY 는 "5/5 성공" 이라 하는데 상태 파일은 0 성공이라 **커밋된 증거가 서로 모순**된다(2026-07-17 실측: 한 브랜치에서 7개 세션). 이 파일은 `/loop --resume` 검증·`--summary-state` 분기의 SoT 다. fan-out 이 끝나면 실측 기준으로 동기화한다:
+> ```bash
+> python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
+>   --sync-from-disk <session_dir>     # disk 가 심판 — 산출물 없는 agent 는 success 아님
+> ```
+> 또한 직접 fan-out 은 Workflow 의 "전문도 반환" 보정이 없어 checker 가 Write 를 건너뛰면 결과가 사라진다. prompt 에 `output_file` Write 를 **명시적으로 지시하고 성공을 확인**시킬 것 ([`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md)).
 
 ### 4. BLOCK 처리
 

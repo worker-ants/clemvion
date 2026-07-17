@@ -173,6 +173,102 @@ class OrchestratorStateTest(unittest.TestCase):
         r = _run("--resume", str(self.sd))
         self.assertEqual(r.returncode, 1)
 
+    # ---- --sync-from-disk ---------------------------------------------------
+    #
+    # Covers the fallback path where main fans reviewers out with the Agent tool
+    # directly: `--update` never runs, so the state stays at its prepare-time
+    # snapshot while reports pile up on disk. Disk is the arbiter.
+
+    def _write_invocations(self, names, **overrides):
+        state = {
+            "agents_pending": list(names),
+            "agents_success": [],
+            "agents_fatal": [],
+            "subagent_invocations": [
+                {"name": n, "output_file": str(self.sd / f"{n}.md")} for n in names
+            ],
+        }
+        state.update(overrides)
+        self.state_file.write_text(json.dumps(state), encoding="utf-8")
+
+    def test_sync_from_disk_promotes_only_agents_with_a_report(self):
+        self._write_invocations(["security", "testing", "scope"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        (self.sd / "testing.md").write_text("x", encoding="utf-8")
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(sorted(s["agents_success"]), ["security", "testing"])
+        # A claimed status is worth nothing without a file — scope stays pending.
+        self.assertEqual(s["agents_pending"], ["scope"])
+        self.assertIn("still missing: scope", r.stdout)
+
+    def test_sync_from_disk_demotes_a_success_that_left_no_file(self):
+        # The exact fake-success shape this command exists to correct.
+        self._write_invocations(
+            ["security", "testing"], agents_success=["security", "testing"], agents_pending=[]
+        )
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_success"], ["security"])
+        self.assertEqual(s["agents_pending"], ["testing"])
+
+    def test_sync_from_disk_leaves_skipped_out_of_pending(self):
+        self._write_invocations(["security", "performance"], agents_skipped=["performance"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_pending"], [])
+        self.assertEqual(s["agents_skipped"], ["performance"])
+
+    def test_sync_from_disk_never_invents_agents(self):
+        # A stray file that no invocation claims must not enter the state.
+        self._write_invocations(["security"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        (self.sd / "bogus.md").write_text("x", encoding="utf-8")
+        _run("--sync-from-disk", str(self.sd))
+        s = self._state()
+        self.assertEqual(s["agents_success"], ["security"])
+
+    # ---- --verify-coverage --------------------------------------------------
+    #
+    # `agents_forced` is the router_safety whitelist the SKILL says a router cannot
+    # override. Nothing enforced it until this command: on 2026-07-17 `security` was
+    # skipped by a "this diff is small" judgement call on a diff that edited the
+    # open-redirect defence boundary.
+
+    def test_verify_coverage_passes_when_every_forced_agent_wrote(self):
+        self._write_invocations(["security", "testing"], agents_forced=["security", "testing"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        (self.sd / "testing.md").write_text("x", encoding="utf-8")
+        r = _run("--verify-coverage", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("2/2", r.stdout)
+
+    def test_verify_coverage_fails_and_names_the_missing_forced_agent(self):
+        self._write_invocations(["security", "testing"], agents_forced=["security", "testing"])
+        (self.sd / "testing.md").write_text("x", encoding="utf-8")
+        r = _run("--verify-coverage", str(self.sd))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("security", r.stderr)
+
+    def test_verify_coverage_ignores_claimed_status_without_a_file(self):
+        # Fake success must not satisfy the whitelist.
+        self._write_invocations(
+            ["security"], agents_forced=["security"], agents_success=["security"], agents_pending=[]
+        )
+        r = _run("--verify-coverage", str(self.sd))
+        self.assertEqual(r.returncode, 1)
+
+    def test_verify_coverage_is_a_noop_without_a_forced_list(self):
+        self._write_invocations(["security"])
+        r = _run("--verify-coverage", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("(none)", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
