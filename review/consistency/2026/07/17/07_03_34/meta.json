@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-17T07:03:34.690182",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-catch-all-terminal-contract.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

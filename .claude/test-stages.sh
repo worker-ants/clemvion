@@ -117,12 +117,24 @@ _cmd_backend_image_hygiene_smoke() {
   echo "  ok: 프런트/테스트 스택 부재 · dist/main.js 존재 · cron-parser v5 해소"
 }
 
+# `e2e-test`(backend only) 가 아니라 `e2e-test-full`(backend + playwright) 을 부른다.
+#
+# 근거: CI 는 `e2e` 잡이 `make e2e-test`, `e2e-frontend` 잡이 `make e2e-test-full` 로
+# **playwright 를 반드시 돌린다**(.github/workflows/e2e.yml). 여기서 `e2e-test` 만 부르면
+# TEST WORKFLOW 의 e2e 단계가 `status=PASS` 여도 **로컬에선 브라우저 테스트가 한 번도
+# 실행되지 않아** CI 에서야 프론트 회귀가 드러난다 — 로컬/CI 커버리지 불일치.
+# 실제로 사이드바 `/docs` slug 무한 중첩 회귀(2026-07-17)가 이 갭에서 나왔다: frontend
+# 라우팅은 unit 이 `useParams` 를 mock 하므로 "실제 Next 라우트 매칭"·"클라이언트
+# `notFound()` 실동작" 을 원리적으로 검증할 수 없어 playwright 가 유일한 검증 계층이다.
+#
+# 비용은 playwright 컨테이너 +~50s. `e2e-test-full` 은 backend runner 실패 시 playwright 를
+# short-circuit skip 하므로(Makefile §e2e-test-full) "백엔드 깨진 상태의 노이즈 실패" 는 없다.
 cmd_e2e() {
-  make e2e-test
+  make e2e-test-full
 }
 
 # run-test.sh 워치독이 e2e 스테이지를 timeout 으로 강제 종료할 때 호출된다.
-# `make e2e-test` 는 마지막에 `make e2e-down` 으로 컨테이너·볼륨을 내리는데,
+# `make e2e-test-full` 은 마지막에 `make e2e-down` 으로 컨테이너·볼륨을 내리는데,
 # runner 가 hang 한 채 KILL 되면 그 후행 down 이 실행되지 못해 dockerd 에 orphan
 # 컨테이너·볼륨이 남는다. 본 훅이 현재 worktree 의 compose project 를 정리한다.
 on_timeout_e2e() {

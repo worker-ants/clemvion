@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-17T00:21:55.590228",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/2-navigation — 사용자 가이드(/docs) 사이드바 링크가 buildWorkspaceHref 로 /w/<slug>/docs 를 만들어 catch-all 무한 중첩 루프 발생. 수정 계획: (1) sidebar.tsx navItems 에 workspaceScoped 플래그 도입해 /docs 는 bare href 사용 (2) (main)/[...rest]/page.tsx catch-all 을 terminal 로 — rest[0]=='w' 이면 prefix 재부착 금지, /w/<slug> 단독은 dashboard forward, 그 외는 notFound() (3) buildWorkspaceHref idempotent 화는 미채택. 관련 spec: spec/2-navigation/_layout.md:85, spec/2-navigation/9-user-profile.md:155-158)",
+  "target_path": "spec/2-navigation — 사용자 가이드(/docs) 사이드바 링크가 buildWorkspaceHref 로 /w/<slug>/docs 를 만들어 catch-all 무한 중첩 루프 발생. 수정 계획: (1) sidebar.tsx navItems 에 workspaceScoped 플래그 도입해 /docs 는 bare href 사용 (2) (main)/[...rest]/page.tsx catch-all 을 terminal 로 — rest[0]=='w' 이면 prefix 재부착 금지, /w/<slug> 단독은 dashboard forward, 그 외는 notFound() (3) buildWorkspaceHref idempotent 화는 미채택. 관련 spec: spec/2-navigation/_layout.md:85, spec/2-navigation/9-user-profile.md:155-158",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

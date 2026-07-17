@@ -4,6 +4,9 @@ status: partial
 code:
   - codebase/frontend/src/app/(main)/w/[slug]/profile/**
   - codebase/frontend/src/app/(main)/w/[slug]/workspace/settings/**
+  # §3 이 약속하는 "URL slug = FE 라우팅 SoT" 의 구현 — catch-all 흡수/terminal + 링크 생성
+  - codebase/frontend/src/app/(main)/[...rest]/page.tsx
+  - codebase/frontend/src/lib/workspace/href.ts
   - codebase/frontend/src/components/workspace/**
   - codebase/frontend/src/lib/stores/workspace-store.ts
   - codebase/frontend/src/lib/stores/theme-store.ts
@@ -152,7 +155,7 @@ pending_plans:
 
 - 팝업 메뉴에서 워크스페이스 선택 시 즉시 전환 + **새 slug URL 로 네비게이션**(`/w/<slug>/dashboard`).
 - **URL slug = FE 라우팅 SoT**: 활성 워크스페이스가 URL 경로(`/w/<slug>/...`, 예 `/w/team-alpha/workflows`)로 반영된다. `(main)/w/[slug]` layout 이 slug 를 워크스페이스로 해소해 기존 흐름 — `useWorkspaceStore.currentWorkspaceId`(localStorage 영속) → axios `X-Workspace-Id` 헤더 → `POST /api/auth/workspaces/:id/switch` 토큰 재발급 — 을 구동한다. slug 는 `GET /api/workspaces` 응답 필드이며 생성 시 확정·이후 불변(§4 "읽기 전용", rename≠URL변경 → 딥링크·북마크 안정).
-- **cold-load reconcile = URL 우선**: `[slug]` layout mount 시 resolved-id ≠ 활성 id 면 URL 에 맞춰 `switchWorkspace` 로 재조정한다(store 우선 아님). 무효/비멤버 slug 는 default 워크스페이스로 redirect — **UX 편의이며 인가 경계가 아니다**(유일 강제 지점은 backend `RolesGuard` 403). 구 무-slug 경로·알림 딥링크·`/`는 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다(query/hash 보존).
+- **cold-load reconcile = URL 우선**: `[slug]` layout mount 시 resolved-id ≠ 활성 id 면 URL 에 맞춰 `switchWorkspace` 로 재조정한다(store 우선 아님). 무효/비멤버 slug 는 default 워크스페이스로 redirect — **UX 편의이며 인가 경계가 아니다**(유일 강제 지점은 backend `RolesGuard` 403). 구 무-slug 경로·알림 딥링크·`/`는 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다(query/hash 보존). 단 **이미 `/w/` 로 시작하는 경로는 흡수 대상이 아니다** — 재부착하면 매칭되지 않는 경로가 한 세그먼트씩 길어지는 무한 리다이렉트가 되므로 catch-all 이 terminal 로 처리한다(`/w/<slug>` 단독은 dashboard forward, 그 외는 `notFound()`). 상세·기각 대안은 [_layout.md §2.2 각주 · R-3](./_layout.md).
 - backend 인가 모델은 **불변**: header-first(`X-Workspace-Id`) → 토큰 클레임(`activeWorkspaceId`). URL slug 는 FE 라우팅 SoT 일 뿐 **backend 인가 SoT 가 아니다**(계층 분리 — [data-flow/12-workspace.md](../data-flow/12-workspace.md) Rationale).
 - 선택된 워크스페이스에 따라 사이드바 메뉴의 데이터 범위 변경.
 - **slug 밖 유지(워크스페이스 무관·별 그룹)**: 유저 가이드(`/docs`, 워크스페이스 무관 콘텐츠)·인증(`/login` 등 `(auth)` 그룹). 에디터(`/workflows/[id]`)는 슬러그 라우팅 phase 2 에서 `(editor)/w/[slug]/workflows/[id]` 로 편입돼 `/w/<slug>/workflows/<id>` 로 렌더되며, `(main)/w/[slug]` 와 동일한 slug 게이트로 URL 우선 reconcile 한다.

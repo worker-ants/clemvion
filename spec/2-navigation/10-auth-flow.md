@@ -5,6 +5,8 @@ code:
   - codebase/frontend/src/app/(auth)/**
   - codebase/frontend/src/components/auth/**
   - codebase/frontend/src/proxy.ts
+  # §7.2 로그인 후 `/dashboard` 를 활성 slug 로 해소하는 catch-all
+  - codebase/frontend/src/app/(main)/[...rest]/page.tsx
   - codebase/frontend/src/lib/utils/password.ts
   - codebase/frontend/src/lib/api/auth.ts
   - codebase/frontend/src/lib/api/auth-providers.ts

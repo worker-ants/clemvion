@@ -5,6 +5,9 @@ code:
   - codebase/frontend/src/components/layout/**
   - codebase/frontend/src/lib/stores/sidebar-store.ts
   - codebase/frontend/src/lib/notifications/*.ts
+  # §2.2 각주·R-3 이 약속하는 catch-all terminal 계약 + 사이드바 링크 생성 헬퍼
+  - codebase/frontend/src/app/(main)/[...rest]/page.tsx
+  - codebase/frontend/src/lib/workspace/href.ts
 ---
 
 # Spec: 전체 레이아웃
@@ -82,7 +85,17 @@ code:
 | 12 | Agent Memory | 두뇌 회로 아이콘 (BrainCircuit) | /agent-memory | 에이전트 장기 메모리 조회·관리. 상세는 [Agent Memory](./16-agent-memory.md) 참조 |
 | 13 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
-> **경로는 활성 워크스페이스 기준**: 위 표의 경로는 논리 경로이며, 실제 URL 은 `/w/<slug>/<경로>` 로 렌더된다 (사이드바가 `buildWorkspaceHref(slug, path)` 로 생성; URL slug = FE 라우팅 SoT, [9-user-profile §3](./9-user-profile.md#3-워크스페이스-전환)). 구 무-slug 경로로 진입하면 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다. **예외 — User Guide(`/docs`)는 워크스페이스 무관 콘텐츠라 slug 밖으로 유지**한다(인증 `(auth)` 도 동일). 에디터 `/workflows/[id]` 는 슬러그 라우팅 phase 2 에서 `/w/<slug>/workflows/[id]` 로 편입됐다.
+> **경로는 활성 워크스페이스 기준**: 위 표의 경로는 논리 경로이며, 실제 URL 은 `/w/<slug>/<경로>` 로 렌더된다 (사이드바가 `buildWorkspaceHref(slug, path)` 로 생성; URL slug = FE 라우팅 SoT, [9-user-profile §3](./9-user-profile.md#3-워크스페이스-전환)). 구 무-slug 경로로 진입하면 `(main)/[...rest]` catch-all 이 활성 slug 로 흡수한다. **예외 — User Guide(`/docs`)는 워크스페이스 무관 콘텐츠라 slug 밖으로 유지**한다(인증 `(auth)` 도 동일). 사이드바는 이 예외를 `navItems` 의 `workspaceScoped: false` 로 표현한다 — 예외를 선언 시점에 고정해 "전 항목에 무조건 slug 부착" 회귀를 막는다. 에디터 `/workflows/[id]` 는 슬러그 라우팅 phase 2 에서 `/w/<slug>/workflows/[id]` 로 편입됐다.
+
+> **catch-all 은 `/w/` 접두 경로를 흡수하지 않는다 (terminal)**: `/w/<slug>/…` 인데 specific route 에 매칭되지 않는 경로(예: `/w/<slug>/docs` — `/docs` 는 위 예외로 slug 밖 라우트라 `w/[slug]` 하위에 존재하지 않는다)는 slug 를 **재부착하지 않고 종결**한다.
+>
+> | 입력 | 동작 |
+> |---|---|
+> | slug 없는 경로 (`/workflows`·`/dashboard`·`/integrations/<id>`·`/`) | 활성 slug 로 forward (query/hash 보존) |
+> | `/w/<slug>` 단독 | 그 워크스페이스 dashboard 로 forward (query/hash 보존) |
+> | 그 외 `/w/…` | `notFound()` — [11-error-empty-states §1.3](./11-error-empty-states.md) "존재하지 않는 라우트 접근 → 404"(사이드바 유지) |
+>
+> 재부착하면 매칭되지 않는 경로가 사이클마다 한 세그먼트씩 길어지는 **무한 리다이렉트**가 된다(실사용자 보고 회귀: `/w/a/docs` → `/w/a/w/a/docs` → …). 기각한 대안과 근거는 [§Rationale](#rationale) 참조.
 
 <!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(11) 이후에 배치한다. -->
 
@@ -191,3 +204,16 @@ code:
 ### R-2. §2.1 로고 행 — 라이트/다크 자산 선택 위임
 
 §2.1 의 로고 행은 라이트/다크 한정 없이 표기한다. 라이트/다크 자산 선택은 노출 자리(surface) 의 배경 톤에 따라 brand spec §8.4 가 결정한다 (§8.4.6 표 기준).
+
+### R-3. catch-all 의 `/w/` 접두 terminal 계약 — 기각한 대안
+
+`(main)/[...rest]` 는 slug 없는 경로를 활성 slug 로 흡수하지만, **이미 `/w/` 인 경로는 흡수하지 않고 종결**한다 (§2.2 각주). 두 대안을 기각했다:
+
+- **slug 재부착** (최초 구현, 실사용자 보고 회귀의 원인): `w/[slug]` 하위에 없는 세그먼트(예: `/w/<slug>/docs` — `/docs` 는 §2.2 예외로 slug 밖 라우트)는 specific route 매칭에 실패해 catch-all 로 오는데, 여기서 slug 를 또 붙이면 **영원히 매칭되지 않는 경로가 사이클마다 한 세그먼트씩 길어진다** — `/w/a/docs` → `/w/a/w/a/docs` → … 무한 리다이렉트.
+- **`/w/<slug>` 접두를 떼고 재-forward**: `/w/<slug>/<미지>` → `/<미지>` → catch-all 이 다시 prefix → `/w/<slug>/<미지>` → … **ping-pong 무한루프**가 되어 증상만 바뀐다.
+
+따라서 종결이 유일한 무한루프-free 선택지다. `notFound()` 는 신규 정책이 아니라 [11-error-empty-states §1.3](./11-error-empty-states.md) ("존재하지 않는 라우트 접근 → 404") 의 **기존 정책 준수**이며, 오히려 수정 전의 무한 리다이렉트가 그 정책 위반이었다. `/w/<slug>` 단독만 dashboard 로 forward 하는 것은 그 경로가 워크스페이스 루트로서 의미가 있고 forward 대상(`/w/<slug>/dashboard`)이 실재 라우트라 catch-all 재진입이 없기 때문이다.
+
+관련해 `buildWorkspaceHref` 는 **의도적으로 비-idempotent** 다 — 이미 `/w/…` 인 path 를 조용히 삼키면 호출자 버그를 은폐하고, `("team-a", "/w/team-b/x")` 의 올바른 답(team-a? team-b?)이 정의되지 않는다. 이 클래스의 실패는 catch-all 의 terminal 가드가 무한 리다이렉트가 아닌 **가시적 404** 로 떨어뜨려 드러낸다.
+
+무효/비멤버 slug 처리(→ default 워크스페이스 redirect, 404 아님)와는 다른 층이다: 그쪽은 **라우트는 실재하고 slug 해석만 실패**한 경우로 `[slug]` layout 의 `WorkspaceSlugGate` 가 담당한다 ([11-error-empty-states §1.3](./11-error-empty-states.md)). 본 항목은 **라우트 자체가 없는** 경우다.

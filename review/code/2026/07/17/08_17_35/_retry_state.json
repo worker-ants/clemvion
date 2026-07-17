@@ -1,0 +1,159 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "documentation",
+    "requirement"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: review/consistency/2026/07/17/01_25_26/cross_spec.md, review/consistency/2026/07/17/01_25_26/naming_collision.md, review/consistency/2026/07/17/01_25_26/plan_coherence.md (외 12건)"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/2-navigation/10-auth-flow.md, spec/2-navigation/11-error-empty-states.md, spec/2-navigation/9-user-profile.md (외 2건)"
+    ]
+  },
+  "agents_skipped": [
+    "security",
+    "performance",
+    "architecture",
+    "maintainability",
+    "testing",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/manual-trigger-default-param-e0d395/review/code/2026/07/17/08_17_35/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "requirement",
+    "scope",
+    "side_effect",
+    "documentation"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "requirement": [
+      {
+        "ts": "2026-07-16T23:25:52.991791Z",
+        "status": "success"
+      }
+    ],
+    "scope": [
+      {
+        "ts": "2026-07-16T23:25:53.022550Z",
+        "status": "success"
+      }
+    ],
+    "side_effect": [
+      {
+        "ts": "2026-07-16T23:25:53.052778Z",
+        "status": "success"
+      }
+    ],
+    "documentation": [
+      {
+        "ts": "2026-07-16T23:25:53.082958Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

@@ -1,0 +1,75 @@
+{
+  "decisions": [
+    {
+      "name": "security",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "requirement",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "scope",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "main 이 변경 성격 기반으로 선별 실행"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "main 이 변경 성격 기반으로 선별 실행"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "main 이 변경 성격 기반으로 선별 실행"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "main 이 변경 성격 기반으로 선별 실행"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "fix diff 는 상수 추출·테스트 assertion·문서로 동작 변경이 없어 해당 없음 (SUMMARY §라우터 결정 참조)"
+    }
+  ],
+  "note": "router sub-agent 미호출 — 알려진 Workflow router 매핑 버그(reviewers:[] 로 종결) 회피를 위해 main 이 fallback Agent fan-out 으로 직접 선별. 선별 근거는 동 세션 SUMMARY.md §라우터 결정 참조."
+}
