@@ -2330,11 +2330,11 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }) } as Response);
       await flushAsync();
     });
-    // **전제 고정** — 1차가 실제로 BLOCKED 에 도달했어야 의미가 있다(신규 거울상 테스트와 동형).
-    // 없으면 fail-open 으로 "둘 다 ALLOWED" 시나리오로 조용히 퇴화하는데도 통과한다
-    // (ai-review 2026-07-17 14_56_27 testing — 이 패턴을 물려받은 쪽도 함께 정정).
-    expect(result.current.state.phase).toBe("blocked");
-    // 2차(허용)가 나중에 resolve — 이쪽이 리셋을 이행해야 한다.
+    // **superseded 시도는 아무것도 디스패치하지 않는다** — 1차는 2차에 대체됐으므로 차단 응답이
+    // 와도 `BLOCKED` 로 전이시키지 않는다. 살아있는 2차의 결과가 화면을 정한다(§106).
+    // (supersede 도입 전에는 여기서 `phase === "blocked"` 였다 — 대체된 시도가 화면을 덮었다.)
+    expect(result.current.state.phase).not.toBe("blocked");
+    // 2차(허용)가 나중에 resolve — 살아있는 시도이므로 이쪽이 리셋을 이행한다.
     await act(async () => {
       embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
       await flushAsync();
@@ -2419,12 +2419,189 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 덮는 시나리오)로 조용히 퇴화하는데도 통과한다 — 실측 확인
     // (ai-review 2026-07-17 14_56_27 testing).
     expect(result.current.state.phase).toBe("blocked");
-    // **1차(먼저 진입)가 허용으로 나중에** 끝난다 — 이쪽이 리셋을 이행해야 한다.
+    // **1차(먼저 진입)가 허용으로 나중에** 끝난다 — 그러나 2차에 **대체됐으므로 물러난다**.
     await act(async () => {
       embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
       await flushAsync();
     });
 
+    // superseded 시도는 "성공하는 부팅" 이 아니므로 리셋을 이행하지 않는다 — 이 라운드엔 새 대화가
+    // 시작되지 않는다(`pendingResetRef` JSDoc §계약).
+    expect(hookPosts).toBe(0);
+
+    // **그러나 소실이 아니라 이월이다** — 이어서 성공하는 부팅이 오면 그때 이행된다.
+    // 이 단언이 없으면 위 `toBe(0)` 은 "리셋이 조용히 사라짐" 과 구분되지 않는다.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(3));
+    await act(async () => {
+      embedResolvers[2]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
     await waitFor(() => expect(hookPosts).toBe(1));
+  });
+
+  // spec 2-sdk §106 — "host 는 iframe 을 재생성하지 않고 wc:boot 을 다시 보내 boot config 를 갱신할 수
+  // 있다. 위젯은 **마지막 wc:boot 의 config 를 적용**한다."
+  //
+  // 세대가 없으면 `embed-config` 왕복의 **resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에
+  // resolve 하면 그게 이겨 §106 을 어긴다(도입 전 실측: plan A→B 로 보내고 순서를 역전시키니 A 가
+  // 적용됐다). `beginBootAttempt`/`isAttemptStale` 이 그걸 막는다.
+  it("§106: resolve 순서가 역전돼도 마지막 wc:boot 의 config 가 적용된다", async () => {
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+    const bootWithPlan = (plan: string) =>
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            origin: "http://host.test",
+            data: {
+              type: "wc:boot",
+              payload: { apiBase: "http://api.test/api", triggerEndpointPath: "t1", profile: { plan } },
+            },
+          }),
+        );
+      });
+
+    const { result } = renderHook(() => useWidget());
+    bootWithPlan("first");
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    bootWithPlan("last"); // 재전송 — 이게 마지막이므로 이 config 가 적용돼야 한다.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // **resolve 순서 역전** — 마지막 boot 이 먼저, 첫 boot 이 나중에 응답한다.
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+
+    const applied = (result.current.config?.profile as { plan?: string } | undefined)?.plan;
+    expect(applied).toBe("last");
+  });
+
+  // §106 두 번째 재검증 지점 — **복원 분기**(seed 뒤). 위 테스트는 첫 지점(embed 검증 뒤)만 덮는다.
+  //
+  // 이 지점이 왜 별도로 필요한가: 이 파일은 **비대칭 가드 누락**(한 호출부는 재검증하고 다른 호출부는
+  // 빠뜨림)으로 3번 CRITICAL 을 냈다(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5). 실제로 이 테스트를
+  // 쓰기 전엔 둘째 지점의 가드를 제거해도 45건이 전부 통과했다 — 무방비였다.
+  //
+  // 시나리오: 복원 seed 가 떠 있는 동안 host 가 `wc:boot` 을 재전송하면, **대체된** 시도는 그 세션으로
+  // SSE 를 열면 안 된다(`02_04_13` C1 과 동형 — 대체된 시도가 스트림·토큰 갱신을 되살리는 문제).
+  it("§106: 복원 seed 중 재전송으로 대체된 시도는 SSE 를 열지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let resolveStatus: ((r: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        // 복원 seed 의 getStatus 를 in-flight 로 잡아둔다.
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => {
+            resolveStatus = r;
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+
+    renderHook(() => useWidget());
+    boot(); // 1차
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+    await waitFor(() => expect(resolveStatus).not.toBeNull()); // 복원 seed in-flight.
+
+    // 2차 재전송 — 1차를 대체한다. (2차의 embed-config 는 일부러 미해결로 둬 1차 거동만 관측한다.)
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 1차의 seed 가 뒤늦게 정상 응답 — 그러나 1차는 대체됐으므로 물러나야 한다.
+    await act(async () => {
+      resolveStatus?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { executionId: "e1", status: "running" } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 대체된 시도가 옛 세션으로 SSE 를 열지 않았다.
+    expect(getEs()).toBeNull();
+  });
+
+  // `applyConfig` 의 **world 축** 고정 — 위 두 §106 테스트는 boot 축만 덮는다.
+  //
+  // A/B 로 확인한 기존 갭이다: 변경 전 코드(`isStale(gen)`)에서도 이 가드를 제거하면 44건이 전부
+  // 통과했다 — `applyConfig` 의 world 재검증은 한 번도 고정된 적이 없다. `isAttemptStale` 이 두 축을
+  // 함께 보게 되면서 mutation 매트릭스(world 축만 무력화)로 드러났다.
+  //
+  // 관측 경로: embed-config 왕복 중 언마운트. 언마운트는 world 를 무효화하므로(그 cleanup 이 세대를
+  // 올린다) 뒤늦게 resolve 한 부팅은 물러나야 한다 — 아니면 사라진 컴포넌트가 저장 세션을 복원하고
+  // SSE 를 연다(`08_29_33` W3 가 `start()` 경로에서 닫은 것과 동형).
+  it("embed-config 왕복 중 언마운트 → 지연 응답이 세션·SSE 를 되살리지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    let resolveEmbed: ((r: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            resolveEmbed = r;
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+
+    const { unmount } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(resolveEmbed).not.toBeNull()); // embed-config in-flight.
+
+    unmount();
+
+    // 사라진 위젯의 부팅이 뒤늦게 허용으로 resolve.
+    await act(async () => {
+      resolveEmbed?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { allowlist: [], enforce: false } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 복원 분기로 들어가 SSE 를 열지 않았다.
+    expect(getEs()).toBeNull();
   });
 });

@@ -173,6 +173,11 @@ export function useWidget() {
    * 이행한다. 그 부팅이 "리셋을 요청한 적 없어" 보여도 같은 host·같은 위젯 인스턴스이고 요청은
    * 실재했으므로, 늦게라도 이행하는 것이 맞다.
    *
+   * **"성공하는 부팅" 의 정의에 supersede 가 포함된다**: 더 새 `wc:boot` 에 대체된(superseded) 시도는
+   * config 를 적용하지 못하고 물러나므로 **성공한 것이 아니다** → 리셋을 이행하지 않고 플래그를 남긴
+   * 채 끝난다. 그래서 겹친 부팅에서는 리셋이 **그 라운드가 아니라 다음 성공 부팅에서** 이행될 수
+   * 있다 — 소실이 아니라 이월이다(`bootGenRef` JSDoc, spec 2-sdk §106).
+   *
    * **폐기 로직을 다시 넣지 말 것** — "실패한 부팅은 자기 리셋도 폐기한다"는 직관적이지만 **원리적
    * 으로 구현 불가능**하다: 지금 지워도 되는지는 *다른 겹친 시도가 나중에 성공할지*에 달렸는데 그건
    * 그 시점에 알 수 없다. 실제로 네 번 시도해 네 번 다 반대편 구멍이 났고(유령 리셋 → 진입-시 일괄
@@ -190,6 +195,23 @@ export function useWidget() {
    * 지원하게 되면) **X 시절 요청이 Y 의 세션을 초기화**할 수 있으니 이 조건도 함께 재검토할 것
    * (ai-review 2026-07-17 14_30_15 side_effect Q2 — 오늘 기준 도달 불가로 확인).
    */
+  /**
+   * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대. 나중 시도가 앞선 시도를 **대체**한다.
+   *
+   * `spec/7-channel-web-chat/2-sdk.md §106` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
+   * 있고 **위젯은 마지막 `wc:boot` 의 config 를 적용**한다고 정한다. 그런데 `host-bridge` 는 in-flight
+   * 여부를 보지 않고 매번 `applyConfig` 를 새로 기동하므로, 세대가 없으면 **`embed-config` 왕복의
+   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §106 을 어긴다
+   * (재현 확인: `profile.plan` A→B 순서로 보내고 resolve 를 역전시키면 A 가 적용됐다).
+   *
+   * **`worldGenRef` 와 축이 다르다 — 합치지 말 것.** 부팅 시도는 세계를 바꾸지 않는다(그래서
+   * `teardownSession` 은 config 확립 전엔 세대를 올리지 않는다 — 올렸다가 부팅 중 `applyConfig` 를
+   * 죽여 **패널이 영원히 안 열리는** 회귀를 냈다). 세계 무효화 ≠ 시도 대체다.
+   *
+   * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
+   * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
+   */
+  const bootGenRef = useRef(0);
   const pendingResetRef = useRef(false);
   // 종료 1회 가드 — SSE terminal 이벤트와 REST 폴백 terminal 이 같은 종료에 대해 각각 발화해도
   // host `conversationEnded` 를 두 번 보내지 않는다. `resetSessionRefs`(새 대화)에서 해제.
@@ -217,6 +239,35 @@ export function useWidget() {
    * 한다 (ai-review 2026-07-17 09_36_01 maintainability).
    */
   const isStale = useCallback((gen: number) => worldGenRef.current !== gen, []);
+
+  /**
+   * 새 부팅 시도를 개시하고 그 **시도 토큰**을 반환한다 — 앞선 시도는 이 호출로 대체된다.
+   *
+   * `applyConfig` 는 세계 무효화(`worldGenRef`)와 시도 대체(`bootGenRef`) **두 축 모두**에 걸린다.
+   * 그 둘을 호출부에서 손으로 AND 하지 않고 토큰 하나로 묶는 이유:
+   *
+   * 이 파일이 **비대칭 가드 누락으로 3번 CRITICAL 을 냈다** — 한 호출부는 재검증하고 다른 호출부는
+   * 빠뜨리는 형태(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5). 축을 하나 더 늘리면서 그 관용구를
+   * 손으로 복제하면 같은 실패를 초대한다. 토큰이면 **await 지점당 가드 호출은 여전히 1개**이고,
+   * 축이 늘어도 호출부가 아니라 이 predicate 한 곳만 바뀐다.
+   *
+   * 더 나아가 `applyConfig` 는 `gen`(world 단독)을 **스코프에 두지 않는다** — 그래서 거기서
+   * `isStale(gen)` 은 **컴파일되지 않는다**. 축을 빠뜨린 가드를 쓰는 것이 타입 검사로 막힌다
+   * (`guardedAwait` 구조화 대신 이걸 택한 근거: plan `webchat-boot-single-flight.md` §A-0).
+   *
+   * *(`start()`/`sendCommand`/`seedWaitingFromStatus` 는 world 축만 필요하므로 `isStale(gen)` 을 그대로
+   * 쓴다 — 필요 없는 곳에 축을 넣지 않는다.)*
+   */
+  const beginBootAttempt = useCallback(
+    () => ({ world: worldGenRef.current, boot: ++bootGenRef.current }),
+    [],
+  );
+  /** 이 부팅 시도가 낡았는가 — 세계가 무효화됐거나(world) 더 새 `wc:boot` 이 대체했거나(boot). */
+  const isAttemptStale = useCallback(
+    (attempt: { world: number; boot: number }) =>
+      worldGenRef.current !== attempt.world || bootGenRef.current !== attempt.boot,
+    [],
+  );
 
   const closeStream = useCallback(() => {
     streamRef.current?.close();
@@ -741,12 +792,14 @@ export function useWidget() {
   useEffect(() => {
     const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
-      // 세계 세대 캡처 — 아래 두 await(임베드 검증·seed) 뒤 재검증한다. 종전 `cancelled` 지역
-      // 플래그는 이 첫 await 만 덮고 seed/openStream 이후는 무방비였다(`worldGenRef` JSDoc §계약).
-      const gen = worldGenRef.current;
+      // 부팅 시도 개시 — 이 호출이 앞선 시도를 대체한다(§106 "마지막 wc:boot 적용"). 반환 토큰이
+      // 세계 무효화·시도 대체 두 축을 함께 들고 있어, 아래 두 await 뒤 재검증이 한 번씩이면 된다.
+      // `gen`(world 단독)을 일부러 스코프에 두지 않는다 — 여기서 `isStale(gen)` 은 컴파일되지 않는다
+      // (축 누락 가드를 타입 검사가 막는다. `beginBootAttempt` JSDoc §근거).
+      const attempt = beginBootAttempt();
       // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
       const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
-      if (isStale(gen)) return;
+      if (isAttemptStale(attempt)) return;
       if (!allowed) {
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
@@ -782,11 +835,12 @@ export function useWidget() {
           // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
           // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
           if (outcome !== "continue") return;
-          // `start()` 와 동형의 명시적 세대 재검증 — "모든 await 뒤 재검증" 계약(JSDoc)을 호출부가
-          // 스스로 지킨다. 위 `outcome` 게이팅이 이미 세대 변화를 잡지만, 그건 `seedWaitingFromStatus`
-          // 내부 구현에 대한 의존이다. 여기서 한 번 더 보면 그 내부가 바뀌어도(예: await 추가) 이
-          // 경로가 조용히 무방비가 되지 않는다 (ai-review 2026-07-17 08_29_33 W2).
-          if (isStale(gen)) return;
+          // `start()` 와 동형의 명시적 재검증 — "모든 await 뒤 재검증" 계약(JSDoc)을 호출부가
+          // 스스로 지킨다. 위 `outcome` 게이팅이 이미 world 변화를 잡지만, 그건 `seedWaitingFromStatus`
+          // 내부 구현에 대한 의존이고 **boot 축은 아예 보지 않는다**. 여기서 토큰으로 한 번 더 보면
+          // 그 내부가 바뀌어도(예: await 추가) 이 경로가 조용히 무방비가 되지 않는다
+          // (ai-review 2026-07-17 08_29_33 W2).
+          if (isAttemptStale(attempt)) return;
         }
         openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
