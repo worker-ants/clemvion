@@ -2318,7 +2318,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     );
     installControllableEventSource();
 
-    renderHook(() => useWidget());
+    const { result } = renderHook(() => useWidget());
     boot();
     await waitFor(() => expect(embedResolvers.length).toBe(1));
     sendHostCommand("resetSession"); // 1차 부팅 구간에 접수된 정당한 요청.
@@ -2330,6 +2330,10 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }) } as Response);
       await flushAsync();
     });
+    // **전제 고정** — 1차가 실제로 BLOCKED 에 도달했어야 의미가 있다(신규 거울상 테스트와 동형).
+    // 없으면 fail-open 으로 "둘 다 ALLOWED" 시나리오로 조용히 퇴화하는데도 통과한다
+    // (ai-review 2026-07-17 14_56_27 testing — 이 패턴을 물려받은 쪽도 함께 정정).
+    expect(result.current.state.phase).toBe("blocked");
     // 2차(허용)가 나중에 resolve — 이쪽이 리셋을 이행해야 한다.
     await act(async () => {
       embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
@@ -2345,8 +2349,13 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // 이게 별도로 필요한 이유(리뷰어 실측): 위 "혼합 순서" 테스트는 `bootGenRef` 소유권 설계를 **원본
   // 그대로 재도입해도 통과한다** — 그 설계의 안전한 절반만 고정하기 때문이다. 실제로 결함을 냈던
   // 절반(소유권자=최신 진입이 차단으로 먼저 끝나며 폐기 → 아직 살아있는 이전 진입의 리셋이 소실)은
-  // 이 테스트만 잡는다. 네 번째 잘못된 설계의 재도입을 막는 유일한 가드다.
-  // (ai-review 2026-07-17 14_30_15 concurrency — PROBE 를 정식 회귀 테스트로 승격)
+  // **겹침 케이스 중에선** 이 테스트만 잡는다.
+  //
+  // 단 스위트 전체로 보면 유일한 가드가 아니다 — 순차 케이스인 "차단된 부팅 중의 resetSession…"도
+  // 같은 mutation 을 독립적으로 잡는다(겹침이 없어 소유권 조건이 참이 되고, 그래서 그쪽도 폐기가
+  // 발동한다). **의도치 않은 이중 방어선이니 어느 쪽도 "중복"으로 지우지 말 것** — 둘은 순차/겹침
+  // 이라는 서로 다른 시나리오로 같은 결함을 잡는다.
+  // (ai-review 2026-07-17 14_30_15 concurrency PROBE 승격 · 14_56_27 testing 문구 정정)
   it("겹친 부팅에서 나중 진입이 차단으로 먼저 끝나도 먼저 진입한 쪽이 리셋을 이행한다", async () => {
     Object.defineProperty(window.document, "referrer", {
       value: "http://host.test/page",
@@ -2393,7 +2402,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     );
     installControllableEventSource();
 
-    renderHook(() => useWidget());
+    const { result } = renderHook(() => useWidget());
     boot(); // 1차 진입.
     await waitFor(() => expect(embedResolvers.length).toBe(1));
     sendHostCommand("resetSession"); // 1차 구간에 접수된 정당한 요청.
@@ -2405,6 +2414,11 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }) } as Response);
       await flushAsync();
     });
+    // **전제 고정** — 2차가 실제로 BLOCKED 에 도달했어야 이 테스트가 의미를 갖는다. 없으면
+    // `document.referrer` 가 빠지는 것만으로 fail-open 하여 "둘 다 ALLOWED"(이미 다른 테스트가
+    // 덮는 시나리오)로 조용히 퇴화하는데도 통과한다 — 실측 확인
+    // (ai-review 2026-07-17 14_56_27 testing).
+    expect(result.current.state.phase).toBe("blocked");
     // **1차(먼저 진입)가 허용으로 나중에** 끝난다 — 이쪽이 리셋을 이행해야 한다.
     await act(async () => {
       embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
