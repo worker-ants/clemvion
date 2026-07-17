@@ -202,6 +202,37 @@ class ForcedCoverageTest(unittest.TestCase):
             f.write("{not json")
         self.assertEqual(rg._forced_coverage_missing(d), [])
 
+    def test_an_empty_report_does_not_count_as_coverage(self):
+        # `touch security.md` must not satisfy the whitelist — "looks done, isn't" is the
+        # shape this gate exists to catch. Every real report is ≥254 bytes.
+        sp = self._session(forced=["security"], reports=[])
+        with open(os.path.join(os.path.dirname(sp), "security.md"), "w") as f:
+            f.write("")
+        self.assertEqual(rg._forced_coverage_missing(os.path.dirname(sp)), ["security"])
+        self.assertFalse(rg._summary_is_resolved(sp))
+
+    def test_malformed_field_types_do_not_crash_the_guard(self):
+        d = tempfile.mkdtemp()
+        sp = os.path.join(d, "SUMMARY.md")
+        with open(sp, "w", encoding="utf-8") as f:
+            f.write(CLEAN_SUMMARY)
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            # valid JSON, wrong shapes — a str would otherwise be iterated per-character
+            json.dump({"agents_forced": "security", "subagent_invocations": {"x": 1}}, f)
+        self.assertEqual(rg._forced_coverage_missing(d), [])
+
+    def test_a_forced_name_absent_from_invocations_falls_back_to_name_md(self):
+        d = tempfile.mkdtemp()
+        sp = os.path.join(d, "SUMMARY.md")
+        with open(sp, "w", encoding="utf-8") as f:
+            f.write(CLEAN_SUMMARY)
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            json.dump({"agents_forced": ["security"], "subagent_invocations": []}, f)
+        self.assertEqual(rg._forced_coverage_missing(d), ["security"])
+        with open(os.path.join(d, "security.md"), "w") as f:
+            f.write("# report\n")
+        self.assertEqual(rg._forced_coverage_missing(d), [])
+
 
 class EvaluateDecisionTableTest(unittest.TestCase):
     def _evaluate(self, *, committed, uncommitted, code_mtime, review_mtime):

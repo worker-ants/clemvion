@@ -92,8 +92,80 @@ def _save_state(state_file, state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
+def _report_paths(session_dir, state):
+    """Map checker name → where its report lives **in this session dir**.
+
+    NOT `output_file` from the state: that records the worktree the session was prepared
+    in, and worktrees are deleted when their task ends while `review/**` is committed —
+    so the same session is later read from a different worktree at a different absolute
+    path. Trusting the recorded path reports "no report" for every session whose worktree
+    is gone (537 of 575 committed code-review sessions when measured, 2026-07-17).
+
+    Mirrors `code_review_orchestrator._report_paths` — the two orchestrators keep their
+    state machines in lockstep by duplication (see this module's header). Change both.
+    """
+    sd = os.path.abspath(session_dir)
+    out = {}
+    for inv in state.get("subagent_invocations", []):
+        recorded = inv.get("output_file") or f"{inv['name']}.md"
+        out[inv["name"]] = os.path.join(sd, os.path.basename(recorded))
+    return out
+
+
+def _reconcile_state_with_disk(session_dir):
+    """Bring `_retry_state.json`'s buckets in line with the reports on disk. Returns
+    `(state, changed)`. Quiet — callers decide what to say.
+
+    Disk is the arbiter: a self-reported status with no file behind it is the fake
+    success this contract exists to remove. Rate-limit bookkeeping is left alone — a
+    checker that hit a limit has no file and stays pending, which is what /loop needs.
+
+    Mirrors `code_review_orchestrator._reconcile_state_with_disk`. Change both.
+    """
+    sd = os.path.abspath(session_dir)
+    state_file, state = _load_state(sd)
+    known = [i["name"] for i in state.get("subagent_invocations", [])]
+    if not known:
+        return state, False
+    outputs = _report_paths(sd, state)
+    skipped = set(state.get("agents_skipped", []))
+
+    on_disk = [n for n in known if os.path.isfile(outputs[n])]
+    missing = [n for n in known if n not in on_disk and n not in skipped]
+    fatal = [n for n in state.get("agents_fatal", []) if n in missing]
+
+    before = (
+        state.get("agents_success"),
+        state.get("agents_pending"),
+        state.get("agents_fatal"),
+    )
+    state["agents_success"] = on_disk
+    # A checker already recorded as fatal stays fatal — it is not merely "not run yet",
+    # and listing it in both buckets would make `pending`/`fatal` counts disagree.
+    state["agents_pending"] = [n for n in missing if n not in fatal]
+    state["agents_fatal"] = fatal
+    changed = before != (
+        state["agents_success"],
+        state["agents_pending"],
+        state["agents_fatal"],
+    )
+    if changed:
+        _save_state(state_file, state)
+    return state, changed
+
+
 def _emit_summary_state(session_dir):
-    _, state = _load_state(os.path.abspath(session_dir))
+    """One-line state summary.
+
+    Reconciles with disk first, so the numbers are true even when the session was fanned
+    out with the Agent tool directly — that path never calls `--update`, which used to
+    leave the state frozen at its prepare-time snapshot while the sibling SUMMARY.md
+    reported real successes. Self-healing on read beats adding one more thing a caller
+    must remember: the failure this addresses was itself an obligation living only in prose.
+    """
+    state, changed = _reconcile_state_with_disk(session_dir)
+    if changed:
+        print("(reconciled _retry_state.json with reports on disk)", file=sys.stderr)
     pending = len(state.get("agents_pending", []))
     success = len(state.get("agents_success", []))
     fatal = len(state.get("agents_fatal", []))
@@ -606,6 +678,13 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(1)
+        # Reconcile before handing the session back: a /loop wake-up decides what to
+        # re-run from these buckets, and a fallback fan-out (which never calls --update)
+        # leaves them frozen at the prepare-time snapshot — resuming from that re-runs
+        # checkers whose reports are already on disk.
+        _, changed = _reconcile_state_with_disk(sd)
+        if changed:
+            debug_log(f"Resume: reconciled _retry_state.json with disk under {sd}")
         debug_log(f"Resuming consistency session: {sd}")
         print(sd)
         sys.exit(0)

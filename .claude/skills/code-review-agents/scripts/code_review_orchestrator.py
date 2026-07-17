@@ -164,6 +164,8 @@ def _reconcile_state_with_disk(session_dir):
 
     Rate-limit bookkeeping (`rate_limit_episodes`, `last_reset_hint_sec`) is left alone —
     an agent that hit a limit has no file and stays pending, which is what /loop needs.
+
+    Mirrors `consistency_orchestrator._reconcile_state_with_disk`. Change both.
     """
     sd = os.path.abspath(session_dir)
     state_file, state = _load_state(sd)
@@ -175,12 +177,25 @@ def _reconcile_state_with_disk(session_dir):
 
     on_disk = [n for n in known if os.path.isfile(outputs[n])]
     missing = [n for n in known if n not in on_disk and n not in skipped]
+    fatal = [n for n in state.get("agents_fatal", []) if n in missing]
 
-    before = (state.get("agents_success"), state.get("agents_pending"))
+    before = (
+        state.get("agents_success"),
+        state.get("agents_pending"),
+        state.get("agents_fatal"),
+    )
     state["agents_success"] = on_disk
-    state["agents_pending"] = missing
-    state["agents_fatal"] = [n for n in state.get("agents_fatal", []) if n in missing]
-    changed = before != (state["agents_success"], state["agents_pending"])
+    # An agent already recorded as fatal stays fatal — it is not merely "not run yet",
+    # and listing it in both buckets would make `pending`/`fatal` counts disagree.
+    state["agents_pending"] = [n for n in missing if n not in fatal]
+    state["agents_fatal"] = fatal
+    # `agents_fatal` belongs in the comparison: without it, a run that only changed the
+    # fatal list fixed `state` in memory and then skipped the save.
+    changed = before != (
+        state["agents_success"],
+        state["agents_pending"],
+        state["agents_fatal"],
+    )
     if changed:
         _save_state(state_file, state)
     return state, changed
@@ -195,8 +210,14 @@ def _emit_summary_state(session_dir):
     reported real successes — two committed artifacts contradicting each other).
     Self-healing on read beats adding one more thing a caller must remember: the failure
     this addresses was itself an obligation that only lived in prose.
+
+    Caveat: that makes this command a conditional writer, so auditing an old committed
+    session can dirty the worktree. The write is announced on stderr rather than done
+    silently.
     """
-    state, _ = _reconcile_state_with_disk(session_dir)
+    state, changed = _reconcile_state_with_disk(session_dir)
+    if changed:
+        print("(reconciled _retry_state.json with reports on disk)", file=sys.stderr)
     pending = len(state.get("agents_pending", []))
     success = len(state.get("agents_success", []))
     fatal = len(state.get("agents_fatal", []))

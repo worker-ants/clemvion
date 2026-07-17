@@ -335,6 +335,29 @@ class OrchestratorStateTest(unittest.TestCase):
         self.assertEqual(s["agents_success"], ["security"])
         self.assertEqual(s["agents_pending"], ["testing"])
 
+    def test_reconcile_does_not_leave_an_agent_in_both_pending_and_fatal(self):
+        # A fatal agent is not merely "not run yet"; double membership makes the
+        # pending/fatal counts disagree with each other.
+        self._write_invocations(
+            ["security", "testing"], agents_fatal=["security"], agents_pending=["testing"]
+        )
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_fatal"], ["security"])
+        self.assertNotIn("security", s["agents_pending"])
+
+    def test_reconcile_persists_a_fatal_only_change(self):
+        # `changed` must consider agents_fatal: a run that only drops a stale fatal used
+        # to fix `state` in memory and then skip the save.
+        self._write_invocations(["security"], agents_fatal=["security"], agents_pending=[])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_fatal"], [], "fatal cleared in memory but not persisted")
+        self.assertEqual(s["agents_success"], ["security"])
+
     def test_reconcile_on_read_preserves_rate_limit_bookkeeping(self):
         # An agent that hit a limit has no file and must stay pending — without losing
         # the reset hint /loop schedules from.

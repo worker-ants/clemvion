@@ -81,4 +81,9 @@ W2 의 논지가 "산문 의무는 무너진다" 인데 답이 "의무를 하나
 - [x] 6. DOCUMENTATION — 두 SKILL·`subagent-call-contract.md` 를 "산문 의무" → "기계 강제 + 자동" 으로 정정
 - [x] 7. TEST WORKFLOW — 하네스 **232 OK**. 실 게이트 판정 exit 0 확인
       (e2e 면제: 변경 set 이 `.claude/**`+`plan/**` → PROJECT.md §e2e 면제 화이트리스트 96·97행 부분집합)
-- [ ] 8. REVIEW WORKFLOW
+- [x] 8. REVIEW WORKFLOW — `/ai-review` (수정한 workflow 로 자기 자신 리뷰, forced 7/7 확보)
+      → **MEDIUM, Critical 0, Warning 9**. W1~W9 + INFO 2건 조치, RESOLUTION 기록.
+      **W1 이 뼈아팠다**: 문서에 "자가 reconcile" 을 써놓고 `consistency_orchestrator.py` 는
+      손대지 않아 4개 리뷰어가 독립 재현 — 이 PR 이 없애려는 "메커니즘 없는 산문" 을 자매
+      서브시스템에 그대로 만든 셈. 구현 + 회귀 테스트 6건 신설로 해소.
+      W7(빈 파일로 게이트 통과)·W2/W3(fatal 이중멤버십·저장 스킵)도 실 결함이라 fix.

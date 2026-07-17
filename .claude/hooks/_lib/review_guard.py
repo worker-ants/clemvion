@@ -36,10 +36,12 @@ EITHER of these coverage gates fails:
   wedge the session; either gate's parsing falls back to "not blocked").
 
 "Fresh, resolved review" =
-  a `review/code/**/SUMMARY.md` in the working tree whose
-    - risk is resolved:  `## 전체 위험도` line is NONE/LOW, OR a sibling
-      `RESOLUTION.md` exists (critical/warning were addressed), AND
-    - freshness:         it postdates the newest changed codebase file.
+  a `review/code/**/SUMMARY.md` in the working tree satisfying ALL of:
+    1. coverage:   every `agents_forced` reviewer left a report on disk — the
+                   router_safety whitelist actually ran (`_forced_coverage_missing`);
+    2. risk:       EITHER a sibling `RESOLUTION.md` exists (critical/warning were
+                   addressed) OR `## 전체 위험도` is NONE/LOW with no actionable rows;
+    3. freshness:  it postdates the newest changed codebase file.
 
 "Fresh impl-done consistency report" =
   a `review/consistency/**/SUMMARY.md` whose session `meta.json` mode names
@@ -372,7 +374,13 @@ def _forced_coverage_missing(session_dir: str) -> list[str]:
     `output_file` — that records the worktree the session ran in, which is deleted when
     its task ends while `review/**` lives on in git. Trusting it would report every
     long-gone worktree's session as uncovered (537/575 at measurement time) and fire on
-    almost everything.
+    almost everything. (`code_review_orchestrator._report_paths` resolves the same way for
+    `--verify-coverage`; the two enforcement points must agree — change both.)
+
+    A report must be non-empty: existence alone would let `touch security.md` satisfy the
+    whitelist, which is the same "looks done, isn't" shape the gate exists to catch. The
+    bar is deliberately low rather than structural — all 4749 committed reports are ≥254
+    bytes, so nothing real is near it.
     """
     state_path = os.path.join(session_dir, "_retry_state.json")
     try:
@@ -381,35 +389,50 @@ def _forced_coverage_missing(session_dir: str) -> list[str]:
     except (OSError, ValueError):
         # No manifest (hand-written session, or a consistency dir that never had one) —
         # nothing to enforce. Fail open: this gate only tightens sessions that declared
-        # a whitelist.
+        # a whitelist. A session can therefore dodge it by having no manifest, but the
+        # manifest is what names the whitelist in the first place: with none there is
+        # nothing to check against, and failing closed would block every pre-manifest
+        # session in history.
         return []
 
     forced = state.get("agents_forced") or []
-    if not forced:
+    if not isinstance(forced, list) or not forced:
         return []
+    invocations = state.get("subagent_invocations")
+    if not isinstance(invocations, list):
+        invocations = []
     missing = []
     for inv_name in forced:
         recorded = next(
             (
                 i.get("output_file")
-                for i in state.get("subagent_invocations", [])
-                if i.get("name") == inv_name
+                for i in invocations
+                if isinstance(i, dict) and i.get("name") == inv_name
             ),
             None,
         ) or f"{inv_name}.md"
-        if not os.path.isfile(os.path.join(session_dir, os.path.basename(recorded))):
-            missing.append(inv_name)
+        path = os.path.join(session_dir, os.path.basename(str(recorded)))
+        try:
+            if os.path.getsize(path) > 0:
+                continue
+        except OSError:
+            pass  # absent, or unreadable — either way we have no report
+        missing.append(inv_name)
     return missing
 
 
 def _summary_is_resolved(summary_path: str) -> bool:
-    """A review is 'resolved' if it covered the forced reviewers AND either
-    surfaced nothing actionable or was followed up. True when:
-      - every `agents_forced` reviewer left a report (see `_forced_coverage_missing`),
-        AND
-      - a sibling RESOLUTION.md exists (critical/warning were addressed), OR
-      - the report's overall risk is NONE/LOW AND neither the Critical nor the
-        Warning table has a data row.
+    """A review is 'resolved' when BOTH hold:
+
+      1. **coverage** — every `agents_forced` reviewer left a report on disk
+         (`_forced_coverage_missing`); AND
+      2. **findings dealt with** — EITHER a sibling RESOLUTION.md exists (critical/warning
+         were addressed) OR the overall risk is NONE/LOW with no data row under either the
+         Critical or the Warning table.
+
+    (Written as an explicit 1-AND-2 rather than a flat bullet list: read with normal
+    operator precedence, `A, AND B, OR C` parses as `(A AND B) OR C` — i.e. "risk is low
+    ⇒ resolved regardless of coverage", the exact hole this gate closes.)
 
     An under-covered session simply is not "resolved", so it cannot satisfy the gate and
     a complete review has to run. Nothing is retroactively broken: the guard takes the
