@@ -34,9 +34,21 @@ import os
 import re
 import subprocess
 import sys
+import traceback
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "_lib"))
-from mermaid_lint_ready import is_ready  # noqa: E402 — shared readiness SoT
+try:
+    from mermaid_lint_ready import is_ready  # noqa: E402 — shared readiness SoT
+except Exception:
+    # Import failure must not break the session — fail open, same explicit
+    # convention as guard_default_branch_edit.py / guard_review_before_push.py's
+    # sibling-module imports (rather than relying on the interpreter crashing
+    # with a non-0/non-2 exit code, which the harness's contract happens to
+    # also treat as fail-open, but only implicitly). is_ready stays None; main()
+    # below folds that into the same "not ready" fail-open branch instead of
+    # crashing on a None call.
+    traceback.print_exc(file=sys.stderr)
+    is_ready = None  # type: ignore[assignment]
 
 MARKDOWN_EXTS = (".md", ".markdown", ".mdx")
 FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})[ \t]*mermaid\b", re.IGNORECASE | re.MULTILINE)
@@ -101,7 +113,7 @@ def main() -> int:
         return 0  # no mermaid block — fast path, never spawn node
 
     tool_dir = _resolve_tool_dir(target)
-    if not is_ready(tool_dir):
+    if is_ready is None or not is_ready(tool_dir):
         # Deps not installed *or only partially* — fail open. A bare directory
         # check would accept a half-written node_modules and lint against it;
         # is_ready also requires bootstrap's completion marker. SessionStart
