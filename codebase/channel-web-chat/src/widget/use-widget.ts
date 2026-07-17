@@ -788,6 +788,42 @@ export function useWidget() {
     apiRef.current = { open, close, submitMessage, closeStream, show, hide, updateProfile, newChat };
   });
 
+  /**
+   * config 확립 + 대기 중 리셋 소비 — **의도적으로 `async` 가 아니다.**
+   *
+   * `13_03_59` concurrency 리뷰는 "이 구간에 await 이 하나도 없다"는 사실을 리셋 이행의 **안전성
+   * 근거**로 삼았다: config 를 세우고 플래그를 소비하기까지 다른 콜백이 끼어들 수 없다는 것.
+   * 그런데 그 전제는 **주석으로만** 존재했다 — 실측하면 이 구간에 `await` 을 하나 넣어도 전체
+   * 스위트가 통과한다(A 도입 후에도 마찬가지). 즉 규율일 뿐 강제가 아니었다.
+   *
+   * **비-async 함수 안에는 `await` 을 쓸 수 없다** — 그래서 이 추출 자체가 불변식의 강제다. 테스트로
+   * 고정할 수 없는 종류("이 구간에 await 이 없다")를 타입 검사가 대신 막는다. 이 파일의 교훈대로
+   * **가드는 규율이 아니라 구조**여야 한다.
+   *
+   * **`async` 를 붙이지 말 것.** 여기 비동기 작업이 필요해지면 그건 이 함수에 넣을 일이 아니라
+   * 호출부(`applyConfig`)에서 **시도 토큰 재검증과 함께** 다뤄야 한다(`beginBootAttempt` JSDoc).
+   *
+   * @returns `"reset"` = 대기 중이던 리셋을 이행했다(호출부는 복원 분기를 건너뛴다) ·
+   *   `"continue"` = 평소대로 진행.
+   */
+  const establishConfig = useCallback((cfg: BootMessage): "reset" | "continue" => {
+    configRef.current = cfg;
+    setConfig(cfg);
+    clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
+    // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
+    // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
+    // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
+    // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
+    // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
+    // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
+    if (pendingResetRef.current) {
+      pendingResetRef.current = false;
+      apiRef.current.newChat();
+      return "reset";
+    }
+    return "continue";
+  }, []);
+
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
     const applyConfig = async (cfg: BootMessage) => {
@@ -804,21 +840,10 @@ export function useWidget() {
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
       }
-      configRef.current = cfg;
-      setConfig(cfg);
-      clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
-      // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
-      // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
-      // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
-      // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
-      // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
-      // 복원 분기는 의미가 없으므로(방금 지운다) 조기 return.
-      // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
-      if (pendingResetRef.current) {
-        pendingResetRef.current = false;
-        apiRef.current.newChat();
-        return;
-      }
+      // config 확립 ~ 리셋 소비는 **동기 구간이어야 한다** — 비-async 함수로 추출해 컴파일러가
+      // 강제한다(`establishConfig` JSDoc §근거). 리셋을 이행했으면 복원 분기는 의미가 없다
+      // (방금 저장소를 지웠다).
+      if (establishConfig(cfg) === "reset") return;
       // 새로고침 복원(N1): 저장 세션이 살아있으면 SSE 재연결.
       const saved = loadSession(cfg.triggerEndpointPath);
       if (saved) {
