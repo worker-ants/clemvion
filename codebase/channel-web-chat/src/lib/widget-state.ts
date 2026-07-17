@@ -127,6 +127,23 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "BOOTED":
       return { ...state, executionId: action.executionId, phase: "streaming" };
     case "WAITING":
+      // **종료된 대화는 입력 표면을 다시 열지 않는다** — 최후 방어선.
+      //
+      // 이 무조건 전이가 "종료된 위젯이 stale seed 응답으로 부활" 버그의 **직접 원인**이었다.
+      // 근본 원인(호출부의 staleness 가드 누락)은 `worldGenRef` 로 고쳤지만, 그 가드는 호출부
+      // 4곳이 각자 지켜야 하는 규율이라 새 호출부가 추가되면 다시 뚫릴 수 있다. 리듀서는 모든
+      // 경로가 반드시 통과하는 단일 지점이므로 여기서 한 번 더 막는다(defense-in-depth).
+      //
+      // 대화 재개는 `ended` 를 먼저 벗어난 **뒤** WAITING 을 받는다 — `START`(→`booting`) 또는
+      // `NEW_CHAT`(→`panel`). 따라서 `ended` 인 채로 도착한 WAITING 은 정의상 옛 세계의 것이다.
+      //
+      // **가드 범위는 WAITING 뿐이다** — `RESTORED`/`BOOTED`/`USER_MESSAGE` 도 `state.phase` 를
+      // 검사하지 않고 무조건 전이하므로, "ended 를 벗어나는 액션"의 리듀서 레벨 불변식은 아직 없다.
+      // 현재는 호출부가 `ended` 에서 그 액션들을 디스패치하지 않아 활성 버그가 아니고, 이번 라운드는
+      // 재현된 버그 표면(WAITING)만 최소로 막는다. 확대는 후속 — C1 이 보여줬듯 "명백히 안전해
+      // 보이는" 가드가 영구 정지를 만들 수 있어, 실패 사례 없이 넓히지 않는다.
+      // (ai-review 2026-07-17 08_29_33 W4 / 09_36_01 documentation·maintainability)
+      if (state.phase === "ended") return state;
       return {
         ...state,
         phase: "awaiting_user_message",

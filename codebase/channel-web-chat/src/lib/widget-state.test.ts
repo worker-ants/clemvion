@@ -109,6 +109,39 @@ describe("widgetReducer", () => {
     expect(s.messages.at(-1)).toMatchObject({ role: "user", text: "질문" });
   });
 
+  // 종료 후 도착한 WAITING 은 무시한다(최후 방어선). 이 무조건 전이가 "종료된 위젯이
+  // stale 응답으로 부활" 버그의 직접 원인이었다. 호출부 세대 가드가 근본 fix 지만, 리듀서는 모든
+  // 경로가 통과하는 단일 지점이라 여기서도 막는다. (ai-review 2026-07-17 08_29_33 W4)
+  it("ENDED 이후 WAITING → 무시(종료된 대화가 입력 표면으로 부활하지 않는다)", () => {
+    const s = reduce([
+      { type: "WAITING", interaction: { type: "buttons" } },
+      { type: "ENDED" },
+      {
+        type: "WAITING",
+        interaction: { type: "ai_conversation" },
+        threadMessages: [{ role: "assistant", text: "유령", source: "live" }],
+      },
+    ]);
+    expect(s.phase).toBe("ended");
+    expect(s.pending).toBeNull();
+    // 유령 메시지도 스레드에 섞이지 않는다.
+    expect(s.messages.some((m) => m.text === "유령")).toBe(false);
+  });
+
+  // 가드가 **정당한 재개**를 막지 않는지 — `ended` 를 벗어나는 두 경로 모두 확인한다.
+  // (`START` = eager 시작, `NEW_CHAT` = 대화 종료 후 새 대화라는 가장 흔한 흐름.)
+  it.each<[string, Parameters<typeof widgetReducer>[1]]>([
+    ["START", { type: "START" }],
+    ["NEW_CHAT", { type: "NEW_CHAT" }],
+  ])("%s 로 ended 를 벗어난 뒤의 WAITING 은 정상 동작(가드가 재개를 막지 않는다)", (_label, resume) => {
+    const s = reduce([
+      { type: "ENDED" },
+      resume,
+      { type: "WAITING", interaction: { type: "ai_conversation" } },
+    ]);
+    expect(s.phase).toBe("awaiting_user_message");
+  });
+
   it("ENDED → ended + pending 해제", () => {
     const s = reduce([
       { type: "WAITING", interaction: { type: "buttons" } },

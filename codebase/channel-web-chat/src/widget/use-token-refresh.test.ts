@@ -70,6 +70,8 @@ describe("useTokenRefresh (fake timer)", () => {
       sessionRef: { current: session(over) },
       clientRef,
       configRef: { current: { triggerEndpointPath: "t1", apiBase: "http://api.test/api" } as BootMessage },
+      // 실제 소유자(useWidget)가 무효화 시 증가시키는 세대 — 테스트는 직접 조작해 "세계가 바뀜"을 흉내낸다.
+      worldGenRef: { current: 0 },
     };
     const { result, unmount } = renderHook(() => useTokenRefresh(refs));
     return { result, unmount, refs, refreshToken };
@@ -96,7 +98,40 @@ describe("useTokenRefresh (fake timer)", () => {
     expect(refreshToken).not.toHaveBeenCalled();
   });
 
-  it("언마운트 후 타이머 미발화(cancelled 가드)", async () => {
+  // `refreshToken` 이 in-flight 인 동안 세계가 바뀌면(새 대화·종료·언마운트) 지연 응답이
+  // 새 세션을 옛 세션으로 덮거나 방금 지운 storage 를 되살리면 안 된다. 종전 `cancelledRef` 는
+  // 언마운트에서만 set 이라 `teardownSession()`(새 대화·대화 종료) 경로를 통째로 놓쳤다.
+  // (ai-review 2026-07-17 08_29_33 W5)
+  it("refresh in-flight 중 세대 변경(새 대화) → 지연 응답이 세션·storage 를 되살리지 않는다", async () => {
+    let resolveRefresh: ((v: { token: string; expiresAt: string }) => void) | null = null;
+    const { result, refs, refreshToken } = setup({}, () => new Promise((r) => { resolveRefresh = r; }));
+
+    act(() => result.current.scheduleRefresh());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
+    });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    expect(resolveRefresh).not.toBeNull(); // 갱신 요청 in-flight.
+
+    // 새 대화 — 소유자가 teardownSession 에서 세대를 올리고 세션을 교체한다.
+    refs.worldGenRef.current += 1;
+    refs.sessionRef.current = session({ executionId: "fresh", token: "iext_fresh" });
+    window.sessionStorage.removeItem("clemvion-web-chat:session:t1");
+
+    // 옛 세계의 갱신 응답이 뒤늦게 도착. 고정 횟수 microtask flush(`await Promise.resolve()` 반복)는
+    // 체인 길이를 추측하는 것이라 쓰지 않는다 — 이 파일의 fake timer 는 `shouldAdvanceTime: true` 라
+    // 타이머를 0ms 전진시키면 대기 중인 microtask 가 전부 배출된다(다른 테스트와 동일 관례).
+    await act(async () => {
+      resolveRefresh?.({ token: "iext_stale", expiresAt: new Date(Date.now() + NINETY_MIN).toISOString() });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    // 새 세션이 옛 토큰으로 덮이지 않았고, 지운 storage 도 되살아나지 않았다.
+    expect(refs.sessionRef.current?.token).toBe("iext_fresh");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  it("언마운트 후 타이머 미발화", async () => {
     const { result, unmount, refreshToken } = setup();
     act(() => result.current.scheduleRefresh());
     unmount();

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯: 버퍼 만료 재동기화 + 종료 처리 일원화 (7-channel-web-chat §3.1)
+
+EIA 5분 이벤트 버퍼 만료 신호(`execution.replay_unavailable`)는 서버 emit·위젯 리스너까지 있었으나 **소비 분기가 없어 no-op** 이었다. 배선하면서 드러난 세션 라이프사이클 결함들을 함께 정리한다.
+
+1. **버퍼 만료 재동기화**: 위젯이 `execution.replay_unavailable` 수신 시 `getStatus` snapshot(EIA §5.3)으로 폴백해 현재 표면을 재동기화한다. 신호 자체는 종료가 아니므로 스트림·세션은 유지.
+2. **gap 중 종료 감지 (사용자 가시 버그 수정)**: 버퍼 gap(≥5분) 안에 execution 이 종료되면 그 terminal 이벤트도 버퍼와 함께 유실돼 다시 오지 않는다(EIA `R-replay-unavailable`). 종전에는 위젯이 `streaming`("AI 응답 중" 스피너)에 **무기한 멈췄다** — 사용자 액션이 없는 구간이라 명령 410 을 통한 사후 복구도 닿지 않았다. 이제 스냅샷이 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행한다. 같은 판정이 **세션 복원 시점**에도 적용되며, 종료 확정 시 SSE 재오픈·토큰 갱신 예약을 건너뛴다(무효 토큰 스트림·종료 세션 storage 부활 방지).
+3. **종료 통지 중복 방지**: 종료 시퀀스를 `finalizeEnded(reason)` 로 일원화하고 `endedRef` 1회 가드를 도입했다. SSE terminal / REST 폴백 terminal / 명령 `410 Gone` / 사용자 종료 **네 진입점**이 이 가드를 공유해, 같은 종료에 대해 host 가 `conversationEnded` 를 2회 통지받지 않는다.
+4. **cross-session staleness 가드**: 비동기 응답(`getStatus`·명령)이 도착하기 전 "새 대화"/"대화 종료" 로 세션이 **교체**되면 그 응답을 폐기한다 — 옛 세션의 지연 응답이 살아있는 새 대화를 오종료시키지(410) 않는다. `seedWaitingFromStatus` 는 3-state(`"ended"`/`"stale"`/`"continue"`) 반환으로 호출부가 후속 `openStream`/`scheduleRefresh` 진행 여부를 판정하도록 계약을 명시화했다.
+5. **종료된 위젯 부활 버그 수정 (사용자 가시 버그 수정)**: 위 4번의 세션 **동일성** 검사는 교체는 잡았지만 **종료는 놓쳤다** — 세션 정리가 세션 참조를 null 하지 않기 때문에, 표면 시드 요청이 떠 있는 동안 SSE 종료 이벤트가 도착하면 뒤늦은 응답이 검사를 통과해 **이미 종료된 위젯을 입력 대기 표면으로 되살렸다**(재현 확인). 흩어져 있던 staleness 가드 4종(세션 동일성·start 전용 세대 카운터·부팅 지역 플래그·토큰 갱신 취소 플래그)을 **world 세대 토큰 하나로 통합**해, 종료·교체·언마운트를 구분 없이 전부 잡는다. 곁들여 드러난 동형 결함 둘도 함께 닫았다 — 시드가 네트워크 오류로 실패하는 경로가 세대 검사를 우회해 옛 세션이 스트림을 탈취하던 문제, 토큰 갱신 요청이 떠 있는 동안 새 대화가 시작되면 지연 응답이 방금 지운 세션 저장소를 되살리던 문제. 상태 리듀서에도 "종료된 대화는 입력 표면을 다시 열지 않는다" 최후 방어선을 추가했다.
+
+SoT: `spec/7-channel-web-chat/1-widget-app.md §3.1`. 서버측 emit 은 기존(PR #: `sse-adapter.service.ts` `replayOrSignalUnavailable`) — 본 변경은 **클라이언트 소비 배선**이다.
+
 ## Unreleased — 사용자 가이드(/docs) 진입 시 워크스페이스 slug 무한 중첩 fix
 
 사이드바 "사용자 가이드" 클릭 시 URL 이 `/w/<slug>/w/<slug>/…/docs` 로 매 리다이렉트마다 한 세그먼트씩 길어지며 가이드 페이지에 영영 도달하지 못하던 사용자 보고 회귀를 고친다.

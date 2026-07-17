@@ -74,7 +74,12 @@ export class WebAuthnCredentialDto {
   createdAt: string;
 }
 
-/** credential 목록 응답. SessionListDto 의 이중 중첩 패턴은 피한다. */
+/**
+ * credential 목록 응답. `SessionListDto` 와 **동일한** `{ items: [] }` shape 이며,
+ * 응답 인터셉터를 거쳐 `{ data: { items: [] } }` 로 나간다 — sessions·webauthn 양쪽의
+ * 백엔드·프런트가 의존하는 load-bearing 계약이라 bare array 로 낮추지 않는다
+ * (spec: `5-system/2-api-convention.md §5.2`, `5-system/1-auth.md`).
+ */
 export class WebAuthnCredentialListDto {
   @ApiProperty({ type: [WebAuthnCredentialDto] })
   items: WebAuthnCredentialDto[];
