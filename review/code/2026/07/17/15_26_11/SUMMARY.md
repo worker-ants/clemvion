@@ -30,14 +30,20 @@
 
 | 에이전트 | 위험도 | 핵심 발견 |
 |----------|--------|-----------|
-| testing | NONE | 4개 질의 전부 격리 worktree 독립 실측. 발견사항 없음 — 조치가 의도대로 작동하고 부작용 없음을 확인. |
+| testing | NONE | 4개 질의 전부 격리 worktree 독립 실측. 두 테스트가 퇴화를 탐지하고, 네 잘못된 설계 탐지력이 **4/3/2/5 로 유지**됨을 스택트레이스까지 대조 확인. |
+| side_effect | NONE | `bootGenRef` 3줄 surgical 재도입으로 독립 재현 → 정확히 2건 실패(testing 보고치와 일치). **스택트레이스 대조로 신규 단언이 기존 탐지 메커니즘을 가리지 않는 순수 부가(monotonic) 관계임을 실측 입증**. 8개 부작용 축 전부 해당 없음. INFO 6. |
+| security | NONE | 세션 위생 3축(옛 토큰 storage 잔존·무효 토큰 스트림·세션 폐기 권한)을 코드 재추적으로 독립 재검증 — 전부 안전. 과거 `09_36_01` 이 지적한 "부팅 중 리셋 시 storage 부활" 창이 **실제로 닫혔음** 확인. 이번 델타가 오히려 **임베드 origin allowlist fail-open 회귀를 잡는 테스트 사각지대를 메웠다**고 평가. INFO 5. |
+| requirement | NONE | RESOLUTION 주장을 mutation 2종으로 독립 재현(referrer 제거 → 퇴화 탐지 / `bootGenRef` 재도입 → 2건 실패). **과거(`02_31_18`) 유형의 RESOLUTION 과대 주장이 재발하지 않음** 확인. spec 3종(`1-widget-app §3.1/§3.2`·`3-auth-session §3.1`·`4-security §3-①`)이 구현과 line-level 일치, `3-auth-session` "200+종료 구현됨" 정정의 **경계 범위가 정확**함을 코드로 재확인. INFO 5. |
+| documentation | NONE | INFO 5. |
+| maintainability | NONE | INFO 4 — 신규 전제 단언이 **이 파일이 이미 확립한 컨벤션의 재사용**(새 관용구 신설 아님), 리드 코멘트 정정은 **순수 문서 부채 축소**. 주석 밀도 누적 추세는 이번 diff 가 만든 문제가 아닌 파일의 구조적 특성으로 기록. |
+| scope | NONE | 범위 이탈 없음 — "이번 diff 가 만든 게 아닌" 기존 테스트를 함께 고친 것도 정당하다고 판정. |
 
 ## 라우터 결정
 
-- router 미실행. 델타가 **테스트 단언 + 주석(프로덕션 0줄)** 이라 `testing` 단독 실행이 적합하다고 main 이 판단했다.
-  - **실행(1명)**: `testing`
-  - **미실행(13명)**: 프로덕션 동작이 바뀌지 않아 동작 축 재검토 실익이 없다. 이 코드의 동작 축은 직전 다섯 라운드가 누적 검토했다.
-  - **한계 명시**: router 의 의미 기반 판단이 아니라 main 의 수동 선별이다. 다만 이번 델타는 성격이 테스트·주석으로 명확히 한정되고 프로덕션 코드가 `git diff-tree` 로 0줄임이 확인됐다.
+- router 미실행. **`agents_forced` 화이트리스트 7명 전원 실행**(`documentation` · `maintainability` · `requirement` · `scope` · `security` · `side_effect` · `testing`).
+  - **미실행(7명)**: `api_contract` · `architecture` · `concurrency` · `database` · `dependency` · `performance` · `user_guide_sync` — `agents_forced` 밖이며, 델타가 테스트 단언 + 주석(프로덕션 `git diff-tree` 0줄)이라 해당 축의 검토 실익이 없다고 main 이 판단.
+  - **한계 명시**: router 의 의미 기반 판단이 아니라 main 의 수동 선별이다. 미실행이 "그 관점에서 깨끗함"을 뜻하지 않는다.
+  - **정정 기록**: 이 세션은 초기에 `testing` 1명만 실행했다 — **`agents_forced` 는 선별로 우회할 수 없는 강제 목록**인데 이를 어긴 것이었고, push 가드(`_forced_coverage_missing`)가 정확히 그 미제출을 잡아 차단했다. 나머지 6명을 같은 세션에 채워 커버리지를 충족했다.
 
 ---
 
