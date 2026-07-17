@@ -224,6 +224,25 @@ class ReaperTest(unittest.TestCase):
         self.assertTrue(os.path.exists(anchor))
         self.assertFalse(os.path.exists(sibling))
 
+    def test_keep_is_repeatable_and_protects_every_named_worktree(self):
+        """WARNING #2: `--keep` is documented (and coded, via `keep_paths`
+        accumulating rather than overwriting) as repeatable, but no existing
+        test ever passed it twice in one invocation — only the single-anchor
+        shape was pinned. A future parser refactor that swapped accumulation
+        for last-write-wins would silently protect only the second `--keep`
+        and pass every test above (each uses exactly one)."""
+        first = self._add_worktree("wt-keep-a")
+        second = self._add_worktree("wt-keep-b")
+        other = self._add_worktree("wt-other")
+        r = self._run("--keep", first, "--keep", second, cwd=self.repo,
+                      merged=["claude/wt-keep-a", "claude/wt-keep-b",
+                              "claude/wt-other"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(os.path.exists(first), "first --keep target must survive")
+        self.assertTrue(os.path.exists(second), "second --keep target must survive")
+        self.assertFalse(os.path.exists(other),
+                         "an unrelated merged worktree must still be reaped")
+
     def test_keep_when_cwd_equals_anchor_is_harmless(self):
         """The ordinary session, where both skips name the same worktree."""
         anchor = self._add_worktree("wt-anchor")
