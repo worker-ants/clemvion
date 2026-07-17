@@ -172,7 +172,7 @@ const END_REASONS: ReadonlySet<string> = new Set(CONVERSATION_END_REASONS);
 
 대신 spec 작업은 세 가지다:
 
-1. **endReason 영구 귀속처 지정** (convention WARNING 4) — 설계 rationale 이 plan 에만 있으면 plan 이 `complete/` 로 이동한 뒤 고아가 된다. 기존 4개 패키지가 모두 갖는 "spec 안의 영구 계약 서술처" 를 endReason 에도 준다. **후보**: `spec/conventions/node-output.md`(주제 근접 — convention INFO) vs `conversation-thread.md`. Phase 1 착수 시 확정.
+1. **endReason 영구 귀속처 = `interaction-type-registry.md` §4** (확정, 2026-07-17). 후보였던 `node-output.md` 는 **봉투 구조**의 SoT 라 값 도메인을 얹으면 경계가 흐려지고, `conversation-thread.md` 는 대화 UI 규약이라 IE 의 비대화 종결까지 담기엔 범위가 안 맞는다. `interaction-type-registry.md` 는 **"cross-cutting enum 누락" 문제의 거버넌스 진입점**이고 endReason 이 정확히 그 문제 계열이므로 자연스러운 자리다 — 다만 해법이 달라(패키지 SoT) 매트릭스가 아니라 별도 절로 둔다.
 2. **E-6** — `interaction-type-registry.md` 등록 + **거짓 보증 정정**.
 3. **E-7** — AI Agent / IE spec 산문에 패키지 backlink.
 
