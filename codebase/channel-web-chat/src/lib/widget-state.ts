@@ -152,12 +152,12 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       // 대화 재개는 `ended` 를 먼저 벗어난 **뒤** WAITING 을 받는다 — `START`(→`booting`) 또는
       // `NEW_CHAT`(→`panel`). 따라서 `ended` 인 채로 도착한 WAITING 은 정의상 옛 세계의 것이다.
       //
-      // **가드 범위는 WAITING 뿐이다** — `RESTORED`/`BOOTED`/`USER_MESSAGE` 도 `state.phase` 를
-      // 검사하지 않고 무조건 전이하므로, "ended 를 벗어나는 액션"의 리듀서 레벨 불변식은 아직 없다.
-      // 현재는 호출부가 `ended` 에서 그 액션들을 디스패치하지 않아 활성 버그가 아니고, 이번 라운드는
-      // 재현된 버그 표면(WAITING)만 최소로 막는다. 확대는 후속 — C1 이 보여줬듯 "명백히 안전해
-      // 보이는" 가드가 영구 정지를 만들 수 있어, 실패 사례 없이 넓히지 않는다.
-      // (ai-review 2026-07-17 08_29_33 W4 / 09_36_01 documentation·maintainability)
+      // **가드 범위**: `WAITING` · `RESTORED` · `BOOTED` 에 있다(각 case 주석 참조). `RESTORED`/`BOOTED`
+      // 로의 확대는 `08_29_33` W4 당시 "실패 사례가 없다"며 보류했다가, `ERROR` 로 종료된 대화가
+      // `wc:boot` 재전송으로 부활하는 사례가 재현돼 적용했다(plan `webchat-boot-single-flight.md` §A-6).
+      // `USER_MESSAGE` 는 여전히 무조건 전이한다 — 실패 사례가 없어 넓히지 않았다(C1 이 보여줬듯
+      // "명백히 안전해 보이는" 가드가 영구 정지를 만들 수 있다).
+      // (ai-review 2026-07-17 08_29_33 W4 / 17_36_57 documentation — A-6 이후 문구 정정)
       if (state.phase === "ended") return state;
       return {
         ...state,

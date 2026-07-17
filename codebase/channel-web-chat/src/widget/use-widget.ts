@@ -160,6 +160,23 @@ export function useWidget() {
    */
   const worldGenRef = useRef(0);
   /**
+   * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대. 나중 시도가 앞선 시도를 **대체**한다.
+   *
+   * `spec/7-channel-web-chat/2-sdk.md §106` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
+   * 있고 **위젯은 마지막 `wc:boot` 의 config 를 적용**한다고 정한다. 그런데 `host-bridge` 는 in-flight
+   * 여부를 보지 않고 매번 `applyConfig` 를 새로 기동하므로, 세대가 없으면 **`embed-config` 왕복의
+   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §106 을 어긴다
+   * (재현 확인: `profile.plan` A→B 순서로 보내고 resolve 를 역전시키면 A 가 적용됐다).
+   *
+   * **`worldGenRef` 와 축이 다르다 — 합치지 말 것.** 부팅 시도는 세계를 바꾸지 않는다(그래서
+   * `teardownSession` 은 config 확립 전엔 세대를 올리지 않는다 — 올렸다가 부팅 중 `applyConfig` 를
+   * 죽여 **패널이 영원히 안 열리는** 회귀를 냈다). 세계 무효화 ≠ 시도 대체다.
+   *
+   * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
+   * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
+   */
+  const bootGenRef = useRef(0);
+  /**
    * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
    *
    * config 확립 전(`applyConfig` 의 embed-config 왕복 중)에 host `resetSession`/`newChat` 이 오면
@@ -195,23 +212,6 @@ export function useWidget() {
    * 지원하게 되면) **X 시절 요청이 Y 의 세션을 초기화**할 수 있으니 이 조건도 함께 재검토할 것
    * (ai-review 2026-07-17 14_30_15 side_effect Q2 — 오늘 기준 도달 불가로 확인).
    */
-  /**
-   * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대. 나중 시도가 앞선 시도를 **대체**한다.
-   *
-   * `spec/7-channel-web-chat/2-sdk.md §106` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
-   * 있고 **위젯은 마지막 `wc:boot` 의 config 를 적용**한다고 정한다. 그런데 `host-bridge` 는 in-flight
-   * 여부를 보지 않고 매번 `applyConfig` 를 새로 기동하므로, 세대가 없으면 **`embed-config` 왕복의
-   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §106 을 어긴다
-   * (재현 확인: `profile.plan` A→B 순서로 보내고 resolve 를 역전시키면 A 가 적용됐다).
-   *
-   * **`worldGenRef` 와 축이 다르다 — 합치지 말 것.** 부팅 시도는 세계를 바꾸지 않는다(그래서
-   * `teardownSession` 은 config 확립 전엔 세대를 올리지 않는다 — 올렸다가 부팅 중 `applyConfig` 를
-   * 죽여 **패널이 영원히 안 열리는** 회귀를 냈다). 세계 무효화 ≠ 시도 대체다.
-   *
-   * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
-   * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
-   */
-  const bootGenRef = useRef(0);
   const pendingResetRef = useRef(false);
   // 종료 1회 가드 — SSE terminal 이벤트와 REST 폴백 terminal 이 같은 종료에 대해 각각 발화해도
   // host `conversationEnded` 를 두 번 보내지 않는다. `resetSessionRefs`(새 대화)에서 해제.
@@ -251,9 +251,16 @@ export function useWidget() {
    * 손으로 복제하면 같은 실패를 초대한다. 토큰이면 **await 지점당 가드 호출은 여전히 1개**이고,
    * 축이 늘어도 호출부가 아니라 이 predicate 한 곳만 바뀐다.
    *
-   * 더 나아가 `applyConfig` 는 `gen`(world 단독)을 **스코프에 두지 않는다** — 그래서 거기서
-   * `isStale(gen)` 은 **컴파일되지 않는다**. 축을 빠뜨린 가드를 쓰는 것이 타입 검사로 막힌다
-   * (`guardedAwait` 구조화 대신 이걸 택한 근거: plan `webchat-boot-single-flight.md` §A-0).
+   * 곁들여 `applyConfig` 는 `gen`(world 단독)을 **스코프에 두지 않는다** — 그래서 거기서
+   * `isStale(gen)` 은 컴파일되지 않는다. **단 이건 좁은 보호다**: 이 파일의 다른 함수에서 관용구를
+   * 복사해 오는 가장 흔한 실수만 막을 뿐, `isStale(attempt.world)` 처럼 **일부러 축을 빼면 통과한다**
+   * (실측 확인 — `isStale(worldGenRef.current)` 는 자기 자신과 비교해 **항상 false 인 무력 가드**가
+   * 되는데도 컴파일된다). 타입 검사가 축 누락 일반을 막아주지는 **않는다**
+   * (ai-review 2026-07-17 17_36_57 maintainability — 내 초기 주장이 과했다).
+   *
+   * 진짜 방어선은 **테스트**다: 두 재검증 지점 각각을 비대칭으로 제거하는 mutation 이 회귀 테스트에
+   * 잡힌다(plan `webchat-boot-single-flight.md` §A-5 매트릭스). `guardedAwait` 구조화 대신 이 조합을
+   * 택한 근거는 같은 plan §A-0.
    *
    * *(`start()`/`sendCommand`/`seedWaitingFromStatus` 는 world 축만 필요하므로 `isStale(gen)` 을 그대로
    * 쓴다 — 필요 없는 곳에 축을 넣지 않는다.)*
@@ -443,7 +450,15 @@ export function useWidget() {
    * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded` 뿐(그 자체도 stable 콜백).
    */
   const seedWaitingFromStatus = useCallback(
-    async (client: EiaClient, session: SessionRef): Promise<SeedOutcome> => {
+    async (
+      client: EiaClient,
+      session: SessionRef,
+      /**
+       * 호출부가 부팅 시도라면 그 토큰 — **대체된 시도는 종료를 확정하지 못한다**(아래 §근거).
+       * `start()`·`replay_unavailable` 폴백은 부팅 시도가 아니므로 넘기지 않는다.
+       */
+      attempt?: { world: number; boot: number },
+    ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
         const status = await client.getStatus(session.endpoints, session.token);
@@ -461,6 +476,16 @@ export function useWidget() {
         // 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지·재전송 안 함 — EIA R-replay-unavailable).
         // 이 분기가 없으면 위젯이 `streaming`("AI 응답 중" 스피너)에 무기한 멈춘다 — 사용자 액션이
         // 없는 구간이라 `sendCommand` 의 410 사후 복구 경로도 닿지 않는다.
+        // **대체된 부팅 시도는 종료를 확정하지 않는다.** `finalizeEnded` 는 `teardownSession` 을
+        // 거쳐 **world 세대를 올리는데**, 그 무효화는 정당하더라도(세션이 실제로 종료됐다) **아직
+        // 살아있는 마지막 부팅까지 함께 stale 화해** §106("마지막 wc:boot 의 config 적용")을 깨뜨린다
+        // — 그 부팅은 아직 어떤 세션도 건드리지 않았는데 "내 world 가 사라졌다"로 오독하고 물러난다
+        // (재현 확인: 마지막 boot 의 config B 가 적용되지 않고 A 가 고착).
+        //
+        // 물러나면 종료가 유실되지 않는가? 아니다 — 저장 세션이 그대로 남으므로 **살아있는 시도가
+        // 자기 복원 분기에서 같은 스냅샷을 보고** 종료를 확정한다. 확정의 주체만 바뀐다.
+        // (ai-review 2026-07-17 17_36_57 concurrency CRITICAL — 실측 재현)
+        if (attempt && isAttemptStale(attempt)) return "stale";
         if ((TERMINAL_EVENTS as readonly string[]).includes(`execution.${status.status}`)) {
           finalizeEnded(`execution.${status.status}`);
           return "ended"; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
@@ -495,7 +520,7 @@ export function useWidget() {
         return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [finalizeEnded, isStale],
+    [finalizeEnded, isStale, isAttemptStale],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -596,11 +621,22 @@ export function useWidget() {
           // host 가 같은 종료를 2회 통지받으므로 `endedRef` 1회 가드를 공유한다.
           finalizeEnded("gone");
         } else {
+          // **에러도 종료다 — 세션을 정리한다.** 리듀서가 `ERROR` 를 `phase: "ended"` 로 보내므로
+          // 사용자에겐 끝난 대화이고, 복구 수단은 "새 대화" 뿐이다. 그런데 종전엔 여기서 정리를
+          // 하지 않아 **`teardownSession` 을 거치지 않는 유일한 종료 경로**였다 → SSE 가 열린 채 남고
+          // 저장 세션도 남아, host 가 `wc:boot` 을 재전송하면(2-sdk §106) 복원 분기가 그 세션으로
+          // **`getStatus` 재조회 + SSE 재오픈 + 토큰 갱신 예약**을 다시 수행했다(재현 확인 —
+          // 리듀서의 `ended` 가드는 화면만 막을 뿐 이 부작용은 못 막는다).
+          //
+          // `finalizeEnded` 를 쓰지 않는 이유: 그쪽은 `ENDED` 를 디스패치해 **에러 메시지를 잃는다**.
+          // 정리만 공유하고 전이는 `ERROR` 로 한다. host 통지(`conversationEnded`)도 보내지 않는다 —
+          // 정상 종료가 아니라 실패이고, 종전 동작(에러 시 미통지)을 바꾸지 않는다.
+          teardownSession();
           dispatch({ type: "ERROR", message: errMessage(e) });
         }
       }
     },
-    [finalizeEnded, isStale],
+    [finalizeEnded, isStale, teardownSession],
   );
 
   // C1(§R6) 보류 메시지 큐 — booting/streaming 중 텍스트를 보관했다가 awaiting_user_message 진입 시 flush.
@@ -856,7 +892,7 @@ export function useWidget() {
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
         if (clientRef.current) {
-          const outcome = await seedWaitingFromStatus(clientRef.current, saved);
+          const outcome = await seedWaitingFromStatus(clientRef.current, saved, attempt);
           // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
           // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
           if (outcome !== "continue") return;

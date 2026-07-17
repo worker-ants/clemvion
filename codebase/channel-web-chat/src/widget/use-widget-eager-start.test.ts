@@ -2494,6 +2494,92 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(applied).toBe("last");
   });
 
+  // §106 — **대체된 시도의 종료 확정이 살아있는 마지막 부팅을 죽이지 않는다.**
+  //
+  // 재현된 결함(ai-review 17_36_57 concurrency CRITICAL): 대체된 1차가 복원 seed 에서 "이미 종료됨"을
+  // 발견하면 `finalizeEnded` → `teardownSession` → **world 세대 증가**가 일어난다. 그 무효화는 정당하나
+  // (세션이 실제로 종료됐다), 아직 살아있는 2차가 그걸 "내 world 가 사라졌다"로 오독하고 물러나
+  // **마지막 config 가 적용되지 않았다**(plan=A 고착). 2차는 그때까지 어떤 세션도 건드리지 않았다.
+  //
+  // fix: 대체된 시도의 seed 는 종료를 **확정하지 않는다**(`"stale"` 반환). 종료가 유실되진 않는다 —
+  // 저장 세션이 남아 살아있는 시도가 자기 복원 분기에서 같은 스냅샷을 보고 확정한다. **주체만 바뀐다.**
+  it("§106: 대체된 시도의 종료 확정이 마지막 부팅을 죽이지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => {
+            statusResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const terminal = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { executionId: "e1", status: "completed" } }) }) as Response;
+    const bootWithPlan = (plan: string) =>
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            origin: "http://host.test",
+            data: {
+              type: "wc:boot",
+              payload: { apiBase: "http://api.test/api", triggerEndpointPath: "t1", profile: { plan } },
+            },
+          }),
+        );
+      });
+
+    const { result } = renderHook(() => useWidget());
+    bootWithPlan("first");
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // 1차가 복원 seed 진입.
+
+    bootWithPlan("last"); // 2차 재전송 — 1차를 대체한다.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 1차의 seed 가 "이미 종료됨" 으로 응답 — 대체됐으므로 종료를 확정하면 안 된다.
+    await act(async () => {
+      statusResolvers[0](terminal());
+      await flushAsync();
+    });
+    // 2차가 뒤늦게 resolve — 1차의 종료 확정에 휩쓸려 물러나면 안 된다.
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+    if (statusResolvers.length > 1) {
+      await act(async () => {
+        statusResolvers[1](terminal());
+        await flushAsync();
+      });
+    }
+
+    // 마지막 boot 의 config 가 적용됐다(§106).
+    expect((result.current.config?.profile as { plan?: string } | undefined)?.plan).toBe("last");
+    // 그리고 종료는 유실되지 않았다 — 살아있는 시도가 확정했다(주체만 바뀜).
+    expect(result.current.state.phase).toBe("ended");
+  });
+
   // §106 두 번째 재검증 지점 — **복원 분기**(seed 뒤). 위 테스트는 첫 지점(embed 검증 뒤)만 덮는다.
   //
   // 이 지점이 왜 별도로 필요한가: 이 파일은 **비대칭 가드 누락**(한 호출부는 재검증하고 다른 호출부는
@@ -2619,6 +2705,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
+    let statusCalls = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn((url: unknown, init?: RequestInit) => {
@@ -2628,11 +2715,12 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
             embedResolvers.push(r);
           });
         }
-        // 명령이 500 으로 실패 → ERROR → ended (세션 정리 없음).
+        // 명령이 500 으로 실패 → ERROR → ended.
         if (u.includes("/interact")) {
           return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
         }
         if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          statusCalls += 1;
           return Promise.resolve({
             ok: true,
             status: 200,
@@ -2666,8 +2754,12 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
     act(() => result.current.actions.submitMessage("실패할 명령"));
     await waitFor(() => expect(result.current.state.phase).toBe("ended"));
-    // 전제 — 세션이 남아 있어야 이 테스트가 의미를 갖는다(남지 않으면 복원 자체가 불가).
-    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").toContain("e1");
+
+    // **근본 fix** — 에러도 종료이므로 세션이 정리된다(종전엔 `teardownSession` 을 거치지 않는 유일한
+    // 종료 경로라 storage 가 남았다). 이게 부활의 연료였다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    const esAfterError = getEs();
+    const statusCallsAfterError = statusCalls;
 
     // host 가 외형 갱신 등으로 wc:boot 재전송.
     boot();
@@ -2677,7 +2769,10 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       await flushAsync();
     });
 
-    // 종료된 대화가 되살아나지 않았다.
+    // 종료된 대화가 되살아나지 않았다 — **화면뿐 아니라 부작용도**.
     expect(result.current.state.phase).toBe("ended");
+    // 리듀서 가드만 있고 세션이 남으면 여기서 getStatus 재조회·SSE 재오픈이 일어난다(재현 확인).
+    expect(statusCalls).toBe(statusCallsAfterError);
+    expect(getEs()).toBe(esAfterError);
   });
 });
