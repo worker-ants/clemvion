@@ -30,12 +30,18 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(THIS_DIR)
 SKILLS_DIR = os.path.dirname(SKILL_DIR)  # .claude/skills/
 CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILLS_DIR, "code-review-agents"))
+CLAUDE_DIR = os.path.dirname(SKILLS_DIR)  # .claude/
 sys.path.insert(0, CODE_REVIEW_SKILL)
 sys.path.insert(0, SKILLS_DIR)
+sys.path.insert(0, CLAUDE_DIR)
 
 from lib import session  # noqa: E402
 from lib.role_instructions import CHECKER_INSTRUCTIONS  # noqa: E402
 from _lib import project_config  # noqa: E402
+
+# Report location/validity is shared with the push/stop gate and the code-review
+# orchestrator — see `.claude/_shared/report_paths.py`. One rule, three consumers.
+from _shared import report_paths as _report_paths_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -92,26 +98,6 @@ def _save_state(state_file, state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
-def _report_paths(session_dir, state):
-    """Map checker name → where its report lives **in this session dir**.
-
-    NOT `output_file` from the state: that records the worktree the session was prepared
-    in, and worktrees are deleted when their task ends while `review/**` is committed —
-    so the same session is later read from a different worktree at a different absolute
-    path. Trusting the recorded path reports "no report" for every session whose worktree
-    is gone (537 of 575 committed code-review sessions when measured, 2026-07-17).
-
-    Mirrors `code_review_orchestrator._report_paths` — the two orchestrators keep their
-    state machines in lockstep by duplication (see this module's header). Change both.
-    """
-    sd = os.path.abspath(session_dir)
-    out = {}
-    for inv in state.get("subagent_invocations", []):
-        recorded = inv.get("output_file") or f"{inv['name']}.md"
-        out[inv["name"]] = os.path.join(sd, os.path.basename(recorded))
-    return out
-
-
 def _reconcile_state_with_disk(session_dir):
     """Bring `_retry_state.json`'s buckets in line with the reports on disk. Returns
     `(state, changed)`. Quiet — callers decide what to say.
@@ -127,10 +113,10 @@ def _reconcile_state_with_disk(session_dir):
     known = [i["name"] for i in state.get("subagent_invocations", [])]
     if not known:
         return state, False
-    outputs = _report_paths(sd, state)
     skipped = set(state.get("agents_skipped", []))
 
-    on_disk = [n for n in known if os.path.isfile(outputs[n])]
+    # `has_report` (shared with the gate) = present AND non-empty.
+    on_disk = [n for n in known if _report_paths_lib.has_report(sd, n, state)]
     missing = [n for n in known if n not in on_disk and n not in skipped]
     fatal = [n for n in state.get("agents_fatal", []) if n in missing]
 

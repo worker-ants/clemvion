@@ -96,6 +96,12 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 > python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
 >   --sync-from-disk <session_dir>     # disk 가 심판 — 산출물 없는 agent 는 success 아님
 > ```
+>
+> **소급 재분류 주의**: "산출물 존재" 판정이 "존재 + 비어있지 않음" 으로 강화된 뒤([`report_paths.py`
+> `has_report()`](../../_shared/report_paths.py)) 이 정의는 과거에 이미 커밋된 세션에도 그대로
+> 적용된다. 0바이트 placeholder 리포트를 가진 과거 세션에 `--summary-state`/`--resume` 를
+> 실행하면(예: 감사·재조회 목적) 그 세션은 이제 "누락" 으로 재분류되고 `_retry_state.json` 이
+> 갱신돼 워크트리가 dirty 해질 수 있다 — 조회만 했는데도.
 
 ### 4. BLOCK 처리
 

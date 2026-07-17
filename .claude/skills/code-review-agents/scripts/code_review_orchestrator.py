@@ -28,13 +28,21 @@ from datetime import datetime
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _SKILL_DIR = os.path.dirname(_SCRIPT_DIR)
 _SKILLS_DIR = os.path.dirname(_SKILL_DIR)  # .claude/skills/
+_CLAUDE_DIR = os.path.dirname(_SKILLS_DIR)  # .claude/
 sys.path.insert(0, _SKILL_DIR)
 sys.path.insert(0, _SKILLS_DIR)
+sys.path.insert(0, _CLAUDE_DIR)
 
 from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
 from _lib import project_config  # noqa: E402
+
+# Report location/validity is shared with the push/stop gate — see
+# `.claude/_shared/report_paths.py`. `--verify-coverage` and `review_guard` must answer
+# "did this agent leave a report?" identically; each keeping its own copy behind a
+# "change both" comment already diverged inside one PR.
+from _shared import report_paths as _report_paths_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -172,10 +180,12 @@ def _reconcile_state_with_disk(session_dir):
     known = [i["name"] for i in state.get("subagent_invocations", [])]
     if not known:
         return state, False
-    outputs = _report_paths(sd, state)
     skipped = set(state.get("agents_skipped", []))
 
-    on_disk = [n for n in known if os.path.isfile(outputs[n])]
+    # `has_report` (shared with the gate) = present AND non-empty. Plain `isfile` here
+    # would count a `touch`ed placeholder that the gate refuses — the two enforcement
+    # points must not disagree.
+    on_disk = [n for n in known if _report_paths_lib.has_report(sd, n, state)]
     missing = [n for n in known if n not in on_disk and n not in skipped]
     fatal = [n for n in state.get("agents_fatal", []) if n in missing]
 
@@ -231,28 +241,6 @@ def _emit_summary_state(session_dir):
     )
 
 
-def _report_paths(session_dir, state):
-    """Map agent name → where its report lives **in this session dir**.
-
-    NOT `output_file` from the state, which is the absolute path of the worktree the
-    session was prepared in (`…/.claude/worktrees/<task>-<slug>/review/code/…`). Worktrees
-    are deleted when their task ends, but `review/**` is committed — so the same session
-    is readable from every later worktree at a *different* absolute path. Trusting the
-    recorded path therefore reports "no report" for every session whose worktree is gone:
-    537 of 575 committed sessions at the time this was found (2026-07-17). Anything built
-    on that — a coverage gate above all — would fire on almost every session.
-
-    The basename comes from the manifest so a future naming change follows automatically;
-    only the directory is re-anchored.
-    """
-    sd = os.path.abspath(session_dir)
-    out = {}
-    for inv in state.get("subagent_invocations", []):
-        recorded = inv.get("output_file") or f"{inv['name']}.md"
-        out[inv["name"]] = os.path.join(sd, os.path.basename(recorded))
-    return out
-
-
 def _sync_from_disk(session_dir):
     """Reconcile _retry_state.json with the reviewer files actually on disk.
 
@@ -303,8 +291,7 @@ def _verify_coverage(session_dir):
     if not forced:
         print("forced=(none) — nothing to verify")
         return
-    outputs = _report_paths(sd, state)
-    missing = [n for n in forced if not os.path.isfile(outputs.get(n, ""))]
+    missing = _report_paths_lib.missing_reports(sd, forced, state)
     if not missing:
         print(f"forced coverage OK — {len(forced)}/{len(forced)} on disk")
         return

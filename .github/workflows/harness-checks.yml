@@ -12,6 +12,9 @@ on:
       # 검증 대상이다 — paths 에 없으면 이 파일들만 고친 PR 에서 스위트가 아예 안 돌았다.
       - '.claude/commands/**'
       - '.claude/hooks/**'
+      # 게이트(review_guard)·오케스트레이터 CLI 가 공유하는 report-path SoT. 단독 수정이
+      # CI 를 안 태우면 이 PR 이 없애려던 "drift 가 조용히 재발" 클래스 그 자체가 된다.
+      - '.claude/_shared/**'
       - '.claude/skills/**'
       - '.claude/tests/**'
       - '.claude/tools/**'

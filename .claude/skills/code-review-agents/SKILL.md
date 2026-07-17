@@ -109,6 +109,12 @@ Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-ro
 > 쓰는 loud 버전으로 남겨둔다). router 를 안 불렀다면 실제 선별 근거를 `_routing_decision.json`
 > 으로 남기고 `--apply-routing <session_dir>` 로 pending→skipped 를 반영한다.
 >
+> **소급 재분류 주의**: "산출물 존재" 판정이 "존재 + 비어있지 않음" 으로 강화된 뒤([`report_paths.py`
+> has_report()`](../../_shared/report_paths.py)) 이 정의는 과거에 이미 커밋된 세션에도 그대로
+> 적용된다. `touch` 된 0바이트 placeholder 리포트를 가진 과거 세션에 `--summary-state`/
+> `--resume`/`--sync-from-disk` 를 실행하면(예: 감사·재조회 목적) 그 세션은 이제 "누락" 으로
+> 재분류되고 `_retry_state.json` 이 갱신돼 워크트리가 dirty 해질 수 있다 — 조회만 했는데도.
+>
 > 근거: 2026-07-17 세션에서 두 결함이 동시에 발생 — forced 인 `security` 가 open-redirect 방어
 > 경계(`buildWorkspaceHref`) 수정 diff 에서 누락됐고, 7개 세션이 stale 상태로 커밋됐다. 이후 전수
 > 조사에서 **커밋된 575 세션 중 160건이 forced 미충족**(그중 107건은 RESOLUTION.md 를 갖고 게이트를

@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-07-17T15:48:02.081967",
+  "files": [
+    {
+      "file_path": ".claude/_shared/__init__.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/_shared/report_paths.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/hooks/_lib/review_guard.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/skills/code-review-agents/scripts/code_review_orchestrator.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/skills/consistency-checker/scripts/consistency_orchestrator.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tests/test_forced_coverage_selection.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tests/test_report_paths_shared.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/layout/__tests__/sidebar-nav-href.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/layout/__tests__/sidebar-test-utils.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/layout/__tests__/sidebar.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "plan/complete/harness-report-contract-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/harness-report-contract-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
