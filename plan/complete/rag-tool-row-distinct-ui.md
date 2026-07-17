@@ -1,8 +1,19 @@
 ---
 worktree: rag-tool-row-distinct-ui-e39447
 started: 2026-07-17
+completed: 2026-07-17
 owner: developer
+spec_impact:
+  - spec/conventions/conversation-thread.md
+  - spec/conventions/interaction-type-registry.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/5-system/9-rag-search.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
 ---
+
+> **완료 (2026-07-17)** — Slice A+B 구현·검증 완료.
+> 리뷰: `/consistency-check` 3라운드(--spec 2 + --impl-prep 1) · `/ai-review` 3라운드 — 최종 [`review/code/2026/07/17/13_22_01/SUMMARY.md`](../../review/code/2026/07/17/13_22_01/SUMMARY.md) 위험도 NONE.
+> 후속 백로그: `lib/`→`components/` ESLint 가드 · 메모이즈 판단 · (기존) C(`cancelled` 표면) · D(redaction 정책) · E(`isConversationOutput` 구조).
 
 # RAG 검색(retrieval) 행 신설 + 도구 행과 시각 구분 (Slice A+B)
 
