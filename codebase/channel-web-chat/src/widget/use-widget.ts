@@ -145,8 +145,10 @@ export function useWidget() {
    * (3) 언마운트 cleanup — `teardownSession` 을 거치지 않고 직접 bump 한다.
    *
    * **왜 하나로 합쳤나**: 종전에는 세대 카운터(`startGenRef`, `start()` 전용) · `sessionRef` 동일성
-   * (`seed`/`sendCommand`) · `cancelled` 지역 플래그(`applyConfig` 초기 부팅) **3종이 각기 다른
-   * 무효화 트리거**를 갖고 공존했다. 특히 `teardownSession()` 은 `sessionRef` 를 null 하지 않아
+   * (`seed`/`sendCommand`) · `cancelled` 지역 플래그(`applyConfig` 초기 부팅) · `cancelledRef`
+   * (`useTokenRefresh`, 아래 주입 지점 참조) **4종이 각기 다른 무효화 트리거**를 갖고 공존했다
+   * (앞의 3종이 이 파일 안, 4번째는 이미 분리된 훅 안에 있어 더 눈에 안 띄었다). 특히
+   * `teardownSession()` 은 `sessionRef` 를 null 하지 않아
    * **`sessionRef` 동일성으로 지킨 경로는 SSE terminal 종료를 감지하지 못했다** — 그 결과 종료된
    * 위젯이 stale seed 응답으로 `awaiting_user_message` 로 되살아나는 버그가 있었다(재현 확인).
    * `start()` 가 매번 무사했던 것도 우연이 아니라 유일하게 올바른 가드(세대)를 썼기 때문.
@@ -221,6 +223,11 @@ export function useWidget() {
     // 무시되고 옛 대화가 부활한다**(재현 확인). 여기선 `cfg` 를 몰라 저장소 키를 지울 수 없으므로
     // 의도만 기록하고, config 가 확립되는 `applyConfig` 가 이행한다
     // (ai-review 2026-07-17 09_36_01 — side_effect·security 독립 지적).
+    //
+    // **불변식 의존 주의**: 이 분기가 "부팅 전"을 뜻하는 근거는 `configRef.current` 가 확립 후
+    // 다시 null 이 되지 않는다는 것뿐이다(현재 대입 2곳·해제 0곳). 향후 "config 재설정" 류 기능이
+    // `configRef.current = null` 을 도입하면 **정상 세션의 teardown 이 조용히 no-op 이 된다** —
+    // 그때는 이 조건도 함께 재검토할 것 (`09_36_01` side_effect INFO).
     if (!configRef.current) {
       pendingResetRef.current = true;
       return;
