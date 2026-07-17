@@ -14,9 +14,11 @@
 - lint  : 통과 (`run-test.sh lint`, 68s) — `npx eslint .` 0 errors / 12 warnings (변경 전 baseline 과 동일, 증가 없음)
 - unit  : 통과 (`run-test.sh unit`, 113s) — 신규 `eslint-layering-guard.test.ts` 16/16 포함
 - build : 미실행 — resolution-applier 표준 게이트는 lint+unit → e2e (§2.4). e2e 파이프라인(`make e2e-test-full`) 자체가 필요한 docker 이미지를 빌드하므로 별도 `build` 스테이지는 이번 변경(순수 ESLint config + vitest 테스트, 런타임 코드 무변경)에서 생략
-- e2e   : **자동 흐름 환경 차단** — 아래 상세
+- e2e   : **통과** (`run-test.sh e2e`, 363s) — backend jest `256 passed, 256 total` + frontend playwright `51 passed (1.5m)`. 로그: `_test_logs/e2e-20260717-171800.log`
+  - 최초 1회차는 docker 디스크 부족으로 차단됐으나(아래 이력), 사용자 승인 후 `docker builder prune -f` 로 **20.87GB 회수**(Build Cache 24.14GB → 3.29GB) 후 재실행해 통과. 차단은 해소됐다.
+  - ⚠ wrapper 요약줄 `tests=256` 은 backend jest 수만 센다 — playwright 실행 여부는 로그의 `51 passed (1.5m)` 줄로 확인함 (PROJECT.md §e2e 주의 참고).
 
-### e2e 상세 — docker VM 디스크 부족 (코드와 무관)
+### (이력) 1회차 e2e 차단 — docker VM 디스크 부족 (코드와 무관, 현재 해소됨)
 
 `run-test.sh e2e` 1회 시도, `postgres` 컨테이너가 `exited (1)` 로 의존성 실패:
 
@@ -33,15 +35,9 @@
 
 **이 변경 자체는 e2e 실패의 원인이 아니다** — 코드 변경은 `codebase/frontend/eslint.config.mjs`(순수 lint 설정) + 신규 vitest 파일뿐이며, 백엔드/DB 관련 코드는 무변경. lint·unit 은 정상 통과했고, postgres 는 애플리케이션 코드 실행 전 initdb 단계에서 디스크 부족으로 죽었다.
 
-### 권장 조치 (사용자 결정 필요)
+### 처분 (완료)
 
-다음 중 하나 선택 후 재실행:
-
-1. `docker builder prune -f` 실행 승인 (build cache 전체 삭제, 최대 ~40GB 회수 예상) — 다른 동시 작업의 캐시 워밍이 다시 필요해질 수 있음
-2. Docker Desktop 설정에서 VM 디스크 크기(`diskSizeMiB=61035`) 증설
-3. 동시 실행 중인 다른 e2e 스택(`clemvion-e2e-report-paths-shared-0edbf0-*`)이 끝난 뒤 재시도 (그 스택 자체가 공간을 점유 중일 수 있음)
-
-승인/조치 후 `resolution-applier` 를 **동일 session_dir** 로 재호출하면 idempotency 에 의해 코드 항목(#1, #2)은 이미 처리됨으로 스킵되고 e2e 만 재시도된다.
+main 이 사용자에게 escalate → **옵션 1 승인**(`docker builder prune -f`) → 20.87GB 회수 후 e2e 재실행 → **통과**. 위 "TEST 결과" 의 e2e 줄이 최종 상태다.
 
 ## 보류·후속 항목
 
