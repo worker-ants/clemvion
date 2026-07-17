@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "started_at": "2026-07-17T17:40:00Z",
+  "summary_items_total": 10,
+  "items_resolved_ids": [1, 2, 5, 6, 9, 10],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "3": "out-of-scope-deferred (backlog chip already registered by main)",
+    "4": "out-of-scope-deferred (intentional scope reduction per plan)",
+    "7": "out-of-scope-deferred (low priority, out of PR scope)",
+    "8": "handled-by-commit (untracked prior-round reports committed as review/** history, no retroactive SUMMARY)"
+  },
+  "commits_made": [
+    {"sha": "a8c946056", "summary_id": 1, "scope": "output-shape.ts orphaned JSDoc"},
+    {"sha": "a8c946056", "summary_id": 2, "scope": "plan E-3b footnote"},
+    {"sha": "a8c946056", "summary_id": 5, "scope": "MULTI_TURN_INTERACTION_TYPES value test"},
+    {"sha": "a8c946056", "summary_id": 6, "scope": "endReason whitelist negative test"},
+    {"sha": "a8c946056", "summary_id": 9, "scope": "ai-end-reason README parity"},
+    {"sha": "a8c946056", "summary_id": 10, "scope": "Dockerfile comment drift"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260717-174958.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": "W#1/W#2/W#5/W#6/W#9/W#10 code+doc fixed per main's explicit routing instructions in the launch prompt. W#3/W#4/W#7 explicitly directed NOT to fix (already deferred/backlog/intentional scope reduction). W#8 resolved by committing the 3 untracked review/code/2026/07/17/16_07_35 reports as review/**-only history-preservation commit (no retroactive SUMMARY per instruction). INFO items not counted (INFO#3 optional/declined, INFO#4 verified false-positive, INFO#1 already backlog-registered)."
+}
