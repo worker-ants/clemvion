@@ -90,29 +90,29 @@ Workflow 반환값 (ai-review.js 가 항상 경로+전문을 함께 반환):
 
 Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-routing` / `--update` CLI + 직접 `Agent` fan-out + `Agent(code-review-summary, session_dir=<...>)` + `/loop` ScheduleWakeup 로 동일 결과를 낸다 (state CLI 는 `test_orchestrator_state.py` 로 검증되는 안정 인터페이스).
 
-> **⚠ 이 경로를 택하면 Workflow 가 해주던 두 가지가 사라진다 — main 이 직접 책임진다.**
+> **⚠ 이 경로를 택하면 Workflow 의 Route 보정(`selected = agents_forced ∪ picked`)이 사라진다.**
+> "변경이 작아 보인다" 는 자가 판단으로 forced reviewer 를 빠뜨리기 쉽다 — 화이트리스트는 정확히
+> 그 판단을 막으려고 존재한다. 그래서 **이 규약은 더 이상 산문이 아니다**:
 >
-> 1. **`agents_forced` 강제**. Workflow 의 Route 단계는 `selected = agents_forced ∪ picked` 로
->    화이트리스트를 합집합에 넣지만, 직접 fan-out 엔 그런 보정이 없다. "변경이 작아 보인다" 는
->    자가 판단으로 forced reviewer 를 빠뜨리기 쉽다 — 화이트리스트는 정확히 그 판단을 막으려고
->    존재한다. **SUMMARY 확정 전 반드시**:
->    ```bash
->    python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
->      --verify-coverage <session_dir>     # forced 중 산출물 없으면 exit 1
->    ```
-> 2. **상태 기록**. 직접 fan-out 은 `--update` 를 자동 호출하지 않아 `_retry_state.json` 이
->    prepare 스냅샷(`pending=전체, success=0`)에 멈춘 채 커밋된다 — 같은 세션 SUMMARY 는
->    "8/14 성공" 이라 하는데 상태 파일은 0 성공이라 **커밋된 증거가 서로 모순**된다. 이 파일은
->    `/loop --resume` 검증과 `--summary-state` 분기의 SoT 다. **fan-out 이 끝나면**:
->    ```bash
->    python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
->      --sync-from-disk <session_dir>      # 실제 산출물 기준으로 상태 동기화 (disk 가 심판)
->    ```
->    router 를 안 불렀다면 실제 선별 근거를 `_routing_decision.json` 으로 남기고
->    `--apply-routing <session_dir>` 로 pending→skipped 를 반영한다.
+> - **push/stop 가드가 기계적으로 강제한다.** forced 중 산출물이 없는 세션은 `review_guard` 가
+>   **"해소" 로 인정하지 않는다** — RESOLUTION.md 가 있어도 마찬가지다. 즉 누락된 채로는 턴을
+>   끝내거나 push 할 수 없고, 완전한 리뷰를 돌려야 한다. 판정은 **디스크의 리포트 파일** 기준이라
+>   `agents_success` 를 꾸며도 통과하지 못한다.
+> - 미리 확인하려면(가드에 걸리기 전에):
+>   ```bash
+>   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
+>     --verify-coverage <session_dir>     # forced 중 산출물 없으면 exit 1 + 누락 명단
+>   ```
+>
+> **상태 기록은 이제 자동이다** — `--summary-state` / `--resume` 가 읽을 때 디스크로 자가
+> reconcile 하므로 `--sync-from-disk` 를 기억해 호출할 의무는 없다(명시적으로 고치고 싶을 때만
+> 쓰는 loud 버전으로 남겨둔다). router 를 안 불렀다면 실제 선별 근거를 `_routing_decision.json`
+> 으로 남기고 `--apply-routing <session_dir>` 로 pending→skipped 를 반영한다.
 >
 > 근거: 2026-07-17 세션에서 두 결함이 동시에 발생 — forced 인 `security` 가 open-redirect 방어
-> 경계(`buildWorkspaceHref`) 수정 diff 에서 누락됐고, 7개 세션이 stale 상태로 커밋됐다.
+> 경계(`buildWorkspaceHref`) 수정 diff 에서 누락됐고, 7개 세션이 stale 상태로 커밋됐다. 이후 전수
+> 조사에서 **커밋된 575 세션 중 160건이 forced 미충족**(그중 107건은 RESOLUTION.md 를 갖고 게이트를
+> 통과 중)으로 드러났다 — 산문 의무는 예외가 아니라 상시로 무너지고 있었다.
 > 하네스의 Write 차단·전문 반환 동작은 [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md).
 
 ### 6. 자동 후속 흐름 — `resolution-applier` 위임

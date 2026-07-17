@@ -9,6 +9,7 @@ Two surfaces:
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -104,6 +105,102 @@ class SummaryResolvedTest(unittest.TestCase):
                 self._write(WARNING_ONLY_SUMMARY, with_resolution=True)
             )
         )
+
+
+class ForcedCoverageTest(unittest.TestCase):
+    """`agents_forced` (router_safety whitelist) must have run for a review to count.
+
+    Until this gate the whitelist was prose, and prose is what a "this diff is small"
+    judgement call talks itself past: 160 of 575 committed sessions were short a forced
+    reviewer when measured (2026-07-17), 107 of them carrying a RESOLUTION.md and so
+    passing as "resolved". One had skipped `security` on a diff editing the
+    open-redirect boundary.
+    """
+
+    def _session(self, *, forced, reports, with_resolution=True, output_dir=None):
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write(CLEAN_SUMMARY)
+        if with_resolution:
+            with open(os.path.join(d, "RESOLUTION.md"), "w") as f:
+                f.write("## 조치 항목\n## TEST 결과\n")
+        # `output_dir` lets a test record paths into a worktree that no longer exists —
+        # the shape every finished task leaves behind in a committed session.
+        base = output_dir if output_dir is not None else d
+        state = {
+            "agents_forced": list(forced),
+            "subagent_invocations": [
+                {"name": n, "output_file": os.path.join(base, f"{n}.md")} for n in forced
+            ],
+        }
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            json.dump(state, f)
+        for n in reports:
+            with open(os.path.join(d, f"{n}.md"), "w", encoding="utf-8") as f:
+                f.write("# report\n")
+        return os.path.join(d, "SUMMARY.md")
+
+    def test_full_forced_coverage_is_resolved(self):
+        sp = self._session(forced=["security", "scope"], reports=["security", "scope"])
+        self.assertTrue(rg._summary_is_resolved(sp))
+
+    def test_a_missing_forced_reviewer_is_unresolved_even_with_a_RESOLUTION(self):
+        # The exact 2026-07-17 shape: RESOLUTION.md written, forced reviewer skipped.
+        sp = self._session(forced=["security", "scope"], reports=["scope"])
+        self.assertFalse(rg._summary_is_resolved(sp))
+
+    def test_a_claimed_success_without_a_report_does_not_count(self):
+        # Coverage is judged by files, never by agents_success — a self-reported status
+        # with no file behind it is the fake success this contract removes.
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write(CLEAN_SUMMARY)
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "agents_forced": ["security"],
+                    "agents_success": ["security"],  # claimed…
+                    "subagent_invocations": [
+                        {"name": "security", "output_file": os.path.join(d, "security.md")}
+                    ],
+                },
+                f,
+            )  # …but no security.md on disk
+        self.assertFalse(rg._summary_is_resolved(os.path.join(d, "SUMMARY.md")))
+
+    def test_reports_are_found_when_the_recorded_worktree_is_gone(self):
+        # `output_file` points at the worktree the session ran in; that directory is
+        # deleted when the task ends while `review/**` lives on in git. Resolving against
+        # it would mark 537/575 committed sessions uncovered and fire on nearly all of them.
+        sp = self._session(
+            forced=["security"],
+            reports=["security"],
+            output_dir="/Volumes/gone/.claude/worktrees/dead-1234/review/code/2026/01/01/00_00_00",
+        )
+        self.assertTrue(rg._summary_is_resolved(sp))
+
+    def test_a_session_without_a_manifest_is_unaffected(self):
+        # Hand-written sessions and pre-manifest history must not be swept up: this gate
+        # only tightens sessions that declared a whitelist.
+        d = tempfile.mkdtemp()
+        sp = os.path.join(d, "SUMMARY.md")
+        with open(sp, "w", encoding="utf-8") as f:
+            f.write(CLEAN_SUMMARY)
+        self.assertEqual(rg._forced_coverage_missing(d), [])
+        self.assertTrue(rg._summary_is_resolved(sp))
+
+    def test_an_empty_forced_list_is_unaffected(self):
+        sp = self._session(forced=[], reports=[])
+        self.assertTrue(rg._summary_is_resolved(sp))
+
+    def test_a_corrupt_manifest_fails_open(self):
+        d = tempfile.mkdtemp()
+        sp = os.path.join(d, "SUMMARY.md")
+        with open(sp, "w", encoding="utf-8") as f:
+            f.write(CLEAN_SUMMARY)
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            f.write("{not json")
+        self.assertEqual(rg._forced_coverage_missing(d), [])
 
 
 class EvaluateDecisionTableTest(unittest.TestCase):

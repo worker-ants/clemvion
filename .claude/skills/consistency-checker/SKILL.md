@@ -89,12 +89,13 @@ Workflow 반환값 (항상 경로+전문):
 
 Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--update <...> --agent <name> --status <s>` CLI + 직접 `Agent` fan-out + `Agent(consistency-summary, session_dir=<...>)` 로 동일 결과를 낼 수 있다 (state CLI 는 `test_orchestrator_state.py` 류로 검증되는 안정 인터페이스). loop_mode 시 ScheduleWakeup 재예약.
 
-> **⚠ 직접 fan-out 은 상태 기록 책임이 main 으로 넘어온다.** `--update` 를 자동 호출하지 않으므로 `_retry_state.json` 이 prepare 스냅샷(`pending=전체, success=0`)에 멈춘 채 커밋된다 — 같은 세션 SUMMARY 는 "5/5 성공" 이라 하는데 상태 파일은 0 성공이라 **커밋된 증거가 서로 모순**된다(2026-07-17 실측: 한 브랜치에서 7개 세션). 이 파일은 `/loop --resume` 검증·`--summary-state` 분기의 SoT 다. fan-out 이 끝나면 실측 기준으로 동기화한다:
+> **⚠ 직접 fan-out 은 Workflow 의 "전문도 반환" 보정이 없어** checker 가 Write 를 건너뛰면 결과가 사라진다. prompt 에 `output_file` Write 를 **명시적으로 지시하고 성공을 확인**시킬 것 ([`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md)).
+>
+> **상태 기록은 자동이다** — `--summary-state`/`--resume` 가 읽을 때 디스크로 자가 reconcile 하므로 수동 호출 의무는 없다. (종전에는 `--update` 미호출로 `_retry_state.json` 이 prepare 스냅샷에 멈춘 채 커밋돼, 같은 세션 SUMMARY 의 "5/5 성공" 과 **모순되는 증거**가 남았다 — 2026-07-17 실측 한 브랜치 7개 세션. 이 파일은 `/loop --resume` 검증의 SoT 라 stale 이면 전 checker 재실행을 유발한다.) 커밋된 세션을 명시적으로 고치려면:
 > ```bash
 > python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
 >   --sync-from-disk <session_dir>     # disk 가 심판 — 산출물 없는 agent 는 success 아님
 > ```
-> 또한 직접 fan-out 은 Workflow 의 "전문도 반환" 보정이 없어 checker 가 Write 를 건너뛰면 결과가 사라진다. prompt 에 `output_file` Write 를 **명시적으로 지시하고 성공을 확인**시킬 것 ([`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md)).
 
 ### 4. BLOCK 처리
 

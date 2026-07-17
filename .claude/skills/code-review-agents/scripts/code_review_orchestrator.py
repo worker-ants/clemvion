@@ -155,9 +155,48 @@ def _save_state(state_file, state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
+def _reconcile_state_with_disk(session_dir):
+    """Bring `_retry_state.json`'s buckets in line with the reports on disk. Returns
+    `(state, changed)`. Quiet — callers decide what to say.
+
+    Disk is the arbiter: a self-reported status with no file behind it is the fake
+    success this whole contract exists to remove.
+
+    Rate-limit bookkeeping (`rate_limit_episodes`, `last_reset_hint_sec`) is left alone —
+    an agent that hit a limit has no file and stays pending, which is what /loop needs.
+    """
+    sd = os.path.abspath(session_dir)
+    state_file, state = _load_state(sd)
+    known = [i["name"] for i in state.get("subagent_invocations", [])]
+    if not known:
+        return state, False
+    outputs = _report_paths(sd, state)
+    skipped = set(state.get("agents_skipped", []))
+
+    on_disk = [n for n in known if os.path.isfile(outputs[n])]
+    missing = [n for n in known if n not in on_disk and n not in skipped]
+
+    before = (state.get("agents_success"), state.get("agents_pending"))
+    state["agents_success"] = on_disk
+    state["agents_pending"] = missing
+    state["agents_fatal"] = [n for n in state.get("agents_fatal", []) if n in missing]
+    changed = before != (state["agents_success"], state["agents_pending"])
+    if changed:
+        _save_state(state_file, state)
+    return state, changed
+
+
 def _emit_summary_state(session_dir):
-    """One-line summary of _retry_state.json — kept terse for main ctx."""
-    _, state = _load_state(os.path.abspath(session_dir))
+    """One-line summary of _retry_state.json — kept terse for main ctx.
+
+    Reconciles with disk first, so the numbers are true even when the session was fanned
+    out with the Agent tool directly (that path never calls `--update`, which used to
+    leave the state frozen at its prepare-time snapshot while the sibling SUMMARY.md
+    reported real successes — two committed artifacts contradicting each other).
+    Self-healing on read beats adding one more thing a caller must remember: the failure
+    this addresses was itself an obligation that only lived in prose.
+    """
+    state, _ = _reconcile_state_with_disk(session_dir)
     pending = len(state.get("agents_pending", []))
     success = len(state.get("agents_success", []))
     fatal = len(state.get("agents_fatal", []))
@@ -169,6 +208,28 @@ def _emit_summary_state(session_dir):
         f"pending={pending} success={success} fatal={fatal} "
         f"skipped={skipped} routing={routing} last_reset={last_reset_str}"
     )
+
+
+def _report_paths(session_dir, state):
+    """Map agent name → where its report lives **in this session dir**.
+
+    NOT `output_file` from the state, which is the absolute path of the worktree the
+    session was prepared in (`…/.claude/worktrees/<task>-<slug>/review/code/…`). Worktrees
+    are deleted when their task ends, but `review/**` is committed — so the same session
+    is readable from every later worktree at a *different* absolute path. Trusting the
+    recorded path therefore reports "no report" for every session whose worktree is gone:
+    537 of 575 committed sessions at the time this was found (2026-07-17). Anything built
+    on that — a coverage gate above all — would fire on almost every session.
+
+    The basename comes from the manifest so a future naming change follows automatically;
+    only the directory is re-anchored.
+    """
+    sd = os.path.abspath(session_dir)
+    out = {}
+    for inv in state.get("subagent_invocations", []):
+        recorded = inv.get("output_file") or f"{inv['name']}.md"
+        out[inv["name"]] = os.path.join(sd, os.path.basename(recorded))
+    return out
 
 
 def _sync_from_disk(session_dir):
@@ -184,25 +245,18 @@ def _sync_from_disk(session_dir):
     Disk is the arbiter: an agent's self-reported status is worth nothing if it left no
     file. Only names in `subagent_invocations` are considered, so this cannot invent
     agents. Observed 2026-07-17 across 7 sessions of one branch.
+
+    Mostly redundant now — `--summary-state` and `--resume` reconcile on read — but kept
+    as the explicit, loud form for a caller who wants to fix a committed session on
+    purpose (and for the SKILLs that already document it).
     """
-    sd = os.path.abspath(session_dir)
-    state_file, state = _load_state(sd)
+    state, _ = _reconcile_state_with_disk(session_dir)
+    success = state.get("agents_success", [])
+    missing = state.get("agents_pending", [])
+    skipped = state.get("agents_skipped", [])
     known = [i["name"] for i in state.get("subagent_invocations", [])]
-    outputs = {
-        i["name"]: i.get("output_file") or os.path.join(sd, f"{i['name']}.md")
-        for i in state.get("subagent_invocations", [])
-    }
-    skipped = set(state.get("agents_skipped", []))
-
-    on_disk = [n for n in known if os.path.isfile(outputs[n])]
-    missing = [n for n in known if n not in on_disk and n not in skipped]
-
-    state["agents_success"] = on_disk
-    state["agents_pending"] = missing
-    state["agents_fatal"] = [n for n in state.get("agents_fatal", []) if n in missing]
-    _save_state(state_file, state)
     print(
-        f"synced: success={len(on_disk)} pending={len(missing)} "
+        f"synced: success={len(success)} pending={len(missing)} "
         f"skipped={len(skipped)} total={len(known)}"
         + (f" | still missing: {', '.join(missing)}" if missing else "")
     )
@@ -228,10 +282,7 @@ def _verify_coverage(session_dir):
     if not forced:
         print("forced=(none) — nothing to verify")
         return
-    outputs = {
-        i["name"]: i.get("output_file") or os.path.join(sd, f"{i['name']}.md")
-        for i in state.get("subagent_invocations", [])
-    }
+    outputs = _report_paths(sd, state)
     missing = [n for n in forced if not os.path.isfile(outputs.get(n, ""))]
     if not missing:
         print(f"forced coverage OK — {len(forced)}/{len(forced)} on disk")
@@ -963,6 +1014,13 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(1)
+        # Reconcile before handing the session back: a /loop wake-up decides what to
+        # re-run from these buckets, and a fallback fan-out (which never calls --update)
+        # leaves them frozen at the prepare-time snapshot — resuming from that re-runs
+        # reviewers whose reports are already on disk.
+        _, changed = _reconcile_state_with_disk(sd)
+        if changed:
+            debug_log(f"Resume: reconciled _retry_state.json with disk under {sd}")
         debug_log(f"Resuming session: {sd}")
         print(sd)
         sys.exit(0)
