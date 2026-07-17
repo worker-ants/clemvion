@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-17T19:08:28Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경(eslint.config.mjs, 테스트 파일)"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "상수 추출·테스트 로직 수정은 성능 중립적"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "레이어 가드 구조 변경 없음, 테스트 정확성 개선만"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경(eslint.config.mjs, 테스트 파일)"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경(eslint.config.mjs, 테스트 파일)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경(eslint.config.mjs, 테스트 파일)"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경(eslint.config.mjs, 테스트 파일)"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경(eslint.config.mjs, 테스트 파일)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경(RESOLUTION.md, SUMMARY.md, _resolution_log.md)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/의존성 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/lock/queue 코드 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "API route/controller 변경 없음"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "trigger 디렉토리 매칭 안 됨"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 6,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}
