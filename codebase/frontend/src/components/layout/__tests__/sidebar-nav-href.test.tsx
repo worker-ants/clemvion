@@ -13,22 +13,13 @@
  * 못한다(모든 href 가 bare 로 나옴). 그래서 slug 가 있는 상태를 별도 파일로 세운다.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen } from "@testing-library/react";
 
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+// vi.mock 팩토리는 호이스팅 때문에 각 파일에 인라인이어야 한다 — 그 외 setup 만 공유.
+// 사유: sidebar-test-utils 헤더.
+import { stubMatchMedia, renderSidebar as renderSidebarWith } from "./sidebar-test-utils";
+
+stubMatchMedia();
 
 let mockPathname = "/w/team-a/dashboard";
 vi.mock("next/navigation", () => ({
@@ -110,20 +101,7 @@ vi.mock("@/lib/utils/workspace", () => ({
 
 import { Sidebar } from "../sidebar";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-  };
-}
-
-async function renderSidebar() {
-  await act(async () => {
-    render(<Sidebar />, { wrapper: createWrapper() });
-  });
-}
+const renderSidebar = () => renderSidebarWith(Sidebar);
 
 /** 라벨(i18n 키 passthrough)로 nav 링크의 href 를 읽는다. */
 function navHref(labelKey: string): string | null {

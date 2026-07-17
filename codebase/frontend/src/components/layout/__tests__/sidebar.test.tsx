@@ -14,22 +14,12 @@
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// jsdom 에는 window.matchMedia 가 없으므로 stub 필요 (sidebar 의 useMediaQuery 사용)
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
+// vi.mock 팩토리는 호이스팅 때문에 각 파일에 인라인이어야 한다 — 그 외 setup 만 공유.
+// 사유: sidebar-test-utils 헤더.
+import { stubMatchMedia, createWrapper } from "./sidebar-test-utils";
+
+stubMatchMedia();
 
 // ─── next/navigation mock ─────────────────────────────────────────────────
 const mockPush = vi.fn();
@@ -123,17 +113,6 @@ vi.mock("@/lib/utils/workspace", () => ({
 import { Sidebar } from "../sidebar";
 
 // ─── helpers ─────────────────────────────────────────────────────────────
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 type NotifFixture = {
   id: string;
   title: string;
