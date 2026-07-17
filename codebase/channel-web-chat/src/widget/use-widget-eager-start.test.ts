@@ -2285,7 +2285,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 1차 부팅이 아직 embed-config 왕복 중일 때 정당한 리셋 요청이 접수된다.
     sendHostCommand("resetSession");
 
-    // 그 상태에서 host 가 config 를 갱신(2-sdk §106) — 1차는 아직 in-flight.
+    // 그 상태에서 host 가 config 를 갱신(2-sdk §110) — 1차는 아직 in-flight.
     boot();
     await waitFor(() => expect(embedResolvers.length).toBe(2));
 
@@ -2370,7 +2370,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       await flushAsync();
     });
     // **superseded 시도는 아무것도 디스패치하지 않는다** — 1차는 2차에 대체됐으므로 차단 응답이
-    // 와도 `BLOCKED` 로 전이시키지 않는다. 살아있는 2차의 결과가 화면을 정한다(§106).
+    // 와도 `BLOCKED` 로 전이시키지 않는다. 살아있는 2차의 결과가 화면을 정한다(§110).
     // (supersede 도입 전에는 여기서 `phase === "blocked"` 였다 — 대체된 시도가 화면을 덮었다.)
     expect(result.current.state.phase).not.toBe("blocked");
     // 2차(허용)가 나중에 resolve — 살아있는 시도이므로 이쪽이 리셋을 이행한다.
@@ -2479,13 +2479,13 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     await waitFor(() => expect(hookPosts).toBe(1));
   });
 
-  // spec 2-sdk §106 — "host 는 iframe 을 재생성하지 않고 wc:boot 을 다시 보내 boot config 를 갱신할 수
+  // spec 2-sdk §110 — "host 는 iframe 을 재생성하지 않고 wc:boot 을 다시 보내 boot config 를 갱신할 수
   // 있다. 위젯은 **마지막 wc:boot 의 config 를 적용**한다."
   //
   // 세대가 없으면 `embed-config` 왕복의 **resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에
-  // resolve 하면 그게 이겨 §106 을 어긴다(도입 전 실측: plan A→B 로 보내고 순서를 역전시키니 A 가
+  // resolve 하면 그게 이겨 §110 을 어긴다(도입 전 실측: plan A→B 로 보내고 순서를 역전시키니 A 가
   // 적용됐다). `beginBootAttempt`/`isAttemptStale` 이 그걸 막는다.
-  it("§106: resolve 순서가 역전돼도 마지막 wc:boot 의 config 가 적용된다", async () => {
+  it("§110: resolve 순서가 역전돼도 마지막 wc:boot 의 config 가 적용된다", async () => {
     const embedResolvers: Array<(r: Response) => void> = [];
     vi.stubGlobal(
       "fetch",
@@ -2533,7 +2533,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(applied).toBe("last");
   });
 
-  // §106 — **대체된 시도의 종료 확정이 살아있는 마지막 부팅을 죽이지 않는다.**
+  // §110 — **대체된 시도의 종료 확정이 살아있는 마지막 부팅을 죽이지 않는다.**
   //
   // 재현된 결함(ai-review 17_36_57 concurrency CRITICAL): 대체된 1차가 복원 seed 에서 "이미 종료됨"을
   // 발견하면 `finalizeEnded` → `teardownSession` → **world 세대 증가**가 일어난다. 그 무효화는 정당하나
@@ -2542,7 +2542,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   //
   // fix: 대체된 시도의 seed 는 종료를 **확정하지 않는다**(`"stale"` 반환). 종료가 유실되진 않는다 —
   // 저장 세션이 남아 살아있는 시도가 자기 복원 분기에서 같은 스냅샷을 보고 확정한다. **주체만 바뀐다.**
-  it("§106: 대체된 시도의 종료 확정이 마지막 부팅을 죽이지 않는다", async () => {
+  it("§110: 대체된 시도의 종료 확정이 마지막 부팅을 죽이지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
@@ -2613,19 +2613,19 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       });
     }
 
-    // 마지막 boot 의 config 가 적용됐다(§106).
+    // 마지막 boot 의 config 가 적용됐다(§110).
     expect((result.current.config?.profile as { plan?: string } | undefined)?.plan).toBe("last");
     // 그리고 종료는 유실되지 않았다 — 살아있는 시도가 확정했다(주체만 바뀜).
     expect(result.current.state.phase).toBe("ended");
   });
 
-  // §106 — **재전송은 config 만 갱신한다. 살아있는 대화를 되감지 않는다.**
+  // §110 — **재전송은 config 만 갱신한다. 살아있는 대화를 되감지 않는다.**
   //
   // 재현된 결함(ai-review 17_36_57 requirement): 재전송마다 복원 분기를 다시 타서, 입력 대기 중이던
   // 사용자의 `phase` 가 `RESTORED` 로 `streaming` 이 되며 **입력창이 사라졌다가** seed 응답 후 돌아왔다.
   // 관리자 라이브 미리보기는 외형 폼 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 발생한다.
   // 덤으로 `getStatus`·SSE·토큰 갱신도 매번 재실행됐다.
-  it("§106: 활성 대화 중 재전송은 입력창을 되감지 않는다", async () => {
+  it("§110: 활성 대화 중 재전송은 입력창을 되감지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
@@ -2695,7 +2695,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만 남아
   // **살아있는 시도까지 복원을 건너뛰게** 만들어 `streaming` 인데 연결이 0개로 고착됐다.
   // 판정은 `streamRef`(연결이 살아있나)여야 한다 — 두 테스트가 그 경계를 양쪽에서 지킨다.
-  it("§106: 대체된 시도가 연결 전에 물러나도 살아있는 시도가 연결을 세운다", async () => {
+  it("§110: 대체된 시도가 연결 전에 물러나도 살아있는 시도가 연결을 세운다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
@@ -2758,7 +2758,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(getEs()).not.toBeNull();
   });
 
-  // §106 두 번째 재검증 지점 — **복원 분기**(seed 뒤). 위 테스트는 첫 지점(embed 검증 뒤)만 덮는다.
+  // §110 두 번째 재검증 지점 — **복원 분기**(seed 뒤). 위 테스트는 첫 지점(embed 검증 뒤)만 덮는다.
   //
   // 이 지점이 왜 별도로 필요한가: 이 파일은 **비대칭 가드 누락**(한 호출부는 재검증하고 다른 호출부는
   // 빠뜨림)으로 3번 CRITICAL 을 냈다(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5). 실제로 이 테스트를
@@ -2766,7 +2766,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   //
   // 시나리오: 복원 seed 가 떠 있는 동안 host 가 `wc:boot` 을 재전송하면, **대체된** 시도는 그 세션으로
   // SSE 를 열면 안 된다(`02_04_13` C1 과 동형 — 대체된 시도가 스트림·토큰 갱신을 되살리는 문제).
-  it("§106: 복원 seed 중 재전송으로 대체된 시도는 SSE 를 열지 않는다", async () => {
+  it("§110: 복원 seed 중 재전송으로 대체된 시도는 SSE 를 열지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
@@ -2820,7 +2820,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(getEs()).toBeNull();
   });
 
-  // `applyConfig` 의 **world 축** 고정 — 위 두 §106 테스트는 boot 축만 덮는다.
+  // `applyConfig` 의 **world 축** 고정 — 위 두 §110 테스트는 boot 축만 덮는다.
   //
   // A/B 로 확인한 기존 갭이다: 변경 전 코드(`isStale(gen)`)에서도 이 가드를 제거하면 44건이 전부
   // 통과했다 — `applyConfig` 의 world 재검증은 한 번도 고정된 적이 없다. `isAttemptStale` 이 두 축을
@@ -2940,7 +2940,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     const esAfterError = getEs();
     const statusCallsAfterError = statusCalls;
 
-    // host 가 외형 갱신 등으로 wc:boot 재전송(§106).
+    // host 가 외형 갱신 등으로 wc:boot 재전송(§110).
     boot();
     await waitFor(() => expect(embedResolvers.length).toBe(2));
     await act(async () => {
@@ -3090,5 +3090,113 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
 
     // 화면은 SSE 가 전진시킨 n2 그대로 — 대체된 시도는 표면을 그리지 못한다.
     expect(result.current.state.pending?.nodeId).toBe("n2");
+  });
+
+  // **반대 축 — 대체된 시도가 발견한 "진짜 종료" 는 그대로 확정돼야 한다.**
+  //
+  // 위 테스트와 짝이다. 같은 함수 안에서 표면 갱신은 boot 축을 보고(대체된 시도는 그리지 않음)
+  // 종료 확정은 **일부러 보지 않는다**(대체된 시도도 확정함). 종료는 세계의 사실이지 시도의
+  // 소유물이 아니기 때문 — 살아있는 시도가 `sessionEstablished()` 스킵으로 자기 getStatus 를 아예
+  // 안 낼 수 있고, 버퍼 만료 구간에선 terminal SSE 도 다시 오지 않는다(§replay_unavailable).
+  //
+  // 이 방향을 고정하지 않으면 "대칭이 예뻐 보인다" 는 이유로 종료 확정에도 boot 가드가 붙는다 —
+  // 실제로 mutation 시 이 테스트가 없을 땐 388건 전부 통과했다(무방비).
+  it("대체된 시도가 발견한 종료는 그대로 확정된다 (종료 확정은 boot 축을 보지 않는다)", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return new Promise<Response>((r) => { embedResolvers.push(r); });
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return new Promise<Response>((r) => { statusResolvers.push(r); });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }));
+    const { getEs } = installControllableEventSource();
+    const allow = () => ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const waitingAt = (nodeId: string) => ({ ok: true, status: 200, json: async () => ({ data: {
+      executionId: "e1", status: "waiting_for_input",
+      context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+    } }) }) as Response;
+    const completed = () => ({ ok: true, status: 200, json: async () => ({ data: { executionId: "e1", status: "completed" } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => { embedResolvers[0](allow()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // 부팅#1 의 getStatus A.
+
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => { embedResolvers[1](allow()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(2)); // 부팅#2 의 getStatus B.
+
+    // B 가 먼저 응답 → 대화 진행 중으로 보이고 스트림이 열린다.
+    await act(async () => { statusResolvers[1](waitingAt("n1")); await flushAsync(); });
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    expect(getEs()).not.toBeNull();
+
+    // 대체된 부팅#1 의 A 가 뒤늦게 **종료**를 싣고 온다 — 살아있는 시도는 이 사실을 모른다.
+    await act(async () => { statusResolvers[0](completed()); await flushAsync(); });
+
+    // 대체됐어도 종료는 확정한다 — 아니면 위젯이 streaming 에 무기한 멈춘다.
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  // **언마운트된 위젯은 새 execution 을 시작하지 않는다** — `cannotApplyConfig` 의 `unmountedRef` 축.
+  //
+  // checkpoint 1 은 world 축을 일부러 보지 않으므로(§110 을 위해), 언마운트를 잡는 건 `unmountedRef`
+  // **뿐**이다. 그게 없으면 언마운트 후 도착한 `embed-config` 응답이 checkpoint 1 을 통과해
+  // `establishConfig` 를 실행하고, 접수돼 있던 리셋을 이행하며 **사라진 컴포넌트가 webhook POST 로
+  // 새 execution 을 시작한다**(리소스 누수).
+  //
+  // 이 축은 mutation 무방비였다 — `unmountedRef` 체크를 지워도 389건 전부 통과했다.
+  // (ai-review 2026-07-17 18_39_11 testing 블라인드 스팟 ② / concurrency INFO)
+  it("언마운트 후 도착한 embed 응답은 새 execution 을 시작하지 않는다", async () => {
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) {
+        return new Promise<Response>((r) => {
+          embedResolvers.push(r);
+        });
+      }
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({ data: { executionId: "e1", status: "pending", interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS } } }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    installControllableEventSource();
+
+    const { unmount } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1)); // embed 왕복 중 — config 미확립.
+
+    // 부팅 중 host 리셋 → `pendingResetRef` 에 접수(부팅 전엔 정리할 게 없다).
+    sendHostCommand("resetSession");
+    // 위젯이 사라진다(호스트가 iframe 제거 / 페이지 이탈).
+    unmount();
+
+    // 이제서야 embed 응답 도착.
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+
+    // 사라진 컴포넌트는 아무것도 시작하지 않는다.
+    const webhookPosts = fetchMock.mock.calls.filter(
+      ([u, init]) => String(u).includes("/api/hooks/") && (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(webhookPosts.length).toBe(0);
   });
 });

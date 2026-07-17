@@ -162,10 +162,10 @@ export function useWidget() {
   /**
    * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대. 나중 시도가 앞선 시도를 **대체**한다.
    *
-   * `spec/7-channel-web-chat/2-sdk.md §106` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
+   * `spec/7-channel-web-chat/2-sdk.md §110` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
    * 있고 **위젯은 마지막 `wc:boot` 의 config 를 적용**한다고 정한다. 그런데 `host-bridge` 는 in-flight
    * 여부를 보지 않고 매번 `applyConfig` 를 새로 기동하므로, 세대가 없으면 **`embed-config` 왕복의
-   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §106 을 어긴다
+   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §110 을 어긴다
    * (재현 확인: `profile.plan` A→B 순서로 보내고 resolve 를 역전시키면 A 가 적용됐다).
    *
    * **`worldGenRef` 와 축이 다르다 — 합치지 말 것.** 부팅 시도는 세계를 바꾸지 않는다(그래서
@@ -199,7 +199,7 @@ export function useWidget() {
    * **"성공하는 부팅" 의 정의에 supersede 가 포함된다**: 더 새 `wc:boot` 에 대체된(superseded) 시도는
    * config 를 적용하지 못하고 물러나므로 **성공한 것이 아니다** → 리셋을 이행하지 않고 플래그를 남긴
    * 채 끝난다. 그래서 겹친 부팅에서는 리셋이 **그 라운드가 아니라 다음 성공 부팅에서** 이행될 수
-   * 있다 — 소실이 아니라 이월이다(`bootGenRef` JSDoc, spec 2-sdk §106).
+   * 있다 — 소실이 아니라 이월이다(`bootGenRef` JSDoc, spec 2-sdk §110).
    *
    * **폐기 로직을 다시 넣지 말 것** — "실패한 부팅은 자기 리셋도 폐기한다"는 직관적이지만 **원리적
    * 으로 구현 불가능**하다: 지금 지워도 되는지는 *다른 겹친 시도가 나중에 성공할지*에 달렸는데 그건
@@ -280,7 +280,7 @@ export function useWidget() {
    *
    * **world 축을 보지 않는다.** 아직 어떤 세션도 건드리지 않은 시도에게 "세계가 바뀌었다"는 무의미하고,
    * 오히려 해롭다: 대체된 형제 시도가 복원 중 종료를 확정하면(`finalizeEnded`→world++) 그 **정당한**
-   * 무효화가 **살아있는 마지막 부팅까지 stale 화해** §106 을 깨뜨렸다(재현 확인 — config B 대신 A 고착).
+   * 무효화가 **살아있는 마지막 부팅까지 stale 화해** §110 을 깨뜨렸다(재현 확인 — config B 대신 A 고착).
    * 세션을 건드리는 복원 분기에서만 world 를 본다(`isAttemptStale`).
    * (ai-review 2026-07-17 17_36_57 concurrency CRITICAL)
    */
@@ -302,6 +302,14 @@ export function useWidget() {
    * **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만 남아
    * **살아있는 시도까지 복원을 건너뛰게** 만든다 → `streaming` 인데 연결이 0개로 고착된다
    * (재현 확인 — 이 fix 를 `startedRef` 로 처음 썼다가 낸 결함).
+   *
+   * ⚠ **{@link pendingResetRef} 의 "불변식 의존 주의" 와 같은 전제에 기댄다** — "재전송 호출부는
+   * 마운트를 유지한 채 `triggerEndpointPath`/`apiBase` 를 바꾸지 않는다". 살아있는 `streamRef` 가
+   * **이번** `wc:boot` 이 지정한 endpoint 의 것이라는 보장은 코드 어디에도 없다(오늘은 유일한
+   * 재전송 경로인 관리자 미리보기가 endpoint 를 안 바꿔서 안전할 뿐). 전제가 깨지면 새 endpoint 의
+   * 정당한 세션 복원이 **조용히 스킵**된다(옛 스트림이 살아있다는 이유로). 그쪽을 재검토할 땐
+   * 반드시 여기도 같이 볼 것 — 한쪽만 고치면 다른 쪽이 남는다.
+   * (ai-review 2026-07-17 18_39_11 concurrency WARNING)
    */
   const sessionEstablished = useCallback(() => streamRef.current !== null, []);
 
@@ -479,7 +487,7 @@ export function useWidget() {
    *
    * | 분기 | 축 | 왜 |
    * | --- | --- | --- |
-   * | 종료 확정(`finalizeEnded`) | world **만** | 대체된 시도가 발견한 **진짜 종료**도 확정돼야 한다. boot 축으로 막았더니 살아있는 부팅이 종료를 영영 못 보는 §106 위반이 났다(되돌림). |
+   * | 종료 확정(`finalizeEnded`) | world **만** | **종료는 세계의 사실이지 시도의 소유물이 아니다.** 대체된 시도가 발견한 진짜 종료를 버리면 아무도 확정하지 않을 수 있다 — 살아있는 시도는 `sessionEstablished()` 스킵으로 자기 `getStatus` 를 아예 안 낼 수 있고, 버퍼 만료(§replay_unavailable) 구간에선 terminal SSE 도 다시 오지 않는다. |
    * | 표면 갱신(`WAITING` dispatch) | world **+ boot** | 대체된 시도의 지연 응답이 살아있는 시도가 SSE 로 이미 전진시킨 화면을 **옛 노드로 되돌린다**(재현 확인 — 아래). |
    *
    * 표면 갱신에 boot 축이 필요한 이유: 호출부의 checkpoint 2(`isAttemptStale`)는 이 함수가
@@ -920,7 +928,7 @@ export function useWidget() {
     unmountedRef.current = false;
     const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
-      // 부팅 시도 개시 — 이 호출이 앞선 시도를 대체한다(§106 "마지막 wc:boot 적용"). 반환 토큰이
+      // 부팅 시도 개시 — 이 호출이 앞선 시도를 대체한다(§110 "마지막 wc:boot 적용"). 반환 토큰이
       // 세계 무효화·시도 대체 두 축을 함께 들고 있어, 아래 두 await 뒤 재검증이 한 번씩이면 된다.
       // `gen`(world 단독)을 일부러 스코프에 두지 않는다 — 여기서 `isStale(gen)` 은 컴파일되지 않는다
       // (축 누락 가드를 타입 검사가 막는다. `beginBootAttempt` JSDoc §근거).
@@ -938,7 +946,7 @@ export function useWidget() {
       if (establishConfig(cfg) === "reset") return;
       // **재전송은 config 만 갱신한다 — 세션은 건드리지 않는다.**
       //
-      // spec §106 은 재전송을 "boot config(외형·콘텐츠) 갱신" 이라 정한다. 그런데 종전엔 재전송마다
+      // spec §110 은 재전송을 "boot config(외형·콘텐츠) 갱신" 이라 정한다. 그런데 종전엔 재전송마다
       // 복원 분기를 다시 타서, **대화가 살아있는 중에도** `RESTORED` 로 `phase` 를 `streaming` 으로
       // 되돌리고 `getStatus`·`openStream`·`scheduleRefresh` 를 재실행했다 → 입력 대기 중이던 사용자의
       // **입력창이 사라졌다가 seed 응답 후 돌아온다**(재현 확인). 관리자 라이브 미리보기는 외형 폼

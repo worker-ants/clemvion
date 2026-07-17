@@ -3,7 +3,7 @@ id: web-chat-sdk
 status: implemented
 code:
   - codebase/packages/web-chat-sdk/**
-  # §106 `wc:boot` 재전송 계약("위젯은 **마지막** wc:boot 의 config 를 적용")의 **위젯 측** 구현.
+  # §110 `wc:boot` 재전송 계약("위젯은 **마지막** wc:boot 의 config 를 적용")의 **위젯 측** 구현.
   # 이 문서가 그 계약의 SoT 이므로 여기 증거를 건다 — 1-widget-app.md 는 재전송을 서술하지 않는다.
   - codebase/channel-web-chat/src/widget/host-bridge.ts
   - codebase/channel-web-chat/src/widget/use-widget.ts
