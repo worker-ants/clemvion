@@ -26,7 +26,7 @@ COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sd
 
 # 내부 패키지 소스 — 각 패키지의 `prepare`(tsc)가 install 중 dist 를 빌드하는 데
 # 필요하다 (이전의 패키지별 `npm ci && npm run build` 단계를 대체). **backend closure
-# (= @workflow 4개)만** COPY 한다 — sdk·web-chat-sdk(프런트 전용, backend 미의존)를 제외해
+# (= @workflow 5개)만** COPY 한다 — sdk·web-chat-sdk(프런트 전용, backend 미의존)를 제외해
 # 그 패키지 소스 변경이 backend 이미지 빌드 캐시를 무효화하지 않게 한다. manifest 는 위에서
 # 전부 COPY 했으므로 `--frozen-lockfile` 검증에는 영향 없다. (신규 backend 의존 내부 패키지
 # 추가 시 여기에 COPY 를 보충 — 누락 시 build 스테이지 docker 검증이 포착.)

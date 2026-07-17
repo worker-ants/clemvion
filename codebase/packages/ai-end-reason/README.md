@@ -26,3 +26,28 @@ AI 노드(AI Agent · Information Extractor)가 생산하는 `output.result.endR
 
 각 노드 유니온에 추가하면 `CONVERSATION_END_REASONS` 의 exhaustiveness 검사가
 **컴파일 타임에** 배열 갱신을 강제한다. 배열만 고치면 `satisfies` 가 막는다.
+
+## 빌드
+
+```bash
+npm run build
+npm test
+```
+
+`codebase/backend` / `codebase/frontend` 가 workspace dep 로 import 하므로 두 앱 실행 전 build 가 선행되어야 한다.
+
+## 사용(Exports)
+
+```ts
+import {
+  AiAgentEndReason,
+  InformationExtractorEndReason,
+  ConversationEndReason,
+  CONVERSATION_END_REASONS,
+} from '@workflow/ai-end-reason';
+```
+
+- `AiAgentEndReason` — AI Agent multi-turn 종결 사유 4값 (`user_ended` / `max_turns` / `condition` / `error`)
+- `InformationExtractorEndReason` — Information Extractor 종결 사유 6값 (`completed` / `max_turns` / `user_ended` / `timeout` / `max_retries` / `error`)
+- `ConversationEndReason` — 위 두 유니온의 파생 합집합 (손으로 유지하지 않음)
+- `CONVERSATION_END_REASONS` — `ConversationEndReason` 의 런타임 값 배열. frontend 가 이 배열로 `Set` 을 만들어 대화 종결 판정에 쓴다 (`output-shape.ts`)

@@ -35,8 +35,8 @@ COPY codebase/packages/sdk/package.json ./codebase/packages/sdk/
 COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sdk/
 
 # 내부 패키지 소스 — prepare(tsc)가 install 중 dist 를 빌드한다. **frontend closure(= @workflow
-# 4개)만** COPY — sdk·web-chat-sdk(frontend 미의존)를 제외해 그 소스 변경이 이 e2e 이미지 빌드
-# 캐시를 무효화하지 않게 한다(codebase/backend/Dockerfile 동일 패턴). manifest 는 위에서 6개
+# 5개)만** COPY — sdk·web-chat-sdk(frontend 미의존)를 제외해 그 소스 변경이 이 e2e 이미지 빌드
+# 캐시를 무효화하지 않게 한다(codebase/backend/Dockerfile 동일 패턴). manifest 는 위에서 7개
 # 전부 COPY 했으므로 `--frozen-lockfile` 검증 무영향. 신규 frontend 의존 내부 패키지 추가 시
 # 여기 COPY 와 docker-compose.e2e.yml 마스킹 목록을 함께 보충한다 — 이 클로저 정합은
 # scripts/check-e2e-playwright-config.py (e2e.yml config-guard) 가 강제한다.

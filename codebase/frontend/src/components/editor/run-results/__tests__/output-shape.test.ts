@@ -604,4 +604,25 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     };
     expect(isConversationOutput(raw)).toBe(false);
   });
+
+  it("rejects result.messages when endReason is outside the CONVERSATION_END_REASONS whitelist", () => {
+    // Negative path for `looksLikeConversationEnd`. The prior test above only
+    // confirms every *whitelisted* endReason is accepted (positive-only); it
+    // never exercises the whitelist's actual reason to exist — rejecting an
+    // unrecognised endReason so a malformed/unknown terminal state isn't
+    // mistaken for a real conversation. `hasResultMessages` alone must not be
+    // sufficient.
+    const raw = {
+      config: {},
+      output: {
+        result: {
+          messages: [{ role: "user", content: "x" }],
+          endReason: "bogus_value",
+          turnCount: 1,
+        },
+      },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
 });

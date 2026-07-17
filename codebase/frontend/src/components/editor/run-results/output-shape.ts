@@ -98,28 +98,6 @@ export function unwrapNodeOutput(raw: unknown): UnwrappedNodeOutput {
 }
 
 /**
- * Detect whether outputData represents a multi-turn conversation result.
- * Handles all four shapes we emit:
- *   - Legacy flat completed (top-level `messages` + `interactionType`)
- *   - New wrapped completed (`{ config, output: { messages }, meta: { interactionType } }`)
- *   - New wrapped waiting (`{ config, output: { messages, message, turnCount,
- *     partial? }, meta: { interactionType: 'ai_conversation' },
- *     status: 'waiting_for_input', _resumeState }`)
- *   - Legacy waiting (top-level `interactionType: 'ai_conversation'` +
- *     `conversationConfig`) — for in-flight rows persisted before the
- *     canonical-shape migration.
- */
-/**
- * Multi-turn marker values recognised in either top-level (legacy) or
- * `meta.interactionType` (canonical) positions.
- *
- * Keep in sync with `spec/conventions/interaction-type-registry.md` —
- * adding a new value here without updating the registry is rejected by
- * the AST guard in `lib/__tests__/interaction-type-exhaustiveness.test.ts`.
- */
-
-
-/**
  * 대화 종결 사유 — **값 도메인의 SoT 는 `@workflow/ai-end-reason`** 이다.
  *
  * 예전엔 여기에 backend enum 을 손으로 베낀 사본이 있었고, 어긋날 때마다 대화
@@ -132,6 +110,18 @@ const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set(
   PACKAGE_CONVERSATION_END_REASONS,
 );
 
+/**
+ * Detect whether outputData represents a multi-turn conversation result.
+ * Handles all four shapes we emit:
+ *   - Legacy flat completed (top-level `messages` + `interactionType`)
+ *   - New wrapped completed (`{ config, output: { messages }, meta: { interactionType } }`)
+ *   - New wrapped waiting (`{ config, output: { messages, message, turnCount,
+ *     partial? }, meta: { interactionType: 'ai_conversation' },
+ *     status: 'waiting_for_input', _resumeState }`)
+ *   - Legacy waiting (top-level `interactionType: 'ai_conversation'` +
+ *     `conversationConfig`) — for in-flight rows persisted before the
+ *     canonical-shape migration.
+ */
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))
     return false;
