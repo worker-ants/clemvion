@@ -55,9 +55,23 @@ done
 # 4. Reap worktrees / local branches whose PR has merged (local-only, fail-safe,
 #    self-throttled to once per few hours). Never blocks the session — the
 #    reaper always exits 0 and skips the current/dirty worktree.
+#
+#    Hand it this session's ANCHOR worktree to keep. The reaper's own skip is
+#    the shell cwd, which is NOT the same thing: settings.json runs every hook
+#    as "$CLAUDE_PROJECT_DIR/.claude/hooks/…", so reaping the anchor leaves the
+#    session with no loadable hooks — Bash/Write/Edit all fail and it cannot
+#    recreate the directory. cwd == anchor normally, but they diverge after an
+#    EnterWorktree, and then the cwd skip protects the wrong worktree.
+#
+#    The anchor is derived from BASH_SOURCE rather than $CLAUDE_PROJECT_DIR: the
+#    harness interpolates that same absolute path to invoke this script, so
+#    BASH_SOURCE[0] *is* the anchor and holds without depending on the variable
+#    being exported into the hook env. `git rev-parse` can't be used — it is
+#    cwd-based and would report the same wrong worktree.
+anchor=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd -P) || anchor=""
 reaper="$main_root/.claude/tools/reap-merged-worktrees.sh"
 if [ -f "$reaper" ]; then
-    bash "$reaper" || true
+    bash "$reaper" ${anchor:+--keep "$anchor"} || true
 fi
 
 exit 0

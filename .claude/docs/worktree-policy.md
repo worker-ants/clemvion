@@ -102,7 +102,7 @@ PR 이 merge 되면 그 worktree·local branch 는 더 이상 필요 없다. 정
 | 시점 | hook/호출 | 동작 |
 |---|---|---|
 | SessionStart | `bootstrap-session.sh` → `reap-merged-worktrees.sh` | merge 된 PR 의 worktree·branch 정리 (자기 throttle) |
-| 수동 | `reap-merged-worktrees.sh [--dry-run]` | 즉시 정리 / 계획 미리보기 |
+| 수동 | `reap-merged-worktrees.sh [--dry-run] [--keep <path>]` | 즉시 정리 / 계획 미리보기 |
 
 **정리 대상·조건** (보수적, 모두 충족 시에만):
 
@@ -112,7 +112,11 @@ PR 이 merge 되면 그 worktree·local branch 는 더 이상 필요 없다. 정
 **불변식**:
 
 - **LOCAL-ONLY** — remote ref 는 절대 건드리지 않는다 (GitHub 가 merge 시 PR head 를 auto-delete).
-- **현재 세션 worktree 제외**, **dirty worktree 보존**(in-flight 작업 안전).
+- **사용 중 worktree 제외** — 서로 다른 **두** 경로를 모두 제외한다:
+  - **셸 cwd** (`git rev-parse --show-toplevel`).
+  - **세션 앵커** — `bootstrap-session.sh` 가 `--keep` 으로 전달하는 `$CLAUDE_PROJECT_DIR`. 모든 훅이 `$CLAUDE_PROJECT_DIR/.claude/hooks/*.py` 로 실행되므로 앵커를 reap 하면 **세션이 wedge 된다** (Bash·Write·Edit 전부 훅 로드 실패 → 자력 복구 불가). 평소엔 cwd == 앵커라 앵커가 우연히 보호되지만 `EnterWorktree` 이후 둘이 갈라지고, 그때 cwd skip 은 엉뚱한 쪽을 지킨다. 앵커는 `BASH_SOURCE` 로 유도한다 — `git rev-parse` 는 cwd 기반이라 같은 오답을 낸다.
+  - **한계**: 자기 세션의 앵커만 알 수 있다. 동시에 열린 다른 세션이 앵커로 쓰는 worktree 의 PR 이 merge 되면 그 세션은 여전히 죽는다("살아있는 세션 앵커 레지스트리" 가 필요해 과하다고 판단 — 하네스의 worktree recycle 로 복구되는 것이 관측됨).
+- **dirty worktree 보존**(in-flight 작업 안전).
 - **fail-safe** — `gh` 없음/미인증/오류면 worktree 제거를 건너뛴다(조상-merge dangling 의 `-d` 만 수행). 증명 못 한 merge 는 그대로 두고 수동 `cleanup-worktree.sh` 로 처리.
 - **throttle** — 세션 시작마다의 `gh` 비용을 묶기 위해 실제 실행은 `REAP_MIN_INTERVAL`(기본 6h)당 1회. `--force` 는 throttle 무시, `--dry-run` 은 read-only 라 항상 실행.
 

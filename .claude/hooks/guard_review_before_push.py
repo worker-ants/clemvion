@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 import traceback
 
@@ -48,12 +49,27 @@ except Exception:
     evaluate_plan = None  # plan gate disabled; review gate still runs.
 
 
-# Match `git push` as the first meaningful git subcommand. Tolerates leading
-# env assignments and `git -C <dir> push`, and compound commands where a push
-# appears after `&&` / `;` / `|`.
-_GIT_PUSH = re.compile(
+# Fallback only — used when the command cannot be tokenized (see _is_git_push).
+# Kept deliberately over-eager: it allows an unbounded distance between `git`
+# and `push`, so it also matches a `push` that is merely *mentioned* downstream
+# (e.g. in a heredoc commit message). That over-blocking is the safe direction
+# for an unparseable command, but it is why it is no longer the primary test.
+_GIT_PUSH_FALLBACK = re.compile(
     r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 )
+
+# `git` global options that take a *separate* value token. The token after each
+# is that value, so it can never be the subcommand: `git -C <dir> push`.
+_GIT_OPTS_WITH_VALUE = frozenset(
+    {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
+     "--config-env", "--super-prefix"}
+)
+
+# Shell operators that terminate a command segment. With punctuation_chars=True
+# shlex returns each of these as a token of its own.
+_SEGMENT_SEPARATORS = frozenset({"&&", "||", ";", ";;", "|", "|&", "&", "(", ")"})
+
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 
 def _read_payload() -> dict:
@@ -66,10 +82,72 @@ def _read_payload() -> dict:
         return {}
 
 
+def _tokenize(command: str) -> list[str]:
+    """Shell-aware tokens, with operators emitted as tokens of their own.
+
+    `shlex.split` splits on whitespace only, so `git add -A;git push` tokenizes
+    as [..., '-A;git', 'push'] — no `;` token, so the push hides in a segment
+    that looks like `git add`. punctuation_chars=True makes shlex emit
+    `;` / `&&` / `|` separately instead. Quoted runs stay single tokens, so a
+    `|` *inside* quotes is not read as a pipe.
+
+    `commenters` must be cleared: shlex.shlex() (unlike shlex.split()) treats
+    `#` as starting a comment, which would swallow `… && git push` after an
+    unquoted `#` — a false negative.
+    """
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
+def _git_subcommand(segment: list[str]) -> str | None:
+    """The git subcommand this segment invokes, or None if it does not run git."""
+    i = 0
+    while i < len(segment) and _ENV_ASSIGN.match(segment[i]):
+        i += 1  # leading `FOO=1 git …` env assignments
+    # basename so an absolute/relative path to git (`/usr/bin/git`) still counts.
+    if i >= len(segment) or os.path.basename(segment[i]) != "git":
+        return None
+    i += 1
+    while i < len(segment):
+        token = segment[i]
+        if token in _GIT_OPTS_WITH_VALUE:
+            i += 2  # skip the option *and* its value
+            continue
+        if token.startswith("-"):
+            i += 1  # `--git-dir=x`, `-p`, `--no-pager`, … carry their own value
+            continue
+        return token  # first non-flag token is the subcommand
+    return None
+
+
 def _is_git_push(command: str) -> bool:
+    """True when the command actually *runs* `git push` in some segment.
+
+    Decides on the parsed git subcommand, not on the presence of the word
+    "push" somewhere after a `git`. The latter blocked `git commit` whenever
+    the commit message mentioned push, and blocked `grep "…\\|git push\\|…"`
+    because the quoted `\\|` was read as a pipe.
+    """
     if not command or "push" not in command:
         return False
-    return bool(_GIT_PUSH.search(command))
+    try:
+        tokens = _tokenize(command)
+    except ValueError:
+        # Unbalanced quotes and the like. A guard must not turn permissive when
+        # it cannot parse, so fall back to the over-eager regex and block.
+        return bool(_GIT_PUSH_FALLBACK.search(command))
+
+    segment: list[str] = []
+    for token in tokens:
+        if token in _SEGMENT_SEPARATORS:
+            if _git_subcommand(segment) == "push":
+                return True
+            segment = []
+            continue
+        segment.append(token)
+    return _git_subcommand(segment) == "push"
 
 
 _REVIEW_MSG = (

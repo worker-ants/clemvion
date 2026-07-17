@@ -8,8 +8,16 @@ alongside cleanup-worktree.sh). They assert the documented behaviour:
   - delete a dangling ancestor-merged branch with no gh (git-enforced `-d`);
   - delete a dangling squash-merged branch only on a gh MERGED verdict (`-D`);
   - never touch a dangling branch gh cannot confirm;
+  - never touch a --keep worktree, and keep reaping everything else;
   - --dry-run plans without mutating anything.
 The throttle is disabled (REAP_MIN_INTERVAL=0) so each run executes.
+
+The --keep cases cover a real incident: the reaper's other skip is the shell
+cwd, and a session whose $CLAUDE_PROJECT_DIR anchor is a *different* worktree
+than its cwd (the state EnterWorktree leaves behind) had its anchor reaped,
+which wedges the session — every hook is loaded from that path. So the cases
+below always run with cwd set to a worktree other than the kept one; a test
+that let them coincide would pass on the cwd skip alone and prove nothing.
 """
 
 from __future__ import annotations
@@ -25,6 +33,7 @@ import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
 SRC_ROOT = _harness.REPO_ROOT
 REAPER_SRC = SRC_ROOT / ".claude" / "tools" / "reap-merged-worktrees.sh"
 CLEANUP_SRC = SRC_ROOT / ".claude" / "tools" / "cleanup-worktree.sh"
+BOOTSTRAP_SRC = SRC_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 
 _GH_STUB = """#!/usr/bin/env bash
 # Test stub: echo MERGED for branches named in $MERGED_BRANCHES, else OPEN.
@@ -99,13 +108,43 @@ class ReaperTest(unittest.TestCase):
         out = self._git("branch", "--format=%(refname:short)").stdout
         return {ln.strip() for ln in out.splitlines() if ln.strip()}
 
-    def _run(self, *extra, merged=(), gh_bin=None, dry=False):
+    def _env(self, merged=(), gh_bin=None):
         env = os.environ.copy()
         env["REAP_GH_BIN"] = gh_bin if gh_bin is not None else self.gh
         env["MERGED_BRANCHES"] = " ".join(merged)
         env["REAP_MIN_INTERVAL"] = "0"
+        return env
+
+    def _run(self, *extra, merged=(), gh_bin=None, dry=False, cwd=None):
         args = ["bash", self.reaper, *(("--dry-run",) if dry else ()), *extra]
-        return subprocess.run(args, cwd=self.repo, env=env,
+        return subprocess.run(args, cwd=cwd or self.repo,
+                              env=self._env(merged, gh_bin),
+                              capture_output=True, text=True)
+
+    def _install_bootstrap(self, worktree):
+        """Put bootstrap where the harness runs it from: <anchor>/.claude/tools/.
+
+        That path is the whole point — bootstrap reads BASH_SOURCE to learn which
+        worktree it was invoked out of. Committed on the worktree's own branch so
+        the worktree stays CLEAN: a dirty worktree is skipped for an unrelated
+        reason, which would make the anchor tests pass vacuously.
+        """
+        dest_dir = os.path.join(worktree, ".claude", "tools")
+        os.makedirs(dest_dir, exist_ok=True)
+        dest = os.path.join(dest_dir, "bootstrap-session.sh")
+        shutil.copy(BOOTSTRAP_SRC, dest)
+        self._git("add", ".claude/tools/bootstrap-session.sh", cwd=worktree)
+        self._git("commit", "-m", "bootstrap", cwd=worktree)
+        self.assertEqual(
+            self._git("status", "--porcelain", cwd=worktree).stdout, "",
+            "anchor worktree must be clean, else the dirty skip — not --keep — "
+            "is what saves it and the test proves nothing",
+        )
+        return dest
+
+    def _run_bootstrap(self, bootstrap, cwd, merged=()):
+        return subprocess.run(["bash", bootstrap], cwd=cwd,
+                              env=self._env(merged),
                               capture_output=True, text=True)
 
     # --- tests -------------------------------------------------------------
@@ -151,6 +190,89 @@ class ReaperTest(unittest.TestCase):
         self._add_branch_with_commit("dangling-open")  # not ancestor, gh OPEN
         self._run(merged=[])
         self.assertIn("claude/dangling-open", self._branches())
+
+    # --- --keep / session anchor -------------------------------------------
+    def test_keep_protects_anchor_when_cwd_is_a_different_worktree(self):
+        """The incident: anchor ≠ cwd, both merged. Without --keep the anchor
+        was reaped and the session lost every hook."""
+        anchor = self._add_worktree("wt-anchor")
+        elsewhere = self._add_worktree("wt-cwd")
+        r = self._run("--keep", anchor, cwd=elsewhere,
+                      merged=["claude/wt-anchor", "claude/wt-cwd"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(os.path.exists(anchor), "--keep worktree must survive")
+        self.assertIn("claude/wt-anchor", self._branches(),
+                      "the kept worktree's branch must survive with it")
+        self.assertTrue(os.path.exists(elsewhere), "cwd worktree must survive")
+
+    def test_keep_does_not_shield_other_merged_worktrees(self):
+        """--keep must not degrade into 'skip everything' (option C, rejected)."""
+        anchor = self._add_worktree("wt-anchor")
+        other = self._add_worktree("wt-other")
+        self._run("--keep", anchor, cwd=self.repo,
+                  merged=["claude/wt-anchor", "claude/wt-other"])
+        self.assertTrue(os.path.exists(anchor))
+        self.assertFalse(os.path.exists(other),
+                         "an unrelated merged worktree must still be reaped")
+
+    def test_keep_matches_whole_path_not_prefix(self):
+        """`…/wt-a` must not shield its prefix-sharing sibling `…/wt-a-2`."""
+        anchor = self._add_worktree("wt-a")
+        sibling = self._add_worktree("wt-a-2")
+        self._run("--keep", anchor, cwd=self.repo,
+                  merged=["claude/wt-a", "claude/wt-a-2"])
+        self.assertTrue(os.path.exists(anchor))
+        self.assertFalse(os.path.exists(sibling))
+
+    def test_keep_when_cwd_equals_anchor_is_harmless(self):
+        """The ordinary session, where both skips name the same worktree."""
+        anchor = self._add_worktree("wt-anchor")
+        other = self._add_worktree("wt-other")
+        r = self._run("--keep", anchor, cwd=anchor,
+                      merged=["claude/wt-anchor", "claude/wt-other"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(os.path.exists(anchor))
+        self.assertFalse(os.path.exists(other), "double skip must not disable reaping")
+
+    def test_dry_run_does_not_plan_to_remove_a_kept_worktree(self):
+        anchor = self._add_worktree("wt-anchor")
+        self._add_worktree("wt-other")
+        r = self._run("--keep", anchor, cwd=self.repo, dry=True,
+                      merged=["claude/wt-anchor", "claude/wt-other"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("wt-anchor", r.stdout)
+        self.assertIn("WOULD remove worktree wt-other", r.stdout)
+
+    def test_keep_requires_a_value(self):
+        r = self._run("--keep")
+        self.assertEqual(r.returncode, 2, "a valueless --keep must not be ignored")
+
+    def test_unknown_argument_still_rejected(self):
+        r = self._run("--bogus")
+        self.assertEqual(r.returncode, 2)
+
+    def test_bootstrap_keeps_the_worktree_it_was_invoked_from(self):
+        """End-to-end over the real seam: bootstrap must derive its anchor from
+        BASH_SOURCE and pass it through. Guards the whole chain — a --keep the
+        reaper honours but bootstrap never sends would leave the bug in place."""
+        anchor = self._add_worktree("wt-anchor")
+        elsewhere = self._add_worktree("wt-cwd")
+        bootstrap = self._install_bootstrap(anchor)
+        r = self._run_bootstrap(bootstrap, cwd=elsewhere,
+                                merged=["claude/wt-anchor", "claude/wt-cwd"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(os.path.exists(anchor),
+                        "bootstrap must keep its own anchor worktree alive")
+
+    def test_bootstrap_still_reaps_unrelated_merged_worktrees(self):
+        anchor = self._add_worktree("wt-anchor")
+        stale = self._add_worktree("wt-stale")
+        bootstrap = self._install_bootstrap(anchor)
+        self._run_bootstrap(bootstrap, cwd=anchor,
+                            merged=["claude/wt-anchor", "claude/wt-stale"])
+        self.assertTrue(os.path.exists(anchor))
+        self.assertFalse(os.path.exists(stale),
+                         "bootstrap must not disable the reaper's actual job")
 
     def test_dry_run_plans_without_mutating(self):
         wt = self._add_worktree("wt-merged")
