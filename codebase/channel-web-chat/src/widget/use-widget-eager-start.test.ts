@@ -1651,7 +1651,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(result.current.state.phase).not.toBe("ended");
   });
 
-  // W2 — 위 테스트의 **soft-fail 변종**. 위는 seed 가 정상 resolve 하는 경로라 `seedWaitingFromStatus`
+  // 위 테스트의 **soft-fail 변종** (ai-review 2026-07-17 08_29_33 W2). 위는 seed 가 정상 resolve 하는 경로라 `seedWaitingFromStatus`
   // 내부 세대 검사가 `"stale"` 을 반환해 걸러진다. 그러나 getStatus 가 **reject** 하면 catch 는
   // 세대와 무관하게 `"continue"`(soft-fail — 종료로 오판하지 않는다)를 반환했다. `start()` 는 호출
   // 직후 `if (worldGenRef.current !== gen) return;` 로 한 번 더 걸러 무사했지만, `applyConfig` 는
@@ -1659,7 +1659,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // → 스트림 탈취·방금 지운 storage 부활. 네트워크 오류는 정상 조건이라 실제로 닿는 경로다.
   // (ai-review 2026-07-17 08_29_33 W2 — reviewer 는 "현재 활성 버그 아님"으로 봤으나 soft-fail
   // 분기 때문에 이미 활성이었다. RESOLUTION.md §W2 참조.)
-  it("W2: 복원 seed 가 network 오류로 soft-fail 해도 새 대화 스트림을 옛 세션이 탈취하지 않는다", async () => {
+  it("복원 seed 가 network 오류로 soft-fail 해도 새 대화 스트림을 옛 세션이 탈취하지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
@@ -1892,12 +1892,12 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     postSpy.mockRestore();
   });
 
-  // W3 — 언마운트 세대 증가의 회귀 테스트. 이 지점은 커밋 메시지가 "리뷰 W6(unmount-after-await
+  // 언마운트 세대 증가의 회귀 테스트 (ai-review 2026-07-17 08_29_33 W3). 이 지점은 커밋 메시지가 "리뷰 W6(unmount-after-await
   // SSE leak) 도 함께 해소"라 주장했으나 실제로는 **어떤 테스트도 검증하지 않았다**(mutation 실증:
   // 제거해도 364개 중 0건 실패). webhook POST 가 떠 있는 동안 언마운트되면, 세대 증가가 없을 때
   // 지연 응답이 `persist()` 로 storage 를 쓰고 `openStream`/`scheduleRefresh` 로 스트림·타이머를
   // 되살린다 — 사라진 컴포넌트가 남긴 유령 세션. (ai-review 2026-07-17 08_29_33 W3)
-  it("W3: webhook POST in-flight 중 언마운트 → 지연 응답이 storage·SSE 를 되살리지 않는다", async () => {
+  it("webhook POST in-flight 중 언마운트 → 지연 응답이 storage·SSE 를 되살리지 않는다", async () => {
     let resolveHook: ((r: Response) => void) | null = null;
     vi.stubGlobal(
       "fetch",
@@ -1944,14 +1944,15 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(getEs()).toBeNull();
   });
 
-  // C1 — embed-config 왕복(부팅) 중 host resetSession 이 들어와도 config 는 확립돼야 한다.
+  // embed-config 왕복(부팅) 중 host resetSession 이 들어와도 config 는 확립돼야 한다
+  // (ai-review 2026-07-17 08_29_33 CRITICAL#1).
   //
   // 세대 단일화가 만든 회귀의 회귀 테스트: `teardownSession()` 이 무조건 세대를 올리면 아직
   // 부팅 중인 `applyConfig` 가 stale 로 판정돼 죽고, `configRef`/`clientRef`/`setConfig` 가 영영
   // 세팅되지 않아 **런처만 뜨고 패널이 영원히 안 열린다**(콘솔 경고 없는 silent hang, 자가 회복
   // 경로 없음). 기존 R9-A 의 "booting" 은 config 확립 **후** webhook POST in-flight 라 이 창을
   // 못 덮는다 (ai-review 2026-07-17 08_29_33 CRITICAL#1).
-  it("C1: embed-config in-flight 중 host resetSession → config 확립(패널 정상 개방)", async () => {
+  it("embed-config in-flight 중 host resetSession → config 확립(패널 정상 개방)", async () => {
     let resolveEmbed: ((r: Response) => void) | null = null;
     vi.stubGlobal(
       "fetch",
@@ -2005,5 +2006,79 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(result.current.config).not.toBeNull();
     act(() => result.current.actions.open());
     await waitFor(() => expect(result.current.state.open).toBe(true));
+  });
+
+  // 위 fix 는 "부팅 전엔 정리할 게 없다"는 전제에 서는데, 그건 **메모리**에만 참이다.
+  // `sessionStorage` 에는 이전 마운트/페이지 로드의 세션이 남아있을 수 있어, 그냥 조기 return 하면
+  // 그 값이 복원돼 host 가 요청한 "새 대화"가 조용히 무시되고 옛 대화가 이어진다(재현 확인 —
+  // 영구 정지가 리셋 무시로 바뀐 것). 위 C1 테스트는 `beforeEach` 의 sessionStorage.clear() 로
+  // 시작해 이 창을 덮지 못했다. (ai-review 2026-07-17 09_36_01 — side_effect·security 독립 지적)
+  it("저장 세션이 있는 채로 부팅 중 resetSession → 옛 대화가 부활하지 않는다", async () => {
+    // 이전 대화가 저장소에 만료 전 세션으로 남아있다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "OLD", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    let resolveEmbed: ((r: Response) => void) | null = null;
+    let hookPosts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            resolveEmbed = r;
+          });
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          hookPosts += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "NEW",
+                status: "pending",
+                interaction: { token: "iext_new", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        // 옛 세션이 복원되면 여기로 seed 가 온다 — 복원 자체가 없어야 정상.
+        if (u.endsWith("/api/external/executions/e1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "NEW", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(resolveEmbed).not.toBeNull()); // embed-config in-flight.
+
+    // 부팅 중 host 가 "대화를 처음부터 다시 시작" 을 명시 요청.
+    sendHostCommand("resetSession");
+
+    await act(async () => {
+      resolveEmbed?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { allowlist: [], enforce: false } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // (1) C1 fix 유지 — config 는 확립된다(영구 정지 없음).
+    expect(result.current.config).not.toBeNull();
+    // (2) 옛 세션이 복원되지 않았다 — 저장소에서도 지워졌거나 새 세션으로 대체됐다.
+    expect(result.current.state.executionId).not.toBe("OLD");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").not.toContain("OLD");
+    // (3) 요청된 "새 대화" 가 실제로 시작됐다 — 저장소만 지우고 멈추면 패널만 열린 빈 화면이 된다.
+    await waitFor(() => expect(hookPosts).toBe(1));
   });
 });

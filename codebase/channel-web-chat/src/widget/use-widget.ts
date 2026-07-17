@@ -138,7 +138,7 @@ export function useWidget() {
    * 상태를 덮으면 유령 표면·오종료·스트림 탈취가 난다.
    *
    * **계약**: 세계를 무효화하는 모든 지점이 `++worldGenRef.current` 하고, 모든 `await` 뒤에는
-   * `if (worldGenRef.current !== gen) return;` 로 재검증한다. 무효화 지점은 셋이다 —
+   * `if (isStale(gen)) return;` 로 재검증한다. 무효화 지점은 셋이다 —
    * (1) `teardownSession()` — 종료·410·새 대화·대화 종료가 전부 경유하는 choke point.
    *     단 config 확립 전에는 무효화할 세계가 없어 no-op (그 조기 return 주석 참조).
    * (2) `start()` — 새 execution 이 곧 직전 세계를 대체하므로 시작 자체가 무효화다.
@@ -157,6 +157,15 @@ export function useWidget() {
    * 같은 종료를 중복 통지**하는 것을 막는 별개 축이다.)*
    */
   const worldGenRef = useRef(0);
+  /**
+   * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
+   *
+   * config 확립 전(`applyConfig` 의 embed-config 왕복 중)에 host `resetSession`/`newChat` 이 오면
+   * `teardownSession()` 은 `triggerEndpointPath` 를 몰라 저장소를 지울 수 없다. 그렇다고 그냥
+   * 무시하면 이전 마운트가 남긴 저장 세션이 복원돼 리셋 요청이 사라진다 — 그래서 의도를 여기
+   * 기록해 두고 `applyConfig` 가 `loadSession` **직전**에 소비한다.
+   */
+  const pendingResetRef = useRef(false);
   // 종료 1회 가드 — SSE terminal 이벤트와 REST 폴백 terminal 이 같은 종료에 대해 각각 발화해도
   // host `conversationEnded` 를 두 번 보내지 않는다. `resetSessionRefs`(새 대화)에서 해제.
   const endedRef = useRef(false);
@@ -173,6 +182,16 @@ export function useWidget() {
     configRef,
     worldGenRef,
   });
+
+  /**
+   * 캡처한 `gen` 이후 세계가 무효화됐는가 — **모든 `await` 뒤의 표준 재검증**.
+   *
+   * `isStale(gen)` 을 손으로 복제하는 대신 이름을 붙였다. 이 관용구를 **빠뜨리는
+   * 것**이 곧 이 파일이 4라운드 연속 겪은 버그의 형태였으므로(`seedWaitingFromStatus` catch 분기·
+   * `applyConfig` 비대칭), 의도가 이름으로 드러나고 `isStale` grep 하나로 전 지점을 셀 수 있어야
+   * 한다 (ai-review 2026-07-17 09_36_01 maintainability).
+   */
+  const isStale = useCallback((gen: number) => worldGenRef.current !== gen, []);
 
   const closeStream = useCallback(() => {
     streamRef.current?.close();
@@ -195,7 +214,17 @@ export function useWidget() {
     // 종전 `cancelled` 지역 플래그는 언마운트에서만 set 이라 이 경로가 우연히 안전했다 — 세대
     // 단일화가 그 우연을 깨뜨렸다. 세계가 아직 시작도 안 했으면 무효화할 것도 없으므로 조기 return
     // 한다 (ai-review 2026-07-17 08_29_33 CRITICAL#1, A/B 재현 확인).
-    if (!configRef.current) return;
+    //
+    // **단, 메모리와 저장소는 다르다.** in-memory 세션·스트림·타이머는 확실히 비어 있지만
+    // `sessionStorage` 에는 **이전 마운트/페이지 로드의 세션이 남아있을 수 있다**. 그냥 return 하면
+    // 그 값이 아래 `applyConfig` 의 `loadSession` 으로 복원돼 **host 가 요청한 "새 대화"가 조용히
+    // 무시되고 옛 대화가 부활한다**(재현 확인). 여기선 `cfg` 를 몰라 저장소 키를 지울 수 없으므로
+    // 의도만 기록하고, config 가 확립되는 `applyConfig` 가 이행한다
+    // (ai-review 2026-07-17 09_36_01 — side_effect·security 독립 지적).
+    if (!configRef.current) {
+      pendingResetRef.current = true;
+      return;
+    }
     // **world 무효화** — in-flight 비동기(start webhook·seed getStatus·sendCommand interact)의 캡처
     // gen 을 전부 stale 화한다. 종료 이벤트·410·seed-terminal·새 대화·대화 종료가 모두 이 함수를
     // 경유하므로 여기 한 곳이면 충분하다(`worldGenRef` JSDoc §계약).
@@ -345,7 +374,7 @@ export function useWidget() {
         // `sessionRef` 를 null 하지 않으므로 SSE terminal 종료 후에도 이 검사를 통과해, 종료된 위젯이
         // stale 응답으로 `awaiting_user_message` 로 부활했다(재현 확인). 세대 검사는 종료·교체를
         // 구분 없이 전부 잡는다 (`worldGenRef` JSDoc 참조).
-        if (worldGenRef.current !== gen) return "stale";
+        if (isStale(gen)) return "stale";
         // 이미 종료된 execution — 정리 후 ENDED 로 전이한다. **버퍼 만료(§replay_unavailable) 경로에서
         // 특히 중요**: 5분 gap 안에 execution 이 종료됐다면 그 terminal SSE 이벤트도 버퍼에서 함께
         // 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지·재전송 안 함 — EIA R-replay-unavailable).
@@ -377,7 +406,7 @@ export function useWidget() {
         // 옛 세션으로 `openStream`+`scheduleRefresh` 를 해 **스트림을 탈취하고 방금 지운 storage 를
         // 되살린다**(재현 확인). `start()` 는 뒤에 명시적 세대 재검사가 있어 우연히 무사했다 —
         // 그 비대칭이 곧 이 버그였다 (ai-review 2026-07-17 08_29_33 W2).
-        if (worldGenRef.current !== gen) return "stale";
+        if (isStale(gen)) return "stale";
         console.warn(
           "[widget] getStatus seed failed:",
           err instanceof Error ? err.message : String(err),
@@ -385,7 +414,7 @@ export function useWidget() {
         return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [finalizeEnded],
+    [finalizeEnded, isStale],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -434,7 +463,7 @@ export function useWidget() {
       });
       // webhook POST 왕복 중 종료/새 대화로 이 start 가 대체됐으면 여기서 중단 —
       // 옛 execution 을 persist/openStream 으로 되살리지 않는다(booting-중-종료 race).
-      if (worldGenRef.current !== gen) return;
+      if (isStale(gen)) return;
       dispatch({ type: "BOOTED", executionId: res.executionId });
       bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
       const session = persist(cfg, res);
@@ -452,7 +481,7 @@ export function useWidget() {
         const outcome = await seedWaitingFromStatus(client, session);
         if (outcome !== "continue") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
-        if (worldGenRef.current !== gen) return;
+        if (isStale(gen)) return;
         openStream(session, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
@@ -460,11 +489,11 @@ export function useWidget() {
       // 이 start 가 teardown(새 대화/종료)으로 대체됐으면 옛 실패로 최신 상태를 덮지 않는다 —
       // try 블록의 두 gen 검사(BOOTED 직전·openStream 직전)와 대칭. 미검사 시 stale 실패가
       // startedRef 를 재개방(중복 execution)하거나 진행 중 새 대화 phase 를 옛 에러로 덮을 수 있다.
-      if (worldGenRef.current !== gen) return;
+      if (isStale(gen)) return;
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh]);
+  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -478,7 +507,7 @@ export function useWidget() {
         // **staleness 가드** — 이 명령이 뜬 사이 세계가 바뀌었으면(종료·새 대화·대화 종료·언마운트)
         // 옛 세션의 지연 도착 실패로 **살아있는 새 세션을 종료(410)시키거나 에러를 띄우면 안 된다**
         // (cross-session 오종료 — ai-review 2026-07-17 06_53_03 CRITICAL#1).
-        if (worldGenRef.current !== gen) return;
+        if (isStale(gen)) return;
         if (e instanceof EiaError && e.status === 410) {
           // 410 Gone(대화 종료됨)도 host 에 종료 통지 — SSE terminal·user_ended 와 동일하게
           // conversationEnded 를 발사해 모든 종료 경로의 host 통지를 일관되게 한다(2-sdk §3 wc:event).
@@ -490,7 +519,7 @@ export function useWidget() {
         }
       }
     },
-    [finalizeEnded],
+    [finalizeEnded, isStale],
   );
 
   // C1(§R6) 보류 메시지 큐 — booting/streaming 중 텍스트를 보관했다가 awaiting_user_message 진입 시 flush.
@@ -687,7 +716,7 @@ export function useWidget() {
       const gen = worldGenRef.current;
       // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
       const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
-      if (worldGenRef.current !== gen) return;
+      if (isStale(gen)) return;
       if (!allowed) {
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
@@ -695,6 +724,18 @@ export function useWidget() {
       configRef.current = cfg;
       setConfig(cfg);
       clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
+      // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
+      // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
+      // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
+      // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
+      // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
+      // 복원 분기는 의미가 없으므로(방금 지운다) 조기 return.
+      // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
+      if (pendingResetRef.current) {
+        pendingResetRef.current = false;
+        apiRef.current.newChat();
+        return;
+      }
       // 새로고침 복원(N1): 저장 세션이 살아있으면 SSE 재연결.
       const saved = loadSession(cfg.triggerEndpointPath);
       if (saved) {
@@ -715,7 +756,7 @@ export function useWidget() {
           // 스스로 지킨다. 위 `outcome` 게이팅이 이미 세대 변화를 잡지만, 그건 `seedWaitingFromStatus`
           // 내부 구현에 대한 의존이다. 여기서 한 번 더 보면 그 내부가 바뀌어도(예: await 추가) 이
           // 경로가 조용히 무방비가 되지 않는다 (ai-review 2026-07-17 08_29_33 W2).
-          if (worldGenRef.current !== gen) return;
+          if (isStale(gen)) return;
         }
         openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
