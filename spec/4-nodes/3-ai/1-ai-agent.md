@@ -462,6 +462,8 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 >
 > **`endReason` 값 도메인의 SoT 는 [`@workflow/ai-end-reason`](../../../codebase/packages/ai-end-reason/)** (`AiAgentEndReason`) — 본 절은 각 값의 **의미·port 매핑**을 소유하고 **값 목록 자체**는 패키지가 소유한다. IE 와 도메인이 다른 것은 의도다(IE 는 `condition` 없음). 상세: [interaction-type-registry §4](../../conventions/interaction-type-registry.md#4-ai-노드-endreason--패키지가-sot-가드-비대상).
 >
+> **범위 — multi-turn 종결 4값 한정**(`user_ended` / `max_turns` / `condition` / `error`). 아래 §7.1·§7.2 의 single-turn `endReason: "out"` 은 **의도적으로 패키지 도메인 밖**이다: backend 가 유니온으로 선언한 적 없이 인라인 추론할 뿐이고, single turn 은 `result.messages` 가 없어 대화 판정 대상이 아니다(대화 UI 게이트가 `messages` 부재로 먼저 거른다). **`'out'` 이 `AiAgentEndReason` 에 없는 것은 누락이 아니므로 추가하지 말 것** — 근거: [plan `is-conversation-output-restructure` §유니온 분기](../../../plan/complete/is-conversation-output-restructure.md).
+>
 > | Sub-section | 모드 | 종결 사유 | port | status |
 > |---|---|---|---|---|
 > | §7.1 | single_turn | 정상 완료 | `out` | `ended` |
