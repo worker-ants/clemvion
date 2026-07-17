@@ -293,3 +293,9 @@ STRICT:: config=null (부팅 실패!)
 
 - **재전송으로 `apiBase` 가 바뀌면 옛 세션 토큰이 새 `apiBase` 로 전송될 수 있다** (security WARNING) — `session-store` 가 **발급 apiBase 를 기록하지 않아** 세션과 엔드포인트가 축 분리돼 있다. **이번 diff 가 만든 게 아니다**(재전송 시 복원하던 종전에도 `clientRef` 만 새 apiBase 로 바뀌었다). 별도 트랙 — 세션에 발급 origin 을 기록하고 불일치 시 폐기하는 설계가 필요하다.
 - **`AI_MESSAGE` 의 `ended` 가드 부재** (security INFO) — `ERROR` 근본 fix 로 지배적 경로가 닫혀 잔여 위험 낮음. 실패 사례 확인 시 확대.
+
+
+## 이월 추가 (18_39_11 side_effect·maintainability)
+
+- **겹친 부팅이 스트림 확립 전 구간에서 `getStatus` 를 중복 발사** (side_effect WARNING, 실측 재현) — `sessionEstablished()` 는 "이미 연결됨" 만 감지하고 "형제가 복원 진행 중" 은 모른다. **최종 상태는 올바르게 수렴한다**(대체된 시도가 checkpoint 2 에서 bail → EventSource 1개, §106 유지). 멱등 GET 중복이고 실사용 경로(미리보기 재전송)는 대개 스트림 확립 **후**라 심각도 낮음 → 이월. 신규 테스트가 이미 `if (statusResolvers.length > 1)` 로 이 가능성을 방어적으로 다룬다.
+- **`useEiaSession` 분리를 앞당길 근거** (maintainability) — `useWidget()` 이 872줄·`useCallback` 26개. plan 은 "축이 1개로 정리된 지금이 적기" 라 봤으나 A 가 축을 2개로 되돌렸다. 다만 리뷰어 지적대로 **사고 이력 자체**(이 클래스에서 거울상 7회)가 분리의 근거다.

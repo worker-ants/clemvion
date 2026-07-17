@@ -291,6 +291,16 @@ export function useWidget() {
     [cannotApplyConfig],
   );
 
+  /**
+   * 이 마운트의 세션이 **확립됐는가** — 재전송(`wc:boot` 재수신)이 복원을 건너뛸지의 판정.
+   *
+   * **`streamRef`(연결이 살아있나)이지 `startedRef`(시작했나)가 아니다.** `startedRef` 는 복원
+   * **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만 남아
+   * **살아있는 시도까지 복원을 건너뛰게** 만든다 → `streaming` 인데 연결이 0개로 고착된다
+   * (재현 확인 — 이 fix 를 `startedRef` 로 처음 썼다가 낸 결함).
+   */
+  const sessionEstablished = useCallback(() => streamRef.current !== null, []);
+
   const closeStream = useCallback(() => {
     streamRef.current?.close();
     streamRef.current = null;
@@ -895,12 +905,7 @@ export function useWidget() {
       // **입력창이 사라졌다가 seed 응답 후 돌아온다**(재현 확인). 관리자 라이브 미리보기는 외형 폼
       // 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 이 flicker 가 난다.
       //
-      // 판정은 **`streamRef`(연결이 살아있나)** 다 — `startedRef`(시작했나)가 아니다. `startedRef` 는
-      // 복원 **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만
-      // 남아 **살아있는 시도까지 복원을 건너뛰게** 만든다 → `streaming` 인데 연결이 0개인 상태로
-      // 고착된다(재현 확인 — 내가 이 fix 를 `startedRef` 로 처음 썼다가 낸 결함).
-      // 연결이 실제로 서 있을 때만 "이 마운트의 세션은 확립됐다" 고 말할 수 있다.
-      const saved = streamRef.current ? null : loadSession(cfg.triggerEndpointPath);
+      const saved = sessionEstablished() ? null : loadSession(cfg.triggerEndpointPath);
       if (saved) {
         sessionRef.current = saved;
         startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).
