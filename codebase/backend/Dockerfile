@@ -16,6 +16,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY codebase/backend/package.json ./codebase/backend/
 COPY codebase/frontend/package.json ./codebase/frontend/
 COPY codebase/channel-web-chat/package.json ./codebase/channel-web-chat/
+COPY codebase/packages/ai-end-reason/package.json ./codebase/packages/ai-end-reason/
 COPY codebase/packages/expression-engine/package.json ./codebase/packages/expression-engine/
 COPY codebase/packages/node-summary/package.json ./codebase/packages/node-summary/
 COPY codebase/packages/chat-channel-validation/package.json ./codebase/packages/chat-channel-validation/
@@ -29,6 +30,7 @@ COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sd
 # 그 패키지 소스 변경이 backend 이미지 빌드 캐시를 무효화하지 않게 한다. manifest 는 위에서
 # 전부 COPY 했으므로 `--frozen-lockfile` 검증에는 영향 없다. (신규 backend 의존 내부 패키지
 # 추가 시 여기에 COPY 를 보충 — 누락 시 build 스테이지 docker 검증이 포착.)
+COPY codebase/packages/ai-end-reason ./codebase/packages/ai-end-reason
 COPY codebase/packages/expression-engine ./codebase/packages/expression-engine
 COPY codebase/packages/node-summary ./codebase/packages/node-summary
 COPY codebase/packages/chat-channel-validation ./codebase/packages/chat-channel-validation

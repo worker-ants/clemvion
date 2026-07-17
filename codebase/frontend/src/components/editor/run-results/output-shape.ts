@@ -9,6 +9,9 @@
  * metadata.
  */
 
+import { CONVERSATION_END_REASONS as PACKAGE_CONVERSATION_END_REASONS } from "@workflow/ai-end-reason";
+import { MULTI_TURN_INTERACTION_TYPES } from "@/lib/conversation/interaction-type-registry";
+
 // RAG 타입의 canonical 정의는 `@/lib/conversation/rag-types` 다 — `lib/` 의
 // `mergeRagRetrievalItems` 가 `TurnRagDelta` 를 받는데 이 타입이 여기
 // (components/)에 있으면 lib → components 레이어 역전이 된다. 이 디렉터리의
@@ -114,29 +117,20 @@ export function unwrapNodeOutput(raw: unknown): UnwrappedNodeOutput {
  * adding a new value here without updating the registry is rejected by
  * the AST guard in `lib/__tests__/interaction-type-exhaustiveness.test.ts`.
  */
-const MULTI_TURN_INTERACTION_TYPES: ReadonlySet<string> = new Set([
-  "ai_conversation",
-  "ai_form_render",
-]);
+
 
 /**
- * 대화가 종결됐음을 나타내는 `output.result.endReason` 값 전체.
+ * 대화 종결 사유 — **값 도메인의 SoT 는 `@workflow/ai-end-reason`** 이다.
  *
- * backend enum 과 정합해야 한다 — `ai-turn-executor.ts` 의 multi-turn 종결
- * (`'user_ended' | 'max_turns' | 'condition' | 'error'`) + IE/single-turn 의
- * `'completed'` / `'max_retries'`. `error` / `condition` 누락은 drift 였고,
- * 그 탓에 대화가 outputData 에 그대로 있는데도 미리보기가 사라졌다
- * (spec/conventions/conversation-thread.md §9.9 Inv-8 — 종결 사유는 대화
- * 데이터의 존재 여부와 무관한 축이다).
+ * 예전엔 여기에 backend enum 을 손으로 베낀 사본이 있었고, 어긋날 때마다 대화
+ * 미리보기 탭이 통째로 사라졌다 (`error`·`condition` 누락 — PR #959). 사본을
+ * 없애 drift 가 발생할 자리 자체를 제거한다 — 패키지가 `satisfies` + `Exclude`
+ * 로 배열↔유니온을 양방향 잠그므로, 어느 노드 유니온에 값이 추가되면 **패키지
+ * 컴파일이 깨진다**.
  */
-const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set([
-  "completed",
-  "user_ended",
-  "max_turns",
-  "max_retries",
-  "condition",
-  "error",
-]);
+const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set(
+  PACKAGE_CONVERSATION_END_REASONS,
+);
 
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))

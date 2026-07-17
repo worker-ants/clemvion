@@ -1,9 +1,11 @@
 import { describe, it } from "vitest";
+import {
+  INTERACTION_TYPE_VALUES,
+  CONVERSATION_SOURCE_VALUES,
+} from "@/lib/conversation/interaction-type-registry";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { WaitingInteractionType } from "@/lib/stores/execution-store";
-import type { ConversationTurnSource } from "@/lib/conversation/conversation-utils";
 
 /**
  * AST/grep guard for `WaitingInteractionType` exhaustiveness.
@@ -43,18 +45,7 @@ const REGISTRY_SITES = [
 // Derive the enum values from the actual TS type so a rename is caught
 // without a manual fix here. The type is a string union; we list the values
 // here as the test SoT and assert each matches the type via a typecheck.
-const ENUM_VALUES = [
-  "form",
-  "buttons",
-  "ai_conversation",
-  "ai_form_render",
-] as const;
-
-// Compile-time assertion: every literal in ENUM_VALUES is assignable to
-// WaitingInteractionType. If you add a value to the type, the next line
-// errors until ENUM_VALUES includes it.
-const _typecheck: ReadonlyArray<WaitingInteractionType> = ENUM_VALUES;
-void _typecheck;
+const ENUM_VALUES = INTERACTION_TYPE_VALUES;
 
 function readRepoFile(relPath: string): string {
   // tests run with cwd = `codebase/frontend`, so walk up to repo root.
@@ -100,19 +91,7 @@ const SOURCE_REGISTRY_SITES = [
   "codebase/frontend/src/lib/conversation/conversation-utils.ts",
 ];
 
-const SOURCE_ENUM_VALUES = [
-  "ai_user",
-  "ai_assistant",
-  "ai_tool",
-  "presentation_user",
-  "system",
-  "system_error",
-  "rag",
-] as const;
-
-const _sourceTypecheck: ReadonlyArray<ConversationTurnSource> =
-  SOURCE_ENUM_VALUES;
-void _sourceTypecheck;
+const SOURCE_ENUM_VALUES = CONVERSATION_SOURCE_VALUES;
 
 describe("ConversationTurnSource exhaustiveness across registry sites", () => {
   it("every source value appears as a string literal in every registry site", () => {

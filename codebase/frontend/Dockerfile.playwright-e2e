@@ -26,6 +26,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY codebase/backend/package.json ./codebase/backend/
 COPY codebase/frontend/package.json ./codebase/frontend/
 COPY codebase/channel-web-chat/package.json ./codebase/channel-web-chat/
+COPY codebase/packages/ai-end-reason/package.json ./codebase/packages/ai-end-reason/
 COPY codebase/packages/expression-engine/package.json ./codebase/packages/expression-engine/
 COPY codebase/packages/node-summary/package.json ./codebase/packages/node-summary/
 COPY codebase/packages/chat-channel-validation/package.json ./codebase/packages/chat-channel-validation/
@@ -39,6 +40,7 @@ COPY codebase/packages/web-chat-sdk/package.json ./codebase/packages/web-chat-sd
 # 전부 COPY 했으므로 `--frozen-lockfile` 검증 무영향. 신규 frontend 의존 내부 패키지 추가 시
 # 여기 COPY 와 docker-compose.e2e.yml 마스킹 목록을 함께 보충한다 — 이 클로저 정합은
 # scripts/check-e2e-playwright-config.py (e2e.yml config-guard) 가 강제한다.
+COPY codebase/packages/ai-end-reason ./codebase/packages/ai-end-reason
 COPY codebase/packages/expression-engine ./codebase/packages/expression-engine
 COPY codebase/packages/node-summary ./codebase/packages/node-summary
 COPY codebase/packages/chat-channel-validation ./codebase/packages/chat-channel-validation

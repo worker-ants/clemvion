@@ -51,6 +51,7 @@
     "@opentelemetry/sdk-node": "^0.219.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
     "@simplewebauthn/server": "^13.3.0",
+    "@workflow/ai-end-reason": "workspace:*",
     "@workflow/chat-channel-validation": "workspace:*",
     "@workflow/expression-engine": "workspace:*",
     "@workflow/graph-warning-rules": "workspace:*",

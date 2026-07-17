@@ -1,0 +1,39 @@
+{
+  "name": "@workflow/ai-end-reason",
+  "version": "0.1.0",
+  "description": "Single source of truth for the AI node `output.result.endReason` value domain (AI Agent / Information Extractor), shared between the backend handlers that produce it and the frontend conversation UI that gates on it.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "[ -d dist ] || tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/jest": "^30.0.0",
+    "eslint": "^9.18.0",
+    "globals": "^16.0.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
+  }
+}

@@ -1,6 +1,7 @@
 import type { ConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import type { ResumeCallStackFrame } from '../../shared/execution-resume/resume-call-stack.types';
 
+import type { AiAgentEndReason } from '@workflow/ai-end-reason';
 /**
  * webhook 트리거의 HTTP transport 파생 데이터 — expression `$trigger` 의 소스.
  * `TriggerExecutionInput`(4-execution-engine §6.1.1)의 webhook 한정 필드와 동형이다
@@ -425,7 +426,7 @@ export interface ResumableNodeHandler extends NodeHandler {
    */
   endMultiTurnConversation(
     state: Record<string, unknown>,
-    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    endReason: AiAgentEndReason,
     errorPayload?: { code: string; message: string; details?: unknown },
     /**
      * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — retryable error 종결 시, 실패한

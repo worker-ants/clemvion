@@ -7,6 +7,7 @@ name: packages-checks
 on:
   pull_request:
     paths:
+      - 'codebase/packages/ai-end-reason/**'
       - 'codebase/packages/expression-engine/**'
       - 'codebase/packages/graph-warning-rules/**'
       - 'codebase/packages/node-summary/**'
@@ -38,6 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         pkg:
+          - '@workflow/ai-end-reason'
           - '@workflow/expression-engine'
           - '@workflow/graph-warning-rules'
           - '@workflow/node-summary'
