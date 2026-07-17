@@ -3396,25 +3396,32 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // closeStream→set 이라 최종 상태는 단일 스트림으로 수렴하지만, 두 번째 EventSource 가 낭비 생성된다.
   //
   // fix: `openStream` **직전**에도 `sessionEstablished()` 재확인 — seed 게이트(표면)와 짝을 이루는
-  // 스트림 게이트. 먼저 continuation 이 열면 뒤 continuation 은 여기서 멈춘다.
+  // 스트림 게이트가 `start()`(`use-widget.ts` openStream 직전)와 `applyConfig`(복원 분기 openStream
+  // 직전) **양쪽**에 있다. 먼저 continuation 이 열면 뒤 continuation 은 여기서 멈춘다.
   // (내 초기 JSDoc "openStream 이 seed 반환 직후 동기 실행이라 원천 차단" 은 microtask 경계를 간과한
   //  오판이었다 — ai-review 01_44_21.)
-  it("두 복원 seed 가 같은 flush 에서 resolve 해도 EventSource 는 하나만 생성된다", async () => {
+  //
+  // **두 방향을 모두 고정한다** — resolve 순서에 따라 먼저 여는 쪽이 갈리므로 각 게이트가 개별로 필요:
+  //   - C(start) 먼저 resolve → start 가 열고 재전송이 막힘 → `applyConfig` 게이트를 고정.
+  //   - D(재전송) 먼저 resolve → 재전송이 열고 start 가 막힘 → **`start()` 게이트를 고정**.
+  // 한 방향만 두면 비대칭 mutation(한 게이트만 제거)이 안 잡힌다(ai-review 02_25_54 requirement·testing —
+  // start() 게이트만 제거해도 전원 통과하던 커버리지 갭. 이 파일의 "비대칭 가드 누락" 이 테스트 층위에서
+  // 재발한 형태라 두 테스트로 대칭 고정).
+  //
+  // resolve 순서를 파라미터로 받는 공용 헬퍼 — 43줄 mock 셋업 중복을 없앤다(ai-review 02_25_54 maintainability).
+  async function raceStartVsResendSingleStream(resendResolvesFirst: boolean) {
     let esCount = 0;
-    let latestEs: ControllableEventSource | null = null;
     vi.stubGlobal(
       "EventSource",
       class {
         constructor() {
           esCount += 1;
-          latestEs = new ControllableEventSource();
-          return latestEs as unknown as this;
+          return new ControllableEventSource() as unknown as this;
         }
         addEventListener() {}
         close() {}
       } as unknown as typeof EventSource,
     );
-
     const webhookResolvers: Array<(r: Response) => void> = [];
     const statusResolvers: Array<(r: Response) => void> = [];
     vi.stubGlobal(
@@ -3446,27 +3453,38 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
 
     const { result } = renderHook(() => useWidget());
 
-    // 신규 방문. boot#1 → config. open → start() → webhook → persist → 자기 getStatus C.
+    // 신규 방문. boot#1 → config. open → start() → webhook → persist → 자기 getStatus C(=[0]).
     boot();
     await waitFor(() => expect(result.current.config).not.toBeNull());
     act(() => result.current.actions.open());
     await waitFor(() => expect(webhookResolvers.length).toBe(1));
     await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
-    await waitFor(() => expect(statusResolvers.length).toBe(1)); // C
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // C=[0]
 
-    // 재전송 → 스트림 미확립 창이라 복원 분기가 e1 을 넘겨받아 자기 getStatus D.
+    // 재전송 → 스트림 미확립 창이라 복원 분기가 e1 을 넘겨받아 자기 getStatus D(=[1]).
     await act(async () => { boot(); await flushAsync(); });
-    await waitFor(() => expect(statusResolvers.length).toBe(2)); // C + D
+    await waitFor(() => expect(statusResolvers.length).toBe(2)); // C=[0] + D=[1]
 
-    // **C 와 D 를 같은 flush 에서 resolve** — 둘 다 seed 시점엔 스트림 미열림을 보고 통과한다.
+    // **C 와 D 를 같은 flush 에서 resolve** — 순서만 파라미터로 뒤집는다. 먼저 resolve 한 seed 의
+    // continuation 이 먼저 openStream 을 부르므로, 그 쪽이 "먼저 여는 쪽" 이고 반대쪽 게이트가 시험된다.
+    const [first, second] = resendResolvesFirst ? [1, 0] : [0, 1];
     await act(async () => {
-      statusResolvers[0](waitingAt("n1"));
-      statusResolvers[1](waitingAt("n1"));
+      statusResolvers[first](waitingAt("n1"));
+      statusResolvers[second](waitingAt("n1"));
       await flushAsync();
     });
+    return { esCount, nodeId: result.current.state.pending?.nodeId };
+  }
 
-    // 스트림은 하나만 생성된다(먼저 연 쪽이 이기고, 뒤는 openStream 직전 게이트에서 멈춘다).
+  it("두 복원 seed 가 같은 flush 에서 resolve 해도 EventSource 는 하나만 생성된다 (start 먼저 — applyConfig 게이트)", async () => {
+    const { esCount, nodeId } = await raceStartVsResendSingleStream(false);
     expect(esCount).toBe(1);
-    expect(result.current.state.pending?.nodeId).toBe("n1");
+    expect(nodeId).toBe("n1");
+  });
+
+  it("두 복원 seed 가 같은 flush 에서 resolve — 재전송 먼저 열려도 하나만 생성된다 (start() 게이트)", async () => {
+    const { esCount, nodeId } = await raceStartVsResendSingleStream(true);
+    expect(esCount).toBe(1);
+    expect(nodeId).toBe("n1");
   });
 });

@@ -682,7 +682,7 @@ export function useWidget() {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale]);
+  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, sessionEstablished]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
