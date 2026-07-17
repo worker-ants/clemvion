@@ -1,8 +1,18 @@
 ---
 worktree: ai-node-conversation-history-ff487b
 started: 2026-07-17
+completed: 2026-07-17
 owner: developer
+spec_impact:
+  - spec/conventions/conversation-thread.md
+  - spec/3-workflow-editor/3-execution.md
+  - spec/3-workflow-editor/_product-overview.md
+  - spec/2-navigation/14-execution-history.md
 ---
+
+> **완료 (2026-07-17)** — PR [#959](https://github.com/worker-ants/clemvion/pull/959) 머지 (`12ceee587`). R1~R4 4겹 결함 수정 + spec 4문서 개정 완료.
+> 리뷰: `/consistency-check` 2라운드 + `/ai-review` 4라운드 — [`review/code/2026/07/17/07_12_33/RESOLUTION.md`](../../review/code/2026/07/17/07_12_33/RESOLUTION.md) · [`08_05_31/RESOLUTION.md`](../../review/code/2026/07/17/08_05_31/RESOLUTION.md) · [`08_22_45/SUMMARY.md`](../../review/code/2026/07/17/08_22_45/SUMMARY.md).
+> 후속: RAG 행 신설은 [`rag-tool-row-distinct-ui.md`](../in-progress/rag-tool-row-distinct-ui.md) 로 이관 (본 작업이 제거한 `rag` 행을 데이터 출처를 바꿔 신설).
 
 # AI 노드 실패 시 대화 이력 도달 불가 (렌더 층 Inv-6 누수)
 

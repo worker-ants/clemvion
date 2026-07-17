@@ -44,7 +44,17 @@ code:
 
 #### 1.1.1 `system_error` (frontend-합성 source)
 
-`system_error` 는 backend thread enum 에 누적되지 않는 **frontend store / history view 전용** source 다 ([`conversation-utils.ts:14-20`](../../codebase/frontend/src/lib/conversation/conversation-utils.ts) 의 `ConversationTurnSource` 6값). AI Agent (single·multi) 가 `output.error` 와 함께 종결될 때, WS `execution.node.failed` 또는 `output.error` 가 set 된 `execution.node.completed` 수신 시 store / history view 가 그 자리에 인라인 `system_error` item 을 APPEND 한다 ([`use-execution-events.ts`](../../codebase/frontend/src/lib/websocket/use-execution-events.ts), §9.7). 시각 매핑은 §9.1, payload shape 은 §1.2.1.
+`system_error` 는 backend thread enum 에 누적되지 않는 **frontend store / history view 전용** source 다 ([`conversation-utils.ts:14-20`](../../codebase/frontend/src/lib/conversation/conversation-utils.ts) 의 `ConversationTurnSource` 7값 — `rag` 포함, §1.1.2). AI Agent (single·multi) 가 `output.error` 와 함께 종결될 때, WS `execution.node.failed` 또는 `output.error` 가 set 된 `execution.node.completed` 수신 시 store / history view 가 그 자리에 인라인 `system_error` item 을 APPEND 한다 ([`use-execution-events.ts`](../../codebase/frontend/src/lib/websocket/use-execution-events.ts), §9.7). 시각 매핑은 §9.1, payload shape 은 §1.2.1.
+
+#### 1.1.2 `rag` (frontend-합성 source)
+
+`rag` 는 backend thread enum 에 누적되지 않는 **frontend 합성 source** 다 (§1.1.1 과 동일 패턴 — backend enum 은 5값 그대로, frontend `ConversationTurnSource` 가 7값). AI 노드가 LLM 호출 **전에 엔진이 자동 수행한 KB 검색**(automatic retrieval)을 conversation timeline 위의 1급 이벤트로 표시한다.
+
+**LLM 이 호출한 KB 도구(`ai_tool`)와는 별개다** — 전자는 LLM 의 결정, 후자는 엔진의 자동 동작이다. 시각 구분은 §9.1·§9.2 가 강제한다.
+
+1차 소스는 `meta.turnDebug[].ragSources` — **`conversationThread` 가 아닌 보조 관찰성 레인**이며 그 근거·범위는 §8.1 D4 와 §8.6. 데이터 소스 규칙은 §9.3, payload shape 은 §1.2.2, 렌더 위치는 §9.1.
+
+> **참조**: RAG 검색 결과(`ragSources`) 스키마와 그 UI 노출 정책의 SoT 는 [Spec RAG 검색 §4.1](../5-system/9-rag-search.md#41-ragsources-run-results-ui-에서-인용-청크-표시) — 📚 chip(assistant 버블 하단, References 탭 점프)은 그쪽이 이미 승인·문서화한 표면이고, 본 절의 🔎 행은 같은 데이터의 timeline 표현이다.
 
 ### 1.2 ConversationTurn
 
@@ -75,6 +85,16 @@ code:
 | `nodeId` | UUID | system_error 를 발생시킨 노드 식별자 snapshot |
 | `nodeLabel` | string | 발생 노드 라벨 snapshot |
 | `nodeExecutionId?` | UUID | `NodeExecution.id` (row PK) — `execution.retry_last_turn` 명령의 payload key. live view 의 WS payload 에는 set, history view 의 합성 (`parseHistoryMessages`) 에는 미동봉 (UI 가 retry 버튼 자동 suppress) |
+
+#### 1.2.2 `rag` data shape
+
+`source: 'rag'` 한정 `data?` 필드 shape (§1.2.1 과 평행, node-output §4.5 scope 외 별도 정의):
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `sources` | RagSource[] | `meta.turnDebug[].ragSources` 의 snapshot. `RagSource` 스키마의 단일 진실은 [Spec Graph RAG §4.3](../5-system/10-graph-rag.md) (`chunkId`·`documentId`·`documentName`·`content` preview·`score`·`origin`) — 본 표에 재열거하지 않는다 (drift 회피) |
+
+> **`turnIndex` 를 payload 에 두지 않는다**: `ConversationItem` 이 이미 top-level 필수 필드 `turnIndex` 를 갖는다. payload 에 중복 선언하면 두 값이 갈릴 때 SoT 가 모호해지므로 **top-level 을 단일 진실**로 쓴다. (`system_error` 가 `nodeId`/`nodeLabel` 을 payload 에 두는 것과 대비되는데, 그쪽은 top-level 에 대응 필드가 없어 중복이 아니다.)
 
 ### 1.3 ConversationThread
 
@@ -319,7 +339,12 @@ race-free.
 
 **chip 표시 "권장 → 필수" 격상 이유** ([WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 옛 "권장" → §9.2 의 강제 3중 신호): 사용자 오인 0% 목표는 한 신호 (chip 만) 로는 달성 불가 — 색약·다크모드·소형 화면·스크롤 상태 모두에서 안정적 구분을 위해 ① 아이콘 ② 컨테이너 형식 (bubble vs 회색 카드) ③ chip 3중을 동시 적용해야 한다 — 단일 신호로는 부족하므로 강제 매핑으로 격상.
 
-**emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): **conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 두고** emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
+**emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): **conversation Preview 의 대화 turn 1차 소스를 `conversationThread` snapshot 으로 두고** emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다.
+
+> **D4 의 적용 범위 (2026-07-17 명확화 — 번복 아님)**: D4 의 대립 축은 **"무엇이 대화 turn 을 표현하는가"** (thread vs emit messages) 이지 "Preview 가 thread 외 데이터를 일절 읽지 못한다" 가 아니다. 아래 "**보조 관찰성 레인**" 은 turn 을 대체하지 않고 **추가**되는 별개 축이므로 D4 의 규율 대상이 아니다 — 상세 근거는 §8.6.
+>
+> - **D4 규율 대상 (불변)**: 대화 turn 의 1차 소스 = `conversationThread` snapshot. emit messages 는 debug 패널 전용.
+> - **보조 관찰성 레인 (허용, `ragSources` 한정)**: `meta.turnDebug[].ragSources` → 📚 References chip (기존, [RAG 검색 §4.1](../5-system/9-rag-search.md#41-ragsources-run-results-ui-에서-인용-청크-표시) 이 이미 승인) + 🔎 `rag` 행 (§1.1.2). **`meta.turnDebug` 전체가 아니다** — 형제 필드 `llmCalls` 는 raw LLM payload 라 D4 의 보호 대상 그대로다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
 
 ### 8.2 UI 계약 SoT 격상 (§9.6 ~ §9.11)
 
@@ -371,6 +396,29 @@ race-free.
 
 **`cancelled` known follow-up**: `handleNodeCancelled` 는 `conversationMessages` 를 조작하지 않고 `execution.node.cancelled` 는 `node.failed` 와 별도 이벤트다. 취소는 오류가 아니므로 `system_error` 부재는 정상이나, 그 결과 취소된 대화 노드는 **귀속 신호가 없어** Inv-8 의 판정 대상에 들지 않는다. "진행 중 대화를 Stop 하면 대화가 안 보인다" 는 동일 계열 증상은 별도 귀속 메커니즘이 필요한 **미착수 표면**이며 Inv-8 의 예외가 아니다.
 
+### 8.6 `rag` source 신설 — 보조 관찰성 레인의 정식화
+
+**결정**: 엔진이 LLM 호출 전 자동 수행하는 **KB 검색(retrieval)** 을 conversation timeline 의 1급 이벤트(🔎 `rag` 행)로 표시하고, LLM 이 호출한 KB 도구(🔧 `ai_tool`)와 §9.2 3중 신호로 구분한다. 1차 소스는 `meta.turnDebug[].ragSources` — §8.1 D4 의 "대화 turn 1차 소스 = thread" 원칙을 **유지한 채** 보조 관찰성 레인으로 정식화한다.
+
+**`ai_tool` 재사용을 기각한 이유**: 자동 KB 검색은 **LLM 이 호출한 도구가 아니다** — 엔진이 LLM 호출 전에 컨텍스트를 붙인 것이다. `ai_tool` 로 표현하면 (a) 매칭할 `toolCallId` 가 없고 (b) §9.6 그룹 분류가 부모 assistant 의 `toolCalls.length` 로 child 를 sequence-claim 하는데 `rag` 는 그 카운트에 없어 claim 시 실제 도구 child 하나가 밀려나며 (c) 사용자에게 **"LLM 이 KB 를 호출했다" 는 잘못된 인과**를 전달한다. 두 경로를 구분해 보여달라는 요구의 핵심이 정확히 이 인과 구분이다.
+
+**`system` + discriminator 를 기각한 이유**: §8.3 이 `system_error` 에 대해 이미 기각한 논리가 그대로 적용된다 — source 의 1:1 시각 매핑(§9.1)을 1:N 으로 분기시켜 매핑표의 단순함을 잃는다.
+
+**D4 와 충돌하지 않는 이유 (핵심)**: D4 가 막으려던 것은 **emit messages 의 raw 노출** — `[from <nodeLabel>]` prefix 와 `[user-input]` 마커가 박힌 LLM payload 를 Preview 가 그대로 표시해 **사용자 오인 + 매 렌더 strip 부담**이 생기는 것이다. `ragSources` 는 **마커도 prefix 도 없는 구조화 관찰성 데이터**(`documentName`/`score`/`content` preview — [Graph RAG §4.3](../5-system/10-graph-rag.md))라 D4 의 위험 요인이 **구조적으로 부재**한다. 또한 D4 의 대립 축은 "무엇이 대화 turn 을 표현하는가" 이고, `rag` 행은 turn 을 대체하지 않고 **추가**되는 별개 레인이다.
+
+**적용 범위를 `ragSources` 로 좁힌 이유**: `meta.turnDebug` **전체**를 Preview 허용 소스로 열면 형제 필드 `llmCalls` 까지 열린다. `llmCalls` 는 [WebSocket §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 가 raw debug payload (editor-only) 로 못박은 필드로 **D4 가 막으려던 바로 그 대상**이다 — 전체를 열면 D4 보호가 다른 경로로 재도입된다. 명문화 대상은 `ragSources` 한정이다.
+
+**"신규 예외" 가 아니라 "기존 관행의 정식화 + drift 정리" 인 이유**: `meta.turnDebug[].ragSources` 는 **이미** conversation Preview 의 소스였다 — 📚 References chip 이 assistant 버블 하단에 그 데이터로 렌더되고 있고, 그 표면은 [RAG 검색 §4.1](../5-system/9-rag-search.md#41-ragsources-run-results-ui-에서-인용-청크-표시) 이 **명시적으로 승인·문서화**해 둔 것이다. 문제는 그 문서와 본 문서 사이에 **상호 참조가 없어** §9.3·D4 가 그 사실을 모른 채 서술된 것이다 (2026-07-17 발견). 본 개정은 그 drift 를 닫고 양방향 링크를 신설한다 — 링크 없이 문구만 고치면 같은 drift 가 재발한다.
+
+**`turnDebug` 를 소스로 택한 이유 (vs 옛 `### Relevant Knowledge` 마커)**: 과거 frontend 인라인 파서가 `role:'system'` 메시지의 마커로 KB 행을 합성했으나, 그 마커를 만드는 `RagSearchService.buildContext` 는 **프로덕션 호출부가 없어** 신규 실행에 생성되지 않는다. 반면 `turnDebug` 는 References/LLM Usage 탭이 이미 쓰는 현행 데이터이고 **live**(`waiting_for_input` 의 `nodeOutput.meta`)·**history**(영속 `outputData.meta`) 양쪽에 존재해 두 표면이 어긋나지 않는다. (그 인라인 파서는 §9.11 의 변환 함수 계약에 없는 4번째 경로이기도 해 별도로 제거됐다 — Inv-8 작업.)
+
+**📚 chip 을 병존시키는 이유**: 행과 chip 은 답하는 질문이 다르다 — 🔎 행은 "**언제** 무엇이 검색됐나"(시간축 이벤트), 📚 chip 은 "이 **응답**이 무엇에 근거했나"(출처 귀속) + References 탭 진입점이다. chip 을 없애면 응답↔출처 연결과 진입점을 잃고 §9.1 `ai_assistant` 행의 기존 규약도 바뀐다.
+
+**cross-node 스코프 결측은 §8.5 의 예외가 아니다**: §8.5 는 "Preview 가 노드 필터 없이 thread 전체를 그리는 것은 의도" 라고 확정했다. 🔎 행이 타 노드의 turn 앞에 붙지 않는 것은 그 원칙의 예외가 **아니라** 두 데이터의 스코프가 애초 다르기 때문이다 — thread 는 execution 스코프로 공유되나(§3) `meta` 는 **노드 스코프**다. 선택한 노드의 `meta` 만 보유하므로 그 노드가 발생시킨 turn 에만 행이 붙는 것이 정합이다 (CT-S20 이 pin).
+
+**구형 데이터 한계**: `turnDebug` 가 없던 시절 실행은 🔎 행이 생기지 않는다. §9.12 결측 내성 규약대로 생략하며(CT-S19), 옛 마커까지 함께 덮는 이중 변환 경로는 §9.11 다중 정의 금지 위반이라 도입하지 않는다.
+
+
 AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든 노드의 conversation timeline 표시 UI 가 따르는 시각 규약. **1차 데이터 소스는 `waiting_for_input.conversationThread.turns` snapshot** ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) — emit messages (`ai_message.messages[]`) 가 아니다.
 
 본 절은 **시각 매핑** (§9.1~§9.5) 과 **UI 계약** (§9.6~§9.11) 두 축으로 구성된다. §9.1~§9.5 는 source 별 시각 표현, §9.6~§9.11 은 동적 라이프사이클·store 변환·invariants·회귀 차단 시나리오·변환 함수 contract 를 다룬다.
@@ -410,7 +458,7 @@ sequenceDiagram
 
 Conversation Preview / history view 가 `conversationThread` snapshot 을 source 별로 렌더하는 강제 규약. `source` enum 1:1 시각 매핑(§9.1)·3중 구분 신호(§9.2)·데이터 소스 선택(§9.3)을 정의한다 (SoT 격상 근거 §8.2).
 
-> **스코프 예외 — 임베드형 채널 위젯**: 본 절의 강제 규약은 **에디터/콘솔의 디버깅 surface**(conversation Preview 탭·실행 트리 timeline·실행 이력 상세)를 대상으로 한다. 임베드 웹채팅 위젯([7-channel-web-chat §2](../7-channel-web-chat/1-widget-app.md#2-화면-구조))은 임베드 제약(호스트 페이지 안 좁은 패널·최종 사용자 대상)상 §9.1 의 source 별 시각 매핑과 §9.2 의 3중 구분 신호를 따르지 않고, `presentation_user`·`ai_user`→**user** / `ai_assistant`·`ai_tool`·`system`→**assistant** 의 **2-way 말풍선**으로 의도적 축약 렌더한다. (§9.1 표는 6행이지만 그중 `system_error` 는 frontend-합성 source 라(§1.1.1) 위젯 wire 에 애초 도달하지 않는다 — 위젯이 수신하는 도메인은 backend enum 5값뿐이다.) 단 §9.3(1차 소스 = `conversationThread.turns`)·§9.4(emit raw 노출 금지)·§9.5(LLM-facing 마커 strip)는 위젯에도 그대로 강제된다.
+> **스코프 예외 — 임베드형 채널 위젯**: 본 절의 강제 규약은 **에디터/콘솔의 디버깅 surface**(conversation Preview 탭·실행 트리 timeline·실행 이력 상세)를 대상으로 한다. 임베드 웹채팅 위젯([7-channel-web-chat §2](../7-channel-web-chat/1-widget-app.md#2-화면-구조))은 임베드 제약(호스트 페이지 안 좁은 패널·최종 사용자 대상)상 §9.1 의 source 별 시각 매핑과 §9.2 의 3중 구분 신호를 따르지 않고, `presentation_user`·`ai_user`→**user** / `ai_assistant`·`ai_tool`·`system`→**assistant** 의 **2-way 말풍선**으로 의도적 축약 렌더한다. (§9.1 표는 7행이지만 그중 `system_error`·`rag` 는 frontend-합성 source 라(§1.1.1·§1.1.2) 위젯 wire 에 애초 도달하지 않는다 — `rag` 는 추가로 위젯 코드가 `mergeRagRetrievalItems` 를 호출하지 않는다는 코드베이스 분리에도 의존한다 — 위젯이 수신하는 도메인은 backend enum 5값뿐이다.) 단 §9.3(1차 소스 = `conversationThread.turns`)·§9.4(emit raw 노출 금지)·§9.5(LLM-facing 마커 strip)는 위젯에도 그대로 강제된다.
 
 ### 9.1 source 별 시각 매핑 (강제)
 
@@ -420,6 +468,7 @@ Conversation Preview / history view 가 `conversationThread` snapshot 을 source
 | `ai_assistant` | 🤖 assistant chat bubble (왼쪽 정렬, 일반 배경). 단 `toolCalls?.length ≥ 1` 이고 `isAssistantContentBlank(text)` (§9.8) 면 §9.6 의 tool-call group **parent** chip 으로 분기 | — | `text` (markdown 렌더) + `presentations[]` 가 있으면 chat bubble 내 inline 렌더 (캐러셀·차트·테이블·템플릿·폼). `type: 'form'` 페이로드는 `pendingFormToolCall.toolCallId` 매칭 시 **interactive `DynamicFormUI`**, 그 외 `FormSubmittedContent` ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn) — 활성 form 의 UI 단일 진실) |
 | `presentation_user` | 🧩 회색 시스템 카드 (full-width) | `<nodeType-icon> <nodeLabel>` chip + interaction 라벨 (`button clicked` / `form submitted` / `link continue`) | `data` 메타에서 추출 (§1.4 표 참고). `text` 의 동사 prefix (`clicked:` / `continued:`) 는 헤더로 흡수되어 본문에 중복 노출 금지 |
 | `ai_tool` | 🔧 도구 호출 카드 (`mcp_*` 카드와 동일 시각). 부모 그룹의 child 위치 또는 standalone 위치 모두 동일 row layout — Inv-1 (§9.9) | tool name + status badge (`pending` / `success` / `error`) — 라이프사이클 phase 와 무관하게 같은 layout, status 만 변한다 | result preview (JSON / text, 토글 가능) |
+| `rag` | 🔎 **점선 테두리 full-width 라인** (chat bubble 아님, 실선 카드도 아님 — `ai_tool` 과 컨테이너로 구분). §9.2 3중 신호 모두 적용. §9.6 그룹 분류 **대상 외** (system_error 와 동일 — indent tree 에 흡수되지 않음) | `KB · <N> chunk(s)` chip | 문서명 dedup 목록 (📚 chip 과 동일 규칙, `MAX_VISIBLE_DOC_NAMES` 초과분은 `+N`). 클릭 시 References 탭의 해당 turn 그룹으로 점프 |
 | `system` | ℹ️ 가운데정렬 system note 라인 (얇은 회색 텍스트) — **v1 자동 push 없음** (§1.1 "예약"). 수동 push 또는 v2 자동 push 도입 시 활성화. UI 는 본 행 형식을 미리 구현해 두기만 한다 | "System note" | `text` |
 | `system_error` | ❌ 가운데정렬 얇은 빨간 full-width 라인 (system note 와 동급 컨테이너 형식이되 빨간 강조 — chat bubble 아님). §9.2 3중 신호 (아이콘 + 컨테이너 + chip) 모두 적용. 우측 액션 영역: `data.retryable === true` 일 때 `[다시 시도]` 버튼 + `data.retryAfterSec` 카운트다운. `false` 면 액션 영역 비어있음 (Inv-6 시각 보조) | `<nodeLabel> · <code>` chip (예: `CS Bot · LLM_RATE_LIMIT`) | `data.message` (LLM provider 의 에러 텍스트). markdown 렌더 안함 — 단순 텍스트 |
 
@@ -427,9 +476,11 @@ Conversation Preview / history view 가 `conversationThread` snapshot 을 source
 
 사용자가 진짜 user 메시지와 다른 source 를 혼동하지 않도록 다음 3중 신호를 **동시에** 적용:
 
-1. **아이콘**: 👤 (user) vs 🤖 (assistant) vs 🧩 (presentation) vs 🔧 (tool) vs ℹ️ (system) vs ❌ (system_error) — 서로 겹치지 않는 글리프.
-2. **컨테이너 형식**: chat bubble (둥근 배경, 좌·우 정렬) vs full-width 회색 카드 vs 가운데정렬 라인 (system 회색 / system_error 빨간 강조).
-3. **출처 chip**: presentation/tool/system/system_error 은 헤더에 chip 을 노출 — system_error 는 `<nodeLabel> · <code>` 형식. chat bubble (user/assistant) 은 chip 없음.
+1. **아이콘**: 👤 (user) vs 🤖 (assistant) vs 🧩 (presentation) vs 🔧 (tool) vs 🔎 (rag) vs ℹ️ (system) vs ❌ (system_error) — 서로 겹치지 않는 글리프.
+2. **컨테이너 형식**: chat bubble (둥근 배경, 좌·우 정렬) vs full-width 회색 카드 vs full-width **점선** 라인 (rag) vs 가운데정렬 라인 (system 회색 / system_error 빨간 강조).
+3. **출처 chip**: presentation/tool/rag/system/system_error 은 헤더에 chip 을 노출 — system_error 는 `<nodeLabel> · <code>`, rag 는 `KB · <N> chunk(s)` 형식. chat bubble (user/assistant) 은 chip 없음.
+
+> **`rag` vs `ai_tool` 구분이 3중 모두에서 성립해야 하는 이유**: 둘 다 "KB 를 조회했다" 는 같은 관심사를 표현하지만 **인과가 다르다** — `ai_tool` 은 LLM 이 호출을 결정한 것이고 `rag` 는 엔진이 LLM 호출 전 자동 수행한 것이다. 한 신호(예: 아이콘)만 다르면 사용자가 "LLM 이 KB 를 호출했다" 는 **잘못된 인과**를 읽는다. 아이콘(🔎/🔧)·컨테이너(점선 라인/실선 카드)·chip(`KB · N chunk(s)`/tool name) 세 축이 모두 달라야 한다.
 
 한 신호만으로 구분하지 않는다 (색약·다크모드·소형 화면 환경 고려). [WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 옛 권장(injected chip) 의 강제 격상 — Rationale 은 §8.1.
 
@@ -439,6 +490,7 @@ Conversation Preview / history view 가 `conversationThread` snapshot 을 source
 |---|---|---|
 | conversation Preview 탭 (`meta.interactionType: "ai_conversation"`) | `conversationThread.turns` snapshot ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) | source/nodeLabel/data 메타 직접 활용. 적용 시점·정책의 mutation 계약은 §9.7 |
 | LLM Usage / Request / Response 탭 (debug) | `ai_message.messages[]` (emit) | source 마커 (`live`/`injected`) 와 prefix 가 LLM 으로 간 형태 그대로 표시. "Raw payload" 토글로 prefix·marker 가시화 |
+| conversation Preview 의 **보조 관찰성 레인** — 🔎 `rag` 행 (§1.1.2) + 📚 References chip | **`meta.turnDebug[].ragSources` 한정** (live·history 동일) | **위 1행의 대체가 아니라 보완**이다 — 대화 **turn** 의 1차 소스는 `conversationThread` snapshot 그대로이고(§8.1 D4 불변), 이 레인은 turn 을 대체하지 않고 **추가**되는 별개 축이다. **`meta.turnDebug` 전체가 아니라 `ragSources` 한정**: 형제 필드 `llmCalls` 는 [WebSocket §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 가 raw debug payload 로 못박은 필드라 D4 의 보호 대상이다. 근거·범위: §8.6. 노출 정책 SoT: [RAG 검색 §4.1](../5-system/9-rag-search.md#41-ragsources-run-results-ui-에서-인용-청크-표시). **live 출처**: `waiting_for_input` 의 `nodeOutput.meta.turnDebug` ([WebSocket §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)) · **history 출처**: 영속된 `outputData.meta` |
 | 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.result.messages` (DB 영속) + `output.interaction` | 두 경로 (`output.result.messages` = LLM 호출 결과 누적 [D6 단일 경로, §4 영속화 표 참조], `output.interaction` = presentation 인터랙션 1건) 는 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. 상세 복원 규약은 [Spec Execution History §EH-DETAIL-12](../2-navigation/_product-overview.md#315-execution-history-실행-내역) 의 ConversationThread 재구성 정책에 위임. debug 탭만 emit 형태 재구성. **오류 종결(`output.error` set) 노드도 본 행을 따른다 — `status` 로 게이트하지 않는다**: 엔진이 실패 시에도 `outputData` 를 영속·emit 하고 error 종결 output 은 `output.error` + 부분 `output.result.*` 병존이므로([AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 재구성 가능하다. `system_error` 는 `output.error` 로부터 합성하며 `nodeExecutionId` 미동봉 → 재시도 버튼 자동 suppress (§1.2.1). Inv-8 참조 |
 | 오류 종결 · **live** 세션 | store `conversationMessages` (§9.7.1 의 권위 사본) | 위 이력 행과 동일 대화지만, live 에서는 store 의 `system_error` 만 `nodeExecutionId` 를 보유해 `[다시 시도]` 를 활성화할 수 있다 (§1.2.1). 따라서 해당 노드의 `system_error` 를 store 가 보유하면 store 를 우선하고, 없으면(새로고침·이력) 위 행으로 폴백한다. 두 소스는 동일 thread 의 서로 다른 매체이지 별개 진실이 아니다 — §8.1 D4 의 "1차 소스 = `conversationThread` snapshot" 원칙 유지 |
 
@@ -470,6 +522,8 @@ LLM 호출 1회 = 1 `ai_assistant` turn. 다음 조건을 모두 만족하면 **
 **Grouping 의 단일 결정 함수 (SoT)**: `groupToolCallItems(items: ConversationItem[]): { claimedToolIndices: Set<number>; childrenByParent: Map<number, number[]> }` 를 `codebase/frontend/src/lib/conversation/conversation-utils.ts` 에서 export. 본 함수가 §9.6 의 분류·sequence-claim 결과를 양 surface 에 동일하게 공급한다 (Inv-5 — §9.9). 그룹 정책 변경은 본 함수의 동작을 단일하게 갱신해 모든 surface 에 자동 전파.
 
 **`system_error` source 는 §9.6 그룹 분류 대상 외**: `groupToolCallItems` 는 `source === 'system_error'` 항목을 unclaim 상태 그대로 두며 indent tree 에 흡수하지 않는다 (parent/child 어느 쪽으로도 분류되지 않음). `isAssistantContentBlank` 평가 미적용. system_error 는 그 자리에 가운데정렬 빨간 라인으로 독립 표시 (§9.1) — Inv-2 의 "그룹 단위로만 줄어든다" 정합.
+
+**`rag` source 도 §9.6 그룹 분류 대상 외**: 위 `system_error` 와 동일하게 `groupToolCallItems` 가 `source === 'rag'` 항목을 unclaim 상태로 두며 indent tree 에 흡수하지 않고, `isAssistantContentBlank` 평가도 미적용. 🔎 행은 그 자리에 독립 점선 라인으로 표시 (§9.1) — Inv-2 정합. **`ai_tool` 처럼 보인다고 parent 의 `toolCalls.length` sequence-claim 대상에 넣지 않는다**: `rag` 는 LLM 이 enumerate 한 tool call 이 아니므로 그 카운트에 애초 존재하지 않고, claim 하면 실제 도구 child 하나가 밀려난다.
 
 UI 형식:
 
@@ -564,7 +618,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 
 ### 9.9 UI Invariants
 
-다음 8가지 불변량은 §9 변경 / 구현 변경 / store lifecycle 정책 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
+다음 9가지 불변량은 §9 변경 / 구현 변경 / store lifecycle 정책 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
 
 | ID | Invariant |
 | --- | --- |
@@ -576,6 +630,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | Inv-6 | 노드 실패 / 실행 실패 시 store `conversationMessages` 는 비워지지 않는다 — `startExecution` 만 conversation snapshot 을 클리어한다. 정의 단일 진실: §9.7.1 store reset 정책. `system_error` item 은 thread 의 마지막에 APPEND 되며, 기존 user / assistant / tool item 은 변형되지 않는다 (immutability — Inv-3 의 메타데이터 불변 원칙과 동일 강도). |
 | Inv-7 | AI Agent `render_form` 활성 form 의 submit 직후 store 의 multi-turn 컨텍스트 (`waitingNodeId`, `waitingInteractionType: 'ai_form_render'`, `waitingConversationConfig` 중 `pendingFormToolCall` 를 제외한 나머지, `isWaitingAiResponse: true`) 는 보존된다. `pendingFormToolCall` 만 null 로 클리어 — `resumeFromAiRenderForm` 의 nested patch 책임. 회귀 방지: 옛 `resumeFromForm` 가 affordance 전체 클리어해 ConversationInspector 가 live → completed 분기로 떨어져 `result.status !== 'completed'` 인 server-side waiting 상태에서 preview = null 로 깜빡이던 버그 ([Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합)). 정의 단일 진실: §9.7.1 store reset 정책 표의 `resumeFromAiRenderForm` 행. |
 | Inv-8 | **렌더 층 도달성** — 오류로 종결된(`output.error` set → `system_error` 를 소유한) 대화형 노드의 conversation 은 **`result.status` 를 게이트로 쓰지 않고** 미리보기(conversation Preview) 로 도달 가능해야 한다. Inv-6 이 보장하는 것은 store **보존**이고, 본 불변량은 그 보존분(및 `outputData` 로 영속된 동일 대화)의 **도달성** — 둘은 별개이며, 보존만으로는 "왜 대화가 사라졌지?" 증상을 막지 못한다. 데이터 소스 선택은 §9.3, 탭 가시성·디폴트 선택 규칙의 SoT 는 [Spec 실행 §10.6.1](../3-workflow-editor/3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드). 회귀 차단: CT-S15~CT-S17. Rationale: §8.5 |
+| Inv-9 | **RAG 표시 정합성** — 같은 `meta.turnDebug[].ragSources` 를 소비하는 두 렌더 경로(§9.1 의 🔎 `rag` 행 · 📚 References chip · References 탭)는 **동일 `turnIndex` 에 대해 동일 `sources[]`** 를 보여야 한다. 세 표면이 어긋나면 "References 탭엔 청크가 있는데 미리보기 행엔 없다" 류의 모순을 사용자가 목격한다. 구현은 **동일 소스 함수 재사용**(`turnRefIndex` 파생)으로 보장하며 별도 매칭 로직을 만들지 않는다. 회귀 차단: CT-S18. |
 
 ### 9.10 회귀 차단 시나리오
 
@@ -600,7 +655,9 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | CT-S15 | 멀티턴 AI Agent 가 `node.failed` + `details.retryable === true` 로 종결 | (a) Inv-6 store 보존 (b) **미리보기 탭 노출** (Inv-8) — 대화 전체 + 마지막 `system_error` (c) `nodeExecutionId` set 이므로 `[다시 시도]` 노출. **payload 의 `output` 이 `NodeResult.outputData` 로 전달되는지**(엔진이 `node.failed` 에 conversation output 을 동봉 — [AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 도 함께 검증 | `use-execution-events.test.ts` + `result-detail.test.tsx` |
 | CT-S16 | 멀티턴 AI Agent 가 `node.failed` + `details.retryable === false` 로 종결 (CT-S10 과 동일 조건) | (a) Inv-8 탭 노출 (b) **기본 활성 탭 = 미리보기** ([§10.6.1](../3-workflow-editor/3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드) 의 retryable-무관 예외) (c) `[다시 시도]` 미노출 (d) **비대화형 노드(`http_request` 등)는 기존대로 오류 탭 기본** — ED-EX-13 일반 원칙 보존 회귀 | `result-detail.test.tsx` |
 | CT-S17 | 오류 종결 대화 노드를 **새로고침 후 이력 화면**(`/executions/:id`, store 비어있음)에서 조회 | (a) `outputData`(REST 스냅샷) 로부터 미리보기 재구성 — `status: 'failed'` 가 게이트가 아님 (Inv-8) (b) `parseHistoryMessages` 가 `output.error` 에서 `system_error` 합성 (c) `nodeExecutionId` 부재로 `[다시 시도]` 자동 suppress (§1.2.1) | `result-detail.test.tsx` + `conversation-utils.test.ts` |
-
+| CT-S18 | 한 턴에 **자동 KB 검색**(`turnDebug[].ragSources` 비어있지 않음)과 **KB 도구 호출**(`ai_tool`)이 동시 발생 | (a) 🔎 `rag` 행과 🔧 `ai_tool` 행이 **각각 독립 row** (b) §9.2 3중 신호(아이콘·컨테이너·chip)가 모두 다름 (c) `groupToolCallItems` 가 `rag` 를 claim 하지 않음 — 도구 child 가 밀려나지 않음 (§9.6) (d) 📚 chip 병존 (e) **conversation Preview 와 실행 트리 timeline 양 surface 동시 노출** (§9.6 적용 surface) (f) **Inv-9** — 같은 turnIndex 에서 🔎 행·📚 chip·References 탭의 `sources[]` 동일 | `conversation-utils.test.ts` + `result-detail.test.tsx` + `result-timeline.test.tsx` |
+| CT-S19 | `meta.turnDebug` 부재 (구형 실행 / legacy payload) | 🔎 행 **생략**, 레이아웃 무손상 — §9.12 결측 내성 정합. 나머지 turn 렌더는 영향 없음 | `conversation-utils.test.ts` + `result-detail.test.tsx` |
+| CT-S20 | **cross-node 공유 thread** — 타 노드(presentation / 다른 AI 노드)의 turn 이 섞인 thread 에서 선택 노드의 `meta.turnDebug` 만 존재 | 선택 노드가 발생시키지 않은 turn 앞에는 🔎 행이 **붙지 않는다** — thread 는 execution 스코프(§3)이나 `meta` 는 **노드 스코프**라 두 데이터의 스코프가 다름을 pin. §8.5 의 "노드 필터 부재는 의도" 원칙의 **예외가 아님** (§8.6) | `conversation-utils.test.ts` |
 본 시나리오들의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 단일 export 로 둔다. 새 시나리오 발견 시 본 표 추가 + fixture 추가 + 해당 테스트 작성을 PR review 의 의무로 한다.
 
 **구현 상태**: CT-S1 ~ CT-S8 모두 기존 단위 테스트로 충족된다. 1차 매핑:
@@ -637,8 +694,11 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | `messagesToConversationItems(messages, opts)` | `ai_message.messages[]` (full chat history) | `handleAiMessage` (live), `parseHistoryMessages` (history rebuild) |
 | `threadTurnsToConversationItems(turns)` | `conversationThread.turns` snapshot | `handleWaitingForInput` (live 1차 source), `parseHistoryMessages` (history view 의 thread 재구성 시) |
 | `mergeOrphanToolItems(threadItems, prev)` | (threadItems, store prev) → merged items | `handleWaitingForInput` 내부 — REPLACE 직전 |
+| `mergeRagRetrievalItems(items, ragDeltas)` | (items, `meta.turnDebug[]` 의 `TurnRagDelta[]`) → 🔎 `rag` item 이 삽입된 items | `ResultDetail` 의 items 배선 — Preview·실행 트리 timeline 양 surface 공급 직전 |
 
 신규 변환 path 도입 시 본 contract 표 갱신 + §9.11 의 등가성 정의 만족 여부 검토 의무.
+
+> **`mergeRagRetrievalItems` 는 1차 변환이 아니다**: 위 등가성 정의(`threadTurnsToConversationItems ⊆ messagesToConversationItems`)는 **같은 turn 을 표현하는 두 1차 변환**의 관계다. `mergeRagRetrievalItems` 는 `mergeOrphanToolItems` 와 같은 **후처리 병합** 계열로, 대화 turn 을 만들지 않고 **보조 관찰성 레인**(§9.3)의 🔎 행을 끼워 넣는다 — 따라서 등가성 정의의 양변에 들어가지 않는다. 대신 **Inv-9**(References 표면들과의 `sources[]` 동일성)가 그 정합성을 규정한다.
 
 ### 9.12 요소별 발생 시각·소요시간 표시 (강제)
 
@@ -653,6 +713,7 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | `tool` (`ai_tool`) | `item.timestamp` (= `tool_call_started.startedAt` / `turnDebug[].toolCalls[].startedAt`) | `item.durationMs` (= `tool_call_completed.durationMs`) |
 | `presentation` (`presentation_user`) | `item.timestamp` (= `turns[].timestamp`) | — |
 | `system` / `system_error` | `item.timestamp` (= `turns[].timestamp` / 노드 `finishedAt`) | — |
+| `rag` | 같은 `turnIndex` 의 **부모 assistant turn 의 `llmCalls[0].startedAt` 을 대리**로 사용 — `RagSource` 스키마([Graph RAG §4.3](../5-system/10-graph-rag.md))에 timestamp 필드가 없기 때문. KB 자동 검색은 그 LLM 호출 **직전**에 일어나므로 의미상 정합 | — (즉시 주입, 표시 안 함) |
 
 **표시 규약**
 

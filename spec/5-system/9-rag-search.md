@@ -293,7 +293,13 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 - `origin?`: 점수 출처/회수 단계. `cosine` (기본 vector) / `reranked` (리랭크 후처리 적용 — `cross_encoder` · `cross_encoder_llm` 모두 구현됨) / graph 모드의 `seed` / `expanded` ([Graph RAG §4.3](./10-graph-rag.md#43-출력-메타데이터)). 생략 시 `cosine`
 - KB tool 이 한 노드 실행 동안 여러 번 호출되면 모든 결과가 누적된다 (multi-turn 도 포함).
 - 멀티턴에서 "어느 응답이 어느 청크를 사용했는지"가 필요한 경우, 동일 항목이 turn 단위로 분리되어 `meta.turnDebug[].ragSources` / `meta.turnDebug[].ragDiagnostics` 에도 노출된다 — 노드 전체 누적은 `meta.ragSources` 그대로 유지하되, run-results UI 의 References 탭은 turn delta 를 메시지(턴)별 그룹으로 렌더한다.
-- run-results UI: AI 노드가 KB 호출을 시도한 경우(`ragDiagnostics.attempted=true` 또는 `ragSources.length > 0`) 별도 **References 탭**을 노출해 노드 전체 요약 + turn 단위 그룹을 보여준다. Output / Meta 탭은 더 이상 KB 청크를 중복 노출하지 않으며, 발견성을 위해 Preview 탭의 assistant 메시지 하단에 사용 문서명 chip 을 1줄로 표시하고 클릭 시 References 탭으로 점프한다.
+- run-results UI: AI 노드가 KB 호출을 시도한 경우(`ragDiagnostics.attempted=true` 또는 `ragSources.length > 0`) 별도 **References 탭**을 노출해 노드 전체 요약 + turn 단위 그룹을 보여준다. Output / Meta 탭은 더 이상 KB 청크를 중복 노출하지 않는다. **conversation Preview 탭**에는 두 표면이 있다:
+  - **📚 문서명 chip** — assistant 메시지 하단에 1줄, 클릭 시 References 탭의 해당 turn 으로 점프 (발견성).
+  - **🔎 `rag` 행** — 엔진이 LLM 호출 **전** 자동 수행한 KB 검색을 timeline 위 독립 행으로 표시. LLM 이 호출한 KB **도구**(🔧 `ai_tool`) 와 시각 구분된다 (인과가 다르므로).
+
+  세 표면(References 탭 · chip · 행)은 모두 `meta.turnDebug[].ragSources` 를 소비하며 **같은 turn 이면 같은 `sources[]`** 를 보여야 한다 (Inv-9). 시각 매핑·source 정의·불변량의 SoT 는 [Conversation Thread §9.1](../conventions/conversation-thread.md#91-source-별-시각-매핑-강제) · [§1.1.2](../conventions/conversation-thread.md#112-rag-frontend-합성-source) · [§9.9](../conventions/conversation-thread.md#99-ui-invariants), 근거는 [§8.6](../conventions/conversation-thread.md#86-rag-source-신설--보조-관찰성-레인의-정식화).
+
+  > **상호 참조 의무**: 본 절과 `conversation-thread.md` 는 **같은 표면**(Preview 의 RAG 표시)을 규정한다. 과거 두 문서 사이 상호 참조가 없어 `conversation-thread.md §9.3`·§8.1 D4 가 "Preview 1차 소스 = conversationThread" 를 서술하면서 본 절이 이미 승인한 chip 을 반영하지 못하는 drift 가 발생했다 (2026-07-17 발견·해소). 한쪽을 고칠 때 반드시 다른 쪽을 확인한다.
 
 ### 4.2 ragDiagnostics (검색 동작 진단)
 
