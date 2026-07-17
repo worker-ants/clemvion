@@ -224,7 +224,7 @@ checker 는 execution-scope 단일 `conversationMessages` 배열 + `isMultiTurnA
 
 ### `cancelled` 종결 — 실측 결과 별도 표면 (본 작업 범위 외)
 
-**실측 (2026-07-17)**: `handleNodeCancelled` ([use-execution-events.ts:936-974](../../codebase/frontend/src/lib/websocket/use-execution-events.ts)) 는 `conversationMessages` 를 조작하지 않는다. `execution.node.cancelled` 는 `node.failed` 와 별도 WS 이벤트다 ([`spec/.../node-cancellation.md` §5.1](../../spec/5-system/node-cancellation.md)). → `cancelled` 대화 노드는 `system_error` 를 얻지 못하므로 **귀속 신호 자체가 없다**.
+**실측 (2026-07-17)**: `handleNodeCancelled` ([use-execution-events.ts:936-974](../../codebase/frontend/src/lib/websocket/use-execution-events.ts)) 는 `conversationMessages` 를 조작하지 않는다. `execution.node.cancelled` 는 `node.failed` 와 별도 WS 이벤트다 ([node-cancellation §5.1](../../spec/conventions/node-cancellation.md#51-nodeexecution-상태--cancelled)). → `cancelled` 대화 노드는 `system_error` 를 얻지 못하므로 **귀속 신호 자체가 없다**.
 
 취소는 오류가 아니므로 `system_error` 부재는 정상 동작이다. 다만 "진행 중 멀티턴 대화를 Stop 으로 취소하면 대화가 안 보인다" 는 동일 계열 증상은 남을 수 있다 — **Inv-8 의 예외가 아니라 미착수 표면**(다른 귀속 메커니즘이 필요)으로 §8.5 에 known follow-up 명시. 초안이 걸었던 [`node-cancellation-inflight-followups.md`](node-cancellation-inflight-followups.md) 교차 참조는 **제거** — 그 plan 은 DB/Email 노드의 driver-level in-flight cancel 만 다뤄 본 질문(AI 노드 cancelled 시 thread 표시)과 무관하다 (plan_coherence 2회차 INFO).
 

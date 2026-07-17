@@ -503,7 +503,7 @@ conversation Preview 탭과 모든 conversation timeline UI 는 `ai_message.mess
 backend 가 §1.6 에 따라 prompt injection 방어용으로 박는 `[user-input]…[/user-input]` 마커는 LLM 페이로드에 의도적으로 포함되며 그대로 emit·영속된다. 미리보기 렌더러는 사용자에게 노출 전에 정규식 `/\[\/?user-input\]/g` 으로 strip 한다 (label 내용은 보존). 적용 진입점:
 
 - `messagesToConversationItems` — emit messages `user`/`assistant` content
-- `threadTurnsToConversationItems` — `conversationThread.turns` frontend 6 source 전부 (`system_error` 포함 — §1.1.1; switch 에 6 case)
+- `threadTurnsToConversationItems` — `conversationThread.turns` frontend 7 source 전부 (`system_error`·`rag` 포함 — §1.1.1·§1.1.2; switch 에 7 case — 두 합성 source 는 wire 미도달이나 `_exhaustive: never` 가 case 를 강제)
 - `parseHistoryMessages` 의 history rebuild 경로
 - `mergeOrphanToolItems` — 부모-자식 그룹 재구성 시 prev 의 strip 결과 보존 (§9.11)
 
@@ -687,7 +687,7 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 - 이 누락은 `mergeOrphanToolItems(threadItems, prev)` 가 보전한다. prev 는 직전 `ai_message` 가 채워둔 messages-base snapshot.
 - 두 함수의 **공통 invariant**: 같은 turn 내 항목들의 부분 순서 (user → intermediate assistants → tools → final assistant) 는 보존된다.
 
-세 변환 path 의 책임:
+네 변환 path 의 책임:
 
 | 함수 | 입력 | 사용처 |
 | --- | --- | --- |

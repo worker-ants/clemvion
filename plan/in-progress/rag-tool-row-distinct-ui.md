@@ -173,7 +173,13 @@ D4 를 **번복하지 않고 적용 범위를 명확화**한다:
 
 착수 전 `/consistency-check --impl-prep` 의무. TDD.
 
-1. `conversation-utils.ts` — `ConversationTurnSource` 에 `rag` 추가, `mergeRagRetrievalItems(items, turnDebug)` 신설·export (§9.11 등재분).
+0. **타입 레이어 이동 (선행)** — `RagSource` / `TurnRagDelta` 를 `components/editor/run-results/output-shape.ts` → **`lib/conversation/`** 으로 옮기고 `output-shape.ts` 는 **re-export** 로 남긴다.
+
+   > **레이어 역전 회피** (impl-prep WARNING): `mergeRagRetrievalItems` 는 §9.11 계약상 `lib/conversation/conversation-utils.ts` 에 산다. 그 함수가 `TurnRagDelta` 를 `components/` 에서 import 하면 **`lib/` → `components/` 역전**이 된다 — 실측 결과 저장소에 그런 import 는 **한 건도 없어** 최초 위반이 된다. 기존 선례가 정확히 이 문제를 같은 방법으로 풀었다: [`components/editor/run-results/conversation-utils.ts:1-4`](../../codebase/frontend/src/components/editor/run-results/conversation-utils.ts) — *"conversation utility 는 `@/lib/conversation/` 에 둬서 `@/lib/websocket/` 이 레이어 역전 없이 소비하게 하고, 이 디렉터리의 컴포넌트·테스트는 안정성을 위해 로컬 경로 import 를 유지"*. 동일 패턴 적용.
+
+1. `conversation-utils.ts` — `ConversationTurnSource` 에 `rag` 추가 (6→7값), `mergeRagRetrievalItems(items, ragDeltas: TurnRagDelta[])` 신설·export (§9.11 등재분).
+
+   > **exhaustive switch case 의무**: `rag` 를 유니온에 넣으면 `threadTurnsToConversationItems` 의 `const _exhaustive: never = turn.source` ([`conversation-utils.ts:322`](../../codebase/frontend/src/lib/conversation/conversation-utils.ts)) 가 **컴파일 타임에 `rag` case 를 강제**한다. wire 에 `rag` 가 실려오지 않아도 방어 case 를 둔다 — `system_error` 가 같은 구조 (`interaction-type-registry.md` §2 주석).
 2. `execution-store.ts` — `ConversationItem.type` 유니온에 `rag` + `rag?: { sources: RagSource[] }` 필드 (**`turnIndex` 는 top-level 재사용** — 위 §1.2.2 참조).
 3. `conversation-inspector.tsx` — **`RagRetrievalRow`** (SummaryView) + **`RagRetrievalDetail`** (SelectedItemDetail).
 
@@ -181,7 +187,8 @@ D4 를 **번복하지 않고 적용 범위를 명확화**한다:
 
 4. `result-detail.tsx` — `aiMetadata.turnDebug` → `mergeRagRetrievalItems` 배선 (turnRefIndex 와 **동일 소스**).
 5. **AST exhaustiveness guard 계승** (Rationale INFO) — §8.3 이 `system_error` 신설 시 [`interaction-type-exhaustiveness.test.ts`](../../codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts) 가 "모든 처리 분기 위치 등록을 강제" 하도록 한 선례를 `rag` 에도 적용 — 새 source 가 어느 분기에서 누락되면 테스트가 잡는다. 이번 #959 회귀(분기 누락으로 조용히 소실)의 재발 방지 장치.
-6. `result-timeline.tsx` — **Inv-5 동시 적용 의무 이행** (convention WARNING 4): §9.6 "적용 surface" 가 conversation Preview(`SummaryView`)와 실행 트리 timeline(`ResultTimeline`) **양쪽 동시 적용**을 강제한다. "확인" 이 아니라 `rag` 행을 timeline 에도 한 줄 컴팩트 형태로 **렌더**하고, CT-S18 에 양 surface 검증을 포함한다.
+6. **`conversation-timeline-item.tsx` — 실행 트리 timeline 의 `rag` 분기** (impl-prep CRITICAL 2). `result-timeline.tsx` 는 이 컴포넌트에 **위임만** 하고 자체 source 분기가 없다 (`interaction-type-registry.md` §2 매트릭스가 명시). 여기를 빠뜨리면 §9.6 이 강제하는 양 surface 중 **한쪽에서 🔎 행 시각이 깨진다**.
+7. `result-timeline.tsx` — **Inv-5 동시 적용 의무 이행** (convention WARNING 4): §9.6 "적용 surface" 가 conversation Preview(`SummaryView`)와 실행 트리 timeline(`ResultTimeline`) **양쪽 동시 적용**을 강제한다. "확인" 이 아니라 `rag` 행을 timeline 에도 한 줄 컴팩트 형태로 **렌더**하고, CT-S18 에 양 surface 검증을 포함한다.
 
 ## Phase 3 — 테스트
 

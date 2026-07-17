@@ -63,7 +63,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 
 ## 2. ConversationTurnSource
 
-`source` enum — [`spec/conventions/conversation-thread.md` §1.1](./conversation-thread.md#11-conversationturnsource) 단일 진실. **frontend union 6개** (`presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`, `system_error`); **backend 누적 enum 은 `system_error` 제외 5값** (`system_error` 는 frontend 가 WS 에러 이벤트로 합성하는 6번째 source — conversation-thread.md §1.1.1). 아래 매트릭스는 frontend 6값 기준이다.
+`source` enum — [`spec/conventions/conversation-thread.md` §1.1](./conversation-thread.md#11-conversationturnsource) 단일 진실. **frontend union 7개** (`presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`, `system_error`, `rag`); **backend 누적 enum 은 `system_error`·`rag` 제외 5값** — 둘 다 frontend 합성 source 다 (`system_error` 는 WS 에러 이벤트로 — §1.1.1, `rag` 는 `meta.turnDebug[].ragSources` 로 — §1.1.2). 아래 매트릭스는 frontend 7값 기준이다.
 
 ### 2.1 처리 분기 매트릭스
 
@@ -75,8 +75,11 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | `ai_tool` | 동일 함수 · 🔧 tool row |
 | `system` | 동일 함수 · ℹ️ system note (v1 자동 push 없음 — 미리 분기 구현) |
 | `system_error` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES` — grep 검증 대상은 `threadTurnsToConversationItems` switch 1개뿐): `codebase/frontend/src/lib/conversation/conversation-utils.ts`. **렌더 분기 (TS exhaustive 커버, grep 가드 비대상)**: 좌측 timeline chip 은 `ConversationTimelineItem` (`codebase/frontend/src/components/editor/run-results/conversation-timeline-item.tsx` 의 `item.type === "system_error"` 분기 — `result-timeline.tsx` 는 이 컴포넌트에 위임만, 자체 source 분기 없음), 우측 인스펙터는 `SelectedItemDetail` / `SystemErrorRow` (`codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx` — `[다시 시도]` 버튼 surface). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — ❌ 빨간 라인 + `<nodeLabel> · <code>` chip + `data.message` 본문 + `data.retryable === true` 시 `[다시 시도]` 버튼. |
+| `rag` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES`): `codebase/frontend/src/lib/conversation/conversation-utils.ts` — `mergeRagRetrievalItems` 가 `meta.turnDebug[].ragSources` 에서 합성하고, `threadTurnsToConversationItems` 의 exhaustive switch 에도 **`rag` case 명시 의무** (아래 주석). **렌더 분기 (TS exhaustive 커버, grep 가드 비대상)**: 좌측 timeline 은 `ConversationTimelineItem` (`conversation-timeline-item.tsx` 의 `item.type === "rag"` 분기 — `result-timeline.tsx` 는 위임만), 우측 인스펙터는 `SummaryView` 의 `RagRetrievalRow` / `SelectedItemDetail` 의 `RagRetrievalDetail` (`conversation-inspector.tsx`). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — 🔎 점선 라인 + `KB · <N> chunk(s)` chip + 문서명 목록, References 탭 점프. `ai_tool`(🔧 실선 카드) 과 §9.2 3중 신호로 구분. |
 
 `threadTurnsToConversationItems` 의 switch 는 이미 exhaustive `default: never` 패턴 적용됨 (`const _exhaustive: never = turn.source`). `system_error` 추가 시 새 case 명시 의무.
+
+> **`rag` 도 switch case 를 갖는다 (`system_error` 와 동일)**: `rag`·`system_error` 는 wire (`conversationThread.turns`, backend enum 5값) 에 실려오지 않지만 **둘 다 `ConversationTurnSource` 유니온의 값**이므로, `threadTurnsToConversationItems` 의 `const _exhaustive: never = turn.source` 패턴이 **컴파일 타임에 case 를 강제**한다. 실 도달하지 않는 방어 case 이며 — 실제 `rag` item 은 후처리 병합 `mergeRagRetrievalItems` 가 만든다 (conversation-thread.md §9.11). 유니온에서 빼면 그 함수의 반환 타입이 `ConversationItem['type']` 과 어긋나므로 유니온에 두는 편이 정합이다.
 
 > **`execution.user_message` 와 `ConversationTurnSource`**: WS 이벤트 `execution.user_message` ([WebSocket §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)) 는 **신규 `ConversationTurnSource` 값을 추가하지 않는다** — optimistic user bubble 은 기존 `ai_user` 분기를 그대로 재사용한다. 이벤트 자체의 store 변환 책임은 frontend `use-execution-events` 의 신규 핸들러(store 의 `conversationMessages` 에 optimistic `ai_user` append, dedup by `receivedAt`)에 있으며, 변환 계약 SoT 는 [Conversation Thread §9.7](./conversation-thread.md#97-ws-이벤트--store-변환-계약). `WaitingInteractionType`(§1) 에도 영향 없다 — `user_message` 는 waiting 진입 이벤트가 아니라 진행 신호다.
 
