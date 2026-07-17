@@ -18,11 +18,13 @@ import eslintConfig, { LOWER_LAYERS as CONFIG_LOWER_LAYERS } from "../../../esli
  * 에 먹인다 — config 가 나중에 조용히 약화돼도(오타/규칙 삭제/패턴 완화) 여기서 드러난다.
  */
 
-// eslint-config-next 프리셋을 포함한 flat config 배열. `src/lib/**` 를 매칭하는 블록을 **전부**
-// 추출한다. ESLint 는 배열을 순회하며 동일 rule-ID 를 "나중 블록 우선"으로 병합하므로, 첫 블록만
-// 보면 뒤쪽 override 가 규칙을 `"off"` 로 되돌려도 테스트는 초록으로 남는다 (fail-open).
-// 주의: 아래 `"src/lib/**"` 리터럴은 `eslint.config.mjs` 의 `files:` 표기와 정확히 일치해야
-// 탐색된다 — 그쪽 glob 표현을 바꾸면 이 리터럴도 함께 갱신할 것.
+// eslint-config-next 프리셋을 포함한 flat config 배열. 레이어 가드 블록을 **전부** 추출한다.
+// ESLint 는 배열을 순회하며 동일 rule-ID 를 "나중 블록 우선"으로 병합하므로, 첫 블록만 보면
+// 뒤쪽 override 가 규칙을 `"off"` 로 되돌려도 테스트는 초록으로 남는다 (fail-open).
+// 블록 식별 키는 config 의 `LOWER_LAYERS` 첫 요소를 그대로 쓴다 — 하드코딩 리터럴이면 그쪽
+// glob 표기가 바뀔 때 조용히 어긋난다.
+const GUARD_BLOCK_KEY = CONFIG_LOWER_LAYERS[0]; // "src/lib/**"
+
 type FlatBlock = {
   files?: readonly string[];
   rules?: Record<string, unknown>;
@@ -32,7 +34,7 @@ type FlatBlock = {
 const blocks = eslintConfig as ReadonlyArray<FlatBlock>;
 
 const layeringBlocks = blocks.filter(
-  (c) => Array.isArray(c.files) && c.files.includes("src/lib/**"),
+  (c) => Array.isArray(c.files) && c.files.includes(GUARD_BLOCK_KEY),
 );
 
 // 실제 config 가 `.ts` 에 쓰는 파서를 그대로 빌려온다. 기본 espree 로는 TS 전용 구문
@@ -64,8 +66,8 @@ const mergedRules: Record<string, unknown> = Object.assign(
 
 if (Object.keys(mergedRules).length === 0) {
   throw new Error(
-    'eslint.config.mjs 에서 `files: ["src/lib/**"]` 레이어 가드 블록을 찾지 못했거나 병합된 규칙이 ' +
-      "비어 있습니다 — 가드 자체가 fail-open 상태일 수 있습니다.",
+    `eslint.config.mjs 에서 \`files: ${JSON.stringify(CONFIG_LOWER_LAYERS)}\` 레이어 가드 블록을 ` +
+      "찾지 못했거나 병합된 규칙이 비어 있습니다 — 가드 자체가 fail-open 상태일 수 있습니다.",
   );
 }
 
@@ -112,6 +114,24 @@ describe("src/lib layering guard (eslint.config.mjs, 실제 config 로드)", () 
   it("config 가 src/lib/** 에 no-restricted-imports 와 no-restricted-syntax 를 함께 정의한다", () => {
     expect(mergedRules).toHaveProperty("no-restricted-imports");
     expect(mergedRules).toHaveProperty("no-restricted-syntax");
+  });
+
+  it("위반 메시지가 실제 계층 라벨과 규약 링크를 담는다 (문구 회귀 고정)", () => {
+    // 메시지 상수(`LAYERS_LABEL`·`RESOLUTION_HINT`)는 `LOWER_LAYERS` 에서 파생된다.
+    // length/severity 만 보는 다른 케이스는 라벨 누락·변수 뒤바뀜 같은 문구 회귀를 못 잡으므로
+    // (ai-review WARNING), 세 진입점(정적/동적/require) 각각의 `.message` 를 직접 고정한다.
+    const expectedLabel = CONFIG_LOWER_LAYERS.join(" · "); // "src/lib/** · src/types/**"
+    const cases: ReadonlyArray<readonly [string, string]> = [
+      ['import { Foo } from "@/components/foo";', "@/components/** 를 import 할 수 없습니다"],
+      ['export const load = () => import("@/components/foo");', "동적 import() 로도"],
+      ['const mod = require("@/components/foo");', "require() 로도"],
+    ];
+    for (const [code, distinctPhrase] of cases) {
+      const [first] = layeringErrors(code);
+      expect(first?.message).toContain(expectedLabel);
+      expect(first?.message).toContain("spec/conventions/frontend-layering.md");
+      expect(first?.message).toContain(distinctPhrase);
+    }
   });
 
   it("두 규칙 모두 severity 가 error(2) 다 — \"warn\" 으로 조용히 강등되면 CI lint 가 이 위반을" +
@@ -247,8 +267,18 @@ describe("가드 스코프 — 실제 ESLint 경로 매칭", () => {
   it.each([
     ["components — 같은 계층", "src/components/probe.tsx"],
     ["app — 최상위 계층", "src/app/probe.tsx"],
+    // 근접 디렉터리 — glob 이 앵커 없이 느슨해지면(`src/type*`) 여기 걸린다.
+    ["types-legacy — 근접 이름", "src/types-legacy/probe.ts"],
+    ["libs — 근접 이름", "src/libs/probe.ts"],
   ])("%s 는 규약 대상이 아니므로 차단되지 않는다", async (_label, filePath) => {
     const code = 'import { Foo } from "@/components/foo";';
     expect(await errorsAt(code, filePath)).toHaveLength(0);
+  });
+
+  it("`src/lib/types/` 는 src/lib/** 계층에 속하므로 차단된다 (src/types/ 와 혼동 금지 — 규약 §1)", async () => {
+    // 규약이 명시적으로 구분하는 두 "types 홈": src/lib/types/ 는 lib 계층 내부라 lib glob 으로
+    // 잡히고, src/types/ 는 독립 하위 계층이다. 둘 다 차단되지만 근거 glob 이 다르다.
+    const code = 'import { Foo } from "@/components/foo";';
+    expect(await errorsAt(code, "src/lib/types/probe.ts")).not.toHaveLength(0);
   });
 });
