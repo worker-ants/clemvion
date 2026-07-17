@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useWidget } from "./use-widget";
 import { TOKEN_REFRESH_LEAD_MS } from "./use-token-refresh";
@@ -1033,6 +1034,44 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     expect(result.current.state.phase).toBe("ended");
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
     expect(getEs()).not.toBeNull();
+  });
+
+  // **React StrictMode(dev) 에서 위젯이 부팅된다.**
+  //
+  // 이 앱은 `next.config.ts` 에서 `reactStrictMode: true` 를 켠다 → dev 는 effect 를
+  // **mount → unmount → mount** 로 이중 호출한다. `unmountedRef` 를 마운트에서 되돌리지 않으면
+  // 두 번째 마운트가 영구히 stale 로 판정돼 **위젯이 어떤 `wc:boot` 도 적용하지 못한다**
+  // (재현 확인 — `config = null`, dev 에서 위젯이 아예 뜨지 않았다).
+  //
+  // `unmountedRef` 는 "이 마운트가 끝났나" 이지 "한 번이라도 끝났나" 가 아니다 — 1회성 래치로 두면
+  // 안 된다. (ai-review 2026-07-17 18_39_11 security WARNING)
+  it("StrictMode(dev 이중 마운트) 에서도 wc:boot 이 적용된다", async () => {
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget(), { wrapper: StrictMode });
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBeGreaterThan(0));
+    await act(async () => {
+      embedResolvers.forEach((r) =>
+        r({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response),
+      );
+      await flushAsync();
+    });
+
+    expect(result.current.config).not.toBeNull();
   });
 
   it("booting 중(webhook in-flight) 종료 → 뒤늦게 도착한 start 결과가 세션을 되살리지 않음(gen guard)", async () => {

@@ -862,6 +862,13 @@ export function useWidget() {
 
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
+    // **래치 해제** — `unmountedRef` 는 "이 마운트가 끝났나" 이지 "한 번이라도 끝났나" 가 아니다.
+    // React StrictMode(dev, 이 앱은 `next.config.ts` 에서 켜 둔다)는 mount→unmount→mount 로
+    // effect 를 이중 호출하므로, 여기서 되돌리지 않으면 두 번째 마운트가 **영구히 stale** 로 판정돼
+    // 위젯이 어떤 `wc:boot` 도 적용하지 못한다(재현 확인 — dev 에서 위젯이 아예 뜨지 않는다).
+    // 제거된 `cancelledRef` 도 같은 이유로 마운트에서 `false` 로 되돌렸었다.
+    // (ai-review 2026-07-17 18_39_11 security WARNING — 내가 그 리셋을 빠뜨렸다)
+    unmountedRef.current = false;
     const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
       // 부팅 시도 개시 — 이 호출이 앞선 시도를 대체한다(§106 "마지막 wc:boot 적용"). 반환 토큰이
@@ -974,6 +981,7 @@ export function useWidget() {
       // 복사하면(경고가 제안하는 바) 마운트 시점의 stale 값을 증가시켜 의미가 깨진다.
        
       unmountedRef.current = true;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       worldGenRef.current++;
       // 갱신 타이머 정리는 useTokenRefresh 자체 unmount cleanup 이 단일 소유(이중 호출 제거).
       closeStream();

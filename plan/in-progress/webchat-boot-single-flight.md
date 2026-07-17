@@ -268,3 +268,28 @@ STUCK:: phase=streaming | ES생성=0 (기대 1) | seed호출=1
 - **양방향 고정**: `startedRef` 로 회귀 → stuck 테스트가 실패 / 스킵 제거 → flicker 테스트가 실패. 두 테스트가 그 경계를 양쪽에서 지킨다.
 
 **검증**: lint PASS(66s) · unit PASS(128s) · build PASS(174s) · channel-web-chat **385 passed**(22 파일).
+
+## 진행 기록 — 7번째 거울상: StrictMode dev 파괴 (2026-07-17)
+
+**내가 낸 회귀. security 리뷰어가 잡았다.**
+
+`unmountedRef` 를 신설하며 **마운트 시 래치 해제를 빠뜨렸다**. 이 앱은 `next.config.ts` 에서 `reactStrictMode: true` 를 켜므로 dev 는 effect 를 **mount → unmount → mount** 로 이중 호출한다 → 두 번째 마운트가 영구히 stale 로 판정돼 **위젯이 어떤 `wc:boot` 도 적용하지 못한다**.
+
+```
+STRICT:: config=null (부팅 실패!)
+```
+
+**dev 에서 위젯이 아예 뜨지 않는다.** 제거했던 `cancelledRef` 도 정확히 같은 이유로 마운트에서 `false` 로 되돌렸는데(그 코드를 내가 지웠다), 새 래치에 그 대응을 옮기지 않았다.
+
+- **교정**: 마운트 effect 최상단 `unmountedRef.current = false;`. `unmountedRef` 는 **"이 마운트가 끝났나" 이지 "한 번이라도 끝났나" 가 아니다.**
+- **회귀 테스트**: `renderHook(..., { wrapper: StrictMode })` — mutation(래치 해제 제거) → 이 테스트만 실패.
+- 곁들여 scope 리뷰어 지적대로 cleanup 의 `eslint-disable-next-line` 주석을 내가 지우고 공백만 남긴 것도 복원.
+
+**교훈**: 기존 메커니즘(`cancelledRef`)을 새것으로 **대체**할 때, 그것이 하던 일 중 **눈에 안 띄는 절반**(마운트 리셋)을 함께 옮겼는지 확인해야 한다. 제거 diff 만 보면 `= true` 만 눈에 들어오고 `= false` 는 놓친다.
+
+**검증**: lint PASS(66s) · unit PASS(92s) · build PASS(166s) · channel-web-chat **386 passed**(22 파일).
+
+## 이월 추가 (2026-07-17 18_39_11)
+
+- **재전송으로 `apiBase` 가 바뀌면 옛 세션 토큰이 새 `apiBase` 로 전송될 수 있다** (security WARNING) — `session-store` 가 **발급 apiBase 를 기록하지 않아** 세션과 엔드포인트가 축 분리돼 있다. **이번 diff 가 만든 게 아니다**(재전송 시 복원하던 종전에도 `clientRef` 만 새 apiBase 로 바뀌었다). 별도 트랙 — 세션에 발급 origin 을 기록하고 불일치 시 폐기하는 설계가 필요하다.
+- **`AI_MESSAGE` 의 `ended` 가드 부재** (security INFO) — `ERROR` 근본 fix 로 지배적 경로가 닫혀 잔여 위험 낮음. 실패 사례 확인 시 확대.
