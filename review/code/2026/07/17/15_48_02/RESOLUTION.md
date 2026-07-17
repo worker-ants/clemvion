@@ -6,25 +6,32 @@
 
 | SUMMARY # | 분류 | 조치 commit | 비고 |
 |-----------|------|-------------|------|
-| #1 | 코드 | `e499ef216` | `review_guard.py` "Fail loudly" 주석을 실제 예외 전파 경로(두 호출자의 broad `try/except` 로 결국 fail-open)에 맞게 정정. 4개 리뷰어 독립 지적 |
-| #2 | 코드 | `e499ef216` | **유일한 기능 회귀(실행 검증됨)** — `has_report()` 에 `os.path.isfile()` 복원, `report_path()` 에 basename 안전 폴백(`""`/`"."`/`".."`) 추가. `output_file` 이 `/` 로 끝나거나 `..` 면 디렉터리를 "리포트 있음" 으로 오판하던 결함(reviewer 실측 64~96 bytes) 해소. trailing `/`·`..`·directory-isfile 회귀 테스트 6건 + `report_paths()` happy-path 테스트 1건 추가 |
-| #3 | 코드 | `e499ef216` | `.github/workflows/harness-checks.yml` `paths:` 에 `.claude/_shared/**` 추가 — 신규 SoT 모듈이 CI 트리거에서 빠져 있던 gap 해소 |
-| #4 | 코드 | `e499ef216` + `e14d772ba` | 호출부 0건(grep 확인)인 죽은 `_report_paths()` wrapper 2개(`code_review_orchestrator.py`, `consistency_orchestrator.py`) 제거 + `report_paths()`(복수형) 정상 입력 happy-path 테스트 추가. 리뷰어 제안 (b)의 나머지 절반인 docstring 정정이 최초 fix 에서 누락돼 `e14d772ba` 로 보강 — wrapper 제거 후 `report_paths()` 는 프로덕션 호출부 0건이고 테스트만 호출하므로, 그 사실을 docstring 에 명시해 도달 가능성이 암시로 호도되지 않게 함 |
-| #5 | 코드 | `e499ef216` | `consistency_orchestrator.py` 에 "빈 리포트는 success 로 승격 안 됨" 테스트(`test_an_empty_checker_report_is_not_promoted_to_success`) 추가 — `code_review_orchestrator` 의 `AgreementTest.test_agree_on_an_empty_report` 와 대칭 |
-| #6 | 코드 | `e499ef216` | `plan/complete/harness-report-contract-followups.md` frontmatter `spec_impact: none` 근거 문장 정정 — `components/layout/**` 가 `spec/2-navigation/_layout.md` `code:` glob 에 실제 매칭됨을 인정하되, 순수 mock/setup 추출 리팩터(assertion·동작 변경 없음, vitest 11/11 동일 통과)라 spec 갱신 불필요임을 명시 |
-| #7 | 코드 | `e499ef216` | `.claude/tests/README.md` "What's covered" 표에 신규 테스트 파일 2개(`test_report_paths_shared.py`, `test_forced_coverage_selection.py`) 행 추가, 각 핵심 논지 요약 |
-| #8 | 코드 | `e499ef216` | `code-review-agents/SKILL.md`·`consistency-checker/SKILL.md` 에 CLI 소급 재분류 안내 추가 — "이 변경 이후 과거 세션에 상태-조회 커맨드 실행 시 0바이트 placeholder 리포트가 있던 세션은 판정이 바뀌고 `_retry_state.json` 이 갱신될 수 있다" |
+| #1 | 코드 | `7868da97a` | `review_guard.py` "Fail loudly" 주석을 실제 예외 전파 경로(두 호출자의 broad `try/except` 로 결국 fail-open)에 맞게 정정. 4개 리뷰어 독립 지적 |
+| #2 | 코드 | `7868da97a` | **유일한 기능 회귀(실행 검증됨)** — `has_report()` 에 `os.path.isfile()` 복원, `report_path()` 에 basename 안전 폴백(`""`/`"."`/`".."`) 추가. `output_file` 이 `/` 로 끝나거나 `..` 면 디렉터리를 "리포트 있음" 으로 오판하던 결함(reviewer 실측 64~96 bytes) 해소. trailing `/`·`..`·directory-isfile 회귀 테스트 6건 + `report_paths()` happy-path 테스트 1건 추가 |
+| #3 | 코드 | `7868da97a` | `.github/workflows/harness-checks.yml` `paths:` 에 `.claude/_shared/**` 추가 — 신규 SoT 모듈이 CI 트리거에서 빠져 있던 gap 해소 |
+| #4 | 코드 | `7868da97a` + `489fedb8a` | 호출부 0건(grep 확인)인 죽은 `_report_paths()` wrapper 2개(`code_review_orchestrator.py`, `consistency_orchestrator.py`) 제거 + `report_paths()`(복수형) 정상 입력 happy-path 테스트 추가. 리뷰어 제안 (b)의 나머지 절반인 docstring 정정이 최초 fix 에서 누락돼 `489fedb8a` 로 보강 — wrapper 제거 후 `report_paths()` 는 프로덕션 호출부 0건이고 테스트만 호출하므로, 그 사실을 docstring 에 명시해 도달 가능성이 암시로 호도되지 않게 함 |
+| #5 | 코드 | `7868da97a` | `consistency_orchestrator.py` 에 "빈 리포트는 success 로 승격 안 됨" 테스트(`test_an_empty_checker_report_is_not_promoted_to_success`) 추가 — `code_review_orchestrator` 의 `AgreementTest.test_agree_on_an_empty_report` 와 대칭 |
+| #6 | 코드 | `7868da97a` | `plan/complete/harness-report-contract-followups.md` frontmatter `spec_impact: none` 근거 문장 정정 — `components/layout/**` 가 `spec/2-navigation/_layout.md` `code:` glob 에 실제 매칭됨을 인정하되, 순수 mock/setup 추출 리팩터(assertion·동작 변경 없음, vitest 11/11 동일 통과)라 spec 갱신 불필요임을 명시 |
+| #7 | 코드 | `7868da97a` | `.claude/tests/README.md` "What's covered" 표에 신규 테스트 파일 2개(`test_report_paths_shared.py`, `test_forced_coverage_selection.py`) 행 추가, 각 핵심 논지 요약 |
+| #8 | 코드 | `7868da97a` | `code-review-agents/SKILL.md`·`consistency-checker/SKILL.md` 에 CLI 소급 재분류 안내 추가 — "이 변경 이후 과거 세션에 상태-조회 커맨드 실행 시 0바이트 placeholder 리포트가 있던 세션은 판정이 바뀌고 `_retry_state.json` 이 갱신될 수 있다" |
 
 spec 관련(spec 결함·SPEC-DRIFT) 항목 없음 — 8건 전부 코드/테스트/문서(`.claude/**`·`.github/**`·`plan/complete/**`) 범위로 developer 쓰기 권한 내 처리, spec 위임 불필요.
 
 ## TEST 결과
 
-마지막 코드 commit 이후 main 세션이 TEST WORKFLOW 를 전 단계 재수행한 결과다.
+`origin/main`(`14bc86a53`) 위로 rebase 한 **최종 HEAD** 기준, 마지막 코드 commit(`489fedb8a`) 이후
+main 세션이 TEST WORKFLOW 를 전 단계 재수행한 결과다.
 
-- lint  : 통과 (111s, log=`_test_logs/lint-20260717-171356.log`)
-- unit  : 통과 (96s, log=`_test_logs/unit-20260717-171554.log`) — 별도로 하네스 python 272 tests(`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`) 전수 통과(W#2/W#4/W#5 신규 테스트 포함), workflow 계약 `node --test .claude/tests/test_agent_return.mjs` 11 pass / 0 fail
-- build : 통과 (152s, log=`_test_logs/build-20260717-171738.log`) — backend/frontend Dockerfile 이미지 빌드 + 프로덕션 이미지 위생 스모크 포함
-- e2e   : 통과 (backend 45/45 suite · 256/256 tests + playwright 51/51, 334s, log=`_test_logs/e2e-20260717-172027.log`) — 재시도 없이 1회 클린 통과
+- lint  : 통과 (64s, log=`_test_logs/lint-20260717-172849.log`)
+- unit  : 통과 (93s, log=`_test_logs/unit-20260717-172955.log`) — 별도로 하네스 python 272 tests(`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`) 전수 통과(W#2/W#4/W#5 신규 테스트 포함), workflow 계약 `node --test .claude/tests/test_agent_return.mjs` 11 pass / 0 fail
+- build : 통과 (216s, log=`_test_logs/build-20260717-173132.log`) — backend/frontend Dockerfile 이미지 빌드 + 프로덕션 이미지 위생 스모크 포함
+- e2e   : 통과 (backend 45/45 suite · 256/256 tests + playwright 51/51, 351s, log=`_test_logs/e2e-20260717-173513.log`) — 재시도 없이 1회 클린 통과
+
+rebase 경위: 브랜치 base 가 `5cd821d19` 로 stale 했다(그 사이 `#964`·`#965` 머지). 변경 파일 교집합은
+0건이라 silent revert 위험은 없었으나 관례대로 `origin/main` 에 rebase 했고, upstream 코드가 섞여
+들어왔으므로 `PROJECT.md §실행 사전 체크리스트`(rebase 후 변경 set 전체를 재판정) 에 따라 전 단계를
+재수행했다. rebase 로 commit 해시가 전부 바뀌어 위 표·`_resolution_state.json` 의 인용 해시도 함께
+갱신했다 — 존재하지 않는 해시를 가리키는 기록은 없는 기록보다 나쁘다.
 
 e2e 는 면제 대상이 아니다: 변경 set 에 `codebase/frontend/**` 테스트 파일이 있어
 `PROJECT.md §e2e 면제 화이트리스트` 의 부분집합이 아니다(회색 지대인 `*.test.ts` 도 화이트리스트 아님).

@@ -6,14 +6,14 @@
   "items_pending_ids": [],
   "items_escalated_ids": {},
   "commits_made": [
-    {"sha": "e499ef216", "summary_id": 1, "scope": "harness/review_guard-comment"},
-    {"sha": "e499ef216", "summary_id": 2, "scope": "harness/report_paths-isfile-regression"},
-    {"sha": "e499ef216", "summary_id": 3, "scope": "harness/ci-trigger-paths"},
-    {"sha": "e499ef216", "summary_id": 4, "scope": "harness/dead-wrapper-cleanup"},
-    {"sha": "e499ef216", "summary_id": 5, "scope": "harness/consistency-orchestrator-test-symmetry"},
-    {"sha": "e499ef216", "summary_id": 6, "scope": "plan/spec_impact-comment-fix"},
-    {"sha": "e499ef216", "summary_id": 7, "scope": "harness/tests-readme-registry"},
-    {"sha": "e499ef216", "summary_id": 8, "scope": "harness/skill-retroactive-reclass-note"}
+    {"sha": "7868da97a", "summary_id": 1, "scope": "harness/review_guard-comment"},
+    {"sha": "7868da97a", "summary_id": 2, "scope": "harness/report_paths-isfile-regression"},
+    {"sha": "7868da97a", "summary_id": 3, "scope": "harness/ci-trigger-paths"},
+    {"sha": "7868da97a", "summary_id": 4, "scope": "harness/dead-wrapper-cleanup"},
+    {"sha": "7868da97a", "summary_id": 5, "scope": "harness/consistency-orchestrator-test-symmetry"},
+    {"sha": "7868da97a", "summary_id": 6, "scope": "plan/spec_impact-comment-fix"},
+    {"sha": "7868da97a", "summary_id": 7, "scope": "harness/tests-readme-registry"},
+    {"sha": "7868da97a", "summary_id": 8, "scope": "harness/skill-retroactive-reclass-note"}
   ],
   "spec_drafts_pending": [],
   "spec_drafts_applied": [],
