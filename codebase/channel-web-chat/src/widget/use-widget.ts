@@ -475,13 +475,36 @@ export function useWidget() {
    *   이 반환 계약이 없던 시절 `applyConfig` 복원 경로가 teardown 직후 그대로 `openStream` 하는
    *   회귀가 있었다 (ai-review `02_04_13` CRITICAL#1) — 세 호출부 모두 이 값으로 게이팅한다.
    *
+   * **이 함수 안에는 staleness 정책이 두 개 공존한다 — 합치지 말 것.**
+   *
+   * | 분기 | 축 | 왜 |
+   * | --- | --- | --- |
+   * | 종료 확정(`finalizeEnded`) | world **만** | 대체된 시도가 발견한 **진짜 종료**도 확정돼야 한다. boot 축으로 막았더니 살아있는 부팅이 종료를 영영 못 보는 §106 위반이 났다(되돌림). |
+   * | 표면 갱신(`WAITING` dispatch) | world **+ boot** | 대체된 시도의 지연 응답이 살아있는 시도가 SSE 로 이미 전진시킨 화면을 **옛 노드로 되돌린다**(재현 확인 — 아래). |
+   *
+   * 표면 갱신에 boot 축이 필요한 이유: 호출부의 checkpoint 2(`isAttemptStale`)는 이 함수가
+   * **반환한 뒤** 의 `openStream`/`scheduleRefresh` 만 게이팅한다. `WAITING` dispatch 는 함수
+   * **안쪽**에서 그보다 먼저 끝나므로 checkpoint 2 가 닿지 않는다 — 이 파일의 "await 뒤 재검증"
+   * 계약이 함수 경계에서 끊기는 유일한 자리다.
+   *
+   * 재현(회귀 테스트로 고정): 세션이 `waiting_for_input`(n1)로 저장된 채 부팅#1이 `getStatus` A 를
+   * 발사 → A 미해결 상태에서 `wc:boot` 재전송(부팅#2)이 같은 창(스트림 미확립)에 걸려 `getStatus` B
+   * 를 발사 → B 가 먼저 응답해 n1 표면 + 스트림 확립 → SSE 로 대화가 n2 로 전진 → **A 가 뒤늦게 n1
+   * 스냅샷으로 응답** → world 는 내내 그대로라 옛 `WAITING(n1)` 이 그려져 화면이 n2 → n1 로 되감긴다.
+   * (ai-review 2026-07-17 18_39_11 concurrency CRITICAL)
+   *
+   * @param attempt 부팅 시도 토큰. `applyConfig` 만 넘긴다 — `start()`(eager 부팅)와
+   *   `replay_unavailable` 폴백은 부팅 시도가 아니라 world 축만 필요하므로 생략한다.
+   *
    * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
-   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded` 뿐(그 자체도 stable 콜백).
+   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`cannotApplyConfig` 뿐
+   * (둘 다 stable 콜백).
    */
   const seedWaitingFromStatus = useCallback(
     async (
       client: EiaClient,
       session: SessionRef,
+      attempt?: { boot: number },
     ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
@@ -505,6 +528,9 @@ export function useWidget() {
           return "ended"; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
         }
         if (status.status === "waiting_for_input" && status.context) {
+          // **표면 갱신만 boot 축을 본다** — 위 종료 확정은 일부러 안 본다(JSDoc 표 참조).
+          // 대체된 시도의 지연 스냅샷으로 살아있는 화면을 되감지 않는다.
+          if (attempt && cannotApplyConfig(attempt)) return "stale";
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
           // EIA §5.3) — `as` 캐스트 불필요.
           const parsed = parseWaitingForInput(status.context);
@@ -534,7 +560,7 @@ export function useWidget() {
         return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [finalizeEnded, isStale],
+    [finalizeEnded, isStale, cannotApplyConfig],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -929,7 +955,7 @@ export function useWidget() {
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
         if (clientRef.current) {
-          const outcome = await seedWaitingFromStatus(clientRef.current, saved);
+          const outcome = await seedWaitingFromStatus(clientRef.current, saved, attempt);
           // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
           // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
           if (outcome !== "continue") return;

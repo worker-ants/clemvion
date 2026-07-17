@@ -3029,4 +3029,66 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     await waitFor(() => expect(reloaded.result.current.state.phase).toBe("streaming"));
     expect(reloaded.result.current.state.executionId).toBe("e1");
   });
+
+  // **대체된 부팅 시도의 지연 `getStatus` 가 살아있는 화면을 되감지 않는다** (boot 축).
+  //
+  // 재현 확인: 호출부 checkpoint 2(`isAttemptStale`)는 `seedWaitingFromStatus` 가 **반환한 뒤** 만
+  // 게이팅하는데 `WAITING` dispatch 는 함수 **안쪽**에서 그보다 먼저 끝난다 — "await 뒤 재검증"
+  // 계약이 함수 경계에서 끊기는 유일한 자리였다. world 축은 이 시나리오 내내 안 바뀐다(대화가
+  // 살아있으므로) → 옛 세계 가드로는 못 잡는다.
+  //
+  // 단순 flicker 가 아니라 고착이다: 되감긴 n1 표면에 사용자가 응답하면 이미 지나간 nodeId 로
+  // 명령이 나가 백엔드가 거부한다. (ai-review 2026-07-17 18_39_11 concurrency CRITICAL)
+  it("대체된 시도의 지연 getStatus 가 살아있는 화면을 옛 노드로 되감지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return new Promise<Response>((r) => { embedResolvers.push(r); });
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return new Promise<Response>((r) => { statusResolvers.push(r); });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }));
+    const { getEs } = installControllableEventSource();
+    const allow = () => ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const waitingAt = (nodeId: string) => ({ ok: true, status: 200, json: async () => ({ data: {
+      executionId: "e1", status: "waiting_for_input",
+      context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+    } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 부팅#1 — embed 왕복 중.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => { embedResolvers[0](allow()); await flushAsync(); });
+    // 부팅#1 이 복원 seed 진입 → getStatus A 발사(미해결).
+    await waitFor(() => expect(statusResolvers.length).toBe(1));
+
+    // A 가 아직 안 끝났는데 wc:boot 재전송(부팅#2).
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => { embedResolvers[1](allow()); await flushAsync(); });
+    // 부팅#2 도 스트림 미확립 창에 걸려 자기 getStatus B 를 낸다.
+    await waitFor(() => expect(statusResolvers.length).toBe(2));
+
+    // B 가 먼저 응답 → n1 표면 + 스트림 오픈(부팅#2 소유).
+    await act(async () => { statusResolvers[1](waitingAt("n1")); await flushAsync(); });
+    expect(result.current.state.pending?.nodeId).toBe("n1");
+
+    // 살아있는 대화가 SSE 로 전진 → n2.
+    act(() => { getEs()?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n2", conversationThread: { turns: [] } }); });
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+
+    // 대체된 부팅#1 의 getStatus A 가 **뒤늦게** 옛 스냅샷(n1)으로 응답.
+    await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
+
+    // 화면은 SSE 가 전진시킨 n2 그대로 — 대체된 시도는 표면을 그리지 못한다.
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+  });
 });
