@@ -72,18 +72,31 @@
 
 ## 검증
 
-**최종 코드(`fbdda14e3`) 기준 전 단계 재실행** — `§3(재전송)` 교체가 코드에 걸쳐 있어 그 이전
-실행 결과는 근거로 쓰지 않았다.
+**`origin/main`(`29aa918a6`) rebase 후 전 단계 재실행** — base 가 6커밋 전진해(#967~#971) 그
+이전 실행 결과는 근거로 쓰지 않았다. rebase 는 충돌 없음.
 
 - lint: **PASS** (63s)
-- unit: **PASS** (82s) — frontend **5517 passed**(278파일, `plan-frontmatter` 가드 포함) ·
-  channel-web-chat **390 passed**(22파일)
-- build: **PASS** (151s)
-- e2e: **통과** — `.claude/tools/run-test.sh e2e` (`make e2e-test-full`), 355s
-  (로그 `e2e-20260717-201016.log`, 최종 커밋 `20:10:09` 이후 실행).
+- unit: **PASS** (71s) — backend **8225 passed** · frontend **5572 passed**(280파일,
+  `plan-frontmatter` 가드 포함) · channel-web-chat **390 passed**(22파일)
+- build: **PASS** (180s)
+- e2e: **통과** — `.claude/tools/run-test.sh e2e` (`make e2e-test-full`), 302s
+  (로그 `e2e-20260717-230702.log`).
   wrapper 요약줄 `tests=256` 은 backend jest 수만 세므로(PROJECT.md §e2e) **로그로 양쪽 확인**:
   backend jest `Tests: 256 passed, 256 total` + playwright `Running 51 tests using 2 workers`
-  → **`51 passed (1.7m)`**. 면제 불가 판정 근거: 변경 set 에 `codebase/channel-web-chat/src/**`
+  → **`51 passed (1.5m)`**. 면제 불가 판정 근거: 변경 set 에 `codebase/channel-web-chat/src/**`
   의 실제 `.ts` 코드가 포함돼 §e2e 면제 화이트리스트의 부분집합이 아니다.
 
 mutation 매트릭스 6종 — SUMMARY.md 참조. 무방비였던 3개 축이 이번에 전부 고정됐다.
+
+### rebase 시 겪은 것 (내 코드 무관 — 기록만)
+
+rebase 직후 lint·build 가 실패했으나 **둘 다 워크트리 부트스트랩 문제**였다. main 이 #968 로
+신설한 `@workflow/ai-end-reason` 패키지가 이 워크트리(그보다 먼저 생성됨)에 없었다.
+
+- lint: `sh: eslint: command not found` — 그 패키지에 `node_modules` 없음
+- build: `Cannot find module '@workflow/ai-end-reason'` × 4 — workspace 링크는 생겼지만 `dist` 없음.
+  내가 `pnpm install --ignore-scripts` 로 깔아 `prepare`(`[ -d dist ] || tsc`)가 건너뛰어진 탓.
+  `pnpm build` 로 해소.
+
+둘 다 추적 파일 무변경(lockfile·`dist` 는 gitignore). **fresh worktree 가 신규 workspace 패키지를
+만나면 링크 + 빌드 둘 다 필요하다** — 링크만 보고 넘어가면 tsc 에서야 드러난다.
