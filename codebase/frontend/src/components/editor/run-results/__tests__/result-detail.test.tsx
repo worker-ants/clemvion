@@ -991,9 +991,14 @@ describe("Inv-9 — 🔎 행 / 📚 chip / References 탭의 sources[] 동일성
 
     // ① 🔎 rag 행 — chunk 수 + 문서명
     expect(screen.getByText(/KB · 2개 청크/)).toBeDefined();
-    // ② 📚 References chip — 같은 문서명 (assistant 버블 하단)
-    const chips = screen.getAllByTitle("참조 탭에서 보기");
-    expect(chips.length).toBeGreaterThan(0);
+    // ② 🔎 행 chip 과 📚 버블 하단 chip 이 **둘 다** 같은 문서명을 보여야
+    // Inv-9 가 성립한다. 개수(①)나 References 탭(③)만 검증하면 RagRetrievalRow
+    // 가 전혀 다른 소스를 써도 통과한다 — mutation 실측으로 확인된 갭이다.
+    // 탭 클릭 **이전**에 검사해야 한다 (전환 후엔 Preview 가 unmount).
+    expect(screen.getAllByTitle("참조 탭에서 보기").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/환불\.md · 약관\.md/).length,
+    ).toBeGreaterThanOrEqual(2);
 
     // ③ References 탭 — 같은 sources 가 turn 그룹으로
     fireEvent.click(screen.getByText("참조"));
