@@ -186,6 +186,9 @@ r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 - [x] 위 5개 케이스(A–E) 를 `.claude/tests/` 회귀 테스트로 고정 — 특히 **C(커밋 메시지)** 와 **B(grep)**
 - [x] 참 양성 목록(`git -C`, env prefix, `&&` 뒤, `--force`) 전수 통과 확인
 - [x] `shlex` 예외 시 차단으로 폴백하는지 (자가 sabotage 테스트)
+- [x] **review 후속** — 아래 "review 후속 수정" 절의 4건(과소차단 회귀) 회귀 테스트化, 수정 전
+      코드에서 전부 FAIL 함을 먼저 확인한 뒤 수정(비-vacuity). WARNING #2(`--keep` 다회 지정)·
+      WARNING #3(`_GIT_OPTS_WITH_VALUE` 전항목 파라미터화) 커버리지 갭도 마감
 
 **구현 결과**: `.claude/tests/test_push_detection.py` 신설 (14 BLOCK + 8 ALLOW + 폴백·경계 5건).
 수정안대로 서브커맨드 판정 + `shlex` 폴백. 계획에 없던 실측 2건을 추가로 반영:
@@ -198,8 +201,38 @@ r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 
 계획 대비 차이: `(git push)` 는 이제 BLOCK 된다(기존엔 통과). 진짜 push 이므로 안전 방향이며
 거짓 음성을 줄인다. `eval "git push"` 는 계획 기록대로 현행·수정 모두 통과 — 이번 수정의 회귀 아님.
-잔여 한계: 커밋 메시지 본문에 `&& git push` 같은 **세그먼트 구분자 + 진짜 push 형태**가 들어가면
-여전히 BLOCK 된다(over-block = fail-safe 방향이라 수용).
+
+#### review 후속 수정 — 과소차단 회귀 4건 (`/ai-review` `review/code/2026/07/17/17_09_10`)
+
+위 "구현 결과" 시점의 체크리스트는 **과차단**(커밋 메시지 오탐 B·C) 방향만 전수 검증했다.
+같은 diff 를 리뷰한 3개 에이전트(requirement·security·side_effect)가 독립적으로 **과소차단**
+방향의 실측 회귀 4건을 찾아 Critical 로 분류했다 — 전부 "미검토 코드가 push 게이트를 우회"하는
+불안전 방향이라 즉시 수정했다(`resolution-applier`, 신규 테스트가 수정 전 코드에서 FAIL 함을
+먼저 확인 → 비-vacuity):
+
+| # | 결함 | 원인 | 수정 |
+| --- | --- | --- | --- |
+| Critical #1 | **개행(`\n`)만으로 구분된 멀티라인 명령**(`git add -A\ngit push`, heredoc-commit 직후 줄바꿈+push 등)에서 실제 push 미탐지. 구 정규식(`[^&;|]*`)은 개행도 매칭해 이 케이스를 정확히 막았었다 — **shlex 재작성의 실측 회귀** | `_tokenize()` 의 `punctuation_chars=True` 기본값(`();<>|&`)에 `\n` 이 없고, shlex 기본 `whitespace`(`' \t\r\n'`)가 개행을 흡수해 전체가 한 세그먼트로 합쳐짐 | `punctuation_chars` 에 `\n` 명시 추가 + `whitespace` 에서 `\n` 제거. 단 `punctuation_chars` 는 *연속된* 구두점을 한 토큰으로 묶으므로(`&&\n` 이 단일 토큰) `_SEGMENT_SEPARATORS` 의 **정확 토큰 일치**로는 여전히 놓친다 — "토큰이 구분자 문자로만 이루어졌는가"로 판정 방식 자체를 교체(`_SEGMENT_SEPARATOR_CHARS` + `_is_segment_boundary()`). `<`/`>` 는 리다이렉트이므로 구분자 문자 집합에서 제외 |
+| Critical #2 | **인용부호 분할**(`git 'pu''sh' --force`)이 셸에선 `git push --force` 로 실행되지만, `_is_git_push()` 첫 줄의 **토큰화 이전** 원시 `"push" not in command` 사전 필터가 "push 아님"으로 오판정 → REVIEW/PLAN 게이트 자체가 스킵 | substring 사전 필터가 셸 인용을 모른 채 원시 문자열만 봄 | 사전 필터 제거(hot-path 성능 영향 `timeit` 실측: 대표 명령 6종 평균 tokenize 비용 6~24us, 이 훅이 매 호출 지불하는 python3 기동 비용(~13ms) 대비 3자릿수 작아 무관측) |
+| Critical #3 | **`git` 런처 이름 대소문자 비교**(`os.path.basename(...) != "git"`)가 case-sensitive — macOS(APFS 기본 case-insensitive) 에서 `GIT push` 는 셸이 실제 git 을 실행하지만 게이트는 git 호출로 인식조차 못함 | `_git_subcommand()` 의 정확 문자열 비교 | `.lower() != "git"` 로 정규화 |
+| Critical #4 | **미등록 글로벌 옵션**(`--attr-source`, git 2.50.1 실존)이 `_GIT_OPTS_WITH_VALUE` 화이트리스트에 없어 값 토큰(`main`)이 서브커맨드로 오판, 그 뒤 진짜 `push` 를 검사 자체를 건너뜀. "모르는 옵션=값 없는 플래그" 라는 닫힌 목록 설계라 git 이 새 글로벌 옵션을 추가할 때마다 구조적으로 fail-open | `_git_subcommand()` 가 미지 옵션을 무조건 "값 없는 플래그"로 가정 | 두 겹: (a) `--attr-source` 를 화이트리스트에 추가(점 patch), (b) **구조적 fix** — `=` 내장값이 없는 미지 옵션을 만나면 "다음 토큰 = 서브커맨드"로 단정하지 않고, 세그먼트 나머지에 `push` 토큰이 있으면 보수적으로 push 로 판정(fail-closed). `--attr-source` 뿐 아니라 *미래의 어떤* 미지 옵션에도 적용되므로 (a) 없이도 이 케이스는 막힌다 — 회귀 테스트에 별도로 고정 |
+
+WARNING #2(`--keep A --keep B` 다회 지정 미검증)·WARNING #3(`_GIT_OPTS_WITH_VALUE` 8개 중 `-C` 만
+테스트됨)도 같은 세션에서 함께 마감 — 둘 다 **로직 결함은 아님**(기존 코드가 이미 올바르게
+동작), 회귀 방지용 커버리지만 추가.
+
+**잔여 한계 (트레이드오프, 수용)**:
+
+- 커밋 메시지 본문·heredoc 본문의 **한 줄이 그 자체로 `git push` 명령처럼 보이면** 여전히 BLOCK
+  된다(예: 커밋 메시지 안에 리터럴로 `git push` 로 시작하는 줄이 있는 경우). shlex 는 heredoc
+  문법을 모르므로 본문도 동일하게 토큰화되기 때문 — over-block = fail-safe 방향이라 수용
+  (Critical #1 수정 이전부터의 성질과 동일선상).
+- Critical #4 의 구조적 fail-closed 로 인해, **미지의 글로벌 옵션 뒤에 우연히 "push" 라는 단어가
+  값으로 온 비-push 명령**(예: 실재하지 않는 `git --hypothetical-flag push status`)은 실제로는
+  push 가 아님에도 BLOCK 될 수 있다. 이런 옵션은 알려진 git 옵션 중엔 없어 이론적 사례이며,
+  false positive(불편) 방향이라 false negative(미검토 push 통과)보다 안전하게 수용.
+- `eval "git push"` 는 계획 기록대로 현행·수정 모두 통과 — 이번 수정의 회귀 아님(정적 토큰 기반
+  가드의 구조적 한계, INFO #1 참고).
 
 ---
 
@@ -208,7 +241,10 @@ r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 - [x] ① 안 B 구현 (bootstrap `--keep` 전달 + reaper skip 집합)
 - [x] ① 회귀 테스트 (앵커≠cwd 재현)
 - [x] ② 서브커맨드 판정으로 교체 + shlex 폴백
-- [x] ② 회귀 테스트 (오탐 B·C + 참 양성 전수)
+- [x] ② 회귀 테스트 (오탐 B·C + 참 양성 전수) — **단, 최초 구현 시점엔 과소차단 방향은 미검증이었다.**
+      아래 항목이 그 갭을 마감한다.
+- [x] ② review 후속: `/ai-review` 가 찾은 과소차단 회귀 4건(개행-단독 구분·인용부호 분할·git 대소문자·
+      미등록 글로벌 옵션) 수정 + 회귀 테스트 + WARNING #2·#3 커버리지 마감 — "review 후속 수정" 절 참고
 - [x] 문서 동기화 — `worktree-policy.md §7` 의 불변식 "현재 세션 worktree 제외" 가 바로 이 결함의
       대리 지표 서술이었다(코드는 셸 cwd 를 봤다). cwd·앵커 두 축으로 정정 + 알려진 한계 명시.
       `.claude/tests/README.md` 에 신규 테스트 행 추가.
