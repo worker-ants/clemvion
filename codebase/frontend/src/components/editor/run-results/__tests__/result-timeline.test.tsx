@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ResultTimeline } from "../result-timeline";
 import type { NodeResult } from "@/lib/stores/execution-store";
+import {
+  ctS18RagAndToolSameTurn,
+  ctS19NoTurnDebug,
+} from "./fixtures/conversation-scenarios";
 
 function makeResult(overrides: Partial<NodeResult> = {}): NodeResult {
   return {
@@ -204,6 +208,72 @@ describe("ResultTimeline", () => {
     );
 
     expect(onSelect).toHaveBeenCalledWith("first");
+  });
+
+  // spec/conventions/conversation-thread.md §9.10 CT-S18 (e) — §9.6 "적용 surface"
+  // 는 🔎 `rag` 행이 conversation Preview 와 **본 실행 트리 timeline 양쪽**에
+  // 동시에 나타날 것을 강제한다. 한쪽만 주입하면 두 surface 가 공유하는
+  // `selectedConversationItemIndex` 가 어긋나 선택이 다른 항목을 가리킨다.
+  it("CT-S18(e): 완료된 대화 노드 expand 시 🔎 rag 행이 실행 트리 timeline 에도 나타난다", () => {
+    const aiAgentResult = makeResult({
+      nodeId: "ai-1",
+      nodeLabel: "AI Agent",
+      nodeType: "ai_agent",
+      nodeCategory: "ai",
+      status: "completed",
+      outputData: ctS18RagAndToolSameTurn.outputData as never,
+    });
+
+    render(
+      <ResultTimeline
+        results={[aiAgentResult]}
+        selectedId="ai-1"
+        onSelect={vi.fn()}
+        conversationMessages={[]}
+        selectedConversationItemIndex={null}
+        onSelectConversationItem={vi.fn()}
+        isLiveConversation={false}
+      />,
+    );
+
+    // 노드 행 클릭으로 대화 항목 expand.
+    fireEvent.click(screen.getByText("AI Agent"));
+
+    // 🔎 행의 chip — 도구 행(🔧 kb_search) 과 별개로 존재해야 한다.
+    expect(screen.getByText(/KB · 2개 청크/)).toBeDefined();
+    // 문서명이 dedup 되어 노출 (📚 chip·References 탭과 동일 sources).
+    expect(screen.getByText(/환불\.md · 약관\.md/)).toBeDefined();
+    // 도구 행은 그대로 — rag 가 도구를 대체하지 않는다.
+    expect(screen.getByText("kb_search")).toBeDefined();
+  });
+
+  it("CT-S19: turnDebug 가 없으면 실행 트리 timeline 에 🔎 행이 없다", () => {
+    const aiAgentResult = makeResult({
+      nodeId: "ai-2",
+      nodeLabel: "AI Agent",
+      nodeType: "ai_agent",
+      nodeCategory: "ai",
+      status: "completed",
+      outputData: ctS19NoTurnDebug.outputData as never,
+    });
+
+    render(
+      <ResultTimeline
+        results={[aiAgentResult]}
+        selectedId="ai-2"
+        onSelect={vi.fn()}
+        conversationMessages={[]}
+        selectedConversationItemIndex={null}
+        onSelectConversationItem={vi.fn()}
+        isLiveConversation={false}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("AI Agent"));
+
+    expect(screen.queryByText(/KB ·/)).toBeNull();
+    // 나머지 turn 은 정상 렌더 — 결측이 레이아웃을 깨지 않는다 (§9.12).
+    expect(screen.getByText(/안녕/)).toBeDefined();
   });
 
   // spec/conventions/conversation-thread.md §9.6 "적용 surface" + Inv-5 (§9.9):

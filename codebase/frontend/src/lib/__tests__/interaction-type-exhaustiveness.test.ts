@@ -107,6 +107,7 @@ const SOURCE_ENUM_VALUES = [
   "presentation_user",
   "system",
   "system_error",
+  "rag",
 ] as const;
 
 const _sourceTypecheck: ReadonlyArray<ConversationTurnSource> =

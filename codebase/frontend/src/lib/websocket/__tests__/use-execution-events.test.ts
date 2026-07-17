@@ -2026,6 +2026,46 @@ describe("useExecutionEvents", () => {
       expect(result?.outputData).toEqual(conversationOutput);
     });
 
+    // PR #959 후속 — `handleNodeFailed` 의 `outputData: payload.output ?? null` 은
+    // nodeType 무관 범용 경로라 error-port 라우팅되는 비AI 노드(HTTP/Code/DB 등)의
+    // 실패에도 적용된다. 기존 커버리지는 `output` 필드가 아예 없는 http_request
+    // 케이스와 ai_agent 전용 CT-S15 뿐이라 "비AI 실패 + 실제 output" 조합이
+    // 무테스트였다. outputData 는 Output/Meta/Port 탭 가시성의 입력이므로 회귀 시
+    // 조용히 탭이 사라진다.
+    it("node.failed on a NON-AI node also carries output into outputData (no system_error)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const { failed } = bindNodeHandlers();
+
+      const httpOutput = {
+        config: { url: "https://api.example.com" },
+        output: { error: { code: "HTTP_500", message: "Internal Server Error" } },
+        meta: { durationMs: 120, statusCode: 500 },
+        port: "error",
+        status: "ended",
+      };
+
+      failed?.({
+        nodeExecutionId: "22222222-2222-4222-8222-222222222222",
+        nodeId: "http-1",
+        nodeType: "http_request",
+        nodeLabel: "Call API",
+        error: { code: "HTTP_500", message: "Internal Server Error" },
+        output: httpOutput,
+      });
+
+      const result = useExecutionStore
+        .getState()
+        .nodeResults.find((r) => r.nodeId === "http-1");
+      expect(result?.status).toBe("failed");
+      expect(result?.outputData).toEqual(httpOutput);
+      // 비AI 노드는 conversation thread 를 건드리지 않는다 (isMultiTurnAiContext).
+      expect(
+        useExecutionStore
+          .getState()
+          .conversationMessages.filter((m) => m.type === "system_error"),
+      ).toHaveLength(0);
+    });
+
     it("node.completed with output.error APPENDs system_error (multi-turn AI port=error)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();

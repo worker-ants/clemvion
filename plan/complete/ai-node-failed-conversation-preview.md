@@ -1,8 +1,18 @@
 ---
 worktree: ai-node-conversation-history-ff487b
 started: 2026-07-17
+completed: 2026-07-17
 owner: developer
+spec_impact:
+  - spec/conventions/conversation-thread.md
+  - spec/3-workflow-editor/3-execution.md
+  - spec/3-workflow-editor/_product-overview.md
+  - spec/2-navigation/14-execution-history.md
 ---
+
+> **완료 (2026-07-17)** — PR [#959](https://github.com/worker-ants/clemvion/pull/959) 머지 (`12ceee587`). R1~R4 4겹 결함 수정 + spec 4문서 개정 완료.
+> 리뷰: `/consistency-check` 2라운드 + `/ai-review` 4라운드 — [`review/code/2026/07/17/07_12_33/RESOLUTION.md`](../../review/code/2026/07/17/07_12_33/RESOLUTION.md) · [`08_05_31/RESOLUTION.md`](../../review/code/2026/07/17/08_05_31/RESOLUTION.md) · [`08_22_45/SUMMARY.md`](../../review/code/2026/07/17/08_22_45/SUMMARY.md).
+> 후속: RAG 행 신설은 [`rag-tool-row-distinct-ui.md`](../in-progress/rag-tool-row-distinct-ui.md) 로 이관 (본 작업이 제거한 `rag` 행을 데이터 출처를 바꿔 신설).
 
 # AI 노드 실패 시 대화 이력 도달 불가 (렌더 층 Inv-6 누수)
 
@@ -214,7 +224,7 @@ checker 는 execution-scope 단일 `conversationMessages` 배열 + `isMultiTurnA
 
 ### `cancelled` 종결 — 실측 결과 별도 표면 (본 작업 범위 외)
 
-**실측 (2026-07-17)**: `handleNodeCancelled` ([use-execution-events.ts:936-974](../../codebase/frontend/src/lib/websocket/use-execution-events.ts)) 는 `conversationMessages` 를 조작하지 않는다. `execution.node.cancelled` 는 `node.failed` 와 별도 WS 이벤트다 ([`spec/.../node-cancellation.md` §5.1](../../spec/5-system/node-cancellation.md)). → `cancelled` 대화 노드는 `system_error` 를 얻지 못하므로 **귀속 신호 자체가 없다**.
+**실측 (2026-07-17)**: `handleNodeCancelled` ([use-execution-events.ts:936-974](../../codebase/frontend/src/lib/websocket/use-execution-events.ts)) 는 `conversationMessages` 를 조작하지 않는다. `execution.node.cancelled` 는 `node.failed` 와 별도 WS 이벤트다 ([node-cancellation §5.1](../../spec/conventions/node-cancellation.md#51-nodeexecution-상태--cancelled)). → `cancelled` 대화 노드는 `system_error` 를 얻지 못하므로 **귀속 신호 자체가 없다**.
 
 취소는 오류가 아니므로 `system_error` 부재는 정상 동작이다. 다만 "진행 중 멀티턴 대화를 Stop 으로 취소하면 대화가 안 보인다" 는 동일 계열 증상은 남을 수 있다 — **Inv-8 의 예외가 아니라 미착수 표면**(다른 귀속 메커니즘이 필요)으로 §8.5 에 known follow-up 명시. 초안이 걸었던 [`node-cancellation-inflight-followups.md`](node-cancellation-inflight-followups.md) 교차 참조는 **제거** — 그 plan 은 DB/Email 노드의 driver-level in-flight cancel 만 다뤄 본 질문(AI 노드 cancelled 시 thread 표시)과 무관하다 (plan_coherence 2회차 INFO).
 

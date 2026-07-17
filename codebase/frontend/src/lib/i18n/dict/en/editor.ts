@@ -242,6 +242,7 @@ export const editor: Dict["editor"] = {
     cardLinkContinue: "link continue",
     cardSystemNote: "System note",
     // system_error source (§9.1 + §9.10 CT-S9/S10/S11)
+  ragChunks: "KB · {{count}} chunk(s)",
     systemErrorRetry: "Retry",
     systemErrorRetryAfter: "Retry available in {{seconds}}s",
     systemErrorRetryAfterShort: "{{seconds}}s",

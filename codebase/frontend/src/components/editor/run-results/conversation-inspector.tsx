@@ -13,6 +13,7 @@ import {
   XCircle,
   Info,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
@@ -27,6 +28,7 @@ import {
   groupToolCallItems,
   isAssistantContentBlank,
 } from "@/lib/conversation/conversation-utils";
+import { uniqueDocumentNames } from "@/lib/conversation/rag-types";
 import type { TranslationKey } from "@/lib/i18n/core";
 
 // spec/conventions/conversation-thread.md §9.1 — `presentation_user` source
@@ -76,7 +78,7 @@ function ReferencesChip({
 }) {
   const t = useT();
   if (sources.length === 0) return null;
-  const docNames = Array.from(new Set(sources.map((s) => s.documentName)));
+  const docNames = uniqueDocumentNames(sources);
   const shown = docNames.slice(0, MAX_VISIBLE_DOC_NAMES);
   const extra = docNames.length - shown.length;
   return (
@@ -372,6 +374,16 @@ function SelectedItemDetail({
   }
   if (item.type === "system_error") {
     return <SystemErrorDetail item={item} />;
+  }
+  if (item.type === "rag") {
+    // §9.1 — 선택 시에도 같은 정보를 보여준다. 별도 detail 뷰를 두지 않는 이유:
+    // 행 자체가 이미 전체 문서명 + chunk 수를 담고, 청크 본문은 References 탭이
+    // SoT 다 (Inv-9 — 세 표면이 같은 sources[] 를 보여야 하므로 중복 정의 회피).
+    return (
+      <div className="p-3">
+        <RagRetrievalRow item={item} />
+      </div>
+    );
   }
 
   const hasToolCalls = !!item.assistantToolCalls?.length;
@@ -679,6 +691,72 @@ function SystemErrorDetail({ item }: { item: ConversationItem }) {
 }
 
 /**
+ * Inline-row renderer for a `rag` turn — 엔진이 LLM 호출 **전** 자동 수행한 KB
+ * 검색 (spec/conventions/conversation-thread.md §1.1.2 · §9.1).
+ *
+ * §9.2 3중 신호로 🔧 `tool` 행과 구분한다 — 아이콘(🔎/🔧) · 컨테이너(**점선**
+ * 라인 / 실선 카드) · chip(`KB · N chunk(s)` / tool name). 한 신호만 다르면
+ * 사용자가 "LLM 이 KB 를 호출했다" 는 잘못된 인과를 읽는다 (§8.6).
+ *
+ * 문서명 표시는 `ReferencesChip` 을 재사용한다 — References 탭·📚 chip 과 같은
+ * `sources[]` 를 같은 규칙으로 보여야 하기 때문 (**Inv-9**).
+ */
+function RagRetrievalRow({
+  item,
+  onJumpToReferences,
+  isClickable,
+  onClick,
+  onKeyDown,
+}: {
+  item: ConversationItem;
+  onJumpToReferences?: (turnIndex: number) => void;
+  isClickable?: boolean;
+  onClick?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+}) {
+  const t = useT();
+  const sources = item.rag?.sources ?? [];
+  if (sources.length === 0) return null;
+  return (
+    <div
+      role={isClickable ? "button" : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      className={cn(
+        // 점선 = 자동 주입 (실선 카드인 도구 호출과 컨테이너로 구분 — §9.2)
+        "mx-3 flex items-center gap-1.5 rounded border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] px-2 py-1 text-[10px] text-[hsl(var(--muted-foreground))]",
+        isClickable &&
+          "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
+      )}
+    >
+      <Search size={10} className="shrink-0" aria-hidden />
+      <span className="shrink-0 rounded bg-[hsl(var(--accent))] px-1.5 py-0.5 font-medium">
+        {t("editor.conversation.ragChunks", { count: sources.length })}
+      </span>
+      <div className="min-w-0 flex-1">
+        {onJumpToReferences ? (
+          <ReferencesChip
+            sources={sources}
+            onClick={() => onJumpToReferences(item.turnIndex)}
+            compact
+          />
+        ) : (
+          <span className="truncate">
+            {uniqueDocumentNames(sources).join(" · ")}
+          </span>
+        )}
+      </div>
+      {item.timestamp && (
+        <span className="shrink-0 font-normal">
+          {formatDate(item.timestamp, "time-seconds")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
  * Inline-row renderer for a `system_error` turn used inside SummaryView's
  * conversation timeline. Matches §9.1 매핑표:
  *
@@ -896,6 +974,7 @@ function SummaryView({
             const isPresentation = item.type === "presentation";
             const isSystem = item.type === "system";
             const isSystemError = item.type === "system_error";
+            const isRagRetrieval = item.type === "rag";
             // 부모(intermediate assistant) 에 흡수된 tool row 는 본 위치에서
             // 표준 렌더 대신 부모 분기 안의 tree children 으로만 보여준다.
             if (isTool && claimedToolIndices.has(i)) return null;
@@ -1071,6 +1150,20 @@ function SummaryView({
             // surface 의 retry 는 부모 prop drill (`onRetryLastTurn`) — 인스펙터
             // 의 SummaryView 가 호스트라 onRetry 가 set 안된 경우 (history view)
             // 는 SystemErrorRow 내부에서 button 자동 suppress.
+            // §9.1 — 🔎 KB 자동검색 행. §9.6 상 그룹 분류 대상 외이므로
+            // groupToolCallItems 의 claim 을 받지 않고 독립 row 로 남는다.
+            if (isRagRetrieval) {
+              return (
+                <RagRetrievalRow
+                  key={`${item.type}-${i}`}
+                  item={item}
+                  onJumpToReferences={onJumpToReferences}
+                  isClickable={isClickable}
+                  onClick={handleClick}
+                  onKeyDown={handleKeyDown}
+                />
+              );
+            }
             if (isSystemError) {
               return (
                 <SystemErrorRow

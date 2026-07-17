@@ -9,6 +9,7 @@ import {
   stripInlineMarkers,
   inferInteractionTypeFromData,
   type ConversationTurn,
+  mergeRagRetrievalItems,
 } from "../conversation-utils";
 import type { ConversationItem } from "@/lib/stores/execution-store";
 
@@ -1398,5 +1399,95 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
     for (const [, children] of childrenByParent) {
       expect(children.includes(3)).toBe(false);
     }
+  });
+});
+
+// spec/conventions/conversation-thread.md §9.10 CT-S18 / CT-S19 / CT-S20
+// — 엔진이 LLM 호출 전 자동 수행한 KB 검색을 🔎 `rag` 행으로 표시 (§1.1.2).
+// LLM 이 호출한 KB 도구(`tool`) 와 인과가 달라 별도 행으로 구분한다 (§9.2).
+describe("mergeRagRetrievalItems (CT-S18/S19/S20)", () => {
+  const src = (name: string) => ({
+    chunkId: `c-${name}`,
+    documentId: `d-${name}`,
+    documentName: name,
+    content: "…",
+    score: 0.9,
+  });
+
+  it("CT-S18: KB 자동검색과 도구 호출이 같은 턴에 있어도 각각 독립 행으로 남는다", () => {
+    const items: ConversationItem[] = [
+      { type: "user", content: "환불 규정?", turnIndex: 1 },
+      {
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      },
+      { type: "tool", content: "[]", turnIndex: 1, toolName: "kb_search" },
+      { type: "assistant", content: "환불은 7일 이내입니다", turnIndex: 1 },
+    ];
+    const out = mergeRagRetrievalItems(items, [
+      { turnIndex: 1, ragSources: [src("환불.md"), src("약관.md")], ragDiagnostics: null },
+    ]);
+
+    expect(out.map((i) => i.type)).toEqual([
+      "user",
+      "rag",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+    expect(out.filter((i) => i.type === "tool")).toHaveLength(1);
+    const rag = out.find((i) => i.type === "rag")!;
+    expect(rag.turnIndex).toBe(1);
+    expect(rag.rag?.sources.map((s) => s.documentName)).toEqual([
+      "환불.md",
+      "약관.md",
+    ]);
+  });
+
+  it("CT-S19: turnDebug 가 없거나 결과 0건이면 행을 만들지 않는다", () => {
+    const items: ConversationItem[] = [
+      { type: "user", content: "안녕", turnIndex: 1 },
+      { type: "assistant", content: "네", turnIndex: 1 },
+    ];
+    expect(mergeRagRetrievalItems(items, [])).toEqual(items);
+    expect(
+      mergeRagRetrievalItems(items, [
+        { turnIndex: 1, ragSources: [], ragDiagnostics: null },
+      ]),
+    ).toEqual(items);
+  });
+
+  it("CT-S20: 해당 turnIndex 에 assistant 가 없으면 행을 붙이지 않는다 (cross-node 스코프)", () => {
+    const items: ConversationItem[] = [
+      { type: "presentation", content: "버튼 클릭", turnIndex: 1 },
+      { type: "user", content: "질문", turnIndex: 2 },
+      { type: "assistant", content: "답변", turnIndex: 2 },
+    ];
+    const out = mergeRagRetrievalItems(items, [
+      { turnIndex: 1, ragSources: [src("무관.md")], ragDiagnostics: null },
+      { turnIndex: 2, ragSources: [src("관련.md")], ragDiagnostics: null },
+    ]);
+    expect(out.map((i) => i.type)).toEqual([
+      "presentation",
+      "user",
+      "rag",
+      "assistant",
+    ]);
+    expect(out.find((i) => i.type === "rag")!.turnIndex).toBe(2);
+  });
+
+  it("같은 턴에 assistant 가 여러 개여도 행은 첫 assistant 앞 1개만", () => {
+    const items: ConversationItem[] = [
+      { type: "user", content: "q", turnIndex: 1 },
+      { type: "assistant", content: "", turnIndex: 1, assistantToolCalls: [{ name: "t" }] },
+      { type: "assistant", content: "final", turnIndex: 1 },
+    ];
+    const out = mergeRagRetrievalItems(items, [
+      { turnIndex: 1, ragSources: [src("a.md")], ragDiagnostics: null },
+    ]);
+    expect(out.filter((i) => i.type === "rag")).toHaveLength(1);
+    expect(out.map((i) => i.type)).toEqual(["user", "rag", "assistant", "assistant"]);
   });
 });

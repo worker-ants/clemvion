@@ -6,6 +6,8 @@ import {
   ctS15RetryableFailedConversation,
   ctS16NonRetryableFailedConversation,
   ctS17HistoryFailedConversation,
+  ctS18RagAndToolSameTurn,
+  ctS19NoTurnDebug,
 } from "./fixtures/conversation-scenarios";
 
 // Mock ws-client
@@ -792,7 +794,10 @@ describe("ResultDetail", () => {
         <ResultDetail
           result={makeAiResultBothTurnsWithRag()}
           {...defaultProps}
-          selectedConversationItemIndex={3}
+          // 🔎 rag 행이 각 턴의 assistant 앞에 삽입되므로(§9.1) 두 번째
+          // assistant(turn 2)의 인덱스는 3 → 5 로 밀린다. 테스트 의도(= 두 번째
+          // assistant 선택)는 그대로다.
+          selectedConversationItemIndex={5}
         />,
       );
       fireEvent.click(screen.getByText("참조"));
@@ -822,7 +827,8 @@ describe("ResultDetail", () => {
         <ResultDetail
           result={result}
           {...defaultProps}
-          selectedConversationItemIndex={1}
+          // rag(turn 1) 행 삽입으로 첫 assistant 인덱스 1 → 2 (§9.1)
+          selectedConversationItemIndex={2}
         />,
       );
       fireEvent.click(screen.getByText("참조"));
@@ -960,5 +966,62 @@ describe("ResultDetail", () => {
 
       expect(screen.getByText(/Connection timeout/)).toBeDefined();
     });
+  });
+});
+
+// spec/conventions/conversation-thread.md §9.10 CT-S18 (f) — **Inv-9**.
+//
+// 🔎 `rag` 행 · 📚 References chip · References 탭은 모두 `meta.turnDebug[].
+// ragSources` 를 소비하는 **세 개의 독립 렌더 경로**다. 어긋나면 "References
+// 탭엔 청크가 있는데 미리보기 행엔 없다" 는 모순을 사용자가 목격한다.
+// 구현이 동일 소스 함수(`turnRefIndex` 파생)를 재사용하는지 여기서 고정한다.
+describe("Inv-9 — 🔎 행 / 📚 chip / References 탭의 sources[] 동일성 (CT-S18 f)", () => {
+  it("같은 turnIndex 에 대해 세 표면이 같은 문서를 보여준다", () => {
+    render(
+      <ResultDetail
+        result={makeResult({
+          nodeType: "ai_agent",
+          nodeCategory: "ai",
+          status: "completed",
+          outputData: ctS18RagAndToolSameTurn.outputData as never,
+        })}
+        {...defaultProps}
+      />,
+    );
+
+    // ① 🔎 rag 행 — chunk 수 + 문서명
+    expect(screen.getByText(/KB · 2개 청크/)).toBeDefined();
+    // ② 🔎 행 chip 과 📚 버블 하단 chip 이 **둘 다** 같은 문서명을 보여야
+    // Inv-9 가 성립한다. 개수(①)나 References 탭(③)만 검증하면 RagRetrievalRow
+    // 가 전혀 다른 소스를 써도 통과한다 — mutation 실측으로 확인된 갭이다.
+    // 탭 클릭 **이전**에 검사해야 한다 (전환 후엔 Preview 가 unmount).
+    expect(screen.getAllByTitle("참조 탭에서 보기").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/환불\.md · 약관\.md/).length,
+    ).toBeGreaterThanOrEqual(2);
+
+    // ③ References 탭 — 같은 sources 가 turn 그룹으로
+    fireEvent.click(screen.getByText("참조"));
+    expect(screen.getByText("환불.md")).toBeDefined();
+    expect(screen.getByText("약관.md")).toBeDefined();
+  });
+
+  it("CT-S19: turnDebug 가 없으면 🔎 행도 References 탭도 없다 (세 표면 동시 부재)", () => {
+    render(
+      <ResultDetail
+        result={makeResult({
+          nodeType: "ai_agent",
+          nodeCategory: "ai",
+          status: "completed",
+          outputData: ctS19NoTurnDebug.outputData as never,
+        })}
+        {...defaultProps}
+      />,
+    );
+
+    expect(screen.queryByText(/KB ·/)).toBeNull();
+    expect(screen.queryByText("참조")).toBeNull();
+    // 대화 자체는 정상 렌더 — 결측 내성 (§9.12)
+    expect(screen.getByText("안녕")).toBeDefined();
   });
 });

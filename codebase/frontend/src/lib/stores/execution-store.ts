@@ -85,6 +85,7 @@ import type {
   PresentationPayload,
   SystemErrorTurnData,
 } from "@/lib/conversation/conversation-utils";
+import type { RagSource } from "@/lib/conversation/rag-types";
 
 /**
  * Discriminator for a conversation timeline item. Mirrors
@@ -111,7 +112,8 @@ export interface ConversationItem {
     | "tool"
     | "presentation"
     | "system"
-    | "system_error";
+    | "system_error"
+    | "rag";
   content: string;
   /**
    * Structured payload for `type: "system_error"` items — the inline error
@@ -124,6 +126,14 @@ export interface ConversationItem {
    * 의 1:1 snapshot.
    */
   systemError?: SystemErrorTurnData;
+  /**
+   * Structured payload for `type: "rag"` items — 엔진이 LLM 호출 전 자동 수행한
+   * KB 검색을 timeline 위 독립 행으로 표시한다 (LLM 이 호출한 도구(`tool`) 와
+   * 인과가 달라 시각 구분 — spec/conventions/conversation-thread.md §9.1·§9.2).
+   *
+   * SoT: §1.2.2. `turnIndex` 는 top-level 필드를 재사용한다 (payload 중복 금지).
+   */
+  rag?: { sources: RagSource[] };
   /**
    * Structured metadata for `type: "presentation"` items, snapshotted from
    * `ConversationTurn.{nodeLabel, nodeType, data}` and the originating

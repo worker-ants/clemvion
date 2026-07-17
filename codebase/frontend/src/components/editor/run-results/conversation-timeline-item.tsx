@@ -10,8 +10,11 @@ import {
   Wrench,
   Info,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { formatDuration } from "./utils";
+import { useT } from "@/lib/i18n";
+import { uniqueDocumentNames } from "@/lib/conversation/rag-types";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -24,6 +27,7 @@ export function ConversationTimelineItem({
   isSelected,
   onClick,
 }: ConversationTimelineItemProps) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -62,6 +66,22 @@ export function ConversationTimelineItem({
           <Info size={10} className="text-[hsl(var(--muted-foreground))]" />
           <span className="truncate text-[11px] italic text-[hsl(var(--muted-foreground))]">
             {item.content || "System note"}
+          </span>
+        </div>
+      ) : item.type === "rag" ? (
+        // spec/conventions/conversation-thread.md §9.1 — 🔎 KB 자동검색 행.
+        // §9.6 이 Preview 와 본 실행 트리 timeline 양 surface 동시 적용을
+        // 강제한다. 한 줄 컴팩트 형태 (Inv-5 — 그룹 결과는 동일, 행 시각
+        // 형식 차이는 허용). 🔧 도구 행과 아이콘·컨테이너로 구분.
+        <div className="flex items-center gap-1.5">
+          <Search size={10} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
+          <span className="shrink-0 rounded border border-dashed border-[hsl(var(--border))] px-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+            {t("editor.conversation.ragChunks", {
+              count: item.rag?.sources.length ?? 0,
+            })}
+          </span>
+          <span className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
+            {uniqueDocumentNames(item.rag?.sources ?? []).join(" · ")}
           </span>
         </div>
       ) : item.type === "system_error" ? (

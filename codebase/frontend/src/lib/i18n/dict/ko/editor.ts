@@ -240,6 +240,7 @@ export const editor = {
     cardLinkContinue: "링크 이동",
     cardSystemNote: "시스템 알림",
     // system_error source (§9.1 + §9.10 CT-S9/S10/S11)
+  ragChunks: "KB · {{count}}개 청크",
     systemErrorRetry: "다시 시도",
     systemErrorRetryAfter: "{{seconds}}초 후 재시도 가능",
     systemErrorRetryAfterShort: "{{seconds}}초",

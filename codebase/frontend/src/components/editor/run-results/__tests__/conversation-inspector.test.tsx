@@ -405,7 +405,7 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
     expect(onSelect).toHaveBeenCalledWith(1);
   });
 
-  it("History 모드 (isLive=false) 에서도 tool 메시지가 표시된다 (Critical fix 회귀 방지)", () => {
+  it("호출자가 넘긴 parseHistoryMessages 출력을 그대로 렌더한다 — tool 포함 (pass-through)", () => {
     const result: NodeResult = {
       ...baseResult,
       status: "completed",
@@ -436,11 +436,11 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
         {...baseProps}
         result={result}
         // 프로덕션 배선과 동일하게 호출자(`result-detail.tsx`)가 정규 변환을
-        // 마친 items 를 주입한다. 예전에는 여기에 `[]` 를 넘기고 인스펙터
-        // 내부의 인라인 재파싱에 의존했으나, 그 경로는 spec §9.11 의 3-함수
-        // 계약에 없는 4번째 변환이었고 `output.error` → `system_error` 합성을
-        // 못해 오류 종결 노드의 인라인 마커를 잃었다 (§9.9 Inv-8). 인스펙터는
-        // 더 이상 재파싱하지 않으므로 테스트도 실제 배선을 따른다.
+        // 마친 items 를 주입한다. PR #959 이후 인스펙터는 재파싱하지 않고
+        // `items = conversationMessages` 이므로 `isLive` 는 items 계산에
+        // 관여하지 않는다 — 그래서 본 테스트는 "History 모드 전용" 이 아니라
+        // **pass-through 명제**를 검증한다 (명칭 정정, ai-review 2회차 testing
+        // INFO). 진짜 history-모드 e2e 방어는 `result-detail.test.tsx` CT-S17.
         conversationMessages={parseHistoryMessages(result.outputData)}
         isLive={false}
       />,
