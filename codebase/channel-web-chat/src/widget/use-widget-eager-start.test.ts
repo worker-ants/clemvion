@@ -2580,6 +2580,145 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(result.current.state.phase).toBe("ended");
   });
 
+  // §106 — **재전송은 config 만 갱신한다. 살아있는 대화를 되감지 않는다.**
+  //
+  // 재현된 결함(ai-review 17_36_57 requirement): 재전송마다 복원 분기를 다시 타서, 입력 대기 중이던
+  // 사용자의 `phase` 가 `RESTORED` 로 `streaming` 이 되며 **입력창이 사라졌다가** seed 응답 후 돌아왔다.
+  // 관리자 라이브 미리보기는 외형 폼 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 발생한다.
+  // 덤으로 `getStatus`·SSE·토큰 갱신도 매번 재실행됐다.
+  it("§106: 활성 대화 중 재전송은 입력창을 되감지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let statusCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          statusCalls += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                executionId: "e1",
+                status: "waiting_for_input",
+                context: { interactionType: "ai_conversation", waitingNodeId: "n1", conversationThread: { turns: [] } },
+              },
+            }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    // 복원 seed 가 대기 표면을 시드 → 사용자가 입력할 수 있는 상태.
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+    const statusBefore = statusCalls;
+    const esBefore = getEs();
+
+    // 관리자가 미리보기 폼에 키를 입력 → 디바운스 없이 wc:boot 재전송.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+
+    // 입력창이 그대로다(되감기 없음).
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    // 세션도 건드리지 않는다 — getStatus 재조회·SSE 재오픈 없음.
+    expect(statusCalls).toBe(statusBefore);
+    expect(getEs()).toBe(esBefore);
+  });
+
+  // 위 fix 의 **반대 방향** — 재전송이 복원을 건너뛰는 판정이 과하면 연결이 영영 안 선다.
+  //
+  // 내가 이 스킵을 `startedRef`(시작했나)로 처음 썼다가 낸 결함(재현 확인): `startedRef` 는 복원
+  // **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만 남아
+  // **살아있는 시도까지 복원을 건너뛰게** 만들어 `streaming` 인데 연결이 0개로 고착됐다.
+  // 판정은 `streamRef`(연결이 살아있나)여야 한다 — 두 테스트가 그 경계를 양쪽에서 지킨다.
+  it("§106: 대체된 시도가 연결 전에 물러나도 살아있는 시도가 연결을 세운다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => {
+            statusResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const running = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { executionId: "e1", status: "running" } }) }) as Response;
+
+    renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // 1차 복원 seed 진입 — 아직 연결 없음.
+    expect(getEs()).toBeNull(); // 전제 — 이 시점에 스트림이 없어야 이 테스트가 의미를 갖는다.
+
+    boot(); // 2차가 1차를 대체.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 1차의 seed 가 **비-terminal** 로 응답 — 대체됐으므로 연결을 열지 않고 물러난다.
+    await act(async () => {
+      statusResolvers[0](running());
+      await flushAsync();
+    });
+    // 2차가 진행 — 연결을 세워야 한다(1차가 남긴 플래그에 막히면 안 된다).
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+    if (statusResolvers.length > 1) {
+      await act(async () => {
+        statusResolvers[1](running());
+        await flushAsync();
+      });
+    }
+
+    expect(getEs()).not.toBeNull();
+  });
+
   // §106 두 번째 재검증 지점 — **복원 분기**(seed 뒤). 위 테스트는 첫 지점(embed 검증 뒤)만 덮는다.
   //
   // 이 지점이 왜 별도로 필요한가: 이 파일은 **비대칭 가드 누락**(한 호출부는 재검증하고 다른 호출부는

@@ -175,6 +175,8 @@ export function useWidget() {
    * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
    * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
    */
+  /** 언마운트 여부 — world 무효화와 달리 **되돌아오지 않는** 종점이라 별도 축이다(`beginBootAttempt` §근거). */
+  const unmountedRef = useRef(false);
   const bootGenRef = useRef(0);
   /**
    * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
@@ -269,11 +271,24 @@ export function useWidget() {
     () => ({ world: worldGenRef.current, boot: ++bootGenRef.current }),
     [],
   );
-  /** 이 부팅 시도가 낡았는가 — 세계가 무효화됐거나(world) 더 새 `wc:boot` 이 대체했거나(boot). */
+  /**
+   * 이 부팅 시도가 **config 를 적용할 자격을 잃었는가** — 첫 await(임베드 검증) 뒤의 재검증.
+   *
+   * **world 축을 보지 않는다.** 아직 어떤 세션도 건드리지 않은 시도에게 "세계가 바뀌었다"는 무의미하고,
+   * 오히려 해롭다: 대체된 형제 시도가 복원 중 종료를 확정하면(`finalizeEnded`→world++) 그 **정당한**
+   * 무효화가 **살아있는 마지막 부팅까지 stale 화해** §106 을 깨뜨렸다(재현 확인 — config B 대신 A 고착).
+   * 세션을 건드리는 복원 분기에서만 world 를 본다(`isAttemptStale`).
+   * (ai-review 2026-07-17 17_36_57 concurrency CRITICAL)
+   */
+  const cannotApplyConfig = useCallback(
+    (attempt: { boot: number }) => unmountedRef.current || bootGenRef.current !== attempt.boot,
+    [],
+  );
+  /** 복원 분기용 — config 적용 자격 **더하기** 세션 world 유효성(옛 세션으로 스트림을 열지 않는다). */
   const isAttemptStale = useCallback(
     (attempt: { world: number; boot: number }) =>
-      worldGenRef.current !== attempt.world || bootGenRef.current !== attempt.boot,
-    [],
+      cannotApplyConfig(attempt) || worldGenRef.current !== attempt.world,
+    [cannotApplyConfig],
   );
 
   const closeStream = useCallback(() => {
@@ -453,11 +468,6 @@ export function useWidget() {
     async (
       client: EiaClient,
       session: SessionRef,
-      /**
-       * 호출부가 부팅 시도라면 그 토큰 — **대체된 시도는 종료를 확정하지 못한다**(아래 §근거).
-       * `start()`·`replay_unavailable` 폴백은 부팅 시도가 아니므로 넘기지 않는다.
-       */
-      attempt?: { world: number; boot: number },
     ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
@@ -476,16 +486,6 @@ export function useWidget() {
         // 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지·재전송 안 함 — EIA R-replay-unavailable).
         // 이 분기가 없으면 위젯이 `streaming`("AI 응답 중" 스피너)에 무기한 멈춘다 — 사용자 액션이
         // 없는 구간이라 `sendCommand` 의 410 사후 복구 경로도 닿지 않는다.
-        // **대체된 부팅 시도는 종료를 확정하지 않는다.** `finalizeEnded` 는 `teardownSession` 을
-        // 거쳐 **world 세대를 올리는데**, 그 무효화는 정당하더라도(세션이 실제로 종료됐다) **아직
-        // 살아있는 마지막 부팅까지 함께 stale 화해** §106("마지막 wc:boot 의 config 적용")을 깨뜨린다
-        // — 그 부팅은 아직 어떤 세션도 건드리지 않았는데 "내 world 가 사라졌다"로 오독하고 물러난다
-        // (재현 확인: 마지막 boot 의 config B 가 적용되지 않고 A 가 고착).
-        //
-        // 물러나면 종료가 유실되지 않는가? 아니다 — 저장 세션이 그대로 남으므로 **살아있는 시도가
-        // 자기 복원 분기에서 같은 스냅샷을 보고** 종료를 확정한다. 확정의 주체만 바뀐다.
-        // (ai-review 2026-07-17 17_36_57 concurrency CRITICAL — 실측 재현)
-        if (attempt && isAttemptStale(attempt)) return "stale";
         if ((TERMINAL_EVENTS as readonly string[]).includes(`execution.${status.status}`)) {
           finalizeEnded(`execution.${status.status}`);
           return "ended"; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
@@ -520,7 +520,7 @@ export function useWidget() {
         return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [finalizeEnded, isStale, isAttemptStale],
+    [finalizeEnded, isStale],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -871,7 +871,7 @@ export function useWidget() {
       const attempt = beginBootAttempt();
       // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
       const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
-      if (isAttemptStale(attempt)) return;
+      if (cannotApplyConfig(attempt)) return; // world 축은 여기서 보지 않는다(§근거: cannotApplyConfig).
       if (!allowed) {
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
@@ -880,8 +880,20 @@ export function useWidget() {
       // 강제한다(`establishConfig` JSDoc §근거). 리셋을 이행했으면 복원 분기는 의미가 없다
       // (방금 저장소를 지웠다).
       if (establishConfig(cfg) === "reset") return;
-      // 새로고침 복원(N1): 저장 세션이 살아있으면 SSE 재연결.
-      const saved = loadSession(cfg.triggerEndpointPath);
+      // **재전송은 config 만 갱신한다 — 세션은 건드리지 않는다.**
+      //
+      // spec §106 은 재전송을 "boot config(외형·콘텐츠) 갱신" 이라 정한다. 그런데 종전엔 재전송마다
+      // 복원 분기를 다시 타서, **대화가 살아있는 중에도** `RESTORED` 로 `phase` 를 `streaming` 으로
+      // 되돌리고 `getStatus`·`openStream`·`scheduleRefresh` 를 재실행했다 → 입력 대기 중이던 사용자의
+      // **입력창이 사라졌다가 seed 응답 후 돌아온다**(재현 확인). 관리자 라이브 미리보기는 외형 폼
+      // 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 이 flicker 가 난다.
+      //
+      // 판정은 **`streamRef`(연결이 살아있나)** 다 — `startedRef`(시작했나)가 아니다. `startedRef` 는
+      // 복원 **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만
+      // 남아 **살아있는 시도까지 복원을 건너뛰게** 만든다 → `streaming` 인데 연결이 0개인 상태로
+      // 고착된다(재현 확인 — 내가 이 fix 를 `startedRef` 로 처음 썼다가 낸 결함).
+      // 연결이 실제로 서 있을 때만 "이 마운트의 세션은 확립됐다" 고 말할 수 있다.
+      const saved = streamRef.current ? null : loadSession(cfg.triggerEndpointPath);
       if (saved) {
         sessionRef.current = saved;
         startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).
@@ -892,7 +904,7 @@ export function useWidget() {
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
         if (clientRef.current) {
-          const outcome = await seedWaitingFromStatus(clientRef.current, saved, attempt);
+          const outcome = await seedWaitingFromStatus(clientRef.current, saved);
           // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
           // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
           if (outcome !== "continue") return;
@@ -960,7 +972,8 @@ export function useWidget() {
       // 여기선 오탐이다 — 이 ref 는 DOM 이 아니라 세대 카운터이고, cleanup 이 하려는 일이 바로
       // "그 시점의 최신 값을 증가시켜 in-flight 를 무효화" 하는 것이다. 값을 effect 안 변수로
       // 복사하면(경고가 제안하는 바) 마운트 시점의 stale 값을 증가시켜 의미가 깨진다.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+       
+      unmountedRef.current = true;
       worldGenRef.current++;
       // 갱신 타이머 정리는 useTokenRefresh 자체 unmount cleanup 이 단일 소유(이중 호출 제거).
       closeStream();
