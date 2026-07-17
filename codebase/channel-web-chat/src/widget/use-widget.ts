@@ -174,10 +174,14 @@ export function useWidget() {
    *
    * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
    * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
+   *
+   * ⚠ **이 블록과 `bootGenRef` 선언 사이에 다른 선언을 끼워 넣지 말 것** — JSDoc 은 인접성으로만
+   * 붙는다. 이 파일에서 두 번 당했다(`pendingResetRef` 는 `bootGenRef` 삽입에, `bootGenRef` 는
+   * `unmountedRef` 삽입에 각각 주석을 잃었다). 새 ref 는 이 블록 **위**나 `bootGenRef` **아래**에.
    */
+  const bootGenRef = useRef(0);
   /** 언마운트 여부 — world 무효화와 달리 **되돌아오지 않는** 종점이라 별도 축이다(`beginBootAttempt` §근거). */
   const unmountedRef = useRef(false);
-  const bootGenRef = useRef(0);
   /**
    * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
    *
@@ -631,22 +635,31 @@ export function useWidget() {
           // host 가 같은 종료를 2회 통지받으므로 `endedRef` 1회 가드를 공유한다.
           finalizeEnded("gone");
         } else {
-          // **에러도 종료다 — 세션을 정리한다.** 리듀서가 `ERROR` 를 `phase: "ended"` 로 보내므로
-          // 사용자에겐 끝난 대화이고, 복구 수단은 "새 대화" 뿐이다. 그런데 종전엔 여기서 정리를
-          // 하지 않아 **`teardownSession` 을 거치지 않는 유일한 종료 경로**였다 → SSE 가 열린 채 남고
-          // 저장 세션도 남아, host 가 `wc:boot` 을 재전송하면(2-sdk §106) 복원 분기가 그 세션으로
-          // **`getStatus` 재조회 + SSE 재오픈 + 토큰 갱신 예약**을 다시 수행했다(재현 확인 —
-          // 리듀서의 `ended` 가드는 화면만 막을 뿐 이 부작용은 못 막는다).
+          // **비-410 명령 실패는 종료가 아니다 — 세션을 지우지 않는다.**
           //
-          // `finalizeEnded` 를 쓰지 않는 이유: 그쪽은 `ENDED` 를 디스패치해 **에러 메시지를 잃는다**.
-          // 정리만 공유하고 전이는 `ERROR` 로 한다. host 통지(`conversationEnded`)도 보내지 않는다 —
-          // 정상 종료가 아니라 실패이고, 종전 동작(에러 시 미통지)을 바꾸지 않는다.
-          teardownSession();
+          // `3-auth-session.md` §3.1-3 은 storage 정리 조건을 **명시 열거**한다: SSE terminal,
+          // 복원 시 200+terminal status·404·복구불가 401, 그리고 명령 응답 **410 Gone**. "그 외
+          // 명령 실패" 는 그 목록에 **없다**. 오히려 §3.1-2 가 "200 + status ∈ {running/
+          // waiting_for_input} → SSE 재연결 → 복원" 을 명시한다 — 서버가 살아있다고 답하면
+          // 복원해야 한다. `interact()` 는 410 만 특수 처리하고 5xx·409·form 검증 4xx·순수
+          // 네트워크 실패를 전부 같은 예외로 던지므로(`eia-client.ts`), 여기서 세션을 지우면
+          // **서버 execution 이 멀쩡히 살아있는데 사용자가 대화를 영구히 잃는다**.
+          //
+          // 한때 여기서 `teardownSession()` 을 불렀다 — "에러도 종료다" 라는 전제였다. 실측으로
+          // 반증됐다: 일시적 500 직후 새로고침하면 `phase=collapsed`·`executionId` 없음(그 한 줄만
+          // 빼면 `streaming`·`e1` 로 정상 복원. `getStatus` 는 내내 `200 {status:"running"}`).
+          // 그 fix 가 막으려던 부작용(재전송 시 `getStatus`·SSE 재발사)은 이미 `applyConfig` 의
+          // `sessionEstablished()` 복원-스킵이 막고 있었다 — 불필요했을 뿐 아니라 유해했다.
+          // (ai-review 2026-07-17 18_39_11 requirement CRITICAL — 재현·단일라인 귀속 확인)
+          //
+          // 남은 gap(이 PR 범위 밖): `ERROR` 가 `phase: "ended"` 로 보내는 것 자체가
+          // `1-widget-app.md` §2 Form 행의 "실패 시 error.details 표시·재제출" 약속과 어긋난다.
+          // 이 PR 이전부터 있던 문제라 여기서 넓히지 않고 plan 에 이월했다.
           dispatch({ type: "ERROR", message: errMessage(e) });
         }
       }
     },
-    [finalizeEnded, isStale, teardownSession],
+    [finalizeEnded, isStale],
   );
 
   // C1(§R6) 보류 메시지 큐 — booting/streaming 중 텍스트를 보관했다가 awaiting_user_message 진입 시 flush.

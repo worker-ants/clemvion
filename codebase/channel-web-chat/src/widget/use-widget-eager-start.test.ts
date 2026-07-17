@@ -2869,15 +2869,16 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(getEs()).toBeNull();
   });
 
-  // A-6 — `ERROR` 로 종료된 대화가 `wc:boot` 재전송으로 부활하지 않는다.
+  // **비-410 명령 실패는 세션을 지우지 않는다** — `3-auth-session.md` §3.1-3 의 storage 정리 조건
+  // 열거(SSE terminal·200+terminal·404·복구불가 401·명령 410)에 "그 외 명령 실패" 가 없고, §3.1-2 는
+  // "200 + running → 복원" 을 명시한다.
   //
-  // 재현 확인: `ERROR` 는 `phase: "ended"` 로 보내면서 **세션을 정리하지 않는다**(`teardownSession` 을
-  // 거치지 않는 유일한 종료 경로). 저장 세션이 남으므로 host 가 `wc:boot` 을 재전송하면(§106 — 외형
-  // 갱신 등, 관리자 미리보기가 실제로 그렇게 한다) 복원 분기가 그 세션을 `RESTORED` 로 되살려
-  // **ended → streaming** 으로 부활시켰다. 사용자에겐 실패해 끝난 대화가 이유 없이 되살아나 보인다.
-  //
-  // `08_29_33` W4 가 "실패 사례가 없다"며 `RESTORED`/`BOOTED` 로의 가드 확대를 보류했던 그 트리거다.
-  it("ERROR 로 종료된 대화는 wc:boot 재전송으로 부활하지 않는다", async () => {
+  // 이 테스트는 한때 정반대(`storage 소거` + `부활 안 함`)를 단언했다. 그 단언이 스스로를 반증했다 —
+  // mock 이 `getStatus` 를 처음부터 끝까지 `{status:"running"}`(서버 생존)으로 고정해 두고도 소거를
+  // 요구했으니, 살아있는 대화를 죽이는 걸 고정하고 있던 셈이다. 실측: 그 구현에선 500 직후
+  // 새로고침 시 `phase=collapsed`·`executionId` 없음(대화 영구 유실).
+  // (ai-review 2026-07-17 18_39_11 requirement CRITICAL)
+  it("일시적 명령 실패(500)는 저장 세션을 지우지 않는다 — 서버가 살아있으면 복원된다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
       JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
@@ -2933,13 +2934,13 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     act(() => result.current.actions.submitMessage("실패할 명령"));
     await waitFor(() => expect(result.current.state.phase).toBe("ended"));
 
-    // **근본 fix** — 에러도 종료이므로 세션이 정리된다(종전엔 `teardownSession` 을 거치지 않는 유일한
-    // 종료 경로라 storage 가 남았다). 이게 부활의 연료였다.
-    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    // **세션이 보존된다** — 서버 execution 은 `running` 이고, spec 은 그런 세션을 복원하라고 한다.
+    // (실제 복원은 새로고침 경로에서 일어난다 — 아래 테스트.)
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
     const esAfterError = getEs();
     const statusCallsAfterError = statusCalls;
 
-    // host 가 외형 갱신 등으로 wc:boot 재전송.
+    // host 가 외형 갱신 등으로 wc:boot 재전송(§106).
     boot();
     await waitFor(() => expect(embedResolvers.length).toBe(2));
     await act(async () => {
@@ -2947,10 +2948,85 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       await flushAsync();
     });
 
-    // 종료된 대화가 되살아나지 않았다 — **화면뿐 아니라 부작용도**.
-    expect(result.current.state.phase).toBe("ended");
-    // 리듀서 가드만 있고 세션이 남으면 여기서 getStatus 재조회·SSE 재오픈이 일어난다(재현 확인).
+    // **부작용 재발사 없음** — `getStatus` 재조회도, SSE 재오픈도 없다. 이걸 막는 건 리듀서 가드가
+    // 아니라 `sessionEstablished()` 복원-스킵이다(스트림이 아직 살아있으므로 복원할 게 없다).
+    // 한때 이 자리를 `teardownSession()`(storage 소거)으로 막으려 했는데, 그건 불필요했을 뿐 아니라
+    // 살아있는 세션을 영구 파괴했다 — 스킵 판정이 이미 같은 일을 하고 있었다.
     expect(statusCalls).toBe(statusCallsAfterError);
     expect(getEs()).toBe(esAfterError);
+    // phase 는 `ended` 로 남는다 — `ERROR` → `ended` 자체가 이 PR 이전부터의 gap 이다
+    // (`1-widget-app.md` §2 Form 은 "실패 시 재제출" 을 약속한다). plan 에 이월.
+    expect(result.current.state.phase).toBe("ended");
+  });
+
+  // 위 테스트의 사용자 관점 짝 — **탭 새로고침**으로 복원되는가. `wc:boot` 재전송(같은 마운트)이
+  // 아니라 언마운트→재마운트라, 리듀서 가드가 아니라 **storage 생존** 만이 결과를 가른다.
+  // 실측 A/B: `sendCommand` 비-410 경로의 `teardownSession()` 한 줄이 있으면
+  // `phase=collapsed`·`executionId` 없음 / 없으면 `streaming`·`e1`.
+  it("일시적 명령 실패(500) 후 새로고침하면 살아있는 대화가 복원된다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.includes("/interact")) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          // 서버 execution 은 내내 살아있다 — 위젯이 명령 하나를 못 보냈을 뿐이다.
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+
+    const first = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(first.result.current.state.phase).toBe("streaming"));
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        conversationThread: { turns: [] },
+      });
+    });
+    await waitFor(() => expect(first.result.current.state.phase).toBe("awaiting_user_message"));
+    act(() => first.result.current.actions.submitMessage("일시적으로 실패할 명령"));
+    await waitFor(() => expect(first.result.current.state.phase).toBe("ended"));
+
+    // 탭 새로고침 = 언마운트 → 새 마운트.
+    first.unmount();
+    const reloaded = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+
+    // §3.1-2: 200 + running → 복원. 대화가 돌아온다.
+    await waitFor(() => expect(reloaded.result.current.state.phase).toBe("streaming"));
+    expect(reloaded.result.current.state.executionId).toBe("e1");
   });
 });

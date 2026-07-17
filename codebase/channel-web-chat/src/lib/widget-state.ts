@@ -123,23 +123,26 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
         pending: null,
       };
     case "RESTORED":
-      // **종료된 대화는 복원으로 되살아나지 않는다** — `WAITING` 과 같은 최후 방어선.
+      // **`ended` 가드를 두지 않는다 — 복원은 서버 상태가 결정한다.**
       //
-      // 실패 사례(재현 확인): `ERROR` 는 `phase: "ended"` 로 보내면서 **세션을 정리하지 않는다**
-      // (`teardownSession` 을 거치지 않는 유일한 종료 경로). 그래서 저장 세션이 남고, host 가
-      // `wc:boot` 을 재전송하면(2-sdk §106 — 외형 갱신 등, 관리자 미리보기가 실제로 그렇게 한다)
-      // `applyConfig` 의 복원 분기가 그 세션을 `RESTORED` 로 되살려 **ended → streaming** 으로
-      // 부활시켰다. 사용자에겐 실패해 끝난 대화가 이유 없이 되살아나 보인다.
+      // 한때 여기(와 `BOOTED`)에 `if (state.phase === "ended") return state;` 를 뒀다. "실패해
+      // 끝난 대화가 `wc:boot` 재전송으로 되살아난다" 를 막으려던 것이다. 그 전제가 틀렸다 —
+      // 이 가드가 실제로 발화할 수 있는 유일한 상황이 **spec 이 복원하라고 명시한 상황**이었다:
       //
-      // 이 가드는 `08_29_33` W4 때 "실패 사례가 없다"는 이유로 `WAITING` 에만 달고 확대를 보류했던
-      // 것이다 — 그 트리거가 이제 충족됐다(plan `webchat-boot-single-flight.md` §A-6).
-      if (state.phase === "ended") return state;
+      //   `3-auth-session.md` §3.1-3 이 storage 를 지우는 종료 경로(SSE terminal·410·404·
+      //   200+terminal)는 **전부 저장 세션을 함께 지운다** → 재부팅 시 `loadSession` 이 `null` →
+      //   `RESTORED` 자체가 오지 않는다. 즉 `ended` 인 채로 `RESTORED` 가 도달하려면 storage 가
+      //   살아남아야 하고, 그건 비-410 명령 실패(일시적 500·네트워크 순단)뿐이다. 그리고 그
+      //   경우 §3.1-2 는 "200 + running → 복원" 을 **명시적으로 요구한다**.
+      //
+      // 그래서 이 가드는 "부활 방지" 가 아니라 **살아있는 대화의 복원 차단**이었다.
+      // (ai-review 2026-07-17 18_39_11 requirement CRITICAL — 실측 귀속)
+      //
+      // `WAITING` 의 `ended` 가드는 유지된다 — 그건 다른 것을 막는다(world 가 바뀐 뒤 도착한
+      // **옛 세계의** stale seed. 각 case 주석 참조).
       return { ...state, executionId: action.executionId, phase: "streaming" };
     case "BOOTED":
-      // `START`(→`booting`) 직후에만 오므로 `ended` 에서 도달할 수 없다 — 그래도 `RESTORED` 와
-      // 대칭으로 막는다. 이 리듀서에서 "무조건 전이" 를 남겨두는 것이 이 파일의 반복된 실패
-      // 유형이었다(`08_29_33` W4).
-      if (state.phase === "ended") return state;
+      // `START`(→`booting`) 직후에만 오므로 `ended` 에서 도달 불가 — `RESTORED` 와 대칭으로 무가드.
       return { ...state, executionId: action.executionId, phase: "streaming" };
     case "WAITING":
       // **종료된 대화는 입력 표면을 다시 열지 않는다** — 최후 방어선.
@@ -152,12 +155,13 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       // 대화 재개는 `ended` 를 먼저 벗어난 **뒤** WAITING 을 받는다 — `START`(→`booting`) 또는
       // `NEW_CHAT`(→`panel`). 따라서 `ended` 인 채로 도착한 WAITING 은 정의상 옛 세계의 것이다.
       //
-      // **가드 범위**: `WAITING` · `RESTORED` · `BOOTED` 에 있다(각 case 주석 참조). `RESTORED`/`BOOTED`
-      // 로의 확대는 `08_29_33` W4 당시 "실패 사례가 없다"며 보류했다가, `ERROR` 로 종료된 대화가
-      // `wc:boot` 재전송으로 부활하는 사례가 재현돼 적용했다(plan `webchat-boot-single-flight.md` §A-6).
-      // `USER_MESSAGE` 는 여전히 무조건 전이한다 — 실패 사례가 없어 넓히지 않았다(C1 이 보여줬듯
-      // "명백히 안전해 보이는" 가드가 영구 정지를 만들 수 있다).
-      // (ai-review 2026-07-17 08_29_33 W4 / 17_36_57 documentation — A-6 이후 문구 정정)
+      // **가드 범위**: `WAITING` **에만** 있다. 한때 `RESTORED`/`BOOTED` 로 확대했다가 되돌렸다 —
+      // 거기선 이 가드가 spec 이 요구하는 복원을 막았다(`RESTORED` case 주석 참조). 두 축이 다르다:
+      // 여기서 막는 건 "**world 가 바뀐 뒤** 도착한 옛 세계의 seed" 이고, `RESTORED` 가 나르는 건
+      // "world 가 그대로인 **살아있는** 세션" 이다. `USER_MESSAGE` 도 무가드 — 실패 사례가 없어
+      // 넓히지 않았다(C1 이 보여줬듯 "명백히 안전해 보이는" 가드가 영구 정지를 만들 수 있고,
+      // `RESTORED` 가 바로 그 재발이었다).
+      // (ai-review 2026-07-17 08_29_33 W4 / 17_36_57 documentation / 18_39_11 requirement)
       if (state.phase === "ended") return state;
       return {
         ...state,
