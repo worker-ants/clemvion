@@ -46,7 +46,7 @@ A-6 전체가 순변경 0 이라 CHANGELOG 에서도 제거했다.
 | 리뷰어 | 발견 | 처리 |
 | --- | --- | --- |
 | requirement·documentation (교차) | CHANGELOG 항목 1·3 이 **되돌려진 설계**를 서술(git 증거 확정) | ✅ 순변경만 남겨 재작성 |
-| documentation | `2-sdk.md` `§106` 자기참조가 대상 문단(L110)과 4줄 드리프트 — 내 frontmatter 4줄이 밀어냄 | ✅ §110 로 39건 정정 (표기 취약성은 planner 이월) |
+| documentation | `2-sdk.md` `§106` 자기참조가 대상 문단(L110)과 4줄 드리프트 — 내 frontmatter 4줄이 밀어냄 | ✅ 41건 `§3(재전송)` 으로 교체 — 후속 `--impl-done` 이 행번호 표기 자체를 문제 삼아 섹션+조항명으로 재정정(RESOLUTION 참조) |
 | documentation | `widget-state.ts` RESTORED 주석이 "ERROR 는 세션 정리 안 함" 을 현재형 불변식처럼 서술 | ✅ C1 처리로 재작성 |
 | concurrency | `sessionEstablished()` 가 `pendingResetRef` 와 같은 전제("재전송은 endpoint 를 안 바꾼다")에 기대는데 상호 참조 없음 | ✅ JSDoc 상호 참조 |
 | testing ① | `beginBootAttempt` 가 world 축까지 무효화해도 385건 통과 | ✅ C2 짝 테스트가 닫음(재확인) |
@@ -60,7 +60,7 @@ A-6 전체가 순변경 0 이라 CHANGELOG 에서도 제거했다.
   스냅샷(논리 노드 없음)만 봤다. `waiting_for_input` 이 **다른 노드**로 두 번 오면 수렴하지
   않는다. **호출 횟수·스트림 개수 축에서 수렴한다고 콘텐츠 축에서도 수렴하는 게 아니다.**
 - **`seedWaitingFromStatus` JSDoc 에 없던 실패를 지어냈다** — "종료 확정에 boot 가드를
-  달았더니 §110 위반이 났다" 고 썼으나, plan 기록은 "불필요해져 되돌렸다" 이고 mutation 상
+  달았더니 §3(재전송) 계약 위반이 났다" 고 썼으나, plan 기록은 "불필요해져 되돌렸다" 이고 mutation 상
   그 가드를 달아도 당시엔 아무 테스트도 안 깨졌다. 정정 + 그 축을 테스트로 고정.
 
 ## 검증
@@ -78,5 +78,3 @@ mutation 매트릭스(전부 재확인):
 | `beginBootAttempt` world 병합 | 1 ← **직전엔 0(무방비)** |
 | `cannotApplyConfig` 의 `unmountedRef` 제거 | 1 ← **직전엔 0(무방비)** |
 | baseline | 0 |
-</content>
-</invoke>

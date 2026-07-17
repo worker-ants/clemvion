@@ -9,7 +9,7 @@
 | --- | --- |
 | `79e9876cd` | C1 — A-6 되돌림(일시적 명령 실패가 살아있는 대화를 영구 파괴) + C3 bootGenRef JSDoc |
 | `1e820c710` | C2 — 대체된 부팅의 지연 `getStatus` 가 화면을 되감던 결함 |
-| `fdaa06e98` | testing 블라인드 스팟 ② 회귀 고정 + 문서 정합(CHANGELOG·§110·JSDoc 상호참조) |
+| `fdaa06e98` | testing 블라인드 스팟 ② 회귀 고정 + 문서 정합(CHANGELOG·§3(재전송)·JSDoc 상호참조) |
 | `a4eac304b` | (선행) `sessionEstablished()` 명명 — maintainability |
 
 ## 각 발견의 처분
@@ -35,8 +35,9 @@
 ### WARNING
 
 - **CHANGELOG 항목 1·3 stale**(requirement·documentation 교차) → **fix**. 재작성.
-- **`§106` 자기참조 드리프트**(documentation) → **fix**. 39건 §110 정정. 표기 자체의 취약성
-  (행-번호 clause-id)은 spec 규약 변경이라 **planner 이월**.
+- **`§106` 자기참조 드리프트**(documentation) → **fix**. 1차로 `§110` 정정(39건) 후, 후속
+  `--impl-done` 이 행번호 표기 자체를 문제 삼아 **`§3(재전송)`** 으로 재정정(41건) — 아래 "이월" 절의
+  판정 참조.
 - **`widget-state.ts` RESTORED 주석 stale**(documentation) → **fix**(C1 처리로 재작성).
 - **`sessionEstablished()` 불변식 상호참조 없음**(concurrency) → **fix**.
 - **testing 블라인드 스팟 ①②** → **fix**(①은 C2 짝 테스트가 닫음, ②는 신규 회귀 추가).
@@ -61,8 +62,13 @@
   어긋난다** — 이 PR 이전부터의 gap(A-6 이 "재시도 불가" 를 "영구 소실" 로 격상시켰던 것을
   되돌렸을 뿐). "비-410 실패는 종료인가" 는 제품 결정이고 spec §3.1-3·§2 명문화가 필요하므로
   **project-planner 트랙**.
-- **`§NNN` 행-번호 clause-id 취약성** — 이번에 실제로 깨졌다. 안정적 앵커 도입은 spec 규약
-  변경이라 planner 트랙.
+- ~~**`§NNN` 행-번호 clause-id 취약성**~~ → **후속 `--impl-done` 19_46_54 에서 해소**.
+  두 체커가 정면으로 충돌해(`naming_collision`: "행번호 §N 은 저장소 기존 관행, 선례 있음" vs
+  `convention_compliance`: "`§N` = heading 번호 규약과 충돌, 이 문서 최대 섹션은 §5") 직접 판정했다 —
+  **둘 다 부분적으로 맞다.** 행번호 관행은 실재하나(`http-request.handler.ts:353` 의 `spec §105`),
+  `2-sdk.md` 는 heading 이 `§1`~`§5` 뿐이라 `§110` 은 **존재하지 않는 섹션을 가리켜 오도**한다.
+  해당 불릿은 `## 3. host ↔ iframe postMessage 프로토콜`(L93) 아래다. → 41건을 `§3(재전송)` 으로
+  교체(섹션 번호는 규약 준수, 조항명은 정밀도 회복, 행 드리프트 없음). planner 이월 불필요.
 
 ## 검증
 
@@ -77,5 +83,3 @@
   의 실제 `.ts` 코드가 포함돼 §e2e 면제 화이트리스트의 부분집합이 아니다.
 
 mutation 매트릭스 6종 — SUMMARY.md 참조. 무방비였던 3개 축이 이번에 전부 고정됐다.
-</content>
-</invoke>

@@ -67,4 +67,3 @@ owner: project-planner
 - [ ] `spec/7-channel-web-chat/3-auth-session.md` §3.1-3 · `1-widget-app.md` §2 반영
 - [ ] `/consistency-check --spec` 통과
 - [ ] 구현 (`developer` 트랙 인계) + 회귀 테스트
-</content>
