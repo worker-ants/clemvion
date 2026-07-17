@@ -5,17 +5,19 @@ import { Linter, ESLint } from "eslint";
 import eslintConfig, { LOWER_LAYERS as CONFIG_LOWER_LAYERS } from "../../../eslint.config.mjs";
 
 /**
- * Guard: `src/lib/**` 는 정적 import 뿐 아니라 동적 `import()` / CJS `require()` 로도
- * `@/components/**` (alias·상대경로 우회 포함)를 소비할 수 없다 (레이어 역전 금지).
+ * Guard: 하위 계층(`LOWER_LAYERS` = `src/lib/**`·`src/types/**`)은 정적 import 뿐 아니라 동적
+ * `import()` / CJS `require()` 로도 `@/components/**` (alias·상대경로 우회 포함)를 소비할 수 없다
+ * (레이어 역전 금지). 규약 SoT: spec/conventions/frontend-layering.md.
  *
- * `src/lib` 에 현재 위반이 0건이라 `npx eslint src/lib` 는 이 규칙이 실제로 로드·매칭·
- * 발동하는지와 무관하게 항상 "0 errors" 로 통과한다 — 향후 `files` glob 오타, 규칙 옵션
- * 약화, `eslint-config-next` 업그레이드로 인한 병합 동작 변화가 있어도 CI 는 계속 초록일
- * 수 있다 (ai-review WARNING #1·#2, review/code/2026/07/17/16_33_59/SUMMARY.md).
+ * 이 계층들에 현재 위반이 0건이라 `npx eslint` 는 규칙이 실제로 로드·매칭·발동하는지와 무관하게
+ * 항상 "0 errors" 로 통과한다 — 향후 `files` glob 오타, 규칙 옵션 약화, 뒤쪽 override 의 무력화,
+ * `eslint-config-next` 업그레이드로 인한 병합 동작 변화가 있어도 CI 는 계속 초록일 수 있다.
  *
- * 픽스처를 이 테스트에 복제하지 않고 `eslint.config.mjs` 의 실제 `src/lib/**` 블록
- * (`no-restricted-imports` + `no-restricted-syntax`)을 그대로 가져와 ESLint `Linter#verify`
- * 에 먹인다 — config 가 나중에 조용히 약화돼도(오타/규칙 삭제/패턴 완화) 여기서 드러난다.
+ * 픽스처를 이 테스트에 복제하지 않고 `eslint.config.mjs` 의 실제 가드 블록
+ * (`no-restricted-imports` + `no-restricted-syntax`)을 그대로 가져와 검증한다 — config 가 나중에
+ * 조용히 약화돼도(오타/규칙 삭제/패턴 완화) 여기서 드러난다. 아래 두 스위트는 관심사가 다르다:
+ * 앞은 합성 config 로 규칙 *내용*(어떤 코드 형태를 잡는가), 뒤는 실제 `ESLint` API 로 *스코프*
+ * (어느 경로에 걸리는가)를 검증한다.
  */
 
 // eslint-config-next 프리셋을 포함한 flat config 배열. 레이어 가드 블록을 **전부** 추출한다.
@@ -116,21 +118,31 @@ describe("src/lib layering guard (eslint.config.mjs, 실제 config 로드)", () 
     expect(mergedRules).toHaveProperty("no-restricted-syntax");
   });
 
-  it("위반 메시지가 실제 계층 라벨과 규약 링크를 담는다 (문구 회귀 고정)", () => {
+  it("위반 메시지가 실제 계층 라벨과 규약 링크를 담고, 진입점별로 상호 배타적이다 (문구 회귀 고정)", () => {
     // 메시지 상수(`LAYERS_LABEL`·`RESOLUTION_HINT`)는 `LOWER_LAYERS` 에서 파생된다.
     // length/severity 만 보는 다른 케이스는 라벨 누락·변수 뒤바뀜 같은 문구 회귀를 못 잡으므로
-    // (ai-review WARNING), 세 진입점(정적/동적/require) 각각의 `.message` 를 직접 고정한다.
+    // (ai-review WARNING) 세 진입점(정적/동적/require)의 `.message` 를 직접 고정한다.
+    //
+    // 핵심: static 메시지의 `@/components/** 를 import 할 수 없습니다` 는 dynamic·require 메시지의
+    // **부분 문자열**이기도 하다(둘은 그 앞에 `동적 import() 로도`/`require() 로도` 만 덧붙인 형태).
+    // 따라서 각 케이스가 자기 고유 문구를 담는지(positive)뿐 아니라 **다른 두 진입점의 문구를
+    // 담지 않는지**(negative)까지 봐야 static↔dynamic·static↔require 상수 뒤바뀜을 잡는다.
+    const DYNAMIC_MARK = "동적 import() 로도";
+    const REQUIRE_MARK = "require() 로도";
     const expectedLabel = CONFIG_LOWER_LAYERS.join(" · "); // "src/lib/** · src/types/**"
-    const cases: ReadonlyArray<readonly [string, string]> = [
-      ['import { Foo } from "@/components/foo";', "@/components/** 를 import 할 수 없습니다"],
-      ['export const load = () => import("@/components/foo");', "동적 import() 로도"],
-      ['const mod = require("@/components/foo");', "require() 로도"],
+    // present: 이 진입점 메시지에만 있어야 하는 문구 / absent: 있으면 다른 진입점 상수로 뒤바뀐 것.
+    const cases: ReadonlyArray<{ code: string; present: string[]; absent: string[] }> = [
+      // static 은 고유 qualifier 가 없다 — 두 mark 의 부재가 곧 static 상수라는 증거.
+      { code: 'import { Foo } from "@/components/foo";', present: [], absent: [DYNAMIC_MARK, REQUIRE_MARK] },
+      { code: 'export const load = () => import("@/components/foo");', present: [DYNAMIC_MARK], absent: [REQUIRE_MARK] },
+      { code: 'const mod = require("@/components/foo");', present: [REQUIRE_MARK], absent: [DYNAMIC_MARK] },
     ];
-    for (const [code, distinctPhrase] of cases) {
+    for (const { code, present, absent } of cases) {
       const [first] = layeringErrors(code);
       expect(first?.message).toContain(expectedLabel);
       expect(first?.message).toContain("spec/conventions/frontend-layering.md");
-      expect(first?.message).toContain(distinctPhrase);
+      for (const phrase of present) expect(first?.message).toContain(phrase);
+      for (const phrase of absent) expect(first?.message).not.toContain(phrase);
     }
   });
 

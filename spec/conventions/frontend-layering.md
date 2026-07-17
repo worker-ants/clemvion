@@ -86,6 +86,7 @@ code:
 - **오탐 방지**: 근접 경로(`@/components-legacy`)·계산 경로는 잡지 않는다.
 - **flat config 병합 의미론**: 가드 블록을 **전부** 병합해 검증한다. 배열 뒤쪽 override 가 규칙을 `off` 로 되돌리면 실패해야 하므로, 첫 블록만 보면 fail-open 이다.
 - **severity**: 두 규칙이 `error` 여야 한다. `warn` 으로 강등되면 `lint` 스크립트에 `--max-warnings` 제한이 없어 **CLI 는 exit 0 으로 통과**한다 — 이 경우 유닛 테스트가 유일한 방어선이다.
+- **메시지 콘텐츠**: 위반 메시지가 실제 계층 라벨(`LOWER_LAYERS`)·규약 링크·진입점(정적/동적/require)을 정확히 담는지. 세 진입점 메시지는 공통 부분문자열을 공유하므로 positive `toContain` 만으로는 상수 뒤바뀜을 못 잡는다 — 각 진입점이 다른 진입점의 고유 문구를 담지 않는지(negative)까지 봐서 상호 배타적으로 식별한다.
 - **파서 정합**: 프로덕션 config 의 파서를 그대로 꺼내 쓴다. 기본 espree 로 후퇴하면 `import type` fixture 가 파싱조차 안 되고, 그 fatal 이 `ruleId` 필터에 걸러져 "위반 0건" 으로 위장한다.
 - **스코프**: 규칙이 **어느 경로에** 걸리는지. 위 항목들은 합성 config 로 규칙의 *내용*을 검증하느라 `files:` glob 을 우회하므로, glob 오타·스코프 축소(`src/types/**` 누락)·`/**` 누락으로 인한 중첩 미매칭을 원리적으로 못 잡는다. 이를 위해 별도 스위트가 **실제 `ESLint` API 로 config 를 resolve** 해 계층별 경로 매칭을 확인한다. 그 스위트의 기대 계층 목록은 config 에서 가져오지 않고 독립적으로 하드코딩한 뒤 `LOWER_LAYERS` 와 일치를 단언한다 — config 에서 가져오면 glob 을 지우는 순간 검증 대상도 함께 사라져 false green 이 되기 때문이다.
 
