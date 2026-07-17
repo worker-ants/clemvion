@@ -1,6 +1,8 @@
 ---
 name: interaction-type-guard-comment-false-negative
-worktree: .claude/worktrees/interaction-type-regex-fix-2303a6
+worktree: interaction-type-regex-fix-2303a6
+started: 2026-07-17
+owner: developer
 spec_impact:
   - spec/conventions/interaction-type-registry.md
 ---
@@ -81,7 +83,11 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
       산출: `review/consistency/2026/07/17/19_54_00/SUMMARY.md`
 - [x] 5-7. 테스트 선작성 + 구현
 - [x] 양방향 mutation 실측 (a) 실분기 파손 → red (b) 주석만 → red (c) 정상 → green (위 표)
-- [ ] 8. TEST WORKFLOW (lint / unit / build / e2e)
+- [x] 8. TEST WORKFLOW — lint PASS(60s) / unit PASS(93s, 14 files) / build PASS(176s) /
+      e2e PASS(397s, 256 tests). e2e 는 면제 화이트리스트 밖 — `*.test.ts` 만 변경도
+      PROJECT.md 가 명시적으로 "회색 지대, 화이트리스트 아님" 으로 규정하므로 수행.
+      최초 unit 은 FAIL — 본 plan 의 frontmatter 가 `started`/`owner` 누락으로
+      `plan-frontmatter` 가드에 걸림(내 결함). 보정 후 1단계부터 재수행해 전 단계 통과.
 - [ ] 9. `/ai-review` + Critical/Warning fix
 - [ ] 9-4. `/consistency-check --impl-done` (spec-linked 코드 변경)
 
