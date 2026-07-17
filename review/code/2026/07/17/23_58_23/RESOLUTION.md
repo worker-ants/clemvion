@@ -60,5 +60,13 @@ WARNING 전부 처리 또는 근거 있는 이월. 남은 미해결 Critical/War
 
 ## [검증 갱신] — TEST WORKFLOW (push 직전)
 
-_(전체 스택 재실행 결과를 여기 기록한다.)_
+전체 스택 재실행(최종 코드 기준):
+
+- lint: **PASS** (59s)
+- unit: **PASS** (65s) — backend **8225 passed** · frontend **5576 passed**(280파일) ·
+  channel-web-chat **391 passed**(22파일)
+- build: **PASS** (137s)
+- e2e: **통과** (305s, `make e2e-test-full`) — 로그로 양쪽 확인: backend jest
+  `Tests: 256 passed` + playwright `Running 51 tests` → **`51 passed (1.5m)`**.
+  면제 불가(변경 set 에 `channel-web-chat/src/**` 실제 `.ts` 포함).
 </content>
