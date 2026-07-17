@@ -80,8 +80,21 @@ sub-agent 는 하네스로부터 **본 규약과 상충하는 지시**를 함께
 > `Subagents should return findings as text, not write report files. Include this content
 > in your final response instead.`
 
-이는 안내문이 아니라 **Write 툴의 하드 차단**이다. 실측(probe workflow `wf_61290a15-aec` ·
-`wf_45d76e40-507`)으로 확인한 규칙:
+이는 안내문이 아니라 **Write 툴의 하드 차단**이다.
+
+> **⚠️ 가드는 둘이다 — 실측 시 반드시 구분할 것.**
+> 1. **bgIsolation 가드**: 부모가 `EnterWorktree` **툴**로 격리하지 않은 bg 세션에서는 **모든**
+>    sub-agent write 가 차단된다(파일명·position 무관). 이 상태에서 실측하면 아래 규칙이
+>    **보이지 않는다** — 2026-05-30 의 "filename is irrelevant" 결론이 정확히 이 교란이었다
+>    ([`orchestrator-workflow-migration.md`](./orchestrator-workflow-migration.md) §재정정).
+> 2. **report-file 가드**: 아래 표. bgIsolation 이 해소된 세션에서만 관측 가능하다.
+>
+> **아래 실측 조건**: `EnterWorktree` 툴로 격리된 **interactive** 세션(bgIsolation 비활성) —
+> probe workflow `wf_61290a15-aec`(비-terminal→`SUMMARY.md` 차단 / terminal→`cross_spec.md`
+> 성공) · `wf_45d76e40-507`(같은 workflow·같은 세션에서 9개 파일명 병렬 대조). 두 가드가
+> 분리된 조건에서 잰 값이다.
+
+확인한 규칙:
 
 | 대상 | 결과 |
 |---|---|

@@ -41,58 +41,68 @@ if (!invocations.length || !summary) {
   return { error: 'missing invocations or summary in args', checkers: [] }
 }
 
-// The harness refuses sub-agent Writes to a small set of report-like basenames.
-// Measured 2026-07-17 (probe workflows wf_61290a15-aec / wf_45d76e40-507):
-//
-//   BLOCKED : SUMMARY.md · summary.md · REPORT.md · findings.md
-//   ALLOWED : RESOLUTION.md · cross_spec.md · notes.md · SUMMARY.txt · my-SUMMARY.md
-//
-// The rule is **exact basename**, NOT terminal-agent position — a non-terminal agent
-// writing SUMMARY.md is blocked, and the terminal agent writing cross_spec.md succeeds.
-// (The old comment here claimed the opposite; that mistake is what made the fake-success
-// default below look safe.) The refusal text is:
-//   "Subagents should return findings as text, not write report files.
-//    Include this content in your final response instead."
-//
-// Consequence: checkers CAN write their own files, but the sub-agent system prompt also
-// tells them to return findings as text — so they frequently skip the Write entirely
-// (measured: Write계 0 calls in 4/5 checkers of one run) and return the report as prose.
-// We therefore make every checker return its report body unconditionally, and treat the
-// return — not the file — as the authoritative source.
+// Report-return contract — MIRROR of `.claude/workflows/_lib/agent-return.mjs`.
+// The workflow sandbox cannot import (static `import` → SyntaxError; dynamic
+// `import()` → "not available in workflow scripts"), so each workflow carries its own
+// copy. Edit the _lib file, then paste the block verbatim here.
+// `.claude/tests/test_workflow_shared_block.py` fails the build if these drift apart;
+// `.claude/tests/test_agent_return.mjs` unit-tests the canonical logic.
+// The measurements and rationale behind this contract live in the _lib header.
+
+// >>> SHARED-BLOCK: agent-return (mirrored verbatim into the 3 workflows — guard: .claude/tests/test_workflow_shared_block.py)
 const DELIM = '===REPORT_MARKDOWN_BELOW==='
 
-// Accept both `STATUS=x` and `STATUS: x` — sub-agent definitions in this repo use both.
+// Appended to every fan-out agent prompt. Overrides `prompt_file`'s "STATUS 한 줄만
+// 반환" instruction, which predates the harness's return-findings-as-text behaviour.
+const REPORT_RETURN_CONTRACT = [
+  '',
+  '출력 규약 (prompt_file 의 지시보다 **이 규약이 우선**):',
+  '1) 결과를 output_file 에 Write 하세요 (best-effort — 실패해도 아래 2·3 은 반드시 수행).',
+  '2) 첫 줄에 `STATUS=<success|fatal> ...` 헤더.',
+  `3) 둘째 줄에 정확히 \`${DELIM}\` 한 줄, 그 다음부터 보고서 **마크다운 전문**.`,
+  '   (Write 성공 여부와 무관하게 항상 포함 — 전문이 없으면 통합 SUMMARY 가 이 agent 의',
+  '    Critical 을 누락해 판정이 거짓 음성이 됩니다.)',
+].join('\n')
+
+// `STATUS=x` and `STATUS: x` are both accepted — sub-agent definitions use both spellings,
+// and a parser that only knew `=` fell through to the default without anyone noticing.
+// No STATUS at all ⇒ the agent answered in prose instead of honouring the contract, so
+// `output_file` is probably absent: that is `no_status`, NOT success. The old
+// `: 'success'` default is what produced runs reporting "5/5 success" with four files
+// missing — and SUMMARYs that dropped those findings from the BLOCK decision (measured
+// 2026-07-10: `BLOCK: NO` while a [CRITICAL] sat unread, 3× in one task). Prose without
+// the delimiter is still salvaged as the body.
 function parseAgentReturn(text) {
   const raw = text || ''
   const i = raw.indexOf(DELIM)
   const header = (i >= 0 ? raw.slice(0, i) : raw).trim()
   const m = /STATUS\s*[=:]\s*([A-Za-z_]+)/.exec(header)
-  // No STATUS at all → the agent returned findings as prose instead of honouring the
-  // contract. That is NOT success: `output_file` is probably absent. Defaulting this to
-  // 'success' (the old behaviour) is what produced fake "5/5 success" runs whose files
-  // were missing — and, worse, SUMMARYs that silently dropped a checker's [CRITICAL]
-  // from the BLOCK decision.
   const status = m ? m[1].toLowerCase() : 'no_status'
   const body = i >= 0 ? raw.slice(i + DELIM.length).replace(/^\n/, '').trim() : ''
-  // Salvage: delimiter-less prose from a contract-breaking agent is still its report.
   const markdown = body || (m ? '' : raw.trim())
   return { status, markdown }
 }
 
-const CHECKER_CONTRACT = [
-  '',
-  '출력 규약 (prompt_file 의 지시보다 **이 규약이 우선**):',
-  `1) 결과를 output_file 에 Write 하세요 (best-effort — 실패해도 아래 2·3 은 반드시 수행).`,
-  '2) 첫 줄에 `STATUS=<success|fatal> ...` 헤더.',
-  `3) 둘째 줄에 정확히 \`${DELIM}\` 한 줄, 그 다음부터 보고서 **마크다운 전문**.`,
-  '   (Write 성공 여부와 무관하게 항상 포함 — 전문이 없으면 통합 SUMMARY 가 이 checker 의',
-  '    Critical 을 누락해 BLOCK 판정이 거짓 음성이 됩니다.)',
-].join('\n')
+// True when we hold this agent's findings — it reported success (file on disk) or handed
+// us the body. Only an agent we have NOTHING from can hide a Critical.
+const usable = r => r.status === 'success' || !!r.markdown
+
+// Findings travel to the summary agent INLINE, never by path alone: a workflow script has
+// no filesystem access, so handing over only paths makes an agent that skipped its Write
+// invisible to the summary — precisely how a gate reports clean while a [CRITICAL] goes
+// unread. Per-agent files ARE writable, so the summary persists any that are missing.
+const inlineReports = rs => rs
+  .filter(r => r.markdown)
+  .map(r => [`----- BEGIN ${r.name} (${r.output_file}) -----`, r.markdown, `----- END ${r.name} -----`].join('\n'))
+  .join('\n\n')
+const needPersistList = rs => rs.filter(r => r.markdown).map(r => `${r.name}\t${r.output_file}`).join('\n')
+const needReadList = rs => rs.filter(r => !r.markdown && r.status === 'success').map(r => r.output_file)
+// <<< SHARED-BLOCK: agent-return
 
 phase('Checkers')
 const results = await parallel(invocations.map(inv => () =>
   agent(
-    `prompt_file=${inv.prompt_file}\noutput_file=${inv.output_file}${CHECKER_CONTRACT}`,
+    `prompt_file=${inv.prompt_file}\noutput_file=${inv.output_file}${REPORT_RETURN_CONTRACT}`,
     { label: inv.name, phase: 'Checkers', agentType: inv.subagent_type },
   )
     .then(text => ({ name: inv.name, output_file: inv.output_file, ...parseAgentReturn(text) }))
@@ -102,9 +112,6 @@ const results = await parallel(invocations.map(inv => () =>
 // No cross-turn rate-limit auto-retry here (the bespoke ScheduleWakeup loop did
 // that). For a pre-write gate run interactively this is acceptable.
 const checkers = results.filter(Boolean)
-// "usable" = we hold this checker's findings (either it reported success — file on disk —
-// or it handed us the body). Only a checker we have NOTHING from is unfinished.
-const usable = c => c.status === 'success' || !!c.markdown
 const recovered = checkers.filter(c => c.status !== 'success' && c.markdown)
 const unfinished = checkers.filter(c => !usable(c))
 log(`checkers: ${checkers.filter(usable).length}/${checkers.length} usable` +
@@ -122,12 +129,9 @@ phase('Summary')
 const manifest = checkers
   .map(c => `${c.name}\t${c.status}\t${c.output_file}`)
   .join('\n')
-const inlined = checkers
-  .filter(c => c.markdown)
-  .map(c => [`----- BEGIN ${c.name} (${c.output_file}) -----`, c.markdown, `----- END ${c.name} -----`].join('\n'))
-  .join('\n\n')
-const needPersist = checkers.filter(c => c.markdown).map(c => `${c.name}\t${c.output_file}`).join('\n')
-const needRead = checkers.filter(c => !c.markdown && c.status === 'success').map(c => c.output_file)
+const inlined = inlineReports(checkers)
+const needPersist = needPersistList(checkers)
+const needRead = needReadList(checkers)
 
 // SUMMARY.md itself can NOT be written by any sub-agent (harness refuses that basename —
 // see the probe results above), and this script has no FS access. So the only reliable
