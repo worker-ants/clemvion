@@ -31,13 +31,43 @@ if [ -d "$main_root/.githooks" ]; then
 fi
 
 # 2. Ensure mermaid-lint deps (install once; skip if already present).
+#
+#    Two guards, because running several worktree sessions at once is this
+#    repo's documented workflow (worktree-policy.md) and on a cold checkout they
+#    all reach this branch at the same moment:
+#
+#    - A COMPLETION MARKER, rather than a bare `[ -d node_modules ]` test. An
+#      install cut short — a crashed session, or two of them interleaving into
+#      one tree — leaves a PARTIAL node_modules that the directory test then
+#      accepts forever, so mermaid lint stays disabled with no signal at all.
+#      The marker makes that self-healing: an unfinished tree simply reinstalls
+#      next session. It lives INSIDE node_modules on purpose, so deleting the
+#      tree deletes the marker with it. (One-off: an existing good install from
+#      before this marker reinstalls once.)
+#
+#    - A `mkdir` LOCK — atomic and portable, unlike flock, which macOS lacks —
+#      so two sessions never npm-install into the same tree concurrently. The
+#      loser SKIPS instead of waiting: bootstrap must never block a session, and
+#      the marker means the next session picks the work up anyway. A lock whose
+#      holder died is stolen after 10 minutes, so the lock itself can never
+#      wedge the install permanently — which is the failure mode a naive lock
+#      would trade for the race it fixes.
 tool_dir="$main_root/.claude/tools/mermaid-lint"
-if [ -f "$tool_dir/package.json" ] && [ ! -d "$tool_dir/node_modules" ]; then
-    if command -v npm >/dev/null 2>&1; then
+marker="$tool_dir/node_modules/.bootstrap-install-complete"
+lock="$tool_dir/.install.lock"
+if [ -f "$tool_dir/package.json" ] && [ ! -f "$marker" ] && command -v npm >/dev/null 2>&1; then
+    # Steal a lock left behind by a session that died mid-install.
+    if [ -d "$lock" ] && [ -z "$(find "$lock" -maxdepth 0 -mmin -10 2>/dev/null)" ]; then
+        rmdir "$lock" 2>/dev/null || true
+    fi
+    if mkdir "$lock" 2>/dev/null; then
         echo "bootstrap: installing mermaid-lint deps (one-time)…"
-        (cd "$tool_dir" && npm install --no-fund --no-audit --silent) \
-            && echo "bootstrap: mermaid-lint ready" \
-            || echo "bootstrap: mermaid-lint install failed (lint will fail open)" >&2
+        if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
+            : > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
+        else
+            echo "bootstrap: mermaid-lint install failed (lint will fail open)" >&2
+        fi
+        rmdir "$lock" 2>/dev/null || true
     fi
 fi
 
