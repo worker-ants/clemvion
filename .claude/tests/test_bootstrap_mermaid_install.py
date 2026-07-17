@@ -27,9 +27,12 @@ import _harness  # noqa: F401
 
 BOOTSTRAP_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 
-# Records one line per call, and materialises node_modules like a real install.
+# Records one line per call (with the caller's PID so a test can prove two
+# installs overlapped), optionally sleeps to model a slow-but-alive install,
+# and materialises node_modules like a real install.
 _NPM_STUB = """#!/usr/bin/env bash
-echo "call" >> "$NPM_CALL_LOG"
+echo "call pid=$PPID start=$(date +%s)" >> "$NPM_CALL_LOG"
+[ "${NPM_SLEEP:-0}" != "0" ] && sleep "$NPM_SLEEP"
 [ "${NPM_STUB_FAIL:-0}" = "1" ] && exit 1
 mkdir -p node_modules/somedep
 exit 0
@@ -60,6 +63,8 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.marker = os.path.join(self.tool_dir, "node_modules",
                                    ".bootstrap-install-complete")
         self.lock = os.path.join(self.tool_dir, ".install.lock")
+        self.fail_marker = os.path.join(self.repo, ".claude", "state",
+                                        "mermaid_install_last_fail")
 
         # Stub npm ahead of the real one on PATH.
         self.bin = os.path.join(self.tmp, "bin")
@@ -78,16 +83,32 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _run(self, fail=False):
+    def _env(self, fail=False, sleep=0, retry_after=0, lock_grace=None):
+        """One place builds the bootstrap env (WARNING #6 — no per-test copies).
+
+        Throttle defaults OFF (retry_after=0), matching how the reap tests set
+        REAP_MIN_INTERVAL=0: a cooldown left on by default would make every
+        install test that runs twice flake. Throttle tests opt in explicitly.
+        """
         env = dict(os.environ)
         env["PATH"] = self.bin + os.pathsep + env["PATH"]
         env["NPM_CALL_LOG"] = self.call_log
         env["NPM_STUB_FAIL"] = "1" if fail else "0"
+        env["NPM_SLEEP"] = str(sleep)
+        env["MERMAID_INSTALL_RETRY_SEC"] = str(retry_after)
+        if lock_grace is not None:
+            env["MERMAID_INSTALL_LOCK_GRACE_SEC"] = str(lock_grace)
+        # reap section is inert here: reap-merged-worktrees.sh is not copied into
+        # this fixture, so the whole section is skipped regardless of these.
         env["REAP_MIN_INTERVAL"] = "0"
-        # No gh stub → the reaper cannot prove a merge and reaps nothing.
         env["REAP_GH_BIN"] = os.path.join(self.tmp, "no-such-gh")
+        return env
+
+    def _run(self, fail=False, sleep=0, retry_after=0, lock_grace=None):
+        env = self._env(fail=fail, sleep=sleep, retry_after=retry_after,
+                        lock_grace=lock_grace)
         return subprocess.run(["bash", self.bootstrap], cwd=self.repo, env=env,
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, timeout=60)
 
     def _npm_calls(self):
         if not os.path.exists(self.call_log):
@@ -154,21 +175,92 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
                          "a failed install must still release the lock")
 
     def test_concurrent_sessions_install_at_most_once(self):
-        """The race itself: several sessions starting at the same moment."""
-        env = dict(os.environ)
-        env["PATH"] = self.bin + os.pathsep + env["PATH"]
-        env["NPM_CALL_LOG"] = self.call_log
-        env["NPM_STUB_FAIL"] = "0"
-        env["REAP_MIN_INTERVAL"] = "0"
-        env["REAP_GH_BIN"] = os.path.join(self.tmp, "no-such-gh")
+        """The race itself: several sessions starting at the same moment.
+
+        stdout/stderr go to DEVNULL, not PIPE (WARNING #5): undrained PIPEs can
+        fill the OS buffer and deadlock the children while the parent waits.
+        """
+        env = self._env()
         procs = [subprocess.Popen(["bash", self.bootstrap], cwd=self.repo, env=env,
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                  for _ in range(5)]
         for p in procs:
-            p.wait()
+            p.wait(timeout=60)
         self.assertEqual([p.returncode for p in procs], [0] * 5)
         self.assertLessEqual(self._npm_calls(), 1,
                              "the mkdir lock must serialise the cold-start race")
+
+    # --- lock liveness (WARNING #1: steal on liveness, not elapsed time) -----
+    def _plant_lock(self, owner_pid, age_seconds):
+        """A held lock owned by `owner_pid`, with its dir mtime aged.
+
+        owner is written BEFORE aging: creating the file bumps the dir mtime, so
+        the utime must come last or the age is lost.
+        """
+        os.makedirs(self.lock)
+        if owner_pid is not None:
+            with open(os.path.join(self.lock, "owner"), "w") as f:
+                f.write(str(owner_pid))
+        old = time.time() - age_seconds
+        os.utime(self.lock, (old, old))
+
+    def test_live_but_slow_lock_is_not_stolen_even_when_aged(self):
+        """The reviewer-reproduced regression: an install that is slow but ALIVE
+        (owner PID still running) crossed the old pure-age threshold and had its
+        lock stolen, so a second npm install ran into the same tree. Liveness,
+        not age, must gate the steal."""
+        holder = subprocess.Popen(["sleep", "30"])
+
+        def _reap():
+            holder.kill()
+            holder.wait()  # reap the zombie so no ResourceWarning leaks
+        self.addCleanup(_reap)
+        self._plant_lock(holder.pid, age_seconds=3600)  # aged well past grace
+        r = self._run()  # default grace 600s → aged, but owner is alive
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self._npm_calls(), 0,
+                         "a live holder's lock must never be stolen, however old")
+        self.assertTrue(os.path.isdir(self.lock), "the live holder's lock must survive")
+
+    def test_dead_pid_lock_is_stolen(self):
+        """The legitimate steal: the recorded owner is gone, so reclaim it."""
+        corpse = subprocess.Popen(["true"])
+        corpse.wait()  # its PID is now dead (reaped)
+        self._plant_lock(corpse.pid, age_seconds=3600)
+        self._run()
+        self.assertEqual(self._npm_calls(), 1, "a dead holder's lock must be reclaimed")
+        self.assertTrue(os.path.isfile(self.marker))
+
+    def test_young_dead_pid_lock_is_not_stolen(self):
+        """Liveness alone is not enough — the grace age still gates the steal, so
+        a PID number freshly reused by an unrelated process is not trusted to
+        hand the lock over immediately."""
+        corpse = subprocess.Popen(["true"])
+        corpse.wait()
+        self._plant_lock(corpse.pid, age_seconds=0)  # dead owner but brand-new lock
+        r = self._run()
+        self.assertEqual(self._npm_calls(), 0,
+                         "a young lock must be left alone regardless of owner liveness")
+        self.assertTrue(os.path.isdir(self.lock))
+
+    # --- failure throttle (WARNING #3) ---------------------------------------
+    def test_failed_install_is_throttled_within_cooldown(self):
+        self._run(fail=True, retry_after=1800)      # fails, stamps cooldown
+        self.assertTrue(os.path.exists(self.fail_marker), "failure must stamp a cooldown")
+        self._run(retry_after=1800)                 # immediate retry → throttled
+        self.assertEqual(self._npm_calls(), 1,
+                         "a retry inside the cooldown window must be skipped")
+        self.assertFalse(os.path.exists(self.marker))
+
+    def test_failed_install_retries_after_cooldown(self):
+        self._run(fail=True, retry_after=1800)
+        old = time.time() - 2000                    # age the cooldown past the window
+        os.utime(self.fail_marker, (old, old))
+        self._run(retry_after=1800)                 # now allowed to retry (succeeds)
+        self.assertEqual(self._npm_calls(), 2)
+        self.assertTrue(os.path.isfile(self.marker))
+        self.assertFalse(os.path.exists(self.fail_marker),
+                         "a successful install must clear the cooldown stamp")
         self.assertTrue(os.path.isfile(self.marker))
 
 

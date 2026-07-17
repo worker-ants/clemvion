@@ -45,9 +45,17 @@ fi
 # --- guard 2: mermaid syntax check ------------------------------------
 # Lint staged markdown files only. Fails open if the tooling isn't ready.
 # MERMAID_LINT_TOOL_DIR overrides the location (testing / unusual layouts).
+#
+# Readiness is decided by the shared SoT (.claude/hooks/_lib/mermaid_lint_ready.py),
+# NOT a bare `[ -d node_modules ]` test: a half-written node_modules would pass
+# the directory test and make us lint against partial deps, flagging mermaid
+# errors that do not exist and blocking the commit. is_ready also requires
+# bootstrap's completion marker, so this hook, the PostToolUse hook, and
+# bootstrap all agree on "installed".
 mermaid_tool_dir="${MERMAID_LINT_TOOL_DIR:-$main_root/.claude/tools/mermaid-lint}"
 mermaid_script="$mermaid_tool_dir/lint-mermaid.mjs"
-if [ -d "$mermaid_tool_dir/node_modules" ] \
+mermaid_ready="$repo_top/.claude/hooks/_lib/mermaid_lint_ready.py"
+if [ -f "$mermaid_ready" ] && python3 "$mermaid_ready" "$mermaid_tool_dir" \
    && [ -f "$mermaid_script" ] && command -v node >/dev/null 2>&1; then
     # Staged Added/Copied/Modified markdown paths (NUL-delimited for safety).
     md_files=()

@@ -35,6 +35,9 @@ import re
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "_lib"))
+from mermaid_lint_ready import is_ready  # noqa: E402 — shared readiness SoT
+
 MARKDOWN_EXTS = (".md", ".markdown", ".mdx")
 FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})[ \t]*mermaid\b", re.IGNORECASE | re.MULTILINE)
 _NODE_TIMEOUT = 20.0  # seconds; a hung linter must never wedge PostToolUse
@@ -98,8 +101,11 @@ def main() -> int:
         return 0  # no mermaid block — fast path, never spawn node
 
     tool_dir = _resolve_tool_dir(target)
-    if tool_dir is None or not os.path.isdir(os.path.join(tool_dir, "node_modules")):
-        # Deps not installed yet — fail open. SessionStart bootstrap installs them.
+    if not is_ready(tool_dir):
+        # Deps not installed *or only partially* — fail open. A bare directory
+        # check would accept a half-written node_modules and lint against it;
+        # is_ready also requires bootstrap's completion marker. SessionStart
+        # bootstrap installs (and marks) them.
         print(
             "mermaid-lint: skipped (tooling deps not installed). "
             "Run: (cd .claude/tools/mermaid-lint && npm install)",
