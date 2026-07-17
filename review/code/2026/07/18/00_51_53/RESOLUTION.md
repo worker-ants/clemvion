@@ -22,8 +22,11 @@ WARNING 전부 처리 또는 근거 있는 이월. 남은 미해결 Critical/War
 - **근본 해결**: WAITING 게이트를 `sessionEstablished()`(스트림 열림)로 교체. boot 인자 제거. 이건
   이 클래스에서 `pendingResetRef` 때 "폐기 로직 통째 제거" 와 같은 "진짜 불변식으로 단순화" 다.
 - **반대 구멍 점검**(재설계): 종료 확정 분기는 가드 안 탐(world 사실) / replay_unavailable 은
-  opt-in 으로 통과(자기 재동기화) / 정상 경로는 스트림 미열림이라 dispatch / 이중 스트림은 openStream
-  이 seed 반환 직후 동기 실행이라 원천 차단. mutation 양방향으로 고정(아래).
+  opt-in 으로 통과(자기 재동기화) / 정상 경로는 스트림 미열림이라 dispatch. mutation 양방향으로 고정(아래).
+  - ⚠ **정정(01_44_21)**: 이 라운드엔 "이중 스트림은 openStream 이 seed 반환 직후 동기 실행이라
+    원천 차단" 이라 적었으나 **오판이었다** — `await seedWaitingFromStatus` 와 `openStream` 사이 microtask
+    경계로 이중 EventSource 가 생겼다(01_44_21 재현). seed 게이트의 짝(openStream 직전 게이트)으로
+    후속 처리했다(`77805bd32`). 상세는 `review/code/2026/07/18/01_44_21/`.
 
 ## WARNING
 

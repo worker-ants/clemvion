@@ -45,7 +45,7 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 ## 체크리스트
 
 - [ ] `useEiaSession` 훅 추출 (기능 무변경 — 순수 구조 이동)
-- [ ] 기존 테스트 전원 통과 유지(현 391건) + 훅 단위 테스트 신설
+- [ ] 기존 테스트 전원 통과 유지(착수 시점 카운트 재확인) + 훅 단위 테스트 신설
 - [ ] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test)
 - [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
   `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
