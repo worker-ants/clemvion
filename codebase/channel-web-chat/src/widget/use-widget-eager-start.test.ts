@@ -3221,23 +3221,23 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // 더 최신 재전송이 이미 이 세션을 넘겨받았는가" 만 판별한다.
   // (ai-review 2026-07-17 23_58_23 concurrency·requirement·side_effect CRITICAL)
   it("start() 의 지연 seed 가 재전송이 전진시킨 화면을 되감거나 두번째 스트림을 열지 않는다", async () => {
+    // `installControllableEventSource` 와 같은 패턴(별도 인스턴스 생성 후 반환 — `this` 별칭 회피,
+    // no-this-alias)에 **생성 횟수 카운터**만 더한다. 되감기 결함은 두번째 EventSource 를 열므로
+    // 개수 단언이 화면 노드 단언과 함께 이 fix 를 이중으로 고정한다.
     let esCount = 0;
-    let latestEs: { emit: (t: string, d: unknown) => void } | null = null;
-    class CountingES {
-      private readonly listeners: Record<string, (e: MessageEvent) => void> = {};
-      constructor() {
-        esCount += 1;
-        latestEs = this;
-      }
-      addEventListener(type: string, l: (e: MessageEvent) => void) {
-        this.listeners[type] = l;
-      }
-      close() {}
-      emit(type: string, data: unknown) {
-        this.listeners[type]?.({ data: JSON.stringify(data) } as MessageEvent);
-      }
-    }
-    vi.stubGlobal("EventSource", CountingES as unknown as typeof EventSource);
+    let latestEs: ControllableEventSource | null = null;
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCount += 1;
+          latestEs = new ControllableEventSource();
+          return latestEs as unknown as this;
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof EventSource,
+    );
 
     const webhookResolvers: Array<(r: Response) => void> = [];
     const statusResolvers: Array<(r: Response) => void> = [];
