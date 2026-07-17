@@ -30,7 +30,7 @@ seed 는 스킵, 안 열렸으면(no-op 재전송 포함) 이 seed 가 그린다
 | documentation | 테스트 주석이 되돌려진 C1 메커니즘 서술(18_39_11 RESOLUTION 이 "fix" 표시했으나 CHANGELOG 만 고침) | ✅ 실제 동작으로 재작성(직전 라운드 `a2cd6ebb7`) |
 | documentation | plan 서술 "일어난 적 없는 단계"(§106→§3 39건) + 깨진 `§후속-2` 자기참조 | ✅ 실제 2단계로 정정, 참조 교정 |
 | documentation | CHANGELOG 가 start() 되감기 fix(가장 심각한 고착) 누락 | ✅ 최종 메커니즘으로 항목 3 재작성 |
-| maintainability | `beginBootAttempt` JSDoc 거울상 카운트 stale | ✅ 재설계에서 JSDoc 전면 재작성(카운트 서술 제거) |
+| maintainability | `beginBootAttempt` JSDoc 거울상 카운트 stale | ⚠ 이 라운드엔 **미정정**(RESOLUTION 의 "전면 재작성" 은 과장 — 말미 괄호주만 고쳤음). 카운트는 후속 01_44_21 에서 정정. sibling `RESOLUTION.md` 및 01_44_21 참조 |
 | maintainability | `useEiaSession` 이월 산문 매몰 위험 | ✅ 별도 plan `webchat-usewidget-extraction.md` 분리 |
 | testing | esCount 단언이 특정 mutation 의 "첫 실패 지점" 아님 | ⏸ INFO — 진단 편의 이슈, 단언 자체는 유의미(mutation 으로 확인) |
 | security·scope·concurrency | 각각 LOW/NONE, 차단 사유 없음 | — |

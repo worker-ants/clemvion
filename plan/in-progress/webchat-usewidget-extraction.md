@@ -47,5 +47,10 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 - [ ] `useEiaSession` 훅 추출 (기능 무변경 — 순수 구조 이동)
 - [ ] 기존 테스트 전원 통과 유지(현 391건) + 훅 단위 테스트 신설
 - [ ] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test)
+- [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
+  `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
+  3번째 seed→openStream 호출부가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 여지. 복원/시작
+  경로를 훅으로 뽑을 때 openStream 진입을 단일 wrapper 로 감싸 게이트를 구조적으로 강제하는 것을 검토.
+  (현재는 두 호출부 모두 대칭 회귀 테스트로 고정돼 있어 비차단.)
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
 </content>
