@@ -112,15 +112,28 @@ const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set(
 
 /**
  * Detect whether outputData represents a multi-turn conversation result.
- * Handles all four shapes we emit:
+ *
+ * An OR-chain over the payload shapes accumulated across migrations. The
+ * branches below are authoritative — this list documents them, it does not
+ * bound them (an earlier version claimed "all four shapes" while the chain
+ * already had more, which is how the enumeration silently went stale):
  *   - Legacy flat completed (top-level `messages` + `interactionType`)
- *   - New wrapped completed (`{ config, output: { messages }, meta: { interactionType } }`)
- *   - New wrapped waiting (`{ config, output: { messages, message, turnCount,
- *     partial? }, meta: { interactionType: 'ai_conversation' },
- *     status: 'waiting_for_input', _resumeState }`)
  *   - Legacy waiting (top-level `interactionType: 'ai_conversation'` +
  *     `conversationConfig`) — for in-flight rows persisted before the
  *     canonical-shape migration.
+ *   - Wrapped completed (`{ config, output: { messages }, meta: { interactionType } }`)
+ *   - Wrapped waiting (`{ config, output: { messages, message, turnCount,
+ *     partial? }, meta: { interactionType: 'ai_conversation' },
+ *     status: 'waiting_for_input', _resumeState }`), plus a defensive
+ *     fallback accepting `status: 'waiting_for_input'` + `output.messages`
+ *     alone when `meta.interactionType` was stripped.
+ *   - Wrapped `output.conversationConfig`, any status.
+ *   - Post-Stage-5 terminal — `output.result.messages` + an `endReason` in
+ *     `CONVERSATION_END_REASONS`. Both AI Agent and Information Extractor
+ *     emit this. An endReason missing from that whitelist makes the whole
+ *     conversation preview tab vanish — the `@workflow/ai-end-reason` package
+ *     owns the value domain precisely so the list cannot drift again (#959:
+ *     `error` / `condition` were missing from a hand-copied list).
  */
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))
