@@ -30,8 +30,10 @@ WARNING 전부 처리 또는 근거 있는 이월. 남은 미해결 Critical/War
 - **테스트 주석이 되돌려진 C1 메커니즘 서술**(documentation) → **fix**(직전 라운드 `a2cd6ebb7` 에서 이미 정정).
 - **plan "일어난 적 없는 단계" + 깨진 `§후속-2`**(documentation) → **fix**. 실제 2단계로 정정, 참조 교정.
 - **CHANGELOG start() fix 누락**(documentation) → **fix**. 항목 3 을 최종 메커니즘으로 재작성.
-- **`beginBootAttempt` JSDoc 카운트 stale**(maintainability) → **fix**. 재설계에서 JSDoc 전면 재작성
-  (거울상 카운트 서술 자체를 없애고 "sessionEstablished 가 진짜 불변식" 으로 대체).
+- **`beginBootAttempt` JSDoc 카운트 stale**(maintainability) → **부분 fix (정정)**. 이 라운드에 나는
+  `beginBootAttempt` 의 **말미 괄호주**(start() world 축 서술)만 재작성하고, "비대칭 가드 누락 3번"
+  카운트 문단(`use-widget.ts:259`)은 **실제로 안 건드렸다** — 위 "전면 재작성" 서술은 과장이었다
+  (후속 01_44_21 maintainability 가 audit-trail 로 지적). 그 카운트는 다음 라운드(01_44_21)에서 정정했다.
 - **`useEiaSession` 산문 매몰**(maintainability) → **fix**. 별도 plan 분리.
 - **esCount 첫-실패-지점**(testing) → **이월(INFO)**. 단언 자체는 mutation 으로 유의미 확인. 진단 편의
   개선(assertion 순서)은 저가치라 미적용.
