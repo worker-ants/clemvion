@@ -2081,4 +2081,100 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // (3) 요청된 "새 대화" 가 실제로 시작됐다 — 저장소만 지우고 멈추면 패널만 열린 빈 화면이 된다.
     await waitFor(() => expect(hookPosts).toBe(1));
   });
+
+  // 위 fix 의 잔여 경로 — 리셋 의도가 **부팅 시도에 스코프**되는지.
+  //
+  // `applyConfig` 는 마운트당 1회가 아니다: host 는 iframe 재생성 없이 `wc:boot` 를 다시 보내
+  // config 를 갱신할 수 있고(2-sdk §106), 관리자 미리보기가 실제로 그렇게 한다. 리셋 플래그의
+  // 소비 지점은 BLOCKED 조기 return **뒤**라, 차단된 부팅 중 도착한 리셋은 플래그를 세워놓고
+  // 소비되지 않은 채 남는다 → **무관한 다음 부팅**이 그걸 물려받아 리셋을 요청한 적 없는 host 의
+  // 정상 세션을 조용히 지운다(재현 확인). (ai-review 2026-07-17 11_38_14 side_effect·testing)
+  //
+  // `document.referrer` 를 세우는 이유: 미설정 시 `detectHostOrigin` 이 null 을 반환해 임베드 검증이
+  // **fail-open**(4-security §3-① 의 soft 컨트롤 설계) 하므로 BLOCKED 자체에 도달하지 못한다.
+  it("차단된 부팅 중의 resetSession 은 이후 무관한 부팅으로 새어나가지 않는다", async () => {
+    const referrer = Object.getOwnPropertyDescriptor(window.document, "referrer");
+    Object.defineProperty(window.document, "referrer", {
+      value: "http://host.test/page",
+      configurable: true,
+    });
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let hookPosts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          hookPosts += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "forced-new",
+                status: "pending",
+                interaction: { token: "iext_forced", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "legit", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+
+    // 1차 부팅 — 진행 중에 host 가 리셋을 요청한다.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    sendHostCommand("resetSession");
+
+    // 1차 부팅이 allowlist 불일치로 차단된다 → 리셋은 이 시도와 함께 죽어야 한다.
+    await act(async () => {
+      embedResolvers[0]({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }),
+      } as Response);
+      await flushAsync();
+    });
+    expect(result.current.state.phase).toBe("blocked"); // 전제 — 여기 못 오면 테스트가 무의미
+
+    // 그 사이 정상 세션이 존재한다(다른 탭·이전 대화).
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "legit", token: "iext_legit", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+
+    // 2차 부팅 — allowlist 를 고쳐 재전송(재마운트 없음). **이 host 는 리셋을 요청한 적이 없다.**
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1]({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { allowlist: [], enforce: false } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 정상 세션이 살아있고(복원됨), 강제 새 대화도 시작되지 않았다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").toContain("legit");
+    expect(hookPosts).toBe(0);
+
+    if (referrer) Object.defineProperty(window.document, "referrer", referrer);
+  });
 });
