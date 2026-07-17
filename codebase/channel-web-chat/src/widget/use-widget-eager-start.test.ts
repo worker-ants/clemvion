@@ -142,6 +142,21 @@ function boot() {
   });
 }
 
+/**
+ * 대기 중인 비동기 체인 배출 — 수동 resolve 직후 단언 전에 쓴다.
+ *
+ * 종전의 `await Promise.resolve()` 고정 반복(1~2회)은 **체인 길이에 대한 추측**이다. 프로덕션
+ * 코드가 `await fetch → await res.json() → 세대 검사 → dispatch` 처럼 3틱 이상을 소비하면 단언이
+ * 먼저 실행돼 **산발적으로만** 실패한다(스케줄링에 따라 달라져 로컬에선 안 보이고 CI 에서 터지는
+ * 부류). macrotask 한 틱은 그 시점의 microtask 큐를 **전부** 배출하므로 틱 수를 몰라도 된다.
+ * 파일 내 fake timer 는 모두 `shouldAdvanceTime: true` 라 이 `setTimeout` 도 정상 발화한다.
+ * (ai-review 2026-07-17 08_29_33 CRITICAL#2 — 제기된 간헐 실패는 65회 재현 실패했으나, 지적된
+ * 관용구 취약성 자체는 실재하므로 선제 제거. RESOLUTION.md §C2 참조.)
+ */
+async function flushAsync() {
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 /** host → 위젯 `wc:command` postMessage 주입 — 실제 bridge.onCommand 경로 검증용(boot() 과 동형 origin 핀). */
 function sendHostCommand(action: string, extra?: Record<string, unknown>) {
   act(() => {
@@ -213,7 +228,7 @@ describe("useWidget — eager 시작(§R6)", () => {
   /**
    * 복원 대상 세션이 이미 terminal 이면 seed 가 대화를 종료시킨다 — 그 뒤 openStream/scheduleRefresh 를
    * 하면 (a) 무효화된 토큰으로 SSE 를 열고 (b) refreshToken 성공 시 방금 clearSession() 한 storage 를
-   * 종료된 세션으로 되살린다. `start()` 는 startGenRef 로 우연히 보호됐으나 이 경로는 무방비였다.
+   * 종료된 세션으로 되살린다. `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.
    * (ai-review 02_04_13 CRITICAL#1.)
    */
   it("복원된 세션이 이미 terminal → ENDED 전이 + SSE 미오픈 + storage 부활 없음", async () => {
@@ -431,7 +446,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     // in-flight POST resolve → 흡수된 booting 이 정상 streaming 확립(추가 POST 없음).
     await act(async () => {
       resolveHook(hookResponse());
-      await Promise.resolve();
+      await flushAsync();
     });
     await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
     expect(webhookPosts(fetchMock).length).toBe(1);
@@ -543,7 +558,7 @@ describe("useWidget — eager 시작(§R6)", () => {
           },
         }),
       } as Response);
-      await Promise.resolve();
+      await flushAsync();
     });
     await waitFor(() => expect(result.current.state.executionId).toBe("e1"));
     await waitFor(() => expect(getEs()).not.toBeNull());
@@ -1068,7 +1083,7 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
           },
         }),
       });
-      await Promise.resolve();
+      await flushAsync();
     });
     await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
 
@@ -1113,7 +1128,7 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     // 옛 webhook 이 뒤늦게 reject → stale start 의 catch. gen 검사로 early-return → 상태 무변.
     await act(async () => {
       rejectWebhook?.(new Error("late 503"));
-      await Promise.resolve();
+      await flushAsync();
     });
     await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
     // 옛 실패가 phase 를 덮거나(ERROR) error 를 세팅하지 않는다(가드 없으면 error 세팅됨).
@@ -1471,7 +1486,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
         status: 200,
         json: async () => ({ data: { executionId: "e1", status: "completed" } }),
       } as Response);
-      await Promise.resolve();
+      await flushAsync();
     });
 
     // stale 폐기 — 살아있는 새 대화를 종료시키지 않는다.
@@ -1554,8 +1569,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
           },
         }),
       } as Response);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushAsync();
     });
 
     expect(result.current.state.phase).toBe("ended"); // 부활하면 실패
@@ -1617,7 +1631,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // seed 응답 전에 새 대화 시작 → sessionRef 교체.
     await act(async () => {
       result.current.actions.newChat();
-      await Promise.resolve();
+      await flushAsync();
     });
     await waitFor(() => expect(hookPosts).toBe(1));
     const esAfterNewChat = getEs();
@@ -1629,12 +1643,91 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
         status: 200,
         json: async () => ({ data: { executionId: "prev", status: "waiting_for_input", context: { interactionType: "ai_conversation", waitingNodeId: "old", conversationThread: { turns: [] } } } }),
       } as Response);
-      await Promise.resolve();
+      await flushAsync();
     });
 
     // 새 대화의 스트림이 옛 세션 토큰으로 재오픈되지 않았다(EventSource 인스턴스 불변).
     expect(getEs()).toBe(esAfterNewChat);
     expect(result.current.state.phase).not.toBe("ended");
+  });
+
+  // W2 — 위 테스트의 **soft-fail 변종**. 위는 seed 가 정상 resolve 하는 경로라 `seedWaitingFromStatus`
+  // 내부 세대 검사가 `"stale"` 을 반환해 걸러진다. 그러나 getStatus 가 **reject** 하면 catch 는
+  // 세대와 무관하게 `"continue"`(soft-fail — 종료로 오판하지 않는다)를 반환했다. `start()` 는 호출
+  // 직후 `if (worldGenRef.current !== gen) return;` 로 한 번 더 걸러 무사했지만, `applyConfig` 는
+  // `outcome !== "continue"` 검사뿐이라 **그대로 통과** → 옛 세션으로 `openStream` + `scheduleRefresh`
+  // → 스트림 탈취·방금 지운 storage 부활. 네트워크 오류는 정상 조건이라 실제로 닿는 경로다.
+  // (ai-review 2026-07-17 08_29_33 W2 — reviewer 는 "현재 활성 버그 아님"으로 봤으나 soft-fail
+  // 분기 때문에 이미 활성이었다. RESOLUTION.md §W2 참조.)
+  it("W2: 복원 seed 가 network 오류로 soft-fail 해도 새 대화 스트림을 옛 세션이 탈취하지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    let rejectStatus: ((e: Error) => void) | null = null;
+    let hookPosts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          hookPosts += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "fresh",
+                status: "pending",
+                interaction: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        // 복원 seed 의 getStatus 를 in-flight 로 잡아둔다 — 나중에 **reject**(네트워크 오류).
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          if (!rejectStatus) {
+            return new Promise<Response>((_res, rej) => {
+              rejectStatus = rej;
+            });
+          }
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "fresh", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(rejectStatus).not.toBeNull()); // 복원 seed in-flight.
+
+    // seed 응답 전에 새 대화 시작 → 세대 증가 + 새 세션 스트림 확립.
+    await act(async () => {
+      result.current.actions.newChat();
+      await flushAsync();
+    });
+    await waitFor(() => expect(hookPosts).toBe(1));
+    const esAfterNewChat = getEs();
+
+    // 이제 옛 seed 가 네트워크 오류로 reject → soft-fail 경로 진입.
+    await act(async () => {
+      rejectStatus?.(new Error("network down"));
+      await flushAsync();
+    });
+
+    // 옛 세션이 스트림을 다시 열지 않았다 — EventSource 인스턴스가 그대로여야 한다.
+    expect(getEs()).toBe(esAfterNewChat);
+    // 새 대화의 세션이 옛 세션으로 덮여 storage 에 되살아나지 않았다.
+    const stored = JSON.parse(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "{}");
+    expect(stored.executionId).not.toBe("prev");
+    warnSpy.mockRestore();
   });
 
   /**
@@ -1703,7 +1796,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 명령이 떠 있는 동안 새 대화 → 세션 교체.
     await act(async () => {
       result.current.actions.newChat();
-      await Promise.resolve();
+      await flushAsync();
     });
     await waitFor(() => expect(hookPosts).toBe(2)); // 새 execution 시작됨.
     const phaseBefore = result.current.state.phase;
@@ -1711,8 +1804,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 이제 옛 세션의 410 이 도착 — 새 세션을 건드리면 안 된다.
     await act(async () => {
       resolveInteract?.({ ok: false, status: 410, json: async () => ({}) } as Response);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushAsync();
     });
 
     expect(result.current.state.phase).not.toBe("ended");
@@ -1794,10 +1886,124 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // (2) 이제 in-flight 명령이 410 으로 resolve — endedRef 가드가 재발사를 막아야 한다.
     await act(async () => {
       resolveInteract?.({ ok: false, status: 410, json: async () => ({}) } as Response);
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushAsync();
     });
     expect(endedEvents.length).toBe(1);
     postSpy.mockRestore();
+  });
+
+  // W3 — 언마운트 세대 증가의 회귀 테스트. 이 지점은 커밋 메시지가 "리뷰 W6(unmount-after-await
+  // SSE leak) 도 함께 해소"라 주장했으나 실제로는 **어떤 테스트도 검증하지 않았다**(mutation 실증:
+  // 제거해도 364개 중 0건 실패). webhook POST 가 떠 있는 동안 언마운트되면, 세대 증가가 없을 때
+  // 지연 응답이 `persist()` 로 storage 를 쓰고 `openStream`/`scheduleRefresh` 로 스트림·타이머를
+  // 되살린다 — 사라진 컴포넌트가 남긴 유령 세션. (ai-review 2026-07-17 08_29_33 W3)
+  it("W3: webhook POST in-flight 중 언마운트 → 지연 응답이 storage·SSE 를 되살리지 않는다", async () => {
+    let resolveHook: ((r: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+        // 시작 webhook 을 in-flight 로 잡아둔다 — 언마운트 뒤에 resolve.
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => {
+            resolveHook = r;
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+
+    const { result, unmount } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(resolveHook).not.toBeNull()); // start() 의 webhook in-flight.
+
+    unmount();
+
+    // 사라진 위젯의 start 응답이 뒤늦게 도착.
+    await act(async () => {
+      resolveHook?.({
+        ok: true,
+        status: 202,
+        json: async () => ({
+          data: {
+            executionId: "e1",
+            status: "pending",
+            interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+          },
+        }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 세션이 storage 에 남지 않았고 SSE 도 열리지 않았다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    expect(getEs()).toBeNull();
+  });
+
+  // C1 — embed-config 왕복(부팅) 중 host resetSession 이 들어와도 config 는 확립돼야 한다.
+  //
+  // 세대 단일화가 만든 회귀의 회귀 테스트: `teardownSession()` 이 무조건 세대를 올리면 아직
+  // 부팅 중인 `applyConfig` 가 stale 로 판정돼 죽고, `configRef`/`clientRef`/`setConfig` 가 영영
+  // 세팅되지 않아 **런처만 뜨고 패널이 영원히 안 열린다**(콘솔 경고 없는 silent hang, 자가 회복
+  // 경로 없음). 기존 R9-A 의 "booting" 은 config 확립 **후** webhook POST in-flight 라 이 창을
+  // 못 덮는다 (ai-review 2026-07-17 08_29_33 CRITICAL#1).
+  it("C1: embed-config in-flight 중 host resetSession → config 확립(패널 정상 개방)", async () => {
+    let resolveEmbed: ((r: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        // embed-config 를 in-flight 로 잡아둔다 — 이 창이 취약 구간이다.
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            resolveEmbed = r;
+          });
+        }
+        if (u.includes("/api/hooks/")) {
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({ data: { executionId: "e1", status: "pending" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(resolveEmbed).not.toBeNull());
+
+    // 부팅이 끝나기 전에 host 가 새 대화를 명령 → teardownSession 경유.
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          origin: "http://host.test",
+          data: { type: "wc:command", payload: { action: "resetSession" } },
+        }),
+      );
+    });
+
+    // 뒤늦게 embed-config 가 resolve — applyConfig 는 살아남아 config 를 확립해야 한다.
+    await act(async () => {
+      resolveEmbed?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { allowlist: [], enforce: false } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 소비처가 패널을 여는 조건이 곧 이 두 값이다 — widget-app.tsx 의
+    // `expanded = visible && state.open && !!config`. config 가 null 로 굳으면 open() 을 눌러도
+    // 영원히 collapsed 다.
+    expect(result.current.config).not.toBeNull();
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(result.current.state.open).toBe(true));
   });
 });

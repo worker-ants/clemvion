@@ -138,8 +138,11 @@ export function useWidget() {
    * 상태를 덮으면 유령 표면·오종료·스트림 탈취가 난다.
    *
    * **계약**: 세계를 무효화하는 모든 지점이 `++worldGenRef.current` 하고, 모든 `await` 뒤에는
-   * `if (worldGenRef.current !== gen) return;` 로 재검증한다. 무효화 지점은 두 곳뿐이다 —
-   * `teardownSession()`(종료·새 대화·대화 종료가 전부 경유하는 choke point)과 언마운트 cleanup.
+   * `if (worldGenRef.current !== gen) return;` 로 재검증한다. 무효화 지점은 셋이다 —
+   * (1) `teardownSession()` — 종료·410·새 대화·대화 종료가 전부 경유하는 choke point.
+   *     단 config 확립 전에는 무효화할 세계가 없어 no-op (그 조기 return 주석 참조).
+   * (2) `start()` — 새 execution 이 곧 직전 세계를 대체하므로 시작 자체가 무효화다.
+   * (3) 언마운트 cleanup — `teardownSession` 을 거치지 않고 직접 bump 한다.
    *
    * **왜 하나로 합쳤나**: 종전에는 세대 카운터(`startGenRef`, `start()` 전용) · `sessionRef` 동일성
    * (`seed`/`sendCommand`) · `cancelled` 지역 플래그(`applyConfig` 초기 부팅) **3종이 각기 다른
@@ -162,8 +165,14 @@ export function useWidget() {
     ((client: EiaClient, session: SessionRef) => Promise<SeedOutcome>) | null
   >(null);
 
-  // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약·cancelled 가드는 useTokenRefresh 캡슐화(§B).
-  const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({ sessionRef, clientRef, configRef });
+  // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약은 useTokenRefresh 캡슐화(§B).
+  // staleness 는 여기 worldGenRef 를 주입해 공유한다(그 훅의 4번째 독립 가드였던 cancelledRef 를 대체).
+  const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({
+    sessionRef,
+    clientRef,
+    configRef,
+    worldGenRef,
+  });
 
   const closeStream = useCallback(() => {
     streamRef.current?.close();
@@ -176,13 +185,24 @@ export function useWidget() {
    * 종료 이벤트(handleEiaEvent)·newChat 공통 경로. dispatch/ref 초기화는 호출부가 맥락에 맞게 수행.
    */
   const teardownSession = useCallback(() => {
+    // **부팅 전 no-op** — config 확립 이전(`applyConfig` 의 embed-config 왕복 중)에는 정리할 세션도
+    // 스트림도 타이머도 없다. 그런데 이 시점에 host `resetSession`/`newChat` 이 들어오면 아래
+    // `worldGenRef.current++` 가 **부팅 중인 `applyConfig` 를 stale 화해 죽인다** → `configRef`/
+    // `clientRef`/`setConfig` 가 영영 세팅되지 않고 `expanded` 가 `config===null` 로 고정돼
+    // **런처만 뜨고 패널이 영원히 안 열린다**(콘솔 경고도 없는 silent hang). `newChat` 이 뒤이어
+    // 부르는 `start()` 도 `if (!cfg || !client) return` 로 no-op 이라 자가 회복 경로가 없다.
+    //
+    // 종전 `cancelled` 지역 플래그는 언마운트에서만 set 이라 이 경로가 우연히 안전했다 — 세대
+    // 단일화가 그 우연을 깨뜨렸다. 세계가 아직 시작도 안 했으면 무효화할 것도 없으므로 조기 return
+    // 한다 (ai-review 2026-07-17 08_29_33 CRITICAL#1, A/B 재현 확인).
+    if (!configRef.current) return;
     // **world 무효화** — in-flight 비동기(start webhook·seed getStatus·sendCommand interact)의 캡처
     // gen 을 전부 stale 화한다. 종료 이벤트·410·seed-terminal·새 대화·대화 종료가 모두 이 함수를
     // 경유하므로 여기 한 곳이면 충분하다(`worldGenRef` JSDoc §계약).
     worldGenRef.current++;
     closeStream();
     clearRefreshTimer();
-    if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
+    clearSession(configRef.current.triggerEndpointPath);
   }, [closeStream, clearRefreshTimer]);
 
   /**
@@ -351,6 +371,13 @@ export function useWidget() {
         }
         return "continue";
       } catch (err) {
+        // **실패 경로에도 세대 검사가 필요하다.** soft-fail 은 "종료로 오판하지 않는다"는 뜻이지
+        // "세계가 그대로다"는 뜻이 아니다. 이 검사가 없으면 getStatus 가 네트워크 오류로 reject 한
+        // 사이 새 대화가 시작된 경우 `"continue"` 가 반환돼, `outcome` 만 보는 `applyConfig` 가
+        // 옛 세션으로 `openStream`+`scheduleRefresh` 를 해 **스트림을 탈취하고 방금 지운 storage 를
+        // 되살린다**(재현 확인). `start()` 는 뒤에 명시적 세대 재검사가 있어 우연히 무사했다 —
+        // 그 비대칭이 곧 이 버그였다 (ai-review 2026-07-17 08_29_33 W2).
+        if (worldGenRef.current !== gen) return "stale";
         console.warn(
           "[widget] getStatus seed failed:",
           err instanceof Error ? err.message : String(err),
@@ -682,8 +709,13 @@ export function useWidget() {
         if (clientRef.current) {
           const outcome = await seedWaitingFromStatus(clientRef.current, saved);
           // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
-          // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다(`start()` 의 세대 재검증과 대칭).
+          // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
           if (outcome !== "continue") return;
+          // `start()` 와 동형의 명시적 세대 재검증 — "모든 await 뒤 재검증" 계약(JSDoc)을 호출부가
+          // 스스로 지킨다. 위 `outcome` 게이팅이 이미 세대 변화를 잡지만, 그건 `seedWaitingFromStatus`
+          // 내부 구현에 대한 의존이다. 여기서 한 번 더 보면 그 내부가 바뀌어도(예: await 추가) 이
+          // 경로가 조용히 무방비가 되지 않는다 (ai-review 2026-07-17 08_29_33 W2).
+          if (worldGenRef.current !== gen) return;
         }
         openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.

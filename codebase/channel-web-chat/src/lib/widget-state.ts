@@ -127,6 +127,15 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "BOOTED":
       return { ...state, executionId: action.executionId, phase: "streaming" };
     case "WAITING":
+      // **종료된 대화는 입력 표면을 다시 열지 않는다** — 최후 방어선.
+      //
+      // 이 무조건 전이가 "종료된 위젯이 stale seed 응답으로 부활" 버그의 **직접 원인**이었다.
+      // 근본 원인(호출부의 staleness 가드 누락)은 `worldGenRef` 로 고쳤지만, 그 가드는 호출부
+      // 4곳이 각자 지켜야 하는 규율이라 새 호출부가 추가되면 다시 뚫릴 수 있다. 리듀서는 모든
+      // 경로가 반드시 통과하는 단일 지점이므로 여기서 한 번 더 막는다(defense-in-depth).
+      // `ended` 를 벗어나는 유일한 액션은 `START`(→`booting`) 이므로 `ended → WAITING` 이
+      // 정당한 경우는 없다. (ai-review 2026-07-17 08_29_33 W4)
+      if (state.phase === "ended") return state;
       return {
         ...state,
         phase: "awaiting_user_message",
