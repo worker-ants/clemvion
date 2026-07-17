@@ -2,6 +2,10 @@
 worktree: is-conversation-output-restructure-08f20e
 started: 2026-07-17
 owner: developer
+spec_impact:
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/3-information-extractor.md
+  - spec/conventions/interaction-type-registry.md
 ---
 
 # `isConversationOutput` 화이트리스트 drift 구조적 차단 (백로그 E)
