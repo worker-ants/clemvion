@@ -36,10 +36,12 @@ EITHER of these coverage gates fails:
   wedge the session; either gate's parsing falls back to "not blocked").
 
 "Fresh, resolved review" =
-  a `review/code/**/SUMMARY.md` in the working tree whose
-    - risk is resolved:  `## 전체 위험도` line is NONE/LOW, OR a sibling
-      `RESOLUTION.md` exists (critical/warning were addressed), AND
-    - freshness:         it postdates the newest changed codebase file.
+  a `review/code/**/SUMMARY.md` in the working tree satisfying ALL of:
+    1. coverage:   every `agents_forced` reviewer left a report on disk — the
+                   router_safety whitelist actually ran (`_forced_coverage_missing`);
+    2. risk:       EITHER a sibling `RESOLUTION.md` exists (critical/warning were
+                   addressed) OR `## 전체 위험도` is NONE/LOW with no actionable rows;
+    3. freshness:  it postdates the newest changed codebase file.
 
 "Fresh impl-done consistency report" =
   a `review/consistency/**/SUMMARY.md` whose session `meta.json` mode names
@@ -352,14 +354,97 @@ _RISK_LEVEL = re.compile(r"\b(NONE|LOW|MEDIUM|HIGH|CRITICAL)\b")
 _TABLE_DATA_ROW = re.compile(r"^\s*\|\s*\d+\s*\|")  # rows start with a "| 1 |" index
 
 
+def _forced_coverage_missing(session_dir: str) -> list[str]:
+    """`agents_forced` reviewers with no report in this session (empty ⇒ complete).
+
+    `agents_forced` is the router_safety whitelist a router "override 하지 못한다"
+    (code-review-agents SKILL). Nothing mechanical held anyone to it: the Workflow only
+    logged the list, and `--apply-routing` honoured it solely when consuming a router
+    decision — so on the hand-picked fallback path the whitelist was prose, and prose is
+    what a "this diff is small" judgement call talks itself past. It did: 160 of 575
+    committed sessions were short a forced reviewer when this was measured (2026-07-17),
+    107 of them carrying a RESOLUTION.md and therefore passing this gate as "resolved".
+    One of those skipped `security` on a diff that edited the open-redirect boundary.
+
+    Coverage is judged by **reports on disk**, not by `agents_success`: a self-reported
+    status with no file behind it is exactly the fake-success this whole line of work
+    exists to remove, and reading disk also makes the gate immune to a stale state file.
+
+    Paths are resolved **relative to the session dir**, never from the manifest's
+    `output_file` — that records the worktree the session ran in, which is deleted when
+    its task ends while `review/**` lives on in git. Trusting it would report every
+    long-gone worktree's session as uncovered (537/575 at measurement time) and fire on
+    almost everything. (`code_review_orchestrator._report_paths` resolves the same way for
+    `--verify-coverage`; the two enforcement points must agree — change both.)
+
+    A report must be non-empty: existence alone would let `touch security.md` satisfy the
+    whitelist, which is the same "looks done, isn't" shape the gate exists to catch. The
+    bar is deliberately low rather than structural — all 4749 committed reports are ≥254
+    bytes, so nothing real is near it.
+    """
+    state_path = os.path.join(session_dir, "_retry_state.json")
+    try:
+        with open(state_path, "r", encoding="utf-8", errors="replace") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        # No manifest (hand-written session, or a consistency dir that never had one) —
+        # nothing to enforce. Fail open: this gate only tightens sessions that declared
+        # a whitelist. A session can therefore dodge it by having no manifest, but the
+        # manifest is what names the whitelist in the first place: with none there is
+        # nothing to check against, and failing closed would block every pre-manifest
+        # session in history.
+        return []
+
+    forced = state.get("agents_forced") or []
+    if not isinstance(forced, list) or not forced:
+        return []
+    invocations = state.get("subagent_invocations")
+    if not isinstance(invocations, list):
+        invocations = []
+    missing = []
+    for inv_name in forced:
+        recorded = next(
+            (
+                i.get("output_file")
+                for i in invocations
+                if isinstance(i, dict) and i.get("name") == inv_name
+            ),
+            None,
+        ) or f"{inv_name}.md"
+        path = os.path.join(session_dir, os.path.basename(str(recorded)))
+        try:
+            if os.path.getsize(path) > 0:
+                continue
+        except OSError:
+            pass  # absent, or unreadable — either way we have no report
+        missing.append(inv_name)
+    return missing
+
+
 def _summary_is_resolved(summary_path: str) -> bool:
-    """A review is 'resolved' if it surfaced nothing actionable OR was followed
-    up. True when:
-      - a sibling RESOLUTION.md exists (critical/warning were addressed), OR
-      - the report's overall risk is NONE/LOW AND neither the Critical nor the
-        Warning table has a data row.
+    """A review is 'resolved' when BOTH hold:
+
+      1. **coverage** — every `agents_forced` reviewer left a report on disk
+         (`_forced_coverage_missing`); AND
+      2. **findings dealt with** — EITHER a sibling RESOLUTION.md exists (critical/warning
+         were addressed) OR the overall risk is NONE/LOW with no data row under either the
+         Critical or the Warning table.
+
+    (Written as an explicit 1-AND-2 rather than a flat bullet list: read with normal
+    operator precedence, `A, AND B, OR C` parses as `(A AND B) OR C` — i.e. "risk is low
+    ⇒ resolved regardless of coverage", the exact hole this gate closes.)
+
+    An under-covered session simply is not "resolved", so it cannot satisfy the gate and
+    a complete review has to run. Nothing is retroactively broken: the guard takes the
+    newest *resolved* review, so historical sessions that fall out of that set only stop
+    counting — and they were already older than any code being changed now.
     """
     session_dir = os.path.dirname(summary_path)
+
+    missing_forced = _forced_coverage_missing(session_dir)
+    if missing_forced:
+        return False
+
     if os.path.exists(os.path.join(session_dir, "RESOLUTION.md")):
         return True
 

@@ -269,6 +269,108 @@ class OrchestratorStateTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("(none)", r.stdout)
 
+    # ---- report paths are session-relative, never the recorded worktree path ----
+    #
+    # `output_file` records the worktree the session was prepared in. Worktrees are
+    # deleted when their task ends, but `review/**` is committed — so a session read from
+    # any later worktree sits at a different absolute path. Trusting the recorded path
+    # reported "no report" for 537 of 575 committed sessions (2026-07-17).
+
+    def _write_state_with_dead_worktree_paths(self, names, **overrides):
+        state = {
+            "agents_pending": list(names),
+            "agents_success": [],
+            "agents_fatal": [],
+            "subagent_invocations": [
+                {
+                    "name": n,
+                    # A worktree that no longer exists — the shape every finished task leaves.
+                    "output_file": f"/Volumes/gone/.claude/worktrees/dead-1234/review/code/2026/01/01/00_00_00/{n}.md",
+                }
+                for n in names
+            ],
+        }
+        state.update(overrides)
+        self.state_file.write_text(json.dumps(state), encoding="utf-8")
+
+    def test_verify_coverage_finds_reports_when_the_recorded_worktree_is_gone(self):
+        self._write_state_with_dead_worktree_paths(["security"], agents_forced=["security"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--verify-coverage", str(self.sd))
+        self.assertEqual(
+            r.returncode, 0,
+            "coverage must be judged in the session dir, not at the dead worktree path:\n" + r.stderr,
+        )
+
+    def test_sync_from_disk_finds_reports_when_the_recorded_worktree_is_gone(self):
+        self._write_state_with_dead_worktree_paths(["security", "testing"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_success"], ["security"])
+        self.assertEqual(s["agents_pending"], ["testing"])
+
+    # ---- read paths self-heal (no --sync-from-disk obligation) ----------------
+    #
+    # W2: an obligation that lives only in prose is the first thing to go under pressure —
+    # so the SoT reconciles itself on read instead of asking anyone to remember.
+
+    def test_summary_state_reconciles_before_reporting(self):
+        self._write_invocations(["security", "testing"])  # both pending, none on disk
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--summary-state", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("pending=1", r.stdout)
+        self.assertIn("success=1", r.stdout)
+        # and it healed the committed artifact, not just the printed line
+        self.assertEqual(self._state()["agents_success"], ["security"])
+
+    def test_resume_reconciles_so_a_loop_does_not_rerun_finished_agents(self):
+        self._write_invocations(["security", "testing"])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--resume", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_success"], ["security"])
+        self.assertEqual(s["agents_pending"], ["testing"])
+
+    def test_reconcile_does_not_leave_an_agent_in_both_pending_and_fatal(self):
+        # A fatal agent is not merely "not run yet"; double membership makes the
+        # pending/fatal counts disagree with each other.
+        self._write_invocations(
+            ["security", "testing"], agents_fatal=["security"], agents_pending=["testing"]
+        )
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_fatal"], ["security"])
+        self.assertNotIn("security", s["agents_pending"])
+
+    def test_reconcile_persists_a_fatal_only_change(self):
+        # `changed` must consider agents_fatal: a run that only drops a stale fatal used
+        # to fix `state` in memory and then skip the save.
+        self._write_invocations(["security"], agents_fatal=["security"], agents_pending=[])
+        (self.sd / "security.md").write_text("x", encoding="utf-8")
+        r = _run("--sync-from-disk", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["agents_fatal"], [], "fatal cleared in memory but not persisted")
+        self.assertEqual(s["agents_success"], ["security"])
+
+    def test_reconcile_on_read_preserves_rate_limit_bookkeeping(self):
+        # An agent that hit a limit has no file and must stay pending — without losing
+        # the reset hint /loop schedules from.
+        self._write_invocations(
+            ["security"], rate_limit_episodes=2, last_reset_hint_sec=900
+        )
+        r = _run("--summary-state", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        s = self._state()
+        self.assertEqual(s["rate_limit_episodes"], 2)
+        self.assertEqual(s["last_reset_hint_sec"], 900)
+        self.assertIn("last_reset=900", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -115,5 +115,10 @@ sub-agent 는 하네스로부터 **본 규약과 상충하는 지시**를 함께
   authoritative 로 삼아 summary agent 에 **인라인 전달**한다. 파일이 없어도 판정이 온전하다.
 
 **직접 Agent fan-out 시 주의**: Workflow 를 우회하면 위 보정이 없다. `output_file` Write 를
-명시적으로 지시·확인하고, 끝나면 `--sync-from-disk` 로 `_retry_state.json` 을 실측 동기화한다
-(그 경로는 `--update` 를 자동 호출하지 않는다).
+**명시적으로 지시·확인**시킬 것 — 안 그러면 그 agent 의 결과가 사라진다.
+
+상태 기록(`_retry_state.json`)은 신경 쓰지 않아도 된다: `--summary-state`/`--resume` 가 읽을 때
+디스크로 자가 reconcile 한다. `agents_forced`(router_safety 화이트리스트) 미이행은
+**`review_guard` 가 push/stop 에서 기계적으로 차단**한다 — 그 세션은 RESOLUTION.md 가 있어도
+"해소" 로 인정되지 않는다. 판정은 **세션 디렉토리의 리포트 파일** 기준이지 `agents_success` 나
+`output_file` 의 절대경로가 아니다(후자는 이미 삭제된 워크트리를 가리킨다).
