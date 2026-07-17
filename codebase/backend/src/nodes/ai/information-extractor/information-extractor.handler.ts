@@ -1,5 +1,6 @@
 import {
-  NodeHandler,
+  ResumableNodeHandler,
+  AssertEndReasonDomain,
   NodeHandlerOutput,
   ExecutionContext,
   ValidationResult,
@@ -190,7 +191,14 @@ interface MultiTurnState {
 
 const FINALIZE_TOOL_NAME = 'finalize_extraction';
 
-export class InformationExtractorHandler implements NodeHandler {
+/**
+ * `ResumableNodeHandler<EndReason>` — multi-turn 계약을 **자기 종결 도메인**
+ * (`InformationExtractorEndReason`) 으로 좁혀 구현한다. 제네릭 이전엔 이 선언이
+ * 불가능했다: 계약이 `AiAgentEndReason` 으로 고정돼 있어 `condition` ∉ IE ·
+ * `completed` ∉ Agent 로 bivariance 가 양방향 실패했기 때문(TS2416). 그래서 tsc 가
+ * 이 계약을 전혀 검사하지 못했고, 안전은 순전히 엔진의 호출 패턴에 기대고 있었다.
+ */
+export class InformationExtractorHandler implements ResumableNodeHandler<EndReason> {
   metadata = informationExtractorNodeMetadata;
   private readonly logger = new Logger(InformationExtractorHandler.name);
   constructor(
@@ -1918,3 +1926,15 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
     }
   }
 }
+
+/**
+ * 위 `implements` 의 타입 인자(`EndReason`)가 **검사되는 주장**이 되도록 고정한다
+ * — 메서드 파라미터 bivariance 때문에 `implements` 만으로는 구현이 도메인을 좁혀도
+ * 통과한다 (SoT: `AssertEndReasonDomain`). 위 `default: 'error'` 는 타입이 아니라
+ * 런타임 방어라 이 단언의 대상이 아니다.
+ */
+const _endReasonDomainLock: AssertEndReasonDomain<
+  InformationExtractorHandler,
+  EndReason
+> = true;
+void _endReasonDomainLock;
