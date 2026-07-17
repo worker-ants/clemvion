@@ -42,3 +42,15 @@ export interface TurnRagDelta {
   ragSources: RagSource[];
   ragDiagnostics: RagDiagnostics | null;
 }
+
+/**
+ * `sources[]` 에서 문서명을 dedup 해 표시 순서대로 돌려준다.
+ *
+ * Inv-9 (spec/conventions/conversation-thread.md §9.9) 는 🔎 `rag` 행 · 📚
+ * References chip · References 탭이 **같은 turnIndex 에 같은 sources[]** 를
+ * 보이도록 강제한다. dedup 규칙이 표면마다 복제되면 그 불변량이 조용히 갈라지므로
+ * 단일 헬퍼로 둔다.
+ */
+export function uniqueDocumentNames(sources: RagSource[]): string[] {
+  return Array.from(new Set(sources.map((s) => s.documentName)));
+}

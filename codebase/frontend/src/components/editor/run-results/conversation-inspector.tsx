@@ -28,6 +28,7 @@ import {
   groupToolCallItems,
   isAssistantContentBlank,
 } from "@/lib/conversation/conversation-utils";
+import { uniqueDocumentNames } from "@/lib/conversation/rag-types";
 import type { TranslationKey } from "@/lib/i18n/core";
 
 // spec/conventions/conversation-thread.md §9.1 — `presentation_user` source
@@ -77,7 +78,7 @@ function ReferencesChip({
 }) {
   const t = useT();
   if (sources.length === 0) return null;
-  const docNames = Array.from(new Set(sources.map((s) => s.documentName)));
+  const docNames = uniqueDocumentNames(sources);
   const shown = docNames.slice(0, MAX_VISIBLE_DOC_NAMES);
   const extra = docNames.length - shown.length;
   return (
@@ -742,7 +743,7 @@ function RagRetrievalRow({
           />
         ) : (
           <span className="truncate">
-            {Array.from(new Set(sources.map((s) => s.documentName))).join(" · ")}
+            {uniqueDocumentNames(sources).join(" · ")}
           </span>
         )}
       </div>

@@ -373,6 +373,81 @@ export const ctS17HistoryFailedConversation = {
 } as const;
 
 /**
+ * CT-S18/S19/S20 — 🔎 KB 자동검색(`rag`) 행과 🔧 도구 행의 시각 구분 (§1.1.2·§9.1).
+ *
+ * 엔진이 LLM 호출 **전** 자동 수행한 검색이라 LLM 이 호출한 도구와 인과가 다르다.
+ * 데이터는 `meta.turnDebug[].ragSources` — References 탭·📚 chip 과 **동일 소스**
+ * 여야 한다 (Inv-9).
+ */
+function ragChunk(name: string) {
+  return {
+    chunkId: `c-${name}`,
+    documentId: `d-${name}`,
+    documentName: name,
+    content: "…",
+    score: 0.9,
+  };
+}
+
+/** CT-S18 — 한 턴에 자동 KB 검색 + KB 도구 호출이 동시 발생. */
+export const ctS18RagAndToolSameTurn = {
+  /** 노드 output — References 탭·🔎 행이 공유하는 meta.turnDebug */
+  outputData: {
+    config: { mode: "multi_turn" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "환불 규정?" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [{ id: "call_1", name: "kb_search", arguments: "{}" }],
+          },
+          { role: "tool", content: '["chunk"]', toolCallId: "call_1" },
+          { role: "assistant", content: "환불은 7일 이내입니다" },
+        ],
+        turnCount: 1,
+        endReason: "completed",
+      },
+    },
+    meta: {
+      model: "m",
+      turnDebug: [
+        {
+          turnIndex: 1,
+          llmCalls: [],
+          ragSources: [ragChunk("환불.md"), ragChunk("약관.md")],
+          ragDiagnostics: {
+            attempted: true,
+            searchedKbCount: 1,
+            queriesUsed: ["환불"],
+            resultCount: 2,
+          },
+        },
+      ],
+    },
+  },
+} as const;
+
+/** CT-S19 — turnDebug 부재 (구형 실행). 🔎 행 생략, 레이아웃 무손상. */
+export const ctS19NoTurnDebug = {
+  outputData: {
+    config: { mode: "multi_turn" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "안녕" },
+          { role: "assistant", content: "네" },
+        ],
+        turnCount: 1,
+        endReason: "completed",
+      },
+    },
+    meta: { model: "m" },
+  },
+} as const;
+
+/**
  * 시나리오 목록 enum 형 export — 누락 시 컴파일 에러로 즉시 발견.
  */
 export const conversationScenarios = {
@@ -386,4 +461,6 @@ export const conversationScenarios = {
   ctS15RetryableFailedConversation,
   ctS16NonRetryableFailedConversation,
   ctS17HistoryFailedConversation,
+  ctS18RagAndToolSameTurn,
+  ctS19NoTurnDebug,
 } as const;

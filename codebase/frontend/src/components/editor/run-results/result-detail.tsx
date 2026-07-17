@@ -1094,7 +1094,11 @@ export function ResultDetail({
   const conversationPreview = isWaitingConversation ? (
     <ConversationInspector
       result={result}
-      conversationMessages={conversationMessages}
+      // live 분기도 병합 배열을 넘긴다 — raw store prop 을 넘기면 (a) 🔎 행이
+      // live Preview 에 아예 안 나오고 (b) `ResultTimeline`(병합 배열) 과
+      // 인덱스 공간이 갈려 공유 `selectedConversationItemIndex` 가 서로 다른
+      // 항목을 가리킨다. 두 surface 는 항상 동일 배열을 봐야 한다 (§9.6·Inv-5).
+      conversationMessages={effectiveConversationMessages}
       selectedItemIndex={selectedConversationItemIndex}
       isLive={true}
       isWaitingAiResponse={isWaitingAiResponse}

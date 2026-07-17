@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatDuration } from "./utils";
 import { useT } from "@/lib/i18n";
+import { uniqueDocumentNames } from "@/lib/conversation/rag-types";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -80,9 +81,7 @@ export function ConversationTimelineItem({
             })}
           </span>
           <span className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
-            {Array.from(
-              new Set((item.rag?.sources ?? []).map((s) => s.documentName)),
-            ).join(" · ")}
+            {uniqueDocumentNames(item.rag?.sources ?? []).join(" · ")}
           </span>
         </div>
       ) : item.type === "system_error" ? (

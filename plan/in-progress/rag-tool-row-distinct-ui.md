@@ -181,7 +181,7 @@ D4 를 **번복하지 않고 적용 범위를 명확화**한다:
 
    > **exhaustive switch case 의무**: `rag` 를 유니온에 넣으면 `threadTurnsToConversationItems` 의 `const _exhaustive: never = turn.source` ([`conversation-utils.ts:322`](../../codebase/frontend/src/lib/conversation/conversation-utils.ts)) 가 **컴파일 타임에 `rag` case 를 강제**한다. wire 에 `rag` 가 실려오지 않아도 방어 case 를 둔다 — `system_error` 가 같은 구조 (`interaction-type-registry.md` §2 주석).
 2. `execution-store.ts` — `ConversationItem.type` 유니온에 `rag` + `rag?: { sources: RagSource[] }` 필드 (**`turnIndex` 는 top-level 재사용** — 위 §1.2.2 참조).
-3. `conversation-inspector.tsx` — **`RagRetrievalRow`** (SummaryView) + **`RagRetrievalDetail`** (SelectedItemDetail).
+3. `conversation-inspector.tsx` — **`RagRetrievalRow`** (SummaryView) — SelectedItemDetail 도 같은 컴포넌트 재사용.
 
    > **`RagDetail`/`RagBubbleSummary` 이름을 재사용하지 않는다** (naming_collision WARNING 2): 그 이름들은 **바로 직전 커밋 `12ceee587`(PR #959)에서 삭제**됐다. 같은 이름을 다른 데이터 출처로 되살리면 git 이력상 "되돌림(revert)" 으로 오인된다. `RagRetrieval*` 은 이름 자체가 "도구 호출이 아니라 주입 이벤트" 라는 본 작업의 핵심 구분을 담는다.
 
