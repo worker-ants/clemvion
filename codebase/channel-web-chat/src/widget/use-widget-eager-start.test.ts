@@ -2604,4 +2604,80 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 복원 분기로 들어가 SSE 를 열지 않았다.
     expect(getEs()).toBeNull();
   });
+
+  // A-6 — `ERROR` 로 종료된 대화가 `wc:boot` 재전송으로 부활하지 않는다.
+  //
+  // 재현 확인: `ERROR` 는 `phase: "ended"` 로 보내면서 **세션을 정리하지 않는다**(`teardownSession` 을
+  // 거치지 않는 유일한 종료 경로). 저장 세션이 남으므로 host 가 `wc:boot` 을 재전송하면(§106 — 외형
+  // 갱신 등, 관리자 미리보기가 실제로 그렇게 한다) 복원 분기가 그 세션을 `RESTORED` 로 되살려
+  // **ended → streaming** 으로 부활시켰다. 사용자에겐 실패해 끝난 대화가 이유 없이 되살아나 보인다.
+  //
+  // `08_29_33` W4 가 "실패 사례가 없다"며 `RESTORED`/`BOOTED` 로의 가드 확대를 보류했던 그 트리거다.
+  it("ERROR 로 종료된 대화는 wc:boot 재전송으로 부활하지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        // 명령이 500 으로 실패 → ERROR → ended (세션 정리 없음).
+        if (u.includes("/interact")) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("streaming")); // 복원됨.
+
+    // 대기 표면 → 명령 전송 → 500 → ERROR → ended. **이 경로는 세션을 지우지 않는다.**
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        conversationThread: { turns: [] },
+      });
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+    act(() => result.current.actions.submitMessage("실패할 명령"));
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    // 전제 — 세션이 남아 있어야 이 테스트가 의미를 갖는다(남지 않으면 복원 자체가 불가).
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").toContain("e1");
+
+    // host 가 외형 갱신 등으로 wc:boot 재전송.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+
+    // 종료된 대화가 되살아나지 않았다.
+    expect(result.current.state.phase).toBe("ended");
+  });
 });

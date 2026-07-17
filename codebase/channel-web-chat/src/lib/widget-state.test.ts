@@ -142,6 +142,18 @@ describe("widgetReducer", () => {
     expect(s.phase).toBe("awaiting_user_message");
   });
 
+  // A-6 — `ERROR` 는 세션을 정리하지 않는 유일한 종료 경로라, 저장 세션이 남은 채 host 가 `wc:boot`
+  // 을 재전송하면 복원이 종료된 대화를 되살렸다(재현 확인 → `use-widget-eager-start.test.ts` 의
+  // 통합 회귀 테스트). `WAITING` 과 같은 최후 방어선을 `RESTORED`/`BOOTED` 에도 확대한다.
+  // (`08_29_33` W4 가 "실패 사례 없음"으로 보류했던 확대 — 트리거 충족)
+  it.each<[string, Parameters<typeof widgetReducer>[1]]>([
+    ["RESTORED", { type: "RESTORED", executionId: "e9" }],
+    ["BOOTED", { type: "BOOTED", executionId: "e9" }],
+  ])("%s: ENDED 이후엔 무시(종료된 대화가 streaming 으로 부활하지 않는다)", (_label, action) => {
+    const s = reduce([{ type: "ENDED" }, action]);
+    expect(s.phase).toBe("ended");
+  });
+
   it("ENDED → ended + pending 해제", () => {
     const s = reduce([
       { type: "WAITING", interaction: { type: "buttons" } },

@@ -123,8 +123,23 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
         pending: null,
       };
     case "RESTORED":
+      // **종료된 대화는 복원으로 되살아나지 않는다** — `WAITING` 과 같은 최후 방어선.
+      //
+      // 실패 사례(재현 확인): `ERROR` 는 `phase: "ended"` 로 보내면서 **세션을 정리하지 않는다**
+      // (`teardownSession` 을 거치지 않는 유일한 종료 경로). 그래서 저장 세션이 남고, host 가
+      // `wc:boot` 을 재전송하면(2-sdk §106 — 외형 갱신 등, 관리자 미리보기가 실제로 그렇게 한다)
+      // `applyConfig` 의 복원 분기가 그 세션을 `RESTORED` 로 되살려 **ended → streaming** 으로
+      // 부활시켰다. 사용자에겐 실패해 끝난 대화가 이유 없이 되살아나 보인다.
+      //
+      // 이 가드는 `08_29_33` W4 때 "실패 사례가 없다"는 이유로 `WAITING` 에만 달고 확대를 보류했던
+      // 것이다 — 그 트리거가 이제 충족됐다(plan `webchat-boot-single-flight.md` §A-6).
+      if (state.phase === "ended") return state;
       return { ...state, executionId: action.executionId, phase: "streaming" };
     case "BOOTED":
+      // `START`(→`booting`) 직후에만 오므로 `ended` 에서 도달할 수 없다 — 그래도 `RESTORED` 와
+      // 대칭으로 막는다. 이 리듀서에서 "무조건 전이" 를 남겨두는 것이 이 파일의 반복된 실패
+      // 유형이었다(`08_29_33` W4).
+      if (state.phase === "ended") return state;
       return { ...state, executionId: action.executionId, phase: "streaming" };
     case "WAITING":
       // **종료된 대화는 입력 표면을 다시 열지 않는다** — 최후 방어선.
