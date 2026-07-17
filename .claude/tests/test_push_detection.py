@@ -116,6 +116,25 @@ class IsGitPushTest(unittest.TestCase):
         tokens = guard._tokenize('grep "a\\|git push\\|b" f')
         self.assertEqual(tokens, ["grep", "a\\|git push\\|b", "f"])
 
+    def test_quoted_pure_punctuation_is_read_as_a_boundary_and_that_is_safe(self):
+        """Pins the *measured* behaviour, against a plausible-sounding claim.
+
+        posix shlex strips quotes, so a quoted string that is nothing but
+        punctuation is indistinguishable from the real operator by the time
+        `_is_segment_boundary` sees it — quoting does NOT protect it, and the
+        module docstring must not claim otherwise. Safe in the fail-safe
+        direction: splitting only shortens segments, and a shorter segment
+        cannot acquire a `push` subcommand it never had.
+        """
+        self.assertTrue(guard._is_segment_boundary("&&"))
+        self.assertEqual(guard._tokenize('git commit -m "&&"'),
+                         ["git", "commit", "-m", "&&"])
+        # …and the over-split still resolves to `commit`, so it stays allowed.
+        self.assertFalse(guard._is_git_push('git commit -m "&&"'))
+        # A mixed-content quoted token stays one word — that is what keeps the
+        # quoted-grep case (B) working.
+        self.assertFalse(guard._is_segment_boundary("a|b"))
+
     def test_subcommand_skips_global_options_and_their_values(self):
         self.assertEqual(
             guard._git_subcommand(["git", "-C", "/tmp/wt", "push"]), "push"

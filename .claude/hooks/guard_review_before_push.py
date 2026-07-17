@@ -89,10 +89,19 @@ _ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 def _is_segment_boundary(token: str) -> bool:
     """True when `token` is made up entirely of separator characters.
 
-    Quoted content never reaches here as a punctuation run (shlex keeps a
-    quoted `"a|b"` as one word token), so this only fires on real unquoted
-    shell operators — including runs `_SEGMENT_SEPARATORS`' old exact-token
-    matching missed, like `&&\\n` or `;(`.
+    Catches the operator runs that exact-token matching missed — `&&\\n`,
+    `;(` — which was Critical #1.
+
+    It does NOT distinguish a real operator from a *quoted* string that
+    happens to be pure punctuation: posix shlex strips the quotes, so
+    `git commit -m "&&"` yields a bare `&&` token here and is read as a
+    boundary (measured — do not "fix" the docstring back to claiming quoting
+    protects it). That is harmless in the safe direction: splitting only ever
+    makes segments shorter, and a shorter segment cannot acquire a `push`
+    subcommand it did not already have. The `git commit -m "&&"` above still
+    resolves to subcommand `commit`, i.e. allowed. A mixed-content quoted
+    token (`"a|b"`) does stay one word, which is what keeps the quoted-grep
+    case working.
     """
     return bool(token) and all(ch in _SEGMENT_SEPARATOR_CHARS for ch in token)
 
