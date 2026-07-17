@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "started_at": "2026-07-17T16:46:00Z",
+  "summary_items_total": 2,
+  "items_resolved_ids": [1, 2],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "e0e2123d4", "summary_id": 1, "scope": "frontend-eslint" },
+    {"sha": "e0e2123d4", "summary_id": 2, "scope": "frontend-eslint" }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "infra_blocked",
+  "e2e_log_paths": ["_test_logs/e2e-20260717-165810.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "infra: docker VM disk 98% full (58.4G/1.1G avail) — postgres initdb 'No space left on device'. dangling image prune (docker image prune -f) executed but did not reclaim space (blobs retained by 42.92GB build cache, 39.84GB reclaimable). docker builder prune -f / docker volume prune -af 필요하나 concurrent active e2e stack(clemvion-e2e-report-paths-shared-0edbf0-*) 감지 — 공유 인프라 파괴적 정리는 auto-mode 차단 대상, 사용자 승인 필요.",
+  "last_reset_hint_sec": null
+}

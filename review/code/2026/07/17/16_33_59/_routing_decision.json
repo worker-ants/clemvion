@@ -1,0 +1,86 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-17T16:33:59Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "런타임 성능 영향 없음 (linting 규칙만)"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "레이어 경계 강제 규칙 추가만, 코드 구조 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "documentation",
+      "selected": false,
+      "reason": "config 파일만 변경, API 문서/JSDoc 변경 없음"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json 등 의존성 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 마이그레이션/쿼리 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/락/큐 코드 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "API 라우트/컨트롤러 변경 없음"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "eslint 설정 파일, doc-sync-matrix trigger 매칭 안 됨"
+    }
+  ],
+  "selected_count": 6,
+  "skipped_count": 8,
+  "forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
