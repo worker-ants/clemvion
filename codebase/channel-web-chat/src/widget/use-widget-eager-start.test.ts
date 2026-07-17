@@ -2265,9 +2265,13 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   //
   // 이 케이스가 별도로 필요한 이유: BLOCKED 분기는 `worldGenRef` 를 올리지 않는다(세계가 바뀐 게
   // 아니라 이 시도가 실패했을 뿐). 그래서 성공 경로의 자기치유("먼저 소비한 쪽이 나머지를 stale 화")가
-  // 여기엔 성립하지 않아, 차단된 시도가 **아직 살아있는 다른 시도의** 리셋 의도까지 지울 수 있었다.
-  // `bootGenRef` 소유권 조건이 그걸 막는다 — 이 테스트가 그 조건 하나만 정확히 고정한다.
-  // (ai-review 2026-07-17 12_34_03 — side_effect·testing 독립 발견, 양쪽 다 순서-대조로 재현)
+  // 여기엔 성립하지 않아, **폐기가 있으면** 차단된 시도가 아직 살아있는 다른 시도의 리셋 의도까지
+  // 지운다(재현 확인).
+  //
+  // 이 테스트가 지키는 것은 어떤 가드 조건이 아니라 **폐기 로직의 완전한 부재**다 — 폐기가 없으므로
+  // 이 실패 유형이 존재할 수 없다. 폐기를 어떤 형태로든 재도입하면(BLOCKED 한정이든 세대 소유권이든)
+  // 이 테스트가 깨진다. 그게 의도다 — `use-widget.ts` 의 `pendingResetRef` JSDoc §계약 참조.
+  // (ai-review 2026-07-17 12_34_03 발견 · 13_03_59 에서 설계 자체를 폐기 · 14_30_15 주석 정정)
   it("겹친 부팅의 결과가 갈릴 때, 차단된 쪽이 살아있는 쪽의 리셋을 지우지 않는다", async () => {
     Object.defineProperty(window.document, "referrer", {
       value: "http://host.test/page",
@@ -2329,6 +2333,81 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 2차(허용)가 나중에 resolve — 이쪽이 리셋을 이행해야 한다.
     await act(async () => {
       embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+
+    await waitFor(() => expect(hookPosts).toBe(1));
+  });
+
+  // 위 테스트의 **반대 절반** — 겹친 두 부팅 중 **나중에 진입한** 쪽이 차단으로 먼저 끝나고,
+  // **먼저 진입한** 쪽이 허용으로 나중에 끝나는 순서.
+  //
+  // 이게 별도로 필요한 이유(리뷰어 실측): 위 "혼합 순서" 테스트는 `bootGenRef` 소유권 설계를 **원본
+  // 그대로 재도입해도 통과한다** — 그 설계의 안전한 절반만 고정하기 때문이다. 실제로 결함을 냈던
+  // 절반(소유권자=최신 진입이 차단으로 먼저 끝나며 폐기 → 아직 살아있는 이전 진입의 리셋이 소실)은
+  // 이 테스트만 잡는다. 네 번째 잘못된 설계의 재도입을 막는 유일한 가드다.
+  // (ai-review 2026-07-17 14_30_15 concurrency — PROBE 를 정식 회귀 테스트로 승격)
+  it("겹친 부팅에서 나중 진입이 차단으로 먼저 끝나도 먼저 진입한 쪽이 리셋을 이행한다", async () => {
+    Object.defineProperty(window.document, "referrer", {
+      value: "http://host.test/page",
+      configurable: true,
+    });
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let hookPosts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          hookPosts += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "fresh",
+                status: "pending",
+                interaction: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "old", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    renderHook(() => useWidget());
+    boot(); // 1차 진입.
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    sendHostCommand("resetSession"); // 1차 구간에 접수된 정당한 요청.
+    boot(); // 2차 진입 — 1차는 아직 in-flight.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // **2차(나중 진입)가 차단으로 먼저** 끝난다 — 옛 소유권 설계라면 여기서 폐기가 일어났다.
+    await act(async () => {
+      embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }) } as Response);
+      await flushAsync();
+    });
+    // **1차(먼저 진입)가 허용으로 나중에** 끝난다 — 이쪽이 리셋을 이행해야 한다.
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
       await flushAsync();
     });
 

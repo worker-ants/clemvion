@@ -180,6 +180,15 @@ export function useWidget() {
    * 막자 "먼저 진입했지만 아직 살아있는 시도" 에서 소실), 매번 실측 재현됐다. 폐기가 없으면 그
    * 실패 유형이 **존재할 수 없다**.
    * (ai-review 2026-07-17 11_38_14 · 12_04_49 · 12_34_03 · 13_03_59, 설계 결정은 사용자.)
+   *
+   * **불변식 의존 주의**: 이 플래그는 `triggerEndpointPath` 를 **구분하지 않는다** — 리셋이 접수됐던
+   * endpoint 와 나중에 이를 소비하는 부팅의 endpoint 가 같은지 검사하지 않는다. 지금 안전한 이유는
+   * 오직 **재전송 호출부가 마운트를 유지한 채 endpoint 를 바꾸지 않기** 때문이다: 유일한 재전송 경로인
+   * 관리자 미리보기(`frontend/.../web-chat/live-preview.tsx`)는 endpoint 가 바뀌면 `iframe` 을
+   * **리마운트**해 이 ref 를 포함한 훅 상태를 통째로 초기화한다(공개 SDK 의 `boot()` 재호출도 기존
+   * 인스턴스를 `shutdown()` 후 새 iframe 을 만든다). 그 전제가 깨지면(리마운트 없는 endpoint 전환을
+   * 지원하게 되면) **X 시절 요청이 Y 의 세션을 초기화**할 수 있으니 이 조건도 함께 재검토할 것
+   * (ai-review 2026-07-17 14_30_15 side_effect Q2 — 오늘 기준 도달 불가로 확인).
    */
   const pendingResetRef = useRef(false);
   // 종료 1회 가드 — SSE terminal 이벤트와 REST 폴백 terminal 이 같은 종료에 대해 각각 발화해도
