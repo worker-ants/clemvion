@@ -94,23 +94,33 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
 - [x] 9-4. `/consistency-check --impl-done` — **BLOCK: NO** (checker 5/5, Critical 0 / Warning 0).
       산출: `review/consistency/2026/07/17/23_11_52/SUMMARY.md`
 
-## 후속 (본 PR 범위 밖)
+## 후속 (본 PR 범위 밖) — **이 plan 이 `in-progress/` 에 남는 이유**
 
-- **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
+본 PR 의 구현·검증 체크리스트는 전부 `[x]` 지만, 아래 후속이 미해결이라
+[`plan-lifecycle.md`](../../.claude/docs/plan-lifecycle.md) §1·§2 에 따라 `complete/` 로
+옮기지 않는다 — *"모든 작업·체크리스트·**후속 항목까지** 끝난 plan. 미완 항목이 단 하나라도
+남으면 옮기지 않는다"* / *"미해결 follow-up 항목이 하나라도 있으면 `in-progress/`"*.
+(Stop hook 이 체크박스만 세어 이동을 nudge 했으나, 위 규칙이 우선한다.)
+
+- [ ] **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
   "grep 대상 파일"/"grep 검증 대상"/"코드 grep 결과" 류 잔여 표현 → "AST(코드 리터럴) 스캔
   대상"/"코드 AST 파싱 결과" 로 다듬기. **동일 항목을 3개 게이트가 독립 지적**했다 —
   impl-prep INFO #1(checker 5/5) · `/ai-review` [SPEC-DRIFT] #1 · impl-done INFO #3.
   세 게이트 모두 **비차단·BLOCK 아님** 으로 판정(계약·매트릭스·등록 사이트·enum 목록 불변,
   코드가 spec 의 1차 명칭 "AST 가드" 에 수렴한 방향이라 "코드가 맞고 spec 부차 서술이 낡음").
   developer 는 `spec/` read-only 라 여기서 이월한다.
-- **[developer, 선택]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
+- [ ] **[developer, 선택]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
   `IS_MULTI_TURN_INTERACTION` 위 주석의 "grep 가드" 표현 → "AST 가드" 정정
   (`/ai-review` INFO #1). 본 PR diff 밖 파일이라 미포함.
-- **[developer, 선택]** self-test fixture 보강 (`/ai-review` INFO #2·#3·#4):
+- [ ] **[developer, 선택]** self-test fixture 보강 (`/ai-review` INFO #2·#3·#4):
   union 타입 선언·객체 프로퍼티 값 형태 추가, 정규식 리터럴 비오염 케이스
   (`const re = /real_literal/;`) 명시 단언, 등록 사이트가 `.tsx` 로 확장될 때
   `ts.ScriptKind` 확장자 분기.
-- **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
+- [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
   대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
   앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
   재현됐다(checker 들이 fork-point SHA 재계산으로 자체 우회).
+
+> **종결 조건**: 위 4건이 모두 해소되면(또는 별 plan 으로 분기되면) `complete/` 로
+> `git mv` + `chore(plan): mark interaction-type-guard-comment-false-negative complete`.
+> Gate C 대비 frontmatter `spec_impact` 는 이미 리스트 형식으로 채워져 있다.
