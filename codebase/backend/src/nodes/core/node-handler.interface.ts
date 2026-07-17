@@ -416,11 +416,9 @@ export interface ResumableMessageOptions {
  * 상태가 그래서 생겼다. 이제 두 핸들러 모두 자기 도메인으로 `implements` 한다.
  *
  * **`implements` 가 커버하는 축과 아닌 축**: 메서드 존재·`state` 파라미터·반환
- * 타입은 `implements` 가 잡는다. 그러나 `endReason` **파라미터 자체는 못 잡는다**
- * — 메서드 파라미터는 bivariant 이고 (게다가 backend 는 `strictFunctionTypes` 가
- * 꺼져 있어 property 문법으로 바꿔도 마찬가지), 구현체가 선언 도메인보다 좁게
- * 받아도 통과한다. 그러면 타입 인자가 주석으로 전락하므로 각 핸들러가
- * {@link AssertEndReasonDomain} 으로 "선언 도메인 == 실제 수용 도메인" 을 잠근다.
+ * 타입은 `implements` 가 잡지만 `endReason` **파라미터 자체는 못 잡는다** —
+ * bivariance 메커니즘·커버 범위 상세는 {@link AssertEndReasonDomain} 이 SoT,
+ * 각 핸들러는 그 단언으로 "선언 도메인 == 실제 수용 도메인" 을 잠근다.
  *
  * ## 기본값이 **합집합이 아니라 교집합**({@link UniversalEndReason})인 이유
  *
@@ -461,9 +459,8 @@ export interface ResumableNodeHandler<
    *
    * `endReason` 은 구현체의 **자기 도메인**(`TEndReason`)이다 —
    * `AiAgentHandler` 는 `AiAgentEndReason`, `InformationExtractorHandler` 는
-   * `InformationExtractorEndReason` 으로 좁혀 `implements` 한다. 단, `implements`
-   * 하나로 이 파라미터가 잠기지는 않는다 (메서드 파라미터는 bivariant) —
-   * 각 핸들러가 {@link AssertEndReasonDomain} 단언을 함께 두어 잠근다.
+   * `InformationExtractorEndReason` 으로 좁혀 `implements` 한다. `implements`
+   * 만으로는 이 파라미터가 안 잠긴다 — {@link AssertEndReasonDomain} 이 SoT.
    *
    * 반대로 **엔진의 범용 호출부**는 노드 타입을 모른 채 가드
    * ({@link isResumableNodeHandler}) 로 narrow 하므로 두 도메인의 교집합
@@ -489,11 +486,14 @@ export interface ResumableNodeHandler<
 }
 
 /**
+ * (본 프로젝트 bivariance/TS2416 락 설계의 SoT — 다른 위치는 이 docblock 을 링크만 한다.)
+ *
  * 구현체의 **실제 endReason 수용 도메인 == `implements` 로 선언한 도메인** 을
  * 고정하는 컴파일 타임 단언. `implements` 가 못 잡는 축을 메운다 — 메서드
- * 파라미터는 bivariant 라 구현이 선언보다 좁게 받아도(`endReason: 'user_ended'`)
- * `implements ResumableNodeHandler<InformationExtractorEndReason>` 는 그대로
- * 통과하고, 그 순간 타입 인자는 검사되지 않는 주석이 된다.
+ * 파라미터는 bivariant 이고 (backend 는 `strictFunctionTypes` 가 꺼져 있어
+ * property 문법으로 바꿔도 마찬가지), 구현이 선언보다 좁게 받아도
+ * (`endReason: 'user_ended'`) `implements ResumableNodeHandler<InformationExtractorEndReason>`
+ * 는 그대로 통과하고, 그 순간 타입 인자는 검사되지 않는 주석이 된다.
  *
  * 사용 (각 핸들러 파일, 클래스 선언 직후):
  * ```ts

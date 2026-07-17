@@ -37,12 +37,12 @@ export {
  *
  * 핸들러는 세 collaborator 의 **composition root** 다 — 생성자 의존성으로 셋을
  * 조립해 executor 에 주입한다. executor 는 핸들러를 역참조하지 않는다.
- */
-/**
- * `ResumableNodeHandler<AiAgentEndReason>` — multi-turn 계약을 **자기 종결 도메인**
- * 으로 좁혀 구현한다. 이 선언이 없으면 엔진이 런타임 duck-typing 가드로만 narrow
- * 하므로 tsc 가 계약 불일치를 전혀 못 잡는다 (제네릭화 이전 상태).
- * 파라미터 도메인은 `implements` 가 아니라 아래 `_endReasonDomainLock` 이 잠근다.
+ *
+ * `ResumableNodeHandler<AiAgentEndReason>` 로 multi-turn 계약을 **자기 종결
+ * 도메인**으로 좁혀 구현한다 — 제네릭이 왜 필요한지, `implements` 가 어떤 축을
+ * 커버하고 못하는지는 {@link ResumableNodeHandler} 를 SoT 로 참조. 요약만:
+ * `implements` 는 `endReason` 파라미터 자체는 못 잠그므로(메서드 파라미터
+ * bivariance) 아래 `_endReasonDomainLock`({@link AssertEndReasonDomain})이 잠근다.
  */
 export class AiAgentHandler implements ResumableNodeHandler<AiAgentEndReason> {
   metadata = aiAgentNodeMetadata;

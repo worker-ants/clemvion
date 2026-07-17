@@ -193,10 +193,11 @@ const FINALIZE_TOOL_NAME = 'finalize_extraction';
 
 /**
  * `ResumableNodeHandler<EndReason>` — multi-turn 계약을 **자기 종결 도메인**
- * (`InformationExtractorEndReason`) 으로 좁혀 구현한다. 제네릭 이전엔 이 선언이
- * 불가능했다: 계약이 `AiAgentEndReason` 으로 고정돼 있어 `condition` ∉ IE ·
- * `completed` ∉ Agent 로 bivariance 가 양방향 실패했기 때문(TS2416). 그래서 tsc 가
- * 이 계약을 전혀 검사하지 못했고, 안전은 순전히 엔진의 호출 패턴에 기대고 있었다.
+ * (`InformationExtractorEndReason`) 으로 좁혀 구현한다. 제네릭이 왜 필요한지
+ * (제네릭 이전엔 `condition` ∉ IE · `completed` ∉ Agent 양방향 bivariance 실패로
+ * 이 `implements` 자체가 TS2416 이었다)는 {@link ResumableNodeHandler} 가 SoT.
+ * `endReason` 파라미터 도메인 잠금은 아래 `_endReasonDomainLock`
+ * ({@link AssertEndReasonDomain}) 담당.
  */
 export class InformationExtractorHandler implements ResumableNodeHandler<EndReason> {
   metadata = informationExtractorNodeMetadata;
