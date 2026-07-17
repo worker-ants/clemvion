@@ -1,4 +1,5 @@
-import { describe, it } from "vitest";
+import { describe, it, expect } from "vitest";
+import ts from "typescript";
 import {
   INTERACTION_TYPE_VALUES,
   CONVERSATION_SOURCE_VALUES,
@@ -8,15 +9,15 @@ import { join } from "node:path";
 
 
 /**
- * AST/grep guard for `WaitingInteractionType` exhaustiveness.
+ * AST guard for `WaitingInteractionType` exhaustiveness.
  *
  * spec/conventions/interaction-type-registry.md §1.2 — the registry lists
  * every code site that switches on this enum. Adding a new enum value must
  * update all those sites in the same PR. The TS compiler enforces switches
  * via `assertNever`, but `if/else` chains and other non-switch consumers
  * (drawer / page detail / SchemaForm-style flag derivation) bypass that
- * check. This test grep-finds string literals of every enum value in each
- * registered file — missing a value = fail.
+ * check. This test parses each registered file and asserts every enum value
+ * appears as a string literal **in code** — missing a value = fail.
  *
  * Adding a new value:
  *   1. Update `WaitingInteractionType` in execution-store.ts
@@ -46,12 +47,7 @@ const REGISTRY_SITES = [
 // `interaction-type-registry.ts` — a source module, so tsc actually reads
 // them (this file is under `src/**/__tests__/**`, which tsconfig excludes,
 // so an assertion written here would be dead). This test only imports that
-// list and runs the runtime grep guard below.
-//
-// Known limitation: the grep matches backtick-quoted mentions too, so a
-// JSDoc reference to a value in a registry site satisfies the guard even
-// when the real branch is missing or misspelled. Treat a green here as
-// "no site forgot the value entirely", not as proof the branch is correct.
+// list and runs the runtime AST guard below.
 const ENUM_VALUES = INTERACTION_TYPE_VALUES;
 
 function readRepoFile(relPath: string): string {
@@ -59,15 +55,89 @@ function readRepoFile(relPath: string): string {
   return readFileSync(join(__dirname, "../../../../../", relPath), "utf-8");
 }
 
+/**
+ * Collect every string literal that appears in **code** (not in comments).
+ *
+ * Why the TypeScript parser rather than a regex: this guard's threat model is
+ * "a registry site forgot to branch on a new enum value", and a site that only
+ * *mentions* the value in prose must not satisfy it. A regex over raw source
+ * cannot tell the two apart — the previous `['"`]value['"`]` pattern was
+ * measured (PR #968 testing review) to stay green when the real branch in
+ * `use-result-detail-waiting.ts` was broken, because the same file's JSDoc
+ * quotes the value. Dropping the backtick from that pattern would not have
+ * fixed it either: comments here quote values with single quotes too (e.g.
+ * `use-execution-events.ts` documents its nodeType fallbacks as `→ 'buttons'`).
+ *
+ * Comments are trivia, not AST nodes, so parsing excludes them structurally.
+ * Matching against *every* code literal (rather than narrower `=== "x"` /
+ * `case "x":` shapes) keeps legitimate branch forms passing — the registry
+ * sites variously use switch cases, `===` comparisons, union type
+ * declarations, object property values, `return`s, and ternaries.
+ *
+ * `NoSubstitutionTemplateLiteral` counts too: a backtick literal in code is
+ * code, and excluding it would only risk false failures.
+ */
+function collectCodeStringLiterals(source: string, fileName: string): Set<string> {
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ false,
+    ts.ScriptKind.TS,
+  );
+  const literals = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      literals.add(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sourceFile, visit);
+  return literals;
+}
+
+/**
+ * Self-test for the guard's own mechanism. Without this, a future refactor
+ * back to a raw-text match would silently restore the comment false-negative
+ * that this file exists to prevent, and every guard below would still be
+ * green. Encodes the PR #968 finding as an executable property.
+ */
+describe("collectCodeStringLiterals", () => {
+  it("collects code literals and ignores mentions inside comments", () => {
+    const fixture = [
+      "/**",
+      " * JSDoc quoting `ghost_backtick`, 'ghost_single' and \"ghost_double\".",
+      " */",
+      "// line comment quoting 'ghost_line'",
+      "/* block comment quoting `ghost_block` */",
+      'const branch = value === "real_literal"; // trailing comment: `ghost_trailing`',
+      "const templated = other === `real_template`;",
+    ].join("\n");
+
+    const literals = collectCodeStringLiterals(fixture, "fixture.ts");
+
+    expect(literals.has("real_literal")).toBe(true);
+    expect(literals.has("real_template")).toBe(true);
+    for (const ghost of [
+      "ghost_backtick",
+      "ghost_single",
+      "ghost_double",
+      "ghost_line",
+      "ghost_block",
+      "ghost_trailing",
+    ]) {
+      expect(literals.has(ghost)).toBe(false);
+    }
+  });
+});
+
 describe("WaitingInteractionType exhaustiveness across registry sites", () => {
   it("every enum value appears as a string literal in every registry site", () => {
     const missing: Array<{ site: string; value: string }> = [];
     for (const site of REGISTRY_SITES) {
-      const src = readRepoFile(site);
+      const literals = collectCodeStringLiterals(readRepoFile(site), site);
       for (const value of ENUM_VALUES) {
-        // Match `'value'` or `"value"` — backend-emitted enum literals.
-        const pattern = new RegExp(`['"\`]${value}['"\`]`);
-        if (!pattern.test(src)) {
+        if (!literals.has(value)) {
           missing.push({ site, value });
         }
       }
@@ -85,7 +155,7 @@ describe("WaitingInteractionType exhaustiveness across registry sites", () => {
 });
 
 /**
- * AST/grep guard for `ConversationTurnSource` exhaustiveness.
+ * AST guard for `ConversationTurnSource` exhaustiveness.
  *
  * spec/conventions/interaction-type-registry.md §2.1 — registry lists every
  * code site that switches on this enum. Adding a new value must update all
@@ -104,10 +174,9 @@ describe("ConversationTurnSource exhaustiveness across registry sites", () => {
   it("every source value appears as a string literal in every registry site", () => {
     const missing: Array<{ site: string; value: string }> = [];
     for (const site of SOURCE_REGISTRY_SITES) {
-      const src = readRepoFile(site);
+      const literals = collectCodeStringLiterals(readRepoFile(site), site);
       for (const value of SOURCE_ENUM_VALUES) {
-        const pattern = new RegExp(`['"\`]${value}['"\`]`);
-        if (!pattern.test(src)) {
+        if (!literals.has(value)) {
           missing.push({ site, value });
         }
       }
