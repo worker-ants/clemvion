@@ -2,6 +2,12 @@
 # chat-channel-validation)의 lint/test/build CI 가드. 종전 이 4개는 전용 CI job 이 없어
 # (backend 전용 워크플로 부재) 회귀가 PR 에서 안 잡혔다. eia-context-followups #3 — eslint config
 # 신설(각 패키지 eslint.config.mjs)로 lint 가 실효화되면서 CI 배선.
+#
+# 모집단 = `codebase/backend/package.json` 의 `@workflow/*` 의존(= backend-공유). 아래 3개 손 목록
+# (pull_request.paths · push.paths · matrix.pkg)이 그 집합과 어긋나면 red:
+#   codebase/frontend/src/lib/repo-guards/__tests__/internal-package-registration.test.ts
+# 그 가드는 로컬 `run-test.sh unit` 에서 돈다 — 본 워크플로 자신은 repo 레벨에서 Actions 가 꺼져
+# 있어 현재 실행되지 않으므로(런 수 0), 여기에 CI job 으로 넣으면 가드가 안 도는 자기모순이 된다.
 name: packages-checks
 
 on:

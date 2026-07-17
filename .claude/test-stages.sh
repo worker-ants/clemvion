@@ -22,6 +22,11 @@ _ensure_deps() {
 
 # lint/unit/build 를 균일하게 도는 내부 공유 패키지 (backend·frontend·web-chat·channel-web-chat 처럼
 # 특수 스텝이 없는 것). 단일 목록으로 cmd_lint/cmd_unit/cmd_build 3곳의 drift 를 방지한다.
+#
+# 신규 패키지 누락 시 그 패키지는 lint/unit/build 어디서도 안 돌지만 wrapper 는 status=PASS 를
+# 반환한다(#968 실사고). 이 목록 ↔ `codebase/packages/*` 대조 가드:
+#   codebase/frontend/src/lib/repo-guards/__tests__/internal-package-registration.test.ts
+# (전용 스텝을 가진 패키지는 여기 없어도 된다 — 가드는 "3단계 커버 여부" 만 본다.)
 INTERNAL_PACKAGES=(
   "@workflow/sdk"
   "@workflow/ai-end-reason"
