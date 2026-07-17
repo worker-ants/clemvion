@@ -12,6 +12,19 @@ failures follow from that, and these tests pin both:
 
 `npm` is stubbed on PATH (never the network), and it records each invocation so
 a test can assert how many installs actually happened.
+
+Two more axes were added once the stale-lock steal above got a real fix
+(00_59_56 review round — not just "pin the two failures", also pin the fix):
+
+  - LOCK LIVENESS — a stolen lock must be both aged past its grace window AND
+    have a dead owner PID (`kill -0`), not age alone (an earlier version stole
+    purely on elapsed time and re-broke concurrency: a live-but-slow install
+    lost its lock to a second installer). See the `_plant_lock` helper and the
+    `test_*_lock_is_*stolen*` / `test_sub_minute_grace_*` methods.
+  - FAILURE THROTTLE — a persistently failing install (network down) must back
+    off rather than retry on every SessionStart with no signal of its own. See
+    the `test_failed_install_is_throttled_*` / `test_failed_install_retries_*`
+    methods.
 """
 
 from __future__ import annotations
@@ -179,6 +192,13 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
 
         stdout/stderr go to DEVNULL, not PIPE (WARNING #5): undrained PIPEs can
         fill the OS buffer and deadlock the children while the parent waits.
+
+        W9: asserts EXACTLY one install, not merely "at most one". The old
+        `assertLessEqual(..., 1)` also passed if all 5 sessions raced the mkdir
+        and every one of them lost/skipped — i.e. the install silently never
+        happens at all, the exact no-signal failure class this whole guard
+        exists to eliminate. The completion marker assertion pins the same
+        thing from the other side: some session must have actually finished.
         """
         env = self._env()
         procs = [subprocess.Popen(["bash", self.bootstrap], cwd=self.repo, env=env,
@@ -187,8 +207,10 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         for p in procs:
             p.wait(timeout=60)
         self.assertEqual([p.returncode for p in procs], [0] * 5)
-        self.assertLessEqual(self._npm_calls(), 1,
-                             "the mkdir lock must serialise the cold-start race")
+        self.assertEqual(self._npm_calls(), 1,
+                         "the mkdir lock must serialise the cold-start race to exactly one install")
+        self.assertTrue(os.path.isfile(self.marker),
+                        "one of the 5 racing sessions must have completed the install")
 
     # --- lock liveness (WARNING #1: steal on liveness, not elapsed time) -----
     def _plant_lock(self, owner_pid, age_seconds):
@@ -242,6 +264,50 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.assertEqual(self._npm_calls(), 0,
                          "a young lock must be left alone regardless of owner liveness")
         self.assertTrue(os.path.isdir(self.lock))
+
+    # --- sub-minute grace (W1: bash `lock_grace / 60` truncation) -------------
+    #
+    # `_lock_is_dead` used to convert lock_grace to minutes for `find -mmin` via
+    # bash integer division. Any grace under 60s truncates to 0, and
+    # `find -mmin -0` matches NOTHING regardless of a file's age (confirmed by
+    # direct experiment: a brand-new file and a months-old file both produce no
+    # match) — so the age gate silently misjudged every age as already-expired.
+    # lock_grace=30 exercises exactly that non-multiple-of-60 path.
+    def test_sub_minute_grace_young_dead_pid_lock_is_not_stolen(self):
+        """age=5s < grace=30s: liveness aside, the lock is too young to steal.
+
+        Non-vacuity: under the pre-fix `find -mmin "-$(( 30/60 ))"` == `-mmin -0`
+        code this always matches nothing, so the (bugged) age gate treated EVERY
+        age — including this 5s one — as already past grace, and stole it. This
+        assertion fails against that code and only passes once the age math is
+        seconds-based.
+        """
+        corpse = subprocess.Popen(["true"])
+        corpse.wait()
+        self._plant_lock(corpse.pid, age_seconds=5)
+        r = self._run(lock_grace=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self._npm_calls(), 0,
+                         "a dead-owner lock younger than a sub-minute grace must not be stolen")
+        self.assertTrue(os.path.isdir(self.lock), "the young lock must survive")
+
+    def test_sub_minute_grace_dead_pid_lock_is_stolen_once_aged_past_it(self):
+        """age=40s >= grace=30s: old enough, and the owner is dead — must steal.
+
+        Paired with the test above: the pre-fix bug made BOTH ages look
+        "expired" (find -mmin -0 always empty), so on its own this assertion
+        would already pass under the bug and prove nothing. It is the sibling
+        age=5s case that catches the regression; this one confirms the fix
+        still steals when it legitimately should.
+        """
+        corpse = subprocess.Popen(["true"])
+        corpse.wait()
+        self._plant_lock(corpse.pid, age_seconds=40)
+        r = self._run(lock_grace=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self._npm_calls(), 1,
+                         "a dead-owner lock aged past a sub-minute grace must be stolen")
+        self.assertTrue(os.path.isfile(self.marker))
 
     # --- failure throttle (WARNING #3) ---------------------------------------
     def test_failed_install_is_throttled_within_cooldown(self):

@@ -59,8 +59,9 @@ fi
 #      re-created the very bug this fixes: a live-but-slow install (a throttled
 #      sandbox network) that crosses 10 min had its lock stolen and a SECOND
 #      npm install ran into the same tree. Release is owner-checked too: a
-#      session only rmdir's a lock it still owns, so it can't delete a lock a
-#      stealer already re-acquired.
+#      session only removes a lock it still owns (see the `rm -rf`, not
+#      rmdir, note below), so it can't delete a lock a stealer already
+#      re-acquired.
 #
 #    - A FAILURE THROTTLE. Without the marker a persistently failing install
 #      (network down, auth expired) would retry on EVERY SessionStart with no
@@ -93,9 +94,25 @@ _install_throttled() {
 # consult liveness: a labelled lock is stolen only if `kill -0` proves its PID
 # gone; an unreadable/garbage owner falls back to age alone (better to reclaim
 # an unlabelled stale lock eventually than wedge forever).
+#
+# Known limitation (W12, 00_59_56 review, not fixed here): `kill -0` alone is
+# exposed to PID reuse (ABA) — if the real owner died and its PID number is
+# later reassigned to an unrelated process, a steal attempt sees "alive" and
+# leaves the lock wedged until that unrelated process also exits. This is the
+# opposite direction of the bug this function fixes (a live holder mistaken
+# for dead), and it fails SAFE (installs stay skipped, never duplicated or
+# corrupted) — plus it only matters past the grace age, on macOS's single PID
+# space, so the odds are low. Tracked, not fixed, in
+# plan/in-progress/harness-guard-followups.md §A; a real fix would key the
+# owner on (PID, start time) instead of PID alone.
 _lock_is_dead() {
     [ -d "$lock" ] || return 1
-    [ -z "$(find "$lock" -maxdepth 0 -mmin "-$(( lock_grace / 60 ))" 2>/dev/null)" ] || return 1
+    # Seconds-based age, mirroring _install_throttled above. The previous
+    # `find -mmin "-$(( lock_grace / 60 ))"` converted the grace to minutes via
+    # bash integer division, which truncates any sub-60s grace to 0 — and
+    # `find -mmin -0` matches nothing at ANY age (verified), silently disabling
+    # the age gate rather than gating at "0 minutes" (W1).
+    [ $(( $(date +%s) - $(_file_mtime "$lock") )) -ge "$lock_grace" ] || return 1
     local owner; owner=$(cat "$lock/owner" 2>/dev/null || echo "")
     case "$owner" in
         ''|*[!0-9]*) return 0 ;;                        # unlabelled/garbage → age alone decides
@@ -112,6 +129,15 @@ if [ -f "$tool_dir/package.json" ] && [ ! -f "$marker" ] \
     if mkdir "$lock" 2>/dev/null; then
         echo "$$" > "$lock/owner" 2>/dev/null || true
         echo "bootstrap: installing mermaid-lint deps (one-time)…"
+        # Known limitation (W2, 00_59_56 review, not fixed here): no timeout wraps
+        # this npm install. A hang (not a crash, not a failure — genuinely stuck,
+        # e.g. a wedged registry connection) blocks THIS session indefinitely,
+        # which is in tension with "bootstrap must never block a session" above.
+        # Blast radius is scoped to the one session holding the lock: every other
+        # concurrent session's `mkdir` fails immediately and skips (see below), so
+        # it cannot cascade. Left unfixed here because a portable watchdog is a
+        # separate, non-trivial change (macOS ships no `timeout`/`gtimeout` by
+        # default); tracked in plan/in-progress/harness-guard-followups.md §A.
         if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
             : > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
             rm -f "$fail_marker" 2>/dev/null || true
