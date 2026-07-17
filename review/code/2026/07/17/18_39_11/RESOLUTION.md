@@ -72,14 +72,18 @@
 
 ## 검증
 
-- lint: **PASS** (60s)
-- unit: **PASS** (82s) — frontend 5513 passed(278파일, plan-frontmatter 가드 포함) ·
+**최종 코드(`fbdda14e3`) 기준 전 단계 재실행** — `§3(재전송)` 교체가 코드에 걸쳐 있어 그 이전
+실행 결과는 근거로 쓰지 않았다.
+
+- lint: **PASS** (63s)
+- unit: **PASS** (82s) — frontend **5517 passed**(278파일, `plan-frontmatter` 가드 포함) ·
   channel-web-chat **390 passed**(22파일)
-- build: **PASS** (137s)
-- e2e: **통과** — `.claude/tools/run-test.sh e2e` (`make e2e-test-full`), 317s.
-  wrapper 요약줄 `tests=256` 은 backend jest 수만 세므로(PROJECT.md §e2e) 로그로 양쪽 확인:
+- build: **PASS** (151s)
+- e2e: **통과** — `.claude/tools/run-test.sh e2e` (`make e2e-test-full`), 355s
+  (로그 `e2e-20260717-201016.log`, 최종 커밋 `20:10:09` 이후 실행).
+  wrapper 요약줄 `tests=256` 은 backend jest 수만 세므로(PROJECT.md §e2e) **로그로 양쪽 확인**:
   backend jest `Tests: 256 passed, 256 total` + playwright `Running 51 tests using 2 workers`
-  → **`51 passed (1.6m)`**. 면제 불가 판정 근거: 변경 set 에 `codebase/channel-web-chat/src/**`
+  → **`51 passed (1.7m)`**. 면제 불가 판정 근거: 변경 set 에 `codebase/channel-web-chat/src/**`
   의 실제 `.ts` 코드가 포함돼 §e2e 면제 화이트리스트의 부분집합이 아니다.
 
 mutation 매트릭스 6종 — SUMMARY.md 참조. 무방비였던 3개 축이 이번에 전부 고정됐다.
