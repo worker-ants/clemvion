@@ -3039,15 +3039,16 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(esAfterReload).not.toBe(esBeforeReload);
   });
 
-  // **대체된 부팅 시도의 지연 `getStatus` 가 살아있는 화면을 되감지 않는다** (boot 축).
+  // **대체된 부팅 시도의 지연 `getStatus` 가 살아있는 화면을 되감지 않는다** (`sessionEstablished()` 가드).
   //
-  // 재현 확인: 호출부 checkpoint 2(`isAttemptStale`)는 `seedWaitingFromStatus` 가 **반환한 뒤** 만
-  // 게이팅하는데 `WAITING` dispatch 는 함수 **안쪽**에서 그보다 먼저 끝난다 — "await 뒤 재검증"
-  // 계약이 함수 경계에서 끊기는 유일한 자리였다. world 축은 이 시나리오 내내 안 바뀐다(대화가
-  // 살아있으므로) → 옛 세계 가드로는 못 잡는다.
+  // 재현된 결함(18_39_11): world 축은 이 시나리오 내내 안 바뀐다(대화가 살아있으므로) → 옛 세계 가드로는
+  // 못 잡는다. 당시엔 boot 세대 비교로 막았으나 그게 두 번 뚫려(no-op 재전송 고착 등, 00_51_53) 재설계
+  // 했다 — 현행 가드는 `seedWaitingFromStatus` 의 `WAITING` dispatch 직전 `sessionEstablished()`("스트림이
+  // 이미 열렸나")다. 다른 시도가 SSE 스트림을 열었으면 이 지연 seed 는 스킵한다(이 테스트가 고정하는 게
+  // 그 가드다 — mutation 으로 확인).
   //
   // 단순 flicker 가 아니라 고착이다: 되감긴 n1 표면에 사용자가 응답하면 이미 지나간 nodeId 로
-  // 명령이 나가 백엔드가 거부한다. (ai-review 2026-07-17 18_39_11 concurrency CRITICAL)
+  // 명령이 나가 백엔드가 거부한다. (ai-review 2026-07-17 18_39_11 concurrency CRITICAL / 00_51_53 재설계)
   it("대체된 시도의 지연 getStatus 가 살아있는 화면을 옛 노드로 되감지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
@@ -3103,13 +3104,13 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
 
   // **반대 축 — 대체된 시도가 발견한 "진짜 종료" 는 그대로 확정돼야 한다.**
   //
-  // 위 테스트와 짝이다. 같은 함수 안에서 표면 갱신은 boot 축을 보고(대체된 시도는 그리지 않음)
-  // 종료 확정은 **일부러 보지 않는다**(대체된 시도도 확정함). 종료는 세계의 사실이지 시도의
-  // 소유물이 아니기 때문 — 살아있는 시도가 `sessionEstablished()` 스킵으로 자기 getStatus 를 아예
-  // 안 낼 수 있고, 버퍼 만료 구간에선 terminal SSE 도 다시 오지 않는다(§replay_unavailable).
+  // 위 테스트와 짝이다. 같은 함수 안에서 표면 갱신은 `sessionEstablished()` 가드를 보고(스트림이
+  // 열렸으면 대체된 시도는 그리지 않음) 종료 확정은 **일부러 보지 않는다**(대체된 시도도 확정함).
+  // 종료는 세계의 사실이지 시도의 소유물이 아니기 때문 — 살아있는 시도가 스트림 열림 스킵으로 자기
+  // getStatus 를 아예 안 낼 수 있고, 버퍼 만료 구간에선 terminal SSE 도 다시 오지 않는다(§replay_unavailable).
   //
-  // 이 방향을 고정하지 않으면 "대칭이 예뻐 보인다" 는 이유로 종료 확정에도 boot 가드가 붙는다 —
-  // 실제로 mutation 시 이 테스트가 없을 땐 388건 전부 통과했다(무방비).
+  // 이 방향을 고정하지 않으면 "대칭이 예뻐 보인다" 는 이유로 종료 확정에도 스트림 가드가 붙는다 —
+  // 실제로 mutation 시 이 테스트가 없을 땐 전부 통과했다(무방비).
   it("대체된 시도가 발견한 종료는 그대로 확정된다 (종료 확정은 boot 축을 보지 않는다)", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
