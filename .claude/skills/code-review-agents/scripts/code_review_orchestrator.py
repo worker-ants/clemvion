@@ -619,11 +619,11 @@ def _git(args, timeout=10):
 def get_git_diff_files(staged_only=False):
     files = []
     try:
-        r = _git(["git", "diff", "--cached", "--name-only"])
+        r = _git(["git", "diff", "--cached", "--no-renames", "--name-only"])
         if r.returncode == 0:
             files.extend(r.stdout.strip().splitlines())
         if not staged_only:
-            r = _git(["git", "diff", "--name-only"])
+            r = _git(["git", "diff", "--no-renames", "--name-only"])
             if r.returncode == 0:
                 files.extend(r.stdout.strip().splitlines())
             r = _git(["git", "ls-files", "--others", "--exclude-standard"])
@@ -650,7 +650,7 @@ def get_git_diff_content(file_path):
 
 def get_git_commit_files(commit):
     try:
-        r = _git(["git", "show", "--name-only", "--pretty=format:", commit])
+        r = _git(["git", "show", "--no-renames", "--name-only", "--pretty=format:", commit])
         if r.returncode == 0:
             return [f for f in r.stdout.strip().splitlines() if f]
     except Exception as e:
@@ -673,7 +673,7 @@ def get_git_commit_diff(commit, file_path=None):
 
 def get_git_range_files(range_spec):
     try:
-        r = _git(["git", "diff", "--name-only", range_spec])
+        r = _git(["git", "diff", "--no-renames", "--name-only", range_spec])
         if r.returncode == 0:
             return [f for f in r.stdout.strip().splitlines() if f]
     except Exception as e:
@@ -696,7 +696,7 @@ def get_git_range_diff(range_spec, file_path=None):
 
 def get_git_branch_diff_files(branch):
     try:
-        r = _git(["git", "diff", "--name-only", f"{branch}..."])
+        r = _git(["git", "diff", "--no-renames", "--name-only", f"{branch}..."])
         if r.returncode == 0:
             return [f for f in r.stdout.strip().splitlines() if f]
     except Exception as e:

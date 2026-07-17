@@ -14,14 +14,20 @@ model: sonnet
 
 ## 수행 절차 B — workflow 모드
 
-prompt 가 `mode=workflow` 로 시작하면 `_retry_state.json` 없이, prompt 본문의 manifest 만으로 동작합니다. 이 모드에서는 보고서를 **(1) `summary_output_file` 에 Write 시도(best-effort)** 한 뒤 **(2) 항상 전문을 반환** 합니다 — 본인은 workflow 의 *마지막(terminal)* sub-agent 라 report-file Write 가 harness 에 차단될 수 있고(병렬 analyzer 의 non-terminal write 는 통과, terminal summary write 만 거부됨), workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 신뢰 경로는 호출자(main)가 반환된 전문을 멱등 Write 하는 것입니다 (merge-coordinator SKILL).
+prompt 가 `mode=workflow` 로 시작하면 `_retry_state.json` 없이, prompt 본문의 manifest 만으로 동작합니다. 이 모드에서는 보고서를 **(1) `summary_output_file` 에 Write 시도(best-effort)** 한 뒤 **(2) 항상 전문을 반환** 합니다.
 
-1. prompt 의 `base`, `branches`, `results` 블록(각 줄 `name<TAB>status<TAB>output_file`), 그리고 `summary_output_file=<경로>` 파싱.
-2. `status` 가 `success`/`fatal` 인 analyzer 의 `output_file` Read. `success` 아닌 것은 "재시도 필요".
-3. 아래 §출력 형식으로 통합. Critical 1건이라도 있으면 상단 **`BLOCK: YES`**.
-4. 완성된 보고서를 **`summary_output_file` 에 Write 시도**합니다 (성공/차단 무관하게 다음 단계 진행).
-5. 정확히 아래 3-파트 형식으로 **반환**합니다:
-   - **1번째 줄 (status 헤더)**: `STATUS=<written|write_blocked> BLOCK=<YES|NO> PATH=<summary_output_file>` (4번 Write 성공이면 `written`, 차단/실패면 `write_blocked`).
+> **왜 전문을 반환하나 — 하네스가 `SUMMARY.md` 를 못 쓰게 막기 때문입니다.** 차단은 **basename 정확 일치** 규칙이고 **본인이 terminal 인지와는 무관**합니다 (실측: 비-terminal agent 의 `SUMMARY.md` Write 도 차단되고, terminal agent 의 일반 파일 Write 는 성공). 실측표: [`subagent-call-contract.md §7`](../docs/subagent-call-contract.md).
+> workflow 스크립트는 FS 접근이 없으므로 **디스크 단일 진실의 유일한 경로는 호출자(main)가 반환된 전문을 멱등 Write** 하는 것입니다 (merge-coordinator SKILL).
+>
+> **반대로 analyzer 파일(`<name>.md`)은 차단되지 않습니다** — 본인이 마지막 agent 여도 쓸 수 있습니다. 아래 2번이 그것을 요구합니다.
+
+1. prompt 의 `base`, `branches`, `results` 블록(각 줄 `name<TAB>status<TAB>output_file`), `summary_output_file=<경로>`, 그리고 **`## 각 analyzer 보고서 전문` 인라인 블록** 파싱.
+2. **누락 파일 영속화**: prompt 가 지목한 각 analyzer 의 `output_file` 이 없으면 **인라인 전문을 그대로 그 경로에 Write** 합니다. (analyzer 는 하네스 지시를 따라 Write 를 건너뛰고 전문만 반환하는 일이 잦습니다 — 그 결과가 디스크에 남지 않으면 감사 추적이 사라집니다.)
+3. **인라인 전문이 authoritative** 입니다. 인라인에 없는 analyzer 만 `output_file` 을 Read 해 보완합니다. `status` 가 `success` 가 아니어도 **전문이 있으면 정상 반영**하고, 전문도 파일도 없는 것만 "재시도 필요" 로 표기합니다.
+4. 아래 §출력 형식으로 통합. Critical 1건이라도 있으면 상단 **`BLOCK: YES`**. **전문을 확보 못 한 analyzer 가 있으면 그 사실을 상단에 명시**합니다 — 그 analyzer 의 Critical 을 못 본 채 내리는 `BLOCK: NO` 는 거짓 음성이고, 본 게이트는 실제 branch 통합을 승인합니다.
+5. 완성된 보고서를 **`summary_output_file` 에 Write 시도**합니다 (차단이 정상 — 성공/차단 무관하게 다음 단계 진행).
+6. 정확히 아래 3-파트 형식으로 **반환**합니다:
+   - **1번째 줄 (status 헤더)**: `STATUS=<written|write_blocked> BLOCK=<YES|NO> PATH=<summary_output_file>` (5번 Write 성공이면 `written`, 차단/실패면 `write_blocked`).
    - **2번째 줄**: 정확히 `===SUMMARY_MARKDOWN_BELOW===` 한 줄 (delimiter).
    - **그 다음**: SUMMARY.md 마크다운 **전문** (Write 성공 여부와 무관하게 항상 포함). 호출자가 이 전문을 디스크에 멱등 기록합니다.
 

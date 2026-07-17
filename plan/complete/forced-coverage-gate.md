@@ -3,7 +3,10 @@ title: W2 — agents_forced 화이트리스트 기계적 강제 + 상태 자가 
 worktree: forced-coverage-gate-c906f7
 started: 2026-07-17
 owner: developer
-status: in-progress
+status: complete
+# 본 작업은 `.claude/**`(하네스) 전용이라 spec 을 수정하지 않았다 — consistency checker 는
+# spec/plan 정합 도구이고 어떤 spec 의 `code:` glob 에도 매칭되지 않는다.
+spec_impact: none
 ---
 
 ## 배경
@@ -87,3 +90,9 @@ W2 의 논지가 "산문 의무는 무너진다" 인데 답이 "의무를 하나
       손대지 않아 4개 리뷰어가 독립 재현 — 이 PR 이 없애려는 "메커니즘 없는 산문" 을 자매
       서브시스템에 그대로 만든 셈. 구현 + 회귀 테스트 6건 신설로 해소.
       W7(빈 파일로 게이트 통과)·W2/W3(fatal 이중멤버십·저장 스킵)도 실 결함이라 fix.
+
+## 후속 (durable 이관)
+
+미룬 항목은 `plan/in-progress/harness-report-contract-followups.md` 로 이관했다 —
+report-path 3곳 공유(W5)·리포트 내용 검증(W7 심화)·문서 hub 정리(INFO#5)·cross-session
+통합 테스트(INFO#7). 본 plan 은 W2(강제+자가치유+경로 오탐 fix) 완결로 종결한다.
