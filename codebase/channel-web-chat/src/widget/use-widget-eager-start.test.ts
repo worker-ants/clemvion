@@ -192,6 +192,12 @@ afterEach(() => {
   // (ai-review 2026-07-17 06_53_03 W4).
   vi.useRealTimers();
   vi.restoreAllMocks();
+  // 같은 이유로 `document.referrer` 오버라이드도 여기서 되돌린다. 테스트 본문 끝에 두면 **assert
+  // 실패 시 실행되지 않아** 다음 테스트로 샌다(`widget-app.test.tsx` 가 이미 쓰는 컨벤션과 동형).
+  // 기본값 `""` 이면 `detectHostOrigin` 이 null → 임베드 검증 fail-open(4-security §3-①) 으로
+  // 되돌아가, 이 오버라이드를 안 쓰는 테스트들의 전제가 보존된다
+  // (ai-review 2026-07-17 12_04_49 testing W2).
+  Object.defineProperty(window.document, "referrer", { value: "", configurable: true });
 });
 
 describe("useWidget — eager 시작(§R6)", () => {
@@ -2093,7 +2099,8 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // `document.referrer` 를 세우는 이유: 미설정 시 `detectHostOrigin` 이 null 을 반환해 임베드 검증이
   // **fail-open**(4-security §3-① 의 soft 컨트롤 설계) 하므로 BLOCKED 자체에 도달하지 못한다.
   it("차단된 부팅 중의 resetSession 은 이후 무관한 부팅으로 새어나가지 않는다", async () => {
-    const referrer = Object.getOwnPropertyDescriptor(window.document, "referrer");
+    // host origin 을 탐지 가능하게 만들어야 allowlist 검증이 실제로 동작한다(미탐지 시 fail-open).
+    // 복원은 전역 afterEach 가 담당 — 아래 단언이 실패해도 다음 테스트로 새지 않도록.
     Object.defineProperty(window.document, "referrer", {
       value: "http://host.test/page",
       configurable: true,
@@ -2171,10 +2178,84 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       await flushAsync();
     });
 
+    // **2차 전제 고정** — 2차 boot 이 (무관한 이유로) 또 차단되면 아래 두 단언은 "아무 일도 안
+    // 일어나서" 통과해버린다. 즉 검증하려는 것을 검증하지 못하는 거짓 음성이 된다. 2차가 실제로
+    // 정상 진행됐음을 먼저 못박는다 (ai-review 2026-07-17 12_04_49 testing W1).
+    await waitFor(() => expect(result.current.state.phase).toBe("streaming"));
+
     // 정상 세션이 살아있고(복원됨), 강제 새 대화도 시작되지 않았다.
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").toContain("legit");
     expect(hookPosts).toBe(0);
+  });
 
-    if (referrer) Object.defineProperty(window.document, "referrer", referrer);
+  // 위 테스트의 **정반대 방향** — 리셋 폐기를 넓히다 정당한 요청을 삼키지 않는지.
+  //
+  // 두 테스트는 한 쌍으로만 의미가 있다. 폐기를 `applyConfig` **진입 시 일괄**로 바꾸면 위 테스트는
+  // 통과하지만 이 테스트가 죽는다(실제로 그렇게 고쳤다가 이 결함을 만들었다 — 재현 확인). 지금
+  // 구조가 성립하는 이유는 **먼저 소비한 쪽이 `newChat`→세대 증가로 나머지 부팅을 stale 화**하는
+  // 자기치유다. (ai-review 2026-07-17 12_04_49 side_effect W1)
+  it("겹친 부팅(boot 재전송)이 그 사이 접수한 정당한 리셋을 삼키지 않는다", async () => {
+    // 구 세션이 있는 채로 부팅 — 리셋이 소실되면 이 세션이 그대로 복원돼버린다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let hookPosts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          hookPosts += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "fresh",
+                status: "pending",
+                interaction: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "old", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+
+    // 1차 부팅이 아직 embed-config 왕복 중일 때 정당한 리셋 요청이 접수된다.
+    sendHostCommand("resetSession");
+
+    // 그 상태에서 host 가 config 를 갱신(2-sdk §106) — 1차는 아직 in-flight.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 두 부팅이 모두 허용으로 resolve.
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+
+    // 리셋이 이행됐다 — 새 대화 webhook 이 정확히 1회(구 세션 복원이 아니라).
+    await waitFor(() => expect(hookPosts).toBe(1));
   });
 });

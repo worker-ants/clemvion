@@ -718,18 +718,6 @@ export function useWidget() {
   useEffect(() => {
     const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
-      // **리셋 의도를 이번 부팅 시도에 스코프한다.** `applyConfig` 는 마운트당 1회가 아니다 — host 는
-      // iframe 재생성 없이 `wc:boot` 를 다시 보내 config 를 갱신할 수 있다(2-sdk §106, 관리자
-      // 미리보기가 실제로 그렇게 한다). 그런데 아래 `pendingResetRef` 소비 지점은 `!allowed`
-      // (BLOCKED) 조기 return **뒤**라, 차단된 부팅 중 도착한 리셋 요청은 플래그를 세워놓고 영영
-      // 소비되지 않는다. 그 stale 플래그를 **무관한 다음 부팅**이 물려받으면, 리셋을 요청한 적 없는
-      // host 의 정상 세션을 조용히 지우고 새 대화를 강제 시작시킨다(재현 확인 — C1-b 가 막은 것과
-      // 같은 "유령 리셋" 클래스가 다른 진입 경로로 남아 있었다).
-      //
-      // 여기서 지우면 스코프가 자명해진다 — **이 시도의 await 구간에 도착한 요청만 유효**하고,
-      // 중단된 이전 시도의 의도는 그 시도와 함께 죽는다.
-      // (ai-review 2026-07-17 11_38_14 — side_effect·testing 독립 지적, testing 이 실측 재현)
-      pendingResetRef.current = false;
       // 세계 세대 캡처 — 아래 두 await(임베드 검증·seed) 뒤 재검증한다. 종전 `cancelled` 지역
       // 플래그는 이 첫 await 만 덮고 seed/openStream 이후는 무방비였다(`worldGenRef` JSDoc §계약).
       const gen = worldGenRef.current;
@@ -737,6 +725,18 @@ export function useWidget() {
       const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
       if (isStale(gen)) return;
       if (!allowed) {
+        // **이 부팅이 차단되면 그 사이 접수한 리셋 의도도 함께 폐기한다.** 아래 소비 지점은 이
+        // return 뒤라 여기서 지우지 않으면 플래그가 영영 남고, **무관한 다음 부팅**(host 는 iframe
+        // 재생성 없이 `wc:boot` 를 재전송할 수 있다 — 2-sdk §106, 관리자 미리보기가 실제로 그렇게
+        // 한다)이 그걸 물려받아 리셋을 요청한 적 없는 host 의 정상 세션을 조용히 지운다(재현 확인).
+        // `blocked` 는 렌더만 막을 뿐 훅을 언마운트하지 않아 ref 가 그대로 산다.
+        //
+        // **`applyConfig` 진입 시 일괄 폐기로 바꾸지 말 것** — 그렇게 하면 겹친 부팅(boot#1 이
+        // await 중일 때 boot#2 도착)이 boot#1 구간에 접수한 **정당한** 리셋을 지워 정반대 결함이
+        // 난다(그 변형도 재현 확인). 지금 구조는 "먼저 소비한 쪽이 `newChat`→세대 증가로 나머지를
+        // stale 화" 하는 자기치유가 성립하므로, 폐기는 **이 시도가 실패한 경우로만** 국한한다.
+        // (ai-review 2026-07-17 11_38_14 W1 / 12_04_49 side_effect W1)
+        pendingResetRef.current = false;
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
       }
