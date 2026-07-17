@@ -16,10 +16,19 @@ const literalSpecifier = (path) => `[${path}.value=/${COMPONENTS_PATH_RE}/]`;
 const backtickSpecifier = (path) =>
   `[${path}.expressions.length=0][${path}.quasis.0.value.raw=/${COMPONENTS_PATH_RE}/]`;
 
-const DYNAMIC_IMPORT_MSG =
-  "레이어 역전: src/lib/** 은 동적 import() 로도 @/components/** 를 import 할 수 없습니다. 타입/유틸이 필요하면 그 대상을 src/lib/ 로 옮기고, components 쪽에서 re-export 하세요.";
-const REQUIRE_MSG =
-  "레이어 역전: src/lib/** 은 require() 로도 @/components/** 를 import 할 수 없습니다. 타입/유틸이 필요하면 그 대상을 src/lib/ 로 옮기고, components 쪽에서 re-export 하세요.";
+// `@/components/**` 를 소비할 수 없는 하위 계층. 규약 SoT: spec/conventions/frontend-layering.md §1·§2.
+// `src/types` 는 import 0건 leaf 이고 `src/lib`·`src/components` 가 함께 소비하므로 계층상 lib 보다
+// 아래다 — 규칙의 근거는 "lib 이라는 디렉터리 이름" 이 아니라 "계층 지위" 다 (§Rationale).
+// 회귀 테스트가 이 배열을 import 해 자기 기대값과 대조한다 (`eslint-layering-guard.test.ts`).
+export const LOWER_LAYERS = ["src/lib/**", "src/types/**"];
+
+const LAYERS_LABEL = LOWER_LAYERS.join(" · ");
+const RESOLUTION_HINT =
+  "타입/유틸이 필요하면 그 대상을 src/lib/ 로 옮기고, components 쪽에서 re-export 하세요 (spec/conventions/frontend-layering.md §3).";
+
+const STATIC_IMPORT_MSG = `레이어 역전: ${LAYERS_LABEL} 은 @/components/** 를 import 할 수 없습니다. ${RESOLUTION_HINT}`;
+const DYNAMIC_IMPORT_MSG = `레이어 역전: ${LAYERS_LABEL} 은 동적 import() 로도 @/components/** 를 import 할 수 없습니다. ${RESOLUTION_HINT}`;
+const REQUIRE_MSG = `레이어 역전: ${LAYERS_LABEL} 은 require() 로도 @/components/** 를 import 할 수 없습니다. ${RESOLUTION_HINT}`;
 
 const REQUIRE_CALL = "CallExpression[callee.name='require']";
 
@@ -37,16 +46,15 @@ const eslintConfig = defineConfig([
     "public/_widget/**",
   ]),
   {
-    // `src/lib/**` 은 `@/components/**` 를 소비하지 않는다 (레이어 역전 금지).
-    // 배경 주석: src/lib/conversation/rag-types.ts ·
-    // src/components/editor/run-results/conversation-utils.ts
+    // 하위 계층은 `@/components/**` 를 소비하지 않는다 (레이어 역전 금지).
+    // 규약·근거·위반 시 해소법: spec/conventions/frontend-layering.md
     //
     // 커버리지 한계: `no-restricted-imports` 는 정적 import/export 선언만 검사하고 동적
     // `import()` 및 CJS `require()` 는 검사하지 않는다 — 아래 `no-restricted-syntax` 가
     // 그 우회 경로를 보조로 커버한다 (문자열·백틱 리터럴 specifier 모두).
     // 남은 사각지대: 경로가 **계산값**인 경우 (`import(someVar)`,
     // `` import(`@/components/${name}`) ``) — 정적 분석 불가능 영역이라 어떤 규칙도 못 막는다.
-    files: ["src/lib/**"],
+    files: LOWER_LAYERS,
     rules: {
       "no-restricted-imports": [
         "error",
@@ -60,8 +68,7 @@ const eslintConfig = defineConfig([
                 "**/../components",
                 "**/../components/**",
               ],
-              message:
-                "레이어 역전: src/lib/** 은 @/components/** 를 import 할 수 없습니다. 타입/유틸이 필요하면 그 대상을 src/lib/ 로 옮기고, components 쪽에서 re-export 하세요.",
+              message: STATIC_IMPORT_MSG,
             },
           ],
         },

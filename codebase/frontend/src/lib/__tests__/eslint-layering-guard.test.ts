@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { Linter } from "eslint";
-import eslintConfig from "../../../eslint.config.mjs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, it, expect, beforeAll } from "vitest";
+import { Linter, ESLint } from "eslint";
+import eslintConfig, { LOWER_LAYERS as CONFIG_LOWER_LAYERS } from "../../../eslint.config.mjs";
 
 /**
  * Guard: `src/lib/**` 는 정적 import 뿐 아니라 동적 `import()` / CJS `require()` 로도
@@ -188,5 +190,65 @@ describe("src/lib layering guard (eslint.config.mjs, 실제 config 로드)", () 
       const code = "export const load = (n: string) => import(`@/components/${n}`);";
       expect(layeringErrors(code).length).toBe(0);
     });
+  });
+});
+
+/**
+ * 위 스위트는 규칙의 **내용**(어떤 코드 형태를 잡는가)을 합성 config 로 검증한다 — 그 구조상
+ * `files:` glob 은 우회되므로 규칙이 **어느 경로에 걸리는가**는 증명하지 못한다. glob 오타나
+ * 스코프 축소(`src/types/**` 누락)는 위 스위트를 그대로 통과한다.
+ *
+ * 여기서는 실제 `ESLint` API 로 `eslint.config.mjs` 를 resolve 해 경로 매칭 자체를 확인한다.
+ * 규약 SoT: spec/conventions/frontend-layering.md §1·§2·§4.
+ */
+describe("가드 스코프 — 실제 ESLint 경로 매칭", () => {
+  const FRONTEND_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+
+  // config 에서 가져오지 않고 **독립적으로 하드코딩**한다 — config 의 glob 을 지우는 mutation 이
+  // 기대값까지 함께 지워 검증이 조용히 사라지는 false green 을 막기 위함. 아래 일치 단언이
+  // 양쪽의 drift 를 잡으므로, 계층을 추가하면 여기서 실패하며 케이스 갱신을 요구한다.
+  const EXPECTED_LOWER_LAYERS = ["src/lib/**", "src/types/**"] as const;
+
+  let eslint: ESLint;
+  beforeAll(() => {
+    eslint = new ESLint({ cwd: FRONTEND_ROOT });
+  });
+
+  async function errorsAt(code: string, filePath: string) {
+    const results = await eslint.lintText(code, { filePath, warnIgnored: false });
+    return (results[0]?.messages ?? []).filter(
+      (m) => m.ruleId === "no-restricted-imports" || m.ruleId === "no-restricted-syntax",
+    );
+  }
+
+  it("config 의 LOWER_LAYERS 가 규약이 규정하는 하위 계층과 정확히 일치한다", () => {
+    expect([...CONFIG_LOWER_LAYERS].sort()).toEqual([...EXPECTED_LOWER_LAYERS].sort());
+  });
+
+  describe.each(EXPECTED_LOWER_LAYERS.map((glob) => glob.replace(/\/\*\*$/, "")))(
+    "%s — 하위 계층이므로 차단된다",
+    (layer) => {
+      it.each([
+        ["정적 import", 'import { Foo } from "@/components/foo";'],
+        ["동적 import()", 'export const load = () => import("@/components/foo");'],
+        ["require()", 'const mod = require("@/components/foo");'],
+        ["백틱 동적 import()", "export const load = () => import(`@/components/foo`);"],
+      ])("%s → error", async (_label, code) => {
+        expect(await errorsAt(code, `${layer}/probe.ts`)).not.toHaveLength(0);
+      });
+
+      it("중첩 경로에도 glob 이 걸린다", async () => {
+        const code = 'import { Foo } from "@/components/foo";';
+        expect(await errorsAt(code, `${layer}/nested/deep/probe.ts`)).not.toHaveLength(0);
+      });
+    },
+  );
+
+  it.each([
+    ["components — 같은 계층", "src/components/probe.tsx"],
+    ["app — 최상위 계층", "src/app/probe.tsx"],
+  ])("%s 는 규약 대상이 아니므로 차단되지 않는다", async (_label, filePath) => {
+    const code = 'import { Foo } from "@/components/foo";';
+    expect(await errorsAt(code, filePath)).toHaveLength(0);
   });
 });

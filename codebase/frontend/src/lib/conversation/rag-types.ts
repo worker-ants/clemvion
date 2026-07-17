@@ -1,12 +1,10 @@
 /**
  * RAG 검색 결과 타입 — `meta.ragSources` / `meta.turnDebug[]` 의 frontend 표현.
  *
- * `@/lib/conversation/` 에 사는 이유: `conversation-utils.ts` 의
- * `mergeRagRetrievalItems` 가 `TurnRagDelta[]` 를 받는데, 그 타입이
- * `@/components/` 에 있으면 `lib/` → `components/` 레이어 역전이 된다.
- * `conversation-utils.ts` 자체가 같은 이유로 lib 에 사는 것과 동일한 판단
- * (`components/editor/run-results/conversation-utils.ts` 의 re-export 주석 참조).
- * `output-shape.ts` 는 기존 소비처 안정성을 위해 re-export 를 유지한다.
+ * `@/lib/conversation/` 에 사는 이유: `conversation-utils.ts` 의 `mergeRagRetrievalItems` 가
+ * `TurnRagDelta[]` 를 받으므로, 이 타입이 `@/components/` 에 있으면 레이어 역전이 된다
+ * (spec/conventions/frontend-layering.md §3). `output-shape.ts` 는 기존 소비처 안정성을
+ * 위해 re-export 를 유지한다.
  *
  * 스키마 SoT: spec/5-system/10-graph-rag.md §4.3 · spec/5-system/9-rag-search.md §4.1
  */

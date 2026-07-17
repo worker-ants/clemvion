@@ -1,11 +1,9 @@
 ---
 id: frontend-layering
-status: partial
+status: implemented
 code:
   - codebase/frontend/eslint.config.mjs
   - codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts
-pending_plans:
-  - plan/in-progress/spec-draft-frontend-layering.md
 ---
 
 # Frontend 레이어 경계 규약
@@ -68,7 +66,7 @@ pending_plans:
 
 ## 4. CI 강제
 
-`codebase/frontend/eslint.config.mjs` 의 레이어 가드 블록:
+`codebase/frontend/eslint.config.mjs` 의 `files: LOWER_LAYERS` (= `["src/lib/**", "src/types/**"]`) 블록:
 
 | 규칙 | 커버 대상 |
 | --- | --- |
@@ -78,19 +76,18 @@ pending_plans:
 
 문자열과 백틱이 **별도 selector** 인 이유는 AST 형태가 다르기 때문이다 — 백틱은 `TemplateLiteral` 노드라 `.value` 프로퍼티가 없어서, 문자열용 `[source.value=/.../]` 매칭이 조용히 빗나간다. 실제로 이 경로는 가드 도입 시점부터 뚫려 있었고 PR #969 에서 `quasis[0].value.raw` 기반 selector 를 추가해 닫았다.
 
-> **현재 CI 커버리지는 `files: ["src/lib/**"]` 뿐이다.** §1·§2 가 규정하는 `src/types/**` 는 아직 glob 에 없다 — 위반 0건이라 실해는 없으나 규약과 집행 범위가 일치하지 않는 상태다. `src/types/**` 확장 + 회귀 케이스는 [`plan/in-progress/spec-draft-frontend-layering.md`](../../plan/in-progress/spec-draft-frontend-layering.md) Phase 2 가 책임지며, 완료 시 본 문서는 `implemented` 로 승격되고 본 단서는 제거된다.
-
 ### 4.1 왜 테스트가 필수인가 — negative-space 가드
 
 현재 위반이 0건이라 `npx eslint src/lib` 는 규칙이 실제로 로드·매칭·발동하는지와 **무관하게** 항상 초록이다. 즉 lint 통과는 가드가 살아있다는 증거가 못 된다. 따라서 `src/lib/__tests__/eslint-layering-guard.test.ts` 가 **실제 config 객체를 ESLint `Linter#verify` 에 먹여** 규칙의 발동 자체를 검증한다.
 
-이 테스트가 고정하는 것 (전부 실제 mutation 으로 탐지 확인됨 — PR #969):
+이 테스트가 고정하는 것 (전부 실제 mutation 으로 탐지 확인됨):
 
 - **규칙 발동**: 금지 형태 전부(정적·bare·동적·백틱·`import type`·re-export)가 error 를 낸다.
 - **오탐 방지**: 근접 경로(`@/components-legacy`)·계산 경로는 잡지 않는다.
-- **flat config 병합 의미론**: `src/lib/**` 를 매칭하는 블록을 **전부** 병합해 검증한다. 배열 뒤쪽 override 가 규칙을 `off` 로 되돌리면 실패해야 하므로, 첫 블록만 보면 fail-open 이다.
+- **flat config 병합 의미론**: 가드 블록을 **전부** 병합해 검증한다. 배열 뒤쪽 override 가 규칙을 `off` 로 되돌리면 실패해야 하므로, 첫 블록만 보면 fail-open 이다.
 - **severity**: 두 규칙이 `error` 여야 한다. `warn` 으로 강등되면 `lint` 스크립트에 `--max-warnings` 제한이 없어 **CLI 는 exit 0 으로 통과**한다 — 이 경우 유닛 테스트가 유일한 방어선이다.
 - **파서 정합**: 프로덕션 config 의 파서를 그대로 꺼내 쓴다. 기본 espree 로 후퇴하면 `import type` fixture 가 파싱조차 안 되고, 그 fatal 이 `ruleId` 필터에 걸러져 "위반 0건" 으로 위장한다.
+- **스코프**: 규칙이 **어느 경로에** 걸리는지. 위 항목들은 합성 config 로 규칙의 *내용*을 검증하느라 `files:` glob 을 우회하므로, glob 오타·스코프 축소(`src/types/**` 누락)·`/**` 누락으로 인한 중첩 미매칭을 원리적으로 못 잡는다. 이를 위해 별도 스위트가 **실제 `ESLint` API 로 config 를 resolve** 해 계층별 경로 매칭을 확인한다. 그 스위트의 기대 계층 목록은 config 에서 가져오지 않고 독립적으로 하드코딩한 뒤 `LOWER_LAYERS` 와 일치를 단언한다 — config 에서 가져오면 glob 을 지우는 순간 검증 대상도 함께 사라져 false green 이 되기 때문이다.
 
 ## Rationale
 
