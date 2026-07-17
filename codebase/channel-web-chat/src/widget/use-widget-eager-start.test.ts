@@ -3199,4 +3199,97 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     );
     expect(webhookPosts.length).toBe(0);
   });
+
+  // **`start()`(eager 부팅) 자신의 seed 도 boot 축으로 보호돼야 한다** — 세 번째(그리고 마지막) 되감기
+  // 경로. 직전 라운드는 `applyConfig` 복원 분기만 boot 토큰으로 막았고, `start()` 는 "world 축만 필요"
+  // 라는 (반증된) 근거로 무방비였다. 세 리뷰어(concurrency·requirement·side_effect)가 독립적으로 실제
+  // 코드로 재현했다: start() 가 세션을 storage 에 쓴 직후·자기 getStatus 응답 전이라는 좁은 창에
+  // wc:boot 재전송이 같은 세션을 복원 분기로 넘겨받아 SSE 로 화면을 전진시킨 뒤, start() 의 지연 응답이
+  // 옛 노드로 화면을 되감고 **두 번째 EventSource 까지 연다**.
+  //
+  // start() 는 부팅 시도(config 경합자)가 아니므로 `beginBootAttempt()` 로 세대를 올리면 안 된다 —
+  // 진입 시점의 `bootGenRef.current` 를 **읽기전용 스냅샷**으로만 잡아 넘긴다. "이 seed 가 응답할 때쯤
+  // 더 최신 재전송이 이미 이 세션을 넘겨받았는가" 만 판별한다.
+  // (ai-review 2026-07-17 23_58_23 concurrency·requirement·side_effect CRITICAL)
+  it("start() 의 지연 seed 가 재전송이 전진시킨 화면을 되감거나 두번째 스트림을 열지 않는다", async () => {
+    let esCount = 0;
+    let latestEs: { emit: (t: string, d: unknown) => void } | null = null;
+    class CountingES {
+      private readonly listeners: Record<string, (e: MessageEvent) => void> = {};
+      constructor() {
+        esCount += 1;
+        latestEs = this;
+      }
+      addEventListener(type: string, l: (e: MessageEvent) => void) {
+        this.listeners[type] = l;
+      }
+      close() {}
+      emit(type: string, data: unknown) {
+        this.listeners[type]?.({ data: JSON.stringify(data) } as MessageEvent);
+      }
+    }
+    vi.stubGlobal("EventSource", CountingES as unknown as typeof EventSource);
+
+    const webhookResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => { webhookResolvers.push(r); });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => { statusResolvers.push(r); });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const webhook202 = () =>
+      ({ ok: true, status: 202, json: async () => ({ data: {
+        executionId: "e1", status: "pending",
+        interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+      } }) }) as Response;
+    const waitingAt = (nodeId: string) =>
+      ({ ok: true, status: 200, json: async () => ({ data: {
+        executionId: "e1", status: "waiting_for_input",
+        context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+      } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 신규 방문(저장 세션 없음). wc:boot #1 → config 확립. 패널 open → start() 진입.
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookResolvers.length).toBe(1)); // start() 의 webhook POST in-flight.
+
+    // webhook 해결 → start() 가 세션을 storage 에 쓰고 자기 getStatus(호출 C, attempt 없음)를 낸다.
+    await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1));
+
+    // C 미해결 중 wc:boot 재전송 → 스트림 미확립 창이라 복원 분기가 방금 쓴 세션을 넘겨받아
+    // 자기 getStatus(호출 D, attempt 있음)를 낸다.
+    boot();
+    await waitFor(() => expect(statusResolvers.length).toBe(2));
+
+    // D 먼저 응답(n1) → 스트림 오픈(부팅 재전송 소유), 화면 n1.
+    await act(async () => { statusResolvers[1](waitingAt("n1")); await flushAsync(); });
+    expect(result.current.state.pending?.nodeId).toBe("n1");
+    expect(esCount).toBe(1);
+
+    // 대화가 SSE 로 전진 → n2.
+    act(() => { latestEs?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n2", conversationThread: { turns: [] } }); });
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+
+    // start() 의 지연 seed(호출 C, attempt 없음)가 뒤늦게 옛 n1 으로 응답.
+    await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
+
+    // 화면은 n2 그대로, 두번째 EventSource 도 안 열린다 — start() seed 는 boot 축으로 스킵된다.
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+    expect(esCount).toBe(1);
+  });
 });

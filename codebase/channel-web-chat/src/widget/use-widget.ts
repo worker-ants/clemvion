@@ -268,8 +268,11 @@ export function useWidget() {
    * 잡힌다(plan `webchat-boot-single-flight.md` §A-5 매트릭스). `guardedAwait` 구조화 대신 이 조합을
    * 택한 근거는 같은 plan §A-0.
    *
-   * *(`start()`/`sendCommand`/`seedWaitingFromStatus` 는 world 축만 필요하므로 `isStale(gen)` 을 그대로
-   * 쓴다 — 필요 없는 곳에 축을 넣지 않는다.)*
+   * *(`sendCommand` 는 world 축만 필요하다 — 명령 실패는 세션 교체(world)만 따지면 되고 표면을
+   * 그리지 않는다. 그러나 `start()` 는 world 축만으로 **부족하다** — 자기 seed 로 WAITING 표면을
+   * 그리므로 `seedWaitingFromStatus` 에 boot 스냅샷을 넘겨야 재전송이 넘겨받은 화면을 되감지 않는다.
+   * "start() 는 world 축만 필요" 라던 종전 서술은 반증됐다 — ai-review 23_58_23. 단 start() 는
+   * 부팅 시도가 아니므로 `beginBootAttempt()` 로 세대를 올리지 않고 `bootGenRef.current` 를 읽기만 한다.)*
    */
   const beginBootAttempt = useCallback(
     () => ({ world: worldGenRef.current, boot: ++bootGenRef.current }),
@@ -501,8 +504,14 @@ export function useWidget() {
    * 스냅샷으로 응답** → world 는 내내 그대로라 옛 `WAITING(n1)` 이 그려져 화면이 n2 → n1 로 되감긴다.
    * (ai-review 2026-07-17 18_39_11 concurrency CRITICAL)
    *
-   * @param attempt 부팅 시도 토큰. `applyConfig` 만 넘긴다 — `start()`(eager 부팅)와
-   *   `replay_unavailable` 폴백은 부팅 시도가 아니라 world 축만 필요하므로 생략한다.
+   * @param attempt 부팅 세대 토큰(WAITING 분기의 boot 축 게이팅용). **두 종류의 호출부가 넘긴다**:
+   *   `applyConfig`(부팅 시도 — `beginBootAttempt()` 로 발급받은 토큰) 와 `start()`(eager 부팅 —
+   *   부팅 시도가 아니므로 세대를 올리지 않고 `bootGenRef.current` 를 **읽기전용 스냅샷**으로 캡처해
+   *   넘긴다). 둘 다 "이 seed 가 응답할 때쯤 더 최신 재전송이 이 세션을 넘겨받았는가" 를 물어야
+   *   화면 되감기를 막는다. `replay_unavailable` 폴백만 생략한다 — 그 경로는 스트림이 **이미 열려
+   *   있어야** 발화하므로(재전송 복원 분기의 "스트림 미확립" 전제와 상호배타) 겹칠 수 없다.
+   *   (직전 라운드는 `start()` 를 "world 축만 필요" 로 오판해 무방비로 뒀고, 3인이 되감기를 재현했다
+   *   — ai-review 2026-07-17 23_58_23.)
    *
    * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
    * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`cannotApplyConfig` 뿐
@@ -610,6 +619,13 @@ export function useWidget() {
     // `++` 인 이유: start 는 세계를 **교체**하므로(옛 execution 을 새것으로) 진행 중인 다른 비동기도
     // 함께 무효화해야 한다. 그 뒤 자기 gen 을 캡처한다.
     const gen = ++worldGenRef.current;
+    // **부팅 세대 읽기전용 스냅샷** — `start()` 는 부팅 시도(config 경합자)가 **아니므로**
+    // `beginBootAttempt()` 로 `bootGenRef` 를 올리지 않는다(올리면 `applyConfig` 쪽 supersede
+    // 카운팅을 오염시킨다). 그저 지금 값을 캡처해, 아래 자기 seed 의 지연 응답이 돌아올 때쯤
+    // **더 최신 `wc:boot` 재전송이 이미 이 세션을 넘겨받았는지**를 판별한다. 없으면 start()
+    // 자신의 시작/재시도 의미는 그대로다. 이게 없으면 재전송이 SSE 로 전진시킨 화면을 start() 의
+    // 지연 seed 가 옛 노드로 되감고 두번째 스트림까지 연다(ai-review 23_58_23 CRITICAL — 3인 재현).
+    const bootAtStart = bootGenRef.current;
     dispatch({ type: "START" });
     try {
       const res = await client.startConversation(cfg.triggerEndpointPath, {
@@ -632,7 +648,7 @@ export function useWidget() {
         // 아래 검사가 잡지만, **이미 종료된 상태**(`endedRef=true`)에서는 `finalizeEnded` 가 dedup 으로
         // 조기 return 해 teardown·gen 증가를 **건너뛴다** → 그 경우 gen 검사만으로는 못 잡는다.
         // 두 검사는 축이 다르다 — outcome=`무엇이 일어났나`, gen=`세계가 바뀌었나`.
-        const outcome = await seedWaitingFromStatus(client, session);
+        const outcome = await seedWaitingFromStatus(client, session, { boot: bootAtStart });
         if (outcome !== "continue") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
