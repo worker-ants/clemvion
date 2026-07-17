@@ -1,0 +1,86 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-17T17:29:21+09:00",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "린트 규칙은 빌드타임만 영향; 테스트 추가도 런타임 성능 무관"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "레이어 경계(src/lib ↔ components) 집행 규칙 강화"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + 신규 테스트 파일"
+    },
+    {
+      "name": "documentation",
+      "selected": false,
+      "reason": "public API 변경 없음; ESLint 메시지는 내부"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 쿼리·마이그레이션 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "비동기/락/큐 코드 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "API 계약 변경 없음"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "내부 lint 설정·테스트 변경만"
+    }
+  ],
+  "selected_count": 7,
+  "skipped_count": 7,
+  "forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
