@@ -2088,17 +2088,19 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     await waitFor(() => expect(hookPosts).toBe(1));
   });
 
-  // 위 fix 의 잔여 경로 — 리셋 의도가 **부팅 시도에 스코프**되는지.
+  // **계약: 접수된 리셋은 다음 성공하는 부팅이 이행한다.**
   //
-  // `applyConfig` 는 마운트당 1회가 아니다: host 는 iframe 재생성 없이 `wc:boot` 를 다시 보내
-  // config 를 갱신할 수 있고(2-sdk §106), 관리자 미리보기가 실제로 그렇게 한다. 리셋 플래그의
-  // 소비 지점은 BLOCKED 조기 return **뒤**라, 차단된 부팅 중 도착한 리셋은 플래그를 세워놓고
-  // 소비되지 않은 채 남는다 → **무관한 다음 부팅**이 그걸 물려받아 리셋을 요청한 적 없는 host 의
-  // 정상 세션을 조용히 지운다(재현 확인). (ai-review 2026-07-17 11_38_14 side_effect·testing)
+  // 부팅이 차단(BLOCKED)돼도 의도는 남아 이후 성공하는 부팅이 이행한다. 그 부팅이 "리셋을 요청한 적
+  // 없어" 보여도 같은 host·같은 위젯 인스턴스이고 요청은 실재했다.
+  //
+  // 이 테스트는 **"실패한 부팅이 자기 리셋을 폐기한다"는 설계를 다시 넣지 못하게** 막는다. 그 설계는
+  // 직관적이지만 원리적으로 불가능하다 — 지금 지워도 되는지는 다른 겹친 시도가 나중에 성공할지에
+  // 달렸고 그건 그 시점에 알 수 없다. 네 번 시도해 네 번 다 반대편 구멍이 났다.
+  // (ai-review 2026-07-17 11_38_14 · 12_04_49 · 12_34_03 · 13_03_59, 설계 결정은 사용자)
   //
   // `document.referrer` 를 세우는 이유: 미설정 시 `detectHostOrigin` 이 null 을 반환해 임베드 검증이
   // **fail-open**(4-security §3-① 의 soft 컨트롤 설계) 하므로 BLOCKED 자체에 도달하지 못한다.
-  it("차단된 부팅 중의 resetSession 은 이후 무관한 부팅으로 새어나가지 않는다", async () => {
+  it("차단된 부팅 중의 resetSession 은 이후 성공하는 부팅이 이행한다", async () => {
     // host origin 을 탐지 가능하게 만들어야 allowlist 검증이 실제로 동작한다(미탐지 시 fail-open).
     // 복원은 전역 afterEach 가 담당 — 아래 단언이 실패해도 다음 테스트로 새지 않도록.
     Object.defineProperty(window.document, "referrer", {
@@ -2178,14 +2180,14 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       await flushAsync();
     });
 
-    // **2차 전제 고정** — 2차 boot 이 (무관한 이유로) 또 차단되면 아래 두 단언은 "아무 일도 안
-    // 일어나서" 통과해버린다. 즉 검증하려는 것을 검증하지 못하는 거짓 음성이 된다. 2차가 실제로
-    // 정상 진행됐음을 먼저 못박는다 (ai-review 2026-07-17 12_04_49 testing W1).
-    await waitFor(() => expect(result.current.state.phase).toBe("streaming"));
+    // **2차 전제 고정** — 2차 boot 이 (무관한 이유로) 또 차단되면 아래 단언이 "아무 일도 안 일어나서"
+    // 통과해버릴 수 있다. 2차가 실제로 정상 진행됐음을 먼저 못박는다
+    // (ai-review 2026-07-17 12_04_49 testing W1).
+    await waitFor(() => expect(result.current.state.phase).not.toBe("blocked"));
 
-    // 정상 세션이 살아있고(복원됨), 강제 새 대화도 시작되지 않았다.
-    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").toContain("legit");
-    expect(hookPosts).toBe(0);
+    // 1차 부팅 구간에 접수된 리셋이 이제 이행된다 — 새 대화 webhook 1회(구 세션 복원이 아니라).
+    await waitFor(() => expect(hookPosts).toBe(1));
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").not.toContain("legit");
   });
 
   // 위 테스트의 **정반대 방향** — 리셋 폐기를 넓히다 정당한 요청을 삼키지 않는지.

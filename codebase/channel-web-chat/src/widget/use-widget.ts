@@ -160,21 +160,6 @@ export function useWidget() {
    */
   const worldGenRef = useRef(0);
   /**
-   * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대.
-   *
-   * `applyConfig` 는 마운트당 1회가 아니다: host 는 iframe 재생성 없이 `wc:boot` 를 다시 보내 config
-   * 를 갱신할 수 있고(2-sdk §106), 그 호출은 이전 호출이 embed-config 왕복 중이어도 **직렬화 없이**
-   * 새로 기동된다(`host-bridge` 가 in-flight 여부를 보지 않는다). 즉 여러 시도가 겹칠 수 있다.
-   *
-   * 이 세대는 오직 **`pendingResetRef` 의 소유권**을 정하는 데 쓴다 — "살아있는 최신 시도만 그 의도를
-   * 폐기할 수 있다". `worldGenRef`(세계 무효화)와는 축이 다르다: 부팅 시도는 세계를 바꾸지 않는다
-   * (그래서 `teardownSession` 이 부팅 중엔 세대를 안 올린다 — C1 fix).
-   *
-   * *(겹친 시도 중 **어느 config 가 최종 적용되는가** 는 여전히 resolve 순서가 정한다 — spec 은
-   * "마지막 `wc:boot` 의 config 를 적용" 이라 하므로 갭이나, 이 fix 와 독립 축이라 이월했다.)*
-   */
-  const bootGenRef = useRef(0);
-  /**
    * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
    *
    * config 확립 전(`applyConfig` 의 embed-config 왕복 중)에 host `resetSession`/`newChat` 이 오면
@@ -182,11 +167,19 @@ export function useWidget() {
    * 무시하면 이전 마운트가 남긴 저장 세션이 복원돼 리셋 요청이 사라진다 — 그래서 의도를 여기
    * 기록해 두고 `applyConfig` 가 `loadSession` **직전**에 소비한다.
    *
-   * **소유권 규칙(`bootGenRef`)**: 이 플래그는 전역이지만 그 **폐기**는 살아있는 최신 부팅 시도만
-   * 할 수 있다. 폐기 조건을 좁히지 않으면 겹친 시도끼리 서로의 의도를 지운다 — 세 방향의 결함이
-   * 실측 재현됐고(유령 리셋 / 리셋 소실 / 혼합 순서), 국소 패치로는 한 방향을 막을 때마다 반대편이
-   * 열렸다. 소유권을 명시한 뒤에야 세 방향이 동시에 닫혔다
-   * (ai-review 2026-07-17 11_38_14 · 12_04_49 · 12_34_03).
+   * **계약: 접수된 리셋은 다음 성공하는 부팅이 이행한다. 소비 외에는 아무도 지우지 않는다.**
+   *
+   * 즉 부팅이 차단(BLOCKED)되거나 config 없이 끝나면 의도는 **그대로 남아** 이후 성공하는 부팅이
+   * 이행한다. 그 부팅이 "리셋을 요청한 적 없어" 보여도 같은 host·같은 위젯 인스턴스이고 요청은
+   * 실재했으므로, 늦게라도 이행하는 것이 맞다.
+   *
+   * **폐기 로직을 다시 넣지 말 것** — "실패한 부팅은 자기 리셋도 폐기한다"는 직관적이지만 **원리적
+   * 으로 구현 불가능**하다: 지금 지워도 되는지는 *다른 겹친 시도가 나중에 성공할지*에 달렸는데 그건
+   * 그 시점에 알 수 없다. 실제로 네 번 시도해 네 번 다 반대편 구멍이 났고(유령 리셋 → 진입-시 일괄
+   * 폐기로 막자 리셋 소실 → BLOCKED 한정 폐기로 막자 혼합 순서에서 소실 → 부팅 세대 소유권으로
+   * 막자 "먼저 진입했지만 아직 살아있는 시도" 에서 소실), 매번 실측 재현됐다. 폐기가 없으면 그
+   * 실패 유형이 **존재할 수 없다**.
+   * (ai-review 2026-07-17 11_38_14 · 12_04_49 · 12_34_03 · 13_03_59, 설계 결정은 사용자.)
    */
   const pendingResetRef = useRef(false);
   // 종료 1회 가드 — SSE terminal 이벤트와 REST 폴백 terminal 이 같은 종료에 대해 각각 발화해도
@@ -738,9 +731,7 @@ export function useWidget() {
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
     const applyConfig = async (cfg: BootMessage) => {
-      if (!cfg.apiBase || !cfg.triggerEndpointPath) return; // 시도로 치지 않는다 — 세대를 올리지 않음.
-      // 이 부팅 시도의 세대 — 뒤에 온 시도가 이 값을 밀어낸다(`bootGenRef` JSDoc §소유권).
-      const bootGen = ++bootGenRef.current;
+      if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
       // 세계 세대 캡처 — 아래 두 await(임베드 검증·seed) 뒤 재검증한다. 종전 `cancelled` 지역
       // 플래그는 이 첫 await 만 덮고 seed/openStream 이후는 무방비였다(`worldGenRef` JSDoc §계약).
       const gen = worldGenRef.current;
@@ -748,21 +739,6 @@ export function useWidget() {
       const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
       if (isStale(gen)) return;
       if (!allowed) {
-        // **차단된 부팅은 그 사이 접수한 리셋 의도를 함께 폐기한다 — 단 자기가 최신 시도일 때만.**
-        //
-        // 폐기가 필요한 이유: 아래 소비 지점은 이 return 뒤라, 안 지우면 플래그가 영영 남고 **무관한
-        // 다음 부팅**이 그걸 물려받아 리셋을 요청한 적 없는 host 의 정상 세션을 지운다(유령 리셋).
-        // `blocked` 는 렌더만 막을 뿐 훅을 언마운트하지 않아 ref 가 그대로 산다.
-        //
-        // 세대 조건이 필요한 이유: 이 분기는 **`worldGenRef` 를 올리지 않는다**(세계가 바뀐 게 아니라
-        // 이 시도가 실패했을 뿐). 그래서 성공 경로의 자기치유("먼저 소비한 쪽이 `newChat`→세대 증가로
-        // 나머지를 stale 화")가 **여기엔 성립하지 않는다**. 무조건 지우면 겹친 시도 중 이쪽이 먼저
-        // resolve 될 때 **아직 살아있는 다른 시도가 소비했어야 할 정당한 리셋**까지 지운다(재현 확인).
-        //
-        // 세 방향이 실측 재현됐고 국소 패치로는 한쪽을 막을 때마다 반대편이 열렸다 — 유령 리셋
-        // (11_38_14) → 진입-시 일괄 폐기로 막자 리셋 소실(12_04_49) → BLOCKED 한정 폐기로 막자 혼합
-        // 순서에서 소실(12_34_03). **소유권을 명시**해야 셋이 동시에 닫힌다.
-        if (bootGenRef.current === bootGen) pendingResetRef.current = false;
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
       }
