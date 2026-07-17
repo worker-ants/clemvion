@@ -212,15 +212,18 @@ void _noMissingX;
 
 **범위 한정**: endReason 만 담는다. `interactionType`·backend `ConversationTurnSource` 는 **`interaction-type-registry.md` 가 이미 SoT 로 소유**하므로 이 패키지로 옮기면 SoT 가 갈린다 — 향후에도 그 문서의 결정 없이는 옮기지 않는다 (초안의 "자리를 열어둔다" 는 서술 철회).
 
-### E-3. backend 선언부를 패키지 import 로 교체 (5곳)
+### E-3. backend 선언부를 패키지 import 로 교체 (~~5곳~~ → **6곳**)
 
 | 파일 | 교체 |
 |---|---|
 | `nodes/core/node-handler.interface.ts:428` | `endReason: AiAgentEndReason` |
 | `nodes/ai/ai-agent/ai-turn-executor.ts:3147·3198·3420` | 동일 |
 | `nodes/ai/information-extractor/information-extractor.handler.ts:55-61` | `type EndReason = InformationExtractorEndReason` (로컬 별칭 유지 — 호출부 무변경) |
+| **`nodes/ai/ai-agent/ai-agent.handler.ts:192`** | **`endReason: AiAgentEndReason`** — 초안이 놓친 6번째 선언처 (아래) |
 
 **동작 무변경** — 리터럴 유니온을 같은 값의 named 타입으로 바꾸는 것뿐이다.
+
+> **"5곳" 은 틀렸다 (2026-07-17 실측 정정)**: 최초 구현(`f0ef4a821`) 후 `ai-agent.handler.ts:192` 에 `'user_ended' | 'max_turns' | 'condition' | 'error'` 인라인 사본이 **그대로 남아 있었다** — engine 이 부르는 handler 표면이 executor 로 위임하는 얇은 래퍼라 초안 조사에서 빠졌다. `grep -rn "user_ended" src/ | grep "|"` 전수로 확인한 결과 backend 에 남은 **마지막** 손 사본이었고 지금은 0곳이다. 리뷰 3인 전원이 이걸 못 본 건 diff-scope 오염으로 reviewer 에게 `codebase/**` 가 안 갔기 때문이다 (§Phase 4).
 
 ### E-3b. `MULTI_TURN_INTERACTION_TYPES` — 같은 함수의 **두 번째** 무가드 손 목록 (재검토 발견)
 
@@ -251,13 +254,18 @@ const MULTI_TURN_INTERACTION_TYPES: ReadonlySet<string> = new Set([
 | 1 | `codebase/backend/Dockerfile` | **2줄** — `:19-24` package.json COPY + `:32-35` **소스** COPY | install 은 되고 **build 에서 깨짐** |
 | 2 | `codebase/frontend/Dockerfile` | **1줄** — `:25-30` package.json COPY (소스는 `:33` 이 통째 복사) | install 깨짐. **backend 와 비대칭** — 이 차이를 놓치면 한쪽만 깨진다 |
 | 3 | `codebase/frontend/Dockerfile.playwright-e2e` | **2줄** — `:29-34` + `:42-` (backend 와 동형 2단) | e2e 이미지 빌드 깨짐 |
-| 4 | `docker-compose.e2e.yml` | mask/volume 확인 | — |
-| 5 | **`.github/workflows/packages-checks.yml` `paths:`** (`:10-13`) | 1줄 | **패키지를 고쳐도 CI 가 안 돈다** (조용한 무검증) |
+| 4 | `docker-compose.e2e.yml` | **1줄** — `playwright-runner.volumes` 마스킹 | **e2e `config-guard` job 하드 실패** (아래) |
+| 5 | **`.github/workflows/packages-checks.yml` `paths:`** (`:10-13`) | **2줄** — `pull_request` **와 `push` 둘 다** (아래) | **패키지를 고쳐도 CI 가 안 돈다** (조용한 무검증) |
 | 6 | **동 파일 `matrix.pkg`** (`:41-`) | 1줄 | **신규 패키지 lint/test/build 가 CI 에서 통째로 빠진다** |
+| **7** | **`.claude/test-stages.sh` `INTERNAL_PACKAGES`** | **1줄** | **로컬 wrapper 의 lint/unit/build 에서 통째로 빠진다** (아래) |
 | — | `pnpm-workspace.yaml` | 불필요 — `codebase/packages/*` 글롭 | |
 | — | `codebase/{backend,frontend}/package.json` | `"@workflow/ai-end-reason": "workspace:*"` | |
 
 **5·6 이 특히 위험하다** — 빌드는 통과하는데 **CI 검증만 조용히 사라진다**. 이번 세션에서 반복 확인된 "가드가 있는 줄 알았는데 안 돌던" 계열이다.
+
+> **"6곳" 도 틀렸다 (2026-07-17 실측 정정)**: 표가 **7번째(`.claude/test-stages.sh`)를 빠뜨렸고**, 그 결과 최초 구현 후 이 패키지의 lint·unit·build 가 **로컬 wrapper 3단계 전부에서 한 번도 실행되지 않았다**. `INTERNAL_PACKAGES` 가 손 유지 배열이라 신규 패키지가 자동 등록되지 않는다 — `status=PASS` 를 받고도 이 패키지에 관한 한 껍데기였다. 표가 스스로 "조용한 무검증" 을 경고하면서 정확히 그 함정에 빠진 셈이다. **교훈: 배선처는 "몇 곳" 을 세지 말고 신규 패키지명을 repo 전수 grep 해 확인한다** (`grep -rn "chat-channel-validation" --include="*.yml" --include="*.sh" --include="Dockerfile*"` 처럼 **기존 패키지명**으로 grep 하면 등록돼야 할 자리가 전부 나온다).
+>
+> 4 도 표기가 안일했다 — "mask/volume 확인" 이라 적었으나 실제로는 `scripts/check-e2e-playwright-config.py` 가 강제하는 **하드 게이트**였고, 누락 상태로 `config-guard` job 이 exit 1 이었다 (side_effect 리뷰가 재현). `docker build` 성공은 이 게이트를 커버하지 않는다.
 
 **검증 순서**: 루트 **clean** `pnpm install` (메모리: in-place 하이브리드 오염) → backend·frontend build → **Docker 빌드 authoritative** (3개 Dockerfile 모두).
 
@@ -280,14 +288,18 @@ const MULTI_TURN_INTERACTION_TYPES: ReadonlySet<string> = new Set([
 
 패키지가 code-level SoT 가 돼도 **spec 산문의 값 열거가 남는다**:
 
-| 문서 | 위치 |
-|---|---|
-| `spec/4-nodes/3-ai/1-ai-agent.md` | §3.2 · §7 (종결·port) |
-| `spec/4-nodes/3-ai/3-information-extractor.md` | §3.2 · §5.6 |
+| 문서 | 위치 | 결과 |
+|---|---|---|
+| `spec/4-nodes/3-ai/1-ai-agent.md` | ~~§3.2~~ · **§7** | §7 상단에 backlink (`9df2bb42f`) |
+| `spec/4-nodes/3-ai/3-information-extractor.md` | ~~§3.2~~ · **§5.6** | §5.6 상단에 backlink (`9df2bb42f`) |
 
 기존 공유 패키지 관례(`cross-node-warning-rules.md` 등)는 **해당 spec 에 패키지를 SoT 로 지목하는 backlink** 를 남긴다. 동일 적용.
 
-**+ endReason 도메인의 영구 귀속처 지정** (convention WARNING 4): 설계 rationale 이 plan 파일에만 있으면 plan 이 `complete/` 로 이동한 뒤 고아가 된다. 기존 4개 패키지가 모두 갖는 "spec 안의 영구 계약 서술처" 를 endReason 에도 지정한다 (`node-output.md` 또는 `conversation-thread.md` 중 택일 — Phase 1 에서 확정).
+> **§3.2 는 대상이 아니다 (2026-07-17 실측 정정)**: 초안이 §3.2 를 지목했으나 양쪽 문서의 §3.2 는 **출력 포트 표**이지 endReason 값 열거가 아니다. 포트 id 가 endReason 값과 상당수 겹쳐(`user_ended` / `max_turns` / `error` / `completed`) 열거처럼 보이지만 **다른 도메인**이다 — 패키지는 endReason **값 도메인**만 소유하고 **port 매핑은 spec 이 소유**한다는 게 이 설계의 경계이며(§7·§5.6 backlink 본문이 그렇게 명시), §3.2 에 패키지를 SoT 로 지목하면 그 경계를 정면으로 흐린다. backlink 는 값을 실제로 열거하는 §7·§5.6 에만 붙는 게 맞다.
+
+**+ endReason 도메인의 영구 귀속처 지정** (convention WARNING 4): 설계 rationale 이 plan 파일에만 있으면 plan 이 `complete/` 로 이동한 뒤 고아가 된다. 기존 4개 패키지가 모두 갖는 "spec 안의 영구 계약 서술처" 를 endReason 에도 지정한다.
+
+→ **확정: [`spec/conventions/interaction-type-registry.md §4`](../../spec/conventions/interaction-type-registry.md)** (Phase 1 §1, `9df2bb42f`). 후보였던 `node-output.md`(봉투 구조 SoT — 값 도메인을 얹으면 경계가 흐려짐)·`conversation-thread.md`(대화 UI 규약 — IE 의 비대화 종결까지 담기엔 범위 불일치) **둘 다 기각**하고 제3의 위치를 골랐다. 근거는 Phase 1 §1 참조. 이 plan 이 `complete/` 로 가도 §4 가 살아있는 귀속처이므로 rationale 은 고아가 되지 않는다.
 
 ## Phase 3 — 테스트 · Phase 4 — `/ai-review`
 
