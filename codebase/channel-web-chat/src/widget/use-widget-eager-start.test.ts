@@ -2537,11 +2537,14 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   //
   // 재현된 결함(ai-review 17_36_57 concurrency CRITICAL): 대체된 1차가 복원 seed 에서 "이미 종료됨"을
   // 발견하면 `finalizeEnded` → `teardownSession` → **world 세대 증가**가 일어난다. 그 무효화는 정당하나
-  // (세션이 실제로 종료됐다), 아직 살아있는 2차가 그걸 "내 world 가 사라졌다"로 오독하고 물러나
-  // **마지막 config 가 적용되지 않았다**(plan=A 고착). 2차는 그때까지 어떤 세션도 건드리지 않았다.
+  // (세션이 실제로 종료됐다), 종전엔 config 적용 checkpoint 가 world 축을 봐서 아직 살아있는 2차가 그걸
+  // "내 world 가 사라졌다"로 오독하고 물러나 **마지막 config 가 적용되지 않았다**(plan=A 고착).
   //
-  // fix: 대체된 시도의 seed 는 종료를 **확정하지 않는다**(`"stale"` 반환). 종료가 유실되진 않는다 —
-  // 저장 세션이 남아 살아있는 시도가 자기 복원 분기에서 같은 스냅샷을 보고 확정한다. **주체만 바뀐다.**
+  // fix(현행): checkpoint 1(`cannotApplyConfig`)을 **boot 축 전용**으로 바꿔, 1차의 정당한 world 증가가
+  // 2차의 config 적용을 막지 못하게 했다. 그러면서도 **종료 확정 자체는 1차(대체된 시도)가 그대로 한다**
+  // — 종료는 세계의 사실이지 시도의 소유물이 아니라, `seedWaitingFromStatus` 의 종료 분기는 boot 축을
+  // 일부러 안 본다(같은 파일 "대체된 시도가 발견한 종료는 그대로 확정된다" 테스트가 이 방향을 고정).
+  // 따라서 이 테스트는 두 결과를 함께 단언한다: 마지막 config 적용(plan=last) **그리고** 종료 확정(ended).
   it("§3(재전송): 대체된 시도의 종료 확정이 마지막 부팅을 죽이지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
@@ -2596,12 +2599,12 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     bootWithPlan("last"); // 2차 재전송 — 1차를 대체한다.
     await waitFor(() => expect(embedResolvers.length).toBe(2));
 
-    // 1차의 seed 가 "이미 종료됨" 으로 응답 — 대체됐으므로 종료를 확정하면 안 된다.
+    // 1차의 seed 가 "이미 종료됨" 으로 응답 — 대체됐어도 종료는 확정한다(world 축, 세계의 사실).
     await act(async () => {
       statusResolvers[0](terminal());
       await flushAsync();
     });
-    // 2차가 뒤늦게 resolve — 1차의 종료 확정에 휩쓸려 물러나면 안 된다.
+    // 2차는 1차의 정당한 world 증가에 휩쓸려 물러나면 안 된다 — checkpoint 1 이 boot 축 전용이라 무사하다.
     await act(async () => {
       embedResolvers[1](allow());
       await flushAsync();
@@ -2613,9 +2616,9 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       });
     }
 
-    // 마지막 boot 의 config 가 적용됐다(§3(재전송)).
+    // 마지막 boot 의 config 가 적용됐다(§3(재전송)) — checkpoint 1 이 boot 축 전용이라 1차의 world 증가에 안 밀린다.
     expect((result.current.config?.profile as { plan?: string } | undefined)?.plan).toBe("last");
-    // 그리고 종료는 유실되지 않았다 — 살아있는 시도가 확정했다(주체만 바뀜).
+    // 그리고 종료는 유실되지 않았다 — 대체된 1차가 world 축으로 그대로 확정했다.
     expect(result.current.state.phase).toBe("ended");
   });
 
@@ -3016,6 +3019,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     await waitFor(() => expect(first.result.current.state.phase).toBe("ended"));
 
     // 탭 새로고침 = 언마운트 → 새 마운트.
+    const esBeforeReload = getEs();
     first.unmount();
     const reloaded = renderHook(() => useWidget());
     boot();
@@ -3028,6 +3032,11 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // §3.1-2: 200 + running → 복원. 대화가 돌아온다.
     await waitFor(() => expect(reloaded.result.current.state.phase).toBe("streaming"));
     expect(reloaded.result.current.state.executionId).toBe("e1");
+    // 그리고 **SSE 가 실제로 재연결됐다** — 복원이 UI phase 만 바꾸고 스트림을 안 열면 위젯이
+    // 새 이벤트를 못 받아 `streaming` 에 멈춘다. 새 마운트가 새 EventSource 를 열었는지 확인한다.
+    const esAfterReload = getEs();
+    expect(esAfterReload).not.toBeNull();
+    expect(esAfterReload).not.toBe(esBeforeReload);
   });
 
   // **대체된 부팅 시도의 지연 `getStatus` 가 살아있는 화면을 되감지 않는다** (boot 축).

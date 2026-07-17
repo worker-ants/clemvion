@@ -1047,7 +1047,6 @@ export function useWidget() {
       // 여기선 오탐이다 — 이 ref 는 DOM 이 아니라 세대 카운터이고, cleanup 이 하려는 일이 바로
       // "그 시점의 최신 값을 증가시켜 in-flight 를 무효화" 하는 것이다. 값을 effect 안 변수로
       // 복사하면(경고가 제안하는 바) 마운트 시점의 stale 값을 증가시켜 의미가 깨진다.
-       
       unmountedRef.current = true;
       // eslint-disable-next-line react-hooks/exhaustive-deps
       worldGenRef.current++;
