@@ -455,6 +455,10 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
 
 ### 5.6 Case: Multi Turn 종결 (4 종)
 
+> **`endReason` 값 도메인의 SoT 는 [`@workflow/ai-end-reason`](../../../codebase/packages/ai-end-reason/)** (`InformationExtractorEndReason`) — 본 절은 각 값의 **의미·port 매핑**을 소유하고, **값 목록 자체**는 패키지가 소유한다. 예전엔 frontend 가 이 목록을 손으로 베껴 들고 있었고 어긋날 때마다 대화 미리보기가 사라졌다 ([interaction-type-registry §4](../../conventions/interaction-type-registry.md#4-ai-노드-endreason--패키지가-sot-가드-비대상)). 값을 추가·삭제하려면 **패키지의 유니온**을 고친다.
+>
+> **6값 유니온 중 본 절이 다루는 건 4값**이다 — `error` 는 [§5.3](#53-case-에러-port-error), `timeout` 은 유니온에 선언만 있고 **생산자가 없는 dormant 값**(`portForEndReason` 에 case 조차 없어 default → `error`). dormant 여도 선언된 이상 대화 UI 화이트리스트에는 포함된다(살아나는 순간 미리보기가 사라지지 않도록). 단일턴 종결 `endReason: "out"`([§5.1](#51-case-single-turn-정상-port-out))은 AI Agent 와 같은 이유로 **패키지 도메인 밖**이다.
+
 multi-turn 의 4 가지 종결 사유. **공통 envelope** (`endReason` / `port` / `status` 만 다름):
 
 ```jsonc

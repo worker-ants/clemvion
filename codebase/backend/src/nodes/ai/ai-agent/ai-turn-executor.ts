@@ -68,6 +68,7 @@ import type {
 import { LlmCallRecord } from '../../../shared/llm-tracing/llm-call-record';
 import { truncateForErrorDetails } from '../../core/error-codes';
 
+import type { AiAgentEndReason } from '@workflow/ai-end-reason';
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
  * UI uses this (rather than parsing tool message content) to render
@@ -3144,7 +3145,7 @@ export class AiTurnExecutor {
    */
   endMultiTurnConversation(
     state: Record<string, unknown>,
-    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    endReason: AiAgentEndReason,
     errorPayload?: { code: string; message: string; details?: unknown },
     failedUserMessage?: string,
     failedUserMessageSource?: ResumableMessageSource,
@@ -3195,7 +3196,7 @@ export class AiTurnExecutor {
     messages: ChatMessage[],
     lastResponse: string,
     turnCount: number,
-    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    endReason: AiAgentEndReason,
     metadata: {
       model: string;
       totalInputTokens: number;
@@ -3417,7 +3418,7 @@ export class AiTurnExecutor {
   }
 
   private static multiTurnPortForEndReason(
-    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    endReason: AiAgentEndReason,
   ): string {
     switch (endReason) {
       case 'user_ended':

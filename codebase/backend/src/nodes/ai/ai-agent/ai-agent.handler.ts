@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { AiAgentEndReason } from '@workflow/ai-end-reason';
 import {
   NodeHandler,
   NodeHandlerOutput,
@@ -189,7 +190,7 @@ export class AiAgentHandler implements NodeHandler {
    */
   endMultiTurnConversation(
     state: Record<string, unknown>,
-    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    endReason: AiAgentEndReason,
     errorPayload?: { code: string; message: string; details?: unknown },
     failedUserMessage?: string,
     failedUserMessageSource?: ResumableMessageSource,

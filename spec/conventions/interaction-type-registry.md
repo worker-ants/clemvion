@@ -110,7 +110,28 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 
 ---
 
-## 4. Rationale
+## 4. AI 노드 `endReason` — **패키지가 SoT** (가드 비대상)
+
+`endReason` 은 위 세 enum 과 **같은 문제 계열**이다 — backend 가 선언하고 frontend 가 소비하는 cross-cutting 값 도메인이고, 실제로 `error`·`condition` 누락으로 **대화 미리보기 탭이 사라지는 회귀가 두 번** 났다 (PR #959).
+
+**그러나 해법이 다르다.** 위 세 enum 은 "매트릭스 + AST 가드 + exhaustive switch" 로 **사본을 감시**하지만, endReason 은 **사본 자체를 없앴다**:
+
+| | |
+|---|---|
+| **SoT** | [`@workflow/ai-end-reason`](../../codebase/packages/ai-end-reason/) — `AiAgentEndReason` / `InformationExtractorEndReason` / 파생 `ConversationEndReason` + 런타임 배열 `CONVERSATION_END_REASONS` |
+| **강제 방식** | 패키지 내부의 `satisfies`(배열 ⊆ 유니온) + `Exclude`(유니온 ⊆ 배열). 어느 노드 유니온에 값이 추가되면 **패키지 컴파일이 깨진다** |
+| **매트릭스** | **불필요** — 소비처가 패키지를 import 하므로 "N곳에 흩어진 분기" 자체가 없다 |
+| **AST 가드** | **불필요** — grep 할 사본이 없다 |
+
+**두 유니온을 합치지 않는 이유**: IE 는 `condition` 라우팅이 없고 대신 `completed`·`max_retries` 를 갖는다. 합치면 각 노드의 종결 의미가 흐려지므로, 각자 유니온을 유지하고 소비자용 **파생 유니온**만 만든다.
+
+> **왜 이 문서에 적는가**: 본 문서는 "cross-cutting enum 누락" 문제의 거버넌스 진입점이다. endReason 이 다른 메커니즘을 쓴다는 사실이 여기 없으면, 다음 사람이 같은 문제를 발견했을 때 **매트릭스에 endReason 이 없는 것을 누락으로 오인**하거나 중복 가드를 만든다.
+
+> **경계**: 값의 **의미·port 매핑** 은 [AI Agent §7](../4-nodes/3-ai/1-ai-agent.md) · [Information Extractor](../4-nodes/3-ai/3-information-extractor.md), 출력 **봉투 구조** 는 [node-output.md](./node-output.md) 가 소유한다 — 패키지는 **값 도메인**만.
+
+---
+
+## 5. Rationale
 
 presentation tool family 도입 과정의 연속 회귀 (SchemaForm key 중복 + buildTools 가드, 실행 내역 렌더 / i18n / system prompt / 페이지 복귀) 는 **모두 동일 패턴**:
 
@@ -122,4 +143,26 @@ presentation tool family 도입 과정의 연속 회귀 (SchemaForm key 중복 +
 2. **AST 가드** 가 매트릭스 vs 코드 grep 결과를 build 단계에서 비교 fail.
 3. **TypeScript exhaustive switch** 가 컴파일러 단계에서 누락 fail.
 
-이 3중 가드가 같은 패턴의 회귀를 영구히 차단한다.
+이 3중 가드가 같은 패턴의 회귀를 차단한다.
+
+> **강도 정정 (2026-07-17 실측)**: 옛 문구는 *"영구히 차단한다"* 였으나 그 표현은
+> 과장이었다. ③ 은 정상 동작하나 — `threadTurnsToConversationItems` 의
+> `const _exhaustive: never = turn.source` 가 실제로 `rag` 추가를 컴파일 차단했다
+> — **② 의 선결 조건이 무너져 있었다**:
+>
+> - ② 는 목록(`ENUM_VALUES` / `SOURCE_ENUM_VALUES`) 의 각 값이 각 사이트에
+>   등장하는지 grep 한다. **그 목록이 타입과 일치한다는 전제** 위에서만 의미가 있다.
+> - 그 전제를 지키라고 놓였던 `const _typecheck: ReadonlyArray<T> = VALUES` 는
+>   **`VALUES ⊆ 타입` 만 검사**해 타입에 값이 추가돼도 통과했다 (주석은 반대로
+>   주장). 게다가 그 단언이 살던 파일이 **테스트 파일**이라
+>   `tsconfig.json` 의 `src/**/__tests__/**` exclude 에 걸려 **tsc 가 아예 읽지
+>   않았다** — 명백한 타입 에러를 넣어도 0건 보고. 즉 그 축은 **약한 게 아니라
+>   부재**였다.
+>
+> **해소**: 목록을 tsc 가 읽는 소스 모듈
+> [`lib/conversation/interaction-type-registry.ts`](../../codebase/frontend/src/lib/conversation/interaction-type-registry.ts)
+> 로 옮기고, `satisfies`(목록 ⊆ 타입) + `Exclude`(타입 ⊆ 목록) 로 **양방향**을
+> 잠갔다. 두 방향 모두 mutation 주입으로 red 전환을 실측 확인했다.
+>
+> **교훈**: 가드는 "있다" 가 아니라 **"깨뜨려 봤다"** 로만 신뢰할 수 있다. 이
+> 문서가 보증을 쓸 때는 그 보증이 실측된 것인지 함께 적는다.

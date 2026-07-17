@@ -33,6 +33,7 @@
     "@simplewebauthn/browser": "^13.3.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query": "^5.95.2",
+    "@workflow/ai-end-reason": "workspace:*",
     "@workflow/chat-channel-validation": "workspace:*",
     "@workflow/expression-engine": "workspace:*",
     "@workflow/graph-warning-rules": "workspace:*",

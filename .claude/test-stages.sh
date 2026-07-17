@@ -24,6 +24,7 @@ _ensure_deps() {
 # 특수 스텝이 없는 것). 단일 목록으로 cmd_lint/cmd_unit/cmd_build 3곳의 drift 를 방지한다.
 INTERNAL_PACKAGES=(
   "@workflow/sdk"
+  "@workflow/ai-end-reason"
   "@workflow/expression-engine"
   "@workflow/graph-warning-rules"
   "@workflow/node-summary"

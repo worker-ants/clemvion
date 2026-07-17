@@ -107,6 +107,9 @@ importers:
       '@simplewebauthn/server':
         specifier: ^13.3.0
         version: 13.3.1
+      '@workflow/ai-end-reason':
+        specifier: workspace:*
+        version: link:../packages/ai-end-reason
       '@workflow/chat-channel-validation':
         specifier: workspace:*
         version: link:../packages/chat-channel-validation
@@ -442,6 +445,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.95.2
         version: 5.101.0(react@19.2.4)
+      '@workflow/ai-end-reason':
+        specifier: workspace:*
+        version: link:../packages/ai-end-reason
       '@workflow/chat-channel-validation':
         specifier: workspace:*
         version: link:../packages/chat-channel-validation
@@ -599,6 +605,33 @@ importers:
       vitest:
         specifier: ^4.1.4
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.16(@types/node@24.13.2)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0))
+
+  codebase/packages/ai-end-reason:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.18.0
+        version: 9.39.4
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.4(jiti@2.7.0)
+      globals:
+        specifier: ^16.0.0
+        version: 16.5.0
+      jest:
+        specifier: ^30.0.0
+        version: 30.4.2
+      ts-jest:
+        specifier: ^29.2.5
+        version: 29.4.11(@babel/core@7.29.7)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.7))(esbuild@0.25.12)(jest-util@30.4.1)(jest@30.4.2)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.20.0
+        version: 8.61.1(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
 
   codebase/packages/chat-channel-validation:
     devDependencies:

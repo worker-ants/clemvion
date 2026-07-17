@@ -37,6 +37,7 @@ import type {
   TurnDebugEntry,
 } from '../../../shared/llm-tracing/llm-call-record';
 
+import type { InformationExtractorEndReason } from '@workflow/ai-end-reason';
 /** ConversationThread injection debug echo snapshot (conversation-thread.md §5.3). */
 type ContextInjectionMeta = ConversationContextInjectionResult['injection'];
 
@@ -53,13 +54,12 @@ interface Example {
   output: Record<string, unknown>;
 }
 
-type EndReason =
-  | 'completed'
-  | 'max_turns'
-  | 'user_ended'
-  | 'timeout'
-  | 'max_retries'
-  | 'error';
+/**
+ * 값 도메인의 SoT 는 `@workflow/ai-end-reason` — backend 가 선언하고 frontend 대화
+ * UI 가 소비하는 교차 스택 계약이라, 손으로 베낀 사본이 어긋나면 미리보기가
+ * 사라진다 (PR #959). 로컬 별칭은 호출부 무변경을 위해 유지.
+ */
+type EndReason = InformationExtractorEndReason;
 
 /**
  * Strip undefined entries so JSON snapshots and downstream consumers don't
