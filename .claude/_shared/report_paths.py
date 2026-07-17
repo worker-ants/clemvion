@@ -60,7 +60,13 @@ def report_path(session_dir: str, name: str, state: dict) -> str:
 
 
 def report_paths(session_dir: str, state: dict) -> dict[str, str]:
-    """`{agent name: report path}` for every agent the manifest declares."""
+    """`{agent name: report path}` for every agent the manifest declares.
+
+    No production caller today — both orchestrators reach for `has_report()` /
+    `missing_reports()` instead, and the local wrappers that used to call this were
+    removed as dead code. Kept as API surface with the plural case pinned by a test
+    rather than deleted, but do not read a call site into it.
+    """
     invocations = state.get("subagent_invocations")
     if not isinstance(invocations, list):
         return {}
