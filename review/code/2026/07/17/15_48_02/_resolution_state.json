@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "started_at": "2026-07-17T16:40:00Z",
+  "summary_items_total": 8,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "e499ef216", "summary_id": 1, "scope": "harness/review_guard-comment"},
+    {"sha": "e499ef216", "summary_id": 2, "scope": "harness/report_paths-isfile-regression"},
+    {"sha": "e499ef216", "summary_id": 3, "scope": "harness/ci-trigger-paths"},
+    {"sha": "e499ef216", "summary_id": 4, "scope": "harness/dead-wrapper-cleanup"},
+    {"sha": "e499ef216", "summary_id": 5, "scope": "harness/consistency-orchestrator-test-symmetry"},
+    {"sha": "e499ef216", "summary_id": 6, "scope": "plan/spec_impact-comment-fix"},
+    {"sha": "e499ef216", "summary_id": 7, "scope": "harness/tests-readme-registry"},
+    {"sha": "e499ef216", "summary_id": 8, "scope": "harness/skill-retroactive-reclass-note"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260717-165502.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
