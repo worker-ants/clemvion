@@ -1,0 +1,150 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts"
+    ],
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/__tests__/eslint-layering-guard.test.ts"
+    ]
+  },
+  "agents_skipped": [
+    "performance",
+    "architecture",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/heuristic-nightingale-9c8a0e/review/code/2026/07/17/18_06_36/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing"
+  ],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
