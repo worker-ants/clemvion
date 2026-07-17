@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Loader2,
@@ -21,13 +21,11 @@ import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
 import { AssistantPresentationsBlock } from "./renderers/assistant-presentations-block";
-import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
 import {
   groupToolCallItems,
   isAssistantContentBlank,
-  stripInlineMarkers,
 } from "@/lib/conversation/conversation-utils";
 import type { TranslationKey } from "@/lib/i18n/core";
 
@@ -137,7 +135,12 @@ function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
 
 interface ConversationInspectorProps {
   result: NodeResult;
-  /** Live: store 가 직접 주입. History: SummaryView 내 useMemo 가 outputData.messages 에서 재가공. */
+  /**
+   * 대화 items 의 단일 소스 — 항상 호출자가 정규 변환을 마친 뒤 주입한다.
+   * Live 는 store 사본, History 는 `parseHistoryMessages(result.outputData)`
+   * 결과 (spec/conventions/conversation-thread.md §9.3 데이터 소스 선택).
+   * 본 컴포넌트는 재파싱하지 않는다 (§9.11 다중 정의 금지).
+   */
   conversationMessages: ConversationItem[];
   /**
    * Index into `conversationMessages` for the currently-selected message, or
@@ -281,14 +284,6 @@ export function ConversationInspector({
 // `llm-information-tab.tsx`). Preview here stays focused on the
 // conversation content for the selected message.
 
-// AI Agent 의 system role RAG context 메시지를 detect 하는 마커.
-// `RagSearchService.buildContext` (backend) 가 동일 prefix 로 만들어 보낸다.
-const RAG_CONTEXT_MARKER = "### Relevant Knowledge";
-
-function isRagContextContent(content: unknown): content is string {
-  return typeof content === "string" && content.includes(RAG_CONTEXT_MARKER);
-}
-
 /** SummaryView 컴팩트 라인용 결과 요약 — 전체 본문은 ToolDetail 에서 노출. */
 export function summarizeToolResult(result: unknown): string {
   if (result == null) return "";
@@ -363,11 +358,6 @@ function SelectedItemDetail({
   pendingFormToolCallId?: string | null;
   onSubmitForm?: (data: Record<string, unknown>) => void;
 }) {
-  // "rag" 타입은 store 의 ConversationItem 타입에는 없지만 SummaryView 가 system role
-  // 메시지를 담아 합성한다. 런타임 분기로 처리.
-  if ((item.type as string) === "rag") {
-    return <RagDetail item={item} />;
-  }
   if (item.type === "tool") {
     return <ToolDetail item={item} />;
   }
@@ -563,27 +553,6 @@ function PresentationCardBody({ item }: { item: ConversationItem }) {
   );
 }
 
-function RagDetail({ item }: { item: ConversationItem }) {
-  // content 첫 줄에서 chunk 개수 힌트, [Source: …] 패턴 빈도로 대략 회수 chunk 수 표시.
-  const sourceCount = (item.content.match(/\[Source: /g) ?? []).length;
-  return (
-    <div className="flex flex-col gap-3 p-3">
-      <div className="flex items-center gap-2">
-        <span>🔎</span>
-        <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-          KB Reference — Turn {item.turnIndex}
-          {sourceCount > 0 ? ` · ${sourceCount} chunk(s)` : ""}
-        </span>
-      </div>
-      <div className="text-sm">
-        <MarkdownRenderer content={item.content} />
-      </div>
-      <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
-        지식베이스에서 검색한 청크가 시스템 메시지로 LLM 에 주입되었습니다.
-      </p>
-    </div>
-  );
-}
 
 /**
  * Shared header used by detail views for `presentation_user` and `system`
@@ -854,72 +823,17 @@ function SummaryView({
       ? (rawOutput.output as Record<string, unknown> | null)
       : rawOutput;
 
-  // Full conversation thread (shown in both Live and History). Post-Stage-5
-  // ai_agent writes messages at `output.result.messages`; legacy runs kept
-  // them at `output.messages`. `resolveResultField` handles both paths.
-  // system role 메시지 중 RAG 컨텍스트(`### Relevant Knowledge`) 는 별도 "rag"
-  // 항목으로 노출해 KB 호출이 timeline 에 보이게 한다.
-  const items = useMemo(() => {
-    if (isLive) return conversationMessages;
-    const msgsRaw = resolveResultField<unknown[]>(output, "messages");
-    if (!Array.isArray(msgsRaw)) return conversationMessages;
-    const msgs = msgsRaw as Array<{
-      role: string;
-      content: string;
-      toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
-      toolCallId?: string;
-    }>;
-    let turnCounter = 0;
-    const out: ConversationItem[] = [];
-    // toolCallId → name 매핑 (직전 assistant.toolCalls[].id 로 lookup).
-    const callNameById = new Map<string, string>();
-    for (const m of msgs) {
-      if (m.role === "user") {
-        turnCounter++;
-        out.push({
-          type: "user",
-          content: stripInlineMarkers(m.content),
-          turnIndex: turnCounter,
-        });
-      } else if (m.role === "assistant") {
-        if (m.toolCalls) {
-          for (const tc of m.toolCalls) {
-            if (tc.id) callNameById.set(tc.id, tc.name ?? "");
-          }
-        }
-        out.push({
-          type: "assistant",
-          content: stripInlineMarkers(m.content),
-          turnIndex: turnCounter,
-          assistantToolCalls: m.toolCalls?.length
-            ? m.toolCalls.map((tc) => ({
-                name: tc.name ?? "",
-                arguments: tc.arguments,
-              }))
-            : undefined,
-        });
-      } else if (m.role === "tool") {
-        const name = m.toolCallId
-          ? callNameById.get(m.toolCallId)
-          : undefined;
-        out.push({
-          type: "tool",
-          content: name ?? "(unknown tool)",
-          turnIndex: turnCounter || 1,
-          toolCallId: m.toolCallId,
-          toolResult: tryParseJson(m.content),
-        });
-      } else if (m.role === "system" && isRagContextContent(m.content)) {
-        // RAG context 는 직전 user 의 turnCounter 에 속하도록 표시한다.
-        out.push({
-          type: "rag" as ConversationItem["type"],
-          content: m.content,
-          turnIndex: turnCounter,
-        });
-      }
-    }
-    return out;
-  }, [isLive, conversationMessages, output]);
+  // 대화 items 의 단일 소스는 호출자(`result-detail.tsx`)다 — live 는 store
+  // 사본, history 는 `parseHistoryMessages(result.outputData)` 결과를 넘긴다
+  // (spec/conventions/conversation-thread.md §9.3 데이터 소스 선택).
+  //
+  // 예전에는 여기서 `output.result.messages` 를 자체 인라인 재파싱했으나, 그
+  // 경로는 §9.11 이 정의한 3개 변환 함수에 없는 4번째 경로였고 `output.error`
+  // → `system_error` 합성을 하지 못해 오류 종결 노드의 인라인 에러 마커가
+  // 사라졌다 (§9.9 Inv-8 회귀). 호출자와 동일한 소스를 중복 파싱하던 dead
+  // path 라 제거했다 — 자체 복원이 다시 필요해지면 재구현하지 말고 canonical
+  // `parseHistoryMessages` 를 import 해 위임할 것 (§9.11 다중 정의 금지).
+  const items = conversationMessages;
 
   return (
     <div className="flex flex-col gap-4">
@@ -978,7 +892,6 @@ function SummaryView({
                 }
               : undefined;
             const isAssistant = item.type === "assistant";
-            const isRag = (item.type as string) === "rag";
             const isTool = item.type === "tool";
             const isPresentation = item.type === "presentation";
             const isSystem = item.type === "system";
@@ -1212,11 +1125,8 @@ function SummaryView({
                 </div>
               );
             }
-            const ragSourceCount = isRag
-              ? (item.content.match(/\[Source: /g) ?? []).length
-              : 0;
             // assistant 한정으로 whitespace-only content 를 비어있음으로 취급.
-            // user / rag 등 비-assistant 는 원본 content 그대로 (plain text 줄바꿈
+            // user 등 비-assistant 는 원본 content 그대로 (plain text 줄바꿈
             // 보존이 의도). SelectedItemDetail 과 동일 기준을 SummaryView 에도
             // 적용해 두 surface 의 시각이 어긋나지 않도록 한다.
             const hasContent = isAssistant
@@ -1233,24 +1143,18 @@ function SummaryView({
                 onKeyDown={handleKeyDown}
                 className={cn(
                   "rounded px-3 py-2 text-xs text-left",
-                  // user 메시지는 plain text 줄바꿈 보존; AI/RAG 메시지는 markdown / 요약으로 처리.
-                  !isAssistant && !isRag && "whitespace-pre-wrap",
+                  // user 메시지는 plain text 줄바꿈 보존; AI 메시지는 markdown 처리.
+                  !isAssistant && "whitespace-pre-wrap",
                   item.type === "user"
                     ? "bg-[hsl(var(--accent))] ml-6"
-                    : isRag
-                      ? "bg-[hsl(var(--muted)/0.5)] border border-dashed border-[hsl(var(--border))] mx-3 italic"
-                      : "bg-[hsl(var(--muted))] mr-6",
+                    : "bg-[hsl(var(--muted))] mr-6",
                   isClickable &&
                     "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
                 )}
               >
                 <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
                   <span>
-                    {item.type === "user"
-                      ? "👤 User"
-                      : isRag
-                        ? `🔎 KB Reference${ragSourceCount > 0 ? ` · ${ragSourceCount} chunk(s)` : ""}`
-                        : "🤖 AI"}
+                    {item.type === "user" ? "👤 User" : "🤖 AI"}
                   </span>
                   {/* §9.12 — 발생 시각(절대) + assistant LLM latency */}
                   {(item.timestamp ||
@@ -1271,8 +1175,6 @@ function SummaryView({
                 {hasContent &&
                   (isAssistant ? (
                     <MarkdownRenderer content={item.content} />
-                  ) : isRag ? (
-                    <RagBubbleSummary content={item.content} />
                   ) : (
                     item.content
                   ))}
@@ -1316,37 +1218,6 @@ function SummaryView({
         </div>
       )}
 
-    </div>
-  );
-}
-
-/**
- * RAG bubble 의 짧은 요약 — 회수된 chunk 들의 문서명만 chip 으로 보여줘 한눈에 파악.
- * 클릭하면 SelectedItemDetail 의 RagDetail 에서 본문 markdown 렌더 전체 노출.
- */
-function RagBubbleSummary({ content }: { content: string }) {
-  const docNames = Array.from(
-    new Set(
-      Array.from(content.matchAll(/\[Source: ([^\]]+)\]/g), (m) => m[1].trim()),
-    ),
-  ).slice(0, 5);
-  if (docNames.length === 0) {
-    return (
-      <span className="text-[hsl(var(--muted-foreground))]">
-        (KB context retrieved)
-      </span>
-    );
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      {docNames.map((n) => (
-        <span
-          key={n}
-          className="rounded bg-[hsl(var(--background))] px-1.5 py-0.5 font-mono text-[10px] not-italic"
-        >
-          {n}
-        </span>
-      ))}
     </div>
   );
 }

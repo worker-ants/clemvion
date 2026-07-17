@@ -355,6 +355,22 @@ race-free.
 
 **소비처 갱신 (2026-07-09)**: 본 컬럼은 durable in-flight resume 이 1차 목적이나, 그 이후 **공개 REST 표면 `GET /api/external/executions/:id`(`getStatus`)가 `waiting_for_input` 한정으로 이 스냅샷을 `context.conversationThread` 에 read-only 로 동봉**한다 — 임베드 웹채팅 위젯의 새로고침 히스토리 복원을 5분 SSE buffer·서버 재시작과 무관하게 지원하기 위함(근거·보안 판단: [EIA §5.3·§R17](../5-system/14-external-interaction-api.md)). 이미 SSE `waiting_for_input` 으로 공개 중인 데이터의 REST 재노출이라 신규 민감 표면이 아니며, 노드 핸들러는 turn 텍스트에 민감 중간결과를 남기지 않는다는 제약이 그대로 적용된다. **이 불변식은 이제 런타임 강제된다** — SSE emit 과 REST `getStatus` 가 공유하는 단일 helper `redactThreadForPublic` 가 egress 시 자유 텍스트(`turns[].text`·`runningSummary`)와 구조화 필드(`turns[].data`·`presentations[].payload` 는 deep redaction, `toolCalls[].arguments` 는 JSON-safe redaction)를 마스킹한다(공개 표면 한정, 내부 rehydration/LLM 주입은 faithful 유지). 같은 AI 텍스트를 싣는 라이브 `execution.ai_message` 이벤트와 `nodeOutput.conversationConfig`(동일 텍스트의 우회 표면)도 emit site·`getStatus` 에서 `deepRedactSecrets` 로 마스킹된다. conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목(상세·근거·trade-off: [EIA §R17](../5-system/14-external-interaction-api.md)). 따라서 "park resume 전용" 은 **저장 목적**의 서술이고, 소비처는 (a) rehydration(내부), (b) SSE waiting emit, (c) getStatus REST(읽기 전용) 로 확장됐다.
 
+### 8.5 Inv-8 — store 보존과 렌더 도달성의 분리
+
+**결정**: Inv-6 (store 보존) 과 별개로 **렌더 층 도달성** 을 Inv-8 로 신설하고, §9.3 에 오류 종결 경로의 데이터 소스를 명시한다. 탭 가시성·디폴트 선택 규칙 자체는 [Spec 실행 §10.6.1](../3-workflow-editor/3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드) 이 SoT 로 소유하며 본 절은 그 예외 확장의 근거만 제공한다 (이중 SoT 회피).
+
+**배경 — 해결하는 drift**: Inv-6 은 `failExecution` 이 `conversationMessages` 를 클리어하지 않음을 보장했고 구현도 준수했다. 그럼에도 사용자에게는 대화가 통째로 사라져 보였다 — **보존과 도달성이 별개 불변량**인데 Inv-6 이 store 층만 규정했기 때문이다. 실제 결함은 두 겹이었다: (a) frontend `node.failed` 핸들러가 엔진이 동봉한 `output`(대화 전체)을 payload 타입에 선언조차 하지 않아 버리고 `outputData: null` 로 하드코딩 — 바로 옆 `node.completed` 는 `payload.output` 을 쓰는 **비대칭**, (b) conversation Preview 의 노출 조건이 `status === 'completed'` 를 요구해 오류 종결을 원천 배제. 그 결과 store 에 대화가 온전히 남아있고 DB 에도 영속돼 있는데 UI 도달 경로만 없었다.
+
+**`status` 를 게이트로 쓰지 않는 이유**: 엔진은 실패 시에도 `nodeExec.outputData` 를 영속하고 `node.failed` 이벤트에 동봉한다 ([AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). 즉 `status` 는 **대화 데이터의 존재 여부와 무관한 축**이다. 데이터 유무(`isConversationOutput(outputData)` 또는 store 의 `system_error` 소유)로 판정해야 매체가 있는 한 항상 도달 가능하다 — `status` 게이트는 데이터가 있는데도 막는 **거짓 음성**을 낳는다.
+
+**retryable 무관으로 확장한 근거** (§10.6.1 예외의 원 근거는 `[다시 시도]` affordance 에 결박돼 있어 자동 확장되지 않으므로 신설): 대화 시간축을 보존할 가치는 **재시도 가능성과 독립적**이다. non-retryable 종결(예: 인증 실패)에서도 사용자는 "어느 턴에서 무슨 맥락으로 끊겼는지" 를 먼저 봐야 하며, `system_error` 는 retryable 여부와 무관하게 §9.1 대로 thread 인라인 표시된다 (non-retryable 은 액션 영역만 비어있음). Error 탭은 명시적 선택으로 여전히 접근 가능하므로 오류 정보 도달성은 훼손되지 않는다 — 원 예외가 ED-EX-13 과의 긴장을 완화한 것과 **같은 논증 형식**이다.
+
+**cross-node thread 표시는 의도된 동작 — Inv-8 의 예외가 아니다**: conversation Preview 는 노드별로 필터링하지 않고 thread 전체를 그린다. 이는 §3 스코프 규칙(thread 는 execution 스코프로 노드 간 상속·공유)·§9.3(1차 소스 = `conversationThread.turns` 전체 snapshot)·§2.2(single-turn AI Agent 도 turn 을 push 하는 thread 참여자)의 귀결이며, presentation 노드의 `presentation_user` turn 이 AI 노드 미리보기에 함께 보이는 것도 같은 설계다. **노드 필터 부재는 누락이 아니라 의도** — 필터를 도입하면 위 세 조항을 위반한다.
+
+**기각한 대안 — backend 가 failed 노드에 conversation payload 를 추가로 싣기**: 이미 싣고 있다 (실측). 프론트가 버렸을 뿐이므로 backend 계약 변경은 불필요하며, `node.failed` 는 노드 무관 공통 실패 경로라 AI 전용 payload 를 추가하는 것은 계층 침범이다.
+
+**`cancelled` known follow-up**: `handleNodeCancelled` 는 `conversationMessages` 를 조작하지 않고 `execution.node.cancelled` 는 `node.failed` 와 별도 이벤트다. 취소는 오류가 아니므로 `system_error` 부재는 정상이나, 그 결과 취소된 대화 노드는 **귀속 신호가 없어** Inv-8 의 판정 대상에 들지 않는다. "진행 중 대화를 Stop 하면 대화가 안 보인다" 는 동일 계열 증상은 별도 귀속 메커니즘이 필요한 **미착수 표면**이며 Inv-8 의 예외가 아니다.
+
 AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든 노드의 conversation timeline 표시 UI 가 따르는 시각 규약. **1차 데이터 소스는 `waiting_for_input.conversationThread.turns` snapshot** ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) — emit messages (`ai_message.messages[]`) 가 아니다.
 
 본 절은 **시각 매핑** (§9.1~§9.5) 과 **UI 계약** (§9.6~§9.11) 두 축으로 구성된다. §9.1~§9.5 는 source 별 시각 표현, §9.6~§9.11 은 동적 라이프사이클·store 변환·invariants·회귀 차단 시나리오·변환 함수 contract 를 다룬다.
@@ -423,7 +439,8 @@ Conversation Preview / history view 가 `conversationThread` snapshot 을 source
 |---|---|---|
 | conversation Preview 탭 (`meta.interactionType: "ai_conversation"`) | `conversationThread.turns` snapshot ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) | source/nodeLabel/data 메타 직접 활용. 적용 시점·정책의 mutation 계약은 §9.7 |
 | LLM Usage / Request / Response 탭 (debug) | `ai_message.messages[]` (emit) | source 마커 (`live`/`injected`) 와 prefix 가 LLM 으로 간 형태 그대로 표시. "Raw payload" 토글로 prefix·marker 가시화 |
-| 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.result.messages` (DB 영속) + `output.interaction` | 두 경로 (`output.result.messages` = LLM 호출 결과 누적 [D6 단일 경로, §4 영속화 표 참조], `output.interaction` = presentation 인터랙션 1건) 는 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. 상세 복원 규약은 [Spec Execution History §EH-DETAIL-12](../2-navigation/_product-overview.md#315-execution-history-실행-내역) 의 ConversationThread 재구성 정책에 위임. debug 탭만 emit 형태 재구성 |
+| 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.result.messages` (DB 영속) + `output.interaction` | 두 경로 (`output.result.messages` = LLM 호출 결과 누적 [D6 단일 경로, §4 영속화 표 참조], `output.interaction` = presentation 인터랙션 1건) 는 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. 상세 복원 규약은 [Spec Execution History §EH-DETAIL-12](../2-navigation/_product-overview.md#315-execution-history-실행-내역) 의 ConversationThread 재구성 정책에 위임. debug 탭만 emit 형태 재구성. **오류 종결(`output.error` set) 노드도 본 행을 따른다 — `status` 로 게이트하지 않는다**: 엔진이 실패 시에도 `outputData` 를 영속·emit 하고 error 종결 output 은 `output.error` + 부분 `output.result.*` 병존이므로([AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 재구성 가능하다. `system_error` 는 `output.error` 로부터 합성하며 `nodeExecutionId` 미동봉 → 재시도 버튼 자동 suppress (§1.2.1). Inv-8 참조 |
+| 오류 종결 · **live** 세션 | store `conversationMessages` (§9.7.1 의 권위 사본) | 위 이력 행과 동일 대화지만, live 에서는 store 의 `system_error` 만 `nodeExecutionId` 를 보유해 `[다시 시도]` 를 활성화할 수 있다 (§1.2.1). 따라서 해당 노드의 `system_error` 를 store 가 보유하면 store 를 우선하고, 없으면(새로고침·이력) 위 행으로 폴백한다. 두 소스는 동일 thread 의 서로 다른 매체이지 별개 진실이 아니다 — §8.1 D4 의 "1차 소스 = `conversationThread` snapshot" 원칙 유지 |
 
 ### 9.4 emit messages 의 raw 노출 금지
 
@@ -547,7 +564,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 
 ### 9.9 UI Invariants
 
-다음 6가지 불변량은 §9 변경 / 구현 변경 / store lifecycle 정책 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
+다음 8가지 불변량은 §9 변경 / 구현 변경 / store lifecycle 정책 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
 
 | ID | Invariant |
 | --- | --- |
@@ -558,10 +575,11 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | Inv-5 | tool-call 그룹 분류·sequence-claim 결과는 §9.6 의 단일 결정 함수 `groupToolCallItems` 에서 도출. conversation Preview (`SummaryView`) 와 실행 트리 timeline (`ResultTimeline`) 양 surface 가 동일 결과를 사용 — 행 시각 형식 (chip vs 한 줄) 의 차이는 허용하지만 그룹 구성·자식 수·claim 결과는 동일. |
 | Inv-6 | 노드 실패 / 실행 실패 시 store `conversationMessages` 는 비워지지 않는다 — `startExecution` 만 conversation snapshot 을 클리어한다. 정의 단일 진실: §9.7.1 store reset 정책. `system_error` item 은 thread 의 마지막에 APPEND 되며, 기존 user / assistant / tool item 은 변형되지 않는다 (immutability — Inv-3 의 메타데이터 불변 원칙과 동일 강도). |
 | Inv-7 | AI Agent `render_form` 활성 form 의 submit 직후 store 의 multi-turn 컨텍스트 (`waitingNodeId`, `waitingInteractionType: 'ai_form_render'`, `waitingConversationConfig` 중 `pendingFormToolCall` 를 제외한 나머지, `isWaitingAiResponse: true`) 는 보존된다. `pendingFormToolCall` 만 null 로 클리어 — `resumeFromAiRenderForm` 의 nested patch 책임. 회귀 방지: 옛 `resumeFromForm` 가 affordance 전체 클리어해 ConversationInspector 가 live → completed 분기로 떨어져 `result.status !== 'completed'` 인 server-side waiting 상태에서 preview = null 로 깜빡이던 버그 ([Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합)). 정의 단일 진실: §9.7.1 store reset 정책 표의 `resumeFromAiRenderForm` 행. |
+| Inv-8 | **렌더 층 도달성** — 오류로 종결된(`output.error` set → `system_error` 를 소유한) 대화형 노드의 conversation 은 **`result.status` 를 게이트로 쓰지 않고** 미리보기(conversation Preview) 로 도달 가능해야 한다. Inv-6 이 보장하는 것은 store **보존**이고, 본 불변량은 그 보존분(및 `outputData` 로 영속된 동일 대화)의 **도달성** — 둘은 별개이며, 보존만으로는 "왜 대화가 사라졌지?" 증상을 막지 못한다. 데이터 소스 선택은 §9.3, 탭 가시성·디폴트 선택 규칙의 SoT 는 [Spec 실행 §10.6.1](../3-workflow-editor/3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드). 회귀 차단: CT-S15~CT-S17. Rationale: §8.5 |
 
 ### 9.10 회귀 차단 시나리오
 
-§9 본 절을 변경하거나 conversation timeline 관련 코드 (`conversation-inspector.tsx`, `conversation-utils.ts`, `use-execution-events.ts`, `result-timeline.tsx`, `conversation-timeline-item.tsx`) 를 수정하는 PR 은 다음 시나리오의 **단위 테스트 통과를 의무**로 한다. 사용자 시각 확인에 의존하지 않는다. `CT-S*` ID 는 본 §9.10 스코프 한정. 양 surface 의 시각 일관성 시나리오 (CT-S8) 도 의무.
+§9 본 절을 변경하거나 conversation timeline 관련 코드 (`conversation-inspector.tsx`, `conversation-utils.ts`, `use-execution-events.ts`, `result-timeline.tsx`, `conversation-timeline-item.tsx`, **`result-detail.tsx`** — 탭 가시성·데이터 소스 선택의 렌더 게이트 소유자) 를 수정하는 PR 은 다음 시나리오의 **단위 테스트 통과를 의무**로 한다. 사용자 시각 확인에 의존하지 않는다. `CT-S*` ID 는 본 §9.10 스코프 한정. 양 surface 의 시각 일관성 시나리오 (CT-S8) 도 의무.
 
 | ID | 시나리오 | 검증 | 1차 테스트 파일 |
 | --- | --- | --- | --- |
@@ -579,6 +597,9 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | CT-S12 | AI Agent multi-turn 의 `render_form` 활성 form 제출 후 LLM 다음 응답 도착까지 | (a) `resumeFromAiRenderForm` 호출 후 store 의 `waitingNodeId` / `waitingInteractionType: 'ai_form_render'` / `waitingConversationConfig` (단 `pendingFormToolCall` 만 null) / `isWaitingAiResponse: true` 보존 (Inv-7) (b) ConversationInspector 가 live 분기를 유지해 timeline 이 비지 않는다 (옛 회귀: `result.status !== 'completed'` 인데 live 분기 떨어져 preview = null) (c) 응답 도착 시 새 `ai_assistant` turn 이 자연 append | `execution-store.test.ts` + `assistant-presentations-block.test.tsx` |
 | CT-S13 | 한 thread 안 여러 turn 에 걸쳐 `render_form` 활성 ↔ 제출 ↔ 다시 활성 흐름 | (a) `pendingFormToolCall.toolCallId` 와 매칭되는 단 1개 turn 의 form payload 만 interactive `DynamicFormUI` (b) 나머지 form payload (이미 제출됐거나 다른 toolCall) 는 `FormSubmittedContent` (c) `pendingFormToolCall` 이 null 이면 모든 form payload 가 `FormSubmittedContent` | `assistant-presentations-block.test.tsx` |
 | CT-S14 | `render_form` 활성 중 사용자가 일반 텍스트 메시지 발송 (form bypass) | (a) backend `processMultiTurnMessage` 가 `pendingFormToolCall` 매칭하는 도구의 tool_result content 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채움 (b) `_resumeState.pendingFormToolCall` 클리어 (c) 받은 텍스트가 `ai_user` turn 으로 thread push (d) 다음 LLM 응답에서 form payload 가 `FormSubmittedContent` (cancelled) 로 자연 전환 | `ai-agent.handler.test` + integration |
+| CT-S15 | 멀티턴 AI Agent 가 `node.failed` + `details.retryable === true` 로 종결 | (a) Inv-6 store 보존 (b) **미리보기 탭 노출** (Inv-8) — 대화 전체 + 마지막 `system_error` (c) `nodeExecutionId` set 이므로 `[다시 시도]` 노출. **payload 의 `output` 이 `NodeResult.outputData` 로 전달되는지**(엔진이 `node.failed` 에 conversation output 을 동봉 — [AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 도 함께 검증 | `use-execution-events.test.ts` + `result-detail.test.tsx` |
+| CT-S16 | 멀티턴 AI Agent 가 `node.failed` + `details.retryable === false` 로 종결 (CT-S10 과 동일 조건) | (a) Inv-8 탭 노출 (b) **기본 활성 탭 = 미리보기** ([§10.6.1](../3-workflow-editor/3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드) 의 retryable-무관 예외) (c) `[다시 시도]` 미노출 (d) **비대화형 노드(`http_request` 등)는 기존대로 오류 탭 기본** — ED-EX-13 일반 원칙 보존 회귀 | `result-detail.test.tsx` |
+| CT-S17 | 오류 종결 대화 노드를 **새로고침 후 이력 화면**(`/executions/:id`, store 비어있음)에서 조회 | (a) `outputData`(REST 스냅샷) 로부터 미리보기 재구성 — `status: 'failed'` 가 게이트가 아님 (Inv-8) (b) `parseHistoryMessages` 가 `output.error` 에서 `system_error` 합성 (c) `nodeExecutionId` 부재로 `[다시 시도]` 자동 suppress (§1.2.1) | `result-detail.test.tsx` + `conversation-utils.test.ts` |
 
 본 시나리오들의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 단일 export 로 둔다. 새 시나리오 발견 시 본 표 추가 + fixture 추가 + 해당 테스트 작성을 PR review 의 의무로 한다.
 

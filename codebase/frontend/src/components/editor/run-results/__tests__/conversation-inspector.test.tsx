@@ -6,7 +6,10 @@ import {
   SUMMARY_VALUE_MAX,
   summarizeToolResult,
 } from "../conversation-inspector";
-import { isAssistantContentBlank } from "@/lib/conversation/conversation-utils";
+import {
+  isAssistantContentBlank,
+  parseHistoryMessages,
+} from "@/lib/conversation/conversation-utils";
 import type {
   ConversationItem,
   NodeResult,
@@ -432,7 +435,13 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       <ConversationInspector
         {...baseProps}
         result={result}
-        conversationMessages={[]}
+        // 프로덕션 배선과 동일하게 호출자(`result-detail.tsx`)가 정규 변환을
+        // 마친 items 를 주입한다. 예전에는 여기에 `[]` 를 넘기고 인스펙터
+        // 내부의 인라인 재파싱에 의존했으나, 그 경로는 spec §9.11 의 3-함수
+        // 계약에 없는 4번째 변환이었고 `output.error` → `system_error` 합성을
+        // 못해 오류 종결 노드의 인라인 마커를 잃었다 (§9.9 Inv-8). 인스펙터는
+        // 더 이상 재파싱하지 않으므로 테스트도 실제 배선을 따른다.
+        conversationMessages={parseHistoryMessages(result.outputData)}
         isLive={false}
       />,
     );

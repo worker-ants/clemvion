@@ -571,8 +571,20 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     expect(isConversationOutput(raw)).toBe(true);
   });
 
+  // 목록은 backend endReason enum 과 정합해야 한다 — `ai-turn-executor.ts` 의
+  // multi-turn 종결(`'user_ended' | 'max_turns' | 'condition' | 'error'`) +
+  // IE/single-turn 의 `'completed'` / `'max_retries'`. `condition` / `error`
+  // 가 빠져 있어 조건 라우팅·오류로 끝난 대화가 미리보기를 잃었다
+  // (spec/conventions/conversation-thread.md §9.9 Inv-8).
   it("accepts every unified endReason as a conversation terminal", () => {
-    const endReasons = ["completed", "user_ended", "max_turns", "max_retries"] as const;
+    const endReasons = [
+      "completed",
+      "user_ended",
+      "max_turns",
+      "max_retries",
+      "condition",
+      "error",
+    ] as const;
     for (const endReason of endReasons) {
       const raw = {
         config: {},

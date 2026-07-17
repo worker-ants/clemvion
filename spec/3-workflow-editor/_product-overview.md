@@ -118,7 +118,7 @@
 | ED-EX-10 | Multi Turn 대화 진행 중 타임라인에 메시지/Tool Call 프리뷰 표시 | 필수 |
 | ED-EX-11 | Multi Turn 대화 완료 후 히스토리에서 전체 대화 이력 재조회 | 필수 |
 | ED-EX-12 | Run Results 드로어에서 completed/failed/waiting 노드에 Preview/Input/Output/Config/Error 서브 탭 제공. AI 노드(AI Agent·Information Extractor·Text Classifier)는 추가로 LLM Usage 탭 제공 | 필수 |
-| ED-EX-13 | 서브 탭 기본 선택 우선순위: Error(에러 발생 시) > Preview (Presentation·AI 대화형·Form/버튼 대기 시) > Output | 필수 |
+| ED-EX-13 | 서브 탭 기본 선택 우선순위: Error(에러 발생 시) > Preview (Presentation·AI 대화형·Form/버튼 대기 시) > Output. **예외 — AI 대화형 노드가 오류로 종결되면 Preview 우선** (대화 흐름 안에 `system_error` 가 인라인 표시되므로). 전체 규칙·예외의 단일 진실은 [Spec 실행 §10.6.1](./3-execution.md#1061-서브-탭-completedfailedcancelledwaiting-노드) | 필수 |
 | ED-EX-14 | AI Agent / Information Extractor의 Multi Turn 타임라인에서 assistant 메시지 선택 시 상세 패널 탭이 Preview / Response / Request / LLM Usage 구성으로 전환. 한 턴에 LLM 호출이 여러 개인 경우 Call selector 제공, Response ↔ Request ↔ LLM Usage 전환 사이에 선택 유지 | 필수 |
 
 ---

@@ -259,6 +259,120 @@ export const ctS7CarryOverOutOfOrder = {
 };
 
 /**
+ * CT-S15/S16/S17 — 오류 종결 대화 노드의 렌더 도달성 (§9.9 Inv-8).
+ *
+ * CT-S1~S7 이 tool-call 그룹·carry-over 를 다루는 것과 달리, 아래 셋은
+ * 미리보기 **탭 자체의 도달성**과 데이터 소스 선택(store vs outputData)을
+ * 다룬다 — 소비처도 `conversation-utils.test.ts` 가 아니라
+ * `result-detail.test.tsx` 다.
+ *
+ * 엔진은 실패 시에도 `nodeExec.outputData` 를 영속하고 `node.failed` payload 에
+ * 동봉한다 (spec/4-nodes/3-ai/1-ai-agent.md §7.9 — `output.error` + 부분
+ * `output.result.*` 병존). 아래 output 은 그 shape 을 그대로 재현한다.
+ */
+function makeErroredConversationOutput(retryable: boolean) {
+  return {
+    // `config` + `output` 이 함께 있어야 structured envelope 로 인식된다
+    // (`unwrapNodeOutput`). 엔진이 영속하는 실제 형태 그대로.
+    config: { mode: "multi_turn", model: "gemma-4-26b" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "주문 상태 확인" },
+          { role: "assistant", content: "주문번호를 알려주세요" },
+          { role: "user", content: "ORD-12345" },
+        ],
+        turnCount: 2,
+        endReason: "error",
+      },
+      error: retryable
+        ? {
+            code: "LLM_CALL_FAILED",
+            message: "Request timed out.",
+            details: { retryable: true },
+          }
+        : {
+            code: "LLM_AUTH_FAILED",
+            message: "Invalid API key.",
+            details: { retryable: false },
+          },
+    },
+    meta: { durationMs: 40400 },
+    port: "error",
+    status: "ended",
+  };
+}
+
+/** CT-S15 — retryable 오류 종결. live store 사본이 nodeExecutionId 를 보유. */
+export const ctS15RetryableFailedConversation = {
+  outputData: makeErroredConversationOutput(true),
+  /** live 세션 store — system_error 가 nodeExecutionId 를 들고 있어 retry 활성 */
+  storeMessages: [
+    { type: "user", content: "주문 상태 확인", turnIndex: 1 },
+    { type: "assistant", content: "주문번호를 알려주세요", turnIndex: 1 },
+    { type: "user", content: "ORD-12345", turnIndex: 2 },
+    {
+      type: "system_error",
+      content: "Request timed out.",
+      turnIndex: 2,
+      systemError: {
+        code: "LLM_CALL_FAILED",
+        message: "Request timed out.",
+        retryable: true,
+        nodeId: "n1",
+        nodeLabel: "CS Bot",
+        nodeExecutionId: "11111111-1111-4111-8111-111111111111",
+      },
+    },
+  ],
+} as const;
+
+/** CT-S16 — non-retryable 오류 종결. §10.6.1 예외 확장의 실제 델타. */
+export const ctS16NonRetryableFailedConversation = {
+  outputData: makeErroredConversationOutput(false),
+} as const;
+
+/**
+ * CT-S17 — 새로고침 후 이력 화면: store 비어있고 outputData 만 존재.
+ *
+ * messages 에 tool-call 왕복을 포함한다 — 이 회귀의 본질이 "호출자(result-detail)
+ * 가 넘긴 items 가 인스펙터에서 버려지는" **배선 실패**였으므로, 미리보기가
+ * 텍스트뿐 아니라 tool row 까지 실제 배선을 통해 복원하는지 검증해야 같은 계열의
+ * 실패를 잡는다.
+ */
+export const ctS17HistoryFailedConversation = {
+  outputData: {
+    config: { mode: "multi_turn", model: "gemma-4-26b" },
+    output: {
+      result: {
+        messages: [
+          { role: "user", content: "주문 상태 확인" },
+          {
+            role: "assistant",
+            content: "",
+            toolCalls: [{ id: "call_1", name: "kb_search", arguments: "{}" }],
+          },
+          { role: "tool", content: '["chunk1","chunk2"]', toolCallId: "call_1" },
+          { role: "assistant", content: "주문번호를 알려주세요" },
+          { role: "user", content: "ORD-12345" },
+        ],
+        turnCount: 2,
+        endReason: "error",
+      },
+      error: {
+        code: "LLM_CALL_FAILED",
+        message: "Request timed out.",
+        details: { retryable: true },
+      },
+    },
+    meta: { durationMs: 40400 },
+    port: "error",
+    status: "ended",
+  },
+  storeMessages: [],
+} as const;
+
+/**
  * 시나리오 목록 enum 형 export — 누락 시 컴파일 에러로 즉시 발견.
  */
 export const conversationScenarios = {
@@ -269,4 +383,7 @@ export const conversationScenarios = {
   ctS5ThinkingTextWithToolCalls,
   ctS6MultiTurnIsolation,
   ctS7CarryOverOutOfOrder,
+  ctS15RetryableFailedConversation,
+  ctS16NonRetryableFailedConversation,
+  ctS17HistoryFailedConversation,
 } as const;
