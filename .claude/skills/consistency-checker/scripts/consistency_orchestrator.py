@@ -98,15 +98,6 @@ def _save_state(state_file, state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
-def _report_paths(session_dir, state):
-    """Where each checker's report lives in this session dir.
-
-    Thin delegate — the rule (session-relative anchoring, non-empty) is shared with the
-    push/stop gate in `.claude/_shared/report_paths.py`.
-    """
-    return _report_paths_lib.report_paths(session_dir, state)
-
-
 def _reconcile_state_with_disk(session_dir):
     """Bring `_retry_state.json`'s buckets in line with the reports on disk. Returns
     `(state, changed)`. Quiet — callers decide what to say.

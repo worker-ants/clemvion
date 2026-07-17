@@ -48,7 +48,15 @@ def report_path(session_dir: str, name: str, state: dict) -> str:
             None,
         )
     recorded = recorded or f"{name}.md"
-    return os.path.join(os.path.abspath(session_dir), os.path.basename(str(recorded)))
+    basename = os.path.basename(str(recorded))
+    if basename in ("", ".", ".."):
+        # A recorded `output_file` that ends in `/` (basename "") or is a bare `.`/`..`
+        # component would otherwise resolve to the session dir itself or its parent — a
+        # directory, not a report file. `has_report()` would then read the *directory's*
+        # size, which is rarely 0, and misjudge "report present". Fall back to the same
+        # name-based default used when no invocation is recorded at all.
+        basename = f"{name}.md"
+    return os.path.join(os.path.abspath(session_dir), basename)
 
 
 def report_paths(session_dir: str, state: dict) -> dict[str, str]:
@@ -64,9 +72,17 @@ def report_paths(session_dir: str, state: dict) -> dict[str, str]:
 
 
 def has_report(session_dir: str, name: str, state: dict) -> bool:
-    """True when `name` left a usable report — present **and** non-empty."""
+    """True when `name` left a usable report — present **and** non-empty.
+
+    `isfile` first, deliberately: a bare `getsize() > 0` also passes for a *directory*
+    (most filesystems report a non-zero directory-entry size), and `report_path()`'s
+    basename fallback aside, nothing guarantees every future caller pre-sanitizes its
+    `output_file`. Checking the file type here is the same belt-and-suspenders the
+    pre-refactor orchestrators had independently, before this module existed.
+    """
+    path = report_path(session_dir, name, state)
     try:
-        return os.path.getsize(report_path(session_dir, name, state)) > 0
+        return os.path.isfile(path) and os.path.getsize(path) > 0
     except OSError:
         return False  # absent, or unreadable — either way we have no report
 

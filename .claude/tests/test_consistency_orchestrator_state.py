@@ -75,6 +75,23 @@ class ConsistencyReconcileTest(unittest.TestCase):
         self.assertIn("pending=2", r.stdout)
         self.assertEqual(self._state()["agents_success"], ["cross_spec"])
 
+    def test_an_empty_checker_report_is_not_promoted_to_success(self):
+        # Symmetric with code_review_orchestrator's
+        # `AgreementTest.test_agree_on_an_empty_report` (test_report_paths_shared.py):
+        # `touch cross_spec.md` must not satisfy the gate. Consistency has no
+        # `--verify-coverage` command of its own, so this is driven through
+        # `--summary-state`'s `_reconcile_state_with_disk` instead — the only place the
+        # non-empty rule is actually exercised on this side.
+        self._write_state()
+        (self.sd / "cross_spec.md").write_text("", encoding="utf-8")  # empty — not a report
+        r = _run("--summary-state", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("success=0", r.stdout)
+        self.assertIn("pending=3", r.stdout)
+        s = self._state()
+        self.assertNotIn("cross_spec", s["agents_success"])
+        self.assertIn("cross_spec", s["agents_pending"])
+
     def test_resume_reconciles_so_a_loop_does_not_rerun_finished_checkers(self):
         self._write_state()
         (self.sd / "cross_spec.md").write_text("x", encoding="utf-8")

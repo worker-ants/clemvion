@@ -101,6 +101,57 @@ class ReportPathsTest(unittest.TestCase):
         self.assertEqual(rp.report_paths(self.sd, {"subagent_invocations": {"x": 1}}), {})
         self.assertEqual(rp.missing_reports(self.sd, "security", {}), [])
 
+    def test_report_paths_returns_every_declared_agent_on_a_normal_manifest(self):
+        # Happy-path coverage for `report_paths()` (plural) — until now only its
+        # malformed-input branch (above) was exercised; a real manifest never was.
+        st = _state(["security", "scope"], output_dir=DEAD_WORKTREE)
+        self.assertEqual(
+            rp.report_paths(self.sd, st),
+            {
+                "security": os.path.join(self.sd, "security.md"),
+                "scope": os.path.join(self.sd, "scope.md"),
+            },
+        )
+
+    # ---- basename edge cases: a directory must never be mistaken for a report --------
+    #
+    # `output_file` ending in `/` (basename "") or being a bare `.`/`..` resolves
+    # `os.path.join` to the session dir itself or its parent — a directory. Regression:
+    # the pre-refactor orchestrators each guarded this with `os.path.isfile()`; the
+    # guard was dropped when the check was unified into this module (measured 64-96
+    # bytes of directory-entry size, enough to pass a bare `getsize() > 0`).
+
+    def test_a_trailing_slash_output_file_falls_back_to_name_md(self):
+        st = _state(["security"], output_dir=self.sd)
+        st["subagent_invocations"][0]["output_file"] = f"{self.sd}/"
+        self.assertEqual(rp.report_path(self.sd, "security", st), os.path.join(self.sd, "security.md"))
+
+    def test_a_trailing_slash_output_file_is_not_a_report_even_though_the_dir_is_not_empty(self):
+        st = _state(["security"], output_dir=self.sd)
+        st["subagent_invocations"][0]["output_file"] = f"{self.sd}/"
+        # The session dir itself is non-empty (this very state file lives under it, plus
+        # whatever else) — the old `getsize() > 0` check would have misjudged this a report.
+        Path(self.sd, "_retry_state.json").write_text("{}", encoding="utf-8")
+        self.assertFalse(rp.has_report(self.sd, "security", st))
+
+    def test_a_dotdot_output_file_falls_back_to_name_md(self):
+        st = _state(["security"], output_dir=self.sd)
+        st["subagent_invocations"][0]["output_file"] = ".."
+        self.assertEqual(rp.report_path(self.sd, "security", st), os.path.join(self.sd, "security.md"))
+
+    def test_a_dotdot_output_file_is_not_a_report(self):
+        st = _state(["security"], output_dir=self.sd)
+        st["subagent_invocations"][0]["output_file"] = ".."
+        self.assertFalse(rp.has_report(self.sd, "security", st))
+
+    def test_isfile_rejects_a_directory_even_without_the_basename_fallback(self):
+        # Belt-and-suspenders: has_report() must refuse a directory outright, independent
+        # of report_path()'s own basename guard (e.g. a future caller that pre-sanitizes
+        # `output_file` itself and hands report_path() an already-directory-shaped path).
+        st = _state(["security"], output_dir=self.sd)
+        os.makedirs(os.path.join(self.sd, "security.md"))
+        self.assertFalse(rp.has_report(self.sd, "security", st))
+
 
 class AgreementTest(unittest.TestCase):
     """The gate and the CLI must reach the same verdict — the point of the module.

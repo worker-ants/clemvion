@@ -241,16 +241,6 @@ def _emit_summary_state(session_dir):
     )
 
 
-def _report_paths(session_dir, state):
-    """Where each agent's report lives in this session dir.
-
-    Thin delegate — the rule (session-relative anchoring, non-empty) is shared with the
-    push/stop gate in `.claude/_shared/report_paths.py`. Kept as a named function because
-    call sites read better and the module boundary stays swappable.
-    """
-    return _report_paths_lib.report_paths(session_dir, state)
-
-
 def _sync_from_disk(session_dir):
     """Reconcile _retry_state.json with the reviewer files actually on disk.
 

@@ -111,8 +111,16 @@ except Exception:  # pragma: no cover - import path fallback
 # "change both" comment they diverged inside one PR (the gate required non-empty, the CLI
 # only existence, so `touch security.md` passed one and failed the other).
 #
-# NOT wrapped in a try/except fallback: a silent import failure would make the coverage
-# gate pass everything, which is the failure mode it exists to prevent. Fail loudly.
+# NOT wrapped in a local try/except: this module's own two callers
+# (`guard_review_before_push.py`, `guard_review_before_stop.py`) already wrap
+# `from review_guard import evaluate_review` in a broad `try/except Exception` that sets
+# `evaluate_review = None` on failure — so an import error here does not raise past this
+# file; it fails the *whole module* to load and both callers quietly disable the entire
+# review gate (push block, stop nudge, resolution-in-flight suppression alike), same as
+# any other runtime error this gate can hit. That is consistent with the gate's own
+# fail-open philosophy elsewhere, so it is not a functional gap — the one place a local
+# try/except here would matter is a unit test that imports this module directly and
+# would otherwise see the failure silently swallowed instead of raised.
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import report_paths as _report_paths_lib  # noqa: E402

@@ -4,7 +4,9 @@ worktree: report-paths-shared-0edbf0
 started: 2026-07-17
 owner: developer
 status: complete
-# `.claude/**` + 프론트 테스트 헬퍼 전용 — 어떤 spec 의 `code:` glob 에도 매칭되지 않는다.
+# `codebase/frontend/src/components/layout/**` 는 spec/2-navigation/_layout.md 의 `code:`
+# glob 에 매칭되지만(변경 파일 3개는 그 아래 `__tests__/**`), 본 PR 은 assertion·동작 변경
+# 없는 순수 mock/setup 추출 리팩터(vitest 11/11 동일 통과 재확인)라 spec 갱신 불필요.
 spec_impact: none
 ---
 
