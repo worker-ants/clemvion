@@ -2258,4 +2258,78 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 리셋이 이행됐다 — 새 대화 webhook 이 정확히 1회(구 세션 복원이 아니라).
     await waitFor(() => expect(hookPosts).toBe(1));
   });
+
+  // 위 둘의 **혼합** — 겹친 두 부팅의 결과가 갈리고 **차단된 쪽이 먼저 resolve** 되는 경우.
+  //
+  // 이 케이스가 별도로 필요한 이유: BLOCKED 분기는 `worldGenRef` 를 올리지 않는다(세계가 바뀐 게
+  // 아니라 이 시도가 실패했을 뿐). 그래서 성공 경로의 자기치유("먼저 소비한 쪽이 나머지를 stale 화")가
+  // 여기엔 성립하지 않아, 차단된 시도가 **아직 살아있는 다른 시도의** 리셋 의도까지 지울 수 있었다.
+  // `bootGenRef` 소유권 조건이 그걸 막는다 — 이 테스트가 그 조건 하나만 정확히 고정한다.
+  // (ai-review 2026-07-17 12_34_03 — side_effect·testing 독립 발견, 양쪽 다 순서-대조로 재현)
+  it("겹친 부팅의 결과가 갈릴 때, 차단된 쪽이 살아있는 쪽의 리셋을 지우지 않는다", async () => {
+    Object.defineProperty(window.document, "referrer", {
+      value: "http://host.test/page",
+      configurable: true,
+    });
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let hookPosts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          hookPosts += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 202,
+            json: async () => ({
+              data: {
+                executionId: "fresh",
+                status: "pending",
+                interaction: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+              },
+            }),
+          } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "old", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    sendHostCommand("resetSession"); // 1차 부팅 구간에 접수된 정당한 요청.
+    boot(); // 2차 부팅(예: 다른 triggerEndpointPath 로 전환) — 1차는 아직 in-flight.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // **1차(차단)가 먼저** resolve — 여기서 리셋 의도를 지워버리면 안 된다(2차가 아직 살아있다).
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }) } as Response);
+      await flushAsync();
+    });
+    // 2차(허용)가 나중에 resolve — 이쪽이 리셋을 이행해야 한다.
+    await act(async () => {
+      embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+
+    await waitFor(() => expect(hookPosts).toBe(1));
+  });
 });
