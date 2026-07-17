@@ -224,7 +224,12 @@ export function useWidget() {
   const endedRef = useRef(false);
   // `seedWaitingFromStatus`(아래 정의) 를 그보다 위에 있는 `handleEiaEvent` 에서 쓰기 위한 ref 홀더.
   const seedWaitingFromStatusRef = useRef<
-    ((client: EiaClient, session: SessionRef) => Promise<SeedOutcome>) | null
+    | ((
+        client: EiaClient,
+        session: SessionRef,
+        opts?: { allowWhileStreaming?: boolean },
+      ) => Promise<SeedOutcome>)
+    | null
   >(null);
 
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약은 useTokenRefresh 캡슐화(§B).
@@ -268,11 +273,12 @@ export function useWidget() {
    * 잡힌다(plan `webchat-boot-single-flight.md` §A-5 매트릭스). `guardedAwait` 구조화 대신 이 조합을
    * 택한 근거는 같은 plan §A-0.
    *
-   * *(`sendCommand` 는 world 축만 필요하다 — 명령 실패는 세션 교체(world)만 따지면 되고 표면을
-   * 그리지 않는다. 그러나 `start()` 는 world 축만으로 **부족하다** — 자기 seed 로 WAITING 표면을
-   * 그리므로 `seedWaitingFromStatus` 에 boot 스냅샷을 넘겨야 재전송이 넘겨받은 화면을 되감지 않는다.
-   * "start() 는 world 축만 필요" 라던 종전 서술은 반증됐다 — ai-review 23_58_23. 단 start() 는
-   * 부팅 시도가 아니므로 `beginBootAttempt()` 로 세대를 올리지 않고 `bootGenRef.current` 를 읽기만 한다.)*
+   * *(`bootGenRef` 는 **`applyConfig` 의 config 적용 경합에만** 쓴다 — `beginBootAttempt`(발급)와
+   * `cannotApplyConfig`/`isAttemptStale`(재검증). `start()`/`sendCommand`/`seedWaitingFromStatus` 는
+   * 이 축을 쓰지 않는다. 특히 `seedWaitingFromStatus` 의 표면 되감기 방어는 boot 세대 비교가 아니라
+   * `sessionEstablished()`("스트림이 이미 열렸나")로 한다 — boot 세대는 그 proxy 였고 두 번 구멍이
+   * 났다(18_39_11: 함수 경계에서 안 닿음 / 00_51_53: no-op 재전송이 start() 를 거짓 stale 처리해
+   * 고착). 그 함수 JSDoc 표 참조.)*
    */
   const beginBootAttempt = useCallback(
     () => ({ world: worldGenRef.current, boot: ++bootGenRef.current }),
@@ -423,7 +429,12 @@ export function useWidget() {
         // 이벤트까지 유실된 경우 — `seedWaitingFromStatus` 가 `finalizeEnded` 로 종료를 확정한다.
         const client = clientRef.current;
         const session = sessionRef.current;
-        if (client && session) void seedWaitingFromStatusRef.current?.(client, session);
+        // `allowWhileStreaming: true` — 이 폴백은 **자기 스트림이 열린 채** 표면을 재동기화한다.
+        // seed 의 기본 가드(`sessionEstablished()` 면 WAITING 스킵)를 그대로 두면 여기선 항상 스킵돼
+        // 재동기화가 no-op 이 된다. 복원/start 경로의 "다른 시도가 스트림을 가로챘나" 와 달리, 여기
+        // 스트림 열림은 "내가 다시 그려야 함" 을 뜻하므로 opt-in 으로 통과시킨다.
+        if (client && session)
+          void seedWaitingFromStatusRef.current?.(client, session, { allowWhileStreaming: true });
         // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
@@ -488,40 +499,37 @@ export function useWidget() {
    *
    * **이 함수 안에는 staleness 정책이 두 개 공존한다 — 합치지 말 것.**
    *
-   * | 분기 | 축 | 왜 |
+   * | 분기 | 가드 | 왜 |
    * | --- | --- | --- |
-   * | 종료 확정(`finalizeEnded`) | world **만** | **종료는 세계의 사실이지 시도의 소유물이 아니다.** 대체된 시도가 발견한 진짜 종료를 버리면 아무도 확정하지 않을 수 있다 — 살아있는 시도는 `sessionEstablished()` 스킵으로 자기 `getStatus` 를 아예 안 낼 수 있고, 버퍼 만료(§replay_unavailable) 구간에선 terminal SSE 도 다시 오지 않는다. |
-   * | 표면 갱신(`WAITING` dispatch) | world **+ boot** | 대체된 시도의 지연 응답이 살아있는 시도가 SSE 로 이미 전진시킨 화면을 **옛 노드로 되돌린다**(재현 확인 — 아래). |
+   * | 종료 확정(`finalizeEnded`) | world **만** | **종료는 세계의 사실이지 시도의 소유물이 아니다.** 대체된 시도가 발견한 진짜 종료를 버리면 아무도 확정하지 않을 수 있다 — 살아있는 시도는 스트림 열림 스킵으로 자기 `getStatus` 를 아예 안 낼 수 있고, 버퍼 만료(§replay_unavailable) 구간에선 terminal SSE 도 다시 오지 않는다. |
+   * | 표면 갱신(`WAITING` dispatch) | **`sessionEstablished()`** — 스트림이 이미 열렸으면 스킵 | **스트림이 열린 순간부터 SSE 가 표면의 단일 진실이다.** 지연 도착한 `getStatus` 스냅샷이 SSE 가 이미 전진시킨 화면을 옛 노드로 되돌리면 안 된다. |
    *
-   * 표면 갱신에 boot 축이 필요한 이유: 호출부의 checkpoint 2(`isAttemptStale`)는 이 함수가
-   * **반환한 뒤** 의 `openStream`/`scheduleRefresh` 만 게이팅한다. `WAITING` dispatch 는 함수
-   * **안쪽**에서 그보다 먼저 끝나므로 checkpoint 2 가 닿지 않는다 — 이 파일의 "await 뒤 재검증"
-   * 계약이 함수 경계에서 끊기는 유일한 자리다.
+   * **왜 boot 축이 아니라 `sessionEstablished()` 인가** (되감기 fix 의 3차 반복 끝에 도달한 불변식):
+   * 우리가 진짜 막으려는 것은 "**다른(더 최신) 시도가 이미 스트림을 연 뒤** 내 지연 seed 가 화면을
+   * 덮는 것" 이다. boot 세대 비교는 그 proxy 였고 두 번 구멍이 났다 — (1) 호출부 checkpoint 2 는
+   * 함수 **반환 뒤** 만 보는데 `WAITING` dispatch 는 함수 **안쪽**이라 안 닿았고(18_39_11), (2)
+   * `start()` 가 진입 시점 boot 을 캡처하면 **아무것도 복원 못 하는 no-op 재전송**이 `bootGenRef` 만
+   * 올려 start() 자신을 거짓 stale 처리해 **스피너에 고착**시켰다(00_51_53, 3인 재현). 두 구멍 다
+   * "스트림이 실제로 열렸는가" 라는 직접 신호로 사라진다 — 열렸으면(누가 열었든) SSE 가 소유하니
+   * 스킵, 안 열렸으면 이 seed 가 그린다. `openStream` 은 seed 반환 **직후 동기 실행**이라, 경합하는
+   * 여러 시도 중 먼저 resolve 한 것이 스트림을 열고 나머지는 다음 microtask 에서 이 가드에 걸린다
+   * (이중 스트림도 원천 차단).
    *
-   * 재현(회귀 테스트로 고정): 세션이 `waiting_for_input`(n1)로 저장된 채 부팅#1이 `getStatus` A 를
-   * 발사 → A 미해결 상태에서 `wc:boot` 재전송(부팅#2)이 같은 창(스트림 미확립)에 걸려 `getStatus` B
-   * 를 발사 → B 가 먼저 응답해 n1 표면 + 스트림 확립 → SSE 로 대화가 n2 로 전진 → **A 가 뒤늦게 n1
-   * 스냅샷으로 응답** → world 는 내내 그대로라 옛 `WAITING(n1)` 이 그려져 화면이 n2 → n1 로 되감긴다.
-   * (ai-review 2026-07-17 18_39_11 concurrency CRITICAL)
-   *
-   * @param attempt 부팅 세대 토큰(WAITING 분기의 boot 축 게이팅용). **두 종류의 호출부가 넘긴다**:
-   *   `applyConfig`(부팅 시도 — `beginBootAttempt()` 로 발급받은 토큰) 와 `start()`(eager 부팅 —
-   *   부팅 시도가 아니므로 세대를 올리지 않고 `bootGenRef.current` 를 **읽기전용 스냅샷**으로 캡처해
-   *   넘긴다). 둘 다 "이 seed 가 응답할 때쯤 더 최신 재전송이 이 세션을 넘겨받았는가" 를 물어야
-   *   화면 되감기를 막는다. `replay_unavailable` 폴백만 생략한다 — 그 경로는 스트림이 **이미 열려
-   *   있어야** 발화하므로(재전송 복원 분기의 "스트림 미확립" 전제와 상호배타) 겹칠 수 없다.
-   *   (직전 라운드는 `start()` 를 "world 축만 필요" 로 오판해 무방비로 뒀고, 3인이 되감기를 재현했다
-   *   — ai-review 2026-07-17 23_58_23.)
+   * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`replay_unavailable`
+   *   폴백만** 넘긴다 — 그건 자기 스트림의 표면을 버퍼 만료 후 **재동기화**하는 정당한 경우다(스트림
+   *   열림이 "다른 시도가 가로챔" 이 아니라 "내가 다시 그려야 함" 을 뜻한다). `applyConfig`·`start()`
+   *   는 생략(기본값 = 스트림 열렸으면 스킵) — 그 둘의 스트림 열림은 항상 다른 시도의 것이다
+   *   (자기 자신은 seed **뒤**에 열므로 seed 시점엔 아직 안 열렸다).
    *
    * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
-   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`cannotApplyConfig` 뿐
+   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`sessionEstablished` 뿐
    * (둘 다 stable 콜백).
    */
   const seedWaitingFromStatus = useCallback(
     async (
       client: EiaClient,
       session: SessionRef,
-      attempt?: { boot: number },
+      opts?: { allowWhileStreaming?: boolean },
     ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
@@ -545,9 +553,10 @@ export function useWidget() {
           return "ended"; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
         }
         if (status.status === "waiting_for_input" && status.context) {
-          // **표면 갱신만 boot 축을 본다** — 위 종료 확정은 일부러 안 본다(JSDoc 표 참조).
-          // 대체된 시도의 지연 스냅샷으로 살아있는 화면을 되감지 않는다.
-          if (attempt && cannotApplyConfig(attempt)) return "stale";
+          // **스트림이 이미 열렸으면 SSE 가 표면을 소유한다 — 지연 seed 로 덮지 않는다**(JSDoc 표 참조).
+          // 위 종료 확정은 이 가드를 일부러 안 탄다(종료는 world 사실). `replay_unavailable` 폴백만
+          // 자기 스트림 재동기화라 opt-in 으로 통과한다.
+          if (!opts?.allowWhileStreaming && sessionEstablished()) return "stale";
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
           // EIA §5.3) — `as` 캐스트 불필요.
           const parsed = parseWaitingForInput(status.context);
@@ -577,7 +586,7 @@ export function useWidget() {
         return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [finalizeEnded, isStale, cannotApplyConfig],
+    [finalizeEnded, isStale, sessionEstablished],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -619,13 +628,6 @@ export function useWidget() {
     // `++` 인 이유: start 는 세계를 **교체**하므로(옛 execution 을 새것으로) 진행 중인 다른 비동기도
     // 함께 무효화해야 한다. 그 뒤 자기 gen 을 캡처한다.
     const gen = ++worldGenRef.current;
-    // **부팅 세대 읽기전용 스냅샷** — `start()` 는 부팅 시도(config 경합자)가 **아니므로**
-    // `beginBootAttempt()` 로 `bootGenRef` 를 올리지 않는다(올리면 `applyConfig` 쪽 supersede
-    // 카운팅을 오염시킨다). 그저 지금 값을 캡처해, 아래 자기 seed 의 지연 응답이 돌아올 때쯤
-    // **더 최신 `wc:boot` 재전송이 이미 이 세션을 넘겨받았는지**를 판별한다. 없으면 start()
-    // 자신의 시작/재시도 의미는 그대로다. 이게 없으면 재전송이 SSE 로 전진시킨 화면을 start() 의
-    // 지연 seed 가 옛 노드로 되감고 두번째 스트림까지 연다(ai-review 23_58_23 CRITICAL — 3인 재현).
-    const bootAtStart = bootGenRef.current;
     dispatch({ type: "START" });
     try {
       const res = await client.startConversation(cfg.triggerEndpointPath, {
@@ -648,7 +650,10 @@ export function useWidget() {
         // 아래 검사가 잡지만, **이미 종료된 상태**(`endedRef=true`)에서는 `finalizeEnded` 가 dedup 으로
         // 조기 return 해 teardown·gen 증가를 **건너뛴다** → 그 경우 gen 검사만으로는 못 잡는다.
         // 두 검사는 축이 다르다 — outcome=`무엇이 일어났나`, gen=`세계가 바뀌었나`.
-        const outcome = await seedWaitingFromStatus(client, session, { boot: bootAtStart });
+        // seed 는 스트림 미열림 시에만 WAITING 을 그린다(`sessionEstablished()` 가드) — 그 사이
+        // 재전송이 이 세션을 넘겨받아 스트림을 열었으면 `"stale"` 로 여기서 멈춰 되감기·이중 스트림을
+        // 막고, 아무도 안 열었으면(no-op 재전송 포함) 정상적으로 그린다(ai-review 00_51_53 CRITICAL).
+        const outcome = await seedWaitingFromStatus(client, session);
         if (outcome !== "continue") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
@@ -979,15 +984,17 @@ export function useWidget() {
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
         if (clientRef.current) {
-          const outcome = await seedWaitingFromStatus(clientRef.current, saved, attempt);
-          // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
-          // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
+          // seed 는 스트림 미열림 시에만 WAITING 을 그린다(`sessionEstablished()` 가드) → 경합하는
+          // 다른 시도가 먼저 스트림을 열었으면 `"stale"` 로 되감기를 막는다.
+          const outcome = await seedWaitingFromStatus(clientRef.current, saved);
+          // "stale"/"ended" = 지연 응답이 새 대화의 스트림을 옛 토큰으로 덮어쓰거나 종료 세션을
+          // 되살리지 않도록 중단.
           if (outcome !== "continue") return;
-          // `start()` 와 동형의 명시적 재검증 — "모든 await 뒤 재검증" 계약(JSDoc)을 호출부가
-          // 스스로 지킨다. 위 `outcome` 게이팅이 이미 world 변화를 잡지만, 그건 `seedWaitingFromStatus`
-          // 내부 구현에 대한 의존이고 **boot 축은 아예 보지 않는다**. 여기서 토큰으로 한 번 더 보면
-          // 그 내부가 바뀌어도(예: await 추가) 이 경로가 조용히 무방비가 되지 않는다
-          // (ai-review 2026-07-17 08_29_33 W2).
+          // checkpoint 2 — `openStream` 직전 boot+world 재검증. seed 의 `sessionEstablished()` 가드는
+          // "다른 시도가 **이미 스트림을 열었나**" 만 보므로, 더 최신 재전송이 세대만 올리고 **아직
+          // 스트림을 안 연** 좁은 창에선 이 attempt 가 openStream 으로 진입할 수 있다. 그걸 여기서
+          // 막아 마지막 부팅이 스트림을 소유하게 한다(같은 세션이라 기능은 동일하나 소유권 정합).
+          // (ai-review 2026-07-17 08_29_33 W2 · 00_51_53)
           if (isAttemptStale(attempt)) return;
         }
         openStream(saved, "0");

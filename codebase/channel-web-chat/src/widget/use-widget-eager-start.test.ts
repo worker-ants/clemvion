@@ -3209,17 +3209,16 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(webhookPosts.length).toBe(0);
   });
 
-  // **`start()`(eager 부팅) 자신의 seed 도 boot 축으로 보호돼야 한다** — 세 번째(그리고 마지막) 되감기
-  // 경로. 직전 라운드는 `applyConfig` 복원 분기만 boot 토큰으로 막았고, `start()` 는 "world 축만 필요"
-  // 라는 (반증된) 근거로 무방비였다. 세 리뷰어(concurrency·requirement·side_effect)가 독립적으로 실제
-  // 코드로 재현했다: start() 가 세션을 storage 에 쓴 직후·자기 getStatus 응답 전이라는 좁은 창에
-  // wc:boot 재전송이 같은 세션을 복원 분기로 넘겨받아 SSE 로 화면을 전진시킨 뒤, start() 의 지연 응답이
-  // 옛 노드로 화면을 되감고 **두 번째 EventSource 까지 연다**.
+  // **`start()`(eager 부팅) 자신의 seed 도 되감기로부터 보호돼야 한다** — 세 번째 되감기 경로.
+  // 세 리뷰어(concurrency·requirement·side_effect)가 독립 재현: start() 가 세션을 storage 에 쓴
+  // 직후·자기 getStatus 응답 전이라는 좁은 창에 wc:boot 재전송이 같은 세션을 복원 분기로 넘겨받아
+  // SSE 로 화면을 전진시킨 뒤, start() 의 지연 응답이 옛 노드로 화면을 되감고 **두 번째 EventSource
+  // 까지 연다**.
   //
-  // start() 는 부팅 시도(config 경합자)가 아니므로 `beginBootAttempt()` 로 세대를 올리면 안 된다 —
-  // 진입 시점의 `bootGenRef.current` 를 **읽기전용 스냅샷**으로만 잡아 넘긴다. "이 seed 가 응답할 때쯤
-  // 더 최신 재전송이 이미 이 세션을 넘겨받았는가" 만 판별한다.
-  // (ai-review 2026-07-17 23_58_23 concurrency·requirement·side_effect CRITICAL)
+  // 가드는 `sessionEstablished()`("스트림이 이미 열렸나") 다 — 재전송이 스트림을 열었으면 start() 의
+  // 지연 seed 는 스킵한다. (23_58_23 은 이 자리에 boot 스냅샷을 썼다가 no-op 재전송이 start() 를
+  // 고착시키는 반대 구멍을 냈고, 00_51_53 에서 sessionEstablished 로 교체했다 — 아래 고착 테스트 참조.)
+  // (ai-review 2026-07-17 23_58_23 / 00_51_53 concurrency·requirement·side_effect CRITICAL)
   it("start() 의 지연 seed 가 재전송이 전진시킨 화면을 되감거나 두번째 스트림을 열지 않는다", async () => {
     // `installControllableEventSource` 와 같은 패턴(별도 인스턴스 생성 후 반환 — `this` 별칭 회피,
     // no-this-alias)에 **생성 횟수 카운터**만 더한다. 되감기 결함은 두번째 EventSource 를 열므로
@@ -3294,11 +3293,95 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     act(() => { latestEs?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n2", conversationThread: { turns: [] } }); });
     expect(result.current.state.pending?.nodeId).toBe("n2");
 
-    // start() 의 지연 seed(호출 C, attempt 없음)가 뒤늦게 옛 n1 으로 응답.
+    // start() 의 지연 seed(호출 C)가 뒤늦게 옛 n1 으로 응답.
     await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
 
-    // 화면은 n2 그대로, 두번째 EventSource 도 안 열린다 — start() seed 는 boot 축으로 스킵된다.
+    // 화면은 n2 그대로, 두번째 EventSource 도 안 열린다 — 스트림이 이미 열렸으므로 start() seed 는 스킵.
     expect(result.current.state.pending?.nodeId).toBe("n2");
+    expect(esCount).toBe(1);
+  });
+
+  // **아무것도 복원 못 하는 no-op 재전송이 start() 를 고착시키면 안 된다** (boot 스냅샷 fix 의 반대 구멍).
+  //
+  // 재현(ai-review 23_58_23 → 00_51_53 requirement·testing·side_effect 3인 독립 CRITICAL): 23_58_23 의
+  // start() boot 스냅샷 fix 는 "재전송이 start() 의 persist **이후** 도착" 창만 막았다. 그보다 이른
+  // "webhook POST in-flight(세션 미persist)" 창은 무방비였다 — 재전송이 storage 가 빈 걸 보고 **아무것도
+  // 복원하지 않고** 물러나면서 `bootGenRef` 만 헛되이 올린다. 그러면 start() 자신의 정당한 seed 가
+  // "나는 대체됐다" 로 오판해 WAITING·openStream 을 둘 다 스킵 → **스피너에 영구 고착**(esCount=0).
+  //
+  // 근본 원인: boot 축은 "더 최신 재전송이 **이 세션을 실제로 넘겨받았는가**" 의 proxy 였고, no-op
+  // 재전송에서 그 proxy 가 깨진다. 진짜 불변식은 `sessionEstablished()`("스트림이 이미 열렸는가") 다 —
+  // 아무도 스트림을 안 열었으면 start() 가 그려야 한다.
+  it("webhook in-flight 중 아무것도 복원 못 하는 재전송이 start() 를 스피너에 고착시키지 않는다", async () => {
+    let esCount = 0;
+    let latestEs: ControllableEventSource | null = null;
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCount += 1;
+          latestEs = new ControllableEventSource();
+          return latestEs as unknown as this;
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof EventSource,
+    );
+
+    const webhookResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => { webhookResolvers.push(r); });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => { statusResolvers.push(r); });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const webhook202 = () =>
+      ({ ok: true, status: 202, json: async () => ({ data: {
+        executionId: "e1", status: "pending",
+        interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+      } }) }) as Response;
+    const waitingAt = (nodeId: string) =>
+      ({ ok: true, status: 200, json: async () => ({ data: {
+        executionId: "e1", status: "waiting_for_input",
+        context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+      } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 신규 방문(저장 세션 없음). wc:boot #1 → config. 패널 open → start() → webhook POST in-flight.
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookResolvers.length).toBe(1));
+
+    // **persist 전** wc:boot 재전송 → storage 가 비어 아무것도 복원 못 하고 물러난다(bootGenRef 만 증가).
+    // flush 로 재전송의 applyConfig 를 **storage 가 빈 동안** 끝까지 굴린다(embed 즉시 allow →
+    // loadSession null → 복원 분기 스킵). 이래야 순수 no-op 재전송(persist 전 도착)이 재현된다.
+    await act(async () => { boot(); await flushAsync(); });
+    // 재전송은 복원할 게 없어 getStatus 를 내지 않았다 — bootGenRef 만 헛되이 올랐다.
+    expect(statusResolvers.length).toBe(0);
+
+    // 이제 start() 의 webhook 이 resolve → persist → 자기 getStatus(유일한 getStatus).
+    await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1));
+
+    // getStatus 가 정상 응답(n1) — 아무도 이 세션을 가로채지 않았다.
+    await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
+
+    // start() 는 표면을 그리고 스트림을 연다 — 고착되지 않는다.
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    expect(result.current.state.pending?.nodeId).toBe("n1");
     expect(esCount).toBe(1);
   });
 });
