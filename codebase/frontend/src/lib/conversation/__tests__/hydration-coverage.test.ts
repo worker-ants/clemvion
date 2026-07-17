@@ -51,8 +51,13 @@ const COVERAGE_MATRIX: CoverageRow[] = [
     ],
   },
   {
-    // `maxTurns` is read directly off `outputData.output.conversationConfig`
-    // by the timeline row; conversation-utils.ts itself doesn't surface it.
+    // `maxTurns` is merged in by the timeline row via
+    // `buildConvConfigFromStructured` (config ∪ output.result) for structured
+    // envelopes, falling back to top-level `conversationConfig` for legacy
+    // rows; conversation-utils.ts itself doesn't surface it. It is *not* read
+    // off `output.conversationConfig` — that path never carried `maxTurns`
+    // (denominator stuck at 0), which is why the merge helper exists
+    // (result-timeline.tsx:168).
     field: "maxTurns",
     sites: [
       "codebase/frontend/src/components/editor/run-results/result-timeline.tsx",

@@ -625,4 +625,66 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     };
     expect(isConversationOutput(raw)).toBe(false);
   });
+
+  // 아래 3개는 OR-체인의 각 분기를 **다른 분기와 겹치지 않게** 고립시킨다.
+  // 위의 기존 케이스들은 여러 분기를 동시에 참으로 만들어서, 분기 하나를 통째로
+  // 지워도 green 을 유지했다 (mutation 무방비). 각 fixture 는 의도한 분기 하나만
+  // 참이고 나머지는 전부 거짓이라, 그 분기를 지우면 이 테스트만 red 가 된다.
+  it("detects conversation via output.interactionType alone (meta carries no interactionType)", () => {
+    // `hasLegacyMessages && outputInteraction` 만 참. 고립 조건:
+    //  - top-level `interactionType`/`conversationConfig` 없음 → 첫 게이트 통과
+    //  - `meta.interactionType` 없음 → metaInteraction 거짓
+    //  - `output.conversationConfig` 없음 → hasConvConfig 거짓
+    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    //  - `status` 없음 → isCanonicalWaiting 거짓
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        interactionType: "ai_conversation",
+        messages: [{ role: "user", content: "hi" }],
+      },
+      meta: { model: "gpt-5" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("detects conversation via nested output.conversationConfig alone (no status, no messages)", () => {
+    // `hasConvConfig` 만 참. 고립 조건: top-level `conversationConfig` 가 아니라
+    // **envelope 의 output 안에 중첩된** 형태 — 첫 게이트(top-level)가 잡지
+    // 못하므로 이 분기가 유일한 참 경로다.
+    //  - `output.messages` 없음 → hasLegacyMessages 거짓 (첫 OR-분기 차단)
+    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    //  - `status` 없음 → isCanonicalWaiting 거짓
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        conversationConfig: {
+          message: "무엇을 도와드릴까요?",
+          turnCount: 1,
+        },
+      },
+      meta: { model: "gpt-5" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("detects conversation via output.messages + meta.interactionType without status", () => {
+    // `hasLegacyMessages && metaInteraction` 만 참. 위쪽의 "canonical waiting
+    // shape" 케이스는 `status: 'waiting_for_input'` 을 함께 실어서
+    // `isCanonicalWaiting` 도 동시에 참이 됐다 — 그래서 이 OR-분기를 지워도
+    // green 이었다. 여기서는 `status` 키 자체를 생략해 분리한다.
+    //  - `output.interactionType` 없음 → outputInteraction 거짓
+    //  - `output.conversationConfig` 없음 → hasConvConfig 거짓
+    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        messages: [{ role: "user", content: "hi" }],
+        message: "",
+        turnCount: 1,
+      },
+      meta: { interactionType: "ai_conversation" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
 });
