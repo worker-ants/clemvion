@@ -291,7 +291,7 @@ STRICT:: config=null (부팅 실패!)
 
 ## 이월 추가 (2026-07-17 18_39_11)
 
-- **재전송으로 `apiBase` 가 바뀌면 옛 세션 토큰이 새 `apiBase` 로 전송될 수 있다** (security WARNING) — `session-store` 가 **발급 apiBase 를 기록하지 않아** 세션과 엔드포인트가 축 분리돼 있다. **이번 diff 가 만든 게 아니다**(재전송 시 복원하던 종전에도 `clientRef` 만 새 apiBase 로 바뀌었다). 별도 트랙 — 세션에 발급 origin 을 기록하고 불일치 시 폐기하는 설계가 필요하다.
+- **재전송으로 `apiBase` 가 바뀌면 옛 세션 토큰이 새 `apiBase` 로 전송될 수 있다** (security WARNING) → **별도 plan 으로 분리했다**: [`webchat-session-apibase-binding.md`](./webchat-session-apibase-binding.md) (owner: developer, `(unstarted)`). `session-store` 가 발급 apiBase 를 기록하지 않아 축 분리된 **선행 결함**(이번 diff 무관). `--impl-done` 03_24_41 `plan_coherence` 가 "이 항목만 산문-only 라 archive 시 매몰 위험" 을 지적해 형제 이월(command-failure·usewidget-extraction)과 같이 분리.
 - **`AI_MESSAGE` 의 `ended` 가드 부재** (security INFO) — `ERROR` 근본 fix 로 지배적 경로가 닫혀 잔여 위험 낮음. 실패 사례 확인 시 확대.
 
 
@@ -437,3 +437,12 @@ start() 누락 dep 도 처리.
   손으로 복제한 3줄이라, 3번째 호출부가 생기면 이 클래스가 반복한 "비대칭 가드 누락" 재발 여지. 다만 현재
   두 호출부 모두 대칭 회귀 테스트로 고정됨. 구조적 강제(공용 wrapper)는 `useEiaSession` 분리 plan
   (`webchat-usewidget-extraction.md`)의 검토 항목으로 이관.
+
+## planner 이월 (spec Rationale 문서화 갭 — `--impl-done` 03_24_41 rationale_continuity)
+
+`sessionEstablished()` 표면/스트림 단일-진실 불변식과 A-6 되돌림 근거(비-410 실패는 종료가 아니다)는
+8~12차례 재발/재설계를 거친 **하드윈 불변식**인데, spec `## Rationale` 에는 흔적이 없다(코드 JSDoc·테스트
+주석·이 plan 진행기록에만 존재). developer 는 `spec/` read-only 라 여기서 못 쓴다 — **project-planner 가
+`spec/7-channel-web-chat/2-sdk.md`(또는 `3-auth-session.md`) `## Rationale` 에 "지연 seed 되감기/이중 스트림
+방어는 왜 sessionEstablished 인가"·"비-410 명령 실패는 왜 종료가 아닌가" 를 추가할지 검토**. `§NNN` 표기
+규약 명문화(convention_compliance INFO)와 함께 planner 트랙 후속으로 묶는다. 비차단(문서화 durability).
