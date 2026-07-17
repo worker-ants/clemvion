@@ -41,6 +41,23 @@ MUST_BLOCK = [
     ("after |", "true | git push"),
     ("inside a subshell", "(git push)"),
     ("second segment of three", "git add -A && git commit -m x && git push"),
+    # --- regression cases found by /ai-review of this file's own rewrite ------
+    # (review/code/2026/07/17/17_09_10, Critical #1-#4). Each reproduces a real
+    # false negative in the *new* shlex-based `_is_git_push`, not a pre-existing
+    # gap — see the "MUST regression" tests below for the pre-fix root cause.
+    ("newline-only separator between add and push (no && needed)",
+     "git add -A\ngit push"),
+    ("heredoc commit immediately followed by push on the next line",
+     "git commit -F - <<'EOF'\nfix: the CLI passes but push is blocked\nEOF\ngit push"),
+    ("quote-split subcommand token defeats the raw substring pre-filter",
+     "git 'pu''sh' --force"),
+    ("case-insensitive git launcher (default-case-insensitive filesystem)",
+     "GIT push"),
+    ("global option missing from the whitelist swallows its own value",
+     "git --attr-source main push"),
+    ("any *other* unlisted global option must fail closed too, not just "
+     "--attr-source (structural fix, not a point patch)",
+     "git --some-future-global-option value push"),
 ]
 
 # Commands that merely mention push. Blocking these is the old bug.
@@ -108,6 +125,60 @@ class IsGitPushTest(unittest.TestCase):
         )
         self.assertIsNone(guard._git_subcommand(["grep", "git", "push"]))
         self.assertIsNone(guard._git_subcommand([]))
+
+    def test_all_value_taking_global_options_skip_their_value(self):
+        """WARNING #3: only `-C` was exercised; the other 7 (now 8 with
+        --attr-source) entries of `_GIT_OPTS_WITH_VALUE` could silently rot —
+        a typo'd or removed entry falls through to the fail-closed branch and,
+        for a segment that does not literally end in a `push` token, produces
+        a false negative of exactly the Critical #4 shape. Table-driven so a
+        future edit to the whitelist is covered automatically."""
+        for opt in sorted(guard._GIT_OPTS_WITH_VALUE):
+            with self.subTest(option=opt):
+                self.assertEqual(
+                    guard._git_subcommand(["git", opt, "some-value", "push"]),
+                    "push",
+                    f"{opt!r} must be treated as consuming a separate value token",
+                )
+
+    def test_newline_is_a_segment_separator_on_its_own(self):
+        """Critical #1, pinned at the tokenizer level: a bare newline (no
+        `&&`/`;` in sight) must end a segment exactly like `;` does, and a run
+        of newline + other punctuation (e.g. `&&` immediately followed by a
+        line break) must still count as one boundary, not fall through
+        `_SEGMENT_SEPARATORS`-style exact-token matching."""
+        self.assertEqual(guard._tokenize("git add -A\ngit push")[3], "\n")
+        # `punctuation_chars` groups adjacent punctuation into a single token,
+        # so `&&` immediately followed by a newline is one token: "&&\n".
+        tokens = guard._tokenize("git add -A &&\ngit push")
+        self.assertIn("&&\n", tokens)
+        self.assertTrue(guard._is_git_push("git add -A &&\ngit push"))
+
+    def test_unknown_global_option_does_not_misread_its_value_as_subcommand(self):
+        """Critical #4's structural half: an option this module has never
+        heard of must not be treated as a bare flag (the old bug let the
+        *value* of such an option — e.g. `main` in `--attr-source main` — be
+        mistaken for the subcommand, hiding the real `push` after it)."""
+        self.assertEqual(
+            guard._git_subcommand(["git", "--totally-unknown-flag", "value", "push"]),
+            "push",
+        )
+        # And the safe complement: no `push` anywhere after an unknown option
+        # must NOT be reported as one (this is not "block every unknown flag").
+        self.assertIsNone(
+            guard._git_subcommand(["git", "--totally-unknown-flag", "value", "status"])
+        )
+
+
+class GitOptsWithValueRegressionTest(unittest.TestCase):
+    """`--attr-source` (Critical #4's concrete trigger) must be in the
+    whitelist by name, independent of the structural fail-closed fallback
+    tested above — belt and suspenders, since the precise skip is strictly
+    more accurate than the conservative fallback when we *do* know an option
+    takes a value."""
+
+    def test_attr_source_is_registered(self):
+        self.assertIn("--attr-source", guard._GIT_OPTS_WITH_VALUE)
 
 
 if __name__ == "__main__":

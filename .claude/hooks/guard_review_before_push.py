@@ -60,16 +60,41 @@ _GIT_PUSH_FALLBACK = re.compile(
 
 # `git` global options that take a *separate* value token. The token after each
 # is that value, so it can never be the subcommand: `git -C <dir> push`.
+# This is a closed *known-safe-to-skip-two* list, not a closed "every option
+# git has" list — an option missing from here does not fall through to
+# "treat as a bare flag" (that was Critical #4: `--attr-source` was missing,
+# so its value `main` was misread as the subcommand and the real `push` after
+# it went unexamined). See `_git_subcommand`'s fail-closed branch instead.
 _GIT_OPTS_WITH_VALUE = frozenset(
     {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path",
-     "--config-env", "--super-prefix"}
+     "--config-env", "--super-prefix", "--attr-source"}
 )
 
-# Shell operators that terminate a command segment. With punctuation_chars=True
-# shlex returns each of these as a token of its own.
-_SEGMENT_SEPARATORS = frozenset({"&&", "||", ";", ";;", "|", "|&", "&", "(", ")"})
+# Individual characters that make up shell command-boundary operators
+# (`&&`, `||`, `;`, `;;`, `|`, `|&`, `&`, `(`, `)`) plus the newline this
+# module treats as a boundary in its own right (see _tokenize). Deliberately
+# characters, not whole tokens: with punctuation_chars enabled, shlex merges
+# *adjacent* punctuation into one token, so `git add -A &&\ngit push`
+# tokenizes `&&` and the following newline as a single "&&\n" token — no
+# exact-string set (the old `_SEGMENT_SEPARATORS`) would ever match that,
+# which was Critical #1. A token is a boundary iff every one of its
+# characters is drawn from this set.
+# `<`/`>` are deliberately excluded — those are redirection, not a command
+# separator, and must stay inside whatever segment they appear in.
+_SEGMENT_SEPARATOR_CHARS = frozenset("&|;()\n")
 
 _ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _is_segment_boundary(token: str) -> bool:
+    """True when `token` is made up entirely of separator characters.
+
+    Quoted content never reaches here as a punctuation run (shlex keeps a
+    quoted `"a|b"` as one word token), so this only fires on real unquoted
+    shell operators — including runs `_SEGMENT_SEPARATORS`' old exact-token
+    matching missed, like `&&\\n` or `;(`.
+    """
+    return bool(token) and all(ch in _SEGMENT_SEPARATOR_CHARS for ch in token)
 
 
 def _read_payload() -> dict:
@@ -87,27 +112,53 @@ def _tokenize(command: str) -> list[str]:
 
     `shlex.split` splits on whitespace only, so `git add -A;git push` tokenizes
     as [..., '-A;git', 'push'] — no `;` token, so the push hides in a segment
-    that looks like `git add`. punctuation_chars=True makes shlex emit
-    `;` / `&&` / `|` separately instead. Quoted runs stay single tokens, so a
-    `|` *inside* quotes is not read as a pipe.
+    that looks like `git add`. punctuation_chars makes shlex emit `;` / `&&` /
+    `|` separately instead. Quoted runs stay single tokens, so a `|` *inside*
+    quotes is not read as a pipe.
+
+    Newline is deliberately in `punctuation_chars` (default `True` would use
+    `();<>|&`, which omits it) and removed from `whitespace`: a bare `\\n` is
+    the *only* separator between two commands typed on consecutive lines or in
+    a heredoc-then-push Bash call — with `\\n` left as ordinary whitespace
+    (shlex's default), `"git add -A\\ngit push"` collapses into one segment
+    and the trailing `git push` is never seen (Critical #1). `<`/`>` stay in
+    `punctuation_chars` (redirection tokens), but they are NOT segment
+    separators — see `_SEGMENT_SEPARATOR_CHARS`.
 
     `commenters` must be cleared: shlex.shlex() (unlike shlex.split()) treats
     `#` as starting a comment, which would swallow `… && git push` after an
     unquoted `#` — a false negative.
     """
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer = shlex.shlex(command, posix=True, punctuation_chars="();<>|&\n")
+    lexer.whitespace = lexer.whitespace.replace("\n", "")
     lexer.whitespace_split = True
     lexer.commenters = ""
     return list(lexer)
 
 
 def _git_subcommand(segment: list[str]) -> str | None:
-    """The git subcommand this segment invokes, or None if it does not run git."""
+    """The git subcommand this segment invokes, or None if it does not run git.
+
+    Unknown global options are the fail-open trap this closes. `--attr-source`
+    (missing from `_GIT_OPTS_WITH_VALUE`) let its value token (`main`) be
+    mistaken for the subcommand while the real `push` after it went
+    unexamined (Critical #4) — and the whitelist can never be exhaustive
+    against every option a future git version adds. An option this function
+    cannot classify means it no longer knows which token is really the
+    subcommand, so instead of guessing (the old "unknown = bare flag, the
+    very next token is the subcommand" assumption) it fails closed: if `push`
+    appears anywhere later in the segment, treat the segment as a push.
+    `--foo=value` tokens are exempt from that uncertainty — the value is
+    embedded in the same token, so no *separate* token can be misread.
+    """
     i = 0
     while i < len(segment) and _ENV_ASSIGN.match(segment[i]):
         i += 1  # leading `FOO=1 git …` env assignments
-    # basename so an absolute/relative path to git (`/usr/bin/git`) still counts.
-    if i >= len(segment) or os.path.basename(segment[i]) != "git":
+    # basename so an absolute/relative path to git (`/usr/bin/git`) still
+    # counts, and case-insensitively: macOS/Windows default to a
+    # case-insensitive filesystem, so `GIT push` / `Git push` really do
+    # invoke git (Critical #3) even though `str.__eq__` would say otherwise.
+    if i >= len(segment) or os.path.basename(segment[i]).lower() != "git":
         return None
     i += 1
     while i < len(segment):
@@ -116,8 +167,13 @@ def _git_subcommand(segment: list[str]) -> str | None:
             i += 2  # skip the option *and* its value
             continue
         if token.startswith("-"):
-            i += 1  # `--git-dir=x`, `-p`, `--no-pager`, … carry their own value
-            continue
+            if "=" in token:
+                i += 1  # `--git-dir=x` etc. — value is inline, always safe to skip
+                continue
+            # Unrecognized flag with no inline value: we cannot tell whether
+            # the *next* token is this flag's separate value or the real
+            # subcommand. Fail closed rather than assume "bare flag".
+            return "push" if "push" in segment[i + 1:] else None
         return token  # first non-flag token is the subcommand
     return None
 
@@ -129,8 +185,20 @@ def _is_git_push(command: str) -> bool:
     "push" somewhere after a `git`. The latter blocked `git commit` whenever
     the commit message mentioned push, and blocked `grep "…\\|git push\\|…"`
     because the quoted `\\|` was read as a pipe.
+
+    No raw-string "push" pre-filter (there used to be one, for the hot-path
+    cost of tokenizing every Bash call): `git 'pu''sh' --force` is a real
+    `git push --force` once the shell concatenates the adjacent quoted
+    fragments, but the *raw* command string never contains the contiguous
+    substring "push" — a pre-filter on it is unsound (Critical #2) and
+    skipped the REVIEW/PLAN gates outright. Measured cost of always
+    tokenizing instead: low tens of microseconds worst-case for a realistic
+    command (~6-24us across a range of real Bash-tool commands, via
+    `timeit`), against a ~13ms python3 interpreter start-up the hook already
+    pays on every invocation — three orders of magnitude smaller, i.e. not
+    observable next to the process-launch floor.
     """
-    if not command or "push" not in command:
+    if not command:
         return False
     try:
         tokens = _tokenize(command)
@@ -141,7 +209,7 @@ def _is_git_push(command: str) -> bool:
 
     segment: list[str] = []
     for token in tokens:
-        if token in _SEGMENT_SEPARATORS:
+        if _is_segment_boundary(token):
             if _git_subcommand(segment) == "push":
                 return True
             segment = []
