@@ -345,6 +345,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 노드 Output 규약 | — | [`./conventions/node-output.md`](./conventions/node-output.md) |
 | ExecutionContext 설계 규약 | — | [`./conventions/execution-context.md`](./conventions/execution-context.md) |
 | 에러 코드 명명 규약 | — | [`./conventions/error-codes.md`](./conventions/error-codes.md) |
+| Frontend 레이어 경계 규약 | — | [`./conventions/frontend-layering.md`](./conventions/frontend-layering.md) |
 
 ---
 
