@@ -88,11 +88,29 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
       PROJECT.md 가 명시적으로 "회색 지대, 화이트리스트 아님" 으로 규정하므로 수행.
       최초 unit 은 FAIL — 본 plan 의 frontmatter 가 `started`/`owner` 누락으로
       `plan-frontmatter` 가드에 걸림(내 결함). 보정 후 1단계부터 재수행해 전 단계 통과.
-- [ ] 9. `/ai-review` + Critical/Warning fix
-- [ ] 9-4. `/consistency-check --impl-done` (spec-linked 코드 변경)
+- [x] 9. `/ai-review --branch origin/main` — **위험도 LOW, Critical 0 / Warning 0** (전부 INFO).
+      reviewer 7/7 실행·전원 리포트 확보, `forced_missing: []`. Critical+Warning=0 이므로
+      `resolution-applier`·RESOLUTION.md 불요. 산출: `review/code/2026/07/17/22_50_56/SUMMARY.md`
+- [x] 9-4. `/consistency-check --impl-done` — **BLOCK: NO** (checker 5/5, Critical 0 / Warning 0).
+      산출: `review/consistency/2026/07/17/23_11_52/SUMMARY.md`
 
 ## 후속 (본 PR 범위 밖)
 
-- spec `interaction-type-registry.md` 의 "grep 대상 파일"/"코드 grep 결과" 류 잔여
-  표현 → "등록 사이트 파일"/"코드 AST 파싱 결과" 로 다듬기. consistency INFO #1 이
-  트리비얼 doc-sync 로 권고 (비차단, developer 는 spec read-only 라 project-planner 몫).
+- **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
+  "grep 대상 파일"/"grep 검증 대상"/"코드 grep 결과" 류 잔여 표현 → "AST(코드 리터럴) 스캔
+  대상"/"코드 AST 파싱 결과" 로 다듬기. **동일 항목을 3개 게이트가 독립 지적**했다 —
+  impl-prep INFO #1(checker 5/5) · `/ai-review` [SPEC-DRIFT] #1 · impl-done INFO #3.
+  세 게이트 모두 **비차단·BLOCK 아님** 으로 판정(계약·매트릭스·등록 사이트·enum 목록 불변,
+  코드가 spec 의 1차 명칭 "AST 가드" 에 수렴한 방향이라 "코드가 맞고 spec 부차 서술이 낡음").
+  developer 는 `spec/` read-only 라 여기서 이월한다.
+- **[developer, 선택]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
+  `IS_MULTI_TURN_INTERACTION` 위 주석의 "grep 가드" 표현 → "AST 가드" 정정
+  (`/ai-review` INFO #1). 본 PR diff 밖 파일이라 미포함.
+- **[developer, 선택]** self-test fixture 보강 (`/ai-review` INFO #2·#3·#4):
+  union 타입 선언·객체 프로퍼티 값 형태 추가, 정규식 리터럴 비오염 케이스
+  (`const re = /real_literal/;`) 명시 단언, 등록 사이트가 `.tsx` 로 확장될 때
+  `ts.ScriptKind` 확장자 분기.
+- **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
+  대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
+  앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
+  재현됐다(checker 들이 fork-point SHA 재계산으로 자체 우회).
