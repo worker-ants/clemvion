@@ -9,6 +9,17 @@
  * metadata.
  */
 
+// RAG 타입의 canonical 정의는 `@/lib/conversation/rag-types` 다 — `lib/` 의
+// `mergeRagRetrievalItems` 가 `TurnRagDelta` 를 받는데 이 타입이 여기
+// (components/)에 있으면 lib → components 레이어 역전이 된다. 이 디렉터리의
+// 기존 소비처는 안정성을 위해 로컬 경로 import 를 유지하도록 re-export 한다.
+import type {
+  RagSource,
+  RagDiagnostics,
+  TurnRagDelta,
+} from "@/lib/conversation/rag-types";
+export type { RagSource, RagDiagnostics, TurnRagDelta };
+
 export interface UnwrappedNodeOutput {
   /** The primary produced value that downstream nodes / users care about. */
   output: unknown;
@@ -321,37 +332,8 @@ export interface AiMetadata {
   turnDebug: TurnRagDelta[];
 }
 
-/**
- * 한 턴 동안 호출된 KB tool 의 chunk delta + 진단 (References 탭 per-turn delta).
- * (formerly `TurnDebugEntry` — `conversation-utils.ts` 의 canonical-shaped
- * `TurnDebugEntry`(llmCalls/toolCalls/totalDurationMs)와의 동명 충돌 해소를 위해
- * `TurnRagDelta` 로 rename. dev 1b.)
- */
-export interface TurnRagDelta {
-  turnIndex: number;
-  ragSources: RagSource[];
-  ragDiagnostics: RagDiagnostics | null;
-}
 
-export interface RagSource {
-  chunkId: string;
-  documentId: string;
-  documentName: string;
-  /** 200자 미리보기 */
-  content: string;
-  /** 0~1 cosine 유사도 */
-  score: number;
-  /** graph 모드: 'seed' (vector top-K) 또는 'expanded' (그래프 확장) */
-  origin?: "seed" | "expanded";
-}
 
-export interface RagDiagnostics {
-  attempted: boolean;
-  searchedKbCount: number;
-  queriesUsed: string[];
-  resultCount: number;
-  skipReason?: "empty_user_prompt" | "empty_kb_list" | "no_results";
-}
 
 function pickNumber(
   source: Record<string, unknown> | null,

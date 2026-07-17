@@ -19,11 +19,12 @@ import type {
 } from "@/lib/stores/execution-store";
 import { ConversationTimelineItem } from "./conversation-timeline-item";
 import { parseHistoryMessages } from "./conversation-utils";
+import { mergeRagRetrievalItems } from "@/lib/conversation/conversation-utils";
 import { groupToolCallItems } from "@/lib/conversation/conversation-utils";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { formatDuration } from "./utils";
-import { isConversationOutput } from "./output-shape";
+import { isConversationOutput, extractAiMetadata } from "./output-shape";
 import { buildConvConfigFromStructured } from "@/lib/websocket/apply-execution-snapshot";
 import {
   buildTimelineTree,
@@ -145,11 +146,21 @@ function TimelineRow({
       : result.nodeLabel;
 
   // Multi-turn conversation items (expanded under AI agent rows)
-  const items = isLiveNode
+  const baseItems = isLiveNode
     ? ctx.conversationMessages
     : isMultiTurn
       ? parseHistoryMessages(result.outputData)
       : [];
+  // spec/conventions/conversation-thread.md §9.6 적용 surface + Inv-5 —
+  // 🔎 `rag` 행은 conversation Preview 와 본 실행 트리 timeline **양쪽**에
+  // 동일하게 나타나야 한다. 양 surface 가 `selectedConversationItemIndex` 를
+  // 공유하므로, 한쪽만 주입하면 인덱스가 어긋나 선택이 다른 항목을 가리킨다 —
+  // 그래서 `ResultDetail` 과 **같은 소스**(`result.outputData` 의 meta.turnDebug)
+  // 로 **같은 함수**를 태워 동일 배열을 만든다.
+  const items = mergeRagRetrievalItems(
+    baseItems,
+    extractAiMetadata(result.outputData)?.turnDebug ?? [],
+  );
 
   // Turn counter derivation for AI multi-turn rows.
   // Structured envelope (`{config, output:{result:{...}}}`) keeps `turnCount`

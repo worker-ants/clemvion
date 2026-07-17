@@ -32,6 +32,7 @@ import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
 import { BackgroundRunSection } from "./background-run-section";
 import { parseHistoryMessages } from "./conversation-utils";
+import { mergeRagRetrievalItems } from "@/lib/conversation/conversation-utils";
 import { formatDate } from "@/lib/utils/date";
 import { formatDuration } from "./utils";
 import { parseButtonConfig, openExternalLink } from "./button-config";
@@ -1073,10 +1074,22 @@ export function ResultDetail({
   const historyMessages = isConversationHistory
     ? parseHistoryMessages(result.outputData)
     : [];
-  const effectiveConversationMessages =
+  const baseConversationMessages =
     isWaitingConversation || hasLiveSystemError
       ? conversationMessages
       : historyMessages;
+  // spec/conventions/conversation-thread.md §9.3 보조 관찰성 레인 + Inv-9 —
+  // 🔎 `rag` 행은 `turnRefIndex` 와 **동일 소스**(`aiMetadata.turnDebug`)에서
+  // 만들어야 References 탭·📚 chip 과 같은 sources[] 를 보인다. 별도 매칭
+  // 로직을 만들지 않는 이유가 그것이다.
+  // useMemo 를 쓰지 않는다 — 이 계산부는 `if (!result) return` **이후**라 훅을
+  // 호출하면 조건부 훅이 되어 "Rendered more hooks than during the previous
+  // render" 로 깨진다. 기존 `effectiveConversationMessages` 도 같은 이유로 순수
+  // 계산이었다.
+  const effectiveConversationMessages = mergeRagRetrievalItems(
+    baseConversationMessages,
+    aiMetadata?.turnDebug ?? [],
+  );
 
   const conversationPreview = isWaitingConversation ? (
     <ConversationInspector

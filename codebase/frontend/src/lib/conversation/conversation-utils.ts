@@ -1,4 +1,5 @@
 import type { ConversationItem } from "@/lib/stores/execution-store";
+import type { RagSource, TurnRagDelta } from "./rag-types";
 import { tryParseJson } from "@/lib/utils/parse-json";
 
 /**
@@ -17,7 +18,8 @@ export type ConversationTurnSource =
   | "ai_tool"
   | "presentation_user"
   | "system"
-  | "system_error";
+  | "system_error"
+  | "rag";
 
 /**
  * `data` payload shape for `source: 'system_error'` turns — the inline error
@@ -282,6 +284,15 @@ export function threadTurnsToConversationItems(
           turnIndex: 0,
           timestamp: turn.timestamp,
         });
+        break;
+      }
+      case "rag": {
+        // spec/conventions/conversation-thread.md §1.1.2 — `rag` 는 wire
+        // (`conversationThread.turns`, backend enum 5값) 에 실려오지 않는 frontend
+        // 합성 source 다. 실제 item 은 `mergeRagRetrievalItems` 가
+        // `meta.turnDebug[].ragSources` 에서 만든다 (§9.11 변환 contract).
+        // 본 case 는 `_exhaustive: never` 가 컴파일 타임에 강제하는 방어 분기 —
+        // `system_error` 와 동일 구조 (interaction-type-registry.md §2).
         break;
       }
       case "system_error": {
@@ -914,4 +925,54 @@ export function groupToolCallItems(items: ConversationItem[]): {
     childrenByParent.set(i, children);
   }
   return { claimedToolIndices, childrenByParent };
+}
+
+/**
+ * 엔진이 LLM 호출 **전** 자동 수행한 KB 검색을 🔎 `rag` 행으로 timeline 에 끼워
+ * 넣는다 (spec/conventions/conversation-thread.md §1.1.2 · §9.1).
+ *
+ * `mergeOrphanToolItems` 와 같은 **후처리 병합** 계열이다 — 대화 turn 을 만들지
+ * 않고 보조 관찰성 레인(§9.3)의 행만 추가하므로 §9.11 의 1차 변환 등가성 정의
+ * 양변에 들어가지 않는다. 대신 **Inv-9** 가 References 탭·📚 chip 과의 `sources[]`
+ * 동일성을 규정하며, 그래서 호출자는 `turnRefIndex` 와 **동일 소스**
+ * (`aiMetadata.turnDebug`) 를 넘겨야 한다.
+ *
+ * 삽입 위치는 같은 `turnIndex` 의 **첫 assistant 앞** — 검색은 그 턴의 LLM 호출
+ * 직전에 일어나기 때문. assistant 가 없는 턴(타 노드가 발생시킨 turn 등)에는
+ * 붙이지 않는다: thread 는 execution 스코프지만 `meta` 는 노드 스코프라 스코프가
+ * 다르다 (§8.6 · CT-S20).
+ *
+ * `ragSources` 가 비어있으면(검색했으나 결과 0건) 행을 만들지 않는다 — 표시할
+ * 청크가 없어 chip·행 모두 무의미하고, §9.12 결측 내성과도 정합 (CT-S19).
+ */
+export function mergeRagRetrievalItems(
+  items: ConversationItem[],
+  ragDeltas: TurnRagDelta[],
+): ConversationItem[] {
+  const byTurn = new Map<number, RagSource[]>();
+  for (const d of ragDeltas) {
+    if (d.ragSources.length > 0) byTurn.set(d.turnIndex, d.ragSources);
+  }
+  if (byTurn.size === 0) return items;
+
+  const out: ConversationItem[] = [];
+  const inserted = new Set<number>();
+  for (const item of items) {
+    if (
+      item.type === "assistant" &&
+      !inserted.has(item.turnIndex) &&
+      byTurn.has(item.turnIndex)
+    ) {
+      inserted.add(item.turnIndex);
+      out.push({
+        type: "rag",
+        content: "",
+        turnIndex: item.turnIndex,
+        rag: { sources: byTurn.get(item.turnIndex)! },
+        timestamp: item.timestamp,
+      });
+    }
+    out.push(item);
+  }
+  return out;
 }

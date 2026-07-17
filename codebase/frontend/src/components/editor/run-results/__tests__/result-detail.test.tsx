@@ -792,7 +792,10 @@ describe("ResultDetail", () => {
         <ResultDetail
           result={makeAiResultBothTurnsWithRag()}
           {...defaultProps}
-          selectedConversationItemIndex={3}
+          // 🔎 rag 행이 각 턴의 assistant 앞에 삽입되므로(§9.1) 두 번째
+          // assistant(turn 2)의 인덱스는 3 → 5 로 밀린다. 테스트 의도(= 두 번째
+          // assistant 선택)는 그대로다.
+          selectedConversationItemIndex={5}
         />,
       );
       fireEvent.click(screen.getByText("참조"));
@@ -822,7 +825,8 @@ describe("ResultDetail", () => {
         <ResultDetail
           result={result}
           {...defaultProps}
-          selectedConversationItemIndex={1}
+          // rag(turn 1) 행 삽입으로 첫 assistant 인덱스 1 → 2 (§9.1)
+          selectedConversationItemIndex={2}
         />,
       );
       fireEvent.click(screen.getByText("참조"));
