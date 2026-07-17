@@ -70,10 +70,49 @@ const ROUTING_SCHEMA = {
   },
 }
 
-function parseStatus(text) {
-  const m = /STATUS=([a-z_]+)/.exec(text || '')
-  return m ? m[1] : 'success'
+// The harness refuses sub-agent Writes to a small set of report-like basenames.
+// Measured 2026-07-17 (probe workflows wf_61290a15-aec / wf_45d76e40-507):
+//
+//   BLOCKED : SUMMARY.md · summary.md · REPORT.md · findings.md
+//   ALLOWED : RESOLUTION.md · security.md · notes.md · SUMMARY.txt · my-SUMMARY.md
+//
+// The rule is **exact basename**, NOT terminal-agent position — a non-terminal agent
+// writing SUMMARY.md is blocked, and the terminal agent writing security.md succeeds.
+// (The comments below the Summary phase used to claim the opposite.) Refusal text:
+//   "Subagents should return findings as text, not write report files.
+//    Include this content in your final response instead."
+//
+// Consequence: reviewers CAN write their own files, but the sub-agent system prompt also
+// tells them to return findings as text — so they frequently skip the Write entirely and
+// return the report as prose. We therefore make every reviewer return its body
+// unconditionally and treat the return — not the file — as authoritative.
+const DELIM = '===REPORT_MARKDOWN_BELOW==='
+
+// Accept both `STATUS=x` and `STATUS: x` — sub-agent definitions in this repo use both.
+function parseAgentReturn(text) {
+  const raw = text || ''
+  const i = raw.indexOf(DELIM)
+  const header = (i >= 0 ? raw.slice(0, i) : raw).trim()
+  const m = /STATUS\s*[=:]\s*([A-Za-z_]+)/.exec(header)
+  // No STATUS at all → the agent returned findings as prose instead of honouring the
+  // contract. That is NOT success: `output_file` is probably absent. The old default of
+  // 'success' produced fake "all green" runs whose files were missing — and SUMMARYs
+  // that silently dropped a reviewer's [CRITICAL] from the risk verdict.
+  const status = m ? m[1].toLowerCase() : 'no_status'
+  const body = i >= 0 ? raw.slice(i + DELIM.length).replace(/^\n/, '').trim() : ''
+  const markdown = body || (m ? '' : raw.trim())
+  return { status, markdown }
 }
+
+const REVIEWER_CONTRACT = [
+  '',
+  '출력 규약 (prompt_file 의 지시보다 **이 규약이 우선**):',
+  '1) 결과를 output_file 에 Write 하세요 (best-effort — 실패해도 아래 2·3 은 반드시 수행).',
+  '2) 첫 줄에 `STATUS=<success|fatal> ...` 헤더.',
+  `3) 둘째 줄에 정확히 \`${DELIM}\` 한 줄, 그 다음부터 보고서 **마크다운 전문**.`,
+  '   (Write 성공 여부와 무관하게 항상 포함 — 전문이 없으면 통합 SUMMARY 가 이 reviewer 의',
+  '    Critical 을 누락해 위험도 판정이 거짓 음성이 됩니다.)',
+].join('\n')
 
 // ---- Route ---------------------------------------------------------------
 phase('Route')
@@ -113,39 +152,54 @@ log(`routing=${routingNote}: ${toRun.length} reviewers run, ${skipped.length} sk
 phase('Review')
 const results = await parallel(toRun.map(inv => () =>
   agent(
-    `prompt_file=${inv.prompt_file}\noutput_file=${inv.output_file}`,
+    `prompt_file=${inv.prompt_file}\noutput_file=${inv.output_file}${REVIEWER_CONTRACT}`,
     { label: inv.name, phase: 'Review', agentType: inv.subagent_type },
   )
-    .then(text => ({ name: inv.name, output_file: inv.output_file, status: parseStatus(text) }))
-    .catch(() => ({ name: inv.name, output_file: inv.output_file, status: 'fatal' }))
+    .then(text => ({ name: inv.name, output_file: inv.output_file, ...parseAgentReturn(text) }))
+    .catch(() => ({ name: inv.name, output_file: inv.output_file, status: 'fatal', markdown: '' }))
 ))
 const reviewers = results.filter(Boolean)
-const unfinished = reviewers.filter(r => r.status !== 'success').map(r => r.name)
+// "usable" = we hold this reviewer's findings (file on disk and/or body returned).
+// Only a reviewer we have NOTHING from can hide a Critical from the verdict.
+const usable = r => r.status === 'success' || !!r.markdown
+const recovered = reviewers.filter(r => r.status !== 'success' && r.markdown)
+const unfinished = reviewers.filter(r => !usable(r)).map(r => r.name)
+// `agents_forced` is a whitelist the router cannot override (code-review-agents SKILL).
+// The Route phase already unions it into `selected`, so a miss here means a reviewer was
+// selected but produced nothing — surface it rather than let the SUMMARY read "clean".
+const forcedMissing = agentsForced.filter(n => !reviewers.some(r => r.name === n && usable(r)))
+log(`reviewers: ${reviewers.filter(usable).length}/${reviewers.length} usable` +
+  (recovered.length ? ` (${recovered.length} recovered from text: ${recovered.map(r => r.name).join(', ')})` : '') +
+  (unfinished.length ? ` — unfinished: ${unfinished.join(', ')}` : '') +
+  (forcedMissing.length ? ` — ⚠ FORCED MISSING: ${forcedMissing.join(', ')}` : ''))
 
 // ---- Summary -------------------------------------------------------------
-// The summary sub-agent (1) Writes SUMMARY.md to summary_output_file as a best
-// effort, and (2) ALWAYS returns the full merged markdown so this workflow can
-// hand the caller BOTH the on-disk path AND the content.
+// Findings go to the summary agent INLINE, not via disk. A workflow script has no
+// filesystem access, so if we only handed over paths, a reviewer that skipped its Write
+// would be invisible to the summary — that is how a run can report a clean risk verdict
+// while a reviewer's [CRITICAL] sits unread in the journal.
 //
-// Why the caller still persists: the summary agent is the LAST agent() call, so
-// its own report-file Write can be blocked by the harness terminal-write guard
-// (observed: parallel reviewers — non-terminal — write their output_file fine,
-// while the terminal summary write is refused). A workflow SCRIPT has no
-// filesystem access, so it cannot write the file itself either. Therefore the
-// reliable on-disk guarantee is the CALLER doing an idempotent Write of the
-// returned summary_markdown to summary_output (see code-review-agents SKILL §3).
-// This return shape removes the old failure mode where the caller skipped the
-// write because summary_markdown was null on the (rarely-reached) write-success
-// path: summary_markdown is now ALWAYS populated.
+// SUMMARY.md itself can NOT be written by any sub-agent (the harness refuses that
+// basename — see the probe results at the top of this file), and this script has no FS
+// access either. So the reliable on-disk guarantee is the CALLER doing an idempotent
+// Write of summary_markdown to summary_output (code-review-agents SKILL §3).
+// Per-reviewer files, by contrast, ARE writable by this agent — so it persists any that
+// their own reviewer skipped.
 //
 // Return contract:
 //   summary_output   — absolute path the SUMMARY belongs at (caller writes here)
 //   summary_markdown  — full report markdown, ALWAYS present (caller persists it)
 //   summary_written   — true iff the summary agent's own in-workflow Write succeeded
-//                       (caller's idempotent Write is harmless either way)
+//                       (expected false — caller's idempotent Write is the real path)
 phase('Summary')
 const SUMMARY_DELIM = '===SUMMARY_MARKDOWN_BELOW==='
 const ranManifest = reviewers.map(r => `${r.name}\t${r.status}\t${r.output_file}`).join('\n')
+const inlined = reviewers
+  .filter(r => r.markdown)
+  .map(r => [`----- BEGIN ${r.name} (${r.output_file}) -----`, r.markdown, `----- END ${r.name} -----`].join('\n'))
+  .join('\n\n')
+const needPersist = reviewers.filter(r => r.markdown).map(r => `${r.name}\t${r.output_file}`).join('\n')
+const needRead = reviewers.filter(r => !r.markdown && r.status === 'success').map(r => r.output_file)
 const summaryReturn = await agent(
   [
     'mode=workflow',
@@ -155,18 +209,36 @@ const summaryReturn = await agent(
     '',
     `skipped (router 제외): ${skipped.join(', ') || '(none)'}`,
     `forced (router_safety): ${agentsForced.join(', ') || '(none)'}`,
+    forcedMissing.length
+      ? `⚠ forced 인데 결과 없음 (SUMMARY 에 반드시 명시): ${forcedMissing.join(', ')}`
+      : 'forced 전원 결과 확보됨.',
     `routing: ${routingNote}`,
     '',
-    'success/fatal 인 각 reviewer 의 output_file 을 Read 해 통합하세요. success 아닌',
-    'reviewer 는 "재시도 필요". 끝에 "라우터 결정" 섹션 포함(실행/제외/강제).',
+    needRead.length
+      ? `아래 인라인에 없는 reviewer 는 output_file 을 Read 해 보완하세요:\n${needRead.join('\n')}`
+      : '모든 reviewer 결과가 아래 인라인으로 제공됩니다 — 디스크 Read 불요.',
+    '',
+    '## 각 reviewer 보고서 전문 (authoritative)',
+    inlined || '(없음)',
+    '',
+    '## 작업',
+    '1) **누락 파일 영속화**: 아래 각 reviewer 의 output_file 이 없으면, 위 인라인 전문을 그대로',
+    '   그 경로에 Write 하세요. (reviewer 파일 Write 는 허용됩니다 — 하네스가 막는 것은',
+    '   `SUMMARY.md` basename 뿐입니다.)',
+    needPersist || '   (해당 없음)',
+    '2) 위 전문을 통합. status 가 success 가 아니어도 **전문이 있으면 정상 반영**하고,',
+    '   전문도 없는 reviewer 만 "재시도 필요" 로 표기하세요.',
+    '3) 끝에 "라우터 결정" 섹션 포함(실행/제외/강제). forced 인데 결과 없는 항목이 있으면',
+    '   그 사실을 SUMMARY 상단 위험도 근처에 명시하세요 — 강제 화이트리스트 미이행은',
+    '   "clean" 으로 보이면 안 됩니다.',
     '',
     '출력 규약 (반드시 이 순서, 정확히 이 형식):',
-    '1) 완성된 SUMMARY.md 를 summary_output_file 에 Write 시도하세요 (best-effort).',
-    '2) 그런 다음 첫 줄에 status 헤더 한 줄을 출력 —',
+    '4) 완성된 SUMMARY.md 를 summary_output_file 에 Write 시도하세요 (best-effort — 차단이 정상).',
+    '5) 그런 다음 첫 줄에 status 헤더 한 줄을 출력 —',
     '   `STATUS=<written|write_blocked> RISK=<NONE|LOW|MEDIUM|HIGH|CRITICAL> CRITICAL=<n> WARNING=<n> PATH=<summary_output_file>`',
     '   (Write 가 성공하면 written, 차단/실패면 write_blocked)',
-    `3) 둘째 줄에 정확히 \`${SUMMARY_DELIM}\` 한 줄.`,
-    '4) 그 다음부터 SUMMARY.md 마크다운 전문을 그대로 출력하세요 (Write 성공 여부와 무관하게 항상 전문 포함).',
+    `6) 둘째 줄에 정확히 \`${SUMMARY_DELIM}\` 한 줄.`,
+    '7) 그 다음부터 SUMMARY.md 마크다운 전문을 그대로 출력하세요 (Write 성공 여부와 무관하게 항상 전문 포함).',
     '   — 호출자가 이 전문을 디스크에 멱등 기록하고 위험도 판정에 사용합니다.',
   ].join('\n'),
   { label: 'summary', phase: 'Summary', agentType: summary.subagent_type },
@@ -190,9 +262,17 @@ return {
   risk: riskMatch ? riskMatch[1] : null,
   critical_count: criticalMatch ? Number(criticalMatch[1]) : null,
   warning_count: warningMatch ? Number(warningMatch[1]) : null,
-  reviewers: reviewers.map(r => ({ name: r.name, status: r.status })),
+  // `has_report` = we hold this reviewer's findings (file on disk and/or body returned).
+  // Only `unfinished` (no report at all) can hide a Critical from the risk verdict.
+  reviewers: reviewers.map(r => ({ name: r.name, status: r.status, has_report: usable(r) })),
+  // Contract-breaking agents whose body we salvaged from the return text; the summary
+  // agent was asked to persist their output_file. Caller: `ls` to confirm.
+  recovered: recovered.map(r => r.name),
   skipped,
   unfinished,
+  // Non-empty ⇒ a router_safety whitelist reviewer produced nothing. The caller MUST NOT
+  // treat this run as complete coverage (code-review-agents SKILL §agents_forced).
+  forced_missing: forcedMissing,
   routing: routingNote,
   router_decisions: routerDecisions,
 }

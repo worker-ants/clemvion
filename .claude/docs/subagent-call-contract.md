@@ -21,7 +21,12 @@ output_file=<...>
 1. `prompt_file` 을 Read.
 2. 파일의 "점검 관점" + 자신의 definition 본문 "리뷰 지침" / "체크리스트" 적용해 분석.
 3. 결과 markdown 을 "출력 형식" 에 맞춰 `output_file` 에 Write.
-4. 호출자에게 마지막 응답으로 한 줄**만** 반환. 본문은 절대 반환하지 말 것.
+4. 호출자에게 마지막 응답으로 한 줄**만** 반환.
+
+> **예외 — 호출 prompt 에 "출력 규약" 이 붙어 있으면 그쪽이 우선한다.** Workflow 경유
+> 호출(`.claude/workflows/*.js`)은 prompt 끝에 "STATUS 헤더 + delimiter + **보고서 전문**"
+> 규약을 덧붙인다. 그때는 전문을 반드시 함께 반환한다 — 4번의 "한 줄만" 은 **직접 Agent
+> 호출** 기본값이다. 이유는 §7.
 
 ## 3. 반환 라인 형식
 
@@ -67,3 +72,35 @@ sub-agent 는 재시도 결정을 하지 않는다 — STATUS 만 보고. 재시
 | `HIGH` / `CRITICAL` | 즉시 차단 / 사용자 결정 필요. |
 
 각 agent definition 의 "출력 형식" 에 위 등급을 적용한다.
+
+## 7. 하네스 제약 (실측 2026-07-17)
+
+sub-agent 는 하네스로부터 **본 규약과 상충하는 지시**를 함께 받는다:
+
+> `Subagents should return findings as text, not write report files. Include this content
+> in your final response instead.`
+
+이는 안내문이 아니라 **Write 툴의 하드 차단**이다. 실측(probe workflow `wf_61290a15-aec` ·
+`wf_45d76e40-507`)으로 확인한 규칙:
+
+| 대상 | 결과 |
+|---|---|
+| `SUMMARY.md` · `summary.md` · `REPORT.md` · `findings.md` | **차단** |
+| `RESOLUTION.md` · `<checker>.md`(`cross_spec.md` 등) · `notes.md` | 허용 |
+| `SUMMARY.txt` · `my-SUMMARY.md` | 허용 |
+
+- **basename 정확 일치** 규칙이며 **agent 의 terminal 여부와 무관**하다 (비-terminal agent 의
+  `SUMMARY.md` Write 는 막히고, terminal agent 의 `cross_spec.md` Write 는 성공한다).
+- 따라서 **`SUMMARY.md` 는 어떤 sub-agent 도 쓸 수 없다** → summary 계열은 전문을 반환하고
+  **호출자(main)가 멱등 Write** 한다. 각 SKILL §3 이 이를 이미 규정한다.
+- **개별 결과 파일(`<name>.md`)은 차단되지 않는다.** 그럼에도 sub-agent 가 Write 를 건너뛰고
+  전문을 텍스트로 반환하는 일이 잦다 — 위 하네스 지시를 따르기 때문이다(실측: 한 런에서
+  5개 checker 중 4개가 Write 호출 0회). **§3 의 "STATUS 한 줄" 만 반환하고 파일을 안 쓰면
+  그 결과는 사라진다** — 통합 SUMMARY 가 해당 checker 의 Critical 을 누락해 BLOCK 판정이
+  **거짓 음성**이 된다(2026-07-10 실측 3회).
+- 그래서 Workflow 스크립트는 prompt 에 "전문도 함께 반환" 규약을 덧붙이고, 반환 전문을
+  authoritative 로 삼아 summary agent 에 **인라인 전달**한다. 파일이 없어도 판정이 온전하다.
+
+**직접 Agent fan-out 시 주의**: Workflow 를 우회하면 위 보정이 없다. `output_file` Write 를
+명시적으로 지시·확인하고, 끝나면 `--sync-from-disk` 로 `_retry_state.json` 을 실측 동기화한다
+(그 경로는 `--update` 를 자동 호출하지 않는다).

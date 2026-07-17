@@ -171,6 +171,82 @@ def _emit_summary_state(session_dir):
     )
 
 
+def _sync_from_disk(session_dir):
+    """Reconcile _retry_state.json with the reviewer files actually on disk.
+
+    Needed because main may fan reviewers out with the Agent tool directly instead of
+    going through the Workflow (a documented fallback — e.g. to dodge a router bug).
+    That path skips `--update`, so the state stays frozen at its prepare-time snapshot
+    (`pending=all, success=0`) and gets committed that way — while the sibling SUMMARY.md
+    reports 8/14 success. Two committed artifacts then contradict each other, and this
+    file is the SoT for `/loop --resume` and `--summary-state` branch decisions.
+
+    Disk is the arbiter: an agent's self-reported status is worth nothing if it left no
+    file. Only names in `subagent_invocations` are considered, so this cannot invent
+    agents. Observed 2026-07-17 across 7 sessions of one branch.
+    """
+    sd = os.path.abspath(session_dir)
+    state_file, state = _load_state(sd)
+    known = [i["name"] for i in state.get("subagent_invocations", [])]
+    outputs = {
+        i["name"]: i.get("output_file") or os.path.join(sd, f"{i['name']}.md")
+        for i in state.get("subagent_invocations", [])
+    }
+    skipped = set(state.get("agents_skipped", []))
+
+    on_disk = [n for n in known if os.path.isfile(outputs[n])]
+    missing = [n for n in known if n not in on_disk and n not in skipped]
+
+    state["agents_success"] = on_disk
+    state["agents_pending"] = missing
+    state["agents_fatal"] = [n for n in state.get("agents_fatal", []) if n in missing]
+    _save_state(state_file, state)
+    print(
+        f"synced: success={len(on_disk)} pending={len(missing)} "
+        f"skipped={len(skipped)} total={len(known)}"
+        + (f" | still missing: {', '.join(missing)}" if missing else "")
+    )
+
+
+def _verify_coverage(session_dir):
+    """Exit non-zero when a `agents_forced` reviewer produced no report.
+
+    `agents_forced` is the router_safety whitelist — the SKILL says a router "강제 포함
+    화이트리스트는 override 하지 못한다". But nothing enforced it: the Workflow only
+    logs the list, and `--apply-routing` honours it solely when consuming a router
+    decision. When main hand-picks reviewers (fallback fan-out) the whitelist was pure
+    documentation, and documentation is exactly what a "this diff is small" judgement
+    call talks itself past. That happened on 2026-07-17: `security` was skipped for a
+    diff that edited `buildWorkspaceHref` — the open-redirect defence boundary — and it
+    only surfaced later, by accident, while reconciling state.
+
+    Coverage is judged by files on disk, not by claimed status.
+    """
+    sd = os.path.abspath(session_dir)
+    _, state = _load_state(sd)
+    forced = state.get("agents_forced", [])
+    if not forced:
+        print("forced=(none) — nothing to verify")
+        return
+    outputs = {
+        i["name"]: i.get("output_file") or os.path.join(sd, f"{i['name']}.md")
+        for i in state.get("subagent_invocations", [])
+    }
+    missing = [n for n in forced if not os.path.isfile(outputs.get(n, ""))]
+    if not missing:
+        print(f"forced coverage OK — {len(forced)}/{len(forced)} on disk")
+        return
+    sys.stderr.write(
+        "Error: agents_forced (router_safety 화이트리스트) 미이행 — 산출물이 없습니다.\n"
+        f"  누락: {', '.join(missing)}\n"
+        f"  강제 목록: {', '.join(forced)}\n"
+        "\n이 목록은 router 도 override 하지 못합니다 (code-review-agents SKILL).\n"
+        "'변경이 작아 보인다' 는 자가 판단으로 건너뛰지 마세요 — 그 판단을 막으려고\n"
+        "존재하는 목록입니다. 누락된 reviewer 를 실행한 뒤 SUMMARY 를 확정하세요.\n"
+    )
+    sys.exit(1)
+
+
 def _apply_status_update(session_dir, agent, status, reset_hint):
     """Move agent between pending/success/fatal buckets and record history."""
     state_file, state = _load_state(os.path.abspath(session_dir))
@@ -842,6 +918,14 @@ def main():
                              "_retry_state.json. Moves un-selected agents from pending to "
                              "skipped. Echoes 'applied=N skipped=M' to stdout. "
                              "If --fallback, ignore router decision and mark routing skipped.")
+    parser.add_argument("--sync-from-disk", type=str, metavar="SESSION_DIR",
+                        help="Reconcile _retry_state.json with the reviewer files actually "
+                             "on disk (disk wins). Use after fanning reviewers out with the "
+                             "Agent tool directly, which bypasses --update and leaves the "
+                             "state frozen at its prepare-time snapshot.")
+    parser.add_argument("--verify-coverage", type=str, metavar="SESSION_DIR",
+                        help="Exit 1 if any agents_forced (router_safety whitelist) reviewer "
+                             "left no report on disk. Call before finalising SUMMARY.")
     parser.add_argument("--fallback", action="store_true",
                         help="With --apply-routing: treat as router failure (fallback to "
                              "all reviewers, routing_status=skipped + reason).")
@@ -903,6 +987,16 @@ def main():
     # update _retry_state.json accordingly. Echoes one line: applied=N skipped=M.
     if args.apply_routing:
         _apply_routing(args.apply_routing, fallback=args.fallback)
+        sys.exit(0)
+
+    # Sync mode: disk → state, for sessions fanned out with the Agent tool directly.
+    if args.sync_from_disk:
+        _sync_from_disk(args.sync_from_disk)
+        sys.exit(0)
+
+    # Coverage gate: forced (router_safety) reviewers must have left a report.
+    if args.verify_coverage:
+        _verify_coverage(args.verify_coverage)
         sys.exit(0)
 
     config = load_config(route_mode=args.route)

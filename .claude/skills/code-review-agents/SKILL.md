@@ -63,7 +63,7 @@ stdout 마지막 줄 = 세션 디렉토리 절대경로.
 Workflow 동작:
 - **Route**: `routing_status=="pending"` 이고 router 가 있으면 `review-router` 를 `mode=workflow` + structured-output schema 로 invoke → `decisions[]` 반환. `selected = agents_forced ∪ {selected:true}`. `skipped` 이면 전수. router 실패 시 fail-open(전수).
 - **Review**: selected reviewer 를 `agentType` 으로 병렬 invoke (각 reviewer 가 자기 `prompt_file` Read → `output_file` Write — call-contract 그대로, Workflow 내 reviewer write 허용).
-- **Summary**: `code-review-summary` 가 `mode=workflow` 로 통합 SUMMARY 마크다운을 **반환** (terminal sub-agent 의 report-file Write 는 차단되므로 텍스트 반환).
+- **Summary**: `code-review-summary` 가 `mode=workflow` 로 **각 reviewer 전문을 인라인으로 받아** 통합 SUMMARY 마크다운을 **반환**한다. 하네스가 `SUMMARY.md` **basename** Write 를 차단하기 때문(terminal 여부와 무관 — [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md) 실측표). 인라인 전달이라 reviewer 가 자기 파일을 안 써도 판정이 온전하다(옛 디스크-Read 방식은 그런 reviewer 의 Critical 을 조용히 누락시켰다).
 
 완료 시 task-notification. selected 0명이면 반환에 `error` — main 이 minimal SUMMARY.
 
@@ -72,19 +72,48 @@ Workflow 동작:
 Workflow 반환값 (ai-review.js 가 항상 경로+전문을 함께 반환):
 - `summary_output` — SUMMARY 가 있어야 할 절대경로 (`<session_dir>/SUMMARY.md`).
 - `summary_markdown` — 통합 SUMMARY **전문 (항상 채워짐)**.
-- `summary_written` — workflow 내 summary sub-agent 자체 Write 성공 여부 (terminal write 가드로 false 일 수 있음).
-- `risk` / `critical_count` / `warning_count` / `reviewers[]` / `skipped[]` / `unfinished[]` / `routing` / `router_decisions`.
+- `summary_written` — workflow 내 summary sub-agent 자체 Write 성공 여부. **거의 항상 false 가 정상** (하네스가 `SUMMARY.md` basename 을 차단).
+- `reviewers[]` — `{name, status, has_report}`. `has_report:false` 는 그 reviewer 의 findings 를 **아무것도 확보하지 못했다**는 뜻 → Critical 을 숨기고 있을 수 있다.
+- `recovered[]` — 계약을 어기고 파일 대신 텍스트로 전문을 반환한 reviewer. 스크립트가 전문을 건져 summary agent 에 넘겼고 파일 영속화도 지시했다. `ls` 로 확인.
+- `forced_missing[]` — **비어있지 않으면 강제 화이트리스트 미이행**. 그 상태의 SUMMARY 는 커버리지 완전으로 취급하면 안 된다.
+- `risk` / `critical_count` / `warning_count` / `skipped[]` / `unfinished[]` / `routing` / `router_decisions`.
 
 분기:
-1. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. (workflow 의 terminal summary sub-agent write 는 harness 가 차단할 수 있고 workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 신뢰 경로는 main 의 이 Write 다. 건너뛰면 SUMMARY.md 가 디스크에 없어 review-before-stop 가드가 미해소된다.)
+1. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **디스크 단일 진실의 유일한 경로가 main 의 이 Write** 다. 건너뛰면 SUMMARY.md 가 없어 review-before-stop 가드도 미해소된다.
 2. 기록 후 `summary_markdown`(또는 상단 30줄)으로 전체 위험도 확인. Critical/Warning > 0 이면 §6 자동 후속 흐름 진입. 아니면 종료 + 1-2문장 보고.
-3. `unfinished[]` 가 있으면(rate_limit/network) 해당 reviewer 만 재실행 — loop 결합은 §7.
+3. `forced_missing[]` 가 있으면 **그 reviewer 를 실행하기 전에 종료하지 않는다** — router 도 override 못 하는 화이트리스트다.
+4. `unfinished[]` 가 있으면(rate_limit/network, 전문도 확보 못 함) 해당 reviewer 만 재실행 — loop 결합은 §7.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 cross-turn ScheduleWakeup quota 자동 재시도를 갖지 않는다. `unfinished` reviewer 는 main 이 재실행하거나 `/loop` (fallback 경로)로 처리. 한도 상황의 무한 재시도가 꼭 필요하면 아래 fallback 경로 사용.
 
 ### (fallback) 수동 Agent 경로
 
 Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-routing` / `--update` CLI + 직접 `Agent` fan-out + `Agent(code-review-summary, session_dir=<...>)` + `/loop` ScheduleWakeup 로 동일 결과를 낸다 (state CLI 는 `test_orchestrator_state.py` 로 검증되는 안정 인터페이스).
+
+> **⚠ 이 경로를 택하면 Workflow 가 해주던 두 가지가 사라진다 — main 이 직접 책임진다.**
+>
+> 1. **`agents_forced` 강제**. Workflow 의 Route 단계는 `selected = agents_forced ∪ picked` 로
+>    화이트리스트를 합집합에 넣지만, 직접 fan-out 엔 그런 보정이 없다. "변경이 작아 보인다" 는
+>    자가 판단으로 forced reviewer 를 빠뜨리기 쉽다 — 화이트리스트는 정확히 그 판단을 막으려고
+>    존재한다. **SUMMARY 확정 전 반드시**:
+>    ```bash
+>    python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
+>      --verify-coverage <session_dir>     # forced 중 산출물 없으면 exit 1
+>    ```
+> 2. **상태 기록**. 직접 fan-out 은 `--update` 를 자동 호출하지 않아 `_retry_state.json` 이
+>    prepare 스냅샷(`pending=전체, success=0`)에 멈춘 채 커밋된다 — 같은 세션 SUMMARY 는
+>    "8/14 성공" 이라 하는데 상태 파일은 0 성공이라 **커밋된 증거가 서로 모순**된다. 이 파일은
+>    `/loop --resume` 검증과 `--summary-state` 분기의 SoT 다. **fan-out 이 끝나면**:
+>    ```bash
+>    python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
+>      --sync-from-disk <session_dir>      # 실제 산출물 기준으로 상태 동기화 (disk 가 심판)
+>    ```
+>    router 를 안 불렀다면 실제 선별 근거를 `_routing_decision.json` 으로 남기고
+>    `--apply-routing <session_dir>` 로 pending→skipped 를 반영한다.
+>
+> 근거: 2026-07-17 세션에서 두 결함이 동시에 발생 — forced 인 `security` 가 open-redirect 방어
+> 경계(`buildWorkspaceHref`) 수정 diff 에서 누락됐고, 7개 세션이 stale 상태로 커밋됐다.
+> 하네스의 Write 차단·전문 반환 동작은 [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md).
 
 ### 6. 자동 후속 흐름 — `resolution-applier` 위임
 

@@ -287,23 +287,61 @@ def collect_context(args, root):
     target_doc = ""
     mode_label = ""
 
+    def _require_target(value, flag, want_dir):
+        """Fail fast when a mode argument is not the path it must be.
+
+        Every mode arg is interpolated verbatim into each checker prompt's
+        `## Target 문서 / 경로:` field. Without this check a non-path (e.g. a task
+        description pasted into the scope slot) sails through: `collect_markdown_files`
+        just returns [] for a missing dir, the bundle renders `(없음)`, and all five
+        checkers then report the corrupted payload as a CRITICAL — a BLOCK: YES with
+        zero real conflicts. Measured 2026-07-17; the run cost a full 5-checker fan-out
+        before the mistake surfaced. Cheap to catch here, expensive to catch there.
+        """
+        path = os.path.abspath(value)
+        ok = os.path.isdir(path) if want_dir else os.path.isfile(path)
+        if ok:
+            return path
+        kind = "디렉토리" if want_dir else "파일"
+        hint = ""
+        if os.path.exists(path):
+            hint = f"\n  → 경로는 존재하지만 {kind} 가 아닙니다."
+        elif " " in value.strip() or "\n" in value:
+            # Repo paths have no spaces; a space almost always means prose landed here.
+            hint = (
+                "\n  → 설명문을 넣은 것 같습니다. 이 인자는 **경로만** 받습니다.\n"
+                "     작업 배경·수정 계획은 plan/in-progress/<task>.md 에 쓰세요 —\n"
+                "     checker 가 그 파일을 알아서 읽습니다."
+            )
+        sys.stderr.write(
+            f"Error: {flag} 의 인자가 실존하는 {kind} 경로가 아닙니다.{hint}\n"
+            f"  받은 값: {value!r}\n"
+            f"  해석된 경로: {path}\n"
+            f"\n사용법: {flag} <{kind} 경로>\n"
+            f"  예) --spec plan/in-progress/spec-draft-foo.md\n"
+            f"      --plan plan/in-progress/my-task.md\n"
+            f"      --impl-prep spec/2-navigation/\n"
+            f"      --impl-done spec/2-navigation/\n"
+        )
+        sys.exit(2)
+
     if args.spec:
         target_path_rel = args.spec
-        target_abs = os.path.abspath(target_path_rel)
+        target_abs = _require_target(args.spec, "--spec", want_dir=False)
         excluded.add(target_abs)
         target_doc = read_text_file(target_abs)
         mode_label = "spec draft 검토 (--spec)"
 
     elif args.plan:
         target_path_rel = args.plan
-        target_abs = os.path.abspath(target_path_rel)
+        target_abs = _require_target(args.plan, "--plan", want_dir=False)
         excluded.add(target_abs)
         target_doc = read_text_file(target_abs)
         mode_label = "plan draft 검토 (--plan)"
 
     elif args.impl_prep:
         target_path_rel = args.impl_prep
-        target_abs = os.path.abspath(target_path_rel)
+        target_abs = _require_target(args.impl_prep, "--impl-prep", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
         target_doc = format_file_bundle(scope_files, root, f"구현 대상 영역: `{target_path_rel}`")
@@ -311,7 +349,7 @@ def collect_context(args, root):
 
     elif args.impl_done:
         target_path_rel = args.impl_done
-        target_abs = os.path.abspath(target_path_rel)
+        target_abs = _require_target(args.impl_done, "--impl-done", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
         spec_bundle = format_file_bundle(
