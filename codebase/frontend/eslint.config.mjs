@@ -2,6 +2,10 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+// `@/components` · `../components` (bare 및 하위 경로) 를 매칭하는 esquery 정규식 소스.
+// 아래 동적 `import()` / `require()` selector 두 곳이 공유한다 — 한쪽만 완화되는 drift 방지.
+const COMPONENTS_PATH_RE = String.raw`^(@\/components(\/.*)?|(\.\.\/)+components(\/.*)?)$`;
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -48,15 +52,13 @@ const eslintConfig = defineConfig([
         "error",
         {
           // 동적 import("@/components/...") / import("../components/...") — 리터럴 specifier 형태만.
-          selector:
-            "ImportExpression[source.value=/^(@\\/components(\\/.*)?|(\\.\\.\\/)+components(\\/.*)?)$/]",
+          selector: `ImportExpression[source.value=/${COMPONENTS_PATH_RE}/]`,
           message:
             "레이어 역전: src/lib/** 은 동적 import() 로도 @/components/** 를 import 할 수 없습니다. 타입/유틸이 필요하면 그 대상을 src/lib/ 로 옮기고, components 쪽에서 re-export 하세요.",
         },
         {
           // CJS require("@/components/...") / require("../components/...") — 리터럴 인자 형태만.
-          selector:
-            "CallExpression[callee.name='require'][arguments.0.value=/^(@\\/components(\\/.*)?|(\\.\\.\\/)+components(\\/.*)?)$/]",
+          selector: `CallExpression[callee.name='require'][arguments.0.value=/${COMPONENTS_PATH_RE}/]`,
           message:
             "레이어 역전: src/lib/** 은 require() 로도 @/components/** 를 import 할 수 없습니다. 타입/유틸이 필요하면 그 대상을 src/lib/ 로 옮기고, components 쪽에서 re-export 하세요.",
         },
