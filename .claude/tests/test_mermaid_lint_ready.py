@@ -23,7 +23,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-import _harness  # noqa: F401
+import _harness  # noqa: F401  — side effect: harness path setup; REPO_ROOT used below
 
 ready = _harness.load_module_by_path(
     "mermaid_lint_ready",

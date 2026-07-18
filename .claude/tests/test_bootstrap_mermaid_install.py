@@ -31,7 +31,7 @@ import tempfile
 import time
 import unittest
 
-import _harness  # noqa: F401
+import _harness  # noqa: F401  — side effect: harness path setup; REPO_ROOT used below
 
 BOOTSTRAP_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 

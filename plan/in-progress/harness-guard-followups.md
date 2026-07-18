@@ -84,6 +84,23 @@ exactly-once 가 아니라 **수렴**(마커 존재 + 이후 세션 skip)을 단
 - [ ] **W8 — `harness-checks.yml` 만 node 22 / setup-python 사용(다른 워크플로는 node 24).** 선재 CI
       설정, diff 밖.
 
+**10_55_35 라운드(마커-only 전환 리뷰) 잔여:**
+
+- [ ] **W1(10_55_35) — `lint-mermaid.mjs` 를 import 크래시에 fail-OPEN 시켜라.** `await import("mermaid")`/
+      `("jsdom")` 가 가드 없어(75·93행), corrupt-but-marked 트리에서 `ERR_MODULE_NOT_FOUND` 로 크래시하면
+      pre-commit(`exit 1`)·PostToolUse(`exit 2`)가 이를 "진짜 malformed mermaid" 로 오판해 **매 markdown
+      커밋을 가짜 메시지로 차단** — 두 파일이 명시한 fail-open 계약과 정반대(리뷰어 실측 재현). **선재
+      결함**(어떤 원인의 corrupt node_modules 든 트리거; 락 제거가 도달성만 넓힘)이고 이 change 밖 파일
+      3곳(mjs+2 소비처)을 건드려 별건. fix: import 를 try/catch 로 감싸 로드 실패를 파싱 에러와 **다른
+      exit code**(예: 3)로 분리하고 소비처가 그 코드를 "툴링 깨짐→skip" 으로 처리. `bootstrap` 설계
+      노트는 이 최악을 이미 정직하게 서술하도록 정정함(10_55_35 커밋).
+- [ ] **W3(10_55_35) — bash mtime/cooldown 헬퍼가 `reap-merged-worktrees.sh` 와 중복**(`_file_mtime` vs
+      `file_mtime`). python 은 `_lib/mermaid_lint_ready.py` 로 SoT 통합했는데 bash 는 안 됨. `.claude/tools/_lib/*.sh`
+      공유 또는 최소 네이밍 통일. 저우선.
+- [ ] **I1(10_55_35) — hung `npm install`(타임아웃 없음)의 blast radius 가 락 제거로 세션 1개 → 동시
+      콜드스타트 전체로 확대.** 기존 W2(00_59_56) 한계의 도달성 변화. fcntl.flock(§G) 또는 timeout 래핑 시
+      함께 해소. track 목적.
+
 ---
 
 ## B. reaper `gh pr view` 순차 N+1 — SessionStart 블로킹

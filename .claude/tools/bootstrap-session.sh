@@ -65,16 +65,25 @@ fi
 #    failed install never counts as done, and self-heals next session). Residual,
 #    accepted: several sessions hitting the *first* cold install within the same
 #    instant can still npm-install concurrently; npm is not concurrency-safe into
-#    one dir, so that narrow window can produce a bad tree. Worst case is a
-#    corrupt-but-marked node_modules needing a manual `rm -rf node_modules`
-#    (which re-arms the install). This is a rare first-install-only window on a
-#    dev-tooling linter, judged not worth a hand-rolled lock whose safety keeps
-#    being wrong. A real fix, if ever needed, is fcntl.flock — see plan §G.
+#    one dir, so that narrow window can produce a bad tree. And the marker only
+#    attests THIS process's own `npm` exit 0, not tree integrity — so a sibling's
+#    concurrent write can corrupt a tree that then still gets marked "ready". The
+#    honest worst case is worse than a silent skip: lint-mermaid.mjs does a
+#    guardless top-level `await import("mermaid")`, so a corrupt-but-marked tree
+#    makes it crash, and pre-commit / PostToolUse read that crash as a real
+#    "malformed mermaid block" — blocking every markdown commit with a false
+#    message, the opposite of their fail-open contract. Recovery is
+#    `rm -rf node_modules` (which drops the marker and re-arms the install).
+#    Judged an acceptable rare first-install-only window on a dev-tooling linter,
+#    not worth a hand-rolled lock whose safety keeps being wrong. Two real fixes,
+#    both tracked: make lint-mermaid.mjs fail OPEN on an import crash (plan §A
+#    follow-up), and/or fcntl.flock for genuine mutual exclusion (plan §G).
 tool_dir="$main_root/.claude/tools/mermaid-lint"
 marker="$tool_dir/node_modules/.bootstrap-install-complete"
 fail_marker="$main_root/.claude/state/mermaid_install_last_fail"
 retry_after="${MERMAID_INSTALL_RETRY_SEC:-1800}"        # cooldown after a failed install
 
+# Cross-platform mtime in epoch seconds (BSD `stat -f` vs GNU `stat -c`); 0 if missing.
 _file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
 
 # True while a prior failure is still inside its cooldown window.
