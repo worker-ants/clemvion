@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useWidget } from "./use-widget";
 import { TOKEN_REFRESH_LEAD_MS } from "./use-token-refresh";
@@ -1033,6 +1034,44 @@ describe("useWidget — 대화 종료(endConversation, §3.1)", () => {
     expect(result.current.state.phase).toBe("ended");
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
     expect(getEs()).not.toBeNull();
+  });
+
+  // **React StrictMode(dev) 에서 위젯이 부팅된다.**
+  //
+  // 이 앱은 `next.config.ts` 에서 `reactStrictMode: true` 를 켠다 → dev 는 effect 를
+  // **mount → unmount → mount** 로 이중 호출한다. `unmountedRef` 를 마운트에서 되돌리지 않으면
+  // 두 번째 마운트가 영구히 stale 로 판정돼 **위젯이 어떤 `wc:boot` 도 적용하지 못한다**
+  // (재현 확인 — `config = null`, dev 에서 위젯이 아예 뜨지 않았다).
+  //
+  // `unmountedRef` 는 "이 마운트가 끝났나" 이지 "한 번이라도 끝났나" 가 아니다 — 1회성 래치로 두면
+  // 안 된다. (ai-review 2026-07-17 18_39_11 security WARNING)
+  it("StrictMode(dev 이중 마운트) 에서도 wc:boot 이 적용된다", async () => {
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget(), { wrapper: StrictMode });
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBeGreaterThan(0));
+    await act(async () => {
+      embedResolvers.forEach((r) =>
+        r({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response),
+      );
+      await flushAsync();
+    });
+
+    expect(result.current.config).not.toBeNull();
   });
 
   it("booting 중(webhook in-flight) 종료 → 뒤늦게 도착한 start 결과가 세션을 되살리지 않음(gen guard)", async () => {
@@ -2246,7 +2285,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 1차 부팅이 아직 embed-config 왕복 중일 때 정당한 리셋 요청이 접수된다.
     sendHostCommand("resetSession");
 
-    // 그 상태에서 host 가 config 를 갱신(2-sdk §106) — 1차는 아직 in-flight.
+    // 그 상태에서 host 가 config 를 갱신(2-sdk §3(재전송)) — 1차는 아직 in-flight.
     boot();
     await waitFor(() => expect(embedResolvers.length).toBe(2));
 
@@ -2330,11 +2369,11 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
       embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: ["http://other.test"], enforce: true } }) } as Response);
       await flushAsync();
     });
-    // **전제 고정** — 1차가 실제로 BLOCKED 에 도달했어야 의미가 있다(신규 거울상 테스트와 동형).
-    // 없으면 fail-open 으로 "둘 다 ALLOWED" 시나리오로 조용히 퇴화하는데도 통과한다
-    // (ai-review 2026-07-17 14_56_27 testing — 이 패턴을 물려받은 쪽도 함께 정정).
-    expect(result.current.state.phase).toBe("blocked");
-    // 2차(허용)가 나중에 resolve — 이쪽이 리셋을 이행해야 한다.
+    // **superseded 시도는 아무것도 디스패치하지 않는다** — 1차는 2차에 대체됐으므로 차단 응답이
+    // 와도 `BLOCKED` 로 전이시키지 않는다. 살아있는 2차의 결과가 화면을 정한다(§3(재전송)).
+    // (supersede 도입 전에는 여기서 `phase === "blocked"` 였다 — 대체된 시도가 화면을 덮었다.)
+    expect(result.current.state.phase).not.toBe("blocked");
+    // 2차(허용)가 나중에 resolve — 살아있는 시도이므로 이쪽이 리셋을 이행한다.
     await act(async () => {
       embedResolvers[1]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
       await flushAsync();
@@ -2419,12 +2458,1033 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 덮는 시나리오)로 조용히 퇴화하는데도 통과한다 — 실측 확인
     // (ai-review 2026-07-17 14_56_27 testing).
     expect(result.current.state.phase).toBe("blocked");
-    // **1차(먼저 진입)가 허용으로 나중에** 끝난다 — 이쪽이 리셋을 이행해야 한다.
+    // **1차(먼저 진입)가 허용으로 나중에** 끝난다 — 그러나 2차에 **대체됐으므로 물러난다**.
     await act(async () => {
       embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
       await flushAsync();
     });
 
+    // superseded 시도는 "성공하는 부팅" 이 아니므로 리셋을 이행하지 않는다 — 이 라운드엔 새 대화가
+    // 시작되지 않는다(`pendingResetRef` JSDoc §계약).
+    expect(hookPosts).toBe(0);
+
+    // **그러나 소실이 아니라 이월이다** — 이어서 성공하는 부팅이 오면 그때 이행된다.
+    // 이 단언이 없으면 위 `toBe(0)` 은 "리셋이 조용히 사라짐" 과 구분되지 않는다.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(3));
+    await act(async () => {
+      embedResolvers[2]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
     await waitFor(() => expect(hookPosts).toBe(1));
+  });
+
+  // spec 2-sdk §3(재전송) — "host 는 iframe 을 재생성하지 않고 wc:boot 을 다시 보내 boot config 를 갱신할 수
+  // 있다. 위젯은 **마지막 wc:boot 의 config 를 적용**한다."
+  //
+  // 세대가 없으면 `embed-config` 왕복의 **resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에
+  // resolve 하면 그게 이겨 §3(재전송) 을 어긴다(도입 전 실측: plan A→B 로 보내고 순서를 역전시키니 A 가
+  // 적용됐다). `beginBootAttempt`/`isAttemptStale` 이 그걸 막는다.
+  it("§3(재전송): resolve 순서가 역전돼도 마지막 wc:boot 의 config 가 적용된다", async () => {
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+    const bootWithPlan = (plan: string) =>
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            origin: "http://host.test",
+            data: {
+              type: "wc:boot",
+              payload: { apiBase: "http://api.test/api", triggerEndpointPath: "t1", profile: { plan } },
+            },
+          }),
+        );
+      });
+
+    const { result } = renderHook(() => useWidget());
+    bootWithPlan("first");
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    bootWithPlan("last"); // 재전송 — 이게 마지막이므로 이 config 가 적용돼야 한다.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // **resolve 순서 역전** — 마지막 boot 이 먼저, 첫 boot 이 나중에 응답한다.
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+
+    const applied = (result.current.config?.profile as { plan?: string } | undefined)?.plan;
+    expect(applied).toBe("last");
+  });
+
+  // §3(재전송) — **대체된 시도의 종료 확정이 살아있는 마지막 부팅을 죽이지 않는다.**
+  //
+  // 재현된 결함(ai-review 17_36_57 concurrency CRITICAL): 대체된 1차가 복원 seed 에서 "이미 종료됨"을
+  // 발견하면 `finalizeEnded` → `teardownSession` → **world 세대 증가**가 일어난다. 그 무효화는 정당하나
+  // (세션이 실제로 종료됐다), 종전엔 config 적용 checkpoint 가 world 축을 봐서 아직 살아있는 2차가 그걸
+  // "내 world 가 사라졌다"로 오독하고 물러나 **마지막 config 가 적용되지 않았다**(plan=A 고착).
+  //
+  // fix(현행): checkpoint 1(`cannotApplyConfig`)을 **boot 축 전용**으로 바꿔, 1차의 정당한 world 증가가
+  // 2차의 config 적용을 막지 못하게 했다. 그러면서도 **종료 확정 자체는 1차(대체된 시도)가 그대로 한다**
+  // — 종료는 세계의 사실이지 시도의 소유물이 아니라, `seedWaitingFromStatus` 의 종료 분기는 boot 축을
+  // 일부러 안 본다(같은 파일 "대체된 시도가 발견한 종료는 그대로 확정된다" 테스트가 이 방향을 고정).
+  // 따라서 이 테스트는 두 결과를 함께 단언한다: 마지막 config 적용(plan=last) **그리고** 종료 확정(ended).
+  it("§3(재전송): 대체된 시도의 종료 확정이 마지막 부팅을 죽이지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => {
+            statusResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const terminal = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { executionId: "e1", status: "completed" } }) }) as Response;
+    const bootWithPlan = (plan: string) =>
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            origin: "http://host.test",
+            data: {
+              type: "wc:boot",
+              payload: { apiBase: "http://api.test/api", triggerEndpointPath: "t1", profile: { plan } },
+            },
+          }),
+        );
+      });
+
+    const { result } = renderHook(() => useWidget());
+    bootWithPlan("first");
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // 1차가 복원 seed 진입.
+
+    bootWithPlan("last"); // 2차 재전송 — 1차를 대체한다.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 1차의 seed 가 "이미 종료됨" 으로 응답 — 대체됐어도 종료는 확정한다(world 축, 세계의 사실).
+    await act(async () => {
+      statusResolvers[0](terminal());
+      await flushAsync();
+    });
+    // 2차는 1차의 정당한 world 증가에 휩쓸려 물러나면 안 된다 — checkpoint 1 이 boot 축 전용이라 무사하다.
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+    if (statusResolvers.length > 1) {
+      await act(async () => {
+        statusResolvers[1](terminal());
+        await flushAsync();
+      });
+    }
+
+    // 마지막 boot 의 config 가 적용됐다(§3(재전송)) — checkpoint 1 이 boot 축 전용이라 1차의 world 증가에 안 밀린다.
+    expect((result.current.config?.profile as { plan?: string } | undefined)?.plan).toBe("last");
+    // 그리고 종료는 유실되지 않았다 — 대체된 1차가 world 축으로 그대로 확정했다.
+    expect(result.current.state.phase).toBe("ended");
+  });
+
+  // §3(재전송) — **재전송은 config 만 갱신한다. 살아있는 대화를 되감지 않는다.**
+  //
+  // 재현된 결함(ai-review 17_36_57 requirement): 재전송마다 복원 분기를 다시 타서, 입력 대기 중이던
+  // 사용자의 `phase` 가 `RESTORED` 로 `streaming` 이 되며 **입력창이 사라졌다가** seed 응답 후 돌아왔다.
+  // 관리자 라이브 미리보기는 외형 폼 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 발생한다.
+  // 덤으로 `getStatus`·SSE·토큰 갱신도 매번 재실행됐다.
+  it("§3(재전송): 활성 대화 중 재전송은 입력창을 되감지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let statusCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          statusCalls += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                executionId: "e1",
+                status: "waiting_for_input",
+                context: { interactionType: "ai_conversation", waitingNodeId: "n1", conversationThread: { turns: [] } },
+              },
+            }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    // 복원 seed 가 대기 표면을 시드 → 사용자가 입력할 수 있는 상태.
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+    const statusBefore = statusCalls;
+    const esBefore = getEs();
+
+    // 관리자가 미리보기 폼에 키를 입력 → 디바운스 없이 wc:boot 재전송.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+
+    // 입력창이 그대로다(되감기 없음).
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    // 세션도 건드리지 않는다 — getStatus 재조회·SSE 재오픈 없음.
+    expect(statusCalls).toBe(statusBefore);
+    expect(getEs()).toBe(esBefore);
+  });
+
+  // 위 fix 의 **반대 방향** — 재전송이 복원을 건너뛰는 판정이 과하면 연결이 영영 안 선다.
+  //
+  // 내가 이 스킵을 `startedRef`(시작했나)로 처음 썼다가 낸 결함(재현 확인): `startedRef` 는 복원
+  // **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만 남아
+  // **살아있는 시도까지 복원을 건너뛰게** 만들어 `streaming` 인데 연결이 0개로 고착됐다.
+  // 판정은 `streamRef`(연결이 살아있나)여야 한다 — 두 테스트가 그 경계를 양쪽에서 지킨다.
+  it("§3(재전송): 대체된 시도가 연결 전에 물러나도 살아있는 시도가 연결을 세운다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => {
+            statusResolvers.push(r);
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const running = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { executionId: "e1", status: "running" } }) }) as Response;
+
+    renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // 1차 복원 seed 진입 — 아직 연결 없음.
+    expect(getEs()).toBeNull(); // 전제 — 이 시점에 스트림이 없어야 이 테스트가 의미를 갖는다.
+
+    boot(); // 2차가 1차를 대체.
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 1차의 seed 가 **비-terminal** 로 응답 — 대체됐으므로 연결을 열지 않고 물러난다.
+    await act(async () => {
+      statusResolvers[0](running());
+      await flushAsync();
+    });
+    // 2차가 진행 — 연결을 세워야 한다(1차가 남긴 플래그에 막히면 안 된다).
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+    if (statusResolvers.length > 1) {
+      await act(async () => {
+        statusResolvers[1](running());
+        await flushAsync();
+      });
+    }
+
+    expect(getEs()).not.toBeNull();
+  });
+
+  // §3(재전송) 두 번째 재검증 지점 — **복원 분기**(seed 뒤). 위 테스트는 첫 지점(embed 검증 뒤)만 덮는다.
+  //
+  // 이 지점이 왜 별도로 필요한가: 이 파일은 **비대칭 가드 누락**(한 호출부는 재검증하고 다른 호출부는
+  // 빠뜨림)으로 3번 CRITICAL 을 냈다(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5). 실제로 이 테스트를
+  // 쓰기 전엔 둘째 지점의 가드를 제거해도 45건이 전부 통과했다 — 무방비였다.
+  //
+  // 시나리오: 복원 seed 가 떠 있는 동안 host 가 `wc:boot` 을 재전송하면, **대체된** 시도는 그 세션으로
+  // SSE 를 열면 안 된다(`02_04_13` C1 과 동형 — 대체된 시도가 스트림·토큰 갱신을 되살리는 문제).
+  it("§3(재전송): 복원 seed 중 재전송으로 대체된 시도는 SSE 를 열지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let resolveStatus: ((r: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        // 복원 seed 의 getStatus 를 in-flight 로 잡아둔다.
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => {
+            resolveStatus = r;
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+
+    renderHook(() => useWidget());
+    boot(); // 1차
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+    await waitFor(() => expect(resolveStatus).not.toBeNull()); // 복원 seed in-flight.
+
+    // 2차 재전송 — 1차를 대체한다. (2차의 embed-config 는 일부러 미해결로 둬 1차 거동만 관측한다.)
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+
+    // 1차의 seed 가 뒤늦게 정상 응답 — 그러나 1차는 대체됐으므로 물러나야 한다.
+    await act(async () => {
+      resolveStatus?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { executionId: "e1", status: "running" } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 대체된 시도가 옛 세션으로 SSE 를 열지 않았다.
+    expect(getEs()).toBeNull();
+  });
+
+  // `applyConfig` 의 **world 축** 고정 — 위 두 §3(재전송) 테스트는 boot 축만 덮는다.
+  //
+  // A/B 로 확인한 기존 갭이다: 변경 전 코드(`isStale(gen)`)에서도 이 가드를 제거하면 44건이 전부
+  // 통과했다 — `applyConfig` 의 world 재검증은 한 번도 고정된 적이 없다. `isAttemptStale` 이 두 축을
+  // 함께 보게 되면서 mutation 매트릭스(world 축만 무력화)로 드러났다.
+  //
+  // 관측 경로: embed-config 왕복 중 언마운트. 언마운트는 world 를 무효화하므로(그 cleanup 이 세대를
+  // 올린다) 뒤늦게 resolve 한 부팅은 물러나야 한다 — 아니면 사라진 컴포넌트가 저장 세션을 복원하고
+  // SSE 를 연다(`08_29_33` W3 가 `start()` 경로에서 닫은 것과 동형).
+  it("embed-config 왕복 중 언마운트 → 지연 응답이 세션·SSE 를 되살리지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    let resolveEmbed: ((r: Response) => void) | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            resolveEmbed = r;
+          });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+
+    const { unmount } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(resolveEmbed).not.toBeNull()); // embed-config in-flight.
+
+    unmount();
+
+    // 사라진 위젯의 부팅이 뒤늦게 허용으로 resolve.
+    await act(async () => {
+      resolveEmbed?.({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { allowlist: [], enforce: false } }),
+      } as Response);
+      await flushAsync();
+    });
+
+    // 복원 분기로 들어가 SSE 를 열지 않았다.
+    expect(getEs()).toBeNull();
+  });
+
+  // **비-410 명령 실패는 세션을 지우지 않는다** — `3-auth-session.md` §3.1-3 의 storage 정리 조건
+  // 열거(SSE terminal·200+terminal·404·복구불가 401·명령 410)에 "그 외 명령 실패" 가 없고, §3.1-2 는
+  // "200 + running → 복원" 을 명시한다.
+  //
+  // 이 테스트는 한때 정반대(`storage 소거` + `부활 안 함`)를 단언했다. 그 단언이 스스로를 반증했다 —
+  // mock 이 `getStatus` 를 처음부터 끝까지 `{status:"running"}`(서버 생존)으로 고정해 두고도 소거를
+  // 요구했으니, 살아있는 대화를 죽이는 걸 고정하고 있던 셈이다. 실측: 그 구현에선 500 직후
+  // 새로고침 시 `phase=collapsed`·`executionId` 없음(대화 영구 유실).
+  // (ai-review 2026-07-17 18_39_11 requirement CRITICAL)
+  it("일시적 명령 실패(500)는 저장 세션을 지우지 않는다 — 서버가 살아있으면 복원된다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    let statusCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        // 명령이 500 으로 실패 → ERROR → ended.
+        if (u.includes("/interact")) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          statusCalls += 1;
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("streaming")); // 복원됨.
+
+    // 대기 표면 → 명령 전송 → 500 → ERROR → ended. **이 경로는 세션을 지우지 않는다.**
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        conversationThread: { turns: [] },
+      });
+    });
+    await waitFor(() => expect(result.current.state.phase).toBe("awaiting_user_message"));
+    act(() => result.current.actions.submitMessage("실패할 명령"));
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+
+    // **세션이 보존된다** — 서버 execution 은 `running` 이고, spec 은 그런 세션을 복원하라고 한다.
+    // (실제 복원은 새로고침 경로에서 일어난다 — 아래 테스트.)
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+    const esAfterError = getEs();
+    const statusCallsAfterError = statusCalls;
+
+    // host 가 외형 갱신 등으로 wc:boot 재전송(§3(재전송)).
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+
+    // **부작용 재발사 없음** — `getStatus` 재조회도, SSE 재오픈도 없다. 이걸 막는 건 리듀서 가드가
+    // 아니라 `sessionEstablished()` 복원-스킵이다(스트림이 아직 살아있으므로 복원할 게 없다).
+    // 한때 이 자리를 `teardownSession()`(storage 소거)으로 막으려 했는데, 그건 불필요했을 뿐 아니라
+    // 살아있는 세션을 영구 파괴했다 — 스킵 판정이 이미 같은 일을 하고 있었다.
+    expect(statusCalls).toBe(statusCallsAfterError);
+    expect(getEs()).toBe(esAfterError);
+    // phase 는 `ended` 로 남는다 — `ERROR` → `ended` 자체가 이 PR 이전부터의 gap 이다
+    // (`1-widget-app.md` §2 Form 은 "실패 시 재제출" 을 약속한다). plan 에 이월.
+    expect(result.current.state.phase).toBe("ended");
+  });
+
+  // 위 테스트의 사용자 관점 짝 — **탭 새로고침**으로 복원되는가. `wc:boot` 재전송(같은 마운트)이
+  // 아니라 언마운트→재마운트라, 리듀서 가드가 아니라 **storage 생존** 만이 결과를 가른다.
+  // 실측 A/B: `sendCommand` 비-410 경로의 `teardownSession()` 한 줄이 있으면
+  // `phase=collapsed`·`executionId` 없음 / 없으면 `streaming`·`e1`.
+  it("일시적 명령 실패(500) 후 새로고침하면 살아있는 대화가 복원된다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return new Promise<Response>((r) => {
+            embedResolvers.push(r);
+          });
+        }
+        if (u.includes("/interact")) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          // 서버 execution 은 내내 살아있다 — 위젯이 명령 하나를 못 보냈을 뿐이다.
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { executionId: "e1", status: "running" } }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const { getEs } = installControllableEventSource();
+    const allow = () =>
+      ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+
+    const first = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => {
+      embedResolvers[0](allow());
+      await flushAsync();
+    });
+    await waitFor(() => expect(first.result.current.state.phase).toBe("streaming"));
+    act(() => {
+      getEs()?.emit("execution.waiting_for_input", {
+        interactionType: "ai_conversation",
+        waitingNodeId: "n1",
+        conversationThread: { turns: [] },
+      });
+    });
+    await waitFor(() => expect(first.result.current.state.phase).toBe("awaiting_user_message"));
+    act(() => first.result.current.actions.submitMessage("일시적으로 실패할 명령"));
+    await waitFor(() => expect(first.result.current.state.phase).toBe("ended"));
+
+    // 탭 새로고침 = 언마운트 → 새 마운트.
+    const esBeforeReload = getEs();
+    first.unmount();
+    const reloaded = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => {
+      embedResolvers[1](allow());
+      await flushAsync();
+    });
+
+    // §3.1-2: 200 + running → 복원. 대화가 돌아온다.
+    await waitFor(() => expect(reloaded.result.current.state.phase).toBe("streaming"));
+    expect(reloaded.result.current.state.executionId).toBe("e1");
+    // 그리고 **SSE 가 실제로 재연결됐다** — 복원이 UI phase 만 바꾸고 스트림을 안 열면 위젯이
+    // 새 이벤트를 못 받아 `streaming` 에 멈춘다. 새 마운트가 새 EventSource 를 열었는지 확인한다.
+    const esAfterReload = getEs();
+    expect(esAfterReload).not.toBeNull();
+    expect(esAfterReload).not.toBe(esBeforeReload);
+  });
+
+  // **대체된 부팅 시도의 지연 `getStatus` 가 살아있는 화면을 되감지 않는다** (`sessionEstablished()` 가드).
+  //
+  // 재현된 결함(18_39_11): world 축은 이 시나리오 내내 안 바뀐다(대화가 살아있으므로) → 옛 세계 가드로는
+  // 못 잡는다. 당시엔 boot 세대 비교로 막았으나 그게 두 번 뚫려(no-op 재전송 고착 등, 00_51_53) 재설계
+  // 했다 — 현행 가드는 `seedWaitingFromStatus` 의 `WAITING` dispatch 직전 `sessionEstablished()`("스트림이
+  // 이미 열렸나")다. 다른 시도가 SSE 스트림을 열었으면 이 지연 seed 는 스킵한다(이 테스트가 고정하는 게
+  // 그 가드다 — mutation 으로 확인).
+  //
+  // 단순 flicker 가 아니라 고착이다: 되감긴 n1 표면에 사용자가 응답하면 이미 지나간 nodeId 로
+  // 명령이 나가 백엔드가 거부한다. (ai-review 2026-07-17 18_39_11 concurrency CRITICAL / 00_51_53 재설계)
+  it("대체된 시도의 지연 getStatus 가 살아있는 화면을 옛 노드로 되감지 않는다", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return new Promise<Response>((r) => { embedResolvers.push(r); });
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return new Promise<Response>((r) => { statusResolvers.push(r); });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }));
+    const { getEs } = installControllableEventSource();
+    const allow = () => ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const waitingAt = (nodeId: string) => ({ ok: true, status: 200, json: async () => ({ data: {
+      executionId: "e1", status: "waiting_for_input",
+      context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+    } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 부팅#1 — embed 왕복 중.
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => { embedResolvers[0](allow()); await flushAsync(); });
+    // 부팅#1 이 복원 seed 진입 → getStatus A 발사(미해결).
+    await waitFor(() => expect(statusResolvers.length).toBe(1));
+
+    // A 가 아직 안 끝났는데 wc:boot 재전송(부팅#2).
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => { embedResolvers[1](allow()); await flushAsync(); });
+    // 부팅#2 도 스트림 미확립 창에 걸려 자기 getStatus B 를 낸다.
+    await waitFor(() => expect(statusResolvers.length).toBe(2));
+
+    // B 가 먼저 응답 → n1 표면 + 스트림 오픈(부팅#2 소유).
+    await act(async () => { statusResolvers[1](waitingAt("n1")); await flushAsync(); });
+    expect(result.current.state.pending?.nodeId).toBe("n1");
+
+    // 살아있는 대화가 SSE 로 전진 → n2.
+    act(() => { getEs()?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n2", conversationThread: { turns: [] } }); });
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+
+    // 대체된 부팅#1 의 getStatus A 가 **뒤늦게** 옛 스냅샷(n1)으로 응답.
+    await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
+
+    // 화면은 SSE 가 전진시킨 n2 그대로 — 대체된 시도는 표면을 그리지 못한다.
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+  });
+
+  // **반대 축 — 대체된 시도가 발견한 "진짜 종료" 는 그대로 확정돼야 한다.**
+  //
+  // 위 테스트와 짝이다. 같은 함수 안에서 표면 갱신은 `sessionEstablished()` 가드를 보고(스트림이
+  // 열렸으면 대체된 시도는 그리지 않음) 종료 확정은 **일부러 보지 않는다**(대체된 시도도 확정함).
+  // 종료는 세계의 사실이지 시도의 소유물이 아니기 때문 — 살아있는 시도가 스트림 열림 스킵으로 자기
+  // getStatus 를 아예 안 낼 수 있고, 버퍼 만료 구간에선 terminal SSE 도 다시 오지 않는다(§replay_unavailable).
+  //
+  // 이 방향을 고정하지 않으면 "대칭이 예뻐 보인다" 는 이유로 종료 확정에도 스트림 가드가 붙는다 —
+  // 실제로 mutation 시 이 테스트가 없을 땐 전부 통과했다(무방비).
+  it("대체된 시도가 발견한 종료는 그대로 확정된다 (종료 확정은 boot 축을 보지 않는다)", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+    );
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return new Promise<Response>((r) => { embedResolvers.push(r); });
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return new Promise<Response>((r) => { statusResolvers.push(r); });
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    }));
+    const { getEs } = installControllableEventSource();
+    const allow = () => ({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) }) as Response;
+    const waitingAt = (nodeId: string) => ({ ok: true, status: 200, json: async () => ({ data: {
+      executionId: "e1", status: "waiting_for_input",
+      context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+    } }) }) as Response;
+    const completed = () => ({ ok: true, status: 200, json: async () => ({ data: { executionId: "e1", status: "completed" } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1));
+    await act(async () => { embedResolvers[0](allow()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // 부팅#1 의 getStatus A.
+
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(2));
+    await act(async () => { embedResolvers[1](allow()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(2)); // 부팅#2 의 getStatus B.
+
+    // B 가 먼저 응답 → 대화 진행 중으로 보이고 스트림이 열린다.
+    await act(async () => { statusResolvers[1](waitingAt("n1")); await flushAsync(); });
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    expect(getEs()).not.toBeNull();
+
+    // 대체된 부팅#1 의 A 가 뒤늦게 **종료**를 싣고 온다 — 살아있는 시도는 이 사실을 모른다.
+    await act(async () => { statusResolvers[0](completed()); await flushAsync(); });
+
+    // 대체됐어도 종료는 확정한다 — 아니면 위젯이 streaming 에 무기한 멈춘다.
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  // **언마운트된 위젯은 새 execution 을 시작하지 않는다** — `cannotApplyConfig` 의 `unmountedRef` 축.
+  //
+  // checkpoint 1 은 world 축을 일부러 보지 않으므로(§3(재전송) 을 위해), 언마운트를 잡는 건 `unmountedRef`
+  // **뿐**이다. 그게 없으면 언마운트 후 도착한 `embed-config` 응답이 checkpoint 1 을 통과해
+  // `establishConfig` 를 실행하고, 접수돼 있던 리셋을 이행하며 **사라진 컴포넌트가 webhook POST 로
+  // 새 execution 을 시작한다**(리소스 누수).
+  //
+  // 이 축은 mutation 무방비였다 — `unmountedRef` 체크를 지워도 389건 전부 통과했다.
+  // (ai-review 2026-07-17 18_39_11 testing 블라인드 스팟 ② / concurrency INFO)
+  it("언마운트 후 도착한 embed 응답은 새 execution 을 시작하지 않는다", async () => {
+    const embedResolvers: Array<(r: Response) => void> = [];
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) {
+        return new Promise<Response>((r) => {
+          embedResolvers.push(r);
+        });
+      }
+      if (u.includes("/api/hooks/") && init?.method === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({ data: { executionId: "e1", status: "pending", interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS } } }),
+        } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    installControllableEventSource();
+
+    const { unmount } = renderHook(() => useWidget());
+    boot();
+    await waitFor(() => expect(embedResolvers.length).toBe(1)); // embed 왕복 중 — config 미확립.
+
+    // 부팅 중 host 리셋 → `pendingResetRef` 에 접수(부팅 전엔 정리할 게 없다).
+    sendHostCommand("resetSession");
+    // 위젯이 사라진다(호스트가 iframe 제거 / 페이지 이탈).
+    unmount();
+
+    // 이제서야 embed 응답 도착.
+    await act(async () => {
+      embedResolvers[0]({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+      await flushAsync();
+    });
+
+    // 사라진 컴포넌트는 아무것도 시작하지 않는다.
+    const webhookPosts = fetchMock.mock.calls.filter(
+      ([u, init]) => String(u).includes("/api/hooks/") && (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(webhookPosts.length).toBe(0);
+  });
+
+  // **`start()`(eager 부팅) 자신의 seed 도 되감기로부터 보호돼야 한다** — 세 번째 되감기 경로.
+  // 세 리뷰어(concurrency·requirement·side_effect)가 독립 재현: start() 가 세션을 storage 에 쓴
+  // 직후·자기 getStatus 응답 전이라는 좁은 창에 wc:boot 재전송이 같은 세션을 복원 분기로 넘겨받아
+  // SSE 로 화면을 전진시킨 뒤, start() 의 지연 응답이 옛 노드로 화면을 되감고 **두 번째 EventSource
+  // 까지 연다**.
+  //
+  // 가드는 `sessionEstablished()`("스트림이 이미 열렸나") 다 — 재전송이 스트림을 열었으면 start() 의
+  // 지연 seed 는 스킵한다. (23_58_23 은 이 자리에 boot 스냅샷을 썼다가 no-op 재전송이 start() 를
+  // 고착시키는 반대 구멍을 냈고, 00_51_53 에서 sessionEstablished 로 교체했다 — 아래 고착 테스트 참조.)
+  // (ai-review 2026-07-17 23_58_23 / 00_51_53 concurrency·requirement·side_effect CRITICAL)
+  it("start() 의 지연 seed 가 재전송이 전진시킨 화면을 되감거나 두번째 스트림을 열지 않는다", async () => {
+    // `installControllableEventSource` 와 같은 패턴(별도 인스턴스 생성 후 반환 — `this` 별칭 회피,
+    // no-this-alias)에 **생성 횟수 카운터**만 더한다. 되감기 결함은 두번째 EventSource 를 열므로
+    // 개수 단언이 화면 노드 단언과 함께 이 fix 를 이중으로 고정한다.
+    let esCount = 0;
+    let latestEs: ControllableEventSource | null = null;
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCount += 1;
+          latestEs = new ControllableEventSource();
+          return latestEs as unknown as this;
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof EventSource,
+    );
+
+    const webhookResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => { webhookResolvers.push(r); });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => { statusResolvers.push(r); });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const webhook202 = () =>
+      ({ ok: true, status: 202, json: async () => ({ data: {
+        executionId: "e1", status: "pending",
+        interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+      } }) }) as Response;
+    const waitingAt = (nodeId: string) =>
+      ({ ok: true, status: 200, json: async () => ({ data: {
+        executionId: "e1", status: "waiting_for_input",
+        context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+      } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 신규 방문(저장 세션 없음). wc:boot #1 → config 확립. 패널 open → start() 진입.
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookResolvers.length).toBe(1)); // start() 의 webhook POST in-flight.
+
+    // webhook 해결 → start() 가 세션을 storage 에 쓰고 자기 getStatus(호출 C, attempt 없음)를 낸다.
+    await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1));
+
+    // C 미해결 중 wc:boot 재전송 → 스트림 미확립 창이라 복원 분기가 방금 쓴 세션을 넘겨받아
+    // 자기 getStatus(호출 D, attempt 있음)를 낸다.
+    boot();
+    await waitFor(() => expect(statusResolvers.length).toBe(2));
+
+    // D 먼저 응답(n1) → 스트림 오픈(부팅 재전송 소유), 화면 n1.
+    await act(async () => { statusResolvers[1](waitingAt("n1")); await flushAsync(); });
+    expect(result.current.state.pending?.nodeId).toBe("n1");
+    expect(esCount).toBe(1);
+
+    // 대화가 SSE 로 전진 → n2.
+    act(() => { latestEs?.emit("execution.waiting_for_input", { interactionType: "ai_conversation", waitingNodeId: "n2", conversationThread: { turns: [] } }); });
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+
+    // start() 의 지연 seed(호출 C)가 뒤늦게 옛 n1 으로 응답.
+    await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
+
+    // 화면은 n2 그대로, 두번째 EventSource 도 안 열린다 — 스트림이 이미 열렸으므로 start() seed 는 스킵.
+    expect(result.current.state.pending?.nodeId).toBe("n2");
+    expect(esCount).toBe(1);
+  });
+
+  // **아무것도 복원 못 하는 no-op 재전송이 start() 를 고착시키면 안 된다** (boot 스냅샷 fix 의 반대 구멍).
+  //
+  // 재현(ai-review 23_58_23 → 00_51_53 requirement·testing·side_effect 3인 독립 CRITICAL): 23_58_23 의
+  // start() boot 스냅샷 fix 는 "재전송이 start() 의 persist **이후** 도착" 창만 막았다. 그보다 이른
+  // "webhook POST in-flight(세션 미persist)" 창은 무방비였다 — 재전송이 storage 가 빈 걸 보고 **아무것도
+  // 복원하지 않고** 물러나면서 `bootGenRef` 만 헛되이 올린다. 그러면 start() 자신의 정당한 seed 가
+  // "나는 대체됐다" 로 오판해 WAITING·openStream 을 둘 다 스킵 → **스피너에 영구 고착**(esCount=0).
+  //
+  // 근본 원인: boot 축은 "더 최신 재전송이 **이 세션을 실제로 넘겨받았는가**" 의 proxy 였고, no-op
+  // 재전송에서 그 proxy 가 깨진다. 진짜 불변식은 `sessionEstablished()`("스트림이 이미 열렸는가") 다 —
+  // 아무도 스트림을 안 열었으면 start() 가 그려야 한다.
+  it("webhook in-flight 중 아무것도 복원 못 하는 재전송이 start() 를 스피너에 고착시키지 않는다", async () => {
+    let esCount = 0;
+    let latestEs: ControllableEventSource | null = null;
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCount += 1;
+          latestEs = new ControllableEventSource();
+          return latestEs as unknown as this;
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof EventSource,
+    );
+
+    const webhookResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => { webhookResolvers.push(r); });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => { statusResolvers.push(r); });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const webhook202 = () =>
+      ({ ok: true, status: 202, json: async () => ({ data: {
+        executionId: "e1", status: "pending",
+        interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+      } }) }) as Response;
+    const waitingAt = (nodeId: string) =>
+      ({ ok: true, status: 200, json: async () => ({ data: {
+        executionId: "e1", status: "waiting_for_input",
+        context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+      } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 신규 방문(저장 세션 없음). wc:boot #1 → config. 패널 open → start() → webhook POST in-flight.
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookResolvers.length).toBe(1));
+
+    // **persist 전** wc:boot 재전송 → storage 가 비어 아무것도 복원 못 하고 물러난다(bootGenRef 만 증가).
+    // flush 로 재전송의 applyConfig 를 **storage 가 빈 동안** 끝까지 굴린다(embed 즉시 allow →
+    // loadSession null → 복원 분기 스킵). 이래야 순수 no-op 재전송(persist 전 도착)이 재현된다.
+    await act(async () => { boot(); await flushAsync(); });
+    // 재전송은 복원할 게 없어 getStatus 를 내지 않았다 — bootGenRef 만 헛되이 올랐다.
+    expect(statusResolvers.length).toBe(0);
+
+    // 이제 start() 의 webhook 이 resolve → persist → 자기 getStatus(유일한 getStatus).
+    await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1));
+
+    // getStatus 가 정상 응답(n1) — 아무도 이 세션을 가로채지 않았다.
+    await act(async () => { statusResolvers[0](waitingAt("n1")); await flushAsync(); });
+
+    // start() 는 표면을 그리고 스트림을 연다 — 고착되지 않는다.
+    expect(result.current.state.phase).toBe("awaiting_user_message");
+    expect(result.current.state.pending?.nodeId).toBe("n1");
+    expect(esCount).toBe(1);
+  });
+
+  // **두 복원 seed 가 같은 microtask flush 에서 resolve 해도 스트림은 하나만 열린다** (이중 스트림 방지).
+  //
+  // 재현(ai-review 01_44_21 testing·side_effect·concurrency): `sessionEstablished()` seed 게이트는
+  // "seed 가 표면을 그릴 때 스트림이 열렸나" 만 본다. 그런데 `openStream` 은 seed 반환 **뒤** 호출부에서
+  // 실행되고, `await seedWaitingFromStatus` 와 `openStream` 사이엔 microtask 경계가 있다. start() 와
+  // 재전송의 두 getStatus 가 같은 flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고
+  // 통과 → 각자 continuation 에서 둘 다 `openStream` 을 호출한다(esCount=2). `openStream` 이
+  // closeStream→set 이라 최종 상태는 단일 스트림으로 수렴하지만, 두 번째 EventSource 가 낭비 생성된다.
+  //
+  // fix: `openStream` **직전**에도 `sessionEstablished()` 재확인 — seed 게이트(표면)와 짝을 이루는
+  // 스트림 게이트가 `start()`(`use-widget.ts` openStream 직전)와 `applyConfig`(복원 분기 openStream
+  // 직전) **양쪽**에 있다. 먼저 continuation 이 열면 뒤 continuation 은 여기서 멈춘다.
+  // (내 초기 JSDoc "openStream 이 seed 반환 직후 동기 실행이라 원천 차단" 은 microtask 경계를 간과한
+  //  오판이었다 — ai-review 01_44_21.)
+  //
+  // **두 방향을 모두 고정한다** — resolve 순서에 따라 먼저 여는 쪽이 갈리므로 각 게이트가 개별로 필요:
+  //   - C(start) 먼저 resolve → start 가 열고 재전송이 막힘 → `applyConfig` 게이트를 고정.
+  //   - D(재전송) 먼저 resolve → 재전송이 열고 start 가 막힘 → **`start()` 게이트를 고정**.
+  // 한 방향만 두면 비대칭 mutation(한 게이트만 제거)이 안 잡힌다(ai-review 02_25_54 requirement·testing —
+  // start() 게이트만 제거해도 전원 통과하던 커버리지 갭. 이 파일의 "비대칭 가드 누락" 이 테스트 층위에서
+  // 재발한 형태라 두 테스트로 대칭 고정).
+  //
+  // resolve 순서를 파라미터로 받는 공용 헬퍼 — 43줄 mock 셋업 중복을 없앤다(ai-review 02_25_54 maintainability).
+  async function raceStartVsResendSingleStream(resendResolvesFirst: boolean) {
+    let esCount = 0;
+    vi.stubGlobal(
+      "EventSource",
+      class {
+        constructor() {
+          esCount += 1;
+          return new ControllableEventSource() as unknown as this;
+        }
+        addEventListener() {}
+        close() {}
+      } as unknown as typeof EventSource,
+    );
+    const webhookResolvers: Array<(r: Response) => void> = [];
+    const statusResolvers: Array<(r: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("/embed-config")) {
+          return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { allowlist: [], enforce: false } }) } as Response);
+        }
+        if (u.includes("/api/hooks/") && init?.method === "POST") {
+          return new Promise<Response>((r) => { webhookResolvers.push(r); });
+        }
+        if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+          return new Promise<Response>((r) => { statusResolvers.push(r); });
+        }
+        return Promise.reject(new Error(`unexpected fetch ${u}`));
+      }),
+    );
+    const webhook202 = () =>
+      ({ ok: true, status: 202, json: async () => ({ data: {
+        executionId: "e1", status: "pending",
+        interaction: { token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS },
+      } }) }) as Response;
+    const waitingAt = (nodeId: string) =>
+      ({ ok: true, status: 200, json: async () => ({ data: {
+        executionId: "e1", status: "waiting_for_input",
+        context: { interactionType: "ai_conversation", waitingNodeId: nodeId, conversationThread: { turns: [] } },
+      } }) }) as Response;
+
+    const { result } = renderHook(() => useWidget());
+
+    // 신규 방문. boot#1 → config. open → start() → webhook → persist → 자기 getStatus C(=[0]).
+    boot();
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+    await waitFor(() => expect(webhookResolvers.length).toBe(1));
+    await act(async () => { webhookResolvers[0](webhook202()); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(1)); // C=[0]
+
+    // 재전송 → 스트림 미확립 창이라 복원 분기가 e1 을 넘겨받아 자기 getStatus D(=[1]).
+    await act(async () => { boot(); await flushAsync(); });
+    await waitFor(() => expect(statusResolvers.length).toBe(2)); // C=[0] + D=[1]
+
+    // **C 와 D 를 같은 flush 에서 resolve** — 순서만 파라미터로 뒤집는다. 먼저 resolve 한 seed 의
+    // continuation 이 먼저 openStream 을 부르므로, 그 쪽이 "먼저 여는 쪽" 이고 반대쪽 게이트가 시험된다.
+    const [first, second] = resendResolvesFirst ? [1, 0] : [0, 1];
+    await act(async () => {
+      statusResolvers[first](waitingAt("n1"));
+      statusResolvers[second](waitingAt("n1"));
+      await flushAsync();
+    });
+    return { esCount, nodeId: result.current.state.pending?.nodeId };
+  }
+
+  it("두 복원 seed 가 같은 flush 에서 resolve 해도 EventSource 는 하나만 생성된다 (start 먼저 — applyConfig 게이트)", async () => {
+    const { esCount, nodeId } = await raceStartVsResendSingleStream(false);
+    expect(esCount).toBe(1);
+    expect(nodeId).toBe("n1");
+  });
+
+  it("두 복원 seed 가 같은 flush 에서 resolve — 재전송 먼저 열려도 하나만 생성된다 (start() 게이트)", async () => {
+    const { esCount, nodeId } = await raceStartVsResendSingleStream(true);
+    expect(esCount).toBe(1);
+    expect(nodeId).toBe("n1");
   });
 });

@@ -160,6 +160,29 @@ export function useWidget() {
    */
   const worldGenRef = useRef(0);
   /**
+   * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대. 나중 시도가 앞선 시도를 **대체**한다.
+   *
+   * `spec/7-channel-web-chat/2-sdk.md §3(재전송)` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
+   * 있고 **위젯은 마지막 `wc:boot` 의 config 를 적용**한다고 정한다. 그런데 `host-bridge` 는 in-flight
+   * 여부를 보지 않고 매번 `applyConfig` 를 새로 기동하므로, 세대가 없으면 **`embed-config` 왕복의
+   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §3(재전송) 을 어긴다
+   * (재현 확인: `profile.plan` A→B 순서로 보내고 resolve 를 역전시키면 A 가 적용됐다).
+   *
+   * **`worldGenRef` 와 축이 다르다 — 합치지 말 것.** 부팅 시도는 세계를 바꾸지 않는다(그래서
+   * `teardownSession` 은 config 확립 전엔 세대를 올리지 않는다 — 올렸다가 부팅 중 `applyConfig` 를
+   * 죽여 **패널이 영원히 안 열리는** 회귀를 냈다). 세계 무효화 ≠ 시도 대체다.
+   *
+   * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
+   * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
+   *
+   * ⚠ **이 블록과 `bootGenRef` 선언 사이에 다른 선언을 끼워 넣지 말 것** — JSDoc 은 인접성으로만
+   * 붙는다. 이 파일에서 두 번 당했다(`pendingResetRef` 는 `bootGenRef` 삽입에, `bootGenRef` 는
+   * `unmountedRef` 삽입에 각각 주석을 잃었다). 새 ref 는 이 블록 **위**나 `bootGenRef` **아래**에.
+   */
+  const bootGenRef = useRef(0);
+  /** 언마운트 여부 — world 무효화와 달리 **되돌아오지 않는** 종점이라 별도 축이다(`beginBootAttempt` §근거). */
+  const unmountedRef = useRef(false);
+  /**
    * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
    *
    * config 확립 전(`applyConfig` 의 embed-config 왕복 중)에 host `resetSession`/`newChat` 이 오면
@@ -172,6 +195,11 @@ export function useWidget() {
    * 즉 부팅이 차단(BLOCKED)되거나 config 없이 끝나면 의도는 **그대로 남아** 이후 성공하는 부팅이
    * 이행한다. 그 부팅이 "리셋을 요청한 적 없어" 보여도 같은 host·같은 위젯 인스턴스이고 요청은
    * 실재했으므로, 늦게라도 이행하는 것이 맞다.
+   *
+   * **"성공하는 부팅" 의 정의에 supersede 가 포함된다**: 더 새 `wc:boot` 에 대체된(superseded) 시도는
+   * config 를 적용하지 못하고 물러나므로 **성공한 것이 아니다** → 리셋을 이행하지 않고 플래그를 남긴
+   * 채 끝난다. 그래서 겹친 부팅에서는 리셋이 **그 라운드가 아니라 다음 성공 부팅에서** 이행될 수
+   * 있다 — 소실이 아니라 이월이다(`bootGenRef` JSDoc, spec 2-sdk §3(재전송)).
    *
    * **폐기 로직을 다시 넣지 말 것** — "실패한 부팅은 자기 리셋도 폐기한다"는 직관적이지만 **원리적
    * 으로 구현 불가능**하다: 지금 지워도 되는지는 *다른 겹친 시도가 나중에 성공할지*에 달렸는데 그건
@@ -196,7 +224,12 @@ export function useWidget() {
   const endedRef = useRef(false);
   // `seedWaitingFromStatus`(아래 정의) 를 그보다 위에 있는 `handleEiaEvent` 에서 쓰기 위한 ref 홀더.
   const seedWaitingFromStatusRef = useRef<
-    ((client: EiaClient, session: SessionRef) => Promise<SeedOutcome>) | null
+    | ((
+        client: EiaClient,
+        session: SessionRef,
+        opts?: { allowWhileStreaming?: boolean },
+      ) => Promise<SeedOutcome>)
+    | null
   >(null);
 
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약은 useTokenRefresh 캡슐화(§B).
@@ -217,6 +250,79 @@ export function useWidget() {
    * 한다 (ai-review 2026-07-17 09_36_01 maintainability).
    */
   const isStale = useCallback((gen: number) => worldGenRef.current !== gen, []);
+
+  /**
+   * 새 부팅 시도를 개시하고 그 **시도 토큰**을 반환한다 — 앞선 시도는 이 호출로 대체된다.
+   *
+   * `applyConfig` 는 세계 무효화(`worldGenRef`)와 시도 대체(`bootGenRef`) **두 축 모두**에 걸린다.
+   * 그 둘을 호출부에서 손으로 AND 하지 않고 토큰 하나로 묶는 이유:
+   *
+   * 이 파일이 **비대칭 가드 누락으로 CRITICAL 을 여러 번 냈다** — 한 호출부는 재검증하고 다른 호출부는
+   * 빠뜨리는 형태(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5, 그리고 `23_58_23` 의 `start()` 무방비
+   * 되감기까지). 축을 하나 더 늘리면서 그 관용구를 손으로 복제하면 같은 실패를 초대한다. 토큰이면
+   * **await 지점당 가드 호출은 여전히 1개**이고, 축이 늘어도 호출부가 아니라 이 predicate 한 곳만 바뀐다.
+   * (`seedWaitingFromStatus` 의 표면 되감기 방어는 이 클래스가 반복 실패한 끝에 `sessionEstablished()`
+   * 라는 **세 호출부 공통의 무조건 기본 가드**로 옮겨가 비대칭 자체를 구조적으로 없앴다 — 그 함수 JSDoc 참조.)
+   *
+   * 곁들여 `applyConfig` 는 `gen`(world 단독)을 **스코프에 두지 않는다** — 그래서 거기서
+   * `isStale(gen)` 은 컴파일되지 않는다. **단 이건 좁은 보호다**: 이 파일의 다른 함수에서 관용구를
+   * 복사해 오는 가장 흔한 실수만 막을 뿐, `isStale(attempt.world)` 처럼 **일부러 축을 빼면 통과한다**
+   * (실측 확인 — `isStale(worldGenRef.current)` 는 자기 자신과 비교해 **항상 false 인 무력 가드**가
+   * 되는데도 컴파일된다). 타입 검사가 축 누락 일반을 막아주지는 **않는다**
+   * (ai-review 2026-07-17 17_36_57 maintainability — 내 초기 주장이 과했다).
+   *
+   * 진짜 방어선은 **테스트**다: 두 재검증 지점 각각을 비대칭으로 제거하는 mutation 이 회귀 테스트에
+   * 잡힌다(plan `webchat-boot-single-flight.md` §A-5 매트릭스). `guardedAwait` 구조화 대신 이 조합을
+   * 택한 근거는 같은 plan §A-0.
+   *
+   * *(`bootGenRef` 는 **`applyConfig` 의 config 적용 경합에만** 쓴다 — `beginBootAttempt`(발급)와
+   * `cannotApplyConfig`/`isAttemptStale`(재검증). `start()`/`sendCommand`/`seedWaitingFromStatus` 는
+   * 이 축을 쓰지 않는다. 특히 `seedWaitingFromStatus` 의 표면 되감기 방어는 boot 세대 비교가 아니라
+   * `sessionEstablished()`("스트림이 이미 열렸나")로 한다 — boot 세대는 그 proxy 였고 두 번 구멍이
+   * 났다(18_39_11: 함수 경계에서 안 닿음 / 00_51_53: no-op 재전송이 start() 를 거짓 stale 처리해
+   * 고착). 그 함수 JSDoc 표 참조.)*
+   */
+  const beginBootAttempt = useCallback(
+    () => ({ world: worldGenRef.current, boot: ++bootGenRef.current }),
+    [],
+  );
+  /**
+   * 이 부팅 시도가 **config 를 적용할 자격을 잃었는가** — 첫 await(임베드 검증) 뒤의 재검증.
+   *
+   * **world 축을 보지 않는다.** 아직 어떤 세션도 건드리지 않은 시도에게 "세계가 바뀌었다"는 무의미하고,
+   * 오히려 해롭다: 대체된 형제 시도가 복원 중 종료를 확정하면(`finalizeEnded`→world++) 그 **정당한**
+   * 무효화가 **살아있는 마지막 부팅까지 stale 화해** §3(재전송) 을 깨뜨렸다(재현 확인 — config B 대신 A 고착).
+   * 세션을 건드리는 복원 분기에서만 world 를 본다(`isAttemptStale`).
+   * (ai-review 2026-07-17 17_36_57 concurrency CRITICAL)
+   */
+  const cannotApplyConfig = useCallback(
+    (attempt: { boot: number }) => unmountedRef.current || bootGenRef.current !== attempt.boot,
+    [],
+  );
+  /** 복원 분기용 — config 적용 자격 **더하기** 세션 world 유효성(옛 세션으로 스트림을 열지 않는다). */
+  const isAttemptStale = useCallback(
+    (attempt: { world: number; boot: number }) =>
+      cannotApplyConfig(attempt) || worldGenRef.current !== attempt.world,
+    [cannotApplyConfig],
+  );
+
+  /**
+   * 이 마운트의 세션이 **확립됐는가** — 재전송(`wc:boot` 재수신)이 복원을 건너뛸지의 판정.
+   *
+   * **`streamRef`(연결이 살아있나)이지 `startedRef`(시작했나)가 아니다.** `startedRef` 는 복원
+   * **시작** 시점에 서므로, 대체된 시도가 seed 도중 물러나면(스트림을 못 연 채) 그 플래그만 남아
+   * **살아있는 시도까지 복원을 건너뛰게** 만든다 → `streaming` 인데 연결이 0개로 고착된다
+   * (재현 확인 — 이 fix 를 `startedRef` 로 처음 썼다가 낸 결함).
+   *
+   * ⚠ **{@link pendingResetRef} 의 "불변식 의존 주의" 와 같은 전제에 기댄다** — "재전송 호출부는
+   * 마운트를 유지한 채 `triggerEndpointPath`/`apiBase` 를 바꾸지 않는다". 살아있는 `streamRef` 가
+   * **이번** `wc:boot` 이 지정한 endpoint 의 것이라는 보장은 코드 어디에도 없다(오늘은 유일한
+   * 재전송 경로인 관리자 미리보기가 endpoint 를 안 바꿔서 안전할 뿐). 전제가 깨지면 새 endpoint 의
+   * 정당한 세션 복원이 **조용히 스킵**된다(옛 스트림이 살아있다는 이유로). 그쪽을 재검토할 땐
+   * 반드시 여기도 같이 볼 것 — 한쪽만 고치면 다른 쪽이 남는다.
+   * (ai-review 2026-07-17 18_39_11 concurrency WARNING)
+   */
+  const sessionEstablished = useCallback(() => streamRef.current !== null, []);
 
   const closeStream = useCallback(() => {
     streamRef.current?.close();
@@ -325,7 +431,12 @@ export function useWidget() {
         // 이벤트까지 유실된 경우 — `seedWaitingFromStatus` 가 `finalizeEnded` 로 종료를 확정한다.
         const client = clientRef.current;
         const session = sessionRef.current;
-        if (client && session) void seedWaitingFromStatusRef.current?.(client, session);
+        // `allowWhileStreaming: true` — 이 폴백은 **자기 스트림이 열린 채** 표면을 재동기화한다.
+        // seed 의 기본 가드(`sessionEstablished()` 면 WAITING 스킵)를 그대로 두면 여기선 항상 스킵돼
+        // 재동기화가 no-op 이 된다. 복원/start 경로의 "다른 시도가 스트림을 가로챘나" 와 달리, 여기
+        // 스트림 열림은 "내가 다시 그려야 함" 을 뜻하므로 opt-in 으로 통과시킨다.
+        if (client && session)
+          void seedWaitingFromStatusRef.current?.(client, session, { allowWhileStreaming: true });
         // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
@@ -388,11 +499,47 @@ export function useWidget() {
    *   이 반환 계약이 없던 시절 `applyConfig` 복원 경로가 teardown 직후 그대로 `openStream` 하는
    *   회귀가 있었다 (ai-review `02_04_13` CRITICAL#1) — 세 호출부 모두 이 값으로 게이팅한다.
    *
+   * **이 함수 안에는 staleness 정책이 두 개 공존한다 — 합치지 말 것.**
+   *
+   * | 분기 | 가드 | 왜 |
+   * | --- | --- | --- |
+   * | 종료 확정(`finalizeEnded`) | world **만** | **종료는 세계의 사실이지 시도의 소유물이 아니다.** 대체된 시도가 발견한 진짜 종료를 버리면 아무도 확정하지 않을 수 있다 — 살아있는 시도는 스트림 열림 스킵으로 자기 `getStatus` 를 아예 안 낼 수 있고, 버퍼 만료(§replay_unavailable) 구간에선 terminal SSE 도 다시 오지 않는다. |
+   * | 표면 갱신(`WAITING` dispatch) | **`sessionEstablished()`** — 스트림이 이미 열렸으면 스킵 | **스트림이 열린 순간부터 SSE 가 표면의 단일 진실이다.** 지연 도착한 `getStatus` 스냅샷이 SSE 가 이미 전진시킨 화면을 옛 노드로 되돌리면 안 된다. |
+   *
+   * **왜 boot 축이 아니라 `sessionEstablished()` 인가** (되감기 fix 의 3차 반복 끝에 도달한 불변식):
+   * 우리가 진짜 막으려는 것은 "**다른(더 최신) 시도가 이미 스트림을 연 뒤** 내 지연 seed 가 화면을
+   * 덮는 것" 이다. boot 세대 비교는 그 proxy 였고 두 번 구멍이 났다 — (1) 호출부 checkpoint 2 는
+   * 함수 **반환 뒤** 만 보는데 `WAITING` dispatch 는 함수 **안쪽**이라 안 닿았고(18_39_11), (2)
+   * `start()` 가 진입 시점 boot 을 캡처하면 **아무것도 복원 못 하는 no-op 재전송**이 `bootGenRef` 만
+   * 올려 start() 자신을 거짓 stale 처리해 **스피너에 고착**시켰다(00_51_53, 3인 재현). 두 구멍 다
+   * "스트림이 실제로 열렸는가" 라는 직접 신호로 사라진다 — 열렸으면(누가 열었든) SSE 가 소유하니
+   * 스킵, 안 열렸으면 이 seed 가 그린다.
+   *
+   * **이 seed 가드는 "표면 되감기" 만 막는다. "이중 스트림" 은 호출부의 짝 가드가 막는다.** `await
+   * seedWaitingFromStatus` 와 호출부의 `openStream` 사이엔 microtask 경계가 있어, 겹친 두 seed 가 같은
+   * flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고 통과한 뒤 각자 continuation 에서
+   * `openStream` 을 부를 수 있다(초기 JSDoc 이 "seed 반환 직후 동기 실행" 이라 원천 차단된다고 적었으나
+   * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 `start()`·`applyConfig` 는 `openStream`
+   * **직전**에도 `if (sessionEstablished()) return;` 로 재확인한다. `openStream` 이 closeStream→set 이라
+   * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 짝 가드로 낭비성 두 번째 EventSource 생성 자체를
+   * 없앤다.
+   *
+   * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`replay_unavailable`
+   *   폴백만** 넘긴다 — 그건 자기 스트림의 표면을 버퍼 만료 후 **재동기화**하는 정당한 경우다(스트림
+   *   열림이 "다른 시도가 가로챔" 이 아니라 "내가 다시 그려야 함" 을 뜻한다). `applyConfig`·`start()`
+   *   는 생략(기본값 = 스트림 열렸으면 스킵) — 그 둘의 스트림 열림은 항상 다른 시도의 것이다
+   *   (자기 자신은 seed **뒤**에 열므로 seed 시점엔 아직 안 열렸다).
+   *
    * **의존성 배열**: `dispatch` 는 `useReducer` 반환값으로 stable, `parseWaitingForInput` /
-   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded` 뿐(그 자체도 stable 콜백).
+   * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`sessionEstablished` 뿐
+   * (둘 다 stable 콜백).
    */
   const seedWaitingFromStatus = useCallback(
-    async (client: EiaClient, session: SessionRef): Promise<SeedOutcome> => {
+    async (
+      client: EiaClient,
+      session: SessionRef,
+      opts?: { allowWhileStreaming?: boolean },
+    ): Promise<SeedOutcome> => {
       const gen = worldGenRef.current;
       try {
         const status = await client.getStatus(session.endpoints, session.token);
@@ -415,6 +562,10 @@ export function useWidget() {
           return "ended"; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
         }
         if (status.status === "waiting_for_input" && status.context) {
+          // **스트림이 이미 열렸으면 SSE 가 표면을 소유한다 — 지연 seed 로 덮지 않는다**(JSDoc 표 참조).
+          // 위 종료 확정은 이 가드를 일부러 안 탄다(종료는 world 사실). `replay_unavailable` 폴백만
+          // 자기 스트림 재동기화라 opt-in 으로 통과한다.
+          if (!opts?.allowWhileStreaming && sessionEstablished()) return "stale";
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
           // EIA §5.3) — `as` 캐스트 불필요.
           const parsed = parseWaitingForInput(status.context);
@@ -444,7 +595,7 @@ export function useWidget() {
         return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
       }
     },
-    [finalizeEnded, isStale],
+    [finalizeEnded, isStale, sessionEstablished],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -508,10 +659,18 @@ export function useWidget() {
         // 아래 검사가 잡지만, **이미 종료된 상태**(`endedRef=true`)에서는 `finalizeEnded` 가 dedup 으로
         // 조기 return 해 teardown·gen 증가를 **건너뛴다** → 그 경우 gen 검사만으로는 못 잡는다.
         // 두 검사는 축이 다르다 — outcome=`무엇이 일어났나`, gen=`세계가 바뀌었나`.
+        // seed 는 스트림 미열림 시에만 WAITING 을 그린다(`sessionEstablished()` 가드) — 그 사이
+        // 재전송이 이 세션을 넘겨받아 스트림을 열었으면 `"stale"` 로 여기서 멈춰 되감기·이중 스트림을
+        // 막고, 아무도 안 열었으면(no-op 재전송 포함) 정상적으로 그린다(ai-review 00_51_53 CRITICAL).
         const outcome = await seedWaitingFromStatus(client, session);
         if (outcome !== "continue") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
+        // **seed 게이트와 짝을 이루는 스트림 게이트** — `await seedWaitingFromStatus` 와 여기 사이엔
+        // microtask 경계가 있어, 겹친 두 seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림
+        // 미열림을 보고 통과한 뒤 각자 여기서 openStream 을 부른다(이중 EventSource 생성). 먼저 continuation
+        // 이 열면 뒤 continuation 은 여기서 멈춘다 — SSE 는 하나만 소유한다(ai-review 01_44_21).
+        if (sessionEstablished()) return;
         openStream(session, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
@@ -523,7 +682,7 @@ export function useWidget() {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale]);
+  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, sessionEstablished]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -545,6 +704,26 @@ export function useWidget() {
           // host 가 같은 종료를 2회 통지받으므로 `endedRef` 1회 가드를 공유한다.
           finalizeEnded("gone");
         } else {
+          // **비-410 명령 실패는 종료가 아니다 — 세션을 지우지 않는다.**
+          //
+          // `3-auth-session.md` §3.1-3 은 storage 정리 조건을 **명시 열거**한다: SSE terminal,
+          // 복원 시 200+terminal status·404·복구불가 401, 그리고 명령 응답 **410 Gone**. "그 외
+          // 명령 실패" 는 그 목록에 **없다**. 오히려 §3.1-2 가 "200 + status ∈ {running/
+          // waiting_for_input} → SSE 재연결 → 복원" 을 명시한다 — 서버가 살아있다고 답하면
+          // 복원해야 한다. `interact()` 는 410 만 특수 처리하고 5xx·409·form 검증 4xx·순수
+          // 네트워크 실패를 전부 같은 예외로 던지므로(`eia-client.ts`), 여기서 세션을 지우면
+          // **서버 execution 이 멀쩡히 살아있는데 사용자가 대화를 영구히 잃는다**.
+          //
+          // 한때 여기서 `teardownSession()` 을 불렀다 — "에러도 종료다" 라는 전제였다. 실측으로
+          // 반증됐다: 일시적 500 직후 새로고침하면 `phase=collapsed`·`executionId` 없음(그 한 줄만
+          // 빼면 `streaming`·`e1` 로 정상 복원. `getStatus` 는 내내 `200 {status:"running"}`).
+          // 그 fix 가 막으려던 부작용(재전송 시 `getStatus`·SSE 재발사)은 이미 `applyConfig` 의
+          // `sessionEstablished()` 복원-스킵이 막고 있었다 — 불필요했을 뿐 아니라 유해했다.
+          // (ai-review 2026-07-17 18_39_11 requirement CRITICAL — 재현·단일라인 귀속 확인)
+          //
+          // 남은 gap(이 PR 범위 밖): `ERROR` 가 `phase: "ended"` 로 보내는 것 자체가
+          // `1-widget-app.md` §2 Form 행의 "실패 시 error.details 표시·재제출" 약속과 어긋난다.
+          // 이 PR 이전부터 있던 문제라 여기서 넓히지 않고 plan 에 이월했다.
           dispatch({ type: "ERROR", message: errMessage(e) });
         }
       }
@@ -737,37 +916,78 @@ export function useWidget() {
     apiRef.current = { open, close, submitMessage, closeStream, show, hide, updateProfile, newChat };
   });
 
+  /**
+   * config 확립 + 대기 중 리셋 소비 — **의도적으로 `async` 가 아니다.**
+   *
+   * `13_03_59` concurrency 리뷰는 "이 구간에 await 이 하나도 없다"는 사실을 리셋 이행의 **안전성
+   * 근거**로 삼았다: config 를 세우고 플래그를 소비하기까지 다른 콜백이 끼어들 수 없다는 것.
+   * 그런데 그 전제는 **주석으로만** 존재했다 — 실측하면 이 구간에 `await` 을 하나 넣어도 전체
+   * 스위트가 통과한다(A 도입 후에도 마찬가지). 즉 규율일 뿐 강제가 아니었다.
+   *
+   * **비-async 함수 안에는 `await` 을 쓸 수 없다** — 그래서 이 추출 자체가 불변식의 강제다. 테스트로
+   * 고정할 수 없는 종류("이 구간에 await 이 없다")를 타입 검사가 대신 막는다. 이 파일의 교훈대로
+   * **가드는 규율이 아니라 구조**여야 한다.
+   *
+   * **`async` 를 붙이지 말 것.** 여기 비동기 작업이 필요해지면 그건 이 함수에 넣을 일이 아니라
+   * 호출부(`applyConfig`)에서 **시도 토큰 재검증과 함께** 다뤄야 한다(`beginBootAttempt` JSDoc).
+   *
+   * @returns `"reset"` = 대기 중이던 리셋을 이행했다(호출부는 복원 분기를 건너뛴다) ·
+   *   `"continue"` = 평소대로 진행.
+   */
+  const establishConfig = useCallback((cfg: BootMessage): "reset" | "continue" => {
+    configRef.current = cfg;
+    setConfig(cfg);
+    clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
+    // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
+    // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
+    // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
+    // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
+    // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
+    // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
+    if (pendingResetRef.current) {
+      pendingResetRef.current = false;
+      apiRef.current.newChat();
+      return "reset";
+    }
+    return "continue";
+  }, []);
+
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
+    // **래치 해제** — `unmountedRef` 는 "이 마운트가 끝났나" 이지 "한 번이라도 끝났나" 가 아니다.
+    // React StrictMode(dev, 이 앱은 `next.config.ts` 에서 켜 둔다)는 mount→unmount→mount 로
+    // effect 를 이중 호출하므로, 여기서 되돌리지 않으면 두 번째 마운트가 **영구히 stale** 로 판정돼
+    // 위젯이 어떤 `wc:boot` 도 적용하지 못한다(재현 확인 — dev 에서 위젯이 아예 뜨지 않는다).
+    // 제거된 `cancelledRef` 도 같은 이유로 마운트에서 `false` 로 되돌렸었다.
+    // (ai-review 2026-07-17 18_39_11 security WARNING — 내가 그 리셋을 빠뜨렸다)
+    unmountedRef.current = false;
     const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
-      // 세계 세대 캡처 — 아래 두 await(임베드 검증·seed) 뒤 재검증한다. 종전 `cancelled` 지역
-      // 플래그는 이 첫 await 만 덮고 seed/openStream 이후는 무방비였다(`worldGenRef` JSDoc §계약).
-      const gen = worldGenRef.current;
+      // 부팅 시도 개시 — 이 호출이 앞선 시도를 대체한다(§3(재전송) "마지막 wc:boot 적용"). 반환 토큰이
+      // 세계 무효화·시도 대체 두 축을 함께 들고 있어, 아래 두 await 뒤 재검증이 한 번씩이면 된다.
+      // `gen`(world 단독)을 일부러 스코프에 두지 않는다 — 여기서 `isStale(gen)` 은 컴파일되지 않는다
+      // (축 누락 가드를 타입 검사가 막는다. `beginBootAttempt` JSDoc §근거).
+      const attempt = beginBootAttempt();
       // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
       const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
-      if (isStale(gen)) return;
+      if (cannotApplyConfig(attempt)) return; // world 축은 여기서 보지 않는다(§근거: cannotApplyConfig).
       if (!allowed) {
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
         return;
       }
-      configRef.current = cfg;
-      setConfig(cfg);
-      clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
-      // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
-      // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
-      // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
-      // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
-      // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
-      // 복원 분기는 의미가 없으므로(방금 지운다) 조기 return.
-      // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
-      if (pendingResetRef.current) {
-        pendingResetRef.current = false;
-        apiRef.current.newChat();
-        return;
-      }
-      // 새로고침 복원(N1): 저장 세션이 살아있으면 SSE 재연결.
-      const saved = loadSession(cfg.triggerEndpointPath);
+      // config 확립 ~ 리셋 소비는 **동기 구간이어야 한다** — 비-async 함수로 추출해 컴파일러가
+      // 강제한다(`establishConfig` JSDoc §근거). 리셋을 이행했으면 복원 분기는 의미가 없다
+      // (방금 저장소를 지웠다).
+      if (establishConfig(cfg) === "reset") return;
+      // **재전송은 config 만 갱신한다 — 세션은 건드리지 않는다.**
+      //
+      // spec §3(재전송) 은 재전송을 "boot config(외형·콘텐츠) 갱신" 이라 정한다. 그런데 종전엔 재전송마다
+      // 복원 분기를 다시 타서, **대화가 살아있는 중에도** `RESTORED` 로 `phase` 를 `streaming` 으로
+      // 되돌리고 `getStatus`·`openStream`·`scheduleRefresh` 를 재실행했다 → 입력 대기 중이던 사용자의
+      // **입력창이 사라졌다가 seed 응답 후 돌아온다**(재현 확인). 관리자 라이브 미리보기는 외형 폼
+      // 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 이 flicker 가 난다.
+      //
+      const saved = sessionEstablished() ? null : loadSession(cfg.triggerEndpointPath);
       if (saved) {
         sessionRef.current = saved;
         startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).
@@ -778,16 +998,24 @@ export function useWidget() {
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
         if (clientRef.current) {
+          // seed 는 스트림 미열림 시에만 WAITING 을 그린다(`sessionEstablished()` 가드) → 경합하는
+          // 다른 시도가 먼저 스트림을 열었으면 `"stale"` 로 되감기를 막는다.
           const outcome = await seedWaitingFromStatus(clientRef.current, saved);
-          // "stale" = await 사이 host 가 새 대화를 시작해 세션이 교체됨 — 지연 응답이 새 대화의
-          // SSE 스트림을 옛 토큰으로 덮어쓰지 않도록 중단한다.
+          // "stale"/"ended" = 지연 응답이 새 대화의 스트림을 옛 토큰으로 덮어쓰거나 종료 세션을
+          // 되살리지 않도록 중단.
           if (outcome !== "continue") return;
-          // `start()` 와 동형의 명시적 세대 재검증 — "모든 await 뒤 재검증" 계약(JSDoc)을 호출부가
-          // 스스로 지킨다. 위 `outcome` 게이팅이 이미 세대 변화를 잡지만, 그건 `seedWaitingFromStatus`
-          // 내부 구현에 대한 의존이다. 여기서 한 번 더 보면 그 내부가 바뀌어도(예: await 추가) 이
-          // 경로가 조용히 무방비가 되지 않는다 (ai-review 2026-07-17 08_29_33 W2).
-          if (isStale(gen)) return;
+          // checkpoint 2 — `openStream` 직전 boot+world 재검증. seed 의 `sessionEstablished()` 가드는
+          // "다른 시도가 **이미 스트림을 열었나**" 만 보므로, 더 최신 재전송이 세대만 올리고 **아직
+          // 스트림을 안 연** 좁은 창에선 이 attempt 가 openStream 으로 진입할 수 있다. 그걸 여기서
+          // 막아 마지막 부팅이 스트림을 소유하게 한다(같은 세션이라 기능은 동일하나 소유권 정합).
+          // (ai-review 2026-07-17 08_29_33 W2 · 00_51_53)
+          if (isAttemptStale(attempt)) return;
         }
+        // **seed 게이트와 짝을 이루는 스트림 게이트**(start() 와 동일) — checkpoint 2 는 boot 축이라
+        // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
+        // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 여기서 막는다
+        // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
+        if (sessionEstablished()) return;
         openStream(saved, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
@@ -845,6 +1073,7 @@ export function useWidget() {
       // 여기선 오탐이다 — 이 ref 는 DOM 이 아니라 세대 카운터이고, cleanup 이 하려는 일이 바로
       // "그 시점의 최신 값을 증가시켜 in-flight 를 무효화" 하는 것이다. 값을 effect 안 변수로
       // 복사하면(경고가 제안하는 바) 마운트 시점의 stale 값을 증가시켜 의미가 깨진다.
+      unmountedRef.current = true;
       // eslint-disable-next-line react-hooks/exhaustive-deps
       worldGenRef.current++;
       // 갱신 타이머 정리는 useTokenRefresh 자체 unmount cleanup 이 단일 소유(이중 호출 제거).

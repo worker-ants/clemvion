@@ -142,6 +142,20 @@ describe("widgetReducer", () => {
     expect(s.phase).toBe("awaiting_user_message");
   });
 
+  // `RESTORED`/`BOOTED` 에는 `ended` 가드를 **두지 않는다**(reducer 주석 참조). 한때 뒀다가
+  // 되돌렸다 — 그 가드가 발화 가능한 유일한 상황이 spec `3-auth-session.md` §3.1-2 가 복원하라고
+  // 명시한 상황(저장 세션 생존 = 비-410 실패)이었기 때문이다. 방향을 뒤집어 고정한다: 종료로
+  // 보였던 대화라도 복원 정보가 도달하면 그대로 전이해야 한다(서버 상태가 결정한다).
+  // (ai-review 2026-07-17 18_39_11 requirement CRITICAL)
+  it.each<[string, Parameters<typeof widgetReducer>[1]]>([
+    ["RESTORED", { type: "RESTORED", executionId: "e9" }],
+    ["BOOTED", { type: "BOOTED", executionId: "e9" }],
+  ])("%s: ended 여도 전이한다(살아있는 세션의 복원을 막지 않는다)", (_label, action) => {
+    const s = reduce([{ type: "ENDED" }, action]);
+    expect(s.phase).toBe("streaming");
+    expect(s.executionId).toBe("e9");
+  });
+
   it("ENDED → ended + pending 해제", () => {
     const s = reduce([
       { type: "WAITING", interaction: { type: "buttons" } },
