@@ -152,6 +152,38 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.assertEqual(self._npm_calls(), 2)
         self.assertTrue(os.path.isfile(self.marker))
 
+    # --- marker binds to the lockfile hash (review 12_06_58 W1) -------------
+    def _write_lock(self, body):
+        self._write(os.path.join(self.tool_dir, "package-lock.json"), body)
+
+    def test_lockfile_change_retriggers_install(self):
+        """The marker records the installed lockfile's hash, so a changed
+        lockfile — most importantly a merged Dependabot security bump, which is
+        lockfile-only — reinstalls on the next run instead of the marker's mere
+        presence masking a stale, still-vulnerable node_modules (W1)."""
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.27.0"}}\n')
+        self._run()
+        self.assertEqual(self._npm_calls(), 1)
+        with open(self.marker) as f:
+            first = f.read().strip()
+        self.assertNotEqual(first, "", "marker must record the lockfile hash, not be empty")
+
+        # A security bump changes only the lockfile. The marker is still present.
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.28.0"}}\n')
+        self._run()
+        self.assertEqual(self._npm_calls(), 2, "a changed lockfile must retrigger install")
+        with open(self.marker) as f:
+            self.assertNotEqual(f.read().strip(), first,
+                                "marker must update to the new lockfile hash")
+
+    def test_unchanged_lockfile_does_not_reinstall(self):
+        """The other half: an unchanged lockfile must still short-circuit — the
+        hash binding must not make every SessionStart reinstall."""
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.28.0"}}\n')
+        self._run()
+        self._run()
+        self.assertEqual(self._npm_calls(), 1, "an unchanged lockfile must not reinstall")
+
     # --- concurrency: marker-only converges, it does NOT serialise ----------
     def test_concurrent_cold_start_converges_and_then_stops_reinstalling(self):
         """No lock (02_06_42 C1): concurrent cold-start sessions are NOT

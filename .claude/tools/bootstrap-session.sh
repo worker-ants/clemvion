@@ -46,6 +46,13 @@ fi
 #      with it — `rm -rf node_modules` is the recovery for a bad tree, and it
 #      re-arms the install. (One-off: a good install from before the marker
 #      existed reinstalls once.)
+#      The marker's CONTENT is the package-lock.json hash the install
+#      corresponds to, not just a touch-file. A changed lockfile — most
+#      importantly a merged Dependabot security bump, which is lockfile-only —
+#      no longer matches, so the next SessionStart reinstalls instead of the
+#      marker's mere presence masking a stale, still-vulnerable node_modules
+#      (review 2026/07/18/12_06_58 W1). Falls back to presence-only when no
+#      hashing tool is available, preserving the old behavior on such a host.
 #
 #    - A FAILURE THROTTLE. Without it a persistently failing install (network
 #      down, auth expired) would retry on EVERY SessionStart with no backoff —
@@ -86,6 +93,15 @@ retry_after="${MERMAID_INSTALL_RETRY_SEC:-1800}"        # cooldown after a faile
 # Cross-platform mtime in epoch seconds (BSD `stat -f` vs GNU `stat -c`); 0 if missing.
 _file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
 
+# Hash of the lockfile a completed install corresponds to (stored in the marker;
+# see the COMPLETION MARKER note above). Cross-platform: shasum (perl, on macOS)
+# or sha256sum (GNU). Empty when the lockfile or both tools are missing — the
+# caller then degrades to presence-only.
+_lock_hash() {
+    { shasum -a 256 "$tool_dir/package-lock.json" 2>/dev/null \
+      || sha256sum "$tool_dir/package-lock.json" 2>/dev/null; } | cut -d' ' -f1
+}
+
 # True while a prior failure is still inside its cooldown window.
 _install_throttled() {
     [ -f "$fail_marker" ] || return 1
@@ -93,11 +109,23 @@ _install_throttled() {
     [ $(( $(date +%s) - $(_file_mtime "$fail_marker") )) -lt "$retry_after" ]
 }
 
-if [ -f "$tool_dir/package.json" ] && [ ! -f "$marker" ] \
-   && ! _install_throttled && command -v npm >/dev/null 2>&1; then
+# Install when: never installed (no marker), OR the lockfile changed since the
+# last install (marker hash mismatch). A missing hasher leaves want_hash empty,
+# which disables only the change-detection half — a missing marker still installs.
+want_hash=$(_lock_hash)
+need_install=0
+if [ -f "$tool_dir/package.json" ]; then
+    if [ ! -f "$marker" ]; then
+        need_install=1
+    elif [ -n "$want_hash" ] && [ "$(cat "$marker" 2>/dev/null)" != "$want_hash" ]; then
+        need_install=1
+    fi
+fi
+
+if [ "$need_install" = 1 ] && ! _install_throttled && command -v npm >/dev/null 2>&1; then
     echo "bootstrap: installing mermaid-lint deps (one-time)…"
     if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
-        : > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
+        printf '%s\n' "$want_hash" > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
         rm -f "$fail_marker" 2>/dev/null || true
     else
         echo "bootstrap: mermaid-lint install failed (lint fails open; will retry after cooldown)" >&2
