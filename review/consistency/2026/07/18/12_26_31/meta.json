@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-07-18T12:26:31.424655",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-ai-nodes-drift-disposition.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

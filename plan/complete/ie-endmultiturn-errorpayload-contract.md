@@ -50,12 +50,12 @@ failedUserMessage/source → `_retryState`)하지만 **IE 는 `(stateRaw, endRea
 
 계약이 준수 상태이므로 소비 구현 대신 "IE 의 의도적 self-fill" 을 SoT 로 명시해 혼란·반복 오탐 제거:
 
-- [ ] IE `endMultiTurnConversation` 시그니처에 무시 인자 3개를 `_` prefix 로 명시 + 이유 주석
+- [x] IE `endMultiTurnConversation` 시그니처에 무시 인자 3개를 `_` prefix 로 명시 + 이유 주석
       (self-fill / §5.3 code-기반 invariant / retry_last_turn 미지원)
-- [ ] `node-handler.interface.ts` 의 `endMultiTurnConversation` docblock 정정 — 현재
+- [x] `node-handler.interface.ts` 의 `endMultiTurnConversation` docblock 정정 — 현재
       "핸들러는 그 값을 output.error 에 그대로 set 해야" 가 범용처럼 서술됨 → AI Agent 는 verbatim relay,
       IE 는 self-fill 로 분기 명시
-- [ ] pinning 테스트: `endMultiTurnConversation(state,'error',<임의 errorPayload>)` 가 errorPayload
+- [x] pinning 테스트: `endMultiTurnConversation(state,'error',<임의 errorPayload>)` 가 errorPayload
       와 무관하게 IE self-synthesized shape(LLM_CALL_FAILED + retryable:true + output.result 병존)를
       유지 — 미래의 잘못된 "fix"(§5.3 invariant 위반) 회귀 가드
 
@@ -80,13 +80,15 @@ failedUserMessage/source → `_retryState`)하지만 **IE 는 `(stateRaw, endRea
 ## 완료 상태 (Definition of Done)
 
 내 task 범위는 **완료** — 판정(문서화) + 구현(docblock/시그니처/pinning) + 전 품질 게이트 통과.
-plan 은 아래 project-planner 후속(선재 WARNING) 때문에 `in-progress/` 유지(durable anchor 보존, WARNING #4).
+아래 project-planner 후속(선재 WARNING 4건)도 **2026-07-18 전량 처분 완료** → durable anchor 유지 사유 소멸,
+본 plan 은 `plan/complete/` 로 이관한다.
 
-### project-planner 후속 (선재 spec-drift, developer 권한 밖 — spec/ 편집 필요)
+### project-planner 후속 (선재 spec-drift, developer 권한 밖 — spec/ 편집 필요) — ✅ 전량 처분 완료 (2026-07-18)
 
-`--impl-done`(11_57_36) 이 재확인한 WARNING 4건. **전부 내 diff 도입 아님**(BLOCK:NO), 기존 plan 추적 중이나 처분 필요:
+`--impl-done`(11_57_36) 이 재확인한 WARNING 4건. **전부 내 diff 도입 아님**(BLOCK:NO). project-planner 가
+draft `spec-draft-ai-nodes-drift-disposition` + consistency `--spec`(12_26_31, BLOCK:NO) 게이트를 거쳐 처분:
 
-1. AI Agent Multi-turn `out` 포트 자기모순(§3.2 ↔ ND-AG-24 2곳) — `spec-drift-ai-agent-outport-countmax.md`, **5회째 노출**, 코드 SoT 확정 후 처분 시급.
-2. AI Agent §7.3 single-turn error 포트 미구현 캐비어 + `pending_plans` 등재 — `node-output-redesign/ai-agent.md`.
-3. IE §5.5 `resumed` 스냅샷 미구현 캐비어 + frontmatter `pending_plans` 신설 — `node-output-redesign/information-extractor.md`.
-4. `0-common.md §5/§9` "(Principle 11)" 오귀속 → "(Principle 1.1/3.2/4.4/8.2)" 정정(순수 spec 오타). **이 plan 이 현재 durable anchor** — complete 이동 전 project-planner 처분 또는 앵커 이관 필요.
+1. ✅ AI Agent Multi-turn `out` 포트 자기모순(§3.2 ↔ ND-AG-24 2곳) — 코드 SoT(`resolve-dynamic-ports.ts` · `multiTurnPortForEndReason`)로 §3.2 정본 확정, 두 `_product-overview.md` ND-AG-24 정정 + `1-ai-agent.md §12.17` Rationale. `spec-drift-ai-agent-outport-countmax.md` Critical 1 종결 → `plan/complete/` 이관.
+2. ✅ AI Agent §7.3 single-turn error 포트 미구현 캐비어 삽입 + `1-ai-agent.md` frontmatter `pending_plans` 에 `node-output-redesign/ai-agent.md` 등재.
+3. ✅ IE §5.5 `resumed` 스냅샷 미구현 캐비어(+`1-ai-agent.md §7.5` 대칭 캐비어) + `3-information-extractor.md` frontmatter `status: implemented → partial` + `pending_plans` 에 `node-output-redesign/information-extractor.md` 신설.
+4. ✅ `0-common.md §5/§9` "(Principle 11)" 오귀속 → wrapper 계약을 Principle 1.1/3.2/4.4~4.5/8.2 로 정정 + 앵커 `#5-응답-형식-규약` rename (6파일 12링크 동기, spec-link-integrity 13/13 통과).

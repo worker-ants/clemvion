@@ -212,7 +212,7 @@
 | ND-AG-21 | 조건과 일반 도구 동시 호출 시 일반 도구 우선 실행 후 LLM 재평가 _(제거됨 — 일반 도구 입력 경로 부재로 시나리오 미발생)_ | 필수 | ✅ |
 | ND-AG-22 | 복수 조건 동시 호출 시 목록 순서 기준 첫 번째 조건 선택 | 필수 | ✅ |
 | ND-AG-23 | Single Turn 모드: 조건 포트 + `out` + `error`. 조건 0개 시 `out` + `error` | 필수 | ✅ |
-| ND-AG-24 | Multi Turn 모드: 조건 포트 + `user_ended` + `max_turns` + `error`. 조건 0개 시 `out` + `error` (하위 호환) | 필수 | ✅ |
+| ND-AG-24 | Multi Turn 모드: 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시에도 `user_ended` + `max_turns` + `error` (`out` 없음) | 필수 | ✅ |
 | ND-AG-25 | 사용자 조건 포트(초록)와 시스템 포트(파랑), 에러 포트(빨강)를 색상으로 구분하고, 사용자 조건과 시스템 포트 사이에 점선 구분자를 표시 | 필수 | ✅ |
 | ND-AG-26 | Presentation Tool Family (`render_*`) — `presentationTools[]` per-node opt-in 으로 5종 (table·chart·carousel·template·form) 가상 도구를 LLM 에 노출. display-only 4종 + form blocking. presentation 노드 input schema 단일 진실 재사용. 워크플로 분기 흉내 금지. 상세: [Spec AI Agent §4.1](./3-ai/1-ai-agent.md#41-presentation-tool-family-render_) | 필수 | 🚧 |
 | ND-AG-27 | 자동 컨텍스트 메모리 전략 선택 — `memoryStrategy` (`manual`/`summary_buffer`/`persistent`, default `manual`) + `memoryTokenBudget`/`memoryKey`/`memoryTopK`/`memoryThreshold`. `manual` 은 기존 contextScope 5필드 하위호환, 외 선택 시 5필드 무효. 상세: [Spec AI Agent §1](./3-ai/1-ai-agent.md#1-설정-config) | 권장 | 🚧 |
