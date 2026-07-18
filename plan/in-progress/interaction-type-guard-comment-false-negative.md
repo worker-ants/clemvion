@@ -102,13 +102,16 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
 남으면 옮기지 않는다"* / *"미해결 follow-up 항목이 하나라도 있으면 `in-progress/`"*.
 (Stop hook 이 체크박스만 세어 이동을 nudge 했으나, 위 규칙이 우선한다.)
 
-- [ ] **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
+- [x] **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
   "grep 대상 파일"/"grep 검증 대상"/"코드 grep 결과" 류 잔여 표현 → "AST(코드 리터럴) 스캔
   대상"/"코드 AST 파싱 결과" 로 다듬기. **동일 항목을 3개 게이트가 독립 지적**했다 —
   impl-prep INFO #1(checker 5/5) · `/ai-review` [SPEC-DRIFT] #1 · impl-done INFO #3.
   세 게이트 모두 **비차단·BLOCK 아님** 으로 판정(계약·매트릭스·등록 사이트·enum 목록 불변,
   코드가 spec 의 1차 명칭 "AST 가드" 에 수렴한 방향이라 "코드가 맞고 spec 부차 서술이 낡음").
-  developer 는 `spec/` read-only 라 여기서 이월한다.
+  → **origin/main 에서 별도 PR `22cc48ef3`(#977)이 이미 이 wording 을 전량 해소**(2차
+  fresh review `12_07_35` SPEC-DRIFT #1 이 실측 확인). 이 worktree 는 fork-point
+  `463aee139` 기준이라 아직 미수신일 뿐 — merge/rebase 시 자동 합류. developer 는
+  `spec/` read-only 였고 해당 spec 변경이 upstream 에서 완료됐으므로 이 항목은 종결.
 - [x] **[developer]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
   `IS_MULTI_TURN_INTERACTION` 위 주석의 "grep 가드" 표현 → "AST 가드" 정정
   (`/ai-review` INFO #1). 본 PR diff 밖 파일이라 미포함됐던 것을 후속 PR 로 반영.
@@ -129,6 +132,15 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   chokepoint `parseGuardSource` 추출로 둘 다 프로덕션 경로 관통하게 배선 + 역방향
   캐스트 self-test 추가, 양방향 mutation(하드코딩 TS→정방향 red, TSX→역방향 red)
   재실측. 산출 `review/code/2026/07/18/11_39_42/{SUMMARY,RESOLUTION}.md`.
+  **2차 fresh review `12_07_35` (MEDIUM, C0/W1) 후속**: W1 이 한 겹 더 깊게 —
+  1차가 self-test 를 `parseGuardSource` 로 관통시켰어도 **엔트리포인트
+  `collectCodeStringLiterals` 자체는 `.tsx` 파일명으로 한 번도 호출 안 됨**(내부를
+  우회 하드코딩해도 green). round-2 스캐폴딩(`parseGuardSource`·`treeContainsJsx`·
+  `collectStringLiteralsFrom`) 제거 → 동일 소스를 **엔트리포인트로** `.ts`/`.tsx` 두
+  확장자에 흘리는 단일 대칭 테스트(`<Config>{…}`: .ts 캐스트=리터럴 유지 / .tsx JSX=유실)
+  로 대체. 양방향 하드코딩 mutation(MUT-C/D) red 재실측. 단순화가 maintainability
+  INFO 도 동반 해소(헬퍼 4→2). INFO #2(체크리스트 SoT 단계)·#3(파서 error-recovery
+  트리아지 주석) 반영. 산출 `review/code/2026/07/18/12_07_35/{SUMMARY,RESOLUTION}.md`.
 - [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
   대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
   앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도

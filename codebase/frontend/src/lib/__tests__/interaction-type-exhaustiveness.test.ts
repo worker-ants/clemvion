@@ -21,9 +21,12 @@ import { join } from "node:path";
  *
  * Adding a new value:
  *   1. Update `WaitingInteractionType` in execution-store.ts
- *   2. Update backend `WaitingInteractionType` in execution-engine.service.ts
- *   3. Update spec/conventions/interaction-type-registry.md §1.2 matrix
- *   4. Update every file listed in `REGISTRY_SITES` below (this test fails
+ *   2. Update `INTERACTION_TYPE_VALUES` (+ `IS_MULTI_TURN_INTERACTION`) in
+ *      interaction-type-registry.ts — its `Exclude` assertion breaks `tsc`
+ *      until the value list matches the type
+ *   3. Update backend `WaitingInteractionType` in execution-engine.service.ts
+ *   4. Update spec/conventions/interaction-type-registry.md §1.2 matrix
+ *   5. Update every file listed in `REGISTRY_SITES` below (this test fails
  *      until all sites mention the new literal).
  */
 
@@ -69,46 +72,6 @@ function scriptKindForFile(fileName: string): ts.ScriptKind {
 }
 
 /**
- * The guard's single parse chokepoint: it — and nothing else — decides the
- * {@link ts.ScriptKind} from the file name. `collectCodeStringLiterals` and the
- * `.tsx` self-test both parse **through this function**, so reverting the
- * extension logic here fails the self-test (PR #972 review WARNING #2: an
- * earlier self-test parsed separately, which let the real fix line be reverted
- * with every test still green — the very false-negative class this file guards
- * against). The literal set a `.tsx` source yields is ScriptKind-invariant
- * (error recovery keeps literals alive either way), so the mutation is only
- * observable on the parse tree — which routing both callers through here
- * exposes.
- */
-function parseGuardSource(source: string, fileName: string): ts.SourceFile {
-  return ts.createSourceFile(
-    fileName,
-    source,
-    ts.ScriptTarget.Latest,
-    /* setParentNodes */ false,
-    scriptKindForFile(fileName),
-  );
-}
-
-/**
- * Collect every string literal reachable from `sourceFile` (code, not comments
- * — comments are trivia, never AST nodes). Split out from
- * {@link collectCodeStringLiterals} so a self-test can run it over a
- * deliberately wrong-kind parse to show what the extension branch prevents.
- */
-function collectStringLiteralsFrom(sourceFile: ts.SourceFile): Set<string> {
-  const literals = new Set<string>();
-  const visit = (node: ts.Node): void => {
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-      literals.add(node.text);
-    }
-    ts.forEachChild(node, visit);
-  };
-  ts.forEachChild(sourceFile, visit);
-  return literals;
-}
-
-/**
  * Collect every string literal that appears in **code** (not in comments).
  *
  * Why the TypeScript parser rather than a regex: this guard's threat model is
@@ -130,37 +93,32 @@ function collectStringLiteralsFrom(sourceFile: ts.SourceFile): Set<string> {
  * `NoSubstitutionTemplateLiteral` counts too: a backtick literal in code is
  * code, and excluding it would only risk false failures.
  *
- * Parsing goes through {@link parseGuardSource}, which derives the
- * {@link ts.ScriptKind} from `fileName` so a `.tsx` registry site parses
- * soundly — the same chokepoint the `.tsx` self-test exercises.
+ * The {@link ts.ScriptKind} is derived from `fileName` (see
+ * {@link scriptKindForFile}) so a `.tsx` registry site parses soundly. That
+ * derivation lives inside this entrypoint and the `.tsx` self-test asserts on
+ * this function's own output for both extensions, so reverting it to a
+ * hardcoded kind fails the test (PR #972 reviews WARNING #2 / #977-followup: an
+ * earlier self-test parsed through a helper — never through this entrypoint
+ * with a `.tsx` name — which let the real fix line be reverted with every test
+ * still green).
  */
 function collectCodeStringLiterals(source: string, fileName: string): Set<string> {
-  return collectStringLiteralsFrom(parseGuardSource(source, fileName));
-}
-
-/**
- * Whether `sourceFile` contains a JSX node (rather than parsing its `<…>` as a
- * type assertion). Takes an already-parsed `SourceFile` — not `(source, kind)`
- * — so callers feed it the tree from {@link parseGuardSource}, the guard's own
- * parse path. This is the structural signal that distinguishes a TSX parse from
- * a TS parse of the same `.tsx` source: literal collection is identical across
- * both (error recovery keeps the string literals alive), so the guard's `.tsx`
- * correctness must be asserted on the tree shape, not the collected set.
- */
-function treeContainsJsx(sourceFile: ts.SourceFile): boolean {
-  let found = false;
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ false,
+    scriptKindForFile(fileName),
+  );
+  const literals = new Set<string>();
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isJsxElement(node) ||
-      ts.isJsxSelfClosingElement(node) ||
-      ts.isJsxFragment(node)
-    ) {
-      found = true;
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      literals.add(node.text);
     }
     ts.forEachChild(node, visit);
   };
   ts.forEachChild(sourceFile, visit);
-  return found;
+  return literals;
 }
 
 /**
@@ -257,63 +215,33 @@ describe("collectCodeStringLiterals", () => {
     }
   });
 
-  it("parses a .tsx site's JSX as JSX, through the guard's own parse path", () => {
-    // If a registry branch moves into a component the site becomes `.tsx`. The
-    // extension-derived ScriptKind must read `<section>` as JSX; forcing
-    // `ScriptKind.TS` mis-parses it as a type assertion. The literal survives
-    // either way by error-recovery luck, so the meaningful assertion is on the
-    // parse shape (JSX recognized).
+  it("parses angle-bracket syntax by extension, through the guard's own entrypoint", () => {
+    // A registry branch can move into a component, making a site `.tsx`. `<Foo>`
+    // is a TYPE ASSERTION in `.ts` but opens a JSX element in `.tsx`, so the
+    // extension alone changes what the parser sees. Feed the SAME source to the
+    // real entrypoint under both names and assert its output flips:
+    //   - `.ts`  → `<Config>expr` is a cast → the object's literal is collected.
+    //   - `.tsx` → `<Config>` opens a (never-closed) JSX element → the object,
+    //             string literal included, is dropped.
+    // Both assertions run through `collectCodeStringLiterals` itself (not a
+    // helper), so hardcoding its ScriptKind in either direction fails one:
+    // TS-everywhere keeps the `.tsx` literal (breaks the `false`), TSX-everywhere
+    // drops the `.ts` literal (breaks the `true`). This is the PR #972 review
+    // lesson end-to-end — WARNING #1 (the `.tsx`→literal-loss direction) and the
+    // #977 follow-up WARNING (the entrypoint, not a proxy, must be exercised
+    // with a `.tsx` name).
     //
-    // Crucially, this parses via `parseGuardSource` — the SAME chokepoint
-    // `collectCodeStringLiterals` uses — so reverting the fix (hardcoding
-    // `ScriptKind.TS` there) flips this to false. An earlier version called
-    // `scriptKindForFile` directly and asserted `.has("ai_form_render")`, which
-    // stayed green under that revert (PR #972 review WARNING #2).
-    const tsxSite = [
-      "export function ResultView({ kind }: { kind: string }) {",
-      '  return kind === "ai_form_render" ? (',
-      '    <section data-kind="ai_form_render">rendered</section>',
-      "  ) : null;",
-      "}",
-    ].join("\n");
+    // NB: this leans on the TS parser's angle-bracket disambiguation; if a
+    // `typescript` upgrade ever flips this test, suspect a parser-semantics
+    // change before assuming a guard regression.
+    const cast = 'const cfg = <Config>{ mode: "cast_literal", n: 1 };';
 
-    expect(treeContainsJsx(parseGuardSource(tsxSite, "result-view.tsx"))).toBe(
+    expect(collectCodeStringLiterals(cast, "hook.ts").has("cast_literal")).toBe(
       true,
     );
-    // The pre-fix hardcode (ScriptKind.TS) does NOT recognize the JSX.
-    const asTs = ts.createSourceFile(
-      "result-view.tsx",
-      tsxSite,
-      ts.ScriptTarget.Latest,
-      /* setParentNodes */ false,
-      ts.ScriptKind.TS,
-    );
-    expect(treeContainsJsx(asTs)).toBe(false);
-  });
-
-  it("parses a .ts angle-bracket cast as a cast, keeping its literal (not TSX)", () => {
-    // The reverse of the `.tsx` risk that `scriptKindForFile`'s JSDoc calls out
-    // (PR #972 review WARNING #1). A `.ts` file may use the legacy `<Type>expr`
-    // cast form. Parsed as TSX, `<Config>` opens a never-closed JSX element and
-    // the whole object literal — string literal included — is dropped. So a
-    // call site that parsed `.ts` as TSX would silently lose real branch
-    // literals (a false CI failure); the extension branch prevents it.
-    const tsCast = 'const cfg = <Config>{ mode: "cast_kept_literal", n: 1 };';
-
-    // Through the guard (a `.ts` name → TS), the cast's literal is collected.
     expect(
-      collectCodeStringLiterals(tsCast, "fixture.ts").has("cast_kept_literal"),
-    ).toBe(true);
-    // Forcing the wrong kind (TSX) drops it — the failure the branch averts,
-    // and what makes the assertion above bite if the call site hardcoded TSX.
-    const asTsx = ts.createSourceFile(
-      "fixture.ts",
-      tsCast,
-      ts.ScriptTarget.Latest,
-      /* setParentNodes */ false,
-      ts.ScriptKind.TSX,
-    );
-    expect(collectStringLiteralsFrom(asTsx).has("cast_kept_literal")).toBe(false);
+      collectCodeStringLiterals(cast, "component.tsx").has("cast_literal"),
+    ).toBe(false);
   });
 });
 
