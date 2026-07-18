@@ -13,6 +13,8 @@ import {
   listAtPath,
   packageDirsInPaths,
   missingFromStage,
+  expectedBackendSharedDirs,
+  staleEntries,
 } from "./internal-package-registration-guard";
 
 // Guard: 신규 내부 공유 패키지(`codebase/packages/*`) 추가 시 손으로 갱신해야 하는
@@ -26,7 +28,8 @@ import {
 // 배경: PR #968(`@workflow/ai-end-reason` 신설)에서 1·3 이 누락된 채 진행됐다.
 // 특히 1 이 빠지면 로컬 `run-test.sh` 의 lint/unit/build 3단계에서 그 패키지가
 // **한 번도 실행되지 않는데 wrapper 는 status=PASS 를 반환**한다 — 조용한 무검증.
-// #968 은 리뷰어 9명이 못 봤고 작성자의 수동 grep 으로 뒤늦게 잡혔다.
+// #968 은 그 PR 의 `/ai-review` sub-agent 9종 중 아무도 못 봤고(사람 리뷰 아님) 작성자의
+// 수동 grep 으로 뒤늦게 잡혔다.
 //
 // 왜 여기(frontend vitest)인가 — 이 가드 자신이 반드시 돌아야 하기 때문이다:
 //   - GitHub Actions 는 repo 레벨에서 꺼져 있다(`actions/permissions` → enabled:false).
@@ -117,8 +120,10 @@ describe("내부 공유 패키지 등록 목록 drift 가드", () => {
     );
 
     it("INTERNAL_PACKAGES 에 실재하지 않는 패키지가 없다", () => {
-      const known = new Set(packages.map((p) => p.name));
-      const stale = internal.filter((n) => !known.has(n));
+      const stale = staleEntries(
+        internal,
+        packages.map((p) => p.name),
+      );
       expect(
         stale,
         `codebase/packages/ 에 없는 항목: ${stale.join(", ")} — 패키지 삭제·개명 후 잔재.`,
@@ -128,11 +133,7 @@ describe("내부 공유 패키지 등록 목록 drift 가드", () => {
 
   // ── 2~4. packages-checks.yml — Actions 가 꺼져 있어 현재 inert. 재활성화 대비 + 규약. ──
   describe(".github/workflows/packages-checks.yml (현재 inert — Actions off)", () => {
-    const expectedDirs = () =>
-      packages
-        .filter((p) => backendShared.includes(p.name))
-        .map((p) => p.dir)
-        .sort();
+    const expectedDirs = () => expectedBackendSharedDirs(packages, backendShared);
 
     it.each([
       { label: "on.pull_request.paths", keys: ["on", "pull_request", "paths"] },
@@ -266,6 +267,42 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
     it("echo 로그 문자열 안의 pnpm --filter 는 실행으로 치지 않는다", () => {
       expect(explicitFilterCalls(`  echo "run: pnpm --filter @workflow/ghost lint"`)).toEqual([]);
     });
+    it("따옴표 안에 명령 구분자(;)가 있어도 문자열 안 pnpm 은 실행으로 치지 않는다", () => {
+      // 따옴표 span 을 먼저 제거하지 않으면 문자열 내부 `;` 로 분절돼 `pnpm …` 로 시작하는 조각이
+      // 생겨 오인식된다(리뷰 WARNING 실측). blind 따옴표 제거로 차단.
+      expect(explicitFilterCalls(`  echo "done; pnpm --filter @workflow/ghost lint"`)).toEqual([]);
+      expect(explicitFilterCalls(`  echo 'done | pnpm --filter @workflow/ghost lint'`)).toEqual([]);
+    });
+  });
+
+  describe("expectedBackendSharedDirs / staleEntries (대조 코어)", () => {
+    it("expectedBackendSharedDirs: backend-공유만 dir 로, 정렬해 남긴다", () => {
+      const pkgs = [
+        { dir: "z-dir", name: "@workflow/z" },
+        { dir: "a-dir", name: "@workflow/a" },
+        { dir: "unshared", name: "@workflow/nope" },
+      ];
+      expect(expectedBackendSharedDirs(pkgs, ["@workflow/a", "@workflow/z"])).toEqual([
+        "a-dir",
+        "z-dir",
+      ]);
+    });
+    it("expectedBackendSharedDirs: dir≠name 이어도 dir 를 반환한다 (name 혼동 회귀 고정)", () => {
+      expect(
+        expectedBackendSharedDirs(
+          [{ dir: "web-chat-sdk", name: "@workflow/web-chat" }],
+          ["@workflow/web-chat"],
+        ),
+      ).toEqual(["web-chat-sdk"]);
+    });
+    it("staleEntries: known 에 없는 항목만 남긴다", () => {
+      expect(staleEntries(["@workflow/a", "@workflow/ghost"], ["@workflow/a"])).toEqual([
+        "@workflow/ghost",
+      ]);
+    });
+    it("staleEntries: 전부 known 이면 []", () => {
+      expect(staleEntries(["@workflow/a"], ["@workflow/a", "@workflow/b"])).toEqual([]);
+    });
   });
 
   describe("listAtPath + packageDirsInPaths", () => {
@@ -320,27 +357,30 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
   });
 
   describe("missingFromStage — #968 클래스(조용한 무검증)를 박제", () => {
-    const internal = ["@workflow/a", "@workflow/b"];
+    // 최상위 실측 파싱 결과 `internal` 과 구분되도록 fixture 전용 이름을 쓴다.
+    const fixtureInternal = ["@workflow/a", "@workflow/b"];
     const bodyInternal = `_ensure_deps && \\\n  _run_internal lint`;
 
     it("INTERNAL 소속 + _run_internal 커버 → 누락 없음", () => {
       expect(
-        missingFromStage(bodyInternal, "lint", internal, ["@workflow/a", "@workflow/b"]),
+        missingFromStage(bodyInternal, "lint", fixtureInternal, ["@workflow/a", "@workflow/b"]),
       ).toEqual([]);
     });
     it("신규 패키지가 INTERNAL 에도 명시 호출에도 없으면 → 누락 (실제 #968 시나리오)", () => {
       const pkgs = ["@workflow/a", "@workflow/b", "@workflow/new"];
-      expect(missingFromStage(bodyInternal, "lint", internal, pkgs)).toEqual(["@workflow/new"]);
+      expect(missingFromStage(bodyInternal, "lint", fixtureInternal, pkgs)).toEqual([
+        "@workflow/new",
+      ]);
     });
     it("명시적 `pnpm --filter` 로 커버되면 → 누락 아님 (전용 스텝 경로)", () => {
       const body = `${bodyInternal} && \\\n  pnpm --filter @workflow/special lint`;
       expect(
-        missingFromStage(body, "lint", internal, ["@workflow/a", "@workflow/special"]),
+        missingFromStage(body, "lint", fixtureInternal, ["@workflow/a", "@workflow/special"]),
       ).toEqual([]);
     });
     it("그 스테이지에 _run_internal 이 없으면 → INTERNAL 전원 누락", () => {
       const body = `_ensure_deps && \\\n  pnpm --filter backend lint`;
-      expect(missingFromStage(body, "lint", internal, internal)).toEqual([
+      expect(missingFromStage(body, "lint", fixtureInternal, fixtureInternal)).toEqual([
         "@workflow/a",
         "@workflow/b",
       ]);

@@ -26,6 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+/** `pnpm-workspace.yaml` 를 marker 로 위로 탐색해 workspace 루트 절대경로를 찾는다. */
 export function repoRoot(): string {
   // 고정 `../../..` 카운트 대신 marker 로 탐색 — 파일이 이동해도 조용히 오해소되지 않는다.
   // 상한 12 = 현재 실제 깊이(worktree 루트→이 파일 7단계)의 약 1.7배 여유. 무한 루프 방지용 상수라
@@ -106,8 +107,32 @@ export function backendWorkflowDeps(): string[] {
   );
 }
 
+/**
+ * `packages-checks.yml` 3개 목록의 기대값 = backend-공유 패키지의 **dir** 집합(정렬).
+ *
+ * 인라인이 아니라 pure 함수로 둔 이유(리뷰 WARNING): 저장소 현재 상태만 읽는 인라인 비교는
+ * `filter` 조건 반전이나 `.map(p=>p.dir)`↔`.map(p=>p.name)` 혼동 같은 회귀를 못 잡는다.
+ * 합성 fixture 로 true-positive 를 고정한다.
+ */
+export function expectedBackendSharedDirs(
+  packages: { dir: string; name: string }[],
+  backendShared: string[],
+): string[] {
+  return packages
+    .filter((p) => backendShared.includes(p.name))
+    .map((p) => p.dir)
+    .sort();
+}
+
+/** `internal` 중 실재 패키지명(`knownNames`)에 없는 항목 = 삭제·개명 후 잔재. pure(회귀 고정용). */
+export function staleEntries(internal: string[], knownNames: string[]): string[] {
+  const known = new Set(knownNames);
+  return internal.filter((n) => !known.has(n));
+}
+
 // ─── test-stages.sh 파싱 ────────────────────────────────────────────────────
 
+/** `INTERNAL_PACKAGES=( … )` 배열의 큰따옴표 항목들. 선언이 없으면 [] (→ vacuity 단언이 잡는다). */
 export function internalPackages(sh: string): string[] {
   const m = /^INTERNAL_PACKAGES=\(([\s\S]*?)^\)/m.exec(sh);
   if (!m) return [];
@@ -166,12 +191,22 @@ export function fnBody(sh: string, fn: string): string {
  * 전제: 한 호출은 한 분절(=한 줄, 백슬래시 줄바꿈 앞) 안에 있어야 한다. 어긋나면 대조에서
  * "누락"으로 드러나므로(fail-loud) 조용한 오인식은 아니다. 변수형(`"$pkg"`)은 캡처 클래스
  * `[^\s"$]` 가 `$` 를 배제해 자연히 제외된다.
+ *
+ * **경계(의도적)**: 여기서는 유한한 *blind* 변환(따옴표 span 제거·주석 제거·명령 구분자 분절)만
+ * 쓰고 완전한 셸 파싱은 하지 않는다. 이스케이프된 따옴표(`\"`)·명령치환(`$(...)`)·중첩 인용 등
+ * 병리적 구문은 다루지 않는다 — 셸이 텍스트를 변형하는 기능마다 정밀 파서에 구멍이 생기는 무한
+ * 표면이라(본 저장소의 shell-guard 교훈, #970), 그 지점은 별도 파서의 영역이다. 실제
+ * `test-stages.sh` 의 cmd_* 는 평범한 `pnpm --filter … && \` 체인이라 이 경계 밖 구문이 없다.
  */
 export function explicitFilterCalls(body: string): { name: string; script: string }[] {
   const calls: { name: string; script: string }[] = [];
   for (const rawLine of body.split("\n")) {
-    // 라인 주석 제거: 라인 시작 또는 공백 뒤의 `#` 이후 전부 (bash 주석 규약의 실무 근사).
-    const line = rawLine.replace(/(^|\s)#.*$/, "$1");
+    // 1) 따옴표 span 제거 — 로그/echo 문자열 안의 `pnpm --filter` 텍스트(그리고 그 안의 명령
+    //    구분자 `;`·`|`)를 실제 명령으로 오인하지 않도록. 내용을 해석하지 않는 blind 제거.
+    const unquoted = rawLine.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
+    // 2) 라인 주석 제거: 라인 시작 또는 공백 뒤의 `#` 이후 전부 (bash 주석 규약의 실무 근사).
+    const line = unquoted.replace(/(^|\s)#.*$/, "$1");
+    // 3) 명령 구분자로 분절 → 분절 선두가 pnpm 일 때만 실제 명령(주석/문자열/변수형 제외).
     for (const seg of line.split(/&&|\|\||[;|]/)) {
       const m = /^\s*pnpm\s+--filter\s+"?([^\s"$]+)"?\s+"?([\w:-]+)"?/.exec(seg);
       if (m) calls.push({ name: m[1], script: m[2] });
