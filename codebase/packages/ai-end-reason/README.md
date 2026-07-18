@@ -43,11 +43,13 @@ import {
   AiAgentEndReason,
   InformationExtractorEndReason,
   ConversationEndReason,
+  UniversalEndReason,
   CONVERSATION_END_REASONS,
 } from '@workflow/ai-end-reason';
 ```
 
 - `AiAgentEndReason` — AI Agent multi-turn 종결 사유 4값 (`user_ended` / `max_turns` / `condition` / `error`)
 - `InformationExtractorEndReason` — Information Extractor 종결 사유 6값 (`completed` / `max_turns` / `user_ended` / `timeout` / `max_retries` / `error`)
-- `ConversationEndReason` — 위 두 유니온의 파생 합집합 (손으로 유지하지 않음)
+- `ConversationEndReason` — 위 두 유니온의 파생 **합집합** (손으로 유지하지 않음)
+- `UniversalEndReason` — 위 두 유니온의 파생 **교집합** (`user_ended` / `max_turns` / `error`). 노드 타입을 모르는 범용 호출부(`ResumableNodeHandler` 기본 타입 인자·`isResumableNodeHandler` 가드)가 안전하게 넘길 수 있는 값만 담는다 — 손으로 유지하지 않음
 - `CONVERSATION_END_REASONS` — `ConversationEndReason` 의 런타임 값 배열. frontend 가 이 배열로 `Set` 을 만들어 대화 종결 판정에 쓴다 (`output-shape.ts`)

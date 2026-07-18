@@ -1,7 +1,10 @@
 import type { ConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import type { ResumeCallStackFrame } from '../../shared/execution-resume/resume-call-stack.types';
 
-import type { AiAgentEndReason } from '@workflow/ai-end-reason';
+import type {
+  ConversationEndReason,
+  UniversalEndReason,
+} from '@workflow/ai-end-reason';
 /**
  * webhook 트리거의 HTTP transport 파생 데이터 — expression `$trigger` 의 소스.
  * `TriggerExecutionInput`(4-execution-engine §6.1.1)의 webhook 한정 필드와 동형이다
@@ -398,8 +401,38 @@ export interface ResumableMessageOptions {
  *
  * `'processMultiTurnMessage' in handler` narrowing 가드로 일반 NodeHandler 와
  * 분기한다 (CRIT #4 — duck-typing 의존 제거).
+ *
+ * ## `TEndReason` — 구현체가 자기 도메인으로 좁히는 종결 사유
+ *
+ * 두 노드의 종결 **의미가 다르다** (ai_agent 는 `condition` 라우팅, IE 는
+ * `completed` / `max_retries`). 합치면 각 노드의 종결 의미가 흐려지므로 합치지
+ * 않고 타입 인자로 받는다 — 값 도메인 SoT 는 `@workflow/ai-end-reason`, 거버넌스는
+ * spec/conventions/interaction-type-registry.md §4.
+ *
+ * 제네릭이 아니면 이 계약은 **구현될 수 없다**: 두 유니온은 서로 부분집합이
+ * 아니라 (`condition` ∉ IE, `completed` ∉ Agent) 메서드 파라미터 bivariance 가
+ * 양방향 모두 실패해, IE 가 `implements` 를 선언하는 순간 TS2416 이 난다. 어느
+ * 클래스도 `implements` 를 선언하지 않아 tsc 가 이 계약을 **전혀 검사하지 않던**
+ * 상태가 그래서 생겼다. 이제 두 핸들러 모두 자기 도메인으로 `implements` 한다.
+ *
+ * **`implements` 가 커버하는 축과 아닌 축**: 메서드 존재·`state` 파라미터·반환
+ * 타입은 `implements` 가 잡지만 `endReason` **파라미터 자체는 못 잡는다** —
+ * bivariance 메커니즘·커버 범위 상세는 {@link AssertEndReasonDomain} 이 SoT,
+ * 각 핸들러는 그 단언으로 "선언 도메인 == 실제 수용 도메인" 을 잠근다.
+ *
+ * ## 기본값이 **합집합이 아니라 교집합**({@link UniversalEndReason})인 이유
+ *
+ * 타입 인자 없이 `ResumableNodeHandler` 라고 쓰는 자리는 곧 **노드 타입을 모르는
+ * 범용 호출부**다. 기본값을 합집합(`ConversationEndReason`)으로 두면 계약은 "IE
+ * 고유값도 받는다" 고 선언하는데 정작 구현체는 bivariance 로 좁은 채 통과해,
+ * `AiTurnExecutor` 의 port switch 가 `'completed'` 를 만나면 조용히 fallthrough
+ * 한다 — 넓히기는 안전을 **악화**시킨다. 그래서 넓은 쪽이 아니라 좁은 쪽을
+ * 기본값으로 둬, 아무 생각 없이 쓴 자리가 안전한 쪽으로 떨어지게 한다.
+ * 노드 고유값을 넘겨야 하는 자리는 구현체 타입을 정적으로 아는 자리뿐이다.
  */
-export interface ResumableNodeHandler extends NodeHandler {
+export interface ResumableNodeHandler<
+  TEndReason extends ConversationEndReason = UniversalEndReason,
+> extends NodeHandler {
   /**
    * 사용자 메시지를 받아 다음 LLM turn 을 진행. waiting 또는 종료 결과 반환.
    *
@@ -424,21 +457,21 @@ export interface ResumableNodeHandler extends NodeHandler {
    * `output.result.*` 병존) 가 성립. 정상 종결 (`user_ended` / `max_turns` /
    * `condition`) 에서는 caller 가 undefined 를 전달.
    *
-   * `endReason` 이 `AiAgentEndReason` 인 것은 **이 계약이 두 구현체의 교집합만
-   * 커버한다는 뜻**이다 — IE 구현체는 자기 도메인
-   * (`InformationExtractorEndReason`: `completed` / `max_retries` / `timeout`)
-   * 으로 받으며, 어느 클래스도 `implements ResumableNodeHandler` 를 선언하지
-   * 않아 (engine 이 `isResumableNodeHandler` 런타임 가드로만 narrow) tsc 는 이
-   * 불일치를 검사하지 않는다. 현재 engine 의 범용 호출부는 `'user_ended'` /
-   * `'error'` 만 넘기고 이 둘은 두 도메인의 교집합이라 안전하지만, 그것은
-   * **타입이 아니라 호출 패턴이 지키는 안전**이다. 노드별 고유 종결값을 이
-   * 계약으로 넘기려면 먼저 제네릭화(`ResumableNodeHandler<TEndReason>`)가
-   * 필요하다 — 파라미터 타입만 `ConversationEndReason` 으로 넓히면 구현체는
-   * bivariance 로 좁은 채 통과해 port switch 가 조용히 fallthrough 한다.
+   * `endReason` 은 구현체의 **자기 도메인**(`TEndReason`)이다 —
+   * `AiAgentHandler` 는 `AiAgentEndReason`, `InformationExtractorHandler` 는
+   * `InformationExtractorEndReason` 으로 좁혀 `implements` 한다. `implements`
+   * 만으로는 이 파라미터가 안 잠긴다 — {@link AssertEndReasonDomain} 이 SoT.
+   *
+   * 반대로 **엔진의 범용 호출부**는 노드 타입을 모른 채 가드
+   * ({@link isResumableNodeHandler}) 로 narrow 하므로 두 도메인의 교집합
+   * ({@link UniversalEndReason} = `user_ended` / `max_turns` / `error`) 만 넘길 수
+   * 있다. 예전엔 그 호출부가 `'user_ended'` / `'error'` 만 넘긴다는 **호출 패턴**이
+   * 안전을 지켰지만 (타입은 검사하지 않았다), 이제 그 교집합이 타입으로 잠겨
+   * 노드 고유값(`'completed'` / `'condition'`)을 넘기면 컴파일이 깨진다.
    */
   endMultiTurnConversation(
     state: Record<string, unknown>,
-    endReason: AiAgentEndReason,
+    endReason: TEndReason,
     errorPayload?: { code: string; message: string; details?: unknown },
     /**
      * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — retryable error 종결 시, 실패한
@@ -452,10 +485,54 @@ export interface ResumableNodeHandler extends NodeHandler {
   ): unknown;
 }
 
-/** Type guard — `'processMultiTurnMessage' in handler` shorthand. */
+/**
+ * (본 프로젝트 bivariance/TS2416 락 설계의 SoT — 다른 위치는 이 docblock 을 링크만 한다.)
+ *
+ * 구현체의 **실제 endReason 수용 도메인 == `implements` 로 선언한 도메인** 을
+ * 고정하는 컴파일 타임 단언. `implements` 가 못 잡는 축을 메운다 — 메서드
+ * 파라미터는 bivariant 이고 (backend 는 `strictFunctionTypes` 가 꺼져 있어
+ * property 문법으로 바꿔도 마찬가지), 구현이 선언보다 좁게 받아도
+ * (`endReason: 'user_ended'`) `implements ResumableNodeHandler<InformationExtractorEndReason>`
+ * 는 그대로 통과하고, 그 순간 타입 인자는 검사되지 않는 주석이 된다.
+ *
+ * 사용 (각 핸들러 파일, 클래스 선언 직후):
+ * ```ts
+ * const _lock: AssertEndReasonDomain<MyHandler, MyEndReason> = true;
+ * void _lock;
+ * ```
+ *
+ * **커버 범위**: 선언 도메인과 수용 도메인의 **양방향 일치**(좁히기·넓히기 모두
+ * 위반). 커버하지 **않는 것**: 핸들러의 `port` switch 가 그 도메인의 모든 값을
+ * 실제로 분기하는지 — 두 핸들러 모두 `default` 로 방어하므로 그건 타입이 아니라
+ * 런타임 계약이다 (IE 는 `default: 'error'`).
+ */
+export type AssertEndReasonDomain<
+  THandler extends {
+    endMultiTurnConversation: (...args: never[]) => unknown;
+  },
+  TDeclared extends ConversationEndReason,
+> = [Parameters<THandler['endMultiTurnConversation']>[1]] extends [TDeclared]
+  ? [TDeclared] extends [Parameters<THandler['endMultiTurnConversation']>[1]]
+    ? true
+    : never
+  : never;
+
+/**
+ * Type guard — `'processMultiTurnMessage' in handler` shorthand.
+ *
+ * 반환 타입의 {@link UniversalEndReason} 이 이 가드의 핵심이다. 가드는 런타임
+ * `typeof` 검사라 **어느 노드의 핸들러인지 알 수 없으므로**, 호출자에게 정직하게
+ * 줄 수 있는 계약은 "모든 구현체가 처리하는 값만 넘길 수 있다" 뿐이다. 이 좁히기는
+ * sound 하다 — 교집합 ⊆ 각 구현체 도메인이라 두 구현체 모두 이 타입을 만족한다
+ * (contravariance).
+ *
+ * 노드 고유값을 넘겨야 한다면 그건 이 가드가 아니라 **구현체 타입을 정적으로 아는
+ * 자리**의 일이다. 여기서 `ResumableNodeHandler<ConversationEndReason>` 로 넓히면
+ * 계약만 넓어지고 구현체는 좁은 채 남아 port switch 가 조용히 fallthrough 한다.
+ */
 export function isResumableNodeHandler(
   handler: NodeHandler,
-): handler is ResumableNodeHandler {
+): handler is ResumableNodeHandler<UniversalEndReason> {
   return (
     typeof (handler as Partial<ResumableNodeHandler>)
       .processMultiTurnMessage === 'function' &&

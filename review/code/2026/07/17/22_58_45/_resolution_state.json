@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "started_at": "2026-07-18T00:00:00Z",
+  "summary_items_total": 4,
+  "items_resolved_ids": [1, 2, 3, 4],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "b612cae74",
+      "summary_id": 1,
+      "scope": "backend testing"
+    },
+    {
+      "sha": "580a615dd",
+      "summary_id": 3,
+      "scope": "backend maintainability docblock SoT"
+    },
+    {
+      "sha": "b742f341d",
+      "summary_id": 4,
+      "scope": "packages/ai-end-reason README"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": null,
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": {
+    "summary_2": "side_effect WARNING — 코드 fix 아님. pnpm --filter backend build 단독 재실행(EXIT=0) + .claude/tools/run-test.sh build 재실행(PASS) 으로 재검증 완료. RESOLUTION.md 에 기록."
+  }
+}

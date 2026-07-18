@@ -68,6 +68,37 @@ export type ConversationEndReason =
   | InformationExtractorEndReason;
 
 /**
+ * **노드 타입을 모르는 호출자**가 넘길 수 있는 종결 사유 — 파생이다.
+ *
+ * 엔진의 범용 종결 경로(`ai-turn-orchestrator`)는 `node.type` **문자열**로
+ * 핸들러를 꺼내므로 자기가 어느 노드의 핸들러를 들고 있는지 정적으로 모른다.
+ * 그 자리에서 안전한 값은 **모든 구현체가 처리하는 값**뿐 — 즉 두 노드 도메인의
+ * 교집합이다. 합집합({@link ConversationEndReason})을 넘기면 받는 쪽이 그 값을
+ * 모르고 `port` switch 에서 조용히 fallthrough 한다.
+ *
+ * 손으로 유지하지 않는다 — 어느 노드 유니온에서 값이 빠지면 교집합이 자동으로
+ * 좁아지고, 그 값을 넘기던 호출부의 컴파일이 깨진다. 현재 값은
+ * `'user_ended' | 'max_turns' | 'error'`.
+ *
+ * 소비처: `ResumableNodeHandler` 의 **기본 타입 인자** + `isResumableNodeHandler`
+ * 가드 (backend `nodes/core/node-handler.interface.ts`). 노드 **고유** 종결값은
+ * 구현체 타입을 정적으로 아는 자리에서만 넘길 수 있다.
+ */
+export type UniversalEndReason = AiAgentEndReason &
+  InformationExtractorEndReason;
+
+/**
+ * 두 도메인이 겹치지 않게 되면 {@link UniversalEndReason} 이 `never` 로 붕괴해
+ * "범용 호출부가 아무 값도 못 넘기는" 계약이 된다. 그때 나는 에러는 호출부에서
+ * 난해하게 터지므로(`'user_ended' 를 never 에 할당 불가`) 원인 자리인 여기서
+ * 먼저 깨뜨린다 — 공유 multi-turn 계약은 두 노드가 **공통 종결 사유를 갖는다**는
+ * 전제 위에 서 있고, 그 전제가 무너지면 계약 자체를 다시 설계해야 한다.
+ */
+const _universalNonEmpty: [UniversalEndReason] extends [never] ? never : true =
+  true;
+void _universalNonEmpty;
+
+/**
  * {@link ConversationEndReason} 의 런타임 값 목록.
  *
  * 아래 두 장치가 배열과 유니온을 **양방향으로** 잠근다:
