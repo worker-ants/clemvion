@@ -123,6 +123,12 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   변조 → 해당 테스트 red 확인 후 원복(working tree clean). TEST WORKFLOW:
   lint PASS(66s) / unit PASS(85s) / build PASS(123s) / e2e PASS(317s, backend 256 +
   playwright 51). e2e 는 화이트리스트 밖 → 수행(plan §8 과 동일 판단).
+  **`/ai-review` (LOW, C0/W2) 후속 반영**: W1(역방향 `.ts` 각괄호 캐스트 리터럴
+  유실 미고정) + W2(self-test 가 실제 fix 라인 미관통 — 舊 `.tsx` 테스트가
+  `scriptKindForFile` 직접 호출·벡큐어스 `.has` 라 fix 되돌려도 green). 파스 단일
+  chokepoint `parseGuardSource` 추출로 둘 다 프로덕션 경로 관통하게 배선 + 역방향
+  캐스트 self-test 추가, 양방향 mutation(하드코딩 TS→정방향 red, TSX→역방향 red)
+  재실측. 산출 `review/code/2026/07/18/11_39_42/{SUMMARY,RESOLUTION}.md`.
 - [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
   대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
   앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
