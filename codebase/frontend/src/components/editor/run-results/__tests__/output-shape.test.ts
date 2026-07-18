@@ -687,4 +687,58 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     };
     expect(isConversationOutput(raw)).toBe(true);
   });
+
+  // 아래 4개는 위 3개와 같은 mutation-격리 원칙을, 나머지 AND-guard 4곳에
+  // 확장한다 (20_06_14 리뷰 testing 리뷰어가 실측으로 발견한 이월 갭). 3개는
+  // 음성(reject) 케이스다 — 각 AND-guard 를 제거하면 fixture 가 잘못 true 가
+  // 되므로, 그때 red 로 전환된다. 주석은 소스 변수명이 아니라 **페이로드 필드의
+  // 존재/부재**로 서술해, 내부 변수명이 바뀌어도 stale 해지지 않게 한다.
+
+  it("detects conversation via bare top-level conversationConfig (config present, no top-level interactionType, no output key)", () => {
+    // 첫 게이트 두 번째 disjunct(top-level `conversationConfig` 존재) 단독 참.
+    // 고립: top-level `interactionType` 없음 → 첫 disjunct 거짓. `output` 키가
+    // 없어 unwrap 은 output=null → 아래 canonical 블록은 전부 도달 불가.
+    const raw = {
+      config: { mode: "multi_turn" },
+      conversationConfig: { message: "hi", turnCount: 1 },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("rejects output.interactionType when output.messages is absent (guards the messages-array requirement)", () => {
+    // 첫 OR-항의 `messages 배열 존재` AND-guard 를 지키는 음성 케이스.
+    // `output.interactionType` 는 대화형이지만 `output.messages` 배열이 없으므로
+    // false 여야 한다. guard 를 제거하면 interactionType 만으로 true 가 되어 red.
+    const raw = {
+      config: {},
+      output: { interactionType: "ai_conversation" },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
+
+  it("rejects a whitelisted endReason without result.messages (guards the terminal-messages requirement)", () => {
+    // `looksLikeConversationEnd` 의 `result.messages 존재` AND-guard 음성 케이스.
+    // 화이트리스트 endReason 만 있고 `output.result.messages` 가 없으므로 false.
+    // guard 제거 시 endReason 매치만으로 true → red.
+    const raw = {
+      config: {},
+      output: { result: { endReason: "completed" } },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
+
+  it("rejects waiting_for_input status alone without output.messages (e.g. a form/buttons waiting node)", () => {
+    // `isCanonicalWaiting` 의 `output.messages 존재` AND-guard 음성 케이스 —
+    // 넷 중 실무 영향이 가장 크다. form/buttons/ai_form_render 대기 노드도
+    // `status: 'waiting_for_input'` 을 갖지만 `output.messages` 배열은 없다.
+    // guard 가 사라지면 이런 폼/버튼 대기 노드가 대화 미리보기로 오분류된다.
+    const raw = {
+      config: { mode: "form" },
+      output: { fields: { name: "bob" } },
+      status: "waiting_for_input",
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
 });

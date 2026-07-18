@@ -49,7 +49,27 @@
 
 ## testing 재시도 결과
 
-(재시도 진행 중 — 완료 시 main Claude 가 이 절을 갱신한다.)
+**완료 — classifier 복구 후 fresh 세션에서 testing 리뷰어 정상 실행.** 이 세션(20_06_14)
+자체에서는 harness 장애로 재시도가 계속 차단됐으므로(위 §보류·후속, RESOLUTION.md 참조),
+동일 branch 를 base `origin/main` 대비 새로 리뷰한 **`review/code/2026/07/18/10_40_03`**
+세션에서 testing 리뷰어가 `STATUS=success` 로 결과를 냈다. 그 리포트
+(`review/code/2026/07/18/10_40_03/testing.md`)의 판정:
+
+- **위험도 LOW.** 신규 테스트 3건(`hasLegacyMessages && outputInteraction`,
+  `hasConvConfig`, `hasLegacyMessages && metaInteraction`)의 격리 주장을 testing
+  리뷰어가 **독립 mutation 실측**(소스 임시 훼손 → `vitest run` → 원복)으로 재확인 —
+  본 세션 RESOLUTION.md 의 M1~M3 표와 일치. 이 PR 을 차단할 사유 없음.
+- **추가 발견(WARNING, 이월):** 동일 방법론을 이 함수의 나머지 AND-guard 4곳
+  (첫 게이트 `conversationConfig` disjunct, 첫 OR-항 `hasLegacyMessages`,
+  `looksLikeConversationEnd` 의 `hasResultMessages`, `isCanonicalWaiting` 의
+  `hasLegacyMessages`)에 적용하니 전부 mutation 무방비였다. 특히 `isCanonicalWaiting`
+  guard 는 form/buttons 대기 노드 오분류 위험과 직결. **이 4곳은 10_40_03 세션의
+  후속 커밋에서 mutation-격리 테스트 4건으로 메웠다**(각 guard 제거 시 대응 테스트만
+  red 실측 확인).
+
+따라서 상단 배너의 "해소됨" 은 이 절을 SoT 로 정확히 성립한다 — 1차 no_status 의 원인은
+리뷰 발견이 아니라 harness 장애였고, testing 판정은 fresh 세션에서 확보돼 clean(LOW,
+차단 사유 없음)으로 종결됐다.
 
 ## 발견 없는 에이전트
 
