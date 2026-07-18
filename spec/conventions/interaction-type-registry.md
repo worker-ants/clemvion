@@ -53,7 +53,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 **규칙**:
 1. 표의 모든 위치를 한 PR 안에서 동시 갱신.
 2. exhaustive switch (`switch (value) { case ...; default: const _exhaustive: never = value }`) 패턴으로 TypeScript 컴파일러가 누락을 직접 fail 시킨다 (`codebase/frontend/src/lib/utils/exhaustive.ts` 의 `assertNever` 헬퍼 사용).
-3. AST 가드 (`interaction-type-exhaustiveness.test.ts` 의 `REGISTRY_SITES`) 가 매트릭스의 모든 enum 값이 **등록된 grep 대상 파일**에 string literal 로 등장하는지 검증한다. 현재 `REGISTRY_SITES` 는 3개 파일 — `use-execution-events.ts` (위 (a)·(b)), `apply-execution-snapshot.ts` ((c)), `use-result-detail-waiting.ts` ((d) — 에디터 drawer·실행 상세 page 가 공유하는 `deriveFlags` 단일 파생 site). (e) `result-detail.tsx` formPreview / `AssistantPresentationsBlock` 은 grep 가드가 아니라 TS exhaustive `default: never` (switch) 로만 커버된다 (동작 drift 아님). drawer 의 잔여 `isLiveConversation`(ai_conversation·ai_form_render 2값만 구분) 은 **exhaustive 분기가 아닌 subset 소비처**(plain `||` 비교, switch·`assertNever` 아님)라 두 가드(grep·TS exhaustive) 어느 쪽도 아니며, 신규 enum 값은 여기서 자동으로 non-live 로 처리된다 — isLiveConversation 이 의도적으로 "live AI turn" 2값만 구분하는 binary 이므로 허용된다(신규 blocking AI 타입 추가 시 함께 점검). switch 기반이 아닌 if/else·flag 파생 소비처를 잡기 위한 보조 가드이며, switch 누락은 rule 2 의 컴파일러 단계에서 별도로 fail 한다.
+3. AST 가드 (`interaction-type-exhaustiveness.test.ts` 의 `REGISTRY_SITES`) 가 매트릭스의 모든 enum 값이 **등록된 AST(코드 리터럴) 스캔 대상 파일**에 string literal 로 등장하는지 검증한다. 현재 `REGISTRY_SITES` 는 3개 파일 — `use-execution-events.ts` (위 (a)·(b)), `apply-execution-snapshot.ts` ((c)), `use-result-detail-waiting.ts` ((d) — 에디터 drawer·실행 상세 page 가 공유하는 `deriveFlags` 단일 파생 site). (e) `result-detail.tsx` formPreview / `AssistantPresentationsBlock` 은 AST 가드가 아니라 TS exhaustive `default: never` (switch) 로만 커버된다 (동작 drift 아님). drawer 의 잔여 `isLiveConversation`(ai_conversation·ai_form_render 2값만 구분) 은 **exhaustive 분기가 아닌 subset 소비처**(plain `||` 비교, switch·`assertNever` 아님)라 두 가드(AST·TS exhaustive) 어느 쪽도 아니며, 신규 enum 값은 여기서 자동으로 non-live 로 처리된다 — isLiveConversation 이 의도적으로 "live AI turn" 2값만 구분하는 binary 이므로 허용된다(신규 blocking AI 타입 추가 시 함께 점검). switch 기반이 아닌 if/else·flag 파생 소비처를 잡기 위한 보조 가드이며, switch 누락은 rule 2 의 컴파일러 단계에서 별도로 fail 한다.
 
 > **재개(resume) turn 라우팅 진입점 (backend)**: 위 "Backend emit 위치" 열은 *최초 waiting 진입* 기준이다. park 후 **재개** 시 `form`/`buttons`/`ai_conversation` turn 라우팅은 `driveResumeAwaited`(top-level)·`driveResumeFrame`(중첩) 양쪽에서 단일 진입점 `dispatchResumeTurn`(ordered `resumeTurnRegistry`, first-match-wins: form → buttons → ai_conversation, `codebase/backend/src/modules/execution-engine/resume-turn-dispatch.ts`)으로 일원화돼 있다. `ai_form_render` 는 별도 registry 항목이 아니라 **`ai_conversation` AI turn 경로(`isAiConversation`)를 공유**해 재개되고, frontend 측 affordance 정리는 별도 `resumeFromAiRenderForm` action 이 맡는다(위 §1.2 매트릭스 `ai_form_render` 행 (f) 참조). 새 blocking 노드 타입은 registry 항목 1개 등록으로 plug-in 되므로, §1.1 enum 추가 시 이 registry 도 함께 점검한다 (enum 신규 추가 아님 — 매트릭스 완전성 보강). SoT: [execution-engine §7.5](../5-system/4-execution-engine.md).
 
@@ -74,8 +74,8 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | `ai_assistant` | 동일 함수 · 🤖 assistant bubble (presentations 부착 분기 포함) |
 | `ai_tool` | 동일 함수 · 🔧 tool row |
 | `system` | 동일 함수 · ℹ️ system note (v1 자동 push 없음 — 미리 분기 구현) |
-| `system_error` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES` — grep 검증 대상은 `threadTurnsToConversationItems` switch 1개뿐): `codebase/frontend/src/lib/conversation/conversation-utils.ts`. **렌더 분기 (TS exhaustive 커버, grep 가드 비대상)**: 좌측 timeline chip 은 `ConversationTimelineItem` (`codebase/frontend/src/components/editor/run-results/conversation-timeline-item.tsx` 의 `item.type === "system_error"` 분기 — `result-timeline.tsx` 는 이 컴포넌트에 위임만, 자체 source 분기 없음), 우측 인스펙터는 `SelectedItemDetail` / `SystemErrorRow` (`codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx` — `[다시 시도]` 버튼 surface). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — ❌ 빨간 라인 + `<nodeLabel> · <code>` chip + `data.message` 본문 + `data.retryable === true` 시 `[다시 시도]` 버튼. |
-| `rag` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES`): `codebase/frontend/src/lib/conversation/conversation-utils.ts` — `mergeRagRetrievalItems` 가 `meta.turnDebug[].ragSources` 에서 합성하고, `threadTurnsToConversationItems` 의 exhaustive switch 에도 **`rag` case 명시 의무** (아래 주석). **렌더 분기 (TS exhaustive 커버, grep 가드 비대상)**: 좌측 timeline 은 `ConversationTimelineItem` (`conversation-timeline-item.tsx` 의 `item.type === "rag"` 분기 — `result-timeline.tsx` 는 위임만), 우측 인스펙터는 `SummaryView` 의 `RagRetrievalRow` — `SelectedItemDetail` 도 **같은 `RagRetrievalRow` 를 재사용**한다 (별도 detail 컴포넌트 없음: 행 자체가 문서명+청크 수를 담고 청크 본문은 References 탭이 SoT 라 중복 정의를 피한다 — Inv-9) (`conversation-inspector.tsx`). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — 🔎 점선 라인 + `KB · <N> chunk(s)` chip + 문서명 목록, References 탭 점프. `ai_tool`(🔧 실선 카드) 과 §9.2 3중 신호로 구분. |
+| `system_error` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES` — AST(코드 리터럴) 스캔 검증 대상은 `threadTurnsToConversationItems` switch 1개뿐): `codebase/frontend/src/lib/conversation/conversation-utils.ts`. **렌더 분기 (TS exhaustive 커버, AST 가드 비대상)**: 좌측 timeline chip 은 `ConversationTimelineItem` (`codebase/frontend/src/components/editor/run-results/conversation-timeline-item.tsx` 의 `item.type === "system_error"` 분기 — `result-timeline.tsx` 는 이 컴포넌트에 위임만, 자체 source 분기 없음), 우측 인스펙터는 `SelectedItemDetail` / `SystemErrorRow` (`codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx` — `[다시 시도]` 버튼 surface). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — ❌ 빨간 라인 + `<nodeLabel> · <code>` chip + `data.message` 본문 + `data.retryable === true` 시 `[다시 시도]` 버튼. |
+| `rag` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES`): `codebase/frontend/src/lib/conversation/conversation-utils.ts` — `mergeRagRetrievalItems` 가 `meta.turnDebug[].ragSources` 에서 합성하고, `threadTurnsToConversationItems` 의 exhaustive switch 에도 **`rag` case 명시 의무** (아래 주석). **렌더 분기 (TS exhaustive 커버, AST 가드 비대상)**: 좌측 timeline 은 `ConversationTimelineItem` (`conversation-timeline-item.tsx` 의 `item.type === "rag"` 분기 — `result-timeline.tsx` 는 위임만), 우측 인스펙터는 `SummaryView` 의 `RagRetrievalRow` — `SelectedItemDetail` 도 **같은 `RagRetrievalRow` 를 재사용**한다 (별도 detail 컴포넌트 없음: 행 자체가 문서명+청크 수를 담고 청크 본문은 References 탭이 SoT 라 중복 정의를 피한다 — Inv-9) (`conversation-inspector.tsx`). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — 🔎 점선 라인 + `KB · <N> chunk(s)` chip + 문서명 목록, References 탭 점프. `ai_tool`(🔧 실선 카드) 과 §9.2 3중 신호로 구분. |
 
 `threadTurnsToConversationItems` 의 switch 는 이미 exhaustive `default: never` 패턴 적용됨 (`const _exhaustive: never = turn.source`). `system_error` 추가 시 새 case 명시 의무.
 
@@ -121,7 +121,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | **SoT** | [`@workflow/ai-end-reason`](../../codebase/packages/ai-end-reason/) — `AiAgentEndReason` / `InformationExtractorEndReason` / 파생 `ConversationEndReason` + 런타임 배열 `CONVERSATION_END_REASONS` |
 | **강제 방식** | 패키지 내부의 `satisfies`(배열 ⊆ 유니온) + `Exclude`(유니온 ⊆ 배열). 어느 노드 유니온에 값이 추가되면 **패키지 컴파일이 깨진다** |
 | **매트릭스** | **불필요** — 소비처가 패키지를 import 하므로 "N곳에 흩어진 분기" 자체가 없다 |
-| **AST 가드** | **불필요** — grep 할 사본이 없다 |
+| **AST 가드** | **불필요** — 스캔할 사본이 없다 |
 
 **두 유니온을 합치지 않는 이유**: IE 는 `condition` 라우팅이 없고 대신 `completed`·`max_retries` 를 갖는다. 합치면 각 노드의 종결 의미가 흐려지므로, 각자 유니온을 유지하고 소비자용 **파생 유니온**만 만든다.
 
@@ -140,7 +140,7 @@ presentation tool family 도입 과정의 연속 회귀 (SchemaForm key 중복 +
 사람의 working memory 로는 N=5~7 분기를 항상 동시에 다루기 어렵다. 본 컨벤션은:
 
 1. spec 의 **매트릭스가 SoT** — 모든 분기 위치를 한 표로 응집.
-2. **AST 가드** 가 매트릭스 vs 코드 grep 결과를 build 단계에서 비교 fail.
+2. **AST 가드** 가 매트릭스 vs 코드 AST 파싱 결과를 build 단계에서 비교 fail.
 3. **TypeScript exhaustive switch** 가 컴파일러 단계에서 누락 fail.
 
 이 3중 가드가 같은 패턴의 회귀를 차단한다.
@@ -151,7 +151,7 @@ presentation tool family 도입 과정의 연속 회귀 (SchemaForm key 중복 +
 > — **② 의 선결 조건이 무너져 있었다**:
 >
 > - ② 는 목록(`ENUM_VALUES` / `SOURCE_ENUM_VALUES`) 의 각 값이 각 사이트에
->   등장하는지 grep 한다. **그 목록이 타입과 일치한다는 전제** 위에서만 의미가 있다.
+>   등장하는지 AST 로 스캔한다. **그 목록이 타입과 일치한다는 전제** 위에서만 의미가 있다.
 > - 그 전제를 지키라고 놓였던 `const _typecheck: ReadonlyArray<T> = VALUES` 는
 >   **`VALUES ⊆ 타입` 만 검사**해 타입에 값이 추가돼도 통과했다 (주석은 반대로
 >   주장). 게다가 그 단언이 살던 파일이 **테스트 파일**이라
