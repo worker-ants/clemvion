@@ -16,7 +16,14 @@ review/code/2026/07/18/02_06_42 round, honestly pin what it does NOT do:
     reproducible check-then-act race (02_06_42 C1). What the marker still
     guarantees is CONVERGENCE, not exactly-once: once the dust settles the
     marker exists and every later session skips. `test_concurrent_cold_start_*`
-    pins that weaker-but-real property.
+    pins that weaker-but-real property;
+  - the marker is bound to the package-lock.json hash (12_06_58 W1), so a
+    lockfile change — a merged Dependabot security bump, which is lockfile-only —
+    reinstalls instead of the marker's mere presence masking a stale, still-
+    vulnerable tree. The hash is recomputed AFTER install so an `npm`-rewritten
+    lockfile still converges (12_31_29 W2), and it degrades to presence-only when
+    no hashing tool is present (12_31_29 W3). `test_lockfile_*` /
+    `test_*_hasher_*` pin these.
 
 `npm` is stubbed on PATH (never the network), and it records each invocation so
 a test can assert how many installs actually happened.
@@ -42,6 +49,10 @@ _NPM_STUB = """#!/usr/bin/env bash
 echo "call pid=$PPID start=$(date +%s)" >> "$NPM_CALL_LOG"
 [ "${NPM_SLEEP:-0}" != "0" ] && sleep "$NPM_SLEEP"
 [ "${NPM_STUB_FAIL:-0}" = "1" ] && exit 1
+# Model `npm install` rewriting the lockfile in place (lockfileVersion
+# normalization etc.) so a test can prove the marker records the POST-install
+# hash and still converges (W2). Runs with cwd = tool_dir.
+[ "${NPM_REWRITES_LOCK:-0}" = "1" ] && echo "// normalized $RANDOM" >> package-lock.json
 mkdir -p node_modules/somedep
 exit 0
 """
@@ -90,7 +101,7 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _env(self, fail=False, sleep=0, retry_after=0):
+    def _env(self, fail=False, sleep=0, retry_after=0, rewrites_lock=False):
         """One place builds the bootstrap env.
 
         Throttle defaults OFF (retry_after=0), matching how the reap tests set
@@ -102,6 +113,7 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         env["NPM_CALL_LOG"] = self.call_log
         env["NPM_STUB_FAIL"] = "1" if fail else "0"
         env["NPM_SLEEP"] = str(sleep)
+        env["NPM_REWRITES_LOCK"] = "1" if rewrites_lock else "0"
         env["MERMAID_INSTALL_RETRY_SEC"] = str(retry_after)
         # reap section is inert here: reap-merged-worktrees.sh is not copied into
         # this fixture, so the whole section is skipped regardless of these.
@@ -109,8 +121,9 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         env["REAP_GH_BIN"] = os.path.join(self.tmp, "no-such-gh")
         return env
 
-    def _run(self, fail=False, sleep=0, retry_after=0):
-        env = self._env(fail=fail, sleep=sleep, retry_after=retry_after)
+    def _run(self, fail=False, sleep=0, retry_after=0, rewrites_lock=False):
+        env = self._env(fail=fail, sleep=sleep, retry_after=retry_after,
+                        rewrites_lock=rewrites_lock)
         return subprocess.run(["bash", self.bootstrap], cwd=self.repo, env=env,
                               capture_output=True, text=True, timeout=60)
 
@@ -183,6 +196,39 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self._run()
         self._run()
         self.assertEqual(self._npm_calls(), 1, "an unchanged lockfile must not reinstall")
+
+    def test_npm_rewriting_lockfile_still_converges(self):
+        """W2 (review 12_31_29): `npm install` may rewrite the lockfile in place.
+        The marker records the POST-install hash (recomputed after npm), so the
+        next session matches and skips. Were it the PRE-install hash, it would
+        never match the rewritten file and every session would reinstall
+        forever — this pins convergence against that."""
+        self._write_lock('{"lockfileVersion":3}\n')
+        self._run(rewrites_lock=True)
+        self._run(rewrites_lock=True)
+        self._run(rewrites_lock=True)
+        self.assertEqual(self._npm_calls(), 1,
+                         "a post-install lockfile rewrite must not cause perpetual reinstall")
+
+    def test_missing_hasher_degrades_to_presence_only(self):
+        """W3 (review 12_31_29): with neither shasum nor sha256sum available,
+        want_hash is empty, so change-detection is disabled — the first install
+        still happens (marker missing), but a later lockfile change is NOT
+        detected. Pins that documented degradation so it cannot silently regress
+        into a hard failure (e.g. never installing at all)."""
+        for name in ("shasum", "sha256sum"):
+            stub = os.path.join(self.bin, name)
+            self._write(stub, "#!/usr/bin/env bash\nexit 127\n")
+            os.chmod(stub, 0o755)
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.27.0"}}\n')
+        self._run()
+        self.assertEqual(self._npm_calls(), 1, "first install must still happen without a hasher")
+        self.assertTrue(os.path.isfile(self.marker))
+        # A lockfile change now goes undetected (the accepted degradation).
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.28.0"}}\n')
+        self._run()
+        self.assertEqual(self._npm_calls(), 1,
+                         "with no hasher, a lockfile change is not detected (degrades to presence-only)")
 
     # --- concurrency: marker-only converges, it does NOT serialise ----------
     def test_concurrent_cold_start_converges_and_then_stops_reinstalling(self):

@@ -10,8 +10,9 @@
 #   1. Point git at .githooks so the version-controlled pre-commit hooks
 #      (branch guard + mermaid lint) actually run. This replaces the
 #      easy-to-forget `scripts/setup-githooks.sh` step.
-#   2. Install the mermaid-lint tooling deps once, in the MAIN checkout
-#      (node_modules is gitignored, so worktrees share this single copy).
+#   2. Install the mermaid-lint tooling deps in the MAIN checkout (node_modules
+#      is gitignored, so worktrees share this single copy) — on first checkout
+#      and again whenever the lockfile changes (e.g. a merged Dependabot bump).
 #   3. Garbage-collect stale guard state markers (>30 days) so .claude/state/
 #      does not grow unbounded.
 #   4. Reap worktrees / local branches whose PR has merged (see section 4).
@@ -31,7 +32,8 @@ if [ -d "$main_root/.githooks" ]; then
     fi
 fi
 
-# 2. Ensure mermaid-lint deps (install once; skip if already present).
+# 2. Ensure mermaid-lint deps (install on first checkout or a lockfile change;
+#    skip when the installed tree already matches the lockfile).
 #
 #    Two guards. NOT a mutual-exclusion lock — see the design note below.
 #
@@ -70,9 +72,16 @@ fi
 #    lock reinvented in bash. We chose to DROP the lock rather than reintroduce
 #    that complexity: the marker already delivers the actual goal (a partial or
 #    failed install never counts as done, and self-heals next session). Residual,
-#    accepted: several sessions hitting the *first* cold install within the same
-#    instant can still npm-install concurrently; npm is not concurrency-safe into
-#    one dir, so that narrow window can produce a bad tree. And the marker only
+#    accepted: several sessions that see the SAME install-needed condition within
+#    the same instant can still npm-install concurrently; npm is not
+#    concurrency-safe into one dir, so that window can produce a bad tree. Since
+#    the marker is now lockfile-hash-bound (below), that condition is no longer
+#    first-install-only — every lockfile change (a merged Dependabot bump, which
+#    the new .github/dependabot.yml schedule produces regularly) re-opens it for
+#    already-installed checkouts too. Still rare (it needs simultaneous session
+#    starts right after such a change) and the residual is the same, but it is
+#    recurring, not one-off — which is what would justify revisiting plan §G
+#    (fcntl.flock) if it ever bites. And the marker only
 #    attests THIS process's own `npm` exit 0, not tree integrity — so a sibling's
 #    concurrent write can corrupt a tree that then still gets marked "ready". The
 #    honest worst case is worse than a silent skip: lint-mermaid.mjs does a
@@ -123,9 +132,14 @@ if [ -f "$tool_dir/package.json" ]; then
 fi
 
 if [ "$need_install" = 1 ] && ! _install_throttled && command -v npm >/dev/null 2>&1; then
-    echo "bootstrap: installing mermaid-lint deps (one-time)…"
+    echo "bootstrap: installing mermaid-lint deps…"
     if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
-        printf '%s\n' "$want_hash" > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
+        # Record the POST-install lockfile hash, recomputed here rather than
+        # reusing the pre-install want_hash: `npm install` may rewrite the
+        # lockfile (lockfileVersion normalization, metadata) and if the marker
+        # then stored the pre-install hash it would never match the file on the
+        # next run, reinstalling every session forever (review 12_31_29 W2).
+        printf '%s\n' "$(_lock_hash)" > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
         rm -f "$fail_marker" 2>/dev/null || true
     else
         echo "bootstrap: mermaid-lint install failed (lint fails open; will retry after cooldown)" >&2
