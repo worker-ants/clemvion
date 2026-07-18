@@ -6,3 +6,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+
+  # mermaid-lint 하네스 툴링의 독립 npm 트리. pnpm 워크스페이스 밖이라
+  # deps-security-checks.yml(pnpm audit)·config-guard 어디에도 안 걸려, 여기에
+  # 등록하기 전까지 이 트리의 CVE 는 영구 무신호였다(2026-07-18 undici HIGH +
+  # dompurify moderate 를 뒤늦게 발견). Dependabot security update 로 신규 CVE 를
+  # 자동 PR 화한다.
+  - package-ecosystem: "npm"
+    directory: "/.claude/tools/mermaid-lint"
+    schedule:
+      interval: "weekly"
