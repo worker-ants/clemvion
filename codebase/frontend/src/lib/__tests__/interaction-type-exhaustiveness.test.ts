@@ -56,6 +56,19 @@ function readRepoFile(relPath: string): string {
 }
 
 /**
+ * Choose the parser's {@link ts.ScriptKind} from the file extension. Registry
+ * sites are `.ts` today, but a branch can move into a component and make a site
+ * `.tsx`. `.ts` and `.tsx` parse differently: in `.tsx`, `<Foo>` opens a JSX
+ * element; in `.ts`, `<Foo>expr` is a type assertion. Parsing a `.tsx` source
+ * as `ScriptKind.TS` yields an unsound parse (the JSX is not read as JSX), and
+ * the reverse drops literals outright (a `<Config>{ … }` cast parsed as TSX
+ * loses its object). So the guard derives the kind rather than hardcoding one.
+ */
+function scriptKindForFile(fileName: string): ts.ScriptKind {
+  return fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+}
+
+/**
  * Collect every string literal that appears in **code** (not in comments).
  *
  * Why the TypeScript parser rather than a regex: this guard's threat model is
@@ -76,6 +89,9 @@ function readRepoFile(relPath: string): string {
  *
  * `NoSubstitutionTemplateLiteral` counts too: a backtick literal in code is
  * code, and excluding it would only risk false failures.
+ *
+ * The {@link ts.ScriptKind} is derived from `fileName` (see
+ * {@link scriptKindForFile}) so a `.tsx` registry site parses soundly.
  */
 function collectCodeStringLiterals(source: string, fileName: string): Set<string> {
   const sourceFile = ts.createSourceFile(
@@ -83,7 +99,7 @@ function collectCodeStringLiterals(source: string, fileName: string): Set<string
     source,
     ts.ScriptTarget.Latest,
     /* setParentNodes */ false,
-    ts.ScriptKind.TS,
+    scriptKindForFile(fileName),
   );
   const literals = new Set<string>();
   const visit = (node: ts.Node): void => {
@@ -94,6 +110,37 @@ function collectCodeStringLiterals(source: string, fileName: string): Set<string
   };
   ts.forEachChild(sourceFile, visit);
   return literals;
+}
+
+/**
+ * Whether parsing `source` under `kind` recognizes its `<…>` as JSX (rather
+ * than a type assertion). This is the structural signal that distinguishes a
+ * TSX parse from a TS parse of the same `.tsx` source: literal collection is
+ * identical across both (error recovery keeps the string literals alive), so
+ * the guard's `.tsx` correctness must be asserted on the tree shape, not the
+ * collected set.
+ */
+function treeContainsJsx(source: string, kind: ts.ScriptKind): boolean {
+  const sourceFile = ts.createSourceFile(
+    "probe.tsx",
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ false,
+    kind,
+  );
+  let found = false;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isJsxElement(node) ||
+      ts.isJsxSelfClosingElement(node) ||
+      ts.isJsxFragment(node)
+    ) {
+      found = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(sourceFile, visit);
+  return found;
 }
 
 /**
@@ -128,6 +175,102 @@ describe("collectCodeStringLiterals", () => {
     ]) {
       expect(literals.has(ghost)).toBe(false);
     }
+  });
+
+  it("recognizes union-type and object-property literal forms as code", () => {
+    // Registry sites express branches in shapes well beyond `=== "x"` /
+    // `case "x":` — union-type members and object-property values are the two
+    // easiest to overlook. Matching against *every* code literal (not a
+    // narrower shape) is what keeps these passing; lock that here so a future
+    // narrowing to `=== "x"` shapes would fail instead of silently skipping
+    // these sites (which would be a false CI failure on real registry code).
+    //
+    // Each token appears in exactly ONE syntactic form, so a scanner that
+    // stops descending into that form fails here — the token cannot leak in
+    // from a `=== "x"` elsewhere.
+    const fixture = [
+      'type Waiting = "union_member_a" | "union_member_b";', // union-type members
+      'const cfg = { waitingInteractionType: "object_prop_value" };', // object-property value
+      "function pick(x: string): string {",
+      '  return x === "ternary_test" ? "ternary_then" : "ternary_else";', // ternary results
+      "}",
+      'function label(): string { return "return_value"; }', // return
+    ].join("\n");
+
+    const literals = collectCodeStringLiterals(fixture, "fixture.ts");
+
+    for (const value of [
+      "union_member_a",
+      "union_member_b",
+      "object_prop_value",
+      "ternary_then",
+      "ternary_else",
+      "return_value",
+    ]) {
+      expect(literals.has(value)).toBe(true);
+    }
+  });
+
+  it("does not collect tokens that appear only inside a regex literal", () => {
+    // The TS parser types `/…/` as a RegularExpressionLiteral, not a
+    // StringLiteral, so a token that lives only inside a regex never satisfies
+    // the guard — which is exactly why the real parser is used instead of a
+    // hand-rolled comment stripper (it would mis-tokenize regexes like
+    // conversation-utils.ts `/\[\/?user-input\]/g`).
+    const fixture = [
+      "const tag = /regex_only_token/g;",
+      "const userInput = /\\[\\/?user-input\\]/g;",
+      'const real = value === "kept_literal";',
+    ].join("\n");
+
+    const collected = [...collectCodeStringLiterals(fixture, "fixture.ts")];
+
+    // The sibling real string literal is still picked up.
+    expect(collected).toContain("kept_literal");
+    // No collected entry is derived from a regex. `.includes` (not `.has`)
+    // catches the natural regression too: a scanner that also added
+    // RegularExpressionLiteral nodes would surface `/regex_only_token/g` and
+    // `/\[\/?user-input\]/g` verbatim, which a plain `.has(token)` check would
+    // miss but `.includes(token)` does not.
+    for (const token of ["regex_only_token", "user-input"]) {
+      expect(collected.some((literal) => literal.includes(token))).toBe(false);
+    }
+  });
+
+  it("parses a .tsx site's JSX as JSX so its branch literals stay sound", () => {
+    // If a registry branch moves into a component the site becomes `.tsx`. The
+    // extension-derived ScriptKind must read `<section>` as JSX; forcing
+    // `ScriptKind.TS` mis-parses it as a type assertion. The literal survives
+    // either way by error-recovery luck, so the meaningful assertion is on the
+    // parse shape (JSX recognized) — the reason `collectCodeStringLiterals`
+    // derives the kind rather than hardcoding `ts.ScriptKind.TS`.
+    const tsxSite = [
+      "export function ResultView({ kind }: { kind: string }) {",
+      '  return kind === "ai_form_render" ? (',
+      '    <section data-kind="ai_form_render">rendered</section>',
+      "  ) : null;",
+      "}",
+    ].join("\n");
+
+    expect(
+      collectCodeStringLiterals(tsxSite, "result-view.tsx").has("ai_form_render"),
+    ).toBe(true);
+    expect(treeContainsJsx(tsxSite, scriptKindForFile("result-view.tsx"))).toBe(
+      true,
+    );
+    // The pre-fix hardcode (ScriptKind.TS) does NOT recognize the JSX.
+    expect(treeContainsJsx(tsxSite, ts.ScriptKind.TS)).toBe(false);
+  });
+});
+
+describe("scriptKindForFile", () => {
+  it("selects TSX for .tsx sites and TS otherwise", () => {
+    expect(scriptKindForFile("components/editor/result-view.tsx")).toBe(
+      ts.ScriptKind.TSX,
+    );
+    expect(scriptKindForFile("lib/websocket/use-execution-events.ts")).toBe(
+      ts.ScriptKind.TS,
+    );
   });
 });
 

@@ -109,13 +109,20 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   세 게이트 모두 **비차단·BLOCK 아님** 으로 판정(계약·매트릭스·등록 사이트·enum 목록 불변,
   코드가 spec 의 1차 명칭 "AST 가드" 에 수렴한 방향이라 "코드가 맞고 spec 부차 서술이 낡음").
   developer 는 `spec/` read-only 라 여기서 이월한다.
-- [ ] **[developer, 선택]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
+- [x] **[developer]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
   `IS_MULTI_TURN_INTERACTION` 위 주석의 "grep 가드" 표현 → "AST 가드" 정정
-  (`/ai-review` INFO #1). 본 PR diff 밖 파일이라 미포함.
-- [ ] **[developer, 선택]** self-test fixture 보강 (`/ai-review` INFO #2·#3·#4):
-  union 타입 선언·객체 프로퍼티 값 형태 추가, 정규식 리터럴 비오염 케이스
-  (`const re = /real_literal/;`) 명시 단언, 등록 사이트가 `.tsx` 로 확장될 때
-  `ts.ScriptKind` 확장자 분기.
+  (`/ai-review` INFO #1). 본 PR diff 밖 파일이라 미포함됐던 것을 후속 PR 로 반영.
+  파일 내 3곳(L14 JSDoc, L63·L64 Record 주석) 전부 교정.
+- [x] **[developer]** self-test fixture 보강 (`/ai-review` INFO #2·#3·#4):
+  union 타입 선언·객체 프로퍼티 값·return·삼항 형태를 **폼별 고유 토큰**으로 고정,
+  정규식 리터럴 비오염 케이스(`/regex_only_token/g`·`/\[\/?user-input\]/g`)를
+  `.includes` 로 명시 단언(regex 노드를 오수집하면 `/…/g` verbatim 이 잡힘 — 순진한
+  `.has` 로는 놓침), 등록 사이트 `.tsx` 확장 시 `scriptKindForFile` 이 확장자로
+  `ts.ScriptKind` 를 분기(`collectCodeStringLiterals` 가 이를 사용). **3 신규 케이스
+  전부 양방향 mutation 실측** — 폼별 descent skip·regex 오수집·`scriptKind` 하드코딩
+  변조 → 해당 테스트 red 확인 후 원복(working tree clean). TEST WORKFLOW:
+  lint PASS(66s) / unit PASS(85s) / build PASS(123s) / e2e PASS(317s, backend 256 +
+  playwright 51). e2e 는 화이트리스트 밖 → 수행(plan §8 과 동일 판단).
 - [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
   대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
   앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
