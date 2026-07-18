@@ -75,7 +75,10 @@ function readRepoFile(relPath: string): string {
  * declarations, object property values, `return`s, and ternaries.
  *
  * `NoSubstitutionTemplateLiteral` counts too: a backtick literal in code is
- * code, and excluding it would only risk false failures.
+ * code, and excluding it would only risk false failures. A regex literal
+ * (`/…/`) is a `RegularExpressionLiteral`, not a `StringLiteral`, so its body is
+ * never collected — a distinction a hand-rolled comment stripper would miss
+ * (some sites hold regexes such as `UUID_REGEX`).
  */
 function collectCodeStringLiterals(source: string, fileName: string): Set<string> {
   const sourceFile = ts.createSourceFile(
@@ -103,7 +106,7 @@ function collectCodeStringLiterals(source: string, fileName: string): Set<string
  * green. Encodes the PR #968 finding as an executable property.
  */
 describe("collectCodeStringLiterals", () => {
-  it("collects code literals and ignores mentions inside comments", () => {
+  it("collects code literals across branch shapes and ignores comments/regex", () => {
     const fixture = [
       "/**",
       " * JSDoc quoting `ghost_backtick`, 'ghost_single' and \"ghost_double\".",
@@ -112,12 +115,26 @@ describe("collectCodeStringLiterals", () => {
       "/* block comment quoting `ghost_block` */",
       'const branch = value === "real_literal"; // trailing comment: `ghost_trailing`',
       "const templated = other === `real_template`;",
+      // union type declaration + object property value — the shapes real
+      // registry sites use (e.g. `| "ai_form_render"`, `waiting: "…"`).
+      'type Waiting = "real_union_a" | "real_union_b";',
+      'const obj = { waiting: "real_prop" };',
+      // a regex literal is a RegularExpressionLiteral, not a StringLiteral, so
+      // its body must never be collected (unlike a naive text stripper would).
+      "const re = /ghost_regex/g;",
     ].join("\n");
 
     const literals = collectCodeStringLiterals(fixture, "fixture.ts");
 
-    expect(literals.has("real_literal")).toBe(true);
-    expect(literals.has("real_template")).toBe(true);
+    for (const real of [
+      "real_literal",
+      "real_template",
+      "real_union_a",
+      "real_union_b",
+      "real_prop",
+    ]) {
+      expect(literals.has(real)).toBe(true);
+    }
     for (const ghost of [
       "ghost_backtick",
       "ghost_single",
@@ -125,6 +142,7 @@ describe("collectCodeStringLiterals", () => {
       "ghost_line",
       "ghost_block",
       "ghost_trailing",
+      "ghost_regex",
     ]) {
       expect(literals.has(ghost)).toBe(false);
     }
