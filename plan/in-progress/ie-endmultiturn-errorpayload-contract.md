@@ -4,10 +4,12 @@ worktree: nice-archimedes-d9af7e
 status: in-progress
 started: 2026-07-18
 owner: developer
-spec_impact:
-  - spec/4-nodes/3-ai/3-information-extractor.md
-  - spec/4-nodes/3-ai/1-ai-agent.md
+spec_impact: none
 ---
+
+> `spec_impact: none` — 본 작업은 spec 본문을 편집하지 않는다(codebase docblock/주석 + 계약
+> interface docblock + pinning 테스트만). 판정 결과가 "spec 준수 상태 → 문서화"였고, 관련 spec
+> (`3-information-extractor.md §5.3/§5.6`, `1-ai-agent.md §7.9`)은 read-only 근거로만 참조했다.
 
 # IE `endMultiTurnConversation` — 엔진 errorPayload 계약 정합 (선재 갭 판정)
 
@@ -70,7 +72,21 @@ failedUserMessage/source → `_retryState`)하지만 **IE 는 `(stateRaw, endRea
 ## 워크플로 체크리스트
 
 - [x] 3. `/consistency-check --impl-prep spec/4-nodes/3-ai` (BLOCK:YES=out-of-scope, 사용자 승인 bypass)
-- [ ] 5-7. 테스트 선작성 + 구현 + 보강
-- [ ] 8. TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] 9. `/ai-review` + fix
-- [ ] 9. `/consistency-check --impl-done spec/4-nodes/3-ai` (spec-linked 코드 변경)
+- [x] 5-7. 테스트 선작성 + 구현 + 보강 (commit 1e02b0549)
+- [x] 8. TEST WORKFLOW — lint PASS / unit PASS(8227+) / build PASS / e2e PASS(256)
+- [x] 9. `/ai-review --branch origin/main` — RISK=LOW, **Critical 0 / Warning 0** (INFO 만, `review/code/2026/07/18/11_46_43/SUMMARY.md`). resolution-applier 불요. INFO #7(spec_impact) 반영.
+- [x] 9. `/consistency-check --impl-done spec/4-nodes/3-ai` — **BLOCK: NO** (`review/consistency/2026/07/18/11_57_36/SUMMARY.md`). 내 diff 신규 위반 0. SPEC-CONSISTENCY 게이트 충족.
+
+## 완료 상태 (Definition of Done)
+
+내 task 범위는 **완료** — 판정(문서화) + 구현(docblock/시그니처/pinning) + 전 품질 게이트 통과.
+plan 은 아래 project-planner 후속(선재 WARNING) 때문에 `in-progress/` 유지(durable anchor 보존, WARNING #4).
+
+### project-planner 후속 (선재 spec-drift, developer 권한 밖 — spec/ 편집 필요)
+
+`--impl-done`(11_57_36) 이 재확인한 WARNING 4건. **전부 내 diff 도입 아님**(BLOCK:NO), 기존 plan 추적 중이나 처분 필요:
+
+1. AI Agent Multi-turn `out` 포트 자기모순(§3.2 ↔ ND-AG-24 2곳) — `spec-drift-ai-agent-outport-countmax.md`, **5회째 노출**, 코드 SoT 확정 후 처분 시급.
+2. AI Agent §7.3 single-turn error 포트 미구현 캐비어 + `pending_plans` 등재 — `node-output-redesign/ai-agent.md`.
+3. IE §5.5 `resumed` 스냅샷 미구현 캐비어 + frontmatter `pending_plans` 신설 — `node-output-redesign/information-extractor.md`.
+4. `0-common.md §5/§9` "(Principle 11)" 오귀속 → "(Principle 1.1/3.2/4.4/8.2)" 정정(순수 spec 오타). **이 plan 이 현재 durable anchor** — complete 이동 전 project-planner 처분 또는 앵커 이관 필요.
