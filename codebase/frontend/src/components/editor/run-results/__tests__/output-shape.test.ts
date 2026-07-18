@@ -625,4 +625,123 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     };
     expect(isConversationOutput(raw)).toBe(false);
   });
+
+  // 아래 3개는 OR-체인의 각 분기를 **다른 분기와 겹치지 않게** 고립시킨다.
+  // 위의 기존 케이스들은 여러 분기를 동시에 참으로 만들어서, 분기 하나를 통째로
+  // 지워도 green 을 유지했다 (mutation 무방비). 각 fixture 는 의도한 분기 하나만
+  // 참이고 나머지는 전부 거짓이라, 그 분기를 지우면 이 테스트만 red 가 된다.
+  it("detects conversation via output.interactionType alone (meta carries no interactionType)", () => {
+    // `hasLegacyMessages && outputInteraction` 만 참. 고립 조건:
+    //  - top-level `interactionType`/`conversationConfig` 없음 → 첫 게이트 통과
+    //  - `meta.interactionType` 없음 → metaInteraction 거짓
+    //  - `output.conversationConfig` 없음 → hasConvConfig 거짓
+    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    //  - `status` 없음 → isCanonicalWaiting 거짓
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        interactionType: "ai_conversation",
+        messages: [{ role: "user", content: "hi" }],
+      },
+      meta: { model: "gpt-5" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("detects conversation via nested output.conversationConfig alone (no status, no messages)", () => {
+    // `hasConvConfig` 만 참. 고립 조건: top-level `conversationConfig` 가 아니라
+    // **envelope 의 output 안에 중첩된** 형태 — 첫 게이트(top-level)가 잡지
+    // 못하므로 이 분기가 유일한 참 경로다.
+    //  - `output.messages` 없음 → hasLegacyMessages 거짓 (첫 OR-분기 차단)
+    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    //  - `status` 없음 → isCanonicalWaiting 거짓
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        conversationConfig: {
+          message: "무엇을 도와드릴까요?",
+          turnCount: 1,
+        },
+      },
+      meta: { model: "gpt-5" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("detects conversation via output.messages + meta.interactionType without status", () => {
+    // `hasLegacyMessages && metaInteraction` 만 참. 위쪽의 "canonical waiting
+    // shape" 케이스는 `status: 'waiting_for_input'` 을 함께 실어서
+    // `isCanonicalWaiting` 도 동시에 참이 됐다 — 그래서 이 OR-분기를 지워도
+    // green 이었다. 여기서는 `status` 키 자체를 생략해 분리한다.
+    //  - `output.interactionType` 없음 → outputInteraction 거짓
+    //  - `output.conversationConfig` 없음 → hasConvConfig 거짓
+    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    const raw = {
+      config: { mode: "multi_turn" },
+      output: {
+        messages: [{ role: "user", content: "hi" }],
+        message: "",
+        turnCount: 1,
+      },
+      meta: { interactionType: "ai_conversation" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  // 아래 4개는 위 3개와 같은 mutation-격리 원칙을 나머지 guard 4곳에 확장한다
+  // (20_06_14 리뷰 testing 리뷰어가 실측으로 발견한 이월 갭): 최상위 게이트의
+  // `conversationConfig` OR-disjunct 1곳 + AND-guard 3곳. 뒤의 3개는 음성(reject)
+  // 케이스로, 각 AND-guard 를 제거하면 fixture 가 잘못 true 가 되므로 그때 red 로
+  // 전환된다. 주석은 소스 변수명이 아니라 **페이로드 필드의 존재/부재**로 서술해,
+  // 내부 변수명이 바뀌어도 stale 해지지 않게 한다.
+
+  it("detects conversation via bare top-level conversationConfig (config present, no top-level interactionType, no output key)", () => {
+    // 최상위 게이트 두 번째 disjunct(top-level `conversationConfig` 존재) 단독 참.
+    // 고립: top-level `interactionType` 없음 → 첫 disjunct 거짓. 이 disjunct 로
+    // 최상위 게이트에서 조기 반환되므로 이하 canonical 블록은 애초에 평가되지 않는다.
+    const raw = {
+      config: { mode: "multi_turn" },
+      conversationConfig: { message: "hi", turnCount: 1 },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("rejects output.interactionType when output.messages is absent (guards the messages-array requirement)", () => {
+    // 첫 OR-항의 `messages 배열 존재` AND-guard 를 지키는 음성 케이스.
+    // `output.interactionType` 는 대화형이지만 `output.messages` 배열이 없으므로
+    // false 여야 한다. guard 를 제거하면 interactionType 만으로 true 가 되어 red.
+    const raw = {
+      config: {},
+      output: { interactionType: "ai_conversation" },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
+
+  it("rejects a whitelisted endReason without result.messages (guards the terminal-messages requirement)", () => {
+    // 화이트리스트 `endReason` 매치 + `output.result.messages` 부재 조합의
+    // AND-guard 음성 케이스 (내부적으로 `looksLikeConversationEnd`). 화이트리스트
+    // endReason 만 있고 `output.result.messages` 가 없으므로 false 여야 한다 —
+    // `result.messages 존재` guard 제거 시 endReason 매치만으로 true 가 되어 red.
+    const raw = {
+      config: {},
+      output: { result: { endReason: "completed" } },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
+
+  it("rejects waiting_for_input status alone without output.messages (e.g. a form/buttons waiting node)", () => {
+    // `status === 'waiting_for_input'` + `output.messages` 부재 조합의 AND-guard
+    // 음성 케이스 (내부적으로 `isCanonicalWaiting`) — 넷 중 실무 영향이 가장 크다.
+    // form/buttons/ai_form_render 대기 노드도 `status: 'waiting_for_input'` 을
+    // 갖지만 `output.messages` 배열은 없다. `output.messages 존재` guard 가
+    // 사라지면 이런 폼/버튼 대기 노드가 대화 미리보기로 오분류된다.
+    const raw = {
+      config: { mode: "form" },
+      output: { fields: { name: "bob" } },
+      status: "waiting_for_input",
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
 });
