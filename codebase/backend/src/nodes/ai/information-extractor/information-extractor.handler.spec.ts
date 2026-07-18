@@ -1291,4 +1291,105 @@ describe('InformationExtractorHandler', () => {
       expect(config.inputField).toBeUndefined();
     });
   });
+
+  describe('endMultiTurnConversation — engine errorPayload contract (deliberate self-fill)', () => {
+    // spec/4-nodes/3-ai/3-information-extractor.md §5.3 — IE 의 retryable 은
+    // code 기반 invariant (LLM_CALL_FAILED → true) 다. 엔진의 handleAiTurnError 가
+    // 넘기는 (errorPayload, failedUserMessage, failedUserMessageSource) 뒤 세 인자를
+    // IE 는 의도적으로 무시하고 self-fill 한다 (handler 의 endMultiTurnConversation
+    // docblock 이 SoT). 미래의 잘못된 "fix"(errorPayload verbatim relay → §5.3 위반)를
+    // 막는 회귀 핀.
+    function errorState(): Record<string, unknown> {
+      return {
+        model: 'gpt-4o',
+        outputSchema: [
+          {
+            name: 'senderName',
+            type: 'string',
+            description: 'Name',
+            required: true,
+          },
+          {
+            name: 'orderNumber',
+            type: 'string',
+            description: 'Order',
+            required: true,
+          },
+        ],
+        partialResult: { senderName: 'John', orderNumber: null },
+        messages: [
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'order?' },
+        ],
+        turnCount: 3,
+        collectionRetryCount: 1,
+        maxTurns: 10,
+        maxCollectionRetries: 3,
+        totalInputTokens: 40,
+        totalOutputTokens: 12,
+        totalThinkingTokens: 0,
+        turnDebugHistory: [],
+      };
+    }
+
+    it('ignores the engine errorPayload and self-fills the §5.3 error envelope', () => {
+      // 엔진이 status 기반으로 분류해 넘길 법한, IE self-fill 과 "정면으로 다른"
+      // payload — code=LLM_RATE_LIMIT, retryable=false, 커스텀 message/retryAfterSec.
+      const enginePayload = {
+        code: 'LLM_RATE_LIMIT',
+        message: 'Anthropic API returned 429 (Too Many Requests)',
+        details: { retryable: false, retryAfterSec: 30, provider: 'anthropic' },
+      };
+
+      const rawResult = handler.endMultiTurnConversation(
+        errorState(),
+        'error',
+        enginePayload,
+        'the user message that triggered the failed turn',
+        'ai_message',
+      );
+
+      const { output, port, status } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      expect(status).toBe('ended');
+
+      const err = getError(output);
+      // errorPayload.code(LLM_RATE_LIMIT) 가 아니라 IE self-synthesized code.
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      // errorPayload.message 가 아니라 IE 의 generic message.
+      expect(err.message).toBe(
+        'Conversation terminated due to LLM call failure',
+      );
+      const details = err.details as Record<string, unknown>;
+      // §5.3 code-기반 invariant — errorPayload.details.retryable(false) 무시하고 true.
+      expect(details.retryable).toBe(true);
+      // errorPayload.details 의 부가 필드(retryAfterSec/provider)는 유입되지 않음.
+      expect(details.retryAfterSec).toBeUndefined();
+      expect(details.provider).toBeUndefined();
+      // IE 자체 context 는 보존.
+      expect(details.turnCount).toBe(3);
+      expect(details.collectionRetryCount).toBe(1);
+
+      // §5.3 — 부분 수집 결과가 output.result 로 병존.
+      const result = getResult(output);
+      expect(result.endReason).toBe('error');
+      const extracted = result.extracted as Record<string, unknown>;
+      expect(extracted.senderName).toBe('John');
+      expect(extracted.orderNumber).toBeNull();
+
+      // IE 는 retry_last_turn 미지원 → failedUserMessage 를 넘겨도 _retryState 미emit.
+      expect(
+        (rawResult as Record<string, unknown>)._retryState,
+      ).toBeUndefined();
+    });
+
+    it('produces the same self-filled envelope when errorPayload is omitted (direct callers)', () => {
+      const rawResult = handler.endMultiTurnConversation(errorState(), 'error');
+      const { output, port } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      const err = getError(output);
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      expect((err.details as Record<string, unknown>).retryable).toBe(true);
+    });
+  });
 });

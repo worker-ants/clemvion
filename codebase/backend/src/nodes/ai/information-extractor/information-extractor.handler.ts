@@ -6,6 +6,7 @@ import {
   ValidationResult,
   ResumableNodeHandlerOutput,
   ResumableMessageOptions,
+  ResumableMessageSource,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService, LlmCallContext } from '../../../modules/llm/llm.service';
@@ -1179,12 +1180,52 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
   }
 
   /**
-   * Called by the engine when the user ends the conversation or the
-   * per-turn timer expires. Delegates to {@link buildMultiTurnFinalOutput}.
+   * Called by the engine when the user ends the conversation, `max_turns` is
+   * reached, or a turn throws (`ResumableNodeHandler.endMultiTurnConversation`).
+   * Delegates to {@link buildMultiTurnFinalOutput}.
+   *
+   * **IE deliberately consumes only `(state, endReason)` and ignores the three
+   * trailing params the interface declares** (`errorPayload` /
+   * `failedUserMessage` / `failedUserMessageSource`). This method is the SoT for
+   * that intentional divergence from `AiAgentHandler` (which relays
+   * `errorPayload` verbatim into `output.error` and threads the message pair
+   * into `_retryState`). The three reasons:
+   *
+   *  1. **`output.error` is self-filled, not engine-relayed.** IE's real LLM
+   *     failures never reach this method: {@link runTurnWithCollectionRetries}
+   *     catches every provider error (429 / timeout / 5xx included) and returns
+   *     `{ kind: 'error' }`, so {@link processMultiTurnMessage} /
+   *     {@link executeMultiTurn} emit {@link buildErrorOutput} directly (§5.3).
+   *     The engine's generic `handleAiTurnError` → this method is only a safety
+   *     net for an *uncaught* throw before the turn loop (e.g.
+   *     `llmService.resolveConfig` / {@link hydrateState}), and the `error`
+   *     branch of {@link buildMultiTurnFinalOutput} synthesizes the envelope
+   *     itself (`output.error` + partial `output.result` coexist, §5.3).
+   *  2. **IE's `retryable` is code-based by spec, not HTTP-status-based.**
+   *     `spec/4-nodes/3-ai/3-information-extractor.md` §5.3 locks the invariant
+   *     `LLM_CALL_FAILED` / `LLM_RATE_LIMIT` → `retryable: true` (via
+   *     {@link retryabilityDetails}). The engine's `errorPayload` derives
+   *     retryability from HTTP status (auth 401/403 → `LLM_CALL_FAILED`
+   *     *non-retryable*), so relaying it verbatim would violate §5.3. IE's
+   *     self-fill preserves the code→retryable invariant. This differs from
+   *     AI Agent §7.9/§10 (status-based) by design.
+   *  3. **No node-level retry.** IE does not support `execution.retry_last_turn`
+   *     / `_retryState`, so `failedUserMessage` / `failedUserMessageSource`
+   *     (which only feed AI Agent's `_retryState`) have nothing to bind to here.
+   *
+   * The three params are declared (with `_` prefix) rather than dropped so the
+   * arity matches the `ResumableNodeHandler` contract and the divergence is
+   * explicit at the call boundary — see that interface's docblock for the
+   * AI-Agent side. Regression pin: the "engine errorPayload contract" spec in
+   * this node's test file asserts the output is IE's self-synthesized shape
+   * regardless of what `errorPayload` is passed.
    */
   endMultiTurnConversation(
     stateRaw: Record<string, unknown>,
     endReason: EndReason,
+    _errorPayload?: { code: string; message: string; details?: unknown },
+    _failedUserMessage?: string,
+    _failedUserMessageSource?: ResumableMessageSource,
   ): unknown {
     const state = this.hydrateState(stateRaw);
     return this.buildMultiTurnFinalOutput(state, endReason);

@@ -452,10 +452,24 @@ export interface ResumableNodeHandler<
    *
    * `errorPayload` (2026-05-19) — spec/4-nodes/3-ai/1-ai-agent.md §7.9. engine 의
    * `handleAiTurnError` 가 turn 처리 중 throw 된 예외에서 추출한 sanitized
-   * 결과 (`code` / `message` / `details`) 를 전달한다. 핸들러는 그 값을
-   * `output.error` 에 그대로 set 해야 spec §7.9 shape (`output.error` + 부분
-   * `output.result.*` 병존) 가 성립. 정상 종결 (`user_ended` / `max_turns` /
-   * `condition`) 에서는 caller 가 undefined 를 전달.
+   * 결과 (`code` / `message` / `details`) 를 전달한다. 정상 종결 (`user_ended` /
+   * `max_turns` / `condition`) 에서는 caller 가 undefined 를 전달한다.
+   *
+   * **구현체마다 errorPayload 소비 방식이 다르다** — 이 인자는 "반드시 output.error
+   * 에 그대로 set 해야" 하는 범용 계약이 **아니다**:
+   *  - `AiAgentHandler` 는 이 값을 `output.error` 에 **verbatim relay** 하고
+   *    (`errorPayload.details.retryable` 이 SoT), retryable 이면
+   *    `failedUserMessage`/`failedUserMessageSource` 로 `_retryState` 를 만들어
+   *    `execution.retry_last_turn` 재진입을 준비한다 (spec §7.9). AI Agent 의
+   *    retryable 판정은 HTTP status 기반이다 (§10).
+   *  - `InformationExtractorHandler` 는 뒤 세 인자를 **의도적으로 무시하고
+   *    self-fill** 한다 — IE 의 실제 LLM 실패는 내부 catch(`buildErrorOutput`)로
+   *    처리돼 이 메서드에 도달하지 않고(엔진 경로는 uncaught throw safety net 뿐),
+   *    IE 의 `retryable` 은 spec/4-nodes/3-ai/3-information-extractor.md §5.3 이
+   *    **code 기반 invariant** (`LLM_CALL_FAILED`/`LLM_RATE_LIMIT` → `true`) 로
+   *    잠근 것이라 status 기반 errorPayload 를 relay 하면 §5.3 을 위반한다. 또
+   *    IE 는 `retry_last_turn`/`_retryState` 미지원이라 message 인자도 무관하다.
+   *    상세 SoT 는 그 핸들러의 `endMultiTurnConversation` docblock.
    *
    * `endReason` 은 구현체의 **자기 도메인**(`TEndReason`)이다 —
    * `AiAgentHandler` 는 `AiAgentEndReason`, `InformationExtractorHandler` 는
