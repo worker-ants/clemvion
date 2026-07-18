@@ -30,8 +30,9 @@ import path from "node:path";
 // docker-compose 볼륨 마스킹 대조)에서 빌려왔다. 그 스크립트의 담당 범위(Dockerfile
 // COPY·compose 마스킹)는 여기서 중복 검사하지 않는다.
 //
-// 주의: tsconfig 가 `src/**/__tests__/**` 를 exclude 하므로 tsc/next build 는 이 파일을
-// 보지 않고, vitest 는 타입을 strip 한다. → 컴파일타임 단언은 무의미하다. 전부 런타임 단언.
+// 주의: tsconfig 가 `src/**/*.test.ts` 와 `src/**/__tests__/**` 를 둘 다 exclude 하므로(이 파일은
+// 양쪽에 걸린다) tsc/next build 는 이 파일을 보지 않고, vitest 는 타입을 strip 한다.
+// → 컴파일타임 단언은 무의미하다. 전부 런타임 단언.
 
 // 각 목록의 **의도된 모집단이 다르다**. 단순히 `ls codebase/packages/` 전체와 비교하면 오탐이다.
 //
@@ -65,29 +66,64 @@ const PACKAGES_DIR = path.join(ROOT, "codebase", "packages");
 const TEST_STAGES = path.join(ROOT, ".claude", "test-stages.sh");
 const PACKAGES_CHECKS = path.join(ROOT, ".github", "workflows", "packages-checks.yml");
 
-/** `codebase/packages/<dir>/package.json` 실측 → dir ↔ name 양방향. */
-function discoverPackages(): { dir: string; name: string }[] {
-  return fs
-    .readdirSync(PACKAGES_DIR, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => {
-      const manifest = path.join(PACKAGES_DIR, e.name, "package.json");
-      if (!fs.existsSync(manifest)) return null;
-      const name = JSON.parse(fs.readFileSync(manifest, "utf8")).name as string;
-      return { dir: e.name, name };
+type PackageManifest = {
+  name?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+/**
+ * 디렉터리명 목록 + name 해석기 → `{dir,name}[]` (dir 정렬).
+ *
+ * fs 접근과 분리한 순수 코어(리뷰 WARNING). `resolveName` 이 null 이면(=package.json 부재)
+ * 그 dir 을 skip 한다. 이 "부재 skip" 분기는 현재 저장소에선 안 도므로(전 패키지가 manifest
+ * 보유) 합성 fixture 로만 고정된다.
+ */
+function collectPackages(
+  dirNames: string[],
+  resolveName: (dir: string) => string | null,
+): { dir: string; name: string }[] {
+  return dirNames
+    .map((dir) => {
+      const name = resolveName(dir);
+      return name === null ? null : { dir, name };
     })
     .filter((p): p is { dir: string; name: string } => p !== null)
     .sort((a, b) => a.dir.localeCompare(b.dir));
 }
 
-/** backend 가 실제로 의존하는 `@workflow/*` — packages-checks.yml 의 모집단 SoT. */
-function backendWorkflowDeps(): string[] {
-  const pkg = JSON.parse(
-    fs.readFileSync(path.join(ROOT, "codebase", "backend", "package.json"), "utf8"),
-  );
+/** `codebase/packages/<dir>/package.json` 실측 → dir ↔ name 양방향. */
+function discoverPackages(): { dir: string; name: string }[] {
+  const dirNames = fs
+    .readdirSync(PACKAGES_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
+  return collectPackages(dirNames, (dir) => {
+    const manifest = path.join(PACKAGES_DIR, dir, "package.json");
+    if (!fs.existsSync(manifest)) return null;
+    return (JSON.parse(fs.readFileSync(manifest, "utf8")) as PackageManifest).name ?? null;
+  });
+}
+
+/**
+ * 매니페스트의 `dependencies` + `devDependencies` 에서 `@workflow/*` 만 정렬.
+ *
+ * fs 접근과 분리한 순수 코어(리뷰 WARNING). devDependencies 병합 분기는 현재 backend 가
+ * `@workflow/*` 를 전부 `dependencies` 에만 두어 실측으론 안 도므로 합성 fixture 로 고정한다.
+ */
+function workflowDepsOf(pkg: PackageManifest): string[] {
   return Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
     .filter((d) => d.startsWith("@workflow/"))
     .sort();
+}
+
+/** backend 가 실제로 의존하는 `@workflow/*` — packages-checks.yml 의 모집단 SoT. */
+function backendWorkflowDeps(): string[] {
+  return workflowDepsOf(
+    JSON.parse(
+      fs.readFileSync(path.join(ROOT, "codebase", "backend", "package.json"), "utf8"),
+    ) as PackageManifest,
+  );
 }
 
 // ─── test-stages.sh 파싱 ────────────────────────────────────────────────────
@@ -401,9 +437,41 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
       const hd = `cmd_x() {\n  cat <<EOF\n}\nEOF\n  pnpm --filter @workflow/a lint\n}\n`;
       expect(() => fnBody(hd, "cmd_x")).toThrow(/heredoc/);
     });
+    it("tab-strip heredoc '<<-EOF' 변형도 throw", () => {
+      const hd = `cmd_x() {\n  cat <<-EOF\n  body\n  EOF\n  _run_internal lint\n}\n`;
+      expect(() => fnBody(hd, "cmd_x")).toThrow(/heredoc/);
+    });
     it("here-string '<<<' 은 heredoc 으로 오탐하지 않는다", () => {
       const hs = `cmd_x() {\n  grep foo <<<"$bar"\n  _run_internal lint\n}\n`;
       expect(() => fnBody(hs, "cmd_x")).not.toThrow();
+    });
+  });
+
+  describe("collectPackages / workflowDepsOf (fs 코어 분리)", () => {
+    it("collectPackages: name 해석기가 null 인 dir 은 skip 한다 (package.json 부재)", () => {
+      const got = collectPackages(["b", "a", "no-manifest"], (dir) =>
+        dir === "no-manifest" ? null : `@workflow/${dir}`,
+      );
+      expect(got).toEqual([
+        { dir: "a", name: "@workflow/a" },
+        { dir: "b", name: "@workflow/b" },
+      ]);
+    });
+    it("workflowDepsOf: dependencies + devDependencies 를 병합하고 @workflow/* 만 남긴다", () => {
+      expect(
+        workflowDepsOf({
+          dependencies: { "@workflow/b": "*", react: "*" },
+          devDependencies: { "@workflow/a": "*", vitest: "*" },
+        }),
+      ).toEqual(["@workflow/a", "@workflow/b"]);
+    });
+    it("workflowDepsOf: devDependencies 전용 @workflow 패키지도 누락 없이 포함", () => {
+      expect(workflowDepsOf({ devDependencies: { "@workflow/only-dev": "*" } })).toEqual([
+        "@workflow/only-dev",
+      ]);
+    });
+    it("workflowDepsOf: @workflow 의존이 없으면 []", () => {
+      expect(workflowDepsOf({ dependencies: { react: "*" } })).toEqual([]);
     });
   });
 
