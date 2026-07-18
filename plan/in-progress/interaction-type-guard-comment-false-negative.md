@@ -132,7 +132,7 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   신뢰")에 따라 미추가. 현행 사이트 전부 `.ts` 라 실 리스크도 없음(향후 `.tsx` 사이트 등록 시
   그때 실 필요와 함께 도입). 이 vacuous 성이 곧 원 결함(#968 false-negative)과 같은 계열이라
   추가하지 않는 게 정합.
-- [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
+- [x] **[harness, 비차단]** (분기 완료 → `harness-guard-followups.md` §H) impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
   대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
   앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
   재현됐다(checker 들이 fork-point SHA 재계산으로 자체 우회).
@@ -140,8 +140,10 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   (`review/consistency/2026/07/18/12_04_53/`)에서 번들러가 실 target(`interaction-type-registry.md`)을
   **"일부 누락"이 아니라 100% 치환**(`cafe24-api-catalog/**` 222개 field 파일이 예산 소진)하는
   더 심한 형태로 재현. checker 5/5 가 worktree 파일 직접 조사로 우회해 BLOCK:NO 는 유효.
-  본 항목은 interaction-type-guard 작업과 무관한 harness 인프라 결함이라 **별도 harness task 로 분기**
-  (아래 종결 처리 참조) — 이 분기로 본 plan 의 종결 조건을 충족한다.
+  본 항목은 interaction-type-guard 작업과 무관한 harness 인프라 결함이라 **기존 harness plan
+  [`harness-guard-followups.md`](./harness-guard-followups.md) §H 로 분기**(2026-07-18, commit 포함).
+  §H = "consistency-checker 번들러가 target spec 을 대용량 카탈로그 덤프로 100% 치환" + reverse-diff
+  diff-base 부수 항목. 이 분기로 본 항목의 후속 책임이 durable 하게 이관돼 본 plan 의 종결 조건을 충족한다.
 
 > **종결 조건**: 위 4건이 모두 해소되면(또는 별 plan 으로 분기되면) `complete/` 로
 > `git mv` + `chore(plan): mark interaction-type-guard-comment-false-negative complete`.
