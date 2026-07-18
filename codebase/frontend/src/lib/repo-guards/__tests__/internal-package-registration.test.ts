@@ -47,8 +47,11 @@ import path from "node:path";
 
 function repoRoot(): string {
   // 고정 `../../..` 카운트 대신 marker 로 탐색 — 파일이 이동해도 조용히 오해소되지 않는다.
+  // 상한 12 = 현재 실제 깊이(worktree 루트→이 파일 7단계)의 약 1.7배 여유. 무한 루프 방지용 상수라
+  // 정확한 값이 중요치 않고, 못 찾으면 아래에서 throw 한다.
+  const MAX_DEPTH = 12;
   let dir = __dirname;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < MAX_DEPTH; i++) {
     if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -113,19 +116,39 @@ function fnBody(sh: string, fn: string): string {
   const close = /^\}$/m.exec(rest);
   if (!close) throw new Error(`fnBody: ${fn} 의 닫는 '}' 를 찾지 못함`);
   const body = rest.slice(0, close.index);
+  // 조기 열림(early-open): 본문에 라인 시작 블록 '{' 이 들어오면 "첫 라인 시작 '}' = 함수 끝"
+  // 휴리스틱이 뒷부분을 놓친다.
   if (/^\s*(\{|[A-Za-z_]\w*\(\)\s*\{)\s*$/m.test(body)) {
     throw new Error(
       `fnBody: ${fn} 본문에 라인 시작 블록 '{' 이 있어 "첫 라인 시작 '}' = 함수 끝" 휴리스틱이 ` +
         `더 이상 안전하지 않다(본문 조기 절단 → 조용한 오판). 파서를 브레이스 카운팅으로 교체할 것.`,
     );
   }
+  // 조기 닫힘(early-close): heredoc 은 라인 시작 '}' 를 본문 내부에 등장시켜 휴리스틱을 실제
+  // 함수 끝보다 앞에서 절단시킨다(실측 재현: `cat <<EOF` … 개행 후 단독 '}' … `EOF`). 그 경우
+  // opener('<<')는 절단된 body 안에 남으므로 여기서 잡힌다. `<<<`(here-string)는 앞뒤 lookaround
+  // 로 제외. fail-loud — 이 가드가 막으려는 "조용한 조기 절단"(#968)을 파서 자신이 재현하지 않도록.
+  if (/(?<!<)<<-?(?!<)/.test(body)) {
+    throw new Error(
+      `fnBody: ${fn} 본문에 heredoc('<<')이 있어 라인 기반 '}' 휴리스틱이 조기 절단될 수 있다 ` +
+        `(조용한 패키지 누락). 파서를 heredoc 인식 방식으로 교체할 것.`,
+    );
+  }
   return body;
 }
 
-/** 본문 안의 명시적 `pnpm --filter <pkg> <script>` 호출. `"$pkg"` 같은 변수형은 무시. */
+/**
+ * 본문 안의 명시적 `pnpm --filter <pkg> <script>` 호출. `"$pkg"` 같은 변수형은 무시.
+ *
+ * 전제: 한 호출은 한 줄 안에 있어야 한다(`--filter`·pkg·script 가 백슬래시 줄바꿈으로 분리되면
+ * 인식 못 함). 현재 test-stages.sh 는 이 형태를 지키며, 어긋나면 아래 대조에서 "누락"으로
+ * 드러나므로(fail-loud) 조용한 오인식은 아니다.
+ */
 function explicitFilterCalls(body: string): { name: string; script: string }[] {
   return [...body.matchAll(/pnpm\s+--filter\s+"?([^\s"$]+)"?\s+"?([\w:-]+)"?/g)]
     .map((m) => ({ name: m[1], script: m[2] }))
+    // 캡처 클래스 `[^\s"$]` 가 이미 `$` 를 배제해 이 필터는 현재 도달 불가능하다. 정규식을 나중에
+    // 완화했을 때 변수형이 새지 않도록 남겨 둔 belt-and-suspenders(둘 다 바뀌어야 구멍이 생긴다).
     .filter((c) => !c.name.startsWith("$"));
 }
 
@@ -190,6 +213,33 @@ function packageDirsInPaths(paths: string[]): string[] {
     .sort();
 }
 
+/**
+ * 한 스테이지(lint/test/build) 본문에서 **실행되지 않는** 패키지명 목록.
+ *
+ * 커버 경로 두 가지: (a) `_run_internal <script>` 로 도는 `INTERNAL_PACKAGES` 소속,
+ * (b) 명시적 `pnpm --filter <pkg> <script>` 호출. 둘 다 아니면 누락.
+ *
+ * 순수 함수로 분리한 이유(리뷰 WARNING#2): 이 비교가 인라인이면 저장소 현재(=이미 정렬된)
+ * 상태만 읽어, `missing` 계산·Set 멤버십·커버 경로 판정에 회귀가 생겨도 스위트가 못 잡는다.
+ * 아래 합성 fixture 테스트가 이 함수에 직접 mutation 성 입력을 넣어 true-positive 를 고정한다.
+ */
+function missingFromStage(
+  body: string,
+  script: string,
+  internal: string[],
+  packageNames: string[],
+): string[] {
+  const viaInternal = new RegExp(`_run_internal\\s+${script}\\b`).test(body);
+  const explicit = new Set(
+    explicitFilterCalls(body)
+      .filter((c) => c.script === script)
+      .map((c) => c.name),
+  );
+  return packageNames.filter(
+    (name) => !explicit.has(name) && !(viaInternal && internal.includes(name)),
+  );
+}
+
 // ─── 단언 ───────────────────────────────────────────────────────────────────
 
 const STAGES = [
@@ -247,16 +297,12 @@ describe("내부 공유 패키지 등록 목록 drift 가드", () => {
       "$fn 이 모든 내부 패키지를 실행한다 (INTERNAL_PACKAGES 또는 전용 스텝)",
       ({ fn, script }) => {
         const body = fnBody(sh, fn);
-        const viaInternal = new RegExp(`_run_internal\\s+${script}\\b`).test(body);
-        const explicit = new Set(
-          explicitFilterCalls(body)
-            .filter((c) => c.script === script)
-            .map((c) => c.name),
+        const missing = missingFromStage(
+          body,
+          script,
+          internal,
+          packages.map((p) => p.name),
         );
-
-        const missing = packages
-          .filter((p) => !explicit.has(p.name) && !(viaInternal && internal.includes(p.name)))
-          .map((p) => p.name);
 
         expect(
           missing,
@@ -305,6 +351,139 @@ describe("내부 공유 패키지 등록 목록 drift 가드", () => {
         `matrix.pkg 가 backend 의 @workflow 의존과 불일치.\n` +
           `  기대: ${backendShared.join(", ")}\n  실제: ${actual.join(", ")}`,
       ).toEqual(backendShared);
+    });
+  });
+});
+
+// 위 describe 는 저장소 **현재(=이미 정렬된) 상태**만 읽으므로, 파서·비교 로직 자체에 회귀가
+// 생겨도(예: `missing` 계산 반전, Set 멤버십 오류, listAtPath 형제 키 혼동) green 이 유지될 수 있다.
+// 아래는 통제된 합성 입력으로 각 순수 함수의 true-positive/negative 를 박제한다 — 리뷰 시점에
+// 수동 mutation 으로만 확인했던 방어력(#968 클래스)을 스위트 안으로 들여 회귀를 고정한다 (WARNING#2).
+describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
+  describe("internalPackages", () => {
+    it("따옴표 항목을 순서대로 파싱한다", () => {
+      expect(internalPackages(`INTERNAL_PACKAGES=(\n  "@workflow/a"\n  "@workflow/b"\n)\n`)).toEqual([
+        "@workflow/a",
+        "@workflow/b",
+      ]);
+    });
+    it("배열 선언이 없으면 [] (→ vacuity 단언이 잡는다)", () => {
+      expect(internalPackages(`INTERNAL_PKGS=(\n  "@workflow/a"\n)\n`)).toEqual([]);
+    });
+  });
+
+  describe("fnBody", () => {
+    const sh = [
+      `cmd_lint() {`,
+      `  _ensure_deps && \\`,
+      `  pnpm --filter backend lint && \\`,
+      `  _run_internal lint`,
+      `}`,
+      ``,
+      `_helper() {`,
+      `  :`,
+      `}`,
+    ].join("\n");
+
+    it("여는 줄과 첫 라인 시작 '}' 사이 본문만 반환한다", () => {
+      const body = fnBody(sh, "cmd_lint");
+      expect(body).toContain("_run_internal lint");
+      expect(body).not.toContain("_helper"); // 첫 '}' 에서 멈춤 — 다음 함수로 새지 않는다
+    });
+    it("함수 선언이 없으면 throw (조용한 빈 본문 금지)", () => {
+      expect(() => fnBody(sh, "cmd_missing")).toThrow(/선언을 찾지 못함/);
+    });
+    it("본문 내 라인 시작 블록 '{' (조기 열림) → throw", () => {
+      const nested = `cmd_x() {\n  {\n    :\n  }\n  pnpm --filter @workflow/a lint\n}\n`;
+      expect(() => fnBody(nested, "cmd_x")).toThrow(/라인 시작 블록/);
+    });
+    it("본문 내 heredoc (조기 닫힘) → throw", () => {
+      const hd = `cmd_x() {\n  cat <<EOF\n}\nEOF\n  pnpm --filter @workflow/a lint\n}\n`;
+      expect(() => fnBody(hd, "cmd_x")).toThrow(/heredoc/);
+    });
+    it("here-string '<<<' 은 heredoc 으로 오탐하지 않는다", () => {
+      const hs = `cmd_x() {\n  grep foo <<<"$bar"\n  _run_internal lint\n}\n`;
+      expect(() => fnBody(hs, "cmd_x")).not.toThrow();
+    });
+  });
+
+  describe("explicitFilterCalls", () => {
+    it("한 줄 `pnpm --filter <pkg> <script>` 를 캡처한다", () => {
+      const body = `pnpm --filter @workflow/a lint && \\\n  pnpm --filter backend test`;
+      expect(explicitFilterCalls(body)).toEqual([
+        { name: "@workflow/a", script: "lint" },
+        { name: "backend", script: "test" },
+      ]);
+    });
+    it('변수형 --filter "$pkg" 는 무시한다', () => {
+      expect(explicitFilterCalls(`pnpm --filter "$pkg" build`)).toEqual([]);
+    });
+  });
+
+  describe("listAtPath + packageDirsInPaths", () => {
+    const yml = [
+      `on:`,
+      `  pull_request:`,
+      `    paths:`,
+      `      - 'codebase/packages/a/**'`,
+      `      - 'codebase/packages/b/**'`,
+      `      - 'pnpm-lock.yaml'`,
+      `  push:`,
+      `    paths:`,
+      `      - 'codebase/packages/a/**'`,
+    ]
+      .join("\n")
+      .split("\n");
+
+    it("중첩 키 경로의 리스트를 추출한다", () => {
+      expect(listAtPath(yml, ["on", "pull_request", "paths"])).toEqual([
+        "codebase/packages/a/**",
+        "codebase/packages/b/**",
+        "pnpm-lock.yaml",
+      ]);
+    });
+    it("형제 키(push)와 혼동하지 않는다", () => {
+      expect(listAtPath(yml, ["on", "push", "paths"])).toEqual(["codebase/packages/a/**"]);
+    });
+    it("없는 경로는 null (→ vacuity 단언이 잡는다)", () => {
+      expect(listAtPath(yml, ["on", "schedule", "paths"])).toBeNull();
+    });
+    it("packageDirsInPaths 는 packages dir 만 남긴다 (lockfile 제외)", () => {
+      const paths = listAtPath(yml, ["on", "pull_request", "paths"])!;
+      expect(packageDirsInPaths(paths)).toEqual(["a", "b"]);
+    });
+  });
+
+  describe("missingFromStage — #968 클래스(조용한 무검증)를 박제", () => {
+    const internal = ["@workflow/a", "@workflow/b"];
+    const bodyInternal = `_ensure_deps && \\\n  _run_internal lint`;
+
+    it("INTERNAL 소속 + _run_internal 커버 → 누락 없음", () => {
+      expect(
+        missingFromStage(bodyInternal, "lint", internal, ["@workflow/a", "@workflow/b"]),
+      ).toEqual([]);
+    });
+    it("신규 패키지가 INTERNAL 에도 명시 호출에도 없으면 → 누락 (실제 #968 시나리오)", () => {
+      const pkgs = ["@workflow/a", "@workflow/b", "@workflow/new"];
+      expect(missingFromStage(bodyInternal, "lint", internal, pkgs)).toEqual(["@workflow/new"]);
+    });
+    it("명시적 `pnpm --filter` 로 커버되면 → 누락 아님 (전용 스텝 경로)", () => {
+      const body = `${bodyInternal} && \\\n  pnpm --filter @workflow/special lint`;
+      expect(
+        missingFromStage(body, "lint", internal, ["@workflow/a", "@workflow/special"]),
+      ).toEqual([]);
+    });
+    it("그 스테이지에 _run_internal 이 없으면 → INTERNAL 전원 누락", () => {
+      const body = `_ensure_deps && \\\n  pnpm --filter backend lint`;
+      expect(missingFromStage(body, "lint", internal, internal)).toEqual([
+        "@workflow/a",
+        "@workflow/b",
+      ]);
+    });
+    it("다른 스테이지(build)용 명시 호출은 이 스테이지(lint)를 커버하지 않는다", () => {
+      expect(
+        missingFromStage(`pnpm --filter @workflow/x build`, "lint", [], ["@workflow/x"]),
+      ).toEqual(["@workflow/x"]);
     });
   });
 });
