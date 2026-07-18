@@ -2,6 +2,7 @@
 worktree: .claude/worktrees/resumable-handler-generic-typing-3918dd
 started: 2026-07-17
 owner: developer
+spec_impact: none
 ---
 
 # `ResumableNodeHandler` 제네릭화 — endReason 계약을 타입으로 잠그기
@@ -58,11 +59,13 @@ IE 가 `implements` 를 선언하는 순간 **TS2416** 이 난다. 즉 제네릭
   - #2 side_effect: 풀빌드 재확인 (fix 대상 아님)
   - #3 maintainability: bivariance/TS2416 근거를 `AssertEndReasonDomain` docblock SoT 로 통합, 나머지 `{@link}` 축약
   - #4 documentation: README Exports 절에 `UniversalEndReason` 추가
+- [x] fresh `/ai-review` (resolution 후 stale 해소, 커밋 후 `--branch origin/main`) — CRITICAL 0 / 신규 WARNING 1 / RISK LOW (`review/code/2026/07/18/10_39_46/SUMMARY.md`). **라우터 정상 실행** → 지난 세션(classifier 장애)의 수동 6명 제외가 라우터 독립 판단으로 사후 검증됨. 이전 라운드 WARNING 4건은 소스·빌드로그·tsconfig 실측으로 해소 검증
+- [x] fresh WARNING 1건 fix — fixture docblock 의 "zero runtime footprint" 부정확 서술 정정(더미 클래스·const 는 dist/ emit 되나 import 안 돼 inert). 커밋 `dd5f70e0a`, RESOLUTION `review/code/2026/07/18/10_39_46/RESOLUTION.md`. lint·build PASS 로 fixture 컴파일 게이트 정상 재확인 (주석-only → e2e 면제 화이트리스트)
 
-## 잔여 후속 (범위 밖, INFO)
+## 잔여 후속 — 전부 처리 완료 (미완 항목 0)
 
-- IE `endMultiTurnConversation` 이 `errorPayload`/`failedUserMessage`/`failedUserMessageSource` 미수용 → 엔진 호출 시 조용히 버려짐 (선재 갭). IE spec §5.6 `max_retries` 의 `output.error` 병존 규정과의 정합 판정은 별도 plan.
-- `AssertEndReasonDomain` lock 의 수동 opt-in 성격 — 3번째 resumable 노드가 lock 을 빠뜨리면 조용히 회귀. 지금은 구현체 2개뿐이라 즉시 조치 불요, handler-registry 순회 기반 강제는 향후 검토.
+- **IE `endMultiTurnConversation` errorPayload 미수용** (선재 갭, 본 작업 범위 밖) → **별도 backlog task `task_1844c96b` 로 분기 완료**. spec §5.6 `max_retries` 의 `output.error` 병존 규정 정합 판정은 그 task 가 담당. 이 plan 의 미완 항목 아님.
+- **`AssertEndReasonDomain` lock 의 수동 opt-in 성격** → **defer 확정** (재요청 금지). 구현체 2개뿐이라 즉시 조치 불요. handler-registry 순회 기반 강제는 3번째 resumable 노드 도입이 실제 트리거될 때 재검토 — 현시점 투기적 일반화라 하지 않는다. INFO 로만 인지.
 
 ## spec 영향
 
