@@ -2,6 +2,7 @@
 name: interaction-type-guard-comment-false-negative
 worktree: interaction-type-regex-fix-2303a6
 started: 2026-07-17
+completed: 2026-07-18
 owner: developer
 spec_impact:
   - spec/conventions/interaction-type-registry.md
@@ -146,11 +147,14 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   해소, TemplateExpression 미수집=현 사이트 미사용 향후과제, describe 중복/네이밍=diff
   밖 유지보수 nit). Critical+Warning=0 이라 RESOLUTION 불요. 산출
   `review/code/2026/07/18/12_36_08/SUMMARY.md`.
-- [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
-  대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
-  앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
-  재현됐다(checker 들이 fork-point SHA 재계산으로 자체 우회).
+- [x] **[harness, 비차단 · 관찰 항목으로 종결]** impl-done INFO #1·#2 — consistency 번들러가
+  `cafe24-api-catalog/**` 대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main`
+  이 fork-point 보다 앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 **기존 known failure
+  pattern** 이며 이번에도 재현됐다(checker 들이 fork-point SHA 재계산으로 자체 우회). 이 plan
+  이 만든 결함이 아니고 여기서 액션할 대상도 아니다 — harness 레벨 관찰 항목으로 **비-액션
+  종결**한다(별도 harness 백로그가 다룰 사안). 본 plan 의 실작업(①②③)과 무관하므로 종결 차단
+  아님.
 
-> **종결 조건**: 위 4건이 모두 해소되면(또는 별 plan 으로 분기되면) `complete/` 로
-> `git mv` + `chore(plan): mark interaction-type-guard-comment-false-negative complete`.
-> Gate C 대비 frontmatter `spec_impact` 는 이미 리스트 형식으로 채워져 있다.
+> **종결**: ①(#977 upstream)·②·③ 실작업 완료 + 3라운드 `/ai-review` clean 수렴(C0/W0),
+> ④는 비-액션 harness 관찰 항목으로 종결. 사용자 결정(2026-07-18)에 따라 `complete/` 이동.
+> Gate C: frontmatter `spec_impact` 리스트 형식 충족.
