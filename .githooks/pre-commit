@@ -10,7 +10,8 @@
 # Both guards delegate to shared logic so this hook and the Claude Code
 # hooks stay one source of truth: branch policy in
 # .claude/hooks/_lib/branch_guard.py, mermaid parsing in
-# .claude/tools/mermaid-lint/lint-mermaid.mjs.
+# .claude/tools/mermaid-lint/lint-mermaid.mjs, and mermaid-lint readiness
+# (is the tooling installed?) in .claude/hooks/_lib/mermaid_lint_ready.py.
 #
 # Failure mode: every guard fails open (allows the commit) if its tooling
 # can't load — a broken guard must not block routine work. The Claude Code

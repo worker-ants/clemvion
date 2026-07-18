@@ -33,46 +33,46 @@ fi
 
 # 2. Ensure mermaid-lint deps (install once; skip if already present).
 #
-#    Several worktree sessions at once is this repo's documented workflow
-#    (worktree-policy.md), and on a cold checkout they all reach this branch at
-#    the same moment. Four guards, each closing a distinct failure mode:
+#    Two guards. NOT a mutual-exclusion lock — see the design note below.
 #
 #    - A COMPLETION MARKER, rather than a bare `[ -d node_modules ]` test. An
 #      install cut short — a crashed session, or two interleaving into one tree —
 #      leaves a PARTIAL node_modules that the directory test then accepts
 #      forever, so mermaid lint stays disabled with no signal at all. The marker
-#      is the single "install finished" signal; the pre-commit and PostToolUse
-#      lint guards read the SAME marker (via _lib/mermaid_lint_ready.py) so all
-#      three agree. It lives INSIDE node_modules on purpose, so deleting the tree
-#      deletes the marker with it. (One-off: a good install from before the
-#      marker existed reinstalls once.)
+#      is the single "install finished" signal, written only after npm exits 0;
+#      the pre-commit and PostToolUse lint guards read the SAME marker (via
+#      _lib/mermaid_lint_ready.py) so all three agree on "installed". It lives
+#      INSIDE node_modules on purpose, so deleting the tree deletes the marker
+#      with it — `rm -rf node_modules` is the recovery for a bad tree, and it
+#      re-arms the install. (One-off: a good install from before the marker
+#      existed reinstalls once.)
 #
-#    - An OWNER-AWARE `mkdir` LOCK — atomic and portable, unlike flock, which
-#      macOS lacks — so two sessions never npm-install into the same tree
-#      concurrently. The loser SKIPS instead of waiting: bootstrap must never
-#      block a session, and the marker means the next session picks the work up.
+#    - A FAILURE THROTTLE. Without it a persistently failing install (network
+#      down, auth expired) would retry on EVERY SessionStart with no backoff —
+#      the same unbounded-retry shape the reaper section already solves with
+#      REAP_MIN_INTERVAL. A failure stamps a cooldown file; retries inside
+#      MERMAID_INSTALL_RETRY_SEC (default 30 min) are skipped.
 #
-#    - LIVENESS, not elapsed time, decides a steal. The lock records its holder's
-#      PID; a lock is stolen only when `kill -0` proves that PID is gone (plus a
-#      grace age, so a PID freshly reused by an unrelated process is not trusted
-#      on its own). An earlier version stole purely on a 10-minute age — which
-#      re-created the very bug this fixes: a live-but-slow install (a throttled
-#      sandbox network) that crosses 10 min had its lock stolen and a SECOND
-#      npm install ran into the same tree. Release is owner-checked too: a
-#      session only removes a lock it still owns (see the `rm -rf`, not
-#      rmdir, note below), so it can't delete a lock a stealer already
-#      re-acquired.
-#
-#    - A FAILURE THROTTLE. Without the marker a persistently failing install
-#      (network down, auth expired) would retry on EVERY SessionStart with no
-#      backoff — the same unbounded-retry shape the reaper section already
-#      solves with REAP_MIN_INTERVAL. A failure stamps a cooldown file; retries
-#      inside MERMAID_INSTALL_RETRY_SEC (default 30 min) are skipped.
+#    NO LOCK, deliberately. Earlier revisions here hand-rolled a `mkdir` lock
+#    with an owner PID + grace age + stale-lock steal. Its reclaim path was a
+#    check-then-act TOCTOU: two sessions observing the same dead lock both
+#    `rm -rf` + `mkdir`, and the loser deletes the winner's fresh lock, so both
+#    install concurrently — the very race the lock was meant to stop
+#    (reproduced, review/code/2026/07/18/02_06_42 C1). The correct primitive is
+#    OS advisory locking (fcntl.flock, auto-released on death), not a filesystem
+#    lock reinvented in bash. We chose to DROP the lock rather than reintroduce
+#    that complexity: the marker already delivers the actual goal (a partial or
+#    failed install never counts as done, and self-heals next session). Residual,
+#    accepted: several sessions hitting the *first* cold install within the same
+#    instant can still npm-install concurrently; npm is not concurrency-safe into
+#    one dir, so that narrow window can produce a bad tree. Worst case is a
+#    corrupt-but-marked node_modules needing a manual `rm -rf node_modules`
+#    (which re-arms the install). This is a rare first-install-only window on a
+#    dev-tooling linter, judged not worth a hand-rolled lock whose safety keeps
+#    being wrong. A real fix, if ever needed, is fcntl.flock — see plan §G.
 tool_dir="$main_root/.claude/tools/mermaid-lint"
 marker="$tool_dir/node_modules/.bootstrap-install-complete"
-lock="$tool_dir/.install.lock"
 fail_marker="$main_root/.claude/state/mermaid_install_last_fail"
-lock_grace="${MERMAID_INSTALL_LOCK_GRACE_SEC:-600}"     # min age before a dead-PID lock is stolen
 retry_after="${MERMAID_INSTALL_RETRY_SEC:-1800}"        # cooldown after a failed install
 
 _file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
@@ -84,72 +84,15 @@ _install_throttled() {
     [ $(( $(date +%s) - $(_file_mtime "$fail_marker") )) -lt "$retry_after" ]
 }
 
-# True when the existing lock may be stolen: it has aged past the grace window
-# AND its recorded owner PID is no longer alive. The age gate comes first and
-# matters on its own — a lock is only ever young for two reasons, and both must
-# NOT be stolen: (a) a live holder just created it (owner PID alive anyway), or
-# (b) a stealer just re-acquired it (its fresh mkdir reset the mtime). So a
-# just-reacquired lock is always young and thus safe from a second stealer,
-# which is what stops steals from cascading. Only past the grace age do we
-# consult liveness: a labelled lock is stolen only if `kill -0` proves its PID
-# gone; an unreadable/garbage owner falls back to age alone (better to reclaim
-# an unlabelled stale lock eventually than wedge forever).
-#
-# Known limitation (W12, 00_59_56 review, not fixed here): `kill -0` alone is
-# exposed to PID reuse (ABA) — if the real owner died and its PID number is
-# later reassigned to an unrelated process, a steal attempt sees "alive" and
-# leaves the lock wedged until that unrelated process also exits. This is the
-# opposite direction of the bug this function fixes (a live holder mistaken
-# for dead), and it fails SAFE (installs stay skipped, never duplicated or
-# corrupted) — plus it only matters past the grace age, on macOS's single PID
-# space, so the odds are low. Tracked, not fixed, in
-# plan/in-progress/harness-guard-followups.md §A; a real fix would key the
-# owner on (PID, start time) instead of PID alone.
-_lock_is_dead() {
-    [ -d "$lock" ] || return 1
-    # Seconds-based age, mirroring _install_throttled above. The previous
-    # `find -mmin "-$(( lock_grace / 60 ))"` converted the grace to minutes via
-    # bash integer division, which truncates any sub-60s grace to 0 — and
-    # `find -mmin -0` matches nothing at ANY age (verified), silently disabling
-    # the age gate rather than gating at "0 minutes" (W1).
-    [ $(( $(date +%s) - $(_file_mtime "$lock") )) -ge "$lock_grace" ] || return 1
-    local owner; owner=$(cat "$lock/owner" 2>/dev/null || echo "")
-    case "$owner" in
-        ''|*[!0-9]*) return 0 ;;                        # unlabelled/garbage → age alone decides
-        *) ! kill -0 "$owner" 2>/dev/null ;;            # labelled → steal only if PID is gone
-    esac
-}
-
 if [ -f "$tool_dir/package.json" ] && [ ! -f "$marker" ] \
    && ! _install_throttled && command -v npm >/dev/null 2>&1; then
-    # `rm -rf`, not rmdir: the lock dir holds an `owner` file, and a genuinely
-    # dead+aged lock cannot also be a fresh re-acquisition (that would be young),
-    # so removing it here cannot clobber a live holder.
-    _lock_is_dead && rm -rf "$lock" 2>/dev/null
-    if mkdir "$lock" 2>/dev/null; then
-        echo "$$" > "$lock/owner" 2>/dev/null || true
-        echo "bootstrap: installing mermaid-lint deps (one-time)…"
-        # Known limitation (W2, 00_59_56 review, not fixed here): no timeout wraps
-        # this npm install. A hang (not a crash, not a failure — genuinely stuck,
-        # e.g. a wedged registry connection) blocks THIS session indefinitely,
-        # which is in tension with "bootstrap must never block a session" above.
-        # Blast radius is scoped to the one session holding the lock: every other
-        # concurrent session's `mkdir` fails immediately and skips (see below), so
-        # it cannot cascade. Left unfixed here because a portable watchdog is a
-        # separate, non-trivial change (macOS ships no `timeout`/`gtimeout` by
-        # default); tracked in plan/in-progress/harness-guard-followups.md §A.
-        if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
-            : > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
-            rm -f "$fail_marker" 2>/dev/null || true
-        else
-            echo "bootstrap: mermaid-lint install failed (lint fails open; will retry after cooldown)" >&2
-            mkdir -p "$(dirname "$fail_marker")" 2>/dev/null && : > "$fail_marker" 2>/dev/null || true
-        fi
-        # Owner-checked release: only remove the lock if we STILL own it. We are
-        # alive here, so a stealer could not have taken it (its kill -0 on us
-        # would succeed) — the check defends against the unlabelled-owner steal
-        # path, where age alone could have handed the lock to someone else.
-        [ "$(cat "$lock/owner" 2>/dev/null || echo)" = "$$" ] && rm -rf "$lock" 2>/dev/null
+    echo "bootstrap: installing mermaid-lint deps (one-time)…"
+    if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
+        : > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
+        rm -f "$fail_marker" 2>/dev/null || true
+    else
+        echo "bootstrap: mermaid-lint install failed (lint fails open; will retry after cooldown)" >&2
+        mkdir -p "$(dirname "$fail_marker")" 2>/dev/null && : > "$fail_marker" 2>/dev/null || true
     fi
 fi
 

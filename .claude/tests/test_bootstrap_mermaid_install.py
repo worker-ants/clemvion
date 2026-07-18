@@ -2,29 +2,24 @@
 
 The install runs at SessionStart in the MAIN checkout, which every worktree
 shares. Running several worktree sessions at once is the documented workflow,
-so on a cold checkout they all reach the install at the same moment. Two
-failures follow from that, and these tests pin both:
+so on a cold checkout they all reach the install at the same moment. The guard
+is marker-based, and these tests pin what it does — and, as of the
+review/code/2026/07/18/02_06_42 round, honestly pin what it does NOT do:
 
-  - two sessions npm-installing into one tree concurrently, and
-  - the *persistent* consequence: a partial node_modules that a bare
-    `[ -d node_modules ]` test accepts forever, leaving mermaid lint silently
-    disabled with no signal.
+  - a partial node_modules (dir but no completion marker) must reinstall, not be
+    accepted forever as "installed" — the silent-permanent-disable failure this
+    guard exists to eliminate;
+  - a failed install must leave no marker (so it retries) and stamp a cooldown
+    (so it does not hammer npm on every SessionStart);
+  - concurrent cold-start sessions are NOT serialised — the earlier hand-rolled
+    `mkdir` lock was dropped after its stale-lock steal proved to be a
+    reproducible check-then-act race (02_06_42 C1). What the marker still
+    guarantees is CONVERGENCE, not exactly-once: once the dust settles the
+    marker exists and every later session skips. `test_concurrent_cold_start_*`
+    pins that weaker-but-real property.
 
 `npm` is stubbed on PATH (never the network), and it records each invocation so
 a test can assert how many installs actually happened.
-
-Two more axes were added once the stale-lock steal above got a real fix
-(00_59_56 review round — not just "pin the two failures", also pin the fix):
-
-  - LOCK LIVENESS — a stolen lock must be both aged past its grace window AND
-    have a dead owner PID (`kill -0`), not age alone (an earlier version stole
-    purely on elapsed time and re-broke concurrency: a live-but-slow install
-    lost its lock to a second installer). See the `_plant_lock` helper and the
-    `test_*_lock_is_*stolen*` / `test_sub_minute_grace_*` methods.
-  - FAILURE THROTTLE — a persistently failing install (network down) must back
-    off rather than retry on every SessionStart with no signal of its own. See
-    the `test_failed_install_is_throttled_*` / `test_failed_install_retries_*`
-    methods.
 """
 
 from __future__ import annotations
@@ -41,8 +36,8 @@ import _harness  # noqa: F401
 BOOTSTRAP_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 
 # Records one line per call (with the caller's PID so a test can prove two
-# installs overlapped), optionally sleeps to model a slow-but-alive install,
-# and materialises node_modules like a real install.
+# installs overlapped), optionally sleeps to model a slow install, and
+# materialises node_modules like a real install.
 _NPM_STUB = """#!/usr/bin/env bash
 echo "call pid=$PPID start=$(date +%s)" >> "$NPM_CALL_LOG"
 [ "${NPM_SLEEP:-0}" != "0" ] && sleep "$NPM_SLEEP"
@@ -75,7 +70,6 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self._write(os.path.join(self.tool_dir, "package.json"), '{"name":"x"}\n')
         self.marker = os.path.join(self.tool_dir, "node_modules",
                                    ".bootstrap-install-complete")
-        self.lock = os.path.join(self.tool_dir, ".install.lock")
         self.fail_marker = os.path.join(self.repo, ".claude", "state",
                                         "mermaid_install_last_fail")
 
@@ -96,8 +90,8 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _env(self, fail=False, sleep=0, retry_after=0, lock_grace=None):
-        """One place builds the bootstrap env (WARNING #6 — no per-test copies).
+    def _env(self, fail=False, sleep=0, retry_after=0):
+        """One place builds the bootstrap env.
 
         Throttle defaults OFF (retry_after=0), matching how the reap tests set
         REAP_MIN_INTERVAL=0: a cooldown left on by default would make every
@@ -109,17 +103,14 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         env["NPM_STUB_FAIL"] = "1" if fail else "0"
         env["NPM_SLEEP"] = str(sleep)
         env["MERMAID_INSTALL_RETRY_SEC"] = str(retry_after)
-        if lock_grace is not None:
-            env["MERMAID_INSTALL_LOCK_GRACE_SEC"] = str(lock_grace)
         # reap section is inert here: reap-merged-worktrees.sh is not copied into
         # this fixture, so the whole section is skipped regardless of these.
         env["REAP_MIN_INTERVAL"] = "0"
         env["REAP_GH_BIN"] = os.path.join(self.tmp, "no-such-gh")
         return env
 
-    def _run(self, fail=False, sleep=0, retry_after=0, lock_grace=None):
-        env = self._env(fail=fail, sleep=sleep, retry_after=retry_after,
-                        lock_grace=lock_grace)
+    def _run(self, fail=False, sleep=0, retry_after=0):
+        env = self._env(fail=fail, sleep=sleep, retry_after=retry_after)
         return subprocess.run(["bash", self.bootstrap], cwd=self.repo, env=env,
                               capture_output=True, text=True, timeout=60)
 
@@ -129,7 +120,7 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         with open(self.call_log) as f:
             return len([ln for ln in f if ln.strip()])
 
-    # --- tests -------------------------------------------------------------
+    # --- marker: install once, skip once installed --------------------------
     def test_installs_once_and_writes_completion_marker(self):
         r = self._run()
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -161,44 +152,17 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.assertEqual(self._npm_calls(), 2)
         self.assertTrue(os.path.isfile(self.marker))
 
-    def test_held_lock_makes_this_session_skip_rather_than_race(self):
-        os.makedirs(self.lock)  # another session is mid-install
-        r = self._run()
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self._npm_calls(), 0,
-                         "must not install while another session holds the lock")
-        self.assertTrue(os.path.isdir(self.lock), "someone else's lock is not ours to drop")
+    # --- concurrency: marker-only converges, it does NOT serialise ----------
+    def test_concurrent_cold_start_converges_and_then_stops_reinstalling(self):
+        """No lock (02_06_42 C1): concurrent cold-start sessions are NOT
+        serialised — several may npm-install at once, the accepted residual
+        documented in bootstrap-session.sh's design note. What the marker still
+        guarantees is CONVERGENCE: once they finish, the marker exists and every
+        later session skips. This pins that property, not the exactly-once the
+        dropped lock used to (over-)promise.
 
-    def test_stale_lock_is_stolen_so_it_cannot_wedge_forever(self):
-        """A lock is only safe if a crashed holder cannot disable installs for good."""
-        os.makedirs(self.lock)
-        old = time.time() - 3600  # 1h — well past the 10min steal threshold
-        os.utime(self.lock, (old, old))
-        self._run()
-        self.assertEqual(self._npm_calls(), 1, "a stale lock must be stolen")
-        self.assertTrue(os.path.isfile(self.marker))
-
-    def test_lock_is_released_after_a_successful_install(self):
-        self._run()
-        self.assertFalse(os.path.exists(self.lock), "lock must not leak")
-
-    def test_lock_is_released_after_a_failed_install(self):
-        self._run(fail=True)
-        self.assertFalse(os.path.exists(self.lock),
-                         "a failed install must still release the lock")
-
-    def test_concurrent_sessions_install_at_most_once(self):
-        """The race itself: several sessions starting at the same moment.
-
-        stdout/stderr go to DEVNULL, not PIPE (WARNING #5): undrained PIPEs can
-        fill the OS buffer and deadlock the children while the parent waits.
-
-        W9: asserts EXACTLY one install, not merely "at most one". The old
-        `assertLessEqual(..., 1)` also passed if all 5 sessions raced the mkdir
-        and every one of them lost/skipped — i.e. the install silently never
-        happens at all, the exact no-signal failure class this whole guard
-        exists to eliminate. The completion marker assertion pins the same
-        thing from the other side: some session must have actually finished.
+        stdout/stderr go to DEVNULL, not PIPE: undrained PIPEs can fill the OS
+        buffer and deadlock the children while the parent waits.
         """
         env = self._env()
         procs = [subprocess.Popen(["bash", self.bootstrap], cwd=self.repo, env=env,
@@ -206,110 +170,18 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
                  for _ in range(5)]
         for p in procs:
             p.wait(timeout=60)
-        self.assertEqual([p.returncode for p in procs], [0] * 5)
-        self.assertEqual(self._npm_calls(), 1,
-                         "the mkdir lock must serialise the cold-start race to exactly one install")
+        self.assertEqual([p.returncode for p in procs], [0] * 5,
+                         "bootstrap must never block a session, even racing")
+        self.assertGreaterEqual(self._npm_calls(), 1,
+                                "at least one racing session must install")
         self.assertTrue(os.path.isfile(self.marker),
-                        "one of the 5 racing sessions must have completed the install")
+                        "the racing sessions must converge to a completion marker")
+        converged = self._npm_calls()
+        self._run()  # a fresh session, now that the marker exists
+        self.assertEqual(self._npm_calls(), converged,
+                         "once converged, a later session must not reinstall")
 
-    # --- lock liveness (WARNING #1: steal on liveness, not elapsed time) -----
-    def _plant_lock(self, owner_pid, age_seconds):
-        """A held lock owned by `owner_pid`, with its dir mtime aged.
-
-        owner is written BEFORE aging: creating the file bumps the dir mtime, so
-        the utime must come last or the age is lost.
-        """
-        os.makedirs(self.lock)
-        if owner_pid is not None:
-            with open(os.path.join(self.lock, "owner"), "w") as f:
-                f.write(str(owner_pid))
-        old = time.time() - age_seconds
-        os.utime(self.lock, (old, old))
-
-    def test_live_but_slow_lock_is_not_stolen_even_when_aged(self):
-        """The reviewer-reproduced regression: an install that is slow but ALIVE
-        (owner PID still running) crossed the old pure-age threshold and had its
-        lock stolen, so a second npm install ran into the same tree. Liveness,
-        not age, must gate the steal."""
-        holder = subprocess.Popen(["sleep", "30"])
-
-        def _reap():
-            holder.kill()
-            holder.wait()  # reap the zombie so no ResourceWarning leaks
-        self.addCleanup(_reap)
-        self._plant_lock(holder.pid, age_seconds=3600)  # aged well past grace
-        r = self._run()  # default grace 600s → aged, but owner is alive
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self._npm_calls(), 0,
-                         "a live holder's lock must never be stolen, however old")
-        self.assertTrue(os.path.isdir(self.lock), "the live holder's lock must survive")
-
-    def test_dead_pid_lock_is_stolen(self):
-        """The legitimate steal: the recorded owner is gone, so reclaim it."""
-        corpse = subprocess.Popen(["true"])
-        corpse.wait()  # its PID is now dead (reaped)
-        self._plant_lock(corpse.pid, age_seconds=3600)
-        self._run()
-        self.assertEqual(self._npm_calls(), 1, "a dead holder's lock must be reclaimed")
-        self.assertTrue(os.path.isfile(self.marker))
-
-    def test_young_dead_pid_lock_is_not_stolen(self):
-        """Liveness alone is not enough — the grace age still gates the steal, so
-        a PID number freshly reused by an unrelated process is not trusted to
-        hand the lock over immediately."""
-        corpse = subprocess.Popen(["true"])
-        corpse.wait()
-        self._plant_lock(corpse.pid, age_seconds=0)  # dead owner but brand-new lock
-        r = self._run()
-        self.assertEqual(self._npm_calls(), 0,
-                         "a young lock must be left alone regardless of owner liveness")
-        self.assertTrue(os.path.isdir(self.lock))
-
-    # --- sub-minute grace (W1: bash `lock_grace / 60` truncation) -------------
-    #
-    # `_lock_is_dead` used to convert lock_grace to minutes for `find -mmin` via
-    # bash integer division. Any grace under 60s truncates to 0, and
-    # `find -mmin -0` matches NOTHING regardless of a file's age (confirmed by
-    # direct experiment: a brand-new file and a months-old file both produce no
-    # match) — so the age gate silently misjudged every age as already-expired.
-    # lock_grace=30 exercises exactly that non-multiple-of-60 path.
-    def test_sub_minute_grace_young_dead_pid_lock_is_not_stolen(self):
-        """age=5s < grace=30s: liveness aside, the lock is too young to steal.
-
-        Non-vacuity: under the pre-fix `find -mmin "-$(( 30/60 ))"` == `-mmin -0`
-        code this always matches nothing, so the (bugged) age gate treated EVERY
-        age — including this 5s one — as already past grace, and stole it. This
-        assertion fails against that code and only passes once the age math is
-        seconds-based.
-        """
-        corpse = subprocess.Popen(["true"])
-        corpse.wait()
-        self._plant_lock(corpse.pid, age_seconds=5)
-        r = self._run(lock_grace=30)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self._npm_calls(), 0,
-                         "a dead-owner lock younger than a sub-minute grace must not be stolen")
-        self.assertTrue(os.path.isdir(self.lock), "the young lock must survive")
-
-    def test_sub_minute_grace_dead_pid_lock_is_stolen_once_aged_past_it(self):
-        """age=40s >= grace=30s: old enough, and the owner is dead — must steal.
-
-        Paired with the test above: the pre-fix bug made BOTH ages look
-        "expired" (find -mmin -0 always empty), so on its own this assertion
-        would already pass under the bug and prove nothing. It is the sibling
-        age=5s case that catches the regression; this one confirms the fix
-        still steals when it legitimately should.
-        """
-        corpse = subprocess.Popen(["true"])
-        corpse.wait()
-        self._plant_lock(corpse.pid, age_seconds=40)
-        r = self._run(lock_grace=30)
-        self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(self._npm_calls(), 1,
-                         "a dead-owner lock aged past a sub-minute grace must be stolen")
-        self.assertTrue(os.path.isfile(self.marker))
-
-    # --- failure throttle (WARNING #3) ---------------------------------------
+    # --- failure throttle ---------------------------------------------------
     def test_failed_install_is_throttled_within_cooldown(self):
         self._run(fail=True, retry_after=1800)      # fails, stamps cooldown
         self.assertTrue(os.path.exists(self.fail_marker), "failure must stamp a cooldown")
@@ -327,7 +199,6 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(self.marker))
         self.assertFalse(os.path.exists(self.fail_marker),
                          "a successful install must clear the cooldown stamp")
-        self.assertTrue(os.path.isfile(self.marker))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-07-18T02:06:42.610181",
+  "files": [
+    {
+      "file_path": ".claude/tools/bootstrap-session.sh",
+      "change_type": "Review",
+      "file_extension": "sh"
+    },
+    {
+      "file_path": ".claude/hooks/lint_mermaid_posttooluse.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/hooks/_lib/mermaid_lint_ready.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".githooks/pre-commit",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": ".github/workflows/harness-checks.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": ".claude/tests/test_bootstrap_mermaid_install.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tests/test_mermaid_lint_ready.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "all",
+  "agents_explicit": false,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
