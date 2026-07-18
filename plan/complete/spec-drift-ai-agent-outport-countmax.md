@@ -1,7 +1,15 @@
 ---
-worktree: (unstarted)
+worktree: zealous-benz-96022b
 started: 2026-07-16
 owner: project-planner
+spec_impact:
+  - spec/4-nodes/_product-overview.md
+  - spec/4-nodes/3-ai/_product-overview.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
+  - spec/4-nodes/3-ai/0-common.md
+  - spec/4-nodes/4-integration/4-cafe24.md
+  - spec/2-navigation/4-integration.md
+  - spec/0-overview.md
 ---
 
 # Spec drift — AI Agent: multi-turn `out` 포트 + `AI_AGENT_TOOL_COUNT_MAX` vs 카탈로그
@@ -19,7 +27,7 @@ owner: project-planner
 
 - `spec/4-nodes/3-ai/1-ai-agent.md:216` "Multi Turn 모드에는 **`out` 포트가 존재하지 않는다**", `:231-232` (조건 0개 multi_turn 의 `out` 엣지 dangling 처리 — 마이그레이션 절)
 - vs `spec/4-nodes/3-ai/_product-overview.md:84` (ND-AG-24 "조건 0개 시 `out` + `error` 제공 (하위 호환)"), `spec/4-nodes/_product-overview.md:215` (동일 ND-AG-24 "하위 호환") — **정반대 서술**
-- [ ] 처분: 실제 코드(`ai-agent.handler.ts`/`ai-turn-executor.ts`) out-port 동작을 SoT 로 확정 후 (a) 기술 spec 이 맞으면 두 `_product-overview.md` 의 하위호환 문구 삭제, 또는 (b) 반대면 `1-ai-agent.md` §3.2·마이그레이션 절 정정.
+- [x] 처분 **완료 (2026-07-18)**: 코드 SoT 양축 확정 — frontend `resolve-dynamic-ports.ts`(`aiAgentConditionalPorts` 0-조건 multi_turn = `user_ended`/`max_turns`/`error`, `out` 미발행; 테스트 `resolve-dynamic-ports.test.ts`) + backend `ai-turn-executor.ts` `multiTurnPortForEndReason`(`out` 미귀결) → **기술 spec §3.2 정본 확정**. (a) 두 `_product-overview.md` ND-AG-24 의 "조건 0개 하위호환 out" 문구 삭제(조건 0개도 `out` 없음), `1-ai-agent.md §12.17` Rationale 에 근거(=미실현 잔재 삭제, 번복 아님) 명문화. consistency `--spec`(12_26_31) BLOCK:NO 통과. `1-ai-agent.md` frontmatter `pending_plans` 에서 본 plan 제거(→ `node-output-redesign/ai-agent.md` 로 대체).
 
 ## Critical 2 — `AI_AGENT_TOOL_COUNT_MAX=128` 기본값이 Cafe24/MakeShop 기본 연결 상시 초과
 

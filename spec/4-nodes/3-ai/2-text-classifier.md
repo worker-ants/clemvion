@@ -129,7 +129,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> LLM 3 노드 공통 규약 ([공통 §5](./0-common.md#5-응답-형식-규약-principle-11)) 에 따라 도메인 결과는 `output.result.*` wrapper 하위에 둔다. 에러는 `output.error.{code, message, details?}` 표준 shape (Principle 3.2). 토큰/모델 메트릭은 `meta.*` (Principle 2).
+> LLM 3 노드 공통 규약 ([공통 §5](./0-common.md#5-응답-형식-규약)) 에 따라 도메인 결과는 `output.result.*` wrapper 하위에 둔다. 에러는 `output.error.{code, message, details?}` 표준 shape (Principle 3.2). 토큰/모델 메트릭은 `meta.*` (Principle 2).
 
 ### 5.1 Case: Single-label 모드 (`<category.id>` 또는 `fallback` 포트)
 
@@ -382,6 +382,6 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 설계 결정의 SoT 는 다음 참조 (본 노드 단독 결정 없음 — 공통 규약을 그대로 따른다):
 
 - AI 카테고리 공통 규약: [공통 0-common.md](./0-common.md)
-- 응답 wrapper / 토큰 회계 / Conversation Thread / System Context Prefix: [공통 §5](./0-common.md#5-응답-형식-규약-principle-11), [§6](./0-common.md#6-토큰-회계-meta), [§10](./0-common.md#10-conversation-context-자동-컨텍스트-주입), [§11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix)
+- 응답 wrapper / 토큰 회계 / Conversation Thread / System Context Prefix: [공통 §5](./0-common.md#5-응답-형식-규약), [§6](./0-common.md#6-토큰-회계-meta), [§10](./0-common.md#10-conversation-context-자동-컨텍스트-주입), [§11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix)
 
 `includeSystemContext` / `systemContextSections` config echo 는 default 값과 일치하면 생략한다 ([공통 §11.7](./0-common.md#117-config-echo)).

@@ -187,7 +187,7 @@ Information Extractor 는 ai_agent 와 매우 유사한 구조 (single/multi tur
 
 5. **에러 컨트랙트 (Principle 3)**:
    - 4 코드 모두 발화 가능 — `LLM_CALL_FAILED` (single `:519-530`, multi `:788-797`, multi mid-conv `:886-892`) / `LLM_RESPONSE_INVALID` (single `:600-608`, 3 attempt 후) / `MAX_COLLECTION_RETRIES_EXCEEDED` (`:1243` multi `max_retries` 종결 envelope `:1234-1267`).
-   - multi-turn `max_retries` 의 `output.error + output.result` 병존 (`:1234-1267`) 은 spec §5.6.4 / `[공통 §5](../../../spec/4-nodes/3-ai/0-common.md#5-응답-형식-규약-principle-11)` 의 부분 보존 패턴 정합. 부합.
+   - multi-turn `max_retries` 의 `output.error + output.result` 병존 (`:1234-1267`) 은 spec §5.6.4 / `[공통 §5](../../../spec/4-nodes/3-ai/0-common.md#5-응답-형식-규약)` 의 부분 보존 패턴 정합. 부합.
    - multi-turn `LLM_CALL_FAILED` (종결 경로 `:1271-1295`) 도 `output.error + output.result` 병존 — spec §5.3 footnote ("multi-turn LLM_CALL_FAILED: result 와 병존") 정합.
    - **retryability 신규(2026-06-25)**: `retryabilityDetails` (`:1384-1395`) 가 모든 LLM 에러 envelope 에 `details.retryable` (+ retryable 시 provider Retry-After 기반 `retryAfterSec`) 를 첨부 (spec §5.3 / Principle 3.2.1). `extractRetryAfterMs` 는 #661 로 `shared/utils/retry-after` 공통화. transient(`LLM_CALL_FAILED`/`LLM_RATE_LIMIT`) = retryable, deterministic(`LLM_RESPONSE_INVALID`/`MAX_COLLECTION_RETRIES_EXCEEDED`) = non-retryable.
    - **LLM_RATE_LIMIT**: spec §6 표에 "예약" 명시 — handler 는 429 도 catch-all `LLM_CALL_FAILED` 로 분류. ai-agent / text-classifier 와 동일 정책. 정합 (예약 상태).
