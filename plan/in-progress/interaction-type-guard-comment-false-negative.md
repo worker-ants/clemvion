@@ -141,6 +141,11 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
   로 대체. 양방향 하드코딩 mutation(MUT-C/D) red 재실측. 단순화가 maintainability
   INFO 도 동반 해소(헬퍼 4→2). INFO #2(체크리스트 SoT 단계)·#3(파서 error-recovery
   트리아지 주석) 반영. 산출 `review/code/2026/07/18/12_07_35/{SUMMARY,RESOLUTION}.md`.
+  **3차 fresh review `12_36_08` → 수렴: LOW, Critical 0 / Warning 0** (reviewer 6/6,
+  forced 미이행 없음). 잔여는 전부 비차단 INFO(spec grep=브랜치 staleness·#977 upstream
+  해소, TemplateExpression 미수집=현 사이트 미사용 향후과제, describe 중복/네이밍=diff
+  밖 유지보수 nit). Critical+Warning=0 이라 RESOLUTION 불요. 산출
+  `review/code/2026/07/18/12_36_08/SUMMARY.md`.
 - [ ] **[harness, 비차단]** impl-done INFO #1·#2 — consistency 번들러가 `cafe24-api-catalog/**`
   대용량 덤프에 밀려 target spec 본문을 누락하는 문제, `origin/main` 이 fork-point 보다
   앞설 때의 reverse-diff 오염. 둘 다 이 저장소의 기존 known failure pattern 이며 이번에도
