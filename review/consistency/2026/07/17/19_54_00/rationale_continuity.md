@@ -1,0 +1,13 @@
+### 발견사항
+
+- **[INFO]** spec 본문의 잔존 "grep" 어휘는 이번 변경과 무관하게 추후 doc-sync 대상
+  - target 위치: 착수 예정 변경 대상 `codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts` (regex → TS 컴파일러 API 기반 AST 파싱 전환)
+  - 과거 결정 출처: `spec/conventions/interaction-type-registry.md` §1.2 rule 3 ("AST 가드 … 등록된 **grep 대상 파일**에 string literal 로 등장하는지 검증"), §2.1 표 주석("AST 가드 대상 코드 파일 (test `SOURCE_REGISTRY_SITES` — **grep 검증 대상**은 …)"), §5 Rationale 2번 항목("AST 가드가 매트릭스 vs 코드 **grep 결과**를 build 단계에서 비교 fail")
+  - 상세: 이 가드는 PR #272(최초 도입, commit `1305fdf03`)부터 지금까지 spec 상에서 줄곧 **"AST 가드"** 라는 이름으로 불려왔으나, 실제 구현은 처음부터(그리고 지금까지) `new RegExp(...)` 문자열 매칭이었다 — 즉 "AST 가드"는 spec 이 최초부터 선언한 **명칭**이고, "grep 대상 파일"/"grep 검증"/"grep 결과" 표현은 그 이름 아래 병존해온 **구현 묘사 shorthand**다. 이번 변경은 실제 TypeScript 컴파일러 API(`ts.createSourceFile`)로 파싱해 진짜 AST 기반 판정으로 전환하는 것으로, spec 이 처음부터 붙여온 이름에 구현이 **수렴**하는 방향이다. 검증 대상 계약("매트릭스의 각 enum 값이 각 등록 사이트에 string literal 로 등장하는가")은 target 문서의 "채택 방안" 절에 명시된 대로 불변이며, 등록 사이트 목록(`REGISTRY_SITES`/`SOURCE_REGISTRY_SITES`)·enum 값 목록·SoT 위치도 그대로다. 따라서 이는 과거 결정의 무근거 번복(관점 3)도, 기각된 대안의 재도입(관점 1)도 아니다 — 오히려 §5 Rationale 의 2026-07-17 addendum이 명시한 원칙("가드는 '있다'가 아니라 '깨뜨려 봤다'로만 신뢰할 수 있다")과 정확히 같은 계열의 보강이다. 다만 전환 완료 후에는 rule 3·§2.1 의 "grep 대상 파일"/"grep 검증"류 표현이 구현 메커니즘 서술로서는 더 이상 정확하지 않게 된다(계약 자체는 그대로 참이므로 spec이 "틀린" 것은 아니고, 다만 서술이 낡아짐). `codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts` 파일 자체의 JSDoc 헤더("AST/grep guard for …", "This test grep-finds string literals …")도 동일하게 낡는다.
+  - 제안: 코드 변경(developer, `spec/` read-only)은 이번 target 대상 파일만으로 충분 — spec 편집 선행 의무 없음. 단, 이번 fix 착수 시 (1) 테스트 파일 자체의 JSDoc 헤더는 developer 권한 내이므로 "grep-finds"→"parses (TS AST)" 류로 함께 정정 권장(코드 파일 소유), (2) spec 쪽 "grep 대상 파일"/"grep 검증"/"grep 결과" 표현은 project-planner 가 이후 경미한 doc-sync PR 로 "AST 가드 대상 파일"/"AST 파싱 결과" 등으로 정리하면 이름-구현 정합이 완전해진다. 이는 차단 사유가 아니라 후속 정리 제안이다.
+
+### 요약
+target 이 도입하는 정규식→TS AST 파싱 전환은 `spec/conventions/interaction-type-registry.md` 가 최초 도입(PR #272) 시점부터 이 가드에 붙여온 "AST 가드" 명칭에 구현이 수렴하는 변경이며, git 이력·현재 spec 본문·이미 작성된 plan 문서(`plan/in-progress/interaction-type-guard-comment-false-negative.md` §설계 결정) 모두 "spec 이 이미 이 가드를 AST 가드로 부르므로 구현이 spec 명칭에 수렴한다"는 동일한 결론을 뒷받침한다. 검증 계약("각 enum 값이 각 등록 사이트에 string literal 로 등장하는가"), 등록 사이트 목록, enum 값 목록, SoT 위치는 모두 불변이므로 기각된 대안의 재도입도, 합의된 원칙 위반도, 무근거 번복도, invariant 우회도 발견되지 않았다. spec 본문에 병존하는 "grep" 계열 서술은 구현 전환 후 묘사 정확도만 낮아지는 경미한 잔여 항목으로, project-planner 의 후속 경미한 doc-sync 로 정리하면 충분하다. target 문서가 스스로 제기한 "(a) spec 개정 필요한 의미 충돌 vs (b) 명칭 수렴" 질문에는 (b) 로 판정한다 — developer 는 project-planner 위임 없이 이 fix 를 진행해도 Rationale 연속성 관점에서 무방하다.
+
+### 위험도
+LOW
