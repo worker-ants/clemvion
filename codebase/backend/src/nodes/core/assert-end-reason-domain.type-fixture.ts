@@ -21,8 +21,13 @@ import type { AssertEndReasonDomain } from './node-handler.interface';
  *    the `@ts-expect-error` comments below stop matching a real error and
  *    `tsc` fails the build with "Unused '@ts-expect-error' directive".
  *
- * Not imported by any production module. Purely type-level — erased by tsc,
- * zero runtime footprint (`tsc --noEmit`-equivalent for this file's content).
+ * Not imported by any production module. The **type-level** parts (the
+ * `AssertEndReasonDomain<…>` references and type aliases) are erased by tsc,
+ * but the three dummy classes and three `const` declarations below ARE real
+ * value declarations — tsc compiles them to JS under `dist/` like any other
+ * `src/**` file. That emitted JS has zero runtime effect only because nothing
+ * imports this module, so it is never loaded or executed. (The regression
+ * guard is purely compile-time; the emitted JS is inert dead code.)
  *
  * Reverse-verified when added: commenting out either `@ts-expect-error` line
  * below reproduces a real `nest build` TS2322 failure ("Type 'true' is not
