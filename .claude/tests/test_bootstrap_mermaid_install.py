@@ -21,9 +21,12 @@ review/code/2026/07/18/02_06_42 round, honestly pin what it does NOT do:
     lockfile change — a merged Dependabot security bump, which is lockfile-only —
     reinstalls instead of the marker's mere presence masking a stale, still-
     vulnerable tree. The hash is recomputed AFTER install so an `npm`-rewritten
-    lockfile still converges (12_31_29 W2), and it degrades to presence-only when
-    no hashing tool is present (12_31_29 W3). `test_lockfile_*` /
-    `test_*_hasher_*` pin these.
+    lockfile still converges (12_31_29 W2), it degrades to presence-only with no
+    hashing tool (12_31_29 W3), a legacy empty marker migrates to a hash exactly
+    once, a failed bump keeps the old marker and recovers after the cooldown, and
+    a lockfile change under concurrent starts converges the marker to the new
+    hash (13_07_57 W1/W2/W3). The `test_*lockfile*` / `test_legacy_*` /
+    `test_failed_hash_*` / `test_missing_hasher_*` methods pin these.
 
 `npm` is stubbed on PATH (never the network), and it records each invocation so
 a test can assert how many installs actually happened.
@@ -210,6 +213,53 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.assertEqual(self._npm_calls(), 1,
                          "a post-install lockfile rewrite must not cause perpetual reinstall")
 
+    def test_legacy_empty_marker_migrates_once(self):
+        """review 13_07_57 W1 — the migration path EVERY already-installed
+        checkout takes the moment this merges: its marker is the old empty
+        touch-file. On first run the empty content != the current lockfile hash,
+        so it reinstalls exactly once and rewrites the marker to the real hash;
+        the run after that skips. Pins that the empty→hash migration is a
+        one-shot, not perpetual (a future "empty content is special-cased" edit
+        would break here)."""
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.28.0"}}\n')
+        os.makedirs(os.path.dirname(self.marker), exist_ok=True)
+        open(self.marker, "w").close()  # seed the legacy empty marker
+        self._run()
+        self.assertEqual(self._npm_calls(), 1, "a legacy empty marker must reinstall once")
+        with open(self.marker) as f:
+            self.assertNotEqual(f.read().strip(), "", "marker must migrate to the real hash")
+        self._run()
+        self.assertEqual(self._npm_calls(), 1, "and the migrated marker must then skip")
+
+    def test_failed_hash_reinstall_keeps_old_marker_and_recovers(self):
+        """review 13_07_57 W2 — the FAILURE side of security propagation. A
+        hash-triggered reinstall that fails must not delete the (now stale) old
+        marker: it stamps the cooldown, leaves the old hash in place (the tree
+        stays lint-ready, fail-open), and once the cooldown clears it converges
+        to the new hash. Pins that a failed bump neither wedges the linter nor
+        silently claims the new version is installed."""
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.27.0"}}\n')
+        self._run()
+        with open(self.marker) as f:
+            old_hash = f.read().strip()
+
+        # A bump changes the lockfile, but the reinstall fails.
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.28.0"}}\n')
+        self._run(fail=True, retry_after=1800)
+        self.assertTrue(os.path.exists(self.fail_marker), "a failed reinstall stamps the cooldown")
+        with open(self.marker) as f:
+            self.assertEqual(f.read().strip(), old_hash,
+                             "a failed reinstall must leave the old marker, not delete it")
+
+        # Past the cooldown, it retries and converges to the new hash.
+        old = time.time() - 2000
+        os.utime(self.fail_marker, (old, old))
+        self._run(retry_after=1800)
+        self.assertEqual(self._npm_calls(), 3,
+                         "install #1, failed reinstall #2, successful retry #3")
+        with open(self.marker) as f:
+            self.assertNotEqual(f.read().strip(), old_hash, "marker converges to the new hash")
+
     def test_missing_hasher_degrades_to_presence_only(self):
         """W3 (review 12_31_29): with neither shasum nor sha256sum available,
         want_hash is empty, so change-detection is disabled — the first install
@@ -258,6 +308,39 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self._run()  # a fresh session, now that the marker exists
         self.assertEqual(self._npm_calls(), converged,
                          "once converged, a later session must not reinstall")
+
+    def test_concurrent_lockfile_change_converges_to_correct_hash(self):
+        """review 13_07_57 W3 — the concurrency axis this diff widened: an
+        already-installed tree whose lockfile then changes (a Dependabot bump),
+        hit by simultaneous sessions. All see the hash mismatch and may reinstall
+        at once (the accepted residual), but they must converge — and the marker
+        must end holding the CURRENT lockfile hash, not just exist, or the next
+        session would loop. Exercises the hash-compare branch under parallelism,
+        which the cold-start concurrency test (no lockfile) never reaches."""
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.27.0"}}\n')
+        self._run()  # establish an installed tree + marker
+        self.assertEqual(self._npm_calls(), 1)
+
+        self._write_lock('{"lockfileVersion":3,"deps":{"undici":"7.28.0"}}\n')
+        env = self._env()
+        procs = [subprocess.Popen(["bash", self.bootstrap], cwd=self.repo, env=env,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                 for _ in range(5)]
+        for p in procs:
+            p.wait(timeout=60)
+        self.assertEqual([p.returncode for p in procs], [0] * 5)
+        # Converged: the marker holds the CURRENT lockfile hash (content, not mere
+        # existence) so a subsequent session skips.
+        want = subprocess.run(
+            "shasum -a 256 package-lock.json 2>/dev/null || sha256sum package-lock.json",
+            cwd=self.tool_dir, shell=True, capture_output=True, text=True,
+        ).stdout.split()[0]
+        with open(self.marker) as f:
+            self.assertEqual(f.read().strip(), want,
+                             "the racing sessions must converge the marker to the new hash")
+        before = self._npm_calls()
+        self._run()
+        self.assertEqual(self._npm_calls(), before, "a session after convergence must not reinstall")
 
     # --- failure throttle ---------------------------------------------------
     def test_failed_install_is_throttled_within_cooldown(self):

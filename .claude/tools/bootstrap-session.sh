@@ -90,8 +90,9 @@ fi
 #    "malformed mermaid block" — blocking every markdown commit with a false
 #    message, the opposite of their fail-open contract. Recovery is
 #    `rm -rf node_modules` (which drops the marker and re-arms the install).
-#    Judged an acceptable rare first-install-only window on a dev-tooling linter,
-#    not worth a hand-rolled lock whose safety keeps being wrong. Two real fixes,
+#    Judged an acceptable rare (though, per the above, recurring rather than
+#    one-off) window on a dev-tooling linter, not worth a hand-rolled lock whose
+#    safety keeps being wrong. Two real fixes,
 #    both tracked: make lint-mermaid.mjs fail OPEN on an import crash (plan §A
 #    follow-up), and/or fcntl.flock for genuine mutual exclusion (plan §G).
 tool_dir="$main_root/.claude/tools/mermaid-lint"
