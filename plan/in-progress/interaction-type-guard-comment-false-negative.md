@@ -102,13 +102,19 @@ mutation 은 되돌렸다(`git checkout --`, working tree clean 확인).
 남으면 옮기지 않는다"* / *"미해결 follow-up 항목이 하나라도 있으면 `in-progress/`"*.
 (Stop hook 이 체크박스만 세어 이동을 nudge 했으나, 위 규칙이 우선한다.)
 
-- [ ] **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
+- [x] **[project-planner]** spec `interaction-type-registry.md` §1.2 rule 3 · §2.1 두 행 · §5 의
   "grep 대상 파일"/"grep 검증 대상"/"코드 grep 결과" 류 잔여 표현 → "AST(코드 리터럴) 스캔
   대상"/"코드 AST 파싱 결과" 로 다듬기. **동일 항목을 3개 게이트가 독립 지적**했다 —
   impl-prep INFO #1(checker 5/5) · `/ai-review` [SPEC-DRIFT] #1 · impl-done INFO #3.
   세 게이트 모두 **비차단·BLOCK 아님** 으로 판정(계약·매트릭스·등록 사이트·enum 목록 불변,
   코드가 spec 의 1차 명칭 "AST 가드" 에 수렴한 방향이라 "코드가 맞고 spec 부차 서술이 낡음").
   developer 는 `spec/` read-only 라 여기서 이월한다.
+  **[해소 2026-07-18]** grep 표현 6곳 전부 정정: §1.2 rule 3(3곳) · §2.1 `system_error`/`rag`
+  두 행(3곳) · §5 rule 2 · §5 강도-정정 노트(ai-review 가 지적한 "마지막 문단") · 추가로
+  §4 endReason 표의 "grep 할 사본"(게이트 미지적이나 동일 방향의 잔여 표현이라 일관성 정정).
+  spec 쓰기 의무 `/consistency-check --spec` 수행 → **BLOCK: NO**(checker 5/5, Critical 0,
+  WARNING 1 = 본 체크박스 미갱신 bookkeeping·같은 커밋에서 해소, INFO 4 전부 corpus-wide 비강제).
+  산출: `review/consistency/2026/07/18/11_21_17/SUMMARY.md`.
 - [ ] **[developer, 선택]** `lib/conversation/interaction-type-registry.ts` 상단 JSDoc ·
   `IS_MULTI_TURN_INTERACTION` 위 주석의 "grep 가드" 표현 → "AST 가드" 정정
   (`/ai-review` INFO #1). 본 PR diff 밖 파일이라 미포함.
