@@ -6,7 +6,7 @@
 # safe to run on every session start. Always exits 0 — bootstrap must never
 # block a session.
 #
-# Three responsibilities:
+# Four responsibilities:
 #   1. Point git at .githooks so the version-controlled pre-commit hooks
 #      (branch guard + mermaid lint) actually run. This replaces the
 #      easy-to-forget `scripts/setup-githooks.sh` step.
@@ -14,6 +14,7 @@
 #      (node_modules is gitignored, so worktrees share this single copy).
 #   3. Garbage-collect stale guard state markers (>30 days) so .claude/state/
 #      does not grow unbounded.
+#   4. Reap worktrees / local branches whose PR has merged (see section 4).
 
 set -u
 
@@ -31,13 +32,76 @@ if [ -d "$main_root/.githooks" ]; then
 fi
 
 # 2. Ensure mermaid-lint deps (install once; skip if already present).
+#
+#    Two guards. NOT a mutual-exclusion lock — see the design note below.
+#
+#    - A COMPLETION MARKER, rather than a bare `[ -d node_modules ]` test. An
+#      install cut short — a crashed session, or two interleaving into one tree —
+#      leaves a PARTIAL node_modules that the directory test then accepts
+#      forever, so mermaid lint stays disabled with no signal at all. The marker
+#      is the single "install finished" signal, written only after npm exits 0;
+#      the pre-commit and PostToolUse lint guards read the SAME marker (via
+#      _lib/mermaid_lint_ready.py) so all three agree on "installed". It lives
+#      INSIDE node_modules on purpose, so deleting the tree deletes the marker
+#      with it — `rm -rf node_modules` is the recovery for a bad tree, and it
+#      re-arms the install. (One-off: a good install from before the marker
+#      existed reinstalls once.)
+#
+#    - A FAILURE THROTTLE. Without it a persistently failing install (network
+#      down, auth expired) would retry on EVERY SessionStart with no backoff —
+#      the same unbounded-retry shape the reaper section already solves with
+#      REAP_MIN_INTERVAL. A failure stamps a cooldown file; retries inside
+#      MERMAID_INSTALL_RETRY_SEC (default 30 min) are skipped.
+#
+#    NO LOCK, deliberately. Earlier revisions here hand-rolled a `mkdir` lock
+#    with an owner PID + grace age + stale-lock steal. Its reclaim path was a
+#    check-then-act TOCTOU: two sessions observing the same dead lock both
+#    `rm -rf` + `mkdir`, and the loser deletes the winner's fresh lock, so both
+#    install concurrently — the very race the lock was meant to stop
+#    (reproduced, review/code/2026/07/18/02_06_42 C1). The correct primitive is
+#    OS advisory locking (fcntl.flock, auto-released on death), not a filesystem
+#    lock reinvented in bash. We chose to DROP the lock rather than reintroduce
+#    that complexity: the marker already delivers the actual goal (a partial or
+#    failed install never counts as done, and self-heals next session). Residual,
+#    accepted: several sessions hitting the *first* cold install within the same
+#    instant can still npm-install concurrently; npm is not concurrency-safe into
+#    one dir, so that narrow window can produce a bad tree. And the marker only
+#    attests THIS process's own `npm` exit 0, not tree integrity — so a sibling's
+#    concurrent write can corrupt a tree that then still gets marked "ready". The
+#    honest worst case is worse than a silent skip: lint-mermaid.mjs does a
+#    guardless top-level `await import("mermaid")`, so a corrupt-but-marked tree
+#    makes it crash, and pre-commit / PostToolUse read that crash as a real
+#    "malformed mermaid block" — blocking every markdown commit with a false
+#    message, the opposite of their fail-open contract. Recovery is
+#    `rm -rf node_modules` (which drops the marker and re-arms the install).
+#    Judged an acceptable rare first-install-only window on a dev-tooling linter,
+#    not worth a hand-rolled lock whose safety keeps being wrong. Two real fixes,
+#    both tracked: make lint-mermaid.mjs fail OPEN on an import crash (plan §A
+#    follow-up), and/or fcntl.flock for genuine mutual exclusion (plan §G).
 tool_dir="$main_root/.claude/tools/mermaid-lint"
-if [ -f "$tool_dir/package.json" ] && [ ! -d "$tool_dir/node_modules" ]; then
-    if command -v npm >/dev/null 2>&1; then
-        echo "bootstrap: installing mermaid-lint deps (one-time)…"
-        (cd "$tool_dir" && npm install --no-fund --no-audit --silent) \
-            && echo "bootstrap: mermaid-lint ready" \
-            || echo "bootstrap: mermaid-lint install failed (lint will fail open)" >&2
+marker="$tool_dir/node_modules/.bootstrap-install-complete"
+fail_marker="$main_root/.claude/state/mermaid_install_last_fail"
+retry_after="${MERMAID_INSTALL_RETRY_SEC:-1800}"        # cooldown after a failed install
+
+# Cross-platform mtime in epoch seconds (BSD `stat -f` vs GNU `stat -c`); 0 if missing.
+_file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+
+# True while a prior failure is still inside its cooldown window.
+_install_throttled() {
+    [ -f "$fail_marker" ] || return 1
+    [ "$retry_after" -gt 0 ] 2>/dev/null || return 1
+    [ $(( $(date +%s) - $(_file_mtime "$fail_marker") )) -lt "$retry_after" ]
+}
+
+if [ -f "$tool_dir/package.json" ] && [ ! -f "$marker" ] \
+   && ! _install_throttled && command -v npm >/dev/null 2>&1; then
+    echo "bootstrap: installing mermaid-lint deps (one-time)…"
+    if (cd "$tool_dir" && npm install --no-fund --no-audit --silent); then
+        : > "$marker" 2>/dev/null && echo "bootstrap: mermaid-lint ready"
+        rm -f "$fail_marker" 2>/dev/null || true
+    else
+        echo "bootstrap: mermaid-lint install failed (lint fails open; will retry after cooldown)" >&2
+        mkdir -p "$(dirname "$fail_marker")" 2>/dev/null && : > "$fail_marker" 2>/dev/null || true
     fi
 fi
 

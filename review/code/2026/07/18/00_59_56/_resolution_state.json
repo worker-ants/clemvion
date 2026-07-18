@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "started_at": "2026-07-18T01:00:00Z",
+  "summary_items_total": 13,
+  "items_resolved_ids": ["W1", "W2", "W3", "W7", "W8", "W9", "W10", "W11", "W12", "W13"],
+  "items_pending_ids": ["W6"],
+  "items_escalated_ids": {},
+  "items_out_of_scope_ids": {
+    "W4": "explicit caller instruction — diff 밖, already registered in plan/in-progress/harness-guard-followups.md §F, do not touch",
+    "W5": "explicit caller instruction — same as W4, §F registered, do not touch"
+  },
+  "items_documented_as_known_limitation_ids": ["W2", "W12"],
+  "items_unclassified_by_caller_ids": ["W6"],
+  "commits_made": [
+    {"sha": "441820b89", "summary_ids": ["W1", "W9", "W10", "W11", "W2", "W12"], "scope": "harness-bootstrap-lock-guard"},
+    {"sha": "e8a056fec", "summary_ids": ["W7", "W8", "W13"], "scope": "harness-consumer-wiring"},
+    {"sha": "8308515c4", "summary_ids": ["W3"], "scope": "harness-ci-paths"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "skipped",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": "W6 (architecture: extract bootstrap responsibility #2 into ensure-mermaid-lint-deps.sh) is not mentioned in any of the caller's three explicit groups (must-fix / doc-only / do-not-touch). Left untouched per 'only handle what is specified'; flagged in RESOLUTION.md for the next session's disposition.",
+  "last_reset_hint_sec": null,
+  "test_baseline": {
+    "commit": "d31f99a11",
+    "unittest_total": 304,
+    "unittest_status": "OK"
+  },
+  "test_final": {
+    "commit": "8308515c4",
+    "unittest_total": 310,
+    "unittest_status": "OK",
+    "plan_frontmatter_vitest_total": 93,
+    "plan_frontmatter_vitest_status": "passed"
+  }
+}
