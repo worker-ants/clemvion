@@ -56,7 +56,7 @@ jobs:
       # The workflow scripts' report-return parsing decides BLOCK/RISK, so it gets real
       # unit tests. They are `.mjs` (node:test) because the logic is JS — the unittest
       # discovery above only picks up `test_*.py`, so this needs its own step.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 

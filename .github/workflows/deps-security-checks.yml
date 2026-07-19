@@ -61,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       # audit 은 pnpm-lock.yaml + auditConfig(pnpm-workspace.yaml) 를 읽어 레지스트리에
