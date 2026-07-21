@@ -36,7 +36,7 @@ jobs:
 
       # ubuntu-latest 에 이미 python3 가 있지만, 명시적 setup 으로 다른
       # workflow 와 actions 메이저 정책을 일관 유지한다 (v5/v6 라인).
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
