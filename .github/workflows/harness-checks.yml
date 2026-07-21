@@ -46,7 +46,7 @@ jobs:
 
       # ubuntu-latest ships python3, but pin via setup-python to keep the
       # actions major policy consistent with the other workflows (v5/v6 line).
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
