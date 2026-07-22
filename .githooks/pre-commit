@@ -67,7 +67,17 @@ if [ -f "$mermaid_ready" ] && python3 "$mermaid_ready" "$mermaid_tool_dir" \
     done < <(git diff --cached --name-only --diff-filter=ACM -z)
 
     if [ "${#md_files[@]}" -gt 0 ]; then
-        if ! node "$mermaid_script" "${md_files[@]}"; then
+        node "$mermaid_script" "${md_files[@]}"
+        mermaid_rc=$?
+        # Exit 3 = the linter could not import its deps (corrupt/partial
+        # node_modules that still carried bootstrap's marker, so the readiness
+        # check above passed). That is tooling breakage, not a malformed
+        # diagram — fail open (skip), same contract as "not ready" above,
+        # rather than blocking the commit with a bogus parse error.
+        if [ "$mermaid_rc" -eq 3 ]; then
+            echo "mermaid-lint: skipped (tooling failed to load; reinstall with:" >&2
+            echo "  (cd .claude/tools/mermaid-lint && npm install) )." >&2
+        elif [ "$mermaid_rc" -ne 0 ]; then
             echo "" >&2
             echo "Commit aborted by .githooks/pre-commit (mermaid lint)." >&2
             echo "Fix the malformed mermaid block(s) above and re-stage." >&2

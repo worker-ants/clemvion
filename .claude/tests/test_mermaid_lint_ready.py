@@ -197,6 +197,20 @@ class PostToolUseExecutionTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, "a linter failure must surface as exit 2")
         self.assertIn("mermaid syntax error", r.stderr)
 
+    def test_ready_fails_open_when_linter_reports_tooling_broken(self):
+        """Exit 3 from the linter = its deps failed to import (a corrupt tree
+        that still passed the readiness marker), NOT a malformed diagram. The
+        hook must fail open (return 0) rather than nag Claude with a bogus
+        parse error. node IS invoked — readiness passed — so the wrapper is
+        classifying the exit code, which is the behaviour under test."""
+        r = self._run(ready_state=True, node_exit_code=3)
+        self.assertEqual(self._node_calls(), 1,
+                         "the linter runs — readiness passed; the exit code decides")
+        self.assertEqual(r.returncode, 0,
+                         "tooling breakage (exit 3) must fail open, not surface as exit 2")
+        self.assertIn("corrupt node_modules", r.stderr)
+        self.assertNotIn("mermaid syntax error", r.stderr)
+
 
 class PreCommitExecutionTest(unittest.TestCase):
     """Execution-based regression for .githooks/pre-commit's mermaid gate
@@ -289,6 +303,18 @@ class PreCommitExecutionTest(unittest.TestCase):
                          "must invoke the linter once deps are ready")
         self.assertNotEqual(r.returncode, 0, "a linter failure must block the commit")
         self.assertIn("Commit aborted", r.stderr)
+
+    def test_ready_allows_commit_when_linter_reports_tooling_broken(self):
+        """Mirror of PostToolUseExecutionTest's exit-3 case for the bash
+        consumer: exit 3 = deps failed to import (corrupt tree), so the commit
+        must proceed (fail open) instead of aborting with a bogus parse error."""
+        r = self._run(ready_state=True, node_exit_code=3)
+        self.assertEqual(self._node_calls(), 1,
+                         "the linter runs — readiness passed; the exit code decides")
+        self.assertEqual(r.returncode, 0,
+                         "tooling breakage (exit 3) must not abort the commit")
+        self.assertNotIn("Commit aborted", r.stderr)
+        self.assertIn("skipped", r.stderr)
 
 
 if __name__ == "__main__":

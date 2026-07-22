@@ -5,6 +5,15 @@
 // Exit:    0 = no mermaid errors (incl. "no mermaid blocks at all")
 //          1 = at least one block failed mermaid.parse()
 //          2 = usage error (no file args)
+//          3 = tooling unavailable — a dependency (jsdom / mermaid) could not be
+//              imported. This is NOT a malformed diagram; it means the node deps
+//              are missing or corrupt (e.g. a half-installed node_modules that
+//              still carried bootstrap's completion marker, so is_ready() let the
+//              caller reach here). Distinct from 1 SO THE CALLERS CAN FAIL OPEN:
+//              .githooks/pre-commit and lint_mermaid_posttooluse.py treat 3 as
+//              "skip the check", not "block the commit". Without this split, a
+//              corrupt tree crashed with node's default exit 1 and every markdown
+//              commit was blocked with a bogus "mermaid parse error".
 //
 // Validation is grammar-only: we call mermaid.parse(), the same parser the
 // renderer runs first. It catches malformed arrows, unclosed nodes,
@@ -16,6 +25,9 @@
 // globals it touches at import time before importing it. Both the Claude
 // PostToolUse hook and .githooks/pre-commit call this one script — single
 // source of truth for the parse logic.
+
+// Exit code for "a dependency import failed" — see the Exit table above.
+const EXIT_TOOLING_BROKEN = 3;
 
 import { readFileSync } from "node:fs";
 
@@ -72,7 +84,20 @@ if (totalBlocks === 0) {
 }
 
 // --- stand up a DOM, then import mermaid -------------------------------
-const { JSDOM } = await import("jsdom");
+// The two dynamic imports below can throw ERR_MODULE_NOT_FOUND on a corrupt /
+// partially-installed node_modules. Catch that and exit 3 (tooling broken) so
+// the callers fail open, instead of letting the rejection crash node with its
+// default exit 1 — indistinguishable from a real parse failure.
+let JSDOM;
+try {
+  ({ JSDOM } = await import("jsdom"));
+} catch (e) {
+  console.error(
+    `mermaid-lint: tooling unavailable — could not import jsdom (${e && e.message ? e.message : e}). ` +
+      "Skipping the mermaid check. Reinstall with: (cd .claude/tools/mermaid-lint && npm install)",
+  );
+  process.exit(EXIT_TOOLING_BROKEN);
+}
 const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
   pretendToBeVisual: true,
 });
@@ -90,7 +115,16 @@ for (const key of ["HTMLElement", "SVGElement", "Node", "DOMParser", "getCompute
   }
 }
 
-const { default: mermaid } = await import("mermaid");
+let mermaid;
+try {
+  ({ default: mermaid } = await import("mermaid"));
+} catch (e) {
+  console.error(
+    `mermaid-lint: tooling unavailable — could not import mermaid (${e && e.message ? e.message : e}). ` +
+      "Skipping the mermaid check. Reinstall with: (cd .claude/tools/mermaid-lint && npm install)",
+  );
+  process.exit(EXIT_TOOLING_BROKEN);
+}
 mermaid.initialize({ startOnLoad: false, suppressErrorRendering: true });
 
 // --- parse every block --------------------------------------------------
