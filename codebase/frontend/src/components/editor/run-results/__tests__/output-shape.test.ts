@@ -698,12 +698,19 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     // 위 테스트가 fallback 단의 **존재** 를 고정한다면, 이 테스트는 그 2단 조회의
     // **우선순위** 를 고정한다. 둘 다 있으면 `result` 쪽이 그 종결의 정본이다.
     //
-    // `result.endReason` 에 화이트리스트 밖 값, `output.endReason` 에 화이트리스트
-    // 값을 동시에 실어 방향을 관측 가능하게 만든다 — 현재 순서면 무효값이 이겨
-    // false, 좌우가 뒤바뀌면 유효값이 이겨 true 가 된다.
-    //
     // 이 fixture 가 없으면 `??` 좌우를 뒤바꿔도 전 테스트가 green 이었다(타입 검사도
     // 통과 → 머지 가능). 실측 근거는 plan 문서 §측정 1c.
+    //
+    // 고립 조건:
+    //  - `result.endReason` **화이트리스트 밖 값** + `output.endReason`
+    //    **화이트리스트 값** 을 동시 배치 → 방향이 관측 가능해진다. 현재 순서면
+    //    무효값이 이겨 `false`, 역전되면 유효값이 이겨 `true`
+    //  - `result.messages` 존재 → 종결 분기 자체는 성립(이 guard 로 가려지지 않음)
+    //  - top-level `interactionType`/`conversationConfig` 부재
+    //  - `output.messages` 부재 (첫 OR-분기·waiting 분기 차단)
+    //  - `output.interactionType`/`meta.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `status` 키 부재
     const raw = {
       config: {},
       output: {
