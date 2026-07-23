@@ -53,6 +53,11 @@ _LEGACY_PATTERN = (
 )
 _LEGACY = re.compile(_LEGACY_PATTERN)
 
+# Floor for the differential tests' non-vacuity guards. The corpus holds
+# dozens of entries; if fewer than this many take part, the corpus or a
+# baseline stopped matching and the comparison proves nothing.
+_MIN_CORPUS_COVERAGE = 10
+
 # The blind first pass as it stands NOW. Pinned separately from the floor above
 # because the two answer different questions, and conflating them is what made
 # §J unfixable-in-place: one test demanded the pattern never change, while the
@@ -67,7 +72,7 @@ _LEGACY = re.compile(_LEGACY_PATTERN)
 # gate. Same three disjoint alternatives `guard_default_branch_bash._MUTATING`
 # already used, kept identical on purpose.
 _BLIND_PATTERN = (
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\s'\"]\S*)\s+)*"
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|[^\s'\"]\S*)\s+)*"
     r"git\b[^&;|]*\bpush\b"
 )
 _BLIND = re.compile(_BLIND_PATTERN)
@@ -107,6 +112,17 @@ CORPUS: list[tuple[str, str, str | None]] = [
      "quoted env prefix after a chain separator", None),
     ('VAR="a && b" git push',
      "separator inside the quoted env value", None),
+    # An escaped `"` inside the value: the first fix used `"[^"]*"`, which ends
+    # at the escaped quote and loses the push all over again. The escape-aware
+    # body was already in this very file (`_MESSAGE_ARG`) and went unreused.
+    (r'GIT_AUTHOR_NAME="A \\"B\\" C" git push',
+     "escaped double quote inside the env value", None),
+    (r'GIT_SSH_COMMAND="ssh -i \\"file with space\\"" git push origin main',
+     "escaped quotes around a spaced path", None),
+    (r'VAR="a\\\\" git push',
+     "value ending in an escaped backslash", None),
+    ('VAR="" git push', "empty quoted value", None),
+    ("""A='say "hi"' git push""", "double quotes inside a single-quoted value", None),
     # ---- round 1: spellings a subcommand parser missed -------------------
     ("git add -A\ngit push", "newline as the only separator", None),
     ("git --attr-source main push", "global option before the subcommand", None),
@@ -249,7 +265,7 @@ class DifferentialTest(unittest.TestCase):
                         "a FALSE NEGATIVE — unreviewed code could be pushed.",
                     )
         self.assertGreater(
-            compared, 10,
+            compared, _MIN_CORPUS_COVERAGE,
             "the differential compared almost nothing — the corpus or the legacy "
             "baseline stopped matching, which makes this test vacuous",
         )
@@ -267,7 +283,7 @@ class DifferentialTest(unittest.TestCase):
                         "scan — the allowlist layer must only subtract.",
                     )
         self.assertGreater(
-            blocked, 10,
+            blocked, _MIN_CORPUS_COVERAGE,
             "the guard blocked almost nothing in the corpus — this test would "
             "pass no matter what the allowlist did",
         )
@@ -409,6 +425,19 @@ class BacktrackingTest(unittest.TestCase):
             capture_output=True, text=True, timeout=self._TIMEOUT,
         )
 
+    # §J widened the env-prefix group, which is the same kind of hand-edited
+    # alternation that caused CRITICAL #2 above — so it gets the same pin. Every
+    # input below contains "push" ON PURPOSE: `_is_git_push` short-circuits when
+    # it does not, and a first draft of these numbers measured that early return
+    # instead of the regex (0.00ms across the board — vacuous).
+    #
+    # Measured on the shipped pattern: 400KB of `VAR="a b" ` + a failing tail is
+    # ~15ms, and 4x the input costs ~4x the time (linear). The ambiguous variant
+    # `"(?:\\.|[^"])*"` — where `[^"]` also matches a backslash, so the two
+    # alternatives overlap — is what this pins against.
+    _ENV_PREFIX_REPEATS = 40_000
+    _ENV_BACKSLASHES = 40_000
+
     def _assert_finishes(self, command, label, remedy, func="_is_git_push"):
         start = time.monotonic()
         try:
@@ -466,6 +495,37 @@ class BacktrackingTest(unittest.TestCase):
             "runs around the subcommand word.",
         )
 
+
+    def test_env_prefix_alternation_stays_linear(self):
+        """§J's env-value alternation must not backtrack.
+
+        Its two inner branches are disjoint on the first character (`\\` vs
+        not), which is exactly why the shipped form is linear and why the
+        overlapping variant is not.
+        """
+        self._assert_finishes(
+            'VAR="a b" ' * self._ENV_PREFIX_REPEATS + "git push",
+            "a long run of quoted env assignments before a real push",
+            "the env-value alternation started backtracking — keep its two "
+            "inner branches disjoint on the first character",
+        )
+
+    def test_env_prefix_with_failing_tail_stays_linear(self):
+        """The expensive shape: every repetition matches, then the tail fails,
+        so a backtracking engine re-partitions the whole run."""
+        self._assert_finishes(
+            'VAR="a b" ' * self._ENV_PREFIX_REPEATS + "x push",
+            "quoted env assignments followed by a non-git tail",
+            "see test_env_prefix_alternation_stays_linear",
+        )
+
+    def test_unterminated_quoted_env_value_stays_linear(self):
+        """No closing quote — the case that made `_MESSAGE_ARG` explode."""
+        self._assert_finishes(
+            'VAR="' + "\\" * self._ENV_BACKSLASHES + " push",
+            "an unterminated quoted env value full of backslashes",
+            "see test_env_prefix_alternation_stays_linear",
+        )
 
 class InputSizeCapTest(unittest.TestCase):
     """Redaction is skipped entirely above `_MAX_REDACTION_INPUT`.
@@ -697,6 +757,48 @@ class ReleasePathNarrownessTest(unittest.TestCase):
         self.assertFalse(
             guard._is_git_push(command),
             "an inert heredoc message owned by `git commit -F -` is released",
+        )
+
+
+class EnvValueSubpatternSharedTest(unittest.TestCase):
+    """The env-value alternation is copied into three places; pin the promise.
+
+    `guard_review_before_push._GIT_PUSH`,
+    `guard_default_branch_bash._MUTATING` and `_BLIND_PATTERN` above all carry
+    the same sub-pattern, and until now only a comment said "keep these
+    identical". The §J review found the first fix (`"[^"]*"`) had to be applied
+    to all three; a fourth round would have found whichever one was missed.
+    """
+
+    @staticmethod
+    def _env_value_subpattern(pattern: str) -> str:
+        """Text between the env-name group and the `\\s+)*` that closes it."""
+        key = "[A-Za-z0-9_]*="
+        start = pattern.index(key) + len(key)
+        end = pattern.index(r"\s+)*", start)
+        return pattern[start:end].replace('\\"', '"')
+
+    def test_both_hooks_use_the_same_env_value_alternation(self):
+        nudge = _harness.load_module_by_path(
+            "guard_default_branch_bash",
+            _harness.HOOKS_DIR / "guard_default_branch_bash.py",
+        )
+        push_sub = self._env_value_subpattern(guard._GIT_PUSH.pattern)
+        nudge_sub = self._env_value_subpattern(nudge._MUTATING.pattern)
+        self.assertTrue(push_sub, "extraction failed — this check would be vacuous")
+        self.assertEqual(
+            push_sub, nudge_sub,
+            "the two hooks' env-value alternations drifted. A fix applied to one "
+            "and not the other is exactly how §J's escaped-quote gap survived "
+            "the first round.",
+        )
+
+    def test_the_alternation_is_escape_aware(self):
+        sub = self._env_value_subpattern(guard._GIT_PUSH.pattern)
+        self.assertIn(
+            r'"(?:\\.|[^"\\])*"', sub,
+            "the double-quoted alternative lost its escape-aware body — an "
+            r'escaped \" inside the value hides the push again',
         )
 
 
