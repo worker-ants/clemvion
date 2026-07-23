@@ -290,19 +290,27 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
 
     GUTTER = re.compile(r"^(\s*\d+)\|")
 
-    def _prepare(self):
-        """Run a real `--prepare` and return {prompt_name: body}."""
+    # Two fixtures, because the two block kinds need different inputs:
+    #   - diff blocks need an actual diff  → a commit
+    #   - whole-file blocks need to fit the prompt budget → a short file list
+    # Keying whole-file assertions off `--commit HEAD` made them pass or fail
+    # with whatever the repo's last commit happened to be (a large merge commit
+    # starved every whole-file block and failed the suite on an unrelated
+    # change). These two files are small, tracked, and always present.
+    FILES = (
+        ".claude/skills/code-review-agents/lib/line_anchors.py",
+        ".claude/skills/code-review-agents/lib/router_safety.py",
+    )
+
+    def _run_prepare(self, *orch_args):
         import os
         import shutil
         import tempfile
 
-        head = _git("rev-parse", "HEAD").strip()
-        if not head:
-            self.skipTest("no git history available")
         tmp = tempfile.mkdtemp()
         try:
             r = subprocess.run(
-                [sys.executable, str(ORCH), "--prepare", "--commit", head],
+                [sys.executable, str(ORCH), "--prepare", *orch_args],
                 capture_output=True, text=True, cwd=str(REPO_ROOT),
                 env=dict(os.environ, REVIEW_OUTPUT_DIR=tmp),
             )
@@ -310,9 +318,34 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
             session_dir = Path(r.stdout.strip().split("\n")[-1])
             prompts = sorted((session_dir / "_prompts").glob("*.md"))
             self.assertTrue(prompts, "prepare wrote no prompts")
-            return head, {p.name: p.read_text(encoding="utf-8") for p in prompts}
+            return {p.name: p.read_text(encoding="utf-8") for p in prompts}
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    def _prepare_commit(self):
+        """Prepare over HEAD; cross-check against that commit's blobs."""
+        head = _git("rev-parse", "HEAD").strip()
+        if not head:
+            self.skipTest("no git history available")
+        return (lambda p: _git("show", f"{head}:{p}")), self._run_prepare("--commit", head)
+
+    def _prepare_files(self):
+        """Prepare over FILES; cross-check against the working tree.
+
+        No cleanliness gate on purpose: `--prepare <files>` reads whole-file
+        content straight off disk, and so does this cross-check, so both see the
+        same bytes whether or not the file is committed. An earlier version
+        skipped when those paths were dirty — which silently disabled the test
+        precisely while someone was editing them.
+        """
+
+        def read(p):
+            try:
+                return (REPO_ROOT / p).read_text(encoding="utf-8")
+            except OSError:
+                return ""
+
+        return read, self._run_prepare(*self.FILES)
 
     def _walk(self, body):
         """Yield (file_path, block_kind, lineno, content) for every gutter line."""
@@ -341,7 +374,7 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
 
     def test_every_reviewer_prompt_carries_the_legend(self):
         """Not just the router's — the reviewer path builds its header separately."""
-        _, prompts = self._prepare()
+        _, prompts = self._prepare_commit()
         reviewer_prompts = [n for n in prompts if n != "_router.md"]
         self.assertGreater(len(reviewer_prompts), 3, "no reviewer prompts to check")
         for name in reviewer_prompts:
@@ -354,13 +387,13 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
     def test_diff_blocks_are_annotated_and_correct(self):
         """Asserted separately from whole-file numbering: measured as a pair, one
         being wired up masks the other being dropped."""
-        head, prompts = self._prepare()
+        source_of, prompts = self._prepare_commit()
         name = next(n for n in prompts if n != "_router.md")
         checked = 0
         for path, block, n, content in self._walk(prompts[name]):
             if block != "diff":
                 continue
-            src = _git("show", f"{head}:{path}")
+            src = source_of(path)
             if not src:
                 continue
             lines = src.split("\n")
@@ -373,13 +406,13 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
         self.assertGreater(checked, 20, "no annotated diff lines reached the prompt")
 
     def test_whole_file_blocks_are_numbered_and_correct(self):
-        head, prompts = self._prepare()
+        source_of, prompts = self._prepare_files()
         name = next(n for n in prompts if n != "_router.md")
         checked = 0
         for path, block, n, content in self._walk(prompts[name]):
             if block != "full":
                 continue
-            src = _git("show", f"{head}:{path}")
+            src = source_of(path)
             if not src:
                 continue
             lines = src.split("\n")
@@ -406,7 +439,7 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
         ).stdout.strip() or 0)
         self.assertGreater(cap, 0, "could not read DEFAULT_MAX_PROMPT_SIZE")
 
-        _, prompts = self._prepare()
+        _, prompts = self._prepare_commit()
         for name, body in prompts.items():
             # Slack covers the per-file wrapper overhead the budget accounts for
             # approximately; the point is that the gutter did not blow the cap.

@@ -310,6 +310,21 @@ def _is_source_file(path: str) -> bool:
     return ext in _SOURCE_CODE_EXTENSIONS
 
 
+def source_files(file_paths: Iterable[str]) -> list[str]:
+    """The changed paths that are source code, by the same extension set the
+    forced-reviewer rules use.
+
+    Public because the router prompt states this list as a *fact* rather than
+    leaving the router to infer it from filenames. Measured need: on
+    2026-07-23 a changeset of 19 files — 15 docs and 4 code files, including a
+    brand-new module — was routed with "소스 코드 변경 없음(문서만 변경)" and
+    every reviewer deselected. The code was in the prompt; the router simply
+    read the majority. Sharing the classifier keeps that statement and the
+    forced-reviewer rules from ever disagreeing.
+    """
+    return [p for p in file_paths if _is_source_file(p)]
+
+
 def compute_forced_agents(
     file_paths: Iterable[str],
     available_agents: Iterable[str],
@@ -373,12 +388,14 @@ def compute_forced_agents(
                 forced.setdefault(reviewer, []).append(note)
 
     # Rule kind 2 — any source-code file forces the six core reviewers.
-    source_files = sorted({p for p in paths if _is_source_file(p)})
-    if source_files:
-        sample = source_files[:3]
+    # Named `changed_source` rather than `source_files` so it does not shadow
+    # the module-level function of that name.
+    changed_source = sorted(set(source_files(paths)))
+    if changed_source:
+        sample = changed_source[:3]
         note = f"소스 코드 변경 — 코드 변경 시 항상 적용: {', '.join(sample)}"
-        if len(source_files) > 3:
-            note += f" (외 {len(source_files) - 3}건)"
+        if len(changed_source) > 3:
+            note += f" (외 {len(changed_source) - 3}건)"
         for reviewer in _SOURCE_FORCED_REVIEWERS:
             if reviewer in available:
                 forced.setdefault(reviewer, []).append(note)

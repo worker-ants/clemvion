@@ -34,6 +34,7 @@ sys.path.insert(0, _SKILLS_DIR)
 sys.path.insert(0, _CLAUDE_DIR)
 
 from lib import line_anchors  # noqa: E402
+from lib import router_safety  # noqa: E402
 from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
@@ -72,6 +73,32 @@ debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 _GUTTER_OVERHEAD = 1.08
 DEFAULT_MAX_FILE_SIZE = int(51200 * _GUTTER_OVERHEAD)      # 55,296
 DEFAULT_MAX_PROMPT_SIZE = int(131072 * _GUTTER_OVERHEAD)   # 141,557
+
+# Caller-side trust check for a routing decision: the router must honour the
+# forced whitelist. Violating it discards the whole decision and runs every
+# reviewer.
+#
+# Why (measured 2026-07-23, session 14_47_40): the router returned
+# selected=false for **all 14** reviewers — the 7 forced ones included — with
+# the rationale "소스 코드 변경 없음(문서만 변경)", on a 19-file changeset
+# containing a brand-new Python module whose content was in the router's own
+# prompt. `_apply_routing` silently re-added the forced reviewers and trusted
+# everything else, so the run presented as a healthy 7-reviewer review while
+# every judgement behind it was wrong.
+#
+# The forced list is stated to the router as `selected=true` 고정, so returning
+# one as false is a contract breach rather than a judgement call. That makes it
+# the sharpest signal available that the decision as a whole is untrustworthy,
+# and — unlike any count-based threshold — it cannot fire on a legitimately
+# narrow decision (a doc-only typo routing to `documentation` alone is correct
+# and must stay cheap).
+#
+# Scope note: this does **not** revive the old "selected 수가 0 또는 1 이면 전체
+# fallback" rule. That was deliberately retired in 6cd7376fc (#244) in favour of
+# "0 명이면 fatal + minimal SUMMARY, 1명 이상이면 그대로 진행" — see
+# `.claude/agents/review-router.md` step 4 and README's router-safety table
+# ("전체 fallback 안 함"). Only the stale prose advertising the retired rule is
+# corrected here; the zero-reviewer path keeps its documented fatal behaviour.
 
 BINARY_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp", "tiff", "tif",
@@ -373,6 +400,42 @@ def _apply_status_update(session_dir, agent, status, reset_hint):
     )
 
 
+def _routing_distrust_reason(decisions, forced):
+    """Why this routing decision must not be trusted, or None if it is fine.
+
+    Shared shape with `.claude/workflows/ai-review.js` — the two routing paths
+    must answer this identically, and `test_router_decision_trust.py`
+    pins them together (the workflow sandbox forbids importing this).
+    """
+    dropped_forced = sorted(
+        d.get("name") for d in decisions
+        if d.get("name") in forced and not d.get("selected")
+    )
+    if dropped_forced:
+        return (
+            f"router marked forced reviewer(s) selected=false: "
+            f"{', '.join(dropped_forced)}"
+        )
+
+    # Omitting a forced reviewer entirely is the same contract breach wearing a
+    # different hat, and it used to be worse than saying false: the apply loop
+    # only ever walks `decisions`, so an absent agent was neither selected nor
+    # skipped and simply fell out of `agents_pending`.
+    missing_forced = sorted(set(forced) - {d.get("name") for d in decisions})
+    if missing_forced:
+        return (
+            f"router omitted forced reviewer(s) from its decision: "
+            f"{', '.join(missing_forced)}"
+        )
+
+    # No zero-reviewer check here on purpose: `agents_forced ∪ router_selected`
+    # being empty is a documented *fatal*, not a fallback — the router reports
+    # it and main writes a minimal SUMMARY (review-router.md step 4, README
+    # router-safety table). Adding a run-all fallback would quietly reverse
+    # 6cd7376fc (#244).
+    return None
+
+
 def _apply_routing(session_dir, fallback=False):
     """Consume _routing_decision.json and update _retry_state.json.
 
@@ -400,9 +463,22 @@ def _apply_routing(session_dir, fallback=False):
         decision = json.load(f)
 
     forced = set(state.get("agents_forced", []))
+    decisions = decision.get("decisions", [])
+
+    distrust = _routing_distrust_reason(decisions, forced)
+    if distrust:
+        state["routing_status"] = "skipped"
+        state["routing_skip_reason"] = f"{distrust} — decision discarded, running all"
+        _save_state(state_file, state)
+        print(
+            f"applied={len(state.get('agents_pending', []))} skipped=0 "
+            f"fallback=distrusted-decision"
+        )
+        return
+
     selected = []
     skipped = []
-    for d in decision.get("decisions", []):
+    for d in decisions:
         name = d.get("name")
         if d.get("selected") or name in forced:
             selected.append(name)
@@ -662,15 +738,44 @@ def build_router_prompt_body(
         perspective_lines.append(f"- `{name}` — {title}{scope_note}: {perspective}")
     perspective_block = "\n".join(perspective_lines)
 
+    # State the source/doc split as a fact instead of letting the router infer
+    # it from filenames. On 2026-07-23 a 19-file changeset (15 docs, 4 code —
+    # one a brand-new module) was routed "소스 코드 변경 없음(문서만 변경)" with
+    # every reviewer deselected; the code was in the prompt, the router read the
+    # majority. Same classifier as the forced rules, so the two cannot disagree.
+    all_paths = [ci["file_path"] for ci in change_infos]
+    src_paths = router_safety.source_files(all_paths)
+    if src_paths:
+        shown = "\n".join(f"  - `{p}`" for p in src_paths[:20])
+        more = f"\n  - … 외 {len(src_paths) - 20}개" if len(src_paths) > 20 else ""
+        composition_block = (
+            f"변경 파일 {len(all_paths)}개 중 **소스 코드 파일 {len(src_paths)}개**:\n"
+            f"{shown}{more}\n\n"
+            "→ 이 변경은 **문서 전용이 아닙니다.** \"문서만 변경\" 을 사유로 "
+            "reviewer 를 제외하지 마세요. 문서 파일 수가 많더라도 위 소스 파일의 "
+            "실제 내용을 근거로 판단하세요.\n"
+        )
+    else:
+        composition_block = (
+            f"변경 파일 {len(all_paths)}개 중 소스 코드 파일 **0개** "
+            "(문서·설정 전용 변경).\n"
+        )
+
     candidate_count = len(agents)
     header = (
         "# Review Router Payload\n\n"
         "본 파일은 orchestrator 가 review-router 용으로 작성한 입력입니다. "
         f"아래 변경 코드를 보고, {candidate_count}명의 reviewer 후보 중 어떤 reviewer 를 실제로 실행할지 결정하세요.\n\n"
+        "## 변경 구성 (orchestrator 가 확장자로 판정한 사실)\n\n"
+        f"{composition_block}\n"
         "## 결정 규칙\n"
-        "- 아래 **강제 포함** 목록은 router_safety 가 결정한 것으로, router 가 끄지 못합니다 (selected=true 고정).\n"
+        "- 아래 **강제 포함** 목록은 router_safety 가 결정한 것으로, router 가 끄지 못합니다 "
+        "— 목록의 reviewer 는 **반드시 항목을 포함해 `selected=true`** 로 반환하세요.\n"
         "- 그 외 reviewer 는 변경 코드의 실제 의미를 보고 판단. **확신 없으면 selected=true** (false-negative 가 false-positive 보다 위험).\n"
-        "- selected 수가 0 또는 1 이면 호출자가 본 결정을 폐기하고 전체 reviewer fallback 합니다 (역시 false-negative 방어).\n"
+        "- **호출자가 코드로 검증합니다 (프롬프트 문구가 아니라 실제 강제):** 강제 포함 "
+        "reviewer 를 하나라도 `selected=false` 로 반환하거나 결정에서 누락하면, 본 결정은 "
+        f"신뢰할 수 없는 것으로 보아 통째로 폐기되고 전체 {candidate_count}명이 실행됩니다. "
+        "즉 강제 목록을 어겨도 리뷰가 줄지 않고 오히려 전량 실행을 유발합니다.\n"
         "- 변경 코드 본문을 직접 분석할 수 있도록 변경 파일 컨텍스트가 함께 전달됩니다. 추가 탐색이 필요하면 Read/Grep/Glob/Bash 를 자유롭게 사용해도 됩니다.\n\n"
         "## 강제 포함 (router 가 끄지 못함)\n\n"
         f"{forced_block}\n\n"
