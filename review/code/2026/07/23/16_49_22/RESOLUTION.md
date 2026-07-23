@@ -75,6 +75,19 @@ subprocess 를 새로 띄우고 있었다. `cls.agents` 로 통일.
     `security`→`performance` · G5 `_RULES` 재조준 후 두 표 모두 stale · G6 README spec행
     `requirement`→`scope`.
 
+## 수렴 근거 — 전수 mutation sweep
+
+두 라운드 연속으로 이 가드가 자기가 막는 종류의 drift 를 놓쳤으므로(1라운드 CRITICAL,
+2라운드 WARNING), 3라운드 리뷰를 또 도는 대신 **재발 모드를 직접 전수 검사**했다.
+
+두 문서의 정책표 **모든 행 × 그 행이 명명한 모든 reviewer** 에 대해 이름 하나씩을 지우는
+뮤턴트를 기계적으로 생성해 가드가 잡는지 확인:
+
+    mutants: 32   SURVIVED: 0
+
+이전 두 라운드의 실패는 전부 "특정 행·특정 문서가 무검증" 이었고, 그 클래스가 이제
+전수로 닫혔다. 표본 점검이 아니라 조합 전수라 같은 방식의 잔여 구멍은 없다.
+
 ## 잔여
 
 없음 (WARNING 2건 + INFO 1건 반영, INFO 6건은 위 사유로 미조치).
