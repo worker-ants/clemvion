@@ -1,12 +1,20 @@
 """End-to-end tests for guard_review_before_push.py's main() entry point.
 
-`_is_git_push` is already thickly tested elsewhere; what had NO coverage is the
-entry point that CONSUMES its result — the exit codes (0 allow / 2 block), the
+Scope: `main()`'s ORCHESTRATION only — the exit codes (0 allow / 2 block), the
 REVIEW-then-PLAN gate order, the BYPASS_* per-gate overrides, the triple
 fail-open (a gate module that fails to import, or whose evaluate_*() raises),
 and stdin JSON handling. A silent regression there (e.g. the plan gate running
 before the review gate, or a bypass leaking across gates, or fail-open turning
 into fail-closed) would ship unnoticed.
+
+NOT covered here: `_is_git_push`'s own detection logic. It has no dedicated
+unit tests at all — the 44-case `test_push_detection.py` suite and the
+subcommand-aware rewrite it guarded were both withdrawn in `3c6547b4d`
+("push 가드 서브커맨드 재작성 철회"), leaving today's plain regex. That gap is
+real and tracked as backlog item ② (harness-push-guard-subcommand-detection);
+these tests deliberately use unambiguous commands (`git push …` / `git status`)
+so they exercise main() rather than probing detection edges, and must not be
+read as evidence that detection is covered.
 
 These run the REAL hook as a subprocess with a JSON payload on stdin, exactly
 as the harness invokes it, so the assertions are on the actual process exit
@@ -31,7 +39,7 @@ import sys
 import tempfile
 import unittest
 
-import _harness  # noqa: F401  — side effect: harness path setup; REPO_ROOT used below
+import _harness  # noqa: F401  — side effect: harness path setup; HOOKS_DIR used below
 
 HOOK_SRC = _harness.HOOKS_DIR / "guard_review_before_push.py"
 
@@ -39,6 +47,11 @@ HOOK_SRC = _harness.HOOKS_DIR / "guard_review_before_push.py"
 #   review_guard.evaluate_review() -> obj with .blocked / .reason
 #   plan_guard.evaluate_plan()     -> obj with .untouched / .reason / .plan_path
 # Behaviour is chosen at runtime from an env var so ONE copy covers every case.
+#
+# These are deliberately NARROWER than the real dataclasses (PlanDecision also
+# carries e.g. `complete_but_in_progress`): they model only the fields main()
+# actually reads. If main() starts reading another one, these stubs raise
+# AttributeError rather than silently returning a wrong default — fail-loud.
 _REVIEW_STUB = '''\
 import os
 if os.environ.get("STUB_REVIEW") == "import_error":
