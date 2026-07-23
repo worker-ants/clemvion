@@ -5,34 +5,44 @@ plan/in-progress/harness-push-guard-subcommand-detection.md):
 
   1. a BLIND regex over raw text — ignorant on purpose, so it has no false
      negatives that a shell-aware parser would introduce;
-  2. an ENUMERATED allowlist that releases only shapes provably proven to be
-     inert TEXT (a commit message, a grep pattern).
+  2. an ENUMERATED allowlist that releases only shapes provably inert TEXT
+     (a commit message, a grep pattern).
 
 A 2026-07-17 rewrite that replaced (1) with shlex-based subcommand detection was
 REVERTED: /ai-review found a new false-NEGATIVE class every round (`git $'push'`,
 `git $"push"`, backticks, `bash -c "… && git push"`). The shell's
 text-transforming features are unbounded; the blind regex's false POSITIVES are
-finite. This suite exists to keep that trade from being made again:
+finite. This suite keeps that trade from being made again:
 
   * `test_blind_pattern_is_frozen` pins half (1) byte-for-byte;
   * `test_no_new_false_negatives` re-runs the ORIGINAL regex (frozen below as
     `_LEGACY_PATTERN`) over the whole corpus and fails if the guard releases
-    anything that is not an explicitly enumerated, justified exception.
+    anything without an enumerated, justified reason.
 
-Every command the 3 review rounds surfaced is in CORPUS as a regression floor.
+CORPUS is the single source of truth: a third field holds the release reason
+(None = must stay blocked), so a command literal is never typed twice.
+
+Every command the 3 review rounds surfaced is here as a regression floor, plus
+the three CRITICALs found in review/code/2026/07/23/14_23_23 — all of which were
+defects in the allowlist half, reproduced before being fixed:
+  C1 single-quote escape confusion redacted a REAL `&& git push` (gate bypass);
+  C2 an ambiguous alternation backtracked exponentially (hook hang);
+  C3 blanking a message unmasked a live `$(git push …)` the blind pass never
+     matched, flipping a block into a silent pass.
 """
 
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
+import time
 import unittest
 
 import _harness  # noqa: F401  — side effect: harness path setup; HOOKS_DIR used below
 
-guard = _harness.load_module_by_path(
-    "guard_review_before_push",
-    _harness.HOOKS_DIR / "guard_review_before_push.py",
-)
+_HOOK_PATH = _harness.HOOKS_DIR / "guard_review_before_push.py"
+guard = _harness.load_module_by_path("guard_review_before_push", _HOOK_PATH)
 
 # The pre-allowlist regex, frozen. This is the differential BASELINE: the new
 # guard must block everything this blocks, minus the enumerated releases.
@@ -49,85 +59,105 @@ def legacy_is_push(command: str) -> bool:
     return bool(_LEGACY.search(command))
 
 
-# --- corpus ----------------------------------------------------------------
-# (command, note). Everything the review rounds found is here as a floor.
-CORPUS: list[tuple[str, str]] = [
-    # round 1 — spellings a subcommand parser missed
-    ("git add -A\ngit push", "newline as the only separator"),
-    ("git --attr-source main push", "global option before the subcommand"),
-    # round 2 — the region really executes
-    ('git commit -m "$(git push)"', "command substitution inside the message"),
-    ('git commit -m "`git push`"', "backtick inside the message"),
-    ('bash -c "cd /tmp && git push"', "&& inside a -c script"),
-    # round 3 — shell quoting forms
-    ("git $'push'", "ANSI-C quoting"),
-    ('git $"push"', "locale-translation quoting"),
-    ("git 'pu''sh' --force", "quote splitting (legacy misses it too)"),
-    ("GIT push", "uppercase (legacy misses it too)"),
-    ("git push\x00 extra", "NUL contamination"),
-    ('eval "git push"', "eval (legacy misses it too)"),
-    # plain true positives
-    ("git push", "bare"),
-    ("git push origin HEAD", "with args"),
-    ("git -C /tmp push", "-C"),
-    ("GIT_SSH=x git push", "env assignment prefix"),
-    ("git add -A && git push", "&& chain"),
-    ("git push --force-with-lease", "force variant"),
-    # message/grep text ADJACENT to a real push — the push must survive
-    ('git commit -m "msg" && git push', "message then a real push"),
-    ('git commit -m "a" && git push -f', "message then a real force push"),
-    ('git commit -m "push" ; git push', "; then a real push"),
-    ("git commit -F - <<'EOF'\nmsg\nEOF\n&& git push", "heredoc then a real push"),
-    ('grep "x\\|git push" f && git push', "grep pattern then a real push"),
-    (r'echo "a\\" | git push', "escaped backslash then a REAL pipe"),
-    # release-rule abuse attempts
-    ("bash <<'EOF'\nfoo && git push\nEOF", "heredoc body that bash EXECUTES"),
+# --- corpus -----------------------------------------------------------------
+# (command, note, release_reason). release_reason=None means "must stay blocked";
+# a string is the argument for why the released text can never execute.
+CORPUS: list[tuple[str, str, str | None]] = [
+    # ---- round 1: spellings a subcommand parser missed -------------------
+    ("git add -A\ngit push", "newline as the only separator", None),
+    ("git --attr-source main push", "global option before the subcommand", None),
+    # ---- round 2: the region really executes -----------------------------
+    ('git commit -m "$(git push)"', "command substitution in the message", None),
+    ('git commit -m "`git push`"', "backtick in the message", None),
+    ('bash -c "cd /tmp && git push"', "&& inside a -c script", None),
+    # ---- round 3: shell quoting forms ------------------------------------
+    ("git $'push'", "ANSI-C quoting", None),
+    ('git $"push"', "locale-translation quoting", None),
+    ("git 'pu''sh' --force", "quote splitting (legacy misses it too)", None),
+    ("GIT push", "uppercase (legacy misses it too)", None),
+    ("git push\x00 extra", "NUL contamination", None),
+    ('eval "git push"', "eval (legacy misses it too)", None),
+    # ---- plain true positives --------------------------------------------
+    ("git push", "bare", None),
+    ("git push origin HEAD", "with args", None),
+    ("git -C /tmp push", "-C", None),
+    ("GIT_SSH=x git push", "env assignment prefix", None),
+    ("git add -A && git push", "&& chain", None),
+    ("git push --force-with-lease", "force variant", None),
+    # ---- message/grep text ADJACENT to a real push -----------------------
+    ('git commit -m "msg" && git push', "message then a real push", None),
+    ('git commit -m "a" && git push -f', "message then a real force push", None),
+    ('git commit -m "push" ; git push', "; then a real push", None),
+    ("git commit -F - <<'EOF'\nmsg\nEOF\n&& git push", "heredoc then a real push", None),
+    ('grep "x\\|git push" f && git push', "grep pattern then a real push", None),
+    (r'echo "a\\" | git push', "escaped backslash then a REAL pipe", None),
+    # ---- release-rule abuse attempts -------------------------------------
+    ("bash <<'EOF'\nfoo && git push\nEOF", "heredoc body that bash EXECUTES", None),
     (
         'echo "git commit -F -" | bash <<\'EOF\'\nfoo && git push\nEOF',
-        "context spoof: the idiom sits in an echo arg, bash owns the heredoc",
+        "owner spoof: the idiom sits in an echo arg, bash owns the heredoc",
+        None,
     ),
-    ("git commit -F - <<EOF\nfoo && git push $(id)\nEOF", "unquoted delim + expansion"),
-    ('bash -c "git commit -m \\"x\\" && git push"', "escaped quotes inside -c"),
-    # known false positive kept ON PURPOSE (see the test below)
-    ("git log --grep=push", "flag VALUE, not a message region"),
-    # not a push at all
-    ("git status", "unrelated git"),
-    ("ls -la", "unrelated"),
-    # the releases themselves
-    ('git commit -m "add push notification"', "FP: -m message"),
-    ('git commit -m "fix: do not push twice"', "FP: -m message"),
-    ('git commit -m "a" -m "b && git push"', "FP: repeated -m"),
-    ('git -c core.hooksPath=/dev/null commit -m "push"', "FP: -c then -m"),
-    ("git commit -F - <<'EOF'\nadd push flow\nEOF", "FP: commit heredoc"),
-    ("git commit -F - <<'EOF'\nfoo && git push\nEOF", "FP: && inside message body"),
+    ("git commit -F - <<EOF\nfoo && git push $(id)\nEOF",
+     "unquoted delim + expansion", None),
+    ('bash -c "git commit -m \\"x\\" && git push"',
+     "escaped quotes inside -c", None),
+    # ---- the three CRITICALs from review 2026/07/23 14_23_23 -------------
+    (
+        r"""git commit -m 'a\' && git push -- 'end'""",
+        "C1: single-quoted value ending in a backslash. POSIX gives no escapes "
+        "inside '…', so the message is just `a\\` and the `&& git push` RUNS. "
+        "Treating \\' as an escape pair swallowed it — a full gate bypass.",
+        None,
+    ),
+    (
+        'git commit -m "fix: retry push notification bug" '
+        '&& echo "log: $(git push origin main)"',
+        "C3: legacy blocked this only by accidentally matching `push` in the "
+        "message; blanking the message dropped that match while $(git push …) "
+        "still executes.",
+        None,
+    ),
+    # ---- tag variant of the heredoc rule (review WARNING #3) -------------
+    ("git tag -a v1 -F - <<'EOF'\nrelease notes mention push\nEOF",
+     "tag heredoc — the rule accepts commit|tag", "same owner rule as commit"),
+    (
+        'echo "git tag -F -" | bash <<\'EOF\'\nfoo && git push\nEOF',
+        "tag-flavoured owner spoof must be refused just like the commit one",
+        None,
+    ),
+    # ---- known false positive kept ON PURPOSE ----------------------------
+    ("git log --grep=push", "flag VALUE, not a message region", None),
+    # ---- not a push at all -----------------------------------------------
+    ("git status", "unrelated git", None),
+    ("ls -la", "unrelated", None),
+    # ---- the releases ----------------------------------------------------
+    ('git commit -m "add push notification"', "FP: -m message",
+     "-m value is message text with no $( ` ${ — the shell expands nothing"),
+    ('git commit -m "fix: do not push twice"', "FP: -m message", "inert -m value"),
+    ("git commit -m 'add push notification'", "FP: single-quoted -m message",
+     "single-quoted body ends at the first quote; nothing inside can execute"),
+    ('git commit -m "a" -m "b && git push"', "FP: repeated -m",
+     "both values are message text; the && lives inside the quoted value"),
+    ('git -c core.hooksPath=/dev/null commit -m "push"', "FP: -c then -m",
+     "-c is a git config pair, -m value is inert message text"),
+    ("git commit -F - <<'EOF'\nadd push flow\nEOF", "FP: commit heredoc",
+     "heredoc owned by `git commit -F -`; quoted delimiter, inert body"),
+    ("git commit -F - <<'EOF'\nfoo && git push\nEOF", "FP: && inside message body",
+     "same owner; the && is message text git stores, not a shell operator"),
     (
         "git commit -q -F - <<'EOF'\nfeat: push guard\n\nbody mentions push\nEOF",
         "FP: the real-world commit idiom",
+        "same owner; the idiom this repo actually uses for commit messages",
     ),
-    ('grep -n "foo\\|git push\\|bar" f', "FP: escaped pipe in a grep pattern"),
+    ("git commit -F - <<'EOF'\nEOF\ngit push", "empty heredoc body, real push after",
+     None),
+    ('grep -n "foo\\|git push\\|bar" f', "FP: escaped pipe in a grep pattern",
+     r"the segment start is `\|`, a backslash-escaped literal pipe — never a "
+     r"shell pipe operator, in or out of quotes"),
 ]
 
-# The ONLY commands allowed to go from legacy-BLOCK to allowed. Each carries the
-# argument for why the released text can never execute.
-RELEASED: dict[str, str] = {
-    'git commit -m "add push notification"':
-        "-m value is message text; contains no $( ` ${ so the shell expands nothing",
-    'git commit -m "fix: do not push twice"':
-        "same: inert -m value",
-    'git commit -m "a" -m "b && git push"':
-        "both -m values are message text; the && lives inside the quoted value",
-    'git -c core.hooksPath=/dev/null commit -m "push"':
-        "-c is a git config pair, -m value is inert message text",
-    "git commit -F - <<'EOF'\nadd push flow\nEOF":
-        "heredoc owned by `git commit -F -`; quoted delimiter, body is inert",
-    "git commit -F - <<'EOF'\nfoo && git push\nEOF":
-        "same owner; the && is message text git stores, not a shell operator",
-    "git commit -q -F - <<'EOF'\nfeat: push guard\n\nbody mentions push\nEOF":
-        "same owner; the idiom this repo actually uses for commit messages",
-    'grep -n "foo\\|git push\\|bar" f':
-        r"the segment start is `\|`, a backslash-escaped literal pipe — never a "
-        r"shell pipe operator, in or out of quotes",
-}
+RELEASED = {cmd: reason for cmd, _n, reason in CORPUS if reason is not None}
 
 
 class BlindPassFrozenTest(unittest.TestCase):
@@ -146,19 +176,19 @@ class DifferentialTest(unittest.TestCase):
     """legacy(c) ⇒ new(c), except for enumerated, justified releases."""
 
     def test_no_new_false_negatives(self):
-        for command, note in CORPUS:
+        for command, note, reason in CORPUS:
             with self.subTest(note=note, command=command):
                 if legacy_is_push(command) and not guard._is_git_push(command):
-                    self.assertIn(
-                        command, RELEASED,
+                    self.assertIsNotNone(
+                        reason,
                         f"{note}: the guard stopped blocking a command the blind "
-                        "scan catches, and it is not an enumerated release. This "
-                        "is a FALSE NEGATIVE — unreviewed code could be pushed.",
+                        "scan catches, and it carries no release reason. This is "
+                        "a FALSE NEGATIVE — unreviewed code could be pushed.",
                     )
 
     def test_no_new_blocks(self):
         """The allowlist may only ever RELEASE; it must never add blocking."""
-        for command, note in CORPUS:
+        for command, note, _reason in CORPUS:
             with self.subTest(note=note, command=command):
                 if guard._is_git_push(command):
                     self.assertTrue(
@@ -168,9 +198,9 @@ class DifferentialTest(unittest.TestCase):
                     )
 
     def test_every_enumerated_release_actually_releases(self):
-        """A stale RELEASED entry (fixed upstream, or never reproducing) would
+        """A stale release reason (fixed upstream, or never reproducing) would
         silently weaken the differential test into a tautology."""
-        for command, why in RELEASED.items():
+        for command, reason in RELEASED.items():
             with self.subTest(command=command):
                 self.assertTrue(
                     legacy_is_push(command),
@@ -178,8 +208,17 @@ class DifferentialTest(unittest.TestCase):
                 )
                 self.assertFalse(
                     guard._is_git_push(command),
-                    f"expected release ({why}) but the guard still blocks",
+                    f"expected release ({reason}) but the guard still blocks",
                 )
+
+    def test_every_non_release_entry_stays_blocked(self):
+        """The other direction: an entry with no reason must really be blocked
+        whenever the blind scan catches it."""
+        for command, note, reason in CORPUS:
+            if reason is not None or not legacy_is_push(command):
+                continue
+            with self.subTest(note=note, command=command):
+                self.assertTrue(guard._is_git_push(command), note)
 
 
 class ReleaseRefusedTest(unittest.TestCase):
@@ -213,9 +252,6 @@ class ReleaseRefusedTest(unittest.TestCase):
         )
 
     def test_heredoc_owner_spoof_is_not_released(self):
-        """An earlier draft tested whether the opening LINE mentioned the commit
-        idiom; this command defeats that by putting the idiom in an echo arg
-        while `bash` owns the heredoc."""
         self._still_blocked(
             'echo "git commit -F -" | bash <<\'EOF\'\nfoo && git push\nEOF',
             "the heredoc's owning segment is `bash`, not `git commit -F -`",
@@ -234,6 +270,82 @@ class ReleaseRefusedTest(unittest.TestCase):
             r"`\\` is an escaped backslash, so the following | IS a pipe operator",
         )
 
+    def test_single_quoted_trailing_backslash_does_not_swallow_a_real_push(self):
+        """CRITICAL #1 (review 2026/07/23 14_23_23), reproduced then fixed.
+
+        POSIX shell does no escape processing inside '…' — `-m 'a\\'` is the
+        message `a\\` and the following `&& git push` executes. Applying
+        double-quote escape rules made the body run on to the NEXT quote,
+        blanking the real push out of the command entirely.
+        """
+        self._still_blocked(
+            r"""git commit -m 'a\' && git push -- 'end'""",
+            "the single-quoted body ends at its own closing quote; the "
+            "`&& git push` after it must survive redaction",
+        )
+
+    def test_message_blanking_does_not_unmask_a_live_expansion(self):
+        """CRITICAL #3: blanking an inert message must not turn a block into a
+        pass when a live `$(git push …)` sits elsewhere in the command."""
+        self._still_blocked(
+            'git commit -m "fix: retry push notification bug" '
+            '&& echo "log: $(git push origin main)"',
+            "any shell expansion anywhere withholds the release",
+        )
+
+
+class BacktrackingTest(unittest.TestCase):
+    """CRITICAL #2: the message regex must stay linear.
+
+    This hook is a PreToolUse gate on EVERY Bash call, so a pathological input
+    does not merely slow a test down — it freezes the session (or trips the
+    harness timeout into a fail-open). The pre-fix pattern's two alternatives
+    both matched a backslash; with no closing quote the engine explored them
+    exponentially (measured: 40 backslashes ≈ 8s, 50 ≈ minutes).
+
+    Run in a SUBPROCESS with a hard timeout rather than timing an in-process
+    call: catastrophic backtracking happens inside a C-level `re` call, which
+    neither returns nor honours a signal, so an in-process timing assertion
+    cannot fail — it hangs the whole suite. (Confirmed by running the pre-fix
+    regex as a mutant: the run had to be killed at 2 minutes.)
+    """
+
+    _TIMEOUT = 10.0
+
+    def _run_guard_out_of_process(self, command: str):
+        script = (
+            "import importlib.util,sys\n"
+            f"spec=importlib.util.spec_from_file_location('g',{str(_HOOK_PATH)!r})\n"
+            "m=importlib.util.module_from_spec(spec);sys.modules['g']=m\n"
+            "spec.loader.exec_module(m)\n"
+            "import sys;m._is_git_push(sys.stdin.read())\n"
+        )
+        return subprocess.run(
+            [sys.executable, "-c", script], input=command,
+            capture_output=True, text=True, timeout=self._TIMEOUT,
+        )
+
+    def test_unterminated_quote_with_long_backslash_run_is_fast(self):
+        for count in (60, 200, 800):
+            command = 'git commit -m "' + "\\" * count + " push"
+            with self.subTest(backslashes=count):
+                start = time.monotonic()
+                try:
+                    self._run_guard_out_of_process(command)
+                except subprocess.TimeoutExpired:
+                    self.fail(
+                        f"{count} backslashes did not finish in "
+                        f"{self._TIMEOUT:g}s — the message regex is "
+                        "backtracking again. Keep its alternatives disjoint "
+                        "(one branch consumes `\\\\.`, the other must EXCLUDE "
+                        "backslash)."
+                    )
+                elapsed = time.monotonic() - start
+                self.assertLess(
+                    elapsed, self._TIMEOUT,
+                    f"{count} backslashes took {elapsed:.2f}s",
+                )
+
 
 class ReleaseTest(unittest.TestCase):
     """The false positives this change exists to remove."""
@@ -245,13 +357,30 @@ class ReleaseTest(unittest.TestCase):
     def test_commit_message_word_push_is_released(self):
         self._released('git commit -m "add push notification"')
 
+    def test_single_quoted_commit_message_is_released(self):
+        self._released("git commit -m 'add push notification'")
+
     def test_commit_heredoc_body_is_released(self):
         self._released("git commit -F - <<'EOF'\nadd push flow\nEOF")
+
+    def test_tag_heredoc_body_is_released(self):
+        self._released("git tag -a v1 -F - <<'EOF'\nrelease notes mention push\nEOF")
 
     def test_repo_commit_idiom_is_released(self):
         self._released(
             "git commit -q -F - <<'EOF'\nfeat: push guard\n\nbody mentions push\nEOF"
         )
+
+    def test_empty_heredoc_body_terminates_and_keeps_the_real_push(self):
+        """A zero-length heredoc body must not make the scanner re-examine the
+        same opener forever (the `pos = max(body_end, m.end())` guard), and the
+        real push after it must still be caught."""
+        command = "git commit -F - <<'EOF'\nEOF\ngit push"
+        start = time.monotonic()
+        blocked = guard._is_git_push(command)
+        self.assertLess(time.monotonic() - start, 1.0,
+                        "empty heredoc body sent the scanner into a loop")
+        self.assertTrue(blocked, "the trailing real push must still block")
 
     def test_grep_pattern_with_escaped_pipe_is_released(self):
         self._released('grep -n "foo\\|git push\\|bar" f')
@@ -273,6 +402,14 @@ class KnownRemainingFalsePositiveTest(unittest.TestCase):
         this test should be updated deliberately, with its own safety argument.
         """
         self.assertTrue(guard._is_git_push("git log --grep=push"))
+
+    def test_message_beside_any_expansion_is_conservatively_blocked(self):
+        """Cost of the CRITICAL #3 fix, pinned honestly: a perfectly innocent
+        commit message is NOT released when the command also contains any
+        expansion. False positive, i.e. the safe direction."""
+        self.assertTrue(
+            guard._is_git_push('git commit -m "add push" && echo "$(date)"')
+        )
 
 
 if __name__ == "__main__":

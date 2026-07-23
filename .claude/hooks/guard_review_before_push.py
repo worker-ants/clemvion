@@ -107,11 +107,24 @@ def _owns_heredoc_as_message(prefix: str) -> bool:
     """True when the command immediately before `<<` is `git commit|tag … -F -`."""
     return bool(_COMMIT_STDIN_CMD.match(_SEGMENT_SPLIT.split(prefix)[-1]))
 
-# `-m "…"` / `--message="…"` / `-F "…"` values. The body stops at the first
-# unescaped matching quote, so `-m "a" && git push` cannot swallow the push.
+# `-m '…'` / `-m "…"` / `--message=…` / `-F …` values. The two quote styles need
+# DIFFERENT bodies, and conflating them was a real gate bypass (review
+# 2026/07/23 14_23_23 C1):
+#
+#   single quotes — POSIX shell does NO escape processing inside '…'; the first
+#     `'` always closes it (a quote cannot even be embedded). So the body is
+#     literally "up to the next quote". Treating `\'` as an escape pair made
+#     `git commit -m 'a\' && git push -- 'end'` read as one long message and
+#     blanked the REAL `&& git push` out of existence.
+#   double quotes — `\"` does escape, so escape pairs must be consumed. The two
+#     alternatives are kept DISJOINT (`[^"\\]` excludes the backslash `\\.`
+#     starts with). An overlapping version backtracked exponentially on a body
+#     with no closing quote (same review, C2): this hook gates every Bash call
+#     synchronously, so that hang freezes the session.
 _MESSAGE_ARG = re.compile(
     r"(?:(?<=\s)|^)(?:-m|--message=|-F)\s*"
-    r"(?P<q>['\"])(?P<body>(?:\\.|(?!(?P=q)).)*)(?P=q)",
+    r"(?:'(?P<sbody>[^']*)'"
+    r"|\"(?P<dbody>(?:\\.|[^\"\\])*)\")",
     re.S,
 )
 
@@ -150,11 +163,11 @@ def _redact_inert_text(command: str) -> str:
     # applied afterwards — blanking preserves length, so the offsets stay valid.
     # (A "re-search until nothing changes" loop would not terminate: a blanked
     # body is still a match, and still inert.)
-    spans = [
-        (m.start("body"), m.end("body"))
-        for m in _MESSAGE_ARG.finditer(out)
-        if _is_inert(m.group("body"))
-    ]
+    spans = []
+    for m in _MESSAGE_ARG.finditer(out):
+        group = "sbody" if m.group("sbody") is not None else "dbody"
+        if _is_inert(m.group(group)):
+            spans.append((m.start(group), m.end(group)))
     for start, end in spans:
         out = _blank(out, start, end)
 
@@ -200,14 +213,27 @@ def _read_payload() -> dict:
 
 
 def _is_git_push(command: str) -> bool:
+    """True when this Bash command should be treated as a `git push`.
+
+    Blind first pass, then an enumerated allowlist that can only SUBTRACT.
+    """
     if not command or "push" not in command:
         return False
     if not _GIT_PUSH.search(command):
         return False  # blind pass says no — detection is unchanged from legacy.
-    # Blind pass says yes. Release ONLY if the match cannot survive removing
-    # provably-inert text, i.e. it only ever lived inside a commit message or a
-    # grep pattern. Anything else — including anything we failed to prove inert
-    # — stays blocked.
+    if not _is_inert(command):
+        # A shell expansion lives SOMEWHERE in this command. Releasing is only
+        # sound when the blind match was the only reason to block; here the
+        # expansion could itself be a push the blind pass never matched, and
+        # blanking a message would silently unmask it. Reviewed regression
+        # (2026/07/23 14_23_23 C3):
+        #   git commit -m "fix: retry push bug" && echo "$(git push origin main)"
+        # legacy blocked this by accidentally matching "push" in the message;
+        # blanking the message dropped that match while `$(git push …)` still
+        # runs. Refuse to release whenever any expansion is present.
+        return True
+    # Release ONLY if the match cannot survive removing provably-inert text —
+    # i.e. it only ever lived inside a commit message or a grep pattern.
     return bool(_GIT_PUSH.search(_redact_inert_text(command)))
 
 
