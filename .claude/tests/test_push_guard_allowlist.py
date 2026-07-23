@@ -355,6 +355,15 @@ class GeneratedFloorTest(unittest.TestCase):
         dupes = sorted({v for v in self._VALUES if self._VALUES.count(v) > 1})
         self.assertEqual(dupes, [], "duplicate values in the generated set")
 
+    def test_both_axes_are_actually_generated(self):
+        """The multi-assignment axis is load-bearing, so pin it alongside the
+        value shapes: the prefix group only collapses when it has to FAIL a
+        repetition, so single-assignment cases test a strictly easier problem."""
+        multi = [t for t in self._TEMPLATES if t.count("=") >= 2]
+        single = [t for t in self._TEMPLATES if t.count("=") == 1]
+        self.assertGreaterEqual(len(multi), 2, "multi-assignment axis was dropped")
+        self.assertTrue(single, "single-assignment baseline was dropped")
+
     def test_the_regression_shapes_are_still_generated(self):
         """Close the escape hatch: a failing superset test can be "fixed" by
         deleting the input that exposes it.
@@ -384,11 +393,22 @@ class GeneratedFloorTest(unittest.TestCase):
             "that it has none",
         )
 
+    # Non-vacuity floor as a RATIO, not a count. `_MIN_CORPUS_COVERAGE` guards
+    # the curated corpus, whose size is roughly fixed; this population grows
+    # every time a shape is added, so an absolute floor silently loosens — at 10
+    # it was passing on 5% participation while the real figure was 147/203.
+    _MIN_PARTICIPATION = 0.5
+
     def test_the_generated_set_actually_exercises_the_floor(self):
         """Without this, an edit that made `legacy_is_push` stop matching would
         turn the test above into a tautology."""
-        compared = sum(1 for c in self._cases() if legacy_is_push(c))
-        self.assertGreater(compared, _MIN_CORPUS_COVERAGE, "floor matched almost nothing")
+        cases = self._cases()
+        compared = sum(1 for c in cases if legacy_is_push(c))
+        self.assertGreaterEqual(
+            compared / len(cases), self._MIN_PARTICIPATION,
+            f"only {compared}/{len(cases)} generated commands engage the floor — "
+            "the comparison above is close to vacuous",
+        )
 
     def test_quoted_values_are_a_strict_gain(self):
         """The mirror failure: a 'superset' that widened nothing would satisfy
