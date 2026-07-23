@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-07-23T13:02:53.670095",
+  "files": [
+    {
+      "file_path": ".claude/tests/test_reap_merged_worktrees.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tools/reap-merged-worktrees.sh",
+      "change_type": "Review",
+      "file_extension": "sh"
+    },
+    {
+      "file_path": "plan/in-progress/harness-guard-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

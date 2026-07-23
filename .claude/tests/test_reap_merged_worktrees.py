@@ -43,8 +43,11 @@ _GH_STUB = """#!/usr/bin/env bash
 #               $LIST_FAILS=1 makes the batch itself fail (no auth / API error).
 #   `pr view` — the per-branch fallback: MERGED for $MERGED_BRANCHES, else OPEN.
 # Every call is appended to $GH_CALL_LOG so a test can assert the reaper batches
-# instead of running one `pr view` per candidate.
-[ -n "${GH_CALL_LOG:-}" ] && echo "${1:-} ${2:-} ${3:-}" >> "$GH_CALL_LOG"
+# instead of running one `pr view` per candidate. The FULL argv is logged (not
+# just the first few words) so a test can also see flag values such as
+# `--limit <n>` — logging only "$1 $2 $3" hid whether REAP_GH_PR_LIMIT ever
+# reached gh at all.
+[ -n "${GH_CALL_LOG:-}" ] && echo "$*" >> "$GH_CALL_LOG"
 if [ "${1:-}" = "pr" ] && [ "${2:-}" = "list" ]; then
   [ "${LIST_FAILS:-0}" = "1" ] && exit 1
   for b in ${MERGED_BRANCHES:-}; do
@@ -136,7 +139,8 @@ class ReaperTest(unittest.TestCase):
             calls = [ln.strip() for ln in f if ln.strip()]
         return [c for c in calls if c.startswith(kind)] if kind else calls
 
-    def _env(self, merged=(), gh_bin=None, batch_omit=(), list_fails=False):
+    def _env(self, merged=(), gh_bin=None, batch_omit=(), list_fails=False,
+             pr_limit=None):
         env = os.environ.copy()
         env["REAP_GH_BIN"] = gh_bin if gh_bin is not None else self.gh
         env["MERGED_BRANCHES"] = " ".join(merged)
@@ -144,13 +148,16 @@ class ReaperTest(unittest.TestCase):
         env["GH_CALL_LOG"] = self.gh_call_log
         env["BATCH_OMIT"] = " ".join(batch_omit)
         env["LIST_FAILS"] = "1" if list_fails else "0"
+        if pr_limit is not None:
+            env["REAP_GH_PR_LIMIT"] = pr_limit
         return env
 
     def _run(self, *extra, merged=(), gh_bin=None, dry=False, cwd=None,
-             batch_omit=(), list_fails=False):
+             batch_omit=(), list_fails=False, pr_limit=None):
         args = ["bash", self.reaper, *(("--dry-run",) if dry else ()), *extra]
         return subprocess.run(args, cwd=cwd or self.repo,
-                              env=self._env(merged, gh_bin, batch_omit, list_fails),
+                              env=self._env(merged, gh_bin, batch_omit,
+                                            list_fails, pr_limit),
                               capture_output=True, text=True)
 
     def _install_bootstrap(self, worktree):
@@ -280,6 +287,36 @@ class ReaperTest(unittest.TestCase):
         self._run(merged=[])
         self.assertEqual(self._gh_calls(), [],
                          "no candidate → gh must never be invoked")
+
+    def test_pr_limit_override_reaches_gh(self):
+        """REAP_GH_PR_LIMIT must actually be handed to `gh pr list --limit`.
+        Without this the knob could be silently dropped (or shadowed) and the
+        batch would keep using the default window with nothing to show for it."""
+        self._add_worktree("wt-lim")
+        self._run(merged=["claude/wt-lim"], pr_limit="7")
+        batch = self._gh_calls("pr list")
+        self.assertEqual(len(batch), 1, batch)
+        self.assertIn("--limit 7", batch[0],
+                      f"REAP_GH_PR_LIMIT must reach gh, got: {batch[0]}")
+
+    def test_bad_pr_limit_falls_back_to_the_default(self):
+        """A non-integer / empty / 0 override must not reach `gh --limit` (0
+        makes the batch pointless, a word makes gh fail) — the guard rewrites it
+        to the 200 default, mirroring REAP_MIN_INTERVAL's own bad-value guard.
+
+        One unmerged worktree exists so there IS a candidate (the batch is
+        skipped entirely when no claude/* branch exists); nothing is MERGED, so
+        it survives every iteration."""
+        self._add_worktree("wt-lim-guard")
+        for bad in ("abc", "", "0", "-5"):
+            with self.subTest(value=bad):
+                open(self.gh_call_log, "w").close()  # reset the log per case
+                r = self._run(merged=[], pr_limit=bad)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                batch = self._gh_calls("pr list")
+                self.assertEqual(len(batch), 1, batch)
+                self.assertIn("--limit 200", batch[0],
+                              f"bad limit {bad!r} must fall back to 200, got: {batch[0]}")
 
     # --- --keep / session anchor -------------------------------------------
     def test_keep_protects_anchor_when_cwd_is_a_different_worktree(self):
