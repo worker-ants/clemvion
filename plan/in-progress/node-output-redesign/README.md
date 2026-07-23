@@ -260,7 +260,9 @@ if-else / switch / loop / variable-declaration / split / filter / background / t
 7. **Runtime 생성 필드의 `config` 위치**:
    - Carousel 의 `config.buttonConfig.buttons` (글로벌 + per-item 합산) 와 `buttonItemMap` 은 handler 가 runtime 생성하지만 `config` 안에 위치 — Principle 7 (config = raw echo) 와 미묘한 위배. frontend 일관 접근 의도가 강해 위치 검토.
 
-> 옛 `output.metadata.*` 패턴 (`ai_agent`) → `meta.*` 마이그레이션, `output.type: 'form'|'carousel'|...` 판별자 폐기, `output.view` 래퍼 폐기, `output.previousOutput` 폐기, Switch `meta.value` deprecated alias 제거 (D4 마이그레이션), deprecated `conversationHistory`/`historyCount` 제거(`6f74333d`/`47a4a059`) 등 1차 초안의 핵심 정리 항목은 모두 spec 본문에 반영 완료. **단 `output.previousOutput` 은 예외 — `ButtonInteractionService` 재개 경로(carousel/chart/table/template)가 지금도 주입하며 `node-output.md §4.2` 의 과도기 예외로 Phase 3 까지 보존된다(신규 소비 금지). Form 은 해당 없음.**
+> 옛 `output.metadata.*` 패턴 (`ai_agent`) → `meta.*` 마이그레이션, `output.type: 'form'|'carousel'|...` 판별자 폐기, `output.view` 래퍼 폐기, Switch `meta.value` deprecated alias 제거 (D4 마이그레이션), deprecated `conversationHistory`/`historyCount` 제거(`6f74333d`/`47a4a059`) 등 1차 초안의 핵심 정리 항목은 모두 spec 본문에 반영 완료.
+>
+> ⚠️ `output.previousOutput` 은 위 목록에 **넣지 않는다** — 아직 제거되지 않았다. `ButtonInteractionService` 재개 경로(carousel / chart / table / template)가 지금도 주입하며 [node-output §4.2](../../../spec/conventions/node-output.md#42-폐기할-필드--구조) 의 과도기 예외로 Phase 3 까지 보존된다. **신규 소비 금지**, Phase 3 정리 시 backend·spec·frontend renderer 3자 동시 제거. Form 은 `buttons` 가 없어 이 경로를 타지 않으므로 해당 없음(완전한 금지 필드).
 
 ### §B — 구현 분석 관점 (2026-05-16, D 결정 후 갱신)
 

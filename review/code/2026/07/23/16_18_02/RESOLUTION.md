@@ -32,7 +32,7 @@ SUMMARY 판정: **RISK=HIGH / CRITICAL=2 / WARNING=2 / INFO=2**. forced 2/2(docu
 
 | # | 내용 | 조치 |
 |---|---|---|
-| 1 | `node-output-redesign/README.md:263` 이 문장 안에서 자기모순 — 인라인 캐비어와 결론부 "모두 … 반영 완료" 가 상충 | **반영** — 인라인 캐비어를 제거해 목록을 원상 복구하고, 결론부 뒤에 예외를 **별도 문장**으로 분리("단 `previousOutput` 은 예외 — … Form 은 해당 없음"). `chart.md`/`form.md` 와 같은 "목록 분리 + 각주" 패턴으로 통일 |
+| 1 | `node-output-redesign/README.md:263` 이 문장 안에서 자기모순 — 인라인 캐비어와 결론부 "모두 … 반영 완료" 가 상충 | **반영 (단 1차 조치는 불완전 — 2차 리뷰가 재지적)** — 1차에선 결론부 뒤에 예외 문장만 덧붙이고 `previousOutput` 을 **열거 목록에 그대로 남겨** 형태만 바뀐 같은 역전이 잔존했다. 2차 리뷰(16_34_45 WARNING 1)가 이를 잡아 **열거 목록에서 실제로 제거**하고 별도 각주 블록으로 완전 분리했다 (`chart.md`/`form.md` 와 동일 패턴). 최종 상태는 해소 |
 | 2 | `0-common.md` 공통 캐비어가 서비스명만 적고 **적용 범위를 안 밝혀** 하위 문서 저자가 Form 까지 확대 적용 (= CRITICAL 1 의 직접 원인) | **반영** — 캐비어에 "**적용 범위 — `config.buttons` 를 갖는 노드 전용**(carousel/chart/table/template) · **Form 은 해당 없음**" 단락 추가. 재발 방지 지점을 공통 문서에 둔다 |
 
 ## INFO 2건
