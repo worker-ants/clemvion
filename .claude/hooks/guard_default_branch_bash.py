@@ -53,13 +53,20 @@ except Exception:
 
 
 # Match commands that create/modify state on disk, install dependencies,
-# or move git refs. Tight regex — first whitespace-separated token only,
-# plus a couple of compound forms (git <subcmd>). Read-only commands
-# (ls, cat, grep, find, pwd, git status, git log, git diff, git show)
-# are deliberately NOT matched.
+# or move git refs. Tight regex — first whitespace-separated token only
+# (optionally after `VAR=value` assignments), plus a couple of compound forms
+# (git <subcmd>). Read-only commands (ls, cat, grep, find, pwd, git status,
+# git log, git diff, git show) are deliberately NOT matched.
+#
+# Anchoring to the FIRST token is what keeps this conservative: a word inside a
+# commit message or a grep pattern can never trigger it. That is why this hook
+# needs none of the false-positive machinery the push guard carries — verified
+# against `echo "rm -rf /tmp/x"`, `grep -n "mkdir" f`, `git log --grep=commit`,
+# `echo "git commit"`. See harness-guard-followups §C for why the two hooks
+# deliberately do NOT share detection code.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:
+    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b
@@ -91,10 +98,25 @@ def _read_payload() -> dict:
         return {}
 
 
+# Command separators. The anchored pattern above only ever sees the first token,
+# so `git add -A && git commit -m "x"` used to slip past entirely — and chained
+# commands are the common shape, which made this hook miss precisely the moment
+# it exists to catch ("surface the worktree decision EARLY"). Splitting first
+# keeps the per-command conservatism while covering every command in the chain.
+#
+# The split is naive about quoting, so `echo "a && rm -rf x"` now nudges. That is
+# an acceptable trade *here* and nowhere else: this hook never blocks, fires at
+# most once per session, and only ever while you are already sitting on the
+# default branch — a state where the reminder is almost always apt anyway.
+_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;|\n]")
+
+
 def _is_mutating(command: str) -> bool:
     if not command:
         return False
-    return bool(_MUTATING.search(command))
+    return any(
+        _MUTATING.search(segment) for segment in _SEGMENT_SPLIT.split(command)
+    )
 
 
 def _state_dir() -> str:
