@@ -11,10 +11,11 @@ them:
   1. `NoFalsePositiveClassTest` — anchoring to a *segment's* first token means
      message text, grep patterns and quoted words do not trigger the nudge. That
      is the false-positive class the push guard needs `_redact_*` machinery for,
-     and sharing that machinery would buy nothing here: the one residual FP
-     (`AcknowledgedFalsePositiveTest`) is a quoted **separator**, which
-     `_redact_inert_text` does not address either — it only blanks git
-     commit/tag message values and heredoc bodies, not arbitrary `echo` args.
+     and sharing that machinery would buy nothing here: the residual FPs
+     (`AcknowledgedFalsePositiveTest` — a quoted **separator**, and a **heredoc
+     body line**) are not what `_redact_inert_text` addresses either, since it
+     blanks git commit/tag message values and heredocs *owned by* such a
+     command, not arbitrary `echo` args or a `cat <<EOF` body.
   2. `SegmentTest` — the real defect was the opposite sign: a *false negative*.
      The anchor saw only the first token of the whole command, so the common
      `git add -A && git commit -m "x"` shape never fired, i.e. the hook missed
@@ -79,6 +80,7 @@ class SegmentTest(unittest.TestCase):
             "cd /tmp && rm -rf build",
             'git status; git commit -m "x"',
             "ls -la || mkdir -p out",
+            "sleep 5 & rm -rf x",
             "git fetch origin\ngit rebase origin/main",
         ):
             with self.subTest(command=command):
@@ -98,16 +100,29 @@ class SegmentTest(unittest.TestCase):
 class AcknowledgedFalsePositiveTest(unittest.TestCase):
     """The segment split is naive about quoting. These nudge, and that is fine.
 
+    Two distinct classes, not one — the split ignores quoting both *within* a
+    line (a quoted separator) and *across* lines (a heredoc body, where every
+    newline is a separator regardless of the `<<'EOF'` around it).
+
     Pinned rather than fixed, deliberately. Teaching the splitter about quoting
     is the "precise shell parser" path that item ② already had to abandon: every
     shell feature that moves text (quotes, escapes, heredocs, expansion) becomes
     another hole. Here the payoff for that unbounded surface would be avoiding a
     *soft, once-per-session reminder shown only while you are already sitting on
     the default branch* — where the reminder is apt regardless of the trigger.
+    Newlines cannot stop being separators: multi-line chained commands are how
+    real git work is written here, and `SegmentTest` depends on that.
     """
 
     def test_quoted_separator_nudges(self):
         self.assertTrue(guard._is_mutating('echo "a && rm -rf x" > /dev/null'))
+
+    def test_heredoc_body_line_starting_with_a_verb_nudges(self):
+        self.assertTrue(
+            guard._is_mutating(
+                "cat <<'EOF' > notes.txt\nmkdir the new feature folder\nEOF"
+            )
+        )
 
 
 class OutOfScopeTest(unittest.TestCase):
@@ -141,8 +156,82 @@ class EnvPrefixTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(guard._is_mutating(command))
 
+    def test_quoted_env_value_containing_spaces_is_skipped(self):
+        """A bare `\\S+` stops at the space *inside* the quotes.
+
+        The command then appears to start with the value's tail (`key"`), so the
+        nudge is lost — the same false negative this file's `SegmentTest` exists
+        to prevent, just reached by a different route. These are ordinary shapes,
+        not contrivances.
+        """
+        for command in (
+            'GIT_SSH_COMMAND="ssh -i ~/.key" git commit -m "x"',
+            "GIT_SSH_COMMAND='ssh -i ~/.key' git commit -m x",
+            'GIT_AUTHOR_DATE="2024-01-01 00:00:00" git commit --amend',
+            'git add -A && GIT_AUTHOR_NAME="John Doe" git commit -m "x"',
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(guard._is_mutating(command))
+
     def test_env_prefix_does_not_promote_a_read_only_command(self):
-        self.assertFalse(guard._is_mutating("GIT_PAGER=cat git status"))
+        for command in (
+            "GIT_PAGER=cat git status",
+            'GIT_SSH_COMMAND="ssh -i ~/.key" git status',
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(guard._is_mutating(command))
+
+
+class BacktrackingTest(unittest.TestCase):
+    """The classifier must stay linear on adversarial input.
+
+    This hook runs synchronously in front of EVERY Bash call, so a pathological
+    regex does not merely slow a report — it freezes the session. The push guard
+    shipped that class twice (review 2026/07/23 14_23_23 C1/C2).
+
+    **What this does NOT pin**: it is not a proxy for the env-value alternation
+    being disjoint. That was measured — the ambiguous variant is linear here too,
+    because `^` and a mandatory `IDENT=` per repetition leave no partition to
+    explore — and a mutant restoring the ambiguity passes this test. Recorded
+    because the tempting comment ("disjoint alternatives prevent the ReDoS here")
+    would be an unmeasured claim, and stating it would let a later reader treat
+    this test as evidence for something it never checked.
+
+    What it DOES pin: a future edit that reintroduces unanchored nested
+    quantifiers gets caught before it reaches a hook on the Bash hot path.
+
+    Run in a SUBPROCESS with a hard timeout: catastrophic backtracking happens
+    inside C-level `re`, where a signal cannot interrupt it, so an in-process
+    timing assertion would hang instead of failing.
+    """
+
+    _PROBE = r"""
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("g", sys.argv[1])
+g = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(g)
+for payload in (
+    'A=' + '"' * 20000 + ' git commit',
+    'A="' + 'x' * 20000 + ' git commit',
+    'A=' + "'" * 20000 + ' git commit',
+    ('A=b ' * 20000) + 'git commit',
+    'A="' + 'x y ' * 5000 + '" git commit',
+):
+    g._is_mutating(payload)
+print("done")
+"""
+
+    def test_adversarial_input_does_not_hang(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-c", self._PROBE,
+             str(_harness.HOOKS_DIR / "guard_default_branch_bash.py")],
+            capture_output=True, text=True, timeout=20,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+        self.assertIn("done", result.stdout)
 
 
 class EmptyInputTest(unittest.TestCase):

@@ -138,6 +138,14 @@ _STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 # Naive separator split. Splitting inside a quoted string can only move the
 # boundary LATER — i.e. toward a segment less likely to look like a git commit —
 # so naivety errs toward "do not release", the safe direction.
+#
+# `guard_default_branch_bash.py` splits the same way for the opposite reason
+# (there a stray boundary costs a false nudge, never a missed block) and also
+# carries an env-prefix skip. Keep the two in view when either changes: its copy
+# accepts QUOTED values, and the `\S+` above does not — which is a live gate
+# bypass here (`GIT_SSH_COMMAND="ssh -i k" git push` is not detected at all).
+# Tracked as harness-guard-followups §J; fixing it means updating the
+# byte-for-byte pattern pin and differential corpus in test_push_guard_allowlist.
 _SEGMENT_SPLIT = re.compile(r"&&|[|;\n]")
 
 # How much text before a `<<` marker the ownership check may look at. The owning

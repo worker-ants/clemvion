@@ -21,6 +21,17 @@ common file-creation / install / git-state-change commands and skips
 pure inspection commands (ls, cat, grep, git status, git log, pwd).
 Misclassification only injects a (harmless) reminder; it never blocks.
 
+It reads the FIRST TOKEN OF EACH SEGMENT: the command is split on
+`&&`/`||`/`;`/`|`/`&`/newline and the anchored pattern is applied to
+every part, skipping any `VAR=value` prefix. Per-command conservatism
+is what makes the classifier safe (a word inside a commit message or a
+grep pattern cannot trigger it), but reading only the *whole command's*
+first token made `git add -A && git commit -m "x"` — the common shape —
+silently invisible, i.e. it missed exactly the moment described above.
+The split does not understand quoting; the two false-positive classes
+that opens are pinned in `test_guard_default_branch_bash_mutating.py`
+and accepted because this hook never blocks.
+
 Once-per-session deduplication:
   We touch `.claude/state/main_worktree_bash_warned/<session_id>`
   the first time the reminder fires for a given session_id. Subsequent
@@ -64,9 +75,27 @@ except Exception:
 # against `echo "rm -rf /tmp/x"`, `grep -n "mkdir" f`, `git log --grep=commit`,
 # `echo "git commit"`. See harness-guard-followups §C for why the two hooks
 # deliberately do NOT share detection code.
+#
+# The env-assignment value accepts quoted forms because `GIT_SSH_COMMAND="ssh -i
+# key" git commit` is an ordinary shape, and a bare `\S+` stops at the space
+# inside the quotes — the real command then looks like it starts with `key"` and
+# the nudge is silently lost. The three alternatives are kept disjoint on the
+# first character (`'`, `"`, neither) so exactly one can ever apply.
+#
+# That disjointness is clarity, not a measured fix: the ambiguous form was timed
+# too, and it is also linear here (`A="a b" ` ×24 + a failing tail: both under a
+# microsecond). Unlike the push guard's `_MESSAGE_ARG` ReDoS, every repetition is
+# pinned by `^` and a mandatory `IDENT=`, which leaves the engine no partition to
+# explore. Said plainly because the opposite claim — "this shape is dangerous" —
+# would be the same unmeasured assertion that put item §C on the backlog.
+#
+# NOTE: `guard_review_before_push.py` carries a near-identical env-prefix group
+# in `_GIT_PUSH`/`_SEGMENT_IS_GIT` and still has the `\S+` form — where it
+# bypasses a BLOCKING gate rather than losing a nudge. Tracked separately as
+# harness-guard-followups §J; keep the two in view when either changes.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*(?:
+    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|[^\s'"]\S*)\s+)*(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b
@@ -104,11 +133,17 @@ def _read_payload() -> dict:
 # it exists to catch ("surface the worktree decision EARLY"). Splitting first
 # keeps the per-command conservatism while covering every command in the chain.
 #
-# The split is naive about quoting, so `echo "a && rm -rf x"` now nudges. That is
-# an acceptable trade *here* and nowhere else: this hook never blocks, fires at
-# most once per session, and only ever while you are already sitting on the
-# default branch — a state where the reminder is almost always apt anyway.
-_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;|\n]")
+# The split is naive about quoting, so it opens TWO false-positive classes, both
+# pinned in `AcknowledgedFalsePositiveTest`: a quoted separator (`echo "a && rm
+# -rf x"`) and a heredoc/multi-line body whose line happens to start with a
+# mutating verb (`cat <<'EOF'` … `mkdir the new folder` … `EOF`). Newlines must
+# stay separators regardless — multi-line commands are how chained git work is
+# actually written here — and both classes are an acceptable trade *here and
+# nowhere else*: this hook never blocks, fires at most once per session, and only
+# ever while you are already on the default branch, where the reminder is apt
+# anyway. `guard_review_before_push.py` splits the same way but for the opposite
+# reason (there, a late boundary can only refuse to release — the safe direction).
+_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;|&\n]")
 
 
 def _is_mutating(command: str) -> bool:
