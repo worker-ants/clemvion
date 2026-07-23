@@ -123,10 +123,14 @@ class OrchestratorStateTest(unittest.TestCase):
     # ---- --apply-routing ----------------------------------------------------
 
     def test_apply_routing_keeps_selected_and_forced(self):
+        # A *compliant* decision: forced reviewers returned as selected=true.
+        # A decision that drops or omits a forced reviewer is no longer silently
+        # patched up — it is distrusted wholesale and every reviewer runs. That
+        # rule and its rationale live in `test_router_decision_trust.py`.
         self._write_state(agents_forced=["security"])
         (self.sd / "_routing_decision.json").write_text(json.dumps({
             "decisions": [
-                {"name": "security", "selected": False},   # forced → kept anyway
+                {"name": "security", "selected": True},     # forced → honoured
                 {"name": "performance", "selected": True},
                 {"name": "testing", "selected": False},     # dropped → skipped
             ]

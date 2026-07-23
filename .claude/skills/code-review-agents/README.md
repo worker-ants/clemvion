@@ -136,7 +136,7 @@ review/
   "router_prompt_file": "/abs/.../_prompts/_router.md",  // routing_status==pending 일 때만; orchestrator 작성
   "router_output_file": "/abs/.../_routing_decision.json",
   "routing_status": "pending",            // pending | done | skipped
-  "routing_skip_reason": null,            // "REVIEW_AGENTS explicitly set" / "--route=all" / "router fatal: ..."
+  "routing_skip_reason": null,            // "REVIEW_AGENTS explicitly set" / "--route=all" / "router fatal: ..." / "router marked forced reviewer(s) selected=false: ... — decision discarded, running all"
   "agents_forced": [                       // router 가 끄지 못하는 reviewer 들 (router_safety 규칙)
     "security", "requirement", "scope", "side_effect", "maintainability", "testing"
   ],
