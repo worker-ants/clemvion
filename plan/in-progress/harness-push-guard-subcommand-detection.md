@@ -157,7 +157,8 @@ allowlist 후보(각각 반드시 실측으로 안전 논증):
 
 - [x] 설계 반전안 확정 (allowlist 형태·범위)
 - [x] 구현 — 1차 정규식 유지 + allowlist 해제
-- [x] 차등 테스트 + 위 코퍼스 고정 (`test_push_guard_allowlist.py` 17건, 전체 스위트 359건)
+- [x] 차등 테스트 + 위 코퍼스 고정 (`test_push_guard_allowlist.py` — 최종 건수·전체 스위트
+      수치는 `review/code/2026/07/23/14_23_23/RESOLUTION.md` 및 그 후속 라운드 참조)
 - [ ] `/ai-review` → RESOLUTION → PR
 
 ## Rationale

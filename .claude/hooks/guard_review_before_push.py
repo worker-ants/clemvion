@@ -72,6 +72,9 @@ _GIT_PUSH = re.compile(
 # Anything the shell expands makes a text region LIVE: a `push` inside one can
 # actually execute. `git commit -m "$(git push)"` really does push (round-2
 # regression), so a region containing these is never released.
+# Process substitution `<(…)` / `>(…)` is deliberately absent: it is not
+# recognised inside quotes or a heredoc body, which are the only regions this
+# module ever releases (verified against a real shell during review).
 _LIVE_EXPANSION = ("$(", "`", "${")
 
 # A backslash-escaped pipe is a literal `|` character, never a pipe OPERATOR —
@@ -92,10 +95,17 @@ _HEREDOC_START = re.compile(r"<<-?\s*(?P<q>['\"]?)(?P<delim>[A-Za-z_][A-Za-z0-9_
 # `echo "git commit -F -" | bash <<'EOF'` — the text sits in an echo argument
 # while `bash` actually runs the body. So we take the LAST segment before `<<`
 # and require that segment to BE the command (anchored, env assignments allowed).
-_COMMIT_STDIN_CMD = re.compile(
-    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^\n]*\b(?:commit|tag)\b[^\n]*"
-    r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])[^\n]*$"
-)
+# Split into three INDEPENDENT linear probes instead of one pattern with two
+# greedy `[^\n]*` runs. Those two runs overlapped, so an input that repeats
+# `commit` and never reaches `-F -` made the engine try every split between them
+# — O(n²) (measured: input ×2 → time ×4; 28KB of `commit ` repeats took 0.64s,
+# 84KB took ~6s, while the same length of ordinary text took 0.4ms). This hook
+# gates every Bash call synchronously, so that is the same hang class as the
+# `_MESSAGE_ARG` ReDoS. Each probe below scans once, with no nested quantifier
+# over the same text.
+_SEGMENT_IS_GIT = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b")
+_COMMIT_OR_TAG = re.compile(r"\b(?:commit|tag)\b")
+_STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 
 # Naive separator split. Splitting inside a quoted string can only move the
 # boundary LATER — i.e. toward a segment less likely to look like a git commit —
@@ -104,8 +114,19 @@ _SEGMENT_SPLIT = re.compile(r"\|\||&&|[|;\n]")
 
 
 def _owns_heredoc_as_message(prefix: str) -> bool:
-    """True when the command immediately before `<<` is `git commit|tag … -F -`."""
-    return bool(_COMMIT_STDIN_CMD.match(_SEGMENT_SPLIT.split(prefix)[-1]))
+    """True when the command immediately before `<<` is `git commit|tag … -F -`.
+
+    Three single-pass probes rather than one regex: the segment must BE a git
+    command, mention commit/tag, and carry the read-from-stdin flag AFTER that
+    word. Keeping them separate is what makes this linear (see the constants).
+    """
+    segment = _SEGMENT_SPLIT.split(prefix)[-1]
+    if not _SEGMENT_IS_GIT.match(segment):
+        return False
+    subcommand = _COMMIT_OR_TAG.search(segment)
+    if subcommand is None:
+        return False
+    return bool(_STDIN_FILE_FLAG.search(segment, subcommand.end()))
 
 # `-m '…'` / `-m "…"` / `--message=…` / `-F …` values. The two quote styles need
 # DIFFERENT bodies, and conflating them was a real gate bypass (review
@@ -134,9 +155,25 @@ def _is_inert(region: str) -> bool:
     return not any(tok in region for tok in _LIVE_EXPANSION)
 
 
-def _blank(text: str, start: int, end: int) -> str:
-    """Replace [start:end) with spaces, preserving length (and thus offsets)."""
-    return text[:start] + (" " * (end - start)) + text[end:]
+def _blank_spans(text: str, spans: list[tuple[int, int]]) -> str:
+    """Replace every span with spaces in ONE linear rebuild.
+
+    Length is preserved, so offsets collected against `text` stay valid. Blanking
+    each span with its own slice-and-concat would copy the whole string per span
+    — O(n·k), quadratic on a command with many `-m` values.
+    """
+    if not spans:
+        return text
+    parts: list[str] = []
+    prev = 0
+    for start, end in sorted(spans):
+        if start < prev:  # overlapping span already covered by the previous one
+            continue
+        parts.append(text[prev:start])
+        parts.append(" " * (end - start))
+        prev = end
+    parts.append(text[prev:])
+    return "".join(parts)
 
 
 def _redact_inert_text(command: str) -> str:
@@ -150,37 +187,41 @@ def _redact_inert_text(command: str) -> str:
     dangerous, and every rule below is deliberately narrow and requires the
     region to be inert. A `git push` the shell would really run survives
     redaction and still trips the first pass.
+
+    The rules run in a fixed ORDER and it matters: (1) normalises escaped pipes
+    first so the later scans see the same segment boundaries the blind pass will.
+    (2) and (3) only collect spans, which are applied in a single rebuild.
     """
-    out = command
+    # (1) escaped pipes are literal characters, not separators. One pass.
+    out = _ESCAPED_PIPE.sub(lambda m: m.group(1) + " ", command)
 
-    # (1) escaped pipes are literal characters, not separators.
-    out = _ESCAPED_PIPE.sub(lambda m: m.group(1) + " ", out)
+    # (2)+(3) collect every blankable span, then rebuild once (see _blank_spans).
+    spans = _commit_heredoc_spans(out)
 
-    # (2) commit-message heredoc bodies.
-    out = _blank_commit_heredocs(out)
-
-    # (3) -m / --message= / -F quoted values. Collected in ONE finditer pass and
-    # applied afterwards — blanking preserves length, so the offsets stay valid.
-    # (A "re-search until nothing changes" loop would not terminate: a blanked
-    # body is still a match, and still inert.)
-    spans = []
+    # -m / --message= / -F quoted values, in ONE finditer pass. (A "re-search
+    # until nothing changes" loop would not terminate: a blanked body is still a
+    # match, and still inert.)
     for m in _MESSAGE_ARG.finditer(out):
         group = "sbody" if m.group("sbody") is not None else "dbody"
         if _is_inert(m.group(group)):
             spans.append((m.start(group), m.end(group)))
-    for start, end in spans:
-        out = _blank(out, start, end)
 
-    return out
+    return _blank_spans(out, spans)
 
 
-def _blank_commit_heredocs(text: str) -> str:
-    """Blank `git commit`/`git tag` heredoc bodies that contain no expansions."""
+def _commit_heredoc_spans(text: str) -> list[tuple[int, int]]:
+    """Spans of `git commit`/`git tag` heredoc bodies that contain no expansions.
+
+    Returns spans rather than blanking in place so the caller can apply every
+    redaction in one rebuild. The scan already skips past each body, so not
+    mutating as we go changes nothing: a `<<` inside a body was never reachable.
+    """
+    spans: list[tuple[int, int]] = []
     pos = 0
     while True:
         m = _HEREDOC_START.search(text, pos)
         if m is None:
-            return text
+            return spans
         line_start = text.rfind("\n", 0, m.start()) + 1
         # Only a commit-message heredoc — never a `bash <<EOF` script body.
         if not _owns_heredoc_as_message(text[line_start:m.start()]):
@@ -188,18 +229,16 @@ def _blank_commit_heredocs(text: str) -> str:
             continue
         body_start = text.find("\n", m.end())
         if body_start == -1:
-            return text
+            return spans
         body_start += 1
         delim = m.group("delim")
         end_re = re.compile(rf"^[ \t]*{re.escape(delim)}[ \t]*$", re.M)
         end = end_re.search(text, body_start)
         body_end = end.start() if end else len(text)
-        body = text[body_start:body_end]
-        if _is_inert(body):
-            text = _blank(text, body_start, body_end)
+        if _is_inert(text[body_start:body_end]):
+            spans.append((body_start, body_end))
         # Strictly advance: a zero-length body must not re-scan the same opener.
         pos = max(body_end, m.end())
-
 
 
 def _read_payload() -> dict:

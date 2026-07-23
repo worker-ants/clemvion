@@ -152,6 +152,10 @@ CORPUS: list[tuple[str, str, str | None]] = [
     ),
     ("git commit -F - <<'EOF'\nEOF\ngit push", "empty heredoc body, real push after",
      None),
+    ("GIT_EDITOR=vim git commit -F - <<'EOF'\nadd push flow\nEOF",
+     "env-assignment prefix before the heredoc owner",
+     "the owner probe allows leading VAR=value assignments, same as the blind "
+     "pass; the body is still an inert commit message"),
     ('grep -n "foo\\|git push\\|bar" f', "FP: escaped pipe in a grep pattern",
      r"the segment start is `\|`, a backslash-escaped literal pipe — never a "
      r"shell pipe operator, in or out of quotes"),
@@ -325,26 +329,85 @@ class BacktrackingTest(unittest.TestCase):
             capture_output=True, text=True, timeout=self._TIMEOUT,
         )
 
+    def _assert_finishes(self, command, label, remedy):
+        start = time.monotonic()
+        try:
+            self._run_guard_out_of_process(command)
+        except subprocess.TimeoutExpired:
+            self.fail(f"{label} did not finish in {self._TIMEOUT:g}s — {remedy}")
+        elapsed = time.monotonic() - start
+        self.assertLess(elapsed, self._TIMEOUT, f"{label} took {elapsed:.2f}s")
+
     def test_unterminated_quote_with_long_backslash_run_is_fast(self):
         for count in (60, 200, 800):
-            command = 'git commit -m "' + "\\" * count + " push"
             with self.subTest(backslashes=count):
-                start = time.monotonic()
-                try:
-                    self._run_guard_out_of_process(command)
-                except subprocess.TimeoutExpired:
-                    self.fail(
-                        f"{count} backslashes did not finish in "
-                        f"{self._TIMEOUT:g}s — the message regex is "
-                        "backtracking again. Keep its alternatives disjoint "
-                        "(one branch consumes `\\\\.`, the other must EXCLUDE "
-                        "backslash)."
-                    )
-                elapsed = time.monotonic() - start
-                self.assertLess(
-                    elapsed, self._TIMEOUT,
-                    f"{count} backslashes took {elapsed:.2f}s",
+                self._assert_finishes(
+                    'git commit -m "' + "\\" * count + " push",
+                    f"{count} backslashes in an unterminated -m value",
+                    "the message regex is backtracking again. Keep its "
+                    "alternatives disjoint (one branch consumes `\\\\.`, the "
+                    "other must EXCLUDE backslash).",
                 )
+
+    # Sized from a measured old-vs-new comparison: with the pre-fix overlapping
+    # greedy pattern this input takes ~38s, with the split probes ~0.014s. Smaller
+    # inputs are NOT decisive — 16k repeats sat at 10.3s, right on the timeout, and
+    # an earlier 8k version of this test passed against the broken code (i.e. it
+    # was vacuous; the mutation run is what exposed that).
+    _QUADRATIC_REPEATS = 30_000
+
+    def test_repeated_subcommand_word_without_stdin_flag_is_fast(self):
+        """The heredoc-OWNER probe must stay linear too.
+
+        One regex with two greedy `[^\\n]*` runs around `commit|tag` went
+        quadratic when the word repeated and `-F -` never appeared (input ×2 →
+        time ×4). `BacktrackingTest` originally guarded only `_MESSAGE_ARG`, so
+        review found this path, not the tests.
+        """
+        count = self._QUADRATIC_REPEATS
+        self._assert_finishes(
+            "git " + "commit " * count + "push <<'EOF'\nx\nEOF",
+            f"{count} repeats of `commit` with no -F -",
+            "the heredoc-owner probe is backtracking. Keep its checks as "
+            "separate single-pass scans, never one pattern with two greedy "
+            "runs around the subcommand word.",
+        )
+
+
+class BlankSpansTest(unittest.TestCase):
+    """`_blank_spans` rebuilds the command once instead of copying per span.
+
+    No timing gate here, deliberately: that quadratic is O(n·k) *memcpy*, and at
+    any realistic command size (≤100KB, ≤1k spans) it costs tens of milliseconds
+    — a threshold test would either be vacuous or need an absurd input. What is
+    worth pinning is the contract the single-pass rebuild has to keep, because
+    redaction offsets are computed against the pre-blank string.
+    """
+
+    def test_length_is_preserved(self):
+        text = "abcdefghij"
+        self.assertEqual(len(guard._blank_spans(text, [(2, 5), (7, 9)])), len(text))
+
+    def test_every_span_is_blanked_and_the_rest_survives(self):
+        self.assertEqual(
+            guard._blank_spans("abcdefghij", [(2, 5), (7, 9)]),
+            "ab   fg  j",
+        )
+
+    def test_unsorted_spans_are_handled(self):
+        self.assertEqual(
+            guard._blank_spans("abcdefghij", [(7, 9), (2, 5)]),
+            "ab   fg  j",
+        )
+
+    def test_overlapping_spans_do_not_corrupt_the_rebuild(self):
+        out = guard._blank_spans("abcdefghij", [(2, 6), (4, 8)])
+        self.assertEqual(len(out), 10)
+        self.assertEqual(out[:2], "ab")
+        self.assertEqual(out[2:6], "    ")
+
+    def test_no_spans_returns_the_input(self):
+        self.assertEqual(guard._blank_spans("abc", []), "abc")
 
 
 class ReleaseTest(unittest.TestCase):
@@ -410,6 +473,18 @@ class KnownRemainingFalsePositiveTest(unittest.TestCase):
         self.assertTrue(
             guard._is_git_push('git commit -m "add push" && echo "$(date)"')
         )
+
+    def test_unrecognised_message_flag_spellings_stay_blocked(self):
+        """The message rule only knows `-m` / `--message=` / `-F`. Other
+        spellings are not released — conservative, so a false POSITIVE, but
+        pinned here so the gap is discoverable rather than surprising."""
+        for command in (
+            'git commit -am "add push notification"',   # -m fused onto -a
+            'git commit --message "add push notification"',  # space, not =
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(legacy_is_push(command), "precondition")
+                self.assertTrue(guard._is_git_push(command))
 
 
 if __name__ == "__main__":
