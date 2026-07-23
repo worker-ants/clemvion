@@ -213,6 +213,35 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         )
         self.assertEqual(env_run.returncode, 0, env_run.stderr)
 
+    def test_bypass_plan_also_suppresses_a_scoped_block(self):
+        """`BYPASS_PLAN_GUARD` must suppress a SCOPED plan block too.
+
+        The REVIEW side has `test_bypass_still_applies_to_scoped_targets`; the
+        PLAN side had no counterpart. This file has already been burned once by
+        exactly that asymmetry — review 17_28_02 WARNING 1 found the PLAN gate's
+        scoping entirely unverified because only REVIEW had a test."""
+        env = dict(os.environ)
+        env.update(
+            STUB_BLOCKED_PATHS="",
+            STUB_PLAN_BLOCKED_PATHS=self.side_wt,
+            STUB_RAISE_PATHS="",
+            BYPASS_PLAN_GUARD="1",
+        )
+        env.pop("BYPASS_REVIEW_GUARD", None)
+        r = subprocess.run(
+            [sys.executable, self.hook],
+            input=json.dumps(
+                {
+                    "tool_input": {"command": f"git push origin {self.side_branch}"},
+                    "cwd": self.main_wt,
+                }
+            ),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_non_push_is_untouched(self):
         r = self._run("git status", cwd=self.main_wt, blocked_paths=[self.side_wt])
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -406,7 +435,7 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
 
     def test_push_targets_crash_falls_back_to_cwd(self):
-        """`main()`'s `except` around `_push_targets`, pinned (17_51_28 WARNING 1).
+        """`main()`'s `except` around `_push_targets`, pinned (18_06_41 WARNING 1).
 
         If target selection itself raises, the hook must still evaluate cwd. A
         `targets = []` mutation there left 39/39 green — the gate would have been

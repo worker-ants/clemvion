@@ -98,8 +98,23 @@ except Exception as exc:  # noqa: BLE001
 # DO NOT EDIT this pattern. Releases belong in _redact_inert_text() below, which
 # is the bounded half of the design. test_push_guard_allowlist.py pins this
 # exact source string as the differential baseline.
+#
+# FIXED (harness-guard-followups §J, 2026-07-24). The env-prefix group used to
+# be `\S+`, which stops at the space INSIDE a quoted value: with
+# `GIT_SSH_COMMAND="ssh -i ~/.key" git push origin main` nothing matched at all,
+# so main() returned 0 and BOTH gates were skipped without even a fail-open
+# banner. The first fix (`"[^"]*"`) still lost values holding an escaped `\"`,
+# so the double-quoted alternative uses the same escape-aware body `_MESSAGE_ARG`
+# below already had. Byte-identical to `guard_default_branch_bash._MUTATING`;
+# `EnvValueSubpatternSharedTest` fails if the two ever drift.
+#
+# `_SEGMENT_IS_GIT` below deliberately keeps the old `\S+`: it sits on the
+# RELEASE path, where a miss means "not released" — i.e. still blocked, the safe
+# direction. Widening a release path needs its own justification
+# (`ReleasePathNarrownessTest` pins the current behaviour).
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|[^\s'\"]\S*)\s+)*"
+    r"git\b[^&;|]*\bpush\b"
 )
 
 # Anything the shell expands makes a text region LIVE: a `push` inside one can
@@ -143,6 +158,11 @@ _STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 # Naive separator split. Splitting inside a quoted string can only move the
 # boundary LATER — i.e. toward a segment less likely to look like a git commit —
 # so naivety errs toward "do not release", the safe direction.
+#
+# `guard_default_branch_bash.py` splits the same way for the opposite reason:
+# there a stray boundary costs a false nudge, never a missed block. Keep the two
+# in view when either changes. (§J, which lived in `_GIT_PUSH` above, is fixed —
+# both hooks now carry the same escape-aware env-value alternation.)
 _SEGMENT_SPLIT = re.compile(r"&&|[|;\n]")
 
 # How much text before a `<<` marker the ownership check may look at. The owning
