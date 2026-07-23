@@ -25,9 +25,11 @@ misjudged, or ad-hoc work the plan link mis-resolved).
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
+import subprocess
 import sys
 import traceback
 
@@ -352,13 +354,15 @@ def _worktree_branches(cwd: str) -> list[tuple[str, str]]:
 
     Best-effort: returns [] on any failure (fail-open, same as the gates)."""
     try:
-        import subprocess
-
         out = subprocess.run(
             ["git", "worktree", "list", "--porcelain"],
             cwd=cwd,
             capture_output=True,
             text=True,
+            # 5s: same order as the other subprocess in this hook; a
+            # `worktree list` is a local metadata read, so anything
+            # slower means a wedged repo → fail open rather than hang
+            # a PreToolUse gate that fronts every push.
             timeout=5.0,
         )
         if out.returncode != 0:
@@ -410,8 +414,6 @@ def _accepts_cwd(fn) -> bool:
     On an unexpected signature we degrade to the legacy single-worktree call —
     weaker than the fix, but never weaker than the behaviour it replaced."""
     try:
-        import inspect
-
         params = inspect.signature(fn).parameters.values()
         return any(
             p.kind
@@ -428,7 +430,13 @@ def _accepts_cwd(fn) -> bool:
 
 def _push_targets(command: str, cwd: str) -> list[str]:
     """Worktrees this push may publish: always cwd, plus any whose branch the
-    command names. Order-stable, de-duplicated, cwd first."""
+    command names. Order-stable, de-duplicated, cwd first.
+
+    The command is truncated to `_MAX_REDACTION_INPUT` before scanning, matching
+    the cap the other hand-rolled scan in this file already applies. Truncation
+    can only DROP a branch mention (→ fewer targets, i.e. the pre-fix behaviour
+    for that branch), never invent one — it cannot weaken the cwd check."""
+    command = command[:_MAX_REDACTION_INPUT]
     targets = [cwd]
     seen = {os.path.realpath(cwd)}
     for path, branch in _worktree_branches(cwd):
@@ -483,6 +491,35 @@ _PLAN_MSG = (
 )
 
 
+def _run_gate(evaluate, bypass_env, targets, base_cwd, is_blocked, render) -> bool:
+    """Run one gate over every push target. True → the caller must block.
+
+    Extracted because the REVIEW and PLAN bodies were byte-for-byte the same
+    shape (scoped probe → per-target loop → fail-open continue → render+block);
+    a third gate would have had to re-derive every one of those decisions.
+
+    The two invariants this preserves, both load-bearing:
+      1. **Gate isolation** — a disabled/raising gate must not silence the other.
+         `evaluate is None` returns False (not blocked) so the caller proceeds.
+      2. **Per-target fail-open** — an internal error on one worktree skips only
+         that worktree; the remaining targets are still checked."""
+    if evaluate is None or os.environ.get(bypass_env) == "1":
+        return False
+    scoped = _accepts_cwd(evaluate)
+    # Unscoped legacy fallback evaluates the process cwd, so report that as the
+    # worktree rather than `base_cwd` (the payload's), which it never consulted.
+    for target in targets if scoped else [None]:
+        try:
+            result = evaluate(target) if scoped else evaluate()
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            continue  # fail open on internal error — check the next target
+        if is_blocked(result):
+            print(render(result, target if scoped else os.getcwd()), file=sys.stderr)
+            return True
+    return False
+
+
 def main() -> int:
     payload = _read_payload()
     tool_input = payload.get("tool_input") or payload.get("input") or {}
@@ -502,42 +539,26 @@ def main() -> int:
         targets = [base_cwd]  # fail open to legacy single-worktree behaviour
 
     # ---- REVIEW gate -------------------------------------------------------
-    if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
-        scoped = _accepts_cwd(evaluate_review)
-        for target in targets if scoped else [None]:
-            try:
-                decision = evaluate_review(target) if scoped else evaluate_review()
-            except Exception:
-                traceback.print_exc(file=sys.stderr)
-                continue  # fail open on internal error — check the next target
-            if decision is not None and decision.blocked:
-                print(
-                    _REVIEW_MSG.format(
-                        reason=decision.reason, worktree=target or base_cwd
-                    ),
-                    file=sys.stderr,
-                )
-                return 2
+    if _run_gate(
+        evaluate_review,
+        "BYPASS_REVIEW_GUARD",
+        targets,
+        base_cwd,
+        lambda d: d is not None and d.blocked,
+        lambda d, wt: _REVIEW_MSG.format(reason=d.reason, worktree=wt),
+    ):
+        return 2
 
     # ---- PLAN gate ---------------------------------------------------------
-    if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
-        scoped = _accepts_cwd(evaluate_plan)
-        for target in targets if scoped else [None]:
-            try:
-                plan = evaluate_plan(target) if scoped else evaluate_plan()
-            except Exception:
-                traceback.print_exc(file=sys.stderr)
-                continue  # fail open on internal error — check the next target
-            if plan is not None and plan.untouched:
-                print(
-                    _PLAN_MSG.format(
-                        reason=plan.reason,
-                        plan=plan.plan_path,
-                        worktree=target or base_cwd,
-                    ),
-                    file=sys.stderr,
-                )
-                return 2
+    if _run_gate(
+        evaluate_plan,
+        "BYPASS_PLAN_GUARD",
+        targets,
+        base_cwd,
+        lambda p: p is not None and p.untouched,
+        lambda p, wt: _PLAN_MSG.format(reason=p.reason, plan=p.plan_path, worktree=wt),
+    ):
+        return 2
 
     return 0
 

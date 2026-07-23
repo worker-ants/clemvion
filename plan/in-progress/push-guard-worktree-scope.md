@@ -61,16 +61,31 @@ false-negative 클래스가 나와 **철회**됐다). 같은 철학을 지킨다
 차단 메시지에 `worktree:` 줄 추가. 기존 메시지는 **어느 worktree 가 막았는지 안 밝혀** 이번 사건의
 진단을 어렵게 만든 직접 원인이었다.
 
+## 1차 리뷰(17_28_02) 반영 — MEDIUM / C0 / W7
+
+| WARNING | 조치 |
+|---|---|
+| 1 PLAN 게이트 스코핑 미검증 | `_PLAN_STUB` 을 경로-키 방식으로 바꾸고 `test_plan_gate_is_scoped_too` 외 2건 추가. **M1 이 이제 이 테스트도 kill** 한다 |
+| 2 `_worktree_branches` fail-open 미검증 | `test_worktree_listing_failure_degrades_to_cwd`(비-repo cwd) · `test_stale_worktree_entry_is_skipped`(디스크에서 삭제된 worktree) 추가 |
+| 3 `_push_targets` 실패 폴백 미검증 | 위 2번이 같은 경로를 커버 — 실패해도 cwd 검사는 살아있음을 단언 |
+| 4 REVIEW/PLAN 루프 중복(DRY) | `_run_gate()` 공용 헬퍼로 추출. 두 불변식(게이트 격리 · target 단위 fail-open)을 docstring 에 명시 |
+| 5 `_accepts_cwd` 계약 미고정 | **`AcceptsCwdContractTest`** — 실제 `evaluate_review`/`evaluate_plan` 이 positional cwd 를 받는지 단언 + keyword-only/무인자가 거부되는지 고정. 시그니처가 바뀌면 false-ALLOW 로 조용히 회귀하는 걸 막는 핵심 핀 |
+| 6 mutation 수치 오기재 | **오탐** — §mutation 실측 각주 참조. 두 수치가 서로 다른 mutation 이며 재실측으로 양쪽 재현 |
+| 7 길이 상한 부재 | `_MAX_REDACTION_INPUT` 절단 적용(파일 관례와 일관) + **M5 로 관측 가능하게 고정**. 초기엔 상한을 넣고도 테스트가 없어 mutation 이 생존했다 |
+
+INFO 중 반영: 지역 import 를 모듈 top 으로(관례), `timeout=5.0` 근거 주석, legacy fallback 의
+`worktree:` 표시를 실제 평가 대상(`os.getcwd()`)으로 정정.
+
 ## 체크리스트
 
 - [x] 구멍 실증 (두 worktree 대조 실측)
 - [x] `_worktree_branches` / `_mentions_branch` / `_push_targets` 구현
 - [x] `_accepts_cwd` 시그니처 probe (silent fail-open 차단)
 - [x] 차단 메시지에 worktree 표기
-- [x] 테스트 9건 신설 + 카탈로그 등재
-- [x] mutation 실측 4건
-- [x] harness 전체 476 passed
-- [ ] `/ai-review`
+- [x] 테스트 **18건** 신설 + 카탈로그 등재 (1차 리뷰 반영으로 9 → 18)
+- [x] mutation 실측 **6건**
+- [x] harness 전체 **485 passed**
+- [x] `/ai-review` — 1차 MEDIUM(C0/W7) 반영 (`review/code/2026/07/23/17_28_02/RESOLUTION.md`), 2차 게이트 리뷰 예정
 
 ## mutation 실측
 
@@ -78,12 +93,25 @@ false-negative 클래스가 나와 **철회**됐다). 같은 철학을 지킨다
 
 | # | mutation | red 가 된 테스트 |
 |---|---|---|
-| M1 | `_push_targets` 를 `[cwd]` 로 고정 (= 수정 전 동작) | `test_false_allow_hole_is_closed` **단독** |
+| M1 | `_push_targets` 를 `[cwd]` 로 고정 (= 수정 전 동작) | `test_false_allow_hole_is_closed` · `test_plan_gate_is_scoped_too` · `test_branch_mention_past_the_cap_is_not_scanned` (**3건**) |
 | M2 | `_mentions_branch` 경계 검사 제거 (평문 substring) | `test_substring_of_longer_branch_does_not_match` **단독** |
-| M3 | `_accepts_cwd` probe 제거 (`scoped = True` 고정) | legacy 스위트 **5건** — probe 가 load-bearing 임을 증명 |
+| M3a | `_accepts_cwd` probe 제거 — **review 게이트만** | legacy 스위트 **5건** |
+| M3b | `_accepts_cwd` probe 제거 — **양쪽 게이트**(초안 상태 재현) | legacy 스위트 **9건** |
 | M4 | `targets` 에서 cwd 제외 | `test_cwd_worktree_is_still_evaluated` **단독** |
+| M5 | `_MAX_REDACTION_INPUT` 절단 제거 | `test_branch_mention_past_the_cap_is_not_scanned` **단독** |
 
-원복 후 mutation 마커 grep **0건**.
+> **M3 의 "5건 vs 9건" 은 모순이 아니다** (리뷰 17_28_02 WARNING 6 은 이 지점의 오탐):
+> 두 수치는 **서로 다른 mutation** 이다. 코드 docstring 이 말하는 "9 blocking tests" 는 probe 가
+> 아예 없던 **초안**(양쪽 게이트 모두 무인자 stub 에 TypeError) 상태이고, plan 이 적은 "5건" 은
+> review 게이트만 되돌린 M3a 다. 2026-07-23 재실측으로 **양쪽 다 재현**했다(M3a=5, M3b=9).
+> 혼동을 없애려 표를 M3a/M3b 로 분리한다.
+
+M1 이 3건을 kill 하는 이유: `test_branch_mention_past_the_cap_is_not_scanned` 는 "cap 안쪽 언급은
+잡힌다" 는 대조 절반을 함께 단언하므로 스코핑이 죽으면 그쪽이 red 가 된다 — 의도된 중첩이다.
+
+원복 후 mutation 마커 grep **0건**. 하네스는 앵커 미일치 시 `ANCHOR-FAIL` 로 **미적용을 보고**한다
+(초기 라운드에서 앵커가 틀린 mutation 이 조용히 "생존" 으로 집계된 사고가 있었다 —
+치환 실패 뮤턴트가 색깔을 오염시키는 그 클래스다).
 
 ## Rationale
 

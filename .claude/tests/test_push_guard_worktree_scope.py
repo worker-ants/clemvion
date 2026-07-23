@@ -58,6 +58,7 @@ def evaluate_review(cwd=None):
 '''
 
 _PLAN_STUB = '''\
+import os
 from dataclasses import dataclass
 
 
@@ -69,6 +70,10 @@ class _Plan:
 
 
 def evaluate_plan(cwd=None):
+    blocked = [p for p in os.environ.get("STUB_PLAN_BLOCKED_PATHS", "").split(os.pathsep) if p]
+    if cwd and os.path.realpath(cwd) in [os.path.realpath(p) for p in blocked]:
+        return _Plan(untouched=True, reason=f"plan untouched in {cwd}",
+                     plan_path="plan/in-progress/x.md")
     return _Plan(untouched=False, reason="plan touched", plan_path="plan/in-progress/x.md")
 '''
 
@@ -113,9 +118,10 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _run(self, command, cwd, blocked_paths=()):
+    def _run(self, command, cwd, blocked_paths=(), plan_blocked_paths=()):
         env = dict(os.environ)
         env["STUB_BLOCKED_PATHS"] = os.pathsep.join(blocked_paths)
+        env["STUB_PLAN_BLOCKED_PATHS"] = os.pathsep.join(plan_blocked_paths)
         env.pop("BYPASS_REVIEW_GUARD", None)
         env.pop("BYPASS_PLAN_GUARD", None)
         return subprocess.run(
@@ -194,6 +200,91 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         r = self._run("git status", cwd=self.main_wt, blocked_paths=[self.side_wt])
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    # -------------------------------------------------- PLAN gate scoping
+
+    def test_plan_gate_is_scoped_too(self):
+        """The PLAN gate must scope identically — it was the untested half of
+        the fix (review 17_28_02 WARNING 1). REVIEW clean everywhere, PLAN dirty
+        only in the named branch's worktree: the hook must still block."""
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            plan_blocked_paths=[self.side_wt],
+        )
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("plan gate", r.stderr)
+        self.assertIn(self.side_wt, r.stderr)
+
+    def test_plan_gate_unrelated_worktree_does_not_block(self):
+        r = self._run(
+            "git push origin main",
+            cwd=self.main_wt,
+            plan_blocked_paths=[self.side_wt],
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    # ------------------------------------------------------- fail-open paths
+
+    def test_stale_worktree_entry_is_skipped(self):
+        """`git worktree list` still reports a worktree whose directory was
+        deleted; `_push_targets` must skip it rather than hand a missing path to
+        a gate."""
+        shutil.rmtree(self.side_wt)
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            blocked_paths=[self.side_wt],
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_worktree_listing_failure_degrades_to_cwd(self):
+        """A repo where `git worktree list` cannot run must fall back to the
+        legacy cwd-only check rather than crashing or skipping the gate."""
+        nogit = os.path.join(self.tmp, "not-a-repo")
+        os.makedirs(nogit)
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=nogit,
+            blocked_paths=[nogit],  # cwd itself is dirty → must still block
+        )
+        self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_oversized_command_still_checks_cwd(self):
+        """Past `_MAX_REDACTION_INPUT` the branch scan is truncated. That may
+        drop a branch mention (→ pre-fix behaviour for it) but must never weaken
+        the cwd check."""
+        filler = "#" + "x" * 20000
+        r = self._run(
+            f"git push origin HEAD {filler}",
+            cwd=self.main_wt,
+            blocked_paths=[self.main_wt],
+        )
+        self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_branch_mention_past_the_cap_is_not_scanned(self):
+        """Pins the truncation itself (review 17_28_02 WARNING 7).
+
+        A branch named beyond `_MAX_REDACTION_INPUT` is NOT picked up — the
+        documented, deliberate degradation to pre-fix behaviour for that branch.
+        Without this the cap is unobservable and a future edit could drop it (or
+        make it truncate far too aggressively) with every test still green."""
+        filler = "x" * 20000
+        r = self._run(
+            f"git push origin HEAD # {filler} {self.side_branch}",
+            cwd=self.main_wt,
+            blocked_paths=[self.side_wt],  # only the far-away branch is dirty
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+        # …and the same mention just inside the cap IS picked up, so the test
+        # above cannot pass merely because the branch was never matchable.
+        r2 = self._run(
+            f"git push origin HEAD # {self.side_branch}",
+            cwd=self.main_wt,
+            blocked_paths=[self.side_wt],
+        )
+        self.assertEqual(r2.returncode, 2, r2.stderr)
+
 
 class MentionsBranchTest(unittest.TestCase):
     """`_mentions_branch` — bounded substring, NOT tokenization.
@@ -228,6 +319,47 @@ class MentionsBranchTest(unittest.TestCase):
 
     def test_absent_branch(self):
         self.assertFalse(self.mod._mentions_branch("git push origin main", "claude/x"))
+
+
+class AcceptsCwdContractTest(unittest.TestCase):
+    """`_accepts_cwd` against the REAL gate functions.
+
+    This is the pin that keeps the fix alive. `_accepts_cwd` degrades to the
+    legacy cwd-only call when a gate does not take a positional cwd — a
+    deliberate safety choice, but it means that changing `evaluate_review` to,
+    say, keyword-only would silently reinstate the false-ALLOW hole with every
+    other test still green. Assert the real signatures satisfy it."""
+
+    def setUp(self):
+        sys.path.insert(0, str(_harness.HOOKS_DIR))
+        sys.path.insert(0, str(_harness.HOOKS_DIR / "_lib"))
+        import importlib
+
+        self.mod = importlib.import_module("guard_review_before_push")
+        self.review = importlib.import_module("review_guard")
+        self.plan = importlib.import_module("plan_guard")
+
+    def test_real_gates_accept_a_positional_cwd(self):
+        self.assertTrue(
+            self.mod._accepts_cwd(self.review.evaluate_review),
+            "review_guard.evaluate_review no longer takes a positional cwd — the "
+            "hook would silently fall back to cwd-only and reopen the false-ALLOW hole",
+        )
+        self.assertTrue(
+            self.mod._accepts_cwd(self.plan.evaluate_plan),
+            "plan_guard.evaluate_plan no longer takes a positional cwd — same hole",
+        )
+
+    def test_keyword_only_signature_is_rejected(self):
+        """The degradation trigger itself, pinned: keyword-only → not scoped."""
+
+        def kw_only(*, cwd=None):
+            return None
+
+        self.assertFalse(self.mod._accepts_cwd(kw_only))
+
+    def test_zero_arg_signature_is_rejected(self):
+        self.assertFalse(self.mod._accepts_cwd(lambda: None))
 
 
 if __name__ == "__main__":
