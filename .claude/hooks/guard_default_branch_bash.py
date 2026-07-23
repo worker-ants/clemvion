@@ -92,13 +92,15 @@ except Exception:
 # explore. Said plainly because the opposite claim — "this shape is dangerous" —
 # would be the same unmeasured assertion that put item §C on the backlog.
 #
-# NOTE: `guard_review_before_push.py` carries a near-identical env-prefix group
-# in `_GIT_PUSH`/`_SEGMENT_IS_GIT` and still has the `\S+` form — where it
-# bypasses a BLOCKING gate rather than losing a nudge. Tracked separately as
-# harness-guard-followups §J; keep the two in view when either changes.
+# NOTE: `guard_review_before_push.py::_GIT_PUSH` carries this env-prefix group
+# byte-identically — §J (2026-07-24) fixed it there, where the same gap bypassed
+# a BLOCKING gate rather than losing a nudge, and widened both to the
+# escape-aware `"(?:\\.|[^"\\])*"` body. `EnvValueSubpatternSharedTest` fails if
+# they drift. Its `_SEGMENT_IS_GIT` still has the old `\S+` on purpose: that one
+# is a RELEASE path, where a miss keeps the command blocked.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|[^\s'"]\S*)\s+)*(?:
+    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|[^\s'"]\S*)\s+)*(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b
