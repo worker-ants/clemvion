@@ -33,6 +33,7 @@ ready = _harness.load_module_by_path(
 BOOTSTRAP_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 PRECOMMIT_SRC = _harness.REPO_ROOT / ".githooks" / "pre-commit"
 POSTTOOLUSE_SRC = _harness.HOOKS_DIR / "lint_mermaid_posttooluse.py"
+LINT_MJS_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "mermaid-lint" / "lint-mermaid.mjs"
 
 # Stubbed `node` for the execution-based tests below (W8): records one line per
 # call (so a test can assert whether the linter ran at all) and exits with an
@@ -124,6 +125,26 @@ class ConsumerBindingTest(unittest.TestCase):
         self.assertIn("from mermaid_lint_ready import is_ready", src)
         self.assertIn("is_ready(tool_dir)", src,
                       "the PostToolUse hook must decide readiness via the shared helper")
+
+    def test_tooling_broken_exit_code_agrees_across_consumers(self):
+        """Exit 3 (tooling broken) is a cross-language constant of the same
+        class as MARKER_NAME: the mjs EMITS it and the two consumers CLASSIFY
+        it, each hardcoding the literal in its own language. The execution
+        tests below inject a fixed 3 via the node stub, so a drift where only
+        one consumer's constant changed would not surface there. Pin that the
+        emitter and both consumers agree, so such a drift fails loudly instead
+        of silently disabling the fail-open on one side."""
+        import re
+        mjs = re.search(r"EXIT_TOOLING_BROKEN\s*=\s*(\d+)", LINT_MJS_SRC.read_text())
+        py = re.search(r"_EXIT_TOOLING_BROKEN\s*=\s*(\d+)", POSTTOOLUSE_SRC.read_text())
+        sh = re.search(r'mermaid_rc"?\s*-eq\s*(\d+)', PRECOMMIT_SRC.read_text())
+        self.assertTrue(mjs and py and sh,
+                        "the tooling-broken exit code must be present in the mjs emitter, "
+                        "the python consumer, and the bash consumer")
+        self.assertEqual(mjs.group(1), py.group(1),
+                         "mjs emitter and PostToolUse consumer must use the same exit code")
+        self.assertEqual(mjs.group(1), sh.group(1),
+                         "mjs emitter and pre-commit consumer must use the same exit code")
 
 
 class PostToolUseExecutionTest(unittest.TestCase):

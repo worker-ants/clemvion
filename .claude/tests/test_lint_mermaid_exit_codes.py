@@ -6,7 +6,7 @@ actual script so the ONE behaviour a stub cannot prove is pinned — that a
 dependency-import failure exits 3 (tooling broken), distinct from 1 (a real
 mermaid.parse() failure) and 2 (usage error).
 
-Why it matters (review/code/2026/07/17 §A W1(10_55_35), deferred there): a
+Why it matters (review/code/2026/07/18 §A W1(10_55_35), deferred there): a
 corrupt / partially-installed node_modules that still carried bootstrap's
 completion marker passes is_ready(), so a consumer runs the linter — and its
 top-level `await import("jsdom")` / `import("mermaid")` throw
@@ -66,6 +66,21 @@ class LintMermaidExitCodeTest(unittest.TestCase):
             f.write(content)
         return path
 
+    def _install_stub_jsdom(self):
+        """Drop a minimal ESM `jsdom` package into the tool dir so `import
+        ("jsdom")` RESOLVES, leaving the still-absent `mermaid` as the next
+        failure. This is the only way to reach the SECOND catch block — with
+        both deps missing, the first (jsdom) catch always fires first."""
+        pkg = os.path.join(self.tool_dir, "node_modules", "jsdom")
+        os.makedirs(pkg)
+        with open(os.path.join(pkg, "package.json"), "w") as f:
+            f.write('{"name":"jsdom","version":"0.0.0-stub",'
+                    '"type":"module","main":"index.js"}\n')
+        with open(os.path.join(pkg, "index.js"), "w") as f:
+            f.write("export class JSDOM {\n"
+                    "  constructor() { this.window = { document: {}, navigator: {} }; }\n"
+                    "}\n")
+
     def _run(self, *args):
         return subprocess.run([NODE, self.script, *args],
                               capture_output=True, text=True, timeout=30)
@@ -78,6 +93,21 @@ class LintMermaidExitCodeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 3,
                          f"import failure must exit 3, got {r.returncode}\n{r.stderr}")
         self.assertIn("tooling unavailable", r.stderr)
+        self.assertIn("could not import jsdom", r.stderr,
+                      "the jsdom (first) catch must be the one that fired here")
+
+    def test_second_import_failure_also_exits_3(self):
+        """The mermaid (second) catch must exit 3 too. With both deps missing
+        it is a dead branch — jsdom always fails first — so this installs a
+        stub jsdom to let that import succeed and leaves only mermaid missing.
+        Guards the second catch against a mutation (e.g. wrong exit code) that
+        the both-missing case would never surface."""
+        self._install_stub_jsdom()
+        r = self._run(self._write_md(_MD_WITH_MERMAID))
+        self.assertEqual(r.returncode, 3,
+                         f"mermaid import failure must also exit 3, got {r.returncode}\n{r.stderr}")
+        self.assertIn("could not import mermaid", r.stderr,
+                      "the SECOND catch (mermaid) must be the one that fired, not jsdom's")
 
     def test_no_mermaid_block_exits_0_without_touching_deps(self):
         """The fast path returns before importing, so a corrupt tree is

@@ -86,14 +86,16 @@ exactly-once 가 아니라 **수렴**(마커 존재 + 이후 세션 skip)을 단
 
 **10_55_35 라운드(마커-only 전환 리뷰) 잔여:**
 
-- [ ] **W1(10_55_35) — `lint-mermaid.mjs` 를 import 크래시에 fail-OPEN 시켜라.** `await import("mermaid")`/
-      `("jsdom")` 가 가드 없어(75·93행), corrupt-but-marked 트리에서 `ERR_MODULE_NOT_FOUND` 로 크래시하면
-      pre-commit(`exit 1`)·PostToolUse(`exit 2`)가 이를 "진짜 malformed mermaid" 로 오판해 **매 markdown
-      커밋을 가짜 메시지로 차단** — 두 파일이 명시한 fail-open 계약과 정반대(리뷰어 실측 재현). **선재
-      결함**(어떤 원인의 corrupt node_modules 든 트리거; 락 제거가 도달성만 넓힘)이고 이 change 밖 파일
-      3곳(mjs+2 소비처)을 건드려 별건. fix: import 를 try/catch 로 감싸 로드 실패를 파싱 에러와 **다른
-      exit code**(예: 3)로 분리하고 소비처가 그 코드를 "툴링 깨짐→skip" 으로 처리. `bootstrap` 설계
-      노트는 이 최악을 이미 정직하게 서술하도록 정정함(10_55_35 커밋).
+- [x] **W1(10_55_35) — `lint-mermaid.mjs` 를 import 크래시에 fail-OPEN 시켜라.** ✅ 완료 (§A-1 PR).
+      `await import("mermaid")`/`("jsdom")` 가 가드 없어(75·93행), corrupt-but-marked 트리에서
+      `ERR_MODULE_NOT_FOUND` 로 크래시하면 pre-commit(`exit 1`)·PostToolUse(`exit 2`)가 이를 "진짜
+      malformed mermaid" 로 오판해 **매 markdown 커밋을 가짜 메시지로 차단** — 두 파일이 명시한
+      fail-open 계약과 정반대(리뷰어 실측 재현). **선재 결함**(어떤 원인의 corrupt node_modules 든
+      트리거; 락 제거가 도달성만 넓힘)이고 이 change 밖 파일 3곳(mjs+2 소비처)을 건드려 별건.
+      **구현**: 두 dynamic import 를 try/catch 로 감싸 로드 실패를 파싱 에러(exit 1)와 다른
+      exit 3(tooling broken)으로 분리, 소비처(pre-commit·PostToolUse)가 그 코드를 fail-open(skip)으로
+      처리. 테스트: `test_lint_mermaid_exit_codes.py`(real node, 두 catch 블록 각각 + fast-path/usage
+      구분) + `test_mermaid_lint_ready.py` 소비처 exit-3 매핑 + exit-code cross-language pinning.
 - [ ] **W3(10_55_35) — bash mtime/cooldown 헬퍼가 `reap-merged-worktrees.sh` 와 중복**(`_file_mtime` vs
       `file_mtime`). python 은 `_lib/mermaid_lint_ready.py` 로 SoT 통합했는데 bash 는 안 됨. `.claude/tools/_lib/*.sh`
       공유 또는 최소 네이밍 통일. 저우선.

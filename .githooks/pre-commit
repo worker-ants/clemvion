@@ -75,8 +75,8 @@ if [ -f "$mermaid_ready" ] && python3 "$mermaid_ready" "$mermaid_tool_dir" \
         # diagram — fail open (skip), same contract as "not ready" above,
         # rather than blocking the commit with a bogus parse error.
         if [ "$mermaid_rc" -eq 3 ]; then
-            echo "mermaid-lint: skipped (tooling failed to load; reinstall with:" >&2
-            echo "  (cd .claude/tools/mermaid-lint && npm install) )." >&2
+            echo "mermaid-lint: skipped (tooling failed to load)." >&2
+            echo "  Reinstall with: (cd .claude/tools/mermaid-lint && npm install)" >&2
         elif [ "$mermaid_rc" -ne 0 ]; then
             echo "" >&2
             echo "Commit aborted by .githooks/pre-commit (mermaid lint)." >&2

@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-07-22T10:48:43.931852",
+  "files": [
+    {
+      "file_path": ".claude/hooks/lint_mermaid_posttooluse.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tests/test_lint_mermaid_exit_codes.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tests/test_mermaid_lint_ready.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".claude/tools/mermaid-lint/lint-mermaid.mjs",
+      "change_type": "Review",
+      "file_extension": "mjs"
+    },
+    {
+      "file_path": ".githooks/pre-commit",
+      "change_type": "Review",
+      "file_extension": ""
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
