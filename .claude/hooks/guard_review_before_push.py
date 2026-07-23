@@ -21,6 +21,20 @@ through untouched. Two independent gates run, each with its own override:
     rule). Override: `BYPASS_PLAN_GUARD=1`.
 Each override is a conscious one-off (e.g. a docs/spec-only branch the heuristic
 misjudged, or ad-hoc work the plan link mis-resolved).
+
+Fail-open is OBSERVED, not silent (policy decision 2026-07-23,
+harness-guard-followups §E). When a gate cannot answer — its module failed to
+import, `evaluate_*()` raised, or push detection itself blew up — the push is
+still allowed, but the hook prints an explicit "this push was not checked"
+banner and records the CONSECUTIVE count in
+`.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
+Only a push where EVERY gate answered cleanly clears the counter. A BYPASS_*
+skip, a non-push, and a push where one gate blocked before the other ever ran
+are all "no evidence" — not "healthy" — and leave the streak untouched. That
+predicate was wrong three times in review, each time by accepting weaker
+evidence than "all of them answered", so `_report_fail_open` compares against
+the named `_ALL_GATES` set rather than testing truthiness. Read it there before
+changing anything here.
 """
 
 from __future__ import annotations
@@ -351,40 +365,228 @@ _PLAN_MSG = (
 )
 
 
-def main() -> int:
-    payload = _read_payload()
-    tool_input = payload.get("tool_input") or payload.get("input") or {}
-    command = tool_input.get("command") or ""
+# --- fail-open observability -------------------------------------------------
+# The gates fail OPEN by design: a broken guard must not stop routine work. The
+# cost is that a gate can be effectively OFF and nobody notices — this module
+# calls itself the hard gate for review-before-push, so silent degradation is
+# the worst shape it can take. Policy decision 2026-07-23: keep failing open,
+# but make it LOUD and COUNTED (harness-guard-followups §E).
+#
+# Nothing here may ever raise into the guard: observability that breaks the
+# thing it observes is worse than no observability.
+_FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+# Gate identifiers. Constants rather than repeated literals: a typo in one of
+# them would make `set(answered) != _ALL_GATES` permanently true, permanently suppressing
+# the reset — fail-safe in direction, but invisible to every static check.
+_GATE_REVIEW = "REVIEW"
+_GATE_PLAN = "PLAN"
+# Every gate that must answer before the streak may be cleared. Named, not
+# counted, so a future third gate cannot silently satisfy the reset with two.
+_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
+# Two in a row can still be one bad afternoon (a half-applied edit, a stale
+# import). Three consecutive pushes with the gate unable to answer is a state
+# somebody has been living with, which is the thing worth shouting about.
+_FAILOPEN_ESCALATE_AT = 3
 
-    if not _is_git_push(command):
-        return 0  # not a push — nothing to enforce.
 
-    # ---- REVIEW gate -------------------------------------------------------
-    if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
+def _state_path() -> str:
+    """Where the consecutive-fail-open counter lives (gitignored)."""
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    return os.path.join(project_dir, ".claude", "state", _FAILOPEN_STATE_NAME)
+
+
+def _read_streak() -> int:
+    """Current streak, or 0 if the file is absent/corrupt (self-healing)."""
+    try:
+        with open(_state_path(), encoding="utf-8") as fh:
+            value = json.load(fh).get("streak")
+        return value if isinstance(value, int) and value > 0 else 0
+    except Exception:
+        return 0
+
+
+def _write_streak(streak: int, degraded: list[tuple[str, str]]) -> None:
+    """Persist the streak plus which gates degraded, for the next run to read."""
+    path = _state_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(
+            {
+                "streak": streak,
+                "gates": [{"gate": g, "reason": r} for g, r in degraded],
+            },
+            fh,
+        )
+
+
+def _report_fail_open(outcome: _Outcome, exit_code: int) -> None:
+    """Announce (and count) any gate that could not answer.
+
+    Channel depends on the exit code, because that decides what the harness
+    surfaces: on exit 2 the refusal is read from stderr, while on exit 0 it is
+    STDOUT that gets injected into the model's context (the same reasoning
+    `guard_default_branch_bash.py` documents for its never-blocking reminder).
+    A banner on the wrong stream is a banner nobody reads, which would quietly
+    undo the whole point of this policy.
+
+    Reset rule — the counter measures CONSECUTIVE degradation, so clearing it
+    takes positive evidence that EVERY gate is working: a push where all of
+    `_ALL_GATES` actually answered. Anything less leaves the streak alone.
+
+    This predicate has been wrong twice, both times by accepting weaker
+    evidence than "all of them answered":
+      * v1 reset whenever `degraded` was empty — so a BYPASS_* skip cleared it.
+      * v2 reset whenever *any* gate answered — but a REVIEW block returns
+        before the PLAN gate runs at all, so a perfectly ordinary blocked push
+        wiped a PLAN streak with no warning (and REVIEW blocking is this hook's
+        most common event, so the escalation would essentially never fire).
+    Hence the explicit set comparison rather than a truthiness test.
+
+    Known residual (accepted): the read-increment-write of the streak is not
+    locked, so two overlapping pushes can lose one increment and delay the
+    escalation by a push. The banner is emitted BEFORE the write precisely so
+    that the primary signal cannot be lost to a failed or racing write; only
+    the running count can. Not worth `fcntl.flock` for an observability counter.
+    """
+    try:
+        degraded = outcome.degraded
+        if not degraded:
+            if outcome.bypassed or set(outcome.answered) != _ALL_GATES:
+                return  # not full proof of health — leave the counter untouched.
+            try:
+                os.remove(_state_path())
+            except FileNotFoundError:
+                pass
+            return
+
+        streak = _read_streak() + 1
+
+        lines = [
+            "",
+            "⚠️  push guard: 게이트가 판정하지 못하고 통과시켰습니다 (fail-open).",
+        ]
+        for gate, reason in degraded:
+            lines.append(f"      {gate} gate — {reason}")
+        lines += [
+            "",
+            "    이 push 는 해당 검사를 **받지 않았습니다**. 통과했다는 사실이",
+            "    리뷰/plan 이 갖춰졌다는 근거가 되지 못합니다.",
+            f"    연속 fail-open: {streak}회",
+        ]
+        if streak >= _FAILOPEN_ESCALATE_AT:
+            lines += [
+                "",
+                f"    ‼️  {streak}회 연속입니다 — 이 게이트는 사실상 꺼져 있습니다.",
+                "        일시적 오류가 아니라 가드 자체를 고쳐야 합니다.",
+            ]
+        lines.append("")
+        stream = sys.stderr if exit_code == 2 else sys.stdout
+        print("\n".join(lines), file=stream)
+
+        # Persist LAST. An earlier version wrote first, so when the state
+        # directory was unwritable the exception skipped the print entirely and
+        # the push went through in total silence — the failure mode this whole
+        # mechanism exists to prevent, in the mechanism itself.
         try:
-            decision = evaluate_review()
+            _write_streak(streak, degraded)
         except Exception:
             traceback.print_exc(file=sys.stderr)
-            decision = None  # fail open on internal error
-        if decision is not None and decision.blocked:
-            print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
-            return 2
+    except Exception:
+        # Never let reporting break the guard.
+        pass
+
+
+class _Outcome:
+    """What each gate actually did on this run.
+
+    degraded — could NOT answer (import failure, or evaluate_*() raised). The
+               silent-failure case this whole mechanism exists to surface.
+    answered — produced a verdict. The ONLY thing that counts as evidence the
+               gate is healthy.
+    bypassed — skipped by BYPASS_*. Deliberate, and tells us nothing either way.
+    """
+
+    def __init__(self) -> None:
+        self.degraded: list[tuple[str, str]] = []
+        self.answered: list[str] = []
+        self.bypassed: list[str] = []
+
+
+def _run_gates(outcome: _Outcome) -> int:
+    """Run both gates, recording into `outcome` what each one did."""
+    degraded = outcome.degraded
+    # ---- REVIEW gate -------------------------------------------------------
+    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
+        outcome.bypassed.append(_GATE_REVIEW)
+    else:
+        if evaluate_review is None:
+            degraded.append((_GATE_REVIEW, "_lib/review_guard.py failed to import"))
+        else:
+            try:
+                decision = evaluate_review()
+            except Exception as exc:
+                traceback.print_exc(file=sys.stderr)
+                decision = None  # fail open on internal error
+                degraded.append((_GATE_REVIEW, f"{type(exc).__name__}: {exc}"))
+            if decision is not None:
+                outcome.answered.append(_GATE_REVIEW)
+                if decision.blocked:
+                    print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
+                    return 2
 
     # ---- PLAN gate ---------------------------------------------------------
-    if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
-        try:
-            plan = evaluate_plan()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            plan = None  # fail open on internal error
-        if plan is not None and plan.untouched:
-            print(
-                _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
-                file=sys.stderr,
-            )
-            return 2
+    if os.environ.get("BYPASS_PLAN_GUARD") == "1":
+        outcome.bypassed.append(_GATE_PLAN)
+    else:
+        if evaluate_plan is None:
+            degraded.append((_GATE_PLAN, "_lib/plan_guard.py failed to import"))
+        else:
+            try:
+                plan = evaluate_plan()
+            except Exception as exc:
+                traceback.print_exc(file=sys.stderr)
+                plan = None  # fail open on internal error
+                degraded.append((_GATE_PLAN, f"{type(exc).__name__}: {exc}"))
+            if plan is not None:
+                outcome.answered.append(_GATE_PLAN)
+                if plan.untouched:
+                    print(
+                        _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
+                        file=sys.stderr,
+                    )
+                    return 2
 
     return 0
+
+
+def main() -> int:
+    # `finally` so the report happens on every exit path, including the blocking
+    # ones (a gate can block while the OTHER one failed open — that is exactly
+    # when it would otherwise be quietest).
+    outcome = _Outcome()
+    exit_code = 0
+    try:
+        payload = _read_payload()
+        tool_input = payload.get("tool_input") or payload.get("input") or {}
+        command = tool_input.get("command") or ""
+
+        if not _is_git_push(command):
+            return 0  # not a push — nothing to enforce.
+
+        exit_code = _run_gates(outcome)
+        return exit_code
+    except Exception as exc:
+        # Fail-open #3 from the plan: anything unhandled above — payload read,
+        # or push DETECTION itself. It used to escape here and the harness's
+        # "non-0/non-2 means allow" rule let the push through with nothing
+        # recorded anywhere. Same outcome, but now counted: detection is the
+        # code three review rounds kept finding bugs in, so a silent failure
+        # there is the worst shape this can take.
+        traceback.print_exc(file=sys.stderr)
+        outcome.degraded.append(("DETECTION", f"{type(exc).__name__}: {exc}"))
+        return 0
+    finally:
+        _report_fail_open(outcome, exit_code)
 
 
 if __name__ == "__main__":
