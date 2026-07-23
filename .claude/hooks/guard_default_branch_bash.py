@@ -29,8 +29,11 @@ grep pattern cannot trigger it), but reading only the *whole command's*
 first token made `git add -A && git commit -m "x"` — the common shape —
 silently invisible, i.e. it missed exactly the moment described above.
 The split does not understand quoting; the two false-positive classes
-that opens are pinned in `test_guard_default_branch_bash_mutating.py`
-and accepted because this hook never blocks.
+this opens are pinned in `test_guard_default_branch_bash_mutating.py`
+and accepted because this hook never blocks. Two env-value forms stay
+unmatched — an empty value (`VAR= git commit`) and an unclosed quote —
+both pinned there too; neither is a valid command shape worth widening
+the pattern for.
 
 Once-per-session deduplication:
   We touch `.claude/state/main_worktree_bash_warned/<session_id>`

@@ -173,6 +173,16 @@ class EnvPrefixTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(guard._is_mutating(command))
 
+    def test_malformed_env_values_stay_unmatched(self):
+        """Neither form is a valid command shape; widening for them costs more
+        than it buys, so the gap is pinned rather than closed."""
+        for command in (
+            "VAR= git commit -m x",  # empty value — `\\S+`/quotes both need ≥1 char
+            'A="unclosed git commit -m x',  # no closing quote
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(guard._is_mutating(command))
+
     def test_env_prefix_does_not_promote_a_read_only_command(self):
         for command in (
             "GIT_PAGER=cat git status",
