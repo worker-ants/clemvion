@@ -33,6 +33,7 @@ ready = _harness.load_module_by_path(
 BOOTSTRAP_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 PRECOMMIT_SRC = _harness.REPO_ROOT / ".githooks" / "pre-commit"
 POSTTOOLUSE_SRC = _harness.HOOKS_DIR / "lint_mermaid_posttooluse.py"
+LINT_MJS_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "mermaid-lint" / "lint-mermaid.mjs"
 
 # Stubbed `node` for the execution-based tests below (W8): records one line per
 # call (so a test can assert whether the linter ran at all) and exits with an
@@ -125,6 +126,26 @@ class ConsumerBindingTest(unittest.TestCase):
         self.assertIn("is_ready(tool_dir)", src,
                       "the PostToolUse hook must decide readiness via the shared helper")
 
+    def test_tooling_broken_exit_code_agrees_across_consumers(self):
+        """Exit 3 (tooling broken) is a cross-language constant of the same
+        class as MARKER_NAME: the mjs EMITS it and the two consumers CLASSIFY
+        it, each hardcoding the literal in its own language. The execution
+        tests below inject a fixed 3 via the node stub, so a drift where only
+        one consumer's constant changed would not surface there. Pin that the
+        emitter and both consumers agree, so such a drift fails loudly instead
+        of silently disabling the fail-open on one side."""
+        import re
+        mjs = re.search(r"EXIT_TOOLING_BROKEN\s*=\s*(\d+)", LINT_MJS_SRC.read_text())
+        py = re.search(r"_EXIT_TOOLING_BROKEN\s*=\s*(\d+)", POSTTOOLUSE_SRC.read_text())
+        sh = re.search(r'mermaid_rc"?\s*-eq\s*(\d+)', PRECOMMIT_SRC.read_text())
+        self.assertTrue(mjs and py and sh,
+                        "the tooling-broken exit code must be present in the mjs emitter, "
+                        "the python consumer, and the bash consumer")
+        self.assertEqual(mjs.group(1), py.group(1),
+                         "mjs emitter and PostToolUse consumer must use the same exit code")
+        self.assertEqual(mjs.group(1), sh.group(1),
+                         "mjs emitter and pre-commit consumer must use the same exit code")
+
 
 class PostToolUseExecutionTest(unittest.TestCase):
     """Execution-based regression for lint_mermaid_posttooluse.py's readiness
@@ -196,6 +217,20 @@ class PostToolUseExecutionTest(unittest.TestCase):
                          "must invoke the linter once deps are ready")
         self.assertEqual(r.returncode, 2, "a linter failure must surface as exit 2")
         self.assertIn("mermaid syntax error", r.stderr)
+
+    def test_ready_fails_open_when_linter_reports_tooling_broken(self):
+        """Exit 3 from the linter = its deps failed to import (a corrupt tree
+        that still passed the readiness marker), NOT a malformed diagram. The
+        hook must fail open (return 0) rather than nag Claude with a bogus
+        parse error. node IS invoked — readiness passed — so the wrapper is
+        classifying the exit code, which is the behaviour under test."""
+        r = self._run(ready_state=True, node_exit_code=3)
+        self.assertEqual(self._node_calls(), 1,
+                         "the linter runs — readiness passed; the exit code decides")
+        self.assertEqual(r.returncode, 0,
+                         "tooling breakage (exit 3) must fail open, not surface as exit 2")
+        self.assertIn("corrupt node_modules", r.stderr)
+        self.assertNotIn("mermaid syntax error", r.stderr)
 
 
 class PreCommitExecutionTest(unittest.TestCase):
@@ -289,6 +324,18 @@ class PreCommitExecutionTest(unittest.TestCase):
                          "must invoke the linter once deps are ready")
         self.assertNotEqual(r.returncode, 0, "a linter failure must block the commit")
         self.assertIn("Commit aborted", r.stderr)
+
+    def test_ready_allows_commit_when_linter_reports_tooling_broken(self):
+        """Mirror of PostToolUseExecutionTest's exit-3 case for the bash
+        consumer: exit 3 = deps failed to import (corrupt tree), so the commit
+        must proceed (fail open) instead of aborting with a bogus parse error."""
+        r = self._run(ready_state=True, node_exit_code=3)
+        self.assertEqual(self._node_calls(), 1,
+                         "the linter runs — readiness passed; the exit code decides")
+        self.assertEqual(r.returncode, 0,
+                         "tooling breakage (exit 3) must not abort the commit")
+        self.assertNotIn("Commit aborted", r.stderr)
+        self.assertIn("skipped", r.stderr)
 
 
 if __name__ == "__main__":

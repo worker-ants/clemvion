@@ -53,6 +53,10 @@ except Exception:
 MARKDOWN_EXTS = (".md", ".markdown", ".mdx")
 FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})[ \t]*mermaid\b", re.IGNORECASE | re.MULTILINE)
 _NODE_TIMEOUT = 20.0  # seconds; a hung linter must never wedge PostToolUse
+# lint-mermaid.mjs exits with this when it could not import its deps (corrupt /
+# partial node_modules that still carried bootstrap's marker, so is_ready()
+# passed). It is NOT a parse error — fail open, same as the not-ready branch.
+_EXIT_TOOLING_BROKEN = 3
 
 
 def _read_payload() -> dict:
@@ -141,6 +145,18 @@ def main() -> int:
         return 0
 
     if proc.returncode == 0:
+        return 0
+
+    if proc.returncode == _EXIT_TOOLING_BROKEN:
+        # The linter reached its imports but a dependency failed to load — the
+        # tree is marked-but-corrupt. Fail open (skip), same as "deps not
+        # installed" above, rather than misreporting tooling breakage to Claude
+        # as a mermaid parse error (which would nag on every markdown edit).
+        print(
+            "mermaid-lint: skipped (linter tooling failed to load — likely a "
+            "corrupt node_modules). Run: (cd .claude/tools/mermaid-lint && npm install)",
+            file=sys.stderr,
+        )
         return 0
 
     # Parse failure → surface to Claude so it fixes the diagram.
