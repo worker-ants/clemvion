@@ -315,28 +315,57 @@ class BacktrackingTest(unittest.TestCase):
     """
 
     _TIMEOUT = 10.0
+    # Sized from a measured old-vs-new comparison: with the pre-fix overlapping
+    # greedy pattern this input takes ~38s, with the split probes ~0.014s. Smaller
+    # inputs are NOT decisive — 16k repeats sat at 10.3s, right on the timeout, and
+    # an earlier 8k version of this test passed against the broken code (i.e. it
+    # was vacuous; the mutation run is what exposed that).
+    _QUADRATIC_REPEATS = 30_000
+    # Ditto for the heredoc-opener scan: 24k openers took ~29s before the window
+    # bounds, ~0.02s after.
+    _HEREDOC_OPENERS = 24_000
 
-    def _run_guard_out_of_process(self, command: str):
+    def _run_guard_out_of_process(self, command: str, func: str = "_is_git_push"):
         script = (
             "import importlib.util,sys\n"
             f"spec=importlib.util.spec_from_file_location('g',{str(_HOOK_PATH)!r})\n"
             "m=importlib.util.module_from_spec(spec);sys.modules['g']=m\n"
             "spec.loader.exec_module(m)\n"
-            "import sys;m._is_git_push(sys.stdin.read())\n"
+            f"m.{func}(sys.stdin.read())\n"
         )
         return subprocess.run(
             [sys.executable, "-c", script], input=command,
             capture_output=True, text=True, timeout=self._TIMEOUT,
         )
 
-    def _assert_finishes(self, command, label, remedy):
+    def _assert_finishes(self, command, label, remedy, func="_is_git_push"):
         start = time.monotonic()
         try:
-            self._run_guard_out_of_process(command)
+            self._run_guard_out_of_process(command, func)
         except subprocess.TimeoutExpired:
             self.fail(f"{label} did not finish in {self._TIMEOUT:g}s — {remedy}")
         elapsed = time.monotonic() - start
         self.assertLess(elapsed, self._TIMEOUT, f"{label} took {elapsed:.2f}s")
+
+    def test_many_heredoc_openers_on_one_line_are_fast(self):
+        """The heredoc SCAN itself must be linear, independent of the size cap.
+
+        With many `<<` markers on one line whose ownership check keeps failing,
+        two separate accumulators re-walked the prefix per marker — the slice fed
+        to the ownership check, and the backward `rfind` for the line start. That
+        was O(h²) (12k markers took 11.6s). Driven through `_commit_heredoc_spans`
+        directly because `_is_git_push` now refuses oversized input before it ever
+        reaches the scan, so the cap would mask this regression.
+        """
+        count = self._HEREDOC_OPENERS
+        self._assert_finishes(
+            "echo " + " ".join(f"<<TOK{i}" for i in range(count)),
+            f"{count} heredoc openers on one line",
+            "the heredoc scan is re-walking the prefix per marker. Bound BOTH "
+            "the ownership window and the backward line-start search by "
+            "_OWNER_WINDOW.",
+            func="_commit_heredoc_spans",
+        )
 
     def test_unterminated_quote_with_long_backslash_run_is_fast(self):
         for count in (60, 200, 800):
@@ -348,13 +377,6 @@ class BacktrackingTest(unittest.TestCase):
                     "alternatives disjoint (one branch consumes `\\\\.`, the "
                     "other must EXCLUDE backslash).",
                 )
-
-    # Sized from a measured old-vs-new comparison: with the pre-fix overlapping
-    # greedy pattern this input takes ~38s, with the split probes ~0.014s. Smaller
-    # inputs are NOT decisive — 16k repeats sat at 10.3s, right on the timeout, and
-    # an earlier 8k version of this test passed against the broken code (i.e. it
-    # was vacuous; the mutation run is what exposed that).
-    _QUADRATIC_REPEATS = 30_000
 
     def test_repeated_subcommand_word_without_stdin_flag_is_fast(self):
         """The heredoc-OWNER probe must stay linear too.
@@ -372,6 +394,37 @@ class BacktrackingTest(unittest.TestCase):
             "separate single-pass scans, never one pattern with two greedy "
             "runs around the subcommand word.",
         )
+
+
+class InputSizeCapTest(unittest.TestCase):
+    """Redaction is skipped entirely above `_MAX_REDACTION_INPUT`.
+
+    Three review rounds each found a different super-linear corner in this
+    hand-written scanning code. Rather than betting that the fourth does not
+    exist, the cap bounds the whole class: past it the guard blocks without
+    scanning, which is the safe direction and exactly the pre-allowlist
+    behaviour.
+    """
+
+    def test_oversized_command_is_blocked_without_redaction(self):
+        padding = "x" * guard._MAX_REDACTION_INPUT
+        command = f'git commit -m "add push notification" # {padding}'
+        self.assertGreater(len(command), guard._MAX_REDACTION_INPUT)
+        self.assertTrue(
+            guard._is_git_push(command),
+            "an oversized command must block rather than be released",
+        )
+
+    def test_same_command_under_the_cap_is_released(self):
+        """Pins that the cap — not some other rule — is what blocks above."""
+        command = 'git commit -m "add push notification"'
+        self.assertLess(len(command), guard._MAX_REDACTION_INPUT)
+        self.assertFalse(guard._is_git_push(command))
+
+    def test_cap_leaves_room_for_realistic_commands(self):
+        """A guard that fired on ordinary work would be a silent regression back
+        to the false positives this change removes."""
+        self.assertGreaterEqual(guard._MAX_REDACTION_INPUT, 8192)
 
 
 class BlankSpansTest(unittest.TestCase):

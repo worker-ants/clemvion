@@ -110,7 +110,21 @@ _STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 # Naive separator split. Splitting inside a quoted string can only move the
 # boundary LATER — i.e. toward a segment less likely to look like a git commit —
 # so naivety errs toward "do not release", the safe direction.
-_SEGMENT_SPLIT = re.compile(r"\|\||&&|[|;\n]")
+_SEGMENT_SPLIT = re.compile(r"&&|[|;\n]")
+
+# How much text before a `<<` marker the ownership check may look at. The owning
+# command is short (`[VAR=val …] git commit|tag … -F -`), so this is generous.
+_OWNER_WINDOW = 512
+
+# Redaction is only attempted on commands up to this size. Every scan below is
+# linear today, but three review rounds each found a different super-linear
+# corner in this hand-written scanning code (an ambiguous alternation, two
+# accumulating re-scans). This cap bounds the whole CLASS instead of the next
+# instance: past it we skip redaction and simply block, which is the safe
+# direction and exactly the pre-allowlist behaviour. Real Bash commands are
+# orders of magnitude smaller — the longest commit message in this repo's own
+# history is a few KB.
+_MAX_REDACTION_INPUT = 16_384
 
 
 def _owns_heredoc_as_message(prefix: str) -> bool:
@@ -218,13 +232,29 @@ def _commit_heredoc_spans(text: str) -> list[tuple[int, int]]:
     """
     spans: list[tuple[int, int]] = []
     pos = 0
+    prev_end = 0  # end of the last `<<` marker we looked at, on this same line
     while True:
         m = _HEREDOC_START.search(text, pos)
         if m is None:
             return spans
-        line_start = text.rfind("\n", 0, m.start()) + 1
+        # Window for the ownership check. Everything here is bounded by
+        # _OWNER_WINDOW, because a line of many `<<` markers otherwise re-scans an
+        # ever-growing prefix once per marker — O(h²) (measured: 12k markers /
+        # 118KB took 11.6s, past this suite's own 10s hang threshold). Two
+        # separate accumulators had to be capped: the slice fed to the ownership
+        # check, AND this backward `rfind` for the line start, which with no
+        # newline in the command walked the whole prefix every time.
+        #   prev_end      — text before the previous marker belongs to it, not us;
+        #   _OWNER_WINDOW — the owning command (`[VAR=…] git commit … -F -`) is
+        #                   short, so a fixed cap is enough. Truncating the front
+        #                   can only make the anchored match FAIL, i.e. not
+        #                   release — the safe direction.
+        floor = max(0, m.start() - _OWNER_WINDOW)
+        line_start = text.rfind("\n", floor, m.start()) + 1
+        window_start = max(line_start, prev_end, floor)
+        prev_end = m.end()
         # Only a commit-message heredoc — never a `bash <<EOF` script body.
-        if not _owns_heredoc_as_message(text[line_start:m.start()]):
+        if not _owns_heredoc_as_message(text[window_start:m.start()]):
             pos = m.end()
             continue
         body_start = text.find("\n", m.end())
@@ -260,6 +290,11 @@ def _is_git_push(command: str) -> bool:
         return False
     if not _GIT_PUSH.search(command):
         return False  # blind pass says no — detection is unchanged from legacy.
+    if len(command) > _MAX_REDACTION_INPUT:
+        # Too big to analyse under a bounded time budget — block. This hook gates
+        # every Bash call synchronously, so a slow scan is a frozen session; a
+        # false positive on an absurdly long command is the cheaper failure.
+        return True
     if not _is_inert(command):
         # A shell expansion lives SOMEWHERE in this command. Releasing is only
         # sound when the blind match was the only reason to block; here the
