@@ -30,10 +30,11 @@ first token made `git add -A && git commit -m "x"` — the common shape —
 silently invisible, i.e. it missed exactly the moment described above.
 The split does not understand quoting; the two false-positive classes
 this opens are pinned in `test_guard_default_branch_bash_mutating.py`
-and accepted because this hook never blocks. Two env-value forms stay
-unmatched — an empty value (`VAR= git commit`) and an unclosed quote —
-both pinned there too; neither is a valid command shape worth widening
-the pattern for.
+and accepted because this hook never blocks. An unclosed quote
+(`A='x mkdir foo`) DOES match — the env-value group keeps `\S+` as a
+trailing fallback precisely so it cannot silently narrow. Only an empty
+value (`VAR= git commit`) stays unmatched, since every alternative needs
+at least one character; that one is pinned there too.
 
 Once-per-session deduplication:
   We touch `.claude/state/main_worktree_bash_warned/<session_id>`

@@ -229,11 +229,14 @@ class OldEnvPrefixSupersetTest(unittest.TestCase):
     _PRE_QUOTED_PREFIX = r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
     _SPLIT_MARKER = r"\s+)*(?:"
 
-    _VALUES = [
-        "x", "'x'", '"x"', "'x", '"x', "x'", 'x"', "'x y'", '"x y"', "''", '""',
-        "'", '"', "a'b", 'a"b', "x=y", "-i", "~/.key", "'x y", '"x y', r'"a\"b"',
-    ]
+    # Shared with the push guard's `GeneratedFloorTest` — see the comment on the
+    # constant. Both hooks skip the same prefix and both regressed on it, so a
+    # shape learned from one must immediately be tried against the other.
+    _VALUES = _harness.ENV_VALUE_SHAPES
     _COMMANDS = ["mkdir foo", "rm -rf build", 'git commit -m "x"', "pnpm install"]
+    # Same non-vacuity floor the push guard uses: if fewer than this many cases
+    # engage the frozen prefix, the comparison proves nothing.
+    _MIN_COVERAGE = 10
 
     def _pre_quoted_is_mutating(self, command: str) -> bool:
         body = guard._MUTATING.pattern.split(self._SPLIT_MARKER, 1)[1]
@@ -252,8 +255,22 @@ class OldEnvPrefixSupersetTest(unittest.TestCase):
         self.assertIn(self._SPLIT_MARKER, guard._MUTATING.pattern)
         self.assertTrue(self._pre_quoted_is_mutating("A=x mkdir foo"))
 
+    def test_no_duplicate_values(self):
+        """A duplicate silently shrinks the space while every count elsewhere
+        keeps claiming the larger number."""
+        values = list(self._VALUES)
+        dupes = sorted({v for v in values if values.count(v) > 1})
+        self.assertEqual(dupes, [], "duplicate values in the generated set")
+
     def test_no_classification_is_lost(self):
-        lost = [c for c in self._cases()
+        cases = self._cases()
+        compared = sum(1 for c in cases if self._pre_quoted_is_mutating(c))
+        self.assertGreater(
+            compared, self._MIN_COVERAGE,
+            "the frozen prefix matched almost nothing — this comparison would "
+            "pass no matter what the classifier did",
+        )
+        lost = [c for c in cases
                 if self._pre_quoted_is_mutating(c) and not guard._is_mutating(c)]
         self.assertEqual(
             lost, [],

@@ -333,14 +333,9 @@ class GeneratedFloorTest(unittest.TestCase):
     the env value, and how many assignments precede the command.
     """
 
-    _VALUES = [
-        "x", "'x'", '"x"', "'x", '"x', "x'", 'x"', "'x y'", '"x y"', "''", '""',
-        "'", '"', "a'b", 'a"b', "x=y", "-i", "~/.key", "'x y", '"x y',
-        r'"a\"b"', r'"a\"b', r'"a\\"', "a b", "''''", '"""',
-        # Quoted piece glued to an unquoted one — §K, still undetected by both
-        # patterns. Present so a future §K fix is measured on the same axes.
-        '"a b"c', "'a b'c", 'x"a b"',
-    ]
+    # Shared with the nudge hook's `OldEnvPrefixSupersetTest` — see the comment
+    # on the constant for why it is not duplicated per file.
+    _VALUES = _harness.ENV_VALUE_SHAPES
     _TEMPLATES = [
         "A={v} git push",
         "A=1 B={v} git push",
@@ -359,6 +354,25 @@ class GeneratedFloorTest(unittest.TestCase):
         the larger number."""
         dupes = sorted({v for v in self._VALUES if self._VALUES.count(v) > 1})
         self.assertEqual(dupes, [], "duplicate values in the generated set")
+
+    def test_the_regression_shapes_are_still_generated(self):
+        """Close the escape hatch: a failing superset test can be "fixed" by
+        deleting the input that exposes it.
+
+        These specific shapes are load-bearing history, not decoration — each
+        one is a value form that actually caused a released regression. Removing
+        one costs nothing today and hides the next recurrence, so name them.
+        Guards the shared `_harness.ENV_VALUE_SHAPES` on behalf of both suites.
+        """
+        for shape, why in (
+            ("'x", "unclosed single quote — the §J-follow-up regression"),
+            ('"x', "unclosed double quote — same class"),
+            (r'"a\"b"', "escaped quote inside the value — #1002's own first fix"),
+            ('"a b"c', "quoted piece glued to more text — §L canary"),
+            ('"x y"', "quoted value with a space — the original §J bypass"),
+        ):
+            with self.subTest(shape=shape):
+                self.assertIn(shape, self._VALUES, why)
 
     def test_blind_pass_never_narrows_below_the_floor(self):
         lost = [c for c in self._cases()
