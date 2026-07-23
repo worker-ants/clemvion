@@ -10,7 +10,7 @@
 |---|---|
 | **1** PLAN 게이트 스코핑 미검증 | **반영** — `_PLAN_STUB` 이 `untouched=False` 하드코딩이라 PLAN 이 "다른 worktree 를 보고 block" 하는 경로를 한 번도 안 탔다. 경로-키 방식으로 교체하고 `test_plan_gate_is_scoped_too`(+2건) 추가. 재실측 결과 **M1 이 이제 이 테스트도 kill** 한다 — 검증 공백이 실제였음이 확인됐다 |
 | **2** `_worktree_branches` fail-open 미검증 | **반영** — `test_worktree_listing_failure_degrades_to_cwd`(git 아닌 cwd) · `test_stale_worktree_entry_is_skipped`(디스크에서 삭제된 worktree, `isdir` 방어 자극) |
-| **3** `_push_targets` 실패 폴백 미검증 | **반영** — 위 2건이 같은 경로를 커버. 폴백 시에도 cwd 검사는 살아있음을 단언 |
+| **3** `_push_targets` 실패 폴백 미검증 | **반영이 불완전했다 (3차 리뷰가 재지적)** — 당시 "위 2건이 커버" 라고 적었으나 **틀렸다**: 그 테스트들은 `_worktree_branches` 자체의 fail-open(빈 리스트 반환)을 타지 `main()` 의 `except` 를 타지 않는다. `targets = []` mutation 이 39/39 green 으로 생존했다. 3차에서 `_push_targets` 를 실제로 raise 시키는 `test_push_targets_crash_falls_back_to_cwd` 를 추가해 닫았다 |
 | **4** REVIEW/PLAN 루프 DRY 위반 | **반영** — `_run_gate()` 추출. 유지해야 할 두 불변식(**게이트 격리**: 하나가 disabled/raise 해도 다른 하나가 죽지 않음 / **target 단위 fail-open**: 한 worktree 오류가 나머지 검사를 막지 않음)을 docstring 에 명시 |
 | **5** `_accepts_cwd` 계약 미고정 | **반영** — `AcceptsCwdContractTest` 신설. 실제 `evaluate_review`/`evaluate_plan` 이 positional cwd 를 받는지 단언하고, keyword-only·무인자가 거부되는지도 고정. 시그니처가 바뀌면 **다른 테스트는 전부 green 인 채 false-ALLOW 로 회귀**하는 게 이 fix 의 최대 잔여 위험이었다 |
 | **6** mutation 수치 오기재 | **근거 있는 미조치 — 오탐**. 아래 §오탐 판정 |

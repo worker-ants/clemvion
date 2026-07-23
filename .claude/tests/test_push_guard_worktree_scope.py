@@ -262,7 +262,12 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
 
     def test_worktree_listing_failure_degrades_to_cwd(self):
         """A repo where `git worktree list` cannot run must fall back to the
-        legacy cwd-only check rather than crashing or skipping the gate."""
+        legacy cwd-only check rather than crashing or skipping the gate.
+
+        NOTE this exercises `_worktree_branches`'s OWN fail-open (it returns []),
+        not `main()`'s `except` around `_push_targets` — a distinction the
+        17_28_02 RESOLUTION got wrong. That other path is pinned by
+        `test_push_targets_crash_falls_back_to_cwd` below."""
         nogit = os.path.join(self.tmp, "not-a-repo")
         os.makedirs(nogit)
         r = self._run(
@@ -271,6 +276,48 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             blocked_paths=[nogit],  # cwd itself is dirty → must still block
         )
         self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_push_targets_crash_falls_back_to_cwd(self):
+        """`main()`'s `except` around `_push_targets`, pinned (17_51_28 WARNING 1).
+
+        If target selection itself raises, the hook must still evaluate cwd. A
+        `targets = []` mutation there left 39/39 green — the gate would have been
+        skipped ENTIRELY, the very false-ALLOW class this PR closes.
+
+        We force the raise by patching `_push_targets` in a copy of the hook, so
+        the assertion is on the real `main()` control flow."""
+        crashing = os.path.join(self.hooks_dir, "hook_crashing_targets.py")
+        with open(self.hook, encoding="utf-8") as f:
+            src = f.read()
+        marker = "def _push_targets(command: str, cwd: str) -> list[str]:"
+        self.assertIn(marker, src, "hook shape changed — update this patch point")
+        src = src.replace(
+            marker,
+            marker + '\n    raise RuntimeError("simulated target-selection failure")',
+            1,
+        )
+        self._write(crashing, src)
+
+        env = dict(os.environ)
+        env["STUB_BLOCKED_PATHS"] = self.main_wt  # cwd is dirty
+        env["STUB_PLAN_BLOCKED_PATHS"] = ""
+        env["STUB_RAISE_PATHS"] = ""
+        env.pop("BYPASS_REVIEW_GUARD", None)
+        env.pop("BYPASS_PLAN_GUARD", None)
+        r = subprocess.run(
+            [sys.executable, crashing],
+            input=json.dumps(
+                {
+                    "tool_input": {"command": f"git push origin {self.side_branch}"},
+                    "cwd": self.main_wt,
+                }
+            ),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("review gate", r.stderr)
 
     def test_oversized_command_still_checks_cwd(self):
         """Past `_MAX_REDACTION_INPUT` the branch scan is truncated. That may
