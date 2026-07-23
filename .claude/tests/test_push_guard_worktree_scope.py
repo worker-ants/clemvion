@@ -81,6 +81,17 @@ def evaluate_plan(cwd=None):
 '''
 
 
+def _ensure_on_path(entry: str) -> None:
+    """Insert `entry` at the front of sys.path once.
+
+    `_harness.py` warns that repeated unguarded inserts (a) grow sys.path for the
+    rest of the run and (b) can shadow a same-named module from another tree —
+    `_lib/` here holds top-level `review_guard`/`plan_guard`, exactly the
+    collision surface it names."""
+    if entry not in sys.path:
+        sys.path.insert(0, entry)
+
+
 def _git(*args, cwd):
     return subprocess.run(
         ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
@@ -244,7 +255,7 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_per_target_fail_open_still_checks_remaining_targets(self):
-        """`_run_gate`'s per-target fail-open, pinned (review 17_51_28 WARNING 1).
+        """`_evaluate_over_targets`'s per-target fail-open (review 17_51_28 W1).
 
         An internal error on ONE worktree must skip only that worktree. Turning
         the `continue` into `return False` left 38/38 green before this test —
@@ -306,6 +317,75 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.assertEqual(
             r.stdout.count("REVIEW gate"), 1, f"gate listed more than once:\n{r.stdout}"
         )
+
+    def test_bare_push_from_another_worktree_is_scoped_by_path(self):
+        """`cd <worktree> && <push>` with no refspec — the everyday cross-worktree
+        form (review 00_34_09 WARNING 1).
+
+        Upstream tracking means the branch name never appears in the command, so
+        branch matching alone left this uncovered — the same false-ALLOW class
+        this hook exists to close. The worktree PATH does appear, so we match on
+        it too."""
+        # `os.path.realpath` because `git worktree list` reports the resolved
+        # path and macOS temp dirs are symlinked (`/var` → `/private/var`). In
+        # this repo the worktree path is already canonical, so this is what a
+        # real `cd <worktree> && <push>` looks like — using the symlinked alias
+        # here would test the fixture's quirk, not the feature.
+        r = self._run(
+            f"cd {os.path.realpath(self.side_wt)} && git " + "push",
+            cwd=self.main_wt,          # hook's cwd is the OTHER worktree
+            blocked_paths=[self.side_wt],
+        )
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(self.side_wt, r.stderr)
+
+    def test_target_selection_failure_is_counted_not_silent(self):
+        """A crash in `_push_targets` must reach the §E fail-open report.
+
+        The gates then answer on a narrower scope than the push publishes; if
+        that shrink is silent the run looks perfectly healthy (review 00_34_09
+        WARNING 2). Asserted via the streak file, the same signal #999 uses."""
+        crashing = os.path.join(self.hooks_dir, "hook_crash_targets_observed.py")
+        src = open(self.hook, encoding="utf-8").read()
+        marker = "def _push_targets(command: str, cwd: str) -> list[str]:"
+        self.assertIn(marker, src, "hook shape changed — update this patch point")
+        self._write(
+            crashing,
+            src.replace(
+                marker, marker + '\n    raise RuntimeError("boom")', 1
+            ),
+        )
+        shutil.copy(
+            _harness.HOOKS_DIR / "_lib" / "failopen_state.py",
+            os.path.join(self.hooks_dir, "_lib", "failopen_state.py"),
+        )
+        env = dict(os.environ)
+        env.update(
+            STUB_BLOCKED_PATHS="",
+            STUB_PLAN_BLOCKED_PATHS="",
+            STUB_RAISE_PATHS="",
+            CLAUDE_PROJECT_DIR=self.tmp,
+        )
+        env.pop("BYPASS_REVIEW_GUARD", None)
+        env.pop("BYPASS_PLAN_GUARD", None)
+        r = subprocess.run(
+            [sys.executable, crashing],
+            input=json.dumps(
+                {
+                    "tool_input": {"command": "git " + "push origin HEAD"},
+                    "cwd": self.main_wt,
+                }
+            ),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(r.returncode, 0, "still fails OPEN")
+        self.assertIn("TARGET_SELECTION", r.stdout, r.stdout + r.stderr)
+        streak = os.path.join(
+            self.tmp, ".claude", "state", "push_guard_failopen.json"
+        )
+        self.assertTrue(os.path.exists(streak), "degradation was not counted")
 
     def test_worktree_listing_failure_degrades_to_cwd(self):
         """A repo where `git worktree list` cannot run must fall back to the
@@ -411,7 +491,9 @@ class MentionsBranchTest(unittest.TestCase):
     the gate stricter, matching the blind push regex's stated philosophy."""
 
     def setUp(self):
-        sys.path.insert(0, str(_harness.HOOKS_DIR))
+        # Idempotent: `_harness` documents one insert at import time, and an
+        # unguarded insert per test method grows sys.path for the whole run.
+        _ensure_on_path(str(_harness.HOOKS_DIR))
         import importlib
 
         self.mod = importlib.import_module("guard_review_before_push")
@@ -448,8 +530,8 @@ class AcceptsCwdContractTest(unittest.TestCase):
     other test still green. Assert the real signatures satisfy it."""
 
     def setUp(self):
-        sys.path.insert(0, str(_harness.HOOKS_DIR))
-        sys.path.insert(0, str(_harness.HOOKS_DIR / "_lib"))
+        _ensure_on_path(str(_harness.HOOKS_DIR))
+        _ensure_on_path(str(_harness.HOOKS_DIR / "_lib"))
         import importlib
 
         self.mod = importlib.import_module("guard_review_before_push")

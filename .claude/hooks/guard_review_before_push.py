@@ -13,7 +13,10 @@ Contract (same as guard_default_branch_edit.py):
   any other → treated as runtime error; tool call proceeds (fail-open).
 
 Only `git push` commands are inspected; every other Bash command passes
-through untouched. Two independent gates run, each with its own override:
+through untouched. Each gate evaluates not just the hook's own cwd but also
+any other checked-out worktree the command names (by branch or by path) —
+see "Which worktree(s) does this push publish?" below for why (a cwd-only
+check was a working bypass). Two independent gates run, each with its own override:
   - REVIEW gate (`_lib/review_guard.py`) — unreviewed `codebase/**` changes.
     Override: `BYPASS_REVIEW_GUARD=1`.
   - PLAN gate (`_lib/plan_guard.py`) — the linked in-progress plan was neither
@@ -370,9 +373,22 @@ def _is_git_push(command: str) -> bool:
 #   - A branch named in a comment / commit message also gets evaluated. That can
 #     only make the gate STRICTER (extra worktree checked), never weaker — the
 #     same trade the blind push regex already makes.
-#   - A push whose branch is not checked out anywhere is not additionally
-#     covered; there is no worktree state to evaluate. Behaviour there is
-#     exactly today's (cwd only) — strictly no regression.
+#   - We match the worktree PATH as well as the branch name, because the
+#     common cross-worktree form is `cd <worktree-path> && <push>` with no
+#     refspec at all (upstream tracking). The branch name never appears in
+#     that text, but the path does — path matching is what actually covers
+#     the everyday case.
+#   - RESIDUAL GAP (accepted): a push naming NEITHER — a bare push issued
+#     with the tool's cwd already inside another worktree, so nothing
+#     identifying appears in the command string. Only the hook's own cwd is
+#     then evaluated, exactly as before this fix — no regression, but no
+#     coverage either. Closing it would need something outside the command
+#     text; the payload `cwd` is already used and there is nothing else the
+#     hook can see. Also uncovered: a branch checked out in no worktree (no
+#     working state exists to evaluate), and a path typed through a SYMLINK
+#     alias — git reports the resolved path, so `cd /var/…` against a
+#     worktree git calls `/private/var/…` will not match. Both degrade to
+#     cwd-only, i.e. the pre-fix behaviour, never to something weaker.
 # The cwd worktree is ALWAYS evaluated, so this can only add checks.
 _BRANCH_CHAR = re.compile(r"[A-Za-z0-9._/-]")
 
@@ -471,7 +487,10 @@ def _push_targets(command: str, cwd: str) -> list[str]:
         real = os.path.realpath(path)
         if real in seen or not os.path.isdir(path):
             continue
-        if _mentions_branch(command, branch):
+        # `path` is what `git worktree list` reports — already resolved. A
+        # command normally carries that same absolute path (this repo's
+        # worktrees live under a real directory), so a plain match works.
+        if _mentions_branch(command, branch) or _mentions_branch(command, path):
             targets.append(path)
             seen.add(real)
     return targets
@@ -625,6 +644,12 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, is_blocked, rend
                 outcome.degraded.append((gate, f"{type(exc).__name__}: {exc}"))
             continue  # fail open for THIS target — keep checking the rest
         if result is None:
+            # Neither gate returns None today (both always build a decision
+            # object), so this is defensive. Deliberately does NOT set
+            # `answered`: a gate that returned nothing did not answer, and
+            # counting it would let it reset the §E streak having decided
+            # nothing. If a gate ever returns None on purpose, that silence
+            # needs its own `degraded` reason here.
             continue
         answered = True
         if is_blocked(result):
@@ -705,9 +730,17 @@ def main() -> int:
         base_cwd = payload.get("cwd") or os.getcwd()
         try:
             targets = _push_targets(command, base_cwd)
-        except Exception:
+        except Exception as exc:
+            # Fail open to the legacy single-worktree check — but COUNT it.
+            # A silent shrink here leaves the gates answering on a narrower
+            # scope than the push actually publishes, and §E's whole point is
+            # that a degraded guard must never look like a healthy one.
+            # Symmetric with the DETECTION failure the outer handler records.
             traceback.print_exc(file=sys.stderr)
-            targets = [base_cwd]  # fail open to legacy single-worktree behaviour
+            outcome.degraded.append(
+                ("TARGET_SELECTION", f"{type(exc).__name__}: {exc}")
+            )
+            targets = [base_cwd]
 
         exit_code = _run_gates(outcome, targets)
         return exit_code
