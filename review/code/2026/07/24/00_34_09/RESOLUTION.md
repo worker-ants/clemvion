@@ -3,7 +3,7 @@
 대상: branch `claude/push-guard-worktree-scope-20044c`, 커밋 `feda5b219`(origin/main 병합).
 판정: **RISK=MEDIUM / CRITICAL=0 / WARNING=7 / INFO=12**. forced 7/7 확보, 누락 0.
 
-## WARNING 7건 — 전량 반영
+## WARNING 7건 — **6건 반영 + 1건 근거 있는 미조치**
 
 | # | 조치 |
 |---|---|

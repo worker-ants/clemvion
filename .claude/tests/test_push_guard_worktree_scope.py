@@ -346,7 +346,8 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         that shrink is silent the run looks perfectly healthy (review 00_34_09
         WARNING 2). Asserted via the streak file, the same signal #999 uses."""
         crashing = os.path.join(self.hooks_dir, "hook_crash_targets_observed.py")
-        src = open(self.hook, encoding="utf-8").read()
+        with open(self.hook, encoding="utf-8") as fh:
+            src = fh.read()
         marker = "def _push_targets(command: str, cwd: str) -> list[str]:"
         self.assertIn(marker, src, "hook shape changed — update this patch point")
         self._write(

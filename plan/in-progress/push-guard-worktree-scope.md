@@ -101,9 +101,9 @@ INFO 미조치: 모듈 상단 docstring 요약 · `guard_review_before_stop.py` 
 - [x] `_worktree_branches` / `_mentions_branch` / `_push_targets` 구현
 - [x] `_accepts_cwd` 시그니처 probe (silent fail-open 차단)
 - [x] 차단 메시지에 worktree 표기
-- [x] 테스트 **21건** 신설 + 카탈로그 등재·갱신 (9 → 18 → 19 → 20 → 21, 마지막은 main 재구조화 흡수분)
-- [x] mutation 실측 **9건** (병합 후 전수 재실행)
-- [x] harness 전체 **538 passed** (main 병합 후)
+- [x] 테스트 **23건** 신설 + 카탈로그 등재·갱신 (9 → 18 → 19 → 20 → 21 → 23; 마지막 2건은 main 병합 후 리뷰 반영분)
+- [x] mutation 실측 **11건** (병합 후 전수 재실행, M10·M11 신설)
+- [x] harness 전체 **540 passed** (main 병합 후)
 - [x] `/ai-review` — **4라운드 수렴** (C0/W7 → C0/W2 → C0/W2 → C0/W1[문서]). 전량 반영, 4차 RESOLUTION 에 수렴 판정
 
 > **교훈 — "커버된다" 는 추론이 아니라 실측이어야 한다.** 1차 후 "테스트로 커버" 라고 적었다가
@@ -125,8 +125,12 @@ INFO 미조치: 모듈 상단 docstring 요약 · `guard_review_before_stop.py` 
 | M3b | `_accepts_cwd` probe 제거 — **양쪽 게이트**(초안 상태 재현) | legacy 스위트 **9건** |
 | M4 | `targets` 에서 cwd 제외 | `test_cwd_worktree_is_still_evaluated` **단독** |
 | M5 | `_MAX_REDACTION_INPUT` 절단 제거 | `test_branch_mention_past_the_cap_is_not_scanned` **단독** |
-| M6 | `_run_gate` per-target `continue` → `return False` | `test_per_target_fail_open_still_checks_remaining_targets` **단독** (2차 리뷰 전에는 **38/38 생존**) |
+| M6 | per-target `continue` → `return False` (병합 후 `_evaluate_over_targets`) | `test_per_target_fail_open_still_checks_remaining_targets` **단독** (2차 리뷰 전에는 **38/38 생존**) |
 | M7 | `main()` 의 `_push_targets` 폴백 → `targets = []` | `test_push_targets_crash_falls_back_to_cwd` **단독** (3차 리뷰 전에는 **39/39 생존**) |
+| M8 | `_accepts_cwd` probe 제거 (병합 후 단일 지점) | legacy 스위트 **17건** — main 의 무인자 stub 이 전부 깨져 probe 가 load-bearing 임을 재확인 |
+| M9 | gate 당 `degraded` dedup 제거 | `test_degradation_is_counted_once_per_gate_not_per_target` **단독** |
+| M10 | worktree **경로** 매칭 제거 | `test_bare_push_from_another_worktree_is_scoped_by_path` **단독** |
+| M11 | `TARGET_SELECTION` degraded 기록 제거 | `test_target_selection_failure_is_counted_not_silent` **단독** |
 
 > **M3 의 "5건 vs 9건" 은 모순이 아니다** (리뷰 17_28_02 WARNING 6 은 이 지점의 오탐):
 > 두 수치는 **서로 다른 mutation** 이다. 코드 docstring 이 말하는 "9 blocking tests" 는 probe 가
@@ -181,5 +185,10 @@ degraded/answered/bypassed 를 집계한다.
 등 git 인자 문법 + 그 위의 셸 문법은 #970/#992 가 이미 무한 표면으로 판정한 영역이다. blind
 substring 은 무지해서 안전하고, 틀리는 방향이 **항상 엄격한 쪽**이다.
 
-**남은 갭(의도)**: 체크아웃되지 않은 branch 를 push 하는 경우는 커버하지 않는다. 평가할 worktree 가
-없어 원리적으로 불가하며, 기존 동작 대비 회귀는 아니다.
+**남은 갭(의도)** — 셋 다 cwd-only 로 degrade 하며 **수정 전보다 약해지지 않는다**:
+1. 체크아웃되지 않은 branch 를 push — 평가할 worktree 가 없어 원리적으로 불가.
+2. **완전 bare push** — branch 이름도 경로도 명령에 안 나타나는 경우(도구 cwd 가 이미 다른
+   worktree 안이라 refspec 없이 push). 명령 텍스트 밖을 신뢰해야 닫히는데 payload `cwd` 는 이미
+   쓰고 있고 훅이 볼 수 있는 다른 신호가 없다. (2026-07-24 리뷰 WARNING 1 로 명시화)
+3. **심볼릭 링크 별칭 경로** — git 은 resolved 경로를 보고하므로 `/var/…` 로 typed 된 경로가
+   git 이 `/private/var/…` 로 부르는 worktree 와 매칭되지 않는다.
