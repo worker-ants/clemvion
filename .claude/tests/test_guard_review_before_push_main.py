@@ -290,14 +290,35 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(self._streak(), 1)
 
     def test_consecutive_fail_opens_accumulate_and_escalate(self):
+        """Escalation must fire AT the threshold and not before — asserting only
+        its presence at 3 would let `>= 1` pass and make every blip shout."""
         for expected in (1, 2, 3):
             r = self._run(_PUSH, review="import_error", plan="clean")
             self.assertEqual(self._streak(), expected)
+            if expected < 3:
+                self.assertNotIn(
+                    "‼️", r.stderr,
+                    f"streak {expected} must not escalate yet — one blip and a "
+                    "dead gate have to read differently",
+                )
         self.assertIn(
             "‼️", r.stderr,
             "a sustained streak must escalate — one blip and a dead gate must "
             "not read the same",
         )
+
+    def test_both_gates_degraded_counts_once_and_names_both(self):
+        r = self._run(_PUSH, review="import_error", plan="import_error")
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(
+            self._streak(), 1,
+            "the streak counts PUSHES with degradation, not degraded gates",
+        )
+        self.assertIn("REVIEW gate", r.stderr)
+        self.assertIn("PLAN gate", r.stderr)
+        with open(self._streak_file(), encoding="utf-8") as fh:
+            gates = {entry["gate"] for entry in json.load(fh)["gates"]}
+        self.assertEqual(gates, {"REVIEW", "PLAN"})
 
     def test_a_clean_run_resets_the_streak(self):
         self._run(_PUSH, review="import_error", plan="clean")
@@ -316,6 +337,46 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertNotIn("fail-open", r.stderr)
         self.assertFalse(os.path.exists(self._streak_file()))
 
+    def test_bypassing_an_actually_broken_gate_is_still_not_counted(self):
+        """The precise boundary: a gate that WOULD have failed open, skipped by
+        an explicit override. The other case above uses a healthy-but-blocking
+        gate, which never reaches the degradation path at all."""
+        r = self._run(_PUSH, review="import_error", plan="clean",
+                      bypass_review=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn("fail-open", r.stderr)
+        self.assertFalse(os.path.exists(self._streak_file()))
+
+    def test_bypass_does_not_clear_an_existing_streak(self):
+        """A bypass says nothing about whether the gate works, so it must not
+        erase evidence that it has been broken for several pushes. Resetting
+        here would let an unrelated override wipe the signal (review W2)."""
+        for _ in range(2):
+            self._run(_PUSH, review="import_error", plan="clean")
+        self.assertEqual(self._streak(), 2)
+
+        self._run(_PUSH, review="import_error", plan="clean", bypass_review=True)
+        self.assertEqual(
+            self._streak(), 2,
+            "a bypassed push is neither degradation nor proof of health — the "
+            "streak must survive it untouched",
+        )
+
+        self._run(_PUSH, review="clean", plan="clean")
+        self.assertFalse(
+            os.path.exists(self._streak_file()),
+            "only a gate that actually answered clears the streak",
+        )
+
+    def test_non_push_does_not_clear_an_existing_streak(self):
+        self._run(_PUSH, review="import_error", plan="clean")
+        self.assertEqual(self._streak(), 1)
+        self._run("git status")
+        self.assertEqual(
+            self._streak(), 1,
+            "an unrelated command is not evidence the gate recovered",
+        )
+
     def test_degradation_is_reported_even_when_the_other_gate_blocks(self):
         """The report runs in a `finally`, so a blocking exit still surfaces the
         gate that failed open — otherwise the loudest case would be the quietest."""
@@ -323,6 +384,29 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, "the plan gate still blocks")
         self.assertIn("(plan gate)", r.stderr)
         self.assertIn("fail-open", r.stderr)
+        self.assertEqual(self._streak(), 1)
+
+    def test_detection_failure_is_observed_not_just_swallowed(self):
+        """Fail-open #3: an exception BEFORE the gates run (payload read, or push
+        detection itself). It used to escape `main()` and the harness's
+        "non-0/non-2 means allow" rule let the push through with nothing
+        recorded. Detection is the code three review rounds kept finding bugs
+        in, so a silent failure there is the worst shape this can take."""
+        with open(self.hook, encoding="utf-8") as fh:
+            source = fh.read()
+        broken = source.replace(
+            "def _is_git_push(command: str) -> bool:\n",
+            'def _is_git_push(command: str) -> bool:\n'
+            '    raise RuntimeError("simulated detection failure")\n',
+            1,
+        )
+        self.assertNotEqual(broken, source, "the injection point moved")
+        with open(self.hook, "w", encoding="utf-8") as fh:
+            fh.write(broken)
+
+        r = self._run(_PUSH)
+        self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
+        self.assertIn("DETECTION", r.stderr)
         self.assertEqual(self._streak(), 1)
 
     def test_unwritable_state_dir_does_not_break_the_guard(self):

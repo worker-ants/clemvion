@@ -21,6 +21,16 @@ through untouched. Two independent gates run, each with its own override:
     rule). Override: `BYPASS_PLAN_GUARD=1`.
 Each override is a conscious one-off (e.g. a docs/spec-only branch the heuristic
 misjudged, or ad-hoc work the plan link mis-resolved).
+
+Fail-open is OBSERVED, not silent (policy decision 2026-07-23,
+harness-guard-followups §E). When a gate cannot answer — its module failed to
+import, `evaluate_*()` raised, or push detection itself blew up — the push is
+still allowed, but the hook prints an explicit "this push was not checked"
+banner and records the CONSECUTIVE count in
+`.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
+A gate that answers cleanly clears the counter; a BYPASS_* skip deliberately
+does not, because an override is not evidence the gate works. See
+`_report_fail_open`.
 """
 
 from __future__ import annotations
@@ -361,15 +371,20 @@ _PLAN_MSG = (
 # Nothing here may ever raise into the guard: observability that breaks the
 # thing it observes is worse than no observability.
 _FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+# Two in a row can still be one bad afternoon (a half-applied edit, a stale
+# import). Three consecutive pushes with the gate unable to answer is a state
+# somebody has been living with, which is the thing worth shouting about.
 _FAILOPEN_ESCALATE_AT = 3
 
 
 def _state_path() -> str:
+    """Where the consecutive-fail-open counter lives (gitignored)."""
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     return os.path.join(project_dir, ".claude", "state", _FAILOPEN_STATE_NAME)
 
 
 def _read_streak() -> int:
+    """Current streak, or 0 if the file is absent/corrupt (self-healing)."""
     try:
         with open(_state_path(), encoding="utf-8") as fh:
             value = json.load(fh).get("streak")
@@ -378,26 +393,48 @@ def _read_streak() -> int:
         return 0
 
 
-def _write_streak(streak: int, gates: list[tuple[str, str]]) -> None:
+def _write_streak(streak: int, degraded: list[tuple[str, str]]) -> None:
+    """Persist the streak plus which gates degraded, for the next run to read."""
     path = _state_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(
-            {"streak": streak, "gates": [{"gate": g, "reason": r} for g, r in gates]},
+            {
+                "streak": streak,
+                "gates": [{"gate": g, "reason": r} for g, r in degraded],
+            },
             fh,
         )
 
 
-def _report_fail_open(degraded: list[tuple[str, str]]) -> None:
+def _report_fail_open(outcome: _Outcome) -> None:
     """Announce (and count) any gate that could not answer.
 
-    A clean run resets the streak, so the counter measures *consecutive*
-    degradation — the shape that means "this is not a blip, the gate is off".
+    Reset rule — the counter measures CONSECUTIVE degradation, so clearing it
+    takes positive evidence that the gates are working: a push where BOTH ran
+    and answered. Anything less leaves an existing streak alone:
+
+      * a BYPASS_* skip says nothing about whether that gate works, and
+      * one healthy gate says nothing about the OTHER one. (An earlier draft
+        reset whenever *any* gate answered, so bypassing a broken REVIEW gate
+        while PLAN answered cleanly wiped the streak — the test added for W2
+        caught it.)
+
+    Known residual (accepted): the read-increment-write of the streak is not
+    locked, so two overlapping pushes can lose one increment and delay the
+    escalation by a push. The PRIMARY signal — the per-push banner below — is
+    printed unconditionally and cannot be lost to that race; only the running
+    count can. Not worth `fcntl.flock` for an observability counter.
     """
     try:
+        degraded = outcome.degraded
         if not degraded:
-            if os.path.exists(_state_path()):
+            if outcome.bypassed or not outcome.answered:
+                return  # no proof of health — leave the counter untouched.
+            try:
                 os.remove(_state_path())
+            except FileNotFoundError:
+                pass
             return
 
         streak = _read_streak() + 1
@@ -428,15 +465,29 @@ def _report_fail_open(degraded: list[tuple[str, str]]) -> None:
         pass
 
 
-def _run_gates(degraded: list[tuple[str, str]]) -> int:
-    """Run both gates. Appends (gate, reason) for each one that FAILED OPEN.
+class _Outcome:
+    """What each gate actually did on this run.
 
-    "Degraded" means the gate could not answer — module import failure, or an
-    exception inside evaluate_*(). A gate the user consciously bypassed with
-    BYPASS_* is NOT degraded: that is an intentional override, not a silent one.
+    degraded — could NOT answer (import failure, or evaluate_*() raised). The
+               silent-failure case this whole mechanism exists to surface.
+    answered — produced a verdict. The ONLY thing that counts as evidence the
+               gate is healthy.
+    bypassed — skipped by BYPASS_*. Deliberate, and tells us nothing either way.
     """
+
+    def __init__(self) -> None:
+        self.degraded: list[tuple[str, str]] = []
+        self.answered: list[str] = []
+        self.bypassed: list[str] = []
+
+
+def _run_gates(outcome: _Outcome) -> int:
+    """Run both gates, recording into `outcome` what each one did."""
+    degraded = outcome.degraded
     # ---- REVIEW gate -------------------------------------------------------
-    if os.environ.get("BYPASS_REVIEW_GUARD") != "1":
+    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
+        outcome.bypassed.append("REVIEW")
+    else:
         if evaluate_review is None:
             degraded.append(("REVIEW", "_lib/review_guard.py failed to import"))
         else:
@@ -446,12 +497,16 @@ def _run_gates(degraded: list[tuple[str, str]]) -> int:
                 traceback.print_exc(file=sys.stderr)
                 decision = None  # fail open on internal error
                 degraded.append(("REVIEW", f"{type(exc).__name__}: {exc}"))
-            if decision is not None and decision.blocked:
-                print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
-                return 2
+            if decision is not None:
+                outcome.answered.append("REVIEW")
+                if decision.blocked:
+                    print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
+                    return 2
 
     # ---- PLAN gate ---------------------------------------------------------
-    if os.environ.get("BYPASS_PLAN_GUARD") != "1":
+    if os.environ.get("BYPASS_PLAN_GUARD") == "1":
+        outcome.bypassed.append("PLAN")
+    else:
         if evaluate_plan is None:
             degraded.append(("PLAN", "_lib/plan_guard.py failed to import"))
         else:
@@ -461,35 +516,44 @@ def _run_gates(degraded: list[tuple[str, str]]) -> int:
                 traceback.print_exc(file=sys.stderr)
                 plan = None  # fail open on internal error
                 degraded.append(("PLAN", f"{type(exc).__name__}: {exc}"))
-            if plan is not None and plan.untouched:
-                print(
-                    _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
-                    file=sys.stderr,
-                )
-                return 2
+            if plan is not None:
+                outcome.answered.append("PLAN")
+                if plan.untouched:
+                    print(
+                        _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
+                        file=sys.stderr,
+                    )
+                    return 2
 
     return 0
 
 
 def main() -> int:
-    payload = _read_payload()
-    tool_input = payload.get("tool_input") or payload.get("input") or {}
-    command = tool_input.get("command") or ""
-
-    if not _is_git_push(command):
-        return 0  # not a push — nothing to enforce.
-
-    # `finally` so the report happens on every exit path, including the
-    # blocking ones (a gate can block while the OTHER one failed open).
-    degraded: list[tuple[str, str]] = []
+    # `finally` so the report happens on every exit path, including the blocking
+    # ones (a gate can block while the OTHER one failed open — that is exactly
+    # when it would otherwise be quietest).
+    outcome = _Outcome()
     try:
-        return _run_gates(degraded)
+        payload = _read_payload()
+        tool_input = payload.get("tool_input") or payload.get("input") or {}
+        command = tool_input.get("command") or ""
+
+        if not _is_git_push(command):
+            return 0  # not a push — nothing to enforce.
+
+        return _run_gates(outcome)
+    except Exception as exc:
+        # Fail-open #3 from the plan: anything unhandled above — payload read,
+        # or push DETECTION itself. It used to escape here and the harness's
+        # "non-0/non-2 means allow" rule let the push through with nothing
+        # recorded anywhere. Same outcome, but now counted: detection is the
+        # code three review rounds kept finding bugs in, so a silent failure
+        # there is the worst shape this can take.
+        traceback.print_exc(file=sys.stderr)
+        outcome.degraded.append(("DETECTION", f"{type(exc).__name__}: {exc}"))
+        return 0
     finally:
-        _report_fail_open(degraded)
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        _report_fail_open(outcome)
 
 
 if __name__ == "__main__":
