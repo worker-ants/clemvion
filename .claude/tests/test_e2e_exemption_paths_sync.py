@@ -41,6 +41,11 @@ PROJECT_MD = REPO_ROOT / "PROJECT.md"
 
 WHITELIST_HEADING = "## e2e 면제 화이트리스트"
 
+# Non-vacuity floor. The whitelist has had 8 bullets since it was written and
+# only ~6 carry path patterns; anything under this means the parser stopped
+# matching the document rather than the document shrinking.
+_MIN_EXPECTED_WHITELIST_PATTERNS = 5
+
 # Whitelist entries deliberately NOT mirrored into `paths-ignore`, with the
 # reason each one stays out. Anything else missing from the workflow fails
 # `test_every_whitelist_entry_is_mirrored_or_explained`.
@@ -71,9 +76,17 @@ UNMIRRORED_WHITELIST_ENTRIES = {
 def _yaml_scalar(raw: str) -> str:
     """One `- value` item: strip quotes and any trailing comment.
 
-    Quoted values end at the closing quote, so a `#` inside quotes is content.
-    Unquoted values end at ` #`, matching YAML's rule that a comment needs
+    Handles exactly three forms — single-quoted, double-quoted, and bare.
+    Quoted values end at the closing quote, so a `#` inside quotes is content;
+    bare values end at ` #`, matching YAML's rule that a comment needs
     preceding whitespace.
+
+    Escapes are **not** supported, and that is enforced rather than assumed:
+    a doubled quote (`'it''s/**'`) or a backslash escape would otherwise parse
+    to a silently truncated value, so both raise. Path filters have no reason
+    to contain quotes, so refusing is better than guessing — and a guard that
+    quietly reads the wrong pattern is the failure this whole file exists to
+    prevent.
     """
     raw = raw.strip()
     if raw[:1] in ("'", '"'):
@@ -81,6 +94,15 @@ def _yaml_scalar(raw: str) -> str:
         end = raw.find(quote, 1)
         if end == -1:
             raise ValueError(f"unterminated quote in list item: {raw!r}")
+        rest = raw[end + 1:].lstrip()
+        if rest.startswith(quote):
+            raise ValueError(
+                f"escaped quote is not supported in list item: {raw!r}"
+            )
+        if rest and not rest.startswith("#"):
+            raise ValueError(f"trailing junk after quoted value: {raw!r}")
+        if "\\" in raw[1:end]:
+            raise ValueError(f"backslash escape is not supported: {raw!r}")
         return raw[1:end]
     cut = raw.find(" #")
     if cut != -1:
@@ -153,7 +175,7 @@ class ParserBoundaryTest(unittest.TestCase):
         text = "on:\n  push:\n    paths-ignore:\n      - 'a/**'\n      - 'b/**'\n"
         self.assertEqual(parse_paths_ignore_blocks(text), [["a/**", "b/**"]])
 
-    def test_handles_every_quote_style(self):
+    def test_handles_the_three_supported_quote_styles(self):
         text = (
             "    paths-ignore:\n"
             "      - 'single/**'\n"
@@ -163,6 +185,40 @@ class ParserBoundaryTest(unittest.TestCase):
         self.assertEqual(
             parse_paths_ignore_blocks(text),
             [["single/**", "double/**", "unquoted/**"]],
+        )
+
+    def test_escapes_raise_instead_of_truncating_silently(self):
+        """A doubled quote would otherwise parse to `it` — a wrong pattern read
+        with full confidence, which is the failure mode this file guards.
+
+        Asserted by message, not just by exception type: the doubled-quote and
+        trailing-junk branches both reject this input, so a type-only assertion
+        would pass with either one deleted and neither would be really tested.
+        """
+        with self.assertRaisesRegex(ValueError, "escaped quote"):
+            parse_paths_ignore_blocks("    paths-ignore:\n      - 'it''s/**'\n")
+        with self.assertRaisesRegex(ValueError, "backslash escape"):
+            parse_paths_ignore_blocks(
+                '    paths-ignore:\n      - "a\\\\b/**"\n'
+            )
+        with self.assertRaisesRegex(ValueError, "trailing junk"):
+            parse_paths_ignore_blocks("    paths-ignore:\n      - 'a/**' junk\n")
+
+    def test_non_vacuity_floor_is_an_actual_floor(self):
+        """A floor of 0 would pass no matter how badly the parser broke, which
+        is the whole failure this constant exists to prevent."""
+        self.assertGreater(_MIN_EXPECTED_WHITELIST_PATTERNS, 0)
+
+    def test_negation_pattern_is_read_verbatim(self):
+        """`!foo/**` un-excludes a path in GitHub filters. Not used here — the
+        workflow's own comment weighed it and chose `workflow_dispatch` instead
+        — so this pins that it would arrive as a distinct token rather than
+        being silently equated with `foo/**`. If one ever appears, the
+        whitelist-subset check sees `!foo/**`, finds no match, and fails loudly
+        rather than treating an un-exclusion as an exemption."""
+        text = "    paths-ignore:\n      - '!keep/**'\n      - 'drop/**'\n"
+        self.assertEqual(
+            parse_paths_ignore_blocks(text), [["!keep/**", "drop/**"]]
         )
 
     def test_strips_inline_comments_but_not_hashes_inside_quotes(self):
@@ -241,6 +297,9 @@ class WorkflowMirrorsWhitelistTest(unittest.TestCase):
         cls.whitelist = parse_exemption_whitelist(
             PROJECT_MD.read_text(encoding="utf-8")
         )
+        # Every trigger carries the same list (pinned below), so one set serves
+        # all the comparisons.
+        cls.mirrored = set(cls.blocks[0]) if cls.blocks else set()
 
     def test_parsers_found_something(self):
         """Non-vacuity: an empty parse would make every check below trivially
@@ -248,7 +307,9 @@ class WorkflowMirrorsWhitelistTest(unittest.TestCase):
         self.assertTrue(self.blocks, "no paths-ignore block parsed from e2e.yml")
         self.assertTrue(all(self.blocks), "a parsed paths-ignore block was empty")
         self.assertGreaterEqual(
-            len(self.whitelist), 5, "suspiciously few whitelist patterns parsed"
+            len(self.whitelist), _MIN_EXPECTED_WHITELIST_PATTERNS,
+            "suspiciously few whitelist patterns parsed — the parser probably "
+            "stopped matching PROJECT.md rather than the whitelist shrinking",
         )
 
     def test_every_trigger_shares_one_paths_ignore(self):
@@ -267,7 +328,7 @@ class WorkflowMirrorsWhitelistTest(unittest.TestCase):
     def test_no_paths_ignore_entry_escapes_the_whitelist(self):
         """The unsafe direction. An entry here that PROJECT.md does not exempt
         means CI skips e2e for changes the policy says must run it."""
-        extra = sorted(set(self.blocks[0]) - set(self.whitelist))
+        extra = sorted(self.mirrored - set(self.whitelist))
         self.assertEqual(
             extra, [],
             f"e2e.yml skips e2e for {extra}, which PROJECT.md §e2e 면제 "
@@ -282,9 +343,8 @@ class WorkflowMirrorsWhitelistTest(unittest.TestCase):
         This is the check that would have caught `.github/**`: it sat in the
         whitelist, was absent from the workflow, and nothing said so.
         """
-        mirrored = set(self.blocks[0])
         for pattern in self.whitelist:
-            if pattern in mirrored:
+            if pattern in self.mirrored:
                 continue
             self.assertIn(
                 pattern, UNMIRRORED_WHITELIST_ENTRIES,
@@ -296,7 +356,6 @@ class WorkflowMirrorsWhitelistTest(unittest.TestCase):
     def test_unmirrored_list_has_no_stale_entries(self):
         """A pattern removed from PROJECT.md — or since mirrored — must not
         keep an excuse on file, or the list slowly becomes fiction."""
-        mirrored = set(self.blocks[0])
         for pattern in UNMIRRORED_WHITELIST_ENTRIES:
             self.assertIn(
                 pattern, self.whitelist,
@@ -304,7 +363,7 @@ class WorkflowMirrorsWhitelistTest(unittest.TestCase):
                 f"longer in PROJECT.md's whitelist — drop the entry.",
             )
             self.assertNotIn(
-                pattern, mirrored,
+                pattern, self.mirrored,
                 f"UNMIRRORED_WHITELIST_ENTRIES still excuses {pattern!r}, but "
                 f"e2e.yml now mirrors it — drop the entry.",
             )

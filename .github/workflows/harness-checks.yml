@@ -33,6 +33,11 @@ on:
       # 범위를 바꾼 PR 에서 정작 그걸 지키는 가드가 안 돈다 — 위 .githooks/** · .claude/_shared/**
       # 와 동일한 실패 클래스.
       - '.github/dependabot.yml'
+      # test_e2e_exemption_paths_sync.py 가 이 워크플로의 paths-ignore 를 PROJECT.md §e2e
+      # 면제 화이트리스트와 대조한다. paths 에 없으면 **paths-ignore 를 넓히는 PR**(정확히
+      # 그 가드가 막으려는 위험 방향)이 e2e.yml 만 건드릴 때 가드가 안 돈다 — 위
+      # .githooks/** · .claude/_shared/** · dependabot.yml 과 동일한 실패 클래스.
+      - '.github/workflows/e2e.yml'
       - 'pnpm-workspace.yaml'
       # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
       # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
