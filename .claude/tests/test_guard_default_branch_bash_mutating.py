@@ -27,6 +27,7 @@ deliberate: err toward nudging, never toward blocking.
 
 from __future__ import annotations
 
+import re
 import unittest
 
 import _harness
@@ -173,15 +174,30 @@ class EnvPrefixTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(guard._is_mutating(command))
 
-    def test_malformed_env_values_stay_unmatched(self):
-        """Neither form is a valid command shape; widening for them costs more
-        than it buys, so the gap is pinned rather than closed."""
+    def test_empty_env_value_stays_unmatched(self):
+        """`VAR= git commit` — every alternative needs at least one character.
+        Not a shape worth widening for, so the gap is pinned rather than closed.
+        """
+        self.assertFalse(guard._is_mutating("VAR= git commit -m x"))
+
+    def test_unterminated_quote_still_matches(self):
+        """Regression, plus a lesson in how it got pinned as "intended".
+
+        Adding quoted-value support REPLACED the `\\S+` catch-all instead of
+        falling back to it, so a value that opens a quote and never closes it
+        stopped matching and these nudges went silent. An earlier revision of
+        this very test asserted that as correct — written by judging the new
+        pattern on its own instead of against what the old one classified.
+        `OldEnvPrefixSupersetTest` now makes that comparison mechanical, over
+        generated inputs rather than remembered ones.
+        """
         for command in (
-            "VAR= git commit -m x",  # empty value — `\\S+`/quotes both need ≥1 char
-            'A="unclosed git commit -m x',  # no closing quote
+            "A='x mkdir foo",
+            'A="unclosed git commit -m x',
+            "A=' git commit -m x",
         ):
             with self.subTest(command=command):
-                self.assertFalse(guard._is_mutating(command))
+                self.assertTrue(guard._is_mutating(command))
 
     def test_env_prefix_does_not_promote_a_read_only_command(self):
         for command in (
@@ -190,6 +206,64 @@ class EnvPrefixTest(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertFalse(guard._is_mutating(command))
+
+
+class OldEnvPrefixSupersetTest(unittest.TestCase):
+    """Classification may only ever GROW — the push guard's floor, applied here.
+
+    This is the forgiving hook: it never blocks, which is precisely why a silent
+    narrowing is easy to ship and hard to notice. One was — adding quoted-value
+    support replaced the `\\S+` catch-all rather than falling back to it, and a
+    test in the same change pinned the loss as intended behaviour. Frozen below
+    is the prefix as it stood before quoted values existed; whatever it
+    classified must still be classified.
+
+    Generated rather than listed, for the same reason the push guard's
+    `GeneratedFloorTest` is: a curated set only ever contains shapes somebody
+    already thought of, and the regressing shape was in nobody's head.
+    """
+
+    # Do not update when `_MUTATING` changes — it is the fixed point the
+    # comparison needs. Only the PREFIX is frozen; the command body comes from
+    # the live pattern so this never has to mirror the verb list.
+    _PRE_QUOTED_PREFIX = r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    _SPLIT_MARKER = r"\s+)*(?:"
+
+    _VALUES = [
+        "x", "'x'", '"x"', "'x", '"x', "x'", 'x"', "'x y'", '"x y"', "''", '""',
+        "'", '"', "a'b", 'a"b', "x=y", "-i", "~/.key", "'x y", '"x y', r'"a\"b"',
+    ]
+    _COMMANDS = ["mkdir foo", "rm -rf build", 'git commit -m "x"', "pnpm install"]
+
+    def _pre_quoted_is_mutating(self, command: str) -> bool:
+        body = guard._MUTATING.pattern.split(self._SPLIT_MARKER, 1)[1]
+        pattern = re.compile(self._PRE_QUOTED_PREFIX + "(?:" + body, re.VERBOSE)
+        return any(
+            pattern.search(segment)
+            for segment in guard._SEGMENT_SPLIT.split(command)
+        )
+
+    def _cases(self):
+        return [f"A={v} {c}" for v in self._VALUES for c in self._COMMANDS]
+
+    def test_the_frozen_prefix_still_composes(self):
+        """Guards this test's own splice: if `_MUTATING` is reshaped so the
+        marker disappears, the comparison would silently compare nothing."""
+        self.assertIn(self._SPLIT_MARKER, guard._MUTATING.pattern)
+        self.assertTrue(self._pre_quoted_is_mutating("A=x mkdir foo"))
+
+    def test_no_classification_is_lost(self):
+        lost = [c for c in self._cases()
+                if self._pre_quoted_is_mutating(c) and not guard._is_mutating(c)]
+        self.assertEqual(
+            lost, [],
+            "the classifier stopped recognising commands it used to recognise",
+        )
+
+    def test_quoted_support_actually_added_something(self):
+        gained = [c for c in self._cases()
+                  if guard._is_mutating(c) and not self._pre_quoted_is_mutating(c)]
+        self.assertTrue(gained, "quoted values are not being recognised at all")
 
 
 class BacktrackingTest(unittest.TestCase):
