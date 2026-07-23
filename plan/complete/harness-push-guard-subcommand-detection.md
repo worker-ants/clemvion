@@ -1,7 +1,9 @@
 ---
+name: harness-push-guard-subcommand-detection
 worktree: push-guard-allowlist-f0f70b
 started: 2026-07-17
 owner: developer
+spec_impact: none
 ---
 
 # push 가드 오탐 — 커밋 메시지의 "push" 단어가 `git commit` 을 막는다
@@ -159,7 +161,11 @@ allowlist 후보(각각 반드시 실측으로 안전 논증):
 - [x] 구현 — 1차 정규식 유지 + allowlist 해제
 - [x] 차등 테스트 + 위 코퍼스 고정 (`test_push_guard_allowlist.py` — 최종 건수·전체 스위트
       수치는 `review/code/2026/07/23/14_23_23/RESOLUTION.md` 및 그 후속 라운드 참조)
-- [ ] `/ai-review` → RESOLUTION → PR
+- [x] `/ai-review` → RESOLUTION → PR — **3라운드** 수행.
+      1R `14_23_23` CRITICAL 3(홑따옴표 우회·ReDoS·확장 unmask) → 전부 재현 후 수정.
+      2R `14_57_32` Critical 0 / W4 — 1R 수정이 연 O(n²) 제거.
+      3R `15_24_10` Critical 0 / W2 — heredoc 스캔 선형화 + **입력 상한(16KB)으로 hang
+      클래스 봉인**. 각 라운드 RESOLUTION.md 참조. 잔여 W2 는 이월 항목 C(별 PR).
 
 ## Rationale
 
