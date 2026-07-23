@@ -1,0 +1,49 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "maintainability",
+    "scope"
+  ],
+  "agents_forced_reasons": {
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/hooks/lint_mermaid_posttooluse.py, .claude/tests/test_lint_mermaid_exit_codes.py, .claude/tests/test_mermaid_lint_ready.py (외 1건)"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/hooks/lint_mermaid_posttooluse.py, .claude/tests/test_lint_mermaid_exit_codes.py, .claude/tests/test_mermaid_lint_ready.py (외 1건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58/scope.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/mermaid-lint-import-failopen-4d5155/review/code/2026/07/23/12_50_58/maintainability.md"
+    }
+  ],
+  "agents_pending": [
+    "scope",
+    "maintainability"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
