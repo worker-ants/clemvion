@@ -156,6 +156,16 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0,
                          "a non-push must pass even when both gates would block")
         self.assertEqual(r.stderr, "", "no gate output on a non-push")
+        # main() now routes EVERY command through the fail-open reporter (in a
+        # `finally`), so pin that a non-push stays a complete no-op: no banner
+        # and no state written. Without this, a future loosening of the reset
+        # rule could quietly give ordinary commands a side effect on disk.
+        self.assertEqual(r.stdout, "", "no banner on a non-push")
+        self.assertFalse(
+            os.path.exists(os.path.join(
+                self.tmp, ".claude", "state", "push_guard_failopen.json")),
+            "a non-push must not touch the streak file",
+        )
 
     def test_push_via_input_alias_key_is_detected(self):
         # main() reads tool_input OR input — a push under `input` must still gate.

@@ -28,9 +28,13 @@ import, `evaluate_*()` raised, or push detection itself blew up — the push is
 still allowed, but the hook prints an explicit "this push was not checked"
 banner and records the CONSECUTIVE count in
 `.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
-A gate that answers cleanly clears the counter; a BYPASS_* skip deliberately
-does not, because an override is not evidence the gate works. See
-`_report_fail_open`.
+Only a push where EVERY gate answered cleanly clears the counter. A BYPASS_*
+skip, a non-push, and a push where one gate blocked before the other ever ran
+are all "no evidence" — not "healthy" — and leave the streak untouched. That
+predicate was wrong three times in review, each time by accepting weaker
+evidence than "all of them answered", so `_report_fail_open` compares against
+the named `_ALL_GATES` set rather than testing truthiness. Read it there before
+changing anything here.
 """
 
 from __future__ import annotations
@@ -371,9 +375,14 @@ _PLAN_MSG = (
 # Nothing here may ever raise into the guard: observability that breaks the
 # thing it observes is worse than no observability.
 _FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+# Gate identifiers. Constants rather than repeated literals: a typo in one of
+# them would make `set(answered) != _ALL_GATES` permanently true, permanently suppressing
+# the reset — fail-safe in direction, but invisible to every static check.
+_GATE_REVIEW = "REVIEW"
+_GATE_PLAN = "PLAN"
 # Every gate that must answer before the streak may be cleared. Named, not
 # counted, so a future third gate cannot silently satisfy the reset with two.
-_ALL_GATES = frozenset({"REVIEW", "PLAN"})
+_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
 # Two in a row can still be one bad afternoon (a half-applied edit, a stale
 # import). Three consecutive pushes with the gate unable to answer is a state
 # somebody has been living with, which is the thing worth shouting about.
@@ -508,38 +517,38 @@ def _run_gates(outcome: _Outcome) -> int:
     degraded = outcome.degraded
     # ---- REVIEW gate -------------------------------------------------------
     if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
-        outcome.bypassed.append("REVIEW")
+        outcome.bypassed.append(_GATE_REVIEW)
     else:
         if evaluate_review is None:
-            degraded.append(("REVIEW", "_lib/review_guard.py failed to import"))
+            degraded.append((_GATE_REVIEW, "_lib/review_guard.py failed to import"))
         else:
             try:
                 decision = evaluate_review()
             except Exception as exc:
                 traceback.print_exc(file=sys.stderr)
                 decision = None  # fail open on internal error
-                degraded.append(("REVIEW", f"{type(exc).__name__}: {exc}"))
+                degraded.append((_GATE_REVIEW, f"{type(exc).__name__}: {exc}"))
             if decision is not None:
-                outcome.answered.append("REVIEW")
+                outcome.answered.append(_GATE_REVIEW)
                 if decision.blocked:
                     print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
                     return 2
 
     # ---- PLAN gate ---------------------------------------------------------
     if os.environ.get("BYPASS_PLAN_GUARD") == "1":
-        outcome.bypassed.append("PLAN")
+        outcome.bypassed.append(_GATE_PLAN)
     else:
         if evaluate_plan is None:
-            degraded.append(("PLAN", "_lib/plan_guard.py failed to import"))
+            degraded.append((_GATE_PLAN, "_lib/plan_guard.py failed to import"))
         else:
             try:
                 plan = evaluate_plan()
             except Exception as exc:
                 traceback.print_exc(file=sys.stderr)
                 plan = None  # fail open on internal error
-                degraded.append(("PLAN", f"{type(exc).__name__}: {exc}"))
+                degraded.append((_GATE_PLAN, f"{type(exc).__name__}: {exc}"))
             if plan is not None:
-                outcome.answered.append("PLAN")
+                outcome.answered.append(_GATE_PLAN)
                 if plan.untouched:
                     print(
                         _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
