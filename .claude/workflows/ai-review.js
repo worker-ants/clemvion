@@ -44,6 +44,38 @@ const routingStatus = (A && A.routing_status) || 'skipped'
 const agentsForced = (A && A.agents_forced) || []
 const summary = (A && A.summary) || null
 
+// Mirrors `_routing_distrust_reason()` in code_review_orchestrator.py — this
+// workflow and the CLI `--apply-routing` are two independent routing paths and
+// must judge a decision identically. The sandbox forbids imports here, so
+// `test_router_decision_trust.py` runs both implementations side by side
+// over a matrix of decisions and fails if they ever disagree.
+//
+// Returns why the decision must not be trusted, or null when it is fine: the
+// router returned a forced reviewer as selected=false, or left one out of its
+// decision entirely. Both are contract breaches (forced are stated to it as
+// `selected=true` 고정), and the 2026-07-23 incident was the first kind — all
+// 14 false, "문서만 변경", on a changeset containing a new Python module.
+//
+// Note there is no zero-reviewer check: an empty `forced ∪ selected` is a
+// documented fatal handled by the `!toRun.length` branch below, not a reason to
+// run everyone (review-router.md step 4; retired as a fallback in #244).
+function routingDistrustReason(decisions, forced) {
+  const forcedSet = new Set(forced)
+  const droppedForced = decisions
+    .filter(d => forcedSet.has(d.name) && !d.selected)
+    .map(d => d.name)
+    .sort()
+  if (droppedForced.length) {
+    return `router marked forced reviewer(s) selected=false: ${droppedForced.join(', ')}`
+  }
+  const named = new Set(decisions.map(d => d.name))
+  const missingForced = [...forcedSet].filter(n => !named.has(n)).sort()
+  if (missingForced.length) {
+    return `router omitted forced reviewer(s) from its decision: ${missingForced.join(', ')}`
+  }
+  return null
+}
+
 if (!invocations.length || !summary) {
   log('ai-review: missing args.invocations / args.summary — nothing to run')
   return { error: 'missing invocations or summary in args', reviewers: [] }
@@ -141,8 +173,15 @@ if (routingStatus === 'pending' && router && router.prompt_file) {
   if (decision && Array.isArray(decision.decisions)) {
     routerDecisions = decision.decisions
     const picked = decision.decisions.filter(d => d.selected).map(d => d.name)
-    selected = new Set([...agentsForced, ...picked])
-    routingNote = 'done'
+    const distrust = routingDistrustReason(decision.decisions, agentsForced)
+    if (distrust) {
+      selected = new Set(invocations.map(i => i.name))
+      routingNote = 'fallback-distrusted-decision'
+      log(`${distrust} — discarding routing decision, running all ${invocations.length}`)
+    } else {
+      selected = new Set([...agentsForced, ...picked])
+      routingNote = 'done'
+    }
   } else {
     // Router failed → fall back to all reviewers (router_safety fail-open).
     selected = new Set(invocations.map(i => i.name))

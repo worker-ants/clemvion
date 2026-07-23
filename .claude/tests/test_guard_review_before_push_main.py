@@ -7,14 +7,14 @@ and stdin JSON handling. A silent regression there (e.g. the plan gate running
 before the review gate, or a bypass leaking across gates, or fail-open turning
 into fail-closed) would ship unnoticed.
 
-NOT covered here: `_is_git_push`'s own detection logic. It has no dedicated
-unit tests at all — the 44-case `test_push_detection.py` suite and the
-subcommand-aware rewrite it guarded were both withdrawn in `3c6547b4d`
-("push 가드 서브커맨드 재작성 철회"), leaving today's plain regex. That gap is
-real and tracked as backlog item ② (harness-push-guard-subcommand-detection);
-these tests deliberately use unambiguous commands (`git push …` / `git status`)
-so they exercise main() rather than probing detection edges, and must not be
-read as evidence that detection is covered.
+NOT covered here: `_is_git_push`'s own detection logic. That lives in
+`test_push_guard_allowlist.py`, which freezes the blind first pass byte-for-byte
+and runs a differential corpus against it (backlog item ②). Before that suite
+existed, detection had NO dedicated tests at all — the 44-case
+`test_push_detection.py` was withdrawn in `3c6547b4d` ("push 가드 서브커맨드
+재작성 철회"). The tests below deliberately use unambiguous commands
+(`git push …` / `git status`) so they exercise main()'s ORCHESTRATION rather
+than probing detection edges.
 
 These run the REAL hook as a subprocess with a JSON payload on stdin, exactly
 as the harness invokes it, so the assertions are on the actual process exit

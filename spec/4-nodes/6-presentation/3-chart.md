@@ -225,7 +225,11 @@ X축 값이 중복되는 경우 (예: 동일 월이 여러 행) `yAxis.aggregati
 - `$node["Ch"].status === "waiting_for_input"` → `true`
 - `$node["Ch"].config.buttons[0].label` → `"Export"`
 
-> 옛 포맷에서 `output.type: 'chart'` / `output.chartType` / `output.title` / `output.rendered` (SVG snapshot) / `output.previousOutput` 을 사용했다면 모두 폐기. 노드 종류는 워크플로우 정의로 식별하며 (Principle 1.1.4), 리터럴 config 는 `$node["Ch"].config.*` 로 직접 참조한다. SVG 차트는 프런트엔드가 client-side recharts 로 직접 그린다.
+> 옛 포맷에서 `output.type: 'chart'` / `output.chartType` / `output.title` / `output.rendered` (SVG snapshot) 을 사용했다면 모두 폐기. 노드 종류는 워크플로우 정의로 식별하며 (Principle 1.1.4), 리터럴 config 는 `$node["Ch"].config.*` 로 직접 참조한다. SVG 차트는 프런트엔드가 client-side recharts 로 직접 그린다.
+
+> ⚠️ `output.previousOutput` 은 위와 달리 **아직 제거되지 않았다** — resume 경로가 재개 출력에
+> 지금도 주입한다 ([node-output §4.2](../../conventions/node-output.md#42-폐기할-필드--구조) 과도기 예외).
+> **신규 소비 금지**, Phase 3 정리 시 제거. 자세한 서술은 [공통 §4](./0-common.md#4-출력-포맷-principle-11--43--45).
 
 ### 5.5 Case: Resumed — 버튼 클릭 후 (`status: "resumed"`)
 
@@ -268,7 +272,7 @@ X축 값이 중복되는 경우 (예: 동일 월이 여러 행) `yAxis.aggregati
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `output.data` | (§5.4 동상) | waiting snapshot — immutable | resumed 에서도 동일 값 유지. 별도 `previousOutput` 필드 사용 금지 (Principle 4.2) |
+| `output.data` | (§5.4 동상) | waiting snapshot — immutable | resumed 에서도 동일 값 유지 — 이전 뷰 값은 이 필드로 충분하다. 재개 출력에 `previousOutput` 이 함께 실리지만 **신규 소비 금지** (과도기 legacy, Phase 3 제거 예정 — [node-output §4.2](../../conventions/node-output.md#42-폐기할-필드--구조)) |
 | `output.interaction.type` | `"button_click"` | engine — 사용자 클릭 | port 타입 버튼 클릭 식별자 |
 | `output.interaction.data.buttonId` | String | engine | 클릭된 버튼의 정의 ID (= 활성화된 포트 ID) |
 | `output.interaction.data.buttonLabel` | String | engine | 클릭 시점 버튼 라벨 |

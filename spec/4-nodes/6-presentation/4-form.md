@@ -257,6 +257,12 @@ code:
 
 > ⚠ **금지 필드** (Principle 1.1.4 / 4.2): `output.type: 'form'` 판별자, `output.view`, `output.submittedData`, `output.previousOutput`, `output.fields`/`output.title`/`output.submitLabel` 같은 config 리터럴 echo. 노드 타입은 워크플로우 정의에서 식별되며, 폼 정의는 모두 `config.*` 에서 읽는다.
 
+> `previousOutput` 에 대해 [node-output §4.2](../../conventions/node-output.md#42-폐기할-필드--구조) 가 두는 과도기 예외는
+> **Form 에 해당하지 않는다** — 그 예외는 `ButtonInteractionService` 재개 경로(carousel / chart /
+> table / template) 전용이고, Form 은 `config.buttons` 가 없어 그 경로를 타지 않는다. Form 의 재개
+> 출력은 `FormInteractionService` 가 만들며 `previousOutput` 을 **주입하지 않는다**. 따라서 Form 에서는
+> 위 목록대로 **완전한 금지 필드**가 맞다.
+
 **Expression 접근 예** (waiting 시점):
 - `$node["F"].config.title` → `"Approval Request"`
 - `$node["F"].config.fields` → 필드 정의 배열 (raw)

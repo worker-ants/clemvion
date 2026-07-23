@@ -33,6 +33,8 @@ sys.path.insert(0, _SKILL_DIR)
 sys.path.insert(0, _SKILLS_DIR)
 sys.path.insert(0, _CLAUDE_DIR)
 
+from lib import line_anchors  # noqa: E402
+from lib import router_safety  # noqa: E402
 from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
@@ -46,6 +48,31 @@ from _shared import report_paths as _report_paths_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
+
+# Size caps, in characters (not bytes — Korean text is 3 bytes/char in UTF-8,
+# so a 131,072-char prompt is ~190 KB on disk).
+#
+# These were 51,200 / 131,072 before the payload grew a line-number gutter.
+# The gutter is *metadata*, not reviewable content: measured over the last 40
+# commits (2026-07-23) it adds 5.97% to diffs and 8.66% to whole-file context,
+# 7.76% to the two combined. Holding the caps at their pre-gutter values would
+# therefore have quietly reduced how much actual code each reviewer sees —
+# measured on a budget-binding changeset (commit 860aad982, 17 files),
+# whole-file context blocks fell from 4 to 1. The caps are raised by the same
+# margin so what stays flat is the volume of reviewed code, not the byte count.
+#
+# 1.08 is the *combined* 7.76% rounded up, not the 8.66% whole-file figure: a
+# real payload is mostly diff (that changeset was 121 KB of diff against 106 KB
+# of whole-file context, and on a budget-binding one the whole-file blocks are
+# the first thing dropped), so weighting by the worst single component would
+# over-provision. Verified against the same changeset after the change:
+# whole-file blocks 4 → 5 and total lines 2,629 → 2,618, i.e. truncation does
+# not fire earlier than it did before the gutter existed.
+#
+# `REVIEW_MAX_FILE_SIZE` / `REVIEW_MAX_PROMPT_SIZE` still override both.
+_GUTTER_OVERHEAD = 1.08
+DEFAULT_MAX_FILE_SIZE = int(51200 * _GUTTER_OVERHEAD)      # 55,296
+DEFAULT_MAX_PROMPT_SIZE = int(131072 * _GUTTER_OVERHEAD)   # 141,557
 
 BINARY_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp", "tiff", "tif",
@@ -134,8 +161,12 @@ def load_config(route_mode="auto"):
         "agents": agents,
         "agents_explicit": agents_explicit,
         "route_mode": route_mode,
-        "max_file_size": int(os.environ.get("REVIEW_MAX_FILE_SIZE", "51200")),
-        "max_prompt_size": int(os.environ.get("REVIEW_MAX_PROMPT_SIZE", "131072")),
+        "max_file_size": int(
+            os.environ.get("REVIEW_MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE))
+        ),
+        "max_prompt_size": int(
+            os.environ.get("REVIEW_MAX_PROMPT_SIZE", str(DEFAULT_MAX_PROMPT_SIZE))
+        ),
         "batch_size": int(os.environ.get("REVIEW_BATCH_SIZE", "50")),
         "skip_extensions": skip_extensions,
     }
@@ -343,14 +374,86 @@ def _apply_status_update(session_dir, agent, status, reset_hint):
     )
 
 
+# Caller-side trust check for a routing decision: the router must honour the
+# forced whitelist. Violating it discards the whole decision and runs every
+# reviewer.
+#
+# Why (measured 2026-07-23, session 14_47_40): the router returned
+# selected=false for **all 14** reviewers — the 7 forced ones included — with
+# the rationale "소스 코드 변경 없음(문서만 변경)", on a 19-file changeset
+# containing a brand-new Python module whose content was in the router's own
+# prompt. `_apply_routing` silently re-added the forced reviewers and trusted
+# everything else, so the run presented as a healthy 7-reviewer review while
+# every judgement behind it was wrong.
+#
+# The forced list is stated to the router as `selected=true` 고정, so returning
+# one as false is a contract breach rather than a judgement call. That makes it
+# the sharpest signal available that the decision as a whole is untrustworthy,
+# and — unlike any count-based threshold — it cannot fire on a legitimately
+# narrow decision (a doc-only typo routing to `documentation` alone is correct
+# and must stay cheap).
+#
+# Scope note: this does **not** revive the old "selected 수가 0 또는 1 이면 전체
+# fallback" rule. That was deliberately retired in 6cd7376fc (#244) in favour of
+# "0 명이면 fatal + minimal SUMMARY, 1명 이상이면 그대로 진행" — see
+# `.claude/agents/review-router.md` step 4 and README's router-safety table
+# ("전체 fallback 안 함"). Only the stale prose advertising the retired rule is
+# corrected here; the zero-reviewer path keeps its documented fatal behaviour.
+def _routing_distrust_reason(decisions, forced):
+    """Why this routing decision must not be trusted, or None if it is fine.
+
+    Shared shape with `.claude/workflows/ai-review.js` — the two routing paths
+    must answer this identically, and `test_router_decision_trust.py`
+    pins them together (the workflow sandbox forbids importing this).
+    """
+    dropped_forced = sorted(
+        d.get("name") for d in decisions
+        if d.get("name") in forced and not d.get("selected")
+    )
+    if dropped_forced:
+        return (
+            f"router marked forced reviewer(s) selected=false: "
+            f"{', '.join(dropped_forced)}"
+        )
+
+    # Omitting a forced reviewer entirely is the same contract breach wearing a
+    # different hat, and it used to be worse than saying false: the apply loop
+    # only ever walks `decisions`, so an absent agent was neither selected nor
+    # skipped and simply fell out of `agents_pending`.
+    missing_forced = sorted(set(forced) - {d.get("name") for d in decisions})
+    if missing_forced:
+        return (
+            f"router omitted forced reviewer(s) from its decision: "
+            f"{', '.join(missing_forced)}"
+        )
+
+    # No zero-reviewer check here on purpose: `agents_forced ∪ router_selected`
+    # being empty is a documented *fatal*, not a fallback — the router reports
+    # it and main writes a minimal SUMMARY (review-router.md step 4, README
+    # router-safety table). Adding a run-all fallback would quietly reverse
+    # 6cd7376fc (#244).
+    return None
+
+
 def _apply_routing(session_dir, fallback=False):
     """Consume _routing_decision.json and update _retry_state.json.
 
-    Without --fallback: read decisions[], move selected=false agents from
-    pending to skipped. Echo 'applied=<selected_count> skipped=<skipped_count>'.
+    Three outcomes:
 
-    With --fallback: mark routing_status='skipped' with fallback reason,
-    keep all reviewers in pending (router failure path).
+    - ``--fallback``: router failed outright. Mark routing_status='skipped'
+      with a fallback reason and keep everyone pending.
+    - Decision distrusted (`_routing_distrust_reason`): the router broke the
+      forced-whitelist contract, so the decision is discarded wholesale.
+      Everything previously skipped by routing is returned to pending and
+      `agents_skipped` is cleared, so the printed "running all" is true even
+      when an earlier `--apply-routing` call already narrowed the state.
+      Echoes 'fallback=distrusted-decision'.
+    - Otherwise: read decisions[], move selected=false agents from pending to
+      skipped. Echo 'applied=<selected_count> skipped=<skipped_count>'.
+
+    Only routing-driven buckets are restored — `agents_success` / `agents_fatal`
+    are untouched, since a reviewer that already ran is not re-armed by a
+    routing decision being thrown away.
     """
     sd = os.path.abspath(session_dir)
     state_file, state = _load_state(sd)
@@ -370,9 +473,31 @@ def _apply_routing(session_dir, fallback=False):
         decision = json.load(f)
 
     forced = set(state.get("agents_forced", []))
+    decisions = decision.get("decisions", [])
+
+    distrust = _routing_distrust_reason(decisions, forced)
+    if distrust:
+        # Return routing-skipped reviewers to pending before declaring "running
+        # all". Without this, a second --apply-routing call on a session an
+        # earlier call had already narrowed would log a full run while the state
+        # still carried the earlier partial skips.
+        pending = list(state.get("agents_pending", []))
+        for name in state.get("agents_skipped", []):
+            if name not in pending:
+                pending.append(name)
+        state["agents_pending"] = pending
+        state["agents_skipped"] = []
+        state["routing_status"] = "skipped"
+        state["routing_skip_reason"] = f"{distrust} — decision discarded, running all"
+        _save_state(state_file, state)
+        print(
+            f"applied={len(pending)} skipped=0 fallback=distrusted-decision"
+        )
+        return
+
     selected = []
     skipped = []
-    for d in decision.get("decisions", []):
+    for d in decisions:
         name = d.get("name")
         if d.get("selected") or name in forced:
             selected.append(name)
@@ -395,9 +520,52 @@ def _apply_routing(session_dir, fallback=False):
 # checklist here so each `_prompts/<role>.md` is genuinely role-distinct).
 # ---------------------------------------------------------------------------
 
+DIFF_HEADING = "#### 변경된 코드 (unified diff)"
+OLD_CODE_HEADING = "#### 이전 코드"
+FULL_CONTEXT_HEADING = "#### 전체 파일 컨텍스트"
+
+# Prepended to every reviewer/router payload. Without it the gutter is just
+# unexplained digits; with it a reviewer knows the numbers are real source
+# lines and that this document's own offsets are not.
+LINE_ANCHOR_LEGEND = (
+    "## 위치 표기 규약 (반드시 준수)\n\n"
+    "아래 모든 코드 블록은 **왼쪽에 실제 소스 라인 번호 게이트**가 붙어 있습니다 "
+    "(`  42|` 형식 — 숫자, `|`, 그다음이 원본 내용).\n\n"
+    f"- `{DIFF_HEADING}` — 게이트 숫자는 **변경 후(new) 파일 기준** 줄 번호입니다. "
+    "`+`(추가)·` `(문맥) 줄에 번호가 붙습니다. `-`(삭제) 줄은 새 파일에 존재하지 "
+    "않으므로 게이트가 **비어 있습니다**.\n"
+    f"- `{FULL_CONTEXT_HEADING}` — 게이트 숫자는 그 파일의 1-기준 실제 줄 번호입니다.\n"
+    "- 게이트가 비어 있거나 없는 줄에는 인용할 수 있는 줄 번호가 **없습니다**.\n\n"
+    "**발견사항의 `위치` 를 적을 때:**\n\n"
+    "1. 반드시 게이트 숫자를 쓰세요. **이 문서(프롬프트) 안에서 몇 번째 줄인지를 세지 "
+    "마세요** — 이 문서는 여러 파일을 이어붙인 조립물이라 그 오프셋은 소스 라인 번호와 "
+    "아무 관계가 없습니다. (실제로 이 혼동이 존재하지 않는 줄 번호를 인용하는 사고를 "
+    "냈습니다: 99줄짜리 파일에 대해 \"line 1362\" 로 기재.)\n"
+    "2. 게이트 숫자를 쓸 수 없는 경우(잘린 블록·게이트 없는 줄)에는 **줄 번호를 지어내지 "
+    "말고** 함수명·클래스명·블록 설명으로 기재하세요. 위치가 틀린 발견사항은 위치가 없는 "
+    "발견사항보다 나쁩니다.\n"
+    "3. 확신이 서지 않으면 `Read`/`Grep` 으로 해당 파일을 직접 열어 확인한 뒤 기재하세요. "
+    "게이트 숫자는 원본 파일의 줄 번호와 일치하므로 그대로 대조됩니다.\n\n"
+)
+
+
+def _truncated_note(kept, total, reason):
+    """Say exactly how much was cut, in lines — the unit the gutter speaks in.
+
+    The old marker ("truncated due to size limit") left the reviewer unable to
+    tell a short file from a clipped one.
+    """
+    return f"\n... ({reason}으로 {kept}/{total} 줄만 표시 — 나머지는 원본 파일 참조) ..."
+
 
 def build_files_section(change_infos, max_file_size, max_total_size=0):
-    """Compose the changed-files context, respecting per-file and total budgets."""
+    """Compose the changed-files context, respecting per-file and total budgets.
+
+    Both the diff and the whole-file context carry a line-number gutter (see
+    `lib/line_anchors.py`). Without it a reviewer has no way to know a real line
+    number and ends up citing offsets into this assembled document instead —
+    measured, not hypothesised: see that module's docstring.
+    """
     separator = "\n---\n\n"
 
     file_parts = []
@@ -408,16 +576,22 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
 
         diff_section = ""
         if ci.get("code"):
-            diff_section += f"\n#### 변경된 코드\n```\n{ci['code']}\n```\n"
+            annotated = line_anchors.annotate_unified_diff(ci["code"])
+            diff_section += f"\n{DIFF_HEADING}\n```\n{annotated}\n```\n"
         if ci.get("old_code"):
-            diff_section += f"\n#### 이전 코드\n```\n{ci['old_code']}\n```\n"
+            diff_section += f"\n{OLD_CODE_HEADING}\n```\n{ci['old_code']}\n```\n"
 
-        full_content = ci.get("full_file_content", "")
+        # Number first, then cut on a line boundary: slicing raw characters
+        # could leave a half-written line number, which is exactly the kind of
+        # untrustworthy anchor the gutter exists to eliminate.
+        full_content = line_anchors.number_source_lines(
+            ci.get("full_file_content", "")
+        )
         if len(full_content) > max_file_size:
-            full_content = (
-                full_content[:max_file_size]
-                + "\n\n... (truncated due to size limit) ..."
+            full_content, kept, total = line_anchors.truncate_to_line_boundary(
+                full_content, max_file_size
             )
+            full_content += _truncated_note(kept, total, "파일 크기 제한")
 
         file_parts.append({
             "header": header,
@@ -431,7 +605,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         for fp in file_parts:
             section = fp["header"] + fp["diff"]
             if fp["full_content"]:
-                section += f"\n#### 전체 파일 컨텍스트\n```\n{fp['full_content']}\n```\n"
+                section += f"\n{FULL_CONTEXT_HEADING}\n```\n{fp['full_content']}\n```\n"
             sections.append(section)
         return separator.join(sections)
 
@@ -451,15 +625,23 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             cut = min(overflow, diff_len)
             new_len = diff_len - cut
             if new_len > 0:
-                fp["diff"] = fp["diff"][:new_len] + "\n\n... (truncated due to prompt size limit) ...\n"
+                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
+                    fp["diff"], new_len
+                )
+                # Trailing "\n" only here (not at the other two truncation
+                # sites): this branch's text is concatenated straight onto the
+                # next section by `separator.join`, whereas the whole-file cuts
+                # are already followed by a closing fence. Pre-existing shape,
+                # kept as-is so the change stays behaviour-preserving.
+                fp["diff"] = kept_text + _truncated_note(kept, total, "프롬프트 크기 제한") + "\n"
             else:
-                fp["diff"] = "\n\n... (diff omitted due to prompt size limit) ...\n"
+                fp["diff"] = "\n\n... (프롬프트 크기 제한으로 diff 생략 — 원본 파일 참조) ...\n"
             overflow -= cut
         sections = [fp["header"] + fp["diff"] for fp in file_parts]
         return separator.join(sections)
 
     remaining_budget = max_total_size - base_size
-    content_wrapper_overhead = len("\n#### 전체 파일 컨텍스트\n```\n\n```\n")
+    content_wrapper_overhead = len(f"\n{FULL_CONTEXT_HEADING}\n```\n\n```\n")
 
     content_indices = [i for i, fp in enumerate(file_parts) if fp["full_content"]]
     content_indices.sort(key=lambda i: file_parts[i]["full_content_size"])
@@ -473,9 +655,11 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         else:
             available = remaining_budget - content_wrapper_overhead
             if available > 200:
-                include_content[i] = (
-                    file_parts[i]["full_content"][:available]
-                    + "\n\n... (truncated due to prompt size limit) ..."
+                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
+                    file_parts[i]["full_content"], available
+                )
+                include_content[i] = kept_text + _truncated_note(
+                    kept, total, "프롬프트 크기 제한"
                 )
                 remaining_budget = 0
             break
@@ -484,7 +668,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     for i, fp in enumerate(file_parts):
         section = fp["header"] + fp["diff"]
         if i in include_content:
-            section += f"\n#### 전체 파일 컨텍스트\n```\n{include_content[i]}\n```\n"
+            section += f"\n{FULL_CONTEXT_HEADING}\n```\n{include_content[i]}\n```\n"
         sections.append(section)
     return separator.join(sections)
 
@@ -526,6 +710,7 @@ def build_agent_prompt_body(agent_name, change_infos, max_file_size, max_prompt_
         "따르되, 분석 시 아래 \"점검 관점\" 을 빠짐없이 적용하세요. 결과는 `output_file`\n"
         "인자가 가리키는 경로에 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n"
         f"{scope_note}"
+        f"{LINE_ANCHOR_LEGEND}"
         f"## 점검 관점 ({info['ko_title']})\n\n"
         f"{info['checklist']}\n\n"
         "## 리뷰 대상 파일\n\n"
@@ -572,20 +757,50 @@ def build_router_prompt_body(
         perspective_lines.append(f"- `{name}` — {title}{scope_note}: {perspective}")
     perspective_block = "\n".join(perspective_lines)
 
+    # State the source/doc split as a fact instead of letting the router infer
+    # it from filenames. On 2026-07-23 a 19-file changeset (16 docs, 3 code —
+    # one a brand-new module) was routed "소스 코드 변경 없음(문서만 변경)" with
+    # every reviewer deselected; the code was in the prompt, the router read the
+    # majority. Same classifier as the forced rules, so the two cannot disagree.
+    all_paths = [ci["file_path"] for ci in change_infos]
+    src_paths = router_safety.source_files(all_paths)
+    if src_paths:
+        shown = "\n".join(f"  - `{p}`" for p in src_paths[:20])
+        more = f"\n  - … 외 {len(src_paths) - 20}개" if len(src_paths) > 20 else ""
+        composition_block = (
+            f"변경 파일 {len(all_paths)}개 중 **소스 코드 파일 {len(src_paths)}개**:\n"
+            f"{shown}{more}\n\n"
+            "→ 이 변경은 **문서 전용이 아닙니다.** \"문서만 변경\" 을 사유로 "
+            "reviewer 를 제외하지 마세요. 문서 파일 수가 많더라도 위 소스 파일의 "
+            "실제 내용을 근거로 판단하세요.\n"
+        )
+    else:
+        composition_block = (
+            f"변경 파일 {len(all_paths)}개 중 소스 코드 파일 **0개** "
+            "(문서·설정 전용 변경).\n"
+        )
+
     candidate_count = len(agents)
     header = (
         "# Review Router Payload\n\n"
         "본 파일은 orchestrator 가 review-router 용으로 작성한 입력입니다. "
         f"아래 변경 코드를 보고, {candidate_count}명의 reviewer 후보 중 어떤 reviewer 를 실제로 실행할지 결정하세요.\n\n"
+        "## 변경 구성 (orchestrator 가 확장자로 판정한 사실)\n\n"
+        f"{composition_block}\n"
         "## 결정 규칙\n"
-        "- 아래 **강제 포함** 목록은 router_safety 가 결정한 것으로, router 가 끄지 못합니다 (selected=true 고정).\n"
+        "- 아래 **강제 포함** 목록은 router_safety 가 결정한 것으로, router 가 끄지 못합니다 "
+        "— 목록의 reviewer 는 **반드시 항목을 포함해 `selected=true`** 로 반환하세요.\n"
         "- 그 외 reviewer 는 변경 코드의 실제 의미를 보고 판단. **확신 없으면 selected=true** (false-negative 가 false-positive 보다 위험).\n"
-        "- selected 수가 0 또는 1 이면 호출자가 본 결정을 폐기하고 전체 reviewer fallback 합니다 (역시 false-negative 방어).\n"
+        "- **호출자가 코드로 검증합니다 (프롬프트 문구가 아니라 실제 강제):** 강제 포함 "
+        "reviewer 를 하나라도 `selected=false` 로 반환하거나 결정에서 누락하면, 본 결정은 "
+        f"신뢰할 수 없는 것으로 보아 통째로 폐기되고 전체 {candidate_count}명이 실행됩니다. "
+        "즉 강제 목록을 어겨도 리뷰가 줄지 않고 오히려 전량 실행을 유발합니다.\n"
         "- 변경 코드 본문을 직접 분석할 수 있도록 변경 파일 컨텍스트가 함께 전달됩니다. 추가 탐색이 필요하면 Read/Grep/Glob/Bash 를 자유롭게 사용해도 됩니다.\n\n"
         "## 강제 포함 (router 가 끄지 못함)\n\n"
         f"{forced_block}\n\n"
         f"## {candidate_count} reviewer 후보와 관점\n\n"
         f"{perspective_block}\n\n"
+        f"{LINE_ANCHOR_LEGEND}"
         "## 변경 파일 컨텍스트\n\n"
     )
     files_budget = 0
