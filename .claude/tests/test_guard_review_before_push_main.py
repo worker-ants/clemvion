@@ -111,6 +111,12 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         os.makedirs(os.path.join(self.hooks_dir, "_lib"))
         self.hook = os.path.join(self.hooks_dir, "guard_review_before_push.py")
         shutil.copy(HOOK_SRC, self.hook)
+        # The real hook has _lib/failopen_state.py beside it; copy it in so the
+        # fixture matches production. Without it the hook takes its degraded
+        # reporting path and the streak assertions below silently pass on
+        # nothing.
+        shutil.copy(_harness.HOOKS_DIR / "_lib" / "failopen_state.py",
+                    os.path.join(self.hooks_dir, "_lib", "failopen_state.py"))
         self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"), _REVIEW_STUB)
         self._write(os.path.join(self.hooks_dir, "_lib", "plan_guard.py"), _PLAN_STUB)
 
