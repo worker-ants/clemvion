@@ -631,19 +631,16 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     // "`endReason` **키 자체가 없는**" 경우를 고정한다. 둘은 다른 mutation 을
     // 잡는다.
     //
-    // 주의 — 이 테스트가 지키는 건 `typeof endReason === "string"` conjunct 의
-    // *존재* 가 아니다. 그 conjunct 를 단순히 지우면 (a) `CONVERSATION_END_REASONS`
-    // 가 `ReadonlySet<string>` 이라 `has(undefined)` 는 언제나 false → 런타임
-    // 동작이 완전히 동일하고 (b) `has()` 인자가 `string | undefined` 가 되어
-    // **TS2345 컴파일 에러**다 (2026-07-23 실측: 제거 시 39/39 green, tsc 는
-    // output-shape.ts:202 에서 실패). 즉 단순 삭제는 애초에 머지될 수 없고, 어떤
-    // fixture 로도 관측되지 않는다.
+    // 지키는 대상은 `typeof endReason === "string"` conjunct 의 *존재* 가 아니다
+    // — 그 conjunct 단순 삭제는 런타임 동작이 완전히 동일하고(화이트리스트가
+    // `ReadonlySet<string>` 이라 비-string 은 멤버가 될 수 없다) 대신 타입 검사가
+    // 막으므로 애초에 머지되지 않는다. 실제 위험은 **키 부재의 의미를 바꾸는
+    // 리팩터**다 — 기본값 주입이나 조건 반전으로, 그때 위 `bogus_value` 테스트는
+    // 여전히 green 인 채 "endReason 없는 종결" 이 조용히 대화로 오분류된다.
     //
-    // 실제 위험은 **키 부재의 의미를 바꾸는 리팩터**다 — 예컨대 타입 에러를
-    // `endReason ?? "completed"` 같은 기본값으로 무마하거나
-    // `typeof endReason !== "string" || has(endReason)` 로 뒤집으면, 위의
-    // `bogus_value` 테스트는 여전히 green 인 채로 "endReason 없는 종결" 이
-    // 조용히 대화로 오분류된다. 이 fixture 가 그 클래스를 red 로 만든다.
+    // 어떤 변형이 어느 테스트를 red 로 만드는지의 실측 표는 plan 문서
+    // `output-shape-comment-followups.md` §mutation 실측 이 SoT 다(라이프사이클상
+    // `plan/in-progress/` → `plan/complete/` 로 이동). 여기 옮겨 적지 않는다.
     //
     // 고립 조건 — `output.result.messages` 외 다른 분기는 전부 거짓:
     //  - top-level `interactionType`/`conversationConfig` 부재
@@ -663,6 +660,38 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
       meta: { model: "m" },
     };
     expect(isConversationOutput(raw)).toBe(false);
+  });
+
+  it("detects a terminal whose endReason sits at output.endReason, not result.endReason", () => {
+    // `endReason` 은 `result.endReason` 을 먼저 보고 없으면 `output.endReason` 으로
+    // 내려가는 2단 조회다(내부적으로 `result?.endReason ?? output.endReason`).
+    // 그 **fallback 단** 을 단독 고립한다 — `result.messages` 는 있는데 종결 사유가
+    // 한 단계 위에 실린 마이그레이션 이전 페이로드가 이 경로로 들어온다.
+    //
+    // 이 fixture 가 없으면 fallback 을 통째로 지워도 전 테스트가 green 이다
+    // (2026-07-23 리뷰 testing 리뷰어 발견 → 실측 재현: 삭제 시 tsc clean +
+    // 40/40 green). 대화 UI 게이트에서 살아남는 mutation 은 곧 미리보기 소실
+    // 경로이므로 닫는다.
+    //
+    // 고립 조건:
+    //  - `result.endReason` **부재** → fallback 을 타야만 판정이 성립
+    //  - top-level `interactionType`/`conversationConfig` 부재
+    //  - `output.messages` 부재 (첫 OR-분기·waiting 분기 차단)
+    //  - `output.interactionType`/`meta.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `status` 키 부재
+    const raw = {
+      config: {},
+      output: {
+        endReason: "completed",
+        result: {
+          messages: [{ role: "user", content: "x" }],
+          turnCount: 1,
+        },
+      },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
   });
 
   // 아래 3개는 OR-체인의 각 분기를 **다른 분기와 겹치지 않게** 고립시킨다.
