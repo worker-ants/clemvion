@@ -119,10 +119,18 @@ def _split_hunks(lines):
                 nxt = lines[i]
                 if _HUNK_RE.match(nxt) or nxt.startswith(_FILE_HEADER_PREFIXES):
                     break
-                # Inside a hunk git always emits a leading ' ', '+', '-' or '\'.
-                # A bare empty line therefore is not hunk content — in practice
-                # it is the trailing element of `text.split("\n")` — so it ends
-                # the hunk rather than being mistaken for an empty context line.
+                # Inside a hunk git always emits a leading ' ', '+', '-' or '\',
+                # even for an empty context line (verified against this repo's
+                # history: zero bare empty lines inside hunks). A bare empty
+                # line is therefore not hunk content, so end the hunk rather
+                # than count it as context and shift every later number by one.
+                #
+                # Unreachable for well-formed `git diff` text arriving via
+                # `annotate_unified_diff`, which splits with `splitlines()` and
+                # so never manufactures a trailing empty element either. Kept as
+                # a boundary for hand-assembled or re-joined payloads; if one
+                # ever does appear, ending the hunk makes the body disagree with
+                # the declared counts and the whole hunk fails open.
                 if nxt == "":
                     break
                 body.append(nxt)

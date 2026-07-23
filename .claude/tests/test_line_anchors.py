@@ -486,5 +486,101 @@ class ReviewerDefinitionContractTest(unittest.TestCase):
             )
 
 
+class LegendAndDefinitionAgreementTest(unittest.TestCase):
+    """The gutter rule is stated twice: once in the prompt the orchestrator
+    builds (`LINE_ANCHOR_LEGEND`) and once in each reviewer definition.
+
+    Nothing renders one from the other, so they can drift apart while each side
+    stays internally consistent — and a reviewer that is told two different
+    things about where line numbers come from is exactly the ambiguity this
+    whole change removes. Pin the load-bearing rules on both sides.
+    """
+
+    RULES = {
+        "게이트": "names the gutter",
+        "지어내지": "forbids inventing a number when unsure",
+        "조립": "says the prompt is an assembled document",
+    }
+
+    def _legend(self):
+        text = ORCH.read_text(encoding="utf-8")
+        start = text.index("LINE_ANCHOR_LEGEND = (")
+        end = text.index('\n)\n', start)
+        return text[start:end]
+
+    def test_legend_states_every_load_bearing_rule(self):
+        legend = self._legend()
+        for token, why in self.RULES.items():
+            self.assertIn(
+                token, legend,
+                f"LINE_ANCHOR_LEGEND no longer {why} — it and the reviewer "
+                f"definitions would then disagree",
+            )
+
+    def test_reviewer_definitions_state_the_same_rules_as_the_legend(self):
+        legend = self._legend()
+        agents_dir = REPO_ROOT / ".claude" / "agents"
+        blocks = [
+            p.read_text(encoding="utf-8")
+            for p in sorted(agents_dir.glob("*-reviewer.md"))
+            if "- 위치:" in p.read_text(encoding="utf-8")
+        ]
+        self.assertGreaterEqual(len(blocks), 13)
+        for token, why in self.RULES.items():
+            in_legend = token in legend
+            for text in blocks:
+                self.assertEqual(
+                    in_legend, token in text,
+                    f"the prompt legend and the reviewer definitions disagree "
+                    f"on the rule that {why}",
+                )
+
+
+class DocumentedDefaultsMatchTheCodeTest(unittest.TestCase):
+    """`REVIEW_MAX_FILE_SIZE` / `REVIEW_MAX_PROMPT_SIZE` defaults are printed as
+    literal numbers in two docs but computed from `_GUTTER_OVERHEAD` in code.
+
+    Re-tuning the overhead would silently leave both tables stating a number
+    the orchestrator no longer uses. Same class of binding as
+    `test_doc_sync_matrix`: a value duplicated across languages/formats that
+    only a test can hold together.
+    """
+
+    DOCS = (
+        REPO_ROOT / ".claude" / "skills" / "code-review-agents" / "SKILL.md",
+        REPO_ROOT / ".claude" / "skills" / "code-review-agents" / "README.md",
+    )
+
+    def _code_defaults(self):
+        out = subprocess.run(
+            [sys.executable, "-c",
+             f"import runpy,sys; sys.argv=['x'];"
+             f"m=runpy.run_path({str(ORCH)!r});"
+             f"print(m['DEFAULT_MAX_FILE_SIZE'], m['DEFAULT_MAX_PROMPT_SIZE'])"],
+            capture_output=True, text=True, cwd=str(REPO_ROOT),
+        ).stdout.split()
+        self.assertEqual(len(out), 2, "could not read the orchestrator defaults")
+        return out[0], out[1]
+
+    def test_docs_quote_the_defaults_the_code_actually_uses(self):
+        file_default, prompt_default = self._code_defaults()
+        for doc in self.DOCS:
+            text = doc.read_text(encoding="utf-8")
+            for var, value in (
+                ("REVIEW_MAX_FILE_SIZE", file_default),
+                ("REVIEW_MAX_PROMPT_SIZE", prompt_default),
+            ):
+                row = next(
+                    (ln for ln in text.split("\n") if f"`{var}`" in ln and ln.startswith("|")),
+                    None,
+                )
+                self.assertIsNotNone(row, f"{doc.name}: no table row for {var}")
+                self.assertIn(
+                    f"`{value}`", row,
+                    f"{doc.name}: {var} documents a stale default — the code now "
+                    f"uses {value}",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
