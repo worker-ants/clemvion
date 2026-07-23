@@ -279,14 +279,14 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
     def test_import_failure_is_announced_and_counted(self):
         r = self._run(_PUSH, review="import_error", plan="clean")
         self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
-        self.assertIn("fail-open", r.stderr)
-        self.assertIn("REVIEW gate", r.stderr)
+        self.assertIn("fail-open", r.stdout)
+        self.assertIn("REVIEW gate", r.stdout)
         self.assertEqual(self._streak(), 1)
 
     def test_evaluate_exception_is_announced_and_counted(self):
         r = self._run(_PUSH, review="raise", plan="clean")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("fail-open", r.stderr)
+        self.assertIn("fail-open", r.stdout)
         self.assertEqual(self._streak(), 1)
 
     def test_consecutive_fail_opens_accumulate_and_escalate(self):
@@ -297,12 +297,12 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             self.assertEqual(self._streak(), expected)
             if expected < 3:
                 self.assertNotIn(
-                    "‼️", r.stderr,
+                    "‼️", r.stdout,
                     f"streak {expected} must not escalate yet — one blip and a "
                     "dead gate have to read differently",
                 )
         self.assertIn(
-            "‼️", r.stderr,
+            "‼️", r.stdout,
             "a sustained streak must escalate — one blip and a dead gate must "
             "not read the same",
         )
@@ -314,8 +314,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             self._streak(), 1,
             "the streak counts PUSHES with degradation, not degraded gates",
         )
-        self.assertIn("REVIEW gate", r.stderr)
-        self.assertIn("PLAN gate", r.stderr)
+        self.assertIn("REVIEW gate", r.stdout)
+        self.assertIn("PLAN gate", r.stdout)
         with open(self._streak_file(), encoding="utf-8") as fh:
             gates = {entry["gate"] for entry in json.load(fh)["gates"]}
         self.assertEqual(gates, {"REVIEW", "PLAN"})
@@ -334,7 +334,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         would drown the signal this exists to produce."""
         r = self._run(_PUSH, review="blocked", plan="clean", bypass_review=True)
         self.assertEqual(r.returncode, 0)
-        self.assertNotIn("fail-open", r.stderr)
+        self.assertNotIn("fail-open", r.stdout)
         self.assertFalse(os.path.exists(self._streak_file()))
 
     def test_bypassing_an_actually_broken_gate_is_still_not_counted(self):
@@ -344,7 +344,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         r = self._run(_PUSH, review="import_error", plan="clean",
                       bypass_review=True)
         self.assertEqual(r.returncode, 0)
-        self.assertNotIn("fail-open", r.stderr)
+        self.assertNotIn("fail-open", r.stdout)
         self.assertFalse(os.path.exists(self._streak_file()))
 
     def test_bypass_does_not_clear_an_existing_streak(self):
@@ -406,11 +406,65 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
 
         r = self._run(_PUSH)
         self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
-        self.assertIn("DETECTION", r.stderr)
+        self.assertIn("DETECTION", r.stdout)
         self.assertEqual(self._streak(), 1)
 
+    def test_banner_goes_to_the_stream_the_harness_actually_surfaces(self):
+        """A banner on the wrong stream is a banner nobody reads.
+
+        The harness injects STDOUT into the model's context on exit 0 (the
+        rationale `guard_default_branch_bash.py` documents for its
+        never-blocking reminder), while on exit 2 the refusal is read from
+        stderr. So the channel has to follow the exit code, and both directions
+        are pinned here — an earlier version always used stderr, which would
+        have quietly undone the whole point of this policy on the common path.
+        """
+        allowed = self._run(_PUSH, review="import_error", plan="clean")
+        self.assertEqual(allowed.returncode, 0)
+        self.assertIn("fail-open", allowed.stdout)
+        self.assertNotIn("fail-open", allowed.stderr)
+
+        blocked = self._run(_PUSH, review="import_error", plan="untouched")
+        self.assertEqual(blocked.returncode, 2)
+        self.assertIn("fail-open", blocked.stderr)
+        self.assertNotIn("fail-open", blocked.stdout)
+
+    def test_a_blocking_gate_does_not_reset_the_other_gates_streak(self):
+        """CRITICAL (review 17_22_18): a REVIEW block returns before the PLAN
+        gate runs, so PLAN never answers. Treating "someone answered" as proof
+        of health wiped a live PLAN streak on an ordinary blocked push — and
+        REVIEW blocking is this hook's most common event, so the escalation
+        would essentially never fire."""
+        for _ in range(2):
+            self._run(_PUSH, review="clean", plan="import_error")
+        self.assertEqual(self._streak(), 2)
+
+        r = self._run(_PUSH, review="blocked", plan="import_error")
+        self.assertEqual(r.returncode, 2, "the review gate still blocks")
+        self.assertEqual(
+            self._streak(), 2,
+            "PLAN never ran on this push, so it is neither proven healthy nor "
+            "observed broken: the streak must be PRESERVED — not cleared (the "
+            "CRITICAL) and not incremented (nothing was observed)",
+        )
+
+        # …and once PLAN is actually reached again, counting resumes from 2.
+        self._run(_PUSH, review="clean", plan="import_error")
+        self.assertEqual(self._streak(), 3)
+
+    def test_a_fully_clean_push_still_resets(self):
+        """The other direction: when BOTH gates answer, the streak clears.
+        Without this the fix above could degenerate into 'never reset'."""
+        self._run(_PUSH, review="clean", plan="import_error")
+        self.assertTrue(os.path.exists(self._streak_file()))
+        self._run(_PUSH, review="clean", plan="clean")
+        self.assertFalse(os.path.exists(self._streak_file()))
+
     def test_unwritable_state_dir_does_not_break_the_guard(self):
-        """Observability must never break the thing it observes."""
+        """Observability must never break the thing it observes — and that
+        includes the banner itself. An earlier version persisted BEFORE
+        printing, so an unwritable state dir swallowed the warning and the push
+        went through in total silence."""
         env_dir = os.path.join(self.tmp, ".claude", "state")
         os.makedirs(os.path.dirname(env_dir), exist_ok=True)
         # A FILE where the state directory should be — makedirs/open will fail.
@@ -420,6 +474,10 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(
             r.returncode, 0,
             "a failed state write must not change the guard's verdict",
+        )
+        self.assertIn(
+            "fail-open", r.stdout,
+            "the banner is the PRIMARY signal and must survive a failed write",
         )
 
 

@@ -371,6 +371,9 @@ _PLAN_MSG = (
 # Nothing here may ever raise into the guard: observability that breaks the
 # thing it observes is worse than no observability.
 _FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+# Every gate that must answer before the streak may be cleared. Named, not
+# counted, so a future third gate cannot silently satisfy the reset with two.
+_ALL_GATES = frozenset({"REVIEW", "PLAN"})
 # Two in a row can still be one bad afternoon (a half-applied edit, a stale
 # import). Three consecutive pushes with the gate unable to answer is a state
 # somebody has been living with, which is the thing worth shouting about.
@@ -407,30 +410,40 @@ def _write_streak(streak: int, degraded: list[tuple[str, str]]) -> None:
         )
 
 
-def _report_fail_open(outcome: _Outcome) -> None:
+def _report_fail_open(outcome: _Outcome, exit_code: int) -> None:
     """Announce (and count) any gate that could not answer.
 
-    Reset rule — the counter measures CONSECUTIVE degradation, so clearing it
-    takes positive evidence that the gates are working: a push where BOTH ran
-    and answered. Anything less leaves an existing streak alone:
+    Channel depends on the exit code, because that decides what the harness
+    surfaces: on exit 2 the refusal is read from stderr, while on exit 0 it is
+    STDOUT that gets injected into the model's context (the same reasoning
+    `guard_default_branch_bash.py` documents for its never-blocking reminder).
+    A banner on the wrong stream is a banner nobody reads, which would quietly
+    undo the whole point of this policy.
 
-      * a BYPASS_* skip says nothing about whether that gate works, and
-      * one healthy gate says nothing about the OTHER one. (An earlier draft
-        reset whenever *any* gate answered, so bypassing a broken REVIEW gate
-        while PLAN answered cleanly wiped the streak — the test added for W2
-        caught it.)
+    Reset rule — the counter measures CONSECUTIVE degradation, so clearing it
+    takes positive evidence that EVERY gate is working: a push where all of
+    `_ALL_GATES` actually answered. Anything less leaves the streak alone.
+
+    This predicate has been wrong twice, both times by accepting weaker
+    evidence than "all of them answered":
+      * v1 reset whenever `degraded` was empty — so a BYPASS_* skip cleared it.
+      * v2 reset whenever *any* gate answered — but a REVIEW block returns
+        before the PLAN gate runs at all, so a perfectly ordinary blocked push
+        wiped a PLAN streak with no warning (and REVIEW blocking is this hook's
+        most common event, so the escalation would essentially never fire).
+    Hence the explicit set comparison rather than a truthiness test.
 
     Known residual (accepted): the read-increment-write of the streak is not
     locked, so two overlapping pushes can lose one increment and delay the
-    escalation by a push. The PRIMARY signal — the per-push banner below — is
-    printed unconditionally and cannot be lost to that race; only the running
-    count can. Not worth `fcntl.flock` for an observability counter.
+    escalation by a push. The banner is emitted BEFORE the write precisely so
+    that the primary signal cannot be lost to a failed or racing write; only
+    the running count can. Not worth `fcntl.flock` for an observability counter.
     """
     try:
         degraded = outcome.degraded
         if not degraded:
-            if outcome.bypassed or not outcome.answered:
-                return  # no proof of health — leave the counter untouched.
+            if outcome.bypassed or set(outcome.answered) != _ALL_GATES:
+                return  # not full proof of health — leave the counter untouched.
             try:
                 os.remove(_state_path())
             except FileNotFoundError:
@@ -438,7 +451,6 @@ def _report_fail_open(outcome: _Outcome) -> None:
             return
 
         streak = _read_streak() + 1
-        _write_streak(streak, degraded)
 
         lines = [
             "",
@@ -459,7 +471,17 @@ def _report_fail_open(outcome: _Outcome) -> None:
                 "        일시적 오류가 아니라 가드 자체를 고쳐야 합니다.",
             ]
         lines.append("")
-        print("\n".join(lines), file=sys.stderr)
+        stream = sys.stderr if exit_code == 2 else sys.stdout
+        print("\n".join(lines), file=stream)
+
+        # Persist LAST. An earlier version wrote first, so when the state
+        # directory was unwritable the exception skipped the print entirely and
+        # the push went through in total silence — the failure mode this whole
+        # mechanism exists to prevent, in the mechanism itself.
+        try:
+            _write_streak(streak, degraded)
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
     except Exception:
         # Never let reporting break the guard.
         pass
@@ -533,6 +555,7 @@ def main() -> int:
     # ones (a gate can block while the OTHER one failed open — that is exactly
     # when it would otherwise be quietest).
     outcome = _Outcome()
+    exit_code = 0
     try:
         payload = _read_payload()
         tool_input = payload.get("tool_input") or payload.get("input") or {}
@@ -541,7 +564,8 @@ def main() -> int:
         if not _is_git_push(command):
             return 0  # not a push — nothing to enforce.
 
-        return _run_gates(outcome)
+        exit_code = _run_gates(outcome)
+        return exit_code
     except Exception as exc:
         # Fail-open #3 from the plan: anything unhandled above — payload read,
         # or push DETECTION itself. It used to escape here and the harness's
@@ -553,7 +577,7 @@ def main() -> int:
         outcome.degraded.append(("DETECTION", f"{type(exc).__name__}: {exc}"))
         return 0
     finally:
-        _report_fail_open(outcome)
+        _report_fail_open(outcome, exit_code)
 
 
 if __name__ == "__main__":
