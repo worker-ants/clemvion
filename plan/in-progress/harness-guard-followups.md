@@ -111,9 +111,20 @@ exactly-once 가 아니라 **수렴**(마커 존재 + 이후 세션 skip)을 단
 `REAP_MIN_INTERVAL`(6h) throttle 덕에 매 세션은 아니지만, throttle 만료 세션에 후보가 쌓이면
 `bootstrap-session.sh`(SessionStart, **동기**)가 수 초 블로킹될 수 있다.
 
-- [ ] `gh pr list --state all --json headRefName,state` 로 배치 조회해 branch→state 맵 선구성,
-      또는 후보별 호출을 동시성 상한(`xargs -P4`)으로 병렬화
-- [ ] 회귀: 기존 `test_reap_merged_worktrees.py` 의 gh stub 이 배치 형태도 흉내내도록 갱신
+- [x] `gh pr list --state all --json headRefName,state` 로 배치 조회해 branch→state 맵 선구성,
+      또는 후보별 호출을 동시성 상한(`xargs -P4`)으로 병렬화 → **배치 채택** (B PR).
+      `--limit`(`REAP_GH_PR_LIMIT`, 기본 200) 밖의 PR 은 **단건 `gh pr view` 로 폴백**해
+      "배치가 reaper 의 판정 범위를 조용히 좁히는" 회귀를 막는다. 맵은 bash 3.2 호환을 위해
+      연관배열이 아닌 `branch<TAB>state` 개행 문자열.
+      **함정(테스트가 실측으로 잡음)**: 호출부가 전부 `state=$(gh_state …)` = **command
+      substitution → 서브셸**이라, 지연 로드를 `gh_state` 안에 두면 메모가 서브셸과 함께
+      버려져 후보마다 재조회된다(배치 의미 소멸). 그래서 **메인 셸에서 1회 선로드**하고
+      서브셸은 상속된 변수를 읽기만 한다. `claude/*` 브랜치가 0개면 로드 자체를 건너뛴다.
+- [x] 회귀: 기존 `test_reap_merged_worktrees.py` 의 gh stub 이 배치 형태도 흉내내도록 갱신
+      → stub 이 `pr list`(배치)·`pr view`(폴백) 양쪽을 모델링하고 **모든 gh 호출을 로깅**해
+      호출 횟수를 단언 가능하게 함. 신규 5건: 후보 3개에 배치 1회·`pr view` 0회 /
+      두 pass 가 fetch 1회 공유 / 배치 누락 시 폴백 reap 유지 / 배치 실패 시 폴백 /
+      후보 0개면 gh 미호출. 비-vacuity: 배치를 되돌린 뮤턴트에서 두 테스트 모두 실패 확인.
 
 ---
 

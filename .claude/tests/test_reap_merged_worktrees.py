@@ -36,7 +36,24 @@ CLEANUP_SRC = SRC_ROOT / ".claude" / "tools" / "cleanup-worktree.sh"
 BOOTSTRAP_SRC = SRC_ROOT / ".claude" / "tools" / "bootstrap-session.sh"
 
 _GH_STUB = """#!/usr/bin/env bash
-# Test stub: echo MERGED for branches named in $MERGED_BRANCHES, else OPEN.
+# Test stub for both shapes the reaper uses:
+#   `pr list` — the BATCH lookup: emits "branch<TAB>MERGED" for $MERGED_BRANCHES.
+#               $BATCH_OMIT names branches to leave OUT (models a PR older than
+#               --limit, which must fall back to `pr view`).
+#               $LIST_FAILS=1 makes the batch itself fail (no auth / API error).
+#   `pr view` — the per-branch fallback: MERGED for $MERGED_BRANCHES, else OPEN.
+# Every call is appended to $GH_CALL_LOG so a test can assert the reaper batches
+# instead of running one `pr view` per candidate.
+[ -n "${GH_CALL_LOG:-}" ] && echo "${1:-} ${2:-} ${3:-}" >> "$GH_CALL_LOG"
+if [ "${1:-}" = "pr" ] && [ "${2:-}" = "list" ]; then
+  [ "${LIST_FAILS:-0}" = "1" ] && exit 1
+  for b in ${MERGED_BRANCHES:-}; do
+    skip=0
+    for o in ${BATCH_OMIT:-}; do [ "$o" = "$b" ] && skip=1; done
+    [ "$skip" = "1" ] || printf '%s\\tMERGED\\n' "$b"
+  done
+  exit 0
+fi
 if [ "${1:-}" = "pr" ] && [ "${2:-}" = "view" ]; then
   for b in ${MERGED_BRANCHES:-}; do
     [ "$b" = "${3:-}" ] && { echo MERGED; exit 0; }
@@ -70,6 +87,8 @@ class ReaperTest(unittest.TestCase):
         self.gh = os.path.join(self.repo, "gh-stub.sh")
         self._write(self.gh, _GH_STUB)
         os.chmod(self.gh, 0o755)
+        # One line per gh invocation — lets a test count batch vs per-branch calls.
+        self.gh_call_log = os.path.join(self.tmp, "gh-calls.log")
 
     # --- helpers -----------------------------------------------------------
     def _git(self, *args, cwd=None):
@@ -108,17 +127,30 @@ class ReaperTest(unittest.TestCase):
         out = self._git("branch", "--format=%(refname:short)").stdout
         return {ln.strip() for ln in out.splitlines() if ln.strip()}
 
-    def _env(self, merged=(), gh_bin=None):
+    def _gh_calls(self, kind=None):
+        """Recorded gh invocations, optionally filtered by a "pr list"/"pr view"
+        prefix. Empty when gh was never invoked."""
+        if not os.path.exists(self.gh_call_log):
+            return []
+        with open(self.gh_call_log) as f:
+            calls = [ln.strip() for ln in f if ln.strip()]
+        return [c for c in calls if c.startswith(kind)] if kind else calls
+
+    def _env(self, merged=(), gh_bin=None, batch_omit=(), list_fails=False):
         env = os.environ.copy()
         env["REAP_GH_BIN"] = gh_bin if gh_bin is not None else self.gh
         env["MERGED_BRANCHES"] = " ".join(merged)
         env["REAP_MIN_INTERVAL"] = "0"
+        env["GH_CALL_LOG"] = self.gh_call_log
+        env["BATCH_OMIT"] = " ".join(batch_omit)
+        env["LIST_FAILS"] = "1" if list_fails else "0"
         return env
 
-    def _run(self, *extra, merged=(), gh_bin=None, dry=False, cwd=None):
+    def _run(self, *extra, merged=(), gh_bin=None, dry=False, cwd=None,
+             batch_omit=(), list_fails=False):
         args = ["bash", self.reaper, *(("--dry-run",) if dry else ()), *extra]
         return subprocess.run(args, cwd=cwd or self.repo,
-                              env=self._env(merged, gh_bin),
+                              env=self._env(merged, gh_bin, batch_omit, list_fails),
                               capture_output=True, text=True)
 
     def _install_bootstrap(self, worktree):
@@ -190,6 +222,64 @@ class ReaperTest(unittest.TestCase):
         self._add_branch_with_commit("dangling-open")  # not ancestor, gh OPEN
         self._run(merged=[])
         self.assertIn("claude/dangling-open", self._branches())
+
+    # --- gh batching (N+1 removal) -----------------------------------------
+    def test_batches_state_lookups_instead_of_one_view_per_branch(self):
+        """The N+1: gh_state ran `gh pr view <branch>` per candidate, and
+        bootstrap-session.sh runs the reaper SYNCHRONOUSLY at SessionStart — so
+        a throttle-expired session with several stale worktrees serialised those
+        round-trips into seconds of startup latency. States now come from ONE
+        `gh pr list` batch."""
+        names = ["wt-b1", "wt-b2", "wt-b3"]
+        for n in names:
+            self._add_worktree(n)
+        r = self._run(merged=[f"claude/{n}" for n in names])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self._gh_calls("pr list")), 1,
+                         f"expected exactly one batch call, got {self._gh_calls()}")
+        self.assertEqual(self._gh_calls("pr view"), [],
+                         "no per-branch `pr view` once the batch answered")
+        for n in names:
+            self.assertFalse(
+                os.path.exists(os.path.join(self.repo, ".claude", "worktrees", n)),
+                f"{n} was proven MERGED by the batch and must still be reaped")
+
+    def test_batch_is_fetched_once_across_both_passes(self):
+        """Pass 1 (worktrees) and pass 2 (dangling branches) share one fetch —
+        the map is loaded lazily and memoised, not re-queried per pass."""
+        self._add_worktree("wt-merged")
+        self._add_branch_with_commit("dangling-squash")  # not an ancestor → needs gh
+        self._run(merged=["claude/wt-merged", "claude/dangling-squash"])
+        self.assertEqual(len(self._gh_calls("pr list")), 1,
+                         f"batch must be fetched once, got {self._gh_calls()}")
+        self.assertNotIn("claude/dangling-squash", self._branches())
+
+    def test_falls_back_to_pr_view_when_branch_missing_from_batch(self):
+        """A PR older than `--limit` is absent from the batch. It must fall back
+        to the single-branch query and stay reapable — batching must not
+        silently shrink what the reaper can prove merged."""
+        path = self._add_worktree("wt-old")
+        r = self._run(merged=["claude/wt-old"], batch_omit=["claude/wt-old"])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self._gh_calls("pr view")), 1,
+                         "a batch miss must be resolved by one per-branch query")
+        self.assertFalse(os.path.exists(path),
+                         "a merged PR outside the batch window must still be reaped")
+
+    def test_batch_failure_falls_back_to_pr_view(self):
+        """`gh pr list` failing (no auth / API error) must degrade to the old
+        per-branch path, not disable reaping outright."""
+        path = self._add_worktree("wt-merged")
+        r = self._run(merged=["claude/wt-merged"], list_fails=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self._gh_calls("pr view")), 1)
+        self.assertFalse(os.path.exists(path))
+
+    def test_no_gh_calls_when_there_are_no_candidates(self):
+        """The batch is lazy: a run with nothing to judge must not pay for it."""
+        self._run(merged=[])
+        self.assertEqual(self._gh_calls(), [],
+                         "no candidate → gh must never be invoked")
 
     # --- --keep / session anchor -------------------------------------------
     def test_keep_protects_anchor_when_cwd_is_a_different_worktree(self):

@@ -41,9 +41,16 @@
 # to once per REAP_MIN_INTERVAL seconds (marker: .claude/state/reap_last_run).
 # --force bypasses the throttle; --dry-run ignores it (read-only).
 #
+# gh cost: PR states are fetched with ONE batched `gh pr list` (see gh_state)
+# rather than a `gh pr view` per candidate. bootstrap-session.sh runs this at
+# SessionStart *synchronously*, so with several stale worktrees the old
+# per-branch loop serialised into seconds of startup latency.
+#
 # Env:
 #   REAP_GH_BIN        gh binary (default: gh). Test/CI seam.
 #   REAP_MIN_INTERVAL  throttle window in seconds (default: 21600 = 6h; 0 = off).
+#   REAP_GH_PR_LIMIT   how many PRs the batch fetches (default: 200). A branch
+#                      outside that window falls back to a single `gh pr view`.
 #   REAP_DRY_RUN=1     same as --dry-run.
 #
 # Always exits 0 — a SessionStart helper must never block a session.
@@ -55,6 +62,10 @@ MIN_INTERVAL="${REAP_MIN_INTERVAL:-21600}"
 # A non-integer override must not leak into the arithmetic below — fall back to
 # the default rather than silently disabling the throttle on a bad value.
 case "$MIN_INTERVAL" in ''|*[!0-9]*) MIN_INTERVAL=21600 ;; esac
+# How many PRs the batched state lookup fetches. Same bad-value guard: a
+# non-integer would be passed straight to `gh --limit` and fail the batch.
+GH_PR_LIMIT="${REAP_GH_PR_LIMIT:-200}"
+case "$GH_PR_LIMIT" in ''|*[!0-9]*|0) GH_PR_LIMIT=200 ;; esac
 DRY_RUN=0
 FORCE=0
 [ "${REAP_DRY_RUN:-0}" = "1" ] && DRY_RUN=1
@@ -122,10 +133,39 @@ if [ "$DRY_RUN" -eq 0 ] && [ "$FORCE" -eq 0 ] && [ "$MIN_INTERVAL" -gt 0 ] 2>/de
 fi
 
 # --- helpers -----------------------------------------------------------------
+# PR states come from ONE batched `gh pr list`, not a `gh pr view` per branch.
+# Newline-delimited "branch<TAB>state" records (a plain string, not an
+# associative array — bash 3.2 on macOS has none).
+#
+# The fetch MUST happen here, in the main shell, not lazily inside gh_state:
+# every call site is a command substitution (`state=$(gh_state …)`), which runs
+# in a SUBSHELL, so a memo assigned there is discarded when it exits and the
+# batch would be re-fetched once per candidate — exactly the N+1 this removes.
+# Subshells inherit variables, so loading first and reading later works.
+_pr_states=""
+
+_load_pr_states() {
+  command -v "$GH" >/dev/null 2>&1 || return 0
+  # On failure (no auth / network / API error) the map stays empty and every
+  # lookup falls through to the per-branch query in gh_state — i.e. the original
+  # behaviour, including its fail-safe.
+  _pr_states=$("$GH" pr list --state all --limit "$GH_PR_LIMIT" \
+                 --json headRefName,state \
+                 --jq '.[] | "\(.headRefName)\t\(.state)"' 2>/dev/null) || _pr_states=""
+}
+
 gh_state() {
   # MERGED / OPEN / CLOSED for a branch's PR, or "" when gh can't answer.
-  local branch="$1"
+  local branch="$1" hit
   command -v "$GH" >/dev/null 2>&1 || { echo ""; return; }
+  hit=$(printf '%s\n' "$_pr_states" | awk -F'\t' -v b="$branch" '$1==b{print $2; exit}')
+  if [ -n "$hit" ]; then
+    echo "$hit"
+    return
+  fi
+  # Not in the batch window (PR older than --limit), or the batch call failed.
+  # Fall back to the single-branch query so such a PR stays reapable — batching
+  # must not silently shrink what the reaper can prove merged.
   "$GH" pr view "$branch" --json state --jq .state 2>/dev/null || echo ""
 }
 
@@ -170,6 +210,17 @@ wt_records=$(git worktree list --porcelain | _parse_worktrees)
 
 # Branch names that are checked out in *some* worktree (so NOT dangling).
 checked_out_branches=$(printf '%s\n' "$wt_records" | awk -F'\t' '$2!=""{print $2}')
+
+# Every local claude/* branch — the universe both passes draw candidates from
+# (pass 1 via its worktree, pass 2 via the dangling ones). Hoisted so the batch
+# below can be skipped entirely, and so pass 2 reuses it instead of re-running
+# for-each-ref.
+claude_branches=$(git for-each-ref --format='%(refname:short)' refs/heads/claude/ 2>/dev/null)
+
+# Fetch the PR-state map once, up front — see the _load_pr_states comment for why
+# it cannot be lazy. Skipped when there is no claude/* branch at all, so a fresh
+# checkout with nothing to reap still costs zero gh calls.
+[ -n "$claude_branches" ] && _load_pr_states
 
 removed_wt=0
 removed_br=0
@@ -260,7 +311,7 @@ while IFS= read -r branch; do
     fi
   fi
 done <<EOF
-$(git for-each-ref --format='%(refname:short)' refs/heads/claude/ 2>/dev/null)
+$claude_branches
 EOF
 
 # --- finish ------------------------------------------------------------------
