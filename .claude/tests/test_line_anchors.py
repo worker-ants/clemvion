@@ -332,18 +332,23 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
     def _pick_commit_fixture(self):
         """Most recent commit with enough diff to exercise the gutter.
 
-        Deliberately NOT `HEAD`. This suite replays real git history rather than
-        fixtures (unified diff is git's format, not ours — see the class notes),
-        but that only works if the commit under test actually contains a diff.
-        Pinning HEAD tied the result to something the test does not measure: a
-        small doc-only last commit yielded 13 annotated lines against a
-        `> 20` assertion, so the suite went RED for a change that never touched
-        the gutter — and would have "healed" on the next unrelated commit. A
+        Not hard-coded to `HEAD` — it may well pick HEAD, but only when HEAD
+        qualifies. This suite replays real git history rather than fixtures
+        (unified diff is git's format, not ours — see the class notes), but that
+        only works if the commit under test actually contains a diff. Pinning
+        HEAD tied the result to something the test does not measure: a small
+        doc-only last commit yielded 13 annotated lines against a `> 20`
+        assertion, so the suite went RED for a change that never touched the
+        gutter — and would have "healed" on the next unrelated commit. A
         threshold low enough for any commit would have been the mirror failure:
         green whether or not the gutter works.
 
         `--numstat` is a cheap pre-filter, so only the chosen commit pays for a
         full `--prepare` run.
+
+        On a shallow CI clone the search collapses to roughly one commit; that
+        is harmless, because a shallow root has no parent and its `--numstat`
+        totals the whole tree, clearing the threshold easily.
         """
         log = _git("log", "-n", str(self._FIXTURE_SEARCH_DEPTH), "--format=%H")
         for sha in filter(None, (l.strip() for l in log.split("\n"))):

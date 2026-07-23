@@ -540,5 +540,51 @@ class KnownRemainingFalsePositiveTest(unittest.TestCase):
                 self.assertTrue(guard._is_git_push(command))
 
 
+class KnownFalseNegativeTest(unittest.TestCase):
+    """UNSAFE-DIRECTION gap — the opposite sign from the class above.
+
+    Everything in `KnownRemainingFalsePositiveTest` errs toward blocking, which
+    costs a bypass keystroke. These do the reverse: the push is not detected at
+    all, so `main()` returns 0 without running either gate and WITHOUT the
+    fail-open banner — the review-before-push requirement silently does not
+    apply. Tracked as harness-guard-followups §J.
+
+    These assertions describe the BUG, not the intent. They exist so that:
+      - an unrelated change that widens or narrows the bypass cannot pass
+        unnoticed, and
+      - the §J fix is proved by FLIPPING them to assertTrue rather than by
+        hand-checking. Do that in the same commit that edits `_GIT_PUSH`;
+        the frozen-pattern pin and the differential corpus move with it.
+
+    Cause: `_GIT_PUSH`'s env-prefix group uses `\\S+`, which ends at the space
+    INSIDE a quoted value. `guard_default_branch_bash.py` already carries the
+    fix (`(?:'[^']*'|"[^"]*"|[^\\s'"]\\S*)`); it is unapplied here only because
+    this pattern is pinned byte-for-byte.
+    """
+
+    def test_quoted_env_prefix_hides_a_push(self):
+        for command in (
+            'GIT_SSH_COMMAND="ssh -i ~/.key" git push origin main',
+            "GIT_SSH_COMMAND='ssh -i ~/.key' git push origin main",
+            'GIT_AUTHOR_NAME="John Doe" git push --force origin main',
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(
+                    guard._is_git_push(command),
+                    "§J appears fixed — flip this class to assertTrue",
+                )
+
+    def test_unquoted_env_prefix_is_unaffected(self):
+        """The boundary: only values containing a space are lost, so the fix has
+        to widen the value, not the whole prefix rule."""
+        for command in (
+            "GIT_SSH_COMMAND=ssh git push origin main",
+            "GIT_AUTHOR_NAME=John git push origin main",
+            "git push origin main",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(guard._is_git_push(command))
+
+
 if __name__ == "__main__":
     unittest.main()
