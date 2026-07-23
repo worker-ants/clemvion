@@ -106,8 +106,10 @@ PR 이 merge 되면 그 worktree·local branch 는 더 이상 필요 없다. 정
 
 **정리 대상·조건** (보수적, 모두 충족 시에만):
 
-- **worktree** (`.claude/worktrees/<name>` 의 `claude/*` 브랜치): `gh pr view <branch>` 가 **MERGED** + uncommitted 변경 없음(clean) → `cleanup-worktree.sh <name> --force` 로 worktree+local branch 제거. (squash merge 는 default 의 조상이 아니라 `git branch -d` 가 거부하므로 `--force`=`-D`; merge 가 확인됐으니 안전.)
-- **dangling branch** (worktree 없는 `claude/*`): `git branch -d` 먼저(조상-merge 면 성공, 아니면 git 이 거부=안전망) → 실패 + `gh` MERGED 면 `git branch -D`.
+- **worktree** (`.claude/worktrees/<name>` 의 `claude/*` 브랜치): PR 상태가 **MERGED** + uncommitted 변경 없음(clean) → `cleanup-worktree.sh <name> --force` 로 worktree+local branch 제거. (squash merge 는 default 의 조상이 아니라 `git branch -d` 가 거부하므로 `--force`=`-D`; merge 가 확인됐으니 안전.)
+- **dangling branch** (worktree 없는 `claude/*`): `git branch -d` 먼저(조상-merge 면 성공, 아니면 git 이 거부=안전망) → 실패 + PR 상태가 MERGED 면 `git branch -D`.
+
+**PR 상태 조회** — `gh pr list --state all --limit <REAP_GH_PR_LIMIT>`(기본 200) **1회 배치**로 `branch→state` 맵을 선구성한다. 종전엔 후보마다 `gh pr view <branch>` 를 순차 호출해, SessionStart 가 **동기**인 탓에 후보가 쌓이면 세션 시작이 수 초 블로킹됐다. `--limit` 창 밖(= 오래된 PR)이거나 배치 호출이 실패하면 그 브랜치만 **단건 `gh pr view` 로 폴백**한다 — 배치가 "merge 를 증명할 수 있는 범위" 를 조용히 좁히지 않게 하기 위함. `claude/*` 브랜치가 하나도 없으면 배치 자체를 건너뛴다(gh 호출 0회).
 
 **불변식**:
 
@@ -118,6 +120,6 @@ PR 이 merge 되면 그 worktree·local branch 는 더 이상 필요 없다. 정
   - **한계**: 자기 세션의 앵커만 알 수 있다. 동시에 열린 다른 세션이 앵커로 쓰는 worktree 의 PR 이 merge 되면 그 세션은 여전히 죽는다("살아있는 세션 앵커 레지스트리" 가 필요해 과하다고 판단 — 하네스의 worktree recycle 로 복구되는 것이 관측됨).
 - **dirty worktree 보존**(in-flight 작업 안전).
 - **fail-safe** — `gh` 없음/미인증/오류면 worktree 제거를 건너뛴다(조상-merge dangling 의 `-d` 만 수행). 증명 못 한 merge 는 그대로 두고 수동 `cleanup-worktree.sh` 로 처리.
-- **throttle** — 세션 시작마다의 `gh` 비용을 묶기 위해 실제 실행은 `REAP_MIN_INTERVAL`(기본 6h)당 1회. `--force` 는 throttle 무시, `--dry-run` 은 read-only 라 항상 실행.
+- **throttle** — 세션 시작마다의 `gh` 비용을 묶기 위해 실제 실행은 `REAP_MIN_INTERVAL`(기본 6h)당 1회. `--force` 는 throttle 무시, `--dry-run` 은 read-only 라 항상 실행. 한 번 실행될 때의 `gh` 왕복 수는 위 **배치 조회**(`REAP_GH_PR_LIMIT`, 기본 200)가 1회로 묶는다.
 
 활성화: `.claude/settings.json` 의 SessionStart(`bootstrap-session.sh`) 등록만으로 자동.
