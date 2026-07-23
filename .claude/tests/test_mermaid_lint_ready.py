@@ -338,5 +338,107 @@ class PreCommitExecutionTest(unittest.TestCase):
         self.assertIn("skipped", r.stderr)
 
 
+class PostToolUseImportFailOpenTest(unittest.TestCase):
+    """The `is_ready is None` branch, driven for real.
+
+    lint_mermaid_posttooluse.py imports the shared readiness helper inside a
+    try/except and leaves `is_ready = None` when that fails, so a broken helper
+    cannot wedge the editor. main() folds that None into the same fail-open
+    branch as "not installed" — but nothing ever EXECUTED that path, so the
+    branch was only ever verified by reading it (harness-guard-followups §A W4).
+
+    Reproduced by copying the hook next to a `_lib/mermaid_lint_ready.py` that
+    raises at import time: the hook resolves `_lib` from its own location, so the
+    copy picks up the broken one.
+    """
+
+    _BROKEN_LIB = "raise RuntimeError('simulated mermaid_lint_ready import failure')\n"
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+        self.hooks_dir = os.path.join(self.tmp, "hooks")
+        os.makedirs(os.path.join(self.hooks_dir, "_lib"))
+        self.hook = os.path.join(self.hooks_dir, "lint_mermaid_posttooluse.py")
+        shutil.copy(POSTTOOLUSE_SRC, self.hook)
+
+        # A tool dir that WOULD be ready — so if the guard ever stopped failing
+        # open on a broken helper, it would really invoke the linter and the
+        # node-call assertion below would catch it.
+        self.tool_dir = os.path.join(self.tmp, "mermaid-lint")
+        nm = os.path.join(self.tool_dir, "node_modules")
+        os.makedirs(nm)
+        open(os.path.join(nm, ready.MARKER_NAME), "w").close()
+        open(os.path.join(self.tool_dir, "lint-mermaid.mjs"), "w").close()
+
+        self.bin = os.path.join(self.tmp, "bin")
+        os.makedirs(self.bin)
+        node_stub = os.path.join(self.bin, "node")
+        with open(node_stub, "w") as f:
+            f.write(_NODE_STUB)
+        os.chmod(node_stub, 0o755)
+        self.node_call_log = os.path.join(self.tmp, "node-calls.log")
+
+        self.md_file = os.path.join(self.tmp, "doc.md")
+        with open(self.md_file, "w") as f:
+            f.write("# doc\n\n```mermaid\ngraph TD; a-->b;\n```\n")
+
+    def _write_lib(self, source):
+        path = os.path.join(self.hooks_dir, "_lib", "mermaid_lint_ready.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(source)
+
+    def _run(self):
+        env = dict(os.environ)
+        env["PATH"] = self.bin + os.pathsep + env["PATH"]
+        env["MERMAID_LINT_TOOL_DIR"] = self.tool_dir
+        env["NODE_CALL_LOG"] = self.node_call_log
+        env["NODE_EXIT_CODE"] = "0"
+        payload = json.dumps({"tool_input": {"file_path": self.md_file}})
+        return subprocess.run(
+            [sys.executable, self.hook],
+            input=payload, capture_output=True, text=True, env=env, timeout=10,
+        )
+
+    def _node_calls(self):
+        if not os.path.exists(self.node_call_log):
+            return 0
+        with open(self.node_call_log) as f:
+            return len([ln for ln in f if ln.strip()])
+
+    def test_broken_helper_fails_open_without_invoking_the_linter(self):
+        self._write_lib(self._BROKEN_LIB)
+        r = self._run()
+        self.assertEqual(
+            r.returncode, 0,
+            "a helper that fails to import must not block the edit — the hook "
+            "leaves is_ready=None and main() folds that into the skip branch",
+        )
+        self.assertIn("skipped", r.stderr)
+        self.assertIn(
+            "Traceback", r.stderr,
+            "the swallowed import error must still be reported, or the guard "
+            "goes silently dead",
+        )
+        self.assertEqual(
+            self._node_calls(), 0,
+            "with readiness unknowable the linter must not run at all",
+        )
+
+    def test_working_helper_on_the_same_fixture_does_invoke_the_linter(self):
+        """Non-vacuity: the fixture is otherwise READY, so the skip above is
+        caused by the broken import and nothing else."""
+        shutil.copy(_harness.HOOKS_DIR / "_lib" / "mermaid_lint_ready.py",
+                    os.path.join(self.hooks_dir, "_lib", "mermaid_lint_ready.py"))
+        r = self._run()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(
+            self._node_calls(), 1,
+            "same fixture, working helper → the linter runs; otherwise the "
+            "fail-open test above proves nothing",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

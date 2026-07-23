@@ -76,9 +76,18 @@ exactly-once 가 아니라 **수렴**(마커 존재 + 이후 세션 skip)을 단
 - [ ] **W1 — "main 체크아웃 루트" 해석이 3곳(bootstrap·pre-commit·PostToolUse) 중복 + bootstrap 실패
       경로 무신호.** 선재(이 PR 이 도입 아님). 공유 스니펫 추출 또는 3구현 pin 테스트 + bootstrap
       실패 경로에 stderr 진단. (I4 계열 — reaper/이 파일에 반복 등장하는 git-common-dir 중복.)
-- [ ] **W4 — import fail-open(`is_ready is None`) 분기가 실행 기반 테스트 없음.** 코드는 정답(L116 이
-      None 을 skip 분기로 접음, 확인함) — 테스트 커버리지 갭만. 헬퍼를 깨뜨린 상태로 훅을 서브프로세스
-      실행해 exit 0(skip) 을 단언하는 테스트 1건. 20_06_45 W8 이 세운 실행-기반 패턴 재사용.
+- [x] **W4 — import fail-open(`is_ready is None`) 분기가 실행 기반 테스트 없음.** ✅ 완료 (테스트
+      커버리지 PR). `PostToolUseImportFailOpenTest` — 훅을 임시 디렉토리에 복사하고 그 옆
+      `_lib/mermaid_lint_ready.py` 가 **import 시 예외**를 던지게 해(훅이 `_lib` 를 자기 위치에서
+      해석하므로 복사본이 깨진 것을 집는다) 분기를 실제로 태운다. 단언: exit 0(skip) + stderr 에
+      traceback(삼킨 오류가 조용히 죽지 않음) + **node 미호출**. 비-vacuity 는 뮤턴트가 아니라
+      **짝 테스트**로 — 같은 fixture 에 정상 헬퍼를 넣으면 린터가 실제로 1회 호출된다(즉 위 skip 이
+      깨진 import 때문임이 고정된다).
+- [x] **(신규) `.claude/tests/README.md` "What's covered" 카탈로그 drift.** ✅ 완료 (같은 PR).
+      D 리뷰 INFO #7·§F 리뷰 W4 가 각각 지적. 실측 27개 중 **9개 미등재**(그 주에 추가된 3개 포함)
+      였다 — 무엇을 지키는지 아무도 기록하지 않은 테스트가 조용히 쌓인 것. `test_tests_readme_catalog.py`
+      로 **양방향**(미등재 / 존재하지 않는 파일을 가리키는 행) 검사 + 누락 10행 등재. 파서는 텍스트
+      주입 가능하게 짜고 sanity 테스트로 "빈 결과 → 항진명제" 차단. 뮤턴트 양방향 포착 확인.
 - [ ] **W3 — 테스트 헬퍼 `_node_calls`/`_run` 도입부가 `test_mermaid_lint_ready.py` 내 중복.** 순수
       위생, 동작 무관.
 - [ ] **W8 — `harness-checks.yml` 만 node 22 / setup-python 사용(다른 워크플로는 node 24).** 선재 CI
