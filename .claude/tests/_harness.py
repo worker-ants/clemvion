@@ -48,3 +48,23 @@ def load_module_by_path(name: str, path: Path) -> ModuleType:
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+# Shapes a `VAR=value` assignment's VALUE can take. Both guards skip such a
+# prefix before looking at the real command, both had the same regex, and both
+# regressed the same way — twice — by narrowing that value's alternatives. Their
+# superset tests generate inputs from this list, and it lives here so the two
+# cannot drift: a shape added because one guard broke on it is immediately
+# exercised against the other.
+#
+# Order and duplicates matter (the tests assert there are none), so add rather
+# than rewrite. Each entry is the VALUE alone; templates supply the assignment.
+ENV_VALUE_SHAPES = (
+    "x", "'x'", '"x"', "'x", '"x', "x'", 'x"', "'x y'", '"x y"', "''", '""',
+    "'", '"', "a'b", 'a"b', "x=y", "-i", "~/.key", "'x y", '"x y',
+    r'"a\"b"', r'"a\"b', r'"a\\"', "a b", "''''", '"""',
+    # Quoted piece glued to an unquoted one — harness-guard-followups §L, still
+    # undetected by every generation. Here so a future §L fix is measured on the
+    # same axes rather than on a fresh, incomparable set.
+    '"a b"c', "'a b'c", 'x"a b"',
+)

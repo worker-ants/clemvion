@@ -30,10 +30,11 @@ first token made `git add -A && git commit -m "x"` — the common shape —
 silently invisible, i.e. it missed exactly the moment described above.
 The split does not understand quoting; the two false-positive classes
 this opens are pinned in `test_guard_default_branch_bash_mutating.py`
-and accepted because this hook never blocks. Two env-value forms stay
-unmatched — an empty value (`VAR= git commit`) and an unclosed quote —
-both pinned there too; neither is a valid command shape worth widening
-the pattern for.
+and accepted because this hook never blocks. An unclosed quote
+(`A='x mkdir foo`) DOES match — the env-value group keeps `\S+` as a
+trailing fallback precisely so it cannot silently narrow. Only an empty
+value (`VAR= git commit`) stays unmatched, since every alternative needs
+at least one character; that one is pinned there too.
 
 Once-per-session deduplication:
   We touch `.claude/state/main_worktree_bash_warned/<session_id>`
@@ -83,14 +84,21 @@ except Exception:
 # key" git commit` is an ordinary shape, and a bare `\S+` stops at the space
 # inside the quotes — the real command then looks like it starts with `key"` and
 # the nudge is silently lost. The three alternatives are kept disjoint on the
-# first character (`'`, `"`, neither) so exactly one can ever apply.
+# first character, EXCEPT the trailing `\S+` fallback, which deliberately
+# overlaps them. Leaving it out is what broke this pattern twice: with
+# `[^\s'"]\S*` as the last alternative, a value that opens a quote and never
+# closes it (`A='x mkdir foo`) matches nothing, the prefix group collapses to
+# zero repetitions, and the nudge is lost. Quoted alternatives come first so a
+# well-formed value is still consumed by one of them; `\S+` only takes what they
+# cannot, which is what keeps this a strict SUPERSET of the plain-`\S+` version
+# it replaced.
 #
-# That disjointness is clarity, not a measured fix: the ambiguous form was timed
-# too, and it is also linear here (`A="a b" ` ×24 + a failing tail: both under a
-# microsecond). Unlike the push guard's `_MESSAGE_ARG` ReDoS, every repetition is
-# pinned by `^` and a mandatory `IDENT=`, which leaves the engine no partition to
-# explore. Said plainly because the opposite claim — "this shape is dangerous" —
-# would be the same unmeasured assertion that put item §C on the backlog.
+# The resulting ambiguity was timed and is linear here (`A="a b" ` ×24 plus a
+# failing tail: under a microsecond). Unlike the push guard's `_MESSAGE_ARG`
+# ReDoS, every repetition is pinned by `^` and a mandatory `IDENT=`, which leaves
+# the engine no partition to explore. Said plainly because the opposite claim —
+# "this shape is dangerous" — would be the same unmeasured assertion that put
+# item §C on the backlog.
 #
 # NOTE: `guard_review_before_push.py::_GIT_PUSH` carries this env-prefix group
 # byte-identically — §J (2026-07-24) fixed it there, where the same gap bypassed
@@ -100,7 +108,7 @@ except Exception:
 # is a RELEASE path, where a miss keeps the command blocked.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|[^\s'"]\S*)\s+)*(?:
+    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|\S+)\s+)*(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b

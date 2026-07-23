@@ -27,6 +27,7 @@ deliberate: err toward nudging, never toward blocking.
 
 from __future__ import annotations
 
+import re
 import unittest
 
 import _harness
@@ -173,15 +174,30 @@ class EnvPrefixTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(guard._is_mutating(command))
 
-    def test_malformed_env_values_stay_unmatched(self):
-        """Neither form is a valid command shape; widening for them costs more
-        than it buys, so the gap is pinned rather than closed."""
+    def test_empty_env_value_stays_unmatched(self):
+        """`VAR= git commit` — every alternative needs at least one character.
+        Not a shape worth widening for, so the gap is pinned rather than closed.
+        """
+        self.assertFalse(guard._is_mutating("VAR= git commit -m x"))
+
+    def test_unterminated_quote_still_matches(self):
+        """Regression, plus a lesson in how it got pinned as "intended".
+
+        Adding quoted-value support REPLACED the `\\S+` catch-all instead of
+        falling back to it, so a value that opens a quote and never closes it
+        stopped matching and these nudges went silent. An earlier revision of
+        this very test asserted that as correct — written by judging the new
+        pattern on its own instead of against what the old one classified.
+        `OldEnvPrefixSupersetTest` now makes that comparison mechanical, over
+        generated inputs rather than remembered ones.
+        """
         for command in (
-            "VAR= git commit -m x",  # empty value — `\\S+`/quotes both need ≥1 char
-            'A="unclosed git commit -m x',  # no closing quote
+            "A='x mkdir foo",
+            'A="unclosed git commit -m x',
+            "A=' git commit -m x",
         ):
             with self.subTest(command=command):
-                self.assertFalse(guard._is_mutating(command))
+                self.assertTrue(guard._is_mutating(command))
 
     def test_env_prefix_does_not_promote_a_read_only_command(self):
         for command in (
@@ -190,6 +206,126 @@ class EnvPrefixTest(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertFalse(guard._is_mutating(command))
+
+
+class OldEnvPrefixSupersetTest(unittest.TestCase):
+    """Classification may only ever GROW — the push guard's floor, applied here.
+
+    This is the forgiving hook: it never blocks, which is precisely why a silent
+    narrowing is easy to ship and hard to notice. One was — adding quoted-value
+    support replaced the `\\S+` catch-all rather than falling back to it, and a
+    test in the same change pinned the loss as intended behaviour. Frozen below
+    is the prefix as it stood before quoted values existed; whatever it
+    classified must still be classified.
+
+    Generated rather than listed, for the same reason the push guard's
+    `GeneratedFloorTest` is: a curated set only ever contains shapes somebody
+    already thought of, and the regressing shape was in nobody's head.
+    """
+
+    # Do not update when `_MUTATING` changes — it is the fixed point the
+    # comparison needs. Only the PREFIX is frozen; the command body comes from
+    # the live pattern so this never has to mirror the verb list.
+    _PRE_QUOTED_PREFIX = r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    _SPLIT_MARKER = r"\s+)*(?:"
+
+    # Shared with the push guard's `GeneratedFloorTest` — see the comment on the
+    # constant. Both hooks skip the same prefix and both regressed on it, so a
+    # shape learned from one must immediately be tried against the other.
+    _VALUES = _harness.ENV_VALUE_SHAPES
+    _COMMANDS = ["mkdir foo", "rm -rf build", 'git commit -m "x"', "pnpm install"]
+    # The SECOND axis, and it is not decoration: a value shape only breaks the
+    # prefix group in combination with how many assignments surround it — the
+    # group has to fail a repetition for the collapse to happen at all. The push
+    # guard's `GeneratedFloorTest` generates the same axis; leaving it out here
+    # would have tested a strictly easier problem than the one that regressed.
+    _TEMPLATES = [
+        "A={v} {c}",
+        "A=1 B={v} {c}",
+        "A={v} B=z {c}",
+        "A={v} B={v} {c}",
+    ]
+    # Same non-vacuity floor the push guard's `GeneratedFloorTest` uses, and a
+    # RATIO for the same reason: this population grows whenever a shape is added,
+    # so an absolute count silently loosens into nothing.
+    _MIN_PARTICIPATION = 0.5
+
+    def _pre_quoted_is_mutating(self, command: str) -> bool:
+        body = guard._MUTATING.pattern.split(self._SPLIT_MARKER, 1)[1]
+        pattern = re.compile(self._PRE_QUOTED_PREFIX + "(?:" + body, re.VERBOSE)
+        return any(
+            pattern.search(segment)
+            for segment in guard._SEGMENT_SPLIT.split(command)
+        )
+
+    def _cases(self):
+        return [t.format(v=v, c=c)
+                for v in self._VALUES
+                for c in self._COMMANDS
+                for t in self._TEMPLATES]
+
+    def test_both_axes_are_actually_generated(self):
+        """The multi-assignment axis is load-bearing, so pin it.
+
+        Same escape hatch `test_the_regression_shapes_are_still_generated`
+        closes for values: a failing superset test can be "fixed" by deleting
+        the templates that expose it, and nothing else here would notice. The
+        collapse only happens when the prefix group has to FAIL a repetition, so
+        single-assignment cases alone test a strictly easier problem.
+        """
+        multi = [t for t in self._TEMPLATES if t.count("=") >= 2]
+        single = [t for t in self._TEMPLATES if t.count("=") == 1]
+        self.assertGreaterEqual(len(multi), 2, "multi-assignment axis was dropped")
+        self.assertTrue(single, "single-assignment baseline was dropped")
+
+    def test_the_frozen_prefix_still_composes(self):
+        """Guards this test's own splice: if `_MUTATING` is reshaped so the
+        marker disappears, the comparison would silently compare nothing."""
+        self.assertIn(self._SPLIT_MARKER, guard._MUTATING.pattern)
+        self.assertTrue(self._pre_quoted_is_mutating("A=x mkdir foo"))
+
+    def test_no_duplicate_values(self):
+        """A duplicate silently shrinks the space while every count elsewhere
+        keeps claiming the larger number."""
+        values = list(self._VALUES)
+        dupes = sorted({v for v in values if values.count(v) > 1})
+        self.assertEqual(dupes, [], "duplicate values in the generated set")
+
+    def test_no_classification_is_lost(self):
+        cases = self._cases()
+        compared = sum(1 for c in cases if self._pre_quoted_is_mutating(c))
+        self.assertGreaterEqual(
+            compared / len(cases), self._MIN_PARTICIPATION,
+            f"only {compared}/{len(cases)} generated commands engage the frozen "
+            "prefix — this comparison would pass no matter what the classifier did",
+        )
+        lost = [c for c in cases
+                if self._pre_quoted_is_mutating(c) and not guard._is_mutating(c)]
+        self.assertEqual(
+            lost, [],
+            "the classifier stopped recognising commands it used to recognise",
+        )
+
+    def test_quoted_support_actually_added_something(self):
+        gained = [c for c in self._cases()
+                  if guard._is_mutating(c) and not self._pre_quoted_is_mutating(c)]
+        self.assertTrue(gained, "quoted values are not being recognised at all")
+
+    def test_shares_the_push_guard_s_known_gap(self):
+        """§L, pinned here too — the plan says both hooks share this gap, and a
+        claim in prose is not a claim anyone re-checks.
+
+        A value whose closing quote is glued to more text matches no
+        alternative, so the prefix collapses and the nudge is lost. Harmless
+        here (this hook never blocks); recorded so that fixing §L flips both
+        canaries together rather than leaving this one quietly stale.
+        """
+        for command in ('A="a b"c mkdir foo', "A='a b'c rm -rf build"):
+            with self.subTest(command=command):
+                self.assertFalse(
+                    guard._is_mutating(command),
+                    "§L appears fixed here — flip this and the push guard canary",
+                )
 
 
 class BacktrackingTest(unittest.TestCase):
