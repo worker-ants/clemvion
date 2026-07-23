@@ -351,6 +351,126 @@ _PLAN_MSG = (
 )
 
 
+# --- fail-open observability -------------------------------------------------
+# The gates fail OPEN by design: a broken guard must not stop routine work. The
+# cost is that a gate can be effectively OFF and nobody notices — this module
+# calls itself the hard gate for review-before-push, so silent degradation is
+# the worst shape it can take. Policy decision 2026-07-23: keep failing open,
+# but make it LOUD and COUNTED (harness-guard-followups §E).
+#
+# Nothing here may ever raise into the guard: observability that breaks the
+# thing it observes is worse than no observability.
+_FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+_FAILOPEN_ESCALATE_AT = 3
+
+
+def _state_path() -> str:
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    return os.path.join(project_dir, ".claude", "state", _FAILOPEN_STATE_NAME)
+
+
+def _read_streak() -> int:
+    try:
+        with open(_state_path(), encoding="utf-8") as fh:
+            value = json.load(fh).get("streak")
+        return value if isinstance(value, int) and value > 0 else 0
+    except Exception:
+        return 0
+
+
+def _write_streak(streak: int, gates: list[tuple[str, str]]) -> None:
+    path = _state_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(
+            {"streak": streak, "gates": [{"gate": g, "reason": r} for g, r in gates]},
+            fh,
+        )
+
+
+def _report_fail_open(degraded: list[tuple[str, str]]) -> None:
+    """Announce (and count) any gate that could not answer.
+
+    A clean run resets the streak, so the counter measures *consecutive*
+    degradation — the shape that means "this is not a blip, the gate is off".
+    """
+    try:
+        if not degraded:
+            if os.path.exists(_state_path()):
+                os.remove(_state_path())
+            return
+
+        streak = _read_streak() + 1
+        _write_streak(streak, degraded)
+
+        lines = [
+            "",
+            "⚠️  push guard: 게이트가 판정하지 못하고 통과시켰습니다 (fail-open).",
+        ]
+        for gate, reason in degraded:
+            lines.append(f"      {gate} gate — {reason}")
+        lines += [
+            "",
+            "    이 push 는 해당 검사를 **받지 않았습니다**. 통과했다는 사실이",
+            "    리뷰/plan 이 갖춰졌다는 근거가 되지 못합니다.",
+            f"    연속 fail-open: {streak}회",
+        ]
+        if streak >= _FAILOPEN_ESCALATE_AT:
+            lines += [
+                "",
+                f"    ‼️  {streak}회 연속입니다 — 이 게이트는 사실상 꺼져 있습니다.",
+                "        일시적 오류가 아니라 가드 자체를 고쳐야 합니다.",
+            ]
+        lines.append("")
+        print("\n".join(lines), file=sys.stderr)
+    except Exception:
+        # Never let reporting break the guard.
+        pass
+
+
+def _run_gates(degraded: list[tuple[str, str]]) -> int:
+    """Run both gates. Appends (gate, reason) for each one that FAILED OPEN.
+
+    "Degraded" means the gate could not answer — module import failure, or an
+    exception inside evaluate_*(). A gate the user consciously bypassed with
+    BYPASS_* is NOT degraded: that is an intentional override, not a silent one.
+    """
+    # ---- REVIEW gate -------------------------------------------------------
+    if os.environ.get("BYPASS_REVIEW_GUARD") != "1":
+        if evaluate_review is None:
+            degraded.append(("REVIEW", "_lib/review_guard.py failed to import"))
+        else:
+            try:
+                decision = evaluate_review()
+            except Exception as exc:
+                traceback.print_exc(file=sys.stderr)
+                decision = None  # fail open on internal error
+                degraded.append(("REVIEW", f"{type(exc).__name__}: {exc}"))
+            if decision is not None and decision.blocked:
+                print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
+                return 2
+
+    # ---- PLAN gate ---------------------------------------------------------
+    if os.environ.get("BYPASS_PLAN_GUARD") != "1":
+        if evaluate_plan is None:
+            degraded.append(("PLAN", "_lib/plan_guard.py failed to import"))
+        else:
+            try:
+                plan = evaluate_plan()
+            except Exception as exc:
+                traceback.print_exc(file=sys.stderr)
+                plan = None  # fail open on internal error
+                degraded.append(("PLAN", f"{type(exc).__name__}: {exc}"))
+            if plan is not None and plan.untouched:
+                print(
+                    _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
+                    file=sys.stderr,
+                )
+                return 2
+
+    return 0
+
+
 def main() -> int:
     payload = _read_payload()
     tool_input = payload.get("tool_input") or payload.get("input") or {}
@@ -359,32 +479,17 @@ def main() -> int:
     if not _is_git_push(command):
         return 0  # not a push — nothing to enforce.
 
-    # ---- REVIEW gate -------------------------------------------------------
-    if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
-        try:
-            decision = evaluate_review()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            decision = None  # fail open on internal error
-        if decision is not None and decision.blocked:
-            print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
-            return 2
+    # `finally` so the report happens on every exit path, including the
+    # blocking ones (a gate can block while the OTHER one failed open).
+    degraded: list[tuple[str, str]] = []
+    try:
+        return _run_gates(degraded)
+    finally:
+        _report_fail_open(degraded)
 
-    # ---- PLAN gate ---------------------------------------------------------
-    if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
-        try:
-            plan = evaluate_plan()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            plan = None  # fail open on internal error
-        if plan is not None and plan.untouched:
-            print(
-                _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
-                file=sys.stderr,
-            )
-            return 2
 
-    return 0
+if __name__ == "__main__":
+    sys.exit(main())
 
 
 if __name__ == "__main__":

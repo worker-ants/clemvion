@@ -125,6 +125,11 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         env = dict(os.environ)
         env["STUB_REVIEW"] = review
         env["STUB_PLAN"] = plan
+        # The fail-open reporter writes its streak under
+        # $CLAUDE_PROJECT_DIR/.claude/state/. Point it at the per-test temp dir:
+        # otherwise every fail-open case would write into the real repo and the
+        # streak would leak between tests.
+        env["CLAUDE_PROJECT_DIR"] = self.tmp
         # Start from a clean slate so the parent shell's env can't leak a bypass.
         env.pop("BYPASS_REVIEW_GUARD", None)
         env.pop("BYPASS_PLAN_GUARD", None)
@@ -259,6 +264,79 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
     def test_payload_without_command_allows(self):
         r = self._run(payload={"tool_input": {}}, review="blocked", plan="untouched")
         self.assertEqual(r.returncode, 0)
+
+    # --- fail-open OBSERVABILITY (§E policy, 2026-07-23) -------------------
+    # The gates still fail open; what changed is that they no longer do it
+    # silently. A gate that cannot answer must say so and be counted, because
+    # "the push went through" must never be mistaken for "the check passed".
+    def _streak_file(self):
+        return os.path.join(self.tmp, ".claude", "state", "push_guard_failopen.json")
+
+    def _streak(self):
+        with open(self._streak_file(), encoding="utf-8") as fh:
+            return json.load(fh)["streak"]
+
+    def test_import_failure_is_announced_and_counted(self):
+        r = self._run(_PUSH, review="import_error", plan="clean")
+        self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
+        self.assertIn("fail-open", r.stderr)
+        self.assertIn("REVIEW gate", r.stderr)
+        self.assertEqual(self._streak(), 1)
+
+    def test_evaluate_exception_is_announced_and_counted(self):
+        r = self._run(_PUSH, review="raise", plan="clean")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("fail-open", r.stderr)
+        self.assertEqual(self._streak(), 1)
+
+    def test_consecutive_fail_opens_accumulate_and_escalate(self):
+        for expected in (1, 2, 3):
+            r = self._run(_PUSH, review="import_error", plan="clean")
+            self.assertEqual(self._streak(), expected)
+        self.assertIn(
+            "‼️", r.stderr,
+            "a sustained streak must escalate — one blip and a dead gate must "
+            "not read the same",
+        )
+
+    def test_a_clean_run_resets_the_streak(self):
+        self._run(_PUSH, review="import_error", plan="clean")
+        self.assertTrue(os.path.exists(self._streak_file()))
+        self._run(_PUSH, review="clean", plan="clean")
+        self.assertFalse(
+            os.path.exists(self._streak_file()),
+            "the counter measures CONSECUTIVE degradation; a working run clears it",
+        )
+
+    def test_conscious_bypass_is_not_counted_as_degradation(self):
+        """BYPASS_* is a deliberate override, not a silent failure. Counting it
+        would drown the signal this exists to produce."""
+        r = self._run(_PUSH, review="blocked", plan="clean", bypass_review=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn("fail-open", r.stderr)
+        self.assertFalse(os.path.exists(self._streak_file()))
+
+    def test_degradation_is_reported_even_when_the_other_gate_blocks(self):
+        """The report runs in a `finally`, so a blocking exit still surfaces the
+        gate that failed open — otherwise the loudest case would be the quietest."""
+        r = self._run(_PUSH, review="import_error", plan="untouched")
+        self.assertEqual(r.returncode, 2, "the plan gate still blocks")
+        self.assertIn("(plan gate)", r.stderr)
+        self.assertIn("fail-open", r.stderr)
+        self.assertEqual(self._streak(), 1)
+
+    def test_unwritable_state_dir_does_not_break_the_guard(self):
+        """Observability must never break the thing it observes."""
+        env_dir = os.path.join(self.tmp, ".claude", "state")
+        os.makedirs(os.path.dirname(env_dir), exist_ok=True)
+        # A FILE where the state directory should be — makedirs/open will fail.
+        with open(env_dir, "w") as fh:
+            fh.write("not a directory")
+        r = self._run(_PUSH, review="import_error", plan="clean")
+        self.assertEqual(
+            r.returncode, 0,
+            "a failed state write must not change the guard's verdict",
+        )
 
 
 if __name__ == "__main__":
