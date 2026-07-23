@@ -105,7 +105,8 @@ except Exception as exc:  # noqa: BLE001
 # hence the separate PR. Edit that pattern, not `_SEGMENT_IS_GIT` below, which
 # has the same `\S+` but on the release path where a miss is the safe direction.
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\s'\"]\S*)\s+)*"
+    r"git\b[^&;|]*\bpush\b"
 )
 
 # Anything the shell expands makes a text region LIVE: a `push` inside one can

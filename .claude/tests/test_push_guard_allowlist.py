@@ -44,12 +44,33 @@ import _harness  # noqa: F401  — side effect: harness path setup; HOOKS_DIR us
 _HOOK_PATH = _harness.HOOKS_DIR / "guard_review_before_push.py"
 guard = _harness.load_module_by_path("guard_review_before_push", _HOOK_PATH)
 
-# The pre-allowlist regex, frozen. This is the differential BASELINE: the new
-# guard must block everything this blocks, minus the enumerated releases.
+# The pre-allowlist regex, frozen. This is the FALSE-NEGATIVE FLOOR: whatever
+# this caught must still be caught, minus the enumerated releases. It is history
+# and never changes — widening the blind pass (as §J did) can only add to what
+# it catches, so the floor stays valid.
 _LEGACY_PATTERN = (
     r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 )
 _LEGACY = re.compile(_LEGACY_PATTERN)
+
+# The blind first pass as it stands NOW. Pinned separately from the floor above
+# because the two answer different questions, and conflating them is what made
+# §J unfixable-in-place: one test demanded the pattern never change, while the
+# defect WAS the pattern.
+#
+#   _LEGACY_PATTERN — "did we stop catching something we used to?" (regression)
+#   _BLIND_PATTERN  — "did the allowlist layer start blocking on its own?"
+#                     (the allowlist may only ever SUBTRACT from this)
+#
+# §J widened the env-prefix group so a quoted value with spaces
+# (`GIT_SSH_COMMAND="ssh -i ~/.key" git push`) no longer slips past the whole
+# gate. Same three disjoint alternatives `guard_default_branch_bash._MUTATING`
+# already used, kept identical on purpose.
+_BLIND_PATTERN = (
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\s'\"]\S*)\s+)*"
+    r"git\b[^&;|]*\bpush\b"
+)
+_BLIND = re.compile(_BLIND_PATTERN)
 
 
 def legacy_is_push(command: str) -> bool:
@@ -59,10 +80,33 @@ def legacy_is_push(command: str) -> bool:
     return bool(_LEGACY.search(command))
 
 
+def blind_is_push(command: str) -> bool:
+    """The blind first pass alone, without the allowlist releases."""
+    if not command or "push" not in command:
+        return False
+    return bool(_BLIND.search(command))
+
+
 # --- corpus -----------------------------------------------------------------
 # (command, note, release_reason). release_reason=None means "must stay blocked";
 # a string is the argument for why the released text can never execute.
 CORPUS: list[tuple[str, str, str | None]] = [
+    # ---- §J: quoted env prefix hid the push from the blind pass ----------
+    # Not "spellings a parser missed" — the BLIND pass itself missed these, so
+    # the gate never ran at all. `legacy_is_push` returns False for every one,
+    # which is why they carry no release reason: they must block now.
+    ('GIT_SSH_COMMAND="ssh -i ~/.key" git push origin main',
+     "quoted env value with spaces (double)", None),
+    ("GIT_SSH_COMMAND='ssh -i ~/.key' git push origin main",
+     "quoted env value with spaces (single)", None),
+    ('GIT_AUTHOR_NAME="John Doe" git push --force origin main',
+     "quoted env value before a force push", None),
+    ('GIT_SSH_COMMAND="ssh -i k" GIT_AUTHOR_NAME="A B" git push',
+     "two quoted env values in a row", None),
+    ('cd /tmp && GIT_SSH_COMMAND="ssh -i k" git push',
+     "quoted env prefix after a chain separator", None),
+    ('VAR="a && b" git push',
+     "separator inside the quoted env value", None),
     # ---- round 1: spellings a subcommand parser missed -------------------
     ("git add -A\ngit push", "newline as the only separator", None),
     ("git --attr-source main push", "global option before the subcommand", None),
@@ -169,10 +213,22 @@ class BlindPassFrozenTest(unittest.TestCase):
 
     def test_blind_pattern_is_frozen(self):
         self.assertEqual(
-            guard._GIT_PUSH.pattern, _LEGACY_PATTERN,
+            guard._GIT_PUSH.pattern, _BLIND_PATTERN,
             "the blind first pass was edited. It is deliberately ignorant and "
             "carries the no-false-negative guarantee; releases belong in "
             "_redact_inert_text(), not here. See the plan before changing it.",
+        )
+
+    def test_the_pin_targets_the_post_fix_pattern(self):
+        """Guards the pin itself: if `_BLIND_PATTERN` were ever re-synced to the
+        pre-§J text, the pin above would happily freeze the bypass back in."""
+        self.assertNotEqual(
+            _BLIND_PATTERN, _LEGACY_PATTERN,
+            "the pin was reset to the legacy pattern — that is the §J bypass",
+        )
+        self.assertIn(
+            "'[^']*'", _BLIND_PATTERN,
+            "the pinned pattern lost the single-quoted env-value alternative",
         )
 
 
@@ -180,8 +236,11 @@ class DifferentialTest(unittest.TestCase):
     """legacy(c) ⇒ new(c), except for enumerated, justified releases."""
 
     def test_no_new_false_negatives(self):
+        compared = 0
         for command, note, reason in CORPUS:
             with self.subTest(note=note, command=command):
+                if legacy_is_push(command):
+                    compared += 1
                 if legacy_is_push(command) and not guard._is_git_push(command):
                     self.assertIsNotNone(
                         reason,
@@ -189,17 +248,29 @@ class DifferentialTest(unittest.TestCase):
                         "scan catches, and it carries no release reason. This is "
                         "a FALSE NEGATIVE — unreviewed code could be pushed.",
                     )
+        self.assertGreater(
+            compared, 10,
+            "the differential compared almost nothing — the corpus or the legacy "
+            "baseline stopped matching, which makes this test vacuous",
+        )
 
     def test_no_new_blocks(self):
         """The allowlist may only ever RELEASE; it must never add blocking."""
+        blocked = 0
         for command, note, _reason in CORPUS:
             with self.subTest(note=note, command=command):
                 if guard._is_git_push(command):
+                    blocked += 1
                     self.assertTrue(
-                        legacy_is_push(command),
+                        blind_is_push(command),
                         f"{note}: blocked by the new guard but not by the blind "
                         "scan — the allowlist layer must only subtract.",
                     )
+        self.assertGreater(
+            blocked, 10,
+            "the guard blocked almost nothing in the corpus — this test would "
+            "pass no matter what the allowlist did",
+        )
 
     def test_every_enumerated_release_actually_releases(self):
         """A stale release reason (fixed upstream, or never reproducing) would
@@ -540,38 +611,40 @@ class KnownRemainingFalsePositiveTest(unittest.TestCase):
                 self.assertTrue(guard._is_git_push(command))
 
 
-class KnownFalseNegativeTest(unittest.TestCase):
-    """UNSAFE-DIRECTION gap — the opposite sign from the class above.
+class QuotedEnvPrefixTest(unittest.TestCase):
+    """§J, fixed — was an UNSAFE-DIRECTION gap, now a regression floor.
 
-    Everything in `KnownRemainingFalsePositiveTest` errs toward blocking, which
-    costs a bypass keystroke. These do the reverse: the push is not detected at
-    all, so `main()` returns 0 without running either gate and WITHOUT the
-    fail-open banner — the review-before-push requirement silently does not
-    apply. Tracked as harness-guard-followups §J.
+    Until 2026-07-24 these commands were not detected as pushes at all, so
+    `main()` returned 0 without running either gate and without even the
+    fail-open banner: the review-before-push requirement silently did not apply.
+    `GIT_SSH_COMMAND="ssh -i ~/.key" git push` is an ordinary way to push with a
+    specific key, not a contrived string.
 
-    These assertions describe the BUG, not the intent. They exist so that:
-      - an unrelated change that widens or narrows the bypass cannot pass
-        unnoticed, and
-      - the §J fix is proved by FLIPPING them to assertTrue rather than by
-        hand-checking. Do that in the same commit that edits `_GIT_PUSH`;
-        the frozen-pattern pin and the differential corpus move with it.
+    Cause: `_GIT_PUSH`'s env-prefix group used `\\S+`, which ends at the space
+    INSIDE a quoted value, so neither the group nor the following `git\\b`
+    anchor matched. The fix is the same three disjoint alternatives
+    `guard_default_branch_bash._MUTATING` already carried
+    (`(?:'[^']*'|"[^"]*"|[^\\s'"]\\S*)`) — kept byte-identical between the two
+    hooks on purpose.
 
-    Cause: `_GIT_PUSH`'s env-prefix group uses `\\S+`, which ends at the space
-    INSIDE a quoted value. `guard_default_branch_bash.py` already carries the
-    fix (`(?:'[^']*'|"[^"]*"|[^\\s'"]\\S*)`); it is unapplied here only because
-    this pattern is pinned byte-for-byte.
+    The previous class shape asserted the BUG and told the fixer to flip it;
+    this is that flip. Kept as a class so the bypass cannot silently return.
     """
 
-    def test_quoted_env_prefix_hides_a_push(self):
+    def test_quoted_env_prefix_is_detected(self):
         for command in (
             'GIT_SSH_COMMAND="ssh -i ~/.key" git push origin main',
             "GIT_SSH_COMMAND='ssh -i ~/.key' git push origin main",
             'GIT_AUTHOR_NAME="John Doe" git push --force origin main',
+            'GIT_SSH_COMMAND="ssh -i k" GIT_AUTHOR_NAME="A B" git push',
+            'cd /tmp && GIT_SSH_COMMAND="ssh -i k" git push',
+            'VAR="a && b" git push',
         ):
             with self.subTest(command=command):
-                self.assertFalse(
+                self.assertTrue(
                     guard._is_git_push(command),
-                    "§J appears fixed — flip this class to assertTrue",
+                    "a quoted env prefix must not hide a push — this bypassed "
+                    "the entire review gate before §J",
                 )
 
     def test_unquoted_env_prefix_is_unaffected(self):
@@ -584,6 +657,47 @@ class KnownFalseNegativeTest(unittest.TestCase):
         ):
             with self.subTest(command=command):
                 self.assertTrue(guard._is_git_push(command))
+
+
+class ReleasePathNarrownessTest(unittest.TestCase):
+    """`_SEGMENT_IS_GIT` still carries the old `=\\S+`, and that is left alone.
+
+    §J widened the BLOCKING pattern. This one guards the opposite direction: it
+    decides whether a heredoc body may be RELEASED as inert. A quoted env prefix
+    makes it fail to match, so the heredoc is not released and the command stays
+    blocked — the safe direction. Widening a release path is how a real push
+    gets let through, so it needs its own justification, not this PR's.
+
+    Measured rather than asserted, because "it fails safe" is exactly the kind of
+    claim that turns out to be backwards.
+    """
+
+    def test_quoted_env_owner_is_not_released(self):
+        command = (
+            'GIT_AUTHOR_NAME="A B" git commit -F - <<\'EOF\'\n'
+            "git push origin main\n"
+            "EOF"
+        )
+        self.assertFalse(
+            guard._SEGMENT_IS_GIT.match('GIT_AUTHOR_NAME="A B" git commit -F -'),
+            "if this starts matching, the release path widened — re-justify it",
+        )
+        self.assertTrue(
+            guard._is_git_push(command),
+            "an unreleased heredoc must stay blocked (safe direction)",
+        )
+
+    def test_unquoted_env_owner_still_releases(self):
+        """The boundary: the narrowness only costs the quoted form."""
+        command = (
+            "GIT_AUTHOR_NAME=A git commit -F - <<'EOF'\n"
+            "git push origin main\n"
+            "EOF"
+        )
+        self.assertFalse(
+            guard._is_git_push(command),
+            "an inert heredoc message owned by `git commit -F -` is released",
+        )
 
 
 if __name__ == "__main__":
