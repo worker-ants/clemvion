@@ -3,11 +3,19 @@ with the constants they claim to describe.
 
 The module docstring calls itself "정책의 단일 진실 원천" and README says
 "정책 변경 시 두 곳을 같이 갱신하라" — a manual-sync obligation that nothing
-enforced. It had already slipped: the table advertised "24 extensions" while
+enforced. It had already slipped: both tables advertised "24 extensions" while
 `_SOURCE_CODE_EXTENSIONS` held **44**, stale since the set grew after
 2026-05-16. Found by `/ai-review` on 2026-07-23 (INFO 3, session
-`review/code/2026/07/23/15_59_54`) and fixed with this guard so the next
-divergence fails a test instead of waiting for a reviewer to count by hand.
+`review/code/2026/07/23/15_59_54`).
+
+The first version of this guard then missed half the defect: it checked the
+docstring's count and README's *spelled-out list*, and described that as
+covering "both docs" — while README's own table row still read "24 확장자" and
+the suite stayed green. `/ai-review` caught it as CRITICAL on the very commit
+meant to end this drift (session `review/code/2026/07/23/16_30_52`). Both counts
+are now checked by name, plus a phrasing-agnostic sweep, because the original
+miss came from grepping one spelling (`24 extensions`, `24개`) and never
+matching the Korean `24 확장자`.
 
 Prose-checking on purpose — the documented exception in `.claude/tests/README.md`
 for documents that *are* the specification rather than a rendering of one. This
@@ -26,7 +34,6 @@ import re
 import subprocess
 import sys
 import unittest
-from pathlib import Path
 
 from _harness import REPO_ROOT
 
@@ -45,7 +52,9 @@ def _router_safety_values() -> dict:
         f"from lib import router_safety as rs\n"
         f"print(json.dumps({{"
         f"'extensions': sorted(rs._SOURCE_CODE_EXTENSIONS),"
-        f"'source_forced': list(rs._SOURCE_FORCED_REVIEWERS)}}))\n"
+        f"'source_forced': list(rs._SOURCE_FORCED_REVIEWERS),"
+        f"'rules': [list(r[0]) for r in rs._RULES],"
+        f"'rule_count': len(rs._RULES)}}))\n"
     )
     r = subprocess.run(
         [sys.executable, "-c", script],
@@ -94,15 +103,51 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
         self.assertIsNotNone(m, "README lost its source-extension list")
         return _tokens(m.group(1))
 
-    def test_table_states_the_real_extension_count(self):
-        """The exact drift this file exists for: the table said 24, the set had 44."""
+    def test_docstring_table_states_the_real_extension_count(self):
+        """The drift this file exists for: the table said 24, the set had 44."""
         m = re.search(r"\| Source-code file \((\d+) extensions below\)", self.doc)
         self.assertIsNotNone(m, "policy table lost its source-code row")
         self.assertEqual(
             int(m.group(1)), len(self.values["extensions"]),
-            "the policy table's extension count no longer matches "
+            "the docstring table's extension count no longer matches "
             "_SOURCE_CODE_EXTENSIONS",
         )
+
+    def test_readme_table_states_the_real_extension_count(self):
+        """README's table carries its own count, in Korean, in a separate row
+        from the spelled-out list.
+
+        The first version of this guard checked the docstring count and the
+        README *list* and called that "both docs" — so README's table still read
+        "24 확장자" and the guard passed. Caught by `/ai-review` (CRITICAL,
+        session 2026/07/23/16_30_52) on the very commit that was supposed to end
+        this drift.
+        """
+        m = re.search(r"\| 소스 파일 \((\d+) 확장자\)", self.readme)
+        self.assertIsNotNone(m, "README lost its source-code policy row")
+        self.assertEqual(
+            int(m.group(1)), len(self.values["extensions"]),
+            "README's table extension count no longer matches "
+            "_SOURCE_CODE_EXTENSIONS",
+        )
+
+    def test_no_stale_extension_count_survives_anywhere(self):
+        """Belt-and-braces across phrasings: any "(N 확장자)" or "(N extensions"
+        in either document must be the real count.
+
+        The miss above happened because a grep for `24 extensions` / `24개`
+        never matched the Korean `24 확장자`. Enumerate the shapes instead of
+        trusting one spelling.
+        """
+        expected = len(self.values["extensions"])
+        for label, text in (("router_safety.py", self.doc), ("README.md", self.readme)):
+            found = re.findall(r"\((\d+)\s*(?:확장자|extensions)", text)
+            self.assertTrue(found, f"{label}: no extension count found at all")
+            for n in found:
+                self.assertEqual(
+                    int(n), expected,
+                    f"{label}: stale extension count {n} (real set has {expected})",
+                )
 
     def test_docstring_list_is_exactly_the_constant(self):
         self.assertEqual(
@@ -131,6 +176,94 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
             _tokens(m.group(1)), set(self.values["source_forced"]),
             "the policy table's forced-reviewer list drifted from "
             "_SOURCE_FORCED_REVIEWERS",
+        )
+
+    #: Marks the one table in each document that states the routing policy.
+    #: Both files hold several unrelated tables (env vars, state schema), so the
+    #: rows are anchored to the source-code row rather than "any markdown table".
+    _POLICY_TABLE_ANCHOR = re.compile(r"소스 파일 \(\d+ 확장자\)|Source-code file \(\d+ extensions")
+
+    def _policy_rows(self, text):
+        """(trigger, forced) for each real row of the routing-policy table.
+
+        Long triggers wrap onto a continuation line whose remaining cells are
+        blank; those are not rows. Pairing a row to its `_RULES` entry by prose
+        would be guesswork, so the tests below assert set- and count-level
+        invariants instead — enough to catch a rule added, dropped, or
+        re-targeted without the table following.
+        """
+        blocks, current = [], []
+        for line in text.split("\n"):
+            if line.startswith("|"):
+                current.append(line)
+            elif current:
+                blocks.append(current)
+                current = []
+        if current:
+            blocks.append(current)
+
+        table = next(
+            (b for b in blocks if any(self._POLICY_TABLE_ANCHOR.search(x) for x in b)),
+            None,
+        )
+        self.assertIsNotNone(table, "routing-policy table not found")
+
+        rows = []
+        for line in table:
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            if len(cells) < 2 or not cells[0] or not cells[1]:
+                continue
+            if cells[0].startswith("-") or cells[0] in ("Trigger",):
+                continue
+            rows.append((cells[0], cells[1]))
+        return rows
+
+    def _reviewers_named_in(self, cell: str) -> set:
+        """Reviewer names in a "Forced reviewers" cell.
+
+        Intersected with the real roster because some cells carry prose —
+        `requirement (+ documentation via doc rule above)` — and raw tokenising
+        would treat "via"/"rule"/"above" as reviewer names.
+        """
+        return _tokens(cell) & set(_all_agents())
+
+    def test_docstring_table_has_a_row_per_rule(self):
+        """`_RULES` + the source-code blanket rule + the unclassified fallthrough."""
+        rows = self._policy_rows(self.doc)
+        self.assertEqual(
+            len(rows), self.values["rule_count"] + 2,
+            f"policy table has {len(rows)} rows for "
+            f"{self.values['rule_count']} rules — a rule was added or removed "
+            f"without the table following",
+        )
+
+    def test_docstring_table_names_exactly_the_reviewers_the_rules_force(self):
+        """Every reviewer the table advertises must be one some rule can force,
+        and vice versa. Catches a rule re-targeted to a different reviewer while
+        the table kept the old name — the 7 rows the first version of this guard
+        left entirely unchecked."""
+        rows = self._policy_rows(self.doc)
+        tabled = set()
+        for trigger, forced in rows:
+            if forced.startswith("(none)"):
+                continue
+            tabled |= self._reviewers_named_in(forced)
+        reachable = set(self.values["source_forced"])
+        for reviewers in self.values["rules"]:
+            reachable |= set(reviewers)
+        self.assertEqual(
+            tabled, reachable,
+            "the policy table's reviewer names disagree with what "
+            "_RULES / _SOURCE_FORCED_REVIEWERS can actually force",
+        )
+
+    def test_readme_table_has_the_same_rows_as_the_docstring(self):
+        """README calls itself a mirror; a rule added to one table only would
+        otherwise sit unnoticed."""
+        self.assertEqual(
+            len(self._policy_rows(self.readme)), len(self._policy_rows(self.doc)),
+            "README's router-safety table and the docstring's have different "
+            "row counts — the declared mirror has drifted",
         )
 
     def test_reviewer_roster_count_and_names_match_the_orchestrator(self):
