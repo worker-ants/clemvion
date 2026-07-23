@@ -46,3 +46,14 @@
 5. (INFO, 선택) `0-overview.md §6.1` 참조 각주, `§4.6` 헤딩 레벨 정정, 완료 plan `plan/complete/` 이관, `code:` 정확 경로 보강, 파일명 접미사 통일은 §4.6 개정 실행 시 함께 반영 가능하나 필수는 아니다.
 
 ---
+---
+
+> **main Claude 정정 주석 (2026-07-23, `/ai-review` 20_05_09 WARNING 2)** — 위 **WARNING #1 행의
+> Checker 열에서 `convention_compliance` 는 오귀속**이다. 그 checker 는 §2.4 주제를 `[INFO]` 로만
+>평가했고 유일한 `[WARNING]` 은 다른 주제(frontmatter status 가드)였다. 같은 파일의
+> "Checker별 위험도" 표와 서로 모순된다. **정확한 제기자는 `cross_spec` · `rationale_continuity` 2인.**
+>
+> 원문 표는 **고쳐 쓰지 않는다**(감사 무결성 — 산출물은 생성 시점 그대로 보존). 본 주석이 정정
+> 기록이며, 이 SUMMARY 를 재집계에 소비할 때는 WARNING #1 의 checker 귀속을 위 2인으로 읽을 것.
+> 처리 방향 자체에는 영향이 없다 — `presentation-thread-optout-drift.md` 는 WARNING 번호와 pin
+> 내용만 재인용했고 checker 귀속은 재인용하지 않았다.
