@@ -13,7 +13,10 @@ Contract (same as guard_default_branch_edit.py):
   any other → treated as runtime error; tool call proceeds (fail-open).
 
 Only `git push` commands are inspected; every other Bash command passes
-through untouched. Two independent gates run, each with its own override:
+through untouched. Each gate evaluates not just the hook's own cwd but also any
+other checked-out worktree whose branch the command names — see "Which
+worktree(s) does this push publish?" below for why (a cwd-only check was a
+working bypass). Two independent gates run, each with its own override:
   - REVIEW gate (`_lib/review_guard.py`) — unreviewed `codebase/**` changes.
     Override: `BYPASS_REVIEW_GUARD=1`.
   - PLAN gate (`_lib/plan_guard.py`) — the linked in-progress plan was neither
