@@ -491,7 +491,7 @@ _PLAN_MSG = (
 )
 
 
-def _run_gate(evaluate, bypass_env, targets, base_cwd, is_blocked, render) -> bool:
+def _run_gate(evaluate, bypass_env, targets, *, is_blocked, render) -> bool:
     """Run one gate over every push target. True → the caller must block.
 
     Extracted because the REVIEW and PLAN bodies were byte-for-byte the same
@@ -506,8 +506,8 @@ def _run_gate(evaluate, bypass_env, targets, base_cwd, is_blocked, render) -> bo
     if evaluate is None or os.environ.get(bypass_env) == "1":
         return False
     scoped = _accepts_cwd(evaluate)
-    # Unscoped legacy fallback evaluates the process cwd, so report that as the
-    # worktree rather than `base_cwd` (the payload's), which it never consulted.
+    # Unscoped legacy fallback calls the gate with no argument, so it evaluates
+    # the PROCESS cwd — report that, not the payload's, which it never consulted.
     for target in targets if scoped else [None]:
         try:
             result = evaluate(target) if scoped else evaluate()
@@ -543,9 +543,8 @@ def main() -> int:
         evaluate_review,
         "BYPASS_REVIEW_GUARD",
         targets,
-        base_cwd,
-        lambda d: d is not None and d.blocked,
-        lambda d, wt: _REVIEW_MSG.format(reason=d.reason, worktree=wt),
+        is_blocked=lambda d: d is not None and d.blocked,
+        render=lambda d, wt: _REVIEW_MSG.format(reason=d.reason, worktree=wt),
     ):
         return 2
 
@@ -554,9 +553,10 @@ def main() -> int:
         evaluate_plan,
         "BYPASS_PLAN_GUARD",
         targets,
-        base_cwd,
-        lambda p: p is not None and p.untouched,
-        lambda p, wt: _PLAN_MSG.format(reason=p.reason, plan=p.plan_path, worktree=wt),
+        is_blocked=lambda p: p is not None and p.untouched,
+        render=lambda p, wt: _PLAN_MSG.format(
+            reason=p.reason, plan=p.plan_path, worktree=wt
+        ),
     ):
         return 2
 

@@ -51,6 +51,9 @@ class _Decision:
 
 
 def evaluate_review(cwd=None):
+    raising = [p for p in os.environ.get("STUB_RAISE_PATHS", "").split(os.pathsep) if p]
+    if cwd and os.path.realpath(cwd) in [os.path.realpath(p) for p in raising]:
+        raise RuntimeError(f"simulated internal error for {cwd}")
     blocked = [p for p in os.environ.get("STUB_BLOCKED_PATHS", "").split(os.pathsep) if p]
     if cwd and os.path.realpath(cwd) in [os.path.realpath(p) for p in blocked]:
         return _Decision(blocked=True, reason=f"unreviewed changes in {cwd}")
@@ -118,10 +121,13 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _run(self, command, cwd, blocked_paths=(), plan_blocked_paths=()):
+    def _run(
+        self, command, cwd, blocked_paths=(), plan_blocked_paths=(), raise_paths=()
+    ):
         env = dict(os.environ)
         env["STUB_BLOCKED_PATHS"] = os.pathsep.join(blocked_paths)
         env["STUB_PLAN_BLOCKED_PATHS"] = os.pathsep.join(plan_blocked_paths)
+        env["STUB_RAISE_PATHS"] = os.pathsep.join(raise_paths)
         env.pop("BYPASS_REVIEW_GUARD", None)
         env.pop("BYPASS_PLAN_GUARD", None)
         return subprocess.run(
@@ -236,6 +242,23 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             blocked_paths=[self.side_wt],
         )
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_per_target_fail_open_still_checks_remaining_targets(self):
+        """`_run_gate`'s per-target fail-open, pinned (review 17_51_28 WARNING 1).
+
+        An internal error on ONE worktree must skip only that worktree. Turning
+        the `continue` into `return False` left 38/38 green before this test —
+        i.e. a first-target crash would silently pass the whole gate, which is
+        the same false-ALLOW class this PR exists to close. cwd raises; the named
+        branch's worktree is dirty; the hook must still reach it and block."""
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            raise_paths=[self.main_wt],   # first target blows up
+            blocked_paths=[self.side_wt],  # second target must still be checked
+        )
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn(self.side_wt, r.stderr)
 
     def test_worktree_listing_failure_degrades_to_cwd(self):
         """A repo where `git worktree list` cannot run must fall back to the
