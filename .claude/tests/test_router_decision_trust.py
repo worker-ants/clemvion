@@ -6,7 +6,7 @@ returned `selected=false` for **all 14** reviewers — the 7 forced ones include
 — with the rationale "소스 코드 변경 없음(문서만 변경)", on a 19-file changeset
 containing a brand-new Python module plus two more `.py` files. All three were
 in the router's own prompt with 21K/12K/33K characters of content; it read the
-15:4 doc-to-code majority and stopped there. `_apply_routing` then silently
+16:3 doc-to-code majority and stopped there. `_apply_routing` then silently
 re-added the forced reviewers and trusted everything else, so the session
 presented as a healthy 7-reviewer review while every judgement behind it was
 wrong.
@@ -54,6 +54,22 @@ WORKFLOW = REPO_ROOT / ".claude" / "workflows" / "ai-review.js"
 ROUTER_SAFETY = (
     REPO_ROOT / ".claude" / "skills" / "code-review-agents" / "lib" / "router_safety.py"
 )
+
+
+def _js_function(name: str) -> str:
+    """Slice a top-level function out of `ai-review.js` by source text.
+
+    Relies on the file's house style: a top-level `function` starts at column 0
+    and its closing brace is the next line that is exactly `}`. That holds for
+    every function in this workflow and is checked by
+    `WorkflowMirrorsPythonRuleTest.test_js_function_slicing_assumption_holds`,
+    so a style change fails loudly here instead of silently extracting a
+    truncated body into the differential test.
+    """
+    src = WORKFLOW.read_text(encoding="utf-8")
+    start = src.index(f"function {name}")
+    end = src.index("\n}", start) + 2
+    return src[start:end]
 
 
 class ApplyRoutingGuardTest(unittest.TestCase):
@@ -153,6 +169,41 @@ class ApplyRoutingGuardTest(unittest.TestCase):
         self.assertEqual(state["routing_status"], "done")
         self.assertNotIn("fallback", out)
 
+    def test_distrust_restores_reviewers_a_previous_call_had_skipped(self):
+        """"running all" must be true of the state, not just the log line.
+
+        `--apply-routing` can run twice on one session (a re-route, a resumed
+        run). If the first call narrowed the state and the second is
+        distrusted, leaving the earlier skips in place would report a full run
+        while quietly keeping reviewers out of it."""
+        self._write(forced=["security"])
+        self._decide(["security", "performance"])          # 1st: narrows
+        _, first = self._run()
+        self.assertTrue(first["agents_skipped"], "fixture must skip something")
+
+        self._decide([])                                    # 2nd: contract breach
+        out, state = self._run()
+        self.assertEqual(set(state["agents_pending"]), set(self.ALL))
+        self.assertEqual(state["agents_skipped"], [])
+        self.assertIn(f"applied={len(self.ALL)}", out)
+        self.assertIn("fallback=distrusted-decision", out)
+
+    def test_distrust_does_not_re_arm_finished_reviewers(self):
+        """Only routing-driven buckets are restored — a reviewer that already
+        ran is not put back to pending by a thrown-away routing decision."""
+        self.state_file.write_text(json.dumps({
+            "agents_pending": ["performance"],
+            "agents_success": ["security"],
+            "agents_fatal": ["scope"],
+            "agents_skipped": ["testing"],
+            "agents_forced": ["security"],
+        }), encoding="utf-8")
+        self._decide([])
+        _, state = self._run()
+        self.assertEqual(state["agents_success"], ["security"])
+        self.assertEqual(state["agents_fatal"], ["scope"])
+        self.assertEqual(set(state["agents_pending"]), {"performance", "testing"})
+
     def test_router_marking_only_forced_true_is_allowed(self):
         """Not a violation: for some changesets the forced set genuinely is the
         right answer. Distrust is reserved for contract breaches and empty runs,
@@ -177,13 +228,25 @@ class WorkflowMirrorsPythonRuleTest(unittest.TestCase):
         """An empty `forced ∪ selected` is a documented fatal (review-router.md
         step 4; the run-all fallback was retired in #244). A well-meaning
         re-addition here would silently reverse that decision."""
-        js = WORKFLOW.read_text(encoding="utf-8")
-        start = js.index("function routingDistrustReason")
-        body = js[start:js.index("\n}", start)]
+        body = _js_function("routingDistrustReason")
         self.assertNotIn(
             "MIN_EFFECTIVE_REVIEWERS", body,
             "the distrust rule must not reintroduce a zero-reviewer fallback",
         )
+
+    def test_js_function_slicing_assumption_holds(self):
+        """`_js_function` cuts on "the next line that is exactly `}`". If the
+        workflow's brace style ever changes, the differential test would keep
+        running against a truncated body and silently stop proving anything —
+        so check the extracted text really is the whole function."""
+        body = _js_function("routingDistrustReason")
+        self.assertTrue(body.startswith("function routingDistrustReason("))
+        self.assertTrue(body.rstrip().endswith("}"), body[-80:])
+        self.assertEqual(
+            body.count("{"), body.count("}"),
+            "extracted JS function has unbalanced braces — slicing assumption broke",
+        )
+        self.assertIn("return null", body, "function body looks truncated")
 
     def test_workflow_checks_forced_reviewers_were_not_dropped(self):
         js = WORKFLOW.read_text(encoding="utf-8")
@@ -244,12 +307,9 @@ class WorkflowMirrorsPythonRuleTest(unittest.TestCase):
             self.assertEqual(py.returncode, 0, py.stderr[-1500:])
             py_distrusts = json.loads(py.stdout.strip())
 
-            js_src = WORKFLOW.read_text(encoding="utf-8")
-            start = js_src.index("function routingDistrustReason")
-            end = js_src.index("\n}", start) + 2
             node = subprocess.run(
                 ["node", "-e",
-                 f"{js_src[start:end]}\n"
+                 f"{_js_function('routingDistrustReason')}\n"
                  f"console.log(JSON.stringify(Boolean(routingDistrustReason("
                  f"{json.dumps(decisions)}, {json.dumps(forced)}))))"],
                 capture_output=True, text=True,
@@ -290,17 +350,46 @@ class RouterPromptStatesCompositionTest(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_mixed_changeset_is_declared_not_doc_only(self):
-        """15 docs + 1 module is the shape that misled the router."""
+        """A doc-dominated changeset with one module — the shape that misled the
+        router (the real incident was 16 docs to 3 code). The doc count is
+        whatever the agents dir holds, so the assertion is derived, not a
+        hardcoded number that can quietly stop matching the fixture."""
         docs = sorted(
             str(p.relative_to(REPO_ROOT))
             for p in (REPO_ROOT / ".claude" / "agents").glob("*-reviewer.md")
-        )[:15]
+        )
+        self.assertGreaterEqual(len(docs), 5, "need a doc-dominated fixture")
         body = self._prepare_over(
             *docs, str(ROUTER_SAFETY.relative_to(REPO_ROOT)),
         )
-        self.assertIn("소스 코드 파일 1개", body)
+        self.assertIn(f"변경 파일 {len(docs) + 1}개 중 **소스 코드 파일 1개**", body)
         self.assertIn("문서 전용이 아닙니다", body)
         self.assertIn("router_safety.py", body)
+
+    def test_long_source_list_is_truncated_with_an_accurate_remainder(self):
+        """The block caps the list at 20 and appends "… 외 N개". The whole point
+        of this PR is that the router mis-stated file composition, so a wrong
+        remainder here would be the same defect in the fix itself."""
+        import os
+        import shutil
+        import tempfile
+
+        n = 23
+        tmp_src = tempfile.mkdtemp(dir=str(REPO_ROOT))
+        try:
+            rel = os.path.relpath(tmp_src, REPO_ROOT)
+            paths = []
+            for i in range(n):
+                p = Path(tmp_src) / f"mod_{i:02d}.py"
+                p.write_text(f"VALUE = {i}\n", encoding="utf-8")
+                paths.append(f"{rel}/{p.name}")
+            body = self._prepare_over(*paths)
+            self.assertIn(f"**소스 코드 파일 {n}개**", body)
+            self.assertIn(f"… 외 {n - 20}개", body)
+            listed = body.count("  - `" + rel)
+            self.assertEqual(listed, 20, "exactly 20 paths should be listed")
+        finally:
+            shutil.rmtree(tmp_src, ignore_errors=True)
 
     def test_doc_only_changeset_is_declared_as_such(self):
         docs = sorted(

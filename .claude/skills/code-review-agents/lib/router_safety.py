@@ -316,8 +316,8 @@ def source_files(file_paths: Iterable[str]) -> list[str]:
 
     Public because the router prompt states this list as a *fact* rather than
     leaving the router to infer it from filenames. Measured need: on
-    2026-07-23 a changeset of 19 files — 15 docs and 4 code files, including a
-    brand-new module — was routed with "소스 코드 변경 없음(문서만 변경)" and
+    2026-07-23 a changeset of 19 files — 16 docs and 3 code files, one of them
+    a brand-new module — was routed with "소스 코드 변경 없음(문서만 변경)" and
     every reviewer deselected. The code was in the prompt; the router simply
     read the majority. Sharing the classifier keeps that statement and the
     forced-reviewer rules from ever disagreeing.

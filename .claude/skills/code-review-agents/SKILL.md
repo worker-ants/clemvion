@@ -62,6 +62,8 @@ stdout 마지막 줄 = 세션 디렉토리 절대경로.
 
 Workflow 동작:
 - **Route**: `routing_status=="pending"` 이고 router 가 있으면 `review-router` 를 `mode=workflow` + structured-output schema 로 invoke → `decisions[]` 반환. `selected = agents_forced ∪ {selected:true}`. `skipped` 이면 전수. router 실패 시 fail-open(전수).
+  - **결정 신뢰 검증**: router 가 forced reviewer 를 `selected=false` 로 반환하거나 결정에서 누락하면 — 강제 목록은 프롬프트에 `selected=true` 고정으로 명시되므로 판단 실수가 아니라 계약 위반 — 결정을 **통째로 폐기하고 전수 실행**한다 (`fallback-distrusted-decision`). 2026-07-23 사고(전원 `selected=false` + "문서만 변경") 후 추가. CLI `--apply-routing` 도 동일 판정 — 두 구현은 `test_router_decision_trust.py` 의 차등 테스트로 묶여 있다.
+  - 실행될 reviewer 가 0명인 경우는 **fatal** (main 이 minimal SUMMARY) — 전수 fallback 아님. 옛 "selected 0~1 → 전수" 규칙은 #244 에서 폐기됐다.
 - **Review**: selected reviewer 를 `agentType` 으로 병렬 invoke (각 reviewer 가 자기 `prompt_file` Read → `output_file` Write — call-contract 그대로, Workflow 내 reviewer write 허용).
 - **Summary**: `code-review-summary` 가 `mode=workflow` 로 **각 reviewer 전문을 인라인으로 받아** 통합 SUMMARY 마크다운을 **반환**한다. 하네스가 `SUMMARY.md` **basename** Write 를 차단하기 때문(terminal 여부와 무관 — [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md) 실측표). 인라인 전달이라 reviewer 가 자기 파일을 안 써도 판정이 온전하다(옛 디스크-Read 방식은 그런 reviewer 의 Critical 을 조용히 누락시켰다).
 

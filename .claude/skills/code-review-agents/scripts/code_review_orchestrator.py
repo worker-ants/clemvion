@@ -74,32 +74,6 @@ _GUTTER_OVERHEAD = 1.08
 DEFAULT_MAX_FILE_SIZE = int(51200 * _GUTTER_OVERHEAD)      # 55,296
 DEFAULT_MAX_PROMPT_SIZE = int(131072 * _GUTTER_OVERHEAD)   # 141,557
 
-# Caller-side trust check for a routing decision: the router must honour the
-# forced whitelist. Violating it discards the whole decision and runs every
-# reviewer.
-#
-# Why (measured 2026-07-23, session 14_47_40): the router returned
-# selected=false for **all 14** reviewers — the 7 forced ones included — with
-# the rationale "소스 코드 변경 없음(문서만 변경)", on a 19-file changeset
-# containing a brand-new Python module whose content was in the router's own
-# prompt. `_apply_routing` silently re-added the forced reviewers and trusted
-# everything else, so the run presented as a healthy 7-reviewer review while
-# every judgement behind it was wrong.
-#
-# The forced list is stated to the router as `selected=true` 고정, so returning
-# one as false is a contract breach rather than a judgement call. That makes it
-# the sharpest signal available that the decision as a whole is untrustworthy,
-# and — unlike any count-based threshold — it cannot fire on a legitimately
-# narrow decision (a doc-only typo routing to `documentation` alone is correct
-# and must stay cheap).
-#
-# Scope note: this does **not** revive the old "selected 수가 0 또는 1 이면 전체
-# fallback" rule. That was deliberately retired in 6cd7376fc (#244) in favour of
-# "0 명이면 fatal + minimal SUMMARY, 1명 이상이면 그대로 진행" — see
-# `.claude/agents/review-router.md` step 4 and README's router-safety table
-# ("전체 fallback 안 함"). Only the stale prose advertising the retired rule is
-# corrected here; the zero-reviewer path keeps its documented fatal behaviour.
-
 BINARY_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp", "tiff", "tif",
     "psd", "ai", "eps", "raw", "cr2", "nef", "heic", "heif", "avif",
@@ -400,6 +374,31 @@ def _apply_status_update(session_dir, agent, status, reset_hint):
     )
 
 
+# Caller-side trust check for a routing decision: the router must honour the
+# forced whitelist. Violating it discards the whole decision and runs every
+# reviewer.
+#
+# Why (measured 2026-07-23, session 14_47_40): the router returned
+# selected=false for **all 14** reviewers — the 7 forced ones included — with
+# the rationale "소스 코드 변경 없음(문서만 변경)", on a 19-file changeset
+# containing a brand-new Python module whose content was in the router's own
+# prompt. `_apply_routing` silently re-added the forced reviewers and trusted
+# everything else, so the run presented as a healthy 7-reviewer review while
+# every judgement behind it was wrong.
+#
+# The forced list is stated to the router as `selected=true` 고정, so returning
+# one as false is a contract breach rather than a judgement call. That makes it
+# the sharpest signal available that the decision as a whole is untrustworthy,
+# and — unlike any count-based threshold — it cannot fire on a legitimately
+# narrow decision (a doc-only typo routing to `documentation` alone is correct
+# and must stay cheap).
+#
+# Scope note: this does **not** revive the old "selected 수가 0 또는 1 이면 전체
+# fallback" rule. That was deliberately retired in 6cd7376fc (#244) in favour of
+# "0 명이면 fatal + minimal SUMMARY, 1명 이상이면 그대로 진행" — see
+# `.claude/agents/review-router.md` step 4 and README's router-safety table
+# ("전체 fallback 안 함"). Only the stale prose advertising the retired rule is
+# corrected here; the zero-reviewer path keeps its documented fatal behaviour.
 def _routing_distrust_reason(decisions, forced):
     """Why this routing decision must not be trusted, or None if it is fine.
 
@@ -439,11 +438,22 @@ def _routing_distrust_reason(decisions, forced):
 def _apply_routing(session_dir, fallback=False):
     """Consume _routing_decision.json and update _retry_state.json.
 
-    Without --fallback: read decisions[], move selected=false agents from
-    pending to skipped. Echo 'applied=<selected_count> skipped=<skipped_count>'.
+    Three outcomes:
 
-    With --fallback: mark routing_status='skipped' with fallback reason,
-    keep all reviewers in pending (router failure path).
+    - ``--fallback``: router failed outright. Mark routing_status='skipped'
+      with a fallback reason and keep everyone pending.
+    - Decision distrusted (`_routing_distrust_reason`): the router broke the
+      forced-whitelist contract, so the decision is discarded wholesale.
+      Everything previously skipped by routing is returned to pending and
+      `agents_skipped` is cleared, so the printed "running all" is true even
+      when an earlier `--apply-routing` call already narrowed the state.
+      Echoes 'fallback=distrusted-decision'.
+    - Otherwise: read decisions[], move selected=false agents from pending to
+      skipped. Echo 'applied=<selected_count> skipped=<skipped_count>'.
+
+    Only routing-driven buckets are restored — `agents_success` / `agents_fatal`
+    are untouched, since a reviewer that already ran is not re-armed by a
+    routing decision being thrown away.
     """
     sd = os.path.abspath(session_dir)
     state_file, state = _load_state(sd)
@@ -467,12 +477,21 @@ def _apply_routing(session_dir, fallback=False):
 
     distrust = _routing_distrust_reason(decisions, forced)
     if distrust:
+        # Return routing-skipped reviewers to pending before declaring "running
+        # all". Without this, a second --apply-routing call on a session an
+        # earlier call had already narrowed would log a full run while the state
+        # still carried the earlier partial skips.
+        pending = list(state.get("agents_pending", []))
+        for name in state.get("agents_skipped", []):
+            if name not in pending:
+                pending.append(name)
+        state["agents_pending"] = pending
+        state["agents_skipped"] = []
         state["routing_status"] = "skipped"
         state["routing_skip_reason"] = f"{distrust} — decision discarded, running all"
         _save_state(state_file, state)
         print(
-            f"applied={len(state.get('agents_pending', []))} skipped=0 "
-            f"fallback=distrusted-decision"
+            f"applied={len(pending)} skipped=0 fallback=distrusted-decision"
         )
         return
 
@@ -739,7 +758,7 @@ def build_router_prompt_body(
     perspective_block = "\n".join(perspective_lines)
 
     # State the source/doc split as a fact instead of letting the router infer
-    # it from filenames. On 2026-07-23 a 19-file changeset (15 docs, 4 code —
+    # it from filenames. On 2026-07-23 a 19-file changeset (16 docs, 3 code —
     # one a brand-new module) was routed "소스 코드 변경 없음(문서만 변경)" with
     # every reviewer deselected; the code was in the prompt, the router read the
     # majority. Same classifier as the forced rules, so the two cannot disagree.
