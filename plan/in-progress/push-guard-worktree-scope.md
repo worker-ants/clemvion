@@ -101,9 +101,9 @@ INFO 미조치: 모듈 상단 docstring 요약 · `guard_review_before_stop.py` 
 - [x] `_worktree_branches` / `_mentions_branch` / `_push_targets` 구현
 - [x] `_accepts_cwd` 시그니처 probe (silent fail-open 차단)
 - [x] 차단 메시지에 worktree 표기
-- [x] 테스트 **23건** 신설 + 카탈로그 등재·갱신 (9 → 18 → 19 → 20 → 21 → 23; 마지막 2건은 main 병합 후 리뷰 반영분)
+- [x] 테스트 **24건** 신설 + 카탈로그 등재·갱신 (9 → 18 → 19 → 20 → 21 → 23 → 24; 마지막은 `BYPASS_PLAN_GUARD` 대칭)
 - [x] mutation 실측 **11건** (병합 후 전수 재실행, M10·M11 신설)
-- [x] harness 전체 **540 passed** (main 병합 후)
+- [x] harness 전체 **564 passed** (§J 코퍼스 유입 후)
 - [x] `/ai-review` — **4라운드 수렴** (C0/W7 → C0/W2 → C0/W2 → C0/W1[문서]). 전량 반영, 4차 RESOLUTION 에 수렴 판정
 
 > **교훈 — "커버된다" 는 추론이 아니라 실측이어야 한다.** 1차 후 "테스트로 커버" 라고 적었다가
@@ -175,6 +175,29 @@ degraded/answered/bypassed 를 집계한다.
 > 수동 확인 결과 M1 은 4건을 kill 했다 — 보고가 거짓이었다. 셸 인자로 다중행 앵커를 넘기는 구조를
 > 버리고, **적용 후 디스크에서 되읽어 검증하고 pytest 종료코드를 보는** 파이썬 러너로 교체했다
 > (`scratchpad/pg/matrix.py`). 이 세션에서 치환-실패/거짓-색깔 계열 사고가 세 번째다.
+
+### 2차 흡수 — §J push-탐지 버그픽스 (#1001/#1002, 2026-07-24)
+
+작업 중 origin/main 이 **두 번째로** 앞서갔다. 이번엔 `_GIT_PUSH` 정규식의 env-prefix 처리다.
+
+내 branch 가 들고 있던 구버전은 env 접두를 `=\S+` 로 스킵해 **따옴표 안 공백에서 끊긴다** —
+`GIT_SSH_COMMAND="ssh -i ~/.key" <push> …` 형태가 아예 탐지되지 않아 `_is_git_push()` 가 False 를
+반환하고 `main()` 이 즉시 `return 0` 한다. 그러면 REVIEW/PLAN 게이트는 물론 **이 작업이 만든
+worktree 스코핑도 실행되지 않는다**(fail-open 배너조차 없어 §E 관측에도 안 잡힌다).
+
+origin/main 은 이미 escape-aware 로 고쳐져 있었다:
+`=(?:'[^']*'|"(?:\\.|[^"\\])*"|[^\s'"]\S*)`.
+
+병합 결과: 훅은 **자동 병합**(escape-aware 흡수 + 내 스코핑 4지점 유지), `.claude/tests/README.md`
+만 충돌 — 양쪽이 각자 카탈로그 행을 추가해서다. **양쪽 행을 모두 보존**하고 중복 1건만 제거했다.
+
+병합 후 재확인(리뷰어 요구 3항): (1) `_GIT_PUSH` escape-aware 확인 (2) §J 코퍼스와 스코핑 테스트
+**공존 green**(564 passed, 병합 전 540) (3) README 에 두 PR 행 모두 반영.
+
+> **패턴**: 같은 파일에 대해 origin/main 이 **두 번** 앞서갔다(#999/#1000 구조 재편 → #1001/#1002
+> 탐지 버그픽스). 이 harness 파일은 병렬 작업이 몰리는 지점이므로, 리뷰 라운드마다 `git fetch` +
+> `origin/main` 대조를 루틴에 넣는 편이 낫다 — 이번엔 **리뷰어가 잡아줘서** 알았지 내가 먼저
+> 확인해서가 아니다.
 
 ## Rationale
 
