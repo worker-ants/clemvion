@@ -5,11 +5,20 @@
 
 name: e2e
 
+# paths-ignore mirrors PROJECT.md §e2e 면제 화이트리스트. `.github/**` was missing
+# here, so a CI-definition-only change still burned a full e2e run even though the
+# whitelist exempts it ("CI 정의는 e2e 가 검증 대상 아님").
+#
+# Adding it costs one thing: a PR that edits THIS file no longer triggers e2e, so a
+# broken workflow would surface only on the next code PR. `workflow_dispatch` below
+# is the escape hatch — run e2e manually from the Actions tab when changing e2e.yml
+# itself. (GitHub does not allow negating a single path out of paths-ignore.)
 on:
   push:
     branches: [main]
     paths-ignore:
       - '.claude/**'
+      - '.github/**'
       - 'spec/**'
       - 'plan/**'
       - 'review/**'
@@ -17,10 +26,12 @@ on:
   pull_request:
     paths-ignore:
       - '.claude/**'
+      - '.github/**'
       - 'spec/**'
       - 'plan/**'
       - 'review/**'
       - '*.md'
+  workflow_dispatch:
 
 concurrency:
   group: e2e-${{ github.ref }}
