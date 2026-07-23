@@ -136,11 +136,17 @@ CONVENTIONS §4.5 의 `interaction` 규격:
 > 이전 초안의 `output.type: 'form'`, `output.submittedData`, `output.format`, `output.content` 등의 필드는 **폐기**. Principle 1.1.4 (판별자 금지) 와 §4.5 (interaction payload) 를 따른다.
 
 > ⚠️ **`previousOutput` 은 위 목록과 성격이 다르다** — 폐기 예정이지만 **아직 제거되지 않았다**.
-> presentation resume 경로(`ButtonInteractionService`)가 재개 출력에 지금도 주입한다
+> `ButtonInteractionService` 재개 경로가 재개 출력에 지금도 주입한다
 > ([node-output §4.2](../../conventions/node-output.md#42-폐기할-필드--구조) 의 과도기 예외가 SoT).
 > **신규 소비 금지** — 이전 뷰 값이 필요하면 `output` 최상위 런타임 필드를 직접 읽는다
 > (waiting snapshot 은 resumed 에서도 그대로 유지되므로 `previousOutput` 없이 충분하다).
 > Phase 3 정리 시 코드·spec 동시 제거.
+>
+> **적용 범위 — `config.buttons` 를 갖는 노드 전용** (carousel / chart / table / template;
+> `node-output.md §4.2` 의 열거와 동일). **Form 은 해당 없음** — Form 은 `buttons` 가 없어
+> `ButtonInteractionService` 를 타지 않고 `FormInteractionService` 가 재개 출력을 만들며
+> `previousOutput` 을 주입하지 않는다. Form 에서는 완전한 금지 필드다 ([Form §5](./4-form.md)).
+> 이 배제를 빠뜨리면 "모든 presentation 노드가 이 필드를 낸다" 로 오독된다.
 
 ---
 

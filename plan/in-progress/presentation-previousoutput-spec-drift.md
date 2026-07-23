@@ -89,8 +89,16 @@ spec 만 고치면 plan 레이어에서 drift 가 재생산된다. 실측 확인
 | `form.md` | :77 | 금지 필드 목록에 `output.previousOutput` |
 | `README.md` | :263 | "`output.previousOutput` **폐기** … 핵심 정리 항목은 모두 spec 본문에 **반영 완료**" |
 
-→ 각 지점에 "**신규 소비 금지 — Phase 3 까지 과도기 보존**([node-output §4.2](../../spec/conventions/node-output.md))"
-각주를 단다. `README.md:263` 의 "반영 완료" 는 특히 오해를 키우므로 예외를 명시한다.
+→ 각 지점에 "**신규 소비 금지 — Phase 3 까지 과도기 보존**([node-output §4.2](../../../spec/conventions/node-output.md#42-폐기할-필드--구조))" 각주를 단다(경로는 3단계 — `plan/in-progress/node-output-redesign/` 기준). `README.md:263` 의 "반영 완료" 는 특히
+오해를 키우므로 예외를 명시한다.
+
+> **⚠️ Form 은 대상이 아니다 (리뷰 CRITICAL 로 교정)**: 초안대로 `form.md` 에도 같은 각주를 달았다가
+> `/ai-review` requirement 리뷰어가 **새 사실 오류**로 잡았다 — Form 은 `config.buttons` 가 없어
+> `ButtonInteractionService` 를 타지 않고 `FormInteractionService` 가 재개 출력을 만들며
+> `previousOutput` 을 **주입하지 않는다**(실측: 해당 파일 등장 0건). `node-output.md:194` 의 예외
+> 열거도 애초에 carousel/chart/table/template 뿐이고 form 이 없다. → `4-form.md` 와 sibling
+> `form.md` 는 **원래의 "금지 필드" 서술이 옳았고** 되돌렸다. 대신 두 곳에 "Form 은 해당 없음" 을
+> 명시해 같은 오독이 재발하지 않게 했다.
 
 ## 비목표 (이번 범위 밖)
 
@@ -110,7 +118,7 @@ spec 만 고치면 plan 레이어에서 drift 가 재생산된다. 실측 확인
 - [x] 동반 정정 B (함수명 2곳 + "loop 재진입"→"no-op park(재파킹)" 2곳)
 - [x] 동반 정정 C (sibling plan 3곳 — `node-output-redesign/{chart,form,README}.md`)
 - [x] 개정 근거 기록 — 본 plan §Rationale (구조 선택·frontend 3자 정리·Phase 3 dangling 추적처)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1차 CRITICAL 2·WARNING 2 전량 반영 (`review/code/2026/07/23/16_18_02/RESOLUTION.md`), 2차 게이트 리뷰 예정
 
 ## Rationale
 
@@ -147,3 +155,10 @@ Phase 3 를 추적하는 살아있는 문서가 없다. 이번 개정은 그 dan
 - `grep -c "waitForAiConversation\|loop 재진입"` → **0** (동반 정정 B 잔여 없음).
 - `0-common.md:14` 의 "Presentation 노드 5종" 링크 앵커는 **미변경** — 무관 개념(노드 종류 수)이라
   blind 치환했으면 링크가 깨졌을 지점이다.
+
+**공통 캐비어를 하위 문서로 복사할 때는 그 노드가 실제로 그 경로를 타는지 확인해야 한다**
+(리뷰 CRITICAL): "presentation resume 경로" 라는 뭉뚱그린 표현을 Form 에 그대로 적용해 정반대
+사실을 단정했다. `node-output.md:194` 가 이미 carousel/chart/table/template 로 스코프를 열거하고
+있었는데 그 열거를 대조하지 않은 것이 근인 — **고치려던 오류와 같은 클래스의 오류를 반대 방향으로
+만든 셈**이다. 그래서 재발 방지를 하위 문서가 아니라 **공통 문서(`0-common.md`)의 적용 범위 단락**에
+뒀다.
