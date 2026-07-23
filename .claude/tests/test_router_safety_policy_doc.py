@@ -86,6 +86,9 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.values = _router_safety_values()
+        # Cached like `values`: `_all_agents()` shells out, and the row-level
+        # checks below consult it once per row.
+        cls.agents = _all_agents()
         cls.doc = ROUTER_SAFETY.read_text(encoding="utf-8")
         cls.readme = README.read_text(encoding="utf-8")
 
@@ -167,7 +170,14 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
         """README declares itself a mirror of the docstring; hold it to that."""
         self.assertEqual(self._doc_extension_list(), self._readme_extension_list())
 
-    def test_table_row_names_the_real_forced_reviewers(self):
+    def test_source_row_reviewers_via_independent_parse(self):
+        """The source-code row again, read by regex rather than the row parser.
+
+        Overlaps `test_docstring_table_rows_match_their_rules_one_by_one` on
+        purpose: every other row assertion depends on `_policy_rows`, so a bug
+        that made it silently return the wrong rows would take those tests down
+        with it. This one reaches the most important row by a different route.
+        """
         m = re.search(
             r"\| Source-code file \(\d+ extensions below\)\s*\|([^|]+)\|", self.doc
         )
@@ -219,13 +229,15 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
         return rows
 
     def _reviewers_named_in(self, cell: str) -> set:
-        """Reviewer names in a "Forced reviewers" cell.
+        """Reviewer names a "Forced reviewers" cell actually declares.
 
-        Intersected with the real roster because some cells carry prose —
-        `requirement (+ documentation via doc rule above)` — and raw tokenising
-        would treat "via"/"rule"/"above" as reviewer names.
+        Parentheticals are dropped first: `requirement (+ documentation via doc
+        rule above)` declares only `requirement`, the rest being a
+        cross-reference to another row. Then intersected with the real roster,
+        since raw tokenising would otherwise read "via"/"rule"/"above" as
+        reviewer names.
         """
-        return _tokens(cell) & set(_all_agents())
+        return _tokens(re.sub(r"\([^)]*\)", " ", cell)) & set(self.agents)
 
     def test_docstring_table_has_a_row_per_rule(self):
         """`_RULES` + the source-code blanket rule + the unclassified fallthrough."""
@@ -237,34 +249,80 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
             f"without the table following",
         )
 
-    def test_docstring_table_names_exactly_the_reviewers_the_rules_force(self):
-        """Every reviewer the table advertises must be one some rule can force,
-        and vice versa. Catches a rule re-targeted to a different reviewer while
-        the table kept the old name — the 7 rows the first version of this guard
-        left entirely unchecked."""
-        rows = self._policy_rows(self.doc)
-        tabled = set()
-        for trigger, forced in rows:
-            if forced.startswith("(none)"):
-                continue
-            tabled |= self._reviewers_named_in(forced)
-        reachable = set(self.values["source_forced"])
-        for reviewers in self.values["rules"]:
-            reachable |= set(reviewers)
-        self.assertEqual(
-            tabled, reachable,
-            "the policy table's reviewer names disagree with what "
-            "_RULES / _SOURCE_FORCED_REVIEWERS can actually force",
-        )
+    def test_docstring_table_rows_match_their_rules_one_by_one(self):
+        """Each row's reviewers, against the rule that row describes.
 
-    def test_readme_table_has_the_same_rows_as_the_docstring(self):
-        """README calls itself a mirror; a rule added to one table only would
-        otherwise sit unnoticed."""
+        Row 0 is the source-code blanket rule, rows 1..N are `_RULES` in order,
+        the last is the unclassified fallthrough — verified positional, not
+        guessed from prose.
+
+        Replaces an earlier union-level check that compared *all* reviewer names
+        at once. That was too weak to be worth having: deleting `documentation`
+        from the "Package manifest" row left the union unchanged, because
+        `documentation` also appears in the "Doc file" row, so the mutation
+        passed. Caught by `/ai-review` (WARNING, session 2026/07/23/16_49_22),
+        which reproduced it rather than merely asserting it.
+        """
+        rows = self._policy_rows(self.doc)
+        rules = self.values["rules"]
+        self.assertEqual(len(rows), len(rules) + 2, "row/rule count mismatch")
+
         self.assertEqual(
-            len(self._policy_rows(self.readme)), len(self._policy_rows(self.doc)),
+            self._reviewers_named_in(rows[0][1]), set(self.values["source_forced"]),
+            "the source-code row's reviewers drifted from _SOURCE_FORCED_REVIEWERS",
+        )
+        for i, reviewers in enumerate(rules):
+            trigger, forced = rows[i + 1]
+            self.assertEqual(
+                self._reviewers_named_in(forced), set(reviewers),
+                f"docstring row {i + 1} ({trigger[:40]!r}) declares reviewers that "
+                f"_RULES[{i}] does not force",
+            )
+
+    def test_readme_table_rows_match_the_docstring_row_by_row(self):
+        """README calls itself a mirror — hold it to the cell contents, not just
+        the row count.
+
+        Row count alone let README's source row drop `testing` entirely while
+        the suite stayed green (`/ai-review` WARNING, reproduced by mutation).
+        """
+        doc_rows = self._policy_rows(self.doc)
+        readme_rows = self._policy_rows(self.readme)
+        self.assertEqual(
+            len(readme_rows), len(doc_rows),
             "README's router-safety table and the docstring's have different "
             "row counts — the declared mirror has drifted",
         )
+        for i, (doc_row, readme_row) in enumerate(zip(doc_rows, readme_rows)):
+            self.assertEqual(
+                self._reviewers_named_in(readme_row[1]),
+                self._reviewers_named_in(doc_row[1]),
+                f"README policy row {i} names different reviewers than the "
+                f"docstring's ({readme_row[0][:40]!r})",
+            )
+
+    def test_readme_source_row_matches_the_constant_directly(self):
+        """Not only equal to the docstring — equal to the code.
+
+        Without this, both documents drifting the same way would still pass the
+        mirror check above.
+        """
+        rows = self._policy_rows(self.readme)
+        self.assertEqual(
+            self._reviewers_named_in(rows[0][1]),
+            set(self.values["source_forced"]),
+            "README's source-code row drifted from _SOURCE_FORCED_REVIEWERS",
+        )
+
+    def test_readme_rule_rows_match_their_rules_one_by_one(self):
+        rows = self._policy_rows(self.readme)
+        for i, reviewers in enumerate(self.values["rules"]):
+            trigger, forced = rows[i + 1]
+            self.assertEqual(
+                self._reviewers_named_in(forced), set(reviewers),
+                f"README row {i + 1} ({trigger[:40]!r}) declares reviewers that "
+                f"_RULES[{i}] does not force",
+            )
 
     #: Every doc that states how many reviewers are registered. The count is
     #: `len(ALL_AGENTS)` and lives in prose, so it drifts the same way the
@@ -286,7 +344,7 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
         states it, so adding a reviewer fails here instead of leaving five
         stale copies behind.
         """
-        expected = len(_all_agents())
+        expected = len(self.agents)
         seen = 0
         for path in self.ROSTER_COUNT_DOCS:
             text = path.read_text(encoding="utf-8")
@@ -303,7 +361,7 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
         )
 
     def test_reviewer_roster_count_and_names_match_the_orchestrator(self):
-        agents = _all_agents()
+        agents = self.agents
         m = re.search(
             r"Reviewer codes \(default (\d+);[^)]*\):\n((?:  .*\n)+)", self.doc
         )
