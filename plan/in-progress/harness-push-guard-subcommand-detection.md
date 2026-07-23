@@ -1,5 +1,5 @@
 ---
-worktree: (unstarted)
+worktree: push-guard-allowlist-f0f70b
 started: 2026-07-17
 owner: developer
 ---
@@ -74,15 +74,22 @@ allowlist 후보(각각 반드시 실측으로 안전 논증):
 
 ## 검증 (재도전 시 필수)
 
-- [ ] **차등 테스트 필수** — 구 정규식을 기준선으로 박아넣고, 코퍼스 전체에서
+- [x] **차등 테스트 필수** — 구 정규식을 기준선으로 박아넣고, 코퍼스 전체에서
       `legacy(c) and not new(c)` 인 명령은 **열거된 예외**일 때만 허용. 예외마다 "왜 안전한가" 실측 근거.
-- [ ] 코퍼스에 아래를 **반드시** 포함(3라운드가 찾아낸 것들 — 재발 방지 기준선):
+      → `_LEGACY_PATTERN` 을 테스트에 동결 + `RELEASED` dict(명령→안전 논증) + `test_no_new_blocks`
+      (allowlist 는 빼기만) + `test_every_enumerated_release_actually_releases`(stale 예외가 차등
+      테스트를 항진명제로 만드는 것 방지) + `test_blind_pattern_is_frozen`(1차 정규식 불변 고정).
+- [x] 코퍼스에 아래를 **반드시** 포함(3라운드가 찾아낸 것들 — 재발 방지 기준선):
       `git add -A\ngit push` · `git --attr-source main push` · `git commit -m "$(git push)"` ·
       ``git commit -m "`git push`"`` · `bash -c "cd /tmp && git push"` · `git $'push'` · `git $"push"` ·
       `git 'pu''sh' --force` · `GIT push` · `git push\x00 extra` · `eval "git push"`
-- [ ] 오탐 해제 목록 전수 통과: heredoc 메시지 · `-m` 메시지 · 따옴표 grep
-- [ ] **해제 목록에 `$(`·백틱이 있으면 해제되지 않는지** (2라운드 회귀의 재발 방지)
-- [ ] 신규 테스트가 수정 전 코드에서 실패하는지(비-vacuity)
+- [x] 오탐 해제 목록 전수 통과: heredoc 메시지 · `-m` 메시지 · 따옴표 grep
+- [x] **해제 목록에 `$(`·백틱이 있으면 해제되지 않는지** (2라운드 회귀의 재발 방지)
+      → `ReleaseRefusedTest` 7건: cmd-subst · 백틱 · unquoted heredoc 확장 · **bash 스크립트
+      heredoc 본문** · **소유 세그먼트 위장** · `-c` 안 이스케이프 따옴표 · `\\|` 뒤 진짜 파이프.
+- [x] 신규 테스트가 수정 전 코드에서 실패하는지(비-vacuity)
+      → 뮤턴트 3종 실측(치환 적용·문법 검사 선확인 후 측정): allowlist 되돌림 **12 실패**,
+      heredoc 소유검사 제거 **4 실패**, 확장(inert) 검사 제거 **6 실패**. 베이스라인은 통과.
 
 ## 알려진 선재 갭 (이번에도 고칠 대상 아님 — 구 정규식도 못 잡는다)
 
@@ -92,11 +99,41 @@ allowlist 후보(각각 반드시 실측으로 안전 논증):
 전부 정적 텍스트 가드의 구조적 한계다. **설계 반전은 이것들을 고치지 않는다** — 현행과 동일하게
 남는다. 오탐만 줄이는 것이 이 plan 의 스코프다.
 
+## 구현 (2026-07-23)
+
+**형태**: 1차 blind 정규식은 **바이트 단위로 불변**. 그 위에 `_redact_inert_text()` 가
+"증명 가능하게 비활성인 텍스트" 만 공백으로 지운 뒤 **같은 정규식을 재실행**한다.
+`_is_git_push` = `legacy_hit and hit_after_redaction` — 해제는 오직 빼기만 한다.
+
+수렴하는 이유: 영역 탐지가 **좁게 빗나가면 그냥 차단 유지**(오늘 동작 = 안전)이고 넓게
+빗나갈 때만 위험하다. 그래서 모든 규칙을 좁게 잡고 비활성 조건을 요구했다. 셸이 실제로
+실행할 `git push` 는 redaction 을 살아남아 1차 정규식에 그대로 걸린다.
+
+**해제 규칙 3종**:
+
+1. **escaped pipe** — `\|` 는 인용 안팎을 막론하고 파이프 **연산자가 아니다**(리터럴 `|`).
+   홀수 개 백슬래시만 매칭해 `\\|`(escaped backslash + 진짜 파이프)는 건드리지 않는다.
+2. **`-m`/`--message=`/`-F` 인용 값** — `$(` · 백틱 · `${` 이 없을 때만. 값은 첫 비-이스케이프
+   닫는 따옴표에서 끊기므로 `-m "a" && git push` 의 push 를 삼키지 못한다. 이스케이프된
+   따옴표(`bash -c "… -m \"x\" && git push"`)를 만나면 매칭 자체가 실패해 차단 유지.
+3. **commit 메시지 heredoc 본문** — 확장 없음 + **heredoc 을 소유한 명령 세그먼트**가
+   `git commit|tag … -F -` 일 때만.
+
+> **초안 결함 (적대적 프로브가 실측으로 잡음)**: 처음엔 "여는 **줄**이 `git commit -F -` 를
+> **언급**하는가" 로 판정했다. `echo "git commit -F -" | bash <<'EOF' … git push … EOF` 가
+> 이를 통과해 **bash 가 실제 실행하는 본문을 해제**했다(거짓음성). "텍스트가 그렇게 보이는가"
+> 는 이 plan 이 기각한 무한 표면 그 자체다. → **마지막 구분자 이후 세그먼트가 그 명령인가**
+> 로 교체. 순진한 분할은 경계를 **뒤로만** 밀어 항상 더 보수적이라 안전 방향이다.
+
+**남는 오탐(의도적)**: `git log --grep=push`. 해제하려면 git **서브커맨드**를 알아야 하고
+그것이 바로 기각된 파서다. `KnownRemainingFalsePositiveTest` 로 고정했다 — 놀람이 아니라
+보이는 갭으로 남긴다.
+
 ## 체크리스트
 
-- [ ] 설계 반전안 확정 (allowlist 형태·범위)
-- [ ] 구현 — 1차 정규식 유지 + allowlist 해제
-- [ ] 차등 테스트 + 위 코퍼스 고정
+- [x] 설계 반전안 확정 (allowlist 형태·범위)
+- [x] 구현 — 1차 정규식 유지 + allowlist 해제
+- [x] 차등 테스트 + 위 코퍼스 고정 (`test_push_guard_allowlist.py` 17건, 전체 스위트 359건)
 - [ ] `/ai-review` → RESOLUTION → PR
 
 ## Rationale

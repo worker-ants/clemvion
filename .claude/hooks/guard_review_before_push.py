@@ -48,12 +48,145 @@ except Exception:
     evaluate_plan = None  # plan gate disabled; review gate still runs.
 
 
-# Match `git push` as the first meaningful git subcommand. Tolerates leading
-# env assignments and `git -C <dir> push`, and compound commands where a push
-# appears after `&&` / `;` / `|`.
+# ---------------------------------------------------------------------------
+# Push detection = BLIND first pass + an enumerated allowlist of releases.
+#
+# FIRST PASS (this regex) is deliberately ignorant: it scans raw text for
+# `git … push` in any spelling. That ignorance is the point — it has no false
+# NEGATIVES that a shell-aware parser would introduce. A 2026-07-17 rewrite
+# that determined the git *subcommand* with shlex was REVERTED after /ai-review
+# found a new false-negative class every round (`git $'push'`, `git $"push"`,
+# backticks, `bash -c "… && git push"`, quote splitting …): the shell's
+# text-transforming features are an UNBOUNDED surface, whereas this regex's
+# defect (false POSITIVES) is a finite, enumerable one. Do not "improve" this
+# regex into a parser — that trade goes the wrong way.
+# SoR: plan/in-progress/harness-push-guard-subcommand-detection.md
+#
+# DO NOT EDIT this pattern. Releases belong in _redact_inert_text() below, which
+# is the bounded half of the design. test_push_guard_allowlist.py pins this
+# exact source string as the differential baseline.
 _GIT_PUSH = re.compile(
     r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 )
+
+# Anything the shell expands makes a text region LIVE: a `push` inside one can
+# actually execute. `git commit -m "$(git push)"` really does push (round-2
+# regression), so a region containing these is never released.
+_LIVE_EXPANSION = ("$(", "`", "${")
+
+# A backslash-escaped pipe is a literal `|` character, never a pipe OPERATOR —
+# in or out of quotes. The first pass treats it as a command separator, which is
+# what makes `grep -n "a\|git push\|b" f` look like a fresh `git push` segment.
+# Matches an ODD run of backslashes before `|` (so `\\|` — an escaped backslash
+# followed by a REAL pipe — is left alone).
+_ESCAPED_PIPE = re.compile(r"(?<!\\)(\\(?:\\\\)*)\|")
+
+# `<<[-] DELIM` / `<<[-] 'DELIM'`. Body runs to a line that is exactly DELIM.
+_HEREDOC_START = re.compile(r"<<-?\s*(?P<q>['\"]?)(?P<delim>[A-Za-z_][A-Za-z0-9_]*)(?P=q)")
+
+# A heredoc body is released only when the command that OWNS the heredoc is
+# itself the message-from-stdin idiom `git commit|tag … -F -`.
+#
+# "Owns" matters, and an earlier draft got it wrong: testing whether the opening
+# LINE merely *mentions* `git commit -F -` is fooled by
+# `echo "git commit -F -" | bash <<'EOF'` — the text sits in an echo argument
+# while `bash` actually runs the body. So we take the LAST segment before `<<`
+# and require that segment to BE the command (anchored, env assignments allowed).
+_COMMIT_STDIN_CMD = re.compile(
+    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^\n]*\b(?:commit|tag)\b[^\n]*"
+    r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])[^\n]*$"
+)
+
+# Naive separator split. Splitting inside a quoted string can only move the
+# boundary LATER — i.e. toward a segment less likely to look like a git commit —
+# so naivety errs toward "do not release", the safe direction.
+_SEGMENT_SPLIT = re.compile(r"\|\||&&|[|;\n]")
+
+
+def _owns_heredoc_as_message(prefix: str) -> bool:
+    """True when the command immediately before `<<` is `git commit|tag … -F -`."""
+    return bool(_COMMIT_STDIN_CMD.match(_SEGMENT_SPLIT.split(prefix)[-1]))
+
+# `-m "…"` / `--message="…"` / `-F "…"` values. The body stops at the first
+# unescaped matching quote, so `-m "a" && git push` cannot swallow the push.
+_MESSAGE_ARG = re.compile(
+    r"(?:(?<=\s)|^)(?:-m|--message=|-F)\s*"
+    r"(?P<q>['\"])(?P<body>(?:\\.|(?!(?P=q)).)*)(?P=q)",
+    re.S,
+)
+
+
+def _is_inert(region: str) -> bool:
+    """True when the shell cannot execute anything inside `region`."""
+    return not any(tok in region for tok in _LIVE_EXPANSION)
+
+
+def _blank(text: str, start: int, end: int) -> str:
+    """Replace [start:end) with spaces, preserving length (and thus offsets)."""
+    return text[:start] + (" " * (end - start)) + text[end:]
+
+
+def _redact_inert_text(command: str) -> str:
+    """Blank regions that are provably inert TEXT, so the blind pass can be
+    re-run without them.
+
+    This is the ENUMERATED half of the design. Each rule releases one proven
+    false-positive shape; everything else stays blocked. The safety property
+    that makes this bounded: a rule that matches too NARROWLY just leaves the
+    command blocked (today's behaviour — safe), so only over-matching is
+    dangerous, and every rule below is deliberately narrow and requires the
+    region to be inert. A `git push` the shell would really run survives
+    redaction and still trips the first pass.
+    """
+    out = command
+
+    # (1) escaped pipes are literal characters, not separators.
+    out = _ESCAPED_PIPE.sub(lambda m: m.group(1) + " ", out)
+
+    # (2) commit-message heredoc bodies.
+    out = _blank_commit_heredocs(out)
+
+    # (3) -m / --message= / -F quoted values. Collected in ONE finditer pass and
+    # applied afterwards — blanking preserves length, so the offsets stay valid.
+    # (A "re-search until nothing changes" loop would not terminate: a blanked
+    # body is still a match, and still inert.)
+    spans = [
+        (m.start("body"), m.end("body"))
+        for m in _MESSAGE_ARG.finditer(out)
+        if _is_inert(m.group("body"))
+    ]
+    for start, end in spans:
+        out = _blank(out, start, end)
+
+    return out
+
+
+def _blank_commit_heredocs(text: str) -> str:
+    """Blank `git commit`/`git tag` heredoc bodies that contain no expansions."""
+    pos = 0
+    while True:
+        m = _HEREDOC_START.search(text, pos)
+        if m is None:
+            return text
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        # Only a commit-message heredoc — never a `bash <<EOF` script body.
+        if not _owns_heredoc_as_message(text[line_start:m.start()]):
+            pos = m.end()
+            continue
+        body_start = text.find("\n", m.end())
+        if body_start == -1:
+            return text
+        body_start += 1
+        delim = m.group("delim")
+        end_re = re.compile(rf"^[ \t]*{re.escape(delim)}[ \t]*$", re.M)
+        end = end_re.search(text, body_start)
+        body_end = end.start() if end else len(text)
+        body = text[body_start:body_end]
+        if _is_inert(body):
+            text = _blank(text, body_start, body_end)
+        # Strictly advance: a zero-length body must not re-scan the same opener.
+        pos = max(body_end, m.end())
+
 
 
 def _read_payload() -> dict:
@@ -69,7 +202,13 @@ def _read_payload() -> dict:
 def _is_git_push(command: str) -> bool:
     if not command or "push" not in command:
         return False
-    return bool(_GIT_PUSH.search(command))
+    if not _GIT_PUSH.search(command):
+        return False  # blind pass says no — detection is unchanged from legacy.
+    # Blind pass says yes. Release ONLY if the match cannot survive removing
+    # provably-inert text, i.e. it only ever lived inside a commit message or a
+    # grep pattern. Anything else — including anything we failed to prove inert
+    # — stays blocked.
+    return bool(_GIT_PUSH.search(_redact_inert_text(command)))
 
 
 _REVIEW_MSG = (
