@@ -33,6 +33,7 @@ sys.path.insert(0, _SKILL_DIR)
 sys.path.insert(0, _SKILLS_DIR)
 sys.path.insert(0, _CLAUDE_DIR)
 
+from lib import line_anchors  # noqa: E402
 from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
@@ -46,6 +47,31 @@ from _shared import report_paths as _report_paths_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
+
+# Size caps, in characters (not bytes — Korean text is 3 bytes/char in UTF-8,
+# so a 131,072-char prompt is ~190 KB on disk).
+#
+# These were 51,200 / 131,072 before the payload grew a line-number gutter.
+# The gutter is *metadata*, not reviewable content: measured over the last 40
+# commits (2026-07-23) it adds 5.97% to diffs and 8.66% to whole-file context,
+# 7.76% to the two combined. Holding the caps at their pre-gutter values would
+# therefore have quietly reduced how much actual code each reviewer sees —
+# measured on a budget-binding changeset (commit 860aad982, 17 files),
+# whole-file context blocks fell from 4 to 1. The caps are raised by the same
+# margin so what stays flat is the volume of reviewed code, not the byte count.
+#
+# 1.08 is the *combined* 7.76% rounded up, not the 8.66% whole-file figure: a
+# real payload is mostly diff (that changeset was 121 KB of diff against 106 KB
+# of whole-file context, and on a budget-binding one the whole-file blocks are
+# the first thing dropped), so weighting by the worst single component would
+# over-provision. Verified against the same changeset after the change:
+# whole-file blocks 4 → 5 and total lines 2,629 → 2,618, i.e. truncation does
+# not fire earlier than it did before the gutter existed.
+#
+# `REVIEW_MAX_FILE_SIZE` / `REVIEW_MAX_PROMPT_SIZE` still override both.
+_GUTTER_OVERHEAD = 1.08
+DEFAULT_MAX_FILE_SIZE = int(51200 * _GUTTER_OVERHEAD)      # 55,296
+DEFAULT_MAX_PROMPT_SIZE = int(131072 * _GUTTER_OVERHEAD)   # 141,557
 
 BINARY_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp", "tiff", "tif",
@@ -134,8 +160,12 @@ def load_config(route_mode="auto"):
         "agents": agents,
         "agents_explicit": agents_explicit,
         "route_mode": route_mode,
-        "max_file_size": int(os.environ.get("REVIEW_MAX_FILE_SIZE", "51200")),
-        "max_prompt_size": int(os.environ.get("REVIEW_MAX_PROMPT_SIZE", "131072")),
+        "max_file_size": int(
+            os.environ.get("REVIEW_MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE))
+        ),
+        "max_prompt_size": int(
+            os.environ.get("REVIEW_MAX_PROMPT_SIZE", str(DEFAULT_MAX_PROMPT_SIZE))
+        ),
         "batch_size": int(os.environ.get("REVIEW_BATCH_SIZE", "50")),
         "skip_extensions": skip_extensions,
     }
@@ -395,9 +425,52 @@ def _apply_routing(session_dir, fallback=False):
 # checklist here so each `_prompts/<role>.md` is genuinely role-distinct).
 # ---------------------------------------------------------------------------
 
+DIFF_HEADING = "#### 변경된 코드 (unified diff)"
+OLD_CODE_HEADING = "#### 이전 코드"
+FULL_CONTEXT_HEADING = "#### 전체 파일 컨텍스트"
+
+# Prepended to every reviewer/router payload. Without it the gutter is just
+# unexplained digits; with it a reviewer knows the numbers are real source
+# lines and that this document's own offsets are not.
+LINE_ANCHOR_LEGEND = (
+    "## 위치 표기 규약 (반드시 준수)\n\n"
+    "아래 모든 코드 블록은 **왼쪽에 실제 소스 라인 번호 게이트**가 붙어 있습니다 "
+    "(`  42|` 형식 — 숫자, `|`, 그다음이 원본 내용).\n\n"
+    f"- `{DIFF_HEADING}` — 게이트 숫자는 **변경 후(new) 파일 기준** 줄 번호입니다. "
+    "`+`(추가)·` `(문맥) 줄에 번호가 붙습니다. `-`(삭제) 줄은 새 파일에 존재하지 "
+    "않으므로 게이트가 **비어 있습니다**.\n"
+    f"- `{FULL_CONTEXT_HEADING}` — 게이트 숫자는 그 파일의 1-기준 실제 줄 번호입니다.\n"
+    "- 게이트가 비어 있거나 없는 줄에는 인용할 수 있는 줄 번호가 **없습니다**.\n\n"
+    "**발견사항의 `위치` 를 적을 때:**\n\n"
+    "1. 반드시 게이트 숫자를 쓰세요. **이 문서(프롬프트) 안에서 몇 번째 줄인지를 세지 "
+    "마세요** — 이 문서는 여러 파일을 이어붙인 조립물이라 그 오프셋은 소스 라인 번호와 "
+    "아무 관계가 없습니다. (실제로 이 혼동이 존재하지 않는 줄 번호를 인용하는 사고를 "
+    "냈습니다: 99줄짜리 파일에 대해 \"line 1362\" 로 기재.)\n"
+    "2. 게이트 숫자를 쓸 수 없는 경우(잘린 블록·게이트 없는 줄)에는 **줄 번호를 지어내지 "
+    "말고** 함수명·클래스명·블록 설명으로 기재하세요. 위치가 틀린 발견사항은 위치가 없는 "
+    "발견사항보다 나쁩니다.\n"
+    "3. 확신이 서지 않으면 `Read`/`Grep` 으로 해당 파일을 직접 열어 확인한 뒤 기재하세요. "
+    "게이트 숫자는 원본 파일의 줄 번호와 일치하므로 그대로 대조됩니다.\n\n"
+)
+
+
+def _truncated_note(kept, total, reason):
+    """Say exactly how much was cut, in lines — the unit the gutter speaks in.
+
+    The old marker ("truncated due to size limit") left the reviewer unable to
+    tell a short file from a clipped one.
+    """
+    return f"\n... ({reason}으로 {kept}/{total} 줄만 표시 — 나머지는 원본 파일 참조) ..."
+
 
 def build_files_section(change_infos, max_file_size, max_total_size=0):
-    """Compose the changed-files context, respecting per-file and total budgets."""
+    """Compose the changed-files context, respecting per-file and total budgets.
+
+    Both the diff and the whole-file context carry a line-number gutter (see
+    `lib/line_anchors.py`). Without it a reviewer has no way to know a real line
+    number and ends up citing offsets into this assembled document instead —
+    measured, not hypothesised: see that module's docstring.
+    """
     separator = "\n---\n\n"
 
     file_parts = []
@@ -408,16 +481,22 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
 
         diff_section = ""
         if ci.get("code"):
-            diff_section += f"\n#### 변경된 코드\n```\n{ci['code']}\n```\n"
+            annotated = line_anchors.annotate_unified_diff(ci["code"])
+            diff_section += f"\n{DIFF_HEADING}\n```\n{annotated}\n```\n"
         if ci.get("old_code"):
-            diff_section += f"\n#### 이전 코드\n```\n{ci['old_code']}\n```\n"
+            diff_section += f"\n{OLD_CODE_HEADING}\n```\n{ci['old_code']}\n```\n"
 
-        full_content = ci.get("full_file_content", "")
+        # Number first, then cut on a line boundary: slicing raw characters
+        # could leave a half-written line number, which is exactly the kind of
+        # untrustworthy anchor the gutter exists to eliminate.
+        full_content = line_anchors.number_source_lines(
+            ci.get("full_file_content", "")
+        )
         if len(full_content) > max_file_size:
-            full_content = (
-                full_content[:max_file_size]
-                + "\n\n... (truncated due to size limit) ..."
+            full_content, kept, total = line_anchors.truncate_to_line_boundary(
+                full_content, max_file_size
             )
+            full_content += _truncated_note(kept, total, "파일 크기 제한")
 
         file_parts.append({
             "header": header,
@@ -431,7 +510,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         for fp in file_parts:
             section = fp["header"] + fp["diff"]
             if fp["full_content"]:
-                section += f"\n#### 전체 파일 컨텍스트\n```\n{fp['full_content']}\n```\n"
+                section += f"\n{FULL_CONTEXT_HEADING}\n```\n{fp['full_content']}\n```\n"
             sections.append(section)
         return separator.join(sections)
 
@@ -451,15 +530,23 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             cut = min(overflow, diff_len)
             new_len = diff_len - cut
             if new_len > 0:
-                fp["diff"] = fp["diff"][:new_len] + "\n\n... (truncated due to prompt size limit) ...\n"
+                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
+                    fp["diff"], new_len
+                )
+                # Trailing "\n" only here (not at the other two truncation
+                # sites): this branch's text is concatenated straight onto the
+                # next section by `separator.join`, whereas the whole-file cuts
+                # are already followed by a closing fence. Pre-existing shape,
+                # kept as-is so the change stays behaviour-preserving.
+                fp["diff"] = kept_text + _truncated_note(kept, total, "프롬프트 크기 제한") + "\n"
             else:
-                fp["diff"] = "\n\n... (diff omitted due to prompt size limit) ...\n"
+                fp["diff"] = "\n\n... (프롬프트 크기 제한으로 diff 생략 — 원본 파일 참조) ...\n"
             overflow -= cut
         sections = [fp["header"] + fp["diff"] for fp in file_parts]
         return separator.join(sections)
 
     remaining_budget = max_total_size - base_size
-    content_wrapper_overhead = len("\n#### 전체 파일 컨텍스트\n```\n\n```\n")
+    content_wrapper_overhead = len(f"\n{FULL_CONTEXT_HEADING}\n```\n\n```\n")
 
     content_indices = [i for i, fp in enumerate(file_parts) if fp["full_content"]]
     content_indices.sort(key=lambda i: file_parts[i]["full_content_size"])
@@ -473,9 +560,11 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         else:
             available = remaining_budget - content_wrapper_overhead
             if available > 200:
-                include_content[i] = (
-                    file_parts[i]["full_content"][:available]
-                    + "\n\n... (truncated due to prompt size limit) ..."
+                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
+                    file_parts[i]["full_content"], available
+                )
+                include_content[i] = kept_text + _truncated_note(
+                    kept, total, "프롬프트 크기 제한"
                 )
                 remaining_budget = 0
             break
@@ -484,7 +573,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     for i, fp in enumerate(file_parts):
         section = fp["header"] + fp["diff"]
         if i in include_content:
-            section += f"\n#### 전체 파일 컨텍스트\n```\n{include_content[i]}\n```\n"
+            section += f"\n{FULL_CONTEXT_HEADING}\n```\n{include_content[i]}\n```\n"
         sections.append(section)
     return separator.join(sections)
 
@@ -526,6 +615,7 @@ def build_agent_prompt_body(agent_name, change_infos, max_file_size, max_prompt_
         "따르되, 분석 시 아래 \"점검 관점\" 을 빠짐없이 적용하세요. 결과는 `output_file`\n"
         "인자가 가리키는 경로에 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n"
         f"{scope_note}"
+        f"{LINE_ANCHOR_LEGEND}"
         f"## 점검 관점 ({info['ko_title']})\n\n"
         f"{info['checklist']}\n\n"
         "## 리뷰 대상 파일\n\n"
@@ -586,6 +676,7 @@ def build_router_prompt_body(
         f"{forced_block}\n\n"
         f"## {candidate_count} reviewer 후보와 관점\n\n"
         f"{perspective_block}\n\n"
+        f"{LINE_ANCHOR_LEGEND}"
         "## 변경 파일 컨텍스트\n\n"
     )
     files_budget = 0
