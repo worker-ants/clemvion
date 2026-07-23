@@ -255,7 +255,11 @@ code:
 | `meta.durationMs` | number | handler return | 항상 `0` — waiting 핸들러는 즉시 완료 |
 | `status` | `'waiting_for_input'` | handler return | 엔진이 실행 일시 정지 (Principle 4) |
 
-> ⚠ **금지 필드** (Principle 1.1.4 / 4.2): `output.type: 'form'` 판별자, `output.view`, `output.submittedData`, `output.previousOutput`, `output.fields`/`output.title`/`output.submitLabel` 같은 config 리터럴 echo. 노드 타입은 워크플로우 정의에서 식별되며, 폼 정의는 모두 `config.*` 에서 읽는다.
+> ⚠ **금지 필드** (Principle 1.1.4 / 4.2): `output.type: 'form'` 판별자, `output.view`, `output.submittedData`, `output.fields`/`output.title`/`output.submitLabel` 같은 config 리터럴 echo. 노드 타입은 워크플로우 정의에서 식별되며, 폼 정의는 모두 `config.*` 에서 읽는다.
+
+> ⚠️ `output.previousOutput` 은 위 금지 목록과 **성격이 다르다** — 폐기 예정이나 resume 경로가
+> 재개 출력에 **지금도 주입한다** ([node-output §4.2](../../conventions/node-output.md#42-폐기할-필드--구조) 과도기 예외).
+> 즉 "존재하지 않는 필드" 가 아니라 "**신규 소비 금지** 인 레거시 필드" 다. Phase 3 정리 시 제거.
 
 **Expression 접근 예** (waiting 시점):
 - `$node["F"].config.title` → `"Approval Request"`
