@@ -166,6 +166,10 @@ allowlist 후보(각각 반드시 실측으로 안전 논증):
       2R `14_57_32` Critical 0 / W4 — 1R 수정이 연 O(n²) 제거.
       3R `15_24_10` Critical 0 / W2 — heredoc 스캔 선형화 + **입력 상한(16KB)으로 hang
       클래스 봉인**. 각 라운드 RESOLUTION.md 참조. 잔여 W2 는 이월 항목 C(별 PR).
+      → **항목 C 는 2026-07-23 won't-do 종결**: 여기서 만든 `_redact_inert_text` 를
+      `guard_default_branch_bash.py` 와 공유하자는 제안이었으나, 후자의 `_MUTATING` 은 앵커돼
+      있어 해제할 오탐 클래스 자체가 없음이 실측됐다(공유 이득 0). 근거·대체 조치는
+      [`harness-guard-followups`](../in-progress/harness-guard-followups.md) §C.
 
 ## Rationale
 

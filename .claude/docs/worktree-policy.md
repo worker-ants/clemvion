@@ -70,7 +70,7 @@ cd ".claude/worktrees/${TASK}-${SLUG}"
 
 활성화: A·B·D 는 `.claude/settings.json` 등록만으로 자동. C 는 `make setup-githooks` 1회 실행.
 
-D 의 read/silent 정책: `ls`, `cat`, `grep`, `find`, `pwd`, `git status`, `git log`, `git diff`, `git show` 등 inspection 명령은 제외. mutating 분류는 `guard_default_branch_bash.py` 의 `_MUTATING` 정규식 참고.
+D 의 read/silent 정책: `ls`, `cat`, `grep`, `find`, `pwd`, `git status`, `git log`, `git diff`, `git show` 등 inspection 명령은 제외. mutating 분류는 `guard_default_branch_bash.py` 의 `_MUTATING` 정규식 참고 — 명령을 `&&`/`||`/`;`/`|`/`&`/개행으로 나눈 **각 세그먼트의 첫 토큰**(`VAR=value` 접두는 건너뜀 — 따옴표로 감싼 공백 포함 값도 인식)에 적용하므로 `git add -A && git commit …` 처럼 체인 뒤쪽 명령도 잡는다. 첫 토큰만 보는 앵커라 인용문 속 단어(`git log --grep="commit"`)는 분류되지 않고, 간접 실행(`xargs rm`, `bash -c …`)은 의도적으로 스코프 밖이다 — D 는 넛지일 뿐이고 실제 강제는 A·C 가 한다. 분류 계약은 `.claude/tests/test_guard_default_branch_bash_mutating.py` 가 고정한다.
 
 **우회**:
 - branch 변경 (정상 동선): 자동 통과.

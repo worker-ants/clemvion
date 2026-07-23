@@ -322,12 +322,58 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    # A commit must carry at least this many changed lines to be usable as the
+    # fixture — comfortably above the `assertGreater(checked, 20)` the callers
+    # make, since some changed lines belong to files the cross-check skips.
+    _MIN_FIXTURE_CHANGED_LINES = 80
+    # How far back to look. Small doc commits come in runs; a handful is plenty.
+    _FIXTURE_SEARCH_DEPTH = 40
+
+    def _pick_commit_fixture(self):
+        """Most recent commit with enough diff to exercise the gutter.
+
+        Not hard-coded to `HEAD` — it may well pick HEAD, but only when HEAD
+        qualifies. This suite replays real git history rather than fixtures
+        (unified diff is git's format, not ours — see the class notes), but that
+        only works if the commit under test actually contains a diff. Pinning
+        HEAD tied the result to something the test does not measure: a small
+        doc-only last commit yielded 13 annotated lines against a `> 20`
+        assertion, so the suite went RED for a change that never touched the
+        gutter — and would have "healed" on the next unrelated commit. A
+        threshold low enough for any commit would have been the mirror failure:
+        green whether or not the gutter works.
+
+        `--numstat` is a cheap pre-filter, so only the chosen commit pays for a
+        full `--prepare` run.
+
+        On a shallow CI clone the search collapses to roughly one commit; that
+        is harmless, because a shallow root has no parent and its `--numstat`
+        totals the whole tree, clearing the threshold easily.
+        """
+        log = _git("log", "-n", str(self._FIXTURE_SEARCH_DEPTH), "--format=%H")
+        for sha in filter(None, (l.strip() for l in log.split("\n"))):
+            numstat = _git("show", "--numstat", "--format=", sha)
+            changed = 0
+            for row in numstat.split("\n"):
+                cols = row.split("\t")
+                if len(cols) >= 2:
+                    # "-" marks a binary file; it contributes no gutter lines.
+                    changed += sum(int(c) for c in cols[:2] if c.isdigit())
+            if changed >= self._MIN_FIXTURE_CHANGED_LINES:
+                return sha
+        return ""
+
     def _prepare_commit(self):
-        """Prepare over HEAD; cross-check against that commit's blobs."""
-        head = _git("rev-parse", "HEAD").strip()
-        if not head:
+        """Prepare over a real commit; cross-check against that commit's blobs."""
+        if not _git("rev-parse", "HEAD").strip():
             self.skipTest("no git history available")
-        return (lambda p: _git("show", f"{head}:{p}")), self._run_prepare("--commit", head)
+        sha = self._pick_commit_fixture()
+        if not sha:
+            self.skipTest(
+                f"no commit in the last {self._FIXTURE_SEARCH_DEPTH} with "
+                f">={self._MIN_FIXTURE_CHANGED_LINES} changed lines"
+            )
+        return (lambda p: _git("show", f"{sha}:{p}")), self._run_prepare("--commit", sha)
 
     def _prepare_files(self):
         """Prepare over FILES; cross-check against the working tree.

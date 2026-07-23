@@ -93,6 +93,17 @@ except Exception as exc:  # noqa: BLE001
 # DO NOT EDIT this pattern. Releases belong in _redact_inert_text() below, which
 # is the bounded half of the design. test_push_guard_allowlist.py pins this
 # exact source string as the differential baseline.
+#
+# KNOWN DEFECT (harness-guard-followups §J, fix pending in its own PR): the
+# env-prefix group below uses `\S+`, which stops at the space INSIDE a quoted
+# value. `GIT_SSH_COMMAND="ssh -i ~/.key" git push origin main` therefore does
+# not match at all — detection fails, so main() returns 0 and BOTH gates are
+# skipped without any fail-open banner. Measured; unquoted values still match.
+# The fix is `(?:'[^']*'|"[^"]*"|[^\s'"]\S*)` (already applied in
+# guard_default_branch_bash.py), but changing THIS string also means updating the
+# byte-for-byte pin and the differential corpus in test_push_guard_allowlist.py —
+# hence the separate PR. Edit that pattern, not `_SEGMENT_IS_GIT` below, which
+# has the same `\S+` but on the release path where a miss is the safe direction.
 _GIT_PUSH = re.compile(
     r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
 )
@@ -138,6 +149,11 @@ _STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 # Naive separator split. Splitting inside a quoted string can only move the
 # boundary LATER — i.e. toward a segment less likely to look like a git commit —
 # so naivety errs toward "do not release", the safe direction.
+#
+# `guard_default_branch_bash.py` splits the same way for the opposite reason:
+# there a stray boundary costs a false nudge, never a missed block. Keep the two
+# in view when either changes — but note the §J defect lives in `_GIT_PUSH`
+# above, not here.
 _SEGMENT_SPLIT = re.compile(r"&&|[|;\n]")
 
 # How much text before a `<<` marker the ownership check may look at. The owning
