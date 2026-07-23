@@ -72,9 +72,28 @@ CRITICAL 과 동일 원인의 부수 효과. 실제 커버리지를 나열하도
 - INFO 6 (정규식 문서 파싱의 결합도) — "문서가 곧 스펙" 컨벤션 예외로 의도된 트레이드오프,
   현행 유지.
 
+## 추가 (리뷰 발견 아님 — 같은 결함 클래스 선제 점검)
+
+CRITICAL 의 교훈이 "한 곳만 고치고 나머지 표현을 못 봤다" 였으므로, 같은 클래스가 더
+있는지 두 문서의 **모든 숫자 주장**을 훑었다. 하나 나왔다:
+
+reviewer 로스터 개수 "14" 가 **4개 파일 6곳**(`SKILL.md` ×2, `README.md`,
+`router_safety.py` ×2, `review-router.md`)에 산문으로 반복되는데, 기존 테스트는
+`router_safety.py:53` 한 곳만 검사하고 있었다. 지금은 전부 정확하지만 확장자 개수와
+정확히 같은 방식으로 어긋날 수 있는 구조였다.
+
+`test_every_documented_reviewer_count_matches_all_agents` 신설 — 4개 파일을 훑어 모든
+주장을 `len(ALL_AGENTS)` 와 대조하고, 매칭 건수가 6 미만이면 "sweep 패턴이 더 이상
+아무것도 지키지 않는다" 로 실패시킨다(가드가 조용히 무력화되는 것 방지).
+
+mutation: 4개 파일 각각의 개수를 stale 하게 만드는 뮤턴트 **4/4 killed**.
+
+`REVIEW_MAX_PROMPT_SIZE`(141557) 등 나머지 수치는 `DocumentedDefaultsMatchTheCodeTest`
+가 이미 SKILL.md·README.md 양쪽을 덮고 있어 추가 조치 불요.
+
 ## 검증
 
-- harness suite **445 green** (반영 전 440 → 신규 테스트 5건).
+- harness suite **446 green** (반영 전 440 → 신규 테스트 6건).
 - mutation **7/7 killed**. 그중 **E1 은 이 가드가 놓쳤던 결함을 그대로 재현**
   (README 표 44→24) 하여 이제 잡힘을 실증한다. 나머지: docstring 표 개수 되돌림 ·
   집합에만 확장자 추가 · `_RULES` 항목 추가 후 표 미갱신 · 규칙 재조준 · 표 행에서

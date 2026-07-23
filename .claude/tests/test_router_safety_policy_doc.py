@@ -266,6 +266,42 @@ class PolicyMatrixMatchesConstantsTest(unittest.TestCase):
             "row counts — the declared mirror has drifted",
         )
 
+    #: Every doc that states how many reviewers are registered. The count is
+    #: `len(ALL_AGENTS)` and lives in prose, so it drifts the same way the
+    #: extension count did — found by sweeping for it after that defect, not by
+    #: waiting for it to break.
+    ROSTER_COUNT_DOCS = (
+        SKILL_DIR / "SKILL.md",
+        SKILL_DIR / "README.md",
+        SKILL_DIR / "lib" / "router_safety.py",
+        REPO_ROOT / ".claude" / "agents" / "review-router.md",
+    )
+    ROSTER_COUNT_RE = re.compile(r"디폴트 (\d+)개|default (\d+)[;,)]")
+
+    def test_every_documented_reviewer_count_matches_all_agents(self):
+        """The count is repeated in six places across four files.
+
+        Same shape as the extension-count drift: a number restated in prose with
+        nothing binding it to `ALL_AGENTS`. Asserted across every document that
+        states it, so adding a reviewer fails here instead of leaving five
+        stale copies behind.
+        """
+        expected = len(_all_agents())
+        seen = 0
+        for path in self.ROSTER_COUNT_DOCS:
+            text = path.read_text(encoding="utf-8")
+            for m in self.ROSTER_COUNT_RE.finditer(text):
+                n = int(m.group(1) or m.group(2))
+                seen += 1
+                self.assertEqual(
+                    n, expected,
+                    f"{path.name}: says {n} reviewers, ALL_AGENTS has {expected}",
+                )
+        self.assertGreaterEqual(
+            seen, 6, f"only found {seen} reviewer-count claims — the sweep's "
+            "patterns stopped matching, so it is no longer guarding anything",
+        )
+
     def test_reviewer_roster_count_and_names_match_the_orchestrator(self):
         agents = _all_agents()
         m = re.search(
