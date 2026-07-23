@@ -668,10 +668,10 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     // 그 **fallback 단** 을 단독 고립한다 — `result.messages` 는 있는데 종결 사유가
     // 한 단계 위에 실린 마이그레이션 이전 페이로드가 이 경로로 들어온다.
     //
-    // 이 fixture 가 없으면 fallback 을 통째로 지워도 전 테스트가 green 이다
-    // (2026-07-23 리뷰 testing 리뷰어 발견 → 실측 재현: 삭제 시 tsc clean +
-    // 40/40 green). 대화 UI 게이트에서 살아남는 mutation 은 곧 미리보기 소실
-    // 경로이므로 닫는다.
+    // 이 fixture 가 없으면 fallback 을 통째로 지워도 전 테스트가 green 이었다
+    // — 타입 검사도 통과하므로 실제로 머지될 수 있는 mutation 이다. 대화 UI
+    // 게이트에서 살아남는 mutation 은 곧 미리보기 소실 경로이므로 닫는다.
+    // 실측 근거는 plan 문서 `output-shape-comment-followups.md` §측정 1b.
     //
     // 고립 조건:
     //  - `result.endReason` **부재** → fallback 을 타야만 판정이 성립
@@ -692,6 +692,31 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
       meta: { model: "m" },
     };
     expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("prefers result.endReason over output.endReason when both are present", () => {
+    // 위 테스트가 fallback 단의 **존재** 를 고정한다면, 이 테스트는 그 2단 조회의
+    // **우선순위** 를 고정한다. 둘 다 있으면 `result` 쪽이 그 종결의 정본이다.
+    //
+    // `result.endReason` 에 화이트리스트 밖 값, `output.endReason` 에 화이트리스트
+    // 값을 동시에 실어 방향을 관측 가능하게 만든다 — 현재 순서면 무효값이 이겨
+    // false, 좌우가 뒤바뀌면 유효값이 이겨 true 가 된다.
+    //
+    // 이 fixture 가 없으면 `??` 좌우를 뒤바꿔도 전 테스트가 green 이었다(타입 검사도
+    // 통과 → 머지 가능). 실측 근거는 plan 문서 §측정 1c.
+    const raw = {
+      config: {},
+      output: {
+        endReason: "completed",
+        result: {
+          messages: [{ role: "user", content: "x" }],
+          endReason: "bogus_value",
+          turnCount: 1,
+        },
+      },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
   });
 
   // 아래 3개는 OR-체인의 각 분기를 **다른 분기와 겹치지 않게** 고립시킨다.

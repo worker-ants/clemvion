@@ -133,6 +133,11 @@ const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set(
  *   - `output.conversationConfig` — status 무관 (생산자 없음 — 아래).
  *   - Stage 5 이후 종결 — `output.result.messages` + `CONVERSATION_END_REASONS`
  *     에 속한 `endReason`. AI Agent·Information Extractor 둘 다 이 형태로 낸다.
+ *     `endReason` 은 `result.endReason` 을 먼저 보고 없을 때만
+ *     `output.endReason` 으로 내려가는 **방어적 2단 조회**다 — 종결 사유가 한
+ *     단계 위에 실린 마이그레이션 이전 페이로드를 위한 fallback 이며, 위 "봉투
+ *     대기" 의 fallback 과 같은 성격이다. 우선순위(`result` 우선)는 의미가 있다:
+ *     둘이 동시에 존재하면 `result` 쪽이 그 종결의 정본이다.
  *     화이트리스트에서 빠진 endReason 은 미리보기 탭을 통째로 없앤다 — 그래서
  *     값 도메인을 `@workflow/ai-end-reason` 패키지가 소유해 목록이 다시 어긋날
  *     수 없게 했다 (#959: 손으로 베낀 목록에서 `error`·`condition` 누락).
