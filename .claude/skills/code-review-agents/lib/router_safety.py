@@ -33,7 +33,7 @@ Policy matrix (this module is the SSOT for the table below)
 
 | Trigger                                  | Forced reviewers                                                     | Source                       |
 |------------------------------------------|----------------------------------------------------------------------|------------------------------|
-| Source-code file (24 extensions below)   | security, requirement, scope, side_effect, maintainability, testing  | _SOURCE_FORCED_REVIEWERS     |
+| Source-code file (44 extensions below)   | security, requirement, scope, side_effect, maintainability, testing  | _SOURCE_FORCED_REVIEWERS     |
 | Package manifest / lockfile              | dependency + documentation                                           | _RULES → _PACKAGE_PATTERNS   |
 | Doc file (.md/.txt/.rst/.adoc/LICENSE/   | documentation                                                        | _RULES → _DOC_PATTERNS       |
 |   NOTICE/AUTHORS/CHANGELOG/README/...)   |                                                                      |                              |

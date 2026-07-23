@@ -65,7 +65,7 @@
 
 | Trigger | Forced reviewers | 근거 |
 |---|---|---|
-| 소스 파일 (24 확장자) | **security, requirement, scope, side_effect, maintainability, testing** | 코드 변경의 핵심 6관점은 router 판단 무관하게 항상 점검 |
+| 소스 파일 (44 확장자) | **security, requirement, scope, side_effect, maintainability, testing** | 코드 변경의 핵심 6관점은 router 판단 무관하게 항상 점검 |
 | `package.json`/`package-lock.json`/`requirements*.txt`/`Pipfile`/`pyproject.toml`/`go.mod`/`Cargo.toml` 등 | dependency + documentation | dependency 변경은 보통 README/CHANGELOG 갱신 동반 |
 | 문서 파일 (`*.md`, `*.txt`, `*.rst`, `*.adoc`, `LICENSE`, `NOTICE`, `AUTHORS`, `CHANGELOG`, `README` 등) | documentation | |
 | `**/migrations/*`, `*.sql`, `**/prisma/schema*` | database | 마이그레이션·스키마 안전성 |
