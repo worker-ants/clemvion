@@ -101,9 +101,9 @@ INFO 미조치: 모듈 상단 docstring 요약 · `guard_review_before_stop.py` 
 - [x] `_worktree_branches` / `_mentions_branch` / `_push_targets` 구현
 - [x] `_accepts_cwd` 시그니처 probe (silent fail-open 차단)
 - [x] 차단 메시지에 worktree 표기
-- [x] 테스트 **20건** 신설 + 카탈로그 등재·갱신 (리뷰 반영으로 9 → 18 → 19 → 20)
-- [x] mutation 실측 **8건**
-- [x] harness 전체 **487 passed**
+- [x] 테스트 **21건** 신설 + 카탈로그 등재·갱신 (9 → 18 → 19 → 20 → 21, 마지막은 main 재구조화 흡수분)
+- [x] mutation 실측 **9건** (병합 후 전수 재실행)
+- [x] harness 전체 **538 passed** (main 병합 후)
 - [x] `/ai-review` — **4라운드 수렴** (C0/W7 → C0/W2 → C0/W2 → C0/W1[문서]). 전량 반영, 4차 RESOLUTION 에 수렴 판정
 
 > **교훈 — "커버된다" 는 추론이 아니라 실측이어야 한다.** 1차 후 "테스트로 커버" 라고 적었다가
@@ -140,6 +140,37 @@ M1 이 3건을 kill 하는 이유: `test_branch_mention_past_the_cap_is_not_scan
 원복 후 mutation 마커 grep **0건**. 하네스는 앵커 미일치 시 `ANCHOR-FAIL` 로 **미적용을 보고**한다
 (초기 라운드에서 앵커가 틀린 mutation 이 조용히 "생존" 으로 집계된 사고가 있었다 —
 치환 실패 뮤턴트가 색깔을 오염시키는 그 클래스다).
+
+## origin/main 재구조화 흡수 (2026-07-24)
+
+작업 중 병렬 세션이 **같은 파일**을 재구조화해 머지했다 — #999(push 게이트 fail-open 관측 §E) ·
+#1000(stop 게이트 관측 + 보고 로직 `_lib` 공유). 게이트 루프가 `_run_gates(outcome)` 로 바뀌면서
+degraded/answered/bypassed 를 집계한다.
+
+**내 수정은 대체되지 않았다**: 재구조화 이후에도 `evaluate_review()` 는 여전히 **무인자 호출**이라
+교차-worktree false-ALLOW 구멍은 그대로였다. #999/#1000 은 fail-open 을 *관측*만 추가했다.
+
+**해소 방식**: 병합 충돌 2블록을 마커 편집으로 때우지 않고, **main 구조를 base 로 채택하고 내
+스코핑을 그 안에 재이식**했다. 내가 추출했던 `_run_gate` 헬퍼는 main 의 `_run_gates` 에 흡수돼
+사라지고, 대신 `_evaluate_over_targets()` 가 **두 불변식을 동시에** 지킨다:
+
+- **fail-open 관측(#999)** — 게이트가 답하지 못하면 `outcome.degraded` 에 **gate 당 1회** 기록.
+  target 당 기록하면 worktree 3개 실패가 streak 3 으로 부풀어 #999 의 escalation 이 조기 발화한다.
+- **per-target fail-open(스코핑)** — 한 worktree 오류는 그 worktree 만 건너뛴다. 여기서 early
+  return 하면 첫 target 크래시가 게이트 전체를 통과시켜, 이 작업이 닫으려는 그 false-ALLOW 다.
+
+`_accepts_cwd` · `_worktree_branches` · `_mentions_branch` · `_push_targets` 와 테스트는 그대로 살았다.
+
+### 재실측에서 드러난 것
+
+병합 후 매트릭스를 돌리자 **M9(gate 당 degraded dedup)가 생존**했다 — 병합 과정에서 내가 새로
+넣은 불변식인데 테스트가 없었다. `test_degradation_is_counted_once_per_gate_not_per_target` 을
+추가해 닫았다(두 target 모두 raise → streak 1, 배너에 gate 1회).
+
+> **하네스 사고 (3번째)**: 첫 재실측에서 셸 함수가 **6개 mutant 전부 "생존"** 으로 보고했으나
+> 수동 확인 결과 M1 은 4건을 kill 했다 — 보고가 거짓이었다. 셸 인자로 다중행 앵커를 넘기는 구조를
+> 버리고, **적용 후 디스크에서 되읽어 검증하고 pytest 종료코드를 보는** 파이썬 러너로 교체했다
+> (`scratchpad/pg/matrix.py`). 이 세션에서 치환-실패/거짓-색깔 계열 사고가 세 번째다.
 
 ## Rationale
 

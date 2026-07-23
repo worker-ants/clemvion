@@ -260,6 +260,53 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn(self.side_wt, r.stderr)
 
+    def test_degradation_is_counted_once_per_gate_not_per_target(self):
+        """Scoping must not inflate #999's fail-open streak counter.
+
+        A gate is evaluated once per push target, so a gate that is genuinely
+        broken raises once per worktree. The streak measures "this gate was
+        effectively off" — three failing worktrees are still ONE gate, and
+        counting per target would make a single broken gate look like a
+        multi-gate outage and trip escalation early. Pinned because a
+        `_evaluate_over_targets` mutation that drops the per-gate dedup survives
+        every other test in this file."""
+        streak_file = os.path.join(
+            self.tmp, ".claude", "state", "push_guard_failopen.json"
+        )
+        shutil.copy(
+            _harness.HOOKS_DIR / "_lib" / "failopen_state.py",
+            os.path.join(self.hooks_dir, "_lib", "failopen_state.py"),
+        )
+        env = dict(os.environ)
+        env["STUB_BLOCKED_PATHS"] = ""
+        env["STUB_PLAN_BLOCKED_PATHS"] = ""
+        # REVIEW raises on BOTH targets (cwd + the named branch's worktree)
+        env["STUB_RAISE_PATHS"] = os.pathsep.join([self.main_wt, self.side_wt])
+        env["CLAUDE_PROJECT_DIR"] = self.tmp  # isolate the streak file
+        env.pop("BYPASS_REVIEW_GUARD", None)
+        env.pop("BYPASS_PLAN_GUARD", None)
+        r = subprocess.run(
+            [sys.executable, self.hook],
+            input=json.dumps(
+                {
+                    "tool_input": {"command": f"git push origin {self.side_branch}"},
+                    "cwd": self.main_wt,
+                }
+            ),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
+        self.assertTrue(os.path.exists(streak_file), r.stdout + r.stderr)
+        with open(streak_file, encoding="utf-8") as fh:
+            streak = json.load(fh)["streak"]
+        self.assertEqual(streak, 1, "two failing targets must count as ONE gate")
+        # …and the banner must name the gate exactly once, not once per target.
+        self.assertEqual(
+            r.stdout.count("REVIEW gate"), 1, f"gate listed more than once:\n{r.stdout}"
+        )
+
     def test_worktree_listing_failure_degrades_to_cwd(self):
         """A repo where `git worktree list` cannot run must fall back to the
         legacy cwd-only check rather than crashing or skipping the gate.

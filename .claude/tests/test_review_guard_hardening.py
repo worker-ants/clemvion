@@ -491,6 +491,19 @@ class StopResolutionSuppressionTest(unittest.TestCase):
     def _run_stop(self, *, blocked, in_flight, summaries):
         payload = {"session_id": "s", "stop_hook_active": False}
         buf = io.StringIO()
+        # Isolate CLAUDE_PROJECT_DIR: `evaluate_plan=None` below is a legitimate
+        # "this gate is off" patch, which the hook correctly counts as degraded —
+        # so without isolation each run writes a real fail-open streak into the
+        # working tree and a few suite runs would escalate a healthy gate.
+        # (Same isolation #999 added to the push-hook `_run` helper.)
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        prev = os.environ.get("CLAUDE_PROJECT_DIR")
+        os.environ["CLAUDE_PROJECT_DIR"] = tmp
+        if prev is None:
+            self.addCleanup(os.environ.pop, "CLAUDE_PROJECT_DIR", None)
+        else:
+            self.addCleanup(os.environ.__setitem__, "CLAUDE_PROJECT_DIR", prev)
         with mock.patch.object(stop, "evaluate_review",
                                return_value=rg.ReviewDecision(blocked, "reason-x")), \
              mock.patch.object(stop, "_resolution_in_flight", return_value=in_flight), \

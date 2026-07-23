@@ -13,10 +13,7 @@ Contract (same as guard_default_branch_edit.py):
   any other → treated as runtime error; tool call proceeds (fail-open).
 
 Only `git push` commands are inspected; every other Bash command passes
-through untouched. Each gate evaluates not just the hook's own cwd but also any
-other checked-out worktree whose branch the command names — see "Which
-worktree(s) does this push publish?" below for why (a cwd-only check was a
-working bypass). Two independent gates run, each with its own override:
+through untouched. Two independent gates run, each with its own override:
   - REVIEW gate (`_lib/review_guard.py`) — unreviewed `codebase/**` changes.
     Override: `BYPASS_REVIEW_GUARD=1`.
   - PLAN gate (`_lib/plan_guard.py`) — the linked in-progress plan was neither
@@ -24,6 +21,20 @@ working bypass). Two independent gates run, each with its own override:
     rule). Override: `BYPASS_PLAN_GUARD=1`.
 Each override is a conscious one-off (e.g. a docs/spec-only branch the heuristic
 misjudged, or ad-hoc work the plan link mis-resolved).
+
+Fail-open is OBSERVED, not silent (policy decision 2026-07-23,
+harness-guard-followups §E). When a gate cannot answer — its module failed to
+import, `evaluate_*()` raised, or push detection itself blew up — the push is
+still allowed, but the hook prints an explicit "this push was not checked"
+banner and records the CONSECUTIVE count in
+`.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
+Only a push where EVERY gate answered cleanly clears the counter. A BYPASS_*
+skip, a non-push, and a push where one gate blocked before the other ever ran
+are all "no evidence" — not "healthy" — and leave the streak untouched. That
+predicate was wrong three times in review, each time by accepting weaker
+evidence than "all of them answered", so `_report_fail_open` compares against
+the named `_ALL_GATES` set rather than testing truthiness. Read it there before
+changing anything here.
 """
 
 from __future__ import annotations
@@ -41,15 +52,29 @@ sys.path.insert(0, os.path.join(THIS_DIR, "_lib"))
 
 # Both gates are imported independently and best-effort: a failure to import one
 # (e.g. a syntax error introduced in that module) must not silence the other.
+_REVIEW_IMPORT_ERROR = ""
+_PLAN_IMPORT_ERROR = ""
+
 try:
     from review_guard import evaluate_review  # noqa: E402
-except Exception:
+except Exception as exc:  # noqa: BLE001
     traceback.print_exc(file=sys.stderr)
+    _REVIEW_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
     evaluate_review = None  # review gate disabled; plan gate still runs.
+
+# Guarded: extracting this reporting into _lib/ means the hook now depends on a
+# module that can be absent or broken. Losing it must not cost the *signal* —
+# silence is the exact failure this mechanism exists to prevent — so the
+# fallback still prints a banner, just without the streak counting.
+try:
+    import failopen_state  # noqa: E402
+except Exception:  # noqa: BLE001
+    failopen_state = None
 
 try:
     from plan_guard import evaluate_plan  # noqa: E402
-except Exception:
+except Exception as exc:  # noqa: BLE001
+    _PLAN_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
     evaluate_plan = None  # plan gate disabled; review gate still runs.
 
 
@@ -494,76 +519,210 @@ _PLAN_MSG = (
 )
 
 
-def _run_gate(evaluate, bypass_env, targets, *, is_blocked, render) -> bool:
-    """Run one gate over every push target. True → the caller must block.
+# --- fail-open observability -------------------------------------------------
+# The gates fail OPEN by design: a broken guard must not stop routine work. The
+# cost is that a gate can be effectively OFF and nobody notices — this module
+# calls itself the hard gate for review-before-push, so silent degradation is
+# the worst shape it can take. Policy decision 2026-07-23: keep failing open,
+# but make it LOUD and COUNTED (harness-guard-followups §E).
+#
+# Nothing here may ever raise into the guard: observability that breaks the
+# thing it observes is worse than no observability.
+_FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+# Gate identifiers. Constants rather than repeated literals: a typo in one of
+# them would make `set(answered) != _ALL_GATES` permanently true, permanently
+# suppressing the reset — fail-safe in direction, but invisible to every static
+# check.
+_GATE_REVIEW = "REVIEW"
+_GATE_PLAN = "PLAN"
+# Every gate that must answer before the streak may be cleared. Named, not
+# counted, so a future third gate cannot silently satisfy the reset with two.
+_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
 
-    Extracted because the REVIEW and PLAN bodies were byte-for-byte the same
-    shape (scoped probe → per-target loop → fail-open continue → render+block);
-    a third gate would have had to re-derive every one of those decisions.
 
-    The two invariants this preserves, both load-bearing:
-      1. **Gate isolation** — a disabled/raising gate must not silence the other.
-         `evaluate is None` returns False (not blocked) so the caller proceeds.
-      2. **Per-target fail-open** — an internal error on one worktree skips only
-         that worktree; the remaining targets are still checked."""
-    if evaluate is None or os.environ.get(bypass_env) == "1":
-        return False
+def _report_fail_open(outcome, exit_code: int) -> None:
+    """Announce (and count) any gate that could not answer.
+
+    Channel depends on the exit code, because that decides what the harness
+    surfaces: on exit 2 the refusal is read from stderr, while on exit 0 it is
+    STDOUT that gets injected into the model's context (the same reasoning
+    `guard_default_branch_bash.py` documents for its never-blocking reminder).
+    A banner on the wrong stream is a banner nobody reads, which would quietly
+    undo the whole point of this policy. The Stop hook cannot make the same
+    choice — its stdout is a JSON protocol — which is why the stream is the
+    caller's decision and not baked into `failopen_state.report`.
+
+    The counting/reset rules and their two previous wrong versions are
+    documented in `_lib/failopen_state.py`.
+    """
+    stream = sys.stderr if exit_code == 2 else sys.stdout
+    if failopen_state is None:
+        # Degraded reporting: no counter, but never silence.
+        try:
+            if outcome.degraded:
+                print("\n⚠️  push guard: 게이트가 판정하지 못하고 통과시켰습니다 "
+                      "(fail-open). [_lib/failopen_state.py 부재 — 연속 횟수 미집계]",
+                      file=stream)
+                for gate, reason in outcome.degraded:
+                    print(f"      {gate} gate — {reason}", file=stream)
+        except Exception:  # noqa: BLE001
+            pass
+        return
+    failopen_state.report(
+        outcome,
+        state_name=_FAILOPEN_STATE_NAME,
+        label="push guard",
+        subject="이 push",
+        all_gates=_ALL_GATES,
+        stream=stream,
+    )
+
+
+if failopen_state is not None:
+    _Outcome = failopen_state.Outcome
+else:  # minimal stand-in so the gates can still record what they did.
+    class _Outcome:  # type: ignore[no-redef]
+        def __init__(self) -> None:
+            self.answered: list = []
+            self.bypassed: list = []
+            self.degraded: list = []
+
+
+def _import_reason(module: str, symbol: str, error: str) -> str:
+    if failopen_state is not None:
+        return failopen_state.import_failure_reason(module, symbol, error)
+    return f"{module} failed to import — {error}" if error else \
+f"{module} imported but {symbol} is None"
+
+
+def _evaluate_over_targets(evaluate, targets, *, gate, outcome, is_blocked, render):
+    """Run ONE gate over every push target. Returns the block message or None.
+
+    Bridges two invariants that arrived from different directions and both have
+    to survive:
+
+      - **fail-open observability** (#999 §E) — a gate that could not answer must
+        be *counted*, not silent. `outcome.answered` gets the gate only when some
+        target produced a verdict; `outcome.degraded` records the first failure.
+        Recorded ONCE per gate, not per target: the streak counter measures "this
+        gate was effectively off", and three failing worktrees are still one gate.
+      - **per-target fail-open** (worktree scoping) — an internal error on one
+        worktree must skip only that worktree. Returning early here would let a
+        crash on the FIRST target pass the whole gate, which is the same
+        false-ALLOW class the scoping exists to close.
+
+    `_accepts_cwd` decides scoping: a gate whose signature takes no positional
+    cwd is called bare, exactly as before scoping existed (legacy degrade).
+    """
     scoped = _accepts_cwd(evaluate)
-    # Unscoped legacy fallback calls the gate with no argument, so it evaluates
-    # the PROCESS cwd — report that, not the payload's, which it never consulted.
+    answered = False
     for target in targets if scoped else [None]:
         try:
             result = evaluate(target) if scoped else evaluate()
-        except Exception:
+        except Exception as exc:
             traceback.print_exc(file=sys.stderr)
-            continue  # fail open on internal error — check the next target
+            if not any(g == gate for g, _ in outcome.degraded):
+                outcome.degraded.append((gate, f"{type(exc).__name__}: {exc}"))
+            continue  # fail open for THIS target — keep checking the rest
+        if result is None:
+            continue
+        answered = True
         if is_blocked(result):
-            print(render(result, target if scoped else os.getcwd()), file=sys.stderr)
-            return True
-    return False
+            if gate not in outcome.answered:
+                outcome.answered.append(gate)
+            return render(result, target if scoped else os.getcwd())
+    if answered and gate not in outcome.answered:
+        outcome.answered.append(gate)
+    return None
+
+
+def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
+    """Run both gates, recording into `outcome` what each one did."""
+    # ---- REVIEW gate -------------------------------------------------------
+    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
+        outcome.bypassed.append(_GATE_REVIEW)
+    else:
+        if evaluate_review is None:
+            outcome.degraded.append((_GATE_REVIEW, _import_reason(
+                "_lib/review_guard.py", "evaluate_review", _REVIEW_IMPORT_ERROR)))
+        else:
+            blocked = _evaluate_over_targets(
+                evaluate_review,
+                targets,
+                gate=_GATE_REVIEW,
+                outcome=outcome,
+                is_blocked=lambda d: d.blocked,
+                render=lambda d, wt: _REVIEW_MSG.format(
+                    reason=d.reason, worktree=wt
+                ),
+            )
+            if blocked is not None:
+                print(blocked, file=sys.stderr)
+                return 2
+
+    # ---- PLAN gate ---------------------------------------------------------
+    if os.environ.get("BYPASS_PLAN_GUARD") == "1":
+        outcome.bypassed.append(_GATE_PLAN)
+    else:
+        if evaluate_plan is None:
+            outcome.degraded.append((_GATE_PLAN, _import_reason(
+                "_lib/plan_guard.py", "evaluate_plan", _PLAN_IMPORT_ERROR)))
+        else:
+            blocked = _evaluate_over_targets(
+                evaluate_plan,
+                targets,
+                gate=_GATE_PLAN,
+                outcome=outcome,
+                is_blocked=lambda pl: pl.untouched,
+                render=lambda pl, wt: _PLAN_MSG.format(
+                    reason=pl.reason, plan=pl.plan_path, worktree=wt
+                ),
+            )
+            if blocked is not None:
+                print(blocked, file=sys.stderr)
+                return 2
+
+    return 0
 
 
 def main() -> int:
-    payload = _read_payload()
-    tool_input = payload.get("tool_input") or payload.get("input") or {}
-    command = tool_input.get("command") or ""
-
-    if not _is_git_push(command):
-        return 0  # not a push — nothing to enforce.
-
-    # Every worktree this push may publish (cwd + any branch the command names).
-    # `payload["cwd"]` is the Bash tool's directory; fall back to the process cwd
-    # so a payload without it behaves exactly as before.
-    base_cwd = payload.get("cwd") or os.getcwd()
+    # `finally` so the report happens on every exit path, including the blocking
+    # ones (a gate can block while the OTHER one failed open — that is exactly
+    # when it would otherwise be quietest).
+    outcome = _Outcome()
+    exit_code = 0
     try:
-        targets = _push_targets(command, base_cwd)
-    except Exception:
+        payload = _read_payload()
+        tool_input = payload.get("tool_input") or payload.get("input") or {}
+        command = tool_input.get("command") or ""
+
+        if not _is_git_push(command):
+            return 0  # not a push — nothing to enforce.
+
+        # Every worktree this push may publish (cwd + any branch the command
+        # names). `payload["cwd"]` is the Bash tool's directory; fall back to the
+        # process cwd so a payload without it behaves exactly as before.
+        base_cwd = payload.get("cwd") or os.getcwd()
+        try:
+            targets = _push_targets(command, base_cwd)
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            targets = [base_cwd]  # fail open to legacy single-worktree behaviour
+
+        exit_code = _run_gates(outcome, targets)
+        return exit_code
+    except Exception as exc:
+        # Fail-open #3 from the plan: anything unhandled above — payload read,
+        # or push DETECTION itself. It used to escape here and the harness's
+        # "non-0/non-2 means allow" rule let the push through with nothing
+        # recorded anywhere. Same outcome, but now counted: detection is the
+        # code three review rounds kept finding bugs in, so a silent failure
+        # there is the worst shape this can take.
         traceback.print_exc(file=sys.stderr)
-        targets = [base_cwd]  # fail open to legacy single-worktree behaviour
-
-    # ---- REVIEW gate -------------------------------------------------------
-    if _run_gate(
-        evaluate_review,
-        "BYPASS_REVIEW_GUARD",
-        targets,
-        is_blocked=lambda d: d is not None and d.blocked,
-        render=lambda d, wt: _REVIEW_MSG.format(reason=d.reason, worktree=wt),
-    ):
-        return 2
-
-    # ---- PLAN gate ---------------------------------------------------------
-    if _run_gate(
-        evaluate_plan,
-        "BYPASS_PLAN_GUARD",
-        targets,
-        is_blocked=lambda p: p is not None and p.untouched,
-        render=lambda p, wt: _PLAN_MSG.format(
-            reason=p.reason, plan=p.plan_path, worktree=wt
-        ),
-    ):
-        return 2
-
-    return 0
+        outcome.degraded.append(("DETECTION", f"{type(exc).__name__}: {exc}"))
+        return 0
+    finally:
+        _report_fail_open(outcome, exit_code)
 
 
 if __name__ == "__main__":
