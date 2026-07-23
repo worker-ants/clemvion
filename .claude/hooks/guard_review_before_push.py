@@ -311,9 +311,140 @@ def _is_git_push(command: str) -> bool:
     return bool(_GIT_PUSH.search(_redact_inert_text(command)))
 
 
+# ---------------------------------------------------------------------------
+# Which worktree(s) does this push publish?
+#
+# Both gates evaluate a *worktree* (HEAD + working tree). Historically they only
+# ever evaluated the hook process's own cwd, which is wrong in a multi-worktree
+# repo — this project keeps every task in `.claude/worktrees/<task>-<slug>/`, so
+# an agent routinely runs `cd <other-worktree> && git push origin <its-branch>`.
+# The hook's cwd is then a DIFFERENT worktree than the one being published:
+#
+#   - false BLOCK  — cwd worktree is mid-review, the pushed branch is clean.
+#   - false ALLOW  — cwd worktree is clean, the pushed branch is unreviewed.
+#     (2026-07-23 실측: evaluate_review(<fresh clean worktree>) → blocked=False
+#      while evaluate_review(<branch with an unresolved gate>) → blocked=True.
+#      Running the push from the clean one skipped the gate entirely.)
+#
+# The false ALLOW is the reason this is a correctness fix and not a convenience
+# one: it is a working bypass of the review gate.
+#
+# HOW WE RESOLVE IT — blind text match, deliberately NOT a parser.
+# `_is_git_push` above is blind on purpose (see its docstring: a 2026-07-17
+# shlex rewrite was REVERTED after every review round found a new false-negative
+# class). We keep that philosophy: we do NOT parse the push refspec. Instead we
+# ask, for each checked-out branch in the repo, "does this branch name occur in
+# the command text?" — a bounded, ignorant question with no shell semantics.
+#
+# Consequences, chosen deliberately:
+#   - A branch named in a comment / commit message also gets evaluated. That can
+#     only make the gate STRICTER (extra worktree checked), never weaker — the
+#     same trade the blind push regex already makes.
+#   - A push whose branch is not checked out anywhere is not additionally
+#     covered; there is no worktree state to evaluate. Behaviour there is
+#     exactly today's (cwd only) — strictly no regression.
+# The cwd worktree is ALWAYS evaluated, so this can only add checks.
+_BRANCH_CHAR = re.compile(r"[A-Za-z0-9._/-]")
+
+
+def _worktree_branches(cwd: str) -> list[tuple[str, str]]:
+    """`[(worktree_path, short_branch), …]` for every checked-out branch.
+
+    Best-effort: returns [] on any failure (fail-open, same as the gates)."""
+    try:
+        import subprocess
+
+        out = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=5.0,
+        )
+        if out.returncode != 0:
+            return []
+    except Exception:
+        return []
+    pairs: list[tuple[str, str]] = []
+    path: str | None = None
+    for line in out.stdout.splitlines():
+        if line.startswith("worktree "):
+            path = line[len("worktree ") :].strip()
+        elif line.startswith("branch ") and path:
+            ref = line[len("branch ") :].strip()
+            short = ref[len("refs/heads/") :] if ref.startswith("refs/heads/") else ref
+            if short:
+                pairs.append((path, short))
+            path = None
+    return pairs
+
+
+def _mentions_branch(command: str, branch: str) -> bool:
+    """True when `branch` occurs in `command` bounded by non-branch characters.
+
+    Bounded so a 1-2 char branch name cannot match inside every longer token.
+    This is a substring test, not tokenization — no shell semantics involved."""
+    start = 0
+    while True:
+        i = command.find(branch, start)
+        if i < 0:
+            return False
+        before = command[i - 1] if i > 0 else ""
+        after_idx = i + len(branch)
+        after = command[after_idx] if after_idx < len(command) else ""
+        if not _BRANCH_CHAR.match(before or " ") and not _BRANCH_CHAR.match(
+            after or " "
+        ):
+            return True
+        start = i + 1
+
+
+def _accepts_cwd(fn) -> bool:
+    """True when `fn` takes at least one positional argument (the worktree).
+
+    Probed explicitly rather than by catching TypeError from the call, because
+    that catch is indistinguishable from a genuine internal error and would turn
+    a signature mismatch into a SILENTLY DISABLED gate (2026-07-23: the stub
+    gates in `test_guard_review_before_push_main.py` take no argument, and an
+    early draft of this change made all 9 blocking tests exit 0 instead of 2).
+    On an unexpected signature we degrade to the legacy single-worktree call —
+    weaker than the fix, but never weaker than the behaviour it replaced."""
+    try:
+        import inspect
+
+        params = inspect.signature(fn).parameters.values()
+        return any(
+            p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.VAR_POSITIONAL,
+            )
+            for p in params
+        )
+    except Exception:
+        return False
+
+
+def _push_targets(command: str, cwd: str) -> list[str]:
+    """Worktrees this push may publish: always cwd, plus any whose branch the
+    command names. Order-stable, de-duplicated, cwd first."""
+    targets = [cwd]
+    seen = {os.path.realpath(cwd)}
+    for path, branch in _worktree_branches(cwd):
+        real = os.path.realpath(path)
+        if real in seen or not os.path.isdir(path):
+            continue
+        if _mentions_branch(command, branch):
+            targets.append(path)
+            seen.add(real)
+    return targets
+
+
 _REVIEW_MSG = (
     "BLOCKED by .claude/hooks/guard_review_before_push.py (review gate)\n"
     "  attempted: git push\n"
+    "  worktree:  {worktree}\n"
     "  reason:    {reason}\n"
     "\n"
     "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다.\n"
@@ -336,6 +467,7 @@ _REVIEW_MSG = (
 _PLAN_MSG = (
     "BLOCKED by .claude/hooks/guard_review_before_push.py (plan gate)\n"
     "  attempted: git push\n"
+    "  worktree:  {worktree}\n"
     "  reason:    {reason}\n"
     "\n"
     "PR 를 올리기 전에는 처리하던 plan 을 갱신하거나 (모두 완료 시) complete 로\n"
@@ -359,30 +491,53 @@ def main() -> int:
     if not _is_git_push(command):
         return 0  # not a push — nothing to enforce.
 
+    # Every worktree this push may publish (cwd + any branch the command names).
+    # `payload["cwd"]` is the Bash tool's directory; fall back to the process cwd
+    # so a payload without it behaves exactly as before.
+    base_cwd = payload.get("cwd") or os.getcwd()
+    try:
+        targets = _push_targets(command, base_cwd)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        targets = [base_cwd]  # fail open to legacy single-worktree behaviour
+
     # ---- REVIEW gate -------------------------------------------------------
     if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
-        try:
-            decision = evaluate_review()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            decision = None  # fail open on internal error
-        if decision is not None and decision.blocked:
-            print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
-            return 2
+        scoped = _accepts_cwd(evaluate_review)
+        for target in targets if scoped else [None]:
+            try:
+                decision = evaluate_review(target) if scoped else evaluate_review()
+            except Exception:
+                traceback.print_exc(file=sys.stderr)
+                continue  # fail open on internal error — check the next target
+            if decision is not None and decision.blocked:
+                print(
+                    _REVIEW_MSG.format(
+                        reason=decision.reason, worktree=target or base_cwd
+                    ),
+                    file=sys.stderr,
+                )
+                return 2
 
     # ---- PLAN gate ---------------------------------------------------------
     if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
-        try:
-            plan = evaluate_plan()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            plan = None  # fail open on internal error
-        if plan is not None and plan.untouched:
-            print(
-                _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
-                file=sys.stderr,
-            )
-            return 2
+        scoped = _accepts_cwd(evaluate_plan)
+        for target in targets if scoped else [None]:
+            try:
+                plan = evaluate_plan(target) if scoped else evaluate_plan()
+            except Exception:
+                traceback.print_exc(file=sys.stderr)
+                continue  # fail open on internal error — check the next target
+            if plan is not None and plan.untouched:
+                print(
+                    _PLAN_MSG.format(
+                        reason=plan.reason,
+                        plan=plan.plan_path,
+                        worktree=target or base_cwd,
+                    ),
+                    file=sys.stderr,
+                )
+                return 2
 
     return 0
 
