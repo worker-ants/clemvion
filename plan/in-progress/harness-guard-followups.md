@@ -143,8 +143,15 @@ exactly-once 가 아니라 **수렴**(마커 존재 + 이후 세션 skip)을 단
 `.claude/tests/` 어디서도 실행되지 않는다. `_is_git_push` 는 두텁게 테스트됐지만 **그 결과를
 소비하는 최종 진입점은 무검증**이다.
 
-- [ ] `subprocess.run([sys.executable, "guard_review_before_push.py"], input=json.dumps(payload))`
+- [x] `subprocess.run([sys.executable, "guard_review_before_push.py"], input=json.dumps(payload))`
       형태의 e2e, 또는 `evaluate_review`/`evaluate_plan` 을 mock 주입해 exit code·stderr 문구 검증
+      → **완료** (D PR). `test_guard_review_before_push_main.py` 20건: 훅을 임시 디렉토리에
+      복사하고 그 옆에 env 구동 stub `_lib/{review_guard,plan_guard}.py` 를 주입해 실제
+      프로세스로 실행. 커버 — exit 0/2, push 미탐지 통과, `input` 별칭 키, REVIEW→PLAN 순서
+      단락(short-circuit), `BYPASS_*` **게이트별** 격리(한쪽 우회가 다른 쪽에 누출 안 됨),
+      `evaluate_*()` 예외 fail-open, 게이트 모듈 **import 실패** 시 해당 게이트만 비활성,
+      stdin malformed/빈/command 부재. 뮤테이션 검증: 게이트 순서 스왑·bypass 공유·예외
+      미포착 3종 모두 테스트 실패로 포착(스크래치 복사본에서 확인).
 
 ---
 
