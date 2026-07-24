@@ -11,7 +11,7 @@ spec_impact:
 
 # 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
 
-**상태**: 미착수. **선행 결함** — 이 PR 이 만든 게 아니다.
+**상태**: 완료(2026-07-24). **선행 결함** — 이 PR 이 만든 게 아니다.
 
 `webchat-boot-single-flight.md`(곧 `complete/` 이동)의 산문 이월에서 분리했다 — 형제 항목
 (`webchat-command-failure-is-not-termination.md`, `webchat-usewidget-extraction.md`)과 같은 처분.

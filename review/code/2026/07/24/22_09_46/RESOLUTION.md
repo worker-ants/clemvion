@@ -50,3 +50,37 @@
   (신규 요구·결정 서술). §3.1 필드 열거는 구현된 동작의 사실 기술이라 developer sync 로 처리했으나,
   위협 모델은 그 경계 밖이다.
 - **I2** `wc:boot` 경로의 `apiBase` 스킴 검증(query-param 폴백엔 있음) — 선재 신뢰 경계, 별건.
+
+---
+
+## 후속 라운드 — consistency `--impl-done` (2026-07-24)
+
+RESOLUTION 작성 시점에 plan 체크박스가 `/consistency-check --impl-done` 을 `[x]` 로 적고 있었으나
+**실제로 돌리지 않았다**. push 게이트가 그것을 잡았다("spec-linked 7파일이 최신 impl-done 보고서
+이후 변경됨"). 이 저장소가 반복 경계하는 stale 체크박스를 내가 만들었다 — 정정하고 실제 실행했다.
+
+| 라운드 | 결과 |
+|---|---|
+| `22_35_51` | **BLOCK: YES** — naming_collision CRITICAL 1 + plan_coherence WARNING 2 |
+| `22_50_44` | **BLOCK: NO** — Critical/Warning 0 (해소를 코드 직접 확인으로 재검증) |
+
+### CRITICAL — 실질적인 지적이었다
+
+`session-store.normalizeApiBase`(경로 **보존**)가 `app/demo/demo-config.ts::normalizeApiBase`
+(후행 `/api` **까지 제거**)와 **정반대 계약으로 동명**이었다. 통합되면 `…/api` 와 `…` 가 같다고
+판정돼 **이번 PR 이 막은 cross-origin 토큰 유출이 되살아난다**. W1 에서 `stripTrailingSlash` 를
+이미 공용화했으므로 로컬 wrapper 는 불필요 → 제거(잔존 동명 0). 경로 보존 이유 + demo-config
+동명 경고를 호출부 주석에 고정.
+
+### WARNING 2건
+
+- **Gate C stale**: plan `spec_impact: none` 이었는데 W3 반영으로 spec 을 실제 편집 → 리스트 교정.
+  Gate C 는 형식만 봐서 못 잡는 drift 를 checker 가 잡았다.
+- **후속 미착지**: 미룬 2건이 어떤 티켓에도 없었다 → `webchat-boot-apibase-scheme-validation.md`
+  신설(developer) + `webchat-spec-rationale-followup.md` 에 3항목 편입(planner: 4-security 위협 축 ·
+  R7 Rationale · 2-sdk §3 각주).
+
+### 2R INFO 반영
+
+- `3-auth-session.md` frontmatter `code:` 에 신규 `lib/api-base.ts` 등재(evidence 완결성)
+- plan 본문 "**상태**: 미착수" → "완료(2026-07-24)" 자기모순 정정
