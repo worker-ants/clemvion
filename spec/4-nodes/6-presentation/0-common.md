@@ -152,17 +152,25 @@ CONVENTIONS §4.5 의 `interaction` 규격:
 
 ## 4.6 Conversation Thread opt-out (공통)
 
-Presentation 5 노드 (Carousel / Table / Chart / Form / Template) 모두 공통으로
-다음 boolean config 필드를 가진다 — `output.interaction` 이 발화될 때
-[ConversationThread](../../conventions/conversation-thread.md) 에 자동 push
-되는 동작을 노드 단위로 끄기 위함.
+Presentation 5 노드 (Carousel / Table / Chart / Form / Template) 의 user interaction 은
+`output.interaction` 발화 시 [ConversationThread](../../conventions/conversation-thread.md) 에
+**자동 push 된다**. `excludeFromConversationThread` 는 그 push 를 노드 단위로 끄는 opt-out 이다.
 
 | 필드 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| excludeFromConversationThread | Boolean | `false` | `true` 면 본 노드의 user interaction (form 제출 / 버튼 클릭 / continue) 이 thread 에 push 되지 않는다. 디버그용 form, telemetry-only button 등 thread noise 가 되는 인터랙션을 명시 제외할 때 사용. UI 그룹: `Advanced > Conversation`. |
+| excludeFromConversationThread | Boolean | `false` | `true` 면 본 노드의 user interaction (form 제출 / 버튼 클릭 / continue) 이 thread 에 push 되지 않는다. 디버그용 form, telemetry-only button 등 thread noise 가 되는 인터랙션을 명시 제외할 때 사용. |
 
-> 본 필드는 schema 정의에 명시되지 않은 경우 default `false` 로 동작 — 기존
-> 워크플로우 영향 없음. AI 카테고리 노드의 동명 필드는 [공통 §10](../3-ai/0-common.md#10-conversation-context-자동-컨텍스트-주입) 참조.
+**두 층위의 상태가 다르다 — 구분해서 읽어야 한다:**
+
+| 층위 | 상태 | 근거 |
+|---|---|---|
+| **런타임 opt-out 동작** | **구현됨 (전 노드 공통)** | `ConversationThreadService.appendInternal` 이 모든 `append*` 의 단일 진입점이고 그 첫 줄이 `node.config.excludeFromConversationThread === true` 게이트다 ([conversation-thread.md §2.4](../../conventions/conversation-thread.md)). 노드 종류를 가리지 않으므로 presentation 인터랙션 push 도 동일하게 적용된다 |
+| **schema 선언 / 설정 UI 노출** | **미구현 (Planned)** | presentation 5노드 schema 는 이 필드를 선언하지 않는다. 따라서 노드 설정 UI 에 나타나지 않으며, 각 schema 가 `passthrough` 라 **수동/API 로 config 에 넣으면 위 게이트가 그대로 존중**한다. UI 노출이 필요해지면 AI 카테고리처럼 공유 fragment 로 선언을 추가한다 — 그때 그룹명을 AI 쪽 상수와 공유할지 결정한다 |
+
+> `excludeFromConversationThread` 는 **AI 카테고리 노드에서 필드로 선언**된다 — 그쪽 선언의 단일
+> 진실은 3노드 공유 fragment `shared/conversation-context-schema.ts` 다 ([공통 §10](../3-ai/0-common.md#10-conversation-context-자동-컨텍스트-주입)).
+> 위 표의 구분대로, **선언 SoT 가 AI 3노드 한정인 것과 런타임 게이트가 전 노드 공통인 것은 별개**다.
+> schema 에 명시되지 않으면 값이 없으므로 default `false` 로 동작 — 기존 워크플로우 영향 없음.
 
 ---
 
