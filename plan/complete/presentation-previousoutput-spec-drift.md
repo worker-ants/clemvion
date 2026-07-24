@@ -2,6 +2,10 @@
 worktree: presentation-previousoutput-spec-drift-e74b2f
 started: 2026-07-23
 owner: project-planner
+spec_impact:
+  - spec/4-nodes/6-presentation/0-common.md
+  - spec/4-nodes/6-presentation/3-chart.md
+  - spec/4-nodes/6-presentation/4-form.md
 ---
 
 # presentation spec 의 `previousOutput` 폐기 서술 정정 (선재 drift)

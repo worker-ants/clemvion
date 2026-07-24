@@ -111,41 +111,54 @@ const CONVERSATION_END_REASONS: ReadonlySet<string> = new Set(
 );
 
 /**
- * Detect whether outputData represents a multi-turn conversation result.
+ * outputData 가 멀티턴 대화 결과인지 판정한다.
  *
- * An OR-chain over the payload shapes accumulated across migrations. The
- * branches below are authoritative — this list documents them, it does not
- * bound them (an earlier version claimed "all four shapes" while the chain
- * already had more, which is how the enumeration silently went stale):
- *   - Legacy flat completed (top-level `messages` + `interactionType`)
- *   - Legacy waiting (top-level `interactionType: 'ai_conversation'` +
- *     `conversationConfig`) — for in-flight rows persisted before the
- *     canonical-shape migration.
- *   - Wrapped completed (`{ config, output: { messages }, meta: { interactionType } }`),
- *     where `output.interactionType` is also accepted in place of
- *     `meta.interactionType` (no known producer — see below).
- *   - Wrapped waiting (`{ config, output: { messages, message, turnCount,
- *     partial? }, meta: { interactionType: 'ai_conversation' },
- *     status: 'waiting_for_input', _resumeState }`), plus a defensive
- *     fallback accepting `status: 'waiting_for_input'` + `output.messages`
- *     alone when `meta.interactionType` was stripped.
- *   - Wrapped `output.conversationConfig`, any status (no known producer).
- *   - Post-Stage-5 terminal — `output.result.messages` + an `endReason` in
- *     `CONVERSATION_END_REASONS`. Both AI Agent and Information Extractor
- *     emit this. An endReason missing from that whitelist makes the whole
- *     conversation preview tab vanish — the `@workflow/ai-end-reason` package
- *     owns the value domain precisely so the list cannot drift again (#959:
- *     `error` / `condition` were missing from a hand-copied list).
+ * **이 함수는 대화 UI 전체의 게이트다** — false 를 반환하면 실행 결과 미리보기
+ * 탭이 통째로 사라진다. 그래서 판정은 마이그레이션을 거치며 쌓인 페이로드
+ * 형태들에 대한 OR-체인이다. 아래 목록은 **실재하는 분기를 설명할 뿐 그 범위를
+ * 규정하지 않는다** — 예전 버전이 "네 가지 형태 전부" 라고 단언했는데 체인엔
+ * 이미 그보다 많았고, 그게 열거가 조용히 낡는 경로였다:
  *
- * "No known producer" (2026-07-17 전수 확인 — 핸들러 / 엔진·WS emit / EIA DTO /
- * git 이력): `output.interactionType` 과 `output.conversationConfig` 는 실제
- * 페이로드보다 **한 단계 더 깊다**. 핸들러는 `interactionType` 을 `meta` 에
- * 싣고, WS emit 의 `nodeOutput` 은 `conversationConfig` 를 자기 최상위에 둔다
- * (그 객체엔 `output` 키 자체가 없다) — 둘 다 위쪽 top-level 게이트가 잡는다.
- * 그럼에도 남겨두는 이유는 방어 목적이다: 이 함수는 대화 UI 전체의 게이트라
- * false negative 하나가 미리보기 탭을 통째로 없앤다 (#959). 지우려면 근거가
- * 아니라 실측이 필요하다 — `__tests__/output-shape.test.ts` 가 두 분기를 각각
- * 고립 테스트로 고정해 두었으므로, 삭제하면 그 테스트가 red 로 드러난다.
+ *   - 레거시 flat 종결 — 최상위 `messages` + `interactionType`.
+ *   - 레거시 대기 — 최상위 `interactionType: 'ai_conversation'` +
+ *     `conversationConfig`. canonical-shape 마이그레이션 이전에 영속된 진행 중 행.
+ *   - 봉투 종결 — `{ config, output: { messages }, meta: { interactionType } }`.
+ *     `meta.interactionType` 자리에 `output.interactionType` 도 받는다
+ *     (생산자 없음 — 아래 §방어적 유지).
+ *   - 봉투 대기 — `{ config, output: { messages, message, turnCount, partial? },
+ *     meta: { interactionType: 'ai_conversation' }, status: 'waiting_for_input',
+ *     _resumeState }`. 여기에 `meta.interactionType` 이 유실된 경우를 위해
+ *     `status: 'waiting_for_input'` + `output.messages` 만으로도 받는 방어적
+ *     fallback 이 붙는다.
+ *   - `output.conversationConfig` — status 무관 (생산자 없음 — 아래).
+ *   - Stage 5 이후 종결 — `output.result.messages` + `CONVERSATION_END_REASONS`
+ *     에 속한 `endReason`. AI Agent·Information Extractor 둘 다 이 형태로 낸다.
+ *     `endReason` 은 `result.endReason` 을 먼저 보고 없을 때만
+ *     `output.endReason` 으로 내려가는 **방어적 2단 조회**다 — 종결 사유가 한
+ *     단계 위에 실린 마이그레이션 이전 페이로드를 위한 fallback 이며, 위 "봉투
+ *     대기" 의 fallback 과 같은 성격이다. 우선순위(`result` 우선)는 의미가 있다:
+ *     둘이 동시에 존재하면 `result` 쪽이 그 종결의 정본이다.
+ *     화이트리스트에서 빠진 endReason 은 미리보기 탭을 통째로 없앤다 — 그래서
+ *     값 도메인을 `@workflow/ai-end-reason` 패키지가 소유해 목록이 다시 어긋날
+ *     수 없게 했다 (#959: 손으로 베낀 목록에서 `error`·`condition` 누락).
+ *
+ * ## 방어적 유지 — 생산자 없는 두 분기 (2026-07-17 전수 확인)
+ *
+ * 핸들러 / 엔진·WS emit / EIA DTO / git 이력 전수 확인 결과
+ * `output.interactionType` 과 `output.conversationConfig` 는 실제 페이로드보다
+ * **한 단계 더 깊다**: 핸들러는 `interactionType` 을 `meta` 에 싣고, WS emit 의
+ * `nodeOutput` 은 `conversationConfig` 를 자기 최상위에 둔다(그 객체엔 `output`
+ * 키 자체가 없다) — 둘 다 위쪽 최상위 게이트가 잡는다.
+ *
+ * 그럼에도 남겨두는 이유는 방어다. false negative 하나가 미리보기 탭을 없애므로
+ * **지우려면 근거가 아니라 실측이 필요하다** — `__tests__/output-shape.test.ts`
+ * 가 두 분기를 각각 고립 테스트로 고정해 두었으므로, 삭제하면 그 테스트가 red
+ * 로 드러난다.
+ *
+ * > **근거의 SoT 는 이 JSDoc 이다.** "왜 이 분기가 존재하는가 / 왜 생산자가
+ * > 없는데도 방어적으로 남는가" 는 여기서만 서술한다. 테스트 파일 주석은 각
+ * > fixture 가 **어떤 분기를 고립시키는가**(필드의 존재/부재)만 적고 근거는
+ * > 이 문서로 위임한다 — 같은 근거를 양쪽에 두면 한쪽만 갱신돼 어긋난다.
  */
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))

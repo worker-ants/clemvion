@@ -550,8 +550,9 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
   });
 
   it("detects post-Stage-5 ai_agent terminal via output.result.messages + endReason", () => {
-    // `looksLikeConversationEnd` branch — new LLM shape wraps everything
-    // under `output.result.*` and drops `meta.interactionType`.
+    // `output.result.messages` + 화이트리스트 `endReason` 분기 (내부적으로
+    // `looksLikeConversationEnd`) — 새 LLM shape 은 모든 것을 `output.result.*`
+    // 아래로 감싸고 `meta.interactionType` 을 싣지 않는다.
     const raw = {
       config: { mode: "multi_turn", model: "gpt-5" },
       output: {
@@ -573,10 +574,9 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
   });
 
   // 목록을 여기 베끼지 않고 SoT(`@workflow/ai-end-reason`) 를 순회한다 — 베낀
-  // 목록에서 `condition` / `error` 가 빠져 조건 라우팅·오류로 끝난 대화가
-  // 미리보기를 잃은 게 이 계열 회귀의 진원지였다
-  // (spec/conventions/conversation-thread.md §9.9 Inv-8). 패키지 유니온에
-  // 값이 추가되면 이 테스트가 자동으로 그 값까지 검증한다.
+  // 목록은 이 계열 회귀의 진원지였다(근거는 `isConversationOutput` JSDoc §Stage 5
+  // 이후 종결 + spec/conventions/conversation-thread.md §9.9 Inv-8). 순회하면
+  // 패키지 유니온에 값이 추가될 때 이 테스트가 자동으로 그 값까지 검증한다.
   it("accepts every unified endReason as a conversation terminal", () => {
     for (const endReason of CONVERSATION_END_REASONS) {
       const raw = {
@@ -626,17 +626,119 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
     expect(isConversationOutput(raw)).toBe(false);
   });
 
+  it("rejects result.messages when the endReason key is absent entirely", () => {
+    // 위 테스트가 "화이트리스트에 없는 **값**" 을 고정한다면, 이 테스트는
+    // "`endReason` **키 자체가 없는**" 경우를 고정한다. 둘은 다른 mutation 을
+    // 잡는다.
+    //
+    // 지키는 대상은 `typeof endReason === "string"` conjunct 의 *존재* 가 아니다
+    // — 그 conjunct 단순 삭제는 런타임 동작이 완전히 동일하고(화이트리스트가
+    // `ReadonlySet<string>` 이라 비-string 은 멤버가 될 수 없다) 대신 타입 검사가
+    // 막으므로 애초에 머지되지 않는다. 실제 위험은 **키 부재의 의미를 바꾸는
+    // 리팩터**다 — 기본값 주입이나 조건 반전으로, 그때 위 `bogus_value` 테스트는
+    // 여전히 green 인 채 "endReason 없는 종결" 이 조용히 대화로 오분류된다.
+    //
+    // 어떤 변형이 어느 테스트를 red 로 만드는지의 실측 표는 plan 문서
+    // `output-shape-comment-followups.md` §mutation 실측 이 SoT 다(라이프사이클상
+    // `plan/in-progress/` → `plan/complete/` 로 이동). 여기 옮겨 적지 않는다.
+    //
+    // 고립 조건 — `output.result.messages` 외 다른 분기는 전부 거짓:
+    //  - top-level `interactionType`/`conversationConfig` 부재
+    //  - `output.messages` 부재 (첫 OR-분기·waiting 분기 차단)
+    //  - `output.interactionType`/`meta.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `status` 키 부재
+    //  - `result.endReason`·`output.endReason` **둘 다 키 자체가 없음**
+    const raw = {
+      config: {},
+      output: {
+        result: {
+          messages: [{ role: "user", content: "x" }],
+          turnCount: 1,
+        },
+      },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
+
+  it("detects a terminal whose endReason sits at output.endReason, not result.endReason", () => {
+    // `endReason` 은 `result.endReason` 을 먼저 보고 없으면 `output.endReason` 으로
+    // 내려가는 2단 조회다(내부적으로 `result?.endReason ?? output.endReason`).
+    // 그 **fallback 단** 을 단독 고립한다 — `result.messages` 는 있는데 종결 사유가
+    // 한 단계 위에 실린 마이그레이션 이전 페이로드가 이 경로로 들어온다.
+    //
+    // 이 fixture 가 없으면 fallback 을 통째로 지워도 전 테스트가 green 이었다
+    // — 타입 검사도 통과하므로 실제로 머지될 수 있는 mutation 이다. 대화 UI
+    // 게이트에서 살아남는 mutation 은 곧 미리보기 소실 경로이므로 닫는다.
+    // 실측 근거는 plan 문서 `output-shape-comment-followups.md` §측정 1b.
+    //
+    // 고립 조건:
+    //  - `result.endReason` **부재** → fallback 을 타야만 판정이 성립
+    //  - top-level `interactionType`/`conversationConfig` 부재
+    //  - `output.messages` 부재 (첫 OR-분기·waiting 분기 차단)
+    //  - `output.interactionType`/`meta.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `status` 키 부재
+    const raw = {
+      config: {},
+      output: {
+        endReason: "completed",
+        result: {
+          messages: [{ role: "user", content: "x" }],
+          turnCount: 1,
+        },
+      },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(true);
+  });
+
+  it("prefers result.endReason over output.endReason when both are present", () => {
+    // 위 테스트가 fallback 단의 **존재** 를 고정한다면, 이 테스트는 그 2단 조회의
+    // **우선순위** 를 고정한다. 둘 다 있으면 `result` 쪽이 그 종결의 정본이다.
+    //
+    // 이 fixture 가 없으면 `??` 좌우를 뒤바꿔도 전 테스트가 green 이었다(타입 검사도
+    // 통과 → 머지 가능). 실측 근거는 plan 문서 §측정 1c.
+    //
+    // 고립 조건:
+    //  - `result.endReason` **화이트리스트 밖 값** + `output.endReason`
+    //    **화이트리스트 값** 을 동시 배치 → 방향이 관측 가능해진다. 현재 순서면
+    //    무효값이 이겨 `false`, 역전되면 유효값이 이겨 `true`
+    //  - `result.messages` 존재 → 종결 분기 자체는 성립(이 guard 로 가려지지 않음)
+    //  - top-level `interactionType`/`conversationConfig` 부재
+    //  - `output.messages` 부재 (첫 OR-분기·waiting 분기 차단)
+    //  - `output.interactionType`/`meta.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `status` 키 부재
+    const raw = {
+      config: {},
+      output: {
+        endReason: "completed",
+        result: {
+          messages: [{ role: "user", content: "x" }],
+          endReason: "bogus_value",
+          turnCount: 1,
+        },
+      },
+      meta: { model: "m" },
+    };
+    expect(isConversationOutput(raw)).toBe(false);
+  });
+
   // 아래 3개는 OR-체인의 각 분기를 **다른 분기와 겹치지 않게** 고립시킨다.
   // 위의 기존 케이스들은 여러 분기를 동시에 참으로 만들어서, 분기 하나를 통째로
   // 지워도 green 을 유지했다 (mutation 무방비). 각 fixture 는 의도한 분기 하나만
   // 참이고 나머지는 전부 거짓이라, 그 분기를 지우면 이 테스트만 red 가 된다.
   it("detects conversation via output.interactionType alone (meta carries no interactionType)", () => {
-    // `hasLegacyMessages && outputInteraction` 만 참. 고립 조건:
-    //  - top-level `interactionType`/`conversationConfig` 없음 → 첫 게이트 통과
-    //  - `meta.interactionType` 없음 → metaInteraction 거짓
-    //  - `output.conversationConfig` 없음 → hasConvConfig 거짓
-    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
-    //  - `status` 없음 → isCanonicalWaiting 거짓
+    // `output.messages` 배열 + `output.interactionType` 대화형 조합만 참
+    // (내부적으로 `hasLegacyMessages && outputInteraction`). 고립 조건 —
+    // 다른 분기를 참으로 만들 필드를 전부 비운다:
+    //  - top-level `interactionType`/`conversationConfig` 부재 → 최상위 게이트 통과
+    //  - `meta.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `output.result` 부재
+    //  - `status` 키 부재
     const raw = {
       config: { mode: "multi_turn" },
       output: {
@@ -649,12 +751,12 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
   });
 
   it("detects conversation via nested output.conversationConfig alone (no status, no messages)", () => {
-    // `hasConvConfig` 만 참. 고립 조건: top-level `conversationConfig` 가 아니라
-    // **envelope 의 output 안에 중첩된** 형태 — 첫 게이트(top-level)가 잡지
-    // 못하므로 이 분기가 유일한 참 경로다.
-    //  - `output.messages` 없음 → hasLegacyMessages 거짓 (첫 OR-분기 차단)
-    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
-    //  - `status` 없음 → isCanonicalWaiting 거짓
+    // `output.conversationConfig` 존재만 참 (내부적으로 `hasConvConfig`).
+    // 고립 조건: top-level 이 아니라 **봉투의 `output` 안에 중첩된** 형태 —
+    // 최상위 게이트가 잡지 못하므로 이 분기가 유일한 참 경로다.
+    //  - `output.messages` 부재 → 첫 OR-분기 차단
+    //  - `output.result` 부재
+    //  - `status` 키 부재
     const raw = {
       config: { mode: "multi_turn" },
       output: {
@@ -669,13 +771,14 @@ describe("isConversationOutput / unwrapNodeOutput regression", () => {
   });
 
   it("detects conversation via output.messages + meta.interactionType without status", () => {
-    // `hasLegacyMessages && metaInteraction` 만 참. 위쪽의 "canonical waiting
-    // shape" 케이스는 `status: 'waiting_for_input'` 을 함께 실어서
-    // `isCanonicalWaiting` 도 동시에 참이 됐다 — 그래서 이 OR-분기를 지워도
-    // green 이었다. 여기서는 `status` 키 자체를 생략해 분리한다.
-    //  - `output.interactionType` 없음 → outputInteraction 거짓
-    //  - `output.conversationConfig` 없음 → hasConvConfig 거짓
-    //  - `output.result` 없음 → looksLikeConversationEnd 거짓
+    // `output.messages` 배열 + `meta.interactionType` 대화형 조합만 참
+    // (내부적으로 `hasLegacyMessages && metaInteraction`). 위쪽의 "canonical
+    // waiting shape" 케이스는 `status: 'waiting_for_input'` 을 함께 실어서
+    // `status` + `output.messages` 분기도 동시에 참이 됐다 — 그래서 이 OR-분기를
+    // 지워도 green 이었다. 여기서는 `status` 키 자체를 생략해 분리한다.
+    //  - `output.interactionType` 부재
+    //  - `output.conversationConfig` 부재
+    //  - `output.result` 부재
     const raw = {
       config: { mode: "multi_turn" },
       output: {
