@@ -21,6 +21,21 @@ common file-creation / install / git-state-change commands and skips
 pure inspection commands (ls, cat, grep, git status, git log, pwd).
 Misclassification only injects a (harmless) reminder; it never blocks.
 
+It reads the FIRST TOKEN OF EACH SEGMENT: the command is split on
+`&&`/`||`/`;`/`|`/`&`/newline and the anchored pattern is applied to
+every part, skipping any `VAR=value` prefix. Per-command conservatism
+is what makes the classifier safe (a word inside a commit message or a
+grep pattern cannot trigger it), but reading only the *whole command's*
+first token made `git add -A && git commit -m "x"` — the common shape —
+silently invisible, i.e. it missed exactly the moment described above.
+The split does not understand quoting; the two false-positive classes
+this opens are pinned in `test_guard_default_branch_bash_mutating.py`
+and accepted because this hook never blocks. An unclosed quote
+(`A='x mkdir foo`) DOES match — the env-value group keeps `\S+` as a
+trailing fallback precisely so it cannot silently narrow. Only an empty
+value (`VAR= git commit`) stays unmatched, since every alternative needs
+at least one character; that one is pinned there too.
+
 Once-per-session deduplication:
   We touch `.claude/state/main_worktree_bash_warned/<session_id>`
   the first time the reminder fires for a given session_id. Subsequent
@@ -53,13 +68,47 @@ except Exception:
 
 
 # Match commands that create/modify state on disk, install dependencies,
-# or move git refs. Tight regex — first whitespace-separated token only,
-# plus a couple of compound forms (git <subcmd>). Read-only commands
-# (ls, cat, grep, find, pwd, git status, git log, git diff, git show)
-# are deliberately NOT matched.
+# or move git refs. Tight regex — first whitespace-separated token only
+# (optionally after `VAR=value` assignments), plus a couple of compound forms
+# (git <subcmd>). Read-only commands (ls, cat, grep, find, pwd, git status,
+# git log, git diff, git show) are deliberately NOT matched.
+#
+# Anchoring to the FIRST token is what keeps this conservative: a word inside a
+# commit message or a grep pattern can never trigger it. That is why this hook
+# needs none of the false-positive machinery the push guard carries — verified
+# against `echo "rm -rf /tmp/x"`, `grep -n "mkdir" f`, `git log --grep=commit`,
+# `echo "git commit"`. See harness-guard-followups §C for why the two hooks
+# deliberately do NOT share detection code.
+#
+# The env-assignment value accepts quoted forms because `GIT_SSH_COMMAND="ssh -i
+# key" git commit` is an ordinary shape, and a bare `\S+` stops at the space
+# inside the quotes — the real command then looks like it starts with `key"` and
+# the nudge is silently lost. The three alternatives are kept disjoint on the
+# first character, EXCEPT the trailing `\S+` fallback, which deliberately
+# overlaps them. Leaving it out is what broke this pattern twice: with
+# `[^\s'"]\S*` as the last alternative, a value that opens a quote and never
+# closes it (`A='x mkdir foo`) matches nothing, the prefix group collapses to
+# zero repetitions, and the nudge is lost. Quoted alternatives come first so a
+# well-formed value is still consumed by one of them; `\S+` only takes what they
+# cannot, which is what keeps this a strict SUPERSET of the plain-`\S+` version
+# it replaced.
+#
+# The resulting ambiguity was timed and is linear here (`A="a b" ` ×24 plus a
+# failing tail: under a microsecond). Unlike the push guard's `_MESSAGE_ARG`
+# ReDoS, every repetition is pinned by `^` and a mandatory `IDENT=`, which leaves
+# the engine no partition to explore. Said plainly because the opposite claim —
+# "this shape is dangerous" — would be the same unmeasured assertion that put
+# item §C on the backlog.
+#
+# NOTE: `guard_review_before_push.py::_GIT_PUSH` carries this env-prefix group
+# byte-identically — §J (2026-07-24) fixed it there, where the same gap bypassed
+# a BLOCKING gate rather than losing a nudge, and widened both to the
+# escape-aware `"(?:\\.|[^"\\])*"` body. `EnvValueSubpatternSharedTest` fails if
+# they drift. Its `_SEGMENT_IS_GIT` still has the old `\S+` on purpose: that one
+# is a RELEASE path, where a miss keeps the command blocked.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:
+    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|\S+)\s+)*(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b
@@ -91,10 +140,31 @@ def _read_payload() -> dict:
         return {}
 
 
+# Command separators. The anchored pattern above only ever sees the first token,
+# so `git add -A && git commit -m "x"` used to slip past entirely — and chained
+# commands are the common shape, which made this hook miss precisely the moment
+# it exists to catch ("surface the worktree decision EARLY"). Splitting first
+# keeps the per-command conservatism while covering every command in the chain.
+#
+# The split is naive about quoting, so it opens TWO false-positive classes, both
+# pinned in `AcknowledgedFalsePositiveTest`: a quoted separator (`echo "a && rm
+# -rf x"`) and a heredoc/multi-line body whose line happens to start with a
+# mutating verb (`cat <<'EOF'` … `mkdir the new folder` … `EOF`). Newlines must
+# stay separators regardless — multi-line commands are how chained git work is
+# actually written here — and both classes are an acceptable trade *here and
+# nowhere else*: this hook never blocks, fires at most once per session, and only
+# ever while you are already on the default branch, where the reminder is apt
+# anyway. `guard_review_before_push.py` splits the same way but for the opposite
+# reason (there, a late boundary can only refuse to release — the safe direction).
+_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;|&\n]")
+
+
 def _is_mutating(command: str) -> bool:
     if not command:
         return False
-    return bool(_MUTATING.search(command))
+    return any(
+        _MUTATING.search(segment) for segment in _SEGMENT_SPLIT.split(command)
+    )
 
 
 def _state_dir() -> str:

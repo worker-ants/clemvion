@@ -50,10 +50,23 @@ def _sanitize_component(value: str) -> str:
 
 # Both nudges are imported independently and best-effort: a failure to import one
 # must not silence the other (a Stop hook must never wedge a session either way).
+_REVIEW_IMPORT_ERROR = ""
+_PLAN_IMPORT_ERROR = ""
+
+# Same three fail-open paths as the push gate, and until now equally silent.
+# Shared with it via _lib so the counting/reset rules cannot drift apart; the
+# import is guarded because losing the module must cost the counter, not the
+# signal.
+try:
+    import failopen_state  # noqa: E402
+except Exception:  # noqa: BLE001
+    failopen_state = None
+
 try:
     from review_guard import evaluate_review  # noqa: E402
-except Exception:
+except Exception as exc:  # noqa: BLE001
     traceback.print_exc(file=sys.stderr)
+    _REVIEW_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
     evaluate_review = None  # review nudge disabled; plan nudge still runs.
 
 # Resolution-in-flight suppression + nudge-text branching helpers. Imported
@@ -72,8 +85,64 @@ except Exception:
 
 try:
     from plan_guard import evaluate_plan  # noqa: E402
-except Exception:
+except Exception as exc:  # noqa: BLE001
+    _PLAN_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
     evaluate_plan = None  # plan nudge disabled; review nudge still runs.
+
+
+_FAILOPEN_STATE_NAME = "stop_guard_failopen.json"
+_GATE_REVIEW = "REVIEW"
+_GATE_PLAN = "PLAN"
+_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
+
+
+def _new_outcome():
+    if failopen_state is not None:
+        return failopen_state.Outcome()
+
+    class _Fallback:
+        def __init__(self) -> None:
+            self.answered: list = []
+            self.bypassed: list = []
+            self.degraded: list = []
+
+    return _Fallback()
+
+
+def _import_reason(module: str, symbol: str, error: str) -> str:
+    if failopen_state is not None:
+        return failopen_state.import_failure_reason(module, symbol, error)
+    return (f"{module} failed to import — {error}" if error
+            else f"{module} imported but {symbol} is None")
+
+
+def _report_fail_open(outcome) -> None:
+    """Always stderr, unlike the push gate.
+
+    A Stop hook's STDOUT is its protocol — `{"decision": "block", ...}` — so a
+    banner there would corrupt the payload the harness parses. That is why the
+    stream is the caller's choice in `failopen_state.report` rather than being
+    derived from an exit code inside it.
+    """
+    if failopen_state is None:
+        try:
+            if outcome.degraded:
+                print("\n⚠️  stop guard: 게이트가 판정하지 못했습니다 (fail-open). "
+                      "[_lib/failopen_state.py 부재 — 연속 횟수 미집계]",
+                      file=sys.stderr)
+                for gate, reason in outcome.degraded:
+                    print(f"      {gate} gate — {reason}", file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            pass
+        return
+    failopen_state.report(
+        outcome,
+        state_name=_FAILOPEN_STATE_NAME,
+        label="stop guard",
+        subject="이 턴",
+        all_gates=_ALL_GATES,
+        stream=sys.stderr,
+    )
 
 
 def _read_payload() -> dict:
@@ -232,6 +301,25 @@ def _review_nudge_reason(decision_reason: str, review_done: bool) -> str:
 
 
 def main() -> int:
+    # `finally` so the report happens on every exit path, including the ones
+    # that fire a nudge — a nudge firing while the OTHER gate failed open is
+    # exactly when the degradation would otherwise be quietest.
+    outcome = _new_outcome()
+    try:
+        return _run(outcome)
+    except Exception as exc:  # noqa: BLE001
+        # Fail-open #3: anything unhandled above — payload read, throttle token,
+        # marker I/O. The harness treats a non-zero exit as "allow" anyway, so
+        # the session was never wedged; what was missing is that nothing
+        # recorded the nudge had stopped working. Same outcome, now counted.
+        traceback.print_exc(file=sys.stderr)
+        outcome.degraded.append(("MAIN", f"{type(exc).__name__}: {exc}"))
+        return _allow()
+    finally:
+        _report_fail_open(outcome)
+
+
+def _run(outcome) -> int:
     payload = _read_payload()
 
     # Hard loop-break: never block a stop that is itself a continuation.
@@ -242,12 +330,20 @@ def main() -> int:
     token = _throttle_token()
 
     # ---- REVIEW nudge (soft counterpart of the push review gate) -----------
-    if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
+    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
+        outcome.bypassed.append(_GATE_REVIEW)
+    elif evaluate_review is None:
+        outcome.degraded.append((_GATE_REVIEW, _import_reason(
+            "_lib/review_guard.py", "evaluate_review", _REVIEW_IMPORT_ERROR)))
+    else:
         try:
             decision = evaluate_review()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             traceback.print_exc(file=sys.stderr)
+            outcome.degraded.append((_GATE_REVIEW, f"{type(exc).__name__}: {exc}"))
             decision = None
+        else:
+            outcome.answered.append(_GATE_REVIEW)
         # Suppress while a resolution-applier fix is in flight (Stop only); fall
         # through to the plan nudge rather than returning, so an unrelated
         # plan-complete nudge can still fire.
@@ -259,12 +355,22 @@ def main() -> int:
                 return fired
 
     # ---- PLAN-COMPLETE nudge (move a finished plan to plan/complete/) -------
-    if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
+    if os.environ.get("BYPASS_PLAN_GUARD") == "1":
+        outcome.bypassed.append(_GATE_PLAN)
+        plan = None
+    elif evaluate_plan is None:
+        outcome.degraded.append((_GATE_PLAN, _import_reason(
+            "_lib/plan_guard.py", "evaluate_plan", _PLAN_IMPORT_ERROR)))
+        plan = None
+    else:
         try:
             plan = evaluate_plan()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             traceback.print_exc(file=sys.stderr)
+            outcome.degraded.append((_GATE_PLAN, f"{type(exc).__name__}: {exc}"))
             plan = None
+        else:
+            outcome.answered.append(_GATE_PLAN)
         if plan is not None and plan.complete_but_in_progress:
             reason = (
                 f"연결된 plan ({plan.plan_path}) 의 체크박스가 모두 완료([x])됐지만 "

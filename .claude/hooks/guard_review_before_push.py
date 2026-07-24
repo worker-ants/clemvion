@@ -13,7 +13,10 @@ Contract (same as guard_default_branch_edit.py):
   any other → treated as runtime error; tool call proceeds (fail-open).
 
 Only `git push` commands are inspected; every other Bash command passes
-through untouched. Two independent gates run, each with its own override:
+through untouched. Each gate evaluates not just the hook's own cwd but also
+any other checked-out worktree the command names (by branch or by path) —
+see "Which worktree(s) does this push publish?" below for why (a cwd-only
+check was a working bypass). Two independent gates run, each with its own override:
   - REVIEW gate (`_lib/review_guard.py`) — unreviewed `codebase/**` changes.
     Override: `BYPASS_REVIEW_GUARD=1`.
   - PLAN gate (`_lib/plan_guard.py`) — the linked in-progress plan was neither
@@ -21,13 +24,29 @@ through untouched. Two independent gates run, each with its own override:
     rule). Override: `BYPASS_PLAN_GUARD=1`.
 Each override is a conscious one-off (e.g. a docs/spec-only branch the heuristic
 misjudged, or ad-hoc work the plan link mis-resolved).
+
+Fail-open is OBSERVED, not silent (policy decision 2026-07-23,
+harness-guard-followups §E). When a gate cannot answer — its module failed to
+import, `evaluate_*()` raised, or push detection itself blew up — the push is
+still allowed, but the hook prints an explicit "this push was not checked"
+banner and records the CONSECUTIVE count in
+`.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
+Only a push where EVERY gate answered cleanly clears the counter. A BYPASS_*
+skip, a non-push, and a push where one gate blocked before the other ever ran
+are all "no evidence" — not "healthy" — and leave the streak untouched. That
+predicate was wrong three times in review, each time by accepting weaker
+evidence than "all of them answered", so `_report_fail_open` compares against
+the named `_ALL_GATES` set rather than testing truthiness. Read it there before
+changing anything here.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
+import subprocess
 import sys
 import traceback
 
@@ -36,15 +55,29 @@ sys.path.insert(0, os.path.join(THIS_DIR, "_lib"))
 
 # Both gates are imported independently and best-effort: a failure to import one
 # (e.g. a syntax error introduced in that module) must not silence the other.
+_REVIEW_IMPORT_ERROR = ""
+_PLAN_IMPORT_ERROR = ""
+
 try:
     from review_guard import evaluate_review  # noqa: E402
-except Exception:
+except Exception as exc:  # noqa: BLE001
     traceback.print_exc(file=sys.stderr)
+    _REVIEW_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
     evaluate_review = None  # review gate disabled; plan gate still runs.
+
+# Guarded: extracting this reporting into _lib/ means the hook now depends on a
+# module that can be absent or broken. Losing it must not cost the *signal* —
+# silence is the exact failure this mechanism exists to prevent — so the
+# fallback still prints a banner, just without the streak counting.
+try:
+    import failopen_state  # noqa: E402
+except Exception:  # noqa: BLE001
+    failopen_state = None
 
 try:
     from plan_guard import evaluate_plan  # noqa: E402
-except Exception:
+except Exception as exc:  # noqa: BLE001
+    _PLAN_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
     evaluate_plan = None  # plan gate disabled; review gate still runs.
 
 
@@ -60,13 +93,36 @@ except Exception:
 # text-transforming features are an UNBOUNDED surface, whereas this regex's
 # defect (false POSITIVES) is a finite, enumerable one. Do not "improve" this
 # regex into a parser — that trade goes the wrong way.
-# SoR: plan/in-progress/harness-push-guard-subcommand-detection.md
+# SoR: plan/complete/harness-push-guard-subcommand-detection.md
 #
 # DO NOT EDIT this pattern. Releases belong in _redact_inert_text() below, which
 # is the bounded half of the design. test_push_guard_allowlist.py pins this
 # exact source string as the differential baseline.
+#
+# FIXED (harness-guard-followups §J, 2026-07-24). The env-prefix group used to
+# be `\S+`, which stops at the space INSIDE a quoted value: with
+# `GIT_SSH_COMMAND="ssh -i ~/.key" git push origin main` nothing matched at all,
+# so main() returned 0 and BOTH gates were skipped without even a fail-open
+# banner. The first fix (`"[^"]*"`) still lost values holding an escaped `\"`,
+# so the double-quoted alternative uses the same escape-aware body `_MESSAGE_ARG`
+# below already had. Byte-identical to `guard_default_branch_bash._MUTATING`;
+# `EnvValueSubpatternSharedTest` fails if the two ever drift.
+#
+# The trailing `\S+` is a FALLBACK, and leaving it out was the §J fix's own
+# regression: with `[^\s'"]\S*` as the last alternative, a value that OPENS a
+# quote and never closes it (`A='x git push`) matches nothing, the prefix group
+# collapses to zero repetitions, and the push goes undetected — 28 such commands,
+# reintroducing the exact class §J existed to remove. The quoted alternatives
+# come first so they still consume a well-formed value; `\S+` only catches what
+# they cannot, which is what makes this a strict SUPERSET of the pre-§J pattern.
+#
+# `_SEGMENT_IS_GIT` below deliberately keeps a bare `\S+`: it sits on the
+# RELEASE path, where a miss means "not released" — i.e. still blocked, the safe
+# direction. Widening a release path needs its own justification
+# (`ReleasePathNarrownessTest` pins the current behaviour).
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*git\b[^&;|]*\bpush\b"
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|\S+)\s+)*"
+    r"git\b[^&;|]*\bpush\b"
 )
 
 # Anything the shell expands makes a text region LIVE: a `push` inside one can
@@ -110,6 +166,11 @@ _STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 # Naive separator split. Splitting inside a quoted string can only move the
 # boundary LATER — i.e. toward a segment less likely to look like a git commit —
 # so naivety errs toward "do not release", the safe direction.
+#
+# `guard_default_branch_bash.py` splits the same way for the opposite reason:
+# there a stray boundary costs a false nudge, never a missed block. Keep the two
+# in view when either changes. (§J, which lived in `_GIT_PUSH` above, is fixed —
+# both hooks now carry the same escape-aware env-value alternation.)
 _SEGMENT_SPLIT = re.compile(r"&&|[|;\n]")
 
 # How much text before a `<<` marker the ownership check may look at. The owning
@@ -311,9 +372,162 @@ def _is_git_push(command: str) -> bool:
     return bool(_GIT_PUSH.search(_redact_inert_text(command)))
 
 
+# ---------------------------------------------------------------------------
+# Which worktree(s) does this push publish?
+#
+# Both gates evaluate a *worktree* (HEAD + working tree). Historically they only
+# ever evaluated the hook process's own cwd, which is wrong in a multi-worktree
+# repo — this project keeps every task in `.claude/worktrees/<task>-<slug>/`, so
+# an agent routinely runs `cd <other-worktree> && git push origin <its-branch>`.
+# The hook's cwd is then a DIFFERENT worktree than the one being published:
+#
+#   - false BLOCK  — cwd worktree is mid-review, the pushed branch is clean.
+#   - false ALLOW  — cwd worktree is clean, the pushed branch is unreviewed.
+#     (2026-07-23 실측: evaluate_review(<fresh clean worktree>) → blocked=False
+#      while evaluate_review(<branch with an unresolved gate>) → blocked=True.
+#      Running the push from the clean one skipped the gate entirely.)
+#
+# The false ALLOW is the reason this is a correctness fix and not a convenience
+# one: it is a working bypass of the review gate.
+#
+# HOW WE RESOLVE IT — blind text match, deliberately NOT a parser.
+# `_is_git_push` above is blind on purpose (see its docstring: a 2026-07-17
+# shlex rewrite was REVERTED after every review round found a new false-negative
+# class). We keep that philosophy: we do NOT parse the push refspec. Instead we
+# ask, for each checked-out branch in the repo, "does this branch name occur in
+# the command text?" — a bounded, ignorant question with no shell semantics.
+#
+# Consequences, chosen deliberately:
+#   - A branch named in a comment / commit message also gets evaluated. That can
+#     only make the gate STRICTER (extra worktree checked), never weaker — the
+#     same trade the blind push regex already makes.
+#   - We match the worktree PATH as well as the branch name, because the
+#     common cross-worktree form is `cd <worktree-path> && <push>` with no
+#     refspec at all (upstream tracking). The branch name never appears in
+#     that text, but the path does — path matching is what actually covers
+#     the everyday case.
+#   - RESIDUAL GAP (accepted): a push naming NEITHER — a bare push issued
+#     with the tool's cwd already inside another worktree, so nothing
+#     identifying appears in the command string. Only the hook's own cwd is
+#     then evaluated, exactly as before this fix — no regression, but no
+#     coverage either. Closing it would need something outside the command
+#     text; the payload `cwd` is already used and there is nothing else the
+#     hook can see. Also uncovered: a branch checked out in no worktree (no
+#     working state exists to evaluate), and a path typed through a SYMLINK
+#     alias — git reports the resolved path, so `cd /var/…` against a
+#     worktree git calls `/private/var/…` will not match. Both degrade to
+#     cwd-only, i.e. the pre-fix behaviour, never to something weaker.
+# The cwd worktree is ALWAYS evaluated, so this can only add checks.
+_BRANCH_CHAR = re.compile(r"[A-Za-z0-9._/-]")
+
+
+def _worktree_branches(cwd: str) -> list[tuple[str, str]]:
+    """`[(worktree_path, short_branch), …]` for every checked-out branch.
+
+    Best-effort: returns [] on any failure (fail-open, same as the gates)."""
+    try:
+        out = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            # 5s: same order as the other subprocess in this hook; a
+            # `worktree list` is a local metadata read, so anything
+            # slower means a wedged repo → fail open rather than hang
+            # a PreToolUse gate that fronts every push.
+            timeout=5.0,
+        )
+        if out.returncode != 0:
+            return []
+    except Exception:
+        return []
+    pairs: list[tuple[str, str]] = []
+    path: str | None = None
+    for line in out.stdout.splitlines():
+        if line.startswith("worktree "):
+            path = line[len("worktree ") :].strip()
+        elif line.startswith("branch ") and path:
+            ref = line[len("branch ") :].strip()
+            short = ref[len("refs/heads/") :] if ref.startswith("refs/heads/") else ref
+            if short:
+                pairs.append((path, short))
+            path = None
+    return pairs
+
+
+def _mentions_branch(command: str, branch: str) -> bool:
+    """True when `branch` occurs in `command` bounded by non-branch characters.
+
+    Bounded so a 1-2 char branch name cannot match inside every longer token.
+    This is a substring test, not tokenization — no shell semantics involved."""
+    start = 0
+    while True:
+        i = command.find(branch, start)
+        if i < 0:
+            return False
+        before = command[i - 1] if i > 0 else ""
+        after_idx = i + len(branch)
+        after = command[after_idx] if after_idx < len(command) else ""
+        if not _BRANCH_CHAR.match(before or " ") and not _BRANCH_CHAR.match(
+            after or " "
+        ):
+            return True
+        start = i + 1
+
+
+def _accepts_cwd(fn) -> bool:
+    """True when `fn` takes at least one positional argument (the worktree).
+
+    Probed explicitly rather than by catching TypeError from the call, because
+    that catch is indistinguishable from a genuine internal error and would turn
+    a signature mismatch into a SILENTLY DISABLED gate (2026-07-23: the stub
+    gates in `test_guard_review_before_push_main.py` take no argument, and an
+    early draft of this change made all 9 blocking tests exit 0 instead of 2).
+    On an unexpected signature we degrade to the legacy single-worktree call —
+    weaker than the fix, but never weaker than the behaviour it replaced."""
+    try:
+        params = inspect.signature(fn).parameters.values()
+        return any(
+            p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.VAR_POSITIONAL,
+            )
+            for p in params
+        )
+    except Exception:
+        return False
+
+
+def _push_targets(command: str, cwd: str) -> list[str]:
+    """Worktrees this push may publish: always cwd, plus any whose branch the
+    command names. Order-stable, de-duplicated, cwd first.
+
+    The command is truncated to `_MAX_REDACTION_INPUT` before scanning, matching
+    the cap the other hand-rolled scan in this file already applies. Truncation
+    can only DROP a branch mention (→ fewer targets, i.e. the pre-fix behaviour
+    for that branch), never invent one — it cannot weaken the cwd check."""
+    command = command[:_MAX_REDACTION_INPUT]
+    targets = [cwd]
+    seen = {os.path.realpath(cwd)}
+    for path, branch in _worktree_branches(cwd):
+        real = os.path.realpath(path)
+        if real in seen or not os.path.isdir(path):
+            continue
+        # `path` is what `git worktree list` reports — already resolved. A
+        # command normally carries that same absolute path (this repo's
+        # worktrees live under a real directory), so a plain match works.
+        if _mentions_branch(command, branch) or _mentions_branch(command, path):
+            targets.append(path)
+            seen.add(real)
+    return targets
+
+
 _REVIEW_MSG = (
     "BLOCKED by .claude/hooks/guard_review_before_push.py (review gate)\n"
     "  attempted: git push\n"
+    "  worktree:  {worktree}\n"
     "  reason:    {reason}\n"
     "\n"
     "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다.\n"
@@ -336,6 +550,7 @@ _REVIEW_MSG = (
 _PLAN_MSG = (
     "BLOCKED by .claude/hooks/guard_review_before_push.py (plan gate)\n"
     "  attempted: git push\n"
+    "  worktree:  {worktree}\n"
     "  reason:    {reason}\n"
     "\n"
     "PR 를 올리기 전에는 처리하던 plan 을 갱신하거나 (모두 완료 시) complete 로\n"
@@ -351,40 +566,224 @@ _PLAN_MSG = (
 )
 
 
-def main() -> int:
-    payload = _read_payload()
-    tool_input = payload.get("tool_input") or payload.get("input") or {}
-    command = tool_input.get("command") or ""
+# --- fail-open observability -------------------------------------------------
+# The gates fail OPEN by design: a broken guard must not stop routine work. The
+# cost is that a gate can be effectively OFF and nobody notices — this module
+# calls itself the hard gate for review-before-push, so silent degradation is
+# the worst shape it can take. Policy decision 2026-07-23: keep failing open,
+# but make it LOUD and COUNTED (harness-guard-followups §E).
+#
+# Nothing here may ever raise into the guard: observability that breaks the
+# thing it observes is worse than no observability.
+_FAILOPEN_STATE_NAME = "push_guard_failopen.json"
+# Gate identifiers. Constants rather than repeated literals: a typo in one of
+# them would make `set(answered) != _ALL_GATES` permanently true, permanently
+# suppressing the reset — fail-safe in direction, but invisible to every static
+# check.
+_GATE_REVIEW = "REVIEW"
+_GATE_PLAN = "PLAN"
+# Every gate that must answer before the streak may be cleared. Named, not
+# counted, so a future third gate cannot silently satisfy the reset with two.
+_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
 
-    if not _is_git_push(command):
-        return 0  # not a push — nothing to enforce.
 
-    # ---- REVIEW gate -------------------------------------------------------
-    if evaluate_review is not None and os.environ.get("BYPASS_REVIEW_GUARD") != "1":
+def _report_fail_open(outcome, exit_code: int) -> None:
+    """Announce (and count) any gate that could not answer.
+
+    Channel depends on the exit code, because that decides what the harness
+    surfaces: on exit 2 the refusal is read from stderr, while on exit 0 it is
+    STDOUT that gets injected into the model's context (the same reasoning
+    `guard_default_branch_bash.py` documents for its never-blocking reminder).
+    A banner on the wrong stream is a banner nobody reads, which would quietly
+    undo the whole point of this policy. The Stop hook cannot make the same
+    choice — its stdout is a JSON protocol — which is why the stream is the
+    caller's decision and not baked into `failopen_state.report`.
+
+    The counting/reset rules and their two previous wrong versions are
+    documented in `_lib/failopen_state.py`.
+    """
+    stream = sys.stderr if exit_code == 2 else sys.stdout
+    if failopen_state is None:
+        # Degraded reporting: no counter, but never silence.
         try:
-            decision = evaluate_review()
-        except Exception:
+            if outcome.degraded:
+                print("\n⚠️  push guard: 게이트가 판정하지 못하고 통과시켰습니다 "
+                      "(fail-open). [_lib/failopen_state.py 부재 — 연속 횟수 미집계]",
+                      file=stream)
+                for gate, reason in outcome.degraded:
+                    print(f"      {gate} gate — {reason}", file=stream)
+        except Exception:  # noqa: BLE001
+            pass
+        return
+    failopen_state.report(
+        outcome,
+        state_name=_FAILOPEN_STATE_NAME,
+        label="push guard",
+        subject="이 push",
+        all_gates=_ALL_GATES,
+        stream=stream,
+    )
+
+
+if failopen_state is not None:
+    _Outcome = failopen_state.Outcome
+else:  # minimal stand-in so the gates can still record what they did.
+    class _Outcome:  # type: ignore[no-redef]
+        def __init__(self) -> None:
+            self.answered: list = []
+            self.bypassed: list = []
+            self.degraded: list = []
+
+
+def _import_reason(module: str, symbol: str, error: str) -> str:
+    if failopen_state is not None:
+        return failopen_state.import_failure_reason(module, symbol, error)
+    return f"{module} failed to import — {error}" if error else \
+f"{module} imported but {symbol} is None"
+
+
+def _evaluate_over_targets(evaluate, targets, *, gate, outcome, is_blocked, render):
+    """Run ONE gate over every push target. Returns the block message or None.
+
+    Bridges two invariants that arrived from different directions and both have
+    to survive:
+
+      - **fail-open observability** (#999 §E) — a gate that could not answer must
+        be *counted*, not silent. `outcome.answered` gets the gate only when some
+        target produced a verdict; `outcome.degraded` records the first failure.
+        Recorded ONCE per gate, not per target: the streak counter measures "this
+        gate was effectively off", and three failing worktrees are still one gate.
+      - **per-target fail-open** (worktree scoping) — an internal error on one
+        worktree must skip only that worktree. Returning early here would let a
+        crash on the FIRST target pass the whole gate, which is the same
+        false-ALLOW class the scoping exists to close.
+
+    `_accepts_cwd` decides scoping: a gate whose signature takes no positional
+    cwd is called bare, exactly as before scoping existed (legacy degrade).
+    """
+    scoped = _accepts_cwd(evaluate)
+    answered = False
+    for target in targets if scoped else [None]:
+        try:
+            result = evaluate(target) if scoped else evaluate()
+        except Exception as exc:
             traceback.print_exc(file=sys.stderr)
-            decision = None  # fail open on internal error
-        if decision is not None and decision.blocked:
-            print(_REVIEW_MSG.format(reason=decision.reason), file=sys.stderr)
-            return 2
+            if not any(g == gate for g, _ in outcome.degraded):
+                outcome.degraded.append((gate, f"{type(exc).__name__}: {exc}"))
+            continue  # fail open for THIS target — keep checking the rest
+        if result is None:
+            # Neither gate returns None today (both always build a decision
+            # object), so this is defensive. Deliberately does NOT set
+            # `answered`: a gate that returned nothing did not answer, and
+            # counting it would let it reset the §E streak having decided
+            # nothing. If a gate ever returns None on purpose, that silence
+            # needs its own `degraded` reason here.
+            continue
+        answered = True
+        if is_blocked(result):
+            if gate not in outcome.answered:
+                outcome.answered.append(gate)
+            return render(result, target if scoped else os.getcwd())
+    if answered and gate not in outcome.answered:
+        outcome.answered.append(gate)
+    return None
+
+
+def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
+    """Run both gates, recording into `outcome` what each one did."""
+    # ---- REVIEW gate -------------------------------------------------------
+    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
+        outcome.bypassed.append(_GATE_REVIEW)
+    else:
+        if evaluate_review is None:
+            outcome.degraded.append((_GATE_REVIEW, _import_reason(
+                "_lib/review_guard.py", "evaluate_review", _REVIEW_IMPORT_ERROR)))
+        else:
+            blocked = _evaluate_over_targets(
+                evaluate_review,
+                targets,
+                gate=_GATE_REVIEW,
+                outcome=outcome,
+                is_blocked=lambda d: d.blocked,
+                render=lambda d, wt: _REVIEW_MSG.format(
+                    reason=d.reason, worktree=wt
+                ),
+            )
+            if blocked is not None:
+                print(blocked, file=sys.stderr)
+                return 2
 
     # ---- PLAN gate ---------------------------------------------------------
-    if evaluate_plan is not None and os.environ.get("BYPASS_PLAN_GUARD") != "1":
-        try:
-            plan = evaluate_plan()
-        except Exception:
-            traceback.print_exc(file=sys.stderr)
-            plan = None  # fail open on internal error
-        if plan is not None and plan.untouched:
-            print(
-                _PLAN_MSG.format(reason=plan.reason, plan=plan.plan_path),
-                file=sys.stderr,
+    if os.environ.get("BYPASS_PLAN_GUARD") == "1":
+        outcome.bypassed.append(_GATE_PLAN)
+    else:
+        if evaluate_plan is None:
+            outcome.degraded.append((_GATE_PLAN, _import_reason(
+                "_lib/plan_guard.py", "evaluate_plan", _PLAN_IMPORT_ERROR)))
+        else:
+            blocked = _evaluate_over_targets(
+                evaluate_plan,
+                targets,
+                gate=_GATE_PLAN,
+                outcome=outcome,
+                is_blocked=lambda pl: pl.untouched,
+                render=lambda pl, wt: _PLAN_MSG.format(
+                    reason=pl.reason, plan=pl.plan_path, worktree=wt
+                ),
             )
-            return 2
+            if blocked is not None:
+                print(blocked, file=sys.stderr)
+                return 2
 
     return 0
+
+
+def main() -> int:
+    # `finally` so the report happens on every exit path, including the blocking
+    # ones (a gate can block while the OTHER one failed open — that is exactly
+    # when it would otherwise be quietest).
+    outcome = _Outcome()
+    exit_code = 0
+    try:
+        payload = _read_payload()
+        tool_input = payload.get("tool_input") or payload.get("input") or {}
+        command = tool_input.get("command") or ""
+
+        if not _is_git_push(command):
+            return 0  # not a push — nothing to enforce.
+
+        # Every worktree this push may publish (cwd + any branch the command
+        # names). `payload["cwd"]` is the Bash tool's directory; fall back to the
+        # process cwd so a payload without it behaves exactly as before.
+        base_cwd = payload.get("cwd") or os.getcwd()
+        try:
+            targets = _push_targets(command, base_cwd)
+        except Exception as exc:
+            # Fail open to the legacy single-worktree check — but COUNT it.
+            # A silent shrink here leaves the gates answering on a narrower
+            # scope than the push actually publishes, and §E's whole point is
+            # that a degraded guard must never look like a healthy one.
+            # Symmetric with the DETECTION failure the outer handler records.
+            traceback.print_exc(file=sys.stderr)
+            outcome.degraded.append(
+                ("TARGET_SELECTION", f"{type(exc).__name__}: {exc}")
+            )
+            targets = [base_cwd]
+
+        exit_code = _run_gates(outcome, targets)
+        return exit_code
+    except Exception as exc:
+        # Fail-open #3 from the plan: anything unhandled above — payload read,
+        # or push DETECTION itself. It used to escape here and the harness's
+        # "non-0/non-2 means allow" rule let the push through with nothing
+        # recorded anywhere. Same outcome, but now counted: detection is the
+        # code three review rounds kept finding bugs in, so a silent failure
+        # there is the worst shape this can take.
+        traceback.print_exc(file=sys.stderr)
+        outcome.degraded.append(("DETECTION", f"{type(exc).__name__}: {exc}"))
+        return 0
+    finally:
+        _report_fail_open(outcome, exit_code)
 
 
 if __name__ == "__main__":
