@@ -1007,9 +1007,13 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
         28-command regression, re-entered from a new direction.
         """
         subs = self._env_value_subpatterns(guard._GIT_PUSH.pattern)
+        # Length first: dropping the branch entirely would otherwise raise
+        # IndexError, which reads as a broken test rather than a broken guard.
+        self.assertEqual(
+            len(subs), 2, "the token-local fallback branch was removed")
         self.assertEqual(
             subs[1], r"\S+",
-            "the token-local fallback branch was removed or rewritten",
+            "the token-local fallback branch was rewritten",
         )
         self.assertTrue(guard._is_git_push("A='x git push -o 'y'"))
         self.assertTrue(guard._is_git_push('A=""" git push origin "main"'))
