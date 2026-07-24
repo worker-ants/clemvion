@@ -21,6 +21,7 @@ function session(over: Partial<PersistedSession> = {}): PersistedSession {
     token: "iext_x",
     expiresAt: new Date(Date.now() + NINETY_MIN).toISOString(),
     endpoints: ENDPOINTS,
+    apiBase: "http://api.test/api",
     ...over,
   };
 }

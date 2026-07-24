@@ -18,6 +18,9 @@ const ENDPOINTS = {
   cancel: "/api/external/executions/e1/cancel",
   refresh: "/api/external/executions/e1/refresh-token",
 };
+/** 저장 세션의 발급 origin — boot payload 의 apiBase 와 같아야 복원된다
+ *  (`session-store.ts` 의 발급 origin 바인딩). 다르면 세션이 폐기된다. */
+const SESSION_API_BASE = "http://api.test/api";
 
 // 이벤트 주입 가능한 FakeEventSource — C1/W7/W8 테스트에서 SSE 이벤트를 수동으로 dispatch 한다.
 class ControllableEventSource {
@@ -127,7 +130,7 @@ function installControllableSse() {
   return { fetchMock, getEs };
 }
 
-function boot() {
+function boot(apiBase: string = SESSION_API_BASE) {
   act(() => {
     window.dispatchEvent(
       new MessageEvent("message", {
@@ -136,7 +139,7 @@ function boot() {
         origin: "http://host.test",
         data: {
           type: "wc:boot",
-          payload: { apiBase: "http://api.test/api", triggerEndpointPath: "t1", profile: { plan: "free" } },
+          payload: { apiBase, triggerEndpointPath: "t1", profile: { plan: "free" } },
         },
       }),
     );
@@ -246,7 +249,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let refreshCalls = 0;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
@@ -289,7 +292,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     // 사전 저장된 세션 — applyConfig 가 RESTORED 로 복원하고 startedRef=true.
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const fetchMock = installFetch();
     const { result } = renderHook(() => useWidget());
@@ -728,7 +731,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     // 저장 세션 pre-seed — applyConfig 가 이를 로드해 RESTORED + getStatus 시드 경로를 탄다.
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
@@ -1627,7 +1630,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("복원 seed 가 in-flight 인 동안 새 대화 시작 → stale 응답이 새 세션 스트림을 덮지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let resolveStatus: ((r: Response) => void) | null = null;
     let hookPosts = 0;
@@ -1707,7 +1710,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("복원 seed 가 network 오류로 soft-fail 해도 새 대화 스트림을 옛 세션이 탈취하지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let rejectStatus: ((e: Error) => void) | null = null;
     let hookPosts = 0;
@@ -2062,7 +2065,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 이전 대화가 저장소에 만료 전 세션으로 남아있다.
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "OLD", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "OLD", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let resolveEmbed: ((r: Response) => void) | null = null;
     let hookPosts = 0;
@@ -2204,7 +2207,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 그 사이 정상 세션이 존재한다(다른 탭·이전 대화).
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "legit", token: "iext_legit", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "legit", token: "iext_legit", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
 
     // 2차 부팅 — allowlist 를 고쳐 재전송(재마운트 없음). **이 host 는 리셋을 요청한 적이 없다.**
@@ -2239,7 +2242,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     // 구 세션이 있는 채로 부팅 — 리셋이 소실되면 이 세션이 그대로 복원돼버린다.
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     let hookPosts = 0;
@@ -2318,7 +2321,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     let hookPosts = 0;
@@ -2402,7 +2405,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "old", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     let hookPosts = 0;
@@ -2548,7 +2551,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("§3(재전송): 대체된 시도의 종료 확정이 마지막 부팅을 죽이지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     const statusResolvers: Array<(r: Response) => void> = [];
@@ -2631,7 +2634,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("§3(재전송): 활성 대화 중 재전송은 입력창을 되감지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     let statusCalls = 0;
@@ -2701,7 +2704,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("§3(재전송): 대체된 시도가 연결 전에 물러나도 살아있는 시도가 연결을 세운다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     const statusResolvers: Array<(r: Response) => void> = [];
@@ -2772,7 +2775,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("§3(재전송): 복원 seed 중 재전송으로 대체된 시도는 SSE 를 열지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     let resolveStatus: ((r: Response) => void) | null = null;
@@ -2835,7 +2838,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("embed-config 왕복 중 언마운트 → 지연 응답이 세션·SSE 를 되살리지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let resolveEmbed: ((r: Response) => void) | null = null;
     vi.stubGlobal(
@@ -2884,7 +2887,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("일시적 명령 실패(500)는 저장 세션을 지우지 않는다 — 서버가 살아있으면 복원된다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     let statusCalls = 0;
@@ -2969,7 +2972,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("일시적 명령 실패(500) 후 새로고침하면 살아있는 대화가 복원된다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     vi.stubGlobal(
@@ -3052,7 +3055,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("대체된 시도의 지연 getStatus 가 살아있는 화면을 옛 노드로 되감지 않는다", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     const statusResolvers: Array<(r: Response) => void> = [];
@@ -3114,7 +3117,7 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   it("대체된 시도가 발견한 종료는 그대로 확정된다 (종료 확정은 boot 축을 보지 않는다)", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "e1", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const embedResolvers: Array<(r: Response) => void> = [];
     const statusResolvers: Array<(r: Response) => void> = [];
@@ -3487,4 +3490,88 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
     expect(esCount).toBe(1);
     expect(nodeId).toBe("n1");
   });
+
+  // ── 발급 origin 바인딩 회귀 (재전송이 apiBase 를 바꿨을 때) ───────────────────
+  //
+  // **선행 결함**(이 diff 가 만든 게 아니다). `applyConfig` 재전송은 `clientRef` 를 새
+  // apiBase 로 무조건 교체하는데, 저장 세션은 **옛 origin 에서 발급된** 단명 토큰을 들고 있다.
+  // 바인딩이 없으면 그 토큰이 새 origin 으로 전송된다(세션과 엔드포인트의 축 분리).
+  //
+  // 오늘 무해했던 이유는 유일한 재전송 경로(관리자 라이브 미리보기)가 apiBase 를 바꾸지
+  // 않기 때문일 뿐 — 불변식이 깨지면 바로 유출이다. 그래서 store 단위 테스트와 별개로
+  // **위젯이 실제로 현재 apiBase 를 넘기는지**(배선)를 여기서 잠근다. 타입체커는 인자의
+  // 존재만 강제하지 올바른 값을 강제하지 않는다.
+  it("재전송이 apiBase 를 바꾸면 옛 origin 의 세션 토큰을 전송하지 않는다", async () => {
+    const OLD_API = "http://old.test/api";
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({
+        executionId: "prev",
+        token: "iext_from_old_origin",
+        expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(),
+        apiBase: OLD_API,
+        endpoints: ENDPOINTS,
+      }),
+    );
+
+    const fetchMock = installFetch();
+    installControllableEventSource();
+    const { result } = renderHook(() => useWidget());
+    // 현재 apiBase 는 저장 세션의 발급 origin과 다르다 → 복원되면 안 된다.
+    boot(SESSION_API_BASE);
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    await act(async () => {
+      await flushAsync();
+    });
+
+    // (1) 옛 토큰이 **어떤 요청에도** 실리지 않았다 — 헤더·바디·URL 전수 검사.
+    const carriedOldToken = fetchMock.mock.calls.some(([url, init]) => {
+      const probe = [
+        String(url),
+        JSON.stringify((init as RequestInit | undefined)?.headers ?? {}),
+        String((init as RequestInit | undefined)?.body ?? ""),
+      ].join(" ");
+      return probe.includes("iext_from_old_origin");
+    });
+    expect(carriedOldToken).toBe(false);
+
+    // (2) 폐기까지 확인 — 남겨두면 다음 로드에서 되살아난다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "").not.toContain(
+      "iext_from_old_origin",
+    );
+  });
+
+  it("[대조군] apiBase 가 같으면 저장 세션이 정상 복원된다 (위 단언의 비-vacuity)", async () => {
+    // 이 대조군이 없으면 위 테스트가 **복원 자체가 원래 안 되는** 이유로도 통과한다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({
+        executionId: "prev",
+        token: "iext_same_origin",
+        expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(),
+        apiBase: SESSION_API_BASE,
+        endpoints: ENDPOINTS,
+      }),
+    );
+
+    const fetchMock = installFetch();
+    installControllableEventSource();
+    const { result } = renderHook(() => useWidget());
+    boot(SESSION_API_BASE);
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    await act(async () => {
+      await flushAsync();
+    });
+
+    const carriedToken = fetchMock.mock.calls.some(([url, init]) => {
+      const probe = [
+        String(url),
+        JSON.stringify((init as RequestInit | undefined)?.headers ?? {}),
+        String((init as RequestInit | undefined)?.body ?? ""),
+      ].join(" ");
+      return probe.includes("iext_same_origin");
+    });
+    expect(carriedToken).toBe(true);
+  });
+
 });
