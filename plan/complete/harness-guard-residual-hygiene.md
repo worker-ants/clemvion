@@ -1,11 +1,17 @@
 ---
 title: 하네스 가드 잔여 위생 — 중복 헬퍼·CI 설정 (§A 잔여 · §F W6)
-worktree: (unstarted)
+worktree: harness-backlog-drain-2f36a2
 started: 2026-07-24
 owner: developer
-status: in-progress
+status: complete
 priority: P4
+# `.claude/tools/**` · `.claude/tests/**` · `.github/workflows/**` 계열 — spec code glob 미매칭.
+spec_impact: none
 ---
+
+> **종결 (2026-07-24)**: 실착수 항목(W1·W3×2·W8·§F W6)은 #1009 로 전부 완료됐다. 남은 I1 은
+> 추적 전용 항목인데 그 해소 경로(§G `fcntl.flock`)가 won't-do 로 마감돼, **수용된 잔여**로
+> 정리하고 본 티켓을 종결한다(아래 §I1 처분). "main-root 3중복" 은 사유와 함께 미조치 유지.
 
 ## Overview
 
@@ -45,12 +51,19 @@ priority: P4
   원본보다 길다. pin 테스트 쪽도 세 사본이 **같은 한 줄**이라 drift 관측 가치가 낮다.
   W3 bash 헬퍼와 같은 판단이며, 재발견 시 이 문단을 근거로 오탐 처리할 것.
 
-### 추적 전용 (독립 착수 대상 아님)
+### I1 처분 — 수용된 잔여 (2026-07-24)
 
-- [ ] **I1 — hung `npm install`(타임아웃 없음)의 blast radius** 가 락 제거로 세션 1개 →
-      동시 콜드스타트 전체로 확대됐다. 기존 W2(00_59_56) 한계의 **도달성 변화**.
-      `fcntl.flock`(→ [`harness-mermaid-install-concurrency.md`](harness-mermaid-install-concurrency.md))
-      또는 timeout 래핑 시 함께 해소된다. 여기서는 track 목적으로만 유지.
+**I1 — hung `npm install`(타임아웃 없음)의 blast radius** 가 락 제거로 세션 1개 → 동시
+콜드스타트 전체로 확대됐다(기존 W2 00_59_56 한계의 **도달성 변화**). 해소 경로는 둘이었다:
+
+- `fcntl.flock` (→ [`harness-mermaid-install-concurrency.md`](harness-mermaid-install-concurrency.md) §G) —
+  **won't-do 로 마감**(착수 조건 미충족).
+- `timeout` 래핑 — **저렴해 보이나 아니다**: bootstrap 은 macOS(dev)·Linux(CI) 양쪽에서 돌고
+  `timeout(1)` 은 macOS 기본 미탑재(`gtimeout` 필요)라 portable 래핑이 non-trivial. dev 툴
+  린터 설치에 그 복잡도를 들일 근거가 없다.
+
+→ **수용된 잔여로 종결.** 실제 hang 이 관측되면 그때 별건으로 재등록(portable timeout 또는
+§G 재개). 지금은 마커-only 로 부분 설치가 영속하지 않는다는 실질 목표가 이미 달성돼 있다.
 
 ## 관련
 

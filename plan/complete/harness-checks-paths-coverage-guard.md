@@ -92,7 +92,7 @@ spec_impact: none
 - `.claude/tests/` (전체 — 대상 판정 입력)
 - 선례: `.claude/tests/test_dependabot_npm_coverage.py`,
   `.claude/tests/test_e2e_exemption_paths_sync.py`
-- 부모: [`harness-guard-followups.md`](../in-progress/harness-guard-followups.md) §I
+- 부모: [`harness-guard-followups.md`](harness-guard-followups.md) §I
 
 ## Rationale
 

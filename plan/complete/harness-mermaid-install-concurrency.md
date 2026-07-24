@@ -1,21 +1,35 @@
 ---
-title: mermaid 설치 동시성 — 근거 생기면 추출 + fcntl.flock (§G, 조건부)
-worktree: (unstarted)
+title: mermaid 설치 동시성 (§G) — won't-do (조건 미충족, 마커-only 유지)
+worktree: harness-backlog-drain-2f36a2
 started: 2026-07-24
 owner: developer
-status: blocked
+status: complete
 priority: P4
+# `.claude/tools/**` 계열 위생 — 어떤 spec 의 `code:` glob 에도 미매칭.
+spec_impact: none
 ---
 
-## Overview
+## 결론 — won't-do (2026-07-24, 사용자 confirm)
+
+착수 조건(동시 첫-설치 오염 **실제 관측**)이 충족되지 않았고, 현행 **마커-only(락 없음)** 로
+실질 목표(부분 설치가 영속하지 않음)는 이미 달성돼 있다. 사용자 요청으로 명시 종결한다.
+
+이 티켓의 가치는 "하자" 가 아니라 **"하게 되면 이렇게 하라"** 를 남긴 것이다 — 아래 §착수하게
+되면 을 보존한다. 착수 조건이 훗날 실제로 관측되면 그 기록을 근거로 새 티켓을 연다(같은
+`mkdir` 락을 다섯 번째로 재발명하지 않도록).
+
+> **재발 방지 판별**: "이론적으로 동시 설치가 가능하다" 는 재개 사유가 **아니다**. 이 항목의 락은
+> 4라운드 연속 손수 짠 버그를 냈다(아래 표). 재요청 시 이 문단을 근거로 오탐 처리할 것.
+
+## Overview (원 등록)
 
 `harness-guard-followups.md` §G 에서 이관.
 
 > 출처: `review/code/2026/07/18/00_59_56` W6 (architecture, 추출) +
 > `02_06_42` C1 (동시성, 락 제거 결정).
 
-**이 티켓은 조건부다.** 착수 조건이 충족되기 전에는 열지 않는다 — 현행 마커-only 유지가
-기본값이며, 그것이 의식적 결정이다.
+**이 티켓은 조건부였다.** 착수 조건이 충족되기 전에는 열지 않는 것이 기본값 — 현행 마커-only
+유지가 의식적 결정이었고, 조건이 오지 않아 won't-do 로 마감한다.
 
 ## 착수 조건
 
@@ -44,8 +58,9 @@ priority: P4
 
 ## 체크리스트
 
-- [ ] (착수 조건 충족 시) `ensure-mermaid-lint-deps.py` 추출 + `fcntl.flock` 기반 동시성
-- [ ] 아니면 현행 마커-only 유지 — 이 티켓을 won't-do 로 종결
+- [x] 현행 마커-only 유지 — 이 티켓을 won't-do 로 종결 (착수 조건 미충족)
+- [~] (착수 조건 충족 시) `ensure-mermaid-lint-deps.py` 추출 + `fcntl.flock` 기반 동시성
+      — **미착수, 조건 미충족**. 착수하게 되면 위 §착수하게 되면 의 형태로.
 
 ## 관련
 

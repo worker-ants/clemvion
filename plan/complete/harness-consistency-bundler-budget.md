@@ -88,7 +88,7 @@ target(30%) 을 잠식할 수 없다.
 
 - `.claude/skills/consistency-checker/scripts/consistency_orchestrator.py`
 - `.claude/tests/test_consistency_context_budget.py`
-- 부모: [`harness-guard-followups.md`](../in-progress/harness-guard-followups.md) §H
+- 부모: [`harness-guard-followups.md`](harness-guard-followups.md) §H
 
 ## Rationale
 

@@ -169,7 +169,7 @@ allowlist 후보(각각 반드시 실측으로 안전 논증):
       → **항목 C 는 2026-07-23 won't-do 종결**: 여기서 만든 `_redact_inert_text` 를
       `guard_default_branch_bash.py` 와 공유하자는 제안이었으나, 후자의 `_MUTATING` 은 앵커돼
       있어 해제할 오탐 클래스 자체가 없음이 실측됐다(공유 이득 0). 근거·대체 조치는
-      [`harness-guard-followups`](../in-progress/harness-guard-followups.md) §C.
+      [`harness-guard-followups`](harness-guard-followups.md) §C.
 
 ## Rationale
 
