@@ -5,6 +5,8 @@ started: 2026-07-24
 owner: developer
 status: complete
 priority: P2
+# `.claude/tests/**` 전용 — 어떤 spec 의 `code:` glob 에도 매칭되지 않는다.
+spec_impact: none
 ---
 
 ## Overview
