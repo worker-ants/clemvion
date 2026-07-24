@@ -1,6 +1,6 @@
 ---
 id: node-cancellation
-status: implemented
+status: partial
 code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
@@ -9,6 +9,8 @@ code:
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/frontend/src/lib/api/executions.ts
+pending_plans:
+  - plan/in-progress/node-cancellation-residual-signal-propagation.md
 ---
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
@@ -39,7 +41,7 @@ code:
 | 호출 | signal 전파 |
 |---|---|
 | `fetch(url, init)` | `init.signal = context.abortSignal` (자체 timeout 과 결합 시 cascade — 본 컨벤션 §4). **구현됨** (HTTP 노드) |
-| Anthropic SDK | `client.messages.create({ ..., signal })`. **구현됨** (AI 노드 — ai-agent / text-classifier / information-extractor). **단, IE(`information-extractor`) 의 multi-turn resume/continuation 경로(`processMultiTurnMessage`)는 abort 컨텍스트가 없어 signal 미전파 — 초기 실행 경로(`executeMultiTurn`)만 전파.** resume 경로는 turn 경계에서 abort 체크를 도입하는 별도 작업으로 추적 (`node-cancellation-infrastructure.md`). **defense-in-depth timeout (signal 과 독립)**: AI Agent 는 모든 `chat` 호출(single-turn·multi-turn resume 포함)에 app-level 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 적용한다 — `withTimeout` 이 **자체 `AbortController`** 로 동작하므로 위 resume signal gap 과 무관하게 무기한 hang 을 상한한다. `ResumableMessageOptions.signal` 은 abort 소스 도입 시 resume chat 까지 signal 이 도달하도록 열어둔 executor-side plumbing(현재 대개 undefined). SoT: [ai-agent §12.16](../4-nodes/3-ai/1-ai-agent.md). |
+| Anthropic SDK | `client.messages.create({ ..., signal })`. **구현됨** (AI 노드 — ai-agent / text-classifier / information-extractor). **단, IE(`information-extractor`) 의 multi-turn resume/continuation 경로(`processMultiTurnMessage`)는 abort 컨텍스트가 없어 signal 미전파 — 초기 실행 경로(`executeMultiTurn`)만 전파.** resume 경로는 turn 경계에서 abort 체크를 도입하는 별도 작업으로 추적 (`node-cancellation-residual-signal-propagation.md`). **defense-in-depth timeout (signal 과 독립)**: AI Agent 는 모든 `chat` 호출(single-turn·multi-turn resume 포함)에 app-level 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 기본 10분)을 적용한다 — `withTimeout` 이 **자체 `AbortController`** 로 동작하므로 위 resume signal gap 과 무관하게 무기한 hang 을 상한한다. `ResumableMessageOptions.signal` 은 abort 소스 도입 시 resume chat 까지 signal 이 도달하도록 열어둔 executor-side plumbing(현재 대개 undefined). SoT: [ai-agent §12.16](../4-nodes/3-ai/1-ai-agent.md). |
 | PostgreSQL (`pg`) / MySQL (`mysql2`) | `signal.addEventListener('abort', ...)` 로 in-flight 취소 등록. **구현됨** — abort 시 **별도 pool 연결**로 PG `SELECT pg_cancel_backend(<pid>)` / MySQL `KILL QUERY <threadId>` 를 발행해 진행 중 쿼리만 끊는다(연결 유지). 취소로 인한 driver 에러(PG `57014`/MySQL `ER_QUERY_INTERRUPTED`)는 catch 에서 `AbortError` 로 재throw 해 `cancelled` 로 분류(§5). best-effort — 취소 권한(PG owner / MySQL `PROCESS`)·타이밍에 의존하며 실패해도 무해. 정상 완료 시 리스너 해제(누수 방지). |
 | MongoDB | driver 의 `signal` 옵션 직접 전달. **미구현 (Planned)** — 현 DB 노드는 pg/mysql 만 지원(mongo 미도입) |
 | Email (nodemailer) | **의도적 best-effort — in-flight 미채택**. `transporter.close()` 를 전송 중 호출하면 부분/중복 전송 리스크가 있어 진입 직전 `abortSignal?.aborted` 사전 체크만 유지한다(SMTP 전송은 통상 단시간). 향후 안전한 중단 방식이 확인되면 재검토. |
@@ -118,7 +120,7 @@ if (upstream) {
 
 ## 6. 구현 현황 / 후속
 
-> 2026-06-03 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-infrastructure.md`).
+> 2026-06-03 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-residual-signal-propagation.md`).
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
@@ -133,8 +135,8 @@ if (upstream) {
 | DB 노드 signal 전파 | ✓ | 사전 abort 체크 + **in-flight 취소** (`database-query.handler.ts` — abort 시 별도 연결로 PG `pg_cancel_backend`/MySQL `KILL QUERY`, 취소 driver 에러→`AbortError` 재throw). 단위 테스트 `database-query.handler.spec.ts` 의 `in-flight cancellation (node-cancellation §2.1)` describe |
 | Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP 중단은 **의도적 best-effort(미채택)** — `transporter.close()` 부분/중복 전송 리스크 |
 | chat-channel 노드 signal 전파 | — | 미구현 (Planned) |
-| MakeShop 노드 signal 전파 | — | 미구현 (Planned) — `makeshop-api.client.ts` 는 자체 timeout 용 `AbortController` 만 사용, `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2) 모두 없음. `node-cancellation-infrastructure.md` 추적 |
-| Cafe24 노드 signal 전파 | — | 미구현 (Planned) — MakeShop 과 동일 상태 (`cafe24-api.client.ts`). `node-cancellation-infrastructure.md` 추적 |
+| MakeShop 노드 signal 전파 | — | 미구현 (Planned) — `makeshop-api.client.ts` 는 자체 timeout 용 `AbortController` 만 사용, `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2) 모두 없음. `node-cancellation-residual-signal-propagation.md` 추적 |
+| Cafe24 노드 signal 전파 | — | 미구현 (Planned) — MakeShop 과 동일 상태 (`cafe24-api.client.ts`). `node-cancellation-residual-signal-propagation.md` 추적 |
 | `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) + `AbortError` → `cancelled` 분류 + dispatch 사전 abort 체크 + `execution.node.cancelled` WS 이벤트 | ✓ | `NodeExecutionStatus.CANCELLED` enum + V069 migration + 엔진 분류/WS emit (§5.1) |
 | Workflow 단위 timeout / graceful shutdown 의 **노드 abort** | — | 노드 abort 통합 미구현 (Planned). 단 **워크플로 시간 한도 자체는 PR2a 구현 완료** — active-running 누적 타임아웃 (`assertActiveTimeWithinLimit`, 노드 경계 판정, §2.3 / [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)) |
 
