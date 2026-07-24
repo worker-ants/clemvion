@@ -2,6 +2,9 @@
 worktree: presentation-thread-optout-drift-4fc462
 started: 2026-07-23
 owner: project-planner
+spec_impact:
+  - spec/4-nodes/6-presentation/0-common.md
+  - spec/conventions/conversation-thread.md
 ---
 
 # presentation `§4.6 excludeFromConversationThread` 서술 정밀화 (선재 drift)
