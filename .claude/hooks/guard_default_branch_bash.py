@@ -83,32 +83,37 @@ except Exception:
 # The env-assignment value accepts quoted forms because `GIT_SSH_COMMAND="ssh -i
 # key" git commit` is an ordinary shape, and a bare `\S+` stops at the space
 # inside the quotes — the real command then looks like it starts with `key"` and
-# the nudge is silently lost. The three alternatives are kept disjoint on the
-# first character, EXCEPT the trailing `\S+` fallback, which deliberately
-# overlaps them. Leaving it out is what broke this pattern twice: with
-# `[^\s'"]\S*` as the last alternative, a value that opens a quote and never
-# closes it (`A='x mkdir foo`) matches nothing, the prefix group collapses to
-# zero repetitions, and the nudge is lost. Quoted alternatives come first so a
-# well-formed value is still consumed by one of them; `\S+` only takes what they
-# cannot, which is what keeps this a strict SUPERSET of the plain-`\S+` version
-# it replaced.
+# the nudge is silently lost.
 #
-# The resulting ambiguity was timed and is linear here (`A="a b" ` ×24 plus a
-# failing tail: under a microsecond). Unlike the push guard's `_MESSAGE_ARG`
-# ReDoS, every repetition is pinned by `^` and a mandatory `IDENT=`, which leaves
-# the engine no partition to explore. Said plainly because the opposite claim —
-# "this shape is dangerous" — would be the same unmeasured assertion that put
-# item §C on the backlog.
+# The prefix is TWO branches (§L, 2026-07-24), tried in order:
 #
-# NOTE: `guard_review_before_push.py::_GIT_PUSH` carries this env-prefix group
-# byte-identically — §J (2026-07-24) fixed it there, where the same gap bypassed
-# a BLOCKING gate rather than losing a nudge, and widened both to the
-# escape-aware `"(?:\\.|[^"\\])*"` body. `EnvValueSubpatternSharedTest` fails if
-# they drift. Its `_SEGMENT_IS_GIT` still has the old `\S+` on purpose: that one
-# is a RELEASE path, where a miss keeps the command blocked.
+#   branch 1  the value is a SEQUENCE of pieces, and quotes may span whitespace
+#             — `A="a b"c mkdir x` glues a quoted piece to an unquoted one, and
+#             no single-token alternative can span that
+#   branch 2  the value is one `\S+` token, the pre-§J behaviour, which is what
+#             still covers a value that opens a quote and never closes it
+#             (`A='x mkdir foo` — losing that broke this pattern twice)
+#
+# Branch 1's five alternatives are mutually exclusive (a closed quoted run, a
+# quote with no closer ahead via negative lookahead, or ONE ordinary character),
+# so a value has exactly one parse there; branch 2 is unambiguous for the same
+# reason. Keeping them as separate BRANCHES rather than one alternation is the
+# whole point: as a single alternation the quoted and `\S+` forms overlap, both
+# parses stay viable at every repetition, and the engine explores 2^k of them.
+# That was not hypothetical — the pre-§L push guard, which had exactly that
+# shape, took 6.4s on a 246-byte command and over 15s on a 286-byte one. Said
+# with numbers because the opposite claim — asserting a shape is (or is not)
+# dangerous without measuring — is what put item §C on the backlog.
+#
+# NOTE: `guard_review_before_push.py::_GIT_PUSH` carries both env-prefix
+# branches byte-identically — §J and §L (2026-07-24) fixed it there first, where
+# the same gap bypassed a BLOCKING gate rather than losing a nudge.
+# `EnvValueSubpatternSharedTest` fails if they drift. Its `_SEGMENT_IS_GIT` still
+# has the old `\S+` on purpose: that one is a RELEASE path, where a miss keeps
+# the command blocked.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|\S+)\s+)*(?:
+    ^\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|'(?![^']*')|"(?!(?:\\.|[^"\\])*")|[^\s'"])*\s+)*|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*)(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b

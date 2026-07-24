@@ -174,11 +174,17 @@ class EnvPrefixTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(guard._is_mutating(command))
 
-    def test_empty_env_value_stays_unmatched(self):
-        """`VAR= git commit` — every alternative needs at least one character.
-        Not a shape worth widening for, so the gap is pinned rather than closed.
+    def test_empty_env_value_is_matched(self):
+        """`VAR= git commit` — legal shell, and now covered.
+
+        This used to be pinned as an accepted gap because every alternative
+        needed at least one character. §L's piece branch allows ZERO pieces, so
+        the gap closed as a side effect rather than by a decision to widen. Kept
+        as an assertion (not deleted) because the direction matters: for this
+        hook a match is one more nudge, and for the push guard — which carries
+        the same prefix — it is one more BLOCK, i.e. the fail-closed side.
         """
-        self.assertFalse(guard._is_mutating("VAR= git commit -m x"))
+        self.assertTrue(guard._is_mutating("VAR= git commit -m x"))
 
     def test_unterminated_quote_still_matches(self):
         """Regression, plus a lesson in how it got pinned as "intended".
@@ -227,7 +233,12 @@ class OldEnvPrefixSupersetTest(unittest.TestCase):
     # comparison needs. Only the PREFIX is frozen; the command body comes from
     # the live pattern so this never has to mirror the verb list.
     _PRE_QUOTED_PREFIX = r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
-    _SPLIT_MARKER = r"\s+)*(?:"
+    # Closes the whole prefix group, then opens the command body. §L turned the
+    # prefix into two branches, so the boundary gained the extra `)` — the
+    # marker has to track the SHAPE of that boundary, not the branch text, or
+    # the splice silently starts comparing nothing (which is what
+    # `test_the_frozen_prefix_still_composes` catches).
+    _SPLIT_MARKER = r"\s+)*)(?:"
 
     # Shared with the push guard's `GeneratedFloorTest` — see the comment on the
     # constant. Both hooks skip the same prefix and both regressed on it, so a
@@ -311,21 +322,34 @@ class OldEnvPrefixSupersetTest(unittest.TestCase):
                   if guard._is_mutating(c) and not self._pre_quoted_is_mutating(c)]
         self.assertTrue(gained, "quoted values are not being recognised at all")
 
-    def test_shares_the_push_guard_s_known_gap(self):
-        """§L, pinned here too — the plan says both hooks share this gap, and a
-        claim in prose is not a claim anyone re-checks.
+    def test_shares_the_push_guard_s_l_fix(self):
+        """§L, pinned here too — the plan says both hooks share this shape, and
+        a claim in prose is not a claim anyone re-checks.
 
-        A value whose closing quote is glued to more text matches no
-        alternative, so the prefix collapses and the nudge is lost. Harmless
-        here (this hook never blocks); recorded so that fixing §L flips both
-        canaries together rather than leaving this one quietly stale.
+        A value whose closing quote is glued to more text used to match no
+        alternative, so the prefix collapsed and the nudge was lost. This class
+        asserted that gap until the fix landed; it now asserts the fix, so the
+        two hooks cannot drift apart again (the push guard's canary was flipped
+        in the same change).
         """
         for command in ('A="a b"c mkdir foo', "A='a b'c rm -rf build"):
             with self.subTest(command=command):
-                self.assertFalse(
+                self.assertTrue(
                     guard._is_mutating(command),
-                    "§L appears fixed here — flip this and the push guard canary",
+                    "§L regressed here — the two hooks' env-prefix groups drifted",
                 )
+
+    def test_the_token_local_branch_still_covers_unclosed_quotes(self):
+        """The second prefix branch, pinned by behaviour rather than by text.
+
+        `A='x mkdir foo` (a value that opens a quote and never closes it) is the
+        shape whose loss broke this pattern twice. The §L piece branch alone
+        does not cover it when a later quote exists in the command, so the
+        `\\S+` branch has to stay.
+        """
+        for command in ("A='x mkdir foo", "A=''' rm -rf 'build'"):
+            with self.subTest(command=command):
+                self.assertTrue(guard._is_mutating(command))
 
 
 class BacktrackingTest(unittest.TestCase):

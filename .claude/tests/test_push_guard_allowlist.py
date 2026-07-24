@@ -76,10 +76,17 @@ _MIN_CORPUS_COVERAGE = 10
 #
 # §J widened the env-prefix group so a quoted value with spaces
 # (`GIT_SSH_COMMAND="ssh -i ~/.key" git push`) no longer slips past the whole
-# gate. Same three disjoint alternatives `guard_default_branch_bash._MUTATING`
-# already used, kept identical on purpose.
+# gate; §L then made the VALUE a sequence of pieces so a quoted one glued to an
+# unquoted one (`A="a b"c git push`) cannot hide it either. Same mutually
+# exclusive alternatives `guard_default_branch_bash._MUTATING` carries, kept
+# identical on purpose.
 _BLIND_PATTERN = (
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|\S+)\s+)*"
+    r"(?:^|&&|;|\|)\s*(?:"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*="
+    r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
+    r"\s+)*"
+    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r")"
     r"git\b[^&;|]*\bpush\b"
 )
 _BLIND = re.compile(_BLIND_PATTERN)
@@ -633,6 +640,71 @@ class BacktrackingTest(unittest.TestCase):
             "see test_env_prefix_alternation_stays_linear",
         )
 
+    # The shapes below are EXPONENTIAL, not quadratic, so unlike
+    # `_ENV_PREFIX_REPEATS` they separate at tiny inputs — sized from a measured
+    # old-vs-new comparison, not guessed:
+    #
+    #   pre-§L pattern   24 repeats = 6.4s (246 bytes), 28 = over 15s
+    #   shipped pattern  40 repeats = 0.017s
+    #
+    # 28 is the first count that was decisively over the timeout on the broken
+    # pattern; going larger only makes a RED run slower to report.
+    _RIVAL_PARSE_REPEATS = 28
+    _GLUED_PIECE_REPEATS = 24
+
+    def test_rival_env_value_parses_do_not_multiply(self):
+        """The ReDoS §L's fix removed — this was LIVE, not hypothetical.
+
+        `'…'|"…"|\\S+` in one alternation are not disjoint: a quoted value that
+        spans whitespace also has a parse where `\\S+` stops AT that whitespace.
+        `A="x y=z" ` is crafted so the leftover (`y=z"`) still looks like an
+        assignment, which keeps BOTH parses viable at every repetition instead
+        of dying at the next step — so the engine explores 2^k of them.
+
+        286 bytes was enough to hang this hook for over 15s, and it gates every
+        Bash call synchronously: a frozen session, or a harness timeout into
+        fail-open. The fix splits the two forms into separate prefix BRANCHES,
+        so the choice is made once rather than per repetition.
+        """
+        self._assert_finishes(
+            'A="x y=z" ' * self._RIVAL_PARSE_REPEATS + "q push",
+            f"{self._RIVAL_PARSE_REPEATS} env assignments with two viable parses",
+            "the piece branch and the `\\S+` branch were merged back into one "
+            "alternation. Keep them as separate top-level branches of the "
+            "prefix group — that is what stops the two parses from being "
+            "traded per repetition.",
+        )
+
+    def test_glued_quoted_pieces_in_one_value_stay_linear(self):
+        """Many quoted pieces glued together inside ONE value, failing tail.
+
+        This is the §L shape at its worst: the value is a repetition whose
+        alternatives must stay mutually exclusive. If a future edit adds an
+        alternative that can also match a lone quote, every piece gains a second
+        parse and the engine re-partitions the whole run.
+        """
+        self._assert_finishes(
+            "A=" + "'x'" * self._GLUED_PIECE_REPEATS + " x push",
+            f"{self._GLUED_PIECE_REPEATS} glued quoted pieces in one env value",
+            "the env-value pieces stopped being mutually exclusive. Every "
+            "alternative must be decidable from the first character (the "
+            "unterminated-quote branches carry a negative lookahead for "
+            "exactly that reason).",
+        )
+
+    def test_glued_pieces_across_many_assignments_stay_linear(self):
+        """The same ambiguity, spread across the OUTER repetition instead.
+
+        `test_env_prefix_with_failing_tail_stays_linear` covers well-formed
+        values; this covers glued ones, where the value itself is a repetition
+        nested inside the assignment repetition.
+        """
+        self._assert_finishes(
+            'A="a b"c ' * self._ENV_PREFIX_REPEATS + "x push",
+            "a long run of glued-value env assignments before a failing tail",
+            "see test_glued_quoted_pieces_in_one_value_stay_linear",
+        )
+
 class InputSizeCapTest(unittest.TestCase):
     """Redaction is skipped entirely above `_MAX_REDACTION_INPUT`.
 
@@ -877,68 +949,110 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
     """
 
     @staticmethod
-    def _env_value_subpattern(pattern: str) -> str:
-        """Text between the env-name group and the `\\s+)*` that closes it."""
+    def _env_value_subpatterns(pattern: str) -> list:
+        """Every value alternation: the text between an env-name group and the
+        `\\s+)*` that closes its repetition.
+
+        A LIST, not a single string, since §L: the prefix now has two branches
+        (piece-sequence and `\\S+`) and comparing only the first would let the
+        second drift unnoticed — which is precisely the failure this class was
+        created to stop, one level down.
+        """
         key = "[A-Za-z0-9_]*="
-        start = pattern.index(key) + len(key)
-        end = pattern.index(r"\s+)*", start)
-        return pattern[start:end].replace('\\"', '"')
+        out = []
+        at = 0
+        while True:
+            found = pattern.find(key, at)
+            if found < 0:
+                return out
+            start = found + len(key)
+            end = pattern.index(r"\s+)*", start)
+            out.append(pattern[start:end].replace('\\"', '"'))
+            at = end
 
     def test_both_hooks_use_the_same_env_value_alternation(self):
         nudge = _harness.load_module_by_path(
             "guard_default_branch_bash",
             _harness.HOOKS_DIR / "guard_default_branch_bash.py",
         )
-        push_sub = self._env_value_subpattern(guard._GIT_PUSH.pattern)
-        nudge_sub = self._env_value_subpattern(nudge._MUTATING.pattern)
-        self.assertTrue(push_sub, "extraction failed — this check would be vacuous")
+        push_subs = self._env_value_subpatterns(guard._GIT_PUSH.pattern)
+        nudge_subs = self._env_value_subpatterns(nudge._MUTATING.pattern)
         self.assertEqual(
-            push_sub, nudge_sub,
+            len(push_subs), 2,
+            "expected the two §L prefix branches — extraction drifted and this "
+            "check would be comparing the wrong thing",
+        )
+        self.assertEqual(
+            push_subs, nudge_subs,
             "the two hooks' env-value alternations drifted. A fix applied to one "
             "and not the other is exactly how §J's escaped-quote gap survived "
             "the first round.",
         )
 
     def test_the_alternation_is_escape_aware(self):
-        sub = self._env_value_subpattern(guard._GIT_PUSH.pattern)
+        subs = self._env_value_subpatterns(guard._GIT_PUSH.pattern)
         self.assertIn(
-            r'"(?:\\.|[^"\\])*"', sub,
+            r'"(?:\\.|[^"\\])*"', subs[0],
             "the double-quoted alternative lost its escape-aware body — an "
             r'escaped \" inside the value hides the push again',
         )
 
+    def test_the_token_local_branch_survives(self):
+        """§L's second branch is what still catches an unclosed quote.
 
-class KnownFalseNegativeTest(unittest.TestCase):
+        Dropping it looks like a simplification — the piece branch already
+        handles every well-formed value — but `A='x git push -o 'y'` has its
+        closing quote LATER in the command, so the piece branch consumes past
+        the `git` and the whole match fails. That is the §J follow-up's
+        28-command regression, re-entered from a new direction.
+        """
+        subs = self._env_value_subpatterns(guard._GIT_PUSH.pattern)
+        self.assertEqual(
+            subs[1], r"\S+",
+            "the token-local fallback branch was removed or rewritten",
+        )
+        self.assertTrue(guard._is_git_push("A='x git push -o 'y'"))
+        self.assertTrue(guard._is_git_push('A=""" git push origin "main"'))
+
+
+class GluedQuotedEnvValueTest(unittest.TestCase):
     """§L — an env value whose closing quote is glued to more text.
 
     `A="a b"c git push` is a legal assignment (the value is `a bc`), but nothing
-    matches it: the quoted branch stops at the closing quote and then demands
-    whitespace, while `\\S+` cannot span the space inside the quotes. The prefix
-    group collapses and the push goes undetected — the same silent gate bypass
-    §J was, one step further along.
+    used to match it: the quoted branch stopped at the closing quote and then
+    demanded whitespace, while `\\S+` could not span the space inside the quotes.
+    The prefix group collapsed and the push went undetected — the same silent
+    gate bypass §J was, one step further along.
 
-    PRE-EXISTING, not a §J regression, which the second test pins so nobody has
-    to re-derive it.
+    The previous class shape asserted the BUG and told the fixer to flip it;
+    this is that flip (§J's canary was handed over the same way). Kept as a
+    class so the bypass cannot silently return.
 
-    These assertions describe the BUG. Fixing §L means flipping them, exactly as
-    §J's canary was flipped. Note why §L is harder: the natural fix lets a value
-    be a SEQUENCE of quoted and unquoted pieces, and a repeated group whose
-    alternatives can each match a single character is the catastrophic shape
-    `BacktrackingTest` exists to catch. Measure before shipping it.
+    `test_the_gap_predates_the_j_fix` stays as-is: the gap was PRE-EXISTING, not
+    a §J regression, and the legacy pattern still misses these — which is also
+    what makes the fix a strict gain rather than a restoration.
     """
 
     _CASES = (
         'A="a b"c git push',
         "A='a b'c git push",
         'GIT_SSH_COMMAND="ssh -i ~/.key"/bin/ssh git push',
+        # The mirror shape: unquoted piece FIRST, quoted one glued after it.
+        'A=x"a b" git push',
+        # An empty value is legal shell and was missed for the same reason —
+        # `\\S+` demanded at least one character.
+        "A= git push",
+        # Not at the start of the command: the segment anchor must still hold.
+        'echo hi && A="a b"c git push',
     )
 
-    def test_quoted_value_glued_to_more_text_hides_a_push(self):
+    def test_quoted_value_glued_to_more_text_is_detected(self):
         for command in self._CASES:
             with self.subTest(command=command):
-                self.assertFalse(
+                self.assertTrue(
                     guard._is_git_push(command),
-                    "§L appears fixed — flip this class to assertTrue",
+                    "§L regressed — a glued quoted env value hides the push "
+                    "again and BOTH gates are skipped without a banner",
                 )
 
     def test_the_gap_predates_the_j_fix(self):
