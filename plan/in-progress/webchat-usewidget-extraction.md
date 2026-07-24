@@ -71,7 +71,12 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 티켓의 분리 근거는 규모가 아니라 **"세션 라이프사이클 응집도 부족이 반복 결함의 온상"** 이다.
 그렇다면 가치는 줄 수가 아니라 **그 축의 응집도**에 있다. staleness 축은 이 파일이 9번 서로
 반대편 구멍을 낸 바로 그 자리이면서, 세 ref 와 네 판정자가 서로만 참조하는 **닫힌 묶음**이라
-경계가 명확하다(blast radius 최소). 1117 → 1012줄.
+경계가 명확하다(blast radius 최소). 1116 → 1002줄.
+
+> **정정(리뷰 후)**: 최초 커밋의 "1117 → 1012줄" 은 **틀렸다**. 그때 파일에 `prettier --write`
+> 를 함께 돌려 재포맷 분이 감소분을 상쇄해 실제로는 1116 → **1118줄**(증가)이었고, 내가 적은
+> 수치는 어느 시점의 실측도 아니었다. documentation reviewer 가 실측으로 잡았다.
+> 재포맷을 되돌린 지금이 진짜 구조 변경분이다 — 1116 → **1002줄**, diff 328줄 → 125줄.
 
 ### 경계 판정 — `sessionEstablished()` 는 **제외**했다
 
@@ -92,6 +97,20 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 `cannotApplyConfig` 가 world 도 보게 만드는 뮤턴트(= 17_36_57 concurrency CRITICAL 재주입) →
 축 분리 테스트 **2건 RED**. 두 판정자가 같은 입력에서 갈리는 것을 직접 겨눈 테스트라, 통합
 테스트가 다른 이유로 통과하는 경우를 배제한다.
+
+### 리뷰 후속 — 쓰기 측 캡슐화는 다음 slice 로
+
+읽기(판정자 4개)는 함수로 캡슐화됐지만 **쓰기**(world 무효화·unmount 플래그)는 raw ref 로
+노출돼 `use-widget.ts` 3곳이 `.current` 를 직접 mutate 한다. "무효화 지점은 셋뿐" 이라는
+불변식이 JSDoc 규율에만 기대고 모듈 인터페이스가 강제하지 못한다(architecture W2 ·
+security/maintainability 가 같은 지점을 INFO 로 확인).
+
+이번 slice 에서 닫지 않는다 — `invalidateWorld()`/`markUnmounted()` 를 도입하려면 세 호출부의
+호출 맥락(특히 `teardownSession` 이 config 확립 전엔 세대를 **올리면 안 되는** 조건)을 같이
+옮겨야 하는데, 그건 다음 slice 가 가져갈 `teardownSession`/`start` 본체와 붙어 있다. 지금
+쪼개면 인터페이스를 두 번 바꾸게 된다.
+
+- [ ] **(다음 slice)** `invalidateWorld()`/`markUnmounted()` 로 쓰기 측 대칭 캡슐화, raw ref 내부화
 
 ### 남은 slice (미착수)
 

@@ -48,7 +48,7 @@ export function useSessionGenerations(): SessionGenerations {
    * **왜 하나로 합쳤나**: 종전에는 세대 카운터(`startGenRef`, `start()` 전용) · `sessionRef` 동일성
    * (`seed`/`sendCommand`) · `cancelled` 지역 플래그(`applyConfig` 초기 부팅) · `cancelledRef`
    * (`useTokenRefresh`, 아래 주입 지점 참조) **4종이 각기 다른 무효화 트리거**를 갖고 공존했다
-   * (앞의 3종이 이 파일 안, 4번째는 이미 분리된 훅 안에 있어 더 눈에 안 띄었다). 특히
+   * (앞의 3종이 `use-widget.ts` 안, 4번째는 이미 분리된 훅 안에 있어 더 눈에 안 띄었다). 특히
    * `teardownSession()` 은 `sessionRef` 를 null 하지 않아
    * **`sessionRef` 동일성으로 지킨 경로는 SSE terminal 종료를 감지하지 못했다** — 그 결과 종료된
    * 위젯이 stale seed 응답으로 `awaiting_user_message` 로 되살아나는 버그가 있었다(재현 확인).
@@ -77,8 +77,11 @@ export function useSessionGenerations(): SessionGenerations {
    * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
    *
    * ⚠ **이 블록과 `bootGenRef` 선언 사이에 다른 선언을 끼워 넣지 말 것** — JSDoc 은 인접성으로만
-   * 붙는다. 이 파일에서 두 번 당했다(`pendingResetRef` 는 `bootGenRef` 삽입에, `bootGenRef` 는
+   * 붙는다. `use-widget.ts` 에서 두 번 당했다(`pendingResetRef` 는 `bootGenRef` 삽입에, `bootGenRef` 는
    * `unmountedRef` 삽입에 각각 주석을 잃었다). 새 ref 는 이 블록 **위**나 `bootGenRef` **아래**에.
+   *
+   * *(이 훅으로 분리되면서 위험 자체는 크게 줄었다 — 1100줄 파일과 달리 여기엔 끼워 넣을 것이
+   * 거의 없다. 그래도 경고를 남긴다: 후속 slice 가 이 파일로 상태를 더 옮겨올 예정이다.)*
    */
   const bootGenRef = useRef(0);
   /** 언마운트 여부 — world 무효화와 달리 **되돌아오지 않는** 종점이라 별도 축이다(`beginBootAttempt` §근거). */
@@ -87,7 +90,7 @@ export function useSessionGenerations(): SessionGenerations {
    * 캡처한 `gen` 이후 세계가 무효화됐는가 — **모든 `await` 뒤의 표준 재검증**.
    *
    * `isStale(gen)` 을 손으로 복제하는 대신 이름을 붙였다. 이 관용구를 **빠뜨리는
-   * 것**이 곧 이 파일이 4라운드 연속 겪은 버그의 형태였으므로(`seedWaitingFromStatus` catch 분기·
+   * 것**이 곧 이 파일군이 4라운드 연속 겪은 버그의 형태였으므로(`seedWaitingFromStatus` catch 분기·
    * `applyConfig` 비대칭), 의도가 이름으로 드러나고 `isStale` grep 하나로 전 지점을 셀 수 있어야
    * 한다 (ai-review 2026-07-17 09_36_01 maintainability).
    */
@@ -99,7 +102,7 @@ export function useSessionGenerations(): SessionGenerations {
    * `applyConfig` 는 세계 무효화(`worldGenRef`)와 시도 대체(`bootGenRef`) **두 축 모두**에 걸린다.
    * 그 둘을 호출부에서 손으로 AND 하지 않고 토큰 하나로 묶는 이유:
    *
-   * 이 파일이 **비대칭 가드 누락으로 CRITICAL 을 여러 번 냈다** — 한 호출부는 재검증하고 다른 호출부는
+   * 이 파일군이 **비대칭 가드 누락으로 CRITICAL 을 여러 번 냈다** — 한 호출부는 재검증하고 다른 호출부는
    * 빠뜨리는 형태(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5, 그리고 `23_58_23` 의 `start()` 무방비
    * 되감기까지). 축을 하나 더 늘리면서 그 관용구를 손으로 복제하면 같은 실패를 초대한다. 토큰이면
    * **await 지점당 가드 호출은 여전히 1개**이고, 축이 늘어도 호출부가 아니라 이 predicate 한 곳만 바뀐다.
@@ -107,7 +110,7 @@ export function useSessionGenerations(): SessionGenerations {
    * 라는 **세 호출부 공통의 무조건 기본 가드**로 옮겨가 비대칭 자체를 구조적으로 없앴다 — 그 함수 JSDoc 참조.)
    *
    * 곁들여 `applyConfig` 는 `gen`(world 단독)을 **스코프에 두지 않는다** — 그래서 거기서
-   * `isStale(gen)` 은 컴파일되지 않는다. **단 이건 좁은 보호다**: 이 파일의 다른 함수에서 관용구를
+   * `isStale(gen)` 은 컴파일되지 않는다. **단 이건 좁은 보호다**: `use-widget.ts` 의 다른 함수에서 관용구를
    * 복사해 오는 가장 흔한 실수만 막을 뿐, `isStale(attempt.world)` 처럼 **일부러 축을 빼면 통과한다**
    * (실측 확인 — `isStale(worldGenRef.current)` 는 자기 자신과 비교해 **항상 false 인 무력 가드**가
    * 되는데도 컴파일된다). 타입 검사가 축 누락 일반을 막아주지는 **않는다**

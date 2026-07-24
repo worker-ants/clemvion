@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-import { useSessionGenerations } from "./use-session-generations";
+import { useSessionGenerations, type BootAttempt } from "./use-session-generations";
 
 /**
  * `useSessionGenerations` 의 **축 분리** 계약.
@@ -23,8 +23,8 @@ describe("useSessionGenerations — 축 분리", () => {
     const { result } = renderHook(() => useSessionGenerations());
     const worldBefore = result.current.worldGenRef.current;
 
-    let a1!: { world: number; boot: number };
-    let a2!: { world: number; boot: number };
+    let a1!: BootAttempt;
+    let a2!: BootAttempt;
     act(() => {
       a1 = result.current.beginBootAttempt();
       a2 = result.current.beginBootAttempt();
@@ -36,7 +36,7 @@ describe("useSessionGenerations — 축 분리", () => {
 
   it("cannotApplyConfig 는 world 를 보지 않는다 (형제 시도의 정당한 종료가 살아있는 부팅을 죽이면 안 된다)", () => {
     const { result } = renderHook(() => useSessionGenerations());
-    let attempt!: { world: number; boot: number };
+    let attempt!: BootAttempt;
     act(() => {
       attempt = result.current.beginBootAttempt();
     });
@@ -51,7 +51,7 @@ describe("useSessionGenerations — 축 분리", () => {
 
   it("isAttemptStale 은 world 를 본다 (옛 세션으로 스트림을 열지 않는다)", () => {
     const { result } = renderHook(() => useSessionGenerations());
-    let attempt!: { world: number; boot: number };
+    let attempt!: BootAttempt;
     act(() => {
       attempt = result.current.beginBootAttempt();
     });
@@ -68,7 +68,7 @@ describe("useSessionGenerations — 축 분리", () => {
 
   it("나중 시도가 앞선 시도를 대체한다 (boot 축)", () => {
     const { result } = renderHook(() => useSessionGenerations());
-    let first!: { world: number; boot: number };
+    let first!: BootAttempt;
     act(() => {
       first = result.current.beginBootAttempt();
       result.current.beginBootAttempt(); // 대체자
@@ -80,7 +80,7 @@ describe("useSessionGenerations — 축 분리", () => {
 
   it("언마운트는 되돌아오지 않는 종점 — 두 판정자 모두 참", () => {
     const { result } = renderHook(() => useSessionGenerations());
-    let attempt!: { world: number; boot: number };
+    let attempt!: BootAttempt;
     act(() => {
       attempt = result.current.beginBootAttempt();
       result.current.unmountedRef.current = true;
@@ -117,10 +117,36 @@ describe("useSessionGenerations — 축 분리", () => {
       cannotApplyConfig: result.current.cannotApplyConfig,
       isAttemptStale: result.current.isAttemptStale,
     };
+    const refsBefore = {
+      worldGenRef: result.current.worldGenRef,
+      bootGenRef: result.current.bootGenRef,
+      unmountedRef: result.current.unmountedRef,
+    };
     rerender();
+    // ref 객체 자체도 안정적이어야 한다 — `use-widget.ts` 가 `worldGenRef` 를 4개 useCallback 의
+    // 의존성 배열에 넣기 때문이다(추출 전에는 지역 useRef 라 ESLint 가 안정성을 알아서 알았다).
+    // 여기가 깨지면 그 콜백들이 매 렌더 새 참조가 되어 effect 가 재실행된다.
+    expect(result.current.worldGenRef).toBe(refsBefore.worldGenRef);
+    expect(result.current.bootGenRef).toBe(refsBefore.bootGenRef);
+    expect(result.current.unmountedRef).toBe(refsBefore.unmountedRef);
     expect(result.current.isStale).toBe(before.isStale);
     expect(result.current.beginBootAttempt).toBe(before.beginBootAttempt);
     expect(result.current.cannotApplyConfig).toBe(before.cannotApplyConfig);
     expect(result.current.isAttemptStale).toBe(before.isAttemptStale);
+  });
+
+  it("두 축 동시 변화 — 대체된 시도 + world 무효화", () => {
+    const { result } = renderHook(() => useSessionGenerations());
+    let first!: BootAttempt;
+    act(() => {
+      first = result.current.beginBootAttempt();
+      result.current.beginBootAttempt(); // boot 축: 대체
+      result.current.worldGenRef.current++; // world 축: 무효화
+    });
+
+    // 각 축 단독으로도 참이므로 OR 결합상 참이어야 한다. 단일 축 테스트만 있으면
+    // 결합 지점이 잘못 구현돼도(예: AND) 관측되지 않는다.
+    expect(result.current.cannotApplyConfig(first)).toBe(true);
+    expect(result.current.isAttemptStale(first)).toBe(true);
   });
 });
