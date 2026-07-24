@@ -11,6 +11,10 @@ on:
       # slash-command 정의도 sub-agent 계약 문구를 담아 test_summary_agent_contract.py 의
       # 검증 대상이다 — paths 에 없으면 이 파일들만 고친 PR 에서 스위트가 아예 안 돌았다.
       - '.claude/commands/**'
+      # doc-sync-matrix.json 은 test_doc_sync_matrix.py 가 PROJECT.md 매트릭스와
+      # 대조하는데, paths 에 없어 그 JSON 만 고친 PR 에서 가드가 안 돌았다 — 위 항목들과
+      # 동일한 실패 클래스의 6번째. test_harness_checks_paths_coverage.py 가 이제 등재를 강제한다.
+      - '.claude/config/**'
       - '.claude/hooks/**'
       # .githooks/pre-commit 은 ConsumerBindingTest(test_mermaid_lint_ready.py)로
       # 결속되는데 paths 에 없으면 그 파일 단독 수정 시 정작 자신을 지키는 테스트가
