@@ -51,6 +51,37 @@ plan 이동 + spec frontmatter 2줄.
 → 재현할 때는 **리뷰 산출물이 없는 fresh branch**(미리뷰 `codebase/` 변경 1건 + 커밋)로
 할 것. 이 문단이 없으면 나중에 exit 0 만 보고 "재현 불가 = 버그 없음" 으로 잘못 닫는다.
 
+
+## ⚠ 전제 정정 (2026-07-24, 같은 세션 후반 실측) — 훅은 **발동한다**
+
+본 문서 상단은 "훅이 아예 안 돈 것으로 보인다" 고 적었다. **그 뒤 같은 세션에서 push 가
+실제로 차단됐다** — 다른 브랜치(`claude/webchat-apibase-binding-a14e68`)에서:
+
+```
+PreToolUse:Bash hook error: [guard_review_before_push.py]: BLOCKED (review gate)
+  reason: 7 spec-linked file(s) changed AFTER the most recent `--impl-done` consistency report
+```
+
+즉 **훅은 등록돼 있고 발동하며 exit 2 를 harness 가 반영한다**. 따라서 조사 방향은
+"훅이 안 돈다" 가 아니라 **"어떤 push 는 걸리고 어떤 push 는 안 걸리는가"** 로 좁혀진다.
+
+### 두 사례의 차이 (관측 사실만)
+
+| | 통과했던 push | 차단된 push |
+| --- | --- | --- |
+| 브랜치 | `claude/node-cancel-e2e-98b61f` | `claude/webchat-apibase-binding-a14e68` |
+| 차단 사유(사후 재현) | REVIEW 게이트(미리뷰 codebase 변경) | SPEC-CONSISTENCY 게이트(impl-done 부재) |
+| 명령 형태 | `cd` 후 `git push … | tail -20` | `git commit …` 여러 줄 뒤 `git push … | tail -2` |
+
+**가설(미검증)**: 게이트 종류에 따라 다른 것이 아니라, 명령 블록의 형태·길이·앞선 명령의
+존재가 훅 입력(command 문자열)에 영향을 줬을 수 있다. 또는 앞선 사례에서만 어떤 조건이
+`_is_git_push` 를 빗나가게 했을 수 있다.
+
+**다음 단계**: 통과했던 그 명령 텍스트를 **그대로** 훅에 주입해 재현하라(이미 1회 시도했고
+exit 2 가 나왔다 — 즉 텍스트만으로는 재현되지 않는다). 그렇다면 차이는 텍스트가 아니라
+**harness 가 훅에 넘기는 payload** 이거나 **훅 실행 자체의 조건**이다. payload 를 로깅하는
+일회성 프로브가 다음 수순이다.
+
 ## 왜 P1 인가
 
 게이트가 "있는데 발화하지 않는" 상태는 **없는 것보다 나쁘다** — 있다고 믿게 되므로.

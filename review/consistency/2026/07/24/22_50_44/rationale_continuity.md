@@ -1,0 +1,14 @@
+### 발견사항
+
+- **[INFO]** 세션 `apiBase` 발급-origin 바인딩 — 근거가 `## Rationale` 로 승격되지 않음 (기존 이월 항목, 이미 티켓 추적 중)
+  - target 위치: `spec/7-channel-web-chat/3-auth-session.md` §3.1 "재로드 복원 시퀀스" 1번 항목(`저장 세션은 발급된 apiBase(origin)에 묶인다…`) + 코드 `codebase/channel-web-chat/src/lib/session-store.ts`(`PersistedSession.apiBase` 필수 필드화, `loadSession(triggerEndpointPath, expectedApiBase, storage?)` 시그니처 변경)·`codebase/channel-web-chat/src/widget/use-widget.ts`(`loadSession` 호출부에 `cfg.apiBase` 전달)
+  - 과거 결정 출처: 없음 — `3-auth-session.md ## Rationale`(R3 per_execution 단일, R4 재로드 401 낙관적 refresh, R5 `{data}` 언랩, R6 sessionStorage 선택) 어느 항목도 "세션을 apiBase 에 묶지 않는다"를 결정한 적이 없다. 즉 번복이 아니라 미문서화 결함(발급 origin 불일치 시 옛 토큰이 새 origin 으로 전송될 수 있던 갭)을 메우는 신규 invariant 도입이다.
+  - 상세: 프로젝트 규약(`CLAUDE.md` "결정의 배경·근거는 해당 spec 문서 끝의 `## Rationale`")상 이 변경은 (a) `apiBase` 불일치 시 세션 폐기, (b) **레거시(필드 미기록) 세션도 fail-safe 로 폐기**, (c) 정규화를 후행 슬래시만으로 한정하고 **경로는 보존**(→ `app/demo/demo-config.ts::normalizeApiBase` 와 정반대 계약이라 동일 이름 재사용/통합 금지, `stripTrailingSlash` 로 분리 유지)이라는 3가지 비trivial 결정을 새로 확정했다. 이 "왜"는 spec 본문 산문(§3.1)과 코드 주석(`session-store.ts` JSDoc, `session-store.test.ts`/`use-widget-eager-start.test.ts` 회귀 테스트 주석)에는 잘 설명돼 있으나 문서 하단 `## Rationale`(R3~R6) 에는 대응 항목이 없다. 근거가 `## Rationale` 밖에만 있으면, 후속 세션이 "레거시 세션도 폐기하는 건 과하다"는 식으로 재번복을 시도할 때 이번 검토 같은 rationale-continuity 검사가 "과거 결정 위반"을 판정할 근거 자체가 사라진다.
+  - **이미 추적 중**: 직전 세션(`review/consistency/2026/07/24/22_35_51/rationale_continuity.md`)이 동일 항목을 INFO 로 지적했고, 그 세션의 `plan_coherence` W2 대응으로 `plan/in-progress/webchat-spec-rationale-followup.md` 체크리스트 4번째 항목("R7 Rationale 신설 검토")에 이미 편입돼 있다(P3, 비차단·문서화 durability 로 명시). 같은 plan 의 3번째 항목("4-security.md §1 위협 표에 재전송-origin 축 추가")도 이 결정의 위협-모델 표면 갱신을 함께 추적한다. 따라서 이번 target 스냅샷에도 갭은 여전히 존재하나 **소실 위험은 낮다**(티켓이 이름 있는 결정으로 고정).
+  - 제안: 현재 target 자체를 막을 사유는 아님(코드·spec 본문 정합은 이미 확보). `webchat-spec-rationale-followup.md` 체크리스트 실행 시 `3-auth-session.md`에 `R7. 세션 발급-origin 바인딩(apiBase)` 항목을 신설해 위 (a)(b)(c) 세 결정과 "재전송이 `clientRef`/`apiBase` 를 무조건 교체" 하는 기존 동작과의 상호작용을 명문화할 것.
+
+### 요약
+target(`spec/7-channel-web-chat/`)의 이번 변경 — `PersistedSession.apiBase` 발급-origin 바인딩(`session-store.ts`) + `stripTrailingSlash` 공용화(`api-base.ts`) — 은 기존 `## Rationale` 의 어떤 항목도 재도입·번복·위반하지 않는다. R3(per_execution 단일)·R6(sessionStorage 선택, defense-in-depth)·R9(1-widget-app, single-flight coalesce·세션-엔드포인트 축 분리)와 정합적으로 확장하며, 오히려 직전 `naming_collision` CRITICAL(동일 이름·반대 계약의 `normalizeApiBase` 충돌)을 로컬 wrapper 제거 + 공용 `stripTrailingSlash` 직접 사용으로 해소한 상태다(`demo-config.ts::normalizeApiBase` 와의 계약 차이를 호출부 주석에 명시 고정). 유일한 잔여 사항은 새 invariant(발급-origin 바인딩)의 근거가 spec 본문·코드 주석에만 있고 해당 문서의 `## Rationale`(R7 후보)에는 아직 승격되지 않았다는 점인데, 이는 직전 세션에서 이미 INFO 로 지적됐고 `plan/in-progress/webchat-spec-rationale-followup.md` 에 P3 항목으로 명시 추적되고 있어 소실 위험이 낮다. Rationale 연속성 관점에서 이번 target 은 안전하다.
+
+### 위험도
+LOW

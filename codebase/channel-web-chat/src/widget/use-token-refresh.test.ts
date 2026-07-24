@@ -21,6 +21,7 @@ function session(over: Partial<PersistedSession> = {}): PersistedSession {
     token: "iext_x",
     expiresAt: new Date(Date.now() + NINETY_MIN).toISOString(),
     endpoints: ENDPOINTS,
+    apiBase: "http://api.test/api",
     ...over,
   };
 }
@@ -86,6 +87,14 @@ describe("useTokenRefresh (fake timer)", () => {
     expect(refreshToken).toHaveBeenCalledTimes(1);
     expect(refs.sessionRef.current?.token).toBe("iext_x2");
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_x2");
+    // **발급 origin 보존** — 현재는 `{...currentSession, token, expiresAt}` spread 라 암묵
+    // 보존되지만, 필드 나열 방식으로 리팩터하면 `apiBase` 가 조용히 탈락한다. 그러면 다음
+    // 새로고침에서 fail-safe 폐기가 발동해 **정상 세션이 매번 리셋되는** 회귀가 된다
+    // (ai-review testing W5).
+    const stored = JSON.parse(
+      window.sessionStorage.getItem("clemvion-web-chat:session:t1") ?? "{}",
+    ) as { apiBase?: string };
+    expect(stored.apiBase).toBe("http://api.test/api");
   });
 
   it("clearRefreshTimer → 예약된 refresh 미발화", async () => {

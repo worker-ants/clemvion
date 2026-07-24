@@ -11,6 +11,7 @@ import type {
 } from "@/lib/eia-types";
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
+import { stripTrailingSlash } from "@/lib/api-base";
 import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
@@ -34,7 +35,7 @@ async function fetchEmbedConfig(
   triggerEndpointPath: string,
 ): Promise<EmbedConfig | null> {
   try {
-    const base = apiBase.replace(/\/$/, "");
+    const base = stripTrailingSlash(apiBase);
     const res = await fetch(
       `${base}/api/hooks/${encodeURIComponent(triggerEndpointPath)}/embed-config`,
     );
@@ -613,6 +614,10 @@ export function useWidget() {
       token: res.interaction.token,
       expiresAt: res.interaction.expiresAt,
       endpoints: res.interaction.endpoints,
+      // 이 세션이 **발급된** apiBase 를 함께 묶는다. 복원 시 현재 apiBase 와 대조해
+      // 불일치면 폐기된다 — 재전송이 apiBase 를 바꿨을 때 옛 토큰이 새 origin 으로
+      // 전송되는 것을 막는 유일한 지점이다(`session-store.ts` 참고).
+      apiBase: cfg.apiBase,
     };
     sessionRef.current = session;
     saveSession(cfg.triggerEndpointPath, session);
@@ -987,7 +992,12 @@ export function useWidget() {
       // **입력창이 사라졌다가 seed 응답 후 돌아온다**(재현 확인). 관리자 라이브 미리보기는 외형 폼
       // 변경마다 **디바운스 없이** 재전송하므로 키 입력마다 이 flicker 가 난다.
       //
-      const saved = sessionEstablished() ? null : loadSession(cfg.triggerEndpointPath);
+      // `cfg.apiBase` 를 넘겨 **발급 origin 이 현재와 같은 세션만** 복원한다. 재전송이
+      // apiBase 를 바꿨다면 저장 세션은 옛 origin 의 것이므로 `loadSession` 이 폐기하고
+      // null 을 반환 → 아래 분기가 새 세션 시작으로 흐른다(옛 토큰 미전송).
+      const saved = sessionEstablished()
+        ? null
+        : loadSession(cfg.triggerEndpointPath, cfg.apiBase);
       if (saved) {
         sessionRef.current = saved;
         startedRef.current = true; // 복원된 세션 — open 시 새 execution 시작 금지(§R6 재open 복원).

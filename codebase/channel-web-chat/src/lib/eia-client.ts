@@ -2,6 +2,7 @@
 // 브라우저 fetch + EventSource 사용. 테스트 위해 DI 가능.
 
 import type { ExecutionStatus, HookStartResponse, InteractCommand, InteractionEndpoints } from "./eia-types";
+import { stripTrailingSlash } from "./api-base";
 
 export interface EiaClientDeps {
   apiBase: string;
@@ -18,7 +19,7 @@ export interface EventSourceLike {
 
 function joinUrl(base: string, path: string): string {
   if (/^https?:\/\//.test(path)) return path;
-  return base.replace(/\/$/, "") + (path.startsWith("/") ? path : "/" + path);
+  return stripTrailingSlash(base) + (path.startsWith("/") ? path : "/" + path);
 }
 
 /**
