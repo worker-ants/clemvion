@@ -93,7 +93,7 @@ except Exception as exc:  # noqa: BLE001
 # text-transforming features are an UNBOUNDED surface, whereas this regex's
 # defect (false POSITIVES) is a finite, enumerable one. Do not "improve" this
 # regex into a parser — that trade goes the wrong way.
-# SoR: plan/in-progress/harness-push-guard-subcommand-detection.md
+# SoR: plan/complete/harness-push-guard-subcommand-detection.md
 #
 # DO NOT EDIT this pattern. Releases belong in _redact_inert_text() below, which
 # is the bounded half of the design. test_push_guard_allowlist.py pins this
@@ -108,12 +108,20 @@ except Exception as exc:  # noqa: BLE001
 # below already had. Byte-identical to `guard_default_branch_bash._MUTATING`;
 # `EnvValueSubpatternSharedTest` fails if the two ever drift.
 #
-# `_SEGMENT_IS_GIT` below deliberately keeps the old `\S+`: it sits on the
+# The trailing `\S+` is a FALLBACK, and leaving it out was the §J fix's own
+# regression: with `[^\s'"]\S*` as the last alternative, a value that OPENS a
+# quote and never closes it (`A='x git push`) matches nothing, the prefix group
+# collapses to zero repetitions, and the push goes undetected — 28 such commands,
+# reintroducing the exact class §J existed to remove. The quoted alternatives
+# come first so they still consume a well-formed value; `\S+` only catches what
+# they cannot, which is what makes this a strict SUPERSET of the pre-§J pattern.
+#
+# `_SEGMENT_IS_GIT` below deliberately keeps a bare `\S+`: it sits on the
 # RELEASE path, where a miss means "not released" — i.e. still blocked, the safe
 # direction. Widening a release path needs its own justification
 # (`ReleasePathNarrownessTest` pins the current behaviour).
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|[^\s'\"]\S*)\s+)*"
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|\S+)\s+)*"
     r"git\b[^&;|]*\bpush\b"
 )
 

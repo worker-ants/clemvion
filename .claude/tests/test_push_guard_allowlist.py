@@ -1,7 +1,7 @@
 """Differential tests for the push guard's blind-scan + allowlist design.
 
 The guard detects `git push` in two halves (SoR:
-plan/in-progress/harness-push-guard-subcommand-detection.md):
+plan/complete/harness-push-guard-subcommand-detection.md):
 
   1. a BLIND regex over raw text — ignorant on purpose, so it has no false
      negatives that a shell-aware parser would introduce;
@@ -17,10 +17,17 @@ finite. This suite keeps that trade from being made again:
   * `test_blind_pattern_is_frozen` pins half (1) byte-for-byte;
   * `test_no_new_false_negatives` re-runs the ORIGINAL regex (frozen below as
     `_LEGACY_PATTERN`) over the whole corpus and fails if the guard releases
-    anything without an enumerated, justified reason.
+    anything without an enumerated, justified reason;
+  * `GeneratedFloorTest` asks the same question of GENERATED inputs. Both
+    checks above only ever see commands somebody thought to write down, and two
+    consecutive fixes narrowed the blind pass anyway because the regressing
+    shape (a value that opens a quote and never closes it) was in nobody's
+    head. A curated corpus proves what we remembered; generation proves the
+    invariant.
 
-CORPUS is the single source of truth: a third field holds the release reason
-(None = must stay blocked), so a command literal is never typed twice.
+CORPUS is the single source of truth for the curated half: a third field holds
+the release reason (None = must stay blocked), so a command literal is never
+typed twice.
 
 Every command the 3 review rounds surfaced is here as a regression floor, plus
 the three CRITICALs found in review/code/2026/07/23/14_23_23 — all of which were
@@ -72,7 +79,7 @@ _MIN_CORPUS_COVERAGE = 10
 # gate. Same three disjoint alternatives `guard_default_branch_bash._MUTATING`
 # already used, kept identical on purpose.
 _BLIND_PATTERN = (
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|[^\s'\"]\S*)\s+)*"
+    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|\S+)\s+)*"
     r"git\b[^&;|]*\bpush\b"
 )
 _BLIND = re.compile(_BLIND_PATTERN)
@@ -310,6 +317,105 @@ class DifferentialTest(unittest.TestCase):
                 continue
             with self.subTest(note=note, command=command):
                 self.assertTrue(guard._is_git_push(command), note)
+
+
+class GeneratedFloorTest(unittest.TestCase):
+    """Drive the false-negative floor with GENERATED inputs, not a curated list.
+
+    `_LEGACY_PATTERN` was already the right floor and `test_no_new_false_negatives`
+    already compared against it — yet two consecutive fixes narrowed the blind
+    pass anyway, because that comparison only ever sees commands somebody thought
+    to add to CORPUS. The regressing shape (a value that opens a quote and never
+    closes it) was in nobody's head, so the floor never got to judge it.
+
+    A curated corpus proves what we remembered; this proves the invariant. The
+    axes are the two that actually interacted in both regressions: the SHAPE of
+    the env value, and how many assignments precede the command.
+    """
+
+    # Shared with the nudge hook's `OldEnvPrefixSupersetTest` — see the comment
+    # on the constant for why it is not duplicated per file.
+    _VALUES = _harness.ENV_VALUE_SHAPES
+    _TEMPLATES = [
+        "A={v} git push",
+        "A=1 B={v} git push",
+        "A={v} B=z git push",
+        "A={v} B={v} git push",
+        "cmd && A={v} git push",
+        "; A={v} git push",
+        "cmd | A={v} git push",
+    ]
+
+    def _cases(self):
+        return [t.format(v=v) for v in self._VALUES for t in self._TEMPLATES]
+
+    def test_no_duplicate_values(self):
+        """A duplicate silently shrinks the space while the count keeps claiming
+        the larger number."""
+        dupes = sorted({v for v in self._VALUES if self._VALUES.count(v) > 1})
+        self.assertEqual(dupes, [], "duplicate values in the generated set")
+
+    def test_both_axes_are_actually_generated(self):
+        """The multi-assignment axis is load-bearing, so pin it alongside the
+        value shapes: the prefix group only collapses when it has to FAIL a
+        repetition, so single-assignment cases test a strictly easier problem."""
+        multi = [t for t in self._TEMPLATES if t.count("=") >= 2]
+        single = [t for t in self._TEMPLATES if t.count("=") == 1]
+        self.assertGreaterEqual(len(multi), 2, "multi-assignment axis was dropped")
+        self.assertTrue(single, "single-assignment baseline was dropped")
+
+    def test_the_regression_shapes_are_still_generated(self):
+        """Close the escape hatch: a failing superset test can be "fixed" by
+        deleting the input that exposes it.
+
+        These specific shapes are load-bearing history, not decoration — each
+        one is a value form that actually caused a released regression. Removing
+        one costs nothing today and hides the next recurrence, so name them.
+        Guards the shared `_harness.ENV_VALUE_SHAPES` on behalf of both suites.
+        """
+        for shape, why in (
+            ("'x", "unclosed single quote — the §J-follow-up regression"),
+            ('"x', "unclosed double quote — same class"),
+            (r'"a\"b"', "escaped quote inside the value — #1002's own first fix"),
+            ('"a b"c', "quoted piece glued to more text — §L canary"),
+            ('"x y"', "quoted value with a space — the original §J bypass"),
+        ):
+            with self.subTest(shape=shape):
+                self.assertIn(shape, self._VALUES, why)
+
+    def test_blind_pass_never_narrows_below_the_floor(self):
+        lost = [c for c in self._cases()
+                if legacy_is_push(c) and not blind_is_push(c)]
+        self.assertEqual(
+            lost, [],
+            "the blind pass stopped catching commands the pre-allowlist regex "
+            "caught — a FALSE NEGATIVE in the half whose whole justification is "
+            "that it has none",
+        )
+
+    # Non-vacuity floor as a RATIO, not a count. `_MIN_CORPUS_COVERAGE` guards
+    # the curated corpus, whose size is roughly fixed; this population grows
+    # every time a shape is added, so an absolute floor silently loosens — at 10
+    # it was passing on 5% participation while the real figure was 147/203.
+    _MIN_PARTICIPATION = 0.5
+
+    def test_the_generated_set_actually_exercises_the_floor(self):
+        """Without this, an edit that made `legacy_is_push` stop matching would
+        turn the test above into a tautology."""
+        cases = self._cases()
+        compared = sum(1 for c in cases if legacy_is_push(c))
+        self.assertGreaterEqual(
+            compared / len(cases), self._MIN_PARTICIPATION,
+            f"only {compared}/{len(cases)} generated commands engage the floor — "
+            "the comparison above is close to vacuous",
+        )
+
+    def test_quoted_values_are_a_strict_gain(self):
+        """The mirror failure: a 'superset' that widened nothing would satisfy
+        the floor while leaving quoted values unrecognised."""
+        gained = [c for c in self._cases()
+                  if blind_is_push(c) and not legacy_is_push(c)]
+        self.assertTrue(gained, "quoted env values are not being recognised")
 
 
 class ReleaseRefusedTest(unittest.TestCase):
@@ -800,6 +906,45 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
             "the double-quoted alternative lost its escape-aware body — an "
             r'escaped \" inside the value hides the push again',
         )
+
+
+class KnownFalseNegativeTest(unittest.TestCase):
+    """§L — an env value whose closing quote is glued to more text.
+
+    `A="a b"c git push` is a legal assignment (the value is `a bc`), but nothing
+    matches it: the quoted branch stops at the closing quote and then demands
+    whitespace, while `\\S+` cannot span the space inside the quotes. The prefix
+    group collapses and the push goes undetected — the same silent gate bypass
+    §J was, one step further along.
+
+    PRE-EXISTING, not a §J regression, which the second test pins so nobody has
+    to re-derive it.
+
+    These assertions describe the BUG. Fixing §L means flipping them, exactly as
+    §J's canary was flipped. Note why §L is harder: the natural fix lets a value
+    be a SEQUENCE of quoted and unquoted pieces, and a repeated group whose
+    alternatives can each match a single character is the catastrophic shape
+    `BacktrackingTest` exists to catch. Measure before shipping it.
+    """
+
+    _CASES = (
+        'A="a b"c git push',
+        "A='a b'c git push",
+        'GIT_SSH_COMMAND="ssh -i ~/.key"/bin/ssh git push',
+    )
+
+    def test_quoted_value_glued_to_more_text_hides_a_push(self):
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertFalse(
+                    guard._is_git_push(command),
+                    "§L appears fixed — flip this class to assertTrue",
+                )
+
+    def test_the_gap_predates_the_j_fix(self):
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertFalse(legacy_is_push(command))
 
 
 if __name__ == "__main__":
