@@ -15,8 +15,9 @@ PR [#1005](https://github.com/worker-ants/clemvion/pull/1005)(교차-worktree fa
 리뷰 6라운드에서 **비차단으로 분류돼 미조치된 항목**들. 전부 독립적이라 부분 처리해도 되고,
 개별로는 티켓 가치가 없어 하나로 묶는다.
 
-> `_run_gates` 의 REVIEW/PLAN 블록 중복은 **여기 포함하지 않는다** — 이미
-> [`harness-gate-control-flow-extract.md`](../in-progress/harness-gate-control-flow-extract.md) (§K) 가 다룬다.
+> `_run_gates` 의 REVIEW/PLAN 블록 중복은 **여기 포함하지 않는다** —
+> [`harness-gate-control-flow-extract.md`](harness-gate-control-flow-extract.md) (§K) 가 다뤘고,
+> 재도출 결과 `1×4` 전제가 붕괴해 **won't-do 종결**됐다(실제 `2×2`·net-negative).
 > #1005 리뷰에서 4라운드 연속 지적됐으나 매번 "#999 소유 구조라 여기서 되돌리면 안 됨" 으로
 > 일관 미조치했다.
 
