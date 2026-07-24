@@ -1,0 +1,331 @@
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'crypto';
+import { Client } from 'pg';
+import request from 'supertest';
+
+import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
+import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+
+/**
+ * e2e: spec/conventions/node-cancellation.md — 외부 cancel 이 **다단계 워크플로우의
+ * 진행 중 노드를 지나 전파**되어 실행이 `cancelled` 로 확정되는지.
+ *
+ * ## 왜 e2e 인가 (이 시나리오의 커버리지는 0 이었다)
+ *
+ * `node-cancellation-inflight-followups.md` §3. 두 plan 이 서로에게 미룬 순환 참조로
+ * 이 시나리오의 e2e 가 **한 번도 작성되지 않았다** — 2026-07-17 grooming 이 실측으로
+ * 확인했다. 기존 `cancelled` 단언은 전부 **노드 dispatch 전 회수**다:
+ * `execution-concurrency-cap`(큐 대기 타임아웃/orphan) · `webchat-idle-reaper`(idle).
+ * 즉 "노드가 이미 돌고 있을 때" 의 전파는 아무도 잠그고 있지 않았다.
+ *
+ * 단위 테스트(`database-query.handler.spec.ts` §2.1)가 driver-level in-flight cancel
+ * (pg_cancel_backend / KILL QUERY)과 AbortError→cancelled 분류를 결정적으로 검증한다.
+ * 여기서 검증하는 것은 그 위층 — **엔진이 다음 노드로 넘어가지 않고 실행을 cancelled 로
+ * 확정하는가**(`execution-engine.service.ts` 의 `context.abortSignal?.throwIfAborted()`).
+ *
+ * ## 결정적 하네스 (flaky 회피 설계)
+ *
+ * 원 plan 은 "느린 쿼리 + 타이밍 맞춘 외부 cancel" 이 필요해 flaky 하다고 판단해 보류했다.
+ * 그 전제를 두 가지로 깬다:
+ *
+ *  1. **고정 sleep 으로 타이밍을 맞추지 않는다.** `node_execution` 행이 `running` 이 되는
+ *     것을 폴링해 "노드가 실제로 진행 중" 을 관측한 뒤에만 stop 을 쏜다. 경합이 아니라
+ *     관측된 상태에 반응하므로 느린 CI 에서도 순서가 뒤집히지 않는다.
+ *  2. **in-flight 중단 자체를 단언하지 않는다.** code 노드(isolated-vm)는 driver-level
+ *     중단 대상이 아니라 best-effort 로 완주한다(spec 이 명시한 정상 동작). 그래서
+ *     "얼마나 빨리 끊겼나" 대신 **전파의 결과**만 본다: 실행이 `cancelled` 로 확정되고
+ *     **하류 노드가 절대 실행되지 않는다**. 이 단언은 A 가 언제 끝나든 성립한다.
+ *
+ * 즉 타이밍 의존 축을 단언에서 제거했기 때문에 결정적이다. 그 대가로 driver-level
+ * 중단(§1)은 여기서 다루지 않는다 — 그쪽은 단위 테스트가 이미 결정적으로 잠근다.
+ */
+
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
+const MANUAL_TRIGGER_TYPE = 'manual_trigger';
+const TERMINAL_STATUSES = ['completed', 'failed', 'cancelled'] as const;
+
+/**
+ * 진행 중 노드가 열어 두는 창(ms). 관측(폴링) 후 stop 을 쏘므로 타이밍 맞추기용이
+ * 아니라, **stop 왕복이 끝나기 전에 노드가 먼저 끝나버리지 않게** 하는 여유다.
+ * 노드 config 의 `timeout`(초)보다 반드시 작아야 한다 — 크면 노드가 timeout 으로
+ * failed 가 되어 cancel 전파가 아닌 다른 경로를 재게 된다.
+ *
+ * 5초인 이유: 폴링이 `running` 을 100ms 주기로 관측하고 stop 은 단일 HTTP 왕복이라
+ * 실사용 여유는 수백 ms 면 충분하다. 이 노드는 busy-wait(아래 참고)이라 그동안 코어
+ * 하나를 점유하므로, 마진은 넉넉하되 낭비하지 않는 값으로 잡는다.
+ */
+const INFLIGHT_WINDOW_MS = 5_000;
+const CODE_TIMEOUT_SEC = 30;
+
+interface CanvasNode {
+  id: string;
+  type: string;
+  category: string;
+  label: string;
+  positionX: number;
+  positionY: number;
+  config?: Record<string, unknown>;
+}
+
+describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
+  let db: Client;
+  let ownerToken: string;
+  let workspaceId: string;
+
+  beforeAll(async () => {
+    db = createDbClient();
+    await db.connect();
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('cancelprop'),
+      db,
+    );
+    ownerToken = owner.accessToken;
+    workspaceId = await createTeamWorkspace(
+      BASE_URL,
+      ownerToken,
+      uniqueName('CANCELPROP'),
+    );
+  }, 60_000);
+
+  afterAll(async () => {
+    if (db) await db.end();
+  });
+
+  const authHeader = () => ({ Authorization: `Bearer ${ownerToken}` });
+
+  /**
+   * trigger → A(진행 중 창을 여는 code) → B(도달하면 안 되는 code).
+   * B 가 실행되면 "전파 실패" 가 관측 가능해진다 — 이 워크플로가 2단계인 이유.
+   */
+  async function createTwoStepWorkflow(): Promise<{
+    workflowId: string;
+    slowNodeId: string;
+    downstreamNodeId: string;
+  }> {
+    const res = await request(BASE_URL)
+      .post('/api/workflows')
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({ name: uniqueName('cancel-prop-wf') });
+    expect(res.status).toBe(201);
+    const workflowId = res.body.data.id as string;
+
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const slow: CanvasNode = {
+      id: randomUUID(),
+      type: 'code',
+      category: 'data',
+      label: 'InFlight',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        language: 'javascript',
+        // **busy-wait 인 이유**: code 노드는 하드닝으로 `setTimeout`/`setInterval`/
+        // `setImmediate`/`queueMicrotask` 를 isolate 의 globalThis 에서 **삭제**한다
+        // (`code.handler.ts` 의 delete 목록). 그래서 창을 여는 유일한 수단이 동기
+        // 루프다. `Date` 는 삭제 대상이 아니다(dayjs 스냅샷도 이에 기댄다).
+        // isolated-vm 의 `timeout` 은 wall-clock 이라 CODE_TIMEOUT_SEC 안에서 끝난다.
+        code:
+          `const __end = Date.now() + ${INFLIGHT_WINDOW_MS};\n` +
+          `while (Date.now() < __end) {}\n` +
+          `return { ok: true };`,
+        timeout: CODE_TIMEOUT_SEC,
+      },
+    };
+    const downstream: CanvasNode = {
+      id: randomUUID(),
+      type: 'code',
+      category: 'data',
+      label: 'MustNotRun',
+      positionX: 480,
+      positionY: 0,
+      config: {
+        language: 'javascript',
+        code: 'return { reached: true };',
+        timeout: 5,
+      },
+    };
+    const save = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/save`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        nodes: [trigger, slow, downstream],
+        edges: [
+          {
+            sourceNodeId: trigger.id,
+            sourcePort: 'out',
+            targetNodeId: slow.id,
+            targetPort: 'in',
+          },
+          {
+            // code 노드의 출력 포트는 `success`/`error` 다 (`code.schema.ts`).
+            // `out` 으로 쓰면 엣지가 어디에도 붙지 않아 하류가 조용히 도달 불가가
+            // 되고, "하류가 실행되지 않았다" 단언이 **취소와 무관하게** 참이 된다.
+            // 실제로 이 파일의 초안이 그렇게 vacuous 하게 통과했고, 아래 대조군
+            // 테스트가 그것을 잡아냈다.
+            sourceNodeId: slow.id,
+            sourcePort: 'success',
+            targetNodeId: downstream.id,
+            targetPort: 'in',
+          },
+        ],
+      });
+    expect([200, 201]).toContain(save.status);
+    return {
+      workflowId,
+      slowNodeId: slow.id,
+      downstreamNodeId: downstream.id,
+    };
+  }
+
+  async function execute(workflowId: string): Promise<string> {
+    const res = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(res.status).toBe(202);
+    return (res.body.data as { executionId: string }).executionId;
+  }
+
+  async function getStatus(executionId: string): Promise<string> {
+    const res = await request(BASE_URL)
+      .get(`/api/executions/${executionId}`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId);
+    return res.status === 200
+      ? (res.body.data as { status: string }).status
+      : '';
+  }
+
+  /** 노드 단위 상태는 DB 로 직접 본다 — 같은 파일군의 확립된 관행. */
+  async function nodeStatus(
+    executionId: string,
+    nodeId: string,
+  ): Promise<string | null> {
+    const r = await db.query<{ status: string }>(
+      `SELECT status FROM node_execution WHERE execution_id = $1 AND node_id = $2`,
+      [executionId, nodeId],
+    );
+    return r.rows[0]?.status ?? null;
+  }
+
+  async function waitUntil<T>(
+    probe: () => Promise<T>,
+    done: (v: T) => boolean,
+    timeoutMs: number,
+    label: string,
+  ): Promise<T> {
+    const deadline = Date.now() + timeoutMs;
+    let last: T = await probe();
+    while (!done(last)) {
+      if (Date.now() > deadline) {
+        throw new Error(`timeout waiting for ${label} — last=${String(last)}`);
+      }
+      await new Promise((r) => setTimeout(r, 100));
+      last = await probe();
+    }
+    return last;
+  }
+
+  it('진행 중 노드가 있는 실행을 stop 하면 cancelled 로 확정되고 하류 노드는 실행되지 않는다', async () => {
+    const { workflowId, slowNodeId, downstreamNodeId } =
+      await createTwoStepWorkflow();
+    const executionId = await execute(workflowId);
+
+    // (1) 고정 sleep 이 아니라 **관측**: A 가 실제로 running 이 될 때까지 기다린다.
+    await waitUntil(
+      () => nodeStatus(executionId, slowNodeId),
+      (s) => s === 'running',
+      30_000,
+      'in-flight node to start running',
+    );
+
+    // (2) 노드가 진행 중인 바로 그 순간 외부 cancel.
+    const stop = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/stop`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(stop.status).toBe(200);
+
+    // (3) 전파의 결과 — 실행이 terminal 로 가면 그것은 cancelled 여야 한다.
+    //     A 의 완주를 기다리므로 창(8s) + 여유를 준다.
+    const finalStatus = await waitUntil(
+      () => getStatus(executionId),
+      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
+      60_000,
+      'execution to reach a terminal status',
+    );
+    expect(finalStatus).toBe('cancelled');
+
+    // (4) 다단계의 핵심 — 하류 노드는 **절대** 실행되지 않는다.
+    //     `throwIfAborted()` 가 dispatch 전에 끊어야 한다. 행이 없거나(도달 전),
+    //     있더라도 completed 면 안 된다.
+    const downstream = await nodeStatus(executionId, downstreamNodeId);
+    expect(downstream).not.toBe('completed');
+    expect(downstream).not.toBe('running');
+  }, 120_000);
+
+  it('[대조군] stop 하지 않으면 하류 노드가 실제로 실행된다 (위 단언의 비-vacuity)', async () => {
+    // 이 테스트가 없으면 위 단언이 **엉뚱한 이유로** 통과할 수 있다: 워크플로가
+    // 실제로 체인되지 않으면(엣지 오류 등) 하류 노드는 cancel 과 무관하게 애초에
+    // 실행되지 않으므로 `not.toBe('completed')` 가 공허하게 참이 된다.
+    // 같은 워크플로를 취소 없이 돌려 하류가 정말 도달 가능함을 고정한다.
+    const { workflowId, downstreamNodeId } = await createTwoStepWorkflow();
+    const executionId = await execute(workflowId);
+
+    const finalStatus = await waitUntil(
+      () => getStatus(executionId),
+      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
+      60_000,
+      'uncancelled execution to finish',
+    );
+    expect(finalStatus).toBe('completed');
+    expect(await nodeStatus(executionId, downstreamNodeId)).toBe('completed');
+  }, 120_000);
+
+  it('취소된 실행은 재-stop 을 거부한다 (terminal 재진입 방지)', async () => {
+    const { workflowId, slowNodeId } = await createTwoStepWorkflow();
+    const executionId = await execute(workflowId);
+    await waitUntil(
+      () => nodeStatus(executionId, slowNodeId),
+      (s) => s === 'running',
+      30_000,
+      'in-flight node to start running',
+    );
+    expect(
+      (
+        await request(BASE_URL)
+          .post(`/api/executions/${executionId}/stop`)
+          .set(authHeader())
+          .set('X-Workspace-Id', workspaceId)
+          .send({})
+      ).status,
+    ).toBe(200);
+
+    await waitUntil(
+      () => getStatus(executionId),
+      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
+      60_000,
+      'execution to reach a terminal status',
+    );
+
+    // terminal 이 된 뒤의 stop 은 400 — "이미 완료/실패/취소된 실행" 계약.
+    const second = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/stop`)
+      .set(authHeader())
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(second.status).toBe(400);
+  }, 120_000);
+});
