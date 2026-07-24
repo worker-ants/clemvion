@@ -1,6 +1,6 @@
 ---
 id: node-cancellation
-status: partial
+status: implemented
 code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
@@ -9,8 +9,6 @@ code:
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/frontend/src/lib/api/executions.ts
-pending_plans:
-  - plan/in-progress/node-cancellation-inflight-followups.md
 ---
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
