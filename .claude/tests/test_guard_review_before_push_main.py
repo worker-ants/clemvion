@@ -64,6 +64,10 @@ class _Decision:
     blocked: bool
     reason: str
 
+    @property
+    def push_blocks(self):  # the push runner reads this, not `.blocked`
+        return self.blocked
+
 
 def evaluate_review():
     mode = os.environ.get("STUB_REVIEW", "clean")
@@ -86,6 +90,10 @@ class _Plan:
     untouched: bool
     reason: str
     plan_path: str
+
+    @property
+    def push_blocks(self):  # push gate blocks on `untouched`
+        return self.untouched
 
 
 def evaluate_plan():

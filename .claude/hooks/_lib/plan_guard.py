@@ -83,6 +83,17 @@ class PlanDecision:
     reason: str
     plan_path: str | None  # repo-relative path of the linked plan, for messages.
 
+    @property
+    def push_blocks(self) -> bool:
+        """Whether the PUSH hard-gate should refuse on this decision.
+
+        Push-specific ON PURPOSE: this decision serves two gates and the Stop
+        gate blocks on `complete_but_in_progress`, not this. The push runner
+        reads `push_blocks` uniformly across gates (see `ReviewDecision`), so the
+        name says which gate it answers rather than a bare `blocked` that would
+        be ambiguous on a two-gate class."""
+        return self.untouched
+
 
 def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
     try:

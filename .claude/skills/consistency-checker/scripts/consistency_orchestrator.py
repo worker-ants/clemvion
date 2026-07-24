@@ -250,6 +250,14 @@ def _collect_code_diff(diff_base, root):
     Used by ``--impl-done`` to bundle the implementation diff alongside
     the spec area files so checkers can compare both sides. Empty
     string on any failure (missing base ref, no diff, git error).
+
+    THREE-DOT on purpose (harness-consistency-bundler-budget §H residual): ``A...B``
+    diffs against ``merge-base(A, B)``, so when ``diff_base`` (e.g. a freshly
+    fetched ``origin/main``) has advanced PAST this branch's fork point, changes
+    that landed on the base but not here do NOT appear as reverse deletions. A
+    two-dot ``git diff origin/main HEAD`` would inject that noise and let a
+    checker read code the branch never touched as "removed". Do not switch to
+    two-dot.
     """
     cfg = project_config.load(root)
     code_areas = cfg.get("code_areas") or []

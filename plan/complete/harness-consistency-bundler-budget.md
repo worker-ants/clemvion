@@ -1,10 +1,12 @@
 ---
 title: consistency 번들러 예산 — target spec 이 조용히 절반 잘리던 문제 (§H)
-worktree: resumable-handler-generic-typing-3918dd
+worktree: harness-checks-paths-guard-f6b2d9
 started: 2026-07-24
 owner: developer
-status: in-progress
+status: complete
 priority: P2
+# `.claude/skills/**` + `.claude/tests/**` 전용 — 어떤 spec 의 `code:` glob 에도 미매칭.
+spec_impact: none
 ---
 
 ## Overview
@@ -72,18 +74,21 @@ target(30%) 을 잠식할 수 없다.
 
 전부 담는 것은 창 크기상 불가능하다. 바뀐 것은 **미포함이 관측 가능해졌다**는 것이다.
 
-## 잔여
+## 잔여 — 종결 (2026-07-24, 전제 반증)
 
-- [ ] (부수) `origin/main` 이 fork-point 보다 앞설 때 `git diff origin/main` 의 reverse-diff
-      오염 — 기본 diff-base 를 `git merge-base HEAD origin/main` 으로 고정하는 옵션.
-      이미 checker 들이 수동 재계산으로 우회 중이나 기본값 개선 여지. **본 PR 범위 밖**
-      (`--impl-done` 전용이고 예산과 무관).
+- [x] (부수) reverse-diff 오염 — **이미 three-dot 이라 발생 불가**. `_collect_code_diff` 는
+      `git diff {diff_base}...HEAD`(**세 점**)을 쓴다. `A...B` 는 `merge-base(A,B)..B` 라
+      `diff_base`(갓 fetch 한 `origin/main` 등)가 fork-point 를 앞서도 base-쪽 변경이
+      역-삭제로 새지 않는다. 잔여가 제안한 "merge-base 로 고정" 이 곧 three-dot 이 이미
+      하는 일이다 — 원 전제(two-dot `git diff origin/main`)는 코드에 존재한 적이 없다.
+      테스트 대신 `_collect_code_diff` docstring 에 "two-dot 로 바꾸지 말 것" 을 근거와 함께
+      고정(회귀 방지 비용 대비, 표준 git 의미론이라 pin 테스트는 과설계).
 
 ## 관련
 
 - `.claude/skills/consistency-checker/scripts/consistency_orchestrator.py`
 - `.claude/tests/test_consistency_context_budget.py`
-- 부모: [`harness-guard-followups.md`](harness-guard-followups.md) §H
+- 부모: [`harness-guard-followups.md`](../in-progress/harness-guard-followups.md) §H
 
 ## Rationale
 

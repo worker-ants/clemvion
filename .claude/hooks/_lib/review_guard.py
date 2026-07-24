@@ -156,6 +156,17 @@ class ReviewDecision:
     blocked: bool
     reason: str  # human-readable; used for stderr / system-reminder bodies.
 
+    @property
+    def push_blocks(self) -> bool:
+        """Whether the push hard-gate should refuse on this decision.
+
+        The push runner reads this on every gate's decision so it never has to
+        know each class's field name (`ReviewDecision.blocked` vs
+        `PlanDecision.untouched`). A gate that hard-blocks the push declares it
+        here; the gate contract is then a property, not a per-call lambda the
+        caller has to keep matched by hand."""
+        return self.blocked
+
 
 def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
     try:

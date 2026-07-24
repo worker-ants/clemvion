@@ -680,7 +680,7 @@ def _import_reason(module: str, symbol: str, error: str) -> str:
 f"{module} imported but {symbol} is None"
 
 
-def _evaluate_over_targets(evaluate, targets, *, gate, outcome, is_blocked, render):
+def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
     """Run ONE gate over every push target. Returns the block message or None.
 
     Bridges two invariants that arrived from different directions and both have
@@ -718,7 +718,7 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, is_blocked, rend
             # needs its own `degraded` reason here.
             continue
         answered = True
-        if is_blocked(result):
+        if result.push_blocks:
             if gate not in outcome.answered:
                 outcome.answered.append(gate)
             return render(result, target if scoped else os.getcwd())
@@ -742,7 +742,6 @@ def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
                 targets,
                 gate=_GATE_REVIEW,
                 outcome=outcome,
-                is_blocked=lambda d: d.blocked,
                 render=lambda d, wt: _REVIEW_MSG.format(
                     reason=d.reason, worktree=wt
                 ),
@@ -764,7 +763,6 @@ def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
                 targets,
                 gate=_GATE_PLAN,
                 outcome=outcome,
-                is_blocked=lambda pl: pl.untouched,
                 render=lambda pl, wt: _PLAN_MSG.format(
                     reason=pl.reason, plan=pl.plan_path, worktree=wt
                 ),
