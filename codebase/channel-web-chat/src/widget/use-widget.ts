@@ -9,20 +9,42 @@ import type {
   InteractCommand,
   WaitingForInputEvent,
 } from "@/lib/eia-types";
-import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
+import {
+  parseAiMessage,
+  parseMessage,
+  parseWaitingForInput,
+} from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { stripTrailingSlash } from "@/lib/api-base";
-import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
-import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
+import {
+  clearSession,
+  loadSession,
+  saveSession,
+  type PersistedSession,
+} from "@/lib/session-store";
+import { useSessionGenerations } from "./use-session-generations";
+import {
+  initialState,
+  isTextInputSurface,
+  widgetReducer,
+} from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
-import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
+import {
+  createIframeBridge,
+  detectHostOrigin,
+  type BootMessage,
+} from "./host-bridge";
 import { useTokenRefresh } from "./use-token-refresh";
 import { usePendingMessageQueue } from "./use-pending-message-queue";
 import type { WcResizePayload } from "./wc-protocol";
 
 // 토큰 갱신 헬퍼는 use-token-refresh 로 이동. 기존 import 경로(`./use-widget`) 사용처 보호를 위한
 // **영구 하위호환 re-export** — 신규 코드는 use-token-refresh 에서 직접 import 권장.
-export { refreshDelayMs, TOKEN_REFRESH_LEAD_MS, TOKEN_REFRESH_MIN_DELAY_MS } from "./use-token-refresh";
+export {
+  refreshDelayMs,
+  TOKEN_REFRESH_LEAD_MS,
+  TOKEN_REFRESH_MIN_DELAY_MS,
+} from "./use-token-refresh";
 
 interface EmbedConfig {
   allowlist: string[];
@@ -40,8 +62,10 @@ async function fetchEmbedConfig(
       `${base}/api/hooks/${encodeURIComponent(triggerEndpointPath)}/embed-config`,
     );
     if (!res.ok) return null;
-    const json = (await res.json()) as { data?: EmbedConfig } & Partial<EmbedConfig>;
-    return (json.data ?? (json as EmbedConfig)) ?? null;
+    const json = (await res.json()) as {
+      data?: EmbedConfig;
+    } & Partial<EmbedConfig>;
+    return json.data ?? (json as EmbedConfig) ?? null;
   } catch {
     return null;
   }
@@ -105,7 +129,10 @@ export function safeApiBaseFromQuery(raw: string | null): string | undefined {
   } catch {
     /* 파싱 불가 — 아래 경고 후 무시 */
   }
-  console.warn("[widget] configFromQuery: apiBase 가 http(s) URL 이 아니어서 무시합니다:", raw);
+  console.warn(
+    "[widget] configFromQuery: apiBase 가 http(s) URL 이 아니어서 무시합니다:",
+    raw,
+  );
   return undefined;
 }
 
@@ -131,58 +158,17 @@ export function useWidget() {
   // eager 시작 가드(§R6) — 패널 open 시 execution 을 1회만 시작. 재open·중복 open 에서 재시작 방지.
   // 세션 복원/새 대화 시 재설정. true = 이미 시작(또는 진행 중).
   const startedRef = useRef(false);
-  /**
-   * **world 세대 토큰 — 비동기 staleness 의 단일 진실**.
-   *
-   * 위젯의 모든 비동기 경로(webhook POST · `getStatus` · `interact`)는 응답이 도착할 때쯤 세계가
-   * 바뀌어 있을 수 있다 — 종료 이벤트·410·새 대화·대화 종료·언마운트. 그때 지연 응답으로 최신
-   * 상태를 덮으면 유령 표면·오종료·스트림 탈취가 난다.
-   *
-   * **계약**: 세계를 무효화하는 모든 지점이 `++worldGenRef.current` 하고, 모든 `await` 뒤에는
-   * `if (isStale(gen)) return;` 로 재검증한다. 무효화 지점은 셋이다 —
-   * (1) `teardownSession()` — 종료·410·새 대화·대화 종료가 전부 경유하는 choke point.
-   *     단 config 확립 전에는 무효화할 세계가 없어 no-op (그 조기 return 주석 참조).
-   * (2) `start()` — 새 execution 이 곧 직전 세계를 대체하므로 시작 자체가 무효화다.
-   * (3) 언마운트 cleanup — `teardownSession` 을 거치지 않고 직접 bump 한다.
-   *
-   * **왜 하나로 합쳤나**: 종전에는 세대 카운터(`startGenRef`, `start()` 전용) · `sessionRef` 동일성
-   * (`seed`/`sendCommand`) · `cancelled` 지역 플래그(`applyConfig` 초기 부팅) · `cancelledRef`
-   * (`useTokenRefresh`, 아래 주입 지점 참조) **4종이 각기 다른 무효화 트리거**를 갖고 공존했다
-   * (앞의 3종이 이 파일 안, 4번째는 이미 분리된 훅 안에 있어 더 눈에 안 띄었다). 특히
-   * `teardownSession()` 은 `sessionRef` 를 null 하지 않아
-   * **`sessionRef` 동일성으로 지킨 경로는 SSE terminal 종료를 감지하지 못했다** — 그 결과 종료된
-   * 위젯이 stale seed 응답으로 `awaiting_user_message` 로 되살아나는 버그가 있었다(재현 확인).
-   * `start()` 가 매번 무사했던 것도 우연이 아니라 유일하게 올바른 가드(세대)를 썼기 때문.
-   * 축이 하나로 합쳐지면서 호출부는 "무엇이 바뀌었는지" 를 구분할 필요 없이 **바뀌었으면 중단**
-   * 하면 된다 (ai-review 2026-07-17 06_53_03 이후 구조 검토).
-   *
-   * *(`endedRef` 는 여기 합치지 않는다 — 그쪽은 staleness 가 아니라 **같은 세계 안에서 두 경로가
-   * 같은 종료를 중복 통지**하는 것을 막는 별개 축이다.)*
-   */
-  const worldGenRef = useRef(0);
-  /**
-   * **부팅 시도 세대** — `applyConfig` 호출 1건 = 1세대. 나중 시도가 앞선 시도를 **대체**한다.
-   *
-   * `spec/7-channel-web-chat/2-sdk.md §3(재전송)` 은 host 가 iframe 재생성 없이 `wc:boot` 을 다시 보낼 수
-   * 있고 **위젯은 마지막 `wc:boot` 의 config 를 적용**한다고 정한다. 그런데 `host-bridge` 는 in-flight
-   * 여부를 보지 않고 매번 `applyConfig` 를 새로 기동하므로, 세대가 없으면 **`embed-config` 왕복의
-   * resolve 순서가 승자를 정한다** — 먼저 보낸 config 가 나중에 resolve 하면 그게 이겨 §3(재전송) 을 어긴다
-   * (재현 확인: `profile.plan` A→B 순서로 보내고 resolve 를 역전시키면 A 가 적용됐다).
-   *
-   * **`worldGenRef` 와 축이 다르다 — 합치지 말 것.** 부팅 시도는 세계를 바꾸지 않는다(그래서
-   * `teardownSession` 은 config 확립 전엔 세대를 올리지 않는다 — 올렸다가 부팅 중 `applyConfig` 를
-   * 죽여 **패널이 영원히 안 열리는** 회귀를 냈다). 세계 무효화 ≠ 시도 대체다.
-   *
-   * **`!cfg.apiBase` 조기 return 은 세대를 올리지 않는다** — 시도로 치지 않는다. 올리면 아무것도
-   * 하지 않는 "죽은 대체자" 가 살아있는 시도를 밀어낸다.
-   *
-   * ⚠ **이 블록과 `bootGenRef` 선언 사이에 다른 선언을 끼워 넣지 말 것** — JSDoc 은 인접성으로만
-   * 붙는다. 이 파일에서 두 번 당했다(`pendingResetRef` 는 `bootGenRef` 삽입에, `bootGenRef` 는
-   * `unmountedRef` 삽입에 각각 주석을 잃었다). 새 ref 는 이 블록 **위**나 `bootGenRef` **아래**에.
-   */
-  const bootGenRef = useRef(0);
-  /** 언마운트 여부 — world 무효화와 달리 **되돌아오지 않는** 종점이라 별도 축이다(`beginBootAttempt` §근거). */
-  const unmountedRef = useRef(false);
+  // staleness 세대 축(world/boot/unmount + 판정자)은 `useSessionGenerations` 로 분리했다 —
+  // 이 파일군의 반복 결함이 난 바로 그 축이라 응집도를 올린 1차 slice. 계약·동작 무변경.
+  const {
+    worldGenRef,
+    bootGenRef,
+    unmountedRef,
+    isStale,
+    beginBootAttempt,
+    cannotApplyConfig,
+    isAttemptStale,
+  } = useSessionGenerations();
   /**
    * 부팅 중 도착한 리셋 요청의 **지연 이행 플래그**.
    *
@@ -241,71 +227,6 @@ export function useWidget() {
     configRef,
     worldGenRef,
   });
-
-  /**
-   * 캡처한 `gen` 이후 세계가 무효화됐는가 — **모든 `await` 뒤의 표준 재검증**.
-   *
-   * `isStale(gen)` 을 손으로 복제하는 대신 이름을 붙였다. 이 관용구를 **빠뜨리는
-   * 것**이 곧 이 파일이 4라운드 연속 겪은 버그의 형태였으므로(`seedWaitingFromStatus` catch 분기·
-   * `applyConfig` 비대칭), 의도가 이름으로 드러나고 `isStale` grep 하나로 전 지점을 셀 수 있어야
-   * 한다 (ai-review 2026-07-17 09_36_01 maintainability).
-   */
-  const isStale = useCallback((gen: number) => worldGenRef.current !== gen, []);
-
-  /**
-   * 새 부팅 시도를 개시하고 그 **시도 토큰**을 반환한다 — 앞선 시도는 이 호출로 대체된다.
-   *
-   * `applyConfig` 는 세계 무효화(`worldGenRef`)와 시도 대체(`bootGenRef`) **두 축 모두**에 걸린다.
-   * 그 둘을 호출부에서 손으로 AND 하지 않고 토큰 하나로 묶는 이유:
-   *
-   * 이 파일이 **비대칭 가드 누락으로 CRITICAL 을 여러 번 냈다** — 한 호출부는 재검증하고 다른 호출부는
-   * 빠뜨리는 형태(`02_04_13` C1 · `08_29_33` W2 · `09_36_01` W5, 그리고 `23_58_23` 의 `start()` 무방비
-   * 되감기까지). 축을 하나 더 늘리면서 그 관용구를 손으로 복제하면 같은 실패를 초대한다. 토큰이면
-   * **await 지점당 가드 호출은 여전히 1개**이고, 축이 늘어도 호출부가 아니라 이 predicate 한 곳만 바뀐다.
-   * (`seedWaitingFromStatus` 의 표면 되감기 방어는 이 클래스가 반복 실패한 끝에 `sessionEstablished()`
-   * 라는 **세 호출부 공통의 무조건 기본 가드**로 옮겨가 비대칭 자체를 구조적으로 없앴다 — 그 함수 JSDoc 참조.)
-   *
-   * 곁들여 `applyConfig` 는 `gen`(world 단독)을 **스코프에 두지 않는다** — 그래서 거기서
-   * `isStale(gen)` 은 컴파일되지 않는다. **단 이건 좁은 보호다**: 이 파일의 다른 함수에서 관용구를
-   * 복사해 오는 가장 흔한 실수만 막을 뿐, `isStale(attempt.world)` 처럼 **일부러 축을 빼면 통과한다**
-   * (실측 확인 — `isStale(worldGenRef.current)` 는 자기 자신과 비교해 **항상 false 인 무력 가드**가
-   * 되는데도 컴파일된다). 타입 검사가 축 누락 일반을 막아주지는 **않는다**
-   * (ai-review 2026-07-17 17_36_57 maintainability — 내 초기 주장이 과했다).
-   *
-   * 진짜 방어선은 **테스트**다: 두 재검증 지점 각각을 비대칭으로 제거하는 mutation 이 회귀 테스트에
-   * 잡힌다(plan `webchat-boot-single-flight.md` §A-5 매트릭스). `guardedAwait` 구조화 대신 이 조합을
-   * 택한 근거는 같은 plan §A-0.
-   *
-   * *(`bootGenRef` 는 **`applyConfig` 의 config 적용 경합에만** 쓴다 — `beginBootAttempt`(발급)와
-   * `cannotApplyConfig`/`isAttemptStale`(재검증). `start()`/`sendCommand`/`seedWaitingFromStatus` 는
-   * 이 축을 쓰지 않는다. 특히 `seedWaitingFromStatus` 의 표면 되감기 방어는 boot 세대 비교가 아니라
-   * `sessionEstablished()`("스트림이 이미 열렸나")로 한다 — boot 세대는 그 proxy 였고 두 번 구멍이
-   * 났다(18_39_11: 함수 경계에서 안 닿음 / 00_51_53: no-op 재전송이 start() 를 거짓 stale 처리해
-   * 고착). 그 함수 JSDoc 표 참조.)*
-   */
-  const beginBootAttempt = useCallback(
-    () => ({ world: worldGenRef.current, boot: ++bootGenRef.current }),
-    [],
-  );
-  /**
-   * 이 부팅 시도가 **config 를 적용할 자격을 잃었는가** — 첫 await(임베드 검증) 뒤의 재검증.
-   *
-   * **world 축을 보지 않는다.** 아직 어떤 세션도 건드리지 않은 시도에게 "세계가 바뀌었다"는 무의미하고,
-   * 오히려 해롭다: 대체된 형제 시도가 복원 중 종료를 확정하면(`finalizeEnded`→world++) 그 **정당한**
-   * 무효화가 **살아있는 마지막 부팅까지 stale 화해** §3(재전송) 을 깨뜨렸다(재현 확인 — config B 대신 A 고착).
-   * 세션을 건드리는 복원 분기에서만 world 를 본다(`isAttemptStale`).
-   * (ai-review 2026-07-17 17_36_57 concurrency CRITICAL)
-   */
-  const cannotApplyConfig = useCallback(
-    (attempt: { boot: number }) => unmountedRef.current || bootGenRef.current !== attempt.boot,
-    [],
-  );
-  /** 복원 분기용 — config 적용 자격 **더하기** 세션 world 유효성(옛 세션으로 스트림을 열지 않는다). */
-  const isAttemptStale = useCallback(
-    (attempt: { world: number; boot: number }) =>
-      cannotApplyConfig(attempt) || worldGenRef.current !== attempt.world,
-    [cannotApplyConfig],
-  );
 
   /**
    * 이 마운트의 세션이 **확립됐는가** — 재전송(`wc:boot` 재수신)이 복원을 건너뛸지의 판정.
@@ -402,9 +323,8 @@ export function useWidget() {
     (name: string, data: unknown) => {
       if (name === "execution.waiting_for_input") {
         // SSE wire 형태 매핑 — nodeId=waitingNodeId 등 (eia-events). submit_message 가 이 nodeId 를 보낸다.
-        const { type, config, nodeId, conversationThread } = parseWaitingForInput(
-          data as WaitingForInputEvent,
-        );
+        const { type, config, nodeId, conversationThread } =
+          parseWaitingForInput(data as WaitingForInputEvent);
         dispatch({
           type: "WAITING",
           interaction: { type, config, nodeId },
@@ -416,14 +336,19 @@ export function useWidget() {
         // 텍스트 또는 presentation 중 하나라도 있으면 메시지로 추가(presentation-only 도 렌더).
         if (text || presentations) {
           dispatch({ type: "AI_MESSAGE", text, presentations });
-          if (text) bridgeRef.current?.sendEvent("message", { role: "assistant", text });
+          if (text)
+            bridgeRef.current?.sendEvent("message", {
+              role: "assistant",
+              text,
+            });
         }
       } else if (name === "execution.message") {
         // 표시-전용 presentation 노드(carousel/table/chart/template)가 버튼 없이 자동 진행
         // 완료 → presentation 말풍선. text 없이 presentations 만 dispatch 해 기존 AI_MESSAGE
         // 렌더 경로(text/presentations 분리 렌더)를 재사용한다(이중 텍스트 방지).
         const { presentations } = parseMessage(data as ExecutionMessageEvent);
-        if (presentations) dispatch({ type: "AI_MESSAGE", text: "", presentations });
+        if (presentations)
+          dispatch({ type: "AI_MESSAGE", text: "", presentations });
       } else if (name === "execution.replay_unavailable") {
         // EIA 5분 버퍼 만료 — `seq > Last-Event-Id` 누락분 재전송 불가라는 서버 신호(EIA §5.2·NF-03).
         // 1-widget-app §3.1: getStatus snapshot(현재 conversationThread, EIA §5.3)으로 폴백해
@@ -437,7 +362,9 @@ export function useWidget() {
         // 재동기화가 no-op 이 된다. 복원/start 경로의 "다른 시도가 스트림을 가로챘나" 와 달리, 여기
         // 스트림 열림은 "내가 다시 그려야 함" 을 뜻하므로 opt-in 으로 통과시킨다.
         if (client && session)
-          void seedWaitingFromStatusRef.current?.(client, session, { allowWhileStreaming: true });
+          void seedWaitingFromStatusRef.current?.(client, session, {
+            allowWhileStreaming: true,
+          });
         // `as readonly string[]`: TERMINAL_EVENTS 는 `as const` 리터럴 튜플이라 .includes 가 인자를
         // 리터럴 union 으로 좁혀 임의 string 인 `name` 을 거부한다 — 비교용으로 string[] 로 넓힌다.
       } else if ((TERMINAL_EVENTS as readonly string[]).includes(name)) {
@@ -558,7 +485,11 @@ export function useWidget() {
         // 유실돼 다시 오지 않는다(서버는 신호 후 연결만 유지·재전송 안 함 — EIA R-replay-unavailable).
         // 이 분기가 없으면 위젯이 `streaming`("AI 응답 중" 스피너)에 무기한 멈춘다 — 사용자 액션이
         // 없는 구간이라 `sendCommand` 의 410 사후 복구 경로도 닿지 않는다.
-        if ((TERMINAL_EVENTS as readonly string[]).includes(`execution.${status.status}`)) {
+        if (
+          (TERMINAL_EVENTS as readonly string[]).includes(
+            `execution.${status.status}`,
+          )
+        ) {
           finalizeEnded(`execution.${status.status}`);
           return "ended"; // 호출부는 이 값으로 후속 openStream/scheduleRefresh 를 건너뛴다.
         }
@@ -566,7 +497,8 @@ export function useWidget() {
           // **스트림이 이미 열렸으면 SSE 가 표면을 소유한다 — 지연 seed 로 덮지 않는다**(JSDoc 표 참조).
           // 위 종료 확정은 이 가드를 일부러 안 탄다(종료는 world 사실). `replay_unavailable` 폴백만
           // 자기 스트림 재동기화라 opt-in 으로 통과한다.
-          if (!opts?.allowWhileStreaming && sessionEstablished()) return "stale";
+          if (!opts?.allowWhileStreaming && sessionEstablished())
+            return "stale";
           // WaitingContext 는 WaitingForInputEvent 에 assignable(REST context = SSE wire 동일형식,
           // EIA §5.3) — `as` 캐스트 불필요.
           const parsed = parseWaitingForInput(status.context);
@@ -651,7 +583,9 @@ export function useWidget() {
       // 옛 execution 을 persist/openStream 으로 되살리지 않는다(booting-중-종료 race).
       if (isStale(gen)) return;
       dispatch({ type: "BOOTED", executionId: res.executionId });
-      bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
+      bridgeRef.current?.sendEvent("conversationStarted", {
+        executionId: res.executionId,
+      });
       const session = persist(cfg, res);
       if (session) {
         // race(§R6) 보정 — 첫 waiting 이벤트가 SSE 구독 전 emit 되어도:
@@ -687,7 +621,14 @@ export function useWidget() {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, sessionEstablished]);
+  }, [
+    openStream,
+    persist,
+    seedWaitingFromStatus,
+    scheduleRefresh,
+    isStale,
+    sessionEstablished,
+  ]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -757,7 +698,11 @@ export function useWidget() {
         isTextInputSurface(state.pending)
       ) {
         dispatch({ type: "USER_MESSAGE", text });
-        void sendCommand({ command: "submit_message", nodeId: state.pending?.nodeId, message: text });
+        void sendCommand({
+          command: "submit_message",
+          nodeId: state.pending?.nodeId,
+          message: text,
+        });
       } else {
         // 큐(최신 1건) — booting/streaming 중 도착한 텍스트. flush effect 가 ai_conversation waiting 시 전송.
         enqueue(text);
@@ -768,14 +713,22 @@ export function useWidget() {
 
   const clickButton = useCallback(
     (buttonId: string) => {
-      void sendCommand({ command: "click_button", nodeId: state.pending?.nodeId, buttonId });
+      void sendCommand({
+        command: "click_button",
+        nodeId: state.pending?.nodeId,
+        buttonId,
+      });
     },
     [sendCommand, state.pending?.nodeId],
   );
 
   const submitForm = useCallback(
     (data: Record<string, unknown>) => {
-      void sendCommand({ command: "submit_form", nodeId: state.pending?.nodeId, data });
+      void sendCommand({
+        command: "submit_form",
+        nodeId: state.pending?.nodeId,
+        data,
+      });
     },
     [sendCommand, state.pending?.nodeId],
   );
@@ -837,7 +790,10 @@ export function useWidget() {
     dispatch({ type: "NEW_CHAT" });
     if (prevSession && client) {
       void client
-        .interact(prevSession.endpoints, prevSession.token, { command: "cancel", reason: "user_new_chat" })
+        .interact(prevSession.endpoints, prevSession.token, {
+          command: "cancel",
+          reason: "user_new_chat",
+        })
         .catch((e) =>
           console.warn(
             "[widget] newChat cancel 명령 실패(로컬 재시작 진행):",
@@ -909,16 +865,37 @@ export function useWidget() {
   const updateProfile = useCallback((profile: Record<string, unknown>) => {
     const cfg = configRef.current;
     if (!cfg) return;
-    const merged: BootMessage = { ...cfg, profile: { ...(cfg.profile ?? {}), ...profile } };
+    const merged: BootMessage = {
+      ...cfg,
+      profile: { ...(cfg.profile ?? {}), ...profile },
+    };
     configRef.current = merged;
     setConfig(merged);
   }, []);
 
   // host 명령은 1회 등록 핸들러에서 최신 함수를 참조해야 함(stale closure 회피).
   // ref 갱신은 render 중이 아니라 effect 에서(매 렌더).
-  const apiRef = useRef({ open, close, submitMessage, closeStream, show, hide, updateProfile, newChat });
+  const apiRef = useRef({
+    open,
+    close,
+    submitMessage,
+    closeStream,
+    show,
+    hide,
+    updateProfile,
+    newChat,
+  });
   useEffect(() => {
-    apiRef.current = { open, close, submitMessage, closeStream, show, hide, updateProfile, newChat };
+    apiRef.current = {
+      open,
+      close,
+      submitMessage,
+      closeStream,
+      show,
+      hide,
+      updateProfile,
+      newChat,
+    };
   });
 
   /**
@@ -939,23 +916,26 @@ export function useWidget() {
    * @returns `"reset"` = 대기 중이던 리셋을 이행했다(호출부는 복원 분기를 건너뛴다) ·
    *   `"continue"` = 평소대로 진행.
    */
-  const establishConfig = useCallback((cfg: BootMessage): "reset" | "continue" => {
-    configRef.current = cfg;
-    setConfig(cfg);
-    clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
-    // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
-    // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
-    // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
-    // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
-    // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
-    // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
-    if (pendingResetRef.current) {
-      pendingResetRef.current = false;
-      apiRef.current.newChat();
-      return "reset";
-    }
-    return "continue";
-  }, []);
+  const establishConfig = useCallback(
+    (cfg: BootMessage): "reset" | "continue" => {
+      configRef.current = cfg;
+      setConfig(cfg);
+      clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
+      // 부팅 중 host 가 요청한 리셋을 이제서야 **재생**한다 — 그때는 `cfg` 가 없어 `teardownSession`
+      // 이 no-op 이었고 후행 `start()` 도 `!cfg` 로 no-op 이었다. 이 재생이 없으면 (a) 아래
+      // `loadSession` 이 옛 세션을 복원해 **"새 대화" 요청이 조용히 무시**되거나, (b) 저장 세션이
+      // 없을 땐 패널만 열린 채 **대화가 시작되지 않는다**(둘 다 재현 확인). 이제 config 가 있으므로
+      // `newChat()` 이 정상 경로(정리 → 저장소 삭제 → 세대 증가 → NEW_CHAT → start)를 전부 수행한다.
+      // (ai-review 2026-07-17 09_36_01 — side_effect·security·requirement·concurrency 4인 독립 지적)
+      if (pendingResetRef.current) {
+        pendingResetRef.current = false;
+        apiRef.current.newChat();
+        return "reset";
+      }
+      return "continue";
+    },
+    [],
+  );
 
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
@@ -974,7 +954,10 @@ export function useWidget() {
       // (축 누락 가드를 타입 검사가 막는다. `beginBootAttempt` JSDoc §근거).
       const attempt = beginBootAttempt();
       // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
-      const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
+      const allowed = await isEmbedAllowed(
+        cfg.apiBase,
+        cfg.triggerEndpointPath,
+      );
       if (cannotApplyConfig(attempt)) return; // world 축은 여기서 보지 않는다(§근거: cannotApplyConfig).
       if (!allowed) {
         dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
@@ -1045,7 +1028,8 @@ export function useWidget() {
           apiRef.current.close();
           break;
         case "sendMessage":
-          if (typeof cmd.text === "string") apiRef.current.submitMessage(cmd.text);
+          if (typeof cmd.text === "string")
+            apiRef.current.submitMessage(cmd.text);
           break;
         case "shutdown":
           apiRef.current.closeStream();
@@ -1058,7 +1042,9 @@ export function useWidget() {
           break;
         case "updateProfile":
           if (cmd.profile && typeof cmd.profile === "object")
-            apiRef.current.updateProfile(cmd.profile as Record<string, unknown>);
+            apiRef.current.updateProfile(
+              cmd.profile as Record<string, unknown>,
+            );
           break;
         case "resetSession":
           // 라이브 미리보기 등 host 가 대화를 처음부터 다시 시작 — closeStream→clearSession→start.
@@ -1098,7 +1084,20 @@ export function useWidget() {
     state,
     config,
     // I3: start 는 open() 이 자동 호출 — 외부 직접 호출 불필요. 하위 호환 목적으로 노출 유지.
-    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat, endConversation, show, hide, updateProfile, sendResize },
+    actions: {
+      open,
+      close,
+      start,
+      submitMessage,
+      clickButton,
+      submitForm,
+      newChat,
+      endConversation,
+      show,
+      hide,
+      updateProfile,
+      sendResize,
+    },
   };
 }
 
@@ -1111,6 +1110,9 @@ const GENERIC_ERROR_MESSAGE = WIDGET_STRINGS.ko["error.generic"];
 
 function errMessage(e: unknown): string {
   // 진단 원문은 console 에만(운영 추적) — UI 비노출.
-  console.warn("[widget] conversation error:", e instanceof Error ? e.message : String(e));
+  console.warn(
+    "[widget] conversation error:",
+    e instanceof Error ? e.message : String(e),
+  );
   return GENERIC_ERROR_MESSAGE;
 }

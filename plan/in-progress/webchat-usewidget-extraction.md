@@ -1,8 +1,12 @@
 ---
-worktree: (unstarted)
+worktree: webchat-session-generations-ca88ae
 started: 2026-07-18
 owner: developer
+status: in-progress
 ---
+
+> **1차 slice 완료 (2026-07-24)** — 사용자 결정으로 **staleness 축만 먼저** 분리했다
+> (`useSessionGenerations`). 전체 추출은 열려 있다. §1차 slice 참고.
 
 # 웹채팅 위젯: `useWidget()` 세션 로직 `useEiaSession` 분리
 
@@ -44,8 +48,12 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 
 ## 체크리스트
 
-- [ ] `useEiaSession` 훅 추출 (기능 무변경 — 순수 구조 이동)
-- [ ] 기존 테스트 전원 통과 유지(착수 시점 카운트 재확인) + 훅 단위 테스트 신설
+- [~] `useEiaSession` 훅 추출 — **1차 slice 만 완료**. staleness 축(`worldGenRef`·`bootGenRef`·
+      `unmountedRef` + `isStale`·`beginBootAttempt`·`cannotApplyConfig`·`isAttemptStale`)을
+      `useSessionGenerations` 로 분리. **나머지**(`establishConfig`/`applyConfig`/`start`/
+      `seedWaitingFromStatus`/`sendCommand`/`teardownSession`/스트림·토큰 배선)는 미착수.
+- [x] 기존 테스트 전원 통과 유지 + 훅 단위 테스트 신설 — 착수 시점 400 → **407**(신규 7),
+      e2e 259 PASS. 기능 무변경.
 - [ ] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test)
 - [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
   `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
@@ -54,3 +62,39 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
   (현재는 두 호출부 모두 대칭 회귀 테스트로 고정돼 있어 비차단.)
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
 </content>
+
+
+## 1차 slice — staleness 축 분리 (2026-07-24)
+
+### 왜 이 묶음인가
+
+티켓의 분리 근거는 규모가 아니라 **"세션 라이프사이클 응집도 부족이 반복 결함의 온상"** 이다.
+그렇다면 가치는 줄 수가 아니라 **그 축의 응집도**에 있다. staleness 축은 이 파일이 9번 서로
+반대편 구멍을 낸 바로 그 자리이면서, 세 ref 와 네 판정자가 서로만 참조하는 **닫힌 묶음**이라
+경계가 명확하다(blast radius 최소). 1117 → 1012줄.
+
+### 경계 판정 — `sessionEstablished()` 는 **제외**했다
+
+티켓은 이것도 추출 대상으로 열거했으나 제외한다. 그것은 `streamRef.current !== null` 이라
+**세대 축이 아니고**, `beginBootAttempt` JSDoc 이 *"boot 세대는 그 proxy 였고 **두 번 구멍이
+났다**"* 고 못박은 바로 그 혼동이다(18_39_11 함수 경계 / 00_51_53 no-op 재전송 고착).
+같이 묶으면 파일 이력이 분리하라고 말하는 두 축을 다시 합치게 된다.
+
+### 부수 효과 — JSDoc 인접성 위험이 구조적으로 해소됐다
+
+체크리스트의 "JSDoc 인접성 구조적 가드 검토" 는 **가드를 만들 필요 없이** 해소됐다: 원본에서
+선언 사이에 다른 ref 를 끼워 넣어 주석이 유실된 사고가 두 번 있었고(`pendingResetRef`→
+`bootGenRef`, `bootGenRef`→`unmountedRef`) 방어가 경고 주석뿐이었는데, 전용 파일로 옮기면
+**끼어들 것이 구조적으로 없다**. lint 가드보다 나은 해법이라 별도 가드는 만들지 않는다.
+
+### mutation 검증
+
+`cannotApplyConfig` 가 world 도 보게 만드는 뮤턴트(= 17_36_57 concurrency CRITICAL 재주입) →
+축 분리 테스트 **2건 RED**. 두 판정자가 같은 입력에서 갈리는 것을 직접 겨눈 테스트라, 통합
+테스트가 다른 이유로 통과하는 경우를 배제한다.
+
+### 남은 slice (미착수)
+
+`establishConfig`/`applyConfig`/`start`/`seedWaitingFromStatus`/`sendCommand`/`teardownSession` +
+스트림·토큰 배선. 착수 전 §선행 판단의 "토큰 타입을 훅 경계의 공개 계약으로 삼을지" 를
+다시 판정할 것 — 1차 slice 가 `BootAttempt` 를 export 했으므로 그 결정의 일부는 이미 내려졌다.
