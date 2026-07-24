@@ -87,7 +87,7 @@ byte-identical 도 아니라 텍스트 가드는 오히려 취약).
 - `.claude/hooks/_lib/failopen_state.py` (보고·계수 — 이미 공유)
 - `.claude/tests/test_guard_review_before_push_main.py`, `.claude/tests/test_stop_guard_failopen.py`
   (4블록 dispatch 행동 — 이미 전수 고정)
-- 부모: [`harness-guard-followups.md`](../in-progress/harness-guard-followups.md) §K
+- 부모: [`harness-guard-followups.md`](harness-guard-followups.md) §K
 
 ## Rationale
 
