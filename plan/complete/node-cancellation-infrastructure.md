@@ -67,7 +67,7 @@ spec_impact:
 ### 4. Database 노드 signal 전파
 
 - [x] pre-dispatch abort 가드 구현·테스트됨 (`database-query.handler.ts:140`, spec `:1025`) — 본체 plan scope 충족
-- [x] (이관) driver-level **in-flight** cancel(pg `client.cancel()`·mysql2 destroy·mongo `signal`) 확인·구현·단위테스트 → 신규 구현/설계 필요한 best-effort 후속이므로 [`node-cancellation-inflight-followups.md`](../in-progress/node-cancellation-inflight-followups.md) §1 로 분리 (2026-06-28)
+- [x] (이관) driver-level **in-flight** cancel(pg `client.cancel()`·mysql2 destroy·mongo `signal`) 확인·구현·단위테스트 → 신규 구현/설계 필요한 best-effort 후속이므로 [`node-cancellation-inflight-followups.md`](node-cancellation-inflight-followups.md) §1 로 분리 (2026-06-28)
 
 ### 5. AI 노드 signal 전파
 
@@ -80,14 +80,14 @@ spec_impact:
 ### 6. 그 외 외부 I/O 노드
 
 - [x] Send Email (SMTP) — pre-dispatch 가드 구현·**테스트됨** (`send-email.handler.ts:87`, spec `:776` `throws AbortError when context.abortSignal is already aborted`) — 본체 plan scope 충족
-- [x] (이관) in-flight `transporter.close()` 전파 (부분/중복 전송 안전성 설계 결정 포함) → [`node-cancellation-inflight-followups.md`](../in-progress/node-cancellation-inflight-followups.md) §2 로 분리 (2026-06-28)
+- [x] (이관) in-flight `transporter.close()` 전파 (부분/중복 전송 안전성 설계 결정 포함) → [`node-cancellation-inflight-followups.md`](node-cancellation-inflight-followups.md) §2 로 분리 (2026-06-28)
 - [x] ~~chat-channel 노드 (Slack/Telegram/Discord) — webhook fetch 의 signal 전파~~ — **N/A**: chat-channel 은 워크플로우 노드가 아니라 message-channel adapter (`modules/chat-channel/providers/{slack,telegram,discord}`) — node signal 전파 대상 부재.
 - [x] 기타 noted: 본 plan 의 범위는 "signal 미지원 노드는 best-effort (abort 후에도 자기 작업 완료까지 계속)" — 모든 노드 지원이 목적 아님 (scope 명시, 처리 완료)
 
 ### 7. 통합 시나리오 / spec
 
 - [x] 신규 [`spec/conventions/node-cancellation.md`](../../spec/conventions/node-cancellation.md) 작성 — 컨트랙트, 생산자/소비자, signal 전파 흐름, fetch timeout 과의 cascade 패턴, AbortError 분류, 본 PR 범위 / 후속, § Rationale
-- [x] (이관) e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지 → [`node-cancellation-inflight-followups.md`](../in-progress/node-cancellation-inflight-followups.md) §3 로 분리 (2026-06-28)
+- [x] (이관) e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지 → [`node-cancellation-inflight-followups.md`](node-cancellation-inflight-followups.md) §3 로 분리 (2026-06-28)
 
 ## 수용 기준
 

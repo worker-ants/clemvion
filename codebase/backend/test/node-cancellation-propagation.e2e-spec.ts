@@ -237,18 +237,26 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
     return last;
   }
 
+  /** "그 노드가 실제로 진행 중" 을 관측한다 — 이 파일의 결정성이 여기 달려 있다. */
+  async function waitForNodeRunning(
+    executionId: string,
+    nodeId: string,
+  ): Promise<void> {
+    await waitUntil(
+      () => nodeStatus(executionId, nodeId),
+      (s) => s === 'running',
+      30_000,
+      'in-flight node to start running',
+    );
+  }
+
   it('진행 중 노드가 있는 실행을 stop 하면 cancelled 로 확정되고 하류 노드는 실행되지 않는다', async () => {
     const { workflowId, slowNodeId, downstreamNodeId } =
       await createTwoStepWorkflow();
     const executionId = await execute(workflowId);
 
     // (1) 고정 sleep 이 아니라 **관측**: A 가 실제로 running 이 될 때까지 기다린다.
-    await waitUntil(
-      () => nodeStatus(executionId, slowNodeId),
-      (s) => s === 'running',
-      30_000,
-      'in-flight node to start running',
-    );
+    await waitForNodeRunning(executionId, slowNodeId);
 
     // (2) 노드가 진행 중인 바로 그 순간 외부 cancel.
     const stop = await request(BASE_URL)
@@ -259,7 +267,7 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
     expect(stop.status).toBe(200);
 
     // (3) 전파의 결과 — 실행이 terminal 로 가면 그것은 cancelled 여야 한다.
-    //     A 의 완주를 기다리므로 창(8s) + 여유를 준다.
+    //     A 의 완주를 기다리므로 INFLIGHT_WINDOW_MS + 여유를 준다.
     const finalStatus = await waitUntil(
       () => getStatus(executionId),
       (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
@@ -268,12 +276,14 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
     );
     expect(finalStatus).toBe('cancelled');
 
-    // (4) 다단계의 핵심 — 하류 노드는 **절대** 실행되지 않는다.
-    //     `throwIfAborted()` 가 dispatch 전에 끊어야 한다. 행이 없거나(도달 전),
-    //     있더라도 completed 면 안 된다.
+    // (4) 다단계의 핵심 — 하류 노드는 실행되지 않는다.
+    //
+    // **허용 집합 양성 비교**(배제 방식 아님): `not.toBe('completed')` 류는 취소와
+    // 무관한 별개 버그로 `failed` 같은 다른 상태에 도달해도 통과해, "하류가 도달하지
+    // 않았다" 는 주장이 거짓 양성으로 성립한다(ai-review testing WARNING 4).
+    // 허용되는 결과는 둘뿐이다: 행 자체가 없거나(dispatch 전에 끊김) `cancelled`.
     const downstream = await nodeStatus(executionId, downstreamNodeId);
-    expect(downstream).not.toBe('completed');
-    expect(downstream).not.toBe('running');
+    expect([null, 'cancelled']).toContain(downstream);
   }, 120_000);
 
   it('[대조군] stop 하지 않으면 하류 노드가 실제로 실행된다 (위 단언의 비-vacuity)', async () => {
@@ -297,12 +307,7 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
   it('취소된 실행은 재-stop 을 거부한다 (terminal 재진입 방지)', async () => {
     const { workflowId, slowNodeId } = await createTwoStepWorkflow();
     const executionId = await execute(workflowId);
-    await waitUntil(
-      () => nodeStatus(executionId, slowNodeId),
-      (s) => s === 'running',
-      30_000,
-      'in-flight node to start running',
-    );
+    await waitForNodeRunning(executionId, slowNodeId);
     expect(
       (
         await request(BASE_URL)
