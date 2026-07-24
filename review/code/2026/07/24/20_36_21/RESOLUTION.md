@@ -33,18 +33,34 @@
 대조군이 결정적이다. "B 가 원래 안 도는 것 아니냐"(=vacuous) 가설을 배제하며, **취소가
 실제로 B 의 실행을 막는다**는 것을 통제된 비교로 보인다.
 
-**기전 (리뷰어 모델이 놓친 지점)**: 노드 완료 영속이 무조건 저장이 아니라 **guarded UPDATE**
-다. 동시 cancel 이 선점하면 `affected=0` 으로 감지되어 진행이 중단된다 —
-`execution-engine.service.ts:313` 이 그 계약을 명시한다("Execution 짝 전이가 affected=0(동시
-cancel 등으로 Execution 이 이미 terminal)일 때 … 롤백"). 즉 `abortSignal` 이 선형 경로에서
-비어 있다는 리뷰어의 지적 자체는 **참일 수 있으나**, 전파는 그 축이 아니라 **DB-레벨 guarded
-전이**로 일어난다.
+**⚠ 기전 설명 정정 (2R 에서 반증됨 — 이 문단이 틀렸었다)**
 
-**정직한 한계**: 본 조사는 "예측된 실패가 재현되지 않는다"와 "guarded UPDATE 라는 다른 축이
-존재한다"까지를 실측했다. 선형 경로에서 `abortSignal` 이 실제로 비어 있는지는 **확인하지
-않았다** — 그것이 참이더라도 위 3개 관측(특히 대조군)은 뒤집히지 않으므로 본 e2e 의 단언은
-유효하다. 다만 리뷰어 제안 (a)"선형 경로 abortSignal 배선"은 **별개의 개선 여지**로 남을 수
-있다(현행 계약 위반은 아님). 재제기되면 이 문단이 근거다.
+원래 여기에 "노드 완료 영속이 guarded UPDATE 라 `affected=0` 으로 선점 감지된다
+(`execution-engine.service.ts:313`)" 라고 적었다. **틀렸다.** 2차 ai-review 에서 독립 reviewer
+**3명(requirement·testing·documentation)이 수렴 지적**했고 확인 결과 맞다:
+
+- `:313` 의 `ResumeClaimExecTerminalError` 는 **§7.5 resume-claim 전용 sentinel** 이다.
+  이 워크플로는 resume/waiting-for-input 을 타지 않으므로 그 경로를 지나가지 않는다.
+- 이 경로가 실제로 지나는 노드 완료 저장(`:5645-5651`)은 Execution 상태와 무관한 무조건
+  `.save()` 이고, dispatch 루프(`:4251-4454`)에도 노드 사이 Execution 재조회가 없다.
+
+즉 나는 **주석 grep 한 줄로 기전을 단정**했다 — 이 세션 내내 경계해온 바로 그 실수를
+"반증" 을 쓰는 문단에서 저질렀다.
+
+**현재 상태 — 결과는 재현되나 기전은 미확인**
+
+| 확립된 것 | 미확립인 것 |
+|---|---|
+| CRITICAL 이 예측한 실패가 **재현되지 않는다**(3회 + 더 엄격한 허용집합 단언에서도 PASS) | **어느 코드가** 하류 미도달을 보장하는지 |
+| 취소가 하류의 운명을 **바꾼다**(대조군: stop 생략 시 B `completed`) | 타이밍 우연 가능성의 완전 배제 |
+
+따라서 **CRITICAL 의 구체적 예측("B 가 completed 로 끝나 테스트가 실패한다")은 반증**됐지만,
+그 반증이 "전파가 설계된 기전으로 보장된다" 를 뜻하지는 **않는다**. e2e 파일 JSDoc 과 본
+문단 모두 이 구분을 명시하도록 정정했다.
+
+**후속**: 엔진 단위 테스트(mock, ms 단위)로 "선형 두 노드 사이 Execution 이 외부에서
+cancelled 로 바뀌면 다음 노드가 dispatch 되지 않는다" 를 결정적으로 고정할 것 →
+`plan/in-progress/node-cancellation-residual-signal-propagation.md` 에 항목 추가.
 
 **단언의 성격**: 본 e2e 는 내부 기전이 아니라 **spec §5 가 약속하는 관측 가능한 계약**
 (실행이 `cancelled` 로 확정 + 하류 미실행)을 잠근다. 기전이 `abortSignal` 이든 guarded UPDATE

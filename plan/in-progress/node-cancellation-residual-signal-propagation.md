@@ -49,6 +49,17 @@ priority: P3
       > 리뷰어가 지목한 4항목(§6 표) 밖이지만 **동일 결함 클래스**라 함께 담는다 — §2.1 의
       > 추적 포인터도 완료된 `node-cancellation-infrastructure.md` 를 가리키고 있었다.
 
+- [ ] **선형 경로 cancel 전파의 기전 규명 + 결정적 고정** (2026-07-24 ai-review 2R,
+      독립 reviewer 3명 수렴) — e2e `node-cancellation-propagation.e2e-spec.ts` 가 "stop 후
+      하류 노드 미도달" 을 **3회 재현 + 대조군**으로 관측했으나, **어느 코드가 그것을 보장하는지
+      특정되지 않았다**. 두 후보가 모두 반증됐다: `context.abortSignal?.throwIfAborted()` 는
+      `abortSignal` 대입이 `parallel-executor.ts`(parallel 전용) 한 곳뿐이라 선형 경로에서
+      항상 undefined 고, "guarded UPDATE(`:313`)" 는 §7.5 resume-claim 전용 sentinel 이다.
+      → **엔진 단위 테스트(mock, ms 단위)** 로 "선형 두 노드 사이 Execution 이 외부에서
+      cancelled 로 바뀌면 다음 노드가 dispatch 되지 않는다" 를 직접 고정할 것. 그때까지 e2e 의
+      단언은 **관측된 계약**으로만 유효하며(타이밍 우연 배제 못 함), 그 한계는 파일 JSDoc 과
+      `review/code/2026/07/24/20_36_21/RESOLUTION.md` §C1 에 명시돼 있다.
+
 ### 해당 없음 (추적 대상 아님)
 
 - **MongoDB driver `signal` 전달** — 현 DB 노드는 pg/mysql 만 지원하고 **mongo 미도입**이다.

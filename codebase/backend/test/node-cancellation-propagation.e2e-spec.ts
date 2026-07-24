@@ -21,7 +21,23 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 단위 테스트(`database-query.handler.spec.ts` §2.1)가 driver-level in-flight cancel
  * (pg_cancel_backend / KILL QUERY)과 AbortError→cancelled 분류를 결정적으로 검증한다.
  * 여기서 검증하는 것은 그 위층 — **엔진이 다음 노드로 넘어가지 않고 실행을 cancelled 로
- * 확정하는가**(`execution-engine.service.ts` 의 `context.abortSignal?.throwIfAborted()`).
+ * 확정하는가**.
+ *
+ * ## ⚠ 기전은 미확인 — 이 파일은 **결과만** 주장한다
+ *
+ * 초안 주석은 `context.abortSignal?.throwIfAborted()` 를 근거로 들었으나 **틀렸다**:
+ * `abortSignal` 대입은 저장소 전체에서 `parallel-executor.ts`(parallel branch 전용) 한 곳뿐이라
+ * 이 **선형·비-resume 경로에서는 항상 undefined** 다. 후속 라운드에 "guarded UPDATE" 를 대안
+ * 근거로 들었으나 그 역시 §7.5 resume-claim 전용 경로였다. (ai-review 2R 에서 독립 reviewer
+ * 3명이 수렴 지적.)
+ *
+ * 그래서 이 테스트가 주장하는 것은 **관측된 계약**뿐이다 — stop 이후 실행이 `cancelled` 로
+ * 확정되고 하류 노드가 도달하지 않는다. 근거는 코드 인용이 아니라 **반복 관측 + 대조군**
+ * (3회 재현 · 취소를 생략하면 하류가 `completed` — 아래 대조군 테스트)이다. **어느 코드가 이
+ * 속성을 보장하는지는 아직 특정되지 않았고, 타이밍 우연 가능성을 배제하지 못한다.**
+ * 엔진 단위 테스트로 "선형 두 노드 사이 Execution 이 외부에서 cancelled 로 바뀌면 다음 노드가
+ * dispatch 되지 않는다" 를 결정적으로 고정하는 것이 후속 과제다
+ * (`plan/in-progress/node-cancellation-residual-signal-propagation.md`).
  *
  * ## 결정적 하네스 (flaky 회피 설계)
  *
@@ -237,6 +253,19 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
     return last;
   }
 
+  /** terminal 도달 대기 — `waitForNodeRunning` 과 대칭. */
+  async function waitForTerminalStatus(
+    executionId: string,
+    label: string,
+  ): Promise<string> {
+    return waitUntil(
+      () => getStatus(executionId),
+      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
+      60_000,
+      label,
+    );
+  }
+
   /** "그 노드가 실제로 진행 중" 을 관측한다 — 이 파일의 결정성이 여기 달려 있다. */
   async function waitForNodeRunning(
     executionId: string,
@@ -268,10 +297,8 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
 
     // (3) 전파의 결과 — 실행이 terminal 로 가면 그것은 cancelled 여야 한다.
     //     A 의 완주를 기다리므로 INFLIGHT_WINDOW_MS + 여유를 준다.
-    const finalStatus = await waitUntil(
-      () => getStatus(executionId),
-      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
-      60_000,
+    const finalStatus = await waitForTerminalStatus(
+      executionId,
       'execution to reach a terminal status',
     );
     expect(finalStatus).toBe('cancelled');
@@ -294,10 +321,8 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
     const { workflowId, downstreamNodeId } = await createTwoStepWorkflow();
     const executionId = await execute(workflowId);
 
-    const finalStatus = await waitUntil(
-      () => getStatus(executionId),
-      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
-      60_000,
+    const finalStatus = await waitForTerminalStatus(
+      executionId,
       'uncancelled execution to finish',
     );
     expect(finalStatus).toBe('completed');
@@ -318,10 +343,8 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
       ).status,
     ).toBe(200);
 
-    await waitUntil(
-      () => getStatus(executionId),
-      (s) => (TERMINAL_STATUSES as readonly string[]).includes(s),
-      60_000,
+    await waitForTerminalStatus(
+      executionId,
       'execution to reach a terminal status',
     );
 
