@@ -13,7 +13,7 @@ status: in-progress
 **상태**: 1차 slice(staleness 축) 완료 — §1차 slice 참고. 나머지 슬라이스는 미착수.
 리팩토링 백로그. 기능 변경 없음.
 
-이 항목은 `webchat-boot-single-flight.md`(곧 `complete/` 이동)의 산문 이월에서 분리했다 — 그쪽에
+이 항목은 [`webchat-boot-single-flight.md`](../complete/webchat-boot-single-flight.md)(이동 완료)의 산문 이월에서 분리했다 — 그쪽에
 산문으로만 두면 plan 완료 이동 시 함께 묻힌다(형제 항목 `webchat-command-failure-is-not-termination.md`
 와 같은 처분. `--impl-done` 23_58_23 maintainability WARNING 이 이 항목만 노출돼 있음을 지적).
 
@@ -55,7 +55,8 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
       `seedWaitingFromStatus`/`sendCommand`/`teardownSession`/스트림·토큰 배선)는 미착수.
 - [x] 기존 테스트 전원 통과 유지 + 훅 단위 테스트 신설 — 착수 시점 400 → **409**
       (신규 훅 단위 8 + 구성 지점 참조 안정성 1), e2e 259 PASS. 기능 무변경.
-- [ ] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test)
+- [x] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test) — **가드 불필요로 결론**.
+      1차 slice 의 전용 파일 분리가 위험 자체를 없앴다(§1차 slice §부수 효과 참고).
 - [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
   `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
   3번째 seed→openStream 호출부가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 여지. 복원/시작
@@ -105,6 +106,13 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 `cannotApplyConfig` 가 world 도 보게 만드는 뮤턴트(= 17_36_57 concurrency CRITICAL 재주입) →
 축 분리 테스트 **2건 RED**. 두 판정자가 같은 입력에서 갈리는 것을 직접 겨눈 테스트라, 통합
 테스트가 다른 이유로 통과하는 경우를 배제한다.
+
+### spec 증거 포인터 drift — planner 위임
+
+§3(재전송) 정본이 `use-widget.ts` → `use-session-generations.ts` 로 옮겨졌는데 `2-sdk.md` 의
+`code:` 는 여전히 옛 파일만 가리킨다. `spec-code-paths` 는 "1개 이상 매치" 만 보므로 **CI 가
+통과시킨다** — consistency checker 가 유일한 그물이었다. `developer` 는 `spec/` 쓰기 권한이
+없어 제안만 남긴다: [`spec-update-webchat-evidence-pointers.md`](spec-update-webchat-evidence-pointers.md).
 
 ### 리뷰 후속 — 쓰기 측 캡슐화는 다음 slice 로
 
