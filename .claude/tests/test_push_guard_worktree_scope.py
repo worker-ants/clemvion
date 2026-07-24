@@ -299,6 +299,14 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn(self.side_wt, r.stderr)
+        # …and the degradation must still be REPORTED. `main()` wraps the gates in
+        # `finally` precisely so a BLOCKING exit still emits the fail-open banner
+        # (#999 §E) — this is the combination where it is easiest to lose, since a
+        # `return 2` is the one path that looks "successful". Asserting only the
+        # exit code stays green if the banner is dropped, which is what review
+        # 10_47_09 WARNING 4 pointed out.
+        self.assertIn("fail-open", r.stdout + r.stderr)
+        self.assertIn("REVIEW", r.stdout + r.stderr)
 
     def test_degradation_is_counted_once_per_gate_not_per_target(self):
         """Scoping must not inflate #999's fail-open streak counter.
