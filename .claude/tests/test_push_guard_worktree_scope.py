@@ -24,17 +24,30 @@ so a test can make exactly one worktree dirty and assert the hook noticed it.
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 import _harness  # noqa: F401  — side effect: harness path setup
 
 HOOK_SRC = _harness.HOOKS_DIR / "guard_review_before_push.py"
+
+
+def _load_hook():
+    """The real hook module, importable in-process for unit tests.
+
+    `_lib` (review_guard / plan_guard / failopen_state) has to be reachable, and
+    `_harness` already fronts the hooks dir — mirror `AcceptsCwdContractTest`."""
+    _ensure_on_path(str(_harness.HOOKS_DIR))
+    _ensure_on_path(str(_harness.HOOKS_DIR / "_lib"))
+    return importlib.import_module("guard_review_before_push")
 
 # Stub gates that accept a cwd (the real signature) and decide per path. Any
 # path listed in STUB_BLOCKED_PATHS blocks; everything else is clean. This is
@@ -48,6 +61,12 @@ from dataclasses import dataclass
 class _Decision:
     blocked: bool
     reason: str
+
+    # Mirrors the real ReviewDecision: the push runner reads `push_blocks`, not
+    # the field, so a stub that omitted it would silently never block.
+    @property
+    def push_blocks(self):
+        return self.blocked
 
 
 def evaluate_review(cwd=None):
@@ -70,6 +89,10 @@ class _Plan:
     untouched: bool
     reason: str
     plan_path: str
+
+    @property
+    def push_blocks(self):
+        return self.untouched
 
 
 def evaluate_plan(cwd=None):
@@ -133,16 +156,28 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             f.write(content)
 
     def _run(
-        self, command, cwd, blocked_paths=(), plan_blocked_paths=(), raise_paths=()
+        self, command, cwd, blocked_paths=(), plan_blocked_paths=(), raise_paths=(),
+        extra_env=None, script=None,
     ):
+        """Run the hook as a subprocess against the stub gates.
+
+        `extra_env` layers on top after the `BYPASS_*` vars are cleared, so a
+        test needing `BYPASS_REVIEW_GUARD=1` or a `CLAUDE_PROJECT_DIR` streak
+        isolation passes it there instead of rebuilding the whole `subprocess.run`
+        call. `script` runs an alternate hook copy (a patched-to-crash variant)
+        while keeping the identical payload/env plumbing. Both exist because five
+        tests had copy-pasted this call verbatim for exactly those two needs
+        (review 10_47_09 WARNING 3)."""
         env = dict(os.environ)
         env["STUB_BLOCKED_PATHS"] = os.pathsep.join(blocked_paths)
         env["STUB_PLAN_BLOCKED_PATHS"] = os.pathsep.join(plan_blocked_paths)
         env["STUB_RAISE_PATHS"] = os.pathsep.join(raise_paths)
         env.pop("BYPASS_REVIEW_GUARD", None)
         env.pop("BYPASS_PLAN_GUARD", None)
+        if extra_env:
+            env.update(extra_env)
         return subprocess.run(
-            [sys.executable, self.hook],
+            [sys.executable, script or self.hook],
             input=json.dumps({"tool_input": {"command": command}, "cwd": cwd}),
             capture_output=True,
             text=True,
@@ -195,23 +230,13 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
     def test_bypass_still_applies_to_scoped_targets(self):
         """BYPASS_REVIEW_GUARD must suppress the *scoped* block too, otherwise
         the documented one-off escape stops working for cross-worktree pushes."""
-        env_run = subprocess.run(
-            [sys.executable, self.hook],
-            input=json.dumps(
-                {
-                    "tool_input": {"command": f"git push origin {self.side_branch}"},
-                    "cwd": self.main_wt,
-                }
-            ),
-            capture_output=True,
-            text=True,
-            env={
-                **os.environ,
-                "STUB_BLOCKED_PATHS": self.side_wt,
-                "BYPASS_REVIEW_GUARD": "1",
-            },
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            blocked_paths=[self.side_wt],
+            extra_env={"BYPASS_REVIEW_GUARD": "1"},
         )
-        self.assertEqual(env_run.returncode, 0, env_run.stderr)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_bypass_plan_also_suppresses_a_scoped_block(self):
         """`BYPASS_PLAN_GUARD` must suppress a SCOPED plan block too.
@@ -220,25 +245,11 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         PLAN side had no counterpart. This file has already been burned once by
         exactly that asymmetry — review 17_28_02 WARNING 1 found the PLAN gate's
         scoping entirely unverified because only REVIEW had a test."""
-        env = dict(os.environ)
-        env.update(
-            STUB_BLOCKED_PATHS="",
-            STUB_PLAN_BLOCKED_PATHS=self.side_wt,
-            STUB_RAISE_PATHS="",
-            BYPASS_PLAN_GUARD="1",
-        )
-        env.pop("BYPASS_REVIEW_GUARD", None)
-        r = subprocess.run(
-            [sys.executable, self.hook],
-            input=json.dumps(
-                {
-                    "tool_input": {"command": f"git push origin {self.side_branch}"},
-                    "cwd": self.main_wt,
-                }
-            ),
-            capture_output=True,
-            text=True,
-            env=env,
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            plan_blocked_paths=[self.side_wt],
+            extra_env={"BYPASS_PLAN_GUARD": "1"},
         )
         self.assertEqual(r.returncode, 0, r.stderr)
 
@@ -325,25 +336,12 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             _harness.HOOKS_DIR / "_lib" / "failopen_state.py",
             os.path.join(self.hooks_dir, "_lib", "failopen_state.py"),
         )
-        env = dict(os.environ)
-        env["STUB_BLOCKED_PATHS"] = ""
-        env["STUB_PLAN_BLOCKED_PATHS"] = ""
-        # REVIEW raises on BOTH targets (cwd + the named branch's worktree)
-        env["STUB_RAISE_PATHS"] = os.pathsep.join([self.main_wt, self.side_wt])
-        env["CLAUDE_PROJECT_DIR"] = self.tmp  # isolate the streak file
-        env.pop("BYPASS_REVIEW_GUARD", None)
-        env.pop("BYPASS_PLAN_GUARD", None)
-        r = subprocess.run(
-            [sys.executable, self.hook],
-            input=json.dumps(
-                {
-                    "tool_input": {"command": f"git push origin {self.side_branch}"},
-                    "cwd": self.main_wt,
-                }
-            ),
-            capture_output=True,
-            text=True,
-            env=env,
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            # REVIEW raises on BOTH targets (cwd + the named branch's worktree)
+            raise_paths=[self.main_wt, self.side_wt],
+            extra_env={"CLAUDE_PROJECT_DIR": self.tmp},  # isolate the streak file
         )
         self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
         self.assertTrue(os.path.exists(streak_file), r.stdout + r.stderr)
@@ -376,6 +374,40 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn(self.side_wt, r.stderr)
 
+    def test_detached_head_worktree_is_excluded_from_scoping(self):
+        """A detached-HEAD worktree is deliberately NOT scoped.
+
+        `git worktree list --porcelain` reports it with a `detached` line and no
+        `branch`, so `_worktree_branches` skips it — an intended residual gap
+        (the hook has no branch to match, and its path being named must not pull
+        an unreviewed detached checkout into scope). Documented in the parser's
+        comment but never exercised, so a parser change that began emitting
+        detached worktrees would silently WIDEN scope with every test still green
+        (review 10_47_09 INFO 7)."""
+        detached = os.path.join(self.tmp, "detached")
+        _git("worktree", "add", "-q", "--detach", detached, cwd=self.main_wt)
+
+        mod = _load_hook()
+        paths = [os.path.realpath(p) for p, _ in mod._worktree_branches(self.main_wt)]
+        self.assertIn(
+            os.path.realpath(self.side_wt), paths,
+            "a normal branch worktree must still be listed — otherwise this test "
+            "would pass because the parser returned nothing")
+        self.assertNotIn(
+            os.path.realpath(detached), paths,
+            "the detached worktree leaked into the branch list")
+
+        # Behavioural: even naming the detached path, a dirty detached worktree
+        # does not block, because it was never a target.
+        r = self._run(
+            f"cd {os.path.realpath(detached)} && git " + "push",
+            cwd=self.main_wt,
+            blocked_paths=[detached],
+        )
+        self.assertEqual(
+            r.returncode, 0,
+            "a detached worktree was scoped in — it must stay excluded")
+
     def test_target_selection_failure_is_counted_not_silent(self):
         """A crash in `_push_targets` must reach the §E fail-open report.
 
@@ -397,26 +429,11 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
             _harness.HOOKS_DIR / "_lib" / "failopen_state.py",
             os.path.join(self.hooks_dir, "_lib", "failopen_state.py"),
         )
-        env = dict(os.environ)
-        env.update(
-            STUB_BLOCKED_PATHS="",
-            STUB_PLAN_BLOCKED_PATHS="",
-            STUB_RAISE_PATHS="",
-            CLAUDE_PROJECT_DIR=self.tmp,
-        )
-        env.pop("BYPASS_REVIEW_GUARD", None)
-        env.pop("BYPASS_PLAN_GUARD", None)
-        r = subprocess.run(
-            [sys.executable, crashing],
-            input=json.dumps(
-                {
-                    "tool_input": {"command": "git " + "push origin HEAD"},
-                    "cwd": self.main_wt,
-                }
-            ),
-            capture_output=True,
-            text=True,
-            env=env,
+        r = self._run(
+            "git " + "push origin HEAD",
+            cwd=self.main_wt,
+            extra_env={"CLAUDE_PROJECT_DIR": self.tmp},
+            script=crashing,
         )
         self.assertEqual(r.returncode, 0, "still fails OPEN")
         self.assertIn("TARGET_SELECTION", r.stdout, r.stdout + r.stderr)
@@ -463,23 +480,11 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         )
         self._write(crashing, src)
 
-        env = dict(os.environ)
-        env["STUB_BLOCKED_PATHS"] = self.main_wt  # cwd is dirty
-        env["STUB_PLAN_BLOCKED_PATHS"] = ""
-        env["STUB_RAISE_PATHS"] = ""
-        env.pop("BYPASS_REVIEW_GUARD", None)
-        env.pop("BYPASS_PLAN_GUARD", None)
-        r = subprocess.run(
-            [sys.executable, crashing],
-            input=json.dumps(
-                {
-                    "tool_input": {"command": f"git push origin {self.side_branch}"},
-                    "cwd": self.main_wt,
-                }
-            ),
-            capture_output=True,
-            text=True,
-            env=env,
+        r = self._run(
+            f"git push origin {self.side_branch}",
+            cwd=self.main_wt,
+            blocked_paths=[self.main_wt],  # cwd is dirty
+            script=crashing,
         )
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("review gate", r.stderr)
@@ -597,6 +602,125 @@ class AcceptsCwdContractTest(unittest.TestCase):
 
     def test_zero_arg_signature_is_rejected(self):
         self.assertFalse(self.mod._accepts_cwd(lambda: None))
+
+
+class PushBlocksContractTest(unittest.TestCase):
+    """Every gate decision exposes `push_blocks`, meaning "the PUSH hard-gate
+    refuses on this". The runner reads that property uniformly instead of a
+    per-gate field, so it must track the right field on each class — and, on the
+    two-gate `PlanDecision`, must be `untouched` and NOT the Stop gate's signal
+    (review 01_25_15 WARNING 5). A drift here makes a gate silently never block."""
+
+    def setUp(self):
+        _ensure_on_path(str(_harness.HOOKS_DIR))
+        _ensure_on_path(str(_harness.HOOKS_DIR / "_lib"))
+        self.review = importlib.import_module("review_guard")
+        self.plan = importlib.import_module("plan_guard")
+
+    def test_review_push_blocks_tracks_blocked(self):
+        RD = self.review.ReviewDecision
+        self.assertTrue(RD(blocked=True, reason="x").push_blocks)
+        self.assertFalse(RD(blocked=False, reason="x").push_blocks)
+
+    def test_plan_push_blocks_is_untouched_not_the_stop_signal(self):
+        PD = self.plan.PlanDecision
+        self.assertTrue(
+            PD(untouched=True, complete_but_in_progress=False,
+               reason="x", plan_path=None).push_blocks)
+        self.assertFalse(
+            PD(untouched=False, complete_but_in_progress=True,
+               reason="x", plan_path=None).push_blocks,
+            "complete_but_in_progress is the Stop gate's signal — the push gate "
+            "must not hard-block on it")
+
+
+class PushTargetsUnitTest(unittest.TestCase):
+    """`_push_targets`'s contract — cwd first, order-stable, de-duplicated,
+    unmentioned/stale worktrees dropped — as a unit test.
+
+    It was only ever exercised through the subprocess e2e cases, where those
+    properties held by accident of the two-worktree fixture (review 10_47_09
+    INFO 9). Driving `_worktree_branches` directly makes them explicit."""
+
+    def setUp(self):
+        self.mod = _load_hook()
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _dir(self, name):
+        p = os.path.join(self.tmp, name)
+        os.makedirs(p, exist_ok=True)
+        return p
+
+    def _targets(self, command, cwd, pairs):
+        with mock.patch.object(self.mod, "_worktree_branches", return_value=pairs):
+            return self.mod._push_targets(command, cwd)
+
+    def test_cwd_is_always_first_and_present(self):
+        cwd = self._dir("cwd")
+        self.assertEqual(self._targets("git push origin HEAD", cwd, []), [cwd])
+
+    def test_a_named_branch_worktree_is_appended_after_cwd(self):
+        cwd, wt = self._dir("cwd"), self._dir("wt")
+        self.assertEqual(
+            self._targets("git push origin feat", cwd, [(wt, "feat")]), [cwd, wt])
+
+    def test_order_is_stable_across_multiple_named_worktrees(self):
+        cwd, a, b = self._dir("cwd"), self._dir("a"), self._dir("b")
+        cmd = "git push origin aa && : bb"
+        self.assertEqual(
+            self._targets(cmd, cwd, [(a, "aa"), (b, "bb")]), [cwd, a, b])
+
+    def test_a_worktree_equal_to_cwd_is_not_duplicated(self):
+        cwd = self._dir("cwd")
+        self.assertEqual(
+            self._targets("git push origin main", cwd, [(cwd, "main")]), [cwd])
+
+    def test_an_unmentioned_branch_is_not_included(self):
+        cwd, wt = self._dir("cwd"), self._dir("wt")
+        self.assertEqual(
+            self._targets("git push origin HEAD", cwd, [(wt, "feat")]), [cwd])
+
+    def test_a_stale_worktree_path_is_skipped(self):
+        cwd = self._dir("cwd")
+        gone = os.path.join(self.tmp, "gone")  # never created → not a dir
+        self.assertEqual(
+            self._targets("git push origin feat", cwd, [(gone, "feat")]), [cwd])
+
+
+class EvaluateOverTargetsNoneBranchTest(unittest.TestCase):
+    """The defensive `result is None` branch (review 10_47_09 INFO 8).
+
+    A gate that returns no verdict must neither block nor count as having
+    answered — counting it would let a gate that decided nothing reset the §E
+    fail-open streak. Unreachable today (both gates always build a decision), so
+    pinned with a stub that does return None, against the real control flow."""
+
+    def setUp(self):
+        self.mod = _load_hook()
+
+    def _run_gate(self, evaluate):
+        outcome = self.mod._Outcome()
+        msg = self.mod._evaluate_over_targets(
+            evaluate, ["/x", "/y"], gate="REVIEW", outcome=outcome,
+            render=lambda result, target: "BLOCK",
+        )
+        return msg, outcome
+
+    def test_all_none_neither_blocks_nor_answers(self):
+        msg, outcome = self._run_gate(lambda target: None)
+        self.assertIsNone(msg, "a None verdict must not produce a block message")
+        self.assertNotIn(
+            "REVIEW", outcome.answered,
+            "a gate that returned nothing did not answer; counting it would let "
+            "it reset the fail-open streak having decided nothing")
+
+    def test_a_real_verdict_after_a_none_still_counts_and_can_block(self):
+        block = types.SimpleNamespace(push_blocks=True, reason="dirty")
+        results = iter([None, block])
+        msg, outcome = self._run_gate(lambda target: next(results))
+        self.assertEqual(msg, "BLOCK", "the second target's block must be reached")
+        self.assertIn("REVIEW", outcome.answered)
 
 
 if __name__ == "__main__":
