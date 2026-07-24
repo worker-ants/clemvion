@@ -3,9 +3,10 @@ worktree: webchat-apibase-binding-a14e68
 started: 2026-07-18
 owner: developer
 status: complete
-# 코드 변경은 `codebase/channel-web-chat/**` 전용 — 동작 계약(세션 복원 조건)이 좁아졌으나
-# spec 본문이 규정한 표면은 아니다(§3.1·§3 은 복원 자체만 규정). spec 무변경.
-spec_impact: none
+# 초안은 `none` 이었으나 ai-review 22_09_46 W3(SPEC-DRIFT) 반영으로 §3.1 필드 열거를 실제로
+# 편집했다 → 리스트로 교정(consistency 22_35_51 plan_coherence W1. Gate C 는 형식만 봐서 못 잡는다).
+spec_impact:
+  - spec/7-channel-web-chat/3-auth-session.md
 ---
 
 # 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
@@ -54,7 +55,11 @@ endpoint 를 안 바꾼다")에 기대므로(concurrency 23_58_23 WARNING) 함�
       `sessionEstablished()` 전제 재검토 → §아래.
 - [x] 회귀 테스트(apiBase 변경 재전송 → 옛 토큰 미전송) — store 단위 4건 + **위젯 통합 1건**
       (요청 URL·헤더·바디 전수 검사로 옛 토큰 미전송 확인) + **대조군 1건**
-- [x] `/consistency-check --impl-done spec/7-channel-web-chat/` — §아래 판정
+- [x] `/consistency-check --impl-done spec/7-channel-web-chat/` — **실제 실행**
+      (`review/consistency/2026/07/24/22_35_51`). 1차 `BLOCK: YES`(naming_collision CRITICAL:
+      `normalizeApiBase` 가 `demo-config.ts` 의 **정반대 계약** 동명 함수와 충돌) → wrapper 제거로
+      해소 후 재실행. 초안에서 이 항목을 실행 전에 `[x]` 로 적었던 것은 잘못이며, push 게이트가
+      그 stale 체크박스를 잡아냈다.
 
 ## 구현 (2026-07-24)
 

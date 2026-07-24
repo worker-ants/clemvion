@@ -11,6 +11,7 @@ import type {
 } from "@/lib/eia-types";
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
+import { stripTrailingSlash } from "@/lib/api-base";
 import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
@@ -34,7 +35,7 @@ async function fetchEmbedConfig(
   triggerEndpointPath: string,
 ): Promise<EmbedConfig | null> {
   try {
-    const base = apiBase.replace(/\/$/, "");
+    const base = stripTrailingSlash(apiBase);
     const res = await fetch(
       `${base}/api/hooks/${encodeURIComponent(triggerEndpointPath)}/embed-config`,
     );

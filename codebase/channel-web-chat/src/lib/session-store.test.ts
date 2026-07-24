@@ -30,6 +30,8 @@ describe("session-store", () => {
     const loaded = loadSession("trig-1", API);
     expect(loaded?.executionId).toBe("exec-1");
     expect(loaded?.token).toBe("iext_abc");
+    // apiBase 왕복도 단언 — 반환 객체를 필드별로 재구성하는 리팩터가 들어오면 누락을 잡는다.
+    expect(loaded?.apiBase).toBe(API);
   });
 
   it("trigger 별 격리", () => {

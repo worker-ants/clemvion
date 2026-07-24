@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
+
+**선행 결함**(이번 변경이 만든 것이 아니다). `applyConfig` 재전송은 `clientRef` 를 새 `apiBase` 로 무조건 교체하는데, iframe-origin sessionStorage 의 저장 세션은 **옛 origin 에서 발급된** 단명 토큰을 들고 있었다. 세션과 엔드포인트의 축이 분리돼 있어, 재전송이 `apiBase` 를 바꾸면 옛 토큰이 새 origin 으로 전송될 수 있었다. 오늘 무해했던 이유는 유일한 재전송 경로(관리자 라이브 미리보기)가 `apiBase` 를 바꾸지 않기 때문일 뿐이다.
+
+1. **세션을 발급 origin 에 묶는다**: `PersistedSession` 에 `apiBase` 를 저장하고, 복원 시 현재 `apiBase` 와 대조해 **불일치하거나 기록이 없으면 폐기**하고 새 세션으로 시작한다. 기록이 없는(구버전) 세션도 폐기하는 것은 fail-safe 다 — 발급 origin 을 증명할 수 없는 세션을 통과시키면 이 결함이 그대로 남는다. 비용은 배포 직후 새로고침 시 대화 1회 초기화이고, 반대편 비용은 토큰 유출이다.
+2. **비교 규칙**: 후행 슬래시만 정규화하고 **경로는 보존**한다(`apiBase` 는 `/api` 등 경로 포함이 정상이라 origin 만 비교하면 `…/api` 와 `…/api-v2` 를 같다고 보게 된다). 이 정규화는 `lib/api-base.ts` 로 단일화해 `joinUrl`·`fetchEmbedConfig` 와 규칙을 공유한다.
+
 ## Unreleased — 웹채팅 위젯: 마지막 `wc:boot` 적용(§3(재전송))
 
 host 는 iframe 재생성 없이 `wc:boot` 을 재전송해 boot config 를 갱신할 수 있고, spec 은 **"위젯은 마지막 `wc:boot` 의 config 를 적용"** 한다고 정한다(`2-sdk §3(재전송)`). 그 계약이 구현돼 있지 않았다 — 겹친 부팅에서 **`embed-config` 왕복의 resolve 순서가 승자를 정했다**(먼저 보낸 config 가 나중에 응답하면 그게 이겼다). 부팅 시도 세대를 도입해 나중 `wc:boot` 이 앞선 시도를 대체하게 했다.

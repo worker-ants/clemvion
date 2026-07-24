@@ -40,6 +40,16 @@ developer 가능, **신규 요구/결정을 담는 spec 본문 편집**은 plann
 - [ ] `spec/7-channel-web-chat/2-sdk.md`(또는 `3-auth-session.md`) `## Rationale` 에 위 불변식 2건의
       근거 추가 — **어느 문서가 맞는 자리인지 판정 포함**
 - [ ] `§NNN` 표기 규약 명문화 (`convention_compliance` INFO) — spec 내 절 참조 표기를 규약으로 고정
+- [ ] **`4-security.md` §1 위협 표에 "재전송-origin" 축 추가** (consistency 22_35_51
+      plan_coherence W2) — 재전송이 `apiBase` 를 바꿀 때 옛 origin 발급 토큰이 새 origin 으로
+      전송될 수 있던 결함은 [세션 바인딩](../complete/webchat-session-apibase-binding.md)으로
+      닫혔으나, **위협 모델 표에는 그 축이 없다**. 코드는 이미 fail-closed 이므로 문서 갱신만.
+- [ ] **R7 Rationale 신설 검토** (consistency 22_35_51 INFO 2, 이 문서가 추적하는 패턴의
+      3번째 사례) — apiBase 발급-origin 바인딩의 근거(레거시 세션 fail-safe 폐기 / 정규화를
+      후행 슬래시로만 한정한 이유)가 spec 본문·코드 주석엔 있으나 `## Rationale` 엔 없다.
+- [ ] **`2-sdk.md §3` 에 apiBase 예외 각주** (consistency 22_35_51 cross_spec INFO 1) —
+      "재부팅은 execution 을 중복 시작하지 않는다" 서술이 §3.1 의 apiBase 불일치 시 폐기·재시작
+      예외를 교차 참조하지 않는다(실질 모순은 아님).
 - [ ] `/consistency-check --spec` 통과 (Rationale 은 `rationale_continuity` 대상이라 필수)
 
 ## 관련

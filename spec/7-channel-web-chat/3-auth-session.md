@@ -61,7 +61,11 @@ code:
 
 > ⚠ **v1 구현 현황(부분)**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면 + **`context.conversationThread`(durable 스냅샷) 전체 히스토리**를 시드한 뒤 SSE 를 연다. `getStatus` 가 durable `Execution.conversation_thread` 를 동봉하므로([EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) 새로고침 복원이 5분 SSE buffer·서버 재시작과 무관하게 과거 대화를 되살린다. turn `source`→말풍선 role 매핑은 [1-widget-app §2](./1-widget-app.md). 아래 2단계의 **`200`+종료 REST 분기는 구현됨** — 스냅샷 `status` 가 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행하고 SSE 재오픈·토큰 갱신 예약을 건너뛴다. **버퍼 만료(≥5분) gap 안에 종료된 경우 그 terminal SSE 이벤트도 버퍼와 함께 유실돼 다시 오지 않으므로**([EIA `R-replay-unavailable`](../5-system/14-external-interaction-api.md)) 이 REST 분기가 유일한 종료 도달 경로다 — 없으면 위젯이 `streaming` 에 무기한 멈춘다([1-widget-app §3.1](./1-widget-app.md)). **`404`·복구불가 `401` REST 분기와 `401 → 낙관적 refresh 1회` 는 여전히 미구현(Planned)** — 그 외 status·오류는 `catch` soft-fail 후 SSE 로 진행한다. 이 잔여 REST 오류 분기·낙관적 refresh 완전 구현은 후속 결정으로 남긴다.
 
-1. iframe-origin **sessionStorage**(§R6)에서 `{executionId, token, expiresAt, endpoints}` 조회 — 없으면 신규(collapsed).
+1. iframe-origin **sessionStorage**(§R6)에서 `{executionId, token, expiresAt, endpoints, apiBase}` 조회 — 없으면 신규(collapsed).
+   저장 세션은 **발급된 `apiBase`(origin)에 묶인다**: 현재 `apiBase` 와 불일치하거나 `apiBase` 가 기록돼 있지 않으면
+   **폐기하고 신규로 시작**한다. 재전송(§3)이 `apiBase` 를 바꿀 때 옛 origin 에서 발급된 단명 토큰이 새 origin 으로
+   전송되는 것을 막는다(세션과 엔드포인트의 축 분리). 비교는 후행 슬래시만 정규화하고 **경로는 보존**한다
+   (`apiBase` 는 `/api` 등 경로 포함이 정상).
 2. `GET /api/external/executions/:id` 로 현재 상태 확인 — **종료된 execution 도 `200 OK` + `status` 로 응답**한다
    ([EIA §5.3](../5-system/14-external-interaction-api.md)). EIA-IN-12 의 `410 Gone` 은 *명령*(interact)에 대한 응답
    전용이라 **상태 조회에는 나타나지 않는다**. status 값으로 분기:

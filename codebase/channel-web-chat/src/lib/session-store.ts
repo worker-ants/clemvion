@@ -3,6 +3,7 @@
 // sessionStorage = 탭 단위(같은 탭 reload 는 유지, 탭 종료 시 자동 소거 → defense-in-depth, 3-auth-session §R6).
 // 토큰 만료/410 이면 자연 종료([ended]).
 
+import { stripTrailingSlash } from "./api-base";
 import type { InteractionEndpoints } from "./eia-types";
 
 export interface PersistedSession {
@@ -26,17 +27,6 @@ function key(triggerEndpointPath: string): string {
   return KEY_PREFIX + triggerEndpointPath;
 }
 
-/**
- * apiBase 비교용 정규화. 후행 슬래시만 제거한다 — 호출부마다 슬래시 유무가 갈리는데
- * (기존 코드도 `apiBase.replace(/\/$/, "")` 로 정규화한다) 그걸 불일치로 보면 정상 세션이
- * 매번 폐기돼 가드가 무력화된다.
- *
- * **경로는 보존한다**: `apiBase` 는 `/api` 등 경로 포함이 정상이므로(direct-load 쿼리
- * 파라미터 하드닝 주석 참고) origin 만 비교하면 `…/api` 와 `…/api-v2` 를 같다고 본다.
- */
-function normalizeApiBase(apiBase: string): string {
-  return apiBase.replace(/\/$/, "");
-}
 
 function getStorage(storage?: Storage): Storage | null {
   if (storage) return storage;
@@ -84,12 +74,19 @@ export function loadSession(
       clearSession(triggerEndpointPath, storage);
       return null;
     }
-    // 발급 origin 바인딩. 불일치는 물론, **미기록(본 필드 도입 이전 세션)도 폐기**한다 —
+    // 발급 origin 바인딩. 비교는 **후행 슬래시만** 정규화하고 **경로는 보존**한다 —
+    // `apiBase` 는 `/api` 등 경로 포함이 정상이라, 경로까지 지우면 `…/api` 와 `…` 를 같다고
+    // 보게 되고 그것이 곧 토큰 오전송이다.
+    // ⚠ `app/demo/demo-config.ts` 에 **동명** `normalizeApiBase` 가 있으나 그쪽은 후행 `/api`
+    //   **까지 제거**하는 정반대 계약이다(데모 입력 편의용). 두 함수를 "같은 것" 으로 통합하면
+    //   이 가드가 무력화된다 — 그래서 여기서는 공용 `stripTrailingSlash` 를 직접 쓴다
+    //   (consistency-check 22_35_51 naming_collision CRITICAL).
+    // 불일치는 물론, **미기록(본 필드 도입 이전 세션)도 폐기**한다 —
     // 발급 origin 을 증명할 수 없는 세션을 "아마 같겠지" 로 통과시키면 정확히 이 결함이
     // 남는다. 최악의 비용은 새 대화 1회이고, 반대편 비용은 다른 origin 으로의 토큰 유출이다.
     if (
       !parsed.apiBase ||
-      normalizeApiBase(parsed.apiBase) !== normalizeApiBase(expectedApiBase)
+      stripTrailingSlash(parsed.apiBase) !== stripTrailingSlash(expectedApiBase)
     ) {
       clearSession(triggerEndpointPath, storage);
       return null;
