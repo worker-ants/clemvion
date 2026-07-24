@@ -67,9 +67,13 @@ jobs:
       # The workflow scripts' report-return parsing decides BLOCK/RISK, so it gets real
       # unit tests. They are `.mjs` (node:test) because the logic is JS — the unittest
       # discovery above only picks up `test_*.py`, so this needs its own step.
+      # 24, matching every other workflow. This one sat on 22 with no recorded
+      # reason, so a reader had to assume the difference was load-bearing
+      # (harness-guard-followups §A W8). Nothing here needs the older line:
+      # `node --test` and the ESM the workflow scripts use predate both.
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Run workflow contract unit tests
         run: node --test .claude/tests/test_agent_return.mjs

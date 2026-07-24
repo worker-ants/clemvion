@@ -147,7 +147,40 @@ class ConsumerBindingTest(unittest.TestCase):
                          "mjs emitter and pre-commit consumer must use the same exit code")
 
 
-class PostToolUseExecutionTest(unittest.TestCase):
+class _NodeStubDriverMixin:
+    """Arming the marker, wiring the node stub, and counting its calls.
+
+    The two consumer suites below drive DIFFERENT things — one pipes a JSON
+    payload into the Python hook, the other runs the bash pre-commit — but they
+    set up the same fixture to do it, and that setup was copied verbatim between
+    them (harness-guard-followups §A W3). The copy is the part that rots: a stub
+    variable added on one side and not the other makes one suite quietly stop
+    measuring what its name says.
+
+    Subclasses supply `tool_dir`, `bin` and `node_call_log`, and keep their own
+    `_run`, since only the invocation differs.
+    """
+
+    def _node_calls(self):
+        if not os.path.exists(self.node_call_log):
+            return 0
+        with open(self.node_call_log) as f:
+            return len([ln for ln in f if ln.strip()])
+
+    def _stub_env(self, ready_state, node_exit_code):
+        if ready_state:
+            nm = os.path.join(self.tool_dir, "node_modules")
+            os.makedirs(nm, exist_ok=True)
+            open(os.path.join(nm, ready.MARKER_NAME), "w").close()
+        env = dict(os.environ)
+        env["PATH"] = self.bin + os.pathsep + env["PATH"]
+        env["MERMAID_LINT_TOOL_DIR"] = self.tool_dir
+        env["NODE_CALL_LOG"] = self.node_call_log
+        env["NODE_EXIT_CODE"] = str(node_exit_code)
+        return env
+
+
+class PostToolUseExecutionTest(_NodeStubDriverMixin, unittest.TestCase):
     """Execution-based regression for lint_mermaid_posttooluse.py's readiness
     gate (W8).
 
@@ -182,26 +215,12 @@ class PostToolUseExecutionTest(unittest.TestCase):
         with open(self.md_file, "w") as f:
             f.write("# doc\n\n```mermaid\ngraph TD; a-->b;\n```\n")
 
-    def _node_calls(self):
-        if not os.path.exists(self.node_call_log):
-            return 0
-        with open(self.node_call_log) as f:
-            return len([ln for ln in f if ln.strip()])
-
     def _run(self, ready_state, node_exit_code=0):
-        if ready_state:
-            nm = os.path.join(self.tool_dir, "node_modules")
-            os.makedirs(nm, exist_ok=True)
-            open(os.path.join(nm, ready.MARKER_NAME), "w").close()
-        env = dict(os.environ)
-        env["PATH"] = self.bin + os.pathsep + env["PATH"]
-        env["MERMAID_LINT_TOOL_DIR"] = self.tool_dir
-        env["NODE_CALL_LOG"] = self.node_call_log
-        env["NODE_EXIT_CODE"] = str(node_exit_code)
         payload = json.dumps({"tool_input": {"file_path": self.md_file}})
         return subprocess.run(
             [sys.executable, str(POSTTOOLUSE_SRC)],
-            input=payload, capture_output=True, text=True, env=env, timeout=10,
+            input=payload, capture_output=True, text=True, timeout=10,
+            env=self._stub_env(ready_state, node_exit_code),
         )
 
     def test_not_ready_skips_without_invoking_the_linter(self):
@@ -233,7 +252,7 @@ class PostToolUseExecutionTest(unittest.TestCase):
         self.assertNotIn("mermaid syntax error", r.stderr)
 
 
-class PreCommitExecutionTest(unittest.TestCase):
+class PreCommitExecutionTest(_NodeStubDriverMixin, unittest.TestCase):
     """Execution-based regression for .githooks/pre-commit's mermaid gate
     (W8), mirroring PostToolUseExecutionTest for the bash consumer.
 
@@ -293,24 +312,12 @@ class PreCommitExecutionTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _node_calls(self):
-        if not os.path.exists(self.node_call_log):
-            return 0
-        with open(self.node_call_log) as f:
-            return len([ln for ln in f if ln.strip()])
-
     def _run(self, ready_state, node_exit_code=0):
-        if ready_state:
-            nm = os.path.join(self.tool_dir, "node_modules")
-            os.makedirs(nm, exist_ok=True)
-            open(os.path.join(nm, ready.MARKER_NAME), "w").close()
-        env = dict(os.environ)
-        env["PATH"] = self.bin + os.pathsep + env["PATH"]
-        env["MERMAID_LINT_TOOL_DIR"] = self.tool_dir
-        env["NODE_CALL_LOG"] = self.node_call_log
-        env["NODE_EXIT_CODE"] = str(node_exit_code)
-        return subprocess.run(["bash", self.precommit], cwd=self.repo, env=env,
-                              capture_output=True, text=True, timeout=10)
+        return subprocess.run(
+            ["bash", self.precommit], cwd=self.repo,
+            env=self._stub_env(ready_state, node_exit_code),
+            capture_output=True, text=True, timeout=10,
+        )
 
     def test_not_ready_allows_the_commit_without_invoking_the_linter(self):
         r = self._run(ready_state=False)

@@ -121,12 +121,18 @@ cleanup="$main_root/.claude/tools/cleanup-worktree.sh"
 
 # --- throttle ----------------------------------------------------------------
 marker="$main_root/.claude/state/reap_last_run"
-file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+# Cross-platform mtime in epoch seconds (BSD `stat -f` vs GNU `stat -c`); 0 if missing.
+# Byte-identical to `bootstrap-session.sh::_file_mtime` — same name on purpose, so
+# `grep -rn _file_mtime .claude/tools` finds BOTH copies. Left duplicated rather
+# than lifted into a shared `_lib/*.sh`: one line of `stat` fallback does not earn
+# a sourced dependency in two scripts that must keep working when the checkout is
+# half-set-up, which is exactly when bootstrap runs.
+_file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
 now_epoch()  { date +%s; }
 
 if [ "$DRY_RUN" -eq 0 ] && [ "$FORCE" -eq 0 ] && [ "$MIN_INTERVAL" -gt 0 ] 2>/dev/null \
    && [ -f "$marker" ]; then
-  last=$(file_mtime "$marker")
+  last=$(_file_mtime "$marker")
   if [ $(( $(now_epoch) - last )) -lt "$MIN_INTERVAL" ]; then
     exit 0  # ran recently — stay quiet.
   fi
