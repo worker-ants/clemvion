@@ -57,3 +57,26 @@ describe("useWidget — host commands (wc:command)", () => {
     expect(result.current.config).toBeNull();
   });
 });
+
+// `worldGenRef` 가 `useSessionGenerations()` 반환값이 된 뒤의 **구성 지점 계약**.
+//
+// 추출 전에는 지역 `useRef` 라 ESLint 가 안정성을 알아서 알았고 deps 에 넣을 필요도 없었다.
+// 훅 반환값이 되면서 그 정적 보장이 사라져 4개 `useCallback` deps 에 손으로 넣었는데, 그러면
+// **ref 객체가 매 렌더 동일해야만** 콜백 identity 가 보존된다. 하위 훅 테스트가 ref 안정성을
+// 고정하지만, 실제로 깨졌을 때 드러나는 곳은 여기(useWidget 구성)다.
+describe("useWidget — 콜백 참조 안정성 (worldGenRef deps 계약)", () => {
+  it("재렌더해도 start·newChat·endConversation 참조가 유지된다", () => {
+    const { result, rerender } = renderHook(() => useWidget());
+    const before = {
+      start: result.current.actions.start,
+      newChat: result.current.actions.newChat,
+      endConversation: result.current.actions.endConversation,
+    };
+
+    rerender();
+
+    expect(result.current.actions.start).toBe(before.start);
+    expect(result.current.actions.newChat).toBe(before.newChat);
+    expect(result.current.actions.endConversation).toBe(before.endConversation);
+  });
+});

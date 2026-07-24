@@ -10,7 +10,8 @@ status: in-progress
 
 # 웹채팅 위젯: `useWidget()` 세션 로직 `useEiaSession` 분리
 
-**상태**: 미착수. 리팩토링 백로그. 기능 변경 없음.
+**상태**: 1차 slice(staleness 축) 완료 — §1차 slice 참고. 나머지 슬라이스는 미착수.
+리팩토링 백로그. 기능 변경 없음.
 
 이 항목은 `webchat-boot-single-flight.md`(곧 `complete/` 이동)의 산문 이월에서 분리했다 — 그쪽에
 산문으로만 두면 plan 완료 이동 시 함께 묻힌다(형제 항목 `webchat-command-failure-is-not-termination.md`
@@ -52,8 +53,8 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
       `unmountedRef` + `isStale`·`beginBootAttempt`·`cannotApplyConfig`·`isAttemptStale`)을
       `useSessionGenerations` 로 분리. **나머지**(`establishConfig`/`applyConfig`/`start`/
       `seedWaitingFromStatus`/`sendCommand`/`teardownSession`/스트림·토큰 배선)는 미착수.
-- [x] 기존 테스트 전원 통과 유지 + 훅 단위 테스트 신설 — 착수 시점 400 → **407**(신규 7),
-      e2e 259 PASS. 기능 무변경.
+- [x] 기존 테스트 전원 통과 유지 + 훅 단위 테스트 신설 — 착수 시점 400 → **409**
+      (신규 훅 단위 8 + 구성 지점 참조 안정성 1), e2e 259 PASS. 기능 무변경.
 - [ ] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test)
 - [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
   `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
@@ -71,12 +72,19 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 티켓의 분리 근거는 규모가 아니라 **"세션 라이프사이클 응집도 부족이 반복 결함의 온상"** 이다.
 그렇다면 가치는 줄 수가 아니라 **그 축의 응집도**에 있다. staleness 축은 이 파일이 9번 서로
 반대편 구멍을 낸 바로 그 자리이면서, 세 ref 와 네 판정자가 서로만 참조하는 **닫힌 묶음**이라
-경계가 명확하다(blast radius 최소). 1116 → 1002줄.
+경계가 명확하다(blast radius 최소). 1116 → **1009줄**.
 
 > **정정(리뷰 후)**: 최초 커밋의 "1117 → 1012줄" 은 **틀렸다**. 그때 파일에 `prettier --write`
 > 를 함께 돌려 재포맷 분이 감소분을 상쇄해 실제로는 1116 → **1118줄**(증가)이었고, 내가 적은
 > 수치는 어느 시점의 실측도 아니었다. documentation reviewer 가 실측으로 잡았다.
-> 재포맷을 되돌린 지금이 진짜 구조 변경분이다 — 1116 → **1002줄**, diff 328줄 → 125줄.
+> 재포맷을 되돌린 지금이 진짜 구조 변경분이다 — 1116 → **1009줄**, diff 328줄 → **133줄**
+> (`wc -l` · `git diff --numstat` 실측).
+>
+> **2차 정정**: 위 정정에 처음 적은 "1002줄 / diff 125줄" 도 틀렸다. 재구성 스크립트에서
+> `len(out)`(리스트 **원소** 수)을 셌는데 구조분해 블록이 8줄짜리 원소 **1개**여서 7줄이
+> 미계상됐고, diff 는 그 뒤 deps 편집 전에 잰 값이었다. 즉 두 번 다 "실측했다" 면서 **실제
+> 수량이 아닌 프록시를, 최종 상태가 아닌 중간 상태에서** 쟀다. 교훈은 "다시 재라" 가 아니라
+> **문서에 쓰는 그 시점에, 프록시가 아닌 `wc -l`/`numstat` 으로 잰다** 는 것.
 
 ### 경계 판정 — `sessionEstablished()` 는 **제외**했다
 
