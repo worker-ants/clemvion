@@ -2,7 +2,24 @@
 worktree: webchat-boot-single-flight-8c92b4
 started: 2026-07-17
 owner: developer
+status: complete
+# #973 이 `spec/7-channel-web-chat/2-sdk.md` §3(재전송)을 동반 갱신했다(실측).
+spec_impact:
+  - spec/7-channel-web-chat/2-sdk.md
 ---
+
+> **종결 (2026-07-24)**: 본 작업은 PR [#973](https://github.com/worker-ants/clemvion/pull/973)
+> (`2d9d20218`) 으로 머지 완료. 체크박스 9/9 가 실제 상태임을 구현 실재로 확인
+> (`pendingResetRef`·`bootGenRef`·supersede 계약 JSDoc in `use-widget.ts`, 회귀 테스트
+> `use-widget-eager-start.test.ts`).
+>
+> 산문 이월 3건은 전부 **별 티켓으로 분리돼** 이 문서와 함께 묻히지 않는다:
+>
+> | 이월 | 이관처 |
+> | --- | --- |
+> | `useEiaSession` 훅 분리 (+ 짝 게이트 구조적 강제 검토) | [`webchat-usewidget-extraction.md`](../in-progress/webchat-usewidget-extraction.md) |
+> | 비-410 명령 실패는 종료가 아니다 (A/B/C 결정) | [`webchat-command-failure-is-not-termination.md`](../in-progress/webchat-command-failure-is-not-termination.md) |
+> | spec `## Rationale` 문서화 갭 (planner 트랙) | [`webchat-spec-rationale-followup.md`](../in-progress/webchat-spec-rationale-followup.md) ← **본 PR 에서 신설** |
 
 # 웹챗 위젯 — `applyConfig` single-flight(마지막 wc:boot 적용) + 동기 구간 불변식
 
@@ -291,7 +308,7 @@ STRICT:: config=null (부팅 실패!)
 
 ## 이월 추가 (2026-07-17 18_39_11)
 
-- **재전송으로 `apiBase` 가 바뀌면 옛 세션 토큰이 새 `apiBase` 로 전송될 수 있다** (security WARNING) → **별도 plan 으로 분리했다**: [`webchat-session-apibase-binding.md`](./webchat-session-apibase-binding.md) (owner: developer, `(unstarted)`). `session-store` 가 발급 apiBase 를 기록하지 않아 축 분리된 **선행 결함**(이번 diff 무관). `--impl-done` 03_24_41 `plan_coherence` 가 "이 항목만 산문-only 라 archive 시 매몰 위험" 을 지적해 형제 이월(command-failure·usewidget-extraction)과 같이 분리.
+- **재전송으로 `apiBase` 가 바뀌면 옛 세션 토큰이 새 `apiBase` 로 전송될 수 있다** (security WARNING) → **별도 plan 으로 분리했다**: [`webchat-session-apibase-binding.md`](../in-progress/webchat-session-apibase-binding.md) (owner: developer, `(unstarted)`). `session-store` 가 발급 apiBase 를 기록하지 않아 축 분리된 **선행 결함**(이번 diff 무관). `--impl-done` 03_24_41 `plan_coherence` 가 "이 항목만 산문-only 라 archive 시 매몰 위험" 을 지적해 형제 이월(command-failure·usewidget-extraction)과 같이 분리.
 - **`AI_MESSAGE` 의 `ended` 가드 부재** (security INFO) — `ERROR` 근본 fix 로 지배적 경로가 닫혀 잔여 위험 낮음. 실패 사례 확인 시 확대.
 
 
@@ -300,7 +317,7 @@ STRICT:: config=null (부팅 실패!)
 - ~~**겹친 부팅이 스트림 확립 전 구간에서 `getStatus` 를 중복 발사** — 최종 상태는 수렴하므로 심각도 낮음 → 이월~~ **(이 판단은 틀렸다. 처리 완료 — 아래 §후속 참조)**
   - concurrency 리뷰어가 반증했다: "수렴한다" 는 **두 응답의 내용이 같다**는 전제에 기댔는데, 내가 근거로 든 테스트는 `running`/`completed` 스냅샷(논리 노드 없음)만 봤다. `waiting_for_input` 스냅샷이 **다른 노드**로 두 번 오면 수렴하지 않는다 — 호출 횟수·스트림 개수 축은 수렴해도 **콘텐츠(어느 노드가 마지막에 그려지나)** 축은 도착 순서가 정한다. 직접 재현해 확인했다(`최종화면노드=n1 | 기대=n2`).
   - 교훈: **내가 관측한 축에서 수렴한다고 다른 축에서도 수렴하는 게 아니다.** "수렴하므로 낮음" 은 어느 축에서 수렴하는지 명시하지 않으면 판단이 아니라 추측이다.
-- **`useEiaSession` 분리** → **별도 plan 으로 분리했다**: [`webchat-usewidget-extraction.md`](./webchat-usewidget-extraction.md) (owner: developer, `(unstarted)`). 산문으로만 두면 본 plan 완료 이동 시 묻힌다(`--impl-done` 23_58_23 maintainability WARNING — 형제 항목 `webchat-command-failure` 는 분리됐는데 이 항목만 노출돼 있다는 지적). `useWidget()` 이 ~1070줄로 계속 커지고, 이 클래스에서 거울상 9회(23_58_23 기준)가 난 자리라는 게 근거다.
+- **`useEiaSession` 분리** → **별도 plan 으로 분리했다**: [`webchat-usewidget-extraction.md`](../in-progress/webchat-usewidget-extraction.md) (owner: developer, `(unstarted)`). 산문으로만 두면 본 plan 완료 이동 시 묻힌다(`--impl-done` 23_58_23 maintainability WARNING — 형제 항목 `webchat-command-failure` 는 분리됐는데 이 항목만 노출돼 있다는 지적). `useWidget()` 이 ~1070줄로 계속 커지고, 이 클래스에서 거울상 9회(23_58_23 기준)가 난 자리라는 게 근거다.
 
 
 ## 후속 (18_39_11 처리 — 2026-07-17)
@@ -353,7 +370,7 @@ C3 와 같은 클래스가 **심볼만 옮겨** 재발했다(`unmountedRef` 선�
 
 ## 이월 (신규)
 
-- **`ERROR` 가 `phase: "ended"` 로 보내는 것 자체** → **별도 plan 으로 분리했다**: [`webchat-command-failure-is-not-termination.md`](./webchat-command-failure-is-not-termination.md) (owner: project-planner, `(unstarted)`).
+- **`ERROR` 가 `phase: "ended"` 로 보내는 것 자체** → **별도 plan 으로 분리했다**: [`webchat-command-failure-is-not-termination.md`](../in-progress/webchat-command-failure-is-not-termination.md) (owner: project-planner, `(unstarted)`).
   - 이 plan 하단의 산문으로만 두면 본 plan 이 `complete/` 로 이동할 때 함께 묻힌다 — `--impl-done` 19_46_54 `plan_coherence` WARNING 이 그 위험을 정확히 지적했다("이 plan 자신이 A-6 에 대해 경고한 바로 그 이월 유실 실패 유형").
 - **`§NNN` 행-번호 clause-id 가 구조적으로 취약** — 이번에 실제로 깨졌다(내 frontmatter 4줄이 대상 문단을 밀어냄). `§106`→`§110`(39건)로 1차 정정했다가, `--impl-done` 이 행번호 표기 자체를 문제 삼아 `§3(재전송)`(섹션+조항명, 41건)으로 재정정했다.
   - **정정**: 나는 이 표기를 "내가 만든 것" 으로 적었으나 틀렸다. `--impl-done` 19_46_54 `naming_collision` 이 저장소의 **기존 관행**임을 확인했다(선례: `http-request.handler.ts:353`, `ai-turn-orchestrator.service.ts:647`, `re-run.e2e-spec.ts:191`). 즉 내가 도입한 규약이 아니라 기존 규약을 이 spec 에 적용한 것이고, 취약성도 이 PR 이 만든 게 아니다.

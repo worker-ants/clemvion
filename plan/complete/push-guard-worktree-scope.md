@@ -2,7 +2,18 @@
 worktree: push-guard-worktree-scope-20044c
 started: 2026-07-23
 owner: developer
+status: complete
+# `.claude/hooks/**` 전용 — #1005 diff 에 `spec/` 변경 없음(실측 확인).
+spec_impact: none
 ---
+
+> **종결 (2026-07-24)**: 본 작업은 PR [#1005](https://github.com/worker-ants/clemvion/pull/1005)
+> (`a0d2d4fb6`) 으로 머지 완료됐고, 리뷰가 비차단으로 분리한 잔여는
+> [`harness-push-guard-scoping-residuals.md`](../complete/harness-push-guard-scoping-residuals.md)
+> 로 이관돼 PR #1010 에서 **전부 종결**됐다(`push_blocks` 계약 + 테스트 위생 4건, WARNING 4 는
+> 근거와 함께 미채택). 체크박스 8/8 이 실제 상태임을 구현 실재로 확인
+> (`_push_targets`·`_worktree_branches` 존재, #1005 가 origin/main 조상).
+> 이동만 누락돼 있어 여기서 마감한다.
 
 # push 가드 worktree 스코프 — 교차-worktree false ALLOW 차단
 
