@@ -17,24 +17,33 @@ priority: P4
 
 ### 중복 제거 (동작 무관, 순수 위생)
 
-- [ ] **W1 — "main 체크아웃 루트" 해석이 3곳 중복** (`bootstrap-session.sh` ·
-      `.githooks/pre-commit` · PostToolUse 훅) **+ bootstrap 실패 경로 무신호.**
-      공유 스니펫 추출 **또는** 3구현 pin 테스트 + bootstrap 실패 경로에 stderr 진단.
-      선재(§A PR 이 도입한 것 아님). I4 계열 — reaper 에도 반복 등장하는 git-common-dir 중복.
-- [ ] **W3(10_55_35) — bash mtime/cooldown 헬퍼가 `reap-merged-worktrees.sh` 와 중복**
-      (`_file_mtime` vs `file_mtime`). python 은 `_lib/mermaid_lint_ready.py` 로 SoT 통합했는데
-      bash 는 안 됐다. `.claude/tools/_lib/*.sh` 공유 또는 **최소한 네이밍 통일**.
-- [ ] **W3(02_06_42) — 테스트 헬퍼 `_node_calls`/`_run` 도입부가 `test_mermaid_lint_ready.py`
-      내부에서 중복.** 파일 안에서만 중복이므로 영향 최소.
+- [x] **W1 — bootstrap 실패 경로 무신호.** `git rev-parse --git-common-dir` 실패 시 조용히
+      `exit 0` 이라 "훅이 활성화된 적 없다" 와 "할 일이 없다고 판단했다" 가 밖에서 같아 보였다.
+      → stderr 진단 1줄 추가. **"main 체크아웃 루트" 3중복 자체는 미조치** — 아래 §미조치 참고.
+- [x] **W3(10_55_35) — bash mtime 헬퍼 네이밍 통일.** `file_mtime` → `_file_mtime`
+      (reaper). 두 사본이 `grep -rn _file_mtime .claude/tools` 로 함께 잡힌다.
+      공유 `_lib/*.sh` 는 **의도적으로 하지 않음** — `stat` 폴백 한 줄이 sourced 의존성을
+      정당화하지 않고, 두 스크립트는 체크아웃이 반쯤 준비된 상태(=bootstrap 이 도는 그 순간)
+      에서도 동작해야 한다. 그 판단을 양쪽 주석에 고정.
+- [x] **W3(02_06_42) — 테스트 헬퍼 중복.** `_NodeStubDriverMixin` 으로 `_node_calls` +
+      스텁 env 구성 추출. `_run` 은 구동 대상이 실제로 달라 각 클래스에 남긴다.
 
 ### CI·의존성 설정
 
-- [ ] **W8 — `harness-checks.yml` 만 node 22 / setup-python 사용** (다른 워크플로는 node 24).
-      선재 CI 설정, 어느 diff 에도 안 들어 있다. 통일하거나 왜 다른지 주석으로 고정.
-- [ ] **§F W6 — `mermaid-lint/package.json` 의 `jsdom`·`mermaid` 가 `"*"` range.**
-      Dependabot 활성화로 **major bump 도 lockfile-only diff 로** 와서 리뷰어가 patch/major
-      구분 신호를 잃는다. PROJECT.md "기본 caret" 정책과도 어긋남. resolved major 에 맞춰
-      `^` 로 좁히기. 선재(`"*"` 는 PR #410~).
+- [x] **W8 — `harness-checks.yml` node 22 → 24** (다른 워크플로와 통일). 근거가 기록된 적
+      없어 읽는 쪽이 "다른 데는 이유가 있겠지" 로 가정해야 했다. `node --test` 도 워크플로
+      스크립트의 ESM 도 두 버전 모두 지원. `setup-python` 은 유지(이미 사유 주석 있음).
+- [x] **§F W6 — `mermaid-lint/package.json` `"*"` → caret.**
+      `jsdom ^29.1.1` · `mermaid ^11.16.0` (resolved major 기준), lockfile 동반 갱신.
+
+### 미조치로 남긴 것 — 사유
+
+- **"main 체크아웃 루트" 해석 3중복** (`bootstrap-session.sh:23` · `.githooks/pre-commit:27` ·
+  `lint_mermaid_posttooluse.py:91`). W1 의 관측 가능성 쪽만 처리하고 중복은 남겼다.
+  세 사본은 **호출 문맥이 다르다** — 셸 2개(하나는 git 이 실행), python 1개(하위 프로세스로
+  git 호출) — 그래서 공유 스니펫이 되려면 셸/파이썬 양쪽 어댑터가 필요하고, 그 어댑터가
+  원본보다 길다. pin 테스트 쪽도 세 사본이 **같은 한 줄**이라 drift 관측 가치가 낮다.
+  W3 bash 헬퍼와 같은 판단이며, 재발견 시 이 문단을 근거로 오탐 처리할 것.
 
 ### 추적 전용 (독립 착수 대상 아님)
 

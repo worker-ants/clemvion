@@ -20,7 +20,16 @@
 set -u
 
 # Resolve the MAIN checkout (worktrees share one git common dir).
-common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+#
+# The early exit is deliberate — outside a repository there is nothing to
+# bootstrap — but it used to be SILENT, so "hooks were never activated" and
+# "bootstrap decided there was nothing to do" looked identical from the outside.
+# Every other skip in this file explains itself; this one is the first thing
+# that runs, so its silence hid the most (harness-guard-followups §A W1).
+if ! common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
+    echo "bootstrap: not a git checkout — skipped (githooks, mermaid deps, reap)" >&2
+    exit 0
+fi
 main_root=$(dirname "$common")
 
 # 1. Activate .githooks (only rewrite if it differs, to stay quiet).
@@ -101,6 +110,8 @@ fail_marker="$main_root/.claude/state/mermaid_install_last_fail"
 retry_after="${MERMAID_INSTALL_RETRY_SEC:-1800}"        # cooldown after a failed install
 
 # Cross-platform mtime in epoch seconds (BSD `stat -f` vs GNU `stat -c`); 0 if missing.
+# Byte-identical to `reap-merged-worktrees.sh::_file_mtime` — see the note there
+# for why the two are duplicated rather than shared.
 _file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
 
 # Hash of the lockfile a completed install corresponds to (stored in the marker;

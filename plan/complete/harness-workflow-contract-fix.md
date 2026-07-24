@@ -3,8 +3,22 @@ title: 하네스 Workflow 계약 충돌·게이트 무력화 fix (P0·P1·P2)
 worktree: harness-workflow-contract-e7bac4
 started: 2026-07-17
 owner: developer
-status: in-progress
+status: complete
+# 본 작업은 `.claude/**`(하네스) 전용이라 spec 을 수정하지 않았다 — 어떤 spec 의 `code:`
+# glob 에도 매칭되지 않고 consistency checker 는 spec/plan 정합 도구라 대상이 없다.
+spec_impact: none
 ---
+
+> **종결 (2026-07-24).** 본문 전 항목은 PR [#960](https://github.com/worker-ants/clemvion/pull/960)
+> 으로 머지 완료(`f562c04f6`)됐고, 리뷰 대응 표의 "후속" 2건도 그 뒤 별건으로 닫혔다:
+>
+> | 후속 | 종결 |
+> | --- | --- |
+> | W1 — report-path 로직 공용 `_lib` 승격 | [`harness-report-contract-followups.md`](harness-report-contract-followups.md) §1 (`.claude/_shared/report_paths.py`) |
+> | W2 — `agents_forced` 의 hook 강제 | [`forced-coverage-gate.md`](forced-coverage-gate.md) |
+>
+> 이동이 늦어 `harness-report-contract-followups.md` 가 이미 본 문서를 `plan/complete/`
+> 경로로 참조하고 있었다(dangling). 이동으로 해소된다.
 
 ## 배경
 

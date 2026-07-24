@@ -473,26 +473,126 @@ def collect_context(args, root):
 # ---------------------------------------------------------------------------
 
 
-# Per-key context budget. Keeps each checker's prompt body within
-# max_context_size. target_doc gets the biggest slice; supporting corpora
-# share the rest. Same ratios as the previous implementation.
+# Context budget, split for the payload a checker ACTUALLY receives.
+#
+# The previous split gave five corpora a fixed share each — as if one prompt
+# carried them all. It does not: `build_checker_prompt_body` sends `target_doc`
+# plus exactly ONE corpus (three, for naming_collision), so roughly half the
+# window was reserved for text that checker would never read, while the target
+# was cut to fit 30%. Measured 2026-07-24 on `--impl-prep spec/2-navigation/`:
+# the target bundle is 376,294 chars, the budget handed it 78,643, and **9 of
+# the area's 18 files never reached any checker**. `--impl-prep` is a blocking
+# gate whose `BLOCK: NO` is read as "the area was examined", so that is a wrong
+# answer to the question the caller thinks they asked.
+#
+# Budgeting per checker roughly doubles the target's share without raising the
+# window. It does not make everything fit — `spec/4-nodes/` alone is 858KB — which
+# is why the other half of the fix is that truncation now NAMES what it dropped.
 CHECKER_BUDGET_RATIO = {
-    "target_doc": 0.30,
-    "related_specs": 0.30,
-    "rationale_excerpts": 0.15,
-    "conventions": 0.10,
-    "plan_in_progress": 0.15,
+    "target_doc": 0.60,
+    "corpus": 0.40,
 }
 
+# Marks the block that lists files left out of a bundle. Public because the
+# tests assert on it and because a checker prompt that silently loses this
+# heading is the failure mode, not a cosmetic change.
+OMITTED_FILES_HEADING = "### ⚠️ 컨텍스트 예산 초과로 생략된 파일"
 
-def budget_substitutions(context, max_context_size):
-    if max_context_size <= 0:
-        return dict(context)
+_BUNDLE_FILE_MARKER = "\n#### `"
+
+
+def _omitted_notice(rels):
+    """Tell the checker what it is missing and what to do about it.
+
+    A checker cannot tell "this area does not mention X" from "the part that
+    mentions X was cut", and it answers the first while believing it answered
+    the second. Checkers have `Read`, so a named omission is a directed
+    instruction; an unnamed one is a wrong verdict.
+    """
+    listed = "".join(f"\n- `{rel}`" for rel in rels)
+    return (
+        f"\n\n{OMITTED_FILES_HEADING} {len(rels)}개\n\n"
+        "아래 파일의 **본문은 이 프롬프트에 포함되지 않았다**. 여기 없다는 사실을 "
+        "\"해당 내용이 없다\" 의 근거로 삼지 말 것 — 판정에 관련되면 `Read` 로 직접 열어라."
+        f"{listed}\n"
+    )
+
+
+def truncate_file_bundle(text, budget):
+    """Fit a `format_file_bundle` payload into `budget`, dropping WHOLE files.
+
+    Cutting on characters left the last surviving file ending mid-sentence while
+    looking complete, and said only "truncated due to size limit" — so the
+    reader could neither trust what was there nor know what was not. Dropping on
+    file boundaries makes both answerable: what is present is whole, and what is
+    absent is listed by path.
+
+    A budget of 0 or negative means unlimited, matching
+    `session.truncate_to_budget`, which this replaces for bundles. Text with no
+    file markers (a single `--spec`/`--plan` document, or `--impl-done`'s diff
+    section) falls back to that function.
+    """
+    if budget <= 0 or len(text) <= budget:
+        return text
+
+    head, sep, rest = text.partition(_BUNDLE_FILE_MARKER)
+    if not sep:
+        return session.truncate_to_budget(text, budget)
+
+    chunks = [_BUNDLE_FILE_MARKER + part for part in rest.split(_BUNDLE_FILE_MARKER)]
+
+    def rel_of(chunk):
+        # `\n#### \`path\`\n` — the path is between the first pair of backticks.
+        parts = chunk.split("`")
+        return parts[1] if len(parts) > 1 else "?"
+
+    kept, dropped = list(chunks), []
+    # The notice grows as more files are dropped, so the fit has to be
+    # re-checked after each one rather than reserved for up front — the naive
+    # version overshoots exactly when it drops the most.
+    while kept:
+        notice = _omitted_notice([rel_of(c) for c in dropped]) if dropped else ""
+        if len(head) + sum(len(c) for c in kept) + len(notice) <= budget:
+            return head + "".join(kept) + notice
+        dropped.insert(0, kept.pop())
+
+    # Nothing fits. Report the omission anyway and clip it to the budget —
+    # an empty area would be the worst outcome, since it reads as "no content".
+    notice = _omitted_notice([rel_of(c) for c in dropped])
+    return session.truncate_to_budget(head + notice, budget)
+
+
+def _corpus_keys(checker_name):
+    """Which context keys end up in this checker's prompt."""
+    if checker_name == "naming_collision":
+        return ("related_specs", "plan_in_progress", "conventions")
+    key = CHECKER_INSTRUCTIONS.get(checker_name, {}).get("context_key")
+    return (key,) if key else ()
+
+
+def budget_substitutions(context, max_context_size, checker_name):
+    """Fit one checker's payload into the window.
+
+    Keys that checker does not read are emptied rather than truncated: leaving
+    them populated is what made the target pay for corpora nobody would see.
+    """
     out = {"mode": context["mode"], "target_path": context["target_path"]}
-    for key, ratio in CHECKER_BUDGET_RATIO.items():
-        text = context.get(key, "")
-        budget = int(max_context_size * ratio)
-        out[key] = session.truncate_to_budget(text, budget)
+    keys = _corpus_keys(checker_name)
+
+    if max_context_size <= 0:
+        out["target_doc"] = context.get("target_doc", "")
+        for key in keys:
+            out[key] = context.get(key, "")
+        return out
+
+    out["target_doc"] = truncate_file_bundle(
+        context.get("target_doc", ""),
+        int(max_context_size * CHECKER_BUDGET_RATIO["target_doc"]),
+    )
+    if keys:
+        share = int(max_context_size * CHECKER_BUDGET_RATIO["corpus"] / len(keys))
+        for key in keys:
+            out[key] = truncate_file_bundle(context.get(key, ""), share)
     return out
 
 
@@ -562,13 +662,16 @@ def prepare_session(context, config):
     prompts_dir = os.path.join(session_dir, "_prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
-    substitutions = budget_substitutions(context, config["max_context_size"])
-
     invocations = []
     for checker in config["agents"]:
         prompt_path = os.path.join(prompts_dir, f"{checker}.md")
         output_path = os.path.join(session_dir, f"{checker}.md")
-        body = build_checker_prompt_body(checker, substitutions)
+        # Budgeted per checker, not once for everyone: each prompt carries only
+        # the corpus that checker reads, so sizing the target against all five
+        # corpora was spending a window nobody occupied.
+        body = build_checker_prompt_body(
+            checker, budget_substitutions(context, config["max_context_size"], checker)
+        )
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
         invocations.append({

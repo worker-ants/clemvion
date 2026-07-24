@@ -108,20 +108,58 @@ except Exception as exc:  # noqa: BLE001
 # below already had. Byte-identical to `guard_default_branch_bash._MUTATING`;
 # `EnvValueSubpatternSharedTest` fails if the two ever drift.
 #
-# The trailing `\S+` is a FALLBACK, and leaving it out was the §J fix's own
-# regression: with `[^\s'"]\S*` as the last alternative, a value that OPENS a
-# quote and never closes it (`A='x git push`) matches nothing, the prefix group
-# collapses to zero repetitions, and the push goes undetected — 28 such commands,
-# reintroducing the exact class §J existed to remove. The quoted alternatives
-# come first so they still consume a well-formed value; `\S+` only catches what
-# they cannot, which is what makes this a strict SUPERSET of the pre-§J pattern.
+# FIXED (§L, same day), and the fix also removed a LIVE ReDoS the §J shape had
+# been carrying. Two things were wrong with one alternation:
+#
+#   1. FALSE NEGATIVE. `A="a b"c git push` is legal shell (the value is `a bc`)
+#      and nothing matched it: the quoted branch stopped at the closing quote
+#      and then demanded whitespace, while `\S+` could not span the space inside
+#      the quotes. Same silent bypass as §J, so the same class of damage.
+#   2. CATASTROPHIC BACKTRACKING. `'…'|"…"|\S+` are NOT disjoint — a quoted
+#      value that spans whitespace has a second parse in which `\S+` stops at
+#      that space. When the text after it still looks like an assignment, both
+#      parses stay viable at every repetition and the engine explores 2^k of
+#      them. Measured on the pre-fix pattern: `A="x y=z" ` ×24 + a failing tail
+#      = 6.4s, ×28 = over 15s — from a 286-BYTE command. This hook gates every
+#      Bash call synchronously, so that is a frozen session or a harness timeout
+#      into fail-open: the very outcome §J and §L exist to prevent.
+#
+# So the prefix is now TWO branches, tried in order, each internally unambiguous:
+#
+#   branch 1  the value is a SEQUENCE of pieces, and quotes may span whitespace
+#   branch 2  the value is one `\S+` token, exactly as before §J
+#
+# Their union is a strict superset of every earlier pattern (`GeneratedFloorTest`
+# proves it over generated inputs, not a curated list), and because the choice
+# between them is made ONCE — not per repetition — neither branch can trade
+# parses with the other. Branch 1's five alternatives are mutually exclusive:
+#
+#   'x'  "x"       a closed quoted run (the double-quoted body stays
+#                  escape-aware so an embedded \" cannot end it early)
+#   '    "         a quote with NO closer anywhere ahead — the negative
+#                  lookahead is what keeps this disjoint from the branches above
+#   [^\s'"]        exactly ONE ordinary character — deliberately not `+`, so
+#                  two adjacent runs cannot be re-split
+#
+# No alternative shares a first character with another, so a value has exactly
+# one parse; and no piece can START with whitespace, so giving a piece back can
+# never let the following `\s+` succeed. Branch 2 is unambiguous for the same
+# reason. Measured, not asserted: every shape above is under 45ms at 40k
+# repetitions, and `BacktrackingTest` pins the rival-parse shape that used to
+# hang. Branch 2 is also why `A='x git push` still matches — that unclosed-quote
+# class was the §J follow-up's 28-command regression.
 #
 # `_SEGMENT_IS_GIT` below deliberately keeps a bare `\S+`: it sits on the
 # RELEASE path, where a miss means "not released" — i.e. still blocked, the safe
 # direction. Widening a release path needs its own justification
 # (`ReleasePathNarrownessTest` pins the current behaviour).
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|;|\|)\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|\S+)\s+)*"
+    r"(?:^|&&|;|\|)\s*(?:"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*="
+    r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
+    r"\s+)*"
+    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r")"
     r"git\b[^&;|]*\bpush\b"
 )
 

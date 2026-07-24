@@ -37,10 +37,68 @@ ORCH = (
 )
 
 
-def _git(*args: str) -> str:
+def _git(*args: str, cwd=None) -> str:
     return subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=str(REPO_ROOT)
+        ["git", *args], capture_output=True, text=True, cwd=str(cwd or REPO_ROOT)
     ).stdout
+
+
+# How far back the fixture search looks, and how much diff a commit must carry
+# to be usable. The minimum sits comfortably above the `assertGreater(checked,
+# 20)` the callers make, since some changed lines belong to files the
+# cross-check skips. Module level so the regression test below can drive the
+# same selection against a purpose-built repository.
+FIXTURE_SEARCH_DEPTH = 40
+MIN_FIXTURE_CHANGED_LINES = 80
+
+
+def pick_commit_fixture(cwd=None) -> str:
+    """Most recent commit `--prepare` can actually build a diff payload from.
+
+    Not hard-coded to `HEAD` — it may well pick HEAD, but only when HEAD
+    qualifies. This suite replays real git history rather than fixtures (unified
+    diff is git's format, not ours — see the class notes), but that only works
+    if the commit under test actually contains a diff. Pinning HEAD tied the
+    result to something the test does not measure: a small doc-only last commit
+    yielded 13 annotated lines against a `> 20` assertion, so the suite went RED
+    for a change that never touched the gutter — and would have "healed" on the
+    next unrelated commit. A threshold low enough for any commit would have been
+    the mirror failure: green whether or not the gutter works.
+
+    The file list comes from the SAME command the orchestrator uses, and the
+    changed-line count is summed only over those files. Asking `--numstat` on
+    its own was a proxy, and on MERGE commits the proxy disagrees with the
+    consumer: `git show --numstat` falls back to the diff against the FIRST
+    PARENT, while `git show --name-only` prints the combined diff, which is
+    empty whenever the merge resolved to one parent for every file. So a routine
+    "merge origin/main into my branch" commit reported plenty of changed lines,
+    got selected, and then `--prepare` found no reviewable files and wrote no
+    prompts at all — the suite went RED on any branch that had merged main in,
+    which is most of them. Measured on this repository: one such merge reported
+    1,390 changed lines and 0 files.
+
+    On a shallow CI clone the search collapses to roughly one commit; that is
+    harmless, because a shallow root has no parent and lists its whole tree,
+    clearing the threshold easily.
+    """
+    log = _git("log", "-n", str(FIXTURE_SEARCH_DEPTH), "--format=%H", cwd=cwd)
+    for sha in filter(None, (line.strip() for line in log.split("\n"))):
+        files = {
+            f for f in _git(
+                "show", "--no-renames", "--name-only", "--pretty=format:", sha, cwd=cwd
+            ).split("\n") if f
+        }
+        if not files:
+            continue
+        changed = 0
+        for row in _git("show", "--numstat", "--format=", sha, cwd=cwd).split("\n"):
+            cols = row.split("\t")
+            # "-" marks a binary file; it contributes no gutter lines.
+            if len(cols) >= 3 and cols[2] in files:
+                changed += sum(int(c) for c in cols[:2] if c.isdigit())
+        if changed >= MIN_FIXTURE_CHANGED_LINES:
+            return sha
+    return ""
 
 
 class NumberSourceLinesTest(unittest.TestCase):
@@ -322,56 +380,15 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    # A commit must carry at least this many changed lines to be usable as the
-    # fixture — comfortably above the `assertGreater(checked, 20)` the callers
-    # make, since some changed lines belong to files the cross-check skips.
-    _MIN_FIXTURE_CHANGED_LINES = 80
-    # How far back to look. Small doc commits come in runs; a handful is plenty.
-    _FIXTURE_SEARCH_DEPTH = 40
-
-    def _pick_commit_fixture(self):
-        """Most recent commit with enough diff to exercise the gutter.
-
-        Not hard-coded to `HEAD` — it may well pick HEAD, but only when HEAD
-        qualifies. This suite replays real git history rather than fixtures
-        (unified diff is git's format, not ours — see the class notes), but that
-        only works if the commit under test actually contains a diff. Pinning
-        HEAD tied the result to something the test does not measure: a small
-        doc-only last commit yielded 13 annotated lines against a `> 20`
-        assertion, so the suite went RED for a change that never touched the
-        gutter — and would have "healed" on the next unrelated commit. A
-        threshold low enough for any commit would have been the mirror failure:
-        green whether or not the gutter works.
-
-        `--numstat` is a cheap pre-filter, so only the chosen commit pays for a
-        full `--prepare` run.
-
-        On a shallow CI clone the search collapses to roughly one commit; that
-        is harmless, because a shallow root has no parent and its `--numstat`
-        totals the whole tree, clearing the threshold easily.
-        """
-        log = _git("log", "-n", str(self._FIXTURE_SEARCH_DEPTH), "--format=%H")
-        for sha in filter(None, (l.strip() for l in log.split("\n"))):
-            numstat = _git("show", "--numstat", "--format=", sha)
-            changed = 0
-            for row in numstat.split("\n"):
-                cols = row.split("\t")
-                if len(cols) >= 2:
-                    # "-" marks a binary file; it contributes no gutter lines.
-                    changed += sum(int(c) for c in cols[:2] if c.isdigit())
-            if changed >= self._MIN_FIXTURE_CHANGED_LINES:
-                return sha
-        return ""
-
     def _prepare_commit(self):
         """Prepare over a real commit; cross-check against that commit's blobs."""
         if not _git("rev-parse", "HEAD").strip():
             self.skipTest("no git history available")
-        sha = self._pick_commit_fixture()
+        sha = pick_commit_fixture()
         if not sha:
             self.skipTest(
-                f"no commit in the last {self._FIXTURE_SEARCH_DEPTH} with "
-                f">={self._MIN_FIXTURE_CHANGED_LINES} changed lines"
+                f"no commit in the last {FIXTURE_SEARCH_DEPTH} with "
+                f">={MIN_FIXTURE_CHANGED_LINES} changed lines"
             )
         return (lambda p: _git("show", f"{sha}:{p}")), self._run_prepare("--commit", sha)
 
@@ -493,6 +510,98 @@ class PromptPayloadIntegrationTest(unittest.TestCase):
                 len(body), cap + 2048,
                 f"{name}: {len(body)} chars exceeds the {cap}-char cap",
             )
+
+
+class CommitFixtureSelectionTest(unittest.TestCase):
+    """The fixture search must not pick a commit `--prepare` cannot use.
+
+    Built against a purpose-made repository rather than this one, because the
+    shape that broke it is absent from `main`: PRs land squashed, so the last
+    merge commit here is hundreds of commits back and the search never reaches
+    it. It appears the moment anyone merges `origin/main` into a working branch
+    — which is the routine way to refresh one — and then this whole suite goes
+    RED for a reason that has nothing to do with the gutter. A guard nobody can
+    keep green stops being a guard: "one is always red" is the same outcome as
+    deleting it.
+    """
+
+    @staticmethod
+    def _git(repo, *args):
+        return _git(*args, cwd=repo)
+
+    def _make_repo(self):
+        """A clean merge: each side touches a DIFFERENT file.
+
+        That is what produces the asymmetry — `git show --numstat` reports the
+        diff against the first parent (200 changed lines here), while
+        `git show --name-only` reports the COMBINED diff, which is empty because
+        every file matches one parent exactly.
+        """
+        import os
+        import shutil
+        import tempfile
+
+        repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, repo, ignore_errors=True)
+        env = ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+
+        def git(*args):
+            return self._git(repo, *env, *args)
+
+        def write(name, prefix):
+            with open(os.path.join(repo, name), "w", encoding="utf-8") as fh:
+                fh.write("".join(f"{prefix}{i}\n" for i in range(100)))
+
+        git("init", "-q", "-b", "main", ".")
+        write("f.txt", "f")
+        write("g.txt", "g")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        git("checkout", "-qb", "side")
+        write("f.txt", "SIDE")
+        git("commit", "-qam", "side-change")
+        git("checkout", "-q", "main")
+        write("g.txt", "MAIN")
+        git("commit", "-qam", "main-change")
+        git("merge", "--no-ff", "-q", "-m", "merge side", "side")
+        return repo
+
+    def test_the_repo_really_has_the_asymmetry(self):
+        """Non-vacuity: if git ever stops reporting a merge this way, the test
+        below would pass for the wrong reason."""
+        repo = self._make_repo()
+        self.assertEqual(
+            len(self._git(repo, "log", "-1", "--format=%P").split()), 2,
+            "HEAD is not a merge commit — the fixture repo was built wrong",
+        )
+        numstat = [r for r in self._git(
+            repo, "show", "--numstat", "--format=", "HEAD").split("\n") if r]
+        names = [f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            "HEAD").split("\n") if f]
+        self.assertTrue(numstat, "no numstat rows — the old filter had nothing to trip on")
+        self.assertEqual(names, [], "the combined diff is not empty — wrong merge shape")
+
+    def test_a_merge_commit_is_never_selected(self):
+        repo = self._make_repo()
+        picked = pick_commit_fixture(cwd=repo)
+        self.assertTrue(picked, "nothing was selected at all")
+        self.assertEqual(
+            len(self._git(repo, "log", "-1", "--format=%P", picked).split()), 1,
+            "the fixture search selected a merge commit; `--prepare` finds no "
+            "files there and writes no prompts",
+        )
+
+    def test_the_selected_commit_has_files_prepare_can_see(self):
+        """The property that actually matters — stated directly rather than
+        via "is not a merge", so a future non-merge shape with the same defect
+        is caught too."""
+        repo = self._make_repo()
+        picked = pick_commit_fixture(cwd=repo)
+        names = [f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            picked).split("\n") if f]
+        self.assertTrue(names, "the selected commit exposes no files to --prepare")
 
 
 class ReviewerDefinitionContractTest(unittest.TestCase):
