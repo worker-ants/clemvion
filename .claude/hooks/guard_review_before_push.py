@@ -458,6 +458,22 @@ def _read_payload() -> dict:
         return {}
 
 
+# A backslash immediately before a newline is a LINE CONTINUATION: the shell
+# deletes both and joins the lines, so `git \<newline>  push origin main` really
+# runs a push. §M(e) excluded `\n` from the tail scan to kill an O(n²), and that
+# silently cost this shape — the LEGACY floor catches it (measured), so it was a
+# differential-floor violation that no test noticed, because no corpus entry ever
+# spelled a continuation. Undoing the fold before matching restores it without
+# giving the tail its newline back.
+#
+# Deliberately blind, like everything else in this first pass: inside SINGLE
+# quotes a shell keeps `\<newline>` literal, so folding there is technically
+# wrong — but the error direction is EXTRA joining, i.e. more text reachable by
+# the pattern, i.e. over-detection. That is the safe direction, and refusing to
+# fold would need the quote parser this module has twice rejected.
+_LINE_CONTINUATION = "\\\n"
+
+
 def _is_git_push(command: str) -> bool:
     """True when this Bash command should be treated as a `git push`.
 
@@ -465,6 +481,8 @@ def _is_git_push(command: str) -> bool:
     """
     if not command or "push" not in command:
         return False
+    # Join continued lines first — the shell already did (see _LINE_CONTINUATION).
+    command = command.replace(_LINE_CONTINUATION, " ")
     if not _GIT_PUSH.search(command):
         return False  # blind pass says no — detection is unchanged from legacy.
     if len(command) > _MAX_REDACTION_INPUT:
