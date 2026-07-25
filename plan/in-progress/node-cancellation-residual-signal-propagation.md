@@ -129,3 +129,22 @@ client 4건 × 2 + handler 2건 × 2. handler 쪽이 특히 중요하다 — **h
 
 통제 테스트도 함께 뒀다 — upstream 이 안 터지면 fetch signal 도 안 터질 것, signal 이 없으면
 `undefined` 를 넘길 것(전달이 신호를 **발명**하지 않아야 한다).
+
+
+### 리뷰가 잡은 것 (2026-07-25, `review/code/2026/07/25/21_02_33`)
+
+첫 cascade 구현이 세 결함을 갖고 있었다 — 전부 실측 확증 후 수정:
+
+1. **취소가 `cancelled` 로 분류되지 않았다** — catch 가 `AbortError` 를 transport 오류로 감싸
+   handler D4 가 `port:'error'` 로 매핑했다. `database-query.handler.ts` 의 재throw 패턴 적용.
+2. **취소가 integration 을 강등시킬 수 있었다** — 같은 catch 가 `recordNetworkFailure` 를
+   무조건 호출해, 형제 브랜치 3개 취소만으로 정상 integration 이 `error(network)` 가 된다.
+   **timeout abort 와 구분**(`upstream?.aborted`)해야 정확하다 — timeout 은 진짜 장애다.
+3. **성공 경로에서 리스너가 해제되지 않았다** — cleanup 을 `controller.signal` abort 에 걸었는데
+   성공한 요청은 controller 를 abort 하지 않는다. `finally` 로 이동. 선재 동일 결함이
+   `http-request.handler.ts` 에도 있다(후속).
+
+### 후속으로 남긴 것
+
+- `http-request.handler.ts` 의 같은 리스너 누수(선재) + abort-cascade 3중 복제 → 공용 헬퍼.
+- §6 표 두 행 갱신은 `spec/` 권한 밖이라 planner 위임.
