@@ -1,6 +1,6 @@
 ---
 title: node-cancellation 잔여 — 채널/커머스 노드 signal 전파 + workflow-timeout 노드 abort
-worktree: node-cancel-signal-b4d1
+worktree: node-cancel-chat-9f3e
 started: 2026-07-24
 owner: developer
 status: in-progress

@@ -16,7 +16,7 @@ spec_impact:
 `developer` 는 `spec/` 쓰기 권한이 없어 **제안만** 남긴다.
 `review/consistency/2026/07/25/19_13_33` **Critical (BLOCK: YES)** 에서 분리 —
 [`node-cancellation-residual-signal-propagation`](node-cancellation-residual-signal-propagation.md)
-의 **4번째 항목만** 해당하며, 나머지 항목(chat-channel·MakeShop·Cafe24 signal 전파, IE resume)
+의 **4번째 항목만** 해당하며, 나머지 항목(MakeShop·Cafe24 signal 전파, IE resume — chat-channel 은 won't-do, 추가 위임 #5 참조)
 은 이 결정과 무관하게 진행 가능하다.
 
 ## 문제 — 같은 트리거가 두 개의 최종 상태를 쓰려 한다
