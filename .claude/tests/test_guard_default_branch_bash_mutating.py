@@ -4,7 +4,7 @@ branch" nudge classifier.
 Why this file exists at all: the classifier had **zero** tests, and the plan's
 item C proposed replacing it with the push guard's shell-aware detection code.
 Measuring first showed that would be a bad trade, so C was closed as won't-do
-(`plan/in-progress/harness-guard-followups.md` §C). Two claims carry that
+(`plan/complete/harness-guard-followups.md` §C). Two claims carry that
 decision, and both are pinned below so a future reader does not have to re-derive
 them:
 

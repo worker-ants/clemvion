@@ -75,7 +75,8 @@ git push -u origin claude/node-cancel-e2e-98b61f 2>&1 | tail -20
 `\s+` 는 `\n` 을 먹으므로 `A=v\n` 이 **두 파싱**(assignment 끝 `\s+=\n` vs separator `\n`)을
 갖고, 실패 tail 에서 엔진이 전부 탐색 → **측정: `A=v\n`×20000 + tail = 30s** (freeze/fail-open;
 회귀 테스트는 그보다 큰 `_ENV_PREFIX_REPEATS`=40,000 으로 돈다).
-`[^\S\n]+` 로 닫으면 `\n` 은 오직 separator → **10ms**. 두 훅(`_GIT_PUSH`·`_MUTATING`)에
+`[^\S\n]+` 로 닫으면 `\n` 은 오직 separator → **20k 에서 5ms · 40k 에서 10ms**
+(수치가 문서마다 달라 보였던 것은 크기 표기 누락 때문 — 리뷰 W3 지적, 재측정 후 크기 명시). 두 훅(`_GIT_PUSH`·`_MUTATING`)에
 byte-identical 적용(`EnvValueSubpatternSharedTest` 강제). default-branch 는 segment split 이라
 동작 불변.
 
@@ -143,6 +144,55 @@ echo <16KB 패딩>\ngit push -u origin main
 - `test_only_the_newline_was_excluded_from_the_whitespace` — 탭·formfeed 는 여전히 소비됨을
   고정(잘못된 문자 클래스로 좁히면 false negative = 게이트 우회이므로).
 - 관련 4 스위트 **158 passed**.
+
+## §M(d)(e) — 2회차 리뷰가 CRITICAL 2건을 더 찾았다
+
+`review/code/2026/07/25/13_06_40`. 하나는 선재, **하나는 §M 이 스스로 만든 것**이다.
+
+### (d) `&` — bash 백그라운드 연산자가 separator 목록에 없었다
+
+`sleep 5 & git push` → `_is_git_push` **False**(우회 확증). `&` 는 `;` 와 똑같이 좌측을
+끝내고 우측을 실행하는데, 클래스는 `[;|\n]` 이었고 `&` 는 `&&` 의 일부로만 등장했다.
+
+**선재**(legacy 도 놓친다)이고, 자매 훅 `guard_default_branch_bash._SEGMENT_SPLIT` 은
+`&` 를 **계속 갖고 있었다**. §J·§L·§M(a) 세 번의 separator 수정에서 그 비교를 했으면
+진작 잡혔을 결함이다 — 생성 축(`_TEMPLATES`)에 `&` 가 없던 것도 같은 뿌리라 함께 추가했다.
+
+### (e) tail 이 개행을 건너 O(n²) — **§M(a) 이 만든 결함**
+
+tail `git\b[^&;|]*\bpush\b` 는 `\n` 을 제외하지 않는다. §M 이전엔 무해했다: `^` 만
+시작점이라 tail 이 1회만 스캔했다. (a) 가 `\n` 을 separator 로 만들자 **모든 `git` 로
+시작하는 줄이 매치 시작점**이 되고, 각 시작점에서 tail 이 남은 줄 전체를 훑다 실패한다.
+
+| 입력 | §M 이전 | (a)~(c) 상태 | 수정 후 |
+| --- | --- | --- | --- |
+| `git log x\n` ×6,000 + 실패 tail | 2.8 ms | 3,676 ms | 2.4 ms |
+| ×12,000 | — | **14,717 ms** | — |
+
+`[^&;|\n]*` 로 제외. 잃는 것은 없다 — tail 이 줄을 넘던 것은 **우연**이었고(그 우연이
+(a) 이전에 `git add -A\ngit push` 를 매치시킨 바로 그 메커니즘), 이제 separator 가 정식으로
+매치한다.
+
+### 내가 W2 를 고치다 과한 단언을 썼다
+
+"`\n` 축이 vacuous" 지적을 "생성된 모든 케이스가 탐지돼야 한다" 로 고쳤더니 27건이 실패했다.
+전부 **닫히지 않은 따옴표 + 다중 공백**(`A='x y git push`)이고, **선재**이며, 무엇보다
+**bash 가 실행하지 못한다**(`bash -n` → unexpected EOF). 게이트가 지킨 적도, 지킬 필요도
+없는 것을 요구한 셈이다.
+
+올바른 불변식은 **separator 선택이 답을 바꾸면 안 된다** 다 → `&&`(legacy floor 가 덮는 기준
+축) 대비 `\n`·`&` 의 판정이 값 shape 별로 동일한지 비교하도록 교체했다. 리뷰어가 예시한
+뮤턴트를 실제로 잡는 것을 확인했다.
+
+### §M(d)(e) 검증
+
+- `BackgroundOperatorSeparatorTest` — mut: `&` 제거 → **30 failed**.
+- `BacktrackingTest.test_many_git_lines_with_a_failing_tail_stay_linear` (20k 줄)
+  — mut: tail `\n` 제외 되돌림 → **10s timeout**.
+- `test_new_separators_behave_exactly_like_the_reference` — mut: separator 후 whitespace 를
+  `[ ]*` 로 → **3 failed**.
+- 비-commit heredoc 본문 push 는 **accepted FP** 로 corpus 에 pin(과차단=안전 방향).
+- harness 전체 **654 passed**.
 
 ### 관측 가능성 (§체크리스트 4번) — 별도 판단
 
