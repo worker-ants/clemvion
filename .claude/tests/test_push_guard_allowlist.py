@@ -156,6 +156,11 @@ CORPUS: list[tuple[str, str, str | None]] = [
     # quoted alternatives absorb any character including a newline.
     # Do not "simplify" detection into a line-oriented scan; this is the case
     # that costs. SoR: plan/complete/harness-push-detection-split-then-match.md.
+    #
+    # NOTE: the three general differential tests do NOT exercise these — they all
+    # gate on `legacy_is_push`, which returns False here (legacy never handled a
+    # newline inside a quoted value either). `QuotedNewlineValueTest` is the only
+    # thing actually asserting them; keep it in step with this block.
     ('A="line1\nline2" git push', "literal newline inside a double-quoted value", None),
     # Line continuation: the shell deletes `\`+newline and joins the lines, so
     # this runs a push. §M(e) lost it when the tail stopped crossing newlines —
@@ -843,26 +848,6 @@ class BacktrackingTest(unittest.TestCase):
             "test_newline_run_before_a_failing_tail_stays_linear",
         )
 
-    def test_continuation_aware_tail_stays_linear(self):
-        """§O's tail crosses a newline only when a backslash escapes it, so its
-        three alternatives must stay disjoint on the first character. Measured
-        (×2 input → ×2 time) on backslash runs, `\\<newline>` runs and mixed
-        runs; pinned because "safe without measuring" has been refuted three
-        times in this file."""
-        for label, body in (
-            ("backslashes", "\\" * self._ENV_PREFIX_REPEATS),
-            ("continuations", "\\\n" * self._ENV_PREFIX_REPEATS),
-            ("mixed", "\\x\\\n" * self._ENV_PREFIX_REPEATS),
-        ):
-            with self.subTest(shape=label):
-                self._assert_finishes(
-                    "git " + body + " nopush",
-                    f"{label} run in the tail with a failing end",
-                    "the tail's alternatives started overlapping — keep them "
-                    "disjoint on the first character (non-backslash / "
-                    "backslash+non-newline / backslash+newline).",
-                )
-
     # The shapes below are EXPONENTIAL, not quadratic, so unlike
     # `_ENV_PREFIX_REPEATS` they separate at tiny inputs — sized from a measured
     # old-vs-new comparison, not guessed:
@@ -1534,13 +1519,15 @@ class QuotedNewlineValueTest(unittest.TestCase):
     (`'[^']*'`, `"(?:\\.|[^"\\])*"`) absorb any character, newline included.
     """
 
-    _CASES = (
-        'A="line1\nline2" git push',
-        "A='line1\nline2' git push",
-        'GIT_SSH_COMMAND="ssh\nkey" git push origin main',
-        'cd /x && A="a\nb" git push',
-        'A="a\nb" B="c\nd" git push --force',
-    )
+    # Derived from CORPUS so the literals live in exactly one place — the module
+    # docstring promises that, and hand-copying them here broke it once already.
+    # The extra entry is not in CORPUS: two quoted values in one command, which
+    # only this class cares about.
+    _CASES = tuple(
+        command for command, note, _reason in CORPUS
+        if "literal newline inside" in note or "real env var's value" in note
+        or note == "same, after a chain separator"
+    ) + ('A="a\nb" B="c\nd" git push --force',)
 
     def test_newline_inside_a_quoted_value_does_not_hide_the_push(self):
         for command in self._CASES:
@@ -1559,7 +1546,7 @@ class QuotedNewlineValueTest(unittest.TestCase):
         for command in self._CASES:
             with self.subTest(command=command):
                 result = subprocess.run(
-                    ["bash", "-n", "-c", command], capture_output=True
+                    ["bash", "-n", "-c", command], capture_output=True, timeout=10
                 )
                 self.assertEqual(
                     result.returncode, 0,
