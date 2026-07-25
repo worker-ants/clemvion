@@ -8,5 +8,9 @@
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
-  ]
+  ],
+  "abandoned": {
+    "reason": "세션 준비 직후 Workflow 호출이 분류기 일시 장애로 실패해 checker 를 한 번도 띄우지 못했다. 23분 뒤 21_58_52 세션이 처음부터 재실행해 완결(BLOCK: YES → 조치 → 22_28_51 BLOCK: NO). 상태 파일만 남은 이 디렉토리는 완료된 라운드가 아니다.",
+    "superseded_by": "review/consistency/2026/07/25/21_58_52"
+  }
 }
