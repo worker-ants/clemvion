@@ -278,6 +278,15 @@ _STDIN_FILE_FLAG = re.compile(r"(?<![\w-])(?:-F|--file=?)\s*-(?![\w-])")
 # there a stray boundary costs a false nudge, never a missed block. Keep the two
 # in view when either changes. (§J, which lived in `_GIT_PUSH` above, is fixed —
 # both hooks now carry the same escape-aware env-value alternation.)
+#
+# DELIBERATELY out of sync with `_GIT_PUSH` since §M(d): that one gained `&`
+# (the background operator) because missing a separator there is a missed BLOCK;
+# here a missing separator only merges two commands into one segment, so the
+# anchored `_SEGMENT_IS_GIT` fails to recognise an owner and the heredoc is NOT
+# released — i.e. still blocked. This sits on the RELEASE path, where widening
+# needs its own justification (`ReleasePathNarrownessTest`), so `&` stays out
+# until something actually demands it. Measured: `echo x & git commit -F - <<EOF`
+# with a `push` line in the body is not released, which is the safe direction.
 _SEGMENT_SPLIT = re.compile(r"&&|[|;\n]")
 
 # How much text before a `<<` marker the ownership check may look at. The owning

@@ -430,7 +430,7 @@ class GeneratedFloorTest(unittest.TestCase):
     # Separators that must be interchangeable. `&&` is the REFERENCE: it predates
     # every §M change and the legacy floor covers it, so whatever the guard does
     # for `cmd && <x>` is the settled answer for `cmd <sep> <x>`.
-    _EQUIVALENT_SEPARATORS = ("\n", " & ")
+    _EQUIVALENT_SEPARATORS = ("\n", " & ", " &\n", "\n\t")
 
     def test_new_separators_behave_exactly_like_the_reference(self):
         """The floor comparison asks only "did we narrow vs LEGACY?", and legacy
@@ -785,6 +785,33 @@ class BacktrackingTest(unittest.TestCase):
             "the tail scan went back to `[^&;|]*`, which crosses newlines. With "
             "`\n` as a separator that makes every git line a match start and "
             "re-scans the remainder from each. Keep it `[^&;|\n]*`.",
+        )
+
+    def test_background_operator_run_stays_linear(self):
+        """§M(d)'s separator gets the same measured pin as §M(a)'s.
+
+        `&` is structurally safer than `\n` (it cannot be eaten by the
+        whitespace tokens around it), but this file has had "safe without
+        measuring" refuted three times, so the claim is measured rather than
+        asserted.
+        """
+        self._assert_finishes(
+            ("cmd & " * self._ENV_PREFIX_REPEATS) + "x push",
+            f"{self._ENV_PREFIX_REPEATS} `&`-separated commands, failing tail",
+            "adding `&` to the separator class introduced backtracking — it must "
+            "stay a single-character alternative that cannot overlap `&&`.",
+        )
+
+    def test_mixed_separator_run_stays_linear(self):
+        """The separators INTERLEAVED. Each is linear alone; this pins that the
+        combination is too, since a match start of one kind sits next to the
+        other's whitespace handling (the repo's "each arm AND their order is a
+        separate surface" lesson)."""
+        self._assert_finishes(
+            ("cmd &\n" * self._ENV_PREFIX_REPEATS) + "x push",
+            f"{self._ENV_PREFIX_REPEATS} alternating `&` + newline separators",
+            "see test_background_operator_run_stays_linear and "
+            "test_newline_run_before_a_failing_tail_stays_linear",
         )
 
     # The shapes below are EXPONENTIAL, not quadratic, so unlike
