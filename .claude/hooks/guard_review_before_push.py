@@ -216,12 +216,39 @@ except Exception as exc:  # noqa: BLE001
 # match START, and from each one the tail scans across all remaining lines
 # looking for `push` before failing. Measured on the (a)–(c) state: 6k
 # `git log x\n` lines + a failing tail = 3.7s, 12k = 14.7s (×2 input → ×4 time);
-# before §M the same input was 2.8ms because only `^` could start a match. So
-# this is damage §M itself introduced, not a pre-existing wart. Excluding `\n`
-# there restores linearity (2.4ms) and costs nothing real: the tail was only ever
-# crossing lines by ACCIDENT — that accident is what made `git add -A\ngit push`
-# match before (a), and (a) now matches it properly via the separator.
-# SoR: plan/complete/harness-push-gate-did-not-fire.md.
+# before §M the same input was 2.8ms because only `^` could start a match.
+#
+# §O (2026-07-25) tried to close the one thing (e) cost — the backslash LINE
+# CONTINUATION (`git \<newline>  push origin main`), which the shell joins and
+# really runs, and which the LEGACY floor still catches. Two approaches, five
+# CRITICALs, all reverted. The record matters more than the attempts:
+#
+#   pre-fold (rewrite the text, then match)
+#     · ignored backslash PARITY, so `echo a\\<LF>git push` — a literal
+#       backslash then a REAL newline, two commands — lost its separator;
+#     · replaced with a space, so `git pu\<LF>sh` stayed `pu sh`, and sat after
+#       the `push` substring check so it never even ran for that shape;
+#     · fatally, merged a heredoc body's last line into its TERMINATOR, so
+#       `_commit_heredoc_spans` ran the span to the end of the command and
+#       blanked every `git push` after it. `_commit_heredoc_spans` and
+#       `_redact_inert_text` compute offsets against the ORIGINAL text — no
+#       rewriting pre-pass can be safe here.
+#   continuation-aware tail (`(?:[^&;|\n\\]|\\[^\n]|\\\n)*`)
+#     · pairing every backslash with a following character stopped
+#       `git \push` (ordinary escaping, no newline) from reaching `push` —
+#       a WIDER miss than the gap being closed;
+#     · re-introduced O(n²): repeated `git`-prefixed lines each ending in a real
+#       continuation made every `git` a start whose tail re-scanned the rest
+#       (measured 1600 lines = 504ms vs 0.55ms here, ×2 input → ×4 time).
+#
+# So the tail stays as (e) left it, and the continuation gap is ACCEPTED and
+# pinned in CORPUS with its reason. It is a genuine differential-floor
+# violation — legacy catches `git \<newline> push` and this does not — but every
+# way of closing it measured worse than leaving it open, and the shapes it costs
+# (a push split across lines by a backslash) are far rarer than the shapes the
+# fixes broke (heredoc commits, `git \push`). Do not reopen this without
+# measuring against BOTH lists above.
+# SoR: plan/complete/harness-push-detection-split-then-match.md.
 _GIT_PUSH = re.compile(
     r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="

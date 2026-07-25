@@ -104,7 +104,11 @@ def legacy_is_push(command: str) -> bool:
 
 
 def blind_is_push(command: str) -> bool:
-    """The blind first pass alone, without the allowlist releases."""
+    """The blind first pass alone, without the allowlist releases.
+
+    §O removed the pre-fold the hook briefly carried, so this mirror is once
+    again a plain search — there is no preprocessing left to mirror.
+    """
     if not command or "push" not in command:
         return False
     return bool(_BLIND.search(command))
@@ -143,6 +147,36 @@ CORPUS: list[tuple[str, str, str | None]] = [
     ("""A='say "hi"' git push""", "double quotes inside a single-quoted value", None),
     # ---- round 1: spellings a subcommand parser missed -------------------
     ("git add -A\ngit push", "newline as the only separator", None),
+    # A LITERAL newline INSIDE a quoted env value. Ordinary shell (`bash -n` says
+    # exit 0) and the push really runs. These exist as a corpus entry because the
+    # §N split-then-match experiment BROKE them: `str.split("\n")` has no idea
+    # the newline is inside quotes, so the value tears in half and the fragment
+    # holding `git push` has no separator in front of it — undetected, i.e. a
+    # gate bypass. The whole-command pattern handles them for free, because its
+    # quoted alternatives absorb any character including a newline.
+    # Do not "simplify" detection into a line-oriented scan; this is the case
+    # that costs. SoR: plan/complete/harness-push-detection-split-then-match.md.
+    #
+    # NOTE: the three general differential tests do NOT exercise these — they all
+    # gate on `legacy_is_push`, which returns False here (legacy never handled a
+    # newline inside a quoted value either). `QuotedNewlineValueTest` is the only
+    # thing actually asserting them; keep it in step with this block.
+    ('A="line1\nline2" git push', "literal newline inside a double-quoted value", None),
+    # Line continuation: the shell deletes `\`+newline and joins the lines, so
+    # this runs a push. §M(e) lost it when the tail stopped crossing newlines —
+    # a differential-floor violation (LEGACY catches it) that no test saw because
+    # no corpus entry spelled a continuation.
+    ("git \\\n  push origin main", "backslash line continuation before push",
+     "ACCEPTED GAP, not a release the allowlist performs. Legacy catches this "
+     "and the guard does not, so it is a real differential-floor violation — "
+     "but both ways of closing it measured strictly worse: a rewriting pre-pass "
+     "broke heredoc terminators (blanking every push after a heredoc commit), "
+     "and a continuation-aware tail lost `git \\push` and re-introduced O(n²). "
+     "See the §O block in guard_review_before_push.py before reopening."),
+    ("A='line1\nline2' git push", "literal newline inside a single-quoted value", None),
+    ('GIT_SSH_COMMAND="ssh\nkey" git push origin main',
+     "literal newline in a real env var's value", None),
+    ('cd /x && A="a\nb" git push', "same, after a chain separator", None),
     # §M(a) side effect, ACCEPTED as over-blocking. A heredoc body that is not
     # owned by `git commit|tag -F -` is never released, and now that `\n` is a
     # separator its `git push` line looks like a fresh segment. The shell would
@@ -1396,6 +1430,127 @@ class BackgroundOperatorSeparatorTest(unittest.TestCase):
                     legacy_is_push(command),
                     "legacy missed these too — so the differential could never "
                     "have flagged them, hence this explicit class",
+                )
+
+
+class LineContinuationTest(unittest.TestCase):
+    """`\\` + newline before `push` is NOT detected. Accepted gap, pinned.
+
+    The shell deletes both characters and runs the push, and the LEGACY floor
+    catches it — so this is a genuine differential-floor violation, not a shape
+    nobody ever handled. It is pinned rather than fixed because both fixes
+    measured strictly worse (five CRITICALs across two attempts; the full record
+    is in the §O block of `guard_review_before_push.py`):
+
+      · a rewriting pre-fold merged a heredoc body's last line into its
+        terminator, blanking every `git push` after a heredoc commit — the
+        commonest command shape in this repo;
+      · a continuation-aware tail stopped matching `git \\push` (ordinary
+        escaping, no newline at all — a WIDER miss than the gap) and brought
+        back O(n²) on repeated `git`-prefixed lines.
+
+    The tests below assert the CURRENT behaviour so that a future change which
+    closes the gap fails loudly and has to re-read that record first.
+    """
+
+    _CASES = (
+        "git \\\n  push origin main",
+        "git \\\npush",
+        "cd /x && git \\\n  push --force",
+    )
+
+    def test_continuation_before_push_is_a_KNOWN_GAP(self):
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertFalse(
+                    guard._is_git_push(command),
+                    "this gap is deliberate — if you closed it, verify against "
+                    "BOTH lists in the §O block (heredoc terminators AND "
+                    "`git \\push` AND the O(n²) shape) before changing this",
+                )
+
+    def test_the_gap_is_a_floor_violation_and_we_know_it(self):
+        """Honesty pin: legacy DOES catch these. The corpus entry carries the
+        reason, so `test_no_new_false_negatives` accepts it — this asserts the
+        premise that reason depends on."""
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertTrue(
+                    legacy_is_push(command),
+                    "if legacy stopped catching it, this is no longer a floor "
+                    "violation and the corpus reason should be simplified",
+                )
+
+    def test_escaped_push_without_a_newline_still_matches(self):
+        """The boundary the continuation-aware tail broke: an ordinary backslash
+        escape with NO newline must keep matching. This is what made that
+        attempt worse than the gap it closed."""
+        for command in ("git \\push", "git \\push origin main", "cd /x && git \\push"):
+            with self.subTest(command=command):
+                self.assertTrue(guard._is_git_push(command))
+
+    def test_heredoc_body_ending_in_a_backslash_keeps_the_push_visible(self):
+        """The fatal one. A heredoc body whose last line ends in an odd backslash
+        sits directly above its terminator; a pre-fold glued them together, so
+        `_commit_heredoc_spans` never found the terminator and the span swallowed
+        the REAL `git push` after it."""
+        command = "git commit -F - <<'EOF'\nmessage\\\nEOF\ngit push"
+        self.assertTrue(
+            guard._is_git_push(command),
+            "the push AFTER the heredoc must stay visible — if this fails, some "
+            "pass is rewriting the command text again",
+        )
+
+
+class QuotedNewlineValueTest(unittest.TestCase):
+    """A newline INSIDE a quoted value is part of the value, not a separator.
+
+    Found by /ai-review on the §N split-then-match experiment, which replaced the
+    whole-command scan with `any(_GIT_PUSH.search(line) for line in
+    text.split("\\n"))`. That split cannot know a newline sits inside quotes, so
+    `A="line1\\nline2" git push` tore into `A="line1` and `line2" git push`; the
+    second fragment has no separator before `git`, so nothing matched and BOTH
+    gates were skipped. Every case here is valid shell (`bash -n` exits 0) that
+    really does push, so the miss was a live bypass — not the safe direction.
+
+    §N was reverted for exactly this, and the class stays as the tripwire: any
+    future attempt to make detection line-oriented fails here first. The
+    whole-command pattern needs no special handling — its quoted alternatives
+    (`'[^']*'`, `"(?:\\.|[^"\\])*"`) absorb any character, newline included.
+    """
+
+    # Derived from CORPUS so the literals live in exactly one place — the module
+    # docstring promises that, and hand-copying them here broke it once already.
+    # The extra entry is not in CORPUS: two quoted values in one command, which
+    # only this class cares about.
+    _CASES = tuple(
+        command for command, note, _reason in CORPUS
+        if "literal newline inside" in note or "real env var's value" in note
+        or note == "same, after a chain separator"
+    ) + ('A="a\nb" B="c\nd" git push --force',)
+
+    def test_newline_inside_a_quoted_value_does_not_hide_the_push(self):
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertTrue(
+                    guard._is_git_push(command),
+                    "a newline inside quotes is VALUE, not a separator — "
+                    "treating it as one skips both gates on a push that runs",
+                )
+
+    def test_these_are_real_shell(self):
+        """Guards the premise: if these stopped parsing, the class above would be
+        pinning behaviour on inputs no shell would run, which is the mistake made
+        earlier in this same effort (27 unclosed-quote 'misses' that bash itself
+        rejects)."""
+        for command in self._CASES:
+            with self.subTest(command=command):
+                result = subprocess.run(
+                    ["bash", "-n", "-c", command], capture_output=True, timeout=10
+                )
+                self.assertEqual(
+                    result.returncode, 0,
+                    "this fixture is not valid shell, so it proves nothing",
                 )
 
 
