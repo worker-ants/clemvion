@@ -32,7 +32,7 @@ mut: 가드 제거 → **2 failed**.
 |---|---|
 | W1 | plan frontmatter `worktree: (unstarted)` → `node-cancel-signal-b4d1` |
 | INFO1 | §6 표 승격 시 **handler propagate 까지 확인**하도록 위임 문서에 조건 명시 — 그 확인 없이 `✓` 를 달면 미충족 계약을 "구현됨" 으로 기록하는 새 SPEC-DRIFT 가 된다 |
-| INFO2 | cafe24 fixture path 잔존 — 재확인 결과 이미 0건(직전 통일 작업에 포함돼 있었다) |
+| INFO2 | **내 "0건" 주장이 틀렸다** — `cafe24-api.client.spec.ts:285` 에 `path: 'product'` 가 남아 있었다. grep 을 `path: 'product',`(쉼표 포함)로 좁혀 인라인 형태를 놓쳤다. 같은 종류의 부정확한 "해결됨" 주장을 **두 번** 했고, 다음 라운드 리뷰가 그 재발을 지적했다. 실제로 수정 완료 |
 | 권고6 | 기존 `✓` 행(`http-request`·`text-classifier`)도 §5.1 propagate 이 검증된 적 없다 → planner 위임에 추가 |
 
 ## TEST 결과

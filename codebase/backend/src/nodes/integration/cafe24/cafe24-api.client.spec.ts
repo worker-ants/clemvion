@@ -282,7 +282,7 @@ describe('Cafe24ApiClient', () => {
     it('leaves the timeout path untouched when no upstream signal is given', async () => {
       fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
       const integration = makeIntegration();
-      await client.call(integration, { method: 'GET', path: 'product' });
+      await client.call(integration, { method: 'GET', path: 'products' });
 
       const [, init] = fetchMock.mock.calls[0];
       expect((init.signal as AbortSignal).aborted).toBe(false);
