@@ -77,8 +77,13 @@ MakeShop·Cafe24 signal 전파가 **구현 완료**됐는데 §6 구현 현황 �
 | Cafe24 노드 signal 전파   | — | 미구현 (Planned) — MakeShop 과 동일 상태 |
 ```
 
-**제안**: 두 행을 `✓` 로, 근거는 `makeshop-api.client.ts`/`cafe24-api.client.ts` 의 §4 cascade
-(`executeWithRetry`). 문면의 "§2.2 사전 체크" 표현은 **빼는 것이 맞다** — §2.2 는 CPU 바운드/
+**제안**: 두 행을 `✓` 로, 근거는 두 client 의 §4 cascade **와 두 handler 의 §5.1 재throw
+가드**(둘 다 있어야 성립한다 — client 만으로는 엔진이 `cancelled` 로 분류하지 못한다).
+
+> ⚠ **승격 전 확인**: `--impl-done`(2026-07-25 21_58_52) 이 잡았듯, 처음에는 client 만 고쳐서
+> handler 가 AbortError 를 삼키고 있었다. §6 을 `✓` 로 올릴 때는 **handler 가 실제로
+> propagate 하는지**(`*.handler.spec.ts` 의 "rethrows AbortError so the ENGINE can classify"
+> 테스트)까지 확인할 것 — 그러지 않으면 미충족 계약을 "구현됨" 으로 기록하는 새 SPEC-DRIFT 가 된다. 문면의 "§2.2 사전 체크" 표현은 **빼는 것이 맞다** — §2.2 는 CPU 바운드/
 즉시 완료 노드 절이라 HTTP client 와 무관하고(같은 리뷰 WARNING 3), 실제로 구현한 것은 §4 의
 already-aborted 분기다.
 
@@ -134,3 +139,18 @@ try { /* fetch */ } finally {
 
 > 이 항목은 "구현이 spec 을 앞선" 경우다. 코드가 옳고 spec 이 낡았으므로 **코드를 되돌리지
 > 않는다**(SPEC-DRIFT 정식 경로).
+
+
+---
+
+## 추가 위임 (2026-07-25 #3) — `http-request` / `text-classifier` 도 같은 검증이 필요하다
+
+`--impl-done` 권고 6. §6 표에서 이미 `✓` 인 노드들이 **§5.1(handler 가 AbortError 를 엔진까지
+propagate)을 실제로 만족하는지 검증된 적이 없다**. commerce 2건에서 정확히 그 갭이 나왔으므로
+(client 는 옳고 handler 가 삼킴), 기존 `✓` 행들도 같은 축으로 확인할 값이 있다.
+
+- `http-request.handler.ts` — §4 cascade 는 있으나 리스너 누수(§4 예시 그대로) + handler
+  propagate 미검증.
+- `text-classifier.handler.ts` — 동일 확인 필요.
+
+developer 범위로 처리 가능한 부분(코드+테스트)과 spec 표 갱신을 planner 가 함께 판단할 것.

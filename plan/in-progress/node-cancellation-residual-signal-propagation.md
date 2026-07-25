@@ -1,6 +1,6 @@
 ---
 title: node-cancellation 잔여 — 채널/커머스 노드 signal 전파 + workflow-timeout 노드 abort
-worktree: (unstarted)
+worktree: node-cancel-signal-b4d1
 started: 2026-07-24
 owner: developer
 status: in-progress
@@ -33,10 +33,10 @@ priority: P3
 ## 잔여 항목 (§6 표 기준)
 
 - [ ] **chat-channel 노드 signal 전파** — `context.abortSignal` cascade(§4) 미배선
-- [x] **MakeShop 노드 signal 전파** (2026-07-25) — `MakeshopCallOptions.signal` 신설,
+- [x] **MakeShop 노드 signal 전파** (2026-07-25, handler 재throw 가드까지 포함) — `MakeshopCallOptions.signal` 신설,
       handler 가 `context.abortSignal` 을 전달, `executeWithRetry` 가 자기 timeout controller 로
       cascade(§4). 이미 aborted 면 즉시 abort(§2.2). `http-request.handler.ts` 와 동일 패턴.
-- [x] **Cafe24 노드 signal 전파** (2026-07-25) — MakeShop 과 대칭 적용(`Cafe24CallOptions.signal`).
+- [x] **Cafe24 노드 signal 전파** (2026-07-25, handler 재throw 가드까지 포함) — MakeShop 과 대칭 적용(`Cafe24CallOptions.signal`).
 - [ ] ⛔ **BLOCKED — `project-planner` 결정 대기**: Workflow 단위 timeout / graceful shutdown 의 노드 abort 통합
       > `/consistency-check --impl-prep` (`review/consistency/2026/07/25/19_13_33`) **Critical**.
       > `abortSignal` 을 이 경로에 연결하면 §5.1 의 `cancelled` 규칙과 이미 구현된
@@ -158,6 +158,17 @@ cascade 는 **in-flight fetch** 를 끊는다. 같은 client 안의 두 대기 �
 
 취소가 **유실되지는 않는다** — 대기가 끝나면 다음 attempt 의 사전 체크(§4 already-aborted)가
 즉시 걸린다. 지연될 뿐이다.
+
+### `--impl-done` 이 잡은 것 — 배선이 엔진까지 닿지 않았다
+
+client 에서 `AbortError` 를 재throw 하도록 고쳤는데 **handler 의 catch 가 다시 삼켰다**.
+`mapClientErrorToOutput` 에 AbortError 분기가 없어 `{code:'*_TRANSPORT_FAILED', port:'error'}`
+를 **정상 반환**했고, throw 가 아니므로 엔진의 `isAbortError` catch 가 영영 도달하지 못했다 —
+노드는 `failed` 로 기록되고 `execution.node.cancelled` 도 안 났다. 무수정 프로브로 실증.
+
+**forwarding 테스트는 이걸 못 봤다** — signal 이 전달되는지만 봤지 **client 가 reject 했을 때
+handler 가 어떻게 반응하는지**는 안 봤기 때문이다. handler 의 inner/outer catch 양쪽에 가드를
+넣고, propagate + 경계(일반 transport 실패는 여전히 error 포트) 테스트를 추가했다.
 
 ### 후속으로 남긴 것
 
