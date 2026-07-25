@@ -154,3 +154,34 @@ propagate)을 실제로 만족하는지 검증된 적이 없다**. commerce 2건
 - `text-classifier.handler.ts` — 동일 확인 필요.
 
 developer 범위로 처리 가능한 부분(코드+테스트)과 spec 표 갱신을 planner 가 함께 판단할 것.
+
+---
+
+## 추가 위임 (2026-07-25 #4) — `--impl-done` 22_28_51 이 찾은 spec 자체 불일치 2건
+
+두 건 모두 **이번 PR 이 만든 것이 아니라 선재**이며, `spec/` 쓰기 권한 밖이라 위임한다.
+
+### (1) `error.code: 'AbortError'` 가 명명 규약 예외인데 등재돼 있지 않다
+
+`node-output.md §3.2` 는 error code 를 `UPPER_SNAKE_CASE` 로 정하고, `error-codes.md §1/§3` 은
+예외를 **명시 등재**하도록 요구한다. `AbortError` 는 둘 다 어긋난다(`node-cancellation.md §5.1`,
+`5-system/6-websocket-protocol.md §4.1` 에서 사용).
+
+- **(a) 저비용**: `error-codes.md §3` 예외 레지스트리에 historical-artifact 로 등재 + 근거.
+- **(b)**: `NODE_CANCELLED` 류로 교체 — 코드·테스트·두 spec 동반 갱신 필요.
+
+이미 구현·테스트가 붙어 있어 (a) 가 현실적이라는 것이 checker 의견이다.
+
+### (2) §5.1 의 `meta.success = false` 서술이 구현·WS 페이로드와 어긋난다
+
+`execution-engine.service.ts` 의 AbortError catch 는 **`meta` 를 설정하지 않는다**(실측:
+`meta:` 설정은 parallel clampedConcurrency 경로 한 곳뿐). `6-websocket-protocol.md §4.1` 페이로드
+정의에도 그 필드가 없다.
+
+→ 문구를 삭제하거나, 엔진에 실제로 넣고 WS 표를 함께 갱신하거나 — **셋 중 하나로 통일**해야 한다.
+
+### (3) (낮은 우선순위) stale plan 포인터
+
+`4-nodes/3-ai/1-ai-agent.md:1374` 가 이미 `plan/complete/` 로 간
+`node-cancellation-infrastructure` 를 가리킨다 → 실제 추적처는
+`node-cancellation-residual-signal-propagation`.
