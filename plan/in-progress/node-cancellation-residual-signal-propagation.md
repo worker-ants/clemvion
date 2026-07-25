@@ -37,7 +37,15 @@ priority: P3
       `AbortController` 만 사용. `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2)
       **둘 다 없음**
 - [ ] **Cafe24 노드 signal 전파** — `cafe24-api.client.ts`, MakeShop 과 동일 상태
-- [ ] **Workflow 단위 timeout / graceful shutdown 의 노드 abort 통합** — 워크플로 시간 한도
+- [ ] ⛔ **BLOCKED — `project-planner` 결정 대기**: Workflow 단위 timeout / graceful shutdown 의 노드 abort 통합
+      > `/consistency-check --impl-prep` (`review/consistency/2026/07/25/19_13_33`) **Critical**.
+      > `abortSignal` 을 이 경로에 연결하면 §5.1 의 `cancelled` 규칙과 이미 구현된
+      > `ShutdownStateService` 의 `failed`+`SERVER_INTERRUPTED` bulk UPDATE 가 **같은 row 를
+      > 두고 경합**한다(`WHERE status='RUNNING'` 선착순 → 비결정적 분류). 실측: 그 서비스는
+      > `abortSignal` 참조 0건이라 지금은 두 경로가 만나지 않는다.
+      > 결정 위임: [`spec-update-node-cancellation-shutdown-classification.md`](spec-update-node-cancellation-shutdown-classification.md).
+      > **이 항목만 차단이며 나머지 항목은 무관하게 진행 가능**(signal 생산자가 ParallelExecutor·
+      > 사용자 cancel 이라 §5.1 `cancelled` 가 이미 정답인 경로). — 워크플로 시간 한도
       자체는 PR2a 로 구현 완료(active-running 누적 타임아웃 `assertActiveTimeWithinLimit`,
       **노드 경계 판정**). 잔여는 **진행 중 노드의 in-flight 외부 I/O 즉시 중단**뿐
 - [ ] **IE multi-turn resume 경로 signal 미전파** (§2.1 표) — `information-extractor` 의
