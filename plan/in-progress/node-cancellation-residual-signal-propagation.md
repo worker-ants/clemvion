@@ -32,7 +32,17 @@ priority: P3
 
 ## 잔여 항목 (§6 표 기준)
 
-- [ ] **chat-channel 노드 signal 전파** — `context.abortSignal` cascade(§4) 미배선
+- [x] **chat-channel 노드 signal 전파** — **won't-do (범주 오류)**. 착수 전 프로브에서 전제가
+      반증됐다: **chat-channel 노드는 존재하지 않는다**. 전 카테고리(ai·core·data·flow·
+      integration·logic·presentation·trigger) 전수 확인 결과 `chat` 이름의 노드 파일 0건이고,
+      `node-types.constants.ts` 에도 미등록이다.
+      실체는 **`webhook` 트리거의 `config.chatChannel` 변형**이며(`1-data-model.md:230`),
+      구현은 `modules/chat-channel/**` 의 어댑터다. 그 어댑터는 `executionEvents$` 를 **구독해
+      외부 채널로 발송**하는 outbound 방향이라(CCH-AD-05) 노드 실행 컨텍스트가 없고
+      `abortSignal` 참조도 0건이다. 취소된 실행은 오히려 `execution.cancelled` 를 발송해야 하니
+      **cascade 대상 자체가 아니다**.
+      → `node-handler.interface.ts` JSDoc 의 잘못된 나열을 정정하고 근거를 남겼다.
+      spec §6 표의 해당 행 처분은 `spec/` 권한 밖이라 위임.
 - [x] **MakeShop 노드 signal 전파** (2026-07-25, handler 재throw 가드까지 포함) — `MakeshopCallOptions.signal` 신설,
       handler 가 `context.abortSignal` 을 전달, `executeWithRetry` 가 자기 timeout controller 로
       cascade(§4). 이미 aborted 면 즉시 abort(§2.2). `http-request.handler.ts` 와 동일 패턴.
