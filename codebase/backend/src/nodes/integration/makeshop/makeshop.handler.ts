@@ -242,6 +242,9 @@ export class MakeshopHandler
           path,
           query,
           body,
+          // node-cancellation.md §4 — let a cancelled execution stop the
+          // in-flight HTTP call instead of waiting out the per-call timeout.
+          signal: context.abortSignal,
         });
       } catch (err) {
         const durationMs = Date.now() - started;

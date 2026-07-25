@@ -65,6 +65,12 @@ export interface Cafe24CallOptions {
   body?: Record<string, unknown>;
   /** Per-call timeout. Defaults to 30s. */
   timeoutMs?: number;
+  /**
+   * The execution's `context.abortSignal`, cascaded into this call's own
+   * timeout controller (node-cancellation.md §4). Absent for callers outside a
+   * node run (connection tests, token refresh) — the timeout still applies.
+   */
+  signal?: AbortSignal;
 }
 
 export interface Cafe24CallResult {
@@ -1198,6 +1204,28 @@ export class Cafe24ApiClient {
     const controller = new AbortController();
     const timeoutMs = opts.timeoutMs ?? 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    // node-cancellation.md §4 — cascade the execution's abortSignal into the
+    // controller this request actually watches. Without it a cancelled
+    // execution keeps waiting out `timeoutMs` on an in-flight call. §2.2: an
+    // already-aborted upstream aborts immediately, before the round trip.
+    // Identical to `http-request.handler.ts`; the listener is removed when the
+    // controller settles (timeout, completion, or this same abort) so a long
+    // upstream signal does not accumulate listeners across retries.
+    const upstream = opts.signal;
+    if (upstream) {
+      if (upstream.aborted) {
+        controller.abort();
+      } else {
+        const onUpstreamAbort = () => controller.abort();
+        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
+        controller.signal.addEventListener(
+          'abort',
+          () => upstream.removeEventListener('abort', onUpstreamAbort),
+          { once: true },
+        );
+      }
+    }
 
     let response: Response;
     try {

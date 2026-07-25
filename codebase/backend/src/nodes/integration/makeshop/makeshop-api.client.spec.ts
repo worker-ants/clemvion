@@ -85,6 +85,86 @@ describe('MakeshopApiClient', () => {
     );
   });
 
+  // spec/conventions/node-cancellation.md §4 (cascade) + §2.2 (pre-check).
+  // The client already owns an AbortController for its per-call timeout; the
+  // upstream `context.abortSignal` has to reach that controller so a cancelled
+  // execution stops the in-flight HTTP call instead of waiting out the timeout.
+  describe('abortSignal cascade (node-cancellation §4)', () => {
+    it('aborts the in-flight fetch when the upstream signal fires', async () => {
+      const upstream = new AbortController();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        // Fire upstream WHILE the request is in flight — the cascade must
+        // forward it to the controller the fetch is actually watching.
+        upstream.abort();
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'product',
+        signal: upstream.signal,
+      });
+
+      expect(seen).toBeDefined();
+      expect(seen!.aborted).toBe(true);
+    });
+
+    it('does not abort the fetch when the upstream signal stays open', () => {
+      // The mirror: a cascade that aborts unconditionally would pass the test
+      // above while breaking every ordinary call.
+      const upstream = new AbortController();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      return client
+        .call(integration, {
+          method: 'GET',
+          path: 'product',
+          signal: upstream.signal,
+        })
+        .then(() => {
+          expect(seen!.aborted).toBe(false);
+        });
+    });
+
+    it('aborts before issuing the request when the signal is ALREADY aborted', async () => {
+      // §2.2: check on the way in, so a cancelled execution does not spend a
+      // network round trip. The fetch still runs (the client has no early
+      // return) but must carry an already-aborted signal.
+      const upstream = new AbortController();
+      upstream.abort();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'product',
+        signal: upstream.signal,
+      });
+
+      expect(seen!.aborted).toBe(true);
+    });
+
+    it('leaves the timeout path untouched when no upstream signal is given', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration();
+      await client.call(integration, { method: 'GET', path: 'product' });
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect((init.signal as AbortSignal).aborted).toBe(false);
+    });
+  });
   describe('credentials validation', () => {
     it('throws when shop_uid missing', async () => {
       const integration = makeIntegration({

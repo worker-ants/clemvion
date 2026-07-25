@@ -742,4 +742,44 @@ describe('Cafe24Handler', () => {
       expect(output._dryRun).toBeUndefined();
     });
   });
+
+  // node-cancellation.md §4 — the handler is the only place that knows the
+  // execution's abortSignal; if it stops forwarding it, the client's cascade
+  // becomes dead code and nothing else fails. Pinned here for that reason.
+  describe('abortSignal forwarding (node-cancellation §4)', () => {
+    it("passes context.abortSignal into the client call", async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({ status: 200, body: { ok: true } });
+      const controller = new AbortController();
+
+      await handler.execute(
+        null,
+        { integrationId: 'id', resource: 'product', operation: 'product_list', fields: { shop_no: 1 } },
+        { ...makeContext(), abortSignal: controller.signal },
+      );
+
+      expect(apiClient.call).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ signal: controller.signal }),
+      );
+    });
+
+    it('passes undefined when the execution has no abortSignal', async () => {
+      // The boundary: forwarding must not invent a signal, or callers outside a
+      // node run would gain one they never set.
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({ status: 200, body: { ok: true } });
+
+      await handler.execute(
+        null,
+        { integrationId: 'id', resource: 'product', operation: 'product_list', fields: { shop_no: 1 } },
+        makeContext(),
+      );
+
+      expect(apiClient.call).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ signal: undefined }),
+      );
+    });
+  });
 });

@@ -33,10 +33,10 @@ priority: P3
 ## 잔여 항목 (§6 표 기준)
 
 - [ ] **chat-channel 노드 signal 전파** — `context.abortSignal` cascade(§4) 미배선
-- [ ] **MakeShop 노드 signal 전파** — `makeshop-api.client.ts` 는 자체 timeout 용
-      `AbortController` 만 사용. `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2)
-      **둘 다 없음**
-- [ ] **Cafe24 노드 signal 전파** — `cafe24-api.client.ts`, MakeShop 과 동일 상태
+- [x] **MakeShop 노드 signal 전파** (2026-07-25) — `MakeshopCallOptions.signal` 신설,
+      handler 가 `context.abortSignal` 을 전달, `executeWithRetry` 가 자기 timeout controller 로
+      cascade(§4). 이미 aborted 면 즉시 abort(§2.2). `http-request.handler.ts` 와 동일 패턴.
+- [x] **Cafe24 노드 signal 전파** (2026-07-25) — MakeShop 과 대칭 적용(`Cafe24CallOptions.signal`).
 - [ ] ⛔ **BLOCKED — `project-planner` 결정 대기**: Workflow 단위 timeout / graceful shutdown 의 노드 abort 통합
       > `/consistency-check --impl-prep` (`review/consistency/2026/07/25/19_13_33`) **Critical**.
       > `abortSignal` 을 이 경로에 연결하면 §5.1 의 `cancelled` 규칙과 이미 구현된
@@ -102,3 +102,30 @@ priority: P3
 cancellation 자체는 Execution 레벨에서 `cancelled` 로 확정되고(§5) 하류 dispatch 도 멈춘다
 — 즉 데이터 정합성 문제가 아니라 **불필요한 외부 호출 1회**가 발생하는 낭비다. 실제 피해가
 관측되면 승급할 것.
+
+
+## 진행 기록 — commerce 2건 (2026-07-25)
+
+### 배선
+
+`MakeshopCallOptions`/`Cafe24CallOptions` 에 `signal?: AbortSignal` 을 추가하고, handler 가
+`context.abortSignal` 을 실어 보낸다. 두 client 는 이미 per-call timeout 용 `AbortController` 를
+갖고 있어, spec §4 가 코드로 제시한 cascade 를 그 controller 에 붙였다 — `http-request.handler.ts`
+가 쓰는 것과 같은 패턴(이미 aborted 면 즉시 abort, 아니면 listener + controller 정착 시 해제).
+
+**`rawPing()` 은 대상이 아니다**: 연결 테스트 경로라 노드 실행 컨텍스트가 없다. 노드 실행은
+`executeWithRetry()` 하나로 모인다.
+
+### 테스트가 잡는 것
+
+client 4건 × 2 + handler 2건 × 2. handler 쪽이 특히 중요하다 — **handler 가 signal 전달을
+멈추면 client 의 cascade 는 dead code 가 되는데 client 테스트는 그대로 통과**한다. 실제로
+그 두 축을 각각 mutation 으로 확인했다:
+
+| 뮤턴트 | 결과 |
+| --- | --- |
+| handler 의 `signal: context.abortSignal` 제거 | handler spec **4 failed** |
+| client 의 cascade 블록 제거 | client spec **4 failed** |
+
+통제 테스트도 함께 뒀다 — upstream 이 안 터지면 fetch signal 도 안 터질 것, signal 이 없으면
+`undefined` 를 넘길 것(전달이 신호를 **발명**하지 않아야 한다).
