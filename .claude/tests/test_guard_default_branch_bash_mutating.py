@@ -4,7 +4,7 @@ branch" nudge classifier.
 Why this file exists at all: the classifier had **zero** tests, and the plan's
 item C proposed replacing it with the push guard's shell-aware detection code.
 Measuring first showed that would be a bad trade, so C was closed as won't-do
-(`plan/in-progress/harness-guard-followups.md` §C). Two claims carry that
+(`plan/complete/harness-guard-followups.md` §C). Two claims carry that
 decision, and both are pinned below so a future reader does not have to re-derive
 them:
 
@@ -234,11 +234,13 @@ class OldEnvPrefixSupersetTest(unittest.TestCase):
     # the live pattern so this never has to mirror the verb list.
     _PRE_QUOTED_PREFIX = r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
     # Closes the whole prefix group, then opens the command body. §L turned the
-    # prefix into two branches, so the boundary gained the extra `)` — the
-    # marker has to track the SHAPE of that boundary, not the branch text, or
-    # the splice silently starts comparing nothing (which is what
+    # prefix into two branches, so the boundary gained the extra `)`; §M then
+    # narrowed the repetition's closing whitespace from `\s+` to `[^\S\n]+` (so a
+    # newline can only be a separator, never part of an assignment — see the hook
+    # note). The marker has to track the SHAPE of that boundary, not the branch
+    # text, or the splice silently starts comparing nothing (which is what
     # `test_the_frozen_prefix_still_composes` catches).
-    _SPLIT_MARKER = r"\s+)*)(?:"
+    _SPLIT_MARKER = r"[^\S\n]+)*)(?:"
 
     # Shared with the push guard's `GeneratedFloorTest` — see the comment on the
     # constant. Both hooks skip the same prefix and both regressed on it, so a
