@@ -86,7 +86,9 @@ describe('Cafe24ApiClient', () => {
     );
   });
 
-  // spec/conventions/node-cancellation.md §4 (cascade) + §2.2 (pre-check).
+  // spec/conventions/node-cancellation.md §4 — the cascade pattern, including
+  // its already-aborted branch. (NOT §2.2: that section is about CPU-bound /
+  // immediate nodes, which is not what an HTTP client is.)
   // The client already owns an AbortController for its per-call timeout; the
   // upstream `context.abortSignal` has to reach that controller so a cancelled
   // execution stops the in-flight HTTP call instead of waiting out the timeout.
@@ -214,9 +216,10 @@ describe('Cafe24ApiClient', () => {
     });
 
     it('aborts before issuing the request when the signal is ALREADY aborted', async () => {
-      // §2.2: check on the way in, so a cancelled execution does not spend a
-      // network round trip. The fetch still runs (the client has no early
-      // return) but must carry an already-aborted signal.
+      // §4's already-aborted branch: the request goes out carrying a signal
+      // that is already aborted, so the transport tears it down immediately
+      // rather than waiting out `timeoutMs`. (The client has no early return —
+      // hence "carries an aborted signal", not "skips the call".)
       const upstream = new AbortController();
       upstream.abort();
       let seen: AbortSignal | undefined;

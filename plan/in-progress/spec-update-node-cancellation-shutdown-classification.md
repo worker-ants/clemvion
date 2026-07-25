@@ -62,3 +62,27 @@ spec_impact:
 이 **이미 존재할 때** 그것을 하위 I/O 로 흘려보내는 배선이고, 그 signal 의 생산자는 현재
 `ParallelExecutor`(cancel-others-on-fail)와 사용자 cancel 버튼이다. 둘 다 §5.1 의 `cancelled`
 분류가 이미 정답인 경로라 본 충돌과 무관하다.
+
+---
+
+## 추가 위임 (2026-07-25) — §6 표 두 행 갱신 (SPEC-DRIFT)
+
+`review/code/2026/07/25/21_02_33` WARNING 2 (requirement·documentation 중복 지적).
+
+MakeShop·Cafe24 signal 전파가 **구현 완료**됐는데 §6 구현 현황 표는 여전히 `— 미구현 (Planned)`
+다. 이 저장소는 같은 클래스(라벨 vs 본문 불일치)를 이미 3명에게 지적받은 이력이 있다.
+
+```
+| MakeShop 노드 signal 전파 | — | 미구현 (Planned) — … cascade(§4)·사전 체크(§2.2) 모두 없음 |
+| Cafe24 노드 signal 전파   | — | 미구현 (Planned) — MakeShop 과 동일 상태 |
+```
+
+**제안**: 두 행을 `✓` 로, 근거는 `makeshop-api.client.ts`/`cafe24-api.client.ts` 의 §4 cascade
+(`executeWithRetry`). 문면의 "§2.2 사전 체크" 표현은 **빼는 것이 맞다** — §2.2 는 CPU 바운드/
+즉시 완료 노드 절이라 HTTP client 와 무관하고(같은 리뷰 WARNING 3), 실제로 구현한 것은 §4 의
+already-aborted 분기다.
+
+`frontmatter.code:` 에 두 client 를 추가할지도 함께 판단 대상(현재는 `http-request`·
+`database-query` handler 만 등재).
+
+> developer 는 `spec/` 쓰기 권한이 없어 제안만 남긴다. 본 PR 은 코드·테스트·plan 만 담는다.
