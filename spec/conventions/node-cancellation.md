@@ -21,7 +21,7 @@ pending_plans:
 
 ## 1. 목적
 
-장기 외부 I/O 를 수행하는 노드 (HTTP / DB / AI / Email / chat-channel / 이커머스 통합 Cafe24·MakeShop) 가 실행 도중 외부 cancellation 신호를 받을 수 있어야 한다. 그렇지 않으면 다음 기능이 모두 불가능:
+장기 외부 I/O 를 수행하는 노드 (HTTP / DB / AI / Email / 이커머스 통합 Cafe24·MakeShop) 가 실행 도중 외부 cancellation 신호를 받을 수 있어야 한다. 그렇지 않으면 다음 기능이 모두 불가능:
 
 - **Parallel `cancel-others-on-fail` errorPolicy** (parallel-p2 결정 A) — 첫 분기 실패 시 다른 분기의 외부 I/O 를 즉시 중단
 - **Workflow 단위 timeout** — 실행 시간 한도 초과 시 진행 중 노드의 외부 I/O 중단
@@ -120,7 +120,7 @@ if (upstream) {
 
 ## 6. 구현 현황 / 후속
 
-> 2026-06-03 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-residual-signal-propagation.md`).
+> 2026-07-26 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-residual-signal-propagation.md`), N/A = 범주 오류로 대상에서 철회(애초에 노드가 아님).
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
@@ -134,9 +134,9 @@ if (upstream) {
 | 사용자 cancel (`POST /executions/:id/stop` + 툴바 Stop) | ✓ | `executions.controller.ts` / `executions.service.ts` / `editor-toolbar.tsx` (§2.3) |
 | DB 노드 signal 전파 | ✓ | 사전 abort 체크 + **in-flight 취소** (`database-query.handler.ts` — abort 시 별도 연결로 PG `pg_cancel_backend`/MySQL `KILL QUERY`, 취소 driver 에러→`AbortError` 재throw). 단위 테스트 `database-query.handler.spec.ts` 의 `in-flight cancellation (node-cancellation §2.1)` describe |
 | Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP 중단은 **의도적 best-effort(미채택)** — `transporter.close()` 부분/중복 전송 리스크 |
-| chat-channel 노드 signal 전파 | — | 미구현 (Planned) |
-| MakeShop 노드 signal 전파 | — | 미구현 (Planned) — `makeshop-api.client.ts` 는 자체 timeout 용 `AbortController` 만 사용, `context.abortSignal` cascade(§4)·진입 직전 사전 체크(§2.2) 모두 없음. `node-cancellation-residual-signal-propagation.md` 추적 |
-| Cafe24 노드 signal 전파 | — | 미구현 (Planned) — MakeShop 과 동일 상태 (`cafe24-api.client.ts`). `node-cancellation-residual-signal-propagation.md` 추적 |
+| ~~chat-channel 노드 signal 전파~~ | N/A | **범주 오류로 철회** — chat-channel 은 노드가 아니라 `webhook` 트리거의 `config.chatChannel` 변형이고([데이터 모델 §2.8](../1-data-model.md#28-trigger)), 구현체 `modules/chat-channel/**` 는 `executionEvents$` 를 구독하는 **outbound 어댑터**다 ([Chat Channel](../5-system/15-chat-channel.md) CCH-AD-05 · 별도 노드로 두지 않은 근거는 같은 문서 Rationale R1). 따라서 §4 cascade 대상이 아니며, 취소 시 이 어댑터의 책임은 오히려 `execution.cancelled` 를 **발송**하는 것이다 |
+| MakeShop 노드 signal 전파 | ✓ | `makeshop-api.client.ts` 의 §4 cascade(already-aborted 분기 포함) **와** `makeshop.handler.ts` 의 §5.1 `AbortError` 재throw — 둘 다 있어야 엔진이 `cancelled` 로 분류한다. 단위 테스트 `makeshop-api.client.spec.ts` · `makeshop.handler.spec.ts`("rethrows AbortError so the ENGINE can classify") |
+| Cafe24 노드 signal 전파 | ✓ | MakeShop 과 동일 구조 (`cafe24-api.client.ts` · `cafe24.handler.ts`). 단위 테스트 `cafe24-api.client.spec.ts` · `cafe24.handler.spec.ts` |
 | `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) + `AbortError` → `cancelled` 분류 + dispatch 사전 abort 체크 + `execution.node.cancelled` WS 이벤트 | ✓ | `NodeExecutionStatus.CANCELLED` enum + V069 migration + 엔진 분류/WS emit (§5.1) |
 | Workflow 단위 timeout / graceful shutdown 의 **노드 abort** | — | 노드 abort 통합 미구현 (Planned). 단 **워크플로 시간 한도 자체는 PR2a 구현 완료** — active-running 누적 타임아웃 (`assertActiveTimeWithinLimit`, 노드 경계 판정, §2.3 / [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)) |
 

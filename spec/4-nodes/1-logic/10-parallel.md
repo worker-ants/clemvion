@@ -241,6 +241,6 @@ P1 단계에서는 `PARALLEL_NESTED_NOT_SUPPORTED` 로 모든 중첩을 reject �
 
 **메커니즘**: 자기 그룹용 `AbortController` 생성 → branch context 의 `abortSignal` 에 set. 첫 실패 발생 분기의 `runBranch` rejection 직후 `controller.abort()` 호출 → 다른 분기의 외부 I/O 노드가 그 signal 을 받아 cleanup. 외부 (상위) `context.abortSignal` 이 있으면 cascade — 상위 cancellation 도 본 그룹에 전파.
 
-**best-effort 컨트랙트** ([`spec/conventions/node-cancellation.md`](../../conventions/node-cancellation.md)) — signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 자기 작업 완료까지 계속. 본 PR 기준 signal-aware 는 HTTP 노드만 — DB / AI / Email / chat-channel 은 후속 PR. 따라서 cancel-others-on-fail 의 효과는 노드 별로 점진 강화된다.
+**best-effort 컨트랙트** ([`spec/conventions/node-cancellation.md`](../../conventions/node-cancellation.md)) — signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 자기 작업 완료까지 계속. 2026-07-26 기준 signal-aware 는 HTTP / DB / AI / 이커머스 통합 Cafe24·MakeShop 이며, Email 은 사전 abort 체크만 (in-flight SMTP 중단은 의도적 미채택). chat-channel 은 노드가 아니라 `webhook` 트리거의 outbound 어댑터라 애초에 대상이 아니다 (`node-cancellation.md` §6). 따라서 cancel-others-on-fail 의 효과는 노드 별로 점진 강화된다.
 
 **에러 분류**: 모든 분기 종료 후 root cause (`error.name !== 'AbortError'` 인 첫 실패) 를 Parallel 노드의 throw 로 재현. AbortError 는 후속 분기의 cleanup 결과이므로 사용자 메시지 신호 대 잡음을 위해 노출 안 함.
