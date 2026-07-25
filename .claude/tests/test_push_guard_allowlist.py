@@ -91,7 +91,7 @@ _BLIND_PATTERN = (
     r"[^\S\n]+)*"
     r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
-    r"git\b[^&;|\n]*\bpush\b"
+    r"git\b(?:[^&;|\n\\]|\\[^\n]|\\\n)*\bpush\b"
 )
 _BLIND = re.compile(_BLIND_PATTERN)
 
@@ -106,14 +106,12 @@ def legacy_is_push(command: str) -> bool:
 def blind_is_push(command: str) -> bool:
     """The blind first pass alone, without the allowlist releases.
 
-    Mirrors the hook's line-continuation unfold: that step is DETECTION
-    preprocessing, not an allowlist release, so leaving it out here would make
-    `test_no_new_blocks` read a wider detection as "the allowlist started
-    blocking on its own" — the opposite of what happened.
+    §O removed the pre-fold the hook briefly carried, so this mirror is once
+    again a plain search — there is no preprocessing left to mirror.
     """
     if not command or "push" not in command:
         return False
-    return bool(_BLIND.search(guard._unfold_continuations(command)))
+    return bool(_BLIND.search(command))
 
 
 # --- corpus -----------------------------------------------------------------
@@ -839,6 +837,26 @@ class BacktrackingTest(unittest.TestCase):
             "test_newline_run_before_a_failing_tail_stays_linear",
         )
 
+    def test_continuation_aware_tail_stays_linear(self):
+        """§O's tail crosses a newline only when a backslash escapes it, so its
+        three alternatives must stay disjoint on the first character. Measured
+        (×2 input → ×2 time) on backslash runs, `\\<newline>` runs and mixed
+        runs; pinned because "safe without measuring" has been refuted three
+        times in this file."""
+        for label, body in (
+            ("backslashes", "\\" * self._ENV_PREFIX_REPEATS),
+            ("continuations", "\\\n" * self._ENV_PREFIX_REPEATS),
+            ("mixed", "\\x\\\n" * self._ENV_PREFIX_REPEATS),
+        ):
+            with self.subTest(shape=label):
+                self._assert_finishes(
+                    "git " + body + " nopush",
+                    f"{label} run in the tail with a failing end",
+                    "the tail's alternatives started overlapping — keep them "
+                    "disjoint on the first character (non-backslash / "
+                    "backslash+non-newline / backslash+newline).",
+                )
+
     # The shapes below are EXPONENTIAL, not quadratic, so unlike
     # `_ENV_PREFIX_REPEATS` they separate at tiny inputs — sized from a measured
     # old-vs-new comparison, not guessed:
@@ -1483,29 +1501,56 @@ class LineContinuationTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertTrue(
                     guard._is_git_push(command),
-                    "an EVEN backslash run leaves a real newline separator — "
-                    "folding it away hides the push behind it",
+                    "an EVEN backslash run leaves a real newline separator, so "
+                    "the next line starts a fresh segment the tail must not eat",
                 )
 
-    def test_continuation_inside_the_word_is_joined(self):
-        """/ai-review CRITICAL #2 on the first fold.
+    def test_continuation_inside_the_word_is_a_KNOWN_GAP(self):
+        """A continuation that splits `push` ITSELF is not detected. Pinned as a
+        known gap, not silently absent.
 
-        The shell DELETES both characters, so `git pu\\<LF>sh` is the single
-        word `push`. The first fold replaced them with a SPACE (leaving `pu sh`)
-        and ran after the `"push" not in command` short-circuit, so the command
-        never even reached it. Both are fixed: empty replacement, folded first.
+        The shell deletes both characters, so `git pu\\<LF>sh` really is the word
+        `push`. Catching it needs the text REWRITTEN before matching, and §O
+        removed exactly that pre-fold: the fold merged a heredoc body's last line
+        into its terminator, which unmasked every `git push` after the heredoc —
+        a far commoner shape (every commit in this repo uses that heredoc form)
+        than a continuation inside a keyword. So the trade is deliberate.
+
+        LEGACY misses these too (asserted below), so this is a gap the guard
+        never closed rather than a regression §O introduced.
         """
         for command in (
             "git pu\\\nsh origin main",
             "git p\\\nu\\\ns\\\nh",
-            "git push --force-with-lea\\\nse",
         ):
             with self.subTest(command=command):
-                self.assertTrue(
+                self.assertFalse(
                     guard._is_git_push(command),
-                    "the shell joins these into a real `push`; the guard must "
-                    "see the same word",
+                    "if this starts being detected the trade above changed — "
+                    "re-read §O before updating this expectation",
                 )
+                self.assertFalse(
+                    legacy_is_push(command),
+                    "legacy catches it => it IS a floor violation after all, "
+                    "and the gap must be closed rather than pinned",
+                )
+
+    def test_heredoc_body_ending_in_a_backslash_keeps_the_push_visible(self):
+        """§O's reason for existing — /ai-review CRITICAL on the pre-fold.
+
+        A heredoc body whose last line ends in an odd backslash sits right above
+        its terminator. Folding continuations first glued `message\\` to `EOF`,
+        so `_commit_heredoc_spans` never found the terminator, the span ran to
+        the end of the command, and the REAL `git push` after the heredoc was
+        blanked as "inert body" — a silent gate bypass. Matching without
+        rewriting keeps the terminator where it is.
+        """
+        command = "git commit -F - <<'EOF'\nmessage\\\nEOF\ngit push"
+        self.assertTrue(
+            guard._is_git_push(command),
+            "the push AFTER the heredoc must stay visible; if this fails, some "
+            "pre-pass is rewriting the text again",
+        )
 
     def test_unfolding_does_not_invent_a_push(self):
         """The fold may only ever JOIN text; it must not turn a non-push into one."""
@@ -1553,7 +1598,6 @@ class QuotedNewlineValueTest(unittest.TestCase):
         pinning behaviour on inputs no shell would run, which is the mistake made
         earlier in this same effort (27 unclosed-quote 'misses' that bash itself
         rejects)."""
-        import subprocess
         for command in self._CASES:
             with self.subTest(command=command):
                 result = subprocess.run(

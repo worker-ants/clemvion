@@ -216,11 +216,25 @@ except Exception as exc:  # noqa: BLE001
 # match START, and from each one the tail scans across all remaining lines
 # looking for `push` before failing. Measured on the (a)–(c) state: 6k
 # `git log x\n` lines + a failing tail = 3.7s, 12k = 14.7s (×2 input → ×4 time);
-# before §M the same input was 2.8ms because only `^` could start a match. So
-# this is damage §M itself introduced, not a pre-existing wart. Excluding `\n`
-# there restores linearity (2.4ms) and costs nothing real: the tail was only ever
-# crossing lines by ACCIDENT — that accident is what made `git add -A\ngit push`
-# match before (a), and (a) now matches it properly via the separator.
+# before §M the same input was 2.8ms because only `^` could start a match.
+#
+# §O (2026-07-25) refined (e). Excluding `\n` outright ALSO lost the backslash
+# LINE CONTINUATION (`git \<newline>  push origin main`), which the shell joins
+# and really runs — and which the LEGACY floor still caught, so it was a
+# differential-floor violation. The first attempt at restoring it pre-folded
+# continuations before matching; /ai-review found three CRITICALs in that
+# approach (backslash parity, empty-vs-space replacement, and — fatally — the
+# fold merging a heredoc body's last line into its terminator, which unmasked
+# every `git push` after the heredoc). A pre-pass cannot be made safe here
+# because `_commit_heredoc_spans` and `_redact_inert_text` both compute offsets
+# against the ORIGINAL text.
+#
+# So the tail itself decides, and no text is ever rewritten: it crosses a newline
+# ONLY when a backslash escapes it. The three alternatives are disjoint on their
+# first character (ordinary non-backslash / backslash+non-newline /
+# backslash+newline), so there is no rival parse — measured linear on backslash
+# runs, `\<newline>` runs, mixed runs and plain text (×2 input → ×2 time), and
+# the O(n²) (e) fixed stays fixed (40k git-prefixed lines = 25.8ms).
 # SoR: plan/complete/harness-push-gate-did-not-fire.md.
 _GIT_PUSH = re.compile(
     r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
@@ -229,7 +243,7 @@ _GIT_PUSH = re.compile(
     r"[^\S\n]+)*"
     r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
-    r"git\b[^&;|\n]*\bpush\b"
+    r"git\b(?:[^&;|\n\\]|\\[^\n]|\\\n)*\bpush\b"
 )
 
 # Anything the shell expands makes a text region LIVE: a `push` inside one can
@@ -458,62 +472,12 @@ def _read_payload() -> dict:
         return {}
 
 
-# A backslash immediately before a newline is a LINE CONTINUATION: the shell
-# deletes both and joins the lines, so `git \<newline>  push origin main` really
-# runs a push. §M(e) excluded `\n` from the tail scan to kill an O(n²), and that
-# silently cost this shape — the LEGACY floor catches it (measured), so it was a
-# differential-floor violation that no test noticed, because no corpus entry ever
-# spelled a continuation. Undoing the fold before matching restores it without
-# giving the tail its newline back.
-#
-# PARITY MATTERS, and the first version of this got it wrong (/ai-review caught
-# it as a CRITICAL). A backslash escapes the one after it, so only an ODD run
-# ends in a continuation:
-#
-#   `echo a\<LF>git push`     1 backslash  → continuation; ONE command runs
-#   `echo a\\<LF>git push`    2 backslashes → a literal `\`, then a REAL newline;
-#                             TWO commands run (verified by running it)
-#
-# A blind `.replace("\\\n", " ")` folded the second case too, deleting the
-# separator in front of `git push` — so the guard stopped seeing a push that
-# genuinely runs. Same parity reasoning, and the same shape, as `_ESCAPED_PIPE`
-# above; the trailing even run is preserved by the capture group.
-#
-# The replacement is EMPTY, not a space: the shell deletes both characters, so
-# `git pu\<LF>sh` is the single word `push`. A space would leave `pu sh` and keep
-# hiding it (also caught in that review).
-#
-# Still deliberately blind about quoting: inside SINGLE quotes a shell keeps
-# `\<newline>` literal, so folding there is technically wrong — but the error
-# direction is EXTRA joining, i.e. over-detection, which is the safe side, and
-# doing better needs the quote parser this module has twice rejected.
-# SoR: plan/complete/harness-push-detection-split-then-match.md.
-_LINE_CONTINUATION = re.compile(r"(?<!\\)((?:\\\\)*)\\\n")
-
-
-def _unfold_continuations(command: str) -> str:
-    """Join the lines the shell would join.
-
-    Cheap membership test first: most commands contain no backslash-newline at
-    all, and this runs on EVERY Bash call.
-    """
-    if "\\\n" not in command:
-        return command
-    return _LINE_CONTINUATION.sub(lambda m: m.group(1), command)
-
-
 def _is_git_push(command: str) -> bool:
     """True when this Bash command should be treated as a `git push`.
 
-    Line continuations are folded first, then the blind pass runs, then an
-    enumerated allowlist that can only SUBTRACT.
+    Blind first pass, then an enumerated allowlist that can only SUBTRACT.
     """
-    if not command:
-        return False
-    # Fold BEFORE the `push` short-circuit: a continuation can split the word
-    # itself (`git pu\<newline>sh`), so the substring test would miss it.
-    command = _unfold_continuations(command)
-    if "push" not in command:
+    if not command or "push" not in command:
         return False
     if not _GIT_PUSH.search(command):
         return False  # blind pass says no — detection is unchanged from legacy.
