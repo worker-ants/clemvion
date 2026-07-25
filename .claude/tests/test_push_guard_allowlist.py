@@ -79,29 +79,21 @@ _MIN_CORPUS_COVERAGE = 10
 # gate; §L then made the VALUE a sequence of pieces so a quoted one glued to an
 # unquoted one (`A="a b"c git push`) cannot hide it either; §M then added `\n` to
 # the separator class so a push on its own line (`cd <wt>\ngit push`) — this
-# repo's commonest form — was invisible; §M(d) added the bash BACKGROUND operator
-# `&` (`sleep 5 & git push`, undetected and predating §M). §N then took `\n` back
-# OUT: newlines are handled by splitting before the match (`_push_search`), so the
-# pattern never sees one and the three ReDoS shapes §M had to chase became
-# unrepresentable. `blind_search` below mirrors that application — pinning the
-# pattern alone would no longer describe how the hook uses it. Same mutually
+# repo's commonest form — is no longer invisible; §M(d) added the bash BACKGROUND
+# operator `&` (`sleep 5 & git push` was undetected, predating §M); §M(e) excluded
+# `\n` from the tail scan, which (a) had turned into a fresh O(n²). Same mutually
 # exclusive alternatives `guard_default_branch_bash._MUTATING` carries, kept
 # identical on purpose.
 _BLIND_PATTERN = (
-    r"(?:^|&&|[;|&])\s*(?:"
+    r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
     r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
-    r"\s+)*"
-    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r"[^\S\n]+)*"
+    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
-    r"git\b[^&;|]*\bpush\b"
+    r"git\b[^&;|\n]*\bpush\b"
 )
 _BLIND = re.compile(_BLIND_PATTERN)
-
-
-def blind_search(text: str) -> bool:
-    """§N: the pinned pattern applied the way the hook applies it — per LINE."""
-    return any(_BLIND.search(line) for line in text.split("\n"))
 
 
 def legacy_is_push(command: str) -> bool:
@@ -115,7 +107,7 @@ def blind_is_push(command: str) -> bool:
     """The blind first pass alone, without the allowlist releases."""
     if not command or "push" not in command:
         return False
-    return blind_search(command)
+    return bool(_BLIND.search(command))
 
 
 # --- corpus -----------------------------------------------------------------
@@ -1176,7 +1168,7 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
             if found < 0:
                 return out
             start = found + len(key)
-            end = pattern.index(r"\s+)*", start)
+            end = pattern.index(r"[^\S\n]+)*", start)
             out.append(pattern[start:end].replace('\\"', '"'))
             at = end
 
@@ -1404,87 +1396,6 @@ class BackgroundOperatorSeparatorTest(unittest.TestCase):
                     legacy_is_push(command),
                     "legacy missed these too — so the differential could never "
                     "have flagged them, hence this explicit class",
-                )
-
-
-class SplitThenMatchTest(unittest.TestCase):
-    """§N — newlines are handled by SPLITTING, not by the pattern.
-
-    §M added `\n` to the separator class and then needed three more fixes,
-    because a whole-command regex treats a structural boundary as ordinary text:
-    the env-value repetition ate it (30s), the post-separator whitespace
-    re-partitioned runs of it (62s), and the tail walked across it (14.7s).
-    Splitting first makes all three UNREPRESENTABLE — a line cannot contain a
-    newline — which is why this is a mechanism change and not a fourth patch.
-
-    What must hold: the pattern stays newline-free, redaction still runs on the
-    WHOLE command before the split, and detection is unchanged.
-    """
-
-    def test_the_pattern_does_not_mention_newline(self):
-        """The invariant §N buys. If a newline creeps back into the pattern, the
-        three ReDoS shapes become expressible again and the split is redundant
-        work on top."""
-        self.assertNotIn(
-            "\\n", guard._GIT_PUSH.pattern,
-            "a newline is back in the pattern — §N handles newlines in "
-            "`_push_search` instead; see the ReDoS history above it",
-        )
-
-    def test_redaction_runs_before_the_split(self):
-        """ORDER is load-bearing, and this is the input that proves it.
-
-        `_commit_heredoc_spans` finds the body by scanning the FULL text for the
-        opener and its terminator. Redact first and the body is blanked, so the
-        released heredoc stays released. Split first and each line is redacted
-        alone: no line holds both `<<'EOF'` and its terminator, no span is found,
-        and the `git push` line survives as a live-looking segment — the guard
-        would start blocking a commit whose MESSAGE happens to mention a push.
-
-        Both directions are asserted on the same input, because a fixture where
-        the two orders agree proves nothing about the order.
-        """
-        command = "git commit -F - <<'EOF'\ngit push\nEOF"
-
-        self.assertFalse(
-            guard._is_git_push(command),
-            "an inert commit-message heredoc must still be released",
-        )
-
-        split_first = any(
-            guard._GIT_PUSH.search(guard._redact_inert_text(line))
-            for line in command.split("\n")
-        )
-        self.assertTrue(
-            split_first,
-            "this fixture no longer distinguishes the two orders — the test "
-            "above would pass with the redaction moved after the split, i.e. it "
-            "would be vacuous. Find an input where they disagree.",
-        )
-
-    def test_detection_matches_the_whole_command_form_it_replaced(self):
-        """§N must not change WHAT is detected, only how newlines are handled.
-
-        Compares against the §M pattern applied the old way (whole command) over
-        the corpus: every entry must agree. That is the differential §N owes —
-        `_LEGACY_PATTERN` predates both and cannot answer it.
-        """
-        m_pattern = re.compile(
-            r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
-            r"(?:[A-Za-z_][A-Za-z0-9_]*="
-            r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
-            r"[^\S\n]+)*"
-            r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
-            r")"
-            r"git\b[^&;|\n]*\bpush\b"
-        )
-        for command, note, _reason in CORPUS:
-            with self.subTest(note=note, command=command):
-                m_says = bool("push" in command and m_pattern.search(command))
-                self.assertEqual(
-                    blind_is_push(command), m_says,
-                    f"{note}: §N's split disagrees with the §M whole-command "
-                    "pattern it replaced — detection was supposed to be unchanged",
                 )
 
 

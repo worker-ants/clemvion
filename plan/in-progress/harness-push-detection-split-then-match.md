@@ -1,49 +1,10 @@
 ---
 title: push 탐지를 split-then-match 로 뒤집을지 — 실측은 동등, 리스크는 release 경로
-worktree: harness-split-then-match-7e2b
+worktree: (unstarted)
 started: 2026-07-25
-completed: 2026-07-25
 owner: developer
 priority: P2
-status: complete
-spec_impact: none
 ---
-
-## ✅ 판정 결과 (2026-07-25): **전환** — 체크리스트의 "모두 안전" 조건 충족
-
-핵심 우려("release 경로 상호작용이 미지수")를 **전체 스위트 실행**으로 판정했다. 프로토타입을
-실제 훅에 넣고 656개를 돌리니 **652 passed / 4 failed**, 그 4건이 전부 이 파일 자신의
-**패턴 문자열 pin·앵커 부기**였다(`_BLIND_PATTERN` 비교, `_env_value_subpatterns` 의 `.index`
-앵커). 즉 동작 결함 **0**:
-
-| 우려했던 축 | 결과 |
-| --- | --- |
-| release 경로(`ReleaseTest`·`ReleaseRefusedTest`·`InputSizeCapTest`) | **26 passed** |
-| differential + floor(`DifferentialTest`·`GeneratedFloorTest`) | **12 passed** (277 subtests) |
-| backtracking(§M b·c·e 회귀 pin 포함) | **14 passed** |
-
-**순서가 유일한 실질 제약이었다**: `_commit_heredoc_spans` 는 전체 텍스트에서 opener 와
-terminator 를 찾으므로 **redact 를 먼저** 하고 split 해야 한다. 이 계약을 테스트로 고정했다
-(`test_redaction_runs_before_the_split`) — 뒤집으면 heredoc 이 release 되지 않아 커밋 메시지가
-push 를 언급했다는 이유로 차단된다.
-
-### §M 이 쫓던 세 형태가 이제 표현 불가
-
-| 형태 | §M 초안 | §M 최종 | §N |
-| --- | --- | --- | --- |
-| (b) `A=v\n` 런 | 30,000 ms | 5 ms | **1.4 ms** (20k) |
-| (c) 개행 런 | 62,000 ms | 4 ms | **1.1 ms** |
-| (e) `git` 줄 런 | 14,717 ms | 2.4 ms | **8.9 ms** |
-| (d) `&` 런 | — | — | **4.8 ms** |
-
-네 형태 모두 20k→40k 에서 배율 **1.9~2.1x**(완전 선형). 수치 자체보다 중요한 것은 **줄에는
-개행이 없어서 세 결함이 애초에 표현될 수 없다**는 점이다 — 네 번째 패치가 아니라 메커니즘 교체다.
-
-### 부수 효과
-
-`guard_default_branch_bash._MUTATING` 의 §M(b) 파생 narrowing(`[^\S\n]+`)도 **원복**했다.
-그건 `_GIT_PUSH` 가 `\n` 을 품는 동안 byte-identical 을 유지하려고 넣은 것이라 §N 이후 존재
-이유가 사라졌다(그 훅은 원래부터 split 기반이라 동작에는 무관했다).
 
 ## Overview
 
@@ -88,15 +49,12 @@ push 를 언급했다는 이유로 차단된다.
 
 ## 체크리스트
 
-- [x] release 경로 상호작용 실측 — **26 passed, 변경 없음**. 단 `redact → split` 순서가
-      load-bearing 임을 발견하고 계약으로 고정(양쪽이 갈리는 fixture 로 비-vacuity 확인).
-- [x] `_LEGACY_PATTERN` floor 대비 differential — floor 는 §N 이전을 답할 수 없으므로
-      **§M 패턴을 옛 방식(전체 매칭)으로 재구성해 corpus 전수 비교**하는 테스트를 신설
-      (`test_detection_matches_the_whole_command_form_it_replaced`, 57 subtests).
-- [x] `BlindPassFrozenTest` 규약 — pin 은 유지하되 **적용 방식까지 미러**하도록 `blind_search`
-      신설(패턴만 고정하면 훅이 그것을 어떻게 쓰는지를 더는 기술하지 못한다).
-      "DO NOT EDIT" 는 "**`\n` 을 다시 넣지 말 것**" 으로 대체 — `test_the_pattern_does_not_mention_newline` 이 강제.
-- [x] 셋 모두 안전 → **전환 완료**.
+- [ ] release 경로 상호작용 실측 — heredoc 소유권 판정이 세그먼트 분할 후에도 동일한가
+      (`ReleaseTest`·`ReleaseRefusedTest`·`InputSizeCapTest` 전수를 split 프로토타입으로)
+- [ ] `_LEGACY_PATTERN` floor 대비 differential 재정의 — floor 는 "전체 텍스트 스캔" 전제다
+- [ ] `BlindPassFrozenTest`/"DO NOT EDIT this pattern" 규약을 어떻게 바꿀지 결정
+- [ ] 위 셋이 모두 안전으로 나오면 전환, 하나라도 새 표면이면 **won't-do 로 종결**하고
+      근거를 두 훅 주석에 고정
 
 ## Rationale
 

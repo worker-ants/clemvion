@@ -155,76 +155,82 @@ except Exception as exc:  # noqa: BLE001
 # direction. Widening a release path needs its own justification
 # (`ReleasePathNarrownessTest` pins the current behaviour).
 #
-# §M (2026-07-24/25) fixed a real bypass here and then §N REPLACED the mechanism.
-# The history matters, because the reason for §N is the SHAPE of §M's aftermath.
+# FIXED (§M, 2026-07-25) — TWO coupled changes; the second is not optional.
 #
-# §M's defect: the separator class listed `^ && ; |` but NOT `\n`, so a push on
-# its own line — `cd <worktree>\ngit push`, this repo's commonest form — was
-# invisible. `main()` returned 0 with neither gate run nor a fail-open banner: a
-# working bypass from the pattern's inception (the LEGACY floor missed it too).
-# It also lacked `&`, the bash BACKGROUND operator (`sleep 5 & git push`).
+# (a) The separator class listed `^ && ; |` but NOT `\n`, so a push on its OWN
+# LINE — after any command that is not itself `git …push` — was invisible to the
+# blind pass: `main()` returned 0 with neither gate run nor a fail-open banner.
+# That is this repo's most common push form (`cd <worktree>\ngit push …`), a
+# working bypass of BOTH gates from the pattern's inception (the LEGACY floor
+# missed it too). The sibling `_SEGMENT_SPLIT` below AND `guard_default_branch_
+# bash`'s already list `\n`; the push detector was the lone omission — which is
+# why the default-branch guard fired on the same multi-line commands while this
+# one stayed silent (that guard splits on separators first, this one matches the
+# whole string). The corpus's only newline case (`git add -A\ngit push`) matched
+# by ACCIDENT — its preceding `git` let `git\b[^&;|]*\bpush\b` walk across the
+# newline — hiding the gap from every differential test.
 #
-# §M added both to the class. Adding `\n` then cost THREE more fixes, because a
-# newline is not just another character to a regex that scans whole commands:
+# (b) But adding `\n` to the separator ALONE re-introduced a §L-class ReDoS. The
+# env-value repetition closed on `\s+`, which MATCHES `\n`, so `A=v\n` had two
+# parses — an env assignment ending in `\s+=\n`, OR a separator `\n` starting a
+# fresh segment. Both stay viable at every repetition, and on a failing tail the
+# engine explores them all: measured `A=v\n`×20000 + a non-push tail = 30s (a
+# frozen PreToolUse gate → the very fail-open §J/§L exist to prevent). MULTILINE
+# `^` does NOT fix this — it makes the boundary zero-width but `\s+` still eats
+# the newline, so the two parses remain (measured: still 30s). The fix is to make
+# them DISJOINT: the env-value repetition now closes on `[^\S\n]+` (whitespace
+# EXCEPT newline), so a newline can ONLY be a separator, never part of an
+# assignment. `A=v\n`×20000 + tail is then 5ms. `guard_default_branch_bash`
+# splits on `\n` before matching, so its segments never contain one — the same
+# `[^\S\n]+` there is behaviourally identical, and keeping the two byte-identical
+# is what `EnvValueSubpatternSharedTest` enforces.
 #
-#   (b) the env-value repetition closed on `\s+`, which matches `\n`, so `A=v\n`
-#       had two parses and a failing tail explored them all — 30s.
-#   (c) the `\s*` after the separator re-consumed each newline run from every one
-#       of its K possible starts — O(K²), 62s.
-#   (e) the tail `[^&;|]*` crossed newlines, so every `git`-prefixed line became a
-#       match start that re-scanned the remainder — O(n²), 14.7s.
+# (c) The SAME narrowing is required on the `\s*` that follows the separator, and
+# the first §M draft missed it — /ai-review caught it as a CRITICAL. Once `\n` is
+# a separator, a run of K newlines offers K distinct match STARTS, and a `\s*`
+# there re-consumes (then gives back) the rest of the run at every one of them:
+# O(K²). Measured on the draft: 16k newlines = 6.3s, 50k = 62s — input ×2, time
+# ×4. Narrowing it to `[^\S\n]*` makes the newline belong to exactly one starting
+# position (50k = 4ms) and changes nothing about what matches: a blank line or an
+# indented continuation is still found, because a LATER newline in the run
+# supplies the separator (`cd /x\n\n  git push` still matches — pinned in
+# `NewlineSeparatorTest`).
 #
-# Three defects, one root: the pattern treated a STRUCTURAL boundary as ordinary
-# text. Each fix was correct and measured, but they were patches on a mechanism
-# that keeps producing the same class.
+# NOT DONE, deliberately: the review also suggested truncating to
+# `_MAX_REDACTION_INPUT` before this first `search`. That would introduce a fresh
+# BYPASS — `echo <16KB of padding>\ngit push` truncates to text with no push in
+# it, so `_is_git_push` returns False and BOTH gates skip (measured). The cap
+# exists only on the RELEASE path below, where exceeding it returns True (block)
+# — the safe direction. A length cap may never gate DETECTION.
 #
-# §N (2026-07-25) inverts it: SPLIT on newlines first, then match each line —
-# exactly what `guard_default_branch_bash` has always done, and what
-# `_SEGMENT_SPLIT` below already does for heredoc ownership. A line cannot
-# contain a newline, so (b), (c) and (e) become UNREPRESENTABLE rather than
-# fixed; the pattern goes back to the §L text (plus §M's `&`) and no longer needs
-# `[^\S\n]` anywhere. Detection is unchanged — `_push_search` asks the same
-# question of each line that the old pattern asked of the whole command, and
-# `\n` is a separator by construction.
+# (d) `&` — the bash BACKGROUND operator — was never in the separator class, so
+# `sleep 5 & git push` and `npm run build & git push` were not detected at all
+# (measured): the same total gate skip as §J/§L/§M(a), just spelled with a
+# different separator. It predates §M; `guard_default_branch_bash._SEGMENT_SPLIT`
+# has listed `&` all along, which is the sibling-comparison that should have
+# caught it three fixes ago. Note the `&&` alternative must stay AHEAD of the
+# class so a chain still matches at its first character.
 #
-# Order matters and is the one subtlety: redaction runs on the WHOLE command
-# before the split (see `_is_git_push`). `_commit_heredoc_spans` computes spans
-# against the full text, so splitting first would cut a heredoc body out from
-# under its owner. Redact, then split.
-#
-# Evidence this was safe, not just plausible: the release path is what made this
-# a judgement call rather than an obvious win, so it was measured before being
-# adopted — the entire suite ran against the prototype and every release,
-# differential, floor and backtracking test passed unchanged (652/656; the 4
-# failures were this file's own pattern-string pins, which §N updates).
-# SoR: plan/complete/harness-push-detection-split-then-match.md.
-#
-# DO NOT reintroduce `\n` into this pattern. It is `_push_search`'s job now.
+# (e) The tail `[^&;|]*` did not exclude `\n`, and once (a) made `\n` a
+# separator that turned into a fresh O(n²): every `git`-prefixed line is now a
+# match START, and from each one the tail scans across all remaining lines
+# looking for `push` before failing. Measured on the (a)–(c) state: 6k
+# `git log x\n` lines + a failing tail = 3.7s, 12k = 14.7s (×2 input → ×4 time);
+# before §M the same input was 2.8ms because only `^` could start a match. So
+# this is damage §M itself introduced, not a pre-existing wart. Excluding `\n`
+# there restores linearity (2.4ms) and costs nothing real: the tail was only ever
+# crossing lines by ACCIDENT — that accident is what made `git add -A\ngit push`
+# match before (a), and (a) now matches it properly via the separator.
+# SoR: plan/complete/harness-push-gate-did-not-fire.md.
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|[;|&])\s*(?:"
+    r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
     r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
-    r"\s+)*"
-    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r"[^\S\n]+)*"
+    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
-    r"git\b[^&;|]*\bpush\b"
+    r"git\b[^&;|\n]*\bpush\b"
 )
-
-
-def _push_search(text: str) -> bool:
-    """`_GIT_PUSH` against each LINE — the §N mechanism.
-
-    Newlines are handled here, structurally, instead of inside the pattern. That
-    is the whole point: a line never contains one, so the three ReDoS shapes §M
-    had to chase (`\s+` eating it, `\s*` re-partitioning a run, the tail walking
-    across it) cannot be expressed at all.
-
-    `str.split` is linear and allocates one list of slices; the per-line scans sum
-    to one pass over the input. Measured against the whole-command form on the
-    shapes that used to blow up: newline run 20k = 1.0ms (vs 1.7), env run 20k =
-    1.1ms (vs 4.8), git-line run 20k = 8.4ms (vs 8.3).
-    """
-    return any(_GIT_PUSH.search(line) for line in text.split("\n"))
 
 # Anything the shell expands makes a text region LIVE: a `push` inside one can
 # actually execute. `git commit -m "$(git push)"` really does push (round-2
@@ -459,7 +465,7 @@ def _is_git_push(command: str) -> bool:
     """
     if not command or "push" not in command:
         return False
-    if not _push_search(command):
+    if not _GIT_PUSH.search(command):
         return False  # blind pass says no — detection is unchanged from legacy.
     if len(command) > _MAX_REDACTION_INPUT:
         # Too big to analyse under a bounded time budget — block. This hook gates
@@ -479,11 +485,7 @@ def _is_git_push(command: str) -> bool:
         return True
     # Release ONLY if the match cannot survive removing provably-inert text —
     # i.e. it only ever lived inside a commit message or a grep pattern.
-    #
-    # Redact the WHOLE command, THEN split (§N). `_commit_heredoc_spans` computes
-    # its spans against the full text, so splitting first would cut a heredoc body
-    # away from the owner that justifies releasing it.
-    return bool(_push_search(_redact_inert_text(command)))
+    return bool(_GIT_PUSH.search(_redact_inert_text(command)))
 
 
 # ---------------------------------------------------------------------------
