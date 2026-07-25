@@ -1206,24 +1206,23 @@ export class Cafe24ApiClient {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     // node-cancellation.md §4 — cascade the execution's abortSignal into the
-    // controller this request actually watches. Without it a cancelled
-    // execution keeps waiting out `timeoutMs` on an in-flight call. §2.2: an
-    // already-aborted upstream aborts immediately, before the round trip.
-    // Identical to `http-request.handler.ts`; the listener is removed when the
-    // controller settles (timeout, completion, or this same abort) so a long
-    // upstream signal does not accumulate listeners across retries.
+    // controller this request watches, so a cancelled execution stops the
+    // in-flight call instead of waiting out `timeoutMs`. An already-aborted
+    // upstream aborts before the round trip.
+    //
+    // The listener is removed in `finally`, NOT off `controller.signal`'s abort
+    // event: a request that SUCCEEDS never aborts its controller, so that event
+    // never fires and every completed call would leave a listener on the
+    // execution-wide signal — and `executeWithRetry` recurses on 429/401, so
+    // retries multiply them.
     const upstream = opts.signal;
+    let onUpstreamAbort: (() => void) | undefined;
     if (upstream) {
       if (upstream.aborted) {
         controller.abort();
       } else {
-        const onUpstreamAbort = () => controller.abort();
+        onUpstreamAbort = () => controller.abort();
         upstream.addEventListener('abort', onUpstreamAbort, { once: true });
-        controller.signal.addEventListener(
-          'abort',
-          () => upstream.removeEventListener('abort', onUpstreamAbort),
-          { once: true },
-        );
       }
     }
 
@@ -1240,10 +1239,28 @@ export class Cafe24ApiClient {
       // `error(network)` 로 전이 (spec §6). recordNetworkFailure 내부에서
       // 실패하더라도 본 throw 는 그대로 진행 — caller 가 transport 오류로
       // 처리. 카운터 갱신 실패는 best-effort.
+      // A cancelled execution is not a transport fault. Two things follow, and
+      // both were wrong before: (1) §5.1 — the engine only classifies a node
+      // `cancelled` if AbortError reaches it, so wrapping it here would surface
+      // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
+      // let three cancelled sibling branches demote a healthy integration to
+      // `error(network)`. `upstream.aborted` is what separates a cancellation
+      // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
+      // its counter. Same shape as `database-query.handler.ts`.
+      if (
+        err instanceof Error &&
+        err.name === 'AbortError' &&
+        upstream?.aborted
+      ) {
+        throw err;
+      }
       await this.recordNetworkFailure(integration, err);
       throw new Cafe24TransportFailedError(err);
     } finally {
       clearTimeout(timer);
+      if (upstream && onUpstreamAbort) {
+        upstream.removeEventListener('abort', onUpstreamAbort);
+      }
     }
 
     const respHeaders = readHeaderMap(response.headers);

@@ -91,6 +91,78 @@ describe('Cafe24ApiClient', () => {
   // upstream `context.abortSignal` has to reach that controller so a cancelled
   // execution stops the in-flight HTTP call instead of waiting out the timeout.
   describe('abortSignal cascade (node-cancellation §4)', () => {
+    it('rethrows AbortError and does NOT count a network failure when the execution was cancelled', async () => {
+      // Two contracts in one place, both broken by the naive cascade:
+      //  · §5.1 — the engine classifies a node `cancelled` only if AbortError
+      //    reaches it. Wrapping it in a transport error routes to `port:'error'`
+      //    with `*_TRANSPORT_FAILED` instead.
+      //  · a cancellation is NOT a network fault. Counting it lets three
+      //    cancelled sibling branches (ParallelExecutor cancel-others-on-fail)
+      //    demote a healthy integration to `error(network)`.
+      const upstream = new AbortController();
+      const abortErr = Object.assign(new Error('aborted'), {
+        name: 'AbortError',
+      });
+      fetchMock.mockImplementationOnce(() => {
+        upstream.abort();
+        return Promise.reject(abortErr);
+      });
+
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        }),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+
+      // `update` is how recordNetworkFailure persists the counter.
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('still counts a network failure when the LOCAL timeout aborted the call', async () => {
+      // The boundary: distinguishing the two abort sources is the whole point.
+      // A timeout is a genuine transport fault and must keep its counter.
+      const upstream = new AbortController(); // never fires
+      const abortErr = Object.assign(new Error('timeout'), {
+        name: 'AbortError',
+      });
+      fetchMock.mockRejectedValueOnce(abortErr);
+
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        }),
+      ).rejects.toThrow();
+      expect(repo.update).toHaveBeenCalled();
+    });
+
+    it('removes the upstream listener when the call SUCCEEDS', async () => {
+      // The cleanup used to hang off `controller.signal`'s abort event, which
+      // never fires on success — so every completed call left a listener on the
+      // execution-wide signal, and retries multiplied them.
+      const upstream = new AbortController();
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        signal: upstream.signal,
+      });
+
+      const removeSpy = jest.spyOn(upstream.signal, 'removeEventListener');
+      upstream.abort();
+      // If the listener were still attached it would have aborted a controller
+      // belonging to a finished request. Nothing should be listening now.
+      expect(removeSpy).not.toHaveBeenCalled(); // no late cleanup either
+      expect(upstream.signal.aborted).toBe(true);
+    });
+
     it('aborts the in-flight fetch when the upstream signal fires', async () => {
       const upstream = new AbortController();
       let seen: AbortSignal | undefined;

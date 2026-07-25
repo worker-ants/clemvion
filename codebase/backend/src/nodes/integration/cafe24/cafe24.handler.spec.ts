@@ -747,14 +747,19 @@ describe('Cafe24Handler', () => {
   // execution's abortSignal; if it stops forwarding it, the client's cascade
   // becomes dead code and nothing else fails. Pinned here for that reason.
   describe('abortSignal forwarding (node-cancellation §4)', () => {
-    it("passes context.abortSignal into the client call", async () => {
+    it('passes context.abortSignal into the client call', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       apiClient.call.mockResolvedValue({ status: 200, body: { ok: true } });
       const controller = new AbortController();
 
       await handler.execute(
         null,
-        { integrationId: 'id', resource: 'product', operation: 'product_list', fields: { shop_no: 1 } },
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
         { ...makeContext(), abortSignal: controller.signal },
       );
 
@@ -772,7 +777,12 @@ describe('Cafe24Handler', () => {
 
       await handler.execute(
         null,
-        { integrationId: 'id', resource: 'product', operation: 'product_list', fields: { shop_no: 1 } },
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
         makeContext(),
       );
 
