@@ -86,6 +86,209 @@ describe('Cafe24ApiClient', () => {
     );
   });
 
+  // spec/conventions/node-cancellation.md §4 — the cascade pattern, including
+  // its already-aborted branch. (NOT §2.2: that section is about CPU-bound /
+  // immediate nodes, which is not what an HTTP client is.)
+  // The client already owns an AbortController for its per-call timeout; the
+  // upstream `context.abortSignal` has to reach that controller so a cancelled
+  // execution stops the in-flight HTTP call instead of waiting out the timeout.
+  describe('abortSignal cascade (node-cancellation §4)', () => {
+    it('does not accumulate upstream listeners across a 429 RETRY', async () => {
+      // The actual cause of the leak this fix addresses: the retry path
+      // RECURSES, so every completed attempt used to leave its listener behind
+      // on the execution-wide signal. A single-call test cannot see that — and
+      // the planned "extract a shared cascade helper" refactor could reintroduce
+      // it by hoisting setup out of the recursion.
+      //
+      // Observed through both attempts' signals: after the call resolves,
+      // aborting upstream must touch neither.
+      const upstream = new AbortController();
+      const seen: AbortSignal[] = [];
+      const capture = (_url: string, init: RequestInit) => {
+        seen.push(init.signal as AbortSignal);
+      };
+      fetchMock
+        .mockImplementationOnce((u: string, i: RequestInit) => {
+          capture(u, i);
+          return Promise.resolve(
+            makeJsonResponse(
+              {},
+              { status: 429, headers: { 'retry-after': '1' } },
+            ),
+          );
+        })
+        .mockImplementationOnce((u: string, i: RequestInit) => {
+          capture(u, i);
+          return Promise.resolve(makeJsonResponse({ products: [] }));
+        });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        signal: upstream.signal,
+      });
+
+      expect(seen).toHaveLength(2); // the retry really happened
+      upstream.abort();
+      expect(seen.map((s) => s.aborted)).toEqual([false, false]);
+    });
+
+    it('rethrows AbortError and does NOT count a network failure when the execution was cancelled', async () => {
+      // Two contracts in one place, both broken by the naive cascade:
+      //  · §5.1 — the engine classifies a node `cancelled` only if AbortError
+      //    reaches it. Wrapping it in a transport error routes to `port:'error'`
+      //    with `*_TRANSPORT_FAILED` instead.
+      //  · a cancellation is NOT a network fault. Counting it lets three
+      //    cancelled sibling branches (ParallelExecutor cancel-others-on-fail)
+      //    demote a healthy integration to `error(network)`.
+      const upstream = new AbortController();
+      const abortErr = Object.assign(new Error('aborted'), {
+        name: 'AbortError',
+      });
+      fetchMock.mockImplementationOnce(() => {
+        upstream.abort();
+        return Promise.reject(abortErr);
+      });
+
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        }),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+
+      // `update` is how recordNetworkFailure persists the counter.
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('still counts a network failure when the LOCAL timeout aborted the call', async () => {
+      // The boundary: distinguishing the two abort sources is the whole point.
+      // A timeout is a genuine transport fault and must keep its counter.
+      const upstream = new AbortController(); // never fires
+      const abortErr = Object.assign(new Error('timeout'), {
+        name: 'AbortError',
+      });
+      fetchMock.mockRejectedValueOnce(abortErr);
+
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        }),
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+      expect(repo.update).toHaveBeenCalled();
+    });
+
+    it('removes the upstream listener when the call SUCCEEDS', async () => {
+      // The cleanup used to hang off `controller.signal`'s abort event, which
+      // never fires on success — so every completed call left a listener on the
+      // execution-wide signal, and `executeWithRetry`'s 429/401 recursion
+      // multiplied them.
+      //
+      // Observed through the signal the fetch actually received: if the listener
+      // survived, aborting upstream AFTER the call would still abort that
+      // (already finished) request's controller.
+      const upstream = new AbortController();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        signal: upstream.signal,
+      });
+      expect(seen!.aborted).toBe(false);
+
+      upstream.abort();
+      expect(seen!.aborted).toBe(false);
+    });
+
+    it('aborts the in-flight fetch when the upstream signal fires', async () => {
+      const upstream = new AbortController();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        // Fire upstream WHILE the request is in flight — the cascade must
+        // forward it to the controller the fetch is actually watching.
+        upstream.abort();
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        signal: upstream.signal,
+      });
+
+      expect(seen).toBeDefined();
+      expect(seen!.aborted).toBe(true);
+    });
+
+    it('does not abort the fetch when the upstream signal stays open', () => {
+      // The mirror: a cascade that aborts unconditionally would pass the test
+      // above while breaking every ordinary call.
+      const upstream = new AbortController();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      return client
+        .call(integration, {
+          method: 'GET',
+          path: 'products',
+          signal: upstream.signal,
+        })
+        .then(() => {
+          expect(seen!.aborted).toBe(false);
+        });
+    });
+
+    it('aborts before issuing the request when the signal is ALREADY aborted', async () => {
+      // §4's already-aborted branch: the request goes out carrying a signal
+      // that is already aborted, so the transport tears it down immediately
+      // rather than waiting out `timeoutMs`. (The client has no early return —
+      // hence "carries an aborted signal", not "skips the call".)
+      const upstream = new AbortController();
+      upstream.abort();
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        signal: upstream.signal,
+      });
+
+      expect(seen!.aborted).toBe(true);
+    });
+
+    it('leaves the timeout path untouched when no upstream signal is given', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration();
+      await client.call(integration, { method: 'GET', path: 'products' });
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect((init.signal as AbortSignal).aborted).toBe(false);
+    });
+  });
+
   describe('credentials validation', () => {
     it('throws when mall_id missing', async () => {
       const integration = makeIntegration({

@@ -1,0 +1,24 @@
+# 동시성(Concurrency) 리뷰 — node-cancellation §4 cascade (Cafe24 / MakeShop)
+
+## 발견사항
+
+- **[CRITICAL]** 취소(AbortSignal cascade)가 "네트워크 장애"로 오분류되어 정상 integration 을 `error(network)` 로 강등시킬 수 있다
+  - 위치: `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts:1206-1247` (cascade 블록 1206-1228, `catch (err) { await this.recordNetworkFailure(integration, err); throw new Cafe24TransportFailedError(err); }` 는 1238-1243) / `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts:835-869` (cascade 블록 835-857, catch 는 867-868)
+  - 상세: 이번 diff 가 새로 여는 `opts.signal`(=`context.abortSignal`) cascade 는 `controller.abort()` 를 호출해 `this.fetchImpl(...)` 를 `AbortError` 로 reject 시킨다. 그런데 그 fetch 를 감싼 `try { ... } catch (err) { await this.recordNetworkFailure(integration, err); throw new Cafe24TransportFailedError(err); }` (makeshop 도 동일 구조) 는 **원인을 구분하지 않고** 모든 fetch 실패를 "transport/network 실패" 로 취급한다. `recordNetworkFailure` 는 `consecutiveNetworkFailures` 를 누적하고 3회째에 `integration.status='error', statusReason='network'` 로 DB 를 갱신 + `actionRequiredNotifier` 를 발사한다(`cafe24-api.client.ts:1108-1148`, `makeshop-api.client.ts:758` 부근 동일 패턴).
+    이 cascade 이전에는 이 catch 블록에 도달하는 원인이 실제 transport 문제(ECONNRESET 등)나 자체 `timeoutMs` 타임아웃뿐이었다. 이제는 **의도된 취소**(사용자 stop, workflow timeout, 특히 `ParallelExecutor` 의 cancel-others-on-fail 로 형제 브랜치가 함께 취소되는 경우)도 같은 카운터를 올린다. 게다가 §2.2 사전 체크 경로(`if (upstream.aborted) controller.abort();`)는 **이미 취소된 실행에서 무조건, 매번, 결정적으로** 이 catch 로 떨어진다 — race 가 아니라 100% 재현되는 경로다. 예: Parallel 노드에서 형제 브랜치 실패로 3개 이상의 Cafe24/MakeShop 호출이 동시에 cancel-others-on-fail 로 취소되면, 그 즉시 "3회 연속 네트워크 실패" 로 카운트되어 **정상 integration 이 즉시 `error(network)` 로 강등**되고 이후 모든 워크플로 실행이 막혀 사용자가 수동 재연결해야 한다.
+  - 제안: fetch 의 실패가 취소로 인한 것인지 먼저 판별한다 (`err instanceof DOMException && err.name === 'AbortError'`, 혹은 `controller.signal.aborted && !timedOut` 등으로 "누가 abort 했는지" 구분). 최소한 upstream(`opts.signal`) 이 원인인 abort 는 `recordNetworkFailure` 를 호출하지 않고 별도 에러(예: 기존에도 있는 취소용 에러 타입, 혹은 새 `Cafe24CancelledError`)로 분리해야 한다. 로컬 `timeoutMs` 타임아웃으로 인한 abort 만 기존처럼 네트워크 실패로 카운트하는 것이 spec §4/§2.2 의 "cascade 는 최대한 빨리 끊어주는 부수효과일 뿐, integration 건강 상태 판정에 영향을 주면 안 된다" 는 취지에 맞다.
+
+- **[WARNING]** 취소되지 않은(성공) 경로에서 upstream `abort` 리스너가 절대 해제되지 않는다 — 인라인 주석의 주장과 실제 코드가 어긋난다
+  - 위치: `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts:1208-1228`(cascade 등록) 및 `1245-1247`(finally, `clearTimeout(timer)` 뿐) / `codebase/backend/src/nodes/integration/makeshop/makeshop-api.client.ts:837-857`(cascade 등록) 및 `870-872`(finally)
+  - 상세: 새 주석은 "the listener is removed when the controller settles (timeout, completion, or **this same abort**)" 라고 단언하지만, 실제로 `controller.abort()` 가 호출되는 경로는 (1) `setTimeout` 타임아웃, (2) upstream abort cascade, (3) §2.2 사전-aborted 분기 셋뿐이다. **정상 성공 완료 시에는 `controller.abort()` 가 호출되지 않는다** — `finally` 블록은 `clearTimeout(timer)` 만 수행한다. 따라서 `controller.signal` 의 `'abort'` 이벤트가 절대 발화하지 않고, `upstream.removeEventListener('abort', onUpstreamAbort)` 클린업도 실행되지 않아 `onUpstreamAbort` 클로저가 **`context.abortSignal`(하나의 실행 전체에 걸쳐 공유되는 장수명 signal)에 영구히 누적**된다.
+    이 signal 은 한 Execution 안에서 여러 노드 호출(특히 Loop 안의 반복 호출)에 걸쳐 공유될 수 있고, 같은 client 호출 안에서도 429/401 재시도마다 `executeWithRateLimit`/`executeWithRetry` 가 재귀 호출되며 매번 새 `controller`+새 리스너를 등록한다(재시도 3회면 리스너 3개 누적). 성공적으로 끝난 호출이 많을수록 리스너가 계속 쌓이고, Node 의 `AbortSignal`(EventTarget 기반)은 동일 signal 에 리스너가 임계치(기본 10개)를 넘으면 `MaxListenersExceededWarning` 을 낼 수 있는 사례와 정확히 일치하는 패턴이다. 실제 fetch 취소를 못 시키는 것은 아니라 기능 정확성 문제는 아니지만, 실행이 길거나 반복 호출이 많은 워크플로에서 메모리/리스너 누적이 실행 종료 시점까지 무한정 자란다.
+    참고로 `codebase/backend/src/nodes/integration/http-request/http-request.handler.ts:400-423` 에 동일한(그리고 동일하게 틀린) 패턴이 이미 존재한다 — 이번 PR 은 이 결함을 고치지 않고 그대로 복제해 노출 표면을 3곳으로 늘렸다.
+  - 제안: `finally` 블록에서 성공/실패/타임아웃 여부와 무관하게 **항상** `upstream?.removeEventListener('abort', onUpstreamAbort)` 를 호출하도록 고친다(리스너 참조를 try 상위 스코프로 끌어올려서). `controller.signal` 의 abort 이벤트에 의존하는 간접 클린업 대신 `finally` 에서 직접 해제하면 "완료 시에도 해제된다" 는 주석의 의도가 실제로 보장된다. 세 파일(cafe24, makeshop, 그리고 기존 http-request.handler.ts) 모두 같은 수정이 필요하다.
+
+## 요약
+
+이번 변경은 `context.abortSignal` 을 Cafe24/MakeShop API 클라이언트의 자체 타임아웃 `AbortController` 에 cascade 시켜 취소 시 in-flight HTTP 호출을 즉시 중단시키려는 의도로, 배선 자체(handler → client 로 `signal` 전달, 이미 aborted 면 즉시 abort, 아니면 리스너 등록)는 방향이 맞고 `http-request.handler.ts` 의 기존 패턴과 대칭이다. 다만 두 가지 실질적인 동시성/자원관리 결함이 있다: (1) 취소로 인한 `AbortError` 가 fetch 실패를 처리하는 기존 catch 블록으로 무분별하게 흘러들어가 `recordNetworkFailure` 카운터를 오염시키고, §2.2 의 "이미 취소됐으면 즉시 abort" 경로는 이를 **결정적으로** 유발해 3회의 취소만으로 정상 integration 을 `error(network)` 로 강등시킬 수 있다(CRITICAL). (2) 성공적으로 끝나는 호출에서는 upstream 리스너가 해제되지 않아 실행 전체에서 공유되는 `context.abortSignal` 에 리스너가 계속 누적되는데, 새 코드의 주석은 이것이 "완료 시에도 해제된다" 고 잘못 단언하고 있다(WARNING) — 이는 `http-request.handler.ts` 에 이미 있던 동일 결함을 고치지 않고 두 곳 더 복제한 것이다. 두 문제 모두 재현 가능하고 테스트(신규 spec 4건×2)로는 포착되지 않는 영역(성공 경로 누적, 취소로 인한 상태 오염)이라 회귀 방지 커버리지가 없다.
+
+## 위험도
+
+HIGH

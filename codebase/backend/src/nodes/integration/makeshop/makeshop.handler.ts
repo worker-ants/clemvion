@@ -242,8 +242,23 @@ export class MakeshopHandler
           path,
           query,
           body,
+          // node-cancellation.md §4 — let a cancelled execution stop the
+          // in-flight HTTP call instead of waiting out the per-call timeout.
+          signal: context.abortSignal,
         });
       } catch (err) {
+        // node-cancellation.md §5.1 — a cancelled node must reach the engine as
+        // an AbortError. Mapping it here would return `port:'error'` +
+        // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
+        // runs and the node is recorded `failed` with no
+        // `execution.node.cancelled` event. Usage is logged first (above/below
+        // as in the ordinary path), then the error passes through untouched.
+        // Only a real AbortError — not `abortSignal.aborted` — so unrelated
+        // failures keep their D4 mapping. Same shape as
+        // `database-query.handler.ts`.
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw err;
+        }
         const durationMs = Date.now() - started;
         const errorOutput = this.mapClientErrorToOutput(
           err,
@@ -328,6 +343,18 @@ export class MakeshopHandler
         port: 'success',
       };
     } catch (err) {
+      // node-cancellation.md §5.1 — a cancelled node must reach the engine as
+      // an AbortError. Mapping it here would return `port:'error'` +
+      // `*_TRANSPORT_FAILED`, so `executeNode`'s `isAbortError` catch never
+      // runs and the node is recorded `failed` with no
+      // `execution.node.cancelled` event. Usage is logged first (above/below
+      // as in the ordinary path), then the error passes through untouched.
+      // Only a real AbortError — not `abortSignal.aborted` — so unrelated
+      // failures keep their D4 mapping. Same shape as
+      // `database-query.handler.ts`.
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw err;
+      }
       // D4 — pre-flight throws (MAKESHOP_UNKNOWN_OPERATION / MAKESHOP_MISSING_FIELDS
       // / MAKESHOP_INVALID_SHOP_UID / INTEGRATION_* / INTEGRATION_SERVICE_UNAVAILABLE)
       // all funnel through here into port:'error'.

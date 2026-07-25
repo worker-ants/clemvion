@@ -59,6 +59,12 @@ export interface MakeshopCallOptions {
   body?: Record<string, unknown>;
   /** Per-call timeout. Defaults to 30s. */
   timeoutMs?: number;
+  /**
+   * The execution's `context.abortSignal`, cascaded into this call's own
+   * timeout controller (node-cancellation.md §4). Absent for callers outside a
+   * node run (connection tests, token refresh) — the timeout still applies.
+   */
+  signal?: AbortSignal;
 }
 
 export interface MakeshopCallResult {
@@ -828,6 +834,27 @@ export class MakeshopApiClient {
     const timeoutMs = opts.timeoutMs ?? 30_000;
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    // node-cancellation.md §4 — cascade the execution's abortSignal into the
+    // controller this request watches, so a cancelled execution stops the
+    // in-flight call instead of waiting out `timeoutMs`. An already-aborted
+    // upstream aborts before the round trip.
+    //
+    // The listener is removed in `finally`, NOT off `controller.signal`'s abort
+    // event: a request that SUCCEEDS never aborts its controller, so that event
+    // never fires and every completed call would leave a listener on the
+    // execution-wide signal — and `executeWithRetry` recurses on 429/401, so
+    // retries multiply them.
+    const upstream = opts.signal;
+    let onUpstreamAbort: (() => void) | undefined;
+    if (upstream) {
+      if (upstream.aborted) {
+        controller.abort();
+      } else {
+        onUpstreamAbort = () => controller.abort();
+        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
+      }
+    }
+
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
@@ -837,10 +864,28 @@ export class MakeshopApiClient {
         signal: controller.signal,
       });
     } catch (err) {
+      // A cancelled execution is not a transport fault. Two things follow, and
+      // both were wrong before: (1) §5.1 — the engine only classifies a node
+      // `cancelled` if AbortError reaches it, so wrapping it here would surface
+      // `*_TRANSPORT_FAILED` on `port:'error'` instead; (2) counting it would
+      // let three cancelled sibling branches demote a healthy integration to
+      // `error(network)`. `upstream.aborted` is what separates a cancellation
+      // from the LOCAL `timeoutMs` abort — the timeout is a real fault and keeps
+      // its counter. Same shape as `database-query.handler.ts`.
+      if (
+        err instanceof Error &&
+        err.name === 'AbortError' &&
+        upstream?.aborted
+      ) {
+        throw err;
+      }
       await this.recordNetworkFailure(integration, err);
       throw new MakeshopTransportFailedError(err);
     } finally {
       clearTimeout(timer);
+      if (upstream && onUpstreamAbort) {
+        upstream.removeEventListener('abort', onUpstreamAbort);
+      }
     }
 
     const respHeaders = readHeaderMap(response.headers);
