@@ -574,6 +574,54 @@ describe('MakeshopHandler', () => {
   // execution's abortSignal; if it stops forwarding it, the client's cascade
   // becomes dead code and nothing else fails. Pinned here for that reason.
   describe('abortSignal forwarding (node-cancellation §4)', () => {
+    it('rethrows AbortError so the ENGINE can classify the node as cancelled', async () => {
+      // The client rethrows AbortError (bypassing its transport wrapper), but
+      // that only matters if the handler lets it through too. Swallowing it here
+      // maps to `port:'error'` + `*_TRANSPORT_FAILED`, and §5.1's `cancelled`
+      // classification in `executeNode` is never reached — so the node is
+      // recorded `failed` and no `execution.node.cancelled` event fires.
+      //
+      // Forwarding the signal (tested above) is only half the wiring; this is
+      // the other half, and it is invisible from the client's own suite.
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const abortErr = Object.assign(new Error('aborted'), {
+        name: 'AbortError',
+      });
+      apiClient.call.mockRejectedValue(abortErr);
+
+      await expect(
+        handler.execute(
+          null,
+          {
+            integrationId: 'id',
+            resource: 'product',
+            operation: 'get-product',
+            fields: {},
+          },
+          makeContext(),
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('still maps ordinary transport failures to the error port', async () => {
+      // The boundary: only AbortError bypasses D4. A real transport fault must
+      // keep returning an error-port output rather than throwing.
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockRejectedValue(new Error('ECONNRESET'));
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'get-product',
+          fields: {},
+        },
+        makeContext(),
+      );
+      expect(result.output.error).toBeDefined();
+    });
+
     it('passes context.abortSignal into the client call', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       apiClient.call.mockResolvedValue({ status: 200, body: { ok: true } });
