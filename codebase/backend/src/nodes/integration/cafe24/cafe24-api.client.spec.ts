@@ -144,9 +144,18 @@ describe('Cafe24ApiClient', () => {
     it('removes the upstream listener when the call SUCCEEDS', async () => {
       // The cleanup used to hang off `controller.signal`'s abort event, which
       // never fires on success — so every completed call left a listener on the
-      // execution-wide signal, and retries multiplied them.
+      // execution-wide signal, and `executeWithRetry`'s 429/401 recursion
+      // multiplied them.
+      //
+      // Observed through the signal the fetch actually received: if the listener
+      // survived, aborting upstream AFTER the call would still abort that
+      // (already finished) request's controller.
       const upstream = new AbortController();
-      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      let seen: AbortSignal | undefined;
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        seen = init.signal as AbortSignal;
+        return Promise.resolve(makeJsonResponse({ ok: true }));
+      });
 
       const integration = makeIntegration();
       await client.call(integration, {
@@ -154,13 +163,10 @@ describe('Cafe24ApiClient', () => {
         path: 'products',
         signal: upstream.signal,
       });
+      expect(seen!.aborted).toBe(false);
 
-      const removeSpy = jest.spyOn(upstream.signal, 'removeEventListener');
       upstream.abort();
-      // If the listener were still attached it would have aborted a controller
-      // belonging to a finished request. Nothing should be listening now.
-      expect(removeSpy).not.toHaveBeenCalled(); // no late cleanup either
-      expect(upstream.signal.aborted).toBe(true);
+      expect(seen!.aborted).toBe(false);
     });
 
     it('aborts the in-flight fetch when the upstream signal fires', async () => {
