@@ -1,14 +1,19 @@
 ---
-worktree: (unstarted)
+worktree: webchat-session-generations-ca88ae
 started: 2026-07-18
 owner: developer
+status: in-progress
 ---
+
+> **1차 slice 완료 (2026-07-24)** — 사용자 결정으로 **staleness 축만 먼저** 분리했다
+> (`useSessionGenerations`). 전체 추출은 열려 있다. §1차 slice 참고.
 
 # 웹채팅 위젯: `useWidget()` 세션 로직 `useEiaSession` 분리
 
-**상태**: 미착수. 리팩토링 백로그. 기능 변경 없음.
+**상태**: 1차 slice(staleness 축) 완료 — §1차 slice 참고. 나머지 슬라이스는 미착수.
+리팩토링 백로그. 기능 변경 없음.
 
-이 항목은 `webchat-boot-single-flight.md`(곧 `complete/` 이동)의 산문 이월에서 분리했다 — 그쪽에
+이 항목은 [`webchat-boot-single-flight.md`](../complete/webchat-boot-single-flight.md)(이동 완료)의 산문 이월에서 분리했다 — 그쪽에
 산문으로만 두면 plan 완료 이동 시 함께 묻힌다(형제 항목 `webchat-command-failure-is-not-termination.md`
 와 같은 처분. `--impl-done` 23_58_23 maintainability WARNING 이 이 항목만 노출돼 있음을 지적).
 
@@ -44,9 +49,14 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 
 ## 체크리스트
 
-- [ ] `useEiaSession` 훅 추출 (기능 무변경 — 순수 구조 이동)
-- [ ] 기존 테스트 전원 통과 유지(착수 시점 카운트 재확인) + 훅 단위 테스트 신설
-- [ ] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test)
+- [~] `useEiaSession` 훅 추출 — **1차 slice 만 완료**. staleness 축(`worldGenRef`·`bootGenRef`·
+      `unmountedRef` + `isStale`·`beginBootAttempt`·`cannotApplyConfig`·`isAttemptStale`)을
+      `useSessionGenerations` 로 분리. **나머지**(`establishConfig`/`applyConfig`/`start`/
+      `seedWaitingFromStatus`/`sendCommand`/`teardownSession`/스트림·토큰 배선)는 미착수.
+- [x] 기존 테스트 전원 통과 유지 + 훅 단위 테스트 신설 — 착수 시점 400 → **409**
+      (신규 훅 단위 8 + 구성 지점 참조 안정성 1), e2e 259 PASS. 기능 무변경.
+- [x] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test) — **가드 불필요로 결론**.
+      1차 slice 의 전용 파일 분리가 위험 자체를 없앴다(§1차 slice §부수 효과 참고).
 - [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
   `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
   3번째 seed→openStream 호출부가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 여지. 복원/시작
@@ -54,3 +64,72 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
   (현재는 두 호출부 모두 대칭 회귀 테스트로 고정돼 있어 비차단.)
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
 </content>
+
+
+## 1차 slice — staleness 축 분리 (2026-07-24)
+
+### 왜 이 묶음인가
+
+티켓의 분리 근거는 규모가 아니라 **"세션 라이프사이클 응집도 부족이 반복 결함의 온상"** 이다.
+그렇다면 가치는 줄 수가 아니라 **그 축의 응집도**에 있다. staleness 축은 이 파일이 9번 서로
+반대편 구멍을 낸 바로 그 자리이면서, 세 ref 와 네 판정자가 서로만 참조하는 **닫힌 묶음**이라
+경계가 명확하다(blast radius 최소). 1116 → **1009줄**.
+
+> **정정(리뷰 후)**: 최초 커밋의 "1117 → 1012줄" 은 **틀렸다**. 그때 파일에 `prettier --write`
+> 를 함께 돌려 재포맷 분이 감소분을 상쇄해 실제로는 1116 → **1118줄**(증가)이었고, 내가 적은
+> 수치는 어느 시점의 실측도 아니었다. documentation reviewer 가 실측으로 잡았다.
+> 재포맷을 되돌린 지금이 진짜 구조 변경분이다 — 1116 → **1009줄**, diff 328줄 → **133줄**
+> (`wc -l` · `git diff --numstat` 실측).
+>
+> **2차 정정**: 위 정정에 처음 적은 "1002줄 / diff 125줄" 도 틀렸다. 재구성 스크립트에서
+> `len(out)`(리스트 **원소** 수)을 셌는데 구조분해 블록이 8줄짜리 원소 **1개**여서 7줄이
+> 미계상됐고, diff 는 그 뒤 deps 편집 전에 잰 값이었다. 즉 두 번 다 "실측했다" 면서 **실제
+> 수량이 아닌 프록시를, 최종 상태가 아닌 중간 상태에서** 쟀다. 교훈은 "다시 재라" 가 아니라
+> **문서에 쓰는 그 시점에, 프록시가 아닌 `wc -l`/`numstat` 으로 잰다** 는 것.
+
+### 경계 판정 — `sessionEstablished()` 는 **제외**했다
+
+티켓은 이것도 추출 대상으로 열거했으나 제외한다. 그것은 `streamRef.current !== null` 이라
+**세대 축이 아니고**, `beginBootAttempt` JSDoc 이 *"boot 세대는 그 proxy 였고 **두 번 구멍이
+났다**"* 고 못박은 바로 그 혼동이다(18_39_11 함수 경계 / 00_51_53 no-op 재전송 고착).
+같이 묶으면 파일 이력이 분리하라고 말하는 두 축을 다시 합치게 된다.
+
+### 부수 효과 — JSDoc 인접성 위험이 구조적으로 해소됐다
+
+체크리스트의 "JSDoc 인접성 구조적 가드 검토" 는 **가드를 만들 필요 없이** 해소됐다: 원본에서
+선언 사이에 다른 ref 를 끼워 넣어 주석이 유실된 사고가 두 번 있었고(`pendingResetRef`→
+`bootGenRef`, `bootGenRef`→`unmountedRef`) 방어가 경고 주석뿐이었는데, 전용 파일로 옮기면
+**끼어들 것이 구조적으로 없다**. lint 가드보다 나은 해법이라 별도 가드는 만들지 않는다.
+
+### mutation 검증
+
+`cannotApplyConfig` 가 world 도 보게 만드는 뮤턴트(= 17_36_57 concurrency CRITICAL 재주입) →
+축 분리 테스트 **2건 RED**. 두 판정자가 같은 입력에서 갈리는 것을 직접 겨눈 테스트라, 통합
+테스트가 다른 이유로 통과하는 경우를 배제한다.
+
+### spec 증거 포인터 drift — planner 위임
+
+§3(재전송) 정본이 `use-widget.ts` → `use-session-generations.ts` 로 옮겨졌는데 `2-sdk.md` 의
+`code:` 는 여전히 옛 파일만 가리킨다. `spec-code-paths` 는 "1개 이상 매치" 만 보므로 **CI 가
+통과시킨다** — consistency checker 가 유일한 그물이었다. `developer` 는 `spec/` 쓰기 권한이
+없어 제안만 남긴다: [`spec-update-webchat-evidence-pointers.md`](spec-update-webchat-evidence-pointers.md).
+
+### 리뷰 후속 — 쓰기 측 캡슐화는 다음 slice 로
+
+읽기(판정자 4개)는 함수로 캡슐화됐지만 **쓰기**(world 무효화·unmount 플래그)는 raw ref 로
+노출돼 `use-widget.ts` 3곳이 `.current` 를 직접 mutate 한다. "무효화 지점은 셋뿐" 이라는
+불변식이 JSDoc 규율에만 기대고 모듈 인터페이스가 강제하지 못한다(architecture W2 ·
+security/maintainability 가 같은 지점을 INFO 로 확인).
+
+이번 slice 에서 닫지 않는다 — `invalidateWorld()`/`markUnmounted()` 를 도입하려면 세 호출부의
+호출 맥락(특히 `teardownSession` 이 config 확립 전엔 세대를 **올리면 안 되는** 조건)을 같이
+옮겨야 하는데, 그건 다음 slice 가 가져갈 `teardownSession`/`start` 본체와 붙어 있다. 지금
+쪼개면 인터페이스를 두 번 바꾸게 된다.
+
+- [ ] **(다음 slice)** `invalidateWorld()`/`markUnmounted()` 로 쓰기 측 대칭 캡슐화, raw ref 내부화
+
+### 남은 slice (미착수)
+
+`establishConfig`/`applyConfig`/`start`/`seedWaitingFromStatus`/`sendCommand`/`teardownSession` +
+스트림·토큰 배선. 착수 전 §선행 판단의 "토큰 타입을 훅 경계의 공개 계약으로 삼을지" 를
+다시 판정할 것 — 1차 slice 가 `BootAttempt` 를 export 했으므로 그 결정의 일부는 이미 내려졌다.
