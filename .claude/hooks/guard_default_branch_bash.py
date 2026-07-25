@@ -112,15 +112,16 @@ except Exception:
 # has the old `\S+` on purpose: that one is a RELEASE path, where a miss keeps
 # the command blocked.
 #
-# §M (2026-07-25): both branches now close on `[^\S\n]+` (whitespace except
-# newline), not `\s+`. `_GIT_PUSH` NEEDS this — it added `\n` to its separator
-# class, and had the repetition kept eating `\n` via `\s+` the two parses would
-# race into a ReDoS (see the §M note there). Here it is behaviourally identical:
-# `_SEGMENT_SPLIT` strips newlines before this pattern ever runs, so a segment
-# never contains one. Kept identical so the shared-subpattern test stays green.
+# §M (2026-07-25) briefly narrowed both branches to `[^\S\n]+`, purely to stay
+# byte-identical with `_GIT_PUSH` while THAT pattern carried `\n` in its
+# separator class and needed the newline kept out of the repetition. §N then
+# moved newline handling out of the pattern entirely — adopting this hook's own
+# split-then-match shape there — so the narrowing lost its reason and both are
+# back on `\s+`. It never mattered on this side either way: `_SEGMENT_SPLIT`
+# strips newlines before this pattern ever runs, so a segment never holds one.
 _MUTATING = re.compile(
     r"""
-    ^\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|'(?![^']*')|"(?!(?:\\.|[^"\\])*")|[^\s'"])*[^\S\n]+)*|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*)(?:
+    ^\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|'(?![^']*')|"(?!(?:\\.|[^"\\])*")|[^\s'"])*\s+)*|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*)(?:
         npm\s+(?:install|test|run|build|i\b|ci\b)
       | yarn\b
       | pnpm\b
