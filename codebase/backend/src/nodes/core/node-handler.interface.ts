@@ -228,12 +228,16 @@ export interface ExecutionContext {
    *    (in-flight 취소, best-effort — node-cancellation §2.1)
    *  - AI — Anthropic / OpenAI SDK 의 `signal` 옵션
    *  - Email — 사전 abort 체크만 (in-flight SMTP 중단은 의도적 best-effort 미채택)
+   *  - Cafe24 / MakeShop — client 의 per-call `AbortController` 로 cascade
+   *    (이미 aborted 면 즉시 abort, `finally` 에서 listener 해제 — HTTP 와 동일
+   *    패턴. 취소는 `recordNetworkFailure` 카운터에 넣지 않는다: 로컬 timeout
+   *    abort 와 `upstream.aborted` 로 구분)
    *  - signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 무시 가능 — best-effort
    *
    * 미설정 (= 활성 cancellation 컨텍스트 없음) 이면 노드는 평소처럼 동작.
    *
    * `chat-channel` 은 여기 해당하지 않는다 — 노드가 아니라 `webhook` 트리거의
-   * `config.chatChannel` 변형이고(1-data-model.md:230), 구현은
+   * `config.chatChannel` 변형이고(`Trigger.type` 표, spec/1-data-model.md), 구현은
    * `modules/chat-channel/**` 의 어댑터다. 그 어댑터는 `executionEvents$` 를
    * **구독해 외부 채널로 발송**하는 outbound 방향이라(CCH-AD-05) 노드 실행
    * 컨텍스트를 갖지 않으며 `abortSignal` 참조가 0건이다. 취소된 실행은 오히려
