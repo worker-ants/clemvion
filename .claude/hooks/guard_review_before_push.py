@@ -466,23 +466,55 @@ def _read_payload() -> dict:
 # spelled a continuation. Undoing the fold before matching restores it without
 # giving the tail its newline back.
 #
-# Deliberately blind, like everything else in this first pass: inside SINGLE
-# quotes a shell keeps `\<newline>` literal, so folding there is technically
-# wrong — but the error direction is EXTRA joining, i.e. more text reachable by
-# the pattern, i.e. over-detection. That is the safe direction, and refusing to
-# fold would need the quote parser this module has twice rejected.
-_LINE_CONTINUATION = "\\\n"
+# PARITY MATTERS, and the first version of this got it wrong (/ai-review caught
+# it as a CRITICAL). A backslash escapes the one after it, so only an ODD run
+# ends in a continuation:
+#
+#   `echo a\<LF>git push`     1 backslash  → continuation; ONE command runs
+#   `echo a\\<LF>git push`    2 backslashes → a literal `\`, then a REAL newline;
+#                             TWO commands run (verified by running it)
+#
+# A blind `.replace("\\\n", " ")` folded the second case too, deleting the
+# separator in front of `git push` — so the guard stopped seeing a push that
+# genuinely runs. Same parity reasoning, and the same shape, as `_ESCAPED_PIPE`
+# above; the trailing even run is preserved by the capture group.
+#
+# The replacement is EMPTY, not a space: the shell deletes both characters, so
+# `git pu\<LF>sh` is the single word `push`. A space would leave `pu sh` and keep
+# hiding it (also caught in that review).
+#
+# Still deliberately blind about quoting: inside SINGLE quotes a shell keeps
+# `\<newline>` literal, so folding there is technically wrong — but the error
+# direction is EXTRA joining, i.e. over-detection, which is the safe side, and
+# doing better needs the quote parser this module has twice rejected.
+# SoR: plan/complete/harness-push-detection-split-then-match.md.
+_LINE_CONTINUATION = re.compile(r"(?<!\\)((?:\\\\)*)\\\n")
+
+
+def _unfold_continuations(command: str) -> str:
+    """Join the lines the shell would join.
+
+    Cheap membership test first: most commands contain no backslash-newline at
+    all, and this runs on EVERY Bash call.
+    """
+    if "\\\n" not in command:
+        return command
+    return _LINE_CONTINUATION.sub(lambda m: m.group(1), command)
 
 
 def _is_git_push(command: str) -> bool:
     """True when this Bash command should be treated as a `git push`.
 
-    Blind first pass, then an enumerated allowlist that can only SUBTRACT.
+    Line continuations are folded first, then the blind pass runs, then an
+    enumerated allowlist that can only SUBTRACT.
     """
-    if not command or "push" not in command:
+    if not command:
         return False
-    # Join continued lines first — the shell already did (see _LINE_CONTINUATION).
-    command = command.replace(_LINE_CONTINUATION, " ")
+    # Fold BEFORE the `push` short-circuit: a continuation can split the word
+    # itself (`git pu\<newline>sh`), so the substring test would miss it.
+    command = _unfold_continuations(command)
+    if "push" not in command:
+        return False
     if not _GIT_PUSH.search(command):
         return False  # blind pass says no — detection is unchanged from legacy.
     if len(command) > _MAX_REDACTION_INPUT:

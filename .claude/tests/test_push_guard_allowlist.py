@@ -113,7 +113,7 @@ def blind_is_push(command: str) -> bool:
     """
     if not command or "push" not in command:
         return False
-    return bool(_BLIND.search(command.replace(guard._LINE_CONTINUATION, " ")))
+    return bool(_BLIND.search(guard._unfold_continuations(command)))
 
 
 # --- corpus -----------------------------------------------------------------
@@ -157,7 +157,7 @@ CORPUS: list[tuple[str, str, str | None]] = [
     # gate bypass. The whole-command pattern handles them for free, because its
     # quoted alternatives absorb any character including a newline.
     # Do not "simplify" detection into a line-oriented scan; this is the case
-    # that costs. SoR: plan/.../harness-push-detection-split-then-match.md.
+    # that costs. SoR: plan/complete/harness-push-detection-split-then-match.md.
     ('A="line1\nline2" git push', "literal newline inside a double-quoted value", None),
     # Line continuation: the shell deletes `\`+newline and joins the lines, so
     # this runs a push. §M(e) lost it when the tail stopped crossing newlines —
@@ -1464,6 +1464,47 @@ class LineContinuationTest(unittest.TestCase):
                     legacy_is_push(command),
                     "if legacy misses it too this is a gap, not a regression — "
                     "re-file the finding accordingly",
+                )
+
+    def test_even_backslash_run_is_not_a_continuation(self):
+        """/ai-review CRITICAL #1 on the first fold.
+
+        A backslash escapes the next one, so `echo a\\\\<LF>git push` is a
+        LITERAL backslash followed by a REAL newline — the shell runs TWO
+        commands (verified by running it). The first fold ignored parity and
+        deleted that newline, erasing the separator in front of `git push` and
+        hiding a push that genuinely runs. Folding must key on an ODD run.
+        """
+        for command in (
+            "echo a\\\\\ngit push",
+            "echo a\\\\\ngit push --force",
+            "cd /x\\\\\nA=v git push",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(
+                    guard._is_git_push(command),
+                    "an EVEN backslash run leaves a real newline separator — "
+                    "folding it away hides the push behind it",
+                )
+
+    def test_continuation_inside_the_word_is_joined(self):
+        """/ai-review CRITICAL #2 on the first fold.
+
+        The shell DELETES both characters, so `git pu\\<LF>sh` is the single
+        word `push`. The first fold replaced them with a SPACE (leaving `pu sh`)
+        and ran after the `"push" not in command` short-circuit, so the command
+        never even reached it. Both are fixed: empty replacement, folded first.
+        """
+        for command in (
+            "git pu\\\nsh origin main",
+            "git p\\\nu\\\ns\\\nh",
+            "git push --force-with-lea\\\nse",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(
+                    guard._is_git_push(command),
+                    "the shell joins these into a real `push`; the guard must "
+                    "see the same word",
                 )
 
     def test_unfolding_does_not_invent_a_push(self):

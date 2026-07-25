@@ -60,6 +60,11 @@ shell 이 실제로 하는 일(`\` + 개행 삭제 후 줄 잇기)을 탐지 전
 (`_LINE_CONTINUATION` unfold). tail 은 개행 제외를 유지하므로 §M(e) 의 선형성도 그대로다
 (네 형태 전부 배율 1.9~2.0x 재확인, replace 비용 50k 에서 0.5ms).
 
+첫 수정은 **또 틀렸다** — `\\` + 개행을 무조건 접어서(parity 무시) 짝수 백슬래시일 때
+진짜 개행 구분자를 지웠고, 치환을 공백으로 해서 `git pu\\<개행>sh` 가 `pu sh` 로 남았다.
+둘 다 리뷰가 CRITICAL 로 잡았고 실측(`bash` 실행 대조)으로 확증됐다. `_ESCAPED_PIPE` 가 쓰는
+parity 패턴 + 빈 문자열 치환 + early-return 이전 이동으로 고쳤다.
+
 `LineContinuationTest` 가 이것을 **회귀로** 고정한다 — "legacy 는 잡았다" 를 함께 단언하므로,
 누가 나중에 "알려진 갭" 으로 오분류하면 그 자리에서 반증된다.
 
@@ -113,12 +118,11 @@ shell 이 실제로 하는 일(`\` + 개행 삭제 후 줄 잇기)을 탐지 전
 
 ## 체크리스트
 
-- [ ] release 경로 상호작용 실측 — heredoc 소유권 판정이 세그먼트 분할 후에도 동일한가
-      (`ReleaseTest`·`ReleaseRefusedTest`·`InputSizeCapTest` 전수를 split 프로토타입으로)
-- [ ] `_LEGACY_PATTERN` floor 대비 differential 재정의 — floor 는 "전체 텍스트 스캔" 전제다
-- [ ] `BlindPassFrozenTest`/"DO NOT EDIT this pattern" 규약을 어떻게 바꿀지 결정
-- [ ] 위 셋이 모두 안전으로 나오면 전환, 하나라도 새 표면이면 **won't-do 로 종결**하고
-      근거를 두 훅 주석에 고정
+- [x] release 경로 상호작용 실측 — **통과했다**(26 passed). 이 축은 §N 을 막지 않았다.
+      막은 것은 **아무도 이 축을 의심하지 않던 곳**(따옴표 값 안의 개행)이었다.
+- [x] `_LEGACY_PATTERN` floor 대비 differential 재정의 — §N 용으로 신설했다가 revert 와 함께 제거.
+- [x] `BlindPassFrozenTest` 규약 — §N 이 폐기됐으므로 **기존 규약 유지**(변경 없음).
+- [x] 판정 → **won't-do**. "하나라도 새 표면" 조건에 해당(위 §결론).
 
 ## Rationale
 
