@@ -1,0 +1,57 @@
+---
+title: env-value 서브패턴이 4곳에 복제돼 있다 — 공유 상수로 뺄지 (import 실패 리스크와 상충)
+worktree: (unstarted)
+started: 2026-07-25
+owner: developer
+priority: P3
+---
+
+## Overview
+
+`review/code/2026/07/25/12_43_15` WARNING 2 (maintainability, side_effect 도 동일 관찰) 에서 분리.
+[`harness-push-gate-did-not-fire`](../complete/harness-push-gate-did-not-fire.md) §M 이 **세 번째**
+동기화 편집(§J → §L → §M)이었다는 지적이다.
+
+## 문제
+
+하나의 논리적 불변식(env-value 반복 + 닫는 whitespace)이 4곳에 손으로 복제돼 있다:
+
+| 위치 | 무엇 |
+| --- | --- |
+| `.claude/hooks/guard_review_before_push.py` `_GIT_PUSH` | 정본(차단 게이트) |
+| `.claude/hooks/guard_default_branch_bash.py` `_MUTATING` | byte-identical 요구 |
+| `.claude/tests/test_push_guard_allowlist.py` `_BLIND_PATTERN` | differential 기준선 pin |
+| `.claude/tests/test_guard_default_branch_bash_mutating.py` `_SPLIT_MARKER` | 경계 splice 앵커 |
+
+§M 에서 실제로 네 곳을 모두 손으로 고쳤다. `EnvValueSubpatternSharedTest` 가 drift 를 **사후에**
+잡지만, SoT 는 여전히 "N개 복사본 + 비교 테스트" 다.
+
+## 왜 이번 PR 에서 하지 않았나 (반대 근거 — 착수 전 반드시 읽을 것)
+
+리뷰 제안은 `_ENV_VALUE_CLOSER` 류 공유 상수를 `_lib/` 에 두고 두 훅이 import 하는 것이다.
+그런데 **정규식이 각 훅 파일 안에 있는 것은 의도된 설계**로 보인다:
+
+- 두 훅 모두 `_lib/*` import 실패를 **fail-open** 으로 흡수한다 —
+  `guard_default_branch_bash` 는 `sys.exit(0)`, `guard_review_before_push` 는 게이트별 degraded.
+- 그런데 **탐지 정규식이 `_lib` 에 있으면** import 실패 시 `_GIT_PUSH` 자체가 없어 훅이 크래시하고,
+  harness 의 "non-0/non-2 = allow" 규칙에 따라 **모든 push 가 무검증 통과**한다.
+- 즉 DRY 를 얻는 대신 **"공유 모듈 하나가 깨지면 게이트 전체가 조용히 사라지는"** 실패 모드를 만든다.
+  이 저장소가 §J·§L·§M·#1002·#1005 로 반복해서 닫아온 것이 정확히 "조용한 게이트 우회" 클래스다.
+
+## 그래서 판정이 필요하다
+
+- [ ] **(A) 현상 유지 + 근거 명문화** — 복제는 의도이고 drift 테스트가 안전망이라는 것을 두 훅
+      주석에 명시(현재는 "keep identical" 만 있고 **왜 공유 모듈이 아닌지**가 없다). 가장 저렴.
+- [ ] **(B) 부분 공유** — 테스트 2곳(`_BLIND_PATTERN`·`_SPLIT_MARKER`)만 `_harness` 에서 공유.
+      테스트는 import 실패해도 게이트가 아니라 **테스트가** 죽으므로 안전 방향이다. 훅 2곳은 복제 유지.
+- [ ] **(C) 전면 공유** — 훅까지 `_lib` import. import 실패 시 **fail-CLOSED**(exit 2) 로 바꿔야
+      위 리스크가 없어지는데, 그건 "가드가 깨지면 작업이 멈춘다" 는 정책 반전이라 별도 합의 필요.
+
+## Rationale
+
+**왜 P3.** 활성 결함이 아니다. drift 는 매번 테스트가 잡았고(§M 에서도 `_SPLIT_MARKER` 는
+IndexError 로, `_BLIND_PATTERN` 은 frozen-pin 으로 즉시 발각됐다), 비용은 "편집 시 4곳" 뿐이다.
+
+**왜 그래도 티켓인가.** 세 번 반복됐다는 관찰 자체는 옳고, 네 번째가 오면 그때는 안전망이
+없는 자리가 생길 수 있다. 최소한 (A) 는 해두는 것이 맞다 — **왜 복제인지**가 코드에 없으면
+다음 사람이 "정리" 라는 이름으로 (C) 를 해버릴 수 있다.

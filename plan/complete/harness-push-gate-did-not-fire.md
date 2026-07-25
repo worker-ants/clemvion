@@ -2,9 +2,11 @@
 title: push 게이트가 실제 push 에 발동하지 않았다 — 훅 로직은 정상, 호출이 안 걸림
 worktree: harness-push-newline-sep-a1c3
 started: 2026-07-24
+completed: 2026-07-25
 owner: developer
-status: in-progress
+status: complete
 priority: P1
+spec_impact: none
 ---
 
 ## ✅ 원인 규명 완료 (2026-07-25) — `_GIT_PUSH` separator prefix 에 `\n` 누락
@@ -71,7 +73,8 @@ git push -u origin claude/node-cancel-e2e-98b61f 2>&1 | tail -20
 
 **(b) env-value 반복의 닫는 whitespace `\s+` → `[^\S\n]+`** (개행 제외) — 이게 필수다.
 `\s+` 는 `\n` 을 먹으므로 `A=v\n` 이 **두 파싱**(assignment 끝 `\s+=\n` vs separator `\n`)을
-갖고, 실패 tail 에서 엔진이 전부 탐색 → **측정: `A=v\n`×20000 + tail = 30s** (freeze/fail-open).
+갖고, 실패 tail 에서 엔진이 전부 탐색 → **측정: `A=v\n`×20000 + tail = 30s** (freeze/fail-open;
+회귀 테스트는 그보다 큰 `_ENV_PREFIX_REPEATS`=40,000 으로 돈다).
 `[^\S\n]+` 로 닫으면 `\n` 은 오직 separator → **10ms**. 두 훅(`_GIT_PUSH`·`_MUTATING`)에
 byte-identical 적용(`EnvValueSubpatternSharedTest` 강제). default-branch 는 segment split 이라
 동작 불변.
@@ -92,7 +95,54 @@ byte-identical 적용(`EnvValueSubpatternSharedTest` 강제). default-branch 는
   로 pin. mutation: separator `\n` 제거 → 게이트 skip 재현(exit 0) RED.
 - `GeneratedFloorTest._TEMPLATES` 에 `\n` 축 추가 + `test_the_newline_separator_axis_is_generated`
   로 축 자체를 고정(앞줄 non-git 강제).
-- harness 전체 **644 passed**, 회귀 없음.
+- harness 전체 **646 passed**, 회귀 없음.
+
+## §M(c) — 리뷰가 잡은 CRITICAL: 같은 원칙을 한 자리 빠뜨렸다
+
+`/ai-review` (`review/code/2026/07/25/12_43_15`) 가 **CRITICAL** 1건을 냈고 실측으로 확증됐다.
+
+(b) 에서 env-value 반복의 `\s+` 만 좁히고, **separator 직후의 `\s*` 는 그대로 뒀다**. `\n` 이
+separator 가 된 이상 연속 개행 K개는 K개의 서로 다른 매치 **시작 위치**를 만들고, 그 직후의
+`\s*` 가 매 시작마다 나머지 런을 먹었다 되돌린다 → **O(K²)**.
+
+| 개행 런 | 초안(`\s*`) | 수정(`[^\S\n]*`) |
+| --- | --- | --- |
+| 4,000 | 400 ms | 0.3 ms |
+| 16,000 | 6,300 ms | 1.3 ms |
+| 50,000 | **62,000 ms** | 4 ms |
+
+입력 ×2 → 시간 ×4 (정확히 quadratic). 특수 공격이 아니라 **"push 라는 단어가 있는 대형 여러 줄
+명령 + 빈 줄"** 이면 재현된다 — 이 세션이 heredoc 으로 문서를 커밋하던 형태 그대로다.
+
+수정: separator 직후도 `[^\S\n]*`. 정확성은 불변 — 빈 줄·들여쓰기·탭이 섞여도 **런의 나중
+개행**이 separator 를 공급하므로 `cd /x\n\n  git push` 는 여전히 탐지된다(9/9 케이스 동일,
+`NewlineSeparatorTest` 에 고정).
+
+### 리뷰어의 2차 제안은 **거부**했다 — 새 우회를 만든다
+
+같은 CRITICAL 이 "첫 `_GIT_PUSH.search` 전에도 `_MAX_REDACTION_INPUT` 절단을 이중 적용" 을
+제안했다. 실측으로 반증:
+
+```
+echo <16KB 패딩>\ngit push -u origin main
+  현재(절단 없음) : _is_git_push = True   ← 차단
+  제안대로 절단    : search      = False  ← push 가 잘려 미탐지 = 두 게이트 skip
+```
+
+길이 캡은 **release 경로**에만 있고 초과 시 `return True`(차단, 안전 방향)다. 그것을 **탐지**
+경로로 옮기면 "캡 넘게 패딩하고 뒤에 push" 가 통과한다 — §M 이 닫으려는 바로 그 침묵 skip
+클래스다. 선형성은 **패턴에서** 사는 것이지 입력을 안 읽어서 얻는 게 아니다.
+`test_oversized_command_is_not_truncated_before_detection` 이 이 결정을 고정한다.
+
+### §M(c) 검증
+
+- `BacktrackingTest.test_newline_run_before_a_failing_tail_stays_linear` (50k 개행).
+  mut: `[^\S\n]*`→`\s*` → **10s timeout RED**.
+- `InputSizeCapTest.test_oversized_command_is_not_truncated_before_detection`.
+  mut: 제안대로 절단 적용 → **RED**(우회 재현).
+- `test_only_the_newline_was_excluded_from_the_whitespace` — 탭·formfeed 는 여전히 소비됨을
+  고정(잘못된 문자 클래스로 좁히면 false negative = 게이트 우회이므로).
+- 관련 4 스위트 **158 passed**.
 
 ### 관측 가능성 (§체크리스트 4번) — 별도 판단
 
@@ -100,6 +150,15 @@ byte-identical 적용(`EnvValueSubpatternSharedTest` 강제). default-branch 는
 밖**으로 남긴다 — push 가 실제 push 인지 판정하는 게 바로 이 정규식이라, 정규식이 틀리면
 사후 탐지도 같은 사각지대를 공유한다. 진짜 독립 방어는 훅에 의존하지 않는 CI 층
 ("리뷰 없는 codebase 변경 PR 차단")인데, 그건 설계 결정이라 별 티켓으로 분리한다.
+
+---
+
+# 조사 일지 (2026-07-24) — 아래부터는 **당시 기록**이며 일부 전제는 반증됐다
+
+아래 §Overview·§실측 은 원인이 밝혀지기 **전**의 서술이라 "훅이 아예 안 돈다" 는 가설을 담고
+있다. 그 가설은 §전제 정정 에서 한 번, 위 §원인 규명 에서 최종적으로 반증됐다(훅은 발동했고,
+탐지가 실패했다). 결론만 필요하면 위 세 절로 충분하고, 아래는 **어떤 순서로 틀렸는지**가
+필요할 때 읽는다 — 이 저장소가 반복 학습한 "전제부터 실측하라" 의 사례 기록이라 남긴다.
 
 ## Overview
 
@@ -206,9 +265,11 @@ exit 2 가 나왔다 — 즉 텍스트만으로는 재현되지 않는다). 그�
 - [x] 원인은 하네스 **안**(정규식)이었음 — "플랫폼 밖" 분기 아님. 훅은 발동했고, 탐지가 실패했다.
 - [x] 수정(§M: separator `\n` + env-value `[^\S\n]+`) + 회귀 테스트(`NewlineSeparatorTest`·
       `BacktrackingTest`·`GeneratedFloorTest` 축·main 통합) + mutation 4종.
-- [~] **관측 가능성 / CI 독립 방어** → 별 티켓 [`harness-review-gate-ci-backstop`](harness-review-gate-ci-backstop.md)
-      로 분리. 훅 정규식이 유일한 판정자인 한 사후 탐지도 같은 사각지대를 공유하므로, 진짜
-      독립층은 훅에 의존하지 않는 CI 이며 그건 설계 결정이다.
+- [x] **관측 가능성 / CI 독립 방어** → 별 티켓
+      [`harness-review-gate-ci-backstop`](../in-progress/harness-review-gate-ci-backstop.md)
+      로 **분리 완료**. 훅 정규식이 유일한 판정자인 한 사후 탐지도 같은 사각지대를 공유하므로,
+      진짜 독립층은 훅에 의존하지 않는 CI 이며 그건 설계 결정이다.
+- [x] `/ai-review` CRITICAL 1 + WARNING 2 조치 (§M(c) 아래)
 
 ## 관련
 

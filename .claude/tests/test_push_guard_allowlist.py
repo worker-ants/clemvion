@@ -83,7 +83,7 @@ _MIN_CORPUS_COVERAGE = 10
 # alternatives `guard_default_branch_bash._MUTATING` carries, kept identical on
 # purpose.
 _BLIND_PATTERN = (
-    r"(?:^|&&|[;|\n])\s*(?:"
+    r"(?:^|&&|[;|\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
     r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
     r"[^\S\n]+)*"
@@ -670,7 +670,8 @@ class BacktrackingTest(unittest.TestCase):
         assignment whose `\\s+` close ATE the newline, or a separator `\\n`
         starting a fresh segment. With `\\s+` both stay viable at every
         repetition and a failing tail re-partitions the whole run — measured
-        `A=v\\n`×20000 + tail ≈ 30s, a frozen PreToolUse gate. MULTILINE `^` does
+        `A=v\\n`×20000 + tail ≈ 30s, a frozen PreToolUse gate (this test runs
+        `_ENV_PREFIX_REPEATS`, larger still, so it separates by more). MULTILINE `^` does
         NOT fix it: the `\\s+` still eats the newline, so the two parses remain
         (measured, still ≈30s). Closing the repetition on `[^\\S\\n]+` makes a
         newline ONLY ever a separator, so the rival cannot form (≈10ms). Fails
@@ -683,6 +684,36 @@ class BacktrackingTest(unittest.TestCase):
             "matches `\\n` and races the new `\\n` separator into a rival parse. "
             "Close it on `[^\\S\\n]+` (whitespace except newline) so a newline is "
             "only ever a separator — MULTILINE `^` does not fix this.",
+        )
+
+    # Sized from a measured old-vs-new comparison on the §M draft, like every
+    # other constant here: 16k newlines took 6.5s and 50k took 62s (input ×2 →
+    # time ×4, i.e. quadratic), against 4ms for the shipped pattern. 50k is the
+    # first size that is decisively past the 10s timeout on the broken form.
+    _NEWLINE_RUN = 50_000
+
+    def test_newline_run_before_a_failing_tail_stays_linear(self):
+        """§M(c) — the CRITICAL /ai-review found in the first §M draft.
+
+        Making `\\n` a separator gives a run of K newlines K distinct match
+        STARTS. The `\\s*` that followed the separator then re-consumed and gave
+        back the rest of the run at every one of them — O(K²). Narrowing it to
+        `[^\\S\\n]*` binds each newline to a single starting position.
+
+        This shape needs no crafting: any large multi-line Bash command that
+        contains the word "push" and a run of blank lines hits it, and this hook
+        gates every Bash call synchronously. It is also NOT protected by
+        `_MAX_REDACTION_INPUT` — that cap sits on the release path, AFTER this
+        first `search` (see `test_oversized_command_is_not_truncated_before_
+        detection` for why the cap must not be moved earlier).
+        """
+        self._assert_finishes(
+            ("\n" * self._NEWLINE_RUN) + "echo push",
+            f"a run of {self._NEWLINE_RUN} newlines before a non-matching tail",
+            "the whitespace after the separator went back to `\\s*`, which eats "
+            "newlines and re-partitions the run at every one of the K possible "
+            "starts. Keep it `[^\\S\\n]*` so a newline belongs to exactly one "
+            "starting position.",
         )
 
     # The shapes below are EXPONENTIAL, not quadratic, so unlike
@@ -767,6 +798,28 @@ class InputSizeCapTest(unittest.TestCase):
         self.assertTrue(
             guard._is_git_push(command),
             "an oversized command must block rather than be released",
+        )
+
+    def test_oversized_command_is_not_truncated_before_detection(self):
+        """The cap may bound the RELEASE path and nothing else.
+
+        The §M review suggested also truncating to `_MAX_REDACTION_INPUT` before
+        the first `_GIT_PUSH.search`, as a second line of defence against a slow
+        scan. That was REJECTED because it manufactures a bypass, which this
+        pins: with padding past the cap and a real push after it, truncation
+        leaves text containing no push at all, so `_is_git_push` would return
+        False and BOTH gates would skip — the exact silent-skip class §M exists
+        to close. Exceeding the cap must keep meaning "block" (safe direction),
+        never "stop looking". Linearity is bought in the PATTERN
+        (`test_newline_run_before_a_failing_tail_stays_linear`), not by refusing
+        to read the input.
+        """
+        command = "echo " + "x" * guard._MAX_REDACTION_INPUT + "\ngit push -u origin main"
+        self.assertGreater(len(command), guard._MAX_REDACTION_INPUT)
+        self.assertTrue(
+            guard._is_git_push(command),
+            "a real push after cap-exceeding padding must still be detected — "
+            "if this fails, detection was made to depend on a length cap",
         )
 
     def test_same_command_under_the_cap_is_released(self):
@@ -1040,6 +1093,20 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
             "the first round.",
         )
 
+    def test_only_the_newline_was_excluded_from_the_whitespace(self):
+        """§M narrowed two whitespace tokens from `\\s` to `[^\\S\\n]`. That must
+        exclude the NEWLINE and nothing else — a wrong character class (say
+        `[ ]`) would silently stop recognising tab-separated forms, which is a
+        false NEGATIVE and therefore a gate bypass, not a cosmetic loss."""
+        for command, note in (
+            ("A=v\tgit push", "tab between an env assignment and git"),
+            ("A=v \t git push", "mixed spaces and tabs"),
+            ("cd /a\n\tgit push", "tab indent after a newline separator"),
+            ("A=v\x0cgit push", "formfeed — still whitespace, still consumed"),
+        ):
+            with self.subTest(note=note):
+                self.assertTrue(guard._is_git_push(command), note)
+
     def test_the_alternation_is_escape_aware(self):
         subs = self._env_value_subpatterns(guard._GIT_PUSH.pattern)
         self.assertIn(
@@ -1131,7 +1198,7 @@ class NewlineSeparatorTest(unittest.TestCase):
         git push -u origin <branch>
 
     It reproduced from the real command that slipped through (see
-    `plan/.../harness-push-gate-did-not-fire.md`): a `cd`, a heredoc commit, an
+    `plan/complete/harness-push-gate-did-not-fire.md`): a `cd`, a heredoc commit, an
     `echo`, then the push on its own line. `default-branch` guard caught its
     commits because it splits on `_SEGMENT_SPLIT` (which HAS `\\n`) first; this
     hook matched the whole command in one go, so the missing `\\n` was fatal.
@@ -1156,6 +1223,14 @@ class NewlineSeparatorTest(unittest.TestCase):
         "echo hi\ngit push",
         'echo "=== push ==="\ngit push -u origin claude/x 2>&1 | tail -20',  # real repro
         "cd /a\nGIT_SSH=k git push",  # newline separator THEN an env prefix
+        # §M(c): narrowing the post-separator whitespace to `[^\S\n]*` must not
+        # cost these — a LATER newline in the run supplies the separator, and
+        # ordinary (non-newline) indentation is still consumed.
+        "cd /a\n\n\ngit push",  # blank lines between
+        "cd /a\n  git push",  # indented continuation
+        "cd /a\n\n   git push",  # blank line AND indent
+        "cd /a\n\tgit push",  # tab indent — only NEWLINE was excluded
+        "cd /a\n\n\tA=v git push",  # blank line, tab, then an env prefix
     )
 
     def test_newline_separated_push_is_detected(self):

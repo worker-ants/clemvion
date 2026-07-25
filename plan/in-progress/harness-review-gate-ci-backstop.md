@@ -8,7 +8,7 @@ priority: P2
 
 ## Overview
 
-[`harness-push-gate-did-not-fire`](harness-push-gate-did-not-fire.md) §M 에서 분리.
+[`harness-push-gate-did-not-fire`](../complete/harness-push-gate-did-not-fire.md) §M 에서 분리.
 그 티켓은 push 탐지 정규식의 결함(newline separator 누락)을 고쳤다. 이 티켓은 그 근본 수정이
 **닫지 못하는** 층을 다룬다.
 

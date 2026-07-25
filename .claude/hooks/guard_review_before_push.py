@@ -143,7 +143,8 @@ except Exception as exc:  # noqa: BLE001
 #
 # No alternative shares a first character with another, so a value has exactly
 # one parse; and no piece can START with whitespace, so giving a piece back can
-# never let the following `\s+` succeed. Branch 2 is unambiguous for the same
+# never let the following separator token succeed (that token is `[^\S\n]+` since
+# §M below — the argument holds for either spelling). Branch 2 is unambiguous for the same
 # reason. Measured, not asserted: every shape above is under 45ms at 40k
 # repetitions, and `BacktrackingTest` pins the rival-parse shape that used to
 # hang. Branch 2 is also why `A='x git push` still matches — that unclosed-quote
@@ -182,10 +183,28 @@ except Exception as exc:  # noqa: BLE001
 # assignment. `A=v\n`×20000 + tail is then 5ms. `guard_default_branch_bash`
 # splits on `\n` before matching, so its segments never contain one — the same
 # `[^\S\n]+` there is behaviourally identical, and keeping the two byte-identical
-# is what `EnvValueSubpatternSharedTest` enforces. SoR:
-# plan/complete/harness-push-gate-did-not-fire.md.
+# is what `EnvValueSubpatternSharedTest` enforces.
+#
+# (c) The SAME narrowing is required on the `\s*` that follows the separator, and
+# the first §M draft missed it — /ai-review caught it as a CRITICAL. Once `\n` is
+# a separator, a run of K newlines offers K distinct match STARTS, and a `\s*`
+# there re-consumes (then gives back) the rest of the run at every one of them:
+# O(K²). Measured on the draft: 16k newlines = 6.5s, 50k = 62s — input ×2, time
+# ×4. Narrowing it to `[^\S\n]*` makes the newline belong to exactly one starting
+# position (50k = 4ms) and changes nothing about what matches: a blank line or an
+# indented continuation is still found, because a LATER newline in the run
+# supplies the separator (`cd /x\n\n  git push` still matches — pinned in
+# `NewlineSeparatorTest`).
+#
+# NOT DONE, deliberately: the review also suggested truncating to
+# `_MAX_REDACTION_INPUT` before this first `search`. That would introduce a fresh
+# BYPASS — `echo <16KB of padding>\ngit push` truncates to text with no push in
+# it, so `_is_git_push` returns False and BOTH gates skip (measured). The cap
+# exists only on the RELEASE path below, where exceeding it returns True (block)
+# — the safe direction. A length cap may never gate DETECTION.
+# SoR: plan/complete/harness-push-gate-did-not-fire.md.
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|[;|\n])\s*(?:"
+    r"(?:^|&&|[;|\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
     r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
     r"[^\S\n]+)*"
