@@ -60,7 +60,23 @@ shell 이 실제로 하는 일(`\` + 개행 삭제 후 줄 잇기)을 탐지 전
 (`_LINE_CONTINUATION` unfold). tail 은 개행 제외를 유지하므로 §M(e) 의 선형성도 그대로다
 (네 형태 전부 배율 1.9~2.0x 재확인, replace 비용 50k 에서 0.5ms).
 
-첫 수정(pre-fold)은 **세 번 틀렸다** — parity 무시, 치환 문자/위치, 그리고 결정적으로
+### line-continuation 갭도 결국 **수용**했다 (시도 2회 · CRITICAL 5)
+
+§M(e) 가 잃은 continuation 을 되찾으려 두 번 시도했고 둘 다 되돌렸다:
+
+| 접근 | 깨진 것 |
+| --- | --- |
+| pre-fold(텍스트 재작성) | parity 무시 · 공백 치환+조기return 뒤 배치 · **heredoc terminator 를 삼켜 그 뒤 push 전부 blank** |
+| continuation-aware tail | `git \push`(개행 없는 평범한 이스케이프) 미탐지 · **O(n²) 재도입**(1600줄 504ms vs 0.55ms) |
+
+`_commit_heredoc_spans`·`_redact_inert_text` 가 원본 오프셋 기준이라 재작성 pre-pass 는
+구조적으로 안전할 수 없고, tail 을 넓히면 백슬래시 페어링이 평범한 이스케이프를 깨뜨린다.
+
+**갭은 CORPUS 에 `release_reason` 과 함께 등재**했다 — legacy 는 잡고 이 가드는 못 잡는
+진짜 floor 위반임을 숨기지 않고, 왜 그대로 두는지를 같은 자리에 적었다.
+`LineContinuationTest` 가 현재 동작을 단언하므로, 갭을 닫으려는 사람은 그 기록을 먼저 읽게 된다.
+
+이하는 그 첫 시도의 기록이다 — pre-fold 는 **세 번 틀렸다** — parity 무시, 치환 문자/위치, 그리고 결정적으로
 **heredoc 종료 delimiter 를 삼켜** 그 뒤의 진짜 push 를 숨겼다. 세 번째는 이 저장소가 매
 커밋마다 쓰는 형태라, 전처리 접근 자체를 폐기하고 **tail 이 백슬래시-이스케이프된 개행만
 넘도록**(§O) 바꿨다. 텍스트를 재작성하지 않으므로 heredoc·redact 와 상호작용이 원천적으로 없다.

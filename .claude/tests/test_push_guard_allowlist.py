@@ -91,7 +91,7 @@ _BLIND_PATTERN = (
     r"[^\S\n]+)*"
     r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
-    r"git\b(?:[^&;|\n\\]|\\[^\n]|\\\n)*\bpush\b"
+    r"git\b[^&;|\n]*\bpush\b"
 )
 _BLIND = re.compile(_BLIND_PATTERN)
 
@@ -161,7 +161,13 @@ CORPUS: list[tuple[str, str, str | None]] = [
     # this runs a push. §M(e) lost it when the tail stopped crossing newlines —
     # a differential-floor violation (LEGACY catches it) that no test saw because
     # no corpus entry spelled a continuation.
-    ("git \\\n  push origin main", "backslash line continuation before push", None),
+    ("git \\\n  push origin main", "backslash line continuation before push",
+     "ACCEPTED GAP, not a release the allowlist performs. Legacy catches this "
+     "and the guard does not, so it is a real differential-floor violation — "
+     "but both ways of closing it measured strictly worse: a rewriting pre-pass "
+     "broke heredoc terminators (blanking every push after a heredoc commit), "
+     "and a continuation-aware tail lost `git \\push` and re-introduced O(n²). "
+     "See the §O block in guard_review_before_push.py before reopening."),
     ("A='line1\nline2' git push", "literal newline inside a single-quoted value", None),
     ('GIT_SSH_COMMAND="ssh\nkey" git push origin main',
      "literal newline in a real env var's value", None),
@@ -1443,120 +1449,72 @@ class BackgroundOperatorSeparatorTest(unittest.TestCase):
 
 
 class LineContinuationTest(unittest.TestCase):
-    """`\\` + newline is deleted by the shell, so the push runs.
+    """`\\` + newline before `push` is NOT detected. Accepted gap, pinned.
 
-    §M(e) excluded `\\n` from the tail scan to kill an O(n²) and silently lost
-    this shape: `git \\<newline>  push origin main` stopped matching while the
-    LEGACY floor still caught it — i.e. a differential-floor violation. Nothing
-    failed, because `test_no_new_false_negatives` only compares CORPUS entries
-    and nobody had ever written a continuation into it. Found by /ai-review,
-    which called it pre-existing; measuring the legacy pattern showed otherwise.
+    The shell deletes both characters and runs the push, and the LEGACY floor
+    catches it — so this is a genuine differential-floor violation, not a shape
+    nobody ever handled. It is pinned rather than fixed because both fixes
+    measured strictly worse (five CRITICALs across two attempts; the full record
+    is in the §O block of `guard_review_before_push.py`):
 
-    `_is_git_push` now unfolds continuations before matching — the same thing the
-    shell does — so the tail keeps its newline exclusion (and its linearity).
+      · a rewriting pre-fold merged a heredoc body's last line into its
+        terminator, blanking every `git push` after a heredoc commit — the
+        commonest command shape in this repo;
+      · a continuation-aware tail stopped matching `git \\push` (ordinary
+        escaping, no newline at all — a WIDER miss than the gap) and brought
+        back O(n²) on repeated `git`-prefixed lines.
+
+    The tests below assert the CURRENT behaviour so that a future change which
+    closes the gap fails loudly and has to re-read that record first.
     """
 
     _CASES = (
         "git \\\n  push origin main",
         "git \\\npush",
         "cd /x && git \\\n  push --force",
-        "git push \\\n  --force-with-lease",
     )
 
-    def test_line_continuation_does_not_hide_the_push(self):
+    def test_continuation_before_push_is_a_KNOWN_GAP(self):
         for command in self._CASES:
             with self.subTest(command=command):
-                self.assertTrue(
+                self.assertFalse(
                     guard._is_git_push(command),
-                    "the shell joins these lines and pushes; the guard must see "
-                    "the same command the shell will run",
+                    "this gap is deliberate — if you closed it, verify against "
+                    "BOTH lists in the §O block (heredoc terminators AND "
+                    "`git \\push` AND the O(n²) shape) before changing this",
                 )
 
-    def test_the_legacy_floor_caught_these(self):
-        """What makes this a REGRESSION rather than a known gap: the pre-allowlist
-        pattern matched them, so the differential owed us this and the corpus was
-        simply silent on the shape."""
+    def test_the_gap_is_a_floor_violation_and_we_know_it(self):
+        """Honesty pin: legacy DOES catch these. The corpus entry carries the
+        reason, so `test_no_new_false_negatives` accepts it — this asserts the
+        premise that reason depends on."""
         for command in self._CASES:
             with self.subTest(command=command):
                 self.assertTrue(
                     legacy_is_push(command),
-                    "if legacy misses it too this is a gap, not a regression — "
-                    "re-file the finding accordingly",
+                    "if legacy stopped catching it, this is no longer a floor "
+                    "violation and the corpus reason should be simplified",
                 )
 
-    def test_even_backslash_run_is_not_a_continuation(self):
-        """/ai-review CRITICAL #1 on the first fold.
-
-        A backslash escapes the next one, so `echo a\\\\<LF>git push` is a
-        LITERAL backslash followed by a REAL newline — the shell runs TWO
-        commands (verified by running it). The first fold ignored parity and
-        deleted that newline, erasing the separator in front of `git push` and
-        hiding a push that genuinely runs. Folding must key on an ODD run.
-        """
-        for command in (
-            "echo a\\\\\ngit push",
-            "echo a\\\\\ngit push --force",
-            "cd /x\\\\\nA=v git push",
-        ):
+    def test_escaped_push_without_a_newline_still_matches(self):
+        """The boundary the continuation-aware tail broke: an ordinary backslash
+        escape with NO newline must keep matching. This is what made that
+        attempt worse than the gap it closed."""
+        for command in ("git \\push", "git \\push origin main", "cd /x && git \\push"):
             with self.subTest(command=command):
-                self.assertTrue(
-                    guard._is_git_push(command),
-                    "an EVEN backslash run leaves a real newline separator, so "
-                    "the next line starts a fresh segment the tail must not eat",
-                )
-
-    def test_continuation_inside_the_word_is_a_KNOWN_GAP(self):
-        """A continuation that splits `push` ITSELF is not detected. Pinned as a
-        known gap, not silently absent.
-
-        The shell deletes both characters, so `git pu\\<LF>sh` really is the word
-        `push`. Catching it needs the text REWRITTEN before matching, and §O
-        removed exactly that pre-fold: the fold merged a heredoc body's last line
-        into its terminator, which unmasked every `git push` after the heredoc —
-        a far commoner shape (every commit in this repo uses that heredoc form)
-        than a continuation inside a keyword. So the trade is deliberate.
-
-        LEGACY misses these too (asserted below), so this is a gap the guard
-        never closed rather than a regression §O introduced.
-        """
-        for command in (
-            "git pu\\\nsh origin main",
-            "git p\\\nu\\\ns\\\nh",
-        ):
-            with self.subTest(command=command):
-                self.assertFalse(
-                    guard._is_git_push(command),
-                    "if this starts being detected the trade above changed — "
-                    "re-read §O before updating this expectation",
-                )
-                self.assertFalse(
-                    legacy_is_push(command),
-                    "legacy catches it => it IS a floor violation after all, "
-                    "and the gap must be closed rather than pinned",
-                )
+                self.assertTrue(guard._is_git_push(command))
 
     def test_heredoc_body_ending_in_a_backslash_keeps_the_push_visible(self):
-        """§O's reason for existing — /ai-review CRITICAL on the pre-fold.
-
-        A heredoc body whose last line ends in an odd backslash sits right above
-        its terminator. Folding continuations first glued `message\\` to `EOF`,
-        so `_commit_heredoc_spans` never found the terminator, the span ran to
-        the end of the command, and the REAL `git push` after the heredoc was
-        blanked as "inert body" — a silent gate bypass. Matching without
-        rewriting keeps the terminator where it is.
-        """
+        """The fatal one. A heredoc body whose last line ends in an odd backslash
+        sits directly above its terminator; a pre-fold glued them together, so
+        `_commit_heredoc_spans` never found the terminator and the span swallowed
+        the REAL `git push` after it."""
         command = "git commit -F - <<'EOF'\nmessage\\\nEOF\ngit push"
         self.assertTrue(
             guard._is_git_push(command),
-            "the push AFTER the heredoc must stay visible; if this fails, some "
-            "pre-pass is rewriting the text again",
+            "the push AFTER the heredoc must stay visible — if this fails, some "
+            "pass is rewriting the command text again",
         )
-
-    def test_unfolding_does_not_invent_a_push(self):
-        """The fold may only ever JOIN text; it must not turn a non-push into one."""
-        for command in ("echo a \\\n  b", "git \\\n  status", "ls \\\n  -la"):
-            with self.subTest(command=command):
-                self.assertFalse(guard._is_git_push(command))
 
 
 class QuotedNewlineValueTest(unittest.TestCase):
