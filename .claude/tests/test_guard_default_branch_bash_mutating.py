@@ -234,11 +234,13 @@ class OldEnvPrefixSupersetTest(unittest.TestCase):
     # the live pattern so this never has to mirror the verb list.
     _PRE_QUOTED_PREFIX = r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
     # Closes the whole prefix group, then opens the command body. §L turned the
-    # prefix into two branches, so the boundary gained the extra `)` — the
-    # marker has to track the SHAPE of that boundary, not the branch text, or
-    # the splice silently starts comparing nothing (which is what
+    # prefix into two branches, so the boundary gained the extra `)`; §M then
+    # narrowed the repetition's closing whitespace from `\s+` to `[^\S\n]+` (so a
+    # newline can only be a separator, never part of an assignment — see the hook
+    # note). The marker has to track the SHAPE of that boundary, not the branch
+    # text, or the splice silently starts comparing nothing (which is what
     # `test_the_frozen_prefix_still_composes` catches).
-    _SPLIT_MARKER = r"\s+)*)(?:"
+    _SPLIT_MARKER = r"[^\S\n]+)*)(?:"
 
     # Shared with the push guard's `GeneratedFloorTest` — see the comment on the
     # constant. Both hooks skip the same prefix and both regressed on it, so a

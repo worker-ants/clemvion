@@ -77,15 +77,17 @@ _MIN_CORPUS_COVERAGE = 10
 # §J widened the env-prefix group so a quoted value with spaces
 # (`GIT_SSH_COMMAND="ssh -i ~/.key" git push`) no longer slips past the whole
 # gate; §L then made the VALUE a sequence of pieces so a quoted one glued to an
-# unquoted one (`A="a b"c git push`) cannot hide it either. Same mutually
-# exclusive alternatives `guard_default_branch_bash._MUTATING` carries, kept
-# identical on purpose.
+# unquoted one (`A="a b"c git push`) cannot hide it either; §M then added `\n` to
+# the separator class so a push on its own line (`cd <wt>\ngit push`) — this
+# repo's commonest form — is no longer invisible. Same mutually exclusive
+# alternatives `guard_default_branch_bash._MUTATING` carries, kept identical on
+# purpose.
 _BLIND_PATTERN = (
-    r"(?:^|&&|;|\|)\s*(?:"
+    r"(?:^|&&|[;|\n])\s*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
     r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
-    r"\s+)*"
-    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r"[^\S\n]+)*"
+    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
     r"git\b[^&;|]*\bpush\b"
 )
@@ -351,6 +353,11 @@ class GeneratedFloorTest(unittest.TestCase):
         "cmd && A={v} git push",
         "; A={v} git push",
         "cmd | A={v} git push",
+        # §M: newline separator, NON-git preceding line. Omitting `\n` from the
+        # separator axis is exactly how `cd\ngit push` slipped past both the
+        # curated corpus and this floor. `test_the_newline_separator_axis_is_...`
+        # pins it so a future edit cannot drop it silently.
+        "cmd\nA={v} git push",
     ]
 
     def _cases(self):
@@ -370,6 +377,22 @@ class GeneratedFloorTest(unittest.TestCase):
         single = [t for t in self._TEMPLATES if t.count("=") == 1]
         self.assertGreaterEqual(len(multi), 2, "multi-assignment axis was dropped")
         self.assertTrue(single, "single-assignment baseline was dropped")
+
+    def test_the_newline_separator_axis_is_generated(self):
+        """§M: the separator axis must include `\\n` with a NON-git preceding
+        line. It was omitted originally (only `&&`, `;`, `|`), which is precisely
+        how `cd\\ngit push` slipped past both the curated corpus and this floor.
+        A `git`-prefixed preceding line would match by the `[^&;|]*` walk — the
+        accident that hid the gap — so require the head to be non-git."""
+        newline = [t for t in self._TEMPLATES if "\n" in t]
+        self.assertTrue(newline, "the newline separator axis (§M) was dropped")
+        for t in newline:
+            head = t.split("\n", 1)[0].strip()
+            self.assertFalse(
+                head.startswith("git"),
+                f"{t!r}: preceding line starts with git — that matches by "
+                "accident, not by the newline separator the fix added",
+            )
 
     def test_the_regression_shapes_are_still_generated(self):
         """Close the escape hatch: a failing superset test can be "fixed" by
@@ -638,6 +661,28 @@ class BacktrackingTest(unittest.TestCase):
             'VAR="' + "\\" * self._ENV_BACKSLASHES + " push",
             "an unterminated quoted env value full of backslashes",
             "see test_env_prefix_alternation_stays_linear",
+        )
+
+    def test_newline_between_env_assignments_stays_linear(self):
+        """§M's ReDoS — LIVE, and re-introduced mid-fix (a canary for it).
+
+        Adding `\\n` to the separator class gave `A=v\\n` two parses: an
+        assignment whose `\\s+` close ATE the newline, or a separator `\\n`
+        starting a fresh segment. With `\\s+` both stay viable at every
+        repetition and a failing tail re-partitions the whole run — measured
+        `A=v\\n`×20000 + tail ≈ 30s, a frozen PreToolUse gate. MULTILINE `^` does
+        NOT fix it: the `\\s+` still eats the newline, so the two parses remain
+        (measured, still ≈30s). Closing the repetition on `[^\\S\\n]+` makes a
+        newline ONLY ever a separator, so the rival cannot form (≈10ms). Fails
+        LOUD (subprocess timeout) if either half of §M regresses.
+        """
+        self._assert_finishes(
+            ("A=v\n" * self._ENV_PREFIX_REPEATS) + "q push",
+            f"{self._ENV_PREFIX_REPEATS} newline-separated assignments, failing tail",
+            "the env-value repetition went back to closing on `\\s+`, which "
+            "matches `\\n` and races the new `\\n` separator into a rival parse. "
+            "Close it on `[^\\S\\n]+` (whitespace except newline) so a newline is "
+            "only ever a separator — MULTILINE `^` does not fix this.",
         )
 
     # The shapes below are EXPONENTIAL, not quadratic, so unlike
@@ -951,12 +996,18 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
     @staticmethod
     def _env_value_subpatterns(pattern: str) -> list:
         """Every value alternation: the text between an env-name group and the
-        `\\s+)*` that closes its repetition.
+        `[^\\S\\n]+)*` that closes its repetition.
 
         A LIST, not a single string, since §L: the prefix now has two branches
         (piece-sequence and `\\S+`) and comparing only the first would let the
         second drift unnoticed — which is precisely the failure this class was
         created to stop, one level down.
+
+        The closing anchor is `[^\\S\\n]+)*`, not `\\s+)*`, since §M: both hooks
+        stopped letting the repetition eat a newline (a `\\n` there raced the
+        push guard's new `\\n` separator into a ReDoS). If a future edit reverts
+        one hook to `\\s+`, this `.index` raises for that hook and the test fails
+        loudly — which is the drift-detection this class exists for.
         """
         key = "[A-Za-z0-9_]*="
         out = []
@@ -966,7 +1017,7 @@ class EnvValueSubpatternSharedTest(unittest.TestCase):
             if found < 0:
                 return out
             start = found + len(key)
-            end = pattern.index(r"\s+)*", start)
+            end = pattern.index(r"[^\S\n]+)*", start)
             out.append(pattern[start:end].replace('\\"', '"'))
             at = end
 
@@ -1063,6 +1114,69 @@ class GluedQuotedEnvValueTest(unittest.TestCase):
         for command in self._CASES:
             with self.subTest(command=command):
                 self.assertFalse(legacy_is_push(command))
+
+
+class NewlineSeparatorTest(unittest.TestCase):
+    """A newline between commands hid the push from the blind pass — the same
+    UNSAFE-DIRECTION gap as §J/§L, and it predates all of them.
+
+    `_GIT_PUSH`'s separator prefix was `(?:^|&&|;|\\|)` — it never listed `\\n`,
+    though the sibling `_SEGMENT_SPLIT` in this same file AND the one in
+    `guard_default_branch_bash` both treat `\\n` as a separator. So a push on its
+    own line, after any NON-git command, was not detected: `main()` returned 0
+    without running either gate or printing the fail-open banner — this repo's
+    single most common push form silently skipped the whole review requirement:
+
+        cd <worktree>
+        git push -u origin <branch>
+
+    It reproduced from the real command that slipped through (see
+    `plan/.../harness-push-gate-did-not-fire.md`): a `cd`, a heredoc commit, an
+    `echo`, then the push on its own line. `default-branch` guard caught its
+    commits because it splits on `_SEGMENT_SPLIT` (which HAS `\\n`) first; this
+    hook matched the whole command in one go, so the missing `\\n` was fatal.
+
+    Why it hid so long — a two-layer blind spot:
+      - CORPUS's ONLY newline case was `git add -A\\ngit push`, whose preceding
+        line starts with `git`, so the blind `git\\b[^&;|]*\\bpush\\b` walked
+        ACROSS the newline and matched by accident. Replace `git add` with
+        anything else and the accident is gone.
+      - `test_every_non_release_entry_stays_blocked` only asserts entries
+        `legacy_is_push` already matches, and legacy — no `\\n` in ITS separators
+        either — misses all of these. So the differential never judged this axis.
+
+    Kept as a class so the bypass cannot silently return.
+    """
+
+    # Every case has a NON-git preceding line, so the blind walk cannot bridge
+    # the newline by accident — legacy misses all of them (asserted below), which
+    # is exactly why the legacy-gated differential could not see this axis.
+    _CASES = (
+        "cd /tmp\ngit push -u origin main",  # the most common form in this repo
+        "echo hi\ngit push",
+        'echo "=== push ==="\ngit push -u origin claude/x 2>&1 | tail -20',  # real repro
+        "cd /a\nGIT_SSH=k git push",  # newline separator THEN an env prefix
+    )
+
+    def test_newline_separated_push_is_detected(self):
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertTrue(
+                    guard._is_git_push(command),
+                    "a push on its own line after a non-git command must be "
+                    "detected — this silently bypassed BOTH gates with no banner",
+                )
+
+    def test_the_gap_predates_j_and_l(self):
+        """The floor missed it too, which is why corpus/differential could not:
+        their non-release check only asserts entries `legacy_is_push` matches."""
+        for command in self._CASES:
+            with self.subTest(command=command):
+                self.assertFalse(
+                    legacy_is_push(command),
+                    "if legacy caught this the differential would have too; the "
+                    "point is it did not, so this explicit assertion is required",
+                )
 
 
 if __name__ == "__main__":

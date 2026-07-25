@@ -1,11 +1,105 @@
 ---
 title: push 게이트가 실제 push 에 발동하지 않았다 — 훅 로직은 정상, 호출이 안 걸림
-worktree: (unstarted)
+worktree: harness-push-newline-sep-a1c3
 started: 2026-07-24
 owner: developer
 status: in-progress
 priority: P1
 ---
+
+## ✅ 원인 규명 완료 (2026-07-25) — `_GIT_PUSH` separator prefix 에 `\n` 누락
+
+**조사방향 3(명령 형태)이 정답이었다.** 훅은 발동하고 로직도 정상이다. 문제는 **push 탐지
+정규식이 여러 줄 명령의 newline-구분 push 를 놓친다**는 것이다.
+
+**재현 (추측 아님 — 실제 통과 명령을 transcript 에서 추출).** 통과했던 그 push 는:
+
+```
+cd /Volumes/.../node-cancel-e2e-98b61f
+git add …
+git commit -q -F - <<'MSG'
+…
+MSG
+git log --oneline -2
+echo "=== push 시도 ==="
+git push -u origin claude/node-cancel-e2e-98b61f 2>&1 | tail -20
+```
+
+`_is_git_push(<이 명령>)` = **False** → `main()` 이 "not a push" 로 조기 return → 두 게이트
+전부 skip, fail-open 배너도 없음(그래서 §E 관측성에도 안 잡혔다). 원인:
+
+- `_GIT_PUSH` 의 separator prefix 는 `(?:^|&&|;|\|)` — **`\n` 이 없다**.
+- push 라인 앞은 `\n`(직전 `echo …` 줄의 끝)이라 어느 alternative 에도 안 걸린다.
+- 같은 파일의 `_SEGMENT_SPLIT`(`&&|[|;\n]`) 과 `guard_default_branch_bash._SEGMENT_SPLIT`
+  (역시 `\n` 포함)은 `\n` 을 separator 로 인식한다. **push 탐지만 빠졌다.** 그래서 티켓이
+  관측한 "default-branch 가드는 발동, push 가드만 미반영" 이 정확히 설명된다 — 후자는
+  `_SEGMENT_SPLIT.split()` 후 각 세그먼트에 매칭하고, 전자는 command 전체에 직접 매칭한다.
+
+**티켓이 "텍스트로 재현 불가" 라 결론낸 이유.** 실측표의 주입 명령은 **단일 줄**
+(`git push -u origin claude/…`)이라 `^` 가 매치했다. 여러 줄 실제 텍스트를 그대로 주입하니
+재현됐다. 즉 전제("훅 미발동")가 틀렸고 실제는 "탐지 실패".
+
+**얼마나 광범위한가.** `cd <path>\ngit push` — 이 저장소의 **가장 흔한 push 형태** — 가 전부
+우회 가능하다. 실측:
+
+| 명령 | `_is_git_push` |
+| --- | --- |
+| `git push …` (단일 줄, 문자열 시작) | True |
+| `git add -A\ngit push` | True (**우연** — 앞 `git` 이 `[^&;|]*` 로 `\n` 건너 push 도달) |
+| `cd /path\ngit push` | **False** |
+| `echo x\ngit push` | **False** |
+| node-cancel-e2e 실제 형태 | **False** |
+
+탐지가 "push 앞 줄이 `git X` 명령인가" 라는 **우연**에 의존한다.
+
+**왜 테스트가 못 잡았나 (사각지대 2겹).** `test_push_guard_allowlist.py`:
+- corpus 에 newline 케이스가 `("git add -A\ngit push", …)` **하나뿐**이고, 하필 앞줄이 `git`
+  이라 우연히 통과 → 결함을 가렸다.
+- `test_every_non_release_entry_stays_blocked` 는 `legacy_is_push(cmd)` **가 True 인 항목만**
+  검증한다. legacy 도 `\n` 이 없어 `cd\ngit push` 를 못 잡으므로, corpus 에 넣어도 검증이
+  **건너뛴다**. 결함이 legacy 부터 있었다는 뜻(§J·§L 은 env-prefix 만 고쳤다).
+- `GeneratedFloorTest._TEMPLATES` 의 separator 축은 `&&`·`;`·`|` 뿐 — **`\n` 이 없다**.
+  이 클래스가 "corpus 만 보면 아무도 안 적은 형태를 놓친다" 고 경고하면서 정작 같은
+  함정에 빠졌다.
+
+## 수정 (완료 2026-07-25) — §M. **두 개의 결합된 변경**
+
+단순히 `\n` 을 separator 에 넣는 것은 **§L-class ReDoS 를 재도입**했다. 그래서 §M 은 두 변경이다:
+
+**(a) separator 에 `\n` 추가** — `(?:^|&&|;|\|)` → `(?:^|&&|[;|\n])`. push 가 자기 줄에 있으면
+탐지되게. `_SEGMENT_SPLIT`·default-branch 가드와 일치.
+
+**(b) env-value 반복의 닫는 whitespace `\s+` → `[^\S\n]+`** (개행 제외) — 이게 필수다.
+`\s+` 는 `\n` 을 먹으므로 `A=v\n` 이 **두 파싱**(assignment 끝 `\s+=\n` vs separator `\n`)을
+갖고, 실패 tail 에서 엔진이 전부 탐색 → **측정: `A=v\n`×20000 + tail = 30s** (freeze/fail-open).
+`[^\S\n]+` 로 닫으면 `\n` 은 오직 separator → **10ms**. 두 훅(`_GIT_PUSH`·`_MUTATING`)에
+byte-identical 적용(`EnvValueSubpatternSharedTest` 강제). default-branch 는 segment split 이라
+동작 불변.
+
+> **내가 처음 쓴 주석이 틀렸다.** "`\n` 은 disjoint 라 무backtracking" 이라고 적었는데,
+> env-value `\s+` 와 정확히 겹쳐 ReDoS 를 만들었다. 측정으로 반증하고 (b) 를 추가했다.
+> `re.MULTILINE ^` 도 시도했으나 `\s+` 가 여전히 `\n` 을 먹어 **여전히 30s** — 기각.
+
+### 검증 (전부 실측·mutation)
+
+- `_is_git_push` 실측: `cd\ngit push`·`echo\ngit push`·실제 node-cancel-e2e 명령 전부 **True**(수정 후).
+- **`NewlineSeparatorTest`** — legacy gate 없이 탐지를 직접 단언(differential 이 legacy gate 로
+  이 축을 못 봤으므로). mutation: separator `\n` 제거 → 4 케이스 RED.
+- **`BacktrackingTest.test_newline_between_env_assignments_stays_linear`** — rival ReDoS pin.
+  mutation: `[^\S\n]+`→`\s+` 되돌리면 10s timeout RED (치환은 raw-string count 로 검증 — 첫
+  시도는 `\n` 이 개행으로 해석돼 vacuous 였다).
+- **`test_multiline_push_still_gates`** (main 통합) — 여러 줄 push 가 게이트에 **도달**함을 e2e
+  로 pin. mutation: separator `\n` 제거 → 게이트 skip 재현(exit 0) RED.
+- `GeneratedFloorTest._TEMPLATES` 에 `\n` 축 추가 + `test_the_newline_separator_axis_is_generated`
+  로 축 자체를 고정(앞줄 non-git 강제).
+- harness 전체 **644 passed**, 회귀 없음.
+
+### 관측 가능성 (§체크리스트 4번) — 별도 판단
+
+근본 수정이 1차 방어다. "미탐지" 를 사후에 아는 층(§체크리스트 4번 CI 방어)은 **이번 PR 범위
+밖**으로 남긴다 — push 가 실제 push 인지 판정하는 게 바로 이 정규식이라, 정규식이 틀리면
+사후 탐지도 같은 사각지대를 공유한다. 진짜 독립 방어는 훅에 의존하지 않는 CI 층
+("리뷰 없는 codebase 변경 PR 차단")인데, 그건 설계 결정이라 별 티켓으로 분리한다.
 
 ## Overview
 
@@ -107,12 +201,14 @@ exit 2 가 나왔다 — 즉 텍스트만으로는 재현되지 않는다). 그�
 
 ## 체크리스트
 
-- [ ] 재현 조건 특정 (위 1~4 중 무엇이 원인인지 실측으로 좁힘)
-- [ ] 원인이 하네스 밖(플랫폼)이면 → 그 사실을 문서화하고 **대체 방어** 설계
-      (예: CI 에서 "리뷰 없는 codebase 변경 PR" 차단 — 훅에 의존하지 않는 층)
-- [ ] 원인이 저장소 설정이면 → 수정 + 회귀 테스트
-- [ ] **관측 가능성**: 훅이 "안 돌았다" 를 사후에 알 방법이 현재 없다. push 시 게이트 통과
-      기록(예: 상태 파일 타임스탬프)을 남겨 미발동을 탐지 가능하게 할지 검토
+- [x] 재현 조건 특정 — **조사방향 3(명령 형태)**. `_GIT_PUSH` separator 에 `\n` 누락 →
+      여러 줄 push 미탐지. 실제 통과 명령을 transcript 에서 추출해 실측 재현.
+- [x] 원인은 하네스 **안**(정규식)이었음 — "플랫폼 밖" 분기 아님. 훅은 발동했고, 탐지가 실패했다.
+- [x] 수정(§M: separator `\n` + env-value `[^\S\n]+`) + 회귀 테스트(`NewlineSeparatorTest`·
+      `BacktrackingTest`·`GeneratedFloorTest` 축·main 통합) + mutation 4종.
+- [~] **관측 가능성 / CI 독립 방어** → 별 티켓 [`harness-review-gate-ci-backstop`](harness-review-gate-ci-backstop.md)
+      로 분리. 훅 정규식이 유일한 판정자인 한 사후 탐지도 같은 사각지대를 공유하므로, 진짜
+      독립층은 훅에 의존하지 않는 CI 이며 그건 설계 결정이다.
 
 ## 관련
 

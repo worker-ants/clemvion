@@ -153,12 +153,43 @@ except Exception as exc:  # noqa: BLE001
 # RELEASE path, where a miss means "not released" — i.e. still blocked, the safe
 # direction. Widening a release path needs its own justification
 # (`ReleasePathNarrownessTest` pins the current behaviour).
+#
+# FIXED (§M, 2026-07-25) — TWO coupled changes; the second is not optional.
+#
+# (a) The separator class listed `^ && ; |` but NOT `\n`, so a push on its OWN
+# LINE — after any command that is not itself `git …push` — was invisible to the
+# blind pass: `main()` returned 0 with neither gate run nor a fail-open banner.
+# That is this repo's most common push form (`cd <worktree>\ngit push …`), a
+# working bypass of BOTH gates from the pattern's inception (the LEGACY floor
+# missed it too). The sibling `_SEGMENT_SPLIT` below AND `guard_default_branch_
+# bash`'s already list `\n`; the push detector was the lone omission — which is
+# why the default-branch guard fired on the same multi-line commands while this
+# one stayed silent (that guard splits on separators first, this one matches the
+# whole string). The corpus's only newline case (`git add -A\ngit push`) matched
+# by ACCIDENT — its preceding `git` let `git\b[^&;|]*\bpush\b` walk across the
+# newline — hiding the gap from every differential test.
+#
+# (b) But adding `\n` to the separator ALONE re-introduced a §L-class ReDoS. The
+# env-value repetition closed on `\s+`, which MATCHES `\n`, so `A=v\n` had two
+# parses — an env assignment ending in `\s+=\n`, OR a separator `\n` starting a
+# fresh segment. Both stay viable at every repetition, and on a failing tail the
+# engine explores them all: measured `A=v\n`×20000 + a non-push tail = 30s (a
+# frozen PreToolUse gate → the very fail-open §J/§L exist to prevent). MULTILINE
+# `^` does NOT fix this — it makes the boundary zero-width but `\s+` still eats
+# the newline, so the two parses remain (measured: still 30s). The fix is to make
+# them DISJOINT: the env-value repetition now closes on `[^\S\n]+` (whitespace
+# EXCEPT newline), so a newline can ONLY be a separator, never part of an
+# assignment. `A=v\n`×20000 + tail is then 5ms. `guard_default_branch_bash`
+# splits on `\n` before matching, so its segments never contain one — the same
+# `[^\S\n]+` there is behaviourally identical, and keeping the two byte-identical
+# is what `EnvValueSubpatternSharedTest` enforces. SoR:
+# plan/complete/harness-push-gate-did-not-fire.md.
 _GIT_PUSH = re.compile(
-    r"(?:^|&&|;|\|)\s*(?:"
+    r"(?:^|&&|[;|\n])\s*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
     r"(?:'[^']*'|\"(?:\\.|[^\"\\])*\"|'(?![^']*')|\"(?!(?:\\.|[^\"\\])*\")|[^\s'\"])*"
-    r"\s+)*"
-    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*"
+    r"[^\S\n]+)*"
+    r"|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*"
     r")"
     r"git\b[^&;|]*\bpush\b"
 )

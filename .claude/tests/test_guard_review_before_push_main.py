@@ -108,6 +108,12 @@ def evaluate_plan():
 
 _PUSH = "git push origin HEAD"
 
+# §M: a push on its own line, after a non-git command — this repo's commonest
+# form. Until §M `_is_git_push` returned False for this and main() skipped BOTH
+# gates (the reproduced bypass). `test_multiline_push_still_gates` pins that the
+# ORCHESTRATION now reaches the gates for it, end to end.
+_MULTILINE_PUSH = 'cd /some/worktree\necho "pushing"\ngit push -u origin HEAD'
+
 
 class GuardReviewBeforePushMainTest(unittest.TestCase):
     def setUp(self):
@@ -197,6 +203,25 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("(review gate)", r.stderr)
         self.assertIn("unreviewed codebase/ changes", r.stderr)
+
+    def test_multiline_push_still_gates(self):
+        """§M end-to-end: a push on its OWN LINE after a non-git command reaches
+        the gates. This is the exact shape that slipped through in the field —
+        `main()` used to return 0 here because `_is_git_push` missed the newline
+        separator, skipping both gates with no banner. It must now block."""
+        r = self._run(_MULTILINE_PUSH, review="blocked", plan="clean")
+        self.assertEqual(
+            r.returncode, 2,
+            "a multi-line push must reach the review gate, not skip it as a "
+            "non-push (the reproduced field bypass)",
+        )
+        self.assertIn("(review gate)", r.stderr)
+
+    def test_multiline_push_clean_is_a_normal_allow(self):
+        """The mirror: detection widening must not turn the multi-line form into
+        a false BLOCK — with both gates clean it passes, same as the one-liner."""
+        r = self._run(_MULTILINE_PUSH, review="clean", plan="clean")
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_push_blocked_by_plan_gate_when_review_clean(self):
         r = self._run(_PUSH, review="clean", plan="untouched")
