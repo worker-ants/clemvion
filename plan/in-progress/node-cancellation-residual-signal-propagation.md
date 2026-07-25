@@ -144,7 +144,24 @@ client 4건 × 2 + handler 2건 × 2. handler 쪽이 특히 중요하다 — **h
    성공한 요청은 controller 를 abort 하지 않는다. `finally` 로 이동. 선재 동일 결함이
    `http-request.handler.ts` 에도 있다(후속).
 
+### 이번 배선이 **덮지 않는** 대기 구간 (W5, 명시적 범위 밖)
+
+cascade 는 **in-flight fetch** 를 끊는다. 같은 client 안의 두 대기 구간은 signal 을 보지 않아,
+그 사이에 취소가 오면 대기를 끝까지 마친 뒤 **다음 재귀 진입 시점에** 반영된다:
+
+- **429 backoff sleep** (`sleepImpl`) — 최대 `Retry-After` 초만큼 지연.
+- **401 reactive refresh 대기** — BullMQ `waitUntilFinished` 또는 DB row lock.
+
+이번 범위에 넣지 않은 이유: 둘 다 fetch 가 아니라 **다른 종류의 대기**이고(주입된 sleep,
+큐 대기), 각각 별도의 검증 표면을 연다. `Promise.race` 로 signal-aware 하게 만드는 것은
+가능하지만, 그 변경은 sleep 주입 계약·큐 대기 취소 의미까지 함께 판단해야 한다.
+
+취소가 **유실되지는 않는다** — 대기가 끝나면 다음 attempt 의 사전 체크(§4 already-aborted)가
+즉시 걸린다. 지연될 뿐이다.
+
 ### 후속으로 남긴 것
 
 - `http-request.handler.ts` 의 같은 리스너 누수(선재) + abort-cascade 3중 복제 → 공용 헬퍼.
+  **spec §4 예시 자체가 그 누수 패턴**이라 spec 갱신과 함께 가야 한다(planner 위임에 기재).
+- 429 backoff / 401 refresh 대기 구간의 signal 관측 (위 §W5).
 - §6 표 두 행 갱신은 `spec/` 권한 밖이라 planner 위임.
