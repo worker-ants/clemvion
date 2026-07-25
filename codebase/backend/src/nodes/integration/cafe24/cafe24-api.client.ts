@@ -1213,7 +1213,7 @@ export class Cafe24ApiClient {
     // The listener is removed in `finally`, NOT off `controller.signal`'s abort
     // event: a request that SUCCEEDS never aborts its controller, so that event
     // never fires and every completed call would leave a listener on the
-    // execution-wide signal — and `executeWithRetry` recurses on 429/401, so
+    // execution-wide signal — and `executeWithRateLimit` recurses on 429/401, so
     // retries multiply them.
     const upstream = opts.signal;
     let onUpstreamAbort: (() => void) | undefined;

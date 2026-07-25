@@ -86,3 +86,51 @@ already-aborted 분기다.
 `database-query` handler 만 등재).
 
 > developer 는 `spec/` 쓰기 권한이 없어 제안만 남긴다. 본 PR 은 코드·테스트·plan 만 담는다.
+
+---
+
+## 추가 위임 (2026-07-25 #2) — §4 예시 코드가 **누수 버그**를 정답으로 제시한다
+
+`review/code/2026/07/25/21_35_11` WARNING 1 (SPEC-DRIFT, requirement·documentation 중복 지적).
+
+§4 의 cascade 예시는 cleanup 을 `controller.signal` 의 `abort` 이벤트에 건다:
+
+```ts
+controller.signal.addEventListener(
+  'abort',
+  () => upstream.removeEventListener('abort', onAbort),
+  { once: true },
+);
+```
+
+그리고 *"상하 모두 abort 시 fetch 가 즉시 throw — cleanup 의무는 fetch API 가 보장"* 이라고
+서술한다. **둘 다 사실이 아니다**:
+
+- **성공한 요청은 controller 를 abort 하지 않는다.** 그러니 저 `abort` 이벤트가 영영 발화하지
+  않고, 리스너는 execution-wide `abortSignal` 에 **영구 잔존**한다.
+- 실측: 성공 응답 후 `upstream.abort()` 를 하면 이미 끝난 요청의 controller 가 abort 된다
+  (= 리스너 생존). mutation 으로도 확인했다.
+- 재시도 경로(`executeWithRetry`/`executeWithRateLimit` 는 429/401 에 **재귀**)에서는 완료된
+  attempt 마다 하나씩 쌓인다 → `MaxListenersExceededWarning`.
+
+**제안**: §4 예시를 `finally` 기반 정리로 교체한다 —
+
+```ts
+let onAbort: (() => void) | undefined;
+if (upstream) {
+  if (upstream.aborted) controller.abort();
+  else { onAbort = () => controller.abort(); upstream.addEventListener('abort', onAbort, { once: true }); }
+}
+try { /* fetch */ } finally {
+  clearTimeout(timer);
+  if (upstream && onAbort) upstream.removeEventListener('abort', onAbort);
+}
+```
+
+그리고 "cleanup 의무는 fetch API 가 보장" 문장을 삭제 또는 정정.
+
+**동반 대상**: `http-request.handler.ts` 는 지금도 spec 원문 그대로라 **같은 누수가 살아있다**
+(선재). spec 갱신과 함께 그 파일도 고칠지 판단 필요 — 본 PR 은 commerce 2건 범위라 손대지 않았다.
+
+> 이 항목은 "구현이 spec 을 앞선" 경우다. 코드가 옳고 spec 이 낡았으므로 **코드를 되돌리지
+> 않는다**(SPEC-DRIFT 정식 경로).

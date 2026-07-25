@@ -93,6 +93,47 @@ describe('Cafe24ApiClient', () => {
   // upstream `context.abortSignal` has to reach that controller so a cancelled
   // execution stops the in-flight HTTP call instead of waiting out the timeout.
   describe('abortSignal cascade (node-cancellation §4)', () => {
+    it('does not accumulate upstream listeners across a 429 RETRY', async () => {
+      // The actual cause of the leak this fix addresses: the retry path
+      // RECURSES, so every completed attempt used to leave its listener behind
+      // on the execution-wide signal. A single-call test cannot see that — and
+      // the planned "extract a shared cascade helper" refactor could reintroduce
+      // it by hoisting setup out of the recursion.
+      //
+      // Observed through both attempts' signals: after the call resolves,
+      // aborting upstream must touch neither.
+      const upstream = new AbortController();
+      const seen: AbortSignal[] = [];
+      const capture = (_url: string, init: RequestInit) => {
+        seen.push(init.signal as AbortSignal);
+      };
+      fetchMock
+        .mockImplementationOnce((u: string, i: RequestInit) => {
+          capture(u, i);
+          return Promise.resolve(
+            makeJsonResponse(
+              {},
+              { status: 429, headers: { 'retry-after': '1' } },
+            ),
+          );
+        })
+        .mockImplementationOnce((u: string, i: RequestInit) => {
+          capture(u, i);
+          return Promise.resolve(makeJsonResponse({ products: [] }));
+        });
+
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        signal: upstream.signal,
+      });
+
+      expect(seen).toHaveLength(2); // the retry really happened
+      upstream.abort();
+      expect(seen.map((s) => s.aborted)).toEqual([false, false]);
+    });
+
     it('rethrows AbortError and does NOT count a network failure when the execution was cancelled', async () => {
       // Two contracts in one place, both broken by the naive cascade:
       //  · §5.1 — the engine classifies a node `cancelled` only if AbortError
@@ -139,7 +180,7 @@ describe('Cafe24ApiClient', () => {
           path: 'products',
           signal: upstream.signal,
         }),
-      ).rejects.toThrow();
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
       expect(repo.update).toHaveBeenCalled();
     });
 
@@ -185,7 +226,7 @@ describe('Cafe24ApiClient', () => {
       const integration = makeIntegration();
       await client.call(integration, {
         method: 'GET',
-        path: 'product',
+        path: 'products',
         signal: upstream.signal,
       });
 
@@ -207,7 +248,7 @@ describe('Cafe24ApiClient', () => {
       return client
         .call(integration, {
           method: 'GET',
-          path: 'product',
+          path: 'products',
           signal: upstream.signal,
         })
         .then(() => {
@@ -231,7 +272,7 @@ describe('Cafe24ApiClient', () => {
       const integration = makeIntegration();
       await client.call(integration, {
         method: 'GET',
-        path: 'product',
+        path: 'products',
         signal: upstream.signal,
       });
 
