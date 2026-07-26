@@ -103,7 +103,10 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
       갱신도 같은 위임에 포함할 것(짝 전이의 terminal 가드는 그 §1.1 이 서술하는 계약의 일부).
       #6 큐와 **같은 planner 턴에 배치** 처리한다(W3 — 두 plan 이 §5.2/§6 표를 따로 덮어쓰는 것 방지).
 - [x] TEST WORKFLOW (lint / unit / build / e2e) — 2026-07-26 전부 PASS (unit: backend 412 suite / 8286 passed, e2e: 259 passed)
-- [ ] `/ai-review` + Critical·Warning 해소
+- [x] `/ai-review` + Critical·Warning 해소 — 2026-07-26 `review/code/2026/07/26/21_08_01`
+      (Critical 1 / Warning 10). Critical #1 + 코드 Warning #5/#7/#9/#10 fix, Warning #6 e2e 추가,
+      Warning #1/#2/#3 plan 재평가, Warning #8 plan 이동 체크리스트. TEST WORKFLOW 재통과
+      (unit: backend 412 suite / 8298 passed, e2e: 260 passed). 상세: `RESOLUTION.md` 참조.
 - [x] `/consistency-check --impl-done spec/conventions` — 2026-07-26 `review/consistency/2026/07/26/21_06_23`
       **BLOCK: NO** (Critical 0). WARNING 4건은 spec 위임 완전성·harness scoping 건으로 전부 반영
       (#7 보강 6~8번 + harness plan 기록, 커밋 `cccdd1ff9`)
@@ -124,9 +127,34 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 
 ## 후속 (본 PR 밖)
 
-- form/button 경로에서 (A) 가 `false` 일 때의 park 이벤트 emit 잔여 — 실행은 이미 CANCELLED 이고
-  종료 이벤트도 `stop()` 이 발행했으므로 **표시상 잔여**이지 정합성 결함은 아니다. (C) 를 AI
-  경로에만 적용하므로 form/button 은 별도 판정 필요.
+- **form/button 경로 미소비 (ai-review WARNING #2, 2026-07-26 재평가)** — form/button
+  interaction 4개 호출부(`form-interaction.service.ts:110,325`,
+  `button-interaction.service.ts:395,567`)는 여전히 `updateExecutionStatus` 짝 전이의
+  반환값을 소비하지 않는다. **이전 서술("표시상 잔여")은 위험을 낮게 잡았을 수 있다** —
+  DB 자체는 (A) FOR UPDATE 가드로 안전(재살아나지 않음)하지만, 짝 `NodeExecution` 이
+  terminal 마킹되지 않아 AI 경로와 동일하게 **영구 RUNNING 으로 잔류**하거나, 클라이언트가
+  이미 취소된 실행에 대해 "입력 대기"류 이벤트를 받을 수 있다 — 이는 표시상 중복이 아니라
+  `NodeExecution` 행 자체의 데이터 일관성 갭이다. 후속 PR 에서 (A) 가 `false` 를 반환하면
+  form/button 도 AI 경로와 동일하게 `markNodeCancelled` 재사용 + emit skip 으로 닫아야 한다.
+- **가드 조합 로직 재사용 불가 (ai-review WARNING #1)** — `assertLinkedTransitionApplied`
+  (관측→마킹→throw 절차)가 `AiTurnOrchestrator` 전용 private 메서드로 캡슐화돼 있어, 위
+  form/button 후속 PR 이 이 로직을 그대로 재사용할 수 없다 — 복제하거나 순수 헬퍼로
+  재추출해야 한다. form/button 미소비를 닫는 후속 PR 착수 시 함께 고려.
+- **기준선 회귀 테스트 부재 (ai-review WARNING #3)** — `form-interaction.service.spec.ts:58`,
+  `button-interaction.service.spec.ts:63` 모두 `updateExecutionStatus` mock 을
+  `mockResolvedValue(true)` 로 고정해 둬, 위 갭을 닫는 후속 PR 의 "현재 동작" 기준선이 없다.
+  후속 PR 착수 전에 각 spec 에 `mockResolvedValueOnce(false)` 케이스를 "알려진 제한사항"
+  주석과 함께 먼저 추가해 두는 것을 권고(회귀 기준선 확보 → 그 다음 실제 fix).
+
+## ⚠️ 이 plan 을 `plan/complete/` 로 이동할 때 (ai-review WARNING #8, 2026-07-26)
+
+아래 3개 파일이 이 plan 을 상대경로로 직접 링크한다 — `plan-lifecycle.md` 가 plan→plan
+상호참조 갱신 의무를 명시하지 않아, 이동 시 세 링크가 조용히 깨질 수 있다. **이동 커밋에서
+반드시 함께 정정할 것**:
+
+- [ ] `plan/complete/refactor/05-database.md:164` — `../../in-progress/ie-resume-turn-boundary-cancel.md`
+- [ ] `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md:334` — `ie-resume-turn-boundary-cancel.md`
+- [ ] `plan/in-progress/node-cancellation-residual-signal-propagation.md:65` — `./ie-resume-turn-boundary-cancel.md`
 
 ## 체크리스트
 
@@ -135,5 +163,6 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 - [x] (C) re-park 결과 소비
 - [x] 테스트 (mutation 7/7 RED)
 - [x] TEST WORKFLOW
-- [ ] `/ai-review`
+- [x] `/ai-review` + Critical·Warning 해소 (RESOLUTION.md 참조)
 - [x] `/consistency-check --impl-done` (BLOCK: NO)
+- [ ] plan 이동 시 상호참조 링크 3곳 정정 (위 "⚠️" 절 참조)
