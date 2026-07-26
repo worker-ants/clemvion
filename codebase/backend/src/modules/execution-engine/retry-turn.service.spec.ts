@@ -492,6 +492,12 @@ describe('RetryTurnService', () => {
       expect(emittedTypes).not.toContain(ExecutionEventType.EXECUTION_FAILED);
       // graph traversal not entered on the cancel path.
       expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
+      // ai-review W16 (2026-07-26) — WS emit 은 이미 isCancelled 일 때 error 를
+      // 제외해 안전했지만, DB 저장(`execution.error`)은 무조건이었다 — REST
+      // `GET /executions/:id` 로 내부 message 가 노출되고 `finalizeCancelledExecution`
+      // (취소 시 error 를 비움)과도 불일치했다. 취소 시 execution.error 자체가
+      // 저장되지 않아야 한다.
+      expect(execution.error).toBeUndefined();
     });
 
     // W-6 (대조) — 일반 Error 면 EXECUTION_FAILED + status=FAILED + error 필드.
@@ -508,6 +514,9 @@ describe('RetryTurnService', () => {
         ExecutionEventType.EXECUTION_FAILED,
         { status: ExecutionStatus.FAILED, error: 'boom' },
       );
+      // ai-review W16 (2026-07-26) — 취소가 아닌 일반 실패는 기존과 동일하게
+      // execution.error 가 DB 에 저장돼야 한다(대조군 — 위 취소 케이스와 대비).
+      expect(execution.error).toEqual({ message: 'boom' });
     });
 
     // 재진입이 re-park(PARK_RELEASED) 하면 graph 진행 없이 조기 반환.

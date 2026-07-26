@@ -3736,6 +3736,33 @@ describe('ExecutionEngineService', () => {
       inlineSpy.mockRestore();
     });
 
+    // ai-review W14/W18 (2026-07-26) — background 본문은 부모와 같은 executionId
+    // 를 공유해 `executeInline`→컨테이너 경로가 `containerCancelCheckedAtMs` 에
+    // 동일 키로 set() 할 수 있다. background 는 fire-and-forget 이라 부모
+    // `runExecution` finally 가 먼저 이 키를 지운 뒤에도 본문이 계속 실행되며
+    // 다시 set() 될 수 있고, `executeBackgroundSubgraph` 자체가 정리하지 않으면
+    // 이후 아무도 지우지 않아 무한 성장 누수로 남는다(실측: 두 delete 를 모두
+    // 제거해도 415/415 GREEN — 회귀 커버리지 0이었다). 본문이 set() 한 상태를
+    // 직접 시뮬레이션해 `executeBackgroundSubgraph` finally 가 정리하는지 단언한다.
+    it('cleans up containerCancelCheckedAtMs for the shared executionId in finally (W14 background leak regression)', async () => {
+      const priv = () =>
+        service as unknown as {
+          containerCancelCheckedAtMs: Map<string, number>;
+        };
+      // 본문이 컨테이너 아이템/반복 경계에서 set() 한 상태를 재현.
+      priv().containerCancelCheckedAtMs.set(executionId, Date.now());
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockResolvedValue(undefined);
+
+      await service.executeBackgroundSubgraph(
+        makeBgJob({ backgroundRunId: 'bg-run-w14-cleanup' }),
+      );
+
+      expect(priv().containerCancelCheckedAtMs.has(executionId)).toBe(false);
+      inlineSpy.mockRestore();
+    });
+
     it('derives bgKey suffix from parentNodeExecutionId when backgroundRunId is empty (legacy job)', async () => {
       let capturedKey: string | undefined;
       const inlineSpy = jest
@@ -5702,6 +5729,63 @@ describe('ExecutionEngineService', () => {
         'n-retry-abort',
         'execution.node.failed',
         expect.anything(),
+      );
+    });
+
+    // ai-review W15 (2026-07-26) — W9(runContainer)와 동형 결함이 Sub-Workflow
+    // 노드 경로에 잔존했다. `workflow.handler.ts` 의 C1 재throw(sync 모드
+    // `executeInline` 이 §2.3 가드로 관측한 `ExecutionCancelledError`)가 이
+    // `executeNode` try 안에서 발생하면 예전에는 generic catch 가
+    // instanceof 분기 없이 기본 `stop_workflow` 정책을 적용해 노드를 FAILED 로
+    // 영속하고 executionId 를 포함한 내부 message 를 실어 NODE_FAILED 를 WS 로
+    // 방출했다. `ParkReleaseSignal` 과 대칭인 우회 재throw 로 이를 막는다 —
+    // 정상 그래프 dispatch 로 workflow 타입 노드를 통과시켰을 때(handler 가
+    // 직접 `ExecutionCancelledError` 를 throw 해 C1 재throw 를 시뮬레이션) 취소가
+    // 노드를 FAILED 로 만들지 않고 NODE_FAILED 를 emit 하지 않는지 단언한다.
+    it('Sub-Workflow(workflow) 노드에서 ExecutionCancelledError 가 발생하면 FAILED 로 오분류하거나 NODE_FAILED 를 emit 하지 않는다 (W15)', async () => {
+      const executeImpl = jest.fn(async () => {
+        throw new ExecutionCancelledError('Execution cancelled externally');
+      });
+      const cancelledSubWorkflowHandler = (): NodeHandler => ({
+        validate: () => ({ valid: true, errors: [] }),
+        execute: executeImpl,
+      });
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-subwf',
+          workflowId,
+          type: 'workflow',
+          category: NodeCategory.LOGIC,
+          label: 'Sub-workflow',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('workflow', cancelledSubWorkflowHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 노드는 FAILED 로 저장되지 않는다 (회귀 전: FAILED + 내부 message 노출).
+      const ne = lastNodeExecSave('n-subwf');
+      expect(ne?.status).not.toBe(NodeExecutionStatus.FAILED);
+      // handler.execute 는 errorPolicy 재시도 없이 1회만 호출된다.
+      expect(executeImpl).toHaveBeenCalledTimes(1);
+      // NODE_FAILED 가 emit 되지 않는다.
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'n-subwf',
+        'execution.node.failed',
+        expect.anything(),
+      );
+      // Execution 자체는 cancelled 로 마감된다 (C1/C4 catch 경로 재사용).
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
       );
     });
 
@@ -10217,11 +10301,22 @@ describe('ExecutionEngineService', () => {
     // ai-review W10 (2026-07-26) — 아이템 경계 cancel 가드(§2.3 확장)가 아이템 수에
     // 선형 비례하는 순차 DB 라운드트립을 추가하던 결함. `assertExecutionNotCancelled`
     // 가 `executeContainerBody` 호출부에서만 시간 기반 스로틀(`{ throttle: true }`,
-    // 200~300ms)을 적용하도록 수정됐다 — 짧은 간격 안에 반복되는 아이템 경계 체크는
+    // 200~300ms 권장 범위, 실채택 250ms)을 적용하도록 수정됐다 — 짧은 간격 안에 반복되는 아이템 경계 체크는
     // 실제 DB 조회 없이 직전 결과를 재사용해야 한다. `executionRepository.findOne`
     // 은 이 파일에서 `assertExecutionNotCancelled` 만 호출하는 유일한 지점이므로
     // (production 소스 주석 참조) 호출 횟수를 직접 단언할 수 있다.
     it('짧은 간격 내 아이템 경계 반복은 실제 DB 조회를 1회로 스로틀한다 (W10)', async () => {
+      // ai-review W17 (2026-07-26) — 이 테스트는 원래 실제 wall-clock 시간(아이템
+      // 10개가 250ms 스로틀 창 안에 다 처리되는지)에 의존해 flaky 했다(실측: 415
+      // 테스트 40회 반복 중 3회, 그중 1회는 findOne 11회 — 스로틀이 아예 없을 때와
+      // 수치적으로 구분 불가능한 실패 시그니처). 자매 테스트(C3 `:10014` 부근)와
+      // 동일하게 `Date.now()` 를 고정해 wall-clock 의존을 제거한다 — 여기서는 시간을
+      // 전혀 전진시키지 않아(항상 동일 값을 반환) 실행 환경 속도와 무관하게 모든
+      // 아이템 경계 체크가 항상 250ms 창 안에 있도록 결정화한다.
+      const simulatedNow = Date.now();
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockImplementation(() => simulatedNow);
       const itemCount = 10;
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
@@ -10290,6 +10385,175 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.findOne.mock.calls.length).toBeLessThan(
         itemCount,
       );
+      nowSpy.mockRestore();
+    });
+
+    // ai-review W18 (2026-07-26) — 스로틀 Map 정리 로직에 회귀 커버리지가 0이었다
+    // (실측: `finalizeRehydrationCleanup`/`runExecution` finally 의 두 `delete` 를
+    // 모두 제거해도 415/415 GREEN). 아이템 경계 스로틀(W10, `:6526`)이 정상 완료
+    // 경로에서도 `containerCancelCheckedAtMs` 에 executionId 를 set() 하므로,
+    // 실행이 정상 종결된 뒤 그 키가 남아있지 않아야 한다(`runExecution` finally
+    // `:4544`).
+    it('실행이 정상 종결되면 containerCancelCheckedAtMs 에서 executionId 키가 제거된다 (W18)', async () => {
+      const priv = () =>
+        service as unknown as {
+          containerCancelCheckedAtMs: Map<string, number>;
+        };
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({ ok: true })),
+      };
+      handlerRegistry.register('body_node_w18_cleanup', bodyHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node_w18_cleanup',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { items: [1, 2, 3] });
+      await flushPromises();
+      await flushPromises();
+
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(3);
+      expect(priv().containerCancelCheckedAtMs.has(executionId)).toBe(false);
+    });
+
+    // ai-review W18 (2026-07-26) — LoopExecutor 는 per-iteration try/catch 가
+    // 없어(`loop-executor.ts:76-80` 참조) `ExecutionCancelledError` 가 수정 없이
+    // 그대로 전파된다는 분석만 있고 이를 고정하는 테스트가 없었다(ForEach/Parallel
+    // 은 `describe.each` 로 고정됨). 위 ForEach C3 테스트와 동일한 트리거(아이템/
+    // 반복 경계 가드 + `Date.now` 스로틀 창 통과)를 Loop 컨테이너에 대칭 적용한다.
+    it('노드 경계가 아니라 반복 경계에서 외부 cancel 을 관측하면 남은 Loop 반복은 dispatch 되지 않는다 (W18 — LoopExecutor 대칭)', async () => {
+      let bodyCalls = 0;
+      let simulatedNow = Date.now();
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockImplementation(() => simulatedNow);
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          bodyCalls++;
+          if (bodyCalls === 1) {
+            // 반복 0 실행 완료 직후부터 외부 cancel 이 관측되도록 무장 —
+            // 반복 1 의 executeContainerBody 진입 가드가 이걸 본다.
+            mockExecutionRepo.findOneBy.mockImplementation(() =>
+              Promise.resolve({
+                id: executionId,
+                workflowId,
+                status: ExecutionStatus.CANCELLED,
+                startedAt: new Date(),
+              }),
+            );
+            // 스로틀 창(250ms)을 넘겨 반복 1 의 가드가 실제 DB 조회를 수행하게 한다.
+            simulatedNow += 300;
+          }
+          return mockOutput({ ok: true });
+        }),
+      };
+      handlerRegistry.register('body_node_w18_loop', bodyHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'loop',
+          workflowId,
+          type: 'loop',
+          category: NodeCategory.LOGIC,
+          label: 'loop',
+          config: { count: 3 },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node_w18_loop',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'loop',
+          toolOwnerId: null,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-loop-body',
+          workflowId,
+          sourceNodeId: 'loop',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'loop',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+      await flushPromises();
+
+      // 반복 0(1건)만 body 가 실행되고, 반복 1/2 는 dispatch 되지 않는다.
+      expect(bodyCalls).toBe(1);
+      // Execution 은 실패가 아니라 cancelled 로 마감된다 (C4 catch 경로 재사용).
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+      nowSpy.mockRestore();
     });
 
     it('executes Loop body N times', async () => {

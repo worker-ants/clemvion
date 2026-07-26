@@ -174,7 +174,7 @@ priority: P3
 - **선택**: 노드 경계(선형 dispatch loop·Parallel 브랜치)는 매번 실제 조회를 유지하고,
   아이템 경계만 250ms 스로틀 — 스로틀 창 안의 반복 호출은 직전 결과(미취소)를 재사용해
   DB 라운드트립을 생략한다.
-- **왜 무해한가**: `spec/conventions/node-cancellation.md` §5(`AbortError` 분류)가 전제하는
+- **왜 무해한가**: `spec/conventions/node-cancellation.md` §2.2(CPU 바운드 / 즉시 완료 노드)가 전제하는
   취소 전파는 애초에 **best-effort** 계약이다 — 노드 경계(선형/Parallel) 관측 지연은
   이 변경으로 늘지 않고, 아이템 경계만 최대 250ms 늦게 관측될 수 있다. Stop 버튼 클릭 후
   수백 ms 이내에 다음 아이템 dispatch 가 멈추는 정도는 사용자 체감상 무해하다고 판단.

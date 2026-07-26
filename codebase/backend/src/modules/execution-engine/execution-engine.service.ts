@@ -5802,6 +5802,17 @@ export class ExecutionEngineService
         throw err;
       }
 
+      // ai-review W15 (2026-07-26) — W9(runContainer)와 동형 결함: 이 generic
+      // catch 는 instanceof 분기 없이 errorPolicy(기본 stop_workflow)를 적용해
+      // NodeExecution 을 FAILED 로 영속하고 executionId 를 포함한 내부 message 를
+      // 실어 NODE_FAILED 를 WS 로 방출한다. Sub-Workflow(workflow) 노드의
+      // executeInline 이 §2.3 가드로 관측한 `ExecutionCancelledError` 도 이 catch
+      // 로 떨어지므로, ParkReleaseSignal 과 대칭으로 FAILED 마킹/NODE_FAILED emit
+      // 이전에 우회 재throw 한다.
+      if (err instanceof ExecutionCancelledError) {
+        throw err;
+      }
+
       // Apply error policy
       const errorPolicyConfig = this.getErrorPolicyConfig(node);
       const result = this.errorPolicyHandler.handleError(
@@ -6931,6 +6942,13 @@ export class ExecutionEngineService
       // 본문 전용 bgKey context 를 자체 정리 — 메인 runExecution finally 의
       // deleteContext(executionId) 와 독립. (멱등: 미존재 시 no-op.)
       this.contextService.deleteContext(bgKey);
+      // ai-review W14 (2026-07-26) — background 본문은 부모와 같은 executionId 를
+      // 공유하며 executeInline→컨테이너 경로에서 containerCancelCheckedAtMs 에 동일
+      // 키로 set() 한다. background 는 fire-and-forget 이라 부모 runExecution finally
+      // 가 먼저 이 키를 지운 뒤에도 본문이 계속 실행되며 다시 set 될 수 있고, 이후
+      // 아무도 지우지 않아 무한 성장 누수로 남는다. 여기서도 정리해 어느 순서로
+      // 종료되든 최종적으로 키가 남지 않게 한다. (멱등: 미존재 시 no-op.)
+      this.containerCancelCheckedAtMs.delete(job.executionId);
     }
   }
 
