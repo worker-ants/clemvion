@@ -3596,6 +3596,49 @@ describe('ExecutionEngineService', () => {
 
         runExecutionSpy.mockRestore();
       });
+
+      // 2026-07-27 — 위 timeout 경로의 terminal 가드가 `COMPLETED`/`FAILED` 만
+      // 인라인 열거하고 **CANCELLED 를 누락**해, 동시 Stop 으로 이미 취소된
+      // sub-execution 을 FAILED 로 덮어쓰던 결함의 회귀 고정. 본 PR 이 닫아온
+      // "취소가 조용히 소실된다" 와 같은 클래스다.
+      //   가드를 `TERMINAL_STATUSES` 단일 출처 비교로 바꿔 해소했다 — 인라인 열거는
+      //   원소가 조용히 빠질 수 있고, 실제로 빠졌다.
+      it('timeout 경로가 이미 CANCELLED 인 sub-execution 을 FAILED 로 덮어쓰지 않는다', async () => {
+        const runExecutionSpy = jest
+          .spyOn(
+            service as unknown as {
+              runExecution: (...args: unknown[]) => Promise<unknown>;
+            },
+            'runExecution',
+          )
+          .mockImplementation(() => new Promise<unknown>(() => undefined));
+
+        // 동시 Stop 이 이미 CANCELLED 로 마감한 상태를 재조회가 관측한다.
+        mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+          id: executionId,
+          status: ExecutionStatus.CANCELLED,
+          startedAt: new Date(Date.now() - 100),
+        });
+        mockExecutionRepo.save.mockClear();
+
+        await expect(
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 50, parentWorkspaceId: 'ws-1' },
+          ),
+        ).rejects.toThrow(/timed out after 50ms/);
+
+        // 취소를 FAILED 로 덮어쓰는 save 가 있어서는 안 된다.
+        const failedSaveCall = mockExecutionRepo.save.mock.calls.find(
+          ([entity]) =>
+            (entity as { status?: ExecutionStatus }).status ===
+            ExecutionStatus.FAILED,
+        );
+        expect(failedSaveCall).toBeUndefined();
+
+        runExecutionSpy.mockRestore();
+      });
     });
 
     describe('executeAsync', () => {

@@ -592,12 +592,10 @@ export class ExecutionEngineService
   ): Promise<void> {
     try {
       const row = await this.executionRepository.findOneBy({ id: executionId });
-      if (
-        !row ||
-        row.status === ExecutionStatus.COMPLETED ||
-        row.status === ExecutionStatus.FAILED ||
-        row.status === ExecutionStatus.CANCELLED
-      ) {
+      // terminal 집합은 단일 출처(`TERMINAL_STATUSES`)로 비교한다 — 인라인 열거는
+      // 원소가 조용히 빠질 수 있다(같은 파일 `executeSync` timeout 경로가 실제로
+      // CANCELLED 를 누락했다, 2026-07-27).
+      if (!row || ExecutionEngineService.TERMINAL_STATUSES.has(row.status)) {
         return;
       }
       const errMessage = error instanceof Error ? error.message : String(error);
@@ -4088,10 +4086,14 @@ export class ExecutionEngineService
       const reloaded = await this.executionRepository.findOneBy({
         id: savedExecution.id,
       });
+      // 2026-07-27 — terminal 집합을 인라인 열거하면 원소가 조용히 빠진다. 실제로
+      // 이 자리는 COMPLETED/FAILED 만 열거해 **CANCELLED 를 누락**했고, 그래서 동시
+      // Stop 으로 이미 취소된 sub-execution 을 timeout 경로가 FAILED 로 덮어썼다
+      // (본 PR 이 닫아온 "취소 소실" 과 같은 클래스). 이름 있는 단일 출처
+      // `TERMINAL_STATUSES` 로 비교해 원소 추가/변경 시 자동으로 따라오게 한다.
       if (
         reloaded &&
-        reloaded.status !== ExecutionStatus.COMPLETED &&
-        reloaded.status !== ExecutionStatus.FAILED
+        !ExecutionEngineService.TERMINAL_STATUSES.has(reloaded.status)
       ) {
         reloaded.status = ExecutionStatus.FAILED;
         reloaded.error = {
