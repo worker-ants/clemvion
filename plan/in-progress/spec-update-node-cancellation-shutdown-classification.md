@@ -16,7 +16,7 @@ spec_impact:
 `developer` 는 `spec/` 쓰기 권한이 없어 **제안만** 남긴다.
 `review/consistency/2026/07/25/19_13_33` **Critical (BLOCK: YES)** 에서 분리 —
 [`node-cancellation-residual-signal-propagation`](node-cancellation-residual-signal-propagation.md)
-의 **4번째 항목만** 해당하며, 나머지 항목(chat-channel·MakeShop·Cafe24 signal 전파, IE resume)
+의 **4번째 항목만** 해당하며, 나머지 항목(MakeShop·Cafe24 signal 전파, IE resume — chat-channel 은 won't-do, 추가 위임 #5 참조)
 은 이 결정과 무관하게 진행 가능하다.
 
 ## 문제 — 같은 트리거가 두 개의 최종 상태를 쓰려 한다
@@ -65,7 +65,14 @@ spec_impact:
 
 ---
 
-## 추가 위임 (2026-07-25) — §6 표 두 행 갱신 (SPEC-DRIFT)
+## ~~추가 위임 (2026-07-25) — §6 표 두 행 갱신 (SPEC-DRIFT)~~ → **이행 완료 (2026-07-26)**
+
+> **처리됨**: MakeShop·Cafe24 행을 `✓` 로 갱신했다. 아래 ⚠ 승격 전 확인 조건("handler 가 실제로
+> propagate 하는지")은 `cafe24.handler.spec.ts:750` · `makeshop.handler.spec.ts:577` 의
+> `rethrows AbortError so the ENGINE can classify the node as cancelled` 테스트로 실증했고,
+> 지시대로 문면에서 "§2.2 사전 체크" 표현은 뺐다. `frontmatter.code:` 확장은 기존 부분 등재
+> 관행(`spec-impl-evidence.md` 는 최소 1개 매치만 요구)을 유지해 보류.
+> 초안: [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
 
 `review/code/2026/07/25/21_02_33` WARNING 2 (requirement·documentation 중복 지적).
 
@@ -185,3 +192,33 @@ developer 범위로 처리 가능한 부분(코드+테스트)과 spec 표 갱신
 `4-nodes/3-ai/1-ai-agent.md:1374` 가 이미 `plan/complete/` 로 간
 `node-cancellation-infrastructure` 를 가리킨다 → 실제 추적처는
 `node-cancellation-residual-signal-propagation`.
+
+
+---
+
+## ~~추가 위임 (2026-07-25 #5) — §6 표의 `chat-channel 노드` 행은 **범주 오류**다~~ → **이행 완료 (2026-07-26)**
+
+> **처리됨**: 아래 제안의 두 옵션("행 삭제" vs "성격을 바꿔 기재") 중 **후자**를 택했다 — 행을
+> 지우면 재발 시 근거가 남지 않기 때문이다. §6 행을 `N/A`(범주 오류로 철회)로 재기재하고 §6
+> 범례에 `N/A` 항목을 신설했으며, §1 나열에서 `chat-channel` 을 제거했다. 같은 오분류가 있던
+> `spec/4-nodes/1-logic/10-parallel.md:244` 도 함께 정정했다.
+> 초안: [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
+
+착수 전 프로브에서 전제가 반증됐다. **chat-channel 노드는 존재하지 않는다**:
+
+- `codebase/backend/src/nodes/` 전 카테고리(ai·core·data·flow·integration·logic·presentation·
+  trigger) 전수 확인 — `chat` 이름의 노드 파일 **0건**.
+- `node-types.constants.ts` 에도 미등록.
+- 실체는 **`webhook` 트리거의 `config.chatChannel` 변형**(`1-data-model.md:230`), 구현은
+  `modules/chat-channel/**` 어댑터(SoT: `5-system/15-chat-channel.md`).
+
+그리고 그 어댑터는 §4 cascade 대상이 **될 수 없다** — `executionEvents$` 를 **구독해 외부
+채널로 발송**하는 outbound 방향이고(CCH-AD-05), `abortSignal` 참조가 0건이며, 취소된 실행은
+오히려 `execution.cancelled` 를 **발송해야** 한다.
+
+**제안**: §6 표에서 `| chat-channel 노드 signal 전파 | — | 미구현 (Planned) |` 행을 **삭제**
+하거나, 남긴다면 "노드 아님 — 트리거 어댑터, cascade 대상 아님" 으로 성격을 바꿔 기재.
+§1 의 대상 나열(`... / chat-channel / ...`)도 같은 이유로 정정 대상이다.
+
+`node-handler.interface.ts` 의 JSDoc(같은 오류를 복제하고 있었다)은 코드라 이번 PR 에서
+정정했다 — spec 과 어긋난 채로 두지 않기 위해 근거를 주석에 함께 남겼다.

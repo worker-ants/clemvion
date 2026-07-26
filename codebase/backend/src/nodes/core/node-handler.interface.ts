@@ -213,7 +213,7 @@ export interface ExecutionContext {
   /**
    * 노드 단계 cancellation signal (parallel-p2 결정 A + H, 2026-05-30 —
    * SoT: spec/conventions/node-cancellation.md). 장기 외부 I/O 를 수행하는
-   * 노드 (HTTP / DB / AI / Email / chat-channel) 는 본 signal 을 fetch /
+   * 노드 (HTTP / DB / AI / Email / Cafe24 / MakeShop) 는 본 signal 을 fetch /
    * cancel / timeout 등에 전파한다. signal 이 abort 된 경우 노드는 즉시
    * cleanup 후 `AbortError` 류를 throw — 엔진의 errorPolicyHandler 가
    * 그 에러를 cancelled 의미로 분류.
@@ -228,10 +228,20 @@ export interface ExecutionContext {
    *    (in-flight 취소, best-effort — node-cancellation §2.1)
    *  - AI — Anthropic / OpenAI SDK 의 `signal` 옵션
    *  - Email — 사전 abort 체크만 (in-flight SMTP 중단은 의도적 best-effort 미채택)
+   *  - Cafe24 / MakeShop — client 의 per-call `AbortController` 로 cascade
+   *    (이미 aborted 면 즉시 abort, `finally` 에서 listener 해제 — HTTP 와 동일
+   *    패턴. 취소는 `recordNetworkFailure` 카운터에 넣지 않는다: 로컬 timeout
+   *    abort 와 `upstream.aborted` 로 구분)
    *  - signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 무시 가능 — best-effort
    *
    * 미설정 (= 활성 cancellation 컨텍스트 없음) 이면 노드는 평소처럼 동작.
-   * chat-channel 노드의 signal 전파는 후속 PR 에서 점진 통합.
+   *
+   * `chat-channel` 은 여기 해당하지 않는다 — 노드가 아니라 `webhook` 트리거의
+   * `config.chatChannel` 변형이고(`Trigger.type` 표, spec/1-data-model.md), 구현은
+   * `modules/chat-channel/**` 의 어댑터다. 그 어댑터는 `executionEvents$` 를
+   * **구독해 외부 채널로 발송**하는 outbound 방향이라(CCH-AD-05) 노드 실행
+   * 컨텍스트를 갖지 않으며 `abortSignal` 참조가 0건이다. 취소된 실행은 오히려
+   * `execution.cancelled` 를 발송해야 하므로 cascade 대상 자체가 아니다.
    */
   abortSignal?: AbortSignal;
   /**

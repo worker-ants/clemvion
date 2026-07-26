@@ -1,6 +1,6 @@
 ---
 title: node-cancellation 잔여 — 채널/커머스 노드 signal 전파 + workflow-timeout 노드 abort
-worktree: node-cancel-signal-b4d1
+worktree: node-cancel-chat-9f3e
 started: 2026-07-24
 owner: developer
 status: in-progress
@@ -32,7 +32,20 @@ priority: P3
 
 ## 잔여 항목 (§6 표 기준)
 
-- [ ] **chat-channel 노드 signal 전파** — `context.abortSignal` cascade(§4) 미배선
+- [x] **chat-channel 노드 signal 전파** — **won't-do (범주 오류)**. 착수 전 프로브에서 전제가
+      반증됐다: **chat-channel 노드는 존재하지 않는다**. 전 카테고리(ai·core·data·flow·
+      integration·logic·presentation·trigger) 전수 확인 결과 `chat` 이름의 노드 파일 0건이고,
+      `node-types.constants.ts` 에도 미등록이다.
+      실체는 **`webhook` 트리거의 `config.chatChannel` 변형**이며(`1-data-model.md:230`),
+      구현은 `modules/chat-channel/**` 의 어댑터다. 그 어댑터는 `executionEvents$` 를 **구독해
+      외부 채널로 발송**하는 outbound 방향이라(CCH-AD-05) 노드 실행 컨텍스트가 없고
+      `abortSignal` 참조도 0건이다. 취소된 실행은 오히려 `execution.cancelled` 를 발송해야 하니
+      **cascade 대상 자체가 아니다**.
+      → `node-handler.interface.ts` JSDoc 의 잘못된 나열을 정정하고 근거를 남겼다.
+      spec §6 표의 해당 행 처분은 `spec/` 권한 밖이라 위임했고, **2026-07-26 planner 턴에서
+      이행 완료**했다 — §1 나열에서 chat-channel 제거 + §6 행을 `N/A`(범주 오류로 철회) 로
+      재기재 + `10-parallel.md:244` 의 같은 오분류 정정.
+      초안·근거: [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
 - [x] **MakeShop 노드 signal 전파** (2026-07-25, handler 재throw 가드까지 포함) — `MakeshopCallOptions.signal` 신설,
       handler 가 `context.abortSignal` 을 전달, `executeWithRetry` 가 자기 timeout controller 로
       cascade(§4). 이미 aborted 면 즉시 abort(§2.2). `http-request.handler.ts` 와 동일 패턴.
@@ -175,4 +188,8 @@ handler 가 어떻게 반응하는지**는 안 봤기 때문이다. handler 의 
 - `http-request.handler.ts` 의 같은 리스너 누수(선재) + abort-cascade 3중 복제 → 공용 헬퍼.
   **spec §4 예시 자체가 그 누수 패턴**이라 spec 갱신과 함께 가야 한다(planner 위임에 기재).
 - 429 backoff / 401 refresh 대기 구간의 signal 관측 (위 §W5).
-- §6 표 두 행 갱신은 `spec/` 권한 밖이라 planner 위임.
+- ~~§6 표 두 행 갱신은 `spec/` 권한 밖이라 planner 위임.~~ → **2026-07-26 이행 완료**:
+  MakeShop·Cafe24 행을 `✓` 로 갱신(근거를 client §4 cascade + handler §5.1 재throw 양쪽으로 명시,
+  위임 문서가 요구한 "handler propagate 실증" 조건을 테스트 4건으로 충족). 같은 턴에서
+  chat-channel 행도 `N/A` 로 처분했다 —
+  [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
