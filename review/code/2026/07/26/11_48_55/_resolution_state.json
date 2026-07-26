@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "started_at": "2026-07-26T12:10:00Z",
+  "completed_at": "2026-07-26T12:50:00Z",
+  "summary_items_total": 12,
+  "items_resolved_ids": [1, 2, 3, 4, "W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "W6": "spec"
+  },
+  "commits_made": [
+    { "sha": "ff87ede27", "summary_ids": [1, 2, 3, 4, "W1", "W2", "W3", "W4", "W5", "W6"], "scope": "engine" },
+    { "sha": "107133cfd", "summary_ids": [2, 3], "scope": "engine-tests" },
+    { "sha": "a3e169317", "summary_ids": ["W7"], "scope": "plan-docs" }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-node-cancellation-shutdown-classification.md#추가 위임 (2026-07-26 #6)"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/lint-20260726-124250.log",
+    "_test_logs/unit-20260726-124352.log",
+    "_test_logs/build-20260726-124500.log",
+    "_test_logs/e2e-20260726-124725.log"
+  ],
+  "mutation_verification": {
+    "runExecution": "RED->GREEN",
+    "runNodeDispatchLoop": "RED->GREEN",
+    "executeInline": "RED->GREEN",
+    "executeContainerBody": "RED->GREEN",
+    "executeParallelBranchBody": "RED->GREEN",
+    "workflowHandler_C1_rethrow": "RED->GREEN",
+    "foreachExecutor_errorPolicy_bypass": "RED->GREEN"
+  },
+  "auto_fix_iterations": {},
+  "escalation_reason": "W6 spec draft requires project-planner turn (spec/ write out of scope)",
+  "last_reset_hint_sec": null
+}
