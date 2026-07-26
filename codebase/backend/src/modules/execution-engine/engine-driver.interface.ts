@@ -33,12 +33,14 @@ import type {
  * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이며,
  * step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시한다.
  *
- * 현재 멤버 수(2026-07-26 실측): `EngineDriver` distinct **14**
- * (Core 2 + Interaction 1 + ReentryState 1 + AiTurn 자체 5 + Retry 자체 5),
- * `AiTurnEngineDriver` 합계 **9**. 이번 라운드에 `assertExecutionNotCancelled` ·
- * `markNodeCancelled` 2개가 추가됐다. `execution-engine.md ## Rationale` §C-1 의
- * 수치는 아직 12/7 로 stale — `spec-update-node-cancellation-shutdown-classification.md`
- * #7 보강 8번 항목으로 정정 위임돼 있다(코드/spec 이 서로 다른 값으로 갈라지지 않도록).
+ * 현재 멤버 수(2026-07-26 3차 라운드 실측): `EngineDriver` distinct **15**
+ * (Core 2 + Interaction 1 + ReentryState 1 + AiTurn 자체 6 + Retry 자체 5),
+ * `AiTurnEngineDriver` 합계 **10**. ai-review WARNING #1(3차 라운드) 로
+ * `assertActiveExecutionAndSaveNodeExec` 가 추가돼 이전 라운드의 14/9 에서
+ * 다시 갱신됐다. `execution-engine.md ## Rationale` §C-1 의 수치는 아직
+ * 12/7 로 stale — `spec-update-node-cancellation-shutdown-classification.md`
+ * #7 보강 8번 항목이 이제 15/10 을 목표로 정정 위임돼 있다(코드/spec 이 서로
+ * 다른 값으로 갈라지지 않도록, plan 문서도 이번 라운드에 함께 갱신).
  */
 export interface CoreEngineDriver {
   /**
@@ -163,6 +165,25 @@ export interface AiTurnEngineDriver
     executionId: string,
     errorEnvelope?: { code: string; message: string },
   ): Promise<void>;
+
+  /**
+   * ai-review WARNING #1 (2026-07-26, 3차 라운드) — `finalizeAiNode` 의 "이미
+   * RUNNING 유지" 분기 전용. Execution.status 가 RUNNING→RUNNING 이라
+   * `updateExecutionStatus` 의 짝 전이(FOR UPDATE) choke point 를 타지 않는데,
+   * 짝 `nodeExec` COMPLETED save 는 여전히 필요하다 — 그 save 를 형제 분기와
+   * 동일하게 같은 트랜잭션의 행 잠금 안에서 원자화해, 단순 SELECT
+   * (`assertExecutionNotCancelled`) 확인 뒤 별도 save 사이의 검사-후-사용
+   * race 를 닫는다.
+   *
+   * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 save 했다.
+   *   `false` 는 동시 cancel 이 선점해 save 를 건너뛴 경우 — 호출부는
+   *   `assertLinkedTransitionApplied` 로 짝 `nodeExec` 를 CANCELLED
+   *   재마킹해야 한다.
+   */
+  assertActiveExecutionAndSaveNodeExec(
+    executionId: string,
+    nodeExec: NodeExecution | null,
+  ): Promise<boolean>;
 }
 
 /**

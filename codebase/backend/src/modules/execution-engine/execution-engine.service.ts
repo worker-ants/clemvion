@@ -8024,6 +8024,55 @@ export class ExecutionEngineService
   }
 
   /**
+   * ai-review WARNING #1 (2026-07-26, 3차 라운드 — concurrency/architecture/
+   * requirement 3개 reviewer 공통 지적) — `finalizeAiNode` 의 "이미 RUNNING
+   * 유지" 분기(turn-park 재개 경로의 정상 multi-turn 대화 종료 주 경로)는
+   * Execution.status 가 RUNNING→RUNNING 이라 `updateExecutionStatus`(짝 전이
+   * choke point) 를 아예 타지 않는다. 그런데도 짝 `NodeExecution` 을 COMPLETED
+   * 로 save 해야 하므로, 그 save 를 형제 분기(`updateExecutionStatus` 의
+   * `linkedNodeExec` 분기, FOR UPDATE)와 동일하게 **같은 트랜잭션의 행 잠금**
+   * 안에서 원자화한다 — `assertExecutionNotCancelled`(단순 SELECT) 확인
+   * 직후~save 사이의 좁은 창에서 동시 Stop 이 끼어드는 검사-후-사용 race 를
+   * 완전히 닫는다.
+   *
+   * `updateExecutionStatus` 의 `linkedNodeExec` 분기와 잠금 SQL 은 같지만
+   * Execution.status 자체는 쓰지 않는다(호출 시점에 이미 RUNNING 이라 전이가
+   * 없음) — 그래서 그 choke point 를 재사용하지 않고 별도 좁은 표면으로 둔다
+   * (ISP, {@link AiTurnEngineDriver} 전용 — 호출자는 `finalizeAiNode` 뿐).
+   *
+   * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 트랜잭션
+   *   안에서 save 했다. `false` 는 동시 cancel 이 Execution 을 이미 terminal
+   *   로 옮겨 save 를 건너뛴 경우 — 호출부는 `assertLinkedTransitionApplied`
+   *   로 짝 `nodeExec` 를 CANCELLED 재마킹한 뒤 던져야 한다.
+   */
+  // EngineDriver 멤버 — `finalizeAiNode` RUNNING 유지 분기 전용(AiTurnOrchestrator only).
+  public async assertActiveExecutionAndSaveNodeExec(
+    executionId: string,
+    nodeExec: NodeExecution | null,
+  ): Promise<boolean> {
+    let persisted = false;
+    await this.dataSource.transaction(async (manager) => {
+      const live: unknown[] = await manager.query(
+        `SELECT id FROM execution
+          WHERE id = $1
+            AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
+          FOR UPDATE`,
+        [executionId],
+      );
+      if (live.length === 0) {
+        // 동시 cancel 이 선점 — save 를 건너뛴다. 호출부가
+        // assertLinkedTransitionApplied 로 짝 nodeExec 를 CANCELLED 마킹한다.
+        return;
+      }
+      if (nodeExec) {
+        await manager.save(NodeExecution, nodeExec);
+      }
+      persisted = true;
+    });
+    return persisted;
+  }
+
+  /**
    * 시스템 변수(`__*` prefix)를 제외한 사용자 정의 변수만 추출한다.
    * `stageDurableResumeSnapshot` 과 `rehydrateUserVariables` 가 공유하는
    * 단일 출처 — `__*` 필터 기준 변경 시 이 한 곳만 수정하면 된다.

@@ -5060,6 +5060,94 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // ai-review WARNING #1 (2026-07-26, 3차 라운드 — concurrency/architecture/
+  // requirement 3개 reviewer 공통 지적) — `finalizeAiNode` 의 "이미 RUNNING
+  // 유지" 분기는 `updateExecutionStatus`(짝 전이 choke point) 를 타지 않아
+  // (RUNNING→RUNNING 이라 전이 자체가 없음) 형제 분기의 FOR UPDATE 보호를
+  // 받지 못했다. 최초 fix 는 `assertExecutionNotCancelled`(단순 SELECT) 로
+  // 재확인한 뒤 별도로 `nodeExec` 를 save 해, 그 확인~save 사이에 검사-후-사용
+  // 창이 남았다. 위 "linkedNodeExec 짝 전이 — terminal 가드" idiom 을 미러해
+  // 관측+save 를 같은 트랜잭션의 행 잠금(FOR UPDATE) 안에서 원자화한다.
+  describe('assertActiveExecutionAndSaveNodeExec — RUNNING 유지 분기 전용 원자 관측+save', () => {
+    const priv = () =>
+      service as unknown as {
+        assertActiveExecutionAndSaveNodeExec: (
+          executionId: string,
+          nodeExec: NodeExecution | null,
+        ) => Promise<boolean>;
+      };
+
+    it('DB 가 비-terminal 이면 nodeExec 를 save 하고 true', async () => {
+      const nodeExec = {
+        id: 'node-exec-running-keep',
+        status: NodeExecutionStatus.COMPLETED,
+      } as unknown as NodeExecution;
+
+      const persisted = await priv().assertActiveExecutionAndSaveNodeExec(
+        executionId,
+        nodeExec,
+      );
+
+      expect(persisted).toBe(true);
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(nodeExec);
+      // Execution 자체는 save 하지 않는다 — RUNNING→RUNNING 이라 전이가 없다
+      // (updateExecutionStatus 의 linkedNodeExec 분기와의 핵심 차이).
+      expect(mockExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('DB 가 이미 terminal(동시 Stop)이면 save 를 건너뛰고 false', async () => {
+      mockTxManagerQuery.mockResolvedValueOnce([]); // 행 잠금 0행 → terminal
+      const nodeExec = {
+        id: 'node-exec-running-keep-2',
+        status: NodeExecutionStatus.COMPLETED,
+      } as unknown as NodeExecution;
+      const saveCallsBefore = mockNodeExecutionRepo.save.mock.calls.length;
+
+      const persisted = await priv().assertActiveExecutionAndSaveNodeExec(
+        executionId,
+        nodeExec,
+      );
+
+      expect(persisted).toBe(false);
+      // 취소된 NodeExecution 이 잠깐이라도 COMPLETED 로 영속되지 않아야 한다.
+      expect(mockNodeExecutionRepo.save.mock.calls.length).toBe(
+        saveCallsBefore,
+      );
+    });
+
+    it('가드는 행 잠금(FOR UPDATE) + 비-terminal 조건으로 조회한다', async () => {
+      const nodeExec = {
+        id: 'node-exec-running-keep-3',
+        status: NodeExecutionStatus.COMPLETED,
+      } as unknown as NodeExecution;
+
+      await priv().assertActiveExecutionAndSaveNodeExec(executionId, nodeExec);
+
+      // FOR UPDATE 가 없으면 확인과 save 사이에 stop() 이 끼어들 수 있다
+      // (검사-후-사용 race). 잠금은 트랜잭션 커밋까지 유지된다.
+      expect(mockTxManagerQuery).toHaveBeenCalledWith(
+        expect.stringMatching(/FOR UPDATE/),
+        [executionId],
+      );
+      expect(mockTxManagerQuery).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /status IN \('pending', 'running', 'waiting_for_input'\)/,
+        ),
+        expect.anything(),
+      );
+    });
+
+    it('nodeExec 가 null 이면(짝이 없는 호출) save 를 시도하지 않고 non-terminal 이면 true', async () => {
+      const persisted = await priv().assertActiveExecutionAndSaveNodeExec(
+        executionId,
+        null,
+      );
+
+      expect(persisted).toBe(true);
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('rehydrateAndResume — chat-channel routing context 재등록 (재개 경로)', () => {
     // Spec [chat-channel.md §3.1 CCH-AD-05] + [4-execution-engine.md §7.5 line 858]:
     // routing context(`{triggerId, workflowId, chatChannel.conversationKey}`)는
