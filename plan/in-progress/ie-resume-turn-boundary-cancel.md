@@ -460,3 +460,45 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 - [x] `/ai-review` + Critical·Warning 해소 (RESOLUTION.md 참조)
 - [x] `/consistency-check --impl-done` (BLOCK: NO)
 - [ ] plan 이동 시 상호참조 링크 3곳 정정 (위 "⚠️" 절 참조)
+
+## 8차 라운드 (최종) — 코드 변경 없이 수렴
+
+`review/code/2026/07/27/03_14_01` — **Critical 0 / LOW**. 발견이 전부 유지보수성·관측성·
+테스트 완결성이고 correctness 결함 0건이라 **코드를 더 건드리지 않고** 수렴시켰다
+(고칠 때마다 리뷰가 stale 해져 라운드가 무한히 이어진다 — 8라운드 동안 실측한 패턴).
+최종 트리에서 핵심 가드 mutation **6/6 RED** 재확인:
+공유 잠금 헬퍼 무력화 / `FOR UPDATE` 제거 / 취소 종결 헬퍼 throw 무력화 /
+짝 `NodeExecution` 마킹 제거 / `finalizeFailedExecution`·`failFirstSegmentSetup` 선점 return 제거.
+
+- [ ] **두 guard 지점 반환값 소비 비대칭** — `failFirstSegmentSetup` 은 선점 시 warn 로그를
+      남기는데 `executeSync` timeout catch 는 무로그로 지나간다(관측성 drift). 동작은 양쪽 다
+      정확. 아래 통합 항목과 함께 처리.
+- [ ] **`markExecutionFailed` 공용 헬퍼 승격** — `finalizeFailedExecution` /
+      `failFirstSegmentSetup` / `executeSync` timeout catch 3곳이 동일한 guarded-마킹 단계를
+      각자 재구현 중. 3개 종결 경로를 동시에 건드리는 리팩터라 이 PR 끝단에서 하기엔
+      회귀 위험이 이득보다 커 분리한다.
+- [ ] **배포 시 공지 필요 (코드 조치 아님)** — 위 3경로가 guarded 경로로 전환되며 **이전에
+      발사되지 않던 business metrics**(`recordExecutionTerminal`/`recordExecutionError`)가
+      새로 트리거된다. 실패율 대시보드가 실제 증가 없이 급변할 수 있다 —
+      "과거 undercounted 가 정확해진 것" 으로 공지할 것.
+- [ ] **알려진 생존 뮤턴트 1건** — `updateExecutionStatus` 짝 전이 분기의
+      `emitTerminalExecutionMetrics(..., persisted)` 3번째 인자를 `true` 로 되돌리는 뮤턴트가
+      RED 로 떨어지지 않는다(단언 부재). 영향은 **metrics 정확도 한정**이며 취소 정합성과 무관.
+      `emitTerminalExecutionMetrics` spy 로 `persisted===false` 단언 1건 추가하면 닫힌다.
+- [ ] **`assertLinkedTransitionApplied` 의 `markNodeCancelled` reject 경로 미검증** — 그 경우
+      원본 예외가 `ExecutionCancelledError` 로 감싸이지 않고 전파돼 상위가 취소를 FAILED 로
+      오분류할 수 있다(이 PR 이 반복해 닫아온 것과 같은 계열). 발생 조건이 "취소 마킹 DB 저장
+      실패" 라 드묾.
+- [ ] **테스트 위생** — 트랜잭션 mock 헬퍼 3중 중복(두 쌍은 인자 순서가 반대) ·
+      raw-SQL 매직 인덱스(`[7]`) 4곳 · `FinalizeSubject` 타입 3중 반복 ·
+      `processAiResumeTurn` 3항 OR 가드 중 2항 미검증.
+- [ ] **`handleAiMessageTurn` 분해** — 423줄/4책임. 최소 turn 경계 cancel 가드 블록만이라도
+      `guardTurnBoundaryCancellation` 으로 추출.
+- [ ] **줄 번호 앵커 소탕** — 이 세션이 한 곳을 정정했지만 같은 파일 세트에 stale 인용이
+      2곳 더 있다(`execution-engine.service.ts:3701`, `:6973`). 하드코딩 서수
+      ("세 번째 짝 전이 소비처") 1곳도 소비처가 6개가 된 지금 어긋난다.
+- [ ] **(선재, 본 PR 무관) multi-turn WS 메타 O(N²)** — 매 turn 누적 `turnDebugHistory`/
+      `ragSources` 전체를 재전송. 델타 emit 으로 전환 검토.
+- [ ] **(diff 밖, 같은 결함 클래스) `retry-turn.service.ts::failRetryExecution`** — 이 PR 이
+      형제 함수에서 닫은 것과 **동일한 무가드 full-entity save lost-update 패턴**을 그대로
+      보유(`retry-turn.service.ts:636,658`). 별도 PR 로 `updateExecutionStatus` 재배선.
