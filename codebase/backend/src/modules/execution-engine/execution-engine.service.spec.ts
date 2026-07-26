@@ -5796,6 +5796,13 @@ describe('ExecutionEngineService', () => {
       expect(JSON.stringify(cancelCall?.[3] ?? {})).not.toContain(
         'cancelled externally',
       );
+      // ai-review 6R (testing) — 위 문자열 단언만으로는 부족하다. `markNodeCancelled`
+      // 이 `errorEnvelope` 없이 호출될 때 **`error` 키/필드 자체가 생기지 않는다**는
+      // 것이 이 헬퍼의 존재 이유(W15/W19: sentinel message 에 executionId 가 있다)인데,
+      // 실측 mutation 에서 임의의 leaked `error` 를 강제 주입해도 기존 단언들이 전부
+      // GREEN 이었다. 구조적으로 고정한다.
+      expect(ne?.error).toBeUndefined();
+      expect(cancelCall?.[3]).not.toHaveProperty('error');
       // handler.execute 는 errorPolicy 재시도 없이 1회만 호출된다.
       expect(executeImpl).toHaveBeenCalledTimes(1);
       // NODE_FAILED 가 emit 되지 않는다.

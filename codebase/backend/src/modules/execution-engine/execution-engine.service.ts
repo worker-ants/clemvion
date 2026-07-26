@@ -4549,26 +4549,6 @@ export class ExecutionEngineService
   }
 
   /**
-   * top-level 실행을 CANCELLED 로 종결하는 공통 처리. **초기 세그먼트**(`runExecution` catch)와
-   * **재개 세그먼트**(`finalizeResumedExecutionOutcome`)가 공유한다 (ai-review W12, 2026-07-26).
-   *
-   * `stop()` 이 이미 guarded UPDATE(M-3)로 `finishedAt`/`durationMs` 를 포함해 CANCELLED 를
-   * 커밋했을 수 있으므로(그 행을 `assertExecutionNotCancelled` 가 읽어 `ExecutionCancelledError`
-   * 를 던졌다), 여기서 무조건 `save()` 하면 stale in-memory `savedExecution` 이 그 값을 늦은
-   * 시각으로 덮어써 `finishedAt`/`durationMs` 가 부풀려진다. `updateExecutionStatus`(guarded
-   * UPDATE, `status IN (비-terminal)`)로 전환해 이미 terminal 인 행은 재마킹하지 않는다 —
-   * `assertExecutionNotCancelled` 의 JSDoc(§2.3)이 주장하는 "stop 이 쓴 finishedAt/durationMs 가
-   * 보존된다"가 실제로 성립하도록 한다. 값은 방어적으로 채워 둔다(레이스로 이 catch 가 최초
-   * 관측자가 되는 극단 케이스 대비 — 그 경우에만 실제로 영속된다).
-   *
-   * emit 은 반환값과 무관하게 항상 발행한다 — `stop()` 이 RUNNING/PENDING 경로에서는 이벤트를
-   * 쏘지 않으므로(WAITING 경로만 `cancelParkedExecution` 이 emit) 이 헬퍼가 유일한 알림 지점인
-   * 경우가 있다. `emitCancellationEvent` 로 통일해 `cancelledBy` 계약(W3)을 채운다.
-   *
-   * @param logContext — 호출자 식별용 (`emitCancellationEvent` 로그 태그). 두 호출자가 다른 값을
-   *   전달하는 유일한 파라미터라 헬퍼 추출 전에는 이 한 값 차이 때문에 8줄 블록이 손으로 복제됐다.
-   */
-  /**
    * ai-review 5R (maintainability) — 노드 단위 취소 종결. `executeNode` catch 의 두
    * 분기(`isAbortError` / `ExecutionCancelledError`)가 상태 마킹·`finishedAt`/
    * `durationMs` 계산·`save`·`NODE_CANCELLED` emit 20여 줄을 문자 그대로 복제하고
@@ -4614,6 +4594,26 @@ export class ExecutionEngineService
     );
   }
 
+  /**
+   * top-level 실행을 CANCELLED 로 종결하는 공통 처리. **초기 세그먼트**(`runExecution` catch)와
+   * **재개 세그먼트**(`finalizeResumedExecutionOutcome`)가 공유한다 (ai-review W12, 2026-07-26).
+   *
+   * `stop()` 이 이미 guarded UPDATE(M-3)로 `finishedAt`/`durationMs` 를 포함해 CANCELLED 를
+   * 커밋했을 수 있으므로(그 행을 `assertExecutionNotCancelled` 가 읽어 `ExecutionCancelledError`
+   * 를 던졌다), 여기서 무조건 `save()` 하면 stale in-memory `savedExecution` 이 그 값을 늦은
+   * 시각으로 덮어써 `finishedAt`/`durationMs` 가 부풀려진다. `updateExecutionStatus`(guarded
+   * UPDATE, `status IN (비-terminal)`)로 전환해 이미 terminal 인 행은 재마킹하지 않는다 —
+   * `assertExecutionNotCancelled` 의 JSDoc(§2.3)이 주장하는 "stop 이 쓴 finishedAt/durationMs 가
+   * 보존된다"가 실제로 성립하도록 한다. 값은 방어적으로 채워 둔다(레이스로 이 catch 가 최초
+   * 관측자가 되는 극단 케이스 대비 — 그 경우에만 실제로 영속된다).
+   *
+   * emit 은 반환값과 무관하게 항상 발행한다 — `stop()` 이 RUNNING/PENDING 경로에서는 이벤트를
+   * 쏘지 않으므로(WAITING 경로만 `cancelParkedExecution` 이 emit) 이 헬퍼가 유일한 알림 지점인
+   * 경우가 있다. `emitCancellationEvent` 로 통일해 `cancelledBy` 계약(W3)을 채운다.
+   *
+   * @param logContext — 호출자 식별용 (`emitCancellationEvent` 로그 태그). 두 호출자가 다른 값을
+   *   전달하는 유일한 파라미터라 헬퍼 추출 전에는 이 한 값 차이 때문에 8줄 블록이 손으로 복제됐다.
+   */
   private async finalizeCancelledExecution(
     savedExecution: Execution,
     logContext: string,
