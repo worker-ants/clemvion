@@ -625,8 +625,10 @@ export class AiTurnOrchestrator {
    * 보유) 를 구현해야 한다. 미구현 시 명시적 throw (CRIT #4 — duck-typing 제거).
    * @throws {ExecutionCancelledError} turn 경계 cancel 가드(node-cancellation
    *   §2.3, LLM 호출 **이전**)가 동시 Stop 을 관측하면 — handler 호출 자체를
-   *   생략하고 즉시 던진다(§7.9 try/catch 밖이라 `handleAiTurnError` 가 FAILED
-   *   로 오분류하지 않는다).
+   *   생략한다(§7.9 try/catch 밖이라 `handleAiTurnError` 가 FAILED 로 오분류하지
+   *   않는다). ai-review CRITICAL #1(2026-07-27) 수정 — 짝 `nodeExec` 가 있으면
+   *   {@link assertLinkedTransitionApplied} 로 먼저 CANCELLED 마킹한 뒤 던진다
+   *   (다른 네 소비처와 동일한 통일 계약, 방치 시 영구 RUNNING 고아 방지).
    */
   private async handleAiMessageTurn(
     executionId: string,
@@ -668,7 +670,44 @@ export class AiTurnOrchestrator {
     // **try 블록 밖**에 둔다 — 아래 §7.9 try/catch 는 handler throw 를 `FAILED` 로
     // 마감하므로, 그 안에서 던지면 취소가 실패로 오분류된다(#1021 이 컨테이너
     // errorPolicy 에서 다룬 것과 같은 함정).
-    await this.driver.assertExecutionNotCancelled(executionId);
+    //
+    // ai-review CRITICAL #1 (2026-07-27) — 이 가드가 `ExecutionCancelledError` 를
+    // 곧장 throw 하면 이 PR 이 다른 네 소비처(re-park/첫 turn park/RUNNING 유지/
+    // RUNNING 재claim)에 확립한 "짝 NodeExecution 을 먼저 terminal 마킹한 뒤
+    // throw" 통일 계약을 이 지점만 우회했다 — 예외가 `driveResumeAwaited` catch →
+    // `finalizeResumedExecutionOutcome`(top-level Execution 만 갱신)으로 전파돼
+    // 짝 NodeExecution 이 RUNNING 으로 영구 고아가 됐다(`recoverStuckExecutions`
+    // 는 이미 terminal 인 Execution 을 스캔하지 않아 회수 경로도 없음). 다섯 번째
+    // 소비처로 `assertLinkedTransitionApplied` 를 그대로 재사용해 통일한다.
+    try {
+      await this.driver.assertExecutionNotCancelled(executionId);
+    } catch (err) {
+      if (!(err instanceof ExecutionCancelledError)) throw err;
+      const cancelContext = this.contextService.getContext(contextKey);
+      if (!cancelContext) {
+        // 극히 드문 방어적 분기 — 이 가드는 turn 이 실제로 시작되기 전(같은
+        // job 이 아직 살아있는 시점)에 실행되므로 context 가 사라져 있을 일은
+        // 사실상 없다(§732 의 "LLM await 도중 context 소실" 레이스와 달리 이
+        // 지점은 handler 호출 **이전**). 그래도 context 없이는 markNodeCancelled
+        // 의 이벤트 페이로드(parentNodeExecutionId)를 채울 수 없으므로, 마킹을
+        // 생략하고 원본 취소를 그대로 전파한다 — FAILED 로 오분류되지는 않는다.
+        this.logger.warn(
+          `handleAiMessageTurn: ExecutionContext absent on turn-boundary ` +
+            `cancel guard — execution=${executionId} node=${node.id}. ` +
+            `Skipping paired NodeExecution cancel-marking (best-effort).`,
+        );
+        throw err;
+      }
+      // 통일 계약 재사용 — 짝 NodeExecution 을 CANCELLED 로 마킹한 뒤 rethrow.
+      await this.assertLinkedTransitionApplied(
+        false,
+        nodeExec,
+        node,
+        cancelContext,
+        executionId,
+        'AI turn — turn 경계',
+      );
+    }
 
     // Process user message via the node's own handler (so both ai_agent
     // and information_extractor can implement conversational extraction
@@ -1314,15 +1353,22 @@ export class AiTurnOrchestrator {
    * 2026-05-19 — `finalStatus` 추가 (spec §7.9). `'FAILED'` 시 NodeExecution.
    * status=FAILED + Execution.status=FAILED + NODE_FAILED + EXECUTION_FAILED
    * 분기로 진입. 기본값 `'COMPLETED'` 는 기존 흐름 유지.
-   * @throws {ExecutionCancelledError} 두 분기 모두 동시 Stop 을 관측하면
-   *   짝 `nodeExec` 를 CANCELLED 로 마킹한 뒤 던져 `NODE_COMPLETED`/
-   *   `EXECUTION_RESUMED` emit 을 막는다({@link assertLinkedTransitionApplied}):
-   *   (1) retry-last-turn 재진입(RUNNING 재claim, `savedExecution.status !==
-   *   RUNNING` 분기) — `updateExecutionStatus` 짝 전이 terminal 가드가
-   *   `shouldProceed === false` 를 반환(ai-review WARNING #2). (2) RUNNING 유지
-   *   분기(`savedExecution.status === RUNNING`) — `tryLockActiveExecutionAndSaveNodeExec`
-   *   가 같은 트랜잭션의 행 잠금(FOR UPDATE) 안에서 관측+save 를 원자화해
-   *   `shouldProceed === false` 를 반환(ai-review WARNING #1, 3차 라운드).
+   * @throws {ExecutionCancelledError} 세 분기 모두 동시 Stop 을 관측하면
+   *   짝 `nodeExec` 를 CANCELLED 로 마킹한 뒤 던져 terminal emit 을 막는다
+   *   ({@link assertLinkedTransitionApplied}): (1) retry-last-turn 재진입
+   *   (RUNNING 재claim, `savedExecution.status !== RUNNING` 분기) —
+   *   `updateExecutionStatus` 짝 전이 terminal 가드가 `shouldProceed === false`
+   *   를 반환(ai-review WARNING #2) — `NODE_COMPLETED`/`EXECUTION_RESUMED` emit
+   *   을 막는다. (2) RUNNING 유지 분기(`savedExecution.status === RUNNING`) —
+   *   `tryLockActiveExecutionAndSaveNodeExec` 가 같은 트랜잭션의 행 잠금(FOR
+   *   UPDATE) 안에서 관측+save 를 원자화해 `shouldProceed === false` 를 반환
+   *   (ai-review WARNING #1, 3차 라운드) — 동일하게 `NODE_COMPLETED`/
+   *   `EXECUTION_RESUMED` emit 을 막는다. (3) `isFailed` 분기(ai-review
+   *   CRITICAL #2, 2026-07-27) — 동일한 `tryLockActiveExecutionAndSaveNodeExec`
+   *   가드를 재사용해 `shouldProceed === false` 를 반환하면 `NODE_FAILED` save/
+   *   emit 및 sentinel throw 를 생략하고 대신 이 예외로 취소 종결 경로에 합류한다
+   *   (Execution 이 동시 Stop 으로 이미 CANCELLED 인데 FAILED 로 덮어쓰는
+   *   lost-update 방지).
    */
   private async finalizeAiNode(
     savedExecution: Execution,
@@ -1388,8 +1434,33 @@ export class AiTurnOrchestrator {
       // 본 분기는 NodeExecution.status=FAILED 만 직접 save 하고 NODE_FAILED
       // 만 발사한 뒤 sentinel error 를 throw — caller (`waitForAiConversation`)
       // 도 그대로 propagate 해 `runExecution` catch 로 흐른다.
+      //
+      // ai-review CRITICAL #2 (2026-07-27) — 이 분기는 형제(COMPLETED) 분기가
+      // 쓰는 `tryLockActiveExecutionAndSaveNodeExec`/`assertLinkedTransitionApplied`
+      // 원자 가드를 전혀 거치지 않았다. 재현: LLM 호출 도중 Stop → DB 를
+      // CANCELLED 로 커밋 → 이후 그 LLM 호출이 429/timeout 등으로 자연 실패하면
+      // 무가드 save 가 CANCELLED 를 FAILED 로 덮어쓰고 NODE_FAILED/(하류)
+      // EXECUTION_FAILED 를 사후 재emit — COMPLETED 분기에서 이미 닫은 것과
+      // 동형의 lost-update 가 FAILED 분기에서 재발한 것이다. 형제 분기와 동일한
+      // 가드를 재사용해 통일한다 — Execution.status 자체는 여전히 이 분기에서
+      // 전이하지 않는다(위 comment 대로 FAILED 전이는 `finalizeFailedExecution`
+      // 에 위임된 채 유지). 가드가 거부되면(`shouldProceed === false`) 아래
+      // save/emit/throw(sentinel Error) 는 전혀 실행되지 않고, 짝 nodeExec 가
+      // CANCELLED 로 재마킹된 뒤 `ExecutionCancelledError` 가 대신 던져진다 —
+      // 그 예외는 FAILED 로 오분류되지 않고 기존 취소 종결 경로로 합류한다.
       if (nodeExec) {
-        await this.nodeExecutionRepository.save(nodeExec);
+        const applied = await this.driver.tryLockActiveExecutionAndSaveNodeExec(
+          executionId,
+          nodeExec,
+        );
+        await this.assertLinkedTransitionApplied(
+          applied,
+          nodeExec,
+          node,
+          context,
+          executionId,
+          'AI turn 종료 처리(FAILED)',
+        );
         const errOutput = nodeExec.outputData?.output as
           | Record<string, unknown>
           | undefined;
