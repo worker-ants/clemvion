@@ -8130,14 +8130,22 @@ export class ExecutionEngineService
   ): Promise<boolean> {
     assertTransition(execution.status, newStatus, opts);
     // PR2a — §8 active-running 누적 시간 추적. 모든 상태 전이의 단일 choke point.
-    // RUNNING 진입(어느 세그먼트 entry point 든) → 세그먼트 시작 시각 기록.
-    // RUNNING 이탈(waiting_for_input / completed / failed / cancelled) → 그 세그먼트의
-    // active 시간을 Execution.activeRunningMs 에 합산(아래 save 로 영속). waiting_for_input
+    // RUNNING 진입(어느 세그먼트 entry point 든) → 세그먼트 시작 시각 기록(단,
+    // 아래 가드를 실제로 통과해 persisted===true 인 경우에만 — ai-review WARNING #9,
+    // 2026-07-26, concurrency/side_effect 참조). RUNNING 이탈(waiting_for_input /
+    // completed / failed / cancelled) → 그 세그먼트의 active 시간을
+    // Execution.activeRunningMs 에 합산(아래 save 로 영속). waiting_for_input
     // park 동안은 RUNNING 이 아니므로 자연히 제외된다(불변식).
     const prevStatus = execution.status;
-    if (newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus) {
-      this.recordRunningSegmentStart(execution.id);
-    } else if (
+    // ai-review WARNING #9 (2026-07-26) — 진입 여부만 여기서 계산해 두고, 실제
+    // 기록(recordRunningSegmentStart)은 각 분기의 terminal 가드 통과(persisted===true)
+    // 확인 이후로 미룬다. 예전엔 가드보다 먼저 무조건 기록해, 거부된(no-op) RUNNING
+    // 재claim 에도 in-memory segmentStartMs 유령 항목이 남았다 — 그 executionId 는
+    // 실제로 RUNNING 이 된 적이 없어 "이탈" 분기가 결코 오지 않으므로 정리 기회 없이
+    // 누적되는 in-memory 누수였다(DB 오염은 없음, 자원 회계 문제).
+    const enteringRunning =
+      newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus;
+    if (
       prevStatus === ExecutionStatus.RUNNING &&
       newStatus !== ExecutionStatus.RUNNING
     ) {
@@ -8189,6 +8197,10 @@ export class ExecutionEngineService
         await manager.save(NodeExecution, linkedNodeExec);
         persisted = true;
       });
+      // WARNING #9 — 가드를 실제로 통과했을 때만 세그먼트 시작을 기록한다.
+      if (enteringRunning && persisted) {
+        this.recordRunningSegmentStart(execution.id);
+      }
       this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
       return persisted;
     }
@@ -8229,6 +8241,10 @@ export class ExecutionEngineService
       ],
     );
     const persisted = updated.length > 0;
+    // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
+    if (enteringRunning && persisted) {
+      this.recordRunningSegmentStart(execution.id);
+    }
     this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
     return persisted;
   }

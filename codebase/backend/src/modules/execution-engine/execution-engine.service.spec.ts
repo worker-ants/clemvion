@@ -4894,6 +4894,26 @@ describe('ExecutionEngineService', () => {
         );
       });
 
+      // ai-review WARNING #9 (2026-07-26, concurrency/side_effect) — 거부된(no-op)
+      // RUNNING 전이는 segmentStartMs 를 기록하지 않아야 한다. 가드보다 먼저
+      // 무조건 기록하면, 이 executionId 는 실제로 RUNNING 이 된 적이 없어 "이탈"
+      // 분기가 결코 오지 않으므로 in-memory 유령 항목이 정리 기회 없이 누적된다.
+      it('else 분기: PENDING → RUNNING 전이가 거부되면(0행) segmentStartMs 를 기록하지 않는다 (WARNING #9)', async () => {
+        priv().segmentStartMs.delete(executionId);
+        mockExecutionRepo.query.mockResolvedValueOnce([]); // 0행 = 선점됨
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.PENDING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const applied = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.RUNNING,
+        );
+        expect(applied).toBe(false);
+        expect(priv().segmentStartMs.has(executionId)).toBe(false);
+      });
+
       // ── linkedNodeExec(park 짝 전이) 분기의 terminal 가드 ───────────────────
       // M-3(2026-06-14)은 else 분기만 guarded UPDATE 로 고치고 짝 전이는 명시적으로
       // "범위 밖" 으로 남겼다. 그 자리가 살아있는 결함이었다 — AI multi-turn 턴 진행 중
@@ -4971,6 +4991,56 @@ describe('ExecutionEngineService', () => {
             ),
             expect.anything(),
           );
+        });
+
+        // ai-review WARNING #9 (2026-07-26, concurrency/side_effect) — 짝 전이
+        // 분기가 RUNNING 으로 진입하는 경우(예: retry-last-turn RUNNING 재claim)도
+        // 동일하게, 행 잠금 가드가 실제로 거부하면(terminal) segmentStartMs 를
+        // 기록하지 않아야 한다.
+        it('짝 전이로 RUNNING 진입이 거부되면(terminal) segmentStartMs 를 기록하지 않는다 (WARNING #9)', async () => {
+          priv().segmentStartMs.delete(executionId);
+          mockTxManagerQuery.mockResolvedValueOnce([]); // 행 잠금 0행 → terminal
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.PENDING,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+          const nodeExec = {
+            id: 'node-exec-reclaim-rejected',
+            status: NodeExecutionStatus.RUNNING,
+          } as unknown as NodeExecution;
+
+          const applied = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.RUNNING,
+            nodeExec,
+          );
+
+          expect(applied).toBe(false);
+          expect(priv().segmentStartMs.has(executionId)).toBe(false);
+        });
+
+        it('대조: 짝 전이로 RUNNING 진입이 적용되면 segmentStartMs 를 기록한다', async () => {
+          priv().segmentStartMs.delete(executionId);
+          const exec = {
+            id: executionId,
+            status: ExecutionStatus.PENDING,
+            activeRunningMs: 0,
+          } as unknown as Execution;
+          const nodeExec = {
+            id: 'node-exec-reclaim-ok',
+            status: NodeExecutionStatus.RUNNING,
+          } as unknown as NodeExecution;
+
+          const applied = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.RUNNING,
+            nodeExec,
+          );
+
+          expect(applied).toBe(true);
+          expect(priv().segmentStartMs.has(executionId)).toBe(true);
+          priv().segmentStartMs.delete(executionId);
         });
       });
 
