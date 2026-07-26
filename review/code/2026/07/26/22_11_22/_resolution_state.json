@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "started_at": "2026-07-26T22:40:00Z",
+  "summary_items_total": 9,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    { "sha": "d1d8d2db1", "summary_id": 1, "scope": "engine" },
+    { "sha": "d1d8d2db1", "summary_id": 5, "scope": "engine" },
+    { "sha": "d1d8d2db1", "summary_id": 8, "scope": "engine" },
+    { "sha": "b81833f64", "summary_id": 9, "scope": "e2e" },
+    { "sha": "703606c1e", "summary_id": 3, "scope": "docs" },
+    { "sha": "f306a62c8", "summary_id": 2, "scope": "plan" },
+    { "sha": "f306a62c8", "summary_id": 4, "scope": "plan" },
+    { "sha": "f306a62c8", "summary_id": 6, "scope": "plan" },
+    { "sha": "f306a62c8", "summary_id": 7, "scope": "plan" }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "spec_drift_items": {
+    "1": "이미 spec-update-node-cancellation-shutdown-classification.md #7(보강 6~8번)에 위임 완료 — 추가 조치 불요. 본 라운드는 EngineDriver 멤버 수 목표(14/9→15/10)만 plan 문서에서 재정정(f306a62c8)"
+  },
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260726-225459.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
