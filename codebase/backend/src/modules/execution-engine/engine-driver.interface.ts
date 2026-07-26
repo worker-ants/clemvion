@@ -60,6 +60,19 @@ export interface CoreEngineDriver {
    * 소비하지 않는다 — DB 는 이 가드로 안전하나 표시상 중복 이벤트 emit 이
    * 남는 후속 항목이다 (plan `ie-resume-turn-boundary-cancel.md`
    * "후속(본 PR 밖)" 참조).
+   *
+   * **choke point 예외 (ai-review WARNING #1, 2026-07-27, 7차 라운드)** —
+   * `ExecutionEngineService.failFirstSegmentSetup` / `executeSync` timeout
+   * catch 는 이 choke point 경유로 FAILED 마킹하도록 전환됐으나, reload 한
+   * `Execution.status` 가 **PENDING** 이면(설정 자체가 RUNNING 진입 전에
+   * 실패한 극단 케이스 — 이중 DB 장애 또는 극히 좁은 소-timeoutMs 레이스)
+   * `assertTransition` 이 throw 한다. 상태머신이 PENDING→FAILED 를 의도적으로
+   * 금지하기 때문(`state-machine.spec.ts` "disallow pending -> failed", 상태
+   * 표는 spec/5-system/4-execution-engine.md §1.2 대칭). 두 호출자 모두 이
+   * throw 를 best-effort 로 흡수해 마킹만 skip 하고(강제로 우회하지 않음), 잔류
+   * PENDING 은 §7.1 stale 스윕에 위임한다. 즉 이 choke point 가 보호하는 건
+   * "RUNNING/WAITING_FOR_INPUT 소스" 뿐이고 "PENDING 소스"는 원천적으로 이
+   * choke point 밖 — 상태머신의 명시적 설계 결정이라 별도 완화 불필요.
    */
   updateExecutionStatus(
     execution: Execution,

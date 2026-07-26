@@ -599,13 +599,33 @@ export class ExecutionEngineService
         return;
       }
       const errMessage = error instanceof Error ? error.message : String(error);
-      row.status = ExecutionStatus.FAILED;
       row.error = { message: errMessage };
       row.finishedAt = new Date();
       if (row.startedAt) {
         row.durationMs = row.finishedAt.getTime() - row.startedAt.getTime();
       }
-      await this.executionRepository.save(row);
+      // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity `save()`
+      // 는 형제 종결 헬퍼(`finalizeFailedExecution`/`finalizeCancelledExecution`)가
+      // 이미 닫은 것과 같은 클래스의 좁은 SELECT~UPDATE TOCTOU 를 재도입한다.
+      // guarded `updateExecutionStatus`(`status IN (non-terminal)`) 경유로 교체해,
+      // 위 reload 이후 동시 Stop 이 이미 DB 를 CANCELLED 로 커밋했다면 재마킹하지
+      // 않는다. `row.status` 가 PENDING 이면(설정 자체가 RUNNING 진입 전에 이중
+      // 실패한 극단 케이스) 상태머신이 PENDING→FAILED 를 의도적으로 금지하므로
+      // (`state-machine.spec.ts` "disallow pending -> failed") `assertTransition`
+      // 이 throw 하는데, 이는 이 함수 바깥의 best-effort try/catch 가 흡수한다 —
+      // 상태머신을 우회해 강제로 FAILED 로 만드는 것보다 §7.1 stale 스윕에 위임하는
+      // 편이 안전하다. `CoreEngineDriver` JSDoc 의 choke point 예외 참조.
+      const persisted = await this.updateExecutionStatus(
+        row,
+        ExecutionStatus.FAILED,
+      );
+      if (!persisted) {
+        this.logger.warn(
+          `failFirstSegmentSetup(${executionId}): 동시 cancel 이 이미 terminal 로 ` +
+            `선점 — FAILED 재마킹·EXECUTION_FAILED emit 을 모두 skip`,
+        );
+        return;
+      }
       await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_FAILED,
@@ -4026,9 +4046,12 @@ export class ExecutionEngineService
    * 동안:
    *   1) executeSync 가 FAILED 로 마킹 → 호출부에 throw
    *   2) 백그라운드 runExecution 이 완료되면 COMPLETED 로 다시 마킹
-   * 의 race window 가 존재한다. 현재는 timeout 후 reload → 상태 비교로 보호하나
-   * 완전 차단 X. 완전한 cancel 은 AbortSignal 주입 + 워커 협력이 필요하며 별도
-   * 인프라 PR (CRIT/WARN backlog) 로 분리.
+   * 의 race window 가 존재한다. timeout 후 reload → guarded `updateExecutionStatus`
+   * (`status IN (non-terminal)`) 로 마킹해 그 사이 동시 Stop 이 이미 CANCELLED 로
+   * 커밋한 경우의 덮어쓰기는 막지만(ai-review WARNING #1, 2026-07-27, 7차 라운드),
+   * "백그라운드가 이겨 COMPLETED 로 재마킹" 자체는 완전 차단 X. 완전한 cancel 은
+   * AbortSignal 주입 + 워커 협력이 필요하며 별도 인프라 PR (CRIT/WARN backlog) 로
+   * 분리.
    */
   async executeSync(
     workflowId: string,
@@ -4095,7 +4118,6 @@ export class ExecutionEngineService
         reloaded &&
         !ExecutionEngineService.TERMINAL_STATUSES.has(reloaded.status)
       ) {
-        reloaded.status = ExecutionStatus.FAILED;
         reloaded.error = {
           message: err instanceof Error ? err.message : String(err),
         };
@@ -4104,7 +4126,28 @@ export class ExecutionEngineService
           reloaded.durationMs =
             reloaded.finishedAt.getTime() - reloaded.startedAt.getTime();
         }
-        await this.executionRepository.save(reloaded);
+        // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity
+        // `save()` 대신 형제 종결 헬퍼와 동일한 guarded `updateExecutionStatus`
+        // (`status IN (non-terminal)`) 경유로 마킹한다. 위 reload 이후 동시 Stop 이
+        // DB 를 이미 CANCELLED 로 커밋했다면 guarded UPDATE 가 0행 매칭으로 no-op
+        // 한다. `reloaded.status` 가 PENDING 이면(극히 좁은 소-timeoutMs 레이스로
+        // RUNNING 전이 완료 전에 timeout 이 먼저 발화) 상태머신이 PENDING→FAILED 를
+        // 의도적으로 금지하므로(`state-machine.spec.ts` "disallow pending ->
+        // failed") `assertTransition` 이 throw 하는데, 원본 timeout 에러(`err`)를
+        // 가리지 않도록 여기서 흡수하고 마킹만 skip 한다 — `CoreEngineDriver` JSDoc
+        // 의 choke point 예외 참조.
+        try {
+          await this.updateExecutionStatus(reloaded, ExecutionStatus.FAILED);
+        } catch (transitionErr) {
+          this.logger.warn(
+            `executeSync(${savedExecution.id}) timeout 마킹 skip — ` +
+              `${reloaded.status} → FAILED 전이 거부: ${
+                transitionErr instanceof Error
+                  ? transitionErr.message
+                  : String(transitionErr)
+              }`,
+          );
+        }
       }
       throw err;
     } finally {

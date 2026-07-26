@@ -46,7 +46,10 @@ import { ExpressionResolverService } from './expression/expression-resolver.serv
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
 import { ParallelExecutor } from './containers/parallel-executor';
-import { WebsocketService } from '../websocket/websocket.service';
+import {
+  WebsocketService,
+  ExecutionEventType,
+} from '../websocket/websocket.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
@@ -3581,18 +3584,63 @@ describe('ExecutionEngineService', () => {
           ),
         ).rejects.toThrow(/timed out after 50ms/);
 
-        // catch 블록에서 reloaded 를 FAILED 로 다시 save 한다.
+        // ai-review WARNING #1 (2026-07-27, 7차 라운드) — guarded
+        // `updateExecutionStatus`(raw UPDATE) 경유로 바뀌어 더 이상 full-entity
+        // `.save()` 를 호출하지 않는다(형제 `finalizeFailedExecution` 과 동일 패턴).
+        const failedCall = mockExecutionRepo.query.mock.calls.find(
+          (c: unknown[]) =>
+            typeof c[0] === 'string' &&
+            /UPDATE execution/.test(c[0]) &&
+            (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+        );
+        expect(failedCall).toBeDefined();
+        const errorParam = (failedCall![1] as unknown[])[7] as string | null;
+        expect(errorParam).toMatch(/timed out after 50ms/);
+
+        runExecutionSpy.mockRestore();
+      });
+
+      // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 위 두 회귀는 `findOneBy`
+      // mock 을 고정값(RUNNING/CANCELLED)으로 관측해 초기 `TERMINAL_STATUSES`
+      // 가드만 검증했을 뿐, guarded UPDATE 자체의 race 보호(reload 이후 실제 DB
+      // 커밋 사이의 좁은 창)는 재현하지 않았다는 지적을 닫는다. reload 는 RUNNING
+      // 을 관측하지만(초기 가드 통과), guarded UPDATE 가 도달하는 순간엔 동시
+      // Stop 이 DB 를 이미 CANCELLED 로 커밋해 `WHERE status IN (non-terminal)`
+      // 가 0행 매칭(no-op)하는 시나리오를 직접 재현한다. 가드가 제거되면(naked
+      // `save()` 로 되돌아가면) 아래 단언이 RED 가 된다.
+      it('timeout 경로 — reload 이후 guarded UPDATE 를 동시 cancel 이 선점하면(0행) naked save 로 폴백하지 않는다 (실제 race)', async () => {
+        const runExecutionSpy = jest
+          .spyOn(
+            service as unknown as {
+              runExecution: (...args: unknown[]) => Promise<unknown>;
+            },
+            'runExecution',
+          )
+          .mockImplementation(() => new Promise<unknown>(() => undefined));
+
+        mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          startedAt: new Date(Date.now() - 100),
+        });
+        mockExecutionRepo.save.mockClear();
+        // guarded UPDATE 가 0행 매칭 — 동시 cancel 선점 시뮬레이션.
+        mockExecutionRepo.query.mockResolvedValueOnce([]);
+
+        await expect(
+          service.executeSync(
+            workflowId,
+            {},
+            { timeoutMs: 50, parentWorkspaceId: 'ws-1' },
+          ),
+        ).rejects.toThrow(/timed out after 50ms/);
+
         const failedSaveCall = mockExecutionRepo.save.mock.calls.find(
           ([entity]) =>
             (entity as { status?: ExecutionStatus }).status ===
             ExecutionStatus.FAILED,
         );
-        expect(failedSaveCall).toBeDefined();
-        const failedEntity = failedSaveCall?.[0] as {
-          status: ExecutionStatus;
-          error: { message: string };
-        };
-        expect(failedEntity.error.message).toMatch(/timed out after 50ms/);
+        expect(failedSaveCall).toBeUndefined();
 
         runExecutionSpy.mockRestore();
       });
@@ -4822,6 +4870,70 @@ describe('ExecutionEngineService', () => {
         )
         .mockRejectedValueOnce(new Error('setup boom'));
       mockExecutionRepo.save.mockClear();
+      const emitSpy = jest
+        .spyOn(
+          (service as unknown as { eventEmitter: { emitExecution: jest.Mock } })
+            .eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
+      try {
+        await service.runExecutionFromQueue(executionId, {});
+        await flushPromises();
+        await flushPromises();
+        // ai-review WARNING #1 (2026-07-27, 7차 라운드) — guarded
+        // `updateExecutionStatus`(raw UPDATE) 경유로 바뀌어 더 이상 full-entity
+        // `.save()` 를 호출하지 않는다(형제 `finalizeFailedExecution` 과 동일 패턴).
+        const failedCall = mockExecutionRepo.query.mock.calls.find(
+          (c: unknown[]) =>
+            typeof c[0] === 'string' &&
+            /UPDATE execution/.test(c[0]) &&
+            (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
+        );
+        expect(failedCall).toBeDefined();
+        expect(emitSpy).toHaveBeenCalledWith(
+          executionId,
+          ExecutionEventType.EXECUTION_FAILED,
+          expect.objectContaining({ status: ExecutionStatus.FAILED }),
+        );
+      } finally {
+        runSpy.mockRestore();
+        emitSpy.mockRestore();
+      }
+    });
+
+    // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 위 회귀는 `findOneBy` mock
+    // 을 고정값(RUNNING)으로 관측해 초기 `TERMINAL_STATUSES` 가드만 검증했을 뿐,
+    // guarded UPDATE 자체의 race 보호는 재현하지 않았다는 지적을 닫는다. reload
+    // 는 RUNNING 을 관측하지만(초기 가드 통과), guarded UPDATE 가 도달하는
+    // 순간엔 동시 Stop 이 DB 를 이미 CANCELLED 로 커밋해 `WHERE status IN
+    // (non-terminal)` 이 0행 매칭(no-op)하는 시나리오를 직접 재현한다. 가드가
+    // 제거되면(naked `save()` 로 되돌아가면) 아래 두 단언 모두 RED 가 된다.
+    it('W2 실제 race — 동시 cancel 이 guarded UPDATE 를 선점하면(0행) FAILED 재마킹·emit 을 모두 skip', async () => {
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(pendingRow({ triggerId: 'trg-w2-race' }))
+        .mockResolvedValueOnce(
+          pendingRow({
+            status: ExecutionStatus.RUNNING,
+            startedAt: new Date(),
+          }),
+        );
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('setup boom — race'));
+      mockExecutionRepo.save.mockClear();
+      // guarded UPDATE 가 0행 매칭 — 동시 cancel 선점 시뮬레이션.
+      mockExecutionRepo.query.mockResolvedValueOnce([]);
+      const emitSpy = jest
+        .spyOn(
+          (service as unknown as { eventEmitter: { emitExecution: jest.Mock } })
+            .eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
       try {
         await service.runExecutionFromQueue(executionId, {});
         await flushPromises();
@@ -4830,9 +4942,15 @@ describe('ExecutionEngineService', () => {
           (c) =>
             (c[0] as Partial<Execution>)?.status === ExecutionStatus.FAILED,
         );
-        expect(failedSave).toBeDefined();
+        expect(failedSave).toBeUndefined();
+        expect(emitSpy).not.toHaveBeenCalledWith(
+          executionId,
+          ExecutionEventType.EXECUTION_FAILED,
+          expect.anything(),
+        );
       } finally {
         runSpy.mockRestore();
+        emitSpy.mockRestore();
       }
     });
 
