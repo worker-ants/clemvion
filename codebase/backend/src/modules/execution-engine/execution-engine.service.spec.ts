@@ -4943,7 +4943,9 @@ describe('ExecutionEngineService', () => {
 
           expect(applied).toBe(false);
           // Execution 을 되살리지 않는다 (핵심 회귀 — 취소 소실 차단).
-          expect(mockExecutionRepo.save.mock.calls.length).toBe(saveCallsBefore);
+          expect(mockExecutionRepo.save.mock.calls.length).toBe(
+            saveCallsBefore,
+          );
           // NodeExecution 도 WAITING_FOR_INPUT 으로 되돌리지 않는다.
           expect(mockNodeExecutionRepo.save.mock.calls.length).toBe(
             nodeSaveBefore,

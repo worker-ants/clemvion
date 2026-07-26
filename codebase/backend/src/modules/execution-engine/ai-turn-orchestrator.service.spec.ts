@@ -198,6 +198,60 @@ describe('AiTurnOrchestrator', () => {
     });
   });
 
+  // 첫 turn park 도 re-park 와 같은 결함을 가진다 — 첫 turn 진행 중 Stop 이 실행을
+  // 마감했는데 park 이 그걸 덮어쓰면, 취소된 실행이 "입력 대기" 로 표시된다.
+  // (mutation 검증에서 이 경로만 무커버리지로 드러나 추가한 케이스.)
+  describe('emitAiWaitingForInput — 첫 turn park 선점', () => {
+    type ParkSubject = {
+      emitAiWaitingForInput: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        nodeOutput: Record<string, unknown>,
+        resumeState: Record<string, unknown>,
+      ) => Promise<void>;
+    };
+
+    const parkNode: Partial<Node> = {
+      id: 'node-park',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callPark = () =>
+      (orchestrator as unknown as ParkSubject).emitAiWaitingForInput(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        parkNode as Node,
+        contextService.createContext(executionId, workflowId),
+        { id: 'ne-park', status: NodeExecutionStatus.RUNNING },
+        {},
+        { messages: [], turnCount: 1 },
+      );
+
+    const waitingEmitted = () =>
+      mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      );
+
+    it('park 이 선점당하면(false) ExecutionCancelledError + waiting 이벤트 미발행', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      await expect(callPark()).rejects.toBeInstanceOf(ExecutionCancelledError);
+      expect(waitingEmitted()).toBe(false);
+    });
+
+    it('대조: park 이 적용되면 waiting 이벤트를 발행한다', async () => {
+      await callPark();
+      expect(waitingEmitted()).toBe(true);
+    });
+  });
+
   // ai_end_conversation 분기 — handler.endMultiTurnConversation 호출 + driver
   // finalize 경유 (RUNNING 진입 상태에서는 NodeExecution save 만, 상태 전이 skip).
   describe('processAiResumeTurn — ai_end_conversation 종료', () => {
@@ -733,9 +787,9 @@ describe('AiTurnOrchestrator', () => {
           new ExecutionCancelledError('cancelled'),
         );
 
-        await expect(invoke(executionId, { id: 'ne-c' })).rejects.toBeInstanceOf(
-          ExecutionCancelledError,
-        );
+        await expect(
+          invoke(executionId, { id: 'ne-c' }),
+        ).rejects.toBeInstanceOf(ExecutionCancelledError);
         // 가드가 LLM 호출 **앞**에 있어야 불필요한 turn 이 실행되지 않는다.
         expect(processMultiTurnMessage).not.toHaveBeenCalled();
       });
@@ -752,7 +806,7 @@ describe('AiTurnOrchestrator', () => {
 
         const result = await invoke(executionId, { id: 'ne-d' }).then(
           (r) => ({ threw: false as const, r }),
-          (e: unknown) => ({ threw: true as const, e }),
+          (err: unknown) => ({ threw: true as const, err }),
         );
 
         expect(result.threw).toBe(true);
