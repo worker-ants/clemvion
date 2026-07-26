@@ -822,6 +822,39 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
     } | null;
   }
 
+  /**
+   * ai-review WARNING #9 (2026-07-26, 3차 라운드 — testing/maintainability) —
+   * `node_execution.status` 가 non-RUNNING(terminal) 으로 전이할 때까지 DB 를
+   * 직접 poll 한다. 고정 `setTimeout` 대신 이 헬퍼를 써서 turn-finalize 완료
+   * 대기 단계도 `poll()`(위, execution REST 조회) 과 동일한 컨벤션(고정 sleep
+   * 금지)을 따르게 한다 — CI 부하로 지연(1200ms)+큐 처리시간이 고정 상수를
+   * 넘으면 결함과 무관하게 flake 하던 것을 닫는다.
+   */
+  async function pollNodeExecutionTerminal(
+    executionId: string,
+    nodeId: string,
+    timeoutMs = 20_000,
+    intervalMs = 200,
+  ): Promise<string> {
+    const start = Date.now();
+    let last = '';
+    while (Date.now() - start < timeoutMs) {
+      const row = await db.query(
+        `SELECT status FROM node_execution
+           WHERE execution_id = $1 AND node_id = $2
+           ORDER BY started_at DESC LIMIT 1`,
+        [executionId, nodeId],
+      );
+      last = (row.rows[0]?.status as string) ?? '';
+      if (last && last !== 'running') return last;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error(
+      `pollNodeExecutionTerminal timed out at status=${last} ` +
+        `(execution=${executionId}, node=${nodeId})`,
+    );
+  }
+
   /** EIA submit_message — cold rehydration 으로 한 turn 을 구동. */
   async function submitMessage(
     executionId: string,
@@ -1211,8 +1244,17 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
     expect(finishedAtAfterStop).not.toBeNull();
 
     // (3) 지연된 LLM 응답이 도착해 턴이 종료 처리(finalizeAiNode 의 "이미 RUNNING"
-    //     분기)를 마칠 시간을 준다 — 지연(1200ms) + 여유.
-    await new Promise((r) => setTimeout(r, 2_500));
+    //     분기)를 마칠 때까지 대기 — ai-review WARNING #9 (2026-07-26, 3차
+    //     라운드): 고정 `setTimeout` 대신 `node_execution.status` 가 RUNNING
+    //     을 벗어날 때까지 poll 한다(CI 부하로 지연(1200ms)+큐 처리시간이 고정
+    //     상수를 넘어도 flake 하지 않도록).
+    const nodeExecTerminalStatus = await pollNodeExecutionTerminal(
+      executionId,
+      aiNode.id,
+      10_000,
+      100,
+    );
+    expect(nodeExecTerminalStatus).toBe('cancelled');
 
     // (4) 핵심 회귀 — CANCELLED 가 되살아나지 않는다. 무가드였다면 이 분기가
     //     NodeExecution 을 COMPLETED 로 저장하고 NODE_COMPLETED/EXECUTION_RESUMED
