@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-26T12:56:00+09:00",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced (router_safety): 엔진 src 변경"},
+    {"name": "performance", "selected": true, "reason": "가드가 컨테이너·Parallel 반복 루프로 확장돼 호출 빈도가 크게 늘었다 — 재평가 필요"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계·인터페이스 신설 없음"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced + 직전 라운드 CRITICAL 3건(C1·C3·C4)의 제기자 — 해소 검증 필요"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety)"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced + W2(Background 오분류)·W3(cancelledBy 계약) 수정 검증"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety)"},
+    {"name": "testing", "selected": true, "reason": "agents_forced + 직전 CRITICAL C2(커버리지 0) 제기자 — mutation 재검증 주장 확인 필요"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced + W4·W5·W6 문서 동기화 검증"},
+    {"name": "dependency", "selected": false, "reason": "의존성 파일 변경 없음"},
+    {"name": "database", "selected": true, "reason": "W1 컬럼 투영 수정 + 컨테이너 확장으로 쿼리 빈도 변화"},
+    {"name": "concurrency", "selected": true, "reason": "C4 guarded UPDATE 전환 + ForEachExecutor errorPolicy 재throw — 동시성 재검토 필요"},
+    {"name": "api_contract", "selected": false, "reason": "HTTP 계약 변경 없음"},
+    {"name": "user_guide_sync", "selected": false, "reason": "CHANGELOG·plan 문서만, doc-sync-matrix trigger 아님"}
+  ],
+  "selected_count": 10,
+  "skipped_count": 4,
+  "forced": ["documentation", "maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+}
