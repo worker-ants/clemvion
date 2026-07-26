@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — AI multi-turn resume turn 경계 cancel 가드 + park 짝 전이 lost-update 차단
+
+#1021 의 노드 경계 cancel 가드(§2.3)는 **AI multi-turn 이 turn 마다 park 로 세그먼트를 끝내** 그 경계에 닿지 않는 갭을 남겼다 — turn 진행 중(LLM 호출 수 초~분) 사용자 Stop 이 조용히 무효화됐다.
+
+1. **turn 경계 cancel 가드 도입(§2.3)**: `AiTurnOrchestrator.handleAiMessageTurn` 이 handler 호출 **이전**(§7.9 try/catch 밖)에 `assertExecutionNotCancelled` 를 직접 호출해 turn 경계에서 취소를 관측한다. try 안에 두면 `handleAiTurnError` 가 취소를 FAILED 로 오분류하는 함정(#1021 과 동형)을 피한다.
+2. **park 짝 전이(`linkedNodeExec`) lost-update 차단**: `updateExecutionStatus` 의 짝 전이 분기는 M-3(else 분기 guarded UPDATE)에서 명시적으로 "범위 밖" 으로 남겨졌던 자리였다 — 살아있는 결함이었다. 턴 진행 중 Stop 이 DB 를 CANCELLED 로 마감해도, orchestrator 의 stale in-memory `execution.status`(RUNNING) 는 `assertTransition` 을 통과시켜 re-park 의 full-entity save 가 CANCELLED/finishedAt 을 덮어썼다. 같은 트랜잭션 안에서 행을 잠그고(`FOR UPDATE`) 비-terminal 을 재확인한 뒤에만 기존 save 를 수행하도록 고쳤다 — 잠금이 커밋까지 유지되어 검사-후-사용 race 도 닫힌다.
+3. **짝 전이 `false` 반환 계약을 AI 경로 3곳(re-park·첫 turn park·retry-last-turn RUNNING 재claim) 전부 소비**: 동시 Stop 이 위 가드를 선점하면 `updateExecutionStatus` 가 `false` 를 반환한다 — 이를 무시하면 취소된 실행이 정상 park/완료로 보인다. 세 소비처를 `assertLinkedTransitionApplied` 헬퍼로 통일해 (a) 짝이었던 `NodeExecution` 을 `markNodeCancelled` 로 terminal 마킹(영구 RUNNING 잔류 방지)하고 (b) `ExecutionCancelledError` 로 기존 취소 종결 경로에 전파한다.
+
+SoT: `spec/conventions/node-cancellation.md` §2.3, `spec/5-system/4-execution-engine.md` §1.1/§1.2 (spec 갱신은 `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md` #7 로 위임). 추적: `plan/in-progress/ie-resume-turn-boundary-cancel.md`.
+
 ## Unreleased — 외부 cancel(Stop) 후에도 하류 노드 dispatch·부수효과가 계속되던 결함 수정
 
 Stop 버튼(`POST /executions/:id/stop`)이 Execution 행을 `cancelled` 로 UPDATE 할 뿐 돌고 있는 노드 순회 루프엔 아무 신호도 보내지 않았다(AbortController·job cancel 없음) — 그 결과 취소 후에도 하류 노드가 계속 dispatch 되어 이메일 발송·HTTP POST·DB 쓰기 등 부수효과가 이어졌다.

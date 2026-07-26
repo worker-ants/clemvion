@@ -65,14 +65,17 @@ M-3 은 **else 분기**만 guarded UPDATE(`status IN ('pending','running','waiti
 
 ### blast radius (실측)
 
-짝 전이(3+ 인자) 호출부 **8건** — 전부 park↔resume 전이이고 **terminal 마킹은 0건**:
+짝 전이(3+ 인자) 호출부 **7건** — 전부 park↔resume 전이이고 **terminal 마킹은 0건**:
 
 | 전이 | 호출부 |
 |---|---|
-| → `WAITING_FOR_INPUT` (park) | form-interaction:110, button-interaction:395, ai-turn-orchestrator:350, :435, execution-engine:8023 |
-| → `RUNNING` (resume claim) | form-interaction:325, button-interaction:567, ai-turn-orchestrator:1341 |
+| → `WAITING_FOR_INPUT` (park) | form-interaction:110, button-interaction:395, ai-turn-orchestrator:351, ai-turn-orchestrator:445 |
+| → `RUNNING` (resume claim) | form-interaction:325, button-interaction:567, ai-turn-orchestrator:1373 |
 
-DB 가 terminal 이면 park 도 재claim 도 **8건 전부 틀린 동작**이다 → 가드 추가가 의미적으로 안전.
+(ai-review 2026-07-26 INFO #2 정정 — 최초 "8건" 은 `execution-engine.service.ts:8025` 를 잘못
+포함했다; 그 라인은 JSDoc 주석 안의 예시 호출이라 실제 호출부가 아니다.)
+
+DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다 → 가드 추가가 의미적으로 안전.
 
 ## 작업 항목
 
