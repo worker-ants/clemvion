@@ -36,9 +36,10 @@ import type {
 export interface CoreEngineDriver {
   /**
    * Execution 상태 전이의 단일 choke point. guarded 전이 + §8 segmentStartMs
-   * active-time 추적. `false` 는 else 분기(linkedNodeExec 없음)에서 동시
-   * cancel/park 가 DB 를 이미 terminal 로 옮겨 guarded UPDATE 가 0행 매칭(no-op)된
-   * 경우 — 호출부는 terminal emit 을 skip 한다 (M-3).
+   * active-time 추적. `false` 는 동시 cancel/park 가 DB 를 이미 terminal 로 옮겨
+   * 전이가 적용되지 않은 경우 — 호출부는 terminal/park emit 을 skip 한다.
+   * else 분기(linkedNodeExec 없음)는 guarded UPDATE 0행 매칭(M-3),
+   * 짝 전이 분기는 트랜잭션 내 행 잠금 조회가 0행(2026-07-26 후속).
    */
   updateExecutionStatus(
     execution: Execution,
@@ -46,6 +47,17 @@ export interface CoreEngineDriver {
     linkedNodeExec?: NodeExecution,
     opts?: { allowRetryReentry?: boolean },
   ): Promise<boolean>;
+
+  /**
+   * §2.3 외부 cancel 관측 가드 — Execution 행을 다시 읽어 `CANCELLED` 면
+   * `ExecutionCancelledError` 를 throw 한다. 사용자 Stop 은 `AbortController` 를
+   * 만들지 않고 DB row 만 UPDATE 하므로, 재조회가 유일한 관측 수단이다.
+   *
+   * 엔진 dispatch 루프는 **노드 경계**마다 호출하지만, AI multi-turn 은 park 가
+   * 세그먼트를 끝내 그 경계에 닿지 않는다 → orchestrator 가 **turn 경계**에서
+   * 직접 호출한다.
+   */
+  assertExecutionNotCancelled(executionId: string): Promise<void>;
 
   /** in-memory context Map 키 (원칙 4) — background 본문은 bgKey, 그 외 executionId. */
   contextKeyOf(context: ExecutionContext): string;

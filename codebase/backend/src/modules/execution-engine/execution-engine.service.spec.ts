@@ -241,6 +241,10 @@ describe('ExecutionEngineService', () => {
   let mockEdgeRepo: Record<string, jest.Mock>;
   let mockWorkflowRepo: Record<string, jest.Mock>;
   let mockExecutionNodeLogRepo: Record<string, jest.Mock>;
+  // `updateExecutionStatus` 의 linkedNodeExec(park 짝 전이) 분기가 트랜잭션 안에서
+  // 실행하는 terminal 가드(`SELECT ... FOR UPDATE`) 제어. 기본은 "행 잠금 성공(비-terminal)"
+  // 이라 기존 테스트가 그대로 통과하고, 선점 테스트만 `[]` 로 재무장한다.
+  let mockTxManagerQuery: jest.Mock;
 
   beforeEach(async () => {
     const savedExecution: Partial<Execution> = {
@@ -257,6 +261,8 @@ describe('ExecutionEngineService', () => {
     // execute() → enqueue → worker → runExecution 경로가 옛 fire-and-forget 계약과
     // 동일하게 동작해 기존 execute() 테스트가 그대로 통과한다.
     let lastSaved: Partial<Execution> = { ...savedExecution };
+    // 기본: 행 잠금이 비-terminal 을 반환 → 짝 전이가 그대로 영속(기존 동작 유지).
+    mockTxManagerQuery = jest.fn().mockResolvedValue([{ id: executionId }]);
     mockExecutionRepo = {
       // PR2b — admission gate(admitExecutionOrDefer)의 원자 조건부 UPDATE 기본 mock:
       // affected=1 → admitted 로, runExecutionFromQueue 경유 테스트가 기존 흐름 유지.
@@ -441,6 +447,8 @@ describe('ExecutionEngineService', () => {
                     }
                     return entity;
                   }),
+                  // 짝 전이 terminal 가드(`SELECT ... FOR UPDATE`)용.
+                  query: mockTxManagerQuery,
                 };
                 return cb(manager);
               },
@@ -4736,10 +4744,14 @@ describe('ExecutionEngineService', () => {
           id: string;
           activeRunningMs?: number;
         }) => void;
+        // 실제 시그니처는 `linkedNodeExec` 를 받고 **boolean 을 반환**한다(전이가 실제로
+        // 영속됐는지). 옛 `Promise<void>` 선언은 `expect(applied).toBe(...)` 단언을
+        // `void` 대상으로 만들어 사실상 무의미하게 했다 — 실제 타입으로 교정한다.
         updateExecutionStatus: (
           e: Partial<Execution>,
           s: ExecutionStatus,
-        ) => Promise<void>;
+          linkedNodeExec?: NodeExecution,
+        ) => Promise<boolean>;
       };
 
     describe('assertActiveTimeWithinLimit', () => {
@@ -4880,6 +4892,84 @@ describe('ExecutionEngineService', () => {
           expect.stringMatching(/status IN/),
           expect.anything(),
         );
+      });
+
+      // ── linkedNodeExec(park 짝 전이) 분기의 terminal 가드 ───────────────────
+      // M-3(2026-06-14)은 else 분기만 guarded UPDATE 로 고치고 짝 전이는 명시적으로
+      // "범위 밖" 으로 남겼다. 그 자리가 살아있는 결함이었다 — AI multi-turn 턴 진행 중
+      // 사용자 Stop 으로 CANCELLED 된 실행이, 턴 종료 후 re-park 의 **stale** full-entity
+      // save 로 WAITING_FOR_INPUT 으로 되살아난다(취소 소실).
+      //   `savedExecution` 은 resume 진입 시 로드된 뒤 재로드되지 않으므로 in-memory
+      //   status 는 RUNNING 이고, `assertTransition(RUNNING → WAITING_FOR_INPUT)` 은
+      //   정상 전이라 통과한다 — 즉 DB 를 보지 않으면 막을 방법이 없다.
+      describe('linkedNodeExec 짝 전이 — terminal 가드 (park↔resume lost update 차단)', () => {
+        const mkPair = () => ({
+          exec: {
+            id: executionId,
+            // stale: DB 는 이미 CANCELLED 일 수 있으나 엔티티는 RUNNING 인 채다.
+            status: ExecutionStatus.RUNNING,
+            activeRunningMs: 0,
+          } as unknown as Execution,
+          nodeExec: {
+            id: 'node-exec-1',
+            status: NodeExecutionStatus.RUNNING,
+          } as unknown as NodeExecution,
+        });
+
+        it('DB 가 비-terminal 이면 기존대로 짝 전이를 영속하고 true', async () => {
+          const { exec, nodeExec } = mkPair();
+          const applied = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.WAITING_FOR_INPUT,
+            nodeExec,
+          );
+          expect(applied).toBe(true);
+          expect(mockExecutionRepo.save).toHaveBeenCalled();
+          expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
+        });
+
+        it('DB 가 이미 terminal(동시 Stop)이면 두 save 를 모두 건너뛰고 false', async () => {
+          // 행 잠금이 0행 → stop() 이 이미 CANCELLED 로 마감했다는 뜻.
+          mockTxManagerQuery.mockResolvedValueOnce([]);
+          const { exec, nodeExec } = mkPair();
+          const saveCallsBefore = mockExecutionRepo.save.mock.calls.length;
+          const nodeSaveBefore = mockNodeExecutionRepo.save.mock.calls.length;
+
+          const applied = await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.WAITING_FOR_INPUT,
+            nodeExec,
+          );
+
+          expect(applied).toBe(false);
+          // Execution 을 되살리지 않는다 (핵심 회귀 — 취소 소실 차단).
+          expect(mockExecutionRepo.save.mock.calls.length).toBe(saveCallsBefore);
+          // NodeExecution 도 WAITING_FOR_INPUT 으로 되돌리지 않는다.
+          expect(mockNodeExecutionRepo.save.mock.calls.length).toBe(
+            nodeSaveBefore,
+          );
+        });
+
+        it('가드는 행 잠금(FOR UPDATE) + 비-terminal 조건으로 조회한다', async () => {
+          const { exec, nodeExec } = mkPair();
+          await priv().updateExecutionStatus(
+            exec,
+            ExecutionStatus.WAITING_FOR_INPUT,
+            nodeExec,
+          );
+          // FOR UPDATE 가 없으면 검사와 save 사이에 stop() 이 끼어들 수 있다
+          // (검사-후-사용 race). 잠금은 트랜잭션 커밋까지 유지된다.
+          expect(mockTxManagerQuery).toHaveBeenCalledWith(
+            expect.stringMatching(/FOR UPDATE/),
+            [executionId],
+          );
+          expect(mockTxManagerQuery).toHaveBeenCalledWith(
+            expect.stringMatching(
+              /status IN \('pending', 'running', 'waiting_for_input'\)/,
+            ),
+            expect.anything(),
+          );
+        });
       });
 
       // #6 — query() 자체 reject 케이스: DB 연결 실패 등 인프라 오류는 호출부로 throw.

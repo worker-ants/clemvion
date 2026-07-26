@@ -41,6 +41,7 @@ import {
 } from '../../shared/execution-resume/process-turn-result';
 import type { ResumeTurnContext } from './resume-turn-dispatch';
 import type { ContinuationPayload } from './queues/continuation-execution.queue';
+import { ExecutionCancelledError } from './workflow-errors';
 import {
   RehydrationError,
   withInteractionMeta,
@@ -347,11 +348,20 @@ export class AiTurnOrchestrator {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
     }
     this.driver.stageDurableResumeSnapshot(savedExecution, context);
-    await this.driver.updateExecutionStatus(
+    const parked = await this.driver.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
     );
+    if (!parked) {
+      // 짝 전이 terminal 가드가 선점을 관측했다 — turn 진행 중(LLM 호출은 수 초~분)
+      // 사용자 Stop 이 이 실행을 이미 CANCELLED 로 마감했다는 뜻. 여기서 그냥 반환하면
+      // 호출부가 `PARK_RELEASED` 로 정상 park 한 것처럼 진행해 취소가 UI 에서 사라진다.
+      // 기존 취소 종결 경로(`finalizeResumedExecutionOutcome` → cancelled)로 넘긴다.
+      throw new ExecutionCancelledError(
+        `Execution ${savedExecution.id} cancelled during AI turn — skipping re-park`,
+      );
+    }
   }
 
   /**
@@ -432,11 +442,19 @@ export class AiTurnOrchestrator {
     // 트랜잭션과 원자적으로 durable commit 한다 (§7.5 rehydration 복원처).
     this.driver.stageDurableResumeSnapshot(savedExecution, context);
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
-    await this.driver.updateExecutionStatus(
+    const parked = await this.driver.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
     );
+    if (!parked) {
+      // re-park 와 동일 — 첫 turn 진행 중 외부 Stop 이 실행을 이미 마감했다.
+      // 아래 `EXECUTION_WAITING_FOR_INPUT` emit 을 그대로 내보내면 취소된 실행이
+      // "입력 대기" 로 보인다. 취소 전파 경로로 넘긴다.
+      throw new ExecutionCancelledError(
+        `Execution ${executionId} cancelled during first AI turn — skipping park`,
+      );
+    }
 
     const initialConv = buildConversationConfigFromOutput(
       structuredOutput,
@@ -564,6 +582,20 @@ export class AiTurnOrchestrator {
      */
     finalStatus?: 'FAILED';
   }> {
+    // ── turn 경계 cancel 가드 (node-cancellation §2.3, 2026-07-26) ──────────
+    // AI multi-turn 은 turn 마다 park 로 세그먼트가 끝나므로 엔진 dispatch 루프의
+    // **노드 경계** 가드에 닿지 않는다. 그래서 취소 관측 지점이 turn 경계뿐이다.
+    //
+    // 왜 signal 이 아니라 DB 재조회인가 — 저장소 전체에서 `new AbortController()` 는
+    // `parallel-executor.ts`(cancel-others-on-fail) 한 곳뿐이고 사용자 Stop 은
+    // signal 을 만들지 않는다. 따라서 resume 경로에 전파할 `abortSignal` 자체가
+    // 존재하지 않는다(`ResumableMessageOptions.signal` 은 현재 항상 undefined).
+    //
+    // **try 블록 밖**에 둔다 — 아래 §7.9 try/catch 는 handler throw 를 `FAILED` 로
+    // 마감하므로, 그 안에서 던지면 취소가 실패로 오분류된다(#1021 이 컨테이너
+    // errorPolicy 에서 다룬 것과 같은 함정).
+    await this.driver.assertExecutionNotCancelled(executionId);
+
     // Process user message via the node's own handler (so both ai_agent
     // and information_extractor can implement conversational extraction
     // with their own domain logic).

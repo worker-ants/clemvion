@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
+import { ExecutionCancelledError } from './workflow-errors';
 import type { AiTurnEngineDriver } from './engine-driver.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
@@ -37,6 +38,9 @@ const executionId = 'exec-orch';
 function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
   return {
     updateExecutionStatus: jest.fn().mockResolvedValue(true),
+    // turn 경계 cancel 가드 — 기본은 "취소 아님"(resolve). 취소 시나리오만
+    // `mockRejectedValueOnce(new ExecutionCancelledError(...))` 로 재무장한다.
+    assertExecutionNotCancelled: jest.fn().mockResolvedValue(undefined),
     stageDurableResumeSnapshot: jest.fn(),
     buildRetryReentryState: jest
       .fn()
@@ -155,6 +159,42 @@ describe('AiTurnOrchestrator', () => {
         ExecutionStatus.WAITING_FOR_INPUT,
         nodeExec,
       );
+    });
+
+    // (C) 2026-07-26 — turn 진행 중 외부 Stop 이 실행을 마감했다면, 짝 전이 terminal
+    // 가드가 `false` 를 반환한다. 그걸 무시하고 반환하면 호출부가 정상 park 로 알고
+    // 진행해 **사용자가 누른 Stop 이 UI 에서 사라진다**. 취소 전파 경로로 넘겨야 한다.
+    it('짝 전이가 선점당하면(false) ExecutionCancelledError 로 취소 전파', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+
+      await expect(
+        (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+          savedExecution,
+          context,
+          { id: 'ne-1', status: NodeExecutionStatus.RUNNING },
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+    });
+
+    it('대조: 짝 전이가 적용되면(true) throw 하지 않는다', async () => {
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+
+      await expect(
+        (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+          savedExecution,
+          context,
+          { id: 'ne-1', status: NodeExecutionStatus.RUNNING },
+        ),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -681,6 +721,57 @@ describe('AiTurnOrchestrator', () => {
         nodeExec,
         source,
       );
+
+    // ── (B) turn 경계 cancel 가드 (node-cancellation §2.3) ──────────────────
+    // AI multi-turn 은 turn 마다 park 로 세그먼트가 끝나 엔진 dispatch 루프의 노드
+    // 경계 가드에 닿지 않는다. 취소를 관측할 지점이 turn 경계뿐이다.
+    describe('turn 경계 cancel 가드', () => {
+      it('LLM 호출 전에 취소를 관측한다 — handler 는 호출되지 않는다', async () => {
+        const processMultiTurnMessage = registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        await expect(invoke(executionId, { id: 'ne-c' })).rejects.toBeInstanceOf(
+          ExecutionCancelledError,
+        );
+        // 가드가 LLM 호출 **앞**에 있어야 불필요한 turn 이 실행되지 않는다.
+        expect(processMultiTurnMessage).not.toHaveBeenCalled();
+      });
+
+      // 회귀 핵심: 가드를 §7.9 try 블록 **안**에 두면 `handleAiTurnError` 가
+      // 이 취소를 잡아 `finalStatus: 'FAILED'` 로 마감해 **취소가 실패로 오분류**된다
+      // (#1021 이 컨테이너 errorPolicy 에서 다룬 것과 같은 함정).
+      it('취소는 FAILED 로 오분류되지 않고 그대로 전파된다', async () => {
+        registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        const result = await invoke(executionId, { id: 'ne-d' }).then(
+          (r) => ({ threw: false as const, r }),
+          (e: unknown) => ({ threw: true as const, e }),
+        );
+
+        expect(result.threw).toBe(true);
+        // `{ ended: true, finalStatus: 'FAILED' }` 를 반환했다면 오분류다.
+        expect(result).not.toHaveProperty('r');
+      });
+
+      it('대조: 취소가 아니면 가드를 통과해 turn 이 정상 진행된다', async () => {
+        const processMultiTurnMessage = registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+
+        await invoke(executionId, { id: 'ne-e' });
+
+        expect(driver.assertExecutionNotCancelled).toHaveBeenCalledWith(
+          executionId,
+        );
+        expect(processMultiTurnMessage).toHaveBeenCalled();
+      });
+    });
 
     // (a) handler 가 waiting 을 반환했는데 await 도중 ExecutionContext 가 사라진
     //     경우 — throw 없이 graceful exit { ended:true, finalStatus:'FAILED' } 반환.

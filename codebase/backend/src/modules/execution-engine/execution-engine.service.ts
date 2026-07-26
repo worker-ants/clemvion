@@ -7971,7 +7971,9 @@ export class ExecutionEngineService
    *   이 옵션을 쓰지 않아 기존과 동일하게 매번 조회한다. 트레이드오프는 위
    *   {@link CONTAINER_CANCEL_CHECK_THROTTLE_MS} JSDoc 참조.
    */
-  private async assertExecutionNotCancelled(
+  // EngineDriver 멤버 — AI multi-turn orchestrator 가 **turn 경계**에서 호출한다
+  // (park 가 세그먼트를 끝내 노드 경계 가드에 닿지 않는 경로. 2026-07-26).
+  public async assertExecutionNotCancelled(
     executionId: string,
     opts?: { throttle: boolean },
   ): Promise<void> {
@@ -8124,13 +8126,48 @@ export class ExecutionEngineService
       }
     }
     if (linkedNodeExec) {
+      // M-3 후속 (2026-07-26) — 짝 전이도 terminal 가드를 받는다.
+      //
+      // M-3 은 else 분기만 guarded UPDATE 로 고치고 이 분기는 "범위 밖" 으로 남겼는데,
+      // 그 자리가 살아있는 lost update 였다: 짝 전이 호출부 8곳은 **전부 park↔resume**
+      // 이고 terminal 마킹은 하나도 없다(form/button/AI 의 WAITING_FOR_INPUT park 5곳 +
+      // RUNNING 재claim 3곳). 즉 DB 가 이미 terminal 이면 이 전이는 8곳 모두 오동작이다.
+      //
+      // 재현: AI multi-turn 턴 진행 중(LLM 호출 수 초~분) 사용자가 Stop 을 누르면
+      // `stop()` 이 `status IN (RUNNING, PENDING)` 가드 UPDATE 로 DB 를 CANCELLED 로
+      // 마감한다. 턴이 끝나고 re-park 가 여기 도달하는데, orchestrator 는 Execution 을
+      // 재로드하지 않아 `execution.status` 가 RUNNING(stale) 이다 → 위 `assertTransition`
+      // 은 RUNNING→WAITING_FOR_INPUT 을 정상 전이로 통과시키고, full-entity save 가
+      // CANCELLED/finishedAt 을 덮어써 **사용자가 누른 Stop 이 소실**된다.
+      // (§2.3 노드 경계 가드는 park 가 세그먼트를 끝내므로 이 경로에 닿지 않는다.)
+      //
+      // 왜 else 분기처럼 partial UPDATE 로 바꾸지 않나 — 이 분기의 full-entity save 는
+      // `stageDurableResumeSnapshot` 이 실어둔 park 스냅샷(conversation_thread /
+      // user_variables / resume_call_stack)까지 함께 영속하는 것이 계약이다. 컬럼을
+      // 열거해 재작성하면 그 스냅샷이 조용히 누락될 위험이 있어, 대신 **같은 트랜잭션
+      // 안에서 행을 잠그고**(FOR UPDATE) 비-terminal 을 확인한 뒤 기존 save 를 그대로
+      // 수행한다. 잠금이 커밋까지 유지되므로 검사-후-사용 race 도 닫힌다.
+      let persisted = false;
       await this.dataSource.transaction(async (manager) => {
+        const live: unknown[] = await manager.query(
+          `SELECT id FROM execution
+            WHERE id = $1
+              AND status IN ('pending', 'running', 'waiting_for_input')
+            FOR UPDATE`,
+          [execution.id],
+        );
+        if (live.length === 0) {
+          // 동시 cancel/마감이 선점 — park·재claim 을 적용하지 않고 no-op.
+          // 호출부는 false 를 보고 park 이벤트 emit 을 건너뛰어야 한다.
+          return;
+        }
         execution.status = newStatus;
         await manager.save(Execution, execution);
         await manager.save(NodeExecution, linkedNodeExec);
+        persisted = true;
       });
-      this.emitTerminalExecutionMetrics(execution, newStatus, true);
-      return true;
+      this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
+      return persisted;
     }
 
     // M-3 — else 분기: 옛 full-entity save 는 stale 엔티티의 모든 컬럼을 덮어써,
