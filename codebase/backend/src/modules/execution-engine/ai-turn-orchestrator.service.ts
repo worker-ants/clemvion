@@ -335,7 +335,7 @@ export class AiTurnOrchestrator {
    * boolean 이다. 호출부 4곳 전부 **DB 가드를 통과한 원자적 관측 결과**를
    * 그대로 전달한다 — re-park/첫 turn park/retry-last-turn RUNNING 재claim
    * 3곳은 `updateExecutionStatus`(짝 전이 choke point, FOR UPDATE) 의 반환값을,
-   * `finalizeAiNode` RUNNING 유지 분기는 `assertActiveExecutionAndSaveNodeExec`
+   * `finalizeAiNode` RUNNING 유지 분기는 `tryLockActiveExecutionAndSaveNodeExec`
    * (동일하게 FOR UPDATE 로 원자화된 관측+save) 의 반환값을 그대로 전달한다.
    * (이전 라운드엔 RUNNING 유지 분기만 로컬에서 계산한 `!cancelledExternally`
    * 플래그를 넘겨 같은 파라미터가 "DB 전이 반영 여부"와 "취소 미관측 여부"라는
@@ -392,7 +392,7 @@ export class AiTurnOrchestrator {
    * 유출)시킨다 — 재영속 자체를 제거해 회피한다. button_click/unknown(상태 미변경)
    * re-park 도 동일 경로(기존 checkpoint 보존 + WAITING 복귀).
    * @throws {ExecutionCancelledError} 짝 전이 terminal 가드가 동시 Stop 을
-   *   관측하면(`applied === false`) — 짝 `NodeExecution` 을 CANCELLED 로
+   *   관측하면(`shouldProceed === false`) — 짝 `NodeExecution` 을 CANCELLED 로
    *   마킹한 뒤 던진다({@link assertLinkedTransitionApplied}).
    */
   private async reparkAiResumeTurn(
@@ -431,7 +431,7 @@ export class AiTurnOrchestrator {
    * 이벤트 emit (`EXECUTION_WAITING_FOR_INPUT`) — turn 1 의 AI response 가
    * 동봉된다.
    * @throws {ExecutionCancelledError} 짝 전이 terminal 가드가 첫 turn 진행 중
-   *   동시 Stop 을 관측하면(`applied === false`) — 짝 `NodeExecution` 을
+   *   동시 Stop 을 관측하면(`shouldProceed === false`) — 짝 `NodeExecution` 을
    *   CANCELLED 로 마킹한 뒤 던진다({@link assertLinkedTransitionApplied}).
    *   `EXECUTION_WAITING_FOR_INPUT` emit 이전에 던져 취소된 실행이 "입력
    *   대기" 로 표시되는 것을 막는다.
@@ -1319,10 +1319,10 @@ export class AiTurnOrchestrator {
    *   `EXECUTION_RESUMED` emit 을 막는다({@link assertLinkedTransitionApplied}):
    *   (1) retry-last-turn 재진입(RUNNING 재claim, `savedExecution.status !==
    *   RUNNING` 분기) — `updateExecutionStatus` 짝 전이 terminal 가드가
-   *   `applied === false` 를 반환(ai-review WARNING #2). (2) RUNNING 유지
-   *   분기(`savedExecution.status === RUNNING`) — `assertActiveExecutionAndSaveNodeExec`
+   *   `shouldProceed === false` 를 반환(ai-review WARNING #2). (2) RUNNING 유지
+   *   분기(`savedExecution.status === RUNNING`) — `tryLockActiveExecutionAndSaveNodeExec`
    *   가 같은 트랜잭션의 행 잠금(FOR UPDATE) 안에서 관측+save 를 원자화해
-   *   `applied === false` 를 반환(ai-review WARNING #1, 3차 라운드).
+   *   `shouldProceed === false` 를 반환(ai-review WARNING #1, 3차 라운드).
    */
   private async finalizeAiNode(
     savedExecution: Execution,
@@ -1461,7 +1461,7 @@ export class AiTurnOrchestrator {
     // requirement 3개 reviewer 공통 지적) — 최초 fix 는 `assertExecutionNotCancelled`
     // (단순 SELECT) 로 재관측한 뒤 별도로 `nodeExec` 를 save 했는데, 그 확인
     // 직후~save 사이에 좁은 검사-후-사용 창이 남아 이 클래스를 완전히 닫지
-    // 못했다. `assertActiveExecutionAndSaveNodeExec` 로 형제 분기(`updateExecutionStatus`
+    // 못했다. `tryLockActiveExecutionAndSaveNodeExec` 로 형제 분기(`updateExecutionStatus`
     // 의 `linkedNodeExec` 분기)와 동일하게 관측+save 를 **같은 트랜잭션의 행
     // 잠금(FOR UPDATE)** 안에서 원자화해 그 창을 닫는다. 반환된 `applied`
     // boolean 은 else 분기와 동일하게 `assertLinkedTransitionApplied` 의
@@ -1469,7 +1469,7 @@ export class AiTurnOrchestrator {
     // 마킹된 뒤에 에러가 전파되므로, 방치 시 영구 RUNNING(non-terminal) 으로
     // 잔류하는 사고를 막는다.
     if (savedExecution.status === ExecutionStatus.RUNNING) {
-      const applied = await this.driver.assertActiveExecutionAndSaveNodeExec(
+      const applied = await this.driver.tryLockActiveExecutionAndSaveNodeExec(
         executionId,
         nodeExec,
       );

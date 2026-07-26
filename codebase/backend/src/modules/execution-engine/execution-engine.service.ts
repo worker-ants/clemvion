@@ -10,7 +10,7 @@ import {
 import { ModuleRef } from '@nestjs/core';
 import { sanitizeErrorMessage } from './sanitize-error-message';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, LessThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, LessThan, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -8024,6 +8024,37 @@ export class ExecutionEngineService
   }
 
   /**
+   * ai-review WARNING #1 (2026-07-26, 4차 라운드 — architecture/maintainability
+   * 공통 지적) — "Execution 이 non-terminal 인지 행 잠금으로 확인" 하는
+   * `SELECT ... FOR UPDATE` 조회가 `tryLockActiveExecutionAndSaveNodeExec` 와
+   * `updateExecutionStatus` 의 `linkedNodeExec` 분기 두 곳에 SQL·구조가 그대로
+   * 복제돼 있었다 — 상태 머신이 자기-전이(RUNNING→RUNNING)를 표현하지 못해
+   * 별도 choke point 가 생긴 것이 근본 원인. 잠금 조회 자체만 이 헬퍼로 공유하고,
+   * 잠금 이후의 save 절차(무엇을 save 하는지)는 각 호출부가 자신의 계약대로
+   * 그대로 수행한다 — choke point 자체를 합치지는 않는다(두 호출부의 커밋 대상
+   * 컬럼 집합이 다르다: 이 헬퍼 호출자는 NodeExecution 만, `updateExecutionStatus`
+   * 는 Execution.status 포함).
+   *
+   * @returns `true` 면 대상 execution 행이 non-terminal 이라 트랜잭션 안에서
+   *   행 잠금을 획득했다(커밋까지 유지). `false` 는 동시 cancel/park 가 이미
+   *   terminal 로 옮겨 잠금을 획득하지 않은 경우 — 호출부는 이후 save 를
+   *   건너뛰어야 한다.
+   */
+  private async lockNonTerminalExecutionRow(
+    manager: EntityManager,
+    executionId: string,
+  ): Promise<boolean> {
+    const live: unknown[] = await manager.query(
+      `SELECT id FROM execution
+        WHERE id = $1
+          AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
+        FOR UPDATE`,
+      [executionId],
+    );
+    return live.length > 0;
+  }
+
+  /**
    * ai-review WARNING #1 (2026-07-26, 3차 라운드 — concurrency/architecture/
    * requirement 3개 reviewer 공통 지적) — `finalizeAiNode` 의 "이미 RUNNING
    * 유지" 분기(turn-park 재개 경로의 정상 multi-turn 대화 종료 주 경로)는
@@ -8035,10 +8066,19 @@ export class ExecutionEngineService
    * 직후~save 사이의 좁은 창에서 동시 Stop 이 끼어드는 검사-후-사용 race 를
    * 완전히 닫는다.
    *
-   * `updateExecutionStatus` 의 `linkedNodeExec` 분기와 잠금 SQL 은 같지만
-   * Execution.status 자체는 쓰지 않는다(호출 시점에 이미 RUNNING 이라 전이가
-   * 없음) — 그래서 그 choke point 를 재사용하지 않고 별도 좁은 표면으로 둔다
-   * (ISP, {@link AiTurnEngineDriver} 전용 — 호출자는 `finalizeAiNode` 뿐).
+   * `updateExecutionStatus` 의 `linkedNodeExec` 분기와 잠금 조회는
+   * {@link lockNonTerminalExecutionRow} 로 공유하지만 Execution.status 자체는
+   * 쓰지 않는다(호출 시점에 이미 RUNNING 이라 전이가 없음) — 그래서 그
+   * choke point 를 재사용하지 않고 별도 좁은 표면으로 둔다 (ISP,
+   * {@link AiTurnEngineDriver} 전용 — 호출자는 `finalizeAiNode` 뿐).
+   *
+   * ai-review WARNING #4 (2026-07-26, 4차 라운드 — maintainability) — 이
+   * 코드베이스의 `assert*` 접두는 "조건 위반 시 throw" 관례인데, 이 메서드는
+   * `Promise<boolean>` 을 반환하고 throw 하지 않아 그 관례를 어겼다. 이 PR 이
+   * 고친 CRITICAL 이 정확히 "반환값 미확인으로 조용히 진행"이었으므로 이름이
+   * 같은 실수를 유도할 수 있어, non-throwing/bool 반환임이 드러나는
+   * `tryLockActiveExecutionAndSaveNodeExec` 로 개명한다(이전 이름
+   * `assertActiveExecutionAndSaveNodeExec`).
    *
    * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 트랜잭션
    *   안에서 save 했다. `false` 는 동시 cancel 이 Execution 을 이미 terminal
@@ -8046,20 +8086,17 @@ export class ExecutionEngineService
    *   로 짝 `nodeExec` 를 CANCELLED 재마킹한 뒤 던져야 한다.
    */
   // EngineDriver 멤버 — `finalizeAiNode` RUNNING 유지 분기 전용(AiTurnOrchestrator only).
-  public async assertActiveExecutionAndSaveNodeExec(
+  public async tryLockActiveExecutionAndSaveNodeExec(
     executionId: string,
     nodeExec: NodeExecution | null,
   ): Promise<boolean> {
     let persisted = false;
     await this.dataSource.transaction(async (manager) => {
-      const live: unknown[] = await manager.query(
-        `SELECT id FROM execution
-          WHERE id = $1
-            AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
-          FOR UPDATE`,
-        [executionId],
+      const isNonTerminal = await this.lockNonTerminalExecutionRow(
+        manager,
+        executionId,
       );
-      if (live.length === 0) {
+      if (!isNonTerminal) {
         // 동시 cancel 이 선점 — save 를 건너뛴다. 호출부가
         // assertLinkedTransitionApplied 로 짝 nodeExec 를 CANCELLED 마킹한다.
         return;
@@ -8227,16 +8264,16 @@ export class ExecutionEngineService
       // 열거해 재작성하면 그 스냅샷이 조용히 누락될 위험이 있어, 대신 **같은 트랜잭션
       // 안에서 행을 잠그고**(FOR UPDATE) 비-terminal 을 확인한 뒤 기존 save 를 그대로
       // 수행한다. 잠금이 커밋까지 유지되므로 검사-후-사용 race 도 닫힌다.
+      // ai-review WARNING #1 (2026-07-26, 4차 라운드) — 잠금 조회 자체는
+      // `tryLockActiveExecutionAndSaveNodeExec` 와 {@link lockNonTerminalExecutionRow}
+      // 로 공유한다. save 절차(Execution.status 포함)는 형제와 달라 이 분기에 남긴다.
       let persisted = false;
       await this.dataSource.transaction(async (manager) => {
-        const live: unknown[] = await manager.query(
-          `SELECT id FROM execution
-            WHERE id = $1
-              AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
-            FOR UPDATE`,
-          [execution.id],
+        const isNonTerminal = await this.lockNonTerminalExecutionRow(
+          manager,
+          execution.id,
         );
-        if (live.length === 0) {
+        if (!isNonTerminal) {
           // 동시 cancel/마감이 선점 — park·재claim 을 적용하지 않고 no-op.
           // 호출부는 false 를 보고 park 이벤트 emit 을 건너뛰어야 한다.
           return;

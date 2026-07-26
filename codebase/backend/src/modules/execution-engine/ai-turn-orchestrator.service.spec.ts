@@ -60,7 +60,7 @@ function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
     // "이미 RUNNING 유지" 분기 전용 원자 관측+save. 기본은 "비-terminal(true)"
     // 이라 정상 완료 경로가 그대로 통과하고, 선점 시나리오만
     // `mockResolvedValueOnce(false)` 로 재무장한다.
-    assertActiveExecutionAndSaveNodeExec: jest.fn().mockResolvedValue(true),
+    tryLockActiveExecutionAndSaveNodeExec: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AiTurnEngineDriver>;
 }
 
@@ -242,7 +242,7 @@ describe('AiTurnOrchestrator', () => {
     // 의 `nodeExec === null` 분기(타입상 `ResumeTurnContext.nodeExec: NodeExecution
     // | null` 로 실제 도달 가능)가 신규 3개 테스트 스위트 어디에서도 실행되지 않아,
     // `if (nodeExec)` 가드를 제거/반전해도 RED 로 떨어지지 않는 mutation 사각지대였다.
-    // 소비처 중 하나(re-park)에서 nodeExec=null + applied=false 조합을 직접 고정한다.
+    // 소비처 중 하나(re-park)에서 nodeExec=null + shouldProceed=false 조합을 직접 고정한다.
     it('짝 전이가 선점당해도(false) nodeExec 가 null 이면 markNodeCancelled 를 호출하지 않고 그대로 취소 전파한다', async () => {
       driver.updateExecutionStatus.mockResolvedValueOnce(false);
       const savedExecution = {
@@ -311,7 +311,12 @@ describe('AiTurnOrchestrator', () => {
     it('park 이 선점당하면(false) ExecutionCancelledError + waiting 이벤트 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
       driver.updateExecutionStatus.mockResolvedValueOnce(false);
 
-      await expect(callPark()).rejects.toBeInstanceOf(ExecutionCancelledError);
+      const promise = callPark();
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // ai-review WARNING #5 (2026-07-26, 4차 라운드, testing) — phase 문자열까지
+      // 확인해 재-park/RUNNING 종료 분기와 동일하게 어느 분기에서 취소됐는지
+      // 회귀로 고정한다(대조: re-park 는 위 `.rejects.toThrow(/re-park/)`).
+      await expect(promise).rejects.toThrow(/cancelled during 첫 AI turn park/);
       expect(waitingEmitted()).toBe(false);
       // ai-review WARNING #1 (concurrency) — 첫 turn park 도 re-park 와 동일하게
       // 짝 nodeExec 를 방치하지 않고 markNodeCancelled 로 terminal 마킹한다.
@@ -334,7 +339,7 @@ describe('AiTurnOrchestrator', () => {
   // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {retryReentry:true})`
   // → `finalizeAiNode`)이 대화를 종료시키면 `savedExecution.status`(FAILED,
   // spawn row) 는 RUNNING 이 아니라 else 분기(RUNNING 재claim)를 탄다. 동시
-  // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`applied === false`)
+  // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`shouldProceed === false`)
   // NODE_COMPLETED/EXECUTION_RESUMED 를 그대로 emit 하면 "사후 오시그널" 이다.
   describe('finalizeAiNode — retry-last-turn 재진입 RUNNING 재claim 선점', () => {
     type FinalizeSubject = {
@@ -379,8 +384,13 @@ describe('AiTurnOrchestrator', () => {
         startedAt: new Date(),
       };
 
-      await expect(callFinalize(nodeExec)).rejects.toBeInstanceOf(
-        ExecutionCancelledError,
+      const promise = callFinalize(nodeExec);
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // ai-review WARNING #5 (2026-07-26, 4차 라운드, testing) — phase 문자열까지
+      // 확인해 RUNNING 유지 분기(대조: 위 finalizeAiNode 원자화 describe)와
+      // 동일하게 어느 분기에서 취소됐는지 회귀로 고정한다.
+      await expect(promise).rejects.toThrow(
+        /cancelled during AI turn 종료 처리\(RUNNING 재claim\)/,
       );
 
       expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
@@ -479,7 +489,7 @@ describe('AiTurnOrchestrator', () => {
   // ai-review WARNING #1 (2026-07-26, 3차 라운드) — 최초 fix 는
   // `assertExecutionNotCancelled`(단순 SELECT) 로 재관측한 뒤 별도로 `nodeExec`
   // 를 save 해, 그 확인~save 사이에 좁은 검사-후-사용 창이 남았다. 아래 테스트는
-  // `assertActiveExecutionAndSaveNodeExec`(형제 분기와 동일하게 FOR UPDATE 로
+  // `tryLockActiveExecutionAndSaveNodeExec`(형제 분기와 동일하게 FOR UPDATE 로
   // 원자화된 관측+save) 로 갱신됐다 — 실제 트랜잭션 원자성 자체의 회귀는
   // `execution-engine.service.spec.ts` 의 동명 describe 가 가드한다.
   describe('finalizeAiNode — RUNNING 유지 분기 선점 (CRITICAL #1 / WARNING #1 3차 라운드 원자화)', () => {
@@ -516,7 +526,7 @@ describe('AiTurnOrchestrator', () => {
       );
 
     it('턴 진행 중 동시 Stop 이 이미 CANCELLED 로 마감(원자 관측+save 가 false 반환) → ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
-      driver.assertActiveExecutionAndSaveNodeExec.mockResolvedValueOnce(false);
+      driver.tryLockActiveExecutionAndSaveNodeExec.mockResolvedValueOnce(false);
       const nodeExec = {
         id: 'ne-end-crit1',
         nodeId: 'node-end-crit1',
@@ -540,7 +550,7 @@ describe('AiTurnOrchestrator', () => {
       // 대체됐는지 고정한다(형제 분기의 updateExecutionStatus FOR UPDATE 와
       // 동일 계약 — 실제 트랜잭션 원자성은 execution-engine.service.spec.ts
       // 의 동명 describe 가 가드).
-      expect(driver.assertActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
       );
@@ -560,12 +570,12 @@ describe('AiTurnOrchestrator', () => {
       expect(resumedEmitted).toBe(false);
       // 취소 관측 전에 이미 COMPLETED 로 save 되지 않아야 한다(취소된 NodeExecution
       // 이 잠깐이라도 COMPLETED 로 영속되지 않도록). save 자체는 이제
-      // assertActiveExecutionAndSaveNodeExec(mocked driver) 안으로 이관됐으므로
+      // tryLockActiveExecutionAndSaveNodeExec(mocked driver) 안으로 이관됐으므로
       // orchestrator 자신의 nodeExecutionRepository 는 이 분기에서 호출되지 않는다.
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
-    it('대조: 취소가 아니면(assertActiveExecutionAndSaveNodeExec 가 true 반환) NODE_COMPLETED + EXECUTION_RESUMED 를 정상 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+    it('대조: 취소가 아니면(tryLockActiveExecutionAndSaveNodeExec 가 true 반환) NODE_COMPLETED + EXECUTION_RESUMED 를 정상 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
       const nodeExec = {
         id: 'ne-end-crit1-ok',
         nodeId: 'node-end-crit1',
@@ -574,7 +584,7 @@ describe('AiTurnOrchestrator', () => {
 
       await callFinalizeRunning(nodeExec);
 
-      expect(driver.assertActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
       );
@@ -654,10 +664,10 @@ describe('AiTurnOrchestrator', () => {
       ).toHaveBeenCalledTimes(1);
       // RUNNING 진입이므로 상태 전이 skip + NodeExecution save (finalizeAiNode).
       // ai-review WARNING #1 (2026-07-26, 3차 라운드) — save 는 이제
-      // `assertActiveExecutionAndSaveNodeExec`(원자 관측+save, mocked driver)
+      // `tryLockActiveExecutionAndSaveNodeExec`(원자 관측+save, mocked driver)
       // 안에서 수행돼 orchestrator 자신의 nodeExecutionRepository 는 호출되지
       // 않는다.
-      expect(driver.assertActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
       );

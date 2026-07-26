@@ -4922,6 +4922,10 @@ describe('ExecutionEngineService', () => {
       //   `savedExecution` 은 resume 진입 시 로드된 뒤 재로드되지 않으므로 in-memory
       //   status 는 RUNNING 이고, `assertTransition(RUNNING → WAITING_FOR_INPUT)` 은
       //   정상 전이라 통과한다 — 즉 DB 를 보지 않으면 막을 방법이 없다.
+      //   ai-review WARNING #1 (2026-07-26, 4차 라운드) — 잠금 조회는
+      //   `lockNonTerminalExecutionRow` 로 `tryLockActiveExecutionAndSaveNodeExec`
+      //   describe(L5071)와 공유. 아래 테스트는 그 공유 이후에도 독립적으로
+      //   회귀를 가드한다(교차 검증 완료).
       describe('linkedNodeExec 짝 전이 — terminal 가드 (park↔resume lost update 차단)', () => {
         const mkPair = () => ({
           exec: {
@@ -5068,10 +5072,24 @@ describe('ExecutionEngineService', () => {
   // 재확인한 뒤 별도로 `nodeExec` 를 save 해, 그 확인~save 사이에 검사-후-사용
   // 창이 남았다. 위 "linkedNodeExec 짝 전이 — terminal 가드" idiom 을 미러해
   // 관측+save 를 같은 트랜잭션의 행 잠금(FOR UPDATE) 안에서 원자화한다.
-  describe('assertActiveExecutionAndSaveNodeExec — RUNNING 유지 분기 전용 원자 관측+save', () => {
+  //
+  // ai-review WARNING #4 (2026-07-26, 4차 라운드 — maintainability) —
+  // `assertActiveExecutionAndSaveNodeExec` 에서 `tryLockActiveExecutionAndSaveNodeExec`
+  // 로 개명(non-throwing/bool 반환임을 이름에 명시). 아래 테스트는 그대로
+  // 유지되며 개명 후에도 동일한 회귀를 가드한다.
+  //
+  // ai-review WARNING #1 (2026-07-26, 4차 라운드 — architecture/maintainability)
+  // — 잠금 조회(FOR UPDATE + 비-terminal 조건) 자체는 `lockNonTerminalExecutionRow`
+  // 로 `updateExecutionStatus` 의 `linkedNodeExec` 분기와 공유하게 추출됐다.
+  // 아래 3개 시나리오(비-terminal→save+true / terminal→skip+false / SQL 형태)는
+  // 추출 전과 동일하게 이 describe 와 `linkedNodeExec 짝 전이` describe(L4925)
+  // 양쪽에서 **독립적으로** 재현 가능해야 한다 — 공유 헬퍼에서 (a) 조기 return,
+  // (b) FOR UPDATE, (c) 비-terminal 조건 중 하나라도 제거되면 두 describe 의
+  // 해당 테스트가 각각 RED 로 떨어진다(교차 검증 완료, 2026-07-26).
+  describe('tryLockActiveExecutionAndSaveNodeExec — RUNNING 유지 분기 전용 원자 관측+save', () => {
     const priv = () =>
       service as unknown as {
-        assertActiveExecutionAndSaveNodeExec: (
+        tryLockActiveExecutionAndSaveNodeExec: (
           executionId: string,
           nodeExec: NodeExecution | null,
         ) => Promise<boolean>;
@@ -5083,7 +5101,7 @@ describe('ExecutionEngineService', () => {
         status: NodeExecutionStatus.COMPLETED,
       } as unknown as NodeExecution;
 
-      const persisted = await priv().assertActiveExecutionAndSaveNodeExec(
+      const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
         executionId,
         nodeExec,
       );
@@ -5103,7 +5121,7 @@ describe('ExecutionEngineService', () => {
       } as unknown as NodeExecution;
       const saveCallsBefore = mockNodeExecutionRepo.save.mock.calls.length;
 
-      const persisted = await priv().assertActiveExecutionAndSaveNodeExec(
+      const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
         executionId,
         nodeExec,
       );
@@ -5121,7 +5139,7 @@ describe('ExecutionEngineService', () => {
         status: NodeExecutionStatus.COMPLETED,
       } as unknown as NodeExecution;
 
-      await priv().assertActiveExecutionAndSaveNodeExec(executionId, nodeExec);
+      await priv().tryLockActiveExecutionAndSaveNodeExec(executionId, nodeExec);
 
       // FOR UPDATE 가 없으면 확인과 save 사이에 stop() 이 끼어들 수 있다
       // (검사-후-사용 race). 잠금은 트랜잭션 커밋까지 유지된다.
@@ -5138,7 +5156,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('nodeExec 가 null 이면(짝이 없는 호출) save 를 시도하지 않고 non-terminal 이면 true', async () => {
-      const persisted = await priv().assertActiveExecutionAndSaveNodeExec(
+      const persisted = await priv().tryLockActiveExecutionAndSaveNodeExec(
         executionId,
         null,
       );

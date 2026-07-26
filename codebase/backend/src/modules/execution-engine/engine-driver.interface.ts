@@ -36,11 +36,14 @@ import type {
  * 현재 멤버 수(2026-07-26 3차 라운드 실측): `EngineDriver` distinct **15**
  * (Core 2 + Interaction 1 + ReentryState 1 + AiTurn 자체 6 + Retry 자체 5),
  * `AiTurnEngineDriver` 합계 **10**. ai-review WARNING #1(3차 라운드) 로
- * `assertActiveExecutionAndSaveNodeExec` 가 추가돼 이전 라운드의 14/9 에서
+ * `assertActiveExecutionAndSaveNodeExec`(4차 라운드에 `tryLockActiveExecution
+ * AndSaveNodeExec` 로 개명 — 아래 참조) 가 추가돼 이전 라운드의 14/9 에서
  * 다시 갱신됐다. `execution-engine.md ## Rationale` §C-1 의 수치는 아직
  * 12/7 로 stale — `spec-update-node-cancellation-shutdown-classification.md`
  * #7 보강 8번 항목이 이제 15/10 을 목표로 정정 위임돼 있다(코드/spec 이 서로
  * 다른 값으로 갈라지지 않도록, plan 문서도 이번 라운드에 함께 갱신).
+ * 4차 라운드 개명은 멤버 **수**를 바꾸지 않는다(rename-only) — 위 수치는
+ * 그대로 유효하다.
  */
 export interface CoreEngineDriver {
   /**
@@ -175,12 +178,19 @@ export interface AiTurnEngineDriver
    * (`assertExecutionNotCancelled`) 확인 뒤 별도 save 사이의 검사-후-사용
    * race 를 닫는다.
    *
+   * ai-review WARNING #4 (2026-07-26, 4차 라운드 — maintainability) —
+   * `assert*` 접두는 이 코드베이스 관례상 "조건 위반 시 throw" 를 뜻하는데
+   * 이 메서드는 throw 하지 않고 `Promise<boolean>` 을 반환한다 — 이 PR 이
+   * 고친 CRITICAL(반환값 미확인으로 조용히 진행)과 동형의 실수를 유도할 수
+   * 있어 non-throwing/bool 반환임이 드러나는 이름으로 개명했다(이전 이름
+   * `assertActiveExecutionAndSaveNodeExec`).
+   *
    * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 save 했다.
    *   `false` 는 동시 cancel 이 선점해 save 를 건너뛴 경우 — 호출부는
    *   `assertLinkedTransitionApplied` 로 짝 `nodeExec` 를 CANCELLED
    *   재마킹해야 한다.
    */
-  assertActiveExecutionAndSaveNodeExec(
+  tryLockActiveExecutionAndSaveNodeExec(
     executionId: string,
     nodeExec: NodeExecution | null,
   ): Promise<boolean>;
