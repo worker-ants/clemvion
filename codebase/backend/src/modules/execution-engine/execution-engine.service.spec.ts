@@ -9936,6 +9936,101 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    // ai-review C3 (2026-07-26) — §2.3 컨테이너 범위 확장. `executeContainerBody`
+    // 상단 가드(아이템 경계마다)가 외부 cancel 을 관측하면 남은 아이템은
+    // dispatch 되지 않아야 한다. source/sink 없이 `foreach` 를 그래프 진입점으로
+    // 둔다(top-level 가드는 여전히 1회 통과해야 하므로 default 3-node 픽스처의
+    // node-1/2/3 을 재사용하지 않는다). 실측(2026-07-26): `mockExecutionRepo
+    // .findOneBy` 를 사전에 고정 row 로 blanket override 하면 `execute()` →
+    // enqueue → **worker 브릿지 자신의 재조회**(주석 L253-258 참고, `runExecution`
+    // 진입 전)가 그 축소된 fake row 를 받아 조용히 실패해 그래프가 아예 로드되지
+    // 않는다(seedInitialReachability 조차 0회 호출) — 그래서 "선형 경로 외부 cancel
+    // 전파" 기존 테스트와 동일하게, **바디 핸들러가 실제로 호출된 뒤** override 를
+    // 지연 적용한다(그 시점 이전 호출은 항상 기존 `{...lastSaved}` 기본 동작).
+    it('노드 경계 가 아니라 아이템 경계에서 외부 cancel 을 관측하면 남은 ForEach 아이템은 dispatch 되지 않는다 (C3)', async () => {
+      let bodyCalls = 0;
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          bodyCalls++;
+          if (bodyCalls === 1) {
+            // 아이템 0 실행 완료 직후부터 외부 cancel 이 관측되도록 무장 —
+            // 아이템 1 의 executeContainerBody 진입 가드가 이걸 본다.
+            mockExecutionRepo.findOneBy.mockImplementation(() =>
+              Promise.resolve({
+                id: executionId,
+                workflowId,
+                status: ExecutionStatus.CANCELLED,
+                startedAt: new Date(),
+              }),
+            );
+          }
+          return mockOutput({ ok: true });
+        }),
+      };
+      handlerRegistry.register('body_node_c3', bodyHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node_c3',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { items: [1, 2, 3] });
+      await flushPromises();
+      await flushPromises();
+
+      // 아이템 0(1건)만 body 가 실행되고, 아이템 1/2 는 dispatch 되지 않는다.
+      expect(bodyCalls).toBe(1);
+      // Execution 은 실패가 아니라 cancelled 로 마감된다 (C4 catch 경로 재사용).
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+    });
+
     it('executes Loop body N times', async () => {
       let counter = 0;
       const bodyHandler: NodeHandler = {
@@ -11609,6 +11704,189 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.query).toHaveBeenCalledWith(
         expect.stringMatching(/status IN/),
         expect.anything(),
+      );
+    });
+
+    // ai-review C3 (2026-07-26) — §2.3 Parallel 브랜치 범위 확장.
+    // `executeParallelBranchBody` 는 브랜치 내부 노드 경계마다 가드를 호출한다.
+    // `maxConcurrency: 1` 로 브랜치를 직렬화(p-limit)해 호출 순서를 결정적으로
+    // 만든다: branch0(A1→A2) 가 먼저 완주/중단되고, 그 뒤에야 branch1(B1) 이
+    // 시작한다. 실측(2026-07-26, ForEach C3 케이스와 동일한 원인) — `findOneBy` 를
+    // 사전에 call-count 로 override 하면 `execute()` → enqueue → worker 브릿지
+    // 자신의 재조회가 손상된 row 를 받아 그래프 로드 자체가 조용히 실패한다.
+    // "선형 경로 외부 cancel 전파" 기존 테스트와 동일하게, **A1 이 실제로 호출된
+    // 뒤** override 를 지연 적용한다.
+    it('브랜치 내부 노드 경계에서 외부 cancel 을 관측하면 같은 브랜치의 남은 노드도, 아직 시작 안 한 다른 브랜치도 dispatch 되지 않는다 (C3)', async () => {
+      mockConfigService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'PARALLEL_ENGINE') return 'v1';
+          if (key === 'MAX_NODE_ITERATIONS') return 100;
+          return defaultValue;
+        },
+      );
+
+      let a1Calls = 0;
+      let a2Calls = 0;
+      let b1Calls = 0;
+      const a1Handler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          a1Calls++;
+          // A1 완료 직후부터 외부 cancel 이 관측되도록 무장 — 같은 브랜치의 A2
+          // 진입 가드와, 아직 시작 안 한 branch1/B1 의 진입 가드가 이걸 본다.
+          mockExecutionRepo.findOneBy.mockImplementation(() =>
+            Promise.resolve({
+              id: executionId,
+              workflowId,
+              status: ExecutionStatus.CANCELLED,
+              startedAt: new Date(),
+            }),
+          );
+          return mockOutput({ step: 'a1' });
+        }),
+      };
+      const a2Handler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          a2Calls++;
+          return mockOutput({ step: 'a2' });
+        }),
+      };
+      const b1Handler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          b1Calls++;
+          return mockOutput({ step: 'b1' });
+        }),
+      };
+      const parallelHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async (input: unknown) => ({
+          config: { branchCount: 2, maxConcurrency: 1, waitAll: true },
+          output: input,
+          port: ['branch_0', 'branch_1'],
+        })),
+      };
+      handlerRegistry.register('parallel', parallelHandler, {
+        kind: 'parallel',
+      });
+      handlerRegistry.register('a1_node', a1Handler);
+      handlerRegistry.register('a2_node', a2Handler);
+      handlerRegistry.register('b1_node', b1Handler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'trigger',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.TRIGGER,
+          label: 'Trigger',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'parallel-1',
+          workflowId,
+          type: 'parallel',
+          category: NodeCategory.LOGIC,
+          label: 'Parallel',
+          config: { branchCount: 2, maxConcurrency: 1, waitAll: true },
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'branch-a1',
+          workflowId,
+          type: 'a1_node',
+          category: NodeCategory.LOGIC,
+          label: 'Branch A1',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'branch-a2',
+          workflowId,
+          type: 'a2_node',
+          category: NodeCategory.LOGIC,
+          label: 'Branch A2',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+        {
+          id: 'branch-b1',
+          workflowId,
+          type: 'b1_node',
+          category: NodeCategory.LOGIC,
+          label: 'Branch B1',
+          config: {},
+          isDisabled: false,
+          containerId: undefined,
+          toolOwnerId: undefined,
+        },
+      ];
+
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e1',
+          workflowId,
+          sourceNodeId: 'trigger',
+          sourcePort: 'out',
+          targetNodeId: 'parallel-1',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e2',
+          workflowId,
+          sourceNodeId: 'parallel-1',
+          sourcePort: 'branch_0',
+          targetNodeId: 'branch-a1',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e2b',
+          workflowId,
+          sourceNodeId: 'branch-a1',
+          sourcePort: 'out',
+          targetNodeId: 'branch-a2',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e3',
+          workflowId,
+          sourceNodeId: 'parallel-1',
+          sourcePort: 'branch_1',
+          targetNodeId: 'branch-b1',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { start: true });
+      await flushPromises();
+      await flushPromises();
+
+      // A1(브랜치0 첫 노드)만 실행되고, A2(같은 브랜치 다음 노드)와 B1(아직
+      // 시작 안 한 다른 브랜치)은 dispatch 되지 않는다.
+      expect(a1Calls).toBe(1);
+      expect(a2Calls).toBe(0);
+      expect(b1Calls).toBe(0);
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
       );
     });
 
