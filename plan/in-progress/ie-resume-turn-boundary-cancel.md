@@ -7,6 +7,7 @@ status: in-progress
 priority: P1
 spec_impact:
   - spec/conventions/node-cancellation.md
+  - spec/5-system/4-execution-engine.md
 ---
 
 ## Overview
@@ -80,6 +81,10 @@ DB 가 terminal 이면 park 도 재claim 도 **8건 전부 틀린 동작**이다
       full-entity save 의 컬럼 의미(staged `conversation_thread`/`user_variables`/
       `resume_call_stack`)를 보존하기 위해 partial UPDATE 로 재작성하지 **않는다** — 행 잠금으로
       race 를 닫는다.
+      > **명명 제약** (impl-prep naming_collision W4): 신규 가드는 `mark<X>Cancelled` 접두를
+      > 쓰지 않는다 — `markNodeCancelled`/`markExecutionCancelled`/`finalizeCancelledExecution`
+      > 이 이미 혼동 지대로 백로그돼 있어 4번째 유사 이름을 더하면 안 된다. "linked/paired
+      > transition" 임을 이름에 명시한다.
 - [ ] **(B) turn 경계 체크 (티켓 본항목)** — resume turn dispatch **직전** cancel 관측 →
       `ExecutionCancelledError`. spec §2.1 이 지시한 방향. Stop 이 큐 대기 중 도착한 경우
       불필요한 LLM 호출 자체를 막는다.
@@ -87,9 +92,30 @@ DB 가 terminal 이면 park 도 재claim 도 **8건 전부 틀린 동작**이다
       않고 취소로 종결한다.
 - [ ] 테스트 — (A) 반환 계약은 `execution-engine.service.spec.ts:4828~4870`(else 분기 선례)의
       idiom 을 미러. (B)/(C) 는 orchestrator 레벨.
+- [ ] **(D) spec 위임** (impl-prep W1/W2 — 이 plan family 가 3회 반복한 "developer 완료 → spec
+      stale 방치" 패턴 차단) — developer 는 `spec/` 쓰기 권한이 없으므로
+      [`spec-update-node-cancellation-shutdown-classification.md`](./spec-update-node-cancellation-shutdown-classification.md)
+      **#7** 에 §2.1(IE 행 완화 서술 정정)·§6(신규 행)·§2.3(turn 경계 가드) 제안을 등재한다.
+      **완료** — 커밋 `9da4aa29b`. 원자성 계약 SoT 인 `spec/5-system/4-execution-engine.md §1.1`
+      갱신도 같은 위임에 포함할 것(짝 전이의 terminal 가드는 그 §1.1 이 서술하는 계약의 일부).
+      #6 큐와 **같은 planner 턴에 배치** 처리한다(W3 — 두 plan 이 §5.2/§6 표를 따로 덮어쓰는 것 방지).
 - [ ] TEST WORKFLOW (lint / unit / build / e2e)
 - [ ] `/ai-review` + Critical·Warning 해소
 - [ ] `/consistency-check --impl-done spec/conventions`
+
+## impl-prep 결과 (2026-07-26)
+
+`review/consistency/2026/07/26/19_30_39` — **BLOCK: YES**, 단 **본 작업과 무관한 사유**.
+
+CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existing 모순이다.
+`--impl-prep spec/conventions` 가 conventions **폴더 전체**를 스코프로 잡았고, 페이로드가 예산
+초과로 정작 `spec_impact` 대상인 `node-cancellation.md` 본문을 생략한 채 알파벳순으로 앞선
+`cafe24-api-catalog/**` 를 실은 결과다(5 checker 전원이 독립 확인). SUMMARY 자신이
+*"이 CRITICAL 자체는 착수를 막을 필요가 없다"* 고 판정하고 별도 planner 티켓 분리를 권고했다.
+
+→ CRITICAL 전문은 [`cafe24-backlog-residual.md`](./cafe24-backlog-residual.md) 로 이관(커밋
+`c50336450`). `node-cancellation.md` 자체에는 CRITICAL 이 없고 WARNING 만 있으며, 그 WARNING
+4건은 위 (D)·(A) 명명 제약·부모 plan 정정으로 전부 반영했다. 착수 계속.
 
 ## 후속 (본 PR 밖)
 
