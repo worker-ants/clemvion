@@ -110,6 +110,18 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
 - [x] `/consistency-check --impl-done spec/conventions` — 2026-07-26 `review/consistency/2026/07/26/21_06_23`
       **BLOCK: NO** (Critical 0). WARNING 4건은 spec 위임 완전성·harness scoping 건으로 전부 반영
       (#7 보강 6~8번 + harness plan 기록, 커밋 `cccdd1ff9`)
+- [x] `/ai-review` + Critical·Warning 해소 (3차 라운드) — 2026-07-26 `review/code/2026/07/26/22_11_22`
+      (Critical 0 / Warning 9). WARNING #1(잔여 TOCTOU, architecture·requirement·concurrency
+      3개 reviewer 공통 지적)을 `assertActiveExecutionAndSaveNodeExec`(형제 분기와 동일한
+      FOR UPDATE 트랜잭션 원자화)로 완전히 닫음(주석/알려진 리스크로 남기지 않음). #3
+      CHANGELOG "AI 경로 4곳" 정정 + 4번째 메커니즘 명시, #5 `applied`→`shouldProceed` 파라미터
+      명 개정 + JSDoc 이중 계약 명시(WARNING #1 fix 로 실질적으로 단일 계약이 됨), #8 phase
+      문자열 단언 2곳 추가, #9 e2e 고정 `setTimeout(2_500)` → `node_execution` terminal poll
+      전환. #2(WS emit 순서 갭)/#4(`markNodeCancelled` 초기화 계약)/#6(4줄 마무리 블록 중복)/
+      #7(public 표면 확대)은 "후속(본 PR 밖)" 절에 증상·영향·닫는 방법 명시 등재(코드 변경
+      없음). SPEC-DRIFT 1건은 이미 위임된 `spec-update-node-cancellation-shutdown-classification.md`
+      #7(보강 8번)로 흡수(추가 조치 없음, 단 `EngineDriver` 멤버 수 목표를 신규 메서드 반영해
+      15/10 으로 재갱신). TEST WORKFLOW 재통과. 상세: `RESOLUTION.md` 참조.
 
 ## impl-prep 결과 (2026-07-26)
 
@@ -145,6 +157,48 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   `mockResolvedValue(true)` 로 고정해 둬, 위 갭을 닫는 후속 PR 의 "현재 동작" 기준선이 없다.
   후속 PR 착수 전에 각 spec 에 `mockResolvedValueOnce(false)` 케이스를 "알려진 제한사항"
   주석과 함께 먼저 추가해 두는 것을 권고(회귀 기준선 확보 → 그 다음 실제 fix).
+
+### 3차 라운드 추가 후속 (ai-review `review/code/2026/07/26/22_11_22`, Critical 0)
+
+이번 라운드는 WARNING #1(잔여 TOCTOU)·#3(CHANGELOG stale)·#8(phase 문자열 미검증)·
+#9(e2e 고정 sleep)·#5(`applied` 파라미터 이질적 계약)는 코드/테스트로 닫았다(RESOLUTION.md
+참조). 아래는 명시적으로 "문서/plan 로만 닫을 것"으로 분류된 잔여 항목이다 — **코드 변경 없음**.
+
+- **WS 이벤트 emit 이 취소 재확인보다 먼저 실행 (ai-review WARNING #2)** — `handleAiMessageTurn`
+  이 turn-경계 cancel 가드(LLM 호출 **이전**)를 통과한 뒤, LLM 호출이 끝나면 취소 재확인 없이
+  `AI_MESSAGE`/`EXECUTION_WAITING_FOR_INPUT`(또는 terminal `AI_MESSAGE`)을 무조건 emit 한다
+  (`ai-turn-orchestrator.service.ts` `handleAiMessageTurn`, AI_MESSAGE emit 825-855/953-984,
+  EXECUTION_WAITING_FOR_INPUT emit 888-923). 짝 전이/RUNNING 유지 가드는 그 이후 별도 메서드
+  (`finalizeAiNode`/`reparkAiResumeTurn`)에서 실행되므로, LLM 호출 도중 Stop 을 눌러도
+  클라이언트는 "대화가 계속된다"는 이벤트를 먼저 받는다.
+  - **증상**: turn 진행 중 Stop 을 누르면 DB 는 안전(최종 상태는 CANCELLED 로 수렴)하지만,
+    WS 로 `AI_MESSAGE`/`EXECUTION_WAITING_FOR_INPUT` 이벤트가 먼저 도착해 UI 가 잠깐
+    "대화가 계속된다"고 보여줄 수 있다 — 이 PR 이 고치려던 증상("Stop 이 조용히
+    무효화된 것처럼 보임")과 같은 결의 표시 계층 갭.
+  - **영향**: DB 최종 상태는 안전 — 사용자 체감(표시) 문제로 한정. 데이터 정합성 위험 아님.
+  - **닫는 방법**: emit 직전에 `assertExecutionNotCancelled` 재확인을 추가해 취소 시 emit 을
+    건너뛴다 — 단 emit 지점(AI_MESSAGE 2곳 + EXECUTION_WAITING_FOR_INPUT 1곳)마다 재확인이
+    필요해 범위가 이번 PR 보다 커진다. 별도 후속 PR 로 처리.
+  - **확인 필요**: FE 가 지연 도착한 `EXECUTION_WAITING_FOR_INPUT`/`AI_MESSAGE` 보다
+    `NODE_CANCELLED`/`EXECUTION_CANCELLED` 를 항상 우선(최신 것으로 덮어씀)하는지 — 프론트
+    store 의 이벤트 도착 순서 처리 로직을 후속 PR 착수 시 먼저 확인할 것.
+- **`markNodeCancelled` 사전 초기화 계약이 타입이 아닌 주석 (ai-review WARNING #4)** —
+  `markNodeCancelled` 호출 전 `nodeExec.outputData`/`error` 를 비워야 한다는 계약이
+  호출부 주석(`assertLinkedTransitionApplied` 내부, `ai-turn-orchestrator.service.ts:356-363`)
+  으로만 강제된다 — 후속 form/button PR 이 이 헬퍼(`execution-engine.service.ts:4585-4611`)
+  를 재사용하며 사전 초기화를 빠뜨리면 취소된 NodeExecution 이 성공 페이로드를 노출하는
+  결함이 재발할 수 있다. 후속: `markNodeCancelled` 자신이 초기화를 항상 흡수하거나, 옵션
+  플래그(`clearPayload?`)로 인터페이스 시그니처에 명시.
+- **`updateExecutionStatus` 두 분기의 4줄 마무리 블록 중복 (ai-review WARNING #6)** —
+  `linkedNodeExec`/else 두 분기 끝의 `recordRunningSegmentStart`+`emitTerminalExecutionMetrics`
+  +`return persisted` 가 그대로 중복 이식돼 있다(`execution-engine.service.ts:8201-8205` vs
+  `:8245-8249`). 후속: 공통 후처리를 함수 끝 단일 지점 또는 사설 헬퍼로 추출.
+- **`markNodeCancelled`/`assertExecutionNotCancelled` public 전환 표면 확대 (ai-review
+  WARNING #7)** — `ExecutionEngineService` 의 두 메서드가 `private`→`public` 으로 바뀌어
+  `AiTurnEngineDriver` 노출 목적(기존 `updateExecutionStatus` 선례와 일관)으로 의도된
+  변경이나, concrete 클래스 직접 참조 코드가 DI 계약(`ENGINE_DRIVER` 경유, 턴/노드 경계에서만
+  호출)을 우회할 잠재 경로가 생긴다. 조치 불요(설계 의도) — 후속 form/button PR 이
+  `ENGINE_DRIVER` 토큰 경유가 아닌 직접 참조를 추가하지 않는지 리뷰 시 확인.
 
 ## ⚠️ 이 plan 을 `plan/complete/` 로 이동할 때 (ai-review WARNING #8, 2026-07-26)
 
