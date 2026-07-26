@@ -171,12 +171,16 @@ export interface AiTurnEngineDriver
 
   /**
    * ai-review WARNING #1 (2026-07-26, 3차 라운드) — `finalizeAiNode` 의 "이미
-   * RUNNING 유지" 분기 전용. Execution.status 가 RUNNING→RUNNING 이라
+   * RUNNING 유지" 분기용으로 도입. Execution.status 가 RUNNING→RUNNING 이라
    * `updateExecutionStatus` 의 짝 전이(FOR UPDATE) choke point 를 타지 않는데,
    * 짝 `nodeExec` COMPLETED save 는 여전히 필요하다 — 그 save 를 형제 분기와
    * 동일하게 같은 트랜잭션의 행 잠금 안에서 원자화해, 단순 SELECT
    * (`assertExecutionNotCancelled`) 확인 뒤 별도 save 사이의 검사-후-사용
    * race 를 닫는다.
+   *
+   * ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기도
+   * 동일한 계약(Execution.status 미전이 + 짝 `nodeExec` save 만 필요)이라 이
+   * 헬퍼를 공유한다 — 두 분기 모두의 소비처.
    *
    * ai-review WARNING #4 (2026-07-26, 4차 라운드 — maintainability) —
    * `assert*` 접두는 이 코드베이스 관례상 "조건 위반 시 throw" 를 뜻하는데

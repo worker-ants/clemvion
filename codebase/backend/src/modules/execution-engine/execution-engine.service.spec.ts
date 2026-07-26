@@ -449,6 +449,19 @@ describe('ExecutionEngineService', () => {
                   }),
                   // 짝 전이 terminal 가드(`SELECT ... FOR UPDATE`)용.
                   query: mockTxManagerQuery,
+                  // ai-review WARNING #1 (2026-07-27) — `cancelParkedExecution`
+                  // 이 이제 이 트랜잭션 안에서 `manager.createQueryBuilder()` 를
+                  // 호출한다(원자화, markWebChatIdleTimeout 과 동형). 기본은
+                  // "적용됨"(affected:1)으로 기존 흐름을 그대로 유지한다 —
+                  // affected:0(가드 미스) 시나리오가 필요한 테스트는 개별로
+                  // `dataSource.transaction` 을 재정의한다.
+                  createQueryBuilder: jest.fn(() => ({
+                    update: jest.fn().mockReturnThis(),
+                    set: jest.fn().mockReturnThis(),
+                    where: jest.fn().mockReturnThis(),
+                    andWhere: jest.fn().mockReturnThis(),
+                    execute: jest.fn().mockResolvedValue({ affected: 1 }),
+                  })),
                 };
                 return cb(manager);
               },
@@ -2843,22 +2856,18 @@ describe('ExecutionEngineService', () => {
 
     // W11 — applyCancellation 는 exec-park D6 full B3 에서 항상 cancelParkedExecution
     // (durable WAITING DB 마감) 으로 위임한다 (in-memory rejectPending 경로 제거).
-    it('applyCancellation — cancelParkedExecution(createQueryBuilder) 경로 실행', async () => {
-      const execQb = {
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 0 }),
-      };
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(execQb);
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(execQb);
+    // ai-review WARNING #1 (2026-07-27) — cancelParkedExecution 이 Execution+
+    // NodeExecution 이중 UPDATE 를 단일 트랜잭션으로 원자화해, 이제 개별 repo 의
+    // createQueryBuilder 가 아니라 `dataSource.transaction` 안의
+    // `manager.createQueryBuilder()` 를 순서대로 호출한다 — 아래 `installIdleTx`
+    // (같은 형태를 쓰는 markWebChatIdleTimeout 테스트와 공유)로 그 경로를 무장한다.
+    it('applyCancellation — cancelParkedExecution(dataSource.transaction) 경로 실행', async () => {
+      const { execQb } = installIdleTx(0, 0);
 
-      // affected:0 → 멱등 no-op. createQueryBuilder が呼ばれていること(= DB 경로 도달)을 확인.
+      // affected:0 → 멱등 no-op. Execution UPDATE 가 실제로 시도됐는지(= DB 경로
+      // 도달)만 확인한다.
       await service.applyCancellation('exec-no-pending');
-      expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      expect(execQb.execute).toHaveBeenCalled();
     });
 
     // EIA-RL-07 markWebChatIdleTimeout — 공개 위젯 idle-wait 회수 (§R19).
@@ -3031,31 +3040,38 @@ describe('ExecutionEngineService', () => {
 
   // W10 — cancelParkedExecution durable WAITING cancel 3-way 분기 검증.
   describe('cancelParkedExecution — durable WAITING cancel (W10)', () => {
-    // 재사용 helper: executionRepo + nodeExecutionRepo 의 createQueryBuilder 를
-    // affected: N 으로 무장한다.
-    const makeExecQb = (affected: number) => ({
+    // ai-review WARNING #1 (2026-07-27) — cancelParkedExecution 이 이제
+    // Execution+NodeExecution 이중 UPDATE 를 단일 트랜잭션(markWebChatIdleTimeout
+    // 과 동형)으로 원자화한다. 개별 repo 의 createQueryBuilder 대신
+    // `dataSource.transaction` 안의 `manager.createQueryBuilder()` 를 순서대로
+    // (Execution → NodeExecution) 호출한다 — `markWebChatIdleTimeout` 테스트의
+    // `installIdleTx`/`makeIdleQb` 와 동형이나 그 helper 는 형제 describe 스코프
+    // (`continuation entry points → bus.publish + apply* dispatch`) 안에 있어
+    // 이 describe 에서 참조 불가 — 동일 패턴을 이 describe 전용으로 재정의한다.
+    const makeQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected }),
     });
-    const makeNodeQb = () => ({
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected: 1 }),
-    });
+    const installTx = (execAffected: number, nodeAffected: number) => {
+      const execQb = makeQb(execAffected);
+      const nodeQb = makeQb(nodeAffected);
+      const qbs = [execQb, nodeQb];
+      (
+        service as unknown as { dataSource: { transaction: jest.Mock } }
+      ).dataSource.transaction = jest.fn(
+        async (cb: (m: unknown) => Promise<unknown>) => {
+          let i = 0;
+          return cb({ createQueryBuilder: jest.fn(() => qbs[i++]) });
+        },
+      );
+      return { execQb, nodeQb };
+    };
 
     it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit (cancelledBy:user, error 키 부재)', async () => {
-      mockExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(makeExecQb(1));
-      const nodeQb = makeNodeQb();
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(nodeQb);
+      const { execQb, nodeQb } = installTx(1, 1);
       // emitCancellationEvent 가 engine emitter 로 넘기는 원본 payload 를 직접 포착한다.
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
@@ -3065,9 +3081,9 @@ describe('ExecutionEngineService', () => {
       await service.applyCancellation('exec-park-1');
 
       // Execution UPDATE 호출 확인.
-      expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      expect(execQb.execute).toHaveBeenCalled();
       // NodeExecution UPDATE 도 호출됐는지 확인 (W1/W6 핵심).
-      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      expect(nodeQb.execute).toHaveBeenCalled();
       // EXECUTION_CANCELLED emit 확인 (WS 하류).
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         'exec-park-1',
@@ -3089,29 +3105,21 @@ describe('ExecutionEngineService', () => {
     });
 
     it('affected:0 — 이미 terminal / resume RUNNING → 멱등 no-op (emit 미호출)', async () => {
-      mockExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(makeExecQb(0));
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn();
+      const { nodeQb } = installTx(0, 0);
 
       const emitMock = mockWebsocketService.emitExecutionEvent;
       const emitCallsBefore = emitMock.mock.calls.length;
 
       await service.applyCancellation('exec-park-2');
 
-      // affected:0 → 조기 반환. NodeExecution UPDATE 미호출.
-      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // affected:0 → 트랜잭션 콜백이 조기 return. NodeExecution UPDATE 미호출.
+      expect(nodeQb.execute).not.toHaveBeenCalled();
       // emit 도 추가 호출 없음.
       expect(emitMock.mock.calls.length).toBe(emitCallsBefore);
     });
 
     it('emit throw → warn 으로 흡수 (cancel 은 DB 반영됨, 호출자에 예외 전파 없음)', async () => {
-      mockExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(makeExecQb(1));
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(makeNodeQb());
+      installTx(1, 1);
 
       const logger = (
         service as unknown as { logger: { warn: jest.Mock; error: jest.Mock } }
@@ -3221,8 +3229,11 @@ describe('ExecutionEngineService', () => {
     });
 
     it('node claim 성공하나 Execution terminal(짝 UPDATE affected=0) → 롤백·false (동시 cancel 방어)', async () => {
-      // cancelParkedExecution 비원자 창: exec=CANCELLED·node=WAITING 상태에서 claim 이
-      // node 만 잡으면 짝 불일치 → exec 짝 UPDATE affected=0 → throw 로 tx 롤백 → false.
+      // 일반 방어 시나리오: 어떤 경로로든 exec=CANCELLED(또는 다른 terminal)·
+      // node=WAITING 상태에서 claim 이 node 만 잡으면 짝 불일치 → exec 짝 UPDATE
+      // affected=0 → throw 로 tx 롤백 → false. (ai-review WARNING #1, 2026-07-27
+      // — `cancelParkedExecution` 자신의 비원자 창은 트랜잭션 원자화로 이미
+      // 닫혔다; 이 테스트는 claimResumeEntry 자체의 일반 방어를 가드한다.)
       const { execQb } = installTx(1, 0);
       (
         service as unknown as { segmentStartMs: Map<string, number> }
@@ -4923,9 +4934,12 @@ describe('ExecutionEngineService', () => {
       //   status 는 RUNNING 이고, `assertTransition(RUNNING → WAITING_FOR_INPUT)` 은
       //   정상 전이라 통과한다 — 즉 DB 를 보지 않으면 막을 방법이 없다.
       //   ai-review WARNING #1 (2026-07-26, 4차 라운드) — 잠금 조회는
-      //   `lockNonTerminalExecutionRow` 로 `tryLockActiveExecutionAndSaveNodeExec`
-      //   describe(L5071)와 공유. 아래 테스트는 그 공유 이후에도 독립적으로
-      //   회귀를 가드한다(교차 검증 완료).
+      //   `lockNonTerminalExecutionRow` 로 아래 `tryLockActiveExecutionAndSaveNodeExec
+      //   — RUNNING 유지 분기 전용 원자 관측+save` describe 와 공유. 아래 테스트는
+      //   그 공유 이후에도 독립적으로 회귀를 가드한다(교차 검증 완료). (ai-review
+      //   WARNING #5, 2026-07-27, documentation — 하드코딩 줄 번호 대신 describe
+      //   이름 인용으로 교체: 원래 "L5071" 는 이미 도입 시점부터 실제 위치와
+      //   어긋나 있었다.)
       describe('linkedNodeExec 짝 전이 — terminal 가드 (park↔resume lost update 차단)', () => {
         const mkPair = () => ({
           exec: {
@@ -5082,10 +5096,13 @@ describe('ExecutionEngineService', () => {
   // — 잠금 조회(FOR UPDATE + 비-terminal 조건) 자체는 `lockNonTerminalExecutionRow`
   // 로 `updateExecutionStatus` 의 `linkedNodeExec` 분기와 공유하게 추출됐다.
   // 아래 3개 시나리오(비-terminal→save+true / terminal→skip+false / SQL 형태)는
-  // 추출 전과 동일하게 이 describe 와 `linkedNodeExec 짝 전이` describe(L4925)
-  // 양쪽에서 **독립적으로** 재현 가능해야 한다 — 공유 헬퍼에서 (a) 조기 return,
-  // (b) FOR UPDATE, (c) 비-terminal 조건 중 하나라도 제거되면 두 describe 의
-  // 해당 테스트가 각각 RED 로 떨어진다(교차 검증 완료, 2026-07-26).
+  // 추출 전과 동일하게 이 describe 와 위 `linkedNodeExec 짝 전이 — terminal
+  // 가드 (park↔resume lost update 차단)` describe 양쪽에서 **독립적으로**
+  // 재현 가능해야 한다 — 공유 헬퍼에서 (a) 조기 return, (b) FOR UPDATE, (c)
+  // 비-terminal 조건 중 하나라도 제거되면 두 describe 의 해당 테스트가 각각
+  // RED 로 떨어진다(교차 검증 완료, 2026-07-26). (ai-review WARNING #5,
+  // 2026-07-27, documentation — 하드코딩 줄 번호 대신 describe 이름 인용으로
+  // 교체: 원래 "L4925" 는 이미 도입 시점부터 실제 위치와 어긋나 있었다.)
   describe('tryLockActiveExecutionAndSaveNodeExec — RUNNING 유지 분기 전용 원자 관측+save', () => {
     const priv = () =>
       service as unknown as {
@@ -6918,23 +6935,11 @@ describe('ExecutionEngineService', () => {
 
       // Cancel the waiting execution — Phase B (PR-B1): park-release 로 코루틴이
       // 없으므로 cancelParkedExecution 이 durable WAITING 행을 직접 CANCELLED 마감.
-      // 그 마감은 createQueryBuilder().update()...execute() 의 affected>0 일 때만
-      // EXECUTION_CANCELLED 를 emit 하므로, WAITING 행이 존재(affected:1)하도록 무장.
-      // NodeExecution UPDATE 도 동반 호출되므로 nodeExecutionRepo.createQueryBuilder
-      // 도 함께 무장한다 (W1/W6).
-      const cancelQb = {
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      };
-      mockExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(cancelQb);
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(cancelQb);
+      // 그 마감은 (ai-review WARNING #1, 2026-07-27 — 단일 트랜잭션으로 원자화)
+      // `dataSource.transaction` 안의 `manager.createQueryBuilder()` 이중 UPDATE
+      // (Execution → NodeExecution) 의 affected>0 일 때만 EXECUTION_CANCELLED 를
+      // emit 한다 — 전역 기본 mock(getDataSourceToken)이 이미 affected:1 로
+      // 무장돼 있어 별도 오버라이드가 필요 없다.
       await service.cancelWaitingExecution(executionId);
       await flushResumeDrive();
 
@@ -16634,8 +16639,12 @@ describe('ExecutionEngineService', () => {
         // replay turn 이 gate 가 풀릴 때까지 hang — 그 사이 cancel 이 도달.
         processReturn: () => turnGate.then(() => terminalSuccess()),
       });
-      // cancelParkedExecution 의 createQueryBuilder UPDATE 가 affected:0 (RUNNING 이라
-      // WAITING 가드 미스) 을 반환하도록 무장 — 멱등 no-op 경로.
+      // cancelParkedExecution 의 (트랜잭션 안) Execution UPDATE 가 affected:0
+      // (RUNNING 이라 WAITING 가드 미스) 을 반환하도록 무장 — 멱등 no-op 경로.
+      // ai-review WARNING #1 (2026-07-27) — 단일 트랜잭션 원자화 이후 개별 repo 의
+      // createQueryBuilder 가 아니라 `dataSource.transaction` 의
+      // `manager.createQueryBuilder()` 를 통하므로 그 경로를 직접 무장한다(전역
+      // 기본 mock 은 affected:1 이라 이 시나리오엔 맞지 않음).
       const noopQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
@@ -16643,10 +16652,27 @@ describe('ExecutionEngineService', () => {
         andWhere: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       };
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(noopQb);
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(noopQb);
+      // 이 replay turn 이 완결되면 finalizeAiNode(COMPLETED) 가 **같은**
+      // `dataSource.transaction`(tryLockActiveExecutionAndSaveNodeExec /
+      // updateExecutionStatus 의 linkedNodeExec 분기)을 별도로 호출하므로,
+      // `query`/`save` 는 전역 기본 mock 과 동일하게 정상 동작하도록 유지하고
+      // `createQueryBuilder` 만 이 시나리오 전용(affected:0)으로 교체한다.
+      (
+        service as unknown as { dataSource: { transaction: jest.Mock } }
+      ).dataSource.transaction = jest.fn(
+        async (cb: (m: unknown) => Promise<unknown>) =>
+          cb({
+            createQueryBuilder: jest.fn(() => noopQb),
+            query: mockTxManagerQuery,
+            save: jest.fn(async (target: unknown, entity?: unknown) => {
+              if (target === Execution) return mockExecutionRepo.save(entity);
+              if (target === NodeExecution) {
+                return mockNodeExecutionRepo.save(entity);
+              }
+              return entity;
+            }),
+          }),
+      );
 
       const p = retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       // replay turn 시작까지 진행하도록 flush.

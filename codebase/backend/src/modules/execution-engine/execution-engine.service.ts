@@ -448,8 +448,14 @@ export type ExecuteOptions =
  *    (§7.4).
  *  - **공개 API**: `execute` / `executeSync` / `executeAsync` / `executeInline` /
  *    `continueExecution` / `continueButtonClick` / `continueAiConversation` /
- *    `endAiConversation` / `cancelWaitingExecution`. 본 서비스는 ~4200줄로
- *    크기가 크므로 PR-H/I 에서 점진적으로 책임 분해 예정.
+ *    `endAiConversation` / `cancelWaitingExecution`.
+ *
+ * ai-review WARNING #4 (2026-07-27, architecture/documentation) — 이 docblock
+ * 이 서술하던 정적 줄 수("~4200줄")가 실측(8,422줄)의 절반 이하로 stale 했다.
+ * god-class 분해가 진행 중인 파일은 편집마다 줄 수가 바뀌므로 하드코딩된
+ * 수치를 다시 넣지 않는다 — 실측이 필요하면 `wc -l` 로 직접 재라. 분해
+ * 로드맵/이력은 plan/complete/c1-engine-split.md 참조 (strangler-fig 단계별
+ * stacked PR, `EngineDriver` 로 추출 서비스와 통신).
  */
 // ─── Helper Interfaces moved to ./types/graph-dispatch.types.ts ─────────────
 // `ExecutionGraphState` / `NodeDispatchLoopParams` 는 C-1 후속에서 leaf 타입
@@ -949,35 +955,50 @@ export class ExecutionEngineService
    * 않는다. `finalizeRehydrationCleanup` 에 live AI contextService 가 없어 경합 없음.
    *
    * @remarks DB 오류는 내부 흡수 — 호출자에 예외 전파 없음 (best-effort cancel).
+   *
+   * ai-review WARNING #1 (2026-07-27) — Execution/NodeExecution 이중 UPDATE 를
+   * `markWebChatIdleTimeout`(아래, 완전히 동형 연산)과 동일하게 **단일
+   * 트랜잭션**으로 묶는다. 비-트랜잭션 2단계였을 때는 첫 UPDATE 커밋 후 둘째가
+   * 실패(또는 그 사이 크래시)하면 NodeExecution 이 영구 WAITING 으로 잔류하고
+   * Execution 만 CANCELLED 로 남는 불일치가 있었다.
    */
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
-      const result = await this.executionRepository
-        .createQueryBuilder()
-        .update(Execution)
-        .set({ status: ExecutionStatus.CANCELLED, finishedAt: new Date() })
-        .where('id = :id', { id: executionId })
-        .andWhere('status = :waiting', {
-          waiting: ExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
-      if ((result.affected ?? 0) === 0) {
-        // 이미 terminal / 재개로 RUNNING — 멱등 no-op.
-        return;
-      }
-      // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹한다. Execution UPDATE 가
-      // affected:1 이었으므로 여기까지 온 경우만 실행(멱등 안전).
-      // `status = WAITING_FOR_INPUT` 가드: resume 으로 이미 COMPLETED/RUNNING 으로
-      // 전이된 row 는 건드리지 않는다.
-      await this.nodeExecutionRepository
-        .createQueryBuilder()
-        .update(NodeExecution)
-        .set({ status: NodeExecutionStatus.CANCELLED, finishedAt: new Date() })
-        .where('execution_id = :executionId', { executionId })
-        .andWhere('status = :waiting', {
-          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
+      let cancelled = false;
+      await this.dataSource.transaction(async (manager) => {
+        const result = await manager
+          .createQueryBuilder()
+          .update(Execution)
+          .set({ status: ExecutionStatus.CANCELLED, finishedAt: new Date() })
+          .where('id = :id', { id: executionId })
+          .andWhere('status = :waiting', {
+            waiting: ExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((result.affected ?? 0) === 0) {
+          // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
+          return;
+        }
+        // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹한다. Execution UPDATE 가
+        // affected:1 이었으므로 여기까지 온 경우만 실행(멱등 안전).
+        // `status = WAITING_FOR_INPUT` 가드: resume 으로 이미 COMPLETED/RUNNING 으로
+        // 전이된 row 는 건드리지 않는다.
+        await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({
+            status: NodeExecutionStatus.CANCELLED,
+            finishedAt: new Date(),
+          })
+          .where('execution_id = :executionId', { executionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        cancelled = true;
+      });
+      if (!cancelled) return;
+      // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관(둘 다 cancelled).
       // park 시 이미 해제됐을 수 있는 in-memory 잔여(context/resolver/llm 캐시)를
       // 멱등 정리한다.
       this.finalizeRehydrationCleanup(executionId);
@@ -1157,10 +1178,12 @@ export class ExecutionEngineService
         if ((nodeRes.affected ?? 0) === 0) return false;
         // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 재개 가능
         //     상태(WAITING_FOR_INPUT ∪ RUNNING)만 대상. affected=0 이면 Execution 이
-        //     이미 terminal(동시 cancel 등 — `cancelParkedExecution` 은 exec/node UPDATE
-        //     가 비원자라 exec=CANCELLED·node=WAITING 창이 존재) → node 만 claim 되면
-        //     짝 불일치가 남으므로 throw(ResumeClaimExecTerminalError)로 tx 롤백해
-        //     node claim 도 취소한다(→ discard).
+        //     이미 terminal(동시 cancel 등) → node 만 claim 되면 짝 불일치가 남으므로
+        //     throw(ResumeClaimExecTerminalError)로 tx 롤백해 node claim 도 취소한다
+        //     (→ discard). (ai-review WARNING #1, 2026-07-27 — `cancelParkedExecution`
+        //     은 이제 exec/node UPDATE 를 단일 트랜잭션으로 원자화해 그 경로발
+        //     "exec=CANCELLED·node=WAITING" 창은 닫혔다. 이 discard 분기는 다른
+        //     동시 취소 경로에 대한 일반 방어로 남긴다.)
         const execRes = await manager
           .createQueryBuilder()
           .update(Execution)
@@ -8080,12 +8103,19 @@ export class ExecutionEngineService
    * `tryLockActiveExecutionAndSaveNodeExec` 로 개명한다(이전 이름
    * `assertActiveExecutionAndSaveNodeExec`).
    *
+   * ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기도
+   * 이 헬퍼를 공유한다(두 번째 호출부). 그 분기는 Execution.status 를 전이하지
+   * 않고 짝 `nodeExec` 만 (COMPLETED 대신 FAILED 로) save 하므로 계약이 동일하다
+   * — "RUNNING 유지 분기 전용" 이라는 아래 인라인 주석은 이제 부정확하니 두
+   * 호출부 모두를 가리키는 것으로 읽을 것.
+   *
    * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 트랜잭션
    *   안에서 save 했다. `false` 는 동시 cancel 이 Execution 을 이미 terminal
    *   로 옮겨 save 를 건너뛴 경우 — 호출부는 `assertLinkedTransitionApplied`
    *   로 짝 `nodeExec` 를 CANCELLED 재마킹한 뒤 던져야 한다.
    */
-  // EngineDriver 멤버 — `finalizeAiNode` RUNNING 유지 분기 전용(AiTurnOrchestrator only).
+  // EngineDriver 멤버 — `finalizeAiNode` RUNNING 유지 분기 + isFailed 분기 전용
+  // (AiTurnOrchestrator only, 두 호출부).
   public async tryLockActiveExecutionAndSaveNodeExec(
     executionId: string,
     nodeExec: NodeExecution | null,
