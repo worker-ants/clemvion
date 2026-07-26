@@ -224,6 +224,34 @@ describe('AiTurnOrchestrator', () => {
       ).resolves.toBeUndefined();
       expect(driver.markNodeCancelled).not.toHaveBeenCalled();
     });
+
+    // ai-review WARNING #5 (2026-07-26, testing) — `assertLinkedTransitionApplied`
+    // 의 `nodeExec === null` 분기(타입상 `ResumeTurnContext.nodeExec: NodeExecution
+    // | null` 로 실제 도달 가능)가 신규 3개 테스트 스위트 어디에서도 실행되지 않아,
+    // `if (nodeExec)` 가드를 제거/반전해도 RED 로 떨어지지 않는 mutation 사각지대였다.
+    // 소비처 중 하나(re-park)에서 nodeExec=null + applied=false 조합을 직접 고정한다.
+    it('짝 전이가 선점당해도(false) nodeExec 가 null 이면 markNodeCancelled 를 호출하지 않고 그대로 취소 전파한다', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+
+      await expect(
+        (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+          savedExecution,
+          context,
+          null,
+          reparkNode as Node,
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      // nodeExec 부재 — 마킹할 짝이 없으므로 markNodeCancelled 는 호출되지 않아야
+      // 하지만, 취소 전파 자체는 그대로 유지돼야 한다(이 가드를 반전해도 RED 가 안
+      // 나던 사각지대).
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
   });
 
   // 첫 turn park 도 re-park 와 같은 결함을 가진다 — 첫 turn 진행 중 Stop 이 실행을
@@ -373,6 +401,155 @@ describe('AiTurnOrchestrator', () => {
 
       await callFinalize(nodeExec);
 
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(true);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+
+    // ai-review WARNING #10 (2026-07-26, concurrency) — 성공 경로가 짝 전이 결과
+    // 확인 전에 nodeExec.outputData 를 먼저 낙관적으로 mutate 한다(위 `finalizeAiNode`
+    // 의 COMPLETED 셋업). 짝 전이가 거부되면 `markNodeCancelled` 가 status/finishedAt/
+    // durationMs 만 되돌리고 outputData/error 는 그대로 남아, 취소로 종결된
+    // NodeExecution 이 "성공" 페이로드를 갖게 되는 데이터 위생 문제였다.
+    it('markNodeCancelled 호출 전 outputData/error 를 비워 취소된 nodeExec 가 성공 페이로드를 남기지 않는다 (WARNING #10)', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const context = contextService.createContext(executionId, workflowId);
+      // finalizeAiNode 가 nodeExec.outputData 를 이 캐시로부터 낙관적으로 채운다.
+      context.structuredOutputCache[retryNode.id as string] = {
+        config: {},
+        output: { message: 'stale success payload' },
+        meta: {},
+        port: 'ended',
+        status: 'ended',
+      } as never;
+      const nodeExec = {
+        id: 'ne-retry-hygiene',
+        nodeId: 'node-retry',
+        startedAt: new Date(),
+      };
+
+      await expect(
+        (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+          { id: executionId, status: ExecutionStatus.FAILED },
+          executionId,
+          retryNode as Node,
+          context,
+          nodeExec,
+          'COMPLETED',
+          { retryReentry: true },
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ outputData: {}, error: {} }),
+        retryNode,
+        expect.anything(),
+        executionId,
+      );
+    });
+  });
+
+  // ai-review CRITICAL #1 (2026-07-26, concurrency/requirement) — `finalizeAiNode`
+  // 의 `savedExecution.status === RUNNING` 분기는 `updateExecutionStatus`(짝 전이
+  // choke point) 를 아예 호출하지 않아, 위 else 분기(RUNNING 재claim)의
+  // `assertLinkedTransitionApplied` 가드가 구조적으로 적용되지 않았다. turn-park
+  // 재개 경로는 진입 시 이미 RUNNING 이라 **이 분기가 정상 multi-turn 대화 종료의
+  // 주 경로**다 — 동시 Stop 이 턴 진행 중 Execution 을 이미 CANCELLED 로 마감해도
+  // 무가드면 NODE_COMPLETED/EXECUTION_RESUMED 가 그대로 emit 됐다("사후 오시그널").
+  describe('finalizeAiNode — RUNNING 유지 분기 선점 (CRITICAL #1)', () => {
+    type FinalizeSubject = {
+      finalizeAiNode: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        finalStatus?: 'COMPLETED' | 'FAILED',
+        opts?: { retryReentry?: boolean },
+      ) => Promise<void>;
+    };
+
+    const endNode: Partial<Node> = {
+      id: 'node-end-crit1',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callFinalizeRunning = (nodeExec: unknown) =>
+      (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        // turn-park 재개 경로는 진입 시 이미 RUNNING (finalizeAiNode 주석 참조).
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        endNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'COMPLETED',
+      );
+
+    it('턴 진행 중 동시 Stop 이 이미 CANCELLED 로 마감 → ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+        new ExecutionCancelledError(
+          `Execution ${executionId} cancelled externally`,
+        ),
+      );
+      const nodeExec = {
+        id: 'ne-end-crit1',
+        nodeId: 'node-end-crit1',
+        startedAt: new Date(),
+      };
+
+      await expect(callFinalizeRunning(nodeExec)).rejects.toBeInstanceOf(
+        ExecutionCancelledError,
+      );
+
+      // updateExecutionStatus 는 이 분기에서 호출되지 않는다(RUNNING→RUNNING
+      // assertTransition 회피가 원래 의도) — CRITICAL #1 진단의 핵심 전제를
+      // 회귀로 고정한다.
+      expect(driver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(driver.assertExecutionNotCancelled).toHaveBeenCalledWith(
+        executionId,
+      );
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        endNode,
+        expect.anything(),
+        executionId,
+      );
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(false);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(false);
+      // 취소 관측 전에 이미 COMPLETED 로 save 되지 않아야 한다(취소된 NodeExecution
+      // 이 잠깐이라도 COMPLETED 로 영속되지 않도록).
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('대조: 취소가 아니면(assertExecutionNotCancelled 통과) NODE_COMPLETED + EXECUTION_RESUMED 를 정상 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+      const nodeExec = {
+        id: 'ne-end-crit1-ok',
+        nodeId: 'node-end-crit1',
+        startedAt: new Date(),
+      };
+
+      await callFinalizeRunning(nodeExec);
+
+      expect(driver.assertExecutionNotCancelled).toHaveBeenCalledWith(
+        executionId,
+      );
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
       const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
         (c) => c[2] === 'execution.node.completed',
       );
