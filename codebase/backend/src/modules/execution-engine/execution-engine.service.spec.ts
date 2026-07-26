@@ -930,6 +930,10 @@ describe('ExecutionEngineService', () => {
         .mockResolvedValue(undefined);
       const saved: Record<string, unknown> = {
         id: 'ex-fail-1',
+        // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — FAILED 마킹이 이제
+        // `updateExecutionStatus`(state-machine 가드) 를 거치므로 assertTransition
+        // 이 유효한 시작 상태를 요구한다 (재개 세그먼트는 항상 RUNNING/WAITING_FOR_INPUT).
+        status: ExecutionStatus.RUNNING,
         workflowId: 'wf',
         executedBy: 'owner',
         parentExecutionId: null,
@@ -947,7 +951,12 @@ describe('ExecutionEngineService', () => {
       ).finalizeFailedExecution(saved, new Error('boom'), { rehydrated: true });
 
       expect(saved.status).toBe(ExecutionStatus.FAILED);
-      expect(mockExecutionRepo.save).toHaveBeenCalled();
+      // CRITICAL #1 — guarded UPDATE(raw query) 경유로 바뀌어 더 이상 full-entity
+      // `.save()` 를 호출하지 않는다.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([ExecutionStatus.FAILED]),
+      );
       // EXECUTION_FAILED WS emit (payload 에 FAILED 상태 포함)
       expect(emitSpy).toHaveBeenCalledWith(
         'ex-fail-1',
@@ -959,6 +968,56 @@ describe('ExecutionEngineService', () => {
       expect(
         (createMany.mock.calls[0][0] as Array<{ type: string }>)[0].type,
       ).toBe('execution_failed');
+    });
+
+    // ai-review CRITICAL #1 (2026-07-27, 6차 라운드, concurrency) — 동시 Stop 이
+    // 이미 CANCELLED 로 커밋한 뒤 (finalizeAiNode isFailed 가드 통과 이후) 자연
+    // 실패가 이 함수에 도달해도, guarded UPDATE(0행 매칭) 가 재마킹을 막아야
+    // 한다. 가드(`updateExecutionStatus` 위임)를 제거하고 다시 무조건
+    // `executionRepository.save()` 로 되돌리면 이 테스트가 RED 로 떨어진다
+    // (emit/dispatch 가 다시 무조건 발사됨).
+    it('동시 cancel 이 이미 terminal 로 선점(guarded UPDATE 0행) → FAILED 재마킹·EXECUTION_FAILED emit·execution_failed dispatch 를 모두 skip', async () => {
+      const createMany = jest.fn().mockResolvedValue(undefined);
+      (
+        service as unknown as { notificationsService: unknown }
+      ).notificationsService = {
+        createMany,
+        resolveOptOutEmailChannels: jest
+          .fn()
+          .mockResolvedValue(new Map<string, 'both' | 'in_app'>()),
+      };
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      // 행 잠금 0행 = stop() 이 이미 CANCELLED 로 마감(guarded UPDATE 의 WHERE
+      // status IN (non-terminal) 이 매칭 실패).
+      mockExecutionRepo.query.mockResolvedValueOnce([]);
+      const saved: Record<string, unknown> = {
+        id: 'ex-fail-preempted',
+        status: ExecutionStatus.RUNNING, // stale in-memory — DB 는 이미 CANCELLED.
+        workflowId: 'wf',
+        executedBy: 'owner',
+        parentExecutionId: null,
+        startedAt: new Date(),
+      };
+
+      await (
+        service as unknown as {
+          finalizeFailedExecution: (
+            e: unknown,
+            err: unknown,
+            o?: unknown,
+          ) => Promise<void>;
+        }
+      ).finalizeFailedExecution(saved, new Error('boom — post-cancel failure'));
+
+      // CANCELLED 로 이미 커밋된 실행을 FAILED 로 사후 덮어쓰지 않는다 — 이벤트도
+      // 알림도 발사되면 안 된다(사용자가 명시적으로 Stop 한 실행에 대한 사후 오시그널 방지).
+      expect(emitSpy).not.toHaveBeenCalled();
+      expect(createMany).not.toHaveBeenCalled();
     });
   });
 
@@ -3048,16 +3107,21 @@ describe('ExecutionEngineService', () => {
     // `installIdleTx`/`makeIdleQb` 와 동형이나 그 helper 는 형제 describe 스코프
     // (`continuation entry points → bus.publish + apply* dispatch`) 안에 있어
     // 이 describe 에서 참조 불가 — 동일 패턴을 이 describe 전용으로 재정의한다.
-    const makeQb = (affected: number) => ({
+    // ai-review WARNING #5 (2026-07-27, 6차 라운드, maintainability) — 아래 두
+    // helper 이름을 `makeQb`/`installTx` 로 두면, 파일 아래쪽 `claimResumeEntry`
+    // describe 의 동일 이름 helper 와 **인자 순서가 반대**로 공존해 grep/복붙
+    // 혼동을 유발한다 — `makeCancelQb`/`installCancelTx` 로 개명해 스코프별
+    // 이름을 고유하게 유지한다.
+    const makeCancelQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected }),
     });
-    const installTx = (execAffected: number, nodeAffected: number) => {
-      const execQb = makeQb(execAffected);
-      const nodeQb = makeQb(nodeAffected);
+    const installCancelTx = (execAffected: number, nodeAffected: number) => {
+      const execQb = makeCancelQb(execAffected);
+      const nodeQb = makeCancelQb(nodeAffected);
       const qbs = [execQb, nodeQb];
       (
         service as unknown as { dataSource: { transaction: jest.Mock } }
@@ -3071,7 +3135,7 @@ describe('ExecutionEngineService', () => {
     };
 
     it('affected:1 — Execution CANCELLED, NodeExecution CANCELLED, EXECUTION_CANCELLED emit (cancelledBy:user, error 키 부재)', async () => {
-      const { execQb, nodeQb } = installTx(1, 1);
+      const { execQb, nodeQb } = installCancelTx(1, 1);
       // emitCancellationEvent 가 engine emitter 로 넘기는 원본 payload 를 직접 포착한다.
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
@@ -3105,7 +3169,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('affected:0 — 이미 terminal / resume RUNNING → 멱등 no-op (emit 미호출)', async () => {
-      const { nodeQb } = installTx(0, 0);
+      const { nodeQb } = installCancelTx(0, 0);
 
       const emitMock = mockWebsocketService.emitExecutionEvent;
       const emitCallsBefore = emitMock.mock.calls.length;
@@ -3119,7 +3183,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('emit throw → warn 으로 흡수 (cancel 은 DB 반영됨, 호출자에 예외 전파 없음)', async () => {
-      installTx(1, 1);
+      installCancelTx(1, 1);
 
       const logger = (
         service as unknown as { logger: { warn: jest.Mock; error: jest.Mock } }
@@ -3148,6 +3212,39 @@ describe('ExecutionEngineService', () => {
         eventEmitter.emitExecution = origEmit;
         warnSpy.mockRestore();
       }
+    });
+
+    // ai-review WARNING (2026-07-27, 6차 라운드, testing) — cancelParkedExecution
+    // 이 단일 트랜잭션으로 원자화된 이후(WARNING #1), 자매 markWebChatIdleTimeout
+    // 에는 이미 있는 "트랜잭션 자체 throw" 테스트(위 `markWebChatIdleTimeout —
+    // 트랜잭션 throw → false + emit 미발생`)가 이 describe 에는 대응 짝이 없었다.
+    // `@remarks DB 오류는 내부 흡수 — 호출자에 예외 전파 없음` 계약을 미러링해 고정한다.
+    it('트랜잭션 자체 throw(DB 인프라 오류) → catch 로 흡수, 호출자에 예외 전파 없음 + emit 미발생', async () => {
+      (
+        service as unknown as { dataSource: { transaction: jest.Mock } }
+      ).dataSource.transaction = jest
+        .fn()
+        .mockRejectedValue(new Error('db down'));
+      const logger = (
+        service as unknown as { logger: { warn: jest.Mock; error: jest.Mock } }
+      ).logger;
+      const errorSpy = jest.spyOn(logger, 'error');
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest.spyOn(eventEmitter, 'emitExecution');
+
+      // 예외가 호출자(applyCancellation)에 전파되지 않아야 한다 — resolve.
+      await expect(
+        service.applyCancellation('exec-park-tx-throw'),
+      ).resolves.toBeUndefined();
+
+      // 트랜잭션 실패가 error 로그로 흡수됐는지 확인.
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cancelParkedExecution 실패'),
+      );
+      // 커밋되지 않았으므로 cancel 이벤트도 발사되지 않는다.
+      expect(emitSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -5562,9 +5659,12 @@ describe('ExecutionEngineService', () => {
     // Wait for background execution to fail
     await flushPromises();
 
-    // Execution should be marked as failed
-    expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: ExecutionStatus.FAILED }),
+    // Execution should be marked as failed. ai-review CRITICAL #1 (2026-07-27,
+    // 6차 라운드) — FAILED 마킹은 이제 guarded UPDATE(raw query) 경유라 더 이상
+    // full-entity `.save()` 를 호출하지 않는다.
+    expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+      expect.stringMatching(/UPDATE execution/),
+      expect.arrayContaining([ExecutionStatus.FAILED]),
     );
   });
 
@@ -6238,11 +6338,14 @@ describe('ExecutionEngineService', () => {
       const errNe = lastNodeExecSave('n-err');
       expect(errNe?.status).toBe(NodeExecutionStatus.FAILED);
       // error 포트 미연결 → Stop Workflow 폴백 → Execution FAILED + code 보존.
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: ExecutionStatus.FAILED,
-          error: expect.objectContaining({ code: 'ERROR_PORT_FALLBACK' }),
-        }),
+      // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw
+      // query) 경유로 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([
+          ExecutionStatus.FAILED,
+          expect.stringContaining('ERROR_PORT_FALLBACK'),
+        ]),
       );
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
@@ -6322,12 +6425,15 @@ describe('ExecutionEngineService', () => {
       const errNe = lastNodeExecSave('n-err');
       expect(errNe?.status).toBe(NodeExecutionStatus.FAILED);
       expect(errNe?.error).toEqual({ message: 'Node routed to error port' });
-      // 미연결 error 포트 → Stop Workflow.
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: ExecutionStatus.FAILED,
-          error: expect.objectContaining({ code: 'ERROR_PORT_FALLBACK' }),
-        }),
+      // 미연결 error 포트 → Stop Workflow. ai-review CRITICAL #1 (2026-07-27,
+      // 6차 라운드) — guarded UPDATE(raw query) 경유로 바뀌어 더 이상
+      // full-entity `.save()` 를 호출하지 않는다.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([
+          ExecutionStatus.FAILED,
+          expect.stringContaining('ERROR_PORT_FALLBACK'),
+        ]),
       );
     });
   });
@@ -9496,16 +9602,15 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, {});
       await flushPromises();
 
-      // Should be marked as failed due to max iteration exceeded
-      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: ExecutionStatus.FAILED,
-          error: expect.objectContaining({
-            message: expect.stringContaining(
-              'exceeded maximum iteration count',
-            ),
-          }),
-        }),
+      // Should be marked as failed due to max iteration exceeded. ai-review
+      // CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw query) 경유로
+      // 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringMatching(/UPDATE execution/),
+        expect.arrayContaining([
+          ExecutionStatus.FAILED,
+          expect.stringContaining('exceeded maximum iteration count'),
+        ]),
       );
     });
 
@@ -11572,9 +11677,12 @@ describe('ExecutionEngineService', () => {
         await flushPromises();
 
         // Body never iterates and the execution lands in FAILED status.
+        // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw
+        // query) 경유로 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
         expect(bodyHandler.execute).not.toHaveBeenCalled();
-        expect(mockExecutionRepo.save).toHaveBeenCalledWith(
-          expect.objectContaining({ status: ExecutionStatus.FAILED }),
+        expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+          expect.stringMatching(/UPDATE execution/),
+          expect.arrayContaining([ExecutionStatus.FAILED]),
         );
       });
     });
@@ -12120,17 +12228,18 @@ describe('ExecutionEngineService', () => {
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
 
-      // Execution should be marked failed with the emit-missing message
-      const saveCalls = mockExecutionRepo.save.mock.calls;
-      const failed = saveCalls.find(
+      // Execution should be marked failed with the emit-missing message.
+      // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw
+      // query) 경유로 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
+      const failedCall = mockExecutionRepo.query.mock.calls.find(
         (c: unknown[]) =>
-          (c[0] as Partial<Execution>).status === ExecutionStatus.FAILED,
+          typeof c[0] === 'string' &&
+          /UPDATE execution/.test(c[0]) &&
+          (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
       );
-      expect(failed).toBeDefined();
-      expect(
-        ((failed as [Partial<Execution>])[0].error as { message?: string })
-          .message,
-      ).toMatch(/CONTAINER_MISSING_EMIT/);
+      expect(failedCall).toBeDefined();
+      const errorParam = (failedCall![1] as unknown[])[7] as string | null;
+      expect(errorParam).toMatch(/CONTAINER_MISSING_EMIT/);
     });
 
     it('fails execution when container has multiple emit edges', async () => {
@@ -12250,16 +12359,17 @@ describe('ExecutionEngineService', () => {
       // 는 setImmediate 로 microtask + I/O 큐를 1 tick drain 한다.
       await flushPromises();
 
-      const saveCalls = mockExecutionRepo.save.mock.calls;
-      const failed = saveCalls.find(
+      // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — guarded UPDATE(raw
+      // query) 경유로 바뀌어 더 이상 full-entity `.save()` 를 호출하지 않는다.
+      const failedCall = mockExecutionRepo.query.mock.calls.find(
         (c: unknown[]) =>
-          (c[0] as Partial<Execution>).status === ExecutionStatus.FAILED,
+          typeof c[0] === 'string' &&
+          /UPDATE execution/.test(c[0]) &&
+          (c[1] as unknown[])?.[1] === ExecutionStatus.FAILED,
       );
-      expect(failed).toBeDefined();
-      expect(
-        ((failed as [Partial<Execution>])[0].error as { message?: string })
-          .message,
-      ).toMatch(/CONTAINER_MULTIPLE_EMIT/);
+      expect(failedCall).toBeDefined();
+      const errorParam = (failedCall![1] as unknown[])[7] as string | null;
+      expect(errorParam).toMatch(/CONTAINER_MULTIPLE_EMIT/);
     });
 
     it('executes Map body once per item and transforms via emit port', async () => {

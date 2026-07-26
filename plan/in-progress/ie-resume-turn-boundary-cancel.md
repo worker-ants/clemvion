@@ -165,6 +165,31 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
       `spec/` 수정 금지 유지. TEST WORKFLOW 재통과(lint/unit/build 통과 — unit: backend
       execution-engine.service.spec.ts 430 passed·ai-turn-orchestrator.service.spec.ts
       86 passed 확인·전체 unit 스테이지 PASS, e2e: 260 passed). 상세: `RESOLUTION.md` 참조.
+- [x] `/ai-review` + Critical·Warning 해소 (6차 라운드) — 2026-07-27
+      `review/code/2026/07/27/01_09_42` (Critical 1 / Warning 7). **CRITICAL #1** —
+      5차 라운드가 `NodeExecution` 레벨 orphan 은 닫았지만, `finalizeAiNode` 의
+      `isFailed` 가드 통과 이후 최종적으로 top-level `Execution` 을 FAILED 로
+      마감하는 `finalizeFailedExecution` 자체가 여전히 상태-머신 가드 없이 무조건
+      full-entity `save()` 를 수행해, 동시 Stop 이 이미 CANCELLED 로 커밋한 실행을
+      FAILED 로 덮어쓸 수 있었다(AI 턴 경로 전용이 아니라 일반 노드 핸들러가 던지는
+      모든 비-`ExecutionCancelledError` 에 열린 범용 경로). 형제 `finalizeCancelledExecution`
+      과 동일하게 `updateExecutionStatus`(guarded UPDATE) 경유로 바꾸고(guarded UPDATE
+      에 `error` 컬럼도 함께 포함해 회귀 없이 보존), `false` 반환 시 FAILED 저장·
+      `EXECUTION_FAILED` emit·알림 dispatch 를 모두 skip 하도록 수정 + 동시-cancel
+      선점 회귀 테스트 추가(가드 제거 시 RED 확인). WARNING 7건 중 6건(W1~W6:
+      `§732` stale 줄 번호 참조 → 로그 메시지 문자열 인용으로 교체,
+      `tryLockActiveExecutionAndSaveNodeExec` JSDoc 자기모순 문장 제거,
+      `assertLinkedTransitionApplied`/CHANGELOG 의 하드코딩 소비처 개수(4곳→실제
+      6곳) 를 개수-비의존 서술로 전환, 테스트 helper 이름 충돌(`makeQb`/`installTx`
+      → `makeCancelQb`/`installCancelTx`), `cancelParkedExecution` 트랜잭션-throw
+      테스트 미러링 추가, turn 경계 가드의 non-`ExecutionCancelledError` rethrow
+      분기 mutation 사각지대 테스트 추가)를 코드/테스트로 해소. WARNING 1건
+      (`handleAiMessageTurn` SRP 부채 심화)은 코드 변경 없이 아래 "6차 라운드
+      추가 후속" 절에만 등재. INFO 중 `USER_MESSAGE` 마스킹 비대칭·`NODE_CANCELLED`
+      재emit 멱등성 확인 필요도 동일 절에 한 줄씩 등재. SPEC-DRIFT 없음(이번
+      라운드 신규 발견 0건) — `spec/` 수정 없음. TEST WORKFLOW 재통과(unit:
+      execution-engine.service.spec.ts 433 passed·ai-turn-orchestrator.service.spec.ts
+      87 passed 확인). 상세: `RESOLUTION.md` 참조.
 
 ## impl-prep 결과 (2026-07-26)
 
@@ -301,6 +326,35 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   누적 빈도가 높은 경로. 우선순위 낮음 — race 를 닫기 위한 의도된 트레이드오프(WARNING
   #1 원자화의 자연스러운 귀결). 필요 시 "조건부 UPDATE...RETURNING" 단일 statement 로
   합쳐 라운드트립 절감 검토.
+
+### 6차 라운드 추가 후속 (ai-review `review/code/2026/07/27/01_09_42`, Critical 1 해소 — 코드 변경 없음 항목만)
+
+6차 라운드는 CRITICAL #1(`finalizeFailedExecution` Execution 레벨 lost-update)과 WARNING
+6건(문서 drift·테스트 helper 이름 충돌·mutation 사각지대 2건)을 코드/테스트로 닫았다
+(RESOLUTION.md 참조). 아래는 지시에 따라 **코드 변경 없이** 이 절에만 등재한다.
+
+- **`handleAiMessageTurn` SRP 부채 심화 (ai-review WARNING, architecture)** — 이번
+  라운드의 CRITICAL #1 fix 자체는 `finalizeFailedExecution`(별도 메서드)만 건드렸지만,
+  직전(5차) 라운드가 `handleAiMessageTurn` 최상단에 인라인으로 추가한 turn-경계
+  취소 관측+마킹 절차(~28줄)로 인해 이미 "과다 길이"로 추적 중이던 이 메서드(약
+  710줄, 주석 제외 코드만 약 480줄)의 부채가 그대로 유지·누적됐다. 헬퍼 추출
+  (`assertTurnBoundaryNotCancelled(executionId, contextKey, nodeExec, node, phase)`
+  류)은 회귀 위험 대비 이득이 낮다고 판단해 이번 라운드에도 착수하지 않는다 — 다음
+  유사 turn-경계 가드가 필요해질 때 재검토.
+- **`USER_MESSAGE` 라이브 시그널의 secret 마스킹 비대칭 (ai-review INFO, security)** —
+  `ai-turn-orchestrator.service.ts:598`(`emitUserMessageLiveSignal`)의 사용자 원문
+  emit 은 AI 발화 emit(`redactSecrets`/`deepRedactSecrets`, EIA §R17)과 달리 값-패턴
+  마스킹을 거치지 않는다. 사용자 자신의 원문을 되돌려 보내는 의도된 설계 경계로
+  보이나, 이 채널이 다른 구독자/알림·로그 파이프라인으로 재사용될 경우 값-임베디드
+  토큰이 무마스킹 노출될 수 있다. 후속: 구독 인가 스코프(실행 소유자 한정) 확인 +
+  필요 시 방어적으로 `redactSecrets` 적용 검토.
+- **`NODE_CANCELLED` 재emit 멱등성 확인 필요 (ai-review INFO, side_effect)** — 신규
+  취소-가드 경로(turn 경계 가드·`finalizeAiNode` isFailed 분기)가 재시도/재진입될
+  경우 `markNodeCancelled` 가 이미 CANCELLED 인 `NodeExecution` 에 대해 `finishedAt`
+  을 다시 계산해 `durationMs` 가 매 호출마다 갱신될 수 있다(기존 4개 소비처에도
+  이미 있던 사전 합의된 동작이라 신규 결함 아님). 후속: `NODE_CANCELLED` 를
+  소비하는 프론트엔드/알림 쪽이 동일 `nodeExecutionId` 에 대한 두 번째 emit 을
+  멱등하게 처리하는지 별도 확인 가치 있음.
 
 ## ⚠️ 이 plan 을 `plan/complete/` 로 이동할 때 (ai-review WARNING #8, 2026-07-26)
 

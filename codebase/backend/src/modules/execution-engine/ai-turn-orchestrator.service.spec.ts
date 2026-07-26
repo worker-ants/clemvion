@@ -1294,8 +1294,10 @@ describe('AiTurnOrchestrator', () => {
       // (assertLinkedTransitionApplied: 짝 nodeExec 를 먼저 terminal 마킹한 뒤
       // throw)을 우회해, 예외가 driveResumeAwaited catch →
       // finalizeResumedExecutionOutcome(top-level Execution 만 갱신)으로
-      // 전파되면 짝 NodeExecution 이 RUNNING 으로 영구 고아가 됐다. 다섯 번째
-      // 소비처로 통일한 뒤의 핵심 회귀 가드.
+      // 전파되면 짝 NodeExecution 이 RUNNING 으로 영구 고아가 됐다. 새 소비처로
+      // 통일한 뒤의 핵심 회귀 가드(정확한 소비처 개수는 프로덕션 코드의
+      // {@link assertLinkedTransitionApplied} JSDoc 참조 — 하드코딩 순번은
+      // 라운드마다 stale 해진 이력이 있어 여기서는 서술하지 않는다).
       it('취소 관측 시 짝 NodeExecution 을 CANCELLED 로 마킹한 뒤 rethrow 한다 (CRITICAL #1 회귀)', async () => {
         registerWaitingHandler();
         contextService.createContext(executionId, workflowId);
@@ -1353,6 +1355,30 @@ describe('AiTurnOrchestrator', () => {
           invoke('missing-context-key', { id: 'ne-f' }),
         ).rejects.toBeInstanceOf(ExecutionCancelledError);
         expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+      });
+
+      // ai-review WARNING (2026-07-27, 6차 라운드, testing) — mutation 사각지대:
+      // `assertExecutionNotCancelled` 는 실제로 DB SELECT 를 수행하므로 취소가
+      // 아닌 순수 인프라 오류(DB 커넥션 실패 등)로도 reject 할 수 있다. 위
+      // `if (!(err instanceof ExecutionCancelledError)) throw err;` 분기가
+      // 제거되거나 반전돼도, 위 테스트들은 전부 `ExecutionCancelledError` 만
+      // 주입하므로 RED 가 나지 않았다 — 일반 Error 주입으로 이 분기를 직접 고정한다.
+      it('일반 Error(순수 인프라 오류) 는 취소 마킹 경로를 타지 않고 원본 그대로 전파된다', async () => {
+        registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        const infraError = new Error('db down');
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(infraError);
+
+        // (1) 원본 에러가 그대로(래핑되지 않고) 전파된다.
+        await expect(invoke(executionId, { id: 'ne-g' })).rejects.toBe(
+          infraError,
+        );
+        // (2) markNodeCancelled/취소 마킹 경로를 타지 않는다 — ExecutionCancelledError
+        // 가 아니므로 assertLinkedTransitionApplied 통일 계약으로 라우팅되면 안 된다.
+        expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+        expect(
+          driver.tryLockActiveExecutionAndSaveNodeExec,
+        ).not.toHaveBeenCalled();
       });
     });
 

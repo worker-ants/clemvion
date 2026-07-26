@@ -324,23 +324,31 @@ export class AiTurnOrchestrator {
 
   /**
    * ai-review WARNING #1 (concurrency) + WARNING #2 (testing) — `updateExecutionStatus(...,
-   * linkedNodeExec)` 짝 전이의 `false`(terminal 가드 no-op) 반환 계약을 네 소비처
-   * (re-park / 첫 turn park / retry-last-turn RUNNING 재claim / `finalizeAiNode`
-   * 의 RUNNING 유지 분기, {@link finalizeAiNode} 참조)가 동일하게 소비하도록
-   * 단일화한다.
+   * linkedNodeExec)` 짝 전이의 `false`(terminal 가드 no-op) 반환 계약을, 아래
+   * 각 호출부(인라인 주석 참조)가 동일하게 소비하도록 단일화한다. 소비처 개수를
+   * 이 JSDoc 에 하드코딩하지 않는다 — ai-review WARNING (2026-07-27, 6차
+   * 라운드, requirement/documentation) 가 지적했듯 "네 소비처"가 새 소비처
+   * 추가(turn 경계 가드·`finalizeAiNode` isFailed 분기) 이후에도 갱신되지 않고
+   * 두 라운드 동안 stale 하게 남았던 이력이 있다 — `EngineDriver` 멤버 수와
+   * 동일한 drift 패턴. 현재 소비처: re-park / 첫 turn park / retry-last-turn
+   * RUNNING 재claim / `finalizeAiNode` RUNNING 유지 분기 / `handleAiMessageTurn`
+   * turn 경계 가드(ai-review CRITICAL #1, 2026-07-27) / `finalizeAiNode`
+   * isFailed 분기(ai-review CRITICAL #2, 2026-07-27) — 정확한 목록은 각 호출부
+   * 바로 위 인라인 주석을 참조할 것({@link finalizeAiNode} 포함).
    *
    * `shouldProceed` 파라미터 계약 (ai-review WARNING #5, 2026-07-26, 3차
    * 라운드 — 파라미터명 개정): "동시 Stop 이 Execution 을 이미 terminal 로
    * 마감하지 않아 짝 전이/save 를 그대로 진행해도 되는가"를 뜻하는 단일
-   * boolean 이다. 호출부 4곳 전부 **DB 가드를 통과한 원자적 관측 결과**를
-   * 그대로 전달한다 — re-park/첫 turn park/retry-last-turn RUNNING 재claim
-   * 3곳은 `updateExecutionStatus`(짝 전이 choke point, FOR UPDATE) 의 반환값을,
-   * `finalizeAiNode` RUNNING 유지 분기는 `tryLockActiveExecutionAndSaveNodeExec`
-   * (동일하게 FOR UPDATE 로 원자화된 관측+save) 의 반환값을 그대로 전달한다.
+   * boolean 이다. 모든 호출부가 **DB 가드를 통과한 원자적 관측 결과**를
+   * 그대로 전달한다 — re-park/첫 turn park/retry-last-turn RUNNING 재claim/
+   * turn 경계 가드는 `updateExecutionStatus`(짝 전이 choke point, FOR UPDATE)
+   * 의 반환값을, `finalizeAiNode` 의 RUNNING 유지·isFailed 두 분기는
+   * `tryLockActiveExecutionAndSaveNodeExec`(동일하게 FOR UPDATE 로 원자화된
+   * 관측+save) 의 반환값을 그대로 전달한다.
    * (이전 라운드엔 RUNNING 유지 분기만 로컬에서 계산한 `!cancelledExternally`
    * 플래그를 넘겨 같은 파라미터가 "DB 전이 반영 여부"와 "취소 미관측 여부"라는
    * 이질적 계약을 가렸다 — WARNING #1 fix 로 그 분기도 동일한 원자적 DB 반환값을
-   * 쓰게 되면서 네 호출부의 계약이 실질적으로 통일됐다.)
+   * 쓰게 되면서 호출부 전체의 계약이 실질적으로 통일됐다.)
    *
    * `shouldProceed === false`(동시 Stop 이 Execution 을 이미 CANCELLED 로 마감):
    *   1. 짝이었던 `NodeExecution` 이 있으면 성공/대기 전용으로 낙관적 mutate
@@ -628,7 +636,9 @@ export class AiTurnOrchestrator {
    *   생략한다(§7.9 try/catch 밖이라 `handleAiTurnError` 가 FAILED 로 오분류하지
    *   않는다). ai-review CRITICAL #1(2026-07-27) 수정 — 짝 `nodeExec` 가 있으면
    *   {@link assertLinkedTransitionApplied} 로 먼저 CANCELLED 마킹한 뒤 던진다
-   *   (다른 네 소비처와 동일한 통일 계약, 방치 시 영구 RUNNING 고아 방지).
+   *   (그 외 소비처들과 동일한 통일 계약, 방치 시 영구 RUNNING 고아 방지 —
+   *   개수는 {@link assertLinkedTransitionApplied} JSDoc 참조, 하드코딩 개수는
+   *   라운드마다 stale 해진 이력이 있어 여기서는 서술하지 않는다).
    */
   private async handleAiMessageTurn(
     executionId: string,
@@ -672,13 +682,17 @@ export class AiTurnOrchestrator {
     // errorPolicy 에서 다룬 것과 같은 함정).
     //
     // ai-review CRITICAL #1 (2026-07-27) — 이 가드가 `ExecutionCancelledError` 를
-    // 곧장 throw 하면 이 PR 이 다른 네 소비처(re-park/첫 turn park/RUNNING 유지/
+    // 곧장 throw 하면 이 PR 이 기존 소비처(re-park/첫 turn park/RUNNING 유지/
     // RUNNING 재claim)에 확립한 "짝 NodeExecution 을 먼저 terminal 마킹한 뒤
     // throw" 통일 계약을 이 지점만 우회했다 — 예외가 `driveResumeAwaited` catch →
     // `finalizeResumedExecutionOutcome`(top-level Execution 만 갱신)으로 전파돼
     // 짝 NodeExecution 이 RUNNING 으로 영구 고아가 됐다(`recoverStuckExecutions`
-    // 는 이미 terminal 인 Execution 을 스캔하지 않아 회수 경로도 없음). 다섯 번째
-    // 소비처로 `assertLinkedTransitionApplied` 를 그대로 재사용해 통일한다.
+    // 는 이미 terminal 인 Execution 을 스캔하지 않아 회수 경로도 없음). 새
+    // 소비처로 `assertLinkedTransitionApplied` 를 그대로 재사용해 통일한다
+    // (정확한 소비처 목록·개수는 {@link assertLinkedTransitionApplied} JSDoc 참조
+    // — ai-review WARNING, 2026-07-27, 6차 라운드, requirement/documentation:
+    // 하드코딩 순번은 라운드마다 stale 해진 이력이 있어 여기 정확한 서수를
+    // 서술하지 않는다).
     try {
       await this.driver.assertExecutionNotCancelled(executionId);
     } catch (err) {
@@ -687,8 +701,14 @@ export class AiTurnOrchestrator {
       if (!cancelContext) {
         // 극히 드문 방어적 분기 — 이 가드는 turn 이 실제로 시작되기 전(같은
         // job 이 아직 살아있는 시점)에 실행되므로 context 가 사라져 있을 일은
-        // 사실상 없다(§732 의 "LLM await 도중 context 소실" 레이스와 달리 이
-        // 지점은 handler 호출 **이전**). 그래도 context 없이는 markNodeCancelled
+        // 사실상 없다(아래 `ExecutionContext absent on LLM-resume` 로그를 내는
+        // "LLM await 도중 context 소실" 레이스와 달리 이 지점은 handler 호출
+        // **이전**). ai-review WARNING (2026-07-27, 6차 라운드, documentation/
+        // maintainability) — 최초 버전은 이 참조를 줄 번호(`§732`)로 남겼는데
+        // 도입 시점부터 실제 대상과 어긋나 있었다(같은 파일이 반복 겪은 stale
+        // 줄 번호 anti-pattern). `§` 접두는 spec 섹션 전용 관례라 코드 라인에
+        // 쓰지 않고, 대신 로그 메시지 문자열로 인용해 향후 삽입/삭제에도 안전하게 한다.
+        // 그래도 context 없이는 markNodeCancelled
         // 의 이벤트 페이로드(parentNodeExecutionId)를 채울 수 없으므로, 마킹을
         // 생략하고 원본 취소를 그대로 전파한다 — FAILED 로 오분류되지는 않는다.
         this.logger.warn(

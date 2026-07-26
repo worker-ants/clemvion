@@ -4675,12 +4675,25 @@ export class ExecutionEngineService
   /**
    * top-level 실행을 FAILED 로 종결하는 공통 처리. **초기 세그먼트**(`runExecution` catch)와
    * **재개 세그먼트**(`finalizeResumedExecutionOutcome`)가 공유한다 — 상태 마킹 · error 봉인
-   * (§1.4 sentinel code 보존) · `finished_at`/`duration` · DB save · `EXECUTION_FAILED` WS emit ·
-   * `execution_failed` 알림 dispatch(§1.1) 를 일원화한다.
+   * (§1.4 sentinel code 보존) · `finished_at`/`duration` · guarded DB 전이 · `EXECUTION_FAILED`
+   * WS emit · `execution_failed` 알림 dispatch(§1.1) 를 일원화한다.
    *
    * 근거: 두 종결 경로가 near-identical 블록을 각자 보유해, PR #841 에서 재개 경로에만 dispatch 가
    * 누락돼 `execution_failed` 가 사실상 미발사되던 버그가 있었다. 단일 헬퍼로 모아 "한쪽만 갱신"
    * 재발을 구조적으로 막는다. in-memory context/캐시 정리는 경로별로 상이하므로 호출자 finally 가 유지한다.
+   *
+   * ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — 형제 {@link finalizeCancelledExecution}
+   * 은 처음부터 `updateExecutionStatus`(guarded UPDATE, `status IN (non-terminal)`) 경유로
+   * CANCELLED 를 마킹하는데, 이 함수는 무조건 full-entity `save()` 로 FAILED 마킹해 상태-머신
+   * 가드를 전혀 거치지 않았다. 재현: `finalizeAiNode` 의 `isFailed` 가드(CRITICAL #2, 이전
+   * 라운드)가 통과한 뒤에도 이벤트 emit·throw·호출 스택을 경유해 이 함수에 도달하기까지 창이
+   * 남고, 그 사이 동시 Stop 이 DB 를 CANCELLED 로 이미 커밋했다면 이 무가드 save 가 CANCELLED
+   * 를 FAILED 로 덮어쓴다 — `state-machine.ts` 의 `CANCELLED → []`(항상 불허)를 완전히
+   * 우회하는 lost-update. AI 턴 경로 전용이 아니라 `ExecutionCancelledError` 가 아닌 모든
+   * 에러가 지나가는 범용 경로(일반 노드 핸들러 throw 포함)라 형제와 동일하게 닫는다.
+   * `updateExecutionStatus` 가 `false` 를 반환하면(동시 cancel 선점) FAILED 저장이 이미
+   * no-op 이므로 emit/알림 dispatch 도 함께 skip 한다 — 그렇지 않으면 사용자가 명시적으로
+   * 취소한 실행에 대해 EXECUTION_FAILED/execution_failed 가 사후 발사된다.
    */
   private async finalizeFailedExecution(
     savedExecution: Execution,
@@ -4688,7 +4701,6 @@ export class ExecutionEngineService
     opts: { rehydrated?: boolean } = {},
   ): Promise<void> {
     const executionId = savedExecution.id;
-    savedExecution.status = ExecutionStatus.FAILED;
     // WARN #7 (Security) — error.stack 은 파일 경로·모듈명·내부 구조를 노출하므로 DB 에 저장하지
     // 않는다. 디버깅용 stack 은 서버 로그로만 기록.
     const errMessage = error instanceof Error ? error.message : String(error);
@@ -4713,7 +4725,22 @@ export class ExecutionEngineService
     savedExecution.finishedAt = new Date();
     savedExecution.durationMs =
       savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
-    await this.executionRepository.save(savedExecution);
+    // CRITICAL #1 — 형제 finalizeCancelledExecution 과 동일한 guarded 경로. DB 가
+    // 이미 terminal(동시 Stop 이 CANCELLED 로 선점)이면 0행 매칭 → false 반환,
+    // FAILED 로 재마킹하지 않는다.
+    const persisted = await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.FAILED,
+    );
+    if (!persisted) {
+      this.logger.warn(
+        `finalizeFailedExecution(${executionId})${
+          opts.rehydrated ? ' (rehydrated)' : ''
+        }: 동시 cancel/park 이 이미 terminal 로 선점 — FAILED 재마킹·EXECUTION_FAILED emit·` +
+          `execution_failed 알림 dispatch 를 모두 skip`,
+      );
+      return;
+    }
     await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_FAILED,
@@ -8106,8 +8133,7 @@ export class ExecutionEngineService
    * ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기도
    * 이 헬퍼를 공유한다(두 번째 호출부). 그 분기는 Execution.status 를 전이하지
    * 않고 짝 `nodeExec` 만 (COMPLETED 대신 FAILED 로) save 하므로 계약이 동일하다
-   * — "RUNNING 유지 분기 전용" 이라는 아래 인라인 주석은 이제 부정확하니 두
-   * 호출부 모두를 가리키는 것으로 읽을 것.
+   * — 아래 인라인 주석도 두 호출부를 함께 반영하도록 갱신했다.
    *
    * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 트랜잭션
    *   안에서 save 했다. `false` 는 동시 cancel 이 Execution 을 이미 terminal
@@ -8328,8 +8354,10 @@ export class ExecutionEngineService
     // 옛 full-save 가 쓰던 컬럼의 부분집합(이 엔티티는 full-save 되던 것이므로 안전)
     // 이라, 동시 park 가 기록하는 conversation_thread/user_variables 는 건드리지
     // 않는다. jsonb 는 raw 파라미터에 명시 JSON.stringify(codebase raw-query 관용).
-    // else 분기 호출은 RUNNING / COMPLETED 전이뿐이며 FAILED/CANCELLED 직접 마감과
-    // linkedNodeExec 짝 전이는 범위 밖.
+    // else 분기 호출은 RUNNING / COMPLETED / FAILED / CANCELLED 직접 마감(top-level
+    // 종결 포함) — linkedNodeExec 짝 전이만 범위 밖(위 if 분기가 별도 처리).
+    // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — `finalizeFailedExecution`
+    // 도 이 guarded 경로를 타면서 `error` 컬럼을 잃지 않도록 아래 SET 절에 포함.
     execution.status = newStatus;
     const updated: Array<{ id: string }> = await this.executionRepository.query(
       `UPDATE execution
@@ -8338,7 +8366,8 @@ export class ExecutionEngineService
               finished_at = $4,
               duration_ms = $5,
               output_data = $6::jsonb,
-              resume_call_stack = $7::jsonb
+              resume_call_stack = $7::jsonb,
+              error = $8::jsonb
         WHERE id = $1
           AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
         RETURNING id`,
@@ -8354,6 +8383,7 @@ export class ExecutionEngineService
         execution.resumeCallStack == null
           ? null
           : JSON.stringify(execution.resumeCallStack),
+        execution.error == null ? null : JSON.stringify(execution.error),
       ],
     );
     const persisted = updated.length > 0;
