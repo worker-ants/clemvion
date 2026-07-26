@@ -4568,6 +4568,52 @@ export class ExecutionEngineService
    * @param logContext — 호출자 식별용 (`emitCancellationEvent` 로그 태그). 두 호출자가 다른 값을
    *   전달하는 유일한 파라미터라 헬퍼 추출 전에는 이 한 값 차이 때문에 8줄 블록이 손으로 복제됐다.
    */
+  /**
+   * ai-review 5R (maintainability) — 노드 단위 취소 종결. `executeNode` catch 의 두
+   * 분기(`isAbortError` / `ExecutionCancelledError`)가 상태 마킹·`finishedAt`/
+   * `durationMs` 계산·`save`·`NODE_CANCELLED` emit 20여 줄을 문자 그대로 복제하고
+   * 있었다. Execution 레벨의 같은 중복을 {@link finalizeCancelledExecution} 으로
+   * 추출한 선례(W12)와 동일한 처리다.
+   *
+   * **두 호출부의 유일한 차이는 `errorEnvelope` 유무**다 —
+   * `isAbortError` 경로는 §5.1 봉투(`{code:'AbortError', message}`)를 싣고,
+   * `ExecutionCancelledError` 경로는 **싣지 않는다**(그 sentinel 의 message 에
+   * executionId 가 들어 있어 client 노출 금지 — W15/W19). 그래서 선택 인자로 둔다.
+   *
+   * throw 는 호출부 책임으로 남긴다 — 각 분기가 던져야 할 원본 에러가 다르고,
+   * 여기서 던지면 "무엇을 다시 던지는가" 가 호출부에서 보이지 않게 된다.
+   */
+  private async markNodeCancelled(
+    nodeExecution: NodeExecution,
+    node: Node,
+    context: ExecutionContext,
+    executionId: string,
+    errorEnvelope?: { code: string; message: string },
+  ): Promise<void> {
+    nodeExecution.status = NodeExecutionStatus.CANCELLED;
+    if (errorEnvelope) nodeExecution.error = errorEnvelope;
+    nodeExecution.finishedAt = new Date();
+    nodeExecution.durationMs =
+      nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
+    await this.nodeExecutionRepository.save(nodeExecution);
+    await this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_CANCELLED,
+      {
+        nodeExecutionId: nodeExecution.id,
+        parentNodeExecutionId: context.parentNodeExecutionId,
+        status: NodeExecutionStatus.CANCELLED,
+        ...(errorEnvelope ? { error: errorEnvelope } : {}),
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        input: nodeExecution.inputData,
+        startedAt: nodeExecution.startedAt?.toISOString?.(),
+        finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+      },
+    );
+  }
+
   private async finalizeCancelledExecution(
     savedExecution: Execution,
     logContext: string,
@@ -5768,28 +5814,14 @@ export class ExecutionEngineService
       if (isAbortError(err)) {
         // spec/conventions/node-cancellation.md §5.1 — `output.error` 봉투 형식:
         // `{ code: 'AbortError', message }` (node-output.md Principle 3.2 와 동형).
-        const errorEnvelope = { code: 'AbortError', message: err.message };
-        nodeExecution.status = NodeExecutionStatus.CANCELLED;
-        nodeExecution.error = errorEnvelope;
-        nodeExecution.finishedAt = new Date();
-        nodeExecution.durationMs =
-          nodeExecution.finishedAt.getTime() -
-          nodeExecution.startedAt.getTime();
-        await this.nodeExecutionRepository.save(nodeExecution);
-        await this.eventEmitter.emitNode(
+        await this.markNodeCancelled(
+          nodeExecution,
+          node,
+          context,
           executionId,
-          node.id,
-          NodeEventType.NODE_CANCELLED,
           {
-            nodeExecutionId: nodeExecution.id,
-            parentNodeExecutionId: context.parentNodeExecutionId,
-            status: NodeExecutionStatus.CANCELLED,
-            error: errorEnvelope,
-            nodeType: node.type,
-            nodeLabel: node.label ?? node.type,
-            input: nodeExecution.inputData,
-            startedAt: nodeExecution.startedAt?.toISOString?.(),
-            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+            code: 'AbortError',
+            message: err.message,
           },
         );
         throw err;
@@ -5820,27 +5852,10 @@ export class ExecutionEngineService
       // 반드시 발행한다" 불변식을 동일하게 지킨다 — 다만 `error` 봉투에는 내부 message
       // (executionId 포함)를 싣지 않는다(W15 의 노출 차단 취지 유지).
       if (err instanceof ExecutionCancelledError) {
-        nodeExecution.status = NodeExecutionStatus.CANCELLED;
-        nodeExecution.finishedAt = new Date();
-        nodeExecution.durationMs =
-          nodeExecution.finishedAt.getTime() -
-          nodeExecution.startedAt.getTime();
-        await this.nodeExecutionRepository.save(nodeExecution);
-        await this.eventEmitter.emitNode(
-          executionId,
-          node.id,
-          NodeEventType.NODE_CANCELLED,
-          {
-            nodeExecutionId: nodeExecution.id,
-            parentNodeExecutionId: context.parentNodeExecutionId,
-            status: NodeExecutionStatus.CANCELLED,
-            nodeType: node.type,
-            nodeLabel: node.label ?? node.type,
-            input: nodeExecution.inputData,
-            startedAt: nodeExecution.startedAt?.toISOString?.(),
-            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
-          },
-        );
+        // `errorEnvelope` 를 넘기지 않는다 — 이 sentinel 의 message 에는 executionId 가
+        // 들어 있어 client 로 나가면 안 된다(W15/W19). 그것이 위 `isAbortError` 분기와
+        // 다른 **유일한** 차이다.
+        await this.markNodeCancelled(nodeExecution, node, context, executionId);
         throw err;
       }
 
