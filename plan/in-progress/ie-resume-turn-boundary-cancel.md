@@ -190,6 +190,38 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
       라운드 신규 발견 0건) — `spec/` 수정 없음. TEST WORKFLOW 재통과(unit:
       execution-engine.service.spec.ts 433 passed·ai-turn-orchestrator.service.spec.ts
       87 passed 확인). 상세: `RESOLUTION.md` 참조.
+- [x] `82b0d1561`(2026-07-27, 6차 라운드 직후 직접 커밋) — terminal 집합 인라인 열거
+      통합. `failFirstSegmentSetup`/`executeSync` timeout 경로가 각각 `COMPLETED`/`FAILED`
+      만 인라인 열거해 "이미 terminal 인지" 를 판정해 **CANCELLED 를 누락**했고, 그래서
+      동시 Stop 으로 이미 취소된 실행/sub-execution 을 FAILED 로 덮어썼다(6차 라운드가
+      닫은 것과 같은 클래스). 이름 있는 단일 출처 `TERMINAL_STATUSES` 비교로 교체 + 각
+      지점 CANCELLED 회귀 테스트 1건씩 추가. 이 커밋 자체는 이 PR 이 매 라운드 지켜온
+      CHANGELOG/plan 동시 갱신 관례에서 벗어났다 — 아래 7차 라운드가 정정(ai-review
+      WARNING #10).
+- [x] `/ai-review` + Critical·Warning 해소 (7차 라운드, **마지막 조치 라운드**) — 2026-07-27
+      `review/code/2026/07/27/02_23_50` (Critical 0 / Warning 10, LOW). **WARNING #1**
+      (마지막 correctness 잔여) — `failFirstSegmentSetup`/`executeSync` timeout catch 가
+      `82b0d1561` 이후에도 reload(SELECT) → 무가드 full-entity `save()` 를 유지해 좁은
+      TOCTOU 가 남아 있던 것을, 형제 종결 헬퍼(`finalizeFailedExecution`/
+      `finalizeCancelledExecution`)와 동일한 guarded `updateExecutionStatus`
+      (`status IN (non-terminal)`) 경유로 교체. reload 가 PENDING 을 관측하는 극단
+      케이스(설정 자체가 RUNNING 진입 전에 이중 DB 장애 또는 소-timeoutMs 레이스로
+      실패)는 상태머신이 PENDING→FAILED 를 의도적으로 금지하므로(`state-machine.spec.ts`
+      "disallow pending -> failed", `ALLOWED_TRANSITIONS` 표에도 없음) `assertTransition`
+      이 throw 하는데, 두 호출자 모두 이를 best-effort 로 흡수해 마킹만 skip 하도록
+      했다 — 상태머신을 우회해 강제로 FAILED 로 만들지 않고 `CoreEngineDriver` JSDoc 에
+      choke point 예외로 명시 등재(§7.1 stale 스윕에 위임). 동시 cancel 이 guarded
+      UPDATE 를 실제로 선점하는(0행) 회귀 테스트를 두 지점 모두에 추가 — 기존 회귀는
+      `findOneBy` mock 을 고정값(RUNNING/CANCELLED)으로만 관측해 초기
+      `TERMINAL_STATUSES` 가드만 검증했을 뿐 guarded UPDATE 자체의 race 보호는
+      재현하지 못했다는 지적(WARNING #1 원문)을 닫는다(가드 제거 시 RED 확인).
+      **WARNING #10** — 위 `82b0d1561` 이 CHANGELOG/plan 동시 갱신 관례에서 벗어난
+      것을 CHANGELOG.md 6번째 항목 + 위 체크리스트 줄로 정정. WARNING #2(god-class)·
+      #3(공유 SET 절 `error` 컬럼 확대)·#4(신규 metrics 발사 배포 공지)·#5~#7(테스트
+      코드 중복·매직 인덱스)·#8(`handleAiMessageTurn` 길이)·#9(3항 OR 가드 부분
+      커버리지) 및 INFO 전반은 코드 변경 없이 아래 "7차 라운드 추가 후속" 절에만
+      등재(INFO #8 은 `retry-turn.service.ts` 동일 클래스 결함 별도 PR 추적). spec/
+      수정 없음. TEST WORKFLOW 재통과(lint/unit/build/e2e). 상세: `RESOLUTION.md` 참조.
 
 ## impl-prep 결과 (2026-07-26)
 
@@ -355,6 +387,58 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   이미 있던 사전 합의된 동작이라 신규 결함 아님). 후속: `NODE_CANCELLED` 를
   소비하는 프론트엔드/알림 쪽이 동일 `nodeExecutionId` 에 대한 두 번째 emit 을
   멱등하게 처리하는지 별도 확인 가치 있음.
+
+### 7차 라운드 추가 후속 (ai-review `review/code/2026/07/27/02_23_50`, Critical 0/LOW — **마지막 조치 라운드**)
+
+7차 라운드는 WARNING #1(잔여 TOCTOU)·#10(CHANGELOG/plan 동기화 이탈)을 코드/문서로
+닫았다(RESOLUTION.md 참조). 아래는 지시에 따라 **코드 변경 없이** 이 절에만 등재한다.
+이 PR 은 이번 라운드로 조치를 수렴한다 — 아래 항목은 전부 범위 밖 후속 후보다.
+
+- **`ExecutionEngineService` 잔존 god-class (ai-review WARNING #2, architecture)** —
+  8,484줄, 생성자 DI 24개 이상, 4개 인터페이스 구현. C-1 strangler-fig 로 ~3,252L
+  추출했음에도 여전히 대규모. 후속: 알림 dispatch(`dispatchExecutionFailedNotification`
+  등) 등 실행 엔진 핵심과 무관한 부가 책임부터 우선 추출.
+- **guarded UPDATE(`updateExecutionStatus` else 분기) SET 절의 `error` 컬럼 확대
+  (ai-review WARNING #3, side_effect)** — `error = $8::jsonb` 가 8개 호출부(RUNNING/
+  COMPLETED/CANCELLED/FAILED 전이 전부)가 공유하는 SQL 에 추가돼, `finalizeFailedExecution`
+  한 호출자의 필요로 공유 choke point 쓰기 표면이 조용히 넓어졌다(`execution-engine
+  .service.ts:8372,8388`). 후속: 인라인 계약 주석 강화 또는 `error` 쓰기를 FAILED
+  전이로 조건부 제한하는 리팩터 검토.
+- **`finalizeFailedExecution` guarded 전환에 따른 신규 metrics 발사 (ai-review
+  WARNING #4, side_effect)** — guarded 경로 전환으로 이전엔 발생하지 않던 business
+  metrics(`recordExecutionTerminal`/`recordExecutionError`) + 비동기 NodeExecution
+  조회가 새로 트리거된다. 조치 불요(버그 아님) — **배포 시 공지 필요**: "top-level
+  FAILED 종결 메트릭이 이번부터 정확히 집계됨(과거 undercounted)" 을 배포 노트/모니터링
+  채널에 명시해 실패율 대시보드 급변을 오인하지 않도록 할 것.
+- **테스트 코드 유지보수성 3건 (ai-review WARNING #5~#7, maintainability)** —
+  (a) `FinalizeSubject` 타입이 `ai-turn-orchestrator.service.spec.ts:345,496,614` 3개
+  `describe` 블록에 문자 그대로 반복 정의; (b) 트랜잭션 mock 헬퍼 쌍(`makeQb`/`installTx`
+  계열)이 `execution-engine.service.spec.ts:2935/2942,3115/3122,3254/3266` 3중으로 거의
+  동일 중복(두 쌍은 인자 순서까지 반대); (c) raw SQL 파라미터 배열의 위치 인덱스(매직넘버)
+  접근(`execution-engine.service.spec.ts:12284,12414` `(failedCall![1] as unknown[])[7]`)이
+  프로덕션 쿼리 컬럼 순서와 암묵적으로 결합. 후속: 별도 라운드로 묶어 (a) 스코프 최상단
+  선언 재사용, (b) 단일 유틸(`installTxQueryBuilders`) + named 옵션 인자로 통합, (c) 파라미터
+  빌더 헬퍼 노출 또는 `expect.arrayContaining` 매칭으로 전환.
+- **`handleAiMessageTurn` 신규 취소 가드 블록의 SRP 부채 재확인 (ai-review WARNING #8,
+  maintainability)** — 이미 매우 긴 메서드(~420줄, 4개 책임)에 turn-경계 cancel
+  가드(~60줄, 3중 중첩)가 더 얹혔다. 6차 라운드 "SRP 부채 심화" 항목과 동일 소견의
+  재확인 — 위치·영향·닫는 방법 변동 없음. 후속: 신규 가드 블록만이라도
+  `guardTurnBoundaryCancellation(...)` private 메서드로 추출.
+- **`processAiResumeTurn` 3항 OR 가드 부분 커버리지 (ai-review WARNING #9, testing)** —
+  `ai-turn-orchestrator.service.ts:230-232` 의 3항 방어 가드 중 1개 항(`type` 미문자열)만
+  회귀 테스트 존재, `null`/non-object primitive 두 항은 미검증 — 순서 변경/항 제거가
+  조용히 통과할 수 있다. 후속: `driveResumeTurn(null)`, `driveResumeTurn('not-an-object')`
+  케이스 추가.
+- **`retry-turn.service.ts::failRetryExecution` 동일 클래스 lost-update 잔존
+  (ai-review INFO #8, database)** — `retry-turn.service.ts:636,658` 이 이 PR 이 형제
+  함수(`finalizeFailedExecution` 등)에서 닫은 것과 동일한 무가드 full-entity save
+  lost-update 패턴을 diff 범위 밖에서 그대로 보유한다. 후속: 별도 PR 로
+  `updateExecutionStatus` 재배선 검토·트래킹(같은 클래스, 이 PR 스코프 아님).
+- **INFO 나머지 (보안/아키텍처/유지보수성/테스트/동시성, ai-review INFO #1~#7,#9)** —
+  전부 조치 불요로 판정된 항목(기존 방어 설계 확인, 의도된 pin, stale JSDoc 서술
+  단순화 권고, `phase` 매개변수 자유형식 리터럴 유니온 승격 권고, `TERMINAL_STATUSES`
+  비대칭 커버리지, 좁은 TOCTOU 는 기존 인지된 설계 한계)이며 이 PR 스코프에서 추가
+  조치 불필요. 상세는 `review/code/2026/07/27/02_23_50/SUMMARY.md` INFO 표 참조.
 
 ## ⚠️ 이 plan 을 `plan/complete/` 로 이동할 때 (ai-review WARNING #8, 2026-07-26)
 
