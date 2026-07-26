@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ParallelBranchContext,
 } from '../../../nodes/core/node-handler.interface';
+import { ExecutionCancelledError } from '../workflow-errors';
 
 export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
 
@@ -267,6 +268,19 @@ export class ParallelExecutor {
           error: reason instanceof Error ? reason : new Error(String(reason)),
         });
       }
+    }
+
+    // ai-review C5 (2026-07-26) — errorPolicy 분기 (stop/continue/
+    // cancel-others-on-fail) 이전에 외부 cancel sentinel 을 무조건 우회
+    // 재throw 한다. foreach-executor.ts §ai-review C3 와 대칭: `'continue'`
+    // 는 브랜치 실패를 흡수하고 `{settled, failures}` 로 정상 반환하므로,
+    // 이 가드가 없으면 `ExecutionCancelledError` 도 함께 흡수돼 Parallel
+    // 노드가 거짓 `done` 포트로 종결된다 (§2.3 컨테이너 클래스와 동일 결함).
+    const cancellation = failures.find(
+      (f) => f.error instanceof ExecutionCancelledError,
+    );
+    if (cancellation) {
+      throw cancellation.error;
     }
 
     // errorPolicy=stop: surface the first failure so the Parallel node

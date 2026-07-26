@@ -6188,6 +6188,62 @@ describe('ExecutionEngineService', () => {
       );
     });
 
+    // ai-review W11 (2026-07-26) — C4 배선(옛 raw `save()` → guarded
+    // `updateExecutionStatus`)에 대한 회귀 테스트. `stop()` 이 이미 이 Execution 을
+    // CANCELLED 로 커밋해 guarded UPDATE 가 0행(이미 terminal)을 매칭하는 상황을
+    // 재현한다 — 이 경우 `finalizeCancelledExecution`(C4/W12)이 계산한 방어적
+    // `finishedAt`/`durationMs` 값이 옛 raw `save()` 경로로 다시 쓰여서는 안 된다
+    // (그 값은 이 catch 가 최초 관측자가 아닐 때 stop() 이 이미 쓴 정확한 시각보다
+    // 늦다). 옛 배선으로 되돌리면(guarded UPDATE 대신 `executionRepository.save`)
+    // 아래 두 번째 단언이 RED 가 된다 — mutation 으로 실측 검증.
+    it('guarded UPDATE 가 0행 매칭(이미 terminal)이어도 stale finishedAt/durationMs 를 raw save() 로 재저장하지 않는다 (W11)', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.CANCELLED,
+        startedAt: new Date(),
+      });
+
+      // guarded UPDATE(CANCELLED 전이)만 0행 매칭으로 override — 그 외 `.query()`
+      // 호출은 기존 default(1행 매칭)를 그대로 쓴다.
+      const defaultQuery = mockExecutionRepo.query;
+      mockExecutionRepo.query = jest.fn((sql: string, params?: unknown[]) => {
+        if (
+          typeof sql === 'string' &&
+          sql.includes('UPDATE execution') &&
+          Array.isArray(params) &&
+          params.includes(ExecutionStatus.CANCELLED)
+        ) {
+          return Promise.resolve([]); // 0행 = 이미 terminal (stop() 이 선점)
+        }
+        return defaultQuery(sql, params);
+      });
+
+      void service.continueExecution(executionId, { approved: true });
+      await flushResumeDrive();
+
+      // (a) guarded UPDATE 경로가 실제로 시도됐다 (0행 매칭이라도 시도는 함).
+      expect(mockExecutionRepo.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE execution'),
+        expect.arrayContaining([ExecutionStatus.CANCELLED]),
+      );
+      // (b) 0행 매칭이므로 raw save() 로 stale finishedAt/durationMs 를 다시 쓰지
+      // 않는다 — CANCELLED 상태의 Execution save() 호출 자체가 없어야 한다.
+      expect(
+        mockExecutionRepo.save.mock.calls.some(
+          (c: unknown[]) =>
+            (c[0] as Partial<Execution>).status === ExecutionStatus.CANCELLED,
+        ),
+      ).toBe(false);
+    });
+
     // §4.x "active 세그먼트 + durable park" 회귀 가드 — worker job 반환.
     // 옛 버그: `runExecutionFromQueue`(worker process() 가 await 하는 진입점)가
     // `runExecution` 전체를 await 해 form park 동안 BullMQ job(concurrency=1
@@ -9949,6 +10005,16 @@ describe('ExecutionEngineService', () => {
     // 지연 적용한다(그 시점 이전 호출은 항상 기존 `{...lastSaved}` 기본 동작).
     it('노드 경계 가 아니라 아이템 경계에서 외부 cancel 을 관측하면 남은 ForEach 아이템은 dispatch 되지 않는다 (C3)', async () => {
       let bodyCalls = 0;
+      // ai-review W10 (2026-07-26) — 아이템 경계 가드가 이제 시간 기반 스로틀을 쓴다
+      // (`{ throttle: true }`, 250ms). 이 테스트는 아이템이 실제 시간차 없이 연속
+      // 실행되므로, 스로틀이 "직전 결과 재사용"으로 취소 관측을 가려버리면 아이템 1
+      // 도 그대로 dispatch 돼 이 회귀 테스트가 무의미해진다. `Date.now()` 를 제어해
+      // 아이템 0→1 경계에서 스로틀 창(250ms)을 실제로 넘기도록 만든다 — `new Date()`
+      // 로 찍는 다른 타임스탬프(startedAt 등)는 `Date.now` 스파이의 영향을 받지 않는다.
+      let simulatedNow = Date.now();
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockImplementation(() => simulatedNow);
       const bodyHandler: NodeHandler = {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () => {
@@ -9964,6 +10030,8 @@ describe('ExecutionEngineService', () => {
                 startedAt: new Date(),
               }),
             );
+            // 스로틀 창(250ms)을 넘겨 아이템 1 의 가드가 실제 DB 조회를 수행하게 한다.
+            simulatedNow += 300;
           }
           return mockOutput({ ok: true });
         }),
@@ -10028,6 +10096,199 @@ describe('ExecutionEngineService', () => {
         executionId,
         'execution.cancelled',
         expect.objectContaining({ status: 'cancelled' }),
+      );
+      nowSpy.mockRestore();
+    });
+
+    // ai-review W9 (2026-07-26) — §2.3 가 컨테이너 경로(ForEach/Loop/Map)에
+    // `ExecutionCancelledError` 를 처음 실전 발생시켰다. `runContainer` 의
+    // catch-all 이 이를 일반 실패로 오분류해 컨테이너 자신(`foreach`)의
+    // NodeExecution 을 FAILED 로 영속하고 NODE_FAILED 를 emit 하면, Execution 은
+    // 결국 cancelled 로 마감되므로 "실행은 취소인데 컨테이너 노드는 실패" 라는
+    // 상태·감사로그 불일치가 생긴다. 위 C3 시나리오와 동일한 트리거(아이템 경계
+    // 가드)를 재사용하되, 이번엔 컨테이너 노드 자신의 save/emit 인자를 단언한다.
+    it('아이템 경계 취소가 컨테이너 노드를 FAILED 로 오분류하거나 NODE_FAILED 를 emit 하지 않는다 (W9)', async () => {
+      let bodyCalls = 0;
+      // ai-review W10 — 위 C3 테스트와 동일한 이유로 `Date.now()` 를 제어해 스로틀
+      // 창(250ms)을 넘긴다. 상세 근거는 위 C3 테스트 주석 참조.
+      let simulatedNow = Date.now();
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockImplementation(() => simulatedNow);
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          bodyCalls++;
+          if (bodyCalls === 1) {
+            // 아이템 0 실행 완료 직후부터 외부 cancel 이 관측되도록 무장 —
+            // 아이템 1 의 executeContainerBody 진입 가드가 이걸 본다.
+            mockExecutionRepo.findOneBy.mockImplementation(() =>
+              Promise.resolve({
+                id: executionId,
+                workflowId,
+                status: ExecutionStatus.CANCELLED,
+                startedAt: new Date(),
+              }),
+            );
+            simulatedNow += 300;
+          }
+          return mockOutput({ ok: true });
+        }),
+      };
+      handlerRegistry.register('body_node_w9', bodyHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node_w9',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, { items: [1, 2, 3] });
+      await flushPromises();
+      await flushPromises();
+
+      expect(bodyCalls).toBe(1);
+      // Execution 자체는 여전히 cancelled 로 마감된다.
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+
+      // (a) 컨테이너(foreach) NodeExecution 이 FAILED 로 저장되지 않는다.
+      const foreachSaves = mockNodeExecutionRepo.save.mock.calls
+        .map((c) => c[0] as Partial<NodeExecution>)
+        .filter((n) => n.nodeId === 'foreach');
+      expect(
+        foreachSaves.some((n) => n.status === NodeExecutionStatus.FAILED),
+      ).toBe(false);
+
+      // (b) NODE_FAILED 가 컨테이너 노드에 emit 되지 않는다.
+      expect(mockWebsocketService.emitNodeEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'foreach',
+        'execution.node.failed',
+        expect.anything(),
+      );
+      nowSpy.mockRestore();
+    });
+
+    // ai-review W10 (2026-07-26) — 아이템 경계 cancel 가드(§2.3 확장)가 아이템 수에
+    // 선형 비례하는 순차 DB 라운드트립을 추가하던 결함. `assertExecutionNotCancelled`
+    // 가 `executeContainerBody` 호출부에서만 시간 기반 스로틀(`{ throttle: true }`,
+    // 200~300ms)을 적용하도록 수정됐다 — 짧은 간격 안에 반복되는 아이템 경계 체크는
+    // 실제 DB 조회 없이 직전 결과를 재사용해야 한다. `executionRepository.findOne`
+    // 은 이 파일에서 `assertExecutionNotCancelled` 만 호출하는 유일한 지점이므로
+    // (production 소스 주석 참조) 호출 횟수를 직접 단언할 수 있다.
+    it('짧은 간격 내 아이템 경계 반복은 실제 DB 조회를 1회로 스로틀한다 (W10)', async () => {
+      const itemCount = 10;
+      const bodyHandler: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({ ok: true })),
+      };
+      handlerRegistry.register('body_node_w10', bodyHandler);
+
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'foreach',
+          workflowId,
+          type: 'foreach',
+          category: NodeCategory.LOGIC,
+          label: 'foreach',
+          config: { arrayField: 'items' },
+          isDisabled: false,
+          containerId: null,
+          toolOwnerId: null,
+        },
+        {
+          id: 'body',
+          workflowId,
+          type: 'body_node_w10',
+          category: NodeCategory.LOGIC,
+          label: 'body',
+          config: {},
+          isDisabled: false,
+          containerId: 'foreach',
+          toolOwnerId: null,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-fe-body',
+          workflowId,
+          sourceNodeId: 'foreach',
+          sourcePort: 'body',
+          targetNodeId: 'body',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+        {
+          id: 'e-body-emit',
+          workflowId,
+          sourceNodeId: 'body',
+          sourcePort: 'out',
+          targetNodeId: 'foreach',
+          targetPort: 'emit',
+          type: EdgeType.DATA,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+
+      await service.execute(workflowId, {
+        items: Array.from({ length: itemCount }, (_, i) => i),
+      });
+      await flushPromises();
+      await flushPromises();
+
+      expect(bodyHandler.execute).toHaveBeenCalledTimes(itemCount);
+      // 스로틀이 없다면 아이템 경계 가드만으로 10회(+ 상위 노드 경계 1회)의
+      // `findOne` 호출이 발생한다. 스로틀이 동작하면 짧은 실행 시간(<250ms) 안의
+      // 반복 호출이 직전 결과를 재사용해 실제 조회 횟수가 아이템 수보다 뚜렷이
+      // 작아야 한다.
+      expect(mockExecutionRepo.findOne.mock.calls.length).toBeLessThan(
+        itemCount,
       );
     });
 

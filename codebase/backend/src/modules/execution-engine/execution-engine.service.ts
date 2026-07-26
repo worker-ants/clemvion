@@ -524,6 +524,31 @@ export class ExecutionEngineService
   private readonly maxActiveRunningMs = resolveMaxActiveRunningMs();
   private readonly segmentStartMs = new Map<string, number>();
 
+  /**
+   * ai-review W10 (2026-07-26) — `assertExecutionNotCancelled` 의 컨테이너
+   * 아이템-경계 호출부({@link executeContainerBody})용 시간 기반 스로틀 상태.
+   * `executionId` → 마지막으로 실제 DB 조회를 수행한 시각(ms, `Date.now()`).
+   * `CONTAINER_CANCEL_CHECK_THROTTLE_MS` 미만 경과 시 DB 조회를 생략하고 직전
+   * 결과(= 아직 취소되지 않음)를 재사용한다. `segmentStartMs` 와 동일하게 단일
+   * 인스턴스 in-memory Map 으로 충분하다(재시작/재배달 시 소실돼도 다음 호출이
+   * 새 baseline 을 세우므로 correctness 에 영향 없음 — 스로틀은 순수 최적화).
+   *
+   * **누수 방지**: execution 종료 지점(`finalizeRehydrationCleanup`, `runExecution`
+   * catch/finally)에서 반드시 `delete` 한다. 선형/Parallel 노드 경계 호출은 이 Map 을
+   * 쓰지 않으므로(매번 실제 조회) 여기 등록되지 않는다.
+   */
+  private readonly containerCancelCheckedAtMs = new Map<string, number>();
+
+  /**
+   * ai-review W10 (2026-07-26) — 컨테이너 아이템 경계 cancel 가드의 스로틀 간격(ms).
+   * 200~300ms 권장 범위의 중간값. 취소 관측이 이 간격만큼 늦어질 수 있는데,
+   * `spec/conventions/node-cancellation.md` §5(`AbortError` 분류)가 명시하듯 취소
+   * 전파는 애초부터 **best-effort** 계약이라 수백 ms 지연은 무해하다 — 노드 경계
+   * (선형/Parallel 브랜치)는 이미 매번 실제 조회를 유지해 그 계약의 "노드 사이"
+   * 관측 지연은 이 변경으로 늘지 않는다. 아이템 경계만 대상.
+   */
+  private static readonly CONTAINER_CANCEL_CHECK_THROTTLE_MS = 250;
+
   // exec-park D6 full B3 (2026-06-06) — in-memory continuation/barrier 머신 제거.
   // 옛 `pendingContinuations` Map(park coroutine resolver) + `firstSegmentBarriers`
   // (worker 슬롯 해제 배리어) + `armFirstSegmentBarrier`/`settleFirstSegment` 는
@@ -2613,28 +2638,15 @@ export class ExecutionEngineService
     savedExecution: Execution,
     error: unknown,
   ): Promise<void> {
-    const executionId = savedExecution.id;
     // terminal 도달 — 재개 routing 상태(중첩 call stack) 비움 (top-level 은 이미 null).
     savedExecution.resumeCallStack = null;
     if (error instanceof ExecutionCancelledError) {
-      // ai-review C4/W3 (2026-07-26) — runExecution catch 와 동일한 이유로 guarded
-      // UPDATE(M-3)로 전환한다. stop() 이 이미 finishedAt/durationMs 를 포함해
-      // CANCELLED 를 커밋했으면 재개 세그먼트의 stale savedExecution 으로 그 값을
-      // 덮어쓰지 않는다. emit 은 공용 emitCancellationEvent 로 통일해 `cancelledBy`
-      // 계약을 채운다.
-      savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
-      savedExecution.durationMs =
-        savedExecution.durationMs ??
-        savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
-      await this.updateExecutionStatus(
+      // ai-review C4/W3/W12 (2026-07-26) — runExecution catch 와 동일한 종결
+      // 처리를 공유 헬퍼로 위임 ({@link finalizeCancelledExecution} JSDoc 참조).
+      await this.finalizeCancelledExecution(
         savedExecution,
-        ExecutionStatus.CANCELLED,
+        'finalizeResumedExecutionOutcome',
       );
-      await this.emitCancellationEvent(executionId, {
-        cancelledBy: 'user',
-        logContext: 'finalizeResumedExecutionOutcome',
-      });
       return;
     }
     // 재개 세그먼트 종결 — 초기 세그먼트(runExecution catch)와 동일한 FAILED 종결 처리를
@@ -2648,10 +2660,14 @@ export class ExecutionEngineService
    * rehydration 종결 시 in-memory resolver / context / config 캐시 정리.
    * executionId 키만 다룬다 — background 본문의 bgKey resolver/context 는
    * `executeBackgroundSubgraph` finally 가 독립 정리하며 rehydration 경로와 교차하지 않는다.
+   *
+   * ai-review W10 (2026-07-26) — `containerCancelCheckedAtMs` (컨테이너 아이템
+   * 경계 cancel 스로틀 상태) 도 함께 정리해 executionId 별 누수를 막는다.
    */
   private finalizeRehydrationCleanup(executionId: string): void {
     this.contextService.deleteContext(executionId);
     this.clearLlmDefaultConfigCache(executionId);
+    this.containerCancelCheckedAtMs.delete(executionId);
   }
 
   private async markExecutionCancelled(
@@ -4507,34 +4523,11 @@ export class ExecutionEngineService
         return;
       }
 
-      // ai-review C4 (2026-07-26) — §2.3 node-boundary cancel 가드가 관측한 외부
-      // cancel. `stop()` 이 이미 guarded UPDATE 로 finishedAt/durationMs 를 포함해
-      // CANCELLED 를 커밋했으므로(그 행을 assertExecutionNotCancelled 가 읽어 이
-      // 예외를 던졌다), 여기서 무조건 save() 하면 stale in-memory savedExecution 이
-      // 그 값을 늦은 시각으로 덮어써 finishedAt/durationMs 가 부풀려진다. M-3
-      // guarded UPDATE(`updateExecutionStatus`, `status IN (비-terminal)`)로 전환해
-      // 이미 terminal 인 행은 재마킹하지 않는다 — assertExecutionNotCancelled 의
-      // JSDoc(§2.3) 이 주장하는 "stop 이 쓴 finishedAt/durationMs 가 보존된다" 가
-      // 실제로 성립하도록 한다. 값은 방어적으로 채워 둔다(레이스로 이 catch 가
-      // 최초 관측자가 되는 극단 케이스 대비 — 그 경우에만 실제로 영속된다).
-      // emit 은 `stop()` 이 RUNNING/PENDING 경로에서 이벤트를 쏘지 않으므로(WAITING
-      // 경로만 cancelParkedExecution 이 emit) 여기가 유일한 알림 지점 —
-      // updateExecutionStatus 의 no-op 여부와 무관하게 항상 발행한다. W3 — 공용
-      // emitCancellationEvent 로 통일해 `cancelledBy` 계약을 채운다.
+      // ai-review C4/W12 (2026-07-26) — §2.3 node-boundary cancel 가드가 관측한
+      // 외부 cancel. 재개 세그먼트(finalizeResumedExecutionOutcome)와 동일한 종결
+      // 처리를 공유 헬퍼로 위임 ({@link finalizeCancelledExecution} JSDoc 참조).
       if (err instanceof ExecutionCancelledError) {
-        savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
-        savedExecution.durationMs =
-          savedExecution.durationMs ??
-          savedExecution.finishedAt.getTime() -
-            savedExecution.startedAt.getTime();
-        await this.updateExecutionStatus(
-          savedExecution,
-          ExecutionStatus.CANCELLED,
-        );
-        await this.emitCancellationEvent(executionId, {
-          cancelledBy: 'user',
-          logContext: 'runExecution',
-        });
+        await this.finalizeCancelledExecution(savedExecution, 'runExecution');
         return;
       }
 
@@ -4544,9 +4537,47 @@ export class ExecutionEngineService
     } finally {
       // exec-park D6 full B3 — park 가 세그먼트를 종료하므로 firstSegmentBarriers /
       // pendingContinuations 정리가 불필요하다. in-memory context / llm 캐시만 정리.
+      // ai-review W10 (2026-07-26) — containerCancelCheckedAtMs(컨테이너 아이템
+      // 경계 cancel 스로틀 상태) 도 함께 정리해 executionId 별 누수를 막는다.
       this.contextService.deleteContext(executionId);
       this.clearLlmDefaultConfigCache(executionId);
+      this.containerCancelCheckedAtMs.delete(executionId);
     }
+  }
+
+  /**
+   * top-level 실행을 CANCELLED 로 종결하는 공통 처리. **초기 세그먼트**(`runExecution` catch)와
+   * **재개 세그먼트**(`finalizeResumedExecutionOutcome`)가 공유한다 (ai-review W12, 2026-07-26).
+   *
+   * `stop()` 이 이미 guarded UPDATE(M-3)로 `finishedAt`/`durationMs` 를 포함해 CANCELLED 를
+   * 커밋했을 수 있으므로(그 행을 `assertExecutionNotCancelled` 가 읽어 `ExecutionCancelledError`
+   * 를 던졌다), 여기서 무조건 `save()` 하면 stale in-memory `savedExecution` 이 그 값을 늦은
+   * 시각으로 덮어써 `finishedAt`/`durationMs` 가 부풀려진다. `updateExecutionStatus`(guarded
+   * UPDATE, `status IN (비-terminal)`)로 전환해 이미 terminal 인 행은 재마킹하지 않는다 —
+   * `assertExecutionNotCancelled` 의 JSDoc(§2.3)이 주장하는 "stop 이 쓴 finishedAt/durationMs 가
+   * 보존된다"가 실제로 성립하도록 한다. 값은 방어적으로 채워 둔다(레이스로 이 catch 가 최초
+   * 관측자가 되는 극단 케이스 대비 — 그 경우에만 실제로 영속된다).
+   *
+   * emit 은 반환값과 무관하게 항상 발행한다 — `stop()` 이 RUNNING/PENDING 경로에서는 이벤트를
+   * 쏘지 않으므로(WAITING 경로만 `cancelParkedExecution` 이 emit) 이 헬퍼가 유일한 알림 지점인
+   * 경우가 있다. `emitCancellationEvent` 로 통일해 `cancelledBy` 계약(W3)을 채운다.
+   *
+   * @param logContext — 호출자 식별용 (`emitCancellationEvent` 로그 태그). 두 호출자가 다른 값을
+   *   전달하는 유일한 파라미터라 헬퍼 추출 전에는 이 한 값 차이 때문에 8줄 블록이 손으로 복제됐다.
+   */
+  private async finalizeCancelledExecution(
+    savedExecution: Execution,
+    logContext: string,
+  ): Promise<void> {
+    savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
+    savedExecution.durationMs =
+      savedExecution.durationMs ??
+      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+    await this.updateExecutionStatus(savedExecution, ExecutionStatus.CANCELLED);
+    await this.emitCancellationEvent(savedExecution.id, {
+      cancelledBy: 'user',
+      logContext,
+    });
   }
 
   /**
@@ -6472,12 +6503,16 @@ export class ExecutionEngineService
 
     // ai-review C3 (2026-07-26) — §2.3 컨테이너 범위 확장. ForEach/Loop/Map 은
     // 매 iteration 마다 이 함수를 호출하므로(내부 노드 루프가 아니라 여기서 한 번만
-    // 체크), 노드 경계마다가 아니라 **아이템 경계마다** cancel 을 관측한다 — 대량
-    // 아이템 반복에 폴링 비용이 곱해지지 않으면서도(SUMMARY INFO 관측과 일치),
+    // 체크), 노드 경계마다가 아니라 **아이템 경계마다** cancel 을 관측한다 —
     // Stop 이후 다음 아이템으로 넘어가지 않는다. ForEachExecutor 의
     // errorPolicy:'skip'|'continue' 가 이 예외를 삼키지 않도록 별도로 재throw
     // 가드했다(foreach-executor.ts).
-    await this.assertExecutionNotCancelled(executionId);
+    // ai-review W10 (2026-07-26) — 위 SUMMARY INFO 관측("폴링 비용이 곱해지지
+    // 않는다")이 실측으로 반증됐다: 입력 배열 길이 상한이 없고 중첩 컨테이너는
+    // 곱셈적이라 이 호출이 그대로면 대량 아이템에서 순차 DB 라운드트립이 누적된다.
+    // `{ throttle: true }` 로 시간 기반 스로틀을 적용 — 상세 트레이드오프는
+    // `assertExecutionNotCancelled` JSDoc 참조.
+    await this.assertExecutionNotCancelled(executionId, { throttle: true });
 
     // Seed reachability: body entry nodes OR (if none via port) children
     // with no incoming internal edge.
@@ -7528,6 +7563,17 @@ export class ExecutionEngineService
         executionMeta,
       );
     } catch (err) {
+      // ai-review W9 (2026-07-26) — §2.3 가 컨테이너 경로(ForEach/Loop/Map)에
+      // `ExecutionCancelledError` 를 처음 실전 발생시켰다. 아래 일반 catch-all
+      // 은 instanceof 분기 없이 컨테이너 NodeExecution 을 FAILED 로 영속하고
+      // 내부 전용 message(executionId 포함)를 실어 NODE_FAILED 를 WS 로 방출
+      // 했었다 — Execution 은 결국 cancelled 로 마감되므로 "실행은 취소인데
+      // 그 안의 컨테이너 노드는 실패" 라는 상태·감사로그 불일치가 발생했다.
+      // C1(workflow.handler)·C3(ForEachExecutor) 와 대칭으로 여기서도 취소를
+      // 우회 재throw 해 FAILED 마킹/NODE_FAILED emit 이전에 차단한다.
+      if (err instanceof ExecutionCancelledError) {
+        throw err;
+      }
       // Container-level failure happens AFTER executeNode has already marked
       // the container as COMPLETED (handler's initial return succeeded). We
       // overwrite that to FAILED with the real error so the UI surfaces the
@@ -7831,11 +7877,13 @@ export class ExecutionEngineService
    * "선형 경로 외부 cancel 전파" describe. e2e 는 노드 A 완주 전에 단언해 이 갭을
    * 관측하지 못했다 — `node-cancellation-propagation.e2e-spec.ts` 참고.)
    *
-   * **비용.** 노드 경계마다 PK 인덱스 SELECT 1건(status 단일 컬럼 — W1: `findOneBy`
+   * **비용.** 노드 경계마다 PK 인덱스 SELECT 1건(id/status 2개 컬럼 — W1: `findOneBy`
    * 는 `select:false` 가 없는 6개 JSONB 컬럼(`input_data`/`output_data`/`error`/
    * `conversation_thread`/`user_variables`/`resume_call_stack`) 을 포함한 전체 row
-   * 를 SELECT 했다. `findOne({select:{status:true}})` 로 컬럼 투영해 실제로
-   * status 한 컬럼만 왕복한다). 같은 경계에서 이미 NodeExecution INSERT +
+   * 를 SELECT 했다. `findOne({select:{id:true,status:true}})` 로 컬럼 투영해 실제로
+   * id/status 2개 컬럼만 왕복한다 — ai-review W13, 2026-07-26: 이전 JSDoc 이 "단일
+   * 컬럼" 이라 서술했으나 `select` 는 `id`/`status` 2개를 명시한다). 같은 경계에서
+   * 이미 NodeExecution INSERT +
    * Execution UPDATE + 이벤트 emit 이 일어나므로 상대 비용은 무시할 만하다.
    * `context.abortSignal` 로 대체할 수 없다 — 그 필드는 `parallel-executor.ts` 가
    * parallel 분기에만 주입해 선형 경로에선 항상 undefined 다.
@@ -7843,14 +7891,37 @@ export class ExecutionEngineService
    * CANCELLED 를 관측하면 `ExecutionCancelledError` 를 throw 해 기존 취소 전파 경로
    * (loop catch → 상위 catch 의 cancelled 마감)에 합류한다. 이미 terminal 인 행을
    * 다시 마킹하지 않으므로 stop 이 쓴 `finishedAt`/`durationMs` 가 보존된다.
+   *
+   * @param opts.throttle — ai-review W10 (2026-07-26). 대량 아이템 반복(ForEach/
+   *   Loop/Map) 은 이 함수가 **아이템 경계마다**(노드 경계가 아니라) 호출되므로,
+   *   아이템 수에 선형 비례하는 순차 DB 라운드트립이 누적된다(입력 배열 길이
+   *   상한 없음 + 중첩 컨테이너는 곱셈적). `{ throttle: true }` 를 전달하면
+   *   {@link CONTAINER_CANCEL_CHECK_THROTTLE_MS} 이내 재호출은 실제 DB 조회를
+   *   생략하고 직전 결과를 재사용한다 — 노드 경계(선형/Parallel 브랜치) 호출부는
+   *   이 옵션을 쓰지 않아 기존과 동일하게 매번 조회한다. 트레이드오프는 위
+   *   {@link CONTAINER_CANCEL_CHECK_THROTTLE_MS} JSDoc 참조.
    */
   private async assertExecutionNotCancelled(
     executionId: string,
+    opts?: { throttle: boolean },
   ): Promise<void> {
+    if (opts?.throttle) {
+      const lastCheckedAt = this.containerCancelCheckedAtMs.get(executionId);
+      if (
+        lastCheckedAt !== undefined &&
+        Date.now() - lastCheckedAt <
+          ExecutionEngineService.CONTAINER_CANCEL_CHECK_THROTTLE_MS
+      ) {
+        return;
+      }
+    }
     const row = await this.executionRepository.findOne({
       where: { id: executionId },
       select: { id: true, status: true },
     });
+    if (opts?.throttle) {
+      this.containerCancelCheckedAtMs.set(executionId, Date.now());
+    }
     if (row?.status !== ExecutionStatus.CANCELLED) return;
     this.logger.log(
       `Execution ${executionId} cancelled externally — halting dispatch at node boundary`,

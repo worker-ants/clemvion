@@ -11,7 +11,7 @@ Stop 버튼(`POST /executions/:id/stop`)이 Execution 행을 `cancelled` 로 UPD
 2. **취소 종결 시 `finishedAt`/`durationMs` 재마킹 방지**: `stop()` 이 이미 정확한 취소 시각을 커밋했는데, 엔진의 두 catch(`runExecution`·`finalizeResumedExecutionOutcome`)가 무조건 `finishedAt` 을 재계산해 늦은 시각으로 덮어쓰고 있었다. guarded UPDATE(이미 terminal 이면 no-op, M-3 규약)로 전환해 stop 이 쓴 값을 보존한다.
 3. **Background 노드 본문의 부모 취소 오분류 수정**: 본문은 부모와 같은 executionId 를 공유해 §2.3 가드가 그대로 적용되는데, `executeBackgroundSubgraph` 의 catch 가 `ExecutionCancelledError` 를 일반 실패로 재throw 해 허위 `background_failed` 알림 + BullMQ 재시도를 유발했다. `ParkReleaseSignal` 과 동일하게 graceful 종료(swallow)하도록 수정.
 4. **`EXECUTION_CANCELLED` emit 계약 통일**: 두 catch 가 공용 헬퍼 `emitCancellationEvent` 를 우회해 `cancelledBy` 필드 없이 emit 하던 것을 통일(`cancelledBy: 'user'`).
-5. **성능**: `assertExecutionNotCancelled` 의 조회가 `findOneBy`(6개 JSONB 컬럼 포함 전체 row) 대신 `status` 단일 컬럼만 투영하도록 변경.
+5. **성능**: `assertExecutionNotCancelled` 의 조회가 `findOneBy`(6개 JSONB 컬럼 포함 전체 row) 대신 `id`/`status` 2개 컬럼만 투영하도록 변경. 컨테이너 아이템 경계 호출부는 이어서 시간 기반 스로틀(200~300ms)까지 추가해 대량 아이템 반복에서의 순차 DB 라운드트립 비용을 낮췄다(ai-review W10).
 
 SoT: `spec/conventions/node-cancellation.md` §2.3/§5.1. 추적: `plan/in-progress/node-cancellation-residual-signal-propagation.md`.
 

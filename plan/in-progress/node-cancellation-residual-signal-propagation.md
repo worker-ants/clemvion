@@ -115,6 +115,79 @@ priority: P3
   > 의 **"추가 위임 (2026-07-26 #6)"** 절에 제안을 남겼다(이 항목의 spec 반영은 아직
   > 미이행 — planner 턴 대기).
 
+  > **후속 2 — `review/code/2026/07/26/12_55_55` (2026-07-26, 검증 라운드)**: 위 확장이
+  > 여전히 남겨둔 결함 1건(CRITICAL) + 산출 품질 갭 다수를 처리했다.
+  >
+  > - **C5 — `ParallelExecutor` `errorPolicy:'continue'` 가 취소를 흡수**: C3 가
+  >   ForEach/Loop 에 준 재throw 가드와 구조적으로 동일한 결함이 Parallel 콤비네이터에
+  >   남아 있었다. `errorPolicy` 분기 **이전에** `ExecutionCancelledError` 우회 재throw
+  >   추가(`parallel-executor.ts`) + `parallel-executor.spec.ts` 대칭 회귀 테스트
+  >   (`stop`/`continue`/`cancel-others-on-fail` 3정책 × 단독/co-occurring 실패 2케이스).
+  > - **W9 — `runContainer` catch-all 이 취소를 일반 실패로 오분류**: 컨테이너 자신의
+  >   `NodeExecution` 을 FAILED 로 영속 + `NODE_FAILED` WS emit 하던 것을, C1/C3 와
+  >   대칭으로 `instanceof ExecutionCancelledError` 우회 재throw 로 차단. 회귀 테스트가
+  >   `nodeExecutionRepository.save`/`emitNode` 인자를 직접 단언.
+  > - **W10 — 아이템 경계 가드 비용**: "폴링 비용이 곱해지지 않는다" 던 원 SUMMARY INFO
+  >   관측이 실측으로 반증됐다(입력 배열 길이 상한 없음 + 중첩 컨테이너 곱셈적). 시간
+  >   기반 스로틀(200~300ms 권장, 실채택 250ms)을 `executeContainerBody` 호출부에만
+  >   도입 — 선형/Parallel 브랜치의 **노드 경계** 호출은 여전히 매번 실제 조회한다.
+  >   트레이드오프는 아래 별도 절 참조.
+  > - **W11** — C4 배선(옛 raw `save()` → guarded `updateExecutionStatus`) 에 대한
+  >   회귀 테스트 부재를 closed — guarded UPDATE 0행(이미 terminal) 시뮬레이션으로
+  >   stale `finishedAt`/`durationMs` 미재저장을 단언.
+  > - **W12** — 두 catch 의 취소 종결 8줄 블록을 `finalizeCancelledExecution` 헬퍼로 추출.
+  > - **W13** — JSDoc/CHANGELOG 의 "status 단일 컬럼" 표현을 실제 `select`(id/status
+  >   2컬럼)에 맞게 정정.
+  >
+  > **범위 밖으로 남긴 것(백로그, 아래 참조)**: `runParallel` 이 `ParallelResult.failures`
+  > 를 전혀 소비하지 않는 별개 결함, `errorPolicy:'stop'` 의 `failures[0]` 우선순위 레이스.
+
+### 백로그 — 이번 라운드 범위 밖으로 명시적으로 남긴 항목 (2026-07-26)
+
+- **`runParallel` 이 `ParallelResult.failures` 를 읽지 않는다**
+  (`execution-engine.service.ts` `runParallel`, `containers/parallel-executor.ts`
+  `ParallelResult.failures`). `errorPolicy:'continue'` 로 브랜치 일부가 실패해도
+  호출부가 `failures[]` 를 저장소 전체에서 한 번도 참조하지 않아, Parallel 노드가
+  거짓 `done` 포트로 종결되고 출력이 오염될 수 있다. Parallel 이 그래프 최종 노드인
+  흔한 패턴에서는 이후 가드 호출 자체가 없어 완전히 유실된다. C5(취소 우회 재throw)로
+  **취소 경로만** 닫았고, 이 실패-소비 갭 자체는 별도 이슈다 — `meta.skippedCount`/
+  `meta.iterations` 처럼 `failures`/`skippedCount` 를 Parallel 노드 output/meta 로
+  표면화하는 작업이 필요.
+- **`ParallelExecutor` `errorPolicy:'stop'` 의 `failures[0]` 우선순위 레이스**
+  (`parallel-executor.ts:277` 부근). `branchIndex` 순서로 첫 실패를 채택하는데,
+  취소와 진짜 실패가 다른 브랜치에서 동시 발생하면 어느 쪽이 `failures[0]` 이 되는지가
+  완료 순서에 좌우돼 `cancelled`/`failed` 오분류 가능(좁은 레이스). `cancel-others-on-fail`
+  은 이미 root-cause 우선 로직(`error.name !== 'AbortError'` 필터)이 있어 무해하지만
+  `stop` 에는 없다. 현재 근거상 발생 빈도가 낮아(취소·실패 동시 도착) 승급 보류 —
+  실제 오분류가 관측되면 `stop` 에도 root-cause 우선 선택을 추가.
+
+### 트레이드오프 — 아이템 경계 cancel 가드 스로틀 (W10, 2026-07-26)
+
+`assertExecutionNotCancelled` 의 컨테이너 아이템-경계 호출부(`executeContainerBody`)에
+시간 기반 스로틀(`{ throttle: true }`, `CONTAINER_CANCEL_CHECK_THROTTLE_MS = 250`)을
+도입했다.
+
+- **문제**: ForEach/Loop/Map 은 입력 배열 길이 상한이 없고(`MAX_NODE_ITERATIONS` 와 무관),
+  executor 가 `itemContext` 공유 mutate 때문에 순차 실행이라 아이템마다 PK SELECT 1건이
+  그대로 누적된다. 1만 건이면 이 가드만으로 약 10~30초 직렬 추가 지연. 중첩 컨테이너는
+  곱셈적(100×100=10,100회).
+- **선택**: 노드 경계(선형 dispatch loop·Parallel 브랜치)는 매번 실제 조회를 유지하고,
+  아이템 경계만 250ms 스로틀 — 스로틀 창 안의 반복 호출은 직전 결과(미취소)를 재사용해
+  DB 라운드트립을 생략한다.
+- **왜 무해한가**: `spec/conventions/node-cancellation.md` §5(`AbortError` 분류)가 전제하는
+  취소 전파는 애초에 **best-effort** 계약이다 — 노드 경계(선형/Parallel) 관측 지연은
+  이 변경으로 늘지 않고, 아이템 경계만 최대 250ms 늦게 관측될 수 있다. Stop 버튼 클릭 후
+  수백 ms 이내에 다음 아이템 dispatch 가 멈추는 정도는 사용자 체감상 무해하다고 판단.
+- **상태 관리**: `executionId` → 마지막 실제 조회 시각(ms)을 담는 in-memory Map
+  (`containerCancelCheckedAtMs`, `segmentStartMs` 와 동일 패턴). **누수 방지**: execution
+  종료 지점(`finalizeRehydrationCleanup`, `runExecution` catch/finally)에서 매번 delete —
+  일부는 진짜 terminal 이 아니라 세그먼트 경계(재개 직전)에서도 지워지지만, 그 경우
+  다음 세그먼트의 첫 호출이 스로틀 baseline 을 다시 세울 뿐이라 correctness 에 영향 없다
+  (스로틀은 순수 최적화이지 정합성 메커니즘이 아니다).
+- **대안으로 기각한 것**: "N회마다 1회" 카운트 기반 스로틀은 아이템 실행 시간이 들쭉날쭉할 때
+  (예: 느린 body 노드) 오히려 지연 편차가 커진다 — 시간 기반이 취소 관측 지연의 상한을
+  더 예측 가능하게 만든다.
+
 ### 해당 없음 (추적 대상 아님)
 
 - **MongoDB driver `signal` 전달** — 현 DB 노드는 pg/mysql 만 지원하고 **mongo 미도입**이다.
