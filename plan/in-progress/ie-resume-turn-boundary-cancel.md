@@ -122,6 +122,24 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
       없음). SPEC-DRIFT 1건은 이미 위임된 `spec-update-node-cancellation-shutdown-classification.md`
       #7(보강 8번)로 흡수(추가 조치 없음, 단 `EngineDriver` 멤버 수 목표를 신규 메서드 반영해
       15/10 으로 재갱신). TEST WORKFLOW 재통과. 상세: `RESOLUTION.md` 참조.
+- [x] `/ai-review` + Critical·Warning 해소 (4차 라운드, 수렴 라운드) — 2026-07-26
+      `review/code/2026/07/26/23_05_48` (Critical 0 / Warning 6). 발견의 성격이 동작 결함에서
+      구조·문서·테스트 완결성으로 완전히 이동해 이번 라운드로 코드 변경을 수렴한다. WARNING
+      #6(`applied`→`shouldProceed` rename 미전파 6곳: JSDoc `@throws` 4곳 + 테스트 주석 2곳)
+      전부 정정. WARNING #5(phase 문자열 단언 잔여 2곳: 첫 turn park·retry-last-turn RUNNING
+      재claim)에 나머지 소비처와 동일하게 phase 정규식 단언 추가. WARNING #4(`assert*` 명명
+      계약 불일치 — non-throwing/bool 반환 메서드가 throw 관례 접두를 씀, 이 PR 이 고친
+      CRITICAL과 동형의 실수 유발 가능)를 `assertActiveExecutionAndSaveNodeExec` →
+      `tryLockActiveExecutionAndSaveNodeExec` 로 개명(인터페이스·구현·호출부·테스트 전부
+      동반 갱신, 멤버 수는 불변 15/10 — rename-only). WARNING #1(FOR UPDATE 잠금 조회가
+      `assertActiveExecutionAndSaveNodeExec`/`updateExecutionStatus` 의 `linkedNodeExec`
+      분기 두 곳에 복제)을 `lockNonTerminalExecutionRow(manager, executionId): Promise<boolean>`
+      private 헬퍼로 추출해 잠금 조회만 공유(각 호출부의 save 절차·조기 return 은 독립 유지) —
+      기존 mutation 커버리지(양쪽 describe 의 조기 return/FOR UPDATE/비-terminal 조건 각각
+      제거 시 RED)가 추출 후에도 양쪽에서 독립적으로 재현됨을 확인. WARNING #2(WS emit 순서
+      갭)·#3(public 표면 확대)은 아래 "4차 라운드 추가 후속" 절에 재확인 서술만 갱신(코드
+      변경 없음). TEST WORKFLOW 재통과(lint/unit: backend 412 suite·8302 passed/build/
+      e2e: 260 passed). 상세: `RESOLUTION.md` 참조.
 
 ## impl-prep 결과 (2026-07-26)
 
@@ -199,6 +217,41 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   변경이나, concrete 클래스 직접 참조 코드가 DI 계약(`ENGINE_DRIVER` 경유, 턴/노드 경계에서만
   호출)을 우회할 잠재 경로가 생긴다. 조치 불요(설계 의도) — 후속 form/button PR 이
   `ENGINE_DRIVER` 토큰 경유가 아닌 직접 참조를 추가하지 않는지 리뷰 시 확인.
+
+### 4차 라운드 추가 후속 (ai-review `review/code/2026/07/26/23_05_48`, Critical 0 — 수렴 라운드)
+
+4차 라운드는 WARNING #1(FOR UPDATE 잠금 조회 중복)·#4(`assert*` 명명 계약 불일치)·#5(phase
+문자열 단언 잔여)·#6(rename 미전파)를 코드/테스트로 닫았다(RESOLUTION.md 참조). 이번 라운드도
+"발견의 성격이 동작 결함 → 구조·문서·테스트 완결성"으로 완전히 이동했다고 판단해 코드 변경을
+수렴하고, 아래 2건은 재확인 서술만 갱신한다 — **코드 변경 없음**.
+
+- **WS 이벤트 emit 순서 갭 (ai-review WARNING #2, 4차 재확인)** — 3차 라운드 서술(위
+  "3차 라운드 추가 후속" 참조)과 동일한 갭이 4차 라운드에서도 재확인됐다. 위치·닫는 방법·
+  확인 필요 사항 변동 없음 — 이 plan 이 완료 이동될 때까지 반복 재확인만 되고 있으므로, 후속
+  PR 착수 우선순위를 이 항목에 실질적으로 부여할 것을 권고(4라운드 연속 발견 = 낮은 우선순위가
+  아니라 "누적 미착수"에 가깝다).
+- **public 표면 확대 (ai-review WARNING #3, 4차 재확인)** — 3차 라운드와 동일한 소견, 개명(W4)
+  으로 위치만 갱신: `execution-engine.service.ts:4586`(`markNodeCancelled`)`,7996`
+  (`assertExecutionNotCancelled`)`,8089`(`tryLockActiveExecutionAndSaveNodeExec`, 이전
+  `assertActiveExecutionAndSaveNodeExec:8049`에서 개명+이동) / `engine-driver.interface.ts:137,164,193`
+  (이전 `134,161,183`). 조치 불요(설계 의도) — 확인 필요 사항 동일.
+- **`EngineDriver` JSDoc 멤버 수 하드코딩이 매 라운드 stale 화 (ai-review INFO #6)** —
+  `engine-driver.interface.ts:36-44` 의 "현재 멤버 수" 문구가 이번 PR 안에서만 세 번째로
+  갱신 대상이 됐다(12/7→14/9→15/10, 4차 라운드는 rename-only 라 수치 불변이나 문구는 다시
+  손을 댔다). 후속: 정확한 수치 나열 대신 "갱신 절차"(예: "PR 병합 전 `grep -c` 로 실측 후
+  갱신, 값 자체는 여기 하드코딩하지 않는다")로 대체하는 리팩터 검토.
+- **`recordRunningSegmentStart`(진입) vs `segmentStartMs` 정리(이탈)의 가드 비대칭 (ai-review
+  INFO #8)** — 진입은 `persisted` 확인 후에만 기록되도록 WARNING #9(3차 라운드)로 고쳤으나,
+  이탈 쪽 정리(`execution-engine.service.ts` 현재 `updateExecutionStatus` 본문, 두 분기의
+  RUNNING 이탈 시각 합산 블록)는 트랜잭션 결과와 무관하게 먼저 실행된다. DB 오염 없음(in-memory
+  카운터만 비대칭) — 후속: 일관성을 위해 이탈 쪽도 `persisted` 확인 이후로 이동하는 리팩터 검토
+  (우선순위 낮음, 필수 아님).
+- **`markNodeCancelled` 비원자 save 로 인한 크래시 창 (ai-review INFO #2, 3차 라운드부터 반복
+  확인)** — 짝 `NodeExecution` 의 terminal 마킹(`markNodeCancelled`)이 Execution 을 판정한
+  `FOR UPDATE` 트랜잭션과 분리된 별도 save 라, 트랜잭션 커밋~`markNodeCancelled` 완료 사이
+  크래시 시 `NodeExecution` 이 비-terminal 로 좁게 잔류할 수 있다(저위험, 신규 아님). 후속:
+  stalled-job recovery 백스탑이 이 케이스(NodeExecution=RUNNING, Execution=CANCELLED)를
+  커버하는지 확인 — 우선순위 낮음.
 
 ## ⚠️ 이 plan 을 `plan/complete/` 로 이동할 때 (ai-review WARNING #8, 2026-07-26)
 

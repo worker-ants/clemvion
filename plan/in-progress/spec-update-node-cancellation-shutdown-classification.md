@@ -393,14 +393,17 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
    생산자만 다루므로 이 두 번째 생산자가 누락된다.
 8. **`EngineDriver` 멤버 수 invariant 정정** — `execution-engine.md ## Rationale` §C-1 이
    기록한 "12 distinct 멤버 / `AiTurnEngineDriver` 7멤버" 가 이번 PR 의 신규 3개
-   (`assertExecutionNotCancelled`, `markNodeCancelled`, `assertActiveExecutionAndSaveNodeExec`)
-   로 **distinct 15 / AiTurn 10** 이 됐다. (main 이 인터페이스 파일에서 실측: Core 2 +
-   Interaction 1 + Reentry 1 + AiTurn 자체 6 + Retry 자체 5 = 15, AiTurn 합계 = 2+1+1+6 = 10.)
-   `assertActiveExecutionAndSaveNodeExec` 는 ai-review WARNING #1(2026-07-26 3차 라운드)
-   fix 로 `finalizeAiNode` RUNNING 유지 분기의 관측+save 를 형제 분기(`updateExecutionStatus`
-   의 linkedNodeExec 분기, FOR UPDATE)와 동일하게 원자화하며 추가됐다 — **이전 라운드가
-   위임한 14/9 목표가 이번 라운드에 다시 15/10 으로 갱신됐다**(같은 항목이 두 라운드 연속
-   갱신되는 것을 막기 위해, spec 반영 시점에 코드 실측치를 다시 한 번 확인할 것). 코드 쪽
-   docstring 은 본 라운드에서 `engine-driver.interface.ts` 를 직접 정정했으므로, spec
-   Rationale 만 같은 수치로 맞추면 된다 — **코드 15 vs spec 12 로 갈라지지 않게 같은 턴에
-   처리할 것**.
+   (`assertExecutionNotCancelled`, `markNodeCancelled`, `assertActiveExecutionAndSaveNodeExec`
+   — **4차 라운드에 `tryLockActiveExecutionAndSaveNodeExec` 로 개명, rename-only 이라 멤버
+   수는 불변**)로 **distinct 15 / AiTurn 10** 이 됐다. (main 이 인터페이스 파일에서 실측:
+   Core 2 + Interaction 1 + Reentry 1 + AiTurn 자체 6 + Retry 자체 5 = 15, AiTurn 합계 =
+   2+1+1+6 = 10.) `tryLockActiveExecutionAndSaveNodeExec`(구 `assertActiveExecutionAndSaveNodeExec`)
+   는 ai-review WARNING #1(2026-07-26 3차 라운드) fix 로 `finalizeAiNode` RUNNING 유지
+   분기의 관측+save 를 형제 분기(`updateExecutionStatus` 의 linkedNodeExec 분기, FOR UPDATE)
+   와 동일하게 원자화하며 추가됐다 — **이전 라운드가 위임한 14/9 목표가 이번 라운드에 다시
+   15/10 으로 갱신됐다**(같은 항목이 두 라운드 연속 갱신되는 것을 막기 위해, spec 반영 시점에
+   코드 실측치를 다시 한 번 확인할 것). 코드 쪽 docstring 은 본 라운드에서
+   `engine-driver.interface.ts` 를 직접 정정했으므로, spec Rationale 만 같은 수치로 맞추면
+   된다 — **코드 15 vs spec 12 로 갈라지지 않게 같은 턴에 처리할 것**. spec 반영 시
+   메서드명은 **개명 후 이름(`tryLockActiveExecutionAndSaveNodeExec`)으로 기록**할 것 —
+   4차 라운드 rename 이 코드에 이미 반영돼 있다.
