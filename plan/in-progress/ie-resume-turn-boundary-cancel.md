@@ -140,6 +140,31 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
       갭)·#3(public 표면 확대)은 아래 "4차 라운드 추가 후속" 절에 재확인 서술만 갱신(코드
       변경 없음). TEST WORKFLOW 재통과(lint/unit: backend 412 suite·8302 passed/build/
       e2e: 260 passed). 상세: `RESOLUTION.md` 참조.
+- [x] `/ai-review` + Critical·Warning 해소 (5차 라운드, **파일 전수 리뷰**) — 2026-07-27
+      `review/code/2026/07/27/00_00_47` (Critical 2 / Warning 6). 직전 4개 라운드가
+      증분 changeset 만 봤던 것과 달리 이번은 `--route=all` + 파일 명시 전수 리뷰라,
+      이 PR 이 이미 4곳에서 닫은 "동시 Stop 취소 소실" 실패 계층이 남은 두 자리
+      (신규 진입점 하나 + 손대지 않은 형제 분기 하나)에서 재발한 것이 드러났다.
+      **CRITICAL #1** — `handleAiMessageTurn` 최상단 turn 경계 가드
+      (`assertExecutionNotCancelled`, node-cancellation §2.3 로 이 PR 이 신규 도입)가
+      곧장 throw 해 통일 계약(`assertLinkedTransitionApplied`)을 우회 → 짝
+      NodeExecution 영구 RUNNING 고아. 다섯 번째 소비처로 통일해 해소.
+      **CRITICAL #2** — `finalizeAiNode` 의 `isFailed` 분기(형제 COMPLETED 분기는
+      이미 가드됨)가 무가드라, LLM 호출 도중 Stop → CANCELLED 이후 그 호출이
+      자연 실패(429/timeout)하면 CANCELLED 를 FAILED 로 덮어쓰는 lost-update 재발 →
+      동일 가드(`tryLockActiveExecutionAndSaveNodeExec`) 재사용으로 해소. WARNING
+      #1(database, `cancelParkedExecution` 이중 UPDATE 비원자 — `markWebChatIdleTimeout`
+      선례와 동일하게 트랜잭션 원자화), #4(architecture/documentation, 클래스 docblock
+      정적 줄 수 stale — 하드코딩 수치 제거 + plan 포인터로 대체), #5(documentation,
+      테스트 주석 하드코딩 줄 번호 2곳 — describe 이름 인용으로 교체) 코드/테스트로 해소.
+      WARNING #2(form/button 미소비)·#3(`handleAiMessageTurn` 과다 길이 + payload 중복)·
+      #6(FOR UPDATE 비용)은 이미 위 "3차/4차 라운드 추가 후속" 절에 등재된 항목의
+      재확인이거나 신규 저위험 항목이라 코드 변경 없이 아래 "5차 라운드 추가 후속"
+      절에만 등재. SPEC-DRIFT 2건은 신규 조치 없음 — 이미
+      `spec-update-node-cancellation-shutdown-classification.md` #7 로 위임 완료,
+      `spec/` 수정 금지 유지. TEST WORKFLOW 재통과(lint/unit/build 통과 — unit: backend
+      execution-engine.service.spec.ts 430 passed·ai-turn-orchestrator.service.spec.ts
+      86 passed 확인·전체 unit 스테이지 PASS, e2e: 260 passed). 상세: `RESOLUTION.md` 참조.
 
 ## impl-prep 결과 (2026-07-26)
 
@@ -252,6 +277,30 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   크래시 시 `NodeExecution` 이 비-terminal 로 좁게 잔류할 수 있다(저위험, 신규 아님). 후속:
   stalled-job recovery 백스탑이 이 케이스(NodeExecution=RUNNING, Execution=CANCELLED)를
   커버하는지 확인 — 우선순위 낮음.
+
+### 5차 라운드 추가 후속 (ai-review `review/code/2026/07/27/00_00_47`, 파일 전수 리뷰 — Critical 2 해소, Warning 3건 코드 변경 없음)
+
+5차 라운드는 CRITICAL #1(turn 경계 가드 우회)·#2(FAILED 경로 무가드)·WARNING #1(database,
+`cancelParkedExecution` 비원자)·#4(architecture/documentation, docblock stale)·#5
+(documentation, 테스트 줄 번호 stale)를 코드/테스트로 닫았다(RESOLUTION.md 참조). 아래
+3건은 지시에 따라 **코드 변경 없이** 이 절에만 등재한다.
+
+- **form/button 경로 미소비 (ai-review WARNING #2, 5차 재확인)** — 위 최초 "후속 (본 PR
+  밖)" 절의 "form/button 경로 미소비" 항목과 동일 소견의 재확인(2026-07-26 최초 등재 이후
+  5차 라운드에서 두 번째로 재발견). 위치·영향·닫는 방법 변동 없음 — `form-interaction
+  .service.ts:110,325`, `button-interaction.service.ts:395,567`.
+- **`handleAiMessageTurn` 과다 길이 + `AI_MESSAGE` payload 중복 (ai-review WARNING #3,
+  신규)** — `ai-turn-orchestrator.service.ts` `handleAiMessageTurn` 이 6가지 책임을 한
+  함수(약 375줄)에 담으며, waiting/terminal 두 분기의 `AI_MESSAGE` emit 페이로드 구성
+  로직이 거의 동일하게 중복된다(한쪽만 수정하고 다른 쪽을 놓칠 회귀 위험). 후속: 두 분기를
+  각각 private 헬퍼로 분리하고 공통 페이로드 빌더를 단일 헬퍼로 추출.
+- **AI turn 정상 종료 경로 트랜잭션/FOR UPDATE 비용 (ai-review WARNING #6, 신규)** —
+  `tryLockActiveExecutionAndSaveNodeExec`(3차 라운드에서 RUNNING 유지 분기에 도입, 5차
+  라운드에서 isFailed 분기도 공유하도록 확장)가 AI turn 종료의 주 경로에 트랜잭션 +
+  단일 행 FOR UPDATE 잠금을 추가했다 — PK 인덱스 단일 행 잠금이라 절대 비용은 작으나
+  누적 빈도가 높은 경로. 우선순위 낮음 — race 를 닫기 위한 의도된 트레이드오프(WARNING
+  #1 원자화의 자연스러운 귀결). 필요 시 "조건부 UPDATE...RETURNING" 단일 statement 로
+  합쳐 라운드트립 절감 검토.
 
 ## ⚠️ 이 plan 을 `plan/complete/` 로 이동할 때 (ai-review WARNING #8, 2026-07-26)
 
