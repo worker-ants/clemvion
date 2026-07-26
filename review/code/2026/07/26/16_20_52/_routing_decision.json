@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-26T16:21:20+09:00",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced"},
+    {"name": "performance", "selected": false, "reason": "순수 블록 이동 + 테스트 단언 2줄, 성능 표면 무변화"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계 변경 없음"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced — W26 수렴 제기자"},
+    {"name": "scope", "selected": true, "reason": "agents_forced — 이동이 정말 순수 이동인지"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced — W26 제기자"},
+    {"name": "testing", "selected": true, "reason": "agents_forced — W27 제기자, 신규 단언 결속 확인"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced — W26 제기자, JSDoc 재인접 확인"},
+    {"name": "dependency", "selected": false, "reason": "의존성 변경 없음"},
+    {"name": "database", "selected": false, "reason": "쿼리 변경 없음"},
+    {"name": "concurrency", "selected": false, "reason": "동시성 표면 무변화"},
+    {"name": "api_contract", "selected": false, "reason": "HTTP 계약 변경 없음"},
+    {"name": "user_guide_sync", "selected": false, "reason": "doc-sync-matrix trigger 아님"}
+  ],
+  "selected_count": 7,
+  "skipped_count": 7,
+  "forced": ["documentation", "maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+}

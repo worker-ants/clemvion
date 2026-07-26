@@ -1,6 +1,7 @@
 import { ForEachExecutor } from './foreach-executor';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { ExecutionCancelledError } from '../workflow-errors';
 
 describe('ForEachExecutor', () => {
   let executor: ForEachExecutor;
@@ -165,4 +166,38 @@ describe('ForEachExecutor', () => {
     ).rejects.toThrow('boom');
     expect(context.itemContext).toEqual(outer);
   });
+
+  // ai-review C3 (2026-07-26) — 엔진의 §2.3 iteration-boundary 가드
+  // (`executeContainerBody`)가 외부 cancel 관측 시 던지는 `ExecutionCancelledError`
+  // 는 `errorPolicy` 와 무관하게 즉시 전파돼야 한다. default('stop')는 기존
+  // switch 로도 재throw 되지만, 'skip'/'continue' 는 원래 이 클래스의 에러를
+  // "아이템 실패"로 흡수해 다음 아이템으로 계속 진행한다 — 취소를 그렇게 삼키면
+  // 안 된다(다음 아이템도 즉시 재실패하는 no-op 반복 + skipped[] 오염).
+  describe.each(['stop', 'skip', 'continue'] as const)(
+    'ExecutionCancelledError bypasses errorPolicy = %s',
+    (policy) => {
+      it(`re-throws immediately and does not run remaining items (${policy})`, async () => {
+        const seen: unknown[] = [];
+        await expect(
+          executor.execute(
+            { array: [1, 2, 3], errorPolicy: policy, collectResults: true },
+            context,
+            async (item) => {
+              seen.push(item);
+              if (item === 1) {
+                throw new ExecutionCancelledError(
+                  'Execution exec-1 cancelled externally',
+                );
+              }
+              return item;
+            },
+          ),
+        ).rejects.toBeInstanceOf(ExecutionCancelledError);
+        // 아이템 1(첫 아이템)만 시도되고, 남은 아이템(2, 3)은 절대 dispatch 되지
+        // 않는다 — errorPolicy 가 'skip'/'continue' 여도 흡수해 다음으로 넘어가지
+        // 않는다.
+        expect(seen).toEqual([1]);
+      });
+    },
+  );
 });

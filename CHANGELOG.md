@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — 외부 cancel(Stop) 후에도 하류 노드 dispatch·부수효과가 계속되던 결함 수정
+
+Stop 버튼(`POST /executions/:id/stop`)이 Execution 행을 `cancelled` 로 UPDATE 할 뿐 돌고 있는 노드 순회 루프엔 아무 신호도 보내지 않았다(AbortController·job cancel 없음) — 그 결과 취소 후에도 하류 노드가 계속 dispatch 되어 이메일 발송·HTTP POST·DB 쓰기 등 부수효과가 이어졌다.
+
+1. **노드 경계 cancel 가드 도입(§2.3)**: `assertExecutionNotCancelled()` 가 노드 사이마다 Execution 행을 다시 읽어 외부 cancel 을 관측하고 `ExecutionCancelledError` 로 dispatch 를 중단한다. 최초엔 `runExecution`/`runNodeDispatchLoop`/`executeInline` 세 순회 루프에만 배치됐으나, 이어진 리뷰에서 드러난 갭 세 가지를 함께 닫았다:
+   - **`executeInline` 가드가 무력화되던 결함**: 유일한 호출자 `WorkflowHandler` 의 catch 가 `ExecutionCancelledError` 를 삼켜 error 포트 출력으로 변환해(취소가 `SUB_WORKFLOW_FAILED` 로 오분류 + 하류 1홉 재개), `ParkReleaseSignal` 과 대칭으로 재throw 하도록 수정.
+   - **컨테이너/Parallel 본문은 가드 범위 밖**이라 ForEach/Loop/Map·Parallel 브랜치 안에서는 Stop 이후에도 부수효과가 계속됐다 — `executeContainerBody`(아이템 경계마다)·`executeParallelBranchBody`(노드 경계마다)에 가드를 확장하고, `ForEachExecutor` 의 `errorPolicy:'skip'|'continue'` 가 취소를 "아이템 실패" 로 삼키지 않도록 재throw 가드를 추가했다.
+   - **회귀 테스트 커버리지 0(mutation 실측)**: 가드 3곳 중 `runNodeDispatchLoop`/`executeInline` 은 가드를 제거해도 GREEN 이었다 — 두 경로 각각에 "하류 노드 미도달" 단위 테스트를 추가했다.
+2. **취소 종결 시 `finishedAt`/`durationMs` 재마킹 방지**: `stop()` 이 이미 정확한 취소 시각을 커밋했는데, 엔진의 두 catch(`runExecution`·`finalizeResumedExecutionOutcome`)가 무조건 `finishedAt` 을 재계산해 늦은 시각으로 덮어쓰고 있었다. guarded UPDATE(이미 terminal 이면 no-op, M-3 규약)로 전환해 stop 이 쓴 값을 보존한다.
+3. **Background 노드 본문의 부모 취소 오분류 수정**: 본문은 부모와 같은 executionId 를 공유해 §2.3 가드가 그대로 적용되는데, `executeBackgroundSubgraph` 의 catch 가 `ExecutionCancelledError` 를 일반 실패로 재throw 해 허위 `background_failed` 알림 + BullMQ 재시도를 유발했다. `ParkReleaseSignal` 과 동일하게 graceful 종료(swallow)하도록 수정.
+4. **`EXECUTION_CANCELLED` emit 계약 통일**: 두 catch 가 공용 헬퍼 `emitCancellationEvent` 를 우회해 `cancelledBy` 필드 없이 emit 하던 것을 통일(`cancelledBy: 'user'`).
+5. **성능**: `assertExecutionNotCancelled` 의 조회가 `findOneBy`(6개 JSONB 컬럼 포함 전체 row) 대신 `id`/`status` 2개 컬럼만 투영하도록 변경. 컨테이너 아이템 경계 호출부는 이어서 시간 기반 스로틀(200~300ms 권장 범위, 실채택 250ms)까지 추가해 대량 아이템 반복에서의 순차 DB 라운드트립 비용을 낮췄다(ai-review W10).
+
+6. **스로틀 상태 Map 누수 수정(ai-review W14)**: 5번의 컨테이너 스로틀이 쓰는 `containerCancelCheckedAtMs` 는 execution 종료 시 정리되는데, Background 본문은 부모와 executionId 를 공유하면서 fire-and-forget 이라 **부모가 먼저 지운 뒤 다시 등록**돼 영구 잔류했다(싱글턴 서비스 필드 = 무한 성장). `executeBackgroundSubgraph` finally 에 정리를 추가해 정리 지점을 3곳으로 맞췄다.
+7. **Sub-Workflow 노드의 취소 오분류·내부 메시지 노출 수정(ai-review W15)**: `executeNode` 의 범용 catch 가 `ExecutionCancelledError` 를 분류하지 않아, 취소된 Sub-Workflow 노드가 `failed` 로 저장되고 executionId 를 담은 내부 메시지가 `NODE_FAILED` 로 방출됐다. 취소를 별도 분기로 처리해 `cancelled` 로 마감하고 `NODE_CANCELLED` 를 발행한다(내부 메시지는 payload 에 싣지 않는다). 아무것도 하지 않고 재throw 하면 노드가 **영구 `running`** 으로 남아 타임라인이 계속 spinner 로 표시되므로, terminal 이벤트 발행을 함께 보장한다.
+8. **재시도 정책 노드에서 취소가 재시도되던 결함 수정(ai-review 4R)**: `executeWithRetry` 의 재시도 제외 판정이 `isAbortError` 뿐이었는데 `ExecutionCancelledError` 는 `name` 이 `AbortError` 가 아니라 걸리지 않았다 — `errorHandling.policy: 'retry'` 가 붙은 노드에서 Stop 이 최대 3회 재호출 + 백오프(최대 7초) 뒤에야 수렴했다. 취소를 재시도 제외 대상에 추가했다.
+9. **취소 시 `execution.error` 저장 금지(ai-review W16)**: `RetryTurnService.failRetryExecution` 이 WS emit 에서는 취소 시 `error` 를 제외하면서 DB 저장은 무조건 수행해, 내부 메시지가 REST `GET /executions/:id` 로 노출됐다. 두 경로의 정책을 일치시켰다.
+
+SoT: `spec/conventions/node-cancellation.md` §2.3/§5.1. 추적: `plan/in-progress/node-cancellation-residual-signal-propagation.md`.
+
 ## Unreleased — 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
 
 **선행 결함**(이번 변경이 만든 것이 아니다). `applyConfig` 재전송은 `clientRef` 를 새 `apiBase` 로 무조건 교체하는데, iframe-origin sessionStorage 의 저장 세션은 **옛 origin 에서 발급된** 단명 토큰을 들고 있었다. 세션과 엔드포인트의 축이 분리돼 있어, 재전송이 `apiBase` 를 바꾸면 옛 토큰이 새 origin 으로 전송될 수 있었다. 오늘 무해했던 이유는 유일한 재전송 경로(관리자 라이브 미리보기)가 `apiBase` 를 바꾸지 않기 때문일 뿐이다.

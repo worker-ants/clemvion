@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-26T13:48:00+09:00",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced"},
+    {"name": "performance", "selected": true, "reason": "W10 스로틀 도입 — 정확성/비용 트레이드오프 검증"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계 변경 없음"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced + C5 해소 검증"},
+    {"name": "scope", "selected": true, "reason": "agents_forced"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced + W9 해소 검증"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced + W12 헬퍼 추출 검증"},
+    {"name": "testing", "selected": true, "reason": "agents_forced + W11 배선 테스트·mutation 주장 검증"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced + W13 문구 정정 검증"},
+    {"name": "dependency", "selected": false, "reason": "의존성 변경 없음"},
+    {"name": "database", "selected": false, "reason": "직전 라운드 NONE, 쿼리 형태 변화는 스로틀로 감소 방향"},
+    {"name": "concurrency", "selected": true, "reason": "스로틀 Map 상태 도입 + Parallel 재throw — 동시성/누수 검증 필수"},
+    {"name": "api_contract", "selected": false, "reason": "HTTP 계약 변경 없음"},
+    {"name": "user_guide_sync", "selected": false, "reason": "doc-sync-matrix trigger 아님"}
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": ["documentation", "maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+}

@@ -9,6 +9,7 @@ import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import { ErrorCode } from '../../core/error-codes.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 import { ParkReleaseSignal } from '../../../shared/execution-resume/park-release-signal.js';
+import { ExecutionCancelledError } from '../../../modules/execution-engine/workflow-errors.js';
 
 describe('WorkflowHandler', () => {
   let handler: WorkflowHandler;
@@ -724,6 +725,53 @@ describe('WorkflowHandler', () => {
       }
       // buildSubWorkflowError 에 의해 error 포트 객체가 반환되지 않았다.
       expect(result).toBe('caught-park-signal');
+      expect((result as { port?: string } | undefined)?.port).toBeUndefined();
+    });
+  });
+
+  // ai-review C1 (2026-07-26) — executeInline 가드가 무력화되지 않는지 검증.
+  // `ExecutionCancelledError` 가 error 포트로 흡수되면 (a) 하류가 1홉 계속
+  // dispatch 되고 (b) 취소가 SUB_WORKFLOW_FAILED 로 오분류되며 (c) error 엣지가
+  // 없으면 Execution 이 §5.1 을 어기고 failed 로 마감된다. ParkReleaseSignal
+  // 선례와 대칭인 회귀 테스트.
+  describe('execute - ExecutionCancelledError re-throw (§2.3 node-boundary cancel guard)', () => {
+    const syncConfig = {
+      workflowId: 'sub-wf-cancelled',
+      mode: 'sync' as const,
+    };
+
+    it('ExecutionCancelledError 는 error 포트로 라우팅되지 않고 re-throw 된다', async () => {
+      mockExecutor.executeInline.mockRejectedValue(
+        new ExecutionCancelledError(
+          'Execution parent-exec-1 cancelled externally',
+        ),
+      );
+
+      // handler 는 ExecutionCancelledError 를 buildSubWorkflowError 로 변환하지
+      // 않고 그대로 re-throw 해야 한다. 엔진(executeNode → runExecution /
+      // runNodeDispatchLoop)이 이 신호를 받아 Execution 을 cancelled 로 마감한다.
+      await expect(handler.execute({}, syncConfig, context)).rejects.toThrow(
+        ExecutionCancelledError,
+      );
+    });
+
+    it('ExecutionCancelledError 가 throw 되면 error 포트 결과가 반환되지 않는다', async () => {
+      mockExecutor.executeInline.mockRejectedValue(
+        new ExecutionCancelledError(
+          'Execution parent-exec-1 cancelled externally',
+        ),
+      );
+
+      let result: unknown;
+      try {
+        result = await handler.execute({}, syncConfig, context);
+      } catch {
+        // 정상 경로 — re-throw 로 인해 catch 에 도달한다.
+        result = 'caught-cancelled-signal';
+      }
+      // buildSubWorkflowError 에 의해 error 포트 객체(= SUB_WORKFLOW_FAILED 오분류)가
+      // 반환되지 않았다.
+      expect(result).toBe('caught-cancelled-signal');
       expect((result as { port?: string } | undefined)?.port).toBeUndefined();
     });
   });

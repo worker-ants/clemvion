@@ -644,7 +644,14 @@ export class RetryTurnService {
       ? ExecutionStatus.CANCELLED
       : ExecutionStatus.FAILED;
     const errMessage = error instanceof Error ? error.message : String(error);
-    execution.error = { message: errMessage };
+    // ai-review W16 (2026-07-26) — 취소 시 execution.error 를 DB 에 저장하지 않는다.
+    // WS emit 은 이미 `!isCancelled` 일 때만 error 를 포함해 안전한데(아래), DB 저장은
+    // 무조건 이었다 — REST `GET /executions/:id` 로 내부 message 가 노출되고
+    // `finalizeCancelledExecution`(runExecution/재개 경로, 취소 시 error 를 비움)과도
+    // 불일치했다. 같은 판정(isCancelled)을 재사용해 두 경로를 일치시킨다.
+    if (!isCancelled) {
+      execution.error = { message: errMessage };
+    }
     execution.finishedAt = new Date();
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();

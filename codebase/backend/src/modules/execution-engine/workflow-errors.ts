@@ -309,11 +309,23 @@ export class FormValidationError extends ExecutionError {
  * 식별돼야 하므로, 양쪽이 공유하는 leaf 에러 모듈(본 파일)에 둔다 — engine↔retry
  * value cross-import 순환 회피 (C-1 step4).
  *
- * @internal — execution-engine 모듈 내부 cancel 전파 전용 sentinel. 모듈 외부 직접 참조 금지.
+ * @internal — 원칙상 execution-engine 모듈 내부 cancel 전파 전용 sentinel이나,
+ * `nodes/flow/workflow/workflow.handler.ts` 는 **동일한 이유로 sanctioned 예외**다:
+ * `executeInline` 이 부모 executionId 를 공유하는 sync sub-workflow 실행이라, 노드
+ * 경계 cancel 가드가 이 에러를 던지면 `ParkReleaseSignal` 과 대칭으로 재throw 해야
+ * error 포트로 삼켜지지 않는다(ai-review C1, 2026-07-26 — 삼키면 하류 1홉이 계속
+ * dispatch 되고 취소가 `SUB_WORKFLOW_FAILED` 로 오분류된다). 그 외 모듈 외부 직접
+ * 참조는 금지.
  */
 export class ExecutionCancelledError extends Error {
-  constructor() {
-    super('Execution cancelled while waiting for input');
+  /**
+   * `message` 는 선택 — 기본값은 park(대기 중 취소) 경로의 기존 문구를 그대로 유지해
+   * 호출부 호환을 깨지 않는다. dispatch 사전 cancel 체크(§2.3)처럼 park 이 아닌
+   * 경로는 자기 문맥에 맞는 문구를 넘긴다(기존 문구를 쓰면 원인을 오도한다).
+   * 분류는 어느 경로든 `instanceof` 로 하므로 문구가 판정에 영향을 주지 않는다.
+   */
+  constructor(message = 'Execution cancelled while waiting for input') {
+    super(message);
     this.name = 'ExecutionCancelledError';
   }
 }

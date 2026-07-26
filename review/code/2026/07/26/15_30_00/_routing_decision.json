@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-07-26T15:30:30+09:00",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced — W19 가 NODE_CANCELLED payload 를 새로 발행하므로 내부 message 노출 여부 재확인 필요"},
+    {"name": "performance", "selected": false, "reason": "4R NONE. 이번 diff 는 분기 1개·마킹 1블록·문서로 성능 표면 무변화"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계 변경 없음"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced — W20 제기자"},
+    {"name": "scope", "selected": true, "reason": "agents_forced — 4R 에서 제기한 범위 triage 가 실제로 지켜졌는지 검증"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced — W19 제기자. 신규 NODE_CANCELLED emit 의 부작용 확인"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced"},
+    {"name": "testing", "selected": true, "reason": "agents_forced — vacuous 단언 2건을 고쳤다고 주장하므로 mutation 독립 재검증 필요"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced — W21(4번째 인용 재발)·W22 정정 검증"},
+    {"name": "dependency", "selected": false, "reason": "의존성 변경 없음"},
+    {"name": "database", "selected": false, "reason": "쿼리 변경 없음"},
+    {"name": "concurrency", "selected": false, "reason": "4R NONE(전수 확인 완료). 이번 diff 는 동기 분기·마킹뿐이라 동시성 표면 무변화"},
+    {"name": "api_contract", "selected": false, "reason": "HTTP 계약 변경 없음"},
+    {"name": "user_guide_sync", "selected": false, "reason": "doc-sync-matrix trigger 아님"}
+  ],
+  "selected_count": 7,
+  "skipped_count": 7,
+  "forced": ["documentation", "maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+}

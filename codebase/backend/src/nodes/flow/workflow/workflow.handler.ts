@@ -18,6 +18,7 @@ import {
 } from '../../../modules/execution-engine/workflow-errors.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
 import { ParkReleaseSignal } from '../../../shared/execution-resume/park-release-signal.js';
+import { ExecutionCancelledError } from '../../../modules/execution-engine/workflow-errors.js';
 
 interface MappingDef {
   paramName: string;
@@ -181,6 +182,17 @@ export class WorkflowHandler implements NodeHandler {
       // 해 엔진(executeNode→runExecution/runNodeDispatchLoop)이 세그먼트를 종료하고
       // §7.5 rehydration 으로 재개하게 한다.
       if (err instanceof ParkReleaseSignal) {
+        throw err;
+      }
+      // ai-review C1 (2026-07-26) — §2.3 노드 경계 cancel 가드(`assertExecutionNotCancelled`)
+      // 가 executeInline 순회 루프 안에서 `ExecutionCancelledError` 를 던진다. 이 노드는
+      // 부모 executionId 를 공유하는 sync sub-workflow 라 그 예외가 바로 여기로
+      // 도달하는데, 삼켜서 error 포트로 변환하면 (a) 하류가 1홉 계속 dispatch 되어
+      // 이 PR 이 막으려던 부수효과가 재현되고, (b) 취소가 `SUB_WORKFLOW_FAILED` 로
+      // 오분류되며, (c) error 엣지가 없으면 Execution 이 §5.1 을 어기고 `cancelled`
+      // 대신 `failed` 로 마감된다. `ParkReleaseSignal` 과 대칭으로 재throw 해 엔진
+      // catch(`runExecution`/`runNodeDispatchLoop`)가 `cancelled` 로 마감하게 한다.
+      if (err instanceof ExecutionCancelledError) {
         throw err;
       }
       return this.buildSubWorkflowError(configEcho, err);

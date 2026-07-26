@@ -70,16 +70,163 @@ priority: P3
       > 리뷰어가 지목한 4항목(§6 표) 밖이지만 **동일 결함 클래스**라 함께 담는다 — §2.1 의
       > 추적 포인터도 완료된 `node-cancellation-infrastructure.md` 를 가리키고 있었다.
 
-- [ ] **선형 경로 cancel 전파의 기전 규명 + 결정적 고정** (2026-07-24 ai-review 2R,
-      독립 reviewer 3명 수렴) — e2e `node-cancellation-propagation.e2e-spec.ts` 가 "stop 후
-      하류 노드 미도달" 을 **3회 재현 + 대조군**으로 관측했으나, **어느 코드가 그것을 보장하는지
-      특정되지 않았다**. 두 후보가 모두 반증됐다: `context.abortSignal?.throwIfAborted()` 는
-      `abortSignal` 대입이 `parallel-executor.ts`(parallel 전용) 한 곳뿐이라 선형 경로에서
-      항상 undefined 고, "guarded UPDATE(`:313`)" 는 §7.5 resume-claim 전용 sentinel 이다.
-      → **엔진 단위 테스트(mock, ms 단위)** 로 "선형 두 노드 사이 Execution 이 외부에서
-      cancelled 로 바뀌면 다음 노드가 dispatch 되지 않는다" 를 직접 고정할 것. 그때까지 e2e 의
-      단언은 **관측된 계약**으로만 유효하며(타이밍 우연 배제 못 함), 그 한계는 파일 JSDoc 과
-      `review/code/2026/07/24/20_36_21/RESOLUTION.md` §C1 에 명시돼 있다.
+- [x] **선형 경로 cancel 전파의 기전 규명 + 결정적 고정** — **2026-07-26 완료. 기전은
+      존재하지 않았다(진짜 결함).** 엔진 단위 테스트로 실증: 노드 1 실행 중 Execution 행이
+      외부에서 `cancelled` 로 바뀌어도 **하류 노드 2개가 그대로 dispatch 됐다**(3/3 호출).
+      원인은 두 겹이다 — (1) `executions.service.ts` 의 `stop()` 은 RUNNING 실행에 대해
+      Execution 행을 UPDATE 할 뿐 **돌고 있는 루프에 아무 신호도 보내지 않는다**
+      (AbortController·job cancel 없음), (2) 순회 루프는 상태를 **한 번도 다시 읽지 않는다**
+      (유일한 경계 가드 `assertActiveTimeWithinLimit` 는 in-memory `savedExecution` 만 본다).
+      → `spec/conventions/node-cancellation.md:140` 의 "dispatch 사전 abort 체크 ✓" 와
+      `:60` 의 "stop 이 실행을 중단" 은 **선형 경로에서 사실이 아니었다**. 실질 피해는
+      라벨 오류가 아니라 **부수효과**다: Stop 이후에도 이메일 발송·HTTP POST·DB 쓰기가 계속됐다.
+      **조치**: `assertExecutionNotCancelled()` 를 노드 경계에 추가(순회 루프 3곳 —
+      `runExecution` · `runNodeDispatchLoop` · `executeInline`). ~~mutation 검증
+      완료(가드 제거 시 RED 3회 → 복원 시 GREEN 1회)~~ — **W7 정정(2026-07-26,
+      아래 후속 참조): 실측은 RED 1회뿐이었다.** `runNodeDispatchLoop`/`executeInline`
+      은 회귀 테스트가 없어 가드를 제거해도 407/407 GREEN(검출 불가)이었다 —
+      `runExecution` 한 곳만 실제로 RED 였다. 아래 후속에서 누락됐던 회귀 테스트를
+      추가하고 **7개 지점 전부**(선형 3곳 + 컨테이너/Parallel 2곳 + C1 재throw +
+      ForEachExecutor 재throw) mutation 재검증을 완료했다(전부 RED → 복원 시 GREEN).
+      **e2e 도 함께 고쳤다** — 기존 단언은 `waitForTerminalStatus` 가 stop 직후 즉시
+      반환하는 탓에 **노드 A 가 아직 busy-wait 중일 때** 하류를 조회해, 가드가 전혀 없어도
+      통과하는 구조였다(관측 시점이 너무 이름). A 의 종료를 기다린 뒤 판정하도록 변경.
+
+  > **원 티켓의 문제 제기**(2026-07-24 ai-review 2R, 독립 reviewer 3명 수렴): e2e 가 "stop 후
+  > 하류 노드 미도달" 을 3회 재현 + 대조군으로 관측했으나 **어느 코드가 그것을 보장하는지
+  > 특정되지 않았고**, 후보 2개(`context.abortSignal?.throwIfAborted()` — 선형 경로에선 항상
+  > undefined / "guarded UPDATE" — §7.5 resume-claim 전용 sentinel)가 모두 반증됐다.
+  > **결론: 보장하는 코드가 없어서 특정되지 않았던 것이다.** e2e 는 타이밍 덕에 통과 중이었고
+  > 그 한계는 당시 `RESOLUTION.md` §C1 에 정확히 기록돼 있었다.
+
+  > **후속 — `review/code/2026/07/26/11_48_55` (2026-07-26)**: 위 최초 조치는 선형 3곳에는
+  > 정확했으나 (a) `executeInline` 가드가 호출자(`WorkflowHandler`)에게 흡수돼 무력화,
+  > (b) 컨테이너(ForEach/Loop/Map)·Parallel 브랜치 반복은 애초에 가드 범위 밖, (c)
+  > `runNodeDispatchLoop`/`executeInline` 회귀 테스트가 실제로는 없어 mutation 이 GREEN(가드
+  > 제거를 못 잡음) 이었다 — 전부 같은 turn 에서 처리 완료(코드+테스트, `RESOLUTION.md`
+  > 참조). **mutation 재검증(7개 지점, 전부 개별 RED → 복원 GREEN)**: `runExecution`
+  > (기존 커버리지) · `runNodeDispatchLoop`(신규 테스트) · `executeInline`(신규 테스트) ·
+  > `executeContainerBody`(신규 테스트) · `executeParallelBranchBody`(신규 테스트) ·
+  > `WorkflowHandler` 의 C1 재throw(신규 테스트) · `ForEachExecutor` 의 errorPolicy 우회
+  > 재throw(신규 테스트, skip/continue 양쪽). **spec 갱신(§2.3/§5.1/§6 + `code:`)은
+  > developer 권한 밖이라 project-planner 에 위임** — 자매 항목(MakeShop·Cafe24·chat-channel)
+  > 과 동일하게
+  > [`spec-update-node-cancellation-shutdown-classification.md`](spec-update-node-cancellation-shutdown-classification.md)
+  > 의 **"추가 위임 (2026-07-26 #6)"** 절에 제안을 남겼다(이 항목의 spec 반영은 아직
+  > 미이행 — planner 턴 대기).
+
+  > **후속 2 — `review/code/2026/07/26/12_55_55` (2026-07-26, 검증 라운드)**: 위 확장이
+  > 여전히 남겨둔 결함 1건(CRITICAL) + 산출 품질 갭 다수를 처리했다.
+  >
+  > - **C5 — `ParallelExecutor` `errorPolicy:'continue'` 가 취소를 흡수**: C3 가
+  >   ForEach/Loop 에 준 재throw 가드와 구조적으로 동일한 결함이 Parallel 콤비네이터에
+  >   남아 있었다. `errorPolicy` 분기 **이전에** `ExecutionCancelledError` 우회 재throw
+  >   추가(`parallel-executor.ts`) + `parallel-executor.spec.ts` 대칭 회귀 테스트
+  >   (`stop`/`continue`/`cancel-others-on-fail` 3정책 × 단독/co-occurring 실패 2케이스).
+  > - **W9 — `runContainer` catch-all 이 취소를 일반 실패로 오분류**: 컨테이너 자신의
+  >   `NodeExecution` 을 FAILED 로 영속 + `NODE_FAILED` WS emit 하던 것을, C1/C3 와
+  >   대칭으로 `instanceof ExecutionCancelledError` 우회 재throw 로 차단. 회귀 테스트가
+  >   `nodeExecutionRepository.save`/`emitNode` 인자를 직접 단언.
+  > - **W10 — 아이템 경계 가드 비용**: "폴링 비용이 곱해지지 않는다" 던 원 SUMMARY INFO
+  >   관측이 실측으로 반증됐다(입력 배열 길이 상한 없음 + 중첩 컨테이너 곱셈적). 시간
+  >   기반 스로틀(200~300ms 권장, 실채택 250ms)을 `executeContainerBody` 호출부에만
+  >   도입 — 선형/Parallel 브랜치의 **노드 경계** 호출은 여전히 매번 실제 조회한다.
+  >   트레이드오프는 아래 별도 절 참조.
+  > - **W11** — C4 배선(옛 raw `save()` → guarded `updateExecutionStatus`) 에 대한
+  >   회귀 테스트 부재를 closed — guarded UPDATE 0행(이미 terminal) 시뮬레이션으로
+  >   stale `finishedAt`/`durationMs` 미재저장을 단언.
+  > - **W12** — 두 catch 의 취소 종결 8줄 블록을 `finalizeCancelledExecution` 헬퍼로 추출.
+  > - **W13** — JSDoc/CHANGELOG 의 "status 단일 컬럼" 표현을 실제 `select`(id/status
+  >   2컬럼)에 맞게 정정.
+  >
+  > **범위 밖으로 남긴 것(백로그, 아래 참조)**: `runParallel` 이 `ParallelResult.failures`
+  > 를 전혀 소비하지 않는 별개 결함, `errorPolicy:'stop'` 의 `failures[0]` 우선순위 레이스.
+
+  > **후속 3 — review 13_47_42 ~ 16_20_52 (3R~7R, 2026-07-26)**: 위 "후속" 기록은 2R 까지만
+  > 담고 있었다. 최종 구현 범위는 **선형 3곳보다 훨씬 넓다** — 실제로 가드가 배치된 곳은
+  > `runExecution` · `runNodeDispatchLoop` · `executeInline` · `executeContainerBody`(아이템
+  > 경계, 250ms 스로틀) · `executeParallelBranchBody` **5곳**이고, `ExecutionCancelledError`
+  > 우회 재throw 가 `workflow.handler`(Sub-Workflow) · `ForEachExecutor` · `ParallelExecutor` ·
+  > `runContainer` · `executeNode` · `executeBackgroundSubgraph`(graceful swallow) **6곳**이다.
+  > 추가로 3R~6R 에서 닫은 것: Background 본문의 스로틀 Map 누수(W14) · Sub-Workflow 노드가
+  > 취소를 `failed` 로 오분류하고 내부 message 를 WS 로 방출하던 결함(W15) · 그 수정이 만든
+  > **노드 영구 `running` 잔류**(W19) · `errorHandling.policy:'retry'` 노드에서 취소가
+  > 재시도되던 결함(W20) · retry-turn 이 취소 시 `execution.error` 를 저장해 REST 로 노출하던
+  > 결함(W16) · 취소 종결 중복 추출(W25) · JSDoc 고아·불변식 결속(W26·W27).
+  > **위임 문서(#6)의 §6 표 제안 문구도 1R 시점에서 멈춰 있으니**, planner 가 반영하기 전에
+  > 이 범위로 갱신해야 새 spec-drift 가 생기지 않는다.
+
+### 백로그 — 이번 라운드 범위 밖으로 명시적으로 남긴 항목 (2026-07-26)
+
+- **`runParallel` 이 `ParallelResult.failures` 를 읽지 않는다**
+  (`execution-engine.service.ts` `runParallel`, `containers/parallel-executor.ts`
+  `ParallelResult.failures`). `errorPolicy:'continue'` 로 브랜치 일부가 실패해도
+  호출부가 `failures[]` 를 저장소 전체에서 한 번도 참조하지 않아, Parallel 노드가
+  거짓 `done` 포트로 종결되고 출력이 오염될 수 있다. Parallel 이 그래프 최종 노드인
+  흔한 패턴에서는 이후 가드 호출 자체가 없어 완전히 유실된다. C5(취소 우회 재throw)로
+  **취소 경로만** 닫았고, 이 실패-소비 갭 자체는 별도 이슈다 — `meta.skippedCount`/
+  `meta.iterations` 처럼 `failures`/`skippedCount` 를 Parallel 노드 output/meta 로
+  표면화하는 작업이 필요.
+- **`ParallelExecutor` `errorPolicy:'stop'` 의 `failures[0]` 우선순위 레이스**
+  (`parallel-executor.ts:277` 부근). `branchIndex` 순서로 첫 실패를 채택하는데,
+  취소와 진짜 실패가 다른 브랜치에서 동시 발생하면 어느 쪽이 `failures[0]` 이 되는지가
+  완료 순서에 좌우돼 `cancelled`/`failed` 오분류 가능(좁은 레이스). `cancel-others-on-fail`
+  은 이미 root-cause 우선 로직(`error.name !== 'AbortError'` 필터)이 있어 무해하지만
+  `stop` 에는 없다. 현재 근거상 발생 빈도가 낮아(취소·실패 동시 도착) 승급 보류 —
+  실제 오분류가 관측되면 `stop` 에도 root-cause 우선 선택을 추가.
+
+- **선재 spec 파일 구조적 flakiness (W23)** — `execution-engine.service.spec.ts` 가 real-timer
+  헬퍼 `flushResumeDrive` 를 쓴다(파일 자체 주석이 "CI 고부하 시 flaky" 를 명시). 64회 반복 중
+  2회, `Date.now` 와 **무관한** 신규 테스트 2건이 flake 했다. 이 PR 이 만든 것이 아니라 선재
+  구조 문제이고, 해소는 spec 파일 분할 규모의 작업이라 분리했다.
+- **가드 시퀀스 헬퍼 승격 (W8)** — 노드 경계 진입부의 가드 시퀀스(`assertActiveTimeWithinLimit`
+  + `assertExecutionNotCancelled` + 향후 추가분)를 단일 지점으로 묶는 중간 규모 리팩터.
+  순회 루프 전면 통합은 과거 "엔진 재작성급 고위험" 으로 기각된 범위라 제외.
+  **선행 확인 필요**: `executeInline` 이 `assertActiveTimeWithinLimit` 를 호출하지 않는 기존
+  비대칭이 의도인지 먼저 판정해야 한다(통합하면서 무심코 없애거나 고착시킬 위험).
+  > ⚠ `review/code/2026/07/26/11_48_55/RESOLUTION.md` 가 "이미 plan 에 명시돼 있음" 이라고
+  > 적었으나 **사실이 아니었다**(impl-done 16_28_26 plan_coherence 실측). 이후 라운드들이 그
+  > 잘못된 전제를 반복 인용만 했다 — 이 항목이 여기 처음 기록된다.
+- **graceful shutdown 의 `FAILED`(SERVER_INTERRUPTED) 를 가드가 감지하지 못한다** —
+  `assertExecutionNotCancelled` 는 `CANCELLED` 만 본다. `ShutdownStateService` 가 grace 만료로
+  `FAILED`+`SERVER_INTERRUPTED` 를 마킹한 뒤에도 같은 프로세스의 dispatch 루프가 살아 있으면
+  계속 dispatch 한다 — 이 PR 이 `stop()` 에 대해 막은 것과 **같은 결함이 shutdown 경로엔 남는다**.
+  위 BLOCKED 항목(cancelled vs failed 계약 택일)이 결정되면 `status IN (CANCELLED, FAILED)`
+  확장 여부를 함께 판단할 것.
+  > `review/code/2026/07/26/11_48_55/concurrency.md` 가 "그 트래킹 문서에 명시적으로 남길 것"
+  > 을 콕 집어 권고했으나 반영되지 않았다 — 여기 처음 기록된다.
+- **`markNodeCancelled` 네이밍 혼동 (impl-done naming_collision)** — 같은 클래스에 이미
+  `markExecutionCancelled`(Execution 레벨, resume 실패 발 system 취소)가 있어 `mark<X>Cancelled`
+  패턴이 겹친다. 실제 설계상 이웃은 `finalizeCancelledExecution` 이므로 `finalizeCancelledNode`
+  로 개명하거나 JSDoc 첫 줄에 "`markExecutionCancelled` 와 무관 — NodeExecution 대상" 을 명시.
+  빌드·런타임 무영향이라 **코드 재검토 라운드를 다시 유발하지 않기 위해 백로그로 분리**했다.
+
+### 트레이드오프 — 아이템 경계 cancel 가드 스로틀 (W10, 2026-07-26)
+
+`assertExecutionNotCancelled` 의 컨테이너 아이템-경계 호출부(`executeContainerBody`)에
+시간 기반 스로틀(`{ throttle: true }`, `CONTAINER_CANCEL_CHECK_THROTTLE_MS = 250`)을
+도입했다.
+
+- **문제**: ForEach/Loop/Map 은 입력 배열 길이 상한이 없고(`MAX_NODE_ITERATIONS` 와 무관),
+  executor 가 `itemContext` 공유 mutate 때문에 순차 실행이라 아이템마다 PK SELECT 1건이
+  그대로 누적된다. 1만 건이면 이 가드만으로 약 10~30초 직렬 추가 지연. 중첩 컨테이너는
+  곱셈적(100×100=10,100회).
+- **선택**: 노드 경계(선형 dispatch loop·Parallel 브랜치)는 매번 실제 조회를 유지하고,
+  아이템 경계만 250ms 스로틀 — 스로틀 창 안의 반복 호출은 직전 결과(미취소)를 재사용해
+  DB 라운드트립을 생략한다.
+- **왜 무해한가**: `spec/conventions/node-cancellation.md` §2.2(CPU 바운드 / 즉시 완료 노드)가 전제하는
+  취소 전파는 애초에 **best-effort** 계약이다 — 노드 경계(선형/Parallel) 관측 지연은
+  이 변경으로 늘지 않고, 아이템 경계만 최대 250ms 늦게 관측될 수 있다. Stop 버튼 클릭 후
+  수백 ms 이내에 다음 아이템 dispatch 가 멈추는 정도는 사용자 체감상 무해하다고 판단.
+- **상태 관리**: `executionId` → 마지막 실제 조회 시각(ms)을 담는 in-memory Map
+  (`containerCancelCheckedAtMs`, `segmentStartMs` 와 동일 패턴). **누수 방지**: execution
+  종료 지점(`finalizeRehydrationCleanup`, `runExecution` catch/finally)에서 매번 delete —
+  일부는 진짜 terminal 이 아니라 세그먼트 경계(재개 직전)에서도 지워지지만, 그 경우
+  다음 세그먼트의 첫 호출이 스로틀 baseline 을 다시 세울 뿐이라 correctness 에 영향 없다
+  (스로틀은 순수 최적화이지 정합성 메커니즘이 아니다).
+- **대안으로 기각한 것**: "N회마다 1회" 카운트 기반 스로틀은 아이템 실행 시간이 들쭉날쭉할 때
+  (예: 느린 body 노드) 오히려 지연 편차가 커진다 — 시간 기반이 취소 관측 지연의 상한을
+  더 예측 가능하게 만든다.
 
 ### 해당 없음 (추적 대상 아님)
 

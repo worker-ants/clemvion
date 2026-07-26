@@ -4,6 +4,7 @@ import {
   ParallelBranchContext,
 } from '../../../nodes/core/node-handler.interface';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { ExecutionCancelledError } from '../workflow-errors';
 
 // SUMMARY#4 (W-1): parentParallelConcurrency 는 required `number | undefined` —
 // 최외각 Parallel 테스트에서 `undefined` 를 명시 전달하는 이유:
@@ -220,6 +221,67 @@ describe('ParallelExecutor', () => {
       2,
     );
   });
+
+  // ai-review C5 (2026-07-26) — 대칭: foreach-executor.spec.ts §ai-review C3.
+  // 브랜치가 던지는 `ExecutionCancelledError` 는 `errorPolicy` 와 무관하게
+  // 즉시 재throw 돼야 한다. `'stop'`/`'cancel-others-on-fail'` 은 이미
+  // failures[0]/rootCause 재throw 로 우연히 동작했지만, `'continue'` 는 실패를
+  // 흡수하고 `{settled, failures}` 로 정상 반환했다 — 그 결함이 이번 수정 대상.
+  describe.each(['stop', 'continue', 'cancel-others-on-fail'] as const)(
+    'ExecutionCancelledError bypasses errorPolicy = %s',
+    (policy) => {
+      it(`re-throws the cancellation instead of swallowing it (${policy})`, async () => {
+        await expect(
+          executor.execute(
+            {
+              branchCount: 3,
+              maxConcurrency: 0,
+              waitAll: true,
+              errorPolicy: policy,
+            },
+            baseContext,
+            async (branchIndex) => {
+              if (branchIndex === 1) {
+                throw new ExecutionCancelledError(
+                  'Execution exec-1 cancelled externally',
+                );
+              }
+            },
+            undefined,
+          ),
+        ).rejects.toBeInstanceOf(ExecutionCancelledError);
+      });
+
+      it(`prefers the cancellation over a co-occurring generic branch failure (${policy})`, async () => {
+        const result = await executor
+          .execute(
+            {
+              branchCount: 3,
+              maxConcurrency: 0,
+              waitAll: true,
+              errorPolicy: policy,
+            },
+            baseContext,
+            async (branchIndex) => {
+              // branchIndex 0 fails first with a generic error; branchIndex 1
+              // carries the cancellation. `'stop'` would otherwise surface
+              // failures[0] (the generic error) — the cancellation bypass must
+              // still win regardless of branch ordering.
+              if (branchIndex === 0) throw new Error('generic-branch-fail');
+              if (branchIndex === 1) {
+                throw new ExecutionCancelledError(
+                  'Execution exec-1 cancelled externally',
+                );
+              }
+            },
+            undefined,
+          )
+          .catch((err: Error) => err);
+
+        expect(result).toBeInstanceOf(ExecutionCancelledError);
+      });
+    },
+  );
 
   it('should clamp branchCount to 2..16 range', async () => {
     const calls: number[] = [];

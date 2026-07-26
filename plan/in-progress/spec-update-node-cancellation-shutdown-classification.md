@@ -222,3 +222,108 @@ developer 범위로 처리 가능한 부분(코드+테스트)과 spec 표 갱신
 
 `node-handler.interface.ts` 의 JSDoc(같은 오류를 복제하고 있었다)은 코드라 이번 PR 에서
 정정했다 — spec 과 어긋난 채로 두지 않기 위해 근거를 주석에 함께 남겼다.
+
+---
+
+## 추가 위임 (2026-07-26 #6) — §2.3/§5.1/§6: 노드 경계 Execution-cancel 재확인 가드가 spec 에 없다
+
+`review/code/2026/07/26/11_48_55` WARNING 6 (documentation·requirement).
+[`node-cancellation-residual-signal-propagation.md`](node-cancellation-residual-signal-propagation.md)
+의 "선형 경로 cancel 전파의 기전 규명 + 결정적 고정" 항목(2026-07-26 완료)에 대한 위임 —
+자매 항목(MakeShop·Cafe24·chat-channel, 위 #2·#5)과 동일하게 developer 는 `spec/` 쓰기 권한이
+없어 제안만 남긴다.
+
+### 무엇이 새로 생겼나
+
+`ExecutionEngineService.assertExecutionNotCancelled()` — 노드 경계(순회 루프 3곳: `runExecution`
+· `runNodeDispatchLoop` · `executeInline`, 이어서 컨테이너/Parallel 로도 확장:
+`executeContainerBody`·`executeParallelBranchBody`)마다 Execution 행을 다시 읽어 외부
+cancel(`POST /executions/:id/stop`)을 관측하고 `ExecutionCancelledError` 로 dispatch 를
+중단하는 **Execution-레벨 가드**다.
+
+**본 문서 §2.3 (`abortSignal` 생산자 목록) · §5.1 (`AbortError` 분류) 이 다루는 사전 체크와는
+다른 메커니즘**이다:
+
+| | 기존 §2.3/§5.1 서술 | 신규(2026-07-26) |
+| --- | --- | --- |
+| 신호 | `context.abortSignal` (표준 `AbortSignal` API) | Execution 행의 `status` 컬럼 재조회 |
+| 관측 방식 | 노드 핸들러가 `signal.aborted`/`throwIfAborted()` 를 읽거나 SDK/fetch 에 전파 | 엔진 dispatch 루프가 노드 경계마다 DB 를 재조회 |
+| 왜 별도로 필요한가 | `abortSignal` 은 `ParallelExecutor`(cancel-others-on-fail)가 branch context 에만 주입 — **선형 경로에선 항상 `undefined`** | 사용자 Stop 버튼은 `AbortController`/job cancel 없이 DB row 만 UPDATE 하므로, 선형 경로가 취소를 관측할 유일한 방법이 재조회다 |
+| throw 하는 에러 | `error.name === 'AbortError'` (핸들러가 던짐) | `ExecutionCancelledError` (엔진이 던짐, `workflow-errors.ts`) |
+
+### 현재 spec 서술이 오해를 유발한다
+
+- §6 표 `:140` 행 `"...dispatch 사전 abort 체크..."✓` 는 **노드-레벨 `abortSignal` 사전 체크**
+  (§5.1 문장)만 가리키는데, 이번 리뷰에서 이 행이 "그러니 Stop 버튼도 이미 커버된다" 로
+  오독될 수 있음이 드러났다(실제로 `node-cancellation-residual-signal-propagation.md` 초안
+  단계에서 그렇게 오독된 이력 — 원 티켓 문제 제기 참조). 신규 메커니즘을 **별도 행**으로
+  분리해야 이 오독이 재발하지 않는다.
+- `:60` 행 `"사용자 cancel 버튼 (구현됨 2026-05-31)"` 은 "실행을 중단" 이라고만 적어, 그
+  "중단" 이 (a) DB row 를 terminal 로 UPDATE 하는 것과 (b) 진행 중인 dispatch 루프를 실제로
+  멈추는 것 **둘 다**를 가리키는지 모호했다 — 실제로는 이번 PR 전까지 (a) 만 참이었다. 신규
+  가드를 언급해 (b) 도 이제 참임을 명시해야 한다.
+
+### 제안 변경
+
+1. **§2.3 에 새 bullet 추가** (기존 4개 생산자 항목 뒤):
+   > **노드 경계 Execution-cancel 재확인** (구현됨 2026-07-26) — `ExecutionEngineService`
+   > 의 dispatch 루프(선형 3곳 + 컨테이너/Parallel 반복)가 노드 경계마다 Execution 행을
+   > 다시 읽어 외부 cancel 을 관측하고 `ExecutionCancelledError` 를 throw 한다.
+   > `context.abortSignal` 과 달리 **DB 재조회가 유일한 관측 수단**이다(사용자 cancel 버튼이
+   > signal 을 생성하지 않으므로) — `assertExecutionNotCancelled()`.
+2. **§5.1 에 단락 추가**: `ExecutionCancelledError`(엔진 자체 발생)도 `error.name ===
+   'AbortError'`(핸들러 발생)와 동일하게 `NodeExecution.status = cancelled`/`Execution.status
+   = cancelled` 로 귀결됨을 명시하고, 두 에러가 서로 다른 발생 지점(핸들러 vs 엔진 dispatch
+   루프)이라는 점을 각주.
+3. **§6 표에 새 행 추가**:
+   ```
+   | 노드 경계 Execution-cancel 재확인 가드 (`assertExecutionNotCancelled`, §2.3) | ✓ | `execution-engine.service.ts` — 선형 3곳(`runExecution`/`runNodeDispatchLoop`/`executeInline`) + 컨테이너(`executeContainerBody`, 아이템 경계)/Parallel(`executeParallelBranchBody`, 노드 경계) 반복 루프. mutation 검증 완료 |
+   ```
+   기존 `:140` 행 비고에서 "dispatch 사전 abort 체크" 앞에 "(노드-레벨 `abortSignal`)" 을
+   덧붙여 신규 행과 명확히 구분.
+4. **`frontmatter.code:`** 에 `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
+   추가 (현재 미등재 — W1 SUMMARY 지적).
+5. **`:60` 행 비고 갱신**: "REST API `POST /executions/:id/stop` 가 실행을 중단" 뒤에
+   "(Execution 행 UPDATE. 진행 중 dispatch 루프의 실제 중단은 위 신규 행의 노드 경계 가드가
+   담당 — 2026-07-26 이전엔 이 가드가 없어 하류 노드가 계속 dispatch 됐다)" 를 추가.
+
+### Rationale (developer 관점)
+
+이 항목은 SPEC-DRIFT(코드가 spec 을 의도적으로 앞선 경우)가 아니라 **spec 서술 자체가
+두 메커니즘을 하나로 뭉뚱그려 커버리지 오독을 유발한 경우**다 — §6 `:140` 행이 실제로는
+"노드-레벨 abortSignal 사전 체크"만 가리키는데 "그러니 Stop 도 이미 커버" 로 읽힐 여지를
+남겼고, 그 오독이 이 PR 이 고친 실제 결함(하류 노드 계속 dispatch)의 배경이었다. spec 을
+바로잡지 않으면 향후 리뷰가 같은 혼동을 반복할 위험이 있어 project-planner 위임으로
+남긴다. 코드·테스트·plan 갱신은 이번 PR(developer 범위)에서 완료했다.
+
+### #6 보강 (2026-07-26, impl-done `review/consistency/2026/07/26/16_28_26`)
+
+impl-done 5개 checker 가 위 #6 제안의 **범위 누락**을 지적했다. planner 는 반영 시 아래를 함께 처리해야 한다 — 그러지 않으면 SoT 만 최신이 되고 미러 문서들이 즉시 stale 해진다.
+
+**(1) `spec_impact` 확장 — `cancelled` 생산자 서술이 4곳에 복제돼 있다** (cross_spec)
+
+`node-cancellation.md` 만 고치면 아래 3곳은 자동 정합되지 않는다. 전부 "생산자: Parallel `cancel-others-on-fail` / 사용자 cancel" 만 나열하고 새 생산자(§2.3 노드 경계 가드)를 빠뜨린다.
+
+- `spec/5-system/4-execution-engine.md:114` — §1.2 NodeExecution 상태 표의 `cancelled` 행
+- `spec/1-data-model.md:546` — `NodeExecution.status` enum 설명(handler-throw 단일 경로만 서술)
+- `spec/data-flow/3-execution.md:282` — §3.2 mermaid 상태 다이어그램의 `running --> cancelled` 엣지 레이블. 바로 다음 줄이 "엔진 코드 경로의 **관찰 요약**" 이라 코드 정확성을 자임하므로 특히 중요. **엣지 추가는 불요** — 같은 전이의 세 번째 사유이므로 라벨에 원인만 추가하면 된다.
+
+**(2) §5.2 예외 명문화** (convention_compliance · rationale_continuity 수렴)
+
+§5.2 표는 `errorPolicy === 'continue'` 를 "cancelled 기록 후 후속 분기 계속" 으로 서술한다. 그러나 `ForEachExecutor`·`ParallelExecutor` 는 `ExecutionCancelledError` 를 **errorPolicy 판정 이전에 무조건 우회 재throw** 한다(`skip`/`continue` 여도 계속하지 않는다). 설계 의도는 "Stop 을 continue 정책이 무효화하면 안 된다" 로 타당하나 문면에 없다.
+
+→ §5.2 에 각주 추가: **`AbortError`(핸들러 발생)는 기존 표대로 errorPolicy 를 따르고, `ExecutionCancelledError`(엔진 발생, §2.3 가드)는 errorPolicy 무관 항상 우회 재throw** 한다. 두 sentinel 의 governance 차이를 표에 명시할 것.
+
+**(3) 250ms 스로틀 Rationale 이관** (rationale_continuity)
+
+#6 의 §6 표 제안은 "아이템 경계" 라는 구분만 언급하고 `CONTAINER_CANCEL_CHECK_THROTTLE_MS = 250` 과 그 근거(카운트 기반 대안 기각, ForEach 아이템 수 상한 부재)를 담지 않는다. 그대로 병합하면 근거가 spec 에서 영구 누락된다. 상세는 `node-cancellation-residual-signal-propagation.md` "트레이드오프 — 아이템 경계 cancel 가드 스로틀 (W10)" 절에 있으니 `node-cancellation.md ## Rationale` 로 이관할 것.
+
+**(4) WS 프로토콜 — `execution.node.cancelled` 생산자·`error` 필드** (cross_spec, 이 항목은 그동안 `plan/` 어디에도 없어 유실 위험이 있었다)
+
+`spec/5-system/6-websocket-protocol.md:186` 은 생산자를 "Parallel `cancel-others-on-fail` / 사용자 cancel" 2개로 나열하고 `error` 를 **상시 존재**하는 것으로 서술한다. 이번 구현으로 **세 번째 생산자**(§2.3 가드 → `executeNode` 취소 분기)가 생겼고, 그 경로는 내부 message(executionId 포함) 노출을 막기 위해 **`error` 를 싣지 않는다**.
+
+→ 생산자 목록에 §2.3 노드 경계 가드 추가 + `error` 를 **optional** 로 서술. 런타임 영향은 없다(현재 소비자 전부 방어적 처리) — 문서만 어긋난 상태.
+
+**(5) `error-codes.md` — `AbortError` 미등재** (convention_compliance)
+
+`AbortError` 는 PascalCase 라 §1 `UPPER_SNAKE_CASE` 위반이고 §3 예외 레지스트리에 미등재다. 값 자체는 선재이나 이번 구현이 `markNodeCancelled` 공유 헬퍼로 재사용 지점을 늘렸다. 위 "추가 위임 (2026-07-25 #4)" 항목 (1) 과 동일 건 — 함께 처리할 것.
