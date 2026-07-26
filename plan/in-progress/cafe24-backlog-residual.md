@@ -216,3 +216,39 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 
 - [x] generator 로직 fix + unambiguous `order` 정렬-충돌 래퍼 hand-fix: `application/appstore-orders.md`·`order/orders.md`·`store/orders-setting.md`·`store/users.md` (`(응답 객체)` 정정).
 - [ ] **잔여 (재생성 시 자동 정정)**: `links` 등 다른 충돌명을 공유하는 field-level 파일들. 다수가 정당한 property-list 설명(예: `coupons → 쿠폰 리소스`)이라 일괄 hand-edit 은 false-positive 위험 — 수정된 generator 로 전체 재생성(공식 HTML + 응답 fetch 네트워크 필요) 시 일괄 정정한다. 재생성 후 변경 파일 전부 커밋 포함 확인 (`_overview.md §7.3` 회귀 검증 레시피).
+
+## `mains_update`/`mains_delete` 제거 근거가 field-level 카탈로그와 모순 (2026-07-26 발견)
+
+출처: `review/consistency/2026/07/26/19_30_39` cross_spec **CRITICAL**. 무관한 티켓
+(`ie-resume-turn-boundary-cancel`)의 `--impl-prep spec/conventions` 스코프에 딸려 나온
+**기존 결함**이라 그 PR 범위 밖 — 유실 방지를 위해 여기 이관한다.
+
+**모순**: `cafe24-api-catalog/_overview.md` §Rationale 은 G-3l(2026-06-27)로
+`mains_update`/`mains_delete` 를 *"Cafe24 공식 docs(Latest 2026-03-01)에 부재 확정"* 이라
+선언하고 metadata 에서 제거했다(`metadata/category.ts` 에 `mains_list`/`mains_add` 만 존재).
+그런데 **같은 스냅샷 날짜(2026-06-03)** 로 생성된 field-level 카탈로그
+`cafe24-api-catalog/category/mains.md` 는 `PUT /api/v2/admin/mains/{display_group}`
+(anchor `#update-main-category`) 와 `DELETE …` (anchor `#delete-main-category`) 를 **실존
+docs 항목으로 기록**하고 있다. `_overview.md` §7.3 이 "docs 에 없는 것은 본 문서에도 없다 —
+추측·날조 금지" 를 명시하므로, 같은 target 안에서 "부재"와 "존재"가 동시에 SoT 로 주장된다.
+
+**왜 자동 가드에 안 걸렸나**: `catalog-docs-drift.spec.ts` 는 metadata→docs **단방향**만
+검사한다(자체 docstring: "docs 에 우리보다 많은 op 가 있는 것은 정상 = 미구현"). field-level
+문서가 "제거 사유" 자체를 반증하는 방향은 검출 대상이 아니다 — silent 사각지대.
+
+**유사 정황(약함)**: `store/socials-apple.md` 의 `PUT /api/v2/admin/socials/apple` 도
+`store.md` index 에 대응 row 가 없다. G-3l 목록의 `socials_apple_settings_get` 과 id 표기가
+달라 동일 사안인지는 불확실.
+
+**대조군(제거가 정당)**: `customer_get/update`·`coupon_get/delete`·`applications_list`·
+`webhooks_list` 는 field-level 문서와 모순 없음 → 이번 건은 9개 전체가 아니라 **국소 결함**.
+
+### 처리 (착수 시)
+
+- [ ] Cafe24 공식 docs 에서 `PUT`/`DELETE /mains/{display_group}` 실존 여부 재확인 (외부 확인 필요)
+- [ ] **존재** 하면: G-3l 결정·`_overview.md` §Rationale·`catalog-docs-drift.spec.ts` 의
+      `KNOWN_DOCS_ABSENT` 주석을 정정하고 `category.md`/`category.ts` 에 최소 `planned` 로 복원
+- [ ] **부재** 하면: `category/mains.md` 의 PUT/DELETE 섹션이 오염된 생성 산출물 → §7.3
+      재생성 파이프라인으로 정정·삭제
+- [ ] 어느 쪽이든 §8(endpoint 제거 절차)에 "`KNOWN_DOCS_ABSENT` 계열 결정 시 field-level 문서
+      동시 감사" 를 추가해 재발 차단. `socials-apple` 도 같은 절차로 재확인 대상에 포함
