@@ -234,7 +234,7 @@ export class AiTurnOrchestrator {
       this.logger.warn(
         `[processAiResumeTurn] malformed continuation payload (type 부재/비객체) for execution=${executionId} — re-park`,
       );
-      await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
+      await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
       return PARK_RELEASED;
     }
     const action = payload as ContinuationPayload;
@@ -294,7 +294,7 @@ export class AiTurnOrchestrator {
         return;
       }
       // 계속 — 다음 turn 을 위해 re-park (durable 영속 + WAITING 전이).
-      await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
+      await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
       return PARK_RELEASED;
     }
 
@@ -306,7 +306,7 @@ export class AiTurnOrchestrator {
         '[processAiResumeTurn] button_click received during ai_conversation — stale inline_keyboard, re-park',
         { executionId, nodeId: node.id },
       );
-      await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
+      await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
       return PARK_RELEASED;
     }
 
@@ -318,8 +318,40 @@ export class AiTurnOrchestrator {
         action.type,
       ).slice(0, 64)} for execution=${executionId} — re-park`,
     );
-    await this.reparkAiResumeTurn(savedExecution, context, nodeExec);
+    await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
     return PARK_RELEASED;
+  }
+
+  /**
+   * ai-review WARNING #1 (concurrency) + WARNING #2 (testing) + WARNING #7
+   * (유지보수성) — `updateExecutionStatus(..., linkedNodeExec)` 짝 전이의
+   * `false`(terminal 가드 no-op) 반환 계약을 세 소비처(re-park / 첫 turn park /
+   * retry-last-turn RUNNING 재claim)가 동일하게 소비하도록 단일화한다.
+   *
+   * 동시 Stop 이 Execution 을 이미 CANCELLED 로 마감했을 때(`applied === false`):
+   *   1. 짝이었던 `NodeExecution` 이 있으면 `markNodeCancelled` 로 CANCELLED
+   *      마킹 + terminal 이벤트(`NODE_CANCELLED`) 발행 — 방치하면 영구
+   *      RUNNING(non-terminal) 로 잔류한다(concurrency WARNING #1).
+   *   2. `ExecutionCancelledError` 를 던져 상위(기존 취소 종결 경로,
+   *      `finalizeResumedExecutionOutcome` → cancelled)로 넘긴다 — 그대로
+   *      진행하면 취소된 실행이 정상 park/완료처럼 보인다.
+   * `applied === true` 면 아무 것도 하지 않는다(정상 경로).
+   */
+  private async assertLinkedTransitionApplied(
+    applied: boolean,
+    nodeExec: NodeExecution | null,
+    node: Node,
+    context: ExecutionContext,
+    executionId: string,
+    phase: string,
+  ): Promise<void> {
+    if (applied) return;
+    if (nodeExec) {
+      await this.driver.markNodeCancelled(nodeExec, node, context, executionId);
+    }
+    throw new ExecutionCancelledError(
+      `Execution ${executionId} cancelled during ${phase} — skipping park`,
+    );
   }
 
   /**
@@ -333,11 +365,15 @@ export class AiTurnOrchestrator {
    * `output._resumeState`(systemPrompt/llmConfigId 포함)를 재영속 시 누락(credential
    * 유출)시킨다 — 재영속 자체를 제거해 회피한다. button_click/unknown(상태 미변경)
    * re-park 도 동일 경로(기존 checkpoint 보존 + WAITING 복귀).
+   * @throws {ExecutionCancelledError} 짝 전이 terminal 가드가 동시 Stop 을
+   *   관측하면(`applied === false`) — 짝 `NodeExecution` 을 CANCELLED 로
+   *   마킹한 뒤 던진다({@link assertLinkedTransitionApplied}).
    */
   private async reparkAiResumeTurn(
     savedExecution: Execution,
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
+    node: Node,
   ): Promise<void> {
     // §7.5 재개 진입 원자 claim(06 C-2) 이후 nodeExec 는 RUNNING 으로 로드된다
     // (claim 이 WFI→RUNNING 페어링 전이). re-park 는 이를 다시 WAITING_FOR_INPUT
@@ -353,15 +389,14 @@ export class AiTurnOrchestrator {
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
     );
-    if (!parked) {
-      // 짝 전이 terminal 가드가 선점을 관측했다 — turn 진행 중(LLM 호출은 수 초~분)
-      // 사용자 Stop 이 이 실행을 이미 CANCELLED 로 마감했다는 뜻. 여기서 그냥 반환하면
-      // 호출부가 `PARK_RELEASED` 로 정상 park 한 것처럼 진행해 취소가 UI 에서 사라진다.
-      // 기존 취소 종결 경로(`finalizeResumedExecutionOutcome` → cancelled)로 넘긴다.
-      throw new ExecutionCancelledError(
-        `Execution ${savedExecution.id} cancelled during AI turn — skipping re-park`,
-      );
-    }
+    await this.assertLinkedTransitionApplied(
+      parked,
+      nodeExec,
+      node,
+      context,
+      savedExecution.id,
+      'AI turn — re-park',
+    );
   }
 
   /**
@@ -369,6 +404,11 @@ export class AiTurnOrchestrator {
    * WAITING_FOR_INPUT 으로 atomic 전이 (WARN #4) + 클라이언트에 초기 waiting
    * 이벤트 emit (`EXECUTION_WAITING_FOR_INPUT`) — turn 1 의 AI response 가
    * 동봉된다.
+   * @throws {ExecutionCancelledError} 짝 전이 terminal 가드가 첫 turn 진행 중
+   *   동시 Stop 을 관측하면(`applied === false`) — 짝 `NodeExecution` 을
+   *   CANCELLED 로 마킹한 뒤 던진다({@link assertLinkedTransitionApplied}).
+   *   `EXECUTION_WAITING_FOR_INPUT` emit 이전에 던져 취소된 실행이 "입력
+   *   대기" 로 표시되는 것을 막는다.
    */
   private async emitAiWaitingForInput(
     savedExecution: Execution,
@@ -447,14 +487,18 @@ export class AiTurnOrchestrator {
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
     );
-    if (!parked) {
-      // re-park 와 동일 — 첫 turn 진행 중 외부 Stop 이 실행을 이미 마감했다.
-      // 아래 `EXECUTION_WAITING_FOR_INPUT` emit 을 그대로 내보내면 취소된 실행이
-      // "입력 대기" 로 보인다. 취소 전파 경로로 넘긴다.
-      throw new ExecutionCancelledError(
-        `Execution ${executionId} cancelled during first AI turn — skipping park`,
-      );
-    }
+    // re-park 와 동일 — 첫 turn 진행 중 외부 Stop 이 실행을 이미 마감했다면
+    // 아래 `EXECUTION_WAITING_FOR_INPUT` emit 을 그대로 내보내지 않는다(취소된
+    // 실행이 "입력 대기" 로 보이는 것을 막는다). 짝 `nodeExec` 도 함께 CANCELLED
+    // 마킹 후 취소 전파 경로로 넘긴다 ({@link assertLinkedTransitionApplied}).
+    await this.assertLinkedTransitionApplied(
+      parked,
+      nodeExec,
+      node,
+      context,
+      executionId,
+      '첫 AI turn park',
+    );
 
     const initialConv = buildConversationConfigFromOutput(
       structuredOutput,
@@ -553,6 +597,10 @@ export class AiTurnOrchestrator {
    *
    * 핸들러는 `ResumableNodeHandler` 인터페이스 (`processMultiTurnMessage`
    * 보유) 를 구현해야 한다. 미구현 시 명시적 throw (CRIT #4 — duck-typing 제거).
+   * @throws {ExecutionCancelledError} turn 경계 cancel 가드(node-cancellation
+   *   §2.3, LLM 호출 **이전**)가 동시 Stop 을 관측하면 — handler 호출 자체를
+   *   생략하고 즉시 던진다(§7.9 try/catch 밖이라 `handleAiTurnError` 가 FAILED
+   *   로 오분류하지 않는다).
    */
   private async handleAiMessageTurn(
     executionId: string,
@@ -1240,6 +1288,11 @@ export class AiTurnOrchestrator {
    * 2026-05-19 — `finalStatus` 추가 (spec §7.9). `'FAILED'` 시 NodeExecution.
    * status=FAILED + Execution.status=FAILED + NODE_FAILED + EXECUTION_FAILED
    * 분기로 진입. 기본값 `'COMPLETED'` 는 기존 흐름 유지.
+   * @throws {ExecutionCancelledError} retry-last-turn 재진입(RUNNING 재claim,
+   *   `savedExecution.status !== RUNNING` 분기)의 짝 전이 terminal 가드가
+   *   동시 Stop 을 관측하면(`applied === false`) — 짝 `nodeExec` 를 CANCELLED
+   *   로 마킹한 뒤 던져 `NODE_COMPLETED`/`EXECUTION_RESUMED` emit 을 막는다
+   *   (ai-review WARNING #2, {@link assertLinkedTransitionApplied}).
    */
   private async finalizeAiNode(
     savedExecution: Execution,
@@ -1370,11 +1423,23 @@ export class AiTurnOrchestrator {
         await this.nodeExecutionRepository.save(nodeExec);
       }
     } else {
-      await this.driver.updateExecutionStatus(
+      // ai-review WARNING #2 (testing) — 세 번째 짝 전이 소비처(retry-last-turn
+      // 재진입의 RUNNING 재claim). 반환값을 확인하지 않으면 동시 Stop 이 이미
+      // CANCELLED 로 마감한 실행에도 아래 COMPLETED 이벤트(`NODE_COMPLETED`/
+      // `EXECUTION_RESUMED`)가 그대로 발행되는 "사후 오시그널" 이 발생한다.
+      const applied = await this.driver.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.RUNNING,
         nodeExec ?? undefined,
         allowRetryReentry ? { allowRetryReentry: true } : undefined,
+      );
+      await this.assertLinkedTransitionApplied(
+        applied,
+        nodeExec,
+        node,
+        context,
+        executionId,
+        'AI turn 종료 처리(RUNNING 재claim)',
       );
     }
 

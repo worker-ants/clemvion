@@ -496,6 +496,21 @@ export class ExecutionEngineService
     ExecutionStatus.CANCELLED,
   ]);
 
+  /**
+   * ai-review WARNING #8 (2026-07-26, 유지보수성) — `updateExecutionStatus` 의
+   * 짝 전이(FOR UPDATE) 쿼리와 else 분기 guarded UPDATE 쿼리가 손으로 중복
+   * 하드코딩하던 non-terminal status SQL 리터럴을 단일 출처로 통합한다.
+   * `ExecutionStatus` 값에서 `TERMINAL_STATUSES` 를 제외한 나머지를 SQL
+   * literal 리스트(`'pending', 'running', 'waiting_for_input'`)로 만든다 —
+   * enum 값 기반이라 인젝션 우려 없음(사용자 입력 아님).
+   */
+  private static readonly NON_TERMINAL_STATUSES_SQL = Object.values(
+    ExecutionStatus,
+  )
+    .filter((status) => !ExecutionEngineService.TERMINAL_STATUSES.has(status))
+    .map((status) => `'${status}'`)
+    .join(', ');
+
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
@@ -4562,8 +4577,13 @@ export class ExecutionEngineService
    *
    * throw 는 호출부 책임으로 남긴다 — 각 분기가 던져야 할 원본 에러가 다르고,
    * 여기서 던지면 "무엇을 다시 던지는가" 가 호출부에서 보이지 않게 된다.
+   *
+   * ai-review WARNING #1 (2026-07-26) — `AiTurnEngineDriver.markNodeCancelled`
+   * 로 노출해 `AiTurnOrchestrator` 가 짝 전이(linkedNodeExec) 가드 no-op 시
+   * 짝이었던 NodeExecution 을 동일하게 terminal 마킹하는 데 재사용한다.
    */
-  private async markNodeCancelled(
+  // C-1 step2 후속 — EngineDriver member (AiTurnEngineDriver 표면, 2026-07-26).
+  public async markNodeCancelled(
     nodeExecution: NodeExecution,
     node: Node,
     context: ExecutionContext,
@@ -8092,11 +8112,14 @@ export class ExecutionEngineService
   /**
    * Execution 상태 전이의 단일 choke point.
    *
-   * @returns `true` 면 전이가 DB 에 반영됨. `false` 는 **else 분기(linkedNodeExec
-   *   없음)에서만** 발생 — 동시 cancel/park 가 DB 를 이미 terminal 로 옮겨
-   *   guarded UPDATE 가 0행 매칭(no-op)된 경우다. 호출부는 이때 terminal emit 을
-   *   skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다 (M-3).
-   *   linkedNodeExec 분기(spec §1.2 짝 전이)는 항상 `true`.
+   * @returns `true` 면 전이가 DB 에 반영됨. `false` 는 동시 cancel/park 가 DB 를
+   *   이미 terminal 로 옮겨 전이가 no-op 된 경우다 — else 분기(linkedNodeExec
+   *   없음)는 guarded UPDATE 0행 매칭(M-3). **linkedNodeExec 분기(짝 전이)도
+   *   동일하게 `false` 를 반환할 수 있다**(2026-07-26 후속 — 트랜잭션 내 행
+   *   잠금 조회가 0행, 더 이상 "항상 true" 아님). 호출부는 이때 terminal/park
+   *   emit 을 skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다.
+   *   실제 소비 현황은 `engine-driver.interface.ts` 의 `AiTurnEngineDriver`
+   *   JSDoc 참조 — AI 경로(3곳)만 현재 소비, form/button 4곳은 후속.
    */
   // C-1 step2 — EngineDriver member (상태 전이 단일 choke point).
   public async updateExecutionStatus(
@@ -8152,7 +8175,7 @@ export class ExecutionEngineService
         const live: unknown[] = await manager.query(
           `SELECT id FROM execution
             WHERE id = $1
-              AND status IN ('pending', 'running', 'waiting_for_input')
+              AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
             FOR UPDATE`,
           [execution.id],
         );
@@ -8189,7 +8212,7 @@ export class ExecutionEngineService
               output_data = $6::jsonb,
               resume_call_stack = $7::jsonb
         WHERE id = $1
-          AND status IN ('pending', 'running', 'waiting_for_input')
+          AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
         RETURNING id`,
       [
         execution.id,

@@ -37,9 +37,17 @@ export interface CoreEngineDriver {
   /**
    * Execution 상태 전이의 단일 choke point. guarded 전이 + §8 segmentStartMs
    * active-time 추적. `false` 는 동시 cancel/park 가 DB 를 이미 terminal 로 옮겨
-   * 전이가 적용되지 않은 경우 — 호출부는 terminal/park emit 을 skip 한다.
-   * else 분기(linkedNodeExec 없음)는 guarded UPDATE 0행 매칭(M-3),
+   * 전이가 적용되지 않은 경우 — 호출부는 이때 terminal/park emit 을 **건너뛰어야
+   * 한다**(규범). else 분기(linkedNodeExec 없음)는 guarded UPDATE 0행 매칭(M-3),
    * 짝 전이 분기는 트랜잭션 내 행 잠금 조회가 0행(2026-07-26 후속).
+   *
+   * ai-review WARNING #3 (2026-07-26) — 실제 소비 현황: `AiTurnOrchestrator`
+   * 의 re-park/첫 turn park/retry-last-turn RUNNING 재claim 3곳만 반환값을
+   * 확인해 `ExecutionCancelledError` 로 전파한다({@link AiTurnEngineDriver}
+   * 계약). Form/Button interaction 의 park·재claim 4곳은 아직 반환값을
+   * 소비하지 않는다 — DB 는 이 가드로 안전하나 표시상 중복 이벤트 emit 이
+   * 남는 후속 항목이다 (plan `ie-resume-turn-boundary-cancel.md`
+   * "후속(본 PR 밖)" 참조).
    */
   updateExecutionStatus(
     execution: Execution,
@@ -47,17 +55,6 @@ export interface CoreEngineDriver {
     linkedNodeExec?: NodeExecution,
     opts?: { allowRetryReentry?: boolean },
   ): Promise<boolean>;
-
-  /**
-   * §2.3 외부 cancel 관측 가드 — Execution 행을 다시 읽어 `CANCELLED` 면
-   * `ExecutionCancelledError` 를 throw 한다. 사용자 Stop 은 `AbortController` 를
-   * 만들지 않고 DB row 만 UPDATE 하므로, 재조회가 유일한 관측 수단이다.
-   *
-   * 엔진 dispatch 루프는 **노드 경계**마다 호출하지만, AI multi-turn 은 park 가
-   * 세그먼트를 끝내 그 경계에 닿지 않는다 → orchestrator 가 **turn 경계**에서
-   * 직접 호출한다.
-   */
-  assertExecutionNotCancelled(executionId: string): Promise<void>;
 
   /** in-memory context Map 키 (원칙 4) — background 본문은 bgKey, 그 외 executionId. */
   contextKeyOf(context: ExecutionContext): string;
@@ -112,6 +109,22 @@ export interface ReentryStateDriver {
 export interface AiTurnEngineDriver
   extends InteractionEngineDriver, ReentryStateDriver {
   /**
+   * §2.3 외부 cancel 관측 가드 — Execution 행을 다시 읽어 `CANCELLED` 면
+   * `ExecutionCancelledError` 를 throw 한다. 사용자 Stop 은 `AbortController` 를
+   * 만들지 않고 DB row 만 UPDATE 하므로, 재조회가 유일한 관측 수단이다.
+   *
+   * 엔진 dispatch 루프는 **노드 경계**마다 호출하지만, AI multi-turn 은 park 가
+   * 세그먼트를 끝내 그 경계에 닿지 않는다 → orchestrator 가 **turn 경계**에서
+   * 직접 호출한다.
+   *
+   * ai-review WARNING #9 (2026-07-26, side_effect) — 실제 호출자가
+   * `AiTurnOrchestrator` 뿐이라 `CoreEngineDriver`(Form/Button/Retry 공유
+   * 기반)가 아닌 이 표면으로 좁혔다(ISP). 런타임 바인딩은 불변 — 컴파일
+   * 타임 가시성만 좁아진다.
+   */
+  assertExecutionNotCancelled(executionId: string): Promise<void>;
+
+  /**
    * §1.3 allow-list 서브셋(credential-free)으로 DB 영속용 `_resumeCheckpoint`
    * 부분집합을 만든다.
    */
@@ -124,6 +137,25 @@ export interface AiTurnEngineDriver
 
   /** legacy `{port, data}` envelope → `_selectedPort` 라우팅 flat shape 으로 변환. */
   applyPortSelection(output: unknown): unknown;
+
+  /**
+   * 노드 단위 취소 종결 — `NodeExecution` 을 CANCELLED 로 마킹(finishedAt/
+   * durationMs 계산 + save)하고 `NODE_CANCELLED` 를 emit 한다. `errorEnvelope`
+   * 미전달 시 client-facing 필드에 내부 message(executionId 포함 가능)를
+   * 싣지 않는다(W15/W19).
+   *
+   * ai-review WARNING #1 (2026-07-26, concurrency) — `updateExecutionStatus`
+   * 짝 전이 가드가 no-op(`false`)일 때(동시 Stop 이 선점) 짝이었던
+   * `NodeExecution` 을 terminal 로 마킹하는 데 재사용한다 — 그렇지 않으면
+   * 영구 RUNNING(non-terminal) 로 잔류한다.
+   */
+  markNodeCancelled(
+    nodeExecution: NodeExecution,
+    node: Node,
+    context: ExecutionContext,
+    executionId: string,
+    errorEnvelope?: { code: string; message: string },
+  ): Promise<void>;
 }
 
 /**

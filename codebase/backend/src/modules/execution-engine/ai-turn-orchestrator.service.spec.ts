@@ -53,6 +53,9 @@ function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
         ctx._contextKey ?? ctx.executionId,
     ),
     applyPortSelection: jest.fn((o: unknown) => o),
+    // ai-review WARNING #1 (2026-07-26) — 짝 전이 가드 no-op 시
+    // `assertLinkedTransitionApplied` 가 호출하는 노드 단위 취소 종결.
+    markNodeCancelled: jest.fn().mockResolvedValue(undefined),
   } as unknown as jest.Mocked<AiTurnEngineDriver>;
 }
 
@@ -106,7 +109,17 @@ describe('AiTurnOrchestrator', () => {
         savedExecution: unknown,
         context: unknown,
         nodeExec: unknown,
+        node: Node,
       ) => Promise<void>;
+    };
+
+    const reparkNode: Partial<Node> = {
+      id: 'node-repark',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
     };
 
     it('stageDurableResumeSnapshot + updateExecutionStatus(WAITING_FOR_INPUT) 를 driver 로 위임', async () => {
@@ -121,6 +134,7 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         context,
         nodeExec,
+        reparkNode as Node,
       );
 
       expect(driver.stageDurableResumeSnapshot).toHaveBeenCalledTimes(1);
@@ -150,6 +164,7 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         context,
         nodeExec,
+        reparkNode as Node,
       );
 
       // RUNNING → WAITING_FOR_INPUT 재설정 후 그 nodeExec 를 linkedNodeExec 로 전달.
@@ -164,24 +179,35 @@ describe('AiTurnOrchestrator', () => {
     // (C) 2026-07-26 — turn 진행 중 외부 Stop 이 실행을 마감했다면, 짝 전이 terminal
     // 가드가 `false` 를 반환한다. 그걸 무시하고 반환하면 호출부가 정상 park 로 알고
     // 진행해 **사용자가 누른 Stop 이 UI 에서 사라진다**. 취소 전파 경로로 넘겨야 한다.
-    it('짝 전이가 선점당하면(false) ExecutionCancelledError 로 취소 전파', async () => {
+    it('짝 전이가 선점당하면(false) ExecutionCancelledError 로 취소 전파 + 짝 nodeExec CANCELLED 마킹', async () => {
       driver.updateExecutionStatus.mockResolvedValueOnce(false);
       const savedExecution = {
         id: executionId,
         status: ExecutionStatus.RUNNING,
       };
       const context = contextService.createContext(executionId, workflowId);
+      const nodeExec = { id: 'ne-1', status: NodeExecutionStatus.RUNNING };
 
       await expect(
         (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
           savedExecution,
           context,
-          { id: 'ne-1', status: NodeExecutionStatus.RUNNING },
+          nodeExec,
+          reparkNode as Node,
         ),
       ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      // ai-review WARNING #1 (concurrency) — 짝 nodeExec 를 방치하지 않고
+      // markNodeCancelled 로 terminal 마킹해야 영구 RUNNING 잔류를 막는다.
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        reparkNode,
+        context,
+        executionId,
+      );
     });
 
-    it('대조: 짝 전이가 적용되면(true) throw 하지 않는다', async () => {
+    it('대조: 짝 전이가 적용되면(true) throw 하지 않고 markNodeCancelled 도 호출하지 않는다', async () => {
       const savedExecution = {
         id: executionId,
         status: ExecutionStatus.RUNNING,
@@ -193,8 +219,10 @@ describe('AiTurnOrchestrator', () => {
           savedExecution,
           context,
           { id: 'ne-1', status: NodeExecutionStatus.RUNNING },
+          reparkNode as Node,
         ),
       ).resolves.toBeUndefined();
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
     });
   });
 
@@ -239,16 +267,121 @@ describe('AiTurnOrchestrator', () => {
         (c) => c[1] === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       );
 
-    it('park 이 선점당하면(false) ExecutionCancelledError + waiting 이벤트 미발행', async () => {
+    it('park 이 선점당하면(false) ExecutionCancelledError + waiting 이벤트 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
       driver.updateExecutionStatus.mockResolvedValueOnce(false);
 
       await expect(callPark()).rejects.toBeInstanceOf(ExecutionCancelledError);
       expect(waitingEmitted()).toBe(false);
+      // ai-review WARNING #1 (concurrency) — 첫 turn park 도 re-park 와 동일하게
+      // 짝 nodeExec 를 방치하지 않고 markNodeCancelled 로 terminal 마킹한다.
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ne-park' }),
+        parkNode,
+        expect.anything(),
+        executionId,
+      );
     });
 
-    it('대조: park 이 적용되면 waiting 이벤트를 발행한다', async () => {
+    it('대조: park 이 적용되면 waiting 이벤트를 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
       await callPark();
       expect(waitingEmitted()).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+  });
+
+  // ai-review WARNING #2 (testing) — 짝 전이의 세 번째 소비처. retry-last-turn
+  // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {retryReentry:true})`
+  // → `finalizeAiNode`)이 대화를 종료시키면 `savedExecution.status`(FAILED,
+  // spawn row) 는 RUNNING 이 아니라 else 분기(RUNNING 재claim)를 탄다. 동시
+  // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`applied === false`)
+  // NODE_COMPLETED/EXECUTION_RESUMED 를 그대로 emit 하면 "사후 오시그널" 이다.
+  describe('finalizeAiNode — retry-last-turn 재진입 RUNNING 재claim 선점', () => {
+    type FinalizeSubject = {
+      finalizeAiNode: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        finalStatus?: 'COMPLETED' | 'FAILED',
+        opts?: { retryReentry?: boolean },
+      ) => Promise<void>;
+    };
+
+    const retryNode: Partial<Node> = {
+      id: 'node-retry',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callFinalize = (nodeExec: unknown) =>
+      (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        // retry-last-turn spawn row 는 FAILED 로 로드된다 — RUNNING 이 아니므로
+        // else 분기(RUNNING 재claim)에 진입.
+        { id: executionId, status: ExecutionStatus.FAILED },
+        executionId,
+        retryNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'COMPLETED',
+        { retryReentry: true },
+      );
+
+    it('RUNNING 재claim 이 선점당하면(false) ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const nodeExec = {
+        id: 'ne-retry',
+        nodeId: 'node-retry',
+        startedAt: new Date(),
+      };
+
+      await expect(callFinalize(nodeExec)).rejects.toBeInstanceOf(
+        ExecutionCancelledError,
+      );
+
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        ExecutionStatus.RUNNING,
+        nodeExec,
+        { allowRetryReentry: true },
+      );
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        retryNode,
+        expect.anything(),
+        executionId,
+      );
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(false);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(false);
+    });
+
+    it('대조: RUNNING 재claim 이 적용되면(true) NODE_COMPLETED + EXECUTION_RESUMED 를 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+      const nodeExec = {
+        id: 'ne-retry-2',
+        nodeId: 'node-retry',
+        startedAt: new Date(),
+      };
+
+      await callFinalize(nodeExec);
+
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(true);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
     });
   });
 
