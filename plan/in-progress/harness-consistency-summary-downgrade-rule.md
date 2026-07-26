@@ -83,3 +83,20 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 
 > 선행 기록: 메모리 `feedback_impl_done_spec_bundle_bug` (prompt grep 0건이면 오탐 → BYPASS +
 > 근거 기록). 그 회피책은 지금도 유효하나, 반복 발생하므로 근본 원인 쪽을 남겨 둔다.
+
+### 같은 PR 안에서 **3회** 재현 (2026-07-27 확정)
+
+`ie-resume-turn-boundary-cancel` 한 PR 에서만 세 번 나왔다 — 우연이 아니라 상시 결함이다.
+
+| 회차 | 세션 | 증상 |
+|---|---|---|
+| 1 | `consistency/2026/07/26/19_30_39` (`--impl-prep`) | `node-cancellation.md` 본문 누락, cafe24 카탈로그가 예산 선점 → **무관한 CRITICAL 이 BLOCK 사유**가 됨 |
+| 2 | `consistency/2026/07/26/21_06_23` (`--impl-done`) | scope 내 실 diff **0건**인데 대용량 번들 적재 → checker 2명 BYPASS |
+| 3 | `consistency/2026/07/27/03_35_24` (`--impl-done`) | 또 `node-cancellation.md` 가 "예산 초과로 생략된 파일 46개" 에 포함 → **target 정합 판정이 커버리지 0 인 채로 내려짐** |
+
+3회차 plan_coherence 가 이 메타 위험을 스스로 지적했다: *"이번 회차의 'node-cancellation.md
+대상 정합 확인 없음'을 미검증으로 취급"*. 즉 **BLOCK: NO 가 '검증했고 문제없음' 이 아니라
+'검증 대상이 프롬프트에 없었음' 일 수 있다** — 게이트 신뢰도에 직접 영향.
+
+- [ ] 이 항목은 plan 갱신이 아니라 **harness 코드 수정**이 해법이다(3회차 권장사항 2).
+      `spec_impact` 우선 번들링을 구현할 것.
