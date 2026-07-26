@@ -327,3 +327,51 @@ impl-done 5개 checker 가 위 #6 제안의 **범위 누락**을 지적했다. p
 **(5) `error-codes.md` — `AbortError` 미등재** (convention_compliance)
 
 `AbortError` 는 PascalCase 라 §1 `UPPER_SNAKE_CASE` 위반이고 §3 예외 레지스트리에 미등재다. 값 자체는 선재이나 이번 구현이 `markNodeCancelled` 공유 헬퍼로 재사용 지점을 늘렸다. 위 "추가 위임 (2026-07-25 #4)" 항목 (1) 과 동일 건 — 함께 처리할 것.
+
+## 추가 위임 (2026-07-26 #7) — §2.1 IE 행의 "완화됨/응답성 갭" 서술이 실측으로 반증됐다
+
+`--impl-prep` `review/consistency/2026/07/26/19_30_39` plan_coherence WARNING 1·2.
+[`ie-resume-turn-boundary-cancel.md`](ie-resume-turn-boundary-cancel.md) 착수 시 **무수정
+프로브**로 확인. #6 과 같은 choke point(취소 관측)를 다루므로 함께 반영할 것.
+
+### 무엇이 틀렸나
+
+§2.1 Anthropic SDK 행의 IE 서술은 두 가지를 주장한다:
+
+1. *"resume 경로는 turn 경계에서 abort 체크를 도입하는 별도 작업으로 추적"* — **방향은 맞다.**
+   다만 같은 문장이 `ResumableMessageOptions.signal` 을 *"abort 소스 도입 시 resume chat 까지
+   signal 이 도달하도록 열어둔 executor-side plumbing"* 이라 설명해, **언젠가 signal 이 생길
+   것**처럼 읽힌다. 실측: 엔진 전체에서 `new AbortController()` 는 `parallel-executor.ts:188`
+   한 곳뿐이고 사용자 Stop 은 signal 을 만들지 않는다(#6 이 정리한 그 사실). 즉 resume 경로의
+   해법은 signal 전파가 아니라 **#6 과 동일한 DB 관측 가드**다.
+2. *"defense-in-depth timeout … 위 resume signal gap 과 무관하게 무기한 hang 을 상한한다"*
+   → 이를 근거로 부모 plan 은 **"데이터 정합성 위험이 아니라 응답성 갭"** 이라 결론지었다.
+   **이 결론이 틀렸다.** 타임아웃은 hang 을 상한할 뿐, 아래 결함을 완화하지 못한다.
+
+### 실제 결함 — park 짝 전이 lost update
+
+`updateExecutionStatus`(상태 전이 단일 choke point) 의 `linkedNodeExec` 분기는 무가드
+full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르면:
+
+1. `stop()` 이 `status IN (RUNNING, PENDING)` 가드 UPDATE 로 DB 를 `CANCELLED` 로 마감
+2. 턴이 끝나고 re-park 가 `updateExecutionStatus(savedExecution, WAITING_FOR_INPUT, nodeExec)`
+3. orchestrator 는 Execution 을 재로드하지 않아 in-memory 상태가 `RUNNING`(stale) →
+   `assertTransition` 통과 → full-entity save 가 `CANCELLED`/`finishedAt` 을 **덮어씀**
+
+결과: 사용자가 누른 Stop 이 **소실**되고 실행이 다시 재개 가능 상태로 보인다. #6 의 노드 경계
+가드는 park 가 세그먼트를 끝내므로 이 경로에 닿지 않는다.
+
+### 제안 변경
+
+1. **§2.1 IE 행 재서술** — "signal 미전파(gap)" 프레이밍을 **"resume 경로는 signal 이 아니라
+   turn 경계 DB 관측으로 취소를 처리한다"** 로 바꾼다. `ResumableMessageOptions.signal` 은
+   *"현재 abort 소스가 없어 항상 undefined 인 plumbing"* 임을 명시(장래 도입 기대를 제거).
+2. **완화 서술 삭제·정정** — "데이터 정합성 위험이 아니라 응답성 갭" 문장을 제거하고, 실제
+   위험이 **취소 소실(lost update)** 이었음과 그 차단 방식(park 짝 전이의 terminal 가드)을 적는다.
+3. **§2.3 에 bullet 보강** — #6 이 추가할 "노드 경계 Execution-cancel 재확인" 옆에 **"turn 경계
+   (AI multi-turn resume)"** 도 같은 가드 계열임을 명시.
+4. **§6 표에 행 추가** — `AI multi-turn resume turn 경계 cancel 가드 + park 짝 전이 terminal 가드`.
+5. **`## Rationale` 이관** — "왜 signal 이 아니라 DB 관측인가"(Stop 은 signal 을 만들지 않는다)와
+   "왜 짝 전이 분기에 가드가 없었나"(M-3 이 else 분기만 고치고 짝 전이는 명시적으로 범위 밖으로
+   남겼다 — `plan/complete/refactor/05-database.md`) 근거를 남길 것. rationale_continuity WARNING 1
+   이 지적한 "과거 결정을 닫으면서 그 근거를 spec 에 남기지 않는" 재발 방지.
