@@ -58,3 +58,28 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 
 - 발견 맥락: `plan/in-progress/node-cancellation-residual-signal-propagation.md` commerce 2건
 - 위임된 근본 원인: `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md`
+
+## 관련 관측 — `--impl-done` scope 가 실제 diff 와 무관한 번들을 싣는다 (2026-07-26)
+
+출처: `review/consistency/2026/07/26/21_06_23` WARNING 4 + INFO 3 (5 checker 중 **3명**이
+독립적으로 같은 근본 원인을 지적).
+
+`--impl-done spec/conventions` 세션인데 실측 `git diff origin/main...HEAD -- spec/conventions`
+가 **0건**이었다. 그런데 prompt 의 `## Target 문서` 는 `spec/conventions` **전체 스냅샷**
+(Cafe24 카탈로그 대용량 dump 포함)으로 채워졌다. 결과:
+
+- `convention_compliance` · `naming_collision` 은 판정 대상 자체가 없어 BYPASS 처리
+- 예산이 무관한 문서로 소진돼, 정작 관련 있는 `node-cancellation.md` 본문이 밀려났다
+  (같은 날 `--impl-prep 19_30_39` 에서는 이 때문에 **무관한 cafe24 CRITICAL 이 BLOCK 사유**가 됐다)
+
+즉 이 항목은 downgrade 규칙과 별개의 **scope 산정** 결함이지만, 증상(무관한 발견이 게이트
+판정을 좌우)이 겹쳐 같은 plan 에 기록해 둔다.
+
+- [ ] orchestrator 의 `--impl-done`/`--impl-prep` scope 산정이 **그 경로에 실제 diff 가 있는지**
+      사전 확인하도록 보강. diff 0건이면 (a) 관련 spec 을 diff 에서 역산하거나 (b) 번들을
+      비우고 그 사실을 프롬프트에 명시.
+- [ ] target 번들 조립 시 plan frontmatter 의 `spec_impact` 목록을 **folder dump 보다 우선**
+      포함(19_30_39 INFO 2 제안). 지금은 알파벳순 폴더 dump 가 예산을 선점한다.
+
+> 선행 기록: 메모리 `feedback_impl_done_spec_bundle_bug` (prompt grep 0건이면 오탐 → BYPASS +
+> 근거 기록). 그 회피책은 지금도 유효하나, 반복 발생하므로 근본 원인 쪽을 남겨 둔다.

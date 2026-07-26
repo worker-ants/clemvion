@@ -26,12 +26,19 @@ import type {
  * 메서드 시그니처는 **엔진을 단일 진실(source of truth)** 로 그대로 미러링한다 —
  * 동작은 추출 전과 완전히 동일하게 보존된다.
  *
- * **C-1 후속 ④ (ISP)**: 단일 12-멤버 `EngineDriver` 를 소비자별 부분 인터페이스로
- * 분해했다. 각 추출 서비스는 자신이 실제 호출하는 표면만(`AiTurnEngineDriver` /
- * `InteractionEngineDriver` / `RetryEngineDriver`) 주입받는다. 런타임 바인딩
- * (`ENGINE_DRIVER` useExisting)·동작은 불변 — 컴파일 타임 가시성만 좁힌다.
+ * **C-1 후속 ④ (ISP)**: 당시 12-멤버였던 단일 `EngineDriver` 를 소비자별 부분
+ * 인터페이스로 분해했다. 각 추출 서비스는 자신이 실제 호출하는 표면만
+ * (`AiTurnEngineDriver` / `InteractionEngineDriver` / `RetryEngineDriver`) 주입받는다.
+ * 런타임 바인딩(`ENGINE_DRIVER` useExisting)·동작은 불변 — 컴파일 타임 가시성만 좁힌다.
  * 모든 멤버는 `ENGINE_DRIVER` 토큰을 통해서만 호출되는 엔진 내부 전용 표면이며,
  * step4 멤버 5개는 impl 측과 대칭으로 `@internal` 을 명시한다.
+ *
+ * 현재 멤버 수(2026-07-26 실측): `EngineDriver` distinct **14**
+ * (Core 2 + Interaction 1 + ReentryState 1 + AiTurn 자체 5 + Retry 자체 5),
+ * `AiTurnEngineDriver` 합계 **9**. 이번 라운드에 `assertExecutionNotCancelled` ·
+ * `markNodeCancelled` 2개가 추가됐다. `execution-engine.md ## Rationale` §C-1 의
+ * 수치는 아직 12/7 로 stale — `spec-update-node-cancellation-shutdown-classification.md`
+ * #7 보강 8번 항목으로 정정 위임돼 있다(코드/spec 이 서로 다른 값으로 갈라지지 않도록).
  */
 export interface CoreEngineDriver {
   /**

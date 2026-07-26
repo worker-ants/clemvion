@@ -375,3 +375,26 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
    "왜 짝 전이 분기에 가드가 없었나"(M-3 이 else 분기만 고치고 짝 전이는 명시적으로 범위 밖으로
    남겼다 — `plan/complete/refactor/05-database.md`) 근거를 남길 것. rationale_continuity WARNING 1
    이 지적한 "과거 결정을 닫으면서 그 근거를 spec 에 남기지 않는" 재발 방지.
+
+### #7 보강 (impl-done 21_06_23 WARNING 1·2·3 반영)
+
+`--impl-done` 검토에서 두 checker 가 독립적으로 **위 "제안 변경" 5개가 불완전**하다고 지적했다.
+아래 3건을 #7 처리 시 함께 반영한다 (지적이 실측으로 맞음을 확인 — #7 절 안에
+`execution-engine.md`/`§1.1` 문자열 0건이었다).
+
+6. **`spec/5-system/4-execution-engine.md` §1.1(원자성 보장) 보강** — 짝 전이(Execution +
+   NodeExecution 단일 트랜잭션)가 **DB 가 이미 terminal 이면 두 save 를 모두 건너뛰고
+   `false` 를 반환하는 no-op** 가 될 수 있음을 서술한다. 현재 §1.1 은 "원자적으로 함께
+   전이한다" 만 말해, 전이가 **적용되지 않을 수 있다**는 신규 케이스가 빠져 있다.
+7. **`cancelled` 생산자 목록 미러 3곳 동기화** — 이번 PR 이 추가한 생산자
+   (AI multi-turn turn 경계 / park 짝 전이 terminal 가드 → `markNodeCancelled`)를
+   `4-execution-engine.md:114`(§1.2 표) · `1-data-model.md:546`(§2.14) ·
+   `data-flow/3-execution.md:282`(§3.2 mermaid) 에 함께 추가한다. #6 은 "§2.3 노드 경계"
+   생산자만 다루므로 이 두 번째 생산자가 누락된다.
+8. **`EngineDriver` 멤버 수 invariant 정정** — `execution-engine.md ## Rationale` §C-1 이
+   기록한 "12 distinct 멤버 / `AiTurnEngineDriver` 7멤버" 가 이번 PR 의 신규 2개
+   (`assertExecutionNotCancelled`, `markNodeCancelled`)로 **distinct 14 / AiTurn 9** 가 됐다.
+   (main 이 인터페이스 파일에서 실측: Core 2 + Interaction 1 + Reentry 1 + AiTurn 자체 5 +
+   Retry 자체 5 = 14, AiTurn 합계 = 2+1+1+5 = 9.) 코드 쪽 docstring 은 본 PR 에서
+   `engine-driver.interface.ts` 를 직접 정정했으므로, spec Rationale 만 같은 수치로 맞추면 된다
+   — **코드 14 vs spec 12 로 갈라지지 않게 같은 턴에 처리할 것**.
