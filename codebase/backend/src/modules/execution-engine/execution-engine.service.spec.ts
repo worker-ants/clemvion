@@ -5769,9 +5769,33 @@ describe('ExecutionEngineService', () => {
       await service.execute(workflowId, {});
       await flushPromises();
 
-      // 노드는 FAILED 로 저장되지 않는다 (회귀 전: FAILED + 내부 message 노출).
+      // 노드는 FAILED 가 아니라 **CANCELLED 로 마감**된다.
+      //
+      // ai-review 4R (side_effect) — 옛 단언은 `not.toBe(FAILED)` 였는데, 그 시점
+      // `lastNodeExecSave` 가 반환하던 것은 `createNodeExecution` 의 최초 RUNNING save
+      // 였다(취소 분기가 아무 save 도 하지 않았으므로). 즉 "FAILED 가 아니다" 는
+      // RUNNING 인 채로도 참이라 **vacuous** 했고, 노드가 영구 running 으로 잔류하는
+      // 진짜 결함을 가렸다. 이제 terminal 상태와 finishedAt 을 양성으로 단언한다.
       const ne = lastNodeExecSave('n-subwf');
-      expect(ne?.status).not.toBe(NodeExecutionStatus.FAILED);
+      expect(ne?.status).toBe(NodeExecutionStatus.CANCELLED);
+      expect(ne?.finishedAt).toBeInstanceOf(Date);
+      // terminal 이벤트(NODE_CANCELLED)가 반드시 발행된다 — 타임라인 영구 spinner 방지.
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-subwf',
+        'execution.node.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+      // 내부 message(executionId 포함)는 노드 이벤트 payload 에 실리지 않는다.
+      const cancelCall = (
+        mockWebsocketService.emitNodeEvent as jest.Mock
+      ).mock.calls.find(
+        (c: unknown[]) =>
+          c[2] === 'execution.node.cancelled' && c[1] === 'n-subwf',
+      );
+      expect(JSON.stringify(cancelCall?.[3] ?? {})).not.toContain(
+        'cancelled externally',
+      );
       // handler.execute 는 errorPolicy 재시도 없이 1회만 호출된다.
       expect(executeImpl).toHaveBeenCalledTimes(1);
       // NODE_FAILED 가 emit 되지 않는다.
@@ -5787,6 +5811,59 @@ describe('ExecutionEngineService', () => {
         'execution.cancelled',
         expect.objectContaining({ status: 'cancelled' }),
       );
+    });
+
+    // ai-review 4R (requirement) — `errorHandling.policy:'retry'` 가 붙은 노드에서
+    // 취소가 **재시도 대상으로 오분류**되던 결함. `executeWithRetry` 의 재시도 제외
+    // 판정이 `isAbortError` 뿐이었는데 `ExecutionCancelledError` 는 name 이
+    // 'AbortError' 가 아니라 걸리지 않았다 — 최대 3회 재호출 + 백오프 뒤에야 수렴.
+    it('errorPolicy:retry 노드에서도 ExecutionCancelledError 는 재시도하지 않고 즉시 전파한다 (4R)', async () => {
+      const executeImpl = jest.fn(async () => {
+        throw new ExecutionCancelledError('Execution cancelled externally');
+      });
+      handlerRegistry.register('workflow', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: executeImpl,
+      } as NodeHandler);
+
+      mockNodeRepo.findBy.mockResolvedValue([
+        {
+          id: 'n-retry-cancel',
+          workflowId,
+          type: 'workflow',
+          category: NodeCategory.LOGIC,
+          label: 'Retry Sub-workflow',
+          // 재시도 3회 + 백오프가 걸린 노드.
+          // 주의: retry 설정은 `errorHandling.retryConfig` **중첩** 위치다
+          // (`getErrorPolicyConfig` 가 그렇게 읽는다). 처음 이 테스트를 평면 형태로
+          // 썼더니 retryConfig 가 undefined 라 재시도 루프에 진입조차 하지 않아
+          // mutation 을 해도 GREEN 인 vacuous 테스트가 됐다.
+          config: {
+            errorHandling: {
+              policy: 'retry',
+              retryConfig: {
+                maxRetries: 3,
+                retryInterval: 1,
+                backoffMultiplier: 2,
+              },
+            },
+          },
+          isDisabled: false,
+        },
+      ]);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+
+      await service.execute(workflowId, {});
+      // 재시도는 `sleep` 을 끼고 도는 **detached** 실행이라 `flushPromises` 만으로는
+      // 아직 일어나지 않는다 — 그 상태로 단언하면 재시도 여부와 무관하게 항상 1 이라
+      // vacuous 하다(실제로 이 테스트를 처음 그렇게 썼다가 mutation 이 GREEN 으로
+      // 통과했다). retryInterval 1ms·backoff 2 → 최대 1+2+4ms 이므로 여유를 두고
+      // 실제 타이머를 흘려보낸 뒤 판정한다.
+      await new Promise((r) => setTimeout(r, 80));
+      await flushPromises();
+
+      // 회귀 전: 4회(최초 1 + 재시도 3). 지금은 1회로 즉시 전파.
+      expect(executeImpl).toHaveBeenCalledTimes(1);
     });
 
     // parallel-p2 §2-4 런타임 가드: dispatch 시점 planParallelBody 가 depth>2

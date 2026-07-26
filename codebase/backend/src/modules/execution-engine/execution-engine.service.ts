@@ -533,17 +533,20 @@ export class ExecutionEngineService
    * 인스턴스 in-memory Map 으로 충분하다(재시작/재배달 시 소실돼도 다음 호출이
    * 새 baseline 을 세우므로 correctness 에 영향 없음 — 스로틀은 순수 최적화).
    *
-   * **누수 방지**: execution 종료 지점(`finalizeRehydrationCleanup`, `runExecution`
-   * catch/finally)에서 반드시 `delete` 한다. 선형/Parallel 노드 경계 호출은 이 Map 을
-   * 쓰지 않으므로(매번 실제 조회) 여기 등록되지 않는다.
+   * **누수 방지**: execution 종료 지점 **3곳**에서 반드시 `delete` 한다 —
+   * `finalizeRehydrationCleanup`, `runExecution` catch/finally, 그리고
+   * `executeBackgroundSubgraph` finally (ai-review W14: background 본문은 부모와
+   * executionId 를 공유하는데 fire-and-forget 이라 부모가 먼저 지운 뒤 다시 set 되어
+   * 영구 잔류했다). 선형/Parallel 노드 경계 호출은 이 Map 을 쓰지 않으므로(매번 실제
+   * 조회) 여기 등록되지 않는다.
    */
   private readonly containerCancelCheckedAtMs = new Map<string, number>();
 
   /**
    * ai-review W10 (2026-07-26) — 컨테이너 아이템 경계 cancel 가드의 스로틀 간격(ms).
    * 200~300ms 권장 범위의 중간값. 취소 관측이 이 간격만큼 늦어질 수 있는데,
-   * `spec/conventions/node-cancellation.md` §5(`AbortError` 분류)가 명시하듯 취소
-   * 전파는 애초부터 **best-effort** 계약이라 수백 ms 지연은 무해하다 — 노드 경계
+   * `spec/conventions/node-cancellation.md` §2.2(CPU 바운드 / 즉시 완료 노드)가
+   * 명시하듯 취소 전파는 애초부터 **best-effort** 계약이라 수백 ms 지연은 무해하다 — 노드 경계
    * (선형/Parallel 브랜치)는 이미 매번 실제 조회를 유지해 그 계약의 "노드 사이"
    * 관측 지연은 이 변경으로 늘지 않는다. 아이템 경계만 대상.
    */
@@ -5809,7 +5812,35 @@ export class ExecutionEngineService
       // executeInline 이 §2.3 가드로 관측한 `ExecutionCancelledError` 도 이 catch
       // 로 떨어지므로, ParkReleaseSignal 과 대칭으로 FAILED 마킹/NODE_FAILED emit
       // 이전에 우회 재throw 한다.
+      // ai-review 4R (side_effect) — 단, `ParkReleaseSignal` 처럼 **아무것도 하지 않고**
+      // 재throw 하면 안 된다. park 은 나중에 재개돼 누군가 이 row 를 마감하지만 취소는
+      // 재개되지 않고, `finalizeCancelledExecution` 은 top-level Execution 만 갱신하므로
+      // 이 NodeExecution 이 `running`/`finishedAt=null` 로 **영구 잔류**한다(프론트 타임라인
+      // 이 영원히 spinner). 같은 catch 의 `isAbortError` 분기가 지키는 "terminal 이벤트를
+      // 반드시 발행한다" 불변식을 동일하게 지킨다 — 다만 `error` 봉투에는 내부 message
+      // (executionId 포함)를 싣지 않는다(W15 의 노출 차단 취지 유지).
       if (err instanceof ExecutionCancelledError) {
+        nodeExecution.status = NodeExecutionStatus.CANCELLED;
+        nodeExecution.finishedAt = new Date();
+        nodeExecution.durationMs =
+          nodeExecution.finishedAt.getTime() -
+          nodeExecution.startedAt.getTime();
+        await this.nodeExecutionRepository.save(nodeExecution);
+        await this.eventEmitter.emitNode(
+          executionId,
+          node.id,
+          NodeEventType.NODE_CANCELLED,
+          {
+            nodeExecutionId: nodeExecution.id,
+            parentNodeExecutionId: context.parentNodeExecutionId,
+            status: NodeExecutionStatus.CANCELLED,
+            nodeType: node.type,
+            nodeLabel: node.label ?? node.type,
+            input: nodeExecution.inputData,
+            startedAt: nodeExecution.startedAt?.toISOString?.(),
+            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+          },
+        );
         throw err;
       }
 
@@ -6147,7 +6178,13 @@ export class ExecutionEngineService
         nodeExecution.retryCount = attempt + 1;
 
         // abort 는 재시도 대상이 아님 — cancellation 은 terminal 이므로 즉시 전파.
-        if (isAbortError(lastError)) {
+        // ai-review 4R (requirement) — `ExecutionCancelledError` 도 같은 이유로 제외한다.
+        // 이 sentinel 은 `name` 이 'AbortError' 가 아니라 `isAbortError` 에 걸리지 않아,
+        // `policy:'retry'` 인 Sub-Workflow 노드에서 취소가 재시도 대상으로 오분류됐다
+        // (최대 3회 재호출 + 최대 7초 백오프 뒤에야 cancelled 로 수렴).
+        // `err`(unknown) 로 판정한다 — `lastError` 는 선언 타입이 `Error | undefined`
+        // 라 instanceof 좌변으로 쓰면 TS2358 이 난다.
+        if (isAbortError(lastError) || err instanceof ExecutionCancelledError) {
           throw lastError;
         }
 
