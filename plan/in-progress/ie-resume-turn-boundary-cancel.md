@@ -76,7 +76,7 @@ DB 가 terminal 이면 park 도 재claim 도 **8건 전부 틀린 동작**이다
 
 ## 작업 항목
 
-- [ ] **(A) choke point 가드** — `linkedNodeExec` 분기 트랜잭션 안에서 대상 row 를
+- [x] **(A) choke point 가드** — `linkedNodeExec` 분기 트랜잭션 안에서 대상 row 를
       `SELECT ... FOR UPDATE` 로 잠그고 terminal 이면 두 save 를 모두 건너뛰고 `false` 반환.
       full-entity save 의 컬럼 의미(staged `conversation_thread`/`user_variables`/
       `resume_call_stack`)를 보존하기 위해 partial UPDATE 로 재작성하지 **않는다** — 행 잠금으로
@@ -85,21 +85,21 @@ DB 가 terminal 이면 park 도 재claim 도 **8건 전부 틀린 동작**이다
       > 쓰지 않는다 — `markNodeCancelled`/`markExecutionCancelled`/`finalizeCancelledExecution`
       > 이 이미 혼동 지대로 백로그돼 있어 4번째 유사 이름을 더하면 안 된다. "linked/paired
       > transition" 임을 이름에 명시한다.
-- [ ] **(B) turn 경계 체크 (티켓 본항목)** — resume turn dispatch **직전** cancel 관측 →
+- [x] **(B) turn 경계 체크 (티켓 본항목)** — resume turn dispatch **직전** cancel 관측 →
       `ExecutionCancelledError`. spec §2.1 이 지시한 방향. Stop 이 큐 대기 중 도착한 경우
       불필요한 LLM 호출 자체를 막는다.
-- [ ] **(C) re-park 결과 소비** — AI 경로에서 (A) 가 `false` 를 반환하면 park 이벤트를 emit 하지
+- [x] **(C) re-park 결과 소비** — AI 경로에서 (A) 가 `false` 를 반환하면 park 이벤트를 emit 하지
       않고 취소로 종결한다.
-- [ ] 테스트 — (A) 반환 계약은 `execution-engine.service.spec.ts:4828~4870`(else 분기 선례)의
+- [x] 테스트 — (A) 반환 계약은 `execution-engine.service.spec.ts:4828~4870`(else 분기 선례)의
       idiom 을 미러. (B)/(C) 는 orchestrator 레벨.
-- [ ] **(D) spec 위임** (impl-prep W1/W2 — 이 plan family 가 3회 반복한 "developer 완료 → spec
+- [x] **(D) spec 위임** (impl-prep W1/W2 — 이 plan family 가 3회 반복한 "developer 완료 → spec
       stale 방치" 패턴 차단) — developer 는 `spec/` 쓰기 권한이 없으므로
       [`spec-update-node-cancellation-shutdown-classification.md`](./spec-update-node-cancellation-shutdown-classification.md)
       **#7** 에 §2.1(IE 행 완화 서술 정정)·§6(신규 행)·§2.3(turn 경계 가드) 제안을 등재한다.
       **완료** — 커밋 `9da4aa29b`. 원자성 계약 SoT 인 `spec/5-system/4-execution-engine.md §1.1`
       갱신도 같은 위임에 포함할 것(짝 전이의 terminal 가드는 그 §1.1 이 서술하는 계약의 일부).
       #6 큐와 **같은 planner 턴에 배치** 처리한다(W3 — 두 plan 이 §5.2/§6 표를 따로 덮어쓰는 것 방지).
-- [ ] TEST WORKFLOW (lint / unit / build / e2e)
+- [x] TEST WORKFLOW (lint / unit / build / e2e) — 2026-07-26 전부 PASS (unit: backend 412 suite / 8286 passed, e2e: 259 passed)
 - [ ] `/ai-review` + Critical·Warning 해소
 - [ ] `/consistency-check --impl-done spec/conventions`
 
@@ -125,10 +125,10 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 
 ## 체크리스트
 
-- [ ] (A) choke point 가드
-- [ ] (B) turn 경계 체크
-- [ ] (C) re-park 결과 소비
-- [ ] 테스트
-- [ ] TEST WORKFLOW
+- [x] (A) choke point 가드
+- [x] (B) turn 경계 체크
+- [x] (C) re-park 결과 소비
+- [x] 테스트 (mutation 7/7 RED)
+- [x] TEST WORKFLOW
 - [ ] `/ai-review`
 - [ ] `/consistency-check --impl-done`
