@@ -94,6 +94,17 @@ priority: P3
   > **결론: 보장하는 코드가 없어서 특정되지 않았던 것이다.** e2e 는 타이밍 덕에 통과 중이었고
   > 그 한계는 당시 `RESOLUTION.md` §C1 에 정확히 기록돼 있었다.
 
+  > **후속 — `review/code/2026/07/26/11_48_55` (2026-07-26)**: 위 최초 조치는 선형 3곳에는
+  > 정확했으나 (a) `executeInline` 가드가 호출자(`WorkflowHandler`)에게 흡수돼 무력화,
+  > (b) 컨테이너(ForEach/Loop/Map)·Parallel 브랜치 반복은 애초에 가드 범위 밖, (c)
+  > `runNodeDispatchLoop`/`executeInline` 회귀 테스트가 실제로는 없어 mutation 이 GREEN(가드
+  > 제거를 못 잡음) 이었다 — 전부 같은 turn 에서 처리 완료(코드+테스트, `RESOLUTION.md`
+  > 참조). **spec 갱신(§2.3/§5.1/§6 + `code:`)은 developer 권한 밖이라 project-planner 에
+  > 위임** — 자매 항목(MakeShop·Cafe24·chat-channel)과 동일하게
+  > [`spec-update-node-cancellation-shutdown-classification.md`](spec-update-node-cancellation-shutdown-classification.md)
+  > 의 **"추가 위임 (2026-07-26 #6)"** 절에 제안을 남겼다(이 항목의 spec 반영은 아직
+  > 미이행 — planner 턴 대기).
+
 ### 해당 없음 (추적 대상 아님)
 
 - **MongoDB driver `signal` 전달** — 현 DB 노드는 pg/mysql 만 지원하고 **mongo 미도입**이다.

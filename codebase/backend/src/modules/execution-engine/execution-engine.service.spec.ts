@@ -26,6 +26,7 @@ import {
   MessageTooLongError,
   FormValidationError,
   WorkflowForbiddenWorkspaceError,
+  ExecutionCancelledError,
 } from './workflow-errors';
 import { resolveWaitingSurface } from './waiting-surface-guard';
 import { MB_IN_BYTES } from '../chat-channel/shared/form-mode';
@@ -283,6 +284,17 @@ describe('ExecutionEngineService', () => {
       findOneBy: jest
         .fn()
         .mockImplementation(() => Promise.resolve({ ...lastSaved })),
+      // W1 (ai-review 2026-07-26) — `assertExecutionNotCancelled` 가 전체 row
+      // SELECT(`findOneBy`) 대신 컬럼 투영(`findOne({select:{status:true}})`)으로
+      // 바뀌었다. 이 mock 은 실제 TypeORM select 투영을 흉내내지 않고 `findOneBy`
+      // 로 위임한다 — 기존/신규 테스트가 `mockExecutionRepo.findOneBy` 에 무장한
+      // `mockResolvedValueOnce`/status 값을 그대로 재사용할 수 있게 하기 위함
+      // (production 이 이 파일에서 `.findOne` 을 호출하는 유일한 지점).
+      findOne: jest
+        .fn()
+        .mockImplementation((opts: { where?: { id?: string } }) =>
+          mockExecutionRepo.findOneBy(opts?.where ?? {}),
+        ),
       find: jest.fn().mockResolvedValue([]),
       // M-3 — updateExecutionStatus else 분기(RUNNING/COMPLETED)가 full-save 대신
       // guarded raw UPDATE(... RETURNING id)를 쓴다. 기본은 1행 매칭(=적용됨, applied
@@ -1124,6 +1136,63 @@ describe('ExecutionEngineService', () => {
       for (const [arg] of createCalls) {
         expect(arg.parentNodeExecutionId).toBe('workflow-node-row-1');
       }
+    });
+
+    // ai-review C2 (2026-07-26) — mutation 실측: executeInline 상단(§2.3)의
+    // `assertExecutionNotCancelled` 가드를 제거해도 이전엔 407/407 GREEN 이었다
+    // (커버리지 0). 이 노드는 부모 executionId 를 그대로 쓰는 sync sub-workflow 라,
+    // 부모가 노드 실행 도중 외부 cancel 되면 하류 노드가 dispatch 되지 않아야 한다.
+    // node-1 → node-2 → node-3 (default 3-node 선형 그래프) 를 그대로 재사용한다.
+    it('노드 1 실행 중 Execution 이 외부에서 cancelled 로 바뀌면 executeInline 이 하류를 dispatch 하지 않고 ExecutionCancelledError 를 던진다 (§2.3 C2)', async () => {
+      (mockHandler.execute as jest.Mock).mockClear();
+      let calls = 0;
+      (mockHandler.execute as jest.Mock).mockImplementation(async () => {
+        calls++;
+        return mockOutput({ ok: true });
+      });
+
+      // executeInline 은 루프 진입 전 "execution meta" 조회(1건) + 루프 매 노드
+      // 경계마다 assertExecutionNotCancelled(§2.3) 조회를 순서대로 수행한다.
+      // 1) execution meta lookup — 무관.
+      // 2) node-1 dispatch 전 cancel 체크 — 통과(아직 RUNNING).
+      // 3) node-2 dispatch 전 cancel 체크 — 외부 cancel 관측(CANCELLED) → throw.
+      const runningRow = {
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.RUNNING,
+        startedAt: new Date(),
+      };
+      const cancelledRow = {
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.CANCELLED,
+        startedAt: new Date(),
+      };
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(runningRow)
+        .mockResolvedValueOnce(runningRow)
+        .mockResolvedValueOnce(cancelledRow);
+
+      const context = withWorkspace(
+        contextService.createContext(executionId, workflowId),
+      );
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          { foo: 'bar' },
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'workflow-node-row-cancel',
+          },
+        ),
+      ).rejects.toThrow(ExecutionCancelledError);
+
+      // node-1 만 dispatch 되고 node-2/node-3(하류)는 dispatch 되지 않는다.
+      expect(calls).toBe(1);
     });
 
     it('restores context.parentNodeExecutionId after the inline run (happy path)', async () => {
@@ -3636,6 +3705,37 @@ describe('ExecutionEngineService', () => {
       inlineSpy.mockRestore();
     });
 
+    // ai-review W2 (2026-07-26) — 본문은 부모와 같은 executionId 를 공유하므로
+    // §2.3 가드(executeInline 내부)가 외부 cancel 을 관측하면 ExecutionCancelledError
+    // 가 여기로 도달한다. re-throw 하면 BackgroundExecutionProcessor 가 일반 실패로
+    // 처리해 허위 실패 알림 + BullMQ 재시도를 유발한다 — ParkReleaseSignal 과
+    // 동일하게 swallow(graceful 종료, 재throw 없음)해야 한다.
+    it('swallows ExecutionCancelledError from the body (§2.3) — no re-throw, no retry/failure notification', async () => {
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockRejectedValue(
+          new ExecutionCancelledError('Execution cancelled externally'),
+        );
+
+      // BackgroundExecutionProcessor.process() 의 catch(re-throw → 실패
+      // 알림/재시도)에 도달하지 않으려면 executeBackgroundSubgraph 가 reject 하면
+      // 안 된다.
+      await expect(
+        service.executeBackgroundSubgraph(
+          makeBgJob({ backgroundRunId: 'bg-run-cancelled' }),
+        ),
+      ).resolves.toBeUndefined();
+
+      // finally 의 bgKey context 정리는 다른 예외 경로와 동일하게 수행돼야 한다.
+      expect(
+        contextService.getContext(`bg:${executionId}:bg-run-cancelled`),
+      ).toBeUndefined();
+      inlineSpy.mockRestore();
+    });
+
     it('derives bgKey suffix from parentNodeExecutionId when backgroundRunId is empty (legacy job)', async () => {
       let capturedKey: string | undefined;
       const inlineSpy = jest
@@ -6042,6 +6142,49 @@ describe('ExecutionEngineService', () => {
         executionId,
         'execution.completed',
         expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    // ai-review C2 (2026-07-26) — mutation 실측: `runNodeDispatchLoop` 상단의
+    // §2.3 가드(`assertExecutionNotCancelled`)를 제거해도 이전엔 407/407 GREEN
+    // 이었다(커버리지 0). §7.5 재개 경로(driveResumeAwaited → runNodeDispatchLoop)
+    // 에서 외부 cancel 관측 시 하류 노드(node-end)가 실제로 dispatch 되지 않음을
+    // 직접 고정한다 — resume 경로는 runExecution 의 선형 루프와 별도 while 문이라
+    // 독립적으로 회귀할 수 있다.
+    it('재개 중 외부 cancel 관측 시 runNodeDispatchLoop 가 하류 노드를 dispatch 하지 않는다 (§2.3 C2)', async () => {
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      armSlowPathResume(
+        'node-form',
+        formNodes.find((n) => n.id === 'node-form')!,
+      );
+      // armSlowPathResume 의 mockResolvedValueOnce 는 rehydrateAndResume 의
+      // invariant 조회(WAITING_FOR_INPUT) 1건을 채운다. 그 다음 executionRepository
+      // .findOneBy 호출 — runNodeDispatchLoop 상단 assertExecutionNotCancelled(§2.3)
+      // — 이 CANCELLED 를 관측하도록 무장한다.
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.CANCELLED,
+        startedAt: new Date(),
+      });
+
+      void service.continueExecution(executionId, { approved: true });
+      await flushResumeDrive();
+
+      // node-end(하류)는 dispatch 되지 않는다 — node-start(park 이전, 1회)만.
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+      // finalizeResumedExecutionOutcome(C4/W3) 이 cancelled 로 마감 + emit.
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({ status: 'cancelled' }),
+      );
+      expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.anything(),
       );
     });
 

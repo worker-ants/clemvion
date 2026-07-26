@@ -2617,17 +2617,24 @@ export class ExecutionEngineService
     // terminal 도달 — 재개 routing 상태(중첩 call stack) 비움 (top-level 은 이미 null).
     savedExecution.resumeCallStack = null;
     if (error instanceof ExecutionCancelledError) {
-      savedExecution.status = ExecutionStatus.CANCELLED;
-      savedExecution.finishedAt = new Date();
+      // ai-review C4/W3 (2026-07-26) — runExecution catch 와 동일한 이유로 guarded
+      // UPDATE(M-3)로 전환한다. stop() 이 이미 finishedAt/durationMs 를 포함해
+      // CANCELLED 를 커밋했으면 재개 세그먼트의 stale savedExecution 으로 그 값을
+      // 덮어쓰지 않는다. emit 은 공용 emitCancellationEvent 로 통일해 `cancelledBy`
+      // 계약을 채운다.
+      savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
       savedExecution.durationMs =
+        savedExecution.durationMs ??
         savedExecution.finishedAt.getTime() -
-        savedExecution.startedAt.getTime();
-      await this.executionRepository.save(savedExecution);
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_CANCELLED,
-        { status: ExecutionStatus.CANCELLED },
+          savedExecution.startedAt.getTime();
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.CANCELLED,
       );
+      await this.emitCancellationEvent(executionId, {
+        cancelledBy: 'user',
+        logContext: 'finalizeResumedExecutionOutcome',
+      });
       return;
     }
     // 재개 세그먼트 종결 — 초기 세그먼트(runExecution catch)와 동일한 FAILED 종결 처리를
@@ -4500,19 +4507,34 @@ export class ExecutionEngineService
         return;
       }
 
-      // Cancelled while waiting for user input — mark as cancelled, not failed
+      // ai-review C4 (2026-07-26) — §2.3 node-boundary cancel 가드가 관측한 외부
+      // cancel. `stop()` 이 이미 guarded UPDATE 로 finishedAt/durationMs 를 포함해
+      // CANCELLED 를 커밋했으므로(그 행을 assertExecutionNotCancelled 가 읽어 이
+      // 예외를 던졌다), 여기서 무조건 save() 하면 stale in-memory savedExecution 이
+      // 그 값을 늦은 시각으로 덮어써 finishedAt/durationMs 가 부풀려진다. M-3
+      // guarded UPDATE(`updateExecutionStatus`, `status IN (비-terminal)`)로 전환해
+      // 이미 terminal 인 행은 재마킹하지 않는다 — assertExecutionNotCancelled 의
+      // JSDoc(§2.3) 이 주장하는 "stop 이 쓴 finishedAt/durationMs 가 보존된다" 가
+      // 실제로 성립하도록 한다. 값은 방어적으로 채워 둔다(레이스로 이 catch 가
+      // 최초 관측자가 되는 극단 케이스 대비 — 그 경우에만 실제로 영속된다).
+      // emit 은 `stop()` 이 RUNNING/PENDING 경로에서 이벤트를 쏘지 않으므로(WAITING
+      // 경로만 cancelParkedExecution 이 emit) 여기가 유일한 알림 지점 —
+      // updateExecutionStatus 의 no-op 여부와 무관하게 항상 발행한다. W3 — 공용
+      // emitCancellationEvent 로 통일해 `cancelledBy` 계약을 채운다.
       if (err instanceof ExecutionCancelledError) {
-        savedExecution.status = ExecutionStatus.CANCELLED;
-        savedExecution.finishedAt = new Date();
+        savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
         savedExecution.durationMs =
+          savedExecution.durationMs ??
           savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
-        await this.executionRepository.save(savedExecution);
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_CANCELLED,
-          { status: ExecutionStatus.CANCELLED },
+            savedExecution.startedAt.getTime();
+        await this.updateExecutionStatus(
+          savedExecution,
+          ExecutionStatus.CANCELLED,
         );
+        await this.emitCancellationEvent(executionId, {
+          cancelledBy: 'user',
+          logContext: 'runExecution',
+        });
         return;
       }
 
@@ -6448,6 +6470,15 @@ export class ExecutionEngineService
       return undefined;
     }
 
+    // ai-review C3 (2026-07-26) — §2.3 컨테이너 범위 확장. ForEach/Loop/Map 은
+    // 매 iteration 마다 이 함수를 호출하므로(내부 노드 루프가 아니라 여기서 한 번만
+    // 체크), 노드 경계마다가 아니라 **아이템 경계마다** cancel 을 관측한다 — 대량
+    // 아이템 반복에 폴링 비용이 곱해지지 않으면서도(SUMMARY INFO 관측과 일치),
+    // Stop 이후 다음 아이템으로 넘어가지 않는다. ForEachExecutor 의
+    // errorPolicy:'skip'|'continue' 가 이 예외를 삼키지 않도록 별도로 재throw
+    // 가드했다(foreach-executor.ts).
+    await this.assertExecutionNotCancelled(executionId);
+
     // Seed reachability: body entry nodes OR (if none via port) children
     // with no incoming internal edge.
     const reachable = new Set<string>();
@@ -6847,6 +6878,17 @@ export class ExecutionEngineService
         this.logger.debug(
           `[background] body parked at interactive node — fire-and-forget 종료(외부 재개 불가). execution=${job.executionId}`,
         );
+      } else if (err instanceof ExecutionCancelledError) {
+        // ai-review W2 (2026-07-26) — 본문은 부모와 같은 executionId 를 공유하므로
+        // §2.3 가드(executeInline 내부)가 외부 cancel 을 관측하면 여기로도
+        // ExecutionCancelledError 가 도달한다. re-throw 하면 BackgroundExecutionProcessor
+        // 가 일반 실패로 처리해 (a) `background_run.completed(status:'failed')` WS emit,
+        // (b) notifyOnFailure admin 허위 알림, (c) BullMQ 재시도(매 재시도마다 알림
+        // 중복)를 유발한다 — 사용자가 명시적으로 멈춘 실행인데 "실패"로 통지되는
+        // 오분류. ParkReleaseSignal 과 동일하게 graceful 종료(swallow, no retry).
+        this.logger.debug(
+          `[background] body observed external cancel (§2.3) — graceful 종료(재시도/허위 실패 알림 없음). execution=${job.executionId}`,
+        );
       } else {
         throw err;
       }
@@ -7071,6 +7113,11 @@ export class ExecutionEngineService
       if (!reachable.has(nodeId)) continue;
       const node = nodeMap.get(nodeId);
       if (!node) continue;
+
+      // ai-review C3 (2026-07-26) — §2.3 컨테이너/Parallel 범위 확장. 브랜치는
+      // ForEach/Loop 처럼 대량 아이템 반복이 아니라 정적 노드 그래프이므로, 메인
+      // 루프(runExecution/runNodeDispatchLoop)와 동일하게 **노드 경계마다** 체크한다.
+      await this.assertExecutionNotCancelled(executionId);
 
       if (node.isDisabled) {
         const skipped = await this.createNodeExecution(
@@ -7784,10 +7831,14 @@ export class ExecutionEngineService
    * "선형 경로 외부 cancel 전파" describe. e2e 는 노드 A 완주 전에 단언해 이 갭을
    * 관측하지 못했다 — `node-cancellation-propagation.e2e-spec.ts` 참고.)
    *
-   * **비용.** 노드 경계마다 PK 인덱스 SELECT 1건(status 단일 컬럼). 같은 경계에서
-   * 이미 NodeExecution INSERT + Execution UPDATE + 이벤트 emit 이 일어나므로
-   * 상대 비용은 무시할 만하다. `context.abortSignal` 로 대체할 수 없다 — 그 필드는
-   * `parallel-executor.ts` 가 parallel 분기에만 주입해 선형 경로에선 항상 undefined 다.
+   * **비용.** 노드 경계마다 PK 인덱스 SELECT 1건(status 단일 컬럼 — W1: `findOneBy`
+   * 는 `select:false` 가 없는 6개 JSONB 컬럼(`input_data`/`output_data`/`error`/
+   * `conversation_thread`/`user_variables`/`resume_call_stack`) 을 포함한 전체 row
+   * 를 SELECT 했다. `findOne({select:{status:true}})` 로 컬럼 투영해 실제로
+   * status 한 컬럼만 왕복한다). 같은 경계에서 이미 NodeExecution INSERT +
+   * Execution UPDATE + 이벤트 emit 이 일어나므로 상대 비용은 무시할 만하다.
+   * `context.abortSignal` 로 대체할 수 없다 — 그 필드는 `parallel-executor.ts` 가
+   * parallel 분기에만 주입해 선형 경로에선 항상 undefined 다.
    *
    * CANCELLED 를 관측하면 `ExecutionCancelledError` 를 throw 해 기존 취소 전파 경로
    * (loop catch → 상위 catch 의 cancelled 마감)에 합류한다. 이미 terminal 인 행을
@@ -7796,7 +7847,10 @@ export class ExecutionEngineService
   private async assertExecutionNotCancelled(
     executionId: string,
   ): Promise<void> {
-    const row = await this.executionRepository.findOneBy({ id: executionId });
+    const row = await this.executionRepository.findOne({
+      where: { id: executionId },
+      select: { id: true, status: true },
+    });
     if (row?.status !== ExecutionStatus.CANCELLED) return;
     this.logger.log(
       `Execution ${executionId} cancelled externally — halting dispatch at node boundary`,

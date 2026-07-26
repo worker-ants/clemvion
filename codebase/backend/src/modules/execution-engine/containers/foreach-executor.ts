@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import { ExecutionCancelledError } from '../workflow-errors';
 
 export type ForEachErrorPolicy = 'stop' | 'skip' | 'continue';
 
@@ -88,6 +89,16 @@ export class ForEachExecutor {
             items.push(output);
           }
         } catch (err: unknown) {
+          // ai-review C3 (2026-07-26) — §2.3 executeContainerBody(engine)가 매
+          // iteration 경계에서 던지는 외부 cancel sentinel은 `errorPolicy` 가
+          // 'skip'|'continue' 여도 삼키면 안 된다. 삼키면 다음 iteration 으로
+          // 계속 진행하며 매번 즉시 재실패하는 no-op 을 반복하고(비용은 작지만),
+          // 취소가 "N건 실패"로 오분류되어 진짜 원인(외부 cancel)이 skipped[]
+          // 에 묻힌다. `errorPolicy: 'stop'`(default)은 이미 아래 switch 로
+          // 재throw 하지만, 다른 정책에서도 대칭적으로 즉시 전파한다.
+          if (err instanceof ExecutionCancelledError) {
+            throw err;
+          }
           const errorMessage = err instanceof Error ? err.message : String(err);
           const errorCode = err instanceof Error ? err.name : 'UNKNOWN_ERROR';
 

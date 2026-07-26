@@ -73,6 +73,11 @@ export class LoopExecutor {
     // when they finish instead of wiping it.
     const prevLoopContext = context.loopContext;
 
+    // ai-review C3 (2026-07-26) — unlike ForEachExecutor, this loop has no
+    // per-iteration try/catch around `executeBody`, so an `ExecutionCancelledError`
+    // thrown by the engine's §2.3 iteration-boundary guard (`executeContainerBody`)
+    // already propagates unmodified through the `finally` below — no explicit
+    // rethrow needed here.
     try {
       for (let i = 0; i < count; i++) {
         if (i >= maxIterations) {

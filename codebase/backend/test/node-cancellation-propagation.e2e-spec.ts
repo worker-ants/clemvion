@@ -23,21 +23,25 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 여기서 검증하는 것은 그 위층 — **엔진이 다음 노드로 넘어가지 않고 실행을 cancelled 로
  * 확정하는가**.
  *
- * ## ⚠ 기전은 미확인 — 이 파일은 **결과만** 주장한다
+ * ## 기전 규명 완료(2026-07-26) — 가드가 없어서 특정되지 않았던 것이었다
  *
  * 초안 주석은 `context.abortSignal?.throwIfAborted()` 를 근거로 들었으나 **틀렸다**:
  * `abortSignal` 대입은 저장소 전체에서 `parallel-executor.ts`(parallel branch 전용) 한 곳뿐이라
  * 이 **선형·비-resume 경로에서는 항상 undefined** 다. 후속 라운드에 "guarded UPDATE" 를 대안
  * 근거로 들었으나 그 역시 §7.5 resume-claim 전용 경로였다. (ai-review 2R 에서 독립 reviewer
- * 3명이 수렴 지적.)
+ * 3명이 수렴 지적.) **결론: 그 시점엔 보장하는 코드가 실제로 없었다** — e2e 는 `waitForTerminalStatus`
+ * 가 stop 직후 즉시 반환하는 타이밍 덕에 통과하고 있었을 뿐(노드 A 가 아직 busy-wait 중일 때
+ * 하류를 조회해 가드 없이도 통과하는 구조), 우연이 아니라 진짜 결함이었다.
  *
- * 그래서 이 테스트가 주장하는 것은 **관측된 계약**뿐이다 — stop 이후 실행이 `cancelled` 로
- * 확정되고 하류 노드가 도달하지 않는다. 근거는 코드 인용이 아니라 **반복 관측 + 대조군**
- * (3회 재현 · 취소를 생략하면 하류가 `completed` — 아래 대조군 테스트)이다. **어느 코드가 이
- * 속성을 보장하는지는 아직 특정되지 않았고, 타이밍 우연 가능성을 배제하지 못한다.**
- * 엔진 단위 테스트로 "선형 두 노드 사이 Execution 이 외부에서 cancelled 로 바뀌면 다음 노드가
- * dispatch 되지 않는다" 를 결정적으로 고정하는 것이 후속 과제다
- * (`plan/in-progress/node-cancellation-residual-signal-propagation.md`).
+ * 수정: `ExecutionEngineService.assertExecutionNotCancelled()` 를 노드 경계 가드로 도입해
+ * `runExecution`/`runNodeDispatchLoop`/`executeInline` 세 순회 루프 전부에 배치했다(§2.3).
+ * 노드 사이마다 Execution 행을 다시 읽어 외부 cancel(DB UPDATE)을 관측하고
+ * `ExecutionCancelledError` 로 dispatch 를 중단한다. 엔진 단위 테스트
+ * (`execution-engine.service.spec.ts` 의 "선형 경로 외부 cancel 전파" / "재개 중 외부 cancel..."
+ * describe)가 이 계약을 mutation 검증까지 마쳐 결정적으로 고정한다 — 가드를 한 줄씩 제거하면
+ * 각각 RED, 복원하면 GREEN. 본 e2e 는 그 위에서 HTTP 왕복 + 실 DB 를 통한 통합 확인이다.
+ * 관측 시점도 함께 고쳤다 — A 의 종료를 기다린 뒤 하류를 조회하도록(옛 관측은 A 가 아직
+ * busy-wait 중일 때 조회해 가드 없이도 통과했다).
  *
  * ## 결정적 하네스 (flaky 회피 설계)
  *

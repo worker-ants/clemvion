@@ -222,3 +222,76 @@ developer 범위로 처리 가능한 부분(코드+테스트)과 spec 표 갱신
 
 `node-handler.interface.ts` 의 JSDoc(같은 오류를 복제하고 있었다)은 코드라 이번 PR 에서
 정정했다 — spec 과 어긋난 채로 두지 않기 위해 근거를 주석에 함께 남겼다.
+
+---
+
+## 추가 위임 (2026-07-26 #6) — §2.3/§5.1/§6: 노드 경계 Execution-cancel 재확인 가드가 spec 에 없다
+
+`review/code/2026/07/26/11_48_55` WARNING 6 (documentation·requirement).
+[`node-cancellation-residual-signal-propagation.md`](node-cancellation-residual-signal-propagation.md)
+의 "선형 경로 cancel 전파의 기전 규명 + 결정적 고정" 항목(2026-07-26 완료)에 대한 위임 —
+자매 항목(MakeShop·Cafe24·chat-channel, 위 #2·#5)과 동일하게 developer 는 `spec/` 쓰기 권한이
+없어 제안만 남긴다.
+
+### 무엇이 새로 생겼나
+
+`ExecutionEngineService.assertExecutionNotCancelled()` — 노드 경계(순회 루프 3곳: `runExecution`
+· `runNodeDispatchLoop` · `executeInline`, 이어서 컨테이너/Parallel 로도 확장:
+`executeContainerBody`·`executeParallelBranchBody`)마다 Execution 행을 다시 읽어 외부
+cancel(`POST /executions/:id/stop`)을 관측하고 `ExecutionCancelledError` 로 dispatch 를
+중단하는 **Execution-레벨 가드**다.
+
+**본 문서 §2.3 (`abortSignal` 생산자 목록) · §5.1 (`AbortError` 분류) 이 다루는 사전 체크와는
+다른 메커니즘**이다:
+
+| | 기존 §2.3/§5.1 서술 | 신규(2026-07-26) |
+| --- | --- | --- |
+| 신호 | `context.abortSignal` (표준 `AbortSignal` API) | Execution 행의 `status` 컬럼 재조회 |
+| 관측 방식 | 노드 핸들러가 `signal.aborted`/`throwIfAborted()` 를 읽거나 SDK/fetch 에 전파 | 엔진 dispatch 루프가 노드 경계마다 DB 를 재조회 |
+| 왜 별도로 필요한가 | `abortSignal` 은 `ParallelExecutor`(cancel-others-on-fail)가 branch context 에만 주입 — **선형 경로에선 항상 `undefined`** | 사용자 Stop 버튼은 `AbortController`/job cancel 없이 DB row 만 UPDATE 하므로, 선형 경로가 취소를 관측할 유일한 방법이 재조회다 |
+| throw 하는 에러 | `error.name === 'AbortError'` (핸들러가 던짐) | `ExecutionCancelledError` (엔진이 던짐, `workflow-errors.ts`) |
+
+### 현재 spec 서술이 오해를 유발한다
+
+- §6 표 `:140` 행 `"...dispatch 사전 abort 체크..."✓` 는 **노드-레벨 `abortSignal` 사전 체크**
+  (§5.1 문장)만 가리키는데, 이번 리뷰에서 이 행이 "그러니 Stop 버튼도 이미 커버된다" 로
+  오독될 수 있음이 드러났다(실제로 `node-cancellation-residual-signal-propagation.md` 초안
+  단계에서 그렇게 오독된 이력 — 원 티켓 문제 제기 참조). 신규 메커니즘을 **별도 행**으로
+  분리해야 이 오독이 재발하지 않는다.
+- `:60` 행 `"사용자 cancel 버튼 (구현됨 2026-05-31)"` 은 "실행을 중단" 이라고만 적어, 그
+  "중단" 이 (a) DB row 를 terminal 로 UPDATE 하는 것과 (b) 진행 중인 dispatch 루프를 실제로
+  멈추는 것 **둘 다**를 가리키는지 모호했다 — 실제로는 이번 PR 전까지 (a) 만 참이었다. 신규
+  가드를 언급해 (b) 도 이제 참임을 명시해야 한다.
+
+### 제안 변경
+
+1. **§2.3 에 새 bullet 추가** (기존 4개 생산자 항목 뒤):
+   > **노드 경계 Execution-cancel 재확인** (구현됨 2026-07-26) — `ExecutionEngineService`
+   > 의 dispatch 루프(선형 3곳 + 컨테이너/Parallel 반복)가 노드 경계마다 Execution 행을
+   > 다시 읽어 외부 cancel 을 관측하고 `ExecutionCancelledError` 를 throw 한다.
+   > `context.abortSignal` 과 달리 **DB 재조회가 유일한 관측 수단**이다(사용자 cancel 버튼이
+   > signal 을 생성하지 않으므로) — `assertExecutionNotCancelled()`.
+2. **§5.1 에 단락 추가**: `ExecutionCancelledError`(엔진 자체 발생)도 `error.name ===
+   'AbortError'`(핸들러 발생)와 동일하게 `NodeExecution.status = cancelled`/`Execution.status
+   = cancelled` 로 귀결됨을 명시하고, 두 에러가 서로 다른 발생 지점(핸들러 vs 엔진 dispatch
+   루프)이라는 점을 각주.
+3. **§6 표에 새 행 추가**:
+   ```
+   | 노드 경계 Execution-cancel 재확인 가드 (`assertExecutionNotCancelled`, §2.3) | ✓ | `execution-engine.service.ts` — 선형 3곳(`runExecution`/`runNodeDispatchLoop`/`executeInline`) + 컨테이너(`executeContainerBody`, 아이템 경계)/Parallel(`executeParallelBranchBody`, 노드 경계) 반복 루프. mutation 검증 완료 |
+   ```
+   기존 `:140` 행 비고에서 "dispatch 사전 abort 체크" 앞에 "(노드-레벨 `abortSignal`)" 을
+   덧붙여 신규 행과 명확히 구분.
+4. **`frontmatter.code:`** 에 `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
+   추가 (현재 미등재 — W1 SUMMARY 지적).
+5. **`:60` 행 비고 갱신**: "REST API `POST /executions/:id/stop` 가 실행을 중단" 뒤에
+   "(Execution 행 UPDATE. 진행 중 dispatch 루프의 실제 중단은 위 신규 행의 노드 경계 가드가
+   담당 — 2026-07-26 이전엔 이 가드가 없어 하류 노드가 계속 dispatch 됐다)" 를 추가.
+
+### Rationale (developer 관점)
+
+이 항목은 SPEC-DRIFT(코드가 spec 을 의도적으로 앞선 경우)가 아니라 **spec 서술 자체가
+두 메커니즘을 하나로 뭉뚱그려 커버리지 오독을 유발한 경우**다 — §6 `:140` 행이 실제로는
+"노드-레벨 abortSignal 사전 체크"만 가리키는데 "그러니 Stop 도 이미 커버" 로 읽힐 여지를
+남겼고, 그 오독이 이 PR 이 고친 실제 결함(하류 노드 계속 dispatch)의 배경이었다. spec 을
+바로잡지 않으면 향후 리뷰가 같은 혼동을 반복할 위험이 있어 project-planner 위임으로
+남긴다. 코드·테스트·plan 갱신은 이번 PR(developer 범위)에서 완료했다.

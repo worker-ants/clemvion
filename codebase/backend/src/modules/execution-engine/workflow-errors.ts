@@ -309,7 +309,13 @@ export class FormValidationError extends ExecutionError {
  * 식별돼야 하므로, 양쪽이 공유하는 leaf 에러 모듈(본 파일)에 둔다 — engine↔retry
  * value cross-import 순환 회피 (C-1 step4).
  *
- * @internal — execution-engine 모듈 내부 cancel 전파 전용 sentinel. 모듈 외부 직접 참조 금지.
+ * @internal — 원칙상 execution-engine 모듈 내부 cancel 전파 전용 sentinel이나,
+ * `nodes/flow/workflow/workflow.handler.ts` 는 **동일한 이유로 sanctioned 예외**다:
+ * `executeInline` 이 부모 executionId 를 공유하는 sync sub-workflow 실행이라, 노드
+ * 경계 cancel 가드가 이 에러를 던지면 `ParkReleaseSignal` 과 대칭으로 재throw 해야
+ * error 포트로 삼켜지지 않는다(ai-review C1, 2026-07-26 — 삼키면 하류 1홉이 계속
+ * dispatch 되고 취소가 `SUB_WORKFLOW_FAILED` 로 오분류된다). 그 외 모듈 외부 직접
+ * 참조는 금지.
  */
 export class ExecutionCancelledError extends Error {
   /**
