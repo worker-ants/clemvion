@@ -81,8 +81,13 @@ priority: P3
       `:60` 의 "stop 이 실행을 중단" 은 **선형 경로에서 사실이 아니었다**. 실질 피해는
       라벨 오류가 아니라 **부수효과**다: Stop 이후에도 이메일 발송·HTTP POST·DB 쓰기가 계속됐다.
       **조치**: `assertExecutionNotCancelled()` 를 노드 경계에 추가(순회 루프 3곳 —
-      `runExecution` · `runNodeDispatchLoop` · `executeInline`). mutation 검증 완료
-      (가드 제거 시 RED 3회 → 복원 시 GREEN 1회).
+      `runExecution` · `runNodeDispatchLoop` · `executeInline`). ~~mutation 검증
+      완료(가드 제거 시 RED 3회 → 복원 시 GREEN 1회)~~ — **W7 정정(2026-07-26,
+      아래 후속 참조): 실측은 RED 1회뿐이었다.** `runNodeDispatchLoop`/`executeInline`
+      은 회귀 테스트가 없어 가드를 제거해도 407/407 GREEN(검출 불가)이었다 —
+      `runExecution` 한 곳만 실제로 RED 였다. 아래 후속에서 누락됐던 회귀 테스트를
+      추가하고 **7개 지점 전부**(선형 3곳 + 컨테이너/Parallel 2곳 + C1 재throw +
+      ForEachExecutor 재throw) mutation 재검증을 완료했다(전부 RED → 복원 시 GREEN).
       **e2e 도 함께 고쳤다** — 기존 단언은 `waitForTerminalStatus` 가 stop 직후 즉시
       반환하는 탓에 **노드 A 가 아직 busy-wait 중일 때** 하류를 조회해, 가드가 전혀 없어도
       통과하는 구조였다(관측 시점이 너무 이름). A 의 종료를 기다린 뒤 판정하도록 변경.
@@ -99,8 +104,13 @@ priority: P3
   > (b) 컨테이너(ForEach/Loop/Map)·Parallel 브랜치 반복은 애초에 가드 범위 밖, (c)
   > `runNodeDispatchLoop`/`executeInline` 회귀 테스트가 실제로는 없어 mutation 이 GREEN(가드
   > 제거를 못 잡음) 이었다 — 전부 같은 turn 에서 처리 완료(코드+테스트, `RESOLUTION.md`
-  > 참조). **spec 갱신(§2.3/§5.1/§6 + `code:`)은 developer 권한 밖이라 project-planner 에
-  > 위임** — 자매 항목(MakeShop·Cafe24·chat-channel)과 동일하게
+  > 참조). **mutation 재검증(7개 지점, 전부 개별 RED → 복원 GREEN)**: `runExecution`
+  > (기존 커버리지) · `runNodeDispatchLoop`(신규 테스트) · `executeInline`(신규 테스트) ·
+  > `executeContainerBody`(신규 테스트) · `executeParallelBranchBody`(신규 테스트) ·
+  > `WorkflowHandler` 의 C1 재throw(신규 테스트) · `ForEachExecutor` 의 errorPolicy 우회
+  > 재throw(신규 테스트, skip/continue 양쪽). **spec 갱신(§2.3/§5.1/§6 + `code:`)은
+  > developer 권한 밖이라 project-planner 에 위임** — 자매 항목(MakeShop·Cafe24·chat-channel)
+  > 과 동일하게
   > [`spec-update-node-cancellation-shutdown-classification.md`](spec-update-node-cancellation-shutdown-classification.md)
   > 의 **"추가 위임 (2026-07-26 #6)"** 절에 제안을 남겼다(이 항목의 spec 반영은 아직
   > 미이행 — planner 턴 대기).
