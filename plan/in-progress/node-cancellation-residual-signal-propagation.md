@@ -142,6 +142,20 @@ priority: P3
   > **범위 밖으로 남긴 것(백로그, 아래 참조)**: `runParallel` 이 `ParallelResult.failures`
   > 를 전혀 소비하지 않는 별개 결함, `errorPolicy:'stop'` 의 `failures[0]` 우선순위 레이스.
 
+  > **후속 3 — review 13_47_42 ~ 16_20_52 (3R~7R, 2026-07-26)**: 위 "후속" 기록은 2R 까지만
+  > 담고 있었다. 최종 구현 범위는 **선형 3곳보다 훨씬 넓다** — 실제로 가드가 배치된 곳은
+  > `runExecution` · `runNodeDispatchLoop` · `executeInline` · `executeContainerBody`(아이템
+  > 경계, 250ms 스로틀) · `executeParallelBranchBody` **5곳**이고, `ExecutionCancelledError`
+  > 우회 재throw 가 `workflow.handler`(Sub-Workflow) · `ForEachExecutor` · `ParallelExecutor` ·
+  > `runContainer` · `executeNode` · `executeBackgroundSubgraph`(graceful swallow) **6곳**이다.
+  > 추가로 3R~6R 에서 닫은 것: Background 본문의 스로틀 Map 누수(W14) · Sub-Workflow 노드가
+  > 취소를 `failed` 로 오분류하고 내부 message 를 WS 로 방출하던 결함(W15) · 그 수정이 만든
+  > **노드 영구 `running` 잔류**(W19) · `errorHandling.policy:'retry'` 노드에서 취소가
+  > 재시도되던 결함(W20) · retry-turn 이 취소 시 `execution.error` 를 저장해 REST 로 노출하던
+  > 결함(W16) · 취소 종결 중복 추출(W25) · JSDoc 고아·불변식 결속(W26·W27).
+  > **위임 문서(#6)의 §6 표 제안 문구도 1R 시점에서 멈춰 있으니**, planner 가 반영하기 전에
+  > 이 범위로 갱신해야 새 spec-drift 가 생기지 않는다.
+
 ### 백로그 — 이번 라운드 범위 밖으로 명시적으로 남긴 항목 (2026-07-26)
 
 - **`runParallel` 이 `ParallelResult.failures` 를 읽지 않는다**
@@ -160,6 +174,32 @@ priority: P3
   은 이미 root-cause 우선 로직(`error.name !== 'AbortError'` 필터)이 있어 무해하지만
   `stop` 에는 없다. 현재 근거상 발생 빈도가 낮아(취소·실패 동시 도착) 승급 보류 —
   실제 오분류가 관측되면 `stop` 에도 root-cause 우선 선택을 추가.
+
+- **선재 spec 파일 구조적 flakiness (W23)** — `execution-engine.service.spec.ts` 가 real-timer
+  헬퍼 `flushResumeDrive` 를 쓴다(파일 자체 주석이 "CI 고부하 시 flaky" 를 명시). 64회 반복 중
+  2회, `Date.now` 와 **무관한** 신규 테스트 2건이 flake 했다. 이 PR 이 만든 것이 아니라 선재
+  구조 문제이고, 해소는 spec 파일 분할 규모의 작업이라 분리했다.
+- **가드 시퀀스 헬퍼 승격 (W8)** — 노드 경계 진입부의 가드 시퀀스(`assertActiveTimeWithinLimit`
+  + `assertExecutionNotCancelled` + 향후 추가분)를 단일 지점으로 묶는 중간 규모 리팩터.
+  순회 루프 전면 통합은 과거 "엔진 재작성급 고위험" 으로 기각된 범위라 제외.
+  **선행 확인 필요**: `executeInline` 이 `assertActiveTimeWithinLimit` 를 호출하지 않는 기존
+  비대칭이 의도인지 먼저 판정해야 한다(통합하면서 무심코 없애거나 고착시킬 위험).
+  > ⚠ `review/code/2026/07/26/11_48_55/RESOLUTION.md` 가 "이미 plan 에 명시돼 있음" 이라고
+  > 적었으나 **사실이 아니었다**(impl-done 16_28_26 plan_coherence 실측). 이후 라운드들이 그
+  > 잘못된 전제를 반복 인용만 했다 — 이 항목이 여기 처음 기록된다.
+- **graceful shutdown 의 `FAILED`(SERVER_INTERRUPTED) 를 가드가 감지하지 못한다** —
+  `assertExecutionNotCancelled` 는 `CANCELLED` 만 본다. `ShutdownStateService` 가 grace 만료로
+  `FAILED`+`SERVER_INTERRUPTED` 를 마킹한 뒤에도 같은 프로세스의 dispatch 루프가 살아 있으면
+  계속 dispatch 한다 — 이 PR 이 `stop()` 에 대해 막은 것과 **같은 결함이 shutdown 경로엔 남는다**.
+  위 BLOCKED 항목(cancelled vs failed 계약 택일)이 결정되면 `status IN (CANCELLED, FAILED)`
+  확장 여부를 함께 판단할 것.
+  > `review/code/2026/07/26/11_48_55/concurrency.md` 가 "그 트래킹 문서에 명시적으로 남길 것"
+  > 을 콕 집어 권고했으나 반영되지 않았다 — 여기 처음 기록된다.
+- **`markNodeCancelled` 네이밍 혼동 (impl-done naming_collision)** — 같은 클래스에 이미
+  `markExecutionCancelled`(Execution 레벨, resume 실패 발 system 취소)가 있어 `mark<X>Cancelled`
+  패턴이 겹친다. 실제 설계상 이웃은 `finalizeCancelledExecution` 이므로 `finalizeCancelledNode`
+  로 개명하거나 JSDoc 첫 줄에 "`markExecutionCancelled` 와 무관 — NodeExecution 대상" 을 명시.
+  빌드·런타임 무영향이라 **코드 재검토 라운드를 다시 유발하지 않기 위해 백로그로 분리**했다.
 
 ### 트레이드오프 — 아이템 경계 cancel 가드 스로틀 (W10, 2026-07-26)
 

@@ -295,3 +295,35 @@ cancel(`POST /executions/:id/stop`)을 관측하고 `ExecutionCancelledError` �
 남겼고, 그 오독이 이 PR 이 고친 실제 결함(하류 노드 계속 dispatch)의 배경이었다. spec 을
 바로잡지 않으면 향후 리뷰가 같은 혼동을 반복할 위험이 있어 project-planner 위임으로
 남긴다. 코드·테스트·plan 갱신은 이번 PR(developer 범위)에서 완료했다.
+
+### #6 보강 (2026-07-26, impl-done `review/consistency/2026/07/26/16_28_26`)
+
+impl-done 5개 checker 가 위 #6 제안의 **범위 누락**을 지적했다. planner 는 반영 시 아래를 함께 처리해야 한다 — 그러지 않으면 SoT 만 최신이 되고 미러 문서들이 즉시 stale 해진다.
+
+**(1) `spec_impact` 확장 — `cancelled` 생산자 서술이 4곳에 복제돼 있다** (cross_spec)
+
+`node-cancellation.md` 만 고치면 아래 3곳은 자동 정합되지 않는다. 전부 "생산자: Parallel `cancel-others-on-fail` / 사용자 cancel" 만 나열하고 새 생산자(§2.3 노드 경계 가드)를 빠뜨린다.
+
+- `spec/5-system/4-execution-engine.md:114` — §1.2 NodeExecution 상태 표의 `cancelled` 행
+- `spec/1-data-model.md:546` — `NodeExecution.status` enum 설명(handler-throw 단일 경로만 서술)
+- `spec/data-flow/3-execution.md:282` — §3.2 mermaid 상태 다이어그램의 `running --> cancelled` 엣지 레이블. 바로 다음 줄이 "엔진 코드 경로의 **관찰 요약**" 이라 코드 정확성을 자임하므로 특히 중요. **엣지 추가는 불요** — 같은 전이의 세 번째 사유이므로 라벨에 원인만 추가하면 된다.
+
+**(2) §5.2 예외 명문화** (convention_compliance · rationale_continuity 수렴)
+
+§5.2 표는 `errorPolicy === 'continue'` 를 "cancelled 기록 후 후속 분기 계속" 으로 서술한다. 그러나 `ForEachExecutor`·`ParallelExecutor` 는 `ExecutionCancelledError` 를 **errorPolicy 판정 이전에 무조건 우회 재throw** 한다(`skip`/`continue` 여도 계속하지 않는다). 설계 의도는 "Stop 을 continue 정책이 무효화하면 안 된다" 로 타당하나 문면에 없다.
+
+→ §5.2 에 각주 추가: **`AbortError`(핸들러 발생)는 기존 표대로 errorPolicy 를 따르고, `ExecutionCancelledError`(엔진 발생, §2.3 가드)는 errorPolicy 무관 항상 우회 재throw** 한다. 두 sentinel 의 governance 차이를 표에 명시할 것.
+
+**(3) 250ms 스로틀 Rationale 이관** (rationale_continuity)
+
+#6 의 §6 표 제안은 "아이템 경계" 라는 구분만 언급하고 `CONTAINER_CANCEL_CHECK_THROTTLE_MS = 250` 과 그 근거(카운트 기반 대안 기각, ForEach 아이템 수 상한 부재)를 담지 않는다. 그대로 병합하면 근거가 spec 에서 영구 누락된다. 상세는 `node-cancellation-residual-signal-propagation.md` "트레이드오프 — 아이템 경계 cancel 가드 스로틀 (W10)" 절에 있으니 `node-cancellation.md ## Rationale` 로 이관할 것.
+
+**(4) WS 프로토콜 — `execution.node.cancelled` 생산자·`error` 필드** (cross_spec, 이 항목은 그동안 `plan/` 어디에도 없어 유실 위험이 있었다)
+
+`spec/5-system/6-websocket-protocol.md:186` 은 생산자를 "Parallel `cancel-others-on-fail` / 사용자 cancel" 2개로 나열하고 `error` 를 **상시 존재**하는 것으로 서술한다. 이번 구현으로 **세 번째 생산자**(§2.3 가드 → `executeNode` 취소 분기)가 생겼고, 그 경로는 내부 message(executionId 포함) 노출을 막기 위해 **`error` 를 싣지 않는다**.
+
+→ 생산자 목록에 §2.3 노드 경계 가드 추가 + `error` 를 **optional** 로 서술. 런타임 영향은 없다(현재 소비자 전부 방어적 처리) — 문서만 어긋난 상태.
+
+**(5) `error-codes.md` — `AbortError` 미등재** (convention_compliance)
+
+`AbortError` 는 PascalCase 라 §1 `UPPER_SNAKE_CASE` 위반이고 §3 예외 레지스트리에 미등재다. 값 자체는 선재이나 이번 구현이 `markNodeCancelled` 공유 헬퍼로 재사용 지점을 늘렸다. 위 "추가 위임 (2026-07-25 #4)" 항목 (1) 과 동일 건 — 함께 처리할 것.
