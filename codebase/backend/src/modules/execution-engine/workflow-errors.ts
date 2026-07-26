@@ -312,8 +312,14 @@ export class FormValidationError extends ExecutionError {
  * @internal — execution-engine 모듈 내부 cancel 전파 전용 sentinel. 모듈 외부 직접 참조 금지.
  */
 export class ExecutionCancelledError extends Error {
-  constructor() {
-    super('Execution cancelled while waiting for input');
+  /**
+   * `message` 는 선택 — 기본값은 park(대기 중 취소) 경로의 기존 문구를 그대로 유지해
+   * 호출부 호환을 깨지 않는다. dispatch 사전 cancel 체크(§2.3)처럼 park 이 아닌
+   * 경로는 자기 문맥에 맞는 문구를 넘긴다(기존 문구를 쓰면 원인을 오도한다).
+   * 분류는 어느 경로든 `instanceof` 로 하므로 문구가 판정에 영향을 주지 않는다.
+   */
+  constructor(message = 'Execution cancelled while waiting for input') {
+    super(message);
     this.name = 'ExecutionCancelledError';
   }
 }

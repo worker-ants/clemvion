@@ -4931,6 +4931,44 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  describe('선형 경로 외부 cancel 전파 (node-cancellation §5.1 — 기전 규명)', () => {
+    // e2e `node-cancellation-propagation.e2e-spec.ts` 가 "stop 후 하류 노드 미도달" 을
+    // 관측했으나 **어느 코드가 그것을 보장하는지 특정되지 않았다**(2026-07-24 ai-review 2R,
+    // 독립 reviewer 3명 수렴). 후보 2개는 이미 반증됐다:
+    //   · `context.abortSignal?.throwIfAborted()` — `abortSignal:` 대입이
+    //     `parallel-executor.ts:245` 한 곳뿐이라 선형 경로에서 항상 undefined.
+    //   · "guarded UPDATE" — §7.5 resume-claim 전용 sentinel.
+    // 본 테스트는 그 계약을 **엔진 레벨에서 직접** 고정한다(ms 단위 mock, 실 인프라 무관).
+    it('노드 1 실행 중 Execution 이 외부에서 cancelled 로 바뀌면 하류 노드는 dispatch 되지 않는다', async () => {
+      let calls = 0;
+      (mockHandler.execute as jest.Mock).mockImplementation(async () => {
+        calls++;
+        if (calls === 1) {
+          // 외부 stop(`POST /executions/:id/stop`)과 **동일한 표면**을 재현한다:
+          // 그 엔드포인트는 RUNNING 실행에 대해 Execution 행을 CANCELLED 로 UPDATE 할
+          // 뿐, 돌고 있는 순회 루프에 아무 신호도 보내지 않는다(AbortController·job
+          // cancel 없음). 따라서 루프가 스스로 상태를 다시 읽지 않으면 계속 진행한다.
+          mockExecutionRepo.findOneBy.mockImplementation(() =>
+            Promise.resolve({
+              id: executionId,
+              workflowId,
+              status: ExecutionStatus.CANCELLED,
+              finishedAt: new Date(),
+            }),
+          );
+        }
+        return mockOutput({ ok: true });
+      });
+
+      await service.execute(workflowId, {}, { executedBy: 'u1' });
+      await flushPromises();
+      await flushPromises();
+
+      // node-1 만 실행되고 node-2 / node-3 은 dispatch 되지 않아야 한다.
+      expect(mockHandler.execute).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('runExecution — 단일 노드 실행 (§1.3)', () => {
     // node-1 → node-2 → node-3 선형 그래프. singleNodeId 가 세팅된 실행은 대상
     // 노드만 실행하고 downstream 으로 진행하지 않으며, previousExecutionId 의

@@ -1634,6 +1634,8 @@ export class ExecutionEngineService
       while (pointer < sortedNodeIds.length) {
         // PR2a — §8 노드 사이마다 active-running 누적 타임아웃 검사 (초과 시 throw).
         this.assertActiveTimeWithinLimit(savedExecution);
+        // §2.3 — 노드 사이마다 외부 cancel 검사 (Stop 버튼이 부수효과까지 멈추게 한다).
+        await this.assertExecutionNotCancelled(executionId);
         const nodeId = sortedNodeIds[pointer];
         const node = nodeMap.get(nodeId);
         if (!node) {
@@ -3722,6 +3724,9 @@ export class ExecutionEngineService
 
     try {
       while (pointer < sortedNodeIds.length) {
+        // §2.3 — 인라인 Sub-Workflow 도 부모의 executionId 를 그대로 쓰므로(위 로그
+        // "within execution"), 부모가 외부 cancel 되면 여기서도 dispatch 를 멈춘다.
+        await this.assertExecutionNotCancelled(executionId);
         const nodeId = sortedNodeIds[pointer];
         const node = subNodeMap.get(nodeId);
         if (!node) {
@@ -4252,6 +4257,8 @@ export class ExecutionEngineService
       while (pointer < sortedNodeIds.length) {
         // PR2a — §8 노드 사이마다 active-running 누적 타임아웃 검사 (초과 시 throw).
         this.assertActiveTimeWithinLimit(savedExecution);
+        // §2.3 — 노드 사이마다 외부 cancel 검사 (Stop 버튼이 부수효과까지 멈추게 한다).
+        await this.assertExecutionNotCancelled(executionId);
         const nodeId = sortedNodeIds[pointer];
         const node = nodeMap.get(nodeId);
         if (!node) {
@@ -7760,6 +7767,43 @@ export class ExecutionEngineService
       );
       throw new ExecutionTimeLimitError(activeNow, this.maxActiveRunningMs);
     }
+  }
+
+  /**
+   * §2.3 / §5.1 — dispatch 사전 cancel 체크. dispatch loop 가 노드 사이마다 호출한다.
+   *
+   * **왜 DB 를 다시 읽나.** 외부 cancel(`POST /executions/:id/stop`)은 RUNNING 실행에
+   * 대해 Execution 행을 CANCELLED 로 UPDATE 할 뿐, 돌고 있는 순회 루프에 아무 신호도
+   * 보내지 않는다(AbortController 도, job cancel 도 없다). 루프가 들고 있는
+   * `savedExecution` 은 세그먼트 시작 시점의 스냅샷이라 영원히 stale 하다. 그래서
+   * **행을 다시 읽는 것 말고는 취소를 관측할 방법이 없다**.
+   *
+   * 이 가드가 없던 동안 Stop 버튼은 상태 라벨만 바꾸고 **부수효과를 멈추지 못했다** —
+   * 취소 후에도 하류 노드가 계속 dispatch 되어 이메일 발송·HTTP POST·DB 쓰기가
+   * 그대로 일어났다. (회귀 가드: `execution-engine.service.spec.ts` 의
+   * "선형 경로 외부 cancel 전파" describe. e2e 는 노드 A 완주 전에 단언해 이 갭을
+   * 관측하지 못했다 — `node-cancellation-propagation.e2e-spec.ts` 참고.)
+   *
+   * **비용.** 노드 경계마다 PK 인덱스 SELECT 1건(status 단일 컬럼). 같은 경계에서
+   * 이미 NodeExecution INSERT + Execution UPDATE + 이벤트 emit 이 일어나므로
+   * 상대 비용은 무시할 만하다. `context.abortSignal` 로 대체할 수 없다 — 그 필드는
+   * `parallel-executor.ts` 가 parallel 분기에만 주입해 선형 경로에선 항상 undefined 다.
+   *
+   * CANCELLED 를 관측하면 `ExecutionCancelledError` 를 throw 해 기존 취소 전파 경로
+   * (loop catch → 상위 catch 의 cancelled 마감)에 합류한다. 이미 terminal 인 행을
+   * 다시 마킹하지 않으므로 stop 이 쓴 `finishedAt`/`durationMs` 가 보존된다.
+   */
+  private async assertExecutionNotCancelled(
+    executionId: string,
+  ): Promise<void> {
+    const row = await this.executionRepository.findOneBy({ id: executionId });
+    if (row?.status !== ExecutionStatus.CANCELLED) return;
+    this.logger.log(
+      `Execution ${executionId} cancelled externally — halting dispatch at node boundary`,
+    );
+    throw new ExecutionCancelledError(
+      `Execution ${executionId} cancelled externally`,
+    );
   }
 
   /**

@@ -303,6 +303,21 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
     );
     expect(finalStatus).toBe('cancelled');
 
+    // (4-pre) **관측 시점 고정.** stop 은 Execution 행을 동기로 cancelled 로 바꾸므로
+    //     위 waitForTerminalStatus 는 노드 A 가 아직 busy-wait 중이어도 **즉시** 반환한다.
+    //     그 시점에 하류를 조회하면 "아직 안 만들어진 행"을 "안 만들어질 행"으로 오독해
+    //     가드가 없어도 통과한다(2026-07-26 실측: 엔진에 dispatch 사전 cancel 체크가
+    //     아예 없던 동안에도 이 단언이 통과했다). A 가 실제로 끝난 뒤에 판정한다.
+    await waitUntil(
+      () => nodeStatus(executionId, slowNodeId),
+      (s) => s !== null && s !== 'running' && s !== 'pending',
+      60_000,
+      'slow node A to reach a terminal status',
+    );
+    // A 종료 후 루프가 하류를 dispatch 할 여유를 준다 — 가드가 없다면 이 창에서
+    // 하류 행이 생긴다(그러면 아래 단언이 실패한다).
+    await new Promise((r) => setTimeout(r, 2_000));
+
     // (4) 다단계의 핵심 — 하류 노드는 실행되지 않는다.
     //
     // **허용 집합 양성 비교**(배제 방식 아님): `not.toBe('completed')` 류는 취소와
