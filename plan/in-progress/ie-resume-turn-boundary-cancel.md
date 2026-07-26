@@ -104,7 +104,9 @@ DB 가 terminal 이면 park 도 재claim 도 **7건 전부 틀린 동작**이다
       #6 큐와 **같은 planner 턴에 배치** 처리한다(W3 — 두 plan 이 §5.2/§6 표를 따로 덮어쓰는 것 방지).
 - [x] TEST WORKFLOW (lint / unit / build / e2e) — 2026-07-26 전부 PASS (unit: backend 412 suite / 8286 passed, e2e: 259 passed)
 - [ ] `/ai-review` + Critical·Warning 해소
-- [ ] `/consistency-check --impl-done spec/conventions`
+- [x] `/consistency-check --impl-done spec/conventions` — 2026-07-26 `review/consistency/2026/07/26/21_06_23`
+      **BLOCK: NO** (Critical 0). WARNING 4건은 spec 위임 완전성·harness scoping 건으로 전부 반영
+      (#7 보강 6~8번 + harness plan 기록, 커밋 `cccdd1ff9`)
 
 ## impl-prep 결과 (2026-07-26)
 
@@ -134,4 +136,4 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 - [x] 테스트 (mutation 7/7 RED)
 - [x] TEST WORKFLOW
 - [ ] `/ai-review`
-- [ ] `/consistency-check --impl-done`
+- [x] `/consistency-check --impl-done` (BLOCK: NO)
