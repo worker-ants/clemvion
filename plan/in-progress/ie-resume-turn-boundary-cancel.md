@@ -499,6 +499,10 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       ("세 번째 짝 전이 소비처") 1곳도 소비처가 6개가 된 지금 어긋난다.
 - [ ] **(선재, 본 PR 무관) multi-turn WS 메타 O(N²)** — 매 turn 누적 `turnDebugHistory`/
       `ragSources` 전체를 재전송. 델타 emit 으로 전환 검토.
-- [ ] **(diff 밖, 같은 결함 클래스) `retry-turn.service.ts::failRetryExecution`** — 이 PR 이
+- [x] **(diff 밖, 같은 결함 클래스) `retry-turn.service.ts::failRetryExecution`** — 이 PR 이
       형제 함수에서 닫은 것과 **동일한 무가드 full-entity save lost-update 패턴**을 그대로
       보유(`retry-turn.service.ts:636,658`). 별도 PR 로 `updateExecutionStatus` 재배선.
+      → **해소(2026-07-27/28)**: [`retry-turn-terminal-guard.md`](retry-turn-terminal-guard.md)
+      가 `finalizeGuarded` 로 처리. 실측 결과 대상은 1곳이 아니라 2곳이었다
+      (`failRetryExecution` + `completeRetryExecution` — 후자가 더 나쁘다: 취소된 실행을
+      COMPLETED 로 덮고 완료 이벤트까지 발행). ai-review 5라운드 수렴.

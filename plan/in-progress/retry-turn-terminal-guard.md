@@ -5,8 +5,18 @@ started: 2026-07-27
 owner: developer
 status: in-progress
 priority: P1
-spec_impact: none
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/conventions/node-cancellation.md
 ---
+
+> **`spec_impact` 주의** — 이 PR 자체는 `spec/` 을 1줄도 바꾸지 않았다(코드 전용).
+> 그럼에도 `none` 이 아닌 이유: consistency-check `--impl-done`(2026-07-28,
+> `review/consistency/2026/07/28/01_26_40`) WARNING #4 — 본문이 project-planner 위임으로
+> **spec 정정 필요를 스스로 명시**하는데 frontmatter 가 `none` 이면, 이 plan 이
+> `complete/` 로 이동할 때 Gate C(`spec-plan-completion.test.ts`)가 그 값을 그대로 신뢰해
+> "spec 영향 없음" 이 잘못 확정된다. 아래 §project-planner 위임 항목이 반영되기 전에는
+> 완료 처리하지 말 것.
 
 ## Overview
 
