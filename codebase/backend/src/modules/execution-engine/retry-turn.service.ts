@@ -416,24 +416,6 @@ export class RetryTurnService {
   }
 
   /**
-   * retry 성공 종결 시 Execution 을 직접 COMPLETED 로 마감하는 fallback.
-   * 정상 경로(`resumeGraphAfterRetry`)에서 workflow nodes/edges 가 비어있거나
-   * completedNode 가 그래프에 없는 등 graph rebuild 불가 시에만 호출된다.
-   * (이전엔 정상 경로였으나 WARNING #10 — spec/4-nodes/3-ai/1-ai-agent.md §7.9
-   * + §12.8 — 의 해소로 정상 경로는 graph traversal 합류로 교체됨.)
-   *
-   * downstream 이 없는 leaf AI 노드의 경우에도 본 helper 대신 정상 경로
-   * (`resumeGraphAfterRetry`) 가 graph loop 자연 종결을 통해 동일한 결과
-   * (Execution.COMPLETED) 를 만든다.
-   *
-   * **호출 조건**: (1) `resumeGraphAfterRetry` 진입 시 `nodes.length === 0`,
-   * 또는 (2) `sortedIndexMap.get(completedNode.id) === undefined`. 이 두 가지
-   * defensive fallback 경로 외에서는 호출해서는 안 된다.
-   *
-   * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
-   * 호출된다. 다른 경로에서 직접 호출하지 말 것.
-   */
-  /**
    * 2026-07-27 — 종결 2경로(`completeRetryExecution` / `failRetryExecution`)의 공통
    * guarded 마감. 무가드 full-entity `save()` 는 stale in-memory 엔티티로 DB 를 덮어써,
    * 동시 Stop 이 이미 `cancelled` 로 마감한 실행을 `COMPLETED`/`FAILED` 로 되돌리고
@@ -489,6 +471,24 @@ export class RetryTurnService {
     return persisted;
   }
 
+  /**
+   * retry 성공 종결 시 Execution 을 직접 COMPLETED 로 마감하는 fallback.
+   * 정상 경로(`resumeGraphAfterRetry`)에서 workflow nodes/edges 가 비어있거나
+   * completedNode 가 그래프에 없는 등 graph rebuild 불가 시에만 호출된다.
+   * (이전엔 정상 경로였으나 WARNING #10 — spec/4-nodes/3-ai/1-ai-agent.md §7.9
+   * + §12.8 — 의 해소로 정상 경로는 graph traversal 합류로 교체됨.)
+   *
+   * downstream 이 없는 leaf AI 노드의 경우에도 본 helper 대신 정상 경로
+   * (`resumeGraphAfterRetry`) 가 graph loop 자연 종결을 통해 동일한 결과
+   * (Execution.COMPLETED) 를 만든다.
+   *
+   * **호출 조건**: (1) `resumeGraphAfterRetry` 진입 시 `nodes.length === 0`,
+   * 또는 (2) `sortedIndexMap.get(completedNode.id) === undefined`. 이 두 가지
+   * defensive fallback 경로 외에서는 호출해서는 안 된다.
+   *
+   * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
+   * 호출된다. 다른 경로에서 직접 호출하지 말 것.
+   */
   private async completeRetryExecution(
     execution: Execution,
     executionId: string,

@@ -44,7 +44,7 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] 회귀 테스트 — 각 지점에서 DB 가 이미 terminal 이면 (a) 상태를 덮어쓰지 않고
       (b) `EXECUTION_COMPLETED`/`EXECUTION_FAILED` 를 발행하지 않는지. 가드 제거 시 RED.
 - [x] TEST WORKFLOW (lint / unit / build / e2e) — 전부 PASS (unit: execution-engine 41 suite / 1,097, e2e 260)
-- [ ] `/ai-review` — **파일 명시 + `--route=all`** 로 전수 검토할 것
+- [x] `/ai-review` — **파일 명시 + `--route=all`** 로 전수 검토할 것
       (증분 changeset 은 직전 라운드 결함을 구조적으로 못 본다 — `#1022` 에서 실측)
 - [ ] `/consistency-check --impl-done`
 
@@ -63,3 +63,43 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] TEST WORKFLOW
 - [ ] `/ai-review` (전수)
 - [ ] `/consistency-check --impl-done`
+
+## ai-review 결과 (2026-07-27, `review/code/2026/07/27/21_07_03`)
+
+Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측으로 확인하고 그 사실을
+회귀 테스트로 고정했다.
+
+### CRITICAL#1 (architecture) — 반증
+
+> "자연 종결(happy-path) 경로가 신규 가드를 우회해 stale `failed` 로 `FAILED→COMPLETED`
+> 자기전이 throw 를 일으키고, retry 성공이 **구조적으로 항상** FAILED 로 오분류된다"
+
+실측: `processAiResumeTurn(execution, …)` 에 넘기는 것은 orchestrator 가 상태를 갱신하는
+**바로 그 객체**다. 성공 턴이면 `finalizeAiNode` 의 else 분기가
+`updateExecutionStatus(savedExecution, RUNNING, …)` 로 그 객체를 `running` 으로 만들고,
+따라서 `resumeGraphAfterRetry` 는 `running → completed` 를 본다. 자기 전이가 아니다.
+
+다만 **"그 경로를 덮는 회귀 테스트가 없다" 는 지적 자체는 옳았다** — 성공 턴 + 그래프 완주
+케이스를 실제로 도달시키는 테스트를 추가해 이 불변식을 고정했다.
+
+### CRITICAL#2 (documentation) — 수정
+
+`finalizeGuarded` 추출 시 `completeRetryExecution` 의 JSDoc 이 그 위에 고아로 남아,
+(a) `completeRetryExecution` 이 무문서가 되고 (b) 고아 블록의 "defensive fallback 에서만
+호출" 문구가 `finalizeGuarded`(호출부 2곳) 설명으로 오독될 수 있었다. 원 소유 메서드 위로
+되돌렸다.
+
+### 후속 (본 PR 밖)
+
+- [ ] **W1 (concurrency)** — `applyRetryLastTurn` 진입부의 `spawnedRow.status !== RUNNING`
+      체크가 **원자 claim 이 아니다**(`continuation-execution.processor.ts` 가 `retry_last_turn`
+      을 원자 claim 대상에서 명시적으로 제외). 중복 continuation job 전달 시 중복 LLM 턴·공유
+      context mutation·중복 종결 이벤트를 완전히 막지 못한다. 조건부 UPDATE(CAS)로 강화하거나
+      중복-job 시뮬레이션 테스트로 현 한계를 명시 검증할 것. **이 PR 이 겨냥한 "동시 Stop 이
+      다른 target 을 덮어쓰는" 레이스와는 별개**이며 그쪽은 닫혔다.
+- [ ] **W3 (maintainability)** — "spawn 된 row 를 FAILED 로 마감" 로직이
+      `applyRetryLastTurn` 3개 분기에 문자 그대로 반복(DRY). `markSpawnedRowFailed` 추출.
+- [ ] **INFO 1** — `AiTurnOrchestrator` forwardRef 근거 주석이 이미 제거된 역방향 의존성을
+      순환 근거로 인용 중일 가능성. forwardRef 존속 필요성 재확인 후 주석 갱신.
+- [ ] **INFO 2** — `finalizeGuarded` 가 호출자 소유 `execution.status` 를 부수효과로 재대입.
+      현재 두 호출부는 재사용하지 않아 안전하나 시그니처만으로는 드러나지 않는다.

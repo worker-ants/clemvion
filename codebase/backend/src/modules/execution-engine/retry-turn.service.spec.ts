@@ -552,6 +552,56 @@ describe('RetryTurnService', () => {
       expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
     });
 
+    const emittedTypesOuter = () =>
+      (mockEventEmitter.emitExecution as jest.Mock).mock.calls.map((c) => c[1]);
+
+    // 2026-07-27 ai-review CRITICAL#1 검증 — "자연 종결(happy-path) 경로가 신규
+    // 가드를 우회해 stale `failed` 로 `FAILED→COMPLETED` 자기전이 throw 를 일으키고,
+    // retry 성공이 항상 FAILED 로 오분류된다" 는 지적의 회귀 테스트.
+    //   실측 결과 **전제가 성립하지 않는다**: `processAiResumeTurn` 에 넘기는
+    //   `execution` 은 orchestrator 가 상태를 갱신하는 **바로 그 객체**라, 성공 턴을
+    //   거치면 `running` 이 된다. 그래도 그 불변식이 조용히 깨지지 않도록 여기 고정한다
+    //   — 이 경로를 덮는 테스트가 없다는 리뷰어 지적 자체는 옳았다.
+    it('자연 종결(그래프 완주) 경로가 COMPLETED 로 마감된다 — 성공이 FAILED 로 오분류되지 않는다', async () => {
+      // 성공 턴: orchestrator 가 실제 엔진처럼 execution 객체를 RUNNING 으로 갱신한다.
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockImplementation((exec: { status: ExecutionStatus }) => {
+        exec.status = ExecutionStatus.RUNNING;
+        return Promise.resolve(undefined);
+      });
+      (mockDriver.loadAndBuildGraph as jest.Mock).mockResolvedValue({
+        nodes: [{ id: NODE_ID }],
+        sortedNodeIds: [NODE_ID],
+        sortedIndexMap: new Map([[NODE_ID, 0]]),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        nodeMap: new Map([[NODE_ID, { id: NODE_ID }]]),
+        forwardEdges: [],
+      });
+      (mockDriver.runNodeDispatchLoop as jest.Mock).mockResolvedValue({
+        parked: false,
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      // 성공 종결 — FAILED 로 마감되지 않는다.
+      expect(mockDriver.updateExecutionStatus).toHaveBeenCalledWith(
+        execution,
+        ExecutionStatus.COMPLETED,
+      );
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalledWith(
+        execution,
+        ExecutionStatus.FAILED,
+      );
+      expect(emittedTypesOuter()).toContain(
+        ExecutionEventType.EXECUTION_COMPLETED,
+      );
+      expect(emittedTypesOuter()).not.toContain(
+        ExecutionEventType.EXECUTION_FAILED,
+      );
+    });
+
     // W-7 — resumeGraphAfterRetry defensive fallback (graph 비어 있음) →
     // completeRetryExecution 으로 Execution.COMPLETED 마감, dispatch loop 미진입.
     it('W-7: falls back to completeRetryExecution when the rebuilt graph has no nodes', async () => {
@@ -775,6 +825,32 @@ describe('RetryTurnService', () => {
 
       expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
       expect(emittedTypes()).not.toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    // ai-review INFO 7 — 위 두 분기(row 부재 / 멱등 no-op)가 `failRetryExecution`
+    // 경유로만 검증돼 `completeRetryExecution` 쪽 대칭 커버리지가 없었다.
+    it('completeRetryExecution: Execution row 가 사라졌으면 아무것도 하지 않는다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue(null);
+
+      await priv().completeRetryExecution(mkExec(), EXEC_ID);
+
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(emittedTypes()).not.toContain(
+        ExecutionEventType.EXECUTION_COMPLETED,
+      );
+    });
+
+    it('completeRetryExecution: 정본이 이미 COMPLETED 면 멱등 no-op — 쓰지 않고 이벤트만', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.COMPLETED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+
+      await priv().completeRetryExecution(mkExec(), EXEC_ID);
+
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_COMPLETED);
     });
 
     it('stale in-memory 상태가 아니라 정본을 기준으로 판정한다', async () => {
