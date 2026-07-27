@@ -884,6 +884,42 @@ describe('RetryTurnService', () => {
       expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_FAILED);
     });
 
+    // ai-review CRITICAL #1 (2026-07-27, 3차 라운드) — 위 케이스는 guarded UPDATE
+    // 가 `{ affected: 1 }` 인 정상 경로만 덮는다. `affected: 0` (동시 retry 재진입이
+    // FAILED→RUNNING 으로 row 를 옮겨 andWhere 의 status 조건이 더 이상 매칭되지
+    // 않는 경우 — `allowRetryReentry` opt-in 전이가 이걸 실제로 가능하게 한다)
+    // 을 무조건 `true` 로 취급하면, DB 는 RUNNING(새 턴 진행 중)인데 caller 가
+    // 종결 이벤트를 발행하는 "사후 오시그널" 이 된다. 기존 테스트 전부가 `execute`
+    // mock 을 `{ affected: 1 }` 로 고정해 이 케이스는 전혀 커버되지 않았다.
+    it('멱등 분기 guarded UPDATE 가 0행이면 (동시 retry 재진입 선점) 종결 이벤트도 상태 전이도 없다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }));
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('경합 중 재진입에 선점됨'),
+      );
+
+      // (a) 종결 이벤트가 발행되지 않는다.
+      expect(emittedTypes()).not.toContain(
+        ExecutionEventType.EXECUTION_FAILED,
+      );
+      // (b) 다른 상태 전이 경로(hard state overwrite)로도 빠지지 않는다 —
+      //     0행 매칭은 "이미 다른 곳에서 처리됨"을 뜻하므로 추가 쓰기는 없어야 한다.
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+    });
+
     it('completeRetryExecution: 정본이 이미 COMPLETED 면 상태 전이를 건너뛴다', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: EXEC_ID,

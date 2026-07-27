@@ -459,7 +459,20 @@ export class RetryTurnService {
       // (무가드 `save()` 였던 이전 코드에는 없던 회귀다.)
       //   상태는 그대로 두고 lifecycle 컬럼만 **관측한 상태를 조건으로** 건다 —
       //   그 사이 동시 cancel 이 상태를 바꿨다면 0행 매칭으로 조용히 무효화된다.
-      await this.executionRepository
+      //
+      // ai-review CRITICAL #1 (2026-07-27, 3차 라운드) — "0행이 실제로 가능한가":
+      // terminal(COMPLETED/FAILED/CANCELLED) 은 통상 outgoing 전이가 없어 이
+      // guarded UPDATE 가 항상 매칭될 것처럼 보이지만, FAILED → RUNNING 전이는
+      // `allowRetryReentry` opt-in 으로 예외 허용된다 (state/state-machine.ts 의
+      // ALLOWED_TRANSITIONS 주석 + `canTransition` 의 `allowRetryReentry` 분기;
+      // 호출부는 ai-turn-orchestrator.service.ts 의
+      // `allowRetryReentry ? { allowRetryReentry: true } : undefined`). 즉 동시
+      // retry 재진입이 위 SELECT 와 이 UPDATE 사이에 row 를 FAILED → RUNNING 으로
+      // 옮기면 `andWhere('status = :status', { status: target })` 가 0행에
+      // 매칭된다 — 그때 무조건 `true` 를 반환하면 DB 는 RUNNING(새 턴 진행 중)인데
+      // caller 가 종결 이벤트를 발행하는 "사후 오시그널" 이 된다(이 PR 이 닫으려던
+      // 결함 클래스 그 자체). `affected` 를 확인해 아래 두 분기와 대칭 처리한다.
+      const result = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
         .set({
@@ -472,7 +485,7 @@ export class RetryTurnService {
         .where('id = :id', { id: executionId })
         .andWhere('status = :status', { status: target })
         .execute();
-      return true;
+      return (result.affected ?? 0) > 0;
     }
     if (!canTransition(live.status, target)) {
       this.logger.warn(
