@@ -920,9 +920,7 @@ describe('RetryTurnService', () => {
       );
 
       // (a) 종결 이벤트가 발행되지 않는다.
-      expect(emittedTypes()).not.toContain(
-        ExecutionEventType.EXECUTION_FAILED,
-      );
+      expect(emittedTypes()).not.toContain(ExecutionEventType.EXECUTION_FAILED);
       // (b) 다른 상태 전이 경로(hard state overwrite)로도 빠지지 않는다 —
       //     0행 매칭은 "이미 다른 곳에서 처리됨"을 뜻하므로 추가 쓰기는 없어야 한다.
       expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
