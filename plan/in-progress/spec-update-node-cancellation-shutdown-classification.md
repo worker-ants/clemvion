@@ -9,7 +9,18 @@ spec_impact:
   - spec/5-system/4-execution-engine.md
   - spec/1-data-model.md
   - spec/data-flow/3-execution.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/conventions/error-codes.md
+  - spec/4-nodes/3-ai/1-ai-agent.md
 ---
+
+> **#6·#7 은 2026-07-27 이행 완료** (커밋 `e79feae6a`). 아래 두 절과 각 보강은 **이력**으로
+> 남긴다. **미결은 이 문서 최상단의 (a)/(b) 택일 결정뿐**이며, 그 결정은 여전히 사용자 몫이다
+> (본문 Rationale "왜 developer 가 결정하지 않나" 참조).
+>
+> 이행 시 위임안을 그대로 따르지 않은 지점이 하나 있다 — #6 제안 1번("§2.3 생산자 목록에
+> bullet 추가")은 `--spec` 검토가 **범주 오류**로 지적했다(§2.3 은 signal 생산자 절, 신규
+> 가드는 signal 을 만들지 않는 DB 폴링). 별도 **§2.4** 로 분리해 반영했다.
 
 ## Overview
 
@@ -46,6 +57,35 @@ spec_impact:
 - [ ] 어느 쪽이든 §5.2 errorPolicy 표에 **SIGTERM shutdown · workflow timeout 두 트리거를
       별도 행**으로 명문화 (현재 `stop` 분기가 workflow timeout 을 원인으로 열거하지 않아,
       노드 abort 통합 후 이 조합이 §5.2 만 봐서는 드러나지 않는다 — 같은 검토의 WARNING 2).
+
+### 결정 전에 반드시 읽을 것 (`--spec` 09_16_22 반영, 2026-07-27)
+
+**두 선택지는 대칭이 아니다.** (b) 는 단순 재분류가 아니라 **이미 3곳에 인코딩된 구조적
+invariant 를 뒤집는** 선택이다 — `4-execution-engine.md ## Rationale` §4 와 §11, 그리고
+`data-flow/3-execution.md` §3.1/§3.2 다이어그램이 모두 **"`NodeExecution.cancelled` 는
+abortSignal(및 2026-07-27 이후 DB 관측) 취소 경로 전용"** 을 전제로 서술돼 있다. SIGTERM 발
+종료를 `cancelled` 로 옮기면 그 Rationale 항목 **자체를 개정**해야 한다. (a) 는 그 전제를
+유지하고 각주만 추가한다. 결정 절이 이 비대칭을 드러내지 않고 있어 명시한다.
+
+- **(a) 채택 시 추가로 필요한 것** — "SIGTERM/timeout 발 abort 만 예외" 를 실제로 강제할
+  **producer 구분 메커니즘이 현재 spec·코드 어디에도 없다**(모든 `.abort()` 가 bare 호출,
+  `signal.reason` 미사용). §5.1 은 에러 타입만으로 판정하므로, 예외를 문서에만 적으면
+  구현이 그것을 구분할 방법이 없다. §2.3/§5.1 에 "SIGTERM/timeout 발 abort 는 `signal.reason`
+  등 producer 태그를 실어 §5.1 catch 가 우선 검사한다" 는 판정 규칙을 함께 명문화할 것.
+- **(b) 채택 시 "동반 갱신" 목록에 추가할 것**:
+  - `node-cancellation-residual-signal-propagation.md` 백로그 — `assertExecutionNotCancelled()`
+    관측 대상을 `status IN (CANCELLED, FAILED)` 로 확장할지 여부(그 plan 이 이 결정에 명시적으로
+    종속시킨 항목이다)
+  - `execution-engine-residual-gaps.md` §G2 의 "현재는 …전부 `failed` 처리" 서술이 stale 해진다
+  - `4-execution-engine.md ## Rationale` §4 항목 자체의 개정
+- **어느 쪽이든** 채택 후 `node-cancellation.md ## Rationale` 에 **신규 항목**을 남길 것 —
+  왜 이 분류인지, §11·data-flow §3.2 기존 서술과 어떤 관계인지. (다른 위임 항목에는 전부
+  Rationale 이관 지시가 있는데 이 결정 절에만 빠져 있었다.)
+- **명명 주의** — 미채택 대안이던 "`NODE_CANCELLED` 류 error code" 는 기존
+  `NodeEventType.NODE_CANCELLED`(WS 이벤트 enum 멤버)와 심벌명이 겹친다. 그 대안을 되살린다면
+  `NODE_EXECUTION_CANCELLED` 처럼 구분되는 이름을 쓸 것.
+- **참고** — `AbortError` 의 error-codes §3 등재(구 위임 #4 (1) / #6 보강 (5))는 2026-07-27
+  에 **이미 이행**했다. 이 결정과 무관하게 처리된 항목이므로 다시 세지 말 것.
 
 ## 관련
 

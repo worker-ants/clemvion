@@ -93,6 +93,7 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 | 1 | `consistency/2026/07/26/19_30_39` (`--impl-prep`) | `node-cancellation.md` 본문 누락, cafe24 카탈로그가 예산 선점 → **무관한 CRITICAL 이 BLOCK 사유**가 됨 |
 | 2 | `consistency/2026/07/26/21_06_23` (`--impl-done`) | scope 내 실 diff **0건**인데 대용량 번들 적재 → checker 2명 BYPASS |
 | 3 | `consistency/2026/07/27/03_35_24` (`--impl-done`) | 또 `node-cancellation.md` 가 "예산 초과로 생략된 파일 46개" 에 포함 → **target 정합 판정이 커버리지 0 인 채로 내려짐** |
+| 4 | `consistency/2026/07/27/09_16_22` (`--spec`) | 가장 밀접한 sibling plan 2건(`node-cancellation-residual-signal-propagation.md`, `ie-resume-turn-boundary-cancel.md`)이 또 예산 초과로 생략 — plan_coherence 가 직접 지적 |
 
 3회차 plan_coherence 가 이 메타 위험을 스스로 지적했다: *"이번 회차의 'node-cancellation.md
 대상 정합 확인 없음'을 미검증으로 취급"*. 즉 **BLOCK: NO 가 '검증했고 문제없음' 이 아니라
