@@ -17,7 +17,13 @@
 ## TEST 결과
 
 - lint  : 통과
-- unit  : 통과 (backend 412 suites / 8332 tests — 8331 passed + 1 pre-existing skip, 0 failed; frontend 48/48, `@workflow/web-chat` 33/33, `channel-web-chat` 5/5, 내부 공유 packages 123+16+27+14 전부 통과)
+- unit  : 통과 — 로그(`_test_logs/unit-20260728-002623.log`) 요약 라인 실측:
+  backend 412 suites / 8332 tests(8331 passed + 1 pre-existing skip),
+  frontend 281 files / 5741 tests(5740 passed + 1 skip),
+  `@workflow/web-chat` 3 suites / 48, `channel-web-chat` 23 files / 409,
+  내부 공유 packages 9 suites / 218(33+5+123+16+27+14). FAIL 0.
+  (직전 기재는 라벨이 한 칸씩 밀려 web-chat 수치를 frontend 로 적었다 — 통과 여부는
+  동일하나 귀속이 틀려 실측값으로 정정. 3R 대비 backend +2 는 이번 CANCELLED 회귀 2건.)
 - build : 통과 (backend/frontend/`@workflow/web-chat`/`channel-web-chat` + 내부 packages 빌드 + Dockerfile 이미지 빌드 검증 전부 통과)
 - e2e   : 통과 (backend jest 46 suites/46, 260 tests/260 + playwright 51 tests/51, 총 314s. 로그: `_test_logs/e2e-20260728-003107.log`)
 
