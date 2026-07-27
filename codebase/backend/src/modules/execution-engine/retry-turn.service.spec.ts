@@ -706,15 +706,23 @@ describe('RetryTurnService', () => {
       status: ExecutionStatus.RUNNING,
       startedAt: new Date(Date.now() - 1000),
     });
+    // ai-review WARNING #4 (2026-07-27, 3차 라운드) — 아래 `mockExecutionRepo.
+    // findOneBy.mockResolvedValue({ id, status, startedAt })` 형태가 status 값만
+    // 바꿔 이 describe 블록에 9곳 반복됐다. `mkExec()` 와 동일한 관례로 추출하되
+    // **매 호출마다 새 객체를 반환**한다 — 테스트 간 공유 mutable 객체가 되면
+    // 단언이 조용히 vacuous 해진다.
+    const mkLiveExecution = (status: ExecutionStatus) => ({
+      id: EXEC_ID,
+      status,
+      startedAt: new Date(Date.now() - 1000),
+    });
 
     beforeEach(() => {
       // 가드는 DB 정본을 다시 읽는다. 기본값은 "아직 살아있는 실행"(running) —
       // 선점 시나리오는 각 테스트가 `updateExecutionStatus` 를 `false` 로 재무장한다.
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.RUNNING,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.RUNNING),
+      );
     });
 
     const emittedTypes = () =>
@@ -779,11 +787,9 @@ describe('RetryTurnService', () => {
     // 추가한 케이스다(가드를 지워도 RED 가 안 났다).
 
     it('정본이 이미 CANCELLED 면 FAILED 로 전이를 시도조차 하지 않는다', async () => {
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.CANCELLED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.CANCELLED),
+      );
 
       await priv().failRetryExecution(
         mkExec(),
@@ -797,11 +803,9 @@ describe('RetryTurnService', () => {
     });
 
     it('정본이 이미 CANCELLED 면 COMPLETED 로도 덮어쓰지 않는다', async () => {
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.CANCELLED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.CANCELLED),
+      );
 
       await priv().completeRetryExecution(mkExec(), EXEC_ID);
 
@@ -814,11 +818,9 @@ describe('RetryTurnService', () => {
     it('정본이 이미 목표 상태면 상태 전이는 건너뛴다 (lifecycle 컬럼만 갱신)', async () => {
       // 재진입이 턴 시작 전에 실패하면 Execution 이 `failed` 인 채로 도달한다.
       // 쓸 것이 없으니 lost update 위험도 없고, 종결 이벤트는 기존대로 나가야 한다.
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.FAILED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.FAILED),
+      );
 
       await priv().failRetryExecution(
         mkExec(),
@@ -860,11 +862,9 @@ describe('RetryTurnService', () => {
     // 이번 시도의 lifecycle 필드는 새 값이라, 그냥 통과시키면 새 error/finishedAt/
     // durationMs 가 조용히 버려진다(WS 는 새 에러, REST 는 옛 에러 — 불일치).
     it('멱등 분기여도 이번 시도의 error/finishedAt/durationMs 는 다시 쓴다', async () => {
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.FAILED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.FAILED),
+      );
       const setSpy = jest.fn().mockReturnThis();
       const whereSpy = jest.fn().mockReturnThis();
       const andWhereSpy = jest.fn().mockReturnThis();
@@ -916,11 +916,9 @@ describe('RetryTurnService', () => {
     // 종결 이벤트를 발행하는 "사후 오시그널" 이 된다. 기존 테스트 전부가 `execute`
     // mock 을 `{ affected: 1 }` 로 고정해 이 케이스는 전혀 커버되지 않았다.
     it('멱등 분기 guarded UPDATE 가 0행이면 (동시 retry 재진입 선점) 종결 이벤트도 상태 전이도 없다', async () => {
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.FAILED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.FAILED),
+      );
       mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
@@ -943,11 +941,9 @@ describe('RetryTurnService', () => {
     });
 
     it('completeRetryExecution: 정본이 이미 COMPLETED 면 상태 전이는 건너뛰고 이번 시도의 finishedAt/durationMs 는 다시 쓴다', async () => {
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.COMPLETED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.COMPLETED),
+      );
       // ai-review WARNING #1 (2026-07-27, 3차 라운드) — 이 케이스는 기본 beforeEach
       // mock 을 그대로 써 `.set()` payload 자체를 검증하지 않았다(그 mock 은 호출마다
       // 새 익명 jest.fn() 을 반환해 스파이를 잡을 수 없다). failRetryExecution 짝
@@ -985,11 +981,9 @@ describe('RetryTurnService', () => {
     it('stale in-memory 상태가 아니라 정본을 기준으로 판정한다', async () => {
       // in-memory 는 RUNNING(mkExec) 인데 정본은 CANCELLED — 재조회를 무시하고
       // stale 을 쓰면 running→failed 가 허용돼 취소를 덮어쓴다.
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.CANCELLED,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.CANCELLED),
+      );
       const staleExec = mkExec();
       expect(staleExec.status).toBe(ExecutionStatus.RUNNING);
 
@@ -1004,11 +998,9 @@ describe('RetryTurnService', () => {
       // `assertTransition('failed', 'failed')` 이 자기 전이로 throw 한다(엔진 spec 의
       // 통합 테스트에서 실제로 발생했다). 여기서는 driver 가 mock 이라 throw 를 볼 수
       // 없으므로, **넘겨지는 엔티티의 상태가 정본으로 갱신됐는지**를 직접 단언한다.
-      mockExecutionRepo.findOneBy.mockResolvedValue({
-        id: EXEC_ID,
-        status: ExecutionStatus.RUNNING,
-        startedAt: new Date(Date.now() - 1000),
-      });
+      mockExecutionRepo.findOneBy.mockResolvedValue(
+        mkLiveExecution(ExecutionStatus.RUNNING),
+      );
       const staleExec = { ...mkExec(), status: ExecutionStatus.FAILED };
 
       await priv().failRetryExecution(staleExec, EXEC_ID, new Error('boom'));
