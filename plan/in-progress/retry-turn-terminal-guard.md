@@ -103,3 +103,25 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       순환 근거로 인용 중일 가능성. forwardRef 존속 필요성 재확인 후 주석 갱신.
 - [ ] **INFO 2** — `finalizeGuarded` 가 호출자 소유 `execution.status` 를 부수효과로 재대입.
       현재 두 호출부는 재사용하지 않아 안전하나 시그니처만으로는 드러나지 않는다.
+
+## 2차 라운드 추가 후속 (`review/code/2026/07/27/21_39_25`)
+
+- [ ] **W2 (architecture)** — `AiTurnOrchestrator` forwardRef 근거 주석이 같은 파일
+      docstring·모듈 등록 주석("engine→Retry 역방향 주입 제거, 단방향 정리")과 **정반대로
+      모순**된다. grep 상 엔진도 orchestrator 도 `RetryTurnService` 를 주입하지 않아,
+      forwardRef 가 실제로 방어하는 순환이 무엇인지 주석만으로는 검증 불가. 존속 필요성
+      재확인 후 주석 갱신 또는 forwardRef 제거 검토.
+- [ ] **W3 (maintainability)** — `finalizeGuarded` 가 `boolean` 반환과 동시에 인자
+      `execution.status` 를 in-place 로 덮어쓰는 숨은 side-channel. `{ persisted, live }`
+      반환으로 명시화하거나 최소한 `@param` 에 명시.
+- [ ] **W4 (testing)** — spec 헤더 주석이 "deep-integration 은 엔진 thin delegator 경유로
+      엔진 spec 에 잔류" 라 서술하나 그 delegator 는 이미 제거됐고 엔진 spec 이 실
+      `RetryTurnService` 인스턴스를 직접 구동한다. 문서 drift 정정.
+- [ ] **INFO 2** — `resumeGraphAfterRetry` 자연 종결 분기는 `finalizeGuarded` 를 거치지 않고
+      `driver.updateExecutionStatus` 를 직접 호출한다. 현재는 "`execution` 참조 동일성"
+      불변식 덕에 안전하고 회귀 테스트로 고정했으나, orchestrator 가 엔티티를 재조회/교체하는
+      형태로 바뀌면 같은 stale-전이 결함이 재발할 수 있다. 통일 적용 또는 불변식 주석 추가.
+- [ ] **INFO 14** — 멱등 분기의 CANCELLED 타깃 대칭 테스트, `retryLastTurn` 의 `!nodeExec`
+      서브분기·`retryAfterSec` fallback/타임스탬프 부재 분기 미검증.
+- [ ] **INFO 13** — WS 프로토콜 문서에 "동시 취소 시 후발 종결 시도는 이벤트 없이 폐기" 계약
+      한 줄 추가(planner 범위).

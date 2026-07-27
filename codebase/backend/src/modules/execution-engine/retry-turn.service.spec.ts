@@ -52,6 +52,14 @@ describe('RetryTurnService', () => {
     mockExecutionRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+      // 멱등 분기의 lifecycle 컬럼 guarded UPDATE 용 기본 mock.
+      createQueryBuilder: jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      })),
     };
     mockNodeRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
@@ -795,7 +803,7 @@ describe('RetryTurnService', () => {
       );
     });
 
-    it('정본이 이미 목표 상태면 멱등 no-op — 쓰지 않고 이벤트만 발행', async () => {
+    it('정본이 이미 목표 상태면 상태 전이는 건너뛴다 (lifecycle 컬럼만 갱신)', async () => {
       // 재진입이 턴 시작 전에 실패하면 Execution 이 `failed` 인 채로 도달한다.
       // 쓸 것이 없으니 lost update 위험도 없고, 종결 이벤트는 기존대로 나가야 한다.
       mockExecutionRepo.findOneBy.mockResolvedValue({
@@ -840,7 +848,43 @@ describe('RetryTurnService', () => {
       );
     });
 
-    it('completeRetryExecution: 정본이 이미 COMPLETED 면 멱등 no-op — 쓰지 않고 이벤트만', async () => {
+    // ai-review CRITICAL (2026-07-27, 2차 라운드) — 멱등 분기가 **상태만** 같을 뿐
+    // 이번 시도의 lifecycle 필드는 새 값이라, 그냥 통과시키면 새 error/finishedAt/
+    // durationMs 가 조용히 버려진다(WS 는 새 에러, REST 는 옛 에러 — 불일치).
+    it('멱등 분기여도 이번 시도의 error/finishedAt/durationMs 는 다시 쓴다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+      const setSpy = jest.fn().mockReturnThis();
+      const whereSpy = jest.fn().mockReturnThis();
+      const andWhereSpy = jest.fn().mockReturnThis();
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: setSpy,
+        where: whereSpy,
+        andWhere: andWhereSpy,
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      }));
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('두 번째 실패'),
+      );
+
+      expect(setSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ error: { message: '두 번째 실패' } }),
+      );
+      // 관측한 상태를 조건으로 걸어야 그 사이 동시 cancel 이 무효화된다.
+      expect(andWhereSpy).toHaveBeenCalledWith('status = :status', {
+        status: ExecutionStatus.FAILED,
+      });
+      expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    it('completeRetryExecution: 정본이 이미 COMPLETED 면 상태 전이를 건너뛴다', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: EXEC_ID,
         status: ExecutionStatus.COMPLETED,

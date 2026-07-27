@@ -450,7 +450,30 @@ export class RetryTurnService {
     // 호출부의 종결 이벤트는 기존대로 발행해야 한다. 실제로 재진입이 턴 시작 전에
     // 실패하면 Execution 이 `failed` 인 채로 `failRetryExecution(FAILED)` 에 도달한다.
     // (상태머신은 자기 전이를 금지하므로 `canTransition` 에 맡기면 여기서 걸린다.)
-    if (live.status === target) return true;
+    if (live.status === target) {
+      // ai-review CRITICAL (2026-07-27, 2차 라운드) — 상태만 같을 뿐 **이번 시도의
+      // lifecycle 필드는 새 값**이다. 재진입이 즉시 재실패하면 `error` 는 이번 실패
+      // 메시지이고 `finishedAt`/`durationMs` 도 갱신돼야 하는데, 여기서 그냥 `true` 를
+      // 반환하면 그 값들이 조용히 버려진다 — WS 는 새 에러를 emit 하는데 REST
+      // 재조회는 최초 실패 메시지를 돌려주는 불일치가 생기고 소요시간도 축소 보고된다.
+      // (무가드 `save()` 였던 이전 코드에는 없던 회귀다.)
+      //   상태는 그대로 두고 lifecycle 컬럼만 **관측한 상태를 조건으로** 건다 —
+      //   그 사이 동시 cancel 이 상태를 바꿨다면 0행 매칭으로 조용히 무효화된다.
+      await this.executionRepository
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          // jsonb 컬럼이라 QueryBuilder 의 DeepPartial 타입과 맞지 않는다 —
+          // 저장소 관용(raw 파라미터 캐스팅)을 따른다.
+          error: (execution.error ?? null) as never,
+          finishedAt: execution.finishedAt,
+          durationMs: execution.durationMs,
+        })
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :status', { status: target })
+        .execute();
+      return true;
+    }
     if (!canTransition(live.status, target)) {
       this.logger.warn(
         `${caller}(${executionId}): 정본 상태 '${live.status}' 에서 '${target}' 로 ` +
