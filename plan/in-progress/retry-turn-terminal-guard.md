@@ -153,3 +153,50 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
 재지적되지 않았거나(W1=INFO8, W3=INFO6, INFO2=INFO7 로 재확인만 됨) 범위 밖으로 유지 —
 변경 없음. TEST WORKFLOW 전량 재통과(lint/unit/build/e2e 전부 PASS, e2e: backend 46 suites/
 260 tests + playwright 51 tests).
+
+## 4차 라운드 (`review/code/2026/07/27/23_46_36`) — resolution-applier 처리 완료
+
+side_effect 리뷰어가 `finalizeGuarded` 멱등 분기의 `target=CANCELLED` 케이스에서 새 CRITICAL 을
+발견(2R/3R 수정이 남긴 또 다른 잔여 비대칭 — CANCELLED 만 FAILED 와 동일하게 무조건 재기록되고
+있었다). 처분표대로만 집행, RESOLUTION: `review/code/2026/07/27/23_46_36/RESOLUTION.md`.
+
+- [x] **Critical #1 (side_effect)** — 멱등 분기가 `target=CANCELLED` 일 때도 FAILED 와 동일하게
+      `finishedAt`/`durationMs`/`error` 를 무조건 새 값으로 재기록해, `stop()` 이 이미 커밋한
+      정확한 취소 시각(T1)을 재진입 catch 시각(T2)으로 덮어썼다(`finalizeCancelledExecution`
+      의 `??` 병합 계약과 불일치). `finishedAt`/`durationMs` 를 SQL `COALESCE(col, :new)` 로
+      전환(SELECT~UPDATE 사이 창을 신뢰하지 않기 위해 UPDATE 문 자체에서 그 순간의 DB 값을
+      재평가), `error` 는 SET 절에서 아예 제외(`34f3dd051`). FAILED/COMPLETED 분기는
+      무수정(2R/3R 수정 그대로 보존).
+- [x] **Warning #1 (testing)** — `mkLiveExecution(CANCELLED)` + `target=CANCELLED` 조합이
+      한 번도 실행되지 않던 갭 해소. COALESCE 표현 확인 + stale error 미기록 확인(fixture 에
+      사전 채운 stale error 로 관측 가능하게 함) + affected=0 대칭 회귀 테스트 추가(`2c5930ded`).
+- [x] **Warning #7 (documentation)** — `completeRetryExecution`/`failRetryExecution` JSDoc
+      최상단에 guarded-skip 계약 한 줄씩 추가(`34f3dd051`, 주석만 변경).
+- **Warning #2 (architecture)** — 멱등 분기의 driver choke point 우회 — defer(self-transition
+  capability 신설은 구조 변경이라 이 PR 범위 밖).
+- **Warning #3 (security)** — 멱등 분기 ABA 왕복 창 — defer(발생가능성 낮음, 이 PR 이 이미
+  닫은 창보다 좁음).
+- **Warning #4 (concurrency)** — 위 1차 라운드 W1 과 동일 건. 이미 등재됨, 추가 조치 없음.
+- **Warning #5 (maintainability)** — 위 1차 라운드 W3 과 동일 건. 이미 등재됨, 추가 조치 없음.
+- [ ] **Warning #6 (maintainability, 신규 등재)** — 회귀 테스트의 `createQueryBuilder`
+      guarded-update mock 리터럴(`{update,set,where,andWhere,execute}` 체이너)이 스파이 배선만
+      다른 채 근접 중복(이번 라운드 2곳 추가로 누적 6곳). 공유 팩토리
+      (`mockGuardedUpdateBuilder({affected, setSpy?, andWhereSpy?, setParameterSpy?})`)로
+      통합 검토.
+- **Warning #8 (documentation/spec)** — 위 2차 라운드 INFO 13 과 동일 건, `project-planner`
+  범위. 추가 조치 없음.
+- [ ] **INFO 2 (requirement, 신규 등재)** — `execution.error` 가 retry 시작 시점의 옛 실패
+      메시지를 비우지 않아, 취소 종결뿐 아니라 **성공(COMPLETED) 종결에서도** 옛 값이 그대로
+      재기록될 수 있다(`status:'completed'` 인데 `error` non-null 인 모순 레코드). 취소 경로는
+      이미 별도 계열로 추적 중이었으나, 성공 경로도 동일 문제라는 점은 이번 라운드 신규 확인.
+      `applyRetryLastTurn` 진입 시 또는 자연종결 직전 `execution.error = null` 명시적 세팅 검토.
+      이번 diff 의 신규 회귀는 아님(diff 이전부터 동일 동작).
+- [ ] **후속 (신규 등재)** — **COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지가
+      있다.** 이번 라운드는 리뷰어가 CANCELLED 만 Critical 로 지목했고 §2.3 같은 명명된 계약도
+      CANCELLED 에만 있어 그 범위로 한정해 고쳤다. 후속 라운드에서 "자연 성공 종결이 이미 다른
+      경로로 COMPLETED 를 커밋한 뒤 이 멱등 분기가 재도달하는 시나리오가 실제로 가능한가" 부터
+      실측하고, 가능하면 COMPLETED 도 동일한 COALESCE 전환 검토.
+
+나머지(INFO 1·3~26)는 이번 라운드에서 조치 대상 아님(이미 추적 중이거나 범위 밖 재확인) —
+변경 없음. TEST WORKFLOW 전량 재통과 — 실제 수치는
+`review/code/2026/07/27/23_46_36/RESOLUTION.md` 참조.
