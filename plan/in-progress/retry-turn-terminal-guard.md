@@ -114,9 +114,11 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
 - [ ] **W3 (maintainability)** — `finalizeGuarded` 가 `boolean` 반환과 동시에 인자
       `execution.status` 를 in-place 로 덮어쓰는 숨은 side-channel. `{ persisted, live }`
       반환으로 명시화하거나 최소한 `@param` 에 명시.
-- [ ] **W4 (testing)** — spec 헤더 주석이 "deep-integration 은 엔진 thin delegator 경유로
+- [x] **W4 (testing)** — spec 헤더 주석이 "deep-integration 은 엔진 thin delegator 경유로
       엔진 spec 에 잔류" 라 서술하나 그 delegator 는 이미 제거됐고 엔진 spec 이 실
       `RetryTurnService` 인스턴스를 직접 구동한다. 문서 drift 정정.
+      **3차 라운드에서 해소** — Critical #2 로 재지적됐고 헤더를 2계층 구조 서술로 정정
+      (`084f96a51`).
 - [ ] **INFO 2** — `resumeGraphAfterRetry` 자연 종결 분기는 `finalizeGuarded` 를 거치지 않고
       `driver.updateExecutionStatus` 를 직접 호출한다. 현재는 "`execution` 참조 동일성"
       불변식 덕에 안전하고 회귀 테스트로 고정했으나, orchestrator 가 엔티티를 재조회/교체하는
@@ -125,3 +127,29 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       서브분기·`retryAfterSec` fallback/타임스탬프 부재 분기 미검증.
 - [ ] **INFO 13** — WS 프로토콜 문서에 "동시 취소 시 후발 종결 시도는 이벤트 없이 폐기" 계약
       한 줄 추가(planner 범위).
+
+## 3차 라운드 (`review/code/2026/07/27/22_36_40`) — resolution-applier 처리 완료
+
+8/14 reviewer 가 `finalizeGuarded` 멱등 분기의 동일 코드 라인에서 새 CRITICAL 을 독립
+수렴 확인(2차 라운드 수정 자체가 남긴 잔여 비대칭). 처분표대로만 집행, RESOLUTION:
+`review/code/2026/07/27/22_36_40/RESOLUTION.md`.
+
+- [x] **Critical #1** — 멱등 분기 guarded UPDATE 가 `.execute()` 의 `affected` 를 확인하지
+      않고 무조건 `true` 반환하던 결함. `FAILED→RUNNING` 은 `allowRetryReentry` opt-in 으로
+      허용되는 전이라 동시 재진입이 0행을 실제로 만들 수 있다 — 확인해 대칭 처리 + 회귀
+      테스트(`c946a46b7`, 포맷 fixup `d871a055c`).
+- [x] **Critical #2** — 위 W4(2차 라운드) 항목과 동일 건, 재지적으로 확정 해소(`084f96a51`).
+- [x] **Warning #1(testing)** — 2차 라운드 CRITICAL 회귀 테스트가 `error` 만 assert 하고
+      `finishedAt`/`durationMs` 는 vacuous 하던 구간 해소, 양쪽 케이스 관계식 단언 추가
+      (`679039667`).
+- [x] **Warning #2(documentation)** — `CHANGELOG.md` #7 항목 stale 문구를 2R/3R 최종 구현에
+      맞게 갱신(`1237c18a3`).
+- [x] **Warning #4(maintainability)** — mock 리터럴 9회 반복을 `mkLiveExecution(status)` 로
+      추출(`cc98374ff`).
+- [ ] **Warning #3(architecture)** — 위 2차 라운드 W2(forwardRef 근거 주석 모순)와 동일 건,
+      **이번 라운드도 defer** — 모듈 레벨 import 순환 실측이 필요해 범위 밖. 계속 열어둔다.
+
+나머지(2차 라운드 W1·W3·INFO2·INFO14·INFO13, 1차 라운드 항목)는 이번 라운드 SUMMARY 에서도
+재지적되지 않았거나(W1=INFO8, W3=INFO6, INFO2=INFO7 로 재확인만 됨) 범위 밖으로 유지 —
+변경 없음. TEST WORKFLOW 전량 재통과(lint/unit/build/e2e 전부 PASS, e2e: backend 46 suites/
+260 tests + playwright 51 tests).
