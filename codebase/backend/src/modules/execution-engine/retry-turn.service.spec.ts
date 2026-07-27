@@ -23,11 +23,19 @@ import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result
 // `nodeExecutionRepository` (mock) 와 per-test 로 주입되는 `dataSource` (mock) 만으로
 // 충분하다. 나머지 의존성은 생성자 만족을 위한 최소 mock 으로 채운다.
 //
-// 재진입(`applyRetryLastTurn`) / downstream graph 진행(`resumeGraphAfterRetry`)의
-// deep-integration 테스트는 엔진의 실제 `runNodeDispatchLoop` / `rehydrateContext` /
-// `processAiResumeTurn` 를 구동하므로, 엔진 thin delegator 를 통해 엔진 spec 에
-// 잔류한다 (delegation 경유 검증; 본 spec 으로 이관 시 driver/orchestrator 를 모두
-// mock 해야 해 테스트 의미가 소실됨).
+// ai-review CRITICAL #2 (2026-07-27, 3차 라운드) 정정 — 아래는 2계층 테스트
+// 구조다. 재진입(`applyRetryLastTurn`) / downstream graph 진행
+// (`resumeGraphAfterRetry`) describe 블록(`applyRetryLastTurn — early-exit
+// guards` / `applyRetryLastTurn — re-entry outcome branches` / `종결 경로의
+// terminal 가드`)은 본 spec 에 **이미 존재**하며, `mockDriver` /
+// `mockAiTurnOrchestrator` 로 `runNodeDispatchLoop` / `rehydrateContext` /
+// `processAiResumeTurn` 등을 mock 해 orchestration 로직(가드 순서·재조회 시점·
+// 종결 이벤트 emit 조건)을 엔진과 독립적으로 격리 검증한다. 엔진 thin delegator
+// 는 C-1 후속 ④ 로 이미 제거됐다 — 존재하지 않는 위임 경유를 전제할 수 없다.
+// 엔진 spec(`execution-engine.service.spec.ts`)은 같은 진입점을 real driver 로
+// 구동해 실제 `runNodeDispatchLoop`/`rehydrateContext`/`processAiResumeTurn` 까지
+// 포함한 full-integration 을 검증한다 — 두 spec 은 대체가 아니라 격리 단위 테스트
+// 와 통합 테스트로 분업하는 관계다.
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('RetryTurnService', () => {
