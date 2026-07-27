@@ -876,14 +876,30 @@ describe('RetryTurnService', () => {
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       }));
 
+      const execArg = mkExec();
+
       await priv().failRetryExecution(
-        mkExec(),
+        execArg,
         EXEC_ID,
         new Error('두 번째 실패'),
       );
 
       expect(setSpy).toHaveBeenCalledWith(
         expect.objectContaining({ error: { message: '두 번째 실패' } }),
+      );
+      // ai-review WARNING #1 (2026-07-27, 3차 라운드) — 제목이 약속한 3개 필드 중
+      // `error` 하나만 검증하면 `finishedAt`/`durationMs` 를 소스에서 제거해도 이
+      // 케이스는 GREEN 이다(리뷰어가 mutation 으로 실증). vacuous 하지 않도록
+      // "이번 시도의 실제 값" 인지까지 확인한다 — `durationMs` 는 실제 `.set()` 에
+      // 전달된 `finishedAt` 과 fixture `startedAt` 의 차와 같아야 하므로, 필드가
+      // 제거되거나 다른(예: 이전 시도) 값으로 대체되면 이 관계식이 깨진다.
+      const setArg = setSpy.mock.calls[setSpy.mock.calls.length - 1][0] as {
+        finishedAt: Date;
+        durationMs: number;
+      };
+      expect(setArg.finishedAt).toBeInstanceOf(Date);
+      expect(setArg.durationMs).toBe(
+        setArg.finishedAt.getTime() - execArg.startedAt.getTime(),
       );
       // 관측한 상태를 조건으로 걸어야 그 사이 동시 cancel 이 무효화된다.
       expect(andWhereSpy).toHaveBeenCalledWith('status = :status', {
@@ -926,17 +942,44 @@ describe('RetryTurnService', () => {
       expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
     });
 
-    it('completeRetryExecution: 정본이 이미 COMPLETED 면 상태 전이를 건너뛴다', async () => {
+    it('completeRetryExecution: 정본이 이미 COMPLETED 면 상태 전이는 건너뛰고 이번 시도의 finishedAt/durationMs 는 다시 쓴다', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: EXEC_ID,
         status: ExecutionStatus.COMPLETED,
         startedAt: new Date(Date.now() - 1000),
       });
+      // ai-review WARNING #1 (2026-07-27, 3차 라운드) — 이 케이스는 기본 beforeEach
+      // mock 을 그대로 써 `.set()` payload 자체를 검증하지 않았다(그 mock 은 호출마다
+      // 새 익명 jest.fn() 을 반환해 스파이를 잡을 수 없다). failRetryExecution 짝
+      // 테스트와 대칭으로 전용 spy 를 심는다.
+      const setSpy = jest.fn().mockReturnThis();
+      const andWhereSpy = jest.fn().mockReturnThis();
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: setSpy,
+        where: jest.fn().mockReturnThis(),
+        andWhere: andWhereSpy,
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      }));
+      const execArg = mkExec();
 
-      await priv().completeRetryExecution(mkExec(), EXEC_ID);
+      await priv().completeRetryExecution(execArg, EXEC_ID);
 
       expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
       expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_COMPLETED);
+      // vacuous 하지 않도록 "이번 시도의 실제 값" 인지까지 확인한다 — failRetryExecution
+      // 짝 테스트와 동일 근거(관계식이 깨지면 필드 제거·stale 값 대체 모두 잡힌다).
+      const setArg = setSpy.mock.calls[setSpy.mock.calls.length - 1][0] as {
+        finishedAt: Date;
+        durationMs: number;
+      };
+      expect(setArg.finishedAt).toBeInstanceOf(Date);
+      expect(setArg.durationMs).toBe(
+        setArg.finishedAt.getTime() - execArg.startedAt.getTime(),
+      );
+      expect(andWhereSpy).toHaveBeenCalledWith('status = :status', {
+        status: ExecutionStatus.COMPLETED,
+      });
     });
 
     it('stale in-memory 상태가 아니라 정본을 기준으로 판정한다', async () => {
