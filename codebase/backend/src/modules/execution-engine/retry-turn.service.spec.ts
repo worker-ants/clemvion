@@ -1010,5 +1010,101 @@ describe('RetryTurnService', () => {
         ExecutionStatus.FAILED,
       );
     });
+
+    // ai-review CRITICAL #1 / testing WARNING #1 (2026-07-27, 4차 라운드) — 위
+    // 멱등 분기 테스트들은 전부 `target=FAILED`/`COMPLETED` 조합만 구성했다.
+    // `live.status===target===CANCELLED` 조합이 이 describe 전체에서 한 번도
+    // 실행되지 않아, 멱등 분기가 CANCELLED 일 때도 FAILED 와 동일하게
+    // lifecycle 필드를 무조건 새 값으로 덮어쓰는 회귀(`stop()`이 커밋한 정확한
+    // 취소 시각 T1 을 재진입 catch 시각 T2 로 오염)가 미검출이었다. 아래 두
+    // 케이스로 COALESCE 보존 + error 미기록 + affected=0 대칭을 고정한다.
+    describe('CANCELLED 멱등 분기 (target===CANCELLED, live.status===CANCELLED)', () => {
+      it('finishedAt/durationMs 는 COALESCE 로 보존하고 error 는 SET 절에서 제외한다', async () => {
+        mockExecutionRepo.findOneBy.mockResolvedValue(
+          mkLiveExecution(ExecutionStatus.CANCELLED),
+        );
+        const setSpy = jest.fn().mockReturnThis();
+        const andWhereSpy = jest.fn().mockReturnThis();
+        const setParameterSpy = jest.fn().mockReturnThis();
+        mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+          update: jest.fn().mockReturnThis(),
+          set: setSpy,
+          where: jest.fn().mockReturnThis(),
+          andWhere: andWhereSpy,
+          setParameter: setParameterSpy,
+          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+        }));
+        // 이전 시도의 stale error 를 fixture 에 미리 채워 둔다 — 취소 종결에서
+        // 이 값이 SET 절에 실리면 안 된다. 기존 fixture(mkExec())는 `.error` 를
+        // 아예 설정하지 않아 이 문제가 관측 불가능했다는 게 WARNING #1 의 지적.
+        const execArg = {
+          ...mkExec(),
+          error: { message: '이전 시도 stale error' },
+        };
+
+        await priv().failRetryExecution(
+          execArg,
+          EXEC_ID,
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        const setArg = setSpy.mock.calls[setSpy.mock.calls.length - 1][0] as {
+          finishedAt?: unknown;
+          durationMs?: unknown;
+          error?: unknown;
+        };
+        // (a) finishedAt/durationMs 는 덮어쓰는 raw 값이 아니라 COALESCE 표현
+        //     (QueryBuilder 함수형 raw SQL)이어야 한다.
+        expect(typeof setArg.finishedAt).toBe('function');
+        expect(typeof setArg.durationMs).toBe('function');
+        expect((setArg.finishedAt as () => string)()).toMatch(
+          /COALESCE\(finished_at, :newFinishedAt\)/,
+        );
+        expect((setArg.durationMs as () => string)()).toMatch(
+          /COALESCE\(duration_ms, :newDurationMs\)/,
+        );
+        // (b) error 는 SET 절 자체에 없어야 한다 — stale 값 재기록 방지.
+        expect(setArg).not.toHaveProperty('error');
+        expect(setParameterSpy).toHaveBeenCalledWith(
+          'newFinishedAt',
+          expect.any(Date),
+        );
+        expect(setParameterSpy).toHaveBeenCalledWith(
+          'newDurationMs',
+          expect.any(Number),
+        );
+        expect(andWhereSpy).toHaveBeenCalledWith('status = :status', {
+          status: ExecutionStatus.CANCELLED,
+        });
+        // (c) 취소 이벤트는 정상 발행된다 (affected=1 — row 매칭).
+        expect(emittedTypes()).toContain(
+          ExecutionEventType.EXECUTION_CANCELLED,
+        );
+      });
+
+      it('guarded UPDATE 가 0행이면 (동시 재진입 선점) 취소 이벤트도 skip 한다', async () => {
+        mockExecutionRepo.findOneBy.mockResolvedValue(
+          mkLiveExecution(ExecutionStatus.CANCELLED),
+        );
+        mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+          update: jest.fn().mockReturnThis(),
+          set: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          setParameter: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue({ affected: 0 }),
+        }));
+
+        await priv().failRetryExecution(
+          mkExec(),
+          EXEC_ID,
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        expect(emittedTypes()).not.toContain(
+          ExecutionEventType.EXECUTION_CANCELLED,
+        );
+      });
+    });
   });
 });
