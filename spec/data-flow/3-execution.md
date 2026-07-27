@@ -279,7 +279,7 @@ stateDiagram-v2
   running --> waiting_for_input: 블로킹 핸들러
   waiting_for_input --> running: 재개 진입 원자 claim (§7.5 — WHERE status='waiting_for_input' RETURNING, affected=1 인 단일 worker)
   waiting_for_input --> completed: interaction_data 수신
-  running --> cancelled: abortSignal (AbortError) — cancel-others-on-fail / 사용자 cancel
+  running --> cancelled: abortSignal (AbortError) — cancel-others-on-fail / 사용자 cancel · DB 관측 (ExecutionCancelledError) — 노드 경계 / AI turn 경계 / park 짝 전이 가드
   completed --> [*]
   failed --> [*]
   skipped --> [*]
