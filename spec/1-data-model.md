@@ -543,7 +543,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | id | UUID | PK |
 | execution_id | UUID | FK → Execution |
 | node_id | UUID | FK → Node |
-| status | Enum | pending / running / completed / failed / cancelled / skipped / waiting_for_input. `cancelled` = 외부 `abortSignal` 로 노드 외부 I/O 가 중단되어 핸들러가 throw 한 `AbortError` 를 엔진이 분류한 상태 ([node-cancellation §5](./conventions/node-cancellation.md#5-aborterror-분류) / [실행 엔진 §1.2](./5-system/4-execution-engine.md#12-nodeexecution-상태)) |
+| status | Enum | pending / running / completed / failed / cancelled / skipped / waiting_for_input. `cancelled` = 노드가 실패한 것이 아니라 **중단된** 상태. 두 경로가 여기로 귀결된다 — (1) 외부 `abortSignal` 로 외부 I/O 가 끊겨 핸들러가 throw 한 `AbortError`, (2) 엔진이 노드 경계·AI turn 경계·park 짝 전이에서 Execution 행을 재조회해 외부 cancel 을 관측하고 throw 한 `ExecutionCancelledError`(사용자 Stop 은 signal 을 만들지 않으므로 선형·resume 경로에선 이쪽이 유일한 관측 수단) ([node-cancellation §2.4·§5](./conventions/node-cancellation.md#5-aborterror-분류) / [실행 엔진 §1.2](./5-system/4-execution-engine.md#12-nodeexecution-상태)) |
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 소요 시간 |
