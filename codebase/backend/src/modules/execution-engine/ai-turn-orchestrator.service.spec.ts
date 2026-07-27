@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
+import { ExecutionCancelledError } from './workflow-errors';
 import type { AiTurnEngineDriver } from './engine-driver.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { ExecutionContextService } from './context/execution-context.service';
@@ -37,6 +38,9 @@ const executionId = 'exec-orch';
 function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
   return {
     updateExecutionStatus: jest.fn().mockResolvedValue(true),
+    // turn 경계 cancel 가드 — 기본은 "취소 아님"(resolve). 취소 시나리오만
+    // `mockRejectedValueOnce(new ExecutionCancelledError(...))` 로 재무장한다.
+    assertExecutionNotCancelled: jest.fn().mockResolvedValue(undefined),
     stageDurableResumeSnapshot: jest.fn(),
     buildRetryReentryState: jest
       .fn()
@@ -49,6 +53,14 @@ function makeMockDriver(): jest.Mocked<AiTurnEngineDriver> {
         ctx._contextKey ?? ctx.executionId,
     ),
     applyPortSelection: jest.fn((o: unknown) => o),
+    // ai-review WARNING #1 (2026-07-26) — 짝 전이 가드 no-op 시
+    // `assertLinkedTransitionApplied` 가 호출하는 노드 단위 취소 종결.
+    markNodeCancelled: jest.fn().mockResolvedValue(undefined),
+    // ai-review WARNING #1 (2026-07-26, 3차 라운드) — `finalizeAiNode` 의
+    // "이미 RUNNING 유지" 분기 전용 원자 관측+save. 기본은 "비-terminal(true)"
+    // 이라 정상 완료 경로가 그대로 통과하고, 선점 시나리오만
+    // `mockResolvedValueOnce(false)` 로 재무장한다.
+    tryLockActiveExecutionAndSaveNodeExec: jest.fn().mockResolvedValue(true),
   } as unknown as jest.Mocked<AiTurnEngineDriver>;
 }
 
@@ -102,7 +114,17 @@ describe('AiTurnOrchestrator', () => {
         savedExecution: unknown,
         context: unknown,
         nodeExec: unknown,
+        node: Node,
       ) => Promise<void>;
+    };
+
+    const reparkNode: Partial<Node> = {
+      id: 'node-repark',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
     };
 
     it('stageDurableResumeSnapshot + updateExecutionStatus(WAITING_FOR_INPUT) 를 driver 로 위임', async () => {
@@ -117,6 +139,7 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         context,
         nodeExec,
+        reparkNode as Node,
       );
 
       expect(driver.stageDurableResumeSnapshot).toHaveBeenCalledTimes(1);
@@ -146,6 +169,7 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         context,
         nodeExec,
+        reparkNode as Node,
       );
 
       // RUNNING → WAITING_FOR_INPUT 재설정 후 그 nodeExec 를 linkedNodeExec 로 전달.
@@ -155,6 +179,532 @@ describe('AiTurnOrchestrator', () => {
         ExecutionStatus.WAITING_FOR_INPUT,
         nodeExec,
       );
+    });
+
+    // (C) 2026-07-26 — turn 진행 중 외부 Stop 이 실행을 마감했다면, 짝 전이 terminal
+    // 가드가 `false` 를 반환한다. 그걸 무시하고 반환하면 호출부가 정상 park 로 알고
+    // 진행해 **사용자가 누른 Stop 이 UI 에서 사라진다**. 취소 전파 경로로 넘겨야 한다.
+    it('짝 전이가 선점당하면(false) ExecutionCancelledError 로 취소 전파 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+      const nodeExec = { id: 'ne-1', status: NodeExecutionStatus.RUNNING };
+
+      const promise = (
+        orchestrator as unknown as ReparkSubject
+      ).reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+        reparkNode as Node,
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // ai-review WARNING #8 (2026-07-26, 3차 라운드) — phase 문자열까지
+      // 확인해 WARNING #7(고정 접미사 "— skipping park" 제거) 회귀가
+      // `.rejects.toBeInstanceOf(...)` 만으로는 안 잡히는 사각지대를 닫는다.
+      await expect(promise).rejects.toThrow(
+        /cancelled during AI turn — re-park/,
+      );
+
+      // ai-review WARNING #1 (concurrency) — 짝 nodeExec 를 방치하지 않고
+      // markNodeCancelled 로 terminal 마킹해야 영구 RUNNING 잔류를 막는다.
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        reparkNode,
+        context,
+        executionId,
+      );
+    });
+
+    it('대조: 짝 전이가 적용되면(true) throw 하지 않고 markNodeCancelled 도 호출하지 않는다', async () => {
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+
+      await expect(
+        (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+          savedExecution,
+          context,
+          { id: 'ne-1', status: NodeExecutionStatus.RUNNING },
+          reparkNode as Node,
+        ),
+      ).resolves.toBeUndefined();
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+
+    // ai-review WARNING #5 (2026-07-26, testing) — `assertLinkedTransitionApplied`
+    // 의 `nodeExec === null` 분기(타입상 `ResumeTurnContext.nodeExec: NodeExecution
+    // | null` 로 실제 도달 가능)가 신규 3개 테스트 스위트 어디에서도 실행되지 않아,
+    // `if (nodeExec)` 가드를 제거/반전해도 RED 로 떨어지지 않는 mutation 사각지대였다.
+    // 소비처 중 하나(re-park)에서 nodeExec=null + shouldProceed=false 조합을 직접 고정한다.
+    it('짝 전이가 선점당해도(false) nodeExec 가 null 이면 markNodeCancelled 를 호출하지 않고 그대로 취소 전파한다', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+
+      await expect(
+        (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+          savedExecution,
+          context,
+          null,
+          reparkNode as Node,
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      // nodeExec 부재 — 마킹할 짝이 없으므로 markNodeCancelled 는 호출되지 않아야
+      // 하지만, 취소 전파 자체는 그대로 유지돼야 한다(이 가드를 반전해도 RED 가 안
+      // 나던 사각지대).
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+  });
+
+  // 첫 turn park 도 re-park 와 같은 결함을 가진다 — 첫 turn 진행 중 Stop 이 실행을
+  // 마감했는데 park 이 그걸 덮어쓰면, 취소된 실행이 "입력 대기" 로 표시된다.
+  // (mutation 검증에서 이 경로만 무커버리지로 드러나 추가한 케이스.)
+  describe('emitAiWaitingForInput — 첫 turn park 선점', () => {
+    type ParkSubject = {
+      emitAiWaitingForInput: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        nodeOutput: Record<string, unknown>,
+        resumeState: Record<string, unknown>,
+      ) => Promise<void>;
+    };
+
+    const parkNode: Partial<Node> = {
+      id: 'node-park',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callPark = () =>
+      (orchestrator as unknown as ParkSubject).emitAiWaitingForInput(
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        parkNode as Node,
+        contextService.createContext(executionId, workflowId),
+        { id: 'ne-park', status: NodeExecutionStatus.RUNNING },
+        {},
+        { messages: [], turnCount: 1 },
+      );
+
+    const waitingEmitted = () =>
+      mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+      );
+
+    it('park 이 선점당하면(false) ExecutionCancelledError + waiting 이벤트 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      const promise = callPark();
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // ai-review WARNING #5 (2026-07-26, 4차 라운드, testing) — phase 문자열까지
+      // 확인해 재-park/RUNNING 종료 분기와 동일하게 어느 분기에서 취소됐는지
+      // 회귀로 고정한다(대조: re-park 는 위 `.rejects.toThrow(/re-park/)`).
+      await expect(promise).rejects.toThrow(/cancelled during 첫 AI turn park/);
+      expect(waitingEmitted()).toBe(false);
+      // ai-review WARNING #1 (concurrency) — 첫 turn park 도 re-park 와 동일하게
+      // 짝 nodeExec 를 방치하지 않고 markNodeCancelled 로 terminal 마킹한다.
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'ne-park' }),
+        parkNode,
+        expect.anything(),
+        executionId,
+      );
+    });
+
+    it('대조: park 이 적용되면 waiting 이벤트를 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+      await callPark();
+      expect(waitingEmitted()).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+  });
+
+  // ai-review WARNING #2 (testing) — 짝 전이의 세 번째 소비처. retry-last-turn
+  // 재진입(`applyRetryLastTurn` → `processAiResumeTurn(.., {retryReentry:true})`
+  // → `finalizeAiNode`)이 대화를 종료시키면 `savedExecution.status`(FAILED,
+  // spawn row) 는 RUNNING 이 아니라 else 분기(RUNNING 재claim)를 탄다. 동시
+  // Stop 이 이 시점 실행을 이미 CANCELLED 로 마감했다면(`shouldProceed === false`)
+  // NODE_COMPLETED/EXECUTION_RESUMED 를 그대로 emit 하면 "사후 오시그널" 이다.
+  describe('finalizeAiNode — retry-last-turn 재진입 RUNNING 재claim 선점', () => {
+    type FinalizeSubject = {
+      finalizeAiNode: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        finalStatus?: 'COMPLETED' | 'FAILED',
+        opts?: { retryReentry?: boolean },
+      ) => Promise<void>;
+    };
+
+    const retryNode: Partial<Node> = {
+      id: 'node-retry',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callFinalize = (nodeExec: unknown) =>
+      (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        // retry-last-turn spawn row 는 FAILED 로 로드된다 — RUNNING 이 아니므로
+        // else 분기(RUNNING 재claim)에 진입.
+        { id: executionId, status: ExecutionStatus.FAILED },
+        executionId,
+        retryNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'COMPLETED',
+        { retryReentry: true },
+      );
+
+    it('RUNNING 재claim 이 선점당하면(false) ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const nodeExec = {
+        id: 'ne-retry',
+        nodeId: 'node-retry',
+        startedAt: new Date(),
+      };
+
+      const promise = callFinalize(nodeExec);
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // ai-review WARNING #5 (2026-07-26, 4차 라운드, testing) — phase 문자열까지
+      // 확인해 RUNNING 유지 분기(대조: 위 finalizeAiNode 원자화 describe)와
+      // 동일하게 어느 분기에서 취소됐는지 회귀로 고정한다.
+      await expect(promise).rejects.toThrow(
+        /cancelled during AI turn 종료 처리\(RUNNING 재claim\)/,
+      );
+
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ id: executionId }),
+        ExecutionStatus.RUNNING,
+        nodeExec,
+        { allowRetryReentry: true },
+      );
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        retryNode,
+        expect.anything(),
+        executionId,
+      );
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(false);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(false);
+    });
+
+    it('대조: RUNNING 재claim 이 적용되면(true) NODE_COMPLETED + EXECUTION_RESUMED 를 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+      const nodeExec = {
+        id: 'ne-retry-2',
+        nodeId: 'node-retry',
+        startedAt: new Date(),
+      };
+
+      await callFinalize(nodeExec);
+
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(true);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+
+    // ai-review WARNING #10 (2026-07-26, concurrency) — 성공 경로가 짝 전이 결과
+    // 확인 전에 nodeExec.outputData 를 먼저 낙관적으로 mutate 한다(위 `finalizeAiNode`
+    // 의 COMPLETED 셋업). 짝 전이가 거부되면 `markNodeCancelled` 가 status/finishedAt/
+    // durationMs 만 되돌리고 outputData/error 는 그대로 남아, 취소로 종결된
+    // NodeExecution 이 "성공" 페이로드를 갖게 되는 데이터 위생 문제였다.
+    it('markNodeCancelled 호출 전 outputData/error 를 비워 취소된 nodeExec 가 성공 페이로드를 남기지 않는다 (WARNING #10)', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      const context = contextService.createContext(executionId, workflowId);
+      // finalizeAiNode 가 nodeExec.outputData 를 이 캐시로부터 낙관적으로 채운다.
+      context.structuredOutputCache[retryNode.id as string] = {
+        config: {},
+        output: { message: 'stale success payload' },
+        meta: {},
+        port: 'ended',
+        status: 'ended',
+      } as never;
+      const nodeExec = {
+        id: 'ne-retry-hygiene',
+        nodeId: 'node-retry',
+        startedAt: new Date(),
+      };
+
+      await expect(
+        (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+          { id: executionId, status: ExecutionStatus.FAILED },
+          executionId,
+          retryNode as Node,
+          context,
+          nodeExec,
+          'COMPLETED',
+          { retryReentry: true },
+        ),
+      ).rejects.toBeInstanceOf(ExecutionCancelledError);
+
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({ outputData: {}, error: {} }),
+        retryNode,
+        expect.anything(),
+        executionId,
+      );
+    });
+  });
+
+  // ai-review CRITICAL #1 (2026-07-26, concurrency/requirement) — `finalizeAiNode`
+  // 의 `savedExecution.status === RUNNING` 분기는 `updateExecutionStatus`(짝 전이
+  // choke point) 를 아예 호출하지 않아, 위 else 분기(RUNNING 재claim)의
+  // `assertLinkedTransitionApplied` 가드가 구조적으로 적용되지 않았다. turn-park
+  // 재개 경로는 진입 시 이미 RUNNING 이라 **이 분기가 정상 multi-turn 대화 종료의
+  // 주 경로**다 — 동시 Stop 이 턴 진행 중 Execution 을 이미 CANCELLED 로 마감해도
+  // 무가드면 NODE_COMPLETED/EXECUTION_RESUMED 가 그대로 emit 됐다("사후 오시그널").
+  //
+  // ai-review WARNING #1 (2026-07-26, 3차 라운드) — 최초 fix 는
+  // `assertExecutionNotCancelled`(단순 SELECT) 로 재관측한 뒤 별도로 `nodeExec`
+  // 를 save 해, 그 확인~save 사이에 좁은 검사-후-사용 창이 남았다. 아래 테스트는
+  // `tryLockActiveExecutionAndSaveNodeExec`(형제 분기와 동일하게 FOR UPDATE 로
+  // 원자화된 관측+save) 로 갱신됐다 — 실제 트랜잭션 원자성 자체의 회귀는
+  // `execution-engine.service.spec.ts` 의 동명 describe 가 가드한다.
+  describe('finalizeAiNode — RUNNING 유지 분기 선점 (CRITICAL #1 / WARNING #1 3차 라운드 원자화)', () => {
+    type FinalizeSubject = {
+      finalizeAiNode: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        finalStatus?: 'COMPLETED' | 'FAILED',
+        opts?: { retryReentry?: boolean },
+      ) => Promise<void>;
+    };
+
+    const endNode: Partial<Node> = {
+      id: 'node-end-crit1',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callFinalizeRunning = (nodeExec: unknown) =>
+      (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        // turn-park 재개 경로는 진입 시 이미 RUNNING (finalizeAiNode 주석 참조).
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        endNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'COMPLETED',
+      );
+
+    it('턴 진행 중 동시 Stop 이 이미 CANCELLED 로 마감(원자 관측+save 가 false 반환) → ExecutionCancelledError + NODE_COMPLETED/EXECUTION_RESUMED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.tryLockActiveExecutionAndSaveNodeExec.mockResolvedValueOnce(false);
+      const nodeExec = {
+        id: 'ne-end-crit1',
+        nodeId: 'node-end-crit1',
+        startedAt: new Date(),
+      };
+
+      const promise = callFinalizeRunning(nodeExec);
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // ai-review WARNING #8 (2026-07-26, 3차 라운드) — phase 문자열까지
+      // 확인해 WARNING #7(고정 접미사 제거) 회귀가 `.rejects.toBeInstanceOf(...)`
+      // 만으로는 안 잡히는 사각지대를 닫는다.
+      await expect(promise).rejects.toThrow(
+        /cancelled during AI turn 종료 처리\(RUNNING 유지\)/,
+      );
+
+      // updateExecutionStatus 는 이 분기에서 호출되지 않는다(RUNNING→RUNNING
+      // assertTransition 회피가 원래 의도) — CRITICAL #1 진단의 핵심 전제를
+      // 회귀로 고정한다.
+      expect(driver.updateExecutionStatus).not.toHaveBeenCalled();
+      // ai-review WARNING #1 (3차 라운드) — 관측+save 가 원자화된 단일 호출로
+      // 대체됐는지 고정한다(형제 분기의 updateExecutionStatus FOR UPDATE 와
+      // 동일 계약 — 실제 트랜잭션 원자성은 execution-engine.service.spec.ts
+      // 의 동명 describe 가 가드).
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+      );
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        endNode,
+        expect.anything(),
+        executionId,
+      );
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(false);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(false);
+      // 취소 관측 전에 이미 COMPLETED 로 save 되지 않아야 한다(취소된 NodeExecution
+      // 이 잠깐이라도 COMPLETED 로 영속되지 않도록). save 자체는 이제
+      // tryLockActiveExecutionAndSaveNodeExec(mocked driver) 안으로 이관됐으므로
+      // orchestrator 자신의 nodeExecutionRepository 는 이 분기에서 호출되지 않는다.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('대조: 취소가 아니면(tryLockActiveExecutionAndSaveNodeExec 가 true 반환) NODE_COMPLETED + EXECUTION_RESUMED 를 정상 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+      const nodeExec = {
+        id: 'ne-end-crit1-ok',
+        nodeId: 'node-end-crit1',
+        startedAt: new Date(),
+      };
+
+      await callFinalizeRunning(nodeExec);
+
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+      );
+      // save 는 driver(엔진)의 원자적 트랜잭션 안에서 수행되므로 orchestrator
+      // 자신의 nodeExecutionRepository 는 이 분기에서 호출되지 않는다 — 위
+      // "false" 케이스와 대칭으로 항상 호출되지 않음을 확인한다.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      const nodeCompletedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.completed',
+      );
+      expect(nodeCompletedEmitted).toBe(true);
+      const resumedEmitted = mockEventEmitter.emitExecution.mock.calls.some(
+        (c) => c[1] === ExecutionEventType.EXECUTION_RESUMED,
+      );
+      expect(resumedEmitted).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+    });
+  });
+
+  // ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기가
+  // 형제(COMPLETED) 분기의 `tryLockActiveExecutionAndSaveNodeExec`/
+  // `assertLinkedTransitionApplied` 원자 가드를 전혀 거치지 않아, 동시 Stop 으로
+  // Execution 이 이미 CANCELLED 인데도 무가드 save 가 FAILED 로 덮어쓰고
+  // NODE_FAILED 를 사후 재emit 하던 lost-update. 형제 분기와 동일한 가드를
+  // 재사용해 닫은 뒤의 핵심 회귀 가드.
+  describe('finalizeAiNode — isFailed 분기 선점 (CRITICAL #2)', () => {
+    type FinalizeSubject = {
+      finalizeAiNode: (
+        savedExecution: unknown,
+        executionId: string,
+        node: Node,
+        context: unknown,
+        nodeExec: unknown,
+        finalStatus?: 'COMPLETED' | 'FAILED',
+        opts?: { retryReentry?: boolean },
+      ) => Promise<void>;
+    };
+
+    const failNode: Partial<Node> = {
+      id: 'node-end-crit2',
+      workflowId,
+      type: 'ai_agent',
+      category: NodeCategory.AI,
+      label: 'Agent',
+      config: { mode: 'multi_turn' },
+    };
+
+    const callFinalizeFailed = (nodeExec: unknown) =>
+      (orchestrator as unknown as FinalizeSubject).finalizeAiNode(
+        // turn-park 재개 경로는 진입 시 이미 RUNNING (finalizeAiNode 주석 참조) —
+        // LLM 호출이 429/timeout 등으로 자연 실패하는 정상 재현 경로.
+        { id: executionId, status: ExecutionStatus.RUNNING },
+        executionId,
+        failNode as Node,
+        contextService.createContext(executionId, workflowId),
+        nodeExec,
+        'FAILED',
+      );
+
+    it('턴 진행 중 동시 Stop 이 이미 CANCELLED 로 마감(원자 관측+save 가 false 반환) → ExecutionCancelledError + NODE_FAILED 미발행 + 짝 nodeExec CANCELLED 마킹', async () => {
+      driver.tryLockActiveExecutionAndSaveNodeExec.mockResolvedValueOnce(false);
+      const nodeExec = {
+        id: 'ne-end-crit2',
+        nodeId: 'node-end-crit2',
+        startedAt: new Date(),
+      };
+
+      const promise = callFinalizeFailed(nodeExec);
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // phase 문자열까지 고정 — RUNNING 유지 분기(대조)와 동일한 관례.
+      await expect(promise).rejects.toThrow(
+        /cancelled during AI turn 종료 처리\(FAILED\)/,
+      );
+
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+      );
+      expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+        nodeExec,
+        failNode,
+        expect.anything(),
+        executionId,
+      );
+      // WARNING #10 계약과 동형 — isFailed 셋업이 채운 error 메시지가
+      // terminal 마킹 전에 비워져야 한다(취소된 NodeExecution 이 FAILED
+      // 페이로드를 남기지 않도록).
+      expect((nodeExec as { outputData: unknown }).outputData).toEqual({});
+      expect((nodeExec as { error: unknown }).error).toEqual({});
+      const nodeFailedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.failed',
+      );
+      expect(nodeFailedEmitted).toBe(false);
+      // 취소 관측 전에 이미 FAILED 로 save 되지 않아야 한다 — orchestrator 자신의
+      // nodeExecutionRepository 는 이 분기에서 더 이상 직접 호출되지 않는다
+      // (save 는 tryLockActiveExecutionAndSaveNodeExec, mocked driver, 안으로 이관).
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('대조: 취소가 아니면(tryLockActiveExecutionAndSaveNodeExec 가 true 반환) NODE_FAILED 를 정상 발행하고 markNodeCancelled 는 호출하지 않는다', async () => {
+      const nodeExec = {
+        id: 'ne-end-crit2-ok',
+        nodeId: 'node-end-crit2',
+        startedAt: new Date(),
+      };
+
+      await expect(callFinalizeFailed(nodeExec)).rejects.toThrow(
+        'AI Agent turn failed',
+      );
+
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+      );
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+      const nodeFailedEmitted = mockEventEmitter.emitNode.mock.calls.some(
+        (c) => c[2] === 'execution.node.failed',
+      );
+      expect(nodeFailedEmitted).toBe(true);
+      expect(driver.markNodeCancelled).not.toHaveBeenCalled();
     });
   });
 
@@ -217,7 +767,15 @@ describe('AiTurnOrchestrator', () => {
           .endMultiTurnConversation,
       ).toHaveBeenCalledTimes(1);
       // RUNNING 진입이므로 상태 전이 skip + NodeExecution save (finalizeAiNode).
-      expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
+      // ai-review WARNING #1 (2026-07-26, 3차 라운드) — save 는 이제
+      // `tryLockActiveExecutionAndSaveNodeExec`(원자 관측+save, mocked driver)
+      // 안에서 수행돼 orchestrator 자신의 nodeExecutionRepository 는 호출되지
+      // 않는다.
+      expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
+        executionId,
+        nodeExec,
+      );
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
       // NODE_COMPLETED + EXECUTION_RESUMED emit.
       const nodeEvents = mockEventEmitter.emitNode.mock.calls.map((c) => c[2]);
       expect(nodeEvents).toContain('execution.node.completed');
@@ -681,6 +1239,148 @@ describe('AiTurnOrchestrator', () => {
         nodeExec,
         source,
       );
+
+    // ── (B) turn 경계 cancel 가드 (node-cancellation §2.3) ──────────────────
+    // AI multi-turn 은 turn 마다 park 로 세그먼트가 끝나 엔진 dispatch 루프의 노드
+    // 경계 가드에 닿지 않는다. 취소를 관측할 지점이 turn 경계뿐이다.
+    describe('turn 경계 cancel 가드', () => {
+      it('LLM 호출 전에 취소를 관측한다 — handler 는 호출되지 않는다', async () => {
+        const processMultiTurnMessage = registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        await expect(
+          invoke(executionId, { id: 'ne-c' }),
+        ).rejects.toBeInstanceOf(ExecutionCancelledError);
+        // 가드가 LLM 호출 **앞**에 있어야 불필요한 turn 이 실행되지 않는다.
+        expect(processMultiTurnMessage).not.toHaveBeenCalled();
+      });
+
+      // 회귀 핵심: 가드를 §7.9 try 블록 **안**에 두면 `handleAiTurnError` 가
+      // 이 취소를 잡아 `finalStatus: 'FAILED'` 로 마감해 **취소가 실패로 오분류**된다
+      // (#1021 이 컨테이너 errorPolicy 에서 다룬 것과 같은 함정).
+      it('취소는 FAILED 로 오분류되지 않고 그대로 전파된다', async () => {
+        registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        const result = await invoke(executionId, { id: 'ne-d' }).then(
+          (r) => ({ threw: false as const, r }),
+          (err: unknown) => ({ threw: true as const, err }),
+        );
+
+        expect(result.threw).toBe(true);
+        // `{ ended: true, finalStatus: 'FAILED' }` 를 반환했다면 오분류다.
+        expect(result).not.toHaveProperty('r');
+      });
+
+      it('대조: 취소가 아니면 가드를 통과해 turn 이 정상 진행된다', async () => {
+        const processMultiTurnMessage = registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+
+        await invoke(executionId, { id: 'ne-e' });
+
+        expect(driver.assertExecutionNotCancelled).toHaveBeenCalledWith(
+          executionId,
+        );
+        expect(processMultiTurnMessage).toHaveBeenCalled();
+      });
+
+      // ai-review CRITICAL #1 (2026-07-27) — 이 가드가 통일 계약
+      // (assertLinkedTransitionApplied: 짝 nodeExec 를 먼저 terminal 마킹한 뒤
+      // throw)을 우회해, 예외가 driveResumeAwaited catch →
+      // finalizeResumedExecutionOutcome(top-level Execution 만 갱신)으로
+      // 전파되면 짝 NodeExecution 이 RUNNING 으로 영구 고아가 됐다. 새 소비처로
+      // 통일한 뒤의 핵심 회귀 가드(정확한 소비처 개수는 프로덕션 코드의
+      // {@link assertLinkedTransitionApplied} JSDoc 참조 — 하드코딩 순번은
+      // 라운드마다 stale 해진 이력이 있어 여기서는 서술하지 않는다).
+      it('취소 관측 시 짝 NodeExecution 을 CANCELLED 로 마킹한 뒤 rethrow 한다 (CRITICAL #1 회귀)', async () => {
+        registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+        const nodeExec = {
+          id: 'ne-cancel-mark',
+          outputData: { stale: 'success payload' },
+          error: undefined,
+        };
+
+        const promise = invoke(executionId, nodeExec);
+        await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+        // phase 문자열까지 고정 — 다른 소비처와 동일하게 어느 지점에서
+        // 취소됐는지 회귀로 남긴다.
+        await expect(promise).rejects.toThrow(
+          /cancelled during AI turn — turn 경계/,
+        );
+
+        expect(driver.markNodeCancelled).toHaveBeenCalledWith(
+          nodeExec,
+          aiNode,
+          expect.anything(),
+          executionId,
+        );
+        // WARNING #10 계약과 동형 — terminal 마킹 전 성공 페이로드를 비운다.
+        expect(nodeExec.outputData).toEqual({});
+        expect(nodeExec.error).toEqual({});
+      });
+
+      it('nodeExec === null 이면 markNodeCancelled 를 호출하지 않고 그대로 rethrow 한다', async () => {
+        registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        await expect(invoke(executionId, null)).rejects.toBeInstanceOf(
+          ExecutionCancelledError,
+        );
+        expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+      });
+
+      // 방어적 분기 — 이 가드는 turn 이 시작되기 전(handler 호출 이전)에 실행되므로
+      // context 소실은 사실상 없지만, 없을 때도 안전하게 원본 취소를 전파해야 한다.
+      it('ExecutionContext 부재 시 마킹을 생략하고 원본 취소를 그대로 전파한다', async () => {
+        registerWaitingHandler();
+        // contextService.createContext 를 호출하지 않아 getContext 가 undefined.
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        await expect(
+          invoke('missing-context-key', { id: 'ne-f' }),
+        ).rejects.toBeInstanceOf(ExecutionCancelledError);
+        expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+      });
+
+      // ai-review WARNING (2026-07-27, 6차 라운드, testing) — mutation 사각지대:
+      // `assertExecutionNotCancelled` 는 실제로 DB SELECT 를 수행하므로 취소가
+      // 아닌 순수 인프라 오류(DB 커넥션 실패 등)로도 reject 할 수 있다. 위
+      // `if (!(err instanceof ExecutionCancelledError)) throw err;` 분기가
+      // 제거되거나 반전돼도, 위 테스트들은 전부 `ExecutionCancelledError` 만
+      // 주입하므로 RED 가 나지 않았다 — 일반 Error 주입으로 이 분기를 직접 고정한다.
+      it('일반 Error(순수 인프라 오류) 는 취소 마킹 경로를 타지 않고 원본 그대로 전파된다', async () => {
+        registerWaitingHandler();
+        contextService.createContext(executionId, workflowId);
+        const infraError = new Error('db down');
+        driver.assertExecutionNotCancelled.mockRejectedValueOnce(infraError);
+
+        // (1) 원본 에러가 그대로(래핑되지 않고) 전파된다.
+        await expect(invoke(executionId, { id: 'ne-g' })).rejects.toBe(
+          infraError,
+        );
+        // (2) markNodeCancelled/취소 마킹 경로를 타지 않는다 — ExecutionCancelledError
+        // 가 아니므로 assertLinkedTransitionApplied 통일 계약으로 라우팅되면 안 된다.
+        expect(driver.markNodeCancelled).not.toHaveBeenCalled();
+        expect(
+          driver.tryLockActiveExecutionAndSaveNodeExec,
+        ).not.toHaveBeenCalled();
+      });
+    });
 
     // (a) handler 가 waiting 을 반환했는데 await 도중 ExecutionContext 가 사라진
     //     경우 — throw 없이 graceful exit { ended:true, finalStatus:'FAILED' } 반환.

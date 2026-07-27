@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { StubLlmClient } from './stub.client';
+import { StubLlmClient, STUB_MAX_DELAY_MS } from './stub.client';
 import type { ChatMessage } from '../interfaces/llm-client.interface';
 
 /**
@@ -55,6 +55,47 @@ describe('StubLlmClient', () => {
         messages: [msg('user', 'q')],
       });
       expect(res.model).toBe('stub-model');
+    });
+
+    // ai-review WARNING #6 (2026-07-26) — e2e 가 "턴 진행 중 Stop" 레이스를
+    // 관측하려면 실제로 대기 가능한 RUNNING 윈도우가 필요하다. `__e2e_delay_ms:<n>`
+    // 마커가 그 윈도우를 만든다.
+    describe('__e2e_delay_ms 마커 (WARNING #6 — e2e RUNNING 윈도우)', () => {
+      it('마커가 있으면 지정된 ms 만큼 실제로 지연한 뒤 응답하고, echo 에서 마커를 제거한다', async () => {
+        const start = Date.now();
+        const res = await client.chat({
+          model: 'm',
+          messages: [msg('user', '__e2e_delay_ms:30 payload-after-marker')],
+        });
+        const elapsed = Date.now() - start;
+        expect(elapsed).toBeGreaterThanOrEqual(25); // 약간의 여유(CI jitter)
+        expect(res.content).toBe('[stub] received: payload-after-marker');
+      });
+
+      it('마커가 없으면 지연 없이 즉시 응답한다(기존 동작 보존)', async () => {
+        const res = await client.chat({
+          model: 'm',
+          messages: [msg('user', 'no-marker-here')],
+        });
+        expect(res.content).toBe('[stub] received: no-marker-here');
+      });
+
+      it('지연 요청이 상한(STUB_MAX_DELAY_MS)을 넘으면 캡되어 그 이상 대기하지 않는다(무한 e2e hang 방지)', async () => {
+        jest.useFakeTimers();
+        try {
+          const requested = STUB_MAX_DELAY_MS + 10_000;
+          const resultPromise = client.chat({
+            model: 'm',
+            messages: [msg('user', `__e2e_delay_ms:${requested} capped`)],
+          });
+          // 요청한 지연(상한 + 10s)이 아니라 상한만큼만 진행해도 resolve 돼야 한다.
+          await jest.advanceTimersByTimeAsync(STUB_MAX_DELAY_MS);
+          const res = await resultPromise;
+          expect(res.content).toBe('[stub] received: capped');
+        } finally {
+          jest.useRealTimers();
+        }
+      });
     });
   });
 

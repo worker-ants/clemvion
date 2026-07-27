@@ -58,3 +58,45 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 
 - 발견 맥락: `plan/in-progress/node-cancellation-residual-signal-propagation.md` commerce 2건
 - 위임된 근본 원인: `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md`
+
+## 관련 관측 — `--impl-done` scope 가 실제 diff 와 무관한 번들을 싣는다 (2026-07-26)
+
+출처: `review/consistency/2026/07/26/21_06_23` WARNING 4 + INFO 3 (5 checker 중 **3명**이
+독립적으로 같은 근본 원인을 지적).
+
+`--impl-done spec/conventions` 세션인데 실측 `git diff origin/main...HEAD -- spec/conventions`
+가 **0건**이었다. 그런데 prompt 의 `## Target 문서` 는 `spec/conventions` **전체 스냅샷**
+(Cafe24 카탈로그 대용량 dump 포함)으로 채워졌다. 결과:
+
+- `convention_compliance` · `naming_collision` 은 판정 대상 자체가 없어 BYPASS 처리
+- 예산이 무관한 문서로 소진돼, 정작 관련 있는 `node-cancellation.md` 본문이 밀려났다
+  (같은 날 `--impl-prep 19_30_39` 에서는 이 때문에 **무관한 cafe24 CRITICAL 이 BLOCK 사유**가 됐다)
+
+즉 이 항목은 downgrade 규칙과 별개의 **scope 산정** 결함이지만, 증상(무관한 발견이 게이트
+판정을 좌우)이 겹쳐 같은 plan 에 기록해 둔다.
+
+- [ ] orchestrator 의 `--impl-done`/`--impl-prep` scope 산정이 **그 경로에 실제 diff 가 있는지**
+      사전 확인하도록 보강. diff 0건이면 (a) 관련 spec 을 diff 에서 역산하거나 (b) 번들을
+      비우고 그 사실을 프롬프트에 명시.
+- [ ] target 번들 조립 시 plan frontmatter 의 `spec_impact` 목록을 **folder dump 보다 우선**
+      포함(19_30_39 INFO 2 제안). 지금은 알파벳순 폴더 dump 가 예산을 선점한다.
+
+> 선행 기록: 메모리 `feedback_impl_done_spec_bundle_bug` (prompt grep 0건이면 오탐 → BYPASS +
+> 근거 기록). 그 회피책은 지금도 유효하나, 반복 발생하므로 근본 원인 쪽을 남겨 둔다.
+
+### 같은 PR 안에서 **3회** 재현 (2026-07-27 확정)
+
+`ie-resume-turn-boundary-cancel` 한 PR 에서만 세 번 나왔다 — 우연이 아니라 상시 결함이다.
+
+| 회차 | 세션 | 증상 |
+|---|---|---|
+| 1 | `consistency/2026/07/26/19_30_39` (`--impl-prep`) | `node-cancellation.md` 본문 누락, cafe24 카탈로그가 예산 선점 → **무관한 CRITICAL 이 BLOCK 사유**가 됨 |
+| 2 | `consistency/2026/07/26/21_06_23` (`--impl-done`) | scope 내 실 diff **0건**인데 대용량 번들 적재 → checker 2명 BYPASS |
+| 3 | `consistency/2026/07/27/03_35_24` (`--impl-done`) | 또 `node-cancellation.md` 가 "예산 초과로 생략된 파일 46개" 에 포함 → **target 정합 판정이 커버리지 0 인 채로 내려짐** |
+
+3회차 plan_coherence 가 이 메타 위험을 스스로 지적했다: *"이번 회차의 'node-cancellation.md
+대상 정합 확인 없음'을 미검증으로 취급"*. 즉 **BLOCK: NO 가 '검증했고 문제없음' 이 아니라
+'검증 대상이 프롬프트에 없었음' 일 수 있다** — 게이트 신뢰도에 직접 영향.
+
+- [ ] 이 항목은 plan 갱신이 아니라 **harness 코드 수정**이 해법이다(3회차 권장사항 2).
+      `spec_impact` 우선 번들링을 구현할 것.

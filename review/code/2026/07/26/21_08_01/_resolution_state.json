@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "started_at": "2026-07-26T21:41:00Z",
+  "summary_items_total": 11,
+  "items_resolved_ids": [
+    "critical-1",
+    "warning-1",
+    "warning-2",
+    "warning-3",
+    "warning-5",
+    "warning-6",
+    "warning-7",
+    "warning-8",
+    "warning-9",
+    "warning-10"
+  ],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "items_not_actioned": {
+    "warning-4": "SUMMARY 권장사항 자체가 (선택) 표기이며 main 우선순위 지시에서도 제외 — 조치 안 함(RESOLUTION.md 보류 항목 참조)"
+  },
+  "commits_made": [
+    {
+      "sha": "157bfb887",
+      "summary_id": "critical-1,warning-5,warning-7,warning-10",
+      "scope": "engine (ai-turn-orchestrator)"
+    },
+    {
+      "sha": "e5882101a",
+      "summary_id": "warning-9",
+      "scope": "engine (execution-engine.service)"
+    },
+    {
+      "sha": "567152e39",
+      "summary_id": "warning-6",
+      "scope": "backend test (stub-client + e2e)"
+    },
+    {
+      "sha": "fb3fcb4a1",
+      "summary_id": "warning-1,warning-2,warning-3,warning-8",
+      "scope": "plan doc"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260726-220027.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}

@@ -61,14 +61,21 @@ priority: P3
       > 사용자 cancel 이라 §5.1 `cancelled` 가 이미 정답인 경로). — 워크플로 시간 한도
       자체는 PR2a 로 구현 완료(active-running 누적 타임아웃 `assertActiveTimeWithinLimit`,
       **노드 경계 판정**). 잔여는 **진행 중 노드의 in-flight 외부 I/O 즉시 중단**뿐
-- [ ] **IE multi-turn resume 경로 signal 미전파** (§2.1 표) — `information-extractor` 의
-      `processMultiTurnMessage`(resume/continuation)는 abort 컨텍스트가 없어 signal 이 닿지
-      않는다. 초기 실행 경로(`executeMultiTurn`)만 전파됨. turn 경계 abort 체크 도입이 방향.
-      **완화 있음**: AI Agent 의 app-level 타임아웃(`AI_AGENT_LLM_CALL_TIMEOUT_MS`, 자체
-      `AbortController`)이 signal 갭과 무관하게 무기한 hang 을 상한한다 → 데이터 정합성 위험이
-      아니라 응답성 갭.
+- [ ] **IE multi-turn resume 경로 signal 미전파** (§2.1 표) → **2026-07-26 착수 시 무수정 프로브로
+      아래 서술이 반증됨. 항목을 [`ie-resume-turn-boundary-cancel.md`](./ie-resume-turn-boundary-cancel.md)
+      로 분리 이관** — 본 항목의 완료 판정은 그 plan 이 소유한다(중복 소유 방지).
+      - ~~`processMultiTurnMessage` 에 signal 을 전파하는 것이 방향~~ → **전파할 signal 이 애초에 없다.**
+        엔진 전체에서 `new AbortController()` 는 `parallel-executor.ts:188` 한 곳뿐이고, 외부 cancel 은
+        signal 이 아니라 **DB 관측**(`assertExecutionNotCancelled` → `ExecutionCancelledError`) 기전이다.
+        따라서 spec §2.1 이 적어둔 **turn 경계 abort 체크**가 유일한 방향.
+      - ~~**완화 있음**: app-level 타임아웃이 hang 을 상한하므로 데이터 정합성 위험이 아니라 응답성 갭~~
+        → **틀렸다.** 실제 결함은 `updateExecutionStatus` 의 `linkedNodeExec`(park 짝 전이) 분기가
+        무가드 full-entity save 라, 턴 진행 중 Stop 으로 `CANCELLED` 된 실행이 턴 종료 후 re-park 에서
+        `WAITING_FOR_INPUT` 으로 **되살아나는 lost update** 다. 타임아웃은 이걸 완화하지 못한다 —
+        취소가 지연되는 게 아니라 **소실**된다. 정합성 결함.
       > 리뷰어가 지목한 4항목(§6 표) 밖이지만 **동일 결함 클래스**라 함께 담는다 — §2.1 의
       > 추적 포인터도 완료된 `node-cancellation-infrastructure.md` 를 가리키고 있었다.
+      > spec §2.1(IE 행 완화 서술)·§6 정정은 developer 권한 밖 → `spec-update-*` 로 위임한다.
 
 - [x] **선형 경로 cancel 전파의 기전 규명 + 결정적 고정** — **2026-07-26 완료. 기전은
       존재하지 않았다(진짜 결함).** 엔진 단위 테스트로 실증: 노드 1 실행 중 Execution 행이

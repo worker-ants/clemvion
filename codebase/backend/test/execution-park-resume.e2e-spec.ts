@@ -822,6 +822,39 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
     } | null;
   }
 
+  /**
+   * ai-review WARNING #9 (2026-07-26, 3차 라운드 — testing/maintainability) —
+   * `node_execution.status` 가 non-RUNNING(terminal) 으로 전이할 때까지 DB 를
+   * 직접 poll 한다. 고정 `setTimeout` 대신 이 헬퍼를 써서 turn-finalize 완료
+   * 대기 단계도 `poll()`(위, execution REST 조회) 과 동일한 컨벤션(고정 sleep
+   * 금지)을 따르게 한다 — CI 부하로 지연(1200ms)+큐 처리시간이 고정 상수를
+   * 넘으면 결함과 무관하게 flake 하던 것을 닫는다.
+   */
+  async function pollNodeExecutionTerminal(
+    executionId: string,
+    nodeId: string,
+    timeoutMs = 20_000,
+    intervalMs = 200,
+  ): Promise<string> {
+    const start = Date.now();
+    let last = '';
+    while (Date.now() - start < timeoutMs) {
+      const row = await db.query(
+        `SELECT status FROM node_execution
+           WHERE execution_id = $1 AND node_id = $2
+           ORDER BY started_at DESC LIMIT 1`,
+        [executionId, nodeId],
+      );
+      last = (row.rows[0]?.status as string) ?? '';
+      if (last && last !== 'running') return last;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error(
+      `pollNodeExecutionTerminal timed out at status=${last} ` +
+        `(execution=${executionId}, node=${nodeId})`,
+    );
+  }
+
   /** EIA submit_message — cold rehydration 으로 한 turn 을 구동. */
   async function submitMessage(
     executionId: string,
@@ -1087,4 +1120,163 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
       '[stub] received: turn-two-followup',
     ]);
   }, 90_000);
+
+  /**
+   * ai-review CRITICAL #1 + WARNING #6 (2026-07-26) — 실 Postgres/실 HTTP
+   * `POST /stop` 으로, 턴 진행 중(LLM 호출 도중) Stop 이 눌려도 대화 자연 종료
+   * (`finalizeAiNode` 의 `savedExecution.status===RUNNING` 분기)가 그 취소를
+   * 무시하고 CANCELLED 를 되살리지 않는지 실증한다.
+   *
+   * `maxTurns: 1` 로 최초 user turn 이 LLM 응답을 받자마자 `max_turns` 사유로
+   * 자연 종료하도록 만든다 — 이 종료 경로가 정확히 CRITICAL #1 이 고친 그 분기
+   * (else 분기 "RUNNING 재claim" 이 아니라 "이미 RUNNING" 무가드 분기)를 탄다.
+   *
+   * 고정 sleep 으로 타이밍을 맞추지 않는다(컨벤션, `node-cancellation-propagation
+   * .e2e-spec.ts` 선례) — `StubLlmClient` 의 `__e2e_delay_ms:<n>` 마커(WARNING #6)로
+   * 실제 관측 가능한 RUNNING 윈도우를 만들고, `running` 을 poll 로 확인한 뒤에만
+   * `/stop` 을 발사한다.
+   */
+  it('턴 진행 중(LLM 호출 도중) 실 HTTP POST /stop → 대화 자연 종료 후에도 CANCELLED 가 되살아나지 않는다 (ai-review CRITICAL #1)', async () => {
+    const llmCreateRes = await request(BASE_URL)
+      .post('/api/model-configs')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        kind: 'chat',
+        provider: 'openai',
+        name: uniqueName('aiturnpark-stop-race-llm'),
+        apiKey: 'stub-not-used',
+        defaultModel: 'stub-model',
+        defaultParams: {},
+        isDefault: false,
+      });
+    expect(llmCreateRes.status).toBe(201);
+    const llmConfigId = (llmCreateRes.body.data as { id: string }).id;
+
+    const workflowId = await createWorkflow();
+    const trigger: CanvasNode = {
+      id: randomUUID(),
+      type: MANUAL_TRIGGER_TYPE,
+      category: 'trigger',
+      label: 'Start',
+      positionX: 0,
+      positionY: 0,
+    };
+    const aiNode: CanvasNode = {
+      id: randomUUID(),
+      type: 'ai_agent',
+      category: 'ai',
+      label: 'Conversation',
+      positionX: 240,
+      positionY: 0,
+      config: {
+        mode: 'multi_turn',
+        llmConfigId,
+        systemPrompt: 'You are a helpful assistant.',
+        // 최초(유일) turn 이 곧바로 max_turns 자연 종료 → finalizeAiNode 의
+        // "이미 RUNNING" 분기(CRITICAL #1)로 직행.
+        maxTurns: 1,
+      },
+    };
+    await saveCanvas(
+      workflowId,
+      [trigger, aiNode],
+      [
+        {
+          sourceNodeId: trigger.id,
+          sourcePort: 'out',
+          targetNodeId: aiNode.id,
+          targetPort: 'in',
+        },
+      ],
+    );
+
+    const execRes = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/execute`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(execRes.status).toBe(202);
+    const executionId = (execRes.body.data as { executionId: string })
+      .executionId;
+    expect(executionId).toBeDefined();
+
+    const parkedStatus = await poll(
+      executionId,
+      (s) =>
+        s === 'waiting_for_input' || TERMINAL_STATUSES.includes(s as never),
+    );
+    expect(parkedStatus).toBe('waiting_for_input');
+
+    // 유일한 user turn — 응답을 1200ms 지연시켜 "LLM 호출 도중" 을 관측 가능한
+    // 윈도우로 만든다.
+    await submitMessage(
+      executionId,
+      aiNode.id,
+      '__e2e_delay_ms:1200 stop-mid-turn',
+    );
+
+    // (1) 관측 — 고정 sleep 이 아니라 실제로 running 이 될 때까지 poll (claim
+    //     완료, LLM 호출이 지연 중인 구간).
+    const runningSeen = await poll(
+      executionId,
+      (s) => s === 'running',
+      5_000,
+      50,
+    );
+    expect(runningSeen).toBe('running');
+
+    // (2) 그 윈도우 안에서 실 HTTP POST /stop.
+    const stopRes = await request(BASE_URL)
+      .post(`/api/executions/${executionId}/stop`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({});
+    expect(stopRes.status).toBe(200);
+    expect((stopRes.body.data as { status: string }).status).toBe('cancelled');
+
+    const stoppedRow = await db.query(
+      `SELECT status, finished_at FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(stoppedRow.rows[0]?.status).toBe('cancelled');
+    const finishedAtAfterStop = stoppedRow.rows[0]?.finished_at as Date;
+    expect(finishedAtAfterStop).not.toBeNull();
+
+    // (3) 지연된 LLM 응답이 도착해 턴이 종료 처리(finalizeAiNode 의 "이미 RUNNING"
+    //     분기)를 마칠 때까지 대기 — ai-review WARNING #9 (2026-07-26, 3차
+    //     라운드): 고정 `setTimeout` 대신 `node_execution.status` 가 RUNNING
+    //     을 벗어날 때까지 poll 한다(CI 부하로 지연(1200ms)+큐 처리시간이 고정
+    //     상수를 넘어도 flake 하지 않도록).
+    const nodeExecTerminalStatus = await pollNodeExecutionTerminal(
+      executionId,
+      aiNode.id,
+      10_000,
+      100,
+    );
+    expect(nodeExecTerminalStatus).toBe('cancelled');
+
+    // (4) 핵심 회귀 — CANCELLED 가 되살아나지 않는다. 무가드였다면 이 분기가
+    //     NodeExecution 을 COMPLETED 로 저장하고 NODE_COMPLETED/EXECUTION_RESUMED
+    //     를 무조건 emit 했을 것이나, Execution 자체는 전이를 타지 않으므로(CRITICAL
+    //     #1 진단) 이 assertion 은 "여전히 cancelled·finished_at 불변" 으로 고정한다.
+    const finalRow = await db.query(
+      `SELECT status, finished_at FROM execution WHERE id = $1`,
+      [executionId],
+    );
+    expect(finalRow.rows[0]?.status).toBe('cancelled');
+    expect((finalRow.rows[0]?.finished_at as Date).getTime()).toBe(
+      finishedAtAfterStop.getTime(),
+    );
+
+    // (5) 짝 NodeExecution 도 CANCELLED 로 terminal 마킹돼야 한다 — 무가드였다면
+    //     여기서 'completed' 로 잘못 마감됐을 것(취소된 실행에 대한 사후 오시그널).
+    const finalNode = await db.query(
+      `SELECT status FROM node_execution
+         WHERE execution_id = $1 AND node_id = $2
+         ORDER BY started_at DESC LIMIT 1`,
+      [executionId, aiNode.id],
+    );
+    expect(finalNode.rows[0]?.status).toBe('cancelled');
+  }, 30_000);
 });

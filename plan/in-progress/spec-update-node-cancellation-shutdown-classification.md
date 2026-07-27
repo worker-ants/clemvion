@@ -327,3 +327,83 @@ impl-done 5개 checker 가 위 #6 제안의 **범위 누락**을 지적했다. p
 **(5) `error-codes.md` — `AbortError` 미등재** (convention_compliance)
 
 `AbortError` 는 PascalCase 라 §1 `UPPER_SNAKE_CASE` 위반이고 §3 예외 레지스트리에 미등재다. 값 자체는 선재이나 이번 구현이 `markNodeCancelled` 공유 헬퍼로 재사용 지점을 늘렸다. 위 "추가 위임 (2026-07-25 #4)" 항목 (1) 과 동일 건 — 함께 처리할 것.
+
+## 추가 위임 (2026-07-26 #7) — §2.1 IE 행의 "완화됨/응답성 갭" 서술이 실측으로 반증됐다
+
+`--impl-prep` `review/consistency/2026/07/26/19_30_39` plan_coherence WARNING 1·2.
+[`ie-resume-turn-boundary-cancel.md`](ie-resume-turn-boundary-cancel.md) 착수 시 **무수정
+프로브**로 확인. #6 과 같은 choke point(취소 관측)를 다루므로 함께 반영할 것.
+
+### 무엇이 틀렸나
+
+§2.1 Anthropic SDK 행의 IE 서술은 두 가지를 주장한다:
+
+1. *"resume 경로는 turn 경계에서 abort 체크를 도입하는 별도 작업으로 추적"* — **방향은 맞다.**
+   다만 같은 문장이 `ResumableMessageOptions.signal` 을 *"abort 소스 도입 시 resume chat 까지
+   signal 이 도달하도록 열어둔 executor-side plumbing"* 이라 설명해, **언젠가 signal 이 생길
+   것**처럼 읽힌다. 실측: 엔진 전체에서 `new AbortController()` 는 `parallel-executor.ts:188`
+   한 곳뿐이고 사용자 Stop 은 signal 을 만들지 않는다(#6 이 정리한 그 사실). 즉 resume 경로의
+   해법은 signal 전파가 아니라 **#6 과 동일한 DB 관측 가드**다.
+2. *"defense-in-depth timeout … 위 resume signal gap 과 무관하게 무기한 hang 을 상한한다"*
+   → 이를 근거로 부모 plan 은 **"데이터 정합성 위험이 아니라 응답성 갭"** 이라 결론지었다.
+   **이 결론이 틀렸다.** 타임아웃은 hang 을 상한할 뿐, 아래 결함을 완화하지 못한다.
+
+### 실제 결함 — park 짝 전이 lost update
+
+`updateExecutionStatus`(상태 전이 단일 choke point) 의 `linkedNodeExec` 분기는 무가드
+full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르면:
+
+1. `stop()` 이 `status IN (RUNNING, PENDING)` 가드 UPDATE 로 DB 를 `CANCELLED` 로 마감
+2. 턴이 끝나고 re-park 가 `updateExecutionStatus(savedExecution, WAITING_FOR_INPUT, nodeExec)`
+3. orchestrator 는 Execution 을 재로드하지 않아 in-memory 상태가 `RUNNING`(stale) →
+   `assertTransition` 통과 → full-entity save 가 `CANCELLED`/`finishedAt` 을 **덮어씀**
+
+결과: 사용자가 누른 Stop 이 **소실**되고 실행이 다시 재개 가능 상태로 보인다. #6 의 노드 경계
+가드는 park 가 세그먼트를 끝내므로 이 경로에 닿지 않는다.
+
+### 제안 변경
+
+1. **§2.1 IE 행 재서술** — "signal 미전파(gap)" 프레이밍을 **"resume 경로는 signal 이 아니라
+   turn 경계 DB 관측으로 취소를 처리한다"** 로 바꾼다. `ResumableMessageOptions.signal` 은
+   *"현재 abort 소스가 없어 항상 undefined 인 plumbing"* 임을 명시(장래 도입 기대를 제거).
+2. **완화 서술 삭제·정정** — "데이터 정합성 위험이 아니라 응답성 갭" 문장을 제거하고, 실제
+   위험이 **취소 소실(lost update)** 이었음과 그 차단 방식(park 짝 전이의 terminal 가드)을 적는다.
+3. **§2.3 에 bullet 보강** — #6 이 추가할 "노드 경계 Execution-cancel 재확인" 옆에 **"turn 경계
+   (AI multi-turn resume)"** 도 같은 가드 계열임을 명시.
+4. **§6 표에 행 추가** — `AI multi-turn resume turn 경계 cancel 가드 + park 짝 전이 terminal 가드`.
+5. **`## Rationale` 이관** — "왜 signal 이 아니라 DB 관측인가"(Stop 은 signal 을 만들지 않는다)와
+   "왜 짝 전이 분기에 가드가 없었나"(M-3 이 else 분기만 고치고 짝 전이는 명시적으로 범위 밖으로
+   남겼다 — `plan/complete/refactor/05-database.md`) 근거를 남길 것. rationale_continuity WARNING 1
+   이 지적한 "과거 결정을 닫으면서 그 근거를 spec 에 남기지 않는" 재발 방지.
+
+### #7 보강 (impl-done 21_06_23 WARNING 1·2·3 반영)
+
+`--impl-done` 검토에서 두 checker 가 독립적으로 **위 "제안 변경" 5개가 불완전**하다고 지적했다.
+아래 3건을 #7 처리 시 함께 반영한다 (지적이 실측으로 맞음을 확인 — #7 절 안에
+`execution-engine.md`/`§1.1` 문자열 0건이었다).
+
+6. **`spec/5-system/4-execution-engine.md` §1.1(원자성 보장) 보강** — 짝 전이(Execution +
+   NodeExecution 단일 트랜잭션)가 **DB 가 이미 terminal 이면 두 save 를 모두 건너뛰고
+   `false` 를 반환하는 no-op** 가 될 수 있음을 서술한다. 현재 §1.1 은 "원자적으로 함께
+   전이한다" 만 말해, 전이가 **적용되지 않을 수 있다**는 신규 케이스가 빠져 있다.
+7. **`cancelled` 생산자 목록 미러 3곳 동기화** — 이번 PR 이 추가한 생산자
+   (AI multi-turn turn 경계 / park 짝 전이 terminal 가드 → `markNodeCancelled`)를
+   `4-execution-engine.md:114`(§1.2 표) · `1-data-model.md:546`(§2.14) ·
+   `data-flow/3-execution.md:282`(§3.2 mermaid) 에 함께 추가한다. #6 은 "§2.3 노드 경계"
+   생산자만 다루므로 이 두 번째 생산자가 누락된다.
+8. **`EngineDriver` 멤버 수 invariant 정정** — `execution-engine.md ## Rationale` §C-1 이
+   기록한 "12 distinct 멤버 / `AiTurnEngineDriver` 7멤버" 가 이번 PR 의 신규 3개
+   (`assertExecutionNotCancelled`, `markNodeCancelled`, `assertActiveExecutionAndSaveNodeExec`
+   — **4차 라운드에 `tryLockActiveExecutionAndSaveNodeExec` 로 개명, rename-only 이라 멤버
+   수는 불변**)로 **distinct 15 / AiTurn 10** 이 됐다. (main 이 인터페이스 파일에서 실측:
+   Core 2 + Interaction 1 + Reentry 1 + AiTurn 자체 6 + Retry 자체 5 = 15, AiTurn 합계 =
+   2+1+1+6 = 10.) `tryLockActiveExecutionAndSaveNodeExec`(구 `assertActiveExecutionAndSaveNodeExec`)
+   는 ai-review WARNING #1(2026-07-26 3차 라운드) fix 로 `finalizeAiNode` RUNNING 유지
+   분기의 관측+save 를 형제 분기(`updateExecutionStatus` 의 linkedNodeExec 분기, FOR UPDATE)
+   와 동일하게 원자화하며 추가됐다 — **이전 라운드가 위임한 14/9 목표가 이번 라운드에 다시
+   15/10 으로 갱신됐다**(같은 항목이 두 라운드 연속 갱신되는 것을 막기 위해, spec 반영 시점에
+   코드 실측치를 다시 한 번 확인할 것). 코드 쪽 docstring 은 본 라운드에서
+   `engine-driver.interface.ts` 를 직접 정정했으므로, spec Rationale 만 같은 수치로 맞추면
+   된다 — **코드 15 vs spec 12 로 갈라지지 않게 같은 턴에 처리할 것**. spec 반영 시
+   메서드명은 **개명 후 이름(`tryLockActiveExecutionAndSaveNodeExec`)으로 기록**할 것 —
+   4차 라운드 rename 이 코드에 이미 반영돼 있다.

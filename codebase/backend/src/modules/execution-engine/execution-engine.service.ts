@@ -10,7 +10,7 @@ import {
 import { ModuleRef } from '@nestjs/core';
 import { sanitizeErrorMessage } from './sanitize-error-message';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, LessThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, LessThan, Repository } from 'typeorm';
 import {
   Execution,
   ExecutionStatus,
@@ -448,8 +448,14 @@ export type ExecuteOptions =
  *    (§7.4).
  *  - **공개 API**: `execute` / `executeSync` / `executeAsync` / `executeInline` /
  *    `continueExecution` / `continueButtonClick` / `continueAiConversation` /
- *    `endAiConversation` / `cancelWaitingExecution`. 본 서비스는 ~4200줄로
- *    크기가 크므로 PR-H/I 에서 점진적으로 책임 분해 예정.
+ *    `endAiConversation` / `cancelWaitingExecution`.
+ *
+ * ai-review WARNING #4 (2026-07-27, architecture/documentation) — 이 docblock
+ * 이 서술하던 정적 줄 수("~4200줄")가 실측(8,422줄)의 절반 이하로 stale 했다.
+ * god-class 분해가 진행 중인 파일은 편집마다 줄 수가 바뀌므로 하드코딩된
+ * 수치를 다시 넣지 않는다 — 실측이 필요하면 `wc -l` 로 직접 재라. 분해
+ * 로드맵/이력은 plan/complete/c1-engine-split.md 참조 (strangler-fig 단계별
+ * stacked PR, `EngineDriver` 로 추출 서비스와 통신).
  */
 // ─── Helper Interfaces moved to ./types/graph-dispatch.types.ts ─────────────
 // `ExecutionGraphState` / `NodeDispatchLoopParams` 는 C-1 후속에서 leaf 타입
@@ -495,6 +501,21 @@ export class ExecutionEngineService
     ExecutionStatus.FAILED,
     ExecutionStatus.CANCELLED,
   ]);
+
+  /**
+   * ai-review WARNING #8 (2026-07-26, 유지보수성) — `updateExecutionStatus` 의
+   * 짝 전이(FOR UPDATE) 쿼리와 else 분기 guarded UPDATE 쿼리가 손으로 중복
+   * 하드코딩하던 non-terminal status SQL 리터럴을 단일 출처로 통합한다.
+   * `ExecutionStatus` 값에서 `TERMINAL_STATUSES` 를 제외한 나머지를 SQL
+   * literal 리스트(`'pending', 'running', 'waiting_for_input'`)로 만든다 —
+   * enum 값 기반이라 인젝션 우려 없음(사용자 입력 아님).
+   */
+  private static readonly NON_TERMINAL_STATUSES_SQL = Object.values(
+    ExecutionStatus,
+  )
+    .filter((status) => !ExecutionEngineService.TERMINAL_STATUSES.has(status))
+    .map((status) => `'${status}'`)
+    .join(', ');
 
   private readonly logger = new Logger(ExecutionEngineService.name);
 
@@ -571,22 +592,40 @@ export class ExecutionEngineService
   ): Promise<void> {
     try {
       const row = await this.executionRepository.findOneBy({ id: executionId });
-      if (
-        !row ||
-        row.status === ExecutionStatus.COMPLETED ||
-        row.status === ExecutionStatus.FAILED ||
-        row.status === ExecutionStatus.CANCELLED
-      ) {
+      // terminal 집합은 단일 출처(`TERMINAL_STATUSES`)로 비교한다 — 인라인 열거는
+      // 원소가 조용히 빠질 수 있다(같은 파일 `executeSync` timeout 경로가 실제로
+      // CANCELLED 를 누락했다, 2026-07-27).
+      if (!row || ExecutionEngineService.TERMINAL_STATUSES.has(row.status)) {
         return;
       }
       const errMessage = error instanceof Error ? error.message : String(error);
-      row.status = ExecutionStatus.FAILED;
       row.error = { message: errMessage };
       row.finishedAt = new Date();
       if (row.startedAt) {
         row.durationMs = row.finishedAt.getTime() - row.startedAt.getTime();
       }
-      await this.executionRepository.save(row);
+      // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity `save()`
+      // 는 형제 종결 헬퍼(`finalizeFailedExecution`/`finalizeCancelledExecution`)가
+      // 이미 닫은 것과 같은 클래스의 좁은 SELECT~UPDATE TOCTOU 를 재도입한다.
+      // guarded `updateExecutionStatus`(`status IN (non-terminal)`) 경유로 교체해,
+      // 위 reload 이후 동시 Stop 이 이미 DB 를 CANCELLED 로 커밋했다면 재마킹하지
+      // 않는다. `row.status` 가 PENDING 이면(설정 자체가 RUNNING 진입 전에 이중
+      // 실패한 극단 케이스) 상태머신이 PENDING→FAILED 를 의도적으로 금지하므로
+      // (`state-machine.spec.ts` "disallow pending -> failed") `assertTransition`
+      // 이 throw 하는데, 이는 이 함수 바깥의 best-effort try/catch 가 흡수한다 —
+      // 상태머신을 우회해 강제로 FAILED 로 만드는 것보다 §7.1 stale 스윕에 위임하는
+      // 편이 안전하다. `CoreEngineDriver` JSDoc 의 choke point 예외 참조.
+      const persisted = await this.updateExecutionStatus(
+        row,
+        ExecutionStatus.FAILED,
+      );
+      if (!persisted) {
+        this.logger.warn(
+          `failFirstSegmentSetup(${executionId}): 동시 cancel 이 이미 terminal 로 ` +
+            `선점 — FAILED 재마킹·EXECUTION_FAILED emit 을 모두 skip`,
+        );
+        return;
+      }
       await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_FAILED,
@@ -934,35 +973,50 @@ export class ExecutionEngineService
    * 않는다. `finalizeRehydrationCleanup` 에 live AI contextService 가 없어 경합 없음.
    *
    * @remarks DB 오류는 내부 흡수 — 호출자에 예외 전파 없음 (best-effort cancel).
+   *
+   * ai-review WARNING #1 (2026-07-27) — Execution/NodeExecution 이중 UPDATE 를
+   * `markWebChatIdleTimeout`(아래, 완전히 동형 연산)과 동일하게 **단일
+   * 트랜잭션**으로 묶는다. 비-트랜잭션 2단계였을 때는 첫 UPDATE 커밋 후 둘째가
+   * 실패(또는 그 사이 크래시)하면 NodeExecution 이 영구 WAITING 으로 잔류하고
+   * Execution 만 CANCELLED 로 남는 불일치가 있었다.
    */
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
-      const result = await this.executionRepository
-        .createQueryBuilder()
-        .update(Execution)
-        .set({ status: ExecutionStatus.CANCELLED, finishedAt: new Date() })
-        .where('id = :id', { id: executionId })
-        .andWhere('status = :waiting', {
-          waiting: ExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
-      if ((result.affected ?? 0) === 0) {
-        // 이미 terminal / 재개로 RUNNING — 멱등 no-op.
-        return;
-      }
-      // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹한다. Execution UPDATE 가
-      // affected:1 이었으므로 여기까지 온 경우만 실행(멱등 안전).
-      // `status = WAITING_FOR_INPUT` 가드: resume 으로 이미 COMPLETED/RUNNING 으로
-      // 전이된 row 는 건드리지 않는다.
-      await this.nodeExecutionRepository
-        .createQueryBuilder()
-        .update(NodeExecution)
-        .set({ status: NodeExecutionStatus.CANCELLED, finishedAt: new Date() })
-        .where('execution_id = :executionId', { executionId })
-        .andWhere('status = :waiting', {
-          waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
-        })
-        .execute();
+      let cancelled = false;
+      await this.dataSource.transaction(async (manager) => {
+        const result = await manager
+          .createQueryBuilder()
+          .update(Execution)
+          .set({ status: ExecutionStatus.CANCELLED, finishedAt: new Date() })
+          .where('id = :id', { id: executionId })
+          .andWhere('status = :waiting', {
+            waiting: ExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        if ((result.affected ?? 0) === 0) {
+          // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
+          return;
+        }
+        // 동반 WAITING NodeExecution 도 CANCELLED 로 마킹한다. Execution UPDATE 가
+        // affected:1 이었으므로 여기까지 온 경우만 실행(멱등 안전).
+        // `status = WAITING_FOR_INPUT` 가드: resume 으로 이미 COMPLETED/RUNNING 으로
+        // 전이된 row 는 건드리지 않는다.
+        await manager
+          .createQueryBuilder()
+          .update(NodeExecution)
+          .set({
+            status: NodeExecutionStatus.CANCELLED,
+            finishedAt: new Date(),
+          })
+          .where('execution_id = :executionId', { executionId })
+          .andWhere('status = :waiting', {
+            waiting: NodeExecutionStatus.WAITING_FOR_INPUT,
+          })
+          .execute();
+        cancelled = true;
+      });
+      if (!cancelled) return;
+      // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관(둘 다 cancelled).
       // park 시 이미 해제됐을 수 있는 in-memory 잔여(context/resolver/llm 캐시)를
       // 멱등 정리한다.
       this.finalizeRehydrationCleanup(executionId);
@@ -1142,10 +1196,12 @@ export class ExecutionEngineService
         if ((nodeRes.affected ?? 0) === 0) return false;
         // (2) 짝 전이 — 같은 tx 로 Execution 도 WFI→RUNNING (§1.1). 재개 가능
         //     상태(WAITING_FOR_INPUT ∪ RUNNING)만 대상. affected=0 이면 Execution 이
-        //     이미 terminal(동시 cancel 등 — `cancelParkedExecution` 은 exec/node UPDATE
-        //     가 비원자라 exec=CANCELLED·node=WAITING 창이 존재) → node 만 claim 되면
-        //     짝 불일치가 남으므로 throw(ResumeClaimExecTerminalError)로 tx 롤백해
-        //     node claim 도 취소한다(→ discard).
+        //     이미 terminal(동시 cancel 등) → node 만 claim 되면 짝 불일치가 남으므로
+        //     throw(ResumeClaimExecTerminalError)로 tx 롤백해 node claim 도 취소한다
+        //     (→ discard). (ai-review WARNING #1, 2026-07-27 — `cancelParkedExecution`
+        //     은 이제 exec/node UPDATE 를 단일 트랜잭션으로 원자화해 그 경로발
+        //     "exec=CANCELLED·node=WAITING" 창은 닫혔다. 이 discard 분기는 다른
+        //     동시 취소 경로에 대한 일반 방어로 남긴다.)
         const execRes = await manager
           .createQueryBuilder()
           .update(Execution)
@@ -3990,9 +4046,12 @@ export class ExecutionEngineService
    * 동안:
    *   1) executeSync 가 FAILED 로 마킹 → 호출부에 throw
    *   2) 백그라운드 runExecution 이 완료되면 COMPLETED 로 다시 마킹
-   * 의 race window 가 존재한다. 현재는 timeout 후 reload → 상태 비교로 보호하나
-   * 완전 차단 X. 완전한 cancel 은 AbortSignal 주입 + 워커 협력이 필요하며 별도
-   * 인프라 PR (CRIT/WARN backlog) 로 분리.
+   * 의 race window 가 존재한다. timeout 후 reload → guarded `updateExecutionStatus`
+   * (`status IN (non-terminal)`) 로 마킹해 그 사이 동시 Stop 이 이미 CANCELLED 로
+   * 커밋한 경우의 덮어쓰기는 막지만(ai-review WARNING #1, 2026-07-27, 7차 라운드),
+   * "백그라운드가 이겨 COMPLETED 로 재마킹" 자체는 완전 차단 X. 완전한 cancel 은
+   * AbortSignal 주입 + 워커 협력이 필요하며 별도 인프라 PR (CRIT/WARN backlog) 로
+   * 분리.
    */
   async executeSync(
     workflowId: string,
@@ -4050,12 +4109,15 @@ export class ExecutionEngineService
       const reloaded = await this.executionRepository.findOneBy({
         id: savedExecution.id,
       });
+      // 2026-07-27 — terminal 집합을 인라인 열거하면 원소가 조용히 빠진다. 실제로
+      // 이 자리는 COMPLETED/FAILED 만 열거해 **CANCELLED 를 누락**했고, 그래서 동시
+      // Stop 으로 이미 취소된 sub-execution 을 timeout 경로가 FAILED 로 덮어썼다
+      // (본 PR 이 닫아온 "취소 소실" 과 같은 클래스). 이름 있는 단일 출처
+      // `TERMINAL_STATUSES` 로 비교해 원소 추가/변경 시 자동으로 따라오게 한다.
       if (
         reloaded &&
-        reloaded.status !== ExecutionStatus.COMPLETED &&
-        reloaded.status !== ExecutionStatus.FAILED
+        !ExecutionEngineService.TERMINAL_STATUSES.has(reloaded.status)
       ) {
-        reloaded.status = ExecutionStatus.FAILED;
         reloaded.error = {
           message: err instanceof Error ? err.message : String(err),
         };
@@ -4064,7 +4126,28 @@ export class ExecutionEngineService
           reloaded.durationMs =
             reloaded.finishedAt.getTime() - reloaded.startedAt.getTime();
         }
-        await this.executionRepository.save(reloaded);
+        // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity
+        // `save()` 대신 형제 종결 헬퍼와 동일한 guarded `updateExecutionStatus`
+        // (`status IN (non-terminal)`) 경유로 마킹한다. 위 reload 이후 동시 Stop 이
+        // DB 를 이미 CANCELLED 로 커밋했다면 guarded UPDATE 가 0행 매칭으로 no-op
+        // 한다. `reloaded.status` 가 PENDING 이면(극히 좁은 소-timeoutMs 레이스로
+        // RUNNING 전이 완료 전에 timeout 이 먼저 발화) 상태머신이 PENDING→FAILED 를
+        // 의도적으로 금지하므로(`state-machine.spec.ts` "disallow pending ->
+        // failed") `assertTransition` 이 throw 하는데, 원본 timeout 에러(`err`)를
+        // 가리지 않도록 여기서 흡수하고 마킹만 skip 한다 — `CoreEngineDriver` JSDoc
+        // 의 choke point 예외 참조.
+        try {
+          await this.updateExecutionStatus(reloaded, ExecutionStatus.FAILED);
+        } catch (transitionErr) {
+          this.logger.warn(
+            `executeSync(${savedExecution.id}) timeout 마킹 skip — ` +
+              `${reloaded.status} → FAILED 전이 거부: ${
+                transitionErr instanceof Error
+                  ? transitionErr.message
+                  : String(transitionErr)
+              }`,
+          );
+        }
       }
       throw err;
     } finally {
@@ -4562,8 +4645,13 @@ export class ExecutionEngineService
    *
    * throw 는 호출부 책임으로 남긴다 — 각 분기가 던져야 할 원본 에러가 다르고,
    * 여기서 던지면 "무엇을 다시 던지는가" 가 호출부에서 보이지 않게 된다.
+   *
+   * ai-review WARNING #1 (2026-07-26) — `AiTurnEngineDriver.markNodeCancelled`
+   * 로 노출해 `AiTurnOrchestrator` 가 짝 전이(linkedNodeExec) 가드 no-op 시
+   * 짝이었던 NodeExecution 을 동일하게 terminal 마킹하는 데 재사용한다.
    */
-  private async markNodeCancelled(
+  // C-1 step2 후속 — EngineDriver member (AiTurnEngineDriver 표면, 2026-07-26).
+  public async markNodeCancelled(
     nodeExecution: NodeExecution,
     node: Node,
     context: ExecutionContext,
@@ -4632,12 +4720,25 @@ export class ExecutionEngineService
   /**
    * top-level 실행을 FAILED 로 종결하는 공통 처리. **초기 세그먼트**(`runExecution` catch)와
    * **재개 세그먼트**(`finalizeResumedExecutionOutcome`)가 공유한다 — 상태 마킹 · error 봉인
-   * (§1.4 sentinel code 보존) · `finished_at`/`duration` · DB save · `EXECUTION_FAILED` WS emit ·
-   * `execution_failed` 알림 dispatch(§1.1) 를 일원화한다.
+   * (§1.4 sentinel code 보존) · `finished_at`/`duration` · guarded DB 전이 · `EXECUTION_FAILED`
+   * WS emit · `execution_failed` 알림 dispatch(§1.1) 를 일원화한다.
    *
    * 근거: 두 종결 경로가 near-identical 블록을 각자 보유해, PR #841 에서 재개 경로에만 dispatch 가
    * 누락돼 `execution_failed` 가 사실상 미발사되던 버그가 있었다. 단일 헬퍼로 모아 "한쪽만 갱신"
    * 재발을 구조적으로 막는다. in-memory context/캐시 정리는 경로별로 상이하므로 호출자 finally 가 유지한다.
+   *
+   * ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — 형제 {@link finalizeCancelledExecution}
+   * 은 처음부터 `updateExecutionStatus`(guarded UPDATE, `status IN (non-terminal)`) 경유로
+   * CANCELLED 를 마킹하는데, 이 함수는 무조건 full-entity `save()` 로 FAILED 마킹해 상태-머신
+   * 가드를 전혀 거치지 않았다. 재현: `finalizeAiNode` 의 `isFailed` 가드(CRITICAL #2, 이전
+   * 라운드)가 통과한 뒤에도 이벤트 emit·throw·호출 스택을 경유해 이 함수에 도달하기까지 창이
+   * 남고, 그 사이 동시 Stop 이 DB 를 CANCELLED 로 이미 커밋했다면 이 무가드 save 가 CANCELLED
+   * 를 FAILED 로 덮어쓴다 — `state-machine.ts` 의 `CANCELLED → []`(항상 불허)를 완전히
+   * 우회하는 lost-update. AI 턴 경로 전용이 아니라 `ExecutionCancelledError` 가 아닌 모든
+   * 에러가 지나가는 범용 경로(일반 노드 핸들러 throw 포함)라 형제와 동일하게 닫는다.
+   * `updateExecutionStatus` 가 `false` 를 반환하면(동시 cancel 선점) FAILED 저장이 이미
+   * no-op 이므로 emit/알림 dispatch 도 함께 skip 한다 — 그렇지 않으면 사용자가 명시적으로
+   * 취소한 실행에 대해 EXECUTION_FAILED/execution_failed 가 사후 발사된다.
    */
   private async finalizeFailedExecution(
     savedExecution: Execution,
@@ -4645,7 +4746,6 @@ export class ExecutionEngineService
     opts: { rehydrated?: boolean } = {},
   ): Promise<void> {
     const executionId = savedExecution.id;
-    savedExecution.status = ExecutionStatus.FAILED;
     // WARN #7 (Security) — error.stack 은 파일 경로·모듈명·내부 구조를 노출하므로 DB 에 저장하지
     // 않는다. 디버깅용 stack 은 서버 로그로만 기록.
     const errMessage = error instanceof Error ? error.message : String(error);
@@ -4670,7 +4770,22 @@ export class ExecutionEngineService
     savedExecution.finishedAt = new Date();
     savedExecution.durationMs =
       savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
-    await this.executionRepository.save(savedExecution);
+    // CRITICAL #1 — 형제 finalizeCancelledExecution 과 동일한 guarded 경로. DB 가
+    // 이미 terminal(동시 Stop 이 CANCELLED 로 선점)이면 0행 매칭 → false 반환,
+    // FAILED 로 재마킹하지 않는다.
+    const persisted = await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.FAILED,
+    );
+    if (!persisted) {
+      this.logger.warn(
+        `finalizeFailedExecution(${executionId})${
+          opts.rehydrated ? ' (rehydrated)' : ''
+        }: 동시 cancel/park 이 이미 terminal 로 선점 — FAILED 재마킹·EXECUTION_FAILED emit·` +
+          `execution_failed 알림 dispatch 를 모두 skip`,
+      );
+      return;
+    }
     await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_FAILED,
@@ -7971,7 +8086,9 @@ export class ExecutionEngineService
    *   이 옵션을 쓰지 않아 기존과 동일하게 매번 조회한다. 트레이드오프는 위
    *   {@link CONTAINER_CANCEL_CHECK_THROTTLE_MS} JSDoc 참조.
    */
-  private async assertExecutionNotCancelled(
+  // EngineDriver 멤버 — AI multi-turn orchestrator 가 **turn 경계**에서 호출한다
+  // (park 가 세그먼트를 끝내 노드 경계 가드에 닿지 않는 경로. 2026-07-26).
+  public async assertExecutionNotCancelled(
     executionId: string,
     opts?: { throttle: boolean },
   ): Promise<void> {
@@ -7999,6 +8116,98 @@ export class ExecutionEngineService
     throw new ExecutionCancelledError(
       `Execution ${executionId} cancelled externally`,
     );
+  }
+
+  /**
+   * ai-review WARNING #1 (2026-07-26, 4차 라운드 — architecture/maintainability
+   * 공통 지적) — "Execution 이 non-terminal 인지 행 잠금으로 확인" 하는
+   * `SELECT ... FOR UPDATE` 조회가 `tryLockActiveExecutionAndSaveNodeExec` 와
+   * `updateExecutionStatus` 의 `linkedNodeExec` 분기 두 곳에 SQL·구조가 그대로
+   * 복제돼 있었다 — 상태 머신이 자기-전이(RUNNING→RUNNING)를 표현하지 못해
+   * 별도 choke point 가 생긴 것이 근본 원인. 잠금 조회 자체만 이 헬퍼로 공유하고,
+   * 잠금 이후의 save 절차(무엇을 save 하는지)는 각 호출부가 자신의 계약대로
+   * 그대로 수행한다 — choke point 자체를 합치지는 않는다(두 호출부의 커밋 대상
+   * 컬럼 집합이 다르다: 이 헬퍼 호출자는 NodeExecution 만, `updateExecutionStatus`
+   * 는 Execution.status 포함).
+   *
+   * @returns `true` 면 대상 execution 행이 non-terminal 이라 트랜잭션 안에서
+   *   행 잠금을 획득했다(커밋까지 유지). `false` 는 동시 cancel/park 가 이미
+   *   terminal 로 옮겨 잠금을 획득하지 않은 경우 — 호출부는 이후 save 를
+   *   건너뛰어야 한다.
+   */
+  private async lockNonTerminalExecutionRow(
+    manager: EntityManager,
+    executionId: string,
+  ): Promise<boolean> {
+    const live: unknown[] = await manager.query(
+      `SELECT id FROM execution
+        WHERE id = $1
+          AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
+        FOR UPDATE`,
+      [executionId],
+    );
+    return live.length > 0;
+  }
+
+  /**
+   * ai-review WARNING #1 (2026-07-26, 3차 라운드 — concurrency/architecture/
+   * requirement 3개 reviewer 공통 지적) — `finalizeAiNode` 의 "이미 RUNNING
+   * 유지" 분기(turn-park 재개 경로의 정상 multi-turn 대화 종료 주 경로)는
+   * Execution.status 가 RUNNING→RUNNING 이라 `updateExecutionStatus`(짝 전이
+   * choke point) 를 아예 타지 않는다. 그런데도 짝 `NodeExecution` 을 COMPLETED
+   * 로 save 해야 하므로, 그 save 를 형제 분기(`updateExecutionStatus` 의
+   * `linkedNodeExec` 분기, FOR UPDATE)와 동일하게 **같은 트랜잭션의 행 잠금**
+   * 안에서 원자화한다 — `assertExecutionNotCancelled`(단순 SELECT) 확인
+   * 직후~save 사이의 좁은 창에서 동시 Stop 이 끼어드는 검사-후-사용 race 를
+   * 완전히 닫는다.
+   *
+   * `updateExecutionStatus` 의 `linkedNodeExec` 분기와 잠금 조회는
+   * {@link lockNonTerminalExecutionRow} 로 공유하지만 Execution.status 자체는
+   * 쓰지 않는다(호출 시점에 이미 RUNNING 이라 전이가 없음) — 그래서 그
+   * choke point 를 재사용하지 않고 별도 좁은 표면으로 둔다 (ISP,
+   * {@link AiTurnEngineDriver} 전용 — 호출자는 `finalizeAiNode` 뿐).
+   *
+   * ai-review WARNING #4 (2026-07-26, 4차 라운드 — maintainability) — 이
+   * 코드베이스의 `assert*` 접두는 "조건 위반 시 throw" 관례인데, 이 메서드는
+   * `Promise<boolean>` 을 반환하고 throw 하지 않아 그 관례를 어겼다. 이 PR 이
+   * 고친 CRITICAL 이 정확히 "반환값 미확인으로 조용히 진행"이었으므로 이름이
+   * 같은 실수를 유도할 수 있어, non-throwing/bool 반환임이 드러나는
+   * `tryLockActiveExecutionAndSaveNodeExec` 로 개명한다(이전 이름
+   * `assertActiveExecutionAndSaveNodeExec`).
+   *
+   * ai-review CRITICAL #2 (2026-07-27) — `finalizeAiNode` 의 `isFailed` 분기도
+   * 이 헬퍼를 공유한다(두 번째 호출부). 그 분기는 Execution.status 를 전이하지
+   * 않고 짝 `nodeExec` 만 (COMPLETED 대신 FAILED 로) save 하므로 계약이 동일하다
+   * — 아래 인라인 주석도 두 호출부를 함께 반영하도록 갱신했다.
+   *
+   * @returns `true` 면 Execution 이 non-terminal 이라 `nodeExec` 를 트랜잭션
+   *   안에서 save 했다. `false` 는 동시 cancel 이 Execution 을 이미 terminal
+   *   로 옮겨 save 를 건너뛴 경우 — 호출부는 `assertLinkedTransitionApplied`
+   *   로 짝 `nodeExec` 를 CANCELLED 재마킹한 뒤 던져야 한다.
+   */
+  // EngineDriver 멤버 — `finalizeAiNode` RUNNING 유지 분기 + isFailed 분기 전용
+  // (AiTurnOrchestrator only, 두 호출부).
+  public async tryLockActiveExecutionAndSaveNodeExec(
+    executionId: string,
+    nodeExec: NodeExecution | null,
+  ): Promise<boolean> {
+    let persisted = false;
+    await this.dataSource.transaction(async (manager) => {
+      const isNonTerminal = await this.lockNonTerminalExecutionRow(
+        manager,
+        executionId,
+      );
+      if (!isNonTerminal) {
+        // 동시 cancel 이 선점 — save 를 건너뛴다. 호출부가
+        // assertLinkedTransitionApplied 로 짝 nodeExec 를 CANCELLED 마킹한다.
+        return;
+      }
+      if (nodeExec) {
+        await manager.save(NodeExecution, nodeExec);
+      }
+      persisted = true;
+    });
+    return persisted;
   }
 
   /**
@@ -8090,11 +8299,14 @@ export class ExecutionEngineService
   /**
    * Execution 상태 전이의 단일 choke point.
    *
-   * @returns `true` 면 전이가 DB 에 반영됨. `false` 는 **else 분기(linkedNodeExec
-   *   없음)에서만** 발생 — 동시 cancel/park 가 DB 를 이미 terminal 로 옮겨
-   *   guarded UPDATE 가 0행 매칭(no-op)된 경우다. 호출부는 이때 terminal emit 을
-   *   skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다 (M-3).
-   *   linkedNodeExec 분기(spec §1.2 짝 전이)는 항상 `true`.
+   * @returns `true` 면 전이가 DB 에 반영됨. `false` 는 동시 cancel/park 가 DB 를
+   *   이미 terminal 로 옮겨 전이가 no-op 된 경우다 — else 분기(linkedNodeExec
+   *   없음)는 guarded UPDATE 0행 매칭(M-3). **linkedNodeExec 분기(짝 전이)도
+   *   동일하게 `false` 를 반환할 수 있다**(2026-07-26 후속 — 트랜잭션 내 행
+   *   잠금 조회가 0행, 더 이상 "항상 true" 아님). 호출부는 이때 terminal/park
+   *   emit 을 skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다.
+   *   실제 소비 현황은 `engine-driver.interface.ts` 의 `AiTurnEngineDriver`
+   *   JSDoc 참조 — AI 경로(3곳)만 현재 소비, form/button 4곳은 후속.
    */
   // C-1 step2 — EngineDriver member (상태 전이 단일 choke point).
   public async updateExecutionStatus(
@@ -8105,14 +8317,22 @@ export class ExecutionEngineService
   ): Promise<boolean> {
     assertTransition(execution.status, newStatus, opts);
     // PR2a — §8 active-running 누적 시간 추적. 모든 상태 전이의 단일 choke point.
-    // RUNNING 진입(어느 세그먼트 entry point 든) → 세그먼트 시작 시각 기록.
-    // RUNNING 이탈(waiting_for_input / completed / failed / cancelled) → 그 세그먼트의
-    // active 시간을 Execution.activeRunningMs 에 합산(아래 save 로 영속). waiting_for_input
+    // RUNNING 진입(어느 세그먼트 entry point 든) → 세그먼트 시작 시각 기록(단,
+    // 아래 가드를 실제로 통과해 persisted===true 인 경우에만 — ai-review WARNING #9,
+    // 2026-07-26, concurrency/side_effect 참조). RUNNING 이탈(waiting_for_input /
+    // completed / failed / cancelled) → 그 세그먼트의 active 시간을
+    // Execution.activeRunningMs 에 합산(아래 save 로 영속). waiting_for_input
     // park 동안은 RUNNING 이 아니므로 자연히 제외된다(불변식).
     const prevStatus = execution.status;
-    if (newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus) {
-      this.recordRunningSegmentStart(execution.id);
-    } else if (
+    // ai-review WARNING #9 (2026-07-26) — 진입 여부만 여기서 계산해 두고, 실제
+    // 기록(recordRunningSegmentStart)은 각 분기의 terminal 가드 통과(persisted===true)
+    // 확인 이후로 미룬다. 예전엔 가드보다 먼저 무조건 기록해, 거부된(no-op) RUNNING
+    // 재claim 에도 in-memory segmentStartMs 유령 항목이 남았다 — 그 executionId 는
+    // 실제로 RUNNING 이 된 적이 없어 "이탈" 분기가 결코 오지 않으므로 정리 기회 없이
+    // 누적되는 in-memory 누수였다(DB 오염은 없음, 자원 회계 문제).
+    const enteringRunning =
+      newStatus === ExecutionStatus.RUNNING && prevStatus !== newStatus;
+    if (
       prevStatus === ExecutionStatus.RUNNING &&
       newStatus !== ExecutionStatus.RUNNING
     ) {
@@ -8124,13 +8344,52 @@ export class ExecutionEngineService
       }
     }
     if (linkedNodeExec) {
+      // M-3 후속 (2026-07-26) — 짝 전이도 terminal 가드를 받는다.
+      //
+      // M-3 은 else 분기만 guarded UPDATE 로 고치고 이 분기는 "범위 밖" 으로 남겼는데,
+      // 그 자리가 살아있는 lost update 였다: 짝 전이 호출부 8곳은 **전부 park↔resume**
+      // 이고 terminal 마킹은 하나도 없다(form/button/AI 의 WAITING_FOR_INPUT park 5곳 +
+      // RUNNING 재claim 3곳). 즉 DB 가 이미 terminal 이면 이 전이는 8곳 모두 오동작이다.
+      //
+      // 재현: AI multi-turn 턴 진행 중(LLM 호출 수 초~분) 사용자가 Stop 을 누르면
+      // `stop()` 이 `status IN (RUNNING, PENDING)` 가드 UPDATE 로 DB 를 CANCELLED 로
+      // 마감한다. 턴이 끝나고 re-park 가 여기 도달하는데, orchestrator 는 Execution 을
+      // 재로드하지 않아 `execution.status` 가 RUNNING(stale) 이다 → 위 `assertTransition`
+      // 은 RUNNING→WAITING_FOR_INPUT 을 정상 전이로 통과시키고, full-entity save 가
+      // CANCELLED/finishedAt 을 덮어써 **사용자가 누른 Stop 이 소실**된다.
+      // (§2.3 노드 경계 가드는 park 가 세그먼트를 끝내므로 이 경로에 닿지 않는다.)
+      //
+      // 왜 else 분기처럼 partial UPDATE 로 바꾸지 않나 — 이 분기의 full-entity save 는
+      // `stageDurableResumeSnapshot` 이 실어둔 park 스냅샷(conversation_thread /
+      // user_variables / resume_call_stack)까지 함께 영속하는 것이 계약이다. 컬럼을
+      // 열거해 재작성하면 그 스냅샷이 조용히 누락될 위험이 있어, 대신 **같은 트랜잭션
+      // 안에서 행을 잠그고**(FOR UPDATE) 비-terminal 을 확인한 뒤 기존 save 를 그대로
+      // 수행한다. 잠금이 커밋까지 유지되므로 검사-후-사용 race 도 닫힌다.
+      // ai-review WARNING #1 (2026-07-26, 4차 라운드) — 잠금 조회 자체는
+      // `tryLockActiveExecutionAndSaveNodeExec` 와 {@link lockNonTerminalExecutionRow}
+      // 로 공유한다. save 절차(Execution.status 포함)는 형제와 달라 이 분기에 남긴다.
+      let persisted = false;
       await this.dataSource.transaction(async (manager) => {
+        const isNonTerminal = await this.lockNonTerminalExecutionRow(
+          manager,
+          execution.id,
+        );
+        if (!isNonTerminal) {
+          // 동시 cancel/마감이 선점 — park·재claim 을 적용하지 않고 no-op.
+          // 호출부는 false 를 보고 park 이벤트 emit 을 건너뛰어야 한다.
+          return;
+        }
         execution.status = newStatus;
         await manager.save(Execution, execution);
         await manager.save(NodeExecution, linkedNodeExec);
+        persisted = true;
       });
-      this.emitTerminalExecutionMetrics(execution, newStatus, true);
-      return true;
+      // WARNING #9 — 가드를 실제로 통과했을 때만 세그먼트 시작을 기록한다.
+      if (enteringRunning && persisted) {
+        this.recordRunningSegmentStart(execution.id);
+      }
+      this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
+      return persisted;
     }
 
     // M-3 — else 분기: 옛 full-entity save 는 stale 엔티티의 모든 컬럼을 덮어써,
@@ -8140,8 +8399,10 @@ export class ExecutionEngineService
     // 옛 full-save 가 쓰던 컬럼의 부분집합(이 엔티티는 full-save 되던 것이므로 안전)
     // 이라, 동시 park 가 기록하는 conversation_thread/user_variables 는 건드리지
     // 않는다. jsonb 는 raw 파라미터에 명시 JSON.stringify(codebase raw-query 관용).
-    // else 분기 호출은 RUNNING / COMPLETED 전이뿐이며 FAILED/CANCELLED 직접 마감과
-    // linkedNodeExec 짝 전이는 범위 밖.
+    // else 분기 호출은 RUNNING / COMPLETED / FAILED / CANCELLED 직접 마감(top-level
+    // 종결 포함) — linkedNodeExec 짝 전이만 범위 밖(위 if 분기가 별도 처리).
+    // ai-review CRITICAL #1 (2026-07-27, 6차 라운드) — `finalizeFailedExecution`
+    // 도 이 guarded 경로를 타면서 `error` 컬럼을 잃지 않도록 아래 SET 절에 포함.
     execution.status = newStatus;
     const updated: Array<{ id: string }> = await this.executionRepository.query(
       `UPDATE execution
@@ -8150,9 +8411,10 @@ export class ExecutionEngineService
               finished_at = $4,
               duration_ms = $5,
               output_data = $6::jsonb,
-              resume_call_stack = $7::jsonb
+              resume_call_stack = $7::jsonb,
+              error = $8::jsonb
         WHERE id = $1
-          AND status IN ('pending', 'running', 'waiting_for_input')
+          AND status IN (${ExecutionEngineService.NON_TERMINAL_STATUSES_SQL})
         RETURNING id`,
       [
         execution.id,
@@ -8166,9 +8428,14 @@ export class ExecutionEngineService
         execution.resumeCallStack == null
           ? null
           : JSON.stringify(execution.resumeCallStack),
+        execution.error == null ? null : JSON.stringify(execution.error),
       ],
     );
     const persisted = updated.length > 0;
+    // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
+    if (enteringRunning && persisted) {
+      this.recordRunningSegmentStart(execution.id);
+    }
     this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
     return persisted;
   }

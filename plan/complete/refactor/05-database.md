@@ -156,6 +156,13 @@ WHERE status IN ('waiting_for_input','running');
 
 - [x] ✅ 완료 (2026-06-14, 옵션 A) — else 분기 full-save → lifecycle 컬럼만 쓰는 guarded UPDATE(`status IN 비-terminal` 가드, affected=0 시 false 반환). COMPLETED 4개 마감 site 를 '필드 선세팅 → guarded UPDATE → applied 시만 emit' 으로 일괄 전환(terminal 이벤트 이중 발행 방지). linkedNodeExec 짝 전이·FAILED/CANCELLED 직접 마감은 범위 밖. frontend emit-skip 영향 grep 선행 확인. — `execution-engine.service.ts`
 
+> **후속 완결 (2026-07-26)** — 위에서 "범위 밖" 으로 남긴 **`linkedNodeExec` 짝 전이** 가
+> 실제로 살아있는 결함이었음이 확인됐다: AI multi-turn 턴 진행 중 사용자 Stop 으로
+> `CANCELLED` 된 실행이, 턴 종료 후 re-park 의 stale full-entity save 로
+> `WAITING_FOR_INPUT` 으로 **되살아난다**(취소 소실). 짝 전이 호출부 8건 전수가 park↔resume
+> 이고 terminal 마킹은 0건이라 terminal 가드 추가가 의미적으로 안전함을 실측 확인.
+> → [`plan/in-progress/ie-resume-turn-boundary-cancel.md`](../../in-progress/ie-resume-turn-boundary-cancel.md) 가 완결한다.
+
 **spec 대조**: D — §1.2:67 이 짝 전이(running↔waiting)의 단일 트랜잭션 + emit-after-commit 을 명시 — **"부정합 창" 중 emit 순서 부분은 문제가 아님**. 실문제는 else 분기·COMPLETED 마감의 **full-entity save** 가 stale 엔티티로 동시 cancel/park 전이를 덮어쓰는 lost-update.
 
 **개선 방안**:
