@@ -436,7 +436,15 @@ describe('RetryTurnService', () => {
       node = { id: NODE_ID, type: 'ai', label: 'AI', config: {} };
 
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(spawnedRow);
-      mockExecutionRepo.findOneBy.mockResolvedValue(execution);
+      // 2026-07-27 — 종결부의 guarded 마감이 **DB 를 다시 읽는다.** 재진입 claim 이
+      // 이미 `failed → running` 으로 DB 를 옮겨 놓았으므로 재조회는 `running` 을
+      // 돌려줘야 현실에 맞다. in-memory `execution` 은 그 전이가 다른 인스턴스에
+      // 적용돼 stale `failed` 로 남아 있는데, 이 비대칭이 정확히 가드가 다루는 상황이다.
+      //   첫 조회(재진입 시작 시 execution 로드)는 stale 객체를 그대로 주고,
+      //   이후 조회(종결부 재조회)는 DB 정본(running)을 준다.
+      mockExecutionRepo.findOneBy
+        .mockResolvedValueOnce(execution)
+        .mockResolvedValue({ ...execution, status: ExecutionStatus.RUNNING });
       mockNodeRepo.findOneBy.mockResolvedValue(node);
       // rehydrateContext 는 실제로 contextService 의 Map 에 context 를 등록한다.
       // 따라서 mock 도 real contextService.createContext 로 등록해 후속
@@ -480,7 +488,14 @@ describe('RetryTurnService', () => {
 
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
 
-      expect(execution.status).toBe(ExecutionStatus.CANCELLED);
+      // 2026-07-27 — 종결이 guarded choke point 경유로 바뀌면서 상태 대입은
+      // `updateExecutionStatus` 안에서 일어난다(여기선 driver 가 mock 이라 엔티티가
+      // 변이되지 않는다). 단언 대상을 "엔티티 필드" 에서 **실제 계약**(어떤 상태로
+      // 전이를 요청했는가)으로 옮긴다.
+      expect(mockDriver.updateExecutionStatus).toHaveBeenCalledWith(
+        execution,
+        ExecutionStatus.CANCELLED,
+      );
       const emitExecution = mockEventEmitter.emitExecution as jest.Mock;
       // CANCELLED event emitted, FAILED never.
       expect(emitExecution).toHaveBeenCalledWith(
@@ -508,7 +523,11 @@ describe('RetryTurnService', () => {
 
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
 
-      expect(execution.status).toBe(ExecutionStatus.FAILED);
+      // 상태 대입은 guarded choke point 안에서 일어난다(driver mock → 엔티티 미변이).
+      expect(mockDriver.updateExecutionStatus).toHaveBeenCalledWith(
+        execution,
+        ExecutionStatus.FAILED,
+      );
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_FAILED,
@@ -554,7 +573,11 @@ describe('RetryTurnService', () => {
       expect(mockDriver.loadAndBuildGraph).toHaveBeenCalledWith('wf-1');
       // fallback finalize → COMPLETED, no dispatch loop.
       expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
-      expect(execution.status).toBe(ExecutionStatus.COMPLETED);
+      // 상태 대입은 guarded choke point 안에서 일어난다(driver mock → 엔티티 미변이).
+      expect(mockDriver.updateExecutionStatus).toHaveBeenCalledWith(
+        execution,
+        ExecutionStatus.COMPLETED,
+      );
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_COMPLETED,
@@ -582,11 +605,212 @@ describe('RetryTurnService', () => {
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
 
       expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
-      expect(execution.status).toBe(ExecutionStatus.COMPLETED);
+      // 상태 대입은 guarded choke point 안에서 일어난다(driver mock → 엔티티 미변이).
+      expect(mockDriver.updateExecutionStatus).toHaveBeenCalledWith(
+        execution,
+        ExecutionStatus.COMPLETED,
+      );
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_COMPLETED,
         { status: ExecutionStatus.COMPLETED },
+      );
+    });
+  });
+
+  // 2026-07-27 — `#1022` 가 `execution-engine.service.ts` 에서 닫은 "무가드 terminal
+  // 쓰기" 결함 클래스가 이 파일의 종결 2경로에 남아 있었다. 두 메서드 모두 stale
+  // in-memory 엔티티로 full-entity `save()` 를 해, 동시 Stop 이 이미 마감한 실행을
+  // 덮어쓰고 종결 이벤트까지 발행했다.
+  //   같은 파일 `resumeGraphAfterRetry` 종결부는 이미 guarded 패턴을 쓰고 있어,
+  //   신규 패턴 도입이 아니라 기존 패턴을 두 곳에 마저 적용한 것이다.
+  describe('종결 경로의 terminal 가드 (동시 Stop 선점)', () => {
+    type FinalizeSubject = {
+      completeRetryExecution: (e: unknown, id: string) => Promise<void>;
+      failRetryExecution: (
+        e: unknown,
+        id: string,
+        err: unknown,
+      ) => Promise<void>;
+    };
+    const priv = () => service as unknown as FinalizeSubject;
+    const EXEC_ID = 'exec-terminal-guard';
+    const mkExec = () => ({
+      id: EXEC_ID,
+      status: ExecutionStatus.RUNNING,
+      startedAt: new Date(Date.now() - 1000),
+    });
+
+    beforeEach(() => {
+      // 가드는 DB 정본을 다시 읽는다. 기본값은 "아직 살아있는 실행"(running) —
+      // 선점 시나리오는 각 테스트가 `updateExecutionStatus` 를 `false` 로 재무장한다.
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.RUNNING,
+        startedAt: new Date(Date.now() - 1000),
+      });
+    });
+
+    const emittedTypes = () =>
+      (mockEventEmitter.emitExecution as jest.Mock).mock.calls.map((c) => c[1]);
+
+    it('completeRetryExecution: 선점되면 COMPLETED 로 덮어쓰지 않고 이벤트도 미발행', async () => {
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      await priv().completeRetryExecution(mkExec(), EXEC_ID);
+
+      expect(emittedTypes()).not.toContain(
+        ExecutionEventType.EXECUTION_COMPLETED,
+      );
+    });
+
+    it('대조: 선점되지 않으면 COMPLETED 이벤트를 발행한다', async () => {
+      await priv().completeRetryExecution(mkExec(), EXEC_ID);
+
+      expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_COMPLETED);
+    });
+
+    it('failRetryExecution: 선점되면 FAILED 로 덮어쓰지 않고 이벤트도 미발행', async () => {
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('retryable'),
+      );
+
+      expect(emittedTypes()).not.toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    it('대조: 선점되지 않으면 FAILED 이벤트를 발행한다', async () => {
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('retryable'),
+      );
+
+      expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    it('취소 경로도 가드를 거친다 — 선점 시 EXECUTION_CANCELLED 미발행', async () => {
+      mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new ExecutionCancelledError('cancelled'),
+      );
+
+      expect(emittedTypes()).not.toContain(
+        ExecutionEventType.EXECUTION_CANCELLED,
+      );
+    });
+
+    // ── 정본(DB) 상태 기반 판정 ─────────────────────────────────────────────
+    // 위 케이스들은 `updateExecutionStatus` 가 `false` 를 주는 경로만 덮는다.
+    // **실제 보호의 핵심은 그 앞단** — 재조회한 정본이 이미 다른 terminal 이면
+    // 전이 자체를 시도하지 않는다. mutation 에서 이 분기가 무커버리지로 드러나
+    // 추가한 케이스다(가드를 지워도 RED 가 안 났다).
+
+    it('정본이 이미 CANCELLED 면 FAILED 로 전이를 시도조차 하지 않는다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.CANCELLED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('retryable'),
+      );
+
+      // 취소를 FAILED 로 덮어쓰는 전이 요청이 나가서는 안 된다.
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(emittedTypes()).not.toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    it('정본이 이미 CANCELLED 면 COMPLETED 로도 덮어쓰지 않는다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.CANCELLED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+
+      await priv().completeRetryExecution(mkExec(), EXEC_ID);
+
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(emittedTypes()).not.toContain(
+        ExecutionEventType.EXECUTION_COMPLETED,
+      );
+    });
+
+    it('정본이 이미 목표 상태면 멱등 no-op — 쓰지 않고 이벤트만 발행', async () => {
+      // 재진입이 턴 시작 전에 실패하면 Execution 이 `failed` 인 채로 도달한다.
+      // 쓸 것이 없으니 lost update 위험도 없고, 종결 이벤트는 기존대로 나가야 한다.
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('retryable'),
+      );
+
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(emittedTypes()).toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    it('Execution row 가 사라졌으면 아무것도 하지 않는다', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue(null);
+
+      await priv().failRetryExecution(
+        mkExec(),
+        EXEC_ID,
+        new Error('retryable'),
+      );
+
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+      expect(emittedTypes()).not.toContain(ExecutionEventType.EXECUTION_FAILED);
+    });
+
+    it('stale in-memory 상태가 아니라 정본을 기준으로 판정한다', async () => {
+      // in-memory 는 RUNNING(mkExec) 인데 정본은 CANCELLED — 재조회를 무시하고
+      // stale 을 쓰면 running→failed 가 허용돼 취소를 덮어쓴다.
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.CANCELLED,
+        startedAt: new Date(Date.now() - 1000),
+      });
+      const staleExec = mkExec();
+      expect(staleExec.status).toBe(ExecutionStatus.RUNNING);
+
+      await priv().failRetryExecution(staleExec, EXEC_ID, new Error('boom'));
+
+      expect(mockDriver.updateExecutionStatus).not.toHaveBeenCalled();
+    });
+
+    it('choke point 에는 정본으로 갱신된 엔티티를 넘긴다 (stale 이면 자기 전이로 throw)', async () => {
+      // 재진입 전이가 **다른 인스턴스**에 적용돼 in-memory 는 stale `failed` 인데
+      // 정본은 `running` 인 상황. 이때 stale 을 그대로 넘기면 실제 choke point 의
+      // `assertTransition('failed', 'failed')` 이 자기 전이로 throw 한다(엔진 spec 의
+      // 통합 테스트에서 실제로 발생했다). 여기서는 driver 가 mock 이라 throw 를 볼 수
+      // 없으므로, **넘겨지는 엔티티의 상태가 정본으로 갱신됐는지**를 직접 단언한다.
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC_ID,
+        status: ExecutionStatus.RUNNING,
+        startedAt: new Date(Date.now() - 1000),
+      });
+      const staleExec = { ...mkExec(), status: ExecutionStatus.FAILED };
+
+      await priv().failRetryExecution(staleExec, EXEC_ID, new Error('boom'));
+
+      expect(mockDriver.updateExecutionStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.RUNNING }),
+        ExecutionStatus.FAILED,
       );
     });
   });

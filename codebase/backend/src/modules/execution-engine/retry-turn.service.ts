@@ -20,6 +20,7 @@ import {
   NodeEventType,
 } from '../websocket/websocket.service';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
+import { canTransition } from './state/state-machine';
 import {
   ExecutionCancelledError,
   InvalidExecutionStateError,
@@ -432,15 +433,79 @@ export class RetryTurnService {
    * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
    * 호출된다. 다른 경로에서 직접 호출하지 말 것.
    */
+  /**
+   * 2026-07-27 — 종결 2경로(`completeRetryExecution` / `failRetryExecution`)의 공통
+   * guarded 마감. 무가드 full-entity `save()` 는 stale in-memory 엔티티로 DB 를 덮어써,
+   * 동시 Stop 이 이미 `cancelled` 로 마감한 실행을 `COMPLETED`/`FAILED` 로 되돌리고
+   * 종결 이벤트까지 발행했다 (`#1022` 가 엔진 종결 경로에서 닫은 것과 같은 결함 클래스).
+   *
+   * **왜 DB 를 다시 읽나.** 이 서비스의 `execution` 은 재진입 시작 시점에 로드된 뒤
+   * 갱신되지 않는다 — `failed → running` 재진입 전이는 orchestrator 가 **다른 엔티티
+   * 인스턴스**에 적용하므로, 여기 도달했을 때 `execution.status` 는 stale `failed` 일 수
+   * 있다. 그 값을 그대로 `updateExecutionStatus` 에 넘기면 상태머신이 `failed → failed`
+   * 자기 전이를 보고 throw 한다. stale 을 신뢰하지 않는 것이 이 수정의 요지이므로
+   * **행을 다시 읽어 in-memory 를 정본으로 맞춘 뒤** 전이를 요청한다.
+   *
+   * @returns `true` 면 전이가 영속됐다(호출부는 종결 이벤트를 emit 한다).
+   *   `false` 는 (a) row 부재, (b) 정본 상태에서 목표로의 전이가 상태머신상 불가
+   *   (= DB 가 이미 terminal — 동시 cancel 선점), (c) guarded UPDATE 0행 매칭.
+   *   어느 경우든 **저장·emit 을 모두 건너뛴다.** terminal 집합을 인라인 열거하지 않고
+   *   `canTransition` 에 위임해, 상태머신이 바뀌면 자동으로 따라오게 한다.
+   */
+  private async finalizeGuarded(
+    execution: Execution,
+    executionId: string,
+    target: ExecutionStatus,
+    caller: string,
+  ): Promise<boolean> {
+    const live = await this.executionRepository.findOneBy({ id: executionId });
+    if (!live) {
+      this.logger.warn(`${caller}(${executionId}): Execution row 부재 — skip`);
+      return false;
+    }
+    execution.status = live.status;
+    // 이미 목표 상태면 **멱등 no-op** 이다 — 쓸 것이 없으니 lost update 위험도 없고,
+    // 호출부의 종결 이벤트는 기존대로 발행해야 한다. 실제로 재진입이 턴 시작 전에
+    // 실패하면 Execution 이 `failed` 인 채로 `failRetryExecution(FAILED)` 에 도달한다.
+    // (상태머신은 자기 전이를 금지하므로 `canTransition` 에 맡기면 여기서 걸린다.)
+    if (live.status === target) return true;
+    if (!canTransition(live.status, target)) {
+      this.logger.warn(
+        `${caller}(${executionId}): 정본 상태 '${live.status}' 에서 '${target}' 로 ` +
+          `전이 불가 — 동시 cancel 선점으로 보고 마킹·emit 을 모두 skip`,
+      );
+      return false;
+    }
+    const persisted = await this.driver.updateExecutionStatus(
+      execution,
+      target,
+    );
+    if (!persisted) {
+      this.logger.warn(
+        `${caller}(${executionId}): guarded UPDATE 0행 — 동시 cancel 선점, ` +
+          `마킹·emit 을 모두 skip`,
+      );
+    }
+    return persisted;
+  }
+
   private async completeRetryExecution(
     execution: Execution,
     executionId: string,
   ): Promise<void> {
-    execution.status = ExecutionStatus.COMPLETED;
     execution.finishedAt = new Date();
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
-    await this.executionRepository.save(execution);
+    if (
+      !(await this.finalizeGuarded(
+        execution,
+        executionId,
+        ExecutionStatus.COMPLETED,
+        'completeRetryExecution',
+      ))
+    ) {
+      return;
+    }
     await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_COMPLETED,
@@ -640,7 +705,10 @@ export class RetryTurnService {
   ): Promise<void> {
     // isCancelled 를 상단에서 한 번만 평가해 이중 평가 제거 (WARNING #10).
     const isCancelled = error instanceof ExecutionCancelledError;
-    execution.status = isCancelled
+    // 목표 상태는 **별도 변수**로 둔다 — `execution.status` 에 미리 대입하면
+    // `updateExecutionStatus` 가 그것을 *현재* 상태로 읽어 `assertTransition` 이
+    // 자기 자신으로의 전이(FAILED→FAILED)를 보게 된다.
+    const finalStatus = isCancelled
       ? ExecutionStatus.CANCELLED
       : ExecutionStatus.FAILED;
     const errMessage = error instanceof Error ? error.message : String(error);
@@ -655,14 +723,27 @@ export class RetryTurnService {
     execution.finishedAt = new Date();
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
-    await this.executionRepository.save(execution);
+    // 2026-07-27 — `completeRetryExecution` 과 동일 이유의 guarded 전환. 특히 FAILED
+    // 분기가 위험하다: 턴 진행 중 도착한 Stop 이 DB 를 `cancelled` 로 마감했는데 그
+    // 턴이 (429/timeout 등으로) 자연 실패하면, 무가드 save 가 취소를 **FAILED 로
+    // 덮어쓰고** 실패 이벤트를 사후 발행했다 (#1022 `finalizeFailedExecution` 과 동형).
+    if (
+      !(await this.finalizeGuarded(
+        execution,
+        executionId,
+        finalStatus,
+        'failRetryExecution',
+      ))
+    ) {
+      return;
+    }
     await this.eventEmitter.emitExecution(
       executionId,
       isCancelled
         ? ExecutionEventType.EXECUTION_CANCELLED
         : ExecutionEventType.EXECUTION_FAILED,
       {
-        status: execution.status,
+        status: finalStatus,
         ...(!isCancelled ? { error: errMessage } : {}),
       },
     );
