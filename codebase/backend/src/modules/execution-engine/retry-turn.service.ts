@@ -472,6 +472,40 @@ export class RetryTurnService {
       // 매칭된다 — 그때 무조건 `true` 를 반환하면 DB 는 RUNNING(새 턴 진행 중)인데
       // caller 가 종결 이벤트를 발행하는 "사후 오시그널" 이 된다(이 PR 이 닫으려던
       // 결함 클래스 그 자체). `affected` 를 확인해 아래 두 분기와 대칭 처리한다.
+      //
+      // ai-review CRITICAL #1 (2026-07-27, 4차 라운드) — CANCELLED 재진입은 위 두
+      // 라운드가 세운 "이번 시도 값이 최신 진실" 전제가 성립하지 않는다. `stop()`
+      // 이 사용자가 Stop 을 누른 정확한 시각(T1)을 이미 이 guarded UPDATE 로
+      // 커밋했는데, AI 턴은 다음 turn 경계(`assertExecutionNotCancelled`)에서야
+      // 취소를 감지하므로 여기 도달했을 때 `execution.finishedAt` 은 그보다 늦은
+      // 재진입 catch 시각(T2)이다. FAILED 처럼 무조건 새 값을 쓰면
+      // `finalizeCancelledExecution`(execution-engine.service.ts)의 `??` 병합과
+      // 어긋나 그 JSDoc 이 명시하는 §2.3 계약("stop 이 쓴 finishedAt/durationMs 가
+      // 보존된다")을 이 경로만 깬다. SELECT(`live`)~UPDATE 사이 창을 신뢰하지
+      // 않기 위해(WARNING #3 ABA 계열과 같은 이유) 앱 레벨 `??` 병합이 아니라
+      // UPDATE 문 자체의 SQL `COALESCE` 로 "그 순간의" DB 값을 재평가한다 — 이미
+      // 있으면(NOT NULL) 보존하고, 처음이면(NULL, 레이스로 이 경로가 최초
+      // 관측자가 되는 극단 케이스) 이번 값을 쓴다. `error` 는 SET 절에서 아예
+      // 제외한다 — W16(취소 시 error 미저장)과 동일 원칙이고, 덤으로 이전 시도의
+      // stale `execution.error` 가 취소 row 에 재기록되는 문제(testing WARNING #1)
+      // 도 함께 닫는다. FAILED/COMPLETED 분기(else, 아래)는 2R CRITICAL 수정
+      // 그대로 무조건 새 값을 쓴다 — 재진입이 다시 실패한 경우 이번 시도의
+      // error/finishedAt/durationMs 가 최신 진실이기 때문이다(되돌리지 않는다).
+      if (target === ExecutionStatus.CANCELLED) {
+        const result = await this.executionRepository
+          .createQueryBuilder()
+          .update(Execution)
+          .set({
+            finishedAt: () => 'COALESCE(finished_at, :newFinishedAt)',
+            durationMs: () => 'COALESCE(duration_ms, :newDurationMs)',
+          })
+          .where('id = :id', { id: executionId })
+          .andWhere('status = :status', { status: target })
+          .setParameter('newFinishedAt', execution.finishedAt)
+          .setParameter('newDurationMs', execution.durationMs)
+          .execute();
+        return (result.affected ?? 0) > 0;
+      }
       const result = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
@@ -521,6 +555,9 @@ export class RetryTurnService {
    * **호출 조건**: (1) `resumeGraphAfterRetry` 진입 시 `nodes.length === 0`,
    * 또는 (2) `sortedIndexMap.get(completedNode.id) === undefined`. 이 두 가지
    * defensive fallback 경로 외에서는 호출해서는 안 된다.
+   *
+   * ai-review WARNING #7 (2026-07-27, 4차 라운드) — 동시 cancel 선점 시 저장·
+   * 이벤트 emit 을 모두 건너뛰고 조용히 반환할 수 있다 (`finalizeGuarded` 참조).
    *
    * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
    * 호출된다. 다른 경로에서 직접 호출하지 말 것.
@@ -731,6 +768,9 @@ export class RetryTurnService {
    * CANCELLED 로 마감한다 (runExecution catch 와 동형). NodeExecution 은
    * finalizeAiNode FAILED 분기가 이미 FAILED + NODE_FAILED emit 했고, retryable
    * 재실패면 새 `_retryState` 가 outputData 에 보존돼 재-retry 가능하다.
+   *
+   * ai-review WARNING #7 (2026-07-27, 4차 라운드) — 동시 cancel 선점 시 저장·
+   * 이벤트 emit 을 모두 건너뛰고 조용히 반환할 수 있다 (`finalizeGuarded` 참조).
    *
    * @internal — applyRetryLastTurn 의 catch 블록에서만 호출된다.
    */
