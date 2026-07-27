@@ -45,7 +45,8 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
       (b) `EXECUTION_COMPLETED`/`EXECUTION_FAILED` 를 발행하지 않는지. 가드 제거 시 RED.
 - [x] TEST WORKFLOW (lint / unit / build / e2e) — 전부 PASS (unit: execution-engine 41 suite / 1,097, e2e 260)
 - [x] `/ai-review` — **파일 명시 + `--route=all`** 로 전수 검토할 것
-      (증분 changeset 은 직전 라운드 결함을 구조적으로 못 본다 — `#1022` 에서 실측)
+      (증분 changeset 은 직전 라운드 결함을 구조적으로 못 본다 — `#1022` 에서 실측).
+      **5라운드 수행, 5R 에서 수렴** (이 PR 이 바꾼 라인의 결함 0).
 - [ ] `/consistency-check --impl-done`
 
 ## 주의
@@ -59,9 +60,9 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 ## 체크리스트
 
 - [x] 두 지점 guarded 전환
-- [x] 회귀 테스트 (mutation 5/5 RED)
+- [x] 회귀 테스트 (mutation 13/13 RED — 1R~4R 가드 전량, 5R 시점 재실측)
 - [x] TEST WORKFLOW
-- [ ] `/ai-review` (전수)
+- [x] `/ai-review` (전수, 5라운드 — 5R 수렴)
 - [ ] `/consistency-check --impl-done`
 
 ## ai-review 결과 (2026-07-27, `review/code/2026/07/27/21_07_03`)
@@ -200,3 +201,88 @@ side_effect 리뷰어가 `finalizeGuarded` 멱등 분기의 `target=CANCELLED` �
 나머지(INFO 1·3~26)는 이번 라운드에서 조치 대상 아님(이미 추적 중이거나 범위 밖 재확인) —
 변경 없음. TEST WORKFLOW 전량 재통과 — 실제 수치는
 `review/code/2026/07/27/23_46_36/RESOLUTION.md` 참조.
+
+## 5차 라운드 (`review/code/2026/07/28/00_44_54`) — **수렴 판정, 코드 변경 0건**
+
+RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
+
+**수렴 근거는 "발견 0" 이 아니라 발견의 성격 전환이다.** 1R~4R 은 매 라운드 *이 PR 이 바꾼
+라인* 에서 결함이 나왔다(JSDoc 고아 → lifecycle 필드 유실 → `affected` 미확인 → CANCELLED
+취소 시각 오염). **5R 은 이 diff 안에서 결함 0** 이고, CRITICAL 1 + WARNING 8 이 전부 diff
+밖(인접 pre-existing 코드 / 기존 등재 후속 / planner 범위)이다. `--route=all` 로 파일 전체를
+보기 때문에 표면화됐을 뿐이다. `scope` 리뷰어 판정 NONE("무관 변경 없음"), `database` 신규
+발견 0, `concurrency` 외 13개 reviewer 전원 LOW/NONE.
+
+### CRITICAL #1 (concurrency) — pre-existing 실측 확인, defer. **단 심각도 승격 반영**
+
+`applyRetryLastTurn` 재진입 가드(`spawnedRow.status !== RUNNING`)의 비원자성 = 아래 **W1 과
+동일 건**. 리뷰어 provenance 주장을 그대로 받지 않고 직접 실측했고 주장이 맞았다:
+
+- 이 PR 의 diff hunk (`@@ -20 / -414 / -429 / -436 / -631 / -640 / -655`) 중 문제 라인
+  **272~287 을 포함하는 hunk 가 없다.**
+- `git blame -L 272,287 origin/main` → 전 행 `0c275dd7f0` 소유(= origin/main 기존 코드).
+- 최초 도입 `3213a4a55` (`#361`).
+
+**2~4R 에서 WARNING 이던 것이 5R 파일 전체 검토에서 CRITICAL 로 승격됐다.** 착수 시 이 근거를
+전제로 삼을 것:
+
+- 트리거(사변적이지 않음): BullMQ stalled-job 복구(멀티턴 LLM 이 길어 lock 갱신을 놓치는 경우),
+  `CONTINUATION_WORKER_CONCURRENCY` 상향(문서가 정상 운영 시나리오로 명시), multi-instance
+  배포에서 같은 row 에 대한 중복 continuation job 발행.
+- 영향: 두 concurrent 흐름이 락 없는 **인스턴스-로컬 `ExecutionContext`(`Map`)** 를 공유해
+  대화 상태(messages/turnCount) 훼손, 중복 LLM 호출·과금, downstream 실 부수효과 도구
+  (Cafe24/MakeShop/MCP) 중복 실행.
+- 자기모순 근거: `continuation-execution.processor.ts` 가 다른 4개 continuation 타입에는
+  원자 `claimResumeEntry` 를 적용하면서 `retry_last_turn` 만 제외하는데, 그 processor 의
+  JSDoc 자신이 "비원자 SELECT 재검증과 달리 check-then-act 창이 없어야 이중 실행 0 을
+  기계적으로 보장한다"고 원자성의 필요조건을 명시한다.
+- 해법 후보: 같은 파일 `retryLastTurn` 이 이미 쓰는 조건부 UPDATE + `affected` 확인 패턴
+  재사용(`UPDATE ... WHERE id=:id AND status='running' RETURNING id`). 회귀 테스트는
+  "claim 0행 → ack-and-discard, `rehydrateContext`/`processAiResumeTurn` 미호출".
+
+### 5R 신규 등재 후속
+
+- [ ] **W1(api_contract) — `EXECUTION_CANCELLED` payload 에 `cancelledBy` 누락.**
+      spec §4.1 이 `'user'|'system'|'timeout'` 닫힌 union 을 필수로 요구하는데
+      `failRetryExecution` 의 payload 는 `{ status }` 뿐이다. **pre-existing 확인** — 이 PR 은
+      `status: execution.status` → `finalStatus` 만 바꿨고 `cancelledBy` 는 원래부터 없었다.
+      자매 경로는 `emitCancellationEvent` 공유 헬퍼로 이미 통합돼 있다(`cancelledBy` 계약 W3).
+      소비자(`chat-channel.dispatcher.ts`)는 `result` 부재를 `{}` 로 방어해 크래시는 없으나 값이
+      유실된다. 수정 시 `retry-turn.service.spec.ts` 의 deep-equality 단언도 함께 갱신 필요.
+- [ ] **W6(testing) — `retryLastTurn` atomic-consume SQL 이 어느 계층에서도 미검증.**
+      JSONB `-` 키 제거 + `jsonb_exists` 동시성 가드가 unit(mock 체이너가 인자 미검증)·e2e
+      (`grep -rl "retry_last_turn" test/` 0건) 모두에서 평가되지 않는다. 리뷰어가 커버리지
+      리포트로 해당 행 uncovered 실측(branch 78.87%). 이 메서드의 핵심 불변식("동시 retry 의
+      중복 spawn 차단")을 뒷받침하는 테스트가 전무하다.
+- [ ] **W4(maintainability) — 멱등 분기 회고 주석 누적 정리.** 2~4R 소견이 삭제 없이 누적돼
+      회고 주석 약 40줄 > 실제 제어흐름 6~7줄. **지적은 타당하다.** 다만 수렴 판정 규칙(Critical
+      해소 후 코드를 더 건드리지 않는다)에 따라 이번 턴에는 손대지 않았다 — 여기서 주석을
+      정리하면 리뷰가 다시 stale 이 되어 6라운드가 열린다. 안정화 후 "왜 이렇게 처리하는가"의
+      최종 결론만 남기고 라운드별 서사는 커밋 메시지/PR 본문/본 plan 으로 이관.
+- [ ] **COALESCE 경로의 실 DB 검증 부재.** 4R 이 도입한
+      `.set({ col: () => 'COALESCE(col, :p)' })` + `setParameter` 는 코드베이스에 선례가 없는
+      신규 패턴이고(기존 `.set()` raw 식은 전부 `NOW()` 등 파라미터 없는 형태), 단위 테스트는
+      query builder 를 mock 하므로 SQL 유효성을 검증하지 못한다. TypeORM 0.3.30 소스로 세 고리
+      (raw 식의 `column.databaseName` 매핑 / `setParameter` → `expressionMap.parameters` /
+      `getQueryAndParameters` 의 전체 SQL 파라미터 치환)를 확인했으나 **정적 근거이고 docker
+      미기동으로 실 DB 실행은 못 했다.** 이 경로를 실제 DB 로 밟는 e2e 를 추가할 것.
+
+### 5R defer (기존 등재 항목의 재지적 — 추가 조치 없음)
+
+- **W2(architecture)** driver choke point 우회 = 4R W2 동일 건.
+- **W3(documentation)** forwardRef stale 주석 = 2R W2 / 3R W3 동일 건.
+- **W5(maintainability)** `markSpawnedRowFailed` 추출 = 1R W3 동일 건.
+- **W7(testing)** `!nodeExec` / `retryAfterSec` fallback / 타임스탬프 부재 분기 = INFO 14 동일 건.
+- **W8(SPEC-DRIFT)** = 2R INFO 13 의 확장. `project-planner` 위임 — 아래 별도 항목 참조.
+- INFO 23건 — 조치 없음.
+
+### project-planner 위임 (developer 권한 밖)
+
+- [ ] **spec 자기모순 정정.** `spec/5-system/4-execution-engine.md` 줄 77(전이표)·1454(상세
+      산문)는 2026-06-06 작성 그대로 "park 없이 그 turn 에서 종결되면 cancel 은 무효과로
+      흘려보내진다"고 하는데, 줄 79-92(2026-07-27 `#1023` 신설)는 "park 여부 무관 cancel 은
+      항상 보존"이라고 정반대로 서술한다. **코드·테스트가 후자를 증명하므로 코드는 유지하고
+      spec 을 정정해야 한다**(이 PR 의 회귀 테스트 "정본이 이미 CANCELLED 면 FAILED 로 전이를
+      시도조차 하지 않는다" + `#1021`/`#1022` 커밋 메시지가 구 동작을 명시적으로 결함으로 규정).
+      함께 `spec/conventions/node-cancellation.md:184` §6 구현 현황 표에 `retry-turn.service.ts`
+      (`finalizeGuarded`) 행 추가.
