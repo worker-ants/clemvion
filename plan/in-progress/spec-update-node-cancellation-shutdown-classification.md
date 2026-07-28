@@ -530,3 +530,38 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
       누르기)"** 서술 — 2026-03-26 최초 PRD 이후 미갱신이고, `#8` 이 명문화한 "진행 중 turn 즉시
       중단 불가(깨울 in-memory 코루틴 없음)" 아키텍처 제약과 어긋난다. 미구현/Planned 마커를
       붙이거나, 실제 즉시-중단 구현 여부를 결정해 등재할 것.
+
+## 추가 위임 (2026-07-28 #10) — `retry_last_turn` 원자성: 코드와 **동반 필수** spec 갱신
+
+출처: `retry-turn` P1 착수 전 `--impl-prep spec/5-system/`
+(`review/consistency/2026/07/28/17_21_27`) CRITICAL #2 — `rationale_continuity` ·
+`plan_coherence` 두 checker 가 독립 판정. **코드 방향(원자 claim)은 §7.5 CAS 일반화 원칙과
+부합한다고 승인**됐고, 문제는 spec 이 5곳에서 "동일 turn 이중 실행 0" 을 단언하는데 실제
+코드가 그것을 충족하지 못한다는 점이다.
+
+> ⚠️ **이 항목은 별 planner PR 로 처리하지 말 것.** checker 가 "코드와 동반 필수" 로 명시했다.
+> P1 원자 claim 구현 PR 에서 **같은 커밋**으로 반영한다.
+
+- [ ] `4-execution-engine.md` §4.1 각주 — 현재 crash re-drive 항목에 연결돼 있어
+      `retry_last_turn` 전용 근거로 재연결
+- [ ] §7.4 / §8 — 신규 claim 위치 반영 + 각주
+- [ ] §7.5 — "spawn 단계 원자성만으론 불충분한 이유" 대칭 Rationale 항목 신설
+- [ ] `plan/complete/exec-intake-queue-impl.md` 의 2026-06-06 PASS 판정과 현재 CRITICAL 사이의
+      간극 기록
+
+### 인과는 두 번 틀렸다 — 실측으로 확정한 사실
+
+| 주장 | 출처 | 판정 |
+|---|---|---|
+| "2026-06-06 PASS 가 DI 리팩터 `#638`(2026-06-19)로 무효화됐다" | `--impl-prep` CRITICAL #2 | **틀림** |
+| "배제 로직은 `3213a4a55`(2026-05-30)부터 존재" | `--spec` 검토 WARNING #2 의 정정 | **이것도 틀림** |
+| `claimResumeEntry` 는 **2026-07-03 (`44f956e9c`, #791 "06 C-2 재개 진입 DB 원자 claim")** 도입 | `git log -S "claimResumeEntry" -- continuation-execution.processor.ts` | **실측** |
+
+정확한 서술: **2026-06-06 PASS 는 원자 claim 도입(2026-07-03) 이전이라 이 축을 애초에 검증한
+적이 없다.** 무효화된 것이 아니라 **스코프 밖**이었다. 2026-05-30 부터 있던 것은
+`retry_last_turn` **job type** 이지 배제 조건이 아니다 — 배제 조건은 claim 이 존재해야 성립하므로
+2026-07-03 이전에는 있을 수 없다.
+
+**교훈**: 중간 문서를 거친 인과 주장은 **양쪽 다 틀릴 수 있다.** 위 표의 두 주장은 서로를
+정정하려 한 것인데 둘 다 빗나갔다. `git log -S` 로 원 도입 시점을 직접 잡는 것 외에 확정
+방법이 없다. `#10` 이행 시 이 표를 근거로 쓸 것.

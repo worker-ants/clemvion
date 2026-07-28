@@ -3,6 +3,7 @@ id: graph-rag
 status: implemented
 code:
   - codebase/backend/src/modules/knowledge-base/graph/**
+  - codebase/backend/src/modules/knowledge-base/entities/*.entity.ts
   - codebase/backend/src/modules/knowledge-base/queues/graph-extraction.processor.ts
   - codebase/backend/src/modules/knowledge-base/queues/stuck-document-recovery.service.ts
   - codebase/backend/src/modules/knowledge-base/graph.controller.ts
@@ -257,7 +258,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 |------|------|------|
 | `graph_extraction_status` | Enum | `pending` / `processing` / `completed` / `error` / `failed`. `vector` 모드 KB 에서는 NULL 또는 미사용. 의미는 [Spec 데이터 모델 §2.12 Document.embedding_status](../1-data-model.md#212-document) 와 동일 — `error` 는 in-flight 재시도 중 일시 오류, `failed` 는 최대 재시도 소진 또는 비재시도성 오류로 인한 최종 실패 (§3.2 / §7 처리 흐름 참조). 5종 enum 의 canonical 정의는 [Spec 데이터 모델 §2.12](../1-data-model.md#212-document) |
 
-### 2.3 Entity (신규)
+### 2.3 Entity (신규, 구현: `GraphEntity`)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -278,7 +279,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 - `(knowledge_base_id, type)` — 타입별 조회
 - `(knowledge_base_id, mention_count DESC)` — centrality 정렬
 
-### 2.4 Relation (신규)
+### 2.4 Relation (신규, 구현: `GraphRelation`)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -298,7 +299,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 - `(knowledge_base_id, head_entity_id)` — head 기준 1-hop 확장
 - `(knowledge_base_id, tail_entity_id)` — tail 기준 역방향 확장
 
-### 2.5 ChunkEntity (신규)
+### 2.5 ChunkEntity (신규, 구현: `GraphChunkEntity`)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -598,6 +599,12 @@ Graph RAG 도메인 모델 결정의 배경·근거.
 - **Relation**: 두 entity 사이의 방향성 있는 관계 (head, predicate, tail).
 - **ChunkEntity**: 어느 청크가 어떤 entity 를 언급했는지 추적하는 매핑.
 - **KB.rag_mode**: 검색 모드. `vector` (default) / `graph` 두 가지. **생성 시에만 결정, 사후 변경 불가.**
+
+> **구현 식별자 주의**: 위 도메인 용어 `Entity`/`Relation`/`ChunkEntity` 의 실제 클래스명은
+> `GraphEntity`/`GraphRelation`/`GraphChunkEntity` 다. TypeORM 의 `@Entity` 데코레이터와 심볼이
+> 겹쳐 `Graph` 접두를 붙였다(DTO 도 `GraphEntityDto` 등, 프런트 import 도 동일). **도메인 용어는
+> 접두 없는 형태를 유지**한다 — 접두는 구현 언어의 제약이지 제품 개념이 아니다. 구현을 찾을
+> 때는 접두형으로 grep 할 것(`Entity` 로 grep 하면 TypeORM 데코레이터에 묻힌다).
 
 #### 사용자 결정
 

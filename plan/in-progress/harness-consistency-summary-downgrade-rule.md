@@ -118,3 +118,16 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 
 - [ ] 이 항목은 plan 갱신이 아니라 **harness 코드 수정**이 해법이다(3회차 권장사항 2).
       `spec_impact` 우선 번들링을 구현할 것.
+
+### 재발 관측 (2026-07-28) — 6번째
+
+`--impl-prep spec/5-system/` (`review/consistency/2026/07/28/17_21_27`) 에서 정작 작업 대상인
+`4-execution-engine.md` 가 **5개 checker 중 4개의 프롬프트에서 생략**됐다(알파벳순으로
+`1-auth.md`/`10-graph-rag.md`/`11-mcp-client.md` 3개만 실려 예산 소진). 3개 checker 가
+브랜치명·plan 을 단서로 직접 Read 해 보완했고 **그 보완에서 CRITICAL #2 가 나왔다** — 즉
+우회하지 않았다면 실제 작업 대상의 CRITICAL 을 통째로 놓쳤을 것이다.
+
+부수 확인: `--impl-prep` 는 **디렉터리 단위 scope 만** 받는다(`--impl-prep <파일>.md` 는 usage
+에러). 그래서 무관한 같은-영역 결함(이번엔 auth RBAC·graph-rag 명명)이 함께 차단 사유가 되어
+착수 전 게이트가 별 PR 을 강제한다. natural sort 만으로는 이 문제가 안 풀리므로, 위
+"code diff 매칭 spec 우선 포함" 항목이 근본 대응이다.

@@ -364,12 +364,18 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 |--------|-------|-------|--------|--------|
 | Workspace 설정 | CRUD | RU | R | R |
 | Workspace 삭제 | D | — | — | — |
-| 멤버 관리 | CRUD | CRU | R | R |
+| 멤버 관리 † | CRUD | CRUD | R | R |
 | Admin 역할 부여 | ✅ | — | — | — |
 | Workflow | CRUD | CRUD | CRUD | R |
 | Workflow 실행 | ✅ | ✅ | ✅ | — |
 | Trigger | CRUD | CRUD | CRUD | R |
 | Schedule | CRUD | CRUD | CRUD | R |
+
+> **† Admin 멤버 삭제의 대상 제약**: Admin 의 멤버 삭제는 대상이 Owner 인 경우 거부된다
+> (`CANNOT_REMOVE_OWNER`). 이는 **역할 권한이 아니라 대상 조건**이므로 위 매트릭스가 아닌
+> 본 각주로 기술한다. 자기 자신 제거는 `leaveWorkspace` 로 위임돼 sole-owner 보호 등 공통
+> 가드를 받는다. 별도 행인 `Admin 역할 부여` 는 그대로 Owner 전용이다 — "멤버를 제거할 수
+> 있다" 와 "관리자 역할을 부여할 수 있다" 는 다른 권한이다.
 | Integration (Org) | CRUD | CRUD | R | R |
 | Integration (Personal) | 자기 것 | 자기 것 | 자기 것 | 자기 것 |
 | Knowledge Base | CRUD | CRUD | CRUD | R |
@@ -508,6 +514,27 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 ---
 
 ## Rationale
+
+### §3.2 "멤버 관리" 행의 Admin 열 정정 (CRU → CRUD, 2026-07-28)
+
+표가 Admin 에게 삭제(D)를 주지 않았으나 **구현은 처음부터 허용**하고 있었다. 실측:
+
+- `WorkspacesService.removeMember()` 는 `assertAdmin(workspaceId, requesterId)` 만 요구한다.
+- `assertAdmin` 의 통과 집합은 `ADMIN_ROLES = new Set(['owner', 'admin'])` — admin 이 통과한다.
+- 실제로 거부되는 것은 **대상이 owner 인 경우**(`CANNOT_REMOVE_OWNER`)이지 요청자 역할이 아니다.
+  자기 자신 제거는 `leaveWorkspace` 로 위임된다.
+
+같은 문서 §3.1 의 Admin 역할 서술("멤버 관리"가 핵심 권한), `spec/2-navigation/9-user-profile.md`
+§6.1·§4.2, `spec/data-flow/12-workspace.md` §3.2(`admin | ✓ (owner 제외)`) 가 모두 삭제 가능
+쪽이었고 **이 표 한 칸만 소수 의견**이었다.
+
+**기각한 대안 — "멤버 관리" 행을 `멤버 초대`/`멤버 제거`/`역할 변경` 으로 세분화.** 정밀해지지만
+매트릭스가 길어지고 다른 리소스 행들과 입도가 어긋난다. owner 대상 제약은 역할 권한이 아니라
+대상 조건이라 표가 아닌 각주(†)가 맞는 자리다.
+
+발견 경로: `retry-turn` P1 착수 전 `--impl-prep spec/5-system/`
+(`review/consistency/2026/07/28/17_21_27`) CRITICAL #1.
+
 
 ### 1.1.B-1 — 이메일 변경: "둘 다 인증" 기각, "재인증 + 신규만 인증 + 옛 통지" 채택
 옛 이메일을 *차단 조건*(링크 클릭 강제)으로 두면 옛 메일함 접근을 잃은 사용자 — 이메일 변경의 주된 사유(퇴사로 회사 메일 상실·메일 서비스 종료) — 가 영구히 변경 불가가 된다. 옛 이메일의 두 역할(통제 증명 / 알림 채널) 중 "통제 증명"은 §2.3 재인증(비밀번호·2FA)이 메일함 소유보다 강하게 대체하므로, 옛 이메일은 비차단 **통지**(알림 채널)로만 둔다. 결과적으로 "둘 다 인증"보다 본인 증명이 강하면서 UX·복구성이 낫다. 기각: (a) 옛+신규 둘 다 링크 확인 — 위 lockout 문제, (b) 재인증 없이 신규만 확인 — 세션 탈취만으로 식별자 교체가 가능해짐.

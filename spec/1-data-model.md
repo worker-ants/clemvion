@@ -404,7 +404,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 
 **인덱스**: 차원별 partial HNSW (V022 `vector` + V023 `halfvec` + V030–V032 후속 정비) — 유사도 검색 성능. 마이그레이션 상세는 [`spec/data-flow/6-knowledge-base.md §2.3`](./data-flow/6-knowledge-base.md) 및 `codebase/backend/migrations/V022_*.sql`, `V023_*.sql`, `V030_*.sql`–`V032_*.sql` 참조.
 
-### 2.12.2 Entity
+### 2.12.2 Entity (구현: `GraphEntity`)
 
 > 관련 문서: [Spec Graph RAG](./5-system/10-graph-rag.md). `rag_mode = 'graph'` 인 KB 에서만 사용된다.
 
@@ -425,7 +425,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 
 **인덱스**: `(knowledge_base_id, type)`, `(knowledge_base_id, mention_count DESC)`
 
-### 2.12.3 Relation
+### 2.12.3 Relation (구현: `GraphRelation`)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
@@ -443,7 +443,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 
 **인덱스**: `(knowledge_base_id, head_entity_id)`, `(knowledge_base_id, tail_entity_id)`
 
-### 2.12.4 ChunkEntity
+### 2.12.4 ChunkEntity (구현: `GraphChunkEntity`)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
