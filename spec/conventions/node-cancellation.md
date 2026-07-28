@@ -9,6 +9,7 @@ code:
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
   - codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts
+  - codebase/backend/src/modules/execution-engine/retry-turn.service.ts
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/frontend/src/lib/api/executions.ts
 pending_plans:
@@ -88,6 +89,13 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
   잠그고 **비-terminal 을 확인한 뒤에만** 쓴다. 확인 없이 쓰면 턴 진행 중 도착한 Stop 이
   덮여 **취소가 지연되는 게 아니라 소실**된다. 선점이 관측되면 짝 `NodeExecution` 을
   `cancelled` 로 마킹한 뒤 `ExecutionCancelledError` 를 전파한다.
+- **retry 재진입 종결 경로 terminal 가드** (구현됨 2026-07-28) — `execution.retry_last_turn`
+  재진입의 종결(`completed`/`failed`/`cancelled`)은 in-memory 엔티티를 신뢰하지 않는다.
+  재진입 전이(`failed → running`)가 **다른 엔티티 인스턴스**에 적용되므로 종결 시점의
+  in-memory `status` 는 stale 할 수 있다. 그래서 종결 직전 **행을 재조회해 비-terminal 을
+  확인**하고, 그 상태에서 목표로의 전이가 불가하거나 조건부 UPDATE 가 0행이면
+  **저장·종결 이벤트 발행을 모두 skip** 한다. 확인 없이 쓰면 턴 진행 중 도착한 Stop 이
+  `failed`/`completed` 로 덮여 **취소가 소실**된다.
 
 ## 3. signal 전파 흐름
 
@@ -161,7 +169,7 @@ if (upstream) {
 
 ## 6. 구현 현황 / 후속
 
-> 2026-07-26 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-residual-signal-propagation.md`), N/A = 범주 오류로 대상에서 철회(애초에 노드가 아님).
+> 2026-07-28 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-residual-signal-propagation.md`), N/A = 범주 오류로 대상에서 철회(애초에 노드가 아님).
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
@@ -182,9 +190,27 @@ if (upstream) {
 | §2.4 노드 경계 Execution-cancel 재확인 가드 (`assertExecutionNotCancelled`) | ✓ | `execution-engine.service.ts` — 선형 3곳(`runExecution`/`runNodeDispatchLoop`/`executeInline`) + 컨테이너(`executeContainerBody`, 아이템 경계, 250ms 스로틀)/Parallel(`executeParallelBranchBody`, 노드 경계) 반복 루프. mutation 검증 완료 |
 | §2.4 AI multi-turn **turn 경계** cancel 가드 | ✓ | `ai-turn-orchestrator.service.ts` — park 가 세그먼트를 끝내 노드 경계 가드에 닿지 않으므로 turn 마다 직접 관측. turn 실패를 `FAILED` 로 마감하는 try/catch **바깥**에 배치(안에 두면 취소가 실패로 오분류) |
 | §2.4 park↔resume 짝 전이 terminal 가드 | ✓ | `execution-engine.service.ts` — 짝 전이·`finalizeFailedExecution`·`failFirstSegmentSetup`·`executeSync` timeout 이 같은 트랜잭션에서 `SELECT … FOR UPDATE` 로 비-terminal 확인 후에만 쓰기. 선점 시 짝 `NodeExecution` 을 `cancelled` 마킹 후 `ExecutionCancelledError` 전파. mutation 6/6 검증 |
+| §2.4 retry 재진입 종결 경로 terminal 가드 | ✓ | `retry-turn.service.ts` — `completeRetryExecution`/`failRetryExecution` 이 공용 `finalizeGuarded` 로 **행을 재조회해 비-terminal 을 확인한 뒤** 전이한다. 선점이 관측되면(전이 불가 또는 조건부 UPDATE `affected=0`) **저장·종결 이벤트 emit 을 모두 skip**. 취소 시각 보존 메커니즘은 짝 전이 행과 다르다 — 아래 Rationale 참조. mutation 13/13 검증 |
 | Workflow 단위 timeout / graceful shutdown 의 **노드 abort** | — | 노드 abort 통합 미구현 (Planned). 단 **워크플로 시간 한도 자체는 PR2a 구현 완료** — active-running 누적 타임아웃 (`assertActiveTimeWithinLimit`, 노드 경계 판정, §2.3 / [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)) |
 
 ## Rationale
+
+### 왜 취소 시각 보존 메커니즘이 두 가지인가 (2026-07-28)
+
+이미 `cancelled` 인 행에 종결 경로가 재도달할 때 `stop()` 이 쓴 `finishedAt`/`durationMs` 를
+보존하는 방식이 §2.4 소비자별로 다르다.
+
+- `execution-engine.service.ts` 의 `finalizeCancelledExecution` — **앱 레벨 `??` 병합**
+  (in-memory 값이 비어 있을 때만 채우고, guarded UPDATE 가 이미 terminal 인 행을 걸러낸다).
+- `retry-turn.service.ts` 의 `finalizeGuarded` — **SQL `COALESCE(col, :new)`**.
+
+후자를 택한 이유는 재조회(`SELECT`)와 `UPDATE` 사이의 창을 신뢰하지 않기 위함이다. UPDATE 문
+자체에서 그 순간의 DB 값을 재평가하므로, 그 사이 다른 트랜잭션이 값을 채웠더라도 덮지 않는다.
+앱 레벨 병합은 `SELECT` 시점 스냅샷을 근거로 판단하므로 같은 창을 닫지 못한다.
+
+두 방식 모두 "**먼저 커밋된 취소 시각이 정본**" 이라는 동일 계약을 만족한다. 취소 시
+`error` 를 저장하지 않는 것도 양쪽 공통이다 — REST 로 내부 예외 메시지가 노출되는 것을 막고,
+취소를 실패와 구분하기 위함이다.
 
 본 컨벤션은 parallel-p2 결정 A 의 `cancel-others-on-fail` 요구 사항에서 시작했으나, 노드 단계 cancellation 은 그 외 여러 향후 기능 (Workflow timeout / 사용자 cancel / graceful shutdown) 에 공통으로 재사용되는 인프라다. 별 plan 으로 분리 (parallel-p2 결정 H) 한 근거.
 
