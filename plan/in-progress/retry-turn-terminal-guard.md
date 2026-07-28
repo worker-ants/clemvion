@@ -78,9 +78,11 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] `/consistency-check --impl-done` (BLOCK: NO)
 - [x] PR 머지 — [#1024](https://github.com/worker-ants/clemvion/pull/1024), `771801e3e` (2026-07-28)
 
-> 🚫 **`complete/` 로 옮기지 말 것** — 코드 측은 머지됐으나 아래 §project-planner 위임
-> (spec 자기모순 정정)이 미반영이고 `spec_impact` 가 그 2개 파일을 가리킨다. 지금 옮기면
-> Gate C(`spec-plan-completion.test.ts`)가 그 값을 신뢰해 잘못 확정한다. 위임 반영 후 이동.
+> 🚫 **`complete/` 로 옮기지 말 것** — 코드 측은 머지됐고 **spec 위임(#8)도 2026-07-28 반영
+> 완료**(`spec-update-node-cancellation-shutdown-classification.md` #8 → 이행 완료)지만,
+> §5차 라운드 이후 위생 정리의 **통합 후속 목록 P1(`applyRetryLastTurn` 원자 claim)** 이
+> 열려 있어 여전히 시기상조다. `spec_impact` 는 그대로 유지한다 — spec 이 이 위임으로
+> 정정됐으므로 완료 시점에 Gate C(`spec-plan-completion.test.ts`)가 참조할 값으로 유효하다.
 
 ## ai-review 결과 (2026-07-27, `review/code/2026/07/27/21_07_03`)
 

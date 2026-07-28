@@ -448,7 +448,7 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
    메서드명은 **개명 후 이름(`tryLockActiveExecutionAndSaveNodeExec`)으로 기록**할 것 —
    4차 라운드 rename 이 코드에 이미 반영돼 있다.
 
-## 추가 위임 (2026-07-28 #8) — §1.1 이 "park 없이 종결되면 cancel 무효과" 라는 **반증된 결정**을 아직 단언한다
+## ~~추가 위임 (2026-07-28 #8) — §1.1 이 "park 없이 종결되면 cancel 무효과" 라는 **반증된 결정**을 아직 단언한다~~ → **이행 완료 (2026-07-28)**
 
 출처: `retry-turn-terminal-guard.md` PR 의 consistency-check `--impl-done`
 (`review/consistency/2026/07/28/01_26_40`) WARNING #1·#2. **5개 checker 중 4개가 서로 다른
@@ -464,8 +464,13 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
 
 | # | 대상 | 위치 | 서술 |
 |---|---|---|---|
-| 모순 원본 | 상태 전이표 `failed→running` | `4-execution-engine.md:77` (2026-06-06 작성, 이후 미갱신) | "retry replay 가 park 없이 그 turn 에서 종결되면 cancel 은 무효과로 흘려보내진다" |
-| 모순 원본 | Rationale "`failed → running` 재진입 전이" | `4-execution-engine.md:1454` (2026-06-10) | 위와 동일 취지 |
+| 모순 원본 | 상태 전이표 `failed→running` | `4-execution-engine.md:77` (`db496a3c2`, 2026-06-10) | "취소는 다음 `waiting_for_input` park 에서 **비로소 발효**된다" — `cancelParkedExecution` 을 유일 마킹 지점으로 지목 |
+| 모순 원본 | Rationale "`failed → running` 재진입 전이" | `4-execution-engine.md:1454` (`5e0c5e449`, 2026-06-06) | "replay 가 park 없이 그 turn 에서 종결되면 cancel 은 **무효과**로 흘려보내진다" |
+
+> **위 두 행은 초판에서 날짜가 맞바뀌고 인용이 오귀속됐다** (`--spec` 검토 WARNING #1 이 `git blame` 으로 검출,
+> 실측 확인). 정정: 77행=`db496a3c2`(2026-06-10), 1454행=`5e0c5e449`(2026-06-06). 또한 "무효과" 문장은
+> **Rationale 에만** 있고 전이표의 문제는 "비로소 발효" 였다. 두 지점이 날짜가 가깝고 서로 참조하는 관계라
+> 사람이 뒤집기 쉬우므로 이후 인용은 **커밋 해시로 앵커링**한다.
 | 반대 (a) | 같은 파일 "짝 전이 DB 관측 가드" | `4-execution-engine.md:79-92` (2026-07-27, `#1023`) | "가드가 없으면 Stop 이 소실된다 — terminal 마감 경로도 조건부 UPDATE 를 거친다" |
 | 반대 (b) | 자매 컨벤션 | `spec/conventions/node-cancellation.md` §2.4 + Rationale | 동일 |
 | 반대 (c) | WS 프로토콜 | `spec/5-system/6-websocket-protocol.md:375` (2026-05-30, **원 기능 도입 시점부터**) | "replay 중 cancel" |
@@ -476,15 +481,15 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
 
 ### 위임 항목
 
-- [ ] `4-execution-engine.md:77`(전이표)·`:1454`(Rationale)의 "park 없이 종결되면 cancel
+- [x] `4-execution-engine.md:77`(전이표)·`:1454`(Rationale)의 "park 없이 종결되면 cancel
       무효과" 서술 삭제 → "DB 에 이미 커밋된 cancel 은 park 도달 여부와 무관하게 항상
       우선하며, 자연 종결은 guarded 쓰기로 스킵된다" 로 정정. 같은 파일 `:81-92` 문구를
       재사용할 수 있다.
-- [ ] `spec/conventions/node-cancellation.md` §6 구현 현황 표(`:184` 부근)에
+- [x] `spec/conventions/node-cancellation.md` §6 구현 현황 표(`:184` 부근)에
       `retry-turn.service.ts`(`finalizeGuarded`) 행 추가 — 현재 `execution-engine.service.ts`
       만 나열해 §2.4 가드의 **3번째 소비자**가 빠져 있다. frontmatter `code:` 목록(`:4-13`)
       에도 등재할 것.
-- [ ] 위 표에 **메커니즘 차이 각주**: 기존 소비자는 앱 레벨 `??` 병합
+- [x] 위 표에 **메커니즘 차이 각주**: 기존 소비자는 앱 레벨 `??` 병합
       (`finalizeCancelledExecution`), 신규 소비자는 SQL `COALESCE`(`finalizeGuarded` 의
       CANCELLED 멱등 분기 — SELECT~UPDATE 사이 창을 신뢰하지 않기 위해 UPDATE 문 자체에서
       그 순간의 DB 값을 재평가). 같은 계약의 두 구현이므로 표에 드러나야 한다.
@@ -495,3 +500,33 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
   코드 측은 완료). 그 plan 의 `spec_impact` 도 본 항목 때문에 `none` → 2개 파일 목록으로
   갱신했다 — **본 #8 이 반영되기 전에는 그 plan 을 `complete/` 로 옮기지 말 것**
   (Gate C 가 `spec_impact` 를 그대로 신뢰한다).
+
+### #8 이행 결과 (2026-07-28)
+
+- `4-execution-engine.md` §1.1 전이표 `failed → running` 행 — "비로소 발효" 를 "기록은 지연되지
+  않는다(즉시 커밋) + turn 경계 관측 + park 없이 종결되어도 보존" 으로 정정.
+- 같은 파일 Rationale 절 — 제목에 번복 태그, 본문에서 "무효과" 단언 철회 + 철회 근거
+  (`#1021`/`#1022`/`#1024` 커밋 사유)를 커밋 해시 앵커와 함께 기록.
+- `node-cancellation.md` — frontmatter `code:` 등재 · §2.4 프로즈 4번째 bullet 신설
+  (§6 표와 1:1 대응 유지) · §6 표 행 추가 · 배너 날짜 2026-07-28 · `## Rationale` 에
+  "왜 취소 시각 보존 메커니즘이 두 가지인가" 서브섹션 신설(표 각주 대신 — 근거를 표에만
+  담으면 영구 누락된다는 #6 보강(3) 선례 준용).
+- 사전 검토: `--spec` 2라운드. 1R BLOCK: YES(draft frontmatter `worktree:` 누락) → 해소,
+  2R **BLOCK: NO** (Critical 0, 5 checker 전원 LOW). draft:
+  `plan/complete/spec-draft-cancel-invariant-drift.md`.
+
+## 추가 위임 (2026-07-28 #9) — 경량: cancel 즉시성 서술 정밀도 2건
+
+`#8` 집행 중 `--spec` 검토가 인접 drift 2건을 확인했다. 둘 다 **모순은 아니고 정밀도 문제**라
+`#8` 범위에서 제외했으나, "비목표" 절에만 적으면 유실되므로 별 항목으로 등재한다
+(이 문서의 `#8` 자신이 한때 그런 유실 사례였다).
+
+- [ ] `spec/5-system/6-websocket-protocol.md:375` "replay 중 cancel" 의 **"진행 중 turn 을
+      조기 종료"** 표현 — 결론(취소 존중, `execution.cancelled` 만 발사)은 옳으나 "조기 종료" 가
+      Execution 상태 차원의 즉시 중단으로 읽힌다. 실제로는 **turn 경계 관측**이고, 진행 중 I/O 는
+      §4 cascade 의 `abortSignal` 로 중단될 수 있어 부분적으로만 맞다. `#8` 이 §1.1 에 확정한
+      표현("즉시 끊지 않는다 / 기록은 지연되지 않는다")과 같은 어휘로 맞출 것.
+- [ ] `spec/3-workflow-editor/3-execution.md §4`(`:170-178` 부근) **"강제 중단(Force, 3초 이상
+      누르기)"** 서술 — 2026-03-26 최초 PRD 이후 미갱신이고, `#8` 이 명문화한 "진행 중 turn 즉시
+      중단 불가(깨울 in-memory 코루틴 없음)" 아키텍처 제약과 어긋난다. 미구현/Planned 마커를
+      붙이거나, 실제 즉시-중단 구현 여부를 결정해 등재할 것.
