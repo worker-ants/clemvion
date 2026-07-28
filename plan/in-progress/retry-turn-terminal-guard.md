@@ -1,6 +1,10 @@
 ---
 title: retry-turn 종결 2경로의 무가드 terminal 쓰기 차단 (#1022 동일 클래스)
-worktree: retry-turn-cancel-guard-ba75a2
+worktree: retry-atomic-claim-4d9e77
+# ↑ 2026-07-28 갱신 — 최초 worktree(retry-turn-cancel-guard-ba75a2)는 #1024 로 머지됐다.
+#   plan_guard.py 는 `worktree:` basename 을 현재 worktree 디렉터리명과 매칭하므로, 머지된
+#   값을 두면 P1 코드 push 시 가드가 '연결된 plan 없음(ad-hoc)'으로 오판해 **무장 해제**된다
+#   (--impl-prep 19_51_18 WARNING #1 실측). 이 plan 의 잔여 P1 이 여기서 진행되므로 갱신한다.
 started: 2026-07-27
 owner: developer
 status: in-progress

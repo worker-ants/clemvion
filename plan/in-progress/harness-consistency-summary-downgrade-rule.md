@@ -131,3 +131,22 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 에러). 그래서 무관한 같은-영역 결함(이번엔 auth RBAC·graph-rag 명명)이 함께 차단 사유가 되어
 착수 전 게이트가 별 PR 을 강제한다. natural sort 만으로는 이 문제가 안 풀리므로, 위
 "code diff 매칭 spec 우선 포함" 항목이 근본 대응이다.
+
+### 재발 관측 (2026-07-28, 같은 날 2회차) — 7번째 + 신규 축
+
+`--impl-prep spec/5-system/` (`19_51_18`) 에서 `4-execution-engine.md` 가 **또** 생략됐다
+(5개 checker 프롬프트 전원이 `1-auth.md`/`10-graph-rag.md`/`11-mcp-client.md` 3개만 받음).
+이번엔 `rationale_continuity` **하나만** 프롬프트 지시를 따라 직접 Read 해 CRITICAL 을 발견했고,
+`cross_spec`/`convention_compliance`/`naming_collision` 3개는 **그 영역을 전혀 검토하지 못했다.**
+즉 "checker 가 알아서 우회한다" 는 완화책은 **checker 마다 불균등**하다 — 지시를 따르지 않는
+실행에서는 false negative 다.
+
+**신규 축 (convention_compliance WARNING #4)**: `convention_compliance` 프롬프트의 "정식 규약
+모음" 번들이 `spec/conventions/cafe24-api-catalog/**` 하위 **자동생성 필드별 참조 문서 약 230개**
+로 먼저 채워져, target 이 실제로 인용하는 상위 규약 문서(`error-codes.md`/`node-output.md`/
+`swagger.md`/`secret-store.md`/`migrations.md`/`execution-context.md` 등) 전량이 예산 밖으로
+밀려났다. `spec-impl-evidence.md` 자신이 그 카탈로그를 "정식 spec 아님" 으로 명시하는데도
+우선 적재된다.
+
+- [ ] 카탈로그성 대량 참조 문서(`*-api-catalog/<resource>/**`)를 후순위로 미루거나 별도 예산으로
+      분리하고, target 이 실제로 인용하는 규약 파일을 우선 포함.

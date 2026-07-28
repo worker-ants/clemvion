@@ -241,6 +241,7 @@ describe('ExecutionEngineService', () => {
   let waitingRawRows: Array<Record<string, unknown>>;
   let waitingQueryError: Error | null;
   let mockWaitingQb: Record<string, jest.Mock>;
+  let retryClaimQb: Record<string, jest.Mock>;
   let mockEdgeRepo: Record<string, jest.Mock>;
   let mockWorkflowRepo: Record<string, jest.Mock>;
   let mockExecutionNodeLogRepo: Record<string, jest.Mock>;
@@ -365,6 +366,18 @@ describe('ExecutionEngineService', () => {
           ? Promise.reject(waitingQueryError)
           : Promise.resolve(waitingRawRows),
       ),
+      // `applyRetryLastTurn` 의 재진입 원자 claim(2026-07-28) — 같은
+      // `createQueryBuilder()` 진입점을 쓰지만 UPDATE 체인이라 SELECT 형 위 메서드들과
+      // 섞이면 안 된다. `update()` 가 **별도 체인 객체**를 반환하게 해 두 경로를 분리한다.
+      // 기본값은 "claim 성공"(affected=1) — 실패 시나리오는 전용 테스트가 재무장한다.
+      update: jest.fn(() => retryClaimQb),
+    };
+
+    retryClaimQb = {
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     mockNodeRepo = {

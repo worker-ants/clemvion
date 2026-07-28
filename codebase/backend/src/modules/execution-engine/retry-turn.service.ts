@@ -278,7 +278,11 @@ export class RetryTurnService {
       );
       return;
     }
-    // 멱등성 — 이미 다른 worker 가 처리해 RUNNING 이 아니면 discard.
+    // fast path — 이미 다른 worker 가 마감해 RUNNING 이 아니면 즉시 discard.
+    // **이것은 레이스 결정자가 아니다.** 실제 claim 은 아래 조건부 UPDATE 이며, 이 체크는
+    // 흔한 경우를 싸게 걸러내고 로그를 명확히 하는 역할만 한다. (과거 이 체크가 "자체 멱등
+    // 가드" 로 서술돼 `continuation-execution.processor.ts` 가 `retry_last_turn` 을 원자
+    // claim 대상에서 제외하는 근거가 됐고, 그 자기모순이 ai-review 5차 라운드 CRITICAL 이었다.)
     if (spawnedRow.status !== NodeExecutionStatus.RUNNING) {
       this.logger.debug(
         `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} is ${spawnedRow.status} (not RUNNING) — already handled, ack-and-discard`,
@@ -300,6 +304,37 @@ export class RetryTurnService {
       };
       spawnedRow.finishedAt = new Date();
       await this.nodeExecutionRepository.save(spawnedRow);
+      return;
+    }
+
+    // ATOMIC CLAIM (06 C-2 계열) — 여기까지는 read-then-branch 라 동시 배달을 막지 못한다.
+    // `inputData._retryState` 키를 JSONB `-` 로 **원자 제거**하고 affected=1 인 delivery 만
+    // 진행한다. `retryLastTurn` 이 원본 row 의 `outputData` 에 쓰는 것과 동일한 패턴이다.
+    //
+    // 두 조건을 **모두** 걸어야 한다:
+    //   - `jsonb_exists(input_data, '_retryState')` — 레이스 결정자. 키를 먼저 지운 쪽만 진행.
+    //   - `status = 'running'` — 없으면 **완료된 턴을 재실행한다.** `inputData` 에 쓰는 곳은
+    //     spawn 시점뿐이라 턴이 COMPLETED 로 끝나도 이 키는 남는다. 위 fast path 통과 후
+    //     다른 worker 가 턴을 마치는 창이 실재하므로 claim 자체가 상태까지 CAS 해야 한다.
+    //
+    // 대가(의도된 트레이드오프): 크래시로 중단된 턴의 BullMQ 재배달도 함께 막힌다. 형제
+    // continuation 4종(`claimResumeEntry`)이 이미 같은 성질을 수용하며, 복구는
+    // `recoverStuckExecutions` (stale RUNNING Execution 재claim) 백스톱이 담당한다.
+    const claim = await this.nodeExecutionRepository
+      .createQueryBuilder()
+      .update(NodeExecution)
+      .set({ inputData: () => `input_data - '_retryState'` })
+      .where('id = :id', { id: spawnedNodeExecutionId })
+      .andWhere('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      })
+      .andWhere(`jsonb_exists(input_data, '_retryState')`)
+      .execute();
+    if ((claim.affected ?? 0) !== 1) {
+      this.logger.debug(
+        `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} claim 실패(affected=0) — ` +
+          `다른 delivery 가 이미 가져갔거나 그 사이 종결됨. ack-and-discard (정상 race)`,
+      );
       return;
     }
 

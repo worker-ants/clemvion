@@ -56,6 +56,15 @@ describe('RetryTurnService', () => {
     mockNodeExecutionRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
+      // `applyRetryLastTurn` 재진입 원자 claim 용 기본 mock — 기본값은 "claim 성공".
+      // claim 실패(affected=0) 시나리오는 각 테스트가 재무장한다.
+      createQueryBuilder: jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      })),
     };
     mockExecutionRepo = {
       findOneBy: jest.fn().mockResolvedValue(null),
@@ -358,7 +367,11 @@ describe('RetryTurnService', () => {
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
-    it('(b) returns without driving graph when spawned row is not RUNNING (idempotent discard)', async () => {
+    it('(b) returns without driving graph when spawned row is not RUNNING (fast path — 레이스 결정자 아님)', async () => {
+      // 이 체크는 **fast path** 다. 레이스 결정자는 아래 (b2) 의 조건부 UPDATE claim 이며,
+      // 그 사실을 여기 명시한다 — 과거 이 체크가 "자체 멱등 가드" 로 서술돼
+      // `continuation-execution.processor.ts` 가 원자 claim 대상에서 `retry_last_turn` 을
+      // 제외하는 근거가 됐고, 그게 5R CRITICAL 의 원인이었다.
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(
         makeSpawnedRow({ status: NodeExecutionStatus.COMPLETED }),
       );
@@ -368,6 +381,56 @@ describe('RetryTurnService', () => {
       expectGraphNotDriven();
       // already-handled → ack-and-discard, no FAILED save.
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('(b2) claim 이 0행이면 (동시 배달 선점) 그래프를 구동하지 않고 discard 한다', async () => {
+      // 핵심 회귀 — read-then-branch 만 있던 시절엔 두 delivery 가 모두 통과했다.
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(makeSpawnedRow());
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }));
+
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).resolves.toBeUndefined();
+
+      expectGraphNotDriven();
+      // claim 실패는 "다른 worker 가 이미 가져갔다" 이므로 FAILED 마킹도 하면 안 된다.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('(b3) claim UPDATE 는 status=running 과 _retryState 존재를 둘 다 조건으로 건다', async () => {
+      // status 조건이 빠지면: 턴이 COMPLETED 로 끝나도 `inputData._retryState` 는 남으므로
+      //   (inputData 에 쓰는 곳은 spawn 시점뿐) 완료된 턴을 재실행한다.
+      // jsonb_exists 조건이 빠지면: 레이스를 전혀 차단하지 못한다.
+      const setSpy = jest.fn().mockReturnThis();
+      const whereSpy = jest.fn().mockReturnThis();
+      const andWhereSpy = jest.fn().mockReturnThis();
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(makeSpawnedRow());
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: setSpy,
+        where: whereSpy,
+        andWhere: andWhereSpy,
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }));
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      // SET 절은 `_retryState` 키를 제거하는 raw JSONB 식이어야 한다.
+      const setArg = setSpy.mock.calls[0][0] as { inputData: () => string };
+      expect(typeof setArg.inputData).toBe('function');
+      expect(setArg.inputData()).toMatch(/input_data - '_retryState'/);
+      expect(whereSpy).toHaveBeenCalledWith('id = :id', { id: SPAWNED_ID });
+      const andWhereSql = andWhereSpy.mock.calls
+        .map((c) => String(c[0]))
+        .join(' ');
+      expect(andWhereSql).toMatch(/status = :running/);
+      expect(andWhereSql).toMatch(/jsonb_exists\(input_data, '_retryState'\)/);
     });
 
     it('(c) marks spawned row FAILED when _retryState is missing in inputData', async () => {
