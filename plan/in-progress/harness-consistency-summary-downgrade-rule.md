@@ -80,6 +80,23 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
       비우고 그 사실을 프롬프트에 명시.
 - [ ] target 번들 조립 시 plan frontmatter 의 `spec_impact` 목록을 **folder dump 보다 우선**
       포함(19_30_39 INFO 2 제안). 지금은 알파벳순 폴더 dump 가 예산을 선점한다.
+- [ ] **정렬이 사전순이라 두 자리 번호가 한 자리를 앞선다 — natural sort 로 교체**
+      (2026-07-28 실측, `review/consistency/2026/07/28/01_26_40` WARNING #6).
+      위 "알파벳순 폴더 dump" 를 더 좁혀 진단한 것이다: `"1" < "2" < "4"` 이므로
+      `10-*.md`/`11-*.md` 가 `4-execution-engine.md` **앞에** 실려 예산을 소진하고, 정작
+      대상 파일이 뒤로 밀려 잘린다. `--impl-done spec/5-system/` 세션에서 **checker 5명
+      전원**이 이 문제를 겪고 절대경로 직접 Read 로 우회했다 — 누락된 파일은 하필
+      CHANGELOG 가 그 PR 의 SoT 로 지목한 `4-execution-engine.md` 였다.
+      파일명 선행 숫자를 정수로 파싱해 정렬할 것.
+- [ ] **누락을 관측 가능하게** — 예산 초과로 잘린 파일 목록을 프롬프트에 명시하거나 stderr
+      경고. 지금은 checker 가 "그 파일이 번들에 없다" 는 사실 자체를 알 수 없어, 우회하지
+      않는 checker 는 **spec 을 안 보고 "위반 없음" 을 반환**한다(조용한 거짓 통과, 로그에
+      흔적 없음).
+- [ ] 부수 점검 — 생략 목록에 비-경로 문자열(`_selectedPort`/`$trigger`/`$env`) 혼입 경로.
+
+> **검증 주의**: 정렬 함수 단위 테스트만으로는 vacuous 하다(헬퍼 테스트 ≠ 호출부 테스트).
+> `spec/5-system/` 처럼 **한 자리·두 자리 번호가 섞인 실제 디렉터리로 번들을 만들어
+> `4-execution-engine.md` 가 실제로 포함되는지**를 단언할 것.
 
 > 선행 기록: 메모리 `feedback_impl_done_spec_bundle_bug` (prompt grep 0건이면 오탐 → BYPASS +
 > 근거 기록). 그 회피책은 지금도 유효하나, 반복 발생하므로 근본 원인 쪽을 남겨 둔다.
