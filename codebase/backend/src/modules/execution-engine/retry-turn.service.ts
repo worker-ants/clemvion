@@ -20,6 +20,7 @@ import {
   NodeEventType,
 } from '../websocket/websocket.service';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
+import { canTransition } from './state/state-machine';
 import {
   ExecutionCancelledError,
   InvalidExecutionStateError,
@@ -415,6 +416,132 @@ export class RetryTurnService {
   }
 
   /**
+   * 2026-07-27 — 종결 2경로(`completeRetryExecution` / `failRetryExecution`)의 공통
+   * guarded 마감. 무가드 full-entity `save()` 는 stale in-memory 엔티티로 DB 를 덮어써,
+   * 동시 Stop 이 이미 `cancelled` 로 마감한 실행을 `COMPLETED`/`FAILED` 로 되돌리고
+   * 종결 이벤트까지 발행했다 (`#1022` 가 엔진 종결 경로에서 닫은 것과 같은 결함 클래스).
+   *
+   * **왜 DB 를 다시 읽나.** 이 서비스의 `execution` 은 재진입 시작 시점에 로드된 뒤
+   * 갱신되지 않는다 — `failed → running` 재진입 전이는 orchestrator 가 **다른 엔티티
+   * 인스턴스**에 적용하므로, 여기 도달했을 때 `execution.status` 는 stale `failed` 일 수
+   * 있다. 그 값을 그대로 `updateExecutionStatus` 에 넘기면 상태머신이 `failed → failed`
+   * 자기 전이를 보고 throw 한다. stale 을 신뢰하지 않는 것이 이 수정의 요지이므로
+   * **행을 다시 읽어 in-memory 를 정본으로 맞춘 뒤** 전이를 요청한다.
+   *
+   * @returns `true` 면 전이가 영속됐다(호출부는 종결 이벤트를 emit 한다).
+   *   `false` 는 (a) row 부재, (b) 정본 상태에서 목표로의 전이가 상태머신상 불가
+   *   (= DB 가 이미 terminal — 동시 cancel 선점), (c) guarded UPDATE 0행 매칭.
+   *   어느 경우든 **저장·emit 을 모두 건너뛴다.** terminal 집합을 인라인 열거하지 않고
+   *   `canTransition` 에 위임해, 상태머신이 바뀌면 자동으로 따라오게 한다.
+   */
+  private async finalizeGuarded(
+    execution: Execution,
+    executionId: string,
+    target: ExecutionStatus,
+    caller: string,
+  ): Promise<boolean> {
+    const live = await this.executionRepository.findOneBy({ id: executionId });
+    if (!live) {
+      this.logger.warn(`${caller}(${executionId}): Execution row 부재 — skip`);
+      return false;
+    }
+    execution.status = live.status;
+    // 이미 목표 상태면 **멱등 no-op** 이다 — 쓸 것이 없으니 lost update 위험도 없고,
+    // 호출부의 종결 이벤트는 기존대로 발행해야 한다. 실제로 재진입이 턴 시작 전에
+    // 실패하면 Execution 이 `failed` 인 채로 `failRetryExecution(FAILED)` 에 도달한다.
+    // (상태머신은 자기 전이를 금지하므로 `canTransition` 에 맡기면 여기서 걸린다.)
+    if (live.status === target) {
+      // ai-review CRITICAL (2026-07-27, 2차 라운드) — 상태만 같을 뿐 **이번 시도의
+      // lifecycle 필드는 새 값**이다. 재진입이 즉시 재실패하면 `error` 는 이번 실패
+      // 메시지이고 `finishedAt`/`durationMs` 도 갱신돼야 하는데, 여기서 그냥 `true` 를
+      // 반환하면 그 값들이 조용히 버려진다 — WS 는 새 에러를 emit 하는데 REST
+      // 재조회는 최초 실패 메시지를 돌려주는 불일치가 생기고 소요시간도 축소 보고된다.
+      // (무가드 `save()` 였던 이전 코드에는 없던 회귀다.)
+      //   상태는 그대로 두고 lifecycle 컬럼만 **관측한 상태를 조건으로** 건다 —
+      //   그 사이 동시 cancel 이 상태를 바꿨다면 0행 매칭으로 조용히 무효화된다.
+      //
+      // ai-review CRITICAL #1 (2026-07-27, 3차 라운드) — "0행이 실제로 가능한가":
+      // terminal(COMPLETED/FAILED/CANCELLED) 은 통상 outgoing 전이가 없어 이
+      // guarded UPDATE 가 항상 매칭될 것처럼 보이지만, FAILED → RUNNING 전이는
+      // `allowRetryReentry` opt-in 으로 예외 허용된다 (state/state-machine.ts 의
+      // ALLOWED_TRANSITIONS 주석 + `canTransition` 의 `allowRetryReentry` 분기;
+      // 호출부는 ai-turn-orchestrator.service.ts 의
+      // `allowRetryReentry ? { allowRetryReentry: true } : undefined`). 즉 동시
+      // retry 재진입이 위 SELECT 와 이 UPDATE 사이에 row 를 FAILED → RUNNING 으로
+      // 옮기면 `andWhere('status = :status', { status: target })` 가 0행에
+      // 매칭된다 — 그때 무조건 `true` 를 반환하면 DB 는 RUNNING(새 턴 진행 중)인데
+      // caller 가 종결 이벤트를 발행하는 "사후 오시그널" 이 된다(이 PR 이 닫으려던
+      // 결함 클래스 그 자체). `affected` 를 확인해 아래 두 분기와 대칭 처리한다.
+      //
+      // ai-review CRITICAL #1 (2026-07-27, 4차 라운드) — CANCELLED 재진입은 위 두
+      // 라운드가 세운 "이번 시도 값이 최신 진실" 전제가 성립하지 않는다. `stop()`
+      // 이 사용자가 Stop 을 누른 정확한 시각(T1)을 이미 이 guarded UPDATE 로
+      // 커밋했는데, AI 턴은 다음 turn 경계(`assertExecutionNotCancelled`)에서야
+      // 취소를 감지하므로 여기 도달했을 때 `execution.finishedAt` 은 그보다 늦은
+      // 재진입 catch 시각(T2)이다. FAILED 처럼 무조건 새 값을 쓰면
+      // `finalizeCancelledExecution`(execution-engine.service.ts)의 `??` 병합과
+      // 어긋나 그 JSDoc 이 명시하는 §2.3 계약("stop 이 쓴 finishedAt/durationMs 가
+      // 보존된다")을 이 경로만 깬다. SELECT(`live`)~UPDATE 사이 창을 신뢰하지
+      // 않기 위해(WARNING #3 ABA 계열과 같은 이유) 앱 레벨 `??` 병합이 아니라
+      // UPDATE 문 자체의 SQL `COALESCE` 로 "그 순간의" DB 값을 재평가한다 — 이미
+      // 있으면(NOT NULL) 보존하고, 처음이면(NULL, 레이스로 이 경로가 최초
+      // 관측자가 되는 극단 케이스) 이번 값을 쓴다. `error` 는 SET 절에서 아예
+      // 제외한다 — W16(취소 시 error 미저장)과 동일 원칙이고, 덤으로 이전 시도의
+      // stale `execution.error` 가 취소 row 에 재기록되는 문제(testing WARNING #1)
+      // 도 함께 닫는다. FAILED/COMPLETED 분기(else, 아래)는 2R CRITICAL 수정
+      // 그대로 무조건 새 값을 쓴다 — 재진입이 다시 실패한 경우 이번 시도의
+      // error/finishedAt/durationMs 가 최신 진실이기 때문이다(되돌리지 않는다).
+      if (target === ExecutionStatus.CANCELLED) {
+        const result = await this.executionRepository
+          .createQueryBuilder()
+          .update(Execution)
+          .set({
+            finishedAt: () => 'COALESCE(finished_at, :newFinishedAt)',
+            durationMs: () => 'COALESCE(duration_ms, :newDurationMs)',
+          })
+          .where('id = :id', { id: executionId })
+          .andWhere('status = :status', { status: target })
+          .setParameter('newFinishedAt', execution.finishedAt)
+          .setParameter('newDurationMs', execution.durationMs)
+          .execute();
+        return (result.affected ?? 0) > 0;
+      }
+      const result = await this.executionRepository
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          // jsonb 컬럼이라 QueryBuilder 의 DeepPartial 타입과 맞지 않는다 —
+          // 저장소 관용(raw 파라미터 캐스팅)을 따른다.
+          error: (execution.error ?? null) as never,
+          finishedAt: execution.finishedAt,
+          durationMs: execution.durationMs,
+        })
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :status', { status: target })
+        .execute();
+      return (result.affected ?? 0) > 0;
+    }
+    if (!canTransition(live.status, target)) {
+      this.logger.warn(
+        `${caller}(${executionId}): 정본 상태 '${live.status}' 에서 '${target}' 로 ` +
+          `전이 불가 — 동시 cancel 선점으로 보고 마킹·emit 을 모두 skip`,
+      );
+      return false;
+    }
+    const persisted = await this.driver.updateExecutionStatus(
+      execution,
+      target,
+    );
+    if (!persisted) {
+      this.logger.warn(
+        `${caller}(${executionId}): guarded UPDATE 0행 — 동시 cancel 선점, ` +
+          `마킹·emit 을 모두 skip`,
+      );
+    }
+    return persisted;
+  }
+
+  /**
    * retry 성공 종결 시 Execution 을 직접 COMPLETED 로 마감하는 fallback.
    * 정상 경로(`resumeGraphAfterRetry`)에서 workflow nodes/edges 가 비어있거나
    * completedNode 가 그래프에 없는 등 graph rebuild 불가 시에만 호출된다.
@@ -429,6 +556,9 @@ export class RetryTurnService {
    * 또는 (2) `sortedIndexMap.get(completedNode.id) === undefined`. 이 두 가지
    * defensive fallback 경로 외에서는 호출해서는 안 된다.
    *
+   * ai-review WARNING #7 (2026-07-27, 4차 라운드) — 동시 cancel 선점 시 저장·
+   * 이벤트 emit 을 모두 건너뛰고 조용히 반환할 수 있다 (`finalizeGuarded` 참조).
+   *
    * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
    * 호출된다. 다른 경로에서 직접 호출하지 말 것.
    */
@@ -436,11 +566,19 @@ export class RetryTurnService {
     execution: Execution,
     executionId: string,
   ): Promise<void> {
-    execution.status = ExecutionStatus.COMPLETED;
     execution.finishedAt = new Date();
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
-    await this.executionRepository.save(execution);
+    if (
+      !(await this.finalizeGuarded(
+        execution,
+        executionId,
+        ExecutionStatus.COMPLETED,
+        'completeRetryExecution',
+      ))
+    ) {
+      return;
+    }
     await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_COMPLETED,
@@ -631,6 +769,9 @@ export class RetryTurnService {
    * finalizeAiNode FAILED 분기가 이미 FAILED + NODE_FAILED emit 했고, retryable
    * 재실패면 새 `_retryState` 가 outputData 에 보존돼 재-retry 가능하다.
    *
+   * ai-review WARNING #7 (2026-07-27, 4차 라운드) — 동시 cancel 선점 시 저장·
+   * 이벤트 emit 을 모두 건너뛰고 조용히 반환할 수 있다 (`finalizeGuarded` 참조).
+   *
    * @internal — applyRetryLastTurn 의 catch 블록에서만 호출된다.
    */
   private async failRetryExecution(
@@ -640,7 +781,10 @@ export class RetryTurnService {
   ): Promise<void> {
     // isCancelled 를 상단에서 한 번만 평가해 이중 평가 제거 (WARNING #10).
     const isCancelled = error instanceof ExecutionCancelledError;
-    execution.status = isCancelled
+    // 목표 상태는 **별도 변수**로 둔다 — `execution.status` 에 미리 대입하면
+    // `updateExecutionStatus` 가 그것을 *현재* 상태로 읽어 `assertTransition` 이
+    // 자기 자신으로의 전이(FAILED→FAILED)를 보게 된다.
+    const finalStatus = isCancelled
       ? ExecutionStatus.CANCELLED
       : ExecutionStatus.FAILED;
     const errMessage = error instanceof Error ? error.message : String(error);
@@ -655,14 +799,27 @@ export class RetryTurnService {
     execution.finishedAt = new Date();
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
-    await this.executionRepository.save(execution);
+    // 2026-07-27 — `completeRetryExecution` 과 동일 이유의 guarded 전환. 특히 FAILED
+    // 분기가 위험하다: 턴 진행 중 도착한 Stop 이 DB 를 `cancelled` 로 마감했는데 그
+    // 턴이 (429/timeout 등으로) 자연 실패하면, 무가드 save 가 취소를 **FAILED 로
+    // 덮어쓰고** 실패 이벤트를 사후 발행했다 (#1022 `finalizeFailedExecution` 과 동형).
+    if (
+      !(await this.finalizeGuarded(
+        execution,
+        executionId,
+        finalStatus,
+        'failRetryExecution',
+      ))
+    ) {
+      return;
+    }
     await this.eventEmitter.emitExecution(
       executionId,
       isCancelled
         ? ExecutionEventType.EXECUTION_CANCELLED
         : ExecutionEventType.EXECUTION_FAILED,
       {
-        status: execution.status,
+        status: finalStatus,
         ...(!isCancelled ? { error: errMessage } : {}),
       },
     );

@@ -447,3 +447,51 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
    된다 — **코드 15 vs spec 12 로 갈라지지 않게 같은 턴에 처리할 것**. spec 반영 시
    메서드명은 **개명 후 이름(`tryLockActiveExecutionAndSaveNodeExec`)으로 기록**할 것 —
    4차 라운드 rename 이 코드에 이미 반영돼 있다.
+
+## 추가 위임 (2026-07-28 #8) — §1.1 이 "park 없이 종결되면 cancel 무효과" 라는 **반증된 결정**을 아직 단언한다
+
+출처: `retry-turn-terminal-guard.md` PR 의 consistency-check `--impl-done`
+(`review/consistency/2026/07/28/01_26_40`) WARNING #1·#2. **5개 checker 중 4개가 서로 다른
+각도에서 독립 수렴**했고, `rationale_continuity` 는 이 결함 클래스(Stop 이 조용히 소실)가
+최근 3 PR(`#1021`~`#1023`) 연속 재발한 이력을 근거로 HIGH 를 매겼다.
+
+**이 모순은 지금까지 어떤 project-planner 추적 문서에도 등재된 적이 없다**(checker 확인).
+그래서 본 집계 문서에 #8 로 신규 등재한다 — 등재하지 않으면 다음 planner 스윕이 놓친다.
+
+### 모순의 실체
+
+`spec/5-system/4-execution-engine.md` §1.1 이 다음 **4가지 모두와 정반대**로 서술한다:
+
+| # | 대상 | 위치 | 서술 |
+|---|---|---|---|
+| 모순 원본 | 상태 전이표 `failed→running` | `4-execution-engine.md:77` (2026-06-06 작성, 이후 미갱신) | "retry replay 가 park 없이 그 turn 에서 종결되면 cancel 은 무효과로 흘려보내진다" |
+| 모순 원본 | Rationale "`failed → running` 재진입 전이" | `4-execution-engine.md:1454` (2026-06-10) | 위와 동일 취지 |
+| 반대 (a) | 같은 파일 "짝 전이 DB 관측 가드" | `4-execution-engine.md:79-92` (2026-07-27, `#1023`) | "가드가 없으면 Stop 이 소실된다 — terminal 마감 경로도 조건부 UPDATE 를 거친다" |
+| 반대 (b) | 자매 컨벤션 | `spec/conventions/node-cancellation.md` §2.4 + Rationale | 동일 |
+| 반대 (c) | WS 프로토콜 | `spec/5-system/6-websocket-protocol.md:375` (2026-05-30, **원 기능 도입 시점부터**) | "replay 중 cancel" |
+| 반대 (d) | 코드·테스트 | `retry-turn.service.ts` `finalizeGuarded` + 회귀 테스트 (`retry-turn.service.spec.ts:789,805`) | park 도달 여부와 무관하게 먼저 커밋된 CANCELLED 는 이후 어떤 자연 종결로도 덮이지 않음 |
+
+즉 **코드가 옳고 spec §1.1 만 낡았다.** `#1021`/`#1022` 커밋 메시지도 구 동작을 명시적으로
+"결함" 으로 규정했다. 코드를 되돌리는 것이 아니라 spec 을 정정하는 SPEC-DRIFT 역류다.
+
+### 위임 항목
+
+- [ ] `4-execution-engine.md:77`(전이표)·`:1454`(Rationale)의 "park 없이 종결되면 cancel
+      무효과" 서술 삭제 → "DB 에 이미 커밋된 cancel 은 park 도달 여부와 무관하게 항상
+      우선하며, 자연 종결은 guarded 쓰기로 스킵된다" 로 정정. 같은 파일 `:81-92` 문구를
+      재사용할 수 있다.
+- [ ] `spec/conventions/node-cancellation.md` §6 구현 현황 표(`:184` 부근)에
+      `retry-turn.service.ts`(`finalizeGuarded`) 행 추가 — 현재 `execution-engine.service.ts`
+      만 나열해 §2.4 가드의 **3번째 소비자**가 빠져 있다. frontmatter `code:` 목록(`:4-13`)
+      에도 등재할 것.
+- [ ] 위 표에 **메커니즘 차이 각주**: 기존 소비자는 앱 레벨 `??` 병합
+      (`finalizeCancelledExecution`), 신규 소비자는 SQL `COALESCE`(`finalizeGuarded` 의
+      CANCELLED 멱등 분기 — SELECT~UPDATE 사이 창을 신뢰하지 않기 위해 UPDATE 문 자체에서
+      그 순간의 DB 값을 재평가). 같은 계약의 두 구현이므로 표에 드러나야 한다.
+
+### 관련
+
+- 소비 PR: `plan/in-progress/retry-turn-terminal-guard.md` (ai-review 5라운드 수렴,
+  코드 측은 완료). 그 plan 의 `spec_impact` 도 본 항목 때문에 `none` → 2개 파일 목록으로
+  갱신했다 — **본 #8 이 반영되기 전에는 그 plan 을 `complete/` 로 옮기지 말 것**
+  (Gate C 가 `spec_impact` 를 그대로 신뢰한다).
