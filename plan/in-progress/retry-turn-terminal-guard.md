@@ -57,7 +57,9 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] `/ai-review` — **파일 명시 + `--route=all`** 로 전수 검토할 것
       (증분 changeset 은 직전 라운드 결함을 구조적으로 못 본다 — `#1022` 에서 실측).
       **5라운드 수행, 5R 에서 수렴** (이 PR 이 바꾼 라인의 결함 0).
-- [ ] `/consistency-check --impl-done`
+- [x] `/consistency-check --impl-done` — **BLOCK: NO** (Critical 0), scope `spec/5-system/`,
+      `review/consistency/2026/07/28/01_26_40`. WARNING 6건은 BLOCK:NO 여도 반영해
+      아래 §5차 라운드 이후 위생 정리에 처분을 기록했다.
 
 ## 주의
 
@@ -73,7 +75,12 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] 회귀 테스트 (mutation 13/13 RED — 1R~4R 가드 전량, 5R 시점 재실측)
 - [x] TEST WORKFLOW
 - [x] `/ai-review` (전수, 5라운드 — 5R 수렴)
-- [ ] `/consistency-check --impl-done`
+- [x] `/consistency-check --impl-done` (BLOCK: NO)
+- [x] PR 머지 — [#1024](https://github.com/worker-ants/clemvion/pull/1024), `771801e3e` (2026-07-28)
+
+> 🚫 **`complete/` 로 옮기지 말 것** — 코드 측은 머지됐으나 아래 §project-planner 위임
+> (spec 자기모순 정정)이 미반영이고 `spec_impact` 가 그 2개 파일을 가리킨다. 지금 옮기면
+> Gate C(`spec-plan-completion.test.ts`)가 그 값을 신뢰해 잘못 확정한다. 위임 반영 후 이동.
 
 ## ai-review 결과 (2026-07-27, `review/code/2026/07/27/21_07_03`)
 
@@ -296,3 +303,64 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
       시도조차 하지 않는다" + `#1021`/`#1022` 커밋 메시지가 구 동작을 명시적으로 결함으로 규정).
       함께 `spec/conventions/node-cancellation.md:184` §6 구현 현황 표에 `retry-turn.service.ts`
       (`finalizeGuarded`) 행 추가.
+
+## 5차 라운드 이후 위생 정리 (2026-07-28, PR 머지 후)
+
+위 라운드별 섹션은 **발견 이력(증거)** 이라 그대로 둔다. 다만 같은 항목이 라운드마다 다시
+등재돼 **고유 14건이 체크박스 20개로 흩어졌다**(`forwardRef` 3회, `finalizeGuarded` in-place
+변이 2회 등) — 착수 시 같은 걸 두 번 잡게 되므로 아래를 **단일 진실 목록**으로 삼는다.
+각 항목의 발견 근거는 괄호 안 라운드 섹션 참조.
+
+### 코드 — 우선순위 순
+
+| # | 항목 | 우선 | 근거 라운드 |
+|---|---|---|---|
+| 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 (`retryLastTurn` 의 조건부 UPDATE + `affected` 패턴 재사용). 회귀 테스트: "claim 0행 → ack-and-discard, `rehydrateContext`/`processAiResumeTurn` 미호출" | **P1** | 1R W1 → 5R **CRITICAL 승격** |
+| 2 | `EXECUTION_CANCELLED` payload 에 spec §4.1 필수 `cancelledBy` 추가 (`emitCancellationEvent` 재사용). `retry-turn.service.spec.ts` 의 deep-equality 단언 동반 갱신 | P2 | 5R W1 (+ impl-done cross_spec 독립 확인) |
+| 3 | `retryLastTurn` atomic-consume SQL(JSONB `-` + `jsonb_exists`) 검증 — unit·e2e 어느 계층에도 없음 | P2 | 5R W6 |
+| 4 | COALESCE 경로 실 DB e2e — 신규 패턴이고 현재 근거는 TypeORM 소스 정적 확인뿐 | P2 | 5R (RESOLUTION 한계 명시) |
+| 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |
+| 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
+| 7 | `!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증 | P3 | 2R INFO 14 = 5R W7 |
+| 8 | `forwardRef` 근거 주석 모순 — 모듈 순환 실측 후 주석 정정 또는 제거 | P3 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 (**4회**) |
+| 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 |
+| 10 | `finalizeGuarded` in-place 변이 은닉 — `{persisted, live}` 또는 `@param` 명시 | P3 | 1R INFO 2 = 2R W3 |
+| 11 | `resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유 (참조 동일성 불변식 의존) | P3 | 2R INFO 2 |
+| 12 | 멱등 분기 회고 주석 약 40줄 정리 (실제 제어흐름 6~7줄) | P3 | 5R W4 |
+| 13 | 테스트 `createQueryBuilder` mock 팩토리 통합 (6곳) | P3 | 4R W6 = 5R |
+| 14 | 멱등 분기의 driver choke point 우회 흡수 — self-transition capability 승격. `emitTerminalExecutionMetrics` 미경유도 함께 | P3 | 4R W2 = 5R W2 |
+
+### spec — project-planner 위임
+
+`spec-update-node-cancellation-shutdown-classification.md` **#8** 에 등재됨(단일 진실).
+이 plan 의 §project-planner 위임 절은 그쪽 포인터로만 쓴다.
+
+### 착수 시 주의
+
+- **착수 직전 `git log origin/main` + 해당 파일 grep 으로 항목별 재판정**하라 — 병렬 세션이
+  먼저 닫을 수 있다(특히 8·9·14 는 리팩터 성격이라 다른 PR 이 지나갈 확률이 있다).
+- 1번은 `continuation-execution.processor.ts` 의 claim 제외 목록도 같은 턴에 손봐야 한다
+  (지금 `retry_last_turn` 만 명시 제외되어 있고, 그 파일 JSDoc 이 원자성의 필요조건을 스스로
+  명시해 자기모순 상태다).
+- 이 파일 종결부는 5라운드에 걸쳐 "한 겹 고칠 때마다 인접 가정이 깨지는" 이력이 있다.
+  수정 전에 **그 변경이 어떤 기존 가정을 건드리는지** 먼저 확인할 것 — 형제 헬퍼
+  (`finalizeCancelledExecution`) JSDoc 이 계약을 명시하고 있는 경우가 많다.
+
+### consistency-check `--impl-done` WARNING 처분 (BLOCK: NO 였으나 전량 반영)
+
+세션 `review/consistency/2026/07/28/01_26_40`, scope `spec/5-system/`. Critical 0.
+
+| # | checker | 처분 | 반영 위치 |
+|---|---|---|---|
+| 1 | cross_spec · rationale_continuity · convention_compliance · plan_coherence (**4개 독립 수렴**) | planner 위임 등재 | `spec-update-node-cancellation-shutdown-classification.md` **#8** 신규 |
+| 2 | 동일 4개 | planner 위임 등재 | 같은 #8 (§6 표 + frontmatter `code:`) |
+| 3 | plan_coherence | **수정** — 이 PR 이 해소한 항목이 원 plan 에 미체크로 남아 있었다 | `ie-resume-turn-boundary-cancel.md` 체크 + 양방향 교차 링크 |
+| 4 | convention_compliance | **수정** — `spec_impact: none` 이 본문과 자기모순 | 이 파일 frontmatter → 2개 파일 목록 + 완료 금지 주의 |
+| 5 | cross_spec | 코드 후속 등재 (pre-existing) | 위 통합 목록 #2 (`cancelledBy`) |
+| 6 | naming_collision | **하네스 결함** — 기존 백로그로 흡수 | `harness-consistency-summary-downgrade-rule.md` (natural sort + 관측 가능성 항목 추가) |
+
+> #6 은 처음에 `harness-consistency-impl-done-bundle-sort.md` 로 별도 등재했으나, 기존
+> `harness-consistency-summary-downgrade-rule.md` 가 **같은 결함**("알파벳순 폴더 dump 가
+> 예산을 선점")을 이미 기록하고 있었다. 등재 전에 harness 백로그를 확인하지 않은 실수다.
+> 새로 얻은 진단(사전순 정렬로 두 자리 번호가 한 자리를 앞선다)만 그쪽으로 옮기고 별도
+> 파일은 폐기했다.
