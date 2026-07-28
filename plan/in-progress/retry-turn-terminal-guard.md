@@ -334,7 +334,8 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 
 ### spec — project-planner 위임
 
-`spec-update-node-cancellation-shutdown-classification.md` **#8** 에 등재됨(단일 진실).
+`spec-update-node-cancellation-shutdown-classification.md` **#8**(이행 완료) · **#10**(P1 코드와
+동반 필수 — 별 PR 금지) 에 등재됨(단일 진실).
 이 plan 의 §project-planner 위임 절은 그쪽 포인터로만 쓴다.
 
 ### 착수 시 주의
