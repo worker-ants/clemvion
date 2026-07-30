@@ -331,7 +331,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 | 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
 | 7 | `!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증 | P3 | 2R INFO 14 = 5R W7 |
 | 8 | `forwardRef` 근거 주석 모순 — 모듈 순환 실측 후 주석 정정 또는 제거 | P3 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 (**4회**) |
-| 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 |
+| 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 = **7R W8 재지적**(`review/code/2026/07/30/11_41_20`) |
 | 10 | `finalizeGuarded` in-place 변이 은닉 — `{persisted, live}` 또는 `@param` 명시 | P3 | 1R INFO 2 = 2R W3 |
 | 11 | `resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유 (참조 동일성 불변식 의존) | P3 | 2R INFO 2 |
 | 12 | 멱등 분기 회고 주석 약 40줄 정리 (실제 제어흐름 6~7줄) | P3 | 5R W4 |
@@ -340,12 +340,19 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 | 15 | **(6R 신규)** 백스톱 갭 — claim 실패 discard 후 spawn row 가 RUNNING orphan 으로 영구 잔류 가능. 실측: `failOrphanRunningNodeExecutions` 는 `recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만 호출되는데, discard 후 Execution 은 이미 `failed`(terminal) 로 남아 그 경로 대상이 아니다. 트레이드오프상 discard 가 옳지만(활성 작업을 죽이지 않음) orphan row 자체(타임라인/진행률 집계 오염)는 별도 백스톱이 없다 | P2 | 6R developer 실측 (`claimSpawnedRetryRow` JSDoc 인용) |
 | 16 | `continuation-execution.processor.ts` 의 claim 대상 제외 목록(`type !== 'retry_last_turn'`)이 여전히 프로즈 주석으로만 `applyRetryLastTurn` 자체 claim 존재에 의존 — 타입/공유 상수 레벨 강제 없음(같은 결합이 5R 이전 CRITICAL 로 1회 이미 깨진 이력) | P3 | 6R side_effect/architecture WARNING #2 (구조 변경, defer) |
 | 17 | claim ~ try 진입 전 구간(Promise.all/rehydrateContext/buildRetryReentryState/setNodeOutput/emitNode)의 "크래시 트레이드오프" 서술 범위가 이번 claim 전진 배치로 넓어짐(프로세스 크래시뿐 아니라 이 구간의 일반 예외까지 동일 적용) — Critical#1 수정으로 범위가 확정된 뒤 재평가 필요. `recoverStuckExecutions` 가 이 특유 spawn-row 시나리오까지 실제로 복구하는지도 미검증 | P3 | 6R side_effect WARNING #4 |
+| 18 | **(7R 신규)** `claimSpawnedRetryRow`(DB `input_data` 원자 제거)와 `spawnedRow.inputData`(in-memory) 사이의 동기화 불변식이 타입/캡슐화가 아니라 "이 delete 줄을 지우거나 순서를 바꾸지 말 것"이라는 프로즈 관례에만 의존 — CRITICAL #2 와 정확히 같은 결함 클래스의 재발 가능 경로가 구조적으로 열려 있음. `claimSpawnedRetryRow` 가 `spawnedRow`(또는 `inputData`)를 인자로 받아 성공 시 직접 mutate 하거나 `{claimed, retryState?}` 형태로 이미 동기화된 결과를 반환하도록 구조 변경 검토 | P2 | 7R WARNING #5(architecture), `review/code/2026/07/30/11_41_20` |
+| 19 | **(7R 신규)** `applyRetryLastTurn` 이 claim 블록 추출에도 불구하고 claim 성공 후 필수가 된 새 판정 2개가 추가되며 순 길이·복잡도가 오히려 늘었다(184→188줄, early-return 가드 7개). `:308-356`(in-memory retryState 확보 → claim → 판정 → in-memory 동기화)을 `claimAndSyncRetryState(spawnedRow): Promise<RetryState \| null>` 로 추출해 본문을 "null 이면 discard, 아니면 계속" 한 줄로 축약 검토 | P3 | 7R WARNING #7(maintainability), `review/code/2026/07/30/11_41_20` |
 
 ### spec — project-planner 위임
 
 `spec-update-node-cancellation-shutdown-classification.md` **#8**(이행 완료) · **#10**(P1 코드와
 동반 필수 — 별 PR 금지) 에 등재됨(단일 진실).
 이 plan 의 §project-planner 위임 절은 그쪽 포인터로만 쓴다.
+
+**(7R 신규)** `spec-update-retry-claim-backstop-gap.md` — §7.5 대칭 Rationale 이 "복구는
+`recoverStuckExecutions` 백스톱이 담당한다"고 무조건 서술하나, 이 2차 claim(`claimSpawnedRetryRow`)
+경로는 그 백스톱이 닿지 않는다는 실측(위 §코드 표 #15 와 동일 근거)이 코드/plan 에는 이미
+반영됐고 spec 문구만 낡았다([SPEC-DRIFT], `review/code/2026/07/30/11_41_20` WARNING #1).
 
 ### 착수 시 주의
 
