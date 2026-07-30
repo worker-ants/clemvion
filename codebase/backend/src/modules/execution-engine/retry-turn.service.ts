@@ -120,9 +120,12 @@ export class RetryTurnService {
    * publish 안 할 뿐, caller 가 publish 함).
    *
    * **재진입 구현 완료**: `applyRetryLastTurn` 이 `_retryState` → `_resumeState`
-   * shape 변환 후 `runAiConversationLoop` 로 재진입. INFO#1: 이전 "재진입 미완 갭"
-   * 주석은 현 구현을 반영해 삭제함. 남은 문서화된 갭은 downstream graph traversal
-   * (성공 후 후속 노드 재개) — `applyRetryLastTurn` 의 docstring 참조.
+   * shape 변환 후 `processAiResumeTurn`(AiTurnOrchestrator 경유, turn-park
+   * 단발 처리 + 계속되면 `PARK_RELEASED` re-park)으로 재진입. INFO#1: 이전
+   * "재진입 미완 갭" 주석은 현 구현을 반영해 삭제함. W3 정정(ai-review 7R): 옛
+   * `runAiConversationLoop` 장수 루프 replay 는 exec-park D6 로 이미 제거됐다
+   * — 아래 "재진입 절차" 목록 참조. 남은 문서화된 갭은 downstream graph
+   * traversal (성공 후 후속 노드 재개) — `applyRetryLastTurn` 의 docstring 참조.
    */
   async retryLastTurn(
     executionId: string,
@@ -269,8 +272,12 @@ export class RetryTurnService {
    *      structuredOutputCache 에 주입.
    *   5. NODE_STARTED (spawn 된 row) emit. Execution FAILED → RUNNING 전이는
    *      `finalizeAiNode` 의 COMPLETED 분기가 담당 (W4: JSDoc 정합).
-   *   6. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
-   *      `ai_message`) 로 구동 → 실패했던 LLM turn 재실행. 이후 정상 loop.
+   *   6. `processAiResumeTurn`(AiTurnOrchestrator 경유)으로 마지막 user
+   *      message replay(initialAction = `ai_message`) 를 단발 처리 →
+   *      실패했던 LLM turn 재실행. 대화가 계속되면 `PARK_RELEASED` 로
+   *      re-park 해 세그먼트 종료(다음 turn 은 §7.5 rehydration 재개), 종료면
+   *      다음 단계로 진행(W3 정정, ai-review 7R: 옛 `runAiConversationLoop`
+   *      장수 루프는 exec-park D6 로 제거됨).
    *   7. `finalizeAiNode` 로 spawn row 마감 + Execution 을 RUNNING 으로 전이.
    *   8. 성공 종결이면 `resumeGraphAfterRetry` 가 downstream graph 로 진행
    *      (WARNING #10 해소; spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8).
@@ -349,10 +356,16 @@ export class RetryTurnService {
     // claim 이 DB 의 `input_data` 에서만 키를 원자 제거하므로, in-memory
     // `spawnedRow` 도 동일하게 맞춘다 — ai-review CRITICAL #2 (2026-07-28): 이
     // delete 가 없으면 이후 not-found 분기의 `save(spawnedRow)`(full-entity)가
-    // stale 값(키 있음)을 그대로 써, TypeORM 0.3.30 의 jsonb diff 가 DB 를
-    // 재-SELECT 해 옛 값과 비교하고 claim 이 방금 지운 `_retryState` 를
-    // 부활시킨다(`status=FAILED` 인데 `_retryState` 가 살아있는 모순 row). 이
-    // 한 줄이 이 메서드의 **모든** 하위 `save(spawnedRow)` 호출을 함께 보호한다.
+    // stale 값(키 있음)을 그대로 써, TypeORM 0.3.30 기준으로 확인된 jsonb
+    // diff 가 DB 를 재-SELECT 해 옛 값과 비교하고 claim 이 방금 지운
+    // `_retryState` 를 부활시킨다(`status=FAILED` 인데 `_retryState` 가
+    // 살아있는 모순 row) — 이 delete 자체는 버전-불문 방어라 이후 patch
+    // 버전에서도 유지한다(W9). 이 한 줄이 이 메서드의 **모든** 하위
+    // `save(spawnedRow)` 호출을 함께 보호한다. W6(ai-review 7R) — 이 delete
+    // 는 아래 `emitNode`(`NODE_STARTED`) 의 `input` 페이로드에도 영향한다:
+    // `_retryState` 가 더 이상 포함되지 않는다 — spec 의 "internal 필드
+    // 비노출" 원칙과 부합하는 의도된 변경이며, 회귀 테스트로 잠갔다(아래
+    // `emitNode` 호출부 참조).
     delete spawnedRow.inputData[RETRY_STATE_KEY];
 
     // INFO#4 / W3 — execution + node 조회를 병렬화 (W18) 하고, 각 not-found 에서
@@ -429,6 +442,8 @@ export class RetryTurnService {
         status: NodeExecutionStatus.RUNNING,
         nodeType: node.type,
         nodeLabel: node.label ?? node.type,
+        // W6(ai-review 7R) — `_retryState` 는 위 claim 직후 delete 로 이미
+        // 제거됨(internal 필드 비노출 의도, 회귀 테스트로 잠금).
         input: spawnedRow.inputData,
         startedAt: spawnedRow.startedAt?.toISOString?.(),
       },
@@ -482,9 +497,12 @@ export class RetryTurnService {
    *     창이 실재하므로 claim 자체가 상태까지 CAS 해야 한다.
    *
    * 대가(의도된 트레이드오프): 크래시로 중단된 턴의 BullMQ 재배달도 함께
-   * 막힌다. 형제 continuation 4종(`claimResumeEntry`)이 이미 같은 성질을
-   * 수용하며, 복구는 `recoverStuckExecutions`(stale RUNNING Execution
-   * 재claim) 백스톱이 담당한다.
+   * 막힌다. 형제 continuation 4종(`claimResumeEntry`)은 `recoverStuckExecutions`
+   * (stale RUNNING Execution 재claim) 백스톱이 커버하지만, **이 2차 claim
+   * 경로는 그 백스톱이 닿지 않는다** — 실측 근거는 아래 "알려진 백스톱 갭"
+   * 참조 (W2 정정, ai-review 7R `review/code/2026/07/30/11_41_20`: 이 문단의
+   * 구 서술이 아래 실측 결과와 자기모순으로 공존해 앞부분만 읽으면 정반대로
+   * 오독할 소지가 있었다).
    *
    * **claim 은 반드시 "`_retryState` 부재 → 손상 판정" 보다 먼저 호출돼야 한다**
    * (ai-review CRITICAL #1, 2026-07-28, `review/code/2026/07/28/20_32_57`) —
