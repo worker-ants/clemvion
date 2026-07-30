@@ -730,7 +730,9 @@ describe('WorkflowsService', () => {
       mockTransactionManager.save = jest
         .fn()
         .mockImplementation((_entity, data) =>
-          Promise.resolve(Array.isArray(data) ? data : { id: 'new-id', ...data }),
+          Promise.resolve(
+            Array.isArray(data) ? data : { id: 'new-id', ...data },
+          ),
         );
     });
 
