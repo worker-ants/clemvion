@@ -43,7 +43,8 @@ pending_plans:
 pending → running ──┤                     └─ cancelled
                     ├─ completed
                     │
-                    └─ failed ─ running (retry_last_turn 재진입, opt-in)
+                    └─ failed ─┬─ running (retry_last_turn 재진입, opt-in)
+                               └─ waiting_for_input (재진입 turn 계속 → re-park, opt-in)
 ```
 
 > ※ Rehydration (다른 인스턴스가 사용자 입력을 받아 재개) 은 `waiting_for_input` 의 **내부 transition** — 다이어그램상 self-loop 로 표시하지 않으나 §7.5 의 재개 경로가 이를 수행한다. 상태 enum 자체는 변경되지 않는다.
@@ -76,6 +77,7 @@ pending → running ──┤                     └─ cancelled
 | waiting_for_input | waiting_for_input | 재개 (rehydration) — Execution.status enum 자체는 변하지 않고, 사용자 입력 도착 시 임의 worker 가 §7.5 rehydration 으로 컨텍스트를 재구성해 다음 세그먼트를 시작 (Phase B: park 시 코루틴 해제로 모든 재개가 rehydration. 같은 인스턴스 우연 픽업이어도 동일 경로)                                                                                                                                                                                                                    |
 | waiting_for_input | cancelled         | 사용자 취소, 타임아웃, 또는 rehydration 실패의 단말 케이스 (`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE` — §7.5)                                                                                                                                                                                                                                                                                                                                       |
 | failed            | running           | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — AI Agent multi-turn retryable error 종결로 `failed` 가 된 Execution 을 동일 nodeId 의 새 NodeExecution row 구동을 위해 `running` 으로 전이. 성공 종결 시 다시 `completed`, 재실패 시 `failed`. replay 가 RUNNING 으로 도는 중 도착한 cancel 은 **진행 중 turn 을 즉시 끊지 않는다**(full B3 — RUNNING resume/replay drive 에는 깨울 in-memory 코루틴이 없다). 그러나 취소 **기록은 지연되지 않는다** — `stop()` 의 RUNNING/PENDING 경로가 조건부 UPDATE 로 `cancelled` + `finishedAt`/`durationMs` 를 즉시 커밋한다. replay 는 다음 **turn 경계**의 `assertExecutionNotCancelled` 로 이를 관측해 종결하며, park 에 도달하는 경우엔 `cancelParkedExecution` 이 짝 `NodeExecution` 까지 `cancelled` 로 마킹한다([§7.4](#74-분산-실행-multi-instance) Worker 동작의 취소 경로). **park 없이 그 turn 에서 종결되어도 cancel 은 보존된다** — 자연 종결(`completed`/`failed`)은 정본 상태에서의 전이 불가 또는 조건부 UPDATE `affected=0` 으로 무효화되고 종결 이벤트 발행도 함께 skip 된다([node-cancellation §2.4](../conventions/node-cancellation.md)). 일반 경로엔 없음 — [§1.3](#13-블로킹재개-컨트랙트-nodehandleroutput-status) / [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) |
+| failed            | waiting_for_input | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — 재진입한 turn 이 **계속**되는 경우(대화가 끝나지 않아 다음 사용자 입력을 기다림) `reparkAiResumeTurn` 이 세그먼트를 종료하며 park 한다. 이 전이가 없으면 `assertTransition('failed','waiting_for_input')` 이 동기 throw 하고 그 예외 메시지가 `EXECUTION_FAILED` payload 로 노출된다(2026-07-30 ai-review CRITICAL #1 — 동시성 무관, 매 호출 결정적 실패였다). **multi-turn 재진입에서 가장 흔한 경로다.** 이후 재개는 일반 `waiting_for_input → running` 경로(§7.5 원자 claim)로 합류한다 — 즉 opt-in 은 이 한 번의 park 에만 필요하다. 일반 경로엔 없음 |
 
 > **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED`. **재개 진입의 `waiting_for_input → running` claim(§7.5)도 이 원자성에 포함** — 조건부 UPDATE 가 짝 상태(Execution·NodeExecution)를 단일 트랜잭션으로 갱신하고, `affected=0` 이면 어느 쪽도 갱신하지 않는 no-op(ack-and-discard)이며, claim 후 rehydration 프로세스 실패는 `RESUME_*` terminal 로 원자 마감(§7.5)해 `running` 잔류를 남기지 않는다.
 >
@@ -1510,7 +1512,14 @@ R1(위) 의 `execution.retry_last_turn` 이 실제로 실행되는 시점의 상
 
 - retry 는 **새 NodeExecution row 를 spawn** 해 마지막 turn 을 replay 한다 (기존 `failed` row 는 보존). 새 row 의 turn 이 WS `node.started`/`node.completed` 를 발행하려면 Execution 이 `running` 이어야 하므로 §1.1 에 **`failed → running` 단일 전이**를 추가한다.
 - 이 전이는 R2(`waiting_for_retry` 신설 — 기각) 와 무관한 별개 경로이고, `waiting_for_input → running → failed` 재개 흐름과도 다르다 (retry 는 입력 대기 없이 새 row 를 즉시 구동). 일반 노드 실패에 번지지 않도록 state-machine 의 `allowRetryReentry` opt-in 으로만 허용 — `failed` 종결 실행이 일반 `updateExecutionStatus` 경로로 우발 부활하는 것을 차단한다.
-- 재진입 성공 시 Execution 은 `completed`, 재실패 시 `failed`(retryable 재실패면 새 `_retryState` 보존 → 재-retry 가능)로 마감한다. replay 가 RUNNING 으로 도는 도중 도착한 사용자 cancel 은 **진행 중 turn 을 즉시 끊지 않는다**(full B3 — RUNNING replay/resume drive 에는 즉시 깨울 in-memory 코루틴이 없다). 다만 **취소 기록 자체는 즉시**다 — `stop()` 의 RUNNING/PENDING 경로가 조건부 UPDATE 로 `cancelled` 를 커밋하고, replay 는 다음 turn 경계의 `assertExecutionNotCancelled` 에서 이를 관측한다. park 에 도달하면 `cancelParkedExecution` 의 `status = WAITING_FOR_INPUT` 가드가 짝 WAITING NodeExecution 까지 `cancelled` 로 마킹한다.
+- **세 번째 갈래 — 재진입 turn 이 계속되는 경우(2026-07-30 신설).** 재진입한 turn 이 대화를
+  끝내지 않으면 `reparkAiResumeTurn` 이 Execution 을 `waiting_for_input` 으로 park 하고 세그먼트를
+  종료한다. 그래서 `allowRetryReentry` opt-in 은 `failed → running` 뿐 아니라
+  `failed → waiting_for_input` 도 허용해야 한다(§1.1 표). **이 갈래가 multi-turn 재진입에서 가장
+  흔하다** — 그런데 2026-07-30 까지 상태머신·DB 가드 어느 쪽도 이를 허용하지 않아 매 호출
+  동기 throw 했다(ai-review CRITICAL #1). park 이후의 재개는 일반 `waiting_for_input → running`
+  경로(§7.5 원자 claim)로 합류하므로 opt-in 은 그 한 번의 park 에만 필요하다.
+- - 재진입 성공 시 Execution 은 `completed`, 재실패 시 `failed`(retryable 재실패면 새 `_retryState` 보존 → 재-retry 가능)로 마감한다. replay 가 RUNNING 으로 도는 도중 도착한 사용자 cancel 은 **진행 중 turn 을 즉시 끊지 않는다**(full B3 — RUNNING replay/resume drive 에는 즉시 깨울 in-memory 코루틴이 없다). 다만 **취소 기록 자체는 즉시**다 — `stop()` 의 RUNNING/PENDING 경로가 조건부 UPDATE 로 `cancelled` 를 커밋하고, replay 는 다음 turn 경계의 `assertExecutionNotCancelled` 에서 이를 관측한다. park 에 도달하면 `cancelParkedExecution` 의 `status = WAITING_FOR_INPUT` 가드가 짝 WAITING NodeExecution 까지 `cancelled` 로 마킹한다.
 - **park 없이 종결되는 경우에도 cancel 이 우선한다.** 종결 경로가 모두 조건부 UPDATE 를 거치므로(`status IN (비-terminal)`) 이미 `cancelled` 인 행은 `completed`/`failed` 로 덮이지 않고 그 종결 이벤트도 발행되지 않는다. 취소 시각(`finishedAt`/`durationMs`)은 `stop()` 이 쓴 값이 정본으로 보존된다.
 - **옛 서술 철회 (2026-07-28)**: 본 절은 최초 작성(`5e0c5e449`) 당시 "replay 가 park 없이 종결되면 cancel 은 무효과로 흘려보내진다" 고 단언했다. 그것은 당시 구현(무가드 full-entity `save()`)의 사실 서술이었으나, `#1021`(취소 후 하류 dispatch 계속) · `#1022`(엔진 무가드 terminal 쓰기 5경로) · `#1024`(retry-turn 종결 2경로)가 그 동작을 **결함으로 규정하고 차단**했다 — 세 PR 모두 "사용자 Stop 이 지연이 아니라 **소실**된다" 를 수정 사유로 명시했다. 따라서 park 도달 여부는 cancel 의 발효 조건이 아니다. 이 문서가 그 반대를 계약으로 남겨 두면 향후 구현이 가드를 되돌리는 근거로 오인될 수 있어 철회한다.
 

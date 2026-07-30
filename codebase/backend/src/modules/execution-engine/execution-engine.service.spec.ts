@@ -5102,6 +5102,59 @@ describe('ExecutionEngineService', () => {
     });
 
     describe('updateExecutionStatus 누적 (RUNNING 진입/이탈)', () => {
+      // ai-review CRITICAL #1 (2026-07-30, 9차 라운드) — 8R 수정이 처음 도달 가능하게
+      // 만든 "turn 계속 → re-park" 경로(`FAILED → WAITING_FOR_INPUT`)를 **짝 전이
+      // 분기에서 직접** 잠근다. 9R 은 이 경로의 회귀 안전망이 전무하다고 지적했고,
+      // 뮤턴트 D(`reparkAiResumeTurn` 의 opts 전달 제거)가 RED 였던 것은 인자-shape
+      // 단언 덕분일 뿐 **opts 가 DB SQL 가드까지 도달하는지는 아무도 안 봤다**.
+      //
+      // multi-turn continuation 시나리오를 통합으로 구성하려면 핸들러 반환 형태를
+      // 정확히 재현해야 해 비용이 크다(시도했으나 `FOR UPDATE` 잠금에 도달조차
+      // 못했다). 대신 그 경로가 실제로 쓰는 짝 전이를 직접 호출해 잠근다 —
+      // 9R WARNING #6("focused describe 가 새 opts 를 인지하지 못한다")과 같은 취지.
+      it('opt-in 시 짝 전이가 FAILED → WAITING_FOR_INPUT 를 persist 한다 (turn 계속 re-park 경로)', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.FAILED,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const nodeExec = { id: 'ne-repark' } as unknown as NodeExecution;
+        dbExecutionStatus = ExecutionStatus.FAILED;
+
+        const persisted = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.WAITING_FOR_INPUT,
+          nodeExec,
+          { allowRetryReentry: true },
+        );
+
+        expect(persisted).toBe(true);
+        const lockSqls = mockTxManagerQuery.mock.calls
+          .map((c: unknown[]) => String(c[0]))
+          .filter((sql) => sql.includes('FOR UPDATE'));
+        expect(lockSqls.length).toBeGreaterThan(0);
+        expect(lockSqls.some((sql) => sql.includes("'failed'"))).toBe(true);
+      });
+
+      // 대조 — opt-in 이 없으면 FAILED 행은 잠기지 않아야 한다(부활 차단).
+      it('opt-in 없으면 FAILED 행의 짝 전이는 persist 되지 않는다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const nodeExec = { id: 'ne-repark' } as unknown as NodeExecution;
+        dbExecutionStatus = ExecutionStatus.FAILED;
+
+        const persisted = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.WAITING_FOR_INPUT,
+          nodeExec,
+        );
+
+        expect(persisted).toBe(false);
+      });
+
       // ai-review CRITICAL #1 (2026-07-30) — else 분기(linkedNodeExec 없음)의
       // guarded UPDATE 도 retry 재진입 opt-in 시 FAILED 를 포함해야 한다. 포함하지
       // 않으면 `status IN ('pending','running','waiting_for_input')` 이 FAILED 행을

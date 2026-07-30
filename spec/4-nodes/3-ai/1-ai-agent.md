@@ -1301,6 +1301,12 @@ display-only 의 `PRESENTATION_MAX_BYTES = 1MB` 은 `carousel.items` / `table.ro
 
 ### 12.8 `retry_last_turn` 성공 후 downstream graph 진행
 
+> **재진입 turn 이 계속되는 경우**: 아래 서술은 재진입 turn 이 **종결**되는 경우다. turn 이
+> 대화를 끝내지 않으면(multi-turn 에서 가장 흔함) downstream graph 진행이 아니라
+> `waiting_for_input` 으로 **re-park** 하고 세그먼트를 종료한다 — 다음 사용자 입력이 오면 일반
+> 재개 경로로 합류한다. 상태 전이는 [실행 엔진 §1.1](../../5-system/4-execution-engine.md#11-execution-상태)
+> 의 `failed → waiting_for_input`(`allowRetryReentry` opt-in) 행 참조.
+
 본 절은 §7.9 "재진입 종결 후 graph 진행" 단락의 결정 근거다.
 
 **문제**: 초기 구현은 `retry_last_turn` 으로 재진입한 turn 이 성공해도 Execution 을 즉시 `COMPLETED` 로 마감해, 해당 AI 노드의 downstream 으로 연결된 노드 (예: HTTP Request, Send Email) 가 실행되지 않는 갭이 있었다. spec 의 "노드 단위 재시도" 표현이 워크플로 Re-run ([§13](../../5-system/13-replay-rerun.md)) 과의 구분 (Execution 단위 vs 노드 단위) 의도였음에도 일부 독자가 "downstream 도 의도적으로 차단" 으로 오독할 여지가 있었다.
