@@ -488,7 +488,7 @@ reviewer 만 MEDIUM). 처분표대로 5건만 집행하고 나머지는 defer/�
 - [x] **W1(SPEC-DRIFT)** — spec §7.5 대칭 Rationale 이 "복구는 `recoverStuckExecutions`
       백스톱이 담당한다"고 무조건 서술하나, 이 2차 claim 경로는 그 백스톱이 닿지 않는다는
       실측(코드 JSDoc + 위 §코드 표 #15)이 이미 반영됐는데 spec 문구만 낡아 있었다. 코드
-      무수정 — draft `plan/in-progress/spec-update-retry-claim-backstop-gap.md` 신설,
+      무수정 — draft `plan/complete/spec-update-retry-claim-backstop-gap.md` 신설(2026-07-30 반영 완료),
       project-planner 위임(`consistency-check --spec` 대기).
 - [x] **W2(documentation)** — `claimSpawnedRetryRow` JSDoc 내부 자기모순(구 문단 "백스톱이
       담당한다" vs 신규 문단 "백스톱이 닿지 않는다") 정정 — 두 문단이 같은 결론을 가리키게

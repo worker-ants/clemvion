@@ -8,6 +8,7 @@ code:
   - codebase/frontend/src/lib/websocket/ws-client.ts
 pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
+  - plan/in-progress/retry-turn-terminal-guard.md
   - plan/in-progress/exec-intake-followups.md
 ---
 
@@ -881,7 +882,7 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 - **재개 진입 원자 claim** (affected=1): waiting 재개는 `waiting_for_input → running`(`claimResumeEntry`), 재시작 크래시 re-drive(case B)는 `running → running` **`started_at` 조건부 re-claim** — 둘 다 affected=1 인 worker/인스턴스만 진행(§7.5). §1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화.
 - **완료 노드 미재실행** (엔진 보장, exactly-once): 재개/재구동 시 `execution_node_log` + 완료 `NodeExecution.outputData` 로 복원한 `_executedNodes` 로 완료 노드를 skip — 재방문 금지(§7.2c). 추가로 dispatch 직전 대상 NodeExecution 이 이미 COMPLETED 면 skip(per-node DB status 재검증 — in-memory Set 과 중복 defense-in-depth).
 - **RUNNING-at-crash 노드 = at-least-once**: 크래시 시점 아직 COMPLETED 아니던 노드는 재구동 시 **재실행**된다. 그 노드의 외부 side-effect(Integration write: send_email·HTTP POST 등) 발생 여부를 엔진은 알 수 없으므로 **exactly-once 를 보장하지 않는다** — 외부 API 호출 노드(Integration)의 멱등성은 기존 원칙대로 **노드 설정에서 관리**(idempotency key 등). 엔진은 "완료 노드 미재실행"까지만 보장한다. (분산 트랜잭션 없이 무손실 재개를 달성하는 본질적 trade-off — §Rationale.)
-  - **orphan row 마감**: 재실행은 **새 NodeExecution row** 로 수행하므로, 크래시 시점의 옛 `NodeExecution(status=running)` row 는 case B re-drive 진입 시 terminal(`failed`)로 마감한다(`failOrphanRunningNodeExecutions` — 완료 노드는 COMPLETED 라 대상 아님). 옛 stale-fail 모델의 자식 RUNNING cascade 마감을 re-drive 진입 시점으로 옮겨 보존한 것 — 부모 Execution 종결 후 유령 `running` 노드가 타임라인/진행률 집계에 남지 않게 한다.
+  - **orphan row 마감**: 재실행은 **새 NodeExecution row** 로 수행하므로, 크래시 시점의 옛 `NodeExecution(status=running)` row 는 case B re-drive 진입 시 terminal(`failed`)로 마감한다(`failOrphanRunningNodeExecutions` — 완료 노드는 COMPLETED 라 대상 아님). **스코프 주의**: 이 cascade 는 **case B re-drive 진입 시점**에만 돈다 — `retry_last_turn` 2차 claim 이 discard 되며 남는 spawn row 는 Execution 이 이미 `failed`(terminal) 라 이 경로 대상이 아니다(§Rationale "retry 재진입의 원자 claim" 참조). 옛 stale-fail 모델의 자식 RUNNING cascade 마감을 re-drive 진입 시점으로 옮겨 보존한 것 — 부모 Execution 종결 후 유령 `running` 노드가 타임라인/진행률 집계에 남지 않게 한다.
 
 ### 7.4 분산 실행 (Multi-instance)
 
@@ -1384,11 +1385,26 @@ UPDATE node_execution SET input_data = input_data - '_retryState'
 **완료된 턴을 재실행한다** — `inputData` 에 쓰는 지점은 spawn 시점뿐이라 턴이 `completed` 로
 끝나도 이 키가 남기 때문이다(fast-path 상태 체크 통과 후 다른 worker 가 턴을 마치는 창이 실재).
 
-**대가(의도된 트레이드오프)**: 크래시로 중단된 턴의 BullMQ 재배달도 함께 막힌다. 형제
-continuation 4종이 `claimResumeEntry` 로 이미 같은 성질을 수용하고 있으며, 복구는
+**대가(의도된 트레이드오프) — 서술 정정(2026-07-30)**: 크래시로 중단된 턴의 BullMQ 재배달도
+함께 막힌다. 형제 continuation 4종은 `claimResumeEntry` 로 이미 같은 성질을 수용하며, 그 복구는
 `recoverStuckExecutions`(stale RUNNING Execution 재claim, §7.5 case B) 백스톱이 담당한다.
-`retry_last_turn` 만 예외로 두면 "중복 실행 0" 재단언(§7.4 Worker 동시성)이 그 타입에 대해서만
-거짓이 되는데, 그 자기모순이 실제로 2026-07-28 까지 남아 있었다.
+**단 `retry_last_turn` 의 이 2차 claim(`claimSpawnedRetryRow`) 경로는 그 백스톱이 닿지 않는다** —
+claim 실패로 discard 되는 시점에 대상 Execution 은 이미 `failed`(terminal) 로 남아
+`recoverStuckExecutions` 의 재구동 대상(stale RUNNING **Execution**)이 아니기 때문이다(실측 확인).
+그 결과 discard 된 spawn row 자체는 RUNNING orphan 으로 잔류할 수 있다 — **[§7.3](#73-크래시-재개)
+"orphan row 마감" 은 case B re-drive 진입 시의 크래시-시점 구 RUNNING row 를 다루므로 이 경로는
+그 cascade 대상이 아니다**(두 서술은 스코프가 다르며 모순이 아니다). 후속은
+`plan/in-progress/retry-turn-terminal-guard.md` #15.
+
+그래도 discard 가 옳다: 살아있는 작업을 죽이는 것(claim 도입 전 결함)이 이 이론적 orphan row
+보다 항상 더 나쁘다. `retry_last_turn` 만 claim 자체를 예외로 두면(= claim 을 아예 안 만들면)
+"중복 실행 0" 재단언(§7.4 Worker 동시성)이 그 타입에 대해서만 거짓이 되는데, 그 자기모순이
+실제로 2026-07-28 까지 남아 있었다(이는 claim 유무의 문제이고, 위 orphan row 백스톱 갭과는
+별개의 잔여 사안이다).
+
+> 위 문단 첫 문장의 "크래시로 중단된 턴" 범위 자체(프로세스 크래시뿐 아니라 claim~turn 진입
+> 사이 구간의 일반 예외까지 포함되는지)는 **별개로 열려 있다** —
+> `plan/in-progress/retry-turn-terminal-guard.md` #17.
 
 **선행 판정의 스코프**: `plan/complete/exec-intake-queue-impl.md` 의 2026-06-06 PASS 는 이 축을
 검증한 적이 없다 — `claimResumeEntry` 자체가 2026-07-03(`44f956e9c`)에 도입됐으므로 그보다

@@ -549,12 +549,24 @@ full-entity save 다. AI multi-turn 턴 진행 중 사용자가 Stop 을 누르�
 > 명시한다. 리터럴 단일 커밋을 요구하면 developer 세션이 관행을 깨거나 브랜치 내 역할 전환
 > 시점을 별도로 정의해야 하는데, 그 이득이 없다.)
 
-- [ ] `4-execution-engine.md` §4.1 각주 — 현재 crash re-drive 항목에 연결돼 있어
+- [x] `4-execution-engine.md` §4.1 각주 — 현재 crash re-drive 항목에 연결돼 있어
       `retry_last_turn` 전용 근거로 재연결
-- [ ] §7.4 / §8 — 신규 claim 위치 반영 + 각주
-- [ ] §7.5 — "spawn 단계 원자성만으론 불충분한 이유" 대칭 Rationale 항목 신설
-- [ ] `plan/complete/exec-intake-queue-impl.md` 의 2026-06-06 PASS 판정과 현재 CRITICAL 사이의
+- [x] §7.4 / §8 — 신규 claim 위치 반영 + 각주
+- [x] §7.5 — "spawn 단계 원자성만으론 불충분한 이유" 대칭 Rationale 항목 신설
+- [x] `plan/complete/exec-intake-queue-impl.md` 의 2026-06-06 PASS 판정과 현재 CRITICAL 사이의
       간극 기록
+
+### #10 이행 결과 (2026-07-28, `b351731f0`) — `--spec 12_38_59` WARNING #3 정정
+
+위 체크박스 4개는 **이미 `b351731f0` 에서 전부 반영**됐는데 `[ ]` 로 남아 있었다(§4.1 각주 재연결 ·
+§7.4 두 행 · §7.5 대칭 Rationale 신설 · exec-intake PASS 판정 간극 기록 — 전부 diff 확인). stale
+체크박스를 먼저 읽으면 "§7.5 섹션이 아직 없다" 고 착오한다.
+
+추가로 **2026-07-30(`--spec 12_38_59`)** 에 그 §7.5 문단의 백스톱 커버리지 서술을 정정했다 —
+"복구는 `recoverStuckExecutions` 백스톱이 담당한다" 는 무조건 서술이 이 PR 자신의 실측으로
+반증됐다(2차 claim 경로는 닿지 않음). 같은 턴에 §7.3 "orphan row 마감" 에 스코프 각주를 달아
+두 서술이 모순으로 오인되지 않게 했고, frontmatter `pending_plans:` 에
+`retry-turn-terminal-guard.md` 를 역방향 등재했다.
 
 ### 인과는 두 번 틀렸다 — 실측으로 확정한 사실
 
