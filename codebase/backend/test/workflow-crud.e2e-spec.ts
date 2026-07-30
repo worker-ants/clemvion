@@ -23,6 +23,88 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
+/**
+ * C 케이스(duplicate 캔버스 복사) 전용 5노드 그래프 saveCanvas payload.
+ * Manual Trigger → Loop(HTTP 를 container 로 소유) → Agent(Tool 을 toolOwner
+ * 로 소유) — container 축과 toolOwner 축을 다른 노드로 갈라 두면 duplicate()
+ * 의 UUID 재매핑이 두 축을 뒤바꿔도 관측된다. 노드 id 는 UUID 여야 한다 —
+ * SaveCanvasNodeDto 의 containerId/toolOwnerId 가 `@IsUUID()` 라 임시 문자열
+ * id 를 참조로 넘기면 저장이 400 으로 거부된다(프론트엔드도 새 노드에 UUID 를
+ * 발급한다). 반환된 UUID 는 호출부에서 재사용하지 않는다(이후 단언은 전부
+ * export 의 label 기반 index 로 대조).
+ */
+function buildFiveNodeGraphPayload() {
+  const nTrig = randomUUID();
+  const nLoop = randomUUID();
+  const nHttp = randomUUID();
+  const nAgent = randomUUID();
+  const nTool = randomUUID();
+
+  return {
+    nodes: [
+      {
+        id: nTrig,
+        type: 'manual_trigger',
+        category: 'trigger',
+        label: 'Manual Trigger',
+        positionX: 0,
+        positionY: 0,
+      },
+      {
+        id: nLoop,
+        type: 'loop',
+        category: 'logic',
+        label: 'Loop',
+        positionX: 200,
+        positionY: 0,
+      },
+      {
+        id: nHttp,
+        type: 'http_request',
+        category: 'integration',
+        label: 'HTTP',
+        positionX: 240,
+        positionY: 60,
+        config: { url: 'https://example.com', method: 'GET' },
+        containerId: nLoop,
+      },
+      {
+        id: nAgent,
+        type: 'ai_agent',
+        category: 'ai',
+        label: 'Agent',
+        positionX: 400,
+        positionY: 0,
+      },
+      {
+        id: nTool,
+        type: 'http_request',
+        category: 'integration',
+        label: 'Tool',
+        positionX: 440,
+        positionY: 60,
+        toolOwnerId: nAgent,
+      },
+    ],
+    edges: [
+      {
+        sourceNodeId: nTrig,
+        sourcePort: 'out',
+        targetNodeId: nLoop,
+        targetPort: 'in',
+        type: 'data',
+      },
+      {
+        sourceNodeId: nLoop,
+        sourcePort: 'out',
+        targetNodeId: nAgent,
+        targetPort: 'in',
+        type: 'data',
+      },
+    ],
+  };
+}
+
 describe('Workflow CRUD (e2e)', () => {
   let db: Client;
   let ownerToken: string;
@@ -152,85 +234,11 @@ describe('Workflow CRUD (e2e)', () => {
 
     // 복제 대상 그래프를 실제로 만들어 둔다. 빈 캔버스를 복제하면 "노드를 안
     // 옮긴다" 는 회귀가 관측되지 않는다 (본 케이스가 과거 그 상태였다).
-    // Loop 안에 HTTP(container), Agent 의 Tool Area 에 Tool(toolOwner) — 두 참조
-    // 축을 다른 노드로 갈라 재매핑이 뒤바뀌면 드러나게 한다.
-    //
-    // 노드 id 는 UUID 여야 한다 — SaveCanvasNodeDto 의 containerId/toolOwnerId 가
-    // @IsUUID() 라 임시 문자열 id 를 참조로 넘기면 저장이 400 으로 거부된다
-    // (프론트엔드도 새 노드에 UUID 를 발급한다).
-    const nTrig = randomUUID();
-    const nLoop = randomUUID();
-    const nHttp = randomUUID();
-    const nAgent = randomUUID();
-    const nTool = randomUUID();
-
     const save = await request(BASE_URL)
       .post(`/api/workflows/${id}/save`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
-      .send({
-        nodes: [
-          {
-            id: nTrig,
-            type: 'manual_trigger',
-            category: 'trigger',
-            label: 'Manual Trigger',
-            positionX: 0,
-            positionY: 0,
-          },
-          {
-            id: nLoop,
-            type: 'loop',
-            category: 'logic',
-            label: 'Loop',
-            positionX: 200,
-            positionY: 0,
-          },
-          {
-            id: nHttp,
-            type: 'http_request',
-            category: 'integration',
-            label: 'HTTP',
-            positionX: 240,
-            positionY: 60,
-            config: { url: 'https://example.com', method: 'GET' },
-            containerId: nLoop,
-          },
-          {
-            id: nAgent,
-            type: 'ai_agent',
-            category: 'ai',
-            label: 'Agent',
-            positionX: 400,
-            positionY: 0,
-          },
-          {
-            id: nTool,
-            type: 'http_request',
-            category: 'integration',
-            label: 'Tool',
-            positionX: 440,
-            positionY: 60,
-            toolOwnerId: nAgent,
-          },
-        ],
-        edges: [
-          {
-            sourceNodeId: nTrig,
-            sourcePort: 'out',
-            targetNodeId: nLoop,
-            targetPort: 'in',
-            type: 'data',
-          },
-          {
-            sourceNodeId: nLoop,
-            sourcePort: 'out',
-            targetNodeId: nAgent,
-            targetPort: 'in',
-            type: 'data',
-          },
-        ],
-      });
+      .send(buildFiveNodeGraphPayload());
     // 저장이 막히면 이 케이스 전체가 무의미해지므로, 상태 코드만 보지 말고 원인
     // (code/message)을 실패 메시지에 실어 한 번에 진단되게 한다.
     if (save.status >= 400) {
