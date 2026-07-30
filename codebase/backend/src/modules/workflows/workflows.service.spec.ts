@@ -2234,11 +2234,12 @@ describe('WorkflowsService', () => {
   });
 });
 
-// W3c (SUMMARY) — importWorkflow 의 manager.insert 가 @BeforeInsert hook 과
-// cascade 를 건너뛰는 전제를 메타데이터로 고정한다. Node/Edge 엔티티에 hook 또는
-// 관련 cascade 가 추가되면 배치 insert 전제가 깨지므로 이 테스트가 명시 실패해
-// 재검토를 강제한다 (perf #10 주석 "향후 hook 추가 시 배열 save 로 되돌릴 것").
-describe('importWorkflow 전제 — Node/Edge 엔티티 @BeforeInsert 부재·cascade 메타데이터 가드 (W3c)', () => {
+// W3c (SUMMARY) — importWorkflow·duplicate 의 manager.insert 가 @BeforeInsert
+// hook 과 cascade 를 건너뛰는 전제를 메타데이터로 고정한다. Node/Edge 엔티티에
+// hook 또는 관련 cascade 가 추가되면 두 메서드의 배치 insert 전제가 모두 깨지므로
+// 이 테스트가 명시 실패해 재검토를 강제한다 (perf #10 주석 "향후 hook 추가 시
+// 배열 save 로 되돌릴 것").
+describe('importWorkflow·duplicate 전제 — Node/Edge 엔티티 @BeforeInsert 부재·cascade 메타데이터 가드 (W3c)', () => {
   it('Node 엔티티에 @BeforeInsert 리스너가 없다 (배치 insert 안전 전제)', () => {
     // TypeORM 은 엔티티 클래스 prototype 에 ENTITY_LISTENERS_METADATA 를
     // 직접 저장하지 않고 metadata storage 를 통해 조회하는 구조이나,
