@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — 워크플로우 복제가 nodes/edges 를 복사하지 않던 결함 수정
+
+워크플로우 목록의 더보기 메뉴 → **복제**가 workflow 메타 row 만 INSERT 하고 `node`/`edge` 테이블은
+전혀 건드리지 않아 **완전히 빈 워크플로우**가 생성됐다(신규 생성보다도 빈 상태 — Manual Trigger 자동
+생성 경로조차 타지 않는다). 초기 스캐폴딩 이래 손대지 않은 미완성 구현이었다.
+
+1. **캔버스 전체 복제로 재구현**: `duplicate()` 를 트랜잭션으로 감싸 원본 nodes/edges 를 새 UUID로
+   재발급·재매핑해 사본으로 옮긴다(`importWorkflow()` 와 같은 재매핑 형태, import 전용 게이트는
+   공유하지 않음 — 원본은 이미 신뢰된 데이터). 버전 이력·트리거(webhook/schedule)·테스트
+   데이터셋은 승계하지 않는다.
+2. **동시 편집 read skew 차단**: 원본 node/edge 조회 트랜잭션에 `REPEATABLE READ` isolation 을
+   명시해, 복제 도중 동시 캔버스 저장이 끼어들어도 일관된 스냅샷을 읽는다
+   (`executions.service.ts` 의 기존 선례 재사용).
+
+SoT: `spec/data-flow/11-workflow.md` §1.5, `spec/2-navigation/1-workflow-list.md` §2.6. 추적:
+`plan/in-progress/workflow-duplicate-nodes-edges.md`.
+
 ## Unreleased — AI multi-turn resume turn 경계 cancel 가드 + park 짝 전이 lost-update 차단
 
 #1021 의 노드 경계 cancel 가드(§2.3)는 **AI multi-turn 이 turn 마다 park 로 세그먼트를 끝내** 그 경계에 닿지 않는 갭을 남겼다 — turn 진행 중(LLM 호출 수 초~분) 사용자 Stop 이 조용히 무효화됐다.
