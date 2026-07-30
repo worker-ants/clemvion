@@ -115,6 +115,7 @@ describe('AiTurnOrchestrator', () => {
         context: unknown,
         nodeExec: unknown,
         node: Node,
+        opts?: { retryReentry?: boolean },
       ) => Promise<void>;
     };
 
@@ -126,6 +127,40 @@ describe('AiTurnOrchestrator', () => {
       label: 'Agent',
       config: { mode: 'multi_turn' },
     };
+
+    // ai-review CRITICAL #1 (2026-07-30, 10차 라운드) — retry opts→DB가드 **번역
+    // 한 줄**(`opts?.retryReentry ? { allowRetryReentry: true } : undefined`)이 전
+    // 계층에서 무검증이었다. 8R 에서 내가 돌린 뮤턴트는 그 **인자 줄을 통째로 삭제**해
+    // 호출 shape 을 바꿨고, 아래 기존 단언들이 4번째 인자로 `undefined` 를 기대하므로
+    // shape 변화만 잡혔다. 리뷰어의 더 강한 뮤턴트(표현식만 `undefined` 로 치환, shape
+    // 유지)는 4개 spec 593건 전체 GREEN 이었다 — 직접 재현해 확인했다.
+    //
+    // 상태머신 계층과 DB-가드 계층은 각각 고립 테스트로 옳은데 **둘을 잇는 배선이
+    // 끊어져도 아무도 몰랐다.** 이 테스트가 그 배선을 잠근다.
+    it('retryReentry opts 를 받으면 driver 에 allowRetryReentry 를 번역해 전달한다 (10R CRITICAL)', async () => {
+      const savedExecution = {
+        id: executionId,
+        // retry 재진입은 Execution 이 FAILED 인 상태에서 re-park 한다.
+        status: ExecutionStatus.FAILED,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+      const nodeExec = { id: 'ne-1' };
+
+      await (orchestrator as unknown as ReparkSubject).reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+        reparkNode as Node,
+        { retryReentry: true },
+      );
+
+      expect(driver.updateExecutionStatus).toHaveBeenCalledWith(
+        savedExecution,
+        ExecutionStatus.WAITING_FOR_INPUT,
+        nodeExec,
+        { allowRetryReentry: true },
+      );
+    });
 
     it('stageDurableResumeSnapshot + updateExecutionStatus(WAITING_FOR_INPUT) 를 driver 로 위임', async () => {
       const savedExecution = {

@@ -533,3 +533,48 @@ skipped, 신규 2건 포함], frontend 281 files/5751[1 skipped], web-chat 3/48,
 > spec draft(`spec-update-retry-claim-backstop-gap.md`)가 반영되기 전까지 이 plan 의
 > `spec_impact` frontmatter(`spec/5-system/4-execution-engine.md`)는 그대로 유효 — 완료
 > 처리하지 말 것(§코드 표 #1~#19 대부분 여전히 open).
+
+## 10차 라운드 (`review/code/2026/07/30/16_42_36`) — Critical 1 / Warning 10
+
+소스 로직 무변경 라운드(9R 이후 테스트+spec 문서만 변경). Critical 은 **9R C1 의 잔여** —
+내 잠금이 불완전했다.
+
+### CRITICAL #1 — 내 8R mutation 판정이 틀렸다 (수정 완료)
+
+`reparkAiResumeTurn` 의 opts→DB가드 **번역 한 줄**이 전 계층 무검증이었다.
+
+- 내 8R 뮤턴트 D: 인자 줄을 **통째로 삭제** → 호출 shape 이 바뀌어 기존 인자-shape 단언이
+  잡았다. 그래서 "잠겼다" 고 판단했다.
+- 리뷰어 뮤턴트: **표현식만 `undefined` 로 치환**(shape 유지) → 4개 spec 593건 **전체 GREEN**.
+  직접 재현해 확인했다.
+- 교훈: **뮤턴트가 호출 shape 을 바꾸면 shape 단언이 잡아버려 "동작이 잠겼다" 고 오판한다.**
+  동작을 잠그려면 뮤턴트도 shape 을 보존해야 한다. 상태머신 계층과 DB-가드 계층이 각각
+  고립 테스트로 옳은데 **둘을 잇는 배선이 끊어져도 아무도 몰랐다.**
+- 조치: `reparkAiResumeTurn — EngineDriver seam` describe 에 번역 검증 테스트 1건 추가.
+  리뷰어 뮤턴트로 RED 확인(593 GREEN → 1 failed).
+
+### 함께 조치 (저비용)
+
+- **W6(user_guide_sync)** — `run-results.mdx`/`.en.mdx` 에 "재시도 성공 후 대화가 계속되면
+  downstream 대신 새 응답 + 입력 대기로 복귀(실패 아님)" 를 ko/en 동시 보강. 이 PR 이 처음
+  도달 가능하게 만든 경로라 가이드 부재 시 사용자가 실패로 오인한다.
+- **W7(documentation)** — `engine-driver.interface.ts` 의 `tryLockActiveExecutionAndSaveNodeExec`
+  JSDoc 에 신규 `opts.allowRetryReentry` 설명 추가(구현부만 설명하고 계약면은 침묵했다).
+- **W8(documentation)** — 내가 9R spec 편집에서 만든 이중 대시 오타(`- - 재진입 성공 시`) 정정.
+- **W9(documentation)** — CHANGELOG 에 이 PR 체인 3개 축 반영(7R INFO 로 지적된 뒤 3라운드 이월).
+
+### 신규 등재 (defer)
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 20 | **`retryLastTurn` 이 `Execution.status === FAILED` 를 검증하지 않는다.** Execution 이 실제로는 `cancelled` 인데 `_retryState` 가 남은 row 에 retry 하면, 재진입 turn 종료 시 `assertTransition('cancelled', …)` 이 **DB 가드 진입 전에 동기 throw** 해 `assertLinkedTransitionApplied` 의 우아한 정리를 우회하고 spawn row 가 영구 RUNNING 고아로 남는다. `state-machine.spec` W5 는 상태머신이 거부하는지만 보고 그 거부가 호출부에서 우아하게 처리되는지는 안 본다. 근본 조치는 spawn 이전 명시 검증(step 1.5), 방어는 `updateExecutionStatus` 호출을 try/catch 로 감싸 흡수 | **P2** | 10R W5(requirement) |
+| 21 | 상태 전이 허용 여부의 **이중 진실 소스** — `ALLOWED_TRANSITIONS`/`canTransition`(TS) vs SQL allow-list 상수(엔진)가 독립 존재·수동 동기화. **8R CRITICAL 자체가 이 둘의 불일치였고 수정 후에도 구조는 남는다.** DB 가드 SQL 을 상태머신에서 파생 생성하거나 최소 상호 참조 | P2 | 10R W1 |
+| 22 | `{ allowRetryReentry?: boolean }` 인라인 구조적 타입이 **5곳** 중복(이번 diff 가 3곳 신규). `TransitionOptions` 재사용 안 함 — 구조적 타이핑 탓에 필드 추가/rename 시 컴파일러가 나머지 호출부를 강제 검사하지 못해 "일부 계층만 조용히 어긋나는" 이번과 동일 실패 양상이 재발 가능 | P3 | 10R W2 |
+| 23 | `resolveGuardStatusesSql` / `toRetryReentryOpts` 헬퍼 통합 — 3항 선택 로직과 flag→opts 변환이 각각 2곳·4곳 반복 | P3 | 10R W1·9R W3·W5 |
+| 24 | `finalizeAiNode` "RUNNING 유지" 분기(`:1600`)의 opts 전파 무검증 — 현재 호출 그래프상 도달 불가능해 보이는 방어 코드. 도달 불가가 맞다면 JSDoc 에 명시, 도달 가능해지면 isFailed 분기와 대칭으로 테스트 | P3 | 10R W3 |
+| 25 | `applyRetryLastTurn` 통합 describe 에 "turn 계속(re-park)" 시나리오 부재 — 9R 에서 시도했으나 핸들러 반환 shape 을 맞추지 못해 `FOR UPDATE` 잠금 도달조차 실패해 철회했다. **재시도 시 그 shape 문제를 먼저 규명할 것**(반복 소모 방지). 현재 방어선은 짝 전이 focused 테스트 + orchestrator seam 테스트 2단 | P3 | 10R W4 (9R 트레이드오프 명시) |
+
+### 재확인만 (기존 등재)
+
+10R W10(`applyRetryLastTurn` 길이/분기 누적) = #19. 10R INFO 2(orphan RUNNING 백스톱 갭) = #15.
+10R INFO 1(opt-in 이 타입 아닌 관례로만 scope 제한) = #22 와 같은 뿌리.
