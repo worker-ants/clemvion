@@ -478,3 +478,58 @@ TEST WORKFLOW 전량 재통과: lint PASS(49s) · unit PASS(backend 412 suites/8
 skipped], frontend 281 files/5747[1 skipped], web-chat 3/48, channel-web-chat 23 files/409,
 내부 packages 9 suites/218 — 전부 0 실패) · build PASS(Dockerfile 이미지 검증 포함) ·
 e2e PASS(backend jest 46 suites/260 tests + Playwright 51 tests, 전부 0 실패).
+
+## 7차 라운드 (`review/code/2026/07/30/11_41_20`) — resolution-applier 처리 완료
+
+Critical 0 / Warning 9(6R 수정의 정확한 적용을 14명 전원이 확인한 수렴 라운드 — documentation
+reviewer 만 MEDIUM). 처분표대로 5건만 집행하고 나머지는 defer/등재. RESOLUTION:
+`review/code/2026/07/30/11_41_20/RESOLUTION.md`.
+
+- [x] **W1(SPEC-DRIFT)** — spec §7.5 대칭 Rationale 이 "복구는 `recoverStuckExecutions`
+      백스톱이 담당한다"고 무조건 서술하나, 이 2차 claim 경로는 그 백스톱이 닿지 않는다는
+      실측(코드 JSDoc + 위 §코드 표 #15)이 이미 반영됐는데 spec 문구만 낡아 있었다. 코드
+      무수정 — draft `plan/in-progress/spec-update-retry-claim-backstop-gap.md` 신설,
+      project-planner 위임(`consistency-check --spec` 대기).
+- [x] **W2(documentation)** — `claimSpawnedRetryRow` JSDoc 내부 자기모순(구 문단 "백스톱이
+      담당한다" vs 신규 문단 "백스톱이 닿지 않는다") 정정 — 두 문단이 같은 결론을 가리키게
+      함(`7a05c6ec8`).
+- [x] **W3(architecture/documentation)** — 재진입 절차 JSDoc 2곳(`:122-123`,`:272-273`)이
+      이미 제거된 `runAiConversationLoop` 를 여전히 협력 컴포넌트로 서술하던 stale 참조를
+      `processAiResumeTurn`/`PARK_RELEASED` re-park 흐름으로 정정(`7a05c6ec8`). 6R "조치하지
+      않음" 목록의 W10 과 동일 건 — 이번 라운드에 해소.
+- [x] **W4(testing/requirement)** — claim 성공(`affected:1`) + in-memory `_retryState` 부재
+      "이론상 도달 불가능" 방어 분기가 어떤 테스트로도 안 잠겨 있던 갭. mutation 사전검증
+      (블록 삭제 → 신규 테스트 RED, 원복 → 43/43 GREEN) 후 회귀 테스트 추가(`886ca9395`).
+- [x] **W6(side_effect)** — claim 직후로 앞당겨진 `delete` 가 `NODE_STARTED` emit 의 `input`
+      payload 도 조용히 바꾼(`_retryState` 미포함) 사실을 JSDoc 에 명시 + 회귀 테스트 추가
+      (mutation 사전검증: delete 비활성화 → 신규 테스트 + 기존 (d)/(e) 동반 RED)(`7a05c6ec8`,
+      `886ca9395`).
+- **W5(architecture, defer)** — claim↔in-memory 동기화 불변식이 타입/캡슐화가 아니라 프로즈
+  관례에만 의존. §코드 표 **#18**(P2, 신규)로 등재 — 구조 변경이라 범위 밖.
+- **W7(maintainability, defer)** — `claimAndSyncRetryState` 추출. §코드 표 **#19**(P3, 신규)
+  로 등재.
+- **W8(maintainability, defer)** — not-found 2블록 `markSpawnedRowFailed` 중복 — §코드 표
+  **#9**(1R W3 = 5R W5)와 동일 건, "7R 재지적" 만 덧붙임(신규 등재 없음).
+- **W9(dependency, 선택 허용분만 집행)** — typeorm 0.3.30 인용 주석을 "이후 patch 버전에서도
+  유지하는 버전-불문 방어" 로 다듬음(`7a05c6ec8`). 체크리스트 신설은 지시대로 하지 않음.
+- INFO 20건 — 조치 없음(지시 범위 밖).
+
+### 검증
+
+- W4 mutation: 방어 분기(`if (!retryState) {...}`) 블록 삭제 → 신규 테스트 RED
+  (`row.status`: expected `running`, received `failed`) → `cp` 원복(diff 없음 확인) → 43/43
+  GREEN 재확인.
+- W6 mutation: `delete spawnedRow.inputData[RETRY_STATE_KEY]` 비활성화 → 신규 테스트 +
+  기존 CRITICAL#2 회귀 테스트 (d)/(e) 동반 RED(payload/inputData 에 `_retryState` 잔존 관측)
+  → `cp` 원복(diff 없음 확인) → 43/43 GREEN 재확인.
+- 두 mutation 모두 사전 `grep -c` 로 치환 앵커 매칭 건수 1건 확인 후 적용.
+
+TEST WORKFLOW 전량 재통과: lint PASS(45s) · unit PASS(backend 412 suites/8338 tests[1
+skipped, 신규 2건 포함], frontend 281 files/5751[1 skipped], web-chat 3/48, channel-web-chat
+23 files/409, 내부 packages 9 suites/218 — 전부 0 실패) · build PASS(123s, Dockerfile 이미지
+검증 포함) · e2e PASS(260s, backend jest 46 suites/260 tests + Playwright 51 tests, 전부 0
+실패).
+
+> spec draft(`spec-update-retry-claim-backstop-gap.md`)가 반영되기 전까지 이 plan 의
+> `spec_impact` frontmatter(`spec/5-system/4-execution-engine.md`)는 그대로 유효 — 완료
+> 처리하지 말 것(§코드 표 #1~#19 대부분 여전히 open).
