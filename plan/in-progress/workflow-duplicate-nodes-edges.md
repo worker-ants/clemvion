@@ -116,16 +116,22 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       두 번째 기각 대안 라벨 명시(I2).
 - [ ] **완료 시 동기화** — 본 plan 이 `plan/complete/` 로 이동하면 `spec/2-navigation/1-workflow-list.md`
       의 `pending_plans:` 경로도 함께 치환 (`spec-pending-plan-existence.test.ts`)
-- [ ] `duplicate()` 를 트랜잭션 + nodes/edges 복사로 재구현 (참조 재매핑 포함)
-- [ ] `@ApiOperation` description 갱신 — 부수효과(캔버스 전체 복제 + UUID 재매핑)를 명시
+- [x] `duplicate()` 를 트랜잭션 + nodes/edges 복사로 재구현 (참조 재매핑 포함) — `13b818ec5`
+- [x] `@ApiOperation` description 갱신 — 부수효과(캔버스 전체 복제 + UUID 재매핑)를 명시
       (`spec/conventions/swagger.md §3`, consistency INFO #5)
-- [ ] unit: 노드·엣지 개수 / `container_id`·`tool_owner_id` 재매핑 / 엣지 endpoint 재매핑 / 원본 불변 단언
-- [ ] unit: **복제 범위 밖 단언** — `workflow_version`·`trigger`·`workflow_test_dataset` row 를 만들지
-      않는다 (consistency INFO #1)
-- [ ] e2e `workflow-crud.e2e-spec.ts` C 케이스 보강 — **원본에 캔버스를 저장한 뒤** 복제하고 노드·엣지
-      개수와 참조 무결성을 단언 (현재는 빈 캔버스를 복제해 결함을 관측할 수 없다)
-- [ ] TEST WORKFLOW (unit → integration → e2e)
+- [x] unit: 노드·엣지 개수 / `container_id`·`tool_owner_id` 재매핑 / 엣지 endpoint 재매핑 / 원본 불변 단언
+      — 11건 추가. RED(8 fail) → GREEN 확인.
+- [x] unit: **복제 범위 밖 단언** — 버전 스냅샷 미생성(`createVersion` 미호출) + `currentVersion`
+      비승계 (consistency INFO #1). `trigger`/`workflow_test_dataset` 은 duplicate 가 해당 리포지토리를
+      주입받지도 않아 unit 에서 관측할 표면이 없다 → e2e 의 `workflow_version` row 0건 단언으로 대체.
+- [x] e2e `workflow-crud.e2e-spec.ts` C 케이스 보강 — 5노드 2엣지 그래프를 저장한 뒤 복제하고
+      export 로 참조 무결성 대조 + 원본/사본 노드 UUID 비중첩 + 버전 row 0건 단언.
+      **첫 실행에서 saveCanvas 400 으로 실패** — `containerId`/`toolOwnerId` 가 `@IsUUID()` 라
+      임시 문자열 id 를 참조로 넘길 수 없었다. 노드 id 를 `randomUUID()` 로 교정.
+- [x] TEST WORKFLOW — lint PASS(53s) · unit PASS(backend 412 suites) · build PASS(177s) ·
+      e2e PASS(260 tests, 309s)
 - [ ] `/ai-review` + Critical/Warning fix
+- [ ] `/consistency-check --impl-done` (spec `code:` 연결 코드 변경 → SPEC-CONSISTENCY 게이트)
 
 ---
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'node:crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -153,6 +154,16 @@ describe('Workflow CRUD (e2e)', () => {
     // 옮긴다" 는 회귀가 관측되지 않는다 (본 케이스가 과거 그 상태였다).
     // Loop 안에 HTTP(container), Agent 의 Tool Area 에 Tool(toolOwner) — 두 참조
     // 축을 다른 노드로 갈라 재매핑이 뒤바뀌면 드러나게 한다.
+    //
+    // 노드 id 는 UUID 여야 한다 — SaveCanvasNodeDto 의 containerId/toolOwnerId 가
+    // @IsUUID() 라 임시 문자열 id 를 참조로 넘기면 저장이 400 으로 거부된다
+    // (프론트엔드도 새 노드에 UUID 를 발급한다).
+    const nTrig = randomUUID();
+    const nLoop = randomUUID();
+    const nHttp = randomUUID();
+    const nAgent = randomUUID();
+    const nTool = randomUUID();
+
     const save = await request(BASE_URL)
       .post(`/api/workflows/${id}/save`)
       .set('Authorization', `Bearer ${ownerToken}`)
@@ -160,7 +171,7 @@ describe('Workflow CRUD (e2e)', () => {
       .send({
         nodes: [
           {
-            id: 'c-trig',
+            id: nTrig,
             type: 'manual_trigger',
             category: 'trigger',
             label: 'Manual Trigger',
@@ -168,7 +179,7 @@ describe('Workflow CRUD (e2e)', () => {
             positionY: 0,
           },
           {
-            id: 'c-loop',
+            id: nLoop,
             type: 'loop',
             category: 'logic',
             label: 'Loop',
@@ -176,17 +187,17 @@ describe('Workflow CRUD (e2e)', () => {
             positionY: 0,
           },
           {
-            id: 'c-http',
+            id: nHttp,
             type: 'http_request',
             category: 'integration',
             label: 'HTTP',
             positionX: 240,
             positionY: 60,
             config: { url: 'https://example.com', method: 'GET' },
-            containerId: 'c-loop',
+            containerId: nLoop,
           },
           {
-            id: 'c-agent',
+            id: nAgent,
             type: 'ai_agent',
             category: 'ai',
             label: 'Agent',
@@ -194,32 +205,39 @@ describe('Workflow CRUD (e2e)', () => {
             positionY: 0,
           },
           {
-            id: 'c-tool',
+            id: nTool,
             type: 'http_request',
             category: 'integration',
             label: 'Tool',
             positionX: 440,
             positionY: 60,
-            toolOwnerId: 'c-agent',
+            toolOwnerId: nAgent,
           },
         ],
         edges: [
           {
-            sourceNodeId: 'c-trig',
+            sourceNodeId: nTrig,
             sourcePort: 'out',
-            targetNodeId: 'c-loop',
+            targetNodeId: nLoop,
             targetPort: 'in',
             type: 'data',
           },
           {
-            sourceNodeId: 'c-loop',
+            sourceNodeId: nLoop,
             sourcePort: 'out',
-            targetNodeId: 'c-agent',
+            targetNodeId: nAgent,
             targetPort: 'in',
             type: 'data',
           },
         ],
       });
+    // 저장이 막히면 이 케이스 전체가 무의미해지므로, 상태 코드만 보지 말고 원인
+    // (code/message)을 실패 메시지에 실어 한 번에 진단되게 한다.
+    if (save.status >= 400) {
+      throw new Error(
+        `saveCanvas ${save.status}: ${JSON.stringify(save.body)}`,
+      );
+    }
     expect([200, 201]).toContain(save.status);
 
     const dup = await request(BASE_URL)
