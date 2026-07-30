@@ -556,6 +556,19 @@ describe('WorkflowsService', () => {
       expect(mockWorkflowVersionsService.createVersion).not.toHaveBeenCalled();
     });
 
+    // 2차 리뷰 INFO #2 — isolation 인자가 실수로 빠져도 어떤 테스트도 잡지 못하던
+    // 사각지대를 닫는다. mock 어댑터가 `args.find(typeof === 'function')` 로
+    // variadic 을 흡수하므로, 인자를 지우면 콜백은 그대로 돌아 나머지 단언은 전부
+    // GREEN 인 채 이 단언만 RED 가 된다 (동작 단언으로는 관측 불가한 축).
+    it('두 SELECT 를 한 스냅샷에 묶기 위해 REPEATABLE READ 로 트랜잭션을 연다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      expect(mockDataSource.transaction).toHaveBeenCalledWith(
+        'REPEATABLE READ',
+        expect.any(Function),
+      );
+    });
+
     it('전체 노드를 새 UUID 로 배치 insert 하고 사본 workflowId 를 붙인다', async () => {
       await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
 

@@ -52,8 +52,16 @@ write-write 충돌)이 발생하지 않는다. 따라서 선례와 동일하게 
 를 호출하는 시점부터만 정상화되고, 그 전까지는 아무도 재설정하지 않는다.)
 
 임시 계측을 제거한 뒤 `saveCanvas` describe 자체의 `beforeEach` 에 `mockTransactionManager.find`/`.save`
-명시적 재설정을 추가했다. 반영 후 76/76(→137/137, WARNING #5 fixture 포함 후) 그대로 통과 — 오염이
-현재 시점엔 단언 loose 로 인해 실패로 드러나지 않던 landmine 이었을 뿐, 실질 회귀는 없었다.
+명시적 재설정을 추가했다. 반영 후 그대로 통과 — 오염이 현재 시점엔 단언 loose 로 인해 실패로
+드러나지 않던 landmine 이었을 뿐, 실질 회귀는 없었다.
+
+> **수치 정정 (2차 리뷰 `review/code/2026/07/30/19_06_10` WARNING #1)**: 최초 작성 시 여기와 아래
+> §TEST 결과에 적은 "`workflows.service.spec.ts` 단독 137/137" 은 틀렸다. 재실측 결과 —
+> `npx jest src/modules/workflows/workflows.service.spec.ts` **단독은 77/77**(1 suite)이고,
+> **137/137 은 `src/modules/workflows` 접두 5개 스펙 합산**(workflows.service / workflows.controller /
+> workflow-dto-validation / workflow-channel-authorizer / workflow-ownership.util)이다. 두 수치 모두
+> 전부 GREEN 이라 테스트 결과 자체는 바뀌지 않지만, 스코프를 잘못 붙인 서술이었다. 같은 오류가 커밋
+> 메시지 `e6c6322f4` 에도 전파돼 있다 (커밋 히스토리는 재작성하지 않고 본 노트로 정정을 고정한다).
 
 ### WARNING #5 mutation 증명 (vacuous 아님)
 
@@ -73,7 +81,7 @@ write-write 충돌)이 발생하지 않는다. 따라서 선례와 동일하게 
   기존 101건의 warning(우리 diff 밖 파일)은 손대지 않음 — 요청 범위 아님.
 - unit  : 통과 — backend 412 suites · frontend 281 test files · web-chat 3 suites ·
   channel-web-chat 23 test files · internal packages(6개) 전부. `workflows.service.spec.ts`
-  단독 137/137.
+  **단독 77/77**, `src/modules/workflows` 접두 5개 스펙 **합산 137/137** (위 수치 정정 노트 참조).
 - build : 통과 — backend/frontend/web-chat/channel-web-chat 빌드 + internal packages tsc +
   docker 이미지 빌드(backend/frontend) + backend 프로덕션 이미지 위생 스모크.
 - e2e   : 통과 — backend Jest e2e 260/260(310s) + playwright frontend e2e 51/51(54.6s),

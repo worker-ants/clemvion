@@ -138,8 +138,13 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
 - [x] `/consistency-check --impl-done spec/data-flow/` — **BLOCK: NO**, Critical 0 · Warning 1 · INFO 2
       (`review/consistency/2026/07/30/19_03_37/SUMMARY.md`). Warning 은 **본 PR 무관한 사전 존재
       drift** 라 아래 후속으로 분리했다.
-- [ ] fresh `/ai-review` — resolution-applier 의 fix 5파일이 원 리뷰(17_54_27) 이후 변경이라
-      review-guard 가 stale 판정. 그 fix 를 대상으로 한 라운드 추가 (`review/code/2026/07/30/19_06_10/`)
+- [x] fresh `/ai-review` — resolution-applier 의 fix 5파일이 원 리뷰(17_54_27) 이후 변경이라
+      review-guard 가 stale 판정. 2차 라운드(`review/code/2026/07/30/19_06_10/`) 결과
+      **Critical 0 · Warning 1 · INFO 17**, 위험도 LOW. 유일한 Warning 이 코드가 아니라 1차
+      RESOLUTION.md 의 테스트 수치 서술 오류(단독 77/77 을 137/137 로 오기)였다 — **fix 자체에서
+      새로 나온 코드 결함 0건**. 수치 정정 + INFO #2(REPEATABLE READ 단언, mutation 으로 non-vacuous
+      증명) 조치 후 TEST WORKFLOW 재통과. 발견의 성격이 동작→구조→문서로 내려와 수렴 처리.
+      상세: `review/code/2026/07/30/19_06_10/RESOLUTION.md`
 
 ---
 
