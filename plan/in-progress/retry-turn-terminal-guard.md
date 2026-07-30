@@ -83,10 +83,12 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] PR 머지 — [#1024](https://github.com/worker-ants/clemvion/pull/1024), `771801e3e` (2026-07-28)
 
 > 🚫 **`complete/` 로 옮기지 말 것** — 코드 측은 머지됐고 **spec 위임(#8)도 2026-07-28 반영
-> 완료**(`spec-update-node-cancellation-shutdown-classification.md` #8 → 이행 완료)지만,
-> §5차 라운드 이후 위생 정리의 **통합 후속 목록 P1(`applyRetryLastTurn` 원자 claim)** 이
-> 열려 있어 여전히 시기상조다. `spec_impact` 는 그대로 유지한다 — spec 이 이 위임으로
-> 정정됐으므로 완료 시점에 Gate C(`spec-plan-completion.test.ts`)가 참조할 값으로 유효하다.
+> 완료**(`spec-update-node-cancellation-shutdown-classification.md` #8 → 이행 완료).
+> §5차 라운드 이후 위생 정리의 **통합 후속 목록 P1(`applyRetryLastTurn` 원자 claim)** 은
+> `b351731f0` 로 코드화된 뒤 6R 에서 삽입 위치 결함 2건까지 발견·수정 완료됐으나, P2/P3
+> 항목(#2~#17)이 다수 열려 있어 여전히 시기상조다. `spec_impact` 는 그대로 유지한다 — spec
+> 이 이 위임으로 정정됐으므로 완료 시점에 Gate C(`spec-plan-completion.test.ts`)가 참조할
+> 값으로 유효하다.
 
 ## ai-review 결과 (2026-07-27, `review/code/2026/07/27/21_07_03`)
 
@@ -321,9 +323,9 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 
 | # | 항목 | 우선 | 근거 라운드 |
 |---|---|---|---|
-| 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 (`retryLastTurn` 의 조건부 UPDATE + `affected` 패턴 재사용). 회귀 테스트: "claim 0행 → ack-and-discard, `rehydrateContext`/`processAiResumeTurn` 미호출" | **P1** | 1R W1 → 5R **CRITICAL 승격** |
+| 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 — **구현 완료** `b351731f0`. 단 claim **삽입 위치** 결함 2건(CRITICAL#1: "손상 판정" 이 claim 보다 앞에 있어 살아있는 delivery 오판·FAILED 오마킹, CRITICAL#2: claim 성공 후 not-found 분기의 stale full-entity `save()` 가 claim 이 지운 `_retryState` 를 TypeORM jsonb diff 로 부활)이 후속 ai-review 에서 발견돼 **6R 에서 수정 완료** | **P1 완료** | 1R W1 → 5R **CRITICAL 승격** → 코드화 `b351731f0` → 6R 결함 발견·수정 |
 | 2 | `EXECUTION_CANCELLED` payload 에 spec §4.1 필수 `cancelledBy` 추가 (`emitCancellationEvent` 재사용). `retry-turn.service.spec.ts` 의 deep-equality 단언 동반 갱신 | P2 | 5R W1 (+ impl-done cross_spec 독립 확인) |
-| 3 | `retryLastTurn` atomic-consume SQL(JSONB `-` + `jsonb_exists`) 검증 — unit·e2e 어느 계층에도 없음 | P2 | 5R W6 |
+| 3 | atomic-consume SQL(JSONB `-` + `jsonb_exists`) 실 Postgres 검증 — unit·e2e 어느 계층에도 없음. **6R 이후 범위 확장**: `retryLastTurn` 의 원본 claim 뿐 아니라 `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 도 동일 갭 — mock 이 SQL 조건을 평가하지 않아 실 DB 의 `jsonb_exists`/`status` 매칭 결과(동시 UPDATE 상황의 정확한 1/0 반환)를 검증하지 못한다 | P2 | 5R W6 → 6R W7 |
 | 4 | COALESCE 경로 실 DB e2e — 신규 패턴이고 현재 근거는 TypeORM 소스 정적 확인뿐 | P2 | 5R (RESOLUTION 한계 명시) |
 | 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |
 | 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
@@ -335,6 +337,9 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 | 12 | 멱등 분기 회고 주석 약 40줄 정리 (실제 제어흐름 6~7줄) | P3 | 5R W4 |
 | 13 | 테스트 `createQueryBuilder` mock 팩토리 통합 (6곳) | P3 | 4R W6 = 5R |
 | 14 | 멱등 분기의 driver choke point 우회 흡수 — self-transition capability 승격. `emitTerminalExecutionMetrics` 미경유도 함께 | P3 | 4R W2 = 5R W2 |
+| 15 | **(6R 신규)** 백스톱 갭 — claim 실패 discard 후 spawn row 가 RUNNING orphan 으로 영구 잔류 가능. 실측: `failOrphanRunningNodeExecutions` 는 `recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만 호출되는데, discard 후 Execution 은 이미 `failed`(terminal) 로 남아 그 경로 대상이 아니다. 트레이드오프상 discard 가 옳지만(활성 작업을 죽이지 않음) orphan row 자체(타임라인/진행률 집계 오염)는 별도 백스톱이 없다 | P2 | 6R developer 실측 (`claimSpawnedRetryRow` JSDoc 인용) |
+| 16 | `continuation-execution.processor.ts` 의 claim 대상 제외 목록(`type !== 'retry_last_turn'`)이 여전히 프로즈 주석으로만 `applyRetryLastTurn` 자체 claim 존재에 의존 — 타입/공유 상수 레벨 강제 없음(같은 결합이 5R 이전 CRITICAL 로 1회 이미 깨진 이력) | P3 | 6R side_effect/architecture WARNING #2 (구조 변경, defer) |
+| 17 | claim ~ try 진입 전 구간(Promise.all/rehydrateContext/buildRetryReentryState/setNodeOutput/emitNode)의 "크래시 트레이드오프" 서술 범위가 이번 claim 전진 배치로 넓어짐(프로세스 크래시뿐 아니라 이 구간의 일반 예외까지 동일 적용) — Critical#1 수정으로 범위가 확정된 뒤 재평가 필요. `recoverStuckExecutions` 가 이 특유 spawn-row 시나리오까지 실제로 복구하는지도 미검증 | P3 | 6R side_effect WARNING #4 |
 
 ### spec — project-planner 위임
 
@@ -371,3 +376,98 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 > 예산을 선점")을 이미 기록하고 있었다. 등재 전에 harness 백로그를 확인하지 않은 실수다.
 > 새로 얻은 진단(사전순 정렬로 두 자리 번호가 한 자리를 앞선다)만 그쪽으로 옮기고 별도
 > 파일은 폐기했다.
+
+## 6차 라운드 (`review/code/2026/07/28/20_32_57`) — 원자 claim **삽입 위치** 결함 2건, 발견·수정 완료
+
+5R 이 CRITICAL 로 승격했던 §5차 라운드 이후 위생 정리 P1 항목(원자 claim 전환)이
+`b351731f0` 로 코드화됐다. 이 커밋을 대상으로 한 후속 ai-review(전 14명 reviewer, forced
+화이트리스트 전원 포함)가 **claim 자체의 SQL/설계는 견고하나 삽입 위치 때문에 이 PR 이
+없애려는 결함 클래스가 두 경로로 재도입**됐음을 발견했다. RESOLUTION:
+`review/code/2026/07/28/20_32_57/RESOLUTION.md`.
+
+### CRITICAL #1 (architecture/concurrency/requirement, 3개 reviewer 독립 수렴) — 수정
+
+신규 claim(당시 `:310-339`)보다 **먼저** 실행되는 기존 "`_retryState` 부재 → 무조건 FAILED"
+판정(`:293-308`, 이 diff 가 손질하지 않은 pre-existing 코드)이 claim 이 정상적으로 만들어내는
+상태("다른 delivery 가 이미 claim 해 `_retryState` 는 사라졌지만 `status` 는 여전히
+RUNNING")를 "복구 불가능한 손상"과 구분하지 못해, **아직 처리 중인 살아있는 row 를 즉시
+FAILED 로 덮어썼다.** concurrency reviewer 는 진짜 동시성 없이도 BullMQ 기본
+`attempts` 재시도만으로 결정적 재현이 가능함을 코드 경로로 논증했다(claim 성공 후 try 진입
+전 구간이 try/catch 밖이라, 거기서 일시 예외 → 재배달 → fresh 조회가 이미 지워진
+`_retryState` 를 관측 → 원래 회복 가능했을 일시 오류가 영구 FAILED 로 오확정).
+
+**수정**: claim 을 `_retryState` 부재 판정보다 앞으로 이동 + 그 판정 분기 자체를 삭제하고
+claim 실패(`affected!==1`)를 원인 구분 없이 항상 ack-and-discard 로 통일
+(`retry-turn.service.ts` `applyRetryLastTurn`). `jsonb_exists` 조건이 "이미 소비됨" 과
+"한 번도 seed 안 된 진짜 corruption"(구조적으로 발생하지 않음 — `retryLastTurn` 이 항상
+seed) 을 모두 흡수하므로 별도 종결 분기가 불필요했다. W6 동반: claim 블록을
+`claimSpawnedRetryRow` private 메서드로 추출.
+
+**백스톱 갭(리뷰어 제안과 다름, 실측으로 확정 — 위 §코드 표 #15 신규 등재)**: 리뷰어는
+"진짜 corruption 방어는 `recoverStuckExecutions` 류 backstop 에 위임" 하라 했으나, 실측
+결과 그 백스톱은 이 케이스에 닿지 않는다 — `failOrphanRunningNodeExecutions` 는
+`recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만 호출되는데,
+discard 후 Execution 은 이미 `failed`(terminal) 라 재구동 대상이 아니다. 그래도 discard 가
+옳다: 살아있는 작업을 죽이는 것(이전 코드)이 이론적 orphan row(discard) 보다 항상 더
+나쁘다.
+
+### CRITICAL #2 (side_effect) — 수정
+
+claim 은 DB `input_data` 에서만 `_retryState` 를 원자 제거하고 in-memory `spawnedRow` 는
+그대로였다. claim 성공 후 execution/node not-found 분기가 `save(spawnedRow)`(full-entity)
+를 호출하면, TypeORM 0.3.30 의 jsonb diff 가 DB 를 재-SELECT 해 stale in-memory(키 있음)와
+비교하고 옛 값을 다시 써 **claim 이 지운 `_retryState` 를 부활**시킨다 — 결과는
+`status=FAILED` 인데 `_retryState` 가 살아있는 모순 row. mock 기반 유닛 테스트로는 이
+Postgres 재-SELECT 상호작용을 구조적으로 검출할 수 없다(리뷰어 지적, 실측으로 확인).
+
+**수정**: claim 성공 직후 `delete spawnedRow.inputData[RETRY_STATE_KEY]` 한 줄로 in-memory
+를 DB 와 동기화 — 이 메서드의 모든 하위 `save(spawnedRow)` 호출을 함께 보호한다.
+
+### 함께 조치 (저비용)
+
+- **W1(requirement/concurrency)** — 회귀 테스트 2건: (i) 최초 조회부터 이미 다른 delivery
+  가 claim 한 상태(status:RUNNING + `_retryState` 없음) → discard, save() 미호출, (ii) claim
+  성공 후 try 진입 전 예외 → FAILED 미마킹 + 재배달 시뮬레이션까지 안전 확인.
+- **W3(architecture/maintainability)** — `RETRY_STATE_KEY` 상수화, raw SQL 리터럴 4곳(신규
+  2 + 기존 2) + TS 프로퍼티 접근 통합.
+- **W8(testing)** — `execution-engine.service.spec.ts` 통합 레벨에 claim 실패(affected=0)
+  케이스 신규 추가(기존엔 그 레이어가 이 분기를 한 번도 실행하지 않았음) + "missing
+  _retryState" 케이스를 discard 로 갱신.
+- **W9(documentation)** — 클래스 docstring "책임" 문단 + `applyRetryLastTurn` "재진입 절차"
+  목록에 2차 claim 단계 반영.
+
+### 조치하지 않음 (defer, plan 등재 — 위 §코드 표 #16·#17 신규)
+
+- **W2(architecture)** — `continuation-execution.processor.ts` 의 claim 제외 목록이 여전히
+  프로즈 주석으로만 `applyRetryLastTurn` 자체 claim 존재에 의존. 타입/공유 상수 강제는
+  구조 변경이라 이 턴 범위 밖(§코드 표 #16).
+- **W4(side_effect)** — claim 전진 배치로 "크래시 트레이드오프" 실제 적용 범위(일반 예외
+  포함)가 서술보다 넓어짐. Critical#1 수정으로 범위가 확정된 뒤 재평가 대상(§코드 표 #17).
+- **W5(scope)** — 무관 plan 문서 편집 2건이 이미 `b351731f0` 에 같은 커밋으로 포함됨.
+  되돌리지 않음, 기록만.
+- **W7(testing/database)** — 실 Postgres 기반 동시성 e2e 부재. 기존 §코드 표 #3 범위를
+  `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 까지 확장(위 표 갱신 완료).
+- **W10·W11·W12(documentation)** — 처분표 범위 밖으로 명시 지정돼 이번 라운드에서
+  건드리지 않음(`runAiConversationLoop` stale 참조, `ContinuationExecutionProcessor`
+  "처리 흐름" stale 서술, CHANGELOG.md 미갱신). 다음 문서-정리 턴으로 이월.
+
+### 검증
+
+**mutation 5/5 RED** (`retry-turn.service.ts` 대상, 원복은 `cp` 절대경로 — 사전 저장한
+fixed 스냅샷과 diff 없음 확인):
+
+| 뮤턴트 | 대상 가드 | 결과 |
+|---|---|---|
+| (a) claim 을 손상 판정 뒤로 되돌림(pre-fix 전체 복원, `b351731f0` 원본) | Critical#1 순서 자체 | RED (retry-turn.service.spec.ts 4건 + execution-engine.service.spec.ts 1건) |
+| (b) in-memory `delete _retryState` 제거 | Critical#2 | RED ((d)/(e) 2건) |
+| (c) claim 실패 시 discard 대신 FAILED save | claim 실패 discard 불변식 | RED ((b2)/(c)/재배달 테스트 3건) |
+| (d) `status = :running` 조건 제거 | claim SQL status CAS | RED ((b3) 1건) |
+| (e) `jsonb_exists(...)` 조건 제거 | claim SQL 레이스 결정자 | RED ((b3) 1건) |
+
+각 뮤턴트는 사전 `grep -c` 로 치환 앵커 매칭 건수 1건을 확인한 뒤 적용했다(이 파일 5R
+RESOLUTION 이 명시한 "들여쓰기만 다른 부분문자열 비유일 매칭" 함정 재발 방지).
+
+TEST WORKFLOW 전량 재통과: lint PASS(49s) · unit PASS(backend 412 suites/8336 tests[1
+skipped], frontend 281 files/5747[1 skipped], web-chat 3/48, channel-web-chat 23 files/409,
+내부 packages 9 suites/218 — 전부 0 실패) · build PASS(Dockerfile 이미지 검증 포함) ·
+e2e PASS(backend jest 46 suites/260 tests + Playwright 51 tests, 전부 0 실패).

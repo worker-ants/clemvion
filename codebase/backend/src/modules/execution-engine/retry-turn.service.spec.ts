@@ -433,17 +433,79 @@ describe('RetryTurnService', () => {
       expect(andWhereSql).toMatch(/jsonb_exists\(input_data, '_retryState'\)/);
     });
 
-    it('(c) marks spawned row FAILED when _retryState is missing in inputData', async () => {
+    // ai-review CRITICAL #1 회귀 (2026-07-28, `review/code/2026/07/28/20_32_57`,
+    // W1 (i)) — 과거엔 이 케이스("최초 findOneBy 가 이미 다른 delivery 에게 claim
+    // 당한 흔적(status:RUNNING + _retryState 없음)을 반환")를 "손상"으로 오판해
+    // FAILED 로 무가드 덮어썼다. 실제로는 다른/이전 delivery 가 이미 claim 해
+    // 지운 것일 뿐이므로, 이 delivery 는 claim 실패(affected=0 — 실 Postgres 라면
+    // `jsonb_exists` 불일치)로 discard 해야 한다 — 살아있을 수도 있는 row 를
+    // 죽이지 않는다.
+    it('(c) findOneBy 가 처음부터 status:RUNNING + _retryState 없음(이미 다른 delivery 가 claim)을 반환하면 discard 하고 save() 를 호출하지 않는다', async () => {
       const row = makeSpawnedRow({ inputData: {} });
       mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      // 실 Postgres 라면 jsonb_exists(input_data, '_retryState') 가 false 라
+      // claim UPDATE 가 0행에 매칭된다 — 그 결과를 흉내낸다.
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }));
+
       await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
       expectGraphNotDriven();
-      expect(row.status).toBe(NodeExecutionStatus.FAILED);
-      expect(row.error).toEqual({
-        message: 'Retry re-entry failed: missing _retryState',
+      // FAILED 로 마킹하지 않는다 — 살아있을 수도 있는(다른 delivery 가 처리
+      // 중인) row 를 죽이지 않는다.
+      expect(row.status).toBe(NodeExecutionStatus.RUNNING);
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    // ai-review CRITICAL #1 회귀 (W1 (ii)) — claim 성공 후 try 진입 전 구간
+    // (Promise.all/rehydrateContext 등)은 catch 밖이라, 여기서 일시 예외가 나면
+    // BullMQ 가 같은 job 을 재배달한다. 이 delivery 가 FAILED 로 마킹하지 않아야
+    // (= save() 를 호출하지 않아야) 재배달이 안전하다 — 재배달의 fresh findOneBy
+    // 는 이미 이 delivery 의 claim 이 지운 `_retryState` 를 보고 (위 (c) 케이스와
+    // 동형으로) claim 실패 discard 로 안전하게 종료돼야 한다.
+    it('claim 성공 후 try 진입 전 구간에서 예외가 나면 FAILED 로 마킹하지 않고 그대로 throw 한다 (재배달 안전)', async () => {
+      const row = makeSpawnedRow();
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: EXEC,
+        workflowId: 'wf-1',
+        startedAt: new Date(),
       });
-      expect(row.finishedAt).toBeInstanceOf(Date);
-      expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+      mockNodeRepo.findOneBy.mockResolvedValue({ id: NODE_ID, type: 'ai' });
+      (mockDriver.rehydrateContext as jest.Mock).mockRejectedValue(
+        new Error('transient: DB connection reset'),
+      );
+
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).rejects.toThrow('transient: DB connection reset');
+
+      // FAILED 로 마킹하지 않는다 — save() 자체가 호출되지 않아야 한다.
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+
+      // 재배달 시뮬레이션 — 같은 spawned row 를 fresh 조회하면 첫 delivery 의
+      // claim 이 이미 지운 상태(status 여전히 RUNNING, _retryState 없음)를 본다.
+      // 이 delivery(재배달)는 claim 실패로 안전하게 discard 돼야 한다.
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 0 }),
+      }));
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(
+        makeSpawnedRow({ inputData: {} }),
+      );
+
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).resolves.toBeUndefined();
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
     it('(d) marks spawned row FAILED when parent execution is not found', async () => {
@@ -460,6 +522,12 @@ describe('RetryTurnService', () => {
       });
       expect(row.finishedAt).toBeInstanceOf(Date);
       expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+      // ai-review CRITICAL #2 회귀 (2026-07-28) — claim 이 지운 `_retryState` 가
+      // stale in-memory save() 로 부활하지 않는지: save() 에 넘겨지는 엔티티의
+      // inputData 에 더 이상 키가 없어야 한다.
+      expect(
+        (row.inputData as Record<string, unknown>)._retryState,
+      ).toBeUndefined();
     });
 
     it('(e) marks spawned row FAILED when node definition is not found', async () => {
@@ -478,6 +546,10 @@ describe('RetryTurnService', () => {
       });
       expect(row.finishedAt).toBeInstanceOf(Date);
       expect(mockNodeExecutionRepo.save).toHaveBeenCalledWith(row);
+      // ai-review CRITICAL #2 회귀 (2026-07-28) — 위 (d) 와 동일 근거.
+      expect(
+        (row.inputData as Record<string, unknown>)._retryState,
+      ).toBeUndefined();
     });
   });
 

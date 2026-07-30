@@ -33,13 +33,23 @@ import {
 } from './engine-driver.interface';
 
 /**
+ * `_retryState` JSONB 키 리터럴의 단일 진실 지점 (ai-review WARNING #3,
+ * `review/code/2026/07/28/20_32_57`). `retryLastTurn` 의 atomic-consume 과
+ * `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 양쪽에서 raw SQL
+ * (`... - '_retryState'`, `jsonb_exists(..., '_retryState')`)과 TS 프로퍼티
+ * 접근에 리터럴로 4곳 이상 중복됐었다 — 한쪽만 리네임되면 조용히 drift 한다.
+ */
+const RETRY_STATE_KEY = '_retryState';
+
+/**
  * C-1 step4 (strangler-fig, FINAL) — `execution.retry_last_turn` lifecycle 를
  * god-class `ExecutionEngineService` 에서 추출한 전담 서비스.
  *
  * **책임**: retryable error 로 종결된 AI multi-turn 노드의 보존된 `_retryState`
  * 를 lookup·검증·atomic-consume 하고 (`retryLastTurn`), worker handoff 로 spawn
- * 된 RUNNING row 를 multi-turn loop 에 재진입시켜 마지막 실패 turn 을 replay 한
- * 뒤 (`applyRetryLastTurn`) downstream graph 로 진행하거나 (`resumeGraphAfterRetry`)
+ * 된 RUNNING row 를 **2차 원자 claim**(`claimSpawnedRetryRow`)으로 중복 배달을
+ * 차단한 뒤 multi-turn loop 에 재진입시켜 마지막 실패 turn 을 replay 하고
+ * (`applyRetryLastTurn`) downstream graph 로 진행하거나 (`resumeGraphAfterRetry`)
  * Execution 을 마감한다 (`completeRetryExecution` / `failRetryExecution`).
  *
  * 엔진 잔류 상태/라이프사이클 메서드는 `RetryEngineDriver`(소비자별 ISP slice;
@@ -147,7 +157,7 @@ export class RetryTurnService {
     }
 
     // 4. _retryState 존재 + TTL.
-    const retryState = outputData._retryState as RetryState | undefined;
+    const retryState = outputData[RETRY_STATE_KEY] as RetryState | undefined;
     if (!retryState) {
       throw RetryLastTurnError.notFound(
         `retry_last_turn: _retryState missing on node ${nodeExecutionId} (already consumed?)`,
@@ -189,7 +199,7 @@ export class RetryTurnService {
     // 6. ATOMIC CONSUME + SPAWN — 동일 트랜잭션. `_retryState` 키를 JSONB `-`
     //    연산으로 제거(소비)하되 affected=1 인 writer 만 새 row 를 spawn 한다.
     //    동시 retry 의 두 번째 호출은 affected=0 → RETRY_STATE_NOT_FOUND.
-    const seededInput = { _retryState: retryState };
+    const seededInput = { [RETRY_STATE_KEY]: retryState };
     let spawned: NodeExecution | null = null;
     await this.dataSource.transaction(async (manager) => {
       const consume = await manager
@@ -197,14 +207,14 @@ export class RetryTurnService {
         .update(NodeExecution)
         .set({
           // JSONB `-` 연산자로 `_retryState` 키만 제거. 다른 outputData 키 보존.
-          outputData: () => `output_data - '_retryState'`,
+          outputData: () => `output_data - '${RETRY_STATE_KEY}'`,
         })
         .where('id = :id', { id: nodeExecutionId })
         // JSONB key-existence guard. `jsonb_exists(col, key)` is used instead
         // of the `?` operator so the pg driver doesn't mistake `?` for a bound
         // parameter placeholder. affected=1 only for the writer that still saw
         // the key present — concurrent retry gets affected=0.
-        .andWhere(`jsonb_exists(output_data, '_retryState')`)
+        .andWhere(`jsonb_exists(output_data, '${RETRY_STATE_KEY}')`)
         .execute();
       if ((consume.affected ?? 0) !== 1) {
         // 이미 다른 retry 가 소비함 (동시성) — 중복 spawn 차단.
@@ -251,15 +261,18 @@ export class RetryTurnService {
    *
    * 재진입 절차:
    *   1. spawn 된 row + `inputData._retryState` 로드.
-   *   2. ExecutionContext 확보 (`rehydrateContext` 재사용 — live 면 그대로).
-   *   3. `_retryState` → `_resumeState` shape 변환 후 nodeOutputCache /
+   *   2. **2차 원자 claim**(`claimSpawnedRetryRow`) — `inputData._retryState`
+   *      키를 원자 제거해 동시 배달을 차단한다(claim 실패 시 discard, 이후
+   *      단계 미진입; ai-review CRITICAL #1/#2, 2026-07-28).
+   *   3. ExecutionContext 확보 (`rehydrateContext` 재사용 — live 면 그대로).
+   *   4. `_retryState` → `_resumeState` shape 변환 후 nodeOutputCache /
    *      structuredOutputCache 에 주입.
-   *   4. NODE_STARTED (spawn 된 row) emit. Execution FAILED → RUNNING 전이는
+   *   5. NODE_STARTED (spawn 된 row) emit. Execution FAILED → RUNNING 전이는
    *      `finalizeAiNode` 의 COMPLETED 분기가 담당 (W4: JSDoc 정합).
-   *   5. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
+   *   6. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
    *      `ai_message`) 로 구동 → 실패했던 LLM turn 재실행. 이후 정상 loop.
-   *   6. `finalizeAiNode` 로 spawn row 마감 + Execution 을 RUNNING 으로 전이.
-   *   7. 성공 종결이면 `resumeGraphAfterRetry` 가 downstream graph 로 진행
+   *   7. `finalizeAiNode` 로 spawn row 마감 + Execution 을 RUNNING 으로 전이.
+   *   8. 성공 종결이면 `resumeGraphAfterRetry` 가 downstream graph 로 진행
    *      (WARNING #10 해소; spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8).
    *      실패/취소/`resumeGraphAfterRetry` 내부 예외 등 모든 catch 는
    *      `failRetryExecution` 이 Execution 을 FAILED 또는 CANCELLED 로 마감
@@ -279,10 +292,12 @@ export class RetryTurnService {
       return;
     }
     // fast path — 이미 다른 worker 가 마감해 RUNNING 이 아니면 즉시 discard.
-    // **이것은 레이스 결정자가 아니다.** 실제 claim 은 아래 조건부 UPDATE 이며, 이 체크는
-    // 흔한 경우를 싸게 걸러내고 로그를 명확히 하는 역할만 한다. (과거 이 체크가 "자체 멱등
-    // 가드" 로 서술돼 `continuation-execution.processor.ts` 가 `retry_last_turn` 을 원자
-    // claim 대상에서 제외하는 근거가 됐고, 그 자기모순이 ai-review 5차 라운드 CRITICAL 이었다.)
+    // **이것은 레이스 결정자가 아니다.** 실제 claim 은 아래 원자 UPDATE
+    // (`claimSpawnedRetryRow`)이며, 이 체크는 흔한 경우를 싸게 걸러내고 로그를
+    // 명확히 하는 역할만 한다. (과거 이 체크가 "자체 멱등 가드" 로 서술돼
+    // `continuation-execution.processor.ts` 가 `retry_last_turn` 을 원자 claim
+    // 대상에서 제외하는 근거가 됐고, 그 자기모순이 ai-review 5차 라운드 CRITICAL
+    // 이었다.)
     if (spawnedRow.status !== NodeExecutionStatus.RUNNING) {
       this.logger.debug(
         `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} is ${spawnedRow.status} (not RUNNING) — already handled, ack-and-discard`,
@@ -290,53 +305,55 @@ export class RetryTurnService {
       return;
     }
 
+    // in-memory `_retryState` 값 확보 — claim(아래)이 이 값을 지우기 **전에** 미리
+    // 읽어 둔다. `retryLastTurn` 이 spawn 시 항상 seed 하므로 claim 성공 이후에는
+    // 이 값의 존재가 구조적으로 보장된다 — claim 을 앞으로 당겨도 후속 로직
+    // (`buildRetryReentryState` 등)에는 영향이 없다.
     const seededInput = spawnedRow.inputData ?? {};
-    const retryState = seededInput._retryState as RetryState | undefined;
-    if (!retryState) {
-      this.logger.error(
-        `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} missing _retryState in inputData — cannot re-enter`,
-      );
-      // re-entry 불가 — spawn 된 row 를 FAILED 로 마감하지 않으면 RUNNING 영구
-      // 잔류한다. Execution 은 이미 FAILED 이므로 row 만 정리.
-      spawnedRow.status = NodeExecutionStatus.FAILED;
-      spawnedRow.error = {
-        message: 'Retry re-entry failed: missing _retryState',
-      };
-      spawnedRow.finishedAt = new Date();
-      await this.nodeExecutionRepository.save(spawnedRow);
-      return;
-    }
+    const retryState = seededInput[RETRY_STATE_KEY] as RetryState | undefined;
 
-    // ATOMIC CLAIM (06 C-2 계열) — 여기까지는 read-then-branch 라 동시 배달을 막지 못한다.
-    // `inputData._retryState` 키를 JSONB `-` 로 **원자 제거**하고 affected=1 인 delivery 만
-    // 진행한다. `retryLastTurn` 이 원본 row 의 `outputData` 에 쓰는 것과 동일한 패턴이다.
-    //
-    // 두 조건을 **모두** 걸어야 한다:
-    //   - `jsonb_exists(input_data, '_retryState')` — 레이스 결정자. 키를 먼저 지운 쪽만 진행.
-    //   - `status = 'running'` — 없으면 **완료된 턴을 재실행한다.** `inputData` 에 쓰는 곳은
-    //     spawn 시점뿐이라 턴이 COMPLETED 로 끝나도 이 키는 남는다. 위 fast path 통과 후
-    //     다른 worker 가 턴을 마치는 창이 실재하므로 claim 자체가 상태까지 CAS 해야 한다.
-    //
-    // 대가(의도된 트레이드오프): 크래시로 중단된 턴의 BullMQ 재배달도 함께 막힌다. 형제
-    // continuation 4종(`claimResumeEntry`)이 이미 같은 성질을 수용하며, 복구는
-    // `recoverStuckExecutions` (stale RUNNING Execution 재claim) 백스톱이 담당한다.
-    const claim = await this.nodeExecutionRepository
-      .createQueryBuilder()
-      .update(NodeExecution)
-      .set({ inputData: () => `input_data - '_retryState'` })
-      .where('id = :id', { id: spawnedNodeExecutionId })
-      .andWhere('status = :running', {
-        running: NodeExecutionStatus.RUNNING,
-      })
-      .andWhere(`jsonb_exists(input_data, '_retryState')`)
-      .execute();
-    if ((claim.affected ?? 0) !== 1) {
+    // ATOMIC CLAIM — ai-review CRITICAL #1 (2026-07-28, `review/code/2026/07/28/20_32_57`):
+    // 이 claim 은 반드시 "손상 판정" 보다 **먼저** 실행돼야 한다. `_retryState` 를
+    // 지우는 유일한 경로가 이 claim 자신이므로, RUNNING row 에서 그 값이 없다는 것은
+    // 실질적으로 100% "다른/이전 delivery 가 이미 이 claim 으로 가져갔다" 는 뜻이지
+    // 손상이 아니다. (예전엔 이 claim **뒤에** "`_retryState` 부재 → FAILED" 판정이
+    // 있어, claim 이 만들어내는 바로 그 정상 상태를 손상으로 오판해 살아있는 row 를
+    // 덮어썼다 — 진짜 동시성 없이도 BullMQ 기본 재시도(claim 성공 후 try 진입 전
+    // 구간의 일시 예외 → 재배달 → fresh 조회가 이미 지워진 값을 관측)만으로
+    // 결정적으로 재현됐다. 상세 근거·백스톱 갭은 `claimSpawnedRetryRow` JSDoc 참조.)
+    const claimed = await this.claimSpawnedRetryRow(spawnedNodeExecutionId);
+    if (!claimed) {
+      // 원인 구분 없이 항상 ack-and-discard — 절대 save() 하지 않는다. "이미 다른
+      // delivery 가 가져감" 과 "애초에 seed 안 됨"(구조적으로 발생하지 않음 —
+      // `retryLastTurn` 이 항상 seed) 을 굳이 구분하지 않는다. `jsonb_exists` 조건이
+      // 두 경우를 이미 동일하게 흡수하므로 별도의 파괴적 종결 분기가 불필요하다
+      // (예전의 "부재 → FAILED" 분기는 삭제됐다).
       this.logger.debug(
         `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} claim 실패(affected=0) — ` +
           `다른 delivery 가 이미 가져갔거나 그 사이 종결됨. ack-and-discard (정상 race)`,
       );
       return;
     }
+    if (!retryState) {
+      // 구조적으로 도달 불가능해야 하는 방어 분기 — claim 이 성공했다는 것은 그
+      // 순간 DB 의 `jsonb_exists` 가 키 존재를 확인했다는 뜻이므로, 바로 위에서
+      // 읽은 in-memory 값도 존재해야 한다. 그래도 **FAILED 로 마킹하지 않는다** —
+      // 살아있는 row 를 죽이는 오판(Critical #1)을 다른 형태로 재도입하지 않기
+      // 위해 로그만 남기고 discard 한다.
+      this.logger.error(
+        `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} claim 성공했으나 in-memory _retryState 부재 — ` +
+          `불변식 위반(이론상 도달 불가능), FAILED 마킹 없이 ack-and-discard`,
+      );
+      return;
+    }
+    // claim 이 DB 의 `input_data` 에서만 키를 원자 제거하므로, in-memory
+    // `spawnedRow` 도 동일하게 맞춘다 — ai-review CRITICAL #2 (2026-07-28): 이
+    // delete 가 없으면 이후 not-found 분기의 `save(spawnedRow)`(full-entity)가
+    // stale 값(키 있음)을 그대로 써, TypeORM 0.3.30 의 jsonb diff 가 DB 를
+    // 재-SELECT 해 옛 값과 비교하고 claim 이 방금 지운 `_retryState` 를
+    // 부활시킨다(`status=FAILED` 인데 `_retryState` 가 살아있는 모순 row). 이
+    // 한 줄이 이 메서드의 **모든** 하위 `save(spawnedRow)` 호출을 함께 보호한다.
+    delete spawnedRow.inputData[RETRY_STATE_KEY];
 
     // INFO#4 / W3 — execution + node 조회를 병렬화 (W18) 하고, 각 not-found 에서
     // spawn 된 RUNNING row 를 FAILED 로 마감해 zombie row 방지.
@@ -448,6 +465,72 @@ export class RetryTurnService {
       this.contextService.deleteContext(executionId);
       this.driver.clearLlmDefaultConfigCache(executionId);
     }
+  }
+
+  /**
+   * ATOMIC CLAIM (06 C-2 계열, W6 — ai-review WARNING #6 helper 추출) —
+   * `applyRetryLastTurn` 재진입의 동시 배달 가드. `inputData._retryState` 키를
+   * JSONB `-` 로 **원자 제거**하고 affected=1 인 delivery 만 진행한다.
+   * `retryLastTurn` 이 원본 row 의 `outputData` 에 쓰는 것과 동일한 패턴이다.
+   *
+   * 두 조건을 **모두** 걸어야 한다:
+   *   - `jsonb_exists(input_data, '_retryState')` — 레이스 결정자. 키를 먼저
+   *     지운 쪽만 진행.
+   *   - `status = 'running'` — 없으면 **완료된 턴을 재실행한다.** `inputData`
+   *     에 쓰는 곳은 spawn 시점뿐이라 턴이 COMPLETED 로 끝나도 이 키는 남는다.
+   *     `applyRetryLastTurn` 의 fast path 통과 후 다른 worker 가 턴을 마치는
+   *     창이 실재하므로 claim 자체가 상태까지 CAS 해야 한다.
+   *
+   * 대가(의도된 트레이드오프): 크래시로 중단된 턴의 BullMQ 재배달도 함께
+   * 막힌다. 형제 continuation 4종(`claimResumeEntry`)이 이미 같은 성질을
+   * 수용하며, 복구는 `recoverStuckExecutions`(stale RUNNING Execution
+   * 재claim) 백스톱이 담당한다.
+   *
+   * **claim 은 반드시 "`_retryState` 부재 → 손상 판정" 보다 먼저 호출돼야 한다**
+   * (ai-review CRITICAL #1, 2026-07-28, `review/code/2026/07/28/20_32_57`) —
+   * `_retryState` 를 지우는 유일한 경로가 이 claim 자신이므로, RUNNING row 에서
+   * 그 값이 없다는 것은 실질적으로 100% "다른/이전 delivery 가 이미 이 claim 으로
+   * 가져갔다" 는 뜻이지 손상이 아니다. 그 판정을 이 claim 뒤에 두면 살아있는(다른
+   * delivery 가 처리 중인) row 를 FAILED 로 오마킹한다 — 진짜 동시성 없이도
+   * BullMQ 기본 재시도(claim 성공 후 try 진입 전 구간의 일시 예외 → 재배달 →
+   * fresh 조회가 이미 지워진 값을 관측)만으로 결정적으로 재현된다. 그래서 claim
+   * 실패(affected!==1)는 원인을 더 따지지 않고 **항상** ack-and-discard 한다 —
+   * `jsonb_exists` 조건이 "한 번도 seed 안 된 진짜 corruption" 과 "이미 소비됨"
+   * 을 모두 같은 방식(discard)으로 흡수하므로 별도의 파괴적 종결 분기가
+   * 불필요하다.
+   *
+   * **알려진 백스톱 갭(리뷰어 제안과 다름 — 실측으로 확정)** — 리뷰어는 "진짜
+   * corruption 방어는 `recoverStuckExecutions` 류 backstop 에 위임" 하라 했으나,
+   * 실측 결과 그 백스톱은 이 케이스에 닿지 않는다: `failOrphanRunningNodeExecutions`
+   * 는 `recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만
+   * 호출되는데, discard 후 Execution 은 이미 `failed`(terminal) 로 남아 재구동
+   * 대상이 아니다 — 그 spawn row 는 RUNNING orphan 으로 영구 잔류할 수 있다
+   * (타임라인/진행률 집계 오염). 그래도 discard 가 옳다: 이전 코드(claim 이전
+   * FAILED 마킹)는 **살아있는 작업을 죽이는** 활성 피해를 내지만, discard 는
+   * 이론적 orphan row 만 남긴다 — 그리고 `retryLastTurn` 이 항상 `_retryState`
+   * 를 seed 하므로 "한 번도 seed 안 된 진짜 corruption" 은 구조적으로 발생하지
+   * 않는다. 이 갭은 `plan/in-progress/retry-turn-terminal-guard.md` 에 별도
+   * 후속으로 등재했다.
+   *
+   * @returns `true` 면 이 delivery 가 claim 했다(DB 의 `_retryState` 키가 원자
+   *   제거됨 — caller 는 in-memory `spawnedRow.inputData` 도 함께 동기화해야
+   *   한다). `false` 면 다른 delivery 가 이미 가져갔거나 그 사이 종결됐다 —
+   *   caller 는 로그만 남기고 어떤 `save()` 도 호출하지 않아야 한다.
+   */
+  private async claimSpawnedRetryRow(
+    spawnedNodeExecutionId: string,
+  ): Promise<boolean> {
+    const claim = await this.nodeExecutionRepository
+      .createQueryBuilder()
+      .update(NodeExecution)
+      .set({ inputData: () => `input_data - '${RETRY_STATE_KEY}'` })
+      .where('id = :id', { id: spawnedNodeExecutionId })
+      .andWhere('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      })
+      .andWhere(`jsonb_exists(input_data, '${RETRY_STATE_KEY}')`)
+      .execute();
+    return (claim.affected ?? 0) === 1;
   }
 
   /**

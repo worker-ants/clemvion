@@ -16860,23 +16860,39 @@ describe('ExecutionEngineService', () => {
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
     });
 
-    it('missing _retryState on spawned row → marks row FAILED, no replay', async () => {
+    // ai-review CRITICAL #1 (2026-07-28, `review/code/2026/07/28/20_32_57`) —
+    // 과거엔 이 케이스("spawned row 에 _retryState 없음")를 claim 보다 앞선
+    // 판정이 "손상"으로 오판해 FAILED 로 무가드 덮어썼다. 실제로는 다른/이전
+    // delivery 가 이미 claim 했을 수 있으므로(살아있는 row 일 수 있음), 이제는
+    // FAILED 로 마킹하지 않고 discard 한다.
+    it('missing _retryState on spawned row → discard, no replay, no FAILED marking', async () => {
       const { handler } = installReentry({
         processReturn: terminalSuccess,
         retryState: undefined,
       });
+      // 실 Postgres 라면 jsonb_exists(input_data, '_retryState') 가 false 라
+      // claim UPDATE 가 0행에 매칭된다 — 그 결과를 흉내낸다(기존 mock 은 SQL
+      // 조건을 평가하지 않고 affected:1 을 고정 반환해 실제 DB 동작과 어긋났다).
+      retryClaimQb.execute = jest.fn().mockResolvedValue({ affected: 0 });
       await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
-      // spawned row saved as FAILED.
-      const savedFailed = mockNodeExecutionRepo.save.mock.calls.some(
-        (c: unknown[]) =>
-          (c[0] as { id?: string; status?: NodeExecutionStatus }).id ===
-            SPAWNED &&
-          (c[0] as { status?: NodeExecutionStatus }).status ===
-            NodeExecutionStatus.FAILED,
-      );
-      expect(savedFailed).toBe(true);
+      // spawned row 를 FAILED 로 저장하지 않는다(활성 row 를 죽이지 않는다).
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    // ai-review WARNING #8 (2026-07-28) — 통합 레벨(execution-engine.service.spec.ts)
+    // 이 claim 실패(affected=0) 분기를 한 번도 실행하지 않았다(`retryClaimQb.execute`
+    // 가 스펙 전체에서 `{affected:1}` 로 한 번만 설정되고 override 되지 않음). 정상
+    // `_retryState` 가 존재하는 케이스에서 claim 자체가 다른 delivery 에 선점된
+    // 시나리오(진짜 동시성 케이스)를 통합 레벨에서 고정한다.
+    it('claim 실패(affected=0, 다른 delivery 선점) 시 discard 하고 재진입하지 않는다 — 통합 레벨', async () => {
+      const { handler } = installReentry({ processReturn: terminalSuccess });
+      retryClaimQb.execute = jest.fn().mockResolvedValueOnce({ affected: 0 });
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
     // #11 (followup) — re-entry 시 node.config 의 `{{ expression }}` 이
