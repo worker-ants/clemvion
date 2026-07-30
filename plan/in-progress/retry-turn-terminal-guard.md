@@ -330,7 +330,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 | 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |
 | 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
 | 7 | `!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증 | P3 | 2R INFO 14 = 5R W7 |
-| 8 | `forwardRef` 근거 주석 모순 — 모듈 순환 실측 후 주석 정정 또는 제거 | P3 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 (**4회**) |
+| 8 | `forwardRef` 근거 주석 모순 — **12R 에서 실측 확정(5라운드 defer 종료)**: `execution-engine.service.ts`·`ai-turn-orchestrator.service.ts` 어느 쪽도 `RetryTurnService` 를 생성자 주입하지 않는다(내가 직접 재확인 — grep 매칭 3건 전부 **주석**, 실제 주입 0건). 즉 생성자 주석이 근거로 대는 순환은 **현재 코드에 존재하지 않고**, forwardRef 는 C-1 후속 ④ 이전 엔진 thin-delegator 시대의 잔재다. 조치: 주석을 현행 배선(순환 없음)으로 정정. 선택적으로 boot 테스트로 안전성 확인 후 forwardRef 제거 | P3 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 = 12R W1 (**5회, 12R 에 실측 확정**) |
 | 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 = **7R W8 재지적**(`review/code/2026/07/30/11_41_20`) |
 | 10 | `finalizeGuarded` in-place 변이 은닉 — `{persisted, live}` 또는 `@param` 명시 | P3 | 1R INFO 2 = 2R W3 |
 | 11 | `resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유 (참조 동일성 불변식 의존) | P3 | 2R INFO 2 |
@@ -614,3 +614,30 @@ skipped, 신규 2건 포함], frontend 281 files/5751[1 skipped], web-chat 3/48,
 
 11R W1 → #20(증거 보강 반영). W4 → #3(P2, e2e 부재 — 이 결함 계열이 3라운드 연속 unit mock
 정교화로만 대응돼 온 이력을 고려해 **우선순위 상향 권고**). W5 → #21·#22. W7 → #23.
+
+
+## 12차 라운드 (`review/code/2026/07/30/18_26_50`) — **CRITICAL 0 / 전체 LOW · 수렴 종료**
+
+14개 reviewer 전원 CRITICAL 0, **전체 위험도 LOW**(전 시리즈 최초). forced 6명 미이행 없음,
+skip·미완 0건. 이번 라운드 실질 diff 는 JSDoc 7줄 + 가이드 미세 정정뿐이고 소스 로직은
+8R(`2ca44b769`) 이후 문자 그대로 무변경임을 여러 reviewer 가 독립 확인했다.
+
+### 수렴 판정 — 여기서 코드를 더 건드리지 않는다
+
+남은 WARNING 9건은 전부 문서·테스트 대칭·구조다. 그중 **4건은 내가 만든 것**이고 모두 주석
+수준이지만, 고치면 게이트가 다시 stale 되어 13라운드가 열린다. 이 저장소가 이미 겪은
+treadmill 이므로 처분만 기록하고 종료한다(RESOLUTION: `review/code/2026/07/30/18_26_50/`).
+
+### defer 신규 등재 — 전부 문서, 기능 영향 없음
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 31 | `retryLastTurn` JSDoc 이 이미 구현·테스트된 downstream graph traversal(`resumeGraphAfterRetry`, "WARNING #10 해소")을 여전히 **"남은 문서화된 갭"** 으로 서술 — **내 커밋 `7a05c6ec8`("JSDoc 3건 정정")이 다른 stale 참조를 고치면서 새로 만든 자기모순**이고, 이후 8R~11R **4개 문서화 라운드가 놓쳤다** | P3 | 12R W8 |
+| 32 | `engine-driver.interface.ts` 최상단 docblock 이 "spec 수치가 아직 12/7 로 stale, 정정 위임 중" 이라 서술하나 **그 위임은 2026-07-27 에 이미 완료**됐다(`72e3193f7` 가 15/10 으로 갱신). 10R 이 "별도 위임으로 추적 중" 이라 넘겼는데 **그 전제가 이미 하루 전 허물어져 있었다**. 코드 쪽 수치(15/10)는 재계산 결과 정확 | P3 | 12R W9 |
+| 33 | `opts.allowRetryReentry` 불변식 **JSDoc 산문**이 두 메서드에 사실상 동일 문장으로 중복 — 내가 11R W8 을 고치며 한 겹 더 쌓았다. `RetryReentryOptions` 이름있는 타입으로 통합하고 각 메서드는 참조 + 고유 한 줄만 남길 것(#22 와 같은 뿌리) | P3 | 12R W4 |
+| 34 | `RETRY_STATE_KEY` 가 파라미터 바인딩 대신 raw SQL 문자열로 4곳 직접 삽입 — 현재는 컴파일타임 상수라 익스플로잇 불가하나, 동적/설정 가능 값으로 바뀌면 인젝션 벡터가 된다. `jsonb_exists(col, :key)` + `setParameter` 로 전환(방어적 습관) | P3 | 12R INFO 1 (security·database 독립 수렴) |
+
+### 재확인만 (기존 등재, 신규 악화 없음)
+
+12R W2 → #20 · W3 → #28 · W5 → #19 · W6 → #27 · W7 → #3(3라운드 연속 지적, 우선순위 상향
+권고 유지) · INFO 4 → #21·#22·#24 · INFO 5 → #15 · INFO 2 → #29.
