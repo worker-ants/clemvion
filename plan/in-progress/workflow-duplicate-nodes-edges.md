@@ -135,7 +135,25 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       WORKFLOW — lint PASS · unit PASS(backend 412 · frontend 281 · web-chat 3 ·
       channel-web-chat 23 · internal packages 6 전부) · build PASS(docker 이미지 포함) ·
       e2e PASS(backend 260 + playwright 51, 310s)
-- [ ] `/consistency-check --impl-done` (spec `code:` 연결 코드 변경 → SPEC-CONSISTENCY 게이트)
+- [x] `/consistency-check --impl-done spec/data-flow/` — **BLOCK: NO**, Critical 0 · Warning 1 · INFO 2
+      (`review/consistency/2026/07/30/19_03_37/SUMMARY.md`). Warning 은 **본 PR 무관한 사전 존재
+      drift** 라 아래 후속으로 분리했다.
+- [ ] fresh `/ai-review` — resolution-applier 의 fix 5파일이 원 리뷰(17_54_27) 이후 변경이라
+      review-guard 가 stale 판정. 그 fix 를 대상으로 한 라운드 추가 (`review/code/2026/07/30/19_06_10/`)
+
+---
+
+## 3. 후속 항목 (본 PR 범위 밖 — 별도 PR)
+
+- [ ] **`spec/1-data-model.md:572` §2.15 `snapshot` 서술 정정** (planner 턴 필요) — 현재
+      "워크플로우 전체 스냅샷 (nodes, edges, settings)" 인데, 실제 `buildSnapshot()` 과
+      `spec/data-flow/11-workflow.md` §1.1·Rationale 은 **name + description + nodes + edges,
+      `settings` 제외** 다. `origin/main` 시점부터 있던 drift 로 본 PR 이 만든 것이 아니며,
+      duplicate 와도 무관하다 (impl-done Warning #1). 경량 spec-only PR 로 처리.
+- [ ] **보류된 리뷰 INFO 10건** — `review/code/2026/07/30/17_54_27/RESOLUTION.md` §보류·후속 항목.
+      전부 리뷰어가 "필수 아님" 으로 표기. 대표: `findById` TOCTOU(#1), 메타를 트랜잭션 밖에서
+      읽는 타이밍(#2 — Warning #1 과 근본 원인 공유하나 404 fast-path 트레이드오프가 별개),
+      read-skew 회귀 테스트 부재(#3), 네이밍 드리프트(#8).
 
 ---
 
