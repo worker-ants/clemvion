@@ -125,18 +125,18 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       다른 target 을 덮어쓰는" 레이스와는 별개**이며 그쪽은 닫혔다.
 - [ ] **W3 (maintainability)** — "spawn 된 row 를 FAILED 로 마감" 로직이
       `applyRetryLastTurn` 3개 분기에 문자 그대로 반복(DRY). `markSpawnedRowFailed` 추출.
-- [ ] **INFO 1** — `AiTurnOrchestrator` forwardRef 근거 주석이 이미 제거된 역방향 의존성을
-      순환 근거로 인용 중일 가능성. forwardRef 존속 필요성 재확인 후 주석 갱신.
+- [x] **INFO 1** — ~~`AiTurnOrchestrator` forwardRef 근거 주석~~ **전제 반증, 무조치 종결**.
+      해당 파일에 `forwardRef` 자체가 없다 (실측 근거는 마스터 백로그 **#8**).
 - [ ] **INFO 2** — `finalizeGuarded` 가 호출자 소유 `execution.status` 를 부수효과로 재대입.
       현재 두 호출부는 재사용하지 않아 안전하나 시그니처만으로는 드러나지 않는다.
 
 ## 2차 라운드 추가 후속 (`review/code/2026/07/27/21_39_25`)
 
-- [ ] **W2 (architecture)** — `AiTurnOrchestrator` forwardRef 근거 주석이 같은 파일
-      docstring·모듈 등록 주석("engine→Retry 역방향 주입 제거, 단방향 정리")과 **정반대로
-      모순**된다. grep 상 엔진도 orchestrator 도 `RetryTurnService` 를 주입하지 않아,
-      forwardRef 가 실제로 방어하는 순환이 무엇인지 주석만으로는 검증 불가. 존속 필요성
-      재확인 후 주석 갱신 또는 forwardRef 제거 검토.
+- [x] **W2 (architecture)** — ~~`AiTurnOrchestrator` forwardRef 근거 주석이 모순~~
+      **전제 반증, 무조치 종결**. "grep 상 엔진도 orchestrator 도 `RetryTurnService` 를
+      주입하지 않는다" 는 관찰은 **맞지만**, 그것이 곧 모순의 근거는 아니었다 — 엔진 주석은
+      바로 그 상태("역방향 주입 제거")를 서술하고 있고, 정작 지적 대상인
+      `AiTurnOrchestrator` 의 `forwardRef` 는 **존재하지 않는다**(실측 근거는 마스터 백로그 **#8**).
 - [ ] **W3 (maintainability)** — `finalizeGuarded` 가 `boolean` 반환과 동시에 인자
       `execution.status` 를 in-place 로 덮어쓰는 숨은 side-channel. `{ persisted, live }`
       반환으로 명시화하거나 최소한 `@param` 에 명시.
@@ -172,8 +172,10 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       맞게 갱신(`1237c18a3`).
 - [x] **Warning #4(maintainability)** — mock 리터럴 9회 반복을 `mkLiveExecution(status)` 로
       추출(`cc98374ff`).
-- [ ] **Warning #3(architecture)** — 위 2차 라운드 W2(forwardRef 근거 주석 모순)와 동일 건,
-      **이번 라운드도 defer** — 모듈 레벨 import 순환 실측이 필요해 범위 밖. 계속 열어둔다.
+- [x] **Warning #3(architecture)** — 위 2차 라운드 W2(forwardRef 근거 주석 모순)와 동일 건.
+      당시 "모듈 레벨 import 순환 실측이 필요해 범위 밖" 으로 defer 했으나, 실제로 필요한 실측은
+      그게 아니라 **"그 forwardRef 가 존재하는가"** 였고 답은 아니오다 — **전제 반증, 종결**
+      (마스터 백로그 **#8**).
 
 나머지(2차 라운드 W1·W3·INFO2·INFO14·INFO13, 1차 라운드 항목)는 이번 라운드 SUMMARY 에서도
 재지적되지 않았거나(W1=INFO8, W3=INFO6, INFO2=INFO7 로 재확인만 됨) 범위 밖으로 유지 —
@@ -295,7 +297,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 ### 5R defer (기존 등재 항목의 재지적 — 추가 조치 없음)
 
 - **W2(architecture)** driver choke point 우회 = 4R W2 동일 건.
-- **W3(documentation)** forwardRef stale 주석 = 2R W2 / 3R W3 동일 건.
+- **W3(documentation)** forwardRef stale 주석 = 2R W2 / 3R W3 동일 건 → **전제 반증, 종결**(#8).
 - **W5(maintainability)** `markSpawnedRowFailed` 추출 = 1R W3 동일 건.
 - **W7(testing)** `!nodeExec` / `retryAfterSec` fallback / 타임스탬프 부재 분기 = INFO 14 동일 건.
 - **W8(SPEC-DRIFT)** = 2R INFO 13 의 확장. `project-planner` 위임 — 아래 별도 항목 참조.
@@ -330,7 +332,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 | 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |
 | 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
 | 7 | `!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증 | P3 | 2R INFO 14 = 5R W7 |
-| 8 | `forwardRef` 근거 주석 모순 — **12R 에서 실측 확정(5라운드 defer 종료)**: `execution-engine.service.ts`·`ai-turn-orchestrator.service.ts` 어느 쪽도 `RetryTurnService` 를 생성자 주입하지 않는다(내가 직접 재확인 — grep 매칭 3건 전부 **주석**, 실제 주입 0건). 즉 생성자 주석이 근거로 대는 순환은 **현재 코드에 존재하지 않고**, forwardRef 는 C-1 후속 ④ 이전 엔진 thin-delegator 시대의 잔재다. 조치: 주석을 현행 배선(순환 없음)으로 정정. 선택적으로 boot 테스트로 안전성 확인 후 forwardRef 제거 | P3 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 = 12R W1 (**5회, 12R 에 실측 확정**) |
+| 8 | ~~`forwardRef` 근거 주석 모순~~ → **전제 반증, 종결(무조치)**. 지적은 "`AiTurnOrchestrator` 의 forwardRef 근거 주석이 순환을 잘못 인용한다" 였는데 **`ai-turn-orchestrator.service.ts` 에는 `forwardRef` 가 존재하지 않는다**: 워킹트리 0건 · `origin/main` 0건 · **전 ref 대상 `git log -S "forwardRef" -- <file>` 결과 이 파일을 건드린 커밋 0개**(= 있었다가 지워진 것도 아님). 그 파일은 단방향 `@Inject(ENGINE_DRIVER)` 만 쓰고 `RetryTurnService` 언급도 0건이다. `AiTurnOrchestrator` 용 forwardRef 는 **엔진 쪽**(`execution-engine.service.ts:781`)에 있고 그 근거 주석은 네 갈래 전부 사실과 일치한다 — forwardRef 대상 3종(781 AiTurn·785 Form·787 Button)이 "AiTurn/Form/Button 양방향 유지" 와 일치, 엔진의 `RetryTurnService` 주입 0건, 주석이 지목한 외부 진입점 2곳(`websocket.gateway.ts:121`·`continuation-execution.processor.ts:66`)이 실제로 직접 주입, 단방향 `Retry→engine(ENGINE_DRIVER)` 유지. **정정할 주석이 없다.** ⚠️ 12R RESOLUTION 의 "실측 확정 → forwardRef 는 잔재" 판정은 **틀렸다** — 나는 지적 대상(`AiTurnOrchestrator` 의 forwardRef)이 아니라 다른 것(`RetryTurnService` 주입 수)을 세고, 존재하지 않는 forwardRef 를 "잔재" 라 단정했다. 매칭 "3건" 수치도 오측(실제 7건, 전부 한 파일의 주석) | ~~P3~~ 종결 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 = 12R W1 (**5회 재보고 — 전원 전제 미검증**. 교훈: 반복 보고는 신뢰 근거가 아니다. 대상의 **존재 여부**를 먼저 재라) |
 | 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 = **7R W8 재지적**(`review/code/2026/07/30/11_41_20`) |
 | 10 | `finalizeGuarded` in-place 변이 은닉 — `{persisted, live}` 또는 `@param` 명시 | P3 | 1R INFO 2 = 2R W3 |
 | 11 | `resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유 (참조 동일성 불변식 의존) | P3 | 2R INFO 2 |

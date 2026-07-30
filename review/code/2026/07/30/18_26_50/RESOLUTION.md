@@ -32,7 +32,7 @@ forced 화이트리스트 6명 미이행 없음, skip·미완 0건.
 
 | SUMMARY # | 처분 | 등재/근거 |
 |---|---|---|
-| W1 (architecture) — forwardRef 근거 주석 모순 | **실측 확정 후 defer** → #8 | **5라운드 defer 종료.** 내가 직접 재확인: `execution-engine.service.ts`·`ai-turn-orchestrator.service.ts` 의 `RetryTurnService` grep 매칭 3건이 **전부 주석**이고 실제 생성자 주입은 **0건**. 즉 주석이 근거로 대는 순환은 현재 코드에 없고 forwardRef 는 C-1 후속 ④ 이전 잔재다. #8 에 이 결론을 확정 기록 |
+| W1 (architecture) — forwardRef 근거 주석 모순 | **전제 반증 → 무조치 종결** (#8) | ⚠️ **아래 원 판정은 틀렸다 — PR 생성 직전 재측정으로 정정** (정정 근거는 plan #8). 지적 대상은 `AiTurnOrchestrator` 의 forwardRef 인데 **그 파일에는 forwardRef 가 없다**(워킹트리·`origin/main`·전 ref `git log -S` 전부 0). 엔진 쪽 주석(`execution-engine.service.ts:781` 근처)은 네 갈래 전부 사실과 일치해 **정정할 주석이 없다.** <br>~~원 판정: 5라운드 defer 종료. `RetryTurnService` grep 매칭 3건이 전부 주석이고 주입 0건이므로 forwardRef 는 C-1 후속 ④ 이전 잔재다~~ — 나는 **지적 대상이 아닌 것**(`RetryTurnService` 주입 수)을 세어 **존재하지 않는 forwardRef** 를 "잔재" 라 단정했고, "3건" 수치마저 오측이었다(실제 7건, 전부 한 파일의 주석) |
 | W8 (documentation) | **신규 #31** | `retryLastTurn` JSDoc 이 이미 구현된 downstream traversal 을 "남은 갭" 으로 서술 — **내 커밋 `7a05c6ec8` 이 다른 stale 참조를 고치며 새로 만든 자기모순**이고 이후 4개 문서화 라운드가 놓쳤다 |
 | W9 (documentation) | **신규 #32** | interface docblock 이 "spec 수치 12/7 stale, 위임 중" 이라 하나 **그 위임은 2026-07-27 완료**(`72e3193f7` → 15/10). 10R 이 "추적 중" 이라 넘겼는데 그 전제가 이미 허물어져 있었다 |
 | W4 (maintainability) | **신규 #33** | opts 불변식 JSDoc 산문이 두 메서드에 중복 — **내가 11R W8 을 고치며 한 겹 더 쌓았다.** `RetryReentryOptions` 이름있는 타입으로 통합(#22 와 같은 뿌리) |
