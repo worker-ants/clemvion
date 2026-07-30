@@ -73,6 +73,13 @@ export interface CoreEngineDriver {
    * PENDING 은 §7.1 stale 스윕에 위임한다. 즉 이 choke point 가 보호하는 건
    * "RUNNING/WAITING_FOR_INPUT 소스" 뿐이고 "PENDING 소스"는 원천적으로 이
    * choke point 밖 — 상태머신의 명시적 설계 결정이라 별도 완화 불필요.
+   * @param opts.allowRetryReentry — `execution.retry_last_turn` 재진입 전용
+   *   (2026-07-30 ai-review CRITICAL #1). 상태머신 opt-in(`FAILED → RUNNING` /
+   *   `FAILED → WAITING_FOR_INPUT`)과 **DB 가드**(짝 전이의 `FOR UPDATE` 잠금 ·
+   *   else 분기 guarded UPDATE) 양쪽에 함께 적용된다 — 둘 중 하나만 반영하면
+   *   전이가 항상 0행으로 막힌다(이 파라미터가 신설된 원인이 정확히 그 결함이다).
+   *   opt-in 시에도 COMPLETED/CANCELLED 는 배제되므로 진짜 동시 취소는 계속 막힌다.
+   *   기본(미전달)은 종전과 동일하게 FAILED 배제.
    */
   updateExecutionStatus(
     execution: Execution,

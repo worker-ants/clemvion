@@ -567,7 +567,7 @@ skipped, 신규 2건 포함], frontend 281 files/5751[1 skipped], web-chat 3/48,
 
 | # | 항목 | 우선 | 근거 |
 |---|---|---|---|
-| 20 | **`retryLastTurn` 이 `Execution.status === FAILED` 를 검증하지 않는다.** Execution 이 실제로는 `cancelled` 인데 `_retryState` 가 남은 row 에 retry 하면, 재진입 turn 종료 시 `assertTransition('cancelled', …)` 이 **DB 가드 진입 전에 동기 throw** 해 `assertLinkedTransitionApplied` 의 우아한 정리를 우회하고 spawn row 가 영구 RUNNING 고아로 남는다. `state-machine.spec` W5 는 상태머신이 거부하는지만 보고 그 거부가 호출부에서 우아하게 처리되는지는 안 본다. 근본 조치는 spawn 이전 명시 검증(step 1.5), 방어는 `updateExecutionStatus` 호출을 try/catch 로 감싸 흡수 | **P2** | 10R W5(requirement) |
+| 20 | **`retryLastTurn` 이 `Execution.status === FAILED` 를 검증하지 않는다.** **(11R 증거 보강)** 두 번째 시나리오가 추가됐다 — `ParallelErrorPolicy:'continue'` 로 형제 브랜치가 살아있어 Execution 이 여전히 `RUNNING` 인 경우, `rehydrateContext` 가 형제와 **동일한 live `ExecutionContext` 객체**를 반환해 공유 가변 상태(`nodeOutputCache` 등)를 동시 mutate 할 수 있다(11R concurrency, 미재현·개연성 평가). 이 경로가 `finalizeAiNode` "RUNNING 유지" 분기(#24)를 실제로 여는 통로다. 검증안: multi-turn AI 노드를 Parallel 브랜치에 두고 한 브랜치만 retry 호출하는 통합 테스트. Execution 이 실제로는 `cancelled` 인데 `_retryState` 가 남은 row 에 retry 하면, 재진입 turn 종료 시 `assertTransition('cancelled', …)` 이 **DB 가드 진입 전에 동기 throw** 해 `assertLinkedTransitionApplied` 의 우아한 정리를 우회하고 spawn row 가 영구 RUNNING 고아로 남는다. `state-machine.spec` W5 는 상태머신이 거부하는지만 보고 그 거부가 호출부에서 우아하게 처리되는지는 안 본다. 근본 조치는 spawn 이전 명시 검증(step 1.5), 방어는 `updateExecutionStatus` 호출을 try/catch 로 감싸 흡수 | **P2** | 10R W5(requirement) |
 | 21 | 상태 전이 허용 여부의 **이중 진실 소스** — `ALLOWED_TRANSITIONS`/`canTransition`(TS) vs SQL allow-list 상수(엔진)가 독립 존재·수동 동기화. **8R CRITICAL 자체가 이 둘의 불일치였고 수정 후에도 구조는 남는다.** DB 가드 SQL 을 상태머신에서 파생 생성하거나 최소 상호 참조 | P2 | 10R W1 |
 | 22 | `{ allowRetryReentry?: boolean }` 인라인 구조적 타입이 **5곳** 중복(이번 diff 가 3곳 신규). `TransitionOptions` 재사용 안 함 — 구조적 타이핑 탓에 필드 추가/rename 시 컴파일러가 나머지 호출부를 강제 검사하지 못해 "일부 계층만 조용히 어긋나는" 이번과 동일 실패 양상이 재발 가능 | P3 | 10R W2 |
 | 23 | `resolveGuardStatusesSql` / `toRetryReentryOpts` 헬퍼 통합 — 3항 선택 로직과 flag→opts 변환이 각각 2곳·4곳 반복 | P3 | 10R W1·9R W3·W5 |
@@ -578,3 +578,39 @@ skipped, 신규 2건 포함], frontend 281 files/5751[1 skipped], web-chat 3/48,
 
 10R W10(`applyRetryLastTurn` 길이/분기 누적) = #19. 10R INFO 2(orphan RUNNING 백스톱 갭) = #15.
 10R INFO 1(opt-in 이 타입 아닌 관례로만 scope 제한) = #22 와 같은 뿌리.
+
+
+## 11차 라운드 (`review/code/2026/07/30/17_37_14`) — **CRITICAL 0, 수렴**
+
+14개 reviewer 전원 결과 확보(forced 6명 포함 미이행 없음). 개별 최고 위험도는
+`maintainability` MEDIUM(opt-in 배선 shape 중복 구조 — 이 브랜치에서 8R·10R 두 차례 CRITICAL 을
+실제로 유발한 구조라 재발 위험으로 유지).
+
+**소스 로직은 8R 이후 세 라운드 연속 무변경**이다. 9R·10R Critical 은 코드 결함이 아니라 내
+검증이 얕았던 것이었고, 11R 에서 그 축의 Critical 이 사라졌다.
+
+### 이번 라운드 조치 (내가 직전 라운드에 만든 결함 2건)
+
+- [x] **W11(user_guide_sync)** — 10R 에서 내가 추가한 EN 문단이 `Retryable`/`Not retryable`
+      목록을 **중간에서 끊었다**(KO 는 목록 뒤라 정상). EN 을 KO 와 동일 순서로 이동하고,
+      두 로케일의 뒤쪽 무조건문("재시도가 성공하면 하류가 이어서 실행돼요")을 "대화가 끝난
+      경우" 조건부로 정정 — 방금 도입한 두 갈래 설명과 상충했다.
+- [x] **W8(documentation)** — `updateExecutionStatus` JSDoc 에만 `@param opts` 가 없었다.
+      같은 PR 에서 형제 두 함수는 갱신했는데 **상태 전이 단일 choke point 이자 이번 CRITICAL 의
+      당사자 함수만** 빠진 비대칭. 상태머신 opt-in 과 DB 가드에 **함께** 적용돼야 한다는 사실
+      (하나만 반영하면 0행으로 막힌다 = 이 파라미터가 생긴 이유)을 명시.
+
+### defer (신규 등재)
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 26 | DB 가드가 opt-in 상태에서도 COMPLETED/CANCELLED 를 배제하는지 확인하는 **대조 테스트** 부재 — state-machine 계층엔 대칭 테스트가 있는데 DB-가드 계층엔 없다. 코드는 직접 계산으로 정확함 확인(둘 다 opt-in 무관 항상 제외) | P3 | 11R W2 |
+| 27 | `tryLockActiveExecutionAndSaveNodeExec` 전용 describe 가 신규 `opts` 를 미반영 — 형제 `updateExecutionStatus` 는 focused 테스트가 있는데 이쪽은 통합 테스트 1건에만 의존(그 테스트가 실제로 회귀를 잡음은 확인됨) | P3 | 11R W3 |
+| 28 | `retryLastTurn` 의 사전 검증이 재사용하는 `InvalidExecutionStateError` 의 고정 문구("Execution is not waiting for input.")가 retry_last_turn 실패 사유와 의미상 안 맞는다 — `RetryLastTurnError` 는 상황별 정적 팩토리로 이 문제를 피하고 있어 패턴 비대칭. 관련 테스트도 `code` 만 단언해 drift 가 회귀로 안 잡힌다 | P3 | 11R W9 |
+| 29 | `assertTransition` 의 raw `Error` 메시지가 client-safe 매핑 없이 `EXECUTION_FAILED` payload 로 노출될 수 있다 — 같은 파일이 `RetryLastTurnError`/`InvalidExecutionStateError` 에는 "고정 client-safe 문자열" 규약을 명시했는데 상태머신 어설션만 규약 밖. 노출 문자열이 `ExecutionStatus` enum 값뿐이라 민감도는 낮다 | P3 | 11R W10 |
+| 30 | `buildStatusesSql(extraIncluded)` 헬퍼로 두 status SQL 상수 일반화 — 세 번째 예외 상태가 필요해지면 세 번째 상수가 또 생긴다 | P3 | 11R W6 |
+
+### 재확인만 (기존 등재)
+
+11R W1 → #20(증거 보강 반영). W4 → #3(P2, e2e 부재 — 이 결함 계열이 3라운드 연속 unit mock
+정교화로만 대응돼 온 이력을 고려해 **우선순위 상향 권고**). W5 → #21·#22. W7 → #23.
