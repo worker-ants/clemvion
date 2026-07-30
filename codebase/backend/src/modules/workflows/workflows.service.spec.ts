@@ -680,6 +680,29 @@ describe('WorkflowsService', () => {
       expect(edges![0].id).toBeUndefined(); // 원본 엣지 id 를 물려주지 않는다
     });
 
+    it('노드가 사라져 엣지의 source 를 못 찾는 경우도 skip 한다 (대칭 가드 검증)', async () => {
+      // n-trig 가 없는 노드 집합 → e-1(trig→loop) 는 source 매핑 불가(target 은
+      // 존재), e-2(loop→agent) 만 유효. "target 만 없음" 케이스(위 테스트)의
+      // 반대쪽 — `!sourceNodeId` 단독으로도 skip 되는지 대칭 검증.
+      mockTransactionManager.find = jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          Promise.resolve(
+            entity === Node ? [origNodes[1], origNodes[3]] : origEdges,
+          ),
+        );
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const nodes = insertedRows(Node)!;
+      const edges = insertedRows(Edge);
+      expect(edges).toHaveLength(1);
+      expect(edges![0].targetNodeId).toBe(
+        nodes.find((n) => n.label === 'Agent')!.id,
+      );
+      expect(edges![0].id).toBeUndefined(); // 원본 엣지 id 를 물려주지 않는다
+    });
+
     it('워크스페이스 밖 워크플로우는 404 로 막고 트랜잭션을 열지 않는다', async () => {
       mockRepository.findOne.mockResolvedValue(null);
 
