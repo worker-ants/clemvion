@@ -696,6 +696,19 @@ describe('WorkflowsService', () => {
         ...mockWorkflow,
         currentVersion: 1,
       });
+      // `duplicate` describe(위)의 beforeEach 가 `mockTransactionManager.find`/
+      // `.save` 를 자신의 fixture(5노드/2엣지)로 재대입해두는데, `jest.clearAllMocks()`
+      // (최상위 beforeEach)는 호출 이력만 지우고 mockImplementation 은 지우지 않아
+      // 그 재대입이 그대로 살아남는다. 명시적으로 되돌리지 않으면 `syncNodes`/
+      // `syncEdges` 의 `manager.find(Node/Edge, ...)` 가 "기존 노드/엣지 없음"을
+      // 전제한 이 describe 의 앞쪽 테스트들에 유령 데이터를 흘려보낸다(실제 계측
+      // 확인됨 — WARNING 리뷰 항목).
+      mockTransactionManager.find = jest.fn().mockResolvedValue([]);
+      mockTransactionManager.save = jest
+        .fn()
+        .mockImplementation((_entity, data) =>
+          Promise.resolve(Array.isArray(data) ? data : { id: 'new-id', ...data }),
+        );
     });
 
     it('should save canvas with nodes and edges in a transaction', async () => {
