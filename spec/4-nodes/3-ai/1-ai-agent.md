@@ -986,6 +986,11 @@ LLM 이 조건 도구를 호출했을 때. shape 은 §7.2 와 정확히 동일�
 >
 > **재진입 시 config expression 재평가**: 재진입은 노드 config 의 `{{ expression }}` 을 best-effort 로 재평가해 operational 필드(`llmConfigId` / `maxTurns` 등)가 정상 dispatch 와 동일한 evaluated 값을 갖게 한다. rehydrated context 기준이라 `$node` / `$var` / `$thread` / `$execution` / `$now` 는 정상 해소되나, 원본 nodeInput 은 영속하지 않으므로 (`_retryState` 는 turn 직전 `_resumeState` snapshot 파생 — [node-output §4.2.1](../../conventions/node-output.md#421-보존-예외--_resumecheckpoint--_retrystate) 보존 예외, 실패 turn 의 nodeInput 미포함) **`$input.*` 는 미해소**(documented limitation). 재평가 실패 시 raw config 로 안전 fallback 하므로 static config 는 영향 없다. 표현식 해석 단계는 [실행 엔진 §5.5](../../5-system/4-execution-engine.md#55-표현식-해석-단계); `output.config` echo 는 재평가 결과가 아닌 **raw 값**을 유지한다 (CONVENTIONS Principle 7 / 위 Config echo 정책 — `rawConfig` frozen snapshot).
 >
+> **재진입 turn 이 계속되는 경우**: 아래 서술은 재진입 turn 이 **종결**될 때에 한한다. turn 이
+> 대화를 끝내지 않으면(multi-turn 최빈) downstream 진행이 아니라 `waiting_for_input` 으로
+> re-park 한다 — §12.8 상단 콜아웃 및 [실행 엔진 §1.1](../../5-system/4-execution-engine.md#11-execution-상태)
+> 의 `failed → waiting_for_input` 행 참조.
+
 > **재진입 종결 후 graph 진행**: 재진입한 turn 이 성공 종결되면 spawn 된 NodeExecution 은 일반 노드 `COMPLETED` 와 동일하게 출력 포트의 downstream 노드로 그래프 진행이 이어지며, [실행 엔진 §1.1 Execution 상태](../../5-system/4-execution-engine.md#11-execution-상태) 의 종결 규칙 + [§2.1 토폴로지 traversal](../../5-system/4-execution-engine.md#21-토폴로지-정렬-기반-실행-순환-참조-지원) 을 따른다. 재진입 turn 이 다시 실패하면 일반 노드 `FAILED` 와 동일하게 §10 의 종결 규칙을 따른다 (Execution 도 `FAILED` 마감). 즉 retry 는 "마지막 LLM 호출 재진입" 까지가 단위이고, 그 결과의 downstream 처리·종결 정책은 일반 노드의 그것과 같다 — 워크플로 Re-run ([§13](../../5-system/13-replay-rerun.md)) 과의 구분은 "동일 Execution 안 노드 단위 재진입" 이지 "downstream 차단" 이 아니다 (결정 근거: §12.8).
 
 ### 7.10 Presentation Payload (`render_*`) 운반

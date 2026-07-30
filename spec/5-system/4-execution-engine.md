@@ -88,6 +88,16 @@ pending → running ──┤                     └─ cancelled
 > 호출부는 이때 park/terminal 이벤트 emit 을 건너뛰고 짝 `NodeExecution` 을 `cancelled` 로 마킹한
 > 뒤 취소 전파 경로로 넘겨야 한다.
 >
+> **예외 — retry 재진입 opt-in (2026-07-30)**: 위 "비-terminal 확인" 의 **terminal 정의 자체가
+> `allowRetryReentry` opt-in 에 따라 파라미터화된다.** `execution.retry_last_turn` 재진입에 한해
+> DB 가드(짝 전이 `FOR UPDATE` 잠금 · else 분기 guarded UPDATE)가 `failed` 행도 조건부로 잠금
+> 대상에 포함한다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). **이 opt-in 을 상태머신
+> (`canTransition`) 쪽에만 반영하고 DB 가드에 전파하지 않으면 재진입 짝 전이가 항상 0행이 되어
+> 기능이 전혀 동작하지 않는다** — 실제로 2026-07-30 까지 그 상태였다(ai-review 8차 라운드
+> CRITICAL). opt-in 시에도 `completed`/`cancelled` 는 배제되므로 진짜 동시 취소는 계속 막힌다.
+> 상세는 아래 [§Rationale](#rationale) "retry 재진입의 원자 claim" 및
+> [node-cancellation §2.4](../conventions/node-cancellation.md).
+
 > 이 가드가 없으면 in-memory 엔티티가 stale 한 상태에서(park↔resume 경로는 Execution 을 재로드하지
 > 않는다) full-entity save 가 동시 도착한 취소를 덮어써, **사용자 Stop 이 지연되는 게 아니라
 > 소실**된다. 같은 이유로 `finalizeFailedExecution` 등 terminal 마감 경로도 조건부 UPDATE

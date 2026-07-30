@@ -246,6 +246,7 @@ stateDiagram-v2
   running --> waiting_for_input: 블로킹 노드 (form/button/ai_agent) — durable park
   waiting_for_input --> running: continuation-queue (BullMQ) consume — 재개 진입 원자 claim gate (§7.5, affected=1 인 단일 worker)
   waiting_for_input --> failed: AI Agent multi-turn turn 오류 (handleAiTurnError → finalizeAiNode)
+  failed --> waiting_for_input: retry_last_turn 재진입 turn 이 **계속**될 때 re-park (reparkAiResumeTurn, allowRetryReentry opt-in — multi-turn 최빈 경로)
   running --> running: crash 세그먼트 re-drive — 부팅 recoverStuckExecutions 원자 re-claim(PR3 backstop) 또는 운영 중 stalled 재배달 RUNNING 분기(PR4) (started_at 조건부, §7.1/§7.5 case B)
   running --> completed: 마지막 노드 정상 종료
   running --> failed: retry 소진 실패 / EXECUTION_TIME_LIMIT_EXCEEDED / SERVER_INTERRUPTED / WORKER_HEARTBEAT_TIMEOUT (PR4 stalled 재배달 소진)
@@ -266,7 +267,7 @@ stateDiagram-v2
 | `WORKER_HEARTBEAT_TIMEOUT` | **PR4 구현** — stalled 재배달(`maxStalledCount=1`) attempts 소진 시 `finalizeStalledExhausted` 마킹. 부팅 `recoverStuckExecutions` re-drive(§3.3)는 이 코드 미사용 |
 | `SERVER_INTERRUPTED` | SIGTERM graceful shutdown grace 초과 (§3.3) |
 
-상세 가드는 `spec/5-system/4-execution-engine.md §1` 및 `state-machine.ts` (`ALLOWED_TRANSITIONS` — `PENDING → CANCELLED` 포함). `failed → running` 은 일반 표에 없고 `applyRetryLastTurn` 경로의 `allowRetryReentry` opt-in 으로만 허용된다 (`state-machine.ts` `canTransition`).
+상세 가드는 `spec/5-system/4-execution-engine.md §1` 및 `state-machine.ts` (`ALLOWED_TRANSITIONS` — `PENDING → CANCELLED` 포함). `failed → running` 은 일반 표에 없고 `applyRetryLastTurn` 경로의 `allowRetryReentry` opt-in 으로만 허용된다 (`state-machine.ts` `canTransition`). 재진입 turn 이 계속되는 경우엔 `failed → waiting_for_input` 으로 re-park 한다(같은 `allowRetryReentry` opt-in — 상태머신과 **DB 가드 양쪽**에 전파돼야 한다).
 
 ### 3.2 `node_execution.status`
 

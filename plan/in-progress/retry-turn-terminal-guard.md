@@ -641,3 +641,39 @@ treadmill 이므로 처분만 기록하고 종료한다(RESOLUTION: `review/code
 
 12R W2 → #20 · W3 → #28 · W5 → #19 · W6 → #27 · W7 → #3(3라운드 연속 지적, 우선순위 상향
 권고 유지) · INFO 4 → #21·#22·#24 · INFO 5 → #15 · INFO 2 → #29.
+
+
+## `--impl-done` 반영 (2026-07-30, `review/consistency/2026/07/30/19_00_25`) — BLOCK: NO
+
+Critical 0. WARNING 7건 중 **6건이 `spec/`·`plan/` 전용**이라 코드 게이트를 다시 열지 않고
+반영했다. W2(계층간 명명 불일치)만 `codebase/` 라 defer.
+
+- [x] **W1(rationale_continuity, MEDIUM 근거)** — §1.1 "짝 전이는 방향과 무관하게 no-op" 콜아웃이
+      이번 diff 의 **terminal 정의 opt-in 파라미터화**를 반영하지 않았다. 같은 이음매가 실제 8R
+      CRITICAL 로 발현된 전력이 있어 문서 공백이 재발 위험을 남긴다 → §1.1 에 예외 각주 추가 +
+      `node-cancellation.md` §2.4 상호참조 병기.
+- [x] **W4(cross_spec)** — `data-flow/3-execution.md` §3.1 Mermaid 에 `failed → waiting_for_input`
+      edge 누락(그 다이어그램만 보면 `failed` 이후 비-종결 경로가 `running` 뿐으로 오인) → edge +
+      설명 문단 병기.
+- [x] **W5(cross_spec)** — `1-ai-agent.md` §7.9 가 §12.8 신설 콜아웃과 미동기화(같은 문서 두 절이
+      다른 완결성 주장) → §7.9 앞에 동일 콜아웃 추가.
+- [x] **W6(convention_compliance)** — `node-output.md` §4.2.1 이 `_retryState` 영속 위치를
+      `outputData` 하나로 못박아 신설 2차 용법(spawn row `inputData`, delivery-claim 마커)을
+      반영하지 못했다 → † 각주 추가.
+- [x] **W3(plan_coherence)** — 8R·9R 세션에 `RESOLUTION.md` 부재(그 두 라운드는 applier 를 거치지
+      않고 main 이 직접 처분했다) → **사후 작성 완료**. 미승격 WARNING 3건도 아래 표로 승격.
+- [x] **W7(plan_coherence)** — 하네스 예산초과 재발(8번째) → harness plan 에 기록.
+- **W2(naming_collision)** — orchestrator 는 `retryReentry`, driver/state-machine 은
+  `allowRetryReentry`. **이 명명 불일치가 10R CRITICAL 의 근본 원인 중 하나**였다. `codebase/`
+  변경이라 defer → 아래 `#37`.
+
+### 신규 승격 (`--impl-done` W3 지적)
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 35 | **재진입 짝 전이가 원래 실패 시점의 `error`/`finishedAt`/`durationMs` 를 clear 하지 않은 채 non-terminal 행에 재기록한다.** 특히 re-park(최빈)에서 이 모순이 다음 사용자 입력까지 장기 유지돼 `GET /executions/:id` 소비자에게 "대기 중인데 오류 메시지·완료시각·소요시간이 함께 표시" 되는 모순을 노출한다. 마스터 `#5` 는 COMPLETED 시나리오만 커버해 이 축이 비어 있었다. 조치안: `applyRetryLastTurn` 진입 직후 `execution.error = null`(+`finishedAt`/`durationMs`) 초기화 — `#5` 와 한 번에 해소 가능 | **P2** | 9R W1(database) — `--impl-done` W3 이 미승격 지적 |
+| 36 | 한 Execution 아래 형제 FAILED 멀티턴 노드(예: Parallel 브랜치)의 **동시 재진입 소유권 모호성** — `FOR UPDATE` 는 단일 시도 lost-update 는 막지만, 한쪽이 먼저 non-terminal 로 전이시킨 뒤에는 뒤따르는 형제도 잠금·전이를 적용할 수 있다. `#20`(11R 증거 보강)과 같은 뿌리 | P3 | 9R W2(concurrency) — 미승격 지적 |
+| 37 | retry opt-in 플래그가 계층마다 다른 이름 — orchestrator `retryReentry` vs driver/state-machine `allowRetryReentry`. **이 불일치가 10R CRITICAL(번역 seam 무검증)의 근본 원인 중 하나**였고, 버그는 고쳤으나 다음 소비처 추가 시 동일 클래스 재발 여지가 명명 차원에 남는다. `allowRetryReentry` 로 통일하거나 번역 지점 3곳에 앵커 주석 | P3 | `--impl-done` W2(naming_collision) |
+
+`8R W2`(`spawnedId` null-invariant 방어분기 미검증)는 7R 에서 이미 테스트를 추가해 잠갔다 —
+`--impl-done` W3 의 "현재도 테스트 0건" 서술은 그 시점 기준으로, 실측하면 존재한다(`(f)` 케이스).
