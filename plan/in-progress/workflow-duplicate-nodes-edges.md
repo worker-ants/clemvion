@@ -130,7 +130,11 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       임시 문자열 id 를 참조로 넘길 수 없었다. 노드 id 를 `randomUUID()` 로 교정.
 - [x] TEST WORKFLOW — lint PASS(53s) · unit PASS(backend 412 suites) · build PASS(177s) ·
       e2e PASS(260 tests, 309s)
-- [ ] `/ai-review` + Critical/Warning fix
+- [x] `/ai-review` + Critical/Warning fix — Critical 0 · Warning 7(전부 조치) · 요청받은 INFO 3건
+      (#4/#5/#7) 동반 조치. 상세: `review/code/2026/07/30/17_54_27/RESOLUTION.md`. 재실행 TEST
+      WORKFLOW — lint PASS · unit PASS(backend 412 · frontend 281 · web-chat 3 ·
+      channel-web-chat 23 · internal packages 6 전부) · build PASS(docker 이미지 포함) ·
+      e2e PASS(backend 260 + playwright 51, 310s)
 - [ ] `/consistency-check --impl-done` (spec `code:` 연결 코드 변경 → SPEC-CONSISTENCY 게이트)
 
 ---
