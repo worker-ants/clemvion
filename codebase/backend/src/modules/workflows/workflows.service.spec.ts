@@ -88,9 +88,15 @@ describe('WorkflowsService', () => {
   };
 
   const mockDataSource = {
-    transaction: jest
-      .fn()
-      .mockImplementation((cb) => cb(mockTransactionManager)),
+    // `duplicate()` 는 `transaction('REPEATABLE READ', cb)` (2-arg) 로, 나머지
+    // 호출부는 `transaction(cb)` (1-arg) 로 부른다 — isolation level 인자 유무와
+    // 무관하게 콜백을 찾아 실행한다 (executions.service.spec.ts 의 동일 패턴).
+    transaction: jest.fn().mockImplementation((...args: unknown[]) => {
+      const cb = args.find((a) => typeof a === 'function') as (
+        manager: typeof mockTransactionManager,
+      ) => unknown;
+      return cb(mockTransactionManager);
+    }),
   };
 
   const mockWorkflowVersionsService = {

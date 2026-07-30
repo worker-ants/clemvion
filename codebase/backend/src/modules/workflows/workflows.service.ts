@@ -233,7 +233,16 @@ export class WorkflowsService {
     // 권한·존재 확인은 트랜잭션 밖에서 (없으면 트랜잭션 자체를 열지 않는다).
     const original = await this.findById(id, workspaceId);
 
-    return this.dataSource.transaction(async (manager) => {
+    // node/edge 조회(아래 두 SELECT)가 기본 READ COMMITTED 하에서 별도 스냅샷을
+    // 쓰면, 그 사이 동시 `saveCanvas()` 커밋이 끼어들 때 read skew 로 그래프
+    // 일관성이 깨진 사본이 조용히 생성될 수 있다. `executions.service.ts`
+    // `findById` 의 기존 해법(REPEATABLE READ 트랜잭션으로 다중 SELECT 를 단일
+    // 스냅샷에 묶기)과 동일하게 isolation 을 명시한다. 그 선례처럼 이 트랜잭션도
+    // 원본 row 를 다시 write(UPDATE/DELETE)하지 않고 새 UUID 의 사본 row 만
+    // INSERT 하므로 write-write 충돌이 없어 40001(serialization failure) 재시도
+    // 로직은 불필요 — 순수 read 스냅샷 고정 목적의 REPEATABLE READ 만으로 충분
+    // (그 선례에도 재시도 로직 없음).
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
       const copy = manager.create(Workflow, {
         name: `${original.name} (Copy)`,
         description: original.description,
