@@ -155,6 +155,11 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       `spec/data-flow/11-workflow.md` §1.1·Rationale 은 **name + description + nodes + edges,
       `settings` 제외** 다. `origin/main` 시점부터 있던 drift 로 본 PR 이 만든 것이 아니며,
       duplicate 와도 무관하다 (impl-done Warning #1). 경량 spec-only PR 로 처리.
+- [ ] **harness: 타겟 재실행의 changeset 범위 갭** (3차 리뷰 INFO #3) — `REVIEW_AGENTS` 로 좁혀
+      재실행할 때 diff-base 산출이 **재리뷰를 유발한 바로 그 커밋**(`3af0aabbe`)을 대상 파일 목록에서
+      누락했다. 이번엔 reviewer 가 해당 커밋을 직접 열어 검증해 실질 영향은 없었으나, changeset 이
+      조용히 좁아지는 것은 리뷰를 "clean" 으로 위장시키는 클래스다. 근거:
+      `review/code/2026/07/30/19_43_05/RESOLUTION.md` §INFO #3.
 - [ ] **보류된 리뷰 INFO 10건** — `review/code/2026/07/30/17_54_27/RESOLUTION.md` §보류·후속 항목.
       전부 리뷰어가 "필수 아님" 으로 표기. 대표: `findById` TOCTOU(#1), 메타를 트랜잭션 밖에서
       읽는 타이밍(#2 — Warning #1 과 근본 원인 공유하나 404 fast-path 트레이드오프가 별개),
