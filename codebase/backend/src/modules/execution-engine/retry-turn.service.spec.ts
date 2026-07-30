@@ -6,7 +6,10 @@ import type { AiTurnOrchestrator } from './ai-turn-orchestrator.service';
 import type { RetryEngineDriver } from './engine-driver.interface';
 import { NodeExecutionStatus } from '../node-executions/entities/node-execution.entity';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
-import { ExecutionEventType } from '../websocket/websocket.service';
+import {
+  ExecutionEventType,
+  NodeEventType,
+} from '../websocket/websocket.service';
 import { ExecutionCancelledError } from './workflow-errors';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 
@@ -462,6 +465,37 @@ describe('RetryTurnService', () => {
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
+    // W4 (ai-review 7R, `review/code/2026/07/30/11_41_20` #4) — claim 이
+    // 성공(`affected:1`)했는데 in-memory `_retryState` 가 없는 "이론상 도달
+    // 불가능" 방어 분기(claim 직후, retryState 판정)를 잠근다. testing
+    // reviewer 가 mutation 으로 실증: 이 케이스가 없으면 그 블록을 통째로
+    // 삭제해도 41/41 GREEN 이었다 — (c) 는 claim 자체가 실패(affected:0)하는
+    // 다른 분기라 이 분기를 덮지 못한다.
+    it('(f) claim 이 성공(affected:1)했는데 in-memory _retryState 가 없으면 FAILED 로 마킹하지 않고 discard 한다', async () => {
+      // findOneBy 가 반환하는 spawnedRow.inputData 에 `_retryState` 키가 아예
+      // 없다 — 그런데 claim UPDATE 자체는 (mock 상) `affected:1` 로 성공한다.
+      const row = makeSpawnedRow({ inputData: {} });
+      mockNodeExecutionRepo.findOneBy.mockResolvedValue(row);
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => ({
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      }));
+
+      await expect(
+        service.applyRetryLastTurn(EXEC, SPAWNED_ID),
+      ).resolves.toBeUndefined();
+
+      expectGraphNotDriven();
+      // "이론상 도달 불가능" 방어 분기 — 그래도 FAILED 로 마킹하지 않는다
+      // (Critical #1 이 닫은 "살아있는 row 오판" 을 다른 형태로 재도입하지
+      // 않기 위해).
+      expect(row.status).toBe(NodeExecutionStatus.RUNNING);
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
     // ai-review CRITICAL #1 회귀 (W1 (ii)) — claim 성공 후 try 진입 전 구간
     // (Promise.all/rehydrateContext 등)은 catch 밖이라, 여기서 일시 예외가 나면
     // BullMQ 가 같은 job 을 재배달한다. 이 delivery 가 FAILED 로 마킹하지 않아야
@@ -701,6 +735,33 @@ describe('RetryTurnService', () => {
       expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
       // re-park leaves Execution untouched here (handled by next continuation).
       expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
+    });
+
+    // W6 (ai-review 7R, `review/code/2026/07/30/11_41_20` #6) — claim 직후로
+    // delete 가 앞당겨지며 NODE_STARTED WS 이벤트의 `input` 페이로드도 조용히
+    // 바뀌었다(이전엔 `_retryState` 포함 → 이제 미포함, internal 필드 비노출
+    // 원칙과 부합하는 의도된 변경). 잠그는 테스트가 없었으므로 추가한다 — 이
+    // delete 가 없거나 emit 이 claim 이전 스냅샷을 쓰면 이 단언은 RED 여야 한다.
+    it('NODE_STARTED emit 의 input payload 는 _retryState 를 포함하지 않는다 (W6)', async () => {
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(PARK_RELEASED);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      const emitNode = mockEventEmitter.emitNode as jest.Mock;
+      expect(emitNode).toHaveBeenCalledTimes(1);
+      const [emittedExecId, emittedNodeId, eventType, payload] = emitNode.mock
+        .calls[0] as [
+        string,
+        string,
+        unknown,
+        { input?: Record<string, unknown> },
+      ];
+      expect(emittedExecId).toBe(EXEC);
+      expect(emittedNodeId).toBe(NODE_ID);
+      expect(eventType).toBe(NodeEventType.NODE_STARTED);
+      expect(payload.input).not.toHaveProperty('_retryState');
     });
 
     const emittedTypesOuter = () =>
