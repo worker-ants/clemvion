@@ -249,6 +249,8 @@ describe('ExecutionEngineService', () => {
   // 실행하는 terminal 가드(`SELECT ... FOR UPDATE`) 제어. 기본은 "행 잠금 성공(비-terminal)"
   // 이라 기존 테스트가 그대로 통과하고, 선점 테스트만 `[]` 로 재무장한다.
   let mockTxManagerQuery: jest.Mock;
+  // 위 잠금 mock 이 대조할 "현재 DB Execution.status".
+  let dbExecutionStatus: ExecutionStatus;
 
   beforeEach(async () => {
     const savedExecution: Partial<Execution> = {
@@ -265,8 +267,21 @@ describe('ExecutionEngineService', () => {
     // execute() → enqueue → worker → runExecution 경로가 옛 fire-and-forget 계약과
     // 동일하게 동작해 기존 execute() 테스트가 그대로 통과한다.
     let lastSaved: Partial<Execution> = { ...savedExecution };
-    // 기본: 행 잠금이 비-terminal 을 반환 → 짝 전이가 그대로 영속(기존 동작 유지).
-    mockTxManagerQuery = jest.fn().mockResolvedValue([{ id: executionId }]);
+    // ai-review CRITICAL #1 (2026-07-30) — 이 mock 은 종전에 SQL·status 와 **무관하게**
+    // 항상 `[{id}]`(잠금 성공)을 반환해, `updateExecutionStatus` 의 DB 가드가 FAILED 를
+    // 배제하는 사실을 8라운드 동안 은폐했다(retry 재진입 짝 전이가 실제로는 항상 0행이라
+    // persist 되지 않았는데 테스트는 전부 GREEN). 이제 **SQL 의 `status IN (...)` 목록과
+    // 현재 DB status 를 실제로 대조**한다 — opt-in(`allowRetryReentry`) 시에만 SQL 에
+    // `'failed'` 가 들어가므로, opts 전파가 빠지면 이 mock 이 `[]` 를 돌려 RED 가 된다.
+    dbExecutionStatus = ExecutionStatus.PENDING;
+    mockTxManagerQuery = jest.fn((sql: unknown) => {
+      if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+        return Promise.resolve(
+          sql.includes(`'${dbExecutionStatus}'`) ? [{ id: executionId }] : [],
+        );
+      }
+      return Promise.resolve([{ id: executionId }]);
+    });
     mockExecutionRepo = {
       // PR2b — admission gate(admitExecutionOrDefer)의 원자 조건부 UPDATE 기본 mock:
       // affected=1 → admitted 로, runExecutionFromQueue 경유 테스트가 기존 흐름 유지.
@@ -289,6 +304,10 @@ describe('ExecutionEngineService', () => {
       create: jest.fn().mockReturnValue({ ...savedExecution }),
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
         lastSaved = { ...savedExecution, ...entity };
+        if ((entity as Partial<Execution>).status) {
+          dbExecutionStatus = (entity as Partial<Execution>)
+            .status as ExecutionStatus;
+        }
         return Promise.resolve(lastSaved);
       }),
       findOneBy: jest
@@ -5083,6 +5102,52 @@ describe('ExecutionEngineService', () => {
     });
 
     describe('updateExecutionStatus 누적 (RUNNING 진입/이탈)', () => {
+      // ai-review CRITICAL #1 (2026-07-30) — else 분기(linkedNodeExec 없음)의
+      // guarded UPDATE 도 retry 재진입 opt-in 시 FAILED 를 포함해야 한다. 포함하지
+      // 않으면 `status IN ('pending','running','waiting_for_input')` 이 FAILED 행을
+      // 배제해 **항상 0행**이 되고 재진입이 persist 되지 않는다. mutation 으로
+      // 실증했듯(뮤턴트 C) 이 단언이 없으면 FAILED 포함을 제거해도 아무 테스트가
+      // 깨지지 않는다.
+      it('opt-in(allowRetryReentry) 시 else 분기 guarded UPDATE 가 failed 를 조건에 포함한다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.FAILED,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+
+        const persisted = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.RUNNING,
+          undefined,
+          { allowRetryReentry: true },
+        );
+
+        expect(persisted).toBe(true);
+        const sql = String(
+          (mockExecutionRepo.query.mock.calls.at(-1) as unknown[])[0],
+        );
+        expect(sql).toContain("'failed'");
+      });
+
+      // 대조 — opt-in 이 없으면 FAILED 를 포함하지 않아야 한다(실패 종결 실행의
+      // 우발적 부활 차단이 이 설계의 요지).
+      it('opt-in 없으면 else 분기 guarded UPDATE 가 failed 를 포함하지 않는다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+
+        await priv().updateExecutionStatus(exec, ExecutionStatus.COMPLETED);
+
+        const sql = String(
+          (mockExecutionRepo.query.mock.calls.at(-1) as unknown[])[0],
+        );
+        expect(sql).not.toContain("'failed'");
+      });
+
       it('RUNNING 진입 시 segmentStart 기록, 이탈 시 active 시간 누적', async () => {
         const exec = {
           id: executionId,
@@ -16742,6 +16807,9 @@ describe('ExecutionEngineService', () => {
         status: ExecutionStatus.FAILED,
         startedAt: new Date(Date.now() - 60_000),
       });
+      // 잠금 mock 이 대조할 DB status — retry 재진입은 Execution 이 FAILED 인 상태에서
+      // 시작하므로, opt-in(allowRetryReentry) 없이는 짝 전이가 0행이 된다.
+      dbExecutionStatus = ExecutionStatus.FAILED;
 
       const handler = {
         validate: () => ({ valid: true, errors: [] }),
@@ -17102,6 +17170,9 @@ describe('ExecutionEngineService', () => {
         status: ExecutionStatus.FAILED,
         startedAt: new Date(Date.now() - 60_000),
       });
+      // 잠금 mock 이 대조할 DB status — retry 재진입은 Execution 이 FAILED 인 상태에서
+      // 시작하므로, opt-in(allowRetryReentry) 없이는 짝 전이가 0행이 된다.
+      dbExecutionStatus = ExecutionStatus.FAILED;
 
       const agentHandler = {
         validate: () => ({ valid: true, errors: [] }),
@@ -17252,6 +17323,9 @@ describe('ExecutionEngineService', () => {
         status: ExecutionStatus.FAILED,
         startedAt: new Date(Date.now() - 60_000),
       });
+      // 잠금 mock 이 대조할 DB status — retry 재진입은 Execution 이 FAILED 인 상태에서
+      // 시작하므로, opt-in(allowRetryReentry) 없이는 짝 전이가 0행이 된다.
+      dbExecutionStatus = ExecutionStatus.FAILED;
 
       const agentHandler = {
         validate: () => ({ valid: true, errors: [] }),

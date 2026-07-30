@@ -28,9 +28,12 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     ExecutionStatus.FAILED,
   ],
   [ExecutionStatus.COMPLETED]: [],
-  // FAILED 는 일반 경로에서 종착 상태다. 유일한 예외인 FAILED → RUNNING
-  // (execution.retry_last_turn 재진입) 은 ALLOWED_TRANSITIONS 에 넣지 않고
-  // `allowRetryReentry` opt-in 으로만 허용한다 (W5 하드닝) — 아래 canTransition 참조.
+  // FAILED 는 일반 경로에서 종착 상태다. 유일한 예외 쌍인 FAILED → RUNNING
+  // (execution.retry_last_turn 재진입, turn 즉시 종료) / FAILED → WAITING_FOR_INPUT
+  // (execution.retry_last_turn 재진입, turn 계속 — re-park) 은 ALLOWED_TRANSITIONS
+  // 에 넣지 않고 `allowRetryReentry` opt-in 으로만 허용한다 (W5 하드닝, 2026-07-30
+  // ai-review CRITICAL #1 후속으로 WAITING_FOR_INPUT 대상 추가) — 아래 canTransition
+  // 참조.
   [ExecutionStatus.FAILED]: [],
   [ExecutionStatus.CANCELLED]: [],
 };
@@ -44,10 +47,12 @@ export interface TransitionOptions {
    * spec/5-system/6-websocket-protocol.md §4.2 / 4-execution-engine.md §1.3 —
    * `execution.retry_last_turn` 재진입 전용. retryable error 로 FAILED 가 된
    * Execution 을, spawn 된 새 NodeExecution turn 구동(WS node.started/completed
-   * 발행)을 위해 RUNNING 으로 전이시킨다. 이 전이는 retry 재진입 경로
-   * (`applyRetryLastTurn` → `finalizeAiNode`) 에서만 켜져야 하며, 일반
-   * updateExecutionStatus 호출은 FAILED Execution 을 RUNNING 으로 되돌릴 수 없다
-   * (방어적 — 실패 종결된 실행의 우발적 부활 차단).
+   * 발행)을 위해 RUNNING 으로, 그 turn 이 계속돼 re-park 하는 경우
+   * WAITING_FOR_INPUT 으로 전이시킨다. 이 전이는 retry 재진입 경로
+   * (`applyRetryLastTurn` → `finalizeAiNode` / `reparkAiResumeTurn`) 에서만
+   * 켜져야 하며, 일반 updateExecutionStatus 호출은 FAILED Execution 을
+   * RUNNING/WAITING_FOR_INPUT 으로 되돌릴 수 없다 (방어적 — 실패 종결된 실행의
+   * 우발적 부활 차단).
    */
   allowRetryReentry?: boolean;
 }
@@ -60,13 +65,15 @@ export function canTransition(
   to: string,
   opts?: TransitionOptions,
 ): boolean {
-  // retry 재진입 전용 FAILED → RUNNING — 표 밖 전이를 opt-in 으로만 허용.
-  // from/to 는 string 파라미터이므로 enum 멤버를 string 으로 비교한다
+  // retry 재진입 전용 FAILED → RUNNING(turn 즉시 종료) / FAILED → WAITING_FOR_INPUT
+  // (turn 계속, re-park) — 표 밖 전이를 opt-in 으로만 허용. from/to 는 string
+  // 파라미터이므로 enum 멤버를 string 으로 비교한다
   // (@typescript-eslint/no-unsafe-enum-comparison).
   if (
     opts?.allowRetryReentry &&
     from === (ExecutionStatus.FAILED as string) &&
-    to === (ExecutionStatus.RUNNING as string)
+    (to === (ExecutionStatus.RUNNING as string) ||
+      to === (ExecutionStatus.WAITING_FOR_INPUT as string))
   ) {
     return true;
   }
@@ -82,7 +89,8 @@ export function canTransition(
  * @param to   - Target execution status string.
  * @param opts - TransitionOptions forwarded to canTransition. Allows opt-in
  *               transitions outside the standard ALLOWED_TRANSITIONS table
- *               (예: `allowRetryReentry` for FAILED → RUNNING retry re-entry).
+ *               (예: `allowRetryReentry` for FAILED → RUNNING / FAILED →
+ *               WAITING_FOR_INPUT retry re-entry).
  */
 export function assertTransition(
   from: string,

@@ -1391,7 +1391,7 @@ UPDATE node_execution SET input_data = input_data - '_retryState'
 **단 `retry_last_turn` 의 이 2차 claim(`claimSpawnedRetryRow`) 경로는 그 백스톱이 닿지 않는다** —
 claim 실패로 discard 되는 시점에 대상 Execution 은 이미 `failed`(terminal) 로 남아
 `recoverStuckExecutions` 의 재구동 대상(stale RUNNING **Execution**)이 아니기 때문이다(실측 확인).
-그 결과 discard 된 spawn row 자체는 RUNNING orphan 으로 잔류할 수 있다 — **[§7.3](#73-크래시-재개)
+그 결과 discard 된 spawn row 자체는 RUNNING orphan 으로 잔류할 수 있다 — **[§7.3](#73-멱등성-보장)
 "orphan row 마감" 은 case B re-drive 진입 시의 크래시-시점 구 RUNNING row 를 다루므로 이 경로는
 그 cascade 대상이 아니다**(두 서술은 스코프가 다르며 모순이 아니다). 후속은
 `plan/in-progress/retry-turn-terminal-guard.md` #15.

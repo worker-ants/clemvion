@@ -210,6 +210,7 @@ export interface AiTurnEngineDriver
   tryLockActiveExecutionAndSaveNodeExec(
     executionId: string,
     nodeExec: NodeExecution | null,
+    opts?: { allowRetryReentry?: boolean },
   ): Promise<boolean>;
 }
 

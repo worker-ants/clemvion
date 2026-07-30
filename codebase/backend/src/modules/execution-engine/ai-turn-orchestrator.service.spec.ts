@@ -151,6 +151,7 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         ExecutionStatus.WAITING_FOR_INPUT,
         nodeExec,
+        undefined,
       );
     });
 
@@ -178,6 +179,7 @@ describe('AiTurnOrchestrator', () => {
         savedExecution,
         ExecutionStatus.WAITING_FOR_INPUT,
         nodeExec,
+        undefined,
       );
     });
 
@@ -553,6 +555,7 @@ describe('AiTurnOrchestrator', () => {
       expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
+        undefined,
       );
       expect(driver.markNodeCancelled).toHaveBeenCalledWith(
         nodeExec,
@@ -587,6 +590,7 @@ describe('AiTurnOrchestrator', () => {
       expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
+        undefined,
       );
       // save 는 driver(엔진)의 원자적 트랜잭션 안에서 수행되므로 orchestrator
       // 자신의 nodeExecutionRepository 는 이 분기에서 호출되지 않는다 — 위
@@ -662,6 +666,7 @@ describe('AiTurnOrchestrator', () => {
       expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
+        undefined,
       );
       expect(driver.markNodeCancelled).toHaveBeenCalledWith(
         nodeExec,
@@ -698,6 +703,7 @@ describe('AiTurnOrchestrator', () => {
       expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
+        undefined,
       );
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
       const nodeFailedEmitted = mockEventEmitter.emitNode.mock.calls.some(
@@ -774,6 +780,7 @@ describe('AiTurnOrchestrator', () => {
       expect(driver.tryLockActiveExecutionAndSaveNodeExec).toHaveBeenCalledWith(
         executionId,
         nodeExec,
+        undefined,
       );
       expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
       // NODE_COMPLETED + EXECUTION_RESUMED emit.
