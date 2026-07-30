@@ -110,7 +110,12 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
 - [x] `/consistency-check --spec` (planner) — **BLOCK: NO**, Critical/Warning 0건 · INFO 6건
       (`review/consistency/2026/07/30/16_45_59/SUMMARY.md`). INFO 6건은 전부 아래에 반영했다.
 - [x] spec 3곳 반영 (§1.1 / §1.2 / §1.3) + Rationale (§1.4)
-- [ ] `/consistency-check --impl-prep` (developer 착수 직전)
+- [x] `/consistency-check --impl-prep spec/data-flow/` — **BLOCK: NO**, Critical 0 · Warning 1 · INFO 2
+      (`review/consistency/2026/07/30/17_03_26/SUMMARY.md`). 전부 반영: workflow-list frontmatter
+      `pending_plans:` 에 본 plan 등재(W1), Rationale 인용 `§7` → `§2.2 / R-2.2` 앵커 정정(I1),
+      두 번째 기각 대안 라벨 명시(I2).
+- [ ] **완료 시 동기화** — 본 plan 이 `plan/complete/` 로 이동하면 `spec/2-navigation/1-workflow-list.md`
+      의 `pending_plans:` 경로도 함께 치환 (`spec-pending-plan-existence.test.ts`)
 - [ ] `duplicate()` 를 트랜잭션 + nodes/edges 복사로 재구현 (참조 재매핑 포함)
 - [ ] `@ApiOperation` description 갱신 — 부수효과(캔버스 전체 복제 + UUID 재매핑)를 명시
       (`spec/conventions/swagger.md §3`, consistency INFO #5)
