@@ -11,7 +11,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 핵심:
  *   - POST /workflows 가 Manual Trigger 노드를 자동 생성 (saveCanvas 의 "정확히 하나"
  *     invariant 와 짝)
- *   - duplicate 가 새 ID + " (Copy)" 접미 + isActive=false 로 독립 생성
+ *   - duplicate 가 새 ID + " (Copy)" 접미 + isActive=false 로 독립 생성하고, 노드·엣지를
+ *     포함한 캔버스 전체를 새 UUID 로 재매핑해 복사 (data-flow §1.5). 버전 이력은 비승계
  *   - DELETE 후 GET 404
  *   - 동시 PATCH 가 마지막 쓰기로 수렴 (실패 없이)
  *
@@ -139,7 +140,7 @@ describe('Workflow CRUD (e2e)', () => {
     expect(get.body.data.settings?.maxConcurrentExecutions).toBe(5);
   });
 
-  it('C. duplicate → 새 ID, " (Copy)" 접미, isActive=false', async () => {
+  it('C. duplicate → 새 ID, " (Copy)" 접미, isActive=false, 캔버스 전체 복사', async () => {
     const baseName = uniqueName('wf-c');
     const create = await request(BASE_URL)
       .post('/api/workflows')
@@ -147,6 +148,79 @@ describe('Workflow CRUD (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send({ name: baseName, isActive: true });
     const id = create.body.data.id;
+
+    // 복제 대상 그래프를 실제로 만들어 둔다. 빈 캔버스를 복제하면 "노드를 안
+    // 옮긴다" 는 회귀가 관측되지 않는다 (본 케이스가 과거 그 상태였다).
+    // Loop 안에 HTTP(container), Agent 의 Tool Area 에 Tool(toolOwner) — 두 참조
+    // 축을 다른 노드로 갈라 재매핑이 뒤바뀌면 드러나게 한다.
+    const save = await request(BASE_URL)
+      .post(`/api/workflows/${id}/save`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        nodes: [
+          {
+            id: 'c-trig',
+            type: 'manual_trigger',
+            category: 'trigger',
+            label: 'Manual Trigger',
+            positionX: 0,
+            positionY: 0,
+          },
+          {
+            id: 'c-loop',
+            type: 'loop',
+            category: 'logic',
+            label: 'Loop',
+            positionX: 200,
+            positionY: 0,
+          },
+          {
+            id: 'c-http',
+            type: 'http_request',
+            category: 'integration',
+            label: 'HTTP',
+            positionX: 240,
+            positionY: 60,
+            config: { url: 'https://example.com', method: 'GET' },
+            containerId: 'c-loop',
+          },
+          {
+            id: 'c-agent',
+            type: 'ai_agent',
+            category: 'ai',
+            label: 'Agent',
+            positionX: 400,
+            positionY: 0,
+          },
+          {
+            id: 'c-tool',
+            type: 'http_request',
+            category: 'integration',
+            label: 'Tool',
+            positionX: 440,
+            positionY: 60,
+            toolOwnerId: 'c-agent',
+          },
+        ],
+        edges: [
+          {
+            sourceNodeId: 'c-trig',
+            sourcePort: 'out',
+            targetNodeId: 'c-loop',
+            targetPort: 'in',
+            type: 'data',
+          },
+          {
+            sourceNodeId: 'c-loop',
+            sourcePort: 'out',
+            targetNodeId: 'c-agent',
+            targetPort: 'in',
+            type: 'data',
+          },
+        ],
+      });
+    expect([200, 201]).toContain(save.status);
 
     const dup = await request(BASE_URL)
       .post(`/api/workflows/${id}/duplicate`)
@@ -157,13 +231,79 @@ describe('Workflow CRUD (e2e)', () => {
     expect(dupId).not.toBe(id);
     expect(dup.body.data.name).toBe(`${baseName} (Copy)`);
     expect(dup.body.data.isActive).toBe(false);
+    // 버전 이력은 승계하지 않는다 — 원본은 save 로 2 가 됐고 사본은 1 로 시작.
+    expect(dup.body.data.currentVersion).toBe(1);
 
-    // 원본은 그대로.
+    // 사본의 캔버스를 export 로 관측한다 (노드 간 참조가 인덱스로 정규화돼 나와
+    // UUID 재매핑 결과를 그대로 대조할 수 있다).
+    const dupExport = await request(BASE_URL)
+      .get(`/api/workflows/${dupId}/export`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(dupExport.status).toBe(200);
+
+    const nodes = dupExport.body.data.nodes as Array<{
+      label: string;
+      config: Record<string, unknown>;
+      containerIndex: number | null;
+      toolOwnerIndex: number | null;
+    }>;
+    const edges = dupExport.body.data.edges as Array<{
+      sourceNodeIndex: number;
+      targetNodeIndex: number;
+      sourcePort: string;
+      targetPort: string;
+    }>;
+    expect(nodes).toHaveLength(5);
+    expect(edges).toHaveLength(2);
+
+    const idx = (label: string) => nodes.findIndex((n) => n.label === label);
+    expect(nodes[idx('HTTP')].containerIndex).toBe(idx('Loop'));
+    expect(nodes[idx('HTTP')].toolOwnerIndex).toBeNull();
+    expect(nodes[idx('Tool')].toolOwnerIndex).toBe(idx('Agent'));
+    expect(nodes[idx('Tool')].containerIndex).toBeNull();
+    expect(nodes[idx('HTTP')].config).toMatchObject({
+      url: 'https://example.com',
+    });
+
+    const edgePairs = edges.map(
+      (e) =>
+        `${nodes[e.sourceNodeIndex].label}->${nodes[e.targetNodeIndex].label}`,
+    );
+    expect(edgePairs.sort()).toEqual(
+      ['Loop->Agent', 'Manual Trigger->Loop'].sort(),
+    );
+
+    // 사본의 노드는 원본과 다른 row 다 — 원본 노드 UUID 를 재사용하지 않는다.
+    const dupNodeIds = await db.query<{ id: string }>(
+      'SELECT id FROM node WHERE workflow_id = $1',
+      [dupId],
+    );
+    const origNodeIds = await db.query<{ id: string }>(
+      'SELECT id FROM node WHERE workflow_id = $1',
+      [id],
+    );
+    expect(dupNodeIds.rows).toHaveLength(5);
+    expect(origNodeIds.rows).toHaveLength(5);
+    const origSet = new Set(origNodeIds.rows.map((r) => r.id));
+    for (const row of dupNodeIds.rows) {
+      expect(origSet.has(row.id)).toBe(false);
+    }
+
+    // 원본은 그대로 (이름·활성 상태·캔버스 모두).
     const original = await request(BASE_URL)
       .get(`/api/workflows/${id}`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
     expect(original.body.data.name).toBe(baseName);
+    expect(original.body.data.isActive).toBe(true);
+
+    // 사본에 버전 스냅샷 row 를 만들지 않는다.
+    const dupVersions = await db.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM workflow_version WHERE workflow_id = $1',
+      [dupId],
+    );
+    expect(dupVersions.rows[0].count).toBe('0');
   });
 
   it('D. DELETE → 204 그리고 후속 GET 404', async () => {

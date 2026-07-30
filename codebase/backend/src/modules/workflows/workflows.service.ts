@@ -213,23 +213,103 @@ export class WorkflowsService {
     await this.workflowRepository.remove(workflow);
   }
 
+  /**
+   * 워크플로우를 캔버스째 복제한다 (data-flow §1.5).
+   *
+   * import 경로와 **UUID 재매핑 알고리즘만** 공유하고 게이트는 공유하지 않는다 —
+   * label 중복 검사·reserved 변수명 검사·`applyConfigDefaults`·기본 LLM 주입은
+   * 전부 "외부에서 들어온 신뢰할 수 없는 페이로드" 를 위한 것이고, 원본은 이미 그
+   * 게이트를 통과해 저장된 데이터다. 특히 기본 LLM 주입은 원본이 의도적으로 비워둔
+   * `llmConfigId` 를 채워 복제가 설정을 변조하게 만든다 (§Rationale).
+   *
+   * 복제 범위 밖: 버전 이력(`workflow_version` — 사본은 default `current_version=1`
+   * 로 새로 시작), `trigger`, `workflow_test_dataset`, 실행 이력.
+   */
   async duplicate(
     id: string,
     workspaceId: string,
     userId: string,
   ): Promise<Workflow> {
+    // 권한·존재 확인은 트랜잭션 밖에서 (없으면 트랜잭션 자체를 열지 않는다).
     const original = await this.findById(id, workspaceId);
-    const copy = this.workflowRepository.create({
-      name: `${original.name} (Copy)`,
-      description: original.description,
-      isActive: false,
-      tags: original.tags,
-      folderId: original.folderId,
-      settings: original.settings,
-      workspaceId,
-      createdBy: userId,
+
+    return this.dataSource.transaction(async (manager) => {
+      const copy = manager.create(Workflow, {
+        name: `${original.name} (Copy)`,
+        description: original.description,
+        isActive: false,
+        // 배열/JSONB 는 얕은 복사 — 반환 엔티티가 원본 엔티티와 참조를 공유하면
+        // 호출부의 변이가 원본까지 오염시킨다.
+        tags: [...(original.tags ?? [])],
+        folderId: original.folderId,
+        settings: { ...(original.settings ?? {}) },
+        workspaceId,
+        createdBy: userId,
+        // currentVersion 은 넘기지 않는다 — 엔티티 default(1) 로 새로 시작.
+      });
+      const savedCopy = await manager.save(Workflow, copy);
+
+      // 노드/엣지는 사본을 쓰는 것과 같은 트랜잭션에서 읽는다 — 실패 시 부분 사본이
+      // 남지 않는다.
+      const originalNodes = await manager.find(Node, {
+        where: { workflowId: id },
+      });
+      const originalEdges = await manager.find(Edge, {
+        where: { workflowId: id },
+      });
+
+      // importWorkflow 와 같은 형태 — UUID 를 앱 측에서 사전 발급해 참조 remap 을
+      // insert 페이로드에 바로 담는다 (2차 update 루프 없이 왕복 ~2회).
+      // manager.insert 는 @BeforeInsert hook·cascade 를 건너뛴다 — Node/Edge 엔티티
+      // 에는 둘 다 없음(같은 전제를 고정하는 가드 테스트가 본 파일 하단에 있다).
+      const idMap = new Map<string, string>(
+        originalNodes.map((node) => [node.id, randomUUID()]),
+      );
+      const remap = (nodeId: string | null): string | null =>
+        nodeId ? (idMap.get(nodeId) ?? null) : null;
+
+      const nodeRows = originalNodes.map((node) => ({
+        id: idMap.get(node.id)!,
+        workflowId: savedCopy.id,
+        type: node.type,
+        category: node.category,
+        label: node.label,
+        positionX: node.positionX,
+        positionY: node.positionY,
+        config: { ...node.config },
+        isDisabled: node.isDisabled,
+        description: node.description,
+        containerId: remap(node.containerId),
+        toolOwnerId: remap(node.toolOwnerId),
+      }));
+      if (nodeRows.length > 0) {
+        await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
+      }
+
+      const edgeRows = originalEdges.flatMap((edge) => {
+        // FK CASCADE 상 원본에 고아 엣지는 없어야 하지만, 있으면 사본에 옮기지
+        // 않는다 (import 경로의 범위 밖 인덱스 skip 과 같은 방어).
+        const sourceNodeId = idMap.get(edge.sourceNodeId);
+        const targetNodeId = idMap.get(edge.targetNodeId);
+        if (!sourceNodeId || !targetNodeId) return [];
+        return [
+          {
+            workflowId: savedCopy.id,
+            sourceNodeId,
+            sourcePort: edge.sourcePort,
+            targetNodeId,
+            targetPort: edge.targetPort,
+            type: edge.type,
+            condition: edge.condition,
+          },
+        ];
+      });
+      if (edgeRows.length > 0) {
+        await manager.insert(Edge, edgeRows as QueryDeepPartialEntity<Edge>[]);
+      }
+
+      return savedCopy;
     });
-    return this.workflowRepository.save(copy);
   }
 
   async exportWorkflow(

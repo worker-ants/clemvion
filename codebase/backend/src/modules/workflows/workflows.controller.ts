@@ -212,7 +212,7 @@ export class WorkflowsController {
   @ApiOperation({
     summary: '워크플로우 복제',
     description:
-      '기존 워크플로우를 비활성(inactive) 상태의 새 워크플로우로 복제합니다. 이름은 "(Copy)"가 추가됩니다.',
+      '기존 워크플로우를 비활성(inactive) 상태의 새 워크플로우로 복제합니다. 이름에 "(Copy)"가 추가되며, **노드·엣지를 포함한 캔버스 전체**를 한 트랜잭션으로 함께 복사합니다 — 노드는 새 UUID 로 재발급되고 노드 간 참조(컨테이너·Tool Area·엣지 endpoint)는 사본 UUID 로 재매핑됩니다. 버전 이력·트리거·테스트 데이터셋·실행 이력은 복제되지 않으며, 사본은 버전 1 로 새로 시작합니다.',
   })
   @ApiParam({ name: 'id', description: '원본 워크플로우 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(WorkflowDto, {
