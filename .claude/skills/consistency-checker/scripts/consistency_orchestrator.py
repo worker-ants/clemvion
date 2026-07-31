@@ -551,14 +551,14 @@ def collect_context(args, root):
         target_path_rel = args.spec
         target_abs = _require_target(args.spec, "--spec", want_dir=False)
         excluded.add(target_abs)
-        target_doc = read_text_file(target_abs)
+        target_doc = _neutralize_sentinel(read_text_file(target_abs))
         mode_label = "spec draft 검토 (--spec)"
 
     elif args.plan:
         target_path_rel = args.plan
         target_abs = _require_target(args.plan, "--plan", want_dir=False)
         excluded.add(target_abs)
-        target_doc = read_text_file(target_abs)
+        target_doc = _neutralize_sentinel(read_text_file(target_abs))
         mode_label = "plan draft 검토 (--plan)"
 
     elif args.impl_prep:
@@ -582,15 +582,21 @@ def collect_context(args, root):
             scope_files, root, f"구현 대상 spec 영역: `{target_path_rel}`"
         )
         diff_text = _collect_code_diff(diff_base, root)
+        # The diff gets a boundary and a name of its own. Without them it rode on
+        # the last spec file's chunk, so a budget cut took the whole tail — diff
+        # included — and the omission notice named only the spec file. A checker
+        # then judged "spec vs implementation" with no implementation in front of
+        # it and no way to notice. Named, it is dropped like any other entry.
+        _DIFF_LABEL = f"<git diff {diff_base}...HEAD -- code_areas>"
         if diff_text.strip():
             diff_section = (
-                f"\n\n## 구현 변경 사항 (git diff {diff_base}...HEAD -- "
-                f"<code_areas>)\n\n```diff\n{diff_text}\n```\n"
+                f"{_BUNDLE_FILE_SENTINEL}#### `{_DIFF_LABEL}`\n\n"
+                f"```diff\n{_neutralize_sentinel(diff_text)}\n```\n"
             )
         else:
             diff_section = (
-                f"\n\n## 구현 변경 사항 (git diff {diff_base}...HEAD -- "
-                "<code_areas>)\n\n(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
+                f"{_BUNDLE_FILE_SENTINEL}#### `{_DIFF_LABEL}`\n\n"
+                "(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
             )
         # HEAD-basis notice goes FIRST so it survives target_doc truncation
         # (truncate_to_budget trims the tail) and the checker reads the

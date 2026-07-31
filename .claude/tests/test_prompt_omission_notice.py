@@ -26,6 +26,7 @@ the orchestrator in-process collides on the name `_lib`.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import textwrap
@@ -239,7 +240,37 @@ class OmittedContentIsAnnouncedTest(unittest.TestCase):
         # it adds and comes out marginally SMALLER (1,678). Asserting the cap
         # here would fail for a defect this test does not own.
 
+    def test_a_twice_cut_file_reports_its_real_total(self):
+        """The second cut must measure source, not the first cut's annotation.
+
+        A file can be cut twice — once against `max_file_size`, then again
+        against the prompt budget. The second cut used to recount lines from a
+        string that already carried the first cut's note, so it announced the
+        truncated length as the file's size: a real 1,531-line file came out as
+        "356/580" and 1,531 appeared nowhere.
+
+        Every other test here passes `max_file_size=10_000_000`, so the first cut
+        never fires and this path was never entered — the fix went in with no
+        test, and reverting it left the suite GREEN. This is the fixture that
+        makes both cuts happen.
+        """
+        total = 1531
+        body = "\n".join(f"line {i}" for i in range(1, total + 1))
+        out = run_in_orchestrator(
+            """
+            ci = change_info("big.py", ARG["body"])
+            emit(orch.build_files_section([ci], ARG["max_file"], ARG["max_total"]))
+            """,
+            {"body": body, "max_file": 8000, "max_total": 5000},
+        )
+        reported = re.findall(r"(\d+)/(\d+) 줄만 표시", out)
+        self.assertTrue(reported, "no truncation note — both cuts must fire")
+        for _kept, said_total in reported:
+            self.assertEqual(int(said_total), total,
+                             f"note claims {said_total} lines; the file has {total}")
+
     def test_silent_when_everything_fits(self):
+
         out = build([SMALL, ("small2.py", "b = 2\n")], max_total=1_000_000)
         self.assertTrue(all(s["has_content"] for s in out))
         self.assertFalse(any(s["has_notice"] for s in out),
