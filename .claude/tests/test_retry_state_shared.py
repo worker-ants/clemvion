@@ -170,6 +170,51 @@ class MergeCoordinatorUsesTheSharedStateTest(unittest.TestCase):
         self.assertIn("merge_conflict", state["agents_success"])
         self.assertIn("merge_conflict", state.get("agent_history", {}))
 
+    def test_summary_state_cli_reads_through_the_shared_helper(self):
+        """The other path the delegation changed, and the only one that keeps a
+        local body — `_emit_summary_state` still formats `branches`/`base`
+        itself but now loads through the shared `load_state`. A regression in
+        that return tuple would surface only here."""
+        import subprocess
+        import sys as _sys
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        sess = os.path.join(d, "s")
+        os.makedirs(sess)
+        with open(os.path.join(sess, "_retry_state.json"), "w") as f:
+            json.dump({"subagent_invocations": [{"name": "merge_conflict"}],
+                       "agents_success": ["merge_conflict"], "agents_pending": [],
+                       "agents_fatal": [], "branches": ["a", "b"],
+                       "base": "origin/main", "last_reset_hint_sec": 42}, f)
+        script = (_harness.CLAUDE_DIR / "skills" / "merge-coordinator" / "scripts"
+                  / "merge_coordinator_orchestrator.py")
+        r = subprocess.run(
+            [_sys.executable, str(script), "--summary-state", sess],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        for expected in ("pending=0", "success=1", "fatal=0",
+                         "branches=2", "base=origin/main", "last_reset=42"):
+            self.assertIn(expected, r.stdout)
+
+    def test_summary_state_exits_nonzero_when_the_state_file_is_missing(self):
+        """`load_state`'s `sys.exit(1)` is the contract this consumer inherited;
+        a silent empty-dict fallback would make an unrun session read as clean."""
+        import subprocess
+        import sys as _sys
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        sess = os.path.join(d, "empty")
+        os.makedirs(sess)
+        script = (_harness.CLAUDE_DIR / "skills" / "merge-coordinator" / "scripts"
+                  / "merge_coordinator_orchestrator.py")
+        r = subprocess.run(
+            [_sys.executable, str(script), "--summary-state", sess],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("_retry_state.json", r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

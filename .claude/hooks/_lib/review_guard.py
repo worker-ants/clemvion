@@ -35,6 +35,17 @@ EITHER of these coverage gates fails:
   spec-linked change, or any internal error (fail-open: a guard must never
   wedge the session; either gate's parsing falls back to "not blocked").
 
+Advisory, orthogonal to the above: when Gate 2 adopts a consistency session
+whose SUMMARY says `BLOCK: NO` while one of its checkers tagged a `[CRITICAL]`,
+the decision carries a `notes` entry naming the contradiction. It is NOT a third
+blocking condition — the verdict is whatever the two gates above compute, and a
+downgraded session that is otherwise fresh and resolved still opens the gate.
+The note exists because that downgrade violates a policy (`consistency-summary`
+§요약 지침 3) which until now lived only in prose, so nothing surfaced when it
+was broken: measured 24 contradictions across 732 committed sessions (3.3%).
+Only the *adopted* session is examined — reporting on sessions the gate ignored
+would train the reader to ignore the note. See `_shared/block_integrity.py`.
+
 "Fresh, resolved review" =
   a `review/code/**/SUMMARY.md` in the working tree satisfying ALL of:
     1. coverage:   every `agents_forced` reviewer left a report on disk — the

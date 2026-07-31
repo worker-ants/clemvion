@@ -824,6 +824,13 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
 
     `_accepts_cwd` decides scoping: a gate whose signature takes no positional
     cwd is called bare, exactly as before scoping existed (legacy degrade).
+
+    Third responsibility, added later: **advisory collection**. A decision may
+    carry `notes` — observations that change no verdict — and they are drained
+    into `outcome.notes` here rather than at the call sites, because they must
+    survive on both paths. A note filed by a target that then blocks is the one
+    most worth keeping: the session being rejected may be the very one that
+    downgraded a Critical.
     """
     scoped = _accepts_cwd(evaluate)
     answered = False

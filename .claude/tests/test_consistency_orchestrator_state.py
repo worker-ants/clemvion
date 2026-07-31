@@ -1,11 +1,17 @@
 """State-machine tests for the consistency orchestrator's read paths.
 
-The two orchestrators keep their state machines in lockstep by duplication (a convention
-their headers state), but `test_orchestrator_state.py` only ever drove the code-review
-one. That gap let a change land where the SKILLs documented "`--summary-state`/`--resume`
-reconcile with disk" while only `code_review_orchestrator.py` actually did — documented
-behaviour with no mechanism behind it, which is the very failure mode the surrounding
-work exists to remove. Four reviewers reproduced it independently; these tests make the
+The two orchestrators once kept their state machines in lockstep by hand duplication (a
+convention their headers stated); they now delegate to `_shared/retry_state.py` and those
+headers are gone. The gap this file was written for was of that era: `test_orchestrator_
+state.py` only ever drove the code-review one, which let a change land where the SKILLs
+documented "`--summary-state`/`--resume` reconcile with disk" while only
+`code_review_orchestrator.py` actually did — documented behaviour with no mechanism
+behind it, which is the very failure mode the surrounding work exists to remove.
+
+Still worth keeping after the extraction: what it pins is this orchestrator's *CLI output
+contract*, which stayed deliberately different from the code-review one (no `skipped=` /
+`routing=` fields — it has no router). Sharing the implementation did not merge the
+contracts, so the consumer-side test is still the only thing holding this one. Four reviewers reproduced it independently; these tests make the
 duplicate carry its own weight.
 
 Driven through the real CLI via subprocess, matching test_orchestrator_state.

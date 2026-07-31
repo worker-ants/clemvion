@@ -154,6 +154,22 @@ class VerdictIsAnchoredTest(unittest.TestCase):
                 "\n**BLOCK: YES** (최초 판정 — 위 최종 판정으로 대체됨)\n")
         self.assertEqual(BI.summary_block_verdict(text), "NO")
 
+    def test_two_equally_anchored_verdicts_the_later_one_wins(self):
+        """When the anchor cannot discriminate, position decides.
+
+        Note this is the opposite layout from the case above: there the final
+        verdict is at the top and wins on its anchor. Here both lines are bare
+        and equally anchored, so the anchor is silent and the tiebreak shows.
+        """
+        text = "**BLOCK: YES**\n\n(위 판정은 초안 — 재검토 후 최종은 아래)\n\n**BLOCK: NO**\n"
+        self.assertEqual(BI.summary_block_verdict(text), "NO")
+
+    def test_the_tiebreak_does_not_override_the_anchor(self):
+        """A later *unanchored* mention must not beat an earlier anchored one."""
+        text = ("## 최종 판정: **BLOCK: NO**\n"
+                "\n참고: 직전 세션은 BLOCK: YES 였다 (이번 판정과 무관)\n")
+        self.assertEqual(BI.summary_block_verdict(text), "NO")
+
     def test_absent_verdict_is_none(self):
         self.assertIsNone(BI.summary_block_verdict("판정 줄이 없는 문서"))
 
@@ -181,7 +197,18 @@ class DowngradedCriticalsTest(unittest.TestCase):
         })
         self.assertEqual(BI.downgraded_criticals(d),
                          {"convention_compliance.md": 2, "plan_coherence.md": 1})
-        self.assertIn("§planner 인계", BI.contradiction_note(d))
+        note = BI.contradiction_note(d)
+        self.assertIn("§planner 인계", note)
+        # The `§planner 인계` string is template-constant, so asserting only that
+        # leaves the whole `parts` construction — `.md` stripping, sorting, the
+        # `name=count` join — unpinned. These name what the reader must see.
+        self.assertIn("convention_compliance=2", note)
+        self.assertIn("plan_coherence=1", note)
+        # The checker names lose their `.md`; a bare `.md` check would be wrong
+        # here because the note cites `consistency-summary.md` on purpose.
+        self.assertNotIn("convention_compliance.md", note)
+        self.assertLess(note.index("convention_compliance"),
+                        note.index("plan_coherence"), "sorted() order")
 
     def test_silent_when_the_summary_blocks(self):
         """BLOCK: YES with criticals is the rule working, not a violation."""
@@ -325,9 +352,17 @@ class NotesReachBothHooksTest(unittest.TestCase):
         "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
         "    return _D()\n"
     )
+    # `push_blocks` mirrors the real `PlanDecision` property. Omitting it did not
+    # make this test fail — it made it pass for the wrong reason: the push hook
+    # reads `result.push_blocks` for BOTH gates, the AttributeError escaped the
+    # try/except (which wraps only `evaluate()`), and the top-level handler
+    # fail-opened with exit 0 while still printing the notes. So the test proved
+    # "notes survive a PLAN-gate crash", not "notes appear on a clean allow".
     _CLEAN_PLAN = (
         "class _P:\n    untouched = False\n    complete_but_in_progress = False\n"
-        "    reason = ''\n    plan_path = ''\ndef evaluate_plan():\n    return _P()\n"
+        "    reason = ''\n    plan_path = ''\n"
+        "    @property\n    def push_blocks(self):\n        return self.untouched\n"
+        "def evaluate_plan():\n    return _P()\n"
     )
 
     def _hook_env(self):
@@ -357,6 +392,9 @@ class NotesReachBothHooksTest(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0)
         self.assertIn("하향 감지", r.stdout)
+        # Pins the reason it passed. Without this the ALLOW path and the
+        # crash-then-fail-open path are indistinguishable from stdout alone.
+        self.assertNotIn("Traceback", r.stderr)
 
     def test_stop_hook_surfaces_notes_on_stderr(self):
         """Stop's stdout is a JSON protocol, so its advisories go to stderr."""
@@ -373,6 +411,74 @@ class NotesReachBothHooksTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertIn("하향 감지", r.stderr)
         self.assertNotIn("하향 감지", r.stdout)
+
+
+class StopThrottleKeysOnTextTest(unittest.TestCase):
+    """Repeat the same advisory → silence. A different one → still heard.
+
+    The throttle keyed on `enumerate`'s index, which is always 0 because the
+    gate reports at most one adopted session. So the first downgrade warning on
+    a branch suppressed every later one — different session, different checker,
+    any text — which is precisely the "a downgrade passes silently" failure this
+    branch exists to close, rebuilt inside the mechanism meant to close it.
+
+    Nothing caught it: no test in the suite ran either hook twice.
+    """
+
+    _STUB = (
+        "from dataclasses import dataclass\n"
+        "import os\n"
+        "@dataclass\n"
+        "class _D:\n"
+        "    blocked: bool = False\n"
+        "    reason: str = 'clean'\n"
+        "    @property\n"
+        "    def notes(self):\n"
+        "        return (os.environ['FAKE_NOTE'],)\n"
+        "    @property\n"
+        "    def push_blocks(self):\n"
+        "        return self.blocked\n"
+        "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+        "    return _D()\n"
+    )
+
+    def setUp(self):
+        import shutil as _sh
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(_sh.rmtree, self.tmp, ignore_errors=True)
+        self.hooks = os.path.join(self.tmp, "hooks")
+        _sh.copytree(str(_harness.HOOKS_DIR), self.hooks)
+        with open(os.path.join(self.hooks, "_lib", "review_guard.py"), "w",
+                  encoding="utf-8") as f:
+            f.write(self._STUB)
+        with open(os.path.join(self.hooks, "_lib", "plan_guard.py"), "w",
+                  encoding="utf-8") as f:
+            f.write(NotesReachBothHooksTest._CLEAN_PLAN)
+
+    def _run(self, note):
+        import json as _json
+        import subprocess
+        import sys as _sys
+        r = subprocess.run(
+            [_sys.executable, os.path.join(self.hooks, "guard_review_before_stop.py")],
+            input=_json.dumps({"session_id": "same-session"}),
+            capture_output=True, text=True, timeout=30,
+            env={**os.environ, "CLAUDE_PROJECT_DIR": self.tmp, "FAKE_NOTE": note},
+            cwd=self.tmp,
+        )
+        self.assertEqual(r.returncode, 0)
+        return r.stderr
+
+    def test_identical_note_is_throttled(self):
+        note = "⚠️  세션A: convention_compliance 하향 감지"
+        self.assertIn("세션A", self._run(note))
+        self.assertNotIn("세션A", self._run(note))
+
+    def test_a_different_note_still_gets_through(self):
+        self.assertIn("세션A", self._run("⚠️  세션A: convention_compliance 하향 감지"))
+        # Same position in `notes`, same session, same branch — only the text
+        # differs. Index keying swallowed this one.
+        self.assertIn("세션B", self._run("⚠️  세션B: plan_coherence 하향 감지"))
 
 
 class NotesSurviveBlockingTest(unittest.TestCase):

@@ -100,11 +100,24 @@ def summary_block_verdict(summary_text: str) -> str | None:
     delegates here. Two copies of a `BLOCK:` regex is the "Change both" shape
     this branch is elsewhere removing, and it would have been created in the
     same diff.
+
+    What actually separates a real verdict from a superseded one is the **end
+    anchor**, not position: the observed override case
+    (`review/consistency/2026/07/17/00_17_40`) puts its final verdict at the
+    *top*, on a decorated line ending in the verdict, while the stale template
+    line below it trails explanatory text and so fails the anchor.
+
+    Among several *equally* end-anchored verdicts the anchor cannot choose, and
+    there the **last** wins — later text supersedes earlier. That tiebreak is a
+    judgement call, not something the corpus demonstrates. What the corpus does
+    show, measured across all 1,504 committed SUMMARY files before the change:
+    2 documents carry more than one end-anchored verdict and neither flips. So
+    this removes an ambiguity rather than changing any real verdict.
     """
-    m = _BLOCK_AT_LINE_END.search(summary_text)
-    if m is None:
-        m = _BLOCK_AT_LINE_START.search(summary_text)
-    return m.group(1).upper() if m else None
+    matches = list(_BLOCK_AT_LINE_END.finditer(summary_text))
+    if not matches:
+        matches = list(_BLOCK_AT_LINE_START.finditer(summary_text))
+    return matches[-1].group(1).upper() if matches else None
 
 
 def downgraded_criticals(session_dir: str) -> dict[str, int]:

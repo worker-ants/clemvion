@@ -81,7 +81,17 @@ priority: P2
 >    이름 접두뿐인데 정규화를 안 하고 발산으로 읽었다.) 즉 Agent tool 로 직접 fan-out 한 세션이 prepare 시점 스냅샷에 멈춘 채
 >    SUMMARY 는 실제 성공을 보고하는, 다른 두 orchestrator 가 이미 고친 모순을 그대로 겪는다.
 >    다른 skill 의 동작 변경이라 별도 PR 로 분리한다.
-> 10. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 10. **`_retry_state.json` 의 lost update — 잠금이 없다** — `apply_status_update` 는
+>    read-modify-write 인데 파일 잠금이 없다. `save_state` 를 원자적으로 만든 것은 *찢어진 읽기*
+>    만 닫는다. 수렴이 있는 필드는 `agents_success` **하나뿐**이다(디스크의 리포트 파일에서 매번
+>    재도출). `agents_fatal` 은 이미 메모리에 있던 값을 필터링할 뿐이라 **한 번 유실되면 어떤
+>    reconcile 로도 복구 불가** — `/loop` 가 영구 실패로 판정된 checker 를 다시 돌린다.
+>    `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec` 도 마찬가지.
+>    `fcntl.flock` 은 모든 훅 경로에 블로킹 프리미티브를 놓는 것이라 채택 안 했고, 대안은
+>    `<name>.fatal` sentinel 파일로 `agents_fatal` 도 디스크에서 재도출하는 것 — 새 설계라 분리.
+>    (docstring 은 이번에 정정했다. 종전 서술이 "버킷들은 디스크에서 재도출된다" 로 읽혀
+>    보장 범위를 과대하게 주장하고 있었다.)
+> 11. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
@@ -115,16 +125,35 @@ priority: P2
 
 - [ ] **CI 게이트**: PR 에 `codebase/**` diff 가 있는데 그 변경을 커버하는 *해결된* 리뷰
       산출물이 없으면 CI fail. 훅(로컬 PreToolUse)과 **독립**이라 정규식 사각지대를 공유하지 않는다.
-      - 리뷰 산출물(`review/code/**`)은 gitignored 라 PR 에 없다 → CI 가 무엇으로 "리뷰됨" 을
-        판정할지 설계 필요(커밋 trailer? PR label? 별도 signed marker?).
+      - ~~리뷰 산출물(`review/code/**`)은 gitignored 라 PR 에 없다 → CI 가 무엇으로 "리뷰됨" 을
+        판정할지 설계 필요(커밋 trailer? PR label? 별도 signed marker?).~~
+        **전제 반증 (2026-08-01 실측)**. `.gitignore` 가 제외하는 것은 `review/**/_prompts/`
+        뿐이고, `origin/main` 이 `review/code` 아래 **8,851개**(`review/` 전체 14,517개)를
+        추적한다. 산출물은 PR 에 그대로 들어있다 → 별도 marker 설계가 필요 없다.
 - [ ] 대안: push 시 게이트 **통과 기록**(상태 파일 타임스탬프)을 남기고, 별도 감사에서
       "codebase 변경 push 인데 기록 없음" 을 탐지. 단 이것도 "codebase 변경 push" 판정에
       정규식이 끼면 부분적으로만 독립.
 
 ## 결정이 필요한 지점 (그래서 P2, 사용자/설계 판단)
 
-- CI 가 "리뷰됨" 을 무엇으로 인식하는가 — gitignored 산출물을 CI 에 어떻게 노출하나.
-- 로컬 훅과 CI 의 **이중 게이트**가 마찰(느린 CI·false block)을 얼마나 만드나.
+> **2026-08-01 실측으로 아래 3건 중 1건은 소멸, 1건은 이미 해결돼 있었다.** 남은 것은 마찰 판단뿐.
+
+- ~~CI 가 "리뷰됨" 을 무엇으로 인식하는가 — gitignored 산출물을 CI 에 어떻게 노출하나.~~
+  **소멸** — 산출물이 커밋돼 있다(위 §후보 참조). CI 는 로컬 훅과 **같은** `evaluate_review()` 를
+  그대로 호출하면 된다. 판정자가 하나라 로컬/CI 판정이 갈릴 여지도 없다.
+- ~~CI 체크아웃은 mtime 을 뭉개니 신선도 판정이 불가할 것~~ — **이미 해결돼 있음**(적어둔 적
+  없는 암묵 전제였다). `review_guard` 는 fs mtime 을 신뢰하지 않는다: clean 파일은 마지막 커밋
+  시각을 쓰고, "리뷰가 언제 돌았나" 의 정본 시계는 세션 **디렉토리 이름**이다 — 둘 다
+  checkout-immune. 즉 CI 백스톱은 판정 메커니즘 설계가 아니라 **배선** 작업이다.
+- **남은 실질 결정: 이중 게이트의 마찰.** 실측(게이트 도입 `fa3cf81ad` 이후 main first-parent
+  666 커밋): `codebase/**` 를 건드린 427건 중 61건(14%)이 같은 커밋에 SUMMARY.md 가 없다.
+  분해 = dependabot/build(deps) 3 · lockfile-only 1 · 그 외 진짜 소스 변경 57.
+  - ⚠️ **이 57 은 상한이지 차단 예측치가 아니다.** 프록시가 "같은 커밋에 산출물" 인데
+    `evaluate_review()` 의 술어는 그게 아니다. 이 저장소는 코드와 리뷰 산출물을 **별도 커밋**
+    으로 올리므로(이 브랜치 자신이 그렇다) rebase-merge 된 PR 은 코드 커밋만 보면 전부
+    "동반 없음" 으로 잡힌다. 착수 시 PR 단위로 재측정할 것.
+  - **확실한 마찰 1건: dependabot.** 봇 PR 은 로컬 훅을 아예 안 거치므로 CI 게이트가 무조건
+    fail 시킨다. 예외 처리가 설계에 반드시 들어가야 한다.
 - 이 저장소가 이미 `guard_review_before_push` 를 신뢰하는데, 두 번째 층의 비용 대비 이득.
 
 ## Rationale

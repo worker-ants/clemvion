@@ -28,6 +28,7 @@ with `BYPASS_REVIEW_GUARD=1`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -366,11 +367,19 @@ def _run(outcome) -> int:
             # Throttled like the nudge below. Without it the same advisory
             # reprints on every turn-end attempt of the session — and this
             # module's own docstrings argue that a warning which always fires is
-            # one nobody reads. The marker keys on the note text, so a DIFFERENT
-            # contradiction still gets through.
-            for idx, note in enumerate(
-                    (getattr(decision, "notes", ()) or ()) if decision else ()):
-                marker = _marker_path(session_id, token, f"note{idx}")
+            # one nobody reads. The marker keys on a digest of the note TEXT, so
+            # a DIFFERENT contradiction still gets through.
+            #
+            # It keyed on `enumerate`'s index until a review measured what that
+            # actually did. `notes` holds at most one entry (the gate reports
+            # only the session it adopted), so the index is always 0 — meaning
+            # the first downgrade warning on a branch permanently suppressed
+            # every later one, from a different session, a different checker,
+            # any text at all. That is this PR's own failure mode ("a downgrade
+            # passes silently") rebuilt inside the thing meant to catch it.
+            for note in ((getattr(decision, "notes", ()) or ()) if decision else ()):
+                digest = hashlib.sha1(note.encode("utf-8")).hexdigest()[:12]
+                marker = _marker_path(session_id, token, f"note{digest}")
                 if _already_nudged(marker):
                     continue
                 _mark_nudged(marker)

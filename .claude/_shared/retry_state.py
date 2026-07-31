@@ -57,13 +57,21 @@ def save_state(state_file, state):
     which removes that window without needing a lock.
 
     Lost updates between concurrent writers are a separate matter, left to the
-    project's existing convergence approach (`reconcile_state_with_disk` derives
-    the agent buckets from disk on every read). `agent_history` and the
-    rate-limit fields have no such convergence and can still be lost under a
-    true race — and CLAUDE.md tells callers to batch independent tool calls in
-    parallel, so concurrent `--update` is a real path, not a thought experiment.
-    A lost `last_reset_hint_sec` makes `/loop` retry before a rate limit clears;
-    a lost `agent_history` entry quietly shrinks the audit trail.
+    project's existing convergence approach — but that convergence is narrower
+    than "the agent buckets are derived from disk", which is how an earlier
+    version of this note put it. Precisely: `agents_success` is rebuilt from the
+    report files on every read, so it genuinely self-heals. `agents_fatal` is
+    only *filtered* from whatever the loaded state already held; nothing on disk
+    records "this was fatal". `agents_pending` is the remainder of the two.
+
+    So a lost update can silently revert a committed `fatal` transition back to
+    `pending`, and no later reconcile can recover it — `/loop` then retries a
+    checker already judged permanently failed. `agent_history` and the
+    rate-limit fields have no convergence either: a lost `last_reset_hint_sec`
+    makes `/loop` retry before a rate limit clears, a lost history entry quietly
+    shrinks the audit trail. CLAUDE.md tells callers to batch independent tool
+    calls in parallel, so concurrent `--update` is a real path, not a thought
+    experiment.
 
     Accepted rather than locked, for the same reason `failopen_state` accepts its
     own residuals: the convergent fields are the ones the gate reads, and adding
