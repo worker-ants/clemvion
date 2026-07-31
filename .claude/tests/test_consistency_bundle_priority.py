@@ -199,7 +199,8 @@ class PriorityThenTruncationTest(unittest.TestCase):
 
             parts = ["### 구현 대상 spec 영역\\n"]
             for rel in ordered_rels:
-                parts.append("\\n#### `" + rel + "`\\n```\\n" + ("x" * 400) + "\\n```\\n")
+                parts.append(orch._BUNDLE_FILE_SENTINEL + "#### `" + rel
+                             + "`\\n```\\n" + ("x" * 400) + "\\n```\\n")
             text = "".join(parts)
 
             out = orch.truncate_file_bundle(text, 700)

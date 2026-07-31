@@ -34,6 +34,7 @@ own. `test_line_anchors` dodges the same collision the same way.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import textwrap
@@ -81,13 +82,75 @@ def run_in_orchestrator(snippet: str, arg=None):
     return json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
 
 
+# The real boundary sentinel, fetched from the module rather than retyped.
+# This helper reproduces the writer's format, and a hand-copied marker silently
+# stops matching the day the writer changes — which is exactly what happened
+# when the boundary moved off `#### \`` onto a sentinel.
+_SENTINEL = run_in_orchestrator("emit(orch._BUNDLE_FILE_SENTINEL)")
+
+
 def bundle(*pairs):
     """Build a bundle the way `format_file_bundle` does, without touching disk."""
     parts = ["### 라벨\n"]
     for rel, body in pairs:
-        parts.append(f"\n#### `{rel}`\n```\n{body}\n```\n")
+        parts.append(f"{_SENTINEL}#### `{rel}`\n```\n{body}\n```\n")
     return "".join(parts)
 
+
+class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
+    """A level-4 heading inside a file body is not a file boundary.
+
+    The splitter used to cut on ``\n#### \`` — the same characters a spec body
+    legitimately writes. `spec/5-system/5-expression-language.md` really does
+    define ``#### \`$trigger\```, ``#### \`$env\``` and ``#### \`_selectedPort\```,
+    and measured on `--impl-prep spec/5-system/` the omission notice listed 21
+    entries of which **three were those headings**, not files.
+
+    The wrong count was the visible half. The dangerous half: one file split
+    into several chunks, so dropping "a file" could drop only its TAIL and leave
+    the head rendered as though complete — the property this suite exists to
+    guarantee. These tests assert conservation (kept + dropped == input), which
+    a per-file assertion would not have caught.
+
+    A third test ("a kept file keeps its tail") was written here and then
+    removed: no fixture could make it fail under the old boundary. A small
+    file's fragments are all cheap enough to survive together, and enlarging it
+    until they straddle the budget made the case turn on arithmetic rather than
+    on the property. Conservation already covers it — a file that lost its tail
+    shows up as an extra name on one side of the equation. A test that cannot
+    fail is worse than no test; it reads as coverage.
+    """
+
+    @staticmethod
+    def _truncate(text, budget):
+        return run_in_orchestrator(
+            "emit(orch.truncate_file_bundle(ARG[0], ARG[1]))", [text, budget]
+        )
+
+    # A body that forges the OLD marker on every line shape the real writer uses.
+    _FORGED = "\n#### `$trigger`\n설명\n\n#### `$env`\n설명\n\n#### `_selectedPort`\n설명\n"
+
+    def test_forged_headings_never_reach_the_omission_list(self):
+        text = bundle(("a.md", self._FORGED), ("b.md", "B" * 600),
+                      ("c.md", "C" * 600))
+        out = self._truncate(text, 900)
+        heading = run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
+        listed = re.findall(r"^- `([^`]+)`", out[out.index(heading):], re.M)
+        self.assertTrue(listed, "nothing was dropped — case is vacuous")
+        self.assertTrue(all(x.endswith(".md") for x in listed),
+                        f"non-file entries leaked into the notice: {listed}")
+
+    def test_every_input_file_is_either_kept_whole_or_named(self):
+        rels = ["a.md", "b.md", "c.md"]
+        text = bundle(("a.md", self._FORGED), ("b.md", "B" * 600),
+                      ("c.md", "C" * 600))
+        out = self._truncate(text, 900)
+        heading = run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
+        i = out.index(heading)
+        sentinel_re = re.escape(_SENTINEL) + r"#### `([^`]+)`"
+        kept = re.findall(sentinel_re, out[:i])
+        listed = re.findall(r"^- `([^`]+)`", out[i:], re.M)
+        self.assertCountEqual(kept + listed, rels)
 
 class FileBundleTruncationTest(unittest.TestCase):
     @staticmethod

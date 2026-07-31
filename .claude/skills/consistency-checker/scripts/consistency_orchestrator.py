@@ -330,7 +330,7 @@ def format_file_bundle(file_paths, root, label):
     for path in file_paths:
         rel = os.path.relpath(path, root) if root else path
         content = read_text_file(path)
-        parts.append(f"\n#### `{rel}`\n```\n{content}\n```\n")
+        parts.append(f"{_BUNDLE_FILE_SENTINEL}#### `{rel}`\n```\n{content}\n```\n")
     return "".join(parts)
 
 
@@ -425,7 +425,9 @@ def extract_rationale_sections(file_paths, root):
         else:
             section = text[start:]
         rel = os.path.relpath(path, root) if root else path
-        blocks.append(f"\n#### `{rel}` 의 Rationale\n\n{section.strip()}\n")
+        blocks.append(
+            f"{_BUNDLE_FILE_SENTINEL}#### `{rel}` 의 Rationale\n\n{section.strip()}\n"
+        )
     if not blocks:
         return "### Rationale 발췌\n(관련 Rationale 섹션 없음)\n"
     return "### Rationale 발췌\n" + "".join(blocks)
@@ -639,7 +641,24 @@ CHECKER_BUDGET_RATIO = {
 # heading is the failure mode, not a cosmetic change.
 OMITTED_FILES_HEADING = "### ⚠️ 컨텍스트 예산 초과로 생략된 파일"
 
-_BUNDLE_FILE_MARKER = "\n#### `"
+# Splitting a rendered bundle back into per-file chunks needs a boundary that
+# file CONTENT cannot produce. ``\n#### `` alone cannot: spec bodies legitimately
+# carry level-4 headings with inline code, and `spec/5-system/5-expression-
+# language.md` really does define `#### `$trigger``, `#### `$env``,
+# `#### `_selectedPort``. Measured on `--impl-prep spec/5-system/`: the omission
+# notice listed 21 entries of which **3 were not files at all** — those headings.
+#
+# The count being wrong was the visible half. The dangerous half is that one
+# file split into several chunks, so "drop a whole file" could drop only the
+# TAIL of one and leave the head presented as if complete — the exact property
+# `test_consistency_context_budget` exists to guarantee.
+#
+# A heuristic cannot separate the two cases: the marker a spec writes and the
+# marker we write are the same characters, and "the path has a slash" fails the
+# moment a spec documents a file path in a heading. So we emit a sentinel of our
+# own instead. It renders as nothing in markdown and is not something a document
+# writes by accident.
+_BUNDLE_FILE_SENTINEL = "\n<!-- @bundle-file -->\n"
 
 
 def _omitted_notice(rels):
@@ -676,11 +695,11 @@ def truncate_file_bundle(text, budget):
     if budget <= 0 or len(text) <= budget:
         return text
 
-    head, sep, rest = text.partition(_BUNDLE_FILE_MARKER)
+    head, sep, rest = text.partition(_BUNDLE_FILE_SENTINEL)
     if not sep:
         return session.truncate_to_budget(text, budget)
 
-    chunks = [_BUNDLE_FILE_MARKER + part for part in rest.split(_BUNDLE_FILE_MARKER)]
+    chunks = [_BUNDLE_FILE_SENTINEL + part for part in rest.split(_BUNDLE_FILE_SENTINEL)]
 
     def rel_of(chunk):
         # `\n#### \`path\`\n` — the path is between the first pair of backticks.
