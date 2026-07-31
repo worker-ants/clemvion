@@ -91,7 +91,26 @@ priority: P2
 >    `<name>.fatal` sentinel 파일로 `agents_fatal` 도 디스크에서 재도출하는 것 — 새 설계라 분리.
 >    (docstring 은 이번에 정정했다. 종전 서술이 "버킷들은 디스크에서 재도출된다" 로 읽혀
 >    보장 범위를 과대하게 주장하고 있었다.)
-> 11. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 11. **`--branch` 가 `--files` 를 조용히 덮어쓴다 (신규 발견, 2026-08-01 6R)** — 게이트 자체를
+>    무력화할 수 있는 결함이라 우선순위 높음. 재현 실험:
+>
+>    | 명령 | `meta.json` files |
+>    |---|---|
+>    | `--prepare --files A B` | 2 (준 그대로) |
+>    | `--prepare --branch origin/main --files A B` | **44 (전부 `review/**`, 내 목록 폐기)** |
+>
+>    이 저장소의 표준 절차는 "명시 파일 + `--route=all`" 인데(증분 changeset 이 결함을 구조적으로
+>    놓치므로), 커밋 후엔 `--branch` 를 함께 줘야 diff base 가 맞는다 — 그 조합에서 명시 목록이
+>    통째로 버려진다. **경고도 없다.**
+>    1R~5R 이 무사했던 건 우연이다: 그때는 리뷰 산출물이 untracked 라 branch diff 가 소스만 담았다.
+>    5R 산출물을 커밋한 순간 같은 명령이 리뷰 산출물 44개만 담은 changeset 을 만들었고, 14명
+>    전원이 자기 브랜치가 고친 소스를 **한 줄도 못 본 채** "CRITICAL 0" 을 냈다.
+>    - 최소 조치: 두 옵션이 같이 오면 `--files` 우선 + 무시되는 쪽을 stderr 로 경고(현재 침묵).
+>    - 동반: `get_directory_files()` 가 `.gitignore` 를 안 보는 raw `os.walk` 이고,
+>      `collect_change_infos` 의 `elif args.files:` 분기에는 기본 경로에 있는
+>      `warn_if_committed_work_is_missing` 대칭 안전장치가 없다.
+>    - 동반: changeset 이 `review/**` 로만 구성되면 그 자체가 오구성 신호 — advisory 경고 대상.
+> 12. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
