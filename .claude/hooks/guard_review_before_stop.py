@@ -348,6 +348,17 @@ def _run(outcome) -> int:
             decision = None
         else:
             outcome.answered.append(_GATE_REVIEW)
+        # Advisories that do not block. Always stderr here — this hook's stdout
+        # is the `{"decision": …}` JSON protocol, so the push guard's
+        # "stderr on refuse, stdout on allow" rule must NOT be copied over
+        # (`_report_fail_open` documents the same asymmetry for its banner).
+        #
+        # Wired here as well as on push because this hook runs FIRST: the turn
+        # ends before anything is pushed, and a session the gate stops trusting
+        # in between takes its advisory with it — the warning would not be late,
+        # it would be gone.
+        for note in (getattr(decision, "notes", ()) or ()) if decision else ():
+            print(note, file=sys.stderr)
         # Suppress while a resolution-applier fix is in flight (Stop only); fall
         # through to the plan nudge rather than returning, so an unrelated
         # plan-complete nudge can still fire.

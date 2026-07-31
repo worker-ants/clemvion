@@ -96,10 +96,10 @@ def reconcile_state_with_disk(session_dir):
 def emit_summary_state(session_dir, extra_fields=None):
     """One-line state summary, reconciled with disk first.
 
-    `extra_fields` is `state -> mapping` (or a plain mapping) appended to the
-    line — the code-review orchestrator passes `skipped`/`routing`, which the
-    consistency side has no equivalent of. It is the only axis on which the two
-    copies actually differed.
+    `extra_fields` is `state -> mapping`, appended to the line — the code-review
+    orchestrator passes `skipped`/`routing`, which the consistency side has no
+    equivalent of. It is the only axis on which the two copies actually differed.
+    Callable, not a mapping: see the note at the call below.
 
     Reconciling on read means the numbers are true even when the session was
     fanned out with the Agent tool directly: that path never calls `--update`,
@@ -127,8 +127,11 @@ def emit_summary_state(session_dir, extra_fields=None):
     # which silently swallowed the "(reconciled …)" notice on the one side that
     # has extra fields. Measured: the notice vanished for code-review and
     # survived for consistency.
-    for key, value in ((extra_fields(state) if callable(extra_fields)
-                        else extra_fields) or {}).items():
+    # Callable only. A pre-built mapping would force the caller to reconcile
+    # first to compute it, and this function's own reconcile would then find
+    # nothing left to announce — which is precisely how the "(reconciled …)"
+    # notice went missing on one side when this was first wired.
+    for key, value in ((extra_fields(state) if extra_fields else None) or {}).items():
         parts.append(f"{key}={value}")
     last_reset = state.get("last_reset_hint_sec")
     parts.append(f"last_reset={last_reset if last_reset is not None else 'null'}")
@@ -136,6 +139,7 @@ def emit_summary_state(session_dir, extra_fields=None):
 
 
 def apply_status_update(session_dir, agent, status, reset_hint):
+    """Move an agent between pending/success/fatal buckets and record history."""
     state_file, state = load_state(os.path.abspath(session_dir))
     for bucket in ("agents_pending", "agents_success", "agents_fatal"):
         if agent in state.get(bucket, []):

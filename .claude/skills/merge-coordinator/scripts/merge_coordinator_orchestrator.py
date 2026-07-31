@@ -100,9 +100,12 @@ def _emit_summary_state(session_dir):
 # `_load_state`/`_save_state` are byte-identical to the other two orchestrators'
 # and now live in `.claude/_shared/retry_state.py` (AST-verified before moving).
 #
-# `_apply_status_update` and `_emit_summary_state` below stay local: they differ
-# here (branch/base bookkeeping instead of agent buckets). And this file has no
-# `_reconcile_state_with_disk` at all — the self-healing the other two gained is
+# `_apply_status_update` is identical too — an earlier version of this comment
+# claimed it "differs, handling branch/base", which was wrong: the AST diff was
+# the `_load_state`/`load_state` rename alone, and I read that as divergence
+# without normalising the names the way I had for the other two files.
+# `_emit_summary_state` does genuinely differ (branch/base fields). And this file
+# has no `_reconcile_state_with_disk` at all — the self-healing the other two gained is
 # missing, so a session fanned out with the Agent tool can still leave its state
 # frozen at the prepare-time snapshot while its SUMMARY reports real successes.
 # That is a behaviour change to a different skill, so it is registered as a
@@ -116,40 +119,7 @@ def _save_state(state_file, state):
 
 
 def _apply_status_update(session_dir, agent, status, reset_hint):
-    state_file, state = _load_state(os.path.abspath(session_dir))
-    for bucket in ("agents_pending", "agents_success", "agents_fatal"):
-        if agent in state.get(bucket, []):
-            state[bucket].remove(agent)
-
-    if status == "success":
-        state.setdefault("agents_success", []).append(agent)
-    elif status == "fatal":
-        state.setdefault("agents_fatal", []).append(agent)
-    else:
-        state.setdefault("agents_pending", []).append(agent)
-        if status == "rate_limit":
-            state["rate_limit_episodes"] = state.get("rate_limit_episodes", 0) + 1
-        if reset_hint is not None:
-            prev = state.get("last_reset_hint_sec") or 0
-            state["last_reset_hint_sec"] = max(prev, reset_hint)
-
-    history_entry = {"ts": datetime.utcnow().isoformat() + "Z", "status": status}
-    if reset_hint is not None:
-        history_entry["reset_hint_sec"] = reset_hint
-    state.setdefault("agent_history", {}).setdefault(agent, []).append(history_entry)
-
-    _save_state(state_file, state)
-    print(
-        f"agent={agent} status={status} "
-        f"pending={len(state.get('agents_pending', []))} "
-        f"success={len(state.get('agents_success', []))} "
-        f"fatal={len(state.get('agents_fatal', []))}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Git / gh helpers
-# ---------------------------------------------------------------------------
+    return _retry_state_lib.apply_status_update(session_dir, agent, status, reset_hint)
 
 
 def _git(args, timeout=15):

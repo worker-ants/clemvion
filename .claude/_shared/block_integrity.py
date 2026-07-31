@@ -39,22 +39,29 @@ import re
 # one nobody reads.
 _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 
-# The verdict, anchored. A plain first-match search is wrong here and was:
-# summaries routinely narrate a *previous* session's verdict in prose, so
-# `search()` returns whatever the retrospective mentions first. Measured over
-# 732 committed summaries, four disagreed with their own template line — e.g.
-# `review/consistency/2026/07/05/19_27_28` reads `BLOCK: YES` from
-# "…(직전 19_19_53 BLOCK: YES 정정 후)" while its actual verdict is `## BLOCK: NO`.
+# The verdict, anchored — and order-independent.
 #
-# The template puts the verdict at the START of its line (`**BLOCK: NO** — …`,
-# `## BLOCK: NO`); a human override banner puts it at the END
-# (`> ## ✅ 최종 판정 (…): **BLOCK: NO**`). Prose mentions sit mid-line, between
-# other words. Accepting only line-start or line-end classifies all four
-# correctly — line-start alone got three right and made the fourth worse.
-_BLOCK_LINE = re.compile(
-    r"^[\s>#*_`-]*BLOCK:\s*\**\s*(YES|NO)"      # template: line start
-    r"|BLOCK:\s*\**\s*(YES|NO)\**\s*$",          # override banner: line end
-    re.IGNORECASE | re.MULTILINE,
+# A plain first-match search is wrong here and was: summaries routinely narrate a
+# *previous* session's verdict in prose, so `search()` returns whatever the
+# retrospective mentions first. Measured over 732 committed summaries, four
+# disagreed with their own template line — e.g.
+# `review/consistency/2026/07/05/19_27_28` reads `BLOCK: YES` from
+# "…(직전 19_19_53 BLOCK: YES 정정 후)" while its verdict is `## BLOCK: NO`.
+#
+# Two shapes carry a real verdict and prose carries neither:
+#   * the template puts it at the START of a line — `**BLOCK: NO** — …`, `## BLOCK: NO`
+#   * a human override banner puts it at the END — `> ## ✅ 최종 판정 (…): **BLOCK: NO**`
+#   * prose mentions sit between other words, so neither anchor matches them
+#
+# The banner wins when both exist, *whichever comes first in the file*. Taking
+# the leftmost anchored match instead read a superseded template line as the
+# verdict whenever the banner sat below it — reproduced:
+# `"**BLOCK: YES**(초기)\n\n> 최종 판정: **BLOCK: NO**\n"` returned YES.
+_BLOCK_AT_LINE_START = re.compile(
+    r"^[\s>#*_`-]*BLOCK:\s*\**\s*(YES|NO)", re.IGNORECASE | re.MULTILINE
+)
+_BLOCK_AT_LINE_END = re.compile(
+    r"BLOCK:\s*\**\s*(YES|NO)\**\s*$", re.IGNORECASE | re.MULTILINE
 )
 
 # The canonical checker list. It lives here rather than in the orchestrator
@@ -94,10 +101,10 @@ def summary_block_verdict(summary_text: str) -> str | None:
     this branch is elsewhere removing, and it would have been created in the
     same diff.
     """
-    m = _BLOCK_LINE.search(summary_text)
-    if not m:
-        return None
-    return (m.group(1) or m.group(2)).upper()
+    m = _BLOCK_AT_LINE_END.search(summary_text)
+    if m is None:
+        m = _BLOCK_AT_LINE_START.search(summary_text)
+    return m.group(1).upper() if m else None
 
 
 def downgraded_criticals(session_dir: str) -> dict[str, int]:
@@ -123,7 +130,13 @@ def contradiction_note(session_dir: str) -> str:
     found = downgraded_criticals(session_dir)
     if not found:
         return ""
-    parts = ", ".join(f"{k.removesuffix('.md')}={v}" for k, v in sorted(found.items()))
+    # Not `removesuffix`: it needs Python 3.9 and would be this tree's first use,
+    # silently raising the harness's minimum. On an older `python3` the
+    # AttributeError does not merely drop this advisory — the caller's broad
+    # `except Exception` fails the REVIEW gate open for that push entirely.
+    parts = ", ".join(
+        f"{k[:-3] if k.endswith('.md') else k}={v}" for k, v in sorted(found.items())
+    )
     return (
         f"SUMMARY 는 BLOCK: NO 인데 checker 가 [CRITICAL] 을 냈습니다 ({parts}) — "
         "하향은 규약 위반입니다(consistency-summary.md §요약 지침 3). 권한 밖이면 "

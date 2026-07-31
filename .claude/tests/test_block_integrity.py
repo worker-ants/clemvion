@@ -283,5 +283,76 @@ class AdvisoryReachesTheModelTest(unittest.TestCase):
         self.assertEqual(out.getvalue(), "")
 
 
+class NotesReachBothHooksTest(unittest.TestCase):
+    """The wiring, not just the reporter.
+
+    Deleting the collection block in `_evaluate_over_targets` left all 735 tests
+    GREEN — the advisory vanished and nothing noticed, which is this branch's own
+    defect class one level up. These drive the real hooks end to end.
+    """
+
+    _STUB = (
+        "from dataclasses import dataclass, field\n"
+        "@dataclass\n"
+        "class _D:\n"
+        "    blocked: bool = False\n"
+        "    reason: str = 'clean'\n"
+        "    notes: tuple = ('⚠️  세션X: 하향 감지',)\n"
+        "    @property\n"
+        "    def push_blocks(self):\n"
+        "        return self.blocked\n"
+        "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+        "    return _D()\n"
+    )
+    _CLEAN_PLAN = (
+        "class _P:\n    untouched = False\n    complete_but_in_progress = False\n"
+        "    reason = ''\n    plan_path = ''\ndef evaluate_plan():\n    return _P()\n"
+    )
+
+    def _hook_env(self):
+        import shutil as _sh
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(_sh.rmtree, tmp, ignore_errors=True)
+        hooks = os.path.join(tmp, "hooks")
+        _sh.copytree(str(_harness.HOOKS_DIR), hooks)
+        with open(os.path.join(hooks, "_lib", "review_guard.py"), "w",
+                  encoding="utf-8") as f:
+            f.write(self._STUB)
+        with open(os.path.join(hooks, "_lib", "plan_guard.py"), "w",
+                  encoding="utf-8") as f:
+            f.write(self._CLEAN_PLAN)
+        return tmp, hooks
+
+    def test_push_hook_surfaces_notes_on_stdout(self):
+        import json as _json
+        import subprocess
+        import sys as _sys
+        tmp, hooks = self._hook_env()
+        r = subprocess.run(
+            [_sys.executable, os.path.join(hooks, "guard_review_before_push.py")],
+            input=_json.dumps({"tool_input": {"command": "git push"}}),
+            capture_output=True, text=True, timeout=30,
+            env={**os.environ, "CLAUDE_PROJECT_DIR": tmp}, cwd=tmp,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("하향 감지", r.stdout)
+
+    def test_stop_hook_surfaces_notes_on_stderr(self):
+        """Stop's stdout is a JSON protocol, so its advisories go to stderr."""
+        import json as _json
+        import subprocess
+        import sys as _sys
+        tmp, hooks = self._hook_env()
+        r = subprocess.run(
+            [_sys.executable, os.path.join(hooks, "guard_review_before_stop.py")],
+            input=_json.dumps({"session_id": "s1"}),
+            capture_output=True, text=True, timeout=30,
+            env={**os.environ, "CLAUDE_PROJECT_DIR": tmp}, cwd=tmp,
+        )
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("하향 감지", r.stderr)
+        self.assertNotIn("하향 감지", r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
