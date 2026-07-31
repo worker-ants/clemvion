@@ -42,6 +42,7 @@ from _lib import project_config  # noqa: E402
 # Report location/validity is shared with the push/stop gate and the code-review
 # orchestrator — see `.claude/_shared/report_paths.py`. One rule, three consumers.
 from _shared import report_paths as _report_paths_lib  # noqa: E402
+from _shared import retry_state as _retry_state_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -84,117 +85,29 @@ def load_config():
 # ---------------------------------------------------------------------------
 
 
+# State bookkeeping lives in `.claude/_shared/retry_state.py` — both orchestrators
+# used to carry byte-identical copies kept in step by a "Change both" comment,
+# which is the arrangement `report_paths.py` was extracted to replace. Measured
+# by AST before moving: four of the five were identical; only `_emit_summary_state`
+# differed, and only in the fields it prints (the code-review side has a router; this one does not).
 def _load_state(session_dir):
-    state_file = os.path.join(session_dir, "_retry_state.json")
-    if not os.path.isfile(state_file):
-        print(f"Error: _retry_state.json missing under {session_dir}", file=sys.stderr)
-        sys.exit(1)
-    with open(state_file, "r", encoding="utf-8") as f:
-        return state_file, json.load(f)
+    return _retry_state_lib.load_state(session_dir)
 
 
 def _save_state(state_file, state):
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+    return _retry_state_lib.save_state(state_file, state)
 
 
 def _reconcile_state_with_disk(session_dir):
-    """Bring `_retry_state.json`'s buckets in line with the reports on disk. Returns
-    `(state, changed)`. Quiet — callers decide what to say.
-
-    Disk is the arbiter: a self-reported status with no file behind it is the fake
-    success this contract exists to remove. Rate-limit bookkeeping is left alone — a
-    checker that hit a limit has no file and stays pending, which is what /loop needs.
-
-    Mirrors `code_review_orchestrator._reconcile_state_with_disk`. Change both.
-    """
-    sd = os.path.abspath(session_dir)
-    state_file, state = _load_state(sd)
-    known = [i["name"] for i in state.get("subagent_invocations", [])]
-    if not known:
-        return state, False
-    skipped = set(state.get("agents_skipped", []))
-
-    # `has_report` (shared with the gate) = present AND non-empty.
-    on_disk = [n for n in known if _report_paths_lib.has_report(sd, n, state)]
-    missing = [n for n in known if n not in on_disk and n not in skipped]
-    fatal = [n for n in state.get("agents_fatal", []) if n in missing]
-
-    before = (
-        state.get("agents_success"),
-        state.get("agents_pending"),
-        state.get("agents_fatal"),
-    )
-    state["agents_success"] = on_disk
-    # A checker already recorded as fatal stays fatal — it is not merely "not run yet",
-    # and listing it in both buckets would make `pending`/`fatal` counts disagree.
-    state["agents_pending"] = [n for n in missing if n not in fatal]
-    state["agents_fatal"] = fatal
-    changed = before != (
-        state["agents_success"],
-        state["agents_pending"],
-        state["agents_fatal"],
-    )
-    if changed:
-        _save_state(state_file, state)
-    return state, changed
-
-
-def _emit_summary_state(session_dir):
-    """One-line state summary.
-
-    Reconciles with disk first, so the numbers are true even when the session was fanned
-    out with the Agent tool directly — that path never calls `--update`, which used to
-    leave the state frozen at its prepare-time snapshot while the sibling SUMMARY.md
-    reported real successes. Self-healing on read beats adding one more thing a caller
-    must remember: the failure this addresses was itself an obligation living only in prose.
-    """
-    state, changed = _reconcile_state_with_disk(session_dir)
-    if changed:
-        print("(reconciled _retry_state.json with reports on disk)", file=sys.stderr)
-    pending = len(state.get("agents_pending", []))
-    success = len(state.get("agents_success", []))
-    fatal = len(state.get("agents_fatal", []))
-    last_reset = state.get("last_reset_hint_sec")
-    last_reset_str = str(last_reset) if last_reset is not None else "null"
-    print(f"pending={pending} success={success} fatal={fatal} last_reset={last_reset_str}")
+    return _retry_state_lib.reconcile_state_with_disk(session_dir)
 
 
 def _apply_status_update(session_dir, agent, status, reset_hint):
-    state_file, state = _load_state(os.path.abspath(session_dir))
-    for bucket in ("agents_pending", "agents_success", "agents_fatal"):
-        if agent in state.get(bucket, []):
-            state[bucket].remove(agent)
-
-    if status == "success":
-        state.setdefault("agents_success", []).append(agent)
-    elif status == "fatal":
-        state.setdefault("agents_fatal", []).append(agent)
-    else:
-        state.setdefault("agents_pending", []).append(agent)
-        if status == "rate_limit":
-            state["rate_limit_episodes"] = state.get("rate_limit_episodes", 0) + 1
-        if reset_hint is not None:
-            prev = state.get("last_reset_hint_sec") or 0
-            state["last_reset_hint_sec"] = max(prev, reset_hint)
-
-    history_entry = {"ts": datetime.utcnow().isoformat() + "Z", "status": status}
-    if reset_hint is not None:
-        history_entry["reset_hint_sec"] = reset_hint
-    state.setdefault("agent_history", {}).setdefault(agent, []).append(history_entry)
-
-    _save_state(state_file, state)
-    print(
-        f"agent={agent} status={status} "
-        f"pending={len(state.get('agents_pending', []))} "
-        f"success={len(state.get('agents_success', []))} "
-        f"fatal={len(state.get('agents_fatal', []))}"
-    )
+    return _retry_state_lib.apply_status_update(session_dir, agent, status, reset_hint)
 
 
-# ---------------------------------------------------------------------------
-# File / corpus collection
-# ---------------------------------------------------------------------------
+def _emit_summary_state(session_dir):
+    _retry_state_lib.emit_summary_state(session_dir)
 
 
 def repo_root():
