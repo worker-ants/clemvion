@@ -1,6 +1,6 @@
 # 의존성 보안 거버넌스 가드.
 #
-# 두 가지를 강제한다:
+# 세 가지를 강제한다:
 #   1. config-guard — pnpm-workspace.yaml 의 보안 핀(overrides)·native build 허용목록
 #      (onlyBuiltDependencies)이 기대 baseline 과 일치하는지 검증. pnpm 10.23 이
 #      package.json `pnpm` 필드를 무시하면서 핀이 pnpm-workspace.yaml 로 이전됐는데,
@@ -8,6 +8,10 @@
 #      상향 핀이 조용히 사라질 수 있다. 본 가드가 그 회귀를 PR 에서 잡는다.
 #   2. audit — `pnpm audit --audit-level=moderate` 로 신규 moderate+ 취약점을 차단.
 #      검토 후 수용한 CVE 는 pnpm-workspace.yaml 의 auditConfig.ignoreCves 로 명시 제외.
+#   3. override-floors — `scripts/check-override-floors.py` 로 **이미 override 로 관리
+#      중인 패키지가 다시 취약해졌는지**(바닥 침식)만 좁혀 본다. audit 이 보고하는 것의
+#      부분집합이지만 조치 성격이 다르다 — 신규 취약점은 판단이 필요하고 낡은 핀은 값만
+#      올리면 된다. 한 목록에 섞이면 후자가 묻힌다(#1038 이 17건 중 4건으로 그 상태였다).
 #
 # schedule: deps 미변경이어도 신규 CVE 공시(audit DB 갱신)를 주간으로 감지한다.
 # 근거: review/code/2026/07/14/08_25_10 security WARNING, plan §4.

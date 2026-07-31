@@ -36,13 +36,36 @@ import importlib.util
 import json
 import subprocess
 import sys
-import textwrap
 import unittest
 from pathlib import Path
 
 from _harness import REPO_ROOT
 
 SCRIPT = REPO_ROOT / "scripts" / "check-override-floors.py"
+
+# 두 클래스가 공유하는 픽스처 — 한쪽만 고쳐 다른 쪽이 조용히 낡는 것을 막는다.
+MANAGED_OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n  next>postcss: ^8.5.18\n"
+
+
+# 스텁 `pnpm` 은 **고정 소스**다. payload 를 소스에 f-string 으로 박아 넣던 옛 방식은
+# `json.dumps` 가 내는 `true`/`false`/`null` 이 파이썬 소스에서 이름으로 해석돼 NameError 가
+# 나는 형태였다(현 픽스처엔 불리언이 없어 잠복 상태였다). 경로만 환경변수로 넘긴다 —
+# 저장소의 다른 스텁(`test_mermaid_lint_ready.py` 의 `_NODE_STUB`)과 같은 관례.
+_PNPM_STUB = """\
+#!/usr/bin/env python3
+import os, sys
+# 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키 존재로 정상 응답을
+# 판정하므로(fail-closed) 스텁도 갖춰야 한다. 내용은 STUB_AUDIT_PAYLOAD 파일에서 읽는다.
+sys.stdout.write(open(os.environ["STUB_AUDIT_PAYLOAD"], encoding="utf-8").read())
+"""
+
+
+def _stage_script(tmp: Path) -> Path:
+    """tmp 안에 스크립트 사본을 배치하고 그 경로를 돌려준다."""
+    (tmp / "scripts").mkdir(exist_ok=True)
+    dest = tmp / "scripts" / "check-override-floors.py"
+    dest.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+    return dest
 
 
 def run_with_stub_audit(
@@ -59,48 +82,31 @@ def run_with_stub_audit(
     import tempfile
     import os
 
-    actions = actions or []
+    payload = raw_stdout if raw_stdout is not None else json.dumps({
+        "actions": actions or [],
+        "advisories": advisories,
+        "muted": [],
+        "metadata": {"vulnerabilities": {}, "totalDependencies": 0},
+    })
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         (tmp / "pnpm-workspace.yaml").write_text(overrides, encoding="utf-8")
-        (tmp / "scripts").mkdir()
-        (tmp / "scripts" / "check-override-floors.py").write_text(
-            SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        script = _stage_script(tmp)
+        payload_file = tmp / "audit.json"
+        payload_file.write_text(payload, encoding="utf-8")
         bindir = tmp / "bin"
         bindir.mkdir()
         fake = bindir / "pnpm"
-        body = (
-            f"sys.stdout.write({raw_stdout!r})\n"
-            if raw_stdout is not None
-            else textwrap.dedent(
-                f"""\
-                print(json.dumps({{
-                    "actions": {json.dumps(actions)},
-                    "advisories": {json.dumps(advisories)},
-                    "muted": [],
-                    "metadata": {{"vulnerabilities": {{}}, "totalDependencies": 0}},
-                }}))
-                """
-            )
-        )
-        fake.write_text(
-            textwrap.dedent(
-                f"""\
-                #!/usr/bin/env python3
-                import json, sys
-                # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키
-                # 존재로 정상 응답을 판정하므로(fail-closed) 스텁도 갖춰야 한다.
-                """
-            )
-            + body,  # dedent 후 이어붙인다 — body 도 이미 0-indent 다.
-            encoding="utf-8",
-        )
+        fake.write_text(_PNPM_STUB, encoding="utf-8")
         fake.chmod(0o755)
-        env = dict(os.environ, PATH=f"{bindir}:{os.environ['PATH']}")
+        env = dict(
+            os.environ,
+            PATH=f"{bindir}:{os.environ['PATH']}",
+            STUB_AUDIT_PAYLOAD=str(payload_file),
+        )
         return subprocess.run(
-            [sys.executable, str(tmp / "scripts" / "check-override-floors.py")],
+            [sys.executable, str(script)],
             capture_output=True,
             text=True,
             env=env,
@@ -115,7 +121,7 @@ def _load_module():
 
 
 class OverrideTargetExtractionTest(unittest.TestCase):
-    """축 1 — 키에서 패키지명 뽑기. 실측으로 두 번 틀렸던 자리다."""
+    """축 1 — 키에서 패키지명 뽑기. 실측으로 **세 번** 틀렸던 자리다."""
 
     def setUp(self):
         self.mod = _load_module()
@@ -179,6 +185,10 @@ class OverrideTargetExtractionTest(unittest.TestCase):
         self.assertEqual(self.mod.override_target("a>@scope/b"), "@scope/b")
         self.assertEqual(self.mod.override_target("parent@1.0.0>child"), "child")
         self.assertEqual(self.mod.override_target("parent@>=1.0.0>child"), "child")
+        # 2차 리뷰가 실패를 재현한 정확한 조합 — 중간 scope + 리프의 scope+레인지.
+        self.assertEqual(
+            self.mod.override_target("a>@scope/b>@scope/c@>=1.0.0"), "@scope/c"
+        )
 
     def test_real_workspace_yaml_covers_scoped_range_keys(self):
         """실제 pnpm-workspace.yaml 에서 스코프 레인지 키가 누락되지 않는다."""
@@ -193,7 +203,7 @@ class OverrideTargetExtractionTest(unittest.TestCase):
 class ClassificationTest(unittest.TestCase):
     """축 2 — advisory 를 override 대상 여부로 갈라 exit code 를 낸다."""
 
-    OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n  next>postcss: ^8.5.18\n"
+    OVERRIDES = MANAGED_OVERRIDES
 
     def test_no_advisories_passes(self):
         r = run_with_stub_audit({}, self.OVERRIDES)
@@ -244,6 +254,84 @@ class ClassificationTest(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 1)
         self.assertIn("next>postcss", r.stderr)
+
+
+    def test_advisory_without_github_id_falls_back_to_numeric_id(self):
+        """`github_advisory_id` 없이 `id`(정수)만 오는 advisory 도 식별자를 잃지 않는다.
+
+        모든 픽스처가 `github_advisory_id` 를 갖고 있어 폴백 경로가 통째로 미검증이었다.
+        폴백을 지우면 보고에 advisory 대신 맵 키(`"1"`)가 찍힌다 — mutation 으로 확인.
+
+        **`str()` 캐스팅 자체는 여기서 못 잡는다**: int 도 f-string 에서 같은 문자열이 되어
+        관측 차이가 없다. 그 캐스팅은 선언 타입(`dict[str, str]`) 정합을 위한 것이지 동작
+        보호가 아니다 — 이 테스트가 고정하는 것은 폴백의 존재다.
+        """
+        r = run_with_stub_audit(
+            {"1": {"module_name": "liquidjs", "id": 1102341,
+                   "patched_versions": ">=10.27.1"}},
+            self.OVERRIDES,
+        )
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("1102341", r.stderr)
+
+
+class CombinedReportTest(unittest.TestCase):
+    """두 실패가 동시에 있으면 **둘 다** 보고한다.
+
+    widened 에서 조기 return 하던 구현은 같은 실행의 eroded 를 숨겼다 — 고치고 다시 돌리는
+    왕복이 생긴다. 조기 return 을 되살리는 mutation 이 기존 테스트를 전부 통과시킨다는 것을
+    리뷰어가 실측했으므로(= 그 수정이 무검증이었다) 여기서 고정한다.
+    """
+
+    OVERRIDES = (
+        'overrides:\n  liquidjs: ^10.27.1\n  "brace-expansion@<2.0.0": ^1.1.16\n'
+    )
+
+    def test_widened_and_eroded_are_both_reported(self):
+        r = run_with_stub_audit(
+            advisories={"1": {"module_name": "liquidjs",
+                              "github_advisory_id": "GHSA-eroded",
+                              "patched_versions": ">=10.27.1"}},
+            overrides=self.OVERRIDES,
+            actions=[{"action": "review", "module": "brace-expansion",
+                      "resolves": [{"id": 1, "path": "some>new>path>brace-expansion"}]}],
+        )
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("수용 범위 밖", r.stderr)          # widened 블록
+        self.assertIn("바닥이 낡아", r.stderr)            # eroded 블록
+        self.assertIn("GHSA-eroded", r.stderr)
+
+
+class SchemaDriftTest(unittest.TestCase):
+    """audit 결과의 **하위 필드**가 바뀌면 "취약 0건" 이 아니라 판단 불가다.
+
+    `run_audit()` 은 최상위 `actions` 키만 본다. 그 아래 이름이 pnpm 상향으로 바뀌면
+    `.get()` 이 전부 None 을 돌려주고 분류 결과가 빈 dict 가 된다 — 정상 통과와 구별되지
+    않는 형태로. 스텁이 전부 손으로 만든 JSON 이라 실물 필드명 변화는 여기서만 잡힌다.
+    """
+
+    OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n"
+
+    def test_advisories_without_module_name_is_undecidable(self):
+        r = run_with_stub_audit(
+            {"1": {"moduleName": "liquidjs", "ghsa": "GHSA-x"}},  # camelCase 로 개명
+            self.OVERRIDES,
+        )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("스키마", r.stderr)
+
+    def test_actions_without_module_is_undecidable(self):
+        r = run_with_stub_audit(
+            advisories={}, overrides=self.OVERRIDES,
+            actions=[{"action": "review", "pkg": "brace-expansion"}],  # module → pkg
+        )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("스키마", r.stderr)
+
+    def test_genuinely_empty_audit_still_passes(self):
+        """빈 결과는 드리프트가 아니다 — 여기서 fail 하면 정상 상태가 상시 빨간불이 된다."""
+        r = run_with_stub_audit({}, self.OVERRIDES, actions=[])
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
 class SuppressedPathBaselineTest(unittest.TestCase):
@@ -334,7 +422,7 @@ class FailClosedTest(unittest.TestCase):
 class MultipleMatchTest(unittest.TestCase):
     """발단 시나리오 — 여러 advisory 중 **일부만** override 대상(#1038: 17건 중 4건)."""
 
-    OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n  next>postcss: ^8.5.18\n"
+    OVERRIDES = MANAGED_OVERRIDES
 
     def test_reports_only_managed_among_many(self):
         r = run_with_stub_audit(

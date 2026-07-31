@@ -42,6 +42,7 @@ import pathlib
 import re
 import subprocess
 import sys
+from typing import NoReturn
 
 try:
     import yaml
@@ -121,6 +122,19 @@ def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
     return targets
 
 
+def _undecidable(reason: str, detail: str = "") -> NoReturn:
+    """"판단 불가" 를 exit 2 로 고정한다.
+
+    사유마다 손으로 `sys.exit(2)` 를 적으면 언젠가 하나를 빠뜨리고, 그 분기는 취약점 0건과
+    구별되지 않는 성공으로 흘러간다 — 이 스크립트가 막으려는 바로 그 클래스다. 반환 타입이
+    `NoReturn` 이라 빠뜨리면 타입 단계에서 드러난다.
+    """
+    print(f"ERROR: {reason}", file=sys.stderr)
+    if detail:
+        print(detail, file=sys.stderr)
+    sys.exit(2)
+
+
 def run_audit() -> dict:
     """`pnpm audit --json` 실행.
 
@@ -137,28 +151,22 @@ def run_audit() -> dict:
     )
     out = proc.stdout.strip()
     if not out:
-        print(
-            "ERROR: `pnpm audit --json` 이 아무것도 출력하지 않았다 — 취약점 0건과 구분할 수 "
+        _undecidable(
+            "`pnpm audit --json` 이 아무것도 출력하지 않았다 — 취약점 0건과 구분할 수 "
             "없으므로 판단 불가로 처리한다(fail-closed).",
-            file=sys.stderr,
+            f"  exit={proc.returncode} stderr={proc.stderr[:_STDERR_PREVIEW]}",
         )
-        print(f"  exit={proc.returncode} stderr={proc.stderr[:_STDERR_PREVIEW]}", file=sys.stderr)
-        sys.exit(2)
     try:
         data = json.loads(out)
     except json.JSONDecodeError:
-        print("ERROR: `pnpm audit --json` 출력을 파싱하지 못했다:", file=sys.stderr)
-        print(out[:_STDOUT_PREVIEW], file=sys.stderr)
-        sys.exit(2)
+        _undecidable("`pnpm audit --json` 출력을 파싱하지 못했다:", out[:_STDOUT_PREVIEW])
     if not isinstance(data, dict) or "actions" not in data:
         # 정상 응답이면 `actions`/`advisories`/`metadata` 를 갖는다. 없으면 오류 페이로드다.
-        print(
-            "ERROR: `pnpm audit --json` 응답이 기대 형태가 아니다(`actions` 없음) — "
+        _undecidable(
+            "`pnpm audit --json` 응답이 기대 형태가 아니다(`actions` 없음) — "
             "레지스트리 오류로 보고 판단 불가로 처리한다(fail-closed).",
-            file=sys.stderr,
+            f"  받은 키: {list(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
         )
-        print(f"  받은 키: {list(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}", file=sys.stderr)
-        sys.exit(2)
     return data
 
 
@@ -184,26 +192,46 @@ def classify_vulnerable(audit: dict) -> tuple[dict[str, str], dict[str, list[str
     **경로가 늘었을 때만** fail. "억제 항목이 있으면 fail" 로 짰다가 정상 상태(수용된 경로
     그대로)가 상시 빨간불이 되는 걸 실측했다. 판정 기준은 존재가 아니라 범위 확대다.
     """
+    advisories = audit.get("advisories") or {}
+    actions = audit.get("actions") or []
+
     reported: dict[str, str] = {}
-    for name, adv in (audit.get("advisories") or {}).items():
+    for name, adv in advisories.items():
         module = adv.get("module_name")
         if module:
             # `id` 는 정수로 오므로 str() 로 고정한다 — 선언 타입과 출력 형식 양쪽 때문.
             reported[module] = str(adv.get("github_advisory_id") or adv.get("id") or name)
 
     suppressed: dict[str, list[str]] = {}
-    for action in audit.get("actions") or []:
+    for action in actions:
         module = action.get("module")
         if module and module not in reported:
             paths = [r.get("path", "?") for r in (action.get("resolves") or [])]
             suppressed.setdefault(module, []).extend(paths)
+
+    # `run_audit()` 은 최상위 `actions` 키만 본다. 그 아래 필드명이 pnpm 메이저 상향으로
+    # 바뀌면 `.get()` 이 전부 None 을 돌려주고 여기서 조용히 빈 dict 가 나온다 — "취약 0건"
+    # 과 구별되지 않는 형태로. 항목이 있는데 **하나도** 기대 키를 안 갖는 건 데이터가 아니라
+    # 스키마가 바뀐 것이므로 판단 불가로 처리한다.
+    if advisories and not reported:
+        _undecidable(
+            "`advisories` 항목이 있는데 `module_name` 을 가진 것이 하나도 없다 — "
+            "pnpm audit 스키마가 바뀐 것으로 보고 판단 불가로 처리한다(fail-closed).",
+            f"  본 키: {sorted({k for adv in advisories.values() for k in adv})[:_KEY_PREVIEW]}",
+        )
+    if actions and not suppressed and not reported:
+        _undecidable(
+            "`actions` 항목이 있는데 `module` 을 가진 것이 하나도 없다 — "
+            "pnpm audit 스키마가 바뀐 것으로 보고 판단 불가로 처리한다(fail-closed).",
+            f"  본 키: {sorted({k for a in actions for k in a})[:_KEY_PREVIEW]}",
+        )
     return reported, suppressed
 
 
 def main() -> int:
     if not WORKSPACE_YAML.exists():
-        print(f"ERROR: {WORKSPACE_YAML} 없음", file=sys.stderr)
-        return 2
+        _undecidable(f"{WORKSPACE_YAML} 없음 — override 목록을 못 읽으면 "
+                     "\"대상 0건\" 이 되어 무엇도 걸리지 않는다(fail-closed).")
 
     targets = load_override_targets(WORKSPACE_YAML)
     audit = run_audit()

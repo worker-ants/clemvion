@@ -107,8 +107,9 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **18건**(4축: 키 추출 · 분류 ·
-      `ignoreCves` 억제 경로 baseline · fail-closed). 하네스 전체 스위트 731건 통과. mutation
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **25건**(4축: 키 추출 · 분류 ·
+      `ignoreCves` 억제 경로 baseline · fail-closed, + 통합 리포트·스키마 드리프트).
+      워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건. 하네스 전체 744건 통과. mutation
       으로 non-vacuous 증명(추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인 첫`>` 회귀 ·
       fail-closed 3분기 fail-open 되돌림 — 전부 RED 확인).
 - [x] TEST WORKFLOW (1차) — lint PASS(54s) · unit PASS · build PASS(163s) · e2e PASS(260/260, 325s).
@@ -128,19 +129,31 @@ spec_impact: none
       → 구조 정정 + `test_workflow_yaml_structure.py` 신설(중복 키·스텝 run/uses).
       Warning 8건도 전부 조치(축 개수 서술·중간 scope 체인·통합 리포트·헬퍼 모듈화·
       PROJECT.md 3번째 잡·stdlib 전용 서술·카탈로그 2행) + INFO 11/12/13/15/16.
-- [ ] TEST WORKFLOW (3차) · push + PR
+- [x] TEST WORKFLOW (3차) — lint PASS(54s) · unit PASS(65s) · build PASS(125s) ·
+      e2e PASS(283s: backend jest 46 suites/260 + playwright 51). 하네스 739 OK.
+- [x] `/ai-review` 3차 (`02_38_45`) — **Critical 0** · Warning 6 · INFO 11 (risk LOW).
+      1·2차 Critical 5건 전부 해소 확인(reviewer 9명이 스위트 실행·실제 `pnpm audit` 호출·
+      손상 커밋 원문 재생으로 직접 재검증). Warning 6건 전부 조치 — audit 하위 필드 스키마
+      드리프트 fail-closed · plan 수치 stale · 중간 scope 조합 리터럴 pin · 스텁 조립 방식 ·
+      워크플로 헤더 잡 개수 · "두 번→세 번" 서술. INFO 2·4·5·9·10 도 조치(나머지는 위
+      §3차 리뷰에서 미조치로 남긴 것 에 근거 기록).
+- [ ] TEST WORKFLOW (4차) · `/ai-review` 4차 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 
-**패키지명 추출을 두 번 틀렸다.** override 키가 세 형태(`pkg`, `parent>child`, `pkg@range`)에
-scope 패키지까지 섞여 온다.
+**패키지명 추출을 세 번 틀렸다.** override 키가 `pkg` · `a>b` · `a>b>c` · `pkg@range` 로
+오고 scope 패키지가 체인 어디에든 섞인다. 셋 다 증상이 같았다 — 매칭 0건 → **조용한 통과**.
 
 1. `>` 를 먼저 자르면 `undici@>=7.0.0` 의 `>=` 를 부모 구분자로 오인 → `js-yaml` 스코프
-   override 2건이 통째로 매칭에서 빠지고 **가드가 조용히 통과**했다.
+   override 2건이 통째로 매칭에서 빠졌다.
 2. 레인지를 먼저 떼면 scope 패키지의 선두 `@` 를 버전 구분자로 물어 `@babel/core@>=7` 이
    `=7.0.0` 이 됐다.
+3. 고쳐서 "`@` 이전 구간에서만 `>` 를 찾는다" 로 갔더니 `a>@scope/b>c` 의 마지막 `>` 를
+   못 봤다 — 첫 `@` 가 `@scope` 의 것이라 구간이 `a>` 에서 끊긴다(2차 리뷰가 발견).
 
-추출이 틀리면 가드가 아무것도 안 잡으므로 회귀 테스트의 절반을 이 축에 썼다.
+세 번째에서야 방식을 바꿨다: 구간을 나누지 말고 **앞 글자**로 구분자와 레인지를 가른다
+(구분자는 패키지명 글자 뒤, 레인지의 `>` 는 `@` 나 공백 뒤). 추출이 틀리면 가드가 아무것도
+안 잡으므로 회귀 테스트의 절반을 이 축에 썼다.
 
 **"바닥을 낮추면 잡힌다" 가 아니다.** 첫 재현에서 `liquidjs ^10.27.1` → `^10.27.0` 으로
 되돌렸는데 가드가 통과했다 — caret 은 범위 안 최신을 허용하므로 lockfile 재계산 시 패치
@@ -179,7 +192,35 @@ load-bearing 이 아니게 됐는데, 기존 가드(`test_each_historical_leak_i
 정말 의도한 그 자리인지는 뮤턴트를 돌리기 **전에** 확인해야 한다 — `package-ecosystem: "npm"`
 까지 포함한 블록 단위로 다시 잡으니 RED 가 나왔다.
 
+## 3차 리뷰에서 미조치로 남긴 것 (근거)
+
+3차 리뷰(`review/code/2026/08/01/02_38_45`)는 Critical 0 · Warning 6 · INFO 11. Warning 6건과
+INFO 2·4·5·9·10 은 조치했다. 남긴 것과 이유:
+
+- **INFO 1 — `EXPECTED_SUPPRESSED_PATHS` 양방향 대조 부재**: 지금은 `actual - allowed` 만 본다.
+  baseline 에만 남은 낡은 경로가 누적될 수 있으나 방향이 안전한 쪽이다(탐지를 약화시키지
+  않는다). 자매 스크립트와의 비대칭은 인정하되, 항목이 1건인 현 시점에 양방향을 넣으면
+  `ignoreCves` 를 정리하는 흔한 편집이 곧바로 빨간불이 된다. 항목이 늘면 그때 넣는다.
+- **INFO 3 — `rebase-strategy: auto` 의 실효성 미검증**: 오프라인에서 확인 불가. 근본 조치인
+  `--frozen-lockfile` required check 승격은 repo Settings 소관이라 아래 잔여 항목으로 이미 추적 중.
+- **INFO 6 — `eroded` 4-tuple → NamedTuple**: 생성·소비가 같은 파일 20줄 안이라 위치 의존의
+  실사고 여지가 작다. 필드가 늘어나는 편집이 실제로 생길 때 함께 바꾼다.
+- **INFO 7 — tempdir 셋업 중복**: `_stage_script()` 로 스크립트 배치는 공유했다. 남은 중복은
+  워크스페이스 파일을 **일부러 두지 않는** 쪽이라 헬퍼에 skip 옵션을 다는 건 그 테스트의
+  의도를 흐린다.
+- **INFO 8 — `advisories` 이중 순회**: 입력이 수십 건 규모라 측정 가능한 비용이 없다.
+- **INFO 11 — pip 해시 고정**: 저장소 전역 정책 문제다(기존 2곳도 같은 range). 이 PR 스코프 밖.
+
 ## Rationale
+
+**왜 `actionlint` 대신 직접 짰나**: 2차 리뷰에서 3명(security·dependency·requirement)이
+`actionlint` 도입을 대안으로 제시했다. 채택하지 않은 이유는 두 가지다. (a) 잡으려는 것이
+**두 불변식**(중복 매핑 키 · 스텝의 `run`/`uses` 정확히 1개)뿐인데, actionlint 는 셸 스크립트
+린트·표현식 타입체크까지 딸려 와 기존 워크플로 전반에 신규 위반을 대량 유발할 가능성이 크다 —
+이 PR 스코프가 아니다. (b) 하네스 스위트는 설치 스텝 없는 파이썬이 원칙이고, 이번에 PyYAML
+예외를 하나 열었는데 Go 바이너리 의존을 **같은 PR 에서** 하나 더 여는 건 과하다. 다만
+actionlint 는 이 두 불변식의 상위집합이므로, 워크플로 린트를 저장소 전역 정책으로 도입할 때
+`test_workflow_yaml_structure.py` 는 그 쪽으로 흡수하는 것이 맞다 — 그때 폐기 대상이다.
 
 **왜 §2 는 기계 검사를 넣지 않았나**: 초안은 "가능하면 `check-pnpm-security-config.py` 가 신규
 `ignoreCves` 항목의 주석에 `--prod` 근거 문구가 있는지 확인" 을 검토 대상으로 뒀다. 넣지 않았다 —
