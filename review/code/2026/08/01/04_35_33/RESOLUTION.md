@@ -1,8 +1,7 @@
 # RESOLUTION — deps-guard-hardening
 
-브랜치 `claude/deps-guard-hardening` 의 리뷰 라운드 1~7 조치 기록. 세션이 여러 개라 마지막
-비-clean 라운드(`04_35_33`) 아래에 통합해 둔다. 각 라운드의 원 발견사항은 해당 세션의
-`SUMMARY.md` 에 있다.
+브랜치 `claude/deps-guard-hardening` 의 리뷰 라운드 1~10 조치 기록. 세션이 여러 개라
+`04_35_33` 아래에 통합해 둔다. 각 라운드의 원 발견사항은 해당 세션의 `SUMMARY.md` 에 있다.
 
 ## 조치 항목
 
@@ -32,6 +31,15 @@
 | 7 (`04_35_33`) | W1 | `widened` 루프의 override-미관리 스킵 가드 무검증 — 무력화해도 38건 GREEN | `WidenedFilterTest` | `fdc7ad801` |
 | 7 | W2 | `EXPECTED_SUPPRESSED_PATHS` 기본값 분기 무검증 — "미등록은 이미 수용됨" 으로 뒤집어도 38건 GREEN. 신규 억제가 조용히 통과하는 형태 | 동상 | `fdc7ad801` |
 | 7 | INFO11 | PyYAML 1.1 리졸버가 `on`/`yes` 를 불리언으로 만들어 최상위 키 타입이 섞이면 진단 조립의 `sorted()` 가 TypeError | `key=str` (재현 후 수정) | `fdc7ad801` |
+| 8 (`04_58_18`) | W1 | **flaky 가드** — `WidenedFilterTest...always_widens` 가 50회 중 1회 exit 0(스텁이 돌았다면 나올 수 없는 값). PATH 에서 진짜 `pnpm` 이 뽑히면 단언이 실제 레지스트리 응답을 본다 | 300회 재현 실패 → 확률을 재는 대신 **구조로 제거**: 스텁을 rename 으로 원자 배치(`execvp` 는 EACCES 면 다음 PATH 로 샌다) + 마커 미기록 시 `StubNotUsed` 로 즉시 실패 | `614d72ba3` |
+| 8 | W2 | `sorted(key=str)` 회귀 테스트 부재 — 되돌려도 40건 GREEN | 테스트 추가 | `614d72ba3` |
+| 8 | INFO1 | `read_text` 가 예외 처리 범위 밖 — 유효하지 않은 UTF-8 이 traceback + exit 1(= "침식 발견") | `UnicodeDecodeError`/`OSError` 포섭 | `614d72ba3` |
+| 9 (`05_36_28`) | W1 | `run_audit()` 이 `FileNotFoundError` 미포착 — **`pnpm` 부재 시 exit 1**. 8차에 형제 함수는 고쳤는데 이쪽을 빠뜨렸다 | `OSError` 포섭 + mock 회귀 테스트 | `e18fc7227` |
+| 9 | W2 | `chain_segments()` 가 `>` **앞** 공백을 구분자로 안 봐 `"next > postcss"` 가 유령 대상 — 축 1 실패의 **4번째 형제** | 추출 결과에 공백이 남으면 fail-closed | `e18fc7227` |
+| 9 | W3 | 8차 예외 확장에 회귀 테스트 부재 — `except yaml.YAMLError` 로 되돌려도 41건 GREEN | in-process 테스트 2형태 | `e18fc7227` |
+| 9 | W4 | 커밋 `f46c560e9` 가 8차 세션 산출물 6개를 함께 포함 | **미조치** — 사실이나 정리에 대화형 rebase 필요(이 환경에서 불가). plan 에 기록 | — |
+| **10** (`06_03_11`) | **C1·C2** | 실 registry 실행으로 발견: 스키마 드리프트 오판 + `widened`/`EXPECTED_SUPPRESSED_PATHS` 가 발동 불가능한 죽은 코드 | **축 3 철회** (사용자 결정). 2×2 직접 실측 후 `widened`·`EXPECTED_SUPPRESSED_PATHS`·`_report_widened`·테스트 3클래스 제거 + stale `ignoreCves` 2건 2-place 제거 | `f71be98d8` |
+| 10 | W2 | `FailClosedSiteCountTest` 가 README 를 검증한다고 **주장만** 하고 읽지 않음 — 값을 바꿔도 전 스위트 GREEN | 실제 대조 추가. 리뷰가 반증에 쓴 뮤턴트가 이제 RED | `f71be98d8` |
 
 ### 비-vacuous 증명
 
@@ -50,17 +58,25 @@ TimeoutExpired 를 안 던지는 예외로 · `timeout=` 인자 제거 · YAML �
 (int 도 f-string 에서 같은 문자열이라 관측 차이가 없다). 그 테스트가 고정하는 것은 `id` 폴백의
 존재이며, docstring 을 그 사실대로 고쳤다.
 
+**그리고 mutation 만으로는 부족했다.** 9라운드를 정적 분석·뮤턴트로 돌았는데, 10차에 처음으로
+**실제 `pnpm audit` 을 돌려보자** 축 3 전체가 발동 불가능하다는 게 드러났다. 손으로 만든 스텁만
+순회하면 도구의 실제 응답 형태가 바뀐 것은 어떤 뮤턴트로도 안 보인다. 그 축은 철회했다
+(근거·2×2 측정표: `plan/in-progress/deps-guard-hardening.md` §축 3 철회).
+
 ## TEST 결과
 
-라운드마다 전 단계 재수행. 최종(8차):
+라운드마다 전 단계 재수행(총 11회). 최종(11차):
 
-- **lint**: PASS (50s)
-- **unit**: PASS (63s)
-- **build**: PASS (111s)
-- **e2e**: **통과** — 261s, backend jest 46 suites / 260 tests + frontend playwright 51 passed
-  (`_test_logs/e2e-20260801-050159.log`). 브랜치 changeset 에 `pnpm-workspace.yaml` ·
+- **lint**: PASS (68s)
+- **unit**: PASS (82s)
+- **build**: PASS (172s)
+- **e2e**: **통과** — 315s, backend jest 46 suites / 260 tests + frontend playwright 51 passed
+  (`_test_logs/e2e-20260801-082527.log`). 브랜치 changeset 에 `pnpm-workspace.yaml` ·
   `scripts/*.py` 가 있어 PROJECT.md §e2e 면제 화이트리스트의 부분집합이 아니므로 매 라운드 수행.
-- **하네스 스위트**: 759건 OK (`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`)
+- **하네스 스위트**: 757건 OK (`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`)
+- **세 게이트 직접 실행**: `pnpm audit` exit 0 · `check-pnpm-security-config.py` exit 0
+  (overrides 29 · onlyBuiltDependencies 5 · ignoreCves 0 baseline 일치) ·
+  `check-override-floors.py` exit 0 (override 대상 26개, 재유입 0건)
 
 2차 라운드의 1차 e2e 는 `initdb: could not create directory ... No space left on device` 로
 postgres 가 뜨지 못해 실패했다 — 본 변경과 무관한 디스크 부족. `docker builder prune -af` +
@@ -70,9 +86,12 @@ image prune 으로 66GB 회수 후 통과했고, 이후 모든 라운드에서 �
 
 `plan/in-progress/deps-guard-hardening.md` 에 근거와 함께 등재:
 
-- `EXPECTED_SUPPRESSED_PATHS` 양방향(baseline→실제) 대조 — 항목이 1건인 현 시점에 넣으면
-  `ignoreCves` 정리라는 흔한 편집이 곧바로 빨간불이 된다. 항목이 늘면 그때.
+- **`ignoreCves` 재유입 탐지** — 축 3 철회로 이 저장소에 자동 장치는 없다. `ignoreCves` 에
+  항목을 다시 넣게 되면 (a) `check-pnpm-security-config.py` baseline 2-place 편집이 리뷰
+  게이트로 남고, (b) 경로 단위 추적이 필요하면 그때 **실제 audit 응답 캡처본을 fixture 로**
+  설계할 것 — 손으로 만든 스텁만으로는 이번과 같은 전제 붕괴를 못 잡는다.
 - `--frozen-lockfile` 검증의 required check 승격 — repo Settings 소관이라 in-repo 불가.
-- `eroded` 4-tuple → NamedTuple, `advisories` 이중 순회, tempdir 셋업 잔여 중복,
-  pip 해시 고정(저장소 전역 정책), 서드파티 액션 SHA 고정(전역 정책), 모듈 docstring
-  "5건→4건" 서술 순서 — 전부 우선순위 낮음으로 기록.
+- 커밋 `f46c560e9` 의 무관 파일 6개 정리 — 대화형 rebase 필요(이 환경에서 불가). 기능 영향 없음.
+- `eroded` 4-tuple → NamedTuple, tempdir 셋업 잔여 중복, `main()` 의 eroded 계산 추출,
+  pip 해시 고정(저장소 전역 정책), 서드파티 액션 SHA 고정(전역 정책), `StubNotUsed` 메커니즘
+  자체의 메타 테스트 — 전부 우선순위 낮음으로 기록.
