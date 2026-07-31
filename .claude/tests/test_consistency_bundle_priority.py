@@ -4,7 +4,8 @@
 truncation cuts on file boundaries and names what it dropped. This file pins the
 half that decides **which** files get dropped.
 
-`collect_markdown_files` returns plain alphabetical order and
+`collect_markdown_files` used to return plain lexicographic order (its
+tie-break is natural sort now — see `_natural_key`) and
 `truncate_file_bundle` drops from the tail, so for `spec/5-system/` the budget
 went to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md` while
 `4-execution-engine.md` — the file every one of those sessions was actually

@@ -630,9 +630,10 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         # Number first, then cut on a line boundary: slicing raw characters
         # could leave a half-written line number, which is exactly the kind of
         # untrustworthy anchor the gutter exists to eliminate.
-        full_content = line_anchors.number_source_lines(
-            ci.get("full_file_content", "")
-        )
+        numbered = line_anchors.number_source_lines(ci.get("full_file_content", ""))
+        total_lines = numbered.count("\n") + 1 if numbered else 0
+
+        full_content = numbered
         if len(full_content) > max_file_size:
             full_content, kept, total = line_anchors.truncate_to_line_boundary(
                 full_content, max_file_size
@@ -647,6 +648,19 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             # Carried so an omission notice can name the file the reviewer must
             # `Read` — the header alone is what a dropped section already shows.
             "rel_path": ci["file_path"],
+            # The two below exist because a file can be cut TWICE — once here
+            # against `max_file_size`, then again against the prompt budget. The
+            # second cut used to recount lines from `full_content`, which by then
+            # already carried the first cut's note, so it reported the truncated
+            # length as if it were the file's size: a real 1,531-line file was
+            # announced as "356/580" and the number 1,531 appeared nowhere in the
+            # prompt. A reviewer has no way to see that "580" is not the total.
+            #
+            # `source_lines` is the numbered body WITHOUT any note, so the second
+            # cut measures source rather than its own annotation; `total_lines`
+            # is the only true total and both cuts report against it.
+            "source_lines": numbered,
+            "total_lines": total_lines,
         })
 
     if max_total_size <= 0:
@@ -736,24 +750,23 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             include_content[i] = file_parts[i]["full_content"]
             remaining_budget += refund - needed
         else:
-            # `_truncated_note` is appended to the kept text, so its own length
-            # has to come out of `available` too — `truncate_to_line_boundary`
-            # only bounds the text it returns. Budget for the widest form of the
-            # note (kept == total gives the most digits).
             # Budget for the widest form of the note (kept == total gives the
             # most digits) — `truncate_to_line_boundary` bounds only the text it
             # returns, not what gets appended to it.
-            line_count = file_parts[i]["full_content"].count("\n") + 1
+            total_lines = file_parts[i]["total_lines"]
             available = _charge_notice(
                 remaining_budget + refund - content_wrapper_overhead,
-                _truncated_note(line_count, line_count, "프롬프트 크기 제한"),
+                _truncated_note(total_lines, total_lines, "프롬프트 크기 제한"),
             )
             if available > 200:
-                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
-                    file_parts[i]["full_content"], available
+                # Cut the un-annotated source, never `full_content`: that string
+                # may already carry the first cut's note, and re-cutting it makes
+                # the annotation part of what gets measured and reported.
+                kept_text, kept, _ = line_anchors.truncate_to_line_boundary(
+                    file_parts[i]["source_lines"], available
                 )
                 include_content[i] = kept_text + _truncated_note(
-                    kept, total, "프롬프트 크기 제한"
+                    kept, total_lines, "프롬프트 크기 제한"
                 )
                 remaining_budget = 0
             break

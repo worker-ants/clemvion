@@ -75,6 +75,10 @@ def run_in_orchestrator(snippet: str, arg=None):
         [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
         input=json.dumps(arg), cwd=str(REPO_ROOT),
         capture_output=True, text=True,
+        # Without this a hang in the target code blocks the whole run instead of
+        # failing. The sibling suites set one; this file did not, and a comment
+        # in one of them claimed otherwise.
+        timeout=30.0,
     )
     if proc.returncode != 0:
         raise AssertionError(proc.stderr[-3000:])
@@ -98,7 +102,11 @@ def bundle(*pairs):
 
 
 class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
-    """A level-4 heading inside a file body is not a file boundary.
+    r"""A level-4 heading inside a file body is not a file boundary.
+
+    (Raw docstring: the backtick escapes below are not escapes at all, and a
+    plain string makes them a DeprecationWarning that becomes a SyntaxError in
+    a later Python.)
 
     The splitter used to cut on ``\n#### \`` — the same characters a spec body
     legitimately writes. `spec/5-system/5-expression-language.md` really does
@@ -151,6 +159,36 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
         kept = re.findall(sentinel_re, out[:i])
         listed = re.findall(r"^- `([^`]+)`", out[i:], re.M)
         self.assertCountEqual(kept + listed, rels)
+
+    def test_a_document_that_writes_the_sentinel_cannot_forge_a_boundary(self):
+        """"Content cannot produce this marker" is a claim, not a property.
+
+        This repository came within one line break of falsifying it: the plan
+        describing the sentinel fix quotes the literal. Inline it is harmless,
+        but on a line of its own it would forge a boundary and restore the very
+        bug the sentinel replaced. The writer therefore neutralises the boundary
+        form on the way in, and this pins that — through `format_file_bundle`,
+        not through the helper, because a helper test would stay GREEN if the
+        writer stopped calling it.
+        """
+        evil = run_in_orchestrator(
+            """
+            import os, tempfile
+            d = tempfile.mkdtemp()
+            f = os.path.join(d, "real.md")
+            with open(f, "w", encoding="utf-8") as fh:
+                fh.write("머리말\\n" + orch._BUNDLE_FILE_SENTINEL.strip()
+                         + "\\n#### `가짜.md`\\n본문\\n")
+            b = orch.format_file_bundle([f], d, "t")
+            emit({"chunks": len(b.split(orch._BUNDLE_FILE_SENTINEL)),
+                  "has_fake": "가짜.md" in b})
+            """
+        )
+        # head + exactly one file. Three would mean the body forged a boundary.
+        self.assertEqual(evil["chunks"], 2)
+        # The text is still shown to the checker — neutralised, not deleted.
+        self.assertTrue(evil["has_fake"])
+
 
 class FileBundleTruncationTest(unittest.TestCase):
     @staticmethod

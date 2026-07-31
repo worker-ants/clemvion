@@ -210,6 +210,22 @@ def read_text_file(path):
         return ""
 
 
+def _neutralize_sentinel(text):
+    """Defang a document that writes the boundary sentinel itself.
+
+    "Content cannot produce this marker" is a claim about documents, not a
+    property of the format — and this repository already came within one line
+    break of falsifying it: the plan describing this very fix quotes the literal.
+    Inline (as it does) it is harmless; on a line of its own it would forge a file
+    boundary and bring back exactly the bug the sentinel was introduced to kill.
+    Rather than ask every future writer to remember that, the writer neutralises
+    the boundary form on its way in. Inline mentions are left alone, so prose that
+    merely names the marker still reads normally.
+    """
+    return text.replace(_BUNDLE_FILE_SENTINEL,
+                        "\n<!-- @bundle-file (본문 인용 — 경계 아님) -->\n")
+
+
 def _natural_key(path):
     """Sort key where a run of digits compares as a number, not as text.
 
@@ -300,13 +316,14 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
     """Order a bundle so the documents this task is actually about survive truncation.
 
     `truncate_file_bundle` drops whole files from the TAIL, and
-    `collect_markdown_files` hands it plain alphabetical order. That combination
+    `collect_markdown_files` hands it natural order now, but ordering by name
+    alone still says nothing about relevance. That combination
     is why `spec/5-system/4-execution-engine.md` — the work target — kept losing
     its budget to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md`, eight
     times across separate sessions. Twice the checkers had no coverage of the
     target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
 
-    Tiers (stable, alphabetical inside each):
+    Tiers (stable, natural order inside each — see `_natural_key`):
       0. changed by this branch — the strongest available "this is the subject"
          signal, and it outranks the catalog demotion below
       1. named by an in-progress plan — covers `--impl-prep`, where the spec is
@@ -336,8 +353,9 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
             return 1
         return 2
 
-    # `sorted` is stable and the input is already alphabetical, so the secondary
-    # key is implicit — but spell it out rather than rely on the caller's order.
+    # `sorted` is stable and the input already arrives in natural order, so the
+    # secondary key is implicit — but spell it out rather than rely on the
+    # caller having sorted it the same way.
     return sorted(file_paths, key=lambda p: (tier(p), _natural_key(p)))
 
 
@@ -347,7 +365,7 @@ def format_file_bundle(file_paths, root, label):
     parts = [f"### {label}\n"]
     for path in file_paths:
         rel = os.path.relpath(path, root) if root else path
-        content = read_text_file(path)
+        content = _neutralize_sentinel(read_text_file(path))
         parts.append(f"{_BUNDLE_FILE_SENTINEL}#### `{rel}`\n```\n{content}\n```\n")
     return "".join(parts)
 
@@ -444,7 +462,8 @@ def extract_rationale_sections(file_paths, root):
             section = text[start:]
         rel = os.path.relpath(path, root) if root else path
         blocks.append(
-            f"{_BUNDLE_FILE_SENTINEL}#### `{rel}` 의 Rationale\n\n{section.strip()}\n"
+            f"{_BUNDLE_FILE_SENTINEL}#### `{rel}` 의 Rationale\n\n"
+            f"{_neutralize_sentinel(section.strip())}\n"
         )
     if not blocks:
         return "### Rationale 발췌\n(관련 Rationale 섹션 없음)\n"
