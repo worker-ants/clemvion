@@ -134,7 +134,7 @@ Assistant 의 `edit` 류 tool_call 은 **DB 를 직접 건드리지 않는다**.
 
 | 엔드포인트 | 데이터 흐름 |
 | --- | --- |
-| `POST /api/workflows/:id/duplicate` | workflow **메타 row 만** 복제 — name `"(Copy)"` 접미, `is_active=false`, description/tags/folder_id/settings 승계. **nodes/edges 는 복제하지 않는다.** |
+| `POST /api/workflows/:id/duplicate` | 메타 + **전체 nodes/edges** 를 한 트랜잭션으로 복제 — name `"(Copy)"` 접미, `is_active=false`, description/tags/folder_id/settings 승계. 노드는 새 UUID 로 재발급되고 노드 간 참조(`container_id`/`tool_owner_id`/엣지 endpoint)는 새 UUID 로 재매핑된다. AI 노드 `llmConfigId` 는 같은 워크스페이스 내 복사이므로 원본 값을 그대로 유지한다 (import 와 달리 기본 LLM 주입 없음). **복제 범위 밖**: 버전 이력(`workflow_version` — 사본은 `current_version=1` 로 새로 시작), `trigger`(webhook/schedule), `workflow_test_dataset`, 실행 이력. export/import 와 동일한 경계다. |
 | `GET /api/workflows/:id/export` | workflow 메타(name/description/tags/settings) + 전체 nodes/edges 를 JSON 직렬화. 노드 간 참조(`container_id`/`tool_owner_id`/엣지 endpoint)는 UUID 대신 **nodes 배열 인덱스**로 치환해 환경 간 이식 가능. |
 | `POST /api/workflows/import` | export JSON 을 받아 새 workflow·node·edge 를 한 트랜잭션으로 생성. 인덱스 참조를 새 UUID 로 재매핑하고, AI 노드의 `llmConfigId` 미지정 시 워크스페이스 기본 LLM 을 주입. 페이로드 내 노드 label 중복 시 409 (`DUPLICATE_NODE_LABEL`). |
 
@@ -147,12 +147,15 @@ Assistant 의 `edit` 류 tool_call 은 **DB 를 직접 건드리지 않는다**.
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
 | `workflow` | 생성 | INSERT `workspace_id, name, description?, is_active=false, tags='{}', folder_id?, settings={}, current_version=1, created_by` | FK `workspace_id` (CASCADE), `folder_id` (SET NULL) |
+| `workflow` | 복제 (§1.5) | INSERT — "생성" 과 같은 컬럼 집합. `name` 은 원본 + `" (Copy)"`, `is_active=false`, `current_version=1` 고정. description/tags/folder_id/settings 는 원본 값 승계, `created_by` 는 **요청자** | 동일 |
 | `workflow` | 활성 토글 | UPDATE `is_active, updated_at` | — |
 | `workflow` | 버전 커밋 | UPDATE `current_version, updated_at` | — |
 | `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement` (둘 다 set 금지) |
+| `node` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `id` 를 새로 발급하고 `container_id`/`tool_owner_id` 를 사본 UUID 로 재매핑. `config` 는 원본 그대로(defaults 재적용·LLM 주입 없음) | 동일. 원본이 이미 통과한 label 유니크는 재검증하지 않음 |
 | `node` | 이동 / 설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | — |
 | `node` | 컨테이너 / Tool Area 배치 | UPDATE `container_id` 또는 `tool_owner_id` | cycle 검사는 런타임·Assistant ShadowWorkflow 에서 (`CONTAINER_CYCLE`, §1.2 각주) |
 | `edge` | 추가 | INSERT `workflow_id, source_node_id, source_port, target_node_id, target_port, type IN (data/error), condition?` | `(source_node_id, source_port, target_node_id, target_port) UNIQUE`, `chk_no_self_loop`, FK CASCADE |
+| `edge` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `source_node_id`/`target_node_id` 를 사본 노드 UUID 로 재매핑 | 동일 |
 | `workflow_version` | 버전 커밋 | INSERT `workflow_id, version, snapshot=JSONB, change_summary?, created_by, created_at` | `(workflow_id, version) UNIQUE` |
 | `workflow_assistant_session` | 세션 생성 | INSERT `workspace_id, workflow_id, user_id, title?, llm_config_id?, status='active', message_count=0, last_interaction_at` | `(workflow_id, user_id, status, last_interaction_at DESC)`, `(workspace_id, user_id, updated_at DESC)` (V019) |
 | `workflow_assistant_message` | 사용자 메시지 | INSERT `session_id, role='user', content` | `(session_id, created_at)` (V019) |
@@ -233,6 +236,50 @@ Background 컨테이너는 `container_id` 를 쓰지 않고 `background` 포트 
 이는 (1) "특정 시점의 캔버스" 를 단일 row 로 복원 가능, (2) `node`/`edge` table 의 스키마가 바뀌어도
 이전 버전을 그대로 보존, (3) 비교/diff 를 application 단에서 자유롭게 구현할 수 있게 한다는 장점이 있다.
 trade-off 는 row 크기가 커질 수 있다는 점이지만, 버전 단위 빈도가 낮아 수용 가능하다고 판단했다.
+
+### duplicate 는 캔버스 전체를 복제한다 (메타-only 였던 서술의 철회)
+
+본 문서 §1.5 는 한때 duplicate 를 "workflow 메타 row 만 복제 — nodes/edges 는 복제하지 않는다" 로
+기술했다. 그 문장은 제품 결정의 기록이 아니라 `db496a3c2` (spec↔code 전수 상호 감사) 시점에 **당시
+구현을 관측해 그대로 받아적은 drift 동기화 산출물**이었다. 그 구현(`WorkflowsService.duplicate()`)은
+초기 골격 커밋 `8ff4e8564` 이래 한 번도 손대지 않은 미완성 상태였고, 결과적으로 복제본은 노드가 0개인
+**빈 워크플로우**였다 — `create()` 가 자동 생성하는 Manual Trigger 조차 없어 이후 캔버스 저장이
+"Manual Trigger 정확히 1개" 사전 검증(§1.1)에 걸렸다.
+
+같은 저장소의 사용자 관점 SoT 는 일관되게 반대를 말하고 있었다: 요구사항 `NAV-WF-04`
+([2-navigation `_product-overview.md`](../2-navigation/_product-overview.md)) 와
+[워크플로우 목록 §2.6](../2-navigation/1-workflow-list.md#26-더보기-메뉴-액션) 은 "복사본" 을 약속한다.
+(보조 정황으로 [워크플로우 실행 §2.2 / R-2.2](../3-workflow-editor/3-execution.md#r-22-테스트-데이터셋-저장--권한소유-모델-2026-06-14)
+가 테스트 데이터셋 clone 을 설계하며 duplicate 를 선례로 인용하지만, 이는 "복제 후 자기 소유"
+**소유권 패턴**의 선례일 뿐 노드 내용 복사를 직접 진술하지는 않는다.) 두 서술이 충돌할 때 사용자
+가치를 기술한 쪽이 이기므로, spec 을 코드에 맞추는 대신 코드를 고치고 §1.5 를 정정했다.
+
+기각한 대안 — **spec 을 코드에 맞춰 "메타만 복제" 로 하향 확정**: 위 세 counter-reference 가 이미
+반대를 말하고 있어 이쪽을 택하면 정합성이 오히려 나빠진다. 무엇보다 사용자에게 남는 것은 "복제를
+눌렀는데 빈 워크플로우가 나온다" 는 결함 그대로다.
+
+### duplicate 가 export/import 를 재사용하지 않는 이유
+
+`exportWorkflow` → `importWorkflow` 를 내부 호출하면 UUID→인덱스→UUID 왕복 직렬화가 낭비이고, 무엇보다
+import 전용 게이트(label 중복 409, reserved 변수명 검증, 워크스페이스 기본 LLM 주입,
+`applyConfigDefaults`)가 사본에 적용되어 **원본과 다른 사본**이 나온다. 특히 기본 LLM 주입은 원본이
+의도적으로 비워둔 `llmConfigId` 를 채워 복제가 설정을 변조하게 만든다. 원본은 이미 그 게이트들을 통과해
+저장된 데이터이므로 재검증 자체가 불필요하다. 따라서 UUID 재매핑이라는 공통 알고리즘만 같은 형태로
+쓰고, 게이트는 공유하지 않는다.
+
+### 복제가 버전 이력·트리거·데이터셋을 승계하지 않는 이유
+
+`workflow_version` 은 "이 워크플로우가 어떻게 변해왔는가" 의 기록이다. 사본은 복제 시점에 태어난 새
+워크플로우이므로 원본의 편집 history 를 물려받으면 사본의 v1 스냅샷이 실은 원본의 과거가 되어,
+`restoreVersion` 이 사본에 존재한 적 없는 상태를 복원하게 된다. `trigger`(webhook/schedule)는 승계 시
+동일 이벤트가 두 워크플로우를 동시에 발화시켜 사용자가 의도하지 않은 중복 실행을 만든다 — 사본이
+`is_active=false` 로 시작하는 것과 같은 방향의 안전 선택이다. `workflow_test_dataset` 은 유저 귀속
+리소스라 소유권 축이 다르다 ([워크플로우 실행 §2.2 / R-2.2](../3-workflow-editor/3-execution.md#r-22-테스트-데이터셋-저장--권한소유-모델-2026-06-14)).
+셋 다 import 경로가 만들지 않는 것과 같은 경계이며, 일관된 선택이다.
+
+기각한 대안 — **복제본에도 Manual Trigger 를 자동 생성** (`create()` 처럼): 원본에 이미 Manual Trigger 가
+있으므로 중복이 되어 §1.1 의 "정확히 1개" 불변식을 깬다. 원본이 비어있을 때만 의미가 있는데, 그 경우는
+원본 자체가 비정상이다.
 
 ### Assistant message 의 `usage` JSONB
 

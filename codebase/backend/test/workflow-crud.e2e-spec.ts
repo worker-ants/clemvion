@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'node:crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -11,7 +12,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 핵심:
  *   - POST /workflows 가 Manual Trigger 노드를 자동 생성 (saveCanvas 의 "정확히 하나"
  *     invariant 와 짝)
- *   - duplicate 가 새 ID + " (Copy)" 접미 + isActive=false 로 독립 생성
+ *   - duplicate 가 새 ID + " (Copy)" 접미 + isActive=false 로 독립 생성하고, 노드·엣지를
+ *     포함한 캔버스 전체를 새 UUID 로 재매핑해 복사 (data-flow §1.5). 버전 이력은 비승계
  *   - DELETE 후 GET 404
  *   - 동시 PATCH 가 마지막 쓰기로 수렴 (실패 없이)
  *
@@ -20,6 +22,88 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
+
+/**
+ * C 케이스(duplicate 캔버스 복사) 전용 5노드 그래프 saveCanvas payload.
+ * Manual Trigger → Loop(HTTP 를 container 로 소유) → Agent(Tool 을 toolOwner
+ * 로 소유) — container 축과 toolOwner 축을 다른 노드로 갈라 두면 duplicate()
+ * 의 UUID 재매핑이 두 축을 뒤바꿔도 관측된다. 노드 id 는 UUID 여야 한다 —
+ * SaveCanvasNodeDto 의 containerId/toolOwnerId 가 `@IsUUID()` 라 임시 문자열
+ * id 를 참조로 넘기면 저장이 400 으로 거부된다(프론트엔드도 새 노드에 UUID 를
+ * 발급한다). 반환된 UUID 는 호출부에서 재사용하지 않는다(이후 단언은 전부
+ * export 의 label 기반 index 로 대조).
+ */
+function buildFiveNodeGraphPayload() {
+  const nTrig = randomUUID();
+  const nLoop = randomUUID();
+  const nHttp = randomUUID();
+  const nAgent = randomUUID();
+  const nTool = randomUUID();
+
+  return {
+    nodes: [
+      {
+        id: nTrig,
+        type: 'manual_trigger',
+        category: 'trigger',
+        label: 'Manual Trigger',
+        positionX: 0,
+        positionY: 0,
+      },
+      {
+        id: nLoop,
+        type: 'loop',
+        category: 'logic',
+        label: 'Loop',
+        positionX: 200,
+        positionY: 0,
+      },
+      {
+        id: nHttp,
+        type: 'http_request',
+        category: 'integration',
+        label: 'HTTP',
+        positionX: 240,
+        positionY: 60,
+        config: { url: 'https://example.com', method: 'GET' },
+        containerId: nLoop,
+      },
+      {
+        id: nAgent,
+        type: 'ai_agent',
+        category: 'ai',
+        label: 'Agent',
+        positionX: 400,
+        positionY: 0,
+      },
+      {
+        id: nTool,
+        type: 'http_request',
+        category: 'integration',
+        label: 'Tool',
+        positionX: 440,
+        positionY: 60,
+        toolOwnerId: nAgent,
+      },
+    ],
+    edges: [
+      {
+        sourceNodeId: nTrig,
+        sourcePort: 'out',
+        targetNodeId: nLoop,
+        targetPort: 'in',
+        type: 'data',
+      },
+      {
+        sourceNodeId: nLoop,
+        sourcePort: 'out',
+        targetNodeId: nAgent,
+        targetPort: 'in',
+        type: 'data',
+      },
+    ],
+  };
+}
 
 describe('Workflow CRUD (e2e)', () => {
   let db: Client;
@@ -139,7 +223,7 @@ describe('Workflow CRUD (e2e)', () => {
     expect(get.body.data.settings?.maxConcurrentExecutions).toBe(5);
   });
 
-  it('C. duplicate → 새 ID, " (Copy)" 접미, isActive=false', async () => {
+  it('C. duplicate → 새 ID, " (Copy)" 접미, isActive=false, 캔버스 전체 복사', async () => {
     const baseName = uniqueName('wf-c');
     const create = await request(BASE_URL)
       .post('/api/workflows')
@@ -147,6 +231,22 @@ describe('Workflow CRUD (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send({ name: baseName, isActive: true });
     const id = create.body.data.id;
+
+    // 복제 대상 그래프를 실제로 만들어 둔다. 빈 캔버스를 복제하면 "노드를 안
+    // 옮긴다" 는 회귀가 관측되지 않는다 (본 케이스가 과거 그 상태였다).
+    const save = await request(BASE_URL)
+      .post(`/api/workflows/${id}/save`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send(buildFiveNodeGraphPayload());
+    // 저장이 막히면 이 케이스 전체가 무의미해지므로, 상태 코드만 보지 말고 원인
+    // (code/message)을 실패 메시지에 실어 한 번에 진단되게 한다.
+    if (save.status >= 400) {
+      throw new Error(
+        `saveCanvas ${save.status}: ${JSON.stringify(save.body)}`,
+      );
+    }
+    expect([200, 201]).toContain(save.status);
 
     const dup = await request(BASE_URL)
       .post(`/api/workflows/${id}/duplicate`)
@@ -157,13 +257,79 @@ describe('Workflow CRUD (e2e)', () => {
     expect(dupId).not.toBe(id);
     expect(dup.body.data.name).toBe(`${baseName} (Copy)`);
     expect(dup.body.data.isActive).toBe(false);
+    // 버전 이력은 승계하지 않는다 — 원본은 save 로 2 가 됐고 사본은 1 로 시작.
+    expect(dup.body.data.currentVersion).toBe(1);
 
-    // 원본은 그대로.
+    // 사본의 캔버스를 export 로 관측한다 (노드 간 참조가 인덱스로 정규화돼 나와
+    // UUID 재매핑 결과를 그대로 대조할 수 있다).
+    const dupExport = await request(BASE_URL)
+      .get(`/api/workflows/${dupId}/export`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(dupExport.status).toBe(200);
+
+    const nodes = dupExport.body.data.nodes as Array<{
+      label: string;
+      config: Record<string, unknown>;
+      containerIndex: number | null;
+      toolOwnerIndex: number | null;
+    }>;
+    const edges = dupExport.body.data.edges as Array<{
+      sourceNodeIndex: number;
+      targetNodeIndex: number;
+      sourcePort: string;
+      targetPort: string;
+    }>;
+    expect(nodes).toHaveLength(5);
+    expect(edges).toHaveLength(2);
+
+    const idx = (label: string) => nodes.findIndex((n) => n.label === label);
+    expect(nodes[idx('HTTP')].containerIndex).toBe(idx('Loop'));
+    expect(nodes[idx('HTTP')].toolOwnerIndex).toBeNull();
+    expect(nodes[idx('Tool')].toolOwnerIndex).toBe(idx('Agent'));
+    expect(nodes[idx('Tool')].containerIndex).toBeNull();
+    expect(nodes[idx('HTTP')].config).toMatchObject({
+      url: 'https://example.com',
+    });
+
+    const edgePairs = edges.map(
+      (e) =>
+        `${nodes[e.sourceNodeIndex].label}->${nodes[e.targetNodeIndex].label}`,
+    );
+    expect(edgePairs.sort()).toEqual(
+      ['Loop->Agent', 'Manual Trigger->Loop'].sort(),
+    );
+
+    // 사본의 노드는 원본과 다른 row 다 — 원본 노드 UUID 를 재사용하지 않는다.
+    const dupNodeIds = await db.query<{ id: string }>(
+      'SELECT id FROM node WHERE workflow_id = $1',
+      [dupId],
+    );
+    const origNodeIds = await db.query<{ id: string }>(
+      'SELECT id FROM node WHERE workflow_id = $1',
+      [id],
+    );
+    expect(dupNodeIds.rows).toHaveLength(5);
+    expect(origNodeIds.rows).toHaveLength(5);
+    const origSet = new Set(origNodeIds.rows.map((r) => r.id));
+    for (const row of dupNodeIds.rows) {
+      expect(origSet.has(row.id)).toBe(false);
+    }
+
+    // 원본은 그대로 (이름·활성 상태·캔버스 모두).
     const original = await request(BASE_URL)
       .get(`/api/workflows/${id}`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
     expect(original.body.data.name).toBe(baseName);
+    expect(original.body.data.isActive).toBe(true);
+
+    // 사본에 버전 스냅샷 row 를 만들지 않는다.
+    const dupVersions = await db.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM workflow_version WHERE workflow_id = $1',
+      [dupId],
+    );
+    expect(dupVersions.rows[0].count).toBe('0');
   });
 
   it('D. DELETE → 204 그리고 후속 GET 404', async () => {

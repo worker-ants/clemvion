@@ -1,0 +1,39 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [],
+  "agents_forced_reasons": {},
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29/dependency.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_12_29/scope.md"
+    }
+  ],
+  "agents_pending": [
+    "dependency",
+    "scope"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

@@ -9,7 +9,7 @@ import {
 import { WorkflowsService } from './workflows.service';
 import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
-import { Edge } from '../edges/entities/edge.entity';
+import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Integration } from '../integrations/entities/integration.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -88,9 +88,15 @@ describe('WorkflowsService', () => {
   };
 
   const mockDataSource = {
-    transaction: jest
-      .fn()
-      .mockImplementation((cb) => cb(mockTransactionManager)),
+    // `duplicate()` 는 `transaction('REPEATABLE READ', cb)` (2-arg) 로, 나머지
+    // 호출부는 `transaction(cb)` (1-arg) 로 부른다 — isolation level 인자 유무와
+    // 무관하게 콜백을 찾아 실행한다 (executions.service.spec.ts 의 동일 패턴).
+    transaction: jest.fn().mockImplementation((...args: unknown[]) => {
+      const cb = args.find((a) => typeof a === 'function') as (
+        manager: typeof mockTransactionManager,
+      ) => unknown;
+      return cb(mockTransactionManager);
+    }),
   };
 
   const mockWorkflowVersionsService = {
@@ -379,14 +385,344 @@ describe('WorkflowsService', () => {
   });
 
   describe('duplicate', () => {
+    // 원본 그래프: Trig → Loop, Loop 안에 HTTP(containerId), Agent 의 Tool Area 에
+    // Tool(toolOwnerId). container 축과 toolOwner 축을 **다른 노드**로 갈라 두 축이
+    // 뒤바뀌어도 관측되게 한다.
+    const origNodes = [
+      {
+        id: 'n-trig',
+        workflowId: 'wf-uuid-1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        label: 'Trig',
+        positionX: 10,
+        positionY: 20,
+        config: {},
+        isDisabled: false,
+        description: null,
+        containerId: null,
+        toolOwnerId: null,
+      },
+      {
+        id: 'n-loop',
+        workflowId: 'wf-uuid-1',
+        type: 'loop',
+        category: NodeCategory.LOGIC,
+        label: 'Loop',
+        positionX: 30,
+        positionY: 40,
+        config: {},
+        isDisabled: false,
+        description: null,
+        containerId: null,
+        toolOwnerId: null,
+      },
+      {
+        id: 'n-http',
+        workflowId: 'wf-uuid-1',
+        type: 'http_request',
+        category: NodeCategory.INTEGRATION,
+        label: 'HTTP',
+        positionX: 50,
+        positionY: 60,
+        config: { url: 'https://example.com' },
+        isDisabled: true,
+        description: 'desc',
+        containerId: 'n-loop',
+        toolOwnerId: null,
+      },
+      {
+        id: 'n-agent',
+        workflowId: 'wf-uuid-1',
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'Agent',
+        positionX: 70,
+        positionY: 80,
+        // 원본이 의도적으로 비워둔 llmConfigId — 복제가 기본 LLM 을 주입하면 안 된다.
+        config: { systemPrompt: 'hi' },
+        isDisabled: false,
+        description: null,
+        containerId: null,
+        toolOwnerId: null,
+      },
+      {
+        id: 'n-tool',
+        workflowId: 'wf-uuid-1',
+        type: 'http_request',
+        category: NodeCategory.INTEGRATION,
+        label: 'Tool',
+        positionX: 90,
+        positionY: 100,
+        config: {},
+        isDisabled: false,
+        description: null,
+        containerId: null,
+        toolOwnerId: 'n-agent',
+      },
+    ];
+
+    const origEdges = [
+      {
+        id: 'e-1',
+        workflowId: 'wf-uuid-1',
+        sourceNodeId: 'n-trig',
+        sourcePort: 'out',
+        targetNodeId: 'n-loop',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+        condition: null,
+      },
+      {
+        id: 'e-2',
+        workflowId: 'wf-uuid-1',
+        sourceNodeId: 'n-loop',
+        sourcePort: 'error',
+        targetNodeId: 'n-agent',
+        targetPort: 'in',
+        type: EdgeType.ERROR,
+        condition: { foo: 1 },
+      },
+    ];
+
+    beforeEach(() => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        description: 'orig desc',
+        tags: ['a', 'b'],
+        folderId: 'folder-1',
+        settings: { maxConcurrentExecutions: 3 },
+        // 사본이 승계하면 안 되는 값 — default(1) 와 구분되도록 1 이 아닌 값.
+        currentVersion: 7,
+      });
+      mockTransactionManager.insert = jest.fn().mockResolvedValue(undefined);
+      // 다른 describe 의 beforeEach 가 얹어둔 잔여가 아니라 이 describe 소유의
+      // spy 임을 보장한다 (테스트 파일 순서 의존 제거).
+      mockTransactionManager.update = jest.fn().mockResolvedValue(undefined);
+      mockTransactionManager.find = jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          Promise.resolve(entity === Node ? origNodes : origEdges),
+        );
+      mockTransactionManager.save = jest
+        .fn()
+        .mockImplementation((_entity, data) =>
+          Promise.resolve(
+            Array.isArray(data) ? data : { id: 'new-wf-id', ...data },
+          ),
+        );
+    });
+
+    const insertedRows = (entity: unknown) =>
+      (mockTransactionManager.insert as jest.Mock).mock.calls.find(
+        ([e]) => e === entity,
+      )?.[1] as Array<Record<string, unknown>> | undefined;
+
     it('should create a copy with "(Copy)" suffix', async () => {
-      mockRepository.findOne.mockResolvedValue(mockWorkflow);
       const result = await service.duplicate(
         'wf-uuid-1',
         'ws-uuid-1',
         'user-uuid-1',
       );
       expect(result.name).toBe('Test Workflow (Copy)');
+    });
+
+    it('사본 메타는 (Copy) 접미 · 비활성 · 요청자 소유이고 메타 필드를 승계한다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-2');
+
+      expect(mockTransactionManager.save).toHaveBeenCalledWith(
+        Workflow,
+        expect.objectContaining({
+          name: 'Test Workflow (Copy)',
+          description: 'orig desc',
+          isActive: false,
+          tags: ['a', 'b'],
+          folderId: 'folder-1',
+          settings: { maxConcurrentExecutions: 3 },
+          workspaceId: 'ws-uuid-1',
+          createdBy: 'user-uuid-2',
+        }),
+      );
+    });
+
+    it('버전 이력을 승계하지 않는다 — currentVersion 미지정 + 스냅샷 미생성', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const [, payload] = (
+        mockTransactionManager.save as jest.Mock
+      ).mock.calls.find(([entity]) => entity === Workflow)!;
+      // 원본의 7 을 물려받지 않는다. 엔티티 default(1) 에 맡기므로 키 자체가 없다.
+      expect(payload).not.toHaveProperty('currentVersion', 7);
+      expect(mockWorkflowVersionsService.createVersion).not.toHaveBeenCalled();
+    });
+
+    // 2차 리뷰 INFO #2 — isolation 인자가 실수로 빠져도 어떤 테스트도 잡지 못하던
+    // 사각지대를 닫는다. mock 어댑터가 `args.find(typeof === 'function')` 로
+    // variadic 을 흡수하므로, 인자를 지우면 콜백은 그대로 돌아 나머지 단언은 전부
+    // GREEN 인 채 이 단언만 RED 가 된다 (동작 단언으로는 관측 불가한 축).
+    it('두 SELECT 를 한 스냅샷에 묶기 위해 REPEATABLE READ 로 트랜잭션을 연다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      expect(mockDataSource.transaction).toHaveBeenCalledWith(
+        'REPEATABLE READ',
+        expect.any(Function),
+      );
+    });
+
+    it('전체 노드를 새 UUID 로 배치 insert 하고 사본 workflowId 를 붙인다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const nodes = insertedRows(Node);
+      expect(nodes).toHaveLength(5);
+      for (const row of nodes!) {
+        expect(row.workflowId).toBe('new-wf-id');
+        expect(typeof row.id).toBe('string');
+      }
+      // 원본 UUID 가 하나도 새어나가지 않는다.
+      const newIds = nodes!.map((n) => n.id);
+      for (const orig of origNodes) {
+        expect(newIds).not.toContain(orig.id);
+      }
+      expect(new Set(newIds).size).toBe(5); // 재발급 UUID 는 서로 달라야 한다
+    });
+
+    it('containerId · toolOwnerId 를 각각 사본 UUID 로 재매핑한다 (두 축 교차 금지)', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const nodes = insertedRows(Node)!;
+      const byLabel = (label: string) => nodes.find((n) => n.label === label)!;
+
+      expect(byLabel('HTTP').containerId).toBe(byLabel('Loop').id);
+      expect(byLabel('HTTP').toolOwnerId).toBeNull();
+      expect(byLabel('Tool').toolOwnerId).toBe(byLabel('Agent').id);
+      expect(byLabel('Tool').containerId).toBeNull();
+      expect(byLabel('Trig').containerId).toBeNull();
+      expect(byLabel('Trig').toolOwnerId).toBeNull();
+    });
+
+    it('노드 속성(위치·config·isDisabled·description)을 그대로 옮긴다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const http = insertedRows(Node)!.find((n) => n.label === 'HTTP')!;
+      expect(http.type).toBe('http_request');
+      expect(http.category).toBe(NodeCategory.INTEGRATION);
+      expect(http.positionX).toBe(50);
+      expect(http.positionY).toBe(60);
+      expect(http.config).toEqual({ url: 'https://example.com' });
+      expect(http.isDisabled).toBe(true);
+      expect(http.description).toBe('desc');
+    });
+
+    it('import 전용 게이트를 적용하지 않는다 — config defaults 재적용·기본 LLM 주입 없음', async () => {
+      mockModelConfigService.findDefault.mockResolvedValue({ id: 'llm-1' });
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const agent = insertedRows(Node)!.find((n) => n.label === 'Agent')!;
+      // 원본이 비워둔 llmConfigId 를 복제가 채우면 설정 변조다.
+      expect(agent.config).toEqual({ systemPrompt: 'hi' });
+      expect(mockRegistry.applyConfigDefaults).not.toHaveBeenCalled();
+      expect(mockModelConfigService.findDefault).not.toHaveBeenCalled();
+    });
+
+    it('엣지 endpoint 를 사본 노드 UUID 로 재매핑하고 포트·타입·condition 을 보존한다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const nodes = insertedRows(Node)!;
+      const byLabel = (label: string) => nodes.find((n) => n.label === label)!;
+      const edges = insertedRows(Edge);
+
+      expect(edges).toHaveLength(2);
+      expect(edges![0]).toEqual(
+        expect.objectContaining({
+          workflowId: 'new-wf-id',
+          sourceNodeId: byLabel('Trig').id,
+          sourcePort: 'out',
+          targetNodeId: byLabel('Loop').id,
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        }),
+      );
+      expect(edges![1]).toEqual(
+        expect.objectContaining({
+          sourceNodeId: byLabel('Loop').id,
+          sourcePort: 'error',
+          targetNodeId: byLabel('Agent').id,
+          type: EdgeType.ERROR,
+          condition: { foo: 1 },
+        }),
+      );
+    });
+
+    it('원본의 node · edge row 를 수정하지 않는다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      // 사본 insert 만 — 원본 대상 update/remove 는 없다.
+      expect(mockTransactionManager.update).not.toHaveBeenCalled();
+      expect(mockTransactionManager.remove).not.toHaveBeenCalled();
+      expect(origNodes[2].containerId).toBe('n-loop'); // fixture 객체 in-place 변이 금지
+      expect(origEdges[0].sourceNodeId).toBe('n-trig');
+    });
+
+    it('빈 캔버스는 노드·엣지 insert 를 호출하지 않는다', async () => {
+      mockTransactionManager.find = jest.fn().mockResolvedValue([]);
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      expect(mockTransactionManager.insert).not.toHaveBeenCalled();
+    });
+
+    it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
+      // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
+      mockTransactionManager.find = jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          Promise.resolve(
+            entity === Node ? [origNodes[0], origNodes[1]] : origEdges,
+          ),
+        );
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const nodes = insertedRows(Node)!;
+      const edges = insertedRows(Edge);
+      expect(edges).toHaveLength(1);
+      expect(edges![0].sourceNodeId).toBe(
+        nodes.find((n) => n.label === 'Trig')!.id,
+      );
+      expect(edges![0].id).toBeUndefined(); // 원본 엣지 id 를 물려주지 않는다
+    });
+
+    it('노드가 사라져 엣지의 source 를 못 찾는 경우도 skip 한다 (대칭 가드 검증)', async () => {
+      // n-trig 가 없는 노드 집합 → e-1(trig→loop) 는 source 매핑 불가(target 은
+      // 존재), e-2(loop→agent) 만 유효. "target 만 없음" 케이스(위 테스트)의
+      // 반대쪽 — `!sourceNodeId` 단독으로도 skip 되는지 대칭 검증.
+      mockTransactionManager.find = jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          Promise.resolve(
+            entity === Node ? [origNodes[1], origNodes[3]] : origEdges,
+          ),
+        );
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const nodes = insertedRows(Node)!;
+      const edges = insertedRows(Edge);
+      expect(edges).toHaveLength(1);
+      expect(edges![0].targetNodeId).toBe(
+        nodes.find((n) => n.label === 'Agent')!.id,
+      );
+      expect(edges![0].id).toBeUndefined(); // 원본 엣지 id 를 물려주지 않는다
+    });
+
+    it('워크스페이스 밖 워크플로우는 404 로 막고 트랜잭션을 열지 않는다', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.duplicate('wf-uuid-1', 'other-ws', 'user-uuid-1'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
     });
   });
 
@@ -396,6 +732,21 @@ describe('WorkflowsService', () => {
         ...mockWorkflow,
         currentVersion: 1,
       });
+      // `duplicate` describe(위)의 beforeEach 가 `mockTransactionManager.find`/
+      // `.save` 를 자신의 fixture(5노드/2엣지)로 재대입해두는데, `jest.clearAllMocks()`
+      // (최상위 beforeEach)는 호출 이력만 지우고 mockImplementation 은 지우지 않아
+      // 그 재대입이 그대로 살아남는다. 명시적으로 되돌리지 않으면 `syncNodes`/
+      // `syncEdges` 의 `manager.find(Node/Edge, ...)` 가 "기존 노드/엣지 없음"을
+      // 전제한 이 describe 의 앞쪽 테스트들에 유령 데이터를 흘려보낸다(실제 계측
+      // 확인됨 — WARNING 리뷰 항목).
+      mockTransactionManager.find = jest.fn().mockResolvedValue([]);
+      mockTransactionManager.save = jest
+        .fn()
+        .mockImplementation((_entity, data) =>
+          Promise.resolve(
+            Array.isArray(data) ? data : { id: 'new-id', ...data },
+          ),
+        );
     });
 
     it('should save canvas with nodes and edges in a transaction', async () => {
@@ -1921,11 +2272,12 @@ describe('WorkflowsService', () => {
   });
 });
 
-// W3c (SUMMARY) — importWorkflow 의 manager.insert 가 @BeforeInsert hook 과
-// cascade 를 건너뛰는 전제를 메타데이터로 고정한다. Node/Edge 엔티티에 hook 또는
-// 관련 cascade 가 추가되면 배치 insert 전제가 깨지므로 이 테스트가 명시 실패해
-// 재검토를 강제한다 (perf #10 주석 "향후 hook 추가 시 배열 save 로 되돌릴 것").
-describe('importWorkflow 전제 — Node/Edge 엔티티 @BeforeInsert 부재·cascade 메타데이터 가드 (W3c)', () => {
+// W3c (SUMMARY) — importWorkflow·duplicate 의 manager.insert 가 @BeforeInsert
+// hook 과 cascade 를 건너뛰는 전제를 메타데이터로 고정한다. Node/Edge 엔티티에
+// hook 또는 관련 cascade 가 추가되면 두 메서드의 배치 insert 전제가 모두 깨지므로
+// 이 테스트가 명시 실패해 재검토를 강제한다 (perf #10 주석 "향후 hook 추가 시
+// 배열 save 로 되돌릴 것").
+describe('importWorkflow·duplicate 전제 — Node/Edge 엔티티 @BeforeInsert 부재·cascade 메타데이터 가드 (W3c)', () => {
   it('Node 엔티티에 @BeforeInsert 리스너가 없다 (배치 insert 안전 전제)', () => {
     // TypeORM 은 엔티티 클래스 prototype 에 ENTITY_LISTENERS_METADATA 를
     // 직접 저장하지 않고 metadata storage 를 통해 조회하는 구조이나,

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "started_at": "2026-07-30T18:30:00Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "a7ab2750a", "summary_id": 1, "scope": "backend/workflows"},
+    {"sha": "0cb0ac86d", "summary_id": 2, "scope": "backend/workflows"},
+    {"sha": "6d3595319", "summary_id": 3, "scope": "backend/workflows (+ INFO#4,#5,#7)"},
+    {"sha": "e782bb829", "summary_id": 5, "scope": "backend/workflows"},
+    {"sha": "d98acd850", "summary_id": 4, "scope": "backend/test e2e"},
+    {"sha": "8783c63d8", "summary_id": 6, "scope": "CHANGELOG.md"},
+    {"sha": "e66bbb9c1", "summary_id": 7, "scope": "frontend/content/docs"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260730-185208.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}

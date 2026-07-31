@@ -213,23 +213,123 @@ export class WorkflowsService {
     await this.workflowRepository.remove(workflow);
   }
 
+  /**
+   * 워크플로우를 캔버스째 복제한다 (data-flow §1.5).
+   *
+   * import 경로와 **UUID 재매핑 알고리즘만** 공유하고 게이트는 공유하지 않는다 —
+   * label 중복 검사·reserved 변수명 검사·`applyConfigDefaults`·기본 LLM 주입은
+   * 전부 "외부에서 들어온 신뢰할 수 없는 페이로드" 를 위한 것이고, 원본은 이미 그
+   * 게이트를 통과해 저장된 데이터다. 특히 기본 LLM 주입은 원본이 의도적으로 비워둔
+   * `llmConfigId` 를 채워 복제가 설정을 변조하게 만든다 (§Rationale).
+   *
+   * 복제 범위 밖: 버전 이력(`workflow_version` — 사본은 default `current_version=1`
+   * 로 새로 시작), `trigger`, `workflow_test_dataset`, 실행 이력.
+   */
   async duplicate(
     id: string,
     workspaceId: string,
     userId: string,
   ): Promise<Workflow> {
+    // 권한·존재 확인은 트랜잭션 밖에서 (없으면 트랜잭션 자체를 열지 않는다).
     const original = await this.findById(id, workspaceId);
-    const copy = this.workflowRepository.create({
-      name: `${original.name} (Copy)`,
-      description: original.description,
-      isActive: false,
-      tags: original.tags,
-      folderId: original.folderId,
-      settings: original.settings,
-      workspaceId,
-      createdBy: userId,
+
+    // node/edge 조회(아래 두 SELECT)가 기본 READ COMMITTED 하에서 별도 스냅샷을
+    // 쓰면, 그 사이 동시 `saveCanvas()` 커밋이 끼어들 때 read skew 로 그래프
+    // 일관성이 깨진 사본이 조용히 생성될 수 있다. `executions.service.ts`
+    // `findById` 의 기존 해법(REPEATABLE READ 트랜잭션으로 다중 SELECT 를 단일
+    // 스냅샷에 묶기)과 동일하게 isolation 을 명시한다. 그 선례처럼 이 트랜잭션도
+    // 원본 row 를 다시 write(UPDATE/DELETE)하지 않고 새 UUID 의 사본 row 만
+    // INSERT 하므로 write-write 충돌이 없어 40001(serialization failure) 재시도
+    // 로직은 불필요 — 순수 read 스냅샷 고정 목적의 REPEATABLE READ 만으로 충분
+    // (그 선례에도 재시도 로직 없음).
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      const copy = manager.create(Workflow, {
+        name: `${original.name} (Copy)`,
+        description: original.description,
+        isActive: false,
+        // 배열/JSONB 는 얕은 복사 — 반환 엔티티가 원본 엔티티와 참조를 공유하면
+        // 호출부의 변이가 원본까지 오염시킨다.
+        tags: [...(original.tags ?? [])],
+        folderId: original.folderId,
+        settings: { ...(original.settings ?? {}) },
+        workspaceId,
+        createdBy: userId,
+        // currentVersion 은 넘기지 않는다 — 엔티티 default(1) 로 새로 시작.
+      });
+      const savedCopy = await manager.save(Workflow, copy);
+
+      // 노드/엣지는 사본을 쓰는 것과 같은 트랜잭션에서 읽는다 — 실패 시 부분 사본이
+      // 남지 않는다.
+      const originalNodes = await manager.find(Node, {
+        where: { workflowId: id },
+      });
+      const originalEdges = await manager.find(Edge, {
+        where: { workflowId: id },
+      });
+
+      // importWorkflow 와 같은 형태 — UUID 를 앱 측에서 사전 발급해 참조 remap 을
+      // insert 페이로드에 바로 담는다 (2차 update 루프 없이 왕복 ~2회).
+      // manager.insert 는 @BeforeInsert hook·cascade 를 건너뛴다 — Node/Edge 엔티티
+      // 에는 둘 다 없음(같은 전제를 고정하는 가드 테스트가 `workflows.service.spec.ts`
+      // 의 W3c 가드에 있다).
+      const idMap = new Map<string, string>(
+        originalNodes.map((node) => [node.id, randomUUID()]),
+      );
+      // 참조 노드가 원본 조회 결과에 없으면(FK CASCADE 상 발생하지 않아야 하지만)
+      // null 로 두어 배치 정보 없는 노드로 취급한다 — 엣지 쪽 skip(아래 flatMap)과
+      // 같은 방어적 태도.
+      const remap = (nodeId: string | null): string | null =>
+        nodeId ? (idMap.get(nodeId) ?? null) : null;
+
+      // Node 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `nodeEntities`,
+      // `syncNodes()` 의 신규 `newNode` 리터럴과 컬럼 이름 집합이 동일해야 한다.
+      // Node 엔티티에 컬럼을 추가하면 이 3곳 모두 손으로 동기화할 것 — 아래
+      // `manager.insert` 는 `QueryDeepPartialEntity<Node>[]` 로 타입을 우회해
+      // 하나만 빠뜨려도 컴파일 에러 없이 조용히 필드가 유실된다.
+      const nodeRows = originalNodes.map((node) => ({
+        id: idMap.get(node.id)!,
+        workflowId: savedCopy.id,
+        type: node.type,
+        category: node.category,
+        label: node.label,
+        positionX: node.positionX,
+        positionY: node.positionY,
+        config: { ...node.config },
+        isDisabled: node.isDisabled,
+        description: node.description,
+        containerId: remap(node.containerId),
+        toolOwnerId: remap(node.toolOwnerId),
+      }));
+      if (nodeRows.length > 0) {
+        await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
+      }
+
+      // Edge 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `edgeEntities`,
+      // `syncEdges()` 의 `newEdges` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
+      const edgeRows = originalEdges.flatMap((edge) => {
+        // FK CASCADE 상 원본에 고아 엣지는 없어야 하지만, 있으면 사본에 옮기지
+        // 않는다 (import 경로의 범위 밖 인덱스 skip 과 같은 방어).
+        const sourceNodeId = idMap.get(edge.sourceNodeId);
+        const targetNodeId = idMap.get(edge.targetNodeId);
+        if (!sourceNodeId || !targetNodeId) return [];
+        return [
+          {
+            workflowId: savedCopy.id,
+            sourceNodeId,
+            sourcePort: edge.sourcePort,
+            targetNodeId,
+            targetPort: edge.targetPort,
+            type: edge.type,
+            condition: edge.condition,
+          },
+        ];
+      });
+      if (edgeRows.length > 0) {
+        await manager.insert(Edge, edgeRows as QueryDeepPartialEntity<Edge>[]);
+      }
+
+      return savedCopy;
     });
-    return this.workflowRepository.save(copy);
   }
 
   async exportWorkflow(
@@ -326,6 +426,8 @@ export class WorkflowsService {
       // save 로 되돌릴 것.
       const nodeIdMap: string[] = dto.nodes.map(() => randomUUID());
 
+      // Node 필드 집합 3중 중복 지점 2/3 — `duplicate()` 의 `nodeRows`,
+      // `syncNodes()` 의 `newNode` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
       const nodeEntities = dto.nodes.map((nodeDto, i) => {
         const withDefaults = this.registry.applyConfigDefaults(
           nodeDto.type,
@@ -378,6 +480,8 @@ export class WorkflowsService {
       }
 
       // Create edges using index-to-ID mapping
+      // Edge 필드 집합 3중 중복 지점 2/3 — `duplicate()` 의 `edgeRows`,
+      // `syncEdges()` 의 `newEdges` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
       const edgeEntities = (dto.edges ?? []).flatMap((edgeDto) => {
         const sourceId = nodeIdMap[edgeDto.sourceNodeIndex];
         const targetId = nodeIdMap[edgeDto.targetNodeIndex];
@@ -864,6 +968,8 @@ export class WorkflowsService {
         existing.toolOwnerId = nodeDto.toolOwnerId ?? null;
         nodesToSave.push(existing);
       } else {
+        // Node 필드 집합 3중 중복 지점 3/3 — `duplicate()` 의 `nodeRows`,
+        // `importWorkflow()` 의 `nodeEntities` 와 동기화 필요(컬럼 추가 시 3곳 전부).
         const newNode = manager.create(Node, {
           id: nodeDto.id,
           workflowId,
@@ -904,6 +1010,8 @@ export class WorkflowsService {
     }
 
     // Batch create all edges
+    // Edge 필드 집합 3중 중복 지점 3/3 — `duplicate()` 의 `edgeRows`,
+    // `importWorkflow()` 의 `edgeEntities` 와 동기화 필요(컬럼 추가 시 3곳 전부).
     const newEdges = dto.edges.map((edgeDto) =>
       manager.create(Edge, {
         workflowId,

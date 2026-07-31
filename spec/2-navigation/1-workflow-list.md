@@ -10,6 +10,7 @@ code:
   - codebase/backend/src/modules/folders/**
 pending_plans:
   - plan/in-progress/marketplace-and-plugin-sdk.md
+  - plan/in-progress/workflow-duplicate-nodes-edges.md
 ---
 
 # Spec: 워크플로우 목록 화면
@@ -101,7 +102,7 @@ pending_plans:
 |------|------|
 | 편집 | 에디터로 진입 |
 | 실행 내역 | `/w/<slug>/workflows/:id/executions` 로 이동(활성 워크스페이스 slug 기준 — [_layout §2.2](./_layout.md#22-메뉴-항목); 에디터 canvas `/workflows/:id` 도 슬러그 라우팅 phase 2 부터 slug 기준). 라벨은 i18n `workflows.executionHistory` (ko "실행 내역" / en "Execution History") |
-| 복제 | 워크플로우 복사본 생성 (이름에 "(Copy)" 추가) |
+| 복제 | 워크플로우 복사본 생성 — 노드·엣지를 포함한 **캔버스 전체**가 복사되고, 이름에 "(Copy)" 접미, 상태는 비활성으로 시작한다. 버전 이력·트리거·테스트 데이터셋은 승계하지 않는다. 데이터 흐름은 [data-flow §1.5](../data-flow/11-workflow.md#15-복제--내보내기--가져오기) |
 | 내보내기 | JSON 파일로 다운로드 |
 | 활성/비활성 | 상태 토글. 비활성 시 트리거/스케줄 중지 |
 | 삭제 | 확인 다이얼로그 후 삭제. 연결된 트리거/스케줄도 함께 비활성화 |
@@ -121,7 +122,7 @@ pending_plans:
 | GET | /api/workflows | 목록 조회 (쿼리: search, status, tag, folderId, sort, order, page, limit, ownership). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. `ownership` 은 팀 워크스페이스 컨텍스트에서만 의미가 있으며 (`mine` / `shared` / `all`, default `all`), 개인 워크스페이스에서는 서버가 무시한다 (= `all` 처럼 동작) |
 | POST | /api/workflows | 새 워크플로우 생성 |
 | PATCH | /api/workflows/:id | 워크플로우 수정 (이름, 상태 등) |
-| POST | /api/workflows/:id/duplicate | 워크플로우 복제 |
+| POST | /api/workflows/:id/duplicate | 워크플로우 복제 — 노드·엣지 포함 캔버스 전체를 한 트랜잭션으로 복사. 복제 범위·재매핑 규칙은 [data-flow §1.5](../data-flow/11-workflow.md#15-복제--내보내기--가져오기) |
 | DELETE | /api/workflows/:id | 워크플로우 삭제 |
 | GET | /api/workflows/:id/export | JSON 내보내기 — 파일 포맷은 [§3.2](#32-exportimport-json-포맷) |
 | POST | /api/workflows/import | JSON 가져오기 — 검증·기본값 채움 동작은 [§3.2](#32-exportimport-json-포맷) |
