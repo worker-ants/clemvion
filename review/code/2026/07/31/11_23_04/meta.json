@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-07-31T11:23:04.154466",
+  "files": [
+    {
+      "file_path": "codebase/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    }
+  ],
+  "agents": [
+    "dependency",
+    "scope"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "dependency"
+  ]
+}

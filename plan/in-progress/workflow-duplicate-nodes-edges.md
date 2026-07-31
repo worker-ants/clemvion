@@ -150,16 +150,37 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
 
 ## 3. 후속 항목 (본 PR 범위 밖 — 별도 PR)
 
+- [ ] **`pnpm audit` 잔여 20건** — `deps-security-checks.yml` 의 audit 게이트가 실패 상태다.
+      `brace-expansion`·`js-yaml`·`sharp`·`liquidjs`·`hono`·`typeorm`·`svgo` 등 backend·
+      channel-web-chat 계열 선재 취약점. 본 PR 은 그중 postcss 1건만 해소했다(21 → 20).
+      저장소 차원 대응 필요. 근거: `review/code/2026/07/31/11_23_04/RESOLUTION.md`.
+
+> **본 PR 에 포함된 스코프 이탈 2커밋 (사용자 확인 완료)** — duplicate 결함과 무관하지만
+> 포함한 이유를 여기 남긴다. (1) `66e574209`: main 이 dependabot PR 충돌로 postcss
+> package.json↔lockfile 드리프트를 안고 있어 `pnpm install --frozen-lockfile` 이 실패,
+> 본 PR 의 docker 빌드도 같은 지점에서 막혔다. (2) `df860ce58`: 그 복원이 부분적이라
+> `@tailwindcss/postcss` 경유 동일 CVE 가 남아 있어 상향(리뷰 CRITICAL 조치).
+
 - [ ] **`spec/1-data-model.md:572` §2.15 `snapshot` 서술 정정** (planner 턴 필요) — 현재
       "워크플로우 전체 스냅샷 (nodes, edges, settings)" 인데, 실제 `buildSnapshot()` 과
       `spec/data-flow/11-workflow.md` §1.1·Rationale 은 **name + description + nodes + edges,
       `settings` 제외** 다. `origin/main` 시점부터 있던 drift 로 본 PR 이 만든 것이 아니며,
       duplicate 와도 무관하다 (impl-done Warning #1). 경량 spec-only PR 로 처리.
-- [ ] **harness: 타겟 재실행의 changeset 범위 갭** (3차 리뷰 INFO #3) — `REVIEW_AGENTS` 로 좁혀
-      재실행할 때 diff-base 산출이 **재리뷰를 유발한 바로 그 커밋**(`3af0aabbe`)을 대상 파일 목록에서
-      누락했다. 이번엔 reviewer 가 해당 커밋을 직접 열어 검증해 실질 영향은 없었으나, changeset 이
-      조용히 좁아지는 것은 리뷰를 "clean" 으로 위장시키는 클래스다. 근거:
-      `review/code/2026/07/30/19_43_05/RESOLUTION.md` §INFO #3.
+- [ ] **harness: `--branch` changeset 이 codebase 변경을 통째로 누락한다** (P1 — 실측 2회) —
+      `--prepare --branch origin/main` 이 산출한 changeset 에서 **재리뷰를 유발한 바로 그 커밋**이
+      빠진다.
+      - 1회차 (3차 리뷰 `19_43_05` INFO #3): `3af0aabbe`(테스트 단언) 누락. reviewer 가 해당 커밋을
+        직접 열어 검증해 실질 피해는 없었다.
+      - **2회차 (`11_12_29`) — 실제로 리뷰를 무력화**: dep fix(`codebase/frontend/package.json`)를
+        검토시키려 돌린 라운드인데 `meta.json.files` 23건이 전부 `review/consistency/**`(21) +
+        `spec/**`(2) 이고 **`codebase/` 파일은 0건**이었다. 같은 시점 같은 명령
+        `git diff --no-renames --name-only 'origin/main...'` 은 **73건, 그중 codebase 7건**을
+        반환한다 — orchestrator 가 받은 뒤 어딘가에서 걸러진다. SUMMARY 는 `risk=NONE`,
+        `CRITICAL/WARNING 0` 로 나왔지만 **검토 대상이 없어서 나온 거짓 clean** 이다.
+      - 확인한 것: `skip_extensions` 는 env 미설정 시 빈 set 이라 무관. 필터 지점 미특정.
+      - 우회: 경로 지정(`--prepare <path>`)은 정상 동작(`11_23_04` 에서 `package.json` 1건 정상 포함).
+      - **왜 P1 인가**: "빈/좁은 changeset → 자동 clean" 은 리뷰 게이트 전체를 조용히 무력화하는
+        클래스다. `review_guard` 는 SUMMARY 의 clean 여부만 보므로 이 경로로 무제한 통과가 가능하다.
 - [ ] **보류된 리뷰 INFO 10건** — `review/code/2026/07/30/17_54_27/RESOLUTION.md` §보류·후속 항목.
       전부 리뷰어가 "필수 아님" 으로 표기. 대표: `findById` TOCTOU(#1), 메타를 트랜잭션 밖에서
       읽는 타이밍(#2 — Warning #1 과 근본 원인 공유하나 404 fast-path 트레이드오프가 별개),

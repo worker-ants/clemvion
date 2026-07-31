@@ -1,0 +1,45 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "dependency"
+  ],
+  "agents_forced_reasons": {
+    "dependency": [
+      "패키지 매니페스트·lockfile 변경 — dependency 영향 + README/CHANGELOG 동반 갱신 점검: codebase/frontend/package.json"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04/dependency.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/resumable-handler-generic-typing-3918dd/review/code/2026/07/31/11_23_04/scope.md"
+    }
+  ],
+  "agents_pending": [
+    "dependency",
+    "scope"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
