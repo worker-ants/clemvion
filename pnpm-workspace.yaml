@@ -50,6 +50,7 @@ overrides:
   "js-yaml@>=4.0.0 <4.3.0": ^4.3.0
   "js-yaml@>=3.0.0 <3.15.0": ^3.15.0
   "brace-expansion@<2.0.0": ^1.1.16
+  "brace-expansion@>=2.0.0 <3.0.0": ^5.0.9
   "brace-expansion@>=3.0.0 <5.0.8": ^5.0.8
 
 # pnpm v10 은 lifecycle(build) script 를 기본 차단한다 (pnpm 10 정규 위치 — package.json
@@ -75,14 +76,22 @@ auditConfig:
     # 교체·상향 시 해소. plan/in-progress/pnpm-migration-followups.md §4, review 08_59_36.
     - CVE-2026-53550
     # CVE-2026-14257 (GHSA-mh99-v99m-4gvg) — brace-expansion 무한 확장 DoS/OOM (high, CVSS 7.5).
-    # advisory 의 취약 범위가 `<=5.0.7` 로 major 를 가리지 않아 1.x·2.x 계열까지 매칭되는데,
-    # 두 경로가 받는 1.1.18 / 2.1.4 는 **각 계열의 최신이며 백포트가 없다**(1.x 는 1.1.18,
-    # 2.x 는 2.1.4 가 마지막). 해소하려면 5.x 로 major 를 강제해야 하나 소비처
-    # `minimatch@3.1.5`(1.x 경유) 는 그 API 를 기대하지 않아 lint 툴체인이 깨진다.
-    # 두 경로 모두 **dev 전용 전이 의존**이다:
+    # advisory 의 취약 범위 `<=5.0.7` 이 major 를 가리지 않아 1.x·2.x 계열까지 매칭된다.
+    #
+    # 2.x 경로는 **해소했다**. 그 경로는 dev 가 아니라 프로덕션이었다 —
+    #   codebase/backend > @nestjs-modules/mailer > mjml > mjml-core > js-beautify
+    #     > editorconfig > minimatch@9.0.9 > brace-expansion@2.1.4
+    # `@nestjs-modules/mailer` 는 backend 의 dependencies 이고 mjml 은 그 optional peer 인데
+    # pnpm 이 충족 가능해 실제로 설치된다(프로덕션 이미지에서 mjml@5.3.0 ·
+    # brace-expansion@2.1.4 · js-beautify@1.15.4 존재를 직접 확인했다). 위 overrides 의
+    # `brace-expansion@>=2.0.0 <3.0.0: ^5.0.9` 가 이를 5.0.9 로 올리며, 소비처
+    # minimatch@9.0.9 가 5.x 와 정상 동작함을 실측했다(로드 + `a{b,c}c` 확장 매칭).
+    # → `pnpm audit --prod` **0건**.
+    #
+    # 남은 유일 경로는 **dev 전용**이다:
     #   codebase/backend > @eslint/eslintrc > minimatch@3.1.5 > brace-expansion@1.1.18
-    #   codebase/backend > jest > @jest/core > @jest/reporters > glob > minimatch@9.0.9 > 2.1.4
-    # 프로덕션 이미지에는 jest/eslint 스택이 존재하지 않는다(build 단계 위생 스모크가 강제).
-    # 입력도 개발자가 작성한 glob 패턴이라 신뢰 경계 안이다 → 수용.
-    # minimatch 가 10.x(brace-expansion 5.x)로 올라가면 자동 해소되므로 그때 제거한다.
+    # 1.x 는 1.1.18 이 마지막 릴리스라 백포트가 없고, 5.x 강제는 minimatch@3.1.5 의 API 기대를
+    # 깨 lint 툴체인이 죽는다. 프로덕션 이미지에 eslint 스택이 없음은 build 단계 위생 스모크가
+    # 강제하고, 입력도 개발자가 작성한 glob 패턴이라 신뢰 경계 안이다 → 수용.
+    # `@eslint/eslintrc` 가 minimatch 9.x 이상으로 올라가면 자동 해소되므로 그때 제거한다.
     - CVE-2026-14257

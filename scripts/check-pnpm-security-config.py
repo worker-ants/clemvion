@@ -62,6 +62,7 @@ EXPECTED_OVERRIDES = {
     "js-yaml@>=4.0.0 <4.3.0": "^4.3.0",
     "js-yaml@>=3.0.0 <3.15.0": "^3.15.0",
     "brace-expansion@<2.0.0": "^1.1.16",
+    "brace-expansion@>=2.0.0 <3.0.0": "^5.0.9",
     "brace-expansion@>=3.0.0 <5.0.8": "^5.0.8",
 }
 EXPECTED_ONLY_BUILT = {
@@ -73,8 +74,8 @@ EXPECTED_ONLY_BUILT = {
 }
 # 검토 후 수용(accept)한 CVE — 사유는 pnpm-workspace.yaml 의 auditConfig 주석 참고.
 EXPECTED_IGNORED_CVES = {
-    "CVE-2026-53550",
-    "CVE-2026-14257",  # js-yaml <3.15.0 DoS, frontend>gray-matter 경로, moderate.
+    "CVE-2026-53550",  # js-yaml <3.15.0 DoS, frontend>gray-matter 경로, moderate.
+    "CVE-2026-14257",  # brace-expansion DoS/OOM, backend>@eslint/eslintrc 경로(dev 전용), high.
 }
 
 

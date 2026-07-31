@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-07-31T15:03:10.999604",
+  "files": [
+    {
+      "file_path": "plan/in-progress/audit-residual-triage.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "pnpm-lock.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "pnpm-workspace.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "scripts/check-pnpm-security-config.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    }
+  ],
+  "agents": [
+    "dependency",
+    "security",
+    "scope"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "dependency",
+    "scope",
+    "security"
+  ]
+}
