@@ -49,7 +49,7 @@ EXPECTED_OVERRIDES = {
     "multer": "^2.2.0",
     "form-data": "^4.0.6",
     "nodemailer": "^9.0.1",
-    "next>postcss": "^8.5.14",
+    "next>postcss": "^8.5.18",
     "eslint-plugin-react-hooks": "7.0.1",
     "undici@>=7.0.0 <7.28.0": "^7.28.0",
     "vite": "^8.0.16",

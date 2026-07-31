@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-07-31T14:36:42.887255",
+  "files": [
+    {
+      "file_path": "codebase/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "plan/in-progress/dep-hygiene-tailwind-postcss.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "pnpm-lock.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "pnpm-workspace.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "scripts/check-pnpm-security-config.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    }
+  ],
+  "agents": [
+    "dependency",
+    "scope"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "dependency",
+    "scope"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "dependency",
+    "scope"
+  ],
+  "agents_forced_reasons": {
+    "dependency": [
+      "패키지 매니페스트·lockfile 변경 — dependency 영향 + README/CHANGELOG 동반 갱신 점검: codebase/frontend/package.json, pnpm-lock.yaml"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: scripts/check-pnpm-security-config.py"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42/dependency.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/dep-hygiene/review/code/2026/07/31/14_36_42/scope.md"
+    }
+  ],
+  "agents_pending": [
+    "dependency",
+    "scope"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
