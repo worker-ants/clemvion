@@ -145,7 +145,7 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
       비고, plan 언급이 유일한 신호다. `spec_impact` frontmatter 대신 plan 본문 언급을 쓴 이유는
       새 의존성 없이 같은 모듈 안에서 해결되고, `spec_impact` 미기재 plan 도 커버하기 때문.
       적용 지점: `--impl-prep`/`--impl-done` 의 scope 번들 + `related_specs` + `conventions`.
-      테스트 `test_consistency_bundle_priority.py` 13건 + mutation 6종 RED.
+      테스트 `test_consistency_bundle_priority.py` 18건 + mutation 6종 RED (라운드마다 증가 — 정확한 수는 파일이 SoT).
 
 > 검증 교훈: 첫 seam 테스트가 **vacuous** 했다. `prioritize_bundle_files` 의 **호출 횟수**를
 > 셌는데, 호출부 pass-through 뮤턴트(`… = prioritize_bundle_files(...) and scope_files`)는

@@ -8,7 +8,11 @@ audit surfaced:
   - _authoritative_code_time — dirty→mtime, clean→commit-time split.
   - _newest_commit_time    — author-date (rebase-immune) clock; a rebase that
     only rewrites committer date must NOT re-arm the gate on unchanged code.
-  - _code_review_in_flight — started-but-unfinished review suppresses the gate.
+  - _code_review_in_flight — a started-but-unfinished review suppresses the
+    *Stop nudge*, and only when the caller passes `in_flight_ok=True`. The push
+    gate never opts in, so it is never suppressed. (Said unconditionally, this
+    line described the bug: both guards share `evaluate_review`, so while the
+    suppression was unconditional it opened the push gate for the whole TTL.)
   - evaluate_review        — in-flight short-circuit.
   - _summary_is_resolved   — risk level found beyond the old 3-line window.
   - stop-hook throttle     — per-branch token + missing session_id fallback.
