@@ -72,6 +72,10 @@ _STDERR_PREVIEW = 500      # pnpm 의 오류 한 줄이 대개 이 안에 들어
 _STDOUT_PREVIEW = 2000     # 파싱 실패는 앞부분만 봐도 형태를 알 수 있다
 _KEY_PREVIEW = 10          # 오류 페이로드의 최상위 키 몇 개면 판별된다
 
+# 레지스트리 조회 상한. `deps-security-checks.yml` 의 잡 타임아웃(10분)보다 넉넉히 짧아야
+# 잡이 죽는 대신 이 스크립트가 사유를 남기고 끝낸다.
+_AUDIT_TIMEOUT_SEC = 300
+
 # override 키에서 **대상 패키지명** 을 뽑아야 audit advisory 의 `module_name` 과 맞출 수 있다.
 # 키에 섞여 오는 것들:
 #   `lodash` · `next>postcss` · `a>b>c`(다단 체인) · `undici@>=7.0.0 <7.28.0`(레인지) ·
@@ -115,9 +119,17 @@ def override_target(key: str) -> str:
 def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
     """대상 패키지명 → 그 패키지를 제약하는 override 키 목록."""
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    overrides = data.get("overrides") or {}
+    if not isinstance(data, dict) or "overrides" not in data:
+        # 키가 통째로 없거나 오타(`override:`)면 `.get()` 이 빈 dict 를 돌려주고 대상이 0개가
+        # 되어 **무엇도 걸리지 않는 채로 exit 0** 이 된다 — 파일 부재와 같은 부류인데 이쪽만
+        # 조용했다. 빈 `overrides: {}` 는 의도일 수 있으므로 **키 자체의 부재**만 가른다.
+        _undecidable(
+            f"{path} 에 `overrides` 키가 없다 — override 목록을 못 읽으면 대상이 0개가 되어 "
+            "무엇도 걸리지 않는다(fail-closed). 오타(`override:`)인지 확인할 것.",
+            f"  최상위 키: {sorted(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
+        )
     targets: dict[str, list[str]] = {}
-    for key in overrides:
+    for key in data.get("overrides") or {}:
         targets.setdefault(override_target(str(key)), []).append(str(key))
     return targets
 
@@ -143,12 +155,22 @@ def run_audit() -> dict:
     인증 실패를 "취약점 0건" 으로 오해하면 본 가드가 정확히 자신이 막으려는 조용한 통과를
     재현한다.
     """
-    proc = subprocess.run(
-        ["pnpm", "audit", "--audit-level=moderate", "--json"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        proc = subprocess.run(
+            ["pnpm", "audit", "--audit-level=moderate", "--json"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            # 위 세 분기는 "응답은 왔는데 형태가 이상함" 만 다룬다. **응답이 안 오는** 경우가
+            # 남아 있었다 — 레지스트리가 물리면 CI 잡 타임아웃까지 매달린다. 여기서 끊고
+            # 판단 불가로 돌린다.
+            timeout=_AUDIT_TIMEOUT_SEC,
+        )
+    except subprocess.TimeoutExpired:
+        _undecidable(
+            f"`pnpm audit --json` 이 {_AUDIT_TIMEOUT_SEC}초 안에 끝나지 않았다 — "
+            "레지스트리 지연으로 보고 판단 불가로 처리한다(fail-closed).",
+        )
     out = proc.stdout.strip()
     if not out:
         _undecidable(

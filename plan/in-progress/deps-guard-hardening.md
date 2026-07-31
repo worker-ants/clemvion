@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **28건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **33건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **747건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **752건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -149,7 +149,18 @@ spec_impact: none
       W2(문서 drift, 같은 클래스 3회째)는 수치를 코드에 결속해 닫았다 —
       `FailClosedSiteCountTest` 가 소스의 `_undecidable()` 호출 지점을 세어 docstring·README
       서술과 어긋나면 fail. 카탈로그 가드가 행의 *존재*만 보는 사각을 메운다.
-- [ ] TEST WORKFLOW (5차) · `/ai-review` 5차 · push + PR
+- [x] TEST WORKFLOW (5차) — lint PASS(50s) · unit PASS(63s) · build PASS(112s) ·
+      e2e PASS(267s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 5차 (`03_47_10`) — Critical 0 · Warning 2 (둘 다 testing, 뮤턴트로 실증).
+      (1) 스텁이 늘 exit 0 이라 "returncode 로 판단하지 않는다" 불변식이 미검증 —
+      `proc.returncode != 0` 뮤턴트가 28건 전부 GREEN 이었다. 스텁에 종료 코드를 붙이고
+      `ReturncodeInvariantTest` 로 양방향 고정. (2) `overrides` 키 자체가 없거나 오타면
+      대상 0개로 **항상 exit 0** — 파일 부재는 갈랐는데 이 경로만 남아 있었다. fail-closed
+      추가(빈 `overrides: {}` 는 의도일 수 있어 **키의 부재**만 가른다).
+      INFO 3(reviewer 3명 공통): `subprocess.run` 에 `timeout=300` + `TimeoutExpired` 라우팅.
+      → fail-closed 지점 6곳 → 8곳. `FailClosedSiteCountTest` 가 즉시 빨간불을 내
+      문서 동반 갱신을 강제했다(4차에 심은 가드가 설계대로 동작).
+- [ ] `/ai-review` 6차 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 

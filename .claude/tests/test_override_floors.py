@@ -27,9 +27,13 @@
   4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
      느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
-     `_undecidable()` 로 exit 2 를 내는 지점은 **여섯**이다 — 빈 출력 / 파싱 불가 /
+     `_undecidable()` 로 exit 2 를 내는 지점은 **여덟**이다 — 타임아웃 / 빈 출력 / 파싱 불가 /
      `actions` 키 없는 JSON / `advisories` 하위 필드 드리프트 / `actions` 하위 필드 드리프트 /
-     워크스페이스 파일 부재. 개수는 `FailClosedSiteCountTest` 가 소스에서 세어 강제한다.
+     워크스페이스 파일 부재 / `overrides` 키 부재. 개수는 `FailClosedSiteCountTest` 가 소스에서
+     세어 강제한다 — 실제로 이 라운드에 8곳이 되자 바로 빨간불을 냈다.
+
+     반대로 **returncode 는 판정에 쓰지 않는다**: audit 은 취약점을 찾으면 비-0 으로 끝나므로
+     성공 신호가 못 된다. `ReturncodeInvariantTest` 가 스텁을 exit 1 로 돌려 그 불변식을 고정한다.
 
   나머지 두 클래스는 축이 아니라 **회귀 고정**이다: `CombinedReportTest`(widened 와 eroded 가
   동시에 있으면 둘 다 보고 — 조기 return 을 되살려도 다른 테스트는 전부 GREEN 이었다),
@@ -64,6 +68,9 @@ import os, sys
 # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키 존재로 정상 응답을
 # 판정하므로(fail-closed) 스텁도 갖춰야 한다. 내용은 STUB_AUDIT_PAYLOAD 파일에서 읽는다.
 sys.stdout.write(open(os.environ["STUB_AUDIT_PAYLOAD"], encoding="utf-8").read())
+# 진짜 pnpm audit 은 취약점을 찾으면 비-0 으로 끝난다. 스텁이 늘 0 으로 끝나면
+# "returncode 로 판단하지 않는다" 는 불변식이 통째로 미검증으로 남는다.
+sys.exit(int(os.environ.get("STUB_AUDIT_EXIT", "0")))
 """
 
 
@@ -77,7 +84,7 @@ def _stage_script(tmp: Path) -> Path:
 
 def run_with_stub_audit(
     advisories: dict, overrides: str, actions: list | None = None,
-    raw_stdout: str | None = None,
+    raw_stdout: str | None = None, stub_exit: int = 0,
 ) -> subprocess.CompletedProcess:
     """`pnpm audit` 을 스텁으로 갈아끼워 스크립트를 돌린다.
 
@@ -85,6 +92,7 @@ def run_with_stub_audit(
     가짜 `pnpm` 을 두어 원하는 advisory 를 주입한다.
 
     `raw_stdout` 을 주면 정상 형태 대신 그 문자열을 그대로 뱉는다 — fail-closed 분기용.
+    `stub_exit` 는 스텁의 종료 코드 — 실제 audit 은 취약점을 찾으면 비-0 으로 끝난다.
     """
     import tempfile
     import os
@@ -111,6 +119,7 @@ def run_with_stub_audit(
             os.environ,
             PATH=f"{bindir}:{os.environ['PATH']}",
             STUB_AUDIT_PAYLOAD=str(payload_file),
+            STUB_AUDIT_EXIT=str(stub_exit),
         )
         return subprocess.run(
             [sys.executable, str(script)],
@@ -376,6 +385,55 @@ class SchemaDriftTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class ReturncodeInvariantTest(unittest.TestCase):
+    """audit 의 종료 코드는 성공 신호가 아니다 — 취약점을 찾으면 비-0 이다.
+
+    스텁이 늘 exit 0 이던 동안 이 불변식은 통째로 미검증이었다: `proc.returncode != 0` 이면
+    판단 불가로 돌리는 뮤턴트를 넣어도 28건이 전부 GREEN 이었다(리뷰가 실측). 실제 pnpm 이면
+    정상적인 취약점 보고가 모조리 "판단 불가" 로 오분류된다 — 이 가드가 막으려는 실패의
+    거울상이다.
+    """
+
+    OVERRIDES = MANAGED_OVERRIDES
+    VULNERABLE = {"1": {"module_name": "liquidjs", "github_advisory_id": "GHSA-rc",
+                        "patched_versions": ">=10.27.1"}}
+
+    def test_nonzero_exit_with_valid_json_is_still_classified(self):
+        r = run_with_stub_audit(self.VULNERABLE, self.OVERRIDES, stub_exit=1)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)   # 침식 fail, 판단 불가 아님
+        self.assertIn("바닥이 낡아", r.stderr)
+        self.assertIn("GHSA-rc", r.stderr)
+
+    def test_nonzero_exit_with_no_findings_still_passes(self):
+        """비-0 인데 결과가 비어 있어도 통과 — returncode 를 안 본다는 뜻이 양방향이다."""
+        r = run_with_stub_audit({}, self.OVERRIDES, stub_exit=1)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("취약 재유입 0건", r.stdout)
+
+
+class MissingOverridesKeyTest(unittest.TestCase):
+    """`overrides` 키가 통째로 없으면 "대상 0개" 가 아니라 판단 불가다.
+
+    `.get("overrides") or {}` 는 오타(`override:`)나 키 삭제를 조용히 빈 dict 로 바꾸고,
+    그러면 어떤 advisory 도 대상에 안 걸려 **항상 exit 0** 이 된다. 파일 부재는 이미 갈랐는데
+    이 경로만 남아 있었다.
+    """
+
+    def test_missing_overrides_key_is_undecidable(self):
+        r = run_with_stub_audit({}, "packages:\n  - codebase/*\n")  # overrides 없음
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("overrides", r.stderr)
+
+    def test_typo_key_is_undecidable(self):
+        r = run_with_stub_audit({}, "override:\n  liquidjs: ^10.27.1\n")  # 단수형 오타
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+
+    def test_present_but_empty_overrides_is_allowed(self):
+        """빈 `overrides: {}` 는 의도일 수 있다 — 키의 **부재**만 가른다."""
+        r = run_with_stub_audit({}, "overrides: {}\n")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
 class FailClosedSiteCountTest(unittest.TestCase):
     """docstring 이 말하는 fail-closed 지점 수를 소스에서 세어 강제한다.
 
@@ -385,7 +443,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
     빨간불이 나고, 그때 docstring 도 같이 고치게 된다.
     """
 
-    EXPECTED_SITES = 6
+    EXPECTED_SITES = 8
 
     def test_docstring_count_matches_source(self):
         src = SCRIPT.read_text(encoding="utf-8")
@@ -397,7 +455,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
             f"`.claude/tests/README.md` 는 {self.EXPECTED_SITES}곳으로 서술한다 — "
             "분기를 늘렸으면 두 문서와 EXPECTED_SITES 를 함께 고칠 것.",
         )
-        self.assertIn("여섯", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
+        self.assertIn("여덟", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
 
 
 class SuppressedPathBaselineTest(unittest.TestCase):
