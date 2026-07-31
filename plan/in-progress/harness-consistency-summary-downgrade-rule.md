@@ -11,10 +11,11 @@ priority: P2
 >
 > - **부속 관측(번들 예산 결함, 8회 재발)** — **8회 기록된 증상은 닫혔다**: 대상 파일이
 >   브랜치-변경(tier 0) 또는 plan-언급(tier 1)이면 이제 항상 예산 앞자리를 받는다.
->   **완전히 닫힌 것은 아니다** — 같은 tier 안의 정렬은 여전히 순수 사전순이라
->   (`test_ties_stay_alphabetical` 이 현재 동작으로 고정), 대상이 **변경도 안 됐고 plan 에도
->   언급되지 않은** 세션에서는 `10-*.md` 가 `4-*.md` 를 앞서는 원래 패턴이 재현될 수 있다.
->   아래 체크리스트의 natural sort 항목은 **여전히 열린 후속**이다.
+>   **2026-07-31 잔여분도 종결** — 같은 tier 안의 정렬을 `_natural_key` 로 바꿔, 대상이
+>   변경도 안 됐고 plan 에도 언급되지 않은 세션에서 `10-*.md` 가 `4-*.md` 를 앞서던 원래
+>   패턴까지 닫았다(실측: `4-execution-engine.md` 가 18개 중 12번째 → 4번째).
+>   사전순을 "의도된 동작" 으로 고정하던 `test_ties_stay_alphabetical` 은 반대 단언의
+>   `test_ties_use_natural_order_not_lexicographic` 로 교체됐다.
 > - **본체 (a)/(b)/(c)** — **사용자 결정: 하향 금지 + planner 즉시 인계** (= (c) 계열이되,
 >   "막다른 길" 로 두지 않고 인계 경로를 함께 명문화). 반영 완료:
 >   - `.claude/agents/consistency-summary.md` — §요약 지침에 **3. 하향 금지**(상향만 허용) +
@@ -59,13 +60,14 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 
 ## 선택지
 
-- [ ] **(a) 하향 허용 조건 명문화** — "근본 원인이 호출자 권한 밖이고 위임 문서에 명시적으로
+- [x] ~~**(a) 하향 허용 조건 명문화** — "근본 원인이 호출자 권한 밖이고 위임 문서에 명시적으로
       추적되고 있으면 WARNING 으로 통합 가능. 단 원 판정과 재분류 근거를 표에 보존한다."
-      (이번 summary 가 실제로 한 일이 정확히 이것이므로, 관행을 규약으로 승격하는 셈)
-- [ ] **(b) 하향 금지 + 별도 축 신설** — checker 가 "developer 권한 밖" 을 별도 등급으로 내고
-      게이트는 그 등급을 BLOCK 사유에서 제외.
-- [ ] **(c) 현상 유지** — 그러면 이런 PR 은 planner 턴 없이는 못 올린다는 사실을 규약에 명시해야
-      한다(지금은 어디에도 안 적혀 있다).
+      (이번 summary 가 실제로 한 일이 정확히 이것이므로, 관행을 규약으로 승격하는 셈)~~ → **미채택**
+- [x] ~~**(b) 하향 금지 + 별도 축 신설** — checker 가 "developer 권한 밖" 을 별도 등급으로 내고
+      게이트는 그 등급을 BLOCK 사유에서 제외.~~ → **미채택**
+- [x] ~~**(c) 현상 유지** — 그러면 이런 PR 은 planner 턴 없이는 못 올린다는 사실을 규약에 명시해야
+      한다(지금은 어디에도 안 적혀 있다).~~ → **채택** (2026-07-31 사용자 결정, 상단 배너 참조).
+      단 "막다른 길" 로 두지 않고 planner 인계 경로를 함께 명문화했다.
 
 ## Rationale
 
@@ -101,19 +103,30 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
       비우고 그 사실을 프롬프트에 명시.
 - [ ] target 번들 조립 시 plan frontmatter 의 `spec_impact` 목록을 **folder dump 보다 우선**
       포함(19_30_39 INFO 2 제안). 지금은 알파벳순 폴더 dump 가 예산을 선점한다.
-- [ ] **정렬이 사전순이라 두 자리 번호가 한 자리를 앞선다 — natural sort 로 교체**
+- [x] **정렬이 사전순이라 두 자리 번호가 한 자리를 앞선다 — natural sort 로 교체** ✅ 2026-07-31
       (2026-07-28 실측, `review/consistency/2026/07/28/01_26_40` WARNING #6).
       위 "알파벳순 폴더 dump" 를 더 좁혀 진단한 것이다: `"1" < "2" < "4"` 이므로
       `10-*.md`/`11-*.md` 가 `4-execution-engine.md` **앞에** 실려 예산을 소진하고, 정작
       대상 파일이 뒤로 밀려 잘린다. `--impl-done spec/5-system/` 세션에서 **checker 5명
       전원**이 이 문제를 겪고 절대경로 직접 Read 로 우회했다 — 누락된 파일은 하필
       CHANGELOG 가 그 PR 의 SoT 로 지목한 `4-execution-engine.md` 였다.
-      파일명 선행 숫자를 정수로 파싱해 정렬할 것.
-- [ ] **누락을 관측 가능하게** — 예산 초과로 잘린 파일 목록을 프롬프트에 명시하거나 stderr
+      **구현 완료**: `_natural_key` 를 `collect_markdown_files` 와
+      `prioritize_bundle_files` 의 tie-break 양쪽에 적용. 실측(`spec/5-system/` 18개):
+      `4-execution-engine.md` 가 12번째 → **4번째**. 종전 `test_ties_stay_alphabetical` 이
+      사전순을 "의도된 동작" 으로 고정하고 있었어서 그 테스트도 새 계약으로 교체했다.
+- [x] **누락을 관측 가능하게** ✅ — 양쪽 orchestrator 모두 구현 완료(consistency: `OMITTED_FILES_HEADING`, code-review: `_omitted_content_note`/`_aggregate_omission_note`). 원문: 예산 초과로 잘린 파일 목록을 프롬프트에 명시하거나 stderr
       경고. 지금은 checker 가 "그 파일이 번들에 없다" 는 사실 자체를 알 수 없어, 우회하지
       않는 checker 는 **spec 을 안 보고 "위반 없음" 을 반환**한다(조용한 거짓 통과, 로그에
       흔적 없음).
-- [ ] 부수 점검 — 생략 목록에 비-경로 문자열(`_selectedPort`/`$trigger`/`$env`) 혼입 경로.
+- [x] ~~부수 점검 —~~ **근본 결함이었다, 수정 완료 (2026-07-31)**. 생략 목록의
+      `_selectedPort`/`$trigger`/`$env` 는 `5-expression-language.md` 의 실제 레벨-4 헤딩이고,
+      splitter 가 그걸 **파일 경계로 오인**했다. 개수 오류(21 vs 실제 18)는 눈에 보이는 절반이고,
+      위험한 절반은 **한 파일이 여러 조각으로 쪼개져** "파일 단위로 버린다" 는 보장이 깨진 것.
+      본문이 만들 수 없는 sentinel 로 경계 이전. **2R 에서 진입점이 2곳이 아니라 4곳임이
+      드러나 확장**했다 — `format_file_bundle` · `extract_rationale_sections` 외에
+      `--spec`/`--plan` 의 원시 `target_doc` 읽기와 `--impl-done` 의 diff 섹션도 같은 경로다.
+      diff 는 자기 경계가 없어 마지막 spec 청크에 얹혀 **이름 없이** 버려지던 별개 결함도 함께
+      수정(고유 경계 + 이름 부여).
 
 > **검증 주의**: 정렬 함수 단위 테스트만으로는 vacuous 하다(헬퍼 테스트 ≠ 호출부 테스트).
 > `spec/5-system/` 처럼 **한 자리·두 자리 번호가 섞인 실제 디렉터리로 번들을 만들어

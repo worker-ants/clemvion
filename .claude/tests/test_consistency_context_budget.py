@@ -34,6 +34,7 @@ own. `test_line_anchors` dodges the same collision the same way.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import textwrap
@@ -74,6 +75,10 @@ def run_in_orchestrator(snippet: str, arg=None):
         [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
         input=json.dumps(arg), cwd=str(REPO_ROOT),
         capture_output=True, text=True,
+        # Without this a hang in the target code blocks the whole run instead of
+        # failing. The sibling suites set one; this file did not, and a comment
+        # in one of them claimed otherwise.
+        timeout=30.0,
     )
     if proc.returncode != 0:
         raise AssertionError(proc.stderr[-3000:])
@@ -81,12 +86,255 @@ def run_in_orchestrator(snippet: str, arg=None):
     return json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
 
 
+# The real boundary sentinel, fetched from the module rather than retyped.
+# This helper reproduces the writer's format, and a hand-copied marker silently
+# stops matching the day the writer changes — which is exactly what happened
+# when the boundary moved off `#### \`` onto a sentinel.
+_SENTINEL = run_in_orchestrator("emit(orch._BUNDLE_FILE_SENTINEL)")
+
+
 def bundle(*pairs):
     """Build a bundle the way `format_file_bundle` does, without touching disk."""
     parts = ["### 라벨\n"]
     for rel, body in pairs:
-        parts.append(f"\n#### `{rel}`\n```\n{body}\n```\n")
+        parts.append(f"{_SENTINEL}#### `{rel}`\n```\n{body}\n```\n")
     return "".join(parts)
+
+
+class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
+    r"""A level-4 heading inside a file body is not a file boundary.
+
+    (Raw docstring: the backtick escapes below are not escapes at all, and a
+    plain string makes them a DeprecationWarning that becomes a SyntaxError in
+    a later Python.)
+
+    The splitter used to cut on ``\n#### \`` — the same characters a spec body
+    legitimately writes. `spec/5-system/5-expression-language.md` really does
+    define ``#### \`$trigger\```, ``#### \`$env\``` and ``#### \`_selectedPort\```,
+    and measured on `--impl-prep spec/5-system/` the omission notice listed 21
+    entries of which **three were those headings**, not files.
+
+    The wrong count was the visible half. The dangerous half: one file split
+    into several chunks, so dropping "a file" could drop only its TAIL and leave
+    the head rendered as though complete — the property this suite exists to
+    guarantee. These tests assert conservation (kept + dropped == input), which
+    a per-file assertion would not have caught.
+
+    A third test ("a kept file keeps its tail") was written here and then
+    removed: no fixture could make it fail under the old boundary. A small
+    file's fragments are all cheap enough to survive together, and enlarging it
+    until they straddle the budget made the case turn on arithmetic rather than
+    on the property. Conservation already covers it — a file that lost its tail
+    shows up as an extra name on one side of the equation. A test that cannot
+    fail is worse than no test; it reads as coverage.
+    """
+
+    @staticmethod
+    def _truncate(text, budget):
+        return run_in_orchestrator(
+            "emit(orch.truncate_file_bundle(ARG[0], ARG[1]))", [text, budget]
+        )
+
+    # A body that forges the OLD marker on every line shape the real writer uses.
+    _FORGED = "\n#### `$trigger`\n설명\n\n#### `$env`\n설명\n\n#### `_selectedPort`\n설명\n"
+
+    def test_forged_headings_never_reach_the_omission_list(self):
+        text = bundle(("a.md", self._FORGED), ("b.md", "B" * 600),
+                      ("c.md", "C" * 600))
+        out = self._truncate(text, 900)
+        heading = run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
+        listed = re.findall(r"^- `([^`]+)`", out[out.index(heading):], re.M)
+        self.assertTrue(listed, "nothing was dropped — case is vacuous")
+        self.assertTrue(all(x.endswith(".md") for x in listed),
+                        f"non-file entries leaked into the notice: {listed}")
+
+    def test_every_input_file_is_either_kept_whole_or_named(self):
+        rels = ["a.md", "b.md", "c.md"]
+        text = bundle(("a.md", self._FORGED), ("b.md", "B" * 600),
+                      ("c.md", "C" * 600))
+        out = self._truncate(text, 900)
+        heading = run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
+        i = out.index(heading)
+        sentinel_re = re.escape(_SENTINEL) + r"#### `([^`]+)`"
+        kept = re.findall(sentinel_re, out[:i])
+        listed = re.findall(r"^- `([^`]+)`", out[i:], re.M)
+        self.assertCountEqual(kept + listed, rels)
+
+    def test_a_document_that_writes_the_sentinel_cannot_forge_a_boundary(self):
+        """"Content cannot produce this marker" is a claim, not a property.
+
+        This repository came within one line break of falsifying it: the plan
+        describing the sentinel fix quotes the literal. Inline it is harmless,
+        but on a line of its own it would forge a boundary and restore the very
+        bug the sentinel replaced. The writer therefore neutralises the boundary
+        form on the way in, and this pins that — through `format_file_bundle`,
+        not through the helper, because a helper test would stay GREEN if the
+        writer stopped calling it.
+        """
+        evil = run_in_orchestrator(
+            """
+            import os, shutil, tempfile
+            d = tempfile.mkdtemp()
+            try:
+                f = os.path.join(d, "real.md")
+                with open(f, "w", encoding="utf-8") as fh:
+                    fh.write("머리말\\n" + orch._BUNDLE_FILE_SENTINEL.strip()
+                             + "\\n#### `가짜.md`\\n본문\\n")
+                b = orch.format_file_bundle([f], d, "t")
+                emit({"chunks": len(b.split(orch._BUNDLE_FILE_SENTINEL)),
+                      "has_fake": "가짜.md" in b})
+            finally:
+                shutil.rmtree(d, ignore_errors=True)
+            """
+        )
+        # head + exactly one file. Three would mean the body forged a boundary.
+        self.assertEqual(evil["chunks"], 2)
+        # The text is still shown to the checker — neutralised, not deleted.
+        self.assertTrue(evil["has_fake"])
+
+
+    def test_rationale_sections_are_neutralised_too(self):
+        """The sibling writer needs the same defence, and nothing tested it.
+
+        `extract_rationale_sections` embeds raw spec section text under the same
+        sentinel, so a Rationale that writes the marker forges a boundary exactly
+        as a file body would. The two call sites can drift apart silently — this
+        is the pair for `format_file_bundle`'s test.
+        """
+        out = run_in_orchestrator(
+            """
+            import os, shutil, tempfile
+            d = tempfile.mkdtemp()
+            try:
+                f = os.path.join(d, "s.md")
+                with open(f, "w", encoding="utf-8") as fh:
+                    fh.write("# 제목\\n\\n## Rationale\\n\\n"
+                             + orch._BUNDLE_FILE_SENTINEL.strip()
+                             + "\\n#### `가짜.md`\\n근거 본문\\n")
+                b = orch.extract_rationale_sections([f], d)
+                emit(len(b.split(orch._BUNDLE_FILE_SENTINEL)))
+            finally:
+                shutil.rmtree(d, ignore_errors=True)
+            """
+        )
+        self.assertEqual(out, 2, "the Rationale body forged a file boundary")
+
+    def test_raw_spec_target_is_neutralised(self):
+        """`--spec`/`--plan` hand `target_doc` straight from disk.
+
+        Those two modes skip `format_file_bundle` entirely, so the writer-side
+        defence did not cover them: a draft that wrote the marker had its tail
+        silently dropped and a filename that does not exist appeared in the
+        omission notice. The document under review being *the one that documents
+        this sentinel* is not hypothetical — that document exists in this repo.
+
+        Driven through `collect_context`, not through `_neutralize_sentinel`:
+        calling the helper directly would pass with the call site deleted, which
+        is precisely the mutant that has to fail.
+        """
+        out = run_in_orchestrator(
+            """
+            import os, shutil, tempfile
+            d = tempfile.mkdtemp()
+            try:
+                f = os.path.join(d, "draft.md")
+                with open(f, "w", encoding="utf-8") as fh:
+                    fh.write("앞\\n" + orch._BUNDLE_FILE_SENTINEL.strip()
+                             + "\\n#### `가짜파일.md`\\n" + "X" * 3000 + "\\n뒤\\n")
+
+                class A:
+                    plan = impl_prep = impl_done = diff_base = None
+                    spec = f
+                ctx = orch.collect_context(A(), REPO_ROOT)
+                td = ctx["target_doc"]
+                cut = orch.truncate_file_bundle(td, 1500)
+                emit({"chunks": len(td.split(orch._BUNDLE_FILE_SENTINEL)),
+                      "fake_listed": "가짜파일.md" in cut
+                                     and orch.OMITTED_FILES_HEADING in cut})
+            finally:
+                shutil.rmtree(d, ignore_errors=True)
+            """
+        )
+        self.assertEqual(out["chunks"], 1, "raw target forged a file boundary")
+        self.assertFalse(out["fake_listed"], "a non-existent file was 'omitted'")
+
+
+    def test_impl_done_diff_is_its_own_named_chunk(self):
+        """The diff must be droppable BY NAME, not swallowed with a spec file.
+
+        Before it carried a boundary of its own it rode on the last spec chunk,
+        so a budget cut took it away while the notice named only the spec file —
+        a checker then compared "spec vs implementation" with no implementation
+        in front of it and nothing saying so.
+
+        Note what is NOT asserted here. `_neutralize_sentinel` is also applied to
+        the diff text, but a git diff cannot forge a boundary in the first place:
+        every content line carries a `+`/`-`/space prefix, so the marker comes out
+        as `+<!-- @bundle-file -->` and never starts a line (measured). The
+        neutralisation stays as defence-in-depth for a future change in how the
+        diff is embedded; writing a test for it would mean building an input that
+        `git diff` cannot produce, and it would pass for the wrong reason.
+        """
+        out = run_in_orchestrator(
+            """
+            import os, shutil, subprocess, tempfile
+            d = tempfile.mkdtemp()
+            try:
+                def git(*a):
+                    subprocess.run(["git", *a], cwd=d, check=True,
+                                   capture_output=True, timeout=30)
+                git("init", "-q", "-b", "main")
+                git("config", "user.email", "t@t"); git("config", "user.name", "t")
+                os.makedirs(os.path.join(d, "spec", "area"))
+                os.makedirs(os.path.join(d, "codebase"))
+                with open(os.path.join(d, "spec", "area", "a.md"), "w") as fh:
+                    fh.write("spec 본문\\n")
+                with open(os.path.join(d, "codebase", "x.ts"), "w") as fh:
+                    fh.write("const a = 1\\n")
+                git("add", "-A"); git("commit", "-qm", "base")
+                git("checkout", "-qb", "work")
+                with open(os.path.join(d, "codebase", "x.ts"), "w") as fh:
+                    fh.write("const a = 2\\n")
+                git("add", "-A"); git("commit", "-qm", "work")
+
+                class A:
+                    spec = plan = impl_prep = None
+                    diff_base = "main"
+                    impl_done = os.path.join(d, "spec", "area")
+                td = orch.collect_context(A(), d)["target_doc"]
+                emit({"chunks": len(td.split(orch._BUNDLE_FILE_SENTINEL)),
+                      "diff_named": "git diff" in td})
+            finally:
+                shutil.rmtree(d, ignore_errors=True)
+            """
+        )
+        # head + one spec file + the diff. Two would mean the diff is riding on
+        # the spec chunk again, which is the regression.
+        self.assertEqual(out["chunks"], 3)
+        self.assertTrue(out["diff_named"])
+
+    def test_plan_mode_target_is_neutralised(self):
+        """`--plan` shares the raw-read path with `--spec` and was equally open."""
+        out = run_in_orchestrator(
+            """
+            import os, shutil, tempfile
+            d = tempfile.mkdtemp()
+            try:
+                f = os.path.join(d, "task.md")
+                with open(f, "w", encoding="utf-8") as fh:
+                    fh.write("앞\\n" + orch._BUNDLE_FILE_SENTINEL.strip()
+                             + "\\n#### `가짜plan.md`\\n뒤\\n")
+
+                class A:
+                    spec = impl_prep = impl_done = diff_base = None
+                    plan = f
+                ctx = orch.collect_context(A(), REPO_ROOT)
+                emit(len(ctx["target_doc"].split(orch._BUNDLE_FILE_SENTINEL)))
+            finally:
+                shutil.rmtree(d, ignore_errors=True)
+            """
+        )
+        self.assertEqual(out, 1, "the plan body forged a file boundary")
 
 
 class FileBundleTruncationTest(unittest.TestCase):

@@ -4,7 +4,8 @@
 truncation cuts on file boundaries and names what it dropped. This file pins the
 half that decides **which** files get dropped.
 
-`collect_markdown_files` returns plain alphabetical order and
+`collect_markdown_files` used to return plain lexicographic order (its
+tie-break is natural sort now — see `_natural_key`) and
 `truncate_file_bundle` drops from the tail, so for `spec/5-system/` the budget
 went to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md` while
 `4-execution-engine.md` — the file every one of those sessions was actually
@@ -180,8 +181,52 @@ class PrioritizeBundleFilesTest(unittest.TestCase):
                           plan_text="10-graph-rag.md")
         self.assertCountEqual(out, _FIVE_SYSTEM)
 
-    def test_ties_stay_alphabetical(self):
-        self.assertEqual(_prioritize(_FIVE_SYSTEM), _FIVE_SYSTEM)
+    def test_ties_use_natural_order_not_lexicographic(self):
+        """Within a tier, `4-` comes before `10-`.
+
+        This is the residual half of the 8-times-recurring bug: tiers 0/1 rescue
+        a target the branch touched or a plan names, but a session where the
+        target is neither still filled the budget front-to-back in
+        lexicographic order — `"1" < "10" < "11" < "2" < "4"` — and dropped from
+        the tail. Measured on `spec/5-system/` (18 files):
+        `4-execution-engine.md` sat at position 12 and now sits at 4.
+
+        The earlier version of this test pinned the lexicographic order as
+        intended behaviour, which is why the plan still listed natural sort as
+        open while a test asserted the opposite.
+        """
+        out = _prioritize(_FIVE_SYSTEM)
+        self.assertEqual(out, [
+            "spec/5-system/1-auth.md",
+            "spec/5-system/4-execution-engine.md",
+            "spec/5-system/10-graph-rag.md",
+            "spec/5-system/11-mcp-client.md",
+        ])
+
+
+class CollectMarkdownFilesOrderTest(unittest.TestCase):
+    """`collect_markdown_files` sorts naturally — pinned directly.
+
+    Downstream `prioritize_bundle_files` re-sorts, so this function's own order
+    is invisible from every other test here: mutation showed reverting it to
+    `files.sort()` left the suite GREEN. Callers that do NOT prioritize (and any
+    future one) still get the order this asserts, so it is a contract, not an
+    implementation detail — and an untested one is indistinguishable from dead
+    code, which is how it would get "cleaned up" later.
+    """
+
+    def test_returns_natural_order(self):
+        order = run_in_orchestrator(
+            """
+            import os
+            fs = orch.collect_markdown_files(os.path.join(ROOT, "spec/5-system"))
+            emit([os.path.basename(f) for f in fs[:5]])
+            """
+        )
+        self.assertEqual(order[:5], [
+            "1-auth.md", "2-api-convention.md", "3-error-handling.md",
+            "4-execution-engine.md", "5-expression-language.md",
+        ])
 
 
 class PriorityThenTruncationTest(unittest.TestCase):
@@ -199,7 +244,8 @@ class PriorityThenTruncationTest(unittest.TestCase):
 
             parts = ["### 구현 대상 spec 영역\\n"]
             for rel in ordered_rels:
-                parts.append("\\n#### `" + rel + "`\\n```\\n" + ("x" * 400) + "\\n```\\n")
+                parts.append(orch._BUNDLE_FILE_SENTINEL + "#### `" + rel
+                             + "`\\n```\\n" + ("x" * 400) + "\\n```\\n")
             text = "".join(parts)
 
             out = orch.truncate_file_bundle(text, 700)
