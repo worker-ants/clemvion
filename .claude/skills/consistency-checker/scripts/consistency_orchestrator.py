@@ -77,8 +77,11 @@ def load_config():
 
 
 # ---------------------------------------------------------------------------
-# State helpers (--summary-state / --update). Mirror code_review_orchestrator
-# so main never has to Read _retry_state.json into its context.
+# State helpers (--summary-state / --update). The bodies used to mirror
+# `code_review_orchestrator` by hand; they now delegate to
+# `_shared/retry_state.py` (see the note above the delegations below).
+# What stays local is this orchestrator's own CLI output shape — exposed as a
+# CLI so main never has to Read _retry_state.json into its context.
 # ---------------------------------------------------------------------------
 
 

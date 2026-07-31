@@ -77,24 +77,12 @@ def load_config():
 
 
 # ---------------------------------------------------------------------------
-# State helpers (--summary-state / --update). Mirror code_review_orchestrator
-# so main never has to Read _retry_state.json into its context.
+# State helpers (--summary-state / --update). The bodies used to mirror
+# `code_review_orchestrator` by hand; they now delegate to
+# `_shared/retry_state.py` (see the note above the delegations below).
+# What stays local is this orchestrator's own CLI output shape — exposed as a
+# CLI so main never has to Read _retry_state.json into its context.
 # ---------------------------------------------------------------------------
-
-
-def _emit_summary_state(session_dir):
-    _, state = _load_state(os.path.abspath(session_dir))
-    pending = len(state.get("agents_pending", []))
-    success = len(state.get("agents_success", []))
-    fatal = len(state.get("agents_fatal", []))
-    branches = len(state.get("branches", []))
-    base = state.get("base", "")
-    last_reset = state.get("last_reset_hint_sec")
-    last_reset_str = str(last_reset) if last_reset is not None else "null"
-    print(
-        f"pending={pending} success={success} fatal={fatal} "
-        f"branches={branches} base={base} last_reset={last_reset_str}"
-    )
 
 
 # `_load_state`/`_save_state` are byte-identical to the other two orchestrators'
@@ -120,6 +108,21 @@ def _save_state(state_file, state):
 
 def _apply_status_update(session_dir, agent, status, reset_hint):
     return _retry_state_lib.apply_status_update(session_dir, agent, status, reset_hint)
+
+
+def _emit_summary_state(session_dir):
+    _, state = _load_state(os.path.abspath(session_dir))
+    pending = len(state.get("agents_pending", []))
+    success = len(state.get("agents_success", []))
+    fatal = len(state.get("agents_fatal", []))
+    branches = len(state.get("branches", []))
+    base = state.get("base", "")
+    last_reset = state.get("last_reset_hint_sec")
+    last_reset_str = str(last_reset) if last_reset is not None else "null"
+    print(
+        f"pending={pending} success={success} fatal={fatal} "
+        f"branches={branches} base={base} last_reset={last_reset_str}"
+    )
 
 
 # ---------------------------------------------------------------------------

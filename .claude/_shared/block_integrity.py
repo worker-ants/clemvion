@@ -57,8 +57,27 @@ _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 # the leftmost anchored match instead read a superseded template line as the
 # verdict whenever the banner sat below it — reproduced:
 # `"**BLOCK: YES**(초기)\n\n> 최종 판정: **BLOCK: NO**\n"` returned YES.
+# `[ \t…]`, NOT `[\s…]`. `\s` matches newlines, so with `re.MULTILINE` the class
+# could run past the end of its own line and the engine retried that walk from
+# every subsequent line start — quadratic. Measured on `("> " * 3 + "\n") * n`,
+# which has no `BLOCK:` anywhere so every start position fails:
+#
+#     n_lines     1000     2000     4000     8000    16000
+#     `\s`      0.027s   0.085s   0.331s   1.333s   5.375s   (×4 per doubling)
+#     ` \t`     0.000s   0.000s   0.000s   0.001s   0.001s
+#
+# It matters because this runs on every push and every turn-end, over every
+# session on disk, and a SUMMARY is LLM-written markdown with no enforced size.
+# A length cap is deliberately NOT the fix: it cannot bound a quadratic pattern
+# (256KB is still catastrophic), and this repo's own `_MAX_REDACTION_INPUT` note
+# warns that a cap must never gate detection. The linear pattern is the fix; the
+# regression test pins it.
+#
+# Behaviour is unchanged — `^` already anchors at the start of the line holding
+# the verdict, so the class never needed to cross one. Verified against all 1,506
+# committed SUMMARY files: 0 verdicts differ.
 _BLOCK_AT_LINE_START = re.compile(
-    r"^[\s>#*_`-]*BLOCK:\s*\**\s*(YES|NO)", re.IGNORECASE | re.MULTILINE
+    r"^[ \t>#*_`-]*BLOCK:\s*\**\s*(YES|NO)", re.IGNORECASE | re.MULTILINE
 )
 _BLOCK_AT_LINE_END = re.compile(
     r"BLOCK:\s*\**\s*(YES|NO)\**\s*$", re.IGNORECASE | re.MULTILINE

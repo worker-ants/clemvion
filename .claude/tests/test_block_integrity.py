@@ -413,6 +413,110 @@ class NotesReachBothHooksTest(unittest.TestCase):
         self.assertNotIn("하향 감지", r.stdout)
 
 
+class NotesFromLaterTargetsSurviveAnEarlierBlockTest(unittest.TestCase):
+    """Target order must not decide whether an advisory is heard.
+
+    `_evaluate_over_targets` used to `return` the moment a target blocked, so
+    every target after it was never evaluated and its notes were lost. The
+    comment defending the feature only covered the other arrangement (the
+    blocking target's *own* notes), which is why it read as complete.
+
+    Worst case is the one that matters: the push is being refused, which is
+    exactly when the reader most needs every advisory in front of them.
+    """
+
+    def _run(self, decisions):
+        """Drive the real `_evaluate_over_targets` over stub targets."""
+        PG = _harness.load_module_by_path(
+            "push_guard_order_probe",
+            _harness.HOOKS_DIR / "guard_review_before_push.py",
+        )
+
+        class _D:
+            def __init__(self, blocks, notes):
+                self.push_blocks = blocks
+                self.notes = tuple(notes)
+                self.reason = "stub"
+
+        class _O:
+            def __init__(self):
+                self.answered, self.bypassed, self.degraded = [], [], []
+                self.notes = []
+
+        outcome = _O()
+        targets = [f"/w/{i}" for i in range(len(decisions))]
+        by_target = dict(zip(targets, decisions))
+        msg = PG._evaluate_over_targets(
+            lambda t: _D(*by_target[t]),
+            targets, gate="REVIEW", outcome=outcome,
+            render=lambda r, t: f"blocked at {t}",
+        )
+        return msg, outcome.notes
+
+    def test_a_later_targets_note_is_kept_when_an_earlier_one_blocks(self):
+        msg, notes = self._run([
+            (True, ["⚠️  워크트리 A: 차단"]),
+            (False, ["⚠️  워크트리 B: 하향 감지"]),
+        ])
+        self.assertEqual(msg, "blocked at /w/0", "first blocker still decides")
+        self.assertIn("⚠️  워크트리 B: 하향 감지", notes)
+        self.assertIn("⚠️  워크트리 A: 차단", notes)
+
+    def test_the_first_blocker_supplies_the_message_not_the_last(self):
+        msg, _ = self._run([(False, []), (True, []), (True, [])])
+        self.assertEqual(msg, "blocked at /w/1")
+
+
+class VerdictParserStaysLinearTest(unittest.TestCase):
+    """The verdict scan must not go quadratic on adversarial input.
+
+    `_BLOCK_AT_LINE_START` used `[\\s…]` for its leading class. `\\s` matches
+    newlines, so under `re.MULTILINE` the class could run past its own line and
+    the engine repeated that walk from every later line start. Measured: ×4 per
+    input doubling, 5.4s at 16k lines — on a path that runs at every push and
+    every turn-end, over every session on disk, against LLM-written markdown
+    with no enforced size. A hook slow enough to hit its timeout fails open,
+    which would bypass the very gate this branch is reinforcing.
+
+    Run in a subprocess with a hard timeout, not by asserting on elapsed time
+    after the call returns: the backtracking happens inside CPython's C-level
+    `re`, where signals do not land, so an in-process test would hang the whole
+    suite instead of failing it.
+    """
+
+    # Sized from the measurement, not guessed. 20k lines: ~8.4s with the old
+    # pattern, ~1ms with the current one. A smaller input would let the broken
+    # pattern finish inside the timeout and the test would be vacuous.
+    _LINES = 20_000
+    _TIMEOUT = 5
+
+    def test_no_verdict_in_a_large_document_returns_fast(self):
+        import subprocess
+        import sys as _sys
+        path = _harness.CLAUDE_DIR / "_shared" / "block_integrity.py"
+        prog = (
+            "import importlib.util,sys\n"
+            f"spec=importlib.util.spec_from_file_location('bi', r'{path}')\n"
+            "m=importlib.util.module_from_spec(spec)\n"
+            "sys.modules['bi']=m\n"
+            "spec.loader.exec_module(m)\n"
+            f"text=('> '*3+chr(10))*{self._LINES}\n"
+            "assert m.summary_block_verdict(text) is None\n"
+            "print('ok')\n"
+        )
+        try:
+            r = subprocess.run([_sys.executable, "-c", prog],
+                               capture_output=True, text=True,
+                               timeout=self._TIMEOUT)
+        except subprocess.TimeoutExpired:
+            self.fail(
+                f"summary_block_verdict did not finish in {self._TIMEOUT}s on "
+                f"{self._LINES} lines — the verdict pattern went quadratic again"
+            )
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertIn("ok", r.stdout)
+
+
 class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
     """Every hand-written `evaluate_plan` stub must expose `push_blocks`.
 
@@ -438,13 +542,19 @@ class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
         import glob
         checked = []
         tests_dir = _harness.CLAUDE_DIR / "tests"
+        # Both gates, not just PLAN. `_evaluate_over_targets` reads `push_blocks`
+        # off whatever each gate returns, so a `evaluate_review` stub missing it
+        # fails open exactly the same way — the first version of this guard
+        # watched only one of the two symmetric halves.
+        marker = ("def evaluate_plan", "def evaluate_review")
         for path in sorted(glob.glob(str(tests_dir / "test_*.py"))):
-            src = open(path, encoding="utf-8").read()
-            if "def evaluate_plan" not in src:
+            with open(path, encoding="utf-8") as f:
+                src = f.read()
+            if not any(m in src for m in marker):
                 continue
             stubs = [n.value for n in ast.walk(ast.parse(src))
                      if isinstance(n, ast.Constant) and isinstance(n.value, str)
-                     and "def evaluate_plan" in n.value]
+                     and any(m in n.value for m in marker)]
             # The stub is usually built by concatenating adjacent literals, which
             # `ast` folds into one Constant; if a file ever splits it across
             # separate expressions, join what we found for that file.

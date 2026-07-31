@@ -831,9 +831,16 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
     survive on both paths. A note filed by a target that then blocks is the one
     most worth keeping: the session being rejected may be the very one that
     downgraded a Critical.
+
+    Which is why blocking no longer returns from inside the loop. It used to,
+    and that silently dropped the notes of every target ordered *after* the
+    first blocking one — a review found the gap before any test did. The first
+    blocking target still decides the message; the loop runs to the end so the
+    remaining targets can still contribute advisories.
     """
     scoped = _accepts_cwd(evaluate)
     answered = False
+    blocked = None
     for target in targets if scoped else [None]:
         try:
             result = evaluate(target) if scoped else evaluate()
@@ -864,13 +871,16 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
         for note in getattr(result, "notes", ()) or ():
             if note not in notes:
                 notes.append(note)
-        if result.push_blocks:
-            if gate not in outcome.answered:
-                outcome.answered.append(gate)
-            return render(result, target if scoped else os.getcwd())
+        if result.push_blocks and blocked is None:
+            # Remember, do NOT return. Returning here ends the loop, so any
+            # target after this one never gets evaluated and its advisories are
+            # lost — and the push is being refused, which is exactly when the
+            # reader most needs to see every one of them. The first blocking
+            # target still supplies the message; the rest only contribute notes.
+            blocked = render(result, target if scoped else os.getcwd())
     if answered and gate not in outcome.answered:
         outcome.answered.append(gate)
-    return None
+    return blocked
 
 
 def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
