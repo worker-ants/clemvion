@@ -1,6 +1,6 @@
 # RESOLUTION — deps-guard-hardening
 
-브랜치 `claude/deps-guard-hardening` 의 리뷰 라운드 1~10 조치 기록. 세션이 여러 개라
+브랜치 `claude/deps-guard-hardening` 의 리뷰 라운드 1~11 조치 기록. 세션이 여러 개라
 `04_35_33` 아래에 통합해 둔다. 각 라운드의 원 발견사항은 해당 세션의 `SUMMARY.md` 에 있다.
 
 ## 조치 항목
@@ -40,6 +40,7 @@
 | 9 | W4 | 커밋 `f46c560e9` 가 8차 세션 산출물 6개를 함께 포함 | **미조치** — 사실이나 정리에 대화형 rebase 필요(이 환경에서 불가). plan 에 기록 | — |
 | **10** (`06_03_11`) | **C1·C2** | 실 registry 실행으로 발견: 스키마 드리프트 오판 + `widened`/`EXPECTED_SUPPRESSED_PATHS` 가 발동 불가능한 죽은 코드 | **축 3 철회** (사용자 결정). 2×2 직접 실측 후 `widened`·`EXPECTED_SUPPRESSED_PATHS`·`_report_widened`·테스트 3클래스 제거 + stale `ignoreCves` 2건 2-place 제거 | `f71be98d8` |
 | 10 | W2 | `FailClosedSiteCountTest` 가 README 를 검증한다고 **주장만** 하고 읽지 않음 — 값을 바꿔도 전 스위트 GREEN | 실제 대조 추가. 리뷰가 반증에 쓴 뮤턴트가 이제 RED | `f71be98d8` |
+| 11 (`08_20_09`) | W1 | `advisories` 컨테이너 타입 미검증 — list 로 오면 `.items()` 가 AttributeError 로 죽어 exit 1(= "침식 발견"). **10차에 지적됐는데 그 함수를 손대면서도 이월시켰다** | 타입 가드 + 회귀 테스트(뮤턴트 RED). 이 fix 는 **리뷰를 받지 않았다** — 아래 참조 | (다음 커밋) |
 
 ### 비-vacuous 증명
 
@@ -81,6 +82,13 @@ TimeoutExpired 를 안 던지는 예외로 · `timeout=` 인자 제거 · YAML �
 2차 라운드의 1차 e2e 는 `initdb: could not create directory ... No space left on device` 로
 postgres 가 뜨지 못해 실패했다 — 본 변경과 무관한 디스크 부족. `docker builder prune -af` +
 image prune 으로 66GB 회수 후 통과했고, 이후 모든 라운드에서 연속 통과했다.
+
+### 마지막 조치는 리뷰를 받지 않았다
+
+11차 W1 fix(타입 가드 3줄 + 테스트 1건)는 그 리뷰 **이후에** 넣었다. 사용자가 "축 3 처분 후 PR
+올리고 종료" 로 범위를 정했고, 이 브랜치는 `codebase/**` 를 건드리지 않아 push 게이트가 차단하지
+않는다(`evaluate_review()` dry-run: "no codebase/ changes on this branch — allowed"). 변경은
+뮤턴트로 non-vacuous 확인했으나, 12차 리뷰를 돌리지 않았다는 사실은 그대로 남는다.
 
 ## 보류·후속 항목
 

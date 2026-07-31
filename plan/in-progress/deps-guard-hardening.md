@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **38건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **39건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **757건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **758건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -217,7 +217,20 @@ spec_impact: none
       e2e PASS(260s: backend jest 46 suites/260 + playwright 51).
 - [x] `/ai-review` 10차 (`06_03_11`) — **Critical 2** (실 registry 실행으로 발견). §축 3 철회로 종결.
 - [x] **축 3 철회** (사용자 결정) — 아래 §축 3 철회 참조.
-- [ ] TEST WORKFLOW (11차) · `/ai-review` 11차 · RESOLUTION 최종 · push + PR
+- [x] TEST WORKFLOW (11차) — lint PASS(68s) · unit PASS(82s) · build PASS(172s) ·
+      e2e PASS(315s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 11차 (`08_20_09`) — **Critical 0 · Warning 1**. 10차 CRITICAL 2건이 축 3
+      철회로 해소됐음을 reviewer 7명 전원이 교차 검증(diff 대조·grep 전수·in-process 실측).
+      남은 W1: `advisories` 컨테이너 타입 미검증 — list 로 오면 `.items()` 가 AttributeError 로
+      죽어 exit 1(= "침식 발견")이 된다. **10차에 지적됐는데 그 함수를 손대면서도 이월시켰다.**
+      타입 가드 + 회귀 테스트 추가(뮤턴트 RED). fail-closed 지점 10곳 → 11곳.
+- [x] RESOLUTION 최종 (`04_35_33/RESOLUTION.md`) — 라운드 1~11 통합
+- [ ] push + PR
+
+> **마지막 조치는 리뷰를 받지 않았다.** 11차 W1 fix 는 그 리뷰 이후에 넣었다. 사용자가 "축 3
+> 처분 후 PR 올리고 종료" 로 범위를 정했고, 이 브랜치는 `codebase/**` 를 안 건드려 push
+> 게이트가 차단하지 않는다(`evaluate_review()` dry-run: "no codebase/ changes — allowed").
+> 변경은 타입 가드 3줄 + 테스트 1건이며 뮤턴트로 non-vacuous 확인했다.
 
 ## 개발 중 실측으로 드러난 것
 

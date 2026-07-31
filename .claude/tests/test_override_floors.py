@@ -27,9 +27,9 @@
   3. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
      느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
-     `_undecidable()` 로 exit 2 를 내는 지점은 **열**이다. audit 쪽 여섯 — 실행 실패(`pnpm`
+     `_undecidable()` 로 exit 2 를 내는 지점은 **열하나**다. audit 쪽 일곱 — 실행 실패(`pnpm`
      부재) / 타임아웃 / 빈 출력 / JSON 파싱 불가 / `actions` 키 없는 JSON(= 오류 페이로드
-     판별) / `advisories` 하위 필드 드리프트. 설정 쪽 넷 — 워크스페이스 파일 부재 /
+     판별) / `advisories` 가 매핑이 아님 / `advisories` 하위 필드 드리프트. 설정 쪽 넷 — 워크스페이스 파일 부재 /
      읽기·YAML 파싱 불가 / `overrides` 가 매핑이 아님(키 부재·오타·값 없음·문자열·리스트를 한
      조건으로) / 추출 대상에 공백이 남음(체인 분할 실패 = 유령 대상). 개수는
      `FailClosedSiteCountTest` 가 소스와 **README 양쪽**에 대조해 강제한다 — 라운드마다 지점이
@@ -347,6 +347,23 @@ class SchemaDriftTest(unittest.TestCase):
 
     OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n"
 
+
+    def test_advisories_not_a_mapping_is_undecidable(self):
+        """`advisories` 가 list 로 오면 `.items()` 가 AttributeError 로 죽는다.
+
+        traceback + exit 1 인데 이 스크립트에서 1 은 "침식 발견" 이다 — 실행 실패가 정상 발견
+        신호와 같은 코드가 된다. 형태가 다른 건 크래시가 아니라 판단 불가다. 10차에 지적됐는데
+        11차까지 이월됐다(그 함수를 손대면서도 놓쳤다).
+        """
+        r = run_with_stub_audit(
+            {}, MANAGED_OVERRIDES,
+            raw_stdout=json.dumps({"actions": [], "advisories": [{"module_name": "liquidjs"}],
+                                   "metadata": {}}),
+        )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("매핑이 아니다", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
     def test_advisories_without_module_name_is_undecidable(self):
         r = run_with_stub_audit(
             {"1": {"moduleName": "liquidjs", "ghsa": "GHSA-x"}},  # camelCase 로 개명
@@ -534,7 +551,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
     빨간불이 나고, 그때 docstring 도 같이 고치게 된다.
     """
 
-    EXPECTED_SITES = 10
+    EXPECTED_SITES = 11
 
     def test_docstring_count_matches_source(self):
         src = SCRIPT.read_text(encoding="utf-8")
@@ -546,7 +563,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
             f"`.claude/tests/README.md` 는 {self.EXPECTED_SITES}곳으로 서술한다 — "
             "분기를 늘렸으면 두 문서와 EXPECTED_SITES 를 함께 고칠 것.",
         )
-        self.assertIn("**열**", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
+        self.assertIn("**열하나**", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
 
     def test_readme_count_matches_source(self):
         """README 도 **실제로** 대조한다.

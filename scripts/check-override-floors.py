@@ -209,6 +209,8 @@ def run_audit() -> dict:
         _undecidable("`pnpm audit --json` 출력을 파싱하지 못했다:", out[:_STDOUT_PREVIEW])
     if not isinstance(data, dict) or "actions" not in data:
         # 정상 응답이면 `actions`/`advisories`/`metadata` 를 갖는다. 없으면 오류 페이로드다.
+        # `actions` 는 **스키마 판별자로만** 쓴다 — 내용은 더 이상 소비하지 않는다(근거:
+        # plan §축 3 철회). 이 키가 CRITICAL 을 두 번 낸 이력이 있어 재도입 오인을 막아둔다.
         _undecidable(
             "`pnpm audit --json` 응답이 기대 형태가 아니다(`actions` 없음) — "
             "레지스트리 오류로 보고 판단 불가로 처리한다(fail-closed).",
@@ -228,6 +230,15 @@ def classify_vulnerable(audit: dict) -> dict[str, str]:
     것보다 없는 편이 낫다고 판단해 제거했다(근거: plan §축 3 철회).
     """
     advisories = audit.get("advisories") or {}
+    if not isinstance(advisories, dict):
+        # dict 가 아니면 `.items()` 가 AttributeError 로 죽고 traceback + exit 1 이 된다 —
+        # 이 스크립트 어휘에서 1 은 "침식 발견" 이라 실행 실패가 정상 발견 신호와 같은 코드가
+        # 된다. 형태가 다르면 판단 불가지 크래시가 아니다.
+        _undecidable(
+            "`pnpm audit --json` 의 `advisories` 가 매핑이 아니다 — 스키마가 바뀐 것으로 보고 "
+            "판단 불가로 처리한다(fail-closed).",
+            f"  실제: {type(advisories).__name__}",
+        )
 
     reported: dict[str, str] = {}
     for name, adv in advisories.items():
