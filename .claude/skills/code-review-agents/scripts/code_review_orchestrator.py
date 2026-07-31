@@ -558,6 +558,26 @@ def _truncated_note(kept, total, reason):
     return f"\n... ({reason}으로 {kept}/{total} 줄만 표시 — 나머지는 원본 파일 참조) ..."
 
 
+def _charge_notice(budget, *notes):
+    """Budget left once `notes` are committed to the document.
+
+    Every annotation `build_files_section` appends — the per-file omission
+    notice, the aggregate one, the "truncated" marker, the diff-only banner — is
+    document text and comes out of the same `max_total_size`. That subtraction
+    used to be written by hand at each of the four budget decisions, and it was
+    missed twice: once for the per-file notices (measured 143,620 against a
+    143,605 cap) and once for the `_truncated_note` appended after
+    `truncate_to_line_boundary`, which bounds only the text it returns.
+
+    Both misses were the same mistake in different branches, which is why they
+    were found in consecutive review rounds rather than together. Routing the
+    arithmetic through one named call does not make it impossible to forget, but
+    it puts the question — *what else does this branch append?* — at every site
+    that has to answer it.
+    """
+    return budget - sum(len(n) for n in notes)
+
+
 def _omitted_content_note(rel_path, total_size):
     """Announce a file whose content did not fit at all, and say what to do.
 
@@ -657,9 +677,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             )
         indexed = [(i, fp) for i, fp in enumerate(file_parts)]
         indexed.sort(key=lambda x: len(x[1]["diff"]), reverse=True)
-        # The note is document text: trim diffs for it too, or it becomes the
-        # next overrun.
-        overflow = base_size + len(global_note) - max_total_size
+        overflow = base_size - _charge_notice(max_total_size, global_note)
         for idx, fp in indexed:
             if overflow <= 0:
                 break
@@ -700,17 +718,20 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     # `truncate_file_bundle` on the consistency side hit this exact failure and
     # fixed it by re-validating the notice length every iteration; only half of
     # that fix ("announce the omission") had been ported here.
-    def _notice_cost(idx):
-        return len(_omitted_content_note(
+    def _notice_text(idx):
+        return _omitted_content_note(
             file_parts[idx]["rel_path"], file_parts[idx]["full_content_size"]
-        ))
+        )
 
-    remaining_budget -= sum(_notice_cost(i) for i in content_indices)
+    remaining_budget = _charge_notice(
+        remaining_budget, *(_notice_text(i) for i in content_indices)
+    )
 
     include_content = {}
     for i in content_indices:
         needed = file_parts[i]["full_content_size"] + content_wrapper_overhead
-        refund = _notice_cost(i)  # including this file means it needs no notice
+        # Including this file means it needs no notice — hand its reservation back.
+        refund = len(_notice_text(i))
         if needed <= remaining_budget + refund:
             include_content[i] = file_parts[i]["full_content"]
             remaining_budget += refund - needed
@@ -719,12 +740,14 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             # has to come out of `available` too — `truncate_to_line_boundary`
             # only bounds the text it returns. Budget for the widest form of the
             # note (kept == total gives the most digits).
+            # Budget for the widest form of the note (kept == total gives the
+            # most digits) — `truncate_to_line_boundary` bounds only the text it
+            # returns, not what gets appended to it.
             line_count = file_parts[i]["full_content"].count("\n") + 1
-            note_reserve = len(
-                _truncated_note(line_count, line_count, "프롬프트 크기 제한")
+            available = _charge_notice(
+                remaining_budget + refund - content_wrapper_overhead,
+                _truncated_note(line_count, line_count, "프롬프트 크기 제한"),
             )
-            available = (remaining_budget + refund
-                         - content_wrapper_overhead - note_reserve)
             if available > 200:
                 kept_text, kept, total = line_anchors.truncate_to_line_boundary(
                     file_parts[i]["full_content"], available
