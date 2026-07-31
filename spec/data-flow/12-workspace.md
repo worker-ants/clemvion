@@ -238,14 +238,22 @@ stateDiagram-v2
 
 ### 3.2 RBAC 매트릭스 (요약)
 
-| Role | 워크스페이스 설정 | 멤버 관리 | 워크플로우 CRUD | 실행 | LLM Config / Integration |
-| --- | --- | --- | --- | --- | --- |
-| owner | ✓ | ✓ (자기 외) | ✓ | ✓ | ✓ |
-| admin | ✓ | ✓ (owner 제외) | ✓ | ✓ | ✓ |
-| editor | ✗ | ✗ | ✓ | ✓ | view |
-| viewer | ✗ | ✗ | view | ✓ (수동 실행 only) | view |
+| Role | 워크스페이스 설정 | 멤버 관리 | 워크플로우 CRUD | 실행 | LLM Config | Integration |
+| --- | --- | --- | --- | --- | --- | --- |
+| owner | ✓ | ✓ (자기 외) | ✓ | ✓ | ✓ | ✓ |
+| admin | ✓ | ✓ (owner 제외) | ✓ | ✓ | ✓ | ✓ |
+| editor | ✗ | ✗ | ✓ | ✓ | ✓ | view |
+| viewer | ✗ | ✗ | view | ✗ | view | view |
 
 > 정식 권한 매트릭스는 `spec/5-system/1-auth.md §3.2`. 본 표는 데이터 변경 권한 관점의 요약이다.
+>
+> **viewer 는 워크플로우를 실행할 수 없다** — `POST /api/workflows/:id/execute` 가 `@Roles('editor')`
+> 이고 `ROLE_HIERARCHY` 상 viewer(1) < editor(2) 다. 1-auth.md §3.2 의 `Workflow 실행` 행도 Viewer 를
+> `—` 로 둔다. (2026-07-31 정정 — 이 셀이 오랫동안 `✓ (수동 실행 only)` 로 잘못 적혀 있었다.)
+>
+> **LLM Config 와 Integration 은 editor 권한이 다르다** — 병합 열로 두면 한쪽이 반드시 틀리므로
+> 분리했다. Model Config 는 워크플로우 구축의 일부라 Editor CRUD, Integration(Org)은 외부 자격증명이라
+> Editor R 이다 (1-auth.md §3.2 및 그 아래 "Model Config Editor CRUD 근거" 각주).
 
 ---
 
