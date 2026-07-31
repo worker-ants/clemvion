@@ -171,7 +171,16 @@ class CodeReviewInFlightTest(unittest.TestCase):
 
 
 class EvaluateInFlightShortCircuitTest(unittest.TestCase):
-    def test_in_flight_allows_even_with_stale_review(self):
+    """The in-flight concession is Stop-only — `in_flight_ok` decides.
+
+    Both guards call `evaluate_review`. While the suppression was
+    unconditional it also opened the PUSH gate for the whole TTL, which
+    contradicted the documented invariant ("the push guard still hard-gates").
+    These two tests lock both directions: flipping the default back to
+    suppress-always turns the first one RED.
+    """
+
+    def _evaluate(self, **kwargs):
         with mock.patch.object(rg, "_repo_root", return_value="/r"), \
              mock.patch.object(rg, "_default_branch", return_value="main"), \
              mock.patch.object(rg, "_merge_base", return_value="base"), \
@@ -181,7 +190,16 @@ class EvaluateInFlightShortCircuitTest(unittest.TestCase):
              mock.patch.object(rg, "_code_review_in_flight", return_value=True), \
              mock.patch.object(rg, "_newest_code_mtime", return_value=999.0), \
              mock.patch.object(rg, "_newest_resolved_review_mtime", return_value=0.0):
-            d = rg.evaluate_review("/fake")
+            return rg.evaluate_review("/fake", **kwargs)
+
+    def test_push_path_still_blocks_while_in_flight(self):
+        # Default (no opt-in) is the push guard's call shape.
+        d = self._evaluate()
+        self.assertTrue(d.blocked)
+        self.assertNotIn("in flight", d.reason)
+
+    def test_stop_path_opts_in_and_is_allowed(self):
+        d = self._evaluate(in_flight_ok=True)
         self.assertFalse(d.blocked)
         self.assertIn("in flight", d.reason)
 

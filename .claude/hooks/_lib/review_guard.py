@@ -135,11 +135,16 @@ CONSISTENCY_GLOB_ROOT = os.path.join("review", "consistency")
 _IMPL_DONE_MODE_TOKEN = "--impl-done"
 _BLOCK_LINE = re.compile(r"BLOCK:\s*(YES|NO)", re.IGNORECASE)
 
-# How long a started-but-unfinished review session suppresses the gate. A
-# `/ai-review` run that has created its session dir (meta.json) but not yet
+# How long a started-but-unfinished review session suppresses the *Stop nudge*.
+# A `/ai-review` run that has created its session dir (meta.json) but not yet
 # written SUMMARY.md is "in flight" — blocking turn-end then would fire the
 # nudge for a review the model is *already* running. Past this TTL an abandoned
-# session no longer suppresses enforcement (the push guard still hard-gates).
+# session no longer suppresses even the nudge.
+# The push guard is unaffected in the first place: the suppression only applies
+# when the caller passes `in_flight_ok=True`, and only the Stop guard does.
+# Do NOT make that suppression unconditional — both guards share
+# `evaluate_review`, so an always-on concession opens the push gate for the
+# whole TTL. That regression is locked by EvaluateInFlightShortCircuitTest.
 _IN_FLIGHT_TTL_SECONDS = 1800  # 30 min — comfortably covers a slow review fan-out
 
 # Trailing `<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>` of a review/consistency session dir.
@@ -727,9 +732,15 @@ def _code_review_in_flight(repo_root: str, now: float | None = None) -> bool:
     launched /ai-review and the Stop hook fired anyway" symptom — the gate has
     no other way to see an async review in progress. We only honour recent
     sessions (within _IN_FLIGHT_TTL_SECONDS, by the checkout-immune session-dir
-    timestamp) so an abandoned/crashed session cannot suppress the gate forever;
-    the push guard remains the hard backstop. `now` is injectable for tests;
-    production callers omit it (defaults to time.time())."""
+    timestamp) so an abandoned/crashed session cannot suppress the nudge forever.
+
+    The push guard remains the hard backstop — but that is NOT this function's
+    doing. It holds only because `evaluate_review` consults this predicate
+    exclusively under `in_flight_ok=True`, which the Stop guard passes and the
+    push guard does not. Read as an unconditional guarantee this docstring was
+    false for as long as the caller applied it unconditionally.
+
+    `now` is injectable for tests; production callers omit it (time.time())."""
     now = time.time() if now is None else now
     root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
     if not os.path.isdir(root):
@@ -844,11 +855,22 @@ def _resolution_in_flight(repo_root: str, now: float | None = None,
     return False
 
 
-def evaluate_review(cwd: str | None = None) -> ReviewDecision:
+def evaluate_review(
+    cwd: str | None = None, *, in_flight_ok: bool = False
+) -> ReviewDecision:
     """Return a ReviewDecision for the working dir (cwd or '.').
 
     blocked == True  → caller should refuse (push) / block stop.
     blocked == False → proceed; `reason` may carry context for logging.
+
+    `in_flight_ok` opts into the started-but-unfinished review suppression
+    (see `_code_review_in_flight`). It exists for ONE caller — the Stop nudge,
+    which must not nag about a review the model is running right now. It
+    defaults to False so the push guard keeps hard-gating: both guards call
+    this same function, so a shared default-on suppression would have opened
+    the push gate for the whole TTL. (That was the bug; the constant's own
+    comment and `_code_review_in_flight`'s docstring both asserted "the push
+    guard still hard-gates", which was false while this was unconditional.)
     """
     cwd = cwd or os.getcwd()
 
@@ -867,10 +889,12 @@ def evaluate_review(cwd: str | None = None) -> ReviewDecision:
         return ReviewDecision(False, "no codebase/ changes on this branch — allowed")
 
     # A `/ai-review` started this turn but still running is not an unreviewed
-    # branch — it is a review mid-flight. Don't fire the nudge for work the model
-    # is already doing; the push guard still hard-gates if the review never
-    # lands. (Targets the async-review ↔ synchronous-Stop race.)
-    if _code_review_in_flight(repo_root):
+    # branch — it is a review mid-flight. Don't fire the *nudge* for work the
+    # model is already doing. (Targets the async-review ↔ synchronous-Stop race.)
+    # Gated on `in_flight_ok` so this stays a Stop-nudge concession: the push
+    # guard calls the same function and must NOT be opened by a session that has
+    # merely been started.
+    if in_flight_ok and _code_review_in_flight(repo_root):
         return ReviewDecision(
             False, "a code review session is in flight (started, SUMMARY pending) — allowed"
         )

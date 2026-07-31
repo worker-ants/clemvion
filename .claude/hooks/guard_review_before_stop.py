@@ -337,7 +337,11 @@ def _run(outcome) -> int:
             "_lib/review_guard.py", "evaluate_review", _REVIEW_IMPORT_ERROR)))
     else:
         try:
-            decision = evaluate_review()
+            # `in_flight_ok=True` is Stop-only: a review that has started but not
+            # yet written SUMMARY.md must not trigger this nudge. The push guard
+            # deliberately omits it so a merely-started session cannot open the
+            # hard gate (see review_guard.evaluate_review).
+            decision = evaluate_review(in_flight_ok=True)
         except Exception as exc:  # noqa: BLE001
             traceback.print_exc(file=sys.stderr)
             outcome.degraded.append((_GATE_REVIEW, f"{type(exc).__name__}: {exc}"))
