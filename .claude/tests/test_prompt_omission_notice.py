@@ -49,6 +49,14 @@ _PREAMBLE = textwrap.dedent(
     def emit(value):
         sys.stdout.write("<<<" + json.dumps(value) + ">>>")
 
+    # `build_cli_change_info` falls back to `get_git_diff_content()` whenever the
+    # diff is falsy — and `diff_content=""` IS falsy — so every fixture path
+    # (none of which exist) spawned two real git processes. At 1,200 files that
+    # is 2,400 subprocesses: cProfile put 29.35s in the builder against 0.166s in
+    # `build_files_section`, the function actually under test, and the suite's
+    # 30s timeout fired. Stub it, as `test_review_changeset_warning` does.
+    orch.get_git_diff_content = lambda path: ""
+
     def change_info(path, body):
         # Real builder, not a hand-rolled dict — the shape it produces is the
         # thing under test, and guessing it wrong hides real failures.

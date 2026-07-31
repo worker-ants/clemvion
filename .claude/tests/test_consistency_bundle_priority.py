@@ -154,6 +154,24 @@ class PrioritizeBundleFilesTest(unittest.TestCase):
         self.assertEqual(out[0],
                          "spec/conventions/cafe24-api-catalog/product/fields.md")
 
+    def test_catalog_top_level_index_is_not_demoted(self):
+        """R-7 keeps the catalog's top-level index files as 정식 spec.
+
+        `spec-impl-evidence.md` R-7 excludes only paths with **one or more**
+        segments after the catalog directory; the `<resource>.md` indexes carry
+        `id`/`status` and stay in scope. The first version of the regex matched
+        the catalog directory alone and demoted those too — measured 27 index
+        files wrongly pushed behind everything, the opposite of what R-7 asks.
+        """
+        out = _prioritize([
+            "spec/conventions/cafe24-api-catalog/product/fields.md",  # nested
+            "spec/conventions/cafe24-api-catalog/product.md",         # index
+            "spec/conventions/error-codes.md",
+        ])
+        self.assertEqual(out[-1],
+                         "spec/conventions/cafe24-api-catalog/product/fields.md")
+        self.assertIn("spec/conventions/cafe24-api-catalog/product.md", out[:2])
+
     def test_reordering_never_drops_or_invents(self):
         """This function reorders only — dropping is `truncate_file_bundle`'s job,
         and only it emits the omission notice checkers rely on."""
@@ -331,6 +349,15 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
 
     def test_conventions_uses_the_ranked_order(self):
         self._assert_sentinel_order("impl_done", "conventions")
+
+    def test_plan_in_progress_uses_the_ranked_order(self):
+        """`plan_coherence`'s ONLY corpus — the one that needs ranking most.
+
+        Measured on this repo it is roughly 10x its own budget share, so the
+        alphabetical tail-drop is the normal case there, not an edge case. It
+        was the one bundle left unranked, with nothing documenting a reason.
+        """
+        self._assert_sentinel_order("impl_done", "plan_in_progress")
 
 
 if __name__ == "__main__":

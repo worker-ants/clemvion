@@ -233,13 +233,19 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     return files
 
 
-# Auto-generated per-resource reference dumps (e.g. `spec/conventions/
-# cafe24-api-catalog/<resource>/**`). `spec-impl-evidence.md` itself says these
-# are not 정식 spec, yet alphabetically they land near the front of the
-# conventions bundle and used to consume the whole budget before any document
-# the target actually cites. Matched on the path segment so a relocated or
-# newly added catalog inherits the demotion without a code change.
-_CATALOG_BULK_RE = re.compile(r"(^|/)[^/]*-api-catalog/")
+# Auto-generated per-resource reference dumps (`spec/conventions/
+# <name>-api-catalog/<resource>/**`). `spec-impl-evidence.md` R-7 says these are
+# not 정식 spec, yet alphabetically they land near the front of the conventions
+# bundle and used to consume the whole budget before any document the target
+# actually cites. Matched on the path shape so a relocated or newly added
+# catalog inherits the demotion without a code change.
+#
+# The trailing `[^/]+/` is load-bearing: R-7 draws the line at "one or more path
+# segments after the catalog directory", and says the top-level
+# `<name>-api-catalog/<resource>.md` index files are 정식 spec that stay in
+# scope. Measured here: 222 nested files demoted, 27 top-level indexes not.
+# Without it this demoted those 27 too — the exact opposite of what R-7 asks.
+_CATALOG_BULK_RE = re.compile(r"(^|/)[^/]*-api-catalog/[^/]+/")
 
 
 def _is_catalog_bulk(rel):
@@ -580,6 +586,12 @@ def collect_context(args, root):
     # / swagger / secret-store / migrations / execution-context) out of budget.
     other_spec_files = _prioritized(other_spec_files)
     convention_files = _prioritized(convention_files)
+    # `plan_in_progress` needs this most, not least: it is `plan_coherence`'s ONLY
+    # corpus. Measured on this repo it is ~10x its own budget share, so the
+    # alphabetical tail-drop is not an edge case there — it is the normal case,
+    # and the 4th recurrence recorded in the ticket was exactly this bundle with
+    # this checker. It was left out by oversight; nothing documents an exclusion.
+    plan_files = _prioritized(plan_files)
 
     related_specs = format_file_bundle(other_spec_files, root, "관련 spec 본문")
     conventions = format_file_bundle(convention_files, root, "spec/conventions 정식 규약")

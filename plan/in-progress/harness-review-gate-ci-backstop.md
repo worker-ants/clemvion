@@ -24,7 +24,7 @@ priority: P2
 > 나왔고 그 둘이 이 PR 의 핵심 파일이었다. 즉 §재발 관측이 consistency 쪽에서 8회 기록한
 > 결함 클래스의 **code-review 쪽 쌍둥이**다. 생략 사실 + 읽을 경로를 명시하도록 수정.
 >
-> **신규 후속 3건 (defer)**
+> **신규 후속 (defer) — 아래 7건 + 기본 브랜치 해석 중복 1건**
 >
 > 1. **`build_files_section` 의 diff-only 예산 분기가 상한을 넘는다 (기존 결함)** —
 >    headers+diffs 만으로 예산을 넘는 분기에서, 절단 루프가 `_truncated_note` 와
