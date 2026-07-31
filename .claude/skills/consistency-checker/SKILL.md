@@ -110,6 +110,19 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 - `project-planner` 안 호출이면 → `spec/` 쓰기 중단.
 - 사용자 직접 호출이면 → 핵심 보여주고 결정 요청.
 
+**Critical 하향은 금지다.** checker 의 `[CRITICAL]` 을 통합 단계에서 WARNING 으로 낮춰 `BLOCK: NO`
+를 내는 것은 근거가 타당해 보여도 규약 위반이다 — `review_guard.py` 는 `BLOCK:` 한 줄만 파싱하므로
+그 하향이 게이트를 실제로 통과시킨다 (`consistency-summary.md §요약 지침 3`).
+
+**근본 원인이 호출자 권한 밖이면 (`developer` 턴의 `spec/` drift 등) planner 로 즉시 인계한다.**
+"구현은 끝났는데 spec 표가 stale" 은 developer 혼자 닫을 수 없는 정상적인 중간 상태다. 우회하지
+말고 SUMMARY 의 **§planner 인계** 표를 근거로 `project-planner` 턴을 열어 spec 을 정정한 뒤
+재실행한다. 실측상 planner 턴의 spec 정정이 우회 설계보다 쌌다(3줄).
+
+> 이 경로가 문서화되기 전에는 요약 에이전트가 스스로 하향을 발명해 진행했다
+> (`review/code/2026/07/25/22_58_00`). 막다른 길처럼 보이면 우회가 생긴다 — 그래서 금지와
+> 인계 경로를 함께 둔다.
+
 ## 호출자 워크플로
 
 **project-planner**:
