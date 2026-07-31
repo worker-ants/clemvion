@@ -42,18 +42,16 @@ from _lib import project_config  # noqa: E402
 # Report location/validity is shared with the push/stop gate and the code-review
 # orchestrator — see `.claude/_shared/report_paths.py`. One rule, three consumers.
 from _shared import report_paths as _report_paths_lib  # noqa: E402
+from _shared import block_integrity as _block_integrity  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
 
-ALL_CHECKERS = [
-    "cross_spec",
-    "rationale_continuity",
-    "convention_compliance",
-    "plan_coherence",
-    "naming_collision",
-]
+# Derived, not restated: `_shared/block_integrity` needs the same list to know
+# which reports to cross-check, and a name added in one place only would make
+# that backstop silently blind to the new checker.
+ALL_CHECKERS = list(_block_integrity.ALL_CHECKERS)
 
 
 def _subagent_type(checker_name):

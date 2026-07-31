@@ -54,6 +54,42 @@ class CountCriticalTagsTest(unittest.TestCase):
         self.assertEqual(BI.count_critical_tags(clean), 0)
 
 
+class CheckerListIsCanonicalTest(unittest.TestCase):
+    """One list, derived — not two that happen to agree today.
+
+    `block_integrity` must know every checker: a name added to the orchestrator
+    and forgotten here would make this backstop silently blind to that checker's
+    downgrades, which is the failure it exists to catch, reproduced one level up.
+    The orchestrator therefore derives its `ALL_CHECKERS` from this module.
+    """
+
+    def test_orchestrator_derives_its_list_from_here(self):
+        """Fresh interpreter: importing the orchestrator in-process collides on
+        the name `_lib` (hooks vs skills), the same dodge the consistency suites
+        document."""
+        import json as _json
+        import subprocess
+        import sys as _sys
+        path = (_harness.CLAUDE_DIR / "skills" / "consistency-checker" / "scripts"
+                / "consistency_orchestrator.py")
+        snippet = (
+            "import importlib.util, json, sys\n"
+            f"spec = importlib.util.spec_from_file_location('o', {str(path)!r})\n"
+            "m = importlib.util.module_from_spec(spec); sys.modules['o'] = m\n"
+            "spec.loader.exec_module(m)\n"
+            "sys.stdout.write(json.dumps(list(m.ALL_CHECKERS)))\n"
+        )
+        out = subprocess.run([_sys.executable, "-c", snippet],
+                             capture_output=True, text=True,
+                             cwd=str(_harness.REPO_ROOT), timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr[-2000:])
+        self.assertEqual(_json.loads(out.stdout), list(BI.ALL_CHECKERS))
+
+    def test_report_filenames_follow_the_names(self):
+        self.assertEqual(BI.CHECKER_REPORTS,
+                         tuple(f"{n}.md" for n in BI.ALL_CHECKERS))
+
+
 class VerdictIsAnchoredTest(unittest.TestCase):
     """A summary narrating an earlier verdict must not be read as its own.
 

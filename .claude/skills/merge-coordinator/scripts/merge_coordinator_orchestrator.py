@@ -33,12 +33,15 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(THIS_DIR)
 SKILLS_DIR = os.path.dirname(SKILL_DIR)  # .claude/skills/
 CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILLS_DIR, "code-review-agents"))
+CLAUDE_DIR = os.path.dirname(SKILLS_DIR)  # .claude/  — for `_shared`
 sys.path.insert(0, CODE_REVIEW_SKILL)
 sys.path.insert(0, SKILLS_DIR)
+sys.path.insert(0, CLAUDE_DIR)
 
 from lib import session  # noqa: E402
 from lib.role_instructions import ANALYZER_INSTRUCTIONS  # noqa: E402
 from _lib import project_config  # noqa: E402
+from _shared import retry_state as _retry_state_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/merge-coordinator-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -79,20 +82,6 @@ def load_config():
 # ---------------------------------------------------------------------------
 
 
-def _load_state(session_dir):
-    state_file = os.path.join(session_dir, "_retry_state.json")
-    if not os.path.isfile(state_file):
-        print(f"Error: _retry_state.json missing under {session_dir}", file=sys.stderr)
-        sys.exit(1)
-    with open(state_file, "r", encoding="utf-8") as f:
-        return state_file, json.load(f)
-
-
-def _save_state(state_file, state):
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-
-
 def _emit_summary_state(session_dir):
     _, state = _load_state(os.path.abspath(session_dir))
     pending = len(state.get("agents_pending", []))
@@ -106,6 +95,24 @@ def _emit_summary_state(session_dir):
         f"pending={pending} success={success} fatal={fatal} "
         f"branches={branches} base={base} last_reset={last_reset_str}"
     )
+
+
+# `_load_state`/`_save_state` are byte-identical to the other two orchestrators'
+# and now live in `.claude/_shared/retry_state.py` (AST-verified before moving).
+#
+# `_apply_status_update` and `_emit_summary_state` below stay local: they differ
+# here (branch/base bookkeeping instead of agent buckets). And this file has no
+# `_reconcile_state_with_disk` at all — the self-healing the other two gained is
+# missing, so a session fanned out with the Agent tool can still leave its state
+# frozen at the prepare-time snapshot while its SUMMARY reports real successes.
+# That is a behaviour change to a different skill, so it is registered as a
+# follow-up rather than smuggled into this branch.
+def _load_state(session_dir):
+    return _retry_state_lib.load_state(session_dir)
+
+
+def _save_state(state_file, state):
+    return _retry_state_lib.save_state(state_file, state)
 
 
 def _apply_status_update(session_dir, agent, status, reset_hint):

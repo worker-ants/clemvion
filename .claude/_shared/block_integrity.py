@@ -57,13 +57,20 @@ _BLOCK_LINE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-CHECKER_REPORTS = (
-    "cross_spec.md",
-    "rationale_continuity.md",
-    "convention_compliance.md",
-    "plan_coherence.md",
-    "naming_collision.md",
+# The canonical checker list. It lives here rather than in the orchestrator
+# because this module is the one that must never miss a checker: a name added
+# there and forgotten here would let that checker's downgrade pass unnoticed —
+# the exact failure this file exists to catch, reproduced one level up. The
+# orchestrator derives `ALL_CHECKERS` from it, so there is one place to edit.
+ALL_CHECKERS = (
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision",
 )
+
+CHECKER_REPORTS = tuple(f"{name}.md" for name in ALL_CHECKERS)
 
 
 def count_critical_tags(text: str) -> int:
