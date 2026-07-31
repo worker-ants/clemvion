@@ -672,6 +672,34 @@ describe('WorkflowsService', () => {
       expect(mockTransactionManager.insert).not.toHaveBeenCalled();
     });
 
+    // 두 `length > 0` 가드가 **독립**임을 고정한다. 위 "빈 캔버스" 케이스는 둘 다
+    // 0 이라 한쪽 가드를 지워도 통과하므로, 노드만 있고 엣지가 0건인 조합이 별도로
+    // 필요하다 (importWorkflow 에는 이미 대칭 단언이 있다).
+    it('노드만 있고 엣지가 0건이면 Node insert 만 호출한다', async () => {
+      mockTransactionManager.find = jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          Promise.resolve(entity === Node ? origNodes : []),
+        );
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      expect(mockTransactionManager.insert).toHaveBeenCalledTimes(1);
+      expect(insertedRows(Node)).toHaveLength(5);
+      expect(insertedRows(Edge)).toBeUndefined();
+    });
+
+    it('엣지 condition 을 얕은 복사해 원본 JSONB 와 참조를 공유하지 않는다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const errEdge = insertedRows(Edge)!.find(
+        (e) => e.type === EdgeType.ERROR,
+      )!;
+      expect(errEdge.condition).toEqual({ foo: 1 });
+      // 값은 같되 **다른 객체** 여야 한다 — 같은 참조면 사본 변이가 원본을 오염시킨다.
+      expect(errEdge.condition).not.toBe(origEdges[1].condition);
+    });
+
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
       mockTransactionManager.find = jest
