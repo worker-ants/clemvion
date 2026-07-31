@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **40건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **41건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **759건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **760건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -182,7 +182,20 @@ spec_impact: none
       `WidenedFilterTest` 로 양쪽 고정. INFO 11: PyYAML 1.1 리졸버가 `on`/`yes` 를 불리언으로
       만들어 최상위 키에 타입이 섞이면 진단 조립의 `sorted()` 가 TypeError 로 죽던 것 —
       `key=str` 로 제거(재현 후 수정).
-- [ ] `/ai-review` 8차 · RESOLUTION · push + PR
+- [x] TEST WORKFLOW (8차) — lint PASS(50s) · unit PASS(63s) · build PASS(111s) ·
+      e2e PASS(261s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 8차 (`04_58_18`) — Critical 0 · Warning 2. security/scope/side_effect/
+      maintainability/documentation 5명은 8차 연속 LOW·clean 수렴.
+      (1) **flaky 가드**: `WidenedFilterTest...always_widens` 가 50회 중 1회 exit 0 으로 끝났다
+      (스텁이 돌았다면 나올 수 없는 값). 300회 재현 시도로는 안 나왔고 근본 원인 미확정이라,
+      확률을 재는 대신 **구조로 없애고 재발 시 시끄럽게 만들었다** — 스텁을 rename 으로
+      원자적으로 배치(`execvp` 는 PATH 항목이 EACCES 면 다음으로 넘어가므로 실행 불가 상태가
+      잠깐이라도 보이면 진짜 pnpm 이 뽑힌다) + 스텁이 마커를 남기고 없으면 `StubNotUsed` 로
+      즉시 실패. 뮤턴트(스텁 chmod 644)로 마커 단언이 실제로 문다는 것 확인.
+      (2) `sorted(key=str)` 회귀 테스트 부재 → 추가.
+      INFO 1(`read_text` 가 예외 범위 밖 — 유효하지 않은 UTF-8 이 traceback+exit 1) ·
+      INFO 4(주석 위치) · INFO 6(4라운드 이월 "5건→4건" 서술) 모두 종결.
+- [ ] TEST WORKFLOW (9차) · `/ai-review` 9차 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 

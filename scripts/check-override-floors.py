@@ -11,7 +11,8 @@
     fast-uri      ^3.1.2   → 필요 >=3.1.4
     hono          ^4.12.21 → 필요 >=4.12.27
 
-`pnpm audit` 이 이것들을 **잡기는 한다** — 실제로 위 4건은 audit 17건 중에 섞여 보고됐다.
+`pnpm audit` 이 이것들을 **잡기는 한다** — 위 5건 중 `#1038` 에서 나온 4건은 그때
+audit 이 보고한 17건 안에 섞여 있었다(`next>postcss` 는 앞선 `#1036` 건이라 그 목록 밖).
 본 가드의 가치는 검출이 아니라 **분류**다:
 
   - 오버라이드가 **없는** 패키지가 취약  → 새로 발견. 상향 가능한지·수용할지 판단이 필요하다.
@@ -124,24 +125,25 @@ def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
     0건과 구별되지 않는 성공, 이 스크립트가 존재하는 이유인 바로 그 실패 클래스다. 그래서
     "빈 결과로 조용히 흘려보낼 수 있는" 입력 형태를 하나씩 막지 않고 **한 자리에서** 가른다.
     """
-    text = path.read_text(encoding="utf-8")
     try:
-        data = yaml.safe_load(text)
-    except yaml.YAMLError as exc:
+        # `read_text` 도 같은 블록 안이다 — 유효하지 않은 UTF-8 이면 `UnicodeDecodeError` 가
+        # 그대로 전파되어 파싱 오류와 똑같은 증상(traceback + exit 1)이 된다.
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (yaml.YAMLError, UnicodeDecodeError, OSError) as exc:
         # 안 잡으면 traceback 과 함께 exit 1 로 죽는다 — 이 스크립트 어휘에서 1 은 "침식 발견"
         # 이라 구문 오류가 정상 발견 신호와 같은 코드가 된다(exit code 만 보는 자동화가 혼동).
-        _undecidable(f"{path} 를 YAML 로 파싱하지 못했다:", f"  {exc}")
+        _undecidable(f"{path} 를 읽거나 YAML 로 파싱하지 못했다:", f"  {type(exc).__name__}: {exc}")
     overrides = data.get("overrides") if isinstance(data, dict) else None
     if not isinstance(overrides, dict):
         # 키 부재·오타(`override:`)·값 없음(`overrides:` → None)·매핑 아닌 값(문자열/리스트)
         # 을 한 조건으로 막는다. 빈 매핑(`overrides: {}`)은 의도일 수 있으므로 허용 —
         # 판정 기준은 "비었는가" 가 아니라 **매핑인가** 다.
+        # 진단의 `key=str` — PyYAML 1.1 리졸버가 `on`/`yes`/`no` 를 불리언으로 만들어 최상위
+        # 키에 타입이 섞이면 그냥 `sorted()` 는 TypeError 로 죽는다(진단이 죽으면 exit 1).
         _undecidable(
             f"{path} 의 `overrides` 가 매핑이 아니다 — override 목록을 못 읽으면 대상이 0개가 "
             "되어 무엇도 걸리지 않는다(fail-closed). 키 오타(`override:`)나 값 누락인지 확인할 것.",
             f"  실제: {type(overrides).__name__}"
-            # `key=str` — PyYAML 1.1 리졸버가 `on`/`yes`/`no` 를 불리언으로 만들어
-            # 최상위 키에 타입이 섞이면 그냥 sorted() 는 TypeError 로 죽는다.
             f" · 최상위 키: {sorted(data, key=str)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
         )
     targets: dict[str, list[str]] = {}

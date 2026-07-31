@@ -22,7 +22,10 @@
   3. **`ignoreCves` 억제분의 경로 baseline** — 수용된 CVE 는 `advisories` 에서 통째로 사라져
      축 2 로는 절대 안 잡힌다(실측: 취약 버전이 실제 설치됐는데 가드가 OK 를 냈다 — 이 가드가
      막으려던 바로 그 조용한 통과였다). `actions[]` 에 남는 경로를 baseline 과 대조해
-     **경로가 늘면** fail 시킨다.
+     **경로가 늘면** fail 시킨다. 그 대조 루프의 경계 두 개는 `WidenedFilterTest` 가 따로
+     고정한다 — override 미관리 모듈은 이 잡이 관여하지 않고(무력화하면 무관한 패키지가 거짓
+     빨간불), baseline 에 키가 없으면 허용 경로 0개라 첫 억제부터 fail 이다(기본값을 뒤집으면
+     신규 억제가 통째로 조용히 통과한다).
 
   4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
@@ -67,6 +70,9 @@ MANAGED_OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n  next>postcss: ^8.5.18\n
 _PNPM_STUB = """\
 #!/usr/bin/env python3
 import os, sys
+# 자신이 실행됐다는 마커. 이게 없으면 PATH 에서 **진짜** pnpm 이 뽑힌 것이고, 그러면 단언은
+# 스텁 payload 가 아니라 실제 레지스트리 응답을 보게 된다 — 조용히 틀린 테스트다.
+open(os.environ["STUB_RAN_MARKER"], "w").close()
 # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키 존재로 정상 응답을
 # 판정하므로(fail-closed) 스텁도 갖춰야 한다. 내용은 STUB_AUDIT_PAYLOAD 파일에서 읽는다.
 sys.stdout.write(open(os.environ["STUB_AUDIT_PAYLOAD"], encoding="utf-8").read())
@@ -74,6 +80,10 @@ sys.stdout.write(open(os.environ["STUB_AUDIT_PAYLOAD"], encoding="utf-8").read()
 # "returncode 로 판단하지 않는다" 는 불변식이 통째로 미검증으로 남는다.
 sys.exit(int(os.environ.get("STUB_AUDIT_EXIT", "0")))
 """
+
+
+class StubNotUsed(AssertionError):
+    """PATH 앞에 둔 스텁 대신 다른 `pnpm` 이 실행됐다."""
 
 
 def _stage_script(tmp: Path) -> Path:
@@ -87,6 +97,7 @@ def _stage_script(tmp: Path) -> Path:
 def run_with_stub_audit(
     advisories: dict, overrides: str, actions: list | None = None,
     raw_stdout: str | None = None, stub_exit: int = 0,
+    expect_stub_ran: bool = True,
 ) -> subprocess.CompletedProcess:
     """`pnpm audit` 을 스텁으로 갈아끼워 스크립트를 돌린다.
 
@@ -95,6 +106,15 @@ def run_with_stub_audit(
 
     `raw_stdout` 을 주면 정상 형태 대신 그 문자열을 그대로 뱉는다 — fail-closed 분기용.
     `stub_exit` 는 스텁의 종료 코드 — 실제 audit 은 취약점을 찾으면 비-0 으로 끝난다.
+    `expect_stub_ran=False` 는 스크립트가 audit 전에 끝나는 경로(설정 fail-closed)용.
+
+    **스텁이 실제로 실행됐는지 확인한다.** 리뷰가 50회 중 1회 exit 0(스텁이 돌았다면 나올 수
+    없는 값)을 관측했다 — PATH 에서 진짜 `pnpm` 이 뽑히면 단언이 스텁 payload 가 아니라 실제
+    레지스트리 응답을 보게 되고, 그건 조용히 틀린 테스트다. 두 겹으로 막는다:
+      1. 스텁을 **원자적으로** 자리에 놓는다(임시 이름에 쓰고 chmod 한 뒤 rename). `execvp` 는
+         PATH 항목이 EACCES 면 **다음 항목으로 넘어가므로**, 파일이 실행 불가 상태로 잠깐이라도
+         보이면 진짜 pnpm 이 뽑힌다. rename 은 원자적이라 그 창이 없다.
+      2. 스텁이 마커를 남기고, 없으면 `StubNotUsed` 로 즉시 실패시킨다 — 재발해도 조용하지 않다.
     """
     import tempfile
     import os
@@ -114,21 +134,34 @@ def run_with_stub_audit(
         payload_file.write_text(payload, encoding="utf-8")
         bindir = tmp / "bin"
         bindir.mkdir()
+        # 실행 비트를 세운 뒤 **rename 으로** 자리에 놓는다 — `bin/pnpm` 이 실행 불가 상태로
+        # 보이는 창이 없어야 execvp 가 다음 PATH 항목으로 새지 않는다.
+        staged = bindir / ".pnpm.staged"
+        staged.write_text(_PNPM_STUB, encoding="utf-8")
+        staged.chmod(0o755)
         fake = bindir / "pnpm"
-        fake.write_text(_PNPM_STUB, encoding="utf-8")
-        fake.chmod(0o755)
+        os.replace(staged, fake)
+        marker = tmp / "stub-ran"
         env = dict(
             os.environ,
             PATH=f"{bindir}:{os.environ['PATH']}",
             STUB_AUDIT_PAYLOAD=str(payload_file),
             STUB_AUDIT_EXIT=str(stub_exit),
+            STUB_RAN_MARKER=str(marker),
         )
-        return subprocess.run(
+        proc = subprocess.run(
             [sys.executable, str(script)],
             capture_output=True,
             text=True,
             env=env,
         )
+        if expect_stub_ran and not marker.exists():
+            raise StubNotUsed(
+                "PATH 앞의 스텁이 실행되지 않았다 — 이 실행의 단언은 스텁 payload 가 아니라 "
+                f"다른 `pnpm` 의 출력을 본 것이다.\n  exit={proc.returncode}\n"
+                f"  stdout={proc.stdout[:500]}\n  stderr={proc.stderr[:500]}"
+            )
+        return proc
 
 
 def _load_module():
@@ -456,19 +489,19 @@ class MissingOverridesKeyTest(unittest.TestCase):
     """
 
     def test_missing_overrides_key_is_undecidable(self):
-        r = run_with_stub_audit({}, "packages:\n  - codebase/*\n")  # overrides 없음
+        r = run_with_stub_audit({}, "packages:\n  - codebase/*\n", expect_stub_ran=False)  # overrides 없음
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("overrides", r.stderr)
 
     def test_typo_key_is_undecidable(self):
-        r = run_with_stub_audit({}, "override:\n  liquidjs: ^10.27.1\n")  # 단수형 오타
+        r = run_with_stub_audit({}, "override:\n  liquidjs: ^10.27.1\n", expect_stub_ran=False)  # 단수형 오타
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         # exit code 만 보면 다른 _undecidable 사유로 잘못 합쳐져도 통과한다.
         self.assertIn("overrides", r.stderr)
 
     def test_valueless_overrides_is_undecidable(self):
         """`overrides:` 뒤에 값이 없으면 `None` 이라 순회가 0회 — 키는 있지만 목록은 없다."""
-        r = run_with_stub_audit({}, "overrides:\npackages:\n  - codebase/*\n")
+        r = run_with_stub_audit({}, "overrides:\npackages:\n  - codebase/*\n", expect_stub_ran=False)
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("매핑이 아니다", r.stderr)
 
@@ -476,7 +509,7 @@ class MissingOverridesKeyTest(unittest.TestCase):
         """매핑이 아닌 truthy 값(문자열·리스트)은 순회해도 의미가 없다."""
         for bad in ('overrides: "liquidjs"\n', "overrides:\n  - liquidjs\n"):
             with self.subTest(overrides=bad):
-                r = run_with_stub_audit({}, bad)
+                r = run_with_stub_audit({}, bad, expect_stub_ran=False)
                 self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
                 self.assertIn("매핑이 아니다", r.stderr)
 
@@ -485,13 +518,26 @@ class MissingOverridesKeyTest(unittest.TestCase):
         r = run_with_stub_audit({}, "overrides: {}\n")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    def test_diagnostic_survives_mixed_type_top_level_keys(self):
+        """진단 메시지 조립 자체가 죽으면 안 된다.
+
+        PyYAML 1.1 리졸버는 `on`/`yes`/`no` 를 **불리언**으로 만든다. 그러면 최상위 키에 타입이
+        섞이고, 진단에 쓰는 `sorted(data)` 가 `TypeError` 로 죽어 exit 1 + traceback 이 된다 —
+        하필 그 코드가 이 스크립트에서 "침식 발견" 을 뜻한다. `key=str` 이 그걸 막는다.
+        """
+        r = run_with_stub_audit(
+            {}, 'overrides: "liquidjs"\non: true\n', expect_stub_ran=False
+        )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
     def test_unparseable_yaml_is_undecidable_not_exit_1(self):
         """구문 오류 YAML 이 exit 1 로 죽으면 "침식 발견" 과 같은 코드가 된다.
 
         `yaml.safe_load` 예외를 안 잡으면 traceback + 기본 exit 1 이다 — exit code 만 보는
         자동화는 그걸 정상 발견 신호로 읽는다. JSON 쪽은 이미 갈랐는데 YAML 쪽만 비어 있었다.
         """
-        r = run_with_stub_audit({}, "overrides:\n\tliquidjs: ^10.27.1\n")  # 탭 들여쓰기
+        r = run_with_stub_audit({}, "overrides:\n\tliquidjs: ^10.27.1\n", expect_stub_ran=False)  # 탭 들여쓰기
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("YAML", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
