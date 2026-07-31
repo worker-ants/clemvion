@@ -66,15 +66,15 @@ TimeoutExpired 를 안 던지는 예외로 · `timeout=` 인자 제거 · YAML �
 
 ## TEST 결과
 
-라운드마다 전 단계 재수행(총 11회). 최종(11차):
+라운드마다 전 단계 재수행(총 12회). 최종(push 직전):
 
-- **lint**: PASS (68s)
-- **unit**: PASS (82s)
-- **build**: PASS (172s)
-- **e2e**: **통과** — 315s, backend jest 46 suites / 260 tests + frontend playwright 51 passed
-  (`_test_logs/e2e-20260801-082527.log`). 브랜치 changeset 에 `pnpm-workspace.yaml` ·
+- **lint**: PASS (57s)
+- **unit**: PASS (67s)
+- **build**: PASS (118s)
+- **e2e**: **통과** — 323s, backend jest 46 suites / 260 tests + frontend playwright 51 passed
+  (`_test_logs/e2e-20260801-085202.log`). 브랜치 changeset 에 `pnpm-workspace.yaml` ·
   `scripts/*.py` 가 있어 PROJECT.md §e2e 면제 화이트리스트의 부분집합이 아니므로 매 라운드 수행.
-- **하네스 스위트**: 757건 OK (`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`)
+- **하네스 스위트**: 758건 OK (`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`)
 - **세 게이트 직접 실행**: `pnpm audit` exit 0 · `check-pnpm-security-config.py` exit 0
   (overrides 29 · onlyBuiltDependencies 5 · ignoreCves 0 baseline 일치) ·
   `check-override-floors.py` exit 0 (override 대상 26개, 재유입 0건)
