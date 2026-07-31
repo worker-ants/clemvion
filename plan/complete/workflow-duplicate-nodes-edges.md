@@ -114,7 +114,8 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       (`review/consistency/2026/07/30/17_03_26/SUMMARY.md`). 전부 반영: workflow-list frontmatter
       `pending_plans:` 에 본 plan 등재(W1), Rationale 인용 `§7` → `§2.2 / R-2.2` 앵커 정정(I1),
       두 번째 기각 대안 라벨 명시(I2).
-- [ ] **완료 시 동기화** — 본 plan 이 `plan/complete/` 로 이동하면 `spec/2-navigation/1-workflow-list.md`
+- [x] **완료 시 동기화** — `plan/complete/` 이동과 함께 `spec/2-navigation/1-workflow-list.md`
+      의 `pending_plans:` 경로를 `plan/complete/workflow-duplicate-nodes-edges.md` 로 치환했다.
       의 `pending_plans:` 경로도 함께 치환 (`spec-pending-plan-existence.test.ts`)
 - [x] `duplicate()` 를 트랜잭션 + nodes/edges 복사로 재구현 (참조 재매핑 포함) — `13b818ec5`
 - [x] `@ApiOperation` description 갱신 — 부수효과(캔버스 전체 복제 + UUID 재매핑)를 명시
@@ -150,13 +151,15 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
 
 ## 3. 후속 항목 (본 PR 범위 밖 — 별도 PR)
 
-- [ ] **의존성 위생 2건** (최종 리뷰 `12_29_14` INFO #2·#3, 둘 다 "급하지 않음") —
+- [x] **의존성 위생 2건** — `#1036` 로 완료 (tailwind lockstep `^4.3.3`, `next>postcss`
+      오버라이드 `^8.5.18` 2-place 동기화).
       (a) `tailwindcss` 직접 의존(`^4.2.2`)과 `@tailwindcss/postcss` 내부 엔진(`4.3.3`) lockstep
       스큐. `postcss.config.mjs` 가 플러그인만 등록하고 bare `tailwindcss` import 가 없어 빌드 영향
       없음 — 다음 정기 갱신에 동반 상향. (b) `pnpm-workspace.yaml:40` 의 `next>postcss` 오버라이드
       하한(`^8.5.14`)이 직접 의존 하한(`^8.5.18`)보다 낮다. 상향 시
       `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` **2-place 동시 갱신** 필수.
-- [ ] **`pnpm audit` 잔여 20건** — `deps-security-checks.yml` 의 audit 게이트가 실패 상태다.
+- [x] **`pnpm audit` 잔여 20건** — `#1038` 로 완료. 17건 중 16건을 오버라이드로 해소하고
+      `brace-expansion` 1.x(dev 전용) 1건만 근거와 함께 수용 → 게이트 exit 0.
       `brace-expansion`·`js-yaml`·`sharp`·`liquidjs`·`hono`·`typeorm`·`svgo` 등 backend·
       channel-web-chat 계열 선재 취약점. 본 PR 은 그중 postcss 1건만 해소했다(21 → 20).
       저장소 차원 대응 필요. 근거: `review/code/2026/07/31/11_23_04/RESOLUTION.md`.
@@ -175,7 +178,10 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       → **완료**: `plan/in-progress/spec-workflow-version-snapshot-drift.md` (별도 PR). 착수 후
       동조 소스가 하나 더 있음이 드러났다 — `spec/3-workflow-editor/5-version-history.md` §7.2 의
       `VersionSnapshot` 도 settings 를 갖지 않는다. 즉 **3곳 합의 vs data-model 1곳 outlier**.
-- [ ] **harness: `--branch` changeset 이 codebase 변경을 통째로 누락한다** (P1 — 실측 2회) —
+- [x] **harness: `--branch` changeset 이 codebase 변경을 통째로 누락한다** — 병렬 세션의
+      `#1037`/`#1039` 로 해소. 진짜 원인은 `--branch` 자체가 아니라 `build_files_section` 이
+      예산을 **작은 파일부터** 채우고 멈춘 것이었다(작은 md 가 채우고 codebase `.ts` 가 탈락).
+      `#1040` 준비 시 같은 조건에서 changeset 에 codebase 3건이 정상 포함됨을 확인했다.
       `--prepare --branch origin/main` 이 산출한 changeset 에서 **재리뷰를 유발한 바로 그 커밋**이
       빠진다.
       - 1회차 (3차 리뷰 `19_43_05` INFO #3): `3af0aabbe`(테스트 단언) 누락. reviewer 가 해당 커밋을

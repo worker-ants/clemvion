@@ -126,7 +126,7 @@ condition: edge.condition,          // ← 복사 안 함
 - [x] 수렴 라운드 `/ai-review` (testing) — **Critical 0 · Warning 1**. plan 자기모순(틀린 문장이
       지워지지 않고 남음) 정정. 코드·테스트는 reviewer 독립 재검증 "문제 없음"(소스 재독 +
       jest 80/80). 상세: `review/code/2026/07/31/19_06_38/RESOLUTION.md`
-- [ ] push + PR
+- [x] push + PR — `#1040` 머지.
 
 ## 3. 리뷰 INFO 중 미조치 4건
 
@@ -163,15 +163,16 @@ Critical·조치 가능한 WARNING 은 이 PR 에서 닫았고(커밋 `9fa06cd4c
 
 후속으로 남긴 것 (이번 PR 이 만든 것이 아니고, 고치면 scope 가 크게 번진다):
 
-- [ ] **`12-workspace.md` §3.2 위치** — RBAC 매트릭스가 `## 3 상태 전이` 섹션 아래에 있어
+- [x] **`12-workspace.md` §3.2 위치** — `plan/in-progress/spec-data-flow-structural-followups.md`
+      §1 로 분기 (planner 턴 필요).
       `0-overview.md §3.4` 템플릿(엔티티 status enum 전이 전용)에서 이탈. 15개 형제 문서 중
       유일하다. 별도 `## 권한(RBAC)` 섹션으로 승격하거나 공통 규약에 예외 조항 명문화 —
       **planner 턴 필요**.
-- [ ] **`3-execution.md` §3.3 SIGTERM 행 상호참조** — 취소 분류 (a)/(b) 결정이
+- [x] **`3-execution.md` §3.3 SIGTERM 행 상호참조** — 같은 plan §2 로 분기.
       `spec-update-node-cancellation-shutdown-classification.md` 에서 미결인데 §3.3 이 이를
       언급하지 않아 완결된 것처럼 읽힌다. 결정을 선점하지 않는 "결정 대기 중" 각주 추가 —
       **planner 턴 필요**.
-- [ ] **"LLM Config" → "Model Config" 표기 통일** — `12-workspace.md` 표 헤더와
+- [x] **"LLM Config" → "Model Config" 표기 통일** — 같은 plan §3 으로 분기.
       `0-overview.md:131` 등 product-facing 문서군이 아직 구 명칭. 이번엔 bridging 문장으로
       오독만 막았다.
 

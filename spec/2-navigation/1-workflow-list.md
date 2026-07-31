@@ -10,7 +10,7 @@ code:
   - codebase/backend/src/modules/folders/**
 pending_plans:
   - plan/in-progress/marketplace-and-plugin-sdk.md
-  - plan/in-progress/workflow-duplicate-nodes-edges.md
+  - plan/complete/workflow-duplicate-nodes-edges.md
 ---
 
 # Spec: 워크플로우 목록 화면
