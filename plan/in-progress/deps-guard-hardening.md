@@ -107,12 +107,28 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` 11건. mutation 2종으로 non-vacuous
-      증명(추출 로직 되돌림 → 3 failures, 분류 fail 경로 제거 → 2 failures).
-- [x] TEST WORKFLOW — lint PASS(54s) · unit PASS(backend 412 suites) · build PASS(163s) ·
-      e2e PASS(260/260, 325s). 신규 가드 테스트 11건 별도 통과.
-- [ ] `/ai-review` + Critical/Warning fix
-- [ ] push + PR
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **18건**(4축: 키 추출 · 분류 ·
+      `ignoreCves` 억제 경로 baseline · fail-closed). 하네스 전체 스위트 731건 통과. mutation
+      으로 non-vacuous 증명(추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인 첫`>` 회귀 ·
+      fail-closed 3분기 fail-open 되돌림 — 전부 RED 확인).
+- [x] TEST WORKFLOW (1차) — lint PASS(54s) · unit PASS · build PASS(163s) · e2e PASS(260/260, 325s).
+- [x] `/ai-review` 1차 (`01_12_24`) — Critical 4 + Warning 4. 권장 조치 8건 전부 반영:
+      `ignoreCves` 전역 억제 사각(→ `actions[]` + 경로 baseline) · `run_audit()` fail-closed ·
+      CI 등재 3건(harness-checks paths · README 카탈로그 · dependabot 루트 예외) ·
+      `override_target()` 다단 체인 · 다건 동시 매칭 테스트 · unittest 잡 PyYAML.
+- [x] TEST WORKFLOW (2차, 리뷰 조치 후) — lint PASS(54s) · unit PASS(73s) · build PASS(122s) ·
+      e2e PASS(400s: backend jest 46 suites/260 tests + playwright 51). 하네스 스위트 731 OK.
+      1차 e2e 는 `initdb: No space left on device` 로 postgres 가 안 떠 실패했다 — 회귀가
+      아니라 디스크 부족. `docker builder prune -af` + image prune 으로 66GB 회수 후 통과.
+- [x] `/ai-review` 2차 (`01_56_46`) — Critical 1 + Warning 8. **1차 조치가 새 Critical 을
+      만들었다**: PyYAML 스텝을 기존 스텝의 `name:`/`run:` 사이에 끼워 넣어 `run:` 이
+      중복됐고, YAML 은 뒤 값을 택하므로 `pip install` 이 통째로 소실됐다(위 스텝은
+      `run`/`uses` 가 없는 스키마 위반). 로컬로는 절대 안 드러난다 — 워크플로는 개발 머신에서
+      실행되지 않고 `yaml.safe_load` 도 조용히 받는다. reviewer 8명 전원이 독립 확인.
+      → 구조 정정 + `test_workflow_yaml_structure.py` 신설(중복 키·스텝 run/uses).
+      Warning 8건도 전부 조치(축 개수 서술·중간 scope 체인·통합 리포트·헬퍼 모듈화·
+      PROJECT.md 3번째 잡·stdlib 전용 서술·카탈로그 2행) + INFO 11/12/13/15/16.
+- [ ] TEST WORKFLOW (3차) · push + PR
 
 ## 개발 중 실측으로 드러난 것
 
@@ -133,6 +149,35 @@ scope 패키지까지 섞여 온다.
 그 상태에서 가드가 `GHSA-g357-x5c3-c72p` 를 정확히 보고했다(exit 1).
 
 즉 **본 가드는 `pnpm audit` 의 부분집합**이다. 검출이 아니라 **분류**가 가치다.
+
+**가드가 자기 실패 모드를 그대로 재현하고 있었다 (리뷰가 잡음).** `auditConfig.ignoreCves` 는
+CVE-ID 단위로 `pnpm audit --json` 의 `advisories` 맵을 **경로·버전 무관하게 전역 억제**한다.
+`brace-expansion` 은 override 3키 + `CVE-2026-14257` 수용을 동시에 갖고 있어서, 취약 버전이
+**실제로 설치된 상태에서도 가드가 OK 를 냈다**(무수정 프로브로 실증). override 를
+`brace-expansion@>=2.0.0 <3.0.0: 2.1.4` 로 침식시킨 뒤에도 통과 — 막으려던 바로 그 조용한
+통과다. 억제돼도 `actions[]` 에는 경로가 남으므로, 수용 시점 경로를 `EXPECTED_SUPPRESSED_PATHS`
+baseline 으로 고정하고 **경로가 늘어날 때만** fail 시킨다. 처음엔 "억제 항목이 있으면 fail" 로
+짰다가 정상 상태가 상시 빨간불이 됐다 — 판정 기준은 존재가 아니라 **범위 확대**여야 했다.
+
+**리뷰 조치가 새 Critical 을 만들었다 — 그것도 "조용한 통과" 클래스로.** 1차 리뷰의
+Warning("unittest 잡에 PyYAML 설치 없음")을 고치려고 스텝을 넣었는데 삽입 위치가 기존 스텝의
+`name:` 과 `run:` **사이**였다. YAML 은 키 중복을 오류로 보지 않고 **뒤 값을 택한다** — 그래서
+`pip install` 이 통째로 사라지고, 위 스텝은 `run`/`uses` 가 하나도 없는 스키마 위반이 됐다.
+로컬에서는 절대 안 드러난다: 워크플로는 개발 머신에서 실행되지 않고, `yaml.safe_load` 는
+조용히 받아주며, 739건 스위트는 초록이었다. GitHub Actions 에서만, 그것도 머지 후에 터진다.
+`test_workflow_yaml_structure.py` 를 신설해 (a) 중복 키 (b) 스텝의 `run`/`uses` 정확히 1개를
+모든 워크플로에 대해 강제한다. 중복 키 검출에 `safe_load` 를 못 쓴다는 점이 핵심이라
+`DetectorTest` 가 사고 원문을 되먹여 "safe_load 만으로는 놓쳤다" 까지 단언한다.
+
+부수로 `.github/workflows/**` 등재가 개별 `e2e.yml` 항목을 흡수해 그 항목이 더 이상
+load-bearing 이 아니게 됐는데, 기존 가드(`test_each_historical_leak_is_load_bearing`)가
+그것을 잡았다 — 중복 등재를 접고 fixture 를 넓은 필터로 옮겼다.
+
+**무효 뮤턴트가 GREEN 을 냈다.** `dependabot.yml` 의 루트 등록 테스트를 검증하려고
+`directory: "/"` 를 치환했는데, 파일의 **첫** 출현은 npm 이 아니라 `github-actions` 항목
+(5-6행)이었다. 테스트는 당연히 통과했고 하마터면 "vacuous" 로 오판할 뻔했다. 치환 대상이
+정말 의도한 그 자리인지는 뮤턴트를 돌리기 **전에** 확인해야 한다 — `package-ecosystem: "npm"`
+까지 포함한 블록 단위로 다시 잡으니 RED 가 나왔다.
 
 ## Rationale
 

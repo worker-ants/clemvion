@@ -66,41 +66,49 @@ EXPECTED_SUPPRESSED_PATHS: dict[str, set[str]] = {
     },
 }
 
-# override 키는 세 형태다. 어느 쪽이든 **대상 패키지명** 을 뽑아야 audit advisory 와 맞출 수 있다.
-#   1. `lodash`                      → lodash
-#   2. `next>postcss`                → postcss   (부모>자식 — 제약 대상은 자식)
-#   3. `undici@>=7.0.0 <7.28.0`      → undici    (버전-레인지 스코프)
+# fail-closed 진단 출력의 미리보기 길이. 원인 파악에 충분하면서 CI 로그를 덮지 않는 선.
+_STDERR_PREVIEW = 500      # pnpm 의 오류 한 줄이 대개 이 안에 들어온다
+_STDOUT_PREVIEW = 2000     # 파싱 실패는 앞부분만 봐도 형태를 알 수 있다
+_KEY_PREVIEW = 10          # 오류 페이로드의 최상위 키 몇 개면 판별된다
+
+# override 키에서 **대상 패키지명** 을 뽑아야 audit advisory 의 `module_name` 과 맞출 수 있다.
+# 키에 섞여 오는 것들:
+#   `lodash` · `next>postcss` · `a>b>c`(다단 체인) · `undici@>=7.0.0 <7.28.0`(레인지) ·
+#   `@grpc/grpc-js`(scope) · `next>@types/react`(scope 자식) · `a>@scope/b>c`(scope 중간)
 #
-# 순서가 중요하다. `>` 로 먼저 자르면 `undici@>=7.0.0` 의 `>=` 를 부모>자식 구분자로 오인해
-# `=7.0.0 <7.28.0` 이 남는다(실측: 그 상태에서 `js-yaml` 스코프 override 2건이 통째로
-# 매칭에서 빠져 가드가 조용히 통과했다). 따라서 **버전 레인지를 먼저 떼고** 부모 경로를 자른다.
+# 어려운 지점은 하나뿐이다: `>` 가 **체인 구분자**일 때와 **레인지의 일부**(`@>=7.0.0`)일 때를
+# 가르는 것. 앞 글자로 갈린다 — 구분자는 항상 패키지명 글자 뒤에 오고, 레인지의 `>` 는 `@` 나
+# 공백 뒤에 온다(`foo@>=1`, `>=1 || >3`). 이 규칙은 레인지가 **어느 세그먼트에** 붙든 성립해서
+# `@` 위치로 구간을 나누던 옛 방식이 못 풀던 두 형태를 함께 해결한다.
 #
+# 옛 방식이 틀렸던 이력(둘 다 "가드가 아무것도 안 잡는다" 로 나타났다):
+#   - `>` 를 먼저 자르면 `undici@>=7.0.0` 의 `>=` 를 구분자로 오인 → `js-yaml` 스코프 override
+#     2건이 통째로 매칭에서 빠졌다.
+#   - `@` 이전 구간에서만 `>` 를 찾으면 `a>@scope/b>c` 의 마지막 `>` 를 못 봐 `@scope/b>c` 가
+#     남았다(존재하지 않는 패키지명이라 어떤 advisory 와도 안 맞는다).
+_NAME_CHAR = re.compile(r"[A-Za-z0-9._/-]")
 # scope 패키지(`@grpc/grpc-js`)는 선두 `@` 가 이름의 일부라 버전 구분자로 세면 안 된다 —
 # 두 번째 이후의 `@` 만 레인지 구분자다.
 _RANGE_SUFFIX = re.compile(r"^(?P<name>@[^@/]+/[^@]+|[^@]+)@.+$")
 
 
-def override_target(key: str) -> str:
-    """override 키에서 제약 대상 패키지명을 뽑는다.
+def chain_segments(key: str) -> list[str]:
+    """override 키를 `>` 체인 세그먼트로 가른다 (레인지 안의 `>` 는 건드리지 않는다)."""
+    out: list[str] = []
+    start = 0
+    for i, ch in enumerate(key):
+        if ch == ">" and i > 0 and _NAME_CHAR.match(key[i - 1]):
+            out.append(key[start:i])
+            start = i + 1
+    out.append(key[start:])
+    return out
 
-    부모 경로(`a>b`)와 버전 레인지(`pkg@>=1.0.0`)가 동시에 올 수 있고, 자식이 scope
-    패키지(`next>@types/react`)일 수도 있다. `>` 를 먼저 자르면 `@>=` 의 `>` 에 걸리고,
-    레인지를 먼저 떼면 scope 자식의 `/` 앞 `@` 를 잘못 문다. 그래서 **마지막 `>` 뒤부터
-    다시 레인지를 떼는** 2단계로 간다 — 단, 레인지 안의 `>`(`>=1.0.0`)에 속지 않도록
-    `@` 이전 구간에서만 부모 경로를 찾는다.
-    """
-    key = key.strip()
-    # ① 부모 경로 해소 — `>` 탐색은 **레인지 시작 `@` 이전 구간**에서만. 그래야
-    #    `undici@>=7.0.0` 의 `>=` 를 부모 구분자로 오인하지 않는다. scope 패키지는
-    #    선두 `@` 가 이름의 일부라 그 다음 `@` 부터가 레인지다.
-    at = key.find("@", 1) if key.startswith("@") else key.find("@")
-    head = key if at < 0 else key[:at]
-    cut = head.rfind(">")  # 첫 `>` 가 아니라 **마지막** — `a>b>c` 의 대상은 `c` 다.
-    if cut >= 0:
-        key = key[cut + 1:].strip()
-    # ② 남은 이름에서 버전 레인지 제거 (scope 패키지의 선두 `@` 는 보존)
-    m = _RANGE_SUFFIX.match(key)
-    return (m.group("name") if m else key).strip()
+
+def override_target(key: str) -> str:
+    """override 키에서 제약 대상 패키지명을 뽑는다 — 체인의 **마지막** 항에서 레인지를 뗀다."""
+    leaf = chain_segments(key.strip())[-1].strip()
+    m = _RANGE_SUFFIX.match(leaf)
+    return (m.group("name") if m else leaf).strip()
 
 
 def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
@@ -134,13 +142,13 @@ def run_audit() -> dict:
             "없으므로 판단 불가로 처리한다(fail-closed).",
             file=sys.stderr,
         )
-        print(f"  exit={proc.returncode} stderr={proc.stderr[:500]}", file=sys.stderr)
+        print(f"  exit={proc.returncode} stderr={proc.stderr[:_STDERR_PREVIEW]}", file=sys.stderr)
         sys.exit(2)
     try:
         data = json.loads(out)
     except json.JSONDecodeError:
         print("ERROR: `pnpm audit --json` 출력을 파싱하지 못했다:", file=sys.stderr)
-        print(out[:2000], file=sys.stderr)
+        print(out[:_STDOUT_PREVIEW], file=sys.stderr)
         sys.exit(2)
     if not isinstance(data, dict) or "actions" not in data:
         # 정상 응답이면 `actions`/`advisories`/`metadata` 를 갖는다. 없으면 오류 페이로드다.
@@ -149,7 +157,7 @@ def run_audit() -> dict:
             "레지스트리 오류로 보고 판단 불가로 처리한다(fail-closed).",
             file=sys.stderr,
         )
-        print(f"  받은 키: {list(data)[:10] if isinstance(data, dict) else type(data).__name__}", file=sys.stderr)
+        print(f"  받은 키: {list(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}", file=sys.stderr)
         sys.exit(2)
     return data
 
@@ -171,18 +179,17 @@ def classify_vulnerable(audit: dict) -> tuple[dict[str, str], dict[str, list[str
     `advisories` 는 0건이었다.
 
     pnpm 은 억제된 항목도 `actions[]`(module + `resolves[].path`)에는 남기므로 **존재는**
-    알 수 있다. 그러나 거기엔 "수용된 그 경로인지, 새로 늘어난 경로인지" 를 가릴 기준이 없다 —
-    `ignoreCves` 가 CVE ID 만 담고 수용 시점의 경로를 담지 않기 때문이다. 그래서 이 부류는
-    **fail 시키지 않고 수동 점검 대상으로 보고**한다. fail 시키면 정상 상태(수용된 경로 그대로)
-    에서도 매번 빨간불이 되어 가드가 무시당한다(실측: 그 상태를 한 번 만들었다).
-
-    경로 집합까지 baseline 으로 고정하는 것이 근본 해결이며 plan 에 후속으로 등재했다.
+    알 수 있다. `ignoreCves` 자체는 CVE ID 만 담고 수용 시점의 경로를 담지 않으므로, 그
+    경로 집합을 `EXPECTED_SUPPRESSED_PATHS` 에 따로 고정해 두고 호출부가 대조한다 —
+    **경로가 늘었을 때만** fail. "억제 항목이 있으면 fail" 로 짰다가 정상 상태(수용된 경로
+    그대로)가 상시 빨간불이 되는 걸 실측했다. 판정 기준은 존재가 아니라 범위 확대다.
     """
     reported: dict[str, str] = {}
     for name, adv in (audit.get("advisories") or {}).items():
         module = adv.get("module_name")
         if module:
-            reported[module] = adv.get("github_advisory_id") or adv.get("id") or name
+            # `id` 는 정수로 오므로 str() 로 고정한다 — 선언 타입과 출력 형식 양쪽 때문.
+            reported[module] = str(adv.get("github_advisory_id") or adv.get("id") or name)
 
     suppressed: dict[str, list[str]] = {}
     for action in audit.get("actions") or []:
@@ -219,40 +226,51 @@ def main() -> int:
         if extra:
             widened.append((module, extra))
 
-    if widened:
-        print(
-            "ERROR: `ignoreCves` 로 수용된 CVE 가 **수용 범위 밖 경로**로 재유입됐다.",
-            file=sys.stderr,
-        )
-        print(
-            "  수용은 그때 확인한 경로에 대한 판단이었다 — 경로가 늘었다면 다시 판단해야 한다.",
-            file=sys.stderr,
-        )
-        for module, extra in widened:
-            print(f"\n  [{module}] 신규 경로 {len(extra)}건", file=sys.stderr)
-            for path in sorted(extra):
-                print(f"    - {path}", file=sys.stderr)
-        print(
-            "\n  조치: override 로 해소하거나, 수용이 타당하면 "
-            "`EXPECTED_SUPPRESSED_PATHS` 에 경로를 추가하고 근거를 "
-            "`pnpm-workspace.yaml` 의 `auditConfig` 주석에 남긴다.",
-            file=sys.stderr,
-        )
-        return 1
-
     eroded: list[tuple[str, str, str, list[str]]] = []
     for module, advisory in reported.items():
         if module in targets:
             eroded.append((module, advisory, patched_by_module.get(module, "?"), targets[module]))
 
-    if not eroded:
+    if not widened and not eroded:
         print(
             f"OK: override 대상 {len(targets)}개 패키지 중 취약 재유입 0건 "
             "(audit 잔여가 있더라도 그건 override 미관리 패키지 — audit 잡이 담당)"
         )
         return 0
 
-    print("ERROR: override 바닥이 낡아 취약 버전이 다시 해소됐다.", file=sys.stderr)
+    # 둘 다 계산한 뒤 한 번에 보고한다. widened 에서 조기 return 하면 같은 실행에 존재하는
+    # eroded 를 못 보고 고치고 다시 돌리는 왕복이 생긴다 (`check-pnpm-security-config.py` 의
+    # "모두 모아 한 번에" 패턴과 맞춤).
+    if widened:
+        _report_widened(widened)
+    if eroded:
+        _report_eroded(eroded)
+    return 1
+
+
+def _report_widened(widened: list[tuple[str, set[str]]]) -> None:
+    print(
+        "ERROR: `ignoreCves` 로 수용된 CVE 가 **수용 범위 밖 경로**로 재유입됐다.",
+        file=sys.stderr,
+    )
+    print(
+        "  수용은 그때 확인한 경로에 대한 판단이었다 — 경로가 늘었다면 다시 판단해야 한다.",
+        file=sys.stderr,
+    )
+    for module, extra in widened:
+        print(f"\n  [{module}] 신규 경로 {len(extra)}건", file=sys.stderr)
+        for path in sorted(extra):
+            print(f"    - {path}", file=sys.stderr)
+    print(
+        "\n  조치: override 로 해소하거나, 수용이 타당하면 "
+        "`EXPECTED_SUPPRESSED_PATHS` 에 경로를 추가하고 근거를 "
+        "`pnpm-workspace.yaml` 의 `auditConfig` 주석에 남긴다.",
+        file=sys.stderr,
+    )
+
+
+def _report_eroded(eroded: list[tuple[str, str, str, list[str]]]) -> None:
+    print("\nERROR: override 바닥이 낡아 취약 버전이 다시 해소됐다.", file=sys.stderr)
     print(
         "  이 패키지들은 이미 override 로 '관리하겠다' 고 선언한 대상이라 "
         "판단할 게 없다 — 값만 올리면 된다.",
@@ -268,7 +286,6 @@ def main() -> int:
         "(2-place 규약 — 한쪽만 고치면 스냅샷 가드가 실패한다).",
         file=sys.stderr,
     )
-    return 1
 
 
 if __name__ == "__main__":

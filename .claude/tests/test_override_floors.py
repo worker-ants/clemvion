@@ -4,14 +4,16 @@
 관리 중인 패키지만 좁혀 fail 시킨다(조치 가능성이 다르므로 — 전자는 판단 필요, 후자는
 값만 올리면 됨).
 
-여기서 고정하는 것은 세 축이다.
+여기서 고정하는 것은 네 축이다.
 
-  1. **override 키 → 패키지명 추출** — 세 형태(`pkg`, `parent>child`, `pkg@range`)가 섞이고
-     scope 패키지(`@scope/name`)까지 온다. 개발 중 실측으로 두 번 틀렸다:
+  1. **override 키 → 패키지명 추출** — `pkg` · `a>b` · `a>b>c` · `pkg@range` 가 섞이고 scope
+     패키지(`@scope/name`)가 체인 어디에든 올 수 있다. 개발 중 **세 번** 틀렸고 셋 다 증상이
+     같았다 — 매칭이 0건이 되어 **가드가 조용히 통과**한다:
        - `>` 를 먼저 자르면 `undici@>=7.0.0` 의 `>=` 를 부모 구분자로 오인 → `js-yaml` 스코프
-         override 2건이 통째로 매칭에서 빠져 **가드가 조용히 통과**했다.
+         override 2건이 통째로 매칭에서 빠졌다.
        - 레인지를 먼저 떼면 scope 패키지의 선두 `@` 를 버전 구분자로 물어 `@babel/core@>=7`
          이 `=7.0.0` 이 됐다.
+       - `@` 이전 구간에서만 `>` 를 찾으면 `a>@scope/b>c` 의 마지막 `>` 를 못 본다.
      추출이 틀리면 가드가 아무것도 안 잡으므로 이 축이 가장 중요하다.
 
   2. **분류 동작** — advisory 의 패키지가 override 대상이면 fail, 아니면 통과(그건 audit 잡
@@ -41,6 +43,68 @@ from pathlib import Path
 from _harness import REPO_ROOT
 
 SCRIPT = REPO_ROOT / "scripts" / "check-override-floors.py"
+
+
+def run_with_stub_audit(
+    advisories: dict, overrides: str, actions: list | None = None,
+    raw_stdout: str | None = None,
+) -> subprocess.CompletedProcess:
+    """`pnpm audit` 을 스텁으로 갈아끼워 스크립트를 돌린다.
+
+    실제 레지스트리에 의존하면 테스트가 네트워크·CVE 공시 상태에 흔들린다. PATH 앞에
+    가짜 `pnpm` 을 두어 원하는 advisory 를 주입한다.
+
+    `raw_stdout` 을 주면 정상 형태 대신 그 문자열을 그대로 뱉는다 — fail-closed 분기용.
+    """
+    import tempfile
+    import os
+
+    actions = actions or []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "pnpm-workspace.yaml").write_text(overrides, encoding="utf-8")
+        (tmp / "scripts").mkdir()
+        (tmp / "scripts" / "check-override-floors.py").write_text(
+            SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        bindir = tmp / "bin"
+        bindir.mkdir()
+        fake = bindir / "pnpm"
+        body = (
+            f"sys.stdout.write({raw_stdout!r})\n"
+            if raw_stdout is not None
+            else textwrap.dedent(
+                f"""\
+                print(json.dumps({{
+                    "actions": {json.dumps(actions)},
+                    "advisories": {json.dumps(advisories)},
+                    "muted": [],
+                    "metadata": {{"vulnerabilities": {{}}, "totalDependencies": 0}},
+                }}))
+                """
+            )
+        )
+        fake.write_text(
+            textwrap.dedent(
+                f"""\
+                #!/usr/bin/env python3
+                import json, sys
+                # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키
+                # 존재로 정상 응답을 판정하므로(fail-closed) 스텁도 갖춰야 한다.
+                """
+            )
+            + body,  # dedent 후 이어붙인다 — body 도 이미 0-indent 다.
+            encoding="utf-8",
+        )
+        fake.chmod(0o755)
+        env = dict(os.environ, PATH=f"{bindir}:{os.environ['PATH']}")
+        return subprocess.run(
+            [sys.executable, str(tmp / "scripts" / "check-override-floors.py")],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
 
 
 def _load_module():
@@ -103,6 +167,19 @@ class OverrideTargetExtractionTest(unittest.TestCase):
             self.mod.override_target("@nestjs/cli>webpack>@types/node"), "@types/node"
         )
 
+    def test_scope_package_in_the_middle_of_a_chain(self):
+        """체인 **중간**이 scope 패키지인 형태 — 위 버그의 형제다.
+
+        `@` 이전 구간에서만 `>` 를 찾던 구현은 `a>@scope/b>c` 에서 첫 `@`(= `@scope` 의 것)
+        앞까지만 보므로 마지막 `>` 를 놓치고 `'@scope/b>c'` 를 돌려줬다. 존재하지 않는
+        패키지명이라 advisory 와 영영 안 맞는다 — 축 1 의 실패는 늘 "조용한 통과" 로 나온다.
+        레인지가 **부모에** 붙은 형태도 같은 규칙으로 갈려야 한다.
+        """
+        self.assertEqual(self.mod.override_target("a>@scope/b>c"), "c")
+        self.assertEqual(self.mod.override_target("a>@scope/b"), "@scope/b")
+        self.assertEqual(self.mod.override_target("parent@1.0.0>child"), "child")
+        self.assertEqual(self.mod.override_target("parent@>=1.0.0>child"), "child")
+
     def test_real_workspace_yaml_covers_scoped_range_keys(self):
         """실제 pnpm-workspace.yaml 에서 스코프 레인지 키가 누락되지 않는다."""
         targets = self.mod.load_override_targets(REPO_ROOT / "pnpm-workspace.yaml")
@@ -116,77 +193,16 @@ class OverrideTargetExtractionTest(unittest.TestCase):
 class ClassificationTest(unittest.TestCase):
     """축 2 — advisory 를 override 대상 여부로 갈라 exit code 를 낸다."""
 
-    def _run_with_stub_audit(
-        self, advisories: dict, overrides: str, actions: list | None = None,
-        raw_stdout: str | None = None,
-    ) -> subprocess.CompletedProcess:
-        """`pnpm audit` 을 스텁으로 갈아끼워 스크립트를 돌린다.
-
-        실제 레지스트리에 의존하면 테스트가 네트워크·CVE 공시 상태에 흔들린다. PATH 앞에
-        가짜 `pnpm` 을 두어 원하는 advisory 를 주입한다.
-
-        `raw_stdout` 을 주면 정상 형태 대신 그 문자열을 그대로 뱉는다 — fail-closed 분기용.
-        """
-        import tempfile
-        import os
-
-        actions = actions or []
-
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp = Path(tmp)
-            (tmp / "pnpm-workspace.yaml").write_text(overrides, encoding="utf-8")
-            (tmp / "scripts").mkdir()
-            (tmp / "scripts" / "check-override-floors.py").write_text(
-                SCRIPT.read_text(encoding="utf-8"), encoding="utf-8"
-            )
-            bindir = tmp / "bin"
-            bindir.mkdir()
-            fake = bindir / "pnpm"
-            body = (
-                f"sys.stdout.write({raw_stdout!r})\n"
-                if raw_stdout is not None
-                else textwrap.dedent(
-                    f"""\
-                    print(json.dumps({{
-                        "actions": {json.dumps(actions)},
-                        "advisories": {json.dumps(advisories)},
-                        "muted": [],
-                        "metadata": {{"vulnerabilities": {{}}, "totalDependencies": 0}},
-                    }}))
-                    """
-                )
-            )
-            fake.write_text(
-                textwrap.dedent(
-                    f"""\
-                    #!/usr/bin/env python3
-                    import json, sys
-                    # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키
-                    # 존재로 정상 응답을 판정하므로(fail-closed) 스텁도 갖춰야 한다.
-                    """
-                )
-                + body,  # dedent 후 이어붙인다 — body 도 이미 0-indent 다.
-                encoding="utf-8",
-            )
-            fake.chmod(0o755)
-            env = dict(os.environ, PATH=f"{bindir}:{os.environ['PATH']}")
-            return subprocess.run(
-                [sys.executable, str(tmp / "scripts" / "check-override-floors.py")],
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-
     OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n  next>postcss: ^8.5.18\n"
 
     def test_no_advisories_passes(self):
-        r = self._run_with_stub_audit({}, self.OVERRIDES)
+        r = run_with_stub_audit({}, self.OVERRIDES)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("취약 재유입 0건", r.stdout)
 
     def test_advisory_on_managed_package_fails(self):
         """override 대상이 취약 → 바닥 침식이므로 fail."""
-        r = self._run_with_stub_audit(
+        r = run_with_stub_audit(
             {
                 "1": {
                     "module_name": "liquidjs",
@@ -202,7 +218,7 @@ class ClassificationTest(unittest.TestCase):
 
     def test_advisory_on_unmanaged_package_passes(self):
         """override 없는 패키지는 audit 잡 담당 — 본 가드는 통과시킨다."""
-        r = self._run_with_stub_audit(
+        r = run_with_stub_audit(
             {
                 "1": {
                     "module_name": "some-unmanaged-pkg",
@@ -216,7 +232,7 @@ class ClassificationTest(unittest.TestCase):
 
     def test_parent_scoped_override_is_matched_by_child_name(self):
         """`next>postcss` override 는 advisory 의 `postcss` 와 매칭돼야 한다."""
-        r = self._run_with_stub_audit(
+        r = run_with_stub_audit(
             {
                 "1": {
                     "module_name": "postcss",
@@ -242,8 +258,8 @@ class SuppressedPathBaselineTest(unittest.TestCase):
     NEW = "codebase__backend>jest>@jest/core>@jest/reporters>glob>minimatch>brace-expansion"
 
     def _run(self, paths):
-        return ClassificationTest._run_with_stub_audit(
-            self, advisories={}, overrides=self.OVERRIDES,
+        return run_with_stub_audit(
+            advisories={}, overrides=self.OVERRIDES,
             actions=[{"action": "review", "module": "brace-expansion",
                       "resolves": [{"id": 1124334, "path": p} for p in paths]}],
         )
@@ -273,8 +289,8 @@ class FailClosedTest(unittest.TestCase):
     OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n"
 
     def _run_raw(self, raw):
-        return ClassificationTest._run_with_stub_audit(
-            self, advisories={}, overrides=self.OVERRIDES, raw_stdout=raw
+        return run_with_stub_audit(
+            advisories={}, overrides=self.OVERRIDES, raw_stdout=raw
         )
 
     def test_empty_stdout_is_undecidable(self):
@@ -292,6 +308,28 @@ class FailClosedTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("actions", r.stderr)
 
+    def test_missing_workspace_file_is_undecidable(self):
+        """override 목록을 못 읽으면 "대상 0건" 이 아니라 판단 불가다.
+
+        빈 목록으로 진행하면 어떤 advisory 도 override 대상에 안 걸려 **항상 OK** 가 된다 —
+        위 세 형태와 정확히 같은 조용한 통과다. exit 2 로 갈라야 한다.
+        """
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "scripts").mkdir()
+            script = tmp / "scripts" / "check-override-floors.py"
+            script.write_text(SCRIPT.read_text(encoding="utf-8"), encoding="utf-8")
+            # pnpm-workspace.yaml 을 일부러 두지 않는다.
+            r = subprocess.run(
+                [sys.executable, str(script)],
+                capture_output=True, text=True, env=dict(os.environ),
+            )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("pnpm-workspace.yaml", r.stderr)
+
 
 class MultipleMatchTest(unittest.TestCase):
     """발단 시나리오 — 여러 advisory 중 **일부만** override 대상(#1038: 17건 중 4건)."""
@@ -299,8 +337,7 @@ class MultipleMatchTest(unittest.TestCase):
     OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n  next>postcss: ^8.5.18\n"
 
     def test_reports_only_managed_among_many(self):
-        r = ClassificationTest._run_with_stub_audit(
-            self,
+        r = run_with_stub_audit(
             advisories={
                 "1": {"module_name": "liquidjs", "github_advisory_id": "GHSA-a", "patched_versions": ">=10.27.1"},
                 "2": {"module_name": "postcss", "github_advisory_id": "GHSA-b", "patched_versions": ">=8.5.18"},
