@@ -203,6 +203,72 @@ def orch_omitted_heading():
     return run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
 
 
+class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
+    """`_branch_changed_rels` is the ONLY source of tier 0 — test it on real git.
+
+    Everything else here replaces `prioritize_bundle_files` with a lambda, so the
+    function that decides "did this branch change the file" was never asserted:
+    a mutant returning `set()` would leave tier 0 permanently empty — silently
+    reverting the main fix — and every other test would stay GREEN.
+    """
+
+    def _repo(self):
+        import os
+        import shutil
+        import tempfile
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+
+        def git(*args):
+            subprocess.run(["git", *args], cwd=d, check=True,
+                           capture_output=True, text=True, timeout=30.0)
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+        os.makedirs(os.path.join(d, "spec"), exist_ok=True)
+        for name in ("kept.md", "renamed-from.md"):
+            with open(os.path.join(d, "spec", name), "w") as f:
+                f.write("base\n")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        git("checkout", "-qb", "work")
+        return d, git
+
+    def _changed(self, root, base):
+        return set(run_in_orchestrator(
+            """
+            emit(sorted(orch._branch_changed_rels(ARG["base"], ARG["root"])))
+            """,
+            {"base": base, "root": root},
+        ))
+
+    def test_reports_edits_and_additions_relative_to_the_base(self):
+        import os
+        d, git = self._repo()
+        with open(os.path.join(d, "spec", "kept.md"), "a") as f:
+            f.write("edit\n")
+        with open(os.path.join(d, "spec", "added.md"), "w") as f:
+            f.write("new\n")
+        git("add", "-A")
+        git("commit", "-qm", "work")
+        self.assertEqual(self._changed(d, "main"),
+                         {"spec/added.md", "spec/kept.md"})
+
+    def test_rename_reports_both_sides(self):
+        """`--no-renames` is deliberate: a renamed spec is two paths the bundle
+        may need to rank, and rename detection would surface only one."""
+        d, git = self._repo()
+        git("mv", "spec/renamed-from.md", "spec/renamed-to.md")
+        git("commit", "-qm", "rename")
+        self.assertEqual(self._changed(d, "main"),
+                         {"spec/renamed-from.md", "spec/renamed-to.md"})
+
+    def test_unknown_base_yields_empty_not_an_exception(self):
+        d, _ = self._repo()
+        self.assertEqual(self._changed(d, "no-such-ref"), set())
+
+
 class CollectContextUsesPriorityTest(unittest.TestCase):
     """`collect_context` must USE the ranker's result — for BOTH gate modes.
 

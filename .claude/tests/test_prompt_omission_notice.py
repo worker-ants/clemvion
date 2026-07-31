@@ -173,6 +173,32 @@ class OmittedContentIsAnnouncedTest(unittest.TestCase):
                                    "case is vacuous unless notices accumulate")
                 self.assertLessEqual(len(body), max_total)
 
+    def test_many_files_collapse_to_one_notice_and_still_fit(self):
+        """Reserving per-file notices only works while a budget for them exists.
+
+        Past enough files the headers alone eat the cap, nothing gets content,
+        and one notice per file overruns anyway — measured at 1,200 files:
+        192,087 against the production 141,557 cap (1.36x). Reserving harder
+        cannot fix that, so the notices collapse into a single aggregate one.
+
+        The 20-file case above cannot see this: it never drives the budget
+        negative. The two assertions together are the real contract — stay under
+        the cap AND still tell the reviewer files were withheld. Dropping the
+        notice entirely would satisfy the first and defeat the feature.
+        """
+        cap = 141_557  # DEFAULT_MAX_PROMPT_SIZE, the production value
+        many = [(f"f{i:04d}.py", f"v{i} = 0\n" * 300) for i in range(1200)]
+        body = run_in_orchestrator(
+            """
+            cis = [change_info(p, b) for p, b in ARG["files"]]
+            emit(orch.build_files_section(cis, 10_000_000, ARG["max_total"]))
+            """,
+            {"files": many, "max_total": cap},
+        )
+        self.assertLessEqual(len(body), cap)
+        self.assertIn("실리지 않았습니다", body)
+        self.assertIn("Read", body)
+
     def test_diff_only_overflow_branch_also_announces(self):
         """`build_files_section` has TWO overflow paths and both can hide files.
 

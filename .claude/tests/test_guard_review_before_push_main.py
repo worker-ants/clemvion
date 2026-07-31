@@ -183,6 +183,12 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, self.hook],
             input=stdin, capture_output=True, text=True, env=env, timeout=10,
+            # Pin the cwd to the per-test temp dir, as `test_stop_guard_failopen`
+            # does. Inheriting the caller's checkout made the hook see whatever
+            # worktrees happen to exist on the machine — a review flagged one
+            # non-reproducing failure out of 14 runs from exactly that coupling.
+            # These tests are about the hook's decision table, not the repo.
+            cwd=self.tmp,
         )
 
     # --- push detection gate (main's consumption of _is_git_push) ----------

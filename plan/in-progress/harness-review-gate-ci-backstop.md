@@ -39,7 +39,24 @@ priority: P2
 >    기록돼 있다(`review/code/2026/07/25/22_58_00`). 후보: orchestrator 가 checker 리포트의
 >    `[CRITICAL]` 수를 세어 최종 `BLOCK:` 와 모순되면 stderr 경고 / 반환 플래그.
 >    (사용자가 정책 자체는 "하향 금지 + planner 인계" 로 확정했으므로 이건 그 집행 수단이다.)
-> 3. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 3. **`build_files_section` 이 예산 전략 3개를 한 함수(약 190줄)에 누적** — 무예산 /
+>    header+diff 초과 / 콘텐츠 할당 세 경로가 "안내문 길이도 예산에 포함" 이라는 같은 불변식을
+>    각자 손으로 재구현한다. 3R CRITICAL 이 정확히 이 구조에서 재발했다(한 경로를 고쳤는데
+>    다른 규모에서 같은 클래스가 다시 나옴). `_render_unbounded` /
+>    `_render_diff_only_overflow` / `_allocate_content_budget` 로 분리하고 예산 계상을 단일
+>    헬퍼로 공유시킬 것.
+> 4. **파일 수가 아주 많으면 헤더만으로 상한 초과** — n=3000 실측: 헤더+구분자만 157,887자
+>    vs cap 141,557. 어느 분기도 **파일 섹션 자체를 버리는** 기능이 없어 구조적으로 준수 불가다
+>    (origin/main 도 동일 — 이번 변경이 만든 것도 악화시킨 것도 아니다). 실제 리뷰 규모에서는
+>    발생하지 않으므로 P3. 닫으려면 "N개 파일은 목록만" 같은 파일-단위 드롭이 필요하다.
+> 5. **`evaluate_review` 의 boolean flag 구조** — push(hard block)/stop(soft nudge) 두 보증
+>    수준을 `in_flight_ok` 하나로 스위칭한다. 현재는 fail-safe 기본값 + 양방향 seam 테스트로
+>    봉쇄돼 있으나, 세 번째 호출부가 생기면 다시 기본값에 의존한다.
+>    `evaluate_review_for_push()` / `_for_stop()` 얇은 wrapper 로 시그니처 레벨 차단 검토.
+> 6. **git 브랜치-diff 헬퍼가 두 orchestrator 에 중복** — `_branch_changed_rels`(consistency)
+>    와 `get_git_branch_diff_files`(code-review)가 같은 git 연산이다. 상호참조 주석은 넣었지만
+>    구조적 중복은 남는다. 위 "기본 브랜치 해석 4곳" 과 같은 뿌리(= `_lib` 충돌 해소 선행).
+> 7. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다

@@ -162,7 +162,7 @@ class DefaultPathIsWiredTest(unittest.TestCase):
     """
 
     @staticmethod
-    def _calls(mode):
+    def _calls(mode, staged=False):
         return run_in_orchestrator(
             """
             import argparse
@@ -172,7 +172,8 @@ class DefaultPathIsWiredTest(unittest.TestCase):
             orch.get_git_branch_diff_files = lambda b: []
             orch.get_git_range_files = lambda r: []
 
-            kw = dict(commit=None, range=None, branch=None, files=None, staged=False)
+            kw = dict(commit=None, range=None, branch=None, files=None,
+                      staged=ARG["staged"])
             if ARG["mode"]:
                 kw[ARG["mode"]] = "origin/main"
             buf = io.StringIO()
@@ -181,7 +182,7 @@ class DefaultPathIsWiredTest(unittest.TestCase):
                                           {"skip_extensions": set()})
             emit(len(calls))
             """,
-            {"mode": mode},
+            {"mode": mode, "staged": staged},
         )
 
     def test_default_path_calls_the_warning(self):
@@ -192,6 +193,14 @@ class DefaultPathIsWiredTest(unittest.TestCase):
 
     def test_explicit_range_does_not_warn(self):
         self.assertEqual(self._calls("range"), 0)
+
+    def test_staged_is_an_explicit_scope_and_does_not_warn(self):
+        """`--staged` sits in the same `else` branch as the bare default, so it
+        inherited the advisory even though SKILL.md documents it alongside
+        --commit/--range/--branch as an explicit scope. The caller already said
+        which changes to review; telling them they might be missing committed
+        work is noise, and noise is how a real warning gets ignored."""
+        self.assertEqual(self._calls(None, staged=True), 0)
 
 
 if __name__ == "__main__":
