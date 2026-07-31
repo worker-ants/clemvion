@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **33건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **38건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **752건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **757건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -160,7 +160,19 @@ spec_impact: none
       INFO 3(reviewer 3명 공통): `subprocess.run` 에 `timeout=300` + `TimeoutExpired` 라우팅.
       → fail-closed 지점 6곳 → 8곳. `FailClosedSiteCountTest` 가 즉시 빨간불을 내
       문서 동반 갱신을 강제했다(4차에 심은 가드가 설계대로 동작).
-- [ ] `/ai-review` 6차 · push + PR
+- [x] TEST WORKFLOW (6차) — lint PASS(50s) · unit PASS(63s) · build PASS(112s) ·
+      e2e PASS(295s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 6차 (`04_09_43`) — Critical 0 · Warning 3. 셋 다 `load_override_targets()`
+      **입력 경로 한 곳**으로 수렴해서, 형태를 하나씩 막지 않고 그 자리를 통째로 닫았다:
+      (1) `overrides` 값 타입 미검증 — 키는 있는데 `None`·문자열·리스트면 대상이 유실된 채
+      exit 0 (side_effect 가 `importlib` 로 실행 재현). 판정을 "키 존재" → **"매핑인가"** 로
+      바꾸니 키 부재·오타·값 없음·비-매핑이 한 조건에 들어왔다. (2) `yaml.safe_load` 예외
+      미처리 — 구문 오류가 traceback + **exit 1**, 즉 "침식 발견" 과 같은 코드로 죽었다.
+      JSON 쪽은 이미 갈랐는데 YAML 쪽만 비어 있었다. (3) `TimeoutExpired` 분기 미검증 —
+      안 던지는 예외 타입으로 바꿔도 33건 전부 GREEN 이었다(리뷰 실측). in-process mock 으로
+      고정하고, `timeout=` 인자가 실제로 넘어가는지도 별도 단언(없으면 그 분기는 영원히 안 탄다).
+      → fail-closed 지점 8곳 → 9곳.
+- [ ] `/ai-review` 7차 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 

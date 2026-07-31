@@ -117,19 +117,33 @@ def override_target(key: str) -> str:
 
 
 def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
-    """대상 패키지명 → 그 패키지를 제약하는 override 키 목록."""
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    if not isinstance(data, dict) or "overrides" not in data:
-        # 키가 통째로 없거나 오타(`override:`)면 `.get()` 이 빈 dict 를 돌려주고 대상이 0개가
-        # 되어 **무엇도 걸리지 않는 채로 exit 0** 이 된다 — 파일 부재와 같은 부류인데 이쪽만
-        # 조용했다. 빈 `overrides: {}` 는 의도일 수 있으므로 **키 자체의 부재**만 가른다.
+    """대상 패키지명 → 그 패키지를 제약하는 override 키 목록.
+
+    **입력이 기대 형태가 아니면 전부 판단 불가(exit 2)** 다. 이 함수가 빈 dict 를 돌려주면
+    어떤 advisory 도 대상에 안 걸려 `OK: 취약 재유입 0건` 이 나온다 — 설정이 깨졌는데 취약점
+    0건과 구별되지 않는 성공, 이 스크립트가 존재하는 이유인 바로 그 실패 클래스다. 그래서
+    "빈 결과로 조용히 흘려보낼 수 있는" 입력 형태를 하나씩 막지 않고 **한 자리에서** 가른다.
+    """
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        # 안 잡으면 traceback 과 함께 exit 1 로 죽는다 — 이 스크립트 어휘에서 1 은 "침식 발견"
+        # 이라 구문 오류가 정상 발견 신호와 같은 코드가 된다(exit code 만 보는 자동화가 혼동).
+        _undecidable(f"{path} 를 YAML 로 파싱하지 못했다:", f"  {exc}")
+    overrides = data.get("overrides") if isinstance(data, dict) else None
+    if not isinstance(overrides, dict):
+        # 키 부재·오타(`override:`)·값 없음(`overrides:` → None)·매핑 아닌 값(문자열/리스트)
+        # 을 한 조건으로 막는다. 빈 매핑(`overrides: {}`)은 의도일 수 있으므로 허용 —
+        # 판정 기준은 "비었는가" 가 아니라 **매핑인가** 다.
         _undecidable(
-            f"{path} 에 `overrides` 키가 없다 — override 목록을 못 읽으면 대상이 0개가 되어 "
-            "무엇도 걸리지 않는다(fail-closed). 오타(`override:`)인지 확인할 것.",
-            f"  최상위 키: {sorted(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
+            f"{path} 의 `overrides` 가 매핑이 아니다 — override 목록을 못 읽으면 대상이 0개가 "
+            "되어 무엇도 걸리지 않는다(fail-closed). 키 오타(`override:`)나 값 누락인지 확인할 것.",
+            f"  실제: {type(overrides).__name__}"
+            f" · 최상위 키: {sorted(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
         )
     targets: dict[str, list[str]] = {}
-    for key in data.get("overrides") or {}:
+    for key in overrides:
         targets.setdefault(override_target(str(key)), []).append(str(key))
     return targets
 

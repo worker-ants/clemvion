@@ -27,10 +27,12 @@
   4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
      느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
-     `_undecidable()` 로 exit 2 를 내는 지점은 **여덟**이다 — 타임아웃 / 빈 출력 / 파싱 불가 /
-     `actions` 키 없는 JSON / `advisories` 하위 필드 드리프트 / `actions` 하위 필드 드리프트 /
-     워크스페이스 파일 부재 / `overrides` 키 부재. 개수는 `FailClosedSiteCountTest` 가 소스에서
-     세어 강제한다 — 실제로 이 라운드에 8곳이 되자 바로 빨간불을 냈다.
+     `_undecidable()` 로 exit 2 를 내는 지점은 **아홉**이다. audit 쪽 여섯 — 타임아웃 / 빈 출력 /
+     JSON 파싱 불가 / `actions` 키 없는 JSON / `advisories` 하위 필드 드리프트 / `actions` 하위
+     필드 드리프트. 설정 쪽 셋 — 워크스페이스 파일 부재 / YAML 파싱 불가 / `overrides` 가
+     매핑이 아님(키 부재·오타·값 없음·문자열·리스트를 한 조건으로). 개수는
+     `FailClosedSiteCountTest` 가 소스에서 세어 강제한다 — 실제로 두 라운드 연속 지점이 늘자
+     바로 빨간불을 내 문서 동반 갱신을 강제했다.
 
      반대로 **returncode 는 판정에 쓰지 않는다**: audit 은 취약점을 찾으면 비-0 으로 끝나므로
      성공 신호가 못 된다. `ReturncodeInvariantTest` 가 스텁을 exit 1 로 돌려 그 불변식을 고정한다.
@@ -427,11 +429,72 @@ class MissingOverridesKeyTest(unittest.TestCase):
     def test_typo_key_is_undecidable(self):
         r = run_with_stub_audit({}, "override:\n  liquidjs: ^10.27.1\n")  # 단수형 오타
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        # exit code 만 보면 다른 _undecidable 사유로 잘못 합쳐져도 통과한다.
+        self.assertIn("overrides", r.stderr)
+
+    def test_valueless_overrides_is_undecidable(self):
+        """`overrides:` 뒤에 값이 없으면 `None` 이라 순회가 0회 — 키는 있지만 목록은 없다."""
+        r = run_with_stub_audit({}, "overrides:\npackages:\n  - codebase/*\n")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("매핑이 아니다", r.stderr)
+
+    def test_non_mapping_overrides_is_undecidable(self):
+        """매핑이 아닌 truthy 값(문자열·리스트)은 순회해도 의미가 없다."""
+        for bad in ('overrides: "liquidjs"\n', "overrides:\n  - liquidjs\n"):
+            with self.subTest(overrides=bad):
+                r = run_with_stub_audit({}, bad)
+                self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+                self.assertIn("매핑이 아니다", r.stderr)
 
     def test_present_but_empty_overrides_is_allowed(self):
-        """빈 `overrides: {}` 는 의도일 수 있다 — 키의 **부재**만 가른다."""
+        """빈 `overrides: {}` 는 의도일 수 있다 — 판정 기준은 매핑 여부지 비었는지가 아니다."""
         r = run_with_stub_audit({}, "overrides: {}\n")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_unparseable_yaml_is_undecidable_not_exit_1(self):
+        """구문 오류 YAML 이 exit 1 로 죽으면 "침식 발견" 과 같은 코드가 된다.
+
+        `yaml.safe_load` 예외를 안 잡으면 traceback + 기본 exit 1 이다 — exit code 만 보는
+        자동화는 그걸 정상 발견 신호로 읽는다. JSON 쪽은 이미 갈랐는데 YAML 쪽만 비어 있었다.
+        """
+        r = run_with_stub_audit({}, "overrides:\n\tliquidjs: ^10.27.1\n")  # 탭 들여쓰기
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("YAML", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+
+
+class AuditTimeoutTest(unittest.TestCase):
+    """레지스트리가 물렸을 때의 분기 — 서브프로세스로는 300초를 기다려야 해 in-process 로 본다.
+
+    이 분기는 추가 당시 어떤 테스트도 태우지 않았다: `except subprocess.TimeoutExpired` 를
+    `subprocess.run` 이 결코 던지지 않는 예외 타입으로 바꿔도 33건이 전부 GREEN 이었다(리뷰
+    실측). 그러면 실제 hang 때 traceback + exit 1 로 죽어 "침식 발견" 과 구분되지 않는다.
+    """
+
+    def test_timeout_exits_2(self):
+        import subprocess as sp
+        from unittest import mock
+
+        mod = _load_module()
+        with mock.patch.object(
+            mod.subprocess, "run",
+            side_effect=sp.TimeoutExpired(cmd="pnpm", timeout=mod._AUDIT_TIMEOUT_SEC),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                mod.run_audit()
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_timeout_is_actually_passed_to_subprocess(self):
+        """`timeout=` 인자가 실제로 넘어가는지 — 없으면 위 분기는 영원히 안 탄다."""
+        from unittest import mock
+
+        mod = _load_module()
+        with mock.patch.object(mod.subprocess, "run") as run:
+            run.return_value = mock.Mock(
+                stdout='{"actions": [], "advisories": {}}', stderr="", returncode=0
+            )
+            mod.run_audit()
+        self.assertEqual(run.call_args.kwargs.get("timeout"), mod._AUDIT_TIMEOUT_SEC)
 
 
 class FailClosedSiteCountTest(unittest.TestCase):
@@ -443,7 +506,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
     빨간불이 나고, 그때 docstring 도 같이 고치게 된다.
     """
 
-    EXPECTED_SITES = 8
+    EXPECTED_SITES = 9
 
     def test_docstring_count_matches_source(self):
         src = SCRIPT.read_text(encoding="utf-8")
@@ -455,7 +518,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
             f"`.claude/tests/README.md` 는 {self.EXPECTED_SITES}곳으로 서술한다 — "
             "분기를 늘렸으면 두 문서와 EXPECTED_SITES 를 함께 고칠 것.",
         )
-        self.assertIn("여덟", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
+        self.assertIn("아홉", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
 
 
 class SuppressedPathBaselineTest(unittest.TestCase):
