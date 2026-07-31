@@ -185,42 +185,53 @@ def orch_omitted_heading():
 
 
 class CollectContextUsesPriorityTest(unittest.TestCase):
-    """`collect_context` must actually call the ranker — for BOTH gate modes.
+    """`collect_context` must USE the ranker's result — for BOTH gate modes.
 
-    Every test above exercises `prioritize_bundle_files` directly, so deleting
-    the call sites in `collect_context` leaves them all GREEN while the bug is
-    fully back. Recording the labels it is called with keeps the call shape
-    intact, so a pass-through mutant at either site goes RED.
+    Every test above exercises `prioritize_bundle_files` directly, so removing
+    the call sites leaves them all GREEN while the bug is fully back.
+
+    Asserting the ranker was *called* is not enough either: a pass-through
+    mutant (`scope_files = prioritize_bundle_files(...) and scope_files`) keeps
+    the call and discards the return, and a call-count spy stays GREEN. Both
+    mutants survived that version of this test. So the spy imposes a sentinel
+    order (reverse-alphabetical) and we assert the bundle actually comes out in
+    it — the effect, not the call.
     """
 
     @staticmethod
-    def _labels_for(mode):
+    def _scope_order(mode):
         return run_in_orchestrator(
             """
-            calls = []
-            real = orch.prioritize_bundle_files
-            def spy(file_paths, root, **kw):
-                calls.append(len(file_paths))
-                return real(file_paths, root, **kw)
-            orch.prioritize_bundle_files = spy
+            import re
+            orch.prioritize_bundle_files = (
+                lambda file_paths, root, **kw: sorted(file_paths, reverse=True))
 
             class Args:
                 spec = plan = impl_prep = impl_done = diff_base = None
             args = Args()
             setattr(args, ARG["mode"], ROOT + "/spec/5-system")
 
-            orch.collect_context(args, ROOT)
-            emit(len(calls))
+            ctx = orch.collect_context(args, ROOT)
+            emit(re.findall(r"^#### `(spec/5-system/[^`]+)`",
+                            ctx["target_doc"], re.M))
             """,
             {"mode": mode},
         )
 
-    def test_impl_prep_ranks_its_scope_bundle(self):
-        # scope + related_specs + conventions
-        self.assertGreaterEqual(self._labels_for("impl_prep"), 3)
+    def _assert_sentinel_order(self, mode):
+        order = self._scope_order(mode)
+        self.assertGreater(len(order), 1, "scope bundle did not render")
+        self.assertEqual(order, sorted(order, reverse=True),
+                         "collect_context ignored the ranker's ordering")
+        # Guard against the assertion passing because the natural order already
+        # happens to be reverse-alphabetical.
+        self.assertNotEqual(order, sorted(order))
 
-    def test_impl_done_ranks_its_scope_bundle(self):
-        self.assertGreaterEqual(self._labels_for("impl_done"), 3)
+    def test_impl_prep_uses_the_ranked_order(self):
+        self._assert_sentinel_order("impl_prep")
+
+    def test_impl_done_uses_the_ranked_order(self):
+        self._assert_sentinel_order("impl_done")
 
 
 if __name__ == "__main__":
