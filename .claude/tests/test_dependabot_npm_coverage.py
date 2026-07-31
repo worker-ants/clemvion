@@ -33,6 +33,20 @@ DEPENDABOT_YAML = REPO_ROOT / ".github" / "dependabot.yml"
 # from here and covers it, so it is not an "independent tree".
 _ROOT_MANIFEST = "package.json"
 
+# …but it IS a legitimate dependabot registration, and for a different hole than
+# the one this file's main invariant closes. `_independent_trees()` answers "who
+# can `pnpm audit` not see?"; dependabot's root entry answers "who keeps
+# `pnpm-lock.yaml` current?". Nothing did — the lockfile drifted behind its own
+# manifests until a `--frozen-lockfile` CI failure surfaced it (#1029/#1030), and
+# dependabot's npm ecosystem understands pnpm workspaces, so one `directory: "/"`
+# covers every member. `_parse_dependabot_npm_directories` normalizes `/` → `""`.
+_WORKSPACE_ROOT_DIRECTORY = ""
+
+
+def _legitimate_dependabot_directories() -> set[str]:
+    """Directories a dependabot npm entry may point at without being stale."""
+    return set(_independent_trees()) | {_WORKSPACE_ROOT_DIRECTORY}
+
 
 def _tracked_package_jsons() -> list[str]:
     """Repo-relative package.json paths that git tracks (so never node_modules)."""
@@ -280,15 +294,46 @@ class DependabotCoverageTest(unittest.TestCase):
     def test_no_stale_dependabot_npm_entry(self):
         """A `directory:` pointing at a tree that no longer exists is dead
         config that reads as coverage."""
-        independent = set(_independent_trees())
+        legitimate = _legitimate_dependabot_directories()
         for registered in _dependabot_npm_directories():
             with self.subTest(directory=registered):
                 self.assertIn(
-                    registered, independent,
+                    registered, legitimate,
                     f"dependabot.yml registers `{registered}` but no independent "
                     "npm tree lives there (moved, deleted, or absorbed into the "
-                    "pnpm workspace?) — drop the entry or fix the path.",
+                    "pnpm workspace?) — drop the entry or fix the path. The one "
+                    "non-independent directory that is allowed is the workspace "
+                    "root, which exists to keep pnpm-lock.yaml current (#1029).",
                 )
+
+    def test_workspace_root_stays_registered(self):
+        """The root entry is the lockfile-drift fix — losing it is silent.
+
+        Nothing else fails when it goes: `pnpm audit` still passes (it reads the
+        lockfile it is handed), and the staleness check above only looks at
+        entries that ARE present. The drift only surfaces later, as a
+        `--frozen-lockfile` failure on an unrelated PR (#1029/#1030).
+        """
+        self.assertIn(
+            _WORKSPACE_ROOT_DIRECTORY, _dependabot_npm_directories(),
+            'dependabot.yml lost its workspace-root npm entry (directory: "/") — '
+            "pnpm-lock.yaml is no longer kept current by anything.",
+        )
+
+    def test_root_exception_does_not_admit_workspace_members(self):
+        """The exception is one directory wide, not "any tracked manifest".
+
+        Widening it to every package.json dir would re-admit exactly what the
+        staleness check exists to catch: an entry for a tree that pnpm audit
+        already covers, which reads as extra coverage while adding none.
+        """
+        members = [d for d in ("codebase/backend", "codebase/frontend")
+                   if (REPO_ROOT / d / "package.json").exists()]
+        self.assertTrue(members, "no workspace member manifest found to test with")
+        legitimate = _legitimate_dependabot_directories()
+        for member in members:
+            with self.subTest(member=member):
+                self.assertNotIn(member, legitimate)
 
 
 if __name__ == "__main__":

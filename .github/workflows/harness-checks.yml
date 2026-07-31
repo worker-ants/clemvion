@@ -47,6 +47,7 @@ on:
       # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
       - 'scripts/report_playwright_flaky.py'
       - 'scripts/check-e2e-playwright-config.py'
+      - 'scripts/check-override-floors.py'
 
 concurrency:
   group: harness-checks-${{ github.ref }}
@@ -66,6 +67,12 @@ jobs:
           python-version: '3.x'
 
       - name: Run harness unit tests
+      # 2026-08-01 — 이 스위트는 원래 stdlib 전용이었다. `test_override_floors.py` 가
+      # `scripts/check-override-floors.py` 를 직접 exec 하는데 그 스크립트가 모듈 최상단에서
+      # `import yaml` 하므로 PyYAML 이 필요해졌다. 같은 파일 `deps-security-checks.yml` 의
+      # config-guard 잡과 동일한 pin 을 재사용한다(신규 외부 의존 아님).
+      - name: Install PyYAML
+        run: pip install "pyyaml>=6,<7"
         run: python3 -m unittest discover -s .claude/tests -p 'test_*.py'
 
       # The workflow scripts' report-return parsing decides BLOCK/RISK, so it gets real
