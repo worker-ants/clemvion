@@ -233,6 +233,74 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     return files
 
 
+# Auto-generated per-resource reference dumps (e.g. `spec/conventions/
+# cafe24-api-catalog/<resource>/**`). `spec-impl-evidence.md` itself says these
+# are not 정식 spec, yet alphabetically they land near the front of the
+# conventions bundle and used to consume the whole budget before any document
+# the target actually cites. Matched on the path segment so a relocated or
+# newly added catalog inherits the demotion without a code change.
+_CATALOG_BULK_RE = re.compile(r"(^|/)[^/]*-api-catalog/")
+
+
+def _is_catalog_bulk(rel):
+    return bool(_CATALOG_BULK_RE.search(rel))
+
+
+def _branch_changed_rels(diff_base, root, subpath=None):
+    """Repo-relative paths this branch touched, as a set. Empty on any failure.
+
+    THREE-DOT for the same reason as `_collect_code_diff` — see its docstring.
+    """
+    cmd = ["git", "diff", "--no-renames", "--name-only", f"{diff_base}...HEAD", "--"]
+    cmd.append(subpath if subpath else ".")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=root, timeout=30.0)
+        if r.returncode != 0:
+            debug_log(f"branch-changed diff failed: {r.stderr.strip()[:200]}")
+            return set()
+        return {ln for ln in r.stdout.split("\n") if ln}
+    except Exception as e:  # noqa: BLE001
+        debug_log(f"branch-changed diff failed: {e}")
+        return set()
+
+
+def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
+    """Order a bundle so the documents this task is actually about survive truncation.
+
+    `truncate_file_bundle` drops whole files from the TAIL, and
+    `collect_markdown_files` hands it plain alphabetical order. That combination
+    is why `spec/5-system/4-execution-engine.md` — the work target — kept losing
+    its budget to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md`, eight
+    times across separate sessions. Twice the checkers had no coverage of the
+    target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
+
+    Tiers (stable, alphabetical inside each):
+      0. changed by this branch — the strongest available "this is the subject" signal
+      1. named by an in-progress plan — covers `--impl-prep`, where the spec is
+         typically NOT yet edited and tier 0 is therefore empty
+      2. everything else
+      3. catalog bulk — explicitly not 정식 spec; last
+
+    Reordering only. Nothing is dropped here; what does not fit is still dropped
+    by `truncate_file_bundle`, which names the omissions.
+    """
+    changed = set(changed_rels)
+
+    def tier(path):
+        rel = os.path.relpath(path, root) if root else path
+        if _is_catalog_bulk(rel):
+            return 3
+        if rel in changed:
+            return 0
+        if plan_text and (rel in plan_text or os.path.basename(rel) in plan_text):
+            return 1
+        return 2
+
+    # `sorted` is stable and the input is already alphabetical, so the secondary
+    # key is implicit — but spell it out rather than rely on the caller's order.
+    return sorted(file_paths, key=lambda p: (tier(p), p))
+
+
 def format_file_bundle(file_paths, root, label):
     if not file_paths:
         return f"### {label}\n(없음)\n"
@@ -353,6 +421,14 @@ def collect_context(args, root):
     target_doc = ""
     mode_label = ""
 
+    # Ranking inputs for `prioritize_bundle_files`, resolved once. Read WITHOUT
+    # `excluded` (which is still empty here anyway) because ranking wants every
+    # in-progress plan, not just the ones that survive into the plan bundle.
+    _rank_diff_base = args.diff_base or "origin/main"
+    _rank_plan_text = "\n".join(
+        read_text_file(p) for p in collect_markdown_files(plan_dir)
+    )
+
     def _require_target(value, flag, want_dir):
         """Fail fast when a mode argument is not the path it must be.
 
@@ -410,6 +486,13 @@ def collect_context(args, root):
         target_abs = _require_target(args.impl_prep, "--impl-prep", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
+        # --impl-prep runs before the spec is edited, so tier 0 is usually empty
+        # and the plan-name signal is what keeps the real target in budget.
+        scope_files = prioritize_bundle_files(
+            scope_files, root,
+            changed_rels=_branch_changed_rels(_rank_diff_base, root, target_path_rel),
+            plan_text=_rank_plan_text,
+        )
         target_doc = format_file_bundle(scope_files, root, f"구현 대상 영역: `{target_path_rel}`")
         mode_label = f"구현 착수 전 검토 (--impl-prep, scope={target_path_rel})"
 
@@ -418,6 +501,11 @@ def collect_context(args, root):
         target_abs = _require_target(args.impl_done, "--impl-done", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
+        scope_files = prioritize_bundle_files(
+            scope_files, root,
+            changed_rels=_branch_changed_rels(_rank_diff_base, root, target_path_rel),
+            plan_text=_rank_plan_text,
+        )
         spec_bundle = format_file_bundle(
             scope_files, root, f"구현 대상 spec 영역: `{target_path_rel}`"
         )
@@ -459,6 +547,15 @@ def collect_context(args, root):
         convention_files = collect_markdown_files(conventions_dir, exclude_paths=excluded)
         other_spec_files = all_spec_files
     plan_files = collect_markdown_files(plan_dir, exclude_paths=excluded)
+
+    # Same treatment for the two big supporting bundles. For `conventions` this
+    # is the fix for the observed case where ~230 auto-generated catalog files
+    # pushed every convention the target actually cites (error-codes / node-output
+    # / swagger / secret-store / migrations / execution-context) out of budget.
+    _rank = dict(changed_rels=_branch_changed_rels(_rank_diff_base, root),
+                 plan_text=_rank_plan_text)
+    other_spec_files = prioritize_bundle_files(other_spec_files, root, **_rank)
+    convention_files = prioritize_bundle_files(convention_files, root, **_rank)
 
     related_specs = format_file_bundle(other_spec_files, root, "관련 spec 본문")
     conventions = format_file_bundle(convention_files, root, "spec/conventions 정식 규약")
