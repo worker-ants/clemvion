@@ -234,7 +234,13 @@ export class AiTurnOrchestrator {
       this.logger.warn(
         `[processAiResumeTurn] malformed continuation payload (type 부재/비객체) for execution=${executionId} — re-park`,
       );
-      await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
+      await this.reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+        node,
+        finalizeOpts,
+      );
       return PARK_RELEASED;
     }
     const action = payload as ContinuationPayload;
@@ -294,7 +300,13 @@ export class AiTurnOrchestrator {
         return;
       }
       // 계속 — 다음 turn 을 위해 re-park (durable 영속 + WAITING 전이).
-      await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
+      await this.reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+        node,
+        finalizeOpts,
+      );
       return PARK_RELEASED;
     }
 
@@ -306,7 +318,13 @@ export class AiTurnOrchestrator {
         '[processAiResumeTurn] button_click received during ai_conversation — stale inline_keyboard, re-park',
         { executionId, nodeId: node.id },
       );
-      await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
+      await this.reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+        node,
+        finalizeOpts,
+      );
       return PARK_RELEASED;
     }
 
@@ -318,7 +336,13 @@ export class AiTurnOrchestrator {
         action.type,
       ).slice(0, 64)} for execution=${executionId} — re-park`,
     );
-    await this.reparkAiResumeTurn(savedExecution, context, nodeExec, node);
+    await this.reparkAiResumeTurn(
+      savedExecution,
+      context,
+      nodeExec,
+      node,
+      finalizeOpts,
+    );
     return PARK_RELEASED;
   }
 
@@ -408,6 +432,14 @@ export class AiTurnOrchestrator {
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
     node: Node,
+    // ai-review CRITICAL #1 (2026-07-30) — retry 재진입에서 turn 이 계속되면 이
+    // re-park 이 `FAILED → WAITING_FOR_INPUT` 전이를 요구한다. 그 전이는
+    // state-machine 의 `allowRetryReentry` opt-in 으로만 허용되므로 flag 를 여기까지
+    // 반드시 전파해야 한다 — 없으면 `assertTransition('failed','waiting_for_input')`
+    // 이 **동기 throw** 하고 그 일반 예외 메시지가 EXECUTION_FAILED payload 로
+    // 노출된다(동시성 없이 매 호출 결정적 실패). multi-turn 재진입의 가장 흔한
+    // 시나리오가 바로 이 경로다.
+    opts?: { retryReentry?: boolean },
   ): Promise<void> {
     // §7.5 재개 진입 원자 claim(06 C-2) 이후 nodeExec 는 RUNNING 으로 로드된다
     // (claim 이 WFI→RUNNING 페어링 전이). re-park 는 이를 다시 WAITING_FOR_INPUT
@@ -422,6 +454,7 @@ export class AiTurnOrchestrator {
       savedExecution,
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
+      opts?.retryReentry ? { allowRetryReentry: true } : undefined,
     );
     await this.assertLinkedTransitionApplied(
       parked,
@@ -1472,6 +1505,7 @@ export class AiTurnOrchestrator {
         const applied = await this.driver.tryLockActiveExecutionAndSaveNodeExec(
           executionId,
           nodeExec,
+          allowRetryReentry ? { allowRetryReentry: true } : undefined,
         );
         await this.assertLinkedTransitionApplied(
           applied,
@@ -1563,6 +1597,7 @@ export class AiTurnOrchestrator {
       const applied = await this.driver.tryLockActiveExecutionAndSaveNodeExec(
         executionId,
         nodeExec,
+        allowRetryReentry ? { allowRetryReentry: true } : undefined,
       );
       await this.assertLinkedTransitionApplied(
         applied,

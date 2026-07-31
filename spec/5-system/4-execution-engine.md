@@ -8,6 +8,7 @@ code:
   - codebase/frontend/src/lib/websocket/ws-client.ts
 pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
+  - plan/in-progress/retry-turn-terminal-guard.md
   - plan/in-progress/exec-intake-followups.md
 ---
 
@@ -42,7 +43,8 @@ pending_plans:
 pending → running ──┤                     └─ cancelled
                     ├─ completed
                     │
-                    └─ failed ─ running (retry_last_turn 재진입, opt-in)
+                    └─ failed ─┬─ running (retry_last_turn 재진입, opt-in)
+                               └─ waiting_for_input (재진입 turn 계속 → re-park, opt-in)
 ```
 
 > ※ Rehydration (다른 인스턴스가 사용자 입력을 받아 재개) 은 `waiting_for_input` 의 **내부 transition** — 다이어그램상 self-loop 로 표시하지 않으나 §7.5 의 재개 경로가 이를 수행한다. 상태 enum 자체는 변경되지 않는다.
@@ -75,6 +77,7 @@ pending → running ──┤                     └─ cancelled
 | waiting_for_input | waiting_for_input | 재개 (rehydration) — Execution.status enum 자체는 변하지 않고, 사용자 입력 도착 시 임의 worker 가 §7.5 rehydration 으로 컨텍스트를 재구성해 다음 세그먼트를 시작 (Phase B: park 시 코루틴 해제로 모든 재개가 rehydration. 같은 인스턴스 우연 픽업이어도 동일 경로)                                                                                                                                                                                                                    |
 | waiting_for_input | cancelled         | 사용자 취소, 타임아웃, 또는 rehydration 실패의 단말 케이스 (`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE` — §7.5)                                                                                                                                                                                                                                                                                                                                       |
 | failed            | running           | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — AI Agent multi-turn retryable error 종결로 `failed` 가 된 Execution 을 동일 nodeId 의 새 NodeExecution row 구동을 위해 `running` 으로 전이. 성공 종결 시 다시 `completed`, 재실패 시 `failed`. replay 가 RUNNING 으로 도는 중 도착한 cancel 은 **진행 중 turn 을 즉시 끊지 않는다**(full B3 — RUNNING resume/replay drive 에는 깨울 in-memory 코루틴이 없다). 그러나 취소 **기록은 지연되지 않는다** — `stop()` 의 RUNNING/PENDING 경로가 조건부 UPDATE 로 `cancelled` + `finishedAt`/`durationMs` 를 즉시 커밋한다. replay 는 다음 **turn 경계**의 `assertExecutionNotCancelled` 로 이를 관측해 종결하며, park 에 도달하는 경우엔 `cancelParkedExecution` 이 짝 `NodeExecution` 까지 `cancelled` 로 마킹한다([§7.4](#74-분산-실행-multi-instance) Worker 동작의 취소 경로). **park 없이 그 turn 에서 종결되어도 cancel 은 보존된다** — 자연 종결(`completed`/`failed`)은 정본 상태에서의 전이 불가 또는 조건부 UPDATE `affected=0` 으로 무효화되고 종결 이벤트 발행도 함께 skip 된다([node-cancellation §2.4](../conventions/node-cancellation.md)). 일반 경로엔 없음 — [§1.3](#13-블로킹재개-컨트랙트-nodehandleroutput-status) / [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) |
+| failed            | waiting_for_input | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — 재진입한 turn 이 **계속**되는 경우(대화가 끝나지 않아 다음 사용자 입력을 기다림) `reparkAiResumeTurn` 이 세그먼트를 종료하며 park 한다. 이 전이가 없으면 `assertTransition('failed','waiting_for_input')` 이 동기 throw 하고 그 예외 메시지가 `EXECUTION_FAILED` payload 로 노출된다(2026-07-30 ai-review CRITICAL #1 — 동시성 무관, 매 호출 결정적 실패였다). **multi-turn 재진입에서 가장 흔한 경로다.** 이후 재개는 일반 `waiting_for_input → running` 경로(§7.5 원자 claim)로 합류한다 — 즉 opt-in 은 이 한 번의 park 에만 필요하다. 일반 경로엔 없음 |
 
 > **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED`. **재개 진입의 `waiting_for_input → running` claim(§7.5)도 이 원자성에 포함** — 조건부 UPDATE 가 짝 상태(Execution·NodeExecution)를 단일 트랜잭션으로 갱신하고, `affected=0` 이면 어느 쪽도 갱신하지 않는 no-op(ack-and-discard)이며, claim 후 rehydration 프로세스 실패는 `RESUME_*` terminal 로 원자 마감(§7.5)해 `running` 잔류를 남기지 않는다.
 >
@@ -85,6 +88,16 @@ pending → running ──┤                     └─ cancelled
 > 호출부는 이때 park/terminal 이벤트 emit 을 건너뛰고 짝 `NodeExecution` 을 `cancelled` 로 마킹한
 > 뒤 취소 전파 경로로 넘겨야 한다.
 >
+> **예외 — retry 재진입 opt-in (2026-07-30)**: 위 "비-terminal 확인" 의 **terminal 정의 자체가
+> `allowRetryReentry` opt-in 에 따라 파라미터화된다.** `execution.retry_last_turn` 재진입에 한해
+> DB 가드(짝 전이 `FOR UPDATE` 잠금 · else 분기 guarded UPDATE)가 `failed` 행도 조건부로 잠금
+> 대상에 포함한다(`NON_TERMINAL_OR_FAILED_STATUSES_SQL`). **이 opt-in 을 상태머신
+> (`canTransition`) 쪽에만 반영하고 DB 가드에 전파하지 않으면 재진입 짝 전이가 항상 0행이 되어
+> 기능이 전혀 동작하지 않는다** — 실제로 2026-07-30 까지 그 상태였다(ai-review 8차 라운드
+> CRITICAL). opt-in 시에도 `completed`/`cancelled` 는 배제되므로 진짜 동시 취소는 계속 막힌다.
+> 상세는 아래 [§Rationale](#rationale) "retry 재진입의 원자 claim" 및
+> [node-cancellation §2.4](../conventions/node-cancellation.md).
+
 > 이 가드가 없으면 in-memory 엔티티가 stale 한 상태에서(park↔resume 경로는 Execution 을 재로드하지
 > 않는다) full-entity save 가 동시 도착한 취소를 덮어써, **사용자 Stop 이 지연되는 게 아니라
 > 소실**된다. 같은 이유로 `finalizeFailedExecution` 등 terminal 마감 경로도 조건부 UPDATE
@@ -422,7 +435,7 @@ $loop.count = 10              $itemIndex = 1 ($itemIsFirst=false, $itemIsLast=�
 >
 > - **jobId = `executionId`** (BullMQ `add` 옵션). PR1 은 Execution row 생성당 1회만 enqueue 하므로 executionId 자체가 유일 dedup 키이고 seq 가 불필요하다 — `<executionId>:run:<seq>` 일반형은 **BullMQ re-enqueue 로 crash 재개하는 PR4** 에서 활성화한다(§9.2 `exec:run:seq` 참조). **PR3 의 재시작 크래시 re-drive 는 re-enqueue 가 아니라 `recoverStuckExecutions` 의 in-process `started_at` re-claim + §7.5 case B 재구동**이라 seq 를 쓰지 않는다(§7.1).
 > - **triggerType 은 payload 에 싣지 않는다.** 우선순위 계산(BullMQ `priority` 옵션)에만 쓰고 `ExecutionRunJob` payload 에는 포함하지 않는다. **3-tier(`manual`>`webhook`>`schedule`)는 구현 완료(2026-07-04, triggerType threading)**: `execute()` 는 **`executedBy` 우선 판정** — `executedBy` 존재 시 `manual`(수동 실행·schedule "지금 실행" `runNow` 포함), 그 외에는 호출부가 `ExecuteOptions.triggerType`(`Trigger.type` [§2.8](../1-data-model.md#28-trigger) 어휘: webhook/schedule)로 전달한 값(미전달 시 `webhook` fallback)을 `resolveExecutionRunPriority` 에 넘긴다. (본 `triggerType` 은 priority 계산 전용 — 실행 이력 표시용 `Execution.triggerSource` 5-way 와는 별개 필드.)
-> - **active-running 직렬화 불변식 (PR2a)**: 위 `jobId = executionId` dedup 으로 **동일 Execution 의 active 세그먼트는 항상 1개**이며 두 세그먼트가 동시 실행되지 않는다. PR2a 의 active-running 누적 타임아웃(§8)은 `assertActiveTimeWithinLimit`(판정)과 `updateExecutionStatus`(누적) 사이에 잠금 없는 read-check-then-act 가 있으나, 이 불변식 덕에 두 연산 사이에 다른 세그먼트가 끼어드는 경로가 구조적으로 없어 실질 race 가 없다. **PR2b+ 재진입 경로**(예: `retry_last_turn` 으로 동시 active 세그먼트가 가능해지는 설계)가 추가되면 이 불변식이 깨질 수 있으므로 PR2b 착수 전 재검증한다([§Rationale](#rationale)).
+> - **active-running 직렬화 불변식 (PR2a)**: 위 `jobId = executionId` dedup 으로 **동일 Execution 의 active 세그먼트는 항상 1개**이며 두 세그먼트가 동시 실행되지 않는다. PR2a 의 active-running 누적 타임아웃(§8)은 `assertActiveTimeWithinLimit`(판정)과 `updateExecutionStatus`(누적) 사이에 잠금 없는 read-check-then-act 가 있으나, 이 불변식 덕에 두 연산 사이에 다른 세그먼트가 끼어드는 경로가 구조적으로 없어 실질 race 가 없다. **PR2b+ 재진입 경로**(예: `retry_last_turn`)에 대한 재검증 완료(2026-07-28): `retry_last_turn` 은 `jobId = executionId` dedup 밖이라(§7.4 jobId 는 `${executionId}:${nodeExecutionId}:${seq}`) 이 불변식이 **자동으로 성립하지 않는다**. 대신 `applyRetryLastTurn` 이 **자체 원자 claim**(`input_data - '_retryState'` 를 `status='running'` + `jsonb_exists` 조건부 UPDATE, affected=1 인 delivery 만 진행)으로 동일 보장을 만든다 — 상세는 [§7.5 Rationale](#rationale) "retry 재진입의 원자 claim". 그전까지는 read-then-branch 라 check-then-act 창이 있었다([§7.4](#74-분산-실행-multi-instance) Worker 동시성 cell 참조).
 >   세그먼트 종료: (a) Execution 완료/실패 → job 정상 ack, (b) 노드 BLOCK(`waiting_for_input`) → §2(아래 "waiting_for_input park") 처리 후 job 정상 ack.
 
 ### 4.3 수평 확장 (target)
@@ -881,7 +894,7 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 - **재개 진입 원자 claim** (affected=1): waiting 재개는 `waiting_for_input → running`(`claimResumeEntry`), 재시작 크래시 re-drive(case B)는 `running → running` **`started_at` 조건부 re-claim** — 둘 다 affected=1 인 worker/인스턴스만 진행(§7.5). §1.3 `_retryState` "affected=1 인 쪽만 진행" 패턴의 일반화.
 - **완료 노드 미재실행** (엔진 보장, exactly-once): 재개/재구동 시 `execution_node_log` + 완료 `NodeExecution.outputData` 로 복원한 `_executedNodes` 로 완료 노드를 skip — 재방문 금지(§7.2c). 추가로 dispatch 직전 대상 NodeExecution 이 이미 COMPLETED 면 skip(per-node DB status 재검증 — in-memory Set 과 중복 defense-in-depth).
 - **RUNNING-at-crash 노드 = at-least-once**: 크래시 시점 아직 COMPLETED 아니던 노드는 재구동 시 **재실행**된다. 그 노드의 외부 side-effect(Integration write: send_email·HTTP POST 등) 발생 여부를 엔진은 알 수 없으므로 **exactly-once 를 보장하지 않는다** — 외부 API 호출 노드(Integration)의 멱등성은 기존 원칙대로 **노드 설정에서 관리**(idempotency key 등). 엔진은 "완료 노드 미재실행"까지만 보장한다. (분산 트랜잭션 없이 무손실 재개를 달성하는 본질적 trade-off — §Rationale.)
-  - **orphan row 마감**: 재실행은 **새 NodeExecution row** 로 수행하므로, 크래시 시점의 옛 `NodeExecution(status=running)` row 는 case B re-drive 진입 시 terminal(`failed`)로 마감한다(`failOrphanRunningNodeExecutions` — 완료 노드는 COMPLETED 라 대상 아님). 옛 stale-fail 모델의 자식 RUNNING cascade 마감을 re-drive 진입 시점으로 옮겨 보존한 것 — 부모 Execution 종결 후 유령 `running` 노드가 타임라인/진행률 집계에 남지 않게 한다.
+  - **orphan row 마감**: 재실행은 **새 NodeExecution row** 로 수행하므로, 크래시 시점의 옛 `NodeExecution(status=running)` row 는 case B re-drive 진입 시 terminal(`failed`)로 마감한다(`failOrphanRunningNodeExecutions` — 완료 노드는 COMPLETED 라 대상 아님). **스코프 주의**: 이 cascade 는 **case B re-drive 진입 시점**에만 돈다 — `retry_last_turn` 2차 claim 이 discard 되며 남는 spawn row 는 Execution 이 이미 `failed`(terminal) 라 이 경로 대상이 아니다(§Rationale "retry 재진입의 원자 claim" 참조). 옛 stale-fail 모델의 자식 RUNNING cascade 마감을 re-drive 진입 시점으로 옮겨 보존한 것 — 부모 Execution 종결 후 유령 `running` 노드가 타임라인/진행률 집계에 남지 않게 한다.
 
 ### 7.4 분산 실행 (Multi-instance)
 
@@ -903,7 +916,7 @@ LB 뒤에 backend 인스턴스 N개를 두는 수평 확장 환경에서의 실�
 | 항목                     | 값                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | BullMQ 큐 이름           | `execution-continuation` (`background-execution` 와 동일한 BullMQ infra 재사용)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 메시지 타입              | `continue` / `cancel` / `button_click` / `ai_message` / `ai_end_conversation` / `retry_last_turn` (`ContinuationType`, `continuation-bus.service.ts`). `retry_last_turn` 은 §1.3 / §1.2 의 AI Agent multi-turn 재진입(WS `execution.retry_last_turn`) 전용 — 대상 row 는 WAITING 이 아니라 spawn 된 RUNNING 이므로 WAITING_FOR_INPUT 사전검증을 거치지 않는다                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 메시지 타입              | `continue` / `cancel` / `button_click` / `ai_message` / `ai_end_conversation` / `retry_last_turn` (`ContinuationType`, `continuation-bus.service.ts`). `retry_last_turn` 은 §1.3 / §1.2 의 AI Agent multi-turn 재진입(WS `execution.retry_last_turn`) 전용 — 대상 row 는 WAITING 이 아니라 spawn 된 RUNNING 이므로 WAITING_FOR_INPUT 사전검증도, `claimResumeEntry` 의 `waiting_for_input → running` 조건부 전이도 적용되지 않는다. **대신 `applyRetryLastTurn` 이 자체 원자 claim 을 수행한다**(2026-07-28) — 아래 Worker 동시성 cell 참조                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 메시지 스키마            | `{ type: ContinuationType, executionId: string, nodeExecutionId: string, payload?: unknown }`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | jobId                    | `${executionId}:${nodeExecutionId}:${monotonic-seq}` (seq 는 Redis INCR per executionId — idempotency key)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | 입력 receiver → enqueuer | controller / WS gateway 는 `resolveWaitingNodeExecutionId` 로 현재 `WAITING_FOR_INPUT` NodeExecution 을 DB lookup (`execution_id + status='waiting_for_input'`) 해 단일 대기 row 의 `nodeExecutionId` 를 채운 뒤 enqueue. 0건/다중 row 이면 즉시 `INVALID_EXECUTION_STATE`. **nodeId 는 lookup WHERE 키가 아니라 사후 검증 입력**이다 — caller 가 `nodeId` 를 지정하면(EIA `/interact` 항상, WS 제공 시) 조회된 대기 row 의 nodeId 와 대조해 불일치 시 `INVALID_EXECUTION_STATE` 로 거부하고, `in_process_trusted`(chat-channel)는 nodeId 를 안 실어 이 검사를 건너뛴다 (§7.5.1 상세)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -911,7 +924,7 @@ LB 뒤에 backend 인스턴스 N개를 두는 수평 확장 환경에서의 실�
 | Dead-letter              | 모든 attempt 소진 시 Execution `cancelled` + `error.code='RESUME_FAILED'`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 라우팅 원칙              | **모든 진입점은 항상 BullMQ enqueue**. (full B3 으로 in-process `pendingContinuations` Map 은 제거됐으므로 같은-인스턴스 local resolve 분기 자체가 더 이상 존재하지 않는다.) 옛 pub/sub 시대의 "항상 publish — 직접 dispatch 분기는 race window" 원칙을 BullMQ 로 그대로 계승. local resolve 의 microsecond 절약은 운영 단순성·디버깅 가능성보다 가치가 낮다 — worker 는 어떤 인스턴스에서 pick up 하든 §7.5 rehydration 으로 재개한다 (Worker 동작 cell)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Worker 동작              | 임의 인스턴스가 job 을 pick up → **항상 §7.5 rehydration 경로**로 재개한다. park 시 코루틴을 즉시 해제하므로(§4.x — Phase B, full B3 완료) in-process resolver 가 일절 존재하지 않는다 — worker 는 `runExecution` 을 직접 await 하며(park=세그먼트 종료), 배리어(`firstSegmentBarriers`)도 `pendingContinuations` Map 도 없고 재개 경로는 slow-path(rehydration)로 일원화된다. (이는 §7.4 라우팅 원칙 "항상 BullMQ enqueue"(publisher-side)의 worker-side 대칭 완성이다.) **취소 경로**: in-memory 코루틴이 없으므로 park 취소 시 `ContinuationExecutionProcessor` 가 `await applyCancellation(executionId)` 를 호출하며, 이 안에서 `cancelParkedExecution` 이 Execution + 동반 WAITING NodeExecution 을 직접 CANCELLED 로 마킹한다 (DB-level terminal, coroutine 없이 동일 종착점 달성). |
-| Worker 동시성            | `CONTINUATION_WORKER_CONCURRENCY` (기본 1 — 인스턴스당 직렬). 대량 동시 resume 의 setup (rehydration / 그래프 빌드) 직렬화 latency 가 관측되면 상향. 재개 진입이 §7.5 의 DB 원자 claim 으로 gate 되므로 **concurrency 상향·멀티 인스턴스에서도 "동일 turn 이중 실행 0" 불변식이 유지된다** — 이 기본값은 성능 파라미터이지 정합성 전제가 아니다. 비양수·비정수·비숫자 입력은 1 로 fallback, 변경은 인스턴스 재시작 시 반영 (§11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Worker 동시성            | `CONTINUATION_WORKER_CONCURRENCY` (기본 1 — 인스턴스당 직렬). 대량 동시 resume 의 setup (rehydration / 그래프 빌드) 직렬화 latency 가 관측되면 상향. 재개 진입이 DB 원자 claim 으로 gate 되므로 **concurrency 상향·멀티 인스턴스에서도 "동일 turn 이중 실행 0" 불변식이 유지된다** — claim 지점은 타입마다 다르다: `continue`/`button_click`/`ai_message`/`ai_end_conversation` 은 §7.5 의 `claimResumeEntry`(`waiting_for_input → running`), `retry_last_turn` 은 `applyRetryLastTurn` 의 `_retryState` 키 조건부 소비(`status='running'` + `jsonb_exists`), `cancel` 은 claim 대상이 아니다(`cancelParkedExecution` 자체가 조건부 UPDATE). **2026-07-28 이전에는 `retry_last_turn` 만 read-then-branch 라 이 재단언이 그 타입에 대해 성립하지 않았다** — 이 기본값은 성능 파라미터이지 정합성 전제가 아니다. 비양수·비정수·비숫자 입력은 1 로 fallback, 변경은 인스턴스 재시작 시 반영 (§11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ```
 [client] → controller / WS gateway
@@ -1351,6 +1364,64 @@ publish 전에 검사한다(위 §7.5.1 표 "표면(interactionType) 불일치" 
 
 구현: `state-machine.ts` `ALLOWED_TRANSITIONS`.
 
+### retry 재진입의 원자 claim — spawn 단계 원자성만으로는 불충분하다 (§7.5 대칭, 2026-07-28)
+
+위 §7.5 claim(`claimResumeEntry`)은 `waiting_for_input → running` 조건부 전이를 레이스 결정자로
+쓴다. `retry_last_turn` 은 **그 전이가 성립하지 않는다** — 대상이 WAITING row 가 아니라
+`retryLastTurn` 이 이미 `running` 으로 spawn 한 새 row 이기 때문이다. 그래서 이 타입만 위 claim
+에서 제외돼 있었고, 대신 `applyRetryLastTurn` 진입부의 `status !== RUNNING → discard` 체크가
+멱등 가드로 신뢰됐다.
+
+**그 체크는 원자적이지 않았다.** `findOneBy` → `if` 분기는 check-then-act 창을 남기므로 중복
+배달(BullMQ stalled 재배달, `CONTINUATION_WORKER_CONCURRENCY` 상향, 멀티 인스턴스)에서 두
+delivery 가 모두 통과할 수 있었다. 적중 시 락 없는 인스턴스-로컬 `ExecutionContext` 를 공유해
+대화 상태가 훼손되고, LLM 호출과 downstream 도구(Cafe24/MakeShop/MCP 등 실 부수효과)가 중복
+실행된다.
+
+**왜 spawn 단계 원자성으로 충분하지 않은가.** `retryLastTurn` 은 원본 row 의
+`outputData._retryState` 를 JSONB `-` 로 원자 소비하며 spawn 하므로 **spawn 자체는 단일**이다.
+그러나 spawn 이후 continuation 큐로 handoff 하는 순간부터는 **job 배달 횟수가 별개 축**이다 —
+jobId 가 `${executionId}:${nodeExecutionId}:${seq}` 로 매 enqueue 마다 유일해 BullMQ 레벨 dedup
+도 걸리지 않는다. 즉 "한 번만 spawn 됐다" 와 "그 row 를 한 번만 구동한다" 는 서로 다른 보장이고,
+후자에는 별도 claim 이 필요하다.
+
+**채택**: `applyRetryLastTurn` 이 spawn row 의 `inputData._retryState` 키를 조건부 UPDATE 로
+원자 소비한다.
+
+```sql
+UPDATE node_execution SET input_data = input_data - '_retryState'
+ WHERE id = :id AND status = 'running' AND jsonb_exists(input_data, '_retryState')
+```
+
+두 조건이 **모두** 필요하다. `jsonb_exists` 가 레이스 결정자이고, `status = 'running'` 이 없으면
+**완료된 턴을 재실행한다** — `inputData` 에 쓰는 지점은 spawn 시점뿐이라 턴이 `completed` 로
+끝나도 이 키가 남기 때문이다(fast-path 상태 체크 통과 후 다른 worker 가 턴을 마치는 창이 실재).
+
+**대가(의도된 트레이드오프) — 서술 정정(2026-07-30)**: 크래시로 중단된 턴의 BullMQ 재배달도
+함께 막힌다. 형제 continuation 4종은 `claimResumeEntry` 로 이미 같은 성질을 수용하며, 그 복구는
+`recoverStuckExecutions`(stale RUNNING Execution 재claim, §7.5 case B) 백스톱이 담당한다.
+**단 `retry_last_turn` 의 이 2차 claim(`claimSpawnedRetryRow`) 경로는 그 백스톱이 닿지 않는다** —
+claim 실패로 discard 되는 시점에 대상 Execution 은 이미 `failed`(terminal) 로 남아
+`recoverStuckExecutions` 의 재구동 대상(stale RUNNING **Execution**)이 아니기 때문이다(실측 확인).
+그 결과 discard 된 spawn row 자체는 RUNNING orphan 으로 잔류할 수 있다 — **[§7.3](#73-멱등성-보장)
+"orphan row 마감" 은 case B re-drive 진입 시의 크래시-시점 구 RUNNING row 를 다루므로 이 경로는
+그 cascade 대상이 아니다**(두 서술은 스코프가 다르며 모순이 아니다). 후속은
+`plan/in-progress/retry-turn-terminal-guard.md` #15.
+
+그래도 discard 가 옳다: 살아있는 작업을 죽이는 것(claim 도입 전 결함)이 이 이론적 orphan row
+보다 항상 더 나쁘다. `retry_last_turn` 만 claim 자체를 예외로 두면(= claim 을 아예 안 만들면)
+"중복 실행 0" 재단언(§7.4 Worker 동시성)이 그 타입에 대해서만 거짓이 되는데, 그 자기모순이
+실제로 2026-07-28 까지 남아 있었다(이는 claim 유무의 문제이고, 위 orphan row 백스톱 갭과는
+별개의 잔여 사안이다).
+
+> 위 문단 첫 문장의 "크래시로 중단된 턴" 범위 자체(프로세스 크래시뿐 아니라 claim~turn 진입
+> 사이 구간의 일반 예외까지 포함되는지)는 **별개로 열려 있다** —
+> `plan/in-progress/retry-turn-terminal-guard.md` #17.
+
+**선행 판정의 스코프**: `plan/complete/exec-intake-queue-impl.md` 의 2026-06-06 PASS 는 이 축을
+검증한 적이 없다 — `claimResumeEntry` 자체가 2026-07-03(`44f956e9c`)에 도입됐으므로 그보다
+앞선 판정이다. 무효화된 것이 아니라 **스코프 밖**이었다.
+
 ### 재개 race 보장을 DB 원자 claim 으로 — 위 "running hop 회피" 결정의 부분 수정 (§7.5, 2026-07-02)
 
 §7.5 는 "재검증 가드가 정상-경로 race 까지 닫는다"(불변식: 동일 turn 이중 실행 0)를 선언했으나, 그 가드는 비원자 SELECT check-then-act 라 멀티 인스턴스(인스턴스당 concurrency=1 이어도 인스턴스 간 병렬)·§7.4 가 예고한 concurrency 상향 시 불변식을 **기계적으로 보장하지 못했다**(check 와 act 사이 창에서 두 worker 동시 통과). 재개 **진입** 을 조건부 원자 UPDATE(`… WHERE status='waiting_for_input' RETURNING`, affected=0 → ack-and-discard)로 gate 해 갭을 닫는다.
@@ -1451,6 +1522,13 @@ R1(위) 의 `execution.retry_last_turn` 이 실제로 실행되는 시점의 상
 
 - retry 는 **새 NodeExecution row 를 spawn** 해 마지막 turn 을 replay 한다 (기존 `failed` row 는 보존). 새 row 의 turn 이 WS `node.started`/`node.completed` 를 발행하려면 Execution 이 `running` 이어야 하므로 §1.1 에 **`failed → running` 단일 전이**를 추가한다.
 - 이 전이는 R2(`waiting_for_retry` 신설 — 기각) 와 무관한 별개 경로이고, `waiting_for_input → running → failed` 재개 흐름과도 다르다 (retry 는 입력 대기 없이 새 row 를 즉시 구동). 일반 노드 실패에 번지지 않도록 state-machine 의 `allowRetryReentry` opt-in 으로만 허용 — `failed` 종결 실행이 일반 `updateExecutionStatus` 경로로 우발 부활하는 것을 차단한다.
+- **세 번째 갈래 — 재진입 turn 이 계속되는 경우(2026-07-30 신설).** 재진입한 turn 이 대화를
+  끝내지 않으면 `reparkAiResumeTurn` 이 Execution 을 `waiting_for_input` 으로 park 하고 세그먼트를
+  종료한다. 그래서 `allowRetryReentry` opt-in 은 `failed → running` 뿐 아니라
+  `failed → waiting_for_input` 도 허용해야 한다(§1.1 표). **이 갈래가 multi-turn 재진입에서 가장
+  흔하다** — 그런데 2026-07-30 까지 상태머신·DB 가드 어느 쪽도 이를 허용하지 않아 매 호출
+  동기 throw 했다(ai-review CRITICAL #1). park 이후의 재개는 일반 `waiting_for_input → running`
+  경로(§7.5 원자 claim)로 합류하므로 opt-in 은 그 한 번의 park 에만 필요하다.
 - 재진입 성공 시 Execution 은 `completed`, 재실패 시 `failed`(retryable 재실패면 새 `_retryState` 보존 → 재-retry 가능)로 마감한다. replay 가 RUNNING 으로 도는 도중 도착한 사용자 cancel 은 **진행 중 turn 을 즉시 끊지 않는다**(full B3 — RUNNING replay/resume drive 에는 즉시 깨울 in-memory 코루틴이 없다). 다만 **취소 기록 자체는 즉시**다 — `stop()` 의 RUNNING/PENDING 경로가 조건부 UPDATE 로 `cancelled` 를 커밋하고, replay 는 다음 turn 경계의 `assertExecutionNotCancelled` 에서 이를 관측한다. park 에 도달하면 `cancelParkedExecution` 의 `status = WAITING_FOR_INPUT` 가드가 짝 WAITING NodeExecution 까지 `cancelled` 로 마킹한다.
 - **park 없이 종결되는 경우에도 cancel 이 우선한다.** 종결 경로가 모두 조건부 UPDATE 를 거치므로(`status IN (비-terminal)`) 이미 `cancelled` 인 행은 `completed`/`failed` 로 덮이지 않고 그 종결 이벤트도 발행되지 않는다. 취소 시각(`finishedAt`/`durationMs`)은 `stop()` 이 쓴 값이 정본으로 보존된다.
 - **옛 서술 철회 (2026-07-28)**: 본 절은 최초 작성(`5e0c5e449`) 당시 "replay 가 park 없이 종결되면 cancel 은 무효과로 흘려보내진다" 고 단언했다. 그것은 당시 구현(무가드 full-entity `save()`)의 사실 서술이었으나, `#1021`(취소 후 하류 dispatch 계속) · `#1022`(엔진 무가드 terminal 쓰기 5경로) · `#1024`(retry-turn 종결 2경로)가 그 동작을 **결함으로 규정하고 차단**했다 — 세 PR 모두 "사용자 Stop 이 지연이 아니라 **소실**된다" 를 수정 사유로 명시했다. 따라서 park 도달 여부는 cancel 의 발효 조건이 아니다. 이 문서가 그 반대를 계약으로 남겨 두면 향후 구현이 가드를 되돌리는 근거로 오인될 수 있어 철회한다.

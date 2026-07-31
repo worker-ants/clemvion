@@ -241,6 +241,7 @@ describe('ExecutionEngineService', () => {
   let waitingRawRows: Array<Record<string, unknown>>;
   let waitingQueryError: Error | null;
   let mockWaitingQb: Record<string, jest.Mock>;
+  let retryClaimQb: Record<string, jest.Mock>;
   let mockEdgeRepo: Record<string, jest.Mock>;
   let mockWorkflowRepo: Record<string, jest.Mock>;
   let mockExecutionNodeLogRepo: Record<string, jest.Mock>;
@@ -248,6 +249,8 @@ describe('ExecutionEngineService', () => {
   // 실행하는 terminal 가드(`SELECT ... FOR UPDATE`) 제어. 기본은 "행 잠금 성공(비-terminal)"
   // 이라 기존 테스트가 그대로 통과하고, 선점 테스트만 `[]` 로 재무장한다.
   let mockTxManagerQuery: jest.Mock;
+  // 위 잠금 mock 이 대조할 "현재 DB Execution.status".
+  let dbExecutionStatus: ExecutionStatus;
 
   beforeEach(async () => {
     const savedExecution: Partial<Execution> = {
@@ -264,8 +267,21 @@ describe('ExecutionEngineService', () => {
     // execute() → enqueue → worker → runExecution 경로가 옛 fire-and-forget 계약과
     // 동일하게 동작해 기존 execute() 테스트가 그대로 통과한다.
     let lastSaved: Partial<Execution> = { ...savedExecution };
-    // 기본: 행 잠금이 비-terminal 을 반환 → 짝 전이가 그대로 영속(기존 동작 유지).
-    mockTxManagerQuery = jest.fn().mockResolvedValue([{ id: executionId }]);
+    // ai-review CRITICAL #1 (2026-07-30) — 이 mock 은 종전에 SQL·status 와 **무관하게**
+    // 항상 `[{id}]`(잠금 성공)을 반환해, `updateExecutionStatus` 의 DB 가드가 FAILED 를
+    // 배제하는 사실을 8라운드 동안 은폐했다(retry 재진입 짝 전이가 실제로는 항상 0행이라
+    // persist 되지 않았는데 테스트는 전부 GREEN). 이제 **SQL 의 `status IN (...)` 목록과
+    // 현재 DB status 를 실제로 대조**한다 — opt-in(`allowRetryReentry`) 시에만 SQL 에
+    // `'failed'` 가 들어가므로, opts 전파가 빠지면 이 mock 이 `[]` 를 돌려 RED 가 된다.
+    dbExecutionStatus = ExecutionStatus.PENDING;
+    mockTxManagerQuery = jest.fn((sql: unknown) => {
+      if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+        return Promise.resolve(
+          sql.includes(`'${dbExecutionStatus}'`) ? [{ id: executionId }] : [],
+        );
+      }
+      return Promise.resolve([{ id: executionId }]);
+    });
     mockExecutionRepo = {
       // PR2b — admission gate(admitExecutionOrDefer)의 원자 조건부 UPDATE 기본 mock:
       // affected=1 → admitted 로, runExecutionFromQueue 경유 테스트가 기존 흐름 유지.
@@ -288,6 +304,10 @@ describe('ExecutionEngineService', () => {
       create: jest.fn().mockReturnValue({ ...savedExecution }),
       save: jest.fn().mockImplementation((entity: Partial<Execution>) => {
         lastSaved = { ...savedExecution, ...entity };
+        if ((entity as Partial<Execution>).status) {
+          dbExecutionStatus = (entity as Partial<Execution>)
+            .status as ExecutionStatus;
+        }
         return Promise.resolve(lastSaved);
       }),
       findOneBy: jest
@@ -365,6 +385,18 @@ describe('ExecutionEngineService', () => {
           ? Promise.reject(waitingQueryError)
           : Promise.resolve(waitingRawRows),
       ),
+      // `applyRetryLastTurn` 의 재진입 원자 claim(2026-07-28) — 같은
+      // `createQueryBuilder()` 진입점을 쓰지만 UPDATE 체인이라 SELECT 형 위 메서드들과
+      // 섞이면 안 된다. `update()` 가 **별도 체인 객체**를 반환하게 해 두 경로를 분리한다.
+      // 기본값은 "claim 성공"(affected=1) — 실패 시나리오는 전용 테스트가 재무장한다.
+      update: jest.fn(() => retryClaimQb),
+    };
+
+    retryClaimQb = {
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     mockNodeRepo = {
@@ -5070,6 +5102,105 @@ describe('ExecutionEngineService', () => {
     });
 
     describe('updateExecutionStatus 누적 (RUNNING 진입/이탈)', () => {
+      // ai-review CRITICAL #1 (2026-07-30, 9차 라운드) — 8R 수정이 처음 도달 가능하게
+      // 만든 "turn 계속 → re-park" 경로(`FAILED → WAITING_FOR_INPUT`)를 **짝 전이
+      // 분기에서 직접** 잠근다. 9R 은 이 경로의 회귀 안전망이 전무하다고 지적했고,
+      // 뮤턴트 D(`reparkAiResumeTurn` 의 opts 전달 제거)가 RED 였던 것은 인자-shape
+      // 단언 덕분일 뿐 **opts 가 DB SQL 가드까지 도달하는지는 아무도 안 봤다**.
+      //
+      // multi-turn continuation 시나리오를 통합으로 구성하려면 핸들러 반환 형태를
+      // 정확히 재현해야 해 비용이 크다(시도했으나 `FOR UPDATE` 잠금에 도달조차
+      // 못했다). 대신 그 경로가 실제로 쓰는 짝 전이를 직접 호출해 잠근다 —
+      // 9R WARNING #6("focused describe 가 새 opts 를 인지하지 못한다")과 같은 취지.
+      it('opt-in 시 짝 전이가 FAILED → WAITING_FOR_INPUT 를 persist 한다 (turn 계속 re-park 경로)', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.FAILED,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const nodeExec = { id: 'ne-repark' } as unknown as NodeExecution;
+        dbExecutionStatus = ExecutionStatus.FAILED;
+
+        const persisted = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.WAITING_FOR_INPUT,
+          nodeExec,
+          { allowRetryReentry: true },
+        );
+
+        expect(persisted).toBe(true);
+        const lockSqls = mockTxManagerQuery.mock.calls
+          .map((c: unknown[]) => String(c[0]))
+          .filter((sql) => sql.includes('FOR UPDATE'));
+        expect(lockSqls.length).toBeGreaterThan(0);
+        expect(lockSqls.some((sql) => sql.includes("'failed'"))).toBe(true);
+      });
+
+      // 대조 — opt-in 이 없으면 FAILED 행은 잠기지 않아야 한다(부활 차단).
+      it('opt-in 없으면 FAILED 행의 짝 전이는 persist 되지 않는다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        const nodeExec = { id: 'ne-repark' } as unknown as NodeExecution;
+        dbExecutionStatus = ExecutionStatus.FAILED;
+
+        const persisted = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.WAITING_FOR_INPUT,
+          nodeExec,
+        );
+
+        expect(persisted).toBe(false);
+      });
+
+      // ai-review CRITICAL #1 (2026-07-30) — else 분기(linkedNodeExec 없음)의
+      // guarded UPDATE 도 retry 재진입 opt-in 시 FAILED 를 포함해야 한다. 포함하지
+      // 않으면 `status IN ('pending','running','waiting_for_input')` 이 FAILED 행을
+      // 배제해 **항상 0행**이 되고 재진입이 persist 되지 않는다. mutation 으로
+      // 실증했듯(뮤턴트 C) 이 단언이 없으면 FAILED 포함을 제거해도 아무 테스트가
+      // 깨지지 않는다.
+      it('opt-in(allowRetryReentry) 시 else 분기 guarded UPDATE 가 failed 를 조건에 포함한다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.FAILED,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+
+        const persisted = await priv().updateExecutionStatus(
+          exec,
+          ExecutionStatus.RUNNING,
+          undefined,
+          { allowRetryReentry: true },
+        );
+
+        expect(persisted).toBe(true);
+        const sql = String(
+          (mockExecutionRepo.query.mock.calls.at(-1) as unknown[])[0],
+        );
+        expect(sql).toContain("'failed'");
+      });
+
+      // 대조 — opt-in 이 없으면 FAILED 를 포함하지 않아야 한다(실패 종결 실행의
+      // 우발적 부활 차단이 이 설계의 요지).
+      it('opt-in 없으면 else 분기 guarded UPDATE 가 failed 를 포함하지 않는다', async () => {
+        const exec = {
+          id: executionId,
+          status: ExecutionStatus.RUNNING,
+          activeRunningMs: 0,
+        } as unknown as Execution;
+        mockExecutionRepo.query.mockResolvedValueOnce([{ id: executionId }]);
+
+        await priv().updateExecutionStatus(exec, ExecutionStatus.COMPLETED);
+
+        const sql = String(
+          (mockExecutionRepo.query.mock.calls.at(-1) as unknown[])[0],
+        );
+        expect(sql).not.toContain("'failed'");
+      });
+
       it('RUNNING 진입 시 segmentStart 기록, 이탈 시 active 시간 누적', async () => {
         const exec = {
           id: executionId,
@@ -16729,6 +16860,9 @@ describe('ExecutionEngineService', () => {
         status: ExecutionStatus.FAILED,
         startedAt: new Date(Date.now() - 60_000),
       });
+      // 잠금 mock 이 대조할 DB status — retry 재진입은 Execution 이 FAILED 인 상태에서
+      // 시작하므로, opt-in(allowRetryReentry) 없이는 짝 전이가 0행이 된다.
+      dbExecutionStatus = ExecutionStatus.FAILED;
 
       const handler = {
         validate: () => ({ valid: true, errors: [] }),
@@ -16847,23 +16981,39 @@ describe('ExecutionEngineService', () => {
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
     });
 
-    it('missing _retryState on spawned row → marks row FAILED, no replay', async () => {
+    // ai-review CRITICAL #1 (2026-07-28, `review/code/2026/07/28/20_32_57`) —
+    // 과거엔 이 케이스("spawned row 에 _retryState 없음")를 claim 보다 앞선
+    // 판정이 "손상"으로 오판해 FAILED 로 무가드 덮어썼다. 실제로는 다른/이전
+    // delivery 가 이미 claim 했을 수 있으므로(살아있는 row 일 수 있음), 이제는
+    // FAILED 로 마킹하지 않고 discard 한다.
+    it('missing _retryState on spawned row → discard, no replay, no FAILED marking', async () => {
       const { handler } = installReentry({
         processReturn: terminalSuccess,
         retryState: undefined,
       });
+      // 실 Postgres 라면 jsonb_exists(input_data, '_retryState') 가 false 라
+      // claim UPDATE 가 0행에 매칭된다 — 그 결과를 흉내낸다(기존 mock 은 SQL
+      // 조건을 평가하지 않고 affected:1 을 고정 반환해 실제 DB 동작과 어긋났다).
+      retryClaimQb.execute = jest.fn().mockResolvedValue({ affected: 0 });
       await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
       await flushPromises();
       expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
-      // spawned row saved as FAILED.
-      const savedFailed = mockNodeExecutionRepo.save.mock.calls.some(
-        (c: unknown[]) =>
-          (c[0] as { id?: string; status?: NodeExecutionStatus }).id ===
-            SPAWNED &&
-          (c[0] as { status?: NodeExecutionStatus }).status ===
-            NodeExecutionStatus.FAILED,
-      );
-      expect(savedFailed).toBe(true);
+      // spawned row 를 FAILED 로 저장하지 않는다(활성 row 를 죽이지 않는다).
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
+    });
+
+    // ai-review WARNING #8 (2026-07-28) — 통합 레벨(execution-engine.service.spec.ts)
+    // 이 claim 실패(affected=0) 분기를 한 번도 실행하지 않았다(`retryClaimQb.execute`
+    // 가 스펙 전체에서 `{affected:1}` 로 한 번만 설정되고 override 되지 않음). 정상
+    // `_retryState` 가 존재하는 케이스에서 claim 자체가 다른 delivery 에 선점된
+    // 시나리오(진짜 동시성 케이스)를 통합 레벨에서 고정한다.
+    it('claim 실패(affected=0, 다른 delivery 선점) 시 discard 하고 재진입하지 않는다 — 통합 레벨', async () => {
+      const { handler } = installReentry({ processReturn: terminalSuccess });
+      retryClaimQb.execute = jest.fn().mockResolvedValueOnce({ affected: 0 });
+      await retryTurnService.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+      expect(mockNodeExecutionRepo.save).not.toHaveBeenCalled();
     });
 
     // #11 (followup) — re-entry 시 node.config 의 `{{ expression }}` 이
@@ -17073,6 +17223,9 @@ describe('ExecutionEngineService', () => {
         status: ExecutionStatus.FAILED,
         startedAt: new Date(Date.now() - 60_000),
       });
+      // 잠금 mock 이 대조할 DB status — retry 재진입은 Execution 이 FAILED 인 상태에서
+      // 시작하므로, opt-in(allowRetryReentry) 없이는 짝 전이가 0행이 된다.
+      dbExecutionStatus = ExecutionStatus.FAILED;
 
       const agentHandler = {
         validate: () => ({ valid: true, errors: [] }),
@@ -17223,6 +17376,9 @@ describe('ExecutionEngineService', () => {
         status: ExecutionStatus.FAILED,
         startedAt: new Date(Date.now() - 60_000),
       });
+      // 잠금 mock 이 대조할 DB status — retry 재진입은 Execution 이 FAILED 인 상태에서
+      // 시작하므로, opt-in(allowRetryReentry) 없이는 짝 전이가 0행이 된다.
+      dbExecutionStatus = ExecutionStatus.FAILED;
 
       const agentHandler = {
         validate: () => ({ valid: true, errors: [] }),

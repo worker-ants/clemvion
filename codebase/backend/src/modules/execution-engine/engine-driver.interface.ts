@@ -73,6 +73,13 @@ export interface CoreEngineDriver {
    * PENDING 은 §7.1 stale 스윕에 위임한다. 즉 이 choke point 가 보호하는 건
    * "RUNNING/WAITING_FOR_INPUT 소스" 뿐이고 "PENDING 소스"는 원천적으로 이
    * choke point 밖 — 상태머신의 명시적 설계 결정이라 별도 완화 불필요.
+   * @param opts.allowRetryReentry — `execution.retry_last_turn` 재진입 전용
+   *   (2026-07-30 ai-review CRITICAL #1). 상태머신 opt-in(`FAILED → RUNNING` /
+   *   `FAILED → WAITING_FOR_INPUT`)과 **DB 가드**(짝 전이의 `FOR UPDATE` 잠금 ·
+   *   else 분기 guarded UPDATE) 양쪽에 함께 적용된다 — 둘 중 하나만 반영하면
+   *   전이가 항상 0행으로 막힌다(이 파라미터가 신설된 원인이 정확히 그 결함이다).
+   *   opt-in 시에도 COMPLETED/CANCELLED 는 배제되므로 진짜 동시 취소는 계속 막힌다.
+   *   기본(미전달)은 종전과 동일하게 FAILED 배제.
    */
   updateExecutionStatus(
     execution: Execution,
@@ -206,10 +213,17 @@ export interface AiTurnEngineDriver
    *   `false` 는 동시 cancel 이 선점해 save 를 건너뛴 경우 — 호출부는
    *   `assertLinkedTransitionApplied` 로 짝 `nodeExec` 를 CANCELLED
    *   재마킹해야 한다.
+   * @param opts.allowRetryReentry — `execution.retry_last_turn` 재진입 전용
+   *   (2026-07-30 ai-review CRITICAL #1). `true` 일 때만 잠금 조회 대상에 FAILED 를
+   *   포함한다 — retry 재진입은 Execution 이 FAILED 인 상태에서 turn 을 돌리므로,
+   *   이 opt-in 없이는 잠금이 항상 0행이 되어 **살아있는 spawn row 가 "동시 cancel
+   *   선점" 으로 오판**된다. opt-in 시에도 COMPLETED/CANCELLED 는 배제되므로 진짜
+   *   동시 취소는 계속 막힌다. 기본(미전달)은 종전과 동일하게 FAILED 배제.
    */
   tryLockActiveExecutionAndSaveNodeExec(
     executionId: string,
     nodeExec: NodeExecution | null,
+    opts?: { allowRetryReentry?: boolean },
   ): Promise<boolean>;
 }
 

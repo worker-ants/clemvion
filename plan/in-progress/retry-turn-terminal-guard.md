@@ -1,6 +1,10 @@
 ---
 title: retry-turn 종결 2경로의 무가드 terminal 쓰기 차단 (#1022 동일 클래스)
-worktree: retry-turn-cancel-guard-ba75a2
+worktree: retry-atomic-claim-4d9e77
+# ↑ 2026-07-28 갱신 — 최초 worktree(retry-turn-cancel-guard-ba75a2)는 #1024 로 머지됐다.
+#   plan_guard.py 는 `worktree:` basename 을 현재 worktree 디렉터리명과 매칭하므로, 머지된
+#   값을 두면 P1 코드 push 시 가드가 '연결된 plan 없음(ad-hoc)'으로 오판해 **무장 해제**된다
+#   (--impl-prep 19_51_18 WARNING #1 실측). 이 plan 의 잔여 P1 이 여기서 진행되므로 갱신한다.
 started: 2026-07-27
 owner: developer
 status: in-progress
@@ -79,10 +83,12 @@ if (completed) { await this.eventEmitter.emitExecution(...); }
 - [x] PR 머지 — [#1024](https://github.com/worker-ants/clemvion/pull/1024), `771801e3e` (2026-07-28)
 
 > 🚫 **`complete/` 로 옮기지 말 것** — 코드 측은 머지됐고 **spec 위임(#8)도 2026-07-28 반영
-> 완료**(`spec-update-node-cancellation-shutdown-classification.md` #8 → 이행 완료)지만,
-> §5차 라운드 이후 위생 정리의 **통합 후속 목록 P1(`applyRetryLastTurn` 원자 claim)** 이
-> 열려 있어 여전히 시기상조다. `spec_impact` 는 그대로 유지한다 — spec 이 이 위임으로
-> 정정됐으므로 완료 시점에 Gate C(`spec-plan-completion.test.ts`)가 참조할 값으로 유효하다.
+> 완료**(`spec-update-node-cancellation-shutdown-classification.md` #8 → 이행 완료).
+> §5차 라운드 이후 위생 정리의 **통합 후속 목록 P1(`applyRetryLastTurn` 원자 claim)** 은
+> `b351731f0` 로 코드화된 뒤 6R 에서 삽입 위치 결함 2건까지 발견·수정 완료됐으나, P2/P3
+> 항목(#2~#17)이 다수 열려 있어 여전히 시기상조다. `spec_impact` 는 그대로 유지한다 — spec
+> 이 이 위임으로 정정됐으므로 완료 시점에 Gate C(`spec-plan-completion.test.ts`)가 참조할
+> 값으로 유효하다.
 
 ## ai-review 결과 (2026-07-27, `review/code/2026/07/27/21_07_03`)
 
@@ -119,18 +125,18 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       다른 target 을 덮어쓰는" 레이스와는 별개**이며 그쪽은 닫혔다.
 - [ ] **W3 (maintainability)** — "spawn 된 row 를 FAILED 로 마감" 로직이
       `applyRetryLastTurn` 3개 분기에 문자 그대로 반복(DRY). `markSpawnedRowFailed` 추출.
-- [ ] **INFO 1** — `AiTurnOrchestrator` forwardRef 근거 주석이 이미 제거된 역방향 의존성을
-      순환 근거로 인용 중일 가능성. forwardRef 존속 필요성 재확인 후 주석 갱신.
+- [x] **INFO 1** — ~~`AiTurnOrchestrator` forwardRef 근거 주석~~ **전제 반증, 무조치 종결**.
+      해당 파일에 `forwardRef` 자체가 없다 (실측 근거는 마스터 백로그 **#8**).
 - [ ] **INFO 2** — `finalizeGuarded` 가 호출자 소유 `execution.status` 를 부수효과로 재대입.
       현재 두 호출부는 재사용하지 않아 안전하나 시그니처만으로는 드러나지 않는다.
 
 ## 2차 라운드 추가 후속 (`review/code/2026/07/27/21_39_25`)
 
-- [ ] **W2 (architecture)** — `AiTurnOrchestrator` forwardRef 근거 주석이 같은 파일
-      docstring·모듈 등록 주석("engine→Retry 역방향 주입 제거, 단방향 정리")과 **정반대로
-      모순**된다. grep 상 엔진도 orchestrator 도 `RetryTurnService` 를 주입하지 않아,
-      forwardRef 가 실제로 방어하는 순환이 무엇인지 주석만으로는 검증 불가. 존속 필요성
-      재확인 후 주석 갱신 또는 forwardRef 제거 검토.
+- [x] **W2 (architecture)** — ~~`AiTurnOrchestrator` forwardRef 근거 주석이 모순~~
+      **전제 반증, 무조치 종결**. "grep 상 엔진도 orchestrator 도 `RetryTurnService` 를
+      주입하지 않는다" 는 관찰은 **맞지만**, 그것이 곧 모순의 근거는 아니었다 — 엔진 주석은
+      바로 그 상태("역방향 주입 제거")를 서술하고 있고, 정작 지적 대상인
+      `AiTurnOrchestrator` 의 `forwardRef` 는 **존재하지 않는다**(실측 근거는 마스터 백로그 **#8**).
 - [ ] **W3 (maintainability)** — `finalizeGuarded` 가 `boolean` 반환과 동시에 인자
       `execution.status` 를 in-place 로 덮어쓰는 숨은 side-channel. `{ persisted, live }`
       반환으로 명시화하거나 최소한 `@param` 에 명시.
@@ -166,8 +172,10 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       맞게 갱신(`1237c18a3`).
 - [x] **Warning #4(maintainability)** — mock 리터럴 9회 반복을 `mkLiveExecution(status)` 로
       추출(`cc98374ff`).
-- [ ] **Warning #3(architecture)** — 위 2차 라운드 W2(forwardRef 근거 주석 모순)와 동일 건,
-      **이번 라운드도 defer** — 모듈 레벨 import 순환 실측이 필요해 범위 밖. 계속 열어둔다.
+- [x] **Warning #3(architecture)** — 위 2차 라운드 W2(forwardRef 근거 주석 모순)와 동일 건.
+      당시 "모듈 레벨 import 순환 실측이 필요해 범위 밖" 으로 defer 했으나, 실제로 필요한 실측은
+      그게 아니라 **"그 forwardRef 가 존재하는가"** 였고 답은 아니오다 — **전제 반증, 종결**
+      (마스터 백로그 **#8**).
 
 나머지(2차 라운드 W1·W3·INFO2·INFO14·INFO13, 1차 라운드 항목)는 이번 라운드 SUMMARY 에서도
 재지적되지 않았거나(W1=INFO8, W3=INFO6, INFO2=INFO7 로 재확인만 됨) 범위 밖으로 유지 —
@@ -289,7 +297,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 ### 5R defer (기존 등재 항목의 재지적 — 추가 조치 없음)
 
 - **W2(architecture)** driver choke point 우회 = 4R W2 동일 건.
-- **W3(documentation)** forwardRef stale 주석 = 2R W2 / 3R W3 동일 건.
+- **W3(documentation)** forwardRef stale 주석 = 2R W2 / 3R W3 동일 건 → **전제 반증, 종결**(#8).
 - **W5(maintainability)** `markSpawnedRowFailed` 추출 = 1R W3 동일 건.
 - **W7(testing)** `!nodeExec` / `retryAfterSec` fallback / 타임스탬프 부재 분기 = INFO 14 동일 건.
 - **W8(SPEC-DRIFT)** = 2R INFO 13 의 확장. `project-planner` 위임 — 아래 별도 항목 참조.
@@ -317,26 +325,36 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 
 | # | 항목 | 우선 | 근거 라운드 |
 |---|---|---|---|
-| 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 (`retryLastTurn` 의 조건부 UPDATE + `affected` 패턴 재사용). 회귀 테스트: "claim 0행 → ack-and-discard, `rehydrateContext`/`processAiResumeTurn` 미호출" | **P1** | 1R W1 → 5R **CRITICAL 승격** |
+| 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 — **구현 완료** `b351731f0`. 단 claim **삽입 위치** 결함 2건(CRITICAL#1: "손상 판정" 이 claim 보다 앞에 있어 살아있는 delivery 오판·FAILED 오마킹, CRITICAL#2: claim 성공 후 not-found 분기의 stale full-entity `save()` 가 claim 이 지운 `_retryState` 를 TypeORM jsonb diff 로 부활)이 후속 ai-review 에서 발견돼 **6R 에서 수정 완료** | **P1 완료** | 1R W1 → 5R **CRITICAL 승격** → 코드화 `b351731f0` → 6R 결함 발견·수정 |
 | 2 | `EXECUTION_CANCELLED` payload 에 spec §4.1 필수 `cancelledBy` 추가 (`emitCancellationEvent` 재사용). `retry-turn.service.spec.ts` 의 deep-equality 단언 동반 갱신 | P2 | 5R W1 (+ impl-done cross_spec 독립 확인) |
-| 3 | `retryLastTurn` atomic-consume SQL(JSONB `-` + `jsonb_exists`) 검증 — unit·e2e 어느 계층에도 없음 | P2 | 5R W6 |
+| 3 | atomic-consume SQL(JSONB `-` + `jsonb_exists`) 실 Postgres 검증 — unit·e2e 어느 계층에도 없음. **6R 이후 범위 확장**: `retryLastTurn` 의 원본 claim 뿐 아니라 `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 도 동일 갭 — mock 이 SQL 조건을 평가하지 않아 실 DB 의 `jsonb_exists`/`status` 매칭 결과(동시 UPDATE 상황의 정확한 1/0 반환)를 검증하지 못한다 | P2 | 5R W6 → 6R W7 |
 | 4 | COALESCE 경로 실 DB e2e — 신규 패턴이고 현재 근거는 TypeORM 소스 정적 확인뿐 | P2 | 5R (RESOLUTION 한계 명시) |
 | 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |
 | 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
 | 7 | `!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증 | P3 | 2R INFO 14 = 5R W7 |
-| 8 | `forwardRef` 근거 주석 모순 — 모듈 순환 실측 후 주석 정정 또는 제거 | P3 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 (**4회**) |
-| 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 |
+| 8 | ~~`forwardRef` 근거 주석 모순~~ → **전제 반증, 종결(무조치)**. 지적은 "`AiTurnOrchestrator` 의 forwardRef 근거 주석이 순환을 잘못 인용한다" 였는데 **`ai-turn-orchestrator.service.ts` 에는 `forwardRef` 가 존재하지 않는다**: 워킹트리 0건 · `origin/main` 0건 · **전 ref 대상 `git log -S "forwardRef" -- <file>` 결과 이 파일을 건드린 커밋 0개**(= 있었다가 지워진 것도 아님). 그 파일은 단방향 `@Inject(ENGINE_DRIVER)` 만 쓰고 `RetryTurnService` 언급도 0건이다. `AiTurnOrchestrator` 용 forwardRef 는 **엔진 쪽**(`execution-engine.service.ts:781`)에 있고 그 근거 주석은 네 갈래 전부 사실과 일치한다 — forwardRef 대상 3종(781 AiTurn·785 Form·787 Button)이 "AiTurn/Form/Button 양방향 유지" 와 일치, 엔진의 `RetryTurnService` 주입 0건, 주석이 지목한 외부 진입점 2곳(`websocket.gateway.ts:121`·`continuation-execution.processor.ts:66`)이 실제로 직접 주입, 단방향 `Retry→engine(ENGINE_DRIVER)` 유지. **정정할 주석이 없다.** ⚠️ 12R RESOLUTION 의 "실측 확정 → forwardRef 는 잔재" 판정은 **틀렸다** — 나는 지적 대상(`AiTurnOrchestrator` 의 forwardRef)이 아니라 다른 것(`RetryTurnService` 주입 수)을 세고, 존재하지 않는 forwardRef 를 "잔재" 라 단정했다. 매칭 "3건" 수치도 오측(실제 7건, 전부 한 파일의 주석) | ~~P3~~ 종결 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 = 12R W1 (**5회 재보고 — 전원 전제 미검증**. 교훈: 반복 보고는 신뢰 근거가 아니다. 대상의 **존재 여부**를 먼저 재라) |
+| 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 = **7R W8 재지적**(`review/code/2026/07/30/11_41_20`) |
 | 10 | `finalizeGuarded` in-place 변이 은닉 — `{persisted, live}` 또는 `@param` 명시 | P3 | 1R INFO 2 = 2R W3 |
 | 11 | `resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유 (참조 동일성 불변식 의존) | P3 | 2R INFO 2 |
 | 12 | 멱등 분기 회고 주석 약 40줄 정리 (실제 제어흐름 6~7줄) | P3 | 5R W4 |
 | 13 | 테스트 `createQueryBuilder` mock 팩토리 통합 (6곳) | P3 | 4R W6 = 5R |
 | 14 | 멱등 분기의 driver choke point 우회 흡수 — self-transition capability 승격. `emitTerminalExecutionMetrics` 미경유도 함께 | P3 | 4R W2 = 5R W2 |
+| 15 | **(6R 신규)** 백스톱 갭 — claim 실패 discard 후 spawn row 가 RUNNING orphan 으로 영구 잔류 가능. 실측: `failOrphanRunningNodeExecutions` 는 `recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만 호출되는데, discard 후 Execution 은 이미 `failed`(terminal) 로 남아 그 경로 대상이 아니다. 트레이드오프상 discard 가 옳지만(활성 작업을 죽이지 않음) orphan row 자체(타임라인/진행률 집계 오염)는 별도 백스톱이 없다 | P2 | 6R developer 실측 (`claimSpawnedRetryRow` JSDoc 인용) |
+| 16 | `continuation-execution.processor.ts` 의 claim 대상 제외 목록(`type !== 'retry_last_turn'`)이 여전히 프로즈 주석으로만 `applyRetryLastTurn` 자체 claim 존재에 의존 — 타입/공유 상수 레벨 강제 없음(같은 결합이 5R 이전 CRITICAL 로 1회 이미 깨진 이력) | P3 | 6R side_effect/architecture WARNING #2 (구조 변경, defer) |
+| 17 | claim ~ try 진입 전 구간(Promise.all/rehydrateContext/buildRetryReentryState/setNodeOutput/emitNode)의 "크래시 트레이드오프" 서술 범위가 이번 claim 전진 배치로 넓어짐(프로세스 크래시뿐 아니라 이 구간의 일반 예외까지 동일 적용) — Critical#1 수정으로 범위가 확정된 뒤 재평가 필요. `recoverStuckExecutions` 가 이 특유 spawn-row 시나리오까지 실제로 복구하는지도 미검증 | P3 | 6R side_effect WARNING #4 |
+| 18 | **(7R 신규)** `claimSpawnedRetryRow`(DB `input_data` 원자 제거)와 `spawnedRow.inputData`(in-memory) 사이의 동기화 불변식이 타입/캡슐화가 아니라 "이 delete 줄을 지우거나 순서를 바꾸지 말 것"이라는 프로즈 관례에만 의존 — CRITICAL #2 와 정확히 같은 결함 클래스의 재발 가능 경로가 구조적으로 열려 있음. `claimSpawnedRetryRow` 가 `spawnedRow`(또는 `inputData`)를 인자로 받아 성공 시 직접 mutate 하거나 `{claimed, retryState?}` 형태로 이미 동기화된 결과를 반환하도록 구조 변경 검토 | P2 | 7R WARNING #5(architecture), `review/code/2026/07/30/11_41_20` |
+| 19 | **(7R 신규)** `applyRetryLastTurn` 이 claim 블록 추출에도 불구하고 claim 성공 후 필수가 된 새 판정 2개가 추가되며 순 길이·복잡도가 오히려 늘었다(184→188줄, early-return 가드 7개). `:308-356`(in-memory retryState 확보 → claim → 판정 → in-memory 동기화)을 `claimAndSyncRetryState(spawnedRow): Promise<RetryState \| null>` 로 추출해 본문을 "null 이면 discard, 아니면 계속" 한 줄로 축약 검토 | P3 | 7R WARNING #7(maintainability), `review/code/2026/07/30/11_41_20` |
 
 ### spec — project-planner 위임
 
 `spec-update-node-cancellation-shutdown-classification.md` **#8**(이행 완료) · **#10**(P1 코드와
 동반 필수 — 별 PR 금지) 에 등재됨(단일 진실).
 이 plan 의 §project-planner 위임 절은 그쪽 포인터로만 쓴다.
+
+**(7R 신규)** `spec-update-retry-claim-backstop-gap.md` — §7.5 대칭 Rationale 이 "복구는
+`recoverStuckExecutions` 백스톱이 담당한다"고 무조건 서술하나, 이 2차 claim(`claimSpawnedRetryRow`)
+경로는 그 백스톱이 닿지 않는다는 실측(위 §코드 표 #15 와 동일 근거)이 코드/plan 에는 이미
+반영됐고 spec 문구만 낡았다([SPEC-DRIFT], `review/code/2026/07/30/11_41_20` WARNING #1).
 
 ### 착수 시 주의
 
@@ -367,3 +385,297 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 > 예산을 선점")을 이미 기록하고 있었다. 등재 전에 harness 백로그를 확인하지 않은 실수다.
 > 새로 얻은 진단(사전순 정렬로 두 자리 번호가 한 자리를 앞선다)만 그쪽으로 옮기고 별도
 > 파일은 폐기했다.
+
+## 6차 라운드 (`review/code/2026/07/28/20_32_57`) — 원자 claim **삽입 위치** 결함 2건, 발견·수정 완료
+
+5R 이 CRITICAL 로 승격했던 §5차 라운드 이후 위생 정리 P1 항목(원자 claim 전환)이
+`b351731f0` 로 코드화됐다. 이 커밋을 대상으로 한 후속 ai-review(전 14명 reviewer, forced
+화이트리스트 전원 포함)가 **claim 자체의 SQL/설계는 견고하나 삽입 위치 때문에 이 PR 이
+없애려는 결함 클래스가 두 경로로 재도입**됐음을 발견했다. RESOLUTION:
+`review/code/2026/07/28/20_32_57/RESOLUTION.md`.
+
+### CRITICAL #1 (architecture/concurrency/requirement, 3개 reviewer 독립 수렴) — 수정
+
+신규 claim(당시 `:310-339`)보다 **먼저** 실행되는 기존 "`_retryState` 부재 → 무조건 FAILED"
+판정(`:293-308`, 이 diff 가 손질하지 않은 pre-existing 코드)이 claim 이 정상적으로 만들어내는
+상태("다른 delivery 가 이미 claim 해 `_retryState` 는 사라졌지만 `status` 는 여전히
+RUNNING")를 "복구 불가능한 손상"과 구분하지 못해, **아직 처리 중인 살아있는 row 를 즉시
+FAILED 로 덮어썼다.** concurrency reviewer 는 진짜 동시성 없이도 BullMQ 기본
+`attempts` 재시도만으로 결정적 재현이 가능함을 코드 경로로 논증했다(claim 성공 후 try 진입
+전 구간이 try/catch 밖이라, 거기서 일시 예외 → 재배달 → fresh 조회가 이미 지워진
+`_retryState` 를 관측 → 원래 회복 가능했을 일시 오류가 영구 FAILED 로 오확정).
+
+**수정**: claim 을 `_retryState` 부재 판정보다 앞으로 이동 + 그 판정 분기 자체를 삭제하고
+claim 실패(`affected!==1`)를 원인 구분 없이 항상 ack-and-discard 로 통일
+(`retry-turn.service.ts` `applyRetryLastTurn`). `jsonb_exists` 조건이 "이미 소비됨" 과
+"한 번도 seed 안 된 진짜 corruption"(구조적으로 발생하지 않음 — `retryLastTurn` 이 항상
+seed) 을 모두 흡수하므로 별도 종결 분기가 불필요했다. W6 동반: claim 블록을
+`claimSpawnedRetryRow` private 메서드로 추출.
+
+**백스톱 갭(리뷰어 제안과 다름, 실측으로 확정 — 위 §코드 표 #15 신규 등재)**: 리뷰어는
+"진짜 corruption 방어는 `recoverStuckExecutions` 류 backstop 에 위임" 하라 했으나, 실측
+결과 그 백스톱은 이 케이스에 닿지 않는다 — `failOrphanRunningNodeExecutions` 는
+`recoverStuckExecutions` 의 stale RUNNING **Execution** 재구동 경로에서만 호출되는데,
+discard 후 Execution 은 이미 `failed`(terminal) 라 재구동 대상이 아니다. 그래도 discard 가
+옳다: 살아있는 작업을 죽이는 것(이전 코드)이 이론적 orphan row(discard) 보다 항상 더
+나쁘다.
+
+### CRITICAL #2 (side_effect) — 수정
+
+claim 은 DB `input_data` 에서만 `_retryState` 를 원자 제거하고 in-memory `spawnedRow` 는
+그대로였다. claim 성공 후 execution/node not-found 분기가 `save(spawnedRow)`(full-entity)
+를 호출하면, TypeORM 0.3.30 의 jsonb diff 가 DB 를 재-SELECT 해 stale in-memory(키 있음)와
+비교하고 옛 값을 다시 써 **claim 이 지운 `_retryState` 를 부활**시킨다 — 결과는
+`status=FAILED` 인데 `_retryState` 가 살아있는 모순 row. mock 기반 유닛 테스트로는 이
+Postgres 재-SELECT 상호작용을 구조적으로 검출할 수 없다(리뷰어 지적, 실측으로 확인).
+
+**수정**: claim 성공 직후 `delete spawnedRow.inputData[RETRY_STATE_KEY]` 한 줄로 in-memory
+를 DB 와 동기화 — 이 메서드의 모든 하위 `save(spawnedRow)` 호출을 함께 보호한다.
+
+### 함께 조치 (저비용)
+
+- **W1(requirement/concurrency)** — 회귀 테스트 2건: (i) 최초 조회부터 이미 다른 delivery
+  가 claim 한 상태(status:RUNNING + `_retryState` 없음) → discard, save() 미호출, (ii) claim
+  성공 후 try 진입 전 예외 → FAILED 미마킹 + 재배달 시뮬레이션까지 안전 확인.
+- **W3(architecture/maintainability)** — `RETRY_STATE_KEY` 상수화, raw SQL 리터럴 4곳(신규
+  2 + 기존 2) + TS 프로퍼티 접근 통합.
+- **W8(testing)** — `execution-engine.service.spec.ts` 통합 레벨에 claim 실패(affected=0)
+  케이스 신규 추가(기존엔 그 레이어가 이 분기를 한 번도 실행하지 않았음) + "missing
+  _retryState" 케이스를 discard 로 갱신.
+- **W9(documentation)** — 클래스 docstring "책임" 문단 + `applyRetryLastTurn` "재진입 절차"
+  목록에 2차 claim 단계 반영.
+
+### 조치하지 않음 (defer, plan 등재 — 위 §코드 표 #16·#17 신규)
+
+- **W2(architecture)** — `continuation-execution.processor.ts` 의 claim 제외 목록이 여전히
+  프로즈 주석으로만 `applyRetryLastTurn` 자체 claim 존재에 의존. 타입/공유 상수 강제는
+  구조 변경이라 이 턴 범위 밖(§코드 표 #16).
+- **W4(side_effect)** — claim 전진 배치로 "크래시 트레이드오프" 실제 적용 범위(일반 예외
+  포함)가 서술보다 넓어짐. Critical#1 수정으로 범위가 확정된 뒤 재평가 대상(§코드 표 #17).
+- **W5(scope)** — 무관 plan 문서 편집 2건이 이미 `b351731f0` 에 같은 커밋으로 포함됨.
+  되돌리지 않음, 기록만.
+- **W7(testing/database)** — 실 Postgres 기반 동시성 e2e 부재. 기존 §코드 표 #3 범위를
+  `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 까지 확장(위 표 갱신 완료).
+- **W10·W11·W12(documentation)** — 처분표 범위 밖으로 명시 지정돼 이번 라운드에서
+  건드리지 않음(`runAiConversationLoop` stale 참조, `ContinuationExecutionProcessor`
+  "처리 흐름" stale 서술, CHANGELOG.md 미갱신). 다음 문서-정리 턴으로 이월.
+
+### 검증
+
+**mutation 5/5 RED** (`retry-turn.service.ts` 대상, 원복은 `cp` 절대경로 — 사전 저장한
+fixed 스냅샷과 diff 없음 확인):
+
+| 뮤턴트 | 대상 가드 | 결과 |
+|---|---|---|
+| (a) claim 을 손상 판정 뒤로 되돌림(pre-fix 전체 복원, `b351731f0` 원본) | Critical#1 순서 자체 | RED (retry-turn.service.spec.ts 4건 + execution-engine.service.spec.ts 1건) |
+| (b) in-memory `delete _retryState` 제거 | Critical#2 | RED ((d)/(e) 2건) |
+| (c) claim 실패 시 discard 대신 FAILED save | claim 실패 discard 불변식 | RED ((b2)/(c)/재배달 테스트 3건) |
+| (d) `status = :running` 조건 제거 | claim SQL status CAS | RED ((b3) 1건) |
+| (e) `jsonb_exists(...)` 조건 제거 | claim SQL 레이스 결정자 | RED ((b3) 1건) |
+
+각 뮤턴트는 사전 `grep -c` 로 치환 앵커 매칭 건수 1건을 확인한 뒤 적용했다(이 파일 5R
+RESOLUTION 이 명시한 "들여쓰기만 다른 부분문자열 비유일 매칭" 함정 재발 방지).
+
+TEST WORKFLOW 전량 재통과: lint PASS(49s) · unit PASS(backend 412 suites/8336 tests[1
+skipped], frontend 281 files/5747[1 skipped], web-chat 3/48, channel-web-chat 23 files/409,
+내부 packages 9 suites/218 — 전부 0 실패) · build PASS(Dockerfile 이미지 검증 포함) ·
+e2e PASS(backend jest 46 suites/260 tests + Playwright 51 tests, 전부 0 실패).
+
+## 7차 라운드 (`review/code/2026/07/30/11_41_20`) — resolution-applier 처리 완료
+
+Critical 0 / Warning 9(6R 수정의 정확한 적용을 14명 전원이 확인한 수렴 라운드 — documentation
+reviewer 만 MEDIUM). 처분표대로 5건만 집행하고 나머지는 defer/등재. RESOLUTION:
+`review/code/2026/07/30/11_41_20/RESOLUTION.md`.
+
+- [x] **W1(SPEC-DRIFT)** — spec §7.5 대칭 Rationale 이 "복구는 `recoverStuckExecutions`
+      백스톱이 담당한다"고 무조건 서술하나, 이 2차 claim 경로는 그 백스톱이 닿지 않는다는
+      실측(코드 JSDoc + 위 §코드 표 #15)이 이미 반영됐는데 spec 문구만 낡아 있었다. 코드
+      무수정 — draft `plan/complete/spec-update-retry-claim-backstop-gap.md` 신설(2026-07-30 반영 완료),
+      project-planner 위임(`consistency-check --spec` 대기).
+- [x] **W2(documentation)** — `claimSpawnedRetryRow` JSDoc 내부 자기모순(구 문단 "백스톱이
+      담당한다" vs 신규 문단 "백스톱이 닿지 않는다") 정정 — 두 문단이 같은 결론을 가리키게
+      함(`7a05c6ec8`).
+- [x] **W3(architecture/documentation)** — 재진입 절차 JSDoc 2곳(`:122-123`,`:272-273`)이
+      이미 제거된 `runAiConversationLoop` 를 여전히 협력 컴포넌트로 서술하던 stale 참조를
+      `processAiResumeTurn`/`PARK_RELEASED` re-park 흐름으로 정정(`7a05c6ec8`). 6R "조치하지
+      않음" 목록의 W10 과 동일 건 — 이번 라운드에 해소.
+- [x] **W4(testing/requirement)** — claim 성공(`affected:1`) + in-memory `_retryState` 부재
+      "이론상 도달 불가능" 방어 분기가 어떤 테스트로도 안 잠겨 있던 갭. mutation 사전검증
+      (블록 삭제 → 신규 테스트 RED, 원복 → 43/43 GREEN) 후 회귀 테스트 추가(`886ca9395`).
+- [x] **W6(side_effect)** — claim 직후로 앞당겨진 `delete` 가 `NODE_STARTED` emit 의 `input`
+      payload 도 조용히 바꾼(`_retryState` 미포함) 사실을 JSDoc 에 명시 + 회귀 테스트 추가
+      (mutation 사전검증: delete 비활성화 → 신규 테스트 + 기존 (d)/(e) 동반 RED)(`7a05c6ec8`,
+      `886ca9395`).
+- **W5(architecture, defer)** — claim↔in-memory 동기화 불변식이 타입/캡슐화가 아니라 프로즈
+  관례에만 의존. §코드 표 **#18**(P2, 신규)로 등재 — 구조 변경이라 범위 밖.
+- **W7(maintainability, defer)** — `claimAndSyncRetryState` 추출. §코드 표 **#19**(P3, 신규)
+  로 등재.
+- **W8(maintainability, defer)** — not-found 2블록 `markSpawnedRowFailed` 중복 — §코드 표
+  **#9**(1R W3 = 5R W5)와 동일 건, "7R 재지적" 만 덧붙임(신규 등재 없음).
+- **W9(dependency, 선택 허용분만 집행)** — typeorm 0.3.30 인용 주석을 "이후 patch 버전에서도
+  유지하는 버전-불문 방어" 로 다듬음(`7a05c6ec8`). 체크리스트 신설은 지시대로 하지 않음.
+- INFO 20건 — 조치 없음(지시 범위 밖).
+
+### 검증
+
+- W4 mutation: 방어 분기(`if (!retryState) {...}`) 블록 삭제 → 신규 테스트 RED
+  (`row.status`: expected `running`, received `failed`) → `cp` 원복(diff 없음 확인) → 43/43
+  GREEN 재확인.
+- W6 mutation: `delete spawnedRow.inputData[RETRY_STATE_KEY]` 비활성화 → 신규 테스트 +
+  기존 CRITICAL#2 회귀 테스트 (d)/(e) 동반 RED(payload/inputData 에 `_retryState` 잔존 관측)
+  → `cp` 원복(diff 없음 확인) → 43/43 GREEN 재확인.
+- 두 mutation 모두 사전 `grep -c` 로 치환 앵커 매칭 건수 1건 확인 후 적용.
+
+TEST WORKFLOW 전량 재통과: lint PASS(45s) · unit PASS(backend 412 suites/8338 tests[1
+skipped, 신규 2건 포함], frontend 281 files/5751[1 skipped], web-chat 3/48, channel-web-chat
+23 files/409, 내부 packages 9 suites/218 — 전부 0 실패) · build PASS(123s, Dockerfile 이미지
+검증 포함) · e2e PASS(260s, backend jest 46 suites/260 tests + Playwright 51 tests, 전부 0
+실패).
+
+> spec draft(`spec-update-retry-claim-backstop-gap.md`)가 반영되기 전까지 이 plan 의
+> `spec_impact` frontmatter(`spec/5-system/4-execution-engine.md`)는 그대로 유효 — 완료
+> 처리하지 말 것(§코드 표 #1~#19 대부분 여전히 open).
+
+## 10차 라운드 (`review/code/2026/07/30/16_42_36`) — Critical 1 / Warning 10
+
+소스 로직 무변경 라운드(9R 이후 테스트+spec 문서만 변경). Critical 은 **9R C1 의 잔여** —
+내 잠금이 불완전했다.
+
+### CRITICAL #1 — 내 8R mutation 판정이 틀렸다 (수정 완료)
+
+`reparkAiResumeTurn` 의 opts→DB가드 **번역 한 줄**이 전 계층 무검증이었다.
+
+- 내 8R 뮤턴트 D: 인자 줄을 **통째로 삭제** → 호출 shape 이 바뀌어 기존 인자-shape 단언이
+  잡았다. 그래서 "잠겼다" 고 판단했다.
+- 리뷰어 뮤턴트: **표현식만 `undefined` 로 치환**(shape 유지) → 4개 spec 593건 **전체 GREEN**.
+  직접 재현해 확인했다.
+- 교훈: **뮤턴트가 호출 shape 을 바꾸면 shape 단언이 잡아버려 "동작이 잠겼다" 고 오판한다.**
+  동작을 잠그려면 뮤턴트도 shape 을 보존해야 한다. 상태머신 계층과 DB-가드 계층이 각각
+  고립 테스트로 옳은데 **둘을 잇는 배선이 끊어져도 아무도 몰랐다.**
+- 조치: `reparkAiResumeTurn — EngineDriver seam` describe 에 번역 검증 테스트 1건 추가.
+  리뷰어 뮤턴트로 RED 확인(593 GREEN → 1 failed).
+
+### 함께 조치 (저비용)
+
+- **W6(user_guide_sync)** — `run-results.mdx`/`.en.mdx` 에 "재시도 성공 후 대화가 계속되면
+  downstream 대신 새 응답 + 입력 대기로 복귀(실패 아님)" 를 ko/en 동시 보강. 이 PR 이 처음
+  도달 가능하게 만든 경로라 가이드 부재 시 사용자가 실패로 오인한다.
+- **W7(documentation)** — `engine-driver.interface.ts` 의 `tryLockActiveExecutionAndSaveNodeExec`
+  JSDoc 에 신규 `opts.allowRetryReentry` 설명 추가(구현부만 설명하고 계약면은 침묵했다).
+- **W8(documentation)** — 내가 9R spec 편집에서 만든 이중 대시 오타(`- - 재진입 성공 시`) 정정.
+- **W9(documentation)** — CHANGELOG 에 이 PR 체인 3개 축 반영(7R INFO 로 지적된 뒤 3라운드 이월).
+
+### 신규 등재 (defer)
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 20 | **`retryLastTurn` 이 `Execution.status === FAILED` 를 검증하지 않는다.** **(11R 증거 보강)** 두 번째 시나리오가 추가됐다 — `ParallelErrorPolicy:'continue'` 로 형제 브랜치가 살아있어 Execution 이 여전히 `RUNNING` 인 경우, `rehydrateContext` 가 형제와 **동일한 live `ExecutionContext` 객체**를 반환해 공유 가변 상태(`nodeOutputCache` 등)를 동시 mutate 할 수 있다(11R concurrency, 미재현·개연성 평가). 이 경로가 `finalizeAiNode` "RUNNING 유지" 분기(#24)를 실제로 여는 통로다. 검증안: multi-turn AI 노드를 Parallel 브랜치에 두고 한 브랜치만 retry 호출하는 통합 테스트. Execution 이 실제로는 `cancelled` 인데 `_retryState` 가 남은 row 에 retry 하면, 재진입 turn 종료 시 `assertTransition('cancelled', …)` 이 **DB 가드 진입 전에 동기 throw** 해 `assertLinkedTransitionApplied` 의 우아한 정리를 우회하고 spawn row 가 영구 RUNNING 고아로 남는다. `state-machine.spec` W5 는 상태머신이 거부하는지만 보고 그 거부가 호출부에서 우아하게 처리되는지는 안 본다. 근본 조치는 spawn 이전 명시 검증(step 1.5), 방어는 `updateExecutionStatus` 호출을 try/catch 로 감싸 흡수 | **P2** | 10R W5(requirement) |
+| 21 | 상태 전이 허용 여부의 **이중 진실 소스** — `ALLOWED_TRANSITIONS`/`canTransition`(TS) vs SQL allow-list 상수(엔진)가 독립 존재·수동 동기화. **8R CRITICAL 자체가 이 둘의 불일치였고 수정 후에도 구조는 남는다.** DB 가드 SQL 을 상태머신에서 파생 생성하거나 최소 상호 참조 | P2 | 10R W1 |
+| 22 | `{ allowRetryReentry?: boolean }` 인라인 구조적 타입이 **5곳** 중복(이번 diff 가 3곳 신규). `TransitionOptions` 재사용 안 함 — 구조적 타이핑 탓에 필드 추가/rename 시 컴파일러가 나머지 호출부를 강제 검사하지 못해 "일부 계층만 조용히 어긋나는" 이번과 동일 실패 양상이 재발 가능 | P3 | 10R W2 |
+| 23 | `resolveGuardStatusesSql` / `toRetryReentryOpts` 헬퍼 통합 — 3항 선택 로직과 flag→opts 변환이 각각 2곳·4곳 반복 | P3 | 10R W1·9R W3·W5 |
+| 24 | `finalizeAiNode` "RUNNING 유지" 분기(`:1600`)의 opts 전파 무검증 — 현재 호출 그래프상 도달 불가능해 보이는 방어 코드. 도달 불가가 맞다면 JSDoc 에 명시, 도달 가능해지면 isFailed 분기와 대칭으로 테스트 | P3 | 10R W3 |
+| 25 | `applyRetryLastTurn` 통합 describe 에 "turn 계속(re-park)" 시나리오 부재 — 9R 에서 시도했으나 핸들러 반환 shape 을 맞추지 못해 `FOR UPDATE` 잠금 도달조차 실패해 철회했다. **재시도 시 그 shape 문제를 먼저 규명할 것**(반복 소모 방지). 현재 방어선은 짝 전이 focused 테스트 + orchestrator seam 테스트 2단 | P3 | 10R W4 (9R 트레이드오프 명시) |
+
+### 재확인만 (기존 등재)
+
+10R W10(`applyRetryLastTurn` 길이/분기 누적) = #19. 10R INFO 2(orphan RUNNING 백스톱 갭) = #15.
+10R INFO 1(opt-in 이 타입 아닌 관례로만 scope 제한) = #22 와 같은 뿌리.
+
+
+## 11차 라운드 (`review/code/2026/07/30/17_37_14`) — **CRITICAL 0, 수렴**
+
+14개 reviewer 전원 결과 확보(forced 6명 포함 미이행 없음). 개별 최고 위험도는
+`maintainability` MEDIUM(opt-in 배선 shape 중복 구조 — 이 브랜치에서 8R·10R 두 차례 CRITICAL 을
+실제로 유발한 구조라 재발 위험으로 유지).
+
+**소스 로직은 8R 이후 세 라운드 연속 무변경**이다. 9R·10R Critical 은 코드 결함이 아니라 내
+검증이 얕았던 것이었고, 11R 에서 그 축의 Critical 이 사라졌다.
+
+### 이번 라운드 조치 (내가 직전 라운드에 만든 결함 2건)
+
+- [x] **W11(user_guide_sync)** — 10R 에서 내가 추가한 EN 문단이 `Retryable`/`Not retryable`
+      목록을 **중간에서 끊었다**(KO 는 목록 뒤라 정상). EN 을 KO 와 동일 순서로 이동하고,
+      두 로케일의 뒤쪽 무조건문("재시도가 성공하면 하류가 이어서 실행돼요")을 "대화가 끝난
+      경우" 조건부로 정정 — 방금 도입한 두 갈래 설명과 상충했다.
+- [x] **W8(documentation)** — `updateExecutionStatus` JSDoc 에만 `@param opts` 가 없었다.
+      같은 PR 에서 형제 두 함수는 갱신했는데 **상태 전이 단일 choke point 이자 이번 CRITICAL 의
+      당사자 함수만** 빠진 비대칭. 상태머신 opt-in 과 DB 가드에 **함께** 적용돼야 한다는 사실
+      (하나만 반영하면 0행으로 막힌다 = 이 파라미터가 생긴 이유)을 명시.
+
+### defer (신규 등재)
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 26 | DB 가드가 opt-in 상태에서도 COMPLETED/CANCELLED 를 배제하는지 확인하는 **대조 테스트** 부재 — state-machine 계층엔 대칭 테스트가 있는데 DB-가드 계층엔 없다. 코드는 직접 계산으로 정확함 확인(둘 다 opt-in 무관 항상 제외) | P3 | 11R W2 |
+| 27 | `tryLockActiveExecutionAndSaveNodeExec` 전용 describe 가 신규 `opts` 를 미반영 — 형제 `updateExecutionStatus` 는 focused 테스트가 있는데 이쪽은 통합 테스트 1건에만 의존(그 테스트가 실제로 회귀를 잡음은 확인됨) | P3 | 11R W3 |
+| 28 | `retryLastTurn` 의 사전 검증이 재사용하는 `InvalidExecutionStateError` 의 고정 문구("Execution is not waiting for input.")가 retry_last_turn 실패 사유와 의미상 안 맞는다 — `RetryLastTurnError` 는 상황별 정적 팩토리로 이 문제를 피하고 있어 패턴 비대칭. 관련 테스트도 `code` 만 단언해 drift 가 회귀로 안 잡힌다 | P3 | 11R W9 |
+| 29 | `assertTransition` 의 raw `Error` 메시지가 client-safe 매핑 없이 `EXECUTION_FAILED` payload 로 노출될 수 있다 — 같은 파일이 `RetryLastTurnError`/`InvalidExecutionStateError` 에는 "고정 client-safe 문자열" 규약을 명시했는데 상태머신 어설션만 규약 밖. 노출 문자열이 `ExecutionStatus` enum 값뿐이라 민감도는 낮다 | P3 | 11R W10 |
+| 30 | `buildStatusesSql(extraIncluded)` 헬퍼로 두 status SQL 상수 일반화 — 세 번째 예외 상태가 필요해지면 세 번째 상수가 또 생긴다 | P3 | 11R W6 |
+
+### 재확인만 (기존 등재)
+
+11R W1 → #20(증거 보강 반영). W4 → #3(P2, e2e 부재 — 이 결함 계열이 3라운드 연속 unit mock
+정교화로만 대응돼 온 이력을 고려해 **우선순위 상향 권고**). W5 → #21·#22. W7 → #23.
+
+
+## 12차 라운드 (`review/code/2026/07/30/18_26_50`) — **CRITICAL 0 / 전체 LOW · 수렴 종료**
+
+14개 reviewer 전원 CRITICAL 0, **전체 위험도 LOW**(전 시리즈 최초). forced 6명 미이행 없음,
+skip·미완 0건. 이번 라운드 실질 diff 는 JSDoc 7줄 + 가이드 미세 정정뿐이고 소스 로직은
+8R(`2ca44b769`) 이후 문자 그대로 무변경임을 여러 reviewer 가 독립 확인했다.
+
+### 수렴 판정 — 여기서 코드를 더 건드리지 않는다
+
+남은 WARNING 9건은 전부 문서·테스트 대칭·구조다. 그중 **4건은 내가 만든 것**이고 모두 주석
+수준이지만, 고치면 게이트가 다시 stale 되어 13라운드가 열린다. 이 저장소가 이미 겪은
+treadmill 이므로 처분만 기록하고 종료한다(RESOLUTION: `review/code/2026/07/30/18_26_50/`).
+
+### defer 신규 등재 — 전부 문서, 기능 영향 없음
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 31 | `retryLastTurn` JSDoc 이 이미 구현·테스트된 downstream graph traversal(`resumeGraphAfterRetry`, "WARNING #10 해소")을 여전히 **"남은 문서화된 갭"** 으로 서술 — **내 커밋 `7a05c6ec8`("JSDoc 3건 정정")이 다른 stale 참조를 고치면서 새로 만든 자기모순**이고, 이후 8R~11R **4개 문서화 라운드가 놓쳤다** | P3 | 12R W8 |
+| 32 | `engine-driver.interface.ts` 최상단 docblock 이 "spec 수치가 아직 12/7 로 stale, 정정 위임 중" 이라 서술하나 **그 위임은 2026-07-27 에 이미 완료**됐다(`72e3193f7` 가 15/10 으로 갱신). 10R 이 "별도 위임으로 추적 중" 이라 넘겼는데 **그 전제가 이미 하루 전 허물어져 있었다**. 코드 쪽 수치(15/10)는 재계산 결과 정확 | P3 | 12R W9 |
+| 33 | `opts.allowRetryReentry` 불변식 **JSDoc 산문**이 두 메서드에 사실상 동일 문장으로 중복 — 내가 11R W8 을 고치며 한 겹 더 쌓았다. `RetryReentryOptions` 이름있는 타입으로 통합하고 각 메서드는 참조 + 고유 한 줄만 남길 것(#22 와 같은 뿌리) | P3 | 12R W4 |
+| 34 | `RETRY_STATE_KEY` 가 파라미터 바인딩 대신 raw SQL 문자열로 4곳 직접 삽입 — 현재는 컴파일타임 상수라 익스플로잇 불가하나, 동적/설정 가능 값으로 바뀌면 인젝션 벡터가 된다. `jsonb_exists(col, :key)` + `setParameter` 로 전환(방어적 습관) | P3 | 12R INFO 1 (security·database 독립 수렴) |
+
+### 재확인만 (기존 등재, 신규 악화 없음)
+
+12R W2 → #20 · W3 → #28 · W5 → #19 · W6 → #27 · W7 → #3(3라운드 연속 지적, 우선순위 상향
+권고 유지) · INFO 4 → #21·#22·#24 · INFO 5 → #15 · INFO 2 → #29.
+
+
+## `--impl-done` 반영 (2026-07-30, `review/consistency/2026/07/30/19_00_25`) — BLOCK: NO
+
+Critical 0. WARNING 7건 중 **6건이 `spec/`·`plan/` 전용**이라 코드 게이트를 다시 열지 않고
+반영했다. W2(계층간 명명 불일치)만 `codebase/` 라 defer.
+
+- [x] **W1(rationale_continuity, MEDIUM 근거)** — §1.1 "짝 전이는 방향과 무관하게 no-op" 콜아웃이
+      이번 diff 의 **terminal 정의 opt-in 파라미터화**를 반영하지 않았다. 같은 이음매가 실제 8R
+      CRITICAL 로 발현된 전력이 있어 문서 공백이 재발 위험을 남긴다 → §1.1 에 예외 각주 추가 +
+      `node-cancellation.md` §2.4 상호참조 병기.
+- [x] **W4(cross_spec)** — `data-flow/3-execution.md` §3.1 Mermaid 에 `failed → waiting_for_input`
+      edge 누락(그 다이어그램만 보면 `failed` 이후 비-종결 경로가 `running` 뿐으로 오인) → edge +
+      설명 문단 병기.
+- [x] **W5(cross_spec)** — `1-ai-agent.md` §7.9 가 §12.8 신설 콜아웃과 미동기화(같은 문서 두 절이
+      다른 완결성 주장) → §7.9 앞에 동일 콜아웃 추가.
+- [x] **W6(convention_compliance)** — `node-output.md` §4.2.1 이 `_retryState` 영속 위치를
+      `outputData` 하나로 못박아 신설 2차 용법(spawn row `inputData`, delivery-claim 마커)을
+      반영하지 못했다 → † 각주 추가.
+- [x] **W3(plan_coherence)** — 8R·9R 세션에 `RESOLUTION.md` 부재(그 두 라운드는 applier 를 거치지
+      않고 main 이 직접 처분했다) → **사후 작성 완료**. 미승격 WARNING 3건도 아래 표로 승격.
+- [x] **W7(plan_coherence)** — 하네스 예산초과 재발(8번째) → harness plan 에 기록.
+- **W2(naming_collision)** — orchestrator 는 `retryReentry`, driver/state-machine 은
+  `allowRetryReentry`. **이 명명 불일치가 10R CRITICAL 의 근본 원인 중 하나**였다. `codebase/`
+  변경이라 defer → 아래 `#37`.
+
+### 신규 승격 (`--impl-done` W3 지적)
+
+| # | 항목 | 우선 | 근거 |
+|---|---|---|---|
+| 35 | **재진입 짝 전이가 원래 실패 시점의 `error`/`finishedAt`/`durationMs` 를 clear 하지 않은 채 non-terminal 행에 재기록한다.** 특히 re-park(최빈)에서 이 모순이 다음 사용자 입력까지 장기 유지돼 `GET /executions/:id` 소비자에게 "대기 중인데 오류 메시지·완료시각·소요시간이 함께 표시" 되는 모순을 노출한다. 마스터 `#5` 는 COMPLETED 시나리오만 커버해 이 축이 비어 있었다. 조치안: `applyRetryLastTurn` 진입 직후 `execution.error = null`(+`finishedAt`/`durationMs`) 초기화 — `#5` 와 한 번에 해소 가능 | **P2** | 9R W1(database) — `--impl-done` W3 이 미승격 지적 |
+| 36 | 한 Execution 아래 형제 FAILED 멀티턴 노드(예: Parallel 브랜치)의 **동시 재진입 소유권 모호성** — `FOR UPDATE` 는 단일 시도 lost-update 는 막지만, 한쪽이 먼저 non-terminal 로 전이시킨 뒤에는 뒤따르는 형제도 잠금·전이를 적용할 수 있다. `#20`(11R 증거 보강)과 같은 뿌리 | P3 | 9R W2(concurrency) — 미승격 지적 |
+| 37 | retry opt-in 플래그가 계층마다 다른 이름 — orchestrator `retryReentry` vs driver/state-machine `allowRetryReentry`. **이 불일치가 10R CRITICAL(번역 seam 무검증)의 근본 원인 중 하나**였고, 버그는 고쳤으나 다음 소비처 추가 시 동일 클래스 재발 여지가 명명 차원에 남는다. `allowRetryReentry` 로 통일하거나 번역 지점 3곳에 앵커 주석 | P3 | `--impl-done` W2(naming_collision) |
+
+`8R W2`(`spawnedId` null-invariant 방어분기 미검증)는 7R 에서 이미 테스트를 추가해 잠갔다 —
+`--impl-done` W3 의 "현재도 테스트 0건" 서술은 그 시점 기준으로, 실측하면 존재한다(`(f)` 케이스).

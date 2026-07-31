@@ -17,6 +17,42 @@
 SoT: `spec/data-flow/11-workflow.md` §1.5, `spec/2-navigation/1-workflow-list.md` §2.6. 추적:
 `plan/in-progress/workflow-duplicate-nodes-edges.md`.
 
+## Unreleased — retry_last_turn 재진입: 종결 경로 terminal 가드 + 원자 claim + 짝 전이 persist 수정
+
+`#1022` 가 엔진에서 닫은 무가드 terminal 쓰기 결함 클래스를 `retry-turn.service.ts` 에서 닫는
+작업으로 시작해, ai-review 10라운드에 걸쳐 인접 결함 3개 축을 함께 정리했다.
+
+1. **종결 2경로의 guarded 전환**: `failRetryExecution` + `completeRetryExecution`(티켓은 1곳만
+   지목했으나 전수 감사로 2곳 확인 — 후자가 더 나쁘다: 취소된 실행을 COMPLETED 로 덮고 완료
+   이벤트까지 발행)을 공용 `finalizeGuarded` 로 통일. 행을 재조회해 정본 상태를 확인하고,
+   전이 불가 또는 조건부 UPDATE 0행이면 저장·이벤트 발행을 모두 skip 한다. 취소 시각
+   (`finishedAt`/`durationMs`)은 `stop()` 이 쓴 값이 정본으로 보존된다(SQL `COALESCE`).
+
+2. **재진입 원자 claim**: `applyRetryLastTurn` 의 재진입 가드가 `findOneBy` → `if status`
+   read-then-act 라 중복 배달(BullMQ stalled 재배달, worker concurrency 상향, multi-instance)
+   에서 두 delivery 가 모두 통과했다. spawn row 의 `inputData._retryState` 를 조건부 UPDATE
+   (`status='running' AND jsonb_exists`)로 원자 소비해 affected=1 인 delivery 만 진행한다.
+   `continuation-execution.processor.ts` 가 `retry_last_turn` 을 공용 claim 에서 제외하며
+   근거로 인용했던 "자체 멱등 가드" 주석의 자기모순도 함께 정정.
+
+3. **짝 전이가 절대 persist 되지 않던 결함(가장 심각)**: `allowRetryReentry` opt-in 이
+   in-memory `assertTransition` 만 통과시키고 **DB 가드에는 도달하지 않아**, 재진입의
+   `FAILED → RUNNING` / `FAILED → WAITING_FOR_INPUT` 짝 전이가 **동시성 없이 매 호출 실패**
+   했다. `NON_TERMINAL_STATUSES_SQL` 이 FAILED 를 배제하고 잠금 헬퍼는 `opts` 파라미터가
+   아예 없었다. 세 잠금 소비처(`lockNonTerminalExecutionRow` · else 분기 guarded UPDATE ·
+   `tryLockActiveExecutionAndSaveNodeExec`)에 opt-in 을 전파하고 상태머신 opt-in 을
+   `FAILED → WAITING_FOR_INPUT`(turn 계속 → re-park, multi-turn 최빈 경로)까지 확장했다.
+   `ALLOWED_TRANSITIONS[FAILED]` 는 `[]` 로 유지 — "실패 종결 실행의 우발적 부활 차단" 이
+   설계 요지이므로 opt-in 만 넓힌다.
+
+   이 결함이 8라운드 동안 발견되지 않은 이유는 **테스트 mock 이 행 잠금을 SQL·status 와
+   무관하게 항상 성공으로 하드코딩**했기 때문이다("행 잠금 성공" 고정 주석까지 있었다).
+   실제 조건을 평가하도록 고치자 즉시 재현됐다.
+
+검증: 라운드별 mutation(누적 20종 이상) — 1차 실행에서 미검출이 나온 가드는 테스트를 추가해
+잠갔다. 특히 "인자 shape 만 바뀌는 뮤턴트" 와 "표현식만 치환하는 뮤턴트" 의 차이 때문에 한 번
+잠긴 줄 알았던 seam 이 실제로는 무검증이던 사례가 있었다(10R CRITICAL).
+
 ## Unreleased — AI multi-turn resume turn 경계 cancel 가드 + park 짝 전이 lost-update 차단
 
 #1021 의 노드 경계 cancel 가드(§2.3)는 **AI multi-turn 이 turn 마다 park 로 세그먼트를 끝내** 그 경계에 닿지 않는 갭을 남겼다 — turn 진행 중(LLM 호출 수 초~분) 사용자 Stop 이 조용히 무효화됐다.

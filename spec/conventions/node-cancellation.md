@@ -89,6 +89,11 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
   잠그고 **비-terminal 을 확인한 뒤에만** 쓴다. 확인 없이 쓰면 턴 진행 중 도착한 Stop 이
   덮여 **취소가 지연되는 게 아니라 소실**된다. 선점이 관측되면 짝 `NodeExecution` 을
   `cancelled` 로 마킹한 뒤 `ExecutionCancelledError` 를 전파한다.
+> **terminal 정의의 opt-in 파라미터화 (2026-07-30)**: `execution.retry_last_turn` 재진입에
+> 한해 DB 가드의 "비-terminal" 판정에 `failed` 가 조건부로 포함된다(`allowRetryReentry` opt-in).
+> 상태머신에만 반영하고 DB 가드에 전파하지 않으면 재진입 전이가 항상 0행이 된다 — 상세는
+> [실행 엔진 §1.1](../5-system/4-execution-engine.md#11-execution-상태) 예외 각주.
+
 - **retry 재진입 종결 경로 terminal 가드** (구현됨 2026-07-28) — `execution.retry_last_turn`
   재진입의 종결(`completed`/`failed`/`cancelled`)은 in-memory 엔티티를 신뢰하지 않는다.
   재진입 전이(`failed → running`)가 **다른 엔티티 인스턴스**에 적용되므로 종결 시점의

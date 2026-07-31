@@ -93,9 +93,16 @@ Whether a retry is available depends on the error type.
 - **Retryable**: Rate Limit (429), server errors (5xx), network/timeout — the conversation is preserved and the [Retry] button appears.
 - **Not retryable**: Authentication errors (401/403) and similar — these indicate a configuration problem that retrying won't fix, so no button appears. Check your credentials in [Model settings](/docs/06-integrations-and-config/models).
 
+A successful retry ends in one of two ways.
+
+- **The conversation is finished**: execution continues to the downstream nodes.
+- **The conversation continues** (more common in multi-turn): instead of moving downstream, a new AI
+  response appears and the run returns to **waiting for input**. This is not a failure — just carry
+  on with the conversation.
+
 Retry is available **once within 60 minutes**. After the window expires or a retry has already been used, you need to run the workflow again from the start.
 
-If the retry succeeds, any downstream nodes connected to the AI node (e.g. HTTP Request, Send Email) continue executing just as in a normal run.
+**Once the conversation is finished**, any downstream nodes connected to the AI node (e.g. HTTP Request, Send Email) continue executing just as in a normal run.
 </Callout>
 
 ## Browsing execution history
