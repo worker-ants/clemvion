@@ -190,10 +190,14 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
       - 우회: 경로 지정(`--prepare <path>`)은 정상 동작(`11_23_04` 에서 `package.json` 1건 정상 포함).
       - **왜 P1 인가**: "빈/좁은 changeset → 자동 clean" 은 리뷰 게이트 전체를 조용히 무력화하는
         클래스다. `review_guard` 는 SUMMARY 의 clean 여부만 보므로 이 경로로 무제한 통과가 가능하다.
-- [ ] **보류된 리뷰 INFO 10건** — `review/code/2026/07/30/17_54_27/RESOLUTION.md` §보류·후속 항목.
+- [x] **보류된 리뷰 INFO 10건** — `review/code/2026/07/30/17_54_27/RESOLUTION.md` §보류·후속 항목.
       전부 리뷰어가 "필수 아님" 으로 표기. 대표: `findById` TOCTOU(#1), 메타를 트랜잭션 밖에서
       읽는 타이밍(#2 — Warning #1 과 근본 원인 공유하나 404 fast-path 트레이드오프가 별개),
       read-skew 회귀 테스트 부재(#3), 네이밍 드리프트(#8).
+      → **완료**: `plan/in-progress/review-info-followups.md` (별도 PR). 전수 확인 후 **4건 조치**
+      (`edge.condition` 참조 격리 · 엣지 0건 조합 단언 · 네이밍 통일 · Swagger 멀티라인),
+      **6건은 근거와 함께 종결**(그쪽 §2). 미조치 6건은 재이월하지 않는다 — 근거가 적혔으므로
+      다음 grooming 이 같은 조사를 반복할 필요가 없다.
 
 ---
 

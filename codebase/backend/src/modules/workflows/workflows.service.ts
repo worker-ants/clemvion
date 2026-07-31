@@ -281,7 +281,7 @@ export class WorkflowsService {
       const remap = (nodeId: string | null): string | null =>
         nodeId ? (idMap.get(nodeId) ?? null) : null;
 
-      // Node 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `nodeEntities`,
+      // Node 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `nodeRows`,
       // `syncNodes()` 의 신규 `newNode` 리터럴과 컬럼 이름 집합이 동일해야 한다.
       // Node 엔티티에 컬럼을 추가하면 이 3곳 모두 손으로 동기화할 것 — 아래
       // `manager.insert` 는 `QueryDeepPartialEntity<Node>[]` 로 타입을 우회해
@@ -304,7 +304,7 @@ export class WorkflowsService {
         await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
       }
 
-      // Edge 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `edgeEntities`,
+      // Edge 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `edgeRows`,
       // `syncEdges()` 의 `newEdges` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
       const edgeRows = originalEdges.flatMap((edge) => {
         // FK CASCADE 상 원본에 고아 엣지는 없어야 하지만, 있으면 사본에 옮기지
@@ -320,7 +320,9 @@ export class WorkflowsService {
             targetNodeId,
             targetPort: edge.targetPort,
             type: edge.type,
-            condition: edge.condition,
+            // node.config 와 같은 이유의 얕은 복사 — 반환/후속 변이가 원본 엔티티를
+            // 오염시키지 않게. nullable 이라 값이 없으면 그대로 둔다.
+            condition: edge.condition ? { ...edge.condition } : edge.condition,
           },
         ];
       });
@@ -428,7 +430,7 @@ export class WorkflowsService {
 
       // Node 필드 집합 3중 중복 지점 2/3 — `duplicate()` 의 `nodeRows`,
       // `syncNodes()` 의 `newNode` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
-      const nodeEntities = dto.nodes.map((nodeDto, i) => {
+      const nodeRows = dto.nodes.map((nodeDto, i) => {
         const withDefaults = this.registry.applyConfigDefaults(
           nodeDto.type,
           nodeDto.config ?? {},
@@ -472,17 +474,14 @@ export class WorkflowsService {
           toolOwnerId,
         };
       });
-      if (nodeEntities.length > 0) {
-        await manager.insert(
-          Node,
-          nodeEntities as QueryDeepPartialEntity<Node>[],
-        );
+      if (nodeRows.length > 0) {
+        await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
       }
 
       // Create edges using index-to-ID mapping
       // Edge 필드 집합 3중 중복 지점 2/3 — `duplicate()` 의 `edgeRows`,
       // `syncEdges()` 의 `newEdges` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
-      const edgeEntities = (dto.edges ?? []).flatMap((edgeDto) => {
+      const edgeRows = (dto.edges ?? []).flatMap((edgeDto) => {
         const sourceId = nodeIdMap[edgeDto.sourceNodeIndex];
         const targetId = nodeIdMap[edgeDto.targetNodeIndex];
         if (!sourceId || !targetId) return [];
@@ -498,11 +497,8 @@ export class WorkflowsService {
           },
         ];
       });
-      if (edgeEntities.length > 0) {
-        await manager.insert(
-          Edge,
-          edgeEntities as QueryDeepPartialEntity<Edge>[],
-        );
+      if (edgeRows.length > 0) {
+        await manager.insert(Edge, edgeRows as QueryDeepPartialEntity<Edge>[]);
       }
 
       return savedWorkflow;
@@ -969,7 +965,7 @@ export class WorkflowsService {
         nodesToSave.push(existing);
       } else {
         // Node 필드 집합 3중 중복 지점 3/3 — `duplicate()` 의 `nodeRows`,
-        // `importWorkflow()` 의 `nodeEntities` 와 동기화 필요(컬럼 추가 시 3곳 전부).
+        // `importWorkflow()` 의 `nodeRows` 와 동기화 필요(컬럼 추가 시 3곳 전부).
         const newNode = manager.create(Node, {
           id: nodeDto.id,
           workflowId,
@@ -1011,7 +1007,7 @@ export class WorkflowsService {
 
     // Batch create all edges
     // Edge 필드 집합 3중 중복 지점 3/3 — `duplicate()` 의 `edgeRows`,
-    // `importWorkflow()` 의 `edgeEntities` 와 동기화 필요(컬럼 추가 시 3곳 전부).
+    // `importWorkflow()` 의 `edgeRows` 와 동기화 필요(컬럼 추가 시 3곳 전부).
     const newEdges = dto.edges.map((edgeDto) =>
       manager.create(Edge, {
         workflowId,

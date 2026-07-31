@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-07-31T18:00:00.038135",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/modules/workflows/workflows.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/workflows/workflows.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/workflows/workflows.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/review-info-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "maintainability",
+    "testing",
+    "scope"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "maintainability",
+    "scope",
+    "testing"
+  ]
+}

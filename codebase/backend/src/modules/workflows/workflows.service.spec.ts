@@ -672,6 +672,42 @@ describe('WorkflowsService', () => {
       expect(mockTransactionManager.insert).not.toHaveBeenCalled();
     });
 
+    // `edgeRows` 가드를 **단독으로** 고정한다. 위 "빈 캔버스" 케이스도 이 가드 제거를
+    // 잡기는 하지만, 거기선 nodeRows·edgeRows 가 둘 다 0 이라 **어느 가드가 깨졌는지
+    // 특정하지 못한다**. 여기는 노드 5건 + 엣지 0건이라 실패 시 원인이 바로 좁혀진다
+    // (importWorkflow 에는 이미 이 대칭 단언이 있다).
+    it('노드만 있고 엣지가 0건이면 Node insert 만 호출한다', async () => {
+      mockTransactionManager.find = jest
+        .fn()
+        .mockImplementation((entity: unknown) =>
+          Promise.resolve(entity === Node ? origNodes : []),
+        );
+
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      expect(mockTransactionManager.insert).toHaveBeenCalledTimes(1);
+      expect(insertedRows(Node)).toHaveLength(5);
+      expect(insertedRows(Edge)).toBeUndefined();
+    });
+
+    it('엣지 condition 을 얕은 복사해 원본 JSONB 와 참조를 공유하지 않는다', async () => {
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      const errEdge = insertedRows(Edge)!.find(
+        (e) => e.type === EdgeType.ERROR,
+      )!;
+      expect(errEdge.condition).toEqual({ foo: 1 });
+      // 값은 같되 **다른 객체** 여야 한다 — 같은 참조면 사본 변이가 원본을 오염시킨다.
+      expect(errEdge.condition).not.toBe(origEdges[1].condition);
+
+      // 삼항의 **null 분기**도 고정한다. 이 단언이 없으면 false 분기를 `undefined`
+      // 로 바꾸는 mutation 이 생존한다(리뷰 INFO #2 — 실측으로 생존 확인).
+      const dataEdge = insertedRows(Edge)!.find(
+        (e) => e.type === EdgeType.DATA,
+      )!;
+      expect(dataEdge.condition).toBeNull();
+    });
+
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
       mockTransactionManager.find = jest

@@ -1,0 +1,38 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/review-info-followups/review/code/2026/07/31/18_37_11",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/review-info-followups/review/code/2026/07/31/18_37_11/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/review-info-followups/review/code/2026/07/31/18_37_11/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workflows/workflows.controller.ts, codebase/backend/src/modules/workflows/workflows.service.spec.ts, codebase/backend/src/modules/workflows/workflows.service.ts"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/review-info-followups/review/code/2026/07/31/18_37_11/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/review-info-followups/review/code/2026/07/31/18_37_11/testing.md"
+    }
+  ],
+  "agents_pending": [
+    "testing"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
