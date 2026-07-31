@@ -81,10 +81,11 @@ data-flow 는 2026-06-10 spec↔code 전수 감사 커밋에서 코드 관찰 �
       SoT 링크 `#rationale` 앵커(I2), data-model `## Rationale` 스텁 추가(I3),
       JSONB 중괄호 표기 통일(I4), 원본 plan 체크박스 동기화 스텝 추가(W1 — 아래).
 - [x] `spec/1-data-model.md` §2.15 반영 + `## Rationale` 스텁
-- [ ] **원본 plan 동기화 (consistency WARNING #1)** — `plan/complete/workflow-duplicate-nodes-edges.md`
+- [x] **원본 plan 동기화 (consistency WARNING #1)** — `workflow-duplicate-nodes-edges.md` §3 의
+      해당 항목을 `[x]` 로 갱신 완료(`#1035` 커밋에 포함).
       §3 의 "`spec/1-data-model.md:572` §2.15 snapshot 서술 정정" 항목을 `[x]` 로 갱신. 갱신하지 않으면
       이미 끝난 항목이 계속 미해결 follow-up 으로 남아 다음 grooming 에서 중복 조사된다.
-- [ ] push + PR
+- [x] push + PR — `#1035` 머지.
 
 ## Rationale
 

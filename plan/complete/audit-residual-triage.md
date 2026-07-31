@@ -146,7 +146,7 @@ lint 툴체인이 죽는다. 프로덕션 이미지에 eslint 스택이 없음�
       상세: `review/code/2026/07/31/15_03_10/RESOLUTION.md`
 - [x] TEST WORKFLOW 재수행 — lint PASS(60s) · unit PASS(backend 412 suites) · build PASS(450s) ·
       e2e PASS(backend 260/260 + **playwright 51/51**)
-- [ ] push + PR
+- [x] push + PR — `#1038` 머지.
 
 ## 2.2 `codebase/frontend` postcss specifier 부수 정정 (리뷰 WARNING #3)
 
@@ -167,14 +167,15 @@ importer 의 직접 의존 specifier 이고 후자는 workspace-global override 
 
 ## 3. 후속
 
-- [ ] **오버라이드 바닥이 조용히 낮아지는 재발 패턴** — 이번에 4건, `#1036` 에서 1건이 같은 방식으로
+- [x] **오버라이드 바닥이 조용히 낮아지는 재발 패턴** — `plan/in-progress/deps-guard-hardening.md`
+      §1 로 분기(실측 5건 표 포함).
       드러났다. 오버라이드 값이 그 패키지의 **현재 알려진 최소 안전 버전 이상인지** 주기적으로
       확인하는 장치가 없다. audit 이 사후에 잡아주긴 하나, 그때는 이미 취약 버전이 해소된 뒤다.
       `check-pnpm-security-config.py` 에 "오버라이드 하한 < 알려진 패치 하한" 검출을 얹는 방안 검토.
-- [ ] **audit 검증 절차에 `--prod` 표준화** — 이번 CRITICAL 의 직접 원인이다. `pnpm audit` 만 보면
+- [x] **audit 검증 절차에 `--prod` 표준화** — `deps-guard-hardening.md` §2 로 분기.
       dev/prod 구분이 안 되고, 출력 `paths` 를 자르면 경로를 놓친다. 잔여 취약점을 수용(`ignoreCves`)
       하려면 **`pnpm audit --prod` 와 프로덕션 이미지 실물 확인**을 근거로 요구하도록 규약화.
-- [ ] **dependabot 재발 방지** (`#1034` 에서 이관) — 구 base 에서 만들어진 PR 이 최신 보안 bump 를
+- [x] **dependabot 재발 방지** — `deps-guard-hardening.md` §3 으로 분기.
       되돌리는 패턴. 순차 머지 시 rebase 강제 또는 `frozen-lockfile` 검증을 required check 로.
 
 ## Rationale

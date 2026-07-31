@@ -85,18 +85,18 @@ pnpm-lock.yaml is not up to date with <ROOT>/codebase/frontend/package.json
 - [x] cherry-pick 2건 + `frozen-lockfile` 통과 확인
 - [x] TEST WORKFLOW — lint PASS(58s) · unit PASS(backend 412 suites) · build PASS(279s, docker
       이미지 빌드 포함 = 원래 깨졌던 지점 통과) · e2e PASS(260/260, 316s)
-- [ ] `/ai-review` (dependency·scope) + Critical/Warning 조치
-- [ ] push + PR
+- [x] `/ai-review` (dependency·scope) — Critical 0 · Warning 1(문서화 갭, 조치 완료).
+- [x] push + PR — `#1034` 머지.
 
 ## 3. 후속 (본 PR 범위 밖)
 
-- [ ] **`pnpm audit` 잔여 20건** — 저장소 차원 대응 필요.
-- [ ] **의존성 위생 2건** — (a) `tailwindcss` 직접 의존(`^4.2.2`)과 `@tailwindcss/postcss`
+- [x] **`pnpm audit` 잔여 20건** — `#1038` 로 완료 (게이트 exit 0).
+- [x] **의존성 위생 2건** — `#1036` 로 완료.
       엔진(`4.3.3`) lockstep 스큐. `postcss.config.mjs` 가 플러그인만 등록하고 bare `tailwindcss`
       import 가 없어 빌드 영향 없음. (b) `pnpm-workspace.yaml:40` 의 `next>postcss` 오버라이드
       하한(`^8.5.14`)이 직접 의존 하한보다 낮다 — 상향 시
       `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` **2-place 동시 갱신** 필수.
-- [ ] **dependabot 재발 방지** — 이번 결함의 근본 원인은 "구 base 에서 만들어진 PR 이 최신 보안
+- [x] **dependabot 재발 방지** — `plan/in-progress/deps-guard-hardening.md` §3 으로 분기.
       bump 를 되돌리는" 패턴이다. 같은 group 의 PR 이 순차 머지될 때 rebase 를 강제하거나,
       머지 전 `frozen-lockfile` 검증을 required check 로 두는 방안 검토.
 
