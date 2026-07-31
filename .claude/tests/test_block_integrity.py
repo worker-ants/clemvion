@@ -375,5 +375,74 @@ class NotesReachBothHooksTest(unittest.TestCase):
         self.assertNotIn("하향 감지", r.stdout)
 
 
+class NotesSurviveBlockingTest(unittest.TestCase):
+    """Blocking does not make the advisory moot — it may be the same session.
+
+    Gate 2 rejects a stale `--impl-done` session; that session can be exactly the
+    one that downgraded a Critical. Dropping the note on the blocking path loses
+    the only place the downgrade surfaces. Mutation showed the wiring was
+    unprotected: removing `tuple(notes)` from the returns left all 738 GREEN.
+    """
+
+    def _decision(self, *, stale):
+        """Drive `evaluate_review` over a repo with one contradicting session."""
+        import importlib.util
+        RG = _harness.load_module_by_path(
+            "review_guard_notes_probe",
+            _harness.HOOKS_DIR / "_lib" / "review_guard.py",
+        )
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        d = os.path.join(root, "review", "consistency", "2026", "07", "31", "12_00_00")
+        os.makedirs(d)
+        with open(os.path.join(d, "meta.json"), "w", encoding="utf-8") as f:
+            f.write('{"mode": "구현 완료 후 검토 (--impl-done, scope=spec/x)"}')
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write("**BLOCK: NO** — 요약\n")
+        with open(os.path.join(d, "cross_spec.md"), "w", encoding="utf-8") as f:
+            f.write("- **[CRITICAL]** 모순\n")
+        notes = []
+        RG._newest_resolved_impl_done_mtime(root, dirty=set(), notes=notes)
+        return RG, notes
+
+    def test_the_contradiction_is_collected_for_the_adopted_session(self):
+        _RG, notes = self._decision(stale=False)
+        self.assertTrue(notes, "the adopted session's contradiction was not collected")
+
+    def test_blocking_returns_carry_notes(self):
+        """Every Gate 2 `ReviewDecision` must pass the advisory.
+
+        Parsed with `ast`, not a regex: the first version used
+        `return ReviewDecision\\((.*?)\\n        \\)` and matched **1 of the 3**
+        returns — the nested ones close at a deeper indent — so it passed while
+        two of them silently dropped the notes. Structure is what this asserts,
+        so structure is what it should read.
+        """
+        import ast
+        src = (_harness.HOOKS_DIR / "_lib" / "review_guard.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "evaluate_review")
+        gate2_line = next(
+            n.lineno for n in ast.walk(fn)
+            if isinstance(n, ast.Assign)
+            and any(getattr(t, "id", "") == "spec_linked" for t in n.targets)
+        )
+        checked = 0
+        for node in ast.walk(fn):
+            if not (isinstance(node, ast.Return) and isinstance(node.value, ast.Call)):
+                continue
+            if getattr(node.value.func, "id", "") != "ReviewDecision":
+                continue
+            if node.lineno < gate2_line:
+                continue  # early returns predate the advisory and cannot carry one
+            checked += 1
+            self.assertGreaterEqual(
+                len(node.value.args), 3,
+                f"ReviewDecision at line {node.lineno} drops the advisory",
+            )
+        self.assertGreaterEqual(checked, 3, "expected Gate 2's three returns")
+
+
 if __name__ == "__main__":
     unittest.main()

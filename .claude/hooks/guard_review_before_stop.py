@@ -105,6 +105,11 @@ def _new_outcome():
             self.answered: list = []
             self.bypassed: list = []
             self.degraded: list = []
+            # Unused by this hook (its advisories print straight from the
+            # decision), but present so every Outcome shape in the tree carries
+            # the same fields — the push side already diverged once by having it
+            # on only one of its two.
+            self.notes: list = []
 
     return _Fallback()
 
@@ -357,8 +362,25 @@ def _run(outcome) -> int:
         # ends before anything is pushed, and a session the gate stops trusting
         # in between takes its advisory with it — the warning would not be late,
         # it would be gone.
-        for note in (getattr(decision, "notes", ()) or ()) if decision else ():
-            print(note, file=sys.stderr)
+        try:
+            # Throttled like the nudge below. Without it the same advisory
+            # reprints on every turn-end attempt of the session — and this
+            # module's own docstrings argue that a warning which always fires is
+            # one nobody reads. The marker keys on the note text, so a DIFFERENT
+            # contradiction still gets through.
+            for idx, note in enumerate(
+                    (getattr(decision, "notes", ()) or ()) if decision else ()):
+                marker = _marker_path(session_id, token, f"note{idx}")
+                if _already_nudged(marker):
+                    continue
+                _mark_nudged(marker)
+                print(note, file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            # Observation must never break the guard — and here it would break
+            # more than itself: an exception escaping this block skips the
+            # PLAN-COMPLETE gate below for this run. The push hook wraps the
+            # same responsibility; this one has more to lose by not doing so.
+            pass
         # Suppress while a resolution-applier fix is in flight (Stop only); fall
         # through to the plan nudge rather than returning, so an unrelated
         # plan-complete nudge can still fire.

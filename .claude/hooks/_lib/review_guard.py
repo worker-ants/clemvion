@@ -975,6 +975,7 @@ def evaluate_review(
                 f"BLOCK: NO) was found. Run "
                 f"`/consistency-check --impl-done <spec/영역>` to verify the "
                 f"implementation still matches the spec.",
+                tuple(notes),
             )
         if newest_impl_done < newest_spec_code:
             return ReviewDecision(
@@ -983,6 +984,11 @@ def evaluate_review(
                 f"recent `--impl-done` consistency report — re-run "
                 f"`/consistency-check --impl-done <spec/영역>` so the spec-impl "
                 f"check postdates the latest edit.",
+                # Blocking does not make the advisory moot: the session being
+                # rejected as stale may be the very one that downgraded a
+                # Critical, and dropping the note here loses the only place that
+                # fact surfaces.
+                tuple(notes),
             )
 
     return ReviewDecision(

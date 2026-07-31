@@ -95,5 +95,81 @@ class SummaryStateCliTest(unittest.TestCase):
                 self.assertNotIn("reconciled", r.stderr)
 
 
+class AtomicWriteTest(unittest.TestCase):
+    """`save_state` writes via temp + `os.replace`, and that is worth pinning.
+
+    The original was a plain truncating `open(..., "w")`: a concurrent reader
+    opening mid-write saw a half-written file and `load_state`'s `json.load`
+    raised straight through — a traceback, while the "file missing" case one line
+    above is handled gracefully. Nothing tested the new property, so a silent
+    regression to truncating write would go unnoticed.
+    """
+
+    def _lib(self):
+        import sys as _sys
+        if str(_harness.CLAUDE_DIR) not in _sys.path:
+            _sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import retry_state
+        return retry_state
+
+    def _tmpdir(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        return d
+
+    def test_writes_and_leaves_no_temp_behind(self):
+        rs = self._lib()
+        f = os.path.join(self._tmpdir(), "_retry_state.json")
+        rs.save_state(f, {"a": 1})
+        self.assertEqual(json.load(open(f, encoding="utf-8")), {"a": 1})
+        leftovers = [x for x in os.listdir(os.path.dirname(f)) if ".tmp." in x]
+        self.assertEqual(leftovers, [])
+
+    def test_a_failed_write_leaves_the_original_intact(self):
+        """The property truncation cannot offer: the old state survives."""
+        from unittest import mock
+        rs = self._lib()
+        f = os.path.join(self._tmpdir(), "_retry_state.json")
+        rs.save_state(f, {"good": True})
+        with mock.patch.object(rs.json, "dump", side_effect=RuntimeError("disk")):
+            with self.assertRaises(RuntimeError):
+                rs.save_state(f, {"bad": True})
+        self.assertEqual(json.load(open(f, encoding="utf-8")), {"good": True})
+        leftovers = [x for x in os.listdir(os.path.dirname(f)) if ".tmp." in x]
+        self.assertEqual(leftovers, [], "a failed write left its temp file behind")
+
+
+class MergeCoordinatorUsesTheSharedStateTest(unittest.TestCase):
+    """The third consumer, which had no test of its own.
+
+    `merge_coordinator_orchestrator.py` now delegates three of the five helpers,
+    but nothing in `.claude/tests/` exercised that file at all — the migration
+    was unguarded on the one orchestrator with no other coverage.
+    """
+
+    def test_update_cli_writes_through_the_shared_helper(self):
+        import subprocess
+        import sys as _sys
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        sess = os.path.join(d, "s")
+        os.makedirs(sess)
+        with open(os.path.join(sess, "_retry_state.json"), "w") as f:
+            json.dump({"subagent_invocations": [{"name": "merge_conflict"}],
+                       "agents_success": [], "agents_pending": ["merge_conflict"],
+                       "agents_fatal": []}, f)
+        script = (_harness.CLAUDE_DIR / "skills" / "merge-coordinator" / "scripts"
+                  / "merge_coordinator_orchestrator.py")
+        r = subprocess.run(
+            [_sys.executable, str(script), "--update", sess,
+             "--agent", "merge_conflict", "--status", "success"],
+            capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        state = json.load(open(os.path.join(sess, "_retry_state.json"), encoding="utf-8"))
+        self.assertIn("merge_conflict", state["agents_success"])
+        self.assertIn("merge_conflict", state.get("agent_history", {}))
+
+
 if __name__ == "__main__":
     unittest.main()

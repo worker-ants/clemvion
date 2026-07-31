@@ -113,7 +113,9 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 **Critical 하향은 금지다.** checker 의 `[CRITICAL]` 을 통합 단계에서 WARNING 으로 낮춰 `BLOCK: NO`
 를 내는 것은 근거가 타당해 보여도 규약 위반이다 — 게이트는 판정 자체를 `BLOCK:` 줄로 읽으므로
 그 하향이 차단을 실제로 통과시킨다 — 다만 이제 게이트가 checker 리포트의 `[CRITICAL]` 과
-모순되면 경고를 낸다(차단은 아니다) (`consistency-summary.md §요약 지침 3`).
+모순되면 경고를 낸다(차단은 아니다). 단 그 경고는 `--impl-done` 세션이 게이트에 채택될 때만
+발화하므로, `--spec`/`--plan`/`--impl-prep` 이나 spec-linked 변경이 없는 경우는 이 금지 조항이
+유일한 방어다 (`consistency-summary.md §요약 지침 3`).
 
 **근본 원인이 호출자 권한 밖이면 (`developer` 턴의 `spec/` drift 등) planner 로 즉시 인계한다.**
 "구현은 끝났는데 spec 표가 stale" 은 developer 혼자 닫을 수 없는 정상적인 중간 상태다. 우회하지

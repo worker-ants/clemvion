@@ -60,7 +60,15 @@ def save_state(state_file, state):
     project's existing convergence approach (`reconcile_state_with_disk` derives
     the agent buckets from disk on every read). `agent_history` and the
     rate-limit fields have no such convergence and can still be lost under a
-    true race — tracked, not solved here.
+    true race — and CLAUDE.md tells callers to batch independent tool calls in
+    parallel, so concurrent `--update` is a real path, not a thought experiment.
+    A lost `last_reset_hint_sec` makes `/loop` retry before a rate limit clears;
+    a lost `agent_history` entry quietly shrinks the audit trail.
+
+    Accepted rather than locked, for the same reason `failopen_state` accepts its
+    own residuals: the convergent fields are the ones the gate reads, and adding
+    `fcntl.flock` here would put a blocking primitive in the path of every hook.
+    Registered as a follow-up rather than left implicit.
     """
     tmp = f"{state_file}.tmp.{os.getpid()}"
     try:

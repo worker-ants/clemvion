@@ -122,6 +122,11 @@ def _apply_status_update(session_dir, agent, status, reset_hint):
     return _retry_state_lib.apply_status_update(session_dir, agent, status, reset_hint)
 
 
+# ---------------------------------------------------------------------------
+# Git / gh helpers
+# ---------------------------------------------------------------------------
+
+
 def _git(args, timeout=15):
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
 
