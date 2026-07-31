@@ -15,6 +15,22 @@ priority: P2
 > | §관측(2) `SUMMARY pending` push 허용 | **수정 완료** (아래) |
 > | §재발 관측 8번째 (번들 누락) | **수정 완료** — `harness-consistency-summary-downgrade-rule.md` 쪽에 기록 |
 > | CI 백스톱 본체 | **미착수** — §결정이 필요한 지점 그대로 |
+>
+> **작업 중 발견된 신규 결함 1건 (수정 완료)** — `code_review_orchestrator.build_files_section`
+> 이 프롬프트 예산 초과 파일을 **아무 표시 없이** 통째로 누락시켰다. 내용을 작은 파일부터
+> 담고 안 들어가는 첫 파일에서 `break` 하므로, 그 뒤 더 큰 파일들은 헤더만 남는다(명시 파일
+> 리뷰에는 diff 도 없어 메타데이터 2줄이 전부). **이 PR 의 리뷰 세션에서 실제로 발현** —
+> `review_guard.py`·`code_review_orchestrator.py` 가 14개 프롬프트 전원에서 31바이트 섹션으로
+> 나왔고 그 둘이 이 PR 의 핵심 파일이었다. 즉 §재발 관측이 consistency 쪽에서 8회 기록한
+> 결함 클래스의 **code-review 쪽 쌍둥이**다. 생략 사실 + 읽을 경로를 명시하도록 수정.
+>
+> **신규 후속 1건 (defer)** — "origin 기본 브랜치 해석" 이 4곳에 독립 구현돼 있다:
+> `branch_guard._origin_default_branch()`(정본) · `review_guard._default_branch()` ·
+> `code_review_orchestrator._default_branch_ref()`(이번 신설) ·
+> `consistency_orchestrator` 의 `args.diff_base or "origin/main"` 리터럴. 반환 계약이 서로
+> 달라(로컬 `main` vs `origin/main`) 단순 통합은 불가하고, 실제 코드 공유엔 **hooks/skills 의
+> `_lib` 네임스페이스 충돌 해소가 선행**이라 별도 범위로 남긴다. 기본 브랜치 정책이 바뀌면
+> 4곳을 모두 고쳐야 하는 drift 위험이 현재 상태다.
 
 ## Overview
 
