@@ -37,12 +37,12 @@ except ImportError:  # pragma: no cover
 EXPECTED_OVERRIDES = {
     "lodash": "^4.18.0",
     "picomatch": "^4.0.4",
-    "liquidjs": "^10.27.0",
+    "liquidjs": "^10.27.1",
     "ip-address": "^10.2.0",
     "express-rate-limit": "^8.5.1",
-    "protobufjs": "^7.6.3",
-    "fast-uri": "^3.1.2",
-    "hono": "^4.12.21",
+    "protobufjs": "^7.6.5",
+    "fast-uri": "^3.1.4",
+    "hono": "^4.12.27",
     "uuid": "^13.0.2",
     "ws": "^8.21.0",
     "@grpc/grpc-js": "^1.14.4",
@@ -54,6 +54,15 @@ EXPECTED_OVERRIDES = {
     "undici@>=7.0.0 <7.28.0": "^7.28.0",
     "vite": "^8.0.16",
     "@babel/core": "^7.29.7",
+    "@hono/node-server": "^2.0.5",
+    "linkify-it": "^5.0.2",
+    "svgo": "^4.0.2",
+    "sharp": "^0.35.0",
+    "@opentelemetry/propagator-jaeger": "^2.9.0",
+    "js-yaml@>=4.0.0 <4.3.0": "^4.3.0",
+    "js-yaml@>=3.0.0 <3.15.0": "^3.15.0",
+    "brace-expansion@<2.0.0": "^1.1.16",
+    "brace-expansion@>=3.0.0 <5.0.8": "^5.0.8",
 }
 EXPECTED_ONLY_BUILT = {
     "isolated-vm",
@@ -64,7 +73,8 @@ EXPECTED_ONLY_BUILT = {
 }
 # 검토 후 수용(accept)한 CVE — 사유는 pnpm-workspace.yaml 의 auditConfig 주석 참고.
 EXPECTED_IGNORED_CVES = {
-    "CVE-2026-53550",  # js-yaml <3.15.0 DoS, frontend>gray-matter 경로, moderate.
+    "CVE-2026-53550",
+    "CVE-2026-14257",  # js-yaml <3.15.0 DoS, frontend>gray-matter 경로, moderate.
 }
 
 
