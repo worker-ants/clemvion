@@ -107,11 +107,13 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **25건**(4축: 키 추출 · 분류 ·
-      `ignoreCves` 억제 경로 baseline · fail-closed, + 통합 리포트·스키마 드리프트).
-      워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건. 하네스 전체 744건 통과. mutation
-      으로 non-vacuous 증명(추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인 첫`>` 회귀 ·
-      fail-closed 3분기 fail-open 되돌림 — 전부 RED 확인).
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **28건**(4축: 키 추출 · 분류 ·
+      `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
+      스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
+      하네스 전체 **747건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
+      첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
+      조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
 - [x] TEST WORKFLOW (1차) — lint PASS(54s) · unit PASS · build PASS(163s) · e2e PASS(260/260, 325s).
 - [x] `/ai-review` 1차 (`01_12_24`) — Critical 4 + Warning 4. 권장 조치 8건 전부 반영:
       `ignoreCves` 전역 억제 사각(→ `actions[]` + 경로 baseline) · `run_audit()` fail-closed ·
