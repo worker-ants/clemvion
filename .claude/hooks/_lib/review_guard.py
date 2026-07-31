@@ -72,8 +72,12 @@ the branch *after* it (cherry-pick of an old commit, or `--date` backdating)
 reads as already-covered — a conscious bypass, accepted per the fail-open
 contract below. Additionally, a review that has
 *started but not finished* (session dir + meta.json present, SUMMARY.md not yet
-written, within _IN_FLIGHT_TTL_SECONDS) suppresses the gate — the async
-`/ai-review` is mid-flight, not an unreviewed branch. Symmetrically, the *Stop*
+written, within _IN_FLIGHT_TTL_SECONDS) suppresses the *Stop nudge* — the async
+`/ai-review` is mid-flight, not an unreviewed branch. That suppression applies
+only when the caller opts in with `evaluate_review(in_flight_ok=True)`, which
+the Stop guard does and the push guard does not: both guards share this one
+function, so while the suppression was unconditional it silently opened the
+**push** gate for the whole TTL. Symmetrically, the *Stop*
 guard (not the push guard) also suppresses its nudge while a `resolution-applier`
 fix is in flight — after SUMMARY.md exists, the applier's codebase edits postdate
 the review and would re-arm the gate, goading a premature redundant re-review

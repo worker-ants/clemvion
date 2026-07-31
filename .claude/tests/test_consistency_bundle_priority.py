@@ -135,6 +135,22 @@ class PrioritizeBundleFilesTest(unittest.TestCase):
         )
         self.assertEqual(out[0], "spec/conventions/error-codes.md")
 
+    def test_branch_change_beats_catalog_demotion(self):
+        """A PR that edits a catalog page IS about that page.
+
+        Demoting it would reproduce this function's own bug class for exactly
+        those PRs — the changed file falls off the tail and the checkers judge
+        it without ever seeing it. Tier 0 therefore outranks the demotion, while
+        the weaker plan-mention signal (above) does not.
+        """
+        out = _prioritize(
+            ["spec/conventions/cafe24-api-catalog/product/fields.md",
+             "spec/conventions/error-codes.md"],
+            changed=["spec/conventions/cafe24-api-catalog/product/fields.md"],
+        )
+        self.assertEqual(out[0],
+                         "spec/conventions/cafe24-api-catalog/product/fields.md")
+
     def test_reordering_never_drops_or_invents(self):
         """This function reorders only — dropping is `truncate_file_bundle`'s job,
         and only it emits the omission notice checkers rely on."""
@@ -199,7 +215,7 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
     """
 
     @staticmethod
-    def _scope_order(mode):
+    def _order(mode, key):
         return run_in_orchestrator(
             """
             import re
@@ -212,26 +228,40 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
             setattr(args, ARG["mode"], ROOT + "/spec/5-system")
 
             ctx = orch.collect_context(args, ROOT)
-            emit(re.findall(r"^#### `(spec/5-system/[^`]+)`",
-                            ctx["target_doc"], re.M))
+            # Strip the fenced file bodies first: spec documents contain their
+            # own `#### \x60...\x60` headings, and matching those pulled content
+            # tokens (`integration_expired`) into what should be a list of
+            # bundle entries. The bundle wraps every file in a fence, so what
+            # survives the strip is exactly its own headers.
+            text = re.sub(r"```.*?```", "", ctx[ARG["key"]], flags=re.S)
+            emit(re.findall(r"^#### `([^`]+)`", text, re.M))
             """,
-            {"mode": mode},
+            {"mode": mode, "key": key},
         )
 
-    def _assert_sentinel_order(self, mode):
-        order = self._scope_order(mode)
-        self.assertGreater(len(order), 1, "scope bundle did not render")
+    def _assert_sentinel_order(self, mode, key):
+        order = self._order(mode, key)
+        self.assertGreater(len(order), 1, f"{key} bundle did not render")
         self.assertEqual(order, sorted(order, reverse=True),
-                         "collect_context ignored the ranker's ordering")
+                         f"collect_context ignored the ranker's ordering for {key}")
         # Guard against the assertion passing because the natural order already
         # happens to be reverse-alphabetical.
         self.assertNotEqual(order, sorted(order))
 
     def test_impl_prep_uses_the_ranked_order(self):
-        self._assert_sentinel_order("impl_prep")
+        self._assert_sentinel_order("impl_prep", "target_doc")
 
     def test_impl_done_uses_the_ranked_order(self):
-        self._assert_sentinel_order("impl_done")
+        self._assert_sentinel_order("impl_done", "target_doc")
+
+    # The scope bundle is not the only ranked one. A reviewer predicted these
+    # two call sites were unlocked; mutating both to discard the ranker's return
+    # left the suite GREEN, so the prediction was right — these pin them.
+    def test_related_specs_uses_the_ranked_order(self):
+        self._assert_sentinel_order("impl_done", "related_specs")
+
+    def test_conventions_uses_the_ranked_order(self):
+        self._assert_sentinel_order("impl_done", "conventions")
 
 
 if __name__ == "__main__":

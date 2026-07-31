@@ -275,11 +275,14 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
     target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
 
     Tiers (stable, alphabetical inside each):
-      0. changed by this branch — the strongest available "this is the subject" signal
+      0. changed by this branch — the strongest available "this is the subject"
+         signal, and it outranks the catalog demotion below
       1. named by an in-progress plan — covers `--impl-prep`, where the spec is
          typically NOT yet edited and tier 0 is therefore empty
       2. everything else
-      3. catalog bulk — explicitly not 정식 spec; last
+      3. catalog bulk — explicitly not 정식 spec; last. Outranked by tier 0 only:
+         a plan that merely mentions one catalog page must not pull the whole
+         generated dump forward, but a branch that actually edits one is about it.
 
     Reordering only. Nothing is dropped here; what does not fit is still dropped
     by `truncate_file_bundle`, which names the omissions.
@@ -288,10 +291,15 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
 
     def tier(path):
         rel = os.path.relpath(path, root) if root else path
-        if _is_catalog_bulk(rel):
-            return 3
+        # Branch-changed wins over the catalog demotion: a PR that edits a
+        # catalog page IS about that page, and demoting it would reproduce this
+        # function's own bug class for exactly those PRs. The demotion only
+        # outranks the weaker plan-mention signal, where a passing reference
+        # must not drag ~230 generated files forward.
         if rel in changed:
             return 0
+        if _is_catalog_bulk(rel):
+            return 3
         if plan_text and (rel in plan_text or os.path.basename(rel) in plan_text):
             return 1
         return 2
@@ -421,13 +429,32 @@ def collect_context(args, root):
     target_doc = ""
     mode_label = ""
 
-    # Ranking inputs for `prioritize_bundle_files`, resolved once. Read WITHOUT
-    # `excluded` (which is still empty here anyway) because ranking wants every
-    # in-progress plan, not just the ones that survive into the plan bundle.
-    _rank_diff_base = args.diff_base or "origin/main"
+    # One diff base for the whole function — `--impl-done` reads it again below
+    # for its diff section, and two variables computing the same expression is
+    # how they drift apart later.
+    diff_base = args.diff_base or "origin/main"
+
+    # Ranking inputs for `prioritize_bundle_files`, resolved once.
+    # `_rank_changed` is the WHOLE-repo change set; the per-scope subsets the
+    # mode branches want are prefix filters of it, so one git call serves all
+    # three bundles instead of one per bundle.
+    # Plans are read WITHOUT `excluded` (still empty here anyway) because
+    # ranking wants every in-progress plan, not just the ones that survive into
+    # the plan bundle.
+    _rank_changed = _branch_changed_rels(diff_base, root)
     _rank_plan_text = "\n".join(
         read_text_file(p) for p in collect_markdown_files(plan_dir)
     )
+
+    def _prioritized(files, scope_abs=None):
+        """Rank a bundle, narrowing the change set to `scope_abs` when given."""
+        changed = _rank_changed
+        if scope_abs:
+            prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
+            changed = {r for r in _rank_changed if r.startswith(prefix)}
+        return prioritize_bundle_files(
+            files, root, changed_rels=changed, plan_text=_rank_plan_text
+        )
 
     def _require_target(value, flag, want_dir):
         """Fail fast when a mode argument is not the path it must be.
@@ -488,11 +515,7 @@ def collect_context(args, root):
         excluded.update(scope_files)
         # --impl-prep runs before the spec is edited, so tier 0 is usually empty
         # and the plan-name signal is what keeps the real target in budget.
-        scope_files = prioritize_bundle_files(
-            scope_files, root,
-            changed_rels=_branch_changed_rels(_rank_diff_base, root, target_path_rel),
-            plan_text=_rank_plan_text,
-        )
+        scope_files = _prioritized(scope_files, target_abs)
         target_doc = format_file_bundle(scope_files, root, f"구현 대상 영역: `{target_path_rel}`")
         mode_label = f"구현 착수 전 검토 (--impl-prep, scope={target_path_rel})"
 
@@ -501,15 +524,10 @@ def collect_context(args, root):
         target_abs = _require_target(args.impl_done, "--impl-done", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
-        scope_files = prioritize_bundle_files(
-            scope_files, root,
-            changed_rels=_branch_changed_rels(_rank_diff_base, root, target_path_rel),
-            plan_text=_rank_plan_text,
-        )
+        scope_files = _prioritized(scope_files, target_abs)
         spec_bundle = format_file_bundle(
             scope_files, root, f"구현 대상 spec 영역: `{target_path_rel}`"
         )
-        diff_base = args.diff_base or "origin/main"
         diff_text = _collect_code_diff(diff_base, root)
         if diff_text.strip():
             diff_section = (
@@ -552,10 +570,8 @@ def collect_context(args, root):
     # is the fix for the observed case where ~230 auto-generated catalog files
     # pushed every convention the target actually cites (error-codes / node-output
     # / swagger / secret-store / migrations / execution-context) out of budget.
-    _rank = dict(changed_rels=_branch_changed_rels(_rank_diff_base, root),
-                 plan_text=_rank_plan_text)
-    other_spec_files = prioritize_bundle_files(other_spec_files, root, **_rank)
-    convention_files = prioritize_bundle_files(convention_files, root, **_rank)
+    other_spec_files = _prioritized(other_spec_files)
+    convention_files = _prioritized(convention_files)
 
     related_specs = format_file_bundle(other_spec_files, root, "관련 spec 본문")
     conventions = format_file_bundle(convention_files, root, "spec/conventions 정식 규약")

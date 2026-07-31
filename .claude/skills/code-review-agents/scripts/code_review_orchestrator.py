@@ -558,6 +558,32 @@ def _truncated_note(kept, total, reason):
     return f"\n... ({reason}으로 {kept}/{total} 줄만 표시 — 나머지는 원본 파일 참조) ..."
 
 
+def _omitted_content_note(rel_path, total_size):
+    """Announce a file whose content did not fit at all, and say what to do.
+
+    `build_files_section` fills the content budget smallest-file-first and stops
+    at the first file that does not fit, so every LARGER file silently received
+    a header and nothing else. On a review prepared from explicit file arguments
+    there is no diff either, so those sections carried only the metadata lines —
+    a reviewer had no way to tell "this file is empty" from "this file was
+    dropped", and reported on it as if it had seen it.
+
+    Measured on `review/code/2026/07/31/11_07_48`: the two largest files of that
+    changeset — `review_guard.py` and this very file — came out as 31-byte
+    sections in **all 14** reviewer prompts with no marker of any kind. They were
+    the PR's two core files.
+
+    Reviewers have `Read`. An omission they can see is a directed instruction; an
+    omission they cannot see is a wrong verdict. Mirrors the same fix already made
+    on the consistency side (`consistency_orchestrator.OMITTED_FILES_HEADING`).
+    """
+    return (
+        f"\n{FULL_CONTEXT_HEADING}\n"
+        f"⚠️ 프롬프트 크기 제한으로 이 파일의 내용이 **전혀 실리지 않았습니다** "
+        f"({total_size:,}자). 판단하기 전에 `Read` 로 직접 읽으십시오: `{rel_path}`\n"
+    )
+
+
 def build_files_section(change_infos, max_file_size, max_total_size=0):
     """Compose the changed-files context, respecting per-file and total budgets.
 
@@ -598,6 +624,9 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             "diff": diff_section,
             "full_content": full_content,
             "full_content_size": len(full_content),
+            # Carried so an omission notice can name the file the reviewer must
+            # `Read` — the header alone is what a dropped section already shows.
+            "rel_path": ci["file_path"],
         })
 
     if max_total_size <= 0:
@@ -669,6 +698,11 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         section = fp["header"] + fp["diff"]
         if i in include_content:
             section += f"\n{FULL_CONTEXT_HEADING}\n```\n{include_content[i]}\n```\n"
+        elif fp["full_content"]:
+            # Budget ran out before this file. Never leave it looking empty.
+            section += _omitted_content_note(
+                fp["rel_path"], fp["full_content_size"]
+            )
         sections.append(section)
     return separator.join(sections)
 
@@ -1090,14 +1124,26 @@ def prepare_session(change_infos, config):
 
 
 def _default_branch_ref():
-    """Best-effort `origin/<default>` ref, or None when it cannot be resolved."""
-    r = _git(["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
-    if r.returncode == 0 and r.stdout.strip():
-        return r.stdout.strip().replace("refs/remotes/", "", 1)
-    for name in ("origin/main", "origin/master"):
-        r = _git(["git", "rev-parse", "--verify", "--quiet", name])
+    """Best-effort `origin/<default>` ref, or None when it cannot be resolved.
+
+    `_git` is a thin `subprocess.run` wrapper that does NOT swallow exceptions,
+    so the try/except is load-bearing, not decoration: without it a missing git
+    binary (`FileNotFoundError`) or a timeout (`subprocess.TimeoutExpired`)
+    propagates through `warn_if_committed_work_is_missing` →
+    `collect_change_infos` → `main`, crashing the default `--prepare` — the most
+    common entry point — for the sake of an advisory. Every other git helper in
+    this file absorbs the same way; this one is not an exception to that rule.
+    """
+    try:
+        r = _git(["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
         if r.returncode == 0 and r.stdout.strip():
-            return name
+            return r.stdout.strip().replace("refs/remotes/", "", 1)
+        for name in ("origin/main", "origin/master"):
+            r = _git(["git", "rev-parse", "--verify", "--quiet", name])
+            if r.returncode == 0 and r.stdout.strip():
+                return name
+    except Exception as e:  # noqa: BLE001
+        debug_log(f"default branch ref resolution failed: {e}")
     return None
 
 

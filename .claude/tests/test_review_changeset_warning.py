@@ -116,6 +116,33 @@ class WarnIfCommittedWorkIsMissingTest(unittest.TestCase):
         because the advisory could not be computed."""
         self.assertEqual(warn([], ["codebase/a.ts"], base=None), "")
 
+    def test_git_exceptions_are_absorbed_not_propagated(self):
+        """`_git` is a thin `subprocess.run` wrapper that does not swallow.
+
+        Stubbing `_default_branch_ref` (as every test above does) skips the real
+        resolution entirely, so it cannot see a missing git binary or a timeout.
+        Unhandled, either would propagate through `collect_change_infos` to
+        `main` and crash the default `--prepare` — for an advisory that its own
+        docstring promises is silent on git failure.
+        """
+        for exc in ("FileNotFoundError('git')",
+                    "__import__('subprocess').TimeoutExpired('git', 5)"):
+            with self.subTest(exc=exc):
+                out = run_in_orchestrator(
+                    """
+                    def boom(*a, **k):
+                        raise """ + exc + """
+                    orch._git = boom
+                    buf = io.StringIO()
+                    with contextlib.redirect_stderr(buf):
+                        resolved = orch._default_branch_ref()
+                        orch.warn_if_committed_work_is_missing([])
+                    emit({"resolved": resolved, "stderr": buf.getvalue()})
+                    """
+                )
+                self.assertIsNone(out["resolved"])
+                self.assertEqual(out["stderr"], "")
+
     def test_long_lists_are_capped_but_counted(self):
         out = warn([], [f"codebase/f{i}.ts" for i in range(25)])
         self.assertIn("25개 파일이 변경됐지만", out)
