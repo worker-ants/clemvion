@@ -204,6 +204,31 @@ class PrioritizeBundleFilesTest(unittest.TestCase):
         ])
 
 
+class CollectMarkdownFilesOrderTest(unittest.TestCase):
+    """`collect_markdown_files` sorts naturally — pinned directly.
+
+    Downstream `prioritize_bundle_files` re-sorts, so this function's own order
+    is invisible from every other test here: mutation showed reverting it to
+    `files.sort()` left the suite GREEN. Callers that do NOT prioritize (and any
+    future one) still get the order this asserts, so it is a contract, not an
+    implementation detail — and an untested one is indistinguishable from dead
+    code, which is how it would get "cleaned up" later.
+    """
+
+    def test_returns_natural_order(self):
+        order = run_in_orchestrator(
+            """
+            import os
+            fs = orch.collect_markdown_files(os.path.join(ROOT, "spec/5-system"))
+            emit([os.path.basename(f) for f in fs[:5]])
+            """
+        )
+        self.assertEqual(order[:5], [
+            "1-auth.md", "2-api-convention.md", "3-error-handling.md",
+            "4-execution-engine.md", "5-expression-language.md",
+        ])
+
+
 class PriorityThenTruncationTest(unittest.TestCase):
     """The two halves together — the property the eight recurrences violated."""
 

@@ -122,7 +122,11 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
       `_selectedPort`/`$trigger`/`$env` 는 `5-expression-language.md` 의 실제 레벨-4 헤딩이고,
       splitter 가 그걸 **파일 경계로 오인**했다. 개수 오류(21 vs 실제 18)는 눈에 보이는 절반이고,
       위험한 절반은 **한 파일이 여러 조각으로 쪼개져** "파일 단위로 버린다" 는 보장이 깨진 것.
-      본문이 만들 수 없는 sentinel(`<!-- @bundle-file -->`)로 경계 이전. writer 2곳 모두 적용.
+      본문이 만들 수 없는 sentinel 로 경계 이전. **2R 에서 진입점이 2곳이 아니라 4곳임이
+      드러나 확장**했다 — `format_file_bundle` · `extract_rationale_sections` 외에
+      `--spec`/`--plan` 의 원시 `target_doc` 읽기와 `--impl-done` 의 diff 섹션도 같은 경로다.
+      diff 는 자기 경계가 없어 마지막 spec 청크에 얹혀 **이름 없이** 버려지던 별개 결함도 함께
+      수정(고유 경계 + 이름 부여).
 
 > **검증 주의**: 정렬 함수 단위 테스트만으로는 vacuous 하다(헬퍼 테스트 ≠ 호출부 테스트).
 > `spec/5-system/` 처럼 **한 자리·두 자리 번호가 섞인 실제 디렉터리로 번들을 만들어

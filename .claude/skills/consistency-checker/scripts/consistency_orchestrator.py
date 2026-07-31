@@ -587,20 +587,21 @@ def collect_context(args, root):
         # included — and the omission notice named only the spec file. A checker
         # then judged "spec vs implementation" with no implementation in front of
         # it and no way to notice. Named, it is dropped like any other entry.
-        _DIFF_LABEL = f"<git diff {diff_base}...HEAD -- code_areas>"
+        diff_label = f"<git diff {diff_base}...HEAD -- code_areas>"
         if diff_text.strip():
             diff_section = (
-                f"{_BUNDLE_FILE_SENTINEL}#### `{_DIFF_LABEL}`\n\n"
+                f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
                 f"```diff\n{_neutralize_sentinel(diff_text)}\n```\n"
             )
         else:
             diff_section = (
-                f"{_BUNDLE_FILE_SENTINEL}#### `{_DIFF_LABEL}`\n\n"
+                f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
                 "(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
             )
-        # HEAD-basis notice goes FIRST so it survives target_doc truncation
-        # (truncate_to_budget trims the tail) and the checker reads the
-        # current-code SoT before anything else.
+        # HEAD-basis notice goes FIRST so it survives target_doc truncation —
+        # `truncate_file_bundle` drops whole chunks from the tail, and the notice
+        # sits in the head section that is never a drop candidate — and the
+        # checker reads the current-code SoT before anything else.
         target_doc = _head_basis_notice(root, diff_base) + spec_bundle + diff_section
         mode_label = (
             f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "
