@@ -297,7 +297,17 @@ stateDiagram-v2
 | --- | --- | --- | --- |
 | BullMQ stalled 재배달 (**PR4 — 운영 중**) | 워커 크래시로 active 세그먼트 job(`execution-run`/`execution-continuation`) 이 stall (`stalledInterval` 30초, `maxStalledCount:1`) | stall 로 판정된 job 의 Execution (아직 `running`) | BullMQ 가 **같은 jobId 로 1회 자동 재배달** → 픽업 워커의 `runExecutionFromQueue` **RUNNING 분기**가 `recordRunningSegmentStart` + `redriveStuckExecution` 로 **§7.5 case B 재구동**(완료 노드 skip). 재배달 소진 시 `onFailed → finalizeStalledExhausted` 가 `status='running'` 조건부 `failed`+`WORKER_HEARTBEAT_TIMEOUT`. 관측은 execution-run DLQ 모니터 |
 | `recoverStuckExecutions` (**PR3 — 부팅 backstop**) | `onApplicationBootstrap` 1회 (`exec:recover:lock` 전역 단일 인스턴스 가드) | (i) `status='running' AND started_at < now() - 30분` (`STUCK_RECOVERY_STALE_MS`); (ii) **orphan `pending`**: `status='pending' AND queued_at < now() - EXECUTION_QUEUE_WAIT_TIMEOUT_MS`(5분). 다른 인스턴스가 정상 처리 중인 신규 running 은 보존 | RUNNING → **일괄 `failed` 마킹이 아니라** row 단위 원자 re-claim(`UPDATE … SET started_at=now() WHERE status='running' AND started_at < :threshold RETURNING`, affected=1) → **§7.5 case B rehydration 재구동**(rehydrate + 완료 노드 이후 forward, node-type 무관). 재구동 불가(checkpoint 부재/손상)만 `RESUME_CHECKPOINT_MISSING` terminal. orphan PENDING → `markQueueWaitTimeout`(조건부 UPDATE) 로 **§8 wait-timeout `cancelled`**(`EXECUTION_QUEUE_WAIT_TIMEOUT`) 마감(job 소실로 admission 시점 검사를 못 받은 경우 — 2026-07-04). poison 세그먼트는 부팅당 1회 재구동(자연 rate-limit) + §8 누적 한도 best-effort. **stalled job 이 없는 케이스**(전체 재시작·Redis 비영속·job 유실)를 PR4 stalled 재배달과 **병존**해 담당하는 backstop (은퇴하지 않음 — [실행 엔진 §7.1/§7.4/§7.5](../5-system/4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
-| `ShutdownStateService.onApplicationShutdown` | SIGTERM 수신 시 | `registerInFlight` 로 **본 인스턴스가 추적 중인** NodeExecution/Execution 만 (`WHERE id IN (...)`) — grace (`SIGTERM_GRACE_MS`, 기본 30초) 동안 drain 대기 후 잔여분 | NodeExecution + Execution 각각 atomic UPDATE — `failed` + `error.code='SERVER_INTERRUPTED'`. shutdown 중 신규 실행은 503 + Retry-After 거부 |
+| `ShutdownStateService.onApplicationShutdown` | SIGTERM 수신 시 | `registerInFlight` 로 **본 인스턴스가 추적 중인** NodeExecution/Execution 만 (`WHERE id IN (...)`) — grace (`SIGTERM_GRACE_MS`, 기본 30초) 동안 drain 대기 후 잔여분 | NodeExecution + Execution 각각 atomic UPDATE — `failed` + `error.code='SERVER_INTERRUPTED'`. shutdown 중 신규 실행은 503 + Retry-After 거부. **분류 정책 결정 대기 중** — 아래 각주 참조 |
+
+> **SIGTERM 종료의 상태 분류는 아직 확정되지 않았다.** 위 표는 **현재 구현**(`failed` +
+> `SERVER_INTERRUPTED`)을 기술한 것이고, 이를 유지할지 `cancelled` 로 재정의할지는
+> [`plan/in-progress/spec-update-node-cancellation-shutdown-classification.md`](../../plan/in-progress/spec-update-node-cancellation-shutdown-classification.md)
+> 의 (a)/(b) 택일 결정에 달려 있다 — 본 문서는 어느 쪽도 선점하지 않는다.
+>
+> 함께 추적 중인 실측 갭: 취소 가드 `assertExecutionNotCancelled` 가 `FAILED`/`SERVER_INTERRUPTED`
+> 를 관측하지 못해, shutdown 이 마킹한 상태를 dispatch 루프가 즉시 반영하지 못할 수 있다
+> ([`node-cancellation-residual-signal-propagation.md`](../../plan/in-progress/node-cancellation-residual-signal-propagation.md)).
+> 결정이 (b) 로 가면 이 갭의 처리 방식도 함께 바뀐다.
 
 ---
 

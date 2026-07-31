@@ -128,7 +128,7 @@ Schema 매핑 표 · 상태 전이 · 외부 의존) 를 따른다.
 | Knowledge Base | [`knowledge-base.md`](./6-knowledge-base.md) | KB 생성·문서 업로드·임베딩 파이프라인·Graph RAG·RAG 검색·리랭킹 |
 | Integration | [`integration.md`](./5-integration.md) | 외부 OAuth credential 암호화 저장·만료 스캔·사용 로그 |
 | Trigger | [`triggers.md`](./10-triggers.md) | Webhook·Schedule·Manual trigger 진입과 Execution 연결 |
-| LLM Usage | [`llm-usage.md`](./7-llm-usage.md) | LLM Config 해석·LLM 호출·usage_log 적재 |
+| LLM Usage | [`llm-usage.md`](./7-llm-usage.md) | Model Config 해석·LLM 호출·usage_log 적재 |
 | File Storage | [`file-storage.md`](./4-file-storage.md) | S3/MinIO 버킷 구조·파일 라이프사이클·실제 사용처 |
 | Notifications | [`notifications.md`](./8-notifications.md) | `notification` table·이메일·WebSocket emit 흐름 |
 | Audit | [`audit.md`](./1-audit.md) | `audit_log` 와 `login_history` 적재 흐름 |
@@ -177,6 +177,18 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 - 다른 BullMQ 큐 (cross-domain enqueue)
 - 다른 도메인 spec 의 cross-reference
 
+### 3.6 권한 요약 (선택)
+
+도메인이 역할별 권한 경계를 갖는다면 **독립 섹션**으로 RBAC 요약표를 둘 수 있다. 5요소가 아니라
+**선택 요소**다 — 현재 `12-workspace.md §4` 하나만 갖고 있다.
+
+- **§3.4(상태 전이) 아래에 두지 않는다** — 독립 섹션으로 만든다.
+- **정식 권한 매트릭스는 [`spec/5-system/1-auth.md`](../5-system/1-auth.md) §3.2 가 단일 SoT** 다.
+  도메인 문서의 표는 그 관점의 **요약**이며, 요약과 SoT 가 어긋나면 SoT 가 이긴다. 요약표 아래에
+  SoT 링크를 반드시 단다.
+
+근거는 아래 [Rationale](#rationale) "권한 요약 섹션(§3.6) 신설" 참조.
+
 ---
 
 ## 4. BullMQ 큐 카탈로그
@@ -222,6 +234,23 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 ---
 
 ## Rationale
+
+### 권한 요약 섹션(§3.6) 신설 — 왜 §3.4 아래가 아닌가 (2026-07-31)
+
+§3.4(상태 전이)는 엔티티가 `status` 류 enum 을 가질 때의 **전이**를 그리는 자리다. 권한 매트릭스는
+전이가 아니라 역할별 접근 경계라 그 아래 두면 의미가 어긋난다.
+
+`12-workspace.md` 가 실제로 그 상태였다 — RBAC 요약표가 `## 3. 상태 전이` 의 `### 3.2` 로 들어가
+있었고, 15개 형제 data-flow 문서 중 유일한 템플릿 이탈이었다. 2026-07-31 에 `## 4. 권한 (RBAC 요약)`
+독립 섹션으로 승격하면서 이 규약을 명문화했다. 승격 전 인바운드 앵커를 전수 확인해 `#32`/`#4` 를
+가리키는 링크가 0건임을 확인했다(섹션 번호가 밀리므로).
+
+**5요소가 아니라 선택 요소**로 둔 이유: 도메인 대부분은 자체 권한 경계를 갖지 않고
+`1-auth.md` §3.2 를 그대로 따른다. 필수로 만들면 대부분의 문서가 SoT 를 그대로 베끼는 중복 표를
+갖게 되고, 그 사본이 drift 하는 것이 정확히 이번에 고친 결함이었다.
+
+섹션 수가 형제 문서와 달라지는 것은 문제가 아니다 — `1-audit.md` 에 이미 5-섹션 선례가 있다.
+
 
 ### 폴더를 분리한 이유
 
