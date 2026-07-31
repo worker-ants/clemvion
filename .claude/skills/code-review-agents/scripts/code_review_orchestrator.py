@@ -558,6 +558,32 @@ def _truncated_note(kept, total, reason):
     return f"\n... ({reason}으로 {kept}/{total} 줄만 표시 — 나머지는 원본 파일 참조) ..."
 
 
+def _omitted_content_note(rel_path, total_size):
+    """Announce a file whose content did not fit at all, and say what to do.
+
+    `build_files_section` fills the content budget smallest-file-first and stops
+    at the first file that does not fit, so every LARGER file silently received
+    a header and nothing else. On a review prepared from explicit file arguments
+    there is no diff either, so those sections carried only the metadata lines —
+    a reviewer had no way to tell "this file is empty" from "this file was
+    dropped", and reported on it as if it had seen it.
+
+    Measured on `review/code/2026/07/31/11_07_48`: the two largest files of that
+    changeset — `review_guard.py` and this very file — came out as 31-byte
+    sections in **all 14** reviewer prompts with no marker of any kind. They were
+    the PR's two core files.
+
+    Reviewers have `Read`. An omission they can see is a directed instruction; an
+    omission they cannot see is a wrong verdict. Mirrors the same fix already made
+    on the consistency side (`consistency_orchestrator.OMITTED_FILES_HEADING`).
+    """
+    return (
+        f"\n{FULL_CONTEXT_HEADING}\n"
+        f"⚠️ 프롬프트 크기 제한으로 이 파일의 내용이 **전혀 실리지 않았습니다** "
+        f"({total_size:,}자). 판단하기 전에 `Read` 로 직접 읽으십시오: `{rel_path}`\n"
+    )
+
+
 def build_files_section(change_infos, max_file_size, max_total_size=0):
     """Compose the changed-files context, respecting per-file and total budgets.
 
@@ -598,6 +624,9 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             "diff": diff_section,
             "full_content": full_content,
             "full_content_size": len(full_content),
+            # Carried so an omission notice can name the file the reviewer must
+            # `Read` — the header alone is what a dropped section already shows.
+            "rel_path": ci["file_path"],
         })
 
     if max_total_size <= 0:
@@ -613,9 +642,24 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     base_size = len(separator.join(base_sections))
 
     if base_size >= max_total_size:
+        # Headers + diffs alone overrun the cap, so NO file gets whole-file
+        # context here. Say it once, globally: this is the same "a reviewer
+        # cannot see what it was not given" failure the per-file notice below
+        # fixes, but per-file notices would each need budget that by definition
+        # is not available — and the omission is uniform anyway.
+        global_note = ""
+        if any(fp["full_content"] for fp in file_parts):
+            global_note = (
+                f"\n\n{FULL_CONTEXT_HEADING}\n"
+                "⚠️ 프롬프트 크기 제한으로 이번 요청에는 **어떤 파일의 전체 내용도 실리지 "
+                "않았습니다** (diff 만 제공). 판단하기 전에 필요한 파일을 `Read` 로 직접 "
+                "읽으십시오.\n"
+            )
         indexed = [(i, fp) for i, fp in enumerate(file_parts)]
         indexed.sort(key=lambda x: len(x[1]["diff"]), reverse=True)
-        overflow = base_size - max_total_size
+        # The note is document text: trim diffs for it too, or it becomes the
+        # next overrun.
+        overflow = base_size + len(global_note) - max_total_size
         for idx, fp in indexed:
             if overflow <= 0:
                 break
@@ -638,7 +682,7 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
                 fp["diff"] = "\n\n... (프롬프트 크기 제한으로 diff 생략 — 원본 파일 참조) ...\n"
             overflow -= cut
         sections = [fp["header"] + fp["diff"] for fp in file_parts]
-        return separator.join(sections)
+        return separator.join(sections) + global_note
 
     remaining_budget = max_total_size - base_size
     content_wrapper_overhead = len(f"\n{FULL_CONTEXT_HEADING}\n```\n\n```\n")
@@ -646,14 +690,41 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     content_indices = [i for i, fp in enumerate(file_parts) if fp["full_content"]]
     content_indices.sort(key=lambda i: file_parts[i]["full_content_size"])
 
+    # The omission notices are part of the document, so they must be paid for
+    # out of the same budget. Reserve for ALL of them upfront and refund each
+    # file's share as it earns content instead — otherwise the notices are
+    # appended after the budget is already spent and the payload overruns its
+    # own cap (measured: 143,620 vs a 143,605 cap, 14 notices ≈ 2,042 chars,
+    # caught by test_line_anchors' size-cap regression).
+    #
+    # `truncate_file_bundle` on the consistency side hit this exact failure and
+    # fixed it by re-validating the notice length every iteration; only half of
+    # that fix ("announce the omission") had been ported here.
+    def _notice_cost(idx):
+        return len(_omitted_content_note(
+            file_parts[idx]["rel_path"], file_parts[idx]["full_content_size"]
+        ))
+
+    remaining_budget -= sum(_notice_cost(i) for i in content_indices)
+
     include_content = {}
     for i in content_indices:
         needed = file_parts[i]["full_content_size"] + content_wrapper_overhead
-        if needed <= remaining_budget:
+        refund = _notice_cost(i)  # including this file means it needs no notice
+        if needed <= remaining_budget + refund:
             include_content[i] = file_parts[i]["full_content"]
-            remaining_budget -= needed
+            remaining_budget += refund - needed
         else:
-            available = remaining_budget - content_wrapper_overhead
+            # `_truncated_note` is appended to the kept text, so its own length
+            # has to come out of `available` too — `truncate_to_line_boundary`
+            # only bounds the text it returns. Budget for the widest form of the
+            # note (kept == total gives the most digits).
+            line_count = file_parts[i]["full_content"].count("\n") + 1
+            note_reserve = len(
+                _truncated_note(line_count, line_count, "프롬프트 크기 제한")
+            )
+            available = (remaining_budget + refund
+                         - content_wrapper_overhead - note_reserve)
             if available > 200:
                 kept_text, kept, total = line_anchors.truncate_to_line_boundary(
                     file_parts[i]["full_content"], available
@@ -664,13 +735,40 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
                 remaining_budget = 0
             break
 
-    sections = []
-    for i, fp in enumerate(file_parts):
-        section = fp["header"] + fp["diff"]
-        if i in include_content:
-            section += f"\n{FULL_CONTEXT_HEADING}\n```\n{include_content[i]}\n```\n"
-        sections.append(section)
-    return separator.join(sections)
+    def _render(per_file_notice):
+        sections = []
+        for i, fp in enumerate(file_parts):
+            section = fp["header"] + fp["diff"]
+            if i in include_content:
+                section += f"\n{FULL_CONTEXT_HEADING}\n```\n{include_content[i]}\n```\n"
+            elif per_file_notice and fp["full_content"]:
+                # Budget ran out before this file. Never leave it looking empty.
+                section += _omitted_content_note(
+                    fp["rel_path"], fp["full_content_size"]
+                )
+            sections.append(section)
+        return separator.join(sections)
+
+    body = _render(per_file_notice=True)
+    omitted = [i for i in content_indices if i not in include_content]
+    if len(body) <= max_total_size or not omitted:
+        return body
+
+    # The reservation above keeps per-file notices inside the budget only while
+    # there IS a budget for them. Past enough files, headers alone consume the
+    # cap, `remaining_budget` goes negative, nothing gets content, and one notice
+    # per file overruns anyway — measured at 1,200 files: 192,087 against a
+    # 141,557 cap (1.36x). Reserving harder cannot fix that; the notices are
+    # simply bigger than what is left.
+    #
+    # So collapse to ONE aggregate notice, sized to the room actually available.
+    # The reviewer must still learn that files were withheld — that is the whole
+    # point of this feature — but the document must still respect its cap.
+    body = _render(per_file_notice=False)
+    return body + _aggregate_omission_note(
+        [file_parts[i]["rel_path"] for i in omitted],
+        max_total_size - len(body),
+    )
 
 
 def build_agent_prompt_body(agent_name, change_infos, max_file_size, max_prompt_size):
@@ -1089,6 +1187,107 @@ def prepare_session(change_infos, config):
 # ---------------------------------------------------------------------------
 
 
+def _default_branch_ref():
+    """Best-effort `origin/<default>` ref, or None when it cannot be resolved.
+
+    `_git` is a thin `subprocess.run` wrapper that does NOT swallow exceptions,
+    so the try/except is load-bearing, not decoration: without it a missing git
+    binary (`FileNotFoundError`) or a timeout (`subprocess.TimeoutExpired`)
+    propagates through `warn_if_committed_work_is_missing` →
+    `collect_change_infos` → `main`, crashing the default `--prepare` — the most
+    common entry point — for the sake of an advisory. Every other git helper in
+    this file absorbs the same way; this one is not an exception to that rule.
+    """
+    try:
+        r = _git(["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip().replace("refs/remotes/", "", 1)
+        for name in ("origin/main", "origin/master"):
+            r = _git(["git", "rev-parse", "--verify", "--quiet", name])
+            if r.returncode == 0 and r.stdout.strip():
+                return name
+    except Exception as e:  # noqa: BLE001
+        debug_log(f"default branch ref resolution failed: {e}")
+    return None
+
+
+def warn_if_committed_work_is_missing(files):
+    """Warn when the default (working-tree) changeset omits committed branch work.
+
+    The default `--prepare` collects staged + unstaged + untracked — i.e. only
+    what is NOT yet committed. Right after a commit that set is empty or nearly
+    so, while the branch may carry dozens of changed files. Reviewers then get a
+    near-empty corpus and the run still reports "Critical 0", which the push gate
+    reads as a real review. That false convergence is what `--branch` exists to
+    avoid, and nothing used to say so at the moment it mattered.
+
+    Measured on this repo: right after committing, the default path collected 0
+    files while `--branch origin/main` collected 6.
+
+    Advisory only — never blocks, never changes the changeset. Silent on any git
+    failure: a review must not fail because the warning could not be computed.
+    """
+    base = _default_branch_ref()
+    if not base:
+        return
+    branch_files = set(get_git_branch_diff_files(base))
+    missing = sorted(branch_files - set(files))
+    if not missing:
+        return
+    print(
+        f"\n⚠️  이 브랜치는 {base} 대비 {len(branch_files)}개 파일이 변경됐지만, "
+        f"기본 changeset 은 미커밋 변경분 {len(files)}개만 담습니다 "
+        f"— {len(missing)}개가 리뷰에서 빠집니다.",
+        file=sys.stderr,
+    )
+    for f in missing[:10]:
+        print(f"     - {f}", file=sys.stderr)
+    if len(missing) > 10:
+        print(f"     … 외 {len(missing) - 10}개", file=sys.stderr)
+    print(
+        f"    커밋을 마친 뒤라면 `--branch {base}` 로 다시 돌리세요. "
+        "그러지 않으면 리뷰되지 않은 코드에 대해 'Critical 0' 이 나옵니다.\n",
+        file=sys.stderr,
+    )
+
+
+def _aggregate_omission_note(rels, room):
+    """One notice covering every withheld file, guaranteed to fit in `room`.
+
+    The fallback for when per-file notices cannot fit at all. Lists as many
+    paths as the remaining room allows and says how many it could not name, so
+    the count is never silently wrong. Returns "" when even the heading does not
+    fit — at that point the cap is the harder constraint and overrunning it to
+    complain about overrunning it would be absurd.
+    """
+    if room <= 0 or not rels:
+        return ""
+    head = (
+        f"\n\n{FULL_CONTEXT_HEADING}\n"
+        f"⚠️ 프롬프트 크기 제한으로 {len(rels)}개 파일의 전체 내용이 실리지 않았습니다. "
+        "판단하기 전에 `Read` 로 직접 읽으십시오:\n"
+    )
+    if len(head) > room:
+        return ""
+    out = [head]
+    used = len(head)
+    listed = 0
+    for rel in rels:
+        line = f"  - {rel}\n"
+        tail = f"  … 외 {len(rels) - listed}개 (경로 생략)\n"
+        # Only take the line if the "and N more" tail would still fit after it.
+        if used + len(line) + len(tail) > room:
+            break
+        out.append(line)
+        used += len(line)
+        listed += 1
+    if listed < len(rels):
+        tail = f"  … 외 {len(rels) - listed}개 (경로 생략)\n"
+        if used + len(tail) <= room:
+            out.append(tail)
+    return "".join(out)
+
+
 def collect_change_infos(args, config):
     """Resolve args into a flat list of change_info dicts. May return empty."""
     files = []
@@ -1127,6 +1326,11 @@ def collect_change_infos(args, config):
             print("Preparing review for staged changes", file=sys.stderr)
         else:
             print("Preparing review for git diff (staged + unstaged + untracked)", file=sys.stderr)
+            # `--staged` is an explicit scope, same as --commit/--range/--branch:
+            # the caller said which changes to review, so "you may be missing
+            # committed work" is not news. Only the argument-free default —
+            # where the scope was inferred — earns the advisory.
+            warn_if_committed_work_is_missing(files)
 
     filtered = []
     for f in files:

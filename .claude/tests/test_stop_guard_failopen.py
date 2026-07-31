@@ -39,7 +39,13 @@ HOOKS_DIR = _harness.HOOKS_DIR
 STOP_HOOK = HOOKS_DIR / "guard_review_before_stop.py"
 PUSH_HOOK = HOOKS_DIR / "guard_review_before_push.py"
 
-_CLEAN_REVIEW = "class _D:\n    blocked = False\n    reason = ''\ndef evaluate_review():\n    return _D()\n"
+# Mirrors the real signature: the Stop guard calls evaluate_review(in_flight_ok=True),
+# so a mock that rejects the kwarg would make the gate degrade instead of answer —
+# which is exactly the silent-failure mode these tests exist to catch.
+_CLEAN_REVIEW = (
+    "class _D:\n    blocked = False\n    reason = ''\n"
+    "def evaluate_review(cwd=None, *, in_flight_ok=False):\n    return _D()\n"
+)
 _CLEAN_PLAN = (
     "class _P:\n    untouched = False\n    complete_but_in_progress = False\n"
     "    reason = ''\n    plan_path = ''\ndef evaluate_plan():\n    return _P()\n"
@@ -103,6 +109,26 @@ class StopGuardFailOpenTest(unittest.TestCase):
         self.assertIn("REVIEW gate", r.stderr)
         self.assertIn("review is broken", r.stderr)
         self.assertEqual(self._state()["streak"], 1)
+
+    def test_stop_passes_in_flight_opt_in(self):
+        """The Stop→evaluate_review seam must carry `in_flight_ok=True`.
+
+        This is the only thing distinguishing the Stop call from the push
+        call, and dropping it is invisible in every other assertion here (the
+        decision object is identical). Asserting on the recorded kwarg keeps
+        the call shape intact, so a mutant that reverts to `evaluate_review()`
+        goes RED instead of silently disabling the in-flight concession.
+        """
+        seam = Path(self.tmp) / "seam.txt"
+        self._write("review_guard.py",
+                    "class _D:\n    blocked = False\n    reason = ''\n"
+                    "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+                    f"    open({str(seam)!r}, 'w').write(repr(in_flight_ok))\n"
+                    "    return _D()\n")
+        r = self._run()
+        self.assertEqual(r.returncode, 0)
+        self.assertTrue(seam.exists(), "evaluate_review was never called")
+        self.assertEqual(seam.read_text(encoding="utf-8"), "True")
 
     def test_review_gate_present_but_none_is_accurate_too(self):
         self._write("review_guard.py", "evaluate_review = None\n")

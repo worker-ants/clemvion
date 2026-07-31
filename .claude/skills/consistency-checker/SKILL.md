@@ -49,7 +49,7 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 - `--spec <path>` — spec draft (project-planner 의 `spec/` 쓰기 직전 의무).
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
-- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
+- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
 
 stdout 마지막 줄 = 세션 디렉토리.
 
@@ -109,6 +109,19 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 - `developer` 안 호출이면 → 구현 진입 중단.
 - `project-planner` 안 호출이면 → `spec/` 쓰기 중단.
 - 사용자 직접 호출이면 → 핵심 보여주고 결정 요청.
+
+**Critical 하향은 금지다.** checker 의 `[CRITICAL]` 을 통합 단계에서 WARNING 으로 낮춰 `BLOCK: NO`
+를 내는 것은 근거가 타당해 보여도 규약 위반이다 — `review_guard.py` 는 `BLOCK:` 한 줄만 파싱하므로
+그 하향이 게이트를 실제로 통과시킨다 (`consistency-summary.md §요약 지침 3`).
+
+**근본 원인이 호출자 권한 밖이면 (`developer` 턴의 `spec/` drift 등) planner 로 즉시 인계한다.**
+"구현은 끝났는데 spec 표가 stale" 은 developer 혼자 닫을 수 없는 정상적인 중간 상태다. 우회하지
+말고 SUMMARY 의 **§planner 인계** 표를 근거로 `project-planner` 턴을 열어 spec 을 정정한 뒤
+재실행한다. 실측상 planner 턴의 spec 정정이 우회 설계보다 쌌다(3줄).
+
+> 이 경로가 문서화되기 전에는 요약 에이전트가 스스로 하향을 발명해 진행했다
+> (`review/code/2026/07/25/22_58_00`). 막다른 길처럼 보이면 우회가 생긴다 — 그래서 금지와
+> 인계 경로를 함께 둔다.
 
 ## 호출자 워크플로
 

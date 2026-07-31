@@ -233,6 +233,96 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     return files
 
 
+# Auto-generated per-resource reference dumps (`spec/conventions/
+# <name>-api-catalog/<resource>/**`). `spec-impl-evidence.md` R-7 says these are
+# not 정식 spec, yet alphabetically they land near the front of the conventions
+# bundle and used to consume the whole budget before any document the target
+# actually cites. Matched on the path shape so a relocated or newly added
+# catalog inherits the demotion without a code change.
+#
+# The trailing `[^/]+/` is load-bearing: R-7 draws the line at "one or more path
+# segments after the catalog directory", and says the top-level
+# `<name>-api-catalog/<resource>.md` index files are 정식 spec that stay in
+# scope. Measured here: 222 nested files demoted, 27 top-level indexes not.
+# Without it this demoted those 27 too — the exact opposite of what R-7 asks.
+_CATALOG_BULK_RE = re.compile(r"(^|/)[^/]*-api-catalog/[^/]+/")
+
+
+def _is_catalog_bulk(rel):
+    return bool(_CATALOG_BULK_RE.search(rel))
+
+
+def _branch_changed_rels(diff_base, root):
+    """Repo-relative paths this branch touched, as a set. Empty on any failure.
+
+    Whole-repo on purpose: `collect_context` calls this ONCE and narrows it per
+    bundle with a prefix filter, so a `subpath` parameter would only re-spawn
+    git per bundle. (It had one; after the call sites moved to `_prioritized`
+    nothing passed it.)
+
+    THREE-DOT for the same reason as `_collect_code_diff` — see its docstring.
+
+    Mirrors `code_review_orchestrator.get_git_branch_diff_files` (same flags,
+    same three-dot rationale, different failure default) — change both.
+    """
+    cmd = ["git", "diff", "--no-renames", "--name-only",
+           f"{diff_base}...HEAD", "--", "."]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, cwd=root, timeout=30.0)
+        if r.returncode != 0:
+            debug_log(f"branch-changed diff failed: {r.stderr.strip()[:200]}")
+            return set()
+        return {ln for ln in r.stdout.split("\n") if ln}
+    except Exception as e:  # noqa: BLE001
+        debug_log(f"branch-changed diff failed: {e}")
+        return set()
+
+
+def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
+    """Order a bundle so the documents this task is actually about survive truncation.
+
+    `truncate_file_bundle` drops whole files from the TAIL, and
+    `collect_markdown_files` hands it plain alphabetical order. That combination
+    is why `spec/5-system/4-execution-engine.md` — the work target — kept losing
+    its budget to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md`, eight
+    times across separate sessions. Twice the checkers had no coverage of the
+    target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
+
+    Tiers (stable, alphabetical inside each):
+      0. changed by this branch — the strongest available "this is the subject"
+         signal, and it outranks the catalog demotion below
+      1. named by an in-progress plan — covers `--impl-prep`, where the spec is
+         typically NOT yet edited and tier 0 is therefore empty
+      2. everything else
+      3. catalog bulk — explicitly not 정식 spec; last. Outranked by tier 0 only:
+         a plan that merely mentions one catalog page must not pull the whole
+         generated dump forward, but a branch that actually edits one is about it.
+
+    Reordering only. Nothing is dropped here; what does not fit is still dropped
+    by `truncate_file_bundle`, which names the omissions.
+    """
+    changed = set(changed_rels)
+
+    def tier(path):
+        rel = os.path.relpath(path, root) if root else path
+        # Branch-changed wins over the catalog demotion: a PR that edits a
+        # catalog page IS about that page, and demoting it would reproduce this
+        # function's own bug class for exactly those PRs. The demotion only
+        # outranks the weaker plan-mention signal, where a passing reference
+        # must not drag ~230 generated files forward.
+        if rel in changed:
+            return 0
+        if _is_catalog_bulk(rel):
+            return 3
+        if plan_text and (rel in plan_text or os.path.basename(rel) in plan_text):
+            return 1
+        return 2
+
+    # `sorted` is stable and the input is already alphabetical, so the secondary
+    # key is implicit — but spell it out rather than rely on the caller's order.
+    return sorted(file_paths, key=lambda p: (tier(p), p))
+
+
 def format_file_bundle(file_paths, root, label):
     if not file_paths:
         return f"### {label}\n(없음)\n"
@@ -353,6 +443,33 @@ def collect_context(args, root):
     target_doc = ""
     mode_label = ""
 
+    # One diff base for the whole function — `--impl-done` reads it again below
+    # for its diff section, and two variables computing the same expression is
+    # how they drift apart later.
+    diff_base = args.diff_base or "origin/main"
+
+    # Ranking inputs for `prioritize_bundle_files`, resolved once.
+    # `_rank_changed` is the WHOLE-repo change set; the per-scope subsets the
+    # mode branches want are prefix filters of it, so one git call serves all
+    # three bundles instead of one per bundle.
+    # Plans are read WITHOUT `excluded` (still empty here anyway) because
+    # ranking wants every in-progress plan, not just the ones that survive into
+    # the plan bundle.
+    _rank_changed = _branch_changed_rels(diff_base, root)
+    _rank_plan_text = "\n".join(
+        read_text_file(p) for p in collect_markdown_files(plan_dir)
+    )
+
+    def _prioritized(files, scope_abs=None):
+        """Rank a bundle, narrowing the change set to `scope_abs` when given."""
+        changed = _rank_changed
+        if scope_abs:
+            prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
+            changed = {r for r in _rank_changed if r.startswith(prefix)}
+        return prioritize_bundle_files(
+            files, root, changed_rels=changed, plan_text=_rank_plan_text
+        )
+
     def _require_target(value, flag, want_dir):
         """Fail fast when a mode argument is not the path it must be.
 
@@ -410,6 +527,9 @@ def collect_context(args, root):
         target_abs = _require_target(args.impl_prep, "--impl-prep", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
+        # --impl-prep runs before the spec is edited, so tier 0 is usually empty
+        # and the plan-name signal is what keeps the real target in budget.
+        scope_files = _prioritized(scope_files, target_abs)
         target_doc = format_file_bundle(scope_files, root, f"구현 대상 영역: `{target_path_rel}`")
         mode_label = f"구현 착수 전 검토 (--impl-prep, scope={target_path_rel})"
 
@@ -418,10 +538,10 @@ def collect_context(args, root):
         target_abs = _require_target(args.impl_done, "--impl-done", want_dir=True)
         scope_files = collect_markdown_files(target_abs)
         excluded.update(scope_files)
+        scope_files = _prioritized(scope_files, target_abs)
         spec_bundle = format_file_bundle(
             scope_files, root, f"구현 대상 spec 영역: `{target_path_rel}`"
         )
-        diff_base = args.diff_base or "origin/main"
         diff_text = _collect_code_diff(diff_base, root)
         if diff_text.strip():
             diff_section = (
@@ -459,6 +579,19 @@ def collect_context(args, root):
         convention_files = collect_markdown_files(conventions_dir, exclude_paths=excluded)
         other_spec_files = all_spec_files
     plan_files = collect_markdown_files(plan_dir, exclude_paths=excluded)
+
+    # Same treatment for the two big supporting bundles. For `conventions` this
+    # is the fix for the observed case where ~230 auto-generated catalog files
+    # pushed every convention the target actually cites (error-codes / node-output
+    # / swagger / secret-store / migrations / execution-context) out of budget.
+    other_spec_files = _prioritized(other_spec_files)
+    convention_files = _prioritized(convention_files)
+    # `plan_in_progress` needs this most, not least: it is `plan_coherence`'s ONLY
+    # corpus. Measured on this repo it is ~10x its own budget share, so the
+    # alphabetical tail-drop is not an edge case there — it is the normal case,
+    # and the 4th recurrence recorded in the ticket was exactly this bundle with
+    # this checker. It was left out by oversight; nothing documents an exclusion.
+    plan_files = _prioritized(plan_files)
 
     related_specs = format_file_bundle(other_spec_files, root, "관련 spec 본문")
     conventions = format_file_bundle(convention_files, root, "spec/conventions 정식 규약")
@@ -742,7 +875,9 @@ def main():
                            "Bundles spec area + code diff (vs --diff-base, default origin/main).")
     parser.add_argument("--diff-base", type=str, dest="diff_base", metavar="REF",
                         default=None,
-                        help="git ref to diff against for --impl-done (default: origin/main).")
+                        help="git ref to diff against (default: origin/main). Used by --impl-done "
+                             "for its code-diff section, and by ALL modes to rank the "
+                             "context bundles (files this branch changed come first).")
     parser.add_argument("--resume", type=str, metavar="SESSION_DIR",
                         help="Resume an existing session: skip prepare, validate the "
                              "_retry_state.json, echo the absolute session_dir on stdout. "

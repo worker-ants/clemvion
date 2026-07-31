@@ -69,7 +69,18 @@ class _Decision:
         return self.blocked
 
 
-def evaluate_review():
+# Mirrors the real signature (`cwd=None, *, in_flight_ok=False`). A no-arg stub
+# would accept whatever the push guard passes and hide the thing that matters
+# here: the push guard must NEVER opt into the in-flight concession — that is
+# what keeps a merely-started review session from opening the hard gate. If it
+# ever did, the real function would raise TypeError, `_evaluate_over_targets`'s
+# broad `except Exception` would swallow it, and the gate would fail open with
+# no diagnosis. Recording the kwarg turns that into a RED test instead.
+def evaluate_review(cwd=None, *, in_flight_ok=False):
+    seam = os.environ.get("SEAM_OUT")
+    if seam:
+        with open(seam, "a") as f:
+            f.write(repr(in_flight_ok) + "\\n")
     mode = os.environ.get("STUB_REVIEW", "clean")
     if mode == "raise":
         raise RuntimeError("boom in evaluate_review")
@@ -138,7 +149,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def _run(self, command="", *, payload=None, raw_stdin=None,
+    def _run(self, command="", *, payload=None, raw_stdin=None, seam_out=None,
              review="clean", plan="clean", bypass_review=False, bypass_plan=False):
         """Run the hook. `command` builds a standard payload; `payload` / `raw_stdin`
         override for the stdin-shape tests."""
@@ -157,6 +168,10 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             env["BYPASS_REVIEW_GUARD"] = "1"
         if bypass_plan:
             env["BYPASS_PLAN_GUARD"] = "1"
+        if seam_out:
+            env["SEAM_OUT"] = seam_out
+        else:
+            env.pop("SEAM_OUT", None)
 
         if raw_stdin is not None:
             stdin = raw_stdin
@@ -168,6 +183,12 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, self.hook],
             input=stdin, capture_output=True, text=True, env=env, timeout=10,
+            # Pin the cwd to the per-test temp dir, as `test_stop_guard_failopen`
+            # does. Inheriting the caller's checkout made the hook see whatever
+            # worktrees happen to exist on the machine — a review flagged one
+            # non-reproducing failure out of 14 runs from exactly that coupling.
+            # These tests are about the hook's decision table, not the repo.
+            cwd=self.tmp,
         )
 
     # --- push detection gate (main's consumption of _is_git_push) ----------
@@ -197,6 +218,23 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
     def test_push_allowed_when_both_gates_clean(self):
         r = self._run(_PUSH, review="clean", plan="clean")
         self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_push_never_opts_into_the_in_flight_concession(self):
+        """The push counterpart of `test_stop_passes_in_flight_opt_in`.
+
+        `evaluate_review`'s in-flight suppression is Stop-only; both guards call
+        the same function, so if the push side ever passed `in_flight_ok=True` a
+        merely-started review session would open the hard gate for the whole TTL
+        — which is the exact bug this branch fixes. Nothing else here would
+        notice: the decision object is identical either way.
+        """
+        seam = os.path.join(self.tmp, "push_seam.txt")
+        r = self._run("git push", seam_out=seam)
+        self.assertEqual(r.returncode, 0)
+        with open(seam) as f:
+            observed = [ln.strip() for ln in f if ln.strip()]
+        self.assertTrue(observed, "evaluate_review was never called")
+        self.assertEqual(set(observed), {"False"})
 
     def test_push_blocked_by_review_gate(self):
         r = self._run(_PUSH, review="blocked", plan="clean")

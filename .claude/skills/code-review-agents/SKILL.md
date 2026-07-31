@@ -38,8 +38,13 @@ python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --
 stdout 마지막 줄 = 세션 디렉토리 절대경로.
 
 옵션:
-- 인자 없음 → git diff (staged + unstaged + untracked)
+- 인자 없음 → git diff (staged + unstaged + untracked) = **아직 커밋 안 된 것만**.
+  리뷰 워크플로는 커밋을 먼저 하므로 이 경로는 커밋 직후 브랜치 diff 를 통째로 놓칠 수 있다
+  (실측: 기본 0건 vs `--branch origin/main` 6건 — 리뷰어는 빈 코퍼스를 받는데 요약은
+  "Critical 0" 을 낸다). 누락이 감지되면 stderr 로 빠진 파일과 함께 경고가 뜨니
+  **`--branch <base>` 로 재실행**할 것.
 - `--staged`, `--commit <ref>`, `--range <a>..<b>`, `--branch <base>`, 파일/디렉토리 경로
+  — 전부 명시 스코프라 위 경고 대상이 아니다
 - `--route=auto` (기본) / `--route=all` (router skip, 전수 실행)
 
 ### 2. Workflow 실행 (Route → Review → Summary, 기본 경로)
