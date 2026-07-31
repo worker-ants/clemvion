@@ -71,6 +71,9 @@ def run_in_orchestrator(snippet: str, arg=None):
         [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
         input=json.dumps(arg), cwd=str(REPO_ROOT),
         capture_output=True, text=True,
+        # Sibling suites set one too — without it a hang in the target code
+        # blocks the run forever instead of failing.
+        timeout=30.0,
     )
     if proc.returncode != 0:
         raise AssertionError(proc.stderr[-3000:])
@@ -142,6 +145,65 @@ class OmittedContentIsAnnouncedTest(unittest.TestCase):
         silent = [s["name"] for s in out
                   if not s["has_content"] and not s["has_notice"]]
         self.assertEqual(silent, [])
+
+    def test_notices_are_paid_for_out_of_the_same_budget(self):
+        """The notice is document text, so it must fit inside `max_total_size`.
+
+        The first version of this feature appended notices AFTER the budget was
+        spent, so a payload with many omissions overran its own cap — measured
+        at 143,620 against a 143,605 cap (14 notices ≈ 2,042 chars). The
+        existing `test_line_anchors` size-cap test caught it, but only by
+        accident of repo state: it picks a real commit out of history, so which
+        changeset it exercises drifts with every commit. This case is fixed
+        input — it cannot stop exercising the overflow.
+        """
+        many = [(f"f{i:02d}.py", f"v{i} = 0\n" * 300) for i in range(20)]
+        for max_total in (5_000, 8_000, 12_000):
+            with self.subTest(max_total=max_total):
+                body = run_in_orchestrator(
+                    """
+                    cis = [change_info(p, b) for p, b in ARG["files"]]
+                    emit(orch.build_files_section(cis, 10_000_000,
+                                                  ARG["max_total"]))
+                    """,
+                    {"files": many, "max_total": max_total},
+                )
+                notices = body.count("전혀 실리지 않았습니다")
+                self.assertGreater(notices, 1,
+                                   "case is vacuous unless notices accumulate")
+                self.assertLessEqual(len(body), max_total)
+
+    def test_diff_only_overflow_branch_also_announces(self):
+        """`build_files_section` has TWO overflow paths and both can hide files.
+
+        When headers + diffs alone exceed the cap, the function returns early on
+        a separate branch that never looks at `full_content` — so no file got
+        whole-file context and, before this, nothing said so. The first fix only
+        touched the other branch, and the fixtures above never reach this one
+        because they carry no diff.
+        """
+        files = [(f"d{i}.py", f"q{i} = 0\n" * 200) for i in range(4)]
+        body = run_in_orchestrator(
+            """
+            cis = []
+            for p, b in ARG["files"]:
+                ci = change_info(p, b)
+                ci["code"] = "@@ -1 +1 @@\\n+" + b   # force a large diff
+                cis.append(ci)
+            emit(orch.build_files_section(cis, 10_000_000, ARG["max_total"]))
+            """,
+            {"files": files, "max_total": 1500},
+        )
+        self.assertIn("어떤 파일의 전체 내용도 실리지", body)
+        self.assertIn("Read", body)
+        # No cap assertion here on purpose. This branch already overruns
+        # `max_total_size` on origin/main — measured 1,681 against a 1,500 cap
+        # for this same fixture — because its diff-trimming loop appends
+        # `_truncated_note` / the "diff 생략" placeholder without charging their
+        # length to `cut`. That is a separate pre-existing defect (tracked in
+        # harness-review-gate-ci-backstop.md); this change budgets for the note
+        # it adds and comes out marginally SMALLER (1,678). Asserting the cap
+        # here would fail for a defect this test does not own.
 
     def test_silent_when_everything_fits(self):
         out = build([SMALL, ("small2.py", "b = 2\n")], max_total=1_000_000)

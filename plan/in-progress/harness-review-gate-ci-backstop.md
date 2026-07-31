@@ -24,7 +24,28 @@ priority: P2
 > 나왔고 그 둘이 이 PR 의 핵심 파일이었다. 즉 §재발 관측이 consistency 쪽에서 8회 기록한
 > 결함 클래스의 **code-review 쪽 쌍둥이**다. 생략 사실 + 읽을 경로를 명시하도록 수정.
 >
-> **신규 후속 1건 (defer)** — "origin 기본 브랜치 해석" 이 4곳에 독립 구현돼 있다:
+> **신규 후속 3건 (defer)**
+>
+> 1. **`build_files_section` 의 diff-only 예산 분기가 상한을 넘는다 (기존 결함)** —
+>    headers+diffs 만으로 예산을 넘는 분기에서, 절단 루프가 `_truncated_note` 와
+>    `"diff 생략"` placeholder 를 덧붙이면서 그 길이를 `cut` 에 계상하지 않는다. 실측:
+>    같은 fixture 로 `origin/main` 판 **1,681자 vs cap 1,500** (이 브랜치 판은 1,678 —
+>    이번에 추가한 안내는 `overflow` 에 계상했기에 오히려 3바이트 작다). 즉 **내가 만든 결함이
+>    아니고 악화시키지도 않았다.** 다른 분기의 같은 계상 누락은 이번에 고쳤으므로, 이 분기도
+>    같은 처방(노트 길이를 절단량에 포함)으로 닫으면 된다.
+> 2. **하향 금지 정책에 기계적 backstop 이 없다** — `.claude/agents/consistency-summary.md` 의
+>    규약은 prompt 지시일 뿐이고, 게이트(`_BLOCK_LINE`)는 `BLOCK:` 값이 각 checker 의
+>    `[CRITICAL]` 개수와 모순되는지 대조하지 않는다. 정확히 그 불변식이 깨진 사례가 이미
+>    기록돼 있다(`review/code/2026/07/25/22_58_00`). 후보: orchestrator 가 checker 리포트의
+>    `[CRITICAL]` 수를 세어 최종 `BLOCK:` 와 모순되면 stderr 경고 / 반환 플래그.
+>    (사용자가 정책 자체는 "하향 금지 + planner 인계" 로 확정했으므로 이건 그 집행 수단이다.)
+> 3. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+>    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
+>    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
+>    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
+>    (이번에 timeout 을 3곳에 각각 넣어야 했던 것이 그 비용의 실례).
+>
+> **신규 후속 (defer)** — "origin 기본 브랜치 해석" 이 4곳에 독립 구현돼 있다:
 > `branch_guard._origin_default_branch()`(정본) · `review_guard._default_branch()` ·
 > `code_review_orchestrator._default_branch_ref()`(이번 신설) ·
 > `consistency_orchestrator` 의 `args.diff_base or "origin/main"` 리터럴. 반환 계약이 서로
@@ -105,7 +126,7 @@ priority: P2
       → **[x] 경고 구현**: 기본 경로에서 브랜치 diff 미포함분을 감지해 빠진 파일을 이름으로
       나열하고 `--branch <base>` 를 안내. changeset 자체는 불변(조용히 넓히면 호출자가 요청하지
       않은 파일을 리뷰하게 되고, 명시 모드는 이미 올바르다). git 실패 시 침묵.
-      테스트 `test_review_changeset_warning.py` 9건 + mutation 4종 RED.
+      테스트 `test_review_changeset_warning.py` 11건 + mutation 4종 RED.
 
 > 교훈: **"우회(파일 명시 + `--route=all`)가 통했다"는 사실이 원인 진단을 보증하지 않는다.**
 > 우회가 통한 이유는 `--branch` 가 고장나서가 아니라 기본 경로가 커밋된 작업을 안 담아서였다.

@@ -246,13 +246,21 @@ def _is_catalog_bulk(rel):
     return bool(_CATALOG_BULK_RE.search(rel))
 
 
-def _branch_changed_rels(diff_base, root, subpath=None):
+def _branch_changed_rels(diff_base, root):
     """Repo-relative paths this branch touched, as a set. Empty on any failure.
 
+    Whole-repo on purpose: `collect_context` calls this ONCE and narrows it per
+    bundle with a prefix filter, so a `subpath` parameter would only re-spawn
+    git per bundle. (It had one; after the call sites moved to `_prioritized`
+    nothing passed it.)
+
     THREE-DOT for the same reason as `_collect_code_diff` — see its docstring.
+
+    Mirrors `code_review_orchestrator.get_git_branch_diff_files` (same flags,
+    same three-dot rationale, different failure default) — change both.
     """
-    cmd = ["git", "diff", "--no-renames", "--name-only", f"{diff_base}...HEAD", "--"]
-    cmd.append(subpath if subpath else ".")
+    cmd = ["git", "diff", "--no-renames", "--name-only",
+           f"{diff_base}...HEAD", "--", "."]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, cwd=root, timeout=30.0)
         if r.returncode != 0:
@@ -855,7 +863,9 @@ def main():
                            "Bundles spec area + code diff (vs --diff-base, default origin/main).")
     parser.add_argument("--diff-base", type=str, dest="diff_base", metavar="REF",
                         default=None,
-                        help="git ref to diff against for --impl-done (default: origin/main).")
+                        help="git ref to diff against (default: origin/main). Used by --impl-done "
+                             "for its code-diff section, and by ALL modes to rank the "
+                             "context bundles (files this branch changed come first).")
     parser.add_argument("--resume", type=str, metavar="SESSION_DIR",
                         help="Resume an existing session: skip prepare, validate the "
                              "_retry_state.json, echo the absolute session_dir on stdout. "

@@ -62,6 +62,9 @@ def run_in_orchestrator(snippet: str, arg=None):
         [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
         input=json.dumps(arg), cwd=str(REPO_ROOT),
         capture_output=True, text=True,
+        # Sibling suites set one too — without it a hang in the target code
+        # blocks the run forever instead of failing.
+        timeout=30.0,
     )
     if proc.returncode != 0:
         raise AssertionError(proc.stderr[-3000:])

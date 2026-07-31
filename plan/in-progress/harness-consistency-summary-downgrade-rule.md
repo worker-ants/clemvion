@@ -9,7 +9,12 @@ priority: P2
 > **2026-07-31 종결** — 두 사안 모두 처리했다. 두 사안은 독립이다: 번들 결함은 "검토 대상이
 > 프롬프트에 없었다", 하향 규약은 "발견된 Critical 을 어떻게 처리하나" 이다.
 >
-> - **부속 관측(번들 예산 결함, 8회 재발)** — 수정 완료 (§관련 관측 참조).
+> - **부속 관측(번들 예산 결함, 8회 재발)** — **8회 기록된 증상은 닫혔다**: 대상 파일이
+>   브랜치-변경(tier 0) 또는 plan-언급(tier 1)이면 이제 항상 예산 앞자리를 받는다.
+>   **완전히 닫힌 것은 아니다** — 같은 tier 안의 정렬은 여전히 순수 사전순이라
+>   (`test_ties_stay_alphabetical` 이 현재 동작으로 고정), 대상이 **변경도 안 됐고 plan 에도
+>   언급되지 않은** 세션에서는 `10-*.md` 가 `4-*.md` 를 앞서는 원래 패턴이 재현될 수 있다.
+>   아래 체크리스트의 natural sort 항목은 **여전히 열린 후속**이다.
 > - **본체 (a)/(b)/(c)** — **사용자 결정: 하향 금지 + planner 즉시 인계** (= (c) 계열이되,
 >   "막다른 길" 로 두지 않고 인계 경로를 함께 명문화). 반영 완료:
 >   - `.claude/agents/consistency-summary.md` — §요약 지침에 **3. 하향 금지**(상향만 허용) +
@@ -140,7 +145,7 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
       비고, plan 언급이 유일한 신호다. `spec_impact` frontmatter 대신 plan 본문 언급을 쓴 이유는
       새 의존성 없이 같은 모듈 안에서 해결되고, `spec_impact` 미기재 plan 도 커버하기 때문.
       적용 지점: `--impl-prep`/`--impl-done` 의 scope 번들 + `related_specs` + `conventions`.
-      테스트 `test_consistency_bundle_priority.py` 10건 + mutation 6종 RED.
+      테스트 `test_consistency_bundle_priority.py` 13건 + mutation 6종 RED.
 
 > 검증 교훈: 첫 seam 테스트가 **vacuous** 했다. `prioritize_bundle_files` 의 **호출 횟수**를
 > 셌는데, 호출부 pass-through 뮤턴트(`… = prioritize_bundle_files(...) and scope_files`)는
