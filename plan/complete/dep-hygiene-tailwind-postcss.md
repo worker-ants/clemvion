@@ -59,7 +59,7 @@ spec_impact: none
 - [x] `/ai-review` (dependency·scope) — **Critical 0 · Warning 0 · INFO 5**, 위험도 LOW.
       INFO 전부 "이미 올바르게 처리됨/조치 불요". Critical·Warning 0 이라 RESOLUTION 불요.
       (`review/code/2026/07/31/14_36_42/SUMMARY.md`)
-- [ ] push + PR
+- [x] push + PR — `#1036` 머지.
 
 ## 2-1. 범위 밖 — 명시
 
