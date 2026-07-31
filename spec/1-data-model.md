@@ -569,7 +569,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | id | UUID | PK |
 | workflow_id | UUID | FK → Workflow |
 | version | Integer | 버전 번호 |
-| snapshot | JSONB | 워크플로우 전체 스냅샷 (nodes, edges, settings) |
+| snapshot | JSONB | 워크플로우 캔버스 스냅샷 `{ name, description, nodes, edges }`. **`workflow.settings` 는 포함하지 않는다** — 버저닝·복원 대상은 캔버스 + 이름/설명이다. 구성·근거의 SoT 는 [data-flow §1.1 / Rationale "버전 스냅샷 = JSONB"](./data-flow/11-workflow.md#rationale), 소비 측 타입은 [버전 히스토리 §7.2 `VersionSnapshot`](./3-workflow-editor/5-version-history.md) |
 | change_summary | String? | 변경 사항 요약 |
 | created_by | UUID | FK → User |
 | created_at | Timestamp | 생성 시각 |
@@ -910,6 +910,22 @@ chat 계열 LLM 호출(`chat`/`chatStream`) 후 provider 응답 토큰 수를 ap
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### WorkflowVersion.snapshot 구성 서술 정정 (2026-07-31)
+
+§2.15 의 `snapshot` 설명은 오랫동안 "워크플로우 전체 스냅샷 (nodes, edges, **settings**)" 이었으나
+실제 구현은 `settings` 를 담은 적이 없다 — `WorkflowsService.buildSnapshot()` 이 반환하는 키는
+`name` · `description` · `nodes` · `edges` 뿐이다.
+
+drift 의 출처는 명확하다: 2026-06-10 spec↔code 전수 감사가 `data-flow/11-workflow.md` 를 코드 관찰
+근거로 정정하면서 **본 문서 §2.15 만 함께 고치지 않았다**. 그 결과 코드 · [data-flow](./data-flow/11-workflow.md)
+· [버전 히스토리 §7.2 `VersionSnapshot`](./3-workflow-editor/5-version-history.md) 세 곳이 합의하는데
+데이터 모델 문서 한 곳만 어긋난 상태가 남았다.
+
+`settings` 제외는 누락이 아니라 **의도된 설계**다 — 근거(버저닝·복원 대상은 캔버스와 이름/설명)는
+[data-flow Rationale "버전 스냅샷 = JSONB"](./data-flow/11-workflow.md#rationale) 가 SoT 로 보유하므로
+여기서는 중복 서술하지 않고 가리키기만 한다. 방치했다면 "버전을 복원하면 settings 도 되돌아온다" 는
+오해를 낳았을 것이다(실제로는 캔버스와 name/description 만 복원된다).
 
 ### Execution.execution_path → ExecutionNodeLog (V035 → V036)
 

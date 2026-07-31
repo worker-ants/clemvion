@@ -167,11 +167,14 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
 > 본 PR 의 docker 빌드도 같은 지점에서 막혔다. (2) `df860ce58`: 그 복원이 부분적이라
 > `@tailwindcss/postcss` 경유 동일 CVE 가 남아 있어 상향(리뷰 CRITICAL 조치).
 
-- [ ] **`spec/1-data-model.md:572` §2.15 `snapshot` 서술 정정** (planner 턴 필요) — 현재
+- [x] **`spec/1-data-model.md:572` §2.15 `snapshot` 서술 정정** (planner 턴 필요) — 현재
       "워크플로우 전체 스냅샷 (nodes, edges, settings)" 인데, 실제 `buildSnapshot()` 과
       `spec/data-flow/11-workflow.md` §1.1·Rationale 은 **name + description + nodes + edges,
       `settings` 제외** 다. `origin/main` 시점부터 있던 drift 로 본 PR 이 만든 것이 아니며,
       duplicate 와도 무관하다 (impl-done Warning #1). 경량 spec-only PR 로 처리.
+      → **완료**: `plan/in-progress/spec-workflow-version-snapshot-drift.md` (별도 PR). 착수 후
+      동조 소스가 하나 더 있음이 드러났다 — `spec/3-workflow-editor/5-version-history.md` §7.2 의
+      `VersionSnapshot` 도 settings 를 갖지 않는다. 즉 **3곳 합의 vs data-model 1곳 outlier**.
 - [ ] **harness: `--branch` changeset 이 codebase 변경을 통째로 누락한다** (P1 — 실측 2회) —
       `--prepare --branch origin/main` 이 산출한 changeset 에서 **재리뷰를 유발한 바로 그 커밋**이
       빠진다.
