@@ -203,5 +203,63 @@ class DefaultPathIsWiredTest(unittest.TestCase):
         self.assertEqual(self._calls(None, staged=True), 0)
 
 
+class ScopeFlagDiscardingFilesIsAnnouncedTest(unittest.TestCase):
+    """`--branch … --files <paths>` throws the paths away. Say so.
+
+    The scope flags are an if/elif chain, so a scope flag makes `--files`
+    unreachable. It used to be silent, and it cost round 6 of this very branch:
+    after committing, `--branch` is needed for the diff base, so
+    `--branch origin/main --files <sources>` is the natural command — the file
+    list was dropped, the branch diff turned out to be the *previous* round's
+    committed review artifacts, and fourteen reviewers read `.md` reports
+    instead of the code and found nothing. A reviewer noticed the changeset;
+    the tool never said a word.
+    """
+
+    def _stderr(self, **flags):
+        return run_in_orchestrator(
+            """
+            import argparse
+            a = argparse.Namespace(commit=None, range=None, branch=None,
+                                   files=[], staged=False)
+            for k, v in ARG.items():
+                setattr(a, k, v)
+            orch.get_git_branch_diff_files = lambda b: []
+            orch.get_git_commit_files = lambda c: []
+            orch.get_git_range_files = lambda r: []
+            orch.get_git_commit_diff = lambda c, f: ""
+            orch.get_file_at_commit = lambda c, f: ""
+            buf = io.StringIO()
+            with contextlib.redirect_stderr(buf):
+                orch.collect_change_infos(a, {"skip_extensions": []})
+            emit(buf.getvalue())
+            """,
+            flags,
+        )
+
+    def test_branch_plus_files_says_which_paths_were_dropped(self):
+        err = self._stderr(branch="origin/main", files=["a.py", "b.py"])
+        self.assertIn("--files IGNORED", err)
+        self.assertIn("2 path(s)", err)
+        self.assertIn("a.py", err)
+        self.assertIn("--branch", err, "must name the flag that won")
+
+    def test_commit_and_range_win_the_same_way(self):
+        for flag, value in (("commit", "abc123"), ("range", "a..b")):
+            with self.subTest(flag=flag):
+                err = self._stderr(files=["a.py"], **{flag: value})
+                self.assertIn("--files IGNORED", err)
+                self.assertIn(f"--{flag}", err)
+
+    def test_silent_when_files_is_the_mode_actually_used(self):
+        """No scope flag — the paths are honoured, so there is nothing to warn
+        about. A warning that fires when nothing was lost is how a real one
+        gets ignored."""
+        self.assertNotIn("IGNORED", self._stderr(files=["a.py"]))
+
+    def test_silent_when_a_scope_flag_comes_without_files(self):
+        self.assertNotIn("IGNORED", self._stderr(branch="origin/main"))
+
+
 if __name__ == "__main__":
     unittest.main()

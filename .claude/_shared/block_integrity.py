@@ -76,11 +76,29 @@ _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 # Behaviour is unchanged — `^` already anchors at the start of the line holding
 # the verdict, so the class never needed to cross one. Verified against all 1,506
 # committed SUMMARY files: 0 verdicts differ.
+#
+# The gap between "BLOCK:" and the verdict is ONE quantifier, `[ \t*]*`, and not
+# the `\s*\**\s*` it used to be. That earlier form is a second, independent
+# quadratic: two unbounded quantifiers separated only by a usually-empty one, so
+# when the alternation never succeeds the engine re-splits the same run between
+# them. It survived the fix above because that fix targeted the leading class,
+# and it survived the regression test because that test used input with no
+# `BLOCK:` in it at all — so the scan never reached this part of the pattern.
+# Measured after the leading-class fix, on `"BLOCK:" + " " * n` (one line, no
+# newlines anywhere, which is also why "it's a MULTILINE problem" missed it):
+#
+#     n           400      800     1600     3200     6400    12800
+#     `\s*\**\s*`  0.002s  0.009s   0.037s   0.147s   0.589s   2.354s   (×4)
+#     `[ \t*]*`    0.000s  0.000s   0.000s   0.000s   0.000s   0.000s
+#
+# `[ \t*]*` also drops newlines from the gap, which only tightens it: a verdict
+# and its `BLOCK:` belong on one line. Verified across all 1,507 committed
+# SUMMARY files: 0 verdicts differ.
 _BLOCK_AT_LINE_START = re.compile(
-    r"^[ \t>#*_`-]*BLOCK:\s*\**\s*(YES|NO)", re.IGNORECASE | re.MULTILINE
+    r"^[ \t>#*_`-]*BLOCK:[ \t*]*(YES|NO)", re.IGNORECASE | re.MULTILINE
 )
 _BLOCK_AT_LINE_END = re.compile(
-    r"BLOCK:\s*\**\s*(YES|NO)\**\s*$", re.IGNORECASE | re.MULTILINE
+    r"BLOCK:[ \t*]*(YES|NO)[ \t*]*$", re.IGNORECASE | re.MULTILINE
 )
 
 # The canonical checker list. It lives here rather than in the orchestrator

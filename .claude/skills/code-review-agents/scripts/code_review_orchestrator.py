@@ -1227,10 +1227,39 @@ def _aggregate_omission_note(rels, room):
 
 
 def collect_change_infos(args, config):
-    """Resolve args into a flat list of change_info dicts. May return empty."""
+    """Resolve args into a flat list of change_info dicts. May return empty.
+
+    The scope flags are an if/elif chain, so `--commit`/`--range`/`--branch`
+    each make `--files` unreachable. That used to happen in silence, and it cost
+    a whole review round: after committing, `--branch` is required for the diff
+    base, so `--branch … --files <sources>` is the natural command — and the
+    file list was discarded. The branch diff then consisted of the *previous*
+    round's committed review artifacts, so fourteen reviewers examined `.md`
+    reports instead of the code, and reported nothing wrong. It was caught by a
+    reviewer noticing the changeset, not by the tool.
+
+    Precedence is left as it is (a scope flag wins) because other callers depend
+    on it; what changes is that the discard is now impossible to miss.
+    `consistency_orchestrator` avoids the whole question with
+    `add_mutually_exclusive_group` — the better shape, and a follow-up.
+    """
     files = []
     diff_getter = None
     content_getter = None
+
+    scope_flag = next((n for n in ("commit", "range", "branch")
+                       if getattr(args, n, None)), None)
+    if scope_flag and getattr(args, "files", None):
+        ignored = list(args.files)
+        print(
+            f"!! --files IGNORED ({len(ignored)} path(s)) — --{scope_flag} takes "
+            f"precedence and defines the changeset by itself.\n"
+            f"!! Drop --{scope_flag} to review exactly the paths you listed, or "
+            f"drop --files to silence this.\n"
+            f"!! ignored: {', '.join(ignored[:5])}"
+            f"{' …' if len(ignored) > 5 else ''}",
+            file=sys.stderr,
+        )
 
     if args.commit:
         commit = args.commit

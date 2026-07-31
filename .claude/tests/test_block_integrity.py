@@ -484,13 +484,18 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
     suite instead of failing it.
     """
 
-    # Sized from the measurement, not guessed. 20k lines: ~8.4s with the old
-    # pattern, ~1ms with the current one. A smaller input would let the broken
-    # pattern finish inside the timeout and the test would be vacuous.
+    # Two sizes, each measured against the pattern it is meant to catch. Reusing
+    # one number is what made the second case vacuous on first writing: 20k is
+    # ample for the leading-class defect but leaves the inner-gap defect at 2.9s,
+    # comfortably inside the timeout, so reverting the fix stayed GREEN.
+    #
+    #   _LINES=20_000 lines  → leading class:  ~8.4s broken / ~1ms fixed
+    #   _RUN=45_000 chars    → inner gap:     ~14.5s broken / ~1ms fixed
     _LINES = 20_000
+    _RUN = 45_000
     _TIMEOUT = 5
 
-    def test_no_verdict_in_a_large_document_returns_fast(self):
+    def _run(self, text_expr, label, expect=None):
         import subprocess
         import sys as _sys
         path = _harness.CLAUDE_DIR / "_shared" / "block_integrity.py"
@@ -500,8 +505,9 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
             "m=importlib.util.module_from_spec(spec)\n"
             "sys.modules['bi']=m\n"
             "spec.loader.exec_module(m)\n"
-            f"text=('> '*3+chr(10))*{self._LINES}\n"
-            "assert m.summary_block_verdict(text) is None\n"
+            f"text={text_expr}\n"
+            f"got=m.summary_block_verdict(text)\n"
+            f"assert got == {expect!r}, got\n"
             "print('ok')\n"
         )
         try:
@@ -511,10 +517,96 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
         except subprocess.TimeoutExpired:
             self.fail(
                 f"summary_block_verdict did not finish in {self._TIMEOUT}s on "
-                f"{self._LINES} lines — the verdict pattern went quadratic again"
+                f"{label} — the verdict pattern went quadratic again"
             )
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         self.assertIn("ok", r.stdout)
+
+    def test_no_verdict_in_a_large_document_returns_fast(self):
+        """No `BLOCK:` anywhere — every start position fails on the LEADING class."""
+        self._run(f"('> '*3+chr(10))*{self._LINES}", f"{self._LINES} lines")
+
+    def test_a_bare_block_followed_by_a_long_run_returns_fast(self):
+        """`BLOCK:` present, verdict never — exercises the gap AFTER the literal.
+
+        The test above cannot reach that part of the pattern: with no `BLOCK:`
+        in the input the scan fails before it. So a second quadratic lived in
+        `\\s*\\**\\s*` right there, through the round that "fixed the quadratic"
+        and through the regression test written to prevent exactly this. One
+        arrangement pinned is not the property pinned.
+
+        Deliberately one line, no newlines: the first defect was about `\\s`
+        crossing lines, and reading that as *the* mechanism is what hid this one.
+        """
+        self._run(f"'BLOCK:' + ' '*{self._RUN}", f"BLOCK: + {self._RUN} spaces")
+
+    def test_a_trailing_run_after_a_real_verdict_returns_fast(self):
+        """Verdict present, then a long run — the tail gap in the END pattern."""
+        self._run(f"'BLOCK: YES' + ' '*{self._RUN} + 'x'",
+                  f"verdict + {self._RUN} trailing spaces", expect="YES")
+
+
+class SpecGlobCompilationIsBoundedTest(unittest.TestCase):
+    """A spec `code:` glob must not be able to wedge the gate.
+
+    Each `*` becomes its own unbounded quantifier, so `a*a*a*…` against a failing
+    candidate is exponential (×16 per two extra stars; 10s at sixteen). The input
+    comes from a spec file's frontmatter, so anyone who can edit `spec/**` could
+    stall every push and turn-end for everyone who checks that file out.
+    """
+
+    def setUp(self):
+        self.RG = _harness.load_module_by_path(
+            "review_guard_glob_probe",
+            _harness.HOOKS_DIR / "_lib" / "review_guard.py",
+        )
+
+    def test_a_pathological_glob_compiles_to_something_that_matches_fast(self):
+        import subprocess
+        import sys as _sys
+        path = _harness.HOOKS_DIR / "_lib" / "review_guard.py"
+        prog = (
+            "import importlib.util,sys\n"
+            f"spec=importlib.util.spec_from_file_location('rg', r'{path}')\n"
+            "m=importlib.util.module_from_spec(spec)\n"
+            "sys.modules['rg']=m\n"
+            "spec.loader.exec_module(m)\n"
+            "p=m._glob_to_regex('a*'*24+'!')\n"
+            "p.match('a'*48)\n"
+            "print('ok')\n"
+        )
+        try:
+            r = subprocess.run([_sys.executable, "-c", prog],
+                               capture_output=True, text=True, timeout=5)
+        except subprocess.TimeoutExpired:
+            self.fail("_glob_to_regex went exponential on a many-wildcard glob")
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+
+    def test_over_the_cap_matches_everything_not_nothing(self):
+        """Direction matters more than the cap.
+
+        This predicate decides whether Gate 2 applies. "No match" would switch
+        the gate OFF, which is a length limit silently disabling detection — the
+        failure `_MAX_REDACTION_INPUT` exists to warn about. Matching everything
+        asks for a report that may be unnecessary: loud, and safe.
+        """
+        p = self.RG._glob_to_regex("a*" * 24 + "!")
+        self.assertTrue(p.match("codebase/backend/src/anything.ts"))
+
+    def test_real_spec_globs_are_all_under_the_cap(self):
+        """The cap must never fire on legitimate input.
+
+        Measured when it was chosen: 633 real globs, 528 with no `*` at all, and
+        the busiest single path segment holding exactly one.
+        """
+        import glob as _glob
+        globs = []
+        for path in _glob.glob(str(_harness.REPO_ROOT / "spec" / "**" / "*.md"),
+                               recursive=True):
+            globs.extend(self.RG._parse_frontmatter_code(path))
+        self.assertGreater(len(globs), 100, "spec globs not found — probe is stale")
+        over = [g for g in globs if g.count("*") > self.RG._MAX_GLOB_WILDCARDS]
+        self.assertEqual(over, [], "a real spec glob exceeds the wildcard cap")
 
 
 class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):

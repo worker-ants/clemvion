@@ -570,10 +570,38 @@ def _newest_resolved_review_mtime(repo_root: str,
 # ---------------------------------------------------------------------------
 
 
+# Real spec `code:` globs, measured across all 633 of them: 528 have no `*` at
+# all, and the busiest single path segment anywhere holds exactly ONE `*`. Six is
+# therefore far above anything legitimate while still bounding the blow-up below.
+_MAX_GLOB_WILDCARDS = 6
+
+
 def _glob_to_regex(glob: str) -> re.Pattern:
     """Compile a spec `code:` glob into an anchored regex over repo-relative
     POSIX paths. Supports `**` (across directories), `*` (within a segment) and
-    `?`. Best-effort — the gate fails open if anything here misbehaves."""
+    `?`. Best-effort — the gate fails open if anything here misbehaves.
+
+    Wildcards are capped. Each `*` becomes its own unbounded quantifier, and a
+    run of them separated by literals (`a*a*a*…`) makes the engine try every way
+    of splitting a failing candidate between them — exponential, not quadratic.
+    Measured on `"a*"*k + "!"` against `"a"*2k`:
+
+        k          8       10       12       14       16
+        time  0.0002s  0.0026s  0.0406s  0.6500s  10.2598s     (×16 per +2)
+
+    That input arrives from a spec file's frontmatter, so anyone who can edit
+    `spec/**` can wedge every push and turn-end for everyone who checks it out.
+
+    Over the cap the glob is treated as matching EVERYTHING, which is the safe
+    direction here and the opposite of what a cap usually does: this predicate
+    decides whether Gate 2 applies at all, so "no match" would switch the gate
+    OFF — a length limit silently disabling detection is the failure
+    `_MAX_REDACTION_INPUT` warns about. Matching everything makes the gate ask
+    for a consistency report it may not need, which is loud and safe; the
+    malformed glob then gets fixed at its source.
+    """
+    if glob.count("*") > _MAX_GLOB_WILDCARDS:
+        return re.compile(".*", re.DOTALL)
     out: list[str] = []
     i, n = 0, len(glob)
     while i < n:
