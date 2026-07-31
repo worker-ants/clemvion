@@ -54,20 +54,6 @@ except ImportError:  # pragma: no cover
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 WORKSPACE_YAML = REPO_ROOT / "pnpm-workspace.yaml"
 
-# `ignoreCves` 로 수용된 CVE 가 걸린 override 대상 패키지의 **수용 시점 경로 집합**.
-#
-# `ignoreCves` 는 CVE-ID 단위 전역 억제라 그 자체로는 "어느 경로를 수용했는지" 를 담지 못한다.
-# 그래서 경로를 여기 고정해 **경로가 늘어나면**(= 수용 범위 밖 재유입) fail 시킨다.
-# 수용을 늘리거나 줄일 때 `pnpm-workspace.yaml` 의 `auditConfig.ignoreCves` 와 **함께** 갱신한다
-# — 이 2-place 편집이 리뷰 게이트다(`check-pnpm-security-config.py` 와 같은 방식).
-EXPECTED_SUPPRESSED_PATHS: dict[str, set[str]] = {
-    # CVE-2026-14257 (brace-expansion DoS). 1.x 는 백포트가 없고 이 경로는 dev 전용
-    # (@eslint/eslintrc → lint 툴체인)이라 수용했다. 2.x/5.x 는 override 로 해소돼 있다.
-    "brace-expansion": {
-        "codebase__backend>@eslint/eslintrc>minimatch>brace-expansion",
-    },
-}
-
 # fail-closed 진단 출력의 미리보기 길이. 원인 파악에 충분하면서 CI 로그를 덮지 않는 선.
 _STDERR_PREVIEW = 500      # pnpm 의 오류 한 줄이 대개 이 안에 들어온다
 _STDOUT_PREVIEW = 2000     # 파싱 실패는 앞부분만 봐도 형태를 알 수 있다
@@ -231,30 +217,17 @@ def run_audit() -> dict:
     return data
 
 
-def classify_vulnerable(audit: dict) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """취약 패키지를 **자동 판정 가능한 것**과 **수용되어 억제된 것**으로 가른다.
+def classify_vulnerable(audit: dict) -> dict[str, str]:
+    """`advisories` 에 살아있는 취약 패키지 → advisory id.
 
-    반환: `(reported, suppressed)`
-      - `reported`  — `advisories` 에 살아있는 것. 패키지 → advisory id. 자동 fail 대상.
-      - `suppressed`— `actions[]` 에만 있는 것(= `auditConfig.ignoreCves` 로 수용됨).
-                      패키지 → 경로 목록. **자동 판정 불가** — 아래 설명 참조.
-
-    `ignoreCves` 는 CVE-ID 단위 **전역** 억제라 `advisories` 에서 통째로 사라진다(경로·버전
-    무관). 그런데 수용은 **그때 확인한 경로**에 대한 판단이었다 — 같은 CVE 가 다른 경로나
-    버전으로 재유입되면 수용 범위 밖인데도 함께 억제된다.
-
-    실측(2026-08-01): `brace-expansion` 은 override 3키 + `CVE-2026-14257` 수용을 동시에
-    갖는다. 2.x 스코프를 취약 버전(`2.1.4`)으로 되돌리자 그 버전이 **실제로 설치됐는데**
-    `advisories` 는 0건이었다.
-
-    pnpm 은 억제된 항목도 `actions[]`(module + `resolves[].path`)에는 남기므로 **존재는**
-    알 수 있다. `ignoreCves` 자체는 CVE ID 만 담고 수용 시점의 경로를 담지 않으므로, 그
-    경로 집합을 `EXPECTED_SUPPRESSED_PATHS` 에 따로 고정해 두고 호출부가 대조한다 —
-    **경로가 늘었을 때만** fail. "억제 항목이 있으면 fail" 로 짰다가 정상 상태(수용된 경로
-    그대로)가 상시 빨간불이 되는 걸 실측했다. 판정 기준은 존재가 아니라 범위 확대다.
+    **`actions[]` 는 읽지 않는다.** 한때 `auditConfig.ignoreCves` 로 억제된 CVE 를 `actions[]`
+    잔여 경로로 추적하는 축이 있었으나 2026-08-01 실측으로 철회했다 — `brace-expansion@2.1.4`
+    (취약)를 lockfile 에 실제로 고정한 상태에서 `--audit-level=low` 로 돌려도, `ignoreCves`
+    **유무와 무관하게** `advisories`/`actions`/`muted` 가 전부 0건이었다. 즉 그 축은 현재
+    레지스트리 상태에서 발동할 재료 자체가 없다. 검증할 수 없는 코드가 "지킨다" 고 주장하는
+    것보다 없는 편이 낫다고 판단해 제거했다(근거: plan §축 3 철회).
     """
     advisories = audit.get("advisories") or {}
-    actions = audit.get("actions") or []
 
     reported: dict[str, str] = {}
     for name, adv in advisories.items():
@@ -263,35 +236,17 @@ def classify_vulnerable(audit: dict) -> tuple[dict[str, str], dict[str, list[str
             # `id` 는 정수로 오므로 str() 로 고정한다 — 선언 타입과 출력 형식 양쪽 때문.
             reported[module] = str(adv.get("github_advisory_id") or adv.get("id") or name)
 
-    suppressed: dict[str, list[str]] = {}
-    actions_with_module = [a for a in actions if a.get("module")]
-    for action in actions_with_module:
-        module = action["module"]
-        if module not in reported:
-            paths = [r.get("path", "?") for r in (action.get("resolves") or [])]
-            suppressed.setdefault(module, []).extend(paths)
-
-    # `run_audit()` 은 최상위 `actions` 키만 본다. 그 아래 필드명이 pnpm 메이저 상향으로
-    # 바뀌면 `.get()` 이 전부 None 을 돌려주고 여기서 조용히 빈 dict 가 나온다 — "취약 0건"
-    # 과 구별되지 않는 형태로. 항목이 있는데 **하나도** 기대 키를 안 갖는 건 데이터가 아니라
-    # 스키마가 바뀐 것이므로 판단 불가로 처리한다.
+    # `run_audit()` 은 최상위 `actions` 키만 본다. `advisories` 하위 필드명이 pnpm 메이저
+    # 상향으로 바뀌면 `.get()` 이 전부 None 을 돌려주고 여기서 조용히 빈 dict 가 나온다 —
+    # "취약 0건" 과 구별되지 않는 형태로. 항목이 있는데 **하나도** 기대 키를 안 갖는 건
+    # 데이터가 아니라 스키마가 바뀐 것이므로 판단 불가로 처리한다.
     if advisories and not reported:
         _undecidable(
             "`advisories` 항목이 있는데 `module_name` 을 가진 것이 하나도 없다 — "
             "pnpm audit 스키마가 바뀐 것으로 보고 판단 불가로 처리한다(fail-closed).",
             f"  본 키: {sorted({k for adv in advisories.values() for k in adv})[:_KEY_PREVIEW]}",
         )
-    # 판정은 `actions` 원소 자체로 한다. `suppressed` 는 `reported` 에 이미 있는 모듈을
-    # 빼므로 "전부 reported 와 겹쳐서 비었다" 와 "필드명이 바뀌어 비었다" 를 구분 못 하고,
-    # `not reported` 를 덧붙이면 **무관한 advisory 하나만 정상 파싱돼도** 이 검사가 통째로
-    # 죽는다(실측: exit 0). 이 축의 유일한 관측 창구가 조용히 닫히는 형태였다.
-    if actions and not actions_with_module:
-        _undecidable(
-            "`actions` 항목이 있는데 `module` 을 가진 것이 하나도 없다 — "
-            "pnpm audit 스키마가 바뀐 것으로 보고 판단 불가로 처리한다(fail-closed).",
-            f"  본 키: {sorted({k for a in actions for k in a})[:_KEY_PREVIEW]}",
-        )
-    return reported, suppressed
+    return reported
 
 
 def main() -> int:
@@ -301,66 +256,28 @@ def main() -> int:
 
     targets = load_override_targets(WORKSPACE_YAML)
     audit = run_audit()
-    reported, suppressed = classify_vulnerable(audit)
+    reported = classify_vulnerable(audit)
     patched_by_module = {
         adv.get("module_name"): adv.get("patched_versions") or "?"
         for adv in (audit.get("advisories") or {}).values()
         if adv.get("module_name")
     }
 
-    # 수용(ignoreCves)되어 억제된 것 중 override 대상 — baseline 경로 집합과 대조한다.
-    # advisory 가 억제돼 있어도 **경로가 늘면** 수용 범위 밖 재유입이므로 fail 이다.
-    widened: list[tuple[str, set[str]]] = []
-    for module, paths in sorted(suppressed.items()):
-        if module not in targets:
-            continue
-        actual = set(paths)
-        allowed = EXPECTED_SUPPRESSED_PATHS.get(module, set())
-        extra = actual - allowed
-        if extra:
-            widened.append((module, extra))
+    eroded = [
+        (module, advisory, patched_by_module.get(module, "?"), targets[module])
+        for module, advisory in reported.items()
+        if module in targets
+    ]
 
-    eroded: list[tuple[str, str, str, list[str]]] = []
-    for module, advisory in reported.items():
-        if module in targets:
-            eroded.append((module, advisory, patched_by_module.get(module, "?"), targets[module]))
-
-    if not widened and not eroded:
+    if not eroded:
         print(
             f"OK: override 대상 {len(targets)}개 패키지 중 취약 재유입 0건 "
             "(audit 잔여가 있더라도 그건 override 미관리 패키지 — audit 잡이 담당)"
         )
         return 0
 
-    # 둘 다 계산한 뒤 한 번에 보고한다. widened 에서 조기 return 하면 같은 실행에 존재하는
-    # eroded 를 못 보고 고치고 다시 돌리는 왕복이 생긴다 (`check-pnpm-security-config.py` 의
-    # "모두 모아 한 번에" 패턴과 맞춤).
-    if widened:
-        _report_widened(widened)
-    if eroded:
-        _report_eroded(eroded)
+    _report_eroded(eroded)
     return 1
-
-
-def _report_widened(widened: list[tuple[str, set[str]]]) -> None:
-    print(
-        "ERROR: `ignoreCves` 로 수용된 CVE 가 **수용 범위 밖 경로**로 재유입됐다.",
-        file=sys.stderr,
-    )
-    print(
-        "  수용은 그때 확인한 경로에 대한 판단이었다 — 경로가 늘었다면 다시 판단해야 한다.",
-        file=sys.stderr,
-    )
-    for module, extra in widened:
-        print(f"\n  [{module}] 신규 경로 {len(extra)}건", file=sys.stderr)
-        for path in sorted(extra):
-            print(f"    - {path}", file=sys.stderr)
-    print(
-        "\n  조치: override 로 해소하거나, 수용이 타당하면 "
-        "`EXPECTED_SUPPRESSED_PATHS` 에 경로를 추가하고 근거를 "
-        "`pnpm-workspace.yaml` 의 `auditConfig` 주석에 남긴다.",
-        file=sys.stderr,
-    )
 
 
 def _report_eroded(eroded: list[tuple[str, str, str, list[str]]]) -> None:

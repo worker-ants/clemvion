@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **45건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **38건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **764건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **757건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -213,7 +213,11 @@ spec_impact: none
       아직 push 전이지만, 정리하려면 대화형 rebase 가 필요한데 이 환경에서는 쓸 수 없다.
       기록으로 남기고 넘어간다 — 교훈은 리뷰가 **비동기로 파일을 쓰는 동안** `git add -A` 를
       하지 말 것.
-- [ ] TEST WORKFLOW (10차) · `/ai-review` 10차 · RESOLUTION 최종 · push + PR
+- [x] TEST WORKFLOW (10차) — lint PASS(50s) · unit PASS(64s) · build PASS(112s) ·
+      e2e PASS(260s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 10차 (`06_03_11`) — **Critical 2** (실 registry 실행으로 발견). §축 3 철회로 종결.
+- [x] **축 3 철회** (사용자 결정) — 아래 §축 3 철회 참조.
+- [ ] TEST WORKFLOW (11차) · `/ai-review` 11차 · RESOLUTION 최종 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 
@@ -286,6 +290,43 @@ INFO 2·4·5·9·10 은 조치했다. 남긴 것과 이유:
   의도를 흐린다.
 - **INFO 8 — `advisories` 이중 순회**: 입력이 수십 건 규모라 측정 가능한 비용이 없다.
 - **INFO 11 — pip 해시 고정**: 저장소 전역 정책 문제다(기존 2곳도 같은 range). 이 PR 스코프 밖.
+
+## 축 3 철회 (2026-08-01, 10차 리뷰 후 사용자 결정)
+
+`ignoreCves` 로 억제된 CVE 를 `actions[]` 잔여 경로로 추적하던 축을 **제거했다**. 근거는 실측이다.
+
+10차 리뷰가 "이 메커니즘은 영구히 발동 불가능한 죽은 코드" 라는 CRITICAL 을 냈다. 리뷰어 결론을
+그대로 받지 않고 2×2 를 직접 돌렸다 (`brace-expansion@2.1.4` 를 lockfile 에 **실제로 고정**한
+상태 포함):
+
+| lockfile | `ignoreCves` 있음 | `ignoreCves` 없음 |
+| --- | --- | --- |
+| 정상 (`^5.0.9`) | 0건 | 0건 |
+| 침식 (`2.1.4` 고정, 취약) | 0건 | **0건** |
+
+`--audit-level=low` 로도 전부 0건이다. 즉 **억제가 감추는 게 아니라 그 CVE 자체가 더 이상
+보고되지 않는다** — 리뷰어의 인과("억제되면 actions 에서도 사라진다")도, 내 1라운드 관측(가드가
+실제 발동)도 지금은 재현되지 않는다. 두 주장 다 입증 불가다.
+
+확정된 것만 적으면: **발동할 재료가 없다.** 검증할 수 없는 코드가 "지킨다" 고 주장하는 것보다
+없는 편이 낫다고 판단해 `widened` 경로 · `EXPECTED_SUPPRESSED_PATHS` · `_report_widened` ·
+관련 테스트 3클래스를 제거했다. 가드는 핵심 가치(**침식 분류**)만 남는다. `ignoreCves` 거버넌스는
+`check-pnpm-security-config.py` 의 baseline 2-place 편집이 이미 담당한다(뮤턴트로 확인 — 무단
+부활 시 config-guard RED).
+
+**부수: `ignoreCves` 2건 모두 stale 이라 제거했다.**
+- `CVE-2026-53550` (js-yaml) — 우리 override 가 gray-matter 경로를 3.15.0 으로 올려 **해소**됐다.
+  수용이 아니라 해결이므로 목록에 있을 이유가 없다.
+- `CVE-2026-14257` (brace-expansion) — 수용했던 dev 전용 1.x 경로(`@eslint/eslintrc >
+  minimatch@3.1.5 > brace-expansion@1.1.18`)는 그대로 있지만 advisory 가 더 이상 그 계열을
+  매칭하지 않는다. 원래 취약 범위 `<=5.0.7` 이 major 를 안 가려 1.x·2.x 까지 끌어당기던 것이
+  상류에서 정정된 것으로 보인다.
+
+비워둔 것이 fail-closed 다 — 둘 중 하나라도 다시 보고되면 audit 잡이 빨간불을 내고 §2 의 근거
+3종으로 재심사하게 된다. §2(수용 근거 규약)는 목록이 비었어도 그대로 유효하다.
+
+**교훈**: 정적 분석·mutation 으로 9라운드를 돌았는데 "실제 도구를 돌려본다" 가 10라운드째에야
+나왔다. 손으로 만든 스텁만 순회하면 도구의 실제 응답 형태가 바뀐 것은 영영 안 보인다.
 
 ## Rationale
 

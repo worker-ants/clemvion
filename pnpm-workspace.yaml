@@ -85,29 +85,16 @@ onlyBuiltDependencies:
 # (2.x 를 5.x 로 올려 `--prod` 0건 달성, dev 전용 1.x 경로만 남겨 수용).
 auditConfig:
   ignoreCves:
-    # CVE-2026-53550 (GHSA-h67p-54hq-rp68) — js-yaml <3.15.0 merge-key 이차 복잡도 DoS (moderate).
-    # 유일 경로: codebase/frontend > gray-matter > js-yaml@3.14.2 (Markdown frontmatter 파서,
-    # dev/build 툴링 전이 의존, 신뢰 입력만 처리해 실사용 노출 낮음). 패치는 js-yaml>=3.15.0
-    # 이나 gray-matter@4.x 가 js-yaml@^3.13 을 고정해 소비처 직접 상향 불가 → gray-matter
-    # 교체·상향 시 해소. plan/in-progress/pnpm-migration-followups.md §4, review 08_59_36.
-    - CVE-2026-53550
-    # CVE-2026-14257 (GHSA-mh99-v99m-4gvg) — brace-expansion 무한 확장 DoS/OOM (high, CVSS 7.5).
-    # advisory 의 취약 범위 `<=5.0.7` 이 major 를 가리지 않아 1.x·2.x 계열까지 매칭된다.
+    # 2026-08-01 현재 **비어 있다.** 종전 2건은 실측으로 무효가 확인돼 제거했다.
+    #   - CVE-2026-53550 (js-yaml <3.15.0): 우리 override `js-yaml@>=3.0.0 <3.15.0: ^3.15.0`
+    #     가 gray-matter 경로를 3.15.0 으로 올려 **해소**됐다(수용이 아니라 해결).
+    #   - CVE-2026-14257 (brace-expansion): 수용했던 dev 전용 1.x 경로는 그대로 있지만
+    #     (`@eslint/eslintrc > minimatch@3.1.5 > brace-expansion@1.1.18`) advisory 가 더 이상
+    #     그 계열을 매칭하지 않는다. 원래 취약 범위 `<=5.0.7` 이 major 를 안 가려 1.x·2.x 까지
+    #     끌어당기던 것이 상류에서 정정된 것으로 보인다. 실측: `ignoreCves: []` + 취약 버전을
+    #     lockfile 에 고정한 상태에서 `--audit-level=low` 로 돌려도 0건.
     #
-    # 2.x 경로는 **해소했다**. 그 경로는 dev 가 아니라 프로덕션이었다 —
-    #   codebase/backend > @nestjs-modules/mailer > mjml > mjml-core > js-beautify
-    #     > editorconfig > minimatch@9.0.9 > brace-expansion@2.1.4
-    # `@nestjs-modules/mailer` 는 backend 의 dependencies 이고 mjml 은 그 optional peer 인데
-    # pnpm 이 충족 가능해 실제로 설치된다(프로덕션 이미지에서 mjml@5.3.0 ·
-    # brace-expansion@2.1.4 · js-beautify@1.15.4 존재를 직접 확인했다). 위 overrides 의
-    # `brace-expansion@>=2.0.0 <3.0.0: ^5.0.9` 가 이를 5.0.9 로 올리며, 소비처
-    # minimatch@9.0.9 가 5.x 와 정상 동작함을 실측했다(로드 + `a{b,c}c` 확장 매칭).
-    # → `pnpm audit --prod` **0건**.
-    #
-    # 남은 유일 경로는 **dev 전용**이다:
-    #   codebase/backend > @eslint/eslintrc > minimatch@3.1.5 > brace-expansion@1.1.18
-    # 1.x 는 1.1.18 이 마지막 릴리스라 백포트가 없고, 5.x 강제는 minimatch@3.1.5 의 API 기대를
-    # 깨 lint 툴체인이 죽는다. 프로덕션 이미지에 eslint 스택이 없음은 build 단계 위생 스모크가
-    # 강제하고, 입력도 개발자가 작성한 glob 패턴이라 신뢰 경계 안이다 → 수용.
-    # `@eslint/eslintrc` 가 minimatch 9.x 이상으로 올라가면 자동 해소되므로 그때 제거한다.
-    - CVE-2026-14257
+    # 비워둔 것이 fail-closed 다 — 둘 중 하나라도 다시 보고되면 audit 잡이 빨간불을 내고
+    # 위 3종 근거로 재심사하게 된다. 되살릴 때는 `check-pnpm-security-config.py` 의
+    # `EXPECTED_IGNORED_CVES` 와 **함께** 고친다(2-place 규약).
+    []

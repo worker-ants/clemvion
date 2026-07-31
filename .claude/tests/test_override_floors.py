@@ -4,7 +4,12 @@
 관리 중인 패키지만 좁혀 fail 시킨다(조치 가능성이 다르므로 — 전자는 판단 필요, 후자는
 값만 올리면 됨).
 
-여기서 고정하는 것은 네 축이다.
+여기서 고정하는 것은 세 축이다.
+
+(한때 넷이었다. `auditConfig.ignoreCves` 로 억제된 CVE 를 `actions[]` 잔여 경로로 추적하는 축이
+있었으나 2026-08-01 실측으로 **철회**했다 — `brace-expansion@2.1.4`(취약)를 lockfile 에 실제로
+고정한 상태에서 `--audit-level=low` 로 돌려도 `ignoreCves` 유무와 무관하게 0건이었다. 발동할
+재료가 없는 축이라, 검증할 수 없는 코드가 "지킨다" 고 주장하게 두는 대신 지웠다.)
 
   1. **override 키 → 패키지명 추출** — `pkg` · `a>b` · `a>b>c` · `pkg@range` 가 섞이고 scope
      패키지(`@scope/name`)가 체인 어디에든 올 수 있다. 개발 중 **세 번** 틀렸고 셋 다 증상이
@@ -19,32 +24,22 @@
   2. **분류 동작** — advisory 의 패키지가 override 대상이면 fail, 아니면 통과(그건 audit 잡
      담당). 실제 스크립트를 서브프로세스로 돌려 exit code 로 확인한다.
 
-  3. **`ignoreCves` 억제분의 경로 baseline** — 수용된 CVE 는 `advisories` 에서 통째로 사라져
-     축 2 로는 절대 안 잡힌다(실측: 취약 버전이 실제 설치됐는데 가드가 OK 를 냈다 — 이 가드가
-     막으려던 바로 그 조용한 통과였다). `actions[]` 에 남는 경로를 baseline 과 대조해
-     **경로가 늘면** fail 시킨다. 그 대조 루프의 경계 두 개는 `WidenedFilterTest` 가 따로
-     고정한다 — override 미관리 모듈은 이 잡이 관여하지 않고(무력화하면 무관한 패키지가 거짓
-     빨간불), baseline 에 키가 없으면 허용 경로 0개라 첫 억제부터 fail 이다(기본값을 뒤집으면
-     신규 억제가 통째로 조용히 통과한다).
-
-  4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
+  3. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
      느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
-     `_undecidable()` 로 exit 2 를 내는 지점은 **열하나**다. audit 쪽 일곱 — 실행 실패(`pnpm`
-     부재) / 타임아웃 / 빈 출력 / JSON 파싱 불가 / `actions` 키 없는 JSON / `advisories` 하위
-     필드 드리프트 / `actions` 하위 필드 드리프트. 설정 쪽 넷 — 워크스페이스 파일 부재 /
+     `_undecidable()` 로 exit 2 를 내는 지점은 **열**이다. audit 쪽 여섯 — 실행 실패(`pnpm`
+     부재) / 타임아웃 / 빈 출력 / JSON 파싱 불가 / `actions` 키 없는 JSON(= 오류 페이로드
+     판별) / `advisories` 하위 필드 드리프트. 설정 쪽 넷 — 워크스페이스 파일 부재 /
      읽기·YAML 파싱 불가 / `overrides` 가 매핑이 아님(키 부재·오타·값 없음·문자열·리스트를 한
      조건으로) / 추출 대상에 공백이 남음(체인 분할 실패 = 유령 대상). 개수는
-     `FailClosedSiteCountTest` 가 소스에서 세어 강제한다 — 실제로 라운드마다 지점이 늘 때
-     빠짐없이 빨간불을 내 문서 동반 갱신을 강제했다.
+     `FailClosedSiteCountTest` 가 소스와 **README 양쪽**에 대조해 강제한다 — 라운드마다 지점이
+     늘 때도, 이번처럼 줄 때도 빠짐없이 빨간불을 내 문서 동반 갱신을 강제했다.
 
      반대로 **returncode 는 판정에 쓰지 않는다**: audit 은 취약점을 찾으면 비-0 으로 끝나므로
      성공 신호가 못 된다. `ReturncodeInvariantTest` 가 스텁을 exit 1 로 돌려 그 불변식을 고정한다.
 
-  나머지 두 클래스는 축이 아니라 **회귀 고정**이다: `CombinedReportTest`(widened 와 eroded 가
-  동시에 있으면 둘 다 보고 — 조기 return 을 되살려도 다른 테스트는 전부 GREEN 이었다),
-  `SchemaDriftTest`(위 두 드리프트 분기. 두 축이 서로 독립임을 포함 — 한쪽이 정상 파싱되면
-  다른 쪽 검사가 죽던 결함을 실측으로 잡았다).
+  `SchemaDriftTest` 는 축이 아니라 **회귀 고정**이다 — `advisories` 하위 필드가 개명돼도
+  "취약 0건" 으로 흘러가지 않는지 본다.
 """
 
 from __future__ import annotations
@@ -342,33 +337,6 @@ class ClassificationTest(unittest.TestCase):
         self.assertIn("1102341", r.stderr)
 
 
-class CombinedReportTest(unittest.TestCase):
-    """두 실패가 동시에 있으면 **둘 다** 보고한다.
-
-    widened 에서 조기 return 하던 구현은 같은 실행의 eroded 를 숨겼다 — 고치고 다시 돌리는
-    왕복이 생긴다. 조기 return 을 되살리는 mutation 이 기존 테스트를 전부 통과시킨다는 것을
-    리뷰어가 실측했으므로(= 그 수정이 무검증이었다) 여기서 고정한다.
-    """
-
-    OVERRIDES = (
-        'overrides:\n  liquidjs: ^10.27.1\n  "brace-expansion@<2.0.0": ^1.1.16\n'
-    )
-
-    def test_widened_and_eroded_are_both_reported(self):
-        r = run_with_stub_audit(
-            advisories={"1": {"module_name": "liquidjs",
-                              "github_advisory_id": "GHSA-eroded",
-                              "patched_versions": ">=10.27.1"}},
-            overrides=self.OVERRIDES,
-            actions=[{"action": "review", "module": "brace-expansion",
-                      "resolves": [{"id": 1, "path": "some>new>path>brace-expansion"}]}],
-        )
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("수용 범위 밖", r.stderr)          # widened 블록
-        self.assertIn("바닥이 낡아", r.stderr)            # eroded 블록
-        self.assertIn("GHSA-eroded", r.stderr)
-
-
 class SchemaDriftTest(unittest.TestCase):
     """audit 결과의 **하위 필드**가 바뀌면 "취약 0건" 이 아니라 판단 불가다.
 
@@ -387,88 +355,10 @@ class SchemaDriftTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("스키마", r.stderr)
 
-    def test_actions_without_module_is_undecidable(self):
-        r = run_with_stub_audit(
-            advisories={}, overrides=self.OVERRIDES,
-            actions=[{"action": "review", "pkg": "brace-expansion"}],  # module → pkg
-        )
-        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
-        self.assertIn("스키마", r.stderr)
-
-    def test_actions_drift_is_caught_even_when_advisories_parse_fine(self):
-        """두 축은 독립이다 — advisory 하나가 정상이라고 actions 판정이 면제되지 않는다.
-
-        첫 구현은 `actions and not suppressed and not reported` 였다. `suppressed` 는
-        `reported` 와 겹치는 모듈을 빼기 때문에 "겹쳐서 비었다" 와 "필드명이 바뀌어 비었다" 를
-        구분하지 못하고, 그 보정으로 붙인 `not reported` 가 **override 와 무관한 advisory
-        하나만 있어도** 검사를 통째로 죽였다(실측 exit 0). `ignoreCves` 억제분을 보는 유일한
-        창구가 조용히 닫히는 형태 — 이 스크립트가 막으려는 실패의 정확한 재현이다.
-        """
-        r = run_with_stub_audit(
-            advisories={"1": {"module_name": "some-unmanaged",
-                              "github_advisory_id": "GHSA-unrelated",
-                              "patched_versions": ">=9.9.9"}},
-            overrides=self.OVERRIDES,
-            actions=[{"action": "review", "pkg": "brace-expansion"}],  # module → pkg
-        )
-        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
-        self.assertIn("스키마", r.stderr)
-
-    def test_actions_all_overlapping_reported_is_not_drift(self):
-        """`actions` 가 전부 `reported` 와 겹쳐 `suppressed` 가 비는 건 정상이다.
-
-        이걸 드리프트로 보면 흔한 정상 상태가 상시 exit 2 가 된다 — 위 수정이 그 반대편으로
-        넘어가지 않았음을 고정한다.
-        """
-        r = run_with_stub_audit(
-            advisories={"1": {"module_name": "liquidjs",
-                              "github_advisory_id": "GHSA-a",
-                              "patched_versions": ">=10.27.1"}},
-            overrides=self.OVERRIDES,
-            actions=[{"action": "review", "module": "liquidjs",
-                      "resolves": [{"id": 1, "path": "x>liquidjs"}]}],
-        )
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)  # 침식으로 fail (판단 불가 아님)
-        self.assertIn("바닥이 낡아", r.stderr)
-
     def test_genuinely_empty_audit_still_passes(self):
         """빈 결과는 드리프트가 아니다 — 여기서 fail 하면 정상 상태가 상시 빨간불이 된다."""
         r = run_with_stub_audit({}, self.OVERRIDES, actions=[])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-
-
-class WidenedFilterTest(unittest.TestCase):
-    """`widened` 계산 루프의 두 필터 — 뮤턴트로 무검증이 실증됐던 자리다.
-
-    9줄짜리 루프인데 그 안의 판단 두 개가 이 가드의 범위 경계를 정한다:
-      - `if module not in targets: continue` — override 미관리 모듈은 audit 잡 담당이다.
-        무력화하면 무관한 패키지가 이 잡을 거짓으로 빨갛게 만든다(38건 전부 GREEN 이었다).
-      - `EXPECTED_SUPPRESSED_PATHS.get(module, set())` — baseline 에 **없는** 모듈은
-        허용 경로가 0개이므로 어떤 경로든 "수용 범위 밖" 이다. 기본값을 "이미 수용됨" 쪽으로
-        뒤집으면 신규 억제가 통째로 조용히 통과한다 — 이 스크립트가 막으려는 그 실패다.
-    """
-
-    OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n"
-
-    def _run(self, module, path):
-        return run_with_stub_audit(
-            advisories={}, overrides=self.OVERRIDES,
-            actions=[{"action": "review", "module": module,
-                      "resolves": [{"id": 1, "path": path}]}],
-        )
-
-    def test_unmanaged_module_is_not_widened(self):
-        """override 없는 패키지가 억제돼 있어도 이 잡은 관여하지 않는다."""
-        r = self._run("some-unmanaged-pkg", "a>b>some-unmanaged-pkg")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertNotIn("some-unmanaged-pkg", r.stderr)
-
-    def test_managed_module_absent_from_baseline_always_widens(self):
-        """baseline 에 키가 없으면 허용 경로 0개 — 첫 억제부터 fail 이어야 한다."""
-        r = self._run("liquidjs", "codebase__backend>x>liquidjs")   # baseline 미등록
-        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-        self.assertIn("수용 범위 밖", r.stderr)
-        self.assertIn("codebase__backend>x>liquidjs", r.stderr)
 
 
 class ReturncodeInvariantTest(unittest.TestCase):
@@ -644,7 +534,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
     빨간불이 나고, 그때 docstring 도 같이 고치게 된다.
     """
 
-    EXPECTED_SITES = 11
+    EXPECTED_SITES = 10
 
     def test_docstring_count_matches_source(self):
         src = SCRIPT.read_text(encoding="utf-8")
@@ -656,39 +546,30 @@ class FailClosedSiteCountTest(unittest.TestCase):
             f"`.claude/tests/README.md` 는 {self.EXPECTED_SITES}곳으로 서술한다 — "
             "분기를 늘렸으면 두 문서와 EXPECTED_SITES 를 함께 고칠 것.",
         )
-        self.assertIn("열하나", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
+        self.assertIn("**열**", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
 
+    def test_readme_count_matches_source(self):
+        """README 도 **실제로** 대조한다.
 
-class SuppressedPathBaselineTest(unittest.TestCase):
-    """축 3 — `ignoreCves` 로 억제된 건은 경로 집합으로 판정한다.
-
-    `advisories` 가 비어도 `actions[]` 에는 남으므로, 수용 시점 경로(baseline)를 넘어서면
-    "수용 범위 밖 재유입" 으로 fail 시킨다.
-    """
-
-    OVERRIDES = 'overrides:\n  "brace-expansion@<2.0.0": ^1.1.16\n'
-    KNOWN = "codebase__backend>@eslint/eslintrc>minimatch>brace-expansion"
-    NEW = "codebase__backend>jest>@jest/core>@jest/reporters>glob>minimatch>brace-expansion"
-
-    def _run(self, paths):
-        return run_with_stub_audit(
-            advisories={}, overrides=self.OVERRIDES,
-            actions=[{"action": "review", "module": "brace-expansion",
-                      "resolves": [{"id": 1124334, "path": p} for p in paths]}],
+        종전 assertion 메시지는 "README 는 N곳으로 서술한다" 고 말했지만 README 를 읽지
+        않았다 — 값을 아무거나 바꿔도 전 스위트가 GREEN 이었다(리뷰가 뮤턴트로 반증). 지금까지
+        수치가 맞았던 건 테스트 강제가 아니라 매 라운드 손으로 함께 고친 결과였다. 문서 drift 를
+        코드에 결속하려고 만든 테스트가 정작 문서의 절반을 안 보고 있었던 셈이다.
+        """
+        readme = (REPO_ROOT / ".claude" / "tests" / "README.md").read_text(encoding="utf-8")
+        row = next(
+            (ln for ln in readme.splitlines() if ln.startswith("| `test_override_floors.py`")),
+            None,
         )
-
-    def test_baseline_path_only_passes(self):
-        """수용된 그 경로만 있으면 통과 — 아니면 정상 상태에서 매번 빨간불이 된다."""
-        r = self._run([self.KNOWN])
-        self.assertEqual(r.returncode, 0, r.stderr)
-
-    def test_widened_path_fails(self):
-        """경로가 늘면 수용 범위 밖이므로 fail."""
-        r = self._run([self.KNOWN, self.NEW])
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("수용 범위 밖", r.stderr)
-        self.assertIn(self.NEW, r.stderr)
-        self.assertNotIn(f"    - {self.KNOWN}", r.stderr)
+        self.assertIsNotNone(row, "README 카탈로그에서 이 파일 행을 못 찾았다")
+        # 영문 서수로 적는 관례 — 숫자가 아니라 단어라 grep 이 아니라 매핑이 필요하다.
+        WORDS = {6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten", 11: "Eleven", 12: "Twelve"}
+        expected = WORDS[self.EXPECTED_SITES]
+        self.assertIn(
+            f"**{expected}** sites exit 2", row,
+            f"README 카탈로그 행이 fail-closed 지점을 {expected}({self.EXPECTED_SITES})곳으로 "
+            "서술하지 않는다 — 소스와 함께 갱신할 것.",
+        )
 
 
 class FailClosedTest(unittest.TestCase):
