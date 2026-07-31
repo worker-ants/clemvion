@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "started_at": "2026-07-30T12:09:00Z",
+  "summary_items_total": 9,
+  "items_resolved_ids": [1, 2, 3, 4, 6, 9],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "1": "spec",
+    "5": "defer-plan",
+    "7": "defer-plan",
+    "8": "defer-plan"
+  },
+  "commits_made": [
+    {
+      "sha": "7a05c6ec8",
+      "summary_id": 2,
+      "scope": "engine"
+    },
+    {
+      "sha": "7a05c6ec8",
+      "summary_id": 3,
+      "scope": "engine"
+    },
+    {
+      "sha": "7a05c6ec8",
+      "summary_id": 6,
+      "scope": "engine"
+    },
+    {
+      "sha": "7a05c6ec8",
+      "summary_id": 9,
+      "scope": "engine"
+    },
+    {
+      "sha": "886ca9395",
+      "summary_id": 4,
+      "scope": "engine"
+    },
+    {
+      "sha": "886ca9395",
+      "summary_id": 6,
+      "scope": "engine"
+    },
+    {
+      "sha": "dd4fd3e60",
+      "summary_id": 1,
+      "scope": "plan"
+    },
+    {
+      "sha": "dd4fd3e60",
+      "summary_id": 5,
+      "scope": "plan"
+    },
+    {
+      "sha": "dd4fd3e60",
+      "summary_id": 7,
+      "scope": "plan"
+    },
+    {
+      "sha": "dd4fd3e60",
+      "summary_id": 8,
+      "scope": "plan"
+    }
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-update-retry-claim-backstop-gap.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/lint-20260730-122150.log",
+    "_test_logs/unit-20260730-122250.log",
+    "_test_logs/build-20260730-122434.log",
+    "_test_logs/e2e-20260730-122659.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null,
+  "notes": "W5/W7/W8/W9-checklist 는 caller 지시(반환 프롬프트)로 명시적 defer — W9 코멘트 저비용 정리만 수행(resolved). W1 SPEC-DRIFT 는 draft-only, 코드 무수정. Critical 0건(SUMMARY 자체가 Critical 없음)."
+}

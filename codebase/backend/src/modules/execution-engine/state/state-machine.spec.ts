@@ -85,6 +85,46 @@ describe('StateMachine', () => {
       ).toBe(true);
     });
 
+    // ai-review CRITICAL #1 (2026-07-30) — retry 재진입 turn 이 **계속**되면
+    // `reparkAiResumeTurn` 이 `FAILED → WAITING_FOR_INPUT` 전이를 요구한다. 이
+    // opt-in 이 없으면 `assertTransition` 이 동기 throw 하고 그 일반 예외 메시지가
+    // EXECUTION_FAILED payload 로 노출된다(동시성 무관, 매 호출 결정적 실패).
+    // multi-turn 재진입에서 가장 흔한 경로다.
+    it('should disallow failed -> waiting_for_input without retry opt-in', () => {
+      expect(
+        canTransition(
+          ExecutionStatus.FAILED,
+          ExecutionStatus.WAITING_FOR_INPUT,
+        ),
+      ).toBe(false);
+    });
+
+    it('should allow failed -> waiting_for_input with retry opt-in (turn 계속 → re-park)', () => {
+      expect(
+        canTransition(
+          ExecutionStatus.FAILED,
+          ExecutionStatus.WAITING_FOR_INPUT,
+          { allowRetryReentry: true },
+        ),
+      ).toBe(true);
+    });
+
+    // 표(ALLOWED_TRANSITIONS[FAILED])는 여전히 비어 있어야 한다 — opt-in 만 넓히고
+    // 일반 경로는 그대로 차단한다는 것이 이 설계의 요지다.
+    it('should keep failed terminal for every other target even with opt-in', () => {
+      for (const to of [
+        ExecutionStatus.COMPLETED,
+        ExecutionStatus.CANCELLED,
+        ExecutionStatus.PENDING,
+      ]) {
+        expect(
+          canTransition(ExecutionStatus.FAILED, to, {
+            allowRetryReentry: true,
+          }),
+        ).toBe(false);
+      }
+    });
+
     // opt-in 은 FAILED → RUNNING 외 전이에는 영향을 주지 않는다.
     it('should not let retry opt-in widen other transitions (W5)', () => {
       expect(

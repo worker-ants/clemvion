@@ -80,9 +80,16 @@ export class ContinuationExecutionProcessor extends WorkerHost {
     // terminal)이면 ack-and-discard. 비원자 SELECT 재검증과 달리 check-then-act 창이
     // 없어 멀티 인스턴스·concurrency 상향에서도 이중 실행 0 을 기계적으로 보장한다.
     //
-    // retry_last_turn 은 제외 — 대상 row 는 WAITING 이 아니라 spawn 된 RUNNING
-    // row 이며 (spec §4.2 "새 row 재개"), 자체 멱등 가드 (RUNNING 검증) 를
-    // `applyRetryLastTurn` 내부에서 수행한다.
+    // retry_last_turn 은 이 claim 에서 제외 — 대상 row 는 WAITING 이 아니라 spawn 된
+    // RUNNING row 라 `waiting_for_input → running` 조건부 전이가 성립하지 않는다
+    // (spec §4.2 "새 row 재개"). **대신 `applyRetryLastTurn` 이 자체 원자 claim 을
+    // 수행한다** — `input_data - '_retryState'` JSONB 키 제거를 `status='running'` +
+    // `jsonb_exists` 조건부 UPDATE 로 걸어 affected=1 인 delivery 만 진행시킨다.
+    //
+    // (2026-07-28 정정. 이전 주석은 "자체 멱등 가드(RUNNING 검증)" 이라고만 적었는데, 그
+    // 검증은 read-then-branch 라 check-then-act 창이 있었다 — 즉 위 문단이 원자성의
+    // 필요조건으로 내세운 바로 그 성질을 `retry_last_turn` 만 충족하지 못했다. 이 주석이
+    // 그 상태의 근거로 인용되던 자기모순을 ai-review 5차 라운드가 CRITICAL 로 지적했다.)
     if (type !== 'cancel' && type !== 'retry_last_turn') {
       const claimed = await this.engine.claimResumeEntry(
         executionId,

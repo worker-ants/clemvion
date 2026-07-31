@@ -205,7 +205,14 @@ pending_plans:
 | --- | --- | --- |
 | `_resumeState` | 무조건 strip (DB 영속 시) — credential / rawConfig / turn debug 포함 가능 | in-memory `ExecutionContext` 만 (waiting/resumed 중) |
 | `_resumeCheckpoint` | **waiting_for_input 진입·매 turn 영속 시 보존** — `_resumeState` 의 credential-strip 부분집합 | `NodeExecution.outputData._resumeCheckpoint` (DB JSONB) |
-| `_retryState` | **retryable error 종결 시 보존** — `output.error.details.retryable === true` 일 때만 `buildMultiTurnFinalOutput` 이 운반 | `NodeExecution.outputData._retryState` (DB JSONB) |
+| `_retryState` | **retryable error 종결 시 보존** — `output.error.details.retryable === true` 일 때만 `buildMultiTurnFinalOutput` 이 운반 | `NodeExecution.outputData._retryState` (DB JSONB) | †
+
+> **† `_retryState` 의 2차 용법 (2026-07-30)**: 위 "영속 위치" 는 **원본 row** 기준이다.
+> `retry_last_turn` 이 spawn 하는 **재진입 row** 에는 같은 키가 `inputData._retryState` 로
+> seed 되며, 이는 보존 대상이 아니라 **delivery-claim 마커**다 — `applyRetryLastTurn` 이 그 키를
+> 조건부 UPDATE 로 원자 소비해 중복 배달을 차단한다(소비 후 즉시 사라진다). 즉 "`_retryState` 는
+> `outputData` 에만 존재" 라는 단언은 원본 row 에만 해당한다. 상세:
+> [실행 엔진 §Rationale "retry 재진입의 원자 claim"](../5-system/4-execution-engine.md#rationale).
 
 `_resumeCheckpoint` 는 §7.5 rehydration(재시작/타 인스턴스 재개)용으로 상시 영속되며, `_retryState` 와 **동일 부분집합 + 동일 masking 정책**이되 **`expiresAt`(TTL) 과 `lastUserMessage` 가 없다** (재개는 도착한 사용자 메시지를 그대로 처리, 장시간 idle 후에도 가능). 스키마 진화 대비 `schemaVersion`(정수) 을 동봉하며, 재개 시 그 값이 현재 코드 지원 버전을 초과하면 graceful reset 한다. 부재/손상/미래 버전 시 graceful reset (`RESUME_INCOMPATIBLE_STATE`); 재구성은 핵심 필드 누락 시 기본값으로 보강한다. 재구성 로직(`buildRetryReentryState`)은 `_retryState` 와 공유한다. 상세: [Spec 실행 엔진 §1.3 / §7.5](../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status).
 

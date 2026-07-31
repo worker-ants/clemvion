@@ -1,0 +1,26 @@
+# 문서화(Documentation) 리뷰 결과
+
+## 발견사항
+
+- **[WARNING]** `updateExecutionStatus` 의 JSDoc 이 신규 `opts.allowRetryReentry` 파라미터를 전혀 설명하지 않는다 — 정확히 이번 CRITICAL #1 이 고친 결함(opts 가 DB 가드에 전파되지 않던 문제)의 당사자 함수인데도.
+  - 위치: `codebase/backend/src/modules/execution-engine/engine-driver.interface.ts:49-82` (`CoreEngineDriver.updateExecutionStatus` — 인터페이스 docblock 49-76행 + 시그니처 77-82행, 게이트로 확인) / `codebase/backend/src/modules/execution-engine/execution-engine.service.ts:8341-8358`(구현부 — 이 리뷰 프롬프트의 파일 2 표시 범위가 1~1225행으로 잘려 있어 게이트가 없는 구간이다. `Read` 로 실제 파일을 직접 열어 확인한 실제 줄번호이며, `public async updateExecutionStatus(` 시그니처는 8354행)
+  - 상세: `updateExecutionStatus` 는 이 파일 docblock 자신이 "Execution 상태 전이의 단일 choke point" 라고 부르는, 이 서비스에서 가장 중요한 public 진입점이다. 시그니처에 `opts?: { allowRetryReentry?: boolean }` 4번째 인자가 있고, 내부에서 `assertTransition(execution.status, newStatus, opts)` 뿐 아니라 `lockNonTerminalExecutionRow(manager, execution.id, opts)` 호출과 else 분기의 SQL 선택(`NON_TERMINAL_STATUSES_SQL` vs `NON_TERMINAL_OR_FAILED_STATUSES_SQL`)까지 이 옵션 하나가 좌우한다. 그런데 이 함수의 docblock 은 `@returns` 설명만 있을 뿐 `opts`/`allowRetryReentry` 는 한 줄도 언급하지 않는다. 반면 바로 같은 PR·같은 날짜(2026-07-30 CRITICAL #1)로 수정된 형제 함수 `tryLockActiveExecutionAndSaveNodeExec`(같은 인터페이스 파일 209-214행에 `@param opts.allowRetryReentry — ... opt-in 없이는 잠금이 항상 0행이 되어 살아있는 spawn row 가 동시 cancel 선점으로 오판된다` 를 상세히 추가)와 `lockNonTerminalExecutionRow`(execution-engine.service.ts, `@param`/`@returns` 갱신됨, diff 로 확인)는 이번 PR에서 정확히 이 패턴으로 문서화됐다. 유독 최상위·최고 권위 함수인 `updateExecutionStatus` 만 이 관례에서 빠졌다. 이 함수의 docblock만 읽고 호출부를 작성/확장하려는 다음 작업자는 4번째 인자의 존재도, "retry 재진입 전용 — 일반 호출 경로는 절대 켜면 안 됨" 이라는 안전 계약도 알 길이 없다. 바로 이런 종류의 "숨겨진 파라미터가 문서 없이 조용히 소비자마다 다르게 다뤄지는" 상황이 이번 CRITICAL #1 결함 계열의 근본 원인이었다는 점에서, 재발 방지 관점의 문서화 완결성 갭으로 본다.
+  - 제안: `tryLockActiveExecutionAndSaveNodeExec`/`lockNonTerminalExecutionRow` 와 동일한 형식으로 `@param opts.allowRetryReentry` 절을 `updateExecutionStatus` 에 추가한다 — 인터페이스 선언(`engine-driver.interface.ts` `CoreEngineDriver`)과 구현부(`execution-engine.service.ts`) 양쪽 모두.
+
+- **[INFO]** `applyRetryLastTurn` 내 인라인 주석이 retry 재진입 opt-in 의 두 갈래(FAILED→RUNNING vs FAILED→WAITING_FOR_INPUT) 중 한쪽만 명시해, 이 줄만 보면 비대칭으로 읽힌다.
+  - 위치: `codebase/backend/src/modules/execution-engine/retry-turn.service.ts:455-457` (게이트로 확인)
+  - 상세: "종료면 finalizeAiNode (retryReentry → FAILED→RUNNING 전이 허용)로 단말 마킹, **계속이면 re-park**(PARK_RELEASED) 해 다음 turn 을..." — 괄호 설명이 "종료(finalizeAiNode)" 분기에만 달려 있다. 바로 다음에 이어지는 "계속이면 re-park" 분기도 동일하게 `retryReentry` opt-in 에 의존해 자기 자신의 짝 전이(FAILED→WAITING_FOR_INPUT, `reparkAiResumeTurn` 경유)를 허용받는데, 이 사실이 이 줄만 읽어서는 드러나지 않는다. 실제 구현은 정확하다 — `processAiResumeTurn` 내부의 4개 `reparkAiResumeTurn` 호출 모두 `finalizeOpts` 를 올바르게 전파하고, `reparkAiResumeTurn` 자신의 docblock(ai-turn-orchestrator.service.ts, 실측 435-441행)도 "multi-turn 재진입의 가장 흔한 시나리오가 바로 이 경로" 라고 정확히 설명한다. 따라서 이 항목은 기능 결함이 아니라 이 특정 호출부 주석의 표현 비대칭이다 — 이 한 줄만 보고 "재진입 시 종료 케이스만 opt-in 이 필요하다" 고 오독할 여지가 남는다.
+  - 제안: 괄호 설명을 "(retryReentry → 종료 시 FAILED→RUNNING, 계속 시 FAILED→WAITING_FOR_INPUT 둘 다 opt-in 허용)" 처럼 두 갈래를 대칭적으로 넓힌다.
+
+- **[WARNING] (참고용 — 이번 리뷰의 "리뷰 대상 파일" 5건 목록 밖)** 사용자 가이드 문서(run-results 사용법, ko/en)에 이번 커밋(W6, `docs(user_guide_sync)`)이 추가한 안내문이 같은 문서에 원래 있던 문장과 모순되고, 영문판은 리스트 구조까지 끊겼다.
+  - 위치: `codebase/frontend/src/content/docs/05-run-and-debug/run-results.en.mdx:90-105`, `codebase/frontend/src/content/docs/05-run-and-debug/run-results.mdx:101-115` — 둘 다 `Read` 로 직접 열어 확인한 실제 줄번호. 이 두 mdx 파일은 documentation reviewer 프롬프트의 "리뷰 대상 파일" 5건(모두 `execution-engine` 백엔드 TS)에 포함되지 않으나, `git diff origin/main HEAD` 기준으로 이 PR 이 같은 커밋(`3c306d593`)에서 함께 수정한 파일이라 문서화 관점에서 함께 기재한다.
+  - 상세: 이번 커밋이 "재시도가 성공했을 때 보이는 화면은 두 가지예요" 문단을 추가해 (a) 대화가 끝난 경우 → 다음 노드로 진행, (b) 대화가 계속되는 경우(멀티턴에서 더 흔함) → 다음 노드로 넘어가지 않고 새 AI 응답과 함께 입력 대기로 복귀, 를 설명했다(ko 107-111행, en 95-100행). 그런데 같은 `<Callout>` 안 바로 몇 줄 뒤에 남아있는 기존 문장 — ko 115행 "재시도가 성공하면 AI 노드 다음에 연결된 노드(예: HTTP Request, 이메일 전송 등)가 일반 실행과 동일하게 이어서 실행돼요", en 105행 "If the retry succeeds, any downstream nodes connected to the AI node ... continue executing just as in a normal run." — 는 무조건적으로 downstream 진행을 말해, 바로 위에서 설명한 "대화가 계속되면(더 흔한 경우) downstream 으로 가지 않는다" 는 내용과 정면으로 모순된다. 같은 문서 안에서 몇 줄 간격으로 서로 다른 답을 주는 상태다. 영문판은 구조적으로 한 군데 더 있다 — 새 문단(95-100행)이 "Retryable"(93행)/"Not retryable"(101행) 두 항목으로 구성된 하나의 분류 목록 중간에 끼어들어 그 목록을 둘로 쪼갠다(한국어판은 새 문단을 목록 뒤에 배치해 이 문제가 없다 — 동일 편집을 두 로케일에 적용하는 과정에서 구조가 갈렸다).
+  - 제안: (1) 영문판의 새 두-갈래 문단을 Retryable/Not retryable 목록이 끝난 뒤(현재 101행 이후)로 옮겨 목록을 원상 복구한다(한국어판과 동일 구조로 정렬). (2) ko/en 모두 마지막 문장("다음 노드로 이어서 실행"/"continue executing")에 "대화가 끝난 경우에 한해" 라는 조건을 명시하거나, 새 문단에 통합해 중복·모순을 제거한다.
+
+## 요약
+
+이 PR(retry_last_turn 재진입 짝 전이 DB 가드 결함 수정, 8R~10R)이 손댄 5개 백엔드 파일은 이 코드베이스의 평소 기준으로도 이례적으로 철저하게 문서화돼 있다 — `state-machine.ts`/`engine-driver.interface.ts`의 대부분 변경분과 `retry-turn.service.ts` 전체는 코드 변경과 주석·JSDoc이 정확히 동기화됐고, CHANGELOG.md·spec/5-system/4-execution-engine.md·spec/5-system/6-websocket-protocol.md 도 이번 라운드의 새 FAILED→WAITING_FOR_INPUT 전이를 이미 정확히 반영하고 있어 스펙 drift 가 없다. 다만 이 서비스의 가장 중요한 public 진입점인 `updateExecutionStatus` 자체의 JSDoc 만 유독 신규 `opts.allowRetryReentry` 파라미터를 설명하지 않고 있어(형제 함수들은 모두 갱신됨), 문서만 보고 이 함수를 다루는 다음 작업자가 그 파라미터의 존재와 안전 계약을 놓칠 위험이 남는다. 아울러 이번 PR이 함께 추가한 사용자 가이드(run-results mdx, ko/en)는 취지는 좋으나 같은 문서 내 기존 문장과 모순되는 상태로 병합됐다(영문판은 목록 구조도 끊김) — 이 두 파일은 이번 리뷰의 공식 대상 목록 밖이라 참고용으로만 표기한다.
+
+## 위험도
+
+LOW
