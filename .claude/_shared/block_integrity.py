@@ -39,7 +39,23 @@ import re
 # one nobody reads.
 _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 
-_BLOCK_LINE = re.compile(r"BLOCK:\s*(YES|NO)", re.IGNORECASE)
+# The verdict, anchored. A plain first-match search is wrong here and was:
+# summaries routinely narrate a *previous* session's verdict in prose, so
+# `search()` returns whatever the retrospective mentions first. Measured over
+# 732 committed summaries, four disagreed with their own template line — e.g.
+# `review/consistency/2026/07/05/19_27_28` reads `BLOCK: YES` from
+# "…(직전 19_19_53 BLOCK: YES 정정 후)" while its actual verdict is `## BLOCK: NO`.
+#
+# The template puts the verdict at the START of its line (`**BLOCK: NO** — …`,
+# `## BLOCK: NO`); a human override banner puts it at the END
+# (`> ## ✅ 최종 판정 (…): **BLOCK: NO**`). Prose mentions sit mid-line, between
+# other words. Accepting only line-start or line-end classifies all four
+# correctly — line-start alone got three right and made the fourth worse.
+_BLOCK_LINE = re.compile(
+    r"^[\s>#*_`-]*BLOCK:\s*\**\s*(YES|NO)"      # template: line start
+    r"|BLOCK:\s*\**\s*(YES|NO)\**\s*$",          # override banner: line end
+    re.IGNORECASE | re.MULTILINE,
+)
 
 CHECKER_REPORTS = (
     "cross_spec.md",
@@ -64,9 +80,17 @@ def _read(path: str) -> str:
 
 
 def summary_block_verdict(summary_text: str) -> str | None:
-    """`"YES"` / `"NO"` from the SUMMARY's `BLOCK:` line, or None if absent."""
+    """`"YES"` / `"NO"` from the SUMMARY's verdict line, or None if absent.
+
+    The single parser for this question — `review_guard._summary_block_is_no`
+    delegates here. Two copies of a `BLOCK:` regex is the "Change both" shape
+    this branch is elsewhere removing, and it would have been created in the
+    same diff.
+    """
     m = _BLOCK_LINE.search(summary_text)
-    return m.group(1).upper() if m else None
+    if not m:
+        return None
+    return (m.group(1) or m.group(2)).upper()
 
 
 def downgraded_criticals(session_dir: str) -> dict[str, int]:

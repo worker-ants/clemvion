@@ -138,7 +138,6 @@ CONSISTENCY_GLOB_ROOT = os.path.join("review", "consistency")
 # The impl-done consistency mode label written into each session's meta.json
 # carries this token (see consistency_orchestrator.py mode_label for --impl-done).
 _IMPL_DONE_MODE_TOKEN = "--impl-done"
-_BLOCK_LINE = re.compile(r"BLOCK:\s*(YES|NO)", re.IGNORECASE)
 
 # How long a started-but-unfinished review session suppresses the *Stop nudge*.
 # A `/ai-review` run that has created its session dir (meta.json) but not yet
@@ -165,6 +164,13 @@ _SESSION_TS_RE = re.compile(
 class ReviewDecision:
     blocked: bool
     reason: str  # human-readable; used for stderr / system-reminder bodies.
+    # Advisories that do not change the verdict but must still reach the model.
+    # A field rather than a `print`, because the stream depends on the exit code:
+    # the push hook reads stderr when it refuses (exit 2) and stdout when it
+    # allows (exit 0) — and these advisories fire precisely on the allow path.
+    # Hardcoding stderr put them where nothing reads them. `_report_fail_open`
+    # documents the same rule for its own banner.
+    notes: tuple[str, ...] = ()
 
     @property
     def push_blocks(self) -> bool:
@@ -700,43 +706,57 @@ def _summary_block_is_no(summary_path: str) -> bool:
         return False
     # Read the whole file: a 4 KB cap could miss a BLOCK: line pushed past the
     # boundary by a long preamble. SUMMARY.md files are small (a few KB).
-    m = _BLOCK_LINE.search(text)
-    return bool(m) and m.group(1).upper() == "NO"
+    #
+    # The parse itself lives in `_shared/block_integrity` — one implementation,
+    # because a second `BLOCK:` regex here is exactly the "Change both" pair this
+    # branch removes elsewhere. It also anchors the match, which this copy did
+    # not: measured over 732 summaries, four narrate an earlier session's verdict
+    # in prose and a first-match search believed the narration.
+    return _block_integrity.summary_block_verdict(text) == "NO"
 
 
 def _newest_resolved_impl_done_mtime(repo_root: str,
-                                     dirty: set[str] | None = None) -> float:
+                                     dirty: set[str] | None = None,
+                                     notes: list[str] | None = None) -> float:
     """Authoritative time of the most recent --impl-done consistency SUMMARY with
     BLOCK: NO (0.0 if none). Checkout-immune via the session-dir timestamp, with
     a dirty (just-written) SUMMARY's mtime folded in — same rule as the code
-    review side. `dirty` may be passed in to reuse a single `git status`."""
+    review side. `dirty` may be passed in to reuse a single `git status`.
+
+    `notes` collects advisories about the session this gate ends up trusting."""
     if dirty is None:
         dirty = _dirty_set(repo_root)
     best = 0.0
+    best_dir = ""
     for summary in _iter_consistency_summaries(repo_root):
         session_dir = os.path.dirname(summary)
         if not _is_impl_done_session(session_dir):
             continue
         if not _summary_block_is_no(summary):
             continue
-        # A BLOCK: NO that contradicts its own checkers is what
-        # `consistency-summary.md` §요약 지침 3 forbids, and this gate is the
-        # place it stops being invisible: nothing else reads the reports beside
-        # the SUMMARY. Warn, do not skip the session — the summary may have
-        # merged findings legitimately, and refusing here would block sessions
-        # the rule allows. Measured on 732 sessions: 24 contradicted (3.3%).
-        note = _block_integrity.contradiction_note(session_dir)
-        if note:
-            print(
-                f"⚠️  {os.path.relpath(session_dir, repo_root)}: {note}",
-                file=sys.stderr,
-            )
         t = _path_session_time(session_dir)
         rel_summary = os.path.relpath(summary, repo_root).replace(os.sep, "/")
         if rel_summary in dirty:
             t = max(t, _mtime(summary))
         if t > best:
             best = t
+            best_dir = session_dir
+
+    # Only the session the gate actually adopts. Checking every historical one
+    # re-warned about ~8 of them on every push and every turn end (+0.39s
+    # measured) over verdicts nothing is relying on now — and a warning that
+    # fires constantly is one nobody reads, which is the failure this backstop
+    # exists to prevent, one level up.
+    #
+    # `consistency-summary.md` §요약 지침 3 forbids the downgrade; this is where
+    # it stops being invisible, because nothing else reads the checker reports
+    # sitting beside the SUMMARY. It warns rather than rejecting the session:
+    # merging duplicates and raising severity stay legal, so refusing here would
+    # block sessions the rule allows.
+    if best_dir and notes is not None:
+        note = _block_integrity.contradiction_note(best_dir)
+        if note:
+            notes.append(f"⚠️  {os.path.relpath(best_dir, repo_root)}: {note}")
     return best
 
 
@@ -941,10 +961,11 @@ def evaluate_review(
     # ---- Gate 2: spec-impl consistency (--impl-done) -----------------------
     # Only the subset of changes that implement a documented spec surface
     # (matches a spec frontmatter `code:` glob) is held to this gate.
+    notes: list[str] = []
     spec_linked = _spec_linked_changes(repo_root, changed)
     if spec_linked:
         newest_spec_code = _newest_code_mtime(repo_root, spec_linked, dirty)
-        newest_impl_done = _newest_resolved_impl_done_mtime(repo_root, dirty)
+        newest_impl_done = _newest_resolved_impl_done_mtime(repo_root, dirty, notes)
         if newest_impl_done <= 0.0:
             return ReviewDecision(
                 True,
@@ -974,4 +995,5 @@ def evaluate_review(
             else ""
         )
         + " — allowed",
+        tuple(notes),
     )

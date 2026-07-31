@@ -33,7 +33,14 @@ priority: P2
 >    이번에 추가한 안내는 `overflow` 에 계상했기에 오히려 3바이트 작다). 즉 **내가 만든 결함이
 >    아니고 악화시키지도 않았다.** 다른 분기의 같은 계상 누락은 이번에 고쳤으므로, 이 분기도
 >    같은 처방(노트 길이를 절단량에 포함)으로 닫으면 된다.
-> 2. **하향 금지 정책에 기계적 backstop 이 없다** — `.claude/agents/consistency-summary.md` 의
+> 2. ~~**하향 금지 정책에 기계적 backstop 이 없다**~~ → **구현 완료 (2026-07-31, `30cc0f738`)**.
+>    `.claude/_shared/block_integrity.py` 가 checker 리포트의 `[CRITICAL]` 태그를 세어 SUMMARY 의
+>    `BLOCK:` 와 모순되면 경고한다. 착수 전 실측: consistency 세션 732개 중 24건(3.3%)이
+>    `BLOCK: NO` 인데 `[CRITICAL]` 을 갖고 있었고, 표본의 SUMMARY 들이 하향을 스스로 서술한다.
+>    게이트가 실제 채택하는 세션만 대조하며(전 이력 재경고는 +0.39초에 늘 우는 경고가 된다),
+>    경고는 결정 객체의 `notes` 로 올라가 호출자가 자기 exit-code 계약에 맞는 스트림으로 낸다 —
+>    ALLOW(exit 0)에서는 stdout 이 모델에 주입되므로 stderr 고정은 아무도 안 읽는 자리였다.
+>    원래 항목 서술: — `.claude/agents/consistency-summary.md` 의
 >    규약은 prompt 지시일 뿐이고, 게이트(`_BLOCK_LINE`)는 `BLOCK:` 값이 각 checker 의
 >    `[CRITICAL]` 개수와 모순되는지 대조하지 않는다. 정확히 그 불변식이 깨진 사례가 이미
 >    기록돼 있다(`review/code/2026/07/25/22_58_00`). 후보: orchestrator 가 checker 리포트의

@@ -54,6 +54,53 @@ class CountCriticalTagsTest(unittest.TestCase):
         self.assertEqual(BI.count_critical_tags(clean), 0)
 
 
+class VerdictIsAnchoredTest(unittest.TestCase):
+    """A summary narrating an earlier verdict must not be read as its own.
+
+    Summaries routinely retrospect ("직전 19_19_53 BLOCK: YES 정정 후"), so a
+    plain first-match search believes the narration. Measured over the 732
+    committed summaries, four disagreed with their own template line; all four
+    shapes are reproduced below verbatim enough to fail under the old rule.
+
+    Line-start alone was not enough — it fixed three and made the fourth worse,
+    because a human override banner puts the verdict at the END of its line.
+    Accepting line-start OR line-end classifies all four correctly.
+    """
+
+    def test_template_line_start(self):
+        self.assertEqual(BI.summary_block_verdict("**BLOCK: NO** — Critical 없음"), "NO")
+        self.assertEqual(BI.summary_block_verdict("## BLOCK: YES"), "YES")
+
+    def test_prose_mentioning_a_previous_session_is_not_the_verdict(self):
+        """`review/consistency/2026/07/05/19_27_28` — first match was YES."""
+        text = ("모드: `--spec draft.md` 재검증(직전 19_19_53 BLOCK: YES 정정 후).\n"
+                "\n## BLOCK: NO\n")
+        self.assertEqual(BI.summary_block_verdict(text), "NO")
+
+    def test_a_bullet_citing_a_prior_session_is_not_the_verdict(self):
+        """`review/consistency/2026/07/17/20_00_05`."""
+        text = ("- **선행 세션**: `19_44_52` (BLOCK: YES — 중복 작업 Critical)\n"
+                "\n## BLOCK: NO\n")
+        self.assertEqual(BI.summary_block_verdict(text), "NO")
+
+    def test_mid_line_original_verdict_loses_to_the_template_line(self):
+        """`review/consistency/2026/06/03/21_38_47`."""
+        text = ("**checker 원판정: BLOCK: YES** → **main 반증 후 실질 판정: 해소**\n"
+                "\n**BLOCK: NO** (Critical 은 FP)\n")
+        self.assertEqual(BI.summary_block_verdict(text), "NO")
+
+    def test_an_override_banner_at_line_end_wins(self):
+        """`review/consistency/2026/07/17/00_17_40` — the case line-start alone
+        got wrong. The final verdict sits at the end of a decorated line, above
+        a superseded template line that still says YES."""
+        text = ("> ## ✅ 최종 판정 (main Claude 가 전수 확보 후 확정): **BLOCK: NO**\n"
+                "\n**BLOCK: YES** (최초 판정 — 위 최종 판정으로 대체됨)\n")
+        self.assertEqual(BI.summary_block_verdict(text), "NO")
+
+    def test_absent_verdict_is_none(self):
+        self.assertIsNone(BI.summary_block_verdict("판정 줄이 없는 문서"))
+
+
 class DowngradedCriticalsTest(unittest.TestCase):
     def _session(self, block, reports):
         d = tempfile.mkdtemp()
@@ -123,25 +170,81 @@ class GateSurfacesTheContradictionTest(unittest.TestCase):
             f.write(report_body)
         return root
 
-    def _run_gate(self, root):
-        import contextlib
-        import io
+    def _notes(self, root):
         RG = _harness.load_module_by_path(
             "review_guard_probe", _harness.HOOKS_DIR / "_lib" / "review_guard.py"
         )
-        buf = io.StringIO()
-        with contextlib.redirect_stderr(buf):
-            RG._newest_resolved_impl_done_mtime(root, dirty=set())
-        return buf.getvalue()
+        notes = []
+        RG._newest_resolved_impl_done_mtime(root, dirty=set(), notes=notes)
+        return notes
 
-    def test_warning_reaches_stderr(self):
+    def test_the_adopted_session_is_reported(self):
         root = self._repo_with_session("NO", "- **[CRITICAL]** 모순\n")
-        self.assertIn("[CRITICAL]", self._run_gate(root))
+        self.assertTrue(any("[CRITICAL]" in n for n in self._notes(root)))
 
     def test_quiet_when_the_session_agrees(self):
-        """The other direction: a gate that always warns is the same as silence."""
+        """A gate that always warns is the same as one that never does."""
         root = self._repo_with_session("NO", "CRITICAL 없음\n")
-        self.assertEqual(self._run_gate(root), "")
+        self.assertEqual(self._notes(root), [])
+
+    def test_only_the_session_the_gate_adopts_is_checked(self):
+        """Scanning all history re-warned about ~8 old sessions on every hook.
+
+        The gate trusts exactly one session — the newest resolved one. A verdict
+        nobody is relying on is not worth a warning, and a warning that fires on
+        every push is one that stops being read.
+        """
+        root = self._repo_with_session("NO", "CRITICAL 없음\n")
+        older = os.path.join(root, "review", "consistency",
+                             "2026", "07", "30", "09_00_00")
+        os.makedirs(older)
+        with open(os.path.join(older, "meta.json"), "w", encoding="utf-8") as f:
+            f.write('{"mode": "구현 완료 후 검토 (--impl-done, scope=spec/x)"}')
+        with open(os.path.join(older, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write("**BLOCK: NO** — 요약\n")
+        with open(os.path.join(older, "cross_spec.md"), "w", encoding="utf-8") as f:
+            f.write("- **[CRITICAL]** 옛 세션의 하향\n")
+        self.assertEqual(self._notes(root), [])
+
+
+class AdvisoryReachesTheModelTest(unittest.TestCase):
+    """On ALLOW the harness injects stdout, not stderr — and this fires on ALLOW.
+
+    The push hook documents the rule for its own fail-open banner: "a banner on
+    the wrong stream is a banner nobody reads". The first version of this
+    backstop hardcoded `sys.stderr` inside the gate, which put every advisory on
+    the stream the model ignores in exactly the case the advisory exists for.
+    """
+
+    def test_push_hook_prints_notes_on_stdout_when_allowing(self):
+        import io
+        import contextlib
+        PG = _harness.load_module_by_path(
+            "push_guard_probe", _harness.HOOKS_DIR / "guard_review_before_push.py"
+        )
+        outcome = PG._Outcome()
+        outcome.notes = []
+        outcome.notes.append("⚠️  세션X: 하향 감지")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            PG._report_notes(outcome, 0)
+        self.assertIn("하향 감지", out.getvalue())
+        self.assertEqual(err.getvalue(), "")
+
+    def test_push_hook_prints_notes_on_stderr_when_blocking(self):
+        import io
+        import contextlib
+        PG = _harness.load_module_by_path(
+            "push_guard_probe", _harness.HOOKS_DIR / "guard_review_before_push.py"
+        )
+        outcome = PG._Outcome()
+        outcome.notes = []
+        outcome.notes.append("⚠️  세션X: 하향 감지")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            PG._report_notes(outcome, 2)
+        self.assertIn("하향 감지", err.getvalue())
+        self.assertEqual(out.getvalue(), "")
 
 
 if __name__ == "__main__":
