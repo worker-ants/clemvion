@@ -140,7 +140,9 @@ def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
             f"{path} 의 `overrides` 가 매핑이 아니다 — override 목록을 못 읽으면 대상이 0개가 "
             "되어 무엇도 걸리지 않는다(fail-closed). 키 오타(`override:`)나 값 누락인지 확인할 것.",
             f"  실제: {type(overrides).__name__}"
-            f" · 최상위 키: {sorted(data)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
+            # `key=str` — PyYAML 1.1 리졸버가 `on`/`yes`/`no` 를 불리언으로 만들어
+            # 최상위 키에 타입이 섞이면 그냥 sorted() 는 TypeError 로 죽는다.
+            f" · 최상위 키: {sorted(data, key=str)[:_KEY_PREVIEW] if isinstance(data, dict) else type(data).__name__}",
         )
     targets: dict[str, list[str]] = {}
     for key in overrides:

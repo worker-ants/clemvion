@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **38건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **40건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **757건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **759건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -172,7 +172,17 @@ spec_impact: none
       안 던지는 예외 타입으로 바꿔도 33건 전부 GREEN 이었다(리뷰 실측). in-process mock 으로
       고정하고, `timeout=` 인자가 실제로 넘어가는지도 별도 단언(없으면 그 분기는 영원히 안 탄다).
       → fail-closed 지점 8곳 → 9곳.
-- [ ] `/ai-review` 7차 · push + PR
+- [x] TEST WORKFLOW (7차) — lint PASS(50s) · unit PASS(63s) · build PASS(110s) ·
+      e2e PASS(305s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 7차 (`04_35_33`) — Critical 0 · Warning 2, 둘 다 `main()` 의 `widened` 계산
+      루프 9줄에 대한 무검증(뮤턴트 실측: 38건 전부 GREEN 유지). 그 9줄 안의 판단 둘이 이
+      가드의 **범위 경계**를 정한다 — (a) override 미관리 모듈 스킵을 무력화하면 무관한
+      패키지가 이 잡을 거짓으로 빨갛게 만들고, (b) `EXPECTED_SUPPRESSED_PATHS` 기본값을
+      "이미 수용됨" 쪽으로 뒤집으면 신규 억제가 통째로 조용히 통과한다(막으려는 그 실패).
+      `WidenedFilterTest` 로 양쪽 고정. INFO 11: PyYAML 1.1 리졸버가 `on`/`yes` 를 불리언으로
+      만들어 최상위 키에 타입이 섞이면 진단 조립의 `sorted()` 가 TypeError 로 죽던 것 —
+      `key=str` 로 제거(재현 후 수정).
+- [ ] `/ai-review` 8차 · RESOLUTION · push + PR
 
 ## 개발 중 실측으로 드러난 것
 

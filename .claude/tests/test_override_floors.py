@@ -387,6 +387,40 @@ class SchemaDriftTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class WidenedFilterTest(unittest.TestCase):
+    """`widened` 계산 루프의 두 필터 — 뮤턴트로 무검증이 실증됐던 자리다.
+
+    9줄짜리 루프인데 그 안의 판단 두 개가 이 가드의 범위 경계를 정한다:
+      - `if module not in targets: continue` — override 미관리 모듈은 audit 잡 담당이다.
+        무력화하면 무관한 패키지가 이 잡을 거짓으로 빨갛게 만든다(38건 전부 GREEN 이었다).
+      - `EXPECTED_SUPPRESSED_PATHS.get(module, set())` — baseline 에 **없는** 모듈은
+        허용 경로가 0개이므로 어떤 경로든 "수용 범위 밖" 이다. 기본값을 "이미 수용됨" 쪽으로
+        뒤집으면 신규 억제가 통째로 조용히 통과한다 — 이 스크립트가 막으려는 그 실패다.
+    """
+
+    OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n"
+
+    def _run(self, module, path):
+        return run_with_stub_audit(
+            advisories={}, overrides=self.OVERRIDES,
+            actions=[{"action": "review", "module": module,
+                      "resolves": [{"id": 1, "path": path}]}],
+        )
+
+    def test_unmanaged_module_is_not_widened(self):
+        """override 없는 패키지가 억제돼 있어도 이 잡은 관여하지 않는다."""
+        r = self._run("some-unmanaged-pkg", "a>b>some-unmanaged-pkg")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("some-unmanaged-pkg", r.stderr)
+
+    def test_managed_module_absent_from_baseline_always_widens(self):
+        """baseline 에 키가 없으면 허용 경로 0개 — 첫 억제부터 fail 이어야 한다."""
+        r = self._run("liquidjs", "codebase__backend>x>liquidjs")   # baseline 미등록
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("수용 범위 밖", r.stderr)
+        self.assertIn("codebase__backend>x>liquidjs", r.stderr)
+
+
 class ReturncodeInvariantTest(unittest.TestCase):
     """audit 의 종료 코드는 성공 신호가 아니다 — 취약점을 찾으면 비-0 이다.
 
