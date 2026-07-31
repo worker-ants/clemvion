@@ -1,10 +1,15 @@
 ---
 title: consistency-summary 가 Critical 을 하향할 수 있는가 — 규약에 조항이 없다
-worktree: (unstarted)
+worktree: harness-review-gate-fixes-1bd6aa
 started: 2026-07-25
 owner: developer
 priority: P2
 ---
+
+> **2026-07-31 진행** — 본 티켓의 **부속 관측(번들 예산 결함, 8회 재발)은 수정 완료**.
+> 본체인 **하향 허용 여부 (a)/(b)/(c) 는 여전히 미결**이며 사용자/설계 판단이 필요하다.
+> 두 사안은 독립이다: 번들 결함은 "검토 대상이 프롬프트에 없었다", 하향 규약은 "발견된
+> Critical 을 어떻게 처리하나" 이다.
 
 ## Overview
 
@@ -116,8 +121,21 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 대상 정합 확인 없음'을 미검증으로 취급"*. 즉 **BLOCK: NO 가 '검증했고 문제없음' 이 아니라
 '검증 대상이 프롬프트에 없었음' 일 수 있다** — 게이트 신뢰도에 직접 영향.
 
-- [ ] 이 항목은 plan 갱신이 아니라 **harness 코드 수정**이 해법이다(3회차 권장사항 2).
-      `spec_impact` 우선 번들링을 구현할 것.
+- [x] **구현 완료 (2026-07-31)** — `prioritize_bundle_files` 신설. 번들을 4계층으로 재배열한다
+      (버리지 않는다 — 버리는 건 여전히 `truncate_file_bundle` 이고 생략 목록도 그쪽이 남긴다):
+      **0** 이 브랜치가 변경한 파일 → **1** in-progress plan 이 이름으로 언급한 파일 →
+      **2** 나머지 → **3** `*-api-catalog/**` 자동생성 대량 문서.
+      계층 1이 `--impl-prep` 을 담당한다 — 착수 전이라 spec 이 아직 안 고쳐져 있어 계층 0이
+      비고, plan 언급이 유일한 신호다. `spec_impact` frontmatter 대신 plan 본문 언급을 쓴 이유는
+      새 의존성 없이 같은 모듈 안에서 해결되고, `spec_impact` 미기재 plan 도 커버하기 때문.
+      적용 지점: `--impl-prep`/`--impl-done` 의 scope 번들 + `related_specs` + `conventions`.
+      테스트 `test_consistency_bundle_priority.py` 10건 + mutation 6종 RED.
+
+> 검증 교훈: 첫 seam 테스트가 **vacuous** 했다. `prioritize_bundle_files` 의 **호출 횟수**를
+> 셌는데, 호출부 pass-through 뮤턴트(`… = prioritize_bundle_files(...) and scope_files`)는
+> 호출을 그대로 두고 **반환값만 버린다** → 스파이는 GREEN. 실제로 두 호출부 뮤턴트가 모두
+> 미검출이었다. 스파이가 sentinel 순서를 강제하고 산출물이 그 순서로 렌더되는지(=효과) 단언하도록
+> 바꾼 뒤에야 RED. **헬퍼 테스트 ≠ 호출부 테스트이고, 호출 여부 ≠ 결과 사용 여부다.**
 
 ### 재발 관측 (2026-07-28) — 6번째
 
@@ -148,5 +166,8 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
 밀려났다. `spec-impl-evidence.md` 자신이 그 카탈로그를 "정식 spec 아님" 으로 명시하는데도
 우선 적재된다.
 
-- [ ] 카탈로그성 대량 참조 문서(`*-api-catalog/<resource>/**`)를 후순위로 미루거나 별도 예산으로
-      분리하고, target 이 실제로 인용하는 규약 파일을 우선 포함.
+- [x] **구현 완료 (2026-07-31)** — 카탈로그성 대량 문서를 계층 3(최후순위)으로 강등.
+      경로 세그먼트(`*-api-catalog/`)로 매칭하므로 카탈로그가 이동·추가돼도 코드 변경 없이
+      강등을 상속한다. plan 이 카탈로그 페이지를 언급해도 계층 1로 끌어올려지지 않는다
+      (언급 하나가 덤프 전체를 앞으로 끌고 오면 안 되므로 강등이 우선) — 그 반대 방향도
+      테스트로 고정.
