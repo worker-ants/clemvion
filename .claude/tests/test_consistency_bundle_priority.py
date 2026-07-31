@@ -180,8 +180,27 @@ class PrioritizeBundleFilesTest(unittest.TestCase):
                           plan_text="10-graph-rag.md")
         self.assertCountEqual(out, _FIVE_SYSTEM)
 
-    def test_ties_stay_alphabetical(self):
-        self.assertEqual(_prioritize(_FIVE_SYSTEM), _FIVE_SYSTEM)
+    def test_ties_use_natural_order_not_lexicographic(self):
+        """Within a tier, `4-` comes before `10-`.
+
+        This is the residual half of the 8-times-recurring bug: tiers 0/1 rescue
+        a target the branch touched or a plan names, but a session where the
+        target is neither still filled the budget front-to-back in
+        lexicographic order — `"1" < "10" < "11" < "2" < "4"` — and dropped from
+        the tail. Measured on `spec/5-system/` (18 files):
+        `4-execution-engine.md` sat at position 12 and now sits at 4.
+
+        The earlier version of this test pinned the lexicographic order as
+        intended behaviour, which is why the plan still listed natural sort as
+        open while a test asserted the opposite.
+        """
+        out = _prioritize(_FIVE_SYSTEM)
+        self.assertEqual(out, [
+            "spec/5-system/1-auth.md",
+            "spec/5-system/4-execution-engine.md",
+            "spec/5-system/10-graph-rag.md",
+            "spec/5-system/11-mcp-client.md",
+        ])
 
 
 class PriorityThenTruncationTest(unittest.TestCase):

@@ -210,6 +210,24 @@ def read_text_file(path):
         return ""
 
 
+def _natural_key(path):
+    """Sort key where a run of digits compares as a number, not as text.
+
+    Lexicographically `"1" < "10" < "11" < "2" < "4"`, so `10-graph-rag.md` and
+    `11-mcp-client.md` sort ahead of `4-execution-engine.md` — and since the
+    budget fills from the front and drops from the tail, the file nobody was
+    working on kept the space. Measured on `spec/5-system/` (18 files):
+    `4-execution-engine.md` sat at position 12 lexicographically and sits at 4
+    here.
+
+    `re.split` with a capturing group alternates non-digit / digit segments, so
+    the type at each index is the same for every path and the lists compare
+    without `int`-vs-`str` errors.
+    """
+    return [int(tok) if tok.isdigit() else tok.lower()
+            for tok in re.split(r"(\d+)", path)]
+
+
 def collect_markdown_files(root_dir, exclude_paths=None):
     if exclude_paths is None:
         exclude_paths = set()
@@ -229,7 +247,7 @@ def collect_markdown_files(root_dir, exclude_paths=None):
             if full in exclude_paths:
                 continue
             files.append(full)
-    files.sort()
+    files.sort(key=_natural_key)
     return files
 
 
@@ -320,7 +338,7 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
 
     # `sorted` is stable and the input is already alphabetical, so the secondary
     # key is implicit — but spell it out rather than rely on the caller's order.
-    return sorted(file_paths, key=lambda p: (tier(p), p))
+    return sorted(file_paths, key=lambda p: (tier(p), _natural_key(p)))
 
 
 def format_file_bundle(file_paths, root, label):
