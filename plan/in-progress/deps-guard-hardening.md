@@ -107,10 +107,10 @@ spec_impact: none
 - [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
       발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
       제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
-- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **41건**(4축: 키 추출 · 분류 ·
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` **45건**(4축: 키 추출 · 분류 ·
       `ignoreCves` 억제 경로 baseline · fail-closed. + 회귀 고정 2클래스: 통합 리포트 ·
       스키마 드리프트). 워크플로 구조 가드 `test_workflow_yaml_structure.py` 6건.
-      하네스 전체 **760건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
+      하네스 전체 **764건** 통과 (수치는 push 직전 재측정 — 라운드마다 늘어 stale 되기 쉽다).
       mutation 으로 non-vacuous 증명: 추출 로직 되돌림 · 분류 fail 경로 제거 · 다단 체인
       첫`>` 회귀 · fail-closed 분기 fail-open 되돌림 · YAML 사고 원문 재현 · 통합 리포트
       조기 return 부활 · actions 드리프트 옛 결합 복원(+반대편 오판) — 전부 RED 확인.
@@ -194,8 +194,26 @@ spec_impact: none
       즉시 실패. 뮤턴트(스텁 chmod 644)로 마커 단언이 실제로 문다는 것 확인.
       (2) `sorted(key=str)` 회귀 테스트 부재 → 추가.
       INFO 1(`read_text` 가 예외 범위 밖 — 유효하지 않은 UTF-8 이 traceback+exit 1) ·
-      INFO 4(주석 위치) · INFO 6(4라운드 이월 "5건→4건" 서술) 모두 종결.
-- [ ] TEST WORKFLOW (9차) · `/ai-review` 9차 · push + PR
+      INFO 4(주석 위치) · INFO 6(4라운드 이월 "5건→4건" 서술) 코드 조치 완료 — 단
+      예외 확장은 회귀 테스트가 9차에 가서야 붙었다(9차 W3). "조치 완료" 를 코드만
+      보고 쓴 것이 이 브랜치의 "코드+테스트가 모여야 fix" 기준에 못 미쳤다.
+- [x] TEST WORKFLOW (9차) — lint PASS(50s) · unit PASS(63s) · build PASS(112s) ·
+      e2e PASS(305s: backend jest 46 suites/260 + playwright 51).
+- [x] `/ai-review` 9차 (`05_36_28`) — Critical 0 · Warning 4. 셋은 실측 재현된 실제 결함:
+      (1) `run_audit()` 이 `FileNotFoundError` 를 안 잡아 **pnpm 부재 시 traceback + exit 1** —
+      이 스크립트에서 1 은 "침식 발견" 이라 실행 실패가 정상 발견 신호와 같은 코드가 된다.
+      8차에서 형제 함수의 읽기 경로는 고쳤는데 이쪽 서브프로세스 호출을 빠뜨렸다. `OSError`
+      포섭. (2) `chain_segments()` 가 `>` **앞** 공백을 구분자로 안 봐서 `"next > postcss"` 가
+      유령 대상이 된다 — 축 1 실패의 **4번째 형제**이고 증상은 늘 조용한 통과. 추출 결과에
+      공백이 남으면 fail-closed(npm 패키지명에 공백은 불가). (3) 8차의 예외 확장
+      (`UnicodeDecodeError`/`OSError`)에 회귀 테스트 부재 — in-process 테스트 추가.
+      → fail-closed 지점 9곳 → 11곳.
+      **W4(scope)는 사실이나 조치하지 않는다**: 커밋 `f46c560e9` 가 RESOLUTION 을 쓰는 사이
+      디스크에 떨어진 8차 세션 산출물 6개를 `git add -A` 로 함께 쓸어담았다. 기능 영향 없고
+      아직 push 전이지만, 정리하려면 대화형 rebase 가 필요한데 이 환경에서는 쓸 수 없다.
+      기록으로 남기고 넘어간다 — 교훈은 리뷰가 **비동기로 파일을 쓰는 동안** `git add -A` 를
+      하지 말 것.
+- [ ] TEST WORKFLOW (10차) · `/ai-review` 10차 · RESOLUTION 최종 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 

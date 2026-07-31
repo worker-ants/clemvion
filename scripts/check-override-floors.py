@@ -93,6 +93,7 @@ _AUDIT_TIMEOUT_SEC = 300
 #   - `@` 이전 구간에서만 `>` 를 찾으면 `a>@scope/b>c` 의 마지막 `>` 를 못 봐 `@scope/b>c` 가
 #     남았다(존재하지 않는 패키지명이라 어떤 advisory 와도 안 맞는다).
 _NAME_CHAR = re.compile(r"[A-Za-z0-9._/-]")
+_INNER_SPACE = re.compile(r"\s")
 # scope 패키지(`@grpc/grpc-js`)는 선두 `@` 가 이름의 일부라 버전 구분자로 세면 안 된다 —
 # 두 번째 이후의 `@` 만 레인지 구분자다.
 _RANGE_SUFFIX = re.compile(r"^(?P<name>@[^@/]+/[^@]+|[^@]+)@.+$")
@@ -114,7 +115,18 @@ def override_target(key: str) -> str:
     """override 키에서 제약 대상 패키지명을 뽑는다 — 체인의 **마지막** 항에서 레인지를 뗀다."""
     leaf = chain_segments(key.strip())[-1].strip()
     m = _RANGE_SUFFIX.match(leaf)
-    return (m.group("name") if m else leaf).strip()
+    name = (m.group("name") if m else leaf).strip()
+    if _INNER_SPACE.search(name):
+        # npm 패키지명에 공백은 못 들어간다. 남았다는 건 분할이 실패했다는 뜻이고
+        # (`"next > postcss"` — 사람이 가독성으로 넣은 공백은 `>` 앞이라 구분자로 안 잡힌다),
+        # 그 대상은 어떤 advisory 와도 매칭되지 않는 **유령**이 된다. 축 1 의 실패는 늘
+        # "조용한 통과" 로 나오므로 여기서 끊는다.
+        _undecidable(
+            f"override 키 {key!r} 에서 뽑은 대상 {name!r} 에 공백이 있다 — 패키지명일 수 "
+            "없다(체인 분할 실패). 이대로 두면 어떤 advisory 와도 매칭되지 않아 그 override 는 "
+            "가드에서 조용히 빠진다(fail-closed). 키에서 공백을 제거할 것.",
+        )
+    return name
 
 
 def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
@@ -129,6 +141,7 @@ def load_override_targets(path: pathlib.Path) -> dict[str, list[str]]:
         # `read_text` 도 같은 블록 안이다 — 유효하지 않은 UTF-8 이면 `UnicodeDecodeError` 가
         # 그대로 전파되어 파싱 오류와 똑같은 증상(traceback + exit 1)이 된다.
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    # `OSError` 는 `main()` 의 존재 확인과 이 읽기 사이의 TOCTOU 창(삭제·권한 변경)을 닫는다.
     except (yaml.YAMLError, UnicodeDecodeError, OSError) as exc:
         # 안 잡으면 traceback 과 함께 exit 1 로 죽는다 — 이 스크립트 어휘에서 1 은 "침식 발견"
         # 이라 구문 오류가 정상 발견 신호와 같은 코드가 된다(exit code 만 보는 자동화가 혼동).
@@ -173,21 +186,29 @@ def run_audit() -> dict:
     인증 실패를 "취약점 0건" 으로 오해하면 본 가드가 정확히 자신이 막으려는 조용한 통과를
     재현한다.
     """
+    # 아래 분기들은 "응답은 왔는데 형태가 이상함" 만 다룬다. **응답이 안 오는** 두 경우가
+    # 따로 필요하다: 레지스트리가 물려 안 끝나는 것(`timeout=` → `TimeoutExpired`)과 `pnpm`
+    # 자체를 못 찾거나 못 띄우는 것(`OSError`/`FileNotFoundError`). 후자를 안 잡으면 traceback
+    # 과 함께 exit 1 로 죽는데, 이 스크립트 어휘에서 1 은 "침식 발견" 이다 — 실행 실패가 정상
+    # 발견 신호와 같은 코드가 된다(실측).
     try:
         proc = subprocess.run(
             ["pnpm", "audit", "--audit-level=moderate", "--json"],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
-            # 위 세 분기는 "응답은 왔는데 형태가 이상함" 만 다룬다. **응답이 안 오는** 경우가
-            # 남아 있었다 — 레지스트리가 물리면 CI 잡 타임아웃까지 매달린다. 여기서 끊고
-            # 판단 불가로 돌린다.
             timeout=_AUDIT_TIMEOUT_SEC,
         )
     except subprocess.TimeoutExpired:
         _undecidable(
             f"`pnpm audit --json` 이 {_AUDIT_TIMEOUT_SEC}초 안에 끝나지 않았다 — "
             "레지스트리 지연으로 보고 판단 불가로 처리한다(fail-closed).",
+        )
+    except OSError as exc:
+        _undecidable(
+            "`pnpm audit --json` 을 실행하지 못했다 — PATH 에 `pnpm` 이 없거나 실행할 수 "
+            "없다. 취약점 0건과 구분할 수 없으므로 판단 불가로 처리한다(fail-closed).",
+            f"  {type(exc).__name__}: {exc}",
         )
     out = proc.stdout.strip()
     if not out:

@@ -30,12 +30,13 @@
   4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
      느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
-     `_undecidable()` 로 exit 2 를 내는 지점은 **아홉**이다. audit 쪽 여섯 — 타임아웃 / 빈 출력 /
-     JSON 파싱 불가 / `actions` 키 없는 JSON / `advisories` 하위 필드 드리프트 / `actions` 하위
-     필드 드리프트. 설정 쪽 셋 — 워크스페이스 파일 부재 / YAML 파싱 불가 / `overrides` 가
-     매핑이 아님(키 부재·오타·값 없음·문자열·리스트를 한 조건으로). 개수는
-     `FailClosedSiteCountTest` 가 소스에서 세어 강제한다 — 실제로 두 라운드 연속 지점이 늘자
-     바로 빨간불을 내 문서 동반 갱신을 강제했다.
+     `_undecidable()` 로 exit 2 를 내는 지점은 **열하나**다. audit 쪽 일곱 — 실행 실패(`pnpm`
+     부재) / 타임아웃 / 빈 출력 / JSON 파싱 불가 / `actions` 키 없는 JSON / `advisories` 하위
+     필드 드리프트 / `actions` 하위 필드 드리프트. 설정 쪽 넷 — 워크스페이스 파일 부재 /
+     읽기·YAML 파싱 불가 / `overrides` 가 매핑이 아님(키 부재·오타·값 없음·문자열·리스트를 한
+     조건으로) / 추출 대상에 공백이 남음(체인 분할 실패 = 유령 대상). 개수는
+     `FailClosedSiteCountTest` 가 소스에서 세어 강제한다 — 실제로 라운드마다 지점이 늘 때
+     빠짐없이 빨간불을 내 문서 동반 갱신을 강제했다.
 
      반대로 **returncode 는 판정에 쓰지 않는다**: audit 은 취약점을 찾으면 비-0 으로 끝나므로
      성공 신호가 못 된다. `ReturncodeInvariantTest` 가 스텁을 exit 1 로 돌려 그 불변식을 고정한다.
@@ -240,6 +241,22 @@ class OverrideTargetExtractionTest(unittest.TestCase):
         self.assertEqual(
             self.mod.override_target("a>@scope/b>@scope/c@>=1.0.0"), "@scope/c"
         )
+
+    def test_whitespace_in_extracted_target_is_undecidable(self):
+        """`"next > postcss"` 처럼 사람이 넣은 공백은 유령 대상을 만든다.
+
+        구분자 판정이 `>` **앞 글자**로 이뤄지므로 앞에 공백이 있으면 체인으로 안 갈린다
+        (레인지의 `|| >3` 을 보호하려는 규칙의 반대편 부작용). 그러면 `'next > postcss'` 가
+        그대로 대상이 되는데 npm 패키지명에 공백은 못 들어가므로 어떤 advisory 와도 매칭되지
+        않는다 — 축 1 실패의 4번째 형제이고, 증상은 늘 같은 **조용한 통과**다.
+        """
+        for bad in ("next > postcss", "next >postcss", "a > b > c"):
+            with self.subTest(key=bad):
+                with self.assertRaises(SystemExit) as ctx:
+                    self.mod.override_target(bad)
+                self.assertEqual(ctx.exception.code, 2)
+        # 공백이 **뒤에만** 있는 형태는 정상 분할된다 — 과잉 차단이 아님을 함께 고정.
+        self.assertEqual(self.mod.override_target("next> postcss"), "postcss")
 
     def test_real_workspace_yaml_covers_scoped_range_keys(self):
         """실제 pnpm-workspace.yaml 에서 스코프 레인지 키가 누락되지 않는다."""
@@ -543,6 +560,35 @@ class MissingOverridesKeyTest(unittest.TestCase):
         self.assertNotIn("Traceback", r.stderr)
 
 
+class WorkspaceReadFailureTest(unittest.TestCase):
+    """읽기 자체가 실패해도 판단 불가다 — 파싱 실패와 같은 부류인데 분기가 달랐다.
+
+    `except yaml.YAMLError` 만 잡던 시절로 되돌려도 41건이 전부 GREEN 이었다(리뷰 실측).
+    그 상태에서 유효하지 않은 UTF-8 을 주면 traceback + exit 1 — 이 스크립트에서 1 은
+    "침식 발견" 이라 실행 실패가 정상 발견 신호와 같은 코드가 된다.
+    """
+
+    def _probe(self, write):
+        import tempfile
+
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pnpm-workspace.yaml"
+            write(path)
+            with self.assertRaises(SystemExit) as ctx:
+                mod.load_override_targets(path)
+        return ctx.exception.code
+
+    def test_invalid_utf8_is_undecidable(self):
+        self.assertEqual(
+            self._probe(lambda p: p.write_bytes(b"overrides:\n  liquidjs: \xff\xfe\n")), 2
+        )
+
+    def test_unreadable_file_is_undecidable(self):
+        """`main()` 의 존재 확인과 읽기 사이의 TOCTOU 창 — 디렉터리를 주면 `IsADirectoryError`."""
+        self.assertEqual(self._probe(lambda p: p.mkdir()), 2)
+
+
 class AuditTimeoutTest(unittest.TestCase):
     """레지스트리가 물렸을 때의 분기 — 서브프로세스로는 300초를 기다려야 해 in-process 로 본다.
 
@@ -559,6 +605,18 @@ class AuditTimeoutTest(unittest.TestCase):
         with mock.patch.object(
             mod.subprocess, "run",
             side_effect=sp.TimeoutExpired(cmd="pnpm", timeout=mod._AUDIT_TIMEOUT_SEC),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                mod.run_audit()
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_missing_pnpm_binary_exits_2(self):
+        """PATH 에 `pnpm` 이 없으면 exit 1(= 침식 발견) 이 아니라 판단 불가여야 한다."""
+        from unittest import mock
+
+        mod = _load_module()
+        with mock.patch.object(
+            mod.subprocess, "run", side_effect=FileNotFoundError(2, "No such file", "pnpm")
         ):
             with self.assertRaises(SystemExit) as ctx:
                 mod.run_audit()
@@ -586,7 +644,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
     빨간불이 나고, 그때 docstring 도 같이 고치게 된다.
     """
 
-    EXPECTED_SITES = 9
+    EXPECTED_SITES = 11
 
     def test_docstring_count_matches_source(self):
         src = SCRIPT.read_text(encoding="utf-8")
@@ -598,7 +656,7 @@ class FailClosedSiteCountTest(unittest.TestCase):
             f"`.claude/tests/README.md` 는 {self.EXPECTED_SITES}곳으로 서술한다 — "
             "분기를 늘렸으면 두 문서와 EXPECTED_SITES 를 함께 고칠 것.",
         )
-        self.assertIn("아홉", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
+        self.assertIn("열하나", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
 
 
 class SuppressedPathBaselineTest(unittest.TestCase):
