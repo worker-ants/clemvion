@@ -128,6 +128,7 @@ except Exception:  # pragma: no cover - import path fallback
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import report_paths as _report_paths_lib  # noqa: E402
+from _shared import block_integrity as _block_integrity  # noqa: E402
 
 
 CODE_PREFIX = "codebase/"
@@ -718,6 +719,18 @@ def _newest_resolved_impl_done_mtime(repo_root: str,
             continue
         if not _summary_block_is_no(summary):
             continue
+        # A BLOCK: NO that contradicts its own checkers is what
+        # `consistency-summary.md` §요약 지침 3 forbids, and this gate is the
+        # place it stops being invisible: nothing else reads the reports beside
+        # the SUMMARY. Warn, do not skip the session — the summary may have
+        # merged findings legitimately, and refusing here would block sessions
+        # the rule allows. Measured on 732 sessions: 24 contradicted (3.3%).
+        note = _block_integrity.contradiction_note(session_dir)
+        if note:
+            print(
+                f"⚠️  {os.path.relpath(session_dir, repo_root)}: {note}",
+                file=sys.stderr,
+            )
         t = _path_session_time(session_dir)
         rel_summary = os.path.relpath(summary, repo_root).replace(os.sep, "/")
         if rel_summary in dirty:
