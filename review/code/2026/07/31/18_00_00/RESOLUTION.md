@@ -38,8 +38,8 @@ M1/M2/M3 를 개별 행으로 분리했다.
 `undefined` 로 바꾸는 mutation 이 생존했다.
 
 ```
-M3 (`... : edge.condition` → `... : undefined`) 적용 → 21 passed  (생존)
-`condition: null` 엣지에 toBeNull() 단언 추가 후    → 1 failed / 21 passed  (닫힘)
+M3 (`... : edge.condition` → `... : undefined`) 적용 → 생존 (전부 통과)
+`condition: null` 엣지에 toBeNull() 단언 추가 후    → 1 failed / 79 passed  (닫힘)
 ```
 
 `insertedRows(Edge)` 에서 DATA 타입 엣지를 찾아 `toBeNull()` 을 단언한다. 이제 삼항의 **양쪽 분기**가
@@ -48,8 +48,8 @@ M3 (`... : edge.condition` → `... : undefined`) 적용 → 21 passed  (생존)
 ## TEST 결과
 
 - lint  : 통과 — 54s (`_test_logs/lint-20260731-181509.log`)
-- unit  : 통과 — backend **412 suites**. `workflows.service.spec.ts` 단독 **81/81**
-  (duplicate describe 22건). 80s (`_test_logs/unit-20260731-181604.log`)
+- unit  : 통과 — backend **412 suites**. `workflows.service.spec.ts` 단독 **80/80**
+  (duplicate describe 16건). 80s (`_test_logs/unit-20260731-181604.log`)
 - build : 통과 — 714s, docker 이미지 + 프로덕션 위생 스모크 포함
   (`_test_logs/build-20260731-181738.log`)
 - e2e   : 통과 — backend Jest e2e **260/260**, 406s

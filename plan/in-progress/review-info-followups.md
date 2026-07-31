@@ -32,11 +32,16 @@ condition: edge.condition,          // ← 복사 안 함
 조치: `condition: edge.condition ? { ...edge.condition } : edge.condition`. nullable 이라 값이 없으면
 그대로 둔다.
 
-### 1.2 INFO #9 — 엣지 0건 조합 단언 (mutation 사각지대)
+### 1.2 INFO #9 — 엣지 0건 조합 단언
 
-기존 "빈 캔버스는 노드·엣지 insert 를 호출하지 않는다" 는 **둘 다 0건**이라, `nodeRows.length > 0` /
-`edgeRows.length > 0` 두 가드 중 **한쪽을 지워도 통과**한다. 노드만 있고 엣지가 0건인 조합이 별도로
-필요하다(`importWorkflow` 에는 이미 대칭 단언이 있었다).
+> **서술 정정 (2차 리뷰 INFO #1)**: 초안은 "기존 테스트는 두 가드 중 한쪽을 지워도 통과한다" 고
+> 적었으나 **틀렸다**. 실측하면 기존 "빈 캔버스" 테스트가 `edgeRows` 가드 제거를 **잡는다**
+> (M2 → 2 failed 에 그 테스트가 포함).
+
+정확한 가치는 **가드를 분리해 고정**하는 데 있다. 기존 "빈 캔버스" 케이스는 `nodeRows`·`edgeRows` 가
+둘 다 0이라 **어느 가드가 깨졌는지 특정하지 못한다**. 새 테스트는 노드 5건 + 엣지 0건이라
+`edgeRows` 가드만 단독으로 지킨다 — 실패했을 때 원인이 바로 좁혀진다
+(`importWorkflow` 에는 이미 이 대칭 단언이 있었다).
 
 ### 1.3 INFO #8 — 네이밍 드리프트
 
@@ -54,18 +59,28 @@ condition: edge.condition,          // ← 복사 안 함
 
 `duplicate` describe 22건 기준(전체 스펙 81건), 각 mutation 은 **단독 적용 후 원복**한다.
 
-| # | mutation | 결과 |
-| --- | --- | --- |
-| M1 | `condition: edge.condition ? {...edge.condition} : edge.condition` → 얕은 복사 제거 | **1 failed** / 21 passed |
-| M2 | `if (edgeRows.length > 0)` 가드 제거 | **2 failed** / 20 passed |
-| M3 | 삼항의 **false 분기**를 `undefined` 로 (`... : undefined`) | **1 failed** / 21 passed |
+스펙 전체 **80건**(`workflows.service.spec.ts`) 기준. 각 mutation 은 **단독 적용 후 원복**한다.
 
-원복 후 전체 81 passed, `git diff` 로 소스가 mutation 전과 동일함을 확인.
+| # | mutation | 결과 | 실패 테스트 |
+| --- | --- | --- | --- |
+| M1 | `condition` 얕은 복사 제거 | **1 failed** / 79 passed | condition 참조 격리 |
+| M2 | `if (edgeRows.length > 0)` 가드 제거 | **2 failed** / 78 passed | 빈 캔버스 · 엣지 0건 |
+| M3 | 삼항 false 분기를 `undefined` 로 | **1 failed** / 79 passed | condition 참조 격리(null 분기) |
+| M4 | 가드 변수 교체 (`edgeRows` → `nodeRows`) | **3 failed** / 77 passed | 위 2건 + importWorkflow 1건 |
 
-> **수치 정정 (리뷰 INFO #3)**: 최초 작성 시 M2 를 "3 failed" 로 적었으나 틀렸다. 재현 결과 단독
-> M2 는 **2 failed** 다. 원인은 내 실행 오류 — 앞선 명령이 `cd <이미 있는 경로> && cp <원복>` 형태였는데
-> `cd` 가 실패해 `&&` 뒤 원복이 실행되지 않았고, 그 결과 **M1 이 남은 채 M2 가 얹혀** 두 mutation 이
-> 겹친 수치를 기록했다. 리뷰어의 독립 재현이 이를 잡았다.
+원복 후 전체 **80 passed**, `git diff` 로 소스가 mutation 전과 동일함을 확인.
+
+> **수치 정정 2회 (리뷰 INFO #3 → 2차 INFO #2)**: 같은 표에서 수치를 **두 번** 틀렸다.
+>
+> 1. M2 를 "3 failed" 로 적음 → 실제 **2 failed**. 원인은 실행 오류 — 원복 명령이
+>    `cd <이미 들어와 있는 경로> && cp <백업>` 이라 `cd` 실패로 `&&` 뒤가 실행되지 않았고, **M1 이
+>    남은 채 M2 가 얹혀** 두 mutation 이 겹친 값을 기록했다.
+> 2. 정정하면서 "duplicate describe 22건 / 전체 81건" 으로 적음 → 실제 **16건 / 80건**.
+>    `jest -t "duplicate"` 결과(21건)를 describe 건수의 **프록시로 착각**했다. 그 필터는 다른
+>    describe 의 `duplicate node labels` 류 테스트 5건까지 함께 잡는다.
+>
+> 두 번 다 리뷰어의 독립 재현이 잡았다. 교훈: mutation 은 **단독 적용 후 원복 확인**이 전제이고,
+> 테스트 개수는 **필터 결과가 아니라 대상 자체**를 세야 한다.
 
 > **M3 는 리뷰 INFO #2 로 추가됐다**: 최초 테스트는 `condition` 이 있는 엣지만 단언해, 삼항의 null
 > 분기를 `undefined` 로 바꾸는 mutation 이 **생존**했다(실측 확인: 21 passed). `condition: null` 인
@@ -84,21 +99,26 @@ condition: edge.condition,          // ← 복사 안 함
 
 ## 실측 검증
 
-- `workflows.service.spec.ts` duplicate describe **22건** 통과 (기존 19 + 신규 3)
-- mutation 3종 각각 단독 RED 확인 → 원복 후 GREEN(전체 81건), 소스 diff 무변화
+- `workflows.service.spec.ts` duplicate describe **16건**, 스펙 전체 **80/80** 통과
+- mutation 4종 각각 단독 RED 확인 → 원복 후 GREEN(80/80), 소스 diff 무변화
 
 ## 체크리스트
 
 - [x] INFO 10건 전수 코드 확인 후 조치/종결 판정
 - [x] #10 `edge.condition` 얕은 복사
-- [x] #9 엣지 0건 조합 단언 + #10 참조 격리 단언(값·참조·**null 분기**) 추가 — mutation 3종으로
+- [x] #9 엣지 0건 조합 단언 + #10 참조 격리 단언(값·참조·**null 분기**) 추가 — mutation 4종으로
       non-vacuous 증명
 - [x] #8 네이밍 통일 · #12 Swagger 멀티라인
 - [x] TEST WORKFLOW (리뷰 조치 후 재수행) — lint PASS(54s) · unit PASS(backend 412 suites,
-      해당 스펙 81/81) · build PASS(714s) · e2e PASS(260/260, 406s)
+      해당 스펙 80/80) · build PASS(714s) · e2e PASS(260/260, 406s)
 - [x] `/ai-review` (maintainability·testing·scope) — **Critical 0 · Warning 0 · INFO 6**,
       위험도 LOW. 실질 2건 조치: INFO#3 mutation 수치 오기 정정, INFO#2 null 분기 단언 추가.
       나머지 4건은 비차단(§3). (`review/code/2026/07/31/18_00_00/SUMMARY.md`)
+- [x] fresh `/ai-review` (testing 타겟) — **Critical 0 · Warning 0 · INFO 3**. INFO 2건이 또
+      내 서술 오류라 재현 후 정정(수치 16/80, 새 테스트의 가치는 "가드 제거"가 아니라 "가드 분리").
+      상세: `review/code/2026/07/31/18_37_11/RESOLUTION.md`
+- [x] TEST WORKFLOW 재수행 — lint PASS(48s) · unit PASS(80/80) · build PASS(140s) ·
+      e2e PASS(260/260, 288s)
 - [ ] push + PR
 
 ## 3. 리뷰 INFO 중 미조치 4건

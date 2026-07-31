@@ -672,9 +672,10 @@ describe('WorkflowsService', () => {
       expect(mockTransactionManager.insert).not.toHaveBeenCalled();
     });
 
-    // 두 `length > 0` 가드가 **독립**임을 고정한다. 위 "빈 캔버스" 케이스는 둘 다
-    // 0 이라 한쪽 가드를 지워도 통과하므로, 노드만 있고 엣지가 0건인 조합이 별도로
-    // 필요하다 (importWorkflow 에는 이미 대칭 단언이 있다).
+    // `edgeRows` 가드를 **단독으로** 고정한다. 위 "빈 캔버스" 케이스도 이 가드 제거를
+    // 잡기는 하지만, 거기선 nodeRows·edgeRows 가 둘 다 0 이라 **어느 가드가 깨졌는지
+    // 특정하지 못한다**. 여기는 노드 5건 + 엣지 0건이라 실패 시 원인이 바로 좁혀진다
+    // (importWorkflow 에는 이미 이 대칭 단언이 있다).
     it('노드만 있고 엣지가 0건이면 Node insert 만 호출한다', async () => {
       mockTransactionManager.find = jest
         .fn()
