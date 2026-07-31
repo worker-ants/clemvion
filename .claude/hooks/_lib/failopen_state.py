@@ -47,6 +47,11 @@ class Outcome:
         self.answered: list[str] = []
         self.bypassed: list[str] = []
         self.degraded: list[tuple[str, str]] = []
+        # Advisories that change no verdict but must still reach the model.
+        # Declared here rather than attached ad hoc, so this class and the push
+        # hook's fallback `_Outcome` agree on the field list — they did not when
+        # only the fallback carried it.
+        self.notes: list[str] = []
 
 
 def state_path(state_name: str) -> str:

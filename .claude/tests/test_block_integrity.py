@@ -85,6 +85,27 @@ class CheckerListIsCanonicalTest(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr[-2000:])
         self.assertEqual(_json.loads(out.stdout), list(BI.ALL_CHECKERS))
 
+    def test_role_instructions_registers_the_same_checkers(self):
+        """The third place the list exists — `CHECKER_INSTRUCTIONS`.
+
+        That mapping is what actually gets a checker invoked; this module is what
+        cross-checks its report. A sixth checker registered there and forgotten
+        here would run, find a Critical, and have its downgrade go unnoticed —
+        the failure this file exists to catch, opened on a different axis.
+        Asserted as an equivalence rather than by importing one into the other:
+        the dependency direction (`_shared` must not import a skill) has to stay.
+        """
+        import importlib.util
+        import sys as _sys
+        skill = _harness.CLAUDE_DIR / "skills" / "code-review-agents"
+        if str(skill) not in _sys.path:
+            _sys.path.insert(0, str(skill))
+        spec = importlib.util.spec_from_file_location(
+            "role_instructions_probe", skill / "lib" / "role_instructions.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertEqual(sorted(mod.CHECKER_INSTRUCTIONS), sorted(BI.ALL_CHECKERS))
+
     def test_report_filenames_follow_the_names(self):
         self.assertEqual(BI.CHECKER_REPORTS,
                          tuple(f"{n}.md" for n in BI.ALL_CHECKERS))

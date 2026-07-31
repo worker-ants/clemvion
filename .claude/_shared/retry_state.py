@@ -48,8 +48,31 @@ def load_state(session_dir):
 
 
 def save_state(state_file, state):
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+    """Write atomically: temp file in the same directory, then `os.replace`.
+
+    A plain `open(..., "w")` truncates first, so a concurrent reader that opens
+    during the write sees a half-written file and `load_state`'s `json.load`
+    raises straight through — a traceback rather than the graceful "state file
+    missing" path right above it. `os.replace` is atomic on the same filesystem,
+    which removes that window without needing a lock.
+
+    Lost updates between concurrent writers are a separate matter, left to the
+    project's existing convergence approach (`reconcile_state_with_disk` derives
+    the agent buckets from disk on every read). `agent_history` and the
+    rate-limit fields have no such convergence and can still be lost under a
+    true race — tracked, not solved here.
+    """
+    tmp = f"{state_file}.tmp.{os.getpid()}"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, state_file)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def reconcile_state_with_disk(session_dir):
@@ -121,12 +144,6 @@ def emit_summary_state(session_dir, extra_fields=None):
         f"success={len(state.get('agents_success', []))}",
         f"fatal={len(state.get('agents_fatal', []))}",
     ]
-    # A callable, not a dict: the caller's extra fields come from the SAME
-    # reconciled state. Passing a pre-built dict forced the caller to reconcile
-    # first, and then this function's own reconcile found nothing left to do —
-    # which silently swallowed the "(reconciled …)" notice on the one side that
-    # has extra fields. Measured: the notice vanished for code-review and
-    # survived for consistency.
     # Callable only. A pre-built mapping would force the caller to reconcile
     # first to compute it, and this function's own reconcile would then find
     # nothing left to announce — which is precisely how the "(reconciled …)"

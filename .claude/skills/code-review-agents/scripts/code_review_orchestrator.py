@@ -274,6 +274,33 @@ def _verify_coverage(session_dir):
     sys.exit(1)
 
 
+# Caller-side trust check for a routing decision: the router must honour the
+# forced whitelist. Violating it discards the whole decision and runs every
+# reviewer.
+#
+# Why (measured 2026-07-23, session 14_47_40): the router returned
+# selected=false for **all 14** reviewers — the 7 forced ones included — with
+# the rationale "소스 코드 변경 없음(문서만 변경)", on a 19-file changeset
+# containing a brand-new Python module whose content was in the router's own
+# prompt. `_apply_routing` silently re-added the forced reviewers and trusted
+# everything else, so the run presented as a healthy 7-reviewer review while
+# every judgement behind it was wrong.
+#
+# The forced list is stated to the router as `selected=true` 고정, so returning
+# one as false is a contract breach rather than a judgement call. That makes it
+# the sharpest signal available that the decision as a whole is untrustworthy,
+# and — unlike any count-based threshold — it cannot fire on a legitimately
+# narrow decision (a doc-only typo routing to `documentation` alone is correct
+# and must stay cheap).
+#
+# Scope note: this does **not** revive the old "selected 수가 0 또는 1 이면 전체
+# fallback" rule. That was deliberately retired in 6cd7376fc (#244) in favour of
+# "0 명이면 fatal + minimal SUMMARY, 1명 이상이면 그대로 진행" — see
+# `.claude/agents/review-router.md` step 4 and README's router-safety table
+# ("전체 fallback 안 함"). Only the stale prose advertising the retired rule is
+# corrected here; the zero-reviewer path keeps its documented fatal behaviour.
+
+
 def _routing_distrust_reason(decisions, forced):
     """Why this routing decision must not be trusted, or None if it is fine.
 

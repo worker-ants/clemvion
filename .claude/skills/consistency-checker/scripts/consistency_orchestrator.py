@@ -41,7 +41,6 @@ from _lib import project_config  # noqa: E402
 
 # Report location/validity is shared with the push/stop gate and the code-review
 # orchestrator — see `.claude/_shared/report_paths.py`. One rule, three consumers.
-from _shared import report_paths as _report_paths_lib  # noqa: E402
 from _shared import block_integrity as _block_integrity  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 
@@ -119,6 +118,11 @@ def read_text_file(path):
     except Exception as e:
         debug_log(f"Failed to read {path}: {e}")
         return ""
+
+
+# ---------------------------------------------------------------------------
+# File / corpus collection
+# ---------------------------------------------------------------------------
 
 
 def _neutralize_sentinel(text):
