@@ -48,7 +48,14 @@ _CLEAN_REVIEW = (
 )
 _CLEAN_PLAN = (
     "class _P:\n    untouched = False\n    complete_but_in_progress = False\n"
-    "    reason = ''\n    plan_path = ''\ndef evaluate_plan():\n    return _P()\n"
+    "    reason = ''\n    plan_path = ''\n"
+    # `push_blocks` mirrors the real `PlanDecision` property. The push hook reads
+    # it for BOTH gates, so a stub without it turns an intended ALLOW into a
+    # crash-then-fail-open that still exits 0 — the test passes for the wrong
+    # reason. `test_block_integrity.py` had exactly this and it went unnoticed
+    # until a reviewer ran the subprocess and read stderr.
+    "    @property\n    def push_blocks(self):\n        return self.untouched\n"
+    "def evaluate_plan():\n    return _P()\n"
 )
 
 

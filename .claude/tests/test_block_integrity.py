@@ -413,6 +413,52 @@ class NotesReachBothHooksTest(unittest.TestCase):
         self.assertNotIn("하향 감지", r.stdout)
 
 
+class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
+    """Every hand-written `evaluate_plan` stub must expose `push_blocks`.
+
+    Found twice, in two files, the same way: the push hook reads
+    `result.push_blocks` for BOTH gates, so a stub missing it raises
+    AttributeError, the top-level handler fail-opens with exit 0, and the test
+    still sees what it asserted on. It passes — for the wrong reason, hiding
+    whichever ALLOW path it claimed to cover.
+
+    An audit fixes the instances; this fixes the class. A fifth stub added later
+    fails here instead of quietly testing the crash path.
+    """
+
+    def test_every_plan_stub_defines_push_blocks(self):
+        """Reads the stub *literal*, not the file.
+
+        The first version of this searched the whole file for `push_blocks`,
+        which the explanatory comment right above each stub already contains —
+        so deleting the actual property left it GREEN. A guard that its own
+        rationale satisfies is worse than none.
+        """
+        import ast
+        import glob
+        checked = []
+        tests_dir = _harness.CLAUDE_DIR / "tests"
+        for path in sorted(glob.glob(str(tests_dir / "test_*.py"))):
+            src = open(path, encoding="utf-8").read()
+            if "def evaluate_plan" not in src:
+                continue
+            stubs = [n.value for n in ast.walk(ast.parse(src))
+                     if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                     and "def evaluate_plan" in n.value]
+            # The stub is usually built by concatenating adjacent literals, which
+            # `ast` folds into one Constant; if a file ever splits it across
+            # separate expressions, join what we found for that file.
+            name = os.path.basename(path)
+            self.assertTrue(stubs, f"{name}: could not locate the stub literal")
+            checked.append(name)
+            self.assertIn(
+                "push_blocks", "".join(stubs),
+                f"{name} stubs evaluate_plan without push_blocks — the push hook "
+                "reads it for both gates, so that test would pass via fail-open",
+            )
+        self.assertGreaterEqual(len(checked), 4, f"stub files found: {checked}")
+
+
 class StopThrottleKeysOnTextTest(unittest.TestCase):
     """Repeat the same advisory → silence. A different one → still heard.
 
