@@ -27,7 +27,14 @@
   4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
      있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
      느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
-     빈 출력 / 파싱 불가 / `actions` 키 없는 JSON 세 형태를 exit 2 로 고정한다.
+     `_undecidable()` 로 exit 2 를 내는 지점은 **여섯**이다 — 빈 출력 / 파싱 불가 /
+     `actions` 키 없는 JSON / `advisories` 하위 필드 드리프트 / `actions` 하위 필드 드리프트 /
+     워크스페이스 파일 부재. 개수는 `FailClosedSiteCountTest` 가 소스에서 세어 강제한다.
+
+  나머지 두 클래스는 축이 아니라 **회귀 고정**이다: `CombinedReportTest`(widened 와 eroded 가
+  동시에 있으면 둘 다 보고 — 조기 return 을 되살려도 다른 테스트는 전부 GREEN 이었다),
+  `SchemaDriftTest`(위 두 드리프트 분기. 두 축이 서로 독립임을 포함 — 한쪽이 정상 파싱되면
+  다른 쪽 검사가 죽던 결함을 실측으로 잡았다).
 """
 
 from __future__ import annotations
@@ -255,7 +262,6 @@ class ClassificationTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("next>postcss", r.stderr)
 
-
     def test_advisory_without_github_id_falls_back_to_numeric_id(self):
         """`github_advisory_id` 없이 `id`(정수)만 오는 advisory 도 식별자를 잃지 않는다.
 
@@ -328,10 +334,70 @@ class SchemaDriftTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
         self.assertIn("스키마", r.stderr)
 
+    def test_actions_drift_is_caught_even_when_advisories_parse_fine(self):
+        """두 축은 독립이다 — advisory 하나가 정상이라고 actions 판정이 면제되지 않는다.
+
+        첫 구현은 `actions and not suppressed and not reported` 였다. `suppressed` 는
+        `reported` 와 겹치는 모듈을 빼기 때문에 "겹쳐서 비었다" 와 "필드명이 바뀌어 비었다" 를
+        구분하지 못하고, 그 보정으로 붙인 `not reported` 가 **override 와 무관한 advisory
+        하나만 있어도** 검사를 통째로 죽였다(실측 exit 0). `ignoreCves` 억제분을 보는 유일한
+        창구가 조용히 닫히는 형태 — 이 스크립트가 막으려는 실패의 정확한 재현이다.
+        """
+        r = run_with_stub_audit(
+            advisories={"1": {"module_name": "some-unmanaged",
+                              "github_advisory_id": "GHSA-unrelated",
+                              "patched_versions": ">=9.9.9"}},
+            overrides=self.OVERRIDES,
+            actions=[{"action": "review", "pkg": "brace-expansion"}],  # module → pkg
+        )
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("스키마", r.stderr)
+
+    def test_actions_all_overlapping_reported_is_not_drift(self):
+        """`actions` 가 전부 `reported` 와 겹쳐 `suppressed` 가 비는 건 정상이다.
+
+        이걸 드리프트로 보면 흔한 정상 상태가 상시 exit 2 가 된다 — 위 수정이 그 반대편으로
+        넘어가지 않았음을 고정한다.
+        """
+        r = run_with_stub_audit(
+            advisories={"1": {"module_name": "liquidjs",
+                              "github_advisory_id": "GHSA-a",
+                              "patched_versions": ">=10.27.1"}},
+            overrides=self.OVERRIDES,
+            actions=[{"action": "review", "module": "liquidjs",
+                      "resolves": [{"id": 1, "path": "x>liquidjs"}]}],
+        )
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)  # 침식으로 fail (판단 불가 아님)
+        self.assertIn("바닥이 낡아", r.stderr)
+
     def test_genuinely_empty_audit_still_passes(self):
         """빈 결과는 드리프트가 아니다 — 여기서 fail 하면 정상 상태가 상시 빨간불이 된다."""
         r = run_with_stub_audit({}, self.OVERRIDES, actions=[])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+class FailClosedSiteCountTest(unittest.TestCase):
+    """docstring 이 말하는 fail-closed 지점 수를 소스에서 세어 강제한다.
+
+    이 파일과 `README.md` 는 리뷰에서 **세 번** "축 개수 / 실패 횟수 / 형태 수" 가 실제와
+    어긋난다는 지적을 받았다. 카탈로그 가드는 행의 *존재*만 보고 *내용*은 안 보므로 이 drift 는
+    자동으로 안 잡힌다 — 그래서 최소한 이 수치만은 코드에 결속한다. 분기를 늘리면 여기서
+    빨간불이 나고, 그때 docstring 도 같이 고치게 된다.
+    """
+
+    EXPECTED_SITES = 6
+
+    def test_docstring_count_matches_source(self):
+        src = SCRIPT.read_text(encoding="utf-8")
+        # 정의부(`def _undecidable(`)는 호출이 아니다.
+        sites = src.count("_undecidable(") - src.count("def _undecidable(")
+        self.assertEqual(
+            sites, self.EXPECTED_SITES,
+            f"`_undecidable()` 호출 지점이 {sites}곳인데 이 파일의 docstring 과 "
+            f"`.claude/tests/README.md` 는 {self.EXPECTED_SITES}곳으로 서술한다 — "
+            "분기를 늘렸으면 두 문서와 EXPECTED_SITES 를 함께 고칠 것.",
+        )
+        self.assertIn("여섯", __doc__, "docstring 의 개수 표기가 EXPECTED_SITES 와 어긋난다")
 
 
 class SuppressedPathBaselineTest(unittest.TestCase):

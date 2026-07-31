@@ -203,9 +203,10 @@ def classify_vulnerable(audit: dict) -> tuple[dict[str, str], dict[str, list[str
             reported[module] = str(adv.get("github_advisory_id") or adv.get("id") or name)
 
     suppressed: dict[str, list[str]] = {}
-    for action in actions:
-        module = action.get("module")
-        if module and module not in reported:
+    actions_with_module = [a for a in actions if a.get("module")]
+    for action in actions_with_module:
+        module = action["module"]
+        if module not in reported:
             paths = [r.get("path", "?") for r in (action.get("resolves") or [])]
             suppressed.setdefault(module, []).extend(paths)
 
@@ -219,7 +220,11 @@ def classify_vulnerable(audit: dict) -> tuple[dict[str, str], dict[str, list[str
             "pnpm audit 스키마가 바뀐 것으로 보고 판단 불가로 처리한다(fail-closed).",
             f"  본 키: {sorted({k for adv in advisories.values() for k in adv})[:_KEY_PREVIEW]}",
         )
-    if actions and not suppressed and not reported:
+    # 판정은 `actions` 원소 자체로 한다. `suppressed` 는 `reported` 에 이미 있는 모듈을
+    # 빼므로 "전부 reported 와 겹쳐서 비었다" 와 "필드명이 바뀌어 비었다" 를 구분 못 하고,
+    # `not reported` 를 덧붙이면 **무관한 advisory 하나만 정상 파싱돼도** 이 검사가 통째로
+    # 죽는다(실측: exit 0). 이 축의 유일한 관측 창구가 조용히 닫히는 형태였다.
+    if actions and not actions_with_module:
         _undecidable(
             "`actions` 항목이 있는데 `module` 을 가진 것이 하나도 없다 — "
             "pnpm audit 스키마가 바뀐 것으로 보고 판단 불가로 처리한다(fail-closed).",

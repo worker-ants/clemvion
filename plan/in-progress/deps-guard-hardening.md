@@ -137,7 +137,17 @@ spec_impact: none
       드리프트 fail-closed · plan 수치 stale · 중간 scope 조합 리터럴 pin · 스텁 조립 방식 ·
       워크플로 헤더 잡 개수 · "두 번→세 번" 서술. INFO 2·4·5·9·10 도 조치(나머지는 위
       §3차 리뷰에서 미조치로 남긴 것 에 근거 기록).
-- [ ] TEST WORKFLOW (4차) · `/ai-review` 4차 · push + PR
+- [x] TEST WORKFLOW (4차) — lint PASS(51s) · unit PASS(62s) · build PASS(114s) ·
+      e2e PASS(285s: backend jest 46 suites/260 + playwright 51). 하네스 744 OK.
+- [x] `/ai-review` 4차 (`03_16_51`) — Critical 0 · Warning 2 (risk MEDIUM).
+      **3차 조치가 또 결함을 남겼다**: `actions` 스키마 드리프트 판정에 `and not reported` 를
+      붙여, override 와 **무관한** advisory 하나만 정상 파싱돼도 검사가 통째로 죽었다
+      (실측 exit 0). `ignoreCves` 억제분을 보는 유일한 창구가 조용히 닫히는 형태 —
+      이 스크립트가 막으려는 실패의 정확한 재현이다. `actions` 원소 자체로 판정하도록 분리.
+      W2(문서 drift, 같은 클래스 3회째)는 수치를 코드에 결속해 닫았다 —
+      `FailClosedSiteCountTest` 가 소스의 `_undecidable()` 호출 지점을 세어 docstring·README
+      서술과 어긋나면 fail. 카탈로그 가드가 행의 *존재*만 보는 사각을 메운다.
+- [ ] TEST WORKFLOW (5차) · `/ai-review` 5차 · push + PR
 
 ## 개발 중 실측으로 드러난 것
 
