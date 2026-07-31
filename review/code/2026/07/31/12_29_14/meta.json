@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-07-31T12:29:14.258599",
+  "files": [
+    {
+      "file_path": "codebase/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "pnpm-lock.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    }
+  ],
+  "agents": [
+    "dependency"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "dependency"
+  ]
+}

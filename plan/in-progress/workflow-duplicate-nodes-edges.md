@@ -150,6 +150,12 @@ async duplicate(id, workspaceId, userId): Promise<Workflow> {
 
 ## 3. 후속 항목 (본 PR 범위 밖 — 별도 PR)
 
+- [ ] **의존성 위생 2건** (최종 리뷰 `12_29_14` INFO #2·#3, 둘 다 "급하지 않음") —
+      (a) `tailwindcss` 직접 의존(`^4.2.2`)과 `@tailwindcss/postcss` 내부 엔진(`4.3.3`) lockstep
+      스큐. `postcss.config.mjs` 가 플러그인만 등록하고 bare `tailwindcss` import 가 없어 빌드 영향
+      없음 — 다음 정기 갱신에 동반 상향. (b) `pnpm-workspace.yaml:40` 의 `next>postcss` 오버라이드
+      하한(`^8.5.14`)이 직접 의존 하한(`^8.5.18`)보다 낮다. 상향 시
+      `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` **2-place 동시 갱신** 필수.
 - [ ] **`pnpm audit` 잔여 20건** — `deps-security-checks.yml` 의 audit 게이트가 실패 상태다.
       `brace-expansion`·`js-yaml`·`sharp`·`liquidjs`·`hono`·`typeorm`·`svgo` 등 backend·
       channel-web-chat 계열 선재 취약점. 본 PR 은 그중 postcss 1건만 해소했다(21 → 20).
