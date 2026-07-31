@@ -1089,6 +1089,58 @@ def prepare_session(change_infos, config):
 # ---------------------------------------------------------------------------
 
 
+def _default_branch_ref():
+    """Best-effort `origin/<default>` ref, or None when it cannot be resolved."""
+    r = _git(["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.strip().replace("refs/remotes/", "", 1)
+    for name in ("origin/main", "origin/master"):
+        r = _git(["git", "rev-parse", "--verify", "--quiet", name])
+        if r.returncode == 0 and r.stdout.strip():
+            return name
+    return None
+
+
+def warn_if_committed_work_is_missing(files):
+    """Warn when the default (working-tree) changeset omits committed branch work.
+
+    The default `--prepare` collects staged + unstaged + untracked — i.e. only
+    what is NOT yet committed. Right after a commit that set is empty or nearly
+    so, while the branch may carry dozens of changed files. Reviewers then get a
+    near-empty corpus and the run still reports "Critical 0", which the push gate
+    reads as a real review. That false convergence is what `--branch` exists to
+    avoid, and nothing used to say so at the moment it mattered.
+
+    Measured on this repo: right after committing, the default path collected 0
+    files while `--branch origin/main` collected 6.
+
+    Advisory only — never blocks, never changes the changeset. Silent on any git
+    failure: a review must not fail because the warning could not be computed.
+    """
+    base = _default_branch_ref()
+    if not base:
+        return
+    branch_files = set(get_git_branch_diff_files(base))
+    missing = sorted(branch_files - set(files))
+    if not missing:
+        return
+    print(
+        f"\n⚠️  이 브랜치는 {base} 대비 {len(branch_files)}개 파일이 변경됐지만, "
+        f"기본 changeset 은 미커밋 변경분 {len(files)}개만 담습니다 "
+        f"— {len(missing)}개가 리뷰에서 빠집니다.",
+        file=sys.stderr,
+    )
+    for f in missing[:10]:
+        print(f"     - {f}", file=sys.stderr)
+    if len(missing) > 10:
+        print(f"     … 외 {len(missing) - 10}개", file=sys.stderr)
+    print(
+        f"    커밋을 마친 뒤라면 `--branch {base}` 로 다시 돌리세요. "
+        "그러지 않으면 리뷰되지 않은 코드에 대해 'Critical 0' 이 나옵니다.\n",
+        file=sys.stderr,
+    )
+
+
 def collect_change_infos(args, config):
     """Resolve args into a flat list of change_info dicts. May return empty."""
     files = []
@@ -1127,6 +1179,7 @@ def collect_change_infos(args, config):
             print("Preparing review for staged changes", file=sys.stderr)
         else:
             print("Preparing review for git diff (staged + unstaged + untracked)", file=sys.stderr)
+        warn_if_committed_work_is_missing(files)
 
     filtered = []
     for f in files:
