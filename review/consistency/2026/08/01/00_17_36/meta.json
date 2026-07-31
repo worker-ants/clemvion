@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-01T00:17:37.693308",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-data-flow-structural-followups.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

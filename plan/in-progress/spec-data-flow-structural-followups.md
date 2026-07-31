@@ -1,6 +1,6 @@
 ---
 title: data-flow spec 구조·표기 후속 3건 — RBAC 표 배치 · SIGTERM 상호참조 · Model Config 명칭 통일
-worktree: (unstarted)
+worktree: spec-structural
 started: 2026-07-31
 owner: planner
 status: in-progress
@@ -8,6 +8,7 @@ priority: P3
 spec_impact:
   - spec/data-flow/12-workspace.md
   - spec/data-flow/3-execution.md
+  - spec/data-flow/0-overview.md
 ---
 
 ## Overview
@@ -15,7 +16,11 @@ spec_impact:
 `#1040` 의 `/consistency-check --impl-done` 라운드가 `spec/data-flow/` 전수를 점검하며 낸 WARNING
 중, **그 PR 범위 밖이라 닫지 못한 3건**을 분리해 추적한다. 셋 다 `spec/` 쓰기라 **planner 턴**이 필요하다.
 
-원 plan(`review-info-followups.md` §4)에서 이관. 그 plan 은 본 항목들이 분기됐으므로 완료 처리한다.
+원 plan(`review-info-followups.md` §4)에서 이관. 그 plan 의 해당 3개 항목은 `#1041` 에서 `[x]` 로
+갱신하며 본 plan 으로의 상호참조를 달았고, plan 자체도 `plan/complete/` 로 이동했다.
+
+> **`plan/complete/spec-sync-structural-followups.md` 와 혼동 금지** — 파일명 접미(`…structural-followups`)
+> 가 겹치지만 그쪽은 2026-06 spec-sync 감사 파생으로 **스코프가 무관**하다.
 
 ## 1. `12-workspace.md` §3.2 RBAC 매트릭스 배치
 
@@ -65,11 +70,38 @@ SIGTERM/graceful-shutdown 취소 분류가 **미결 결정**에 걸려 있는데
 
 ## 체크리스트
 
-- [ ] §1 RBAC 표 배치 — (a)/(b) 택일 + 인바운드 앵커 전수 확인
-- [ ] §2 SIGTERM 상호참조 각주 (결정 선점 금지)
-- [ ] §3 명칭 통일 — `rg -n "LLM Config" spec/` 전수 후 일괄
-- [ ] `/consistency-check --spec` (planner 의무)
+- [x] §1 RBAC 표 배치 — **(a) 승격 채택**. 인바운드 앵커 전수 확인 결과 `12-workspace.md#32`/`#4`
+      를 가리키는 링크 **0건**이라 번호 재배치가 안전했다(`1-auth.md §3.2` 를 가리키는 것들과 혼동
+      금지). `### 3.2` → `## 4. 권한 (RBAC 요약)` 승격, 기존 `## 4 외부 의존` → `## 5`,
+      문서 내 자기참조 `§4`(Audit 도메인 행 지시) 1건도 `§5` 로 정정.
+      **(b) 도 함께** — `0-overview.md` 에 `### 3.6 권한 요약 (선택)` 을 신설해 규약과 실물을
+      둘 다 맞췄다(§3.4 아래에 두지 말 것 + SoT 는 `1-auth.md` §3.2 명시).
+- [x] §2 SIGTERM 상호참조 각주 — 표 셀에 "분류 정책 결정 대기 중" + 표 아래 blockquote 로
+      (a)/(b) 미결과 종속 실측 갭(`assertExecutionNotCancelled` 가 FAILED/SERVER_INTERRUPTED
+      미관측)을 링크. **결정을 선점하지 않는 중립 서술**로 작성.
+- [x] §3 명칭 통일 — **`data-flow/` 범위만**. 전수 조사 20건 중 상당수가 서술이 아니라 **코드
+      식별자**였다(`ASSISTANT_NO_LLM_CONFIG` 에러 코드, `llm-config-selector` widget,
+      `ED-AI-06`~`08` 요구사항 ID 문맥) — 문자열 치환하면 코드와 어긋난다. `12-workspace.md`
+      §4 헤더·System role, `0-overview.md` 도메인 인덱스 4곳만 통일하고 범위를
+      `12-workspace.md` Rationale "명칭 통일 범위" 에 명문화.
+- [x] `/consistency-check --spec` — **BLOCK: NO**, Critical 0 · Warning 4 · INFO 6.
+      W1 plan 절 오인용(§3→§4) · W2 `spec_impact` 에 `0-overview.md` 누락 · W4 동명 접미 혼동
+      각주 — 셋 다 반영. W3(원 plan 미갱신)은 **`#1041` 이 이미 처리**한 것이 이 브랜치
+      (origin/main 기준)에 없어 그렇게 보인 것 — 확인 후 Overview 에 명시.
+      INFO#1(§3.6 근거가 본문에 있음 — §1 에서 지적한 것과 같은 종류)도 함께 닫아
+      `0-overview.md` `## Rationale` 로 이동. (`review/consistency/2026/08/01/00_17_36/SUMMARY.md`)
 - [ ] push + PR
+
+## 4. 잔여 — 서술형 "LLM Config" 표기 (별도)
+
+`3-workflow-editor/`·`4-nodes/`·`5-system/` 에 남은 구 표기는 **식별자와 서술을 한 건씩 구분**해야
+한다. 기계적 치환 금지 — 아래는 건드리면 안 되는 것들이다:
+
+- `ASSISTANT_NO_LLM_CONFIG` (`4-ai-assistant.md:620`) — 에러 코드, 코드와 연결
+- `llm-config-selector` (`4-ai-assistant.md:651`) — widget 이름
+- `ED-AI-06`/`07`/`08` (`_product-overview.md`) — 요구사항 ID 의 설명문이라 ID 자체는 불변
+
+바꿔도 되는 것: 순수 서술("LLM Config에 등록된 모델을 활용해", "LLM Config 선택 + 새 세션" 등).
 
 ## Rationale
 

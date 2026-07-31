@@ -8,7 +8,7 @@
 
 ### System role
 
-워크스페이스는 모든 리소스(워크플로우·통합·KB·LLM Config 등)의 격리 단위다. 사용자 1명은 1개의
+워크스페이스는 모든 리소스(워크플로우·통합·KB·Model Config 등)의 격리 단위다. 사용자 1명은 1개의
 personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로 속할 수 있다. 멤버십은
 `workspace_member` join 테이블이 N:M 관계를 표현하고, 새 멤버 초대는 토큰 기반 일회용 link 로 진행된다.
 
@@ -21,7 +21,7 @@ personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로
 
 활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(전환기 dual-read 로 legacy `workspaceId` 도 수용), 전환은 토큰 재발급(§1.5, `POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `jwt.strategy` 가 클레임의 멤버십을 검증해 `request.user.workspaceId` 를 확정하고(비멤버·부재 시 personal→첫 멤버십 fallback), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. **전환기 하위호환**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 **우선**(header-first) 사용한다(헤더 스푸핑은 RolesGuard 멤버십 검증이 403 으로 차단). 클라이언트가 헤더를 떼면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다(아래 Rationale).
 
-> **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§4 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)와 `X-Workspace-Id` 헤더 header-first(전환기 하위호환)는 레거시 세션·미마이그레이션 클라이언트 보호용으로 유지된다.
+> **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§5 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)와 `X-Workspace-Id` 헤더 header-first(전환기 하위호환)는 레거시 세션·미마이그레이션 클라이언트 보호용으로 유지된다.
 
 ---
 
@@ -236,9 +236,11 @@ stateDiagram-v2
   (매일 04:00 Asia/Seoul, BullMQ repeatable job — §1.2)가 주기적으로 삭제한다. 비즈니스 로직은
   `WorkspaceInvitationsService.pruneExpired(now)`. (감사 보존이 필요하면 별도 audit 로그 트랙으로 — 본 정리는 운영 위생 목적.)
 
-### 3.2 RBAC 매트릭스 (요약)
+---
 
-| Role | 워크스페이스 설정 | 멤버 관리 | 워크플로우 CRUD | 실행 | LLM Config | Integration |
+## 4. 권한 (RBAC 요약)
+
+| Role | 워크스페이스 설정 | 멤버 관리 | 워크플로우 CRUD | 실행 | Model Config | Integration |
 | --- | --- | --- | --- | --- | --- | --- |
 | owner | ✓ | ✓ (자기 외) | ✓ | ✓ | ✓ | ✓ |
 | admin | ✓ | ✓ (owner 제외) | ✓ | ✓ | ✓ | ✓ |
@@ -251,16 +253,18 @@ stateDiagram-v2
 > 이고 `ROLE_HIERARCHY` 상 viewer(1) < editor(2) 다. 1-auth.md §3.2 의 `Workflow 실행` 행도 Viewer 를
 > `—` 로 둔다. (2026-07-31 정정 — 이 셀이 오랫동안 `✓ (수동 실행 only)` 로 잘못 적혀 있었다.)
 >
-> **LLM Config 와 Integration 은 editor 권한이 다르다** — 병합 열로 두면 한쪽이 반드시 틀리므로
-> 분리했다. 위 표의 **"LLM Config" 는 `Model Config` 와 같은 리소스**다 (`unified-model-management`
-> V088~V092 로 API·내비게이션은 `Model Config` 로 일원화됐고 `spec/5-system/1-auth.md` 가 그 정본
-> 명칭을 쓴다 — 여기서는 표 헤더의 기존 표기를 유지한다). `Model Config` 는 워크플로우 구축의 일부라
-> Editor CRUD, `Integration (Org)` 은 외부 자격증명이라 Editor R 이다 — `Auth Config` 를 Editor=R 로
-> 좁힌 것과 같은 논리다 (`spec/5-system/1-auth.md` §3.2).
+> **Model Config 와 Integration 은 editor 권한이 다르다** — 병합 열로 두면 한쪽이 반드시 틀리므로
+> 분리했다. `Model Config` 는 워크플로우 구축의 일부라 Editor CRUD, `Integration (Org)` 은 외부
+> 자격증명이라 Editor R 이다 — `Auth Config` 를 Editor=R 로 좁힌 것과 같은 논리다
+> (`spec/5-system/1-auth.md` §3.2).
+>
+> 열 이름은 `Model Config` 로 통일했다 — `unified-model-management`(V088~V092) 이후 API·내비게이션이
+> 그 명칭으로 일원화됐고 `1-auth.md` 가 정본으로 쓴다. 구 표기 `LLM Config` 를 쓰는 문서가 아직
+> 남아 있다(§Rationale "명칭 통일 범위").
 
 ---
 
-## 4. 외부 의존
+## 5. 외부 의존
 
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
@@ -342,6 +346,19 @@ FK 대상이 사라져 INSERT 가 위반된다 — 어느 쪽이든 영속 불�
 수락 시 token 만 알면 누구나 수락할 수 있으면 안 된다. 수락자의 인증된 이메일이 초대 이메일과 일치해야
 멤버로 합류한다 (§1.3, 불일치 시 `400 BadRequest` code=`invitation_email_mismatch`). 초대받지 않은
 다른 사용자가 token 을 가로채도 이메일이 다르면 거부된다.
+
+### 명칭 통일 범위 — "LLM Config" → "Model Config" (2026-07-31)
+
+`unified-model-management`(V088~V092) 이후 API·내비게이션은 `Model Config` 로 일원화됐고
+[`spec/5-system/1-auth.md`](../5-system/1-auth.md) §3.2 가 그 정본 명칭을 쓴다. 본 문서(§4 표 헤더·
+System role)와 [`0-overview.md`](./0-overview.md) 도메인 인덱스는 이번에 통일했다.
+
+**전부 바꾸지는 않았다.** `spec/` 전수 조사 결과 구 표기가 20곳에 남아 있는데, 그중 상당수는 서술이
+아니라 **코드 식별자**다 — `ASSISTANT_NO_LLM_CONFIG`(에러 코드), `llm-config-selector`(widget 이름),
+`ED-AI-06`~`08` 같은 요구사항 ID 문맥. 이들을 문자열 치환하면 코드와 어긋난다. 따라서 `data-flow/`
+범위만 정리하고, `3-workflow-editor/`·`4-nodes/`·`5-system/` 의 서술형 잔존은
+[`plan/in-progress/spec-data-flow-structural-followups.md`](../../plan/in-progress/spec-data-flow-structural-followups.md)
+§4 에서 **식별자와 서술을 구분해** 별도로 처리한다.
 
 ### personal 워크스페이스 유일성 (owner 당 1개)
 
