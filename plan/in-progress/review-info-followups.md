@@ -52,12 +52,24 @@ condition: edge.condition,          // ← 복사 안 함
 
 새 단언 2건이 실제로 무언가를 지키는지 소스를 변형해 확인했다.
 
-| mutation | 결과 |
-| --- | --- |
-| `condition` 얕은 복사 제거 | **1 failed** / 20 passed — 새 단언만 RED |
-| `edgeRows.length > 0` 가드 제거 | **3 failed** / 18 passed |
+`duplicate` describe 22건 기준(전체 스펙 81건), 각 mutation 은 **단독 적용 후 원복**한다.
 
-원복 후 21 passed, `git diff` 로 소스가 mutation 전과 동일함을 확인.
+| # | mutation | 결과 |
+| --- | --- | --- |
+| M1 | `condition: edge.condition ? {...edge.condition} : edge.condition` → 얕은 복사 제거 | **1 failed** / 21 passed |
+| M2 | `if (edgeRows.length > 0)` 가드 제거 | **2 failed** / 20 passed |
+| M3 | 삼항의 **false 분기**를 `undefined` 로 (`... : undefined`) | **1 failed** / 21 passed |
+
+원복 후 전체 81 passed, `git diff` 로 소스가 mutation 전과 동일함을 확인.
+
+> **수치 정정 (리뷰 INFO #3)**: 최초 작성 시 M2 를 "3 failed" 로 적었으나 틀렸다. 재현 결과 단독
+> M2 는 **2 failed** 다. 원인은 내 실행 오류 — 앞선 명령이 `cd <이미 있는 경로> && cp <원복>` 형태였는데
+> `cd` 가 실패해 `&&` 뒤 원복이 실행되지 않았고, 그 결과 **M1 이 남은 채 M2 가 얹혀** 두 mutation 이
+> 겹친 수치를 기록했다. 리뷰어의 독립 재현이 이를 잡았다.
+
+> **M3 는 리뷰 INFO #2 로 추가됐다**: 최초 테스트는 `condition` 이 있는 엣지만 단언해, 삼항의 null
+> 분기를 `undefined` 로 바꾸는 mutation 이 **생존**했다(실측 확인: 21 passed). `condition: null` 인
+> 엣지에 `toBeNull()` 단언을 더해 닫았다.
 
 ## 2. 조치하지 않은 6건 — 근거와 함께 종결
 
@@ -72,19 +84,36 @@ condition: edge.condition,          // ← 복사 안 함
 
 ## 실측 검증
 
-- `workflows.service.spec.ts` duplicate describe **21건** 통과 (기존 19 + 신규 2)
-- mutation 2종 각각 RED 확인 → 원복 후 GREEN, 소스 diff 무변화
+- `workflows.service.spec.ts` duplicate describe **22건** 통과 (기존 19 + 신규 3)
+- mutation 3종 각각 단독 RED 확인 → 원복 후 GREEN(전체 81건), 소스 diff 무변화
 
 ## 체크리스트
 
 - [x] INFO 10건 전수 코드 확인 후 조치/종결 판정
 - [x] #10 `edge.condition` 얕은 복사
-- [x] #9 엣지 0건 조합 단언 + #10 참조 격리 단언 추가 (mutation 으로 non-vacuous 증명)
+- [x] #9 엣지 0건 조합 단언 + #10 참조 격리 단언(값·참조·**null 분기**) 추가 — mutation 3종으로
+      non-vacuous 증명
 - [x] #8 네이밍 통일 · #12 Swagger 멀티라인
-- [x] TEST WORKFLOW — lint PASS(53s) · unit PASS(backend 412 suites) · build PASS(294s) ·
-      e2e PASS(260/260, 317s)
-- [ ] `/ai-review` + Critical/Warning 조치
+- [x] TEST WORKFLOW (리뷰 조치 후 재수행) — lint PASS(54s) · unit PASS(backend 412 suites,
+      해당 스펙 81/81) · build PASS(714s) · e2e PASS(260/260, 406s)
+- [x] `/ai-review` (maintainability·testing·scope) — **Critical 0 · Warning 0 · INFO 6**,
+      위험도 LOW. 실질 2건 조치: INFO#3 mutation 수치 오기 정정, INFO#2 null 분기 단언 추가.
+      나머지 4건은 비차단(§3). (`review/code/2026/07/31/18_00_00/SUMMARY.md`)
 - [ ] push + PR
+
+## 3. 리뷰 INFO 중 미조치 4건
+
+| INFO | 항목 | 판단 |
+| --- | --- | --- |
+| #1 | Swagger 배열+`join` 포맷이 같은 파일 다른 description 과 스타일이 갈림 | 이 PR 은 가장 긴
+  하나만 정리했다. 컨벤션으로 확정하려면 기준(N자)을 정하고 파일 전체에 일관 적용해야 하는데,
+  그건 이 PR 의 범위(보류 INFO 처분)를 넘는다 |
+| #4 | `mockTransactionManager.find` override 보일러플레이트 4곳 반복 | 이번 diff 가 1건 더한 것은
+  맞으나, 헬퍼 추출은 기존 3곳까지 건드려야 해 테스트 리팩터가 된다. 별도 정리 대상 |
+| #5 | `duplicate` 컨트롤러 wiring 테스트 부재 | 이번 diff 는 Swagger description 만 건드렸고
+  동작 변경이 없다(출력 문자열 byte-identical 확인). 기존 갭이라 별도 판단 |
+| #6 | 네이밍 통일이 형제 함수 `importWorkflow()` 까지 확장 | **의도한 것**이며 plan §1.3 에
+  사전 선언했다. reviewer 도 "조치 불필요, 투명성 차원 기록" 으로 판정 |
 
 ## Rationale
 

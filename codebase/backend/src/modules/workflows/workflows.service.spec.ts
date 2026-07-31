@@ -698,6 +698,13 @@ describe('WorkflowsService', () => {
       expect(errEdge.condition).toEqual({ foo: 1 });
       // 값은 같되 **다른 객체** 여야 한다 — 같은 참조면 사본 변이가 원본을 오염시킨다.
       expect(errEdge.condition).not.toBe(origEdges[1].condition);
+
+      // 삼항의 **null 분기**도 고정한다. 이 단언이 없으면 false 분기를 `undefined`
+      // 로 바꾸는 mutation 이 생존한다(리뷰 INFO #2 — 실측으로 생존 확인).
+      const dataEdge = insertedRows(Edge)!.find(
+        (e) => e.type === EdgeType.DATA,
+      )!;
+      expect(dataEdge.condition).toBeNull();
     });
 
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
