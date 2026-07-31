@@ -1,6 +1,6 @@
 ---
 title: 의존성 보안 가드 경화 3건 — 오버라이드 바닥 침식 검출 · audit 수용 근거 규약 · dependabot 되돌림 방지
-worktree: (unstarted)
+worktree: deps-guard
 started: 2026-07-31
 owner: developer
 status: in-progress
@@ -97,20 +97,69 @@ spec_impact: none
 
 ## 체크리스트
 
-- [ ] §1 오버라이드 바닥 침식 검출 — 설계 판단(로컬 vs 네트워크) 후 구현 + CI 배선
-- [ ] §2 `ignoreCves` 근거 규약 명문화 (+ 가능하면 기계 검사)
-- [ ] §3 dependabot 되돌림 방지 — (a)/(b)/(c) 택일
-- [ ] TEST WORKFLOW
+- [x] §1 침식 검출 — `scripts/check-override-floors.py` 신설 + `deps-security-checks.yml` 에
+      `override-floors` 잡 배선. **설계 판단**: 기존 `check-pnpm-security-config.py`(순수 로컬
+      스냅샷)에 넣지 않고 분리했다 — 본 가드는 `pnpm audit` 레지스트리 조회가 필요해서, 한
+      스크립트에 넣으면 네트워크 장애가 로컬 대조까지 죽인다.
+- [x] §2 `ignoreCves` 근거 규약 — `pnpm-workspace.yaml` `auditConfig` 주석에 요구 근거 3종
+      명문화(`--prod` 출력 · 프로덕션 이미지 실물 확인 · 자르지 않은 전체 `paths`) + `#1038`
+      실패 경위를 근거로 기록. 기계 검사는 넣지 않았다(§아래 Rationale).
+- [x] §3 dependabot — **루트 pnpm 워크스페이스가 `dependabot.yml` 에 아예 미등록**이었음을
+      발견. npm_and_yarn 그룹 PR 은 repo Settings 의 security updates 만 만들고 있어 파일로
+      제어할 여지가 없었다. 루트 트리 등록 + `rebase-strategy: auto` 명시 + 사고 경위 주석.
+- [x] 회귀 테스트 — `.claude/tests/test_override_floors.py` 11건. mutation 2종으로 non-vacuous
+      증명(추출 로직 되돌림 → 3 failures, 분류 fail 경로 제거 → 2 failures).
+- [x] TEST WORKFLOW — lint PASS(54s) · unit PASS(backend 412 suites) · build PASS(163s) ·
+      e2e PASS(260/260, 325s). 신규 가드 테스트 11건 별도 통과.
 - [ ] `/ai-review` + Critical/Warning fix
 - [ ] push + PR
 
+## 개발 중 실측으로 드러난 것
+
+**패키지명 추출을 두 번 틀렸다.** override 키가 세 형태(`pkg`, `parent>child`, `pkg@range`)에
+scope 패키지까지 섞여 온다.
+
+1. `>` 를 먼저 자르면 `undici@>=7.0.0` 의 `>=` 를 부모 구분자로 오인 → `js-yaml` 스코프
+   override 2건이 통째로 매칭에서 빠지고 **가드가 조용히 통과**했다.
+2. 레인지를 먼저 떼면 scope 패키지의 선두 `@` 를 버전 구분자로 물어 `@babel/core@>=7` 이
+   `=7.0.0` 이 됐다.
+
+추출이 틀리면 가드가 아무것도 안 잡으므로 회귀 테스트의 절반을 이 축에 썼다.
+
+**"바닥을 낮추면 잡힌다" 가 아니다.** 첫 재현에서 `liquidjs ^10.27.1` → `^10.27.0` 으로
+되돌렸는데 가드가 통과했다 — caret 은 범위 안 최신을 허용하므로 lockfile 재계산 시 패치
+버전이 그대로 설치되고 audit 도 조용하다. 침식이 **실제 위험이 되는 시점**은 lockfile 이
+취약 버전에 고정돼 있을 때다. 정확한 재현은 caret 없이 고정(`liquidjs: 10.27.0`)해야 하고,
+그 상태에서 가드가 `GHSA-g357-x5c3-c72p` 를 정확히 보고했다(exit 1).
+
+즉 **본 가드는 `pnpm audit` 의 부분집합**이다. 검출이 아니라 **분류**가 가치다.
+
 ## Rationale
+
+**왜 §2 는 기계 검사를 넣지 않았나**: 초안은 "가능하면 `check-pnpm-security-config.py` 가 신규
+`ignoreCves` 항목의 주석에 `--prod` 근거 문구가 있는지 확인" 을 검토 대상으로 뒀다. 넣지 않았다 —
+주석에 특정 문자열이 있는지 보는 검사는 **문구만 복사하면 통과**한다. `#1038` 의 실패는 근거를
+안 쓴 게 아니라 **쓴 근거가 틀린 것**이었고(그 근거가 "dev 전용" 이라고 명시돼 있었다), 문자열
+검사는 정확히 그 실패를 못 잡는다. 대신 요구 절차를 구체적 명령으로 적어 리뷰어가 재현할 수
+있게 했다 — 검증 가능성을 사람 쪽에 두는 편이 정직하다.
+
+**왜 §3 은 required check 를 못 넣었나**: `--frozen-lockfile` 검증을 required 로 승격하는 것은
+repo Settings(Branch protection) 소관이라 이 저장소 파일로 표현할 수 없다. 대신 `dependabot.yml`
+주석과 아래 후속에 수동 조치로 남겼다.
+
 
 `spec_impact: none` — CI·스크립트·설정 변경으로 제품 명세와 무관하다.
 
 **왜 묶었나**: 셋 다 "의존성 보안 상태가 **조용히** 나빠지는" 같은 클래스다. §1 은 바닥이 낮아지는 것,
 §2 는 수용 근거가 부실해지는 것, §3 은 이미 올린 bump 가 되돌려지는 것 — 셋 다 사후에 audit 이
 빨간불로 알려주지만 그때는 이미 취약 상태다. 한 PR 에서 다루면 "왜 이 셋인가" 가 서로를 설명한다.
+
+### 남은 수동 조치 (repo Settings — 파일로 불가)
+
+- [ ] **`--frozen-lockfile` 검증을 required check 로 승격** — Branch protection 설정. 이번 사고
+      (`#1030` 이 `#1029` 의 보안 bump 를 되돌려 main CI failure)의 발현 지점이 정확히 그것이라
+      가장 직접적인 방어다. 현재 `frontend-checks`·`packages-checks`·`web-chat-checks` 가
+      `--frozen-lockfile` 로 돌고 있으므로 그중 하나를 required 로 지정하면 된다.
 
 **왜 P2 인가**: 현재 audit 게이트는 `#1038` 로 exit 0 이라 **지금 당장 뚫린 상태는 아니다**. 다만
 장치가 없으면 다음 CVE 공시 때 같은 일이 반복되고, 그 사이 기간은 아무도 모른다.

@@ -22,6 +22,7 @@ on:
       - 'package.json'
       - 'codebase/**/package.json'
       - 'scripts/check-pnpm-security-config.py'
+      - 'scripts/check-override-floors.py'
       - '.github/workflows/deps-security-checks.yml'
   push:
     branches: [main]
@@ -69,3 +70,25 @@ jobs:
       # 신규 moderate+ 취약점만 실패시킨다.
       - name: pnpm audit
         run: pnpm audit --audit-level=moderate
+
+  override-floors:
+    name: override 바닥 침식 검출
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      - name: Install PyYAML
+        run: pip install "pyyaml>=6,<7"
+      # audit 잡과 **별개 잡**이다. audit 은 "새로 발견된 취약점" 전체를 보고, 본 잡은 그중
+      # **override 로 이미 관리하겠다고 선언한 패키지**만 좁혀 본다 — 전자는 상향 가능한지·
+      # 수용할지 판단이 필요하고, 후자는 값만 올리면 되는 것이라 조치 가능성이 다르다.
+      # 한 목록에 섞이면 후자가 묻힌다(#1038 이 17건 중 4건으로 정확히 그 상태였다).
+      - name: Check override floors
+        run: python3 scripts/check-override-floors.py

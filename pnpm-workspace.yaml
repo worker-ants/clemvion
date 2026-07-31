@@ -66,7 +66,23 @@ onlyBuiltDependencies:
 # 의존성 취약점 audit 정책 — CI(.github/workflows/deps-security-checks.yml)가
 # `pnpm audit --audit-level=moderate` 로 신규 moderate+ 취약점을 PR·주간 스케줄에서
 # 차단한다. 아래 `ignoreCves` 는 **검토 후 수용(accept)한** 취약점 — 신규 CVE 를
-# 사유 없이 억제 금지(수용은 반드시 근거·영향경로·해소 조건과 함께).
+# 사유 없이 억제 금지.
+#
+# **수용에 요구되는 근거 (2026-07-31 규약화)** — 아래 셋을 주석에 남긴다. "근거를 쓰라" 만으로는
+# 부족했다: 2026-07-31 `#1038` 이 brace-expansion 을 "두 경로 모두 dev 전용" 이라 수용했는데
+# 세 번째 경로가 프로덕션이었다(`@nestjs-modules/mailer > mjml > … > brace-expansion`). 원인은
+# 판단이 아니라 **검증 절차**였다 — audit 출력의 `paths` 를 잘라 보고(`[:3]`) 세 번째를 못 봤고,
+# `--prod` 를 돌리지 않았다. flag 없는 `pnpm audit` 은 dev/prod 를 구분하지 않는다.
+#
+#   1. `pnpm audit --prod --audit-level=moderate` 결과 — 해당 CVE 가 **프로덕션 트리에 없음**
+#      을 보이는 출력. prod 에 있으면 수용이 아니라 해소가 원칙이다.
+#   2. 프로덕션 이미지 실물 확인 — `docker run --rm --entrypoint sh <backend-image> -c
+#      'ls -d node_modules/.pnpm/<pkg>@*'`. optional peer 가 pnpm 에 의해 충족돼 이미지에
+#      들어가는 경우가 있다(위 mjml 사례가 정확히 그것).
+#   3. **자르지 않은** 전체 경로 목록 — `paths` 를 슬라이싱하지 말 것.
+#
+# 해소가 가능한데 수용하지 않는다. `#1038` 은 위 절차로 재검증해 수용 대신 실제 해소로 전환했다
+# (2.x 를 5.x 로 올려 `--prod` 0건 달성, dev 전용 1.x 경로만 남겨 수용).
 auditConfig:
   ignoreCves:
     # CVE-2026-53550 (GHSA-h67p-54hq-rp68) — js-yaml <3.15.0 merge-key 이차 복잡도 DoS (moderate).
