@@ -21,6 +21,11 @@
      축 2 로는 절대 안 잡힌다(실측: 취약 버전이 실제 설치됐는데 가드가 OK 를 냈다 — 이 가드가
      막으려던 바로 그 조용한 통과였다). `actions[]` 에 남는 경로를 baseline 과 대조해
      **경로가 늘면** fail 시킨다.
+
+  4. **fail-closed** — audit 을 *실행하지 못한 것*은 "취약점 0건" 이 아니다. audit 은 취약점이
+     있으면 비-0 으로 끝나 returncode 로 성공을 못 가리므로 출력 형태로 판정하는데, 그 판정이
+     느슨하면 레지스트리 타임아웃·401 오류 페이로드가 초록불이 된다(축 1~3 을 다 통과한 채로).
+     빈 출력 / 파싱 불가 / `actions` 키 없는 JSON 세 형태를 exit 2 로 고정한다.
 """
 
 from __future__ import annotations
@@ -112,12 +117,15 @@ class ClassificationTest(unittest.TestCase):
     """축 2 — advisory 를 override 대상 여부로 갈라 exit code 를 낸다."""
 
     def _run_with_stub_audit(
-        self, advisories: dict, overrides: str, actions: list | None = None
+        self, advisories: dict, overrides: str, actions: list | None = None,
+        raw_stdout: str | None = None,
     ) -> subprocess.CompletedProcess:
         """`pnpm audit` 을 스텁으로 갈아끼워 스크립트를 돌린다.
 
         실제 레지스트리에 의존하면 테스트가 네트워크·CVE 공시 상태에 흔들린다. PATH 앞에
         가짜 `pnpm` 을 두어 원하는 advisory 를 주입한다.
+
+        `raw_stdout` 을 주면 정상 형태 대신 그 문자열을 그대로 뱉는다 — fail-closed 분기용.
         """
         import tempfile
         import os
@@ -134,13 +142,11 @@ class ClassificationTest(unittest.TestCase):
             bindir = tmp / "bin"
             bindir.mkdir()
             fake = bindir / "pnpm"
-            fake.write_text(
-                textwrap.dedent(
+            body = (
+                f"sys.stdout.write({raw_stdout!r})\n"
+                if raw_stdout is not None
+                else textwrap.dedent(
                     f"""\
-                    #!/usr/bin/env python3
-                    import json, sys
-                    # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키
-                    # 존재로 정상 응답을 판정하므로(fail-closed) 스텁도 갖춰야 한다.
                     print(json.dumps({{
                         "actions": {json.dumps(actions)},
                         "advisories": {json.dumps(advisories)},
@@ -148,7 +154,18 @@ class ClassificationTest(unittest.TestCase):
                         "metadata": {{"vulnerabilities": {{}}, "totalDependencies": 0}},
                     }}))
                     """
-                ),
+                )
+            )
+            fake.write_text(
+                textwrap.dedent(
+                    f"""\
+                    #!/usr/bin/env python3
+                    import json, sys
+                    # 실제 `pnpm audit --json` 과 같은 형태 — run_audit() 이 `actions` 키
+                    # 존재로 정상 응답을 판정하므로(fail-closed) 스텁도 갖춰야 한다.
+                    """
+                )
+                + body,  # dedent 후 이어붙인다 — body 도 이미 0-indent 다.
                 encoding="utf-8",
             )
             fake.chmod(0o755)
@@ -243,6 +260,37 @@ class SuppressedPathBaselineTest(unittest.TestCase):
         self.assertIn("수용 범위 밖", r.stderr)
         self.assertIn(self.NEW, r.stderr)
         self.assertNotIn(f"    - {self.KNOWN}", r.stderr)
+
+
+class FailClosedTest(unittest.TestCase):
+    """audit 을 **실행하지 못한 것**과 "취약점 0건" 을 구분한다.
+
+    구분하지 못하면 레지스트리 타임아웃·인증 오류가 초록불이 되어, 이 가드가 막으려는
+    조용한 통과를 가드 자신이 재현한다. 세 형태 모두 exit 2 (실패 1 과도 구분: 취약 발견이
+    아니라 판단 불가라는 뜻)여야 한다.
+    """
+
+    OVERRIDES = "overrides:\n  liquidjs: ^10.27.1\n"
+
+    def _run_raw(self, raw):
+        return ClassificationTest._run_with_stub_audit(
+            self, advisories={}, overrides=self.OVERRIDES, raw_stdout=raw
+        )
+
+    def test_empty_stdout_is_undecidable(self):
+        r = self._run_raw("")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertNotIn("취약 재유입 0건", r.stdout)
+
+    def test_unparseable_output_is_undecidable(self):
+        r = self._run_raw("ERR_PNPM_AUDIT_FAILED  registry unreachable\n")
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+
+    def test_error_payload_without_actions_is_undecidable(self):
+        """유효한 JSON 이지만 audit 결과가 아닌 오류 페이로드 — 가장 속기 쉬운 형태."""
+        r = self._run_raw(json.dumps({"error": {"code": "ERR_PNPM_AUDIT", "message": "401"}}))
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn("actions", r.stderr)
 
 
 class MultipleMatchTest(unittest.TestCase):
