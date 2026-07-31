@@ -142,6 +142,39 @@ condition: edge.condition,          // ← 복사 안 함
 | #6 | 네이밍 통일이 형제 함수 `importWorkflow()` 까지 확장 | **의도한 것**이며 plan §1.3 에
   사전 선언했다. reviewer 도 "조치 불필요, 투명성 차원 기록" 으로 판정 |
 
+## 4. impl-done 게이트가 드러낸 범위 밖 항목
+
+`--impl-done` 이 `spec/data-flow/` 전수를 점검하며 **이번 PR 과 무관한 기존 결함**을 냈다.
+Critical·조치 가능한 WARNING 은 이 PR 에서 닫았고(커밋 `9fa06cd4c` + 각주 보강), 나머지는 후속이다.
+
+닫은 것:
+
+- **Critical** — `12-workspace.md` §3.2 가 viewer 의 워크플로우 실행을 `✓ (수동 실행 only)` 로
+  기재. SoT(`1-auth.md` §3.2 `Workflow 실행` 행 = `—`)·코드(`@Roles('editor')`,
+  `ROLE_HIERARCHY` viewer 1 < editor 2) 셋 다 반대였다 → `✗`.
+- **W1** — 같은 표의 "LLM Config / Integration" 병합 열이 editor 를 `view` 로 축소. 실제로는
+  Model Config=CRUD, Integration(Org)=R 로 달라 열을 분리하고, 2차 라운드 지적을 받아
+  "LLM Config = Model Config 동일 리소스" bridging 문장도 추가.
+- **W3** — `spec-sync-auth-gaps.md` 가 §4.1 감사 로깅 갭을 추적하지 못하고 "Audit ... 모두 구현
+  확인됨" 이라 적고 있었다(실측 `AuditLogsService` import 0건). 미구현 항목 추가 +
+  `implemented` 승격 금지 조건 명시.
+- **W4** — `workflow-duplicate-nodes-edges.md` §3 의 "보류 INFO 10건" 체크박스에 이 PR 로의
+  상호참조 추가.
+
+후속으로 남긴 것 (이번 PR 이 만든 것이 아니고, 고치면 scope 가 크게 번진다):
+
+- [ ] **`12-workspace.md` §3.2 위치** — RBAC 매트릭스가 `## 3 상태 전이` 섹션 아래에 있어
+      `0-overview.md §3.4` 템플릿(엔티티 status enum 전이 전용)에서 이탈. 15개 형제 문서 중
+      유일하다. 별도 `## 권한(RBAC)` 섹션으로 승격하거나 공통 규약에 예외 조항 명문화 —
+      **planner 턴 필요**.
+- [ ] **`3-execution.md` §3.3 SIGTERM 행 상호참조** — 취소 분류 (a)/(b) 결정이
+      `spec-update-node-cancellation-shutdown-classification.md` 에서 미결인데 §3.3 이 이를
+      언급하지 않아 완결된 것처럼 읽힌다. 결정을 선점하지 않는 "결정 대기 중" 각주 추가 —
+      **planner 턴 필요**.
+- [ ] **"LLM Config" → "Model Config" 표기 통일** — `12-workspace.md` 표 헤더와
+      `0-overview.md:131` 등 product-facing 문서군이 아직 구 명칭. 이번엔 bridging 문장으로
+      오독만 막았다.
+
 ## Rationale
 
 `spec_impact: none` — 동작 계약 변경 없음. `edge.condition` 얕은 복사는 인메모리 참조 격리이고 DB 에

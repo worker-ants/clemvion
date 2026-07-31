@@ -252,8 +252,11 @@ stateDiagram-v2
 > `—` 로 둔다. (2026-07-31 정정 — 이 셀이 오랫동안 `✓ (수동 실행 only)` 로 잘못 적혀 있었다.)
 >
 > **LLM Config 와 Integration 은 editor 권한이 다르다** — 병합 열로 두면 한쪽이 반드시 틀리므로
-> 분리했다. Model Config 는 워크플로우 구축의 일부라 Editor CRUD, Integration(Org)은 외부 자격증명이라
-> Editor R 이다 (1-auth.md §3.2 및 그 아래 "Model Config Editor CRUD 근거" 각주).
+> 분리했다. 위 표의 **"LLM Config" 는 `Model Config` 와 같은 리소스**다 (`unified-model-management`
+> V088~V092 로 API·내비게이션은 `Model Config` 로 일원화됐고 `spec/5-system/1-auth.md` 가 그 정본
+> 명칭을 쓴다 — 여기서는 표 헤더의 기존 표기를 유지한다). `Model Config` 는 워크플로우 구축의 일부라
+> Editor CRUD, `Integration (Org)` 은 외부 자격증명이라 Editor R 이다 — `Auth Config` 를 Editor=R 로
+> 좁힌 것과 같은 논리다 (`spec/5-system/1-auth.md` §3.2).
 
 ---
 
