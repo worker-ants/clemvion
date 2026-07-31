@@ -55,11 +55,10 @@ condition: edge.condition,          // ← 복사 안 함
 
 ### mutation 으로 non-vacuous 증명
 
-새 단언 2건이 실제로 무언가를 지키는지 소스를 변형해 확인했다.
+새 단언 3건이 실제로 무언가를 지키는지 소스를 변형해 확인했다.
 
-`duplicate` describe 22건 기준(전체 스펙 81건), 각 mutation 은 **단독 적용 후 원복**한다.
-
-스펙 전체 **80건**(`workflows.service.spec.ts`) 기준. 각 mutation 은 **단독 적용 후 원복**한다.
+스펙 전체 **80건**(`workflows.service.spec.ts`, 그중 `duplicate` describe **16건**) 기준.
+각 mutation 은 **단독 적용 후 원복**하고, 다음 측정 전에 **원복이 실제로 됐는지 확인**한다.
 
 | # | mutation | 결과 | 실패 테스트 |
 | --- | --- | --- | --- |
@@ -79,8 +78,13 @@ condition: edge.condition,          // ← 복사 안 함
 >    `jest -t "duplicate"` 결과(21건)를 describe 건수의 **프록시로 착각**했다. 그 필터는 다른
 >    describe 의 `duplicate node labels` 류 테스트 5건까지 함께 잡는다.
 >
-> 두 번 다 리뷰어의 독립 재현이 잡았다. 교훈: mutation 은 **단독 적용 후 원복 확인**이 전제이고,
-> 테스트 개수는 **필터 결과가 아니라 대상 자체**를 세야 한다.
+> 3. 위 2번을 정정하면서 **틀린 문장을 지우지 않고 옆에 맞는 문장만 추가**했다. 그 결과 같은 절에
+>    "22건 기준(전체 81건)" 과 "전체 80건 기준" 이 나란히 남아 자기모순 상태가 됐다 —
+>    "정정 완료" 라고 보고한 수정 자체가 불완전했다.
+>
+> 세 번 다 리뷰어의 독립 재현이 잡았다. 교훈 셋: mutation 은 **단독 적용 후 원복 확인**이 전제이고,
+> 테스트 개수는 **필터 결과가 아니라 대상 자체**를 세야 하며, 정정은 **틀린 서술을 제거**해야
+> 완료다(옆에 맞는 값을 덧붙이는 것은 정정이 아니라 모순 추가다).
 
 > **M3 는 리뷰 INFO #2 로 추가됐다**: 최초 테스트는 `condition` 이 있는 엣지만 단언해, 삼항의 null
 > 분기를 `undefined` 로 바꾸는 mutation 이 **생존**했다(실측 확인: 21 passed). `condition: null` 인
@@ -119,6 +123,9 @@ condition: edge.condition,          // ← 복사 안 함
       상세: `review/code/2026/07/31/18_37_11/RESOLUTION.md`
 - [x] TEST WORKFLOW 재수행 — lint PASS(48s) · unit PASS(80/80) · build PASS(140s) ·
       e2e PASS(260/260, 288s)
+- [x] 수렴 라운드 `/ai-review` (testing) — **Critical 0 · Warning 1**. plan 자기모순(틀린 문장이
+      지워지지 않고 남음) 정정. 코드·테스트는 reviewer 독립 재검증 "문제 없음"(소스 재독 +
+      jest 80/80). 상세: `review/code/2026/07/31/19_06_38/RESOLUTION.md`
 - [ ] push + PR
 
 ## 3. 리뷰 INFO 중 미조치 4건
