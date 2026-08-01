@@ -20,3 +20,27 @@ updates:
     directory: "/.claude/tools/mermaid-lint"
     schedule:
       interval: "weekly"
+
+  # 루트 pnpm 워크스페이스(backend·frontend·channel-web-chat·packages/*).
+  #
+  # 2026-07-31 까지 이 트리는 **여기 미등록**이었고, npm_and_yarn 그룹 PR 은 repo Settings 의
+  # Dependabot **security updates**(스키마 밖 토글)만 만들고 있었다. 그 결과 파일로 제어할
+  # 여지가 없었고, 실제로 사고가 났다:
+  #
+  #   #1029 (보안 그룹) postcss ^8.5.14 → ^8.5.18 + lockfile 갱신 → CI success
+  #   #1030 (next bump) **#1029 이전 base 에서 생성** → postcss 를 ^8.5.14 로 되돌림.
+  #         lockfile 은 ^8.5.18 인 채 남아 `pnpm install --frozen-lockfile` 이
+  #         ERR_PNPM_OUTDATED_LOCKFILE 로 실패 → main CI failure (#1034 가 복구).
+  #
+  # 등록해 두면 (a) 같은 group 의 순차 머지에서 rebase 가 적용되고, (b) 향후 grouping·
+  # ignore 규칙을 파일로 관리할 수 있다. `rebase-strategy: auto` 는 기본값이지만, 이번
+  # 사고의 원인이 정확히 "구 base 에서 만들어진 PR" 이라 의도를 명시적으로 남긴다.
+  #
+  # 남은 갭: **`--frozen-lockfile` 검증을 required check 로 승격**하는 것은 repo Settings
+  # (Branch protection) 소관이라 이 파일로 못 한다 — `plan/in-progress/deps-guard-hardening.md`
+  # §3 에 수동 조치로 남겼다.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    rebase-strategy: "auto"

@@ -1,0 +1,26 @@
+# 아키텍처(Architecture) 리뷰 — deps-guard-hardening
+
+## 발견사항
+
+- **[WARNING]** `check-override-floors.py` 의 fail-closed 검증이 pnpm audit JSON 의 최상위 형태만 확인하고, 분류 로직이 실제로 의존하는 하위 필드명은 검증하지 않는다 — 외부(pnpm) 미문서화 스키마에 대한 얕은 결합.
+  - 위치: `scripts/check-override-floors.py:153`(`run_audit()` 의 `if not isinstance(data, dict) or "actions" not in data:` 검사) 및 `:188-189`,`:195-196`(`classify_vulnerable()` 의 `adv.get("module_name")`, `action.get("module")`).
+  - 상세: `run_audit()` 은 pnpm audit 응답이 "정상 형태"인지 오직 최상위 `actions` 키 존재 여부로만 판정한다. 그런데 실제 분류 로직인 `classify_vulnerable()` 은 그보다 훨씬 깊은 필드 — `advisories{}.<id>.module_name`, `actions[].module`, `actions[].resolves[].path` — 에 의존한다. pnpm 은 이 JSON 스키마를 버전 관리되는 공개 계약으로 문서화하지 않는데, 이 저장소의 `package.json` 은 `packageManager: "pnpm@10.23.0"` 로 pnpm 버전을 못박아 두고 있고 이번 작업 자체가 "pnpm 10.23 이 `package.json` 의 `pnpm` 필드를 더 이상 읽지 않는다"는 과거 스키마 변경의 산물이다(`scripts/check-pnpm-security-config.py` 상단 docstring) — 즉 pnpm 메이저 상향에 따른 JSON 필드 변경은 이 코드베이스에서 실제로 일어난 전례가 있다. 향후 유사 상향으로 `module_name`/`module` 필드명이 바뀌면 `adv.get(...)`/`action.get(...)` 은 조용히 `None` 을 반환하고 `reported`/`suppressed` 둘 다 빈 dict 가 되어, `main()` 은 "OK: 취약 재유입 0건" 을 출력하고 exit 0 로 끝난다 — 이 스크립트가 명시적으로 막으려는 바로 그 "조용한 통과" 를 스크립트 자신의 파싱 계층에서 재현하는 구조다. 게다가 `test_override_floors.py` 의 모든 axis 는 손으로 만든 스텁 `pnpm` 바이너리(고정 JSON 구조를 그대로 echo)를 PATH 에 앞세워 실행하므로, 실제 `pnpm audit` 바이너리가 내놓는 필드명 자체가 맞는지는 유닛 테스트로 전혀 검증되지 않는다 — 유일한 실물 검증은 plan 문서("개발 중 실측으로 드러난 것")에 기록된 1회성 수동 실행뿐이고, 회귀를 잡는 자동 가드가 아니다.
+  - 제안: (a) `advisories`/`actions` 가 비어있지 않은데 개별 엔트리 전체가 기대 키(`module_name`/`module`)를 하나도 갖지 않는 경우를 스키마 드리프트 신호로 보고 fail-closed 처리하는 방어 계층을 `classify_vulnerable()` 또는 `run_audit()` 에 추가하거나, (b) CI 의 `override-floors` 잡(실물 `pnpm audit` 를 호출하는 유일한 실행 지점)에 "이번 실행에서 advisories/actions 엔트리가 있었다면 최소 하나는 `module_name`/`module` 키를 가졌는지"를 확인하는 별도 스모크 단계를 추가해, 스텁이 아닌 실물 바이너리 대상 계약 검증을 어딘가에는 확보할 것.
+
+- **[INFO]** 자매 스크립트 두 곳의 "EXPECTED_* baseline" 이 드리프트 검출 방향에서 비대칭이다.
+  - 위치: `scripts/check-override-floors.py:61-67`(`EXPECTED_SUPPRESSED_PATHS`) vs `scripts/check-pnpm-security-config.py:82-88`(`_check_set()`).
+  - 상세: `check-pnpm-security-config.py::_check_set()` 은 baseline↔실제 설정을 **양방향**(missing/extra) 대조해, 실제 설정에서 항목이 조용히 사라져도(= baseline 이 낡음) `missing` 으로 잡아낸다. 반면 `check-override-floors.py::main()` 의 `widened` 계산은 `actual - allowed`(한 방향)만 본다 — `EXPECTED_SUPPRESSED_PATHS` 에는 남아 있지만 지금은 어떤 audit 결과에도 대응하는 모듈이 없는 항목(해당 CVE 가 `ignoreCves` 에서 제거됐거나 override 정리로 더 이상 대상이 아니게 된 경우 등)이 생겨도 이를 알려주는 코드가 없다. 안전 방향 자체는 맞다 — baseline 에 없는 새 모듈은 `EXPECTED_SUPPRESSED_PATHS.get(module, set())` 기본값이 빈 집합이라 관측된 경로 전량이 "확대"로 fail-closed 처리되므로, 탐지가 무력화되는 방향의 위험은 아니다. 순수하게 **낡은 예외 항목이 조용히 영구 누적**되는 위생 문제이며, 두 스크립트가 유사한 "수용 baseline" 개념을 다루면서도 검증 엄격도가 다르다는 점만 architecture 관점에서 기록해 둔다.
+  - 제안: 우선순위 낮음 — 여유 있을 때 `EXPECTED_SUPPRESSED_PATHS` 의 키가 현재 `pnpm-workspace.yaml` 의 `auditConfig.ignoreCves`/override 대상과 여전히 대응하는지 확인하는 보조 체크(또는 정기 수동 점검 항목 문서화)를 추가.
+
+- **[INFO]** 직전 라운드에서 세 reviewer 가 명시적으로 제안한 `actionlint` 대안을 채택하지 않은 결정이 plan 문서의 Rationale 절에 기록되지 않았다.
+  - 위치: `.claude/tests/test_workflow_yaml_structure.py:1-28`(채택된 손수 작성 검사기 docstring) vs `plan/in-progress/deps-guard-hardening.md:182-193`(`## Rationale`).
+  - 상세: 2차 리뷰 라운드에서 security·dependency·requirement 세 reviewer 가 각각 독립적으로 "`actionlint`(또는 동등 GitHub Actions 스키마 린터) 도입이 이 결함 클래스의 재발을 막는 더 넓은 방어"라고 제안했다(`review/code/2026/08/01/01_56_46/security.md:27`, `dependency.md:60`, `requirement.md:71`). 이번 조치는 그 대신 정확히 두 불변식(중복 매핑 키 · 스텝의 `run`/`uses` 배타적 1개)만 잡는 손수 작성 검사기(`test_workflow_yaml_structure.py`)를 신설했다 — 하네스의 "stdlib + PyYAML 예외 하나" 철학과 일관되고 스코프도 실제 사고 원인에 정확히 맞춰져 있어 선택 자체는 방어 가능하지만, 같은 plan 문서의 `## Rationale` 절은 다른 두 건(§2 기계검사 미도입, §3 required check 미도입)에 대해서는 "왜 안 했는가"를 문단으로 명시하면서 정작 명시적으로 제안된 `actionlint` 대안에 대해서는 어떤 기록도 남기지 않았다. 손수 작성한 검사기는 이번에 관측된 두 불변식 밖의 워크플로 구조적 결함 클래스(잘못된 action 참조, 표현식 문법 오류, 잘못된 입력 타입 등)에는 대응하지 못하므로, 다음에 다른 사고가 나면 이번처럼 클래스 하나씩을 개별적으로 추가해 나가는 확장 경로가 된다.
+  - 제안: `## Rationale` 에 "왜 `actionlint` 를 채택하지 않았는가" 한 문단을 추가해 기각 이력을 남길 것(이 프로젝트의 기존 컨벤션 — Rationale 은 기각된 대안도 근거와 함께 기록). 선택 자체는 유지해도 무방하다.
+
+## 요약
+
+이번 변경(`scripts/check-override-floors.py` 신설 + `deps-security-checks.yml` 3번째 CI 잡 배선 + 4축 18건 회귀 테스트 + `test_workflow_yaml_structure.py` 신설 + dependabot 루트 등록/예외)은 아키텍처 관점에서 전반적으로 견고하다. 파싱·외부 I/O·분류·리포팅 책임이 함수 단위로 깔끔히 분리돼 있고(`load_override_targets`/`run_audit`/`classify_vulnerable`/`_report_widened`/`_report_eroded`), 순수 로컬 스냅샷 대조인 `check-pnpm-security-config.py` 와 네트워크 조회가 필요한 `check-override-floors.py` 를 별도 스크립트·별도 CI 잡으로 분리한 결정은 plan 문서에 근거가 명시된 SRP 준수다. `.github/workflows/e2e.yml` 단일 등재를 `.github/workflows/**` 로 넓힌 결정(및 그 대가로 `test_each_historical_leak_is_load_bearing` 이 실제로 옛 등재를 무효로 잡아낸 것)은 반복 재발하던 "가드 등재 누락" 실패 클래스를 구조적으로 제거하는 좋은 리팩터다. 순환 의존성, 레이어 위반, 뚜렷한 안티패턴은 발견되지 않았고, 2차례 리뷰에서 지적된 CRITICAL 4건·WARNING 다수(README 카탈로그·harness-checks.yml 스크립트 등재·dependabot 루트 예외·PyYAML 스텝 분리·`override_target` 다단 체인 및 중간 scope 일반화·widened/eroded 통합 리포트·테스트 헬퍼 모듈 레벨 승격·"세 축"→"네 축" 정정 등)는 모두 소스 대조로 실제 반영이 확인됐다. 다만 신규 스크립트의 fail-closed 방어가 pnpm audit JSON 의 최상위 키만 검증하고 분류 로직이 실제 의존하는 하위 필드명의 스키마 드리프트는 방어하지 못하는 잠재적 결합 리스크가 남아 있고(WARNING), 이와 함께 두 건의 사소한 INFO(수용 baseline 드리프트 검출 비대칭, `actionlint` 미채택 근거 미기록)를 기록한다. 셋 다 병합을 막을 사안은 아니다.
+
+## 위험도
+
+LOW

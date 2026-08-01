@@ -1,6 +1,8 @@
 # Harness self-tests — guards the `.claude/` automation layer (hooks, skill
-# libs, agent registry) that has no other coverage. Stdlib-only `unittest`, no
-# install step. Policy/intent: `.claude/tests/README.md`.
+# libs, agent registry) that has no other coverage. `unittest`, stdlib-only with
+# ONE exception: PyYAML, because `test_override_floors.py` and
+# `test_workflow_yaml_structure.py` parse YAML the repo's own guards depend on
+# (2026-08-01). Policy/intent: `.claude/tests/README.md`.
 
 name: harness-checks
 
@@ -31,22 +33,29 @@ on:
       - '.claude/workflows/**'
       - '.claude.project.json'
       - 'PROJECT.md'
-      - '.github/workflows/harness-checks.yml'
       # test_dependabot_npm_coverage.py 가 이 둘을 대조해 "pnpm 워크스페이스 밖 npm 트리는
       # 반드시 dependabot 에 등록" 불변식을 지킨다. paths 에 없으면 등록을 지우거나 워크스페이스
       # 범위를 바꾼 PR 에서 정작 그걸 지키는 가드가 안 돈다 — 위 .githooks/** · .claude/_shared/**
       # 와 동일한 실패 클래스.
       - '.github/dependabot.yml'
-      # test_e2e_exemption_paths_sync.py 가 이 워크플로의 paths-ignore 를 PROJECT.md §e2e
-      # 면제 화이트리스트와 대조한다. paths 에 없으면 **paths-ignore 를 넓히는 PR**(정확히
-      # 그 가드가 막으려는 위험 방향)이 e2e.yml 만 건드릴 때 가드가 안 돈다 — 위
-      # .githooks/** · .claude/_shared/** · dependabot.yml 과 동일한 실패 클래스.
-      - '.github/workflows/e2e.yml'
+      # 워크플로 디렉토리 전체 — 두 가드가 여기에 걸린다.
+      #   (a) test_e2e_exemption_paths_sync.py — e2e.yml 의 paths-ignore 를 PROJECT.md
+      #       §e2e 면제 화이트리스트와 대조한다. 등재가 없으면 **paths-ignore 를 넓히는
+      #       PR**(정확히 그 가드가 막으려는 위험 방향)이 e2e.yml 만 건드릴 때 안 돈다 —
+      #       위 .githooks/** · .claude/_shared/** · dependabot.yml 과 동일한 실패 클래스.
+      #   (b) test_workflow_yaml_structure.py — **모든** 워크플로의 구조(중복 키·스텝의
+      #       run/uses). 2026-08-01 사고: PyYAML 설치 스텝을 기존 스텝의 name/run 사이에
+      #       끼워 넣어 `run:` 이 중복됐고, 뒤 값이 앞을 덮어써 설치 명령이 통째로
+      #       소실됐다 — 로컬 테스트로는 드러나지 않는 클래스다.
+      # (b) 가 파일 무관이라 개별 등재(e2e.yml · harness-checks.yml)를 여기로 접었다.
+      # 파일별로 두면 새 워크플로마다 등재를 잊는 쪽으로 실패한다.
+      - '.github/workflows/**'
       - 'pnpm-workspace.yaml'
       # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
       # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
       - 'scripts/report_playwright_flaky.py'
       - 'scripts/check-e2e-playwright-config.py'
+      - 'scripts/check-override-floors.py'
 
 concurrency:
   group: harness-checks-${{ github.ref }}
@@ -64,6 +73,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
+
+      # 2026-08-01 — 이 스위트는 원래 stdlib 전용이었다. `test_override_floors.py` 가
+      # `scripts/check-override-floors.py` 를 직접 exec 하는데 그 스크립트가 모듈 최상단에서
+      # `import yaml` 하므로 PyYAML 이 필요해졌다. `deps-security-checks.yml` 의 config-guard
+      # 잡과 동일한 pin 을 재사용한다(신규 외부 의존 아님).
+      - name: Install PyYAML
+        run: pip install "pyyaml>=6,<7"
 
       - name: Run harness unit tests
         run: python3 -m unittest discover -s .claude/tests -p 'test_*.py'

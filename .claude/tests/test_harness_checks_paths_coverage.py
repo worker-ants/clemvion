@@ -100,12 +100,15 @@ _MIN_FILTERS = 10
 # filter must make that file uncovered — this is what proves the guard would
 # actually catch each historical leak, not merely pass today. The first five are
 # the recurrences that were patched by hand; the sixth this file added.
+# e2e.yml 의 등재는 2026-08-01 에 `.github/workflows/**` 로 넓혀졌다 —
+# test_workflow_yaml_structure.py 가 파일 무관하게 모든 워크플로를 보기 때문이다.
+# 예시 파일은 그대로 두어 원래의 leak(그 파일 단독 수정)이 여전히 잡히는지 본다.
 KNOWN_COVERAGE_DEPENDENCIES = {
     ".githooks/**": ".githooks/pre-commit",
     ".claude/_shared/**": ".claude/_shared/report_paths.py",
     ".claude/workflows/**": ".claude/workflows/ai-review.js",
     ".github/dependabot.yml": ".github/dependabot.yml",
-    ".github/workflows/e2e.yml": ".github/workflows/e2e.yml",
+    ".github/workflows/**": ".github/workflows/e2e.yml",
     ".claude/config/**": ".claude/config/doc-sync-matrix.json",
 }
 

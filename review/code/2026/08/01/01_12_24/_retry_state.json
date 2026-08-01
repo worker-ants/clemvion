@@ -1,0 +1,56 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "security",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/tests/test_override_floors.py, scripts/check-override-floors.py"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/tests/test_override_floors.py, scripts/check-override-floors.py"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/security.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/dependency.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/deps-guard/review/code/2026/08/01/01_12_24/testing.md"
+    }
+  ],
+  "agents_pending": [
+    "security",
+    "dependency",
+    "testing"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
