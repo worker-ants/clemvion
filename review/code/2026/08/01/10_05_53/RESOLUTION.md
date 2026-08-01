@@ -67,6 +67,24 @@ diff base 가 stale 이 됐고, 그 탓에 changeset 이 리뷰 산출물 문서
 미조치: R4-W3(컨트롤러 `userId` 배선 검증 비일관 — 1차 W8 과 동일, 아래 표) ·
 R4-W6(`recordAudit` 중복 — 1차 W4 유예 유효) · R4-W8(SPEC-DRIFT — planner 턴, 이미 등재).
 
+### 5라운드 (`12_44_54`) — **수렴**
+
+Critical 1 · Warning 4. **Critical 은 SPEC-DRIFT 하나뿐이고 코드 조치 대상이 아니다** —
+`developer` 는 `spec/` read-only 이며 planner 턴으로 이미 등재돼 있다. 코드 자체는
+security · concurrency · database · api_contract · dependency · scope 전 관점에서
+**NONE~LOW** 로 수렴했다.
+
+| # | 등급 | 발견사항 | 조치 |
+|---|---|---|---|
+| R5-C1 | Critical | **[SPEC-DRIFT]** spec 4곳이 구현 완료된 13액션을 여전히 "Planned/미구현" 으로 서술. `AuditLogDto` Swagger 가 그 stale 한 §4.1 을 참조해 외부 소비자가 "아직 없는 기능" 으로 오인할 수 있다는 노출 경로가 CRITICAL 판정 근거 | **코드 조치 불요 — planner 턴.** `plan/in-progress/spec-sync-auth-gaps.md` 에 파일·줄번호까지 등재됨. Swagger 쪽은 4차에 이미 SoT 참조로 바꿔 열거 의존을 끊었다 |
+| R5-W1 | Warning | `model-config` 의 `isDefault:true` 트랜잭션 경로(create/update)가 감사 테스트 미방문 — `setDefault` 에만 순서 테스트가 있었다 | `create(isDefault:true)` 순서 테스트 추가. 뮤턴트 RED |
+| R5-W3 | Warning | `triggers` 만 "저장 실패 시 감사 미기록" 불변식 테스트 부재 — 자매 3개 모듈은 보유. 하필 순서 버그(4차 C1)가 났던 파일 | create/update 실패 테스트 추가. 기록을 `save` 앞으로 옮기는 뮤턴트 RED |
+| R5-W2 | Warning | 컨트롤러 `userId` 배선 검증 비일관 | **미조치** — 1차 W8 부터 이월. 서비스 레벨이 `userId` 를 단언하고 배선 자체는 타입이 강제한다(인자 누락 시 TS2554). `schedules.controller.spec` 신설은 후속 |
+| R5-W4 | Warning | `recordAudit` 5곳 중복 | **미조치** — 1차 W4 의 "6번째 리소스 추가 시점" 유예 유효. `details` shape 이 도메인별로 갈리는 현재 조기 추상화는 인터페이스를 어색하게 만든다 |
+
+**수렴 판정**: 라운드 1→5 에서 발견의 성격이 *동작 결함 → 구조 → 테스트 커버리지 → 문서 동기화*
+로 이동했고, 5차의 유일한 Critical 은 코드가 아니라 spec 표기다. 코드 관점 6개가 모두 NONE~LOW.
+
 ### 미조치 — 근거
 
 | # | 등급 | 항목 | 사유 |

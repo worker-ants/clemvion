@@ -1018,6 +1018,37 @@ describe('ModelConfigService', () => {
       expect(auditLogs.record).not.toHaveBeenCalled();
     });
 
+    it('create(isDefault:true) 도 트랜잭션 커밋 뒤에 기록한다 (W1)', async () => {
+      // isDefault 분기는 saveWithDefaultSwap 트랜잭션을 타는데, setDefault 에만 순서
+      // 테스트가 있고 같은 헬퍼를 쓰는 이 진입점은 한 번도 방문되지 않았다.
+      const order: string[] = [];
+      mockRepo.manager.transaction.mockImplementation(async (cb: any) => {
+        order.push('tx-start');
+        const r = await cb({
+          update: jest.fn().mockResolvedValue(undefined),
+          save: jest.fn(async (_e: unknown, x: unknown) => x),
+          create: jest.fn((_e: unknown, x: unknown) => ({ ...(x as object), id: 'test-id' })),
+        });
+        order.push('tx-commit');
+        return r;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      await service.create(
+        'ws-1',
+        'chat',
+        { ...dto, isDefault: true } as any,
+        'u-d',
+      );
+
+      expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'model_config.create' }),
+      );
+    });
+
     it('remove 는 삭제 **전에** 읽은 kind 를 남긴다', async () => {
       // TypeORM `remove` 는 엔티티의 id 를 지운다. 삭제 후 엔티티에서 읽으면
       // undefined 가 감사에 남으므로, 이 테스트는 그 순서를 고정한다.

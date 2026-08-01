@@ -2401,6 +2401,27 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     expect(order).toEqual(['commit', 'audit', 'bullmq']);
   });
 
+  it('저장이 실패하면 감사를 남기지 않는다 (create/update)', async () => {
+    // 자매 모듈 3개는 이 불변식을 갖고 있는데 여기만 없었다 — 하필 순서 버그(C1)가
+    // 실제로 났던 파일이라 회귀 방지 가치가 크다.
+    (triggerRepo.create as jest.Mock).mockReturnValue(webhookTrigger);
+    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.create(
+        'ws-1',
+        { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+        'u-f',
+      ),
+    ).rejects.toThrow('db down');
+    expect(auditLogs.record).not.toHaveBeenCalled();
+
+    await expect(
+      service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-f'),
+    ).rejects.toThrow('db down');
+    expect(auditLogs.record).not.toHaveBeenCalled();
+  });
+
   it('remove 는 삭제 **전에** 읽은 type 을 남긴다', async () => {
     // TypeORM `remove` 는 엔티티의 id 를 지운다 — 삭제 후 읽으면 undefined 가 감사에 남는다.
     const entity: Record<string, unknown> = { ...webhookTrigger };
