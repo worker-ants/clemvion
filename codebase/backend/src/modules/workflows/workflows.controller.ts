@@ -182,8 +182,9 @@ export class WorkflowsController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateWorkflowDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.workflowsService.update(id, workspaceId, dto);
+    return this.workflowsService.update(id, workspaceId, dto, userId);
   }
 
   @Delete(':id')
@@ -202,8 +203,9 @@ export class WorkflowsController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    await this.workflowsService.remove(id, workspaceId);
+    await this.workflowsService.remove(id, workspaceId, userId);
   }
 
   @Post(':id/duplicate')

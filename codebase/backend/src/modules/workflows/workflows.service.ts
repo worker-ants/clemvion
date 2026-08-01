@@ -1,3 +1,5 @@
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   Injectable,
   BadRequestException,
@@ -53,6 +55,9 @@ const AI_NODE_TYPES_WITH_LLM_CONFIG = new Set<string>([
   'text_classifier',
 ]);
 
+/** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
+const WORKFLOW_RESOURCE_TYPE = 'workflow';
+
 @Injectable()
 export class WorkflowsService {
   constructor(
@@ -71,6 +76,7 @@ export class WorkflowsService {
     private readonly workflowVersionsService: WorkflowVersionsService,
     private readonly registry: NodeComponentRegistry,
     private readonly modelConfigService: ModelConfigService,
+    private readonly auditLogsService: AuditLogsService,
     private readonly workspacesService: WorkspacesService,
   ) {}
 
@@ -161,12 +167,33 @@ export class WorkflowsService {
     return workflow;
   }
 
+  /**
+   * `workflow.*` 감사 기록. named 필드 — positional 이면 동일 타입(string) 인자 순서 스왑을
+   * 컴파일러가 못 잡아 감사 주체·대상이 조용히 뒤바뀐다 (auth-configs W-1 과 동일 근거).
+   */
+  private recordAudit(params: {
+    workspaceId: string;
+    userId: string;
+    action: (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+    resourceId: string;
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    return this.auditLogsService.record({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
+      resourceType: WORKFLOW_RESOURCE_TYPE,
+      resourceId: params.resourceId,
+      details: params.details,
+    });
+  }
+
   async create(
     workspaceId: string,
     userId: string,
     dto: CreateWorkflowDto,
   ): Promise<Workflow> {
-    return this.dataSource.transaction(async (manager) => {
+    const created = await this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         ...dto,
         workspaceId,
@@ -189,12 +216,21 @@ export class WorkflowsService {
 
       return savedWorkflow;
     });
+    // 트랜잭션 **커밋 뒤** 기록 — 안에서 남기면 롤백 시 일어나지 않은 일이 감사에 남는다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_CREATED,
+      resourceId: created.id,
+    });
+    return created;
   }
 
   async update(
     id: string,
     workspaceId: string,
     dto: UpdateWorkflowDto,
+    userId: string,
   ): Promise<Workflow> {
     const workflow = await this.findById(id, workspaceId);
     const { settings, ...rest } = dto;
@@ -205,12 +241,29 @@ export class WorkflowsService {
     if (settings !== undefined) {
       workflow.settings = { ...(workflow.settings ?? {}), ...settings };
     }
-    return this.workflowRepository.save(workflow);
+    const saved = await this.workflowRepository.save(workflow);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_UPDATED,
+      resourceId: id,
+    });
+    return saved;
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  async remove(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
     const workflow = await this.findById(id, workspaceId);
     await this.workflowRepository.remove(workflow);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_DELETED,
+      resourceId: id,
+    });
   }
 
   /**
@@ -242,7 +295,7 @@ export class WorkflowsService {
     // INSERT 하므로 write-write 충돌이 없어 40001(serialization failure) 재시도
     // 로직은 불필요 — 순수 read 스냅샷 고정 목적의 REPEATABLE READ 만으로 충분
     // (그 선례에도 재시도 로직 없음).
-    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+    const duplicated = await this.dataSource.transaction('REPEATABLE READ', async (manager) => {
       const copy = manager.create(Workflow, {
         name: `${original.name} (Copy)`,
         description: original.description,
@@ -332,6 +385,16 @@ export class WorkflowsService {
 
       return savedCopy;
     });
+    // 트랜잭션 커밋 뒤 기록. `details.duplicatedFrom` 으로 원본을 남긴다 — 복제본은 별개
+    // 리소스지만 사후 감사에서 "어디서 나온 것인가" 가 곧 그 리소스의 출처다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_CREATED,
+      resourceId: duplicated.id,
+      details: { duplicatedFrom: id },
+    });
+    return duplicated;
   }
 
   async exportWorkflow(

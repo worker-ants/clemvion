@@ -1,3 +1,5 @@
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   BadRequestException,
   Injectable,
@@ -55,6 +57,9 @@ const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
   'inboundSigningPlaintext',
 ]);
 
+/** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
+const TRIGGER_RESOURCE_TYPE = 'trigger';
+
 @Injectable()
 export class TriggersService {
   private readonly logger = new Logger(TriggersService.name);
@@ -72,6 +77,7 @@ export class TriggersService {
     private readonly channelListenerRegistry: ChannelListenerRegistry,
     private readonly configService: ConfigService,
     private readonly secrets: SecretResolverService,
+    private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunner: ScheduleRunnerService,
   ) {}
 
@@ -193,7 +199,35 @@ export class TriggersService {
     );
   }
 
-  async create(workspaceId: string, dto: CreateTriggerDto): Promise<Trigger> {
+  /**
+   * `trigger.*` 감사 기록. named 필드 — positional 이면 동일 타입(string) 인자 순서 스왑을
+   * 컴파일러가 못 잡아 감사 주체·대상이 조용히 뒤바뀐다 (auth-configs W-1 과 동일 근거).
+   *
+   * `details.type` 을 함께 남긴다: webhook/schedule/chat_channel 은 같은 리소스 타입이지만
+   * 노출면이 달라, 이것 없이는 사후 감사에서 어떤 계열이 바뀐 건지 알 수 없다.
+   */
+  private recordAudit(params: {
+    workspaceId: string;
+    userId: string;
+    action: (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+    resourceId: string;
+    type: string;
+  }): Promise<void> {
+    return this.auditLogsService.record({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
+      resourceType: TRIGGER_RESOURCE_TYPE,
+      resourceId: params.resourceId,
+      details: { type: params.type },
+    });
+  }
+
+  async create(
+    workspaceId: string,
+    dto: CreateTriggerDto,
+    userId: string,
+  ): Promise<Trigger> {
     // notification/interaction/chatChannel 은 Trigger entity 의 1급 컬럼이 아니라 `config` JSONB.
     // (영속 컬럼은 health/secret rotation 추적용 9개만; spec EIA §7.1 + spec CCH §4.2).
     const { notification, interaction, chatChannel, config, ...rest } = dto;
@@ -233,8 +267,24 @@ export class TriggersService {
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
       });
-      if (refreshed) return this.sanitizeChatChannelForResponse(refreshed);
+      if (refreshed) {
+        await this.recordAudit({
+          workspaceId,
+          userId,
+          action: AUDIT_ACTIONS.TRIGGER_CREATED,
+          resourceId: refreshed.id,
+          type: refreshed.type,
+        });
+        return this.sanitizeChatChannelForResponse(refreshed);
+      }
     }
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_CREATED,
+      resourceId: saved.id,
+      type: saved.type,
+    });
     return this.sanitizeChatChannelForResponse(saved);
   }
 
@@ -242,6 +292,7 @@ export class TriggersService {
     id: string,
     workspaceId: string,
     dto: UpdateTriggerDto,
+    userId: string,
   ): Promise<Trigger> {
     const trigger = await this.findById(id, workspaceId);
     const { notification, interaction, chatChannel, config, ...rest } = dto;
@@ -301,8 +352,24 @@ export class TriggersService {
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
       });
-      if (refreshed) return this.sanitizeChatChannelForResponse(refreshed);
+      if (refreshed) {
+        await this.recordAudit({
+          workspaceId,
+          userId,
+          action: AUDIT_ACTIONS.TRIGGER_UPDATED,
+          resourceId: refreshed.id,
+          type: refreshed.type,
+        });
+        return this.sanitizeChatChannelForResponse(refreshed);
+      }
     }
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_UPDATED,
+      resourceId: saved.id,
+      type: saved.type,
+    });
     return this.sanitizeChatChannelForResponse(saved);
   }
 
@@ -789,7 +856,11 @@ export class TriggersService {
     }
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  async remove(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
     // [data-flow 10-triggers §1.4] schedule 타입은 trigger 삭제(FK CASCADE 로 schedule row 동반
     // 삭제) 전에 BullMQ job scheduler 엔트리를 해제한다 — 미해제 시 Redis 에 잔존해 cron tick
@@ -808,7 +879,16 @@ export class TriggersService {
     this.channelListenerRegistry.unregister(trigger.id);
     // SUMMARY#13: trigger 삭제 시 secret_store 의 모든 관련 row 삭제 (application-level cascade).
     await this.secrets.deleteByPrefix(`secret://triggers/${trigger.id}/`);
+    // type 을 remove 전에 읽어둔다 — TypeORM `remove` 는 엔티티의 id 를 지운다.
+    const { type } = trigger;
     await this.triggerRepository.remove(trigger);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_DELETED,
+      resourceId: id,
+      type,
+    });
   }
 
   /**

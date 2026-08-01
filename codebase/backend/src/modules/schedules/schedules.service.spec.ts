@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -24,6 +25,9 @@ describe('SchedulesService.runNow', () => {
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         SchedulesService,
         {
           provide: getRepositoryToken(Schedule),

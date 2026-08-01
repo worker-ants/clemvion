@@ -1,3 +1,4 @@
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
@@ -19,6 +20,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     // Workflow: schedule_failed 알림의 owner(createdBy) 조회용. NotificationsModule:
     // schedule_failed 발사(순환 무관 — NotificationsModule 은 MailModule/forFeature 만 의존).
     TypeOrmModule.forFeature([Schedule, Trigger, Node, Workflow]),
+    // AuditLogsModule: schedule.* CRUD 감사 기록 (1-auth §4.1).
+    AuditLogsModule,
     BullModule.registerQueue({ name: SCHEDULE_QUEUE }),
     ExecutionEngineModule,
     NotificationsModule,

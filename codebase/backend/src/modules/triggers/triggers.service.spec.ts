@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -29,6 +30,8 @@ function createBaseProviders(
       useValue: triggerRepoMock,
     },
     { provide: getRepositoryToken(Execution), useValue: {} },
+    // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+    { provide: AuditLogsService, useValue: { record: jest.fn() } },
     {
       provide: getRepositoryToken(Schedule),
       // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
@@ -87,6 +90,9 @@ describe('TriggersService.findOneDetail', () => {
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -266,6 +272,9 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -422,6 +431,9 @@ describe('TriggersService — notification/interaction config 병합 (External I
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1310,6 +1322,9 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
     };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1448,6 +1463,9 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1551,6 +1569,9 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1797,6 +1818,9 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
     runner = { registerJob: jest.fn(), removeJob: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1989,6 +2013,9 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
     secrets = { rotate: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         { provide: getRepositoryToken(Trigger), useValue: triggerRepo },
         { provide: getRepositoryToken(Execution), useValue: {} },

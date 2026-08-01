@@ -33,7 +33,7 @@ import {
 import { TriggersService } from './triggers.service';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
-import { WorkspaceId } from '../../common/decorators';
+import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { QueryTriggerDto } from './dto/query-trigger.dto';
 import {
   TriggerDto,
@@ -95,8 +95,9 @@ export class TriggersController {
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateTriggerDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.triggersService.create(workspaceId, dto);
+    return this.triggersService.create(workspaceId, dto, userId);
   }
 
   @Patch(':id')
@@ -120,8 +121,9 @@ export class TriggersController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateTriggerDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.triggersService.update(id, workspaceId, dto);
+    return this.triggersService.update(id, workspaceId, dto, userId);
   }
 
   @Get(':id/history')
@@ -158,8 +160,9 @@ export class TriggersController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    await this.triggersService.remove(id, workspaceId);
+    await this.triggersService.remove(id, workspaceId, userId);
   }
 
   // ============================================================

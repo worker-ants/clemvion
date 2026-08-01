@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -12,6 +13,7 @@ const ENCRYPTION_KEY = randomBytes(32).toString('hex');
 describe('ModelConfigService', () => {
   let service: ModelConfigService;
   let mockRepo: Record<string, any>;
+  let auditLogs: { record: jest.Mock };
 
   beforeEach(async () => {
     mockRepo = {
@@ -42,8 +44,13 @@ describe('ModelConfigService', () => {
       },
     };
 
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: auditLogs },
         ModelConfigService,
         { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
         {
@@ -454,6 +461,9 @@ describe('ModelConfigService', () => {
       // Build a service instance with no encryption key configured
       const moduleNoKey: TestingModule = await Test.createTestingModule({
         providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
           ModelConfigService,
           { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
           {
@@ -898,4 +908,128 @@ describe('ModelConfigService', () => {
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
     });
   });
+
+  describe('감사 로깅 (model_config.*)', () => {
+    const dto = {
+      kind: 'chat' as const,
+      provider: 'openai' as const,
+      name: 'GPT',
+      apiKey: 'sk-abc',
+      defaultModel: 'gpt-4o',
+    };
+
+    it('create 는 model_config.create 를 행위자·대상과 함께 남긴다', async () => {
+      await service.create('ws-1', 'chat', dto as any, 'u-1');
+
+      expect(auditLogs.record).toHaveBeenCalledTimes(1);
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        action: 'model_config.create',
+        resourceType: 'model_config',
+        resourceId: 'test-id',
+        details: { kind: 'chat' },
+      });
+    });
+
+    it('update 는 model_config.update 를 남긴다', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-1',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+        provider: 'openai',
+        name: 'E',
+        apiKey: null,
+        defaultModel: 'text-embedding-3',
+      });
+
+      await service.update('cfg-1', 'ws-1', { name: 'E2' } as any, 'u-2');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u-2',
+          action: 'model_config.update',
+          resourceId: 'cfg-1',
+          details: { kind: 'embedding' },
+        }),
+      );
+    });
+
+    it('setDefault 는 트랜잭션 **커밋 뒤**에 남긴다', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-3',
+        workspaceId: 'ws-1',
+        kind: 'rerank',
+      });
+      // 트랜잭션이 롤백(throw)되면 감사도 남지 않아야 한다 — 안에서 기록하면
+      // 일어나지 않은 일이 감사에 남는다. 순서를 관측 가능한 형태로 고정한다.
+      // 경계를 **양쪽** 다 찍어야 안/밖이 구분된다. 'tx-start' 만 찍으면 기록이
+      // 트랜잭션 안으로 들어가도 순서가 같아 단언이 통과한다(실측: 그 뮤턴트가 GREEN).
+      const order: string[] = [];
+      mockRepo.manager.transaction.mockImplementation(async (cb: any) => {
+        order.push('tx-start');
+        await cb({ update: jest.fn().mockResolvedValue(undefined) });
+        order.push('tx-commit');
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      await service.setDefault('cfg-3', 'ws-1', 'u-3');
+
+      expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'model_config.set_default',
+          resourceId: 'cfg-3',
+          details: { kind: 'rerank' },
+        }),
+      );
+    });
+
+    it('트랜잭션이 실패하면 setDefault 는 감사를 남기지 않는다', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-4',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+      });
+      // 본문을 **실행한 뒤** 커밋에서 실패하는 형태여야 한다. 콜백을 아예 안 부르고
+      // reject 하면 기록이 트랜잭션 안에 있어도 실행되지 않아 단언이 무의미해진다.
+      mockRepo.manager.transaction.mockImplementation(async (cb: any) => {
+        await cb({ update: jest.fn().mockResolvedValue(undefined) });
+        throw new Error('deadlock');
+      });
+
+      await expect(
+        service.setDefault('cfg-4', 'ws-1', 'u-4'),
+      ).rejects.toThrow('deadlock');
+      expect(auditLogs.record).not.toHaveBeenCalled();
+    });
+
+    it('remove 는 삭제 **전에** 읽은 kind 를 남긴다', async () => {
+      // TypeORM `remove` 는 엔티티의 id 를 지운다. 삭제 후 엔티티에서 읽으면
+      // undefined 가 감사에 남으므로, 이 테스트는 그 순서를 고정한다.
+      const entity: Record<string, unknown> = {
+        id: 'cfg-5',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+      };
+      mockRepo.findOne.mockResolvedValue(entity);
+      mockRepo.remove.mockImplementation(async () => {
+        delete entity.id;
+        delete entity.kind;
+      });
+
+      await service.remove('cfg-5', 'ws-1', 'u-5');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'model_config.delete',
+          resourceId: 'cfg-5',
+          details: { kind: 'embedding' },
+        }),
+      );
+    });
+  });
+
 });

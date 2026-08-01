@@ -169,12 +169,14 @@ describe('ModelConfigController', () => {
       const updated = { id: 'cfg-1', name: 'New name' };
       mockModelConfigService.update.mockResolvedValue(updated);
 
-      const result = await controller.update('cfg-1', 'ws-1', dto as any);
+      const result = await controller.update('cfg-1', 'ws-1', dto as any, 'u-1');
 
+      // userId 까지 단언한다 — 감사 로그의 **주체**라, 빠지면 누가 바꿨는지가 사라진다.
       expect(mockModelConfigService.update).toHaveBeenCalledWith(
         'cfg-1',
         'ws-1',
         dto,
+        'u-1',
       );
       expect(result).toBe(updated);
     });
@@ -182,17 +184,20 @@ describe('ModelConfigController', () => {
 
   describe('remove', () => {
     it('delegates to modelConfigService.remove', async () => {
-      await controller.remove('cfg-2', 'ws-1');
+      await controller.remove('cfg-2', 'ws-1', 'u-1');
 
       expect(mockModelConfigService.remove).toHaveBeenCalledWith(
         'cfg-2',
         'ws-1',
+        'u-1',
       );
     });
 
     it('propagates the error when remove throws', async () => {
       mockModelConfigService.remove.mockRejectedValue(new Error('not found'));
-      await expect(controller.remove('bad-id', 'ws-1')).rejects.toThrow();
+      await expect(
+        controller.remove('bad-id', 'ws-1', 'u-1'),
+      ).rejects.toThrow();
     });
   });
 

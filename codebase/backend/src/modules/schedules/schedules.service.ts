@@ -1,3 +1,5 @@
+import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   Injectable,
   NotFoundException,
@@ -17,6 +19,9 @@ import { CronExpressionParser } from 'cron-parser';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
 
+/** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
+const SCHEDULE_RESOURCE_TYPE = 'schedule';
+
 @Injectable()
 export class SchedulesService {
   constructor(
@@ -26,6 +31,7 @@ export class SchedulesService {
     private readonly triggerRepository: Repository<Trigger>,
     private readonly workspacesService: WorkspacesService,
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunnerService: ScheduleRunnerService,
   ) {}
 
@@ -128,7 +134,30 @@ export class SchedulesService {
     return schedule;
   }
 
-  async create(workspaceId: string, dto: CreateScheduleDto): Promise<Schedule> {
+  /**
+   * `schedule.*` 감사 기록. named 필드 — positional 이면 동일 타입(string) 인자 순서 스왑을
+   * 컴파일러가 못 잡아 감사 주체·대상이 조용히 뒤바뀐다 (auth-configs W-1 과 동일 근거).
+   */
+  private recordAudit(params: {
+    workspaceId: string;
+    userId: string;
+    action: (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+    resourceId: string;
+  }): Promise<void> {
+    return this.auditLogsService.record({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
+      resourceType: SCHEDULE_RESOURCE_TYPE,
+      resourceId: params.resourceId,
+    });
+  }
+
+  async create(
+    workspaceId: string,
+    dto: CreateScheduleDto,
+    userId: string,
+  ): Promise<Schedule> {
     // Auto-create linked trigger (type=schedule)
     const trigger = this.triggerRepository.create({
       workspaceId,
@@ -161,6 +190,12 @@ export class SchedulesService {
       await this.scheduleRunnerService.registerJob(saved);
     }
 
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.SCHEDULE_CREATED,
+      resourceId: saved.id,
+    });
     return saved;
   }
 
@@ -168,6 +203,7 @@ export class SchedulesService {
     id: string,
     workspaceId: string,
     dto: UpdateScheduleDto,
+    userId: string,
   ): Promise<Schedule> {
     const schedule = await this.findById(id, workspaceId);
     const trigger = schedule.trigger;
@@ -212,10 +248,20 @@ export class SchedulesService {
       await this.scheduleRunnerService.removeJob(saved.id);
     }
 
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.SCHEDULE_UPDATED,
+      resourceId: id,
+    });
     return saved;
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  async remove(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
     const schedule = await this.findById(id, workspaceId);
     // Remove BullMQ job
     await this.scheduleRunnerService.removeJob(schedule.id);
@@ -224,6 +270,12 @@ export class SchedulesService {
       await this.triggerRepository.delete(schedule.triggerId);
     }
     await this.scheduleRepository.remove(schedule);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.SCHEDULE_DELETED,
+      resourceId: id,
+    });
   }
 
   async getPreview(

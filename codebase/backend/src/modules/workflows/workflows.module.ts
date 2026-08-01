@@ -1,3 +1,4 @@
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Workflow } from './entities/workflow.entity';
@@ -19,6 +20,8 @@ import { WorkflowChannelAuthorizer } from './workflow-channel-authorizer';
     // credentials(scopes)/status 를 조회한다. WorkflowsService 에 repository 만
     // 주입하며 IntegrationsModule 을 import 하지 않아 모듈 순환이 없다.
     TypeOrmModule.forFeature([Workflow, Node, Edge, Execution, Integration]),
+    // AuditLogsModule: workflow.* CRUD 감사 기록 (1-auth §4.1).
+    AuditLogsModule,
     // #570(M-6 WS IDOR)이 WebsocketModule → WorkflowsModule 엣지를 추가하면서
     // WorkflowsModule → ExecutionEngineModule → WebsocketModule → WorkflowsModule
     // 순환이 닫혔다. plain import 는 부팅 시 undefined 로 평가되므로 forwardRef 로 감싼다.
