@@ -90,10 +90,46 @@ security · concurrency · database · api_contract · dependency · scope 전 �
 | # | 등급 | 항목 | 사유 |
 |---|---|---|---|
 | W1 | Warning | **[SPEC-DRIFT]** spec SoT 4곳(`1-auth.md §4.1` · `1-audit.md §1.1` · `conventions/audit-actions.md §3` · `2-navigation/2-trigger-list.md`)이 구현 완료된 13개 액션을 여전히 "Planned/미구현" 으로 서술. `2-trigger-list.md` 는 `trigger.delete` 액션명 오기까지 있다 | **`developer` 는 `spec/` read-only** — planner 턴 필요. impl-prep consistency(`09_11_58`)가 이미 "4곳 동시 갱신" 을 예견·권고했고 그 판단은 유효하다. PR 본문과 plan 에 인계로 명시했다. `workflow.executed` 만 Planned 잔류가 맞으므로 일괄 승격이 아니라 분리가 필요하다 |
-| W3 | Warning | `saveCanvas`/`importWorkflow`/`restoreVersion` 에 `workflow.updated`/`created` 미기록 | 타당한 지적이나 **이번 PR 이 선언한 범위(서비스 CRUD 4메서드) 밖**이다. spec §4.1 이 약속한 것은 액션 이름이고, 어느 진입점에서 기록할지는 별도 판단이다 — 특히 `saveCanvas` 는 캔버스 편집마다 발동해 `workflow.executed` 와 같은 카디널리티 논점(보존 정책 미정)을 공유한다. plan 후속으로 등재 |
-| W4 | Warning | `recordAudit` 래퍼가 5개 서비스에 반복 | 리뷰어도 "6번째 리소스 추가 시점 권장" 으로 즉시 필수가 아니라고 판단. 지금 추상화하면 4개 구현이 각자 다른 `details` 스키마를 갖는 상태에서 조기 일반화가 된다 |
+| W3 | Warning | `saveCanvas`/`restoreVersion` 에 `workflow.updated` 미기록 | `saveCanvas` 는 캔버스 편집마다 발동해 `workflow.executed` 와 같은 카디널리티 논점(보존 정책 미정)을 공유한다. spec §4.1 이 약속한 것은 액션 이름이고 어느 진입점에서 기록할지는 별도 판단이다. plan 후속으로 등재<br>**(6차 정정)** 이 행은 원래 `importWorkflow` 도 미조치로 묶었으나 **4차 W1 에서 이미 조치됐다**(`workflows.service.ts:582`, `details: { imported: true }`). 카디널리티 논거는 `saveCanvas` 에만 적용되는데 묶어서 유예한 것이 원래의 오분류였고, 4차에 그 오분류를 바로잡고도 이 표를 갱신하지 않아 미조치로 남아 있었다 |
+| W4 | Warning | `recordAudit` 래퍼가 5개 서비스에 반복 | **(6차 근거 정정)** 원래 근거는 "6번째 리소스 추가 시점에 재검토" 였는데 **이미 5개**라 곧 자기모순이 된다. 실제 근거는 축 발산이다 — 5개 helper 의 `details` 계약이 전부 다르다(workflows=passthrough · triggers=`{type}` · schedules=없음 · model-config=`{kind}` · auth-configs=`ipAddress`). 공통분모는 `resourceType` 바인딩 + 6필드 기계적 전달뿐이라, 그걸 뽑아도 **타입 있는 per-service 래퍼는 그대로 남는다**. 이득은 서비스당 ~4줄이고 새 모듈이 하나 생긴다. 6차 리뷰어의 "유예 사유가 약하다" 는 지적은 옳았고(근거가 틀렸으므로) 근거를 교체했지만, 결론은 유지한다 |
 | W7 | Warning | 동시 삭제 시 중복 `*.deleted` 감사 행 가능 | 기존 `auth-configs` 패턴이 확장 복제된 것으로, 이번 PR 이 만든 회귀가 아니다. `Repository.delete()` + `affected` 판정으로 바꾸는 것은 4곳 + 기존 1곳의 삭제 시맨틱을 함께 바꾸는 변경이라 별도 트랙이 맞다. audit 은 append-only 라 중복 행이 조회를 깨지도 않는다 |
-| W8 | Warning | 컨트롤러 `userId` 배선 검증 비일관 (`schedules.controller.spec` 부재 등) | 부분 조치 — `model-config` 의 `update`/`remove` 는 이미 단언한다. 나머지는 서비스 레벨 테스트가 `userId` 를 단언하고 있어 배선 자체는 타입으로 강제된다(인자 누락 시 TS2554). 신규 spec 파일 생성은 후속 |
+| W8 | Warning | 컨트롤러 `userId` 배선 검증 비일관 (`schedules.controller.spec` 부재 등) | ~~부분 조치 — 배선 자체는 타입으로 강제된다(인자 누락 시 TS2554)~~ → **6차에서 전량 조치**. 유예 근거가 틀렸다: TS2554 는 인자 *누락* 만 잡고 **동일 타입 인자의 스왑은 못 잡는다**(실측 §6차). 아래 6차 항 참조 |
+
+## 6차 리뷰 (`review/code/2026/08/01/13_13_09`) — Critical 0 / Warning 2
+
+5차 이후 델타가 `.spec.ts` 3개 · **프로덕션 코드 0줄** 이라 `REVIEW_AGENTS=testing,maintainability`
+로 범위를 맞춰 실행했다. 결과 Critical 0, Warning 2 — 둘 다 이월된 유예 항목이다.
+
+| # | 등급 | 항목 | 조치 |
+|---|---|---|---|
+| W1 | Warning | 컨트롤러→서비스 `userId` 배선 단위 테스트 부재 (4개 모듈) | **조치** — 아래 |
+| W2 | Warning | `recordAudit` 헬퍼 5중복, 유예 사유가 약함 | **유예 유지 + 근거 교체** (미조치표 W4) |
+
+### W1 — 4라운드 미룬 항목을 닫았다. 유예 근거가 사실이 아니었다
+
+그동안의 근거는 "배선은 타입이 강제한다(TS2554)" 였다. **틀렸다.** TS2554 는 인자 *누락* 만
+잡는다. `create(workspaceId, dto, userId)` 는 1·3번째가 **둘 다 `string`** 이라 서로 바꿔도
+컴파일이 통과한다 — 실측으로 `schedules.controller.ts` 의 호출을 스왑한 뒤 `tsc --noEmit` 을
+돌려 **오류 0건**을 확인했다. 그리고 스왑된 상태에서도 감사 행은 정상적으로 적재된다. 즉
+workspace 와 actor 가 통째로 뒤바뀐 **조용히 틀린 감사**가 되고, 서비스 레벨 spec 은 이미 들어온
+값을 볼 뿐이라 이 스왑을 관측할 수 없다. 경계에서 위치까지 단언해야 잡힌다.
+
+- `schedules.controller.spec.ts` **신규** (파일 자체가 없었다) — create/update/remove
+- `triggers.controller.spec.ts` — create/update/remove 배선 describe 추가
+- `workflows.controller.spec.ts` — create/duplicate/importWorkflow/update/remove
+- `model-config.controller.spec.ts` — create/setDefault 보강 (update/remove 는 기존)
+
+**집계 오류를 한 번 냈다.** 처음엔 `userId` 철자만 grep 해 12곳으로 세고 "전수 커버" 라고 적었는데,
+`user.sub` 를 넘기는 workflows `create`/`duplicate`/`importWorkflow` 3곳이 빠져 있었다. 철자
+무관 패턴(`userId|user\.sub`)으로 재집계해 18곳을 찾았고, 그중 **감사 기록 대상 15곳을 전수**
+커버했다. 나머지 3곳(`findAll`·`saveCanvas`·`runNow`)은 감사를 기록하지 않는다.
+
+**뮤턴트 13종 전부 RED**: 인자 스왑 10 + `userId` 자리에 `id` 재전달 3. 매 건 치환 전에 앵커
+존재를 단언했다(치환 실패는 GREEN 으로 보인다).
+
+**수렴 판정**: 6차의 Critical 은 0이고, Warning 2건은 새 발견이 아니라 이월 유예 항목이다.
+그중 하나(W1)는 **유예 근거가 반증돼 조치**했고, 다른 하나(W2)는 근거를 교체하되 결론을
+유지했다. 새로운 동작 결함은 3라운드째 나오지 않았다.
 
 ## TEST 결과
 
@@ -101,7 +137,7 @@ security · concurrency · database · api_contract · dependency · scope 전 �
 - **unit**: PASS
 - **build**: PASS
 - **e2e**: **통과** — backend jest 46 suites / 260 tests + frontend playwright 51 passed
-- **대상 모듈 유닛**: 425건 통과 (감사 전용 17건 포함)
+- **대상 모듈 유닛**: 439건 중 438 통과 / 1 skip — 6차에서 **+13** (HEAD 기준선 426 실측 후 대조)
 - **타입체크**: `tsc --noEmit` 에서 내 변경이 만든 오류 0건 (잔여는 `origin/main` 대비 감소 확인)
 - **뮤턴트**: 총 17종 전부 RED — 기록 제거 8 · 트랜잭션 안으로 이동 2 · 삭제 후 필드 읽기 2 · `duplicatedFrom` 제거 1 · 그 외 4
 
@@ -119,5 +155,6 @@ security · concurrency · database · api_contract · dependency · scope 전 �
 - **spec SoT 4곳 동기화 (planner 턴)** — W1. 13개 액션을 "구현된 액션" 으로 이동,
   `workflow.executed` 만 Planned 잔류, `2-trigger-list.md` 액션명 오기 정정.
 - **`workflow.executed`** — 보존 정책(`audit_log` pruner 부재) 결정과 묶어 별도 판단.
-- `saveCanvas`/`importWorkflow` 감사 (W3), `recordAudit` 공통 팩토리 (W4),
-  삭제 중복 감사 (W7), 컨트롤러 spec 보강 (W8) — 전부 우선순위 낮음으로 기록.
+- `saveCanvas`/`restoreVersion` 감사 (W3 — `importWorkflow` 는 4차에 조치 완료),
+  `recordAudit` 공통 팩토리 (W4/6차 W2), 삭제 중복 감사 (W7) — 전부 우선순위 낮음으로 기록.
+  **컨트롤러 spec 보강(W8)은 6차에서 종결**되어 후속 목록에서 제외한다.

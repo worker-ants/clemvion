@@ -23,9 +23,17 @@ owner: planner
 - [ ] **`workflow.executed`** — Planned 잔류. CRUD 와 카디널리티 차원이 달라
       (트리거·webhook 발동마다 적재) `audit_log` 보존 정책 결정과 묶어야 한다.
       실측: `audit_log` 은 pruner 가 없고 정책 미정(`login_history` 는 정리 배치 존재).
-- [ ] `saveCanvas`/`importWorkflow` 감사 기록 — 리뷰 W3. 이번 PR 범위(서비스 CRUD)
-      밖이며 `saveCanvas` 는 캔버스 편집마다 발동해 위 카디널리티 논점을 공유한다.
-- [ ] `recordAudit` 공통 팩토리 (W4, 6번째 리소스 추가 시) · 동시 삭제 중복 감사 (W7,
-      기존 `auth-configs` 패턴과 함께) · 컨트롤러 spec 보강 (W8) — 전부 우선순위 낮음.
+- [ ] `saveCanvas`/`restoreVersion` 감사 기록 — 리뷰 W3. `saveCanvas` 는 캔버스 편집마다
+      발동해 위 카디널리티 논점을 공유한다. *(`importWorkflow` 는 4차 리뷰에서 조치 완료 —
+      `workflows.service.ts` `details: { imported: true }`. 카디널리티 논거가 적용되지 않는데
+      `saveCanvas` 와 묶여 유예됐던 것이 원래의 오분류였다.)*
+- [ ] `recordAudit` 공통 팩토리 (W4) — 5개 helper 의 `details` 계약이 전부 달라(passthrough /
+      `{type}` / 없음 / `{kind}` / `ipAddress`) 공통분모가 `resourceType` 바인딩 + 필드 전달뿐이다.
+      추출해도 타입 있는 per-service 래퍼는 남는다. *(원래 근거였던 "6번째 리소스에서 재검토" 는
+      이미 5개라 성립하지 않아 6차에서 근거를 교체했다.)*
+- [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
+- [x] 컨트롤러 `userId` 배선 spec (W8) — **6차 리뷰에서 종결**. 감사 기록 대상 배선 15곳 전수
+      단언 + 뮤턴트 13종 RED. 유예 근거였던 "타입이 강제한다" 가 반증됐다 (TS2554 는 인자
+      누락만 잡고 동일 타입 스왑은 못 잡는다 — 실측 오류 0건).
 
 > `status: implemented` 승격은 여전히 불가 — §1.3 LDAP/SAML 이 남아 있다.
