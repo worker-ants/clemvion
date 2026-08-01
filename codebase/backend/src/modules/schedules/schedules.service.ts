@@ -183,6 +183,14 @@ export class SchedulesService {
       parameterValues: dto.parameterValues ?? {},
     });
     const saved = await this.scheduleRepository.save(schedule);
+    // **커밋 직후** 기록한다. 아래 BullMQ 등록은 실패할 수 있는 외부 호출이라, 그 뒤로
+    // 미루면 등록이 터졌을 때 리소스는 생겼는데 감사는 안 남는다 (리뷰 W6).
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.SCHEDULE_CREATED,
+      resourceId: saved.id,
+    });
 
     // Register BullMQ repeatable job
     if (isActive) {
@@ -190,12 +198,6 @@ export class SchedulesService {
       await this.scheduleRunnerService.registerJob(saved);
     }
 
-    await this.recordAudit({
-      workspaceId,
-      userId,
-      action: AUDIT_ACTIONS.SCHEDULE_CREATED,
-      resourceId: saved.id,
-    });
     return saved;
   }
 
@@ -240,6 +242,14 @@ export class SchedulesService {
 
     const saved = await this.scheduleRepository.save(schedule);
 
+    // 커밋 직후 기록 — 아래 BullMQ 재등록이 실패해도 감사는 남는다 (리뷰 W6).
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.SCHEDULE_UPDATED,
+      resourceId: id,
+    });
+
     // Update BullMQ job
     if (schedule.isActive) {
       saved.trigger = trigger ?? schedule.trigger;
@@ -248,12 +258,6 @@ export class SchedulesService {
       await this.scheduleRunnerService.removeJob(saved.id);
     }
 
-    await this.recordAudit({
-      workspaceId,
-      userId,
-      action: AUDIT_ACTIONS.SCHEDULE_UPDATED,
-      resourceId: id,
-    });
     return saved;
   }
 

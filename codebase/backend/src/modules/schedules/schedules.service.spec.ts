@@ -268,5 +268,49 @@ describe('SchedulesService.runNow', () => {
       ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
       expect(auditLogs.record).not.toHaveBeenCalled();
     });
+
+    it('감사 로깅 — update 는 schedule.updated 를 남긴다', async () => {
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-1',
+        workspaceId: 'ws-1',
+        isActive: false,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-1',
+      } as unknown as Schedule);
+
+      await service.update(
+        'sch-1',
+        'ws-1',
+        { name: 'S2' } as unknown as UpdateScheduleDto,
+        'u-upd',
+      );
+
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'u-upd',
+        action: 'schedule.updated',
+        resourceType: 'schedule',
+        resourceId: 'sch-1',
+      });
+    });
+
+    it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-2',
+        workspaceId: 'ws-1',
+        triggerId: 'trig-2',
+      } as unknown as Schedule);
+
+      await service.remove('sch-2', 'ws-1', 'u-del');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u-del',
+          action: 'schedule.deleted',
+          resourceId: 'sch-2',
+        }),
+      );
+    });
   });
 });

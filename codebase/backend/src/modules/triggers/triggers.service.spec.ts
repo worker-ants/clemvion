@@ -2152,7 +2152,6 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
   } as unknown as Trigger;
 
   beforeEach(async () => {
-    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
     const moduleRef = await Test.createTestingModule({
       providers: createBaseProviders({
         findOne: jest.fn().mockResolvedValue(webhookTrigger),
@@ -2163,17 +2162,49 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
         createQueryBuilder: jest.fn(),
       }),
     }).compile();
-    // createBaseProviders 는 모듈 레벨이라 공유 mock 을 못 받는다 — 여기서 override.
-    const idx = moduleRef as unknown as {
-      container?: unknown;
-    } as unknown as never;
-    void idx;
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
-    // 실제 주입된 인스턴스를 잡아 단언 대상으로 삼는다.
+    // createBaseProviders 는 모듈 레벨이라 describe 스코프 mock 을 못 받는다 —
+    // 주입된 인스턴스를 컨테이너에서 되찾아 단언 대상으로 삼는다.
     auditLogs = moduleRef.get(AuditLogsService) as unknown as {
       record: jest.Mock;
     };
+  });
+
+  it('create 는 trigger.created 를 details.type 과 함께 남긴다', async () => {
+    (triggerRepo.create as jest.Mock).mockReturnValue(webhookTrigger);
+    (triggerRepo.save as jest.Mock).mockResolvedValue(webhookTrigger);
+
+    await service.create(
+      'ws-1',
+      { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+      'u-c',
+    );
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        userId: 'u-c',
+        action: 'trigger.created',
+        resourceType: 'trigger',
+        details: { type: 'webhook' },
+      }),
+    );
+  });
+
+  it('update 는 trigger.updated 를 남긴다', async () => {
+    (triggerRepo.save as jest.Mock).mockResolvedValue(webhookTrigger);
+
+    await service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-u');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u-u',
+        action: 'trigger.updated',
+        resourceId: 'trg-1',
+        details: { type: 'webhook' },
+      }),
+    );
   });
 
   it('remove 는 삭제 **전에** 읽은 type 을 남긴다', async () => {

@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — 감사 로깅 커버리지 확장: workflow / trigger / schedule / model_config
+
+인증 spec §4.1 이 기록 대상으로 약속했지만 미구현이던 CRUD 감사 액션 13개를 구현했다. 착수 전
+실측으로 `workflows`·`triggers`·`schedules`·`model-config` 네 모듈에 `AuditLogsService` import 가
+**0건**임을 확인했다 — 설정·자동화의 변경 이력이 통째로 남지 않고 있었다.
+
+신규 액션:
+
+- `workflow.created`(생성·복제) · `workflow.updated` · `workflow.deleted`
+- `trigger.created` · `trigger.updated` · `trigger.deleted`
+- `schedule.created` · `schedule.updated` · `schedule.deleted`
+- `model_config.create` · `update` · `delete` · `set_default`
+
+시제는 도메인 관례를 따른다 — workflow/trigger/schedule 은 발생 사건이라 과거분사, model_config
+은 `auth_config` 과 같은 설정 CRUD 라 현재형이다(`set_default` 가 과거분사로 부자연스러워
+resource 단위 현재형으로 통일).
+
+기록 시점은 **DB 커밋 직후**로 통일했다. 트랜잭션 안이나 외부 호출(secret store, BullMQ 등록)
+뒤에 두면, 롤백·외부 호출 실패 시 "일어나지 않은 일이 감사에 남거나" "일어난 일이 안 남는다".
+
+**`workflow.executed` 는 이번 범위에서 제외한다.** spec 의 Planned 표에 있으나 나머지와
+카디널리티 차원이 다르다 — CRUD 는 저빈도지만 실행 기록은 트리거·webhook 발동마다 쌓인다.
+`audit_log` 은 현재 보존 정책이 미정이고 정리 배치가 없어(`login_history` 와 대비), 보존 정책
+결정과 묶어 별도로 다룬다.
+
+SoT: `spec/5-system/1-auth.md` §4.1, `spec/data-flow/1-audit.md` §1.1. 추적:
+`plan/in-progress/spec-sync-auth-gaps.md` §4.1.
+
 ## Unreleased — 워크플로우 복제가 nodes/edges 를 복사하지 않던 결함 수정
 
 워크플로우 목록의 더보기 메뉴 → **복제**가 workflow 메타 row 만 INSERT 하고 `node`/`edge` 테이블은

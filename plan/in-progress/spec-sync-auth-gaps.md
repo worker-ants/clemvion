@@ -12,7 +12,7 @@ owner: planner
 ## 미구현 항목
 - [ ] §1.3 LDAP / Active Directory 연동 (셀프 호스팅 선택 기능) — 백엔드에 핸들러·passport strategy·의존성 부재
 - [ ] §1.3 SAML 2.0 기업 SSO 연동 (셀프 호스팅 선택 기능) — 동일하게 미구현
-- [ ] **§4.1 감사 로깅 커버리지 갭** — `workflow.*` / `trigger.*` / `schedule.*` /
+- [x] **§4.1 감사 로깅 커버리지 갭** — **CRUD 13개 구현 완료 (2026-08-01)**. — `workflow.*` / `trigger.*` / `schedule.*` /
       `model_config.*`(create/update/delete/set_default) 액션이 미구현. 실측:
       `workflows`·`triggers`·`schedules`·`model-config` 모듈에 `AuditLogsService` import **0건**.
       SoT: [`spec/data-flow/1-audit.md` §1.1 "커버리지 갭"](../../spec/data-flow/1-audit.md).
@@ -29,3 +29,23 @@ owner: planner
   한 `spec/5-system/1-auth.md` 를 `implemented` 로 올리면 안 된다.
 - 본 spec 의 다른 미구현 갭(auth_config CRUD audit 기록 등)은 `plan/complete/auth-config-webhook-followups.md`(완료) 가 추적했다.
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__1-auth.md 참조.
+
+## §4.1 구현 후속 (2026-08-01)
+
+CRUD 13개(`workflow.*` 3 · `trigger.*` 3 · `schedule.*` 3 · `model_config.*` 4)를 구현했다.
+남은 것:
+
+- [ ] **spec SoT 4곳 동기화 — planner 턴 필요** (`developer` 는 `spec/` read-only).
+      `5-system/1-auth.md §4.1` Planned→구현 이동 · `data-flow/1-audit.md §1.1` 커버리지 갭
+      문단·표 갱신 · `conventions/audit-actions.md §3` 상태 컬럼 · `2-navigation/2-trigger-list.md`
+      L182/L252 (`trigger.delete` **액션명 오기** 포함 — 실제는 `trigger.deleted`).
+      한 커밋에서 동시에 고쳐야 재drift 하지 않는다 (impl-prep 09_11_58 이 예견).
+- [ ] **`workflow.executed`** — Planned 잔류. CRUD 와 카디널리티 차원이 달라
+      (트리거·webhook 발동마다 적재) `audit_log` 보존 정책 결정과 묶어야 한다.
+      실측: `audit_log` 은 pruner 가 없고 정책 미정(`login_history` 는 정리 배치 존재).
+- [ ] `saveCanvas`/`importWorkflow` 감사 기록 — 리뷰 W3. 이번 PR 범위(서비스 CRUD)
+      밖이며 `saveCanvas` 는 캔버스 편집마다 발동해 위 카디널리티 논점을 공유한다.
+- [ ] `recordAudit` 공통 팩토리 (W4, 6번째 리소스 추가 시) · 동시 삭제 중복 감사 (W7,
+      기존 `auth-configs` 패턴과 함께) · 컨트롤러 spec 보강 (W8) — 전부 우선순위 낮음.
+
+> `status: implemented` 승격은 여전히 불가 — §1.3 LDAP/SAML 이 남아 있다.

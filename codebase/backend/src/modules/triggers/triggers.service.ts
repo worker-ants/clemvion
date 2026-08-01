@@ -256,8 +256,19 @@ export class TriggersService {
       workspaceId,
     });
     const saved = await this.triggerRepository.save(trigger);
+    // **커밋 직후** 기록한다. 아래 secret store 마이그레이션·chatChannel setup 은 실패할 수
+    // 있는 외부 호출이라, 그 뒤로 미루면 트리거는 생겼는데 감사는 안 남는다 (리뷰 W6).
+    // resourceId 는 커밋된 id 로 확정이고, chatChannel 재조회는 응답 형태만 바꾼다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_CREATED,
+      resourceId: saved.id,
+      type: saved.type,
+    });
     // notification.signing.secret plaintext 가 config 에 들어왔으면 secret store 로 마이그레이션.
     await this.normalizeNotificationSecretRef(saved);
+    let result = saved;
     // Chat Channel 어댑터 setup — CCH-AD-02.
     if (chatChannel) {
       await this.setupChatChannel(saved, chatChannel);
@@ -267,25 +278,9 @@ export class TriggersService {
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
       });
-      if (refreshed) {
-        await this.recordAudit({
-          workspaceId,
-          userId,
-          action: AUDIT_ACTIONS.TRIGGER_CREATED,
-          resourceId: refreshed.id,
-          type: refreshed.type,
-        });
-        return this.sanitizeChatChannelForResponse(refreshed);
-      }
+      if (refreshed) result = refreshed;
     }
-    await this.recordAudit({
-      workspaceId,
-      userId,
-      action: AUDIT_ACTIONS.TRIGGER_CREATED,
-      resourceId: saved.id,
-      type: saved.type,
-    });
-    return this.sanitizeChatChannelForResponse(saved);
+    return this.sanitizeChatChannelForResponse(result);
   }
 
   async update(
@@ -343,7 +338,18 @@ export class TriggersService {
     if (trigger.type === 'schedule' && rest.isActive !== undefined) {
       await this.syncScheduleActivation(saved, rest.isActive);
     }
+    // **커밋 직후** 기록한다 — 아래 secret 마이그레이션·chatChannel setup 은 실패할 수
+    // 있는 외부 호출이라, 그 뒤로 미루면 트리거는 바뀌었는데 감사는 안 남는다 (리뷰 W6).
+    // chatChannel 재조회는 응답 형태만 바꾸므로 감사 내용에 영향이 없다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_UPDATED,
+      resourceId: saved.id,
+      type: saved.type,
+    });
     await this.normalizeNotificationSecretRef(saved);
+    let result = saved;
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
       await this.setupChatChannel(saved, chatChannel);
@@ -352,25 +358,9 @@ export class TriggersService {
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
       });
-      if (refreshed) {
-        await this.recordAudit({
-          workspaceId,
-          userId,
-          action: AUDIT_ACTIONS.TRIGGER_UPDATED,
-          resourceId: refreshed.id,
-          type: refreshed.type,
-        });
-        return this.sanitizeChatChannelForResponse(refreshed);
-      }
+      if (refreshed) result = refreshed;
     }
-    await this.recordAudit({
-      workspaceId,
-      userId,
-      action: AUDIT_ACTIONS.TRIGGER_UPDATED,
-      resourceId: saved.id,
-      type: saved.type,
-    });
-    return this.sanitizeChatChannelForResponse(saved);
+    return this.sanitizeChatChannelForResponse(result);
   }
 
   /**

@@ -726,6 +726,7 @@ describe('WorkflowsService', () => {
       );
     });
 
+
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
       mockTransactionManager.find = jest
@@ -796,18 +797,23 @@ describe('WorkflowsService', () => {
         order.push('audit');
       });
 
-      await service.create('ws-uuid-1', 'user-uuid-1', { name: 'W' } as any);
+      // finally 로 복원한다 — 중간 expect 가 실패하면(즉 이 테스트가 잡으려는 회귀가
+      // 실제로 났을 때) 마지막 줄이 실행되지 않아 오염이 무관한 테스트로 번진다.
+      try {
+        await service.create('ws-uuid-1', 'user-uuid-1', { name: 'W' } as any);
 
-      expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
-      expect(auditLogs.record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          workspaceId: 'ws-uuid-1',
-          userId: 'user-uuid-1',
-          action: 'workflow.created',
-          resourceType: 'workflow',
-        }),
-      );
-      mockDataSource.transaction = origTx;
+        expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+        expect(auditLogs.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspaceId: 'ws-uuid-1',
+            userId: 'user-uuid-1',
+            action: 'workflow.created',
+            resourceType: 'workflow',
+          }),
+        );
+      } finally {
+        mockDataSource.transaction = origTx;
+      }
     });
 
     it('트랜잭션이 실패하면 create 는 감사를 남기지 않는다', async () => {
@@ -819,11 +825,59 @@ describe('WorkflowsService', () => {
         throw new Error('commit failed');
       });
 
-      await expect(
-        service.create('ws-uuid-1', 'user-uuid-1', { name: 'W' } as any),
-      ).rejects.toThrow('commit failed');
-      expect(auditLogs.record).not.toHaveBeenCalled();
-      mockDataSource.transaction = origTx;
+      try {
+        await expect(
+          service.create('ws-uuid-1', 'user-uuid-1', { name: 'W' } as any),
+        ).rejects.toThrow('commit failed');
+        expect(auditLogs.record).not.toHaveBeenCalled();
+      } finally {
+        mockDataSource.transaction = origTx;
+      }
+    });
+  });
+
+  describe('감사 로깅 — update/remove', () => {
+    it('update 는 workflow.updated 를 행위자·대상과 함께 남긴다', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        name: 'Old',
+        settings: {},
+      });
+      mockRepository.save.mockImplementation(async (w: unknown) => w);
+
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        { name: 'New' } as any,
+        'u-upd',
+      );
+
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-uuid-1',
+        userId: 'u-upd',
+        action: 'workflow.updated',
+        resourceType: 'workflow',
+        resourceId: 'wf-uuid-1',
+        details: undefined,
+      });
+    });
+
+    it('remove 는 workflow.deleted 를 남긴다', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        id: 'wf-uuid-9',
+        workspaceId: 'ws-uuid-1',
+      });
+
+      await service.remove('wf-uuid-9', 'ws-uuid-1', 'u-del');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u-del',
+          action: 'workflow.deleted',
+          resourceId: 'wf-uuid-9',
+        }),
+      );
     });
   });
 
