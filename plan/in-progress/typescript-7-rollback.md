@@ -145,7 +145,7 @@ src/signature.ts(70,23) TS2591  Cannot find name 'Buffer'.
 
       checker 들도 독립적으로 같은 결론을 냈다 — "target 영역과 실제 diff 간 실질적 연관 없음,
       `code:` glob 매칭에 의한 라우팅 우연" (INFO 1). 우회가 아니라 범위 축소이며 근거를 남긴다.
-- [ ] push + PR
+- [x] push + PR — https://github.com/worker-ants/clemvion/pull/1058
 
 ## INFO 20건 처분
 
