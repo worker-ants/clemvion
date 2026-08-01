@@ -2138,7 +2138,6 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
   });
 });
 
-
 describe('TriggersService — 감사 로깅 (trigger.*)', () => {
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
@@ -2165,9 +2164,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
       }),
     }).compile();
     // createBaseProviders 는 모듈 레벨이라 공유 mock 을 못 받는다 — 여기서 override.
-    const idx = (
-      moduleRef as unknown as { container?: unknown }
-    ) as unknown as never;
+    const idx = moduleRef as unknown as {
+      container?: unknown;
+    } as unknown as never;
     void idx;
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));

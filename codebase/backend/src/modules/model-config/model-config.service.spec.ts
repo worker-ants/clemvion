@@ -461,9 +461,9 @@ describe('ModelConfigService', () => {
       // Build a service instance with no encryption key configured
       const moduleNoKey: TestingModule = await Test.createTestingModule({
         providers: [
-        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
-        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
-        { provide: AuditLogsService, useValue: { record: jest.fn() } },
+          // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+          // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+          { provide: AuditLogsService, useValue: { record: jest.fn() } },
           ModelConfigService,
           { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
           {
@@ -1000,9 +1000,9 @@ describe('ModelConfigService', () => {
         throw new Error('deadlock');
       });
 
-      await expect(
-        service.setDefault('cfg-4', 'ws-1', 'u-4'),
-      ).rejects.toThrow('deadlock');
+      await expect(service.setDefault('cfg-4', 'ws-1', 'u-4')).rejects.toThrow(
+        'deadlock',
+      );
       expect(auditLogs.record).not.toHaveBeenCalled();
     });
 
@@ -1031,5 +1031,4 @@ describe('ModelConfigService', () => {
       );
     });
   });
-
 });

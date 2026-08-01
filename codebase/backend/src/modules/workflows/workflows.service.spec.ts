@@ -825,8 +825,6 @@ describe('WorkflowsService', () => {
       expect(auditLogs.record).not.toHaveBeenCalled();
       mockDataSource.transaction = origTx;
     });
-
-
   });
 
   describe('saveCanvas', () => {
@@ -2410,6 +2408,4 @@ describe('importWorkflow·duplicate 전제 — Node/Edge 엔티티 @BeforeInsert
     expect(() => new Node()).not.toThrow();
     expect(() => new Edge()).not.toThrow();
   });
-
-
 });

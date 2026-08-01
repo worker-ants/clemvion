@@ -257,11 +257,7 @@ export class SchedulesService {
     return saved;
   }
 
-  async remove(
-    id: string,
-    workspaceId: string,
-    userId: string,
-  ): Promise<void> {
+  async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const schedule = await this.findById(id, workspaceId);
     // Remove BullMQ job
     await this.scheduleRunnerService.removeJob(schedule.id);

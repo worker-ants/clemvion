@@ -856,11 +856,7 @@ export class TriggersService {
     }
   }
 
-  async remove(
-    id: string,
-    workspaceId: string,
-    userId: string,
-  ): Promise<void> {
+  async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
     // [data-flow 10-triggers §1.4] schedule 타입은 trigger 삭제(FK CASCADE 로 schedule row 동반
     // 삭제) 전에 BullMQ job scheduler 엔트리를 해제한다 — 미해제 시 Redis 에 잔존해 cron tick
