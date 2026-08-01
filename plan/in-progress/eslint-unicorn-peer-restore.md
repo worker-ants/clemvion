@@ -87,7 +87,11 @@ pnpm 의 실제 판정은 통과한다. 그런데도 56 으로 되돌린다:
       | baseline | `catch-error-name` 위반 0 |
       | `catch (err)` → `catch (error)` (instrumentation.ts) | **error 발화** ✅ |
       | 원복 | diff 0 |
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW — lint PASS(62s) · unit PASS(92s) · build PASS(177s) ·
+      e2e PASS(324s: backend jest 46 suites/260 + playwright 51).
+      실 인프라 기동 확인: postgres · redis · minio · backend-e2e 전부 `Healthy`.
+      로그의 `failed` 매칭 1건은 파일명(`execution-failed-notification.e2e-spec.ts`)에 의한
+      오탐으로 실물은 `PASS` 다 — 요약 숫자만 보지 않고 마커를 직접 열어 확인했다.
 - [ ] `/ai-review` + Critical/Warning 조치
 - [ ] push + PR
 
