@@ -1027,7 +1027,10 @@ describe('ModelConfigService', () => {
         const r = await cb({
           update: jest.fn().mockResolvedValue(undefined),
           save: jest.fn(async (_e: unknown, x: unknown) => x),
-          create: jest.fn((_e: unknown, x: unknown) => ({ ...(x as object), id: 'test-id' })),
+          create: jest.fn((_e: unknown, x: unknown) => ({
+            ...(x as object),
+            id: 'test-id',
+          })),
         });
         order.push('tx-commit');
         return r;
