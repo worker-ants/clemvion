@@ -14,7 +14,7 @@ priority: P2
 > | §관측(1) changeset 증분 산정 | **전제 반증** → 다른 결함으로 대체 수정 (아래) |
 > | §관측(2) `SUMMARY pending` push 허용 | **수정 완료** (아래) |
 > | §재발 관측 8번째 (번들 누락) | **수정 완료** — `harness-consistency-summary-downgrade-rule.md` 쪽에 기록 |
-> | CI 백스톱 본체 | **미착수** — §결정이 필요한 지점 그대로 |
+> | CI 백스톱 본체 | ~~**미착수**~~ → **2026-08-01 구현 완료 (관측 모드)** — 아래 배너 참조 |
 >
 > **작업 중 발견된 신규 결함 1건 (수정 완료)** — `code_review_orchestrator.build_files_section`
 > 이 프롬프트 예산 초과 파일을 **아무 표시 없이** 통째로 누락시켰다. 내용을 작은 파일부터

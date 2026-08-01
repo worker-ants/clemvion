@@ -218,10 +218,22 @@ class ReviewGateCliTest(unittest.TestCase):
 
 
 class OneJudgeTest(unittest.TestCase):
-    """1. 판정 로직은 스크립트에 없다 — 게이트에 위임한다."""
+    """스크립트의 **import 표면**과 명백한 재구현 신호를 좁게 유지한다.
 
-    # 스크립트가 실제로 쓰는 전부. 열거를 뒤집은 이유는 아래 docstring 참조.
-    _ALLOWED_IMPORTS = {"__future__", "argparse", "os", "sys", "review_guard"}
+    이 클래스는 한때 "이 스크립트 안에 두 번째 판정자가 없다" 를 증명한다고 주장했고, 네 세대에
+    걸쳐 반증됐다 — 자기 docstring, 자기 안내 문구, `pathlib.rglob`, 2단 속성 체인, 지역 별칭,
+    `getattr`, `__import__`, `os.popen`, 속성 재바인딩(`sys.exit = os.system`),
+    `getattr(sys.modules['os'], …)`. 임의의 파이썬에서 그 부정을 정적으로 증명하는 것은 무한한
+    표면이고, 매 라운드 새 우회가 나온 것이 증거다.
+
+    **그 주장은 이제 `VerdictComesFromTheGateTest` 가 행위로 한다** — 종료 코드가 스텁 게이트
+    판정의 순함수인지 네 조합으로 확인하므로, 숨은 두 번째 판정자가 결과를 바꾸면 어떤 방식이든
+    거기서 어긋난다.
+
+    여기 남은 것은 그보다 약하고 정직한 성질이다: 새 의존이 들어오면 알아차린다. 정적 검사로
+    닫을 수 있는 만큼만 닫고, 못 닫는 부분은 위 행위 테스트에 맡긴다.
+    """
+
 
     # 스크립트가 실제로 쓰는 전부. 열거를 뒤집은 이유는 아래 docstring 참조.
     _ALLOWED_IMPORTS = {"__future__", "argparse", "os", "sys", "review_guard"}
@@ -250,8 +262,8 @@ class OneJudgeTest(unittest.TestCase):
             return ".".join(reversed(parts))
         return None
 
-    def test_the_script_performs_no_judgement_operations_of_its_own(self):
-        """import 도 **호출도** 허용 목록으로 판정한다.
+    def test_the_import_and_call_surface_stays_small(self):
+        """import 도 **호출도** 허용 목록으로 유지한다.
 
         네 번 뚫렸다.
         1차 파일 전체 grep → 스크립트 docstring 이 설계 근거로 인용한 `review/code`.
@@ -322,28 +334,60 @@ class OneJudgeTest(unittest.TestCase):
                         f"{node.lineno}행: getattr 로 모듈 속성을 꺼낸다 — 우회다",
                     )
 
+        # 속성을 **대입 대상**으로 쓰는 문장은 무조건 위반. `sys.exit = os.system` 한 줄이면
+        # 새 import 도 새 호출 이름도 없이 동작이 통째로 바뀌는데, 위 허용 목록은 이름만 보므로
+        # 전부 통과한다(3R 리뷰어가 실제 셸 실행까지 실증). 이 스크립트가 남의 속성에 대입할
+        # 정당한 이유는 없으므로 형태 자체를 금지하는 편이 유한하고 완전하다.
+        for node in ast.walk(tree):
+            targets = []
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+            elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+                targets = [node.target]
+            for t in targets:
+                self.assertNotIsInstance(
+                    t, ast.Attribute,
+                    f"{node.lineno}행: 속성에 대입한다 — 재바인딩으로 동작을 바꾸는 형태다",
+                )
+
         attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         self.assertIn("evaluate_review", attrs,
                       "review_guard.evaluate_review 를 가져오지 않는다")
 
 
 class WorkflowWiringTest(unittest.TestCase):
-    """워크플로가 스크립트를 실제로 부르고, 봇을 면제하고, 히스토리를 가져오는가.
+    """워크플로의 배선을 **정확 일치**로 고정한다.
 
-    셋 다 없으면 조용히 무해해진다 — `fetch-depth: 0` 이 없으면 merge-base 가 안 잡혀 게이트가
-    fail-open 하고, 봇 면제가 없으면 이 워크플로는 dependabot 전용 알람이 된다(실측: 2026-08 의
-    미커버 9건 중 8건이 봇).
+    패턴 매칭을 세 번 시도했고 세 번 다 뚫렸다.
+      1R  substring        → `if:` 를 지우고 같은 문자열을 `env:` 에 남기면 통과.
+      2R  구조 + 부분 정규식 → `(actor == 'dependabot[bot]') != false`(의미 정반대)가 통과.
+      3R  앵커 없는 정규식   → `if: github.actor != 'dependabot[bot]' && false` 가 통과.
+          그 한 줄이면 **백스톱이 모든 PR 에서 영구히 꺼지는데** 15개 테스트가 전부 GREEN 이었다.
+          11명의 리뷰어가 각자 다른 최소 변경으로 같은 결론에 도달했다.
 
-    **구조로 판정한다 — substring 이 아니라.** 1차 판은 주석을 걷어낸 전문을 grep 했고, 리뷰어가
-    두 가지로 우회를 실증했다: (a) `if:` 조건을 지우고 같은 문자열을 `env:` 에 남기면 봇 면제
-    테스트가 통과하고, (b) `run:` 을 `true` 로 바꿔도 같은 경로가 `paths:` 에 있으므로 실행
-    테스트가 통과한다. 문자열이 **어디에** 있는지가 배선의 전부인데 substring 은 그걸 못 본다.
-    같은 파일의 `OneJudgeTest` 는 이미 "단어가 아니라 연산" 으로 재작성된 전례가 있는데 이
-    클래스만 그 교훈이 안 닿아 있었다.
-
-    PyYAML 을 쓴다 — `.claude/tests/README.md` 가 기록한 테스트 전용 예외이고,
-    `test_workflow_yaml_structure.py` 가 이미 같은 이유로 쓴다(중복 키 검출은 stdlib 로 불가).
+    문제는 매번 "이런 우회도 있네" 가 아니라 **접근이 틀렸다**는 것이었다. 임의의 표현식에서
+    "의미가 보존되는가" 를 부분 일치로 판정하려는 것은 무한한 표면이고, 나는 그 표면을 세 번
+    좇았다. 워크플로는 작고 안정적인 설정 파일이므로 **기대값 전체를 적어두는 편이 유한하고
+    완전하다**: 어떤 변경이든 실패하고, 저자는 기대값을 의식적으로 갱신하면서 그 변경이 배선을
+    깨는지 스스로 판단하게 된다. 우회할 패턴이 아예 없다.
     """
+
+    # 기대되는 배선 전체. 바꾸려면 여기도 같이 바꿔야 하고, 그 순간이 "이게 게이트를 끄는
+    # 변경인가" 를 판단할 자리다.
+    EXPECTED_IF = "github.actor != 'dependabot[bot]'"
+    EXPECTED_GATE_RUN = "python3 scripts/check-review-gate.py"
+    EXPECTED_CONCURRENCY = {
+        "group": "review-gate-${{ github.ref }}",
+        "cancel-in-progress": True,
+    }
+    EXPECTED_PATHS = [
+        "codebase/**",
+        ".claude/hooks/_lib/review_guard.py",
+        ".claude/hooks/_lib/branch_guard.py",
+        ".claude/_shared/**",
+        "scripts/check-review-gate.py",
+        ".github/workflows/review-gate.yml",
+    ]
 
     @classmethod
     def setUpClass(cls):
@@ -356,101 +400,116 @@ class WorkflowWiringTest(unittest.TestCase):
     def setUp(self):
         path = _harness.REPO_ROOT / ".github" / "workflows" / "review-gate.yml"
         self.doc = self._yaml.safe_load(path.read_text(encoding="utf-8"))
-        self.text = path.read_text(encoding="utf-8")
-        # YAML 1.1 에서 `on:` 은 불리언 True 로 파싱된다 — 이걸 모르면 KeyError 로 죽는다.
+        # YAML 1.1 에서 `on:` 은 불리언 True 로 파싱된다 — 모르면 KeyError 로 죽는다.
         self.on = self.doc.get("on", self.doc.get(True))
         self.job = self.doc["jobs"]["gate"]
+        self.steps = self.job["steps"]
 
-    @staticmethod
-    def _strip_comments(cmd):
-        """`run:` 본문에서 주석 줄을 걷어낸다.
+    def _gate_step_index(self):
+        for idx, st in enumerate(self.steps):
+            if isinstance(st.get("run"), str) and self.EXPECTED_GATE_RUN in st["run"]:
+                return idx
+        self.fail(f"게이트를 부르는 step 이 없다: {self.steps}")
 
-        없으면 `run: |` 여러 줄 스크립트가 주석에만 경로를 언급해도 "실행한다" 로 읽힌다 —
-        리뷰어가 `# NOTE: … 비활성화` + `echo "temporarily disabled"` 로 실증했다.
-        """
-        return "\n".join(ln for ln in cmd.splitlines()
-                          if not ln.lstrip().startswith("#"))
+    def test_the_gate_step_runs_exactly_the_expected_command(self):
+        """`in` 이 아니라 `==`. `echo "…check-review-gate.py"` 나 주석 decoy 가 통과하던
+        자리다. 명령이 정확히 그것이면 치환도, 플래그 조립도, 축약도 끼어들 수 없다."""
+        idx = self._gate_step_index()
+        self.assertEqual(self.steps[idx]["run"].strip(), self.EXPECTED_GATE_RUN)
 
-    def _run_commands(self):
-        return [self._strip_comments(st["run"])
-                for st in self.job["steps"] if "run" in st]
+    def test_the_gate_step_is_unconditional(self):
+        """step 레벨 `if:` 하나면 그 step 만 조용히 건너뛴다. 관측 모드는 위반이어도 exit 0
+        이라 GitHub 로그의 초록 체크로는 실행 여부가 구분되지 않는다."""
+        self.assertNotIn("if", self.steps[self._gate_step_index()])
 
-    def _env_values(self):
-        """job 과 각 step 의 `env:` 값 전부 — 플래그를 여기로 옮기는 우회를 보려면 필요하다."""
-        out = list((self.job.get("env") or {}).values())
-        for st in self.job["steps"]:
-            out.extend((st.get("env") or {}).values())
-        return [str(v) for v in out]
+    def test_the_job_condition_is_exactly_the_bot_exemption(self):
+        """전체 일치. `&& false` 를 덧붙이면 백스톱이 모든 PR 에서 영구히 꺼지는데, 앵커 없는
+        정규식은 그것을 통과시켰다(3R, 리뷰어 실증)."""
+        self.assertEqual(self.job.get("if", ""), self.EXPECTED_IF)
 
-    def test_a_step_actually_runs_the_script(self):
-        """`paths:` 에 이름이 있는 것과 그것을 실행하는 것은 다른 사실이다."""
-        self.assertTrue(
-            any("scripts/check-review-gate.py" in c for c in self._run_commands()),
-            f"어느 step 도 스크립트를 실행하지 않는다: {self._run_commands()}",
-        )
+    def test_the_checkout_before_the_gate_fetches_full_history(self):
+        """게이트 **직전**의 checkout 만 본다. "어느 하나라도" 로 보면 shallow 인 실효
+        checkout 옆에 deep 인 decoy 를 두는 것으로 통과한다 — merge-base 가 없으면 게이트는
+        조용히 fail-open 하고 워크플로는 초록이다."""
+        gate = self._gate_step_index()
+        before = [st for st in self.steps[:gate]
+                  if isinstance(st.get("uses"), str)
+                  and st["uses"].startswith("actions/checkout")]
+        self.assertTrue(before, "게이트 앞에 checkout 이 없다")
+        self.assertEqual(before[-1].get("with", {}).get("fetch-depth"), 0)
 
-    def test_the_job_condition_exempts_dependabot(self):
-        """`if:` 그 자리여야 한다 — 같은 문자열이 `env:` 나 주석에 있는 것은 면제가 아니다."""
-        cond = self.job.get("if", "")
-        # 두 조각을 따로 보면 `(github.actor == 'dependabot[bot]') != false` — 의미가 정반대인
-        # 식 — 도 통과한다(리뷰어 실증). 하나의 부정 비교로 결합돼 있는지를 본다.
-        import re as _re
-        self.assertRegex(
-            cond,
-            r"github\.actor\s*!=\s*['\"]dependabot\[bot\]['\"]",
-            f"봇 면제가 하나의 부정 비교식이 아니다: {cond!r}",
-        )
+    def test_trigger_paths_are_exactly_the_expected_set(self):
+        """`branch_guard.py` 가 여기 있는 이유: `review_guard._default_branch()` 가 그 모듈을
+        import 한다. 1R 까지 빠져 있어 그 파일만 고친 PR 은 이 워크플로를 안 돌렸다."""
+        self.assertEqual(self.on["pull_request"]["paths"], self.EXPECTED_PATHS)
 
-    def test_checkout_fetches_full_history(self):
-        """`with.fetch-depth: 0` 이 checkout step 에 붙어야 한다. 없으면 merge-base 가 없어
-        게이트가 조용히 fail-open 한다 — 워크플로는 초록인 채 백스톱만 죽는다."""
-        depths = [st.get("with", {}).get("fetch-depth")
-                  for st in self.job["steps"]
-                  if isinstance(st.get("uses"), str) and st["uses"].startswith("actions/checkout")]
-        self.assertTrue(depths, "checkout step 이 없다")
-        self.assertIn(0, depths, f"fetch-depth: 0 이 아니다: {depths}")
-
-    def test_trigger_paths_cover_the_logic_it_depends_on(self):
-        """`codebase/**` 만 걸면 게이트 로직 자체를 고친 PR 에서 안 돈다 —
-        `harness-checks.yml` 이 같은 실패 클래스를 여섯 번 겪고 세운 규칙.
-
-        `branch_guard.py` 가 목록에 있는 이유: `review_guard._default_branch()` 가 그 모듈의
-        `_origin_default_branch` 를 import 한다. 리뷰어가 지적하기 전까지 빠져 있었고, 그
-        파일만 고친 PR 은 이 워크플로를 트리거하지 않았다.
-        """
-        paths = self.on["pull_request"]["paths"]
-        for required in ("codebase/**",
-                         ".claude/hooks/_lib/review_guard.py",
-                         ".claude/hooks/_lib/branch_guard.py",
-                         ".claude/_shared/**",
-                         "scripts/check-review-gate.py",
-                         ".github/workflows/review-gate.yml"):
-            self.assertIn(required, paths)
+    def test_concurrency_is_pinned(self):
+        """`--enforce` 로 뒤집은 뒤에는, 차단해야 할 PR 이 무관한 실행에 의해 취소되는 것이
+        곧 무음 통과다. 지금은 관측 모드라 비용만 문제지만 성질은 지금 고정한다."""
+        self.assertEqual(self.doc.get("concurrency"), self.EXPECTED_CONCURRENCY)
 
     def test_it_is_still_observation_only(self):
-        """`--enforce` 로 뒤집는 것은 워크플로 계약 변경이라 의도적 결정이어야 한다. 이 단언은
-        그 전환이 조용히 일어나지 않게 한다 — 켤 때 이 테스트도 같이 바뀐다.
+        """`--enforce` 로 뒤집는 것은 워크플로 계약 변경이라 의도적 결정이어야 한다.
 
-        리터럴만 보면 안 된다: 라운드 1 이 `if:`→`env:` 우회를 고쳤는데, 리뷰어가 같은 클래스를
-        이 테스트에서 재현했다 — `--enforce` 를 `env:` 에 두고 `run:` 에서 `$GATE_FLAG` 로
-        참조하면 런타임에는 enforce 인데 이 단언은 계속 "관측 모드" 라고 보고한다.
-        그래서 (1) `env:` 값도 보고, (2) **게이트를 부르는 그 명령**에는 셸 치환 자체를 금지한다.
-        플래그를 값으로 조립할 수 있으면 리터럴 검사는 언제나 우회 가능하다.
-        """
-        gate_cmds = [c for c in self._run_commands()
-                     if "scripts/check-review-gate.py" in c]
-        self.assertTrue(gate_cmds, "게이트를 부르는 run 이 없다")
-        for cmd in gate_cmds:
-            self.assertNotIn("--enforce", cmd)
-            for interp in ("$", "${{"):
-                self.assertNotIn(
-                    interp, cmd,
-                    f"게이트 호출에 셸/표현식 치환이 있다: {cmd!r} — "
-                    "플래그를 값으로 조립하면 리터럴 검사가 무력해진다",
+        위 정확 일치가 이미 이것을 함의하지만(명령이 정확히 그 문자열이면 플래그가 있을 수
+        없다) 별도로 남긴다 — 켤 때 저자가 마주치는 이름이 `test_it_is_still_observation_only`
+        여야 "지금 계약을 바꾸는 중" 임이 드러난다."""
+        self.assertNotIn("--enforce", self.EXPECTED_GATE_RUN)
+        self.assertEqual(self.steps[self._gate_step_index()]["run"].strip(),
+                         self.EXPECTED_GATE_RUN)
+
+
+class VerdictComesFromTheGateTest(unittest.TestCase):
+    """판정자가 하나임을 **행위**로 고정한다 — 소스 모양이 아니라.
+
+    `OneJudgeTest` 는 "이 스크립트 안에 두 번째 판정자가 없다" 를 정적으로 증명하려 했고, 네
+    세대에 걸쳐 뚫렸다: 자기 docstring · 자기 안내 문구 · `pathlib.rglob` · 2단 속성 체인 ·
+    지역 별칭 · `getattr` · `__import__` · `os.popen` · **속성 재바인딩**(`sys.exit = os.system`)
+    · `getattr(sys.modules['os'], …)`. 임의의 파이썬에서 부정을 정적으로 증명하는 것은 무한한
+    표면이고, 매 라운드 새 우회가 나온 것이 그 증거다.
+
+    유한한 형태로 바꾼다: 게이트를 스텁으로 두고 **스크립트의 종료 코드가 (스텁 판정 × 플래그)
+    의 순함수인지** 네 조합 전부에서 확인한다. 두 번째 판정자가 결과를 바꿀 수 있다면 어떤
+    방식으로 숨어 있든 이 표에서 어긋난다 — 우회할 패턴이 없고, 검사 대상이 유한하다.
+
+    `OneJudgeTest` 는 남기되 무엇을 증명하는지 낮춰 적었다(import 표면 + 명백한 재구현 신호).
+    """
+
+    _CASES = [(False, False, 0), (False, True, 0), (True, False, 0), (True, True, 1)]
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        os.makedirs(os.path.join(self.root, ".claude", "hooks", "_lib"))
+        with open(os.path.join(self.root, ".claude", "hooks", "_lib",
+                               "review_guard.py"), "w", encoding="utf-8") as f:
+            f.write(
+                "import os\n"
+                "class _D:\n"
+                "    push_blocks = False\n"
+                "    notes = ()\n"
+                "    reason = 'stub'\n"
+                "    blocked = os.environ['STUB_BLOCKED'] == '1'\n"
+                "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+                "    return _D()\n"
+            )
+
+    def test_exit_code_is_a_pure_function_of_the_gate_verdict(self):
+        for blocked, enforce, expected in self._CASES:
+            with self.subTest(blocked=blocked, enforce=enforce):
+                argv = [sys.executable, str(SCRIPT), "--root", self.root]
+                if enforce:
+                    argv.append("--enforce")
+                r = subprocess.run(
+                    argv, capture_output=True, text=True, timeout=120,
+                    env={**os.environ, "STUB_BLOCKED": "1" if blocked else "0"},
                 )
-        for value in self._env_values():
-            self.assertNotIn("--enforce", value,
-                             "env 로 enforce 플래그를 주입하고 있다")
+                self.assertEqual(
+                    r.returncode, expected,
+                    f"게이트가 blocked={blocked} 라고 했는데 exit={r.returncode} "
+                    f"(기대 {expected}) — 스크립트가 자기 판정을 갖고 있다\n{r.stdout}{r.stderr}",
+                )
+                self.assertIn("미커버" if blocked else "통과", r.stdout)
 
 
 if __name__ == "__main__":
