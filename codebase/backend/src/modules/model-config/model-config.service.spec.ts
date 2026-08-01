@@ -76,7 +76,7 @@ describe('ModelConfigService', () => {
         apiKey: 'sk-test123456789abcdef',
         defaultModel: 'gpt-4o',
       };
-      const result = await service.create('workspace-1', 'chat', dto);
+      const result = await service.create('workspace-1', 'chat', dto, 'u-spec');
 
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.kind).toBe('chat');
@@ -94,7 +94,7 @@ describe('ModelConfigService', () => {
         defaultModel: 'text-embedding-3-small',
         dimension: 1536,
       };
-      await service.create('ws-1', 'embedding', dto);
+      await service.create('ws-1', 'embedding', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.kind).toBe('embedding');
       expect(saved.dimension).toBe(1536);
@@ -109,7 +109,7 @@ describe('ModelConfigService', () => {
         defaultModel: 'bge-reranker-v2-m3',
         baseUrl: 'http://tei:8080',
       };
-      const result = await service.create('ws-1', 'rerank', dto);
+      const result = await service.create('ws-1', 'rerank', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.apiKey).toBeNull();
       expect(result.apiKey).toBeNull();
@@ -122,7 +122,7 @@ describe('ModelConfigService', () => {
         name: 'Cohere',
         defaultModel: 'rerank-3.5',
       };
-      await expect(service.create('ws-1', 'rerank', dto)).rejects.toThrow();
+      await expect(service.create('ws-1', 'rerank', dto, 'u-spec')).rejects.toThrow();
     });
   });
 
@@ -226,7 +226,7 @@ describe('ModelConfigService', () => {
     it('patches defaultParams only for chat kind', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'chat' }));
       const dto = { defaultParams: { temperature: 0.5 } };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.defaultParams).toEqual({ temperature: 0.5 });
     });
@@ -236,7 +236,7 @@ describe('ModelConfigService', () => {
         baseConfig({ kind: 'embedding', defaultParams: {} }),
       );
       const dto = { defaultParams: { temperature: 0.9 } };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       // embedding kind must not absorb defaultParams
       expect(saved.defaultParams).toEqual({});
@@ -247,7 +247,7 @@ describe('ModelConfigService', () => {
         baseConfig({ kind: 'embedding', dimension: null }),
       );
       const dto = { dimension: 768 };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.dimension).toBe(768);
     });
@@ -255,7 +255,7 @@ describe('ModelConfigService', () => {
     it('ignores dimension for chat kind', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'chat' }));
       const dto = { dimension: 512 };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.dimension).toBeNull();
     });
@@ -263,7 +263,7 @@ describe('ModelConfigService', () => {
     it('re-encrypts apiKey when provided', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig());
       const newKey = 'sk-new-key-abcde12345';
-      await service.update('cfg-1', 'ws-1', { apiKey: newKey });
+      await service.update('cfg-1', 'ws-1', { apiKey: newKey }, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.apiKey).not.toBe(newKey);
       expect(decrypt(saved.apiKey, ENCRYPTION_KEY)).toBe(newKey);
@@ -272,7 +272,7 @@ describe('ModelConfigService', () => {
     it('does NOT change apiKey when apiKey is absent from dto', async () => {
       const original = encrypt('sk-original-key-1234', ENCRYPTION_KEY);
       mockRepo.findOne.mockResolvedValue(baseConfig({ apiKey: original }));
-      await service.update('cfg-1', 'ws-1', { name: 'Renamed' });
+      await service.update('cfg-1', 'ws-1', { name: 'Renamed' }, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.apiKey).toBe(original);
     });
@@ -297,13 +297,13 @@ describe('ModelConfigService', () => {
           return cb(txManager);
         },
       );
-      await service.update('cfg-1', 'ws-1', { isDefault: true });
+      await service.update('cfg-1', 'ws-1', { isDefault: true }, 'u-spec');
       expect(txCalled).toBe(true);
     });
 
     it('isDefault=false sets isDefault to false without transaction', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig({ isDefault: true }));
-      await service.update('cfg-1', 'ws-1', { isDefault: false });
+      await service.update('cfg-1', 'ws-1', { isDefault: false }, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.isDefault).toBe(false);
       expect(mockRepo.manager.transaction).not.toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(cfg());
 
-      await service.update('cfg-1', 'ws-1', { name: 'Renamed' });
+      await service.update('cfg-1', 'ws-1', { name: 'Renamed' }, 'u-spec');
 
       expect(listener).toHaveBeenCalledWith('cfg-1');
       expect(listener).toHaveBeenCalledTimes(1);
@@ -348,7 +348,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
 
-      await service.remove('cfg-9', 'ws-1');
+      await service.remove('cfg-9', 'ws-1', 'u-spec');
 
       expect(mockRepo.remove).toHaveBeenCalled();
       expect(listener).toHaveBeenCalledWith('cfg-9');
@@ -361,7 +361,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(b);
       mockRepo.findOne.mockResolvedValue(cfg());
 
-      await service.update('cfg-1', 'ws-1', { name: 'X' });
+      await service.update('cfg-1', 'ws-1', { name: 'X' }, 'u-spec');
 
       expect(a).toHaveBeenCalledWith('cfg-1');
       expect(b).toHaveBeenCalledWith('cfg-1');
@@ -373,7 +373,7 @@ describe('ModelConfigService', () => {
       mockRepo.findOne.mockResolvedValue(null); // findEntity → MODEL_CONFIG_NOT_FOUND
 
       await expect(
-        service.update('missing', 'ws-1', { name: 'X' }),
+        service.update('missing', 'ws-1', { name: 'X' }, 'u-spec'),
       ).rejects.toThrow();
       expect(listener).not.toHaveBeenCalled();
     });
@@ -383,7 +383,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.remove('missing', 'ws-1')).rejects.toThrow();
+      await expect(service.remove('missing', 'ws-1', 'u-spec')).rejects.toThrow();
       expect(mockRepo.remove).not.toHaveBeenCalled();
       expect(listener).not.toHaveBeenCalled();
     });
@@ -394,7 +394,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener); // duplicate registration ignored
       mockRepo.findOne.mockResolvedValue(cfg());
 
-      await service.update('cfg-1', 'ws-1', { name: 'X' });
+      await service.update('cfg-1', 'ws-1', { name: 'X' }, 'u-spec');
 
       expect(listener).toHaveBeenCalledTimes(1);
     });
@@ -420,7 +420,7 @@ describe('ModelConfigService', () => {
         },
       );
 
-      await service.update('cfg-1', 'ws-1', { isDefault: true });
+      await service.update('cfg-1', 'ws-1', { isDefault: true }, 'u-spec');
 
       expect(listener).toHaveBeenCalledWith('cfg-1');
     });
@@ -435,7 +435,7 @@ describe('ModelConfigService', () => {
       mockRepo.findOne.mockResolvedValue(cfg());
 
       await expect(
-        service.update('cfg-1', 'ws-1', { name: 'X' }),
+        service.update('cfg-1', 'ws-1', { name: 'X' }, 'u-spec'),
       ).resolves.toBeDefined();
       expect(bad).toHaveBeenCalled();
       // bad throwing must not skip subsequent listeners
@@ -449,7 +449,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(bad);
       mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
 
-      await expect(service.remove('cfg-9', 'ws-1')).resolves.toBeUndefined();
+      await expect(service.remove('cfg-9', 'ws-1', 'u-spec')).resolves.toBeUndefined();
       expect(bad).toHaveBeenCalledWith('cfg-9');
     });
   });
@@ -483,7 +483,7 @@ describe('ModelConfigService', () => {
         apiKey: 'sk-anything',
         defaultModel: 'gpt-4o',
       };
-      await expect(svcNoKey.create('ws-1', 'chat', dto)).rejects.toMatchObject({
+      await expect(svcNoKey.create('ws-1', 'chat', dto, 'u-spec')).rejects.toMatchObject({
         response: { code: 'ENCRYPTION_KEY_MISSING' },
       });
     });
@@ -498,7 +498,7 @@ describe('ModelConfigService', () => {
         workspaceId: 'ws-1',
         kind: 'embedding',
       });
-      await service.setDefault('test-id', 'ws-1');
+      await service.setDefault('test-id', 'ws-1', 'u-spec');
       expect(mockRepo.manager.transaction).toHaveBeenCalled();
     });
 
@@ -522,7 +522,7 @@ describe('ModelConfigService', () => {
         },
       );
 
-      await service.setDefault('cfg-emb', 'ws-1');
+      await service.setDefault('cfg-emb', 'ws-1', 'u-spec');
 
       // The first update call (unset old default) must scope to workspaceId × kind
       expect(updateCalls[0]).toMatchObject({
@@ -701,7 +701,7 @@ describe('ModelConfigService', () => {
         baseUrl: 'http://169.254.169.254/latest/meta-data',
         defaultModel: 'rerank-3.5',
       };
-      await expect(service.create('ws-1', 'rerank', dto)).rejects.toMatchObject(
+      await expect(service.create('ws-1', 'rerank', dto, 'u-spec')).rejects.toMatchObject(
         { response: { code: 'MODEL_CONFIG_INVALID' } },
       );
       expect(mockRepo.save).not.toHaveBeenCalled();
@@ -716,7 +716,7 @@ describe('ModelConfigService', () => {
         defaultModel: 'bge-reranker-v2-m3',
       };
       await expect(
-        service.create('ws-1', 'rerank', dto),
+        service.create('ws-1', 'rerank', dto, 'u-spec'),
       ).resolves.toBeDefined();
       expect(mockRepo.save).toHaveBeenCalled();
     });
@@ -731,7 +731,7 @@ describe('ModelConfigService', () => {
         apiKey: null,
       });
       await expect(
-        service.update('r1', 'ws-1', { provider: 'cohere' }),
+        service.update('r1', 'ws-1', { provider: 'cohere' }, 'u-spec'),
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_INVALID' } });
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
@@ -750,7 +750,7 @@ describe('ModelConfigService', () => {
         baseUrl: 'http://attacker.com/evil',
         defaultModel: 'gpt-4o',
       };
-      await expect(service.create('ws-1', 'chat', dto)).rejects.toMatchObject({
+      await expect(service.create('ws-1', 'chat', dto, 'u-spec')).rejects.toMatchObject({
         response: { code: 'MODEL_CONFIG_INVALID' },
       });
       expect(spy).toHaveBeenCalled();
@@ -771,7 +771,7 @@ describe('ModelConfigService', () => {
         baseUrl: 'https://proxy.example.com/v1',
         defaultModel: 'gpt-4o',
       };
-      await expect(service.create('ws-1', 'chat', dto)).resolves.toBeDefined();
+      await expect(service.create('ws-1', 'chat', dto, 'u-spec')).resolves.toBeDefined();
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
     });

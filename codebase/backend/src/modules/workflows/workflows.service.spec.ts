@@ -316,7 +316,7 @@ describe('WorkflowsService', () => {
       });
       await service.update('wf-uuid-1', 'ws-uuid-1', {
         settings: { maxConcurrentExecutions: 4 },
-      } as UpdateWorkflowDto);
+      } as UpdateWorkflowDto, 'u-spec');
       expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           settings: { existingKey: 'keep', maxConcurrentExecutions: 4 },
@@ -332,7 +332,7 @@ describe('WorkflowsService', () => {
       });
       await service.update('wf-uuid-1', 'ws-uuid-1', {
         name: 'renamed',
-      } as UpdateWorkflowDto);
+      } as UpdateWorkflowDto, 'u-spec');
       expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'renamed',
@@ -349,7 +349,7 @@ describe('WorkflowsService', () => {
       });
       await service.update('wf-uuid-1', 'ws-uuid-1', {
         settings: { maxConcurrentExecutions: 7 },
-      } as UpdateWorkflowDto);
+      } as UpdateWorkflowDto, 'u-spec');
       expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           settings: { maxConcurrentExecutions: 7 },

@@ -212,7 +212,7 @@ describe('SchedulesService.runNow', () => {
       const s = await service.create('ws-1', {
         ...baseDto,
         timezone: 'America/New_York',
-      } as unknown as CreateScheduleDto);
+      } as unknown as CreateScheduleDto, 'u-spec');
       expect(s.timezone).toBe('America/New_York');
       expect(workspacesService.getWorkspaceTimezone).not.toHaveBeenCalled();
     });
@@ -222,7 +222,7 @@ describe('SchedulesService.runNow', () => {
         service.create('ws-1', {
           ...baseDto,
           timezone: 'Not/AZone',
-        } as unknown as CreateScheduleDto),
+        } as unknown as CreateScheduleDto, 'u-spec'),
       ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
     });
 
@@ -230,7 +230,7 @@ describe('SchedulesService.runNow', () => {
       workspacesService.getWorkspaceTimezone.mockResolvedValue('Europe/London');
       const s = await service.create('ws-1', {
         ...baseDto,
-      } as unknown as CreateScheduleDto);
+      } as unknown as CreateScheduleDto, 'u-spec');
       expect(s.timezone).toBe('Europe/London');
     });
 
@@ -238,7 +238,7 @@ describe('SchedulesService.runNow', () => {
       workspacesService.getWorkspaceTimezone.mockResolvedValue(undefined);
       const s = await service.create('ws-1', {
         ...baseDto,
-      } as unknown as CreateScheduleDto);
+      } as unknown as CreateScheduleDto, 'u-spec');
       expect(s.timezone).toBe('Asia/Seoul');
     });
 

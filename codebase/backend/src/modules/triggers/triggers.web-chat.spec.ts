@@ -149,7 +149,7 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
         tokenStrategy: 'per_execution',
         appearance,
       },
-    } as never);
+    } as never, 'u-spec');
     expect(
       (result.config as { interaction?: { appearance?: unknown } }).interaction
         ?.appearance,
@@ -177,7 +177,7 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
         tokenStrategy: 'per_execution',
         appearance,
       },
-    } as never);
+    } as never, 'u-spec');
     const interaction = (
       result.config as { interaction?: Record<string, unknown> }
     ).interaction;
