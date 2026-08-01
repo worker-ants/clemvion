@@ -14,8 +14,16 @@ export default tseslint.config(
   eslintPluginPrettierRecommended,
   {
     // 03 m-4 — unicorn 플러그인은 preset 전체가 아니라 catch-error-name 단일 룰만
-    // 사용하기 위해 등록한다 (부수 규칙 유입 차단). 버전: ^56 — v57+ 는 eslint
-    // peer 를 >=9.20 으로 올려 본 패키지의 선언 floor(^9.18) 를 넘으므로 v56 고정.
+    // 사용하기 위해 등록한다 (부수 규칙 유입 차단).
+    //
+    // 버전 ^56 고정 — v57 부터 eslint peer floor 가 본 패키지의 선언 floor(^9.18) 를 넘는다.
+    // registry 실측(2026-08-01): 56.x=`>=8.56.0` / 57=`>=9.20.0` / 58~59=`>=9.22.0` /
+    // 60~61=`>=9.29.0` / 62~65=`>=9.38.0` / **66+=`>=10.4`**(eslint 9 자체를 배제).
+    // 66+ 로 가려면 eslint 10 상향이 전제이며 그건 10개 워크스페이스가 걸린 독립 작업이다.
+    //
+    // dependabot #1049 가 이 의도를 모른 채 ^72 로 올려 unmet peer 를 만들었고(주석은 ^56 인
+    // 채로 남아 코드-문서가 어긋났다), 되돌렸다. 재발은 dependabot.yml 의 major
+    // ignore 가 막는다 — 이 pin 을 풀려면 그 항목도 함께 지워야 한다.
     plugins: { unicorn: eslintPluginUnicorn },
   },
   {
