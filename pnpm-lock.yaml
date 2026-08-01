@@ -311,8 +311,8 @@ importers:
         specifier: ^56.0.1
         version: 56.0.1(eslint@9.39.4(jiti@2.7.0))
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2(@types/node@24.13.2)(ts-node@10.9.2(@types/node@24.13.2)(typescript@5.9.3))
@@ -628,8 +628,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -655,8 +655,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -686,8 +686,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -713,8 +713,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -740,8 +740,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -770,8 +770,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2(@types/node@20.19.43)
@@ -803,8 +803,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.8.0
+        version: 17.8.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -2191,8 +2191,8 @@ packages:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
 
-  '@napi-rs/wasm-runtime@1.2.1':
-    resolution: {integrity: sha512-KjZdi8Q1wh89gsVmghvbrMgWl6ZWmRmHV6wjB7/g4Zf0dyO+hH3neZUtuDNPO00qq5YE5RITVWvrIZKRaAmzGQ==}
+  '@napi-rs/wasm-runtime@1.2.2':
+    resolution: {integrity: sha512-JfB4kuJQjaoHuCTseIINHtHWeJnvgEcxjwA5t/Y00ZgaOO1Crz3fjT/p8kT28zA/Caz7oiUMn3d6H2yOVCVwuw==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=23.5.0}
     peerDependencies:
       '@emnapi/core': ^1.7.1 || ^2.0.0-alpha.3
@@ -6160,8 +6160,8 @@ packages:
     resolution: {integrity: sha512-ob/2LcVVaVGCYN+r14cnwnoDPUufjiYgSqRhiFD0Q1iI4Odora5RE8Iv1D24hAz5oMophRGkGz+yuvQmmUMnMw==}
     engines: {node: '>=18'}
 
-  globals@16.5.0:
-    resolution: {integrity: sha512-c/c15i26VrJ4IRt5Z89DnIzCGDn9EcebibhAOjw5ibqEHsE1wLUgkPn9RDmNcUKyU87GeaL633nyJ+pplFR2ZQ==}
+  globals@17.8.0:
+    resolution: {integrity: sha512-Zz/LMDZScFmkakeL2cTHzf+PbWKdpU3uclqkZT7TjDG58j5WPt0PpA+n9uPI24fZtlw07q0OtEi84K+umsRzqQ==}
     engines: {node: '>=18'}
 
   globalthis@1.0.4:
@@ -11457,7 +11457,7 @@ snapshots:
       '@tybys/wasm-util': 0.10.2
     optional: true
 
-  '@napi-rs/wasm-runtime@1.2.1(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
+  '@napi-rs/wasm-runtime@1.2.2(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
@@ -13057,7 +13057,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.10.0
       '@emnapi/runtime': 1.10.0
-      '@napi-rs/wasm-runtime': 1.2.1(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
+      '@napi-rs/wasm-runtime': 1.2.2(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
     optional: true
 
   '@rolldown/binding-win32-arm64-msvc@1.0.3':
@@ -16081,7 +16081,7 @@ snapshots:
 
   globals@16.4.0: {}
 
-  globals@16.5.0: {}
+  globals@17.8.0: {}
 
   globalthis@1.0.4:
     dependencies:
