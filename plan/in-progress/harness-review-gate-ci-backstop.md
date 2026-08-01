@@ -116,7 +116,14 @@ priority: P2
 >    > 결론: 하네스 결함(위)과 호출 결함(이것)이 겹쳐 "명시 파일" 절차가 이 브랜치 전 라운드에서
 >    > 무효였다. 소스가 리뷰된 것은 `--branch` 의 diff 가 마침 소스뿐이었기 때문이다.
 >    > **bash 문법을 zsh 에서 쓰는 이 클래스는 재발하기 쉽다** — 파일 목록은 배열로 넘길 것.
->    - 최소 조치: 두 옵션이 같이 오면 `--files` 우선 + 무시되는 쪽을 stderr 로 경고(현재 침묵).
+>    - ~~최소 조치: 두 옵션이 같이 오면 `--files` 우선 + 무시되는 쪽을 stderr 로 경고(현재 침묵).~~
+>      **구현 완료 (8R)** — 다만 **우선순위는 바꾸지 않았다.** 서술과 실제가 다르므로 정정한다:
+>      scope 플래그(`--commit`/`--range`/`--branch`)가 계속 이긴다(다른 호출부가 그 의미에
+>      의존한다). 바뀐 것은 폐기가 **더 이상 침묵하지 않는다**는 것뿐 —
+>      `!! --files IGNORED (N path(s)) — --<flag> takes precedence …` 를 stderr 로 내고
+>      무시된 경로를 최대 5개까지 이름으로 찍는다. 회귀 테스트 4개(
+>      `ScopeFlagDiscardingFilesIsAnnouncedTest`)가 세 플래그 각각과 "경고하면 안 되는" 두 경우를
+>      고정한다. 구조적 차단(`add_mutually_exclusive_group`)은 아래 동반 항목과 함께 남는다.
 >    - 동반: `get_directory_files()` 가 `.gitignore` 를 안 보는 raw `os.walk` 이고,
 >      `collect_change_infos` 의 `elif args.files:` 분기에는 기본 경로에 있는
 >      `warn_if_committed_work_is_missing` 대칭 안전장치가 없다.

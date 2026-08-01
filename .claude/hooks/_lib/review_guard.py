@@ -46,6 +46,14 @@ was broken: measured 24 contradictions across 732 committed sessions (3.3%).
 Only the *adopted* session is examined — reporting on sessions the gate ignored
 would train the reader to ignore the note. See `_shared/block_integrity.py`.
 
+Ordering, since it looks like a leak and is not: Gate 1 runs first, so a branch
+that fails it (no resolved code review) returns before Gate 2 computes anything,
+and the downgrade note does not appear on that attempt. It is deferred, not
+dropped — the push is already refused for the code-review reason, and once a
+review exists the next attempt runs Gate 2 and surfaces the note. Computing
+Gate 2 eagerly just to decorate a block that has already been decided would scan
+every consistency session on a path that is not going to allow the push anyway.
+
 "Fresh, resolved review" =
   a `review/code/**/SUMMARY.md` in the working tree satisfying ALL of:
     1. coverage:   every `agents_forced` reviewer left a report on disk — the
