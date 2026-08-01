@@ -1,7 +1,3 @@
-STATUS=success Rationale 연속성 검토 완료 — CRITICAL 0 / WARNING 0 / INFO 1
-
-===REPORT_MARKDOWN_BELOW===
-
 # Rationale 연속성 검토 — spec/data-flow/ (--impl-prep)
 
 ## 검토 범위·방법

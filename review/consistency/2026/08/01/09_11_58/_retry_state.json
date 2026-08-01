@@ -34,14 +34,14 @@
       "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/audit-logging/review/consistency/2026/08/01/09_11_58/naming_collision.md"
     }
   ],
-  "agents_pending": [
+  "agents_pending": [],
+  "agents_success": [
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
   ],
-  "agents_success": [],
   "agents_fatal": [],
   "agent_history": {},
   "rate_limit_episodes": 0,

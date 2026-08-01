@@ -1,5 +1,3 @@
-STATUS=success 신규 식별자 충돌 검토 완료 — WARNING 2건, INFO 1건 (CRITICAL 없음)
-===REPORT_MARKDOWN_BELOW===
 # 신규 식별자 충돌 검토 — spec/data-flow/ (--impl-prep)
 
 ## 발견사항

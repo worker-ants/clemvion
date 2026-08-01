@@ -28,6 +28,23 @@
 | R2-W9 | Warning | W6("커밋 직후 기록") 불변식이 `triggers`/`schedules` 는 코드로만 맞춰져 있고 순서 회귀 테스트가 없었다 — 리팩터링이 되돌려도 GREEN | `order: string[]` 순서 테스트 2건 추가. 뮤턴트(기록을 secret/BullMQ 뒤로 되돌림) 둘 다 RED |
 | R2-W11 | Warning | chatChannel 분기의 이중 `recordAudit`(1차 W5 실버그) 회귀를 잡을 테스트 부재 — 단언 테스트가 전부 chatChannel 없는 입력만 썼다 | `trigger.created` 호출 **횟수**를 세는 테스트 추가 |
 
+### 3라운드 (`11_35_19`) 조치
+
+3차는 Critical 0 · Warning 2. **다만 이 라운드는 코드를 보지 않았다** — `origin/main` 이
+작업 중 10커밋 전진(dependabot 7건 + `#1057` + **`#1058` typescript 7.0.2→5.x 롤백**)해
+diff base 가 stale 이 됐고, 그 탓에 changeset 이 리뷰 산출물 문서로 채워져 라우터가
+`documentation` 1명만 골랐다. 코드 수렴 근거로는 쓸 수 없어 rebase 후 재리뷰했다.
+
+| # | 등급 | 발견사항 | 조치 |
+|---|---|---|---|
+| R3-W1 | Warning | consistency checker 산출물 2건(`naming_collision.md`·`rationale_continuity.md`)에 하네스 반환 프로토콜 봉투(`STATUS=…` / `===REPORT_MARKDOWN_BELOW===`)가 영구 리포트 본문에 유출 | 봉투 제거 — 나머지 3개처럼 `#` 제목으로 시작 |
+| R3-W2 | Warning | 같은 세션 `_retry_state.json` 이 `--prepare` 스냅샷(5개 전부 pending)으로 커밋돼 `SUMMARY.md`(5/5 완료)와 모순 | `--sync-from-disk` 로 재조정 (success=5 pending=0) |
+| R3-INFO1 | Info | diff 에 무관한 리뷰 세션이 "삭제" 로 표시 | **병렬 세션 머지가 원인으로 확정** — `origin/main` 에 해당 세션이 존재. rebase 로 해소 |
+
+**교훈**: 리뷰 diff base 는 `origin/main` 을 쓰더라도 **그 시점의** origin/main 이다.
+장시간 작업 중에는 라운드마다 `git fetch` 로 전진 여부를 확인하고, 전진했으면 rebase 후
+리뷰해야 한다 — 아니면 라우터가 엉뚱한 changeset 을 보고 "코드 무관" 으로 판정한다.
+
 ### 미조치 — 근거
 
 | # | 등급 | 항목 | 사유 |
