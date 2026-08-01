@@ -744,15 +744,13 @@ describe('WorkflowsService', () => {
     it('duplicate 도 트랜잭션 **커밋 뒤**에 기록한다 (W5)', async () => {
       const order: string[] = [];
       const origTx = mockDataSource.transaction;
-      mockDataSource.transaction = jest.fn(
-        async (_iso: unknown, cb?: any) => {
-          const fn = typeof _iso === 'function' ? _iso : cb;
-          order.push('tx-start');
-          const r = await fn(mockTransactionManager);
-          order.push('tx-commit');
-          return r;
-        },
-      );
+      mockDataSource.transaction = jest.fn(async (_iso: unknown, cb?: any) => {
+        const fn = typeof _iso === 'function' ? _iso : cb;
+        order.push('tx-start');
+        const r = await fn(mockTransactionManager);
+        order.push('tx-commit');
+        return r;
+      });
       auditLogs.record.mockImplementation(async () => {
         order.push('audit');
       });
