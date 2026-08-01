@@ -75,7 +75,11 @@ def _load_gate(root: str):
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    # `allow_abbrev=False`: 기본값이면 `--enf` 가 `--enforce` 로 붙는다. 그러면 워크플로가
+    # 축약형을 쓸 때 실제로는 enforce 인데 "리터럴 `--enforce` 부재" 를 보는 회귀
+    # 테스트는 계속 관측 모드라고 보고한다 — 켜짐/꺼짐이 조용히 갈리는 자리다.
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0],
+                                 allow_abbrev=False)
     ap.add_argument("--enforce", action="store_true",
                     help="위반 시 exit 1 (기본은 관측만 하고 0).")
     ap.add_argument("--root", default=_ROOT_DEFAULT, help="저장소 루트.")
@@ -86,23 +90,29 @@ def main(argv=None) -> int:
     if evaluate is None:
         return 0
 
+    # `try` 가 호출뿐 아니라 **반환값을 읽는 데까지** 걸쳐 있다. 초판은 호출만 감쌌는데,
+    # 게이트가 예외 없이 형태만 다른 값(예: None)을 돌려주면 `decision.blocked` 에서
+    # AttributeError 가 나 exit 1 로 CI 를 막는다 — fail-open 계약을 정확히 뒤집는 자리다.
     try:
         decision = evaluate(root)
+        # advisory 는 판정과 무관하게 항상 낸다. 이걸 차단 시에만 내면, 거부되는 그 세션이
+        # 바로 Critical 을 하향한 세션일 때 그 사실이 드러나는 유일한 자리를 잃는다 (#1057 4R).
+        notes = list(getattr(decision, "notes", ()) or ())
+        blocked = decision.blocked
+        reason = decision.reason
     except Exception as exc:  # noqa: BLE001
         print(f"review-gate: 게이트가 예외를 던졌습니다 ({type(exc).__name__}: {exc})",
               file=sys.stderr)
         return 0
 
-    # advisory 는 판정과 무관하게 항상 낸다. 이걸 차단 시에만 내면, 거부되는 그 세션이 바로
-    # Critical 을 하향한 세션일 때 그 사실이 드러나는 유일한 자리를 잃는다 (#1057 4R).
-    for note in getattr(decision, "notes", ()) or ():
+    for note in notes:
         print(note)
 
-    if not decision.blocked:
-        print(f"review-gate: 통과 — {decision.reason}")
+    if not blocked:
+        print(f"review-gate: 통과 — {reason}")
         return 0
 
-    print(f"review-gate: 미커버 — {decision.reason}")
+    print(f"review-gate: 미커버 — {reason}")
     if not args.enforce:
         print(
             "review-gate: 관측 모드라 실패시키지 않습니다. 이 층은 로컬 훅의 push 탐지\n"

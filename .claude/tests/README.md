@@ -18,10 +18,14 @@ here without revisiting that convention.
 
 **One exception, added 2026-08-01: PyYAML.** `test_override_floors.py` execs
 `scripts/check-override-floors.py`, which parses `pnpm-workspace.yaml` at import
-time, and `test_workflow_yaml_structure.py` parses `.github/workflows/*.yml` to
-catch duplicate keys — something no stdlib parser does. Both guard YAML the repo
-depends on, so hand-rolling a parser would put the guard's own correctness in
-question. CI installs it (`pip install "pyyaml>=6,<7"`, the same pin
+time; `test_workflow_yaml_structure.py` parses `.github/workflows/*.yml` to
+catch duplicate keys — something no stdlib parser does; and
+`test_review_gate_ci.py` reads `review-gate.yml` structurally, because the
+substring version of that test passed while the wiring it named was deleted.
+Each guards YAML the repo depends on, so hand-rolling a parser would put the
+guard's own correctness in question. (Deliberately not "two files" or "three" —
+a count in prose goes stale the next time one is added, which is how this
+paragraph was wrong.) CI installs it (`pip install "pyyaml>=6,<7"`, the same pin
 `deps-security-checks.yml` already uses); locally it is normally present. **The
 exception is PyYAML and nothing else** — the no-dependency rule still holds for
 anything a *hook* imports, since hooks get no install step.

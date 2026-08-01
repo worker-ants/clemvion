@@ -1,8 +1,8 @@
 # Harness self-tests — guards the `.claude/` automation layer (hooks, skill
 # libs, agent registry) that has no other coverage. `unittest`, stdlib-only with
-# ONE exception: PyYAML, because `test_override_floors.py` and
-# `test_workflow_yaml_structure.py` parse YAML the repo's own guards depend on
-# (2026-08-01). Policy/intent: `.claude/tests/README.md`.
+# ONE exception: PyYAML, because several suites parse YAML the repo's own guards
+# depend on (2026-08-01). Which suites is deliberately not enumerated here — the
+# list grew the same week it was written. Policy/intent: `.claude/tests/README.md`.
 
 name: harness-checks
 

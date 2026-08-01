@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import shutil
 import subprocess
@@ -144,7 +145,7 @@ class ReviewGateCliTest(unittest.TestCase):
     def test_the_default_root_resolves_to_this_repository(self):
         """`--root` 없이 도는 경로 — CI 가 매번 쓰는 바로 그 경로다.
 
-        13개 테스트가 전부 `--root <tempdir>` 를 명시로 넘겨서, 스크립트가 자기 위치로부터
+        형제 테스트가 전부 `--root <tempdir>` 를 명시로 넘겨서, 스크립트가 자기 위치로부터
         저장소 루트를 계산하는 두 단계 상위 가정은 한 번도 실행되지 않았다. 그 가정이 깨지면
         (스크립트가 다른 깊이로 이동) 게이트를 못 불러와 **fail-open** 하고, 그건 관측 모드의
         정상 출력과 구분이 안 된다 — CI 는 계속 초록인데 백스톱만 영구히 죽는다.
@@ -173,8 +174,7 @@ class ReviewGateCliTest(unittest.TestCase):
 
     def test_a_gate_that_raises_does_not_fail_ci(self):
         self._unreviewed_branch()
-        with open(os.path.join(self.root, ".claude", "hooks", "_lib", "review_guard.py"),
-                  "w", encoding="utf-8") as f:
+        with open(self.gate_module, "w", encoding="utf-8") as f:
             # `push_blocks` 는 이 소비자가 읽지 않지만 실제 `ReviewDecision` 에는
             # 있다. 스텁이 진짜 인터페이스를 그대로 비추게 두는 편이,
             # 무엇을 빼도 되는지 매번 판단하는 것보다 싸다 (#1057 의 가드가 강제).
@@ -223,66 +223,105 @@ class OneJudgeTest(unittest.TestCase):
     # 스크립트가 실제로 쓰는 전부. 열거를 뒤집은 이유는 아래 docstring 참조.
     _ALLOWED_IMPORTS = {"__future__", "argparse", "os", "sys", "review_guard"}
 
-    def test_the_script_performs_no_judgement_operations_of_its_own(self):
-        """**허용 목록**으로 판정한다 — 금지 목록이 아니라.
+    # 스크립트가 실제로 쓰는 전부. 열거를 뒤집은 이유는 아래 docstring 참조.
+    _ALLOWED_IMPORTS = {"__future__", "argparse", "os", "sys", "review_guard"}
+    _ALLOWED_CALLS = {
+        "__doc__.split", "_load_gate", "main", "print", "type", "getattr", "list",
+        "evaluate",                       # `_load_gate` 가 돌려준 게이트 함수
+        "ap.add_argument", "ap.parse_args", "argparse.ArgumentParser",
+        "os.path.abspath", "os.path.dirname", "os.path.join",
+        "sys.exit", "sys.path.insert",
+    }
 
-        세 번 고쳤다.
-        1차: 파일 전체 grep → 스크립트 docstring 이 왜 이 설계인지 설명하려 인용한
-             `review/code` 에 걸렸다.
-        2차: docstring 을 걷어냄 → 이번엔 사용자 안내 **문구**("codebase/** 변경을 커버하는…")
-             에 걸렸다. 지키려는 성질은 "그 단어를 안 쓴다" 가 아니다.
-        3차: 연산 기반 금지 목록 → 리뷰어가 두 우회를 실증했다.
-             (a) `pathlib.Path(root).rglob(...)` — `pathlib` 이 목록에 없고, attribute 호출의
-                 베이스가 `ast.Name` 이 아니면 접두어 없이 기록돼 매칭도 빗나간다.
-             (b) `from os import walk as _w` — AST 는 로컬 이름만 남기므로 정본 모듈명과 안 맞는다.
+    @staticmethod
+    def _dotted(node):
+        """`os.path.join` 같은 임의 길이 체인을 점 표기로. 못 풀면 None.
 
-        금지 목록은 우회를 상상하는 만큼만 강하고, 상상은 항상 부족하다. 이 스크립트가 하는
-        일은 "인자를 읽고, 게이트를 부르고, 출력한다" 뿐이라 허용 목록이 짧고 안정적이다.
-        새 import 가 필요해지면 여기서 실패하고, 그때 그것이 판정 재구현인지 판단하면 된다.
+        1차 판은 `Attribute(value=Name)` 한 단계만 인식했다. 그래서 `os.path.isdir` 은
+        **아예 기록되지 않았고** — 두 단계라서 — 금지 목록에도 안 걸렸다. 인식 못 한 형태를
+        조용히 버리는 수집기는 그 자체가 구멍이다.
         """
-        import ast
+        parts = []
+        while isinstance(node, ast.Attribute):
+            parts.append(node.attr)
+            node = node.value
+        if isinstance(node, ast.Name):
+            parts.append(node.id)
+            return ".".join(reversed(parts))
+        return None
+
+    def test_the_script_performs_no_judgement_operations_of_its_own(self):
+        """import 도 **호출도** 허용 목록으로 판정한다.
+
+        네 번 뚫렸다.
+        1차 파일 전체 grep → 스크립트 docstring 이 설계 근거로 인용한 `review/code`.
+        2차 docstring 제외 → 사용자 안내 **문구**("codebase/** 변경을 커버하는…").
+        3차 연산 금지 목록 → `pathlib.rglob`, `from os import walk as _w`.
+        4차 import 는 허용 목록으로 뒤집었지만 **호출 축은 여전히 금지 목록**이라 리뷰어가
+            다섯 가지를 더 실증했다: 2단 체인(`os.path.isdir`), 지역 별칭(`walk = os.walk`),
+            `getattr(os, "walk")()`, `__import__("os").walk()`, 그리고 애초에 목록에 없던
+            `os.popen`/`os.system`.
+
+        금지 목록은 우회를 상상하는 만큼만 강하고 상상은 늘 부족하다 — 같은 결론에 네 번째로
+        도달했으므로 이번엔 두 축 모두 뒤집는다. 이 스크립트가 하는 일은 "인자를 읽고, 게이트를
+        부르고, 출력한다" 뿐이라 목록이 짧고 안정적이다. 새 호출이 필요해지면 여기서 실패하고,
+        그때 그것이 판정 재구현인지 사람이 판단한다.
+        """
         tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
 
         imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported |= {a.name.split(".")[0] for a in node.names}
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module.split(".")[0])
-        extra = imported - self._ALLOWED_IMPORTS
-        self.assertEqual(
-            extra, set(),
-            f"허용되지 않은 import: {sorted(extra)} — 판정을 재구현하면 로컬/CI 가 갈린다",
-        )
-        self.assertIn("review_guard", imported, "게이트를 import 하지 않는다")
-
-        # 허용된 모듈로도 트리를 걸을 수는 있다(`os.walk`/`os.scandir`/`os.listdir`).
-        # alias 를 정본 이름으로 되돌린 뒤 대조한다 — (b) 우회가 여기서 막힌다.
         alias_of = {}
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
+                imported |= {a.name.split(".")[0] for a in node.names}
                 for a in node.names:
                     alias_of[a.asname or a.name] = a.name
             elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[0])
                 for a in node.names:
                     alias_of[a.asname or a.name] = f"{node.module}.{a.name}"
-        called = set()
+        extra = imported - self._ALLOWED_IMPORTS
+        self.assertEqual(extra, set(), f"허용되지 않은 import: {sorted(extra)}")
+        self.assertIn("review_guard", imported, "게이트를 import 하지 않는다")
+
+        # 지역 별칭(`walk = os.walk`)도 정본으로 되돌린다.
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                    and isinstance(node.targets[0], ast.Name)):
+                src = self._dotted(node.value)
+                if src:
+                    alias_of.setdefault(node.targets[0].id, src)
+
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            f = node.func
-            if isinstance(f, ast.Name):
-                called.add(alias_of.get(f.id, f.id))
-            elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
-                base = alias_of.get(f.value.id, f.value.id)
-                called.add(f"{base}.{f.attr}")
-        for banned in ("os.walk", "os.scandir", "os.listdir", "open"):
-            self.assertNotIn(
-                banned, called,
-                f"{banned} 을 부른다 — 리뷰 산출물을 스스로 읽으면 그것이 두 번째 판정자다",
+            name = self._dotted(node.func)
+            self.assertIsNotNone(
+                name,
+                f"{node.lineno}행: 호출 형태를 해석할 수 없다 "
+                f"({type(node.func).__name__}) — 해석 못 하는 호출은 검사도 못 한다",
             )
-        # 호출은 지역 변수 경유(`evaluate = _load_gate(...)`)라 호출 이름으로는 안 잡힌다.
-        # 잡아야 할 것은 "게이트 함수를 가져와서 쓴다" 는 사실이므로 속성 접근을 본다.
+            head, _, rest = name.partition(".")
+            resolved = f"{alias_of[head]}.{rest}" if head in alias_of and rest else \
+                       alias_of.get(name, name)
+            self.assertIn(
+                resolved, self._ALLOWED_CALLS,
+                f"{node.lineno}행: 허용되지 않은 호출 {resolved!r} — "
+                "판정을 재구현하면 로컬/CI 가 갈린다",
+            )
+
+        # `getattr` 은 허용하지만(`getattr(decision, "notes", ())`), 모듈에서 속성을 꺼내는
+        # 용도면 그것이 곧 `getattr(os, "walk")` 우회다.
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "getattr" and node.args):
+                first = node.args[0]
+                if isinstance(first, ast.Name):
+                    self.assertNotIn(
+                        alias_of.get(first.id, first.id), imported,
+                        f"{node.lineno}행: getattr 로 모듈 속성을 꺼낸다 — 우회다",
+                    )
+
         attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         self.assertIn("evaluate_review", attrs,
                       "review_guard.evaluate_review 를 가져오지 않는다")
@@ -322,8 +361,26 @@ class WorkflowWiringTest(unittest.TestCase):
         self.on = self.doc.get("on", self.doc.get(True))
         self.job = self.doc["jobs"]["gate"]
 
+    @staticmethod
+    def _strip_comments(cmd):
+        """`run:` 본문에서 주석 줄을 걷어낸다.
+
+        없으면 `run: |` 여러 줄 스크립트가 주석에만 경로를 언급해도 "실행한다" 로 읽힌다 —
+        리뷰어가 `# NOTE: … 비활성화` + `echo "temporarily disabled"` 로 실증했다.
+        """
+        return "\n".join(ln for ln in cmd.splitlines()
+                          if not ln.lstrip().startswith("#"))
+
     def _run_commands(self):
-        return [st["run"] for st in self.job["steps"] if "run" in st]
+        return [self._strip_comments(st["run"])
+                for st in self.job["steps"] if "run" in st]
+
+    def _env_values(self):
+        """job 과 각 step 의 `env:` 값 전부 — 플래그를 여기로 옮기는 우회를 보려면 필요하다."""
+        out = list((self.job.get("env") or {}).values())
+        for st in self.job["steps"]:
+            out.extend((st.get("env") or {}).values())
+        return [str(v) for v in out]
 
     def test_a_step_actually_runs_the_script(self):
         """`paths:` 에 이름이 있는 것과 그것을 실행하는 것은 다른 사실이다."""
@@ -335,9 +392,14 @@ class WorkflowWiringTest(unittest.TestCase):
     def test_the_job_condition_exempts_dependabot(self):
         """`if:` 그 자리여야 한다 — 같은 문자열이 `env:` 나 주석에 있는 것은 면제가 아니다."""
         cond = self.job.get("if", "")
-        self.assertIn("dependabot[bot]", cond,
-                      f"job 의 if 조건에 봇 면제가 없다: {cond!r}")
-        self.assertIn("!=", cond, "면제는 부정 비교여야 한다 — 봇만 돌리면 정반대다")
+        # 두 조각을 따로 보면 `(github.actor == 'dependabot[bot]') != false` — 의미가 정반대인
+        # 식 — 도 통과한다(리뷰어 실증). 하나의 부정 비교로 결합돼 있는지를 본다.
+        import re as _re
+        self.assertRegex(
+            cond,
+            r"github\.actor\s*!=\s*['\"]dependabot\[bot\]['\"]",
+            f"봇 면제가 하나의 부정 비교식이 아니다: {cond!r}",
+        )
 
     def test_checkout_fetches_full_history(self):
         """`with.fetch-depth: 0` 이 checkout step 에 붙어야 한다. 없으면 merge-base 가 없어
@@ -369,9 +431,26 @@ class WorkflowWiringTest(unittest.TestCase):
         """`--enforce` 로 뒤집는 것은 워크플로 계약 변경이라 의도적 결정이어야 한다. 이 단언은
         그 전환이 조용히 일어나지 않게 한다 — 켤 때 이 테스트도 같이 바뀐다.
 
-        `run:` 명령만 본다. 주석은 켤 때 무엇을 붙이는지 설명하려 `--enforce` 를 인용한다."""
-        for cmd in self._run_commands():
+        리터럴만 보면 안 된다: 라운드 1 이 `if:`→`env:` 우회를 고쳤는데, 리뷰어가 같은 클래스를
+        이 테스트에서 재현했다 — `--enforce` 를 `env:` 에 두고 `run:` 에서 `$GATE_FLAG` 로
+        참조하면 런타임에는 enforce 인데 이 단언은 계속 "관측 모드" 라고 보고한다.
+        그래서 (1) `env:` 값도 보고, (2) **게이트를 부르는 그 명령**에는 셸 치환 자체를 금지한다.
+        플래그를 값으로 조립할 수 있으면 리터럴 검사는 언제나 우회 가능하다.
+        """
+        gate_cmds = [c for c in self._run_commands()
+                     if "scripts/check-review-gate.py" in c]
+        self.assertTrue(gate_cmds, "게이트를 부르는 run 이 없다")
+        for cmd in gate_cmds:
             self.assertNotIn("--enforce", cmd)
+            for interp in ("$", "${{"):
+                self.assertNotIn(
+                    interp, cmd,
+                    f"게이트 호출에 셸/표현식 치환이 있다: {cmd!r} — "
+                    "플래그를 값으로 조립하면 리터럴 검사가 무력해진다",
+                )
+        for value in self._env_values():
+            self.assertNotIn("--enforce", value,
+                             "env 로 enforce 플래그를 주입하고 있다")
 
 
 if __name__ == "__main__":

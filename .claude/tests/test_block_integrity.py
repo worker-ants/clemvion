@@ -672,8 +672,12 @@ class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
                 src = f.read()
             if not any(m in src for m in marker):
                 continue
+            # `"\n" in v` 로 마커 상수 자체를 걸러낸다 — 이 가드가 쓰는 `marker` 튜플도
+            # `"def evaluate_plan"` 을 담은 문자열이라, 그것 없이는 자기 자신을 스텁으로
+            # 세고 실패한다. 진짜 스텁은 소스 텍스트라 반드시 줄바꿈을 갖는다.
             stubs = [n.value for n in ast.walk(ast.parse(src))
                      if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                     and "\n" in n.value
                      and any(m in n.value for m in marker)]
             # The stub is usually built by concatenating adjacent literals, which
             # `ast` folds into one Constant; if a file ever splits it across
@@ -681,11 +685,21 @@ class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
             name = os.path.basename(path)
             self.assertTrue(stubs, f"{name}: could not locate the stub literal")
             checked.append(name)
-            self.assertIn(
-                "push_blocks", "".join(stubs),
-                f"{name} stubs evaluate_plan without push_blocks — the push hook "
-                "reads it for both gates, so that test would pass via fail-open",
-            )
+            # Per stub, not per file. Joining them first meant a file with two
+            # stubs passed while one of them had lost `push_blocks`, because the
+            # other still carried the word — measured on a real second stub.
+            for idx, stub in enumerate(stubs):
+                if "raise " in stub:
+                    # 예외를 던지는 스텁은 결정 객체를 아예 돌려주지 않는다 — 실을 곳이
+                    # 없으므로 이 성질의 대상이 아니다. (fail-open 경로를 구동하는 스텁들이
+                    # 이 모양이고, 요구하면 의미 없는 필드를 넣게 만든다.)
+                    continue
+                self.assertIn(
+                    "push_blocks", stub,
+                    f"{name} stub #{idx} declares evaluate_plan/evaluate_review "
+                    "without push_blocks — the push hook reads it for both gates, "
+                    "so that test would pass via fail-open",
+                )
         self.assertGreaterEqual(len(checked), 4, f"stub files found: {checked}")
 
 
