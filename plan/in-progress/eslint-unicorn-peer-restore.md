@@ -107,6 +107,18 @@ pnpm 의 실제 판정은 통과한다. 그런데도 56 으로 되돌린다:
       **수렴 판단**: fix 가 `codebase/**` 를 건드려 1차 리뷰가 stale 해졌으므로 fresh review 를
       돌린 것이고, Critical·Warning 0 이므로 INFO 는 비차단 수렴으로 종결한다. 남은 INFO 를 위해
       라운드를 더 도는 것은 이 저장소가 반복해 겪은 "fix→리뷰 stale 루프" 를 재현할 뿐이다.
+- [x] main rebase + 재검증 — push 직전 확인에서 base(`7c10c9f02`) 이후 main 에 dependabot 머지
+      **10건**이 들어와 있었다(`#1064`~`#1073`: ts-loader · csv-parse 6→**7**(major) ·
+      next · radix 3건 · @nestjs/typeorm · bullmq · @anthropic-ai/sdk 0.95→0.115 · p-limit).
+      `git merge-tree` 로 비파괴 확인한 결과 `pnpm-lock.yaml` **단독 충돌** → rebase 후 lockfile 을
+      main 기준으로 되돌리고 재생성해 해소(`eslint-plugin-unicorn@56.0.1` 유지 확인).
+
+      **먼저 대조했다**: main 의 `codebase/backend/package.json` 은 여전히 `^72.0.0` 이고
+      `dependabot.yml` 에 unicorn ignore 가 없다 — 다른 세션이 선행 처리하지 않았음을 확인한
+      뒤 진행했다(델타 0 이면 폐기가 원칙).
+
+      rebase 후 TEST WORKFLOW 재수행 — lint PASS(52s) · unit PASS(73s) · build PASS(160s) ·
+      e2e PASS(328s, 260/260). main 의 새 bump 10건도 이 실행으로 함께 검증됐다.
 - [ ] push + PR
 
 ## 2차 리뷰 INFO 19건 처분
