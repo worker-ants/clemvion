@@ -688,3 +688,84 @@ describe('WorkflowsController (graph-warnings endpoint, parallel-p2 §6)', () =>
     await expect(controller.graphWarnings('wf-x', 'ws')).rejects.toThrow();
   });
 });
+
+/**
+ * 컨트롤러 → 서비스 **행위자(userId) 배선** 검증.
+ *
+ * `update(id, workspaceId, dto, userId)` 는 여러 인자가 **전부 string** 이라 자리를 바꿔도
+ * 컴파일이 통과한다(실측: 스왑 후 `tsc --noEmit` 오류 0건). 스왑되면 감사 로그의 workspace 와
+ * actor 가 뒤바뀐 채로도 행이 정상적으로 쌓여 **조용히 틀린 감사**가 된다. 서비스 spec 은 이미
+ * 들어온 값을 볼 뿐이라 경계에서 단언해야 잡힌다.
+ *
+ * 위 본문 테스트들과 달리 DI 컨테이너가 필요 없어 직접 생성한다 — 감사 배선에 무관한
+ * 의존성은 미사용이므로 빈 객체로 채운다.
+ */
+describe('WorkflowsController — 행위자(userId) 배선', () => {
+  let controller: WorkflowsController;
+  let service: {
+    create: jest.Mock;
+    update: jest.Mock;
+    remove: jest.Mock;
+    duplicate: jest.Mock;
+    importWorkflow: jest.Mock;
+  };
+
+  const WS = 'ws-1';
+  const USER = 'user-1';
+  // 이 핸들러들은 `@CurrentUser() user: JwtPayload` 를 받아 `user.sub` 를 넘긴다.
+  const JWT = { sub: USER } as unknown as JwtPayload;
+
+  beforeEach(() => {
+    service = {
+      create: jest.fn().mockResolvedValue({ id: 'wf-1' }),
+      update: jest.fn().mockResolvedValue({ id: 'wf-1' }),
+      remove: jest.fn().mockResolvedValue(undefined),
+      duplicate: jest.fn().mockResolvedValue({ id: 'wf-copy' }),
+      importWorkflow: jest.fn().mockResolvedValue({ id: 'wf-imp' }),
+    };
+    controller = new WorkflowsController(
+      service as unknown as WorkflowsService,
+      {} as unknown as ExecutionEngineService,
+      {} as unknown as ShutdownStateService,
+      {} as unknown as Repository<Node>,
+      {} as unknown as Repository<Execution>,
+    );
+  });
+
+  it('create 는 workspaceId 와 user.sub 를 각자 자리에 전달한다', async () => {
+    const dto = { name: 'W' } as never;
+
+    await controller.create(WS, JWT, dto);
+
+    // 위치까지 고정한다 — objectContaining 으로는 스왑을 못 잡는다.
+    expect(service.create).toHaveBeenCalledWith(WS, USER, dto);
+  });
+
+  it('duplicate 는 id·workspaceId·user.sub 순서를 지킨다', async () => {
+    await controller.duplicate('wf-1', WS, JWT);
+
+    expect(service.duplicate).toHaveBeenCalledWith('wf-1', WS, USER);
+  });
+
+  it('importWorkflow 는 workspaceId·user.sub·dto 순서를 지킨다', async () => {
+    const dto = { workflow: {} } as never;
+
+    await controller.importWorkflow(WS, JWT, dto);
+
+    expect(service.importWorkflow).toHaveBeenCalledWith(WS, USER, dto);
+  });
+
+  it('update 는 id·workspaceId·dto·userId 순서를 지킨다', async () => {
+    const dto = { name: 'W2' } as never;
+
+    await controller.update('wf-1', WS, dto, USER);
+
+    expect(service.update).toHaveBeenCalledWith('wf-1', WS, dto, USER);
+  });
+
+  it('remove 는 id·workspaceId·userId 순서를 지킨다', async () => {
+    await controller.remove('wf-2', WS, USER);
+
+    expect(service.remove).toHaveBeenCalledWith('wf-2', WS, USER);
+  });
+});

@@ -163,6 +163,36 @@ describe('ModelConfigController', () => {
   // on init) to break the model-config ↔ llm forwardRef cycle (C-2 cluster 4).
   // Cache-clear-on-mutate is now asserted in model-config.service.spec.ts.
 
+  // `create` / `setDefault` 도 행위자(userId) 자리를 고정한다 — workspaceId 와 userId 가
+  // 둘 다 string 이라 스왑해도 컴파일이 통과하고(실측: `tsc --noEmit` 오류 0건), 스왑된
+  // 채로도 감사 행은 정상적으로 쌓여 **조용히 틀린 감사**가 된다.
+  describe('create', () => {
+    it('delegates with workspaceId·kind·dto·userId in order', async () => {
+      const dto = { kind: 'llm', name: 'cfg' };
+
+      await controller.create('ws-1', dto as any, 'u-1');
+
+      expect(mockModelConfigService.create).toHaveBeenCalledWith(
+        'ws-1',
+        'llm',
+        dto,
+        'u-1',
+      );
+    });
+  });
+
+  describe('setDefault', () => {
+    it('delegates with id·workspaceId·userId in order', async () => {
+      await controller.setDefault('cfg-3', 'ws-1', 'u-1');
+
+      expect(mockModelConfigService.setDefault).toHaveBeenCalledWith(
+        'cfg-3',
+        'ws-1',
+        'u-1',
+      );
+    });
+  });
+
   describe('update', () => {
     it('delegates to modelConfigService.update and returns its result', async () => {
       const dto = { name: 'New name' };
