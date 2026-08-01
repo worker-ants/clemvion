@@ -1,0 +1,62 @@
+# 리뷰 커버리지 게이트의 훅-독립 백스톱.
+#
+# 로컬 `guard_review_before_push` 는 Bash 명령이 `git push` 인지 정규식으로 판정한다.
+# 그 정규식이 push 를 놓치면 게이트는 조용히 skip 되고, **놓쳤다는 사실 자체를 인지할
+# 주체가 없다** — fail-open 배너조차 push 로 판정돼야 찍힌다. 그래서 사후 탐지를 훅 안에
+# 두면 같은 판정자에 의존해 같은 구멍으로 샌다.
+#
+# 이 워크플로는 GitHub 이 PR 이벤트로 띄우므로 그 정규식을 공유하지 않는다. 그것이 이 층의
+# 전부다. 판정 자체는 로컬 훅과 **같은** `review_guard.evaluate_review()` 를 호출한다 —
+# 두 번째 구현을 두면 로컬과 CI 가 갈리고, 그 drift 는 이 저장소가 이미 두 번 겪었다.
+#
+# 정책 본문: `plan/in-progress/harness-review-gate-ci-backstop.md`.
+#
+# **현재 관측 모드다** (`--enforce` 없음). 로컬 훅은 미커밋 파일도 보지만 CI 는 커밋된 것만
+# 보는데, 이 저장소의 실제 관행은 리뷰 산출물이 그 코드의 PR 안에 커밋되지 않는다는 것이다
+# (게이트 도입 이후 codebase/** PR 435건 중 80건이 그렇다). 하드 차단으로 켜면 "리뷰를
+# 안 했다" 가 아니라 "산출물을 이 PR 에 안 담았다" 를 막게 된다 — 워크플로 계약을 바꾸는
+# 일이라 실데이터를 모은 뒤 결정한다. 켤 때는 아래 `run:` 에 `--enforce` 를 붙인다.
+
+name: review-gate
+
+on:
+  pull_request:
+    paths:
+      - 'codebase/**'
+      # 게이트 자신과 그것이 읽는 판정 로직이 바뀌면 이 워크플로도 돌아야 한다 —
+      # harness-checks.yml 이 같은 실패 클래스를 여섯 번 겪고 세운 규칙.
+      - '.claude/hooks/_lib/review_guard.py'
+      - '.claude/_shared/**'
+      - 'scripts/check-review-gate.py'
+      - '.github/workflows/review-gate.yml'
+
+concurrency:
+  group: review-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # 봇 PR 은 로컬 훅을 아예 거치지 않으므로 리뷰 산출물이 있을 수 없다. 실측: 게이트 도입
+    # 이후 미커버 80건 중 11건이 dependabot 이고, 2026-08 은 9건 중 8건이 그렇다. 예외를
+    # 두지 않으면 이 워크플로는 사실상 dependabot 전용 알람이 된다.
+    if: github.actor != 'dependabot[bot]'
+    steps:
+      # 게이트는 base 와의 merge-base 로 "이 브랜치가 바꾼 것" 을 정하고, 커밋의 author date
+      # 로 신선도를 잰다 — 둘 다 전체 히스토리가 필요하다.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      # base ref 가 origin/<base> 로 해석돼야 `_default_branch()` 가 merge-base 를 찾는다.
+      - name: Fetch base ref
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+
+      # 표준 라이브러리만 쓴다 (harness 규약) — 설치 단계 없음.
+      - name: Review coverage backstop
+        run: python3 scripts/check-review-gate.py

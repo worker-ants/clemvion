@@ -55,6 +55,9 @@ on:
       # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
       - 'scripts/report_playwright_flaky.py'
       - 'scripts/check-e2e-playwright-config.py'
+      # 리뷰 게이트의 CI 백스톱. 이 파일만 고친 PR 에서 harness-checks 가 안 돌면
+      # `test_review_gate_ci.py` 가 트리거되지 않는다 — 위 항목들과 동일한 실패 클래스.
+      - 'scripts/check-review-gate.py'
       - 'scripts/check-override-floors.py'
 
 concurrency:
