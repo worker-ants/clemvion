@@ -3,7 +3,7 @@ title: eslint-plugin-unicorn 의도된 pin 복원 — dependabot 이 깬 peer �
 worktree: eslint-peer-fix-f41984
 started: 2026-08-01
 owner: developer
-status: in-progress
+status: complete
 priority: P2
 spec_impact: none
 ---
@@ -119,7 +119,7 @@ pnpm 의 실제 판정은 통과한다. 그런데도 56 으로 되돌린다:
 
       rebase 후 TEST WORKFLOW 재수행 — lint PASS(52s) · unit PASS(73s) · build PASS(160s) ·
       e2e PASS(328s, 260/260). main 의 새 bump 10건도 이 실행으로 함께 검증됐다.
-- [ ] push + PR
+- [x] push + PR — https://github.com/worker-ants/clemvion/pull/1074
 
 ## 2차 리뷰 INFO 19건 처분
 
@@ -149,7 +149,7 @@ pnpm 의 실제 판정은 통과한다. 그런데도 56 으로 되돌린다:
   대상이 아니다(`spec_impact: none`). checker 에 넘길 `<spec/영역>` 인자가 성립하지 않는다.
   `#1058` 과 동일한 판단이다.
 
-## 후속 검토 (이 PR 범위 밖)
+## 후속 검토 (이 PR 범위 밖 — `plan/in-progress/deps-peer-gating-and-eslint10.md` 로 분리)
 
 - **미충족 peer 가 CI 에서 실패로 취급되지 않는다.** `pnpm install` 이 경고만 내고 지나가서
   `#1049` 가 머지된 뒤 `#1058` 의 TEST WORKFLOW 로그를 사람이 읽고서야 발견됐다.
