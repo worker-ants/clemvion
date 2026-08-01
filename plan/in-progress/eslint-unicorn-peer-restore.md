@@ -90,7 +90,14 @@ pnpm 의 실제 판정은 통과한다. 그런데도 56 으로 되돌린다:
       실 인프라 기동 확인: postgres · redis · minio · backend-e2e 전부 `Healthy`.
       로그의 `failed` 매칭 1건은 파일명(`execution-failed-notification.e2e-spec.ts`)에 의한
       오탐으로 실물은 `PASS` 다 — 요약 숫자만 보지 않고 마커를 직접 열어 확인했다.
-- [ ] `/ai-review` + Critical/Warning 조치
+- [x] `/ai-review` + Critical/Warning 조치 — Critical 0 · Warning 3(전부 조치, `resolution-applier`):
+      PROJECT.md 카운트 갱신 + 2-place 결속 문구(W1), backend jest 상시 회귀 가드
+      `eslint-unicorn-peer.spec.ts` 신설(W2, `unicorn/catch-error-name` 실발화 + peer range 정합,
+      mutation 3종으로 non-vacuous 확인), registry 실측 표 SoT 를 `eslint.config.mjs` 로 단일화(W3).
+      부수로 INFO#5(plan "3년" 표현 정정)·INFO#12(caret pin 문구 보강)도 반영.
+      TEST WORKFLOW 재수행 — lint PASS(51s) · unit PASS(73s, backend jest 413 suites/8389) ·
+      build PASS(146s) · e2e PASS(307s: backend jest 260 + playwright 51, 실 인프라 `Healthy`).
+      상세: `review/code/2026/08/01/12_27_15/RESOLUTION.md`.
 - [ ] push + PR
 
 ## 미수행 단계와 근거
