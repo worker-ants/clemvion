@@ -89,3 +89,18 @@ export const AUDIT_ACTIONS = {
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+
+/**
+ * 특정 resource prefix 에 속한 action 만 뽑는다 — `AuditActionFor<'workflow'>` 는
+ * `'workflow.created' | 'workflow.updated' | 'workflow.deleted'` 로 좁혀진다.
+ *
+ * 각 서비스의 `recordAudit` 헬퍼는 `resourceType` 을 자기 리소스로 **고정**해 놓고 `action` 만
+ * 인자로 받는다. 그런데 `action` 을 전체 `AuditAction` 합집합으로 받으면 `WorkflowsService` 에
+ * `'trigger.deleted'` 를 넘겨도 컴파일이 통과해, `resourceType='workflow'` 인데 action 은
+ * trigger 인 **모순된 감사 행**이 만들어진다. prefix 로 좁혀 그 조합을 타입에서 배제한다.
+ * (7차 리뷰 architecture — 정합성이 주석으로만 보장되던 것을 타입으로 옮겼다.)
+ */
+export type AuditActionFor<P extends string> = Extract<
+  AuditAction,
+  `${P}.${string}`
+>;

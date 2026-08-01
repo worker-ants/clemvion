@@ -763,6 +763,27 @@ describe('WorkflowsService', () => {
       }
     });
 
+    it('트랜잭션이 실패하면 duplicate 는 감사를 남기지 않는다', async () => {
+      // 순서 테스트(위)의 짝 — 순서만 보면 "기록이 트랜잭션 안에 있어도 커밋 성공 시엔
+      // 같은 순서" 인 경우를 배제하지 못한다. 롤백 시 미기록까지 봐야 안/밖이 확정된다.
+      // (7차 리뷰 testing — create 에만 있던 대칭을 duplicate 에도 맞춘다.)
+      const origTx = mockDataSource.transaction;
+      mockDataSource.transaction = jest.fn(async (_iso: unknown, cb?: any) => {
+        const fn = typeof _iso === 'function' ? _iso : cb;
+        await fn(mockTransactionManager); // 본문을 실행한 **뒤** 커밋에서 실패
+        throw new Error('commit failed');
+      });
+
+      try {
+        await expect(
+          service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toThrow('commit failed');
+        expect(auditLogs.record).not.toHaveBeenCalled();
+      } finally {
+        mockDataSource.transaction = origTx;
+      }
+    });
+
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
       mockTransactionManager.find = jest
@@ -934,6 +955,56 @@ describe('WorkflowsService', () => {
           details: { imported: true },
         }),
       );
+    });
+
+    it('importWorkflow 도 트랜잭션 **커밋 뒤**에 기록한다', async () => {
+      // 4차 리뷰에서 감사를 추가할 때 "기록됨" 만 단언하고 순서·롤백 대칭은 빠져 있었다
+      // (7차 리뷰 testing). create/duplicate 와 같은 형태로 맞춘다.
+      const order: string[] = [];
+      const origTx = mockDataSource.transaction;
+      mockDataSource.transaction = jest.fn(async (_iso: unknown, cb?: any) => {
+        const fn = typeof _iso === 'function' ? _iso : cb;
+        order.push('tx-start');
+        const r = await fn(mockTransactionManager);
+        order.push('tx-commit');
+        return r;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      try {
+        await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+          workflow: { name: 'Imported' },
+          nodes: [],
+          edges: [],
+        } as any);
+        expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      } finally {
+        mockDataSource.transaction = origTx;
+      }
+    });
+
+    it('트랜잭션이 실패하면 importWorkflow 는 감사를 남기지 않는다', async () => {
+      const origTx = mockDataSource.transaction;
+      mockDataSource.transaction = jest.fn(async (_iso: unknown, cb?: any) => {
+        const fn = typeof _iso === 'function' ? _iso : cb;
+        await fn(mockTransactionManager); // 본문 실행 후 커밋 실패
+        throw new Error('commit failed');
+      });
+
+      try {
+        await expect(
+          service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+            workflow: { name: 'Imported' },
+            nodes: [],
+            edges: [],
+          } as any),
+        ).rejects.toThrow('commit failed');
+        expect(auditLogs.record).not.toHaveBeenCalled();
+      } finally {
+        mockDataSource.transaction = origTx;
+      }
     });
   });
 

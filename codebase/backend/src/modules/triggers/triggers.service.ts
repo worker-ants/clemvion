@@ -1,4 +1,7 @@
-import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import {
+  AUDIT_ACTIONS,
+  AuditActionFor,
+} from '../audit-logs/audit-action.const';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   BadRequestException,
@@ -209,7 +212,7 @@ export class TriggersService {
   private recordAudit(params: {
     workspaceId: string;
     userId: string;
-    action: (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+    action: AuditActionFor<'trigger'>;
     resourceId: string;
     type: string;
   }): Promise<void> {

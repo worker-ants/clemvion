@@ -1,4 +1,7 @@
-import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import {
+  AUDIT_ACTIONS,
+  AuditActionFor,
+} from '../audit-logs/audit-action.const';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   Injectable,
@@ -174,7 +177,7 @@ export class WorkflowsService {
   private recordAudit(params: {
     workspaceId: string;
     userId: string;
-    action: (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
+    action: AuditActionFor<'workflow'>;
     resourceId: string;
     details?: Record<string, unknown>;
   }): Promise<void> {
