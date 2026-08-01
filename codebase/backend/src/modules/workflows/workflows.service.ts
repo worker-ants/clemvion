@@ -478,7 +478,7 @@ export class WorkflowsService {
     );
     const defaultLlmId = defaultLlm?.id ?? null;
 
-    return this.dataSource.transaction(async (manager) => {
+    const imported = await this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         name: dto.name,
         description: dto.description,
@@ -573,6 +573,20 @@ export class WorkflowsService {
 
       return savedWorkflow;
     });
+    // 트랜잭션 커밋 뒤 기록. import 도 `create`/`duplicate` 와 같은 **신규 워크플로 생성**이라
+    // 같은 액션을 쓴다. `details.imported` 로 유입 경로를 남긴다 — 외부 JSON 이 들어온 것이라
+    // 사후 감사에서 "이 워크플로가 어디서 왔나" 가 특히 중요하다.
+    //
+    // (4차 리뷰 W1. 1차 리뷰 때 `saveCanvas` 와 묶어 미뤘는데, 카디널리티 논거는 캔버스 편집
+    // 마다 발동하는 `saveCanvas` 에만 해당하고 import 는 이산적 생성 이벤트라 분리했다.)
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_CREATED,
+      resourceId: imported.id,
+      details: { imported: true },
+    });
+    return imported;
   }
 
   async saveCanvas(

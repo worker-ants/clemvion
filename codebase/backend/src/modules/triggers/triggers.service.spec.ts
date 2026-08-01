@@ -2372,6 +2372,35 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     expect(created).toHaveLength(1);
   });
 
+  it('update 는 schedule 역동기화(BullMQ) **전에** 기록한다 (C1 회귀)', async () => {
+    // 4차 리뷰가 잡은 자리다. 같은 함수의 다른 두 외부 호출은 감사 뒤에 있었는데
+    // syncScheduleActivation 만 앞에 남아, schedule 타입 + isActive 변경 경로에서만
+    // 불변식이 깨져 있었다. registerJob 이 throw 하면 트리거는 커밋됐는데 감사가 유실된다.
+    const order: string[] = [];
+    const scheduleTrigger = {
+      ...webhookTrigger,
+      type: 'schedule',
+    } as unknown as Trigger;
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue(scheduleTrigger);
+    (triggerRepo.save as jest.Mock).mockImplementation(async () => {
+      order.push('commit');
+      return scheduleTrigger;
+    });
+    auditLogs.record.mockImplementation(async () => {
+      order.push('audit');
+    });
+    const svc = service as unknown as {
+      syncScheduleActivation: (t: unknown, a: boolean) => Promise<void>;
+    };
+    svc.syncScheduleActivation = async () => {
+      order.push('bullmq');
+    };
+
+    await service.update('trg-1', 'ws-1', { isActive: false } as never, 'u-s');
+
+    expect(order).toEqual(['commit', 'audit', 'bullmq']);
+  });
+
   it('remove 는 삭제 **전에** 읽은 type 을 남긴다', async () => {
     // TypeORM `remove` 는 엔티티의 id 를 지운다 — 삭제 후 읽으면 undefined 가 감사에 남는다.
     const entity: Record<string, unknown> = { ...webhookTrigger };

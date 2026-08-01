@@ -331,16 +331,14 @@ export class TriggersService {
     );
     Object.assign(trigger, rest, { config: mergedConfig });
     const saved = await this.triggerRepository.save(trigger);
-    // [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) is_active
-    // 동기화. ScheduleProcessor 는 schedule.is_active 만 보므로, schedule row + BullMQ job
-    // scheduler 에 반영하지 않으면 트리거 쪽 비활성화로는 발사가 멈추지 않는다
-    // (정방향 SchedulesService.update 와 대칭).
-    if (trigger.type === 'schedule' && rest.isActive !== undefined) {
-      await this.syncScheduleActivation(saved, rest.isActive);
-    }
-    // **커밋 직후** 기록한다 — 아래 secret 마이그레이션·chatChannel setup 은 실패할 수
-    // 있는 외부 호출이라, 그 뒤로 미루면 트리거는 바뀌었는데 감사는 안 남는다 (리뷰 W6).
-    // chatChannel 재조회는 응답 형태만 바꾸므로 감사 내용에 영향이 없다.
+    // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
+    // 마이그레이션, chatChannel setup)는 전부 실패할 수 있는 외부 호출이라, 그 뒤로 미루면
+    // 트리거는 바뀌었는데 감사는 안 남는다 (리뷰 W6). chatChannel 재조회는 응답 형태만
+    // 바꾸므로 감사 내용에 영향이 없다.
+    //
+    // 처음엔 `syncScheduleActivation` **뒤**에 뒀다가 4차 리뷰가 잡았다 — 같은 함수의 다른 두
+    // 외부 호출은 원칙대로 뒤에 두고 이 하나만 앞에 남겨, schedule 타입 트리거의 isActive
+    // 변경 경로에서만 불변식이 깨져 있었다.
     await this.recordAudit({
       workspaceId,
       userId,
@@ -348,6 +346,13 @@ export class TriggersService {
       resourceId: saved.id,
       type: saved.type,
     });
+    // [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] 역방향(Trigger→Schedule) is_active
+    // 동기화. ScheduleProcessor 는 schedule.is_active 만 보므로, schedule row + BullMQ job
+    // scheduler 에 반영하지 않으면 트리거 쪽 비활성화로는 발사가 멈추지 않는다
+    // (정방향 SchedulesService.update 와 대칭).
+    if (trigger.type === 'schedule' && rest.isActive !== undefined) {
+      await this.syncScheduleActivation(saved, rest.isActive);
+    }
     await this.normalizeNotificationSecretRef(saved);
     let result = saved;
     if (chatChannel) {

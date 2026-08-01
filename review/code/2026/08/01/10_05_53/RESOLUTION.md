@@ -45,6 +45,28 @@ diff base 가 stale 이 됐고, 그 탓에 changeset 이 리뷰 산출물 문서
 장시간 작업 중에는 라운드마다 `git fetch` 로 전진 여부를 확인하고, 전진했으면 rebase 후
 리뷰해야 한다 — 아니면 라우터가 엉뚱한 changeset 을 보고 "코드 무관" 으로 판정한다.
 
+### 4라운드 (`12_06_37`) 조치 — **처음으로 코드를 제대로 본 라운드**
+
+3차가 코드를 못 본 원인은 rebase 로 다 풀리지 않았다. `--prepare --branch origin/main` 이
+**직전 라운드가 본 파일을 제외**해 changeset 이 리뷰 산출물 12건뿐이었고 codebase 는 0건이었다
+(meta.json 실측). `git diff --name-only origin/main...HEAD -- codebase/` 로 19개 파일을 **명시
+지정**해 다시 준비하니 forced 가 6명으로 정상화됐다. 그 상태에서 나온 것이 아래다.
+
+> 이 확인이 없었으면 3차의 "Critical 0" 을 코드 수렴 근거로 오독해 검증 없이 PR 을 올렸을 것이다.
+> 라우터가 `documentation` 1명만 고른 것이 신호였다.
+
+| # | 등급 | 발견사항 | 조치 |
+|---|---|---|---|
+| R4-C1 | **Critical** | `TriggersService.update()` 에서 `syncScheduleActivation()`(BullMQ 외부 호출)이 `recordAudit` 보다 **먼저** 실행 — 같은 함수의 다른 두 외부 호출은 원칙대로 뒤에 두고 **이 하나만** 앞에 남아, schedule 타입 + `isActive` 변경 경로에서만 W6 불변식이 깨져 있었다. `registerJob` 이 throw 하면 트리거는 커밋됐는데 감사가 유실된다. 기존 테스트는 이 조합을 안 태운다(감사 테스트는 webhook 타입만 씀) | 순서 교정 + 조합 회귀 테스트. 결함 복원 뮤턴트 RED |
+| R4-W1 | Warning | `importWorkflow()` 가 새 Workflow 를 만드는데 감사 미기록 — `create`/`duplicate` 와 비대칭 | **기록 추가**(`details.imported`). 1차에 `saveCanvas` 와 묶어 미룬 게 잘못이었다 — 카디널리티 논거는 캔버스 편집마다 발동하는 `saveCanvas` 에만 해당하고 import 는 이산적 생성 이벤트다 |
+| R4-W2 | Warning | W6 순서 가드가 `create()` 에만 있고 `update()` 에 없음 | schedules·triggers `update()` 순서 테스트 추가. 뮤턴트 RED |
+| R4-W4 | Warning | `Schedule`↔`Trigger` 상호 직접 쓰기가 상대 리소스 감사를 건너뜀. **직전 라운드에서 발견됐으나 RESOLUTION 어느 표에도 흡수되지 않고 유실** | **설계로 확정하고 `audit-action.const.ts` 에 명문화** — 감사는 호출된 엔드포인트의 리소스 기준이며, 양쪽을 다 남기면 한 번의 조작이 2행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 만든다 |
+| R4-W5 | Warning | `duplicate()` 의 커밋-뒤-기록 불변식에 순서 테스트 없음 | 순서 테스트 추가. 뮤턴트 RED |
+| R4-W7 | Warning | `AuditLogDto.action` Swagger 설명이 신규 13액션 미반영 | 열거를 **SoT 참조로 전환** — 이미 `workspace.*`·`member.*`·`user.*` 때부터 낡아 있었다. 목록 복제를 끊는 게 근본 조치 |
+
+미조치: R4-W3(컨트롤러 `userId` 배선 검증 비일관 — 1차 W8 과 동일, 아래 표) ·
+R4-W6(`recordAudit` 중복 — 1차 W4 유예 유효) · R4-W8(SPEC-DRIFT — planner 턴, 이미 등재).
+
 ### 미조치 — 근거
 
 | # | 등급 | 항목 | 사유 |

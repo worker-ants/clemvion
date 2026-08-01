@@ -35,6 +35,14 @@
  * 설정 CRUD 라 현재형(`create`/`update`/`delete`/`set_default`). `set_default` 가 과거분사로
  * 부자연스러워 resource 단위 현재형으로 통일한 것이 후자의 근거다 (1-auth §Rationale 4.1.A).
  *
+ * **1:1 결합 리소스는 주(主) 리소스만 기록한다.** `Schedule` 과 `Trigger` 는 서로의 row 를
+ * 직접 쓴다 — `SchedulesService` 가 짝 `Trigger` 를 만들고/지우고, `TriggersService` 의
+ * `syncScheduleActivation` 이 짝 `Schedule.isActive` 를 바꾼다. 이때 **상대 리소스의 액션은
+ * 남기지 않는다**: 사용자가 한 행위는 하나(스케줄 생성 / 트리거 비활성화)인데 양쪽을 다 남기면
+ * 같은 조작이 감사에 2행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 만든다. 감사는 **호출된
+ * 엔드포인트의 리소스** 기준이며, 짝 row 의 변화는 그 액션의 부수 효과로 읽는다.
+ * (4차 리뷰 W4 — 라운드 사이에 유실됐던 항목이라 여기 명문화한다.)
+ *
  * **`workflow.executed` 는 의도적으로 미구현이다.** spec §4.1 Planned 표에 있으나 나머지
  * 13개와 카디널리티 차원이 다르다 — CRUD 는 저빈도지만 `executed` 는 트리거·webhook 발동마다
  * 쌓인다. 그런데 `audit_log` 은 **보존 정책이 미정이고 pruner 가 없다**(§3 "현재 무제한";

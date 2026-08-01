@@ -342,6 +342,39 @@ describe('SchedulesService.runNow', () => {
       });
     });
 
+    it('감사 로깅 — update 도 BullMQ 재등록 **전에** 기록한다 (W2)', async () => {
+      const order: string[] = [];
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-9',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-9',
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (x) => {
+        order.push('commit');
+        return x as unknown as Schedule;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+      (
+        runner as unknown as { registerJob: jest.Mock }
+      ).registerJob.mockImplementation(async () => {
+        order.push('bullmq');
+      });
+
+      await service.update(
+        'sch-9',
+        'ws-1',
+        { name: 'S9' } as unknown as UpdateScheduleDto,
+        'u-o2',
+      );
+
+      expect(order).toEqual(['commit', 'audit', 'bullmq']);
+    });
+
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         id: 'sch-2',

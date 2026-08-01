@@ -741,6 +741,30 @@ describe('WorkflowsService', () => {
       );
     });
 
+    it('duplicate 도 트랜잭션 **커밋 뒤**에 기록한다 (W5)', async () => {
+      const order: string[] = [];
+      const origTx = mockDataSource.transaction;
+      mockDataSource.transaction = jest.fn(
+        async (_iso: unknown, cb?: any) => {
+          const fn = typeof _iso === 'function' ? _iso : cb;
+          order.push('tx-start');
+          const r = await fn(mockTransactionManager);
+          order.push('tx-commit');
+          return r;
+        },
+      );
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      try {
+        await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+        expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      } finally {
+        mockDataSource.transaction = origTx;
+      }
+    });
+
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
       mockTransactionManager.find = jest
@@ -890,6 +914,26 @@ describe('WorkflowsService', () => {
           userId: 'u-del',
           action: 'workflow.deleted',
           resourceId: 'wf-uuid-9',
+        }),
+      );
+    });
+
+    it('importWorkflow 도 workflow.created 를 남긴다 (details.imported)', async () => {
+      // import 는 create/duplicate 와 같은 신규 생성이다. 1차 리뷰 때 saveCanvas 와 묶어
+      // 미뤘으나 카디널리티 논거는 saveCanvas 에만 해당해 분리했다 (4차 W1).
+      await service.importWorkflow('ws-uuid-1', 'user-uuid-1', {
+        workflow: { name: 'Imported' },
+        nodes: [],
+        edges: [],
+      } as any);
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: 'workflow.created',
+          resourceType: 'workflow',
+          details: { imported: true },
         }),
       );
     });
