@@ -47,7 +47,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.77.0",
     "@opentelemetry/exporter-prometheus": "^0.219.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
-    "@opentelemetry/resources": "^2.0.0",
+    "@opentelemetry/resources": "^2.10.0",
     "@opentelemetry/sdk-node": "^0.219.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
     "@simplewebauthn/server": "^13.3.0",
