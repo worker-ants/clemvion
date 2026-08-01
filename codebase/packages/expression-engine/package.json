@@ -24,7 +24,7 @@
     "jest": "^30.0.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.65.0"
   },
   "jest": {
     "moduleFileExtensions": [
