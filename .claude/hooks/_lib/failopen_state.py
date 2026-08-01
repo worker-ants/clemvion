@@ -41,12 +41,21 @@ class Outcome:
     degraded — could NOT answer (import failure, or evaluate_*() raised). The
                distinction from `bypassed` is the whole point: mixing a
                conscious override into the counter buries the real signal.
+    notes    — advisories a gate wants surfaced that change no verdict. Not a
+               fourth state: a gate that files a note is still `answered` (or
+               `degraded`) on its own axis. Kept out of the streak counter for
+               that reason — a note is an observation, not a failure to answer.
     """
 
     def __init__(self) -> None:
         self.answered: list[str] = []
         self.bypassed: list[str] = []
         self.degraded: list[tuple[str, str]] = []
+        # Advisories that change no verdict but must still reach the model.
+        # Declared here rather than attached ad hoc, so this class and the push
+        # hook's fallback `_Outcome` agree on the field list — they did not when
+        # only the fallback carried it.
+        self.notes: list[str] = []
 
 
 def state_path(state_name: str) -> str:

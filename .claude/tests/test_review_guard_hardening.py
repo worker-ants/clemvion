@@ -564,5 +564,90 @@ class StopResolutionSuppressionTest(unittest.TestCase):
         self.assertEqual(out.strip(), "")
 
 
+class NotesReachThePublicEntryPointTest(unittest.TestCase):
+    """`evaluate_review()` itself must carry the downgrade advisory.
+
+    Everything else pins pieces: the predicate, the helper, the two hooks'
+    reporting. Nothing drove the public entry point over a real repository and
+    asserted a note comes out — so every mock-based test would stay GREEN if
+    Gate 2 stopped attaching them. A review measured that gap twice before this
+    existed; "the advisory is silently lost" is the failure this whole branch is
+    about, so leaving its own top-level path unpinned was the wrong asymmetry.
+
+    Real temp git repo rather than mocks: the note only exists when Gate 2
+    actually adopts a session, and adoption depends on the spec glob, the
+    session clock and the `BLOCK:` verdict all lining up. Mocking any of those
+    would test the mock.
+    """
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self._git("init", "-b", "main")
+
+    def _git(self, *args):
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def _repo(self, *, critical: bool):
+        """A branch with spec-linked code and one `--impl-done` session."""
+        self._write("README.md", "base\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "base")
+        self._git("checkout", "-b", "feature")
+        self._write("spec/x.md",
+                    "---\ncode: codebase/backend/src/**/*.ts\n---\n# x\n")
+        self._write("codebase/backend/src/a.ts", "export const a = 1;\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "feature")
+        # Gate 1 must PASS, or Gate 2 never runs and there is no note to carry.
+        # (That ordering is not a leak: an unreviewed branch is blocked for the
+        # code-review reason, and the downgrade surfaces on the next attempt
+        # once a review exists. The first version of this test asserted against
+        # a repo with no review at all and failed for that reason, not a bug.)
+        cr = os.path.join(self.root, "review", "code",
+                          "2099", "01", "01", "00_00_00")
+        os.makedirs(cr)
+        self._write(os.path.join(cr, "SUMMARY.md"),
+                    "## 전체 위험도\n\nNONE\n")
+        self._write(os.path.join(cr, "RESOLUTION.md"), "처분 완료\n")
+        # The session must postdate the code; its directory name is the clock.
+        d = os.path.join(self.root, "review", "consistency",
+                         "2099", "01", "01", "00_00_00")
+        os.makedirs(d)
+        self._write(os.path.join(d, "meta.json"),
+                    '{"mode": "구현 완료 후 검토 (--impl-done, scope=spec/x)"}')
+        self._write(os.path.join(d, "SUMMARY.md"), "**BLOCK: NO** — 요약\n")
+        self._write(os.path.join(d, "cross_spec.md"),
+                    "- **[CRITICAL]** 모순\n" if critical else "발견 없음\n")
+        return d
+
+    def test_a_downgraded_session_puts_a_note_on_the_decision(self):
+        self._repo(critical=True)
+        d = rg.evaluate_review(self.root)
+        self.assertTrue(d.notes, "evaluate_review dropped the advisory")
+        joined = " ".join(d.notes)
+        self.assertIn("cross_spec", joined, "the note must name the checker")
+
+    def test_an_agreeing_session_puts_no_note_on_the_decision(self):
+        """The other half — a warning that fires when nothing is wrong is how a
+        real one gets ignored, and an assertion that only checks the positive
+        case passes for a function that always warns."""
+        self._repo(critical=False)
+        d = rg.evaluate_review(self.root)
+        self.assertEqual(tuple(d.notes), ())
+
+
 if __name__ == "__main__":
     unittest.main()

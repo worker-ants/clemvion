@@ -1,0 +1,47 @@
+# Requirement Review — harness-block-backstop (2026-08-01 01:49:32)
+
+## 조사 방법
+
+프롬프트가 지정한 44개 파일(전부 `review/code/2026/08/01/{00_03_38,00_33_34,01_17_35,01_17_47}/**` 하위의 과거 리뷰 세션 산출물 — 리뷰어별 `.md` 리포트, `meta.json`, `_retry_state.json`, `RESOLUTION.md`)을 전수 확인했다. 이 44개 파일 자체는 실행 코드가 아니므로, "기능 완전성/엣지 케이스/에러 시나리오/반환값" 같은 관점을 문자 그대로 적용할 대상이 없다 — 대신 다음 세 갈래로 실질 검증했다.
+
+1. `git log`/`git diff --stat origin/main...HEAD`/`git show --stat <commit>` 으로 이 브랜치의 실제 커밋 이력과 각 리뷰 라운드(18:16→19:03→00:03→00:33→01:17→01:49)의 타이밍을 재구성해, 이번 라운드가 실제로 무엇을 커버하는지 확인.
+2. 각 리포트가 "이미 고쳐졌다"거나 "이렇게 동작한다"고 주장하는 내용을 실제 현재 소스(`.claude/_shared/retry_state.py`, `.claude/_shared/block_integrity.py`, `.claude/hooks/guard_review_before_stop.py`, `merge_coordinator_orchestrator.py` 등)와 직접 대조.
+3. `python3 -m unittest discover -s .claude/tests -p 'test_*.py'` 를 직접 실행해 테스트 통과 주장을 재현.
+4. `spec/` 전체를 grep 해 이 변경을 규정하는 spec 문서 존재 여부 확인.
+
+## 발견사항
+
+- **[WARNING]** 완결되지 않은 리뷰 세션 `01_17_47` 이 무효한(형제 세션의 gitignore 대상 스크래치 파일) changeset 으로 저장소에 영구 커밋됨
+  - 위치: `review/code/2026/08/01/01_17_47/_retry_state.json`(파일 43), `review/code/2026/08/01/01_17_47/meta.json`(파일 44). 근본 원인: `.claude/skills/code-review-agents/scripts/code_review_orchestrator.py:968-975`(`get_directory_files` — `.gitignore` 를 전혀 고려하지 않는 raw `os.walk`) 가 `:1254-1259`(`collect_change_infos` 의 `elif args.files:` 분기)에서 디렉터리 인자에 그대로 적용됨. 대조: 같은 파일의 기본 경로 `get_git_diff_files()`(`:857-872`)는 `git ls-files --others --exclude-standard` 를 써서 `.gitignore` 를 정확히 존중한다(직접 재현: `git ls-files --others --exclude-standard | grep _prompts` 결과 0건, `git check-ignore -v` 는 해당 경로가 `.gitignore:38 review/**/_prompts/` 에 매치함을 확인).
+  - 상세: `review/code/2026/08/01/01_17_47/_retry_state.json` 을 직접 읽으면 `routing_status: "pending"`, `agents_pending` 에 14개 전원, `agents_success: []`, `agents_fatal: []` — 즉 이 세션은 라우팅조차 끝나지 않았고 어떤 리뷰어도 결과를 낸 적이 없다(디스크에 `SUMMARY.md`도, 리뷰어별 `.md` 리포트도 전무 — `_prompts/` 서브디렉터리와 두 상태 파일뿐). 그런데 그 `meta.json`(파일 44) 의 `"files"` 배열은 실제 소스 변경이 아니라 **12초 전에 시작된 형제 세션 `01_17_35` 자신의 `_prompts/api_contract.md` 등 14개 프롬프트 스크래치 파일**을 가리킨다. 이 경로들은 `.gitignore` 로 명시 제외돼 있어 정상적인 `--prepare` 기본 경로로는 절대 나타날 수 없고, `SKILL.md:46` 이 문서화한 "파일/디렉토리 경로" 명시 인자 방식으로만 재현 가능하다. 즉 무언가(자동 트리거든 수동 재실행이든)가 이 오케스트레이터를 "형제 세션의 디렉터리"를 인자로 재실행했고, 그 입력이 애초에 리뷰할 가치가 없는 스크래치 파일임을 걸러낼 검증이 전혀 없어 완전히 무의미한 세션이 생성된 뒤 방치·커밋됐다. `_retry_state.json` 의 JSON 스키마 자체(필드 목록)는 다른 정상 세션들과 완전히 동일해 스키마 위반은 아니다 — 문제는 순수하게 **입력 데이터(체인지셋)의 유효성**이다.
+  - 제안: `get_directory_files()`(또는 그 호출부)에 `.gitignore` 인지 필터를 추가하거나, 최소한 `collect_change_infos` 가 `args.files` 분기에서도 해석된 파일 목록이 전부 `review/**` 스크래치 경로일 때 세션을 만들지 않고 경고 후 종료하는 방어를 추가. 이 결함 클래스(그리고 방치된 `01_17_47` 디렉터리 자체의 정리 여부)를 `plan/in-progress/harness-review-gate-ci-backstop.md` 후속 항목으로 등재 권장 — 이번 브랜치의 실제 기능 코드(`block_integrity.py`/`retry_state.py`)가 만든 결함은 아니므로 이 PR 을 막을 사유는 아니다.
+
+- **[WARNING]** 이번 라운드(`01_49_32`) 자신의 changeset 이 가장 최근 소스 수정 커밋들의 실제 diff 를 포함하지 않음 — "이번 라운드가 0 CRITICAL 을 냈다"를 5R 수정의 안전성 근거로 그대로 쓰면 안 됨
+  - 위치: `review/code/2026/08/01/01_49_32/meta.json`(이번 세션 자신의 `"files"`, 44건 전부 `review/code/2026/08/01/{00_03_38,00_33_34,01_17_35,01_17_47}/**`) — 비교 대상: `git show --stat 179263dd2`(4R 수정, `.claude/_shared/retry_state.py` 10줄·`guard_review_before_stop.py` 26줄 등 9개 소스/plan 파일), `git show --stat 7dd4ad8c7`(5R 수정, `.claude/_shared/block_integrity.py` 21줄·`retry_state.py` 22줄·`guard_review_before_stop.py` 19줄·`guard_review_before_push.py` 7줄·`review_guard.py` 11줄 등), `git show --stat 8b3be3ce6`(SUMMARY 복구).
+  - 상세: `git diff --stat origin/main...HEAD` 로 확인한 이 브랜치 전체 diff(95 files, `.claude/**` 15개 파일 포함)와 달리, 이번 라운드에 배정된 44개 파일은 전부 과거 리뷰 세션의 산출물뿐이고 `.claude/_shared/block_integrity.py`/`retry_state.py`/`guard_review_before_stop.py` 등 4R·5R 가 실제로 변경한 소스 hunk 는 단 한 줄도 포함되지 않는다. 즉 4R·5R 에서 실제로 코드가 바뀐 지점(Stop 훅 마커를 sha1 다이제스트로 전환, `summary_block_verdict` 를 `finditer`+`[-1]` 로 전환 등)을 **신선한 14-리뷰어 fan-out 이 다시 들여다본 적이 없다** — `01_17_35` 라운드는 4R 수정 이후·5R 수정 이전 상태를 리뷰했고, 5R 수정(`7dd4ad8c7`)과 SUMMARY 복구(`8b3be3ce6`)는 그 자체로 별도 리뷰 라운드의 대상이 된 적이 없다(`review/code/2026/08/01/` 아래 `01_17_47` 과 `01_49_32` 사이에 다른 세션 디렉터리 없음 — 직접 `ls` 로 확인). 이번 요구사항 리뷰가 "RESOLUTION.md 가 주장하는 수정이 실제로 반영됐는가"를 직접 대조 검증했고(아래 참고 항목), 그 결과 수정 자체는 정확했음을 확인했다 — 다만 이 검증은 이번 라운드의 changeset 설계가 보장한 것이 아니라 이 리뷰어가 별도로 수행한 것이라는 점을 명시해 둔다.
+  - 제안: 머지 전 최소 1회 `--branch origin/main` 전체 diff 로 14-리뷰어 fan-out 을 다시 실행해, 4R/5R 가 직접 수정한 `.claude/**` hunk 가 실제로 새로운 리뷰 대상이 된 기록을 남길 것을 권장.
+
+- **[INFO]** `RESOLUTION.md` 의 헤더 집계와 동일 세션 `SUMMARY.md` 의 헤더 집계가 서로 다른 계산 기준(중복 제거 전/후)을 쓰는데 어느 문서에도 그 사실이 명시돼 있지 않음
+  - 위치: `review/code/2026/08/01/01_17_35/RESOLUTION.md:3`("리뷰어 14/14 성공. **CRITICAL 2 / WARNING 20 / INFO 32.**") 대 `review/code/2026/08/01/01_17_35/SUMMARY.md:5`("**발견 건수**: CRITICAL 1 · WARNING 13 · INFO 13", 직접 Read 로 대조 — 이 SUMMARY.md 는 44개 프롬프트 파일 목록에는 없지만 같은 세션 폴더의 직접 관련 파일이라 대조했다).
+  - 상세: 두 숫자 모두 **틀리지 않았다** — `SUMMARY.md` 는 `consistency-summary.md` §요약 지침 1("중복 제거 — 여러 checker 가 동일 위배를 다른 각도로 지적한 경우 가장 강한 등급으로 통합")을 적용한 뒤의 최종 집계이고(실제로 SUMMARY 의 CRITICAL #1 행은 "documentation(CRITICAL)·testing(CRITICAL)·api_contract/maintainability/requirement/security/side_effect(전부 WARNING) 총 7개 reviewer" 를 하나로 합친 결과다), `RESOLUTION.md` 는 그 통합 이전, 14개 리뷰어 리포트 전체에 걸친 **원본(raw) 태그 개수**를 그대로 합산한 것으로 보인다(`RESOLUTION.md:5` 자신이 "CRITICAL 2건은 서로 다른 리뷰어가 같은 결함을 본 것" 이라고 설명함). 문제는 이 계산 기준 차이가 어느 문서에도 명시적 레이블(예: "raw pre-dedup count" vs "deduplicated count")로 남아있지 않다는 점 — 같은 라운드를 가리키는 두 문서의 헤더 숫자만 나란히 보면 하나가 틀렸다고 오인하기 쉽다.
+  - 제안: 사소한 클래리티 이슈이며 이번 PR 을 막을 사유는 아니다. `RESOLUTION.md` 류 문서의 헤더에 "(14개 리포트 원본 태그 합산, SUMMARY 중복제거 전)" 같은 한 줄 라벨을 붙이는 것을 고려.
+
+- **[INFO]** 핵심 요구사항 검증 — 직접 재대조 결과 전부 일치, drift 없음 (기록)
+  - `RESOLUTION.md` 가 주장하는 CRITICAL 수정("마커 키를 note 텍스트의 sha1 앞 12자로") — `.claude/hooks/guard_review_before_stop.py:380-382` 에서 `hashlib.sha1(note.encode("utf-8")).hexdigest()[:12]` 로 실제 존재 확인. 같은 파일 `:370-379` 의 주석도 실제 동작과 정확히 일치하도록 갱신돼 있고("It keyed on `enumerate`'s index until a review measured what that actually did..."), 회귀 테스트(`.claude/tests/test_block_integrity.py:472-481`, `test_identical_note_is_throttled`/`test_a_different_note_still_gets_through`)가 "동일 문구 2회→2번째 억제" 와 "다른 문구 2회→2번째도 출력" 양쪽을 서브프로세스 실행으로 고정하고 있어 vacuous 하지 않음을 확인.
+  - W15 수정("`finditer`→`[-1]`") — `.claude/_shared/block_integrity.py:117-120` 에서 `matches = list(_BLOCK_AT_LINE_END.finditer(...))` → `matches[-1].group(1)` 로 실제 존재 확인.
+  - `python3 -m unittest discover -s .claude/tests -p 'test_*.py'` 직접 실행 결과 **749 tests, OK** — `RESOLUTION.md` 의 "harness 스위트 749 tests OK (5R 착수 시 743 → 신규 6)" 주장과 정확히 일치, `01_17_35/requirement.md`(파일 37)의 "743 테스트 전수 통과"(4R 이후·5R 이전 상태) 주장과도 시계열이 맞음.
+  - `documentation.md`(00_33_34, 파일 16)가 지적한 WARNING("하향 backstop 이 `--impl-done` 세션에만 적용되는데 정책 문서에 범위 한정이 없음")은 현재 `.claude/agents/consistency-summary.md:49-53` 와 `.claude/skills/consistency-checker/SKILL.md:113-116` 에 "그 경고는 현재 `--impl-done` 세션이 게이트에 채택될 때만 발화하므로..." 문구로 명시적으로 반영돼 있음을 직접 확인 — 해소됨.
+  - `scope.md`(00_33_34, 파일 21)가 지적한 WARNING(`merge_coordinator_orchestrator.py` 의 "Git / gh helpers" 구분 주석 유실)은 현재 소스 `:125-127` 에 해당 주석이 정확히 복원돼 있음을 확인 — 해소됨.
+  - `732/698/24(3.3%)/242` 수치가 `.claude/_shared/block_integrity.py:11-17,36-46`, `.claude/tests/test_block_integrity.py:8-16,118`, `.claude/tests/README.md:60`, `plan/in-progress/harness-review-gate-ci-backstop.md:38` 네 곳에 걸쳐 정확히 일치함을 직접 grep 으로 재확인 — `documentation.md`(00_33_34)의 "교차 일관성" 주장과 일치.
+  - TODO/FIXME/HACK/XXX 주석: `.claude/_shared/retry_state.py`, `block_integrity.py`, 두 훅, `review_guard.py`, 관련 테스트 전체에 grep 결과 0건.
+
+- **[INFO]** spec fidelity — `spec/` 는 애초에 관할이 아니며, 실질 SoT(`plan/`) 는 대체로 최신 상태
+  - `spec/` 전체를 `block_integrity|retry_state|하향 금지|Critical 하향` 로 grep 한 결과 0건 — CLAUDE.md 의 폴더 구조 규약대로 이 변경은 `.claude/`(개발 하네스)에 속하고 `spec/`(제품 정의)의 관할이 아니므로 정상. 실질적 "spec" 역할은 `plan/in-progress/harness-review-gate-ci-backstop.md` 가 하며, frontmatter 아래 이력 블록이 항목 1~11 (build_files_section 예산 계상, backstop 구현 완료 표시, merge-coordinator self-heal 부재, `_retry_state.json` lost-update 등)을 follow-up 으로 정확히 추적하고 있음을 확인했다. 다만 이 plan 문서는 4R/5R 라운드에서 발견·수정된 "Stop 훅 마커 인덱스 키잉" CRITICAL 이나 이번에 발견한 `01_17_47` 세션 이상 현상은 언급하지 않는다 — 전자는 같은 브랜치 내에서 발견-즉시-수정된 transient 결함이라 RESOLUTION.md/커밋 메시지가 이미 충분한 기록이므로 plan 문서 누락이 결함은 아니라고 판단했고(머지 전 소멸하는 in-branch 이력까지 plan 에 옮길 필요는 없음), 후자(01_17_47)는 위 WARNING 에서 별도로 plan 등재를 제안했다.
+
+## 요약
+
+이번 라운드에 배정된 44개 파일은 코드가 아니라 지난 네 차례 리뷰 세션(00_03_38/00_33_34/01_17_35/01_17_47)의 산출물이므로, "기능 완전성·엣지 케이스·에러 시나리오" 같은 관점은 그 산출물이 서술하는 실제 소스에 대해 간접적으로만 적용된다. 직접 현재 소스를 열어 대조한 결과, 이 문서들이 "고쳤다"고 주장하는 모든 핵심 사항(Stop 훅 note 마커의 sha1 다이제스트 키잉, `summary_block_verdict` 의 마지막-매치 채택, `--impl-done` 스코프 한정 문서화, `merge_coordinator_orchestrator.py` 주석 복원, 732/698/24/242 수치 일관성, harness 테스트 749건 통과)은 정확히 반영돼 있고 회귀 테스트도 실제로 두 축(동일/상이)을 구분해 검증하고 있어 vacuous 하지 않다. `spec/` 는 이 변경의 관할이 아니며(정상), `plan/in-progress/harness-review-gate-ci-backstop.md` 가 실질 SoT 로서 대체로 최신 상태를 유지한다. 다만 리뷰-메타 관점에서 두 가지를 새로 발견했다 — (1) 완전히 미완결된 리뷰 세션 `01_17_47` 이 형제 세션의 gitignore 대상 스크래치 파일을 changeset 으로 착각해 생성된 뒤 그 무효한 상태 그대로 저장소에 영구 커밋됐고, 근본 원인(`get_directory_files` 가 `.gitignore` 를 고려하지 않는 raw walk)을 코드에서 직접 확인했다. (2) 이번 라운드 자신의 changeset 이 4R/5R 수정 커밋이 실제로 바꾼 `.claude/**` 소스 hunk 를 포함하지 않아, 그 수정들이 신선한 14-리뷰어 fan-out 을 아직 거치지 않았다(이번 리뷰에서 수동으로 그 공백을 메웠다). 두 가지 모두 harness-block-backstop 기능(`block_integrity.py`/`retry_state.py`) 자체의 결함이 아니라 그 기능을 개발하는 과정에서 부산물로 드러난 리뷰 하네스 자신의 잔여 결함이며, 이번 PR 의 머지를 막을 사유는 아니지만 후속으로 등재할 가치가 있다.
+
+## 위험도
+
+LOW

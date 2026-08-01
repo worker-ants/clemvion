@@ -1,6 +1,6 @@
 ---
 title: 리뷰 게이트의 훅-독립 CI 백스톱 — 정규식이 유일 판정자인 사각지대를 닫을지
-worktree: harness-review-gate-fixes-1bd6aa
+worktree: harness-block-backstop-b56163
 started: 2026-07-25
 owner: developer
 priority: P2
@@ -24,7 +24,7 @@ priority: P2
 > 나왔고 그 둘이 이 PR 의 핵심 파일이었다. 즉 §재발 관측이 consistency 쪽에서 8회 기록한
 > 결함 클래스의 **code-review 쪽 쌍둥이**다. 생략 사실 + 읽을 경로를 명시하도록 수정.
 >
-> **신규 후속 (defer) — 아래 7건 + 기본 브랜치 해석 중복 1건**
+> **신규 후속 (defer) — 아래 11건 + 기본 브랜치 해석 중복 1건**
 >
 > 1. **`build_files_section` 의 diff-only 예산 분기가 상한을 넘는다 (기존 결함)** —
 >    headers+diffs 만으로 예산을 넘는 분기에서, 절단 루프가 `_truncated_note` 와
@@ -33,7 +33,14 @@ priority: P2
 >    이번에 추가한 안내는 `overflow` 에 계상했기에 오히려 3바이트 작다). 즉 **내가 만든 결함이
 >    아니고 악화시키지도 않았다.** 다른 분기의 같은 계상 누락은 이번에 고쳤으므로, 이 분기도
 >    같은 처방(노트 길이를 절단량에 포함)으로 닫으면 된다.
-> 2. **하향 금지 정책에 기계적 backstop 이 없다** — `.claude/agents/consistency-summary.md` 의
+> 2. ~~**하향 금지 정책에 기계적 backstop 이 없다**~~ → **구현 완료 (2026-07-31, `30cc0f738`)**.
+>    `.claude/_shared/block_integrity.py` 가 checker 리포트의 `[CRITICAL]` 태그를 세어 SUMMARY 의
+>    `BLOCK:` 와 모순되면 경고한다. 착수 전 실측: consistency 세션 732개 중 24건(3.3%)이
+>    `BLOCK: NO` 인데 `[CRITICAL]` 을 갖고 있었고, 표본의 SUMMARY 들이 하향을 스스로 서술한다.
+>    게이트가 실제 채택하는 세션만 대조하며(전 이력 재경고는 +0.39초에 늘 우는 경고가 된다),
+>    경고는 결정 객체의 `notes` 로 올라가 호출자가 자기 exit-code 계약에 맞는 스트림으로 낸다 —
+>    ALLOW(exit 0)에서는 stdout 이 모델에 주입되므로 stderr 고정은 아무도 안 읽는 자리였다.
+>    원래 항목 서술: — `.claude/agents/consistency-summary.md` 의
 >    규약은 prompt 지시일 뿐이고, 게이트(`_BLOCK_LINE`)는 `BLOCK:` 값이 각 checker 의
 >    `[CRITICAL]` 개수와 모순되는지 대조하지 않는다. 정확히 그 불변식이 깨진 사례가 이미
 >    기록돼 있다(`review/code/2026/07/25/22_58_00`). 후보: orchestrator 가 checker 리포트의
@@ -66,7 +73,62 @@ priority: P2
 >    stub 하거나 실패-흡수 경로만 본다. 자매 함수 `_branch_changed_rels` 는 임시 git repo 로
 >    성공 경로까지 고정돼 있어 비대칭이다. 같은 패턴으로 4케이스(symbolic-ref 적중 /
 >    `origin/main` 만 / `origin/master` 만 / origin 없음) 고정할 것.
-> 9. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 9. **`merge_coordinator_orchestrator.py` 에 `reconcile_state_with_disk` 자기치유가 없다** —
+>    상태 helper 를 `_shared/` 로 옮기며 확인: 이 파일은 세 번째 사본인데 `_load_state`/
+>    `_save_state`/`_apply_status_update` 가 다른 둘과 동일하고(전부 위임 완료),
+>    `_emit_summary_state` 만 branch/base 를 다뤄 다르며, **`_reconcile_state_with_disk` 는
+>    아예 없다.** (`_apply_status_update` 를 "다르다" 고 적었던 첫 서술은 틀렸다 — AST 차이가
+>    이름 접두뿐인데 정규화를 안 하고 발산으로 읽었다.) 즉 Agent tool 로 직접 fan-out 한 세션이 prepare 시점 스냅샷에 멈춘 채
+>    SUMMARY 는 실제 성공을 보고하는, 다른 두 orchestrator 가 이미 고친 모순을 그대로 겪는다.
+>    다른 skill 의 동작 변경이라 별도 PR 로 분리한다.
+> 10. **`_retry_state.json` 의 lost update — 잠금이 없다** — `apply_status_update` 는
+>    read-modify-write 인데 파일 잠금이 없다. `save_state` 를 원자적으로 만든 것은 *찢어진 읽기*
+>    만 닫는다. 수렴이 있는 필드는 `agents_success` **하나뿐**이다(디스크의 리포트 파일에서 매번
+>    재도출). `agents_fatal` 은 이미 메모리에 있던 값을 필터링할 뿐이라 **한 번 유실되면 어떤
+>    reconcile 로도 복구 불가** — `/loop` 가 영구 실패로 판정된 checker 를 다시 돌린다.
+>    `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec` 도 마찬가지.
+>    `fcntl.flock` 은 모든 훅 경로에 블로킹 프리미티브를 놓는 것이라 채택 안 했고, 대안은
+>    `<name>.fatal` sentinel 파일로 `agents_fatal` 도 디스크에서 재도출하는 것 — 새 설계라 분리.
+>    (docstring 은 이번에 정정했다. 종전 서술이 "버킷들은 디스크에서 재도출된다" 로 읽혀
+>    보장 범위를 과대하게 주장하고 있었다.)
+> 11. **`--branch` 가 `--files` 를 조용히 덮어쓴다 (신규 발견, 2026-08-01 6R)** — 게이트 자체를
+>    무력화할 수 있는 결함이라 우선순위 높음. 재현 실험:
+>
+>    | 명령 | `meta.json` files |
+>    |---|---|
+>    | `--prepare --files A B` | 2 (준 그대로) |
+>    | `--prepare --branch origin/main --files A B` | **44 (전부 `review/**`, 내 목록 폐기)** |
+>
+>    `collect_change_infos` 가 `if/elif` 체인이고 `--branch` 분기가 `--files` 분기보다 앞에 있어,
+>    `--files` 는 **도달 불가능한 죽은 분기**가 된다. 경고도 없다.
+>    이 저장소의 표준 절차는 "명시 파일 + `--route=all`" 인데(증분 changeset 이 결함을 구조적으로
+>    놓치므로), 커밋 후엔 `--branch` 를 함께 줘야 diff base 가 맞는다 — 정확히 그 조합에서 명시
+>    목록이 통째로 버려진다.
+>    1R~5R 이 무사했던 건 우연이다: 그때는 리뷰 산출물이 untracked 라 branch diff 가 소스만 담았다.
+>    5R 산출물을 커밋한 순간 같은 명령이 리뷰 산출물만 담은 changeset 을 만들었고, 14명 전원이
+>    자기 브랜치가 고친 소스를 **한 줄도 못 본 채** "CRITICAL 0" 을 냈다.
+>
+>    > **동반 발견 — 호출자(나) 쪽 결함이 더 컸다.** 위 진단은 절반만 맞다. 나는 매 라운드
+>    > `--files $FILES` 로 호출했는데 **셸이 zsh 라 unquoted `$FILES` 가 단어 분할되지 않는다** —
+>    > 17개 경로가 한 덩어리 문자열 하나로 전달됐다(`${=FILES}` 나 배열이라야 분할된다).
+>    > 즉 `--branch` 가 없었더라도 내 명시 목록은 **애초에 전달된 적이 없다**. 실측:
+>    > `python3 -c ... $V` → 인자 1개 `['a b c']` / `${=V}` → 인자 3개.
+>    > 결론: 하네스 결함(위)과 호출 결함(이것)이 겹쳐 "명시 파일" 절차가 이 브랜치 전 라운드에서
+>    > 무효였다. 소스가 리뷰된 것은 `--branch` 의 diff 가 마침 소스뿐이었기 때문이다.
+>    > **bash 문법을 zsh 에서 쓰는 이 클래스는 재발하기 쉽다** — 파일 목록은 배열로 넘길 것.
+>    - ~~최소 조치: 두 옵션이 같이 오면 `--files` 우선 + 무시되는 쪽을 stderr 로 경고(현재 침묵).~~
+>      **구현 완료 (8R)** — 다만 **우선순위는 바꾸지 않았다.** 서술과 실제가 다르므로 정정한다:
+>      scope 플래그(`--commit`/`--range`/`--branch`)가 계속 이긴다(다른 호출부가 그 의미에
+>      의존한다). 바뀐 것은 폐기가 **더 이상 침묵하지 않는다**는 것뿐 —
+>      `!! --files IGNORED (N path(s)) — --<flag> takes precedence …` 를 stderr 로 내고
+>      무시된 경로를 최대 5개까지 이름으로 찍는다. 회귀 테스트 4개(
+>      `ScopeFlagDiscardingFilesIsAnnouncedTest`)가 세 플래그 각각과 "경고하면 안 되는" 두 경우를
+>      고정한다. 구조적 차단(`add_mutually_exclusive_group`)은 아래 동반 항목과 함께 남는다.
+>    - 동반: `get_directory_files()` 가 `.gitignore` 를 안 보는 raw `os.walk` 이고,
+>      `collect_change_infos` 의 `elif args.files:` 분기에는 기본 경로에 있는
+>      `warn_if_committed_work_is_missing` 대칭 안전장치가 없다.
+>    - 동반: changeset 이 `review/**` 로만 구성되면 그 자체가 오구성 신호 — advisory 경고 대상.
+> 12. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
@@ -100,16 +162,35 @@ priority: P2
 
 - [ ] **CI 게이트**: PR 에 `codebase/**` diff 가 있는데 그 변경을 커버하는 *해결된* 리뷰
       산출물이 없으면 CI fail. 훅(로컬 PreToolUse)과 **독립**이라 정규식 사각지대를 공유하지 않는다.
-      - 리뷰 산출물(`review/code/**`)은 gitignored 라 PR 에 없다 → CI 가 무엇으로 "리뷰됨" 을
-        판정할지 설계 필요(커밋 trailer? PR label? 별도 signed marker?).
+      - ~~리뷰 산출물(`review/code/**`)은 gitignored 라 PR 에 없다 → CI 가 무엇으로 "리뷰됨" 을
+        판정할지 설계 필요(커밋 trailer? PR label? 별도 signed marker?).~~
+        **전제 반증 (2026-08-01 실측)**. `.gitignore` 가 제외하는 것은 `review/**/_prompts/`
+        뿐이고, `origin/main` 이 `review/code` 아래 **8,851개**(`review/` 전체 14,517개)를
+        추적한다. 산출물은 PR 에 그대로 들어있다 → 별도 marker 설계가 필요 없다.
 - [ ] 대안: push 시 게이트 **통과 기록**(상태 파일 타임스탬프)을 남기고, 별도 감사에서
       "codebase 변경 push 인데 기록 없음" 을 탐지. 단 이것도 "codebase 변경 push" 판정에
       정규식이 끼면 부분적으로만 독립.
 
 ## 결정이 필요한 지점 (그래서 P2, 사용자/설계 판단)
 
-- CI 가 "리뷰됨" 을 무엇으로 인식하는가 — gitignored 산출물을 CI 에 어떻게 노출하나.
-- 로컬 훅과 CI 의 **이중 게이트**가 마찰(느린 CI·false block)을 얼마나 만드나.
+> **2026-08-01 실측으로 아래 3건 중 1건은 소멸, 1건은 이미 해결돼 있었다.** 남은 것은 마찰 판단뿐.
+
+- ~~CI 가 "리뷰됨" 을 무엇으로 인식하는가 — gitignored 산출물을 CI 에 어떻게 노출하나.~~
+  **소멸** — 산출물이 커밋돼 있다(위 §후보 참조). CI 는 로컬 훅과 **같은** `evaluate_review()` 를
+  그대로 호출하면 된다. 판정자가 하나라 로컬/CI 판정이 갈릴 여지도 없다.
+- ~~CI 체크아웃은 mtime 을 뭉개니 신선도 판정이 불가할 것~~ — **이미 해결돼 있음**(적어둔 적
+  없는 암묵 전제였다). `review_guard` 는 fs mtime 을 신뢰하지 않는다: clean 파일은 마지막 커밋
+  시각을 쓰고, "리뷰가 언제 돌았나" 의 정본 시계는 세션 **디렉토리 이름**이다 — 둘 다
+  checkout-immune. 즉 CI 백스톱은 판정 메커니즘 설계가 아니라 **배선** 작업이다.
+- **남은 실질 결정: 이중 게이트의 마찰.** 실측(게이트 도입 `fa3cf81ad` 이후 main first-parent
+  666 커밋): `codebase/**` 를 건드린 427건 중 61건(14%)이 같은 커밋에 SUMMARY.md 가 없다.
+  분해 = dependabot/build(deps) 3 · lockfile-only 1 · 그 외 진짜 소스 변경 57.
+  - ⚠️ **이 57 은 상한이지 차단 예측치가 아니다.** 프록시가 "같은 커밋에 산출물" 인데
+    `evaluate_review()` 의 술어는 그게 아니다. 이 저장소는 코드와 리뷰 산출물을 **별도 커밋**
+    으로 올리므로(이 브랜치 자신이 그렇다) rebase-merge 된 PR 은 코드 커밋만 보면 전부
+    "동반 없음" 으로 잡힌다. 착수 시 PR 단위로 재측정할 것.
+  - **확실한 마찰 1건: dependabot.** 봇 PR 은 로컬 훅을 아예 안 거치므로 CI 게이트가 무조건
+    fail 시킨다. 예외 처리가 설계에 반드시 들어가야 한다.
 - 이 저장소가 이미 `guard_review_before_push` 를 신뢰하는데, 두 번째 층의 비용 대비 이득.
 
 ## Rationale

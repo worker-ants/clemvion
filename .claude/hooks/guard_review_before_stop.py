@@ -28,6 +28,7 @@ with `BYPASS_REVIEW_GUARD=1`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -105,6 +106,11 @@ def _new_outcome():
             self.answered: list = []
             self.bypassed: list = []
             self.degraded: list = []
+            # Unused by this hook (its advisories print straight from the
+            # decision), but present so every Outcome shape in the tree carries
+            # the same fields — the push side already diverged once by having it
+            # on only one of its two.
+            self.notes: list = []
 
     return _Fallback()
 
@@ -348,6 +354,42 @@ def _run(outcome) -> int:
             decision = None
         else:
             outcome.answered.append(_GATE_REVIEW)
+        # Advisories that do not block. Always stderr here — this hook's stdout
+        # is the `{"decision": …}` JSON protocol, so the push guard's
+        # "stderr on refuse, stdout on allow" rule must NOT be copied over
+        # (`_report_fail_open` documents the same asymmetry for its banner).
+        #
+        # Wired here as well as on push because this hook runs FIRST: the turn
+        # ends before anything is pushed, and a session the gate stops trusting
+        # in between takes its advisory with it — the warning would not be late,
+        # it would be gone.
+        try:
+            # Throttled like the nudge below. Without it the same advisory
+            # reprints on every turn-end attempt of the session — and this
+            # module's own docstrings argue that a warning which always fires is
+            # one nobody reads. The marker keys on a digest of the note TEXT, so
+            # a DIFFERENT contradiction still gets through.
+            #
+            # It keyed on `enumerate`'s index until a review measured what that
+            # actually did. `notes` holds at most one entry (the gate reports
+            # only the session it adopted), so the index is always 0 — meaning
+            # the first downgrade warning on a branch permanently suppressed
+            # every later one, from a different session, a different checker,
+            # any text at all. That is this PR's own failure mode ("a downgrade
+            # passes silently") rebuilt inside the thing meant to catch it.
+            for note in ((getattr(decision, "notes", ()) or ()) if decision else ()):
+                digest = hashlib.sha1(note.encode("utf-8")).hexdigest()[:12]
+                marker = _marker_path(session_id, token, f"note{digest}")
+                if _already_nudged(marker):
+                    continue
+                _mark_nudged(marker)
+                print(note, file=sys.stderr)
+        except Exception:  # noqa: BLE001
+            # Observation must never break the guard — and here it would break
+            # more than itself: an exception escaping this block skips the
+            # PLAN-COMPLETE gate below for this run. The push hook wraps the
+            # same responsibility; this one has more to lose by not doing so.
+            pass
         # Suppress while a resolution-applier fix is in flight (Stop only); fall
         # through to the plan nudge rather than returning, so an unrelated
         # plan-complete nudge can still fire.

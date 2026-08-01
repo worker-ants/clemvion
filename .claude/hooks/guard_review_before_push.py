@@ -730,6 +730,26 @@ _GATE_PLAN = "PLAN"
 _ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
 
 
+def _report_notes(outcome, exit_code: int) -> None:
+    """Surface gate advisories that did not change the verdict.
+
+    Same stream rule as `_report_fail_open`, for the same reason: on exit 2 the
+    harness reads stderr, on exit 0 it injects stdout into the model's context.
+    These advisories exist for the allow path — the downgrade backstop fires when
+    a session the gate is *trusting* contradicts its own checkers — so putting
+    them on stderr would file them exactly where nothing reads them.
+    """
+    notes = getattr(outcome, "notes", None)
+    if not notes:
+        return
+    stream = sys.stderr if exit_code == 2 else sys.stdout
+    try:
+        for note in notes:
+            print(note, file=stream)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _report_fail_open(outcome, exit_code: int) -> None:
     """Announce (and count) any gate that could not answer.
 
@@ -776,6 +796,7 @@ else:  # minimal stand-in so the gates can still record what they did.
             self.answered: list = []
             self.bypassed: list = []
             self.degraded: list = []
+            self.notes: list = []
 
 
 def _import_reason(module: str, symbol: str, error: str) -> str:
@@ -803,9 +824,23 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
 
     `_accepts_cwd` decides scoping: a gate whose signature takes no positional
     cwd is called bare, exactly as before scoping existed (legacy degrade).
+
+    Third responsibility, added later: **advisory collection**. A decision may
+    carry `notes` — observations that change no verdict — and they are drained
+    into `outcome.notes` here rather than at the call sites, because they must
+    survive on both paths. A note filed by a target that then blocks is the one
+    most worth keeping: the session being rejected may be the very one that
+    downgraded a Critical.
+
+    Which is why blocking no longer returns from inside the loop. It used to,
+    and that silently dropped the notes of every target ordered *after* the
+    first blocking one — a review found the gap before any test did. The first
+    blocking target still decides the message; the loop runs to the end so the
+    remaining targets can still contribute advisories.
     """
     scoped = _accepts_cwd(evaluate)
     answered = False
+    blocked = None
     for target in targets if scoped else [None]:
         try:
             result = evaluate(target) if scoped else evaluate()
@@ -823,13 +858,29 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
             # needs its own `degraded` reason here.
             continue
         answered = True
-        if result.push_blocks:
-            if gate not in outcome.answered:
-                outcome.answered.append(gate)
-            return render(result, target if scoped else os.getcwd())
+        # Advisories ride on the decision, not on a `print` inside the gate: the
+        # stream depends on this hook's exit code, and these fire on the ALLOW
+        # path where only stdout reaches the model.
+        notes = getattr(outcome, "notes", None)
+        if notes is None:
+            # `_Outcome` may come from `failopen_state` (which predates this
+            # field) or from the local fallback — attach on first use rather than
+            # requiring both definitions to carry it.
+            notes = []
+            outcome.notes = notes
+        for note in getattr(result, "notes", ()) or ():
+            if note not in notes:
+                notes.append(note)
+        if result.push_blocks and blocked is None:
+            # Remember, do NOT return. Returning here ends the loop, so any
+            # target after this one never gets evaluated and its advisories are
+            # lost — and the push is being refused, which is exactly when the
+            # reader most needs to see every one of them. The first blocking
+            # target still supplies the message; the rest only contribute notes.
+            blocked = render(result, target if scoped else os.getcwd())
     if answered and gate not in outcome.answered:
         outcome.answered.append(gate)
-    return None
+    return blocked
 
 
 def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
@@ -925,6 +976,7 @@ def main() -> int:
         return 0
     finally:
         _report_fail_open(outcome, exit_code)
+        _report_notes(outcome, exit_code)
 
 
 if __name__ == "__main__":
