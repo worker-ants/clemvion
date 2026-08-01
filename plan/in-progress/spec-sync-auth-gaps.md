@@ -17,9 +17,24 @@ owner: planner
       *(착수 시점 실측 — 이제는 해소됨: 네 모듈에 `AuditLogsService` import 가 **0건**이었다.)*
 - [ ] **spec SoT 4곳 동기화 — planner 턴 필요** (`developer` 는 `spec/` read-only).
       `5-system/1-auth.md §4.1` Planned→구현 이동 · `data-flow/1-audit.md §1.1` 커버리지 갭
-      문단·표 갱신 · `conventions/audit-actions.md §3` 상태 컬럼 · `2-navigation/2-trigger-list.md`
-      L182/L252 (`trigger.delete` **액션명 오기** 포함 — 실제는 `trigger.deleted`).
+      문단·표 갱신 · `conventions/audit-actions.md §3` 상태 컬럼 · **audit 액션명 오기 3곳**.
       한 커밋에서 동시에 고쳐야 재drift 하지 않는다 (impl-prep 09_11_58 이 예견).
+
+      **액션명 오기 3곳** (전수 재확인: `rg "trigger\.(delete|update)\b" spec/`):
+
+      | 위치 | 현재 | 정정 | 주의 |
+      | --- | --- | --- | --- |
+      | `2-navigation/2-trigger-list.md:182` | `trigger.delete` ×2 | **둘 다 틀렸다 (각각 다른 이유)** | 뒤쪽(audit action) → `trigger.deleted`. 앞쪽은 "`trigger.delete` **permission** 으로 보호" 라고 쓰는데 **그런 permission 은 존재하지 않는다** — spec §3 에도 코드에도 없고, 인가는 역할 기반(`@Roles('editor')`)이다. `§3.2 리소스별 권한 매트릭스` 인용으로 바꿔야 한다 |
+      | `2-navigation/2-trigger-list.md:252` | `trigger.update` | `trigger.updated` | — |
+      | `5-system/15-chat-channel.md:377` | `trigger.update` | `trigger.updated` | **impl-done consistency(19_26_35 naming_collision)가 추가 발견** — 원래 인계 목록에 없던 세 번째 지점 |
+- [ ] **신규 설계 결정 2건을 spec `## Rationale` 로 승격** — impl-done consistency(19_26_35
+      `rationale_continuity` INFO). 아래 둘은 기존 Rationale 을 번복하지 않지만 **현재 코드
+      주석(`audit-action.const.ts`)에만 있어** spec 독자가 알 수 없다. 위 planner 턴에서 함께
+      기록해야 다음 사람이 같은 판단을 다시 하지 않는다.
+      - **1:1 결합 리소스는 주(主) 리소스만 기록** — `Schedule`↔`Trigger` 는 서로의 row 를
+        직접 쓰지만 짝의 액션은 남기지 않는다. 사용자 행위 하나가 감사에 2행으로 보이는 것을
+        막기 위함이며, 기준은 **호출된 엔드포인트의 리소스**다.
+      - **고빈도 액션은 보존 정책 확정 전까지 유예** — `workflow.executed` 배제의 일반 원칙.
 - [ ] **`workflow.executed`** — Planned 잔류. CRUD 와 카디널리티 차원이 달라
       (트리거·webhook 발동마다 적재) `audit_log` 보존 정책 결정과 묶어야 한다.
       실측: `audit_log` 은 pruner 가 없고 정책 미정(`login_history` 는 정리 배치 존재).
