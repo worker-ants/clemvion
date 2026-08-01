@@ -30,7 +30,7 @@
     "eslint-config-next": "^16.2.6",
     "jsdom": "^29.0.1",
     "typescript": "^5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=24"
