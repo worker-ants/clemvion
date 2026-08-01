@@ -284,6 +284,8 @@ export class ModelConfigService {
           manager.save(ModelConfig, manager.create(ModelConfig, entityFields)),
         )
       : await this.repo.save(this.repo.create(entityFields));
+    // 커밋 뒤 기록 — `saveWithDefaultSwap` 분기는 트랜잭션이라, 안에서 기록하면 롤백 시
+    // 일어나지 않은 생성이 감사에 남는다. (다른 진입점·서비스와 같은 규칙.)
     await this.recordAudit({
       workspaceId,
       userId,

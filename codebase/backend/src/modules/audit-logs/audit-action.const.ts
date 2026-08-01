@@ -104,3 +104,21 @@ export type AuditActionFor<P extends string> = Extract<
   AuditAction,
   `${P}.${string}`
 >;
+
+/**
+ * `AuditActionFor` 가 **실제로 좁히는지** 를 빌드가 검증하는 가드.
+ *
+ * 서비스 4곳이 이 타입을 쓰지만, 그것만으로는 **넓어지는** 회귀를 못 잡는다 — 더 넓은 타입은
+ * 좁은 값을 그대로 받아들여 전부 통과하기 때문이다. 아래는 그 반대 방향을 고정한다:
+ * 다른 도메인 액션이 `AuditActionFor<'workflow'>` 에 들어오면 `_NoCrossDomain` 이 `never` 가
+ * 되고, `never` 타입 변수에 `true` 를 대입할 수 없어 **컴파일이 깨진다**.
+ *
+ * 이 파일에 두는 이유: `tsconfig.build.json` 의 exclude 가 spec 파일을 걸러내므로, spec 에 둔
+ * 타입 단언은 `nest build` 가 검사하지 않아 장식이 된다. 소스 파일이라야 TEST WORKFLOW 의
+ * build 단계가 실제로 검증한다. (8차 리뷰 testing INFO — 수작업 1회성 `tsc` 확인을 상시
+ * 빌드 불변식으로 승격.)
+ */
+type _NoCrossDomain =
+  'trigger.created' extends AuditActionFor<'workflow'> ? never : true;
+const _auditActionForNarrows: _NoCrossDomain = true;
+void _auditActionForNarrows;

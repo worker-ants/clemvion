@@ -179,6 +179,44 @@ RED 를 확인했다. 기존 교훈("앵커 존재를 먼저 단언")을 **"존�
 나머지 5건은 spec 영역. 발견의 성격이 *동작 → 구조 → 테스트 → 타입 정밀도 → 문서* 로
 이동했고, 7차의 코드 지적은 전부 "더 좁힐 수 있다" 류이지 오동작이 아니다.
 
+## 8차 리뷰 (`review/code/2026/08/01/18_44_56`) — Critical 0 / Warning 7
+
+7차 조치 커밋의 델타 6파일을 재리뷰. reviewer 8명 전원 성공, forced 6명 전원 산출물 확보.
+이번엔 요약 에이전트도 성공해 반환 전문을 그대로 영속화했다.
+
+| # | 관점 | 항목 | 처분 |
+|---|---|---|---|
+| 1 | security (MEDIUM) | 트리거 시크릿/토큰 회전 3종이 감사 미기록 | **후속 등재** — 대응 액션이 spec 카탈로그에 없어(`trigger.rotate*` 0건, 실측) planner 선행 필요 |
+| 2~5 | requirement ×4 · documentation | SPEC-DRIFT | 기존 인계 항목의 재확인 |
+| 6 | maintainability | `AuditActionFor<'workflow'>` 리터럴과 `WORKFLOW_RESOURCE_TYPE` 이중 하드코딩 | **조치** (`8f4bcc378`) |
+
+### 6번은 7차 조치가 남긴 실이었다
+
+7차에 "resourceType↔action 모순을 타입으로 막았다" 고 했는데, prefix 리터럴을 상수와 따로
+들고 있어 **둘이 갈라지면 그 모순이 그대로 되살아난다**. `AuditActionFor<typeof
+WORKFLOW_RESOURCE_TYPE>` 로 결속했다 — 상수를 `'workflowz'` 로 오타내면 좁힘이 `never` 로
+붕괴해 `tsc` RED (TS2322).
+
+### INFO 2건도 처리했다
+
+- **타입 제약의 회귀 테스트 부재** (testing INFO): 서비스 4곳이 `AuditActionFor` 를 쓰는 것만으로는
+  **넓어지는** 회귀를 못 잡는다(넓은 타입은 좁은 값을 다 받는다). `audit-action.const.ts` 에
+  빌드가 검증하는 타입 가드를 넣었다. **spec 파일이 아니라 소스 파일에 둔 것이 핵심** —
+  `tsconfig.build.json` 의 exclude 가 spec 을 걸러내 spec 에 둔 단언은 `nest build` 가 검사하지
+  않는다(장식이 된다). 검증: 좁힘을 없애면 build 가 TS2322 로 RED.
+- `ModelConfigService.create()` 의 "커밋 후 기록" 근거 주석 누락 (documentation INFO) — 보충.
+
+### 가드를 쓰다가 스스로 문법을 깨뜨렸다
+
+타입 가드 docstring 에 `**` + `/*spec.ts` 형태의 glob 을 적었더니 그 안의 `*` + `/` 가 블록 주석을
+조기 종료해 파일 전체가 깨졌다. 그 상태로 뮤턴트를 돌려 **"RED ✅" 를 한 번 잘못 읽었다** —
+가드가 아니라 문법 오류가 낸 RED 였다. 이후 **기준선(무뮤턴트) 통과를 먼저 단언**하고 뮤턴트를
+돌리도록 고쳤다. 뮤턴트 판정 전에 기준선이 GREEN 인지 확인하지 않으면 어떤 RED 도 의미가 없다.
+
+**수렴 판정**: 8차의 코드 지적 1건은 7차 조치의 마감이었고, 그 외 6건은 전부 `developer`
+권한 밖이다. 동작 결함은 4차 이후 0. 라운드별 코드 발견: 4차 1 → 5차 0 → 6차 0 → 7차 3 →
+8차 1(마감).
+
 ## TEST 결과
 
 - **lint**: PASS
