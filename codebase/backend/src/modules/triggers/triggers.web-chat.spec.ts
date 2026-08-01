@@ -139,17 +139,21 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
       position: 'bottom-right',
       headerTitle: 'Bot',
     };
-    const result = await service.create('ws-1', {
-      type: 'webhook',
-      workflowId: 'wf-1',
-      name: 'n',
-      endpointPath: 'ep',
-      interaction: {
-        enabled: true,
-        tokenStrategy: 'per_execution',
-        appearance,
-      },
-    } as never, 'u-spec');
+    const result = await service.create(
+      'ws-1',
+      {
+        type: 'webhook',
+        workflowId: 'wf-1',
+        name: 'n',
+        endpointPath: 'ep',
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_execution',
+          appearance,
+        },
+      } as never,
+      'u-spec',
+    );
     expect(
       (result.config as { interaction?: { appearance?: unknown } }).interaction
         ?.appearance,
@@ -171,13 +175,18 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
       update: jest.fn(),
     });
     const appearance = { primaryColor: '#112233', welcomeText: '안녕하세요' };
-    const result = await service.update('t-1', 'ws-1', {
-      interaction: {
-        enabled: true,
-        tokenStrategy: 'per_execution',
-        appearance,
-      },
-    } as never, 'u-spec');
+    const result = await service.update(
+      't-1',
+      'ws-1',
+      {
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_execution',
+          appearance,
+        },
+      } as never,
+      'u-spec',
+    );
     const interaction = (
       result.config as { interaction?: Record<string, unknown> }
     ).interaction;

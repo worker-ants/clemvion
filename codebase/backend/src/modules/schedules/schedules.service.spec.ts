@@ -209,36 +209,52 @@ describe('SchedulesService.runNow', () => {
     });
 
     it('dto.timezone 명시(유효) 시 우선 (workspace 미조회)', async () => {
-      const s = await service.create('ws-1', {
-        ...baseDto,
-        timezone: 'America/New_York',
-      } as unknown as CreateScheduleDto, 'u-spec');
+      const s = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+          timezone: 'America/New_York',
+        } as unknown as CreateScheduleDto,
+        'u-spec',
+      );
       expect(s.timezone).toBe('America/New_York');
       expect(workspacesService.getWorkspaceTimezone).not.toHaveBeenCalled();
     });
 
     it('dto.timezone 무효 → INVALID_TIMEZONE BadRequest', async () => {
       await expect(
-        service.create('ws-1', {
-          ...baseDto,
-          timezone: 'Not/AZone',
-        } as unknown as CreateScheduleDto, 'u-spec'),
+        service.create(
+          'ws-1',
+          {
+            ...baseDto,
+            timezone: 'Not/AZone',
+          } as unknown as CreateScheduleDto,
+          'u-spec',
+        ),
       ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
     });
 
     it('dto.timezone 없으면 workspace 설정 timezone fallback', async () => {
       workspacesService.getWorkspaceTimezone.mockResolvedValue('Europe/London');
-      const s = await service.create('ws-1', {
-        ...baseDto,
-      } as unknown as CreateScheduleDto, 'u-spec');
+      const s = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+        } as unknown as CreateScheduleDto,
+        'u-spec',
+      );
       expect(s.timezone).toBe('Europe/London');
     });
 
     it('dto·workspace 둘 다 없으면(undefined) Asia/Seoul', async () => {
       workspacesService.getWorkspaceTimezone.mockResolvedValue(undefined);
-      const s = await service.create('ws-1', {
-        ...baseDto,
-      } as unknown as CreateScheduleDto, 'u-spec');
+      const s = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+        } as unknown as CreateScheduleDto,
+        'u-spec',
+      );
       expect(s.timezone).toBe('Asia/Seoul');
     });
 

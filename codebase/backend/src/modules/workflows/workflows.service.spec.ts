@@ -314,9 +314,14 @@ describe('WorkflowsService', () => {
         workspaceId: 'ws-uuid-1',
         settings: { existingKey: 'keep' },
       });
-      await service.update('wf-uuid-1', 'ws-uuid-1', {
-        settings: { maxConcurrentExecutions: 4 },
-      } as UpdateWorkflowDto, 'u-spec');
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        {
+          settings: { maxConcurrentExecutions: 4 },
+        } as UpdateWorkflowDto,
+        'u-spec',
+      );
       expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           settings: { existingKey: 'keep', maxConcurrentExecutions: 4 },
@@ -330,9 +335,14 @@ describe('WorkflowsService', () => {
         workspaceId: 'ws-uuid-1',
         settings: { maxConcurrentExecutions: 2 },
       });
-      await service.update('wf-uuid-1', 'ws-uuid-1', {
-        name: 'renamed',
-      } as UpdateWorkflowDto, 'u-spec');
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        {
+          name: 'renamed',
+        } as UpdateWorkflowDto,
+        'u-spec',
+      );
       expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'renamed',
@@ -347,9 +357,14 @@ describe('WorkflowsService', () => {
         workspaceId: 'ws-uuid-1',
         settings: null,
       });
-      await service.update('wf-uuid-1', 'ws-uuid-1', {
-        settings: { maxConcurrentExecutions: 7 },
-      } as UpdateWorkflowDto, 'u-spec');
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        {
+          settings: { maxConcurrentExecutions: 7 },
+        } as UpdateWorkflowDto,
+        'u-spec',
+      );
       expect(mockRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           settings: { maxConcurrentExecutions: 7 },
@@ -725,7 +740,6 @@ describe('WorkflowsService', () => {
         }),
       );
     });
-
 
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.

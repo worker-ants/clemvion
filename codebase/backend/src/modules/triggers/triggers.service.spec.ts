@@ -505,12 +505,16 @@ describe('TriggersService — notification/interaction config 병합 (External I
       id: 'ac-1',
       workspaceId: 'ws',
     } as AuthConfig);
-    await service.create('ws', {
-      workflowId: 'wf-1',
-      type: 'webhook',
-      name: 'hook',
-      authConfigId: 'ac-1',
-    }, 'u-spec');
+    await service.create(
+      'ws',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        authConfigId: 'ac-1',
+      },
+      'u-spec',
+    );
     expect(authConfigRepo.findOne).toHaveBeenCalledWith({
       where: { id: 'ac-1', workspaceId: 'ws' },
     });
@@ -520,12 +524,16 @@ describe('TriggersService — notification/interaction config 병합 (External I
   it('create — authConfigId 가 다른 워크스페이스(미존재)면 AUTH_CONFIG_NOT_FOUND + create 미호출', async () => {
     authConfigRepo.findOne.mockResolvedValue(null);
     const err = await service
-      .create('ws', {
-        workflowId: 'wf-1',
-        type: 'webhook',
-        name: 'hook',
-        authConfigId: 'other-ws-ac',
-      }, 'u-spec')
+      .create(
+        'ws',
+        {
+          workflowId: 'wf-1',
+          type: 'webhook',
+          name: 'hook',
+          authConfigId: 'other-ws-ac',
+        },
+        'u-spec',
+      )
       .catch((err_: unknown) => err_ as BadRequestException);
     expect(err).toBeInstanceOf(BadRequestException);
     expect((err as BadRequestException).getResponse()).toMatchObject({
@@ -535,16 +543,20 @@ describe('TriggersService — notification/interaction config 병합 (External I
   });
 
   it('create — notification/interaction 을 config JSONB 안으로 병합 (1급 컬럼 아님)', async () => {
-    const result = await service.create('ws', {
-      workflowId: 'wf-1',
-      type: 'webhook',
-      name: 'hook',
-      notification: {
-        url: 'https://customer.example.com/cb',
-        events: ['execution.completed'],
+    const result = await service.create(
+      'ws',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        notification: {
+          url: 'https://customer.example.com/cb',
+          events: ['execution.completed'],
+        },
+        interaction: { enabled: true, tokenStrategy: 'per_execution' },
       },
-      interaction: { enabled: true, tokenStrategy: 'per_execution' },
-    }, 'u-spec');
+      'u-spec',
+    );
 
     expect(triggerRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -564,18 +576,22 @@ describe('TriggersService — notification/interaction config 병합 (External I
   });
 
   it('create — 기존 config 보존 + notification 병합 + inline 인증 키 strip', async () => {
-    await service.create('ws', {
-      workflowId: 'wf-1',
-      type: 'webhook',
-      name: 'hook',
-      // method 는 비인증 키 → 보존. hmacAlgorithm/bearerToken 은 폐기된 inline 인증
-      // 키 → strip (인증은 authConfigId 로만; spec 5-system/12-webhook.md §2.2).
-      config: { method: 'POST', hmacAlgorithm: 'sha256', bearerToken: 'x' },
-      notification: {
-        url: 'https://customer.example.com/cb',
-        events: ['execution.completed'],
+    await service.create(
+      'ws',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        // method 는 비인증 키 → 보존. hmacAlgorithm/bearerToken 은 폐기된 inline 인증
+        // 키 → strip (인증은 authConfigId 로만; spec 5-system/12-webhook.md §2.2).
+        config: { method: 'POST', hmacAlgorithm: 'sha256', bearerToken: 'x' },
+        notification: {
+          url: 'https://customer.example.com/cb',
+          events: ['execution.completed'],
+        },
       },
-    }, 'u-spec');
+      'u-spec',
+    );
 
     expect(triggerRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -594,15 +610,19 @@ describe('TriggersService — notification/interaction config 병합 (External I
 
   it('create — notification.url 이 사설 IP 면 INVALID_NOTIFICATION_URL', async () => {
     await expect(
-      service.create('ws', {
-        workflowId: 'wf-1',
-        type: 'webhook',
-        name: 'hook',
-        notification: {
-          url: 'https://192.168.0.1/x',
-          events: ['execution.completed'],
+      service.create(
+        'ws',
+        {
+          workflowId: 'wf-1',
+          type: 'webhook',
+          name: 'hook',
+          notification: {
+            url: 'https://192.168.0.1/x',
+            events: ['execution.completed'],
+          },
         },
-      }, 'u-spec'),
+        'u-spec',
+      ),
     ).rejects.toMatchObject({
       response: { code: 'INVALID_NOTIFICATION_URL' },
     });
@@ -614,15 +634,19 @@ describe('TriggersService — notification/interaction config 병합 (External I
     delete process.env.ALLOW_HTTP_HOOKS;
     try {
       await expect(
-        service.create('ws', {
-          workflowId: 'wf-1',
-          type: 'webhook',
-          name: 'hook',
-          notification: {
-            url: 'http://customer.example.com/cb',
-            events: ['execution.completed'],
+        service.create(
+          'ws',
+          {
+            workflowId: 'wf-1',
+            type: 'webhook',
+            name: 'hook',
+            notification: {
+              url: 'http://customer.example.com/cb',
+              events: ['execution.completed'],
+            },
           },
-        }, 'u-spec'),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: { code: 'INVALID_NOTIFICATION_URL' },
       });
@@ -691,10 +715,15 @@ describe('TriggersService — notification/interaction config 병합 (External I
     } as unknown as Trigger);
 
     await expect(
-      service.update('t-sch', 'ws', {
-        endpointPath: '/new-path',
-        config: { authType: 'hmac' },
-      }, 'u-spec'),
+      service.update(
+        't-sch',
+        'ws',
+        {
+          endpointPath: '/new-path',
+          config: { authType: 'hmac' },
+        },
+        'u-spec',
+      ),
     ).rejects.toMatchObject({
       response: {
         code: 'VALIDATION_ERROR',
@@ -715,10 +744,15 @@ describe('TriggersService — notification/interaction config 병합 (External I
       config: {},
     } as unknown as Trigger);
 
-    const result = await service.update('t-sch', 'ws', {
-      name: 'renamed',
-      isActive: false,
-    }, 'u-spec');
+    const result = await service.update(
+      't-sch',
+      'ws',
+      {
+        name: 'renamed',
+        isActive: false,
+      },
+      'u-spec',
+    );
     expect(result.name).toBe('renamed');
     expect(result.isActive).toBe(false);
     expect(triggerRepo.save).toHaveBeenCalledTimes(1);
@@ -738,12 +772,17 @@ describe('TriggersService — notification/interaction config 병합 (External I
       },
     } as unknown as Trigger);
 
-    const result = await service.update('t1', 'ws', {
-      notification: {
-        url: 'https://new.example.com/cb',
-        events: ['execution.completed'],
+    const result = await service.update(
+      't1',
+      'ws',
+      {
+        notification: {
+          url: 'https://new.example.com/cb',
+          events: ['execution.completed'],
+        },
       },
-    }, 'u-spec');
+      'u-spec',
+    );
     expect(result.config.notification).toEqual({
       url: 'https://new.example.com/cb',
       events: ['execution.completed'],
@@ -1035,9 +1074,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update('trig-1', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    }, 'u-spec');
+    await service.update(
+      'trig-1',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     // botToken 저장
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1066,9 +1110,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update('trig-1', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    }, 'u-spec');
+    await service.update(
+      'trig-1',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     const rotateCalls = (secrets.rotate as jest.Mock).mock.calls;
     const webhookCalls = rotateCalls.filter(([ref]) =>
@@ -1084,9 +1133,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update('trig-1', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    }, 'u-spec');
+    await service.update(
+      'trig-1',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     // botToken 은 이미 저장됨 (setupChannel 실패 이전)
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1120,13 +1174,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update('trig-1', 'ws-1', {
-        chatChannel: {
-          provider: 'slack',
-          botToken: 'xoxb-fake-token',
-          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+      await service.update(
+        'trig-1',
+        'ws-1',
+        {
+          chatChannel: {
+            provider: 'slack',
+            botToken: 'xoxb-fake-token',
+            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+          },
         },
-      }, 'u-spec');
+        'u-spec',
+      );
 
       // botToken 저장
       expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1159,9 +1218,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: { provider: 'slack', botToken: 'xoxb-fake-token' },
-        }, 'u-spec'),
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: { provider: 'slack', botToken: 'xoxb-fake-token' },
+          },
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1175,13 +1239,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-fake-token',
-            inboundSigningPlaintext: 'too-short-not-hex',
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: {
+              provider: 'slack',
+              botToken: 'xoxb-fake-token',
+              inboundSigningPlaintext: 'too-short-not-hex',
+            },
           },
-        }, 'u-spec'),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1194,13 +1263,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update('trig-1', 'ws-1', {
-        chatChannel: {
-          provider: 'discord',
-          botToken: 'discord-bot-token',
-          inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+      await service.update(
+        'trig-1',
+        'ws-1',
+        {
+          chatChannel: {
+            provider: 'discord',
+            botToken: 'discord-bot-token',
+            inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+          },
         },
-      }, 'u-spec');
+        'u-spec',
+      );
 
       expect(secrets.rotate).toHaveBeenCalledWith(
         'secret://triggers/trig-1/inbound-signing',
@@ -1218,13 +1292,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: {
-            provider: 'discord',
-            botToken: 'discord-bot-token',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: {
+              provider: 'discord',
+              botToken: 'discord-bot-token',
+              inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
+            },
           },
-        }, 'u-spec'),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1238,13 +1317,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:TestToken',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: {
+              provider: 'telegram',
+              botToken: '111:TestToken',
+              inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+            },
           },
-        }, 'u-spec'),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1257,13 +1341,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update('trig-1', 'ws-1', {
-        chatChannel: {
-          provider: 'slack',
-          botToken: 'xoxb-fake-token',
-          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+      await service.update(
+        'trig-1',
+        'ws-1',
+        {
+          chatChannel: {
+            provider: 'slack',
+            botToken: 'xoxb-fake-token',
+            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+          },
         },
-      }, 'u-spec');
+        'u-spec',
+      );
 
       // (a) 최종 update 시 plaintext 가 config 에 없어야 함.
       const updateCalls = (triggerRepo.update as jest.Mock).mock.calls;
@@ -1395,9 +1484,14 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       key === 'app.url' ? 'https://workflow-api.getit.co.kr' : undefined,
     );
 
-    await service.update('trig-tg', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    }, 'u-spec');
+    await service.update(
+      'trig-tg',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
       expect.anything(),
@@ -1418,9 +1512,14 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         : undefined,
     );
 
-    await service.update('trig-tg', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    }, 'u-spec');
+    await service.update(
+      'trig-tg',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     const passedCallback = mockAdapter.setupChannel.mock.calls[0][1] as string;
     expect(passedCallback).not.toContain('should-not-be-used.example.com');
@@ -1439,9 +1538,14 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       endpointPath: '/hook-abc',
     } as unknown as Trigger);
 
-    await service.update('trig-tg', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    }, 'u-spec');
+    await service.update(
+      'trig-tg',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
       expect.anything(),

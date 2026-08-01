@@ -122,7 +122,9 @@ describe('ModelConfigService', () => {
         name: 'Cohere',
         defaultModel: 'rerank-3.5',
       };
-      await expect(service.create('ws-1', 'rerank', dto, 'u-spec')).rejects.toThrow();
+      await expect(
+        service.create('ws-1', 'rerank', dto, 'u-spec'),
+      ).rejects.toThrow();
     });
   });
 
@@ -383,7 +385,9 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.remove('missing', 'ws-1', 'u-spec')).rejects.toThrow();
+      await expect(
+        service.remove('missing', 'ws-1', 'u-spec'),
+      ).rejects.toThrow();
       expect(mockRepo.remove).not.toHaveBeenCalled();
       expect(listener).not.toHaveBeenCalled();
     });
@@ -449,7 +453,9 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(bad);
       mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
 
-      await expect(service.remove('cfg-9', 'ws-1', 'u-spec')).resolves.toBeUndefined();
+      await expect(
+        service.remove('cfg-9', 'ws-1', 'u-spec'),
+      ).resolves.toBeUndefined();
       expect(bad).toHaveBeenCalledWith('cfg-9');
     });
   });
@@ -483,7 +489,9 @@ describe('ModelConfigService', () => {
         apiKey: 'sk-anything',
         defaultModel: 'gpt-4o',
       };
-      await expect(svcNoKey.create('ws-1', 'chat', dto, 'u-spec')).rejects.toMatchObject({
+      await expect(
+        svcNoKey.create('ws-1', 'chat', dto, 'u-spec'),
+      ).rejects.toMatchObject({
         response: { code: 'ENCRYPTION_KEY_MISSING' },
       });
     });
@@ -701,9 +709,9 @@ describe('ModelConfigService', () => {
         baseUrl: 'http://169.254.169.254/latest/meta-data',
         defaultModel: 'rerank-3.5',
       };
-      await expect(service.create('ws-1', 'rerank', dto, 'u-spec')).rejects.toMatchObject(
-        { response: { code: 'MODEL_CONFIG_INVALID' } },
-      );
+      await expect(
+        service.create('ws-1', 'rerank', dto, 'u-spec'),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_INVALID' } });
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -750,7 +758,9 @@ describe('ModelConfigService', () => {
         baseUrl: 'http://attacker.com/evil',
         defaultModel: 'gpt-4o',
       };
-      await expect(service.create('ws-1', 'chat', dto, 'u-spec')).rejects.toMatchObject({
+      await expect(
+        service.create('ws-1', 'chat', dto, 'u-spec'),
+      ).rejects.toMatchObject({
         response: { code: 'MODEL_CONFIG_INVALID' },
       });
       expect(spy).toHaveBeenCalled();
@@ -771,7 +781,9 @@ describe('ModelConfigService', () => {
         baseUrl: 'https://proxy.example.com/v1',
         defaultModel: 'gpt-4o',
       };
-      await expect(service.create('ws-1', 'chat', dto, 'u-spec')).resolves.toBeDefined();
+      await expect(
+        service.create('ws-1', 'chat', dto, 'u-spec'),
+      ).resolves.toBeDefined();
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
     });
