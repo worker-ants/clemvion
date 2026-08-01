@@ -39,8 +39,15 @@ from lib import session  # noqa: E402
 from lib.role_instructions import CHECKER_INSTRUCTIONS  # noqa: E402
 from _lib import project_config  # noqa: E402
 
-# Report location/validity is shared with the push/stop gate and the code-review
-# orchestrator — see `.claude/_shared/report_paths.py`. One rule, three consumers.
+# `block_integrity` holds the downgrade backstop (and the canonical checker list
+# this file derives from); `retry_state` holds the `_retry_state.json` bookkeeping
+# the three orchestrators share.
+#
+# `report_paths` is no longer imported here — it used to be, and the comment that
+# described it outlived the import by one refactor. It is still the single rule
+# for "did this agent leave a report", reached now through
+# `retry_state.reconcile_state_with_disk`; the direct consumers are
+# `review_guard.py` and `code_review_orchestrator.py`.
 from _shared import block_integrity as _block_integrity  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 

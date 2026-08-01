@@ -107,8 +107,30 @@ class CheckerListIsCanonicalTest(unittest.TestCase):
         self.assertEqual(sorted(mod.CHECKER_INSTRUCTIONS), sorted(BI.ALL_CHECKERS))
 
     def test_report_filenames_follow_the_names(self):
-        self.assertEqual(BI.CHECKER_REPORTS,
-                         tuple(f"{n}.md" for n in BI.ALL_CHECKERS))
+        for name in BI.ALL_CHECKERS:
+            self.assertIn(f"{name}.md", BI.CHECKER_REPORTS)
+
+    def test_hyphenated_report_names_are_read_too(self):
+        """32 committed reports are named `cross-spec.md`, not `cross_spec.md`.
+
+        The backstop simply never opened them, so a checker's Criticals were
+        invisible to it because of a separator. Reading both changes 0 of 732
+        sessions' verdicts — a blind spot closed, not a miss fixed.
+        """
+        for name in BI.ALL_CHECKERS:
+            self.assertIn(f"{name.replace('_', '-')}.md", BI.CHECKER_REPORTS)
+
+    def test_a_hyphenated_report_can_trigger_the_backstop(self):
+        """The property, not just the constant — the constant is what the last
+        version of this test checked, and a constant nothing reads is easy to
+        get right and useless."""
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write("**BLOCK: NO**\n")
+        with open(os.path.join(d, "cross-spec.md"), "w", encoding="utf-8") as f:
+            f.write("- **[CRITICAL]** 하이픈 파일명\n")
+        self.assertEqual(BI.downgraded_criticals(d), {"cross-spec.md": 1})
 
 
 class VerdictIsAnchoredTest(unittest.TestCase):
@@ -540,10 +562,16 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
         """
         self._run(f"'BLOCK:' + ' '*{self._RUN}", f"BLOCK: + {self._RUN} spaces")
 
-    def test_a_trailing_run_after_a_real_verdict_returns_fast(self):
-        """Verdict present, then a long run — the tail gap in the END pattern."""
-        self._run(f"'BLOCK: YES' + ' '*{self._RUN} + 'x'",
-                  f"verdict + {self._RUN} trailing spaces", expect="YES")
+    # There is deliberately NO third case for the END pattern's trailing gap.
+    # One was written and removed: its input `"BLOCK: YES" + " "*n + "x"` never
+    # reaches that gap at all — the trailing `x` stops `$` from matching, so
+    # `_BLOCK_AT_LINE_END` produces no match and the answer comes from
+    # `_BLOCK_AT_LINE_START`, which finishes at the verdict and never looks at
+    # the run. Measured afterwards: the tail is linear in both the old and new
+    # forms (×2 per doubling, 0.0001s at 64k), so there is no quadratic there to
+    # pin. A test that cannot fail reads as coverage and is worse than none —
+    # this branch has now produced that shape three times, and the note is here
+    # so the fourth is not written by someone filling an obvious gap.
 
 
 class SpecGlobCompilationIsBoundedTest(unittest.TestCase):

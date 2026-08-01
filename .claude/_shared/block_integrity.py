@@ -37,6 +37,17 @@ import re
 # NONE/LOW/…/CRITICAL risk scale), against 72 real tags. Counting it would make
 # every clean report look like a downgrade, and a backstop that cries wolf is
 # one nobody reads.
+# Case-SENSITIVE on purpose, and the sister patterns below are not — a review
+# read that asymmetry as a bug, which it looks like. Measured before changing it:
+# the corpus holds 287 `[CRITICAL]`, 6 `[Critical]`, 0 `[critical]`, so adding
+# `re.IGNORECASE` flags 4 more of 732 sessions. All four are false — they cite
+# *another document's* item ("§C-2 [Critical] 클러스터 4", "관련 plan: … §C-3
+# [Critical] …"), not a finding of their own. Zero true positives, four wolves.
+#
+# Anchoring on the documented tag shapes instead was measured too, and is worse:
+# it drops 287 → 215 across 58 files, because real reports also write
+# `- **[CRITICAL] 제목**` and `### **[CRITICAL]**`. Two curated shapes do not
+# describe the corpus, and a stricter counter blinds the backstop.
 _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 
 # The verdict, anchored — and order-independent.
@@ -114,7 +125,15 @@ ALL_CHECKERS = (
     "naming_collision",
 )
 
-CHECKER_REPORTS = tuple(f"{name}.md" for name in ALL_CHECKERS)
+# Both separators. The orchestrator writes `cross_spec.md`, but 32 committed
+# reports across 9 sessions use `cross-spec.md` and friends, and this module
+# simply did not open them — a checker's Criticals were invisible to the
+# backstop because of a hyphen. Measured before adding it: reading the variants
+# changes 0 of 732 sessions' verdicts, so this closes a structural blind spot
+# rather than fixing an observed miss, and it cannot introduce a false positive.
+CHECKER_REPORTS = tuple(f"{name}.md" for name in ALL_CHECKERS) + tuple(
+    f"{name.replace('_', '-')}.md" for name in ALL_CHECKERS
+)
 
 
 def count_critical_tags(text: str) -> int:
