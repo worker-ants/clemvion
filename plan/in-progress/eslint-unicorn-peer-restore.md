@@ -24,7 +24,8 @@ dependabot `#1049` (`a4bc9fde3`) 가 `^56.0.1` → `^72.0.0` (**16 major**) 로 
 
 ## 이건 단순 bump 가 아니라 명시된 의도를 깬 것이다
 
-`codebase/backend/eslint.config.mjs:16-18` 이 pin 근거를 **주석으로 적어두고 있었다**:
+`codebase/backend/eslint.config.mjs` 가 pin 근거를 **주석으로 적어두고 있었다** (아래는 본 PR
+착수 시점 원문 — 같은 주석을 이 PR 이 실측 표 SoT 로 재작성했으므로 현재 파일과는 다르다):
 
 ```js
 // 03 m-4 — unicorn 플러그인은 preset 전체가 아니라 catch-error-name 단일 룰만
@@ -98,7 +99,37 @@ pnpm 의 실제 판정은 통과한다. 그런데도 56 으로 되돌린다:
       TEST WORKFLOW 재수행 — lint PASS(51s) · unit PASS(73s, backend jest 413 suites/8389) ·
       build PASS(146s) · e2e PASS(307s: backend jest 260 + playwright 51, 실 인프라 `Healthy`).
       상세: `review/code/2026/08/01/12_27_15/RESOLUTION.md`.
+- [x] `/ai-review` 2차 (`review/code/2026/08/01/13_10_20`) — **Critical 0 · Warning 0 · INFO 19**,
+      risk LOW. 1차 Warning 3건이 실제로 해소됐음을 reviewer 8명이 독립 재현했다(가드 28/28 실행 +
+      `catch-error-name` off 뮤테이션 RED 까지 리뷰어가 직접 재확인). `unfinished` 0, 디스크
+      산출물 8개 + SUMMARY.md 가 반환값과 일치.
+
+      **수렴 판단**: fix 가 `codebase/**` 를 건드려 1차 리뷰가 stale 해졌으므로 fresh review 를
+      돌린 것이고, Critical·Warning 0 이므로 INFO 는 비차단 수렴으로 종결한다. 남은 INFO 를 위해
+      라운드를 더 도는 것은 이 저장소가 반복해 겪은 "fix→리뷰 stale 루프" 를 재현할 뿐이다.
 - [ ] push + PR
+
+## 2차 리뷰 INFO 19건 처분
+
+**조치함**
+
+- **INFO 17 (documentation)** — 본 plan 이 인용한 `eslint.config.mjs` 주석이 이 PR 자체의 주석
+  재작성으로 stale 해졌다는 지적. 인용 블록에 "착수 시점 원문" 임을 명시했다.
+
+**조치 불요 — 근거**
+
+- **INFO 1~10 · 18** — 전부 "확인했고 문제 없음" 계열이다(devDependency-only revert, transitive
+  재유입 CVE 없음, registry 실측 독립 재조회 일치, 1차 Warning 3건 해소 확인, lockfile 부수
+  표기 변화가 기계적 재생성임 확인 등). 리뷰어 자신이 조치 불요로 판정했다.
+- **INFO 11 · 12** — `parseGteFloor`/`parseCaretFloor`/`parseVersion` 의 경미한 구조 중복,
+  주석 문단 스타일 불일치. 함수당 3~4줄이고 스타일 건은 1·2차 연속 "낮은 우선순위" 판정이다.
+  코드를 건드리면 3차 리뷰가 필요해지는데 그만한 값이 아니다.
+- **INFO 13 · 14 · 15** — `satisfiesFloor` 경계값 단언 부재(1줄 위임), registry 가 낼 수 없는
+  malformed 입력 미커버, eslint CLI 서브프로세스의 12.3s 소요. 셋 다 리뷰어가 실위험 낮음/의도된
+  트레이드오프로 판정했다. 15는 "서브프로세스형 가드가 더 늘면 별도 jest project 분리" 라는
+  조건부 항목이라 지금 할 일이 없다.
+- **INFO 16 · 19** — 미충족 peer 가 CI 실패로 취급되지 않는 갭, dependabot ignore 가 major-only
+  보안 패치를 억제할 수 있는 이론적 gap. 둘 다 이미 §후속 검토 / dependabot.yml 주석에 기록됨.
 
 ## 미수행 단계와 근거
 
