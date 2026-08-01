@@ -71,3 +71,24 @@ updates:
       # `codebase/frontend/src/lib/repo-guards/__tests__/typescript-toolchain.test.ts`
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+
+      # eslint-plugin-unicorn major 도 제외한다.
+      #
+      # backend 는 이 플러그인의 preset 이 아니라 `unicorn/catch-error-name` **단일 룰**만 쓰고,
+      # 버전은 `codebase/backend/eslint.config.mjs` 가 근거 주석과 함께 `^56`(caret range —
+      # exact pin 아님, 56.x 대역 minor/patch 는 자동 허용) 으로 고정해 뒀다 — v57 부터 eslint
+      # peer floor 가 그 패키지의 선언 floor(`^9.18`)를 넘기 때문이다.
+      #
+      # dependabot 은 그 주석을 볼 수 없어서 #1049 가 `^56.0.1` → `^72.0.0`(16 major)로 올렸고,
+      # `eslint@>=10.4` 를 요구하는 채로 설치본은 9.39.4 라 **unmet peer** 가 됐다. 값만 바뀌고
+      # 주석은 "^56" 인 채 남아 코드-문서가 어긋난 상태로 머지됐다(Actions 가 repo 레벨에서
+      # 꺼져 있어 검증이 없었다 — #1047 과 같은 경로). 상시 회귀 가드:
+      # `codebase/backend/src/repo-guards/__tests__/eslint-unicorn-peer.spec.ts`.
+      #
+      # 버전별 eslint peer floor 실측 표의 SoT 는 `codebase/backend/eslint.config.mjs`(단일 룰
+      # 등록 블록 주석) — 여기서는 중복 기재하지 않는다. 결론만: 66 이상은 eslint 9 자체를
+      # 배제하므로, 이 항목을 푸는 전제는 **eslint 10 상향**이다(eslint 9 는 이미
+      # `maintenance` dist-tag, latest 는 10.x). 그 작업은 10개 워크스페이스와 전 config 검증이
+      # 걸린 독립 건이다.
+      - dependency-name: "eslint-plugin-unicorn"
+        update-types: ["version-update:semver-major"]
