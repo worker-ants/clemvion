@@ -52,19 +52,19 @@ import argparse
 import os
 import sys
 
-# `review_guard` 는 `.claude/hooks/_lib/` 에 있고 형제 모듈을 이름으로 import 한다
-# (`from branch_guard import …`). 그래서 두 경로를 다 얹는다 — `hooks/` 는 패키지가
-# 아니고, `_lib` 는 `.claude/skills/_lib` 와 이름이 겹쳐 패키지 import 가 불가하다.
+# `review_guard` 는 `.claude/hooks/_lib/` 에 있고 형제 모듈을 이름으로 import 하므로
+# (`from branch_guard import …`) 그 디렉터리 하나면 된다. 초판은 `hooks/` 도 얹으며 "둘 다
+# 필요하다" 고 적었는데, 리뷰어가 격리 프로세스로 `_lib` 만으로 끝까지 도는 것을 실측해
+# 반증했다 — 정본 소비자 `guard_review_before_push.py` 도 `_lib` 하나만 얹는다.
+# 패키지로 import 하지 않는 이유는 `_lib` 라는 이름이 `.claude/skills/_lib` 와 겹치기 때문.
 _ROOT_DEFAULT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _load_gate(root: str):
     """`review_guard.evaluate_review` 를 반환. 실패하면 None (fail-open)."""
     lib = os.path.join(root, ".claude", "hooks", "_lib")
-    hooks = os.path.join(root, ".claude", "hooks")
-    for p in (lib, hooks):
-        if p not in sys.path:
-            sys.path.insert(0, p)
+    if lib not in sys.path:
+        sys.path.insert(0, lib)
     try:
         import review_guard  # noqa: PLC0415 — 경로를 얹은 뒤라야 import 된다
         return review_guard.evaluate_review

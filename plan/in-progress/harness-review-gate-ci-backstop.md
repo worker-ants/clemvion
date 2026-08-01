@@ -1,6 +1,6 @@
 ---
 title: 리뷰 게이트의 훅-독립 CI 백스톱 — 정규식이 유일 판정자인 사각지대를 닫을지
-worktree: harness-block-backstop-b56163
+worktree: harness-review-ci-backstop-91f379
 started: 2026-07-25
 owner: developer
 priority: P2
