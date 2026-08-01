@@ -38,7 +38,7 @@ import {
   MODEL_CONFIG_KINDS,
   type ModelConfigKind,
 } from './entities/model-config.entity';
-import { WorkspaceId } from '../../common/decorators';
+import { WorkspaceId, CurrentUser } from '../../common/decorators';
 import { ListModelConfigsQueryDto } from './dto/list-model-configs-query.dto';
 
 function parseKind(kind: string | undefined): ModelConfigKind {
@@ -115,8 +115,9 @@ export class ModelConfigController {
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateModelConfigDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.modelConfigService.create(workspaceId, dto.kind, dto);
+    return this.modelConfigService.create(workspaceId, dto.kind, dto, userId);
   }
 
   @Patch(':id')
@@ -131,8 +132,9 @@ export class ModelConfigController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateModelConfigDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.modelConfigService.update(id, workspaceId, dto);
+    return this.modelConfigService.update(id, workspaceId, dto, userId);
   }
 
   @Patch(':id/set-default')
@@ -150,8 +152,9 @@ export class ModelConfigController {
   async setDefault(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    await this.modelConfigService.setDefault(id, workspaceId);
+    await this.modelConfigService.setDefault(id, workspaceId, userId);
   }
 
   @Delete(':id')
@@ -165,7 +168,8 @@ export class ModelConfigController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    await this.modelConfigService.remove(id, workspaceId);
+    await this.modelConfigService.remove(id, workspaceId, userId);
   }
 }

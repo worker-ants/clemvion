@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -12,6 +13,7 @@ const ENCRYPTION_KEY = randomBytes(32).toString('hex');
 describe('ModelConfigService', () => {
   let service: ModelConfigService;
   let mockRepo: Record<string, any>;
+  let auditLogs: { record: jest.Mock };
 
   beforeEach(async () => {
     mockRepo = {
@@ -42,8 +44,13 @@ describe('ModelConfigService', () => {
       },
     };
 
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: auditLogs },
         ModelConfigService,
         { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
         {
@@ -69,7 +76,7 @@ describe('ModelConfigService', () => {
         apiKey: 'sk-test123456789abcdef',
         defaultModel: 'gpt-4o',
       };
-      const result = await service.create('workspace-1', 'chat', dto);
+      const result = await service.create('workspace-1', 'chat', dto, 'u-spec');
 
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.kind).toBe('chat');
@@ -87,7 +94,7 @@ describe('ModelConfigService', () => {
         defaultModel: 'text-embedding-3-small',
         dimension: 1536,
       };
-      await service.create('ws-1', 'embedding', dto);
+      await service.create('ws-1', 'embedding', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.kind).toBe('embedding');
       expect(saved.dimension).toBe(1536);
@@ -102,7 +109,7 @@ describe('ModelConfigService', () => {
         defaultModel: 'bge-reranker-v2-m3',
         baseUrl: 'http://tei:8080',
       };
-      const result = await service.create('ws-1', 'rerank', dto);
+      const result = await service.create('ws-1', 'rerank', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.apiKey).toBeNull();
       expect(result.apiKey).toBeNull();
@@ -115,7 +122,9 @@ describe('ModelConfigService', () => {
         name: 'Cohere',
         defaultModel: 'rerank-3.5',
       };
-      await expect(service.create('ws-1', 'rerank', dto)).rejects.toThrow();
+      await expect(
+        service.create('ws-1', 'rerank', dto, 'u-spec'),
+      ).rejects.toThrow();
     });
   });
 
@@ -219,7 +228,7 @@ describe('ModelConfigService', () => {
     it('patches defaultParams only for chat kind', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'chat' }));
       const dto = { defaultParams: { temperature: 0.5 } };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.defaultParams).toEqual({ temperature: 0.5 });
     });
@@ -229,7 +238,7 @@ describe('ModelConfigService', () => {
         baseConfig({ kind: 'embedding', defaultParams: {} }),
       );
       const dto = { defaultParams: { temperature: 0.9 } };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       // embedding kind must not absorb defaultParams
       expect(saved.defaultParams).toEqual({});
@@ -240,7 +249,7 @@ describe('ModelConfigService', () => {
         baseConfig({ kind: 'embedding', dimension: null }),
       );
       const dto = { dimension: 768 };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.dimension).toBe(768);
     });
@@ -248,7 +257,7 @@ describe('ModelConfigService', () => {
     it('ignores dimension for chat kind', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig({ kind: 'chat' }));
       const dto = { dimension: 512 };
-      await service.update('cfg-1', 'ws-1', dto);
+      await service.update('cfg-1', 'ws-1', dto, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.dimension).toBeNull();
     });
@@ -256,7 +265,7 @@ describe('ModelConfigService', () => {
     it('re-encrypts apiKey when provided', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig());
       const newKey = 'sk-new-key-abcde12345';
-      await service.update('cfg-1', 'ws-1', { apiKey: newKey });
+      await service.update('cfg-1', 'ws-1', { apiKey: newKey }, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.apiKey).not.toBe(newKey);
       expect(decrypt(saved.apiKey, ENCRYPTION_KEY)).toBe(newKey);
@@ -265,7 +274,7 @@ describe('ModelConfigService', () => {
     it('does NOT change apiKey when apiKey is absent from dto', async () => {
       const original = encrypt('sk-original-key-1234', ENCRYPTION_KEY);
       mockRepo.findOne.mockResolvedValue(baseConfig({ apiKey: original }));
-      await service.update('cfg-1', 'ws-1', { name: 'Renamed' });
+      await service.update('cfg-1', 'ws-1', { name: 'Renamed' }, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.apiKey).toBe(original);
     });
@@ -290,13 +299,13 @@ describe('ModelConfigService', () => {
           return cb(txManager);
         },
       );
-      await service.update('cfg-1', 'ws-1', { isDefault: true });
+      await service.update('cfg-1', 'ws-1', { isDefault: true }, 'u-spec');
       expect(txCalled).toBe(true);
     });
 
     it('isDefault=false sets isDefault to false without transaction', async () => {
       mockRepo.findOne.mockResolvedValue(baseConfig({ isDefault: true }));
-      await service.update('cfg-1', 'ws-1', { isDefault: false });
+      await service.update('cfg-1', 'ws-1', { isDefault: false }, 'u-spec');
       const saved = mockRepo.save.mock.calls[0][0];
       expect(saved.isDefault).toBe(false);
       expect(mockRepo.manager.transaction).not.toHaveBeenCalled();
@@ -330,7 +339,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(cfg());
 
-      await service.update('cfg-1', 'ws-1', { name: 'Renamed' });
+      await service.update('cfg-1', 'ws-1', { name: 'Renamed' }, 'u-spec');
 
       expect(listener).toHaveBeenCalledWith('cfg-1');
       expect(listener).toHaveBeenCalledTimes(1);
@@ -341,7 +350,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
 
-      await service.remove('cfg-9', 'ws-1');
+      await service.remove('cfg-9', 'ws-1', 'u-spec');
 
       expect(mockRepo.remove).toHaveBeenCalled();
       expect(listener).toHaveBeenCalledWith('cfg-9');
@@ -354,7 +363,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(b);
       mockRepo.findOne.mockResolvedValue(cfg());
 
-      await service.update('cfg-1', 'ws-1', { name: 'X' });
+      await service.update('cfg-1', 'ws-1', { name: 'X' }, 'u-spec');
 
       expect(a).toHaveBeenCalledWith('cfg-1');
       expect(b).toHaveBeenCalledWith('cfg-1');
@@ -366,7 +375,7 @@ describe('ModelConfigService', () => {
       mockRepo.findOne.mockResolvedValue(null); // findEntity → MODEL_CONFIG_NOT_FOUND
 
       await expect(
-        service.update('missing', 'ws-1', { name: 'X' }),
+        service.update('missing', 'ws-1', { name: 'X' }, 'u-spec'),
       ).rejects.toThrow();
       expect(listener).not.toHaveBeenCalled();
     });
@@ -376,7 +385,9 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener);
       mockRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.remove('missing', 'ws-1')).rejects.toThrow();
+      await expect(
+        service.remove('missing', 'ws-1', 'u-spec'),
+      ).rejects.toThrow();
       expect(mockRepo.remove).not.toHaveBeenCalled();
       expect(listener).not.toHaveBeenCalled();
     });
@@ -387,7 +398,7 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(listener); // duplicate registration ignored
       mockRepo.findOne.mockResolvedValue(cfg());
 
-      await service.update('cfg-1', 'ws-1', { name: 'X' });
+      await service.update('cfg-1', 'ws-1', { name: 'X' }, 'u-spec');
 
       expect(listener).toHaveBeenCalledTimes(1);
     });
@@ -413,7 +424,7 @@ describe('ModelConfigService', () => {
         },
       );
 
-      await service.update('cfg-1', 'ws-1', { isDefault: true });
+      await service.update('cfg-1', 'ws-1', { isDefault: true }, 'u-spec');
 
       expect(listener).toHaveBeenCalledWith('cfg-1');
     });
@@ -428,7 +439,7 @@ describe('ModelConfigService', () => {
       mockRepo.findOne.mockResolvedValue(cfg());
 
       await expect(
-        service.update('cfg-1', 'ws-1', { name: 'X' }),
+        service.update('cfg-1', 'ws-1', { name: 'X' }, 'u-spec'),
       ).resolves.toBeDefined();
       expect(bad).toHaveBeenCalled();
       // bad throwing must not skip subsequent listeners
@@ -442,7 +453,9 @@ describe('ModelConfigService', () => {
       service.onConfigInvalidated(bad);
       mockRepo.findOne.mockResolvedValue(cfg({ id: 'cfg-9' }));
 
-      await expect(service.remove('cfg-9', 'ws-1')).resolves.toBeUndefined();
+      await expect(
+        service.remove('cfg-9', 'ws-1', 'u-spec'),
+      ).resolves.toBeUndefined();
       expect(bad).toHaveBeenCalledWith('cfg-9');
     });
   });
@@ -454,6 +467,9 @@ describe('ModelConfigService', () => {
       // Build a service instance with no encryption key configured
       const moduleNoKey: TestingModule = await Test.createTestingModule({
         providers: [
+          // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+          // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+          { provide: AuditLogsService, useValue: { record: jest.fn() } },
           ModelConfigService,
           { provide: getRepositoryToken(ModelConfig), useValue: mockRepo },
           {
@@ -473,7 +489,9 @@ describe('ModelConfigService', () => {
         apiKey: 'sk-anything',
         defaultModel: 'gpt-4o',
       };
-      await expect(svcNoKey.create('ws-1', 'chat', dto)).rejects.toMatchObject({
+      await expect(
+        svcNoKey.create('ws-1', 'chat', dto, 'u-spec'),
+      ).rejects.toMatchObject({
         response: { code: 'ENCRYPTION_KEY_MISSING' },
       });
     });
@@ -488,7 +506,7 @@ describe('ModelConfigService', () => {
         workspaceId: 'ws-1',
         kind: 'embedding',
       });
-      await service.setDefault('test-id', 'ws-1');
+      await service.setDefault('test-id', 'ws-1', 'u-spec');
       expect(mockRepo.manager.transaction).toHaveBeenCalled();
     });
 
@@ -512,7 +530,7 @@ describe('ModelConfigService', () => {
         },
       );
 
-      await service.setDefault('cfg-emb', 'ws-1');
+      await service.setDefault('cfg-emb', 'ws-1', 'u-spec');
 
       // The first update call (unset old default) must scope to workspaceId × kind
       expect(updateCalls[0]).toMatchObject({
@@ -691,9 +709,9 @@ describe('ModelConfigService', () => {
         baseUrl: 'http://169.254.169.254/latest/meta-data',
         defaultModel: 'rerank-3.5',
       };
-      await expect(service.create('ws-1', 'rerank', dto)).rejects.toMatchObject(
-        { response: { code: 'MODEL_CONFIG_INVALID' } },
-      );
+      await expect(
+        service.create('ws-1', 'rerank', dto, 'u-spec'),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_INVALID' } });
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -706,7 +724,7 @@ describe('ModelConfigService', () => {
         defaultModel: 'bge-reranker-v2-m3',
       };
       await expect(
-        service.create('ws-1', 'rerank', dto),
+        service.create('ws-1', 'rerank', dto, 'u-spec'),
       ).resolves.toBeDefined();
       expect(mockRepo.save).toHaveBeenCalled();
     });
@@ -721,7 +739,7 @@ describe('ModelConfigService', () => {
         apiKey: null,
       });
       await expect(
-        service.update('r1', 'ws-1', { provider: 'cohere' }),
+        service.update('r1', 'ws-1', { provider: 'cohere' }, 'u-spec'),
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_INVALID' } });
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
@@ -740,7 +758,9 @@ describe('ModelConfigService', () => {
         baseUrl: 'http://attacker.com/evil',
         defaultModel: 'gpt-4o',
       };
-      await expect(service.create('ws-1', 'chat', dto)).rejects.toMatchObject({
+      await expect(
+        service.create('ws-1', 'chat', dto, 'u-spec'),
+      ).rejects.toMatchObject({
         response: { code: 'MODEL_CONFIG_INVALID' },
       });
       expect(spy).toHaveBeenCalled();
@@ -761,7 +781,9 @@ describe('ModelConfigService', () => {
         baseUrl: 'https://proxy.example.com/v1',
         defaultModel: 'gpt-4o',
       };
-      await expect(service.create('ws-1', 'chat', dto)).resolves.toBeDefined();
+      await expect(
+        service.create('ws-1', 'chat', dto, 'u-spec'),
+      ).resolves.toBeDefined();
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
     });
@@ -896,6 +918,163 @@ describe('ModelConfigService', () => {
       await expect(
         service.findEntity('rerank-1', 'ws-1', 'chat'),
       ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+    });
+  });
+
+  describe('감사 로깅 (model_config.*)', () => {
+    const dto = {
+      kind: 'chat' as const,
+      provider: 'openai' as const,
+      name: 'GPT',
+      apiKey: 'sk-abc',
+      defaultModel: 'gpt-4o',
+    };
+
+    it('create 는 model_config.create 를 행위자·대상과 함께 남긴다', async () => {
+      await service.create('ws-1', 'chat', dto as any, 'u-1');
+
+      expect(auditLogs.record).toHaveBeenCalledTimes(1);
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        action: 'model_config.create',
+        resourceType: 'model_config',
+        resourceId: 'test-id',
+        details: { kind: 'chat' },
+      });
+    });
+
+    it('update 는 model_config.update 를 남긴다', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-1',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+        provider: 'openai',
+        name: 'E',
+        apiKey: null,
+        defaultModel: 'text-embedding-3',
+      });
+
+      await service.update('cfg-1', 'ws-1', { name: 'E2' } as any, 'u-2');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u-2',
+          action: 'model_config.update',
+          resourceId: 'cfg-1',
+          details: { kind: 'embedding' },
+        }),
+      );
+    });
+
+    it('setDefault 는 트랜잭션 **커밋 뒤**에 남긴다', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-3',
+        workspaceId: 'ws-1',
+        kind: 'rerank',
+      });
+      // 트랜잭션이 롤백(throw)되면 감사도 남지 않아야 한다 — 안에서 기록하면
+      // 일어나지 않은 일이 감사에 남는다. 순서를 관측 가능한 형태로 고정한다.
+      // 경계를 **양쪽** 다 찍어야 안/밖이 구분된다. 'tx-start' 만 찍으면 기록이
+      // 트랜잭션 안으로 들어가도 순서가 같아 단언이 통과한다(실측: 그 뮤턴트가 GREEN).
+      const order: string[] = [];
+      mockRepo.manager.transaction.mockImplementation(async (cb: any) => {
+        order.push('tx-start');
+        await cb({ update: jest.fn().mockResolvedValue(undefined) });
+        order.push('tx-commit');
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      await service.setDefault('cfg-3', 'ws-1', 'u-3');
+
+      expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'model_config.set_default',
+          resourceId: 'cfg-3',
+          details: { kind: 'rerank' },
+        }),
+      );
+    });
+
+    it('트랜잭션이 실패하면 setDefault 는 감사를 남기지 않는다', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        id: 'cfg-4',
+        workspaceId: 'ws-1',
+        kind: 'chat',
+      });
+      // 본문을 **실행한 뒤** 커밋에서 실패하는 형태여야 한다. 콜백을 아예 안 부르고
+      // reject 하면 기록이 트랜잭션 안에 있어도 실행되지 않아 단언이 무의미해진다.
+      mockRepo.manager.transaction.mockImplementation(async (cb: any) => {
+        await cb({ update: jest.fn().mockResolvedValue(undefined) });
+        throw new Error('deadlock');
+      });
+
+      await expect(service.setDefault('cfg-4', 'ws-1', 'u-4')).rejects.toThrow(
+        'deadlock',
+      );
+      expect(auditLogs.record).not.toHaveBeenCalled();
+    });
+
+    it('create(isDefault:true) 도 트랜잭션 커밋 뒤에 기록한다 (W1)', async () => {
+      // isDefault 분기는 saveWithDefaultSwap 트랜잭션을 타는데, setDefault 에만 순서
+      // 테스트가 있고 같은 헬퍼를 쓰는 이 진입점은 한 번도 방문되지 않았다.
+      const order: string[] = [];
+      mockRepo.manager.transaction.mockImplementation(async (cb: any) => {
+        order.push('tx-start');
+        const r = await cb({
+          update: jest.fn().mockResolvedValue(undefined),
+          save: jest.fn(async (_e: unknown, x: unknown) => x),
+          create: jest.fn((_e: unknown, x: unknown) => ({
+            ...(x as object),
+            id: 'test-id',
+          })),
+        });
+        order.push('tx-commit');
+        return r;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      await service.create(
+        'ws-1',
+        'chat',
+        { ...dto, isDefault: true } as any,
+        'u-d',
+      );
+
+      expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'model_config.create' }),
+      );
+    });
+
+    it('remove 는 삭제 **전에** 읽은 kind 를 남긴다', async () => {
+      // TypeORM `remove` 는 엔티티의 id 를 지운다. 삭제 후 엔티티에서 읽으면
+      // undefined 가 감사에 남으므로, 이 테스트는 그 순서를 고정한다.
+      const entity: Record<string, unknown> = {
+        id: 'cfg-5',
+        workspaceId: 'ws-1',
+        kind: 'embedding',
+      };
+      mockRepo.findOne.mockResolvedValue(entity);
+      mockRepo.remove.mockImplementation(async () => {
+        delete entity.id;
+        delete entity.kind;
+      });
+
+      await service.remove('cfg-5', 'ws-1', 'u-5');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'model_config.delete',
+          resourceId: 'cfg-5',
+          details: { kind: 'embedding' },
+        }),
+      );
     });
   });
 });

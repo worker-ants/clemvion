@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -29,6 +30,9 @@ function createBaseProviders(
       useValue: triggerRepoMock,
     },
     { provide: getRepositoryToken(Execution), useValue: {} },
+    // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다. 이 팩토리는
+    // 모듈 레벨이라 describe 스코프의 공유 mock 을 참조할 수 없어 매번 새로 만든다.
+    { provide: AuditLogsService, useValue: { record: jest.fn() } },
     {
       provide: getRepositoryToken(Schedule),
       // 역방향 동기화 도입 후 update(isActive)/remove 가 schedule lookup 을 수행 —
@@ -87,6 +91,9 @@ describe('TriggersService.findOneDetail', () => {
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -266,6 +273,9 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -422,6 +432,9 @@ describe('TriggersService — notification/interaction config 병합 (External I
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -492,12 +505,16 @@ describe('TriggersService — notification/interaction config 병합 (External I
       id: 'ac-1',
       workspaceId: 'ws',
     } as AuthConfig);
-    await service.create('ws', {
-      workflowId: 'wf-1',
-      type: 'webhook',
-      name: 'hook',
-      authConfigId: 'ac-1',
-    });
+    await service.create(
+      'ws',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        authConfigId: 'ac-1',
+      },
+      'u-spec',
+    );
     expect(authConfigRepo.findOne).toHaveBeenCalledWith({
       where: { id: 'ac-1', workspaceId: 'ws' },
     });
@@ -507,12 +524,16 @@ describe('TriggersService — notification/interaction config 병합 (External I
   it('create — authConfigId 가 다른 워크스페이스(미존재)면 AUTH_CONFIG_NOT_FOUND + create 미호출', async () => {
     authConfigRepo.findOne.mockResolvedValue(null);
     const err = await service
-      .create('ws', {
-        workflowId: 'wf-1',
-        type: 'webhook',
-        name: 'hook',
-        authConfigId: 'other-ws-ac',
-      })
+      .create(
+        'ws',
+        {
+          workflowId: 'wf-1',
+          type: 'webhook',
+          name: 'hook',
+          authConfigId: 'other-ws-ac',
+        },
+        'u-spec',
+      )
       .catch((err_: unknown) => err_ as BadRequestException);
     expect(err).toBeInstanceOf(BadRequestException);
     expect((err as BadRequestException).getResponse()).toMatchObject({
@@ -522,16 +543,20 @@ describe('TriggersService — notification/interaction config 병합 (External I
   });
 
   it('create — notification/interaction 을 config JSONB 안으로 병합 (1급 컬럼 아님)', async () => {
-    const result = await service.create('ws', {
-      workflowId: 'wf-1',
-      type: 'webhook',
-      name: 'hook',
-      notification: {
-        url: 'https://customer.example.com/cb',
-        events: ['execution.completed'],
+    const result = await service.create(
+      'ws',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        notification: {
+          url: 'https://customer.example.com/cb',
+          events: ['execution.completed'],
+        },
+        interaction: { enabled: true, tokenStrategy: 'per_execution' },
       },
-      interaction: { enabled: true, tokenStrategy: 'per_execution' },
-    });
+      'u-spec',
+    );
 
     expect(triggerRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -551,18 +576,22 @@ describe('TriggersService — notification/interaction config 병합 (External I
   });
 
   it('create — 기존 config 보존 + notification 병합 + inline 인증 키 strip', async () => {
-    await service.create('ws', {
-      workflowId: 'wf-1',
-      type: 'webhook',
-      name: 'hook',
-      // method 는 비인증 키 → 보존. hmacAlgorithm/bearerToken 은 폐기된 inline 인증
-      // 키 → strip (인증은 authConfigId 로만; spec 5-system/12-webhook.md §2.2).
-      config: { method: 'POST', hmacAlgorithm: 'sha256', bearerToken: 'x' },
-      notification: {
-        url: 'https://customer.example.com/cb',
-        events: ['execution.completed'],
+    await service.create(
+      'ws',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        // method 는 비인증 키 → 보존. hmacAlgorithm/bearerToken 은 폐기된 inline 인증
+        // 키 → strip (인증은 authConfigId 로만; spec 5-system/12-webhook.md §2.2).
+        config: { method: 'POST', hmacAlgorithm: 'sha256', bearerToken: 'x' },
+        notification: {
+          url: 'https://customer.example.com/cb',
+          events: ['execution.completed'],
+        },
       },
-    });
+      'u-spec',
+    );
 
     expect(triggerRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -581,15 +610,19 @@ describe('TriggersService — notification/interaction config 병합 (External I
 
   it('create — notification.url 이 사설 IP 면 INVALID_NOTIFICATION_URL', async () => {
     await expect(
-      service.create('ws', {
-        workflowId: 'wf-1',
-        type: 'webhook',
-        name: 'hook',
-        notification: {
-          url: 'https://192.168.0.1/x',
-          events: ['execution.completed'],
+      service.create(
+        'ws',
+        {
+          workflowId: 'wf-1',
+          type: 'webhook',
+          name: 'hook',
+          notification: {
+            url: 'https://192.168.0.1/x',
+            events: ['execution.completed'],
+          },
         },
-      }),
+        'u-spec',
+      ),
     ).rejects.toMatchObject({
       response: { code: 'INVALID_NOTIFICATION_URL' },
     });
@@ -601,15 +634,19 @@ describe('TriggersService — notification/interaction config 병합 (External I
     delete process.env.ALLOW_HTTP_HOOKS;
     try {
       await expect(
-        service.create('ws', {
-          workflowId: 'wf-1',
-          type: 'webhook',
-          name: 'hook',
-          notification: {
-            url: 'http://customer.example.com/cb',
-            events: ['execution.completed'],
+        service.create(
+          'ws',
+          {
+            workflowId: 'wf-1',
+            type: 'webhook',
+            name: 'hook',
+            notification: {
+              url: 'http://customer.example.com/cb',
+              events: ['execution.completed'],
+            },
           },
-        }),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: { code: 'INVALID_NOTIFICATION_URL' },
       });
@@ -633,7 +670,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
       },
     } as unknown as Trigger);
 
-    const result = await service.update('t1', 'ws', { name: 'new' });
+    const result = await service.update('t1', 'ws', { name: 'new' }, 'u-spec');
     expect(result.name).toBe('new');
     expect(result.config).toEqual(
       expect.objectContaining({
@@ -656,7 +693,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
     } as unknown as Trigger);
 
     await expect(
-      service.update('t-sch', 'ws', { endpointPath: '/new-path' }),
+      service.update('t-sch', 'ws', { endpointPath: '/new-path' }, 'u-spec'),
     ).rejects.toMatchObject({
       response: {
         code: 'VALIDATION_ERROR',
@@ -678,10 +715,15 @@ describe('TriggersService — notification/interaction config 병합 (External I
     } as unknown as Trigger);
 
     await expect(
-      service.update('t-sch', 'ws', {
-        endpointPath: '/new-path',
-        config: { authType: 'hmac' },
-      }),
+      service.update(
+        't-sch',
+        'ws',
+        {
+          endpointPath: '/new-path',
+          config: { authType: 'hmac' },
+        },
+        'u-spec',
+      ),
     ).rejects.toMatchObject({
       response: {
         code: 'VALIDATION_ERROR',
@@ -702,10 +744,15 @@ describe('TriggersService — notification/interaction config 병합 (External I
       config: {},
     } as unknown as Trigger);
 
-    const result = await service.update('t-sch', 'ws', {
-      name: 'renamed',
-      isActive: false,
-    });
+    const result = await service.update(
+      't-sch',
+      'ws',
+      {
+        name: 'renamed',
+        isActive: false,
+      },
+      'u-spec',
+    );
     expect(result.name).toBe('renamed');
     expect(result.isActive).toBe(false);
     expect(triggerRepo.save).toHaveBeenCalledTimes(1);
@@ -725,12 +772,17 @@ describe('TriggersService — notification/interaction config 병합 (External I
       },
     } as unknown as Trigger);
 
-    const result = await service.update('t1', 'ws', {
-      notification: {
-        url: 'https://new.example.com/cb',
-        events: ['execution.completed'],
+    const result = await service.update(
+      't1',
+      'ws',
+      {
+        notification: {
+          url: 'https://new.example.com/cb',
+          events: ['execution.completed'],
+        },
       },
-    });
+      'u-spec',
+    );
     expect(result.config.notification).toEqual({
       url: 'https://new.example.com/cb',
       events: ['execution.completed'],
@@ -1022,9 +1074,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update('trig-1', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    });
+    await service.update(
+      'trig-1',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     // botToken 저장
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1053,9 +1110,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update('trig-1', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    });
+    await service.update(
+      'trig-1',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     const rotateCalls = (secrets.rotate as jest.Mock).mock.calls;
     const webhookCalls = rotateCalls.filter(([ref]) =>
@@ -1071,9 +1133,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update('trig-1', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    });
+    await service.update(
+      'trig-1',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     // botToken 은 이미 저장됨 (setupChannel 실패 이전)
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1107,13 +1174,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update('trig-1', 'ws-1', {
-        chatChannel: {
-          provider: 'slack',
-          botToken: 'xoxb-fake-token',
-          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+      await service.update(
+        'trig-1',
+        'ws-1',
+        {
+          chatChannel: {
+            provider: 'slack',
+            botToken: 'xoxb-fake-token',
+            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+          },
         },
-      });
+        'u-spec',
+      );
 
       // botToken 저장
       expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1146,9 +1218,14 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: { provider: 'slack', botToken: 'xoxb-fake-token' },
-        }),
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: { provider: 'slack', botToken: 'xoxb-fake-token' },
+          },
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1162,13 +1239,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-fake-token',
-            inboundSigningPlaintext: 'too-short-not-hex',
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: {
+              provider: 'slack',
+              botToken: 'xoxb-fake-token',
+              inboundSigningPlaintext: 'too-short-not-hex',
+            },
           },
-        }),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1181,13 +1263,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update('trig-1', 'ws-1', {
-        chatChannel: {
-          provider: 'discord',
-          botToken: 'discord-bot-token',
-          inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+      await service.update(
+        'trig-1',
+        'ws-1',
+        {
+          chatChannel: {
+            provider: 'discord',
+            botToken: 'discord-bot-token',
+            inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+          },
         },
-      });
+        'u-spec',
+      );
 
       expect(secrets.rotate).toHaveBeenCalledWith(
         'secret://triggers/trig-1/inbound-signing',
@@ -1205,13 +1292,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: {
-            provider: 'discord',
-            botToken: 'discord-bot-token',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: {
+              provider: 'discord',
+              botToken: 'discord-bot-token',
+              inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
+            },
           },
-        }),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1225,13 +1317,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update('trig-1', 'ws-1', {
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:TestToken',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+        service.update(
+          'trig-1',
+          'ws-1',
+          {
+            chatChannel: {
+              provider: 'telegram',
+              botToken: '111:TestToken',
+              inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+            },
           },
-        }),
+          'u-spec',
+        ),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1244,13 +1341,18 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update('trig-1', 'ws-1', {
-        chatChannel: {
-          provider: 'slack',
-          botToken: 'xoxb-fake-token',
-          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+      await service.update(
+        'trig-1',
+        'ws-1',
+        {
+          chatChannel: {
+            provider: 'slack',
+            botToken: 'xoxb-fake-token',
+            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+          },
         },
-      });
+        'u-spec',
+      );
 
       // (a) 최종 update 시 plaintext 가 config 에 없어야 함.
       const updateCalls = (triggerRepo.update as jest.Mock).mock.calls;
@@ -1310,6 +1412,9 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
     };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1379,9 +1484,14 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       key === 'app.url' ? 'https://workflow-api.getit.co.kr' : undefined,
     );
 
-    await service.update('trig-tg', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    });
+    await service.update(
+      'trig-tg',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
       expect.anything(),
@@ -1402,9 +1512,14 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         : undefined,
     );
 
-    await service.update('trig-tg', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    });
+    await service.update(
+      'trig-tg',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     const passedCallback = mockAdapter.setupChannel.mock.calls[0][1] as string;
     expect(passedCallback).not.toContain('should-not-be-used.example.com');
@@ -1423,9 +1538,14 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       endpointPath: '/hook-abc',
     } as unknown as Trigger);
 
-    await service.update('trig-tg', 'ws-1', {
-      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-    });
+    await service.update(
+      'trig-tg',
+      'ws-1',
+      {
+        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+      },
+      'u-spec',
+    );
 
     expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
       expect.anything(),
@@ -1448,6 +1568,9 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1513,7 +1636,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
   });
 
   it('remove 시 deleteByPrefix 를 올바른 prefix 로 호출 (SUMMARY#13)', async () => {
-    await service.remove('trig-42', 'ws-1');
+    await service.remove('trig-42', 'ws-1', 'u-spec');
 
     expect(secrets.deleteByPrefix).toHaveBeenCalledWith(
       'secret://triggers/trig-42/',
@@ -1551,6 +1674,9 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1797,6 +1923,9 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
     runner = { registerJob: jest.fn(), removeJob: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
@@ -1864,7 +1993,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
     triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
     scheduleRepo.findOne.mockResolvedValue(scheduleRow());
 
-    await service.update('trig-1', 'ws-1', { isActive: false });
+    await service.update('trig-1', 'ws-1', { isActive: false }, 'u-spec');
 
     expect(scheduleRepo.findOne).toHaveBeenCalledWith({
       where: { triggerId: 'trig-1' },
@@ -1886,7 +2015,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
       isActive: false,
     } as Schedule);
 
-    await service.update('trig-1', 'ws-1', { isActive: true });
+    await service.update('trig-1', 'ws-1', { isActive: true }, 'u-spec');
 
     expect(scheduleRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'sched-1', isActive: true }),
@@ -1902,7 +2031,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
     scheduleRepo.findOne.mockResolvedValue(null);
 
     await expect(
-      service.update('trig-1', 'ws-1', { isActive: false }),
+      service.update('trig-1', 'ws-1', { isActive: false }, 'u-spec'),
     ).resolves.toBeDefined();
     expect(scheduleRepo.save).not.toHaveBeenCalled();
     expect(runner.removeJob).not.toHaveBeenCalled();
@@ -1912,7 +2041,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
   it('isActive 미포함 PATCH (schedule 타입, name 만) → schedule 동기 경로 미진입', async () => {
     triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
 
-    await service.update('trig-1', 'ws-1', { name: 'renamed' });
+    await service.update('trig-1', 'ws-1', { name: 'renamed' }, 'u-spec');
 
     expect(scheduleRepo.findOne).not.toHaveBeenCalled();
     expect(runner.registerJob).not.toHaveBeenCalled();
@@ -1925,7 +2054,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
       type: 'webhook',
     } as Trigger);
 
-    await service.update('trig-1', 'ws-1', { isActive: false });
+    await service.update('trig-1', 'ws-1', { isActive: false }, 'u-spec');
 
     expect(scheduleRepo.findOne).not.toHaveBeenCalled();
     expect(runner.removeJob).not.toHaveBeenCalled();
@@ -1935,7 +2064,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
     triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
     scheduleRepo.findOne.mockResolvedValue(scheduleRow());
 
-    await service.remove('trig-1', 'ws-1');
+    await service.remove('trig-1', 'ws-1', 'u-spec');
 
     expect(runner.removeJob).toHaveBeenCalledWith('sched-1');
     expect(triggerRepo.remove).toHaveBeenCalled();
@@ -1952,7 +2081,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
       type: 'webhook',
     } as Trigger);
 
-    await service.remove('trig-1', 'ws-1');
+    await service.remove('trig-1', 'ws-1', 'u-spec');
 
     expect(runner.removeJob).not.toHaveBeenCalled();
     expect(triggerRepo.remove).toHaveBeenCalled();
@@ -1989,6 +2118,9 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
     secrets = { rotate: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         { provide: getRepositoryToken(Trigger), useValue: triggerRepo },
         { provide: getRepositoryToken(Execution), useValue: {} },
@@ -2105,6 +2237,210 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       expect.objectContaining({
         notificationSecretV2: null,
         notificationRotatedAt: null,
+      }),
+    );
+  });
+});
+
+describe('TriggersService — 감사 로깅 (trigger.*)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let auditLogs: { record: jest.Mock };
+
+  const webhookTrigger = {
+    id: 'trg-1',
+    workspaceId: 'ws-1',
+    type: 'webhook',
+    name: 'W',
+    config: {},
+  } as unknown as Trigger;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: createBaseProviders({
+        findOne: jest.fn().mockResolvedValue(webhookTrigger),
+        update: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn(async (t: Trigger) => ({ ...webhookTrigger, ...t })),
+        create: jest.fn((t: Partial<Trigger>) => t as Trigger),
+        remove: jest.fn().mockResolvedValue(undefined),
+        createQueryBuilder: jest.fn(),
+      }),
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    // createBaseProviders 는 모듈 레벨이라 describe 스코프 mock 을 못 받는다 —
+    // 주입된 인스턴스를 컨테이너에서 되찾아 단언 대상으로 삼는다.
+    auditLogs = moduleRef.get(AuditLogsService) as unknown as {
+      record: jest.Mock;
+    };
+  });
+
+  it('create 는 trigger.created 를 details.type 과 함께 남긴다', async () => {
+    (triggerRepo.create as jest.Mock).mockReturnValue(webhookTrigger);
+    (triggerRepo.save as jest.Mock).mockResolvedValue(webhookTrigger);
+
+    await service.create(
+      'ws-1',
+      { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+      'u-c',
+    );
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        userId: 'u-c',
+        action: 'trigger.created',
+        resourceType: 'trigger',
+        details: { type: 'webhook' },
+      }),
+    );
+  });
+
+  it('update 는 trigger.updated 를 남긴다', async () => {
+    (triggerRepo.save as jest.Mock).mockResolvedValue(webhookTrigger);
+
+    await service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-u');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u-u',
+        action: 'trigger.updated',
+        resourceId: 'trg-1',
+        details: { type: 'webhook' },
+      }),
+    );
+  });
+
+  it('create 는 secret 마이그레이션 **전에** 기록한다 (W6 순서 고정)', async () => {
+    // 이 순서가 뒤집히면 secret store 호출이 실패했을 때 트리거는 생겼는데 감사가 안 남는다.
+    // 코드로만 맞춰두면 리팩터링이 조용히 되돌려도 테스트는 GREEN 이다 — 순서를 고정한다.
+    const order: string[] = [];
+    (triggerRepo.create as jest.Mock).mockReturnValue(webhookTrigger);
+    (triggerRepo.save as jest.Mock).mockImplementation(async () => {
+      order.push('commit');
+      return webhookTrigger;
+    });
+    auditLogs.record.mockImplementation(async () => {
+      order.push('audit');
+    });
+    const secrets = service as unknown as {
+      normalizeNotificationSecretRef: (t: unknown) => Promise<void>;
+    };
+    const origNorm = secrets.normalizeNotificationSecretRef.bind(service);
+    secrets.normalizeNotificationSecretRef = async (t: unknown) => {
+      order.push('secret');
+      return origNorm(t);
+    };
+
+    await service.create(
+      'ws-1',
+      { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+      'u-o',
+    );
+
+    expect(order).toEqual(['commit', 'audit', 'secret']);
+  });
+
+  it('chatChannel 분기가 있어도 기록은 **한 번**이다 (W5 회귀)', async () => {
+    // 분기별로 recordAudit 을 두던 시절엔 chat_channel 트리거가 감사 2행을 남겼다.
+    const chatTrigger = {
+      ...webhookTrigger,
+      type: 'chat_channel',
+      config: { chatChannel: { provider: 'slack' } },
+    } as unknown as Trigger;
+    (triggerRepo.create as jest.Mock).mockReturnValue(chatTrigger);
+    (triggerRepo.save as jest.Mock).mockResolvedValue(chatTrigger);
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue(chatTrigger);
+
+    await service
+      .create(
+        'ws-1',
+        {
+          workflowId: 'wf-1',
+          type: 'chat_channel',
+          name: 'C',
+          config: { chatChannel: { provider: 'slack' } },
+        } as never,
+        'u-cc',
+      )
+      .catch(() => undefined); // 어댑터 미등록 시 setup 이 던져도 기록 횟수는 검증 대상
+
+    const created = auditLogs.record.mock.calls.filter(
+      (c: unknown[]) =>
+        (c[0] as { action?: string }).action === 'trigger.created',
+    );
+    expect(created).toHaveLength(1);
+  });
+
+  it('update 는 schedule 역동기화(BullMQ) **전에** 기록한다 (C1 회귀)', async () => {
+    // 4차 리뷰가 잡은 자리다. 같은 함수의 다른 두 외부 호출은 감사 뒤에 있었는데
+    // syncScheduleActivation 만 앞에 남아, schedule 타입 + isActive 변경 경로에서만
+    // 불변식이 깨져 있었다. registerJob 이 throw 하면 트리거는 커밋됐는데 감사가 유실된다.
+    const order: string[] = [];
+    const scheduleTrigger = {
+      ...webhookTrigger,
+      type: 'schedule',
+    } as unknown as Trigger;
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue(scheduleTrigger);
+    (triggerRepo.save as jest.Mock).mockImplementation(async () => {
+      order.push('commit');
+      return scheduleTrigger;
+    });
+    auditLogs.record.mockImplementation(async () => {
+      order.push('audit');
+    });
+    const svc = service as unknown as {
+      syncScheduleActivation: (t: unknown, a: boolean) => Promise<void>;
+    };
+    svc.syncScheduleActivation = async () => {
+      order.push('bullmq');
+    };
+
+    await service.update('trg-1', 'ws-1', { isActive: false } as never, 'u-s');
+
+    expect(order).toEqual(['commit', 'audit', 'bullmq']);
+  });
+
+  it('저장이 실패하면 감사를 남기지 않는다 (create/update)', async () => {
+    // 자매 모듈 3개는 이 불변식을 갖고 있는데 여기만 없었다 — 하필 순서 버그(C1)가
+    // 실제로 났던 파일이라 회귀 방지 가치가 크다.
+    (triggerRepo.create as jest.Mock).mockReturnValue(webhookTrigger);
+    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.create(
+        'ws-1',
+        { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+        'u-f',
+      ),
+    ).rejects.toThrow('db down');
+    expect(auditLogs.record).not.toHaveBeenCalled();
+
+    await expect(
+      service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-f'),
+    ).rejects.toThrow('db down');
+    expect(auditLogs.record).not.toHaveBeenCalled();
+  });
+
+  it('remove 는 삭제 **전에** 읽은 type 을 남긴다', async () => {
+    // TypeORM `remove` 는 엔티티의 id 를 지운다 — 삭제 후 읽으면 undefined 가 감사에 남는다.
+    const entity: Record<string, unknown> = { ...webhookTrigger };
+    triggerRepo.findOne.mockResolvedValue(entity as unknown as Trigger);
+    (triggerRepo.remove as jest.Mock).mockImplementation(async () => {
+      delete entity.id;
+      delete entity.type;
+    });
+
+    await service.remove('trg-1', 'ws-1', 'u-9');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        userId: 'u-9',
+        action: 'trigger.deleted',
+        resourceType: 'trigger',
+        resourceId: 'trg-1',
+        details: { type: 'webhook' },
       }),
     );
   });

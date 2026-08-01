@@ -150,8 +150,9 @@ export class SchedulesController {
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateScheduleDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.schedulesService.create(workspaceId, dto);
+    return this.schedulesService.create(workspaceId, dto, userId);
   }
 
   @Post(':id/run-now')
@@ -199,8 +200,9 @@ export class SchedulesController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateScheduleDto,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.schedulesService.update(id, workspaceId, dto);
+    return this.schedulesService.update(id, workspaceId, dto, userId);
   }
 
   @Delete(':id')
@@ -219,7 +221,8 @@ export class SchedulesController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    await this.schedulesService.remove(id, workspaceId);
+    await this.schedulesService.remove(id, workspaceId, userId);
   }
 }

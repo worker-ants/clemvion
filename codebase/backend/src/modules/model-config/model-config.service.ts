@@ -1,4 +1,9 @@
 import {
+  AUDIT_ACTIONS,
+  AuditActionFor,
+} from '../audit-logs/audit-action.const';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
   Injectable,
   Logger,
   NotFoundException,
@@ -21,6 +26,9 @@ import { isPrivateHost, resolvesToPrivate } from '../../common/utils/ssrf.util';
  * spec/5-system/7-llm-client.md §5.5 (tei/local 사설망 예외).
  */
 const SELF_HOSTED_PROVIDERS = new Set(['tei', 'local']);
+
+/** `audit_log.resource_type` 값 — 액션 prefix(`model_config.`)와 동일 어휘를 쓴다. */
+const MODEL_CONFIG_RESOURCE_TYPE = 'model_config';
 
 @Injectable()
 export class ModelConfigService {
@@ -47,6 +55,7 @@ export class ModelConfigService {
     @InjectRepository(ModelConfig)
     private readonly repo: Repository<ModelConfig>,
     private readonly configService: ConfigService,
+    private readonly auditLogsService: AuditLogsService,
   ) {
     this.encryptionKey =
       this.configService.get<string>('llm.encryptionKey') || '';
@@ -223,10 +232,35 @@ export class ModelConfigService {
     throw this.notFound();
   }
 
+  /**
+   * `model_config.*` 감사 기록. named 필드 — positional 이면 동일 타입(string) 인자 순서
+   * 스왑을 컴파일러가 못 잡아 감사 주체·대상이 조용히 뒤바뀐다 (auth-configs W-1 과 동일 근거).
+   *
+   * `details.kind` 를 함께 남긴다: chat/embedding/rerank 는 같은 리소스 타입이지만 운영상
+   * 영향 범위가 달라, 사후 감사에서 이것 없이는 어떤 계열이 바뀐 건지 알 수 없다.
+   */
+  private recordAudit(params: {
+    workspaceId: string;
+    userId: string;
+    action: AuditActionFor<typeof MODEL_CONFIG_RESOURCE_TYPE>;
+    resourceId: string;
+    kind: ModelConfigKind;
+  }): Promise<void> {
+    return this.auditLogsService.record({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
+      resourceType: MODEL_CONFIG_RESOURCE_TYPE,
+      resourceId: params.resourceId,
+      details: { kind: params.kind },
+    });
+  }
+
   async create(
     workspaceId: string,
     kind: ModelConfigKind,
     dto: CreateModelConfigDto,
+    userId: string,
   ): Promise<Record<string, unknown>> {
     await this.assertBaseUrlNotSsrf(dto.provider, dto.baseUrl);
 
@@ -250,6 +284,15 @@ export class ModelConfigService {
           manager.save(ModelConfig, manager.create(ModelConfig, entityFields)),
         )
       : await this.repo.save(this.repo.create(entityFields));
+    // 커밋 뒤 기록 — `saveWithDefaultSwap` 분기는 트랜잭션이라, 안에서 기록하면 롤백 시
+    // 일어나지 않은 생성이 감사에 남는다. (다른 진입점·서비스와 같은 규칙.)
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.MODEL_CONFIG_CREATE,
+      resourceId: saved.id,
+      kind,
+    });
     return this.maskApiKey(saved);
   }
 
@@ -257,6 +300,7 @@ export class ModelConfigService {
     id: string,
     workspaceId: string,
     dto: UpdateModelConfigDto,
+    userId: string,
   ): Promise<Record<string, unknown>> {
     const config = await this.findEntity(id, workspaceId);
 
@@ -295,6 +339,13 @@ export class ModelConfigService {
     // config 변경 → 의존 캐시(LLM client·listModels) 무효화 통지.
     // 이전 controller 의 `llmService.clearClientCache(id)` 호출과 동일 시점·동일 효과.
     this.notifyInvalidated(id);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.MODEL_CONFIG_UPDATE,
+      resourceId: id,
+      kind: config.kind,
+    });
     return this.maskApiKey(saved);
   }
 
@@ -317,7 +368,11 @@ export class ModelConfigService {
     });
   }
 
-  async setDefault(id: string, workspaceId: string): Promise<void> {
+  async setDefault(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<void> {
     const config = await this.findEntity(id, workspaceId);
     await this.repo.manager.transaction(async (manager) => {
       await manager.update(
@@ -331,13 +386,31 @@ export class ModelConfigService {
         { isDefault: true },
       );
     });
+    // 트랜잭션 **커밋 뒤**에 기록한다 — 안에서 남기면 롤백 시 일어나지 않은 일이 감사에 남는다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.MODEL_CONFIG_SET_DEFAULT,
+      resourceId: id,
+      kind: config.kind,
+    });
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const config = await this.findEntity(id, workspaceId);
+    // kind 를 remove 전에 읽어둔다 — TypeORM `remove` 는 엔티티의 id 를 지우므로
+    // 삭제 후 `config.id` 를 쓰면 undefined 가 감사에 남는다.
+    const { kind } = config;
     await this.repo.remove(config);
     // 삭제된 config 의 의존 캐시 무효화 통지 (이전 controller clearClientCache 와 동일).
     this.notifyInvalidated(id);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.MODEL_CONFIG_DELETE,
+      resourceId: id,
+      kind,
+    });
   }
 
   /** 저장된 (암호화된) apiKey 를 평문으로 복호화. 키가 없으면(local/tei) null. */

@@ -12,20 +12,58 @@ owner: planner
 ## 미구현 항목
 - [ ] §1.3 LDAP / Active Directory 연동 (셀프 호스팅 선택 기능) — 백엔드에 핸들러·passport strategy·의존성 부재
 - [ ] §1.3 SAML 2.0 기업 SSO 연동 (셀프 호스팅 선택 기능) — 동일하게 미구현
-- [ ] **§4.1 감사 로깅 커버리지 갭** — `workflow.*` / `trigger.*` / `schedule.*` /
-      `model_config.*`(create/update/delete/set_default) 액션이 미구현. 실측:
-      `workflows`·`triggers`·`schedules`·`model-config` 모듈에 `AuditLogsService` import **0건**.
-      SoT: [`spec/data-flow/1-audit.md` §1.1 "커버리지 갭"](../../spec/data-flow/1-audit.md).
-      **2026-07-31 추가** — 아래 "비고" 첫 줄이 이 갭과 상반돼 있었다(§4.1 을 "모두 구현 확인됨" 에
-      포함). plan 작성(2026-06-03) 이후 2026-06-11/12 에 spec 이 이 갭을 명시했는데 plan 이 동기화되지
-      않은 것으로, `--impl-done` consistency (2026/07/31 19_20_50) 가 검출했다.
+- [x] **§4.1 감사 로깅 커버리지 갭** — **CRUD 13개 구현 완료 (2026-08-01)**.
+      `workflow.*` / `trigger.*` / `schedule.*` / `model_config.*`(create/update/delete/set_default).
+      *(착수 시점 실측 — 이제는 해소됨: 네 모듈에 `AuditLogsService` import 가 **0건**이었다.)*
+- [ ] **spec SoT 4곳 동기화 — planner 턴 필요** (`developer` 는 `spec/` read-only).
+      `5-system/1-auth.md §4.1` Planned→구현 이동 · `data-flow/1-audit.md §1.1` 커버리지 갭
+      문단·표 갱신 · `conventions/audit-actions.md §3` 상태 컬럼 · **audit 액션명 오기 3곳**.
+      한 커밋에서 동시에 고쳐야 재drift 하지 않는다 (impl-prep 09_11_58 이 예견).
 
-## 비고
-- §1 ~ §5 의 나머지 surface (이메일/비밀번호, OAuth, TOTP, WebAuthn, 세션, RBAC, LoginHistory,
-  초대 토큰, API 엔드포인트) 는 audit 재검증에서 모두 구현 확인됨.
-  **단 Audit 은 부분 구현** — 위 §4.1 커버리지 갭 항목 참조(2026-07-31 정정. 이전 문장은 "Audit" 을
-  구현 완료 목록에 넣어 실제 코드와 어긋나 있었다).
-- **`status: implemented` 승격 금지 조건**: LDAP/SAML 이 닫히더라도 위 §4.1 감사 로깅 갭이 남아 있는
-  한 `spec/5-system/1-auth.md` 를 `implemented` 로 올리면 안 된다.
-- 본 spec 의 다른 미구현 갭(auth_config CRUD audit 기록 등)은 `plan/complete/auth-config-webhook-followups.md`(완료) 가 추적했다.
-- 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__1-auth.md 참조.
+      **액션명 오기 3곳** (전수 재확인: `rg "trigger\.(delete|update)\b" spec/`):
+
+      | 위치 | 현재 | 정정 | 주의 |
+      | --- | --- | --- | --- |
+      | `2-navigation/2-trigger-list.md:182` | `trigger.delete` ×2 | **둘 다 틀렸다 (각각 다른 이유)** | 뒤쪽(audit action) → `trigger.deleted`. 앞쪽은 "`trigger.delete` **permission** 으로 보호" 라고 쓰는데 **그런 permission 은 존재하지 않는다** — spec §3 에도 코드에도 없고, 인가는 역할 기반(`@Roles('editor')`)이다. `§3.2 리소스별 권한 매트릭스` 인용으로 바꿔야 한다 |
+      | `2-navigation/2-trigger-list.md:252` | `trigger.update` | `trigger.updated` | — |
+      | `5-system/15-chat-channel.md:377` | `trigger.update` | `trigger.updated` | **impl-done consistency(19_26_35 naming_collision)가 추가 발견** — 원래 인계 목록에 없던 세 번째 지점 |
+- [ ] **신규 설계 결정 2건을 spec `## Rationale` 로 승격** — impl-done consistency(19_26_35
+      `rationale_continuity` INFO). 아래 둘은 기존 Rationale 을 번복하지 않지만 **현재 코드
+      주석(`audit-action.const.ts`)에만 있어** spec 독자가 알 수 없다. 위 planner 턴에서 함께
+      기록해야 다음 사람이 같은 판단을 다시 하지 않는다.
+      - **1:1 결합 리소스는 주(主) 리소스만 기록** — `Schedule`↔`Trigger` 는 서로의 row 를
+        직접 쓰지만 짝의 액션은 남기지 않는다. 사용자 행위 하나가 감사에 2행으로 보이는 것을
+        막기 위함이며, 기준은 **호출된 엔드포인트의 리소스**다.
+      - **고빈도 액션은 보존 정책 확정 전까지 유예** — `workflow.executed` 배제의 일반 원칙.
+- [ ] **`workflow.executed`** — Planned 잔류. CRUD 와 카디널리티 차원이 달라
+      (트리거·webhook 발동마다 적재) `audit_log` 보존 정책 결정과 묶어야 한다.
+      실측: `audit_log` 은 pruner 가 없고 정책 미정(`login_history` 는 정리 배치 존재).
+- [ ] `saveCanvas`/`restoreVersion` 감사 기록 — 리뷰 W3. `saveCanvas` 는 캔버스 편집마다
+      발동해 위 카디널리티 논점을 공유한다. *(`importWorkflow` 는 4차 리뷰에서 조치 완료 —
+      `workflows.service.ts` `details: { imported: true }`. 카디널리티 논거가 적용되지 않는데
+      `saveCanvas` 와 묶여 유예됐던 것이 원래의 오분류였다.)*
+- [ ] `recordAudit` 공통 팩토리 (W4) — 5개 helper 의 `details` 계약이 전부 달라(passthrough /
+      `{type}` / 없음 / `{kind}` / `ipAddress`) 공통분모가 `resourceType` 바인딩 + 필드 전달뿐이다.
+      추출해도 타입 있는 per-service 래퍼는 남는다. *(원래 근거였던 "6번째 리소스에서 재검토" 는
+      이미 5개라 성립하지 않아 6차에서 근거를 교체했다.)*
+- [ ] **트리거 시크릿/토큰 회전 3종 감사 — planner 선행 필요** (8차 리뷰 security).
+      `TriggersService` 의 `rotateNotificationSecret`·`revokePerTriggerToken`·`rotateBotToken`
+      이 `recordAudit` 를 호출하지 않는다(실측). Editor+ 면 호출 가능한 특권 작업이고 응답에
+      새 시크릿을 1회 평문 반환하므로, 계정 탈취 후 조용한 시크릿 교체를 `audit_log` 만으로
+      재구성할 수 없다 — 감사 가치가 CRUD 보다 높다. `integration.rotated` 선례도 있다.
+      **다만 대응 액션이 spec 카탈로그에 없어**(`spec/` 전체에 `trigger.rotate*` 0건)
+      `1-auth.md §4.1` + `conventions/audit-actions.md` 개정이 선행돼야 한다.
+      아래 "spec SoT 동기화" 항목과 **같은 planner 턴에서 함께** 처리하는 것이 맞다.
+- [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
+- [ ] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** — 7차 리뷰
+      `security` CRITICAL. `RolesGuard.canActivate` 가 `requiredRoles` 가 비면 `return true` 로
+      조기 반환해 `getMemberRole` 이 실행되지 않고, 멤버십을 보는 다른 가드가 없다. 비멤버가
+      `X-Workspace-Id` 를 위조해 타 워크스페이스 데이터를 열람/조작할 수 있다. **이 PR 과 무관한
+      기존 결함**(`origin/main` 에도 동일, diff 밖 — 실측 확인). 특히 `triggers.controller.ts`
+      `rotateBotToken` 은 mutation 인데 `@Roles()` 가 없다. **전수 조사 선행 필요** — 확인된
+      11곳은 7차 배치의 4개 컨트롤러만 훑은 결과다. 근거: `review/code/2026/08/01/13_46_48/security.md`
+- [x] 컨트롤러 `userId` 배선 spec (W8) — **6차 리뷰에서 종결**. 감사 기록 대상 배선 15곳 전수
+      단언 + 뮤턴트 13종 RED. 유예 근거였던 "타입이 강제한다" 가 반증됐다 (TS2554 는 인자
+      누락만 잡고 동일 타입 스왑은 못 잡는다 — 실측 오류 0건).
+
+> `status: implemented` 승격은 여전히 불가 — §1.3 LDAP/SAML 이 남아 있다.

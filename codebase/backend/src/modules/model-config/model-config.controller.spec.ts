@@ -163,18 +163,55 @@ describe('ModelConfigController', () => {
   // on init) to break the model-config ↔ llm forwardRef cycle (C-2 cluster 4).
   // Cache-clear-on-mutate is now asserted in model-config.service.spec.ts.
 
+  // `create` / `setDefault` 도 행위자(userId) 자리를 고정한다 — workspaceId 와 userId 가
+  // 둘 다 string 이라 스왑해도 컴파일이 통과하고(실측: `tsc --noEmit` 오류 0건), 스왑된
+  // 채로도 감사 행은 정상적으로 쌓여 **조용히 틀린 감사**가 된다.
+  describe('create', () => {
+    it('delegates with workspaceId·kind·dto·userId in order', async () => {
+      const dto = { kind: 'llm', name: 'cfg' };
+
+      await controller.create('ws-1', dto as any, 'u-1');
+
+      expect(mockModelConfigService.create).toHaveBeenCalledWith(
+        'ws-1',
+        'llm',
+        dto,
+        'u-1',
+      );
+    });
+  });
+
+  describe('setDefault', () => {
+    it('delegates with id·workspaceId·userId in order', async () => {
+      await controller.setDefault('cfg-3', 'ws-1', 'u-1');
+
+      expect(mockModelConfigService.setDefault).toHaveBeenCalledWith(
+        'cfg-3',
+        'ws-1',
+        'u-1',
+      );
+    });
+  });
+
   describe('update', () => {
     it('delegates to modelConfigService.update and returns its result', async () => {
       const dto = { name: 'New name' };
       const updated = { id: 'cfg-1', name: 'New name' };
       mockModelConfigService.update.mockResolvedValue(updated);
 
-      const result = await controller.update('cfg-1', 'ws-1', dto as any);
+      const result = await controller.update(
+        'cfg-1',
+        'ws-1',
+        dto as any,
+        'u-1',
+      );
 
+      // userId 까지 단언한다 — 감사 로그의 **주체**라, 빠지면 누가 바꿨는지가 사라진다.
       expect(mockModelConfigService.update).toHaveBeenCalledWith(
         'cfg-1',
         'ws-1',
         dto,
+        'u-1',
       );
       expect(result).toBe(updated);
     });
@@ -182,17 +219,20 @@ describe('ModelConfigController', () => {
 
   describe('remove', () => {
     it('delegates to modelConfigService.remove', async () => {
-      await controller.remove('cfg-2', 'ws-1');
+      await controller.remove('cfg-2', 'ws-1', 'u-1');
 
       expect(mockModelConfigService.remove).toHaveBeenCalledWith(
         'cfg-2',
         'ws-1',
+        'u-1',
       );
     });
 
     it('propagates the error when remove throws', async () => {
       mockModelConfigService.remove.mockRejectedValue(new Error('not found'));
-      await expect(controller.remove('bad-id', 'ws-1')).rejects.toThrow();
+      await expect(
+        controller.remove('bad-id', 'ws-1', 'u-1'),
+      ).rejects.toThrow();
     });
   });
 

@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -71,6 +72,9 @@ async function makeService(
 ): Promise<TriggersService> {
   const moduleRef = await Test.createTestingModule({
     providers: [
+      // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+      // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+      { provide: AuditLogsService, useValue: { record: jest.fn() } },
       TriggersService,
       { provide: getRepositoryToken(Trigger), useValue: triggerRepoMock },
       ...otherProviders(),
@@ -135,17 +139,21 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
       position: 'bottom-right',
       headerTitle: 'Bot',
     };
-    const result = await service.create('ws-1', {
-      type: 'webhook',
-      workflowId: 'wf-1',
-      name: 'n',
-      endpointPath: 'ep',
-      interaction: {
-        enabled: true,
-        tokenStrategy: 'per_execution',
-        appearance,
-      },
-    } as never);
+    const result = await service.create(
+      'ws-1',
+      {
+        type: 'webhook',
+        workflowId: 'wf-1',
+        name: 'n',
+        endpointPath: 'ep',
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_execution',
+          appearance,
+        },
+      } as never,
+      'u-spec',
+    );
     expect(
       (result.config as { interaction?: { appearance?: unknown } }).interaction
         ?.appearance,
@@ -167,13 +175,18 @@ describe('TriggersService — config.interaction.appearance 저장 (follow-up 2)
       update: jest.fn(),
     });
     const appearance = { primaryColor: '#112233', welcomeText: '안녕하세요' };
-    const result = await service.update('t-1', 'ws-1', {
-      interaction: {
-        enabled: true,
-        tokenStrategy: 'per_execution',
-        appearance,
-      },
-    } as never);
+    const result = await service.update(
+      't-1',
+      'ws-1',
+      {
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_execution',
+          appearance,
+        },
+      } as never,
+      'u-spec',
+    );
     const interaction = (
       result.config as { interaction?: Record<string, unknown> }
     ).interaction;

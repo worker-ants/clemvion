@@ -1,3 +1,4 @@
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,11 +7,13 @@ import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
+import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
 
 describe('SchedulesService.runNow', () => {
   let service: SchedulesService;
+  let auditLogs: { record: jest.Mock };
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let workspacesService: jest.Mocked<
@@ -22,8 +25,12 @@ describe('SchedulesService.runNow', () => {
   >;
 
   beforeEach(async () => {
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
     const moduleRef = await Test.createTestingModule({
       providers: [
+        // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+        // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
+        { provide: AuditLogsService, useValue: auditLogs },
         SchedulesService,
         {
           provide: getRepositoryToken(Schedule),
@@ -203,37 +210,187 @@ describe('SchedulesService.runNow', () => {
     });
 
     it('dto.timezone 명시(유효) 시 우선 (workspace 미조회)', async () => {
-      const s = await service.create('ws-1', {
-        ...baseDto,
-        timezone: 'America/New_York',
-      } as unknown as CreateScheduleDto);
+      const s = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+          timezone: 'America/New_York',
+        } as unknown as CreateScheduleDto,
+        'u-spec',
+      );
       expect(s.timezone).toBe('America/New_York');
       expect(workspacesService.getWorkspaceTimezone).not.toHaveBeenCalled();
     });
 
     it('dto.timezone 무효 → INVALID_TIMEZONE BadRequest', async () => {
       await expect(
-        service.create('ws-1', {
-          ...baseDto,
-          timezone: 'Not/AZone',
-        } as unknown as CreateScheduleDto),
+        service.create(
+          'ws-1',
+          {
+            ...baseDto,
+            timezone: 'Not/AZone',
+          } as unknown as CreateScheduleDto,
+          'u-spec',
+        ),
       ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
     });
 
     it('dto.timezone 없으면 workspace 설정 timezone fallback', async () => {
       workspacesService.getWorkspaceTimezone.mockResolvedValue('Europe/London');
-      const s = await service.create('ws-1', {
-        ...baseDto,
-      } as unknown as CreateScheduleDto);
+      const s = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+        } as unknown as CreateScheduleDto,
+        'u-spec',
+      );
       expect(s.timezone).toBe('Europe/London');
     });
 
     it('dto·workspace 둘 다 없으면(undefined) Asia/Seoul', async () => {
       workspacesService.getWorkspaceTimezone.mockResolvedValue(undefined);
-      const s = await service.create('ws-1', {
-        ...baseDto,
-      } as unknown as CreateScheduleDto);
+      const s = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+        } as unknown as CreateScheduleDto,
+        'u-spec',
+      );
       expect(s.timezone).toBe('Asia/Seoul');
+    });
+
+    it('감사 로깅 — schedule.created 를 행위자·대상과 함께 남긴다', async () => {
+      const saved = await service.create(
+        'ws-1',
+        { ...baseDto, timezone: 'Asia/Seoul' } as unknown as CreateScheduleDto,
+        'u-1',
+      );
+
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        action: 'schedule.created',
+        resourceType: 'schedule',
+        resourceId: saved.id,
+      });
+    });
+
+    it('감사 로깅 — 생성이 실패하면 남기지 않는다', async () => {
+      await expect(
+        service.create(
+          'ws-1',
+          { ...baseDto, timezone: 'Not/AZone' } as unknown as CreateScheduleDto,
+          'u-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
+      expect(auditLogs.record).not.toHaveBeenCalled();
+    });
+
+    it('감사 로깅 — create 는 BullMQ 등록 **전에** 기록한다 (W6 순서 고정)', async () => {
+      // 순서가 뒤집히면 registerJob 실패 시 스케줄은 생겼는데 감사가 안 남는다.
+      // 코드로만 맞춰두면 리팩터링이 조용히 되돌려도 테스트는 GREEN 이다.
+      const order: string[] = [];
+      scheduleRepo.save.mockImplementation(async (x) => {
+        order.push('commit');
+        return x as unknown as Schedule;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+      (
+        runner as unknown as { registerJob: jest.Mock }
+      ).registerJob.mockImplementation(async () => {
+        order.push('bullmq');
+      });
+
+      await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+          timezone: 'Asia/Seoul',
+          isActive: true,
+        } as unknown as CreateScheduleDto,
+        'u-o',
+      );
+
+      expect(order).toEqual(['commit', 'audit', 'bullmq']);
+    });
+
+    it('감사 로깅 — update 는 schedule.updated 를 남긴다', async () => {
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-1',
+        workspaceId: 'ws-1',
+        isActive: false,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-1',
+      } as unknown as Schedule);
+
+      await service.update(
+        'sch-1',
+        'ws-1',
+        { name: 'S2' } as unknown as UpdateScheduleDto,
+        'u-upd',
+      );
+
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'u-upd',
+        action: 'schedule.updated',
+        resourceType: 'schedule',
+        resourceId: 'sch-1',
+      });
+    });
+
+    it('감사 로깅 — update 도 BullMQ 재등록 **전에** 기록한다 (W2)', async () => {
+      const order: string[] = [];
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-9',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-9',
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (x) => {
+        order.push('commit');
+        return x as unknown as Schedule;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+      (
+        runner as unknown as { registerJob: jest.Mock }
+      ).registerJob.mockImplementation(async () => {
+        order.push('bullmq');
+      });
+
+      await service.update(
+        'sch-9',
+        'ws-1',
+        { name: 'S9' } as unknown as UpdateScheduleDto,
+        'u-o2',
+      );
+
+      expect(order).toEqual(['commit', 'audit', 'bullmq']);
+    });
+
+    it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-2',
+        workspaceId: 'ws-1',
+        triggerId: 'trig-2',
+      } as unknown as Schedule);
+
+      await service.remove('sch-2', 'ws-1', 'u-del');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u-del',
+          action: 'schedule.deleted',
+          resourceId: 'sch-2',
+        }),
+      );
     });
   });
 });

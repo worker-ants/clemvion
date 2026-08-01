@@ -1,4 +1,9 @@
 import {
+  AUDIT_ACTIONS,
+  AuditActionFor,
+} from '../audit-logs/audit-action.const';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
   Injectable,
   BadRequestException,
   ConflictException,
@@ -53,6 +58,9 @@ const AI_NODE_TYPES_WITH_LLM_CONFIG = new Set<string>([
   'text_classifier',
 ]);
 
+/** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
+const WORKFLOW_RESOURCE_TYPE = 'workflow';
+
 @Injectable()
 export class WorkflowsService {
   constructor(
@@ -71,6 +79,7 @@ export class WorkflowsService {
     private readonly workflowVersionsService: WorkflowVersionsService,
     private readonly registry: NodeComponentRegistry,
     private readonly modelConfigService: ModelConfigService,
+    private readonly auditLogsService: AuditLogsService,
     private readonly workspacesService: WorkspacesService,
   ) {}
 
@@ -161,12 +170,33 @@ export class WorkflowsService {
     return workflow;
   }
 
+  /**
+   * `workflow.*` 감사 기록. named 필드 — positional 이면 동일 타입(string) 인자 순서 스왑을
+   * 컴파일러가 못 잡아 감사 주체·대상이 조용히 뒤바뀐다 (auth-configs W-1 과 동일 근거).
+   */
+  private recordAudit(params: {
+    workspaceId: string;
+    userId: string;
+    action: AuditActionFor<typeof WORKFLOW_RESOURCE_TYPE>;
+    resourceId: string;
+    details?: Record<string, unknown>;
+  }): Promise<void> {
+    return this.auditLogsService.record({
+      workspaceId: params.workspaceId,
+      userId: params.userId,
+      action: params.action,
+      resourceType: WORKFLOW_RESOURCE_TYPE,
+      resourceId: params.resourceId,
+      details: params.details,
+    });
+  }
+
   async create(
     workspaceId: string,
     userId: string,
     dto: CreateWorkflowDto,
   ): Promise<Workflow> {
-    return this.dataSource.transaction(async (manager) => {
+    const created = await this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         ...dto,
         workspaceId,
@@ -189,12 +219,21 @@ export class WorkflowsService {
 
       return savedWorkflow;
     });
+    // 트랜잭션 **커밋 뒤** 기록 — 안에서 남기면 롤백 시 일어나지 않은 일이 감사에 남는다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_CREATED,
+      resourceId: created.id,
+    });
+    return created;
   }
 
   async update(
     id: string,
     workspaceId: string,
     dto: UpdateWorkflowDto,
+    userId: string,
   ): Promise<Workflow> {
     const workflow = await this.findById(id, workspaceId);
     const { settings, ...rest } = dto;
@@ -205,12 +244,25 @@ export class WorkflowsService {
     if (settings !== undefined) {
       workflow.settings = { ...(workflow.settings ?? {}), ...settings };
     }
-    return this.workflowRepository.save(workflow);
+    const saved = await this.workflowRepository.save(workflow);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_UPDATED,
+      resourceId: id,
+    });
+    return saved;
   }
 
-  async remove(id: string, workspaceId: string): Promise<void> {
+  async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const workflow = await this.findById(id, workspaceId);
     await this.workflowRepository.remove(workflow);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_DELETED,
+      resourceId: id,
+    });
   }
 
   /**
@@ -242,96 +294,117 @@ export class WorkflowsService {
     // INSERT 하므로 write-write 충돌이 없어 40001(serialization failure) 재시도
     // 로직은 불필요 — 순수 read 스냅샷 고정 목적의 REPEATABLE READ 만으로 충분
     // (그 선례에도 재시도 로직 없음).
-    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
-      const copy = manager.create(Workflow, {
-        name: `${original.name} (Copy)`,
-        description: original.description,
-        isActive: false,
-        // 배열/JSONB 는 얕은 복사 — 반환 엔티티가 원본 엔티티와 참조를 공유하면
-        // 호출부의 변이가 원본까지 오염시킨다.
-        tags: [...(original.tags ?? [])],
-        folderId: original.folderId,
-        settings: { ...(original.settings ?? {}) },
-        workspaceId,
-        createdBy: userId,
-        // currentVersion 은 넘기지 않는다 — 엔티티 default(1) 로 새로 시작.
-      });
-      const savedCopy = await manager.save(Workflow, copy);
+    const duplicated = await this.dataSource.transaction(
+      'REPEATABLE READ',
+      async (manager) => {
+        const copy = manager.create(Workflow, {
+          name: `${original.name} (Copy)`,
+          description: original.description,
+          isActive: false,
+          // 배열/JSONB 는 얕은 복사 — 반환 엔티티가 원본 엔티티와 참조를 공유하면
+          // 호출부의 변이가 원본까지 오염시킨다.
+          tags: [...(original.tags ?? [])],
+          folderId: original.folderId,
+          settings: { ...(original.settings ?? {}) },
+          workspaceId,
+          createdBy: userId,
+          // currentVersion 은 넘기지 않는다 — 엔티티 default(1) 로 새로 시작.
+        });
+        const savedCopy = await manager.save(Workflow, copy);
 
-      // 노드/엣지는 사본을 쓰는 것과 같은 트랜잭션에서 읽는다 — 실패 시 부분 사본이
-      // 남지 않는다.
-      const originalNodes = await manager.find(Node, {
-        where: { workflowId: id },
-      });
-      const originalEdges = await manager.find(Edge, {
-        where: { workflowId: id },
-      });
+        // 노드/엣지는 사본을 쓰는 것과 같은 트랜잭션에서 읽는다 — 실패 시 부분 사본이
+        // 남지 않는다.
+        const originalNodes = await manager.find(Node, {
+          where: { workflowId: id },
+        });
+        const originalEdges = await manager.find(Edge, {
+          where: { workflowId: id },
+        });
 
-      // importWorkflow 와 같은 형태 — UUID 를 앱 측에서 사전 발급해 참조 remap 을
-      // insert 페이로드에 바로 담는다 (2차 update 루프 없이 왕복 ~2회).
-      // manager.insert 는 @BeforeInsert hook·cascade 를 건너뛴다 — Node/Edge 엔티티
-      // 에는 둘 다 없음(같은 전제를 고정하는 가드 테스트가 `workflows.service.spec.ts`
-      // 의 W3c 가드에 있다).
-      const idMap = new Map<string, string>(
-        originalNodes.map((node) => [node.id, randomUUID()]),
-      );
-      // 참조 노드가 원본 조회 결과에 없으면(FK CASCADE 상 발생하지 않아야 하지만)
-      // null 로 두어 배치 정보 없는 노드로 취급한다 — 엣지 쪽 skip(아래 flatMap)과
-      // 같은 방어적 태도.
-      const remap = (nodeId: string | null): string | null =>
-        nodeId ? (idMap.get(nodeId) ?? null) : null;
+        // importWorkflow 와 같은 형태 — UUID 를 앱 측에서 사전 발급해 참조 remap 을
+        // insert 페이로드에 바로 담는다 (2차 update 루프 없이 왕복 ~2회).
+        // manager.insert 는 @BeforeInsert hook·cascade 를 건너뛴다 — Node/Edge 엔티티
+        // 에는 둘 다 없음(같은 전제를 고정하는 가드 테스트가 `workflows.service.spec.ts`
+        // 의 W3c 가드에 있다).
+        const idMap = new Map<string, string>(
+          originalNodes.map((node) => [node.id, randomUUID()]),
+        );
+        // 참조 노드가 원본 조회 결과에 없으면(FK CASCADE 상 발생하지 않아야 하지만)
+        // null 로 두어 배치 정보 없는 노드로 취급한다 — 엣지 쪽 skip(아래 flatMap)과
+        // 같은 방어적 태도.
+        const remap = (nodeId: string | null): string | null =>
+          nodeId ? (idMap.get(nodeId) ?? null) : null;
 
-      // Node 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `nodeRows`,
-      // `syncNodes()` 의 신규 `newNode` 리터럴과 컬럼 이름 집합이 동일해야 한다.
-      // Node 엔티티에 컬럼을 추가하면 이 3곳 모두 손으로 동기화할 것 — 아래
-      // `manager.insert` 는 `QueryDeepPartialEntity<Node>[]` 로 타입을 우회해
-      // 하나만 빠뜨려도 컴파일 에러 없이 조용히 필드가 유실된다.
-      const nodeRows = originalNodes.map((node) => ({
-        id: idMap.get(node.id)!,
-        workflowId: savedCopy.id,
-        type: node.type,
-        category: node.category,
-        label: node.label,
-        positionX: node.positionX,
-        positionY: node.positionY,
-        config: { ...node.config },
-        isDisabled: node.isDisabled,
-        description: node.description,
-        containerId: remap(node.containerId),
-        toolOwnerId: remap(node.toolOwnerId),
-      }));
-      if (nodeRows.length > 0) {
-        await manager.insert(Node, nodeRows as QueryDeepPartialEntity<Node>[]);
-      }
+        // Node 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `nodeRows`,
+        // `syncNodes()` 의 신규 `newNode` 리터럴과 컬럼 이름 집합이 동일해야 한다.
+        // Node 엔티티에 컬럼을 추가하면 이 3곳 모두 손으로 동기화할 것 — 아래
+        // `manager.insert` 는 `QueryDeepPartialEntity<Node>[]` 로 타입을 우회해
+        // 하나만 빠뜨려도 컴파일 에러 없이 조용히 필드가 유실된다.
+        const nodeRows = originalNodes.map((node) => ({
+          id: idMap.get(node.id)!,
+          workflowId: savedCopy.id,
+          type: node.type,
+          category: node.category,
+          label: node.label,
+          positionX: node.positionX,
+          positionY: node.positionY,
+          config: { ...node.config },
+          isDisabled: node.isDisabled,
+          description: node.description,
+          containerId: remap(node.containerId),
+          toolOwnerId: remap(node.toolOwnerId),
+        }));
+        if (nodeRows.length > 0) {
+          await manager.insert(
+            Node,
+            nodeRows as QueryDeepPartialEntity<Node>[],
+          );
+        }
 
-      // Edge 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `edgeRows`,
-      // `syncEdges()` 의 `newEdges` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
-      const edgeRows = originalEdges.flatMap((edge) => {
-        // FK CASCADE 상 원본에 고아 엣지는 없어야 하지만, 있으면 사본에 옮기지
-        // 않는다 (import 경로의 범위 밖 인덱스 skip 과 같은 방어).
-        const sourceNodeId = idMap.get(edge.sourceNodeId);
-        const targetNodeId = idMap.get(edge.targetNodeId);
-        if (!sourceNodeId || !targetNodeId) return [];
-        return [
-          {
-            workflowId: savedCopy.id,
-            sourceNodeId,
-            sourcePort: edge.sourcePort,
-            targetNodeId,
-            targetPort: edge.targetPort,
-            type: edge.type,
-            // node.config 와 같은 이유의 얕은 복사 — 반환/후속 변이가 원본 엔티티를
-            // 오염시키지 않게. nullable 이라 값이 없으면 그대로 둔다.
-            condition: edge.condition ? { ...edge.condition } : edge.condition,
-          },
-        ];
-      });
-      if (edgeRows.length > 0) {
-        await manager.insert(Edge, edgeRows as QueryDeepPartialEntity<Edge>[]);
-      }
+        // Edge 필드 집합 3중 중복 지점 1/3 — `importWorkflow()` 의 `edgeRows`,
+        // `syncEdges()` 의 `newEdges` 리터럴과 동기화 필요(컬럼 추가 시 3곳 전부).
+        const edgeRows = originalEdges.flatMap((edge) => {
+          // FK CASCADE 상 원본에 고아 엣지는 없어야 하지만, 있으면 사본에 옮기지
+          // 않는다 (import 경로의 범위 밖 인덱스 skip 과 같은 방어).
+          const sourceNodeId = idMap.get(edge.sourceNodeId);
+          const targetNodeId = idMap.get(edge.targetNodeId);
+          if (!sourceNodeId || !targetNodeId) return [];
+          return [
+            {
+              workflowId: savedCopy.id,
+              sourceNodeId,
+              sourcePort: edge.sourcePort,
+              targetNodeId,
+              targetPort: edge.targetPort,
+              type: edge.type,
+              // node.config 와 같은 이유의 얕은 복사 — 반환/후속 변이가 원본 엔티티를
+              // 오염시키지 않게. nullable 이라 값이 없으면 그대로 둔다.
+              condition: edge.condition
+                ? { ...edge.condition }
+                : edge.condition,
+            },
+          ];
+        });
+        if (edgeRows.length > 0) {
+          await manager.insert(
+            Edge,
+            edgeRows as QueryDeepPartialEntity<Edge>[],
+          );
+        }
 
-      return savedCopy;
+        return savedCopy;
+      },
+    );
+    // 트랜잭션 커밋 뒤 기록. `details.duplicatedFrom` 으로 원본을 남긴다 — 복제본은 별개
+    // 리소스지만 사후 감사에서 "어디서 나온 것인가" 가 곧 그 리소스의 출처다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_CREATED,
+      resourceId: duplicated.id,
+      details: { duplicatedFrom: id },
     });
+    return duplicated;
   }
 
   async exportWorkflow(
@@ -408,7 +481,7 @@ export class WorkflowsService {
     );
     const defaultLlmId = defaultLlm?.id ?? null;
 
-    return this.dataSource.transaction(async (manager) => {
+    const imported = await this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         name: dto.name,
         description: dto.description,
@@ -503,6 +576,20 @@ export class WorkflowsService {
 
       return savedWorkflow;
     });
+    // 트랜잭션 커밋 뒤 기록. import 도 `create`/`duplicate` 와 같은 **신규 워크플로 생성**이라
+    // 같은 액션을 쓴다. `details.imported` 로 유입 경로를 남긴다 — 외부 JSON 이 들어온 것이라
+    // 사후 감사에서 "이 워크플로가 어디서 왔나" 가 특히 중요하다.
+    //
+    // (4차 리뷰 W1. 1차 리뷰 때 `saveCanvas` 와 묶어 미뤘는데, 카디널리티 논거는 캔버스 편집
+    // 마다 발동하는 `saveCanvas` 에만 해당하고 import 는 이산적 생성 이벤트라 분리했다.)
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.WORKFLOW_CREATED,
+      resourceId: imported.id,
+      details: { imported: true },
+    });
+    return imported;
   }
 
   async saveCanvas(

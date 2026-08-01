@@ -1,3 +1,4 @@
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
@@ -23,6 +24,8 @@ import { SchedulesModule } from '../schedules/schedules.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Trigger, Execution, Schedule, AuthConfig]),
+    // AuditLogsModule: trigger.* CRUD 감사 기록 (1-auth §4.1).
+    AuditLogsModule,
     ConfigModule,
     BullModule.registerQueue(
       { name: NOTIFICATION_SECRET_ROTATOR_QUEUE },
