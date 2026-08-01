@@ -109,8 +109,20 @@ src/signature.ts(70,23) TS2591  Cannot find name 'Buffer'.
       `5.9.3` 단일. `sdk prepare: Done` 으로 실패 2 해소 확인.
 - [x] dependabot major ignore — `update-types: ["version-update:semver-major"]` 로 major 만 차단
       (minor/patch·security 는 계속 수신). 되살릴 조건을 주석에 명시.
-- [ ] 회귀 가드 (능력 + lockstep) — 작성·20건 통과. mutation 검증 미완
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 회귀 가드 (능력 + lockstep) — 20건. `vitest list` 로 자동 수집 확인(전체 5781 → 5801),
+      mutation 4종으로 non-vacuous 증명:
+      | 뮤턴트 | 결과 |
+      | --- | --- |
+      | sdk 매니페스트만 `^7.0.2` (lockstep 위반 재현) | 1 failed ✅ |
+      | `loadTypescriptFrom` → TS7 스텁 반환 (능력 위반 재현) | 1 failed ✅ |
+      | `discoverWorkspaceDirs` → `[]` (발견 vacuity) | 4 failed ✅ |
+      | `loadTypescriptFrom` → 항상 `null` (능력 검사 vacuity) | 1 failed ✅ |
+
+      첫 시도의 `return [] && expand…` 는 **무효 뮤턴트**였다 — `[]` 가 truthy 라 `[] && x` 는
+      `x` 를 그대로 돌려준다. GREEN 을 "가드가 안 문다" 로 오판할 뻔했고, 치환이 의도한 자리에
+      실제로 걸렸는지를 돌리기 **전에** 확인해야 한다는 기존 교훈의 재현이다.
+- [x] TEST WORKFLOW — lint PASS(66s) · unit PASS(102s) · build PASS(196s) · e2e PASS(260/260, 346s).
+      build 로그에서 `nest build` → `✓ Compiled successfully` 확인 — 젠킨스 실패 1의 정확한 지점이다.
 - [ ] `/ai-review` + Critical/Warning 조치
 - [ ] push + PR
 
@@ -133,3 +145,15 @@ src/signature.ts(70,23) TS2591  Cannot find name 'Buffer'.
 | `#1050` | uuid 13 → 14 | **런타임** |
 
 본 PR 로 빌드가 복구되면 그 지점부터 드러난다. TEST WORKFLOW 에서 관측되는 것은 여기에 기록한다.
+
+**관측 결과** — 셋 다 lint · unit · build · e2e 전 단계를 통과했다. 다만 하나가 남는다:
+
+```
+codebase/backend
+└─┬ eslint-plugin-unicorn 72.0.0
+  └── ✕ unmet peer eslint@>=10.4: found 9.39.4
+```
+
+`#1049` 가 남긴 **미충족 peer** 다. lint 는 PASS 하므로 지금 깨진 상태는 아니지만, 플러그인이
+선언한 지원 범위 밖에서 돌고 있다. 본 PR 은 빌드 복구가 스코프라 건드리지 않는다 — eslint 9 →
+10 상향은 flat config·룰 시그니처 변경을 동반하므로 별도 PR 이 맞다. 후속으로 분리한다.
