@@ -123,8 +123,55 @@ src/signature.ts(70,23) TS2591  Cannot find name 'Buffer'.
       실제로 걸렸는지를 돌리기 **전에** 확인해야 한다는 기존 교훈의 재현이다.
 - [x] TEST WORKFLOW — lint PASS(66s) · unit PASS(102s) · build PASS(196s) · e2e PASS(260/260, 346s).
       build 로그에서 `nest build` → `✓ Compiled successfully` 확인 — 젠킨스 실패 1의 정확한 지점이다.
-- [ ] `/ai-review` + Critical/Warning 조치
+- [x] `/ai-review` (`review/code/2026/08/01/10_55_44`) — **Critical 0 · Warning 0 · INFO 20, risk LOW**.
+      reviewer 9명 전원 success(`has_report: true`)이고 디스크 산출물 9개 + SUMMARY.md 와 정확히
+      일치, `unfinished` 비어 있음 — 반환값만 믿지 않고 대조했다. router 가 5명(performance ·
+      database · concurrency · api_contract · user_guide_sync)을 skip 했는데, 매니페스트 버전
+      복원 + 테스트 전용 가드라는 변경 성격에 부합한다. Critical/Warning 0 이라
+      `resolution-applier` 호출 조건 미해당, RESOLUTION.md 불요.
 - [ ] push + PR
+
+## INFO 20건 처분
+
+**조치함**
+
+- **INFO 1 (security)** — "TS 다운그레이드가 상위에서 패치된 CVE 를 재도입하는가" 는 리뷰가
+  실측하지 않은 항목이라 직접 돌렸다: `pnpm audit` → `{info:0, low:0, moderate:0, high:0,
+  critical:0}`, typescript 관련 advisory 0건. 재도입 없음.
+- **INFO 17 (documentation)** — `PROJECT.md §버전·도구 정책` 에 "빌드 툴체인 major 자동 bump
+  차단" 축을 등재했다. 지적대로 `dependabot.yml` 주석에만 있으면 거버넌스 SoT 에서 안 보인다.
+
+**후속 분리** (코드 변경이라 이번 P0 스코프 밖 — `typescript-toolchain-followups.md`)
+
+- **INFO 3 (architecture)** — 신규 가드가 `ROOT`/`listAtPath` 두 심볼 때문에 형제 모듈
+  `internal-package-registration-guard.ts` 전체 export 표면에 의존(ISP 위반). 중립 모듈
+  `_shared.ts` 로 분리. **타당한 지적**이다 — 다만 형제 가드도 함께 고쳐야 해 양쪽 재검증이 붙는다.
+- **INFO 14 (testing)** — `discoverWorkspaceDirs` 의 fail-closed throw 가 실제 I/O 와 결합돼
+  synthetic 커버 불가. `validateWorkspacePatterns(patterns)` 순수 함수로 분리하면 직접 겨냥 가능.
+- **INFO 5 (architecture)** — 사고의 구조적 원인(typescript 선언이 10개 매니페스트에 중복)은
+  가드로 탐지만 하고 제거하진 않았다. pnpm 10.23 의 `catalog:` 프로토콜로 단일 선언화 가능.
+- **INFO 12 · 16** — `unknown | null` 타입 단순화, `missingCompilerApi` JSDoc 의 "이 경로" 지시어
+  모호. 둘 다 값싸지만 `codebase/**` 를 건드리면 리뷰가 stale 돼 push 가 막힌다. 다음 코드 터치
+  때 위 항목들과 **모아서** 처리한다(같은 클래스 fix 를 낱개로 흘리면 리뷰 라운드만 늘어난다).
+
+**조치 불요 — 근거**
+
+- **INFO 2** — dependabot `ignore` 와 security-update 토글의 상호작용 gap. 주석에 이미 인지·완화
+  조건이 적혀 있고, major 로만 나오는 보안 패치는 실제로 드물다.
+- **INFO 4 · 10 · 11 · 13** — monorepo 전역 가드의 frontend 귀속, `describe()` 본문 I/O,
+  매니페스트 판독 3줄 중복, 인시던트 서사 3곳 중복. 전부 **기존 형제 가드가 이미 쓰는 패턴**이라
+  이번 PR 이 만든 문제가 아니다. INFO 4 는 "세 번째 유사 가드" 시점의 승격 검토로 남긴다.
+- **INFO 6 · 15 · 19** — `dependencies.typescript` 동시 선언, prerelease/복합 range, `^5.7.3` vs
+  `^5` 표기 차이. 셋 다 현재 도달 불가하거나(10개 워크스페이스 전부 devDeps 단일 caret) 사고
+  원인과 무관하다. `^5`/`^5.7.3` 혼재는 `#1047` **이전 값의 정확한 복원**이라 이 PR 이 만든
+  드리프트가 아니다.
+- **INFO 7 · 8** — lockfile 의 `eslint-plugin-import` peer 키 표기 변화는 `pnpm install` 전체
+  재계산의 알려진 부작용이고, 가드 신설(+393줄)은 plan Overview 에서 착수 전 선언한 스코프다.
+  둘 다 "오판 방지 기록" 목적의 INFO 로 리뷰어 자신이 액션 불요로 판정했다.
+- **INFO 9 · 20** — `loadTypescriptFrom` 의 광범위 catch, `path.join` 의 `..` 이탈 이론값.
+  전자는 하류 vacuity 가드가 완전 무력화를 막고, 후자는 `pnpm-workspace.yaml` 이 이미 저장소
+  신뢰 경계 안이다(조작 가능하면 빌드 스크립트를 직접 고치는 게 빠르다).
+- **INFO 18** — `#1049` 의 eslint peer 미충족. 본 PR 이 안 건드렸고 plan 에 이미 이연 기재.
 
 ## 미수행 단계와 근거
 
