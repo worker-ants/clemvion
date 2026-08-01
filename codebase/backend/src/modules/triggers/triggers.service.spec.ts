@@ -2323,11 +2323,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     auditLogs.record.mockImplementation(async () => {
       order.push('audit');
     });
-    const secrets = (
-      service as unknown as {
-        normalizeNotificationSecretRef: (t: unknown) => Promise<void>;
-      }
-    );
+    const secrets = service as unknown as {
+      normalizeNotificationSecretRef: (t: unknown) => Promise<void>;
+    };
     const origNorm = secrets.normalizeNotificationSecretRef.bind(service);
     secrets.normalizeNotificationSecretRef = async (t: unknown) => {
       order.push('secret');
