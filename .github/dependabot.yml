@@ -44,3 +44,30 @@ updates:
     schedule:
       interval: "weekly"
     rebase-strategy: "auto"
+    ignore:
+      # typescript major 는 자동 bump 대상에서 제외한다.
+      #
+      # 등록(#1043) 다음 날 #1047 이 `5.9.3` → **`7.0.2`** 를 올렸고 main 빌드가 통째로 깨졌다
+      # (Jenkins Clemvion/337, backend·frontend 이미지 둘 다). TS7 은 Go 네이티브 재작성판이라
+      # **JS compiler API 를 제공하지 않는다** — `require('typescript')` 가
+      # `{version, versionMajorMinor}` 스텁만 돌려주고 compiler API 는 `typescript/unstable/*`
+      # 라는 새 export 표면으로 옮겼다. 그 결과:
+      #
+      #   backend   @nestjs/cli 가 cwd 의 typescript 를 집어 → `nest build` 가
+      #             "tsBinary.getParsedCommandLineOfConfigFile is not a function"
+      #   frontend  packages/sdk 의 `prepare` tsc 가 @types/node 자동 포함 실패로 죽어
+      #             `pnpm install` 자체가 중단
+      #
+      # 즉 TS major 는 "의존성 하나" 가 아니라 **전 빌드 툴체인의 계약**이다(nest CLI ·
+      # ts-jest · fork-ts-checker · typescript-eslint 가 모두 `require('typescript')` 소비자이고,
+      # typescript-eslint 의 peer 는 지금도 `>=4.8.4 <6.1.0` 이라 TS7 을 배제한다).
+      # 생태계 대응이 끝난 뒤 **사람이** 올릴 판단을 해야 한다.
+      #
+      # minor/patch 는 계속 받는다 — `update-types` 로 major 만 잘라낸다. 별개 토글인
+      # security updates 도 patch 로 오는 한 영향 없다.
+      #
+      # 되살릴 조건: `require('typescript').getParsedCommandLineOfConfigFile` 이 다시 함수이고
+      # 위 4개 소비자가 그 major 를 지원할 때. 회귀 가드가 그 계약을 검사한다 —
+      # `codebase/frontend/src/lib/repo-guards/__tests__/typescript-toolchain.test.ts`
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
