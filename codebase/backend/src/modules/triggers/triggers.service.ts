@@ -212,7 +212,7 @@ export class TriggersService {
   private recordAudit(params: {
     workspaceId: string;
     userId: string;
-    action: AuditActionFor<'trigger'>;
+    action: AuditActionFor<typeof TRIGGER_RESOURCE_TYPE>;
     resourceId: string;
     type: string;
   }): Promise<void> {

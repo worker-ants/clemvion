@@ -144,7 +144,7 @@ export class SchedulesService {
   private recordAudit(params: {
     workspaceId: string;
     userId: string;
-    action: AuditActionFor<'schedule'>;
+    action: AuditActionFor<typeof SCHEDULE_RESOURCE_TYPE>;
     resourceId: string;
   }): Promise<void> {
     return this.auditLogsService.record({

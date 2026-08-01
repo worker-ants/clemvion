@@ -242,7 +242,7 @@ export class ModelConfigService {
   private recordAudit(params: {
     workspaceId: string;
     userId: string;
-    action: AuditActionFor<'model_config'>;
+    action: AuditActionFor<typeof MODEL_CONFIG_RESOURCE_TYPE>;
     resourceId: string;
     kind: ModelConfigKind;
   }): Promise<void> {

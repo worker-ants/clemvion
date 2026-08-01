@@ -177,7 +177,7 @@ export class WorkflowsService {
   private recordAudit(params: {
     workspaceId: string;
     userId: string;
-    action: AuditActionFor<'workflow'>;
+    action: AuditActionFor<typeof WORKFLOW_RESOURCE_TYPE>;
     resourceId: string;
     details?: Record<string, unknown>;
   }): Promise<void> {
