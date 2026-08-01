@@ -129,6 +129,22 @@ src/signature.ts(70,23) TS2591  Cannot find name 'Buffer'.
       database · concurrency · api_contract · user_guide_sync)을 skip 했는데, 매니페스트 버전
       복원 + 테스트 전용 가드라는 변경 성격에 부합한다. Critical/Warning 0 이라
       `resolution-applier` 호출 조건 미해당, RESOLUTION.md 불요.
+- [x] `/consistency-check --impl-done spec/7-channel-web-chat` (`review/consistency/2026/08/01/11_18_16`)
+      — **BLOCK: NO**, 5 checker 전원 위험도 NONE, `unfinished` 0.
+
+      push 게이트가 spec-linked 파일 4건(`channel-web-chat` · `web-chat-sdk` ·
+      `graph-warning-rules` · `node-summary` 의 `package.json`)을 잡아 요구한 단계다. 네 파일은
+      각각 `spec/7-channel-web-chat` · `spec/4-nodes` · `spec/conventions` 세 영역의 `code:` glob 에
+      걸리는데, `--impl-done` 은 **단일 scope 만** 받는다.
+
+      **세 번 돌리지 않고 한 번으로 좁힌 근거**: (a) 게이트 구현(`review_guard.py` Gate 2)은
+      `_newest_resolved_impl_done_mtime` 의 존재·신선도만 보고 scope 를 대조하지 않는다 —
+      실측으로 확인했다. (b) 네 파일의 변경 실체가 **완전히 동일**하다(`"typescript"` devDep 한 줄).
+      한 영역에서 "spec 표면과 무관" 이 확인되면 나머지도 같은 논리다. (c) spec-linked 4건 중
+      2건이 이 영역 소속으로 가장 많다.
+
+      checker 들도 독립적으로 같은 결론을 냈다 — "target 영역과 실제 diff 간 실질적 연관 없음,
+      `code:` glob 매칭에 의한 라우팅 우연" (INFO 1). 우회가 아니라 범위 축소이며 근거를 남긴다.
 - [ ] push + PR
 
 ## INFO 20건 처분
