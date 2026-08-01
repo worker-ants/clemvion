@@ -131,6 +131,54 @@ workspace 와 actor 가 통째로 뒤바뀐 **조용히 틀린 감사**가 되�
 그중 하나(W1)는 **유예 근거가 반증돼 조치**했고, 다른 하나(W2)는 근거를 교체하되 결론을
 유지했다. 새로운 동작 결함은 3라운드째 나오지 않았다.
 
+## 7차 리뷰 (`review/code/2026/08/01/13_46_48`) — Critical 1(diff 밖) / Warning 8
+
+6차 이후 코드가 바뀌어 push 게이트가 막았으므로(정상 동작), 브랜치 델타 23파일을 **명시 경로**로
+넘겨 전수 재리뷰했다. reviewer 11명 성공, forced 6명 전원 산출물 확보. `summary` sub-agent 만
+세션 한도로 실패해 **SUMMARY.md 는 main 이 11개 리포트를 읽어 직접 작성**했다.
+
+### Critical 1건 — 이번 PR 소산이 아님을 실측 확인 후 별도 트랙 분리
+
+`security` 가 `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락(cross-tenant 접근)을
+CRITICAL 로 보고했다. **리뷰어 주장을 액면으로 받지 않고 직접 재현했고, 결함은 실재한다**:
+`RolesGuard.canActivate` 가 `requiredRoles` 가 비면 `return true` 로 조기 반환해 `getMemberRole`
+이 실행되지 않고, 멤버십을 보는 다른 가드가 없으며, `@WorkspaceId()` 데코레이터는 자체 주석에서
+"헤더 스푸핑은 RolesGuard 가 차단한다" 고 그 가드에 의존한다고 적어 두었다.
+
+동시에 **이 PR 소산이 아님**도 실측했다 — 이 PR 은 `common/guards/` 를 변경하지 않았고,
+지적된 핸들러(`rotateBotToken`·각 `findAll`/`findOne`)는 전부 diff 밖이며, `origin/main` 에도
+`@Roles` 가 없다. 감사 로깅과 묶어 고치면 범위가 뒤섞이고 올바른 조치(전수 조사 +
+`RolesGuard` 재구성)가 이 PR 보다 크다 → **별도 세션으로 분리**했다.
+
+### Warning 8건
+
+| 관점 | 항목 | 조치 |
+|---|---|---|
+| architecture + maintainability | `recordAudit` 의 `action` 타입을 4개 파일이 인라인 재정의 (`AuditAction` 이 이미 export 돼 있고 auth-configs 는 사용 중) | **조치** — `AuditActionFor<P>` 로 리소스별 한정 |
+| testing | `duplicate` 롤백 · `importWorkflow` 순서/롤백 테스트 부재 | **조치** — 3건 추가 |
+| requirement ×4 + documentation ×1 | SPEC-DRIFT (spec SoT 5곳) | **planner 인계** — `developer` 권한 밖, 이미 추적 중 |
+
+**타입 한정은 단순 치환 이상이다.** 전체 34개 합집합을 받으면 `resourceType` 은 서비스마다
+고정인데 `WorkflowsService` 에 `'trigger.deleted'` 를 넘겨도 컴파일이 통과해 `resourceType`
+과 action 이 모순된 감사 행이 만들어진다. 정합성을 주석에서 타입으로 옮겼다 — 교차-도메인
+대입 3종 전부 `tsc` RED 확인.
+
+**testing 지적은 실제보다 넓었다** — `duplicate` 의 순서 테스트는 이미 있었다. 실측으로 갭을
+좁혀 필요한 3건만 추가했고, 각 테스트가 **개별적으로** 뮤턴트를 잡는 것까지 확인했다
+(`failed=1 skipped=89`).
+
+### 뮤턴트 검증 중 무효 뮤턴트를 하나 만들었다
+
+`return savedWorkflow;` 가 `create`·`importWorkflow` 두 곳에 있어 `replace(..., 1)` 이
+`create` 를 건드렸고, 그 결과 롤백 테스트를 **vacuous 로 오판**했다. 유일 앵커로 다시 돌려
+RED 를 확인했다. 기존 교훈("앵커 존재를 먼저 단언")을 **"존재 + 유일성"** 으로 강화한다.
+부수적으로 유효성 단언 자체도 한 번 틀렸다 — `duplicatedFrom` 이 주석에도 있어 개수 기준이
+과했다. 개수보다 **"밖에서 사라지고 안에 생겼는가"** 를 봐야 한다.
+
+**수렴 판정**: 이번 PR 이 만든 Critical 0. 코드 Warning 3건은 조치 + 뮤턴트 검증 완료.
+나머지 5건은 spec 영역. 발견의 성격이 *동작 → 구조 → 테스트 → 타입 정밀도 → 문서* 로
+이동했고, 7차의 코드 지적은 전부 "더 좁힐 수 있다" 류이지 오동작이 아니다.
+
 ## TEST 결과
 
 - **lint**: PASS
