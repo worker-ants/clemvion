@@ -30,7 +30,8 @@ function createBaseProviders(
       useValue: triggerRepoMock,
     },
     { provide: getRepositoryToken(Execution), useValue: {} },
-    // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
+    // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다. 이 팩토리는
+    // 모듈 레벨이라 describe 스코프의 공유 mock 을 참조할 수 없어 매번 새로 만든다.
     { provide: AuditLogsService, useValue: { record: jest.fn() } },
     {
       provide: getRepositoryToken(Schedule),
@@ -2132,6 +2133,69 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       expect.objectContaining({
         notificationSecretV2: null,
         notificationRotatedAt: null,
+      }),
+    );
+  });
+});
+
+
+describe('TriggersService — 감사 로깅 (trigger.*)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let auditLogs: { record: jest.Mock };
+
+  const webhookTrigger = {
+    id: 'trg-1',
+    workspaceId: 'ws-1',
+    type: 'webhook',
+    name: 'W',
+    config: {},
+  } as unknown as Trigger;
+
+  beforeEach(async () => {
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
+    const moduleRef = await Test.createTestingModule({
+      providers: createBaseProviders({
+        findOne: jest.fn().mockResolvedValue(webhookTrigger),
+        update: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn(async (t: Trigger) => ({ ...webhookTrigger, ...t })),
+        create: jest.fn((t: Partial<Trigger>) => t as Trigger),
+        remove: jest.fn().mockResolvedValue(undefined),
+        createQueryBuilder: jest.fn(),
+      }),
+    }).compile();
+    // createBaseProviders 는 모듈 레벨이라 공유 mock 을 못 받는다 — 여기서 override.
+    const idx = (
+      moduleRef as unknown as { container?: unknown }
+    ) as unknown as never;
+    void idx;
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    // 실제 주입된 인스턴스를 잡아 단언 대상으로 삼는다.
+    auditLogs = moduleRef.get(AuditLogsService) as unknown as {
+      record: jest.Mock;
+    };
+  });
+
+  it('remove 는 삭제 **전에** 읽은 type 을 남긴다', async () => {
+    // TypeORM `remove` 는 엔티티의 id 를 지운다 — 삭제 후 읽으면 undefined 가 감사에 남는다.
+    const entity: Record<string, unknown> = { ...webhookTrigger };
+    triggerRepo.findOne.mockResolvedValue(entity as unknown as Trigger);
+    (triggerRepo.remove as jest.Mock).mockImplementation(async () => {
+      delete entity.id;
+      delete entity.type;
+    });
+
+    await service.remove('trg-1', 'ws-1', 'u-9');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        userId: 'u-9',
+        action: 'trigger.deleted',
+        resourceType: 'trigger',
+        resourceId: 'trg-1',
+        details: { type: 'webhook' },
       }),
     );
   });

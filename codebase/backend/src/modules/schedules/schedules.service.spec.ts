@@ -12,6 +12,7 @@ import { ScheduleRunnerService } from './schedule-runner.service';
 
 describe('SchedulesService.runNow', () => {
   let service: SchedulesService;
+  let auditLogs: { record: jest.Mock };
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let workspacesService: jest.Mocked<
@@ -23,11 +24,12 @@ describe('SchedulesService.runNow', () => {
   >;
 
   beforeEach(async () => {
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
     const moduleRef = await Test.createTestingModule({
       providers: [
         // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
-        { provide: AuditLogsService, useValue: { record: jest.fn() } },
+        { provide: AuditLogsService, useValue: auditLogs },
         SchedulesService,
         {
           provide: getRepositoryToken(Schedule),
@@ -238,6 +240,33 @@ describe('SchedulesService.runNow', () => {
         ...baseDto,
       } as unknown as CreateScheduleDto);
       expect(s.timezone).toBe('Asia/Seoul');
+    });
+
+    it('감사 로깅 — schedule.created 를 행위자·대상과 함께 남긴다', async () => {
+      const saved = await service.create(
+        'ws-1',
+        { ...baseDto, timezone: 'Asia/Seoul' } as unknown as CreateScheduleDto,
+        'u-1',
+      );
+
+      expect(auditLogs.record).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        action: 'schedule.created',
+        resourceType: 'schedule',
+        resourceId: saved.id,
+      });
+    });
+
+    it('감사 로깅 — 생성이 실패하면 남기지 않는다', async () => {
+      await expect(
+        service.create(
+          'ws-1',
+          { ...baseDto, timezone: 'Not/AZone' } as unknown as CreateScheduleDto,
+          'u-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
+      expect(auditLogs.record).not.toHaveBeenCalled();
     });
   });
 });

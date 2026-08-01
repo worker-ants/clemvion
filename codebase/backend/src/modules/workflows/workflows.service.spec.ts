@@ -20,6 +20,7 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
+  let auditLogs: { record: jest.Mock };
 
   const mockWorkflow: Partial<Workflow> = {
     id: 'wf-uuid-1',
@@ -123,11 +124,12 @@ describe('WorkflowsService', () => {
   };
 
   beforeEach(async () => {
+    auditLogs = { record: jest.fn().mockResolvedValue(undefined) };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다.
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
-        { provide: AuditLogsService, useValue: { record: jest.fn() } },
+        { provide: AuditLogsService, useValue: auditLogs },
         WorkflowsService,
         { provide: getRepositoryToken(Workflow), useValue: mockRepository },
         { provide: getRepositoryToken(Node), useValue: mockNodeRepository },
@@ -712,6 +714,18 @@ describe('WorkflowsService', () => {
       expect(dataEdge.condition).toBeNull();
     });
 
+    it('duplicate 는 details.duplicatedFrom 으로 원본을 남긴다', async () => {
+      // 복제본은 별개 리소스지만 "어디서 나왔나" 가 곧 그 리소스의 출처다.
+      await service.duplicate('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1');
+
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'workflow.created',
+          details: { duplicatedFrom: 'wf-uuid-1' },
+        }),
+      );
+    });
+
     it('노드가 사라져 endpoint 를 못 찾는 엣지는 skip 한다 (고아 엣지 방어)', async () => {
       // n-agent 가 없는 노드 집합 → e-2(loop→agent) 는 매핑 불가, e-1 만 유효.
       mockTransactionManager.find = jest
@@ -764,6 +778,55 @@ describe('WorkflowsService', () => {
       ).rejects.toThrow(NotFoundException);
       expect(mockDataSource.transaction).not.toHaveBeenCalled();
     });
+  });
+
+  describe('감사 로깅 (workflow.*)', () => {
+    it('create 는 트랜잭션 **커밋 뒤**에 workflow.created 를 남긴다', async () => {
+      // 경계를 양쪽 다 찍어야 안/밖이 구분된다 — 'tx-start' 만 찍으면 기록이 트랜잭션
+      // 안으로 들어가도 순서가 같아 단언이 통과한다(model-config 에서 실측한 vacuous 형태).
+      const order: string[] = [];
+      const origTx = mockDataSource.transaction;
+      mockDataSource.transaction = jest.fn(async (cb: any) => {
+        order.push('tx-start');
+        const r = await cb(mockTransactionManager);
+        order.push('tx-commit');
+        return r;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+
+      await service.create('ws-uuid-1', 'user-uuid-1', { name: 'W' } as any);
+
+      expect(order).toEqual(['tx-start', 'tx-commit', 'audit']);
+      expect(auditLogs.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workspaceId: 'ws-uuid-1',
+          userId: 'user-uuid-1',
+          action: 'workflow.created',
+          resourceType: 'workflow',
+        }),
+      );
+      mockDataSource.transaction = origTx;
+    });
+
+    it('트랜잭션이 실패하면 create 는 감사를 남기지 않는다', async () => {
+      const origTx = mockDataSource.transaction;
+      // 본문을 실행한 **뒤** 커밋에서 실패하는 형태. 콜백을 안 부르고 reject 하면
+      // 기록이 트랜잭션 안에 있어도 실행되지 않아 단언이 무의미해진다.
+      mockDataSource.transaction = jest.fn(async (cb: any) => {
+        await cb(mockTransactionManager);
+        throw new Error('commit failed');
+      });
+
+      await expect(
+        service.create('ws-uuid-1', 'user-uuid-1', { name: 'W' } as any),
+      ).rejects.toThrow('commit failed');
+      expect(auditLogs.record).not.toHaveBeenCalled();
+      mockDataSource.transaction = origTx;
+    });
+
+
   });
 
   describe('saveCanvas', () => {
@@ -2347,4 +2410,6 @@ describe('importWorkflow·duplicate 전제 — Node/Edge 엔티티 @BeforeInsert
     expect(() => new Node()).not.toThrow();
     expect(() => new Edge()).not.toThrow();
   });
+
+
 });
