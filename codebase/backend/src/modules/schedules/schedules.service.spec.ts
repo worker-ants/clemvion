@@ -7,6 +7,7 @@ import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
+import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
 
@@ -283,6 +284,36 @@ describe('SchedulesService.runNow', () => {
         ),
       ).rejects.toMatchObject({ response: { code: 'INVALID_TIMEZONE' } });
       expect(auditLogs.record).not.toHaveBeenCalled();
+    });
+
+    it('감사 로깅 — create 는 BullMQ 등록 **전에** 기록한다 (W6 순서 고정)', async () => {
+      // 순서가 뒤집히면 registerJob 실패 시 스케줄은 생겼는데 감사가 안 남는다.
+      // 코드로만 맞춰두면 리팩터링이 조용히 되돌려도 테스트는 GREEN 이다.
+      const order: string[] = [];
+      scheduleRepo.save.mockImplementation(async (x) => {
+        order.push('commit');
+        return x as unknown as Schedule;
+      });
+      auditLogs.record.mockImplementation(async () => {
+        order.push('audit');
+      });
+      (
+        runner as unknown as { registerJob: jest.Mock }
+      ).registerJob.mockImplementation(async () => {
+        order.push('bullmq');
+      });
+
+      await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+          timezone: 'Asia/Seoul',
+          isActive: true,
+        } as unknown as CreateScheduleDto,
+        'u-o',
+      );
+
+      expect(order).toEqual(['commit', 'audit', 'bullmq']);
     });
 
     it('감사 로깅 — update 는 schedule.updated 를 남긴다', async () => {

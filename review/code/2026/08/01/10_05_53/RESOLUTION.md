@@ -1,18 +1,32 @@
 # RESOLUTION — 감사 로깅 커버리지 갭 13개 액션
 
-리뷰 세션 `review/code/2026/08/01/10_05_53` (Critical 2 · Warning 11 · risk HIGH) 조치 기록.
+리뷰 **2라운드** 조치 기록.
+- 1차 `review/code/2026/08/01/10_05_53` — Critical 2 · Warning 11 · risk HIGH
+- 2차 `review/code/2026/08/01/10_49_18` — Critical 1 · Warning 11 · risk HIGH
+  (1차 조치가 **새 결함을 만들었다** — 아래 R2 표)
 
 ## 조치 항목
 
 | # | 등급 | 발견사항 | 조치 | commit |
 |---|---|---|---|---|
-| C1 | Critical | 서비스 시그니처에 필수 `userId` 를 추가하면서 기존 spec 호출부 **70곳**을 갱신하지 않아 `tsc --noEmit` 이 TS2554 로 깨졌다. `tsconfig.build.json` 이 `**/*spec.ts` 를 exclude 하고 ts-jest 는 `isolatedModules` 라 lint/unit/build 어느 게이트도 못 잡는다 | 70곳에 더미 `userId` 추가. **잔여 20건은 기존 오류** — `cp` 로 `origin/main` 판을 놓고 재측정하니 23건이라 오히려 3건 줄었다 | `2a1f8c1` |
+| C1 | Critical | 서비스 시그니처에 필수 `userId` 를 추가하면서 기존 spec 호출부 **70곳**을 갱신하지 않아 `tsc --noEmit` 이 TS2554 로 깨졌다. `tsconfig.build.json` 이 `**/*spec.ts` 를 exclude 하고 ts-jest 는 `isolatedModules` 라 lint/unit/build 어느 게이트도 못 잡는다 | 70곳에 더미 `userId` 추가. **잔여 20건은 기존 오류** — `cp` 로 `origin/main` 판을 놓고 재측정하니 23건이라 오히려 3건 줄었다 | `f77c1e0de` |
 | C2 | Critical | `triggers` create/update(4) · `workflows` update/remove · `schedules` update/remove 의 `recordAudit` 호출이 무검증. 리뷰어가 해당 호출부를 지우고 재실행해 전부 통과함을 실증 | 8곳 전부에 회귀 테스트 추가. 뮤턴트 8종(각 기록 제거) 전부 RED 확인 | (본 커밋) |
 | W5 | Warning | `triggers` create/update 가 chatChannel 분기별로 `recordAudit` 을 2회씩 호출 — `details` 필드를 늘릴 때 한쪽만 고치는 drift 위험 | `result` 변수로 통합해 1회 호출 | 〃 |
 | W6 | Warning | `triggers`/`schedules` 는 DB 커밋과 감사 사이에 실패 가능한 외부 호출(secret store rotate, BullMQ `registerJob`/`removeJob`)이 끼어 있었다 — 그게 터지면 리소스는 생겼는데 감사가 안 남는다. `model-config`/`workflows` 에서 지킨 "커밋 직후" 불변식을 같은 PR 안에서 두 모듈만 어긴 셈 | 4개 지점 전부 **커밋 직후**로 이동. chatChannel 재조회는 응답 형태만 바꾸므로 감사 내용에 영향 없음을 주석에 명시 | 〃 |
 | W9 | Warning | `workflows.service.spec` 의 트랜잭션 순서 테스트 2건이 공유 mock 을 본문 마지막 줄에서만 복원 — 중간 `expect` 가 실패하면(즉 이 테스트가 잡으려는 회귀가 실제로 났을 때) 복원이 안 돼 오염이 번진다 | `try/finally` 로 복원 이동 | 〃 |
 | W10 | Warning | `triggers.service.spec` 감사 describe 의 죽은 코드 5줄(`const idx = ... as never; void idx;`)과 어긋난 주석 | 삭제 + 주석 정정 | 〃 |
 | W2 | Warning | `CHANGELOG.md` 기재 누락 | `## Unreleased` 항목 추가 (신규 13액션 · 시제 근거 · 커밋 직후 기록 원칙 · `workflow.executed` 제외 사유) | 〃 |
+
+### 2라운드 (`10_49_18`) 조치
+
+| # | 등급 | 발견사항 | 조치 |
+|---|---|---|---|
+| R2-C1 | **Critical** | 1차 조치로 추가한 `schedules.service.spec` 감사 테스트가 `UpdateScheduleDto` 를 **import 없이** 참조해 `tsc` 신규 오류(TS2552). **1차 C1 과 정확히 같은 결함 클래스**(spec 파일의 타입 안전망 훼손)가, 그 수정 대상이 아니던 내 새 블록에서 재발했다. `RESOLUTION.md` 의 "tsc 오류 0건" 자체 검증 주장과도 상충 | import 추가 + 재측정 |
+| R2-W5 | Warning | **이 RESOLUTION 이 존재하지 않는 커밋 해시(`2a1f8c1`)를 인용했다.** 서술 내용은 실제 커밋(`f77c1e0de`)과 일치하나 해시만 창작 — 감사 추적 문서의 근거가 `git show` 로 재현 불가능해졌다 | 실제 해시로 정정. 이후 커밋 직후 `git log --oneline -1` 로 확인 |
+| R2-W4 | Warning | plan §4.1 이 "구현 완료" 문장 뒤에 옛 "import 0건" 본문을 그대로 남겨 자기모순 | 과거 시제·이력 표기로 전환 |
+| R2-W6 | Warning | 감사와 무관한 `notification-config.dto.ts` 타입 단언 제거 hunk 가 `eslint --fix` 로 유입돼 1차에서 지적됐는데도 추적 누락 | **되돌림** (`origin/main` 대비 0줄 확인). lint 는 warning 이라 PASS 유지 |
+| R2-W9 | Warning | W6("커밋 직후 기록") 불변식이 `triggers`/`schedules` 는 코드로만 맞춰져 있고 순서 회귀 테스트가 없었다 — 리팩터링이 되돌려도 GREEN | `order: string[]` 순서 테스트 2건 추가. 뮤턴트(기록을 secret/BullMQ 뒤로 되돌림) 둘 다 RED |
+| R2-W11 | Warning | chatChannel 분기의 이중 `recordAudit`(1차 W5 실버그) 회귀를 잡을 테스트 부재 — 단언 테스트가 전부 chatChannel 없는 입력만 썼다 | `trigger.created` 호출 **횟수**를 세는 테스트 추가 |
 
 ### 미조치 — 근거
 

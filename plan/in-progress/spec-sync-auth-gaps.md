@@ -12,29 +12,9 @@ owner: planner
 ## 미구현 항목
 - [ ] §1.3 LDAP / Active Directory 연동 (셀프 호스팅 선택 기능) — 백엔드에 핸들러·passport strategy·의존성 부재
 - [ ] §1.3 SAML 2.0 기업 SSO 연동 (셀프 호스팅 선택 기능) — 동일하게 미구현
-- [x] **§4.1 감사 로깅 커버리지 갭** — **CRUD 13개 구현 완료 (2026-08-01)**. — `workflow.*` / `trigger.*` / `schedule.*` /
-      `model_config.*`(create/update/delete/set_default) 액션이 미구현. 실측:
-      `workflows`·`triggers`·`schedules`·`model-config` 모듈에 `AuditLogsService` import **0건**.
-      SoT: [`spec/data-flow/1-audit.md` §1.1 "커버리지 갭"](../../spec/data-flow/1-audit.md).
-      **2026-07-31 추가** — 아래 "비고" 첫 줄이 이 갭과 상반돼 있었다(§4.1 을 "모두 구현 확인됨" 에
-      포함). plan 작성(2026-06-03) 이후 2026-06-11/12 에 spec 이 이 갭을 명시했는데 plan 이 동기화되지
-      않은 것으로, `--impl-done` consistency (2026/07/31 19_20_50) 가 검출했다.
-
-## 비고
-- §1 ~ §5 의 나머지 surface (이메일/비밀번호, OAuth, TOTP, WebAuthn, 세션, RBAC, LoginHistory,
-  초대 토큰, API 엔드포인트) 는 audit 재검증에서 모두 구현 확인됨.
-  **단 Audit 은 부분 구현** — 위 §4.1 커버리지 갭 항목 참조(2026-07-31 정정. 이전 문장은 "Audit" 을
-  구현 완료 목록에 넣어 실제 코드와 어긋나 있었다).
-- **`status: implemented` 승격 금지 조건**: LDAP/SAML 이 닫히더라도 위 §4.1 감사 로깅 갭이 남아 있는
-  한 `spec/5-system/1-auth.md` 를 `implemented` 로 올리면 안 된다.
-- 본 spec 의 다른 미구현 갭(auth_config CRUD audit 기록 등)은 `plan/complete/auth-config-webhook-followups.md`(완료) 가 추적했다.
-- 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__1-auth.md 참조.
-
-## §4.1 구현 후속 (2026-08-01)
-
-CRUD 13개(`workflow.*` 3 · `trigger.*` 3 · `schedule.*` 3 · `model_config.*` 4)를 구현했다.
-남은 것:
-
+- [x] **§4.1 감사 로깅 커버리지 갭** — **CRUD 13개 구현 완료 (2026-08-01)**.
+      `workflow.*` / `trigger.*` / `schedule.*` / `model_config.*`(create/update/delete/set_default).
+      *(착수 시점 실측 — 이제는 해소됨: 네 모듈에 `AuditLogsService` import 가 **0건**이었다.)*
 - [ ] **spec SoT 4곳 동기화 — planner 턴 필요** (`developer` 는 `spec/` read-only).
       `5-system/1-auth.md §4.1` Planned→구현 이동 · `data-flow/1-audit.md §1.1` 커버리지 갭
       문단·표 갱신 · `conventions/audit-actions.md §3` 상태 컬럼 · `2-navigation/2-trigger-list.md`

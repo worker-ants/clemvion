@@ -2311,6 +2311,69 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     );
   });
 
+  it('create 는 secret 마이그레이션 **전에** 기록한다 (W6 순서 고정)', async () => {
+    // 이 순서가 뒤집히면 secret store 호출이 실패했을 때 트리거는 생겼는데 감사가 안 남는다.
+    // 코드로만 맞춰두면 리팩터링이 조용히 되돌려도 테스트는 GREEN 이다 — 순서를 고정한다.
+    const order: string[] = [];
+    (triggerRepo.create as jest.Mock).mockReturnValue(webhookTrigger);
+    (triggerRepo.save as jest.Mock).mockImplementation(async () => {
+      order.push('commit');
+      return webhookTrigger;
+    });
+    auditLogs.record.mockImplementation(async () => {
+      order.push('audit');
+    });
+    const secrets = (
+      service as unknown as {
+        normalizeNotificationSecretRef: (t: unknown) => Promise<void>;
+      }
+    );
+    const origNorm = secrets.normalizeNotificationSecretRef.bind(service);
+    secrets.normalizeNotificationSecretRef = async (t: unknown) => {
+      order.push('secret');
+      return origNorm(t);
+    };
+
+    await service.create(
+      'ws-1',
+      { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+      'u-o',
+    );
+
+    expect(order).toEqual(['commit', 'audit', 'secret']);
+  });
+
+  it('chatChannel 분기가 있어도 기록은 **한 번**이다 (W5 회귀)', async () => {
+    // 분기별로 recordAudit 을 두던 시절엔 chat_channel 트리거가 감사 2행을 남겼다.
+    const chatTrigger = {
+      ...webhookTrigger,
+      type: 'chat_channel',
+      config: { chatChannel: { provider: 'slack' } },
+    } as unknown as Trigger;
+    (triggerRepo.create as jest.Mock).mockReturnValue(chatTrigger);
+    (triggerRepo.save as jest.Mock).mockResolvedValue(chatTrigger);
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue(chatTrigger);
+
+    await service
+      .create(
+        'ws-1',
+        {
+          workflowId: 'wf-1',
+          type: 'chat_channel',
+          name: 'C',
+          config: { chatChannel: { provider: 'slack' } },
+        } as never,
+        'u-cc',
+      )
+      .catch(() => undefined); // 어댑터 미등록 시 setup 이 던져도 기록 횟수는 검증 대상
+
+    const created = auditLogs.record.mock.calls.filter(
+      (c: unknown[]) =>
+        (c[0] as { action?: string }).action === 'trigger.created',
+    );
+    expect(created).toHaveLength(1);
+  });
+
   it('remove 는 삭제 **전에** 읽은 type 을 남긴다', async () => {
     // TypeORM `remove` 는 엔티티의 id 를 지운다 — 삭제 후 읽으면 undefined 가 감사에 남는다.
     const entity: Record<string, unknown> = { ...webhookTrigger };
