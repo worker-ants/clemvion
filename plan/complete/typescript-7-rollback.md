@@ -3,7 +3,7 @@ title: TypeScript 7.0.2 → 5.x 롤백 — 젠킨스 main 빌드 차단 복구 +
 worktree: jenkins-build-failure-a067df
 started: 2026-08-01
 owner: developer
-status: in-progress
+status: complete
 priority: P0
 spec_impact: none
 ---

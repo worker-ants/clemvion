@@ -1,6 +1,6 @@
 ---
 title: typescript 툴체인 가드 후속 4건 — 공유 프리미티브 분리 · fail-closed 커버 · catalog 마이그레이션 검토
-worktree: (미착수)
+worktree: (unstarted)
 started: 2026-08-01
 owner: developer
 status: in-progress
