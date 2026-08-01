@@ -8,7 +8,7 @@
 
 신규 액션:
 
-- `workflow.created`(생성·복제) · `workflow.updated` · `workflow.deleted`
+- `workflow.created`(생성 · 복제 `details.duplicatedFrom` · 가져오기 `details.imported`) · `workflow.updated` · `workflow.deleted`
 - `trigger.created` · `trigger.updated` · `trigger.deleted`
 - `schedule.created` · `schedule.updated` · `schedule.deleted`
 - `model_config.create` · `update` · `delete` · `set_default`
