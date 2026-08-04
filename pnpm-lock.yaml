@@ -412,7 +412,7 @@ importers:
         version: 3.2.2(react@19.2.4)
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.4.0(react-hook-form@7.79.0(react@19.2.4))
+        version: 5.4.0(react-hook-form@7.83.0(react@19.2.4))
       '@mdx-js/loader':
         specifier: ^3.1.0
         version: 3.1.1(webpack@5.106.2(postcss@8.5.25))
@@ -516,8 +516,8 @@ importers:
         specifier: ^1.29.1
         version: 1.29.1(react@19.2.4)
       react-hook-form:
-        specifier: ^7.72.0
-        version: 7.79.0(react@19.2.4)
+        specifier: ^7.83.0
+        version: 7.83.0(react@19.2.4)
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.17)(react@19.2.4)
@@ -5371,6 +5371,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cron-parser@5.5.0:
     resolution: {integrity: sha512-oML4lKUXxizYswqmxuOCpgFS8BNUJpIu6k/2HVHyaL8Ynnf3wdf9tkns0yRdJLSIjkJ+b0DXHMZEHGpMwjnPww==}
@@ -8706,8 +8707,8 @@ packages:
     peerDependencies:
       react: '*'
 
-  react-hook-form@7.79.0:
-    resolution: {integrity: sha512-mhYp/MTmXvzYX6AJcJVko0rktoIhhmRnEouObj4wF5i/tCttgJvnp1+9wRkpITZjDTqpo4IOSJqu0dBlPlV/Lw==}
+  react-hook-form@7.83.0:
+    resolution: {integrity: sha512-AXt8cMCmx5a7u4uvpb2uRFVrWQhllI4pV+LSykxIac/hjt44TnQkmX9BKuQi2i+LDC62esmiLpilkav+kjVf/A==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -11036,10 +11037,10 @@ snapshots:
     dependencies:
       hono: 4.12.32
 
-  '@hookform/resolvers@5.4.0(react-hook-form@7.79.0(react@19.2.4))':
+  '@hookform/resolvers@5.4.0(react-hook-form@7.83.0(react@19.2.4))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.79.0(react@19.2.4)
+      react-hook-form: 7.83.0(react@19.2.4)
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -19990,7 +19991,7 @@ snapshots:
       react: 19.2.4
       react-kapsule: 2.6.0(react@19.2.4)
 
-  react-hook-form@7.79.0(react@19.2.4):
+  react-hook-form@7.83.0(react@19.2.4):
     dependencies:
       react: 19.2.4
 
