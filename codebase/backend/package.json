@@ -71,7 +71,7 @@
     "isolated-vm": "^6.1.2",
     "jsonwebtoken": "9.0.3",
     "mysql2": "^3.22.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.0.3",
     "openai": "^7.1.0",
     "otplib": "^13.4.1",
     "p-limit": "^7.3.1",
