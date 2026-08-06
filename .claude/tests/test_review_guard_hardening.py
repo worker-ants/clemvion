@@ -283,8 +283,14 @@ class RebaseAuthorDateTest(unittest.TestCase):
             env["GIT_AUTHOR_DATE"] = author
         if committer:
             env["GIT_COMMITTER_DATE"] = committer
+        # `git -C` + ceiling. A fixture of this shape overwrote the SHARED
+        # `.git/config` once — five worktrees read that file, so other sessions'
+        # `git fetch` broke and nothing signalled it. Pin the directory instead of
+        # trusting cwd, and stop git walking up to find a repository.
+        _root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = _root
         subprocess.run(
-            ["git", *args], cwd=self.root, env=env, check=True,
+            ["git", "-C", _root, *args], env=env, check=True,
             capture_output=True, text=True,
         )
 
@@ -591,7 +597,13 @@ class NotesReachThePublicEntryPointTest(unittest.TestCase):
         env["GIT_CONFIG_SYSTEM"] = os.devnull
         env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
-        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+        # `git -C` + ceiling. A fixture of this shape overwrote the SHARED
+        # `.git/config` once — five worktrees read that file, so other sessions'
+        # `git fetch` broke and nothing signalled it. Pin the directory instead of
+        # trusting cwd, and stop git walking up to find a repository.
+        _root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = _root
+        subprocess.run(["git", "-C", _root, *args], env=env, check=True,
                        capture_output=True, text=True)
 
     def _write(self, rel, body):
@@ -647,6 +659,311 @@ class NotesReachThePublicEntryPointTest(unittest.TestCase):
         self._repo(critical=False)
         d = rg.evaluate_review(self.root)
         self.assertEqual(tuple(d.notes), ())
+
+
+class UnstagedModificationKeepsItsPathTest(unittest.TestCase):
+    """가장 평범한 흐름 — 파일 하나 고치고 push — 에서 게이트가 fail-open 했다.
+
+    `git status --porcelain` 은 두 칸짜리 상태 코드를 내고, "추적 중인 파일이 수정됐지만
+    스테이지되지 않음" 은 `" M path"` — **선행 공백**이다. `_run_git` 이 stdout 전체에
+    `.strip()` 을 걸어 그 공백을 지웠고, `_porcelain_path` 의 고정폭 파싱이 경로 첫 글자를
+    깎아 `codebase/backend/src/a.ts` 를 `odebase/...` 로 돌려줬다. 그 경로는 아무것과도
+    매칭되지 않으므로 그 파일은 "방금 편집됨" 신호를 잃고, 게이트는 변경을 못 본 채 통과한다.
+
+    7R 리뷰가 찾았다. 공격이 아니라 일상 흐름이고, **이미 enforce 중인 1차 방어선**이다.
+
+    헬퍼가 아니라 실제 저장소를 만들어 `_changed_code_files` 까지 구동한다 —
+    `_porcelain_path` 만 직접 부르면 `.strip()` 이 어디서 일어나는지를 못 본다.
+    (초판 docstring 은 존재하지 않는 `_changed_code_files` 를 인용했다 — 실제로 구동하는
+    함수는 `_uncommitted_code_changes` 와 `_dirty_set` 이다.)
+    """
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self._git("init", "-b", "main")
+        self._write("codebase/backend/src/a.ts", "export const a = 1;\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "base")
+
+    def _git(self, *args):
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        # `git -C` + ceiling. A fixture of this shape overwrote the SHARED
+        # `.git/config` once — five worktrees read that file, so other sessions'
+        # `git fetch` broke and nothing signalled it. Pin the directory instead of
+        # trusting cwd, and stop git walking up to find a repository.
+        _root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = _root
+        subprocess.run(["git", "-C", _root, *args], env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def test_a_modified_unstaged_file_is_seen_with_its_full_path(self):
+        """`" M path"` — 선행 공백이 있는 유일한 형태이자 가장 흔한 형태."""
+        self._write("codebase/backend/src/a.ts", "export const a = 2;\n")
+        self.assertIn("codebase/backend/src/a.ts",
+                      rg._uncommitted_code_changes(self.root))
+        self.assertIn("codebase/backend/src/a.ts", rg._dirty_set(self.root))
+
+    def test_a_staged_file_still_works(self):
+        """`"M  path"` — 선행 공백이 없다. 원래 맞았고, 수정이 깨지 않았는지 함께 본다."""
+        self._write("codebase/backend/src/a.ts", "export const a = 3;\n")
+        self._git("add", "-A")
+        self.assertIn("codebase/backend/src/a.ts",
+                      rg._uncommitted_code_changes(self.root))
+        self.assertIn("codebase/backend/src/a.ts", rg._dirty_set(self.root))
+
+    def test_a_non_ascii_path_survives_git_quoting(self):
+        """git 은 비-ASCII 경로를 기본으로 C-quote 한다 — `"\\355\\225\\234.ts"`.
+
+        아무도 그걸 디코드하지 않으므로 (a) `_dirty_set` 에 실제 경로가 없어 방금 편집한
+        파일이 clean=오래됨 으로 읽히고, (b) `_newest_commit_time` 이 그 문자열을 그대로
+        `git log -- <path>` 에 넘겨 매칭 실패 → 0.0 → Gate 1 이 저장소의 **아무 오래된
+        resolved 리뷰로나** 통과시킨다. 둘 다 fail-open 이고, 7R 이 한 층 위에서 고친
+        선행-공백 결함과 같은 뿌리다.
+
+        `_run_git` 이 `-c core.quotePath=false` 를 걸어 관문에서 막는다.
+        """
+        rel = "codebase/backend/src/한글파일.ts"
+        self._write(rel, "export const k = 1;\n")
+        self.assertIn(rel, rg._uncommitted_code_changes(self.root),
+                      "인용된 경로가 디코드되지 않았다")
+        self.assertIn(rel, rg._dirty_set(self.root))
+
+        # docstring 이 말하는 **더 심한 절반**도 건다. 커밋된 뒤에는 `_newest_commit_time` 이
+        # 그 경로를 `git log -- <path>` 에 넘기는데, 인용된 문자열은 아무것과도 매칭되지 않아
+        # 0.0 을 돌려준다 — 그 순간 Gate 1 은 저장소의 아무 오래된 resolved 리뷰로나 통과한다.
+        # 초판은 (a) 만 단언하고 이쪽을 비워 뒀다(8R 리뷰어 지적).
+        self._git("add", "-A")
+        self._git("commit", "-m", "non-ascii")
+        self.assertGreater(
+            rg._newest_commit_time(self.root, [rel]), 0.0,
+            "커밋 시각을 0.0 으로 읽는다 — Gate 1 이 오래된 리뷰로 통과하게 된다",
+        )
+
+    def test_an_untracked_file_is_seen(self):
+        """`"?? path"` — 역시 선행 공백이 없다."""
+        self._write("codebase/backend/src/b.ts", "export const b = 1;\n")
+        self.assertIn("codebase/backend/src/b.ts",
+                      rg._uncommitted_code_changes(self.root))
+
+
+class RiskHeadingDecoyTest(unittest.TestCase):
+    """헤딩 앞의 헛매치 한 줄이 위험도 파싱을 통째로 끝내지 못한다.
+
+    `_summary_is_resolved` 의 바깥 루프가 무조건 `break` 였다. `전체 위험도` 라는 문구를 본문에서
+    한 번 언급하기만 해도 — 절차를 인용하는 평범한 문장 — 그 지점에서 스캔이 끝나고
+    `risk_level` 이 None 으로 남는다. 표 행 없는 서술형 리포트라면 `has_actionable` 도 False 라
+    **HIGH/CRITICAL 리포트가 RESOLUTION 없이 "해결됨"** 으로 게이트를 연다.
+
+    커밋된 SUMMARY 1,548개 실측: 이 형태 0건(헤딩 매치가 2회 이상인 문서는 21개지만 첫 매치가
+    항상 레벨을 낸다). 즉 잠복 경로이고, 조건 하나로 닫힌다.
+    """
+
+    def _resolved(self, text):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write(text)
+        return rg._summary_is_resolved(os.path.join(d, "SUMMARY.md"))
+
+    _TAIL = "\n## 발견사항\n\n표 없이 서술로만 적는다.\n"
+
+    def test_a_critical_report_is_not_resolved(self):
+        """대조군 — 헛매치가 없으면 원래 올바르게 판정한다."""
+        self.assertFalse(self._resolved(
+            "## 전체 위험도\n\n**CRITICAL** — 심각한 결함.\n" + self._TAIL))
+
+    def test_a_decoy_mention_before_the_heading_does_not_flip_it(self):
+        self.assertFalse(self._resolved(
+            "본 문서는 § 전체 위험도 절차를 따른다.\n\n"
+            "## 전체 위험도\n\n**CRITICAL** — 심각한 결함.\n" + self._TAIL))
+
+    def test_a_clean_report_still_resolves(self):
+        """반대 방향도 건다 — 이 조건이 모든 것을 미해결로 만들면 게이트는 늘 우는 경고가 된다."""
+        self.assertTrue(self._resolved(
+            "## 전체 위험도\n\nNONE — 발견 없음.\n" + self._TAIL))
+
+
+class ResolutionMarkerPathIsConsistentTest(unittest.TestCase):
+    """마커 디렉터리 경로가 네 곳에 손으로 적혀 있다 — 갈리면 조용히 망가진다.
+
+    `review_guard.RESOLUTION_MARKER_SUBDIR` 가 정본이고, 쓰는 쪽
+    (`mark_resolution_in_flight.py`), 지우는 쪽(`clear_resolution_in_flight.py`), 그리고
+    이 파일의 테스트 헬퍼가 각각 같은 문자열을 다시 적는다. 한 곳만 바뀌면 마커를 쓰는 곳과
+    읽는 곳이 어긋나 **resolution 진행 중에도 Stop 넛지가 계속 뜬다** — 그 메커니즘의 존재
+    이유가 사라지는데, 어떤 테스트도 실패하지 않는다(10R 리뷰어가 뮤테이션으로 실증: 디렉터리명을
+    바꿔도 111개 테스트 전부 GREEN).
+
+    이 브랜치가 git 프로브에서 세 라운드 연속 겪은 것과 같은 클래스다 — 손으로 동기화하는 쌍은
+    갈린다. 여기서는 소비자가 훅 스크립트라 위임 구조를 만들기보다, 네 표현이 같은 경로를
+    가리키는지 한 줄로 고정한다.
+    """
+
+    def test_all_four_spellings_agree(self):
+        import re as _re
+        canonical = rg.RESOLUTION_MARKER_SUBDIR
+        self.assertEqual(canonical, os.path.join(".claude", "state",
+                                                 "resolution_in_flight"))
+        for name in ("mark_resolution_in_flight.py", "clear_resolution_in_flight.py"):
+            src = (_harness.HOOKS_DIR / name).read_text(encoding="utf-8")
+            with self.subTest(hook=name):
+                joins = _re.findall(
+                    r'os\.path\.join\(\s*project_dir\s*,\s*(.+?)\)', src)
+                self.assertTrue(joins, f"{name}: 마커 경로 조립을 못 찾았다")
+                parts = [p.strip().strip('"\'') for p in joins[0].split(",")]
+                self.assertEqual(
+                    os.path.join(*parts), canonical,
+                    f"{name} 의 마커 경로가 정본과 다르다 — 쓰는 곳과 읽는 곳이 어긋난다",
+                )
+
+
+class ActionsCheckoutTopologyTest(unittest.TestCase):
+    """`actions/checkout` 이 만드는 저장소 모양에서 게이트가 실제로 판정한다.
+
+    이 층은 CI 를 위해 만들어졌는데, **정작 CI 환경에서 아무것도 안 하고 있었다.**
+    `actions/checkout` 은 `clone` 이 아니라 `init` + `remote add` + `fetch` 로 워크트리를
+    만들고 `git remote set-head` 를 부르지 않는다. 그래서:
+
+      · `refs/remotes/origin/HEAD` 가 없다 → `_origin_default_branch` 의 로컬 경로 실패
+      · 로컬 `refs/heads/main` 도 없다(PR ref 만 fetch) → 옛 폴백도 빗나감
+      · 남는 것은 **네트워크 호출**(`git remote show origin`)뿐이고, 그게 실패하면
+        `_default_branch()` 가 None → base 없음 → 커밋 변경 목록이 빈 리스트 →
+        **"codebase 변경 없음 — 허용"**
+
+    격리 재현: 위 절차로 저장소를 만들고 origin 을 도달 불가로 둔 뒤, `codebase/` 파일을
+    고치고 리뷰는 전혀 없는 상태에서 `--enforce` 가 `통과`(exit 0)를 냈다. 수정 후 같은
+    저장소에서 `미커버`(exit 1). 네트워크 없이 `refs/remotes/origin/<name>` 만 보면 된다.
+    """
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.origin = os.path.join(self.tmp, "origin.git")
+        self.work = os.path.join(self.tmp, "work")
+        self._git(self.tmp, "init", "--bare", "-b", "main", self.origin)
+        seed = os.path.join(self.tmp, "seed")
+        self._git(self.tmp, "init", "-b", "main", seed)
+        self._write(seed, "codebase/backend/src/a.ts", "export const a = 1;\n")
+        self._git(seed, "add", "-A")
+        self._git(seed, "commit", "-m", "base")
+        self._git(seed, "remote", "add", "origin", self.origin)
+        self._git(seed, "push", "-q", "origin", "main")
+
+        # `actions/checkout` 위상 — clone 이 아니다.
+        os.makedirs(self.work)
+        self._git(self.work, "init", "-b", "main", ".")
+        self._git(self.work, "remote", "add", "origin", self.origin)
+        self._git(self.work, "fetch", "-q", "--no-tags", "origin", "main")
+        self._git(self.work, "checkout", "-q", "-b", "feature", "FETCH_HEAD")
+
+    def _git(self, cwd, *args):
+        """임시 트리 밖에서는 절대 돌지 않는다.
+
+        이 픽스처가 실제로 **공유 `.git/config` 를 오염시켰다** — `remote add origin` 이
+        워크트리 쪽에서 실행돼 `origin` URL 이 임시 경로로 덮였고, 이 저장소의 워크트리 다섯
+        개가 같은 config 를 공유하므로 다른 세션의 `git fetch` 까지 함께 깨졌다. 조용히 성공한
+        것이 최악이었다 — 다음 `git fetch` 가 실패할 때까지 아무 신호가 없었다.
+        
+        cwd 가 임시 루트 밖이면 여기서 죽는다. git 이 상위로 저장소를 찾아 올라가는 것도
+        `GIT_CEILING_DIRECTORIES` 로 막는다.
+        """
+        resolved = os.path.realpath(cwd)
+        root = os.path.realpath(self.tmp)
+        assert resolved == root or resolved.startswith(root + os.sep), (
+            f"임시 트리 밖에서 git 을 실행하려 한다: {resolved!r} (루트 {root!r})"
+        )
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_CEILING_DIRECTORIES"] = root
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        subprocess.run(["git", "-C", resolved, *args], env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, root, rel, body):
+        path = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def test_the_topology_really_lacks_both_local_refs(self):
+        """전제 자체를 고정한다 — 이게 틀리면 아래 테스트는 아무것도 증명하지 않는다."""
+        for ref in ("refs/remotes/origin/HEAD", "refs/heads/main"):
+            with self.subTest(ref=ref):
+                rc, _, _ = rg._run_git(["rev-parse", "--verify", ref], self.work)
+                self.assertNotEqual(rc, 0, f"{ref} 가 있다 — 위상 재현이 틀렸다")
+        rc, _, _ = rg._run_git(["rev-parse", "--verify", "refs/remotes/origin/main"],
+                               self.work)
+        self.assertEqual(rc, 0, "origin/main 조차 없다 — fetch 가 안 됐다")
+
+    def test_the_default_branch_resolves_without_the_network(self):
+        self._git(self.work, "remote", "set-url", "origin",
+                  "https://invalid.invalid/nonexistent.git")
+        self.assertEqual(rg._default_branch(self.work), "main",
+                         "네트워크 없이 기본 브랜치를 못 찾는다 — 게이트가 무력화된다")
+
+    def test_the_remote_tracking_ref_outranks_a_local_branch_of_another_name(self):
+        """순서가 실제로 의미를 갖는 경우를 고정한다.
+
+        주석이 "`origin/<name>` 을 먼저 보는 것은 그쪽이 DEFAULT 브랜치에 대한 더 강한
+        주장이기 때문" 이라고 적었는데, 처음 쓴 테스트로는 순서를 뒤바꿔도 통과했다 — 주장만
+        하고 검증하지 않은 상태였다. 로컬에 `main` 이 있고 origin 의 기본이 `master` 인
+        저장소(포크에서 흔하다)면 둘이 갈린다.
+        """
+        # origin 쪽 기본 브랜치를 master 로 만든다.
+        self._git(self.origin, "symbolic-ref", "HEAD", "refs/heads/master")
+        seed2 = os.path.join(self.tmp, "seed2")
+        self._git(self.tmp, "init", "-b", "master", seed2)
+        self._write(seed2, "codebase/backend/src/b.ts", "export const b = 1;\n")
+        self._git(seed2, "add", "-A")
+        self._git(seed2, "commit", "-m", "master base")
+        self._git(seed2, "remote", "add", "origin", self.origin)
+        self._git(seed2, "push", "-q", "origin", "master")
+
+        w2 = os.path.join(self.tmp, "work2")
+        os.makedirs(w2)
+        self._git(w2, "init", "-b", "main", ".")     # 로컬 브랜치 이름은 main
+        self._git(w2, "remote", "add", "origin", self.origin)
+        self._git(w2, "fetch", "-q", "--no-tags", "origin", "master")
+        self._write(w2, "x.txt", "x\n")
+        self._git(w2, "add", "-A")
+        self._git(w2, "commit", "-m", "local main")   # refs/heads/main 이 생긴다
+        self._git(w2, "remote", "set-url", "origin",
+                  "https://invalid.invalid/nonexistent.git")
+
+        for ref in ("refs/heads/main", "refs/remotes/origin/master"):
+            rc, _, _ = rg._run_git(["rev-parse", "--verify", ref], w2)
+            self.assertEqual(rc, 0, f"{ref} 가 없다 — 픽스처가 두 후보를 못 만들었다")
+        self.assertEqual(
+            rg._default_branch(w2), "master",
+            "로컬 `main` 이 origin 의 기본 `master` 를 이겼다 — 순서가 뒤집혔다",
+        )
+
+    def test_an_unreviewed_change_is_not_reported_as_no_change(self):
+        """가장 중요한 단언 — 이 층이 CI 에서 실제로 무언가를 하는가."""
+        self._git(self.work, "remote", "set-url", "origin",
+                  "https://invalid.invalid/nonexistent.git")
+        self._write(self.work, "codebase/backend/src/a.ts", "export const a = 2;\n")
+        self._git(self.work, "add", "-A")
+        self._git(self.work, "commit", "-m", "feat")
+        decision = rg.evaluate_review(self.work)
+        self.assertTrue(
+            decision.blocked,
+            f"리뷰 없는 codebase 변경이 통과했다 — reason={decision.reason!r}",
+        )
+        self.assertNotIn("no codebase/ changes", decision.reason,
+                         "변경을 아예 못 봤다 — base 해석 실패가 '변경 없음' 으로 읽혔다")
 
 
 if __name__ == "__main__":

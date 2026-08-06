@@ -44,6 +44,9 @@ PUSH_HOOK = HOOKS_DIR / "guard_review_before_push.py"
 # which is exactly the silent-failure mode these tests exist to catch.
 _CLEAN_REVIEW = (
     "class _D:\n    blocked = False\n    reason = ''\n"
+    # `push_blocks` 는 실제 `ReviewDecision` 의 프로퍼티다. 이 소비자는 안 읽지만, 스텁이
+    # 진짜 인터페이스를 그대로 비추게 두는 편이 무엇을 빼도 되는지 매번 판단하는 것보다 싸다.
+    "    push_blocks = False\n"
     "def evaluate_review(cwd=None, *, in_flight_ok=False):\n    return _D()\n"
 )
 _CLEAN_PLAN = (
@@ -129,6 +132,7 @@ class StopGuardFailOpenTest(unittest.TestCase):
         seam = Path(self.tmp) / "seam.txt"
         self._write("review_guard.py",
                     "class _D:\n    blocked = False\n    reason = ''\n"
+                    "    push_blocks = False\n"
                     "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
                     f"    open({str(seam)!r}, 'w').write(repr(in_flight_ok))\n"
                     "    return _D()\n")

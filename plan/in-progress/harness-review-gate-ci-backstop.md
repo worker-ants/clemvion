@@ -1,6 +1,6 @@
 ---
 title: 리뷰 게이트의 훅-독립 CI 백스톱 — 정규식이 유일 판정자인 사각지대를 닫을지
-worktree: harness-block-backstop-b56163
+worktree: harness-review-ci-backstop-91f379
 started: 2026-07-25
 owner: developer
 priority: P2
@@ -14,7 +14,61 @@ priority: P2
 > | §관측(1) changeset 증분 산정 | **전제 반증** → 다른 결함으로 대체 수정 (아래) |
 > | §관측(2) `SUMMARY pending` push 허용 | **수정 완료** (아래) |
 > | §재발 관측 8번째 (번들 누락) | **수정 완료** — `harness-consistency-summary-downgrade-rule.md` 쪽에 기록 |
-> | CI 백스톱 본체 | **미착수** — §결정이 필요한 지점 그대로 |
+> | CI 백스톱 본체 | ~~**미착수**~~ → **2026-08-01 구현 완료 (관측 모드)** — 아래 배너 참조 |
+> | 배선 가드 경화 | **1R~12R — 12R 에서 CRITICAL 0** — 아래 §배선 가드 참조 |
+>
+> **§배선 가드 — 라운드를 거듭한 경화 이력.** 본체는 얇다(게이트에 위임하는 어댑터).
+> 실제 어려움은 전부 "이 배선이 조용히 꺼지지 않음" 을 어떻게 강제하느냐였고, 매 라운드
+> 뚫렸다:
+>
+> | 라운드 | 가드 형태 | 무엇에 뚫렸나 |
+> |---|---|---|
+> | 1R | 파일 전체 substring | `if:` 를 지우고 같은 문자열을 `env:` 에 남기면 통과 |
+> | 2R | 구조 파싱 + 부분 정규식 | `(actor == 'dependabot[bot]') != false` (의미 정반대) |
+> | 3R | 앵커 없는 정규식 | `if: … && false` — 백스톱이 모든 PR 에서 영구히 꺼져도 통과 |
+> | 4R | **필드별** 정확 일치 | `jobs.gate.continue-on-error` · `on.pull_request.branches` ·
+>   `types: [closed]` · step 목록에 스텁 삽입 — **내가 고정한 필드만 안전했다** |
+>
+> | 5R | 문서 전체 정확 일치(review-gate.yml) | **그 파일 밖으로** — `harness-checks.yml` 을 무력화(job `if: false`/`continue-on-error`), discovery 패턴을 한 글자 좁혀 가드 11개를 안 돌게, `os.environ` 을 비-Call 문법으로 읽어 판정 우회 |
+> | 6R | 위 전부 | **또 한 층 밖** — `on.pull_request` 형제 키(`types`/`branches`), **step** 레벨 `if:`, `from os import environ as _E`, **게이트 본체**(`review_guard.py`)의 env 분기, 같은 `name:`/job id 를 참칭하는 워크플로 추가 |
+> | 7R | 위 전부 | **위임 대상과 문법 축** — 게이트가 위임하는 `_shared/**` 의 env 분기, `os.environ.items()` 류 미인식 문법, GitHub 이 실제로 쓰는 job `name:` override 로 identity 참칭, 필터 없는 bare `pull_request:`. 그리고 **가드 우회가 아닌 살아있는 결함 1건** — `_run_git` 의 `.strip()` 이 porcelain 선행 공백을 지워 경로 첫 글자가 깎였고, 이미 enforce 중인 로컬 훅이 "파일 하나 고치고 push" 에서 fail-open 했다 |
+>
+> | 8R | 위 전부 | **우회 0건.** 대신 자매 훅 `plan_guard` 가 7R 이 고친 `.strip()` 을 그대로
+>   갖고 있었다 — 이번엔 fail-open 이 아니라 **거짓 차단**(갱신한 plan 이 미갱신으로 읽혀 push 가
+>   막힘). 이 저장소 작업 트리에서 재현. 그리고 게이트가 "리뷰 수행" 이 아니라 **산출물의 형태**만
+>   본다는 신뢰 모델 — `--enforce` 선행 조건으로 등재(아래 §결정) |
+> | 9R | 위 전부 | **우회 0건.** 같은 git 프로브 5개가 **세** 모듈에 복제돼 있었고(7R·8R 이 두 번 다
+>   빠뜨린 `branch_guard` 가 셋째), 열 개 넘는 사본을 **어떤 테스트도 실행하지 않았다**(mock 우회).
+>   `_shared/git_probe.py` 로 통합. 더해 `_summary_is_resolved` 의 무조건 `break` 로 헛매치 한 줄이면
+>   CRITICAL 리포트가 "해결됨" 이 되는 잠복 경로 |
+> | 10R | 위 전부 | **우회 0건, CRITICAL 1.** 9R 통합이 여섯 번째 `_current_branch` 를 빠뜨렸다 —
+>   통합도 그것을 지키는 가드도 **손으로 쓴 목록**이었기 때문이다. 가드를 열거에서 **도출**로
+>   바꿨다(세 모듈 AST 를 비교해 본문 동일 함수가 남아 있으면 실패) |
+>
+> | 11R | 위 전부 | **우회 0.** 이 층이 **정작 목표 환경에서 무력**이었다 — `actions/checkout`
+>   위상(`init`+`remote add`+`fetch`, `remote set-head` 없음)에는 `refs/remotes/origin/HEAD` 도
+>   로컬 `refs/heads/main` 도 없어 base 해석이 네트워크 호출로 떨어지고, 그게 실패하면
+>   "codebase 변경 없음 — 허용". 관측 로그가 전부 거짓 통과로 쌓일 뻔했다.
+>   `refs/remotes/origin/<name>` 을 보게 해 닫았다(`ActionsCheckoutTopologyTest`) |
+> | 12R | 위 전부 | **CRITICAL 0.** WARNING 은 (a) 내 경화 감사가 불완전했고(미경화 7곳 중
+>   3곳이 내가 "경화했다" 고 말한 그 파일), (b) 11R 이 "네트워크 경로에 도달 안 한다" 고
+>   적은 것이 CI 위상에서 거짓이었다 — 매 PR 마다 2초를 태우고 있었다. 둘 다 처분 |
+>
+> 4R 에서 결론: **부분집합에 대한 정확 일치는 여전히 부분 일치다.** 파싱된 워크플로
+> **문서 전체**를 하나의 기대값과 비교하도록 바꿨다 — 어디에 무엇을 더하든 빼든 실패하고,
+> 남는 열린 필드가 없다. 판정자 단일성은 별개로 **행위**(스텁 게이트 판정 × `--enforce`
+> 네 조합에 대한 종료 코드)로 고정한다. 정적으로 부정을 증명하려는 시도는 4세대에 걸쳐
+> 전부 반증됐다.
+>
+> 5R·6R 에서 다시: **한 파일을 닫으면 우회는 그 파일 밖으로 간다.** 지금까지 닫은 층은
+> 워크플로 문서 → 그것을 실어 나르는 CI 배선(job/step 조건 등재제, 스위트 호출 명령 고정,
+> `continue-on-error` 전역 금지, PR 트리거 키 집합 등재제, 워크플로 identity 유일성) →
+> 스크립트 입력 축(환경 접근 정적 금지 + 최소·적대적 환경 행위 테스트) → **게이트 본체의
+> env 등재제** → 그리고 이 층 전체가 서 있는 전제(`review/**` 가 추적된다는 사실).
+>
+> 열린 질문: `Fetch base ref` step 이 `fetch-depth: 0` 위에서 실제로 필요한지는
+> GH Actions 러너 없이 실측할 수 없어 판정하지 못했다. 문서 전체 고정으로 **삭제는
+> 막히지만** 필요성 자체는 미확인이다.
 >
 > **작업 중 발견된 신규 결함 1건 (수정 완료)** — `code_review_orchestrator.build_files_section`
 > 이 프롬프트 예산 초과 파일을 **아무 표시 없이** 통째로 누락시켰다. 내용을 작은 파일부터
@@ -128,7 +182,37 @@ priority: P2
 >      `collect_change_infos` 의 `elif args.files:` 분기에는 기본 경로에 있는
 >      `warn_if_committed_work_is_missing` 대칭 안전장치가 없다.
 >    - 동반: changeset 이 `review/**` 로만 구성되면 그 자체가 오구성 신호 — advisory 경고 대상.
-> 12. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 12. ~~**`_porcelain_path` 가 git 의 C-quoting 을 다루지 않는다**~~ → **처분 완료 (8R)** — `_run_git` 에 `-c core.quotePath=false` 를 걸어 관문에서 막았다. 8R 리뷰어가 **더 강한 영향**을 밝혔다: uncommitted 경로뿐 아니라 `_newest_commit_time` 이 인용된 경로를 그대로 `git log -- <path>` 에 넘겨 매칭 실패 → `newest_code = 0.0` → Gate 1 이 저장소의 **아무 오래된 resolved 리뷰로나** 통과한다. 실측: `codebase/**` 2,464개 중 인용 유발 경로 0개라 오늘은 도달 불가지만, 한 줄 플래그라 correctness 로 넣었다. 잔여: 따옴표·백슬래시·제어문자 경로는 여전히 인용된다(손으로 디코더를 짜지 않는다). 원 서술: —
+>    7R 이 고친 선행-공백 결함과 **같은 클래스**다. `git status --porcelain` 은 비-ASCII 경로를
+>    기본으로 인용해 `"\355\225\234..."` 형태로 낸다(`core.quotePath` 기본값 true). 파서는
+>    `ln[3:].strip()` 후 그대로 돌려주므로 그 문자열은 실제 경로와 매칭되지 않는다.
+>    - 영향 방향: `_dirty_set` 에 실제 경로가 안 들어가면 그 파일은 **clean 으로 취급**돼
+>      편집 시각이 마지막 커밋 시각이 된다 → 방금 고친 파일이 오래돼 보이고, stale 한 리뷰가
+>      fresh 로 읽힌다. 7R 결함과 같은 fail-open 방향이다.
+>    - **미측정**: 이 저장소의 `codebase/**` 에 비-ASCII 경로가 실제로 있는지 확인하지 못했다
+>      (측정 시도 시점에 Bash 도구가 일시 불가였다). 파서가 틀린 것은 코드 독해로 확정이지만,
+>      **도달 가능성은 미확인**이므로 그것을 재기 전에는 고치지 않는다.
+>    - 후보 처방 두 가지, 각각 트레이드오프가 있다: (a) `git -c core.quotePath=false` — git
+>      자신의 스위치라 손으로 디코더를 짜지 않아도 되지만 따옴표·백슬래시·제어문자 경로는
+>      여전히 인용된다. (b) `--porcelain -z` — 인용 자체가 사라지지만 rename 페이로드 순서가
+>      바뀌어(`새\0옛`) 현재 `" -> "` 계약과 그 테스트를 다시 써야 한다.
+>      **손으로 octal 디코더를 짜는 3안은 피한다** — 이 저장소가 반복해서 손해로 분류해 온 형태다.
+> 13. **테스트 픽스처가 공유 `.git/config` 를 오염시킬 수 있다 (2026-08-06 실제 사고)** —
+>    11R 에서 `actions/checkout` 위상을 재현하려 만든 픽스처의 `git remote add origin` 이
+>    워크트리 쪽에서 실행돼 `origin` URL 이 임시 경로로 덮였다. 이 저장소는 워크트리 5개가
+>    **같은 `.git/config` 를 공유**하므로 다른 세션의 `fetch`/`push` 까지 함께 깨졌고,
+>    오염 시점엔 아무 신호가 없어 다음 `git fetch` 실패로 우연히 발견됐다.
+>    복구: `origin` 을 정상 URL 로 되돌리고 `git ls-remote` 로 확인. 커밋·작업 손실 없음.
+>    이 브랜치가 손댄 3개 픽스처는 즉시 경화했다 — 임시 트리 밖이면 단언으로 죽고,
+>    `git -C` 로 cwd 를 명시하며, `GIT_CEILING_DIRECTORIES` 로 상위 탐색을 막는다.
+>    - **잔여 (12R 재집계): pre-existing 4곳.** 최초 조사는 4곳이라 했는데 12R 리뷰어가
+>      **내가 편집한 파일 안에도 3곳이 남아 있음**을 짚었다 — 그 3곳은 이번에 닫았고, 실제
+>      잔여는 아래 4곳이다(전부 이 티켓 밖): — `test_consistency_bundle_priority.py`
+>      `test_consistency_impl_done.py` · `test_line_anchors.py` ·
+>      `test_push_guard_worktree_scope.py` (전부 `-C`/ceiling 없이 `init`/`config` 호출).
+>      이 티켓 범위 밖이라 등재만 한다. 근본 처방은 `_harness.py` 에 공용
+>      `make_temp_git_repo()` 를 두고 이 가드를 그 안에 한 번만 넣는 것이다.
+> 14. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
@@ -141,6 +225,16 @@ priority: P2
 > 달라(로컬 `main` vs `origin/main`) 단순 통합은 불가하고, 실제 코드 공유엔 **hooks/skills 의
 > `_lib` 네임스페이스 충돌 해소가 선행**이라 별도 범위로 남긴다. 기본 브랜치 정책이 바뀌면
 > 4곳을 모두 고쳐야 하는 drift 위험이 현재 상태다.
+
+> **2026-08-01 — 본체 구현 완료 (관측 모드).** `review-gate.yml` + `check-review-gate.py`.
+> 판정은 로컬 훅과 **같은** `evaluate_review()` 에 위임하고, 트리거만 훅 밖(GitHub PR
+> 이벤트)에 둔다 — 이 층의 목적이 "push 탐지 정규식이 유일 판정자" 인 사각을 닫는 것이므로
+> 필요한 독립성은 트리거뿐이고, 판정을 새로 구현하면 로컬/CI drift 를 만든다.
+>
+> **enforce 로 뒤집는 것은 별도 결정이다.** 위 §마찰 실측대로 지금 켜면 이력상 18% 를 막는데
+> 그건 미리뷰가 아니라 산출물 미커밋이다. CI 에 쌓이는 실판정을 보고 정한다. 켤 때 바꿀 곳은
+> 워크플로의 `run:` 한 줄과 `test_it_is_still_observation_only` 하나 — 조용히 뒤집히지 않게
+> 테스트가 현재 상태를 고정해 뒀다.
 
 ## Overview
 
@@ -160,8 +254,10 @@ priority: P2
 
 ## 후보 — 훅에 의존하지 않는 층
 
-- [ ] **CI 게이트**: PR 에 `codebase/**` diff 가 있는데 그 변경을 커버하는 *해결된* 리뷰
-      산출물이 없으면 CI fail. 훅(로컬 PreToolUse)과 **독립**이라 정규식 사각지대를 공유하지 않는다.
+- [x] **CI 게이트**: PR 에 `codebase/**` diff 가 있는데 그 변경을 커버하는 *해결된* 리뷰
+      산출물이 없으면 CI 가 보고한다. 훅(로컬 PreToolUse)과 **독립**이라 정규식 사각지대를
+      공유하지 않는다. → **구현 완료** — `.github/workflows/review-gate.yml` +
+      `scripts/check-review-gate.py`. **관측 모드로 시작한다**(아래 §마찰 참조).
       - ~~리뷰 산출물(`review/code/**`)은 gitignored 라 PR 에 없다 → CI 가 무엇으로 "리뷰됨" 을
         판정할지 설계 필요(커밋 trailer? PR label? 별도 signed marker?).~~
         **전제 반증 (2026-08-01 실측)**. `.gitignore` 가 제외하는 것은 `review/**/_prompts/`
@@ -182,15 +278,52 @@ priority: P2
   없는 암묵 전제였다). `review_guard` 는 fs mtime 을 신뢰하지 않는다: clean 파일은 마지막 커밋
   시각을 쓰고, "리뷰가 언제 돌았나" 의 정본 시계는 세션 **디렉토리 이름**이다 — 둘 다
   checkout-immune. 즉 CI 백스톱은 판정 메커니즘 설계가 아니라 **배선** 작업이다.
+- ⛔ **`--enforce` 전환의 선행 조건 (2026-08-06 8R, 실증)** — 게이트는 "리뷰가 실제로 수행됐는가"
+  가 아니라 **산출물의 존재와 텍스트 형태**만 본다. 그 산출물은 판정 대상 PR 안에서 작성자가
+  직접 커밋한다. 격리 저장소 실증: `codebase/` 1줄 + 손으로 쓴 3줄짜리 `SUMMARY.md` 만으로
+  `--enforce` 가 `통과`, exit 0.
+
+  이 결함은 이 브랜치가 만든 것이 아니다(`origin/main` 의 판정 로직이고 **로컬 push 훅에서는
+  오늘 이미 유효한 우회**다). 다만 이 브랜치가 그 판정을 PR-facing 게이트로 승격시키므로,
+  **`--enforce` 로 뒤집기 전에 반드시 결론이 나야 한다.**
+
+  ⚠️ **날짜 검사는 해결책이 아니다.** 실측으로 갈렸다 — 미래 날짜(`2099/…`) 세션은 통과하고
+  과거 날짜는 막힌다. 그래서 "미래 세션 거부" 를 넣고 싶어지지만, 공격자는 **지금 날짜**로
+  만들면 그만이라 아무것도 닫지 못한다. 닫히는 것처럼 보이는 반쪽 조치를 넣지 않는다.
+
+  실제 선택지는 신뢰의 뿌리를 옮기는 것이고, 전부 사용자/설계 결정이다:
+  (a) harness 실행이 CI 자신의 시각·신원으로 서명한 커밋 트레일러/체크섬을 남기고 게이트가 검증,
+  (b) 리뷰 결과를 파일이 아니라 **CI 봇이 게시하는 PR check/label** 로 이원화,
+  (c) 위조 가능성을 명시적으로 수용하고 이 층을 "정직한 실수 방지" 로만 규정.
+  관측 모드로 출시하는 현재 상태에서는 (c) 가 사실상의 기본값이며, 그 사실을 여기 적어둔다.
+
 - **남은 실질 결정: 이중 게이트의 마찰.** 실측(게이트 도입 `fa3cf81ad` 이후 main first-parent
   666 커밋): `codebase/**` 를 건드린 427건 중 61건(14%)이 같은 커밋에 SUMMARY.md 가 없다.
   분해 = dependabot/build(deps) 3 · lockfile-only 1 · 그 외 진짜 소스 변경 57.
-  - ⚠️ **이 57 은 상한이지 차단 예측치가 아니다.** 프록시가 "같은 커밋에 산출물" 인데
-    `evaluate_review()` 의 술어는 그게 아니다. 이 저장소는 코드와 리뷰 산출물을 **별도 커밋**
-    으로 올리므로(이 브랜치 자신이 그렇다) rebase-merge 된 PR 은 코드 커밋만 보면 전부
-    "동반 없음" 으로 잡힌다. 착수 시 PR 단위로 재측정할 것.
-  - **확실한 마찰 1건: dependabot.** 봇 PR 은 로컬 훅을 아예 안 거치므로 CI 게이트가 무조건
-    fail 시킨다. 예외 처리가 설계에 반드시 들어가야 한다.
+  - ⚠️ **위 57 은 거친 프록시였다. 착수하며 PR 단위로 재측정했다.**
+    "rebase-merge 라 코드/리뷰 커밋이 갈린다" 는 내 추정은 **틀렸다** — 이 저장소는
+    squash merge 이고 PR 당 커밋이 정확히 1개다(게이트 이후 676건 중 664건이 `(#N)` 로
+    끝나고 675건이 단일 부모). 즉 커밋 단위 = PR 단위다.
+    게이트의 실제 술어(SUMMARY + RESOLUTION 또는 위험도 NONE/LOW)로 재집계:
+
+    | | |
+    |---|---|
+    | `codebase/**` PR | 435 |
+    | 해결된 리뷰 동반 | 355 (81%) |
+    | **미커버** | **80 (18%)** — dependabot 11 + 그 외 69 |
+
+    월별 비봇 차단율: 2026-06 **9%**, 2026-07 **18%**, 2026-08 0%(9건 중 8건이 봇).
+
+  - **결정적 발견 — 이건 "미리뷰" 가 아니라 "산출물 미커밋" 이다.** 차단 표본 8건을 추적하니
+    전부 PR 날짜 ±1일에 저장소 어딘가 리뷰 세션이 있었다. 한 건을 끝까지 파보면:
+    `e96ef1b45`(webhook 민감 헤더 마스킹)는 review/ 파일을 **0개** 커밋했고, 같은 날 code
+    세션 7개는 **전부 다른 PR** 이 커밋했다.
+    로컬 훅은 **미커밋** 파일도 보고(working tree) CI 는 커밋된 것만 보므로, 하드 차단으로
+    켜면 "리뷰를 안 했다" 가 아니라 **"산출물을 이 PR 에 안 담았다"** 를 막게 된다 —
+    워크플로 계약 변경이다.
+  - **확실한 마찰 1건: dependabot** → **처리 완료.** 봇 PR 은 로컬 훅을 아예 안 거치므로
+    리뷰 산출물이 있을 수 없다. `if: github.actor != 'dependabot[bot]'` 로 면제했다 —
+    없으면 이 워크플로는 사실상 dependabot 전용 알람이 된다(2026-08 미커버 9건 중 8건이 봇).
 - 이 저장소가 이미 `guard_review_before_push` 를 신뢰하는데, 두 번째 층의 비용 대비 이득.
 
 ## Rationale

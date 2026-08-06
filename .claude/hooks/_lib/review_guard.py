@@ -112,7 +112,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -121,12 +120,6 @@ from datetime import datetime
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(THIS_DIR))  # …/.claude
 
-try:
-    # Reuse the default-branch resolver so "since the branch started" is
-    # computed against the same default branch the worktree guard uses.
-    from branch_guard import _origin_default_branch  # type: ignore
-except Exception:  # pragma: no cover - import path fallback
-    _origin_default_branch = None  # type: ignore
 
 # Report location/validity is shared with the orchestrator CLIs — see
 # `.claude/_shared/report_paths.py`. Both this gate and `--verify-coverage` must answer
@@ -148,6 +141,7 @@ if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import report_paths as _report_paths_lib  # noqa: E402
 from _shared import block_integrity as _block_integrity  # noqa: E402
+from _shared import git_probe as _git_probe  # noqa: E402
 
 
 CODE_PREFIX = "codebase/"
@@ -203,51 +197,17 @@ class ReviewDecision:
         return self.blocked
 
 
-def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
-    try:
-        p = subprocess.run(
-            ["git"] + args,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return p.returncode, p.stdout.strip(), p.stderr.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return 1, "", ""
-
-
-def _repo_root(cwd: str) -> str | None:
-    rc, out, _ = _run_git(["rev-parse", "--show-toplevel"], cwd)
-    if rc != 0 or not out:
-        return None
-    return out
-
-
-def _default_branch(cwd: str) -> str | None:
-    if _origin_default_branch is not None:
-        try:
-            d = _origin_default_branch(cwd)
-            if d:
-                return d
-        except Exception:
-            pass
-    # Fallback: probe common names.
-    for name in ("main", "master"):
-        rc, _, _ = _run_git(["rev-parse", "--verify", f"refs/heads/{name}"], cwd)
-        if rc == 0:
-            return name
-    return None
-
-
-def _merge_base(cwd: str, default_branch: str) -> str | None:
-    # Prefer the remote ref (origin/<default>) so we diff against where the
-    # branch forked, falling back to the local branch ref.
-    for ref in (f"origin/{default_branch}", default_branch):
-        rc, out, _ = _run_git(["merge-base", "HEAD", ref], cwd)
-        if rc == 0 and out:
-            return out
-    return None
+# These five git probes now live in `.claude/_shared/git_probe.py`, shared with the
+# sibling guard. They were byte-identical copies (AST-compared before moving), and
+# the pair drifted twice in a row: round 7 fixed `_run_git`'s `.strip()` here and
+# round 8 found the same line still in the other copy, false-blocking pushes.
+# Delegating rather than re-copying is the same move `report_paths` and
+# `retry_state` already made for the same reason.
+_run_git = _git_probe._run_git
+_repo_root = _git_probe._repo_root
+_default_branch = _git_probe._default_branch
+_merge_base = _git_probe._merge_base
+_porcelain_path = _git_probe._porcelain_path
 
 
 def _committed_code_changes(cwd: str, base: str) -> list[str]:
@@ -264,24 +224,6 @@ def _uncommitted_code_changes(cwd: str) -> list[str]:
     if rc != 0 or not out:
         return []
     return [p for p in (_porcelain_path(ln) for ln in out.splitlines()) if p]
-
-
-def _porcelain_path(ln: str) -> str:
-    """Extract the (destination) path from one `git status --porcelain v1` line.
-
-    Format: "XY <path>" where the status code is the first two columns and the
-    path starts at column 3. For a rename the payload is "<old> -> <new>" — we
-    want <new>. The split is anchored on git's literal `" -> "` separator (with
-    surrounding spaces) and only applied when the status code's first column is
-    `R`/`C`; a bare `"->"` substring inside an ordinary filename must not split.
-    """
-    if len(ln) < 4:
-        return ""
-    code = ln[:2]
-    path = ln[3:].strip()
-    if code and code[0] in ("R", "C") and " -> " in path:
-        path = path.split(" -> ", 1)[1].strip()
-    return path
 
 
 def _mtime(path: str) -> float:
@@ -511,7 +453,20 @@ def _summary_is_resolved(summary_path: str) -> bool:
                 if m:
                     risk_level = m.group(1)
                     break
-            break
+            # Stop only once a level was actually read. The outer `break` used to
+            # be unconditional, so ONE decoy mention of the heading phrase before
+            # the real heading — a sentence citing the section by name — ended the
+            # scan with `risk_level = None`, and a narrative HIGH/CRITICAL report
+            # with no table rows then read as "resolved". Reproduced: the same
+            # document passes as unresolved without the decoy line and resolved
+            # with it.
+            #
+            # Measured across all 1,548 committed SUMMARY files: this shape occurs
+            # **zero** times today (21 have two or more heading matches, but the
+            # first always yields a level), so this is a latent path, not a live
+            # miss. It costs one condition to close.
+            if risk_level is not None:
+                break
 
     # Count actionable rows under the Critical and Warning sections.
     has_actionable = _section_has_rows(lines, "Critical") or _section_has_rows(
