@@ -188,7 +188,20 @@ priority: P2
 >      여전히 인용된다. (b) `--porcelain -z` — 인용 자체가 사라지지만 rename 페이로드 순서가
 >      바뀌어(`새\0옛`) 현재 `" -> "` 계약과 그 테스트를 다시 써야 한다.
 >      **손으로 octal 디코더를 짜는 3안은 피한다** — 이 저장소가 반복해서 손해로 분류해 온 형태다.
-> 13. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 13. **테스트 픽스처가 공유 `.git/config` 를 오염시킬 수 있다 (2026-08-06 실제 사고)** —
+>    11R 에서 `actions/checkout` 위상을 재현하려 만든 픽스처의 `git remote add origin` 이
+>    워크트리 쪽에서 실행돼 `origin` URL 이 임시 경로로 덮였다. 이 저장소는 워크트리 5개가
+>    **같은 `.git/config` 를 공유**하므로 다른 세션의 `fetch`/`push` 까지 함께 깨졌고,
+>    오염 시점엔 아무 신호가 없어 다음 `git fetch` 실패로 우연히 발견됐다.
+>    복구: `origin` 을 정상 URL 로 되돌리고 `git ls-remote` 로 확인. 커밋·작업 손실 없음.
+>    이 브랜치가 손댄 3개 픽스처는 즉시 경화했다 — 임시 트리 밖이면 단언으로 죽고,
+>    `git -C` 로 cwd 를 명시하며, `GIT_CEILING_DIRECTORIES` 로 상위 탐색을 막는다.
+>    - **잔여: 같은 노출이 pre-existing 4곳에 있다** — `test_consistency_bundle_priority.py`
+>      `test_consistency_impl_done.py` · `test_line_anchors.py` ·
+>      `test_push_guard_worktree_scope.py` (전부 `-C`/ceiling 없이 `init`/`config` 호출).
+>      이 티켓 범위 밖이라 등재만 한다. 근본 처방은 `_harness.py` 에 공용
+>      `make_temp_git_repo()` 를 두고 이 가드를 그 안에 한 번만 넣는 것이다.
+> 14. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다

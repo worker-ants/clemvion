@@ -61,7 +61,12 @@ class ReviewGateCliTest(unittest.TestCase):
         env["GIT_CONFIG_SYSTEM"] = os.devnull
         env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
-        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+        # `-C` + ceiling: 이 픽스처 계열이 실제로 공유 `.git/config` 를 오염시킨 적이 있다
+        # (워크트리 다섯 개가 그 config 를 공유해 다른 세션의 fetch 까지 깨졌다). git 이
+        # 상위로 저장소를 찾아 올라가지 못하게 막고, cwd 를 명시로 고정한다.
+        root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = root
+        subprocess.run(["git", "-C", root, *args], env=env, check=True,
                        capture_output=True, text=True)
 
     def _write(self, rel, body):
@@ -695,7 +700,12 @@ class TheRealGateIgnoresTheEnvironmentTest(unittest.TestCase):
         env["GIT_CONFIG_SYSTEM"] = os.devnull
         env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
-        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+        # `-C` + ceiling: 이 픽스처 계열이 실제로 공유 `.git/config` 를 오염시킨 적이 있다
+        # (워크트리 다섯 개가 그 config 를 공유해 다른 세션의 fetch 까지 깨졌다). git 이
+        # 상위로 저장소를 찾아 올라가지 못하게 막고, cwd 를 명시로 고정한다.
+        root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = root
+        subprocess.run(["git", "-C", root, *args], env=env, check=True,
                        capture_output=True, text=True)
 
     def _write(self, rel, body):

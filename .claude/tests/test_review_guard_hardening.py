@@ -849,12 +849,28 @@ class ActionsCheckoutTopologyTest(unittest.TestCase):
         self._git(self.work, "checkout", "-q", "-b", "feature", "FETCH_HEAD")
 
     def _git(self, cwd, *args):
+        """임시 트리 밖에서는 절대 돌지 않는다.
+
+        이 픽스처가 실제로 **공유 `.git/config` 를 오염시켰다** — `remote add origin` 이
+        워크트리 쪽에서 실행돼 `origin` URL 이 임시 경로로 덮였고, 이 저장소의 워크트리 다섯
+        개가 같은 config 를 공유하므로 다른 세션의 `git fetch` 까지 함께 깨졌다. 조용히 성공한
+        것이 최악이었다 — 다음 `git fetch` 가 실패할 때까지 아무 신호가 없었다.
+        
+        cwd 가 임시 루트 밖이면 여기서 죽는다. git 이 상위로 저장소를 찾아 올라가는 것도
+        `GIT_CEILING_DIRECTORIES` 로 막는다.
+        """
+        resolved = os.path.realpath(cwd)
+        root = os.path.realpath(self.tmp)
+        assert resolved == root or resolved.startswith(root + os.sep), (
+            f"임시 트리 밖에서 git 을 실행하려 한다: {resolved!r} (루트 {root!r})"
+        )
         env = dict(os.environ)
         env["GIT_CONFIG_GLOBAL"] = os.devnull
         env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_CEILING_DIRECTORIES"] = root
         env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
-        subprocess.run(["git", *args], cwd=cwd, env=env, check=True,
+        subprocess.run(["git", "-C", resolved, *args], env=env, check=True,
                        capture_output=True, text=True)
 
     def _write(self, root, rel, body):
