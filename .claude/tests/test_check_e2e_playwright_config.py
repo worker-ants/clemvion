@@ -38,15 +38,17 @@ def make_repo(
     base_tag: str = DEFAULT_BASE_TAG,
     frontend_workflow_pkgs=DEFAULT_PKGS,
     dockerfile_copy_pkgs=None,
-    compose_mask_pkgs=None,
+    compose_mounts=None,
     packages_on_disk=None,
 ) -> None:
     """정합 fixture repo 를 만든다. *_pkgs 를 달리 주면 drift 를 주입한다."""
     dockerfile_copy_pkgs = (
         DEFAULT_PKGS if dockerfile_copy_pkgs is None else dockerfile_copy_pkgs
     )
-    compose_mask_pkgs = (
-        DEFAULT_PKGS if compose_mask_pkgs is None else compose_mask_pkgs
+    compose_mounts = (
+        ["./codebase/frontend:/app/codebase/frontend"]
+        if compose_mounts is None
+        else compose_mounts
     )
     packages_on_disk = (
         DEFAULT_PKGS if packages_on_disk is None else packages_on_disk
@@ -108,18 +110,21 @@ def make_repo(
         'RUN pnpm install --frozen-lockfile --filter "frontend..."\n',
     )
 
-    # docker-compose.e2e.yml — playwright-runner 볼륨 마스킹.
-    mask_lines = "\n".join(
-        f"      - /app/codebase/packages/{p}/node_modules" for p in compose_mask_pkgs
-    )
+    # docker-compose.e2e.yml — playwright-runner 의 bind-mount 입도.
+    # 형제 서비스를 **뒤에** 둔다: 블록 추출이 EOF 까지 흘러가면 그 서비스의 마운트를
+    # playwright-runner 것으로 오인하므로, 경계가 매 fixture 에서 실제로 행사된다.
+    mount_lines = "\n".join(f"      - {m}" for m in compose_mounts)
     _write(
         root / "docker-compose.e2e.yml",
         "services:\n"
         "  playwright-runner:\n"
         "    volumes:\n"
-        "      - ./codebase:/app/codebase\n"
+        f"{mount_lines}\n"
+        "      - /app/node_modules\n"
         "      - /app/codebase/frontend/node_modules\n"
-        f"{mask_lines}\n",
+        "  backend-e2e-runner:\n"
+        "    volumes:\n"
+        "      - ./codebase/backend:/app/codebase/backend\n",
     )
 
 
@@ -182,18 +187,99 @@ class CheckTest(unittest.TestCase):
             make_repo(root, pw_version="1.61.2", base_tag="v1.61.0-jammy")
             self.assertEqual(guard.check(root), [])
 
-    def test_compose_mask_missing_pkg_fails(self):
+    def test_wholesale_codebase_mount_fails(self):
+        """2026-08-06 회귀 그 자체 — `./codebase` 통마운트.
+
+        이 형태가 CI 첫 실행에서 `Module not found: Can't resolve '@workflow/*'` 를 냈다.
+        종전 가드는 패키지별 `node_modules` 마스킹 목록만 대조해서 이걸 **통과시켰다**.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root, compose_mounts=["./codebase:/app/codebase"])
+            failures = guard.check(root)
+            self.assertTrue(
+                any("/app/codebase/packages" in f and "덮는다" in f for f in failures),
+                f"통마운트는 반드시 잡혀야 한다; got {failures}",
+            )
+
+    def test_mounting_the_packages_dir_itself_fails(self):
+        # 조상뿐 아니라 정확히 그 경로를 mount 해도 dist 는 똑같이 사라진다.
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             make_repo(
                 root,
-                frontend_workflow_pkgs=["expression-engine", "node-summary"],
-                dockerfile_copy_pkgs=["expression-engine", "node-summary"],
-                compose_mask_pkgs=["expression-engine"],  # node-summary 누락.
+                compose_mounts=[
+                    "./codebase/frontend:/app/codebase/frontend",
+                    "./codebase/packages:/app/codebase/packages",
+                ],
             )
-            failures = guard.check(root)
-            self.assertTrue(any("compose volume-mask set" in f for f in failures))
-            self.assertTrue(any("node-summary" in f for f in failures))
+            self.assertTrue(
+                any("/app/codebase/packages" in f for f in guard.check(root))
+            )
+
+    def test_frontend_subtree_mount_passes(self):
+        # 올바른 입도(현행 저장소의 형태)는 통과해야 한다 — 가드가 vacuous 하지 않도록
+        # 위 두 FAIL 케이스와 짝으로 고정한다.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            self.assertEqual(guard.check(root), [])
+
+    def test_sibling_service_wholesale_mount_is_not_attributed(self):
+        """다른 서비스의 통마운트는 playwright-runner 의 위반이 아니다.
+
+        `backend-e2e-runner` 는 자기 subtree 를 정당하게 bind-mount 한다. 블록 스코프가
+        없으면 문서 전체를 훑어 남의 줄을 위반으로 오인한다.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            compose = root / "docker-compose.e2e.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8")
+                + "  legacy-runner:\n"
+                "    volumes:\n"
+                "      - ./codebase:/app/codebase\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(guard.check(root), [])
+
+    def test_anonymous_volume_over_packages_is_not_flagged(self):
+        """익명 볼륨은 이미지 내용으로 초기화되므로 dist 를 지우지 않는다.
+
+        `- /app/...`(콜론 없음)은 호스트를 들여오지 않는다 — 이 구분을 못 하면 가드가
+        정상 설정을 막는다(`/app/codebase/frontend/node_modules` 가 바로 그 형태다).
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            compose = root / "docker-compose.e2e.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "      - /app/node_modules\n",
+                    "      - /app/node_modules\n      - /app/codebase/packages\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(guard.check(root), [])
+
+    def test_missing_playwright_runner_block_fails(self):
+        # 서비스명이 바뀌면 가드는 조용히 통과하는 게 아니라 실패해야 한다 —
+        # "찾지 못함 = 검사할 것 없음 = OK" 는 fail-open 이다.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            compose = root / "docker-compose.e2e.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "playwright-runner:", "pw-runner:", 1
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                any("playwright-runner" in f for f in guard.check(root))
+            )
 
     def test_dockerfile_copy_extra_pkg_fails(self):
         with tempfile.TemporaryDirectory() as td:
@@ -202,7 +288,6 @@ class CheckTest(unittest.TestCase):
                 root,
                 frontend_workflow_pkgs=["expression-engine"],
                 dockerfile_copy_pkgs=["expression-engine", "node-summary"],  # 여분.
-                compose_mask_pkgs=["expression-engine"],
                 packages_on_disk=["expression-engine", "node-summary"],
             )
             failures = guard.check(root)
@@ -216,7 +301,6 @@ class CheckTest(unittest.TestCase):
                 root,
                 frontend_workflow_pkgs=["expression-engine", "ghost"],
                 dockerfile_copy_pkgs=["expression-engine"],
-                compose_mask_pkgs=["expression-engine"],
                 packages_on_disk=["expression-engine", "node-summary"],
             )
             failures = guard.check(root)
@@ -226,45 +310,43 @@ class CheckTest(unittest.TestCase):
 class AnchoringRegressionTest(unittest.TestCase):
     """정규식이 실제 지시문/리스트 항목에만 매치하고 주석 잔재는 무시하는지 (false-match 방지)."""
 
-    def test_compose_mask_in_comment_is_not_counted(self):
-        # 실제 마스킹 라인을 삭제하고 경로를 언급하는 '주석'만 남기면, 그 패키지는 마스킹이
-        # 없는 것 → check() 가 FAIL 해야 한다(주석을 마스킹으로 오판하는 false-negative 방지).
+    def test_bind_mount_in_comment_is_not_counted(self):
+        # 주석에 남은 통마운트 경로는 실제 마운트가 아니다 — 주석을 마운트로 오판하면
+        # 정상 설정이 막힌다(false-positive).
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            make_repo(root)
+            compose = root / "docker-compose.e2e.yml"
+            compose.write_text(
+                compose.read_text(encoding="utf-8").replace(
+                    "  backend-e2e-runner:\n",
+                    "      # was: - ./codebase:/app/codebase\n  backend-e2e-runner:\n",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            self.assertEqual(guard.check(root), [])
+
+    def test_bind_mount_with_inline_comment_still_counts(self):
+        # 실제 리스트 항목 뒤 인라인 주석이 붙어도 위반은 위반이다 — 뒤 주석 때문에
+        # 매치를 놓치면 오늘의 결함이 주석 한 줄로 되살아난다(false-negative).
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             make_repo(
                 root,
-                frontend_workflow_pkgs=["expression-engine", "node-summary"],
-                dockerfile_copy_pkgs=["expression-engine", "node-summary"],
-                compose_mask_pkgs=["expression-engine"],  # node-summary 마스킹 실제 삭제.
+                compose_mounts=["./codebase:/app/codebase  # workspace 전체"],
             )
-            compose = root / "docker-compose.e2e.yml"
-            compose.write_text(
-                compose.read_text(encoding="utf-8")
-                + "      # removed: /app/codebase/packages/node-summary/node_modules\n",
-                encoding="utf-8",
-            )
-            self.assertNotIn("node-summary", guard.compose_mask_dirs(root))
-            failures = guard.check(root)
             self.assertTrue(
-                any("compose volume-mask set" in f and "node-summary" in f for f in failures),
-                f"comment path must not count as a mask; got {failures}",
+                any("/app/codebase/packages" in f for f in guard.check(root))
             )
 
-    def test_compose_mask_with_inline_comment_still_counts(self):
-        # 실제 리스트 항목 뒤 인라인 주석은 유효 마스킹으로 세야 한다.
+    def test_read_only_flag_on_a_covering_mount_still_counts(self):
+        # `:ro` 가 붙어도 이미지의 dist 는 똑같이 가려진다 — 옵션 접미사가 매치를 깨면 안 된다.
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            make_repo(root, compose_mask_pkgs=["expression-engine", "node-summary"])
-            compose = root / "docker-compose.e2e.yml"
-            compose.write_text(
-                compose.read_text(encoding="utf-8").replace(
-                    "- /app/codebase/packages/node-summary/node_modules",
-                    "- /app/codebase/packages/node-summary/node_modules  # inline note",
-                ),
-                encoding="utf-8",
-            )
-            self.assertEqual(
-                guard.compose_mask_dirs(root), {"expression-engine", "node-summary"}
+            make_repo(root, compose_mounts=["./codebase:/app/codebase:ro"])
+            self.assertTrue(
+                any("/app/codebase/packages" in f for f in guard.check(root))
             )
 
     def test_base_tag_in_comment_before_from_is_ignored(self):
@@ -315,7 +397,6 @@ class DirectionalAndDefensiveTest(unittest.TestCase):
                 root,
                 frontend_workflow_pkgs=["expression-engine", "node-summary"],
                 dockerfile_copy_pkgs=["expression-engine"],  # node-summary COPY 누락.
-                compose_mask_pkgs=["expression-engine", "node-summary"],
             )
             failures = guard.check(root)
             self.assertTrue(

@@ -12,13 +12,16 @@
      자동으로 안 따라온다(예: `^1.59.1` → 1.62 해소인데 태그는 여전히 v1.61). 해소된 major.minor 와
      Dockerfile base 태그 major.minor 가 다르면 실패.
 
-  2. **frontend `@workflow/*` 클로저 ↔ Dockerfile COPY ↔ compose 볼륨 마스킹** — Dockerfile 은
-     frontend 의 내부 패키지 클로저 소스를 `COPY codebase/packages/<pkg>` 로 가져오고,
-     compose 는 그 패키지들의 `node_modules` 를 anonymous volume 으로 마스킹한다(호스트 bind-mount
-     가 컨테이너 설치본을 덮지 않게). 이 둘은 frontend 의 실제 `@workflow/*` 의존과 동일 집합이어야
-     하는데, Dockerfile COPY 는 누락 시 `--frozen-lockfile` 이 fail 하지만 compose 마스킹 목록은
-     누락돼도 조용히 통과한다(그 패키지 node_modules 가 안 가려져 호스트 값이 노출될 뿐). 세 집합이
-     어긋나면 실패 — 신규 내부 패키지 추가 시 세 곳을 모두 갱신하도록 강제한다.
+  2. **frontend `@workflow/*` 클로저 ↔ Dockerfile COPY** — Dockerfile 은 frontend 의 내부 패키지
+     클로저 소스를 `COPY codebase/packages/<pkg>` 로 가져온다. 이 집합이 frontend 의 실제
+     `@workflow/*` 의존과 어긋나면 실패.
+
+  3. **playwright-runner 의 bind-mount 가 `codebase/packages` 를 덮지 않을 것** — 이미지는 각
+     패키지의 `prepare`(=tsc)로 `dist` 를 만들어 두는데, 그 경로를 호스트에서 bind-mount 하면
+     dist 없는 사본이 덮어써 `main: dist/index.js` 해석이 실패한다(`Module not found:
+     Can't resolve '@workflow/*'`). 종전 검사는 "패키지별 `node_modules` 마스킹 목록 == 클로저"
+     라는 **손으로 유지되는 목록 대조**였고, 정작 `dist` 는 마스킹 대상이 아니어서 `./codebase`
+     통마운트를 통과시켰다 — 2026-08-06 CI 첫 실행에서 드러났다. 목록 대신 불변식을 본다.
 
 종료 코드: 정상 0, 위반 1.
 
@@ -56,12 +59,17 @@ _DOCKERFILE_COPY_RE = re.compile(
     r"^COPY\s+codebase/packages/([A-Za-z0-9._-]+)\s+\./codebase/packages/",
     re.MULTILINE,
 )
-# 실제 YAML volumes 리스트 항목(`- /app/.../node_modules`)에만 매치 — 주석에 남은 경로는 무시.
-# 뒤따르는 인라인 주석은 허용(형식 유연성).
-_COMPOSE_MASK_RE = re.compile(
-    r"^\s*-\s*/app/codebase/packages/([A-Za-z0-9._-]+)/node_modules\s*(?:#.*)?$",
+# 실제 YAML volumes 리스트의 **bind-mount** 항목(`- <host>:<container>[:opts]`)에만 매치.
+# 익명 볼륨(`- /app/...`)은 콜론이 없어 걸리지 않는다 — 그쪽은 호스트를 들여오지 않으므로
+# 패키지를 덮을 수 없다. 주석에 남은 경로는 라인 시작 앵커로 배제된다.
+_COMPOSE_BIND_RE = re.compile(
+    r"^\s*-\s*([^\s:#][^:]*):(/[^\s:]+)(?::[a-z,]+)?\s*(?:#.*)?$",
     re.MULTILINE,
 )
+
+# 이 경로 아래에 이미지가 `prepare`(=tsc)로 만든 `dist` 가 있다. 여기를 덮는 bind-mount 는
+# dist 를 지운다 — 아래 `_mount_covers` 참조.
+_PACKAGES_IN_CONTAINER = "/app/codebase/packages"
 
 
 def _read(root: Path, rel: Path) -> str | None:
@@ -114,11 +122,44 @@ def dockerfile_copy_dirs(root: Path) -> set[str]:
     return set(_DOCKERFILE_COPY_RE.findall(text))
 
 
-def compose_mask_dirs(root: Path) -> set[str]:
+def playwright_runner_block(text: str) -> str | None:
+    """compose 문서에서 `playwright-runner:` 서비스 블록만 잘라낸다.
+
+    스코프가 필요하다: `backend-e2e-runner` 는 `./codebase/backend:/app/codebase/backend` 를
+    **정당하게** bind-mount 하므로, 문서 전체를 훑으면 그 줄을 위반으로 오인한다.
+    """
+    m = re.search(r"^(\s*)playwright-runner:\s*$", text, re.MULTILINE)
+    if m is None:
+        return None
+    indent, start = len(m.group(1)), m.end()
+    lines = text[start:].splitlines()
+    out: list[str] = []
+    for ln in lines:
+        if ln.strip() and not ln.startswith(" " * (indent + 1)):
+            break  # 같은(또는 더 얕은) 들여쓰기 = 다음 서비스
+        out.append(ln)
+    return "\n".join(out)
+
+
+def compose_host_mount_targets(root: Path) -> list[str] | None:
+    """playwright-runner 의 **bind-mount 컨테이너 경로** 목록. 블록이 없으면 None.
+
+    익명 볼륨(`- /app/...`, 콜론 없음)은 호스트를 들여오지 않으므로 대상이 아니다.
+    """
     text = _read(root, COMPOSE)
     if text is None:
-        return set()
-    return set(_COMPOSE_MASK_RE.findall(text))
+        return None
+    block = playwright_runner_block(text)
+    if block is None:
+        return None
+    return [m.group(2) for m in _COMPOSE_BIND_RE.finditer(block)]
+
+
+def _mount_covers(target: str, path: str = _PACKAGES_IN_CONTAINER) -> bool:
+    """컨테이너 마운트 대상 `target` 이 `path` 를 덮는가 (자기 자신 또는 조상)."""
+    t = "/" + target.strip("/")
+    p = "/" + path.strip("/")
+    return p == t or p.startswith(t.rstrip("/") + "/")
 
 
 def pkgname_to_dir(root: Path) -> dict[str, str]:
@@ -197,10 +238,9 @@ def check(root: Path) -> list[str]:
                     f"docker-compose.e2e.yml comment) when @playwright/test moves."
                 )
 
-    # --- 검사 2: frontend @workflow 클로저 ↔ Dockerfile COPY ↔ compose 마스킹 ---
+    # --- 검사 2: frontend @workflow 클로저 ↔ Dockerfile COPY ---
     closure, unmapped = frontend_workflow_closure_dirs(root)
     copies = dockerfile_copy_dirs(root)
-    masks = compose_mask_dirs(root)
     if unmapped:
         failures.append(
             "[e2e-config-guard] FAIL: frontend @workflow dep(s) not resolvable to a "
@@ -219,13 +259,31 @@ def check(root: Path) -> list[str]:
                 f"    missing from Dockerfile: {sorted(closure - copies) or '—'}; "
                 f"extra in Dockerfile: {sorted(copies - closure) or '—'}"
             )
-        if closure != masks:
+    # --- 검사 3: playwright-runner 의 bind-mount 가 패키지를 덮지 않을 것 ---
+    # 종전에는 "패키지별 node_modules 마스킹 목록 == 클로저" 를 대조했다. 그 목록은 손으로
+    # 유지되는 것이었고, 정작 `dist` 는 마스킹 대상이 아니어서 `./codebase` 통마운트가
+    # 이미지의 dist 를 덮어도 통과했다 — 2026-08-06 CI 첫 실행에서 next build 가
+    # `Module not found: Can't resolve '@workflow/*'` 로 죽으며 드러났다. 목록 대조 대신
+    # **불변식**(패키지 경로를 덮는 호스트 마운트가 없을 것)을 본다. 목록이 없으니
+    # 신규 패키지가 추가돼도 갱신할 것이 없다.
+    targets = compose_host_mount_targets(root)
+    if targets is None:
+        failures.append(
+            f"[e2e-config-guard] FAIL: playwright-runner 서비스 블록을 {COMPOSE} 에서 "
+            "찾지 못했다 (서비스명이 바뀌었다면 이 가드도 함께 갱신할 것)."
+        )
+    else:
+        covering = [t for t in targets if _mount_covers(t)]
+        if covering:
             failures.append(
-                "[e2e-config-guard] FAIL: frontend @workflow closure ≠ compose volume-mask set.\n"
-                f"    frontend @workflow closure = {sorted(closure)} [{FRONTEND_PKG}]\n"
-                f"    compose mask packages      = {sorted(masks)} [{COMPOSE} playwright-runner]\n"
-                f"    missing from compose masks: {sorted(closure - masks) or '—'}; "
-                f"extra in compose masks: {sorted(masks - closure) or '—'}"
+                "[e2e-config-guard] FAIL: playwright-runner 의 bind-mount 가 "
+                f"{_PACKAGES_IN_CONTAINER} 를 덮는다: {covering}.\n"
+                "    이미지가 `prepare`(tsc)로 만든 codebase/packages/*/dist 가 호스트 사본으로\n"
+                "    덮여 사라지고, 내부 패키지는 main: dist/index.js 라 next build 가\n"
+                "    `Module not found: Can't resolve '@workflow/*'` 로 죽는다.\n"
+                "    → frontend subtree 만 mount 할 것 "
+                "(`./codebase/frontend:/app/codebase/frontend`), "
+                "backend-e2e-runner 와 동형."
             )
 
     return failures
@@ -258,7 +316,8 @@ def main() -> int:
     closure, _ = frontend_workflow_closure_dirs(root)
     print(
         f"[e2e-config-guard] OK: @playwright/test {resolved} ↔ base tag aligned; "
-        f"@workflow closure ({len(closure)}) synced across Dockerfile COPY + compose masks."
+        f"@workflow closure ({len(closure)}) synced with Dockerfile COPY; "
+        f"playwright-runner mounts do not cover {_PACKAGES_IN_CONTAINER}."
     )
     return 0
 
