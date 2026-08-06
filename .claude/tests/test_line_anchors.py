@@ -38,8 +38,17 @@ ORCH = (
 
 
 def _git(*args: str, cwd=None) -> str:
+    # `errors="replace"`: this walks whatever the real repository happens to
+    # contain, and `git show <commit>:<path>` on a binary blob hands back raw
+    # bytes. With the default strict decoding the harness dies with
+    # `UnicodeDecodeError: … byte 0x89 …` (the PNG magic) instead of reporting a
+    # test result — which is exactly what the first CI run this repo ever did
+    # produced on 2026-08-06. Callers must still skip binaries for correctness
+    # (see the `Binary files` guard below); this only keeps the failure mode a
+    # test outcome rather than a crash.
     return subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=str(cwd or REPO_ROOT)
+        ["git", *args], capture_output=True, text=True, errors="replace",
+        cwd=str(cwd or REPO_ROOT)
     ).stdout
 
 
@@ -304,6 +313,11 @@ class GutterCorrectnessAgainstRealGitTest(unittest.TestCase):
             for path in names:
                 diff = _git("show", "--no-renames", "--pretty=format:", commit, "--", path)
                 if not diff.strip():
+                    continue
+                # A binary blob has no line numbers to anchor, and its bytes are
+                # not source. git says so itself rather than emitting hunks.
+                if any(ln.startswith("Binary files ") or ln.startswith("GIT binary patch")
+                       for ln in diff.split("\n")):
                     continue
                 source = _git("show", f"{commit}:{path}")
                 if not source:

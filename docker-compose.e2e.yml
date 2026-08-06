@@ -234,32 +234,40 @@ services:
     # install + playwright install(apt) 반복을 제거한다(backend-e2e-runner 의 target:deps
     # prebuild 와 동형). @playwright/test 버전은 frontend package.json SoT, base 이미지
     # 태그(Dockerfile.playwright-e2e 의 v1.61.0-jammy)와 major.minor 정렬 — 상향 시 함께 갱신.
-    # 이 정렬 + 아래 마스킹 목록 ↔ frontend @workflow 클로저 정합은
+    # 이 정렬 + 아래 마운트 입도(패키지를 덮지 않을 것)는
     # scripts/check-e2e-playwright-config.py (e2e.yml config-guard job) 가 강제한다.
     image: clemvion-e2e/playwright-deps:latest
     build:
       context: .
       dockerfile: codebase/frontend/Dockerfile.playwright-e2e
-    # pnpm workspace 라 frontend 단독 설치가 불가 — workspace 를 mount 하고
-    # frontend subtree 만 --filter 로 설치한다. 루트 전체(`./`) 대신 codebase +
-    # workspace 루트 파일만 선별 mount 해 .git/.claude/spec/plan/review/memory 등
-    # 민감 경로 노출을 막는다. node_modules 는 anonymous volume 으로 가려 호스트(macOS)
-    # 네이티브 바이너리가 컨테이너(linux)로 새지 않게 한다 (isolated 라 실제 deps 는
-    # /app/node_modules/.pnpm 스토어에 모임 — 신규 내부 패키지 추가 시 아래 마스킹 목록도 보충).
+    # pnpm workspace 라 frontend 단독 설치가 불가 — 그래서 이미지가 workspace 전체를 COPY 하고
+    # `--filter "frontend..."` 로 설치한다. 런타임 mount 는 **frontend subtree 만** 이다
+    # (backend-e2e-runner 가 `./codebase/backend` 만 mount 하는 것과 동형).
+    #
+    # 종전에는 `./codebase` 를 통째로 mount 했는데, 그것이 이미지가 만든
+    # `codebase/packages/*/dist` 를 **dist 없는 호스트 사본으로 덮었다.** 내부 패키지는
+    # `main: dist/index.js` 라 next build 가 `Module not found: Can't resolve '@workflow/*'`
+    # 로 죽는다. 각 패키지의 `node_modules` 는 anonymous volume 으로 가리고 있었지만 `dist` 는
+    # 아니었다 — 마스킹 목록이 손으로 유지되는 한 이 클래스는 다시 생긴다. subtree mount 는
+    # 목록 자체를 없앤다(그래서 패키지별 마스킹 5줄도 함께 제거).
+    #
+    # 호스트에서 패키지를 고쳐도 안전하다: `make e2e-test-full` 이 `run --rm --build` 로 매번
+    # 이미지를 다시 빌드하고, Dockerfile 이 packages 를 COPY 한 뒤 install 하므로 각 패키지의
+    # `prepare`(= tsc) 가 다시 돈다.
+    #
+    # 루트 전체(`./`) 대신 필요한 것만 선별 mount 하는 원칙은 그대로다 —
+    # .git/.claude/spec/plan/review/memory 등 민감 경로를 컨테이너에 노출하지 않는다.
+    # frontend `node_modules` 는 anonymous volume 으로 가려 호스트(macOS) 네이티브 바이너리가
+    # 컨테이너(linux)로 새지 않게 한다 (isolated 라 실제 deps 는 /app/node_modules/.pnpm 에 모임).
     working_dir: /app
     volumes:
-      - ./codebase:/app/codebase
+      - ./codebase/frontend:/app/codebase/frontend
       - ./package.json:/app/package.json:ro
       - ./pnpm-workspace.yaml:/app/pnpm-workspace.yaml:ro
       - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
       - ./.npmrc:/app/.npmrc:ro
       - /app/node_modules
       - /app/codebase/frontend/node_modules
-      - /app/codebase/packages/ai-end-reason/node_modules
-      - /app/codebase/packages/expression-engine/node_modules
-      - /app/codebase/packages/node-summary/node_modules
-      - /app/codebase/packages/chat-channel-validation/node_modules
-      - /app/codebase/packages/graph-warning-rules/node_modules
     # deps·chromium 은 이미지에 baking 됨 — 런타임은 next build + playwright 실행만.
     command:
       - sh
