@@ -38,7 +38,7 @@ on:
       # 범위를 바꾼 PR 에서 정작 그걸 지키는 가드가 안 돈다 — 위 .githooks/** · .claude/_shared/**
       # 와 동일한 실패 클래스.
       - '.github/dependabot.yml'
-      # 워크플로 디렉토리 전체 — 두 가드가 여기에 걸린다.
+      # 워크플로 디렉토리 전체 — 세 가드가 여기에 걸린다.
       #   (a) test_e2e_exemption_paths_sync.py — e2e.yml 의 paths-ignore 를 PROJECT.md
       #       §e2e 면제 화이트리스트와 대조한다. 등재가 없으면 **paths-ignore 를 넓히는
       #       PR**(정확히 그 가드가 막으려는 위험 방향)이 e2e.yml 만 건드릴 때 안 돈다 —
@@ -47,6 +47,9 @@ on:
       #       run/uses). 2026-08-01 사고: PyYAML 설치 스텝을 기존 스텝의 name/run 사이에
       #       끼워 넣어 `run:` 이 중복됐고, 뒤 값이 앞을 덮어써 설치 명령이 통째로
       #       소실됐다 — 로컬 테스트로는 드러나지 않는 클래스다.
+      #   (c) test_review_gate_ci.py::WorkflowWiringTest — review-gate.yml 문서 **전체**를
+      #       기대 리터럴과 정확 일치로 비교한다. 이 glob 폭에 의존하므로, 좁히면
+      #       review-gate.yml 단독 수정이 그 가드를 트리거하지 못한다.
       # (b) 가 파일 무관이라 개별 등재(e2e.yml · harness-checks.yml)를 여기로 접었다.
       # 파일별로 두면 새 워크플로마다 등재를 잊는 쪽으로 실패한다.
       - '.github/workflows/**'

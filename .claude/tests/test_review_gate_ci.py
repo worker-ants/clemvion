@@ -204,7 +204,7 @@ class ReviewGateCliTest(unittest.TestCase):
             "        return self.blocked\n"
             "    @property\n"
             "    def notes(self):\n"
-            "        return ('\u26a0\ufe0f  \uc138\uc158X: \ud558\ud5a5 \uac10\uc9c0',)\n"
+            "        return ('⚠️  세션X: 하향 감지',)\n"
             "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
             "    return _D(os.environ['FAKE_BLOCKED'] == '1')\n"
         )
@@ -349,6 +349,17 @@ class OneJudgeTest(unittest.TestCase):
                     t, ast.Attribute,
                     f"{node.lineno}행: 속성에 대입한다 — 재바인딩으로 동작을 바꾸는 형태다",
                 )
+
+        # 환경변수·raw argv 접근 금지. 5R 리뷰어 셋이 각각 다른 변형으로 실증했다 —
+        # `os.environ["GITHUB_ACTOR"] == "trusted-release-bot"` 조기 return,
+        # `REVIEW_GATE_SKIP` 조건부 override, actor 화이트리스트로 `blocked=False` 강제.
+        # 전부 **비-Call 접근**(Subscript/Compare/IfExp)이라 호출 허용 목록을 그대로 통과했다.
+        # 이 스크립트가 환경을 읽을 정당한 이유는 없다 — 입력은 argparse 가 전부다.
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr in ("environ", "getenv",
+                                                                 "argv", "putenv"):
+                self.fail(f"{node.lineno}행: {node.attr!r} 에 접근한다 — "
+                          "환경으로 판정을 갈아탈 수 있는 자리다")
 
         attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         self.assertIn("evaluate_review", attrs,
@@ -509,23 +520,43 @@ class VerdictComesFromTheGateTest(unittest.TestCase):
                 "    return _D()\n"
             )
 
-    def test_exit_code_is_a_pure_function_of_the_gate_verdict(self):
-        for blocked, enforce, expected in self._CASES:
-            with self.subTest(blocked=blocked, enforce=enforce):
-                argv = [sys.executable, str(SCRIPT), "--root", self.root]
-                if enforce:
-                    argv.append("--enforce")
-                r = subprocess.run(
-                    argv, capture_output=True, text=True, timeout=120,
-                    env={**os.environ, "STUB_BLOCKED": "1" if blocked else "0"},
-                )
-                self.assertEqual(
-                    r.returncode, expected,
-                    f"게이트가 blocked={blocked} 라고 했는데 exit={r.returncode} "
-                    f"(기대 {expected}) — 스크립트가 자기 판정을 갖고 있다\n{r.stdout}{r.stderr}",
-                )
-                self.assertIn("미커버" if blocked else "통과", r.stdout)
+    # GH Actions 가 실제로 채우는 이름들 + 우회에 쓰일 법한 이름. 이 값들이 판정을 바꾸면
+    # 아래 표가 어긋난다. 초판은 `{**os.environ, …}` 로 부모 환경을 통째로 상속해서, 환경을
+    # 읽는 우회를 **테스트 자신이 재현할 수 없었다**.
+    _HOSTILE_ENV = {
+        "GITHUB_ACTOR": "trusted-release-bot",
+        "GITHUB_REF": "refs/heads/main",
+        "CI": "true",
+        "REVIEW_GATE_SKIP": "1",
+        "REVIEW_GATE_ENFORCE": "1",
+    }
 
+    def _exit_code(self, blocked, enforce, extra_env):
+        argv = [sys.executable, str(SCRIPT), "--root", self.root]
+        if enforce:
+            argv.append("--enforce")
+        env = {
+            # 최소 실행 환경만 명시한다 — 부모 환경 상속 금지.
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": os.environ.get("HOME", ""),
+            "LANG": "C.UTF-8",
+            "STUB_BLOCKED": "1" if blocked else "0",
+            **extra_env,
+        }
+        return subprocess.run(argv, capture_output=True, text=True, timeout=120,
+                              env=env)
+
+    def test_exit_code_is_a_pure_function_of_the_gate_verdict(self):
+        for label, extra in (("최소 환경", {}), ("적대적 환경", self._HOSTILE_ENV)):
+            for blocked, enforce, expected in self._CASES:
+                with self.subTest(env=label, blocked=blocked, enforce=enforce):
+                    r = self._exit_code(blocked, enforce, extra)
+                    self.assertEqual(
+                        r.returncode, expected,
+                        f"[{label}] 게이트가 blocked={blocked} 라고 했는데 "
+                        f"exit={r.returncode} (기대 {expected})\n{r.stdout}{r.stderr}",
+                    )
+                    self.assertIn("미커버" if blocked else "통과", r.stdout)
 
 class PyYamlPinsAgreeTest(unittest.TestCase):
     """세 곳에 손으로 적힌 `pyyaml` pin 이 서로 같아야 한다.
@@ -540,12 +571,22 @@ class PyYamlPinsAgreeTest(unittest.TestCase):
 
     def test_every_workflow_pins_the_same_version(self):
         import re as _re
-        pins = {}
+        # 큰따옴표·홑따옴표·무인용을 모두 인식한다. 초판은 큰따옴표만 봐서, 형태를 바꾼
+        # pin 은 "다르다" 로 실패하는 게 아니라 **아예 안 잡혀 조용히 통과**했다.
+        pat = _re.compile(r"""pip\s+install\s+["']?(pyyaml[^"'\s]*)["']?""", _re.I)
+        pins, files_with_yaml = {}, set()
         for path in sorted((_harness.REPO_ROOT / ".github" / "workflows").glob("*.yml")):
-            for m in _re.finditer(r'pip install "(pyyaml[^"]*)"',
-                                  path.read_text(encoding="utf-8")):
+            text = path.read_text(encoding="utf-8")
+            if _re.search(r"pyyaml", text, _re.I):
+                files_with_yaml.add(path.name)
+            for m in pat.finditer(text):
                 pins.setdefault(m.group(1), []).append(path.name)
         self.assertTrue(pins, "pyyaml 설치 스텝을 못 찾았다 — 이 가드가 stale 하다")
+        # 언급된 파일과 pin 이 잡힌 파일이 어긋나면, 인식 못 한 형태가 있다는 뜻이다.
+        self.assertEqual(
+            files_with_yaml, {n for names in pins.values() for n in names},
+            "pyyaml 을 언급하지만 pin 을 못 읽은 워크플로가 있다 — 정규식이 그 형태를 모른다",
+        )
         self.assertEqual(len(pins), 1, f"pyyaml pin 이 갈렸다: {pins}")
 
 

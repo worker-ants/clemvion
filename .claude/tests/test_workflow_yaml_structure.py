@@ -182,6 +182,56 @@ class WorkflowStructureTest(unittest.TestCase):
         )
 
 
+    # job 레벨 `if:` 는 조건부 실행이라 정당한 쓰임이 있다(봇 면제). 그래서 금지가 아니라
+    # **등재제**로 둔다 — 여기 없는 조건이 나타나면 실패하고, 등재하는 순간이 "이게 게이트를
+    # 끄는 조건인가" 를 사람이 판단할 자리다. `if: false` 한 줄로 job 이 통째로 skip 되는데
+    # 아무 가드도 없던 것이 5R CRITICAL 이었다.
+    _JOB_CONDITIONS = {
+        ("review-gate.yml", "gate"): "github.actor != 'dependabot[bot]'",
+    }
+
+    def test_job_conditions_are_registered(self):
+        seen = set()
+        for path in self.files:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            for job_name, job in (doc.get("jobs") or {}).items():
+                if not isinstance(job, dict) or "if" not in job:
+                    continue
+                key = (path.name, job_name)
+                seen.add(key)
+                with self.subTest(workflow=path.name, job=job_name):
+                    self.assertIn(
+                        key, self._JOB_CONDITIONS,
+                        f"{path.name} job `{job_name}` 에 등재되지 않은 `if:` 가 있다 "
+                        f"({job['if']!r}) — job 을 통째로 끌 수 있는 자리다",
+                    )
+                    self.assertEqual(job["if"], self._JOB_CONDITIONS[key])
+        self.assertEqual(self._JOB_CONDITIONS.keys() - seen, set(),
+                         "`_JOB_CONDITIONS` 에 더 이상 존재하지 않는 항목이 남아 있다")
+
+    # 하네스 스위트를 CI 에서 **실제로 부르는** 명령. 패턴을 한 글자만 좁혀도
+    # (`test_[!r]*.py`) 가드 파일 11개가 CI 에서 영원히 안 도는데, 파일 자체는 전부 GREEN 이라
+    # 아무도 모른다 — "파일이 옳다" 와 "CI 가 그 파일을 부른다" 는 다른 사실이다.
+    _SUITE_COMMAND = "python3 -m unittest discover -s .claude/tests -p 'test_*.py'"
+
+    def test_the_harness_suite_is_invoked_over_every_test_file(self):
+        doc = yaml.safe_load(
+            (WORKFLOW_DIR / "harness-checks.yml").read_text(encoding="utf-8"))
+        runs = [st["run"].strip()
+                for job in doc["jobs"].values()
+                for st in (job.get("steps") or []) if "run" in st]
+        self.assertIn(self._SUITE_COMMAND, runs,
+                      f"하네스 스위트를 부르는 명령이 정확히 그것이 아니다: {runs}")
+
+        # 그 패턴이 실제 파일 전부를 덮는지도 본다 — 명령이 그대로여도 `-s` 가 다른 곳을
+        # 가리키면 같은 결과가 된다.
+        import fnmatch
+        tests = sorted(p.name for p in (REPO_ROOT / ".claude" / "tests").glob("test_*.py"))
+        covered = [n for n in tests if fnmatch.fnmatch(n, "test_*.py")]
+        self.assertEqual(covered, tests)
+        self.assertGreater(len(tests), 30, "테스트 파일을 못 찾았다 — 이 가드가 stale 하다")
+
+
 class DetectorTest(unittest.TestCase):
     """The checks above are only worth their green if they can go red."""
 
