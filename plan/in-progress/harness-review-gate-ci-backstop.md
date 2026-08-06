@@ -267,6 +267,19 @@ priority: P2
 > 은 `pull_request` 트리거라 이미 머지된 #1089 로는 소급 실행되지 않는다** — 다음 PR 이
 > 처음이다.
 >
+> **켠 뒤 실제로 걸린 결함 (관측 기록).** 이 계획이 예견한 "CI 를 켜면 누적분이 나온다" 의
+> 실례. 전부 이 티켓 밖 기존 결함이고, CI 가 꺼져 있던 동안 아무도 못 본 것들이다.
+>
+> | # | 결함 | 드러난 경로 |
+> |---|---|---|
+> | 1 | `playwright-runner` 의 `./codebase` 통마운트가 이미지의 `packages/*/dist` 를 덮어 `next build` 가 `Module not found: '@workflow/*'` 로 죽음 | e2e-frontend 첫 실행 (#1091) |
+> | 2 | `_file_mtime` 의 `stat -f %m \|\| stat -c %Y` 가 GNU 에서 `?` 를 반환 — 쿨다운이 영영 만료되지 않음 | harness-checks 첫 완주 (#1091) |
+> | 3 | line-anchor 테스트가 PNG blob 을 UTF-8 로 디코드하다 `UnicodeDecodeError` | harness-checks 첫 완주 (#1091) |
+> | 4 | `harness-checks` 의 `timeout-minutes: 5` 가 실측 job 566초의 53% — 한 번도 안 돌려보고 정한 값 | harness-checks 첫 실행 (#1091) |
+> | 5 | 내부 패키지 `prepare` 가 `[ -d dist ]` 로 디렉터리 존재만 봐 stale dist 를 재빌드하지 않음 | 위 1번을 진단하다 발견 |
+>
+> 1~4 는 #1091 로 종결. 5 는 별도 PR.
+
 > **교훈 — 배선의 마지막 한 칸은 저장소 설정이고, 그것만은 코드가 관측할 수 없다.**
 > 이 브랜치는 12라운드에 걸쳐 "가드가 실제로 도는가" 를 반복해서 물었고 트리거 paths·
 > 실패 삼킴·step 조건·base 해석까지 전부 고정했는데, 정작 **Actions 스위치**는 리포지토리
