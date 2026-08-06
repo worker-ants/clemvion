@@ -13,7 +13,7 @@ must have exactly one of `run`/`uses`). Nothing local catches this: the file is
 never executed on a developer machine, `yaml.safe_load` accepts it, and the
 whole suite stayed green. It surfaces only on GitHub Actions — after merge.
 
-Two invariants, both cheap:
+The invariants below (their number grows — do not count them here), both cheap:
 
   1. **no duplicate keys** in any mapping. `yaml.safe_load` will not tell you,
      so this walks the parse tree with a loader that records collisions instead
@@ -261,9 +261,13 @@ class WorkflowStructureTest(unittest.TestCase):
         for path in self.files:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             on = doc.get("on", doc.get(True)) or {}
-            pr = on.get("pull_request") if isinstance(on, dict) else None
-            if not isinstance(pr, dict):
+            if not isinstance(on, dict) or "pull_request" not in on:
                 continue
+            pr = on["pull_request"]
+            # 필터 없는 bare `pull_request:` 는 **가장 위험한** 형태인데(모든 PR 에서 도는
+            # always-green 워크플로를 만들 수 있다) 초판은 dict 가 아니라는 이유로 건너뛰었다.
+            # 빈 키 집합으로 취급해 등재를 요구한다.
+            keys = set(pr) if isinstance(pr, dict) else set()
             seen.add(path.name)
             with self.subTest(workflow=path.name):
                 self.assertIn(
@@ -271,7 +275,7 @@ class WorkflowStructureTest(unittest.TestCase):
                     f"{path.name} 의 pull_request 트리거가 등재돼 있지 않다",
                 )
                 self.assertEqual(
-                    set(pr), self._PULL_REQUEST_KEYS[path.name],
+                    keys, self._PULL_REQUEST_KEYS[path.name],
                     f"{path.name} 의 pull_request 키 집합이 다르다 — "
                     "`types`/`branches` 한 줄이면 이 워크플로는 영영 트리거되지 않는다",
                 )
@@ -291,8 +295,13 @@ class WorkflowStructureTest(unittest.TestCase):
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             name = doc.get("name")
             names[name] += 1
-            for job in (doc.get("jobs") or {}):
-                pairs[(name, job)] += 1
+            for job_id, job in (doc.get("jobs") or {}).items():
+                # GitHub 이 체크 이름으로 노출하는 것은 `jobs.<id>.name` 이 있으면 그 값이고
+                # 없으면 job id 다. dict key 만 비교하면 `name:` override 로 다른 job 을
+                # 참칭할 수 있다 — 7R 리뷰어가 그 형태로 `review-gate / gate` 를 참칭하는
+                # always-green 워크플로를 심는 것을 실증했다.
+                label = job.get("name", job_id) if isinstance(job, dict) else job_id
+                pairs[(name, label)] += 1
         self.assertEqual([n for n, c in names.items() if c > 1], [],
                          "같은 `name:` 을 쓰는 워크플로가 둘 이상이다")
         self.assertEqual([k for k, c in pairs.items() if c > 1], [],

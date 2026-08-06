@@ -640,6 +640,96 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
                          "`_ALLOWED` 에 더 이상 존재하지 않는 항목이 남아 있다")
 
 
+class TheRealGateIgnoresTheEnvironmentTest(unittest.TestCase):
+    """**실물** `evaluate_review()` 가 환경에 따라 다른 판정을 내지 않는다.
+
+    7R 에서 정적 스캔이 또 뚫렸다 — 세 번째다.
+      · `_SCANNED` 가 `_shared/report_paths.py`·`block_integrity.py` 를 안 봤다. 게이트가
+        위임하는 그 파일에 `GITHUB_JOB == "gate"` 세 줄이면 강제 리뷰어가 리포트를 안 남긴
+        세션이 CI 에서만 "완전 커버" 로 뒤집힌다(3명이 서로 다른 진입점으로 실증).
+      · 스캔 대상 **안**에서도 `dict(os.environ.items()).get(...)`, `for k in os.environ`,
+        동적 조립 키(`"GITHUB_" + "WORKFLOW"`)는 수집기가 인식하지 못한다.
+
+    정적 열거는 문법의 수만큼 넓고, 이 브랜치에서 그 경주는 이미 네 번 졌다. 유한한 형태로
+    바꾼다: **같은 저장소를 두 번 판정시켜 결과가 같은지 본다.** 한 번은 최소 환경, 한 번은
+    GH Actions 컨텍스트를 가득 채운 환경. 어떤 파일에서 어떤 문법으로 환경을 읽든, 그것이
+    판정을 바꾸면 여기서 어긋난다.
+
+    스텁이 아니라 실물이다 — `VerdictComesFromTheGateTest` 는 `review_guard.py` 를 통째로
+    교체하므로 게이트 본체도 `_shared` 도 한 번도 실행하지 않는다. 그 빈자리가 7R C1·C2 다.
+    """
+
+    _CI_ENV = {
+        "GITHUB_ACTIONS": "true", "GITHUB_ACTOR": "trusted-release-bot",
+        "GITHUB_BASE_REF": "main", "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_HEAD_REF": "feature", "GITHUB_JOB": "gate",
+        "GITHUB_REF": "refs/heads/main", "GITHUB_REPOSITORY": "worker-ants/clemvion",
+        "GITHUB_RUN_ID": "1", "GITHUB_WORKFLOW": "review-gate", "CI": "true",
+        "REVIEW_GATE_SKIP": "1", "BYPASS_REVIEW_GUARD": "1",
+    }
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        os.makedirs(os.path.join(self.root, ".claude"))
+        shutil.copytree(str(_harness.CLAUDE_DIR / "hooks"),
+                        os.path.join(self.root, ".claude", "hooks"))
+        shutil.copytree(str(_harness.CLAUDE_DIR / "_shared"),
+                        os.path.join(self.root, ".claude", "_shared"))
+        self._git("init", "-b", "main")
+        self._git("commit", "--allow-empty", "-m", "base")
+        self._git("checkout", "-b", "feature")
+        self._write("codebase/backend/src/a.ts", "export const a = 1;\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "feat")
+
+    def _git(self, *args):
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def _verdict(self, extra_env):
+        """실물 게이트를 서브프로세스에서 돌려 (blocked, reason) 를 받는다."""
+        prog = (
+            "import importlib.util,json,sys\n"
+            f"sys.path.insert(0, {os.path.join(self.root, '.claude', 'hooks', '_lib')!r})\n"
+            "import review_guard as rg\n"
+            f"d = rg.evaluate_review({self.root!r})\n"
+            'print(json.dumps({"blocked": bool(d.blocked), "reason": d.reason}))\n'
+        )
+        env = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", ""),
+               "LANG": "C.UTF-8", **extra_env}
+        r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
+                           text=True, timeout=180, env=env, cwd=self.root)
+        self.assertEqual(r.returncode, 0, r.stderr[-3000:])
+        import json as _json
+        return _json.loads(r.stdout.strip().splitlines()[-1])
+
+    def test_the_verdict_is_identical_under_a_ci_environment(self):
+        bare = self._verdict({})
+        ci = self._verdict(self._CI_ENV)
+        self.assertEqual(
+            bare, ci,
+            "환경에 따라 판정이 달라진다 — 게이트나 그것이 위임하는 코드 어딘가가 "
+            "CI 컨텍스트를 읽고 있다",
+        )
+
+    def test_the_fixture_actually_produces_a_blocking_verdict(self):
+        """비교가 무의미해지지 않게 — 둘 다 "통과" 면 어떤 우회도 표에 안 잡힌다."""
+        self.assertTrue(self._verdict({})["blocked"],
+                        "픽스처가 차단을 못 만든다 — 이 비교는 vacuous 하다")
+
+
 class ReviewArtifactsStayTrackedTest(unittest.TestCase):
     """이 백스톱 전체가 서 있는 전제 — `review/**` 가 git 에 추적된다.
 

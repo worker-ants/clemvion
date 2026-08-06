@@ -649,5 +649,65 @@ class NotesReachThePublicEntryPointTest(unittest.TestCase):
         self.assertEqual(tuple(d.notes), ())
 
 
+class UnstagedModificationKeepsItsPathTest(unittest.TestCase):
+    """가장 평범한 흐름 — 파일 하나 고치고 push — 에서 게이트가 fail-open 했다.
+
+    `git status --porcelain` 은 두 칸짜리 상태 코드를 내고, "추적 중인 파일이 수정됐지만
+    스테이지되지 않음" 은 `" M path"` — **선행 공백**이다. `_run_git` 이 stdout 전체에
+    `.strip()` 을 걸어 그 공백을 지웠고, `_porcelain_path` 의 고정폭 파싱이 경로 첫 글자를
+    깎아 `codebase/backend/src/a.ts` 를 `odebase/...` 로 돌려줬다. 그 경로는 아무것과도
+    매칭되지 않으므로 그 파일은 "방금 편집됨" 신호를 잃고, 게이트는 변경을 못 본 채 통과한다.
+
+    7R 리뷰가 찾았다. 공격이 아니라 일상 흐름이고, **이미 enforce 중인 1차 방어선**이다.
+
+    헬퍼가 아니라 실제 저장소를 만들어 `_changed_code_files` 까지 구동한다 —
+    `_porcelain_path` 만 직접 부르면 `.strip()` 이 어디서 일어나는지를 못 본다.
+    """
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self._git("init", "-b", "main")
+        self._write("codebase/backend/src/a.ts", "export const a = 1;\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "base")
+
+    def _git(self, *args):
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def test_a_modified_unstaged_file_is_seen_with_its_full_path(self):
+        """`" M path"` — 선행 공백이 있는 유일한 형태이자 가장 흔한 형태."""
+        self._write("codebase/backend/src/a.ts", "export const a = 2;\n")
+        self.assertIn("codebase/backend/src/a.ts",
+                      rg._uncommitted_code_changes(self.root))
+        self.assertIn("codebase/backend/src/a.ts", rg._dirty_set(self.root))
+
+    def test_a_staged_file_still_works(self):
+        """`"M  path"` — 선행 공백이 없다. 원래 맞았고, 수정이 깨지 않았는지 함께 본다."""
+        self._write("codebase/backend/src/a.ts", "export const a = 3;\n")
+        self._git("add", "-A")
+        self.assertIn("codebase/backend/src/a.ts",
+                      rg._uncommitted_code_changes(self.root))
+        self.assertIn("codebase/backend/src/a.ts", rg._dirty_set(self.root))
+
+    def test_an_untracked_file_is_seen(self):
+        """`"?? path"` — 역시 선행 공백이 없다."""
+        self._write("codebase/backend/src/b.ts", "export const b = 1;\n")
+        self.assertIn("codebase/backend/src/b.ts",
+                      rg._uncommitted_code_changes(self.root))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,7 @@ priority: P2
 > | CI 백스톱 본체 | ~~**미착수**~~ → **2026-08-01 구현 완료 (관측 모드)** — 아래 배너 참조 |
 > | 배선 가드 경화 | **1R~6R 진행 중** — 아래 §배선 가드 참조 |
 >
-> **§배선 가드 — 네 라운드에 걸친 경화 이력.** 본체는 얇다(게이트에 위임하는 어댑터).
+> **§배선 가드 — 라운드를 거듭한 경화 이력.** 본체는 얇다(게이트에 위임하는 어댑터).
 > 실제 어려움은 전부 "이 배선이 조용히 꺼지지 않음" 을 어떻게 강제하느냐였고, 매 라운드
 > 뚫렸다:
 >
@@ -31,6 +31,7 @@ priority: P2
 >
 > | 5R | 문서 전체 정확 일치(review-gate.yml) | **그 파일 밖으로** — `harness-checks.yml` 을 무력화(job `if: false`/`continue-on-error`), discovery 패턴을 한 글자 좁혀 가드 11개를 안 돌게, `os.environ` 을 비-Call 문법으로 읽어 판정 우회 |
 > | 6R | 위 전부 | **또 한 층 밖** — `on.pull_request` 형제 키(`types`/`branches`), **step** 레벨 `if:`, `from os import environ as _E`, **게이트 본체**(`review_guard.py`)의 env 분기, 같은 `name:`/job id 를 참칭하는 워크플로 추가 |
+> | 7R | 위 전부 | **위임 대상과 문법 축** — 게이트가 위임하는 `_shared/**` 의 env 분기, `os.environ.items()` 류 미인식 문법, GitHub 이 실제로 쓰는 job `name:` override 로 identity 참칭, 필터 없는 bare `pull_request:`. 그리고 **가드 우회가 아닌 살아있는 결함 1건** — `_run_git` 의 `.strip()` 이 porcelain 선행 공백을 지워 경로 첫 글자가 깎였고, 이미 enforce 중인 로컬 훅이 "파일 하나 고치고 push" 에서 fail-open 했다 |
 >
 > 4R 에서 결론: **부분집합에 대한 정확 일치는 여전히 부분 일치다.** 파싱된 워크플로
 > **문서 전체**를 하나의 기대값과 비교하도록 바꿨다 — 어디에 무엇을 더하든 빼든 실패하고,

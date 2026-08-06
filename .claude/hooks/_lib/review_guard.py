@@ -212,7 +212,19 @@ def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str,
             text=True,
             timeout=timeout,
         )
-        return p.returncode, p.stdout.strip(), p.stderr.strip()
+        # `rstrip()`, NOT `strip()`. `git status --porcelain` emits a two-column
+        # status code, and the most common shape — a tracked file modified but
+        # not staged — is `" M path"` with a LEADING SPACE. Stripping it shifted
+        # every line left by one, and `_porcelain_path`'s fixed-width parse then
+        # returned `"odebase/backend/src/a.ts"` for `codebase/backend/src/a.ts`.
+        # That path matches nothing, so the file lost its "just edited" signal
+        # and the gate fail-opened — on the most ordinary flow there is (edit one
+        # file, push). Found in review round 7 and reproduced directly.
+        #
+        # Trailing whitespace still goes: every other caller (`rev-parse`,
+        # `merge-base`, `log`) wants the bare value without its newline, and
+        # none of them can produce meaningful leading whitespace.
+        return p.returncode, p.stdout.rstrip(), p.stderr.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return 1, "", ""
 
