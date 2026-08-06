@@ -161,7 +161,22 @@ priority: P2
 >      `collect_change_infos` 의 `elif args.files:` 분기에는 기본 경로에 있는
 >      `warn_if_committed_work_is_missing` 대칭 안전장치가 없다.
 >    - 동반: changeset 이 `review/**` 로만 구성되면 그 자체가 오구성 신호 — advisory 경고 대상.
-> 12. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
+> 12. ~~**`_porcelain_path` 가 git 의 C-quoting 을 다루지 않는다**~~ → **처분 완료 (8R)** — `_run_git` 에 `-c core.quotePath=false` 를 걸어 관문에서 막았다. 8R 리뷰어가 **더 강한 영향**을 밝혔다: uncommitted 경로뿐 아니라 `_newest_commit_time` 이 인용된 경로를 그대로 `git log -- <path>` 에 넘겨 매칭 실패 → `newest_code = 0.0` → Gate 1 이 저장소의 **아무 오래된 resolved 리뷰로나** 통과한다. 실측: `codebase/**` 2,464개 중 인용 유발 경로 0개라 오늘은 도달 불가지만, 한 줄 플래그라 correctness 로 넣었다. 잔여: 따옴표·백슬래시·제어문자 경로는 여전히 인용된다(손으로 디코더를 짜지 않는다). 원 서술: —
+>    7R 이 고친 선행-공백 결함과 **같은 클래스**다. `git status --porcelain` 은 비-ASCII 경로를
+>    기본으로 인용해 `"\355\225\234..."` 형태로 낸다(`core.quotePath` 기본값 true). 파서는
+>    `ln[3:].strip()` 후 그대로 돌려주므로 그 문자열은 실제 경로와 매칭되지 않는다.
+>    - 영향 방향: `_dirty_set` 에 실제 경로가 안 들어가면 그 파일은 **clean 으로 취급**돼
+>      편집 시각이 마지막 커밋 시각이 된다 → 방금 고친 파일이 오래돼 보이고, stale 한 리뷰가
+>      fresh 로 읽힌다. 7R 결함과 같은 fail-open 방향이다.
+>    - **미측정**: 이 저장소의 `codebase/**` 에 비-ASCII 경로가 실제로 있는지 확인하지 못했다
+>      (측정 시도 시점에 Bash 도구가 일시 불가였다). 파서가 틀린 것은 코드 독해로 확정이지만,
+>      **도달 가능성은 미확인**이므로 그것을 재기 전에는 고치지 않는다.
+>    - 후보 처방 두 가지, 각각 트레이드오프가 있다: (a) `git -c core.quotePath=false` — git
+>      자신의 스위치라 손으로 디코더를 짜지 않아도 되지만 따옴표·백슬래시·제어문자 경로는
+>      여전히 인용된다. (b) `--porcelain -z` — 인용 자체가 사라지지만 rename 페이로드 순서가
+>      바뀌어(`새\0옛`) 현재 `" -> "` 계약과 그 테스트를 다시 써야 한다.
+>      **손으로 octal 디코더를 짜는 3안은 피한다** — 이 저장소가 반복해서 손해로 분류해 온 형태다.
+> 13. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
 >    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
@@ -227,6 +242,25 @@ priority: P2
   없는 암묵 전제였다). `review_guard` 는 fs mtime 을 신뢰하지 않는다: clean 파일은 마지막 커밋
   시각을 쓰고, "리뷰가 언제 돌았나" 의 정본 시계는 세션 **디렉토리 이름**이다 — 둘 다
   checkout-immune. 즉 CI 백스톱은 판정 메커니즘 설계가 아니라 **배선** 작업이다.
+- ⛔ **`--enforce` 전환의 선행 조건 (2026-08-06 8R, 실증)** — 게이트는 "리뷰가 실제로 수행됐는가"
+  가 아니라 **산출물의 존재와 텍스트 형태**만 본다. 그 산출물은 판정 대상 PR 안에서 작성자가
+  직접 커밋한다. 격리 저장소 실증: `codebase/` 1줄 + 손으로 쓴 3줄짜리 `SUMMARY.md` 만으로
+  `--enforce` 가 `통과`, exit 0.
+
+  이 결함은 이 브랜치가 만든 것이 아니다(`origin/main` 의 판정 로직이고 **로컬 push 훅에서는
+  오늘 이미 유효한 우회**다). 다만 이 브랜치가 그 판정을 PR-facing 게이트로 승격시키므로,
+  **`--enforce` 로 뒤집기 전에 반드시 결론이 나야 한다.**
+
+  ⚠️ **날짜 검사는 해결책이 아니다.** 실측으로 갈렸다 — 미래 날짜(`2099/…`) 세션은 통과하고
+  과거 날짜는 막힌다. 그래서 "미래 세션 거부" 를 넣고 싶어지지만, 공격자는 **지금 날짜**로
+  만들면 그만이라 아무것도 닫지 못한다. 닫히는 것처럼 보이는 반쪽 조치를 넣지 않는다.
+
+  실제 선택지는 신뢰의 뿌리를 옮기는 것이고, 전부 사용자/설계 결정이다:
+  (a) harness 실행이 CI 자신의 시각·신원으로 서명한 커밋 트레일러/체크섬을 남기고 게이트가 검증,
+  (b) 리뷰 결과를 파일이 아니라 **CI 봇이 게시하는 PR check/label** 로 이원화,
+  (c) 위조 가능성을 명시적으로 수용하고 이 층을 "정직한 실수 방지" 로만 규정.
+  관측 모드로 출시하는 현재 상태에서는 (c) 가 사실상의 기본값이며, 그 사실을 여기 적어둔다.
+
 - **남은 실질 결정: 이중 게이트의 마찰.** 실측(게이트 도입 `fa3cf81ad` 이후 main first-parent
   666 커밋): `codebase/**` 를 건드린 427건 중 61건(14%)이 같은 커밋에 SUMMARY.md 가 없다.
   분해 = dependabot/build(deps) 3 · lockfile-only 1 · 그 외 진짜 소스 변경 57.

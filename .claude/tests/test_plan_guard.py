@@ -14,6 +14,8 @@ The path/parse helpers (`_normalize_worktree_value`, `_frontmatter_worktree`,
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -259,6 +261,69 @@ class FilesystemHelpersTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = self._make_plan(tmp, "x.md", worktree="t", body="no checkboxes\n")
             self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+
+class PorcelainPathSurvivesOnARealRepoTest(unittest.TestCase):
+    """git 파싱 헬퍼를 **실제 저장소**로 구동한다.
+
+    이 파일의 나머지는 `_branch_changes` 를 통째로 `mock.patch.object` 로 스텁하고 결정
+    테이블만 본다. 그래서 `_run_git`/`_porcelain_path`/`_uncommitted_changes` 는 스위트 전체에서
+    **한 번도 실행되지 않았고**, 그 사이에 실제 결함이 살아 있었다:
+
+    `_run_git` 이 stdout 전체에 `.strip()` 을 걸었는데, plan 파일을 고치고 스테이지하지 않은
+    상태 — 이 프로젝트에서 가장 흔한 형태 — 는 `" M plan/…"` 로 **선행 공백**이다. 그것이
+    지워지면서 고정폭 파싱이 `"lan/in-progress/…"` 를 돌려줬고, plan 이 아무것과도 매칭되지
+    않아 **갱신했는데도 "미갱신" 으로 push 가 차단**됐다. 이 모듈 docstring 이 "파싱 실패는
+    항상 not blocked" 라고 약속하는데 정확히 그 반대였다.
+
+    7R 이 자매 훅 `review_guard.py` 에서 같은 결함을 고쳤지만 여기로 오지 않았다 — 이 저장소가
+    `report_paths`·`retry_state`·doc-sync 매트릭스에서 이미 기록해 온 손-동기 쌍 drift 다.
+    그리고 그때 얻은 교훈("헬퍼가 아니라 실제 저장소로 구동하라")도 함께 전파되지 않았다.
+    """
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self._git("init", "-b", "main")
+        self._write("plan/in-progress/x.md", "---\nworktree: w\n---\n- [ ] a\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "base")
+
+    def _git(self, *args):
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def test_an_unstaged_plan_edit_keeps_its_full_path(self):
+        """`" M plan/…"` — 선행 공백이 있는 형태이자 이 프로젝트의 기본 흐름."""
+        self._write("plan/in-progress/x.md", "---\nworktree: w\n---\n- [x] a\n")
+        changed = pg._uncommitted_changes(self.root, "plan/")
+        self.assertIn("plan/in-progress/x.md", changed,
+                      f"경로가 깎였다: {changed}")
+
+    def test_a_staged_plan_edit_still_works(self):
+        """`"M  plan/…"` — 선행 공백이 없다. 원래 맞았고, 수정이 깨지 않았는지 함께 본다."""
+        self._write("plan/in-progress/x.md", "---\nworktree: w\n---\n- [x] a\n")
+        self._git("add", "-A")
+        self.assertIn("plan/in-progress/x.md",
+                      pg._uncommitted_changes(self.root, "plan/"))
+
+    def test_a_non_ascii_plan_path_survives_git_quoting(self):
+        """git 은 비-ASCII 경로를 기본으로 C-quote 한다 — `review_guard` 와 같은 처방을
+        여기에도 걸어 자매 훅이 다시 갈리지 않게 한다."""
+        rel = "plan/in-progress/한글계획.md"
+        self._write(rel, "---\nworktree: w\n---\n- [ ] a\n")
+        self.assertIn(rel, pg._uncommitted_changes(self.root, "plan/"))
 
 
 if __name__ == "__main__":

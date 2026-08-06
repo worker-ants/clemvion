@@ -203,10 +203,28 @@ class ReviewDecision:
         return self.blocked
 
 
+# `core.quotePath=false`: git otherwise C-quotes any path with a non-ASCII byte —
+# `"\355\225\234\352\270\200.ts"`, complete with the surrounding double quotes.
+# Nothing downstream decodes that, so such a path (a) never matches a real one in
+# `_dirty_set`, making a freshly edited file read as clean and therefore old, and
+# (b) is handed straight to `git log -- <path>` by `_newest_commit_time`, which
+# matches nothing and returns 0.0 — at which point Gate 1 accepts ANY resolved
+# review in the repository, however old. Both directions are fail-open, and both
+# are the same root cause as the leading-space bug round 7 fixed one layer up.
+#
+# Applied at this chokepoint rather than at each call site: there are three
+# consumers of path output and the next one would have to remember.
+#
+# Measured before adding it: `codebase/**` currently holds 2,464 tracked files
+# and **zero** with a non-ASCII byte or a quote, so this is unreachable today.
+# It is a one-flag fix at a single gate, not a redesign, so it goes in on
+# correctness rather than waiting for the first Korean filename to prove it.
+# (Residual: git still quotes paths containing `"`, `\`, or control characters
+# even with this off. Registered in the plan rather than hand-rolling a decoder.)
 def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
     try:
         p = subprocess.run(
-            ["git"] + args,
+            ["git", "-c", "core.quotePath=false"] + args,
             cwd=cwd,
             capture_output=True,
             text=True,

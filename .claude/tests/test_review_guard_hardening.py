@@ -662,6 +662,8 @@ class UnstagedModificationKeepsItsPathTest(unittest.TestCase):
 
     헬퍼가 아니라 실제 저장소를 만들어 `_changed_code_files` 까지 구동한다 —
     `_porcelain_path` 만 직접 부르면 `.strip()` 이 어디서 일어나는지를 못 본다.
+    (초판 docstring 은 존재하지 않는 `_changed_code_files` 를 인용했다 — 실제로 구동하는
+    함수는 `_uncommitted_code_changes` 와 `_dirty_set` 이다.)
     """
 
     def setUp(self):
@@ -701,6 +703,34 @@ class UnstagedModificationKeepsItsPathTest(unittest.TestCase):
         self.assertIn("codebase/backend/src/a.ts",
                       rg._uncommitted_code_changes(self.root))
         self.assertIn("codebase/backend/src/a.ts", rg._dirty_set(self.root))
+
+    def test_a_non_ascii_path_survives_git_quoting(self):
+        """git 은 비-ASCII 경로를 기본으로 C-quote 한다 — `"\\355\\225\\234.ts"`.
+
+        아무도 그걸 디코드하지 않으므로 (a) `_dirty_set` 에 실제 경로가 없어 방금 편집한
+        파일이 clean=오래됨 으로 읽히고, (b) `_newest_commit_time` 이 그 문자열을 그대로
+        `git log -- <path>` 에 넘겨 매칭 실패 → 0.0 → Gate 1 이 저장소의 **아무 오래된
+        resolved 리뷰로나** 통과시킨다. 둘 다 fail-open 이고, 7R 이 한 층 위에서 고친
+        선행-공백 결함과 같은 뿌리다.
+
+        `_run_git` 이 `-c core.quotePath=false` 를 걸어 관문에서 막는다.
+        """
+        rel = "codebase/backend/src/한글파일.ts"
+        self._write(rel, "export const k = 1;\n")
+        self.assertIn(rel, rg._uncommitted_code_changes(self.root),
+                      "인용된 경로가 디코드되지 않았다")
+        self.assertIn(rel, rg._dirty_set(self.root))
+
+        # docstring 이 말하는 **더 심한 절반**도 건다. 커밋된 뒤에는 `_newest_commit_time` 이
+        # 그 경로를 `git log -- <path>` 에 넘기는데, 인용된 문자열은 아무것과도 매칭되지 않아
+        # 0.0 을 돌려준다 — 그 순간 Gate 1 은 저장소의 아무 오래된 resolved 리뷰로나 통과한다.
+        # 초판은 (a) 만 단언하고 이쪽을 비워 뒀다(8R 리뷰어 지적).
+        self._git("add", "-A")
+        self._git("commit", "-m", "non-ascii")
+        self.assertGreater(
+            rg._newest_commit_time(self.root, [rel]), 0.0,
+            "커밋 시각을 0.0 으로 읽는다 — Gate 1 이 오래된 리뷰로 통과하게 된다",
+        )
 
     def test_an_untracked_file_is_seen(self):
         """`"?? path"` — 역시 선행 공백이 없다."""

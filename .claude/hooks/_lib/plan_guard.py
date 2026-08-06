@@ -98,13 +98,31 @@ class PlanDecision:
 def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
     try:
         p = subprocess.run(
-            ["git"] + args,
+            # `-c core.quotePath=false` and `rstrip()` (not `strip()`) — both
+            # mirror `review_guard._run_git`, which is the same code by descent.
+            #
+            # The `strip()` was a live defect **in the false-BLOCK direction**,
+            # which is worse here than the fail-open it caused next door: this
+            # gate's own docstring promises "a parse failure always means NOT
+            # blocked", and this inverted it. `git status --porcelain` writes a
+            # two-column code, and a plan file edited but not staged comes back
+            # as `" M plan/…"` — leading space. Stripping it shifted the line
+            # left and `_porcelain_path`'s fixed-width parse returned
+            # `"lan/in-progress/…"`. The plan then matched nothing, so a plan
+            # that HAD been updated read as untouched and push was refused.
+            # Reproduced on this repository's own working tree, on the ordinary
+            # flow (edit the plan, push before committing it).
+            #
+            # Round 7 fixed exactly this in `review_guard.py` and did not carry
+            # it here — the hand-synced-pair drift this repo has now recorded
+            # for `report_paths`, `retry_state`, and the doc-sync matrix.
+            ["git", "-c", "core.quotePath=false"] + args,
             cwd=cwd,
             capture_output=True,
             text=True,
             timeout=timeout,
         )
-        return p.returncode, p.stdout.strip(), p.stderr.strip()
+        return p.returncode, p.stdout.rstrip(), p.stderr.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return 1, "", ""
 
