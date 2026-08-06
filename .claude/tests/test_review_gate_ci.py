@@ -417,10 +417,25 @@ class WorkflowWiringTest(unittest.TestCase):
         idx = self._gate_step_index()
         self.assertEqual(self.steps[idx]["run"].strip(), self.EXPECTED_GATE_RUN)
 
-    def test_the_gate_step_is_unconditional(self):
-        """step 레벨 `if:` 하나면 그 step 만 조용히 건너뛴다. 관측 모드는 위반이어도 exit 0
-        이라 GitHub 로그의 초록 체크로는 실행 여부가 구분되지 않는다."""
-        self.assertNotIn("if", self.steps[self._gate_step_index()])
+    # step 이 실패를 못 내게 만드는 키들. `if:` 는 아예 안 돌리고, `continue-on-error` 는
+    # 돌리되 실패를 삼키며, `timeout-minutes: 0` 은 즉시 끝낸다. 셋 다 게이트를 조용히
+    # 무력화하는데 `run` 문자열은 그대로라 정확 일치 검사만으로는 안 잡힌다.
+    _NEUTERING_KEYS = ("if", "continue-on-error", "timeout-minutes")
+
+    def test_the_gate_step_cannot_be_skipped_or_have_its_failure_swallowed(self):
+        """`continue-on-error: true` 가 실측으로 이 스위트를 통과했다.
+
+        4R 리뷰어가 워크트리에 남긴 mutation 잔여에서 발견했다 — 그 라운드는 사용량 한도로
+        리포트를 못 남기고 죽었고, 잔여 한 줄만 남았다. `--enforce` 로 뒤집은 뒤에는 이 키
+        하나가 "게이트는 돌지만 실패가 무시되는" 상태를 만든다: 로그는 초록이고 PR 은 통과한다.
+        `if:` 만 막고 있던 것이 비대칭이었다 — 세 키를 함께 막는다.
+        """
+        step = self.steps[self._gate_step_index()]
+        for key in self._NEUTERING_KEYS:
+            self.assertNotIn(
+                key, step,
+                f"게이트 step 에 {key!r} 가 있다 — 실행되지 않거나 실패가 삼켜진다",
+            )
 
     def test_the_job_condition_is_exactly_the_bot_exemption(self):
         """전체 일치. `&& false` 를 덧붙이면 백스톱이 모든 PR 에서 영구히 꺼지는데, 앵커 없는
