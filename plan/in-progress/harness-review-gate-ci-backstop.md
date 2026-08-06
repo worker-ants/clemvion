@@ -15,7 +15,7 @@ priority: P2
 > | §관측(2) `SUMMARY pending` push 허용 | **수정 완료** (아래) |
 > | §재발 관측 8번째 (번들 누락) | **수정 완료** — `harness-consistency-summary-downgrade-rule.md` 쪽에 기록 |
 > | CI 백스톱 본체 | ~~**미착수**~~ → **2026-08-01 구현 완료 (관측 모드)** — 아래 배너 참조 |
-> | 배선 가드 경화 | **1R~10R 진행 중** — 아래 §배선 가드 참조 |
+> | 배선 가드 경화 | **1R~12R — 12R 에서 CRITICAL 0** — 아래 §배선 가드 참조 |
 >
 > **§배선 가드 — 라운드를 거듭한 경화 이력.** 본체는 얇다(게이트에 위임하는 어댑터).
 > 실제 어려움은 전부 "이 배선이 조용히 꺼지지 않음" 을 어떻게 강제하느냐였고, 매 라운드
@@ -44,6 +44,15 @@ priority: P2
 > | 10R | 위 전부 | **우회 0건, CRITICAL 1.** 9R 통합이 여섯 번째 `_current_branch` 를 빠뜨렸다 —
 >   통합도 그것을 지키는 가드도 **손으로 쓴 목록**이었기 때문이다. 가드를 열거에서 **도출**로
 >   바꿨다(세 모듈 AST 를 비교해 본문 동일 함수가 남아 있으면 실패) |
+>
+> | 11R | 위 전부 | **우회 0.** 이 층이 **정작 목표 환경에서 무력**이었다 — `actions/checkout`
+>   위상(`init`+`remote add`+`fetch`, `remote set-head` 없음)에는 `refs/remotes/origin/HEAD` 도
+>   로컬 `refs/heads/main` 도 없어 base 해석이 네트워크 호출로 떨어지고, 그게 실패하면
+>   "codebase 변경 없음 — 허용". 관측 로그가 전부 거짓 통과로 쌓일 뻔했다.
+>   `refs/remotes/origin/<name>` 을 보게 해 닫았다(`ActionsCheckoutTopologyTest`) |
+> | 12R | 위 전부 | **CRITICAL 0.** WARNING 은 (a) 내 경화 감사가 불완전했고(미경화 7곳 중
+>   3곳이 내가 "경화했다" 고 말한 그 파일), (b) 11R 이 "네트워크 경로에 도달 안 한다" 고
+>   적은 것이 CI 위상에서 거짓이었다 — 매 PR 마다 2초를 태우고 있었다. 둘 다 처분 |
 >
 > 4R 에서 결론: **부분집합에 대한 정확 일치는 여전히 부분 일치다.** 파싱된 워크플로
 > **문서 전체**를 하나의 기대값과 비교하도록 바꿨다 — 어디에 무엇을 더하든 빼든 실패하고,
@@ -196,7 +205,9 @@ priority: P2
 >    복구: `origin` 을 정상 URL 로 되돌리고 `git ls-remote` 로 확인. 커밋·작업 손실 없음.
 >    이 브랜치가 손댄 3개 픽스처는 즉시 경화했다 — 임시 트리 밖이면 단언으로 죽고,
 >    `git -C` 로 cwd 를 명시하며, `GIT_CEILING_DIRECTORIES` 로 상위 탐색을 막는다.
->    - **잔여: 같은 노출이 pre-existing 4곳에 있다** — `test_consistency_bundle_priority.py`
+>    - **잔여 (12R 재집계): pre-existing 4곳.** 최초 조사는 4곳이라 했는데 12R 리뷰어가
+>      **내가 편집한 파일 안에도 3곳이 남아 있음**을 짚었다 — 그 3곳은 이번에 닫았고, 실제
+>      잔여는 아래 4곳이다(전부 이 티켓 밖): — `test_consistency_bundle_priority.py`
 >      `test_consistency_impl_done.py` · `test_line_anchors.py` ·
 >      `test_push_guard_worktree_scope.py` (전부 `-C`/ceiling 없이 `init`/`config` 호출).
 >      이 티켓 범위 밖이라 등재만 한다. 근본 처방은 `_harness.py` 에 공용

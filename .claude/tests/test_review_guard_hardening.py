@@ -283,8 +283,14 @@ class RebaseAuthorDateTest(unittest.TestCase):
             env["GIT_AUTHOR_DATE"] = author
         if committer:
             env["GIT_COMMITTER_DATE"] = committer
+        # `git -C` + ceiling. A fixture of this shape overwrote the SHARED
+        # `.git/config` once — five worktrees read that file, so other sessions'
+        # `git fetch` broke and nothing signalled it. Pin the directory instead of
+        # trusting cwd, and stop git walking up to find a repository.
+        _root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = _root
         subprocess.run(
-            ["git", *args], cwd=self.root, env=env, check=True,
+            ["git", "-C", _root, *args], env=env, check=True,
             capture_output=True, text=True,
         )
 
@@ -591,7 +597,13 @@ class NotesReachThePublicEntryPointTest(unittest.TestCase):
         env["GIT_CONFIG_SYSTEM"] = os.devnull
         env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
-        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+        # `git -C` + ceiling. A fixture of this shape overwrote the SHARED
+        # `.git/config` once — five worktrees read that file, so other sessions'
+        # `git fetch` broke and nothing signalled it. Pin the directory instead of
+        # trusting cwd, and stop git walking up to find a repository.
+        _root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = _root
+        subprocess.run(["git", "-C", _root, *args], env=env, check=True,
                        capture_output=True, text=True)
 
     def _write(self, rel, body):
@@ -680,7 +692,13 @@ class UnstagedModificationKeepsItsPathTest(unittest.TestCase):
         env["GIT_CONFIG_SYSTEM"] = os.devnull
         env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
         env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
-        subprocess.run(["git", *args], cwd=self.root, env=env, check=True,
+        # `git -C` + ceiling. A fixture of this shape overwrote the SHARED
+        # `.git/config` once — five worktrees read that file, so other sessions'
+        # `git fetch` broke and nothing signalled it. Pin the directory instead of
+        # trusting cwd, and stop git walking up to find a repository.
+        _root = os.path.realpath(self.root)
+        env["GIT_CEILING_DIRECTORIES"] = _root
+        subprocess.run(["git", "-C", _root, *args], env=env, check=True,
                        capture_output=True, text=True)
 
     def _write(self, rel, body):

@@ -49,8 +49,8 @@ def _origin_default_branch(cwd: str) -> str | None:
     Priority:
       1. `git symbolic-ref refs/remotes/origin/HEAD` — fully local, fast.
          Returns refs/remotes/origin/<name> on success.
-      2. `git remote show origin` — needs network; only used as fallback.
-      3. None if origin does not exist or both methods fail.
+      2. None. The network probe moved to `_origin_default_branch_over_network`,
+         which `_default_branch` calls only after every local option is spent.
     """
     # Step 0: does origin remote exist at all?
     rc, out, _ = _run_git(["remote"], cwd)
@@ -71,9 +71,26 @@ def _origin_default_branch(cwd: str) -> str | None:
             return out[len(prefix):]
         return out  # unexpected format; pass through
 
-    # Method 2: ask the remote. May hit the network; cap with short timeout.
-    # This runs on every Stop / push PreToolUse, so keep the worst-case stall
-    # small — Method 1 (local symbolic-ref) covers the normal case for free.
+    return None
+
+
+def _origin_default_branch_over_network(cwd: str) -> str | None:
+    """Ask the remote. Last resort — every other probe is local and free.
+
+    Ordered last on purpose. It used to run before the local remote-tracking
+    guesses, and round 11's note claimed "that path is no longer reached" — which
+    was wrong in the one environment that matters. Under `actions/checkout` there
+    is no `refs/remotes/origin/HEAD`, so the local method above always misses and
+    this call always ran; measured at ~2.6s against its own 2.0s cap, i.e. it
+    times out and contributes nothing, on every PR, before the local
+    `refs/remotes/origin/<name>` probe that answers correctly for free.
+
+    Correctness is unchanged by the move: `refs/remotes/origin/HEAD` (above) is
+    still consulted first and is the authoritative statement of origin's default.
+    What now precedes this call are only the local *guesses*, and this call could
+    not have improved on them — when it succeeds it agrees with them, and when it
+    fails it returns nothing.
+    """
     rc, out, _ = _run_git(["remote", "show", "origin"], cwd, timeout=2.0)
     if rc == 0 and out:
         for line in out.splitlines():
@@ -165,7 +182,11 @@ def _default_branch(cwd: str) -> str | None:
             rc, _, _ = _run_git(["rev-parse", "--verify", ref.format(name)], cwd)
             if rc == 0:
                 return name
-    return None
+    # Only now the network. See `_origin_default_branch_over_network`.
+    try:
+        return _origin_default_branch_over_network(cwd)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _merge_base(cwd: str, default_branch: str) -> str | None:
