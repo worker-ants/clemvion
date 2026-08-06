@@ -109,10 +109,22 @@ marker="$tool_dir/node_modules/.bootstrap-install-complete"
 fail_marker="$main_root/.claude/state/mermaid_install_last_fail"
 retry_after="${MERMAID_INSTALL_RETRY_SEC:-1800}"        # cooldown after a failed install
 
-# Cross-platform mtime in epoch seconds (BSD `stat -f` vs GNU `stat -c`); 0 if missing.
+# Cross-platform mtime in epoch seconds; 0 if missing or unreadable.
+# The two probes are tried in either order ONLY because each result is validated as
+# digits. A plain `A || B` chain is not enough: GNU `stat -f %m` does not fail on
+# Linux — there `-f` means `--file-system`, an unknown specifier prints `?`, and the
+# exit status is 0 — so the fallback never ran and this returned `?`. Every
+# arithmetic comparison downstream then broke. Observed 2026-08-06 in the first CI
+# run this repo ever did (Actions had been off since 2026-05-16): the mermaid install
+# cooldown never expired on Linux, so the retry never happened.
 # Byte-identical to `reap-merged-worktrees.sh::_file_mtime` — see the note there
 # for why the two are duplicated rather than shared.
-_file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+_file_mtime() {
+  _fm_v=$(stat -c %Y "$1" 2>/dev/null) || _fm_v=""
+  case "$_fm_v" in ''|*[!0-9]*) _fm_v=$(stat -f %m "$1" 2>/dev/null) || _fm_v="";; esac
+  case "$_fm_v" in ''|*[!0-9]*) _fm_v=0;; esac
+  printf '%s\n' "$_fm_v"
+}
 
 # Hash of the lockfile a completed install corresponds to (stored in the marker;
 # see the COMPLETION MARKER note above). Cross-platform: shasum (perl, on macOS)

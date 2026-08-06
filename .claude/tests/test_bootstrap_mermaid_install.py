@@ -48,6 +48,23 @@ BOOTSTRAP_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "bootstrap-session.sh
 # Records one line per call (with the caller's PID so a test can prove two
 # installs overlapped), optionally sleeps to model a slow install, and
 # materialises node_modules like a real install.
+# A `stat` shaped like GNU coreutils, so the Linux-only failure reproduces anywhere.
+# The point is what GNU does with `-f`: there it means `--file-system`, an unknown
+# specifier prints `?`, and **the exit status is 0**. A `stat -f … || stat -c …`
+# chain therefore never reaches its fallback on Linux and yields `?`.
+# `-c %Y` delegates to the real stat, trying the GNU form first and the BSD form
+# second so this stub itself works on both platforms.
+_GNU_STAT_STUB = """#!/bin/sh
+case "$1" in
+  -c) [ "$2" = "%Y" ] || exit 1
+      [ -e "$3" ] || exit 1
+      {real} -c %Y "$3" 2>/dev/null || {real} -f %m "$3" 2>/dev/null || exit 1
+      exit 0 ;;
+  -f) echo '?'; exit 0 ;;
+esac
+exit 1
+"""
+
 _NPM_STUB = """#!/usr/bin/env bash
 echo "call pid=$PPID start=$(date +%s)" >> "$NPM_CALL_LOG"
 [ "${NPM_SLEEP:-0}" != "0" ] && sleep "$NPM_SLEEP"
@@ -350,6 +367,54 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
         self.assertEqual(self._npm_calls(), 1,
                          "a retry inside the cooldown window must be skipped")
         self.assertFalse(os.path.exists(self.marker))
+
+    def _install_gnu_stat(self):
+        """Put a GNU-shaped `stat` ahead of the real one on PATH."""
+        real = shutil.which("stat", path=os.environ.get("PATH", ""))
+        self.assertIsNotNone(real, "실 stat 을 찾지 못했다")
+        path = os.path.join(self.bin, "stat")
+        self._write(path, _GNU_STAT_STUB.replace("{real}", real))
+        os.chmod(path, 0o755)
+        # 스텁이 실제로 GNU 모양인지 — 이걸 안 재면 스텁이 조용히 무력해도 테스트는 통과한다.
+        probe = os.path.join(self.tmp, "_stat_probe")
+        open(probe, "w").close()
+        env = dict(os.environ, PATH=self.bin + os.pathsep + os.environ["PATH"])
+        f = subprocess.run(["stat", "-f", "%m", probe], env=env,
+                           capture_output=True, text=True)
+        c = subprocess.run(["stat", "-c", "%Y", probe], env=env,
+                           capture_output=True, text=True)
+        self.assertEqual((f.returncode, f.stdout.strip()), (0, "?"),
+                         "스텁의 `-f` 는 GNU 처럼 `?` 를 내고 exit 0 이어야 한다")
+        self.assertTrue(c.stdout.strip().isdigit(),
+                        f"스텁의 `-c %Y` 는 mtime 을 내야 한다: {c.stdout!r} {c.stderr!r}")
+
+    def test_cooldown_expires_under_gnu_stat(self):
+        """쿨다운 만료가 `stat` 의 플랫폼 방언에 좌우되면 안 된다.
+
+        2026-08-06, 이 저장소가 Actions 를 켠 뒤 처음 돌린 CI 에서 이 클래스의 테스트
+        두 개가 Linux 에서만 실패했다(`1 != 2`, `2 != 3` — 재시도가 아예 없었다).
+        원인은 `_file_mtime` 의 `stat -f %m … || stat -c %Y … || echo 0` 이었다.
+        GNU 에서 `-f` 는 `--file-system` 이고 미지 지정자는 `?` 를 내며 **exit 0** 이라,
+        폴백이 실행되지 않고 `?` 가 반환돼 뒤따르는 산술 비교가 통째로 깨졌다.
+        위 두 테스트는 macOS 에서 통과하므로 이 결함을 잡지 못한다 — 이 테스트가 그
+        방언을 주입해 어느 플랫폼에서든 재현시킨다.
+        """
+        self._install_gnu_stat()
+        self._run(fail=True, retry_after=1800)
+        old = time.time() - 2000                    # age the cooldown past the window
+        os.utime(self.fail_marker, (old, old))
+        self._run(retry_after=1800)
+        self.assertEqual(self._npm_calls(), 2,
+                         "GNU 방언에서도 만료된 쿨다운은 재시도를 허용해야 한다")
+        self.assertTrue(os.path.isfile(self.marker))
+
+    def test_throttle_still_holds_under_gnu_stat(self):
+        # 반대 방향도 고정한다 — mtime 을 못 읽어 "항상 만료" 로 새는 것도 결함이다.
+        self._install_gnu_stat()
+        self._run(fail=True, retry_after=1800)
+        self._run(retry_after=1800)                 # 쿨다운 안 → 건너뛰어야 한다
+        self.assertEqual(self._npm_calls(), 1,
+                         "쿨다운 안의 재시도는 GNU 방언에서도 건너뛰어야 한다")
 
     def test_failed_install_retries_after_cooldown(self):
         self._run(fail=True, retry_after=1800)
