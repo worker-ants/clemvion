@@ -69,6 +69,19 @@ sequenceDiagram
 | 〃 | `user.2fa_disabled` | user | TOTP 비활성 (`POST /auth/2fa/disable`). `details.method='totp'` · `ipAddress` 동반(포렌식) |
 | `auth/webauthn/webauthn.controller.ts` | `user.2fa_enabled` | user | WebAuthn credential 등록 (`POST …/webauthn/register/verify`). `details.method='webauthn'`·`credentialId`·`firstCredential` · `ipAddress` 동반(포렌식) |
 | 〃 | `user.2fa_disabled` | user | WebAuthn credential 삭제 (`DELETE …/webauthn/credentials/:id`). `details.method='webauthn'`·`credentialId`·`remainingCredentials` · `ipAddress` 동반(포렌식) |
+| `workflows/workflows.service.ts` | `workflow.created` | workflow | 생성 |
+| 〃 | `workflow.updated` | workflow | 수정 |
+| 〃 | `workflow.deleted` | workflow | 삭제 |
+| `triggers/triggers.service.ts` | `trigger.created` | trigger | 생성 |
+| 〃 | `trigger.updated` | trigger | 수정. **활성/비활성 전환도 이 액션**(별도 토글 동사 없음) |
+| 〃 | `trigger.deleted` | trigger | 삭제 |
+| `schedules/schedules.service.ts` | `schedule.created` | schedule | 생성 |
+| 〃 | `schedule.updated` | schedule | 수정 |
+| 〃 | `schedule.deleted` | schedule | 삭제 |
+| `model-config/model-config.service.ts` | `model_config.create` | model_config | 생성 |
+| 〃 | `model_config.update` | model_config | 수정 |
+| 〃 | `model_config.delete` | model_config | 삭제 |
+| 〃 | `model_config.set_default` | model_config | 기본 모델 지정 |
 
 표기 규약과 커버리지에 대한 코드 사실 두 가지:
 
@@ -81,9 +94,11 @@ sequenceDiagram
   강제돼 인라인 임의 문자열을 막는다 (cross-audit G-01, → [Rationale](#rationale)).
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `schedule.*` /
-  `model_config.*`(create/update/delete/set_default — 구 `llm_config.*`/`rerank_config.*` 통합) 액션은
-  **여전히 미구현**이다 — workflows / triggers / alerts / schedules 모듈에는 `AuditLogsService` import 가
-  전혀 없다. spec §4.1 표는 목표 커버리지, 위 표가 현재 구현이다. (`workspace.created·updated` 와 `member.*`
+  `model_config.*`(create/update/delete/set_default — 구 `llm_config.*`/`rerank_config.*` 통합) CRUD 는
+  **2026-08-01 구현됐다**(위 표 참조). 남은 갭은 두 가지다: (a) `workflow.executed` 는 **보존 정책과
+  묶인 의도적 유예** — 고빈도 액션인데 `audit_log` 은 pruner 가 없다(§3 "현재 무제한",
+  [`conventions/audit-actions.md` §3](../conventions/audit-actions.md)); (b) `alerts` 모듈에는
+  여전히 `AuditLogsService` import 가 없다. 위 표가 현재 구현의 SoT 다. (`workspace.created·updated` 와 `member.*`
   는 위 표대로 **구현됨** — 결정4 = B, 2026-07-07. **`workspace.deleted` 는 의도적 미기록** — `audit_log.workspace_id`
   ON DELETE CASCADE 로 삭제 감사 row 가 영속 불가하기 때문이다, [12-workspace §Rationale](./12-workspace.md).)
   인증(`user.password_changed`·`user.2fa_enabled`·`user.2fa_disabled`) 액션은 **구현됐다** —

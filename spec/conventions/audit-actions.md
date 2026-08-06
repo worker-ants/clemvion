@@ -53,10 +53,14 @@ audit 는 "일어난 일" 의 기록이다. verb 시제는 아래 세 패턴 중
 | workspace | 도메인 동사 (§2.3) | `transfer_ownership` | 구현 |
 | workspace | 과거분사 (§2.1) | `created`, `updated` | 구현 (`deleted` 제외 — 아래 주) |
 | member | 과거분사 (§2.1) | `invited`, `role_changed`, `removed` | 구현 |
-| workflow | 과거분사 (§2.1) | `created`, `updated`, `deleted`, `executed` | 미구현 |
-| trigger | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
-| schedule | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 미구현 |
-| model_config | 현재형 (§2.2) | `create`, `update`, `delete`, `set_default` | 미구현 |
+| workflow | 과거분사 (§2.1) | `created`, `updated`, `deleted`, `executed` | 구현 (`executed` 제외 — 아래 주) |
+| trigger | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 구현 |
+| schedule | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 구현 |
+| model_config | 현재형 (§2.2) | `create`, `update`, `delete`, `set_default` | 구현 |
+
+> **`workflow.executed` 는 의도적으로 미구현이다.** 나머지 13개와 카디널리티 차원이 다르다 — CRUD 는 저빈도지만 `executed` 는 트리거·webhook 발동마다 쌓인다. 그런데 `audit_log` 은 **보존 정책이 미정이고 pruner 가 없다**(§3 "현재 무제한"; `login_history` 는 pruner 가 있는 것과 대비). 무제한 테이블에 고빈도 액션을 넣는 것은 **보존 정책 결정과 묶여야 하므로** 별도 항목으로 분리했다. 나머지 13개 액션은 2026-08-01 구현·병합됐다(`workflows`·`triggers`·`schedules`·`model-config` 서비스).
+
+> **짝 리소스는 호출된 엔드포인트 쪽만 기록한다.** 트리거 활성/비활성과 스케줄 활성 상태는 서로를 동기화하는데, 이때 **상대 리소스의 액션은 남기지 않는다.** 사용자가 한 행위는 하나(스케줄 생성 / 트리거 비활성화)인데 양쪽을 다 남기면 같은 조작이 감사에 2행으로 보여 "누가 트리거를 따로 건드렸나" 를 되묻게 만든다. 감사는 **호출된 엔드포인트의 리소스** 기준이며, 짝 row 의 변화는 그 액션의 부수 효과로 읽는다.
 
 > `model_config` 에 `reveal` 이 없는 것은 ModelConfig 에 평문 reveal 엔드포인트가 없기 때문이다(`auth_config.reveal` 과 대비). `set_default` 는 과거분사가 부자연스러워 §2.2 현재형으로 묶이며, 토큰 구분자는 §1 규약대로 언더스코어다.
 
