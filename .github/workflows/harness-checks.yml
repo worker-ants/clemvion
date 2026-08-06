@@ -67,6 +67,11 @@ concurrency:
   group: harness-checks-${{ github.ref }}
   cancel-in-progress: true
 
+# 이 워크플로는 PR 이 공급한 파이썬 테스트를 실행한다 — 읽기 권한만 있으면 된다.
+# 자매 워크플로 review-gate.yml 은 같은 이유로 이미 명시하고 있었다.
+permissions:
+  contents: read
+
 jobs:
   unittest:
     runs-on: ubuntu-latest

@@ -112,11 +112,7 @@ _merge_base = _git_probe._merge_base
 _porcelain_path = _git_probe._porcelain_path
 
 
-def _current_branch(cwd: str) -> str | None:
-    rc, out, _ = _run_git(["symbolic-ref", "--short", "HEAD"], cwd)
-    if rc == 0 and out:
-        return out
-    return None
+_current_branch = _git_probe._current_branch
 
 
 def _committed_changes(cwd: str, base: str, prefix: str) -> list[str]:

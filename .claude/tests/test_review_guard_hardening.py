@@ -776,5 +776,38 @@ class RiskHeadingDecoyTest(unittest.TestCase):
             "## 전체 위험도\n\nNONE — 발견 없음.\n" + self._TAIL))
 
 
+class ResolutionMarkerPathIsConsistentTest(unittest.TestCase):
+    """마커 디렉터리 경로가 네 곳에 손으로 적혀 있다 — 갈리면 조용히 망가진다.
+
+    `review_guard.RESOLUTION_MARKER_SUBDIR` 가 정본이고, 쓰는 쪽
+    (`mark_resolution_in_flight.py`), 지우는 쪽(`clear_resolution_in_flight.py`), 그리고
+    이 파일의 테스트 헬퍼가 각각 같은 문자열을 다시 적는다. 한 곳만 바뀌면 마커를 쓰는 곳과
+    읽는 곳이 어긋나 **resolution 진행 중에도 Stop 넛지가 계속 뜬다** — 그 메커니즘의 존재
+    이유가 사라지는데, 어떤 테스트도 실패하지 않는다(10R 리뷰어가 뮤테이션으로 실증: 디렉터리명을
+    바꿔도 111개 테스트 전부 GREEN).
+
+    이 브랜치가 git 프로브에서 세 라운드 연속 겪은 것과 같은 클래스다 — 손으로 동기화하는 쌍은
+    갈린다. 여기서는 소비자가 훅 스크립트라 위임 구조를 만들기보다, 네 표현이 같은 경로를
+    가리키는지 한 줄로 고정한다.
+    """
+
+    def test_all_four_spellings_agree(self):
+        import re as _re
+        canonical = rg.RESOLUTION_MARKER_SUBDIR
+        self.assertEqual(canonical, os.path.join(".claude", "state",
+                                                 "resolution_in_flight"))
+        for name in ("mark_resolution_in_flight.py", "clear_resolution_in_flight.py"):
+            src = (_harness.HOOKS_DIR / name).read_text(encoding="utf-8")
+            with self.subTest(hook=name):
+                joins = _re.findall(
+                    r'os\.path\.join\(\s*project_dir\s*,\s*(.+?)\)', src)
+                self.assertTrue(joins, f"{name}: 마커 경로 조립을 못 찾았다")
+                parts = [p.strip().strip('"\'') for p in joins[0].split(",")]
+                self.assertEqual(
+                    os.path.join(*parts), canonical,
+                    f"{name} 의 마커 경로가 정본과 다르다 — 쓰는 곳과 읽는 곳이 어긋난다",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-"""Git probes shared by the two push-gate guards.
+"""Git probes shared by the three push-gate guards.
 
 `review_guard.py` and `plan_guard.py` each carried byte-identical copies of these
 five functions. AST-compared before extracting (docstrings excluded): all five
@@ -19,8 +19,14 @@ now recorded three times over (`report_paths`, `retry_state`, the doc-sync matri
 
 Both suites hid it the same way: they mock the git helpers, so `_run_git`,
 `_repo_root`, `_merge_base` and `_default_branch` were never executed by any test
-in either copy. One implementation with real-repository tests replaces ten
-untested ones.
+in either copy. One implementation with real-repository tests replaces twelve untested ones.
+
+Round 9 moved five of them here and round 10 found a sixth (`_current_branch`)
+still duplicated between `plan_guard` and `branch_guard` — the consolidation had
+been driven by a hand-written list, which is the same shape as the problem. The
+guard now derives the set from the modules themselves instead. `branch_guard`'s
+`_origin_default_branch` moved here too, so `_shared` no longer reaches back into
+`hooks/_lib` to borrow it.
 """
 
 from __future__ import annotations
@@ -28,35 +34,55 @@ from __future__ import annotations
 import os
 import subprocess
 
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_HOOKS_LIB = os.path.join(os.path.dirname(_THIS_DIR), "hooks", "_lib")
+
+def _current_branch(cwd: str) -> str | None:
+    """Return current branch name, or None for detached HEAD / unknown."""
+    rc, out, _ = _run_git(["symbolic-ref", "--short", "HEAD"], cwd)
+    if rc == 0 and out:
+        return out
+    return None  # detached HEAD or other non-branch state
 
 
-def _origin_default_branch(cwd: str):
-    """`branch_guard`'s canonical default-branch resolver, or None if unreachable.
+def _origin_default_branch(cwd: str) -> str | None:
+    """Resolve origin's default branch.
 
-    Resolved at CALL time, not import time. The first version put
-    `sys.path.insert(0, hooks/_lib)` at module scope, so merely importing
-    `_shared.git_probe` mutated the importing process's path — and `_shared` is
-    consumed by the skills orchestrators too, whose own `_lib` is a DIFFERENT
-    package with the same name. A shared module must not decide that for its
-    callers; the reverse dependency now lives inside the one function that needs
-    it and is undone by nothing else.
+    Priority:
+      1. `git symbolic-ref refs/remotes/origin/HEAD` — fully local, fast.
+         Returns refs/remotes/origin/<name> on success.
+      2. `git remote show origin` — needs network; only used as fallback.
+      3. None if origin does not exist or both methods fail.
     """
-    import importlib.util
-    import sys
-    path = os.path.join(_HOOKS_LIB, "branch_guard.py")
-    mod = sys.modules.get("_git_probe_branch_guard")
-    if mod is None:
-        try:
-            spec = importlib.util.spec_from_file_location(
-                "_git_probe_branch_guard", path)
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules["_git_probe_branch_guard"] = mod
-            spec.loader.exec_module(mod)
-        except Exception:  # noqa: BLE001
-            return None
-    return getattr(mod, "_origin_default_branch", None)
+    # Step 0: does origin remote exist at all?
+    rc, out, _ = _run_git(["remote"], cwd)
+    if rc != 0:
+        return None
+    remotes = {line.strip() for line in out.splitlines() if line.strip()}
+    if "origin" not in remotes:
+        return None
+
+    # Method 1: symbolic-ref of origin/HEAD (local cache; no network).
+    rc, out, _ = _run_git(
+        ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd,
+    )
+    if rc == 0 and out:
+        # `out` looks like "origin/main" — strip the remote prefix.
+        prefix = "origin/"
+        if out.startswith(prefix):
+            return out[len(prefix):]
+        return out  # unexpected format; pass through
+
+    # Method 2: ask the remote. May hit the network; cap with short timeout.
+    # This runs on every Stop / push PreToolUse, so keep the worst-case stall
+    # small — Method 1 (local symbolic-ref) covers the normal case for free.
+    rc, out, _ = _run_git(["remote", "show", "origin"], cwd, timeout=2.0)
+    if rc == 0 and out:
+        for line in out.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("HEAD branch:"):
+                name = stripped.split(":", 1)[1].strip()
+                if name and name != "(unknown)":
+                    return name
+    return None
 
 
 # `core.quotePath=false`: git otherwise C-quotes any path with a non-ASCII byte —
@@ -111,10 +137,9 @@ def _repo_root(cwd: str) -> str | None:
 
 
 def _default_branch(cwd: str) -> str | None:
-    resolver = _origin_default_branch(cwd)
-    if resolver is not None:
+    if True:
         try:
-            d = resolver(cwd)
+            d = _origin_default_branch(cwd)
             if d:
                 return d
         except Exception:

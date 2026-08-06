@@ -54,54 +54,8 @@ def _is_main_worktree(repo_root: str) -> bool:
     return os.path.isdir(git_path)
 
 
-def _current_branch(cwd: str) -> str | None:
-    """Return current branch name, or None for detached HEAD / unknown."""
-    rc, out, _ = _run_git(["symbolic-ref", "--short", "HEAD"], cwd)
-    if rc == 0 and out:
-        return out
-    return None  # detached HEAD or other non-branch state
-
-
-def _origin_default_branch(cwd: str) -> str | None:
-    """Resolve origin's default branch.
-
-    Priority:
-      1. `git symbolic-ref refs/remotes/origin/HEAD` — fully local, fast.
-         Returns refs/remotes/origin/<name> on success.
-      2. `git remote show origin` — needs network; only used as fallback.
-      3. None if origin does not exist or both methods fail.
-    """
-    # Step 0: does origin remote exist at all?
-    rc, out, _ = _run_git(["remote"], cwd)
-    if rc != 0:
-        return None
-    remotes = {line.strip() for line in out.splitlines() if line.strip()}
-    if "origin" not in remotes:
-        return None
-
-    # Method 1: symbolic-ref of origin/HEAD (local cache; no network).
-    rc, out, _ = _run_git(
-        ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd,
-    )
-    if rc == 0 and out:
-        # `out` looks like "origin/main" — strip the remote prefix.
-        prefix = "origin/"
-        if out.startswith(prefix):
-            return out[len(prefix):]
-        return out  # unexpected format; pass through
-
-    # Method 2: ask the remote. May hit the network; cap with short timeout.
-    # This runs on every Stop / push PreToolUse, so keep the worst-case stall
-    # small — Method 1 (local symbolic-ref) covers the normal case for free.
-    rc, out, _ = _run_git(["remote", "show", "origin"], cwd, timeout=2.0)
-    if rc == 0 and out:
-        for line in out.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("HEAD branch:"):
-                name = stripped.split(":", 1)[1].strip()
-                if name and name != "(unknown)":
-                    return name
-    return None
+_current_branch = _git_probe._current_branch
+_origin_default_branch = _git_probe._origin_default_branch
 
 
 def evaluate(cwd: str | None = None) -> GuardDecision:
