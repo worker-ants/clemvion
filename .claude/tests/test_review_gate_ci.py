@@ -558,6 +558,63 @@ class VerdictComesFromTheGateTest(unittest.TestCase):
                     )
                     self.assertIn("미커버" if blocked else "통과", r.stdout)
 
+class ReviewArtifactsStayTrackedTest(unittest.TestCase):
+    """이 백스톱 전체가 서 있는 전제 — `review/**` 가 git 에 추적된다.
+
+    CI 는 커밋된 것만 본다. 산출물이 추적되지 않으면 게이트는 아무 리뷰도 못 찾고, 관측 모드
+    에서는 **모든 PR 이 "미커버"** 로 뜬다 — 늘 우는 경고가 되어 아무도 안 읽고, 백스톱은
+    살아있는 채로 죽는다. `--enforce` 로 뒤집은 뒤라면 모든 PR 이 막힌다.
+
+    실증: 산출물을 커밋한 저장소에서 `통과` 였던 것이, `.gitignore` 에 `review/` 한 줄을
+    넣자 `미커버` + exit 1 로 뒤집혔다.
+
+    티켓의 원래 전제("산출물은 gitignored 라 PR 에 없다")는 착수 전 실측으로 반증됐고 — 실제로는
+    `origin/main` 이 `review/code` 아래 8,851개를 추적한다 — 그 반증이 이 층 전체를 가능하게
+    했다. 그런데 그 사실을 지키는 것이 아무것도 없었다. 다섯 라운드 동안 우회는 매번 한 층
+    밖으로 이동했고, 이건 그 바깥이다.
+    """
+
+    def test_gitignore_does_not_exclude_review_artifacts(self):
+        """`_prompts/` 만 제외한다 — 그것이 현재 규약이고, 나머지는 남아야 한다."""
+        import subprocess as _sp
+        probes = {
+            "review/code/2099/01/01/00_00_00/SUMMARY.md": False,
+            "review/code/2099/01/01/00_00_00/RESOLUTION.md": False,
+            "review/code/2099/01/01/00_00_00/meta.json": False,
+            "review/consistency/2099/01/01/00_00_00/SUMMARY.md": False,
+            # 유일한 의도적 제외 — 프롬프트는 review/ 부피의 ~70% 이고 판정에 안 쓰인다.
+            "review/code/2099/01/01/00_00_00/_prompts/security.md": True,
+        }
+        for rel, should_be_ignored in probes.items():
+            with self.subTest(path=rel):
+                r = _sp.run(["git", "check-ignore", "-q", rel],
+                            cwd=str(_harness.REPO_ROOT),
+                            capture_output=True, text=True, timeout=60)
+                ignored = r.returncode == 0
+                self.assertEqual(
+                    ignored, should_be_ignored,
+                    f"{rel} 의 gitignore 상태가 기대와 다르다 — "
+                    "산출물이 추적되지 않으면 CI 게이트는 아무 리뷰도 못 본다"
+                    if not should_be_ignored else
+                    f"{rel} 는 제외 대상인데 추적된다",
+                )
+
+    def test_the_committed_tree_actually_carries_review_artifacts(self):
+        """규칙만이 아니라 **사실**도 본다. `.gitignore` 가 깨끗해도 아무도 커밋하지 않으면
+        CI 는 여전히 아무것도 못 본다 — 그 경우 이 백스톱은 조용히 무의미해진다."""
+        import subprocess as _sp
+        r = _sp.run(["git", "ls-files", "--", "review/code"],
+                    cwd=str(_harness.REPO_ROOT), capture_output=True, text=True,
+                    timeout=120)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        tracked = [ln for ln in r.stdout.splitlines() if ln.endswith("SUMMARY.md")]
+        self.assertGreater(
+            len(tracked), 100,
+            f"추적되는 리뷰 SUMMARY 가 {len(tracked)}개뿐이다 — "
+            "CI 백스톱은 커밋된 산출물 위에서만 판정할 수 있다",
+        )
+
+
 class PyYamlPinsAgreeTest(unittest.TestCase):
     """세 곳에 손으로 적힌 `pyyaml` pin 이 서로 같아야 한다.
 
