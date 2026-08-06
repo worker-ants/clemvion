@@ -33,8 +33,25 @@ where typescript was right there.
 for Windows compatibility, and unifying toward the shell form would undo it.
 
 These tests derive the package list from the directory, so a new package cannot
-join with a different `prepare` unnoticed, and they exercise the script's three
-branches for real instead of only comparing strings.
+join with a different `prepare` unnoticed, and they exercise the script's branches
+for real instead of only comparing strings — including the failure direction, since
+a script that swallows a compile error would satisfy every success-path assertion.
+
+Why the script is duplicated verbatim in seven manifests rather than extracted to
+one shared file: `prepare` runs with the package directory as cwd, and the third
+branch exists precisely for re-runs inside a pruned/injected production tree, where
+the package has been COPIED out of the workspace (pnpm `deploy --prod` with
+`injectWorkspacePackages`). A relative path like `../../scripts/prepare.cjs` does
+not exist there, so extracting the logic would break it in exactly the situation it
+is written to survive. The duplication is deliberate and
+`test_every_package_that_builds_uses_the_same_prepare` is what keeps the copies
+from drifting — the `_file_mtime` pair, duplicated on the same reasoning, had no
+such guard and drifted into a live bug.
+
+Not addressed here, measured rather than assumed: `tsc` now runs on every install,
+non-incrementally. Measured cost for the five frontend-closure packages is 2.5s of
+a `pnpm install --filter "frontend..."`. `incremental` + `tsBuildInfoFile` would
+cut it, but that changes build outputs and belongs in its own change.
 """
 
 from __future__ import annotations
@@ -104,14 +121,18 @@ class PrepareBranchBehaviourTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # 여기서는 스크립트 하나만 골라 행위를 본다. 그 하나가 **전부**를 대표한다는 것은
+        # `PrepareIsUniformTest.test_every_package_that_builds_uses_the_same_prepare` 가
+        # 별도로 보장한다 — 그쪽이 깨지면 이 클래스의 결론은 나머지 패키지로 일반화되지 않는다.
         prepares = {
             (m.get("scripts") or {}).get("prepare")
             for _, m in _manifests()
             if (m.get("scripts") or {}).get("prepare")
         }
+        assert prepares, "prepare 를 가진 패키지가 없다 — 아래 행위 테스트가 전부 무의미해진다"
         cls.prepare = sorted(prepares)[0]
 
-    def _run(self, *, typescript: bool, dist: bool):
+    def _run(self, *, typescript: bool, dist: bool, tsc_fails: bool = False):
         """`prepare` 를 격리된 임시 패키지에서 돌린다. (returncode, tsc 호출 여부)"""
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -123,7 +144,9 @@ class PrepareBranchBehaviourTest(unittest.TestCase):
             binp.mkdir()
             called = root / "tsc-called"
             (binp / "tsc").write_text(
-                f"#!/bin/sh\necho x >> {called}\nexit 0\n", encoding="utf-8"
+                f"#!/bin/sh\necho x >> {called}\n"
+                + ("echo 'error TS1005' >&2\nexit 2\n" if tsc_fails else "exit 0\n"),
+                encoding="utf-8",
             )
             os.chmod(binp / "tsc", 0o755)
 
@@ -154,6 +177,26 @@ class PrepareBranchBehaviourTest(unittest.TestCase):
         p, compiled = self._run(typescript=True, dist=False)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertTrue(compiled)
+
+    def test_a_compile_error_propagates(self):
+        """컴파일 실패가 삼켜지면 이 변경 전체가 무의미하다.
+
+        옛 형태(`[ -d dist ] || tsc`)의 진짜 위험은 건너뛰기만이 아니었다 — `||` 로 엮인
+        형태는 한 글자만 잘못 놓여도 실패를 성공으로 바꾼다. 새 형태는 `execSync` 가
+        던지도록 두는데, 그 속성을 단언하지 않으면 나중에 누가 `try{}catch{}` 나 `|| true`
+        를 덧대도 아무 테스트가 반응하지 않는다. 다른 세 갈래 테스트는 스텁 tsc 가 항상
+        exit 0 이라 이 방향을 관측하지 못한다.
+        """
+        p, compiled = self._run(typescript=True, dist=True, tsc_fails=True)
+        self.assertTrue(compiled, "tsc 는 호출됐어야 한다")
+        self.assertNotEqual(p.returncode, 0,
+                            "tsc 가 실패하면 prepare 도 실패해야 한다 (조용히 통과 금지)")
+
+    def test_a_compile_error_propagates_without_a_prior_dist(self):
+        # dist 유무가 실패 전파를 좌우하면 안 된다 — 옛 형태가 바로 그 결합이었다.
+        p, compiled = self._run(typescript=True, dist=False, tsc_fails=True)
+        self.assertTrue(compiled)
+        self.assertNotEqual(p.returncode, 0)
 
     def test_pruned_tree_with_dist_is_a_noop(self):
         # devDeps 가 prune 된 프로덕션 트리에서 prepare 가 재실행돼도 살아야 한다.
