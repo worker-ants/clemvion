@@ -217,6 +217,16 @@ priority: P2
 >    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
 >    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
 >    (이번에 timeout 을 3곳에 각각 넣어야 했던 것이 그 비용의 실례).
+> 15. **`git_probe._default_branch` 의 Method 1 성공 경로가 실 저장소로 구동된 적이 없다** (12R
+>    W3) — 유일한 실 저장소 픽스처(`ActionsCheckoutTopologyTest`)가 **정의상 그 ref 가 없는**
+>    위상이라, `refs/remotes/origin/HEAD` 가 **있을** 때의 동작은 stub 으로만 고정돼 있다.
+>    11R 이 닫은 결함이 바로 "이 함수가 위상에 따라 다르게 행동한다" 였는데, 두 위상 중
+>    하나만 실물로 본다. `git clone` 픽스처가 필요해 별도 범위 — §8 과 같은 클래스이되
+>    다른 함수다(§8 은 `code_review_orchestrator._default_branch_ref()`).
+> 16. **`_run_git` 의 타임아웃 경로가 미검증** (12R W4) — `subprocess.TimeoutExpired` 를
+>    삼키고 실패로 취급하는 분기가 어떤 테스트도 통과하지 않는다. 11R 이 드러냈듯 이 경로는
+>    가설이 아니라 **CI 에서 매번 실제로 밟히던 경로**였다(네트워크 프로브 2.58초 → 상한).
+>    지금은 그 호출을 최후로 밀어 평시엔 안 밟지만, 삼키는 방향이 fail-open 이라 고정이 필요하다.
 >
 > **신규 후속 (defer)** — "origin 기본 브랜치 해석" 이 4곳에 독립 구현돼 있다:
 > `branch_guard._origin_default_branch()`(정본) · `review_guard._default_branch()` ·
@@ -235,6 +245,33 @@ priority: P2
 > 그건 미리뷰가 아니라 산출물 미커밋이다. CI 에 쌓이는 실판정을 보고 정한다. 켤 때 바꿀 곳은
 > 워크플로의 `run:` 한 줄과 `test_it_is_still_observation_only` 하나 — 조용히 뒤집히지 않게
 > 테스트가 현재 상태를 고정해 뒀다.
+>
+> **2026-08-06 — 이 계획이 서 있던 전제가 거짓이었다: 저장소의 Actions 가 꺼져 있었다.**
+> 머지(#1089) 직후 실행을 확인하려다 발견했다. `GET /actions/permissions` 가
+> `{"enabled": false}` 였고, `pull_request` 이벤트로 실행된 마지막 워크플로가 **2026-05-16**
+> 이다(약 12주). 머지 커밋 `de784a4ba` 에 등록된 check-run 수도 **0** 이라 설정 플래그가 아니라
+> 실행 부재로 확인된다.
+>
+> 즉 11R 이 닫은 결함 — "이 층이 정작 목표 환경에서 무력" — **의 한 층 바깥이 그대로 있었다.**
+> 11R 은 게이트가 `actions/checkout` 위상에서 base 를 못 잡는 것을 고쳤는데, 그 위상 자체가
+> 생성되지 않고 있었다. 관측 모드로 시작해 로그를 보고 `--enforce` 를 정한다는 위 문단은,
+> Actions 가 꺼진 채로는 **로그가 0건이라 판단 시점에 영원히 도달하지 못한다.**
+>
+> 범위는 이 티켓보다 넓다. `harness-checks`(현재 854 테스트) · `frontend-checks` ·
+> `spec-link-checks` · `packages-checks` 는 **한 번도 실행된 적이 없다** — 넷 다 Actions 가
+> 꺼진 뒤에 추가됐다(`harness-checks` 는 2026-05-30). 두 달간 하네스에 쌓은 가드 전부가
+> CI 에서 실행된 적 없이 로컬 훅만을 유일 집행자로 두고 있었고, 이는 이 티켓이 없애려던
+> 상태 그 자체다.
+>
+> 2026-08-06 사용자가 활성화(`enabled: true`, `allowed_actions: all`). **다만 `review-gate.yml`
+> 은 `pull_request` 트리거라 이미 머지된 #1089 로는 소급 실행되지 않는다** — 다음 PR 이
+> 처음이다.
+>
+> **교훈 — 배선의 마지막 한 칸은 저장소 설정이고, 그것만은 코드가 관측할 수 없다.**
+> 이 브랜치는 12라운드에 걸쳐 "가드가 실제로 도는가" 를 반복해서 물었고 트리거 paths·
+> 실패 삼킴·step 조건·base 해석까지 전부 고정했는데, 정작 **Actions 스위치**는 리포지토리
+> 밖 상태라 어떤 테스트도 볼 수 없었다. 새 워크플로를 추가할 때는 머지 후 그 PR 의
+> check-run 수를 **한 번은 실측**할 것 — 파일이 착지한 것과 그것이 도는 것은 다르다.
 
 ## Overview
 
