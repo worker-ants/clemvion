@@ -356,122 +356,122 @@ class OneJudgeTest(unittest.TestCase):
 
 
 class WorkflowWiringTest(unittest.TestCase):
-    """워크플로의 배선을 **정확 일치**로 고정한다.
+    """워크플로 **문서 전체**를 기대값과 정확 일치로 고정한다.
 
-    패턴 매칭을 세 번 시도했고 세 번 다 뚫렸다.
-      1R  substring        → `if:` 를 지우고 같은 문자열을 `env:` 에 남기면 통과.
-      2R  구조 + 부분 정규식 → `(actor == 'dependabot[bot]') != false`(의미 정반대)가 통과.
-      3R  앵커 없는 정규식   → `if: github.actor != 'dependabot[bot]' && false` 가 통과.
-          그 한 줄이면 **백스톱이 모든 PR 에서 영구히 꺼지는데** 15개 테스트가 전부 GREEN 이었다.
-          11명의 리뷰어가 각자 다른 최소 변경으로 같은 결론에 도달했다.
+    네 번 뚫렸고, 매번 같은 이유였다 — **부분에 대한 정확 일치는 여전히 부분 일치다.**
 
-    문제는 매번 "이런 우회도 있네" 가 아니라 **접근이 틀렸다**는 것이었다. 임의의 표현식에서
-    "의미가 보존되는가" 를 부분 일치로 판정하려는 것은 무한한 표면이고, 나는 그 표면을 세 번
-    좇았다. 워크플로는 작고 안정적인 설정 파일이므로 **기대값 전체를 적어두는 편이 유한하고
-    완전하다**: 어떤 변경이든 실패하고, 저자는 기대값을 의식적으로 갱신하면서 그 변경이 배선을
-    깨는지 스스로 판단하게 된다. 우회할 패턴이 아예 없다.
+      1R  substring          → `if:` 를 지우고 같은 문자열을 `env:` 에 남기면 통과.
+      2R  구조 + 부분 정규식   → `(actor == 'dependabot[bot]') != false`(의미 정반대)가 통과.
+      3R  앵커 없는 정규식     → `if: … && false` 로 백스톱이 모든 PR 에서 영구히 꺼져도 통과.
+      4R  **필드별 정확 일치** → 내가 고정한 필드만 안전했다. 리뷰어 9명 이상이 독립 재현:
+          · `jobs.gate.continue-on-error: true` — step 에서만 막고 **job 은 안 막았다**.
+            게이트가 exit 1 을 내도 job 이 성공으로 보고된다.
+          · `on.pull_request.branches: ['없는-브랜치']` — `paths` 만 고정하고 형제 키는 열어뒀다.
+            **enforce 여부와 무관하게 지금 당장** 이 워크플로가 영원히 트리거되지 않고,
+            Actions 탭에 실행 기록조차 안 남아 감지되지 않는다.
+          · `types: [closed]` — PR 이 닫힐 때만 돌아 리뷰가 필요한 시점엔 개입하지 못한다.
+          · step 목록에 no-op 스텁 덮어쓰기/`$GITHUB_PATH` 하이재킹 스텝 삽입 — 개별 step 만
+            보고 **목록 자체(개수·순서)** 는 안 봤다.
+
+    매번 발견된 그 필드를 추가로 고정하는 것으로 대응했고, 매번 옆의 열린 필드로 다시 뚫렸다.
+    열거로는 끝나지 않는다 — 파싱된 문서 **전체**를 하나의 기대값과 비교한다. 그러면 어디에
+    무엇을 더하든 빼든 바꾸든 실패하고, 남는 열린 필드가 없다.
+
+    (주석은 YAML 파싱에 안 남으므로 설명을 고치는 것은 자유롭다. 배선을 바꾸면 여기 기대값도
+    같이 바꿔야 하고, 그 순간이 "이게 게이트를 끄는 변경인가" 를 판단할 자리다.)
     """
 
-    # 기대되는 배선 전체. 바꾸려면 여기도 같이 바꿔야 하고, 그 순간이 "이게 게이트를 끄는
-    # 변경인가" 를 판단할 자리다.
-    EXPECTED_IF = "github.actor != 'dependabot[bot]'"
-    EXPECTED_GATE_RUN = "python3 scripts/check-review-gate.py"
-    EXPECTED_CONCURRENCY = {
-        "group": "review-gate-${{ github.ref }}",
-        "cancel-in-progress": True,
+    # 파싱된 워크플로 전체. `on:` 은 YAML 1.1 에서 불리언 True 로 파싱된다.
+    EXPECTED = {
+        "name": "review-gate",
+        True: {
+            "pull_request": {
+                "paths": [
+                    "codebase/**",
+                    ".claude/hooks/_lib/review_guard.py",
+                    ".claude/hooks/_lib/branch_guard.py",
+                    ".claude/_shared/**",
+                    "scripts/check-review-gate.py",
+                    ".github/workflows/review-gate.yml",
+                ]
+            }
+        },
+        "concurrency": {
+            "group": "review-gate-${{ github.ref }}",
+            "cancel-in-progress": True,
+        },
+        "permissions": {"contents": "read"},
+        "jobs": {
+            "gate": {
+                "runs-on": "ubuntu-latest",
+                "timeout-minutes": 5,
+                "if": "github.actor != 'dependabot[bot]'",
+                "steps": [
+                    {"uses": "actions/checkout@v7", "with": {"fetch-depth": 0}},
+                    {"uses": "actions/setup-python@v7",
+                     "with": {"python-version": "3.x"}},
+                    {"name": "Fetch base ref",
+                     "env": {"BASE_REF": "${{ github.base_ref }}"},
+                     "run": 'git fetch --no-tags origin "$BASE_REF"'},
+                    {"name": "Review coverage backstop",
+                     "run": "python3 scripts/check-review-gate.py"},
+                ],
+            }
+        },
     }
-    EXPECTED_PATHS = [
-        "codebase/**",
-        ".claude/hooks/_lib/review_guard.py",
-        ".claude/hooks/_lib/branch_guard.py",
-        ".claude/_shared/**",
-        "scripts/check-review-gate.py",
-        ".github/workflows/review-gate.yml",
-    ]
 
     @classmethod
     def setUpClass(cls):
-        try:
-            import yaml  # noqa: PLC0415
-        except ImportError:  # pragma: no cover
-            raise unittest.SkipTest("PyYAML 없음 — CI 는 설치한다")
+        # fail-CLOSED. 초판은 `SkipTest` 였는데, 이 파일만 타겟 재실행하는 관행(실패 reviewer
+        # 만 다시 돌린다)에서 PyYAML 이 없으면 아래 배선 불변식 전부가 무음 `OK` 로 통과한다.
+        # 전체 스위트가 안전했던 것은 이 클래스의 설계가 아니라, 무관한 옆 파일이 우연히
+        # fail-closed 인 덕이었다 — 문서화도 테스트도 안 된 결합이다.
+        import yaml  # noqa: PLC0415 — 부재 시 ImportError 로 이 클래스를 죽이는 것이 의도
         cls._yaml = yaml
 
     def setUp(self):
         path = _harness.REPO_ROOT / ".github" / "workflows" / "review-gate.yml"
         self.doc = self._yaml.safe_load(path.read_text(encoding="utf-8"))
-        # YAML 1.1 에서 `on:` 은 불리언 True 로 파싱된다 — 모르면 KeyError 로 죽는다.
-        self.on = self.doc.get("on", self.doc.get(True))
-        self.job = self.doc["jobs"]["gate"]
-        self.steps = self.job["steps"]
 
-    def _gate_step_index(self):
-        for idx, st in enumerate(self.steps):
-            if isinstance(st.get("run"), str) and self.EXPECTED_GATE_RUN in st["run"]:
-                return idx
-        self.fail(f"게이트를 부르는 step 이 없다: {self.steps}")
+    def test_the_whole_workflow_matches_the_expected_wiring(self):
+        """이 한 줄이 위 네 라운드의 우회를 전부 덮는다."""
+        self.assertEqual(self.doc, self.EXPECTED)
 
-    def test_the_gate_step_runs_exactly_the_expected_command(self):
-        """`in` 이 아니라 `==`. `echo "…check-review-gate.py"` 나 주석 decoy 가 통과하던
-        자리다. 명령이 정확히 그것이면 치환도, 플래그 조립도, 축약도 끼어들 수 없다."""
-        idx = self._gate_step_index()
-        self.assertEqual(self.steps[idx]["run"].strip(), self.EXPECTED_GATE_RUN)
+    def test_the_expectation_still_describes_a_gate_that_runs(self):
+        """기대값 자체가 무의미해지는 것을 막는다.
 
-    # step 이 실패를 못 내게 만드는 키들. `if:` 는 아예 안 돌리고, `continue-on-error` 는
-    # 돌리되 실패를 삼키며, `timeout-minutes: 0` 은 즉시 끝낸다. 셋 다 게이트를 조용히
-    # 무력화하는데 `run` 문자열은 그대로라 정확 일치 검사만으로는 안 잡힌다.
-    _NEUTERING_KEYS = ("if", "continue-on-error", "timeout-minutes")
-
-    def test_the_gate_step_cannot_be_skipped_or_have_its_failure_swallowed(self):
-        """`continue-on-error: true` 가 실측으로 이 스위트를 통과했다.
-
-        4R 리뷰어가 워크트리에 남긴 mutation 잔여에서 발견했다 — 그 라운드는 사용량 한도로
-        리포트를 못 남기고 죽었고, 잔여 한 줄만 남았다. `--enforce` 로 뒤집은 뒤에는 이 키
-        하나가 "게이트는 돌지만 실패가 무시되는" 상태를 만든다: 로그는 초록이고 PR 은 통과한다.
-        `if:` 만 막고 있던 것이 비대칭이었다 — 세 키를 함께 막는다.
+        위 단언은 "문서 == 기대값" 이므로, 기대값을 게이트가 꺼진 모양으로 함께 고쳐버리면
+        여전히 통과한다. 사람이 그 편집을 의식적으로 하도록 강제할 수는 없지만, 최소한
+        **기대값이 만족해야 할 성질**은 여기 적어둔다 — 둘 다 고치려면 이 목록도 마주쳐야 한다.
         """
-        step = self.steps[self._gate_step_index()]
-        for key in self._NEUTERING_KEYS:
-            self.assertNotIn(
-                key, step,
-                f"게이트 step 에 {key!r} 가 있다 — 실행되지 않거나 실패가 삼켜진다",
-            )
+        job = self.EXPECTED["jobs"]["gate"]
+        steps = job["steps"]
+        gate = [st for st in steps if st.get("run", "").startswith("python3 ")]
+        self.assertEqual(len(gate), 1, "게이트를 부르는 step 이 정확히 하나가 아니다")
+        self.assertEqual(gate[0]["run"], "python3 scripts/check-review-gate.py")
 
-    def test_the_job_condition_is_exactly_the_bot_exemption(self):
-        """전체 일치. `&& false` 를 덧붙이면 백스톱이 모든 PR 에서 영구히 꺼지는데, 앵커 없는
-        정규식은 그것을 통과시켰다(3R, 리뷰어 실증)."""
-        self.assertEqual(self.job.get("if", ""), self.EXPECTED_IF)
+        # 실행을 막거나(if) 실패를 삼키거나(continue-on-error) 즉시 끝내는(timeout 0) 키는
+        # job 에도 step 에도 없어야 한다. 4R 은 step 만 막혀 있어 job 레벨로 우회됐다.
+        for scope, d in [("job", job)] + [(f"step[{i}]", st) for i, st in enumerate(steps)]:
+            self.assertNotIn("continue-on-error", d, f"{scope} 가 실패를 삼킨다")
+            if scope != "job":
+                self.assertNotIn("if", d, f"{scope} 가 조건부라 건너뛸 수 있다")
+        self.assertNotEqual(job.get("timeout-minutes"), 0)
 
-    def test_the_checkout_before_the_gate_fetches_full_history(self):
-        """게이트 **직전**의 checkout 만 본다. "어느 하나라도" 로 보면 shallow 인 실효
-        checkout 옆에 deep 인 decoy 를 두는 것으로 통과한다 — merge-base 가 없으면 게이트는
-        조용히 fail-open 하고 워크플로는 초록이다."""
-        gate = self._gate_step_index()
-        before = [st for st in self.steps[:gate]
-                  if isinstance(st.get("uses"), str)
-                  and st["uses"].startswith("actions/checkout")]
-        self.assertTrue(before, "게이트 앞에 checkout 이 없다")
-        self.assertEqual(before[-1].get("with", {}).get("fetch-depth"), 0)
+        trigger = self.EXPECTED[True]["pull_request"]
+        self.assertEqual(set(trigger), {"paths"},
+                         "pull_request 에 paths 외 키가 있다 — 트리거 범위가 좁혀졌다")
+        self.assertIn("codebase/**", trigger["paths"])
 
-    def test_trigger_paths_are_exactly_the_expected_set(self):
-        """`branch_guard.py` 가 여기 있는 이유: `review_guard._default_branch()` 가 그 모듈을
-        import 한다. 1R 까지 빠져 있어 그 파일만 고친 PR 은 이 워크플로를 안 돌렸다."""
-        self.assertEqual(self.on["pull_request"]["paths"], self.EXPECTED_PATHS)
+        checkout = [st for st in steps
+                    if str(st.get("uses", "")).startswith("actions/checkout")]
+        self.assertEqual(len(checkout), 1)
+        self.assertEqual(checkout[0]["with"]["fetch-depth"], 0,
+                         "shallow 체크아웃이면 merge-base 가 없어 게이트가 fail-open 한다")
+        self.assertLess(steps.index(checkout[0]), steps.index(gate[0]))
 
-    def test_concurrency_is_pinned(self):
-        """`--enforce` 로 뒤집은 뒤에는, 차단해야 할 PR 이 무관한 실행에 의해 취소되는 것이
-        곧 무음 통과다. 지금은 관측 모드라 비용만 문제지만 성질은 지금 고정한다."""
-        self.assertEqual(self.doc.get("concurrency"), self.EXPECTED_CONCURRENCY)
-
-    def test_it_is_still_observation_only(self):
-        """`--enforce` 로 뒤집는 것은 워크플로 계약 변경이라 의도적 결정이어야 한다.
-
-        위 정확 일치가 이미 이것을 함의하지만(명령이 정확히 그 문자열이면 플래그가 있을 수
-        없다) 별도로 남긴다 — 켤 때 저자가 마주치는 이름이 `test_it_is_still_observation_only`
-        여야 "지금 계약을 바꾸는 중" 임이 드러난다."""
-        self.assertNotIn("--enforce", self.EXPECTED_GATE_RUN)
-        self.assertEqual(self.steps[self._gate_step_index()]["run"].strip(),
-                         self.EXPECTED_GATE_RUN)
+        self.assertNotIn("--enforce", gate[0]["run"],
+                         "관측 모드 계약 — 켤 때는 이 단언도 함께 바꾼다")
 
 
 class VerdictComesFromTheGateTest(unittest.TestCase):
@@ -525,6 +525,28 @@ class VerdictComesFromTheGateTest(unittest.TestCase):
                     f"(기대 {expected}) — 스크립트가 자기 판정을 갖고 있다\n{r.stdout}{r.stderr}",
                 )
                 self.assertIn("미커버" if blocked else "통과", r.stdout)
+
+
+class PyYamlPinsAgreeTest(unittest.TestCase):
+    """세 곳에 손으로 적힌 `pyyaml` pin 이 서로 같아야 한다.
+
+    이 저장소는 "손-동기 쌍은 드리프트한다" 를 스스로 여러 번 기록해 두었는데(`report_paths`,
+    `retry_state`, doc-sync 매트릭스) 이 pin 쌍은 아직 묶여 있지 않았다. 갈리면 harness 스위트가
+    한 버전으로 통과하고 보안 가드가 다른 버전으로 도는 상태가 조용히 생긴다.
+
+    단일 진실화(`constraints.txt`)가 더 낫지만 그건 세 워크플로의 설치 방식을 바꾸는 일이라
+    범위 밖이다. 최소한 갈렸다는 사실은 여기서 드러난다.
+    """
+
+    def test_every_workflow_pins_the_same_version(self):
+        import re as _re
+        pins = {}
+        for path in sorted((_harness.REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+            for m in _re.finditer(r'pip install "(pyyaml[^"]*)"',
+                                  path.read_text(encoding="utf-8")):
+                pins.setdefault(m.group(1), []).append(path.name)
+        self.assertTrue(pins, "pyyaml 설치 스텝을 못 찾았다 — 이 가드가 stale 하다")
+        self.assertEqual(len(pins), 1, f"pyyaml pin 이 갈렸다: {pins}")
 
 
 if __name__ == "__main__":
