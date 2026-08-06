@@ -99,7 +99,7 @@ class PlanDecision:
         return self.untouched
 
 
-# These five git probes now live in `.claude/_shared/git_probe.py`, shared with the
+# These git probes now live in `.claude/_shared/git_probe.py`, shared with the
 # sibling guard. They were byte-identical copies (AST-compared before moving), and
 # the pair drifted twice in a row: round 7 fixed `_run_git`'s `.strip()` here and
 # round 8 found the same line still in the other copy, false-blocking pushes.

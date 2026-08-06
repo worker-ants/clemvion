@@ -137,18 +137,34 @@ def _repo_root(cwd: str) -> str | None:
 
 
 def _default_branch(cwd: str) -> str | None:
-    if True:
-        try:
-            d = _origin_default_branch(cwd)
-            if d:
-                return d
-        except Exception:
-            pass
-    # Fallback: probe common names.
-    for name in ("main", "master"):
-        rc, _, _ = _run_git(["rev-parse", "--verify", f"refs/heads/{name}"], cwd)
-        if rc == 0:
-            return name
+    try:
+        d = _origin_default_branch(cwd)
+        if d:
+            return d
+    except Exception:  # noqa: BLE001
+        pass
+    # Local fallbacks, in order of how much they prove.
+    #
+    # The remote-tracking probe is the one that matters in CI. `actions/checkout`
+    # builds the worktree with `init` + `remote add` + `fetch`, and never runs
+    # `git remote set-head`, so `refs/remotes/origin/HEAD` does not exist; it also
+    # fetches only the PR ref, so there is no local `refs/heads/main` either. That
+    # left `_origin_default_branch`'s NETWORK call as the only path, and when it
+    # fails the whole gate reads as "no codebase changes — allowed": base is None,
+    # so the committed-changes list is empty, so nothing looks changed. Reproduced
+    # in an isolated repo built the way `actions/checkout` builds one, with an
+    # unreachable origin — a modified `codebase/` file and no review at all came
+    # back as `통과`, exit 0. The backstop was inert in exactly the environment it
+    # was written for.
+    #
+    # `refs/remotes/origin/<name>` is present in that topology and costs no
+    # network. Checked before `refs/heads/<name>` because a local branch of the
+    # same name is the weaker claim about what the DEFAULT branch is.
+    for ref in ("refs/remotes/origin/{}", "refs/heads/{}"):
+        for name in ("main", "master"):
+            rc, _, _ = _run_git(["rev-parse", "--verify", ref.format(name)], cwd)
+            if rc == 0:
+                return name
     return None
 
 

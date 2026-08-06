@@ -809,5 +809,128 @@ class ResolutionMarkerPathIsConsistentTest(unittest.TestCase):
                 )
 
 
+class ActionsCheckoutTopologyTest(unittest.TestCase):
+    """`actions/checkout` 이 만드는 저장소 모양에서 게이트가 실제로 판정한다.
+
+    이 층은 CI 를 위해 만들어졌는데, **정작 CI 환경에서 아무것도 안 하고 있었다.**
+    `actions/checkout` 은 `clone` 이 아니라 `init` + `remote add` + `fetch` 로 워크트리를
+    만들고 `git remote set-head` 를 부르지 않는다. 그래서:
+
+      · `refs/remotes/origin/HEAD` 가 없다 → `_origin_default_branch` 의 로컬 경로 실패
+      · 로컬 `refs/heads/main` 도 없다(PR ref 만 fetch) → 옛 폴백도 빗나감
+      · 남는 것은 **네트워크 호출**(`git remote show origin`)뿐이고, 그게 실패하면
+        `_default_branch()` 가 None → base 없음 → 커밋 변경 목록이 빈 리스트 →
+        **"codebase 변경 없음 — 허용"**
+
+    격리 재현: 위 절차로 저장소를 만들고 origin 을 도달 불가로 둔 뒤, `codebase/` 파일을
+    고치고 리뷰는 전혀 없는 상태에서 `--enforce` 가 `통과`(exit 0)를 냈다. 수정 후 같은
+    저장소에서 `미커버`(exit 1). 네트워크 없이 `refs/remotes/origin/<name>` 만 보면 된다.
+    """
+
+    def setUp(self):
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.origin = os.path.join(self.tmp, "origin.git")
+        self.work = os.path.join(self.tmp, "work")
+        self._git(self.tmp, "init", "--bare", "-b", "main", self.origin)
+        seed = os.path.join(self.tmp, "seed")
+        self._git(self.tmp, "init", "-b", "main", seed)
+        self._write(seed, "codebase/backend/src/a.ts", "export const a = 1;\n")
+        self._git(seed, "add", "-A")
+        self._git(seed, "commit", "-m", "base")
+        self._git(seed, "remote", "add", "origin", self.origin)
+        self._git(seed, "push", "-q", "origin", "main")
+
+        # `actions/checkout` 위상 — clone 이 아니다.
+        os.makedirs(self.work)
+        self._git(self.work, "init", "-b", "main", ".")
+        self._git(self.work, "remote", "add", "origin", self.origin)
+        self._git(self.work, "fetch", "-q", "--no-tags", "origin", "main")
+        self._git(self.work, "checkout", "-q", "-b", "feature", "FETCH_HEAD")
+
+    def _git(self, cwd, *args):
+        env = dict(os.environ)
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_CONFIG_SYSTEM"] = os.devnull
+        env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+        env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@t"
+        subprocess.run(["git", *args], cwd=cwd, env=env, check=True,
+                       capture_output=True, text=True)
+
+    def _write(self, root, rel, body):
+        path = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def test_the_topology_really_lacks_both_local_refs(self):
+        """전제 자체를 고정한다 — 이게 틀리면 아래 테스트는 아무것도 증명하지 않는다."""
+        for ref in ("refs/remotes/origin/HEAD", "refs/heads/main"):
+            with self.subTest(ref=ref):
+                rc, _, _ = rg._run_git(["rev-parse", "--verify", ref], self.work)
+                self.assertNotEqual(rc, 0, f"{ref} 가 있다 — 위상 재현이 틀렸다")
+        rc, _, _ = rg._run_git(["rev-parse", "--verify", "refs/remotes/origin/main"],
+                               self.work)
+        self.assertEqual(rc, 0, "origin/main 조차 없다 — fetch 가 안 됐다")
+
+    def test_the_default_branch_resolves_without_the_network(self):
+        self._git(self.work, "remote", "set-url", "origin",
+                  "https://invalid.invalid/nonexistent.git")
+        self.assertEqual(rg._default_branch(self.work), "main",
+                         "네트워크 없이 기본 브랜치를 못 찾는다 — 게이트가 무력화된다")
+
+    def test_the_remote_tracking_ref_outranks_a_local_branch_of_another_name(self):
+        """순서가 실제로 의미를 갖는 경우를 고정한다.
+
+        주석이 "`origin/<name>` 을 먼저 보는 것은 그쪽이 DEFAULT 브랜치에 대한 더 강한
+        주장이기 때문" 이라고 적었는데, 처음 쓴 테스트로는 순서를 뒤바꿔도 통과했다 — 주장만
+        하고 검증하지 않은 상태였다. 로컬에 `main` 이 있고 origin 의 기본이 `master` 인
+        저장소(포크에서 흔하다)면 둘이 갈린다.
+        """
+        # origin 쪽 기본 브랜치를 master 로 만든다.
+        self._git(self.origin, "symbolic-ref", "HEAD", "refs/heads/master")
+        seed2 = os.path.join(self.tmp, "seed2")
+        self._git(self.tmp, "init", "-b", "master", seed2)
+        self._write(seed2, "codebase/backend/src/b.ts", "export const b = 1;\n")
+        self._git(seed2, "add", "-A")
+        self._git(seed2, "commit", "-m", "master base")
+        self._git(seed2, "remote", "add", "origin", self.origin)
+        self._git(seed2, "push", "-q", "origin", "master")
+
+        w2 = os.path.join(self.tmp, "work2")
+        os.makedirs(w2)
+        self._git(w2, "init", "-b", "main", ".")     # 로컬 브랜치 이름은 main
+        self._git(w2, "remote", "add", "origin", self.origin)
+        self._git(w2, "fetch", "-q", "--no-tags", "origin", "master")
+        self._write(w2, "x.txt", "x\n")
+        self._git(w2, "add", "-A")
+        self._git(w2, "commit", "-m", "local main")   # refs/heads/main 이 생긴다
+        self._git(w2, "remote", "set-url", "origin",
+                  "https://invalid.invalid/nonexistent.git")
+
+        for ref in ("refs/heads/main", "refs/remotes/origin/master"):
+            rc, _, _ = rg._run_git(["rev-parse", "--verify", ref], w2)
+            self.assertEqual(rc, 0, f"{ref} 가 없다 — 픽스처가 두 후보를 못 만들었다")
+        self.assertEqual(
+            rg._default_branch(w2), "master",
+            "로컬 `main` 이 origin 의 기본 `master` 를 이겼다 — 순서가 뒤집혔다",
+        )
+
+    def test_an_unreviewed_change_is_not_reported_as_no_change(self):
+        """가장 중요한 단언 — 이 층이 CI 에서 실제로 무언가를 하는가."""
+        self._git(self.work, "remote", "set-url", "origin",
+                  "https://invalid.invalid/nonexistent.git")
+        self._write(self.work, "codebase/backend/src/a.ts", "export const a = 2;\n")
+        self._git(self.work, "add", "-A")
+        self._git(self.work, "commit", "-m", "feat")
+        decision = rg.evaluate_review(self.work)
+        self.assertTrue(
+            decision.blocked,
+            f"리뷰 없는 codebase 변경이 통과했다 — reason={decision.reason!r}",
+        )
+        self.assertNotIn("no codebase/ changes", decision.reason,
+                         "변경을 아예 못 봤다 — base 해석 실패가 '변경 없음' 으로 읽혔다")
+
+
 if __name__ == "__main__":
     unittest.main()
