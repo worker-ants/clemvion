@@ -326,5 +326,64 @@ class PorcelainPathSurvivesOnARealRepoTest(unittest.TestCase):
         self.assertIn(rel, pg._uncommitted_changes(self.root, "plan/"))
 
 
+class GitProbesAreNotReDuplicatedTest(unittest.TestCase):
+    """두 훅이 git 프로브를 **다시 손으로 복제하지 않는다.**
+
+    `review_guard.py` 와 `plan_guard.py` 는 `_run_git`/`_repo_root`/`_default_branch`/
+    `_merge_base`/`_porcelain_path` 다섯 개를 AST 완전 동일한 복사본으로 각각 갖고 있었다.
+    그 쌍이 연속 두 라운드에 걸쳐 갈렸다 — 7R 이 `_run_git` 의 `.strip()` 을 한쪽에서 고쳤고,
+    8R 이 나머지 한쪽에서 같은 줄을 찾아냈다(이번엔 fail-open 이 아니라 **거짓 차단** 방향).
+
+    두 suite 모두 그 헬퍼들을 mock 으로 우회해 **한 번도 실행하지 않았기** 때문에 아무도 못
+    잡았다. 이제 `_shared/git_probe.py` 하나로 위임하고, 여기서 그 위임이 유지되는지 본다.
+    다음에 누가 편의로 로컬 정의를 되살리면 이 테스트가 먼저 실패한다.
+    """
+
+    _SHARED = ("_run_git", "_repo_root", "_default_branch", "_merge_base",
+               "_porcelain_path")
+    # `branch_guard` 는 세 번째 사본이었고 두 라운드 연속 통합에서 빠졌다. 그 모듈은 다섯 중
+    # 둘만 갖고 있으므로 별도로 센다.
+    _SHARED_IN_BRANCH_GUARD = ("_run_git", "_repo_root")
+
+    def test_both_guards_use_the_same_function_objects(self):
+        import sys as _sys
+        from _lib import review_guard as rg  # noqa: PLC0415
+        # `_shared` 는 `.claude/` 아래에 있고 훅이 스스로 `sys.path` 에 얹는다 — 그 경로를
+        # 여기서도 보장한다(테스트가 훅보다 먼저 import 될 수 있다).
+        claude_dir = str(_harness.CLAUDE_DIR)
+        if claude_dir not in _sys.path:
+            _sys.path.insert(0, claude_dir)
+        from _shared import git_probe as gp  # noqa: PLC0415
+        for name in self._SHARED:
+            with self.subTest(fn=name):
+                shared = getattr(gp, name)
+                self.assertIs(getattr(pg, name), shared,
+                              f"plan_guard.{name} 이 공유 구현이 아니다")
+                self.assertIs(getattr(rg, name), shared,
+                              f"review_guard.{name} 이 공유 구현이 아니다")
+        from _lib import branch_guard as bg  # noqa: PLC0415
+        for name in self._SHARED_IN_BRANCH_GUARD:
+            with self.subTest(fn=name, module="branch_guard"):
+                self.assertIs(getattr(bg, name), getattr(gp, name),
+                              f"branch_guard.{name} 이 공유 구현이 아니다")
+
+    def test_neither_guard_defines_them_locally(self):
+        """객체 동일성만 보면 `_x = _git_probe._x` 뒤에 재정의가 와도 통과할 수 있다 —
+        모듈 소스에 로컬 `def` 가 없다는 것도 함께 건다."""
+        import ast as _ast
+        for mod in ("review_guard.py", "plan_guard.py", "branch_guard.py"):
+            src = (_harness.HOOKS_DIR / "_lib" / mod).read_text(encoding="utf-8")
+            defined = {n.name for n in _ast.walk(_ast.parse(src))
+                       if isinstance(n, _ast.FunctionDef)}
+            expected = (self._SHARED_IN_BRANCH_GUARD
+                        if mod == "branch_guard.py" else self._SHARED)
+            for name in expected:
+                with self.subTest(module=mod, fn=name):
+                    self.assertNotIn(
+                        name, defined,
+                        f"{mod} 가 {name} 을 다시 로컬 정의했다 — 복제가 부활했다",
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()

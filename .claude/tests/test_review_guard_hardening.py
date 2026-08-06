@@ -739,5 +739,42 @@ class UnstagedModificationKeepsItsPathTest(unittest.TestCase):
                       rg._uncommitted_code_changes(self.root))
 
 
+class RiskHeadingDecoyTest(unittest.TestCase):
+    """헤딩 앞의 헛매치 한 줄이 위험도 파싱을 통째로 끝내지 못한다.
+
+    `_summary_is_resolved` 의 바깥 루프가 무조건 `break` 였다. `전체 위험도` 라는 문구를 본문에서
+    한 번 언급하기만 해도 — 절차를 인용하는 평범한 문장 — 그 지점에서 스캔이 끝나고
+    `risk_level` 이 None 으로 남는다. 표 행 없는 서술형 리포트라면 `has_actionable` 도 False 라
+    **HIGH/CRITICAL 리포트가 RESOLUTION 없이 "해결됨"** 으로 게이트를 연다.
+
+    커밋된 SUMMARY 1,548개 실측: 이 형태 0건(헤딩 매치가 2회 이상인 문서는 21개지만 첫 매치가
+    항상 레벨을 낸다). 즉 잠복 경로이고, 조건 하나로 닫힌다.
+    """
+
+    def _resolved(self, text):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
+            f.write(text)
+        return rg._summary_is_resolved(os.path.join(d, "SUMMARY.md"))
+
+    _TAIL = "\n## 발견사항\n\n표 없이 서술로만 적는다.\n"
+
+    def test_a_critical_report_is_not_resolved(self):
+        """대조군 — 헛매치가 없으면 원래 올바르게 판정한다."""
+        self.assertFalse(self._resolved(
+            "## 전체 위험도\n\n**CRITICAL** — 심각한 결함.\n" + self._TAIL))
+
+    def test_a_decoy_mention_before_the_heading_does_not_flip_it(self):
+        self.assertFalse(self._resolved(
+            "본 문서는 § 전체 위험도 절차를 따른다.\n\n"
+            "## 전체 위험도\n\n**CRITICAL** — 심각한 결함.\n" + self._TAIL))
+
+    def test_a_clean_report_still_resolves(self):
+        """반대 방향도 건다 — 이 조건이 모든 것을 미해결로 만들면 게이트는 늘 우는 경고가 된다."""
+        self.assertTrue(self._resolved(
+            "## 전체 위험도\n\nNONE — 발견 없음.\n" + self._TAIL))
+
+
 if __name__ == "__main__":
     unittest.main()

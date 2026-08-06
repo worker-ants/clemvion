@@ -22,8 +22,15 @@ single-purpose.
 from __future__ import annotations
 
 import os
-import subprocess
 from dataclasses import dataclass
+
+import sys as _sys
+_CLAUDE_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+if _CLAUDE_DIR not in _sys.path:
+    _sys.path.insert(0, _CLAUDE_DIR)
+from _shared import git_probe as _git_probe  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -32,26 +39,11 @@ class GuardDecision:
     reason: str  # human-readable; useful for stderr / system reminder bodies.
 
 
-def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
-    """Run a git command with short timeout. Empty output on failure."""
-    try:
-        p = subprocess.run(
-            ["git"] + args,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return p.returncode, p.stdout.strip(), p.stderr.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return 1, "", ""
-
-
-def _repo_root(cwd: str) -> str | None:
-    rc, out, _ = _run_git(["rev-parse", "--show-toplevel"], cwd)
-    if rc != 0 or not out:
-        return None
-    return out
+# 세 번째 사본이었다. `_run_git` 은 여기서만 아직 `.strip()` 이었다 — 7R 이 review_guard 를,
+# 8R 이 plan_guard 를 고치고도 이 모듈은 두 번 다 빠졌다. 이 모듈은 `git status --porcelain`
+# 을 호출하지 않아 오늘은 도달 불가지만, 세 번째 사본을 남겨두면 네 번째 라운드를 부른다.
+_run_git = _git_probe._run_git
+_repo_root = _git_probe._repo_root
 
 
 def _is_main_worktree(repo_root: str) -> bool:

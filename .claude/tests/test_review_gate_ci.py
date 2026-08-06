@@ -600,13 +600,19 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
     _ALLOWED = {
         ("review_guard.py", "CLAUDE_PROJECT_DIR"),
     }
-    _SCANNED = ("review_guard.py", "branch_guard.py", "plan_guard.py")
+    # `hooks/_lib` 셋 + 게이트가 **위임하는** `_shared` 전부. 9R 리뷰어가 `report_paths.py`/
+    # `block_integrity.py` 에 `GITHUB_JOB == "gate"` 분기를 심어 127개 테스트가 전부 통과하는
+    # 것을 실증했다 — 실제 판정(Gate1 커버리지, Gate2 하향 감지)이 그 두 함수로 내려가는데
+    # 스캔 대상에 없었다. 목록을 손으로 유지하지 않고 디렉터리에서 도출한다.
+    _SCANNED_LIB = ("review_guard.py", "branch_guard.py", "plan_guard.py")
 
     def test_no_unregistered_environment_reads_in_the_gate(self):
         seen = set()
-        for name in self._SCANNED:
-            path = _harness.HOOKS_DIR / "_lib" / name
-            if not path.exists():
+        targets = [_harness.HOOKS_DIR / "_lib" / n for n in self._SCANNED_LIB]
+        targets += sorted((_harness.CLAUDE_DIR / "_shared").glob("*.py"))
+        for path in targets:
+            name = path.name
+            if not path.exists() or name == "__init__.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):

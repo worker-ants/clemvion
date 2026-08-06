@@ -46,17 +46,21 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from dataclasses import dataclass
 
-THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+# `_shared` 는 저장소의 `.claude/` 아래에 있다. 이 훅은 여태 그것을 쓰지 않았고, 그래서
+# 자매 훅과 같은 코드를 손으로 복제해 갖고 있었다 — 그 쌍이 두 번 갈렸다.
+import sys
+# `_lib` → `hooks` → `.claude`. 세 단계다 — 두 단계로 두면 `hooks` 를 가리켜
+# `_shared` 를 못 찾는다.
+_CLAUDE_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+if _CLAUDE_DIR not in sys.path:
+    sys.path.insert(0, _CLAUDE_DIR)
+from _shared import git_probe as _git_probe  # noqa: E402
 
-try:
-    # Reuse the default-branch resolver so the merge-base is computed against the
-    # same default branch the other guards use.
-    from branch_guard import _origin_default_branch  # type: ignore
-except Exception:  # pragma: no cover - import path fallback
-    _origin_default_branch = None  # type: ignore
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 CODE_PREFIX = "codebase/"
@@ -95,43 +99,17 @@ class PlanDecision:
         return self.untouched
 
 
-def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
-    try:
-        p = subprocess.run(
-            # `-c core.quotePath=false` and `rstrip()` (not `strip()`) — both
-            # mirror `review_guard._run_git`, which is the same code by descent.
-            #
-            # The `strip()` was a live defect **in the false-BLOCK direction**,
-            # which is worse here than the fail-open it caused next door: this
-            # gate's own docstring promises "a parse failure always means NOT
-            # blocked", and this inverted it. `git status --porcelain` writes a
-            # two-column code, and a plan file edited but not staged comes back
-            # as `" M plan/…"` — leading space. Stripping it shifted the line
-            # left and `_porcelain_path`'s fixed-width parse returned
-            # `"lan/in-progress/…"`. The plan then matched nothing, so a plan
-            # that HAD been updated read as untouched and push was refused.
-            # Reproduced on this repository's own working tree, on the ordinary
-            # flow (edit the plan, push before committing it).
-            #
-            # Round 7 fixed exactly this in `review_guard.py` and did not carry
-            # it here — the hand-synced-pair drift this repo has now recorded
-            # for `report_paths`, `retry_state`, and the doc-sync matrix.
-            ["git", "-c", "core.quotePath=false"] + args,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return p.returncode, p.stdout.rstrip(), p.stderr.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return 1, "", ""
-
-
-def _repo_root(cwd: str) -> str | None:
-    rc, out, _ = _run_git(["rev-parse", "--show-toplevel"], cwd)
-    if rc != 0 or not out:
-        return None
-    return out
+# These five git probes now live in `.claude/_shared/git_probe.py`, shared with the
+# sibling guard. They were byte-identical copies (AST-compared before moving), and
+# the pair drifted twice in a row: round 7 fixed `_run_git`'s `.strip()` here and
+# round 8 found the same line still in the other copy, false-blocking pushes.
+# Delegating rather than re-copying is the same move `report_paths` and
+# `retry_state` already made for the same reason.
+_run_git = _git_probe._run_git
+_repo_root = _git_probe._repo_root
+_default_branch = _git_probe._default_branch
+_merge_base = _git_probe._merge_base
+_porcelain_path = _git_probe._porcelain_path
 
 
 def _current_branch(cwd: str) -> str | None:
@@ -139,40 +117,6 @@ def _current_branch(cwd: str) -> str | None:
     if rc == 0 and out:
         return out
     return None
-
-
-def _default_branch(cwd: str) -> str | None:
-    if _origin_default_branch is not None:
-        try:
-            d = _origin_default_branch(cwd)
-            if d:
-                return d
-        except Exception:
-            pass
-    for name in ("main", "master"):
-        rc, _, _ = _run_git(["rev-parse", "--verify", f"refs/heads/{name}"], cwd)
-        if rc == 0:
-            return name
-    return None
-
-
-def _merge_base(cwd: str, default_branch: str) -> str | None:
-    for ref in (f"origin/{default_branch}", default_branch):
-        rc, out, _ = _run_git(["merge-base", "HEAD", ref], cwd)
-        if rc == 0 and out:
-            return out
-    return None
-
-
-def _porcelain_path(ln: str) -> str:
-    """Destination path from one `git status --porcelain v1` line (rename-aware)."""
-    if len(ln) < 4:
-        return ""
-    code = ln[:2]
-    path = ln[3:].strip()
-    if code and code[0] in ("R", "C") and " -> " in path:
-        path = path.split(" -> ", 1)[1].strip()
-    return path
 
 
 def _committed_changes(cwd: str, base: str, prefix: str) -> list[str]:
