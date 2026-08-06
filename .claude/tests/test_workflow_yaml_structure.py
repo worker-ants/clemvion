@@ -190,6 +190,17 @@ class WorkflowStructureTest(unittest.TestCase):
         ("review-gate.yml", "gate"): "github.actor != 'dependabot[bot]'",
     }
 
+    # step 레벨 `if:` 도 같은 자리다. job 은 등재제로 막고 step 은 안 막은 것이 6R CRITICAL
+    # 이었다 — step 이 skip 돼도 job 은 success 로 보고되므로 로그는 초록이다. 3명이 독립 실증.
+    # 전부 e2e 의 진단 수집 step 이다 — 실패했을 때만(또는 항상) 로그·아티팩트를 모은다.
+    # 게이트 성격 step 에는 조건이 없어야 하고, 있으면 여기서 마주친다.
+    _STEP_CONDITIONS = {
+        ("e2e.yml", "Collect docker logs on failure"): "failure()",
+        ("e2e.yml", "Upload artifacts"): "failure()",
+        ("e2e.yml", "Surface flaky (retry-passed) tests"): "always()",
+        ("e2e.yml", "Upload playwright report on failure"): "failure()",
+    }
+
     def test_job_conditions_are_registered(self):
         seen = set()
         for path in self.files:
@@ -208,6 +219,84 @@ class WorkflowStructureTest(unittest.TestCase):
                     self.assertEqual(job["if"], self._JOB_CONDITIONS[key])
         self.assertEqual(self._JOB_CONDITIONS.keys() - seen, set(),
                          "`_JOB_CONDITIONS` 에 더 이상 존재하지 않는 항목이 남아 있다")
+
+    def test_step_conditions_are_registered(self):
+        seen = set()
+        for path in self.files:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            for job_name, job in (doc.get("jobs") or {}).items():
+                if not isinstance(job, dict):
+                    continue
+                for i, step in enumerate(job.get("steps") or []):
+                    if not isinstance(step, dict) or "if" not in step:
+                        continue
+                    key = (path.name, step.get("name"))
+                    seen.add(key)
+                    with self.subTest(workflow=path.name, job=job_name, step=i):
+                        self.assertIn(
+                            key, self._STEP_CONDITIONS,
+                            f"{path.name} step {step.get('name')!r} 에 등재되지 않은 `if:` "
+                            f"가 있다 ({step['if']!r}) — step 이 skip 돼도 job 은 성공이다",
+                        )
+                        self.assertEqual(step["if"], self._STEP_CONDITIONS[key])
+        self.assertEqual(self._STEP_CONDITIONS.keys() - seen, set(),
+                         "`_STEP_CONDITIONS` 에 더 이상 존재하지 않는 항목이 남아 있다")
+
+    # C1: `on.pull_request` 의 형제 키. `types`/`branches` 한 줄이면 워크플로가 영구히 안 돌고
+    # Actions 탭에 기록조차 안 남는다. review-gate 만 닫혀 있었고 harness-checks 는 열려 있었다.
+    _PULL_REQUEST_KEYS = {
+        "deps-security-checks.yml": {"paths"},
+        "e2e.yml": {"paths-ignore"},
+        "frontend-checks.yml": {"paths"},
+        "harness-checks.yml": {"paths"},
+        "migration-check.yml": {"paths"},
+        "packages-checks.yml": {"paths"},
+        "review-gate.yml": {"paths"},
+        "spec-link-checks.yml": {"paths"},
+        "web-chat-checks.yml": {"paths"},
+    }
+
+    def test_pull_request_trigger_shape_is_registered(self):
+        seen = set()
+        for path in self.files:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            on = doc.get("on", doc.get(True)) or {}
+            pr = on.get("pull_request") if isinstance(on, dict) else None
+            if not isinstance(pr, dict):
+                continue
+            seen.add(path.name)
+            with self.subTest(workflow=path.name):
+                self.assertIn(
+                    path.name, self._PULL_REQUEST_KEYS,
+                    f"{path.name} 의 pull_request 트리거가 등재돼 있지 않다",
+                )
+                self.assertEqual(
+                    set(pr), self._PULL_REQUEST_KEYS[path.name],
+                    f"{path.name} 의 pull_request 키 집합이 다르다 — "
+                    "`types`/`branches` 한 줄이면 이 워크플로는 영영 트리거되지 않는다",
+                )
+        self.assertEqual(self._PULL_REQUEST_KEYS.keys() - seen, set(),
+                         "`_PULL_REQUEST_KEYS` 에 더 이상 존재하지 않는 항목이 남아 있다")
+
+    def test_workflow_and_job_identities_are_unique(self):
+        """같은 `name:` 과 job id 를 참칭하는 "always green" 워크플로를 새로 추가하는 우회.
+
+        GitHub 의 required-status-check 은 파일이 아니라 **체크 이름 문자열**로 매칭되므로,
+        두 워크플로가 같은 identity 로 상태를 보고하면 경쟁이 성립한다. 어떤 가드도 파일 간
+        유일성을 보지 않았다 — `WorkflowWiringTest` 는 `review-gate.yml` 한 파일만 로드한다.
+        """
+        import collections
+        names, pairs = collections.Counter(), collections.Counter()
+        for path in self.files:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            name = doc.get("name")
+            names[name] += 1
+            for job in (doc.get("jobs") or {}):
+                pairs[(name, job)] += 1
+        self.assertEqual([n for n, c in names.items() if c > 1], [],
+                         "같은 `name:` 을 쓰는 워크플로가 둘 이상이다")
+        self.assertEqual([k for k, c in pairs.items() if c > 1], [],
+                         "같은 (워크플로 name, job id) 조합이 둘 이상이다")
 
     # 하네스 스위트를 CI 에서 **실제로 부르는** 명령. 패턴을 한 글자만 좁혀도
     # (`test_[!r]*.py`) 가드 파일 11개가 CI 에서 영원히 안 도는데, 파일 자체는 전부 GREEN 이라

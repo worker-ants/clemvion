@@ -25,10 +25,10 @@ on:
       - 'codebase/**'
       # 게이트 자신과 그것이 읽는 판정 로직이 바뀌면 이 워크플로도 돌아야 한다 —
       # harness-checks.yml 이 같은 실패 클래스를 여섯 번 겪고 세운 규칙.
-      - '.claude/hooks/_lib/review_guard.py'
-      # review_guard._default_branch() 가 이 모듈의 _origin_default_branch 를 import 한다.
-      # 빠져 있으면 그 파일만 고친 PR 에서 이 워크플로가 안 돈다 — 위와 같은 실패 클래스.
-      - '.claude/hooks/_lib/branch_guard.py'
+      # 개별 파일명이 아니라 글롭이다. 초판은 review_guard.py 만 적었다가 그것이 import 하는
+      # branch_guard.py 를 빠뜨렸고(1R), 그 다음엔 _lib 에 세 번째 모듈이 생기면 같은 일이
+      # 반복될 자리였다 — 이 저장소가 여섯 번 겪은 paths 커버리지 갭 클래스다.
+      - '.claude/hooks/_lib/**'
       - '.claude/_shared/**'
       - 'scripts/check-review-gate.py'
       - '.github/workflows/review-gate.yml'

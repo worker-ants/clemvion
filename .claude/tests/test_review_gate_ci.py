@@ -355,11 +355,22 @@ class OneJudgeTest(unittest.TestCase):
         # `REVIEW_GATE_SKIP` 조건부 override, actor 화이트리스트로 `blocked=False` 강제.
         # 전부 **비-Call 접근**(Subscript/Compare/IfExp)이라 호출 허용 목록을 그대로 통과했다.
         # 이 스크립트가 환경을 읽을 정당한 이유는 없다 — 입력은 argparse 가 전부다.
+        _ENV_NAMES = ("environ", "getenv", "argv", "putenv", "environb")
         for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and node.attr in ("environ", "getenv",
-                                                                 "argv", "putenv"):
+            # `os.environ` 형태
+            if isinstance(node, ast.Attribute) and node.attr in _ENV_NAMES:
                 self.fail(f"{node.lineno}행: {node.attr!r} 에 접근한다 — "
                           "환경으로 판정을 갈아탈 수 있는 자리다")
+            # `from os import environ as _E` 형태. 모듈(`os`)은 허용 목록에 있으므로 import
+            # 검사를 그대로 통과한다 — 6R 리뷰어가 이 형태로 `_E["GITHUB_WORKFLOW"]` 비교를
+            # 심어 review-gate job 위에서만 판정을 뒤집는 것을 실증했다.
+            if isinstance(node, ast.ImportFrom):
+                for a in node.names:
+                    self.assertNotIn(
+                        a.name, _ENV_NAMES,
+                        f"{node.lineno}행: `from {node.module} import {a.name}` — "
+                        "이름을 바꿔 들여와도 환경 접근이다",
+                    )
 
         attrs = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         self.assertIn("evaluate_review", attrs,
@@ -399,8 +410,7 @@ class WorkflowWiringTest(unittest.TestCase):
             "pull_request": {
                 "paths": [
                     "codebase/**",
-                    ".claude/hooks/_lib/review_guard.py",
-                    ".claude/hooks/_lib/branch_guard.py",
+                    ".claude/hooks/_lib/**",
                     ".claude/_shared/**",
                     "scripts/check-review-gate.py",
                     ".github/workflows/review-gate.yml",
@@ -524,11 +534,24 @@ class VerdictComesFromTheGateTest(unittest.TestCase):
     # 아래 표가 어긋난다. 초판은 `{**os.environ, …}` 로 부모 환경을 통째로 상속해서, 환경을
     # 읽는 우회를 **테스트 자신이 재현할 수 없었다**.
     _HOSTILE_ENV = {
+        # GH Actions 가 실제로 채우는 표준 컨텍스트 전부 — 이 중 무엇으로 갈라지든 표가
+        # 어긋난다. 초판은 다섯 개뿐이었고 `GITHUB_WORKFLOW`/`GITHUB_JOB` 이 빠져 있어,
+        # 리뷰어가 정확히 그 둘로 "review-gate job 위에서만 통과" 를 실증했다.
+        "GITHUB_ACTIONS": "true",
         "GITHUB_ACTOR": "trusted-release-bot",
+        "GITHUB_BASE_REF": "main",
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_HEAD_REF": "feature",
+        "GITHUB_JOB": "gate",
         "GITHUB_REF": "refs/heads/main",
+        "GITHUB_REPOSITORY": "worker-ants/clemvion",
+        "GITHUB_RUN_ID": "1",
+        "GITHUB_WORKFLOW": "review-gate",
         "CI": "true",
+        # 우회에 쓰일 법한 이름들.
         "REVIEW_GATE_SKIP": "1",
         "REVIEW_GATE_ENFORCE": "1",
+        "BYPASS_REVIEW_GUARD": "1",
     }
 
     def _exit_code(self, blocked, enforce, extra_env):
@@ -557,6 +580,65 @@ class VerdictComesFromTheGateTest(unittest.TestCase):
                         f"exit={r.returncode} (기대 {expected})\n{r.stdout}{r.stderr}",
                     )
                     self.assertIn("미커버" if blocked else "통과", r.stdout)
+
+class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
+    """판정자 **본체**도 환경으로 갈라지지 않는다.
+
+    6R 까지 "판정자는 하나" 는 `check-review-gate.py` 한 파일만 지켰다. 그런데 실제 판정은
+    `review_guard.evaluate_review()` 가 한다 — 거기에
+    `if os.environ.get("GITHUB_JOB") == "gate": return ReviewDecision(False, …)` 세 줄이면
+    **CI 에서만** 영구 통과된다. 리뷰어가 실증했고, 어느 가드도 그 파일을 보지 않았다:
+    `OneJudgeTest` 는 스크립트만 스캔하고, 행위 테스트는 `review_guard.py` 를 스텁으로 통째로
+    교체해 실물을 한 번도 실행하지 않는다.
+
+    금지가 아니라 **등재제**다 — 게이트에는 정당한 환경 사용이 하나 있다
+    (`CLAUDE_PROJECT_DIR`, 훅이 워크트리 루트를 알려주는 경로). 새 환경 접근이 생기면 여기서
+    마주치고, 등재하는 순간이 "이게 CI 에서만 다르게 굴게 만드는가" 를 판단할 자리다.
+    """
+
+    # (파일, 읽는 환경변수) — 이 목록 밖의 접근은 실패한다.
+    _ALLOWED = {
+        ("review_guard.py", "CLAUDE_PROJECT_DIR"),
+    }
+    _SCANNED = ("review_guard.py", "branch_guard.py", "plan_guard.py")
+
+    def test_no_unregistered_environment_reads_in_the_gate(self):
+        seen = set()
+        for name in self._SCANNED:
+            path = _harness.HOOKS_DIR / "_lib" / name
+            if not path.exists():
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                key_names = []
+                # `os.environ.get("X")` / `os.environ["X"]` / `os.getenv("X")`
+                if isinstance(node, ast.Call):
+                    f = node.func
+                    if isinstance(f, ast.Attribute) and f.attr in ("get", "getenv"):
+                        base = f.value
+                        is_env = (
+                            (isinstance(base, ast.Attribute) and base.attr == "environ")
+                            or (isinstance(base, ast.Name) and base.id == "os")
+                        )
+                        if is_env and node.args and isinstance(node.args[0], ast.Constant):
+                            key_names.append(node.args[0].value)
+                elif isinstance(node, ast.Subscript):
+                    base = node.value
+                    if isinstance(base, ast.Attribute) and base.attr == "environ":
+                        sl = node.slice
+                        if isinstance(sl, ast.Constant):
+                            key_names.append(sl.value)
+                for key in key_names:
+                    seen.add((name, key))
+                    with self.subTest(file=name, var=key):
+                        self.assertIn(
+                            (name, key), self._ALLOWED,
+                            f"{name}:{node.lineno} 가 등재되지 않은 환경변수 {key!r} 를 "
+                            "읽는다 — CI 에서만 다른 판정을 내는 자리가 된다",
+                        )
+        self.assertEqual(self._ALLOWED - seen, set(),
+                         "`_ALLOWED` 에 더 이상 존재하지 않는 항목이 남아 있다")
+
 
 class ReviewArtifactsStayTrackedTest(unittest.TestCase):
     """이 백스톱 전체가 서 있는 전제 — `review/**` 가 git 에 추적된다.
