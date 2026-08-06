@@ -122,6 +122,66 @@ class WorkflowStructureTest(unittest.TestCase):
                     )
 
 
+    # 실패를 삼켜서 "초록인데 아무것도 막지 않는" 상태를 만드는 키. 지키는 워크플로에서는
+    # 어느 job/step 에도 있어서는 안 된다.
+    _SWALLOWS_FAILURE = "continue-on-error"
+
+    # 예외는 **(워크플로, step 이름) 단위**로만. 파일 단위 예외를 두면 그 파일의 게이트 step
+    # 까지 함께 열린다. job 레벨은 예외가 없다 — job 하나가 실패를 삼키면 그 안의 모든 step 이
+    # 무해해지고, 그것이 정당한 경우는 없다.
+    #
+    # 등재된 것은 **리포팅** step 이다: flaky 를 표면화하는 것 자체가 빌드를 깨서는 안 되고,
+    # 그 step 이 실패해도 e2e 판정은 앞선 step 들이 이미 냈다.
+    _MAY_SWALLOW = {
+        ("e2e.yml", "Surface flaky (retry-passed) tests"),
+    }
+
+    def test_no_guard_workflow_swallows_its_own_failure(self):
+        """`continue-on-error: true` 는 워크플로를 조용히 무해하게 만든다.
+
+        `review-gate.yml` 에서 이 클래스의 결함을 두 번 겪었다 — 4R 에서 step 레벨을 막았는데
+        job 레벨로 우회됐고(리뷰어 9명 실증), 그 직전 라운드는 잔여물 한 줄로 발견됐다. 그런데
+        그 방어는 `review-gate.yml` **하나에만** 걸려 있었다: `harness-checks.yml` 에 같은 키를
+        넣으면 **모든 harness 테스트가 조언으로 격하**되고 아무 가드도 알아채지 못한다 —
+        `test_review_gate_ci.py` 가 지키려는 것을 포함해 전부다. 실측으로 확인했다.
+
+        같은 결함을 세 번째로 만나기 전에, 파일 하나가 아니라 **모든 워크플로**에 건다.
+        """
+        seen_exceptions = set()
+        for path in self.files:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            for job_name, job in (doc.get("jobs") or {}).items():
+                if not isinstance(job, dict):
+                    continue
+                with self.subTest(workflow=path.name, job=job_name):
+                    self.assertNotIn(
+                        self._SWALLOWS_FAILURE, job,
+                        f"{path.name} job `{job_name}` 이 자기 실패를 삼킨다 — "
+                        "체크는 초록으로 뜨고 아무것도 막지 않는다",
+                    )
+                for i, step in enumerate(job.get("steps") or []):
+                    if not isinstance(step, dict):
+                        continue
+                    key = (path.name, step.get("name"))
+                    if key in self._MAY_SWALLOW:
+                        seen_exceptions.add(key)
+                        continue
+                    with self.subTest(workflow=path.name, job=job_name, step=i):
+                        self.assertNotIn(
+                            self._SWALLOWS_FAILURE, step,
+                            f"{path.name} job `{job_name}` step #{i} "
+                            f"({step.get('name', '<unnamed>')!r}) 이 실패를 삼킨다 — "
+                            "정당하면 `_MAY_SWALLOW` 에 이유와 함께 등재하라",
+                        )
+
+        # 죽은 예외는 지운다. 등재해 둔 step 이 사라지거나 이름이 바뀌면 그 예외는 다음 사람에게
+        # "여기는 열려 있다" 는 거짓 신호가 된다.
+        self.assertEqual(
+            self._MAY_SWALLOW - seen_exceptions, set(),
+            "`_MAY_SWALLOW` 에 더 이상 존재하지 않는 step 이 남아 있다",
+        )
+
+
 class DetectorTest(unittest.TestCase):
     """The checks above are only worth their green if they can go red."""
 
