@@ -508,3 +508,68 @@ class RealAreaTargetSurvivalTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanFilesAreReadOncePerRunTest(unittest.TestCase):
+    """같은 파일을 한 실행 안에서 두 번 읽지 않는다 (백로그 §7).
+
+    `collect_context` 는 `plan/in-progress/` 전체를 랭킹 신호용으로 읽고, 곧이어
+    `format_file_bundle` 이 같은 디렉터리를 처음부터 다시 읽었다 — 세션당 2배 I/O.
+    실측 규모는 30개 430,929 bytes(≈3.5ms)라 아프지는 않았지만 이 브랜치가 만든 회귀였다.
+
+    **호출 횟수로 잰다.** "빨라졌다" 는 기계 상태에 흔들리고, 이 규모에서는 측정 잡음에
+    묻힌다 — 캐시가 통째로 빠져도 초록일 수 있다. `open` 을 세면 그 축이 사라진다.
+    """
+
+    def test_the_same_path_opens_once(self):
+        out = run_in_orchestrator(
+            """
+            import builtins, os, tempfile
+            d = tempfile.mkdtemp()
+            f = os.path.join(d, "a.md")
+            with open(f, "w") as fh:
+                fh.write("x")
+            n = {"c": 0}
+            _open = builtins.open
+            def counting(path, *a, **k):
+                if str(path) == f:
+                    n["c"] += 1
+                return _open(path, *a, **k)
+            builtins.open = counting
+            try:
+                first = orch.read_text_file(f)
+                second = orch.read_text_file(f)
+            finally:
+                builtins.open = _open
+            emit({"opens": n["c"], "same": first == second == "x"})
+            """
+        )
+        self.assertTrue(out["same"], "캐시가 내용을 바꾸면 안 된다")
+        self.assertEqual(out["opens"], 1,
+                         "같은 경로를 두 번 열었다 — 읽기 캐시가 빠졌다")
+
+    def test_clearing_the_cache_re_reads(self):
+        """캐시를 비우면 다시 읽는다 — 테스트 격리가 가능해야 한다.
+
+        이게 없으면 한 테스트가 심은 내용이 다음 테스트로 새고, 그 새는 방향이
+        '통과' 쪽이라 조용하다.
+        """
+        out = run_in_orchestrator(
+            """
+            import os, tempfile
+            d = tempfile.mkdtemp()
+            f = os.path.join(d, "a.md")
+            with open(f, "w") as fh:
+                fh.write("first")
+            a = orch.read_text_file(f)
+            with open(f, "w") as fh:
+                fh.write("second")
+            stale = orch.read_text_file(f)
+            orch._READ_CACHE.clear()
+            fresh = orch.read_text_file(f)
+            emit({"a": a, "stale": stale, "fresh": fresh})
+            """
+        )
+        self.assertEqual(out["a"], "first")
+        self.assertEqual(out["stale"], "first", "한 실행 안에서는 첫 읽기를 유지한다")
+        self.assertEqual(out["fresh"], "second")

@@ -76,6 +76,21 @@ spec_impact: none
    vs cap 141,557. 어느 분기도 **파일 섹션 자체를 버리는** 기능이 없어 구조적으로 준수 불가다
    (origin/main 도 동일 — 이번 변경이 만든 것도 악화시킨 것도 아니다). 실제 리뷰 규모에서는
    발생하지 않으므로 P3. 닫으려면 "N개 파일은 목록만" 같은 파일-단위 드롭이 필요하다.
+5. **`evaluate_review` 의 boolean flag 구조** — **시도했다가 철회 (2026-08-07). 재개하려면
+   아래 실측부터 반박할 것.**
+   `evaluate_review_for_push()` / `_for_stop()` 래퍼를 만들고 두 훅을 그쪽으로 돌렸더니,
+   **훅의 import 표면이 넓어져 게이트가 더 깨지기 쉬워졌다**. 훅은 `review_guard` 에서
+   심볼을 import 하는데, 구버전·부분 모듈이면 `ImportError` 가 나고 그 실패 경로는
+   **fail-open** 이다. 실측: `test_review_gate_present_but_none_is_accurate_too` 가
+   `ImportError: cannot import name 'evaluate_review_for_stop'` 와 함께 리뷰 게이트
+   fail-open 을 보고했다. 가드를 명확하게 만들려다 **가드가 안 도는 경로**를 늘린 셈이다.
+   부수 비용도 있었다 — 훅이 소비하는 stub 5곳(4개 파일)을 전부 갱신해야 했다.
+   그리고 이 항목이 막으려는 성질은 **이미 행위로 고정돼 있다**:
+   `test_push_never_opts_into_the_in_flight_concession` 이 seam 으로 `in_flight_ok` 값을
+   기록해, push 가 양보를 켜면 RED 를 낸다.
+   재개한다면 import 표면을 넓히지 않는 형태여야 한다 — 예컨대 라이브러리 쪽에서
+   `in_flight_ok` 를 **호출부 식별자로 요구**(키워드 필수화)해 기본값 자체를 없애는 쪽.
+
 5. **`evaluate_review` 의 boolean flag 구조** — push(hard block)/stop(soft nudge) 두 보증
    수준을 `in_flight_ok` 하나로 스위칭한다. 현재는 fail-safe 기본값 + 양방향 seam 테스트로
    봉쇄돼 있으나, 세 번째 호출부가 생기면 다시 기본값에 의존한다.
@@ -83,6 +98,16 @@ spec_impact: none
 6. **git 브랜치-diff 헬퍼가 두 orchestrator 에 중복** — `_branch_changed_rels`(consistency)
    와 `get_git_branch_diff_files`(code-review)가 같은 git 연산이다. 상호참조 주석은 넣었지만
    구조적 중복은 남는다. 위 "기본 브랜치 해석 4곳" 과 같은 뿌리(= `_lib` 충돌 해소 선행).
+7. ~~**`_rank_plan_text` 이중 read**~~ → **처분 완료 (2026-08-07).**
+   호출부를 고치는 대신 `read_text_file` 이 한 실행 안에서 같은 경로를 한 번만 읽도록
+   했다 — 호출부가 6곳이라 **다른 이중 읽기까지 함께** 닫힌다.
+   캐시가 안전한 근거: 이 orchestrator 는 세션을 준비하고 끝나는 단명 CLI 다. 한 실행
+   안에서 같은 경로의 내용이 달라지면 번들과 랭킹이 **서로 다른 문서**를 보게 되므로,
+   오히려 첫 읽기를 유지하는 편이 진단 가능하다. 테스트는 `_READ_CACHE.clear()` 로 격리한다.
+   테스트는 **호출 횟수**로 잰다 — 이 규모(30개 430,929 bytes ≈ 3.5ms)에서 "빨라졌다" 는
+   측정 잡음에 묻혀 캐시가 통째로 빠져도 초록일 수 있다. `open` 을 세면 그 축이 사라진다.
+   뮤테이션(캐시 제거) → 신규 2건 + 기존 2건 RED.
+
 7. **`_rank_plan_text` 이중 read (이번 PR 이 도입한 I/O 회귀)** — `collect_context` 가
    랭킹 신호용으로 `plan/in-progress/` 전체를 한 번 읽고, 곧이어 `format_file_bundle` 이
    같은 디렉터리를 처음부터 다시 읽는다. 세션당 2배 I/O. 실측 규모는 30개 430,929 bytes
