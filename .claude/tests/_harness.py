@@ -68,3 +68,68 @@ ENV_VALUE_SHAPES = (
     # same axes rather than on a fresh, incomparable set.
     '"a b"c', "'a b'c", 'x"a b"',
 )
+
+
+def git_in(repo: Path | str, *args: str, check: bool = True,
+           capture: bool = True) -> "subprocess.CompletedProcess[str]":
+    """Run `git` **inside** ``repo``, and make it impossible to escape.
+
+    2026-08-06 a fixture of this shape ran `git remote add origin …` while its
+    cwd was still the worktree, so it rewrote the **shared** `.git/config`.
+    Five worktrees read that file: other sessions' `git fetch` broke, and
+    nothing signalled it until a later fetch failed. The fixture looked correct
+    — it passed `cwd=` — but `cwd` alone does not stop git from walking *up* to
+    find a repository when the target is not one yet.
+
+    Three things close that, and they only work together:
+
+    - ``git -C <repo>`` pins the directory in git's own argv, so a caller that
+      forgets `cwd` cannot silently target the process's cwd.
+    - ``GIT_CEILING_DIRECTORIES`` stops the upward search at ``repo``. Without
+      it, `git init`-before-the-fact or a typo'd path finds the enclosing
+      worktree instead of failing.
+    - the realpath assertion rejects a ``repo`` outside a temp directory
+      **before** git runs. `GIT_CEILING_DIRECTORIES` protects the tree above
+      ``repo``; it does nothing if ``repo`` *is* the worktree.
+
+    Real-repository readers (tests that intentionally query this checkout's own
+    history) must NOT use this helper — pinning a ceiling at the repo root is
+    meaningless there, and the assertion would reject it. Those call `git`
+    directly with `cwd=REPO_ROOT`.
+    """
+    import os
+    import subprocess
+    import tempfile
+
+    resolved = os.path.realpath(str(repo))
+    tmp_roots = {os.path.realpath(tempfile.gettempdir()), "/tmp", "/private/tmp"}
+    assert any(resolved == r or resolved.startswith(r + os.sep) for r in tmp_roots), (
+        f"git_in() 은 임시 디렉터리 안에서만 쓴다 — 받은 경로: {resolved}. "
+        "실 저장소를 읽는 테스트라면 이 헬퍼가 아니라 cwd=REPO_ROOT 로 직접 호출할 것 "
+        "(공유 .git/config 오염 사고 2026-08-06 의 방어)."
+    )
+    env = dict(os.environ)
+    env["GIT_CEILING_DIRECTORIES"] = resolved
+    env.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+    env.setdefault("GIT_CONFIG_SYSTEM", os.devnull)
+    return subprocess.run(["git", "-C", resolved, *args], env=env, check=check,
+                          capture_output=capture, text=True)
+
+
+def make_temp_git_repo(path: Path | str, *, branch: str = "main",
+                       initial_commit: bool = True) -> Path:
+    """Initialise an isolated git repo at ``path`` and return it.
+
+    Identity is set locally (never `--global`) so the helper works on a machine
+    with no git identity configured — CI runners included.
+    """
+    repo = Path(path)
+    repo.mkdir(parents=True, exist_ok=True)
+    git_in(repo, "init", "-q", "-b", branch)
+    git_in(repo, "config", "user.email", "harness@example.invalid")
+    git_in(repo, "config", "user.name", "harness")
+    if initial_commit:
+        (repo / ".gitkeep").write_text("", encoding="utf-8")
+        git_in(repo, "add", ".gitkeep")
+        git_in(repo, "commit", "-qm", "init")
+    return repo

@@ -116,9 +116,9 @@ def _ensure_on_path(entry: str) -> None:
 
 
 def _git(*args, cwd):
-    return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
-    )
+    # 공용 헬퍼 — `git -C` + ceiling + 임시경로 단언 (2026-08-06 공유 `.git/config`
+    # 오염 사고의 방어). linked worktree 도 임시 경로 아래라 단언을 만족한다.
+    return _harness.git_in(cwd, *args)
 
 
 class PushGuardWorktreeScopeTest(unittest.TestCase):

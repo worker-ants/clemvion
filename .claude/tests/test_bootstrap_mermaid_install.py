@@ -113,8 +113,9 @@ class BootstrapMermaidInstallTest(unittest.TestCase):
 
     # --- helpers -----------------------------------------------------------
     def _git(self, *args):
-        return subprocess.run(["git", "-C", self.repo, *args],
-                              capture_output=True, text=True, check=True)
+        # `-C` 만으로는 대상이 아직 저장소가 아닐 때 git 이 **상위로 걸어 올라간다** —
+        # 공용 헬퍼가 ceiling 까지 함께 건다 (2026-08-06 공유 .git/config 오염 사고).
+        return _harness.git_in(self.repo, *args)
 
     def _write(self, path, content):
         os.makedirs(os.path.dirname(path), exist_ok=True)

@@ -30,6 +30,7 @@ import sys
 import textwrap
 import unittest
 
+import _harness
 from _harness import REPO_ROOT
 
 ORCH = (
@@ -283,13 +284,12 @@ class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
 
+        # 공용 헬퍼 — `git -C` + ceiling + 임시경로 단언. 2026-08-06 공유 `.git/config`
+        # 오염 사고의 방어이고, 사고 당시 이 파일이 미경화 5곳 중 하나였다.
         def git(*args):
-            subprocess.run(["git", *args], cwd=d, check=True,
-                           capture_output=True, text=True, timeout=30.0)
+            return _harness.git_in(d, *args)
 
-        git("init", "-q", "-b", "main")
-        git("config", "user.email", "t@t")
-        git("config", "user.name", "t")
+        _harness.make_temp_git_repo(d, initial_commit=False)
         os.makedirs(os.path.join(d, "spec"), exist_ok=True)
         for name in ("kept.md", "renamed-from.md"):
             with open(os.path.join(d, "spec", name), "w") as f:
