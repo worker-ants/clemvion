@@ -454,3 +454,44 @@ reason : a code review session is in flight (started, SUMMARY pending) — allow
 완화 확인: 이번엔 checker **5명 전원**이 워크트리 직접 Read + `git diff` 로 우회해 결론 신뢰성에는
 영향이 없었다. 다만 7번째 재발(`17_21_27`) 때는 5명 중 1명만 우회했고 **나머지 3명은 그 영역을
 전혀 검토하지 못했다** — 우회는 checker 별로 불균등하므로 완화책으로 신뢰할 수 없다.
+
+## 부록 — CI 를 켠 뒤 드러난 기존 결함 (2026-08-06, 이 티켓 밖)
+
+이 계획이 예견한 "Actions 를 켜면 두 달치 누적분이 나온다" 의 실례. 전부 `origin/main` 에
+이미 있던 것이고 이 티켓의 코드가 만든 것이 아니다.
+
+| # | 결함 | 상태 |
+| --- | --- | --- |
+| 1 | `playwright-runner` 통마운트가 이미지의 `packages/*/dist` 를 덮음 | #1091 종결 |
+| 2 | `_file_mtime` 의 `stat -f` 가 GNU 에서 `?` 반환 → 쿨다운 영구 미만료 | #1091 종결 |
+| 3 | line-anchor 테스트가 PNG blob 을 UTF-8 디코드 → `UnicodeDecodeError` | #1091 종결 |
+| 4 | `harness-checks` 의 `timeout-minutes: 5` 가 실측 job 566초의 53% | #1091 종결 |
+| 5 | 내부 패키지 `prepare` 가 디렉터리 존재만 봐 stale dist 미재빌드 | PR #1093 (`claude/packages-prepare-stale-dist`, `1ac458d07`) |
+| 6 | `spec-link-integrity` 가 **미선언 의존**으로 CI 에서만 실패 | 본 PR (`claude/spec-link-guard-missing-deps`) — 최종 확인은 CI 그린 |
+| 7 | `check-override-floors.py` 가 `origin/main` 에서도 exit 1 (override 바닥 침식) | **미처분** — 별도 브랜치 진행 예정 |
+
+**#6 이 특히 오래 숨은 이유 — 워크트리 중첩이 `node-linker=isolated` 를 무력화한다.**
+`spec-links.ts` 가 `mdast-util-from-markdown`·`mdast-util-to-string`·`github-slugger`·
+`mdast`(타입) 를 import 하는데 **어느 매니페스트에도 선언이 없었다.** 그런데 로컬에서는
+13 tests 가 통과한다. 해소 경로를 추적하니
+
+```
+/Volumes/project/private/clemvion/node_modules/mdast-util-from-markdown/index.js
+                                  ↑ 메인 체크아웃 (워크트리의 부모)
+```
+
+워크트리가 `<repo>/.claude/worktrees/` 아래 **중첩**이라 node 가 상위로 걸어 올라가 부모의
+`node_modules` 를 찾는다. `.npmrc` 의 `node-linker=isolated` 가 "선언한 의존만 해소" 를
+강제하는 취지인데, 그 강제가 **로컬에서만 조용히 뚫린다**. CI 는 평평한 체크아웃이라 없다.
+
+→ **미선언 의존은 로컬 실행으로 검출되지 않는다.** 같은 클래스가 다른 파일에도 있는지는
+미확인이다(전수 조사 미수행). `deps-security-checks` 나 lint 단계에서 import-vs-manifest
+대조를 두는 것이 근본 처방이다.
+
+**#7 은 별도 트랙이다.** `fast-uri`(GHSA-7p8r-x3mc-p8w7)·`undici` 의 override 하한이 낡아
+취약 버전이 다시 해소된다. 값 갱신은 `pnpm-workspace.yaml` + `check-pnpm-security-config.py`
+의 **2곳 동시 갱신** 규약이 있어 의존성 거버넌스 턴으로 분리한다.
+
+**부수 관측 — push 가드가 `git stash push` 를 `git push` 로 잡는다.** 이 조사 중 실제로
+차단됐다. 가드는 의도적으로 blind 정규식(`A='x git push` 도 매치)이라 이 오탐은 그 설계의
+알려진 대가일 수 있으나, `git stash push` 는 흔한 명령이라 등재해 둔다.
