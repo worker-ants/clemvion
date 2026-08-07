@@ -579,6 +579,9 @@ importers:
       '@types/dompurify':
         specifier: ^3.0.5
         version: 3.2.0
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
       '@types/mdx':
         specifier: ^2.0.13
         version: 2.0.14
@@ -603,12 +606,21 @@ importers:
       eslint-config-next:
         specifier: 16.2.1
         version: 16.2.1(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+      github-slugger:
+        specifier: ^2.0.0
+        version: 2.0.0
       jest-axe:
         specifier: ^11.0.0
         version: 11.0.0
       jsdom:
         specifier: ^29.0.1
         version: 29.1.1(@noble/hashes@2.2.0)
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
+      mdast-util-to-string:
+        specifier: ^4.0.0
+        version: 4.0.0
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -903,6 +915,9 @@ packages:
   '@aws-sdk/core@3.977.4':
     resolution: {integrity: sha512-CEkcQlMOQJCvul60U7wdAOACjtdgFWDsfJI+6wUOGdhGNV2lGbuJpi/R50QLpFG3Tp+sQxa/RmzC3X7KHbhuTA==}
     engines: {node: '>=20.0.0'}
+    deprecated: |-
+      Deprecated due to Document number parsing bug in JSON, see
+        https://github.com/aws/aws-sdk-js-v3/issues/8246. Newer version available.
 
   '@aws-sdk/credential-provider-env@3.972.65':
     resolution: {integrity: sha512-lJT2aRw9wCV8jPHyFJjdZLD4HTydL6/22AnCSOB8e/LqOc55nEJGLHkJQeSxhn8QiqyjFwPKQFtMw0ovjRUY/g==}
