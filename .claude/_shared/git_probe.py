@@ -120,7 +120,20 @@ def _origin_default_branch_over_network(cwd: str) -> str | None:
 # correctness rather than waiting for the first Korean filename to prove it.
 # (Residual: git still quotes paths containing `"`, `\`, or control characters
 # even with this off. Registered in the plan rather than hand-rolling a decoder.)
-def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
+def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
+    """`_run_git` without the whitespace trimming — stdout exactly as git wrote it.
+
+    Split out for the one caller that parses a NEWLINE-SEPARATED LIST of paths.
+    `_run_git`'s `rstrip()` is right for every scalar probe below (`rev-parse`,
+    `merge-base`, `log` — none can produce meaningful trailing whitespace), but a
+    path list is different: a file named `"trail .ts"` is emitted verbatim by git
+    (measured — git C-quotes non-ASCII bytes, not spaces), so trimming the last
+    line silently renames the last path in the list.
+
+    That is the same failure `_run_git`'s own comment records from the other end:
+    a `strip()` that ate a LEADING space and shifted a whole line. Rather than
+    weaken the trimming for the scalar callers, the list caller reads raw.
+    """
     try:
         p = subprocess.run(
             ["git", "-c", "core.quotePath=false"] + args,
@@ -129,21 +142,74 @@ def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str,
             text=True,
             timeout=timeout,
         )
-        # `rstrip()`, NOT `strip()`. `git status --porcelain` emits a two-column
-        # status code, and the most common shape — a tracked file modified but
-        # not staged — is `" M path"` with a LEADING SPACE. Stripping it shifted
-        # every line left by one, and `_porcelain_path`'s fixed-width parse then
-        # returned `"odebase/backend/src/a.ts"` for `codebase/backend/src/a.ts`.
-        # That path matches nothing, so the file lost its "just edited" signal
-        # and the gate fail-opened — on the most ordinary flow there is (edit one
-        # file, push). Found in review round 7 and reproduced directly.
-        #
-        # Trailing whitespace still goes: every other caller (`rev-parse`,
-        # `merge-base`, `log`) wants the bare value without its newline, and
-        # none of them can produce meaningful leading whitespace.
-        return p.returncode, p.stdout.rstrip(), p.stderr.strip()
+        return p.returncode, p.stdout, p.stderr
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return 1, "", ""
+
+
+def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
+    # `rstrip()`, NOT `strip()`. `git status --porcelain` emits a two-column
+    # status code, and the most common shape — a tracked file modified but
+    # not staged — is `" M path"` with a LEADING SPACE. Stripping it shifted
+    # every line left by one, and `_porcelain_path`'s fixed-width parse then
+    # returned `"odebase/backend/src/a.ts"` for `codebase/backend/src/a.ts`.
+    # That path matches nothing, so the file lost its "just edited" signal
+    # and the gate fail-opened — on the most ordinary flow there is (edit one
+    # file, push). Found in review round 7 and reproduced directly.
+    #
+    # Trailing whitespace still goes: every other caller (`rev-parse`,
+    # `merge-base`, `log`) wants the bare value without its newline, and
+    # none of them can produce meaningful leading whitespace. The one caller
+    # for which that is NOT true reads `_run_git_raw` instead.
+    rc, out, err = _run_git_raw(args, cwd, timeout)
+    return rc, out.rstrip(), err.strip()
+
+
+def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
+                      on_error=None) -> list[str]:
+    """Repo-relative paths this branch changed against `base_ref`. `[]` on failure.
+
+    The fourth git probe to be shared, and the first that was duplicated between
+    the two SKILL orchestrators rather than between the hooks:
+    `consistency_orchestrator._branch_changed_rels` and
+    `code_review_orchestrator.get_git_branch_diff_files` ran the same command
+    behind a "change both" comment — the arrangement this module exists to
+    replace. They had already drifted, measured 2026-08-07 on one fixture:
+
+      · a file named `" lead.ts"` came back as `"lead.ts"` from the code-review
+        copy (`.strip().splitlines()`) and correctly from the consistency copy
+        (`.split("\\n")`). That is round 7's leading-space bug, in a third place.
+      · both C-quoted a non-ASCII filename, because neither passed
+        `core.quotePath=false` — the flag this module's `_run_git` already sets.
+      · the same failure had a 10s cap on one side and 30s on the other, and
+        both directions of failure return an EMPTY changeset, which reads
+        downstream as "nothing changed" rather than "the probe failed". The
+        longer cap wins on that asymmetry.
+
+    THREE-DOT, and not negotiable: `A...HEAD` diffs against `merge-base(A, HEAD)`,
+    so a `base_ref` that has advanced past this branch's fork point does not turn
+    changes that landed on the base into reverse deletions here. Both copies
+    documented this independently; see `_collect_code_diff` for the long form.
+
+    No `-- .` pathspec. The consistency copy had one and its own docstring said
+    "whole-repo on purpose" — true only because `root` is the process cwd and the
+    orchestrator is run from the repo root. Dropping it makes the function match
+    what both copies documented regardless of where it is invoked.
+
+    `on_error` receives a one-line reason when git fails, so each orchestrator
+    keeps logging through its own `debug_log` rather than this module inventing a
+    logging channel. Failure is otherwise silent and empty, as before.
+    """
+    rc, out, err = _run_git_raw(
+        ["diff", "--no-renames", "--name-only", f"{base_ref}...HEAD"],
+        cwd, timeout=timeout,
+    )
+    if rc != 0:
+        if on_error is not None:
+            reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"
+            on_error(f"{base_ref}...HEAD: {reason}")
+        return []
+    return [line for line in out.split("\n") if line]
 
 
 def _repo_root(cwd: str) -> str | None:
