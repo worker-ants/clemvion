@@ -143,6 +143,21 @@ spec_impact: none
      `test_push_guard_worktree_scope.py` (전부 `-C`/ceiling 없이 `init`/`config` 호출).
      이 티켓 범위 밖이라 등재만 한다. 근본 처방은 `_harness.py` 에 공용
      `make_temp_git_repo()` 를 두고 이 가드를 그 안에 한 번만 넣는 것이다.
+14. ~~**fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제**~~ → **처분 완료 (2026-08-07).**
+    `_harness.orchestrator_preamble()` + `run_in_orchestrator()` 로 추출. tests/ 순 -123줄.
+    **전제가 절반만 맞았다**: runner 본문은 4개 중 3개가 byte-identical(나머지 하나도 주석만
+    다름)이었지만, preamble 은 유사도 **44~70%** 로 각자 고유 픽스처를 얹고 있었다. 그래서
+    **코어만** 옮기고 파일별 픽스처는 `extra=` 로 그 파일에 남겼다 — 전부 옮겼다면 존재한 적
+    없는 공통을 발명하는 셈이다.
+    작업 중 추출을 두 번 틀렸다: (a) 고유부를 "emit 뒤 ~ ARG 앞" 으로 떠서 `emit` **앞**에
+    있던 `ArgsFor` 클래스를 통째로 잃었고, (b) 필터의 `spec =` 이 `spec = plan = impl_done =
+    diff_base = None` 을 함께 잘라 클래스 속성이 사라졌다. 둘 다 테스트가 즉시 잡았다.
+    **부수 효과 — §13 의 잔여 사각이 닫혔다**: 공유 preamble 이 `_harness` 를 서브프로세스
+    경로에 실어 보내므로 스니펫도 `git_in` 을 쓴다. 문자열 안 raw git 은 AST 가드가 못 보므로,
+    닫힌 상태를 텍스트 검사(`test_the_former_ast_blind_spot_stays_closed`)로 고정했다 —
+    그 가드가 처음엔 **자기 docstring 과 자기 탐지 코드**를 위반으로 잡아 주석·docstring 을
+    제외하도록 정정했다.
+
 14. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·

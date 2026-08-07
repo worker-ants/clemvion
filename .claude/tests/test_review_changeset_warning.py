@@ -34,6 +34,7 @@ import sys
 import textwrap
 import unittest
 
+import _harness
 from _harness import REPO_ROOT
 
 ORCH = (
@@ -41,35 +42,14 @@ ORCH = (
     / "code_review_orchestrator.py"
 )
 
-_PREAMBLE = textwrap.dedent(
-    f"""
-    import contextlib, importlib.util, io, json, sys
-    spec = importlib.util.spec_from_file_location("orch", {str(ORCH)!r})
-    orch = importlib.util.module_from_spec(spec)
-    sys.modules["orch"] = orch
-    spec.loader.exec_module(orch)
-
-    def emit(value):
-        sys.stdout.write("<<<" + json.dumps(value) + ">>>")
-
-    ARG = json.loads(sys.stdin.read() or "null")
-    """
+_PREAMBLE = _harness.orchestrator_preamble(
+    ORCH,
+    imports="contextlib, io",
 )
 
 
 def run_in_orchestrator(snippet: str, arg=None):
-    proc = subprocess.run(
-        [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
-        input=json.dumps(arg), cwd=str(REPO_ROOT),
-        capture_output=True, text=True,
-        # Sibling suites set one too — without it a hang in the target code
-        # blocks the run forever instead of failing.
-        timeout=30.0,
-    )
-    if proc.returncode != 0:
-        raise AssertionError(proc.stderr[-3000:])
-    out = proc.stdout
-    return json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
+    return _harness.run_in_orchestrator(_PREAMBLE, snippet, arg)
 
 
 def warn(collected, branch_files, base="origin/main"):

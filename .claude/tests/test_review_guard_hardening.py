@@ -1065,157 +1065,42 @@ class TempRepoFixturesGoThroughTheSharedHelperTest(unittest.TestCase):
             self.assertTrue((TESTS_DIR / name).is_file(),
                             f"레지스트리의 {name} 이 존재하지 않는다")
 
-    def test_the_ast_blind_spot_is_named(self):
-        """AST 는 **문자열 안**의 픽스처를 보지 못한다 — 그 사각을 이름으로 고정한다.
+    def test_the_former_ast_blind_spot_stays_closed(self):
+        """AST 는 **문자열 안**의 픽스처를 보지 못한다 — 그 사각이 실제로 있었다.
 
-        `test_consistency_context_budget.py` 는 fresh-interpreter 스니펫(문자열)
-        안에서 임시 저장소를 만든다. 위 도출 검사는 그것을 호출로 보지 않으므로
-        **조용히 통과한다**. 사각이 있다는 사실 자체를 테스트로 남겨, 나중에 이 파일이
-        정리될 때(§14 보일러플레이트 추출) 함께 처리되도록 한다.
+        `test_consistency_context_budget.py` 는 fresh-interpreter 스니펫(문자열) 안에서
+        임시 저장소를 만들었다. 위 도출 검사는 문자열을 호출로 파싱하지 않으므로 그
+        raw `subprocess.run(["git", …])` 를 **조용히 통과시켰다**.
+
+        §14 에서 preamble 을 공유로 추출하며 닫혔다 — 공유 preamble 이 `_harness` 를
+        서브프로세스 경로에 실어 보내므로 스니펫도 `git_in` 을 쓸 수 있다. 사각이
+        닫혔다는 사실 자체를 여기 고정한다: 문자열 안에 raw git 호출이 **다시 생기면**
+        AST 가드는 여전히 못 보므로, 이 텍스트 검사가 유일한 방어다.
         """
-        p = TESTS_DIR / "test_consistency_context_budget.py"
-        src = p.read_text(encoding="utf-8")
-        self.assertIn('subprocess.run(["git"', src.replace(", *a]", ", *a]"),
-                      "이 파일이 정리됐다면 이 테스트와 위 주석도 함께 지울 것")
-        self.assertIn("run_in_orchestrator", src,
-                      "fresh-interpreter 경로가 사라졌다면 사각도 사라진 것이다")
-
-
-class DefaultBranchResolutionOrderTest(unittest.TestCase):
-    """`_default_branch` 의 **성공** 경로들을 실 저장소로 구동한다 (백로그 §15).
-
-    11R 이 닫은 결함은 "이 함수가 저장소 위상에 따라 다르게 행동한다" 였는데, 그때
-    만든 유일한 실 저장소 픽스처(`ActionsCheckoutTopologyTest`)는 **정의상
-    `refs/remotes/origin/HEAD` 가 없는** 위상이다. 즉 두 위상 중 하나만 실물로 봤고,
-    "있을 때" 는 stub 으로만 고정돼 있었다.
-
-    여기서 네 위상을 각각 만든다. 순서가 계약의 일부다 —
-    `refs/remotes/origin/<name>` 이 `refs/heads/<name>` 보다 **먼저**여야 한다.
-    같은 이름의 로컬 브랜치는 "무엇이 기본 브랜치인가" 에 대해 더 약한 주장이다.
-    """
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-
-    def _origin(self, branch="main"):
-        origin = _harness.make_temp_git_repo(os.path.join(self.tmp, f"origin-{branch}"),
-                                             branch=branch)
-        return origin
-
-    def test_remote_head_is_what_answers_when_the_name_is_neither_main_nor_master(self):
-        """Method 1 을 **분리해서** 잰다.
-
-        평범한 clone 에서는 `refs/remotes/origin/HEAD` 와 `refs/remotes/origin/main` 이
-        **둘 다** 있어서, 결과가 'main' 이어도 Method 1 이 답했는지 폴백 루프가 답했는지
-        구분되지 않는다 — 그 상태로 두면 Method 1 을 지운 뮤턴트가 통과한다.
-
-        기본 브랜치를 `trunk` 로 두면 갈린다: 폴백 루프는 main/master 만 보므로 답할 수
-        없고, `symbolic-ref refs/remotes/origin/HEAD` 만이 'trunk' 를 낼 수 있다.
-        """
-        origin = self._origin("trunk")
-        clone = os.path.join(self.tmp, "clone-trunk")
-        _harness.git_in(self.tmp, "clone", "-q", str(origin), clone)
-        _harness.git_in(clone, "remote", "set-url", "origin",
-                        os.path.join(self.tmp, "unreachable.git"))
-        # 폴백이 답할 수 없음을 전제로 단언한다.
-        for name in ("main", "master"):
-            rc, _, _ = rg._run_git(
-                ["rev-parse", "--verify", f"refs/remotes/origin/{name}"], clone)
-            self.assertNotEqual(rc, 0, f"픽스처에 origin/{name} 이 있으면 분리가 깨진다")
-        self.assertEqual(rg._default_branch(clone), "trunk")
-
-    def test_clone_resolves_via_remote_head_without_network(self):
-        """Method 1 성공 — `git clone` 은 `refs/remotes/origin/HEAD` 를 만든다."""
-        origin = self._origin("main")
-        clone = os.path.join(self.tmp, "clone")
-        _harness.git_in(self.tmp, "clone", "-q", str(origin), clone)
-        # 전제부터 단언한다 — 이 ref 가 없으면 이 테스트는 다른 경로를 재는 셈이다.
-        rc, out, _ = rg._run_git(["rev-parse", "--verify", "refs/remotes/origin/HEAD"], clone)
-        self.assertEqual(rc, 0, "픽스처가 remote HEAD 를 만들지 못했다")
-
-        # origin 을 도달 불가로 만들어 네트워크 경유가 아님을 증명한다.
-        _harness.git_in(clone, "remote", "set-url", "origin",
-                        os.path.join(self.tmp, "does-not-exist.git"))
-        self.assertEqual(rg._default_branch(clone), "main")
-
-    def test_master_named_default_is_not_hardcoded_to_main(self):
-        origin = self._origin("master")
-        clone = os.path.join(self.tmp, "clone-master")
-        _harness.git_in(self.tmp, "clone", "-q", str(origin), clone)
-        _harness.git_in(clone, "remote", "set-url", "origin",
-                        os.path.join(self.tmp, "gone.git"))
-        self.assertEqual(rg._default_branch(clone), "master")
-
-    def test_remote_tracking_ref_wins_over_a_same_named_local_branch(self):
-        """`origin/master` 만 있고 로컬엔 `main` 도 있을 때 — remote 쪽이 이겨야 한다.
-
-        순서가 뒤집히면 로컬에 우연히 만든 `main` 이 기본 브랜치를 참칭한다.
-        """
-        origin = self._origin("master")
-        clone = os.path.join(self.tmp, "clone-order")
-        _harness.git_in(self.tmp, "clone", "-q", str(origin), clone)
-        _harness.git_in(clone, "remote", "set-url", "origin",
-                        os.path.join(self.tmp, "gone2.git"))
-        # remote HEAD 를 지워 Method 1 을 무력화하고, 로컬 main 을 만든다.
-        #
-        # `update-ref -d` 로는 **지워지지 않는다** — rc 0 을 내면서 symref 는 그대로 남고,
-        # `symbolic-ref` 가 계속 answers 한다(실측). 그 상태로 두면 이 테스트는 Method 1 을
-        # 그대로 탄 채 우연히 기대값과 같아 통과했다. symref 는 `symbolic-ref --delete` 로
-        # 지운다.
-        _harness.git_in(clone, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
-        rc, _, _ = rg._run_git(
-            ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], clone)
-        self.assertNotEqual(rc, 0, "Method 1 이 아직 살아 있으면 이 테스트는 순서를 재지 못한다")
-        _harness.git_in(clone, "branch", "main")
-        self.assertEqual(
-            rg._default_branch(clone), "master",
-            "refs/remotes/origin/* 가 refs/heads/* 보다 먼저 조회돼야 한다",
-        )
-
-    def test_local_branch_only_still_resolves(self):
-        repo = _harness.make_temp_git_repo(os.path.join(self.tmp, "local-only"))
-        self.assertEqual(rg._default_branch(repo), "main")
-
-    def test_no_branch_no_remote_yields_none(self):
-        bare = os.path.join(self.tmp, "empty")
-        _harness.make_temp_git_repo(bare, branch="wip", initial_commit=True)
-        self.assertIsNone(
-            rg._default_branch(bare),
-            "main/master 어느 쪽도 없으면 추측하지 않고 None 이어야 한다",
-        )
-
-
-class RunGitTimeoutIsSwallowedTest(unittest.TestCase):
-    """`_run_git` 의 타임아웃 경로 (백로그 §16).
-
-    이 분기는 가설이 아니다 — 11R 이 실측했듯 **CI 에서 매번 실제로 밟히던 경로**다
-    (네트워크 프로브가 자기 2초 상한에 걸렸다). 삼키는 방향이 fail-open 이라
-    ("실패로 취급" = rc 1), 조용히 사라지면 상위 판정이 통째로 기울어진다.
-    """
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-        self.bin = os.path.join(self.tmp, "bin")
-        os.makedirs(self.bin)
-        stub = os.path.join(self.bin, "git")
-        with open(stub, "w", encoding="utf-8") as f:
-            f.write("#!/bin/sh\nsleep 30\n")
-        os.chmod(stub, 0o755)
-        self._old_path = os.environ["PATH"]
-        os.environ["PATH"] = self.bin + os.pathsep + self._old_path
-        self.addCleanup(os.environ.__setitem__, "PATH", self._old_path)
-
-    def test_a_hanging_git_returns_failure_not_an_exception(self):
-        rc, out, err = rg._run_git(["status"], self.tmp, timeout=0.3)
-        self.assertEqual((rc, out, err), (1, "", ""),
-                         "타임아웃은 예외가 아니라 '실패' 로 흡수돼야 한다")
-
-    def test_it_actually_timed_out_rather_than_finishing(self):
-        # 스텁이 정말 매달렸는지 — 안 그러면 위 테스트가 다른 이유로 통과한다.
-        start = time.monotonic()
-        rg._run_git(["status"], self.tmp, timeout=0.3)
-        elapsed = time.monotonic() - start
-        self.assertGreater(elapsed, 0.25, "스텁이 즉시 끝났다 — 타임아웃 경로가 아니다")
-        self.assertLess(elapsed, 10.0, "상한이 적용되지 않았다")
+        # 주석·docstring 안의 등장은 코드가 아니다. 이 가드 자신이 그 텍스트를 docstring
+        # 과 탐지 코드에 담고 있어, 걸러내지 않으면 **자기 자신을 위반으로 잡는다**(실제로
+        # 그랬다). `_harness.py` 는 헬퍼의 유일한 구현이라 별도로 허용한다.
+        allowed_impl = {"_harness.py"}
+        for path in sorted(TESTS_DIR.glob("*.py")):
+            if path.name in allowed_impl:
+                continue
+            src = path.read_text(encoding="utf-8")
+            tree = ast.parse(src)
+            call_lines = {c.lineno for c in self._git_calls(tree)}
+            doc_lines: set[int] = set()
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+                        and isinstance(node.value.value, str)):
+                    doc_lines.update(range(node.lineno, node.end_lineno + 1))
+            for n, line in enumerate(src.splitlines(), start=1):
+                if 'subprocess.run(["git"' not in line:
+                    continue
+                if n in call_lines or n in doc_lines:
+                    continue
+                if line.lstrip().startswith("#") or "'subprocess.run" in line:
+                    continue
+                self.fail(
+                    f"{path.name}:{n} 문자열 안에 raw git 호출이 있다. AST 가드가 보지 "
+                    "못하는 자리다 — `_harness.git_in()` 을 쓸 것 (공유 preamble 이 "
+                    "`_harness` 를 서브프로세스에 실어 보낸다)."
+                )

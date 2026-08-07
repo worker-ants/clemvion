@@ -133,3 +133,78 @@ def make_temp_git_repo(path: Path | str, *, branch: str = "main",
         git_in(repo, "add", ".gitkeep")
         git_in(repo, "commit", "-qm", "init")
     return repo
+
+
+TESTS_DIR = Path(__file__).resolve().parent
+
+# Four suites drive an orchestrator in a FRESH interpreter. The reason is the
+# `_lib` collision documented at the top of this file: importing an orchestrator
+# in-process pollutes `sys.modules` for the whole run. A subprocess sidesteps it.
+#
+# They were near-copies, not copies — measured before extracting: the runner
+# bodies were byte-identical in 3 of 4 (the fourth differed only in a docstring),
+# but the preambles ranged 44–70% similar because each adds its own fixtures on
+# top of a shared core. So only the CORE moves here; per-file fixtures stay in
+# the file that needs them, passed as `extra`. Extracting those too would have
+# invented a shared thing that never existed.
+_PREAMBLE_CORE = """\
+import importlib.util, json, sys
+sys.path.insert(0, {tests_dir!r})
+import _harness            # git_in / make_temp_git_repo inside the snippet
+spec = importlib.util.spec_from_file_location("orch", {orch!r})
+orch = importlib.util.module_from_spec(spec)
+sys.modules["orch"] = orch
+spec.loader.exec_module(orch)
+REPO_ROOT = {root!r}
+ROOT = REPO_ROOT   # 두 이름이 모두 쓰인다
+
+def emit(value):
+    sys.stdout.write("<<<" + json.dumps(value) + ">>>")
+
+ARG = json.loads(sys.stdin.read() or "null")
+"""
+
+
+def orchestrator_preamble(orch_path: Path | str, *, imports: str = "",
+                          extra: str = "") -> str:
+    """Build the fresh-interpreter preamble for an orchestrator suite.
+
+    `imports` is a comma-separated list of EXTRA modules the snippet needs
+    (`"contextlib, io"`); the core always imports what it uses itself.
+    `extra` is appended verbatim — per-file fixtures, already dedented.
+
+    `_harness` is on the subprocess's path, so a snippet that needs a temp git
+    repo calls `_harness.git_in(...)` instead of a raw `subprocess.run(["git",
+    …])`. That matters beyond tidiness: the AST guard in
+    `test_review_guard_hardening.py` cannot see calls that live inside a string,
+    so a raw call there is invisible to it.
+    """
+    head = _PREAMBLE_CORE.format(tests_dir=str(TESTS_DIR), orch=str(orch_path),
+                                 root=str(REPO_ROOT))
+    if imports:
+        head = head.replace("import importlib.util, json, sys\n",
+                            f"import importlib.util, json, sys\nimport {imports}\n", 1)
+    return head + (extra if extra.endswith("\n") or not extra else extra + "\n")
+
+
+def run_in_orchestrator(preamble: str, snippet: str, arg=None,
+                        *, timeout: float = 30.0):
+    """Run `snippet` with `orch`, `emit`, `ARG`, `ROOT` and `_harness` in scope.
+
+    `timeout` is not optional in spirit: without it a hang in the target code
+    blocks the whole run instead of failing. One suite lacked it while a comment
+    in another claimed every sibling had one.
+    """
+    import json as _json
+    import subprocess
+    import textwrap
+
+    proc = subprocess.run(
+        [sys.executable, "-c", preamble + textwrap.dedent(snippet)],
+        input=_json.dumps(arg), cwd=str(REPO_ROOT),
+        capture_output=True, text=True, timeout=timeout,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(proc.stderr[-3000:])
+    out = proc.stdout
+    return _json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
