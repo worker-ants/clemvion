@@ -139,6 +139,187 @@ class AtomicWriteTest(unittest.TestCase):
         self.assertEqual(leftovers, [], "a failed write left its temp file behind")
 
 
+class FatalSurvivesALostUpdateTest(unittest.TestCase):
+    """`agents_fatal` is now recorded on disk, so a lost update is recoverable.
+
+    `apply_status_update` is a read-modify-write with no lock, and CLAUDE.md
+    tells callers to batch independent tool calls in parallel — so two `--update`
+    calls really do overlap. `save_state` was made atomic, but atomicity only
+    closes *torn reads*; the later writer still lands its stale copy whole.
+
+    Which fields survive that was asymmetric. `agents_success` is rebuilt from
+    the report files on every reconcile, so it self-heals. `agents_fatal` was
+    only *filtered* from whatever the loaded state held — nothing on disk said
+    "this was fatal" — so a lost update silently demoted a fatal back to pending
+    and **no reconcile could undo it**. `/loop` then re-ran a checker already
+    judged permanently failed.
+
+    `fcntl.flock` was rejected before and is still rejected: it would put a
+    blocking primitive in the path of every hook. A `_fatal/<name>` sentinel
+    widens what disk records instead, which is the half of the guarantee that
+    was missing.
+    """
+
+    def _lib(self):
+        if str(_harness.CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import retry_state
+        return retry_state
+
+    def _session(self, names=("a", "b"), **overrides):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        sess = os.path.join(d, "s")
+        os.makedirs(sess)
+        state = {
+            "subagent_invocations": [{"name": n} for n in names],
+            "agents_pending": list(names), "agents_success": [], "agents_fatal": [],
+        }
+        state.update(overrides)
+        with open(os.path.join(sess, "_retry_state.json"), "w") as f:
+            json.dump(state, f)
+        return sess
+
+    def _state(self, sess):
+        with open(os.path.join(sess, "_retry_state.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def _quietly(self, fn, *a, **kw):
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            return fn(*a, **kw)
+
+    def _lose_a_fatal_update(self, rs, sess):
+        """Reproduce the race deterministically, through the real function.
+
+        Writer B (a success) is interrupted between its read and its write, and
+        writer A (the fatal) runs to completion in that window. B's stale copy
+        then lands last and takes A's transition with it — which is exactly what
+        two overlapping `--update` calls do.
+
+        Re-entrancy rather than threads on purpose: no sleeps, no scheduler
+        dependence, and both writers still go through `apply_status_update`
+        itself rather than a re-implementation of it.
+        """
+        with open(os.path.join(sess, "b.md"), "w", encoding="utf-8") as f:
+            f.write("보고서 본문")
+        original_save = rs.save_state
+        interrupted = []
+
+        def save_once_interrupted(state_file, state):
+            if not interrupted:
+                interrupted.append(True)
+                self._quietly(rs.apply_status_update, sess, "a", "fatal", None)
+            return original_save(state_file, state)
+
+        rs.save_state = save_once_interrupted
+        try:
+            self._quietly(rs.apply_status_update, sess, "b", "success", None)
+        finally:
+            rs.save_state = original_save
+        self.assertTrue(interrupted, "레이스를 재현하지 못했다 — 이 테스트는 헛돈다")
+
+    def test_a_fatal_lost_to_a_concurrent_writer_is_restored_from_disk(self):
+        rs = self._lib()
+        sess = self._session()
+        self._lose_a_fatal_update(rs, sess)
+
+        # Vacuity check: the defect must actually be reproduced, or everything
+        # below passes because there was nothing to recover.
+        self.assertEqual(self._state(sess)["agents_fatal"], [],
+                         "레이스가 fatal 을 유실시키지 못했다 — 회복을 잴 수 없다")
+
+        state, changed = rs.reconcile_state_with_disk(sess)
+        self.assertTrue(changed)
+        self.assertEqual(state["agents_fatal"], ["a"])
+        self.assertNotIn("a", state["agents_pending"])
+        self.assertEqual(self._state(sess)["agents_fatal"], ["a"],
+                         "메모리에서만 고치고 파일에 쓰지 않았다")
+
+    def test_without_the_sentinel_the_same_loss_is_unrecoverable(self):
+        """The control for the test above — the in-test mutation.
+
+        Deleting the sentinel returns the state to what it was before this
+        change. If reconcile still recovered the fatal, something other than the
+        sentinel would be doing the work and the test above would be measuring
+        nothing.
+        """
+        rs = self._lib()
+        sess = self._session()
+        self._lose_a_fatal_update(rs, sess)
+        shutil.rmtree(os.path.join(sess, "_fatal"))
+
+        state, _ = rs.reconcile_state_with_disk(sess)
+        self.assertEqual(state["agents_fatal"], [])
+        self.assertEqual(state["agents_pending"], ["a"])
+
+    def test_the_update_cli_writes_and_clears_the_sentinel(self):
+        rs = self._lib()
+        sess = self._session()
+        sentinel = os.path.join(sess, "_fatal", "a")
+
+        self._quietly(rs.apply_status_update, sess, "a", "fatal", None)
+        self.assertTrue(os.path.isfile(sentinel))
+
+        # A later retry that no longer judges it fatal must take the record with
+        # it, or the sentinel resurrects a fatal the caller has withdrawn.
+        self._quietly(rs.apply_status_update, sess, "a", "rate_limit", None)
+        self.assertFalse(os.path.exists(sentinel))
+        state = self._state(sess)
+        self.assertEqual(state["agents_fatal"], [])
+        self.assertIn("a", state["agents_pending"])
+
+    def test_a_committed_session_with_no_sentinel_keeps_its_fatal(self):
+        """The union direction. Every session committed before this change has a
+        `agents_fatal` in JSON and no `_fatal/` at all — reading only the
+        sentinels would silently clear all of them."""
+        rs = self._lib()
+        sess = self._session(agents_fatal=["a"], agents_pending=["b"])
+        self.assertFalse(os.path.exists(os.path.join(sess, "_fatal")))
+
+        state, _ = rs.reconcile_state_with_disk(sess)
+        self.assertEqual(state["agents_fatal"], ["a"])
+
+    def test_a_sentinel_does_not_outrank_a_report_that_arrived_later(self):
+        """A retry that succeeded produces a report, and success wins.
+
+        Otherwise a stale sentinel would keep an agent fatal forever — the
+        mirror image of the bug being fixed.
+        """
+        rs = self._lib()
+        sess = self._session()
+        self._quietly(rs.apply_status_update, sess, "a", "fatal", None)
+        with open(os.path.join(sess, "a.md"), "w", encoding="utf-8") as f:
+            f.write("나중에 성공한 보고서")
+
+        state, _ = rs.reconcile_state_with_disk(sess)
+        self.assertEqual(state["agents_success"], ["a"])
+        self.assertEqual(state["agents_fatal"], [])
+
+    def test_a_name_that_is_not_a_path_component_gets_no_sentinel(self):
+        """Never write somewhere other than where the lookup will read.
+
+        A silent mismatch (write `../x`, look for `_fatal/../x`) would be worse
+        than the gap: the fatal would look recorded and never come back.
+        """
+        rs = self._lib()
+        for bad in ("../escape", "nested/name", ".", "..", ""):
+            with self.subTest(name=bad):
+                self.assertIsNone(rs.fatal_sentinel_path("/tmp/whatever", bad))
+
+    def test_the_sentinel_write_is_advisory(self):
+        """An unwritable session dir must degrade to the old behaviour, not fail
+        the update — the JSON transition is still the primary record."""
+        from unittest import mock
+        rs = self._lib()
+        sess = self._session()
+        with mock.patch.object(rs.os, "makedirs", side_effect=OSError("read-only")):
+            self._quietly(rs.apply_status_update, sess, "a", "fatal", None)
+        self.assertEqual(self._state(sess)["agents_fatal"], ["a"])
+        self.assertFalse(os.path.exists(os.path.join(sess, "_fatal", "a")))
+
+
 class MergeCoordinatorUsesTheSharedStateTest(unittest.TestCase):
     """The third consumer, which had no test of its own.
 

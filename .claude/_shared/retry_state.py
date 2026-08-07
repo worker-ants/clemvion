@@ -23,9 +23,12 @@ So the four identical ones move here verbatim, and `emit_summary_state` takes th
 differing fields as a parameter rather than being duplicated for them.
 
 Disk is the arbiter throughout: a self-reported status with no file behind it is
-the fake success this contract exists to remove. Rate-limit bookkeeping
-(`rate_limit_episodes`, `last_reset_hint_sec`) is left alone — an agent that hit
-a limit has no file and stays pending, which is what `/loop` needs.
+the fake success this contract exists to remove. That arbitration covers both
+terminal buckets — a success is backed by its report file, a fatal by a
+`_fatal/<name>` sentinel — so an update lost to a concurrent writer is
+recoverable for either. Rate-limit bookkeeping (`rate_limit_episodes`,
+`last_reset_hint_sec`) is left alone — an agent that hit a limit has no file and
+stays pending, which is what `/loop` needs.
 """
 
 from __future__ import annotations
@@ -56,27 +59,34 @@ def save_state(state_file, state):
     missing" path right above it. `os.replace` is atomic on the same filesystem,
     which removes that window without needing a lock.
 
-    Lost updates between concurrent writers are a separate matter, left to the
-    project's existing convergence approach — but that convergence is narrower
-    than "the agent buckets are derived from disk", which is how an earlier
-    version of this note put it. Precisely: `agents_success` is rebuilt from the
-    report files on every read, so it genuinely self-heals. `agents_fatal` is
-    only *filtered* from whatever the loaded state already held; nothing on disk
-    records "this was fatal". `agents_pending` is the remainder of the two.
+    **Lost updates between concurrent writers remain**, and this note is precise
+    about which fields survive one. `apply_status_update` is a read-modify-write,
+    so two `--update` calls that overlap keep only the later writer's copy — and
+    CLAUDE.md tells callers to batch independent tool calls in parallel, so that
+    is a real path rather than a thought experiment. Measured with this code
+    (2026-08-07): two overlapping updates, and the first writer's transition was
+    gone from the file.
 
-    So a lost update can silently revert a committed `fatal` transition back to
-    `pending`, and no later reconcile can recover it — `/loop` then retries a
-    checker already judged permanently failed. `agent_history` and the
-    rate-limit fields have no convergence either: a lost `last_reset_hint_sec`
-    makes `/loop` retry before a rate limit clears, a lost history entry quietly
-    shrinks the audit trail. CLAUDE.md tells callers to batch independent tool
-    calls in parallel, so concurrent `--update` is a real path, not a thought
-    experiment.
+    What a later `reconcile_state_with_disk` can put back is exactly what disk
+    records independently:
 
-    Accepted rather than locked, for the same reason `failopen_state` accepts its
-    own residuals: the convergent fields are the ones the gate reads, and adding
-    `fcntl.flock` here would put a blocking primitive in the path of every hook.
-    Registered as a follow-up rather than left implicit.
+      · `agents_success` — rebuilt from the report files every read. Converges.
+      · `agents_fatal` — a fatal transition drops a `_fatal/<name>` sentinel, so
+        this converges too. It did NOT until 2026-08-07: the bucket was only
+        *filtered* from whatever the loaded state held, nothing on disk said
+        "this was fatal", and a lost update therefore silently demoted a fatal
+        back to pending with no way back — `/loop` then re-ran a checker already
+        judged permanently failed. See `_record_fatal`.
+      · `agents_pending` — the remainder of the two, so it follows.
+      · `agent_history`, `rate_limit_episodes`, `last_reset_hint_sec` — no
+        convergence. A lost `last_reset_hint_sec` makes `/loop` retry before a
+        rate limit clears; a lost history entry quietly shrinks the audit trail.
+        Still accepted: these are bookkeeping, not the buckets the gate and
+        `/loop` branch on.
+
+    Locking is still not the answer here, for the same reason it was rejected the
+    first time: `fcntl.flock` would put a blocking primitive in the path of every
+    hook. Widening what disk records is the cheaper half of the same guarantee.
     """
     tmp = f"{state_file}.tmp.{os.getpid()}"
     try:
@@ -89,6 +99,69 @@ def save_state(state_file, state):
                 os.unlink(tmp)
             except OSError:
                 pass
+
+
+FATAL_SENTINEL_DIR = "_fatal"
+
+
+def fatal_sentinel_path(session_dir, name):
+    """Where `name`'s fatal sentinel lives, or None when `name` cannot name one.
+
+    Keyed on the **manifest name**, not on the report's basename: the name is the
+    key every bucket already uses, while `output_file` is caller-supplied and
+    `report_paths` has had to defend against its shapes twice. A name that is not
+    a plain path component (contains a separator, or is `.`/`..`) gets no
+    sentinel at all rather than one written somewhere other than where it is
+    looked for — a silent mismatch would be worse than the gap it closes.
+    """
+    if not name or name in (".", "..") or name != os.path.basename(name):
+        return None
+    return os.path.join(os.path.abspath(session_dir), FATAL_SENTINEL_DIR, name)
+
+
+def fatal_on_disk(session_dir, names):
+    """Which of `names` carry a fatal sentinel. Empty on any filesystem trouble."""
+    out = []
+    for name in names:
+        path = fatal_sentinel_path(session_dir, name)
+        if not path:
+            continue
+        try:
+            if os.path.isfile(path):
+                out.append(name)
+        except OSError:
+            continue
+    return out
+
+
+def _record_fatal(session_dir, name, is_fatal):
+    """Create or clear `name`'s fatal sentinel — the disk half of `agents_fatal`.
+
+    One file per agent, on purpose: a single shared `_fatal.json` list would be
+    another read-modify-write and would inherit the very lost update this exists
+    to survive. Per-agent files are lock-free by construction.
+
+    Written **before** `save_state`, in both directions, so the durable record is
+    the one the caller most recently asked for. If the JSON write is then lost to
+    a concurrent writer, the sentinel still says fatal and the next reconcile
+    restores it.
+
+    Advisory: any `OSError` is swallowed. The JSON transition is still the
+    primary record, so a read-only or full filesystem degrades to exactly the
+    pre-2026-08-07 behaviour instead of failing the update.
+    """
+    path = fatal_sentinel_path(session_dir, name)
+    if not path:
+        return
+    try:
+        if is_fatal:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(datetime.utcnow().isoformat() + "Z\n")
+        elif os.path.exists(path):
+            os.unlink(path)
+    except OSError:
+        pass
 
 
 def reconcile_state_with_disk(session_dir):
@@ -108,7 +181,12 @@ def reconcile_state_with_disk(session_dir):
     # enforcement points must not disagree.
     on_disk = [n for n in known if _report_paths_lib.has_report(sd, n, state)]
     missing = [n for n in known if n not in on_disk and n not in skipped]
-    fatal = [n for n in state.get("agents_fatal", []) if n in missing]
+    # Union of the two records, never just one: the loaded state can have lost a
+    # fatal transition to a concurrent writer, and the sentinel can be absent for
+    # a session that predates them or ran on a read-only filesystem. Taking
+    # either as authoritative alone would drop fatals one of them still holds.
+    fatal_recorded = set(state.get("agents_fatal", [])) | set(fatal_on_disk(sd, known))
+    fatal = [n for n in missing if n in fatal_recorded]
 
     before = (
         state.get("agents_success"),
@@ -172,8 +250,17 @@ def emit_summary_state(session_dir, extra_fields=None):
 
 
 def apply_status_update(session_dir, agent, status, reset_hint):
-    """Move an agent between pending/success/fatal buckets and record history."""
-    state_file, state = load_state(os.path.abspath(session_dir))
+    """Move an agent between pending/success/fatal buckets and record history.
+
+    Read-modify-write, and deliberately still unlocked — see `save_state`. What
+    makes that survivable for the buckets is that both `success` and `fatal` are
+    also recorded on disk independently (a report file, a `_fatal/<name>`
+    sentinel), so a reconcile can rebuild them after a lost update.
+    """
+    sd = os.path.abspath(session_dir)
+    state_file, state = load_state(sd)
+    # Before the save, so the sentinel is what survives if the JSON write is lost.
+    _record_fatal(sd, agent, status == "fatal")
     for bucket in ("agents_pending", "agents_success", "agents_fatal"):
         if agent in state.get(bucket, []):
             state[bucket].remove(agent)
