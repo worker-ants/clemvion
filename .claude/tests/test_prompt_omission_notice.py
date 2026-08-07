@@ -260,3 +260,67 @@ class OmittedContentIsAnnouncedTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiffOnlyBranchRespectsTheCapTest(unittest.TestCase):
+    """헤더가 들어가는 한 상한을 지킨다 (백로그 §1).
+
+    `base_size >= max_total_size` 분기는 diff 를 잘라 예산을 맞추는데, **줄어든 양을
+    `cut` 으로 셈했다.** 대체 텍스트는 잘림 note 나 placeholder 를 덧붙이므로 실제
+    감소분이 `cut` 보다 작고, 짧은 diff 에서는 placeholder 가 원본보다 길어 오히려
+    늘어난다. 실측(수정 전): cap 1500·12파일·diff 300자 → **1,822자(+322)**,
+    cap 8000·30파일 → +90.
+
+    **구조적으로 불가능한 경우와 갈라서** 단언한다. 파일이 아주 많으면 헤더만으로 상한을
+    넘고(§4), 그때는 어떤 계상 수정으로도 못 지킨다 — 파일 단위로 버리는 기능이 없기
+    때문이다. 그래서 각 조합마다 "헤더만" 크기를 먼저 재고, 그게 상한 안일 때만 결과를
+    상한과 비교한다. 이 구분이 없으면 §4 케이스가 이 테스트를 영원히 빨갛게 만들거나,
+    반대로 상한을 느슨하게 잡아 §1 을 못 잡는다.
+    """
+
+    _MATRIX = [(1500, 6, 400), (1500, 12, 300), (3000, 12, 300), (3000, 30, 200),
+               (3000, 50, 150), (8000, 30, 200), (8000, 50, 150), (8000, 120, 80),
+               (20000, 120, 80), (50000, 300, 50)]
+
+    def _section(self, n, diff_len, cap):
+        return run_in_orchestrator(
+            """
+            # diff 는 **생성 시점**에 넣어야 한다. 나중에 키를 꽂는 방식은 빌더가 읽는
+            # 필드와 달라 diff 가 0인 섹션이 나왔고, 그 상태로 상한 단언이 전부
+            # vacuous 하게 통과했다(동반 vacuity 검사가 exercised=0 으로 잡았다).
+            infos = [
+                orch.build_cli_change_info(
+                    "codebase/f%d.ts" % i,
+                    diff_content="D" * ARG["diff_len"],
+                    file_content="",
+                )
+                for i in range(ARG["n"])
+            ]
+            emit(len(orch.build_files_section(infos, 100000, ARG["cap"])))
+            """,
+            {"n": n, "diff_len": diff_len, "cap": cap},
+        )
+
+    def test_cap_holds_wherever_headers_fit(self):
+        for cap, n, diff_len in self._MATRIX:
+            with self.subTest(cap=cap, files=n, diff=diff_len):
+                headers_only = self._section(n, 0, 10 ** 9)
+                if headers_only > cap:
+                    self.skipTest(f"§4 구조적 — 헤더만 {headers_only}자 > cap {cap}")
+                self.assertLessEqual(
+                    self._section(n, diff_len, cap), cap,
+                    "diff-only 분기가 상한을 넘었다 — 잘림 note/placeholder 길이가 "
+                    "감소분 계상에서 빠졌을 때의 증상",
+                )
+
+    def test_the_matrix_actually_exercises_the_diff_only_branch(self):
+        """행렬이 그 분기를 실제로 타는지 — 안 타면 위 단언이 vacuous 하다."""
+        exercised = 0
+        for cap, n, diff_len in self._MATRIX:
+            if self._section(n, 0, 10 ** 9) > cap:
+                continue
+            # 헤더+diff 가 상한을 넘어야 그 분기로 들어간다.
+            if self._section(n, diff_len, 10 ** 9) > cap:
+                exercised += 1
+        self.assertGreaterEqual(exercised, 5,
+                                "행렬이 diff-only 분기를 거의 타지 않는다")

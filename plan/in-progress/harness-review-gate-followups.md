@@ -24,6 +24,18 @@ spec_impact: none
 
 **신규 후속 (defer) — 아래 11건 + 기본 브랜치 해석 중복 1건**
 
+1. ~~**`build_files_section` 의 diff-only 예산 분기가 상한을 넘는다**~~ → **처분 완료 (2026-08-07).**
+   원인: 줄어든 양을 `cut` 으로 셈했다. 대체 텍스트가 잘림 note·placeholder 를 덧붙이므로
+   실제 감소분이 `cut` 보다 작고, 짧은 diff 에서는 placeholder 가 원본보다 길어 **오히려
+   늘어난다**. 실측(수정 전): cap 1500·12파일·diff 300자 → 1,822자(+322), cap 8000·30파일 → +90.
+   처분: 감소분을 **실측해서** 차감하고, 이득 없는 대체는 채택하지 않으며(통째로 비움),
+   진행이 없을 때까지 반복한다.
+   **내가 만든 소액 초과를 한 번 더 고쳤다** — 루프 뒤에 붙인 전역 안내를 계상하지 않아
+   37~71자가 남았다(이 분기가 고치려던 결함의 재생산). 사전 예약으로 옮겨 전 조합 0건.
+   회귀 테스트는 **§4 와 갈라서** 단언한다: 조합마다 "헤더만" 크기를 먼저 재고 그게 상한
+   안일 때만 비교한다. 동반 vacuity 검사가 **실제로 값을 했다** — 첫 판은 diff 를 생성 뒤에
+   꽂아 분기를 한 번도 타지 않았고(exercised=0) 주 단언이 전부 헛통과였다.
+
 1. **`build_files_section` 의 diff-only 예산 분기가 상한을 넘는다 (기존 결함)** —
    headers+diffs 만으로 예산을 넘는 분기에서, 절단 루프가 `_truncated_note` 와
    `"diff 생략"` placeholder 를 덧붙이면서 그 길이를 `cut` 에 계상하지 않는다. 실측:
@@ -54,6 +66,14 @@ spec_impact: none
    (≈3.5ms 수준)라 현재는 무해하지만 **내가 만든 회귀**이고, `{path: text}` 맵을 한 번만
    만들어 랭킹·번들 양쪽에서 재사용하면 닫힌다. 5R 에서 코드를 더 건드리지 않기로 해
    등재만 한다.
+8. ~~**`_default_branch_ref()` 의 성공 경로 3갈래가 미검증**~~ → **처분 완료 (2026-08-07).**
+   `DefaultBranchRefSuccessPathsTest` 5케이스(symbolic-ref 적중 / origin/main / origin/master /
+   둘 다일 때 main 우선 / origin 없음). 기존 테스트는 전부 stub 이거나 실패-흡수만 봤다.
+   §15 와 같은 분리 기법이 필요했다 — 평범한 clone 은 `origin/HEAD` 와 `origin/main` 이 둘 다
+   있어 누가 답했는지 모른다. 기본 브랜치를 `trunk` 로 둬 폴백이 답할 수 없게 만들었다.
+   `_git` 이 cwd 를 받지 않아 프로세스 cwd 에서 도는 것도 계약이라, 스니펫이 `os.chdir` 한다.
+   뮤테이션 3/3 RED(symref 분기 제거·main/master 순서 뒤집기·`refs/remotes/` 접두사 유지).
+
 8. **`_default_branch_ref()` 의 성공 경로 3갈래가 미검증** — 모든 테스트가 이 함수를 통째로
    stub 하거나 실패-흡수 경로만 본다. 자매 함수 `_branch_changed_rels` 는 임시 git repo 로
    성공 경로까지 고정돼 있어 비대칭이다. 같은 패턴으로 4케이스(symbolic-ref 적중 /

@@ -33,6 +33,9 @@ import subprocess
 import sys
 import textwrap
 import unittest
+import os
+import shutil
+import tempfile
 
 import _harness
 from _harness import REPO_ROOT
@@ -243,3 +246,74 @@ class ScopeFlagDiscardingFilesIsAnnouncedTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DefaultBranchRefSuccessPathsTest(unittest.TestCase):
+    """`_default_branch_ref()` 의 **성공** 4갈래를 실 저장소로 구동한다 (백로그 §8).
+
+    이 파일의 다른 테스트는 전부 `orch._default_branch_ref` 를 stub 하거나
+    실패-흡수 경로(`FileNotFoundError`/`TimeoutExpired`)만 본다. 즉 "무엇을 돌려주는가"
+    는 한 번도 실물로 확인된 적이 없었다. 자매 함수 `_branch_changed_rels` 는 임시 git
+    repo 로 성공 경로까지 고정돼 있어 비대칭이었다.
+
+    `_git` 은 cwd 를 받지 않고 **프로세스 cwd** 에서 돈다. 그래서 스니펫이 픽스처로
+    `os.chdir` 한 뒤 호출한다 — 그 사실 자체가 이 함수의 계약이다.
+    """
+
+    _SNIPPET = """
+        import os
+        os.chdir(ARG["repo"])
+        emit(orch._default_branch_ref())
+        """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _clone_of(self, branch):
+        origin = _harness.make_temp_git_repo(
+            os.path.join(self.tmp, f"o-{branch}"), branch=branch)
+        clone = os.path.join(self.tmp, f"c-{branch}")
+        _harness.git_in(self.tmp, "clone", "-q", str(origin), clone)
+        return clone
+
+    def test_symbolic_ref_hit_is_what_answers(self):
+        """Method 1 을 **분리**해서 잰다.
+
+        평범한 clone 에는 `origin/HEAD` 와 `origin/main` 이 둘 다 있어, 결과가
+        `origin/main` 이어도 symbolic-ref 가 답했는지 아래 폴백 루프가 답했는지
+        구분되지 않는다 — 그 상태면 symbolic-ref 분기를 지운 뮤턴트가 통과한다.
+        기본 브랜치를 `trunk` 로 두면 폴백(main/master 만 조회)이 답할 수 없어 갈린다.
+        """
+        clone = self._clone_of("trunk")
+        for name in ("main", "master"):
+            rc = _harness.git_in(clone, "rev-parse", "--verify", "--quiet",
+                                 f"origin/{name}", check=False).returncode
+            self.assertNotEqual(rc, 0, f"픽스처에 origin/{name} 이 있으면 분리가 깨진다")
+        self.assertEqual(run_in_orchestrator(self._SNIPPET, {"repo": clone}),
+                         "origin/trunk")
+
+    def test_falls_back_to_origin_main(self):
+        clone = self._clone_of("main")
+        _harness.git_in(clone, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+        self.assertEqual(run_in_orchestrator(self._SNIPPET, {"repo": clone}),
+                         "origin/main")
+
+    def test_falls_back_to_origin_master(self):
+        clone = self._clone_of("master")
+        _harness.git_in(clone, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+        self.assertEqual(run_in_orchestrator(self._SNIPPET, {"repo": clone}),
+                         "origin/master")
+
+    def test_main_outranks_master_when_both_exist(self):
+        # 순서가 계약이다 — 둘 다 있으면 origin/main 이 먼저다.
+        clone = self._clone_of("master")
+        _harness.git_in(clone, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD")
+        _harness.git_in(clone, "update-ref", "refs/remotes/origin/main",
+                        "refs/remotes/origin/master")
+        self.assertEqual(run_in_orchestrator(self._SNIPPET, {"repo": clone}),
+                         "origin/main")
+
+    def test_no_origin_yields_none(self):
+        repo = _harness.make_temp_git_repo(os.path.join(self.tmp, "solo"))
+        self.assertIsNone(run_in_orchestrator(self._SNIPPET, {"repo": str(repo)}))

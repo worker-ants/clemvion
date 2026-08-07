@@ -506,6 +506,15 @@ def _omitted_content_note(rel_path, total_size):
     )
 
 
+_DIFF_ELIDED_NOTE = "\n\n... (프롬프트 크기 제한으로 diff 생략 — 원본 파일 참조) ...\n"
+# diff 를 통째로 버린 파일이 있을 때 **한 번만** 붙는다. 파일마다 붙이면 그 안내가
+# 다시 예산을 먹어, 이 분기가 고치려는 초과를 그대로 재생산한다.
+_DIFF_DROPPED_NOTE = (
+    "\n\n⚠️ 프롬프트 크기 제한으로 일부 파일은 **diff 도 실리지 않았습니다**. "
+    "해당 파일은 `Read` 로 직접 확인하십시오.\n"
+)
+
+
 def build_files_section(change_infos, max_file_size, max_total_size=0):
     """Compose the changed-files context, respecting per-file and total budgets.
 
@@ -593,28 +602,55 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
             )
         indexed = [(i, fp) for i, fp in enumerate(file_parts)]
         indexed.sort(key=lambda x: len(x[1]["diff"]), reverse=True)
-        overflow = base_size - _charge_notice(max_total_size, global_note)
-        for idx, fp in indexed:
-            if overflow <= 0:
-                break
-            diff_len = len(fp["diff"])
-            if diff_len == 0:
-                continue
-            cut = min(overflow, diff_len)
-            new_len = diff_len - cut
-            if new_len > 0:
-                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
-                    fp["diff"], new_len
-                )
-                # Trailing "\n" only here (not at the other two truncation
-                # sites): this branch's text is concatenated straight onto the
-                # next section by `separator.join`, whereas the whole-file cuts
-                # are already followed by a closing fence. Pre-existing shape,
-                # kept as-is so the change stays behaviour-preserving.
-                fp["diff"] = kept_text + _truncated_note(kept, total, "프롬프트 크기 제한") + "\n"
-            else:
-                fp["diff"] = "\n\n... (프롬프트 크기 제한으로 diff 생략 — 원본 파일 참조) ...\n"
-            overflow -= cut
+        # `_DIFF_DROPPED_NOTE` 도 **미리** 예약한다. 루프가 끝난 뒤에 붙이면서 계상하지
+        # 않았더니 소액 초과(37~71자)가 남았다 — 이 분기가 고치려던 결함을 그대로
+        # 재생산한 것이다. 실제로 안 붙는 경우엔 조금 덜 담길 뿐, 상한은 지켜진다.
+        overflow = base_size - _charge_notice(
+            max_total_size, global_note, _DIFF_DROPPED_NOTE)
+        # `cut` 만큼 줄어든다고 셈하면 안 된다. 대체 텍스트는 잘림 note 나 placeholder 를
+        # **덧붙이므로** 실제 감소분이 `cut` 보다 작고, 짧은 diff 에서는 placeholder 가
+        # 원본보다 길어 오히려 늘어난다. 실측(2026-08-07): cap 1500·파일 12개·diff 300자
+        # 에서 결과가 1,822자로 **322자 초과**했고, cap 8000·30개에서도 +90 이었다.
+        # 그래서 감소분을 **실측해서** 차감하고, 이득이 없는 대체는 채택하지 않는다.
+        dropped_any = False
+        progressed = True
+        while overflow > 0 and progressed:
+            progressed = False
+            for idx, fp in indexed:
+                if overflow <= 0:
+                    break
+                diff_len = len(fp["diff"])
+                if diff_len == 0:
+                    continue
+                cut = min(overflow, diff_len)
+                new_len = diff_len - cut
+                if new_len > 0:
+                    kept_text, kept, total = line_anchors.truncate_to_line_boundary(
+                        fp["diff"], new_len
+                    )
+                    # Trailing "\n" only here (not at the other two truncation
+                    # sites): this branch's text is concatenated straight onto the
+                    # next section by `separator.join`, whereas the whole-file cuts
+                    # are already followed by a closing fence. Pre-existing shape,
+                    # kept as-is so the change stays behaviour-preserving.
+                    candidate = (kept_text
+                                 + _truncated_note(kept, total, "프롬프트 크기 제한") + "\n")
+                else:
+                    candidate = _DIFF_ELIDED_NOTE
+                if len(candidate) >= diff_len:
+                    # 이 대체는 이득이 없다(placeholder 가 diff 보다 길다). 통째로 비우고,
+                    # 사실은 아래 전역 안내가 한 번에 말한다 — 파일마다 늘어나는 안내를
+                    # 붙이면 그게 다시 예산을 먹는다.
+                    candidate = ""
+                    dropped_any = True
+                actual = diff_len - len(candidate)
+                if actual <= 0:
+                    continue
+                fp["diff"] = candidate
+                overflow -= actual
+                progressed = True
+        if dropped_any:
+            global_note += _DIFF_DROPPED_NOTE
         sections = [fp["header"] + fp["diff"] for fp in file_parts]
         return separator.join(sections) + global_note
 
