@@ -19,9 +19,20 @@ injectWorkspacePackages: true
 # 보안 취약점 해소용 전이 의존성 상향 핀 (pnpm 10 정규 위치 — 이전에는 package.json 의
 # `pnpm.overrides` 였으나 pnpm 10.23 이 그 필드를 더 이상 읽지 않아 여기로 이전). pnpm
 # overrides 는 workspace-global 이므로 패키지별 충돌 항목은 버전-레인지로 스코프한다.
-# undici 는 backend=direct ^6, frontend=transitive 취약 7.x 라 7.x 취약범위만 스코프
-# (backend 6.x 불변). next>postcss 는 frontend·channel-web-chat 공통. 각 CVE 사유는
-# audit 커밋(b2bbb49e) 참조.
+# next>postcss 는 frontend·channel-web-chat 공통.
+#
+# undici 는 두 경로가 서로 다른 메이저를 쓴다: backend 가 **직접 의존**(^6)이고,
+# channel-web-chat > jsdom 이 **전이 의존**(7.x)이다. 그래서 7.x 는 여기 레인지 override 로,
+# 6.x 는 backend 의 선언 자체를 올려 관리한다 — 직접 의존을 override 로 덮으면 매니페스트가
+# 거짓말을 하게 된다. (2026-08-07 이전 서술은 "backend 6.x 불변" 이었는데, 그 6.x 경로가
+# GHSA-v3r7-h72x-cjcm 등에 취약한 6.27.0 으로 해소되고 있어 ^6.28.0 으로 올렸다. 전이 경로를
+# "frontend" 라고 적은 것도 틀렸다 — channel-web-chat 이다.)
+#
+# **각 항목의 CVE 근거는 그 값을 올린 커밋 메시지에 있다.** 종전에는 "audit 커밋(b2bbb49e)
+# 참조" 라고 적혀 있었으나 그 해시는 **저장소 어디에도 없다**(전 브랜치 `git log` 0건).
+# pnpm 이전 커밋 이후 문구만 이어지고 해시는 한 번도 갱신되지 않았다 — 값이 바뀔 때마다
+# 근거도 옮겨 가므로 단일 해시를 고정하는 방식 자체가 틀렸다. `git log -p pnpm-workspace.yaml`
+# 로 그 줄이 바뀐 커밋을 찾는 것이 정확한 추적 경로다.
 overrides:
   lodash: ^4.18.0
   picomatch: ^4.0.4
@@ -29,8 +40,12 @@ overrides:
   ip-address: ^10.2.0
   express-rate-limit: ^8.5.1
   protobufjs: ^7.6.5
-  fast-uri: ^3.1.4
-  hono: ^4.12.27
+  fast-uri: ^3.1.5
+  hono: ^4.12.34
+  # socket.io@4.8.3 이 `socket.io-parser: ~4.2.4` 를 요구한다 — 이 저장소의 다른 override 와
+  # 달리 `^` 가 아니라 `~` 인 이유다. `^4.2.7` 로 두면 4.3.x 가 나왔을 때 override 가 부모의
+  # 범위 계약을 깨고 강제 해소한다. GHSA-2m8v-j782-fhvr(high) 은 4.2.7 에서 패치됐다.
+  "socket.io-parser": ~4.2.7
   uuid: ^13.0.2
   ws: ^8.21.0
   "@grpc/grpc-js": ^1.14.4
@@ -39,7 +54,7 @@ overrides:
   nodemailer: ^9.0.1
   next>postcss: ^8.5.18
   eslint-plugin-react-hooks: 7.0.1
-  "undici@>=7.0.0 <7.28.0": ^7.28.0
+  "undici@>=7.0.0 <7.29.0": ^7.29.0
   vite: ^8.0.16
   "@babel/core": ^7.29.7
   "@hono/node-server": ^2.0.5
@@ -47,8 +62,8 @@ overrides:
   svgo: ^4.0.2
   sharp: ^0.35.0
   "@opentelemetry/propagator-jaeger": ^2.9.0
-  "js-yaml@>=4.0.0 <4.3.0": ^4.3.0
-  "js-yaml@>=3.0.0 <3.15.0": ^3.15.0
+  "js-yaml@>=4.0.0 <4.3.1": ^4.3.1
+  "js-yaml@>=3.0.0 <3.15.1": ^3.15.1
   "brace-expansion@<2.0.0": ^1.1.16
   "brace-expansion@>=2.0.0 <3.0.0": ^5.0.9
   "brace-expansion@>=3.0.0 <5.0.8": ^5.0.8
