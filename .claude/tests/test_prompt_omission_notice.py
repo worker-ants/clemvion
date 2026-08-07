@@ -32,6 +32,7 @@ import sys
 import textwrap
 import unittest
 
+import _harness
 from _harness import REPO_ROOT
 
 ORCH = (
@@ -39,55 +40,35 @@ ORCH = (
     / "code_review_orchestrator.py"
 )
 
-_PREAMBLE = textwrap.dedent(
-    f"""
-    import importlib.util, json, re, sys
-    spec = importlib.util.spec_from_file_location("orch", {str(ORCH)!r})
-    orch = importlib.util.module_from_spec(spec)
-    sys.modules["orch"] = orch
-    spec.loader.exec_module(orch)
+_PREAMBLE = _harness.orchestrator_preamble(
+    ORCH,
+    imports="re",
+    extra="""\
+# `build_cli_change_info` falls back to `get_git_diff_content()` whenever the
+# diff is falsy — and `diff_content=""` IS falsy — so every fixture path
+# (none of which exist) spawned two real git processes. At 1,200 files that
+# is 2,400 subprocesses: cProfile put 29.35s in the builder against 0.166s in
+# `build_files_section`, the function actually under test, and the suite's
+# 30s timeout fired. Stub it, as `test_review_changeset_warning` does.
+orch.get_git_diff_content = lambda path: ""
 
-    def emit(value):
-        sys.stdout.write("<<<" + json.dumps(value) + ">>>")
+def change_info(path, body):
+    # Real builder, not a hand-rolled dict — the shape it produces is the
+    # thing under test, and guessing it wrong hides real failures.
+    return orch.build_cli_change_info(path, diff_content="", file_content=body)
 
-    # `build_cli_change_info` falls back to `get_git_diff_content()` whenever the
-    # diff is falsy — and `diff_content=""` IS falsy — so every fixture path
-    # (none of which exist) spawned two real git processes. At 1,200 files that
-    # is 2,400 subprocesses: cProfile put 29.35s in the builder against 0.166s in
-    # `build_files_section`, the function actually under test, and the suite's
-    # 30s timeout fired. Stub it, as `test_review_changeset_warning` does.
-    orch.get_git_diff_content = lambda path: ""
-
-    def change_info(path, body):
-        # Real builder, not a hand-rolled dict — the shape it produces is the
-        # thing under test, and guessing it wrong hides real failures.
-        return orch.build_cli_change_info(path, diff_content="", file_content=body)
-
-    def sections(body):
-        out = []
-        for p in re.split(r"(?m)^### ", body)[1:]:
-            name, _, rest = p.partition("\\n")
-            out.append({{"name": name.strip(), "body": rest}})
-        return out
-
-    ARG = json.loads(sys.stdin.read() or "null")
-    """
+def sections(body):
+    out = []
+    for p in re.split(r"(?m)^### ", body)[1:]:
+        name, _, rest = p.partition("\\n")
+        out.append({"name": name.strip(), "body": rest})
+    return out
+""",
 )
 
 
 def run_in_orchestrator(snippet: str, arg=None):
-    proc = subprocess.run(
-        [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
-        input=json.dumps(arg), cwd=str(REPO_ROOT),
-        capture_output=True, text=True,
-        # Sibling suites set one too — without it a hang in the target code
-        # blocks the run forever instead of failing.
-        timeout=30.0,
-    )
-    if proc.returncode != 0:
-        raise AssertionError(proc.stderr[-3000:])
-    out = proc.stdout
-    return json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
+    return _harness.run_in_orchestrator(_PREAMBLE, snippet, arg)
 
 
 def build(files, max_total):

@@ -40,6 +40,7 @@ import sys
 import textwrap
 import unittest
 
+import _harness
 from _harness import REPO_ROOT
 
 ORCH = (
@@ -47,43 +48,20 @@ ORCH = (
     / "consistency_orchestrator.py"
 )
 
-_PREAMBLE = textwrap.dedent(
-    f"""
-    import importlib.util, json, sys
-    spec = importlib.util.spec_from_file_location("orch", {str(ORCH)!r})
-    orch = importlib.util.module_from_spec(spec)
-    sys.modules["orch"] = orch
-    spec.loader.exec_module(orch)
-    REPO_ROOT = {str(REPO_ROOT)!r}
-
-    class ArgsFor:
-        spec = plan = impl_done = diff_base = None
-        def __init__(self, area):
-            self.impl_prep = REPO_ROOT + "/" + area
-
-    def emit(value):
-        sys.stdout.write("<<<" + json.dumps(value) + ">>>")
-
-    ARG = json.loads(sys.stdin.read() or "null")
-    """
+_PREAMBLE = _harness.orchestrator_preamble(
+    ORCH,
+    imports="os, shutil, subprocess, tempfile",
+    extra="""\
+class ArgsFor:
+    spec = plan = impl_done = diff_base = None
+    def __init__(self, area):
+        self.impl_prep = REPO_ROOT + "/" + area
+""",
 )
 
 
 def run_in_orchestrator(snippet: str, arg=None):
-    """Execute `snippet` with `orch`, `ArgsFor`, `emit` and `ARG` in scope."""
-    proc = subprocess.run(
-        [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
-        input=json.dumps(arg), cwd=str(REPO_ROOT),
-        capture_output=True, text=True,
-        # Without this a hang in the target code blocks the whole run instead of
-        # failing. The sibling suites set one; this file did not, and a comment
-        # in one of them claimed otherwise.
-        timeout=30.0,
-    )
-    if proc.returncode != 0:
-        raise AssertionError(proc.stderr[-3000:])
-    out = proc.stdout
-    return json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
+    return _harness.run_in_orchestrator(_PREAMBLE, snippet, arg)
 
 
 # The real boundary sentinel, fetched from the module rather than retyped.
@@ -280,11 +258,12 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
             import os, shutil, subprocess, tempfile
             d = tempfile.mkdtemp()
             try:
+                # 공용 헬퍼 — `-C` + ceiling + 임시경로 단언. 예전엔 raw subprocess 였고
+                # 그건 **AST 가드가 볼 수 없는 자리**였다(문자열 안이라 호출로 파싱되지
+                # 않는다). preamble 이 `_harness` 를 실어 보내며 그 사각이 닫혔다.
                 def git(*a):
-                    subprocess.run(["git", *a], cwd=d, check=True,
-                                   capture_output=True, timeout=30)
-                git("init", "-q", "-b", "main")
-                git("config", "user.email", "t@t"); git("config", "user.name", "t")
+                    _harness.git_in(d, *a)
+                _harness.make_temp_git_repo(d, initial_commit=False)
                 os.makedirs(os.path.join(d, "spec", "area"))
                 os.makedirs(os.path.join(d, "codebase"))
                 with open(os.path.join(d, "spec", "area", "a.md"), "w") as fh:

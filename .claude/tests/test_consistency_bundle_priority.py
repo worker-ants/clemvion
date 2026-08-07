@@ -30,6 +30,7 @@ import sys
 import textwrap
 import unittest
 
+import _harness
 from _harness import REPO_ROOT
 
 ORCH = (
@@ -37,36 +38,13 @@ ORCH = (
     / "consistency_orchestrator.py"
 )
 
-_PREAMBLE = textwrap.dedent(
-    f"""
-    import importlib.util, json, sys
-    spec = importlib.util.spec_from_file_location("orch", {str(ORCH)!r})
-    orch = importlib.util.module_from_spec(spec)
-    sys.modules["orch"] = orch
-    spec.loader.exec_module(orch)
-    ROOT = {str(REPO_ROOT)!r}
-
-    def emit(value):
-        sys.stdout.write("<<<" + json.dumps(value) + ">>>")
-
-    ARG = json.loads(sys.stdin.read() or "null")
-    """
+_PREAMBLE = _harness.orchestrator_preamble(
+    ORCH,
 )
 
 
 def run_in_orchestrator(snippet: str, arg=None):
-    proc = subprocess.run(
-        [sys.executable, "-c", _PREAMBLE + textwrap.dedent(snippet)],
-        input=json.dumps(arg), cwd=str(REPO_ROOT),
-        capture_output=True, text=True,
-        # Sibling suites set one too — without it a hang in the target code
-        # blocks the run forever instead of failing.
-        timeout=30.0,
-    )
-    if proc.returncode != 0:
-        raise AssertionError(proc.stderr[-3000:])
-    out = proc.stdout
-    return json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
+    return _harness.run_in_orchestrator(_PREAMBLE, snippet, arg)
 
 
 def _prioritize(rels, *, changed=(), plan_text=""):
@@ -283,13 +261,12 @@ class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
 
+        # 공용 헬퍼 — `git -C` + ceiling + 임시경로 단언. 2026-08-06 공유 `.git/config`
+        # 오염 사고의 방어이고, 사고 당시 이 파일이 미경화 5곳 중 하나였다.
         def git(*args):
-            subprocess.run(["git", *args], cwd=d, check=True,
-                           capture_output=True, text=True, timeout=30.0)
+            return _harness.git_in(d, *args)
 
-        git("init", "-q", "-b", "main")
-        git("config", "user.email", "t@t")
-        git("config", "user.name", "t")
+        _harness.make_temp_git_repo(d, initial_commit=False)
         os.makedirs(os.path.join(d, "spec"), exist_ok=True)
         for name in ("kept.md", "renamed-from.md"):
             with open(os.path.join(d, "spec", name), "w") as f:

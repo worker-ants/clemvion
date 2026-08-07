@@ -117,6 +117,17 @@ spec_impact: none
          `warn_if_committed_work_is_missing` 대칭 안전장치가 없다.
        - 동반: changeset 이 `review/**` 로만 구성되면 그 자체가 오구성 신호 — advisory 경고 대상.
 
+13. ~~**테스트 픽스처가 공유 `.git/config` 를 오염시킬 수 있다**~~ → **처분 완료 (2026-08-07).**
+    `_harness.git_in()` / `make_temp_git_repo()` 로 통합하고, **속성 기반 가드**를 붙였다
+    (`TempRepoFixturesGoThroughTheSharedHelperTest`) — 메커니즘이 아니라 `-C`(디렉터리
+    argv 고정) + `GIT_CEILING_DIRECTORIES`(상향 차단)를 본다. 첫 판은 "`git_in` 을
+    쓰는가" 로 짜서 **이미 옳은 10곳을 전부 위반으로** 잡았고, 속성으로 바꾸자 **진짜
+    3곳**(`-C` 는 있는데 ceiling 없음)이 나왔다. plan 이 적은 "미경화 4곳" 도 틀렸다 —
+    실제는 임시저장소 5곳 + 실저장소 읽기 3곳이었고 후자는 대상이 아니다.
+    **잔여**: AST 는 문자열 안의 픽스처를 못 본다(`test_consistency_context_budget.py`
+    의 fresh-interpreter 스니펫). 그 사각을 이름 붙인 테스트로 고정해 뒀고, §14 에서
+    보일러플레이트를 추출할 때 함께 닫는다.
+
 13. **테스트 픽스처가 공유 `.git/config` 를 오염시킬 수 있다 (2026-08-06 실제 사고)** —
    11R 에서 `actions/checkout` 위상을 재현하려 만든 픽스처의 `git remote add origin` 이
    워크트리 쪽에서 실행돼 `origin` URL 이 임시 경로로 덮였다. 이 저장소는 워크트리 5개가
@@ -132,17 +143,47 @@ spec_impact: none
      `test_push_guard_worktree_scope.py` (전부 `-C`/ceiling 없이 `init`/`config` 호출).
      이 티켓 범위 밖이라 등재만 한다. 근본 처방은 `_harness.py` 에 공용
      `make_temp_git_repo()` 를 두고 이 가드를 그 안에 한 번만 넣는 것이다.
+14. ~~**fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제**~~ → **처분 완료 (2026-08-07).**
+    `_harness.orchestrator_preamble()` + `run_in_orchestrator()` 로 추출. tests/ 순 -123줄.
+    **전제가 절반만 맞았다**: runner 본문은 4개 중 3개가 byte-identical(나머지 하나도 주석만
+    다름)이었지만, preamble 은 유사도 **44~70%** 로 각자 고유 픽스처를 얹고 있었다. 그래서
+    **코어만** 옮기고 파일별 픽스처는 `extra=` 로 그 파일에 남겼다 — 전부 옮겼다면 존재한 적
+    없는 공통을 발명하는 셈이다.
+    작업 중 추출을 두 번 틀렸다: (a) 고유부를 "emit 뒤 ~ ARG 앞" 으로 떠서 `emit` **앞**에
+    있던 `ArgsFor` 클래스를 통째로 잃었고, (b) 필터의 `spec =` 이 `spec = plan = impl_done =
+    diff_base = None` 을 함께 잘라 클래스 속성이 사라졌다. 둘 다 테스트가 즉시 잡았다.
+    **부수 효과 — §13 의 잔여 사각이 닫혔다**: 공유 preamble 이 `_harness` 를 서브프로세스
+    경로에 실어 보내므로 스니펫도 `git_in` 을 쓴다. 문자열 안 raw git 은 AST 가드가 못 보므로,
+    닫힌 상태를 텍스트 검사(`test_the_former_ast_blind_spot_stays_closed`)로 고정했다 —
+    그 가드가 처음엔 **자기 docstring 과 자기 탐지 코드**를 위반으로 잡아 주석·docstring 을
+    제외하도록 정정했다.
+
 14. **fresh-interpreter 테스트 보일러플레이트가 4개 파일에 복제** — `_lib` 네임스페이스 충돌을
    피하는 `run_in_orchestrator` + `_PREAMBLE` (~35줄)이 `test_consistency_context_budget` ·
    `test_consistency_bundle_priority` · `test_prompt_omission_notice` ·
    `test_review_changeset_warning` 에 각각 있다. `_harness.py` 로 추출하면 한 곳만 고치면 된다
    (이번에 timeout 을 3곳에 각각 넣어야 했던 것이 그 비용의 실례).
+15. ~~**`git_probe._default_branch` 의 Method 1 성공 경로가 실 저장소로 구동된 적이 없다**~~
+    → **처분 완료 (2026-08-07).** `DefaultBranchResolutionOrderTest` 6케이스.
+    **평범한 clone 으로는 Method 1 을 분리할 수 없다** — `origin/HEAD` 와 `origin/main`
+    이 둘 다 있어 결과가 'main' 이어도 누가 답했는지 모른다. 기본 브랜치를 `trunk` 로
+    두면 폴백(main/master만 조회)이 답할 수 없어 갈린다.
+    작업 중 **내 테스트 하나가 vacuous** 했다: `update-ref -d` 는 rc 0 을 내면서 symref 를
+    지우지 않아(실측) Method 1 이 살아 있었고, 우연히 기대값과 같아 통과했다.
+    `symbolic-ref --delete` + 전제 단언으로 정정. 뮤테이션 2/2 RED.
+
 15. **`git_probe._default_branch` 의 Method 1 성공 경로가 실 저장소로 구동된 적이 없다** (12R
    W3) — 유일한 실 저장소 픽스처(`ActionsCheckoutTopologyTest`)가 **정의상 그 ref 가 없는**
    위상이라, `refs/remotes/origin/HEAD` 가 **있을** 때의 동작은 stub 으로만 고정돼 있다.
    11R 이 닫은 결함이 바로 "이 함수가 위상에 따라 다르게 행동한다" 였는데, 두 위상 중
    하나만 실물로 본다. `git clone` 픽스처가 필요해 별도 범위 — §8 과 같은 클래스이되
    다른 함수다(§8 은 `code_review_orchestrator._default_branch_ref()`).
+16. ~~**`_run_git` 의 타임아웃 경로가 미검증**~~ → **처분 완료 (2026-08-07).**
+    `RunGitTimeoutIsSwallowedTest` — PATH 앞에 30초 자는 가짜 `git` 을 두고 상한 0.3초로
+    구동한다. `(1, "", "")` 반환을 단언하고, **정말 매달렸는지**를 경과시간으로 따로
+    확인한다(즉시 끝나면 다른 이유로 통과하므로). 뮤테이션(TimeoutExpired 를 catch 에서
+    제거) 2/2 RED.
+
 16. **`_run_git` 의 타임아웃 경로가 미검증** (12R W4) — `subprocess.TimeoutExpired` 를
    삼키고 실패로 취급하는 분기가 어떤 테스트도 통과하지 않는다. 11R 이 드러냈듯 이 경로는
    가설이 아니라 **CI 에서 매번 실제로 밟히던 경로**였다(네트워크 프로브 2.58초 → 상한).

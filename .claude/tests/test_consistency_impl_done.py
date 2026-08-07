@@ -28,6 +28,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import _harness
 from _harness import REPO_ROOT
 
 ORCH = (
@@ -39,13 +40,9 @@ NEW_ID = "WORKSPACE_INVITATIONS_PRUNER_QUEUE"
 
 
 def _git(cwd: Path, *args: str) -> None:
-    subprocess.run(
-        ["git", *args],
-        cwd=str(cwd),
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    # 공용 헬퍼 — `git -C` + ceiling + 임시경로 단언 (2026-08-06 공유 `.git/config`
+    # 오염 사고의 방어). 이 픽스처는 임시 저장소만 다루므로 단언이 성립한다.
+    _harness.git_in(cwd, *args)
 
 
 def _write(path: Path, text: str) -> None:
@@ -84,10 +81,7 @@ class ImplDoneHeadBasisTest(unittest.TestCase):
         )
         _git(self.repo, "add", "-A")
         _git(self.repo, "commit", "-q", "-m", "baseline")
-        self.base = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=str(self.repo),
-            capture_output=True, text=True, check=True,
-        ).stdout.strip()
+        self.base = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
 
         # --- HEAD: add the new queue identifier to BOTH code and spec ---
         _write(

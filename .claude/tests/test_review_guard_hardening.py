@@ -25,14 +25,17 @@ audit surfaced:
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime, timezone
 from unittest import mock
@@ -42,6 +45,8 @@ from _lib import review_guard as rg
 import guard_review_before_stop as stop
 import mark_resolution_in_flight as mark_hook
 import clear_resolution_in_flight as clear_hook
+
+TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
 
 class PorcelainPathTest(unittest.TestCase):
@@ -968,3 +973,134 @@ class ActionsCheckoutTopologyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TempRepoFixturesGoThroughTheSharedHelperTest(unittest.TestCase):
+    """임시 git 저장소를 만드는 픽스처는 `_harness.git_in` 을 거쳐야 한다.
+
+    2026-08-06 사고: 한 픽스처가 `git remote add origin …` 을 임시 트리 **밖에서**
+    실행해 워크트리 5개가 공유하는 `.git/config` 를 덮었다. 다른 세션의 `fetch` 가
+    깨졌고 **아무 신호도 없었다**. 개별 픽스처를 손으로 경화하는 것으로는 다음에
+    추가되는 픽스처를 막지 못한다 — 그래서 목록이 아니라 **도출**로 강제한다.
+
+    허용되는 형태는 둘뿐이다:
+      · `_harness.git_in(...)` — 임시 저장소. 헬퍼가 `-C`·ceiling·임시경로 단언을 건다.
+      · `cwd=REPO_ROOT` 로의 직접 호출 — 이 체크아웃 자신의 이력을 읽는 테스트.
+        그쪽엔 ceiling 이 무의미하므로 경화 대상이 아니다(아래 레지스트리).
+    """
+
+    # 실 저장소를 의도적으로 읽는 호출. 각 항목은 "왜 임시 저장소가 아닌가" 다.
+    _REAL_REPO_READERS = {
+        "test_dependabot_npm_coverage.py":
+            "이 저장소의 추적 파일 목록을 읽어 dependabot 등록 불변식을 검사한다",
+        "test_harness_checks_paths_coverage.py":
+            "이 저장소의 실제 경로를 harness-checks paths 와 대조한다",
+        "test_line_anchors.py":
+            "실제 커밋 이력에서 diff/소스를 뽑아 gutter 번호를 검증한다",
+    }
+
+    def _git_calls(self, tree):
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            f = node.func
+            if not (isinstance(f, ast.Attribute) and f.attr == "run"
+                    and isinstance(f.value, ast.Name) and f.value.id == "subprocess"):
+                continue
+            if not node.args:
+                continue
+            first = node.args[0]
+            if isinstance(first, ast.List) and first.elts:
+                head = first.elts[0]
+                if isinstance(head, ast.Constant) and head.value == "git":
+                    yield node
+
+    def test_every_temp_repo_git_call_pins_dir_and_ceiling(self):
+        """검사하는 것은 **속성**이지 메커니즘이 아니다.
+
+        처음엔 "`_harness.git_in` 을 쓰는가" 로 짰는데, 이미 손으로 `git -C` + ceiling 을
+        건 호출 10곳을 전부 위반으로 잡았다 — **고쳐야 할 것이 아니라 이미 옳은 것들**이다.
+        그래서 판정을 두 성질로 바꾼다: 디렉터리가 argv 에 고정됐는가(`-C`), 그리고
+        상향 탐색이 막혔는가(`GIT_CEILING_DIRECTORIES`). `git_in` 은 그 둘을 한 곳에
+        모아 둔 구현일 뿐이고, 손으로 건 것도 같은 보증이면 통과시킨다.
+        """
+        offenders = []
+        for path in sorted(TESTS_DIR.glob("test_*.py")):
+            src = path.read_text(encoding="utf-8")
+            lines = src.splitlines()
+            tree = ast.parse(src)
+            # 각 함수의 소스 범위 — ceiling 설정은 호출과 같은 함수 안에 있다.
+            funcs = [(n.lineno, n.end_lineno) for n in ast.walk(tree)
+                     if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+            for call in self._git_calls(tree):
+                cwd = next((k.value for k in call.keywords if k.arg == "cwd"), None)
+                names = {n.id for n in ast.walk(cwd) if isinstance(n, ast.Name)} if cwd else set()
+                if "REPO_ROOT" in names:
+                    self.assertIn(
+                        path.name, self._REAL_REPO_READERS,
+                        f"{path.name}:{call.lineno} 이 REPO_ROOT 로 git 을 부르는데 "
+                        "레지스트리에 없다 — 실 저장소를 읽는 이유를 등재할 것",
+                    )
+                    continue
+                argv = call.args[0].elts
+                pinned = any(isinstance(e, ast.Constant) and e.value == "-C" for e in argv)
+                enclosing = [f for f in funcs if f[0] <= call.lineno <= f[1]]
+                start, end = (min(f[0] for f in enclosing), max(f[1] for f in enclosing)) \
+                    if enclosing else (call.lineno, call.lineno)
+                ceiled = "GIT_CEILING_DIRECTORIES" in "\n".join(lines[start - 1:end])
+                if not (pinned and ceiled):
+                    offenders.append(
+                        f"{path.name}:{call.lineno} "
+                        f"(-C={'있음' if pinned else '없음'}, ceiling={'있음' if ceiled else '없음'})")
+        self.assertEqual(
+            offenders, [],
+            "임시 저장소에 대한 git 호출은 디렉터리를 argv 에 고정(`-C`)하고 상향 탐색을 "
+            "막아야(`GIT_CEILING_DIRECTORIES`) 한다. `_harness.git_in()` 이 둘을 함께 건다.\n  "
+            + "\n  ".join(offenders),
+        )
+
+    def test_the_registry_has_no_dead_entries(self):
+        # 레지스트리가 낡으면 "등재됐으니 괜찮다" 가 거짓이 된다.
+        for name in self._REAL_REPO_READERS:
+            self.assertTrue((TESTS_DIR / name).is_file(),
+                            f"레지스트리의 {name} 이 존재하지 않는다")
+
+    def test_the_former_ast_blind_spot_stays_closed(self):
+        """AST 는 **문자열 안**의 픽스처를 보지 못한다 — 그 사각이 실제로 있었다.
+
+        `test_consistency_context_budget.py` 는 fresh-interpreter 스니펫(문자열) 안에서
+        임시 저장소를 만들었다. 위 도출 검사는 문자열을 호출로 파싱하지 않으므로 그
+        raw `subprocess.run(["git", …])` 를 **조용히 통과시켰다**.
+
+        §14 에서 preamble 을 공유로 추출하며 닫혔다 — 공유 preamble 이 `_harness` 를
+        서브프로세스 경로에 실어 보내므로 스니펫도 `git_in` 을 쓸 수 있다. 사각이
+        닫혔다는 사실 자체를 여기 고정한다: 문자열 안에 raw git 호출이 **다시 생기면**
+        AST 가드는 여전히 못 보므로, 이 텍스트 검사가 유일한 방어다.
+        """
+        # 주석·docstring 안의 등장은 코드가 아니다. 이 가드 자신이 그 텍스트를 docstring
+        # 과 탐지 코드에 담고 있어, 걸러내지 않으면 **자기 자신을 위반으로 잡는다**(실제로
+        # 그랬다). `_harness.py` 는 헬퍼의 유일한 구현이라 별도로 허용한다.
+        allowed_impl = {"_harness.py"}
+        for path in sorted(TESTS_DIR.glob("*.py")):
+            if path.name in allowed_impl:
+                continue
+            src = path.read_text(encoding="utf-8")
+            tree = ast.parse(src)
+            call_lines = {c.lineno for c in self._git_calls(tree)}
+            doc_lines: set[int] = set()
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+                        and isinstance(node.value.value, str)):
+                    doc_lines.update(range(node.lineno, node.end_lineno + 1))
+            for n, line in enumerate(src.splitlines(), start=1):
+                if 'subprocess.run(["git"' not in line:
+                    continue
+                if n in call_lines or n in doc_lines:
+                    continue
+                if line.lstrip().startswith("#") or "'subprocess.run" in line:
+                    continue
+                self.fail(
+                    f"{path.name}:{n} 문자열 안에 raw git 호출이 있다. AST 가드가 보지 "
+                    "못하는 자리다 — `_harness.git_in()` 을 쓸 것 (공유 preamble 이 "
+                    "`_harness` 를 서브프로세스에 실어 보낸다)."
+                )

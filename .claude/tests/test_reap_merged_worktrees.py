@@ -95,10 +95,8 @@ class ReaperTest(unittest.TestCase):
 
     # --- helpers -----------------------------------------------------------
     def _git(self, *args, cwd=None):
-        return subprocess.run(
-            ["git", "-C", cwd or self.repo, *args],
-            capture_output=True, text=True, check=True,
-        )
+        # `-C` + ceiling 을 함께 거는 공용 헬퍼 (2026-08-06 오염 사고의 방어).
+        return _harness.git_in(cwd or self.repo, *args)
 
     def _write(self, path, content):
         os.makedirs(os.path.dirname(path), exist_ok=True)
