@@ -9,11 +9,21 @@
 1. **판정자가 하나다** — 스크립트가 자기 판정 로직을 새로 갖지 않는다. 두 번째 구현은 로컬과
    CI 판정이 갈리는 drift 이고, 이 저장소는 `report_paths` / `retry_state` 로 그 실패를 이미
    두 번 겪었다.
-2. **관측 모드가 기본** — `--enforce` 없이는 위반이어도 exit 0. 로컬 훅은 미커밋 파일도 보지만
-   CI 는 커밋된 것만 보는데, 이 저장소의 관행은 리뷰 산출물이 그 코드의 PR 에 커밋되지 않는
-   것이다(435건 중 80건). 지금 켜면 "리뷰를 안 했다" 가 아니라 "산출물을 안 담았다" 를 막는다.
-3. **fail-open** — 게이트를 못 불러오거나 게이트가 예외를 던져도 exit 0. 백스톱이 CI 를
-   막아서는 안 된다. 이 층은 방어 심화이지 그 자체가 활성 게이트가 아니다.
+2. **`--enforce` 가 기본이다 (2026-08-07 전환)** — 위반이면 exit 1. 종전에는 관측 모드가
+   기본이었고, 그 근거는 "지금 켜면 이력상 18% 를 막는데 그건 미리뷰가 아니라 산출물
+   미커밋" 이었다. 전환 시점에 재측정한 값은 그보다 낮다 — dependabot 을 뺀
+   `codebase/**` 커밋 기준 **최근 5주 12.7%(20/158) · 9주 10.0%(41/409)**. dependabot 은
+   워크플로가 `github.actor` 로 이미 제외하므로 그쪽 비중(5주 기준 34건)은 마찰이 아니다.
+   남는 마찰은 실제 기능·수정 PR 의 약 1/8 이고, 해소 방법은 리뷰 산출물을 그 PR 에 함께
+   커밋하는 것 — 이 저장소가 이미 규약으로 요구하는 절차다.
+
+   **이 게이트가 증명하지 못하는 것**: "리뷰가 실제로 수행됐는가" 가 아니라 **산출물의 존재와
+   텍스트 형태**만 본다. 8R 이 격리 저장소로 실증했다 — `codebase/` 1줄 변경 + 손으로 쓴
+   3줄짜리 `SUMMARY.md` 만으로 `--enforce` 가 통과한다. 즉 이 층이 막는 것은 "리뷰 없음" 과
+   "stale 리뷰" 이지 "형식만 갖춘 가짜" 가 아니다. 그 축은 여전히 열려 있다.
+3. **fail-open** — 게이트를 못 **불러오거나** 게이트가 예외를 던지면 exit 0. `--enforce` 로
+   뒤집힌 뒤에도 이 성질은 그대로다: 막는 것은 **판정된 위반**이지 판정기의 고장이 아니다.
+   백스톱 자신의 버그가 무관한 PR 을 세우면 그건 방어가 아니라 새 장애다.
 4. **advisory 는 판정과 무관하게 나온다** — 차단 시에만 내면, 거부되는 그 세션이 바로 Critical
    을 하향한 세션일 때 그 사실이 드러나는 유일한 자리를 잃는다.
 
@@ -440,7 +450,7 @@ class WorkflowWiringTest(unittest.TestCase):
                      "env": {"BASE_REF": "${{ github.base_ref }}"},
                      "run": 'git fetch --no-tags origin "$BASE_REF"'},
                     {"name": "Review coverage backstop",
-                     "run": "python3 scripts/check-review-gate.py"},
+                     "run": "python3 scripts/check-review-gate.py --enforce"},
                 ],
             }
         },
@@ -474,7 +484,8 @@ class WorkflowWiringTest(unittest.TestCase):
         steps = job["steps"]
         gate = [st for st in steps if st.get("run", "").startswith("python3 ")]
         self.assertEqual(len(gate), 1, "게이트를 부르는 step 이 정확히 하나가 아니다")
-        self.assertEqual(gate[0]["run"], "python3 scripts/check-review-gate.py")
+        self.assertEqual(gate[0]["run"],
+                         "python3 scripts/check-review-gate.py --enforce")
 
         # 실행을 막거나(if) 실패를 삼키거나(continue-on-error) 즉시 끝내는(timeout 0) 키는
         # job 에도 step 에도 없어야 한다. 4R 은 step 만 막혀 있어 job 레벨로 우회됐다.
@@ -496,8 +507,12 @@ class WorkflowWiringTest(unittest.TestCase):
                          "shallow 체크아웃이면 merge-base 가 없어 게이트가 fail-open 한다")
         self.assertLess(steps.index(checkout[0]), steps.index(gate[0]))
 
-        self.assertNotIn("--enforce", gate[0]["run"],
-                         "관측 모드 계약 — 켤 때는 이 단언도 함께 바꾼다")
+        # 2026-08-07 관측 모드 → enforce. 종전 단언은 `assertNotIn` 이었다("켤 때는 이
+        # 단언도 함께 바꾼다"). 방향을 뒤집어 **꺼지는 쪽**을 막는다 — 켜 둔 게이트가
+        # 조용히 관측 모드로 되돌아가면 아무도 눈치채지 못하고, 그게 이 층이 12라운드에
+        # 걸쳐 막아 온 실패 형태 그 자체다.
+        self.assertIn("--enforce", gate[0]["run"],
+                      "enforce 계약 — 관측 모드로 되돌리려면 이 단언부터 바꿔야 한다")
 
 
 class VerdictComesFromTheGateTest(unittest.TestCase):
