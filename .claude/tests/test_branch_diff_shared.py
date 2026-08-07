@@ -271,6 +271,96 @@ class SharedProbeContractTest(unittest.TestCase):
         gp.branch_diff_files("main", str(repo), on_error=seen.append)
         self.assertEqual(seen, [])
 
+    def test_on_error_still_says_something_when_git_produced_no_stderr(self):
+        """The other half of the reason string, which nothing exercised.
+
+        A timeout or a missing `git` binary comes back from `_run_git_raw` as
+        `(1, "", "")`, so `err.strip()` is empty and the generic fallback runs.
+        The test above only covers the bad-ref case, where git writes a real
+        message and the `or` branch is never evaluated — half the diagnostic the
+        two orchestrators log was unverified.
+        """
+        from unittest import mock
+        gp = self._probe()
+        with mock.patch.object(gp, "_run_git_raw", return_value=(1, "", "")):
+            seen = []
+            self.assertEqual(
+                gp.branch_diff_files("main", "/nonexistent", on_error=seen.append), [])
+        self.assertEqual(len(seen), 1)
+        self.assertIn("rc=1", seen[0])
+        self.assertIn("main", seen[0])
+
+
+class UndecodableGitOutputTest(unittest.TestCase):
+    """`text=True` decodes as strict UTF-8, and that broke the failure contract.
+
+    Both orchestrator copies wrapped their git call in `except Exception`, and
+    all three docstrings say "empty on any failure". The extraction narrowed that
+    to `except (TimeoutExpired, FileNotFoundError, OSError)` — and
+    `UnicodeDecodeError` is a `ValueError`, not an `OSError`, so it escaped and
+    took the orchestrator process with it. The failure mode changed from "empty
+    changeset" to "crash".
+
+    `core.quotePath=false` is what makes this reachable rather than theoretical:
+    it is exactly the flag that stops git from C-quoting non-ASCII bytes, so an
+    undecodable filename (a latin-1 name created on Linux — this repo's CI runs
+    there) arrives as raw bytes. Driven through a fake `git` on PATH rather than
+    a mocked `subprocess`, so it tests the decoding this code actually asks for.
+    """
+
+    def _probe(self):
+        import sys
+        if str(_harness.CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import git_probe
+        return git_probe
+
+    def _fake_git(self, script_body):
+        """Put a `git` on PATH that does what we say. Returns its directory."""
+        import stat
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        path = os.path.join(tmp, "git")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("#!/bin/sh\n" + script_body)
+        os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+        return tmp
+
+    def test_a_path_git_cannot_round_trip_does_not_crash_the_caller(self):
+        from unittest import mock
+        gp = self._probe()
+        # 0o344 is a lone latin-1 byte — invalid as UTF-8 continuation.
+        bindir = self._fake_git('printf "ok.ts\\nbad\\344name.ts\\n"\nexit 0\n')
+
+        with mock.patch.dict(os.environ,
+                             {"PATH": bindir + os.pathsep + os.environ["PATH"]}):
+            files = gp.branch_diff_files("main", bindir)
+
+        self.assertEqual(len(files), 2, f"경로가 유실됐다: {files!r}")
+        self.assertEqual(files[0], "ok.ts")
+        # Surrogateescape, not "replace": the byte survives, so the path can
+        # still be handed back to the filesystem.
+        self.assertEqual(files[1].encode("utf-8", "surrogateescape"),
+                         b"bad\xe4name.ts")
+
+    def test_an_unexpected_exception_still_means_empty_not_crash(self):
+        """The contract the three docstrings promise, asserted directly.
+
+        Pinned separately from the decode fix: `surrogateescape` removes the one
+        known trigger, and this pins the promise itself so a future narrowing of
+        the `except` is caught even if the trigger is different.
+        """
+        from unittest import mock
+        gp = self._probe()
+        with mock.patch.object(gp.subprocess, "run",
+                               side_effect=ValueError("something unforeseen")):
+            self.assertEqual(gp._run_git_raw(["diff"], "/tmp"), (1, "", ""))
+            self.assertEqual(gp._run_git(["diff"], "/tmp"), (1, "", ""))
+            seen = []
+            self.assertEqual(
+                gp.branch_diff_files("main", "/tmp", on_error=seen.append), [])
+        self.assertEqual(len(seen), 1, "실패가 조용히 삼켜졌다 — 호출부가 로그할 게 없다")
+
 
 if __name__ == "__main__":
     unittest.main()

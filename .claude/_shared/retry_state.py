@@ -1,9 +1,14 @@
-"""`_retry_state.json` bookkeeping, shared by both orchestrators.
+"""`_retry_state.json` bookkeeping, shared by all three orchestrators.
 
 `code_review_orchestrator` and `consistency_orchestrator` each carried their own
 copy of these five functions, kept in step by a "Mirrors X. Change both." comment
 on each pair. That is the same arrangement `_shared/report_paths.py` was created
 to replace, after two copies of *that* rule drifted apart in practice.
+
+`merge_coordinator_orchestrator` was the third copy and joined in two steps: it
+delegated `load_state`/`save_state`/`apply_status_update` first, and became a
+full consumer only once it also picked up `reconcile_state_with_disk` — until
+then it was the one orchestrator with no self-healing at all.
 
 **Measured before extracting** (AST comparison, docstrings excluded):
 
@@ -26,9 +31,11 @@ Disk is the arbiter throughout: a self-reported status with no file behind it is
 the fake success this contract exists to remove. That arbitration covers both
 terminal buckets — a success is backed by its report file, a fatal by a
 `_fatal/<name>` sentinel — so an update lost to a concurrent writer is
-recoverable for either. Rate-limit bookkeeping (`rate_limit_episodes`,
-`last_reset_hint_sec`) is left alone — an agent that hit a limit has no file and
-stays pending, which is what `/loop` needs.
+recoverable for either. **Recoverable in the direction that ADDS the status**;
+see `_record_fatal` for the asymmetry, which is real and unclosed. Rate-limit
+bookkeeping (`rate_limit_episodes`, `last_reset_hint_sec`) is left alone — an
+agent that hit a limit has no file and stays pending, which is what `/loop`
+needs.
 """
 
 from __future__ import annotations
@@ -72,11 +79,12 @@ def save_state(state_file, state):
 
       · `agents_success` — rebuilt from the report files every read. Converges.
       · `agents_fatal` — a fatal transition drops a `_fatal/<name>` sentinel, so
-        this converges too. It did NOT until 2026-08-07: the bucket was only
-        *filtered* from whatever the loaded state held, nothing on disk said
+        BECOMING fatal converges. It did NOT until 2026-08-07: the bucket was
+        only *filtered* from whatever the loaded state held, nothing on disk said
         "this was fatal", and a lost update therefore silently demoted a fatal
         back to pending with no way back — `/loop` then re-ran a checker already
-        judged permanently failed. See `_record_fatal`.
+        judged permanently failed. See `_record_fatal`, including the direction
+        that still does not converge.
       · `agents_pending` — the remainder of the two, so it follows.
       · `agent_history`, `rate_limit_episodes`, `last_reset_hint_sec` — no
         convergence. A lost `last_reset_hint_sec` makes `/loop` retry before a
@@ -149,6 +157,23 @@ def _record_fatal(session_dir, name, is_fatal):
     Advisory: any `OSError` is swallowed. The JSON transition is still the
     primary record, so a read-only or full filesystem degrades to exactly the
     pre-2026-08-07 behaviour instead of failing the update.
+
+    **The two directions are NOT symmetric, and the clear direction is still
+    unprotected.** Becoming fatal leaves positive evidence, so a lost JSON write
+    is recovered. Ceasing to be fatal leaves only the ABSENCE of the sentinel,
+    and absence is not evidence — `reconcile_state_with_disk` unions JSON with
+    the sentinels precisely so that sessions committed before this existed keep
+    their fatals. So if a retry demotes an agent to `pending` and *that* write is
+    the one lost, the stale JSON still lists it and the union revives it: the
+    agent stays fatal until a real report happens to appear for it.
+
+    That is not a regression — the JSON-only version behaved identically, since
+    it read `agents_fatal` from the same stale state. It is the half this change
+    did not close, pinned by
+    `test_clearing_fatal_is_still_unprotected_against_a_lost_update` so the gap
+    is a recorded fact rather than a surprise. Closing it needs positive evidence
+    of clearing (a `_cleared/` marker, or comparing sentinel mtime against the
+    state file), which is a design rather than a patch — registered in the plan.
     """
     path = fatal_sentinel_path(session_dir, name)
     if not path:

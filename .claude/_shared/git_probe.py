@@ -1,4 +1,12 @@
-"""Git probes shared by the three push-gate guards.
+"""Git probes shared by the three push-gate guards and two skill orchestrators.
+
+The consumer set outgrew "the three guards" when `branch_diff_files` was added:
+`code_review_orchestrator` and `consistency_orchestrator` import this module too,
+so it now spans the hook layer and the skill layer. The `_`-prefixed probes below
+are the hook-layer set (each guard delegates to them by name, which
+`test_plan_guard.py` derives and enforces); `branch_diff_files` is public because
+it is consumed from outside this package rather than delegated to.
+
 
 `review_guard.py` and `plan_guard.py` each carried byte-identical copies of these
 five functions. AST-compared before extracting (docstrings excluded): all five
@@ -133,6 +141,26 @@ def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, 
     That is the same failure `_run_git`'s own comment records from the other end:
     a `strip()` that ate a LEADING space and shifted a whole line. Rather than
     weaken the trimming for the scalar callers, the list caller reads raw.
+
+    **`errors="surrogateescape"`, and it is load-bearing.** `text=True` alone
+    decodes as strict UTF-8, so a byte sequence git cannot round-trip raises
+    `UnicodeDecodeError` — which is a `ValueError`, NOT an `OSError`, so it went
+    straight through the `except` below and out of every caller. `core.quotePath
+    =false` above makes that reachable rather than theoretical: it is precisely
+    the flag that stops git from C-quoting non-ASCII bytes, so an undecodable
+    filename (a latin-1 name created on Linux, say — this repo's CI runs there)
+    arrives here as raw bytes. Measured: `printf "bad\\344name.ts"` from a fake
+    `git` raises; with surrogateescape it comes back as `"bad\\udce4name.ts"` and
+    re-encodes to the original bytes, so the path stays usable against the
+    filesystem instead of being corrupted the way `errors="replace"` would.
+
+    The `except` is broad for the same reason, restoring a promise that was lost
+    in a refactor rather than inventing one: the two orchestrator copies this
+    function absorbed each wrapped their git call in `except Exception`, and all
+    three docstrings involved still say "empty on any failure". Narrowing it was
+    a silent contract break — the failure mode changed from "empty changeset" to
+    "orchestrator crashes". `_default_branch` below already guards its own calls
+    with `except Exception` for this same reason.
     """
     try:
         p = subprocess.run(
@@ -140,10 +168,11 @@ def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, 
             cwd=cwd,
             capture_output=True,
             text=True,
+            errors="surrogateescape",
             timeout=timeout,
         )
         return p.returncode, p.stdout, p.stderr
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+    except Exception:  # noqa: BLE001 — "empty on any failure" is the contract
         return 1, "", ""
 
 

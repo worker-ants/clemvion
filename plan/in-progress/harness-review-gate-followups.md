@@ -134,6 +134,17 @@ spec_impact: none
    `"trail .ts"` 로 지어 공백이 가운데 있었고 `rstrip` 이 건드리지 않아 깨진 구현에서도
    초록이었다. 뮤테이션이 잡았고, 픽스처가 자기 전제(마지막 줄이 후행 공백으로 끝나는가)를
    스스로 단언하도록 고쳤다.
+   **리뷰가 진짜 회귀를 하나 잡았다 (requirement, MEDIUM).** 통합 전 두 사본은 git 호출을
+   **넓은 `except Exception`** 으로 감쌌는데, `_run_git_raw` 는 `(TimeoutExpired,
+   FileNotFoundError, OSError)` 만 잡는다. `subprocess.run(text=True)` 는 strict UTF-8 로
+   디코드하므로 왕복 불가 바이트에서 `UnicodeDecodeError` 를 던지는데 그건 `ValueError`
+   지 `OSError` 가 아니다 — 그대로 뚫고 나가 orchestrator 가 **크래시**한다. 세 곳
+   docstring 이 전부 "실패 시 빈 값" 을 약속하는데 실패 양상이 "빈 changeset" 에서
+   "크래시" 로 바뀐 것이다. 그리고 **내가 켠 `core.quotePath=false` 가 이걸 도달 가능하게
+   만들었다** — 비-ASCII 바이트를 C-quote 하지 않게 하는 바로 그 플래그다.
+   실측: 가짜 `git` 이 `printf "bad\344name.ts"` 를 내면 raise. 처방은 `errors=
+   "surrogateescape"`(바이트가 살아남아 파일시스템에 되돌릴 수 있다 — `replace` 는 경로를
+   망친다) + `except` 를 원래 계약대로 되돌림. 뮤테이션 3/3 RED.
    **잔여**: 같은 뿌리로 묶여 있던 "origin 기본 브랜치 해석 4곳"(아래 절)은 **그대로 남는다.**
    선행 조건이 사라졌으므로 그쪽의 남은 장벽은 네임스페이스가 아니라 **반환 계약 불일치**
    (로컬 `main` vs `origin/main`) 하나뿐이다 — 아래 절의 서술을 그에 맞게 정정했다.
@@ -210,9 +221,22 @@ spec_impact: none
     `apply_status_update` 를 그대로 구동) — writer B 를 read 와 write 사이에서 끊고 그 창
     안에서 writer A 를 완주시킨 뒤 B 의 낡은 사본을 착지시킨다. sentinel 을 지운 **대조군**이
     무엇이 일을 하는지 고정한다. 뮤테이션 6/6 RED.
-    **잔여(의도적 미조치)**: `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec`
+    **잔여 1 (의도적 미조치)**: `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec`
     는 여전히 수렴하지 않는다. 게이트도 `/loop` 도 이 값들로 분기하지 않는 bookkeeping 이라
     수용했고, 그 범위를 `save_state` docstring 에 명시했다.
+    **잔여 2 — 해제 방향은 안 닫혔다 (리뷰가 잡음, concurrency·architecture·side_effect 3명 수렴).**
+    sentinel 은 "fatal 이 됐다" 의 **양성 증거**다. 반대로 "더 이상 fatal 아님" 은 sentinel 의
+    **부재**뿐인데, 재도출이 합집합이라(변경 전 커밋된 세션엔 `_fatal/` 이 없으므로 필수)
+    부재는 증거가 되지 못한다. 그래서 해제 전이의 JSON 쓰기가 유실되면 stale JSON 이 그
+    이름을 되살린다. **회귀는 아니다** — JSON-only 판도 같은 stale 상태를 읽어 동일하게
+    행동했다. 다만 내 최초 docstring 이 "양방향 복구 가능" 으로 **실제보다 넓게 주장**하고
+    있었다(그 주장부터 정정했다).
+    처방은 해제의 양성 증거가 필요하다 — `_cleared/` 마커나 sentinel mtime 대 상태파일 비교.
+    패치가 아니라 설계라 분리하고, 지금 상태를 캐너리
+    (`test_clearing_fatal_is_still_unprotected_against_a_lost_update`)로 고정했다. 닫는 날
+    이 테스트가 뒤집혀 스스로 알린다(뮤테이션으로 확인).
+    **잔여 3**: 성공으로 수렴한 에이전트의 sentinel 이 `--update` 를 안 거친 경로에서는 남는다
+    (판정은 정확 — success 가 이긴다. 위생 문제).
 
 10. **`_retry_state.json` 의 lost update — 잠금이 없다** — `apply_status_update` 는
    read-modify-write 인데 파일 잠금이 없다. `save_state` 를 원자적으로 만든 것은 *찢어진 읽기*

@@ -308,6 +308,50 @@ class FatalSurvivesALostUpdateTest(unittest.TestCase):
             with self.subTest(name=bad):
                 self.assertIsNone(rs.fatal_sentinel_path("/tmp/whatever", bad))
 
+    def test_clearing_fatal_is_still_unprotected_against_a_lost_update(self):
+        """CANARY — pins what this change did NOT close, so it stays a fact.
+
+        The sentinel gives positive evidence of BECOMING fatal. Ceasing to be
+        fatal leaves only the sentinel's absence, and `reconcile_state_with_disk`
+        unions JSON with the sentinels on purpose (sessions committed before
+        `_fatal/` existed must keep their fatals). So a lost "no longer fatal"
+        write leaves stale JSON that the union revives.
+
+        Not a regression — the JSON-only version read the same stale state and
+        behaved identically. Asserted rather than left implicit so that the
+        asymmetry is a recorded fact, and so the day someone closes it (a
+        `_cleared/` marker, or mtime comparison) this test flips and says so.
+        """
+        rs = self._lib()
+        sess = self._session(agents_fatal=["a"], agents_pending=["b"])
+        self.assertTrue(  # vacuity: `a` really starts out fatal
+            "a" in self._state(sess)["agents_fatal"])
+        self._quietly(rs.apply_status_update, sess, "a", "fatal", None)
+
+        # A retry demotes `a`, and a concurrent writer's stale copy lands last.
+        original_save = rs.save_state
+        interrupted = []
+
+        def save_once_interrupted(state_file, state):
+            if not interrupted:
+                interrupted.append(True)
+                self._quietly(rs.apply_status_update, sess, "a", "rate_limit", None)
+            return original_save(state_file, state)
+
+        rs.save_state = save_once_interrupted
+        try:
+            self._quietly(rs.apply_status_update, sess, "b", "rate_limit", None)
+        finally:
+            rs.save_state = original_save
+
+        self.assertFalse(os.path.exists(os.path.join(sess, "_fatal", "a")),
+                         "sentinel 은 지워졌어야 한다 — 그게 이 시나리오의 전제다")
+        state, _ = rs.reconcile_state_with_disk(sess)
+        self.assertEqual(
+            state["agents_fatal"], ["a"],
+            "해제 방향이 닫혔다면 이 단언을 뒤집고 docstring 을 함께 고칠 것",
+        )
+
     def test_the_sentinel_write_is_advisory(self):
         """An unwritable session dir must degrade to the old behaviour, not fail
         the update — the JSON transition is still the primary record."""
