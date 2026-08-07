@@ -316,7 +316,7 @@ exit 2 가 나왔다 — 즉 텍스트만으로는 재현되지 않는다). 그�
 - [x] 수정(§M: separator `\n` + env-value `[^\S\n]+`) + 회귀 테스트(`NewlineSeparatorTest`·
       `BacktrackingTest`·`GeneratedFloorTest` 축·main 통합) + mutation 4종.
 - [x] **관측 가능성 / CI 독립 방어** → 별 티켓
-      [`harness-review-gate-ci-backstop`](../in-progress/harness-review-gate-ci-backstop.md)
+      [`harness-review-gate-ci-backstop`](../complete/harness-review-gate-ci-backstop.md)
       로 **분리 완료**. 훅 정규식이 유일한 판정자인 한 사후 탐지도 같은 사각지대를 공유하므로,
       진짜 독립층은 훅에 의존하지 않는 CI 이며 그건 설계 결정이다.
 - [x] `/ai-review` CRITICAL 1 + WARNING 2 조치 (§M(c) 아래)
