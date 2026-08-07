@@ -1,6 +1,6 @@
 ---
-title: 리뷰 게이트 백로그 잔여 3건 — 새 세션 인계
-worktree: (미할당 — 착수 시 ensure-worktree.sh 로 생성)
+title: 리뷰 게이트 백로그 잔여 3건 — 새 세션 인계 (완료)
+worktree: retry-turn-terminal-guard-review-7b7629
 started: 2026-08-07
 owner: developer
 priority: P3
@@ -9,7 +9,19 @@ spec_impact: none
 
 # 인계 — `harness-review-gate-followups.md` 잔여 §6 · §9 · §10
 
-> 본체: [`harness-review-gate-followups.md`](harness-review-gate-followups.md).
+> **종결 (2026-08-07).** 세 항목 전부 처분했다. 처분 내용·실측치는 본체
+> [`../in-progress/harness-review-gate-followups.md`](../in-progress/harness-review-gate-followups.md)
+> 의 각 항목에 있다. 이 문서는 인계 프롬프트와 그때의 판단을 그대로 남긴 기록이다.
+>
+> **이 인계문의 §6 착수 메모가 틀렸다** — 아래 "§6" 절이 "네임스페이스 충돌 해소가 먼저다,
+> 그게 없으면 공유 모듈을 만들어도 import 가 서로를 오염시킨다" 고 단언하는데, `.claude/_shared/`
+> 가 **이미** 그 회피책이고 훅 3개·orchestrator 3개가 전부 거기서 import 하고 있었다.
+> 원문을 고치지 않고 남기는 이유는 이 문서 자신이 적어 둔 교훈("전제는 낡는다") 때문이다 —
+> 인계 문서의 "선행 조건이 크다" 는 서술이 **조사를 멈추게 한다**는 점에서 특히 비싸다.
+>
+> 본체는 여전히 `in-progress/` 다: §11 잔여 · "origin 기본 브랜치 해석 4곳" · 미해결 조사 1건.
+
+> 본체: [`../in-progress/harness-review-gate-followups.md`](../in-progress/harness-review-gate-followups.md).
 > 14건 중 **9건 종결 + 1건 철회**(§5)가 끝났고, 남은 셋은 전부 **별도 티켓급**이다 —
 > 앞의 아홉과 달리 선행 조건이나 재설계가 걸려 있어 "이어서 하나 더" 로 끝나지 않는다.
 
@@ -74,6 +86,27 @@ plan/in-progress/harness-review-gate-followups.md 의 남은 항목 §6 · §9 �
 - **가드를 명확하게 만드는 변경이 가드를 약하게 만들 수 있다.** §5 의 래퍼는 훅의 import
   표면을 넓혔고 그 실패 경로가 fail-open 이었다. 게이트를 건드릴 때는 **실패 시 어느 쪽으로
   넘어지는지**를 먼저 보라.
+
+## 처분 결과 (2026-08-07)
+
+| 항목 | 전제 재판정 | 처분 |
+|---|---|---|
+| §9 | **성립** — AST(주석 제외) `reconcile_state_with_disk` 코드 0회 | `--summary-state`/`--resume` 양쪽에 자기치유. 뮤테이션 2/2 RED |
+| §10 | **성립** — `flock`/`fcntl` 코드 0회, 유실도 실측 재현 | `_fatal/<name>` sentinel + JSON∪sentinel 재도출. 뮤테이션 6/6 RED |
+| §6 | **선행 조건 반증** — `_shared/` 가 이미 회피책 | `_shared/git_probe.branch_diff_files` 로 통합. 뮤테이션 6/6 RED |
+
+이번 턴이 더한 교훈 (위 "반복해서 확인된 것" 에 이어서):
+
+- **인계 문서의 "선행 조건이 크다" 는 서술도 전제다.** §6 은 "네임스페이스 해소 선행" 때문에
+  마지막 순번이었는데, 그 전제는 코드 한 번 grep 으로 무너졌다. 비용이 가장 큰 종류의 오판이다
+  — 틀린 방향이 아니라 **조사를 시작조차 하지 않게** 만든다.
+- **통합의 값은 "중복 제거" 가 아니라 "이미 갈라진 것을 찾는 것"** 이었다. §6 의 두 사본은
+  선행 공백 처리가 서로 달랐고 양쪽 다 `core.quotePath` 를 안 켰다 — 통합하려고 나란히 놓기
+  전에는 아무도 몰랐다.
+- **기존 픽스처가 결함을 가릴 수 있다.** §9 에서 "디스크에 리포트 없이 success 를 주장" 하는
+  픽스처가 통과하고 있었다. 고치니 그 테스트가 RED 를 냈고, 그게 결함이 실재한다는 증거였다.
+- **후행 공백은 rstrip 이 먹지만 가운데 공백은 안 먹는다.** §6 의 첫 테스트가 `"trail .ts"` 로
+  vacuous 했다(뮤테이션이 잡음). 병리적 입력을 지어낼 때 **어느 위치가 결함을 타는지** 확인할 것.
 
 ## 정리된 워크트리 (2026-08-07)
 

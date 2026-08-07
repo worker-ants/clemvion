@@ -20,6 +20,19 @@ spec_impact: none
 > 구조적 차단·동반 2건은 잔여) 그 사실을 명시해 유지했다. 원문(발견 경위·실측치·처방
 > 후보)은 그대로 옮겼다.
 
+## 현재 상태 (2026-08-07 갱신)
+
+원 번호 14건 중 **12건 종결 + 1건 철회(§5)**. `in-progress/` 에 남는 이유는 아래 셋이다:
+
+- **§11 잔여** — 침묵 해소는 8R 에 끝났으나 구조적 차단(`add_mutually_exclusive_group`)과
+  동반 2건이 남는다.
+- **"origin 기본 브랜치 해석 4곳"** (아래 defer 절) — 착수 전제를 이번에 정정했다.
+- **미해결 조사 1건** (문서 끝) — 형제 파일 부분 추출 원인.
+
+이번 턴(§6·§9·§10)에서 **전제가 한 건 반증됐다** — §6 의 "`_lib` 네임스페이스 충돌 해소가
+선행" 은 사실이 아니었다(`.claude/_shared/` 가 이미 그 회피책이고 훅·orchestrator 양쪽이
+쓰고 있다). 반증 근거는 §6 항목 본문과 defer 절의 정정 인용구에 남겼다.
+
 ## 미해결 항목
 
 **신규 후속 (defer) — 아래 11건 + 기본 브랜치 해석 중복 1건**
@@ -95,6 +108,36 @@ spec_impact: none
    수준을 `in_flight_ok` 하나로 스위칭한다. 현재는 fail-safe 기본값 + 양방향 seam 테스트로
    봉쇄돼 있으나, 세 번째 호출부가 생기면 다시 기본값에 의존한다.
    `evaluate_review_for_push()` / `_for_stop()` 얇은 wrapper 로 시그니처 레벨 차단 검토.
+6. ~~**git 브랜치-diff 헬퍼가 두 orchestrator 에 중복**~~ → **처분 완료 (2026-08-07).**
+   **선행 조건 전제가 반증됐다.** 이 항목은 "실제 코드 공유엔 `hooks/_lib` 와 `skills/_lib`
+   의 네임스페이스 충돌 해소가 선행" 이라 적혀 있었으나, `.claude/_shared/` 가 **이미 그
+   회피책**이다 — 최상위 이름이 달라 충돌 자체가 없고, `hooks/_lib/{review,plan,branch}_guard.py`
+   와 세 orchestrator 가 모두 `from _shared import ...` 를 하고 있다(실측). 즉 선행 조건은
+   애초에 없었고, `_shared/git_probe.py` 는 정확히 같은 종류의 통합을 훅 쪽에서 이미 했다.
+   **그리고 이 쌍은 이미 갈라져 있었다** — 픽스처 1개로 실측(변경 전):
+   `" lead.ts"` → code-review 사본은 `"lead.ts"`(자기 `.strip()` 이 선행 공백을 먹음, 7R 이
+   `git_probe._run_git` 에서 고친 그 결함의 **세 번째 자리**), consistency 사본은 정상.
+   비-ASCII 파일명은 **양쪽 다** C-quote(`core.quotePath=false` 를 아무도 안 켬 — `_shared`
+   의 `_run_git` 은 이미 켠다). 같은 실패에 상한이 10초/30초로 서로 달랐고, 양쪽 다 실패가
+   **빈 changeset** 이라 downstream 은 "변경 없음" 으로 읽는다.
+   처분: `_shared/git_probe.branch_diff_files` 하나로 통합하고 둘 다 위임. `_run_git` 의
+   `rstrip` 은 스칼라 프로브에는 맞지만 **경로 목록**에는 마지막 경로를 개명하므로
+   `_run_git_raw` 를 분리했다(스칼라 계약은 무변경). consistency 의 `-- .` 는 뺐다 — 자기
+   docstring 이 "whole-repo on purpose" 라고 적고 있었고 `root == os.getcwd()` 일 때만
+   참이었다. 실패 로깅은 `on_error` 콜백으로 각자 `debug_log` 를 유지.
+   오늘 이 저장소엔 두 병리 형태가 **0건**(18,748 tracked 중 비-ASCII·선/후행 공백·따옴표·
+   백슬래시 전부 0)이라 둘 다 잠재 결함이었다. 그래도 고정한 이유: **두 구현을 갈라놓는
+   유일한 수단이 픽스처**이고, "둘이 일치한다" 가 'change both' 주석이 사람에게 맡기던
+   바로 그 속성이다.
+   테스트는 두 orchestrator 의 **각자 진입점**을 같은 실 저장소에 물려 일치를 단언한다.
+   뮤테이션 6/6 RED — 다만 **첫 판의 후행-공백 테스트가 vacuous 했다**: 픽스처 이름을
+   `"trail .ts"` 로 지어 공백이 가운데 있었고 `rstrip` 이 건드리지 않아 깨진 구현에서도
+   초록이었다. 뮤테이션이 잡았고, 픽스처가 자기 전제(마지막 줄이 후행 공백으로 끝나는가)를
+   스스로 단언하도록 고쳤다.
+   **잔여**: 같은 뿌리로 묶여 있던 "origin 기본 브랜치 해석 4곳"(아래 절)은 **그대로 남는다.**
+   선행 조건이 사라졌으므로 그쪽의 남은 장벽은 네임스페이스가 아니라 **반환 계약 불일치**
+   (로컬 `main` vs `origin/main`) 하나뿐이다 — 아래 절의 서술을 그에 맞게 정정했다.
+
 6. **git 브랜치-diff 헬퍼가 두 orchestrator 에 중복** — `_branch_changed_rels`(consistency)
    와 `get_git_branch_diff_files`(code-review)가 같은 git 연산이다. 상호참조 주석은 넣었지만
    구조적 중복은 남는다. 위 "기본 브랜치 해석 4곳" 과 같은 뿌리(= `_lib` 충돌 해소 선행).
@@ -126,6 +169,18 @@ spec_impact: none
    stub 하거나 실패-흡수 경로만 본다. 자매 함수 `_branch_changed_rels` 는 임시 git repo 로
    성공 경로까지 고정돼 있어 비대칭이다. 같은 패턴으로 4케이스(symbolic-ref 적중 /
    `origin/main` 만 / `origin/master` 만 / origin 없음) 고정할 것.
+9. ~~**`merge_coordinator_orchestrator.py` 에 `reconcile_state_with_disk` 자기치유가 없다**~~
+   → **처분 완료 (2026-08-07).** 전제 재판정: AST(주석·docstring 제외) 실측 **코드 0회 /
+   주석 1회** — 전제 성립. 자매 둘은 `--summary-state` 와 `--resume` 양쪽에서 재조정한다.
+   처분: `_emit_summary_state` 를 shared `emit_summary_state` 로 위임하고 이 파일 고유의
+   `branches=`/`base=` 는 `extra_fields` 로 보존(필드 **순서까지** 동일). `--resume` 에도
+   자매와 같은 재조정을 넣었다.
+   **기존 픽스처 하나가 이 결함을 가리고 있었다** — 디스크에 리포트 없이 `agents_success`
+   를 주장하고도 통과했다(재조정이 없었으니까). 계약이 제거하려는 바로 그 가짜 성공이라
+   픽스처를 정직하게 고치고, 단언을 필드별 `assertIn` 에서 **전체 라인 비교**로 바꿨다 —
+   순서도 CLI 계약인데 `assertIn` 은 재배열을 못 본다.
+   뮤테이션 2/2 RED(`--summary-state` 재조정 제거 → 3건, `--resume` 재조정 제거 → 1건).
+
 9. **`merge_coordinator_orchestrator.py` 에 `reconcile_state_with_disk` 자기치유가 없다** —
    상태 helper 를 `_shared/` 로 옮기며 확인: 이 파일은 세 번째 사본인데 `_load_state`/
    `_save_state`/`_apply_status_update` 가 다른 둘과 동일하고(전부 위임 완료),
@@ -134,6 +189,31 @@ spec_impact: none
    이름 접두뿐인데 정규화를 안 하고 발산으로 읽었다.) 즉 Agent tool 로 직접 fan-out 한 세션이 prepare 시점 스냅샷에 멈춘 채
    SUMMARY 는 실제 성공을 보고하는, 다른 두 orchestrator 가 이미 고친 모순을 그대로 겪는다.
    다른 skill 의 동작 변경이라 별도 PR 로 분리한다.
+10. ~~**`_retry_state.json` 의 lost update — 잠금이 없다**~~ → **처분 완료 (2026-08-07).**
+    전제 재판정: `retry_state.py` 의 `flock`/`fcntl` 은 AST 실측 **0회**(기각 사유만 주석).
+    그리고 **유실 자체를 실측**했다 — 겹친 `--update` 두 건에서 앞 writer 의 전이가 파일에서
+    사라졌고, 이어진 reconcile 은 `agents_success` 만 복구했다. `agents_fatal` 은 복구 0.
+    처방은 plan 이 적어 둔 그대로 — `fcntl.flock` 은 여전히 기각(모든 훅 경로에 블로킹
+    프리미티브)하고, **디스크가 기록하는 범위를 넓힌다**: fatal 전이가 `_fatal/<name>`
+    sentinel 을 남기고 reconcile 이 **JSON ∪ sentinel** 로 재도출한다.
+    설계 근거 4가지: (a) 에이전트당 파일 1개 — 공유 `_fatal.json` 리스트였다면 그것도
+    read-modify-write 라 같은 유실을 물려받는다. (b) `save_state` **앞**에 쓴다(양방향) —
+    JSON 쓰기가 유실돼도 sentinel 이 남는다. (c) 매니페스트 **이름** 기준이고 경로 성분이
+    아닌 이름은 sentinel 을 아예 안 만든다 — 찾는 곳과 다른 곳에 쓰는 침묵 불일치가 갭보다
+    나쁘다. (d) `OSError` 는 삼킨다 — 읽기 전용 FS 는 변경 전 동작으로 degrade 할 뿐 update
+    를 실패시키지 않는다. 합집합인 이유는 **이 변경 이전에 커밋된 세션엔 `_fatal/` 이 없어서**
+    — sentinel 만 읽으면 그 fatal 들을 전부 조용히 지운다.
+    `save_state`·모듈 docstring 이 "복구 불가" 를 계약으로 서술하고 있었으므로 함께 정정
+    (방금 고친 결함을 docstring 이 설명하고 있는 상태를 남기지 않는다). README 의 세션
+    디렉토리 구조·스키마도 동반 갱신.
+    테스트는 **재진입으로 레이스를 결정적으로 재현**한다(스레드·sleep 없이, 실제
+    `apply_status_update` 를 그대로 구동) — writer B 를 read 와 write 사이에서 끊고 그 창
+    안에서 writer A 를 완주시킨 뒤 B 의 낡은 사본을 착지시킨다. sentinel 을 지운 **대조군**이
+    무엇이 일을 하는지 고정한다. 뮤테이션 6/6 RED.
+    **잔여(의도적 미조치)**: `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec`
+    는 여전히 수렴하지 않는다. 게이트도 `/loop` 도 이 값들로 분기하지 않는 bookkeeping 이라
+    수용했고, 그 범위를 `save_state` docstring 에 명시했다.
+
 10. **`_retry_state.json` 의 lost update — 잠금이 없다** — `apply_status_update` 는
    read-modify-write 인데 파일 잠금이 없다. `save_state` 를 원자적으로 만든 것은 *찢어진 읽기*
    만 닫는다. 수렴이 있는 필드는 `agents_success` **하나뿐**이다(디스크의 리포트 파일에서 매번
@@ -261,9 +341,15 @@ spec_impact: none
 `branch_guard._origin_default_branch()`(정본) · `review_guard._default_branch()` ·
 `code_review_orchestrator._default_branch_ref()`(이번 신설) ·
 `consistency_orchestrator` 의 `args.diff_base or "origin/main"` 리터럴. 반환 계약이 서로
-달라(로컬 `main` vs `origin/main`) 단순 통합은 불가하고, 실제 코드 공유엔 **hooks/skills 의
-`_lib` 네임스페이스 충돌 해소가 선행**이라 별도 범위로 남긴다. 기본 브랜치 정책이 바뀌면
+달라(로컬 `main` vs `origin/main`) 단순 통합은 불가하다. 기본 브랜치 정책이 바뀌면
 4곳을 모두 고쳐야 하는 drift 위험이 현재 상태다.
+
+> **정정 (2026-08-07, §6 처분 중).** 이 항목은 "실제 코드 공유엔 hooks/skills 의 `_lib`
+> 네임스페이스 충돌 해소가 선행" 이라고 적고 있었다 — **틀렸다.** `.claude/_shared/` 가
+> 이미 그 회피책이고(최상위 이름이 달라 충돌 없음), 훅 3개와 orchestrator 3개가 모두
+> 거기서 import 한다. `branch_guard._origin_default_branch` 는 **이미** `_shared/git_probe.py`
+> 로 옮겨져 있다. 남은 장벽은 네임스페이스가 아니라 **반환 계약 불일치 하나뿐**이므로,
+> 착수 비용을 그 전제로 다시 산정할 것.
 
 ## 원 plan 에서 함께 넘어온 미해결 조사 1건
 
