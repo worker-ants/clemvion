@@ -62,6 +62,11 @@ on:
       # `test_review_gate_ci.py` 가 트리거되지 않는다 — 위 항목들과 동일한 실패 클래스.
       - 'scripts/check-review-gate.py'
       - 'scripts/check-override-floors.py'
+      # 내부 패키지의 `prepare` 계약(test_packages_prepare_contract.py). 매니페스트만 고친
+      # PR 에서 이 가드가 안 돌면, stale dist 를 되살리는 한 줄이 조용히 들어온다 — 위
+      # 항목들과 동일한 실패 클래스다. 소스가 아니라 매니페스트만 등재해 스위트가 모든
+      # 패키지 코드 변경마다 도는 것은 피한다.
+      - 'codebase/packages/*/package.json'
 
 concurrency:
   group: harness-checks-${{ github.ref }}
