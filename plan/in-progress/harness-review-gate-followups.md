@@ -152,6 +152,7 @@ spec_impact: none
 6. **git 브랜치-diff 헬퍼가 두 orchestrator 에 중복** — `_branch_changed_rels`(consistency)
    와 `get_git_branch_diff_files`(code-review)가 같은 git 연산이다. 상호참조 주석은 넣었지만
    구조적 중복은 남는다. 위 "기본 브랜치 해석 4곳" 과 같은 뿌리(= `_lib` 충돌 해소 선행).
+   *(↑ 마지막 괄호는 **반증됨** — 위 처분 요약 참고. 아래 defer 절의 정정 인용구와 같은 처리.)*
 7. ~~**`_rank_plan_text` 이중 read**~~ → **처분 완료 (2026-08-07).**
    호출부를 고치는 대신 `read_text_file` 이 한 실행 안에서 같은 경로를 한 번만 읽도록
    했다 — 호출부가 6곳이라 **다른 이중 읽기까지 함께** 닫힌다.
@@ -236,7 +237,20 @@ spec_impact: none
     (`test_clearing_fatal_is_still_unprotected_against_a_lost_update`)로 고정했다. 닫는 날
     이 테스트가 뒤집혀 스스로 알린다(뮤테이션으로 확인).
     **잔여 3**: 성공으로 수렴한 에이전트의 sentinel 이 `--update` 를 안 거친 경로에서는 남는다
-    (판정은 정확 — success 가 이긴다. 위생 문제).
+    (판정은 정확 — success 가 이긴다. 위생 문제). 세션 아카이빙이 리포트만 지우고 `_fatal/` 을
+    남기는 형태로 구현되면 이 잔여가 실제 버그로 표면화되므로, 그 작업 착수 시 함께 정리할 것.
+    **잔여 4 — 같은 agent 에 대한 겹친 `--update` (2R concurrency 가 발견, 실측 재현).**
+    `_record_fatal` 은 자기 `status` 만 보고 무조건 해제하므로, 한 update 가 `x` 를 fatal 로
+    확립한 직후 `x` 에 대한 다른 update 가 `load_state` 와 `_record_fatal` 사이에 있었다면
+    sentinel 을 지우고 fatal 이전 스냅샷을 저장한다 — 양쪽 기록에서 사라져 복구 불가.
+    **잔여 2 와 방향이 다르다**(저긴 해제 유실로 fatal 이 잘못 유지, 여긴 확립된 fatal 이 소멸).
+    회귀 아님(JSON-only 판도 동일하게 잃었다)이고, 문서화된 흐름은 에이전트당 update 1건이라
+    발생하지 않는다 — 중복 재시도나 수동 재실행이 `/loop` 와 경합할 때만.
+    호출자 계약으로 docstring 에 못박고 캐너리로 고정했다. **잔여 2 와 같은 설계 축**(sentinel
+    mtime 대 상태파일 비교)이 둘을 함께 닫는다.
+    > **실측 주의 — 인터리빙 지점을 틀리면 재현되지 않는다.** 첫 프로브는 `save_state` 에서
+    > 끊어 아무것도 재현하지 못했고(오히려 sentinel 이 살아남아 복구됐다), 하마터면 리뷰어
+    > 지적을 오탐으로 기각할 뻔했다. 창은 `load_state` 와 `_record_fatal` **사이**다.
 
 10. **`_retry_state.json` 의 lost update — 잠금이 없다** — `apply_status_update` 는
    read-modify-write 인데 파일 잠금이 없다. `save_state` 를 원자적으로 만든 것은 *찢어진 읽기*

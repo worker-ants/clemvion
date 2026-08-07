@@ -154,13 +154,16 @@ def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, 
     re-encodes to the original bytes, so the path stays usable against the
     filesystem instead of being corrupted the way `errors="replace"` would.
 
-    The `except` is broad for the same reason, restoring a promise that was lost
-    in a refactor rather than inventing one: the two orchestrator copies this
-    function absorbed each wrapped their git call in `except Exception`, and all
-    three docstrings involved still say "empty on any failure". Narrowing it was
-    a silent contract break — the failure mode changed from "empty changeset" to
-    "orchestrator crashes". `_default_branch` below already guards its own calls
-    with `except Exception` for this same reason.
+    The `except` stays NARROW, deliberately. The two orchestrator copies each
+    wrapped their git call in `except Exception`, and restoring that promise is
+    right for *them* — but this function is also the primitive the three
+    push-gate guards run on, and there a swallowed `TypeError` becomes "git
+    failed", which `review_guard` reads as fail-open and `plan_guard` as a false
+    BLOCK. A guard degrading silently is the exact failure class this repo keeps
+    getting burned by; a guard crashing is loud and gets fixed. So the broad
+    catch lives on `branch_diff_files` instead, scoped to the callers whose
+    documented contract asks for it. Encoding is the one thing fixed for
+    everyone, because that removes a crash without widening what is swallowed.
     """
     try:
         p = subprocess.run(
@@ -172,7 +175,7 @@ def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, 
             timeout=timeout,
         )
         return p.returncode, p.stdout, p.stderr
-    except Exception:  # noqa: BLE001 — "empty on any failure" is the contract
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return 1, "", ""
 
 
@@ -228,11 +231,27 @@ def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
     `on_error` receives a one-line reason when git fails, so each orchestrator
     keeps logging through its own `debug_log` rather than this module inventing a
     logging channel. Failure is otherwise silent and empty, as before.
+
+    **"Empty on any failure" is enforced HERE, not in `_run_git_raw`**, and the
+    difference matters. Both copies this function absorbed wrapped their git call
+    in `except Exception`; narrowing that during the extraction was a silent
+    contract break, and the failure mode went from "empty changeset" to
+    "orchestrator crashes" (measured: an undecodable path raised
+    `UnicodeDecodeError`, which is a `ValueError`, not an `OSError`). But pushing
+    the broad catch down into `_run_git_raw` would have applied it to the three
+    push-gate guards too, where swallowing a programming error as "git failed"
+    degrades a guard silently. Scoping it to this function restores exactly the
+    promise the two orchestrators had, for exactly the two callers that had it.
     """
-    rc, out, err = _run_git_raw(
-        ["diff", "--no-renames", "--name-only", f"{base_ref}...HEAD"],
-        cwd, timeout=timeout,
-    )
+    try:
+        rc, out, err = _run_git_raw(
+            ["diff", "--no-renames", "--name-only", f"{base_ref}...HEAD"],
+            cwd, timeout=timeout,
+        )
+    except Exception as exc:  # noqa: BLE001 — see "empty on any failure" above
+        if on_error is not None:
+            on_error(f"{base_ref}...HEAD: {type(exc).__name__}: {exc}"[:240])
+        return []
     if rc != 0:
         if on_error is not None:
             reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"

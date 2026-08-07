@@ -115,7 +115,8 @@ review/
                     │   └── ...
                     ├── _retry_state.json    ← 재시도/상태 (main 이 갱신)
                     ├── _fatal/              ← fatal 전이 sentinel (에이전트당 파일 1개)
-                    │   └── security         ← 있으면 그 reviewer 는 영구 실패로 판정됨
+                    │   └── security         ← `/loop` 가 자동 재시도하지 않음. "영구" 는 아니다 —
+                    │                           나중에 리포트가 생기면 success 가 이긴다
                     ├── _routing_decision.json ← review-router 가 작성한 선별 결과 (--route=auto 시)
                     ├── meta.json            ← 변경 정보 메타
                     ├── security.md          ← sub-agent 가 Write 한 리뷰 결과 (<role>.md)

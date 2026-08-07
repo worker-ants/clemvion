@@ -343,23 +343,46 @@ class UndecodableGitOutputTest(unittest.TestCase):
         self.assertEqual(files[1].encode("utf-8", "surrogateescape"),
                          b"bad\xe4name.ts")
 
-    def test_an_unexpected_exception_still_means_empty_not_crash(self):
-        """The contract the three docstrings promise, asserted directly.
+    def test_an_unexpected_exception_is_empty_for_the_list_caller_only(self):
+        """Where "empty on any failure" applies — and where it deliberately does not.
+
+        `branch_diff_files` must absorb anything, because that is the promise the
+        two orchestrator copies made and the extraction broke. `_run_git_raw` and
+        `_run_git` must NOT, because the three push-gate guards run on them and a
+        swallowed programming error there becomes "git failed" — fail-open in
+        `review_guard`, a false BLOCK in `plan_guard`. A guard that crashes is
+        loud; a guard that degrades silently is the failure class this repo keeps
+        rediscovering.
 
         Pinned separately from the decode fix: `surrogateescape` removes the one
-        known trigger, and this pins the promise itself so a future narrowing of
-        the `except` is caught even if the trigger is different.
+        known trigger, this pins the boundary itself.
         """
         from unittest import mock
         gp = self._probe()
         with mock.patch.object(gp.subprocess, "run",
                                side_effect=ValueError("something unforeseen")):
-            self.assertEqual(gp._run_git_raw(["diff"], "/tmp"), (1, "", ""))
-            self.assertEqual(gp._run_git(["diff"], "/tmp"), (1, "", ""))
+            for fn in (gp._run_git_raw, gp._run_git):
+                with self.subTest(fn=fn.__name__):
+                    with self.assertRaises(ValueError):
+                        fn(["diff"], "/tmp")
             seen = []
             self.assertEqual(
                 gp.branch_diff_files("main", "/tmp", on_error=seen.append), [])
         self.assertEqual(len(seen), 1, "실패가 조용히 삼켜졌다 — 호출부가 로그할 게 없다")
+        self.assertIn("ValueError", seen[0])
+
+    def test_the_narrow_failures_are_still_absorbed_by_the_probe(self):
+        """Narrowing the guard-facing catch must not reopen what it did handle:
+        a missing `git`, a timeout and an `OSError` still mean `(1, "", "")`."""
+        from unittest import mock
+        gp = self._probe()
+        for exc in (FileNotFoundError("no git"),
+                    gp.subprocess.TimeoutExpired("git", 1.0),
+                    OSError("io")):
+            with self.subTest(exc=type(exc).__name__):
+                with mock.patch.object(gp.subprocess, "run", side_effect=exc):
+                    self.assertEqual(gp._run_git_raw(["diff"], "/tmp"), (1, "", ""))
+                    self.assertEqual(gp._run_git(["diff"], "/tmp"), (1, "", ""))
 
 
 if __name__ == "__main__":

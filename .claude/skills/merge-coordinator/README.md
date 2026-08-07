@@ -73,6 +73,8 @@ review/
         │   ├── 1.md (conflict info), 1.patch (resolver 출력)
         │   └── ...
         ├── _retry_state.json
+        ├── _fatal/                        ← fatal 전이 sentinel (analyzer 당 파일 1개)
+        │   └── semantic_conflict_analyzer ← `/loop` 가 자동 재시도하지 않음
         ├── meta.json
         ├── merge_conflict_analyzer.md    ← analyzer 별 결과 (<analyzer>.md)
         ├── semantic_conflict_analyzer.md
@@ -84,7 +86,10 @@ review/
 
 ## `_retry_state.json` 추가 필드
 
-`code-review-agents` / `consistency-checker` 의 기본 스키마에 다음 필드를 더한다:
+`code-review-agents` / `consistency-checker` 의 기본 스키마에 다음 필드를 더한다.
+기본 필드·`_fatal/` sentinel 의 의미·**fatal 을 손으로 해제할 때의 함정**은
+[`../code-review-agents/README.md`](../code-review-agents/README.md) 를 그대로 따른다 —
+세 orchestrator 가 같은 `_shared/retry_state.py` 를 쓰므로 동일하게 적용된다.
 
 ```jsonc
 {

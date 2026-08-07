@@ -174,6 +174,18 @@ def _record_fatal(session_dir, name, is_fatal):
     is a recorded fact rather than a surprise. Closing it needs positive evidence
     of clearing (a `_cleared/` marker, or comparing sentinel mtime against the
     state file), which is a design rather than a patch — registered in the plan.
+
+    **Caller contract: updates for the SAME agent must not overlap.** This
+    function clears from its own `status` alone; it cannot see a writer that just
+    ran. So if one update establishes fatal for agent `x` while another update
+    for `x` is between its `load_state` and here, the second clears the sentinel
+    and then saves a snapshot that predates the fatal — erasing it from both
+    records, unrecoverably. Also not a regression (JSON-only lost it the same
+    way), and the documented flow does not produce it: one agent invocation
+    yields one `--update`. Duplicated retries or a manual re-run racing `/loop`
+    would. Pinned by `test_two_overlapping_updates_for_the_SAME_agent_lose_the_
+    fatal`, and it belongs to the same design axis as the clear direction above:
+    an mtime comparison would close both.
     """
     path = fatal_sentinel_path(session_dir, name)
     if not path:

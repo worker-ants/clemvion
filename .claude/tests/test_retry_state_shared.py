@@ -308,6 +308,80 @@ class FatalSurvivesALostUpdateTest(unittest.TestCase):
             with self.subTest(name=bad):
                 self.assertIsNone(rs.fatal_sentinel_path("/tmp/whatever", bad))
 
+    def test_the_sentinel_is_on_disk_before_the_state_file_is_written(self):
+        """The ordering invariant itself, which nothing else actually pins.
+
+        "Sentinel first, then `save_state`" is what makes a lost JSON write
+        recoverable. But the recovery test above would pass with the order
+        reversed too — its interleaving lets the fatal writer run to completion
+        either way — so the invariant was held by two adjacent lines and a
+        comment. This asserts the state of the disk *at the moment* `save_state`
+        is entered, which is the only place the order is observable.
+        """
+        rs = self._lib()
+        sess = self._session()
+        sentinel = os.path.join(sess, "_fatal", "a")
+        original_save = rs.save_state
+        observed = []
+
+        def note_disk_at_save_time(state_file, state):
+            observed.append(os.path.exists(sentinel))
+            return original_save(state_file, state)
+
+        rs.save_state = note_disk_at_save_time
+        try:
+            self._quietly(rs.apply_status_update, sess, "a", "fatal", None)
+        finally:
+            rs.save_state = original_save
+
+        self.assertEqual(observed, [True],
+                         "sentinel 이 save_state 이후에 쓰였다 — JSON 쓰기가 유실되면 "
+                         "복구할 증거가 남지 않는다")
+
+    def test_two_overlapping_updates_for_the_SAME_agent_lose_the_fatal(self):
+        """CANARY — a second direction the sentinel does not cover.
+
+        Distinct from the clear-direction canary below: there a demotion is lost
+        and the fatal wrongly persists; here a fatal is *established* and then a
+        concurrent update for the SAME agent name erases it from both records —
+        `_record_fatal` clears unconditionally from its own `status`, knowing
+        nothing about the writer that just ran, and the stale snapshot then drops
+        it from JSON too. The union finds no evidence on either side.
+
+        Not a regression: the JSON-only version lost it identically. And it needs
+        two overlapping `--update` calls for one agent, which the documented flow
+        does not produce (one agent invocation → one update). Pinned so the gap
+        is recorded rather than rediscovered, and because the interleaving is
+        narrow enough to get wrong — a first probe of this scenario interrupted
+        at `save_state` and reproduced nothing, because the window is between
+        `load_state` and `_record_fatal`.
+        """
+        rs = self._lib()
+        sess = self._session(names=("x",))
+        original_load = rs.load_state
+        interrupted = []
+
+        def load_then_let_the_fatal_writer_finish(session_dir):
+            result = original_load(session_dir)
+            if not interrupted:
+                interrupted.append(True)
+                self._quietly(rs.apply_status_update, sess, "x", "fatal", None)
+            return result
+
+        rs.load_state = load_then_let_the_fatal_writer_finish
+        try:
+            self._quietly(rs.apply_status_update, sess, "x", "rate_limit", None)
+        finally:
+            rs.load_state = original_load
+        self.assertTrue(interrupted, "인터리빙이 일어나지 않았다 — 이 테스트는 헛돈다")
+
+        self.assertFalse(os.path.exists(os.path.join(sess, "_fatal", "x")))
+        state, _ = rs.reconcile_state_with_disk(sess)
+        self.assertEqual(
+            state["agents_fatal"], [],
+            "같은 agent 동시 갱신이 닫혔다면 이 단언을 뒤집고 docstring 을 함께 고칠 것",
+        )
+
     def test_clearing_fatal_is_still_unprotected_against_a_lost_update(self):
         """CANARY — pins what this change did NOT close, so it stays a fact.
 
