@@ -532,170 +532,132 @@ def _files_dropped_note(dropped: int, total: int) -> str:
 _FILES_DROPPED_NOTE_MAX = _files_dropped_note(999999, 999999)
 
 
-def build_files_section(change_infos, max_file_size, max_total_size=0):
-    """Compose the changed-files context, respecting per-file and total budgets.
+def _render_unbounded(file_parts, separator):
+    """예산이 없을 때 — 전부 그대로 싣는다.
 
-    Both the diff and the whole-file context carry a line-number gutter (see
-    `lib/line_anchors.py`). Without it a reviewer has no way to know a real line
-    number and ends up citing offsets into this assembled document instead —
-    measured, not hypothesised: see that module's docstring.
+    세 전략(무예산 / diff-only 초과 / 콘텐츠 할당) 중 가장 단순한 것이고, 나머지 둘과
+    달리 **아무 것도 자르지 않는다**. 분리해 둔 이유가 그것이다: 한 함수에 섞여 있을 때
+    "안내문 길이도 예산에 포함" 이라는 불변식을 세 경로가 각자 손으로 재구현했고,
+    3R CRITICAL 이 정확히 그 구조에서 재발했다(한 경로를 고쳤는데 다른 규모에서 같은
+    클래스가 다시 나왔다).
     """
-    separator = "\n---\n\n"
+    sections = []
+    for fp in file_parts:
+        section = fp["header"] + fp["diff"]
+        if fp["full_content"]:
+            section += f"\n{FULL_CONTEXT_HEADING}\n```\n{fp['full_content']}\n```\n"
+        sections.append(section)
+    return separator.join(sections)
 
-    file_parts = []
-    for i, ci in enumerate(change_infos, 1):
-        header = f"### 파일 {i}: {ci['file_path']}\n"
-        header += f"- 변경 유형: {ci['change_type']}\n"
-        header += f"- 언어: {ci['file_extension']}\n"
 
-        diff_section = ""
-        if ci.get("code"):
-            annotated = line_anchors.annotate_unified_diff(ci["code"])
-            diff_section += f"\n{DIFF_HEADING}\n```\n{annotated}\n```\n"
-        if ci.get("old_code"):
-            diff_section += f"\n{OLD_CODE_HEADING}\n```\n{ci['old_code']}\n```\n"
+def _render_diff_only_overflow(file_parts, separator, max_total_size, base_size):
+    """헤더+diff 만으로 이미 상한을 넘을 때 — 전체 내용은 아무도 못 싣는다.
 
-        # Number first, then cut on a line boundary: slicing raw characters
-        # could leave a half-written line number, which is exactly the kind of
-        # untrustworthy anchor the gutter exists to eliminate.
-        numbered = line_anchors.number_source_lines(ci.get("full_file_content", ""))
-        total_lines = numbered.count("\n") + 1 if numbered else 0
-
-        full_content = numbered
-        if len(full_content) > max_file_size:
-            full_content, kept, total = line_anchors.truncate_to_line_boundary(
-                full_content, max_file_size
-            )
-            full_content += _truncated_note(kept, total, "파일 크기 제한")
-
-        file_parts.append({
-            "header": header,
-            "diff": diff_section,
-            "full_content": full_content,
-            "full_content_size": len(full_content),
-            # Carried so an omission notice can name the file the reviewer must
-            # `Read` — the header alone is what a dropped section already shows.
-            "rel_path": ci["file_path"],
-            # The two below exist because a file can be cut TWICE — once here
-            # against `max_file_size`, then again against the prompt budget. The
-            # second cut used to recount lines from `full_content`, which by then
-            # already carried the first cut's note, so it reported the truncated
-            # length as if it were the file's size: a real 1,531-line file was
-            # announced as "356/580" and the number 1,531 appeared nowhere in the
-            # prompt. A reviewer has no way to see that "580" is not the total.
-            #
-            # `source_lines` is the numbered body WITHOUT any note, so the second
-            # cut measures source rather than its own annotation; `total_lines`
-            # is the only true total and both cuts report against it.
-            "source_lines": numbered,
-            "total_lines": total_lines,
-        })
-
-    if max_total_size <= 0:
-        sections = []
-        for fp in file_parts:
-            section = fp["header"] + fp["diff"]
-            if fp["full_content"]:
-                section += f"\n{FULL_CONTEXT_HEADING}\n```\n{fp['full_content']}\n```\n"
-            sections.append(section)
-        return separator.join(sections)
-
-    base_sections = [fp["header"] + fp["diff"] for fp in file_parts]
-    base_size = len(separator.join(base_sections))
-
-    if base_size >= max_total_size:
-        # Headers + diffs alone overrun the cap, so NO file gets whole-file
-        # context here. Say it once, globally: this is the same "a reviewer
-        # cannot see what it was not given" failure the per-file notice below
-        # fixes, but per-file notices would each need budget that by definition
-        # is not available — and the omission is uniform anyway.
-        global_note = ""
-        if any(fp["full_content"] for fp in file_parts):
-            global_note = (
-                f"\n\n{FULL_CONTEXT_HEADING}\n"
-                "⚠️ 프롬프트 크기 제한으로 이번 요청에는 **어떤 파일의 전체 내용도 실리지 "
-                "않았습니다** (diff 만 제공). 판단하기 전에 필요한 파일을 `Read` 로 직접 "
-                "읽으십시오.\n"
-            )
-        indexed = [(i, fp) for i, fp in enumerate(file_parts)]
-        indexed.sort(key=lambda x: len(x[1]["diff"]), reverse=True)
-        # `_DIFF_DROPPED_NOTE` 도 **미리** 예약한다. 루프가 끝난 뒤에 붙이면서 계상하지
-        # 않았더니 소액 초과(37~71자)가 남았다 — 이 분기가 고치려던 결함을 그대로
-        # 재생산한 것이다. 실제로 안 붙는 경우엔 조금 덜 담길 뿐, 상한은 지켜진다.
-        overflow = base_size - _charge_notice(
-            max_total_size, global_note, _DIFF_DROPPED_NOTE)
-        # `cut` 만큼 줄어든다고 셈하면 안 된다. 대체 텍스트는 잘림 note 나 placeholder 를
-        # **덧붙이므로** 실제 감소분이 `cut` 보다 작고, 짧은 diff 에서는 placeholder 가
-        # 원본보다 길어 오히려 늘어난다. 실측(2026-08-07): cap 1500·파일 12개·diff 300자
-        # 에서 결과가 1,822자로 **322자 초과**했고, cap 8000·30개에서도 +90 이었다.
-        # 그래서 감소분을 **실측해서** 차감하고, 이득이 없는 대체는 채택하지 않는다.
-        dropped_any = False
-        progressed = True
-        while overflow > 0 and progressed:
-            progressed = False
-            for idx, fp in indexed:
-                if overflow <= 0:
-                    break
-                diff_len = len(fp["diff"])
-                if diff_len == 0:
-                    continue
-                cut = min(overflow, diff_len)
-                new_len = diff_len - cut
-                if new_len > 0:
-                    kept_text, kept, total = line_anchors.truncate_to_line_boundary(
-                        fp["diff"], new_len
-                    )
-                    # Trailing "\n" only here (not at the other two truncation
-                    # sites): this branch's text is concatenated straight onto the
-                    # next section by `separator.join`, whereas the whole-file cuts
-                    # are already followed by a closing fence. Pre-existing shape,
-                    # kept as-is so the change stays behaviour-preserving.
-                    candidate = (kept_text
-                                 + _truncated_note(kept, total, "프롬프트 크기 제한") + "\n")
-                else:
-                    candidate = _DIFF_ELIDED_NOTE
-                if len(candidate) >= diff_len:
-                    # 이 대체는 이득이 없다(placeholder 가 diff 보다 길다). 통째로 비우고,
-                    # 사실은 아래 전역 안내가 한 번에 말한다 — 파일마다 늘어나는 안내를
-                    # 붙이면 그게 다시 예산을 먹는다.
-                    candidate = ""
-                    dropped_any = True
-                actual = diff_len - len(candidate)
-                if actual <= 0:
-                    continue
-                fp["diff"] = candidate
-                overflow -= actual
-                progressed = True
-        if dropped_any:
-            global_note += _DIFF_DROPPED_NOTE
-        sections = [fp["header"] + fp["diff"] for fp in file_parts]
-        rendered = separator.join(sections) + global_note
-        if len(rendered) <= max_total_size:
-            return rendered
-
-        # 여기까지 왔다면 **헤더만으로 상한을 넘는다** — diff 를 전부 버려도 줄지 않는다.
-        # 종전에는 파일 섹션 자체를 버리는 수단이 없어 상한을 구조적으로 지킬 수 없었다
-        # (백로그 §4). n=3000 실측: 헤더+구분자만 157,887자 vs cap 141,557.
-        #
-        # 파일 단위로 버리되 **버렸다는 사실을 반드시 말한다**. 조용히 사라지면 리뷰어는
-        # 그 파일이 변경되지 않았다고 읽는다 — 이 모듈이 반복해서 고쳐 온 실패다.
-        kept = []
-        used = 0
-        budget = _charge_notice(max_total_size, global_note, _FILES_DROPPED_NOTE_MAX)
-        for section in sections:
-            cost = len(section) + (len(separator) if kept else 0)
-            if used + cost > budget:
+    예산 계상은 전부 `_charge_notice` 를 거친다. 이 경로가 §1(감소분을 `cut` 으로 셈)과
+    §4(파일 단위로 버릴 수단 부재)를 모두 겪은 자리라, 안내문을 **사전 예약**하는 규율이
+    특히 중요하다 — 루프 뒤에 붙이면 그 길이만큼 다시 넘는다.
+    """
+    # Headers + diffs alone overrun the cap, so NO file gets whole-file
+    # context here. Say it once, globally: this is the same "a reviewer
+    # cannot see what it was not given" failure the per-file notice below
+    # fixes, but per-file notices would each need budget that by definition
+    # is not available — and the omission is uniform anyway.
+    global_note = ""
+    if any(fp["full_content"] for fp in file_parts):
+        global_note = (
+            f"\n\n{FULL_CONTEXT_HEADING}\n"
+            "⚠️ 프롬프트 크기 제한으로 이번 요청에는 **어떤 파일의 전체 내용도 실리지 "
+            "않았습니다** (diff 만 제공). 판단하기 전에 필요한 파일을 `Read` 로 직접 "
+            "읽으십시오.\n"
+        )
+    indexed = [(i, fp) for i, fp in enumerate(file_parts)]
+    indexed.sort(key=lambda x: len(x[1]["diff"]), reverse=True)
+    # `_DIFF_DROPPED_NOTE` 도 **미리** 예약한다. 루프가 끝난 뒤에 붙이면서 계상하지
+    # 않았더니 소액 초과(37~71자)가 남았다 — 이 분기가 고치려던 결함을 그대로
+    # 재생산한 것이다. 실제로 안 붙는 경우엔 조금 덜 담길 뿐, 상한은 지켜진다.
+    overflow = base_size - _charge_notice(
+        max_total_size, global_note, _DIFF_DROPPED_NOTE)
+    # `cut` 만큼 줄어든다고 셈하면 안 된다. 대체 텍스트는 잘림 note 나 placeholder 를
+    # **덧붙이므로** 실제 감소분이 `cut` 보다 작고, 짧은 diff 에서는 placeholder 가
+    # 원본보다 길어 오히려 늘어난다. 실측(2026-08-07): cap 1500·파일 12개·diff 300자
+    # 에서 결과가 1,822자로 **322자 초과**했고, cap 8000·30개에서도 +90 이었다.
+    # 그래서 감소분을 **실측해서** 차감하고, 이득이 없는 대체는 채택하지 않는다.
+    dropped_any = False
+    progressed = True
+    while overflow > 0 and progressed:
+        progressed = False
+        for idx, fp in indexed:
+            if overflow <= 0:
                 break
-            kept.append(section)
-            used += cost
-        dropped = len(sections) - len(kept)
-        if dropped == 0:
-            # 예약분만으로 넘은 극단. 최소 1개는 남겨 "무엇을 보는 요청인지" 를 지킨다.
-            kept, dropped = sections[:1], len(sections) - 1
-        return (separator.join(kept)
-                + global_note
-                + _files_dropped_note(dropped, len(sections)))
+            diff_len = len(fp["diff"])
+            if diff_len == 0:
+                continue
+            cut = min(overflow, diff_len)
+            new_len = diff_len - cut
+            if new_len > 0:
+                kept_text, kept, total = line_anchors.truncate_to_line_boundary(
+                    fp["diff"], new_len
+                )
+                # Trailing "\n" only here (not at the other two truncation
+                # sites): this branch's text is concatenated straight onto the
+                # next section by `separator.join`, whereas the whole-file cuts
+                # are already followed by a closing fence. Pre-existing shape,
+                # kept as-is so the change stays behaviour-preserving.
+                candidate = (kept_text
+                             + _truncated_note(kept, total, "프롬프트 크기 제한") + "\n")
+            else:
+                candidate = _DIFF_ELIDED_NOTE
+            if len(candidate) >= diff_len:
+                # 이 대체는 이득이 없다(placeholder 가 diff 보다 길다). 통째로 비우고,
+                # 사실은 아래 전역 안내가 한 번에 말한다 — 파일마다 늘어나는 안내를
+                # 붙이면 그게 다시 예산을 먹는다.
+                candidate = ""
+                dropped_any = True
+            actual = diff_len - len(candidate)
+            if actual <= 0:
+                continue
+            fp["diff"] = candidate
+            overflow -= actual
+            progressed = True
+    if dropped_any:
+        global_note += _DIFF_DROPPED_NOTE
+    sections = [fp["header"] + fp["diff"] for fp in file_parts]
+    rendered = separator.join(sections) + global_note
+    if len(rendered) <= max_total_size:
+        return rendered
 
+    # 여기까지 왔다면 **헤더만으로 상한을 넘는다** — diff 를 전부 버려도 줄지 않는다.
+    # 종전에는 파일 섹션 자체를 버리는 수단이 없어 상한을 구조적으로 지킬 수 없었다
+    # (백로그 §4). n=3000 실측: 헤더+구분자만 157,887자 vs cap 141,557.
+    #
+    # 파일 단위로 버리되 **버렸다는 사실을 반드시 말한다**. 조용히 사라지면 리뷰어는
+    # 그 파일이 변경되지 않았다고 읽는다 — 이 모듈이 반복해서 고쳐 온 실패다.
+    kept = []
+    used = 0
+    budget = _charge_notice(max_total_size, global_note, _FILES_DROPPED_NOTE_MAX)
+    for section in sections:
+        cost = len(section) + (len(separator) if kept else 0)
+        if used + cost > budget:
+            break
+        kept.append(section)
+        used += cost
+    dropped = len(sections) - len(kept)
+    if dropped == 0:
+        # 예약분만으로 넘은 극단. 최소 1개는 남겨 "무엇을 보는 요청인지" 를 지킨다.
+        kept, dropped = sections[:1], len(sections) - 1
+    return (separator.join(kept)
+            + global_note
+            + _files_dropped_note(dropped, len(sections)))
+
+
+
+def _allocate_content_budget(file_parts, separator, max_total_size, base_size):
+    """남은 예산으로 전체 파일 내용을 배분한다 — 세 전략 중 유일하게 담는 쪽이다.
+
+    다른 둘과 나눠 둔 이유: 셋 다 "안내문 길이도 예산에 포함" 이라는 같은 불변식을
+    지켜야 하는데, 한 함수에 섞여 있을 때 각자 손으로 재구현했고 3R CRITICAL 이 그
+    구조에서 재발했다. 이제 계상은 전부 `_charge_notice` 한 곳을 지난다.
+    """
     remaining_budget = max_total_size - base_size
     content_wrapper_overhead = len(f"\n{FULL_CONTEXT_HEADING}\n```\n\n```\n")
 
@@ -787,6 +749,77 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     )
 
 
+def build_files_section(change_infos, max_file_size, max_total_size=0):
+    """Compose the changed-files context, respecting per-file and total budgets.
+
+    Both the diff and the whole-file context carry a line-number gutter (see
+    `lib/line_anchors.py`). Without it a reviewer has no way to know a real line
+    number and ends up citing offsets into this assembled document instead —
+    measured, not hypothesised: see that module's docstring.
+    """
+    separator = "\n---\n\n"
+
+    file_parts = []
+    for i, ci in enumerate(change_infos, 1):
+        header = f"### 파일 {i}: {ci['file_path']}\n"
+        header += f"- 변경 유형: {ci['change_type']}\n"
+        header += f"- 언어: {ci['file_extension']}\n"
+
+        diff_section = ""
+        if ci.get("code"):
+            annotated = line_anchors.annotate_unified_diff(ci["code"])
+            diff_section += f"\n{DIFF_HEADING}\n```\n{annotated}\n```\n"
+        if ci.get("old_code"):
+            diff_section += f"\n{OLD_CODE_HEADING}\n```\n{ci['old_code']}\n```\n"
+
+        # Number first, then cut on a line boundary: slicing raw characters
+        # could leave a half-written line number, which is exactly the kind of
+        # untrustworthy anchor the gutter exists to eliminate.
+        numbered = line_anchors.number_source_lines(ci.get("full_file_content", ""))
+        total_lines = numbered.count("\n") + 1 if numbered else 0
+
+        full_content = numbered
+        if len(full_content) > max_file_size:
+            full_content, kept, total = line_anchors.truncate_to_line_boundary(
+                full_content, max_file_size
+            )
+            full_content += _truncated_note(kept, total, "파일 크기 제한")
+
+        file_parts.append({
+            "header": header,
+            "diff": diff_section,
+            "full_content": full_content,
+            "full_content_size": len(full_content),
+            # Carried so an omission notice can name the file the reviewer must
+            # `Read` — the header alone is what a dropped section already shows.
+            "rel_path": ci["file_path"],
+            # The two below exist because a file can be cut TWICE — once here
+            # against `max_file_size`, then again against the prompt budget. The
+            # second cut used to recount lines from `full_content`, which by then
+            # already carried the first cut's note, so it reported the truncated
+            # length as if it were the file's size: a real 1,531-line file was
+            # announced as "356/580" and the number 1,531 appeared nowhere in the
+            # prompt. A reviewer has no way to see that "580" is not the total.
+            #
+            # `source_lines` is the numbered body WITHOUT any note, so the second
+            # cut measures source rather than its own annotation; `total_lines`
+            # is the only true total and both cuts report against it.
+            "source_lines": numbered,
+            "total_lines": total_lines,
+        })
+
+    if max_total_size <= 0:
+        return _render_unbounded(file_parts, separator)
+
+    base_sections = [fp["header"] + fp["diff"] for fp in file_parts]
+    base_size = len(separator.join(base_sections))
+
+    if base_size >= max_total_size:
+        return _render_diff_only_overflow(
+            file_parts, separator, max_total_size, base_size)
+
+    return _allocate_content_budget(
+        file_parts, separator, max_total_size, base_size)
 def build_agent_prompt_body(agent_name, change_infos, max_file_size, max_prompt_size):
     """Compose a role-specific prompt body for one reviewer.
 
