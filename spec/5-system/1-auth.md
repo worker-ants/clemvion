@@ -421,6 +421,10 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 실행 (재실행) | `execution.re_run` |
 | 설정 | `auth_config.create`, `auth_config.update`, `auth_config.delete`, `auth_config.regenerate`, `auth_config.reveal` |
 | 인증 (워크스페이스 컨텍스트) | `user.password_changed`, `user.2fa_enabled`, `user.2fa_disabled`, `user.email_changed`(이메일 변경 확인 `POST /users/me/email-change/verify`, §1.1.B — **details 에 raw 이메일 미저장**, Rationale 1.1.B-6) — 액터의 현재 세션 `workspaceId` 에 귀속, controller 경계 기록 (`users.controller`·`auth.controller`·`webauthn.controller`). 상세 [data-flow §1.1](../data-flow/1-audit.md) + §Rationale 4.1.B |
+| 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted` — `workflows.service` (2026-08-01) |
+| 트리거 | `trigger.created`, `trigger.updated`, `trigger.deleted` — `triggers.service` (2026-08-01). 활성/비활성 전환도 `trigger.updated` 로 기록한다(별도 토글 동사 없음) |
+| 스케줄 | `schedule.created`, `schedule.updated`, `schedule.deleted` — `schedules.service` (2026-08-01) |
+| 설정 (모델) | `model_config.create`, `model_config.update`, `model_config.delete`, `model_config.set_default` — `model-config.service` (2026-08-01) |
 
 > **`workspace.deleted` 는 감사하지 않는다 (구조적 제약).** 결정4 는 workspace CRUD 전체 감사를 의도했으나, `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001)라 삭제 감사 row 는 삭제와 함께 cascade 제거되거나(삭제 전 기록) FK 위반(삭제 후 기록)으로 영속 불가하다. 따라서 `AUDIT_ACTIONS` 에 `workspace.deleted` 를 두지 않는다. 상세: [data-flow/12-workspace §Rationale "workspace.deleted 감사 제외"](../data-flow/12-workspace.md) · [data-flow/1-audit §1.1](../data-flow/1-audit.md).
 
@@ -430,12 +434,11 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 | 카테고리 | Planned action |
 |----------|------|
-| 워크플로우 | `workflow.created`, `workflow.updated`, `workflow.deleted`, `workflow.executed` |
-| 트리거 | `trigger.created`, `trigger.updated`, `trigger.deleted` |
-| 스케줄 | `schedule.created`, `schedule.updated`, `schedule.deleted` |
-| 설정 | `model_config.*` (create/update/delete/set_default — **현재형 유지**: `set_default` 가 과거분사로 부자연스러워 auth_config 처럼 resource 단위 현재형으로 통일. reveal 미제공 — ModelConfig 는 평문 reveal 엔드포인트 없음) |
+| 워크플로우 | `workflow.executed` — **보존 정책과 묶인 의도적 유예**. CRUD 는 저빈도지만 `executed` 는 트리거·webhook 발동마다 쌓이는데 `audit_log` 은 보존 정책이 미정이고 pruner 가 없다(§3 "현재 무제한"). 근거: [`conventions/audit-actions.md` §3](../conventions/audit-actions.md) |
 
-> **감사 액션 통합 (model_config)** — *목표 설계*. 설정 CRUD 감사 로깅 자체는 현재 미구현이다 (`model_config.service.ts` 는 `AuditLogsService` 를 호출하지 않는다 — [data-flow §1.1 커버리지 갭](../data-flow/1-audit.md) 이 ground truth). 구현 시 신규 이벤트는 `model_config.*` (create/update/delete/set_default) 로 기록한다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
+> **2026-08-01 — 이 표에 있던 13개 액션이 구현·병합됐다** (`workflow.*`/`trigger.*`/`schedule.*` CRUD + `model_config.*` 4종). 위 구현 표로 이동했고, 남은 것은 `workflow.executed` 하나다. `model_config` 가 **현재형을 유지**하는 이유는 그대로다: `set_default` 가 과거분사로 부자연스러워 `auth_config` 처럼 resource 단위 현재형으로 통일했고, reveal 은 미제공이다(ModelConfig 에 평문 reveal 엔드포인트가 없다).
+
+> **감사 액션 통합 (model_config)** — **2026-08-01 구현됨** (`model-config.service.ts` 가 `AuditLogsService` 를 호출한다 — [data-flow §1.1](../data-flow/1-audit.md) 이 ground truth). 신규 이벤트는 `model_config.*` (create/update/delete/set_default) 로 기록된다. 통합 이전 `llm_config.*`/`rerank_config.*` 로 적재된 row 가 있다면 append-only 로 보존되며 재작성하지 않으므로, 감사 조회는 두 액션 집합(`model_config.*` OR `llm_config.*`/`rerank_config.*`)을 OR 로 결합해 질의한다.
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 

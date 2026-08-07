@@ -179,7 +179,7 @@ code:
 | editor | 가능 (자신의 워크스페이스 한정) |
 | admin / owner | 가능 |
 
-API 게이트는 [Spec 인증 §3](../5-system/1-auth.md#3-인가-authorization) 의 `trigger.delete` permission 으로 보호되며 audit log 의 `trigger.delete` action 항목으로 기록된다 ([Spec data-flow audit](../data-flow/1-audit.md)).
+API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-system/1-auth.md#3-인가-authorization) 의 Trigger CRUD 권한(역할 기반)으로 보호되며 audit log 의 `trigger.deleted` action 항목으로 기록된다 ([Spec data-flow audit](../data-flow/1-audit.md)).
 
 ### 4.2 확인 다이얼로그
 
@@ -249,7 +249,7 @@ v1.1 이후 위 영향을 해소할 마이그레이션 계획이 마련되면 �
 
 - **단일 경로 우선**: 같은 결과(부울 토글)에 두 endpoint 를 두면 권한·audit·테스트 표면이 이중화된다. 인라인 행 액션도 다른 필드 편집도 모두 `PATCH /api/triggers/:id` 한 경로를 쓴다 — API 계약·구현·문서의 단일 진실 유지.
 - **현재 상태 부지(不知) 문제 없음**: 인라인 토글 버튼은 목록 행이 이미 렌더한 현재 `isActive` 를 알고 있으므로, 그 부정값을 명시적으로 (`{ isActive: !current }`) 보낸다. 본문 없는 idempotent toggle 이 필요할 만큼 클라이언트가 상태를 모르는 케이스는 v1 UI 에 없다.
-- **audit**: 활성/비활성 전환도 `trigger.update` 로 기록한다 (별도 `trigger.toggle` 동사 없음).
+- **audit**: 활성/비활성 전환도 `trigger.updated` 로 기록한다 (별도 `trigger.toggle` 동사 없음).
 
 drawer **UI 표현**은 별개 축으로, 상세 drawer 안에서 `isActive` 는 read-only 배지로만 표시하고 토글은 §2.1 ⋮ 행 액션으로만 제공한다 (Rationale R-16). 즉 PATCH body 경로는 API 계약상 살아 있되, drawer 화면에는 inline 토글 컨트롤을 노출하지 않는다.
 

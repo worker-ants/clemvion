@@ -15,7 +15,14 @@ owner: planner
 - [x] **§4.1 감사 로깅 커버리지 갭** — **CRUD 13개 구현 완료 (2026-08-01)**.
       `workflow.*` / `trigger.*` / `schedule.*` / `model_config.*`(create/update/delete/set_default).
       *(착수 시점 실측 — 이제는 해소됨: 네 모듈에 `AuditLogsService` import 가 **0건**이었다.)*
-- [ ] **spec SoT 4곳 동기화 — planner 턴 필요** (`developer` 는 `spec/` read-only).
+- [x] **spec SoT 4곳 동기화** — **완료 (2026-08-06, planner 턴)**. 한 커밋에서 동시 정정:
+      `conventions/audit-actions.md §3` 4행 상태 → 구현 · `5-system/1-auth.md §4.1` 4개
+      카테고리를 구현 표로 이동(Planned 에는 `workflow.executed` 만 잔류) + `model_config`
+      "현재 미구현" 주석 정정 · `data-flow/1-audit.md §1.1` Writer 표 13행 추가 + 커버리지
+      갭 문단 정정(남은 갭은 `workflow.executed` 와 `alerts` 모듈 둘로 좁힘) · 오기 3곳.
+      정정 전 실측: 네 서비스 모두 `AuditLogsService.record` 를 호출하고 resourceType 은
+      각각 `workflow`/`trigger`/`schedule`/`model_config`. 잔존 오기 0건(`grep` 전수).
+      *(원 항목 서술 — `developer` 는 `spec/` read-only.)*
       `5-system/1-auth.md §4.1` Planned→구현 이동 · `data-flow/1-audit.md §1.1` 커버리지 갭
       문단·표 갱신 · `conventions/audit-actions.md §3` 상태 컬럼 · **audit 액션명 오기 3곳**.
       한 커밋에서 동시에 고쳐야 재drift 하지 않는다 (impl-prep 09_11_58 이 예견).
@@ -27,7 +34,7 @@ owner: planner
       | `2-navigation/2-trigger-list.md:182` | `trigger.delete` ×2 | **둘 다 틀렸다 (각각 다른 이유)** | 뒤쪽(audit action) → `trigger.deleted`. 앞쪽은 "`trigger.delete` **permission** 으로 보호" 라고 쓰는데 **그런 permission 은 존재하지 않는다** — spec §3 에도 코드에도 없고, 인가는 역할 기반(`@Roles('editor')`)이다. `§3.2 리소스별 권한 매트릭스` 인용으로 바꿔야 한다 |
       | `2-navigation/2-trigger-list.md:252` | `trigger.update` | `trigger.updated` | — |
       | `5-system/15-chat-channel.md:377` | `trigger.update` | `trigger.updated` | **impl-done consistency(19_26_35 naming_collision)가 추가 발견** — 원래 인계 목록에 없던 세 번째 지점 |
-- [ ] **신규 설계 결정 2건을 spec `## Rationale` 로 승격** — impl-done consistency(19_26_35
+- [x] **신규 설계 결정 2건을 spec `## Rationale` 로 승격** — **완료 (2026-08-06)**, `conventions/audit-actions.md §3` 아래 두 문단으로 기록. — impl-done consistency(19_26_35
       `rationale_continuity` INFO). 아래 둘은 기존 Rationale 을 번복하지 않지만 **현재 코드
       주석(`audit-action.const.ts`)에만 있어** spec 독자가 알 수 없다. 위 planner 턴에서 함께
       기록해야 다음 사람이 같은 판단을 다시 하지 않는다.
@@ -53,7 +60,12 @@ owner: planner
       재구성할 수 없다 — 감사 가치가 CRUD 보다 높다. `integration.rotated` 선례도 있다.
       **다만 대응 액션이 spec 카탈로그에 없어**(`spec/` 전체에 `trigger.rotate*` 0건)
       `1-auth.md §4.1` + `conventions/audit-actions.md` 개정이 선행돼야 한다.
-      아래 "spec SoT 동기화" 항목과 **같은 planner 턴에서 함께** 처리하는 것이 맞다.
+      ~~아래 "spec SoT 동기화" 항목과 **같은 planner 턴에서 함께** 처리하는 것이 맞다.~~
+      **2026-08-06 — 번들되지 않았다. 별도 planner 턴이 필요하다.** 그 턴은 push 가 막혀
+      촉발된 **정정** 작업이었다(이미 병합된 구현을 spec 이 "미구현" 으로 적고 있던 것을
+      코드 실측에 맞춤). 반면 이 항목은 **새 설계**다 — `trigger.rotate*` 는 spec 카탈로그
+      에도 코드에도 0건이라(재확인), 액션명·시제 분류·감사 대상 범위를 새로 정해야 하고
+      그 자체가 리뷰 대상이다. 정정 턴에 설계를 얹으면 두 성격이 한 커밋에서 섞인다.
 - [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
 - [ ] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** — 7차 리뷰
       `security` CRITICAL. `RolesGuard.canActivate` 가 `requiredRoles` 가 비면 `return true` 로
