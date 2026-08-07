@@ -71,4 +71,4 @@ jobs:
 
       # 표준 라이브러리만 쓴다 (harness 규약) — 설치 단계 없음.
       - name: Review coverage backstop
-        run: python3 scripts/check-review-gate.py
+        run: python3 scripts/check-review-gate.py --enforce
