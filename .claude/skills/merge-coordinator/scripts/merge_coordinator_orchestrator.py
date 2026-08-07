@@ -517,7 +517,10 @@ def main():
                              "pending=N success=N fatal=N branches=N base=<branch> last_reset=<sec|null>.")
     parser.add_argument("--update", type=str, metavar="SESSION_DIR",
                         help="Update an analyzer's status. Requires --agent --status. "
-                             "Optional --reset-hint <sec>.")
+                             "Optional --reset-hint <sec>. Calls for DIFFERENT agents may "
+                             "run in parallel; two calls for the SAME agent must not "
+                             "overlap (unlocked read-modify-write — a lost `fatal` "
+                             "transition is unrecoverable).")
     parser.add_argument("--agent", type=str, metavar="NAME")
     parser.add_argument("--status", type=str, metavar="STATUS",
                         choices=["success", "rate_limit", "network", "fatal"])

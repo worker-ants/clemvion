@@ -1472,7 +1472,11 @@ def main():
                              "Main uses this for branch decisions without loading full JSON.")
     parser.add_argument("--update", type=str, metavar="SESSION_DIR",
                         help="Update a single agent's status in _retry_state.json. "
-                             "Requires --agent and --status. Optional --reset-hint <sec>.")
+                             "Requires --agent and --status. Optional --reset-hint <sec>. "
+                             "Calls for DIFFERENT agents may run in parallel; two calls "
+                             "for the SAME agent must not overlap (unlocked "
+                             "read-modify-write — a lost `fatal` transition is "
+                             "unrecoverable).")
     parser.add_argument("--agent", type=str, metavar="NAME",
                         help="Agent name for --update.")
     parser.add_argument("--status", type=str, metavar="STATUS",

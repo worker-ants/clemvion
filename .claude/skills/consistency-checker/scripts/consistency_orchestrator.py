@@ -896,7 +896,10 @@ def main():
                              "Main uses this for branch decisions without loading full JSON.")
     parser.add_argument("--update", type=str, metavar="SESSION_DIR",
                         help="Update a single checker's status. Requires --agent --status. "
-                             "Optional --reset-hint <sec>.")
+                             "Optional --reset-hint <sec>. Calls for DIFFERENT agents may "
+                             "run in parallel; two calls for the SAME agent must not "
+                             "overlap (unlocked read-modify-write — a lost `fatal` "
+                             "transition is unrecoverable).")
     parser.add_argument("--agent", type=str, metavar="NAME")
     parser.add_argument("--status", type=str, metavar="STATUS",
                         choices=["success", "rate_limit", "network", "fatal"])

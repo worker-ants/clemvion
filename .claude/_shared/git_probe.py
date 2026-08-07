@@ -268,6 +268,11 @@ def _repo_root(cwd: str) -> str | None:
 
 
 def _default_branch(cwd: str) -> str | None:
+    # The broad `except Exception` below predates the narrow/broad split
+    # documented on `_run_git_raw`, and is a deliberate exception to it: this is
+    # a FALLBACK CHAIN, so a swallowed probe falls through to the next option and
+    # a total failure returns `None` — it cannot misreport a programming error as
+    # "git said no", which is what makes swallowing dangerous in the primitive.
     try:
         d = _origin_default_branch(cwd)
         if d:

@@ -62,6 +62,8 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 
 sub-agent 는 재시도 결정을 하지 않는다 — STATUS 만 보고. 재시도 결정은 호출자(main) 가 `_retry_state.json` 으로 추적하고 `ScheduleWakeup` 으로 재예약한다.
 
+> **동일 agent 에 대한 `--update` 는 겹쳐 호출하지 않는다.** 서로 다른 agent 의 `--update` 를 한 응답에서 병렬로 배치하는 것은 정상이고 설계가 그것을 전제한다. 그러나 **같은 agent 이름**에 대한 두 번째 `--update` 는 앞의 호출이 완전히 끝난 뒤에 한다 — `--update` 는 잠금 없는 read-modify-write 라 겹치면 나중 호출이 앞선 전이를 덮고, 그 앞선 전이가 `fatal` 이었다면 sentinel 까지 함께 지워져 **어떤 재조정으로도 복구되지 않는다**. 문서화된 흐름(에이전트 1회 호출 = `--update` 1회)에서는 발생하지 않지만, 중복 재시도나 수동 재실행이 `/loop` 와 경합하면 만들 수 있다. 근거·재현: [`_shared/retry_state.py`](../_shared/retry_state.py) `_record_fatal` docstring 과 `test_two_overlapping_updates_for_the_SAME_agent_lose_the_fatal`.
+
 ## 6. 위험도 등급 (분석형 sub-agent 공통)
 
 | 등급 | 의미 |
