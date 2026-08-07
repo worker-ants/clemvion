@@ -114,6 +114,8 @@ review/
                     │   ├── performance.md
                     │   └── ...
                     ├── _retry_state.json    ← 재시도/상태 (main 이 갱신)
+                    ├── _fatal/              ← fatal 전이 sentinel (에이전트당 파일 1개)
+                    │   └── security         ← 있으면 그 reviewer 는 영구 실패로 판정됨
                     ├── _routing_decision.json ← review-router 가 작성한 선별 결과 (--route=auto 시)
                     ├── meta.json            ← 변경 정보 메타
                     ├── security.md          ← sub-agent 가 Write 한 리뷰 결과 (<role>.md)
@@ -155,8 +157,8 @@ review/
     // ... 13 entries
   ],
   "agents_pending": ["security", "..."],
-  "agents_success": [],
-  "agents_fatal": [],
+  "agents_success": [],                   // 디스크의 리포트 파일에서 매번 재도출됨
+  "agents_fatal": [],                     // `_fatal/<name>` sentinel 과 합집합으로 재도출됨
   "agent_history": {
     "security": [
       {"ts": "2026-05-15T03:01:00Z", "status": "rate_limit", "reset_hint_sec": 1800}
@@ -171,6 +173,13 @@ review/
 ```
 
 main 은 매 사이클마다 위 JSON 을 Read → 갱신 → Write 한다.
+
+> **디스크가 심판이다.** `--update` 는 잠금 없는 read-modify-write 라 병렬 호출 두 건이
+> 겹치면 나중 writer 의 사본만 남는다(`fcntl.flock` 은 모든 훅 경로에 블로킹 프리미티브를
+> 놓게 되므로 기각). 그래서 두 종착 버킷은 JSON 밖에도 기록이 있다 — `agents_success` 는
+> 리포트 파일, `agents_fatal` 은 `_fatal/<name>` sentinel. `--summary-state` / `--resume` /
+> `--sync-from-disk` 의 재조정이 그 둘을 다시 세우므로 유실된 전이는 복구된다.
+> `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec` 는 수렴 대상이 아니다.
 
 ## sub-agent return contract
 
