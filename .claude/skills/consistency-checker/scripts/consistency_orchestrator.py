@@ -121,13 +121,37 @@ def repo_root():
     return os.getcwd()
 
 
+# 경로 → 내용. `read_text_file` 이 한 실행 안에서 같은 파일을 두 번 읽지 않게 한다.
+# 모듈 전역인 이유는 이 orchestrator 가 단명 CLI 라서다 — 프로세스가 곧 끝나므로
+# 무효화 시점을 설계할 필요가 없고, 테스트는 `_READ_CACHE.clear()` 로 격리한다.
+_READ_CACHE: dict[str, str] = {}
+
+
 def read_text_file(path):
+    """파일을 읽되 **한 실행 안에서는 한 번만** 읽는다 (백로그 §7).
+
+    `collect_context` 는 `plan/in-progress/` 전체를 랭킹 신호용으로 한 번 읽고,
+    곧이어 `format_file_bundle` 이 같은 디렉터리를 처음부터 다시 읽는다 — 세션당 2배 I/O.
+    실측 규모는 30개 430,929 bytes(≈3.5ms)라 오늘 아프지는 않지만, 호출부를 고쳐 없애는
+    것보다 읽기 자체를 기억하는 편이 **다른 이중 읽기까지 함께** 닫는다(호출부는 6곳이다).
+
+    캐시가 안전한 이유: 이 orchestrator 는 세션을 준비하고 끝나는 **단명 CLI** 다. 한 실행
+    안에서 같은 경로의 내용이 바뀌면 그건 입력이 도중에 바뀐 것이고, 그때 두 번째 읽기가
+    첫 번째와 달라지는 편이 오히려 진단하기 어렵다 — 번들과 랭킹이 서로 다른 문서를 보게
+    된다. 실패(권한·인코딩)도 그대로 기억한다: 같은 실행 안에서 두 번 시도해도 결과가
+    달라질 이유가 없고, `debug_log` 가 두 번 우는 것만 막는다.
+    """
+    cached = _READ_CACHE.get(path)
+    if cached is not None:
+        return cached
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
-            return f.read()
+            text = f.read()
     except Exception as e:
         debug_log(f"Failed to read {path}: {e}")
-        return ""
+        text = ""
+    _READ_CACHE[path] = text
+    return text
 
 
 # ---------------------------------------------------------------------------
