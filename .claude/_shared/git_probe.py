@@ -1,4 +1,12 @@
-"""Git probes shared by the three push-gate guards.
+"""Git probes shared by the three push-gate guards and two skill orchestrators.
+
+The consumer set outgrew "the three guards" when `branch_diff_files` was added:
+`code_review_orchestrator` and `consistency_orchestrator` import this module too,
+so it now spans the hook layer and the skill layer. The `_`-prefixed probes below
+are the hook-layer set (each guard delegates to them by name, which
+`test_plan_guard.py` derives and enforces); `branch_diff_files` is public because
+it is consumed from outside this package rather than delegated to.
+
 
 `review_guard.py` and `plan_guard.py` each carried byte-identical copies of these
 five functions. AST-compared before extracting (docstrings excluded): all five
@@ -120,30 +128,136 @@ def _origin_default_branch_over_network(cwd: str) -> str | None:
 # correctness rather than waiting for the first Korean filename to prove it.
 # (Residual: git still quotes paths containing `"`, `\`, or control characters
 # even with this off. Registered in the plan rather than hand-rolling a decoder.)
-def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
+def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
+    """`_run_git` without the whitespace trimming — stdout exactly as git wrote it.
+
+    Split out for the one caller that parses a NEWLINE-SEPARATED LIST of paths.
+    `_run_git`'s `rstrip()` is right for every scalar probe below (`rev-parse`,
+    `merge-base`, `log` — none can produce meaningful trailing whitespace), but a
+    path list is different: a file named `"trail .ts"` is emitted verbatim by git
+    (measured — git C-quotes non-ASCII bytes, not spaces), so trimming the last
+    line silently renames the last path in the list.
+
+    That is the same failure `_run_git`'s own comment records from the other end:
+    a `strip()` that ate a LEADING space and shifted a whole line. Rather than
+    weaken the trimming for the scalar callers, the list caller reads raw.
+
+    **`errors="surrogateescape"`, and it is load-bearing.** `text=True` alone
+    decodes as strict UTF-8, so a byte sequence git cannot round-trip raises
+    `UnicodeDecodeError` — which is a `ValueError`, NOT an `OSError`, so it went
+    straight through the `except` below and out of every caller. `core.quotePath
+    =false` above makes that reachable rather than theoretical: it is precisely
+    the flag that stops git from C-quoting non-ASCII bytes, so an undecodable
+    filename (a latin-1 name created on Linux, say — this repo's CI runs there)
+    arrives here as raw bytes. Measured: `printf "bad\\344name.ts"` from a fake
+    `git` raises; with surrogateescape it comes back as `"bad\\udce4name.ts"` and
+    re-encodes to the original bytes, so the path stays usable against the
+    filesystem instead of being corrupted the way `errors="replace"` would.
+
+    The `except` stays NARROW, deliberately. The two orchestrator copies each
+    wrapped their git call in `except Exception`, and restoring that promise is
+    right for *them* — but this function is also the primitive the three
+    push-gate guards run on, and there a swallowed `TypeError` becomes "git
+    failed", which `review_guard` reads as fail-open and `plan_guard` as a false
+    BLOCK. A guard degrading silently is the exact failure class this repo keeps
+    getting burned by; a guard crashing is loud and gets fixed. So the broad
+    catch lives on `branch_diff_files` instead, scoped to the callers whose
+    documented contract asks for it. Encoding is the one thing fixed for
+    everyone, because that removes a crash without widening what is swallowed.
+    """
     try:
         p = subprocess.run(
             ["git", "-c", "core.quotePath=false"] + args,
             cwd=cwd,
             capture_output=True,
             text=True,
+            errors="surrogateescape",
             timeout=timeout,
         )
-        # `rstrip()`, NOT `strip()`. `git status --porcelain` emits a two-column
-        # status code, and the most common shape — a tracked file modified but
-        # not staged — is `" M path"` with a LEADING SPACE. Stripping it shifted
-        # every line left by one, and `_porcelain_path`'s fixed-width parse then
-        # returned `"odebase/backend/src/a.ts"` for `codebase/backend/src/a.ts`.
-        # That path matches nothing, so the file lost its "just edited" signal
-        # and the gate fail-opened — on the most ordinary flow there is (edit one
-        # file, push). Found in review round 7 and reproduced directly.
-        #
-        # Trailing whitespace still goes: every other caller (`rev-parse`,
-        # `merge-base`, `log`) wants the bare value without its newline, and
-        # none of them can produce meaningful leading whitespace.
-        return p.returncode, p.stdout.rstrip(), p.stderr.strip()
+        return p.returncode, p.stdout, p.stderr
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return 1, "", ""
+
+
+def _run_git(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, str, str]:
+    # `rstrip()`, NOT `strip()`. `git status --porcelain` emits a two-column
+    # status code, and the most common shape — a tracked file modified but
+    # not staged — is `" M path"` with a LEADING SPACE. Stripping it shifted
+    # every line left by one, and `_porcelain_path`'s fixed-width parse then
+    # returned `"odebase/backend/src/a.ts"` for `codebase/backend/src/a.ts`.
+    # That path matches nothing, so the file lost its "just edited" signal
+    # and the gate fail-opened — on the most ordinary flow there is (edit one
+    # file, push). Found in review round 7 and reproduced directly.
+    #
+    # Trailing whitespace still goes: every other caller (`rev-parse`,
+    # `merge-base`, `log`) wants the bare value without its newline, and
+    # none of them can produce meaningful leading whitespace. The one caller
+    # for which that is NOT true reads `_run_git_raw` instead.
+    rc, out, err = _run_git_raw(args, cwd, timeout)
+    return rc, out.rstrip(), err.strip()
+
+
+def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
+                      on_error=None) -> list[str]:
+    """Repo-relative paths this branch changed against `base_ref`. `[]` on failure.
+
+    The fourth git probe to be shared, and the first that was duplicated between
+    the two SKILL orchestrators rather than between the hooks:
+    `consistency_orchestrator._branch_changed_rels` and
+    `code_review_orchestrator.get_git_branch_diff_files` ran the same command
+    behind a "change both" comment — the arrangement this module exists to
+    replace. They had already drifted, measured 2026-08-07 on one fixture:
+
+      · a file named `" lead.ts"` came back as `"lead.ts"` from the code-review
+        copy (`.strip().splitlines()`) and correctly from the consistency copy
+        (`.split("\\n")`). That is round 7's leading-space bug, in a third place.
+      · both C-quoted a non-ASCII filename, because neither passed
+        `core.quotePath=false` — the flag this module's `_run_git` already sets.
+      · the same failure had a 10s cap on one side and 30s on the other, and
+        both directions of failure return an EMPTY changeset, which reads
+        downstream as "nothing changed" rather than "the probe failed". The
+        longer cap wins on that asymmetry.
+
+    THREE-DOT, and not negotiable: `A...HEAD` diffs against `merge-base(A, HEAD)`,
+    so a `base_ref` that has advanced past this branch's fork point does not turn
+    changes that landed on the base into reverse deletions here. Both copies
+    documented this independently; see `_collect_code_diff` for the long form.
+
+    No `-- .` pathspec. The consistency copy had one and its own docstring said
+    "whole-repo on purpose" — true only because `root` is the process cwd and the
+    orchestrator is run from the repo root. Dropping it makes the function match
+    what both copies documented regardless of where it is invoked.
+
+    `on_error` receives a one-line reason when git fails, so each orchestrator
+    keeps logging through its own `debug_log` rather than this module inventing a
+    logging channel. Failure is otherwise silent and empty, as before.
+
+    **"Empty on any failure" is enforced HERE, not in `_run_git_raw`**, and the
+    difference matters. Both copies this function absorbed wrapped their git call
+    in `except Exception`; narrowing that during the extraction was a silent
+    contract break, and the failure mode went from "empty changeset" to
+    "orchestrator crashes" (measured: an undecodable path raised
+    `UnicodeDecodeError`, which is a `ValueError`, not an `OSError`). But pushing
+    the broad catch down into `_run_git_raw` would have applied it to the three
+    push-gate guards too, where swallowing a programming error as "git failed"
+    degrades a guard silently. Scoping it to this function restores exactly the
+    promise the two orchestrators had, for exactly the two callers that had it.
+    """
+    try:
+        rc, out, err = _run_git_raw(
+            ["diff", "--no-renames", "--name-only", f"{base_ref}...HEAD"],
+            cwd, timeout=timeout,
+        )
+    except Exception as exc:  # noqa: BLE001 — see "empty on any failure" above
+        if on_error is not None:
+            on_error(f"{base_ref}...HEAD: {type(exc).__name__}: {exc}"[:240])
+        return []
+    if rc != 0:
+        if on_error is not None:
+            reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"
+            on_error(f"{base_ref}...HEAD: {reason}")
+        return []
+    return [line for line in out.split("\n") if line]
 
 
 def _repo_root(cwd: str) -> str | None:
@@ -154,6 +268,11 @@ def _repo_root(cwd: str) -> str | None:
 
 
 def _default_branch(cwd: str) -> str | None:
+    # The broad `except Exception` below predates the narrow/broad split
+    # documented on `_run_git_raw`, and is a deliberate exception to it: this is
+    # a FALLBACK CHAIN, so a swallowed probe falls through to the next option and
+    # a total failure returns `None` — it cannot misreport a programming error as
+    # "git said no", which is what makes swallowing dangerous in the primitive.
     try:
         d = _origin_default_branch(cwd)
         if d:

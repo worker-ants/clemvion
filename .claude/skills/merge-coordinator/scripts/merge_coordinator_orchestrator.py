@@ -92,12 +92,17 @@ def load_config():
 # claimed it "differs, handling branch/base", which was wrong: the AST diff was
 # the `_load_state`/`load_state` rename alone, and I read that as divergence
 # without normalising the names the way I had for the other two files.
-# `_emit_summary_state` does genuinely differ (branch/base fields). And this file
-# has no `_reconcile_state_with_disk` at all — the self-healing the other two gained is
-# missing, so a session fanned out with the Agent tool can still leave its state
-# frozen at the prepare-time snapshot while its SUMMARY reports real successes.
-# That is a behaviour change to a different skill, so it is registered as a
-# follow-up rather than smuggled into this branch.
+#
+# `_emit_summary_state` is the one that genuinely differs, and only in the fields
+# it prints (`branches=`/`base=`). It used to differ in a second, unintended way:
+# it was the only one of the three that did NOT reconcile with disk first. This
+# skill's own SKILL.md documents a manual `Agent` fan-out fallback for when the
+# Workflow path is unavailable, and that path never calls `--update` — so the
+# buckets stayed frozen at the prepare-time snapshot (`pending=4, success=0`)
+# while the sibling SUMMARY.md reported real analyzer output. Two committed
+# artifacts contradicting each other, which is the exact failure the other two
+# orchestrators already closed. It now delegates, passing the differing fields
+# as `extra_fields` rather than keeping a body of its own.
 def _load_state(session_dir):
     return _retry_state_lib.load_state(session_dir)
 
@@ -106,23 +111,19 @@ def _save_state(state_file, state):
     return _retry_state_lib.save_state(state_file, state)
 
 
+def _reconcile_state_with_disk(session_dir):
+    return _retry_state_lib.reconcile_state_with_disk(session_dir)
+
+
 def _apply_status_update(session_dir, agent, status, reset_hint):
     return _retry_state_lib.apply_status_update(session_dir, agent, status, reset_hint)
 
 
 def _emit_summary_state(session_dir):
-    _, state = _load_state(os.path.abspath(session_dir))
-    pending = len(state.get("agents_pending", []))
-    success = len(state.get("agents_success", []))
-    fatal = len(state.get("agents_fatal", []))
-    branches = len(state.get("branches", []))
-    base = state.get("base", "")
-    last_reset = state.get("last_reset_hint_sec")
-    last_reset_str = str(last_reset) if last_reset is not None else "null"
-    print(
-        f"pending={pending} success={success} fatal={fatal} "
-        f"branches={branches} base={base} last_reset={last_reset_str}"
-    )
+    _retry_state_lib.emit_summary_state(session_dir, lambda state: {
+        "branches": len(state.get("branches", [])),
+        "base": state.get("base", ""),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -516,7 +517,10 @@ def main():
                              "pending=N success=N fatal=N branches=N base=<branch> last_reset=<sec|null>.")
     parser.add_argument("--update", type=str, metavar="SESSION_DIR",
                         help="Update an analyzer's status. Requires --agent --status. "
-                             "Optional --reset-hint <sec>.")
+                             "Optional --reset-hint <sec>. Calls for DIFFERENT agents may "
+                             "run in parallel; two calls for the SAME agent must not "
+                             "overlap (unlocked read-modify-write — a lost `fatal` "
+                             "transition is unrecoverable).")
     parser.add_argument("--agent", type=str, metavar="NAME")
     parser.add_argument("--status", type=str, metavar="STATUS",
                         choices=["success", "rate_limit", "network", "fatal"])
@@ -539,6 +543,13 @@ def main():
             print(f"Error: cannot resume — _retry_state.json missing under {sd}",
                   file=sys.stderr)
             sys.exit(1)
+        # Reconcile before handing the session back — same reason as the other two
+        # orchestrators: a /loop wake-up decides what to re-run from these buckets,
+        # and the manual `Agent` fan-out fallback never calls `--update`, so resuming
+        # from the frozen snapshot re-runs analyzers whose reports are already there.
+        _, changed = _reconcile_state_with_disk(sd)
+        if changed:
+            debug_log(f"Resume: reconciled _retry_state.json with disk under {sd}")
         debug_log(f"Resuming merge-coordinator session: {sd}")
         print(sd)
         sys.exit(0)

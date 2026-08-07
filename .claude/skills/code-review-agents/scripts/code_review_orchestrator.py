@@ -44,6 +44,7 @@ from _lib import project_config  # noqa: E402
 # `.claude/_shared/report_paths.py`. `--verify-coverage` and `review_guard` must answer
 # "did this agent leave a report?" identically; each keeping its own copy behind a
 # "change both" comment already diverged inside one PR.
+from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import report_paths as _report_paths_lib  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 
@@ -1044,13 +1045,23 @@ def get_git_range_diff(range_spec, file_path=None):
 
 
 def get_git_branch_diff_files(branch):
-    try:
-        r = _git(["git", "diff", "--no-renames", "--name-only", f"{branch}..."])
-        if r.returncode == 0:
-            return [f for f in r.stdout.strip().splitlines() if f]
-    except Exception as e:
-        debug_log(f"git diff branch failed: {e}")
-    return []
+    """Files this branch changed against `branch`. `[]` on any failure.
+
+    The git call lives in `_shared/git_probe.branch_diff_files`, shared verbatim
+    with `consistency_orchestrator._branch_changed_rels` — the two had the same
+    command behind a "change both" comment and had already drifted (the copy that
+    used to be here ate a leading space from a path, round 7's bug in a third
+    place). See that function's docstring for what was measured.
+
+    `os.getcwd()` rather than a repo root: every other git helper in this file
+    runs in the process cwd through `_git`, and that is the contract callers
+    already depend on. `f"{branch}..."` and `f"{branch}...HEAD"` are the same
+    revision range — git fills the empty side with HEAD.
+    """
+    return _git_probe.branch_diff_files(
+        branch, os.getcwd(),
+        on_error=lambda reason: debug_log(f"git diff branch failed: {reason}"),
+    )
 
 
 def get_git_branch_diff(branch, file_path=None):
@@ -1461,7 +1472,11 @@ def main():
                              "Main uses this for branch decisions without loading full JSON.")
     parser.add_argument("--update", type=str, metavar="SESSION_DIR",
                         help="Update a single agent's status in _retry_state.json. "
-                             "Requires --agent and --status. Optional --reset-hint <sec>.")
+                             "Requires --agent and --status. Optional --reset-hint <sec>. "
+                             "Calls for DIFFERENT agents may run in parallel; two calls "
+                             "for the SAME agent must not overlap (unlocked "
+                             "read-modify-write — a lost `fatal` transition is "
+                             "unrecoverable).")
     parser.add_argument("--agent", type=str, metavar="NAME",
                         help="Agent name for --update.")
     parser.add_argument("--status", type=str, metavar="STATUS",

@@ -114,6 +114,9 @@ review/
                     │   ├── performance.md
                     │   └── ...
                     ├── _retry_state.json    ← 재시도/상태 (main 이 갱신)
+                    ├── _fatal/              ← fatal 전이 sentinel (에이전트당 파일 1개)
+                    │   └── security         ← `/loop` 가 자동 재시도하지 않음. "영구" 는 아니다 —
+                    │                           나중에 리포트가 생기면 success 가 이긴다
                     ├── _routing_decision.json ← review-router 가 작성한 선별 결과 (--route=auto 시)
                     ├── meta.json            ← 변경 정보 메타
                     ├── security.md          ← sub-agent 가 Write 한 리뷰 결과 (<role>.md)
@@ -155,8 +158,8 @@ review/
     // ... 13 entries
   ],
   "agents_pending": ["security", "..."],
-  "agents_success": [],
-  "agents_fatal": [],
+  "agents_success": [],                   // 디스크의 리포트 파일에서 매번 재도출됨
+  "agents_fatal": [],                     // `_fatal/<name>` sentinel 과 합집합으로 재도출됨
   "agent_history": {
     "security": [
       {"ts": "2026-05-15T03:01:00Z", "status": "rate_limit", "reset_hint_sec": 1800}
@@ -171,6 +174,26 @@ review/
 ```
 
 main 은 매 사이클마다 위 JSON 을 Read → 갱신 → Write 한다.
+
+> **디스크가 심판이다.** `--update` 는 잠금 없는 read-modify-write 라 병렬 호출 두 건이
+> 겹치면 나중 writer 의 사본만 남는다(`fcntl.flock` 은 모든 훅 경로에 블로킹 프리미티브를
+> 놓게 되므로 기각). 그래서 두 종착 버킷은 JSON 밖에도 기록이 있다 — `agents_success` 는
+> 리포트 파일, `agents_fatal` 은 `_fatal/<name>` sentinel. `--summary-state` / `--resume` /
+> `--sync-from-disk` 의 재조정이 그 둘을 다시 세우므로 유실된 전이는 복구된다.
+> `agent_history` · `rate_limit_episodes` · `last_reset_hint_sec` 는 수렴 대상이 아니다.
+>
+> **운영 함정 — fatal 을 손으로 해제할 때.** `agents_fatal` 은 JSON **∪** sentinel 로
+> 재도출된다. 그래서 `_retry_state.json` 에서 이름만 지우면 다음 재조정이 sentinel 을 보고
+> **조용히 되살린다** — 에러 없이 "고쳤는데 반영이 안 된다" 로만 관측된다. 해제하는 방법은
+> 둘 중 하나다:
+>
+> - **권장** — `--update <session_dir> --agent <name> --status rate_limit` 로 정규 경로를
+>   태운다. JSON 과 sentinel 을 한 조작으로 함께 정리한다.
+> - 손으로 한다면 **JSON 과 `_fatal/<name>` 파일을 반드시 함께** 지운다.
+>
+> 합집합인 이유는 이 sentinel 이전에 커밋된 세션엔 `_fatal/` 이 아예 없기 때문이다 —
+> sentinel 만 신뢰하면 그 세션들의 fatal 이 전부 사라진다. 그 대가로 "sentinel 없음" 이
+> "해제됨" 의 증거가 되지 못한다.
 
 ## sub-agent return contract
 

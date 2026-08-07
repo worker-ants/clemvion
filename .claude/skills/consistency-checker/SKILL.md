@@ -97,6 +97,12 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 >   --sync-from-disk <session_dir>     # disk 가 심판 — 산출물 없는 agent 는 success 아님
 > ```
 >
+> **fatal 을 손으로 해제할 때의 함정**: `agents_fatal` 은 JSON **∪** `_fatal/<name>` sentinel
+> 로 재도출되므로, `_retry_state.json` 에서 이름만 지우면 다음 재조정이 sentinel 을 보고
+> 조용히 되살린다. `--update <session_dir> --agent <name> --status rate_limit` 로 정규 경로를
+> 태우거나, 손으로 한다면 두 곳을 함께 지울 것. 이 skill 도 같은 `_shared/retry_state.py` 를
+> 쓰므로 동일하게 적용된다 — 상세: [`../code-review-agents/README.md`](../code-review-agents/README.md) §운영 함정.
+>
 > **소급 재분류 주의**: "산출물 존재" 판정이 "존재 + 비어있지 않음" 으로 강화된 뒤([`report_paths.py`
 > `has_report()`](../../_shared/report_paths.py)) 이 정의는 과거에 이미 커밋된 세션에도 그대로
 > 적용된다. 0바이트 placeholder 리포트를 가진 과거 세션에 `--summary-state`/`--resume` 를

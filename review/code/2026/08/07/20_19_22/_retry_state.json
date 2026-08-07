@@ -1,0 +1,52 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "side_effect"
+  ],
+  "agents_forced_reasons": {
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/_shared/git_probe.py, .claude/_shared/retry_state.py, .claude/skills/code-review-agents/scripts/code_review_orchestrator.py (외 4건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/concurrency.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/architecture.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/07/20_19_22/side_effect.md"
+    }
+  ],
+  "agents_pending": [
+    "concurrency",
+    "architecture",
+    "side_effect"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

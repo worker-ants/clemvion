@@ -49,6 +49,7 @@ from _lib import project_config  # noqa: E402
 # `retry_state.reconcile_state_with_disk`; the direct consumers are
 # `review_guard.py` and `code_review_orchestrator.py`.
 from _shared import block_integrity as _block_integrity  # noqa: E402
+from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
@@ -243,22 +244,17 @@ def _branch_changed_rels(diff_base, root):
     git per bundle. (It had one; after the call sites moved to `_prioritized`
     nothing passed it.)
 
-    THREE-DOT for the same reason as `_collect_code_diff` — see its docstring.
-
-    Mirrors `code_review_orchestrator.get_git_branch_diff_files` (same flags,
-    same three-dot rationale, different failure default) — change both.
+    The git call itself now lives in `_shared/git_probe.branch_diff_files`,
+    shared verbatim with `code_review_orchestrator.get_git_branch_diff_files`.
+    The two used to be kept in step by a "change both" comment on each and had
+    already drifted — see that function's docstring for the measurements. What
+    stays here is this orchestrator's own contract: a **set**, and a `debug_log`
+    on failure.
     """
-    cmd = ["git", "diff", "--no-renames", "--name-only",
-           f"{diff_base}...HEAD", "--", "."]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, cwd=root, timeout=30.0)
-        if r.returncode != 0:
-            debug_log(f"branch-changed diff failed: {r.stderr.strip()[:200]}")
-            return set()
-        return {ln for ln in r.stdout.split("\n") if ln}
-    except Exception as e:  # noqa: BLE001
-        debug_log(f"branch-changed diff failed: {e}")
-        return set()
+    return set(_git_probe.branch_diff_files(
+        diff_base, root,
+        on_error=lambda reason: debug_log(f"branch-changed diff failed: {reason}"),
+    ))
 
 
 def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
@@ -900,7 +896,10 @@ def main():
                              "Main uses this for branch decisions without loading full JSON.")
     parser.add_argument("--update", type=str, metavar="SESSION_DIR",
                         help="Update a single checker's status. Requires --agent --status. "
-                             "Optional --reset-hint <sec>.")
+                             "Optional --reset-hint <sec>. Calls for DIFFERENT agents may "
+                             "run in parallel; two calls for the SAME agent must not "
+                             "overlap (unlocked read-modify-write — a lost `fatal` "
+                             "transition is unrecoverable).")
     parser.add_argument("--agent", type=str, metavar="NAME")
     parser.add_argument("--status", type=str, metavar="STATUS",
                         choices=["success", "rate_limit", "network", "fatal"])
