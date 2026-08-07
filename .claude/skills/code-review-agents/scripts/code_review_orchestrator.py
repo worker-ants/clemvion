@@ -515,6 +515,23 @@ _DIFF_DROPPED_NOTE = (
 )
 
 
+def _files_dropped_note(dropped: int, total: int) -> str:
+    """파일 섹션 자체를 버렸을 때의 안내. **버린 개수를 반드시 말한다.**
+
+    조용히 빠지면 리뷰어는 그 파일이 변경되지 않았다고 읽는다 — 이 모듈이 반복해서
+    고쳐 온 실패 형태다(diff 생략·전체내용 생략에 각각 같은 안내가 있는 이유다).
+    """
+    return (
+        f"\n\n⚠️ 프롬프트 크기 제한으로 **{dropped}/{total}개 파일 섹션이 통째로 "
+        "빠졌습니다** — 헤더만으로도 상한을 넘는 규모입니다. 변경 파일 목록은 이 요청의 "
+        "메타데이터를, 내용은 `Read` 로 직접 확인하십시오.\n"
+    )
+
+
+# 예약용 상한값 — 자릿수가 가장 큰 형태로 잡아 실제 문구가 예약분을 넘지 않게 한다.
+_FILES_DROPPED_NOTE_MAX = _files_dropped_note(999999, 999999)
+
+
 def build_files_section(change_infos, max_file_size, max_total_size=0):
     """Compose the changed-files context, respecting per-file and total budgets.
 
@@ -652,7 +669,32 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
         if dropped_any:
             global_note += _DIFF_DROPPED_NOTE
         sections = [fp["header"] + fp["diff"] for fp in file_parts]
-        return separator.join(sections) + global_note
+        rendered = separator.join(sections) + global_note
+        if len(rendered) <= max_total_size:
+            return rendered
+
+        # 여기까지 왔다면 **헤더만으로 상한을 넘는다** — diff 를 전부 버려도 줄지 않는다.
+        # 종전에는 파일 섹션 자체를 버리는 수단이 없어 상한을 구조적으로 지킬 수 없었다
+        # (백로그 §4). n=3000 실측: 헤더+구분자만 157,887자 vs cap 141,557.
+        #
+        # 파일 단위로 버리되 **버렸다는 사실을 반드시 말한다**. 조용히 사라지면 리뷰어는
+        # 그 파일이 변경되지 않았다고 읽는다 — 이 모듈이 반복해서 고쳐 온 실패다.
+        kept = []
+        used = 0
+        budget = _charge_notice(max_total_size, global_note, _FILES_DROPPED_NOTE_MAX)
+        for section in sections:
+            cost = len(section) + (len(separator) if kept else 0)
+            if used + cost > budget:
+                break
+            kept.append(section)
+            used += cost
+        dropped = len(sections) - len(kept)
+        if dropped == 0:
+            # 예약분만으로 넘은 극단. 최소 1개는 남겨 "무엇을 보는 요청인지" 를 지킨다.
+            kept, dropped = sections[:1], len(sections) - 1
+        return (separator.join(kept)
+                + global_note
+                + _files_dropped_note(dropped, len(sections)))
 
     remaining_budget = max_total_size - base_size
     content_wrapper_overhead = len(f"\n{FULL_CONTEXT_HEADING}\n```\n\n```\n")

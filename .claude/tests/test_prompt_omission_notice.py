@@ -278,9 +278,10 @@ class DiffOnlyBranchRespectsTheCapTest(unittest.TestCase):
     반대로 상한을 느슨하게 잡아 §1 을 못 잡는다.
     """
 
-    _MATRIX = [(1500, 6, 400), (1500, 12, 300), (3000, 12, 300), (3000, 30, 200),
-               (3000, 50, 150), (8000, 30, 200), (8000, 50, 150), (8000, 120, 80),
-               (20000, 120, 80), (50000, 300, 50)]
+    _MATRIX = [(1500, 6, 400), (1500, 12, 300), (1500, 30, 200), (1500, 120, 80),
+               (3000, 12, 300), (3000, 30, 200), (3000, 50, 150), (8000, 30, 200),
+               (8000, 50, 150), (8000, 120, 80), (20000, 120, 80),
+               (50000, 300, 50), (141557, 1000, 50), (141557, 3000, 30)]
 
     def _section(self, n, diff_len, cap):
         return run_in_orchestrator(
@@ -301,17 +302,41 @@ class DiffOnlyBranchRespectsTheCapTest(unittest.TestCase):
             {"n": n, "diff_len": diff_len, "cap": cap},
         )
 
-    def test_cap_holds_wherever_headers_fit(self):
+    def test_cap_holds_at_every_scale(self):
+        """§1 처분 시점엔 헤더가 들어가는 경우만 단언하고 나머지는 skip 했다.
+
+        §4(파일 단위 드롭)가 들어오면서 **그 예외가 사라졌다** — 헤더만으로 상한을
+        넘어도 파일 섹션을 버려서 지킨다. skip 을 남겨 두면 §4 가 되돌아가도 이 테스트가
+        조용히 통과한다.
+        """
         for cap, n, diff_len in self._MATRIX:
             with self.subTest(cap=cap, files=n, diff=diff_len):
-                headers_only = self._section(n, 0, 10 ** 9)
-                if headers_only > cap:
-                    self.skipTest(f"§4 구조적 — 헤더만 {headers_only}자 > cap {cap}")
                 self.assertLessEqual(
                     self._section(n, diff_len, cap), cap,
-                    "diff-only 분기가 상한을 넘었다 — 잘림 note/placeholder 길이가 "
-                    "감소분 계상에서 빠졌을 때의 증상",
+                    "상한을 넘었다 — 감소분 계상 누락(§1)이거나 파일 단위 드롭 부재(§4)",
                 )
+
+    def test_dropping_whole_files_says_so(self):
+        """버린 사실을 말하지 않으면 리뷰어는 그 파일이 안 바뀌었다고 읽는다."""
+        body = run_in_orchestrator(
+            """
+            infos = [
+                orch.build_cli_change_info("codebase/f%d.ts" % i,
+                                           diff_content="D" * 30, file_content="")
+                for i in range(ARG["n"])
+            ]
+            emit(orch.build_files_section(infos, 100000, ARG["cap"]))
+            """,
+            {"n": 3000, "cap": 141557},
+        )
+        self.assertLessEqual(len(body), 141557)
+        self.assertIn("개 파일 섹션이 통째로", body)
+        # 개수를 실제로 세어 말하는가 — "일부" 같은 뭉뚱그림이면 추적이 안 된다.
+        import re as _re
+        m = _re.search(r"\*\*(\d+)/(\d+)개 파일 섹션", body)
+        self.assertIsNotNone(m, "버린 개수/전체를 숫자로 말해야 한다")
+        self.assertEqual(int(m.group(2)), 3000)
+        self.assertGreater(int(m.group(1)), 0)
 
     def test_the_matrix_actually_exercises_the_diff_only_branch(self):
         """행렬이 그 분기를 실제로 타는지 — 안 타면 위 단언이 vacuous 하다."""
