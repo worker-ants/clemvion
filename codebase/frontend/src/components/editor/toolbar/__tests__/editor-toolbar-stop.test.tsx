@@ -100,4 +100,18 @@ describe("EditorToolbar — Stop button", () => {
     renderToolbar();
     expect(screen.queryByRole("button", { name: /stop/i })).not.toBeInTheDocument();
   });
+
+  // ai-review WARNING #2 (2026-08-08, review/code/2026/08/08/20_53_48) — backend
+  // `POST /executions/:id/stop` 는 `@Roles('editor')` 를 요구한다(auth-workspace-membership-guard).
+  // canEdit 가드 없이 노출하면 viewer 에게 실행 중에도 항상 403 으로 실패하는 버튼을
+  // 보여주게 된다 — FE 는 그 액션을 아예 숨겨야 한다(다른 mutation 버튼과 동일 패턴).
+  it("hides the Stop button for viewer even while running (backend now 403s)", () => {
+    useWorkspaceStore.setState({
+      workspaces: [{ id: "ws-1", name: "T", type: "team", slug: "t", role: "viewer" }],
+      currentWorkspaceId: "ws-1",
+      loaded: true,
+    });
+    renderToolbar();
+    expect(screen.queryByRole("button", { name: /stop/i })).not.toBeInTheDocument();
+  });
 });
