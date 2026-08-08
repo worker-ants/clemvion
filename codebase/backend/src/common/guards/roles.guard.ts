@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
 import { resolveWorkspaceContext } from '../utils/workspace-context.util';
+import { handlerConsumesWorkspaceId } from '../decorators/workspace.decorator';
 
 export const ROLES_KEY = 'roles';
 
@@ -74,6 +75,12 @@ interface RequestWithUser {
  *
  * - `@Public()` 라우트·`request.user` 부재(미인증) — 인증 판정은 `JwtAuthGuard` 소관
  * - 워크스페이스 컨텍스트가 없는 라우트 — 검증 대상이 없다
+ * - **`@Roles()` 도 `@WorkspaceId()` 도 안 쓰는 라우트** — 워크스페이스와 무관한 전역 API
+ *   (예: `system-status`). `handlerConsumesWorkspaceId` 로 실제 소비 여부를 reflection
+ *   확인한다. 이 예외가 없으면 FE `apiClient` 가 습관적으로 모든 요청에 붙이는
+ *   `X-Workspace-Id` 헤더(`lib/api/client.ts`) 때문에 워크스페이스와 무관한 엔드포인트가
+ *   헤더값과 토큰 클레임이 다를 때마다 불필요하게 멤버십 재검증·403 을 받는다
+ *   (2026-08-08 e2e 회귀로 실측 — `system-status.e2e-spec.ts`).
  *
  * 거부는 `false` 반환(= Nest 기본 `ForbiddenException`, 403)이다. 전용 error code 를
  * 붙이지 않는 이유: `@Roles()` 라우트의 비멤버 거부도 종전부터 코드 없는 403 이라,
@@ -99,6 +106,17 @@ export class RolesGuard implements CanActivate {
 
     // 미인증 — 인증 판정은 JwtAuthGuard 소관. 역할을 요구하는 라우트만 여기서 막는다.
     if (!userId) return !needsRoleCheck;
+
+    // `@Roles()` 도 `@WorkspaceId()` 도 안 쓰는 라우트는 워크스페이스와 무관한 전역 API다 —
+    // 헤더가 실려 있어도 검증 대상이 없다(클래스 docstring "대상 제외" 참조).
+    // `@Roles()` 라우트는 워크스페이스 컨텍스트를 파라미터로 노출하지 않고도 암묵적으로
+    // (토큰의 활성 워크스페이스) 쓸 수 있으므로 이 단축 통과에서 항상 제외한다.
+    if (
+      !needsRoleCheck &&
+      !handlerConsumesWorkspaceId(context.getClass(), context.getHandler())
+    ) {
+      return true;
+    }
 
     // `WorkspaceId` 데코레이터와 공유하는 단일 헬퍼 — 두 곳이 같은 경로로 컨텍스트를
     // 계산해야 "가드가 검증한 값"과 "핸들러가 소비하는 값"이 갈라지지 않는다.

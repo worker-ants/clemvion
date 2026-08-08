@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
-import { WorkspaceId } from './workspace.decorator';
+import { WorkspaceId, handlerConsumesWorkspaceId } from './workspace.decorator';
 
 // NestJS param decorators store their factory in metadata and cannot be
 // called directly in tests. We extract the factory via Reflect to unit-test it.
@@ -109,5 +109,55 @@ describe('WorkspaceId decorator', () => {
 
     const result = factory(undefined, ctx);
     expect(result).toBe('victim-ws');
+  });
+});
+
+/**
+ * `RolesGuard` 가 "이 핸들러가 `@WorkspaceId()` 를 실제로 쓰는가" 를 reflection 으로
+ * 판별하는 데 쓰는 헬퍼. 2026-08-08 e2e 회귀(`system-status.e2e-spec.ts`) — `@Roles()` 도
+ * `@WorkspaceId()` 도 안 쓰는 전역 API 에까지 헤더 검증이 새는 것을 막는 근거.
+ */
+describe('handlerConsumesWorkspaceId', () => {
+  class WithWorkspaceId {
+    scoped(@WorkspaceId() _workspaceId: string) {}
+  }
+
+  class WithoutWorkspaceId {
+    global() {}
+  }
+
+  it('@WorkspaceId() 를 쓰는 핸들러는 true', () => {
+    expect(
+      handlerConsumesWorkspaceId(
+        WithWorkspaceId,
+        WithWorkspaceId.prototype.scoped,
+      ),
+    ).toBe(true);
+  });
+
+  it('@WorkspaceId() 를 안 쓰는 핸들러는 false', () => {
+    expect(
+      handlerConsumesWorkspaceId(
+        WithoutWorkspaceId,
+        WithoutWorkspaceId.prototype.global,
+      ),
+    ).toBe(false);
+  });
+
+  it('메서드명이 없는(익명) 핸들러는 false — fail-closed 아닌 "검증 대상 아님" 쪽으로', () => {
+    function namedForNow(_ws: string) {
+      return _ws;
+    }
+    Object.defineProperty(namedForNow, 'name', { value: '' });
+    expect(handlerConsumesWorkspaceId(WithWorkspaceId, namedForNow)).toBe(
+      false,
+    );
+  });
+
+  it('클래스에 아예 등록된 라우트 메타데이터가 없으면 false', () => {
+    class Empty {
+      noop() {}
+    }
+    expect(handlerConsumesWorkspaceId(Empty, Empty.prototype.noop)).toBe(false);
   });
 });
