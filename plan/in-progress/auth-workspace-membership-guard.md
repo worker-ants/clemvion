@@ -5,7 +5,16 @@ started: 2026-08-08
 owner: developer
 status: in-progress
 priority: P0
-spec_impact: none
+# 착수 시엔 `none` 이었다 — "구현이 문서화된 계약을 어긴 것이라 spec 변경 불요" 라는 판단이었고
+# 그 판단 자체는 유효했다. 그러나 `--impl-prep` 이 spec 6곳의 **거짓 서술**을 Critical 로 잡아
+# planner 턴이 붙었고, `--impl-done` W1 이 swagger 규약 확장까지 끌어왔다. 결과적으로 이 PR 은
+# spec 4파일을 바꾼다 — `none` 으로 두면 `complete/` 이동 시 Gate C 가 그 값을 신뢰해
+# "spec 영향 없음" 이 거짓 확정된다 (2026-08-08 `--impl-done` INFO 2 지적).
+spec_impact:
+  - spec/data-flow/12-workspace.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/2-navigation/11-error-empty-states.md
+  - spec/conventions/swagger.md
 ---
 
 ## Overview
