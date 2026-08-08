@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
+import { resolveWorkspaceContext } from '../utils/workspace-context.util';
 
 export const ROLES_KEY = 'roles';
 
@@ -99,20 +100,15 @@ export class RolesGuard implements CanActivate {
     // 미인증 — 인증 판정은 JwtAuthGuard 소관. 역할을 요구하는 라우트만 여기서 막는다.
     if (!userId) return !needsRoleCheck;
 
-    const rawHeader = request.headers['x-workspace-id'];
-    const headerWorkspaceId = Array.isArray(rawHeader)
-      ? rawHeader[0]
-      : rawHeader;
-    const tokenWorkspaceId = request.user?.workspaceId;
-    const workspaceId = headerWorkspaceId || tokenWorkspaceId;
+    // `WorkspaceId` 데코레이터와 공유하는 단일 헬퍼 — 두 곳이 같은 경로로 컨텍스트를
+    // 계산해야 "가드가 검증한 값"과 "핸들러가 소비하는 값"이 갈라지지 않는다.
+    const { workspaceId, membershipUnverified } = resolveWorkspaceContext(
+      request.headers,
+      request.user?.workspaceId,
+    );
 
     // 워크스페이스 컨텍스트 부재 — 검증 대상이 없다.
     if (!workspaceId) return !needsRoleCheck;
-
-    // 헤더가 토큰 확정값을 덮어쓴 경우에만 멤버십이 미검증 상태다.
-    // (`jwt.strategy` 가 토큰 클레임의 멤버십을 이미 검증해 두었다.)
-    const membershipUnverified =
-      !!headerWorkspaceId && headerWorkspaceId !== tokenWorkspaceId;
 
     if (!needsRoleCheck && !membershipUnverified) return true;
 

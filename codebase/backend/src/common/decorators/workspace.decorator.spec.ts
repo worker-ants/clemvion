@@ -95,4 +95,19 @@ describe('WorkspaceId decorator', () => {
   it('should throw WORKSPACE_ID_REQUIRED when user is null', () => {
     expectWorkspaceIdRequired(createMockContext({}, null));
   });
+
+  it('should take the first value when X-Workspace-Id is duplicated (array) — resolveWorkspaceContext 공유', () => {
+    // RolesGuard 와 동일한 `resolveWorkspaceContext` 헬퍼를 쓰므로 배열 헤더 정규화가
+    // 두 곳에서 일치해야 한다 (2026-08-08 ai-review ARCHITECTURE WARNING).
+    const ctx = createMockContext(
+      { 'x-workspace-id': ['victim-ws', 'decoy-ws'] } as unknown as Record<
+        string,
+        string
+      >,
+      { workspaceId: 'own-ws' },
+    );
+
+    const result = factory(undefined, ctx);
+    expect(result).toBe('victim-ws');
+  });
 });
