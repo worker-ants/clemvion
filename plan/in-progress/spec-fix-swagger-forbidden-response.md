@@ -105,6 +105,22 @@ Rationale 절 (문서 끝, 신설 또는 기존 절에 추가)에 배경 한 단
   (이 PR 이 고치는 근본 결함과 같은 클래스의 실수 — "사람이 규칙을 기억해야 하는 opt-in"
   구조를 규약 레벨에서 반복하지 않는다).
 
+## 반영 완료 (2026-08-08, planner 턴)
+
+`/consistency-check --spec` **BLOCK: NO** (Critical 0 · WARNING 1 · INFO 9,
+`review/consistency/2026/08/08/22_03_09`) 후 `spec/conventions/swagger.md` 에 반영했다.
+검토 지적 3건을 반영해 draft 원안을 수정했다:
+
+- **W1 (naming_collision)** — 신설 Rationale 헤딩을 `### 5-4 …` → **`### §5-4 …`** 로.
+  기존 Rationale 헤딩 4개(`§0`·`§1-4`·`§5`)의 `§` 접두 컨벤션을 따르고, 본문 절
+  `### 5-4. 새 엔드포인트 체크리스트` 와 grep·목차에서 구분되게 한다.
+- **INFO 1·2 (cross_spec·plan_coherence)** — 근거 인용을 `1-auth.md §3.3` → **`data-flow/
+  12-workspace.md §Rationale "멤버십 검증은 가드 1곳에서"**` 로 교체. 실측 확인 결과
+  §3.3 은 header-first 우선순위만 서술하고 **무조건성을 명문화하지 않는다** — 정본이
+  아닌 곳을 근거로 걸면 다음 사람이 §3.3 을 읽고 못 찾는다. 자매 정정 2건
+  (`9-user-profile.md`·`11-error-empty-states.md`)이 이미 쓰는 인용 패턴과도 일치한다.
+- **INFO 5** — 체크리스트 문구에 "`@Public()` 라우트는 대상 아님" 한 줄 추가.
+
 ## 후속 (이 draft 반영 후)
 
 - `--consistency-check --spec` 통과 후 developer 트랙 `resolution-applier` 재호출(동일
