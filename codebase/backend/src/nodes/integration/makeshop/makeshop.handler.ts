@@ -125,8 +125,7 @@ export class MakeshopHandler
     const resource = config.resource as MakeshopResource;
     const operationId = config.operation as string;
     const fields = ((config.fields ?? {}) as Record<string, unknown>) || {};
-    const pagination = (config.pagination ?? undefined) as
-      { limit?: number; offset?: number } | undefined;
+    const pagination = config.pagination ?? undefined;
 
     // INT-US-05 — catalog key is derivable from user input before lookup;
     // method/path are filled once the operation metadata is resolved.
@@ -237,7 +236,7 @@ export class MakeshopHandler
       let result: MakeshopCallResult;
       try {
         result = await this.apiClient.call(integration, {
-          method: operation.method as MakeshopMethod,
+          method: operation.method,
           path,
           query,
           body,

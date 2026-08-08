@@ -105,7 +105,7 @@ export function describeFetchError(err: unknown): string {
       return `${err.message} ← cause=[unserializable object]`;
     }
   }
-  return `${err.message} ← cause=${String(cause as string | number | boolean | bigint | symbol | null | undefined)}`;
+  return `${err.message} ← cause=${String(cause)}`;
 }
 
 /** URL 의 host 부분만 안전하게 추출 (token 등 path/query 가 log 에 노출되지 않도록). */

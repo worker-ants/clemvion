@@ -48,7 +48,7 @@ export class SlackClient {
     return this.call<SlackChatPostMessageResult>(
       botToken,
       'chat.postMessage',
-      params as unknown as Record<string, unknown>,
+      params,
     );
   }
 
@@ -64,7 +64,7 @@ export class SlackClient {
     return this.call<{ ok: boolean; error?: string }>(
       botToken,
       'views.open',
-      payload as unknown as Record<string, unknown>,
+      payload,
     );
   }
 

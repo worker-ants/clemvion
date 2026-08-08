@@ -103,7 +103,7 @@ function typeFromToolName(name: string): PresentationType | null {
 /** Compute the JSON Schema for a presentation type. Pure — no caching here.
  *  Caching is per-instance on RenderToolProvider (see `jsonSchemaCache` field). */
 function buildJsonSchemaFor(type: PresentationType): Record<string, unknown> {
-  return z.toJSONSchema(SCHEMA_BY_TYPE[type]) as Record<string, unknown>;
+  return z.toJSONSchema(SCHEMA_BY_TYPE[type]);
 }
 
 /**

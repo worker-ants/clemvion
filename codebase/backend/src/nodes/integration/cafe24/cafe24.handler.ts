@@ -128,8 +128,7 @@ export class Cafe24Handler
     const resource = config.resource as Cafe24Resource;
     const operationId = config.operation as string;
     const fields = ((config.fields ?? {}) as Record<string, unknown>) || {};
-    const pagination = (config.pagination ?? undefined) as
-      { limit?: number; offset?: number; cursor?: string } | undefined;
+    const pagination = config.pagination ?? undefined;
 
     // INT-US-05 — logUsage 호출 시 함께 보낼 API 식별 정보. operation lookup
     // 이전이라도 사용자 입력 (resource + operationId) 으로 catalog key 는 추정
@@ -250,7 +249,7 @@ export class Cafe24Handler
       let result: Cafe24CallResult;
       try {
         result = await this.apiClient.call(integration, {
-          method: operation.method as Cafe24Method,
+          method: operation.method,
           path,
           query,
           body,

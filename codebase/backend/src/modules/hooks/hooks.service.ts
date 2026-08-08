@@ -1036,7 +1036,7 @@ export class HooksService {
   ): Promise<void> {
     const text = resolveSurfaceMismatchMessage(
       config.languageHints,
-      config.languageLocale as LanguageLocale | undefined,
+      config.languageLocale,
     );
     await this.sendBestEffortNotice(
       update.conversationKey,

@@ -288,7 +288,7 @@ function renderWaitingForInput(
             kind: 'form_modal',
             openLabel: resolveFormOpenLabel(
               config.languageHints,
-              config.languageLocale as LanguageLocale | undefined,
+              config.languageLocale,
             ),
             formConfig: event.context?.formConfig,
           },
@@ -476,7 +476,7 @@ function renderFailedMessage(
   const template = resolveLanguageHint(
     key,
     config.languageHints,
-    config.languageLocale as LanguageLocale | undefined,
+    config.languageLocale,
   );
   return applyPlaceholders(template, placeholders);
 }
