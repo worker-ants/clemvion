@@ -71,6 +71,7 @@ export class ExecutionsController {
     description: '실행 상세 정보 (노드 실행 목록 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -102,6 +103,7 @@ export class ExecutionsController {
     description: '실행 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findByWorkflow(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
     @WorkspaceId() workspaceId: string,

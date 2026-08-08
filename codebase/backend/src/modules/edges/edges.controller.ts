@@ -48,6 +48,7 @@ export class EdgesController {
   })
   @ApiOkWrappedArrayResponse(EdgeDto, { description: '엣지 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({
     description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
   })
