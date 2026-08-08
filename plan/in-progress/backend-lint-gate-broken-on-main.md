@@ -142,6 +142,18 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 > 이 PR 에서 하지 않는 이유: 이 PR 의 목적은 **eslint 게이트 복구**이고, `tsc` 게이트는
 > 별개 축이다. 319줄 처분을 여기 얹으면 이미 74파일인 diff 가 감당 불가가 된다.
 
+### `deleteByPrefix()` LIKE 메타문자 미이스케이프 (ai-review INFO, 이 PR 밖)
+
+`secret-store/secret-resolver.service.ts` 의 `deleteByPrefix()` 가 `` `${prefix}%` `` 를
+바인딩하는데 `%`·`_` 를 이스케이프하지 않는다. TypeORM 파라미터 바인딩이라 **SQLi 는
+아니지만**, prefix 에 메타문자가 섞이면 의도보다 넓게 지워지는 **과다 삭제** 소지가 있다.
+
+- [ ] 호출부가 항상 내부 생성 prefix 만 쓰는지 전수 확인 → 그렇다면 근거를 주석으로 고정
+- [ ] 아니면 LIKE 메타문자 이스케이프 유틸 도입
+
+> 현재 호출부는 신뢰 가능한 내부 문자열만 쓰는 것으로 보고됐다. lint 정리 PR 범위 밖이라
+> 등재만 한다.
+
 ## Rationale
 
 **왜 P1 인가.** lint 게이트가 **모든 backend PR 을 막는다.** 보안 fix 를 포함해 어떤 작업도
