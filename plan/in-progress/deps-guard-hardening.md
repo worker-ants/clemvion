@@ -1,12 +1,20 @@
 ---
 title: 의존성 보안 가드 경화 3건 — 오버라이드 바닥 침식 검출 · audit 수용 근거 규약 · dependabot 되돌림 방지
-worktree: deps-guard
+worktree: (unstarted)
 started: 2026-07-31
 owner: developer
 status: in-progress
 priority: P2
 spec_impact: none
 ---
+
+> **상태 (2026-08-08 위생 정리)** — **코드·CI 작업은 전부 머지됐다** (`#1043`, `a441e7f76`).
+> `in-progress/` 에 남는 이유는 **§남은 수동 조치 1건뿐**이며, 그건 repo Settings 라
+> 파일로 처리할 수 없다(사용자 액션). 그 1건이 끝나면 `complete/` 로 옮긴다.
+>
+> `worktree:` 를 `deps-guard` → `(unstarted)` 로 정정했다 — 그 worktree 는 머지 후 회수됐다.
+> 죽은 이름을 두면 `plan_guard.py` 가 매칭할 대상이 없어 조용히 비게 되고,
+> `plan-stale-audit.sh` 는 살아있는 worktree 로 오독한다.
 
 ## Overview
 
@@ -225,7 +233,10 @@ spec_impact: none
       죽어 exit 1(= "침식 발견")이 된다. **10차에 지적됐는데 그 함수를 손대면서도 이월시켰다.**
       타입 가드 + 회귀 테스트 추가(뮤턴트 RED). fail-closed 지점 10곳 → 11곳.
 - [x] RESOLUTION 최종 (`04_35_33/RESOLUTION.md`) — 라운드 1~11 통합
-- [ ] push + PR
+- [x] push + PR — **머지 완료 `#1043` (`a441e7f76`)**. 리뷰를 못 받은 채 넣었던 11차 W1 fix
+      (`advisories` 컨테이너 타입 가드)까지 함께 착지한 것을 실측 확인:
+      `scripts/check-override-floors.py:233` `if not isinstance(advisories, dict)`.
+      (이 체크박스는 머지 후에도 `[ ]` 로 남아 있었다 — 2026-08-08 위생 정리에서 정정.)
 
 > **마지막 조치는 리뷰를 받지 않았다.** 11차 W1 fix 는 그 리뷰 이후에 넣었다. 사용자가 "축 3
 > 처분 후 PR 올리고 종료" 로 범위를 정했고, 이 브랜치는 `codebase/**` 를 안 건드려 push
@@ -372,10 +383,17 @@ repo Settings(Branch protection) 소관이라 이 저장소 파일로 표현할 
 
 ### 남은 수동 조치 (repo Settings — 파일로 불가)
 
+**이 절이 본 plan 의 유일한 잔여다.** 사용자만 할 수 있어 `complete/` 이동을 막고 있다.
+
 - [ ] **`--frozen-lockfile` 검증을 required check 로 승격** — Branch protection 설정. 이번 사고
       (`#1030` 이 `#1029` 의 보안 bump 를 되돌려 main CI failure)의 발현 지점이 정확히 그것이라
       가장 직접적인 방어다. 현재 `frontend-checks`·`packages-checks`·`web-chat-checks` 가
       `--frozen-lockfile` 로 돌고 있으므로 그중 하나를 required 로 지정하면 된다.
+      > **같은 성격의 요청이 한 건 더 있다** —
+      > [`pnpm-migration-followups.md`](pnpm-migration-followups.md) 의 `deps-security-checks`
+      > (`config-guard`/`audit`) required-check 등록. **한 번에 같이 처리하는 것이 맞다**:
+      > 셋 다 같은 Settings 화면의 같은 목록이고, 하나만 등록하면 나머지 두 게이트는
+      > 계속 비차단으로 남는다.
 
 ~~**왜 P2 인가**: 현재 audit 게이트는 `#1038` 로 exit 0 이라 **지금 당장 뚫린 상태는 아니다**.~~
 **2026-08-07 — 이 전제가 반증됐다.** Actions 를 켜고 실측하니 `origin/main` 에서
@@ -400,6 +418,8 @@ repo Settings(Branch protection) 소관이라 이 저장소 파일로 표현할 
 
 처분: PR `claude/deps-override-floors-eroded` — 5건 상향 + backend 직접 의존 1건 +
 신규 override 1건(`socket.io-parser`). 결과 `pnpm audit` **13 → 0건**.
+**머지 완료 `#1095` (`db7766d22`)** — 위 "exit 1, advisories 13건" 은 **당시** `origin/main`
+상태이며 지금은 해소된 상태다(이 문단만 읽고 main 이 현재 뚫려 있다고 오독하지 말 것).
 
 **남은 P2 근거**: 위 "남은 수동 조치"(required check 승격)는 여전히 유효하다. 이번 건은
 Actions 재활성화로 드러났을 뿐이고, 게이트가 required 가 아니면 다음에도 빨간불을 안고

@@ -1,6 +1,6 @@
 ---
 title: data-flow spec 구조·표기 후속 3건 — RBAC 표 배치 · SIGTERM 상호참조 · Model Config 명칭 통일
-worktree: spec-structural
+worktree: (unstarted)
 started: 2026-07-31
 owner: planner
 status: in-progress
@@ -10,6 +10,13 @@ spec_impact:
   - spec/data-flow/3-execution.md
   - spec/data-flow/0-overview.md
 ---
+
+> **상태 (2026-08-08 위생 정리)** — **§1~§3 은 전부 머지됐다** (`#1042`, `0d20a9cc9`).
+> `in-progress/` 에 남는 이유는 아래 **§4(서술형 "LLM Config" 표기, 별도 범위)** 하나뿐이며,
+> 그 항목이 체크박스 없이 산문으로만 있어 이 plan 이 "0 open" 으로 보이던 상태였다.
+> Stop 훅의 완료 nudge 가 오발화하므로 §4 를 체크리스트에 명시로 올렸다.
+>
+> `worktree:` 를 `spec-structural` → `(unstarted)` 로 정정 (그 worktree 는 머지 후 회수됨).
 
 ## Overview
 
@@ -90,7 +97,16 @@ SIGTERM/graceful-shutdown 취소 분류가 **미결 결정**에 걸려 있는데
       (origin/main 기준)에 없어 그렇게 보인 것 — 확인 후 Overview 에 명시.
       INFO#1(§3.6 근거가 본문에 있음 — §1 에서 지적한 것과 같은 종류)도 함께 닫아
       `0-overview.md` `## Rationale` 로 이동. (`review/consistency/2026/08/01/00_17_36/SUMMARY.md`)
-- [ ] push + PR
+- [x] push + PR — **머지 완료 `#1042` (`0d20a9cc9`)**. 착지 실측:
+      `spec/data-flow/12-workspace.md:241` `## 4. 권한 (RBAC 요약)` ·
+      `spec/data-flow/0-overview.md:180` `### 3.6 권한 요약 (선택)` ·
+      `spec/data-flow/3-execution.md:300` "분류 정책 결정 대기 중".
+      (머지 후에도 `[ ]` 로 남아 있던 것을 2026-08-08 위생 정리에서 정정.)
+- [ ] **§4 서술형 "LLM Config" 표기** — 아래 §4 참조. **이 plan 의 유일한 잔여**이며,
+      종전엔 산문으로만 있어 완료 판정을 오염시켰다. 2026-08-08 실측 잔존 **17건 / 4파일**:
+      `3-workflow-editor/4-ai-assistant.md` · `3-workflow-editor/_product-overview.md` ·
+      `4-nodes/3-ai/_product-overview.md` · `5-system/_product-overview.md`.
+      (`data-flow/12-workspace.md` 의 2건은 §3 이 남긴 **범위 서술 자체**라 대상 아님.)
 
 ## 4. 잔여 — 서술형 "LLM Config" 표기 (별도)
 

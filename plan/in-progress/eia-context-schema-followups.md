@@ -1,8 +1,16 @@
 ---
-worktree: eia-context-dev-residuals-df3de0
+worktree: (unstarted)
 started: 2026-07-10
 owner: developer
 ---
+
+> **상태 (2026-08-08 위생 정리)** — 본문의 `[x]` 항목은 전부 머지됐고 **미체크 체크박스가
+> 0개**지만, 잔여가 완료 항목의 하위 blockquote 안에 산문으로 흩어져 있어 이 plan 이
+> "완료" 로 오독되던 상태였다. 잔여를 문서 끝 **§잔여 (체크리스트)** 로 모아 노출한다.
+> 동시에 그 산문 목록이 **stale** 이었음을 실측으로 확인해 정정했다 — 7건 중 4건은
+> 이후 PR 에서 이미 닫혔다(아래 각 항목의 근거 참조).
+>
+> `worktree:` 를 `eia-context-dev-residuals-df3de0` → `(unstarted)` 로 정정 (머지 후 회수됨).
 
 > **진행(2026-07-11)**: 아래 항목 중 **클라이언트 `context` 타입 정밀화**(위젯 + SDK)와 **spec 링크 가드 backend 확장**을 이번 PR(worktree `eia-client-context-types-33e771`)에서 처리한다. 나머지 2건(DTO 디렉토리 정규화 · swagger §1-4 본문 보강)은 범위 밖으로 남긴다.
 
@@ -32,15 +40,41 @@ owner: developer
 - [x] **`spec-links.ts` 중복 정리** — `findBrokenLinks`(spec/**)와 `findBrokenSpecLinksInSources`(codebase 소스)가 DEAD/ANCHOR 스캔 루프를 ~40줄 골격째 중복 보유했다. **완료** — 공유 코어 `findBrokenLinksInFiles(files, options)` 로 추출(옵션: `checkSelfAnchors`=same-file `#anchor` 검증 여부, `targetFilter`=검사 대상 링크 필터). 두 public 함수는 파일 목록 + 두 옵션만 다른 얇은 wrapper 로 축소, 시그니처·소비자 계약 무변경. spec-link-integrity 가드 13 tests 동일 green + 신규 negative-path fixture 단위 테스트(`spec-links.test.ts`) 4건 추가(DEAD/ANCHOR 검출·`checkSelfAnchors:false` 스킵 분기·healthy no-op 실증 — ai-review testing WARNING 2건 해소). lint·unit·build·e2e(252) 통과. (PR: `spec-links-dedup-ad581b`)
 - [x] **EIA 응답 DTO `status` 리터럴 유니온 SoT 통합** (DTO 정규화 PR ai-review 14_52_32 maintainability WARNING) — `ExecutionStatusDto.status`(`execution-status-response.dto.ts`)와 `InteractAckDto.currentStatus`(`interact-ack-response.dto.ts`)가 동일한 6값 리터럴 유니온 + swagger `enum` 배열을 각자 선언(양쪽 순서는 동일). 공유 `type` alias(예: `type ExecutionStatusLiteral`)로 통합해 향후 상태값 변경 시 3곳 수동 동기화(entity + 2 DTO)를 줄일 것. **주의**: reviewer 가 제안한 "`execution.entity.ts::ExecutionStatus` enum 파생"은 (a) DTO 레이어가 TypeORM 엔티티에 결합되지 않도록 하는 swagger §5-1 원칙에 어긋나고 (b) 엔티티 enum 순서(`…completed,failed,cancelled,waiting_for_input`)가 DTO 순서(`…waiting_for_input,completed,failed,cancelled`)와 달라 wire-doc enum 배열 순서를 바꾼다 — `background-run-response.dto.ts` 처럼 **로컬 리터럴 type alias** 로 통합해야 한다. 본 유니온 중복은 flat `responses.dto.ts` 시절부터 존재한 pre-existing 이며 위치 정규화 범위 밖이라 분리(공유 타입의 거처=파일 간 결합 vs 신규 공유 파일 설계 판단 필요). **완료(2026-07-12, PR eia-context-dev)**: 신규 로컬 SoT 파일 `execution-status.literal.ts`(`EIA_EXECUTION_STATUS_VALUES` as const + `ExecutionStatusLiteral` 파생)로 두 DTO 통합 — 엔티티 enum 파생 회피(wire `enum` 순서 보존), swagger `enum` 은 SoT 직접 참조(spread 없음). DTO/SoT 스키마 회귀 21건(기존 15 + 신규 6: `InteractAckDto` 스펙·SoT 순서 pin·엔티티 집합 동등성)·build·lint·e2e(253) green. ai-review 2R 반영(EIA_ 접두 개명·직접 참조·순서 pin).
 
-> **잔여 (별 slice)**: #3 packages harness 배선(별도 검토, pre-existing red 리스크) · #4 EventSource stub dedup(실제 ~7 varied stub, per-site 재배선 필요) · #5 sdk eslint(config+devDep+CI 배선) · swagger.md §5-1 에 `*.literal.ts` 형제 DTO enum 공유 SoT 패턴 명문화(planner, ai-review I5→20_08_27 I1) · §spec-impl-evidence 절차(process) · **InteractAckDto ↔ EIA §5.4/§5/R16 shape 정합**(planner, ai-review 20_32_30 W1 — pre-existing: `/cancel` ack 이 `{executionId,accepted,currentStatus}` 6값을 공유하나 R16 은 `{executionId,status}` 2값 분리 서술. 어느 쪽이 SoT 인지 판정, 본 리팩터 범위 밖) · **EIA dto/responses spec 의 Swagger `buildDocument` 보일러플레이트 dedup**(3번째 스키마 회귀 spec 추가 시점 트리거, ai-review 20_32_30 W2). 각각 독립 후속.
+> **잔여 (별 slice)** — ⚠️ **이 목록은 stale (2026-08-08 실측). 정본은 문서 끝 §잔여 (체크리스트)**:
+> ~~#3 packages harness 배선(별도 검토, pre-existing red 리스크)~~ **완료** (본 문서 §"다른 내부 packages harness 배선" `[x]`) · ~~#4 EventSource stub dedup(실제 ~7 varied stub, per-site 재배선 필요)~~ **완료 (2026-07-17)** · ~~#5 sdk eslint(config+devDep+CI 배선)~~ **완료 (2026-07-13)** · swagger.md §5-1 에 `*.literal.ts` 형제 DTO enum 공유 SoT 패턴 명문화(planner, ai-review I5→20_08_27 I1) · ~~§spec-impl-evidence 절차(process)~~ **완료 — 본 문서 §"`spec-impl-evidence.md §4.2` 편집 절차 사후 확인" 이 2026-07-13 사후 리뷰로 종결** · **InteractAckDto ↔ EIA §5.4/§5/R16 shape 정합**(planner, ai-review 20_32_30 W1 — pre-existing: `/cancel` ack 이 `{executionId,accepted,currentStatus}` 6값을 공유하나 R16 은 `{executionId,status}` 2값 분리 서술. 어느 쪽이 SoT 인지 판정, 본 리팩터 범위 밖) · **EIA dto/responses spec 의 Swagger `buildDocument` 보일러플레이트 dedup**(3번째 스키마 회귀 spec 추가 시점 트리거, ai-review 20_32_30 W2). 각각 독립 후속.
 - [x] **다른 내부 packages harness 배선** — `.claude/test-stages.sh` 가 `@workflow/sdk`(본 PR 에서 추가)·`@workflow/web-chat`·`channel-web-chat` 만 배선. `expression-engine`·`graph-warning-rules`·`node-summary`·`chat-channel-validation`·`web-chat-sdk` 는 미배선(기존 갭). 별도 검토. **완료(2026-07-13, PR eia-context-dev-residuals)**: expression-engine·graph-warning-rules·node-summary·chat-channel-validation 4개에 `eslint.config.mjs` 신설(lint 실효화, 종전 config 부재로 "Oops" 실패) + `.claude/test-stages.sh` cmd_lint/test/build 배선 + 신규 `.github/workflows/packages-checks.yml` CI job. web-chat-sdk(=`@workflow/web-chat`)는 이미 배선돼 있었음. dead-import 2건(expression-engine string.ts/date.ts) 정리. ai-review 반영: test-stages.sh 패키지 목록을 `INTERNAL_PACKAGES` 배열+`_run_internal` loop 로 단일화(3함수 drift 방지, W1), packages-checks.yml 을 `strategy.matrix`(fail-fast:false) per-package job 로(다중 실패 신호 완전화, W3).
-  - **잔여 후속(W2)**: harness(`test-stages.sh`) 자체의 workspace-패키지 커버리지 완전성 회귀 가드 부재 — `pnpm-workspace.yaml` glob 을 파싱해 test-stages.sh 가 모든 패키지를 참조하는지 검증하는 harness unittest, 또는 `test-stages.sh` 를 `harness-checks.yml` trigger paths 등재. 신규 infra 라 별 slice.
+  - ~~**잔여 후속(W2)**: harness(`test-stages.sh`) 자체의 workspace-패키지 커버리지 완전성 회귀 가드 부재 — `pnpm-workspace.yaml` glob 을 파싱해 test-stages.sh 가 모든 패키지를 참조하는지 검증하는 harness unittest, 또는 `test-stages.sh` 를 `harness-checks.yml` trigger paths 등재. 신규 infra 라 별 slice.~~
+    **→ 해소 확인 (2026-08-08 실측)**: `#979`(`1b5cd636d`, "내부 패키지 등록 목록 4곳 ↔ 실제 패키지 집합 drift 가드")가 정확히 이 가드다 —
+    `codebase/frontend/src/lib/repo-guards/__tests__/internal-package-registration-guard.ts` 가 `pnpm-workspace.yaml` 로 루트를 찾고 `.claude/test-stages.sh` 의 `INTERNAL_PACKAGES`·`cmd_lint`/`cmd_unit`/`cmd_build` 본문을 파싱해 `codebase/packages/*` 실제 집합과 대조한다.
+    `internal-package-registration.test.ts` 에 vacuity 방지 단언(파싱이 실제로 뭔가를 읽었는가) 4건이 함께 있다.
+    *(제안했던 두 번째 대안 — `test-stages.sh` 를 `harness-checks.yml` trigger paths 에 등재 — 은 여전히 미적용이지만, 첫 번째 대안이 채택돼 목적은 달성됐다. 이 plan 은 둘 중 하나를 요구했다.)*
 - [x] **EventSource stub 공용 헬퍼 추출** — `use-widget-eager-start.test.ts` 4곳이 EventSource stub(`class {...} as unknown as typeof EventSource`)을 손복사한다. 기존 `installControllableSse()` 팩토리로 통합해 타입-우회 캐스트를 한 곳에 모을 것. (가드 실효성 PR ai-review 13_35_47 maintainability.) ~~**잔여(별 slice)**: channel-web-chat 테스트 리팩터라 본 PR(내부 패키지 eslint 배선)과 영역이 달라 분리.~~
   **완료 (2026-07-17)**: 손복사 4곳(`:239`·`:457`·`:945`·`:1098`) 전량 제거 → 타입-우회 캐스트(`as unknown as this` / `as unknown as typeof EventSource`)가 **헬퍼 1곳에만** 남는다.
   **단, `installControllableSse()` 로 통합하지 않았다** — 원 계획대로 하면 안 됐다. 그 팩토리는 **EventSource stub + 표준 fetchMock 을 묶은** 것인데, 4곳 중 3곳은 fetch 동작이 다르다(`:457` deferred hook resolve, `:945`·`:1098` interact **410 Gone**). 통째로 갈아끼우면 그 테스트들이 검증하던 실패 경로가 사라진다. 대신 **`installControllableEventSource()` 를 신규 추출**(EventSource stub 만, fetch 무관)하고 `installControllableSse()` 가 이를 조합하도록 재구성해, fetch 가 다른 3곳도 SSE 주입만 공유하게 했다.
   로컬 var(`latestEs`/`latest`) 캡처는 전부 `getEs()` 로 재배선(선언 4개 제거, `?.emit(...)`·`expect(...).not.toBeNull()` 사용처 교체). 검증: `use-widget-eager-start.test.ts` **26 passed**.
 - [x] **`packages/sdk` eslint 커버리지** — `@workflow/sdk` 에 `eslint.config.*` 가 없어 production 코드 lint 가 harness/CI 어디서도 안 돈다(web-chat-checks sdk-client job 도 lint 생략). eslint config 추가 + 배선. (가드 실효성 PR ai-review 13_58_56 INFO.) **완료(2026-07-13)**: sdk `eslint.config.mjs`(Node env) + eslint devDeps 추가, `test-stages.sh` cmd_lint 배선, `web-chat-checks.yml` sdk job 에 Lint 스텝 추가(종전 "eslint.config 부재라 생략" 주석 해소).
 - [x] **`spec-impl-evidence.md §4.2` 편집 절차 사후 확인** (planner/사용자) — 본 PR 에서 developer 가 가드 확장에 수반해 §4.2 SoT 표를 직접 편집했다(CLAUDE.md 상 `spec/` 는 planner 트랙). 정합화 성격이라 impl-done 이 사후 검증했으나, convention checker 가 "subagent write isolation 논리 혼동" 을 지적 — 절차상 planner 가 사후 리뷰하거나, 향후 유사 정합화의 경계를 명확히 할 것. **종결(2026-07-13, 사후 리뷰)**: 가드/코드 변경에 **동반되는 SoT 표 sync**(신규 요구·결정을 담지 않는 정합화)는 developer 가 수행 가능하되 `--impl-done` 검증을 필수로 한다. 신규 요구/결정을 담는 spec 본문 편집만 planner 트랙. 본 원칙으로 경계 확정 — §4.2 당시 편집은 이 범주(정합화)라 적절했음.
+
+## 잔여 (체크리스트)
+
+> 2026-08-08 위생 정리에서 신설. 종전에는 잔여가 완료 항목의 하위 blockquote 안에 산문으로만
+> 있어 **미체크 체크박스 0개** → plan 이 완료로 보였다. 아래가 이 plan 의 완료 판정 SoT 다.
+> 등재 전 각 항목을 실측 재판정했고 4건은 이미 닫혀 있었다(위 본문에 근거를 남겼다).
+
+- [ ] **swagger.md §5-1 에 `*.literal.ts` 형제 DTO enum 공유 SoT 패턴 명문화** (planner 트랙)
+      — ai-review I5 → 20_08_27 I1. `execution-status.literal.ts` 로 실제 도입한 패턴이
+      규약 문서에 없다. **2026-08-08 실측: `spec/conventions/swagger.md` 에 `literal` 언급 0건 —
+      미해소 확인.**
+- [ ] **`InteractAckDto` ↔ EIA §5.4/§5/R16 shape 정합** (planner 트랙) — ai-review 20_32_30 W1.
+      pre-existing: `/cancel` ack 이 `{executionId, accepted, currentStatus}` 6값을 공유하나
+      R16 은 `{executionId, status}` 2값으로 분리 서술한다. **어느 쪽이 SoT 인지 판정**이 선행.
+- [ ] **EIA `dto/responses` spec 의 Swagger `buildDocument` 보일러플레이트 dedup**
+      — ai-review 20_32_30 W2. **트리거는 "3번째 스키마 회귀 spec 추가 시점"** 이고
+      2026-08-08 실측 현재 2곳(`execution-status-response.dto.spec.ts:41` ·
+      `interact-ack-response.dto.spec.ts:31`)이라 **아직 트리거 미도달**. 조건부 대기 항목.
+
+**완료 조건**: 위 3건 처리 → `complete/` 이동. 이동 시 frontmatter 에 Gate C `spec_impact`
+선언 필요(앞의 둘이 `spec/conventions/swagger.md` · EIA spec 을 건드리므로 `none` 이 아니다).
 
 ## 비고
 
