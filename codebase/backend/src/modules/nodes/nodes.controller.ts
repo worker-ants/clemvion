@@ -18,6 +18,7 @@ import {
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
 } from '@nestjs/swagger';
@@ -35,6 +36,7 @@ import {
 } from './dto/responses/node-response.dto';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { WorkspaceId } from '../../common/decorators';
+import { Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Nodes')
 @ApiBearerAuth('access-token')
@@ -74,6 +76,7 @@ export class NodesController {
   })
   @ApiOkWrappedArrayResponse(NodeDto, { description: '노드 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({
     description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
   })
@@ -85,6 +88,7 @@ export class NodesController {
   }
 
   @Post('workflows/:workflowId/nodes')
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '노드 생성',
@@ -99,6 +103,7 @@ export class NodesController {
   @ApiCreatedWrappedResponse(NodeDto, { description: '생성된 노드' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({
     description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
   })
@@ -112,6 +117,7 @@ export class NodesController {
   }
 
   @Patch('nodes/:id')
+  @Roles('editor')
   @ApiOperation({
     summary: '노드 수정',
     description: '노드의 라벨·위치·설정·설명 등을 부분 수정합니다.',
@@ -120,6 +126,7 @@ export class NodesController {
   @ApiOkWrappedResponse(NodeDto, { description: '수정된 노드' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 노드를 찾을 수 없음' })
   @ApiConflictResponse({ description: '동일 워크플로우 내 라벨 중복' })
   async update(
@@ -131,6 +138,7 @@ export class NodesController {
   }
 
   @Delete('nodes/:id')
+  @Roles('editor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '노드 삭제',
@@ -140,6 +148,7 @@ export class NodesController {
   @ApiParam({ name: 'id', description: '노드 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 노드를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

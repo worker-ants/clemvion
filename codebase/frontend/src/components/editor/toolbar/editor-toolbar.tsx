@@ -485,8 +485,12 @@ export function EditorToolbar() {
             </Button>
           )}
 
-          {/* Stop button — 실행 중단 (running / waiting_for_input) */}
-          {isCancellable && executionId && (
+          {/* Stop button — 실행 중단 (running / waiting_for_input). backend
+              `POST /executions/:id/stop` 는 `@Roles('editor')` 를 요구한다
+              (2026-08-08 auth-workspace-membership-guard — mutation 15건 §3.2
+              대조). canEdit 가드 없이 노출하면 viewer 에게 항상 403 으로
+              실패하는 버튼을 보여주게 된다(ai-review WARNING #2). */}
+          {canEdit && isCancellable && executionId && (
             <Button
               size="sm"
               variant="destructive"

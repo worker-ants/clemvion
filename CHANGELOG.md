@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — 워크스페이스 멤버십 검증 누락(cross-tenant) 보안 수정 + intra-tenant 권한 정합
+
+`@Roles()` 가 없는 라우트(HTTP 222건 중 73건)는 워크스페이스 멤버십을 전혀 검증하지 않고 있었다
+— 인증된 아무 사용자나 `X-Workspace-Id` 헤더를 위조해 타 워크스페이스 리소스를 열람·조작할 수
+있었다(cross-tenant, P0). `RolesGuard` 를 "역할 계층 검사만 `@Roles()` 에 의존, 멤버십 검사는
+항상 수행"으로 재구성해 opt-in 데코레이터 모델을 구조적으로 opt-out 불가능하게 닫았다 — 새
+라우트가 추가돼도 코드 변경 없이 자동으로 멤버십 검사를 받는다.
+
+같은 취약점의 두 번째 조각(intra-tenant — 멤버이지만 viewer 가 mutation)을 §3.2 권한 매트릭스와
+대조해 8개 핸들러에 개별 `@Roles('editor'|'viewer')` 를 부착했다:
+
+- `edges` `create`/`remove`, `nodes` `create`/`update`/`remove`, `executions` `stop`,
+  `triggers` `rotateBotToken` → `editor` 이상
+- `knowledge-base` `search` (POST 이지만 의미상 조회) → `viewer` 이상
+
+**하위 호환성 파괴 (의도됨)**: 위 6개 mutation 엔드포인트(`editor` 요구)에서 종전에 200 을 받던
+viewer 역할 사용자의 직접 API 호출은 이제 403 을 받는다. spec §3.2 가 애초에 Viewer 를 `R`
+(read-only)로 규정하므로 이는 스펙 정합화이지 회귀가 아니다 — viewer 가 mutation 을 할 수
+있었던 것 자체가 결함이었다. FE 는 canvas 노드/엣지 편집이 이미 `POST /workflows/:id/save`
+(기존부터 `@Roles('editor')`) 하나로 저장되므로 개별 `edges`/`nodes` CRUD 엔드포인트에 대한
+직접 호출부가 없어 영향이 없다. 단 실행 중단(Stop) 버튼은 `canEdit` 가드가 없어 viewer 에게
+노출된 채 항상 403 으로 실패하고 있어 이번에 함께 가드했다
+(`codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx`).
+
+SoT: `spec/5-system/1-auth.md` §3.2·§3.3, `spec/data-flow/12-workspace.md` §Rationale. 추적:
+`plan/in-progress/auth-workspace-membership-guard.md`.
+
 ## Unreleased — 감사 로깅 커버리지 확장: workflow / trigger / schedule / model_config
 
 인증 spec §4.1 이 기록 대상으로 약속했지만 미구현이던 CRUD 감사 액션 13개를 구현했다. 착수 전

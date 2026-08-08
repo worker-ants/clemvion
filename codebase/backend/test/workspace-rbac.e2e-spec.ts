@@ -503,4 +503,73 @@ describe('Workspace RBAC (e2e)', () => {
       .set('X-Workspace-Id', ws);
     expect(invalidType.status).toBe(400);
   });
+
+  /**
+   * I. `auth-workspace-membership-guard` P0 회귀 방지 — `@Roles()` 가 없는 라우트의
+   * cross-tenant 정보 노출.
+   *
+   * fix 이전엔 `RolesGuard` 가 `requiredRoles` 가 비면(= `@Roles()` 미부착) 멤버십 조회
+   * **이전에** `return true` 했다 — 인증된 아무 사용자나 `X-Workspace-Id` 헤더만 위조하면
+   * 타 워크스페이스의 `@Roles()` 없는 GET 라우트를 그대로 열람할 수 있었다. 위 테스트 A 는
+   * `@Roles('editor')` 가 붙은 write 라우트(`POST /workflows`)만 커버해 이 결함 클래스를
+   * 놓쳤다(A. 주석 "GET /workflows 는 @Roles 가드가 없어…" 참조) — 본 케이스가 그 갭을 메운다.
+   *
+   * `GET /workflows`·`GET /workflows/:id` 는 `@WorkspaceId()` 만 쓰고 `@Roles()` 가 없다
+   * (`workflows.controller.ts`) — 딱 이 결함 클래스의 실제 프로덕션 라우트.
+   */
+  it('I. @Roles() 없는 GET 라우트 — 헤더 위조로 비멤버 접근 시 403 (cross-tenant P0 회귀 가드)', async () => {
+    const ownerA = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-i-a'),
+      db,
+    );
+    const wsA = await createTeamWorkspace(
+      BASE_URL,
+      ownerA.accessToken,
+      uniqueName('IA'),
+    );
+
+    const ownerB = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-i-b'),
+      db,
+    );
+    const wsB = await createTeamWorkspace(
+      BASE_URL,
+      ownerB.accessToken,
+      uniqueName('IB'),
+    );
+
+    // ownerA(wsB 비멤버)가 헤더 위조로 wsB 의 워크플로우 목록을 요청 → 403.
+    // fix 이전엔 이 요청이 200 + wsB 의 실제 데이터를 반환했다(정보 노출).
+    const crossList = await request(BASE_URL)
+      .get('/api/workflows')
+      .set('Authorization', `Bearer ${ownerA.accessToken}`)
+      .set('X-Workspace-Id', wsB);
+    expect(crossList.status).toBe(403);
+
+    // 자기 워크스페이스는 여전히 200 — header-first 동작 보존(정상 클라이언트 무회귀).
+    const ownList = await request(BASE_URL)
+      .get('/api/workflows')
+      .set('Authorization', `Bearer ${ownerA.accessToken}`)
+      .set('X-Workspace-Id', wsA);
+    expect(ownList.status).toBe(200);
+
+    // GET /workflows/:id 도 동일 — RolesGuard 가 핸들러(그리고 리소스 존재 조회)보다
+    // 먼저 실행되므로 존재하지 않는 id 여도 403 이 먼저 뜬다(404 로 새지 않음).
+    const missingWorkflowId = '00000000-0000-4000-8000-000000000000';
+    const crossDetail = await request(BASE_URL)
+      .get(`/api/workflows/${missingWorkflowId}`)
+      .set('Authorization', `Bearer ${ownerA.accessToken}`)
+      .set('X-Workspace-Id', wsB);
+    expect(crossDetail.status).toBe(403);
+
+    // 헤더 없이 토큰 클레임(자기 워크스페이스)으로는 정상 404 — 가드가 헤더 위조가
+    // 아닌 정상 요청까지 넓게 막지 않음을 함께 확인.
+    const ownDetailMissing = await request(BASE_URL)
+      .get(`/api/workflows/${missingWorkflowId}`)
+      .set('Authorization', `Bearer ${ownerA.accessToken}`)
+      .set('X-Workspace-Id', wsA);
+    expect(ownDetailMissing.status).toBe(404);
+  });
 });

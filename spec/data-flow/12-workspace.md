@@ -19,7 +19,7 @@ personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts` — `@Controller('workspaces')`. 생성/멤버/초대 발급·수락(`POST /api/workspaces/invitations/accept`)·전체 워크스페이스 HTTP 엔드포인트
 - `codebase/backend/src/modules/workspaces/invitations.controller.ts` — `@Controller('invitations')`. **공개** 토큰 메타 조회(`GET /api/invitations/:token`) 단일 엔드포인트 (가입 페이지 prefill 용)
 
-활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(전환기 dual-read 로 legacy `workspaceId` 도 수용), 전환은 토큰 재발급(§1.5, `POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `jwt.strategy` 가 클레임의 멤버십을 검증해 `request.user.workspaceId` 를 확정하고(비멤버·부재 시 personal→첫 멤버십 fallback), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. **전환기 하위호환**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 **우선**(header-first) 사용한다(헤더 스푸핑은 RolesGuard 멤버십 검증이 403 으로 차단). 클라이언트가 헤더를 떼면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다(아래 Rationale).
+활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(전환기 dual-read 로 legacy `workspaceId` 도 수용), 전환은 토큰 재발급(§1.5, `POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `jwt.strategy` 가 클레임의 멤버십을 검증해 `request.user.workspaceId` 를 확정하고(비멤버·부재 시 personal→첫 멤버십 fallback), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. **전환기 하위호환**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 **우선**(header-first) 사용한다. 헤더로 지정된 워크스페이스의 **멤버십은 `RolesGuard` 가 라우트 `@Roles()` 유무와 무관하게 항상 검증**하므로 헤더 스푸핑은 403 으로 차단된다(아래 Rationale "멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관"). 클라이언트가 헤더를 떼면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다(아래 Rationale).
 
 > **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§5 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)와 `X-Workspace-Id` 헤더 header-first(전환기 하위호환)는 레거시 세션·미마이그레이션 클라이언트 보호용으로 유지된다.
 
@@ -290,8 +290,11 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 **전환기 하위호환 — header-first**: 기존 클라이언트·e2e 는 `X-Workspace-Id` 헤더로 워크스페이스를 전환한다.
 호환을 깨지 않기 위해 `WorkspaceId` 데코레이터·`RolesGuard` 는 헤더가 있으면 그 워크스페이스를 **우선** 사용하고
 (header-first, 두 곳 동일 규칙이라 컨텍스트·role 검증 대상이 일관), 헤더가 없으면 위 `request.user.workspaceId`
-(토큰 클레임)를 사용한다. 헤더 스푸핑(비멤버 워크스페이스 지정)은 `RolesGuard` 의 멤버십 검증이 403 으로 차단하므로
-info-leak 이 커지지 않는다. **완전한 토큰 SoT(및 검증 수렴)는 클라이언트가 헤더 첨부를 제거한 시점에 실현**되며,
+(토큰 클레임)를 사용한다. 헤더 스푸핑(비멤버 워크스페이스 지정)은 `RolesGuard` 가 **라우트 `@Roles()` 유무와
+무관하게** 수행하는 멤버십 검증이 403 으로 차단하므로 info-leak 이 커지지 않는다 — 그 **무조건성**이 위에
+적은 "멤버십 RBAC 가 모든 핸들러에 누락 없이 깔린다는 분산된 전제" 를 제거한 부분이며, 근거는 아래
+§"멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관" 이다.
+**완전한 토큰 SoT(및 검증 수렴)는 클라이언트가 헤더 첨부를 제거한 시점에 실현**되며,
 그때까지 헤더는 authoritative 한 전환 수단으로 유지된다. `/switch` 는 그 사이에도 토큰 클레임을 활성 워크스페이스와
 동기화해 둔다(헤더 제거 시 즉시 SoT 가 되도록).
 
@@ -307,6 +310,36 @@ info-leak 이 커지지 않는다. **완전한 토큰 SoT(및 검증 수렴)는 
 > 모델에서 "활성(active) 워크스페이스" 라는 의미를 필드명이 직접 드러내는 편이 낫다는 판단이며, dual-read 로 과도기
 > 비용을 흡수한다. **이 절 전체(토큰 SoT·rename·dual-read)는 구현됐다** (§Overview 상태 노트).
 
+### 멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관 (2026-08-08)
+
+위 "전환기 하위호환 — header-first" 절은 헤더 스푸핑이 `RolesGuard` 멤버십 검증으로 차단된다고
+서술해 왔다. 그 보장은 실제로 **"모든 워크스페이스-스코프 핸들러에 `@Roles()` 가 빠짐없이 붙어
+있다"** 는 분산된 전제 위에 서 있었다 — 같은 절이 그 위험을 이미 명명했다("멤버십 RBAC 가 모든
+핸들러에 누락 없이 깔린다는 분산된 전제에 의존"). **전제는 충족되지 않았다.** 2026-08-08 전수
+실측: HTTP 라우트 222건 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` 가 없는 것 **73건**
+(mutation 15 / read 58). `RolesGuard.canActivate` 가 `requiredRoles` 가 비면 멤버십 조회 **이전에**
+통과시켰기 때문이며, 그 결과 인증된 사용자가 헤더만 위조해 타 워크스페이스 리소스에 접근할 수
+있었다(cross-tenant).
+
+**정정**: 멤버십 검증을 라우트 데코레이터에서 분리해 가드에서 **무조건** 수행한다. `@Roles()` 는
+이제 **역할 계층 비교만** 통제한다. 헤더가 없으면 워크스페이스 컨텍스트는 `jwt.strategy` 가 이미
+멤버십 검증한 `request.user.workspaceId` 이므로 추가 검사가 필요 없고, 검증이 필요한 유일한 경로는
+**헤더가 토큰 확정값을 덮어쓸 때**다.
+
+**적용 범위**: 대상은 **워크스페이스 컨텍스트를 소비하는 인증된 라우트**다. `RolesGuard` 는
+`APP_GUARD` 전역 등록이므로 아래는 제외 — (a) `@Public()` 라우트·`request.user` 부재(미인증):
+인증 판정은 `JwtAuthGuard` 소관, (b) 워크스페이스 컨텍스트를 쓰지 않는 라우트: 검증 대상 없음.
+
+**기각된 대안 — 73개 라우트에 `@Roles('viewer')` 부착**: opt-in 모델의 연장이라 74번째 라우트에서
+같은 누락이 재발한다(이미 최소 2회 발생). 원 리뷰(`review/code/2026/08/01/13_46_48/security.md`)도
+구조적 해소를 권고했다.
+
+**이것은 token-first 회귀가 아니다** — header-first 우선순위는 그대로다. 바뀐 것은 헤더로 들어온
+값의 **검증 시점이 라우트별 opt-in 에서 가드 무조건으로** 옮겨진 것이며, 위 end-state 목표
+("멤버십 검증이 인증 진입점 1곳으로 수렴")를 헤더 제거를 기다리지 않고 앞당겨 달성한 것이다.
+
+구현·전수 목록: [`plan/in-progress/auth-workspace-membership-guard.md`](../../plan/in-progress/auth-workspace-membership-guard.md).
+
 ### URL slug = FE 라우팅 SoT (≠ backend 인가 SoT)
 
 프론트는 활성 워크스페이스를 **URL 경로**(`/w/<slug>/...`)로 반영한다(2-navigation/9-user-profile §3, 구현 완료).
@@ -314,12 +347,14 @@ info-leak 이 커지지 않는다. **완전한 토큰 SoT(및 검증 수렴)는 
 
 - **계층 분리**: URL slug 는 **FE 라우팅의 SoT** 일 뿐, **backend 인가의 SoT 가 아니다**. 인가는 여전히 위
   header-first(`X-Workspace-Id`) → 토큰 클레임(`activeWorkspaceId`) 모델이 결정하며, slug 라우팅은 그 위에서
-  헤더가 유래하는 값의 출처만 바꾼다. 따라서 이 절의 격리 모델·우선순위·`RolesGuard` 403 은 **무번복**이다
+  헤더가 유래하는 값의 출처만 바꾼다. 따라서 이 절의 격리 모델과 **우선순위(header-first)** 는 **무번복**이다
   (slug 라우팅이 token-first 로의 회귀를 의미하지 않는다 — token-first 는 격리 회귀로 이미 기각됨).
+  `RolesGuard` 403 자체도 유지되나, **그 집행 지점**은 위 §"멤버십 검증은 가드 1곳에서 — `@Roles()` 와
+  무관" 에서 한 번 정정됐다(라우트별 opt-in → 가드 무조건. 보장을 **넓히는** 방향이라 격리 취지와 무충돌).
 - **`X-Workspace-Id` 헤더 유지가 전제**: slug 라우팅은 axios 인터셉터의 헤더 첨부(`client.ts`) 지속을 전제로
   설계됐다. 헤더 제거는 본 범위 밖 별도 결정이며, 라우팅이 그것을 앞당기지 않는다.
 - **FE 멤버십 체크 = UX 전용**: `[slug]` layout 의 비멤버/무효 slug → default 워크스페이스 redirect 는 **편의**
-  이며 인가 경계가 아니다. 헤더 스푸핑은 `RolesGuard` 가 이미 403 으로 차단한다.
+  이며 인가 경계가 아니다. 헤더 스푸핑은 `RolesGuard` 가 라우트 `@Roles()` 유무와 무관하게 403 으로 차단한다.
 - **reconcile 방향 = URL 우선**: cold-load(딥링크·북마크) 시 `[slug]` layout 이 URL 워크스페이스로 store·토큰을
   재조정한다. `/w/<slug>` 라우트에서는 §1.5 의 store-우선 reconcile-on-load 대신 **URL 우선**이 적용된다(레이스
   방지 — AuthProvider 는 `pathname` 이 `/w/` 로 시작하면 persisted reconcile 을 건너뛴다). slug 없는 라우트

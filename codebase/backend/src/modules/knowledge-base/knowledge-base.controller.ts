@@ -82,6 +82,7 @@ export class KnowledgeBaseController {
     description: '지식 베이스 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: PaginationQueryDto,
@@ -97,6 +98,7 @@ export class KnowledgeBaseController {
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(KnowledgeBaseDto, { description: '지식 베이스 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -220,6 +222,7 @@ export class KnowledgeBaseController {
     description: '임베딩 진행 통계',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async embeddingStats(
     @Param('id', ParseUUIDPipe) id: string,
@@ -294,6 +297,7 @@ export class KnowledgeBaseController {
     description: '문서 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async findDocuments(
     @Param('id', ParseUUIDPipe) id: string,
@@ -314,6 +318,7 @@ export class KnowledgeBaseController {
     description: '문서 상세 (청크/임베딩 상태 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async findDocument(
     @Param('id', ParseUUIDPipe) id: string,
@@ -419,7 +424,10 @@ export class KnowledgeBaseController {
 
   // ── RAG Search (debug endpoint) ──
 
+  // POST 지만 의미는 조회다(본문에 query 를 담기 위한 POST) — §3.2 `Knowledge Base` 행의
+  // Viewer=`R` 를 적용한다. editor 로 올리면 정당한 viewer 의 검색을 막는다.
   @Post('search')
+  @Roles('viewer')
   @ApiOperation({
     summary: 'RAG 검색 (디버그)',
     description:
@@ -430,6 +438,7 @@ export class KnowledgeBaseController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
   async search(@WorkspaceId() workspaceId: string, @Body() body: RagSearchDto) {
     return this.ragSearchService.search(
       body.query,

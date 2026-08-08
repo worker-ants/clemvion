@@ -56,6 +56,7 @@ export class TriggersController {
     description: '트리거 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryTriggerDto,
@@ -72,6 +73,7 @@ export class TriggersController {
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(TriggerDto, { description: '트리거 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -137,6 +139,7 @@ export class TriggersController {
     description: '최근 실행 이력 (최대 10건)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   async getHistory(
     @Param('id', ParseUUIDPipe) id: string,
@@ -227,12 +230,14 @@ export class TriggersController {
    * (C-2: ChatChannelController 에서 이전 — chat-channel↔triggers forwardRef 순환 해소.)
    */
   @Post(':id/chat-channel/rotate-bot-token')
+  @Roles('editor')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Chat Channel bot token 회전',
     description:
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async rotateBotToken(
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },

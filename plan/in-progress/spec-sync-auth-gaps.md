@@ -67,7 +67,13 @@ owner: planner
       에도 코드에도 0건이라(재확인), 액션명·시제 분류·감사 대상 범위를 새로 정해야 하고
       그 자체가 리뷰 대상이다. 정정 턴에 설계를 얹으면 두 성격이 한 커밋에서 섞인다.
 - [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
-- [ ] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** — 7차 리뷰
+- [~] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** —
+      **2026-08-08 전용 plan 으로 이관**: [`auth-workspace-membership-guard.md`](auth-workspace-membership-guard.md).
+      완료 판정은 그 plan 이 소유한다(중복 소유 방지). 이관 사유 = 본 plan 은 `owner: planner`
+      의 감사 로깅 계열인데 본 건은 developer 트랙 P0 이라, 한 plan 에 묶으면 push 게이트가
+      보는 `worktree:` 가 충돌한다. 이관 시점 전수 실측: HTTP 라우트 222건 중 `@WorkspaceId()`
+      를 소비하며 `@Roles()` 가 없는 것 **73건**(mutation 15 / read 58). 아래 원 서술 유지 —
+      7차 리뷰
       `security` CRITICAL. `RolesGuard.canActivate` 가 `requiredRoles` 가 비면 `return true` 로
       조기 반환해 `getMemberRole` 이 실행되지 않고, 멤버십을 보는 다른 가드가 없다. 비멤버가
       `X-Workspace-Id` 를 위조해 타 워크스페이스 데이터를 열람/조작할 수 있다. **이 PR 과 무관한
