@@ -166,19 +166,29 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
 - [x] `/consistency-check --impl-prep spec/5-system/` — **BLOCK: YES** (Critical 1,
       `review/consistency/2026/08/08/18_47_21`). checker 5/5 success. 위 §차단 참조.
       *(`--impl-prep` 는 파일이 아니라 디렉터리를 받는다 — `1-auth.md` 로 첫 호출이 거부됐다.)*
-- [ ] 테스트 선작성 — 가드 단위(헤더 위조 → 403 / 헤더 부재 → 통과 / `@Public` → skip /
-      역할 계층은 `@Roles()` 있을 때만) + 뮤테이션으로 non-vacuity 확인
-- [ ] `RolesGuard` 재구성 + 두 곳의 거짓 주석(`roles.guard.ts` docstring ·
-      `workspace.decorator.ts:16`) 정정
-- [ ] **403 error code 결정** (impl-prep W2) — `NOT_A_MEMBER` 재사용 vs `FORBIDDEN` 유지 +
-      Rationale 기록. `NOT_A_MEMBER` 를 쓰면 `spec/5-system/3-error-handling.md §1.2` 가
-      발행처를 `auth.service`/`workspaces.service` 로 **한정**하고 L497 이 "완결성 종결" 을
-      선언하고 있어 둘 다 stale 해진다 → 그 경우 `--impl-done` 대상에 `3-error-handling.md`
-      추가. 반대로 새 코드를 만들면 의미가 동일한 `NOT_A_MEMBER` 와 중복 (이 저장소는
-      `PASSWORD_INVALID`↔`INVALID_PASSWORD` 류 근접 명명을 이미 여러 번 정정했다)
-- [ ] mutation 15건 §3.2 대조 → 개별 `@Roles()` 판정·부착 (전부 부착이 답이 아님)
-- [ ] **`integrations` 4건은 §3.2 단독 대조 금지** (impl-prep W1) —
-      `oauthBegin`·`reauthorize`·`requestScopes`·`updateScope` 는
+- [x] 테스트 선작성 — 가드 단위(헤더 위조 → 403 / 헤더 부재 → 통과 / `@Public` → skip /
+      역할 계층은 `@Roles()` 있을 때만) + 뮤테이션으로 non-vacuity 확인. `roles.guard.spec.ts`
+      21건(2026-08-08) + `workspace-context.util.spec.ts` 6건(2026-08-08 리뷰 fix, 아래
+      "회귀 가드" 항목 참조).
+- [x] `RolesGuard` 재구성 + 두 곳의 거짓 주석(`roles.guard.ts` docstring ·
+      `workspace.decorator.ts:16`) 정정. `workspace.decorator.ts` 는 ai-review WARNING #4
+      (`review/code/2026/08/08/20_53_48`)로 `7fb8a6c8c` 에서 완료 — 두 곳 모두 "`@Roles()`
+      유무와 무관하게 항상" 수준으로 정정됐다.
+- [x] **403 error code 결정** (impl-prep W2) — **`FORBIDDEN` 유지, `NOT_A_MEMBER` 도입 안
+      함.** 근거(`roles.guard.ts:78-81` docstring 에 이미 명문화): `@Roles()` 라우트의 비멤버
+      거부도 종전부터 코드 없는 403 이라, 새 경로에만 코드를 붙이면 동일한 실패가 `@Roles()`
+      유무에 따라 다른 body 를 내게 된다. `spec/5-system/3-error-handling.md §1.2` 의 발행처
+      한정·L497 완결성 선언 모두 stale 해지지 않는다 — `--impl-done` 대상에 추가 불요.
+      (ai-review INFO #7 이 이 결정과 체크리스트 상태 불일치를 지적 — 본 커밋으로 동기화.)
+- [x] mutation 15건 §3.2 대조 → 개별 `@Roles()` 판정·부착 (전부 부착이 답이 아님). 8건은
+      `@Roles()` 부착(아래), 2건(`notifications`)·5건(`integrations`)은 부착 안 함(아래
+      기존 체크 항목). 8건 부착 목록: `edges` `create`/`remove`, `nodes`
+      `create`/`update`/`remove` (`editor`), `executions` `stop` (`editor`), `triggers`
+      `rotateBotToken` (`editor`), `knowledge-base` `search` (`viewer`, POST 지만 의미상
+      조회). 8+2+5=15 로 cardinality 일치.
+- [x] **`integrations` 4건은 §3.2 단독 대조 금지** (impl-prep W1) — **준수 완료.** 아래
+      "`integrations` 5건 판정" 항목에서 실제로 2축 매트릭스로 판정했고 §3.2 단독 대조는
+      쓰지 않았다. `oauthBegin`·`reauthorize`·`requestScopes`·`updateScope` 는
       [`spec/2-navigation/4-integration.md §8`](../../spec/2-navigation/4-integration.md)
       (L773-783) 의 **액션별 Personal vs Organization 세분화 매트릭스**도 함께 봐야 한다.
       §3.2 의 `Integration (Org) → Editor=R` 만 보고 일괄 부착하면 **Personal-scope 통합을
@@ -199,23 +209,34 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       > :358·:386·:426·:552)의 기존 `@Roles('editor')` 도 §8 의 Organization=Admin+ 대비
       > **과관대**일 수 있다. 서비스가 자체 scope 검사를 하는지 확인이 선행돼야 하고, 본 P0
       > (비멤버 차단)와 결함 클래스가 다르므로 여기서 확대하지 않는다.
-- [ ] **회귀 가드** — 새 라우트가 같은 갭을 만들면 실패하는 repo-guard 테스트.
+- [x] **회귀 가드** — 새 라우트가 같은 갭을 만들면 실패하는 repo-guard 테스트.
       일회성 스크립트로 끝내면 74번째에서 재발한다.
-      배치: `codebase/backend/src/repo-guards/__tests__/` (impl-prep INFO 4 권고 — 기존 컨벤션)
-- [ ] **주석에 "token-first 회귀 아님" 명시** (impl-prep INFO 2) — 채택안(헤더가 토큰과
+      배치: `codebase/backend/src/repo-guards/__tests__/` (impl-prep INFO 4 권고 — 기존 컨벤션).
+      **완료 (2026-08-08, `c435a2aa6`, ai-review WARNING #8)** —
+      `workspace-roles-attachment.spec.ts`: (1) `RolesGuard` 가 `APP_GUARD` 로 전역 등록돼
+      있는지 고정(cross-tenant 73건 클래스는 이 한 줄로 구조적으로 닫힘 — 74번째 라우트는
+      자동으로 보호됨), (2) intra-tenant 확정 8곳의 `@Roles()` 메타데이터를 reflection 으로
+      직접 고정(사람 판정이라 일반화 불가, 스팟 고정).
+- [x] **주석에 "token-first 회귀 아님" 명시** (impl-prep INFO 2) — 채택안(헤더가 토큰과
       다르면 멤버십 검증)은 `data-flow/12-workspace.md` Rationale 이 **기각한 token-first
       (헤더 완전 무시)와 다르다.** header-first 는 유지된다. 구분을 적어두지 않으면 다음
-      리뷰가 기각된 대안의 재도입으로 오독한다
+      리뷰가 기각된 대안의 재도입으로 오독한다. `roles.guard.ts` docstring "이는 header-first
+      를 유지한다 — 기각된 token-first(헤더 완전 무시)로의 회귀가 아니다" 로 이미 명시됨.
 - [ ] **`@ApiForbiddenResponse` 부착 + `swagger.md §5-4` 규약 확장** (2차 impl-prep W1) —
       규약(`spec/conventions/swagger.md:322`)은 "`@Roles(...)` 가 붙은 엔드포인트는
       `@ApiForbiddenResponse` 도 추가" 로 **`@Roles()` 를 전제로** 적혀 있다. 이 fix 후에는
       `@WorkspaceId()` 만 쓰는 라우트도 403 을 낼 수 있어 **전제가 깨진다** → 그대로 두면
       OpenAPI 문서에서 403 이 계속 누락된다.
-      2파트로 갈린다: **(a) 데코레이터 부착 = 코드**(developer), **(b) §5-4 문구를
-      `@WorkspaceId()` 소비 라우트 전체로 확장 = `spec/conventions/` 편집**(planner 트랙).
+      2파트로 갈린다: **(a) 데코레이터 부착 = 코드**(developer) — **완료 (2026-08-08,
+      `4c199813c`, ai-review WARNING #10)**: 이 diff 가 건드린 5개 컨트롤러의
+      `@WorkspaceId()`-only 라우트 12곳에 부착. 저장소 전체 73건 중 나머지 ~61건은 이 diff
+      밖이라 스코프 제외 — 아래 spec draft 의 "후속" 절 참조.
+      **(b) §5-4 문구를 `@WorkspaceId()` 소비 라우트 전체로 확장 = `spec/conventions/` 편집**
+      (planner 트랙) — **draft 작성 완료 (2026-08-08, `a228d22bf`)**:
+      [`spec-fix-swagger-forbidden-response.md`](spec-fix-swagger-forbidden-response.md).
       (b) 는 신규 요구를 담으므로 `eia-context-schema-followups` 가 확정한 경계상 "동반 SoT
-      sync" 가 아니다 → **별 planner 턴 + `--spec` 필요**. 처리 방식은 사용자 판정
-      (이 PR 에 planner amendment 로 묶기 vs 후속 plan 분리).
+      sync" 가 아니다 → **별 planner 턴 + `--spec` 필요** — draft 는 작성됐으나 아직
+      `/consistency-check --spec` 미통과·미반영. planner 턴 완료 후 본 항목 `[x]`.
       `--impl-done` 대상에 `spec/conventions/swagger.md` 포함할 것.
 - [ ] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
       `PROJECT.md §e2e 작성 가이드` 의 e2e 대상)
