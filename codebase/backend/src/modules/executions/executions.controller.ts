@@ -117,6 +117,7 @@ export class ExecutionsController {
   }
 
   @Post(':id/stop')
+  @Roles('editor')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '실행 중지',
@@ -131,6 +132,7 @@ export class ExecutionsController {
     description: '중지 불가능한 상태 (이미 완료/실패/취소된 실행)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async stop(
     @Param('id', ParseUUIDPipe) id: string,

@@ -419,7 +419,10 @@ export class KnowledgeBaseController {
 
   // ── RAG Search (debug endpoint) ──
 
+  // POST 지만 의미는 조회다(본문에 query 를 담기 위한 POST) — §3.2 `Knowledge Base` 행의
+  // Viewer=`R` 를 적용한다. editor 로 올리면 정당한 viewer 의 검색을 막는다.
   @Post('search')
+  @Roles('viewer')
   @ApiOperation({
     summary: 'RAG 검색 (디버그)',
     description:

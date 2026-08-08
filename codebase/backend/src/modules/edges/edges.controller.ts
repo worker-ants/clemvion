@@ -17,6 +17,7 @@ import {
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import {
@@ -27,6 +28,7 @@ import { EdgesService } from './edges.service';
 import { CreateEdgeDto } from './dto/create-edge.dto';
 import { EdgeDto } from './dto/responses/edge-response.dto';
 import { WorkspaceId } from '../../common/decorators';
+import { Roles } from '../../common/guards/roles.guard';
 
 @ApiTags('Edges')
 @ApiBearerAuth('access-token')
@@ -57,6 +59,7 @@ export class EdgesController {
   }
 
   @Post('workflows/:workflowId/edges')
+  @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '엣지 생성',
@@ -73,6 +76,7 @@ export class EdgesController {
     description: '입력값 검증 실패 또는 self-loop 시도',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({
     description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
   })
@@ -85,6 +89,7 @@ export class EdgesController {
   }
 
   @Delete('edges/:id')
+  @Roles('editor')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '엣지 삭제',
@@ -93,6 +98,7 @@ export class EdgesController {
   @ApiParam({ name: 'id', description: '엣지 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 엣지를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

@@ -227,12 +227,14 @@ export class TriggersController {
    * (C-2: ChatChannelController 에서 이전 — chat-channel↔triggers forwardRef 순환 해소.)
    */
   @Post(':id/chat-channel/rotate-bot-token')
+  @Roles('editor')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Chat Channel bot token 회전',
     description:
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async rotateBotToken(
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },

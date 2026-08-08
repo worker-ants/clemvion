@@ -91,7 +91,9 @@ export class RolesGuard implements CanActivate {
     if (!userId) return !needsRoleCheck;
 
     const rawHeader = request.headers['x-workspace-id'];
-    const headerWorkspaceId = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+    const headerWorkspaceId = Array.isArray(rawHeader)
+      ? rawHeader[0]
+      : rawHeader;
     const tokenWorkspaceId = request.user?.workspaceId;
     const workspaceId = headerWorkspaceId || tokenWorkspaceId;
 
