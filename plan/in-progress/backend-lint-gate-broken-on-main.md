@@ -65,6 +65,22 @@ TEST WORKFLOW `lint` 스테이지가 실패해 발견했다. **그 브랜치의 
 - [ ] TEST WORKFLOW (lint·unit·build·e2e) — 포맷 변경이 런타임에 영향 없음을 e2e 로 확인
 - [ ] `/ai-review` — scope 리뷰어가 "무관 변경" 으로 볼 수 있으므로 PR 본문에 선재 근거 인용
 
+## 같은 뿌리의 형제 결함 — frontend Gate C (2026-08-08 발견·해소)
+
+`plan/complete/harness-review-gate-ci-backstop.md` 의 frontmatter 에 `spec_impact` 가
+없어 Gate C(`spec-plan-completion.test.ts`)가 실패하고 있었다 → **frontend unit 게이트가
+막혀 있었다.** `started: 2026-07-25` 로 grandfather 경계(2026-06-04) 이후라 대상이다.
+유입: `cdf3b6832`(`#1097`).
+
+**해소**: `spec_impact: none` 추가(auth 브랜치에서 처리). 값 근거는 실측 — `cdf3b6832` 가
+`spec/` 을 **0건** 건드렸다(`git show --stat | grep '^ spec/'`). 확인: Gate C **770 passed**.
+
+> lint 79파일과 달리 이건 **plan 파일 1줄**이라 보안 diff 를 오염시키지 않으므로 그 브랜치에서
+> 바로 고쳤다. 판단 기준은 "선재냐" 가 아니라 **diff 오염 규모**다.
+
+이로써 오늘 하루에 드러난 main 잠재 결함이 셋이다: audit 13건(`#1095` 해소) · backend lint
+79파일(본 plan) · frontend Gate C(해소). 셋 다 **Actions 꺼진 기간의 무검증 머지**가 뿌리다.
+
 ## Rationale
 
 **왜 P1 인가.** lint 게이트가 **모든 backend PR 을 막는다.** 보안 fix 를 포함해 어떤 작업도

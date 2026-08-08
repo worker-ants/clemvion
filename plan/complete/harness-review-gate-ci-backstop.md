@@ -5,6 +5,7 @@ started: 2026-07-25
 completed: 2026-08-07
 owner: developer
 priority: P2
+spec_impact: none
 ---
 
 > **2026-08-07 — 완료.** 본체(관측 모드, 2026-08-01) → `--enforce` 전환(2026-08-07)까지
