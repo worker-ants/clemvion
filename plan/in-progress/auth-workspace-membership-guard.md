@@ -220,6 +220,16 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
 - [ ] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
       `PROJECT.md §e2e 작성 가이드` 의 e2e 대상)
 - [ ] TEST WORKFLOW (lint / unit / build / e2e)
+      > ⛔ **`lint` 은 선재 결함으로 막혀 있다** — `origin/main` 의 backend eslint 가
+      > **79파일 / 224건** 실패한다(`prettier/prettier` 123 · `no-unnecessary-type-assertion`
+      > 54 · `no-unsafe-*` 43). 그중 **78파일이 이 브랜치 diff 밖**이다.
+      > 정황: `#1076`(prettier 3.8.4→3.9.6)·`#1079`(typescript-eslint 8.61→8.65)가 Actions
+      > 꺼진 기간에 무검증 머지됐다.
+      > **사용자 결정(2026-08-08): 별 PR 로 분리** →
+      > [`backend-lint-gate-broken-on-main.md`](backend-lint-gate-broken-on-main.md).
+      > 그 PR 머지 후 이 브랜치를 rebase 하고 lint 를 재수행한다.
+      > 이 브랜치가 만든 1건(`roles.guard.ts` 헤더 정규화 줄)은 여기서 이미 고쳤고,
+      > 변경 6파일은 `npx eslint` **exit 0** 이다.
 - [ ] `/ai-review` + Critical·Warning 해소
 - [ ] `/consistency-check --impl-done spec/5-system/1-auth.md`
 
