@@ -145,8 +145,21 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
 
 ### 해소 경로
 
-- [ ] **project-planner 턴** — 위 5곳 처분. 이 plan 은 그동안 착수 불가.
-      우회(`DISABLE_CONSISTENCY_CHECK=1`) 금지 — 이 저장소가 이미 학습한 실패 패턴이다.
+- [x] **project-planner 턴 완료 (2026-08-08)** — draft
+      [`spec-draft-workspace-header-membership-invariant.md`](spec-draft-workspace-header-membership-invariant.md)
+      → `/consistency-check --spec` **BLOCK: NO** (Critical 0 · WARNING 3, `20_10_14`) → spec 반영.
+      **정정은 5곳이 아니라 6곳이었다** — `--spec` WARNING #1 이 `spec/2-navigation/9-user-profile.md:158`
+      ("**유일 강제 지점**은 backend `RolesGuard` 403")을 추가 발견했다. 내가 첫 checker 가 준
+      목록의 파일 2개만 grep 하고 **저장소 전수 grep 을 하지 않은** 탓이다. 하필 내가 고치던
+      `11-error-empty-states.md:72` 가 그 절을 "상세" 로 직접 링크하므로, 5곳만 고쳤다면
+      **한 홉 뒤에서 미정정 절대 서술로 되돌아갔다.**
+      처분 방침은 시한부 현황 노트가 아니라 **불변식 명문화** — 구현이 이어서 착지하므로
+      "현재 미차단" 문구는 같은 PR 안에서 stale 해진다. 자세한 근거·기각 대안은 draft 참조.
+      반영된 WARNING 3건: W1 6번째 위치 · W2 `@Public()`/`@WorkspaceId()` 미소비 라우트 제외
+      스코프 명시 · W3 `swagger.md §5-4` 체크리스트 전제 붕괴 등재.
+
+> **구현 착수 가능 상태다.** 단 `--impl-prep` 를 **재실행**해야 한다 — 종전 `18_47_21` 산출물은
+> spec 정정 전 상태라 stale 이고, 게이트는 fresh `BLOCK: NO` 리포트만 인정한다.
 
 ## 체크리스트
 
@@ -171,8 +184,21 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       §3.2 의 `Integration (Org) → Editor=R` 만 보고 일괄 부착하면 **Personal-scope 통합을
       소유한 Editor/Viewer 의 정당한 자가서비스(재인증·rotate)를 막는 회귀**가 된다.
       → Organization=Admin+ / Personal=소유권 검사 병행이 방향
-- [ ] **`notifications.markAllRead`/`dismissAll` 은 서비스 구현 확인 후 판정** — user-scoped
-      쓰기면 멤버십 검사만으로 충분하고 `@Roles()` 부착이 오히려 과하다
+- [x] **`notifications.markAllRead`/`dismissAll` 판정 완료 (2026-08-08)** — **`@Roles()` 부착
+      안 한다.** `notifications.service.ts:129-143` 실측: `markAllRead(workspaceId, userId)` 가
+      `where workspace_id = :workspaceId` **AND** `andWhere user_id = :userId` 로 필터한다 →
+      user-scoped 쓰기다. 멤버십 검사(가드 fix)만으로 충분하고, `@Roles('editor')` 를 붙이면
+      **자기 알림을 읽음 처리하려는 viewer 를 잘못 막는다**. `dismissAll` 도 같은 형태.
+- [x] **`integrations` 5건 판정 — `@Roles()` 부착 안 한다 (2026-08-08)**.
+      `4-integration.md §8` 실측(L770-783)은 **액션별 Personal/Organization 2축 매트릭스**다:
+      Reauthorize·Rotate·Scope 추가 요청 = Personal "본인 것만" / Organization "**Admin 이상**".
+      즉 컨트롤러 `@Roles('editor')` 는 **양방향으로 틀리다** — Organization 엔 과관대(Admin+
+      필요), Personal 엔 무관(소유권 검사 사안). 이 2축 판정은 요청 대상 통합의 scope 를 알아야
+      하므로 **서비스 레이어 소관**이고, 가드는 멤버십까지만 본다.
+      > **범위 밖 발견 (별 티켓 후보)**: 자매 mutation 4곳(`integrations.controller.ts`
+      > :358·:386·:426·:552)의 기존 `@Roles('editor')` 도 §8 의 Organization=Admin+ 대비
+      > **과관대**일 수 있다. 서비스가 자체 scope 검사를 하는지 확인이 선행돼야 하고, 본 P0
+      > (비멤버 차단)와 결함 클래스가 다르므로 여기서 확대하지 않는다.
 - [ ] **회귀 가드** — 새 라우트가 같은 갭을 만들면 실패하는 repo-guard 테스트.
       일회성 스크립트로 끝내면 74번째에서 재발한다.
       배치: `codebase/backend/src/repo-guards/__tests__/` (impl-prep INFO 4 권고 — 기존 컨벤션)
