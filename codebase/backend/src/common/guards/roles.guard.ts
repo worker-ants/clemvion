@@ -50,12 +50,21 @@ interface RequestWithUser {
  * 근거·전수 목록: `spec/data-flow/12-workspace.md` §Rationale "멤버십 검증은 가드
  * 1곳에서 — `@Roles()` 와 무관".
  *
- * ## 헤더가 없으면 재검증하지 않는다
+ * ## DB 왕복은 두 이유 중 하나로 발생한다 (OR 조건)
  *
  * 워크스페이스 컨텍스트는 **header-first** 다 — `X-Workspace-Id` 가 있으면 그 값,
  * 없으면 `request.user.workspaceId`(토큰 클레임). 후자는 `jwt.strategy` 가 **이미
- * 멤버십을 검증해** 채운 값이므로 재조회가 불요하다. 따라서 검증이 필요한 유일한
- * 경로는 **헤더가 토큰 확정값을 덮어쓸 때**이며, 그 경우에만 DB 를 왕복한다.
+ * 멤버십을 검증해** 채운 값이므로 그 자체로는 재조회가 불요하다.
+ *
+ * 그럼에도 `getMemberRole` 조회는 다음 **둘 중 하나만 참이어도** 실행된다:
+ *
+ * 1. **멤버십 재검증** — 헤더가 토큰 확정값을 덮어쓸 때(`membershipUnverified`)만.
+ *    `@Roles()` 유무와 무관하다.
+ * 2. **역할 계층 비교** — `@Roles()` 가 있는 라우트는 헤더 유무와 무관하게 **항상**.
+ *    역할 문자열 자체가 DB 조회 없이는 알 수 없기 때문이다.
+ *
+ * 따라서 "헤더가 없으면 DB 를 왕복하지 않는다" 는 `@Roles()` 없는 라우트에서만 참이다
+ * — `@Roles()` 라우트는 헤더 부재에도 이유 2 로 매 요청 조회한다.
  *
  * 이는 header-first 를 유지한다 — 기각된 token-first(헤더 완전 무시)로의 회귀가
  * 아니다 (`12-workspace.md` §Rationale "URL slug = FE 라우팅 SoT").
