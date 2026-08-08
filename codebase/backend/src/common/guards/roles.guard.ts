@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
-import { resolveWorkspaceContext } from '../utils/workspace-context.util';
+import { resolveRequestWorkspaceContext } from '../utils/workspace-context.util';
 import { handlerConsumesWorkspaceId } from '../decorators/workspace.decorator';
 
 export const ROLES_KEY = 'roles';
@@ -120,10 +120,11 @@ export class RolesGuard implements CanActivate {
 
     // `WorkspaceId` 데코레이터와 공유하는 단일 헬퍼 — 두 곳이 같은 경로로 컨텍스트를
     // 계산해야 "가드가 검증한 값"과 "핸들러가 소비하는 값"이 갈라지지 않는다.
-    const { workspaceId, membershipUnverified } = resolveWorkspaceContext(
-      request.headers,
-      request.user?.workspaceId,
-    );
+    const { workspaceId, membershipUnverified } =
+      resolveRequestWorkspaceContext(
+        request.headers,
+        request.user?.workspaceId,
+      );
 
     // 워크스페이스 컨텍스트 부재 — 검증 대상이 없다.
     if (!workspaceId) return !needsRoleCheck;

@@ -222,7 +222,7 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       (헤더 완전 무시)와 다르다.** header-first 는 유지된다. 구분을 적어두지 않으면 다음
       리뷰가 기각된 대안의 재도입으로 오독한다. `roles.guard.ts` docstring "이는 header-first
       를 유지한다 — 기각된 token-first(헤더 완전 무시)로의 회귀가 아니다" 로 이미 명시됨.
-- [ ] **`@ApiForbiddenResponse` 부착 + `swagger.md §5-4` 규약 확장** (2차 impl-prep W1) —
+- [x] **`@ApiForbiddenResponse` 부착 + `swagger.md §5-4` 규약 확장** (2차 impl-prep W1) —
       규약(`spec/conventions/swagger.md:322`)은 "`@Roles(...)` 가 붙은 엔드포인트는
       `@ApiForbiddenResponse` 도 추가" 로 **`@Roles()` 를 전제로** 적혀 있다. 이 fix 후에는
       `@WorkspaceId()` 만 쓰는 라우트도 403 을 낼 수 있어 **전제가 깨진다** → 그대로 두면
@@ -232,12 +232,15 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       `@WorkspaceId()`-only 라우트 12곳에 부착. 저장소 전체 73건 중 나머지 ~61건은 이 diff
       밖이라 스코프 제외 — 아래 spec draft 의 "후속" 절 참조.
       **(b) §5-4 문구를 `@WorkspaceId()` 소비 라우트 전체로 확장 = `spec/conventions/` 편집**
-      (planner 트랙) — **draft 작성 완료 (2026-08-08, `a228d22bf`)**:
-      [`spec-fix-swagger-forbidden-response.md`](spec-fix-swagger-forbidden-response.md).
-      (b) 는 신규 요구를 담으므로 `eia-context-schema-followups` 가 확정한 경계상 "동반 SoT
-      sync" 가 아니다 → **별 planner 턴 + `--spec` 필요** — draft 는 작성됐으나 아직
-      `/consistency-check --spec` 미통과·미반영. planner 턴 완료 후 본 항목 `[x]`.
-      `--impl-done` 대상에 `spec/conventions/swagger.md` 포함할 것.
+      (planner 트랙) — **완료 (2026-08-08, `2ce5650a3`)**. draft
+      [`spec-fix-swagger-forbidden-response.md`](spec-fix-swagger-forbidden-response.md)
+      (`a228d22bf`) → **planner 턴 + `/consistency-check --spec` BLOCK: NO**
+      (`review/consistency/2026/08/08/22_03_09`, Critical 0 · WARNING 1 · INFO 9)
+      → `spec/conventions/swagger.md` 반영. 검토 지적 3건(§ 접두 헤딩 · 근거 인용을
+      `1-auth.md §3.3` → `data-flow/12-workspace.md §Rationale` 로 교체 · `@Public()`
+      제외 명시)을 함께 반영했다.
+      (b) 가 신규 요구를 담아 "동반 SoT sync" 경계 밖이라는 판단은 그대로 유효했다 —
+      별 planner 턴이 실제로 필요했다.
 - [x] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
       `PROJECT.md §e2e 작성 가이드` 의 e2e 대상). **완료 (2026-08-08, `fee24683d`, ai-review
       WARNING #6)** — `workspace-rbac.e2e-spec.ts` 케이스 I: `@Roles()` 없는 GET 라우트

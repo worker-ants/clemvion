@@ -1,6 +1,6 @@
 import {
   normalizeWorkspaceHeader,
-  resolveWorkspaceContext,
+  resolveRequestWorkspaceContext,
 } from './workspace-context.util';
 
 describe('normalizeWorkspaceHeader', () => {
@@ -17,9 +17,9 @@ describe('normalizeWorkspaceHeader', () => {
   });
 });
 
-describe('resolveWorkspaceContext', () => {
+describe('resolveRequestWorkspaceContext', () => {
   it('prefers the header over the token claim (header-first)', () => {
-    const ctx = resolveWorkspaceContext(
+    const ctx = resolveRequestWorkspaceContext(
       { 'x-workspace-id': 'header-ws' },
       'token-ws',
     );
@@ -28,20 +28,20 @@ describe('resolveWorkspaceContext', () => {
   });
 
   it('falls back to the token claim when no header is present', () => {
-    const ctx = resolveWorkspaceContext({}, 'token-ws');
+    const ctx = resolveRequestWorkspaceContext({}, 'token-ws');
     expect(ctx.workspaceId).toBe('token-ws');
     expect(ctx.headerWorkspaceId).toBeUndefined();
     expect(ctx.membershipUnverified).toBe(false);
   });
 
   it('reports membershipUnverified only when the header overrides the token', () => {
-    const overridden = resolveWorkspaceContext(
+    const overridden = resolveRequestWorkspaceContext(
       { 'x-workspace-id': 'other-ws' },
       'own-ws',
     );
     expect(overridden.membershipUnverified).toBe(true);
 
-    const same = resolveWorkspaceContext(
+    const same = resolveRequestWorkspaceContext(
       { 'x-workspace-id': 'same-ws' },
       'same-ws',
     );
@@ -49,7 +49,7 @@ describe('resolveWorkspaceContext', () => {
   });
 
   it('normalizes a duplicated header to its first value', () => {
-    const ctx = resolveWorkspaceContext(
+    const ctx = resolveRequestWorkspaceContext(
       { 'x-workspace-id': ['victim-ws', 'decoy-ws'] },
       'own-ws',
     );
@@ -59,7 +59,7 @@ describe('resolveWorkspaceContext', () => {
   });
 
   it('returns undefined workspaceId when neither header nor token is present', () => {
-    const ctx = resolveWorkspaceContext({}, undefined);
+    const ctx = resolveRequestWorkspaceContext({}, undefined);
     expect(ctx.workspaceId).toBeUndefined();
     expect(ctx.membershipUnverified).toBe(false);
   });

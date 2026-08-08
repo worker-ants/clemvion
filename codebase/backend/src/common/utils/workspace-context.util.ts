@@ -31,8 +31,21 @@ export function normalizeWorkspaceHeader(
 /**
  * header-first 워크스페이스 컨텍스트를 해석한다.
  * `X-Workspace-Id` 헤더가 있으면 그 값, 없으면 토큰 클레임(`tokenWorkspaceId`).
+ *
+ * **`AuthService.resolveTokenWorkspaceContext` 와 다른 계층이다** (2026-08-08
+ * `--impl-done` naming_collision WARNING — 이름이 `Token` 유무만 달라 검색으로
+ * 구분되지 않는다는 지적을 받아 `resolveRequest…` 로 개명하고 이 상호참조를 단다):
+ *
+ * | | 이 함수 | `resolveTokenWorkspaceContext` |
+ * |---|---|---|
+ * | 시점 | **요청 시점** (매 HTTP 요청) | **토큰 발급 시점** (로그인·전환·refresh) |
+ * | 입력 | 요청 헤더 + 토큰 클레임 | userId (+ 대상 워크스페이스) |
+ * | DB | **왕복 없음** (순수 함수) | 멤버십 조회 있음 |
+ * | 산출 | 어느 워크스페이스를 쓸지 + 재검증 필요 여부 | 토큰에 서명할 활성 워크스페이스 |
+ *
+ * 즉 이쪽은 "이번 요청이 가리키는 곳" 을, 저쪽은 "토큰에 새길 곳" 을 정한다.
  */
-export function resolveWorkspaceContext(
+export function resolveRequestWorkspaceContext(
   headers: Record<string, string | string[] | undefined>,
   tokenWorkspaceId: string | undefined,
 ): WorkspaceContext {
