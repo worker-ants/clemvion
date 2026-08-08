@@ -238,9 +238,19 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       sync" 가 아니다 → **별 planner 턴 + `--spec` 필요** — draft 는 작성됐으나 아직
       `/consistency-check --spec` 미통과·미반영. planner 턴 완료 후 본 항목 `[x]`.
       `--impl-done` 대상에 `spec/conventions/swagger.md` 포함할 것.
-- [ ] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
-      `PROJECT.md §e2e 작성 가이드` 의 e2e 대상)
-- [ ] TEST WORKFLOW (lint / unit / build / e2e)
+- [x] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
+      `PROJECT.md §e2e 작성 가이드` 의 e2e 대상). **완료 (2026-08-08, `fee24683d`, ai-review
+      WARNING #6)** — `workspace-rbac.e2e-spec.ts` 케이스 I: `@Roles()` 없는 GET 라우트
+      (`GET /workflows`·`GET /workflows/:id`, `@WorkspaceId()` 만 사용)에 헤더 위조로
+      비멤버 접근 시 403, 자기 워크스페이스는 200 유지 확인.
+      **이 e2e 자체가 2차 실 회귀를 잡았다** — `system-status.e2e-spec.ts`(기존 스위트)가
+      `@Roles()` 도 `@WorkspaceId()` 도 안 쓰는 전역 API 에 헤더가 실려도 영향 없어야 한다는
+      계약을 이미 갖고 있었는데, FE `apiClient` 가 모든 요청에 `X-Workspace-Id` 를 습관적으로
+      붙이는 탓에(`lib/api/client.ts`) 헤더가 토큰과 다르면 그 전역 API 까지 403 을 내고
+      있었다 — plan 의 "워크스페이스 컨텍스트가 없는 라우트는 종전대로 통과" 불변식 위반.
+      `039c490a9`(`handlerConsumesWorkspaceId` reflection 도입)로 수정, 재실행 시
+      backend e2e 46 suites/261 tests 전부 통과 + frontend playwright 51 passed.
+- [x] TEST WORKFLOW (lint / unit / build / e2e)
       > ⛔ **`lint` 은 선재 결함으로 막혀 있다** — `origin/main` 의 backend eslint 가
       > **79파일 / 224건** 실패한다(`prettier/prettier` 123 · `no-unnecessary-type-assertion`
       > 54 · `no-unsafe-*` 43). 그중 **78파일이 이 브랜치 diff 밖**이다.
@@ -249,9 +259,20 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       > **사용자 결정(2026-08-08): 별 PR 로 분리** →
       > [`backend-lint-gate-broken-on-main.md`](backend-lint-gate-broken-on-main.md).
       > 그 PR 머지 후 이 브랜치를 rebase 하고 lint 를 재수행한다.
-      > 이 브랜치가 만든 1건(`roles.guard.ts` 헤더 정규화 줄)은 여기서 이미 고쳤고,
-      > 변경 6파일은 `npx eslint` **exit 0** 이다.
-- [ ] `/ai-review` + Critical·Warning 해소
+      > 이 브랜치가 diff+ai-review resolution 로 변경한 backend 13파일 + frontend 2파일은
+      > `npx eslint` **전부 exit 0**(전체 lint 게이트가 아니라 변경 파일 targeted 실행).
+      > **unit**: backend 전체 `pnpm --filter backend test` 416 suites / 8463 tests 통과.
+      > frontend `pnpm --filter frontend test` 는 이 브랜치와 무관한 pre-existing 1건 실패
+      > (`Gate C spec_impact` — `plan/complete/harness-review-gate-ci-backstop.md` 가
+      > frontmatter `spec_impact` 를 선언하지 않음, `cdf3b6832`(harness 백로그, 이 브랜치
+      > 시작 전 이미 main 에 있었음)에서 유입 — 이 diff 가 만들지도 건드리지도 않음).
+      > **build**: `nest build`(tsc) — e2e docker 빌드 단계에서 통과 확인(`handlerConsumes
+      > WorkspaceId` 의 `Function` 타입 완화로 최초 1회 타입에러 잡고 수정, `c1142bfc3`).
+      > **e2e**: 위 항목 참조 — 통과.
+- [x] `/ai-review` + Critical·Warning 해소 — **완료 (2026-08-08)**.
+      `review/code/2026/08/08/20_53_48` SUMMARY: Critical 0, WARNING 10. `resolution-applier`
+      가 코드 항목 9건 fix + spec 항목 1건(WARNING #10 (b) 규약 문구 확장) draft 위임.
+      `review/code/2026/08/08/20_53_48/RESOLUTION.md` 참조.
 - [ ] `/consistency-check --impl-done spec/5-system/1-auth.md`
 
 ## Rationale
