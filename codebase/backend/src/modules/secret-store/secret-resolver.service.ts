@@ -57,7 +57,11 @@ export class SecretResolverService implements OnModuleInit {
     if (!isSecretRef(ref)) {
       // SS-SE-05: plaintext 를 에러 메시지·로그에 포함 금지.
       // ref 길이와 앞 8자(prefix) 만 포함 — 실제 값 미노출.
-      // (refStr: isSecretRef 가 value is string 타입가드이므로 false branch 에서 never 로 좁혀지는 것을 방지.)
+      // `isSecretRef` 가 `value is string` 타입가드라 이 false branch 에서 `ref` 는
+      // `never` 로 좁혀진다. `never` 는 bottom type 이라 `string` 에 그대로 대입되므로
+      // 캐스트가 필요 없다 — 종전의 `as unknown as string` 은
+      // no-unnecessary-type-assertion 이 지목한 대로 불필요했고, 제거해도
+      // `nest build` 가 통과한다(2026-08-09 lint 정리에서 실측 확인).
       const refStr: string = ref;
       throw new Error(
         `SecretResolverService: invalid ref format — spec/conventions/secret-store.md §1 형식 위반 (input length=${refStr.length}, starts_with=${JSON.stringify(refStr.slice(0, 8))}).`,

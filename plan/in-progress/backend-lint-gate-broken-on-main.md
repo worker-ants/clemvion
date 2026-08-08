@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: (unstarted)
+worktree: backend-lint-gate-b72fdd
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -118,6 +118,29 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 이로써 오늘 하루에 드러난 main 잠재 결함이 셋이다: audit 13건(`#1095` 해소) · backend lint
 79파일(본 plan) · frontend Gate C(해소). 셋 다 **Actions 꺼진 기간의 무검증 머지**가 뿌리다.
+
+## 부수 발견 — spec 파일이 타입체크되지 않는다 (별 항목, 이 PR 밖)
+
+`tsc --noEmit -p tsconfig.json` 으로 **전체 프로그램**을 타입체크하면 `*.spec.ts` /
+`*.e2e-spec.ts` 에 **선재 타입 에러 319줄**이 나온다(2026-08-09 실측, ai-review INFO 4 가
+규모까지 확인). 예: `execution-engine.service.spec.ts` · `integration-oauth.service.cafe24.spec.ts` ·
+`nodes/presentation/table/buttons.spec.ts`.
+
+**현재 게이트에서 안 잡히는 이유**: 실제 build 는 `nest build` = `tsconfig.build.json` 이고
+그 파일이 `test/` · `**/*spec.ts` 를 exclude 한다. jest 는 `ts-jest`/babel 경로라 타입을
+강제하지 않는다. 즉 **테스트 코드는 어떤 게이트에서도 타입체크되지 않는다.**
+
+이 저장소가 이미 학습한 클래스다 — 메모리 `feedback_type_guard_test_actually_runs`
+("`vitest run` = 타입 strip 이라 타입 테스트가 no-op", "build 가 spec.ts exclude").
+**타입 가드를 테스트로 고정해 두었는데 그 테스트가 타입체크되지 않으면 가드가 vacuous 하다**
+는 것이 이 갭의 실질 위험이다.
+
+- [ ] 319줄을 성격별로 분류 (진짜 결함 vs 테스트 mock 의 의도적 느슨함)
+- [ ] `tsc --noEmit` 을 게이트로 승격할지 판정 — 승격하면 319줄을 먼저 처분해야 한다
+- [ ] 승격하지 않기로 하면 **그 근거를 문서에 고정** (다음 사람이 같은 조사를 반복하지 않도록)
+
+> 이 PR 에서 하지 않는 이유: 이 PR 의 목적은 **eslint 게이트 복구**이고, `tsc` 게이트는
+> 별개 축이다. 319줄 처분을 여기 얹으면 이미 74파일인 diff 가 감당 불가가 된다.
 
 ## Rationale
 
