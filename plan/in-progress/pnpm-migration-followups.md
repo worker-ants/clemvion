@@ -1,10 +1,16 @@
 ---
-worktree: pnpm-migration-followups-b97d48
+worktree: (unstarted)
 started: 2026-06-20
 owner: developer
 ---
 
 # pnpm 마이그레이션 — 후속 과제
+
+> **상태 (2026-08-08 위생 정리)** — §1~§4 전부 머지 완료. `in-progress/` 에 남는 이유는
+> 문서 끝의 **사용자 액션 1건**뿐인데, 그것이 산문으로만 있어 이 plan 이 "0 open" 으로
+> 보이던 상태였다(Stop 훅 완료 nudge 오발화). 아래 §5 로 체크박스화했다.
+>
+> `worktree:` 를 `pnpm-migration-followups-b97d48` → `(unstarted)` 로 정정 (머지 후 회수됨).
 
 > npm → pnpm workspace 전환 PR(`build(deps): npm → pnpm workspace 모노레포 전환`)에서
 > 핵심 전환(매니페스트·lockfile·Docker·CI·하니스·문서)을 완료하고 build/unit/e2e 로 검증했다.
@@ -119,6 +125,21 @@ clean install(node_modules 전량 삭제 후 재설치) 기준 전 계층 green:
   일치(수동 동기화 목록의 silent drift 차단). 검증: 가드 pass + 주입 drift fail, harness 201 tests OK.
   /ai-review 1 Critical(compose 마스킹 정규식 unanchored → 주석 오판 false-negative)·2 Warning(base 태그
   앵커링·name≠dir 미검증) 앵커링 정규식 + 회귀 테스트로 fix.
-- **§1~§4 전체 완료(2026-07-16).** §3(node-linker=hoisted→isolated 전역 전환)까지 실행·검증 종료. 남은 것은
-  **사용자 액션 1건**뿐: 의존성 거버넌스 `deps-security-checks` 의 `config-guard`/`audit` job 을 main branch
-  protection required-check 로 등록(저장소 admin 설정 — 등록해야 실제 머지 차단). plan 이동은 이 1건 처리 후.
+- **§1~§4 전체 완료(2026-07-16).** §3(node-linker=hoisted→isolated 전역 전환)까지 실행·검증 종료.
+
+## 5. 남은 수동 조치 (repo Settings — 파일로 불가)
+
+**이 절이 본 plan 의 유일한 잔여다.** 사용자만 할 수 있어 `complete/` 이동을 막고 있다.
+
+- [ ] **`deps-security-checks` 의 `config-guard`/`audit` job 을 main branch protection
+      required-check 로 등록** — 저장소 admin 설정. 등록해야 실제 머지 차단이 된다.
+      워크플로 파일(`.github/workflows/deps-security-checks.yml`)은 이미 있으므로
+      남은 것은 등록뿐이다.
+      > **같은 성격의 요청이 한 건 더 있다** —
+      > [`deps-guard-hardening.md`](deps-guard-hardening.md) 의 `--frozen-lockfile` required-check
+      > 승격. **한 번에 같이 처리하는 것이 맞다**: 셋 다 같은 Settings 화면의 같은 목록이고,
+      > 하나만 등록하면 나머지 게이트는 계속 비차단으로 남는다.
+      >
+      > **주의 — 등록 전까지는 "가드가 있다" 가 곧 "차단된다" 가 아니다.** 이 저장소는
+      > Actions 가 2026-05-16 ~ 2026-08-06 꺼져 있어 그 사이 CI 게이트가 한 번도 돌지 않았고,
+      > `#1095` 에서 `pnpm audit` advisories 13건이 그 상태로 누적돼 있던 것이 드러났다.
