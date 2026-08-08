@@ -52,18 +52,56 @@ TEST WORKFLOW `lint` 스테이지가 실패해 발견했다. **그 브랜치의 
 >    truncated 값이었다. `npx eslint --format json` 으로 직접 재고 나서야 79파일/224건이
 >    드러났다. **wrapper 요약 숫자로 규모를 판단하지 말 것.**
 
+## ⚠️ 스코프 정정 (2026-08-09) — 게이트를 막던 것은 prettier 122건뿐이었다
+
+`codebase/backend` 의 lint 스크립트는 `eslint "{src,apps,libs,test}/**/*.ts"` 로
+**`--max-warnings` 가 없다** → **warning 은 게이트를 실패시키지 않는다.**
+`origin/main` 223건을 severity 로 분해하면:
+
+| severity | 건수 | 내역 |
+|---|---|---|
+| **error (차단)** | **122** | `prettier/prettier` 전부 |
+| warning (비차단) | 101 | `no-unnecessary-type-assertion` 54 · `no-unsafe-*` 45 · unused disable 2 |
+
+즉 **prettier 단계만으로 게이트는 열린다.** 이 문서가 처음에 "79파일/224건이 모든 backend
+PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중 122건이다. severity 를 안 보고
+메시지 총수로 규모를 말한 탓이며, 이 저장소가 반복 학습한 "요약 숫자로 판단하지 말라" 의
+같은 클래스다.
+
 ## 체크리스트
 
-- [ ] `origin/main` 에서 전수 재측정 (이 문서 숫자는 auth 브랜치 기준 — 그 브랜치의 1건을
-      뺀 78파일/223건이 main 값일 것으로 예상하되 **실측으로 확정**)
-- [ ] `prettier/prettier` 123건 — `npx prettier --write` 로 일괄. **eslint --fix 전면 적용
-      금지** (drive-by 로 로직 변경이 섞인 선례: `project_reaper_engine_dry_refactor_920`)
-- [ ] `@typescript-eslint/no-unnecessary-type-assertion` 54건 — 기계적 제거가 **안전한지
-      건별 확인**. 불필요해 보이는 assertion 이 실제로는 좁히기를 하고 있으면 타입 회귀다
-- [ ] `no-unsafe-*` 43건 — 판정 필요. 억제(`eslint-disable` + 근거) vs 타입 보강 택일
-- [ ] lint 통과 후 `run-test.sh lint` 로 wrapper 경로도 확인
-- [ ] TEST WORKFLOW (lint·unit·build·e2e) — 포맷 변경이 런타임에 영향 없음을 e2e 로 확인
+- [x] `origin/main` 에서 전수 재측정 — **78파일 / 223건** (예상치와 일치, 실측 확정)
+- [x] `prettier/prettier` 122건 — 51파일에 `prettier --write`. `eslint --fix` 전면 적용
+      금지 원칙 준수(drive-by 회피). **이것만으로 게이트 error 0**
+- [x] `@typescript-eslint/no-unnecessary-type-assertion` 54건 — 적용 후 **회귀 7건 발생,
+      전량 처분**. 규칙이 "불필요" 로 지목한 assertion 중 일부가 로드베어링이었다:
+      `Readonly` 해제 1 · `unknown` 좁히기 1(TS2339 ×3) · `.map()` literal widening 2 ·
+      `String()` 안전화 1(lint 만 잡음). 추가로 고아 import 6건.
+      widening 2건은 **억제 대신 더 나은 수정**(콜백 반환 타입 명시 · 형제와 같은
+      `as const`), 나머지는 복원 + 근거 주석 + `eslint-disable`
+- [x] `run-test.sh lint` wrapper 경로 확인 — **PASS (56s)**
+- [x] TEST WORKFLOW — lint PASS · unit PASS(88s) · build PASS(155s) · **e2e PASS(297s, 261 tests)**
 - [ ] `/ai-review` — scope 리뷰어가 "무관 변경" 으로 볼 수 있으므로 PR 본문에 선재 근거 인용
+- [ ] push + PR
+
+## 잔여 warning 47건 — 처분 방침 (이 PR 에서 하지 않는다)
+
+`no-unsafe-*` 45 + 기타 2. **비차단이므로 이 PR 의 목적(게이트 복구) 밖이다.** 45곳에
+억제/타입보강을 넣으면 판단이 들어간 변경이 45개 늘고 diff 만 커지는데 게이트에는 영향이 없다.
+
+착수 시 성격별로 갈릴 것 (2026-08-09 분석):
+
+| 위치 | 건수 | 성격 |
+|---|---|---|
+| `src/scripts/migrate-node-output-refs.ts` | 17 | 일회성 마이그레이션 스크립트의 동적 키 인덱싱 |
+| `external-interaction/idempotency.interceptor.ts` | 8 | `getResponse()` 제네릭 부재 → **타입 보강이 정답**(코드는 이미 `typeof` 런타임 방어 중) |
+| `triggers/triggers.service.ts` | 6 | 미타입 반환값 소비 |
+| `ai-agent/tool-providers/render-tool-provider.ts` | 6 | `unknown` 재귀 순회 → **정당한 unsafe, 억제 + 근거** |
+| 기타 5파일 | 8 | `m.query()` · iterator `.value` 등 |
+
+**`--max-warnings 0` 도입 여부**가 선행 결정이다 — 도입하지 않으면 이 47건은 계속 비차단이라
+정리 유인이 약하고, 도입하면 47건을 다 처분해야 게이트가 열린다. 그 결정 없이 부분 정리하는
+것은 값이 낮다.
 
 ## 같은 뿌리의 형제 결함 — frontend Gate C (2026-08-08 발견·해소)
 
