@@ -433,6 +433,7 @@ export class KnowledgeBaseController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
   async search(@WorkspaceId() workspaceId: string, @Body() body: RagSearchDto) {
     return this.ragSearchService.search(
       body.query,
