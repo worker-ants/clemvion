@@ -59,8 +59,12 @@ export const WorkspaceId = createParamDecorator(extractWorkspaceId);
  * 추가로 기억해야 하는 별도 데코레이터(opt-in 재도입)가 아니라 기존 사용 여부의 reflection 이다.
  */
 export function handlerConsumesWorkspaceId(
+  // `ExecutionContext.getClass()` / `.getHandler()` 는 각각 `Type<unknown>` / `Function`
+  // 을 반환한다(Nest 코어 시그니처) — 좁은 함수 타입을 받으면 `context.getHandler()` 를
+  // 그대로 넘길 때 tsc 가 거부한다(빌드에서만 드러남, eslint 단독으론 미검출 — 2026-08-08
+  // e2e 실측).
   controllerClass: object,
-  handler: (...args: unknown[]) => unknown,
+  handler: Function, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
 ): boolean {
   const methodName = handler.name;
   if (!methodName) return false;
