@@ -14,6 +14,10 @@ export const ROLES_KEY = 'roles';
  * 여러 역할이 주어지면 그중 하나라도 충족하면 통과.
  *
  * 사용 예: `@Roles('editor')` — Editor 이상(Editor/Admin/Owner) 허용
+ *
+ * **역할 계층 비교만** 통제한다. 워크스페이스 멤버십 검증은 이 데코레이터와 무관하게
+ * 항상 수행되므로, "조회 엔드포인트라 `@Roles()` 를 안 붙였다" 가 멤버십 우회로
+ * 이어지지 않는다 (아래 `RolesGuard` 주석 참조).
  */
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
@@ -30,11 +34,41 @@ interface RequestWithUser {
 }
 
 /**
- * 워크스페이스 컨텍스트(`X-Workspace-Id` 헤더 또는 JWT)에서 사용자의 역할을 조회해
- * 라우트의 최소 요구 역할과 비교한다.
+ * 워크스페이스 컨텍스트에서 사용자의 멤버십·역할을 검증한다.
+ * `APP_GUARD` 로 전역 등록되어 모든 라우트를 통과한다 (`app.module.ts`).
  *
- * - `@Roles()`가 없는 라우트는 자동 통과 (default Allow).
- * - 사용자가 워크스페이스 멤버가 아니면 거부.
+ * ## 두 검사는 독립이다
+ *
+ * - **멤버십 검사** — 라우트의 `@Roles()` 유무와 **무관하게** 수행한다.
+ * - **역할 계층 검사** — `@Roles()` 가 있을 때만 수행한다.
+ *
+ * 종전에는 `requiredRoles` 가 비면 멤버십 조회 **이전에** `return true` 했다. 그 결과
+ * `@Roles()` 없이 `@WorkspaceId()` 를 쓰는 라우트(2026-08-08 실측 222건 중 73건)에서
+ * 인증된 사용자가 `X-Workspace-Id` 헤더만 위조해 타 워크스페이스 리소스에 접근할 수
+ * 있었다(cross-tenant). 멤버십을 데코레이터에서 분리해 이 클래스를 구조적으로 닫는다 —
+ * 라우트마다 사람이 데코레이터를 기억하는 opt-in 모델은 이미 최소 2회 누락됐다.
+ * 근거·전수 목록: `spec/data-flow/12-workspace.md` §Rationale "멤버십 검증은 가드
+ * 1곳에서 — `@Roles()` 와 무관".
+ *
+ * ## 헤더가 없으면 재검증하지 않는다
+ *
+ * 워크스페이스 컨텍스트는 **header-first** 다 — `X-Workspace-Id` 가 있으면 그 값,
+ * 없으면 `request.user.workspaceId`(토큰 클레임). 후자는 `jwt.strategy` 가 **이미
+ * 멤버십을 검증해** 채운 값이므로 재조회가 불요하다. 따라서 검증이 필요한 유일한
+ * 경로는 **헤더가 토큰 확정값을 덮어쓸 때**이며, 그 경우에만 DB 를 왕복한다.
+ *
+ * 이는 header-first 를 유지한다 — 기각된 token-first(헤더 완전 무시)로의 회귀가
+ * 아니다 (`12-workspace.md` §Rationale "URL slug = FE 라우팅 SoT").
+ *
+ * ## 대상 제외 (전역 가드라 반드시 보존)
+ *
+ * - `@Public()` 라우트·`request.user` 부재(미인증) — 인증 판정은 `JwtAuthGuard` 소관
+ * - 워크스페이스 컨텍스트가 없는 라우트 — 검증 대상이 없다
+ *
+ * 거부는 `false` 반환(= Nest 기본 `ForbiddenException`, 403)이다. 전용 error code 를
+ * 붙이지 않는 이유: `@Roles()` 라우트의 비멤버 거부도 종전부터 코드 없는 403 이라,
+ * 새 경로에만 코드를 붙이면 **동일한 실패가 `@Roles()` 유무에 따라 다른 body** 를
+ * 내게 된다. 가드 거부에 코드를 부여하려면 전 경로를 함께 바꿔야 한다(별도 작업).
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -48,26 +82,37 @@ export class RolesGuard implements CanActivate {
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
-    }
+    const needsRoleCheck = !!requiredRoles && requiredRoles.length > 0;
 
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const userId = request.user?.sub;
-    if (!userId) return false;
 
-    const headerWorkspaceId = request.headers['x-workspace-id'];
-    const workspaceId =
-      (Array.isArray(headerWorkspaceId)
-        ? headerWorkspaceId[0]
-        : headerWorkspaceId) || request.user?.workspaceId;
-    if (!workspaceId) return false;
+    // 미인증 — 인증 판정은 JwtAuthGuard 소관. 역할을 요구하는 라우트만 여기서 막는다.
+    if (!userId) return !needsRoleCheck;
+
+    const rawHeader = request.headers['x-workspace-id'];
+    const headerWorkspaceId = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+    const tokenWorkspaceId = request.user?.workspaceId;
+    const workspaceId = headerWorkspaceId || tokenWorkspaceId;
+
+    // 워크스페이스 컨텍스트 부재 — 검증 대상이 없다.
+    if (!workspaceId) return !needsRoleCheck;
+
+    // 헤더가 토큰 확정값을 덮어쓴 경우에만 멤버십이 미검증 상태다.
+    // (`jwt.strategy` 가 토큰 클레임의 멤버십을 이미 검증해 두었다.)
+    const membershipUnverified =
+      !!headerWorkspaceId && headerWorkspaceId !== tokenWorkspaceId;
+
+    if (!needsRoleCheck && !membershipUnverified) return true;
 
     const role = await this.workspacesService.getMemberRole(
       workspaceId,
       userId,
     );
+    // 비멤버 — @Roles() 유무와 무관하게 차단한다.
     if (!role) return false;
+
+    if (!needsRoleCheck) return true;
 
     const userLevel = ROLE_HIERARCHY[role] || 0;
     return requiredRoles.some(

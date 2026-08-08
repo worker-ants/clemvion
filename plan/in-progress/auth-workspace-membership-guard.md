@@ -206,6 +206,17 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       다르면 멤버십 검증)은 `data-flow/12-workspace.md` Rationale 이 **기각한 token-first
       (헤더 완전 무시)와 다르다.** header-first 는 유지된다. 구분을 적어두지 않으면 다음
       리뷰가 기각된 대안의 재도입으로 오독한다
+- [ ] **`@ApiForbiddenResponse` 부착 + `swagger.md §5-4` 규약 확장** (2차 impl-prep W1) —
+      규약(`spec/conventions/swagger.md:322`)은 "`@Roles(...)` 가 붙은 엔드포인트는
+      `@ApiForbiddenResponse` 도 추가" 로 **`@Roles()` 를 전제로** 적혀 있다. 이 fix 후에는
+      `@WorkspaceId()` 만 쓰는 라우트도 403 을 낼 수 있어 **전제가 깨진다** → 그대로 두면
+      OpenAPI 문서에서 403 이 계속 누락된다.
+      2파트로 갈린다: **(a) 데코레이터 부착 = 코드**(developer), **(b) §5-4 문구를
+      `@WorkspaceId()` 소비 라우트 전체로 확장 = `spec/conventions/` 편집**(planner 트랙).
+      (b) 는 신규 요구를 담으므로 `eia-context-schema-followups` 가 확정한 경계상 "동반 SoT
+      sync" 가 아니다 → **별 planner 턴 + `--spec` 필요**. 처리 방식은 사용자 판정
+      (이 PR 에 planner amendment 로 묶기 vs 후속 plan 분리).
+      `--impl-done` 대상에 `spec/conventions/swagger.md` 포함할 것.
 - [ ] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
       `PROJECT.md §e2e 작성 가이드` 의 e2e 대상)
 - [ ] TEST WORKFLOW (lint / unit / build / e2e)
@@ -217,6 +228,13 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
 **왜 P0 인가.** cross-tenant 기밀성 침해이고, `rotateBotToken` 은 열람을 넘어 **채널 탈취급
 mutation** 이다. `origin/main` 에 살아 있음을 실측 확인했다(이번 브랜치가 만든 것 아님).
 
-**왜 spec 변경이 없나.** §3.3·§3.2 가 이미 멤버십·역할 검증을 요구한다. 구현이 그 계약을
-어긴 것이라 developer 트랙에서 닫는다. 단 §3.2 대조 결과 **매트릭스에 없는 리소스**
-(`edges`·`nodes`·`notifications` 등)가 나오면 그건 planner 위임 대상이다 — 그 시점에 분리한다.
+**왜 spec 변경이 없나 (본 plan 기준).** §3.3·§3.2 가 이미 멤버십·역할 검증을 요구한다. 구현이
+그 계약을 어긴 것이라 developer 트랙에서 닫는다. spec 6곳의 **거짓 서술** 정정은 별 planner
+턴에서 이미 처리했다(`d194fd72e`) — 그건 이 plan 의 `spec_impact` 가 아니라 draft 쪽 소관이다.
+
+~~단 §3.2 대조 결과 **매트릭스에 없는 리소스**(`edges`·`nodes`·`notifications` 등)가 나오면
+그건 planner 위임 대상이다.~~ → **해소 (2026-08-08, 2차 impl-prep INFO 2 + 직접 실측)**:
+`spec/data-flow/11-workflow.md:216` 외부 의존 표가 "Auth / Workspace | RBAC 검사 |
+**editor 이상이 CRUD 가능**" 으로 워크플로우 그래프 리소스를 이미 커버한다 → `edges`·`nodes`
+의 `editor` 판정에 근거가 있고 **planner 위임 불필요**. `notifications` 는 user-scoped 로
+판정돼 `@Roles()` 대상이 아니다(위 체크리스트). 즉 매트릭스 공백은 없었다.
