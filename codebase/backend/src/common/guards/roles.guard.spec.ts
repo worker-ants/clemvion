@@ -12,7 +12,7 @@ import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
  */
 function makeContext(opts: {
   userId?: string;
-  headerWorkspaceId?: string;
+  headerWorkspaceId?: string | string[];
   tokenWorkspaceId?: string;
   handler?: (...args: unknown[]) => unknown;
 }): ExecutionContext {
@@ -215,16 +215,12 @@ describe('RolesGuard', () => {
   describe('헤더 배열 정규화', () => {
     it('중복 헤더(배열)면 첫 값을 쓰고 그 값으로 멤버십을 검증한다', async () => {
       const { guard, getMemberRole } = buildGuard(null);
-      const ctx = {
-        switchToHttp: () => ({
-          getRequest: () => ({
-            user: { sub: 'attacker', workspaceId: 'own-ws' },
-            headers: { 'x-workspace-id': ['victim-ws', 'decoy-ws'] },
-          }),
-        }),
-        getHandler: () => undecorated,
-        getClass: () => class Dummy {},
-      } as unknown as ExecutionContext;
+      const ctx = makeContext({
+        userId: 'attacker',
+        headerWorkspaceId: ['victim-ws', 'decoy-ws'],
+        tokenWorkspaceId: 'own-ws',
+        handler: undecorated,
+      });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
       expect(getMemberRole).toHaveBeenCalledWith('victim-ws', 'attacker');
     });
