@@ -149,6 +149,11 @@ export class RetryTurnService {
 
     const outputData: Record<string, unknown> = nodeExec.outputData ?? {};
     const output = (outputData.output ?? {}) as Record<string, unknown>;
+    // `output` 이 `Record<string, unknown>` 이라 `output.error` 는 `unknown` 이고,
+    // 이 assertion 이 아래 `.details.retryable`/`.retryAfterSec` 접근을 가능하게 한다 —
+    // 제거하면 타입이 `{}` 로 좁혀져 TS2339 3건으로 깨진다.
+    // no-unnecessary-type-assertion 의 오탐이며 `nest build` 로 반증됐다.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const errorObj = (output.error ?? undefined) as
       | { details?: { retryable?: unknown; retryAfterSec?: unknown } }
       | undefined;
@@ -229,7 +234,7 @@ export class RetryTurnService {
         executionId,
         nodeId: nodeExec.nodeId,
         status: NodeExecutionStatus.RUNNING,
-        inputData: seededInput as Record<string, unknown>,
+        inputData: seededInput,
         parentNodeExecutionId: nodeExec.parentNodeExecutionId ?? null,
       });
       spawned = await manager.save(NodeExecution, fresh);
@@ -878,8 +883,7 @@ export class RetryTurnService {
     if (lastNodeId) {
       savedExecution.outputData =
         (context.nodeOutputCache[lastNodeId] as
-          | Record<string, unknown>
-          | undefined) ?? {};
+          Record<string, unknown> | undefined) ?? {};
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
         savedExecution.finishedAt.getTime() -

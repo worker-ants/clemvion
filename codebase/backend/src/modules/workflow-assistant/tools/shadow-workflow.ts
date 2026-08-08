@@ -47,11 +47,7 @@ export interface ShadowSnapshot {
 }
 
 export type ShadowToolName =
-  | 'add_node'
-  | 'update_node'
-  | 'remove_node'
-  | 'add_edge'
-  | 'remove_edge';
+  'add_node' | 'update_node' | 'remove_node' | 'add_edge' | 'remove_edge';
 
 export interface ShadowToolCall {
   name: ShadowToolName;

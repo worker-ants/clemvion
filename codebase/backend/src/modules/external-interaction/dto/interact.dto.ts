@@ -31,7 +31,7 @@ export type InteractCommand = (typeof INTERACT_COMMANDS)[number];
 export class InteractDto {
   /** 명령 종류. WS 의 `execution.<command>` 와 1:1 매핑. */
   @ApiProperty({ enum: INTERACT_COMMANDS, example: 'submit_form' })
-  @IsIn(INTERACT_COMMANDS as unknown as string[])
+  @IsIn(INTERACT_COMMANDS)
   command: InteractCommand;
 
   /**

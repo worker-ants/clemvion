@@ -105,6 +105,10 @@ export function describeFetchError(err: unknown): string {
       return `${err.message} ← cause=[unserializable object]`;
     }
   }
+  // 위 `typeof cause === 'object'` 분기가 객체를 걸러냈지만 TS 는 `unknown` 에서
+  // object 를 배제하는 방향으로 좁혀주지 않는다. 이 assertion 이 `String()` 을 안전하게
+  // 만들며, 제거하면 no-base-to-string 이 발화한다(컴파일은 통과 — lint 만 잡는다).
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   return `${err.message} ← cause=${String(cause as string | number | boolean | bigint | symbol | null | undefined)}`;
 }
 

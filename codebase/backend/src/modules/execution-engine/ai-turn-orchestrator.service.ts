@@ -490,15 +490,13 @@ export class AiTurnOrchestrator {
     // the canonical NodeHandlerOutput populated when the handler returned.
     const structured = context.structuredOutputCache?.[node.id];
     const structuredOutput = structured?.output as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const structuredConfig = structured?.config ?? undefined;
     // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — handler may set
     // `meta.interactionType: 'ai_form_render'` when render_form blocked the
     // first turn. Fall back to the regular chat path otherwise.
     const structuredMeta = structured?.meta as
-      | { interactionType?: string }
-      | undefined;
+      { interactionType?: string } | undefined;
     const initialInteractionType: WaitingInteractionType =
       structuredMeta?.interactionType === 'ai_form_render'
         ? 'ai_form_render'
@@ -909,11 +907,9 @@ export class AiTurnOrchestrator {
       const nextResumeState = adaptedNext._resumeState as ResumeState;
 
       const adaptedOutput = adaptedNext.output as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const adaptedConfig = (adaptedNext.config ?? undefined) as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const nextConv = buildConversationConfigFromOutput(
         adaptedOutput,
         adaptedConfig,
@@ -963,8 +959,7 @@ export class AiTurnOrchestrator {
       // `'ai_form_render'` when render_form blocked the turn. Fall back to
       // `'ai_conversation'` for the normal multi-turn chat path.
       const handlerMeta = adaptedNext.meta as
-        | { interactionType?: string }
-        | undefined;
+        { interactionType?: string } | undefined;
       const nextInteractionType: WaitingInteractionType =
         handlerMeta?.interactionType === 'ai_form_render'
           ? 'ai_form_render'
@@ -1516,11 +1511,9 @@ export class AiTurnOrchestrator {
           'AI turn 종료 처리(FAILED)',
         );
         const errOutput = nodeExec.outputData?.output as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const errFromOutput = errOutput?.error as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const fromOutputMessage =
           typeof errFromOutput?.message === 'string'
             ? errFromOutput.message

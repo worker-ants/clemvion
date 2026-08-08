@@ -576,10 +576,7 @@ export class WebsocketService {
     if (ctx.triggerId) additions.triggerId = ctx.triggerId;
     if (ctx.workflowId) additions.workflowId = ctx.workflowId;
     if (ctx.chatChannel) {
-      additions.chatChannel = sanitizePayloadForWs(ctx.chatChannel) as Record<
-        string,
-        unknown
-      >;
+      additions.chatChannel = sanitizePayloadForWs(ctx.chatChannel);
     }
     if (Object.keys(additions).length === 0) return wireEnvelope;
     return { ...wireEnvelope, ...additions };

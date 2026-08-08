@@ -338,9 +338,7 @@ const RE_ISOLATE_DISPOSED = /Isolate was disposed/i;
 // narrow union so LEGACY_TO_NORMALIZED below is an *exhaustive* Record over it —
 // adding a new internal code without a public mapping becomes a compile error.
 type CodeNodeInternalErrorCode =
-  | 'EXECUTION_TIMEOUT'
-  | 'EXECUTION_MEMORY_EXCEEDED'
-  | 'CODE_RUNTIME_ERROR';
+  'EXECUTION_TIMEOUT' | 'EXECUTION_MEMORY_EXCEEDED' | 'CODE_RUNTIME_ERROR';
 
 // Normalised mapping table for internal (legacy) → public error codes (W8 —
 // single place to add new codes; eliminates the triple-ternary chain in

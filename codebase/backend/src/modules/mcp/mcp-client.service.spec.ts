@@ -521,8 +521,7 @@ function readHeaders(
   options: Record<string, unknown>,
 ): Record<string, string | undefined> {
   const requestInit = options.requestInit as
-    | { headers?: HeadersInit }
-    | undefined;
+    { headers?: HeadersInit } | undefined;
   const raw = requestInit?.headers;
   if (!raw) return {};
   const out: Record<string, string | undefined> = {};

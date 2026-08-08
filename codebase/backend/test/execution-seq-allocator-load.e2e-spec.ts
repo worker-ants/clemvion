@@ -185,7 +185,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
 
       // throughput 측정 보고 + 회귀 가드. 파이프라인 INCR 동시성으로 로컬/도커망
       // Redis 는 수천 events/s 가 정상 — 1000/s 목표 대비 큰 여유. (criterion: 1000 events/s)
-      // eslint-disable-next-line no-console
+
       console.log(
         `${LOG_PREFIX} ${ALLOC_COUNT} allocations across 2 instances in ${elapsedMs.toFixed(
           1,
@@ -220,7 +220,7 @@ describe('ExecutionSeqAllocator 분산 monotonic 부하 repro (e2e, real Redis)'
       // median 으로만 평가한다(아래 expect). p95 는 분포 가시성을 위한 로그값.
       const p95 = sorted[Math.floor(sorted.length * P95_PERCENTILE)];
       const avg = latenciesMs.reduce((s, v) => s + v, 0) / latenciesMs.length;
-      // eslint-disable-next-line no-console
+
       console.log(
         `${LOG_PREFIX} single-instance next() latency over ${LATENCY_SAMPLE_COUNT} samples: ` +
           `median=${median.toFixed(3)}ms avg=${avg.toFixed(

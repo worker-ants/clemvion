@@ -603,8 +603,7 @@ export function validateAiAgentConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
   const errors: string[] = [];
   const mode = ((c.mode as string) ?? 'single_turn') as
-    | 'single_turn'
-    | 'multi_turn';
+    'single_turn' | 'multi_turn';
 
   if (mode === 'multi_turn') {
     const maxTurns = c.maxTurns;

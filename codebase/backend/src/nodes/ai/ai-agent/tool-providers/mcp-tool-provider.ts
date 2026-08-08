@@ -933,8 +933,7 @@ export class McpToolProvider implements AgentToolProvider {
     // refactor M-6: insecure-URL escape hatch 는 McpClientService 가 단일 source(`mcp.allowInsecureUrl`).
     assertHttpsUrl(url, this.mcpClient.allowInsecureUrl);
     const defaultHeaders = creds.default_headers as
-      | Record<string, string>
-      | undefined;
+      Record<string, string> | undefined;
 
     if (integration.authType === 'bearer_token') {
       const token = creds.token;

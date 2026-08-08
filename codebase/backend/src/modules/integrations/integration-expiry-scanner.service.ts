@@ -602,9 +602,7 @@ function isRefreshCapable(integration: Integration): boolean {
     return false;
   }
   const creds = integration.credentials as
-    | Record<string, unknown>
-    | null
-    | undefined;
+    Record<string, unknown> | null | undefined;
   const rt = creds?.refresh_token;
   return typeof rt === 'string' && rt.length > 0;
 }

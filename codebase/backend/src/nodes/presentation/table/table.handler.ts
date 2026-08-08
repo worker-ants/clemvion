@@ -240,7 +240,7 @@ export class TableHandler implements NodeHandler {
       // 전체 값 직렬화는 운영 로그를 통한 민감 정보 유출 경로가 된다 (Review INFO #4).
       const sourceKeys =
         ctx.$sourceItem && typeof ctx.$sourceItem === 'object'
-          ? Object.keys(ctx.$sourceItem as Record<string, unknown>)
+          ? Object.keys(ctx.$sourceItem)
           : typeof ctx.$sourceItem;
       const varKeys =
         ctx.$var && typeof ctx.$var === 'object'

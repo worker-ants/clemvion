@@ -391,7 +391,7 @@ export class AuthConfigsService {
       const range = this.parseIp(entry);
       if (!range || range.isV4 !== client.isV4) return false;
       try {
-        return client.addr.isInSubnet(range.addr as never);
+        return client.addr.isInSubnet(range.addr);
       } catch {
         return false;
       }

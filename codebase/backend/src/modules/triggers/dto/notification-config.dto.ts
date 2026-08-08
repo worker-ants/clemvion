@@ -102,7 +102,7 @@ export class NotificationConfigDto {
     ],
   })
   @IsArray()
-  @IsIn(NOTIFICATION_EVENT_TYPES as unknown as string[], { each: true })
+  @IsIn(NOTIFICATION_EVENT_TYPES, { each: true })
   events: NotificationEventType[];
 
   /** HMAC 서명 설정. */

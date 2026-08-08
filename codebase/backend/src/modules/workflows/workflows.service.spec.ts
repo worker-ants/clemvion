@@ -2172,8 +2172,7 @@ describe('WorkflowsService', () => {
       const nodeInsert = (
         mockTransactionManager.insert as jest.Mock
       ).mock.calls.find(([entity]) => entity === Node)?.[1] as
-        | Array<{ label: string; config: Record<string, unknown> }>
-        | undefined;
+        Array<{ label: string; config: Record<string, unknown> }> | undefined;
       return nodeInsert?.find((n) => n.label === label);
     };
 

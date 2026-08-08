@@ -39,8 +39,7 @@ function makeContext(
  */
 function getWatermark(state: Record<string, unknown>): number | undefined {
   const ns = state.memoryState as
-    | { lastExtractionTurnSeq?: number }
-    | undefined;
+    { lastExtractionTurnSeq?: number } | undefined;
   return ns?.lastExtractionTurnSeq;
 }
 

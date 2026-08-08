@@ -10,18 +10,10 @@ import {
 import { KnowledgeBase } from './knowledge-base.entity';
 
 export type EmbeddingStatus =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'error'
-  | 'failed';
+  'pending' | 'processing' | 'completed' | 'error' | 'failed';
 
 export type GraphExtractionStatus =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'error'
-  | 'failed';
+  'pending' | 'processing' | 'completed' | 'error' | 'failed';
 
 @Entity('document')
 export class Document {

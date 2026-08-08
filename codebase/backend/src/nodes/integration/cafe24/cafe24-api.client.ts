@@ -371,7 +371,7 @@ export class Cafe24ApiClient {
     return withIntegrationLock(integration.id, async () => {
       let creds: Cafe24Credentials;
       try {
-        creds = (integration.credentials ?? {}) as Cafe24Credentials;
+        creds = integration.credentials ?? {};
         this.assertCredentials(creds);
       } catch (err) {
         // assertCredentials 가 throw 하는 경로도 테스트 결과로 변환해야

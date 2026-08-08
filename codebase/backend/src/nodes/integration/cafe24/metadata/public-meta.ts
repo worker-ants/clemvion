@@ -70,8 +70,7 @@ export interface PublicCafe24OperationPlanned {
 }
 
 export type PublicCafe24Operation =
-  | PublicCafe24OperationSupported
-  | PublicCafe24OperationPlanned;
+  PublicCafe24OperationSupported | PublicCafe24OperationPlanned;
 
 export interface PublicCafe24Extras {
   operationsByResource: Record<

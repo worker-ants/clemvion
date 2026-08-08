@@ -953,8 +953,7 @@ export class AiTurnExecutor {
     );
 
     let blockingFormRender:
-      | { toolCallId: string; formConfig: Record<string, unknown> }
-      | undefined;
+      { toolCallId: string; formConfig: Record<string, unknown> } | undefined;
 
     for (const { result: execResult, trace } of batchResults) {
       args.toolCallTraces.push(trace);
@@ -2070,12 +2069,10 @@ export class AiTurnExecutor {
       // 미저장 시 turn2+ recall 이 워크스페이스 기본 embedding config 로 silent 폴백해
       // 저장·회수 차원 불일치(spec §3 불변식 위반)를 유발한다. 매 turn 재적용.
       embeddingModelConfigId: config.embeddingModelConfigId as
-        | string
-        | undefined,
+        string | undefined,
       summaryModelConfigId: config.summaryModelConfigId as string | undefined,
       extractionModelConfigId: config.extractionModelConfigId as
-        | string
-        | undefined,
+        string | undefined,
       contextInjectionMode: config.contextInjectionMode,
       workspaceId,
       executionId: context.executionId,
@@ -2509,8 +2506,7 @@ export class AiTurnExecutor {
     const messageSource: ResumableMessageSource =
       options?.source ?? 'ai_message';
     const pendingFormToolCall = state.pendingFormToolCall as
-      | { toolCallId: string; formConfig: Record<string, unknown> }
-      | undefined;
+      { toolCallId: string; formConfig: Record<string, unknown> } | undefined;
     if (pendingFormToolCall && messageSource === 'form_submitted') {
       let formData: Record<string, unknown> = {};
       try {
@@ -2681,8 +2677,7 @@ export class AiTurnExecutor {
     // batch processes a `render_form` tool_use; checked after each batch to
     // break the loop and enter waiting_for_input (spec §6.1.d.ii / §6.2).
     let pendingFormBlock:
-      | { toolCallId: string; formConfig: Record<string, unknown> }
-      | undefined;
+      { toolCallId: string; formConfig: Record<string, unknown> } | undefined;
 
     const llmConfigId = state.llmConfigId as string | undefined;
     const llmConfig = await this.llmService.resolveConfig(
@@ -3117,8 +3112,7 @@ export class AiTurnExecutor {
     // the next ai_message). Mirrors presentation Form node's blocking flow.
     if (pendingFormBlock) {
       const interactionWrapper = waitingResult.output as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (interactionWrapper) {
         interactionWrapper.interaction = {
           type: 'ai_form_render',
@@ -3173,8 +3167,7 @@ export class AiTurnExecutor {
         toolCalls: resumeState.toolCalls ?? 0,
         ragSources: resumeState.ragSources ?? [],
         ragDiagnostics: resumeState.ragLastDiagnostics as
-          | RagDiagnostics
-          | undefined,
+          RagDiagnostics | undefined,
         allPresentations: resumeState.allPresentations ?? [],
       },
       undefined,
@@ -3293,8 +3286,7 @@ export class AiTurnExecutor {
     // 편집에서 `eslint --fix` 가 실제로 제거해 빌드를 깬 landmine 을 확인해 명시.)
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const retryDetails = (errorPayload?.details ?? undefined) as
-      | { retryable?: unknown }
-      | undefined;
+      { retryable?: unknown } | undefined;
     const isRetryable = retryDetails?.retryable === true;
     const retryState =
       isRetryable && retryStateSource

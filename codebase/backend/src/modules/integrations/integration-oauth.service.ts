@@ -1566,7 +1566,7 @@ export class IntegrationOAuthService {
       provider: 'cafe24',
       serviceType: 'cafe24',
       scopes,
-      providerMeta: providerMeta as unknown as Record<string, unknown>,
+      providerMeta: providerMeta,
     });
 
     // The cafe24-private strategy builds the (mall_id-dependent, comma-scoped)
@@ -1865,7 +1865,7 @@ export class IntegrationOAuthService {
       provider: 'makeshop',
       serviceType: 'makeshop',
       scopes,
-      providerMeta: providerMeta as unknown as Record<string, unknown>,
+      providerMeta: providerMeta,
     });
 
     // The makeshop strategy builds the OAuth 2.1 authorize URL (space-scoped +

@@ -93,7 +93,7 @@ export class NodeComponentRegistry {
   ): NodeComponentMetadata {
     const { validateConfig: _validateConfig, ...rest } = metadata;
     void _validateConfig;
-    return rest as NodeComponentMetadata;
+    return rest;
   }
 
   listCategories(): NodeCategoryMeta[] {

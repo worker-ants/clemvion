@@ -37,8 +37,7 @@ const NULL_KEY = 'null';
  * - `reembedding_required`: `reembed_status='idle'` 인데 dimension NULL (모델 변경 후 미재임베딩)
  */
 export type KbUnsearchableReason =
-  | 'reembedding_in_progress'
-  | 'reembedding_required';
+  'reembedding_in_progress' | 'reembedding_required';
 
 /**
  * `searchWithMeta` 반환 타입.
@@ -175,11 +174,15 @@ export class RagSearchService {
       // 호출부가 `status:"not_searchable"` 신호로 변환하게 한다 (§2.2).
       const unsearchable = kbs
         .filter((kb) => kb.embeddingDimension == null)
-        .map((kb) => ({
+        // 반환 타입을 명시해 삼항의 문자열 리터럴이 `string` 으로 넓어지지 않게 한다.
+        // 종전엔 `as KbUnsearchableReason` 로 같은 효과를 냈으나, 그 assertion 은
+        // no-unnecessary-type-assertion 이 오탐으로 지목한다(제거하면 widening 으로 컴파일 실패).
+        .map((kb): { kbId: string; reason: KbUnsearchableReason } => ({
           kbId: kb.id,
-          reason: (kb.reembedStatus === 'in_progress'
-            ? 'reembedding_in_progress'
-            : 'reembedding_required') as KbUnsearchableReason,
+          reason:
+            kb.reembedStatus === 'in_progress'
+              ? 'reembedding_in_progress'
+              : 'reembedding_required',
         }));
       const mergeUnsearchable = (
         r: SearchWithMetaResult,

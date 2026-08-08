@@ -248,10 +248,7 @@ async function main(): Promise<void> {
                   },
                 ],
                 responseFormat: 'json',
-                jsonSchema: GEN_JSON_SCHEMA as unknown as Record<
-                  string,
-                  unknown
-                >,
+                jsonSchema: GEN_JSON_SCHEMA,
                 temperature: 0,
               },
               undefined,

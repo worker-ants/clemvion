@@ -40,23 +40,20 @@ export function emptyOAuthEnvConfig(): OAuthEnvConfig {
   };
 }
 
-export const oauthConfig = registerAs(
-  'oauth',
-  (): OAuthEnvConfig => ({
-    cafe24: {
-      clientId: process.env.CAFE24_CLIENT_ID ?? '',
-      clientSecret: process.env.CAFE24_CLIENT_SECRET ?? '',
-    },
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-    },
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID ?? '',
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
-    },
-    stubModeRaw: process.env.OAUTH_STUB_MODE ?? '',
-    frontendUrl: process.env.FRONTEND_URL ?? '',
-    appUrl: process.env.APP_URL ?? '',
-  }),
-);
+export const oauthConfig = registerAs('oauth', (): OAuthEnvConfig => ({
+  cafe24: {
+    clientId: process.env.CAFE24_CLIENT_ID ?? '',
+    clientSecret: process.env.CAFE24_CLIENT_SECRET ?? '',
+  },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  },
+  github: {
+    clientId: process.env.GITHUB_CLIENT_ID ?? '',
+    clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+  },
+  stubModeRaw: process.env.OAUTH_STUB_MODE ?? '',
+  frontendUrl: process.env.FRONTEND_URL ?? '',
+  appUrl: process.env.APP_URL ?? '',
+}));

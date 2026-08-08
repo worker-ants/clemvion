@@ -25,10 +25,7 @@ import { ALERTS_EVALUATOR_QUEUE } from '../alerts/alerts-evaluator.service';
  * spec: spec/2-navigation/15-system-status.md §2.3
  */
 export type QueueGroup =
-  | 'execution'
-  | 'knowledge-base'
-  | 'integration'
-  | 'system';
+  'execution' | 'knowledge-base' | 'integration' | 'system';
 
 export interface MonitoredQueue {
   /** BullMQ 큐 이름. 각 큐 정의 모듈의 상수를 재사용한다 (중복 리터럴 금지). */

@@ -58,9 +58,7 @@ export const ALLOWED_QUERY_TYPES = [
 // 사라지는 것(@typescript-eslint/no-redundant-type-constituents)을 피하면서도
 // UI 가 명시하는 리터럴의 autocomplete 를 보존한다. 런타임/할당 호환은 `string` 과 동일.
 export type QueryType =
-  | (typeof ALLOWED_QUERY_TYPES)[number]
-  | (string & {})
-  | undefined;
+  (typeof ALLOWED_QUERY_TYPES)[number] | (string & {}) | undefined;
 
 const POOL_MAX_CONNECTIONS = 5;
 const POOL_IDLE_TIMEOUT_MS = 30_000;
@@ -500,8 +498,7 @@ export class DatabaseQueryHandler
   ): Promise<void> {
     if (typeof threadId !== 'number') return;
     let connection:
-      | Awaited<ReturnType<typeof mysqlCreateConnection>>
-      | undefined;
+      Awaited<ReturnType<typeof mysqlCreateConnection>> | undefined;
     try {
       connection = await mysqlCreateConnection({
         host: creds.host,

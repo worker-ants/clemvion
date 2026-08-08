@@ -270,9 +270,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       return { kind: 'skipped', skipReason: 'expired_install_timeout' };
     }
     const creds = integration.credentials as
-      | Record<string, unknown>
-      | null
-      | undefined;
+      Record<string, unknown> | null | undefined;
     const rt = creds?.refresh_token;
     if (typeof rt !== 'string' || rt.length === 0) {
       return { kind: 'skipped', skipReason: 'expired_no_refresh_token' };

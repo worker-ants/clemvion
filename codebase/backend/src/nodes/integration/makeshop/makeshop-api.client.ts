@@ -304,7 +304,7 @@ export class MakeshopApiClient {
     return withIntegrationLock(integration.id, async () => {
       let creds: MakeshopCredentials;
       try {
-        creds = (integration.credentials ?? {}) as MakeshopCredentials;
+        creds = integration.credentials ?? {};
         this.assertCredentials(creds);
       } catch (err) {
         return mapPingError(err);
