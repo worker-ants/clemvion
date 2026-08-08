@@ -355,8 +355,7 @@ describe('IntegrationOAuthService', () => {
         .catch((err: Error) => err);
       // findOne -> null inside transaction throws NotFoundException
       const ctx = (error as { context?: unknown }).context as
-        | { integrationId?: string }
-        | undefined;
+        { integrationId?: string } | undefined;
       expect(ctx?.integrationId).toBe('int-vanished');
     });
 

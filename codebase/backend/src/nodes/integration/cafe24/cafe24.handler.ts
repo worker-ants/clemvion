@@ -129,8 +129,7 @@ export class Cafe24Handler
     const operationId = config.operation as string;
     const fields = ((config.fields ?? {}) as Record<string, unknown>) || {};
     const pagination = (config.pagination ?? undefined) as
-      | { limit?: number; offset?: number; cursor?: string }
-      | undefined;
+      { limit?: number; offset?: number; cursor?: string } | undefined;
 
     // INT-US-05 — logUsage 호출 시 함께 보낼 API 식별 정보. operation lookup
     // 이전이라도 사용자 입력 (resource + operationId) 으로 catalog key 는 추정

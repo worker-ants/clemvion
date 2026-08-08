@@ -6,10 +6,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * `deriveBackgroundRunStatus` 에 분기가 없다 — 추후 확장 시 추가.
  */
 export type BackgroundRunStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed';
+  'pending' | 'running' | 'completed' | 'failed';
 
 export class BackgroundRunNodeExecutionDto {
   @ApiProperty({ description: 'NodeExecution UUID', format: 'uuid' })

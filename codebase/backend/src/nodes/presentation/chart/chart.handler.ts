@@ -40,8 +40,7 @@ export class ChartHandler implements NodeHandler {
   ): Promise<NodeHandlerOutput> {
     const xAxis = config.xAxis as { field: string };
     const yAxis = config.yAxis as
-      | { field: string; aggregation?: string }
-      | undefined;
+      { field: string; aggregation?: string } | undefined;
     const dataField = config.dataField as string | undefined;
 
     let inputArray: unknown[];

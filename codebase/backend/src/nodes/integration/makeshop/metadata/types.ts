@@ -15,12 +15,7 @@
  */
 
 export type MakeshopFieldType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'array'
-  | 'object'
-  | 'enum';
+  'string' | 'number' | 'boolean' | 'array' | 'object' | 'enum';
 
 export type MakeshopFieldLocation = 'path' | 'query' | 'body';
 
@@ -100,13 +95,7 @@ export interface MakeshopOperationMetadata {
 }
 
 export type MakeshopResource =
-  | 'shop'
-  | 'product'
-  | 'order'
-  | 'member'
-  | 'benefit'
-  | 'board'
-  | 'cpik';
+  'shop' | 'product' | 'order' | 'member' | 'benefit' | 'board' | 'cpik';
 
 export const MAKESHOP_RESOURCES: readonly MakeshopResource[] = [
   'shop',

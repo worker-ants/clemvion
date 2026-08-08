@@ -126,8 +126,7 @@ export function injectConversationContext<Target>(args: {
   };
 
   const scope = args.config.contextScope as
-    | ConversationContextScope
-    | undefined;
+    ConversationContextScope | undefined;
   if (!args.reader || !args.target || !scope || scope === 'none') {
     return {
       messages: args.messages,

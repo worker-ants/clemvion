@@ -177,9 +177,7 @@ export class AiMemoryManager {
       [];
     if (args.strategy === 'persistent' && this.agentMemoryService) {
       const evaluatedMemoryKey = args.config.memoryKey as
-        | string
-        | undefined
-        | null;
+        string | undefined | null;
       const scopeKey = this.agentMemoryService.resolveScopeKey(
         evaluatedMemoryKey,
         args.executionId,
@@ -209,8 +207,7 @@ export class AiMemoryManager {
             // 임베딩 (미지정이면 서비스가 워크스페이스 기본 embedding config 로 폴백).
             // 추출(저장) 경로도 같은 config 를 쓰므로 query/저장 임베딩 차원이 일치한다(§3).
             embeddingModelConfigId: args.config.embeddingModelConfigId as
-              | string
-              | undefined,
+              string | undefined,
           },
           { topK, threshold },
         );

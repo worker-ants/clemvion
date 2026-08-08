@@ -255,8 +255,7 @@ function extractElementValue(
   }
   // checkboxes → .selected_options?.map(o => o.value).join(',')
   const selectedOptions = element.selected_options as
-    | Array<{ value?: unknown }>
-    | undefined;
+    Array<{ value?: unknown }> | undefined;
   if (Array.isArray(selectedOptions) && selectedOptions.length > 0) {
     const vals = selectedOptions
       .map((o) => (typeof o.value === 'string' ? o.value : ''))

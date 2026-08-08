@@ -14,10 +14,7 @@ import { User } from '../../users/entities/user.entity';
 import { encryptedJsonTransformer } from '../services/credentials-transformer';
 
 export type IntegrationStatus =
-  | 'connected'
-  | 'expired'
-  | 'error'
-  | 'pending_install';
+  'connected' | 'expired' | 'error' | 'pending_install';
 
 @Entity('integration')
 @Unique('integration_workspace_name_unique', ['workspaceId', 'name'])

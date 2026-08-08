@@ -878,8 +878,7 @@ export class RetryTurnService {
     if (lastNodeId) {
       savedExecution.outputData =
         (context.nodeOutputCache[lastNodeId] as
-          | Record<string, unknown>
-          | undefined) ?? {};
+          Record<string, unknown> | undefined) ?? {};
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
         savedExecution.finishedAt.getTime() -

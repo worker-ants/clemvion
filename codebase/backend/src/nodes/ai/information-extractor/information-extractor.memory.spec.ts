@@ -341,8 +341,7 @@ describe('InformationExtractor persistent memory — multi-turn', () => {
     // 만 보장한다 (I12: watermark 는 memoryState sub-namespace 로 운반).
     expect(state.nodeId).toBe('ie-1');
     const memState = state.memoryState as
-      | { lastExtractionTurnSeq?: unknown }
-      | undefined;
+      { lastExtractionTurnSeq?: unknown } | undefined;
     expect(
       memState === undefined ||
         memState.lastExtractionTurnSeq === undefined ||

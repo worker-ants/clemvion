@@ -611,8 +611,7 @@ export function readExtractionWatermark(
 ): number | undefined {
   if (!resumeState) return undefined;
   const ns = resumeState.memoryState as
-    | { lastExtractionTurnSeq?: unknown }
-    | undefined;
+    { lastExtractionTurnSeq?: unknown } | undefined;
   if (ns && typeof ns.lastExtractionTurnSeq === 'number') {
     return ns.lastExtractionTurnSeq;
   }
@@ -688,13 +687,11 @@ export async function scheduleMemoryExtraction(
     // (노드 main 과 분리). 미설정이면 노드 llmConfigId → model → defaultModel 폴백
     // (§3·§6.1 단계 2.7·§12.12 재번복).
     extractionModelConfigId: args.config.extractionModelConfigId as
-      | string
-      | undefined,
+      string | undefined,
     // 저장 임베딩 출처 embedding ModelConfig id — 회수와 동일 config 를 써 query/
     // 저장 임베딩의 차원이 일치하게 한다 (§3).
     embeddingModelConfigId: args.config.embeddingModelConfigId as
-      | string
-      | undefined,
+      string | undefined,
     turns: snapshot,
     ttlDays,
   });

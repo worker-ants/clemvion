@@ -126,8 +126,7 @@ export class MakeshopHandler
     const operationId = config.operation as string;
     const fields = ((config.fields ?? {}) as Record<string, unknown>) || {};
     const pagination = (config.pagination ?? undefined) as
-      | { limit?: number; offset?: number }
-      | undefined;
+      { limit?: number; offset?: number } | undefined;
 
     // INT-US-05 — catalog key is derivable from user input before lookup;
     // method/path are filled once the operation metadata is resolved.

@@ -17,11 +17,7 @@
 export const DEFAULT_THREAD_ID = 'default' as const;
 
 export type ConversationTurnSource =
-  | 'presentation_user'
-  | 'ai_user'
-  | 'ai_assistant'
-  | 'ai_tool'
-  | 'system';
+  'presentation_user' | 'ai_user' | 'ai_assistant' | 'ai_tool' | 'system';
 
 /**
  * Valid `ConversationTurnSource` 값 집합 — `rehydrateConversationThread` 의

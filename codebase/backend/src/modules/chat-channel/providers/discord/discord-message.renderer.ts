@@ -416,8 +416,7 @@ function mapFieldTypeToHint(
 function renderVisualFallback(nodeType: string, payload: unknown): string {
   if (nodeType === 'chart') {
     const p = payload as
-      | { title?: string; series?: number[]; labels?: string[] }
-      | undefined;
+      { title?: string; series?: number[]; labels?: string[] } | undefined;
     if (!p) return '';
     const title = typeof p.title === 'string' ? `**${p.title}**\n` : '';
     const lines: string[] = [];
@@ -435,8 +434,7 @@ function renderVisualFallback(nodeType: string, payload: unknown): string {
   }
   if (nodeType === 'table') {
     const p = payload as
-      | { rows?: Array<Record<string, unknown>>; columns?: string[] }
-      | undefined;
+      { rows?: Array<Record<string, unknown>>; columns?: string[] } | undefined;
     if (!p?.rows || !p.columns) return '';
     const cols = p.columns.slice(0, 6);
     const header = cols.join(' | ');
@@ -448,8 +446,7 @@ function renderVisualFallback(nodeType: string, payload: unknown): string {
   }
   if (nodeType === 'carousel') {
     const p = payload as
-      | { items?: Array<{ title?: string; description?: string }> }
-      | undefined;
+      { items?: Array<{ title?: string; description?: string }> } | undefined;
     if (!p?.items) return '';
     return p.items
       .slice(0, 10)

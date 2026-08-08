@@ -32,15 +32,12 @@ function parseOptionalNumber(raw: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-export const mcpConfig = registerAs(
-  'mcp',
-  (): McpEnvConfig => ({
-    maxConcurrentConnections: parseOptionalNumber(
-      process.env.MCP_MAX_CONCURRENT_CONNECTIONS,
-    ),
-    connectTimeoutMs: parseOptionalNumber(process.env.MCP_CONNECT_TIMEOUT_MS),
-    allowInsecureUrl:
-      process.env.MCP_ALLOW_INSECURE_URL === 'true' ||
-      process.env.MCP_ALLOW_INSECURE_URL === '1',
-  }),
-);
+export const mcpConfig = registerAs('mcp', (): McpEnvConfig => ({
+  maxConcurrentConnections: parseOptionalNumber(
+    process.env.MCP_MAX_CONCURRENT_CONNECTIONS,
+  ),
+  connectTimeoutMs: parseOptionalNumber(process.env.MCP_CONNECT_TIMEOUT_MS),
+  allowInsecureUrl:
+    process.env.MCP_ALLOW_INSECURE_URL === 'true' ||
+    process.env.MCP_ALLOW_INSECURE_URL === '1',
+}));

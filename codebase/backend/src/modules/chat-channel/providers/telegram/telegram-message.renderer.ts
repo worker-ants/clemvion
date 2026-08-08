@@ -414,8 +414,7 @@ function renderButtons(
   //   - 'photo'    → v1 단계는 SSR 인프라 미도입 → fallback to text + warning 로그 (chat_channel_health 변경 없음)
   //   - 'auto'/미설정 → 노드별 휴리스틱 (chart/table → text, carousel → 카드별 imageUrl 분기)
   const nodeOutput = buttonConfig?.nodeOutput as
-    | { nodeType?: string; payload?: unknown; title?: string }
-    | undefined;
+    { nodeType?: string; payload?: unknown; title?: string } | undefined;
   const visualKind = nodeOutput?.nodeType;
   // legacy 'text_only' 가 DB 에 남아있는 경우 read-time normalize (DTO normalize 와 중복 안전망).
   const rawVisualNode = config.uiMapping?.visualNode;

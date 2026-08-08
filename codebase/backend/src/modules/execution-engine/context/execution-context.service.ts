@@ -169,8 +169,7 @@ export class ExecutionContextService {
     resolvedConfig: Record<string, unknown>,
   ): void {
     const context = this.contexts.get(key) as
-      | MutableExecutionContext
-      | undefined;
+      MutableExecutionContext | undefined;
     if (!context) {
       this.warnContextMissing('setEngineResolvedConfig', key, nodeId);
       return;

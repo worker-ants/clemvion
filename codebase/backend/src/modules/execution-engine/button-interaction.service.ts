@@ -43,8 +43,7 @@ import {
  * `buttonId` 를 읽지 않으므로 필드를 두지 않는다.
  */
 export type ButtonClickPayload =
-  | { type: 'button_click'; buttonId?: string }
-  | { type: string };
+  { type: 'button_click'; buttonId?: string } | { type: string };
 
 /**
  * 런타임 narrowing — payload 가 `button_click` 변형인지 판별한다. 가드가 false 면
@@ -81,10 +80,7 @@ export interface ButtonInteractionResolution {
 /** 통합 상호작용 형태 (CONVENTIONS §4.5 — `$node["X"].output.interaction.*`). */
 export interface StructuredInteraction {
   type:
-    | 'form_submitted'
-    | 'button_click'
-    | 'button_continue'
-    | 'message_received';
+    'form_submitted' | 'button_click' | 'button_continue' | 'message_received';
   data: Record<string, unknown>;
   receivedAt: string;
 }
@@ -482,8 +478,7 @@ export class ButtonInteractionService {
     // Resolve selected item for item-level buttons (e.g. carousel per-item buttons)
     const buttonItemMap = buttonConfig.buttonItemMap;
     const structuredOutputObj = structured?.output as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const outputItems = (structuredOutputObj?.items ??
       flatNodeOutput.items ??
       cleanNodeOutput.items) as unknown[] | undefined;

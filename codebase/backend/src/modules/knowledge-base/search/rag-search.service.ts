@@ -37,8 +37,7 @@ const NULL_KEY = 'null';
  * - `reembedding_required`: `reembed_status='idle'` 인데 dimension NULL (모델 변경 후 미재임베딩)
  */
 export type KbUnsearchableReason =
-  | 'reembedding_in_progress'
-  | 'reembedding_required';
+  'reembedding_in_progress' | 'reembedding_required';
 
 /**
  * `searchWithMeta` 반환 타입.

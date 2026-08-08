@@ -1166,8 +1166,7 @@ describe('ExecutionEngineService', () => {
     // 을 top-level 로 펼친 flat 표현(엔진 toEngineFlatShape 와 동형 — 즉
     // nodeOutputCache 가 보유하는 flat shape)을 findOneBy 가 반환하게 한다.
     const nestedOutput = rawPersisted.output as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const persistedOutput: Record<string, unknown> =
       nestedOutput && typeof nestedOutput === 'object'
         ? { ...rawPersisted, ...nestedOutput }
@@ -8338,8 +8337,7 @@ describe('ExecutionEngineService', () => {
       // (d) §7.5 — credential-strip 부분집합 `_resumeCheckpoint` 는 영속된다
       // (ai_agent 한정). 재시작 후 재개의 단일 진실.
       const checkpoint = outputData._resumeCheckpoint as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       expect(checkpoint).toBeDefined();
       // 안전 필드는 보존 (재구성에 필요).
       expect(checkpoint?.turnCount).toBe(1);
@@ -9695,8 +9693,7 @@ describe('ExecutionEngineService', () => {
       expect(processSpy).toHaveBeenCalledTimes(1);
       const stateArg = processSpy.mock.calls[0][1];
       const snapshot = stateArg.rawConfig as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       expect(snapshot).toBeDefined();
       // 노드 정의의 원본 config 가 state.rawConfig 로 보존되어 후속 turn 의
       // processMultiTurnMessage 가 일관되게 접근할 수 있다.
@@ -14912,8 +14909,7 @@ describe('ExecutionEngineService', () => {
         unknown
       >;
       const seededResumeState = seededOutput._resumeState as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       expect(seededResumeState).toMatchObject({
         partialResult: { email: 'a@b.c' },
         collectionRetryCount: 1,
@@ -16594,8 +16590,7 @@ describe('ExecutionEngineService', () => {
       expect(mockExecutionRepo.createQueryBuilder).toHaveBeenCalled();
       const setArg = mockExecutionRepo.createQueryBuilder.mock.results[0]?.value
         ?.set?.mock?.calls?.[0]?.[0] as
-        | { error?: { code?: string } }
-        | undefined;
+        { error?: { code?: string } } | undefined;
       expect(setArg?.error?.code).toBe('RESUME_INCOMPATIBLE_STATE');
     });
 
