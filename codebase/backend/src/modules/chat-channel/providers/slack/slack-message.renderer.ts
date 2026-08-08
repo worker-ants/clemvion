@@ -11,7 +11,6 @@ import {
   resolveLanguageHint,
   applyPlaceholders,
   resolveFormOpenLabel,
-  type LanguageLocale,
 } from '../../shared/language-hint-defaults';
 import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 

@@ -17,7 +17,6 @@ import {
   MakeshopAuthFailedError,
   MakeshopCallResult,
   MakeshopIncompleteCredentialsError,
-  MakeshopMethod,
   MakeshopRateLimitedError,
   MakeshopTransportFailedError,
 } from './makeshop-api.client.js';

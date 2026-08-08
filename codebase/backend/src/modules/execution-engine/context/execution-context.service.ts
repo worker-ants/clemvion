@@ -173,8 +173,7 @@ export class ExecutionContextService {
     // no-unnecessary-type-assertion 이 불필요하다고 지목하지만 `nest build` 로 반증됐다.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const context = this.contexts.get(key) as
-      | MutableExecutionContext
-      | undefined;
+      MutableExecutionContext | undefined;
     if (!context) {
       this.warnContextMissing('setEngineResolvedConfig', key, nodeId);
       return;

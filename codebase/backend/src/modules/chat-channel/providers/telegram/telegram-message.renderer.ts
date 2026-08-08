@@ -12,7 +12,6 @@ import {
   resolveLanguageHint,
   resolveSessionExpiredMessage,
   applyPlaceholders,
-  type LanguageLocale,
 } from '../../shared/language-hint-defaults';
 
 const logger = new Logger('ChatChannelTelegram');

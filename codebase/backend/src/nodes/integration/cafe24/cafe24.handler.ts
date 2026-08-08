@@ -17,7 +17,6 @@ import {
   Cafe24AuthFailedError,
   Cafe24CallResult,
   Cafe24IncompleteCredentialsError,
-  Cafe24Method,
   Cafe24RateLimitedError,
   Cafe24TransportFailedError,
 } from './cafe24-api.client.js';
