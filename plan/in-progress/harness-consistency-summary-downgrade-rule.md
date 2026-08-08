@@ -130,6 +130,35 @@ planner 턴을 기다리지 않으면 PR 을 올릴 수 없다.
       한 워크트리에서 후속 브랜치를 파는 것은 정상 절차다.
 - [ ] target 번들 조립 시 plan frontmatter 의 `spec_impact` 목록을 **folder dump 보다 우선**
       포함(19_30_39 INFO 2 제안). 지금은 알파벳순 폴더 dump 가 예산을 선점한다.
+
+      **2026-08-09 — 규모를 처음 정량화했다. 일부 스코프에서는 어떤 예산으로도 불가능하다.**
+      `auth-workspace-membership-guard` 의 `--impl-done` 에서 실측:
+
+      | 스코프 | 원본 번들 | diff 62KB 를 함께 담으려면 필요한 예산(ratio 0.60) | 결과 프롬프트 |
+      |---|---|---|---|
+      | `spec/5-system/` | **1,215,279 B** | ≈ 2.1 MB | **불가능** (사용 가능 한도 초과) |
+      | `spec/data-flow/` | 393,836 B | ≈ 760 KB | 709 KB — 겨우 가능 |
+
+      즉 `spec/5-system/`(18파일)은 **폴더 dump 와 diff 가 공존할 수 없다.** 이 저장소에서
+      가장 자주 쓰는 스코프인데, 기본 예산(262,144)에서는 **diff 가 항상 통째로 생략**된다
+      (실측: `handlerConsumesWorkspaceId` 등장 0회, 생략 목록에
+      `` `<git diff origin/main...HEAD -- code_areas>` `` 등재).
+
+      우회로 확인한 것:
+      - `CONSISTENCY_MAX_CONTEXT_SIZE` 상향 → 650,000 으로도 `5-system` 은 여전히 diff 생략
+      - `=0`(절단 해제) → diff 는 들어오지만 conventions(cafe24 카탈로그) 덤프까지 무제한이라
+        **4,063,415 B** 프롬프트. 사용 불가
+      - 스코프를 `spec/data-flow/` 로 좁히고 예산 800,000 → diff 15회 등장, 생략은
+        `related_specs` 보조 코퍼스 91개로 밀려남. **이번 세션은 이 조합으로 진행**
+
+      ⇒ 처방의 우선순위가 올라간다. `spec_impact` 우선 포함이 있으면 `5-system` 에서도
+      `1-auth.md`+`2-api-convention.md`(실제 대상 2개)만 싣고 diff 가 살아남는다.
+      **곁들여**: diff 는 target 번들의 마지막 청크라 **가장 먼저 잘린다** — 우선순위를
+      뒤집어 `spec_impact` 다음, folder dump 앞에 두는 편이 맞다.
+
+      > **관측 가능성은 작동했다.** `OMITTED_FILES_HEADING` 덕에 "diff 가 빠졌다" 를
+      > grep 한 번으로 확정할 수 있었다. 그게 없었다면 checker 5명이 구현을 못 본 채
+      > 낸 판정을 그대로 받았을 것이다 — 이 항목의 자매 처방이 실제로 값을 했다.
 - [x] **정렬이 사전순이라 두 자리 번호가 한 자리를 앞선다 — natural sort 로 교체** ✅ 2026-07-31
       (2026-07-28 실측, `review/consistency/2026/07/28/01_26_40` WARNING #6).
       위 "알파벳순 폴더 dump" 를 더 좁혀 진단한 것이다: `"1" < "2" < "4"` 이므로
