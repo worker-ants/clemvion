@@ -115,16 +115,71 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
 - `@Public` 라우트 / `request.user` 부재 → **skip** (인증 판정은 `JwtAuthGuard` 소관)
 - 워크스페이스 컨텍스트가 없는 라우트(`@WorkspaceId()` 미사용) → 종전대로 통과
 
+## ⛔ 차단 — `--impl-prep` BLOCK: YES (2026-08-08, `review/consistency/2026/08/08/18_47_21`)
+
+**구현 착수가 막혔다.** Critical 1건이고 근본 원인이 `spec/` 텍스트라 developer 권한 밖이다
+(CLAUDE.md: 구현 중 spec 변경 필요 시 developer 는 멈추고 project-planner 위임).
+
+### Critical — spec 5곳이 이 취약점을 "이미 차단됨" 으로 기정사실화
+
+코드 주석 2곳(`roles.guard.ts` docstring · `workspace.decorator.ts:16`)의 거짓 서술이
+**spec 레이어에도 복제**돼 있다. 직접 실측 확인:
+
+| 위치 | 서술 |
+|---|---|
+| `spec/data-flow/12-workspace.md:22` | "헤더 스푸핑은 RolesGuard 멤버십 검증이 403 으로 차단" |
+| `spec/data-flow/12-workspace.md:293` | "헤더 스푸핑(비멤버 워크스페이스 지정)은 `RolesGuard` 의 멤버십 검증이 403 으로 차단하므로" |
+| `spec/data-flow/12-workspace.md:317` | "`RolesGuard` 403 은 **무번복**이다" (Rationale 하드윈 선언) |
+| `spec/data-flow/12-workspace.md:322` | "헤더 스푸핑은 `RolesGuard` 가 이미 403 으로 차단한다" |
+| `spec/2-navigation/11-error-empty-states.md:72` | "헤더 스푸핑 등 실제 인가는 backend `RolesGuard` 403 이 담당" |
+
+> checker 는 4곳을 들었고 `:317` 은 실측에서 추가로 확인했다.
+>
+> **이것이 이 취약점이 오래 안 보인 구조적 이유다** — 코드·spec 양쪽이 "차단된다" 고
+> 적고 있어, 어느 레이어를 읽어도 갭이 드러나지 않았다.
+
+**판단이 갈리는 지점 (사용자/planner 결정)**: 본 PR 의 fix 가 완료되면 위 문장들은
+**사후적으로 참이 된다.** 따라서 (a) spec 을 건드리지 않고 구현으로 참을 만드는 것과
+(b) fix 착지 전까지 현황을 조건부로 반영하는 것 중 택일이다. checker 는 (b) 를 권고했다.
+`:317` 의 "무번복" 은 Rationale 하드윈 선언이라 (b) 를 택하면 그 표현 자체를 손봐야 한다.
+
+### 해소 경로
+
+- [ ] **project-planner 턴** — 위 5곳 처분. 이 plan 은 그동안 착수 불가.
+      우회(`DISABLE_CONSISTENCY_CHECK=1`) 금지 — 이 저장소가 이미 학습한 실패 패턴이다.
+
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/5-system/1-auth.md`
+- [x] `/consistency-check --impl-prep spec/5-system/` — **BLOCK: YES** (Critical 1,
+      `review/consistency/2026/08/08/18_47_21`). checker 5/5 success. 위 §차단 참조.
+      *(`--impl-prep` 는 파일이 아니라 디렉터리를 받는다 — `1-auth.md` 로 첫 호출이 거부됐다.)*
 - [ ] 테스트 선작성 — 가드 단위(헤더 위조 → 403 / 헤더 부재 → 통과 / `@Public` → skip /
       역할 계층은 `@Roles()` 있을 때만) + 뮤테이션으로 non-vacuity 확인
 - [ ] `RolesGuard` 재구성 + 두 곳의 거짓 주석(`roles.guard.ts` docstring ·
       `workspace.decorator.ts:16`) 정정
+- [ ] **403 error code 결정** (impl-prep W2) — `NOT_A_MEMBER` 재사용 vs `FORBIDDEN` 유지 +
+      Rationale 기록. `NOT_A_MEMBER` 를 쓰면 `spec/5-system/3-error-handling.md §1.2` 가
+      발행처를 `auth.service`/`workspaces.service` 로 **한정**하고 L497 이 "완결성 종결" 을
+      선언하고 있어 둘 다 stale 해진다 → 그 경우 `--impl-done` 대상에 `3-error-handling.md`
+      추가. 반대로 새 코드를 만들면 의미가 동일한 `NOT_A_MEMBER` 와 중복 (이 저장소는
+      `PASSWORD_INVALID`↔`INVALID_PASSWORD` 류 근접 명명을 이미 여러 번 정정했다)
 - [ ] mutation 15건 §3.2 대조 → 개별 `@Roles()` 판정·부착 (전부 부착이 답이 아님)
+- [ ] **`integrations` 4건은 §3.2 단독 대조 금지** (impl-prep W1) —
+      `oauthBegin`·`reauthorize`·`requestScopes`·`updateScope` 는
+      [`spec/2-navigation/4-integration.md §8`](../../spec/2-navigation/4-integration.md)
+      (L773-783) 의 **액션별 Personal vs Organization 세분화 매트릭스**도 함께 봐야 한다.
+      §3.2 의 `Integration (Org) → Editor=R` 만 보고 일괄 부착하면 **Personal-scope 통합을
+      소유한 Editor/Viewer 의 정당한 자가서비스(재인증·rotate)를 막는 회귀**가 된다.
+      → Organization=Admin+ / Personal=소유권 검사 병행이 방향
+- [ ] **`notifications.markAllRead`/`dismissAll` 은 서비스 구현 확인 후 판정** — user-scoped
+      쓰기면 멤버십 검사만으로 충분하고 `@Roles()` 부착이 오히려 과하다
 - [ ] **회귀 가드** — 새 라우트가 같은 갭을 만들면 실패하는 repo-guard 테스트.
-      일회성 스크립트로 끝내면 74번째에서 재발한다
+      일회성 스크립트로 끝내면 74번째에서 재발한다.
+      배치: `codebase/backend/src/repo-guards/__tests__/` (impl-prep INFO 4 권고 — 기존 컨벤션)
+- [ ] **주석에 "token-first 회귀 아님" 명시** (impl-prep INFO 2) — 채택안(헤더가 토큰과
+      다르면 멤버십 검증)은 `data-flow/12-workspace.md` Rationale 이 **기각한 token-first
+      (헤더 완전 무시)와 다르다.** header-first 는 유지된다. 구분을 적어두지 않으면 다음
+      리뷰가 기각된 대안의 재도입으로 오독한다
 - [ ] e2e — 비멤버가 헤더 위조로 타 워크스페이스 리소스 접근 시 403 (권한 경계 =
       `PROJECT.md §e2e 작성 가이드` 의 e2e 대상)
 - [ ] TEST WORKFLOW (lint / unit / build / e2e)
