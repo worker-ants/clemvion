@@ -2,15 +2,18 @@
 worktree: (unstarted)
 started: 2026-06-20
 owner: developer
+spec_impact: none
 ---
 
 # pnpm 마이그레이션 — 후속 과제
 
-> **상태 (2026-08-08 위생 정리)** — §1~§4 전부 머지 완료. `in-progress/` 에 남는 이유는
-> 문서 끝의 **사용자 액션 1건**뿐인데, 그것이 산문으로만 있어 이 plan 이 "0 open" 으로
-> 보이던 상태였다(Stop 훅 완료 nudge 오발화). 아래 §5 로 체크박스화했다.
+> **종결 (2026-08-09)** — §1~§4 전부 머지 완료(2026-07-16). 유일하게 남아 있던 §5 의
+> 사용자 액션 1건(repo Settings)은 **파일로 처리 불가**하고 같은 요청이 살아있는 다른 plan
+> 두 곳에 이미 등록돼 있어, 본 plan 에서는 **이관 처리하고 `complete/` 로 종결**한다
+> (사용자 결정). 상세·실측 근거는 §5.
 >
-> `worktree:` 를 `pnpm-migration-followups-b97d48` → `(unstarted)` 로 정정 (머지 후 회수됨).
+> 이전 메모(2026-08-08 위생 정리): `worktree:` 를 `pnpm-migration-followups-b97d48` →
+> `(unstarted)` 로 정정 (머지 후 회수됨).
 
 > npm → pnpm workspace 전환 PR(`build(deps): npm → pnpm workspace 모노레포 전환`)에서
 > 핵심 전환(매니페스트·lockfile·Docker·CI·하니스·문서)을 완료하고 build/unit/e2e 로 검증했다.
@@ -127,19 +130,27 @@ clean install(node_modules 전량 삭제 후 재설치) 기준 전 계층 green:
   앵커링·name≠dir 미검증) 앵커링 정규식 + 회귀 테스트로 fix.
 - **§1~§4 전체 완료(2026-07-16).** §3(node-linker=hoisted→isolated 전역 전환)까지 실행·검증 종료.
 
-## 5. 남은 수동 조치 (repo Settings — 파일로 불가)
+## 5. 남은 수동 조치 (repo Settings) — 본 plan 에서 이관 종결 (2026-08-09)
 
-**이 절이 본 plan 의 유일한 잔여다.** 사용자만 할 수 있어 `complete/` 이동을 막고 있다.
+**미수행 상태 그대로 이관한다.** `[x]` 로 바꾸지 않는 이유는 실제로 안 됐기 때문이다 —
+아래 실측 참조. 본 plan 을 이 한 줄 때문에 무기한 `in-progress/` 에 두지 않는다는
+사용자 결정에 따라 종결하며, **요청 자체는 살아있는 plan 두 곳에 그대로 남는다**.
 
-- [ ] **`deps-security-checks` 의 `config-guard`/`audit` job 을 main branch protection
-      required-check 로 등록** — 저장소 admin 설정. 등록해야 실제 머지 차단이 된다.
-      워크플로 파일(`.github/workflows/deps-security-checks.yml`)은 이미 있으므로
-      남은 것은 등록뿐이다.
-      > **같은 성격의 요청이 한 건 더 있다** —
-      > [`deps-guard-hardening.md`](deps-guard-hardening.md) 의 `--frozen-lockfile` required-check
-      > 승격. **한 번에 같이 처리하는 것이 맞다**: 셋 다 같은 Settings 화면의 같은 목록이고,
-      > 하나만 등록하면 나머지 게이트는 계속 비차단으로 남는다.
-      >
-      > **주의 — 등록 전까지는 "가드가 있다" 가 곧 "차단된다" 가 아니다.** 이 저장소는
-      > Actions 가 2026-05-16 ~ 2026-08-06 꺼져 있어 그 사이 CI 게이트가 한 번도 돌지 않았고,
-      > `#1095` 에서 `pnpm audit` advisories 13건이 그 상태로 누적돼 있던 것이 드러났다.
+- **미수행(이관)** — `deps-security-checks` 의 `config-guard`/`audit` job 을 main branch
+  protection required-check 로 등록. 워크플로 파일(`.github/workflows/deps-security-checks.yml`)은
+  이미 있으므로 남은 것은 등록뿐이다.
+- **실측 (2026-08-09)**: `main` 은 여전히 미보호다 — classic branch protection 없음
+  (`repos/:owner/:repo/branches/main/protection` → 404 "Branch not protected"),
+  ruleset `protect default branch`(id 16430610)는 `enforcement: disabled`,
+  `rules/branches/main` → `[]`. 즉 등록은 아직 안 됐고 아래 주의는 지금도 유효하다.
+- **이관처 (둘 다 `plan/in-progress/`)** — 어느 쪽이든 처리되면 본 항목도 함께 해소된다:
+  - [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) §사용자 액션 —
+    등록할 check 이름(`pnpm 보안 설정 스냅샷 가드` · `pnpm audit (moderate+)` ·
+    `override 바닥 침식 검출`)까지 명시된 최신 지점.
+  - [`deps-guard-hardening.md`](deps-guard-hardening.md) §남은 수동 조치 —
+    `--frozen-lockfile` required-check 승격과 **한 번에 같이** 처리. 셋 다 같은 Settings
+    화면의 같은 목록이고, 하나만 등록하면 나머지 게이트는 계속 비차단으로 남는다.
+
+> **주의 — 등록 전까지는 "가드가 있다" 가 곧 "차단된다" 가 아니다.** 이 저장소는
+> Actions 가 2026-05-16 ~ 2026-08-06 꺼져 있어 그 사이 CI 게이트가 한 번도 돌지 않았고,
+> `#1095` 에서 `pnpm audit` advisories 13건이 그 상태로 누적돼 있던 것이 드러났다.
