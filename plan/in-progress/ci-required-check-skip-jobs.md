@@ -90,7 +90,7 @@ schedule / base SHA 부재 / merge-base 실패 3경로 전부 → `true`.
       (→ 등재). W3 은 `changes` 실패 시 하위 잡이 skipped 가 되어 모호함이 재발하는
       구멍이라 `!cancelled()` + 조건 반전(`!= 'false'`)으로 닫았다(뮤테이션 6 RED).
       W4 push 광역화, W5 레지스트리 3중 비바인딩, W6 step id 오타 미검출도 수정.
-- [ ] push + PR
+- [x] push + PR — [#1106](https://github.com/worker-ants/clemvion/pull/1106)
 
 ## 후속 — 나머지 8개 워크플로 (별 항목)
 
