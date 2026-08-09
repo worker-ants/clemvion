@@ -112,10 +112,24 @@ latest 만 남김 (history 가 아님)" 을 규정한다. "공백이었으나 �
       > 않는다(`spec-link-integrity` 는 이름대로 `spec/**` 기준이다). 링크 3개는 파일시스템
       > 존재 확인으로 직접 검증했다. **이동을 담는 PR 은 게이트를 믿지 말 것** — 이번 이동이
       > 링크 2개를 조용히 깨뜨릴 수 있었고 CI 는 통과했을 것이다.
-- [ ] commit + PR
+- [x] commit + PR — [#1116](https://github.com/worker-ants/clemvion/pull/1116) (`c3fb5e9a9`)
+      머지 완료 (2026-08-09)
 
 ## 후속 (이 PR 밖)
 
+- [ ] **`complete/` 이동 시 `status:` 미갱신을 잡는 게이트 부재** (2026-08-09 실측).
+      본 turn 이 옮긴 plan 의 `status: in-progress` 를 그대로 뒀고 `#1117` 이 뒤늦게 정정했다 —
+      이 저장소가 **두 번째** 겪는 실패형(`#1108` 3차 ai-review INFO 18 이 첫 번째).
+      **뮤테이션으로 확인했다**: `plan/complete/**` 파일의 `status:` 를 `in-progress` 로 되돌린
+      채 spec/plan 문서 가드를 전수(18파일 / 2821 tests) 돌렸는데 **전부 GREEN**. 즉 이 필드는
+      게이트가 아니라 **사람의 규율에만** 기대고 있고, 사람이 두 번 놓쳤다.
+      검사 자체는 사소하다 — "`plan/complete/*.md` 는 `status: complete`". 아래 링크 게이트
+      항목과 **같은 곳(`spec-plan-completion` 계열)에 얹는 편이 자연스럽다**.
+      > **선행 실측 완료 — 기존 위반 21건이다** (2026-08-09, `plan/complete/**` 전수).
+      > `auth-workspace-membership-guard.md`·`refactor-cron-to-bullmq.md` 등 전부
+      > `status: in-progress` 인 채 `complete/` 에 있다. **그냥 켜면 무관한 문서 21개가
+      > 한꺼번에 RED 가 되므로** ratchet(baseline 21 에서 시작해 증가만 차단)이나 일괄 정정
+      > 중 하나를 먼저 골라야 한다. 세는 일은 끝났으니 다음 사람은 그 결정만 하면 된다.
 - [ ] **`plan/**` 내부 상대링크 무결성 게이트 부재** (본 턴 실측). 위 뮤테이션이 드러낸 갭이다 —
       plan 이동은 `plan-lifecycle.md §3` 이 **인접 PR 에 싣도록** 규정해 상대적으로 자주
       일어나는데, 그때 깨지는 형제 링크를 잡는 자동 검사가 없다. `spec-link-integrity` 의
