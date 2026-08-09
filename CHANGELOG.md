@@ -24,8 +24,28 @@ viewer 역할 사용자의 직접 API 호출은 이제 403 을 받는다. spec �
 노출된 채 항상 403 으로 실패하고 있어 이번에 함께 가드했다
 (`codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx`).
 
+부수로 두 가지를 함께 정리했다. (1) 전역 가드가 워크스페이스와 무관한 API(`system-status`
+등)에까지 헤더를 읽어 403 을 내던 회귀 — FE `apiClient` 가 `X-Workspace-Id` 를 **모든** 요청에
+붙이기 때문에 드러났다. 라우트가 `@WorkspaceId()` 를 실제로 소비하는지 reflection 으로 확인해
+검증 대상을 좁혔다. (2) 가드와 데코레이터가 각자 계산하던 워크스페이스 컨텍스트 해석을 공용
+헬퍼(`common/utils/workspace-context.util.ts`)로 추출 — "가드가 검증한 값" 과 "핸들러가
+소비하는 값" 이 갈라질 수 없게 했다.
+
+그 reflection 이 깨지면 멤버십 검증이 **조용히** 건너뛰어지므로(fail-open), 부팅 시 소비
+라우트를 하나도 인식하지 못하면 기동을 멈추는 캐너리를 넣었다. `@nestjs/*` 는 caret 범위라
+minor/patch 업그레이드가 이 가정을 깰 수 있다 — **업그레이드 PR 에서 이 경로 테스트가 깨지면
+flaky 로 취급하지 말고 보안 회귀로 먼저 조사할 것.**
+
+형식이 깨진 `X-Workspace-Id`(비-UUID)는 이제 **400 `VALIDATION_ERROR`** 다. 종전에는 그 값이
+그대로 DB 로 흘러가 `invalid input syntax for type uuid`(SQLSTATE 22P02)가 났고, 예외 필터가
+23505 만 매핑하므로 **500 INTERNAL_ERROR 로 마스킹**됐다 — 클라이언트 입력 오류가 서버 오류로
+보였다. 이 결함은 개정 전 가드에도 있었고(`@Roles()` 라우트에서 동일), 이번 PR 은 표면이 아니라
+응답을 정정한 것이다. nil UUID 처럼 **Postgres 가 파싱할 수 있는** 값은 그대로 통과시켜 403
+(비멤버)이 400 으로 뒤바뀌지 않게 했다.
+
 SoT: `spec/5-system/1-auth.md` §3.2·§3.3, `spec/data-flow/12-workspace.md` §Rationale. 추적:
-`plan/in-progress/auth-workspace-membership-guard.md`.
+`plan/in-progress/auth-workspace-membership-guard.md`,
+`plan/in-progress/auth-guard-reflection-hardening.md`.
 
 ## Unreleased — 감사 로깅 커버리지 확장: workflow / trigger / schedule / model_config
 

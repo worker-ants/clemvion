@@ -48,6 +48,7 @@ import {
   isFlagOn,
   isSwaggerEnabled,
 } from './common/config/production-guards';
+import { assertWorkspaceIdReflectionWorks } from './common/decorators/workspace-reflection-canary';
 
 /**
  * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
@@ -159,6 +160,12 @@ async function bootstrap() {
   // — 기존 Nest 기본 파서와 동일 content-type 커버리지). e2e J(HMAC 512KB)가 이 경로 회귀 검증.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);
+
+  // `RolesGuard` 의 멤버십 검증 대상 판별이 의존하는 reflection 이 아직 동작하는지
+  // 확인한다. 깨지면 검증이 **조용히** 건너뛰어져 cross-tenant 결함이 되살아나므로,
+  // 조용히 새는 대신 기동을 멈춘다(fail-closed). `assertProductionConfig` 와 별도
+  // 단계인 이유·근거 전문은 `common/decorators/workspace-reflection-canary.ts`.
+  assertWorkspaceIdReflectionWorks(app);
 
   // hooks(1MB)를 먼저 등록해 `/api/hooks/*` 를 1MB 로 파싱(req._body 세팅) → 후행 전역 파서는
   // body-parser 의 idempotency 가드로 hooks 재파싱을 skip. 그 외 라우트는 전역 100KB 적용.

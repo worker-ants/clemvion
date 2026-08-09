@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import {
+  APP_FILTER,
+  APP_GUARD,
+  APP_INTERCEPTOR,
+  APP_PIPE,
+  DiscoveryModule,
+} from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { shouldSkipThrottle } from './common/utils/throttler-skip';
 import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
@@ -70,6 +76,9 @@ export { ROOT_ENTITIES } from './database/root-entities';
 
 @Module({
   imports: [
+    // 부팅 시 `@WorkspaceId()` reflection 캐너리가 등록된 컨트롤러를 훑는 데 쓴다
+    // (`common/decorators/workspace-reflection-canary.ts`). 런타임 요청 경로에는 관여하지 않는다.
+    DiscoveryModule,
     // Config
     ConfigModule.forRoot({
       isGlobal: true,

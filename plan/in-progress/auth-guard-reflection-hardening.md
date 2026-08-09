@@ -31,23 +31,35 @@ wrap 하는 데코레이터 도입으로 `Function.name` 소실, 빌드 minify/m
 reviewer 5명(architecture·side_effect·performance·dependency·api_contract)이 각기 다른
 각도로 같은 지점을 지적했다.
 
-- [ ] **부트타임 캐너리** — 알려진 `@WorkspaceId()` 라우트 몇 개에 대해 부팅 시
-      `handlerConsumesWorkspaceId` 가 `true` 를 반환하는지 assert. 거짓이면 **부팅 실패**
-      (fail-closed). 런타임에 조용히 새는 것보다 배포가 멈추는 편이 낫다
-- [ ] **또는 공식 확장점 전환** — `SetMetadata` + `Reflector` 로 옮겨 비공개 API 의존 제거.
-      다만 `@WorkspaceId()` 사용처 전부에 마커를 달아야 해 표면이 넓다 — 캐너리보다 비싸다
-- [ ] `@nestjs/*` 는 caret(`^11.0.1`)이라 minor/patch 업그레이드에도 노출된다.
-      **팀 관례로 고정**: 업그레이드 PR 에서 이 경로 테스트가 깨지면 **flaky 로 취급하지 말고
-      보안 회귀로 우선 조사** (dependency reviewer INFO 4)
+- [x] **부트타임 캐너리** — `common/decorators/workspace-reflection-canary.ts` 신설,
+      `main.ts` 에서 `assertProductionConfig` 와 **별도 단계**로 호출(`--impl-prep` INFO #2).
+      > **라우트 목록을 하드코딩하지 않았다.** 특정 라우트를 적으면 그것이 정당하게 사라질 때
+      > 오탐으로 깨지고, 결국 목록을 지우는 압력이 된다. 대신 `DiscoveryService` 로 등록된
+      > **전 컨트롤러를 훑어 소비 라우트 수를 세고 0 이면 throw** 한다. 판별은
+      > `handlerConsumesWorkspaceId` 를 **그대로 호출**한다 — reflection 을 다시 구현하면
+      > 캐너리가 자기 복제본을 검사하게 되어 정작 막으려던 파손을 통과시킨다.
+      > **알려진 한계**: 부분 파손(일부만 인식 실패)은 못 잡는다 → 개수를 부팅 로그에 남겨
+      > 급락이 눈에 띄게 했다. 숨기지 않고 코드 주석·본 항목에 적어 둔다.
+- [x] ~~**또는 공식 확장점 전환**~~ — **채택 안 함(근거 확보).** `--impl-prep`
+      rationale_continuity WARNING #2 가 지적: `SetMetadata` + `Reflector` 는
+      `@WorkspaceId()` 사용처마다 마커를 달아야 하는데, 그것이
+      [`spec/data-flow/12-workspace.md`](../../spec/data-flow/12-workspace.md) §Rationale 이
+      **명시적으로 기각한** "라우트별 opt-in 마커" 패턴이다(이 저장소가 이미 2회 누락).
+      캐너리는 호출부에 아무것도 요구하지 않으면서 같은 위험을 닫는다.
+- [x] `@nestjs/*` 는 caret(`^11.0.1`)이라 minor/patch 업그레이드에도 노출된다 →
+      **CHANGELOG Unreleased 에 팀 관례로 명문화**: 업그레이드 PR 에서 이 경로 테스트가
+      깨지면 flaky 로 취급하지 말고 보안 회귀로 우선 조사 (dependency reviewer INFO 4)
 
 ## 2. reflection 메모이제이션 (W3)
 
 `(controllerClass, methodName)` 조합에 대해 서버 기동 후 **불변**인데 전역 `APP_GUARD`
 핫패스에서 요청마다 재계산된다.
 
-- [ ] **착수 전 실측 선행** — performance reviewer 위험도는 LOW 였다. 캐시는 그 자체가 새
-      표면(무효화 시점·`WeakMap` 키 수명)이라, 롤아웃 후 프로파일에서 상위 소비자로 나타날
-      때 넣는다. "느릴 것 같다" 로 넣지 않는다
+- [x] ~~착수 전 실측 선행~~ — **이번 PR 에서 하지 않는다(항목 자체는 유지).** plan 이 세워둔
+      기준을 그대로 적용했다: performance reviewer 위험도 LOW, 캐시는 그 자체가 새 표면
+      (무효화 시점·`WeakMap` 키 수명)이라 **롤아웃 후 프로파일에서 상위 소비자로 나타날 때**
+      넣는다. "느릴 것 같다" 는 착수 사유가 아니고, 지금 넣으면 근거 없는 표면만 는다.
+      실측 트리거가 생기면 이 항목을 되살린다.
 
 ## 3. 비-UUID 워크스페이스 헤더 → 400 (W4)
 
@@ -59,16 +71,50 @@ reviewer 5명(architecture·side_effect·performance·dependency·api_contract)�
 > 값을 그대로 `getMemberRole` 에 넘겨 같은 500 이 났다. 그 PR 은 표면을 `@WorkspaceId()`
 > 라우트로 **넓혔을 뿐**이다.
 
-- [ ] `extractWorkspaceId` / `resolveRequestWorkspaceContext` 단에서 UUID 형식 검증 →
-      기존 `WORKSPACE_ID_REQUIRED` 와 같은 400 계열로 조기 거부. **계약 변경이므로**
-      두 소비처(가드·데코레이터)의 기존 테스트 재검증 동반
+- [x] `resolveRequestWorkspaceContext` 단에서 형식 검증 → **400 `VALIDATION_ERROR`** 로
+      조기 거부. 두 소비처(가드·데코레이터)의 기존 테스트 재검증 동반.
+      > **에러 코드는 `VALIDATION_ERROR` 로 확정했다** (`--impl-prep` WARNING #1).
+      > `WORKSPACE_ID_REQUIRED` 재사용은 그 코드의 정의("헤더·클레임 **둘 다 없음**")와
+      > 실제 트리거(present-but-malformed)가 어긋나고, 신규 코드 신설은
+      > `3-error-handling.md` 갱신을 요구해 `spec_impact: none` 과 모순된다.
+      > `VALIDATION_ERROR` 는 `2-api-convention.md §5.3` 이 정한 **400 기본값**이라
+      > spec 변경 없이 정합한다 — `spec_impact: none` 이 참으로 유지된다.
+      > **던지는 위치는 공용 헬퍼 1곳**이다. 반환 플래그로 두면 두 소비처가 각자 거부를
+      > 기억해야 하고, 한쪽이 잊으면 응답이 갈라진다 — 이 헬퍼가 추출된 이유가 그 drift 다.
+      > **토큰 클레임은 검증하지 않는다** — 서버가 서명한 값이라 거기서 400 을 내면
+      > 서버 버그를 클라이언트 오류로 보고하게 된다.
+- [x] **술어를 `isValidUuid` 로 쓰지 않았다 — 실측으로 갈렸다.** 그쪽은 RFC v1–v5 + variant
+      까지 보므로 **nil UUID(`00000000-…`)·v7 을 거부**한다. 그런데 Postgres 는 그 값들을
+      정상 파싱하므로, 거부하면 "그 워크스페이스의 멤버가 아니다"(403)여야 할 응답이
+      "요청이 잘못됐다"(400)로 **뒤바뀐다**. 실제로 `system-status.e2e-spec.ts` 가 nil UUID 를
+      타 워크스페이스 프로브로 쓴다. → `isUuidShaped`(canonical 8-4-4-4-12 hex, 버전·variant
+      무시)를 `uuid.ts` 에 신설하고 두 술어의 경계를 테스트로 고정.
 
 ## 4. 값싼 정리 (INFO)
 
-- [ ] `resolveRequestWorkspaceContext({'x-workspace-id':'ws1'}, undefined)` →
-      `membershipUnverified === true` 단언 추가 (헤더는 있고 토큰 클레임이 없는 조합 미고정)
-- [ ] `normalizeWorkspaceHeader([])` → `undefined` 단언 추가
-- [ ] `CHANGELOG.md` Unreleased 에 전역 API 403 오탐 회귀 fix + 공용 헬퍼 추출 한두 문장
+- [x] 헤더는 있고 토큰 클레임이 없는 조합 → `membershipUnverified === true` 단언 추가
+- [x] `normalizeWorkspaceHeader([])` → `undefined` 단언 추가
+- [x] `CHANGELOG.md` Unreleased 에 전역 API 403 오탐 회귀 fix + 공용 헬퍼 추출 + 캐너리 +
+      400 정정 기록
+
+## 부수 — 픽스처가 프로덕션에서 존재할 수 없는 값이었다
+
+헤더 형식 검증을 붙이자 기존 단위 테스트 16건이 RED 가 됐다. 원인은 구현이 아니라
+**픽스처**였다 — `'ws1'`·`'victim-ws'`·`'header-id'` 같은 임의 문자열은 `X-Workspace-Id` 가
+Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 수 없는 값이다. 이름의 의미
+(`OWN`=토큰이 확정한 내 워크스페이스, `VICTIM`=헤더로 노리는 남의 워크스페이스)는 상수로
+그대로 옮기고 값만 UUID 형태로 바꿨다.
+
+## 체크리스트
+
+- [x] 사전 일관성 검토 `/consistency-check --impl-prep spec/5-system/` — **BLOCK: NO**
+      (`review/consistency/2026/08/09/14_01_15`, 5/5 checker). WARNING #1·#2 를 위 두
+      결정에 반영. 번들에 `1-auth.md` 가 실제로 실렸는지 확인하고 진행(26회 등장).
+- [x] TDD — 새 계약 먼저 RED(6건) 확인 후 구현
+- [ ] TEST WORKFLOW (lint·unit·build·e2e)
+- [ ] `/ai-review` + Critical/Warning 처분
+- [ ] `--impl-done` (spec-linked 코드 변경 있음)
+- [ ] push + PR
 
 ## Rationale
 
