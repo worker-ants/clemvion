@@ -20,6 +20,15 @@ function getParamDecoratorFactory() {
   return metadata[key].factory;
 }
 
+/**
+ * 픽스처는 **실제 형태의 UUID** 다. `X-Workspace-Id` 는 Postgres `uuid` 컬럼으로
+ * 흘러가므로 `'header-id'` 같은 임의 문자열은 프로덕션에서 존재할 수 없는 값이고,
+ * 헤더 형식 검증이 붙은 지금은 400 을 받는다(`workspace-context.util.ts`).
+ */
+const HEADER_WS = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+const TOKEN_WS = 'bbbbbbbb-2222-4222-9222-bbbbbbbbbbbb';
+const DECOY_WS = 'dddddddd-4444-4444-b444-dddddddddddd';
+
 describe('WorkspaceId decorator', () => {
   const factory = getParamDecoratorFactory();
 
@@ -53,31 +62,54 @@ describe('WorkspaceId decorator', () => {
 
   it('should return workspace ID from X-Workspace-Id header', () => {
     const ctx = createMockContext(
-      { 'x-workspace-id': 'header-workspace-uuid' },
-      { workspaceId: 'jwt-workspace-uuid' },
+      { 'x-workspace-id': HEADER_WS },
+      { workspaceId: TOKEN_WS },
     );
 
     const result = factory(undefined, ctx);
-    expect(result).toBe('header-workspace-uuid');
+    expect(result).toBe(HEADER_WS);
   });
 
   it('should prefer header over JWT workspaceId (header-first, RolesGuard 와 동일)', () => {
     // 하위호환: X-Workspace-Id 헤더가 있으면 토큰 클레임(user.workspaceId)보다 우선한다.
     // RolesGuard 도 동일 header-first 규칙이라 두 곳의 워크스페이스 컨텍스트가 일관된다.
     const ctx = createMockContext(
-      { 'x-workspace-id': 'header-id' },
-      { workspaceId: 'jwt-id' },
+      { 'x-workspace-id': HEADER_WS },
+      { workspaceId: TOKEN_WS },
     );
 
     const result = factory(undefined, ctx);
-    expect(result).toBe('header-id');
+    expect(result).toBe(HEADER_WS);
   });
 
   it('should return workspace ID from JWT (token 활성 워크스페이스) when header is not present', () => {
-    const ctx = createMockContext({}, { workspaceId: 'jwt-workspace-uuid' });
+    const ctx = createMockContext({}, { workspaceId: TOKEN_WS });
 
     const result = factory(undefined, ctx);
-    expect(result).toBe('jwt-workspace-uuid');
+    expect(result).toBe(TOKEN_WS);
+  });
+
+  it('should throw VALIDATION_ERROR (400) when X-Workspace-Id is not UUID-shaped', () => {
+    // `WORKSPACE_ID_REQUIRED`(부재)와 **다른 코드**다 — 여기서는 값이 있고 형식이 틀렸다.
+    // 종전에는 이 값이 그대로 DB 로 흘러가 500 INTERNAL_ERROR 로 마스킹됐다.
+    let caught: unknown;
+    expect(() => {
+      try {
+        factory(
+          undefined,
+          createMockContext(
+            { 'x-workspace-id': 'not-a-uuid' },
+            { workspaceId: TOKEN_WS },
+          ),
+        );
+      } catch (err) {
+        caught = err;
+        throw err;
+      }
+    }).toThrow(BadRequestException);
+    expect((caught as BadRequestException).getResponse()).toEqual(
+      expect.objectContaining({ code: 'VALIDATION_ERROR' }),
+    );
   });
 
   it('should throw WORKSPACE_ID_REQUIRED when no workspace ID is available', () => {
@@ -100,15 +132,15 @@ describe('WorkspaceId decorator', () => {
     // RolesGuard 와 동일한 `resolveRequestWorkspaceContext` 헬퍼를 쓰므로 배열 헤더 정규화가
     // 두 곳에서 일치해야 한다 (2026-08-08 ai-review ARCHITECTURE WARNING).
     const ctx = createMockContext(
-      { 'x-workspace-id': ['victim-ws', 'decoy-ws'] } as unknown as Record<
+      { 'x-workspace-id': [HEADER_WS, DECOY_WS] } as unknown as Record<
         string,
         string
       >,
-      { workspaceId: 'own-ws' },
+      { workspaceId: TOKEN_WS },
     );
 
     const result = factory(undefined, ctx);
-    expect(result).toBe('victim-ws');
+    expect(result).toBe(HEADER_WS);
   });
 });
 

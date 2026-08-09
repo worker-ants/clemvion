@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-08-09T15:46:17.021195",
+  "files": [
+    {
+      "file_path": "review/consistency/2026/08/09/15_09_04/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/09/15_09_04/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/09/15_09_04/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/08/09/15_09_04/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/09/15_09_04/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/09/15_09_04/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "requirement",
+    "maintainability",
+    "testing"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": []
+}

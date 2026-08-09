@@ -1,8 +1,21 @@
-import { ExecutionContext } from '@nestjs/common';
+import { BadRequestException, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Roles, RolesGuard, ROLES_KEY } from './roles.guard';
 import { WorkspaceId } from '../decorators/workspace.decorator';
 import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
+
+/**
+ * 워크스페이스 픽스처는 **실제 형태의 UUID** 다. 이름은 종전 문자열의 역할을 그대로
+ * 옮겼다(`OWN`=토큰이 확정한 내 워크스페이스, `VICTIM`=헤더로 노리는 남의 워크스페이스).
+ * 임의 문자열이던 종전 값들은 `X-Workspace-Id` 형식 검증이 붙으면서 400 을 받는다 —
+ * 프로덕션에서 존재할 수 없는 값이었으므로 픽스처 쪽이 틀렸던 것이다.
+ */
+const WS1 = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+const OWN_WS = 'bbbbbbbb-2222-4222-9222-bbbbbbbbbbbb';
+const VICTIM_WS = 'cccccccc-3333-4333-a333-cccccccccccc';
+const OTHER_WS = 'dddddddd-4444-4444-b444-dddddddddddd';
+const DECOY_WS = 'eeeeeeee-5555-4555-8555-eeeeeeeeeeee';
+const SAME_WS = 'ffffffff-6666-4666-9666-ffffffffffff';
 
 /**
  * `tokenWorkspaceId` 는 `jwt.strategy` 가 **멤버십 검증 후** 채운
@@ -92,8 +105,8 @@ describe('RolesGuard', () => {
       const { guard } = buildGuard(role);
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: 'ws1',
-        tokenWorkspaceId: 'ws1',
+        headerWorkspaceId: WS1,
+        tokenWorkspaceId: WS1,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(expected);
@@ -110,8 +123,8 @@ describe('RolesGuard', () => {
       const { guard } = buildGuard(role);
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: 'ws1',
-        tokenWorkspaceId: 'ws1',
+        headerWorkspaceId: WS1,
+        tokenWorkspaceId: WS1,
         handler: RolesTarget.prototype.adminOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(expected);
@@ -128,35 +141,35 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard(null); // 비멤버
       const ctx = makeContext({
         userId: 'attacker',
-        headerWorkspaceId: 'victim-ws',
-        tokenWorkspaceId: 'own-ws',
+        headerWorkspaceId: VICTIM_WS,
+        tokenWorkspaceId: OWN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
       // 멤버십을 **실제로 조회했는지** 단언한다 — 우연히 false 가 된 것이 아님을 고정.
-      expect(getMemberRole).toHaveBeenCalledWith('victim-ws', 'attacker');
+      expect(getMemberRole).toHaveBeenCalledWith(VICTIM_WS, 'attacker');
     });
 
     it('멤버가 헤더로 전환 + @Roles() 없음(@WorkspaceId() 사용) → 통과', async () => {
       const { guard, getMemberRole } = buildGuard('viewer');
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: 'other-ws',
-        tokenWorkspaceId: 'own-ws',
+        headerWorkspaceId: OTHER_WS,
+        tokenWorkspaceId: OWN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(getMemberRole).toHaveBeenCalledWith('other-ws', 'u1');
+      expect(getMemberRole).toHaveBeenCalledWith(OTHER_WS, 'u1');
     });
 
     it('비멤버 + @Roles("editor") → 거부 (종전 동작 보존)', async () => {
       const { guard } = buildGuard(null);
       const ctx = makeContext({
         userId: 'attacker',
-        headerWorkspaceId: 'victim-ws',
-        tokenWorkspaceId: 'own-ws',
+        headerWorkspaceId: VICTIM_WS,
+        tokenWorkspaceId: OWN_WS,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
@@ -168,7 +181,7 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard('viewer');
       const ctx = makeContext({
         userId: 'u1',
-        tokenWorkspaceId: 'own-ws',
+        tokenWorkspaceId: OWN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
@@ -181,8 +194,8 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard('viewer');
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: 'same-ws',
-        tokenWorkspaceId: 'same-ws',
+        headerWorkspaceId: SAME_WS,
+        tokenWorkspaceId: SAME_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
@@ -194,11 +207,11 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard('editor');
       const ctx = makeContext({
         userId: 'u1',
-        tokenWorkspaceId: 'own-ws',
+        tokenWorkspaceId: OWN_WS,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(getMemberRole).toHaveBeenCalledWith('own-ws', 'u1');
+      expect(getMemberRole).toHaveBeenCalledWith(OWN_WS, 'u1');
     });
   });
 
@@ -213,7 +226,7 @@ describe('RolesGuard', () => {
     it('미인증 + 헤더 위조 시도 → 통과 (워크스페이스 컨텍스트를 쓰는 핸들러가 아니면 무해)', async () => {
       const { guard } = buildGuard(null);
       const ctx = makeContext({
-        headerWorkspaceId: 'victim-ws',
+        headerWorkspaceId: VICTIM_WS,
         handler: undecorated,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
@@ -222,7 +235,7 @@ describe('RolesGuard', () => {
     it('미인증 + @Roles() → 거부', async () => {
       const { guard } = buildGuard('owner');
       const ctx = makeContext({
-        headerWorkspaceId: 'ws1',
+        headerWorkspaceId: WS1,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
@@ -254,13 +267,13 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard(null);
       const ctx = makeContext({
         userId: 'attacker',
-        headerWorkspaceId: ['victim-ws', 'decoy-ws'],
-        tokenWorkspaceId: 'own-ws',
+        headerWorkspaceId: [VICTIM_WS, DECOY_WS],
+        tokenWorkspaceId: OWN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
-      expect(getMemberRole).toHaveBeenCalledWith('victim-ws', 'attacker');
+      expect(getMemberRole).toHaveBeenCalledWith(VICTIM_WS, 'attacker');
     });
   });
 
@@ -279,7 +292,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'u1',
         headerWorkspaceId: '00000000-0000-0000-0000-000000000000',
-        tokenWorkspaceId: 'own-ws',
+        tokenWorkspaceId: OWN_WS,
         handler: GlobalRouteTarget.prototype.globalRoute,
         controllerClass: GlobalRouteTarget,
       });
@@ -292,7 +305,7 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard(null);
       const ctx = makeContext({
         userId: 'u1',
-        tokenWorkspaceId: 'own-ws',
+        tokenWorkspaceId: OWN_WS,
         handler: GlobalRouteTarget.prototype.globalRoute,
         controllerClass: GlobalRouteTarget,
       });
@@ -304,11 +317,102 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard(null);
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: 'victim-ws',
-        tokenWorkspaceId: 'own-ws',
+        headerWorkspaceId: VICTIM_WS,
+        tokenWorkspaceId: OWN_WS,
         handler: undecorated,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
+      expect(getMemberRole).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 위 케이스들만으로는 **early-return 이 검증을 건너뛴 것**과 **검증이 돌았는데 통과한
+     * 것**을 구별하지 못한다 — 쓰인 헤더값이 전부 형식상 유효해서 어느 쪽이든 결과가
+     * 같기 때문이다(ai-review 2차 WARNING #6, vacuous). 형식 자체가 깨진 값을 쓰면 두
+     * 갈래가 갈린다: 검증이 돌았다면 400 이 나고, 건너뛰었다면 조용히 통과한다.
+     *
+     * 즉 이 테스트가 GREEN 이라는 것은 `handlerConsumesWorkspaceId` 단축이 **헤더를
+     * 읽기 전에** 걸렸다는 관측 가능한 증거다. 단축을 뒤로 옮기는 리팩터가 있으면 RED.
+     */
+    it('형식이 깨진 헤더여도 전역 라우트는 400 을 내지 않는다 — 단축이 헤더 파싱보다 먼저다', async () => {
+      const { guard, getMemberRole } = buildGuard(null);
+      const ctx = makeContext({
+        userId: 'u1',
+        headerWorkspaceId: 'not-a-uuid',
+        tokenWorkspaceId: OWN_WS,
+        handler: GlobalRouteTarget.prototype.globalRoute,
+        controllerClass: GlobalRouteTarget,
+      });
+      await expect(guard.canActivate(ctx)).resolves.toBe(true);
+      expect(getMemberRole).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * `resolveRequestWorkspaceContext` 가 던지는 400 을 **프로덕션에서 가장 먼저 통과하는
+   * 지점이 이 가드**다(전역 `APP_GUARD` 라 파라미터 데코레이터보다 앞선다). util·데코레이터
+   * 스위트가 각각 그 계약을 고정하고 있어도, 가드가 그 예외를 삼키거나 `false`(403)로
+   * 바꿔버리면 클라이언트가 받는 응답이 달라진다 (ai-review 2차 WARNING #5).
+   */
+  describe('형식이 깨진 X-Workspace-Id 는 가드에서 400 으로 전파된다', () => {
+    // 캡처-재던지기 **1회 호출**. 이웃 두 스펙이 같은 이유로 이 형태를 쓴다 —
+    // `rejects.toThrow` 용 1회 + `getResponse()` 용 1회로 나누면 첫 단언이 실패했을 때
+    // 두 번째가 조용히 건너뛰어져 code 단언이 vacuous 해진다 (ai-review 3차 WARNING #1:
+    // 같은 커밋이 다른 파일에서 기각한 패턴을 여기서만 되살렸다는 자기모순 지적).
+    async function expectValidationError(ctx: ExecutionContext) {
+      const { guard } = buildGuard('owner');
+      let caught: unknown;
+      await expect(
+        (async () => {
+          try {
+            return await guard.canActivate(ctx);
+          } catch (err) {
+            caught = err;
+            throw err;
+          }
+        })(),
+      ).rejects.toThrow(BadRequestException);
+      expect((caught as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ code: 'VALIDATION_ERROR' }),
+      );
+    }
+
+    it('@WorkspaceId() 라우트 (@Roles() 없음)', async () => {
+      await expectValidationError(
+        makeContext({
+          userId: 'u1',
+          headerWorkspaceId: 'not-a-uuid',
+          tokenWorkspaceId: OWN_WS,
+          handler: WorkspaceScopedTarget.prototype.workspaceScoped,
+          controllerClass: WorkspaceScopedTarget,
+        }),
+      );
+    });
+
+    it('@Roles() 라우트 — 선재 결함이던 경로다(개정 전 가드도 여기서 500 이었다)', async () => {
+      await expectValidationError(
+        makeContext({
+          userId: 'u1',
+          headerWorkspaceId: 'not-a-uuid',
+          tokenWorkspaceId: OWN_WS,
+          handler: RolesTarget.prototype.editorOnly,
+        }),
+      );
+    });
+
+    it('403(비멤버)이 아니라 400 이다 — 두 실패를 뭉개면 클라이언트가 구분할 수 없다', async () => {
+      // `canActivate` 가 `false` 를 돌려주면 Nest 가 403 을 낸다. 형식 오류를 그렇게
+      // 처리하면 "멤버가 아니다" 와 "요청이 잘못됐다" 가 같은 응답이 된다.
+      const { guard, getMemberRole } = buildGuard(null);
+      const ctx = makeContext({
+        userId: 'u1',
+        headerWorkspaceId: 'not-a-uuid',
+        tokenWorkspaceId: OWN_WS,
+        handler: WorkspaceScopedTarget.prototype.workspaceScoped,
+        controllerClass: WorkspaceScopedTarget,
+      });
+      await expect(guard.canActivate(ctx)).rejects.toThrow(BadRequestException);
+      // DB 까지 가지 않고 끊겼는지 — 이것이 22P02(500 마스킹)를 막는 지점이다.
       expect(getMemberRole).not.toHaveBeenCalled();
     });
   });

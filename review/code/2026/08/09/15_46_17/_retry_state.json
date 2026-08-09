@@ -1,0 +1,46 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [],
+  "agents_forced_reasons": {},
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/requirement.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-guard-reflection-hardening-9c31f2/review/code/2026/08/09/15_46_17/testing.md"
+    }
+  ],
+  "agents_pending": [
+    "requirement",
+    "maintainability",
+    "testing"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
