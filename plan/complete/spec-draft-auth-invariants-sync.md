@@ -3,7 +3,7 @@ title: spec 동기화 — #1103·#1108·#1109 이 남긴 auth 불변식 5곳
 worktree: pnpm-migration-followups-7fc7c2
 started: 2026-08-09
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/5-system/3-error-handling.md
@@ -20,9 +20,9 @@ spec_impact:
 
 출처는 두 plan 의 `## 후속` 절이다:
 
-- [`auth-guard-reflection-hardening.md`](auth-guard-reflection-hardening.md) §후속 — 4건
+- [`auth-guard-reflection-hardening.md`](../in-progress/auth-guard-reflection-hardening.md) §후속 — 4건
   (`--impl-done` consistency WARNING 2회분, BLOCK:NO 지만 반영 대상)
-- [`backend-lint-gate-broken-on-main.md`](backend-lint-gate-broken-on-main.md) §후속 — 1건
+- [`backend-lint-gate-broken-on-main.md`](../in-progress/backend-lint-gate-broken-on-main.md) §후속 — 1건
   (ai-review INFO 11)
 
 두 plan 모두 "코드가 spec 을 어긴 것이 아니라 **spec 이 새 케이스를 아직 안 적은 것**
@@ -53,7 +53,7 @@ planner 턴으로 넘겼다.
 - `codebase/backend/src/common/utils/uuid.spec.ts` —
   `accepts UUID-shaped values that isValidUuid rejects (nil / v6+ / 비-RFC variant)`
   가 두 술어의 경계 자체를 고정한다.
-- `codebase/backend/src/common/utils/workspace-context.util.spec.ts:135` —
+- `codebase/backend/src/common/utils/workspace-context.util.spec.ts:134` —
   `Postgres 가 파싱할 수 있는 값은 통과시킨다 (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)`
   가 헬퍼 레벨에서 고정한다.
 
@@ -375,20 +375,30 @@ minor/patch 로도 온다) (2) 핸들러를 감싸는 데코레이터 도입으�
       `backend-lint-gate-broken-on-main.md` §후속 1건) + **자매 plan 의 틀린 단정문 정정**
       (consistency WARNING #3 — `plan/**` 은 planner 쓰기 범위인데 `codebase/**` 로 오분류해
       developer 백로그로 미룰 뻔했다)
-- [ ] 링크 무결성 회귀 (`spec-link-integrity` · `spec-plan-completion`)
-- [ ] commit + PR
+- [x] 링크 무결성 회귀 — spec 문서 가드 **18파일 / 2815 tests PASS**
+      (`spec-link-integrity` · `spec-code-paths` · `spec-plan-completion` ·
+      `plan-frontmatter` · `spec-status-lifecycle` 포함). 신설 앵커 슬러그 2개 +
+      인용 3개는 저장소 자체 `github-slugger` 로 사전 계산해 전수 일치 확인.
+- [x] commit + PR — [#1112](https://github.com/worker-ants/clemvion/pull/1112)
+      (`602f677cd`) **머지 완료 (2026-08-09)**
 
 ## 후속 (이 PR 밖)
 
 **developer 범위** (`codebase/**` 는 planner 권한 밖):
 
-- [ ] `common/utils/uuid.ts` docstring 의 캐너리 지목 정정 — "실제로 이 저장소의 e2e 하나가
+- [x] `common/utils/uuid.ts` docstring 의 캐너리 지목 정정 — "실제로 이 저장소의 e2e 하나가
       nil UUID 를 타 워크스페이스 프로브로 쓴다(`system-status.e2e-spec.ts`)" 는 **그 e2e 가
-      이 술어에 닿지 않으므로** 오해를 부른다(위 §⚠️ 실측). 같은 파일의 단위 테스트
-      (`uuid.spec.ts` 경계 테스트 · `workspace-context.util.spec.ts`)를 지목하도록 고칠 것.
-      **spec 쪽은 이미 정정돼 있다** — `12-workspace.md` 신설 subsection 의 "캐너리 지목 정정"
-      각주가 SoT 라, 이 항목이 미해소여도 잘못된 근거가 spec 을 통해 퍼지지는 않는다.
-- [ ] 캐너리 주석의 "73건" 수치 정정 (원 plan 에 이미 등재 — 중복 등재 아님, 여기서는 포인터).
+      이 술어에 닿지 않으므로** 오해를 부른다(위 §⚠️ 실측). **완료 (2026-08-09,
+      `uuid-canary-docstring-fix` developer 턴)** — e2e 인용을 두 단위 테스트
+      (`uuid.spec.ts` 경계 · `workspace-context.util.spec.ts` 헬퍼)로 교체하고, 그 e2e 가
+      실제로 고정하는 별개 불변식과 그쪽 캐너리(`roles.guard.spec.ts` 의 "형식이 깨진 헤더여도
+      전역 라우트는 400 을 내지 않는다")도 함께 지목했다. **새 테스트는 만들지 않았다** —
+      그 세 테스트가 이미 존재해 정정 문구가 곧바로 검증 가능하다(실측 확인).
+- [x] 캐너리 주석의 "73건" 수치 정정 (원 plan 에 등재 — 여기서는 포인터). **완료 (동일 PR)** —
+      상위집합 정적 실측 142건 + 73건이 `@Roles()` 미부착 서브셋임을 명시.
+      두 항목을 **한 커밋에 묶은 이유**: 두 파일 다 `1-auth.md` `code:` 글로브에 걸린
+      spec-linked 라 어느 쪽만 고쳐도 TEST WORKFLOW·`/ai-review`·`--impl-done` 전체가
+      한 번 돈다 — 따로 하면 같은 사이클을 두 번 돈다(사용자 결정 2026-08-09).
 
 > **`plan/**` 은 여기 없다.** 자매 plan(`auth-guard-reflection-hardening.md`)의 틀린 단정문은
 > planner 쓰기 범위라 **이 PR 에서 직접 정정했다** — 초안은 그것까지 developer 로 넘겼는데

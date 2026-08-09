@@ -247,7 +247,8 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 
 > 넷 다 developer 권한 밖이라 그 PR 에서 하지 않았다. 코드가 spec 을 어긴 것이 아니라
 > **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니었다.
-> 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](spec-draft-auth-invariants-sync.md).
+> 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](../complete/spec-draft-auth-invariants-sync.md)
+> (`#1112` 머지 후 `complete/` 이동).
 
 **developer 범위:**
 
@@ -257,11 +258,20 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 - [ ] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
       공용 fixture 모듈 승격. 지금 옮기면 이 PR diff 가 세 파일 더 는다.
 - [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
-- [ ] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
-      서브셋**인데 캐너리가 세는 것은 `@WorkspaceId()` 소비 라우트 **전체**라 상위집합이다 —
-      전체 수치를 실측해 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**:
-      주석 한 줄이어도 `codebase/**` 변경이라 리뷰·`--impl-done` 두 게이트가 다시
-      stale 해진다. INFO 등급 정확도 개선에 25분 사이클을 다시 도는 것은 비례하지 않는다.
+- [x] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). **완료 (2026-08-09,
+      `uuid-canary-docstring-fix` PR)** — 상위집합을 정적 실측(`*.controller.ts` 의
+      `@WorkspaceId()` param 데코레이터 **142건**)해 넣고, 73건이 `@Roles()` 미부착
+      **서브셋**이라 이 캐너리의 대상이 아님을 명시했다. 정적 실측이 런타임 집계와 다를 수
+      있다는 점(캐너리는 모듈에 실제 등록된 컨트롤러만 훑는다)도 함께 적었다.
+      > **원 서술 (그 PR 기준, 이제 해소)**: "그 수는 `@Roles()` 미부착 서브셋인데 캐너리가
+      > 세는 것은 `@WorkspaceId()` 소비 라우트 전체라 상위집합이다 — 전체 수치를 실측해
+      > 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**: 주석 한 줄이어도
+      > `codebase/**` 변경이라 리뷰·`--impl-done` 두 게이트가 다시 stale 해진다. INFO 등급
+      > 정확도 개선에 25분 사이클을 다시 도는 것은 비례하지 않는다."
+      >
+      > 그 판단은 맞았다 — 실제로 사이클을 한 번 더 돌아야 했다. 다만 같은 게이트를 공유하는
+      > `uuid.ts` 캐너리 오지목 정정과 **묶어서** 처리해 추가 사이클을 1회로 끝냈다. 두 파일
+      > 다 이제 `1-auth.md` `code:` 글로브에 걸린 spec-linked 라 어차피 같은 체인을 탄다.
 
 ## Rationale
 
