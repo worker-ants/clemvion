@@ -255,7 +255,10 @@ describe('SecretResolverService', () => {
     it('통과 — 실제 호출부 형태(내부 생성 UUID 경로)는 그대로 동작한다', async () => {
       // 가드가 정상 경로까지 막으면 trigger 삭제가 조용히 실패한다 — 그 방향도 고정한다.
       const repo = createInMemoryRepository();
-      const svc = new SecretResolverService(repo, createConfigService(validKey));
+      const svc = new SecretResolverService(
+        repo,
+        createConfigService(validKey),
+      );
       svc.onModuleInit();
       await svc.store(
         'secret://triggers/8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234/token',
