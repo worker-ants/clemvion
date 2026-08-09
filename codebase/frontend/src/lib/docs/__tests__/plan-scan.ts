@@ -18,7 +18,7 @@
 // **이 파일이 합친 것은 그중 둘이다** — live/complete 수집기를 한 구현
 // (`walkPlanMarkdown`)에서 파생시켰다. Gate C(`spec-plan-completion.test.ts`)의
 // `collectCompletePlans` 는 **아직 독립 구현으로 남아 있고**(면제 규칙 값은 현재 일치 —
-// 실측), 그 통합은 `harness-env-value-subpattern-dedup.md` 에 등재했다. "네 벌을 하나로
+// 실측), 그 통합은 `plan/in-progress/docs-guard-walker-dedup.md` 에 등재했다. "네 벌을 하나로
 // 합쳤다" 로 읽히지 않도록 범위를 명시한다(ai-review naming WARNING).
 //
 // 이름이 한 단어 차이(`collectCompletePlanMarkdown` vs `collectCompletePlans`)라 혼동
