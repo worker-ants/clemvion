@@ -14,8 +14,15 @@
 //
 // `plan/` 트리를 손으로 순회하는 walker 가 저장소에 네 벌 있었고, 서로 `0-`/`_` 접두
 // 처리가 달랐다. 그 차이는 데이터가 그 형태를 갖는 순간에만 드러나므로 **조용히** 어긋난다.
-// 여기서 두 수집기를 한 구현(`walkPlanMarkdown`)에서 파생시키고, Gate C
-// (`spec-plan-completion.test.ts`)와 같은 면제 규칙을 쓴다.
+//
+// **이 파일이 합친 것은 그중 둘이다** — live/complete 수집기를 한 구현
+// (`walkPlanMarkdown`)에서 파생시켰다. Gate C(`spec-plan-completion.test.ts`)의
+// `collectCompletePlans` 는 **아직 독립 구현으로 남아 있고**(면제 규칙 값은 현재 일치 —
+// 실측), 그 통합은 `harness-env-value-subpattern-dedup.md` 에 등재했다. "네 벌을 하나로
+// 합쳤다" 로 읽히지 않도록 범위를 명시한다(ai-review naming WARNING).
+//
+// 이름이 한 단어 차이(`collectCompletePlanMarkdown` vs `collectCompletePlans`)라 혼동
+// 위험이 있는데, 통합 시점에 한쪽이 사라지므로 지금 개명하지 않는다.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -90,7 +97,7 @@ export function collectCompletePlanMarkdown(root: string): PlanMdFile[] {
  * 보존한다: 특히 `superseded` 는 "대체됨" 이라 완료가 아니고 일괄 `complete` 로 바꿨다면
  * 그 의미가 사라진다.
  */
-export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+export const TERMINAL_PLAN_STATUSES: ReadonlySet<string> = new Set([
   "complete",
   "implemented",
   "applied",
@@ -120,7 +127,7 @@ export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
     }
     const status = data.status;
     if (typeof status !== "string") continue;
-    if (!TERMINAL_STATUSES.has(status)) {
+    if (!TERMINAL_PLAN_STATUSES.has(status)) {
       out.push({ relPath: f.relPath, status });
     }
   }

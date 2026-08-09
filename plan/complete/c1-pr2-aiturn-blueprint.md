@@ -2,7 +2,7 @@
 parent: plan/complete/c1-engine-split.md (PR2)
 branch: claude/engine-split-s2-aiturn (base = PR1 claude/engine-split-s1-nodebootstrap)
 status: complete
-merged_pr: 625
+pr: 625
 created: 2026-06-17
 spec_impact: none
 ---

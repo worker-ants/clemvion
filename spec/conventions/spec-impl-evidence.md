@@ -84,6 +84,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 - `code:` 키 — user-guide MDX frontmatter 의 동명 `code:` 와 의미는 같으나, 대상 문서가 `.md` (spec) vs `.mdx` (가이드) 로 구별됨. 두 가드(`spec-code-paths.test.ts` vs `registry.test.ts`)는 각각 자기 도메인만 검증.
 - `status:` 키 — `spec/1-data-model.md` 의 엔티티 `status` 컬럼 (Integration / Execution 등) 과는 레이어가 다름. spec frontmatter 가드는 entity 컬럼을 건드리지 않음.
+- `status:` 키 (**plan frontmatter**, 2026-08-10 추가) — `plan/complete/**` 의 `status` 도 2026-08-10 부터 build 가드 대상이 되면서 §3 의 spec `status` enum 과 **`implemented` 값을 공유**하게 됐다. 의미는 다르다 — spec 쪽은 "그 문서가 약속한 surface 가 구현됨", plan 쪽은 "그 작업이 종료됨" 이다. 두 도메인은 문서 타입으로 완전히 갈리고(가드도 각각 `spec-frontmatter.test.ts` vs `plan-frontmatter.test.ts`), plan 쪽 허용값은 `plan-scan.ts` 의 `TERMINAL_PLAN_STATUSES` 가 SoT 다. 값 어휘를 서로 맞출 의무는 **없다**.
 - `archived` (§3) — `spec/conventions/cafe24-api-catalog/_overview.md §3` 의 `deprecated` (Cafe24 endpoint 폐기 상태) 와 의미 도메인이 다름. 본 컨벤션의 `archived` 는 spec 문서 자체의 폐기, cafe24 `deprecated` 는 외부 API endpoint 상태.
 
 ## 3. `status` 라이프사이클

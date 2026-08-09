@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  TERMINAL_STATUSES,
+  TERMINAL_PLAN_STATUSES,
   collectCompletePlanMarkdown,
   collectLivePlanMarkdown,
   findNonTerminalCompletedPlans,
@@ -160,9 +160,9 @@ describe("plan-scan", () => {
     expect(rels).not.toContain("plan/complete/0-index.md");
   });
 
-  it("TERMINAL_STATUSES pins the four accepted values", () => {
+  it("TERMINAL_PLAN_STATUSES pins the four accepted values", () => {
     // 어휘를 늘리는 것은 판단이 필요한 일이다 — 이 단언이 그 순간을 마주치게 한다.
-    expect([...TERMINAL_STATUSES].sort()).toEqual([
+    expect([...TERMINAL_PLAN_STATUSES].sort()).toEqual([
       "applied",
       "complete",
       "implemented",

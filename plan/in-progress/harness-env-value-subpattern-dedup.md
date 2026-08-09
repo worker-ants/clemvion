@@ -68,27 +68,17 @@ priority: P3
 - **여기로 이관한 이유**: 원래 등재처(`ci-required-check-skip-jobs.md`)가 완료됐고, 본 plan 이
   harness 내부 중복 판정을 다루는 자리다.
 
-## 함께 볼 것 — 문서 가드 트리 walker 3벌 (2026-08-10 이관)
+## 함께 볼 것 — 같은 "DRY vs 안전성" 축의 다른 plan
 
-`plan-lifecycle-gates` PR 의 ai-review 4라운드가 두 건을 남겼다. **그 PR 범위 밖**이라
-여기로 옮긴다 — 둘 다 "인접 코드를 더 리팩터하라" 이고, 그 PR 이 건드릴 이유가 없는
-파일을 건드려야 한다.
+[`docs-guard-walker-dedup.md`](docs-guard-walker-dedup.md) — `codebase/frontend/src/lib/docs/__tests__/`
+문서 가드들의 디렉터리 순회 walker 3벌 통합 판정.
 
-- [ ] **디렉터리 순회 골격 3벌** — `walkPlanMarkdown`(`plan-scan.ts`) ·
-      `collectSpecMarkdown` · `collectCodebaseSources`(둘 다 `spec-links.ts`). 그 PR 이
-      plan walker 를 **네 벌 → 한 벌**로 줄였지만 spec/codebase walker 는 그대로다.
-      셋은 필터가 서로 다르다(생성 카탈로그 제외 · 확장자 집합 · `archive` 제외)라
-      `walkTree(root, {skipDir, includeFile})` 로 파라미터화하는 것이 자연스러워 보이나,
-      **착수 전 각 walker 의 필터 차이를 표로 실측할 것** — 차이가 의도인지 사고인지
-      가르지 않고 합치면 이 저장소가 반복해 데인 "조용한 스코프 변경" 을 만든다.
-- [ ] **`SpecMdFile` 타입명이 실제 용도보다 좁다** — `collectCodebaseSources(): SpecMdFile[]`
-      처럼 spec 이 아닌 파일에도 쓰인다(선재 상태). `MdFileRef` 류 도메인 중립 이름으로
-      분리하고 `SpecMdFile` 은 진짜 spec markdown 전용으로 한정.
-      > `plan-scan.ts` 는 이미 `PlanMdFile` 을 따로 두어 이 혼동에서 빠져 있다.
-
-> **Gate C 재사용은 별건**: `spec-plan-completion.test.ts` 의 `collectCompletePlans` 도
-> 여전히 독립 구현이다(값은 현재 일치 — 실측). `collectCompletePlanMarkdown` 재사용으로
-> 전환하면 "네 벌 → 한 구현" 이 완결된다. 위 두 항목과 같은 착수 시점이 자연스럽다.
+> **주제 유사성뿐이라 편입하지 않았다.** 한때 그 항목들을 이 plan 안에 이관했는데,
+> 이 plan 은 `.claude/hooks/*.py` 의 **정규식 상수** 중복이고 저쪽은 TypeScript 문서 가드의
+> **디렉터리 순회 필터** 중복이다 — 코드베이스·언어·실패 모드가 전부 다르다. 그 자리에
+>두면 walker 중복을 찾는 사람이 발견하지 못한다(consistency plan-coherence WARNING).
+> 두 plan 이 공유하는 것은 "복제를 남길 것인가, 합쳐서 표면을 만들 것인가" 라는 **판단
+> 기준**뿐이고, 그 기준은 이 저장소가 `#970`(blind 정규식 vs 정밀 파서)에서 이미 세웠다.
 
 ## Rationale
 

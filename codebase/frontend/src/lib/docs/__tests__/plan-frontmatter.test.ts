@@ -181,7 +181,7 @@ describe("completed plans declare a terminal status", () => {
       wrong,
       `complete/ 에 있으면서 종료 상태가 아닌 plan ${wrong.length}건:\n  ${wrong.join("\n  ")}\n` +
         "이동 시 `status:` 를 함께 갱신하거나, 새 종료 어휘라면 plan-scan.ts 의 " +
-        "TERMINAL_STATUSES 에 등재할 것.",
+        "TERMINAL_PLAN_STATUSES 에 등재할 것.",
     ).toEqual([]);
   });
 });
