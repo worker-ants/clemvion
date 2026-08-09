@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-08-10T04:38:50.356474",
+  "files": [
+    {
+      "file_path": "codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/docs/__tests__/plan-scan.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/docs/__tests__/plan-scan.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    }
+  ],
+  "agents": [
+    "testing",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "documentation"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "side_effect",
+    "testing"
+  ]
+}

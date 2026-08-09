@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { repoRoot } from "./spec-frontmatter-parse";
-import { collectCompletePlanMarkdown, parseFrontmatterSafe } from "./plan-scan";
+import {
+  collectCompletePlanMarkdown,
+  isIsoDate,
+  parseFrontmatterSafe,
+  rawScalar,
+} from "./plan-scan";
 
 // Gate C — plan-completion spec-consistency.
 //
@@ -24,20 +29,39 @@ import { collectCompletePlanMarkdown, parseFrontmatterSafe } from "./plan-scan";
 const GATE_C_CUTOFF = new Date("2026-06-04T00:00:00Z");
 const NONE_VALUES = new Set(["none", "없음", "n/a", "na"]);
 
-function startedDate(data: Record<string, unknown>): Date | null {
-  const s = data.started;
-  if (s instanceof Date) return s;
-  if (typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return new Date(`${s}T00:00:00Z`);
-  }
-  return null;
+/**
+ * `started` 를 **원문 스칼라**에서 읽어 컷오프 비교용 날짜로 만든다. 무효면 `null`.
+ *
+ * 원문을 보고 `isIsoDate` 로 거르는 것이 핵심이다 — 종전에는 파싱 결과를 그대로 받아
+ * **망가진 날짜가 Gate C 를 통째로 면제받았다**(실측):
+ *
+ * | `started` | 종전 결과 | Gate C |
+ * |---|---|---|
+ * | `"2026-13-32"` | `Invalid Date` → `null` | **미강제** |
+ * | `2026-00-10` | js-yaml 이 `2025-12-10` 으로 굴림 | **미강제**(컷오프 이전) |
+ *
+ * `plan/complete/**` 는 `checkPlanFrontmatter`(in-progress 전용)의 보호를 받지 못해 이
+ * 파일이 유일한 방어선이다. 무효를 **조용히 넘기지 않도록** 아래 별도 `it` 이 표면화한다.
+ */
+function startedDate(block: string): Date | null {
+  const raw = rawScalar(block, "started");
+  if (!isIsoDate(raw)) return null;
+  return new Date(`${raw}T00:00:00Z`);
 }
 
-// Pure enforcement predicates — unit-tested below so the gate is provably live
-// even while every real plan is still grandfathered (enforced set empty).
-export function isGateCEnforced(data: Record<string, unknown>): boolean {
-  const d = startedDate(data);
+/**
+ * 이 완료 plan 이 Gate C 강제 대상인가. **frontmatter 원문 블록**을 받는다 — 파싱 결과를
+ * 받던 종전 시그니처로는 위 표의 두 경로를 구분할 수 없었다.
+ */
+export function isGateCEnforced(block: string): boolean {
+  const d = startedDate(block);
   return d !== null && d.getTime() >= GATE_C_CUTOFF.getTime();
+}
+
+/** `started` 를 선언했는데 그 값이 달력상 실재하지 않으면 위반이다(조용한 면제 차단). */
+export function hasMalformedStarted(block: string): boolean {
+  const raw = rawScalar(block, "started");
+  return raw !== null && !isIsoDate(raw);
 }
 
 export function hasValidSpecImpact(
@@ -85,18 +109,22 @@ describe("Gate C — plan-completion spec-consistency", () => {
   const root = repoRoot();
   const plans = collectCompletePlans(root);
 
+  // 파싱은 `plan-scan.ts` 의 단일 진입점을 쓴다 — gray-matter 캐시 우회 관용구가 여기
+  // 손으로 복제돼 있으면 다음 호출부에서 조용히 빠진다(이 PR 이 실제로 겪었다).
+  // 한 번만 읽어 아래 두 단계가 공유한다(종전에는 같은 plan 을 두 번 파싱했다).
+  const parsedPlans = plans.map((abs) => ({
+    abs,
+    rel: path.relative(root, abs).split(path.sep).join("/"),
+    parsed: parseFrontmatterSafe(fs.readFileSync(abs, "utf8")),
+  }));
+
   // Plans started on/after the cutoff that must carry a spec_impact decision.
-  const enforced = plans.filter((abs) => {
-    // 파싱은 `plan-scan.ts` 의 단일 진입점을 쓴다 — gray-matter 캐시 우회 관용구가 여기
-    // 손으로 복제돼 있으면 다음 호출부에서 조용히 빠진다(이 PR 이 실제로 겪었다).
-    // 이 가드는 같은 plan 을 두 번 파싱한다(여기 필터 단계 + 아래 per-plan describe).
-    const parsed = parseFrontmatterSafe(fs.readFileSync(abs, "utf8"));
-    if (parsed === null) return false;
-    // 컷오프 판정은 `isGateCEnforced` 소관이다 — 종전에는 같은 식이 여기 인라인으로
-    // 복제돼 있었고, 그 predicate 는 단위 테스트에서만 불려 **실제 게이트와 갈릴 수
-    // 있었다**(이 PR 이 반복해 경계하는 판정 이중화 그 자체).
-    return isGateCEnforced(parsed.data);
-  });
+  // 컷오프 판정은 `isGateCEnforced` 소관이다 — 종전에는 같은 식이 여기 인라인으로
+  // 복제돼 있었고, 그 predicate 는 단위 테스트에서만 불려 **실제 게이트와 갈릴 수
+  // 있었다**(이 PR 이 반복해 경계하는 판정 이중화 그 자체).
+  const enforced = parsedPlans.filter(
+    (p) => p.parsed !== null && isGateCEnforced(p.parsed.block),
+  );
 
   it("resolves a real repo root with a complete plan dir", () => {
     // Guard against repoRoot() misresolving → empty scan → vacuous pass of the
@@ -108,17 +136,34 @@ describe("Gate C — plan-completion spec-consistency", () => {
     expect(plans.length).toBeGreaterThan(10);
   });
 
-  for (const abs of enforced) {
-    const rel = path.relative(root, abs).split(path.sep).join("/");
+  it("no completed plan declares a `started` that is not a real calendar date", () => {
+    // **이것이 없으면 Gate C 는 조용히 면제된다.** 망가진 `started` 는 컷오프 비교에서
+    // `null`(판정 불가) 또는 js-yaml 의 롤오버 결과(`2026-00-10` → `2025-12-10`)로 변해
+    // 강제 대상에서 빠진다 — 실측으로 두 경로 모두 확인했다. `plan/complete/**` 는
+    // `checkPlanFrontmatter`(in-progress 전용)의 보호를 받지 못해 여기가 유일한 방어선이다.
+    const malformed = parsedPlans
+      .filter((p) => p.parsed !== null && hasMalformedStarted(p.parsed.block))
+      .map((p) => `${p.rel}: started=${JSON.stringify(rawScalar(p.parsed!.block, "started"))}`);
+    expect(
+      malformed,
+      `달력상 실재하지 않는 started ${malformed.length}건 — Gate C 를 조용히 면제받는다`,
+    ).toEqual([]);
+  });
+
+  for (const { rel, parsed } of enforced) {
     describe(rel, () => {
-      // `enforced` 를 통과한 plan 만 오므로 파싱은 이미 성공했다 — `?? {}` 는 타입 좁히기용.
-      const data = parseFrontmatterSafe(fs.readFileSync(abs, "utf8"))?.data ?? {};
-      const impact = data.spec_impact;
+      // `enforced` 를 통과한 plan 만 오므로 파싱은 이미 성공했다.
+      const impact = parsed!.data.spec_impact;
 
       it("declares `spec_impact`", () => {
-        const ok =
-          (typeof impact === "string" && impact.trim().length > 0) ||
-          (Array.isArray(impact) && impact.length > 0);
+        // 판정은 `hasValidSpecImpact` 소관이다. 종전에는 여기서 "비어있지 않은 문자열"
+        // 이면 통과시켜 **`spec_impact: maybe` 같은 아무 문자열이나 게이트를 지나갔다**
+        // — 그 predicate 는 `none` 어휘만 인정하는데 단위 테스트에서만 불려서, 게이트가
+        // 실제로는 더 느슨하다는 사실이 드러나지 않았다(판정 이중화의 전형).
+        // 실데이터 실측: none류 72 · 리스트 233 · 그 외 0건이라 조여도 안전하다.
+        const ok = hasValidSpecImpact(impact, (p) =>
+          fs.existsSync(path.join(root, p)),
+        );
         expect(
           ok,
           `${rel}: completed plan must declare frontmatter spec_impact (spec path list, or "none")`,
@@ -153,17 +198,38 @@ describe("Gate C — plan-completion spec-consistency", () => {
 describe("Gate C enforcement logic", () => {
   const exists = (p: string) => p === "spec/5-system/4-execution-engine.md";
 
+  // 판정은 **frontmatter 원문 블록**을 받는다 — 파싱 결과로는 아래 malformed 케이스를
+  // 구분할 수 없다(js-yaml 이 무효 날짜를 유효한 `Date` 로 굴려 버린다).
+  const block = (started: string): string => `\nstarted: ${started}\nowner: dev`;
+
   it("grandfathers plans started before the cutoff", () => {
-    expect(isGateCEnforced({ started: "2026-06-03" })).toBe(false);
-    expect(isGateCEnforced({ started: new Date("2026-01-01T00:00:00Z") })).toBe(false);
+    expect(isGateCEnforced(block("2026-06-03"))).toBe(false);
+    expect(isGateCEnforced(block("2026-01-01"))).toBe(false);
   });
   it("enforces plans started on/after the cutoff", () => {
-    expect(isGateCEnforced({ started: "2026-06-04" })).toBe(true);
-    expect(isGateCEnforced({ started: "2026-12-31" })).toBe(true);
+    expect(isGateCEnforced(block("2026-06-04"))).toBe(true);
+    expect(isGateCEnforced(block("2026-12-31"))).toBe(true);
+    expect(isGateCEnforced(block('"2026-12-31"'))).toBe(true); // 따옴표도 같은 답
   });
   it("missing/invalid `started` is not enforced (can't determine)", () => {
-    expect(isGateCEnforced({})).toBe(false);
-    expect(isGateCEnforced({ started: "nope" })).toBe(false);
+    expect(isGateCEnforced("\nowner: dev")).toBe(false);
+    expect(isGateCEnforced(block("nope"))).toBe(false);
+  });
+
+  it("a malformed `started` is surfaced, not silently exempted", () => {
+    // 종전에는 이 값들이 컷오프 비교에서 빠져 **Gate C 를 통째로 면제**받았다(실측:
+    // `"2026-13-32"` → Invalid Date, `2026-00-10` → js-yaml 이 2025-12-10 으로 굴림).
+    for (const bad of ["2026-13-32", "2026-00-10", "2026-02-30", "2026-06-31", "nope"]) {
+      expect(hasMalformedStarted(block(bad)), `${bad} must be flagged`).toBe(true);
+      expect(isGateCEnforced(block(bad)), `${bad} must not be enforced`).toBe(false);
+    }
+    // `2026-06-31` 은 이 목록에서 **유일하게** 두 구현을 가른다 — 롤오버 결과(7/1)가
+    // 컷오프를 넘어서 `isIsoDate` 없이는 **강제 대상으로 오판**된다. 나머지는 Invalid 이거나
+    // 롤오버해도 컷오프 이전이라(2/30 → 3/2) 어느 구현이든 같은 답이 나온다 —
+    // 뮤테이션으로 발각했다(그 fixture 만 있을 때 `isIsoDate` 제거 뮤턴트가 생존했다).
+    expect(hasMalformedStarted(block("2026-06-04"))).toBe(false);
+    // 선언 자체가 없으면 위반이 아니다 — 판정 불가와 무효를 가른다.
+    expect(hasMalformedStarted("\nowner: dev")).toBe(false);
   });
   it("accepts `none`/`없음` and existing spec-path lists; rejects empty/dangling/absent", () => {
     expect(hasValidSpecImpact("none", exists)).toBe(true);

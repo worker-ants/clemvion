@@ -15,14 +15,14 @@
 // `plan/` 트리를 손으로 순회하는 walker 가 저장소에 네 벌 있었고, 서로 `0-`/`_` 접두
 // 처리가 달랐다. 그 차이는 데이터가 그 형태를 갖는 순간에만 드러나므로 **조용히** 어긋난다.
 //
-// **plan 계열 네 벌은 이 구현 하나로 모였다** — live/complete 수집기가 `walkPlanMarkdown`
-// 에서 파생되고, Gate C(`spec-plan-completion.test.ts`)의 `collectCompletePlans` 도
+// **그 네 벌이 이 구현 하나로 모였다** — live/complete 수집기가 `walkPlanMarkdown` 에서
+// 파생되고, Gate C(`spec-plan-completion.test.ts`)의 `collectCompletePlans` 도
 // `collectCompletePlanMarkdown` 위임 3줄로 축소됐다. 종전에는 필터 값이 **우연히** 같았을
 // 뿐 그것을 강제하는 것이 없었다.
 //
-// **남은 walker 둘은 `spec-links.ts` 안에 있다**(`collectSpecMarkdown`·
-// `collectCodebaseSources`) — plan 트리가 아니라 spec/codebase 를 보므로 이 파일의 범위
-// 밖이고, 통합 판정은 `plan/in-progress/docs-guard-walker-dedup.md` 에 등재했다.
+// (`spec-links.ts` 에도 손수 순회하는 walker 가 둘 있지만 그쪽은 spec/codebase 트리를
+// 본다 — 위 "네 벌" 에 애초에 포함되지 않는 **별 문제**이고, 통합 판정은
+// `plan/in-progress/docs-guard-walker-dedup.md` 에 등재했다.)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -193,7 +193,7 @@ const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
  *
  * `started` 를 파싱 결과로 보면 안 되기 때문에 필요하다 — 아래 `isIsoDate` 주석 참조.
  */
-function rawScalar(block: string, key: string): string | null {
+export function rawScalar(block: string, key: string): string | null {
   const m = new RegExp(`^[ \\t]*${key}:[ \\t]*(.*)$`, "m").exec(block);
   if (!m) return null;
   return m[1].trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
@@ -209,7 +209,7 @@ function rawScalar(block: string, key: string): string | null {
  * 자리수만 보는 것도 부족하다(종전 검사가 `/^\d{4}-\d{2}-\d{2}$/` 뿐이라 `2026-13-32` 통과).
  * 그래서 원문을 형태로 거른 뒤 파싱 결과를 입력과 **라운드트립 비교**한다.
  */
-function isIsoDate(text: string | null): boolean {
+export function isIsoDate(text: string | null): boolean {
   if (text === null) return false;
   const m = ISO_DATE.exec(text);
   if (!m) return false;
