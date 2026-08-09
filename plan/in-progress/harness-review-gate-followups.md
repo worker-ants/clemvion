@@ -423,9 +423,32 @@ spec_impact: none
 그쪽은 "참조 문서가 멀어서" 떨어지는 것이고, 이쪽은 **diff 가 건드린 파일 자신**이 우선순위
 없이 탈락한다.
 
-- [ ] 번들 우선순위에 **"이번 diff 가 건드린 파일" 을 최상단 고정** — 예산이 모자라면 그
-      파일들이 아니라 주변 참조를 먼저 버려야 한다
-- [ ] 회귀 테스트: diff 대상 파일이 생략 목록에 들어가면 RED. 지금은 이 단언이 없다
+- [x] **구현 완료 (2026-08-10) — 단, 진단이 위와 달랐다.**
+
+      **우선순위는 이미 있었다.** `prioritize_bundle_files` 의 tier 0 이 정확히 "이번 diff 가
+      건드린 파일" 이고 `related_specs`·`conventions`·`plan_in_progress` 전부에 걸려 있다.
+      실측하니 이 브랜치의 webchat 3파일은 `related_specs` 에서 5·6·7위였다 — 최상단이다.
+
+      **진짜 원인은 신호가 커밋된 것만 본다는 것이었다.** `_branch_changed_rels` 는
+      `git diff <base>...HEAD` 라 **워킹트리 편집이 보이지 않는다.** 그런데 이 프로젝트는
+      쓰기가 착지하기 **전에** 검사를 돌리도록 요구한다(`CLAUDE.md`: planner 는 `spec/`
+      쓰기 직전 `--spec`, developer 는 착수 직전 `--impl-prep`). 즉 검토 대상은
+      **구조적으로 미커밋**이고, tier 0 은 하필 그 순간 눈이 먼다.
+
+      무수정 프로브로 실증(`spec/5-system/` 18개): 미커밋 편집은 브랜치 diff 에 아예 없고
+      번들 **8위** — 그 디렉터리의 드롭 구간이다. 수정 후 **0위**, 기본 예산에서 본문 생존.
+
+      처방: `_shared/git_probe.worktree_changed_files`(`git status --porcelain -uall`) 신설 +
+      `_edited_rels` 가 커밋분과 **합집합**. 합집합인 이유는 커밋을 마친 브랜치가 tier 0
+      신호를 잃지 않게 하기 위해서다. 랭킹 전용이라 과다 포함은 무해하다(만진 파일은
+      정의상 관련 있다) — changeset 으로는 쓰지 말 것을 docstring 에 못박았다.
+
+- [x] **회귀 테스트 완료** — `test_consistency_bundle_priority.py`
+      `TheDocumentBeingEditedIsNeverOmittedTest` 4건: 미커밋 편집이 tier 0 도달 ·
+      **`collect_context` 산출물의 0번 청크**(호출부) · 새 디렉터리의 untracked 파일이
+      개별 경로로 잡힘(`-uall`) · 프로브 원복 확인.
+      뮤테이션 4종 전부 RED. 처음엔 헬퍼만 단언해 **호출부 뮤턴트(P1)와 `-uall` 제거(P4)가
+      살아남았다** — 헬퍼 테스트 ≠ 호출부 테스트, 이 저장소가 이미 두 번 데인 형태다.
 
 ## 원 plan 에서 함께 넘어온 미해결 조사 1건
 

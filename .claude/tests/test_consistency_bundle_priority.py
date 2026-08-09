@@ -470,6 +470,121 @@ class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
         )
 
 
+class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
+    """검토 대상이 **아직 커밋되지 않았다**는 이유로 예산에서 탈락하면 안 된다.
+
+    이 프로젝트는 쓰기가 **착지하기 전에** 일관성 검사를 돌리도록 요구한다
+    (`CLAUDE.md`: planner 는 `spec/` 쓰기 직전 `--spec`, developer 는 착수 직전
+    `--impl-prep`). 그러니 검토 대상은 **구조적으로 미커밋**이고, 커밋된 diff 만 보는
+    신호는 하필 그 순간 눈이 먼다.
+
+    실측 2026-08-10 (`spec/5-system/` 18개): 미커밋 편집은 브랜치 diff 에 아예 없고
+    번들 8위 — 그 디렉터리의 드롭 구간이다. 편집 중인 문서 자신이 "예산 초과로 생략된
+    파일" 목록에 실려 checker 가 그걸 못 본 채 판정한, 보고된 그 증상이다.
+    """
+
+    @staticmethod
+    def _rank_of_an_uncommitted_edit():
+        return run_in_orchestrator(
+            """
+            import os, shutil, tempfile
+            rel = "spec/5-system/7-llm-client.md"
+            target = os.path.join(ROOT, rel)
+            backup = os.path.join(tempfile.mkdtemp(), "backup.md")
+            shutil.copy(target, backup)
+            try:
+                with open(target, "a", encoding="utf-8") as fh:
+                    fh.write("\\n<!-- uncommitted probe -->\\n")
+                edited = orch._edited_rels("origin/main", ROOT)
+                files = orch.collect_markdown_files(os.path.join(ROOT, "spec/5-system"))
+                ordered = orch.prioritize_bundle_files(
+                    files, ROOT, changed_rels=edited, plan_text="",
+                    branch_plan_text="")
+                names = [os.path.relpath(f, ROOT) for f in ordered]
+                emit({"tier0": rel in edited, "rank": names.index(rel),
+                      "total": len(names)})
+            finally:
+                # cp 로 원복한다 — `git checkout` 은 이 저장소에서 미커밋 작업을
+                # 두 번 지웠다.
+                shutil.copy(backup, target)
+            """
+        )
+
+    def test_an_uncommitted_edit_reaches_the_top_tier(self):
+        got = self._rank_of_an_uncommitted_edit()
+        self.assertTrue(got["tier0"], "미커밋 편집이 변경 집합에 없다")
+        self.assertEqual(
+            got["rank"], 0,
+            f"편집 중인 문서가 {got['rank']}위다 — 예산이 모자라면 먼저 버려진다",
+        )
+
+    def test_collect_context_puts_the_edited_document_first(self):
+        """호출부 계약. `_edited_rels` 가 옳아도 `collect_context` 가 옛 함수를 계속
+        부르면 결함은 그대로다 — 그 뮤턴트가 실제로 살아남았다."""
+        first = run_in_orchestrator(
+            """
+            import os, re, shutil, tempfile
+            rel = "spec/5-system/7-llm-client.md"
+            target = os.path.join(ROOT, rel)
+            backup = os.path.join(tempfile.mkdtemp(), "backup.md")
+            shutil.copy(target, backup)
+            try:
+                with open(target, "a", encoding="utf-8") as fh:
+                    fh.write("\\n<!-- uncommitted probe -->\\n")
+
+                class Args:
+                    spec = plan = impl_prep = diff_base = None
+                    impl_done = None
+                args = Args()
+                args.impl_done = os.path.join(ROOT, "spec/5-system")
+                doc = orch.collect_context(args, ROOT)["target_doc"]
+                text = re.sub(r"```.*?```", "", doc, flags=re.S)
+                emit(re.findall(r"^#### `([^`]+)`", text, re.M)[0])
+            finally:
+                shutil.copy(backup, target)
+            """
+        )
+        self.assertEqual(first, "spec/5-system/7-llm-client.md")
+
+    def test_an_untracked_file_is_named_individually(self):
+        """새 영역을 만드는 planner 는 **새 디렉터리에 새 파일**을 쓴다.
+
+        `git status --porcelain` 은 기본값에서 그런 디렉터리를 `dir/` 한 줄로 뭉치는데,
+        디렉터리 경로는 어떤 파일 경로와도 일치하지 않아 tier 0 이 조용히 빈다.
+        `-uall` 이 그걸 막는다.
+        """
+        listed = run_in_orchestrator(
+            """
+            import os, shutil
+            newdir = os.path.join(ROOT, "spec/5-system/__probe_area__")
+            os.makedirs(newdir, exist_ok=True)
+            newfile = os.path.join(newdir, "draft.md")
+            try:
+                with open(newfile, "w", encoding="utf-8") as fh:
+                    fh.write("# 초안\\n")
+                emit(orch._edited_rels("origin/main", ROOT).__contains__(
+                    "spec/5-system/__probe_area__/draft.md"))
+            finally:
+                shutil.rmtree(newdir, ignore_errors=True)
+            """
+        )
+        self.assertTrue(listed, "새 디렉터리의 untracked 파일이 개별로 잡히지 않는다")
+
+    def test_the_probe_leaves_no_residue(self):
+        """원복이 실제로 되는지 확인한다. 안 되면 위 테스트가 저장소를 더럽힌 채
+        통과하고, 다음 실행부터는 '이미 편집됨' 이라 vacuous 해진다."""
+        self._rank_of_an_uncommitted_edit()
+        left = run_in_orchestrator(
+            """
+            import os
+            with open(os.path.join(ROOT, "spec/5-system/7-llm-client.md"),
+                      encoding="utf-8") as fh:
+                emit("uncommitted probe" in fh.read())
+            """
+        )
+        self.assertFalse(left, "프로브가 편집을 남겼다")
+
+
 class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
     """`--impl-done` 의 코드 diff 가 folder dump 뒤에 붙으면 **가장 먼저** 잘린다.
 

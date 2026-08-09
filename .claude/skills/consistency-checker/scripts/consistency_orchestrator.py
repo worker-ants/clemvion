@@ -257,6 +257,29 @@ def _branch_changed_rels(diff_base, root):
     ))
 
 
+def _edited_rels(diff_base, root):
+    """Files this task touched — committed on the branch OR still uncommitted.
+
+    Ranking needs both, and the committed half alone is blind exactly when it
+    matters: this project runs the consistency check BEFORE the write lands
+    (planner `--spec` 직전, developer `--impl-prep` 착수 직전), so the documents
+    under review are uncommitted by construction. Measured 2026-08-10 on
+    `spec/5-system/`: an uncommitted edit ranked 8th of 18, inside that
+    directory's drop zone — the reported "the bundle drops the document being
+    reviewed" symptom.
+
+    The union is deliberate rather than a replacement: a branch that already
+    committed its spec edits keeps its tier-0 signal after `git commit`, which a
+    working-tree-only probe would lose.
+    """
+    return _branch_changed_rels(diff_base, root) | set(
+        _git_probe.worktree_changed_files(
+            root,
+            on_error=lambda reason: debug_log(f"worktree status failed: {reason}"),
+        )
+    )
+
+
 def _named_in(rel, plan_text):
     """Does `plan_text` name this file — by path or by basename?
 
@@ -481,7 +504,7 @@ def collect_context(args, root):
     # Plans are read WITHOUT `excluded` (still empty here anyway) because
     # ranking wants every in-progress plan, not just the ones that survive into
     # the plan bundle.
-    _rank_changed = _branch_changed_rels(diff_base, root)
+    _rank_changed = _edited_rels(diff_base, root)
     _rank_plan_files = collect_markdown_files(plan_dir)
     _rank_plan_text = "\n".join(read_text_file(p) for p in _rank_plan_files)
     # The plans THIS BRANCH touched are the task's own plans, and their
