@@ -42,7 +42,7 @@ spec-linked 파일을 한 번 더 건드려 신선도가 깨졌다. 본 라운�
 에서 `git diff`/`git grep`/직접 `Read` 로 재구성해 판정했다 — **판정 근거는 번들이 아니라
 직접 확인이다.** 이 한계를 다음 사람이 알아야 한다.
 
-번들 예산 문제는 [`harness-review-gate-followups.md`](../../../../plan/in-progress/harness-review-gate-followups.md)
+번들 예산 문제는 [`harness-review-gate-followups.md`](../../../../../../plan/in-progress/harness-review-gate-followups.md)
 에 등재돼 있다(같은 문서의 `--impl-done` 타이밍 함정 항목과 함께).
 
 ## Critical / WARNING

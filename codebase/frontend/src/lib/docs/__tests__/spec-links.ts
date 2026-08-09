@@ -266,6 +266,10 @@ export function findBrokenLinks(root: string): LinkViolation[] {
   });
 }
 
+// plan 수집은 `plan-scan.ts` 소관이다 — 링크 모듈이 plan 트리 규칙까지 갖고 있으면
+// 그 규칙이 두 곳으로 갈린다(이 PR 이 고치고 있는 바로 그 형태).
+export { collectLivePlanMarkdown };
+
 /**
  * Validate relative links in the *living* plans (top-level `plan/in-progress/*.md`).
  *
@@ -299,10 +303,6 @@ export function findBrokenLinks(root: string): LinkViolation[] {
  * and their headings are edited constantly; anchor churn would produce noise
  * without protecting the failure this exists for (a moved file).
  */
-// plan 수집은 `plan-scan.ts` 소관이다 — 링크 모듈이 plan 트리 규칙까지 갖고 있으면
-// 그 규칙이 두 곳으로 갈린다(이 PR 이 고치고 있는 바로 그 형태).
-export { collectLivePlanMarkdown };
-
 export function findBrokenPlanLinks(root: string): LinkViolation[] {
   return findBrokenLinksInFiles(collectLivePlanMarkdown(root), {
     checkSelfAnchors: false,

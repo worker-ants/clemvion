@@ -76,7 +76,7 @@ priority: P3
 > **주제 유사성뿐이라 편입하지 않았다.** 한때 그 항목들을 이 plan 안에 이관했는데,
 > 이 plan 은 `.claude/hooks/*.py` 의 **정규식 상수** 중복이고 저쪽은 TypeScript 문서 가드의
 > **디렉터리 순회 필터** 중복이다 — 코드베이스·언어·실패 모드가 전부 다르다. 그 자리에
->두면 walker 중복을 찾는 사람이 발견하지 못한다(consistency plan-coherence WARNING).
+> 두면 walker 중복을 찾는 사람이 발견하지 못한다(consistency plan-coherence WARNING).
 > 두 plan 이 공유하는 것은 "복제를 남길 것인가, 합쳐서 표면을 만들 것인가" 라는 **판단
 > 기준**뿐이다.
 >

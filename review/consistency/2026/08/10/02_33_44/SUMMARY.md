@@ -37,7 +37,7 @@ cross_spec 이 근본을 짚었다: **spec 문서는 이 테스트의 세부 구
 
 게이트의 freshness 는 "spec-linked 파일이 바뀌었는가" 만 보고 **무엇이 바뀌었는가는 보지
 않는다.** 그래서 이 라운드가 자동으로 요구됐지만, 사람이 판단해 건너뛸 수 있는 자리였다.
-[`harness-review-gate-followups.md`](../../../../plan/in-progress/harness-review-gate-followups.md)
+[`harness-review-gate-followups.md`](../../../../../../plan/in-progress/harness-review-gate-followups.md)
 의 타이밍 함정 절에 함께 기록한다.
 
 ## 5종 판정
