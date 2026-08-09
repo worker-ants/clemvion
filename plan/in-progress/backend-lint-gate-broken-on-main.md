@@ -10,7 +10,7 @@ spec_impact: none
 
 ## Overview
 
-[`auth-workspace-membership-guard`](auth-workspace-membership-guard.md) 구현 중
+[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) 구현 중
 TEST WORKFLOW `lint` 스테이지가 실패해 발견했다. **그 브랜치의 변경과 무관하며
 `origin/main` 자체가 깨져 있다.** 사용자 결정(2026-08-08): **별 PR 로 분리** —
 78개 파일 포맷 변경이 보안 fix 의 diff 를 덮지 않게 한다. 보안 PR 은 이 PR 위에 rebase.
@@ -52,6 +52,11 @@ TEST WORKFLOW `lint` 스테이지가 실패해 발견했다. **그 브랜치의 
 >    truncated 값이었다. `npx eslint --format json` 으로 직접 재고 나서야 79파일/224건이
 >    드러났다. **wrapper 요약 숫자로 규모를 판단하지 말 것.**
 
+> **본체 완료 (2026-08-09) — `#1104` (`a9e2322a1`) 머지.** lint 게이트는 복구됐다.
+> `in-progress/` 에 남는 이유는 아래 **§부수 발견 2건**(spec 파일 타입체크 부재 · `deleteByPrefix`
+> LIKE 이스케이프)과 **§잔여 warning 47건**뿐이며, 셋 다 이 PR 의 목적(게이트 복구) 밖이라
+> 의식적으로 미뤘다. 게이트 자체는 더 이상 깨져 있지 않다.
+
 ## ⚠️ 스코프 정정 (2026-08-09) — 게이트를 막던 것은 prettier 122건뿐이었다
 
 `codebase/backend` 의 lint 스크립트는 `eslint "{src,apps,libs,test}/**/*.ts"` 로
@@ -81,8 +86,19 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       `as const`), 나머지는 복원 + 근거 주석 + `eslint-disable`
 - [x] `run-test.sh lint` wrapper 경로 확인 — **PASS (56s)**
 - [x] TEST WORKFLOW — lint PASS · unit PASS(88s) · build PASS(155s) · **e2e PASS(297s, 261 tests)**
-- [ ] `/ai-review` — scope 리뷰어가 "무관 변경" 으로 볼 수 있으므로 PR 본문에 선재 근거 인용
-- [ ] push + PR
+- [x] `/ai-review` — **완료 (2026-08-09), Critical 0**. 74파일을 **두 세션으로 나눠** 전량
+      커버했다(`00_49_48` 40파일 · `00_50_08` 34파일) — orchestrator 의 `--prepare` 가 큰
+      changeset 을 배치 분할하면서 배치들이 같은 세션 디렉터리를 공유해 뒤 배치만 남기 때문
+      (실측은 [`harness-review-gate-followups.md`](harness-review-gate-followups.md) 의
+      "형제 파일 부분 추출" 항목에 기록). 각 Warning 1건씩 처리 후 변경 파일 1개만 타겟
+      재리뷰(`01_07_48`) → **Critical 0 · Warning 0**.
+      RESOLUTION 3건: `00_49_48` · `00_50_08` · `01_07_48`.
+- [x] `/consistency-check --impl-done spec/data-flow/` — **BLOCK: NO** (Critical 0 ·
+      Warning 0 · risk NONE, `review/consistency/2026/08/09/01_16_22`).
+      *`spec/5-system/` 이 아니라 `data-flow` 를 쓴 이유*: 전자는 번들이 1.2MB 라 어떤 실용
+      예산에서도 구현 diff 와 공존할 수 없다(실측). 예산 850,000 + data-flow 조합에서 diff 가
+      프롬프트에 온전히 실린 것을 청크 헤더 위치로 확인한 뒤 실행했다.
+- [x] push + PR — **`#1104` (`a9e2322a1`) 머지 완료 (2026-08-09)**
 
 ## 잔여 warning 47건 — 처분 방침 (이 PR 에서 하지 않는다)
 

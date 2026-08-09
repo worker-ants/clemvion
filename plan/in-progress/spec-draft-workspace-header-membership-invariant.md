@@ -13,7 +13,7 @@ spec_impact:
 
 ## Overview
 
-[`auth-workspace-membership-guard`](auth-workspace-membership-guard.md) 의 `--impl-prep`
+[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) 의 `--impl-prep`
 (`review/consistency/2026/08/08/18_47_21`) **BLOCK: YES** 를 해소하기 위한 spec 정정 draft.
 developer 는 `spec/` read-only 이므로 planner 턴으로 분리했다.
 
@@ -135,7 +135,7 @@ fix 착지 후에도 참인 서술이라 stale 하지 않고, 구현이 대조�
 > 위 end-state 목표("멤버십 검증이 인증 진입점 1곳으로 수렴")를 헤더 제거를 기다리지 않고
 > 앞당겨 달성한 것이다.
 >
-> 구현·전수 목록: [`plan/in-progress/auth-workspace-membership-guard.md`](../../plan/in-progress/auth-workspace-membership-guard.md).
+> 구현·전수 목록: [`plan/complete/auth-workspace-membership-guard.md`](../../plan/complete/auth-workspace-membership-guard.md).
 
 **7. `2-navigation/9-user-profile.md:158`** (`--spec` W1) — "유일 강제 지점" 을 정밀화:
 

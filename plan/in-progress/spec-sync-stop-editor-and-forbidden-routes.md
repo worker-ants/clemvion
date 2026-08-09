@@ -13,7 +13,7 @@ spec_impact:
 
 ## Overview
 
-[`auth-workspace-membership-guard`](auth-workspace-membership-guard.md) (P0 cross-tenant fix)의
+[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) (P0 cross-tenant fix)의
 `--impl-done`(`review/consistency/2026/08/08/22_43_48`, **BLOCK: NO**) WARNING 1건 + INFO 2건을
 분리 등재한다. 셋 다 **문서 동기화**이고 `spec/` 쓰기라 planner 트랙이다.
 

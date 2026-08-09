@@ -11,7 +11,7 @@ spec_impact:
 
 ## Overview
 
-[`auth-workspace-membership-guard`](auth-workspace-membership-guard.md) 의 ai-review
+[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) 의 ai-review
 (`review/code/2026/08/08/20_53_48`) WARNING #10 (API_CONTRACT / DOCUMENTATION) 을 처리하기
 위한 spec 정정 draft. `spec/conventions/` 편집은 developer 권한 밖(CLAUDE.md: `spec/` 는
 project-planner 트랙)이라 별도 draft 로 분리했다. `resolution-applier` 가 코드 쪽
