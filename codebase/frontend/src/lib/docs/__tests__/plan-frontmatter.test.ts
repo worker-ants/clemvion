@@ -10,44 +10,29 @@ import {
   findNonTerminalCompletedPlans,
 } from "./plan-scan";
 
-// Guard: every top-level in-progress plan carries the lifecycle frontmatter
-// (worktree / started / owner) so plan-coherence collision-detection and the
-// stale-audit operate on real data. SoT: .claude/docs/plan-lifecycle.md §4.
+// Guard: plan 라이프사이클 불변식 3종.
 //
-// Scope = `plan/in-progress/*.md` (top level only). Grouped subfolders hold
-// working material under a cluster index and are exempt. `0-`/`_`-prefixed
-// index files are exempt. 그 규칙의 **단일 구현**은 `plan-scan.ts` 의
-// `collectLivePlanMarkdown` 이고, 이 파일의 두 검사(frontmatter · 링크)가 함께 그것을 쓴다.
-// (`spec-links.ts` 도 같은 이름을 export 하지만 그건 **하위호환 re-export** 다 — 링크
-//  모듈이 plan 트리 규칙까지 갖고 있으면 그 규칙이 두 곳으로 갈린다.)
+//   (1) top-level `plan/in-progress/*.md` 의 `worktree`/`started`/`owner` frontmatter.
+//       plan-coherence 충돌 검출과 stale-audit 이 실데이터 위에서 돌게 하는 전제다.
+//   (2) `plan/complete/**` 가 `status` 를 선언했다면 종료 상태여야 한다.
+//   (3) top-level 살아있는 plan 의 상대링크가 실재 파일을 가리켜야 한다.
 //
-// > 이 주석은 추출 직후 `spec-links.ts` 를 정본으로 적은 채 남아 있었다. 같은 PR 이
-// > `spec-impl-evidence.md §4.2` 를 "판정 로직은 `plan-scan.ts` 소관" 으로 갱신했으므로
-// > **문서끼리 정면으로 어긋난 상태**였다(ai-review documentation WARNING).
+// SoT 는 `.claude/docs/plan-lifecycle.md §4`. 이 파일은 **호출부**이고, 판정 로직은
+// `plan-scan.ts`(수집·status)와 `spec-links.ts`(링크)에 있다 — `spec-links.ts` 도
+// `collectLivePlanMarkdown` 을 export 하지만 그건 하위호환 re-export 다.
 //
-// `worktree` accepts a real `<task>-<slug>` name OR the explicit sentinel
-// `(unstarted)` for plans with no live worktree yet. Legacy placeholders
-// (TBD, "assigned at impl-start", "미정", …) are rejected — they defeat the
-// collision check by looking like real-but-dead worktrees.
+// 스코프: (1)(3) 은 top-level `plan/in-progress/*.md` 만. 하위 그룹 폴더는 클러스터 index
+// 아래 부속 문서라, `0-`/`_` 접두 index 파일과 함께 면제된다. 그 면제 규칙의 단일 구현은
+// `plan-scan.ts` 의 `collectLivePlanMarkdown` 이고 이 파일의 두 검사가 함께 그것을 쓴다.
+// (2) 는 `plan/complete/**` 를 본다 — 위반이 거기서만 성립한다.
 //
-// ── 2026-08-09: 이동(`in-progress/` → `complete/`)이 남기는 두 갭을 함께 막는다 ──
+// `worktree` 는 실제 `<task>-<slug>` 이름 또는 명시 sentinel `(unstarted)` 를 받는다.
+// 레거시 placeholder(TBD, "assigned at impl-start", "미정", …)는 거부한다 — 살아있지만
+// 죽은 worktree 처럼 보여 충돌 검출을 오염시킨다.
 //
-// plan 이동은 `plan-lifecycle.md §3` 이 **인접 PR 에 싣도록** 규정해 자주 일어나는데,
-// 그때 조용히 틀어지는 두 곳에 아무 게이트도 없었다. 둘 다 실측으로 확인한 갭이다:
-//
-//   (a) `status:` 가 디렉터리와 모순 — `complete/` 에 있으면서 `status: in-progress`.
-//       **두 번 놓쳤다** (`#1108` 3차 ai-review INFO 18 · `#1117`). 뮤테이션으로
-//       확인했더니 spec/plan 문서 가드 18파일 / 2821 tests 가 전부 GREEN 이었다 —
-//       이 필드는 게이트가 아니라 사람의 규율에만 기대고 있었다.
-//   (b) `plan/**` ↔ `plan/**` 상대링크가 깨짐 — 이동하면 형제 plan 을 가리키던
-//       상대경로가 그대로 남는다. `spec-link-integrity` 는 이름대로 `spec/**` 기준이라
-//       이 축을 보지 않는다(이 역시 뮤테이션으로 확인된 갭).
-//
-// 두 검사의 **스코프가 다르다**:
-//   - (a) 는 `plan/complete/**` 를 본다 — 위반이 거기서만 성립한다.
-//   - (b) 는 위 `collectTopLevelPlans` 와 **같은 top-level 스코프**다. `complete/**` 는
-//     시점 기록이라 옛 경로 유지가 정상이고(`plan-lifecycle.md §3` 인입 참조 규칙),
-//     실측 135건이 대부분 그 성격이다. 하위 그룹 폴더도 기존 면제 규칙을 따른다.
+// (2)(3) 이 왜 필요한가·`plan/complete/**` 를 링크 검사에서 왜 빼는가는 SoT §3/§4 에 있다.
+// 이 가드가 잡는 실패의 이력은 커밋 메시지와 `plan/complete/` 산출물을 볼 것 — 코드 주석은
+// **현재 규칙**만 담는다(ai-review 가 회고 서사 누적을 지적).
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const WORKTREE_PLACEHOLDER =
@@ -62,7 +47,7 @@ function collectTopLevelPlans(root: string): string[] {
   return collectLivePlanMarkdown(root).map((f) => f.absPath);
 }
 
-describe("plan-frontmatter guard", () => {
+describe("plan lifecycle guards (frontmatter + live-plan links)", () => {
   const root = repoRoot();
   const plans = collectTopLevelPlans(root);
 
