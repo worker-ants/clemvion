@@ -115,6 +115,17 @@ class ArgumentSplittingTest(unittest.TestCase):
         proc = run_with("only-one.yaml\n")
         self.assertEqual(argv(proc), ["only-one.yaml"])
 
+    def test_leading_and_trailing_whitespace_is_trimmed(self):
+        """**테스트와 런타임이 같은 값을 봐야 한다.**
+
+        가드(`test_required_check_skip_jobs.py::pathspecs_of`)는 YAML 을 읽을 때
+        `line.strip()` 으로 정규화한다. 런타임이 안 떼면 `pathspecs:` 항목에 공백이 하나
+        섞였을 때 **가드는 통과하는데 런타임에서는 그 pathspec 이 무력화**된다 — 정확히
+        이 PR 이 막으려는 "초록인데 안 도는" 클래스다 (ai-review 19_26_54 WARNING).
+        """
+        proc = run_with("  a.yaml\nb.yaml  \n\t c.yaml \t\n")
+        self.assertEqual(argv(proc), ["a.yaml", "b.yaml", "c.yaml"])
+
     def test_a_pathspec_containing_spaces_stays_one_argument(self):
         """워크플로 주석이 **이름으로 지목한** 파손 클래스다 — 고정해 둔다.
 

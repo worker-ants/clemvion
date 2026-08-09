@@ -1,0 +1,60 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "requirement",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/tests/test_changed_paths_reusable.py, .claude/tests/test_required_check_skip_jobs.py, codebase/backend/src/nodes/integration/http-request/http-request.handler.spec.ts"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/tests/test_changed_paths_reusable.py, .claude/tests/test_required_check_skip_jobs.py, codebase/backend/src/nodes/integration/http-request/http-request.handler.spec.ts"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: .claude/tests/test_changed_paths_reusable.py, .claude/tests/test_required_check_skip_jobs.py, codebase/backend/src/nodes/integration/http-request/http-request.handler.spec.ts"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/testing.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/requirement.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ci-changed-paths-reusable-5e21c8/review/code/2026/08/09/19_26_54/side_effect.md"
+    }
+  ],
+  "agents_pending": [
+    "testing",
+    "requirement",
+    "side_effect"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

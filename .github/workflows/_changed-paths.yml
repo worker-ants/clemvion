@@ -82,8 +82,18 @@ jobs:
           # `if` 로 쓴 것도 의도다 — `[[ … ]] && arr+=(…)` 를 루프 본문의 마지막
           # 명령으로 두면 조건이 거짓일 때 그 목록이 1 을 반환해 `set -e` 가 스크립트를
           # 통째로 끝낸다(빈 줄 하나에 판정이 죽는다).
+          # `IFS=` 를 **일부러 빼서** `read` 가 앞뒤 공백을 떼게 한다.
+          #
+          # 이유: 하네스 가드(`test_required_check_skip_jobs.py::pathspecs_of`)가 YAML 을
+          # 읽을 때 `line.strip()` 으로 정규화한다. 런타임이 안 떼면 두 쪽 판정이 갈려서,
+          # `pathspecs:` 항목에 공백이 하나 섞이는 순간 **가드는 통과하는데 런타임에서는
+          # 그 pathspec 이 조용히 무력화**된다 — 이 PR 이 통째로 막으려는 클래스다
+          # (ai-review 19_26_54 WARNING). 항목 앞뒤 공백은 언제나 오타이지 의도가 아니다.
+          #
+          # 변수 하나만 주면 `read` 는 줄을 쪼개지 않고 앞뒤 IFS 공백만 뗀다 — pathspec
+          # **안쪽** 공백(`path with space.yaml`)은 그대로 살아남는다(테스트로 고정).
           FILTERED=()
-          while IFS= read -r spec; do
+          while read -r spec; do
             if [ -n "$(printf '%s' "$spec" | tr -d '[:space:]')" ]; then
               FILTERED+=("$spec")
             fi

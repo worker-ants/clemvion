@@ -215,6 +215,12 @@ Settings → Rules/Branches → `main` → **Require status checks to pass befor
 > 호출로 바뀌면서 **체크 표시 이름이 달라질 수 있다.** required check 는 이름으로
 > 매칭하므로 등록 전에 Actions 실행 화면에서 실제 표시 이름을 1회 확인할 것
 > (ai-review INFO 4 — 코드로 미리 단언할 수 있는 값이 아니다).
+>
+> **실측 (2026-08-09, `#1111` CI)**: `changes` 잡은 `변경 경로 판정 / 변경 경로 판정`
+> (호출부 잡 이름 / reusable 잡 이름)으로 표시된다. **required check 후보인 리프
+> 잡들(`backend lint`·`backend unit`·`backend 타입체크 ratchet`·`pnpm audit (moderate+)`·
+> `pnpm 보안 설정 스냅샷 가드`·`override 바닥 침식 검출`·`test-and-build`)의 이름은
+> 바뀌지 않았다** — 등록에 영향 없음.
 
 > **주의**: GitHub 은 최근 약 7일 안에 **한 번이라도 보고된 체크만** 검색에 노출한다. 이
 > 저장소는 Actions 가 12주간 꺼져 있었으므로 목록에 안 뜰 수 있다 — 그 경우 이 PR 이
