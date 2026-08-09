@@ -27,30 +27,16 @@ jobs:
   # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다.
   changes:
     name: 변경 경로 판정
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    outputs:
-      relevant: ${{ steps.detect.outputs.relevant }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - id: detect
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # push 에도 실제 diff 를 넘긴다 — 안 넘기면 main 으로의 모든 push 가
-          # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-          PUSH_AFTER_SHA: ${{ github.event.after }}
-        run: |
-          scripts/ci-paths-changed.sh \
-            'codebase/frontend/**' \
-            'codebase/packages/**' \
-            'pnpm-lock.yaml' \
-            'pnpm-workspace.yaml' \
-            'scripts/ci-paths-changed.sh' \
-            '.github/workflows/frontend-checks.yml'
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        codebase/frontend/**
+        codebase/packages/**
+        pnpm-lock.yaml
+        pnpm-workspace.yaml
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        .github/workflows/frontend-checks.yml
 
   test-and-build:
     needs: changes

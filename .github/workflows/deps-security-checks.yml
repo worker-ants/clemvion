@@ -40,40 +40,25 @@ jobs:
   # 관련성 판정 — 종전 `on.*.paths` 목록이 여기 **한 곳에만** 산다.
   # 두 곳(pull_request.paths + push.paths)에 복제하던 종전 형태는 이 저장소가 여섯 번 겪은
   # "paths 커버리지 갭" 클래스의 온상이었다(review-gate.yml 주석 참조).
+  # `codebase/**/package.json` 은 중간 디렉터리가 **1개 이상**일 때만 맞는다 —
+  # `codebase/package.json`(깊이 0)은 안 맞는다(실측). 지금 그런 파일이 없어 잠복이지만,
+  # 생기는 순간 조용히 `relevant=false` 가 되어 이 워크플로가 막으려는 "초록인데 검사가
+  # 안 도는" 상태가 된다. 그래서 깊이 0 을 따로 명시한다(`test_ci_paths_changed.py` 고정).
   changes:
     name: 변경 경로 판정
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    outputs:
-      relevant: ${{ steps.detect.outputs.relevant }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          # merge-base 계산에 필요 — 얕은 클론이면 스크립트가 fail-safe(true)로 떨어진다.
-          fetch-depth: 0
-      - id: detect
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # push 에도 실제 diff 를 넘긴다 — 안 넘기면 main 으로의 모든 push 가
-          # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-          PUSH_AFTER_SHA: ${{ github.event.after }}
-        # `codebase/**/package.json` 은 중간 디렉터리가 **1개 이상**일 때만 맞는다 —
-        # `codebase/package.json`(깊이 0)은 안 맞는다(실측). 지금 그런 파일이 없어 잠복이지만,
-        # 생기는 순간 조용히 `relevant=false` 가 되어 이 워크플로가 막으려는 "초록인데 검사가
-        # 안 도는" 상태가 된다. 그래서 깊이 0 을 따로 명시한다(`test_ci_paths_changed.py` 고정).
-        run: |
-          scripts/ci-paths-changed.sh \
-            'pnpm-workspace.yaml' \
-            'pnpm-lock.yaml' \
-            'package.json' \
-            'codebase/**/package.json' \
-            'codebase/package.json' \
-            'scripts/check-pnpm-security-config.py' \
-            'scripts/check-override-floors.py' \
-            'scripts/ci-paths-changed.sh' \
-            '.github/workflows/deps-security-checks.yml'
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        pnpm-workspace.yaml
+        pnpm-lock.yaml
+        package.json
+        codebase/**/package.json
+        codebase/package.json
+        scripts/check-pnpm-security-config.py
+        scripts/check-override-floors.py
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        .github/workflows/deps-security-checks.yml
 
   config-guard:
     name: pnpm 보안 설정 스냅샷 가드
