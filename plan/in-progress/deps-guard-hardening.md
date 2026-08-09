@@ -419,7 +419,7 @@ glibc 변종이 함께 설치될 수 있다(낭비 — 오선택은 sharp 로더
       > **한 번에 같이 처리하는 것이 맞다**: 셋 다 같은 Settings 화면의 같은 목록이고,
       > 하나만 등록하면 나머지 두 게이트는 계속 비차단으로 남는다.
       > (그 plan 은 2026-08-09 에 `complete/` 로 종결됐고, 해당 등록 요청은 **미수행 상태로
-      > 본 항목과 [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) §사용자 액션
+      > 본 항목과 [`ci-required-check-skip-jobs.md`](../complete/ci-required-check-skip-jobs.md) §사용자 액션
       > 으로 이관**됐다 — 등록 자체는 여전히 안 된 상태다.)
 
 ~~**왜 P2 인가**: 현재 audit 게이트는 `#1038` 로 exit 0 이라 **지금 당장 뚫린 상태는 아니다**.~~
