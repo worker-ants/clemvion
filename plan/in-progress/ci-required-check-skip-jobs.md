@@ -275,6 +275,27 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
 > 한다** — 그래서 접히는 것은 4단계가 아니라 뒤 3단계다. 호출부가 그 한 스텝에 `if:` 를
 > 달면 스텝 게이팅 계약(`test_every_step_is_gated`)은 그대로 성립한다.
 
+### 검증 (2026-08-09)
+
+- [x] 뮤테이션 **13/13 RED** — 새로 만든 가드가 실제로 잡는지 한 건씩 확인했다.
+      런타임 주석 제거 삭제 · 커버리지 가드가 옛 `paths:` 를 계속 읽음(→ vacuity) ·
+      pathspec 에서 `_changed-paths.yml` 누락 · 등록부 한쪽만 되돌림 · `needs: changes`
+      제거 · 스텝 하나 게이팅 누락 · 조건을 `== 'true'` 로 반전 · 여섯 번째 갭 항목
+      (`.claude/config/**`) 제거 · 커버리지 파서가 주석을 pathspec 으로 오인 ·
+      no-op 안내 스텝 제거 · `blockScalarAtPath` 주석 미제거 · plain scalar 반쯤 파싱 ·
+      matrix 대상 패키지 pathspec 누락.
+      > **M2 가 이 PR 에서 가장 값진 뮤턴트다** — 커버리지 가드가 이동을 안 따라갔을 때
+      > "조용한 초록" 이 아니라 RED 가 되는지를 확인한 것이고, 그 방어는 `_MIN_FILTERS`
+      > 바닥 하나에 달려 있다.
+- [x] TEST WORKFLOW — lint PASS(60s) · unit PASS(91s) · build PASS(177s) ·
+      **e2e PASS(309s)** · harness **981 tests OK**(942 → 981)
+      > **e2e 를 돌린 이유**: 변경 set 에 `codebase/frontend/src/lib/repo-guards/**` 2개
+      > 파일이 있다. `.github/**`+`.claude/**` 만이었다면 PROJECT.md §e2e 면제 화이트리스트
+      > 의 부분집합이라 면제지만, `codebase/` 가 한 줄이라도 들어가면 면제 불가다.
+      > 커버리지는 wrapper 요약(`tests=14`/`tests=261`)이 아니라 로그 전수로 확인했다 —
+      > frontend 282파일/5848 · channel-web-chat 23파일/409 · backend jest 417 suites/8493 ·
+      > e2e backend jest 261 + **playwright 51**.
+
 ## 사용자 액션 (이 PR 머지 후)
 
 Settings → Rules/Branches → `main` → **Require status checks to pass before merging** 에서
