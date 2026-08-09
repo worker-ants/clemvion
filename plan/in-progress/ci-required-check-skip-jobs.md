@@ -445,6 +445,51 @@ backend · 내부 패키지 · 웹채팅 · 하네스 · spec 링크 · 마이�
 주석을 정정하고, 되돌릴 때 마주칠 단언(`assertIn("--enforce", ...)`)까지 함께 적었다.
 (YAML 주석은 파싱에 안 남아 `WorkflowWiringTest` 기대값은 영향 없음 — 19 tests OK.)
 
+## e2e 선행 조사 (2026-08-09)
+
+### 축이 다른 이유 — include 목록이 아니라 **ignore 목록**이다
+
+`e2e.yml` 의 `paths-ignore` 는 PROJECT.md §e2e 면제 화이트리스트의 **미러**이고
+`test_e2e_exemption_paths_sync.py` 가 그 미러를 강제한다. 공유 판정자
+(`_changed-paths.yml`)는 include 목록을 받아 "이 중 뭔가 바뀌었나" 에 답하므로 의미가 반대다.
+
+### 여집합을 git exclude pathspec 으로 표현할 수 있는가 — **된다** (실측)
+
+`scripts/ci-paths-changed.sh` 를 **고치지 않고** 임시 저장소 프로브로 7케이스 전수 확인:
+
+```
+. :(exclude).claude/** :(exclude).github/** :(exclude)spec/**
+  :(exclude)plan/** :(exclude)review/** :(exclude)*.md
+```
+
+| 변경 성격 | 기대 | 실측 |
+|---|---|---|
+| 문서-only · plan+spec+review · `.github/` only · `.claude/` only | 안 돎 | `relevant=false` ✅ |
+| `codebase/**` · **codebase+문서 혼합** · `scripts/`(화이트리스트 밖) | 돎 | `relevant=true` ✅ |
+
+혼합 케이스가 `true` 로 나오는 것이 중요하다 — 화이트리스트는 **부분집합 판정**이라
+한 줄이라도 밖이면 수행이 정답이고, exclude pathspec 이 그 의미를 정확히 낸다.
+
+### 전환 비용 — review-gate 와 달리 **되열리는 우회 구멍은 없다**
+
+| 항목 | 내용 |
+|---|---|
+| `test_e2e_exemption_paths_sync.py` | 미러 대상을 `paths-ignore` → `pathspecs` 의 `:(exclude)` 항목으로 재조준. `#1114` 가 `test_harness_checks_paths_coverage.py` 에 한 것과 **같은 형태의 이동** |
+| `test_no_pathspec_is_a_dead_filter` | `:(exclude)…`·`.` 는 tracked 파일과 직접 매치되지 않으므로 처리 필요(제외 접두 해석 또는 등재) |
+| 비용 정책 | **보존된다** — docker e2e 는 화이트리스트-only PR 에서 여전히 no-op. 추가 비용은 PR 당 `changes` 잡 하나 |
+
+> **개선으로 오해하지 말 것**: "전환하면 `e2e.yml` 자기 수정도 트리거된다" 는 **거짓**이다.
+> git pathspec 은 exclude 가 우선이라 `.github/**` 를 제외한 상태에서 `.github/workflows/e2e.yml`
+> 을 양수로 다시 넣어도 되살아나지 않는다("un-exclude" 가 없다). 그 워트는 그대로 남고
+> `workflow_dispatch` 탈출구도 그대로 필요하다.
+
+### 남은 것은 결정 하나 — **e2e 를 required check 로 등록할 것인가**
+
+등록 표(§사용자 액션)에 e2e 는 **없다**. review-gate 와 같은 상황이고, 같은 논리라면
+전환할 이유가 없다. 다만 e2e 는 성격이 다르다 — cross-stack 회귀의 유일한 안전망이라
+"required 로 올릴 값" 자체는 가장 크다. 그래서 review-gate 처럼 기계적으로 종결하지 않고
+결정 항목으로 올린다.
+
 ## 사용자 액션 (이 PR 머지 후)
 
 Settings → Rules/Branches → `main` → **Require status checks to pass before merging** 에서
