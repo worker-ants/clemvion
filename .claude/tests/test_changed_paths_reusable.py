@@ -115,6 +115,17 @@ class ArgumentSplittingTest(unittest.TestCase):
         proc = run_with("only-one.yaml\n")
         self.assertEqual(argv(proc), ["only-one.yaml"])
 
+    def test_a_pathspec_containing_spaces_stays_one_argument(self):
+        """워크플로 주석이 **이름으로 지목한** 파손 클래스다 — 고정해 둔다.
+
+        인용 없이 넘기면 공백에서도 갈려 `path with space.yaml` 이 인자 3개가 되고,
+        그중 어느 것도 실재하지 않아 판정이 `false` 로 떨어진다. 지금 저장소의 pathspec
+        에는 공백이 없지만, 없다는 사실이 **이 코드가 견딘다는 증거는 아니다**
+        (ai-review WARNING #3).
+        """
+        proc = run_with("path with space.yaml\nplain.yaml\n")
+        self.assertEqual(argv(proc), ["path with space.yaml", "plain.yaml"])
+
 
 class WiringTest(unittest.TestCase):
     def test_workflow_call_declares_the_pathspecs_input(self):
@@ -135,6 +146,19 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(
             set(step["env"]) - {"PATHSPECS"},
             {"PR_BASE_SHA", "PR_HEAD_SHA", "PUSH_BEFORE_SHA", "PUSH_AFTER_SHA"},
+        )
+
+    def test_run_block_never_interpolates_expressions(self):
+        """`${{ }}` 를 `run:` 문자열에 직접 끼워 넣지 않는다 — 스크립트 인젝션 회피.
+
+        값이 셸 **코드로** 읽히는 자리라, 호출부가 넣은 문자열이 명령이 될 수 있다.
+        `env:` 로 넘기면 셸은 그것을 언제나 데이터로 본다. 지금은 지켜지고 있지만
+        `run:` 에 한 줄 끼워 넣기가 쉬운 자리라 단언으로 고정한다(ai-review WARNING #4).
+        """
+        self.assertNotIn(
+            "${{",
+            detect_run_block(),
+            "run: 본문에 표현식이 직접 삽입됐다 — env 경유로 바꿀 것",
         )
 
     def test_checkout_uses_full_history(self):
