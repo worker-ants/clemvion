@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
 import { repoRoot } from "./spec-frontmatter-parse";
-import { findBrokenPlanLinks } from "./spec-links";
+import { extractLinks, findBrokenPlanLinks } from "./spec-links";
 import {
   collectCompletePlanMarkdown,
   collectLivePlanMarkdown,
@@ -159,9 +159,16 @@ describe("plan-frontmatter guard", () => {
   });
 
   it("the plan link scanner actually sees links (non-vacuity)", () => {
-    // 스캐너가 조용히 빈 집합을 돌려주면 위 단언은 아무것도 안 지키면서 영원히 초록이다.
-    // 위반 0건이 정상 상태이므로 "위반 수" 로는 살아있음을 알 수 없다 — 파일 수집 쪽을 본다.
-    expect(collectLivePlanMarkdown(root).length).toBeGreaterThan(5);
+    // 위 단언은 "위반 0건" 을 기대하므로, 스캐너가 조용히 빈 집합을 돌려줘도 영원히 초록이다.
+    //
+    // **파일 수만 세면 그 캐너리가 이름값을 못 한다** — `extractLinks` 가 항상 `[]` 를
+    // 반환해도 파일은 발견되기 때문이다(ai-review testing WARNING). 그래서 discovery 가
+    // 아니라 **추출 단계**를 센다: 살아있는 plan 들에서 실제로 뽑힌 링크 수.
+    const links = collectLivePlanMarkdown(root).reduce(
+      (n, f) => n + extractLinks(f.absPath).length,
+      0,
+    );
+    expect(links, "no links extracted from live plans — the extractor is dead").toBeGreaterThan(50);
   });
 });
 
@@ -169,10 +176,13 @@ describe("plan-frontmatter guard", () => {
 describe("completed plans declare a terminal status", () => {
   const root = repoRoot();
 
-  it("finds completed plans to validate", () => {
-    // discovery 가 죽으면 아래 단언이 통째로 vacuous 해진다. 하한은 낮게 잡는다 —
-    // 실제 개수에 가깝게 잡으면 grooming 으로 정상적으로 줄어들 때마다 깨진다
-    // (in-progress 쪽이 정확히 그렇게 발화한 전례가 있다).
+  it("finds completed plans to validate (discovery only)", () => {
+    // **이 단언이 증명하는 것은 discovery 뿐이다** — 이름에 그렇게 적어 둔다. status 판정
+    // 로직이 실제로 위반을 잡는다는 것은 `plan-scan.test.ts` 가 합성 fixture 로 증명한다
+    // (위반 3건을 심고 정확히 그 3건만 잡히는지까지 단언).
+    //
+    // 하한은 낮게 잡는다 — 실제 개수에 가깝게 잡으면 grooming 으로 정상적으로 줄어들 때마다
+    // 깨진다(in-progress 쪽이 정확히 그렇게 발화한 전례가 있다).
     expect(collectCompletePlanMarkdown(root).length).toBeGreaterThan(5);
   });
 
