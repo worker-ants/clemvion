@@ -36,7 +36,7 @@ worktree 를 가리키지만 **그쪽 작업은 끝났다** — `#1112` 가 2026
 
 **지금 하지 않는 이유**: 둘 다 `codebase/**` 편집이라 방금 Critical 0 로 수렴한 리뷰가 다시
 stale 해지고 TEST WORKFLOW 를 한 번 더 돈다. INFO 등급 구조 개선에 비례하지 않는다.
-[`auth-guard-reflection-hardening.md §후속`](../../../../../plan/in-progress/auth-guard-reflection-hardening.md)
+[`auth-guard-reflection-hardening.md §후속`](../../../../../../plan/in-progress/auth-guard-reflection-hardening.md)
 에 트리거와 함께 등재했다 — **다음에 이 파일들을 만질 때** 함께 처리한다.
 
 ## INFO #3 · #4 — 조치 불요
