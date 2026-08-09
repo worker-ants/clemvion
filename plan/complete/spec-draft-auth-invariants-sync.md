@@ -3,7 +3,7 @@ title: spec 동기화 — #1103·#1108·#1109 이 남긴 auth 불변식 5곳
 worktree: pnpm-migration-followups-7fc7c2
 started: 2026-08-09
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/5-system/3-error-handling.md
@@ -53,7 +53,7 @@ planner 턴으로 넘겼다.
 - `codebase/backend/src/common/utils/uuid.spec.ts` —
   `accepts UUID-shaped values that isValidUuid rejects (nil / v6+ / 비-RFC variant)`
   가 두 술어의 경계 자체를 고정한다.
-- `codebase/backend/src/common/utils/workspace-context.util.spec.ts:135` —
+- `codebase/backend/src/common/utils/workspace-context.util.spec.ts` —
   `Postgres 가 파싱할 수 있는 값은 통과시킨다 (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)`
   가 헬퍼 레벨에서 고정한다.
 
