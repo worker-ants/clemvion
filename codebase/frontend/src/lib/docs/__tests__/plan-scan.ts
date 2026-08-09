@@ -216,7 +216,10 @@ export function rawScalar(block: string, key: string): string | null {
   // block scalar(`|`/`>`) 안에 `started:` 로 시작하는 줄이 있으면 그것을 먼저 잡았다 —
   // 그 값이 `isIsoDate`/`isGateCEnforced` 로 그대로 흘러가 Gate C 판정을 오염시킨다.
   // frontmatter 최상위 키는 항상 0열이므로 좁혀도 잃는 것이 없다(ai-review WARNING).
-  const m = new RegExp(`^${key}:[ \\t]*(.*)$`, "m").exec(block);
+  // `key` 는 정규식으로 들어가므로 이스케이프한다 — 지금 호출부는 리터럴 하나뿐이라
+  // 즉시 위험은 없지만 export 된 범용 유틸이라 메타문자가 오면 **조용히** 틀어진다.
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp(`^${escaped}:[ \\t]*(.*)$`, "m").exec(block);
   if (!m) return null;
   return m[1].trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
 }

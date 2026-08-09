@@ -256,6 +256,14 @@ describe("rawScalar", () => {
     expect(rawScalar("\nowner: dev\n", "started")).toBeNull();
   });
 
+  it("treats the key as a literal, not a regex", () => {
+    // `key` 가 정규식으로 들어가므로 메타문자를 이스케이프하지 않으면 **다른 키에
+    // 매치된다**. 지금 호출부는 `"started"` 하나뿐이라 실피해는 없지만 export 된
+    // 범용 유틸이라 조용히 틀어지는 종류다.
+    expect(rawScalar("\naxb: 값\n", "a.b"), "`.` 가 와일드카드로 동작하면 안 된다").toBeNull();
+    expect(rawScalar("\na.b: 값\n", "a.b")).toBe("값");
+  });
+
   it("ignores a same-named line nested inside an earlier block scalar", () => {
     // 이것이 이 함수의 유일한 함정이다 — 종전 정규식은 들여쓴 줄도 매치해서, 앞선 필드의
     // multi-line 값 안에 있는 `started:` 를 **진짜 필드보다 먼저** 잡았다. 그 값이

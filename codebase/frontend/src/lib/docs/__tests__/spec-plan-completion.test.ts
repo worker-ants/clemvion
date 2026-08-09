@@ -114,12 +114,19 @@ export function makeSpecExists(root: string): (p: string) => boolean {
     // **`spec/` 하위여야 한다.** 존재 여부만 보면 `spec_impact: ["CLAUDE.md"]` 나
     // `["codebase/frontend/package.json"]` 이 통과한다(실측) — 이 게이트의 존재 이유가
     // "**어느 spec 을** 건드렸는지 기록하게 한다" 인데 그걸 그대로 비껴간다.
-    if (!p.startsWith("spec/")) return false;
+    //
+    // **문자열 접두 검사만으로는 부족하다** — `"spec/../CLAUDE.md"` 는
+    // `startsWith("spec/")` 를 통과하고 `path.join` 이 루트 파일로 정규화한다(실측).
+    // 경로에 대한 술어는 **정규화한 뒤에** 물어야 한다.
+    const specRoot = path.join(root, "spec");
+    const resolved = path.resolve(root, p);
+    if (resolved !== specRoot && !resolved.startsWith(specRoot + path.sep)) {
+      return false;
+    }
     try {
-      // `isFile()` 하나면 나머지가 다 걸린다 — 빈 문자열은 `path.join` 이 `root` 로
-      // 정규화하는데 루트는 디렉터리이고, 없는 경로는 `statSync` 가 throw 한다
+      // `isFile()` 하나면 나머지가 다 걸린다 — 디렉터리도 없는 경로도 여기서 false 다
       // (별도 빈-문자열 검사를 뒀더니 뮤테이션에서 생존했다 = 도달 불가 분기였다).
-      return fs.statSync(path.join(root, p)).isFile();
+      return fs.statSync(resolved).isFile();
     } catch {
       return false;
     }
@@ -317,5 +324,10 @@ describe("Gate C enforcement logic", () => {
     expect(real("CLAUDE.md"), "spec 밖 파일은 spec_impact 가 될 수 없다").toBe(false);
     expect(real("codebase/frontend/package.json")).toBe(false);
     expect(real("PROJECT.md")).toBe(false);
+    // **`..` 로 빠져나가는 형태** — 문자열 접두 검사만 하던 시절 전부 통과했다.
+    // 경로에 대한 술어는 정규화 뒤에 물어야 한다는 것이 여기서 드러난 교훈이다.
+    expect(real("spec/../CLAUDE.md"), "`..` 로 spec 밖을 가리키면 안 된다").toBe(false);
+    expect(real("spec/conventions/../../PROJECT.md")).toBe(false);
+    expect(real("spec/../spec/conventions/spec-impl-evidence.md")).toBe(true); // 되돌아오면 OK
   });
 });
