@@ -9,6 +9,7 @@ import {
   collectLivePlanMarkdown,
   findFrontmatterViolations,
   findNonTerminalCompletedPlans,
+  parseFrontmatterSafe,
 } from "./plan-scan";
 
 // Negative-path fixture tests for the plan-tree scanners.
@@ -207,6 +208,36 @@ const frontmatter = (fields: Record<string, string>): string =>
   ["---", ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`), "---", "", "# Doc", ""].join("\n");
 
 const VALID = { worktree: "my-task-abc123", started: "2026-08-10", owner: "developer" };
+
+describe("parseFrontmatterSafe", () => {
+  // 이 계약의 커버리지가 **다른 describe 블록의 바이트 동일 fixture + 선언 순서** 라는
+  // 우연에 기대고 있었다(ai-review testing WARNING). fixture 문자열이나 블록 순서가
+  // 바뀌면 신호 없이 커버리지가 사라진다 — 그래서 계약을 직접 겨눈다.
+  const BROKEN = "---\n: : bad yaml for the parse contract : :\n---\n";
+
+  it("returns null for unparseable frontmatter — on every call, not just the first", () => {
+    // gray-matter 는 옵션 없이 부르면 파싱 **전에** 캐시를 등록해, throw 한 내용의
+    // 2회차 호출이 조용히 `data={}` 로 성공한다. `parseFrontmatterSafe` 의 `{}` 가
+    // 그 캐시를 우회하므로 호출 횟수와 무관하게 같은 답이 나와야 한다.
+    expect(parseFrontmatterSafe(BROKEN)).toBeNull();
+    expect(parseFrontmatterSafe(BROKEN), "2회차가 조용히 성공했다 — 캐시 우회가 깨졌다").toBeNull();
+    expect(parseFrontmatterSafe(BROKEN)).toBeNull();
+  });
+
+  it("returns data and the raw block for a valid document", () => {
+    const parsed = parseFrontmatterSafe("---\nstarted: 2026-08-10\n---\n# Doc\n");
+    expect(parsed).not.toBeNull();
+    expect(parsed?.data.started).toBeInstanceOf(Date);
+    // `block` 이 원문이어야 날짜를 js-yaml 의 롤오버 전에 볼 수 있다.
+    expect(parsed?.block).toContain("started: 2026-08-10");
+  });
+
+  it("treats a document with no frontmatter as empty, not as a failure", () => {
+    const parsed = parseFrontmatterSafe("# 제목만 있는 문서\n");
+    expect(parsed).not.toBeNull();
+    expect(parsed?.data).toEqual({});
+  });
+});
 
 describe("checkPlanFrontmatter", () => {
   const kindsFor = (fields: Record<string, string>): string[] =>

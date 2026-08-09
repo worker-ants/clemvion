@@ -56,6 +56,24 @@ export function hasValidSpecImpact(
   return false;
 }
 
+/**
+ * `spec_impact` 리스트에서 **게이트를 통과하면 안 되는** 원소들.
+ *
+ * 비-문자열 원소도 위반이다 — 종전 필터는 `typeof p === "string" && !exists(...)` 라
+ * **문자열이 아닌 원소를 조용히 통과**시켰다(`spec_impact: [123]` 이 dangling 목록에서
+ * 빠진다, fail-open). "선언은 있는데 무엇을 건드렸는지 아무도 모르는 상태" 를 막는
+ * 게이트라 그 구멍이 곧 게이트의 부재다.
+ *
+ * **순수 함수로 뺀 이유**: 실제 강제 경로는 실저장소 데이터만 보는데 거기엔 비-문자열
+ * `spec_impact` 가 없다 — 인라인으로 두면 이 판정을 되돌려도 스위트가 초록이다(뮤테이션
+ * 실측: 되돌린 뮤턴트가 **생존**했다). 합성 fixture 로 겨눌 수 있어야 한다.
+ */
+export function danglingSpecImpact(root: string, impact: unknown[]): unknown[] {
+  return impact.filter(
+    (p) => typeof p !== "string" || !fs.existsSync(path.join(root, p)),
+  );
+}
+
 // 수집은 `plan-scan.ts` 소관이다. 종전에는 여기 손수 DFS 사본이 있었고 필터 값이
 // **우연히** 같았을 뿐 그것을 강제하는 것이 아무것도 없었다 — 한쪽만 고치면 Gate C 와
 // status 가드가 서로 다른 파일 집합을 보게 된다(이 PR 이 고치고 있는 형태 그대로다).
@@ -74,8 +92,10 @@ describe("Gate C — plan-completion spec-consistency", () => {
     // 이 가드는 같은 plan 을 두 번 파싱한다(여기 필터 단계 + 아래 per-plan describe).
     const parsed = parseFrontmatterSafe(fs.readFileSync(abs, "utf8"));
     if (parsed === null) return false;
-    const d = startedDate(parsed.data);
-    return d !== null && d.getTime() >= GATE_C_CUTOFF.getTime();
+    // 컷오프 판정은 `isGateCEnforced` 소관이다 — 종전에는 같은 식이 여기 인라인으로
+    // 복제돼 있었고, 그 predicate 는 단위 테스트에서만 불려 **실제 게이트와 갈릴 수
+    // 있었다**(이 PR 이 반복해 경계하는 판정 이중화 그 자체).
+    return isGateCEnforced(parsed.data);
   });
 
   it("resolves a real repo root with a complete plan dir", () => {
@@ -107,12 +127,12 @@ describe("Gate C — plan-completion spec-consistency", () => {
 
       it("each `spec_impact` spec path exists (if a list)", () => {
         if (!Array.isArray(impact)) return;
-        const dangling = impact.filter(
-          (p) => typeof p === "string" && !fs.existsSync(path.join(root, p)),
-        );
+        const dangling = danglingSpecImpact(root, impact);
         expect(
           dangling,
-          `${rel}: spec_impact references missing spec file(s): ${dangling.join(", ")}`,
+          `${rel}: spec_impact references missing spec file(s) or non-string entries: ${dangling
+            .map((p) => JSON.stringify(p))
+            .join(", ")}`,
         ).toEqual([]);
       });
 
@@ -153,5 +173,19 @@ describe("Gate C enforcement logic", () => {
     expect(hasValidSpecImpact([], exists)).toBe(false);
     expect(hasValidSpecImpact(["spec/does-not-exist.md"], exists)).toBe(false);
     expect(hasValidSpecImpact("maybe", exists)).toBe(false);
+  });
+
+  it("flags non-string `spec_impact` entries as dangling, not just missing paths", () => {
+    // 실제 강제 경로는 실저장소 데이터만 보고 거기엔 비-문자열 원소가 없다 — 그래서 이
+    // 판정은 합성 fixture 로만 관측된다(뮤테이션 실측: 인라인이던 시절 되돌린 뮤턴트가
+    // 생존했다). `[123]` 같은 값이 Gate C 를 그냥 지나가면 게이트가 있으나 마나다.
+    const root = repoRoot();
+    expect(danglingSpecImpact(root, ["spec/conventions/spec-impl-evidence.md"])).toEqual([]);
+    expect(danglingSpecImpact(root, [123])).toEqual([123]);
+    expect(danglingSpecImpact(root, [null])).toEqual([null]);
+    expect(danglingSpecImpact(root, [["spec/nested.md"]])).toEqual([["spec/nested.md"]]);
+    expect(danglingSpecImpact(root, ["spec/does-not-exist.md"])).toEqual([
+      "spec/does-not-exist.md",
+    ]);
   });
 });
