@@ -3,7 +3,7 @@ title: spec 보강 — 부트 캐너리가 세는 집합과 "73건" 의 포함�
 worktree: spec-canary-count-relation-f2622b
 started: 2026-08-09
 owner: planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/5-system/1-auth.md
@@ -73,4 +73,5 @@ spec 에 박으면 갱신 압력이 없어 조용히 낡고, 그것이 바로 �
       "`1-auth.md` 단독 채택, `12-workspace.md` 에는 중복 기재 안 함" 근거를 함께 남겼다.
 - [x] 게이트 — `spec-link-integrity` · `spec-links` · Gate C · `plan-frontmatter` ·
       `spec-code-paths` **5파일 / 1217 tests PASS**
-- [ ] commit + PR
+- [x] commit + PR — [#1118](https://github.com/worker-ants/clemvion/pull/1118) (`028cc91fc`)
+      머지 완료 (2026-08-09)
