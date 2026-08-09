@@ -56,4 +56,5 @@ SUMMARY: Critical 0 · WARNING 3 · risk MEDIUM (reviewer 7/7, forced 전원).
 - 문서 가드 **19파일 / 2849 tests PASS**
   > 2845 → 2849 의 **+4 는 신설 plan 파일 때문**이다 — 이 가드가 top-level plan 마다
   > `it` 4개(frontmatter 파싱·worktree·started·owner)를 만든다. 테스트를 추가한 것이 아니다.
-- e2e — 아래 줄
+- **e2e 통과** (291s, tests=264) — 마지막 코드 commit(`f09b21893`) 다음
+- harness **995 tests OK**
