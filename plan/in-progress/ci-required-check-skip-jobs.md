@@ -160,6 +160,15 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
       **e2e PASS(270s, jest 261 + playwright 51)** · harness **942 tests OK**
       > fix 변경 set 에 `scripts/ci-paths-changed.sh` 가 있고 `scripts/**` 는 화이트리스트
       > **밖**이다. "CI 헬퍼라 성격상 `.github/**` 와 같다" 는 임의 확대라 하지 않는다.
+- [x] `/consistency-check --impl-done spec/7-channel-web-chat/` — **BLOCK: NO** (5/5 checker,
+      `review/consistency/2026/08/09/13_23_02`). dompurify 범프가 `codebase/channel-web-chat/**`
+      을 건드려 SPEC-CONSISTENCY 게이트(Gate 2)가 걸렸다. diff 가 프롬프트에 실제로 실렸는지
+      (`package.json` 7회 등장) 먼저 확인하고 돌렸다 — 번들 예산에 조용히 잘리면 거짓 통과다.
+      WARNING 2건은 **이 diff 와 무관한 기존 항목**이고 둘 다 이미 티켓이 있다
+      (`spec-update-webchat-evidence-pointers` · `webchat-command-failure-is-not-termination`).
+      INFO #4 는 **본 plan 의 사실 오류**라 그 자리에서 고쳤다 — §Rationale 이
+      `--frozen-lockfile` required-check 요구를 `deps-peer-gating-and-eslint10` 로
+      귀속했는데 실측하니 그 파일엔 0건, `deps-guard-hardening` 에 8건이다.
 
 ## 후속 — 나머지 8개 워크플로 (별 항목)
 
@@ -202,6 +211,6 @@ Settings → Rules/Branches → `main` → **Require status checks to pass befor
 선행 조건이다 — 이것 없이 등록하면 머지가 막혀 결국 등록을 되돌리게 된다.
 
 **왜 2개만 전환하나.** 두 plan 이 명시적으로 요구한 required check 를 커버하는 최소
-집합이다(`deps-peer-gating-and-eslint10` 의 `--frozen-lockfile`,
+집합이다(`deps-guard-hardening` 의 `--frozen-lockfile`,
 `pnpm-migration-followups` 의 `deps-security-checks`). 10개를 한 PR 에 넣으면 리뷰가
 어려워지고, 패턴이 검증되기 전에 전면 적용하는 것은 순서가 뒤바뀐다.
