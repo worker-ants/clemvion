@@ -188,18 +188,38 @@ class WorkflowStructureTest(unittest.TestCase):
     # 아무 가드도 없던 것이 5R CRITICAL 이었다.
     _JOB_CONDITIONS = {
         ("review-gate.yml", "gate"): "github.actor != 'dependabot[bot]'",
+        # skip-job 패턴: `changes` 잡이 실패/오류여도 하위 잡은 돈다. `needs` 실패로
+        # 하위 잡이 `skipped` 되면 "skipped 가 required check 를 만족하는가" 라는 —
+        # 이 패턴이 정확히 피하려는 — 모호함이 다른 경로로 재발하기 때문이다.
+        # `always()` 가 아니라 `!cancelled()` 인 이유: 워크플로가 취소됐을 때까지
+        # 러너를 잡아둘 이유는 없다.
+        ("deps-security-checks.yml", "config-guard"): "${{ !cancelled() }}",
+        ("deps-security-checks.yml", "audit"): "${{ !cancelled() }}",
+        ("deps-security-checks.yml", "override-floors"): "${{ !cancelled() }}",
+        ("frontend-checks.yml", "test-and-build"): "${{ !cancelled() }}",
     }
 
     # step 레벨 `if:` 도 같은 자리다. job 은 등재제로 막고 step 은 안 막은 것이 6R CRITICAL
     # 이었다 — step 이 skip 돼도 job 은 success 로 보고되므로 로그는 초록이다. 3명이 독립 실증.
     # 전부 e2e 의 진단 수집 step 이다 — 실패했을 때만(또는 항상) 로그·아티팩트를 모은다.
     # 게이트 성격 step 에는 조건이 없어야 하고, 있으면 여기서 마주친다.
+    # skip-job 패턴(required check 데드락 해소)이 쓰는 두 조건. 스텝 단위로 게이팅하되
+    # **잡은 항상 돌려** success 를 보고하게 하는 것이 핵심이라, 조건 문자열이 이 두 형태에서
+    # 벗어나면 등재가 깨지도록 고정한다. 계약 전문·왜 잡을 skip 하지 않는지는
+    # `.claude/tests/test_required_check_skip_jobs.py` 와 `scripts/ci-paths-changed.sh`.
+    _SKIP_JOB_RUN = "needs.changes.outputs.relevant != 'false'"
+    _SKIP_JOB_NOOP = "needs.changes.outputs.relevant == 'false'"
+
     _STEP_CONDITIONS = {
         ("e2e.yml", "Collect docker logs on failure"): "failure()",
         ("e2e.yml", "Upload artifacts"): "failure()",
         ("e2e.yml", "Surface flaky (retry-passed) tests"): "always()",
         ("e2e.yml", "Upload playwright report on failure"): "failure()",
     }
+
+    # 위 두 상수를 쓰는 skip-job 스텝은 워크플로마다 수가 많아 개별 등재 대신 규칙으로 받는다.
+    # (개별 등재하면 스텝 하나 추가할 때마다 등록부를 고쳐야 해 실질 가치 없이 마찰만 는다.)
+    _SKIP_JOB_WORKFLOWS = {"deps-security-checks.yml", "frontend-checks.yml"}
 
     def test_job_conditions_are_registered(self):
         seen = set()
@@ -230,6 +250,14 @@ class WorkflowStructureTest(unittest.TestCase):
                 for i, step in enumerate(job.get("steps") or []):
                     if not isinstance(step, dict) or "if" not in step:
                         continue
+                    # skip-job 패턴 워크플로의 두 표준 조건은 규칙으로 받는다.
+                    # 다만 **그 두 문자열과 정확히 일치할 때만** — 오탈자나 변형이면
+                    # 아래 개별 등재 경로로 떨어져 실패한다(조용한 통과 방지).
+                    if path.name in self._SKIP_JOB_WORKFLOWS and step["if"] in (
+                        self._SKIP_JOB_RUN,
+                        self._SKIP_JOB_NOOP,
+                    ):
+                        continue
                     key = (path.name, step.get("name"))
                     seen.add(key)
                     with self.subTest(workflow=path.name, job=job_name, step=i):
@@ -244,10 +272,17 @@ class WorkflowStructureTest(unittest.TestCase):
 
     # C1: `on.pull_request` 의 형제 키. `types`/`branches` 한 줄이면 워크플로가 영구히 안 돌고
     # Actions 탭에 기록조차 안 남는다. review-gate 만 닫혀 있었고 harness-checks 는 열려 있었다.
+    #
+    # **빈 집합(= bare `pull_request:`)은 required status check 등록을 위한 의도된 형태다.**
+    # `paths:` 가 있으면 무관한 PR 에서 워크플로가 안 돌아 체크가 영원히 대기하고 머지가
+    # 막힌다. 위 주석이 경고하는 "always-green" 위험은 그대로 유효하므로, 그 보상 통제로
+    # `.claude/tests/test_required_check_skip_jobs.py` 가 **모든 스텝의 `if:` 게이팅과
+    # `needs: changes`** 를 강제한다 — 둘 중 하나라도 빠지면 거기서 RED 다.
+    # 새 워크플로를 이 형태로 바꿀 때는 그 가드의 `CONVERTED` 목록에도 반드시 추가한다.
     _PULL_REQUEST_KEYS = {
-        "deps-security-checks.yml": {"paths"},
+        "deps-security-checks.yml": set(),
         "e2e.yml": {"paths-ignore"},
-        "frontend-checks.yml": {"paths"},
+        "frontend-checks.yml": set(),
         "harness-checks.yml": {"paths"},
         "migration-check.yml": {"paths"},
         "packages-checks.yml": {"paths"},

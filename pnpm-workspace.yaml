@@ -53,6 +53,13 @@ overrides:
   form-data: ^4.0.6
   nodemailer: ^9.0.1
   next>postcss: ^8.5.18
+  # GHSA-2v37-7h3g-55p8 (high, <3.3.17). frontend 이 postcss 를 **직접** 의존하는데 그 경로가
+  # lockfile 에서 postcss@8.5.25 > nanoid@3.3.16 으로 고정돼 있었다 — 같은 트리의
+  # `next>postcss` 경로는 8.5.26 > 3.3.17 이라 이미 안전했다. 즉 postcss 값을 올리는 것으로는
+  # 두 경로 중 하나만 덮이므로, 취약한 패키지 자체에 바닥을 건다.
+  # `^` 가 4.x 를 배제하지만 제약이 아니다 — postcss 8.x 의 요구가 `^3.3.x` 라 트리에 3 계열만
+  # 있다(실측: lockfile 의 nanoid 엔트리는 3.3.16·3.3.17 둘뿐).
+  nanoid: ^3.3.17
   eslint-plugin-react-hooks: 7.0.1
   "undici@>=7.0.0 <7.29.0": ^7.29.0
   vite: ^8.0.16

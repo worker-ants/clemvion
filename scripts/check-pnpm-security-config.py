@@ -51,6 +51,7 @@ EXPECTED_OVERRIDES = {
     "form-data": "^4.0.6",
     "nodemailer": "^9.0.1",
     "next>postcss": "^8.5.18",
+    "nanoid": "^3.3.17",
     "eslint-plugin-react-hooks": "7.0.1",
     "undici@>=7.0.0 <7.29.0": "^7.29.0",
     "vite": "^8.0.16",

@@ -1,0 +1,35 @@
+# 요구사항(Requirement) 리뷰 — ci-required-check-skip-jobs
+
+## 컨텍스트
+
+관련 `spec/` 문서를 찾지 못했다(`spec/conventions/migrations.md` 가 required status check 를 언급하지만 완전히 다른 미래 계획(§migration-check 승격) 맥락이라 이 변경과 무관). 이 변경은 `.claude/`·`.github/workflows/`·`scripts/` 하위 harness/CI 인프라이며 `plan/in-progress/ci-required-check-skip-jobs.md` (`spec_impact: none`) 가 사실상의 단일 요구사항 문서다. 아래 리뷰는 이 plan 을 권위 있는 요구사항으로 삼아 line-level 로 대조했다. 로컬에서 `.claude/tests/test_required_check_skip_jobs.py`·`test_workflow_yaml_structure.py`·`test_tests_readme_catalog.py`·`test_harness_checks_paths_coverage.py` 를 개별 실행했고, 전체 스위트(`python3 -m unittest discover -s .claude/tests -p 'test_*.py'`)도 **922 tests OK** 로 plan 의 claim 과 일치함을 실측 확인했다. git pathspec `**` 동작(`codebase/**/package.json`, `codebase/frontend/**`)도 임시 저장소로 직접 실증해 의도대로 디렉터리 경계를 넘어 매칭됨을 확인했다.
+
+## 발견사항
+
+- **[WARNING]** `scripts/ci-paths-changed.sh` 의 핵심 판정 로직(merge-base 계산 실패·git diff 실패·SHA 부재 시 fail-safe, 정상 경로의 true/false 판정)이 어떤 자동 회귀 테스트로도 실행되지 않는다 — `.claude/tests/test_required_check_skip_jobs.py` 는 파일 존재·실행권한(`test_detect_script_exists_and_is_executable`)과 워크플로 본문에 스크립트 경로 문자열이 있는지(`test_converted_workflows_pass_the_script_its_own_path`)만 검사하고, 스크립트를 실제로 subprocess 로 실행해 실 git 저장소 위에서 판정을 검증하지 않는다.
+  - 위치: `scripts/ci-paths-changed.sh` (전체, 특히 46-74행 fail-safe 4경로) / `.claude/tests/test_required_check_skip_jobs.py:144-164` (`test_detect_script_exists_and_is_executable`, `test_converted_workflows_pass_the_script_its_own_path`)
+  - 상세: plan 은 "로컬 실증(2026-08-09): 관련 변경 → true · 무관 변경 → false · schedule / base SHA 부재 / merge-base 실패 3경로 전부 → true" 라고 적었지만, 이는 **1회성 수동 검증**이고 코드베이스에 남지 않는다. 이 저장소의 다른 유사한 "shell/binary 를 실제로 실행해 검증" 클래스 가드(`test_reap_merged_worktrees.py`, `test_bootstrap_mermaid_install.py`, `test_lint_mermaid_exit_codes.py`)는 모두 real subprocess + real temp git repo 로 이 정도 로직을 자동 pin 한다. 이 스크립트는 required-check 데드락 해소라는 이 PR 의 핵심 안전장치인데, 향후 누군가 `git diff`/`merge-base` 인자 순서를 바꾸거나 `set -e` 흐름을 깨는 리팩터를 해도 어떤 CI 도 잡지 못한다.
+  - 제안: `test_required_check_skip_jobs.py` 또는 신설 파일에서 `subprocess.run(["scripts/ci-paths-changed.sh", ...], env=...)` 로 실 temp git repo 위에서 (1) 관련 경로 변경 → `relevant=true`, (2) 무관 변경 → `relevant=false`, (3) `GITHUB_EVENT_NAME` 미설정/schedule, (4) SHA 미제공, (5) `git merge-base` 실패(unrelated history) 5경로를 자동 pin.
+
+- **[WARNING]** `scripts/ci-paths-changed.sh` 가 `harness-checks.yml` 의 `paths:` 목록에 등재돼 있지 않다 — 이 저장소가 README(`test_harness_checks_paths_coverage.py` 행)에서 "여섯 번 leaked" 라고 명시한 바로 그 "paths 커버리지 갭" 클래스의 새 사례다.
+  - 위치: `.github/workflows/harness-checks.yml:56-64` (`scripts/report_playwright_flaky.py`·`scripts/check-e2e-playwright-config.py`·`scripts/check-review-gate.py`·`scripts/check-override-floors.py` 는 등재돼 있으나 `scripts/ci-paths-changed.sh` 는 없음) / `.claude/tests/test_required_check_skip_jobs.py:144-164` (이 스크립트를 참조하는 harness 테스트)
+  - 상세: `harness-checks.yml` 자신의 인라인 주석이 규칙을 명시한다 — "scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도 회귀 테스트가 트리거되도록". `test_required_check_skip_jobs.py` 가 이 스크립트를 검사 대상으로 삼는 harness unittest 인데도 이 규칙이 지켜지지 않았다. 이 누락은 `test_harness_checks_paths_coverage.py` 자동 가드로도 잡히지 않는데, 그 가드의 추출기가 **module-level** `ROOT / "a" / "b"` 체인만 보고 method-level 체인(`script = REPO / "scripts" / "ci-paths-changed.sh"`, `test_detect_script_exists_and_is_executable` 메서드 본문 안)은 의도적으로 건너뛰기 때문이다(`.claude/tests/test_harness_checks_paths_coverage.py:266-269`) — 그 가드 자신의 문서화된 "known limit" 이 실제로 이 케이스를 놓치는 사례로 실증됐다. 결과: `scripts/ci-paths-changed.sh` 만 단독으로 고치는 PR(예: fail-safe 로직 버그 수정)은 `.claude/tests/**` 를 건드리지 않는 한 `harness-checks.yml` 스위트를 전혀 트리거하지 않는다.
+  - 제안: `.github/workflows/harness-checks.yml` 의 `paths:` 목록에 `'scripts/ci-paths-changed.sh'` 추가(다른 `scripts/*` 항목들과 동일 패턴의 인라인 근거 주석 포함).
+
+- **[WARNING]** `changes` 잡 자체가 실패하는 경우(체크아웃 인프라 오류 등, "무관해서 skip" 이 아니라 "판정 자체가 안 됨")에 대한 처리가 설계에서 빠져 있다 — 이 PR 이 없애려는 바로 그 "skipped conclusion 이 required check 를 만족하는지 모호하다" 문제가 다른 경로로 재발한다.
+  - 위치: `.github/workflows/deps-security-checks.yml:69-146` (`config-guard`/`audit`/`override-floors` 의 `needs: changes`), `.github/workflows/frontend-checks.yml:52` (`test-and-build` 의 `needs: changes`)
+  - 상세: `scripts/ci-paths-changed.sh` 자신의 fail-safe 분기들은 "판정 불확실"(SHA 없음·merge-base 실패 등)을 모두 정상 종료(exit 0, `relevant=true`)로 흡수하므로 스크립트 자체가 원인이 되어 `changes` 잡이 실패할 일은 거의 없다. 그러나 `actions/checkout@v7`(fetch-depth 0) 스텝이 인프라 문제로 실패하는 등 `changes` 잡이 통째로 실패(failure)하면, `needs: changes` 만 걸린 하위 잡들은 GitHub Actions 기본 동작상 **잡 전체가 skip** 된다(스텝 하나도 실행되지 않음 — 이 PR 이 "잡을 skip 하지 않고 스텝만 게이팅" 하기로 결정한 바로 그 이유, 즉 skipped conclusion 의 required-check 충족 여부가 문서상 모호하다는 근거가 그대로 적용되는 상태). 즉 "무관한 PR" 케이스는 정확히 해결됐지만 "판정 잡 자체의 장애" 케이스는 동일한 데드락 위험을 안은 채 남아 있다.
+  - 제안: 하위 잡에 `if: always() && needs.changes.result != 'failure'` 류의 조건을 추가하거나, `changes` 잡 실패 시에도 fail-safe 출력을 강제로 내보내는 별도 안전장치를 검토. 최소한 이 잔여 리스크를 `scripts/ci-paths-changed.sh` 헤더 주석의 "불확실한 경우" 목록(현재 event/SHA/merge-base/git diff 실패만 나열)에 "`changes` 잡 자체의 인프라 실패는 이 스크립트의 fail-safe 범위 밖" 이라고 명시하는 것만으로도 향후 디버깅 비용을 줄일 수 있다.
+
+- **[INFO]** `push` 트리거의 개별 `paths:` (기존에는 pull_request 보다 좁은 목록)가 이번 전환으로 사라지고, 스크립트가 `GITHUB_EVENT_NAME != "pull_request"` 인 모든 이벤트(push 포함)를 무조건 fail-safe `true` 로 처리하므로 `push`(main 브랜치) 시 항상 전체 잡이 실행된다. plan 의 "불확실하면 돈다" 철학과는 정합하고 회귀는 아니지만, 이 동작 변화(과거 "push.paths 로 필터링됨" → "push 는 항상 전체 실행")를 지키는 테스트가 없다 — `test_required_check_skip_jobs.py` 는 `pull_request.paths` 부재만 확인하고 `push.paths` 부재는 별도로 assert 하지 않는다. 낮은 우선순위지만, 누군가 `push.paths` 를 되살여도(merge deadlock 을 유발하진 않으나 "판정 로직이 한 곳에만 산다"는 plan 의 명시적 claim을 조용히 어기게 됨) 어떤 테스트도 잡지 못한다.
+  - 위치: `.github/workflows/deps-security-checks.yml:27-30`, `.github/workflows/frontend-checks.yml:17-20`
+
+- **[INFO]** spec fidelity: 이 변경 영역을 규정하는 `spec/` 본문은 없다(제품 spec 이 아니라 harness/CI 인프라). `spec/conventions/migrations.md:176-188` 가 required status check 를 언급하지만 완전히 별개의 향후 계획(§6.2/§6.3 대체 후 `migration-check` 승격) 맥락이라 이 변경과 관계없다. `plan_impact: none` 과 정합하며 spec drift 는 없다.
+
+## 요약
+
+`scripts/ci-paths-changed.sh` + `changes` 잡 + 스텝 단위 `if:` 게이팅으로 구성된 skip-job 패턴은 plan 이 기술한 대로 정확히 구현됐다 — `deps-security-checks.yml`/`frontend-checks.yml` 모든 실 스텝이 게이팅됐고, `needs: changes` 가 전 잡에 걸려 있으며, no-op 안내 스텝이 job conclusion 을 `success` 로 유지시켜 "skipped 의 모호성" 문제를 정확히 회피한다. 신설 회귀 테스트(`test_required_check_skip_jobs.py`)와 기존 등록부 갱신(`test_workflow_yaml_structure.py` 의 `_PULL_REQUEST_KEYS`/`_SKIP_JOB_WORKFLOWS`)은 plan 이 명시한 3가지 회귀(paths 부활·게이팅 누락·`needs` 누락)를 정확히 pin 하고, README 카탈로그 행도 실제 구현과 line-level 로 일치한다. 로컬 실행으로 922개 하네스 테스트 전부 통과, git pathspec `**` 동작도 직접 실증했다. 다만 세 가지 실질적 WARNING 이 남는다: (1) 신설 스크립트의 핵심 fail-safe 로직 자체를 실행해 검증하는 자동 테스트가 없어 "로컬 실증"이 코드베이스에 남지 않는다, (2) `scripts/ci-paths-changed.sh` 가 `harness-checks.yml` 의 `paths:` 에 빠져 있어 — 이 저장소가 6번 겪었다고 스스로 기록한 "paths 커버리지 갭" 클래스의 새로운(그리고 자동 가드의 documented blind spot 때문에 자동으로는 못 잡는) 사례다, (3) `changes` 잡 자체의 인프라 실패 시 하위 잡이 job-level skip 되어 이 PR 이 없애려던 것과 같은 종류의 required-check 모호성이 다른 경로로 재발할 수 있다. 세 건 모두 이 PR 의 핵심 목적(required check 데드락 해소)을 무효화하지는 않지만, 이 저장소가 반복적으로 대가를 치른 실패 클래스(조용한 커버리지 갭·미검증 fail-safe 경로)와 정확히 같은 모양이라 fix 를 권한다.
+
+## 위험도
+
+MEDIUM

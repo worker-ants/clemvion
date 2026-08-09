@@ -12,37 +12,67 @@
 
 name: frontend-checks
 
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
 on:
   pull_request:
-    paths:
-      - 'codebase/frontend/**'
-      - 'codebase/packages/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/frontend-checks.yml'
   push:
     branches: [main]
-    paths:
-      - 'codebase/frontend/**'
-      - 'codebase/packages/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
 
 concurrency:
   group: frontend-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다.
+  changes:
+    name: 변경 경로 판정
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      relevant: ${{ steps.detect.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # push 에도 실제 diff 를 넘긴다 — 안 넘기면 main 으로의 모든 push 가
+          # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.event.after }}
+        run: |
+          scripts/ci-paths-changed.sh \
+            'codebase/frontend/**' \
+            'codebase/packages/**' \
+            'pnpm-lock.yaml' \
+            'pnpm-workspace.yaml' \
+            'scripts/ci-paths-changed.sh' \
+            '.github/workflows/frontend-checks.yml'
+
   test-and-build:
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "frontend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
 
       # pnpm 버전은 root package.json 의 `packageManager` 필드를 따른다.
       - uses: pnpm/action-setup@v6.0.9
+        if: needs.changes.outputs.relevant != 'false'
 
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           node-version: '24'
           cache: 'pnpm'
@@ -52,13 +82,16 @@ jobs:
       # dist 는 각 패키지 `prepare`(tsc)가 install 중 자동 빌드한다 (이전의
       # 패키지별 `npm ci && npm run build` 단계를 대체).
       - name: Install frontend workspace
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm install --frozen-lockfile --filter "frontend..."
 
       - name: Vitest (unit)
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter frontend test
 
       # `next build` 가 모든 docs 라우트(`/docs/<locale>/<...>`) 를
       # `generateStaticParams` 로 prerender 한다. MDX 안의 invalid 컴포넌트 prop
       # (e.g. `<Callout type="info">`) 은 여기서 server-side render 실패로 잡힌다.
       - name: Next build (prerender 검증)
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter frontend build

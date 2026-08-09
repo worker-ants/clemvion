@@ -62,6 +62,10 @@ on:
       # `test_review_gate_ci.py` 가 트리거되지 않는다 — 위 항목들과 동일한 실패 클래스.
       - 'scripts/check-review-gate.py'
       - 'scripts/check-override-floors.py'
+      # required check skip-job 패턴의 판정자. 이 스크립트가 바뀌면
+      # test_required_check_skip_jobs.py 가 돌아야 하는데, 초판이 이 등재를 빠뜨려
+      # 이 저장소가 여섯 번 겪은 paths 커버리지 갭을 그 PR 이 그대로 재현했다.
+      - 'scripts/ci-paths-changed.sh'
       # 내부 패키지의 `prepare` 계약(test_packages_prepare_contract.py). 매니페스트만 고친
       # PR 에서 이 가드가 안 돌면, stale dist 를 되살리는 한 줄이 조용히 들어온다 — 위
       # 항목들과 동일한 실패 클래스다. 소스가 아니라 매니페스트만 등재해 스위트가 모든
