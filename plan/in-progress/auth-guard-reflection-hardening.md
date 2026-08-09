@@ -163,6 +163,9 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       정정. INFO 3 은 `cross_spec` 이 스스로 단 "미검증" 캐버트라 **직접 열어 확인**했다:
       `system-status.e2e-spec.ts:147` 이 실제로 nil UUID 를 프로브로 쓴다 → `isValidUuid`
       를 썼다면 그 e2e 가 깨졌을 것이라는 근거가 실측으로 선다.
+- [x] `--impl-done` 재수행 (3차 fix 가 spec-linked 파일을 건드려 게이트가 재요구) —
+      **BLOCK: NO** (`review/consistency/2026/08/09/15_56_48`, 5/5). WARNING 2건은 전부
+      **spec 쓰기**라 §후속 planner 턴 등재. INFO 2(캐너리 주석 "73건" 수치)도 §후속.
 - [ ] push + PR
 
 ## 부수 — plan 위생 1건 (`--impl-prep` plan_coherence INFO #6)
@@ -185,7 +188,18 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 
 ## 후속 (이 PR 밖)
 
-**planner 턴 필요 — `spec/` 쓰기** (`--impl-done` WARNING 2건, BLOCK:NO 지만 반영 대상):
+**planner 턴 필요 — `spec/` 쓰기** (`--impl-done` 2회 WARNING, BLOCK:NO 지만 반영 대상):
+
+- [ ] **헤더 vs 경로 파라미터의 UUID 검증 강도 비대칭을 명문화** (2차 impl-done W1 —
+      가장 값 있는 항목). `X-Workspace-Id` 헤더는 느슨한 `isUuidShaped`, 워크스페이스
+      `:id` 경로 파라미터는 엄격한 `ParseUUIDPipe` 다. **의도된 비대칭인데 어느 spec 에도
+      없다** — "일관성" 명목으로 헤더를 `ParseUUIDPipe` 급으로 조이는 회귀가 오면
+      nil-UUID e2e 프로브(`system-status.e2e-spec.ts:147`)가 깨지고 403 이 400 으로
+      뒤바뀐다. `1-auth.md §3.3` 또는 `data-flow/12-workspace.md §1.5` Rationale 에 한 줄.
+- [ ] **부트 캐너리 설계 근거를 spec Rationale 에** (2차 impl-done W2). 지금은 코드
+      주석에만 있는데, 이 저장소는 유사 부트 가드마다 spec Rationale 동반 기록을 지켜 왔다.
+      (a) reflection 자가검증 이유 (b) opt-in 마커 대안 **재**기각 이유 (c)
+      `assertProductionConfig` 와 별도 단계로 둔 이유.
 
 - [ ] `spec/5-system/3-error-handling.md §1.3` 에 행 추가 — "`X-Workspace-Id` 헤더가
       **있으나 UUID 형태가 아님** → `VALIDATION_ERROR`(400)". 기존
@@ -208,6 +222,11 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 - [ ] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
       공용 fixture 모듈 승격. 지금 옮기면 이 PR diff 가 세 파일 더 는다.
 - [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
+- [ ] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
+      서브셋**인데 캐너리가 세는 것은 `@WorkspaceId()` 소비 라우트 **전체**라 상위집합이다 —
+      전체 수치를 실측해 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**:
+      주석 한 줄이어도 `codebase/**` 변경이라 리뷰·`--impl-done` 두 게이트가 다시
+      stale 해진다. INFO 등급 정확도 개선에 25분 사이클을 다시 도는 것은 비례하지 않는다.
 
 ## Rationale
 
