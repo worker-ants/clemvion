@@ -1,9 +1,9 @@
 ---
 title: required status check 데드락 해소 — paths 필터를 skip-job 패턴으로 전환
-worktree: ci-skip-jobs-remaining-8aa9f8
+worktree: ci-review-gate-skip-job
 started: 2026-08-09
 owner: developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact: none
 ---
@@ -187,7 +187,10 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
       가 12라운드에 걸쳐 닫은 우회 구멍 둘을 도로 여는 비용만 남는다. 근거 전문은
       §review-gate 선행 조사. 체크박스가 아니라 묘비로 남긴다 — 열린 채 두면 "아직 안 한 일" 로
       읽힌다.
-- [ ] `e2e.yml` — `paths-ignore` 형태라 다른 축. 비용이 가장 크니 마지막
+- N/A `e2e.yml` — **전환하지 않는다** (사용자 결정 2026-08-09). required check 로 등록할
+      계획이 없으므로 데드락이 성립하지 않고, `paths-ignore` 를 걷을 이유도 없다.
+      **전환 가능성 자체는 실측으로 확인해 뒀다**(§e2e 선행 조사, 7/7) — 나중에 등록하기로
+      하면 그 조사부터 다시 하지 않아도 된다. 체크박스가 아니라 묘비로 남긴다.
 - [x] **`changes` 잡을 reusable workflow(`workflow_call`)로 추출 — 완료 (2026-08-09)**
       (ai-review W7·W8). `.github/workflows/_changed-paths.yml` 신설, 세 워크플로가
       `uses:` 로 호출한다. `backend-checks.yml`(`#1109`)이 세 번째 전환이라 그 시점에
@@ -483,12 +486,15 @@ backend · 내부 패키지 · 웹채팅 · 하네스 · spec 링크 · 마이�
 > 을 양수로 다시 넣어도 되살아나지 않는다("un-exclude" 가 없다). 그 워트는 그대로 남고
 > `workflow_dispatch` 탈출구도 그대로 필요하다.
 
-### 남은 것은 결정 하나 — **e2e 를 required check 로 등록할 것인가**
+### 결정 — 전환하지 않는다 (사용자, 2026-08-09)
 
-등록 표(§사용자 액션)에 e2e 는 **없다**. review-gate 와 같은 상황이고, 같은 논리라면
-전환할 이유가 없다. 다만 e2e 는 성격이 다르다 — cross-stack 회귀의 유일한 안전망이라
-"required 로 올릴 값" 자체는 가장 크다. 그래서 review-gate 처럼 기계적으로 종결하지 않고
-결정 항목으로 올린다.
+등록 표(§사용자 액션)에 e2e 는 **없다**. required 로 안 걸면 데드락이 성립하지 않으므로
+`paths-ignore` 를 걷을 이유가 없다 — review-gate 와 같은 논리다.
+
+**다만 이 조사는 버리지 않는다.** 나중에 e2e 를 required 로 올리기로 하면, 위 exclude
+pathspec 목록과 7케이스 실측이 그대로 착수 지점이다. "가능한가" 는 이미 답이 나왔고
+남는 것은 재조준 두 곳(`test_e2e_exemption_paths_sync` · `test_no_pathspec_is_a_dead_filter`)
+뿐이다.
 
 ## 사용자 액션 (이 PR 머지 후)
 

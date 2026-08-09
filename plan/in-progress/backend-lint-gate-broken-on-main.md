@@ -289,7 +289,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 - [x] **`changes` 잡 추출 — 완료 (2026-08-09, 다음 PR 로 즉시 집행)**
       (ai-review INFO 4 · `--impl-done` WARNING). `_changed-paths.yml` 신설, 세 워크플로가
       `uses:` 로 호출.
-      [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
+      [`ci-required-check-skip-jobs.md`](../complete/ci-required-check-skip-jobs.md) 이 "**3번째** 전환
       시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
       라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정했다(실측: `CONVERTED` 3건).
 - [x] **셋업 보일러플레이트(checkout·pnpm·setup-node·install) 추출은 별도** — **완료 (2026-08-09, [#1120](https://github.com/worker-ants/clemvion/pull/1120))**
@@ -298,7 +298,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       요구하는지 보고 하는 편이 낫다. **범위를 쪼개 남긴다** (ai-review WARNING #1).
 
       > **트리거 도달 + 실측 (2026-08-09,
-      > [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 나머지 5개 전환).**
+      > [`ci-required-check-skip-jobs.md`](../complete/ci-required-check-skip-jobs.md) 나머지 5개 전환).**
       > 전환 완료 시점 8워크플로 / 실잡 14개(`changes` 제외)를 셋업 형태로 분류한 결과:
       >
       > | 셋업 형태 | 잡 수 |
