@@ -1,6 +1,6 @@
 ---
 title: required status check 데드락 해소 — paths 필터를 skip-job 패턴으로 전환
-worktree: ci-required-check-skip-jobs-42f5d8
+worktree: ci-skip-jobs-remaining-8aa9f8
 started: 2026-08-09
 owner: developer
 status: in-progress
@@ -295,6 +295,23 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
       > 커버리지는 wrapper 요약(`tests=14`/`tests=261`)이 아니라 로그 전수로 확인했다 —
       > frontend 282파일/5848 · channel-web-chat 23파일/409 · backend jest 417 suites/8493 ·
       > e2e backend jest 261 + **playwright 51**.
+
+### 후속 — ai-review INFO 항목 (2026-08-09, 나머지 5개 전환 리뷰 `review/code/2026/08/09/20_33_02`)
+
+이번 리뷰의 WARNING 4건은 즉시 조치했다. 아래 INFO 2건은 이번 PR 스코프는 아니지만
+후속으로 등재한다(review/ 는 SoT 가 아니므로 여기 적어 둔다):
+
+- **INFO 1 — `permissions:` 미선언 비대칭**: 신규 편입 4개 워크플로
+  (`packages-checks`·`spec-link-checks`·`web-chat-checks`·`migration-check`)와
+  `_changed-paths.yml` 에 `permissions:` 블록이 없어 기본(잠재적으로 더 넓은)
+  `GITHUB_TOKEN` 권한을 상속한다. `harness-checks.yml` 만 `contents: read` 를 명시해
+  비대칭이다. `git log -p` 확인 결과 이번 PR 이전부터의 상태라 회귀는 아니다.
+  후속: least-privilege 관점에서 `contents: read` 를 나머지에도 명시해 일관시킬 것.
+- **INFO 8 — `on.push.paths` 부활 방지 대칭 가드 부재**: 현재 `test_pull_request_has_no_paths_filter`
+  는 `on.pull_request.paths` 부활만 막는다. push 트리거를 유지하는 3곳
+  (`packages-checks`·`web-chat-checks`·`spec-link-checks`)의 `on.push.paths` 가 되살아나는
+  것은 아무 가드도 못 잡는다. required check 데드락은 PR 전용이라 심각도는 낮다.
+  후속: 같은 테스트에서 `on.push.paths` 부재도 함께 단언.
 
 ## 사용자 액션 (이 PR 머지 후)
 
