@@ -121,7 +121,20 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > 정리돼 사후 확인하지 못했다 — 부팅 로그에만 남는다(의도한 관측 지점).
 - [x] 링크·Gate C 회귀 — `spec-link-integrity` 13건 · `spec-plan-completion` 776건 통과
       (아래 plan 이동 때문에 별도 확인)
-- [ ] `/ai-review` + Critical/Warning 처분
+- [x] `/ai-review` — **Critical 0 · WARNING 6 → 6건 전부 수정 · INFO 18**
+      (`review/code/2026/08/09/14_36_39`, reviewer 9/9). 값 있던 둘은 **내 테스트가 정작
+      중요한 지점을 비워 뒀다**는 지적이다:
+      W5 400 을 프로덕션에서 **가장 먼저 통과하는 지점이 전역 `APP_GUARD`** 인데 가드
+      레벨 테스트가 전무 → 3건 추가(403 이 아니라 400 임 + DB 미도달 단언) ·
+      W6 "전역 라우트는 헤더와 무관하게 통과" 가 nil UUID(형식 유효)를 써서 **vacuous**
+      → 형식이 깨진 값으로 두 갈래를 가르는 테스트 추가.
+      **뮤테이션으로 실증**: 검증 제거 → 10 RED · 단축을 헤더 파싱 뒤로 이동 →
+      **정확히 새 테스트 1건만 RED**(기존 nil UUID 테스트는 전부 GREEN — W6 의 지적이
+      이 대비로 증명된다).
+      W1·W2·W3 은 문서·plan 위생이고, **W3 은 내가 처음 쓴 오버라이드 근거가 틀려서
+      `git worktree list` 로 확인해 정정**했다.
+- [x] TEST WORKFLOW 재수행 (fix 후) — lint PASS(51s) · unit PASS(77s) · build PASS(144s) ·
+      **e2e PASS(283s, jest 261 + playwright 51)** · common/ 345 tests OK
 - [ ] `--impl-done` (spec-linked 코드 변경 있음)
 - [ ] push + PR
 
@@ -142,6 +155,15 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 > 즉 그 worktree 는 더 이상 PR 을 내지 않으므로, 권고를 그대로 따르면 **아무도 옮기지
 > 않는다** — `#1103` 이 이미 한 번 빠뜨렸고 그 결과가 지금의 깨진 링크다. 이동만 담은
 > 별 PR 은 `plan-lifecycle.md §3` 이 금지하므로 인접 PR 에 싣는 것이 정본 경로다.
+
+## 후속 (이 PR 밖)
+
+- [ ] backend `README.md` §배포 주의 에 **부팅 캐너리가 기동을 멈출 수 있다**는 사실 추가
+      (ai-review INFO 18). 이 PR 은 CHANGELOG·JSDoc·plan 세 곳에 적었으나 배포 담당자가
+      먼저 보는 곳은 README 다. 그 절이 별도 구조 정리를 필요로 해 여기서 손대지 않았다.
+- [ ] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
+      공용 fixture 모듈 승격. 지금 옮기면 이 PR diff 가 세 파일 더 는다.
+- [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
 
 ## Rationale
 
