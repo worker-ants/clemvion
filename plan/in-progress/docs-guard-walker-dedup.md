@@ -59,19 +59,21 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 
 ## 2026-08-10 추가 — `plan-lifecycle-gates` 최종 라운드가 더 얹은 것
 
-- [ ] **gray-matter 캐시 우회 관용구(`matter(raw, {})`)가 4곳에 손 복제** —
-      `plan-scan.ts` 2곳 + `spec-plan-completion.test.ts` 2곳. 5번째 파서 호출이 추가될 때
-      `{}` 를 빠뜨리면 조용히 되살아난다(그 PR 이 실제로 1곳만 고쳤다가 리뷰에 잡혔다).
-      `parseFrontmatterSafe(raw)` 단일 헬퍼로 통합 판정
-      > 같은 hazard 가 `spec-frontmatter-parse.ts:113` 에도 남아 있다(옵션 없는 `matter(raw)`).
-      > 오늘은 `spec/**` 만 읽어 plan 스캐너와 내용이 안 겹쳐 무해하지만 **그 전제가 코드로
-      > 강제되지 않는다.** 헬퍼로 통합하면 이 클래스가 저장소에서 소거된다
-- [ ] **Gate C 의 `collectCompletePlans` 와 `collectCompletePlanMarkdown` 의 반환 집합
-      동등성이 자동 검증되지 않는다** — "현재 일치" 는 수동 실측일 뿐이다. 통합하거나,
-      통합 전까지는 **동등성 계약 테스트 1개**를 두는 편이 낫다(위 §"함께 볼 것" 과 같은 대상)
+> **처음에 이 절의 4건을 전부 "선재 구조" 라고 적었는데 절반이 틀렸다.** rationale checker 가
+> 항목별로 실측해 반박했다 — `matter(raw, {})` 4곳은 `plan-scan.ts`(그 PR 신규 파일) 2곳 +
+> `spec-plan-completion.test.ts` 2곳인데 후자는 `origin/main` 에 **옵션이 아예 없었고** 그
+> PR 이 `{}` 를 넣으면서 관용구를 복제한 것이다. Gate C 동등성 갭도 신규
+> `collectCompletePlanMarkdown` 이 기존 구현을 재사용하지 않고 병렬로 만든 데서 나왔다.
+> **자기 PR 이 만든 중복은 등재가 아니라 제거가 맞다** — 둘 다 그 PR 에서 해소했다
+> (`parseFrontmatterSafe` 단일 진입점 + `collectCompletePlans` 를 공유 구현 위임으로 축소).
+> 아래 남은 둘만 실제 선재다(`git diff origin/main` 에서 해당 함수 **0줄** 변경 — 실측).
+
 - [ ] `spec-links.ts` 내부 `collectSpecMarkdown`/`collectCodebaseSources` DFS 중복 —
       위 walker 표의 2·3번이 바로 이것이다. **이 둘은 파일 하나 안의 중복**이라 통합이
       제일 싸다
+      > 같은 계열 잔여: `spec-frontmatter-parse.ts:113` 이 옵션 없는 `matter(raw)` 를 쓴다.
+      > 오늘은 `spec/**` 만 읽어 plan 스캐너와 내용이 안 겹쳐 무해하지만 **그 전제가 코드로
+      > 강제되지 않는다.** `parseFrontmatterSafe` 로 태우면 이 클래스가 저장소에서 소거된다
 - [ ] (성능, 별 축) `extractLinks` 가 마크다운 링크가 없는 파일도 전수 라인 스캔한다 —
       실측 2072파일 중 `](` 포함은 35개(1.7%). `text.includes("](")` 사전 필터로 스킵
 - [ ] (테스트 갭) `hasValidSpecImpact` 의 `NONE_VALUES` 대소문자/trim/`n-a` 분기가 fixture

@@ -95,6 +95,38 @@ export function collectCompletePlanMarkdown(root: string): PlanMdFile[] {
   return walkPlanMarkdown(root, "complete", { recurse: true });
 }
 
+export interface ParsedFrontmatter {
+  data: Record<string, unknown>;
+  /** frontmatter **원문** 블록 — 파싱이 값을 바꾸는 필드(날짜)는 이쪽을 봐야 한다. */
+  block: string;
+}
+
+/**
+ * frontmatter 파싱 **단일 진입점**. 실패하면 `null`.
+ *
+ * `matter(raw, {})` 의 빈 옵션 객체가 핵심이다 — gray-matter 는 옵션이 없을 때 내용을 키로
+ * 캐시하는데 캐시 등록이 파싱 **전에** 일어난다. 파싱이 throw 하면 부분 초기화 객체가 남아
+ * **같은 내용의 두 번째 호출은 throw 없이 `data={}`** 를 돌려준다(실측: 1회차 THROW →
+ * 2회차 NOTHROW → 옵션 전달 시 다시 THROW). 즉 깨진 frontmatter 가 **호출 순서에 따라**
+ * 조용히 빈 값으로 보인다.
+ *
+ * 범위는 **한 테스트 파일 안**이다 — vitest 기본 `isolate: true` 라 파일마다 모듈
+ * 레지스트리가 따로여서 파일을 넘는 오염은 없다(실측). 한 파일이 같은 내용을 두 번 파싱할
+ * 때만 성립한다.
+ *
+ * **함수로 묶은 이유**: 종전에는 이 관용구가 네 호출부에 손으로 복제돼 있었고, 실제로 그중
+ * 하나만 고쳤다가 리뷰에 잡혔다. 다섯 번째 파서 호출이 추가될 때 `{}` 를 빠뜨리면 조용히
+ * 되살아나는 종류라 진입점을 하나로 둔다.
+ */
+export function parseFrontmatterSafe(raw: string): ParsedFrontmatter | null {
+  try {
+    const parsed = matter(raw, {});
+    return { data: parsed.data ?? {}, block: parsed.matter ?? "" };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * `plan/complete/**` 에서 허용되는 `status` 값.
  *
@@ -125,22 +157,10 @@ export interface NonTerminalPlan {
 export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
   const out: NonTerminalPlan[] = [];
   for (const f of collectCompletePlanMarkdown(root)) {
-    let data: Record<string, unknown> = {};
-    try {
-      // `{}` 는 gray-matter 의 프로세스-전역 캐시 우회다 — 이유는 `checkPlanFrontmatter`
-      // 의 같은 자리 주석 참조.
-      //
-      // **이 자리에서는 방어이지 버그 수정이 아니다**: 파싱 실패는 아래 `catch` 로
-      // skip 되고 캐시 오염(`data={}`)은 `status` 부재로 skip 되어 **결과가 같은 곳으로
-      // 수렴한다**. 그래서 이 한 줄은 어떤 테스트로도 관측되지 않는다(뮤테이션으로 확인 —
-      // 지워도 스위트가 초록). 남겨 두는 이유는 한 파일 안에서 같은 hazard 를 한쪽만
-      // 막아 두면 다음 사람이 "여긴 안 막아도 되는 자리" 로 읽기 때문이고, 이 함수가
-      // 나중에 파싱 실패와 빈 frontmatter 를 **구분**하게 되는 순간 곧바로 갈리기 때문이다.
-      data = matter(fs.readFileSync(f.absPath, "utf8"), {}).data ?? {};
-    } catch {
-      continue;
-    }
-    const status = data.status;
+    // 파싱 실패는 이 검사의 관심사가 아니라 건너뛴다(다른 가드의 소관).
+    const parsed = parseFrontmatterSafe(fs.readFileSync(f.absPath, "utf8"));
+    if (parsed === null) continue;
+    const status = parsed.data.status;
     if (typeof status !== "string") continue;
     if (!TERMINAL_PLAN_STATUSES.has(status)) {
       out.push({ relPath: f.relPath, status });
@@ -238,25 +258,12 @@ export function checkPlanFrontmatter(
     add("missing-block", "frontmatter 블록이 없다");
     return out;
   }
-  let data: Record<string, unknown>;
-  let block: string;
-  try {
-    // **빈 옵션 객체는 의미가 있다** — gray-matter 는 옵션이 없을 때 내용을 키로 캐시하는데,
-    // 캐시 등록이 파싱 **전에** 일어나 파싱이 throw 하면 부분 초기화 객체가 남는다. 그러면
-    // 같은 내용의 두 번째 호출은 throw 없이 `data={}` 를 돌려준다(실측: 1회차 THROW →
-    // 2회차 NOTHROW). 즉 깨진 frontmatter 가 **호출 순서에 따라** 조용히 빈 값으로 보인다.
-    // 옵션을 넘기면 캐시를 통째로 우회해 순서와 무관하게 같은 결과가 된다.
-    //
-    // 범위는 **한 테스트 파일 안**이다 — vitest 기본 `isolate: true` 라 파일마다 모듈
-    // 레지스트리가 따로여서 파일을 넘는 오염은 없다(실측). 여기서 문제가 되는 이유는
-    // 같은 파일의 `findNonTerminalCompletedPlans` 가 같은 fixture 를 먼저 파싱하기 때문.
-    const parsed = matter(raw, {});
-    data = parsed.data ?? {};
-    block = parsed.matter ?? "";
-  } catch {
+  const parsed = parseFrontmatterSafe(raw);
+  if (parsed === null) {
     add("unparseable", "frontmatter 파싱 실패");
     return out;
   }
+  const { data, block } = parsed;
 
   // `.trim()` 은 필수다 — 공백만 있는 값(`worktree: "   "`)은 길이가 0 이 아니라서
   // 종전 검사를 통과했다. 이 가드가 막으려는 것이 정확히 "살아있어 보이지만 죽은 값" 이다.
