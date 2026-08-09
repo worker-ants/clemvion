@@ -338,6 +338,13 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 값의 **검증 시점이 라우트별 opt-in 에서 가드 무조건으로** 옮겨진 것이며, 위 end-state 목표
 ("멤버십 검증이 인증 진입점 1곳으로 수렴")를 헤더 제거를 기다리지 않고 앞당겨 달성한 것이다.
 
+**reflection 파손은 부트에서 막는다.** 위 "대상 제외" 단축 통과가 기대는
+`handlerConsumesWorkspaceId` 는 Nest 비공개 API(`ROUTE_ARGS_METADATA`)에 의존해 파손 방향이
+**fail-open** 이다 — 깨지면 모든 라우트가 "워크스페이스 무관" 으로 판정돼 멤버십 검증이 조용히
+사라진다. 부팅 시 소비 라우트 수가 0 이면 throw 하는 캐너리로 닫았다
+(`assertWorkspaceIdReflectionWorks`). 설계 근거: [`5-system/1-auth.md §Rationale "부트
+캐너리"`](../5-system/1-auth.md#부트-캐너리--workspaceid-reflection-자가검증-fail-closed-2026-08-09).
+
 구현·전수 목록: [`plan/complete/auth-workspace-membership-guard.md`](../../plan/complete/auth-workspace-membership-guard.md).
 
 ### URL slug = FE 라우팅 SoT (≠ backend 인가 SoT)
@@ -364,6 +371,46 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
   > (재부착 시 무한 리다이렉트). [2-navigation/_layout.md §2.2 각주 · R-3](../2-navigation/_layout.md) 참조.
 - **slug 불변**: slug 는 생성 시 `team-<uuid8>`/개인 규칙으로 확정되고 이후 불변(`workspace.slug` UNIQUE, V001).
   rename 은 name 만 바꾸고 URL 을 바꾸지 않으므로 딥링크가 안정적이다.
+
+### `X-Workspace-Id` 헤더 vs `:id` 경로 파라미터 — UUID 검증 강도 비대칭 (2026-08-09)
+
+같은 "워크스페이스 UUID" 인데 두 입구의 검증 강도가 다르다. **의도된 비대칭이다.**
+
+| 입구 | 술어 | 통과 범위 |
+|---|---|---|
+| `X-Workspace-Id` 헤더 | `isUuidShaped` (`common/utils/uuid.ts`) | canonical 8-4-4-4-12 hex — **버전·variant nibble 을 보지 않는다** |
+| 워크스페이스 `:id` 경로 파라미터 | `ParseUUIDPipe` (`workspaces.controller.ts` 의 `@Param('id')` **14곳**; 같은 컨트롤러의 `memberId`·`invitationId` 4곳을 합쳐 총 18곳) | RFC v1–v5 + RFC variant |
+
+**왜 헤더는 느슨한가 — 조이면 403 이 400 으로 뒤바뀐다.** 헤더 술어가 하는 일은 "Postgres 가
+`uuid` 컬럼 값으로 파싱할 수 있는가" 하나다. 파싱 가능한 값을 미리 걸러 내면, `getMemberRole` 이
+정상 조회해 **"그 워크스페이스의 멤버가 아니다"(403)** 로 답해야 할 요청이 **"요청이
+잘못됐다"(400)** 가 된다. nil UUID(`00000000-…`)·v7·비-RFC variant 가 정확히 그 구간이다 —
+Postgres 는 전부 받아들이는데 `isValidUuid`(RFC v1–v5 + variant)는 거부한다. 헤더는 **인가
+판정의 입력**이므로, 인가 결과(403)를 형식 오류(400)로 바꾸는 술어를 쓸 수 없다.
+
+**왜 경로 파라미터는 엄격해도 되는가.** `:id` 는 인가 판정의 입력이 아니라 **리소스 지목**이다.
+거기서 400 을 내도 뒤바뀔 인가 응답이 없다 — 없는 리소스는 어차피 404 이고, 400 과 404 는
+"그 리소스에 접근할 수 있는가" 를 누설하지 않는다.
+
+**"일관성" 명목으로 헤더를 `ParseUUIDPipe` 급으로 조이는 것은 회귀다.** 두 술어의 경계는 다음
+단위 테스트가 고정한다:
+
+- `common/utils/uuid.spec.ts` — `accepts UUID-shaped values that isValidUuid rejects
+  (nil / v6+ / 비-RFC variant)` (두 술어의 경계 자체)
+- `common/utils/workspace-context.util.spec.ts` — `Postgres 가 파싱할 수 있는 값은 통과시킨다
+  (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)` (헬퍼 레벨)
+
+> **캐너리 지목 정정 (2026-08-09)**: 구현 PR(`#1108`)의 plan 과 `common/utils/uuid.ts` docstring 은
+> 이 회귀의 캐너리로 `test/system-status.e2e-spec.ts` 의 nil-UUID 프로브를 지목했다. **그 e2e 는
+> 이 술어에 닿지 않는다** — `system-status` 컨트롤러에는 `@Roles()` 도 `@WorkspaceId()` 도 없어
+> `RolesGuard` 가 헬퍼 호출 **이전에** 통과시킨다(`handlerConsumesWorkspaceId` 단축, 아래
+> "적용 범위"). 그 e2e 가 고정하는 것은 **"워크스페이스-무관 전역 라우트는 헤더를 무시한다"** 는
+> 별개 불변식이다. 진짜 캐너리는 위 두 단위 테스트다.
+
+**적용 범위**: 헤더 술어는 `@Roles()` 또는 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 돈다.
+둘 다 없는 전역 라우트는 헤더가 형식 파손이어도 400 이 아니라 **무시**다. 에러 코드 카탈로그는
+[`5-system/3-error-handling.md §1.3`](../5-system/3-error-handling.md#13-유효성-검증-에러)
+(3분기: 부재 → `WORKSPACE_ID_REQUIRED` · 형식 파손 → `VALIDATION_ERROR` · 비멤버 → 403).
 
 ### workspace.deleted 감사 제외 (구조적 제약)
 

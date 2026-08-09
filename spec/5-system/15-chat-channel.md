@@ -356,6 +356,7 @@ EIA §R5 의 "외부 WebSocket 보류" 결정은 **외부 표면** 의 채널 �
 | 404 | `RESOURCE_NOT_FOUND` | trigger 미존재 또는 워크스페이스 권한 없음 ([`triggers.service.ts:122`](../../codebase/backend/src/modules/triggers/triggers.service.ts) `findById`) |
 | 400 | `INVALID_BOT_TOKEN` | `newBotToken` 누락/비-string (controller 입력 검증, [`triggers.controller.ts`](../../codebase/backend/src/modules/triggers/triggers.controller.ts) `rotateBotToken`) |
 | 400 | `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더·JWT `workspaceId` 둘 다 없음 (공용 `@WorkspaceId()` 데코레이터, [`common/decorators/workspace.decorator.ts`](../../codebase/backend/src/common/decorators/workspace.decorator.ts) — `3-error-handling.md §1.3` canonical) |
+| 400 | `VALIDATION_ERROR` | `X-Workspace-Id` 헤더가 **있으나** UUID 형태가 아님 — 가드·데코레이터 공용 헬퍼([`common/utils/workspace-context.util.ts`](../../codebase/backend/src/common/utils/workspace-context.util.ts))가 조기 거부. 위 `WORKSPACE_ID_REQUIRED`(둘 다 **부재**)와 **다른 케이스**다 (`3-error-handling.md §1.3` canonical). 아래 §5.4.1 의 동명 코드(`details.field='botTokenRef'`)와는 **같은 코드 다른 트리거** — 그쪽은 body 필드, 이쪽은 헤더 형식이다 |
 | 400 | `CHAT_CHANNEL_NOT_CONFIGURED` | `config.chatChannel` 미설정 트리거 |
 | 400 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | registry 에 미등록 provider |
 | 400 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | trigger `endpointPath` 부재 |

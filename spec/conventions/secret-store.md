@@ -67,9 +67,31 @@ interface SecretResolver {
 | 시점 | 의무 호출 |
 |---|---|
 | Trigger 생성 (notification / chatChannel 설정 포함) | **`rotate(ref, workspaceId, plaintext)` 권장** — UPSERT 멱등성으로 setup 재시도 안전 (§5.5 예시 + `triggers.service.ts.setupChatChannel` 구현체 모두 `rotate()` 사용). `store()` 도 동일 결과를 내지만, 동일 ref 가 이미 있을 때 `store()` 의 동작 (덮어쓰기 vs throw) 은 backend 구현 변경에 취약 — `rotate()` 의 명시적 UPSERT 시맨틱이 안전 |
-| Trigger 삭제 | 해당 trigger 의 모든 ref 를 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제 (cascade 차원 — DB FK 가 없으므로 application 책임). 개별 `delete()` 보다 prefix 패턴 권장 |
+| Trigger 삭제 | 해당 trigger 의 모든 ref 를 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제 (cascade 차원 — DB FK 가 없으므로 application 책임). 개별 `delete()` 보다 prefix 패턴 권장. **prefix 불변식 2건**: `secret://` 로 시작해야 하고, LIKE 메타문자(`%`·`_`·`\`)를 포함하면 **throw** 한다 (아래 † 참조) |
 | 외부 API 호출 직전 (sendMessage, HMAC 서명 등) | `resolve(ref)` — 매 호출 마다 fetch (캐싱은 SecretResolver 내부 결정) |
 | Secret rotation API | `rotate(refV2, workspaceId, newPlaintext)` |
+
+> **† `deleteByPrefix` 의 LIKE 메타문자 거부 (2026-08-09)**: 구현이 prefix 를 `ref LIKE :prefix`
+> (`` `${prefix}%` ``) 로 쓴다. TypeORM 파라미터 바인딩이라 **SQL 인젝션은 아니지만**, prefix 에
+> `%`(임의 문자열)·`_`(임의 1글자)가 섞이면 **의도보다 넓게 지워진다** — 삭제는 되돌릴 수 없어
+> 방향이 나쁘다. `\`(LIKE 이스케이프 문자)도 같은 이유로 막는다.
+>
+> **이스케이프(`\%` + `ESCAPE` 절)가 아니라 거부인 이유**: 이 API 의 prefix 는 내부에서 조립하는
+> **식별자 경로**라 메타문자가 정당하게 필요한 경우가 없다 — §1 URI Scheme 의
+> `secret://<scope>/<id>/<name>` 구조 자체가 메타문자를 배제한다. 이스케이프는 없는 유스케이스를
+> 위해 표면을 넓히는 쪽이다.
+>
+> **"지금은 안전하다" 를 주석으로만 두지 않은 이유**: 도입 시점 프로덕션 호출부는
+> `triggers.service.ts` 한 곳(`secret://triggers/${trigger.id}/`, `trigger.id` 는
+> `@PrimaryGeneratedColumn('uuid')` 라 메타문자 불가)뿐이었다(전수 확인). 그러나 그 안전은
+> **호출부 목록이 그대로일 때만** 참이라, 사용자 입력이 섞인 prefix 를 넘기는 호출부가 하나
+> 생기면 주석은 아무것도 막지 못한다. 기존 `secret://` 접두사 검사와 같은 형태로 **입력 자체를
+> 거부**해 그 조건을 없앴다.
+>
+> **알려진 검증 공백**: in-memory 테스트 mock 이 `startsWith` 라 LIKE 와일드카드 의미론을
+> 재현하지 않는다 — "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 아직 실행 가능한 테스트로
+> 고정돼 있지 않고 본 각주가 유일한 기록이다. 재현하려면 mock 에 LIKE 해석기를 넣거나(테스트가
+> DB 를 흉내 내다 틀릴 위험을 새로 만든다) e2e 를 추가해야 한다.
 
 ### 2.1.1 DIP 인터페이스 — v1 면제
 

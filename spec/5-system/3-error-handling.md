@@ -73,9 +73,10 @@ code:
 
 | 코드 | 설명 | HTTP |
 |------|------|------|
-| `VALIDATION_ERROR` | 요청 데이터 유효성 실패 | 400 |
+| `VALIDATION_ERROR` | 요청 데이터 유효성 실패 (400 기본값 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답)). 발행 지점이 특정된 케이스(`X-Workspace-Id` 형식 오류)는 아래 별도 행에 분리 등재한다 | 400 |
 | `PAYLOAD_TOO_LARGE` | 요청 본문 크기가 body-parser 한도 초과 — 전역 100KB 기본, `/api/hooks/*` 인증 webhook 1MB(`createHooksBodyParsers`). `GlobalExceptionFilter` 가 body-parser 의 413 을 표준 봉투로 매핑. **`message` 는 내부 원문(`"request entity too large"` 등)을 echo 하지 않고 고정 문구 `"Request payload too large."` 만 반환한다(CWE-209 — 비-413 4xx http-error 는 `"The request could not be processed."`, 원문은 서버 로그에만)**. 공개 webhook 의 32KB 추가 제한은 별도 `PUBLIC_WEBHOOK_BODY_TOO_LARGE`(§1.7) | 413 |
-| `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 부재 — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행) | 400 |
+| `WORKSPACE_ID_REQUIRED` | 워크스페이스 컨텍스트 **부재** — `X-Workspace-Id` 헤더와 JWT `workspaceId` 둘 다 없음 (`common/decorators/workspace.decorator.ts` 발행). 헤더가 **있으나 형식이 깨진** 경우는 아래 `VALIDATION_ERROR` 행이며 **다른 케이스**다 | 400 |
+| `VALIDATION_ERROR` | **`X-Workspace-Id` 형식 오류** — 헤더가 **있으나** canonical UUID 형태(8-4-4-4-12 hex)가 아님 → 조기 거부. `RolesGuard`·`@WorkspaceId()` 데코레이터 공용 헬퍼(`common/utils/workspace-context.util.ts` `resolveRequestWorkspaceContext`)가 발행하며, 소비처가 둘이라 **헬퍼 1곳에서 throw** 한다(반환 플래그로 두면 두 경로의 응답이 갈라진다). 조기 거부가 없으면 그 값이 멤버십 조회까지 흘러가 TypeORM `QueryFailedError`(SQLSTATE 22P02 `invalid input syntax for type uuid`)가 되고, `GlobalExceptionFilter` 의 어떤 분기에도 안 걸려 **500 `INTERNAL_ERROR` 로 마스킹**된다 — 클라이언트 입력 오류가 서버 오류로 보인다. **JWT 클레임은 검증하지 않는다**(서버가 서명한 값이라 거기서 400 을 내면 서버 버그를 클라이언트 오류로 보고하게 된다). 검증 강도가 경로 파라미터보다 느슨한 근거: [data-flow §Rationale "UUID 검증 강도 비대칭"](../data-flow/12-workspace.md#x-workspace-id-헤더-vs-id-경로-파라미터--uuid-검증-강도-비대칭-2026-08-09) | 400 |
 | `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts`·`llm-preview.service.ts`(preview-models, C-2 cluster 4 이후 llm 모듈) 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
 | `MODEL_CONFIG_NOT_FOUND` | 지정 id 의 ModelConfig 부재 또는 cross-kind 접근 차단(존재 누설 방지) — id 지정 경로 + `resolveEmbedding` 의 ws-default 부재(KB 임베딩 config 부재 = 리소스 부재). `RESOURCE_NOT_FOUND` 의 ModelConfig 특화 코드 (`model-config.service.ts` 발행) | 404 |
@@ -85,6 +86,10 @@ code:
 | `RESERVED_VARIABLE_NAME` | Variable Declaration/Modification 노드의 변수 이름이 시스템 예약 `__`(double-underscore) prefix — `variables.__*` 는 엔진 시스템 네임스페이스([execution-context 원칙 5](../conventions/execution-context.md)). **본 §1.3 행은 저장 시점(L0) surface 만** — `saveCanvas`/`importWorkflow` 가 `BadRequestException`(`details.offenders[]`)로 발행하는 진짜 HTTP 400 (`restoreVersion` 은 legacy-data escape 로 면제). 저장 게이트를 우회한 리터럴은 엔진 pre-flight(L1)에서 `INVALID_NODE_CONFIG` 로 격하된다. **`{{ }}` 표현식이 예약 이름으로 평가되는 런타임(L2) surface 는 HTTP 무관** — 두 노드 `handler.execute` 가 `RESERVED_VARIABLE_NAME:` message-prefix 로 throw 하고 엔진이 노드 실패(execution `failed`)로 기록하나 구조화 `error.code` 없이 `.message` 로만 존재한다(`EXECUTION_TIMEOUT`/`WORKER_HEARTBEAT_TIMEOUT` 처럼 두 레이어 분리) | 400 (저장) / — (런타임) |
 | `WORKFLOW_VERSION_CONFLICT` | 동시 캔버스 저장 경합 — 동일 워크플로우 버전 번호 unique 위반을 감지해 재시도 권고와 함께 반환 (`workflow-versions.service.ts` 발행) | 409 |
 | `INVALID_STATE` | 상태 전이 불가 (이미 실행 중인 워크플로우 삭제 등) | 422 |
+
+> **`X-Workspace-Id` 3분기**: 같은 헤더 하나가 세 갈래로 갈린다 — (1) 헤더·클레임 **둘 다 부재** → `WORKSPACE_ID_REQUIRED`(400), (2) 헤더 **있으나 형식 파손** → `VALIDATION_ERROR`(400), (3) 헤더 **형식 유효하나 비멤버** → `RolesGuard` 의 **코드 없는 403**. (3)에 전용 error code 를 붙이지 않는 이유는 [data-flow §Rationale "멤버십 검증은 가드 1곳에서"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) — `@Roles()` 라우트의 비멤버 거부도 종전부터 코드 없는 403 이라, 새 경로에만 코드를 붙이면 동일한 실패가 `@Roles()` 유무에 따라 다른 body 를 내게 된다. (2)와 (3)의 경계가 곧 [UUID 검증 강도 비대칭](../data-flow/12-workspace.md#x-workspace-id-헤더-vs-id-경로-파라미터--uuid-검증-강도-비대칭-2026-08-09) 이다.
+>
+> **적용 범위**: (1)·(2)는 `@Roles()` 또는 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 발생한다. 둘 다 없는 워크스페이스-무관 전역 라우트는 `RolesGuard` 가 헤더를 읽기 **전에** 통과시키므로(`handlerConsumesWorkspaceId` 단축), 형식이 깨진 헤더가 실려도 400 이 아니라 **무시**된다 — FE `apiClient` 가 모든 요청에 이 헤더를 습관적으로 붙이기 때문에 필요한 예외다.
 
 > WS commands 에서는 동일 의미를 `INVALID_EXECUTION_STATE` 코드로 표기 ([WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)). EIA REST `/interact` 진입점에서는 continuation 명령이 현재 노드/실행 상태와 불일치할 때 같은 의미를 `STATE_MISMATCH`(409) 로 표기한다 (External Interaction API §5.1 에러 표 + §R13 표면별 코드명 매핑 원칙, [14-external-interaction-api.md](./14-external-interaction-api.md)). REST core(`INVALID_STATE`/422) · WS(`INVALID_EXECUTION_STATE`) · EIA REST(`STATE_MISMATCH`/409) 의 표면별 코드 분리는 routing 분기 가시성을 위한 의도적 결정.
 
