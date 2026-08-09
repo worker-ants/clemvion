@@ -1,6 +1,6 @@
 ---
 title: RolesGuard reflection 경화 — fail-open 위험 · 메모이제이션 · 비-UUID 헤더 400
-worktree: (unstarted)
+worktree: auth-guard-reflection-hardening-9c31f2
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -133,6 +133,15 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 `auth-workspace-membership-guard.md` 가 이 문서를 `complete/` 기준 상대경로로 링크하고
 있었다. 같은 checker 가 지목한 `spec-fix-swagger-forbidden-response.md` 는 **옮기지
 않았다** — 미완 체크박스 2건이 남아 있다(실측).
+
+> **checker 권고를 오버라이드했다 — 근거를 남긴다** (ai-review 2차 scope WARNING #3).
+> `plan_coherence` 는 "소유 worktree(`auth-workspace-membership-guard-2b94db`) 쪽 조치
+> 필요 — 본 worktree 권한 밖" 이라고 판정했다. 그 worktree 는 디스크에 **아직 있지만**
+> (`git worktree list` 실측 — 처음엔 회수됐다고 적었다가 확인해 정정했다) 그쪽 작업은
+> **끝났다**: PR `#1103` 이 2026-08-08 에 머지됐고 그 plan 은 이미 `complete/` 에 있다.
+> 즉 그 worktree 는 더 이상 PR 을 내지 않으므로, 권고를 그대로 따르면 **아무도 옮기지
+> 않는다** — `#1103` 이 이미 한 번 빠뜨렸고 그 결과가 지금의 깨진 링크다. 이동만 담은
+> 별 PR 은 `plan-lifecycle.md §3` 이 금지하므로 인접 PR 에 싣는 것이 정본 경로다.
 
 ## Rationale
 

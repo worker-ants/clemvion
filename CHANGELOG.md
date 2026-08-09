@@ -44,7 +44,7 @@ flaky 로 취급하지 말고 보안 회귀로 먼저 조사할 것.**
 (비멤버)이 400 으로 뒤바뀌지 않게 했다.
 
 SoT: `spec/5-system/1-auth.md` §3.2·§3.3, `spec/data-flow/12-workspace.md` §Rationale. 추적:
-`plan/in-progress/auth-workspace-membership-guard.md`,
+`plan/complete/auth-workspace-membership-guard.md`,
 `plan/in-progress/auth-guard-reflection-hardening.md`.
 
 ## Unreleased — 감사 로깅 커버리지 확장: workflow / trigger / schedule / model_config

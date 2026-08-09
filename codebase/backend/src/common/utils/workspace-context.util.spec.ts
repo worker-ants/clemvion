@@ -107,17 +107,22 @@ describe('resolveRequestWorkspaceContext', () => {
       ['하이픈 없음', 'aaaaaaaa11114111811 1aaaaaaaaaaaa'],
       ['SQL 조각처럼 보이는 값', "' OR 1=1--"],
     ])('%s → 400 VALIDATION_ERROR', (_label, raw) => {
-      expect(() =>
-        resolveRequestWorkspaceContext({ 'x-workspace-id': raw }, TOKEN_WS),
-      ).toThrow(BadRequestException);
-
-      try {
-        resolveRequestWorkspaceContext({ 'x-workspace-id': raw }, TOKEN_WS);
-      } catch (err) {
-        expect((err as BadRequestException).getResponse()).toEqual(
-          expect.objectContaining({ code: 'VALIDATION_ERROR' }),
-        );
-      }
+      // 캡처-재던지기. `toThrow` 용 1회 + `getResponse()` 용 1회로 **두 번 호출**하면,
+      // 첫 단언이 실패했을 때 두 번째가 조용히 건너뛰어지고 catch 블록이 아예 안 돌아
+      // code 단언이 vacuous 해진다 — `workspace.decorator.spec.ts` 가 같은 이유로
+      // 기각해 둔 패턴이라 여기서도 같은 형태를 쓴다 (ai-review 2차 WARNING #4).
+      let caught: unknown;
+      expect(() => {
+        try {
+          resolveRequestWorkspaceContext({ 'x-workspace-id': raw }, TOKEN_WS);
+        } catch (err) {
+          caught = err;
+          throw err;
+        }
+      }).toThrow(BadRequestException);
+      expect((caught as BadRequestException).getResponse()).toEqual(
+        expect.objectContaining({ code: 'VALIDATION_ERROR' }),
+      );
     });
 
     it('토큰 클레임은 검증하지 않는다 — 서버가 서명한 값이라 클라이언트 입력이 아니다', () => {
