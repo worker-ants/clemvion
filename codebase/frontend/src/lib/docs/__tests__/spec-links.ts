@@ -264,13 +264,27 @@ export function findBrokenLinks(root: string): LinkViolation[] {
   });
 }
 
-/** Top-level `plan/in-progress/*.md` — the *living* plans. */
+/**
+ * Top-level `plan/in-progress/*.md` — the *living* plans.
+ *
+ * `0-`/`_`-prefixed index files are excluded, matching what
+ * `plan-frontmatter.test.ts` has always exempted from its frontmatter checks.
+ * That file derives its own plan list from this function so the two cannot
+ * drift — an earlier revision reimplemented the scan by hand and the copies
+ * disagreed on exactly this filter (ai-review WARNING #1).
+ */
 export function collectLivePlanMarkdown(root: string): SpecMdFile[] {
   const dir = path.join(root, "plan", "in-progress");
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith(".md"))
+    .filter(
+      (e) =>
+        e.isFile() &&
+        e.name.endsWith(".md") &&
+        !e.name.startsWith("0-") &&
+        !e.name.startsWith("_"),
+    )
     .map((e) => {
       const full = path.join(dir, e.name);
       return {

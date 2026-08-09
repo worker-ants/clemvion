@@ -11,7 +11,8 @@ import { collectLivePlanMarkdown, findBrokenPlanLinks } from "./spec-links";
 //
 // Scope = `plan/in-progress/*.md` (top level only). Grouped subfolders hold
 // working material under a cluster index and are exempt. `0-`/`_`-prefixed
-// index files are exempt.
+// index files are exempt. 그 규칙의 **단일 구현**은 `spec-links.ts` 의
+// `collectLivePlanMarkdown` 이고, 이 파일의 두 검사(frontmatter · 링크)가 함께 그것을 쓴다.
 //
 // `worktree` accepts a real `<task>-<slug>` name OR the explicit sentinel
 // `(unstarted)` for plans with no live worktree yet. Legacy placeholders
@@ -42,20 +43,12 @@ const WORKTREE_PLACEHOLDER =
   /\bTBD\b|assigned at impl|미정|착수\s*시|^pending$/i;
 const WORKTREE_SENTINEL = "(unstarted)";
 
+// 스캔 소스는 `collectLivePlanMarkdown` **하나**다. 종전에는 여기서 같은 순회를 손으로
+// 재구현했는데, 그 사본이 `0-`/`_` 접두 필터에서 조용히 어긋나 있었다 — 이 파일 상단이
+// 경고하는 "두 곳이 조용히 틀어진다" 를 이 파일 자신이 재현한 셈이다(ai-review WARNING #1).
+// 접두 면제 규칙은 이제 그 함수가 갖고, 여기서는 절대경로만 뽑는다.
 function collectTopLevelPlans(root: string): string[] {
-  const dir = path.join(root, "plan", "in-progress");
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter(
-      (e) =>
-        e.isFile() &&
-        e.name.endsWith(".md") &&
-        !e.name.startsWith("0-") &&
-        !e.name.startsWith("_"),
-    )
-    .map((e) => path.join(dir, e.name))
-    .sort();
+  return collectLivePlanMarkdown(root).map((f) => f.absPath);
 }
 
 /** `plan/complete/**` 의 `.md` 전수 (archive 제외 — 옛 memory/user_memo 보관소다). */
