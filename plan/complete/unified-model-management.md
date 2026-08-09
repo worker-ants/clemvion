@@ -13,7 +13,7 @@ related_plan:
   - plan/in-progress/spec-sync-config-gaps.md
   - plan/in-progress/kb-model-change-reembed-followup.md
   - plan/in-progress/knowledge-base-quality-improvements.md
-  - plan/in-progress/migration-tooling-evaluation.md
+  - plan/complete/migration-tooling-evaluation.md
 spec_impact:
   - spec/1-data-model.md
   - spec/2-navigation/6-config.md

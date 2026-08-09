@@ -3,16 +3,28 @@ worktree: migration-tooling-eval-1de449
 started: 2026-06-05
 owner: planner
 related_spec: spec/conventions/migrations.md
+spec_impact: none
 ---
 
 # 마이그레이션 도구 비교 평가 — Flyway vs Sqitch vs Prisma
 
+> **종결 — won't-do (2026-08-09, 사용자 결정)**: **도구 교체를 추진하지 않는다.**
+> §8 의 미결 결정 항목(6.A/6.B 착수)과 [부록 A](#부록-a--sqitch-poc-계획-조건부-미발동) 의
+> Sqitch PoC 는 **발동하지 않은 채 종결**한다. 아래 미체크 `[ ]` 는 앞으로 실행할 항목이
+> 아니라 **미발동으로 닫힌 설계 초안**이며, `[x]` 로 바꾸지 않는 이유는 실제로 수행되지
+> 않았기 때문이다.
+>
+> **결과적 현행 상태**: 변화 없음 — **Flyway 가 계속 단일 진실**이고
+> [`spec/conventions/migrations.md`](../../spec/conventions/migrations.md) 는 무변경이다
+> (`spec_impact: none`). 본 문서는 그 결정의 **근거 기록**(§3~§7 비교·Prisma 기각 사유)
+> 으로만 남는다. 병렬 `V<N>` 충돌이 다시 아파지면 §6.A 부터 새 plan 으로 분기한다.
+>
 > 작성일: 2026-06-05
 > 후속 PoC 계획: [부록 A](#부록-a--sqitch-poc-계획-조건부-미발동) (종전 별 문서 `sqitch-poc.md` — 2026-07-16 흡수)
 > 현행 규약(SoT): [`spec/conventions/migrations.md`](../../spec/conventions/migrations.md)
 >
-> **상태**: 평가/의사결정 단계. 본 문서는 **현행 규약을 변경하지 않는다** — Flyway 가
-> 여전히 단일 진실이다. 도구 교체가 채택되면 그때 `project-planner` 가
+> **종전 상태 표기(보존)**: 평가/의사결정 단계. 본 문서는 **현행 규약을 변경하지 않는다** —
+> Flyway 가 여전히 단일 진실이다. 도구 교체가 채택되면 그때 `project-planner` 가
 > `consistency-check --spec` 후 `spec/conventions/migrations.md` 를 정식 개정한다.
 
 ## 1. 배경 — 풀려는 문제
@@ -132,18 +144,34 @@ related_spec: spec/conventions/migrations.md
   "race 빈도 대비 비용" 판단과 동일 철학).
 - **outOfOrder/타임스탬프 재론 안 함**: `migrations.md` §7 대안 1·2 에서 이미 기각.
 
-## 8. 다음 단계
+## 8. 다음 단계 — 미발동 종결 (2026-08-09)
 
-- [ ] 사용자/리뷰 결정: 6.A 먼저 진행 vs 6.B Sqitch PoC 병행
-- [ ] (6.A 채택 시) `merge-coordinator` auto-renumber + `R__` 분리를 각각 plan 으로 분기
-- [ ] (6.B 채택 시) [부록 A](#부록-a--sqitch-poc-계획-조건부-미발동) 게이트 G0 부터 착수
-- [ ] 최종 도구 결정 확정 시 `project-planner` 가 `consistency-check --spec` 후
-      `spec/conventions/migrations.md` §7 에 결정 기록
+**사용자 결정: 아무것도 착수하지 않는다.** 아래 4항은 그 결정으로 닫혔다 — 실행 대기열이
+아니라 종결된 선택지 기록이다.
+
+- ~~사용자/리뷰 결정: 6.A 먼저 진행 vs 6.B Sqitch PoC 병행~~ → **결정: 둘 다 미착수.**
+- ~~(6.A 채택 시) `merge-coordinator` auto-renumber + `R__` 분리를 각각 plan 으로 분기~~
+  → 6.A 미채택. 분기 plan 없음.
+- ~~(6.B 채택 시) [부록 A](#부록-a--sqitch-poc-계획-조건부-미발동) 게이트 G0 부터 착수~~
+  → 6.B 미발동. 부록 A 는 설계 초안으로만 보존.
+- ~~최종 도구 결정 확정 시 `project-planner` 가 `consistency-check --spec` 후
+  `spec/conventions/migrations.md` §7 에 결정 기록~~ → **도구 교체 없음 = spec 개정 불요**
+  (`spec_impact: none`). `migrations.md` §7 의 기존 기각 기록(대안 1 타임스탬프 등)은
+  그대로 유효하며, 본 문서의 Prisma 기각(§7)은 그 원칙의 연장이라 새 기록이 필요 없다.
+
+**재개 조건**: 병렬 `V<N>` 충돌 비용이 다시 문제가 되면 §6.A(auto-renumber + `R__` 분리)
+부터 **새 plan 으로** 분기한다. 그때 부록 A.0 의 "무료 플랜" 전제 무효화(저장소 PUBLIC 전환)
+도 함께 재평가해야 한다.
 
 ---
 
-## 부록 A — Sqitch PoC 계획 (조건부, 미발동)
+## 부록 A — Sqitch PoC 계획 (조건부, 미발동 종결)
 
+> **종결 (2026-08-09)**: §8 의 won't-do 결정으로 이 PoC 는 **발동하지 않은 채 닫힌다**.
+> 아래 C1~C6 · G0~G5 · A.4 의 미체크 `[ ]` 는 **실행 대기 항목이 아니다** — 재개 시
+> 재사용할 게이트 설계로만 보존한다(A.7 결과 기록은 영구 공란). 착수하려면 §8 의
+> 재개 조건을 먼저 만족시키고 별 plan 으로 분리한다.
+>
 > **흡수 경위 (2026-07-16 grooming)**: 본 부록은 종전 별 문서 `plan/in-progress/sqitch-poc.md`
 > (작성 2026-06-05, `worktree: (unstarted)`) 를 그대로 흡수한 것이다. 그 문서는 **진행 중 작업이
 > 아니라 조건부 우발 계획(contingency)** 이었다 — 발동 조건이 본 평가 §8 의 "6.B 채택" 결정인데,
