@@ -43,6 +43,16 @@ describe("plan-scan", () => {
     write(path.join(root, "plan/complete/0-index.md"), fm("in-progress")); // 인덱스 → 제외
     write(path.join(root, "plan/complete/_scratch.md"), fm("in-progress")); // 인덱스 → 제외
     write(path.join(root, "plan/complete/broken.md"), "---\n: : bad yaml : :\n---\n"); // 파싱실패 → skip
+    // `status` 가 문자열이 아닌 형태들. 이 분기(`typeof status !== "string"`)가
+    // 어떤 fixture 로도 실행되지 않으면, 이 PR 이 다섯 곳에서 없앤 것과 **같은**
+    // 무관측 분기를 새로 만든 셈이 된다(ai-review WARNING).
+    write(path.join(root, "plan/complete/status-empty.md"), "---\nstatus:\n---\n# D\n");
+    // `no` 는 **문자열** 로 파싱된다 — js-yaml 이 YAML 1.1 불리언을 뺐기 때문이다.
+    // (YAML 1.1 이었다면 false 가 되어 비-문자열 skip 으로 빠졌을 것이다.) 즉 이건
+    // 미등재 어휘 위반이고, gray-matter/js-yaml 상향이 그 해석을 바꾸면 여기서 드러난다.
+    write(path.join(root, "plan/complete/status-yamlish.md"), "---\nstatus: no\n---\n# D\n");
+    write(path.join(root, "plan/complete/status-num.md"), "---\nstatus: 123\n---\n# D\n");
+    write(path.join(root, "plan/complete/status-list.md"), "---\nstatus: [complete]\n---\n# D\n");
 
     // ── in-progress/ ──────────────────────────────────────────────────────
     write(path.join(root, "plan/in-progress/live.md"), fm());
@@ -102,11 +112,38 @@ describe("plan-scan", () => {
     );
   });
 
-  it("reports exactly the three planted violations (no over-reach)", () => {
+  it("skips a non-string `status` rather than crashing or false-reporting", () => {
+    // YAML 이 `status:`(빈 값)→null, `no`→false, `123`→number, `[complete]`→array 로
+    // 파싱한다. 문자열 비교 대상이 아니므로 위반이 아니고, **throw 도 아니다**.
+    //
+    // 이 단언이 없으면 그 분기를 지우거나 뒤집어도 아무 테스트가 안 죽는다 — 리뷰가
+    // 실측으로 지적한 마지막 무관측 분기다.
+    const found = findNonTerminalCompletedPlans(root).map((v) => v.relPath);
+    for (const skipped of [
+      "plan/complete/status-empty.md", // `status:` → null
+      "plan/complete/status-num.md", // 123 → number
+      "plan/complete/status-list.md", // [complete] → array
+    ]) {
+      expect(found).not.toContain(skipped);
+    }
+  });
+
+  it("`status: no` is a STRING, not a YAML 1.1 boolean — so it violates", () => {
+    // 이 단언은 파서 세대에 대한 계약이다. js-yaml 은 YAML 1.1 의 `no`→false 를 뺐으므로
+    // 문자열 "no" 가 되고, 미등재 어휘라 위반이다. 의존성 상향으로 이 해석이 되돌아가면
+    // 그 순간 조용히 **검사에서 빠지는** 값이 하나 생기는데, 여기서 RED 로 드러난다.
+    const byPath = new Map(
+      findNonTerminalCompletedPlans(root).map((v) => [v.relPath, v.status]),
+    );
+    expect(byPath.get("plan/complete/status-yamlish.md")).toBe("no");
+  });
+
+  it("reports exactly the planted violations (no over-reach)", () => {
     expect(findNonTerminalCompletedPlans(root).map((v) => v.relPath).sort()).toEqual([
       "plan/complete/nested/deep.md",
       "plan/complete/odd.md",
       "plan/complete/stale.md",
+      "plan/complete/status-yamlish.md",
     ]);
   });
 

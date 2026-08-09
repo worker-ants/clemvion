@@ -27,10 +27,13 @@ export interface PlanMdFile {
 }
 
 /**
- * `0-`/`_` 접두는 인덱스 파일이라 라이프사이클 plan 이 아니다 — Gate C 의
- * `collectCompletePlans` 와 `plan-frontmatter.test.ts` 의 frontmatter 검사가 둘 다
- * 예전부터 면제해 온 규칙이고, 여기서도 같게 둔다. 한 트리를 보는 검사들이 서로 다른
- * 집합을 보면 "이 파일은 어느 가드가 지키는가" 가 사람마다 달라진다.
+ * `0-`/`_` 접두는 인덱스 파일이라 라이프사이클 plan 이 아니다.
+ *
+ * Gate C(`collectCompletePlans`)와 `plan-frontmatter.test.ts` 의 frontmatter 검사가 이미
+ * 쓰던 규칙을 여기로 모았다. **다만 완료-plan status 검사는 이번에 처음 이 면제를 갖는다**
+ * — 그 검사 자체가 신설이라 "예전부터" 가 아니다(ai-review INFO). 규칙을 맞춘 이유는 한
+ * 트리를 보는 검사들이 서로 다른 집합을 보면 "이 파일은 어느 가드가 지키는가" 가 사람마다
+ * 달라지기 때문이고, 현재 데이터에는 해당 파일이 없어 동작 차이는 없다(fixture 로 고정).
  */
 function isLifecyclePlan(name: string): boolean {
   return name.endsWith(".md") && !name.startsWith("0-") && !name.startsWith("_");
