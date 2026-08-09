@@ -182,7 +182,6 @@ describe('renderSlackEvent — chunking (3500자)', () => {
     const msgs = renderSlackEvent(
       { ...BASE, message: text, turnCount: 1 },
       CONFIG,
-      'D1',
     );
     expect(msgs).toHaveLength(1);
     expect((msgs[0].body as { text: string }).text).toBe(text);
@@ -193,7 +192,6 @@ describe('renderSlackEvent — chunking (3500자)', () => {
     const msgs = renderSlackEvent(
       { ...BASE, message: text, turnCount: 1 },
       CONFIG,
-      'D1',
     );
     expect(msgs.length).toBeGreaterThan(1);
     // 마지막 외 chunk 에 continued suffix

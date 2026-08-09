@@ -197,6 +197,9 @@ class WorkflowStructureTest(unittest.TestCase):
         ("deps-security-checks.yml", "audit"): "${{ !cancelled() }}",
         ("deps-security-checks.yml", "override-floors"): "${{ !cancelled() }}",
         ("frontend-checks.yml", "test-and-build"): "${{ !cancelled() }}",
+        ("backend-checks.yml", "lint"): "${{ !cancelled() }}",
+        ("backend-checks.yml", "unit"): "${{ !cancelled() }}",
+        ("backend-checks.yml", "typecheck-ratchet"): "${{ !cancelled() }}",
     }
 
     # step 레벨 `if:` 도 같은 자리다. job 은 등재제로 막고 step 은 안 막은 것이 6R CRITICAL
@@ -219,7 +222,11 @@ class WorkflowStructureTest(unittest.TestCase):
 
     # 위 두 상수를 쓰는 skip-job 스텝은 워크플로마다 수가 많아 개별 등재 대신 규칙으로 받는다.
     # (개별 등재하면 스텝 하나 추가할 때마다 등록부를 고쳐야 해 실질 가치 없이 마찰만 는다.)
-    _SKIP_JOB_WORKFLOWS = {"deps-security-checks.yml", "frontend-checks.yml"}
+    _SKIP_JOB_WORKFLOWS = {
+        "backend-checks.yml",
+        "deps-security-checks.yml",
+        "frontend-checks.yml",
+    }
 
     def test_job_conditions_are_registered(self):
         seen = set()
@@ -280,6 +287,7 @@ class WorkflowStructureTest(unittest.TestCase):
     # `needs: changes`** 를 강제한다 — 둘 중 하나라도 빠지면 거기서 RED 다.
     # 새 워크플로를 이 형태로 바꿀 때는 그 가드의 `CONVERTED` 목록에도 반드시 추가한다.
     _PULL_REQUEST_KEYS = {
+        "backend-checks.yml": set(),
         "deps-security-checks.yml": set(),
         "e2e.yml": {"paths-ignore"},
         "frontend-checks.yml": set(),

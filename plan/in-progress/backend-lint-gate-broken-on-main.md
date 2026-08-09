@@ -135,7 +135,12 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 이로써 오늘 하루에 드러난 main 잠재 결함이 셋이다: audit 13건(`#1095` 해소) · backend lint
 79파일(본 plan) · frontend Gate C(해소). 셋 다 **Actions 꺼진 기간의 무검증 머지**가 뿌리다.
 
-## 부수 발견 — spec 파일이 타입체크되지 않는다 (별 항목, 이 PR 밖)
+## 부수 발견 — spec 파일이 타입체크되지 않는다 (**후속 PR 에서 처분 완료**)
+
+> **문구 정정 (2026-08-09).** 아래 "이 PR 밖" 은 lint 복구 PR(`#1104`) 기준의 서술이었다.
+> 그 뒤 후속 PR 이 이 절을 **핵심 작업으로 승격**해 전부 처분했다 — 진짜 결함 10건 수정 +
+> ratchet 게이트 + `backend-checks.yml` 신설. 지금 읽는 사람이 "아직 안 한 일" 로
+> 오해하지 않도록 제목을 바꾼다(ai-review INFO 12).
 
 `tsc --noEmit -p tsconfig.json` 으로 **전체 프로그램**을 타입체크하면 `*.spec.ts` /
 `*.e2e-spec.ts` 에 **선재 타입 에러 319줄**이 나온다(2026-08-09 실측, ai-review INFO 4 가
@@ -151,24 +156,72 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 **타입 가드를 테스트로 고정해 두었는데 그 테스트가 타입체크되지 않으면 가드가 vacuous 하다**
 는 것이 이 갭의 실질 위험이다.
 
-- [ ] 319줄을 성격별로 분류 (진짜 결함 vs 테스트 mock 의 의도적 느슨함)
-- [ ] `tsc --noEmit` 을 게이트로 승격할지 판정 — 승격하면 319줄을 먼저 처분해야 한다
-- [ ] 승격하지 않기로 하면 **그 근거를 문서에 고정** (다음 사람이 같은 조사를 반복하지 않도록)
+- [x] 성격별 분류 — **먼저 수치를 정정한다.** `319` 는 진단 수가 아니라 `tsc` **출력의
+      줄 수**였다(프록시로 셌다). 실제 진단은 **209건 / 40파일**이고 **전부 테스트 파일,
+      프로덕션 0건**이다. TS 코드별로 갈린다:
+      - **의도적 느슨함 ~199** — `TS2352`(mock 캐스팅) · `TS2339`/`TS18046`(부분 mock 의
+        속성 접근) · `TS2322`/`TS2741` 등. 수용 대상.
+      - **진짜 stale 10** — `TS2554`(인자 개수) 6 + `TS2304`(미정의 이름) 4. 전부 수정.
+- [x] 승격 여부 판정 — **ratchet 으로 승격**(사용자 결정). plan 이 세운 "승격 or 미승격"
+      이분법을 쓰지 않았다: baseline 을 커밋해 기존 잔여는 수용하고 **새 오류만** 막으면
+      209건을 먼저 처분하지 않고도 바닥을 지금 닫을 수 있다. 정리는 각자 자기 파일을
+      만질 때 점진적으로.
+      > **증가와 감소 둘 다 실패**로 만들었다. 낮추지 않은 baseline 은 그 차이만큼 새
+      > 오류를 조용히 받아들인다 — 이 저장소가 반복해 데인 "게이트가 조용히 헐거워지는"
+      > 실패다. `--update` 로 재생성하는 정상 경로를 에러 메시지에 적었다.
+- [x] **전제가 하나 더 무너졌다 — 승격할 CI 가 없었다.** 워크플로 10개의 `run:` 전수
+      실측: frontend·channel-web-chat·`@workflow/web-chat`·`@workflow/sdk`·내부 packages 는
+      lint/test/build 가 전부 CI 에서 도는데 **backend 만 셋 다 없다**. 유일한 커버리지는
+      `e2e.yml` 의 docker 빌드(`nest build`)와 e2e 뿐이다 — **본 plan 이 복구한 lint
+      게이트가 3개월간 방치될 수 있었던 진짜 이유가 이것**이다. → `backend-checks.yml`
+      신설(`#1106` skip-job 패턴, `lint`·`unit`·`typecheck-ratchet` 3잡).
 
-> 이 PR 에서 하지 않는 이유: 이 PR 의 목적은 **eslint 게이트 복구**이고, `tsc` 게이트는
-> 별개 축이다. 319줄 처분을 여기 얹으면 이미 74파일인 diff 가 감당 불가가 된다.
+### `deleteByPrefix()` LIKE 메타문자 미이스케이프 (**타입체크 갭 PR 에 포함**)
 
-### `deleteByPrefix()` LIKE 메타문자 미이스케이프 (ai-review INFO, 이 PR 밖)
+> **문구 정정 (2026-08-09, ai-review WARNING #1).** "이 PR 밖" 은 lint 복구 PR 기준이었다.
+> 타입체크 갭 PR 에 **함께 실었다** — 조사(호출부 전수 확인)와 조치(4줄 + 테스트)가 둘 다
+> 작고, 같은 plan 의 마지막 잔여 두 항목이라 하나로 닫는 편이 추적 비용이 낮다고 봤다.
+> 다만 프로덕션 동작 변경(신규 throw)이므로 그 판단을 여기 남긴다.
 
 `secret-store/secret-resolver.service.ts` 의 `deleteByPrefix()` 가 `` `${prefix}%` `` 를
 바인딩하는데 `%`·`_` 를 이스케이프하지 않는다. TypeORM 파라미터 바인딩이라 **SQLi 는
 아니지만**, prefix 에 메타문자가 섞이면 의도보다 넓게 지워지는 **과다 삭제** 소지가 있다.
 
-- [ ] 호출부가 항상 내부 생성 prefix 만 쓰는지 전수 확인 → 그렇다면 근거를 주석으로 고정
-- [ ] 아니면 LIKE 메타문자 이스케이프 유틸 도입
+- [x] 호출부 전수 확인 — **프로덕션 호출부는 `triggers.service.ts:875` 한 곳**이고
+      `secret://triggers/${trigger.id}/` 다. `trigger.id` 는 `@PrimaryGeneratedColumn('uuid')`
+      라 `%`·`_` 가 들어갈 수 없다(실측).
+- [x] 처분 — **주석 고정이 아니라 입력 거부**를 골랐다. "지금 안전하다" 는 **호출부 목록이
+      그대로일 때만** 참이라, 사용자 입력이 섞인 prefix 를 넘기는 호출부가 하나 생기면
+      주석은 아무것도 막지 못한다. 이미 있던 `secret://` 접두사 검사와 같은 형태로 throw 한다.
+      > **이스케이프(`\%` + `ESCAPE` 절)가 아닌 이유**: 이 API 의 prefix 는 내부에서
+      > 조립하는 식별자 경로라 메타문자가 **정당하게 필요한 경우가 없다.** 이스케이프는
+      > 없는 유스케이스를 위해 표면을 넓히는 쪽이다.
+      > 가드가 정상 경로를 막지 않는 것도 테스트로 고정했다 — 막으면 trigger 삭제가
+      > 조용히 실패한다.
 
-> 현재 호출부는 신뢰 가능한 내부 문자열만 쓰는 것으로 보고됐다. lint 정리 PR 범위 밖이라
-> 등재만 한다.
+## 후속 (타입체크 갭 PR 밖)
+
+> 타입체크 갭 PR: [#1109](https://github.com/worker-ants/clemvion/pull/1109)
+
+- [ ] `deleteByPrefix` 가드의 **존재 근거를 실행 가능한 테스트로** 고정 (ai-review INFO 7).
+      지금 in-memory mock 은 `startsWith` 라 LIKE 와일드카드 의미론을 재현하지 않는다 —
+      "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 주석으로만 서 있다. 재현하려면
+      mock 에 LIKE 해석기를 넣거나(테스트가 DB 를 흉내 내다 틀릴 위험을 새로 만든다) e2e 를
+      추가해야 해서 그 PR 범위를 넘겼다.
+- [ ] **`changes` 잡 + 셋업 보일러플레이트를 reusable workflow 로 추출 — 트리거 이미 도달**
+      (ai-review INFO 4 · `--impl-done` WARNING).
+      [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
+      시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
+      라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정한다(실측: `CONVERTED` 3건).
+      > **그래도 이 PR 에서 하지 않는 이유** — 추출은 이미 머지돼 초록인 `deps-security-checks`·
+      > `frontend-checks` **두 워크플로를 함께 건드린다.** 이 PR 의 목적은 backend CI 를
+      > **처음** 세우는 것이고, backend 는 아직 다른 안전망이 하나도 없다. 그 층에서 실수하면
+      > 되돌릴 게이트가 없으므로, 신설과 기존 2개 리팩터를 한 PR 에 섞지 않는다.
+      > **다음 PR 로 즉시** — 4번째 전환을 기다리지 않는다.
+- [ ] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
+      각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
+- [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning
+      바닥을 걸지, 아니면 처분할지 별도 판정.
 
 ## Rationale
 

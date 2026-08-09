@@ -143,11 +143,33 @@ export class SecretResolverService implements OnModuleInit {
    * `scope` + `resourceId` prefix 로 한정해 부분 삭제 가능.
    *
    * 예: `deleteByPrefix('secret://triggers/{id}/')` — 해당 trigger 의 모든 secret.
+   *
+   * ## LIKE 메타문자를 거부하는 이유
+   *
+   * 아래 쿼리는 prefix 를 `LIKE` 패턴으로 쓴다. TypeORM 파라미터 바인딩이라 **SQL
+   * 인젝션은 아니지만**, prefix 에 `%`(임의 문자열)나 `_`(임의 1글자)가 섞이면 의도보다
+   * **넓게 지워진다** — 삭제는 되돌릴 수 없어서 방향이 나쁘다.
+   *
+   * 현재 프로덕션 호출부는 `triggers.service.ts` 한 곳뿐이고 `secret://triggers/{uuid}/`
+   * 라 메타문자가 들어갈 수 없다(2026-08-09 전수 확인). 그래서 "지금은 안전하다" 를
+   * 주석으로만 적어 둘 수도 있었지만, 그 안전은 **호출부 목록이 그대로일 때만** 참이다.
+   * 사용자 입력이 섞인 prefix 를 넘기는 호출부가 하나 생기면 주석은 아무것도 막지 못한다.
+   * 위의 `secret://` 접두사 검사와 같은 형태로 **입력 자체를 거부**해 그 조건을 없앤다.
+   *
+   * 이스케이프(`\\%` + `ESCAPE`)가 아니라 거부인 이유: 이 API 의 prefix 는 내부에서
+   * 조립하는 식별자 경로라 메타문자가 **정당하게 필요한 경우가 없다.** 이스케이프는
+   * 없는 유스케이스를 위해 표면을 넓히는 쪽이다.
    */
   async deleteByPrefix(prefix: string): Promise<number> {
     if (!prefix.startsWith('secret://')) {
       throw new Error(
         `deleteByPrefix: prefix 는 'secret://' 로 시작해야 합니다 (받음: "${prefix}").`,
+      );
+    }
+    if (/[%_\\]/.test(prefix)) {
+      throw new Error(
+        `deleteByPrefix: prefix 에 LIKE 메타문자(% _ \\)를 쓸 수 없습니다 — ` +
+          `의도보다 넓은 범위가 삭제될 수 있습니다 (받음: "${prefix}").`,
       );
     }
     const result = await this.repository

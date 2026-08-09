@@ -790,6 +790,10 @@ describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {
       { findAdminUserIds: jest.fn() } as never,
       { createMany: jest.fn() } as never,
       { upsertJobScheduler: jest.fn() } as never,
+      // 8번째 인자 `cafe24RefreshQueue` 가 빠져 있었다(TS2554) — 타입이 strip 되는
+      // jest 에서 `undefined` 로 들어갔고, 이 스위트가 밟는 경로가 그것을 안 써서
+      // 통과했다. 그 큐를 쓰는 분기가 추가되면 런타임 오류로 터진다.
+      { upsertJobScheduler: jest.fn(), add: jest.fn() } as never,
     );
   });
 

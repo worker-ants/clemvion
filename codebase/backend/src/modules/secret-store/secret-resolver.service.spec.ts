@@ -232,6 +232,44 @@ describe('SecretResolverService', () => {
         /secret:\/\//,
       );
     });
+
+    /**
+     * prefix 는 `LIKE` 패턴으로 쓰이므로 `%`·`_` 가 섞이면 **의도보다 넓게 지워진다**.
+     * 삭제는 되돌릴 수 없어 방향이 나쁘다. 현재 호출부는 내부 생성 UUID 경로뿐이지만
+     * 그 안전은 호출부 목록이 그대로일 때만 참이라 입력 자체를 거부한다.
+     */
+    it.each([
+      ['%', 'secret://triggers/%/'],
+      ['_', 'secret://triggers/t_/'],
+      ['백슬래시(ESCAPE 절 도입 시 의미가 생긴다)', 'secret://triggers/t\\1/'],
+      ['전체를 노리는 형태', 'secret://%'],
+    ])('실패 — prefix 에 LIKE 메타문자 %s 는 throw', async (_label, prefix) => {
+      const svc = new SecretResolverService(
+        createInMemoryRepository(),
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      await expect(svc.deleteByPrefix(prefix)).rejects.toThrow(/메타문자/);
+    });
+
+    it('통과 — 실제 호출부 형태(내부 생성 UUID 경로)는 그대로 동작한다', async () => {
+      // 가드가 정상 경로까지 막으면 trigger 삭제가 조용히 실패한다 — 그 방향도 고정한다.
+      const repo = createInMemoryRepository();
+      const svc = new SecretResolverService(
+        repo,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      await svc.store(
+        'secret://triggers/8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234/token',
+        'ws-1',
+        'v',
+      );
+      const affected = await svc.deleteByPrefix(
+        'secret://triggers/8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234/',
+      );
+      expect(affected).toBe(1);
+    });
   });
 
   describe('delete / exists', () => {

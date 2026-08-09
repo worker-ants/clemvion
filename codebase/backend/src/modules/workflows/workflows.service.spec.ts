@@ -17,6 +17,10 @@ import { NodeComponentRegistry } from '../../nodes/core/node-component.registry'
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
+// 이 파일은 `SaveCanvasDto` 를 타입 주석으로 4곳에서 쓰면서 import 가 없었다(TS2304).
+// jest 가 타입을 strip 해서 실행에는 문제가 없었고, `nest build` 는 `*.spec.ts` 를
+// exclude 해서 어떤 게이트에도 안 걸렸다 — 이 PR 의 ratchet 이 막으려는 바로 그 구멍이다.
+import { SaveCanvasDto } from './dto/save-canvas.dto';
 
 describe('WorkflowsService', () => {
   let service: WorkflowsService;
