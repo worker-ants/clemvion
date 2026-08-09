@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import matter from "gray-matter";
 import { repoRoot } from "./spec-frontmatter-parse";
 import { extractLinks, findBrokenPlanLinks } from "./spec-links";
 import {
+  checkPlanFrontmatter,
   collectCompletePlanMarkdown,
   collectLivePlanMarkdown,
   findNonTerminalCompletedPlans,
+  type FrontmatterViolationKind,
 } from "./plan-scan";
 
 // Guard: plan 라이프사이클 불변식 3종.
@@ -17,9 +18,12 @@ import {
 //   (2) `plan/complete/**` 가 `status` 를 선언했다면 종료 상태여야 한다.
 //   (3) top-level 살아있는 plan 의 상대링크가 실재 파일을 가리켜야 한다.
 //
-// SoT 는 `.claude/docs/plan-lifecycle.md §4`. 이 파일은 **호출부**이고, 판정 로직은
-// `plan-scan.ts`(수집·status)와 `spec-links.ts`(링크)에 있다 — `spec-links.ts` 도
-// `collectLivePlanMarkdown` 을 export 하지만 그건 하위호환 re-export 다.
+// SoT 는 `.claude/docs/plan-lifecycle.md §4`. 이 파일은 **호출부일 뿐**이고 판정 로직은
+// 전부 밖에 있다 — `plan-scan.ts`(수집·frontmatter·status), `spec-links.ts`(링크).
+// 세 검사 모두 `plan-scan.test.ts`/`spec-links.test.ts` 의 합성 fixture 가 "위반을 실제로
+// 잡는다" 를 양성으로 증명한다. 판정을 여기 인라인으로 두면 실저장소가 정상인 한 위반
+// 분기가 영원히 실행되지 않는다(`spec-links.ts` 는 `collectLivePlanMarkdown` 도 export
+// 하지만 그건 하위호환 re-export 다).
 //
 // 스코프: (1)(3) 은 top-level `plan/in-progress/*.md` 만. 하위 그룹 폴더는 클러스터 index
 // 아래 부속 문서라, `0-`/`_` 접두 index 파일과 함께 면제된다. 그 면제 규칙의 단일 구현은
@@ -33,11 +37,6 @@ import {
 // (2)(3) 이 왜 필요한가·`plan/complete/**` 를 링크 검사에서 왜 빼는가는 SoT §3/§4 에 있다.
 // 이 가드가 잡는 실패의 이력은 커밋 메시지와 `plan/complete/` 산출물을 볼 것 — 코드 주석은
 // **현재 규칙**만 담는다(ai-review 가 회고 서사 누적을 지적).
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const WORKTREE_PLACEHOLDER =
-  /\bTBD\b|assigned at impl|미정|착수\s*시|^pending$/i;
-const WORKTREE_SENTINEL = "(unstarted)";
 
 // 스캔 소스는 `collectLivePlanMarkdown` **하나**다. 종전에는 여기서 같은 순회를 손으로
 // 재구현했는데, 그 사본이 `0-`/`_` 접두 필터에서 조용히 어긋나 있었다 — 이 파일 상단이
@@ -77,50 +76,27 @@ describe("plan lifecycle guards (frontmatter + live-plan links)", () => {
   for (const abs of plans) {
     const rel = path.relative(root, abs).split(path.sep).join("/");
     describe(rel, () => {
-      const raw = fs.readFileSync(abs, "utf8");
-      let data: Record<string, unknown> = {};
-      let parseOk = true;
-      try {
-        data = matter(raw).data ?? {};
-      } catch {
-        parseOk = false;
-      }
+      // 판정은 전부 `checkPlanFrontmatter` 소관이다. 여기서 하는 일은 그 결과를 필드별
+      // `it` 로 갈라 실패 위치를 좁혀 주는 것뿐 — 종전에는 판정이 이 루프 안에 인라인이라
+      // 합성 fixture 로 **위반 분기를 한 번도 실행해 보지 못했다**(ai-review WARNING).
+      const violations = checkPlanFrontmatter(fs.readFileSync(abs, "utf8"), rel);
+      const detailsOf = (...kinds: FrontmatterViolationKind[]): string[] =>
+        violations.filter((v) => kinds.includes(v.kind)).map((v) => v.detail);
 
       it("has a parseable frontmatter block", () => {
-        expect(parseOk, `${rel}: frontmatter failed to parse`).toBe(true);
-        expect(
-          raw.startsWith("---"),
-          `${rel}: missing frontmatter block`,
-        ).toBe(true);
+        expect(detailsOf("missing-block", "unparseable")).toEqual([]);
       });
 
       it("`worktree` is set and not a legacy placeholder", () => {
-        const wt = data.worktree;
-        expect(typeof wt === "string" && wt.length > 0, `${rel}: worktree missing`).toBe(true);
-        const wtStr = String(wt);
-        if (wtStr !== WORKTREE_SENTINEL) {
-          expect(
-            WORKTREE_PLACEHOLDER.test(wtStr),
-            `${rel}: worktree "${wtStr}" is a placeholder — use a real name or the "${WORKTREE_SENTINEL}" sentinel`,
-          ).toBe(false);
-        }
+        expect(detailsOf("worktree-missing", "worktree-placeholder")).toEqual([]);
       });
 
       it("`started` is an ISO date", () => {
-        const s = data.started;
-        // js-yaml parses an unquoted YYYY-MM-DD as a Date.
-        const ok =
-          s instanceof Date ||
-          (typeof s === "string" && ISO_DATE.test(s));
-        expect(ok, `${rel}: started must be an ISO date (got ${JSON.stringify(s)})`).toBe(true);
+        expect(detailsOf("started-invalid")).toEqual([]);
       });
 
       it("`owner` is set", () => {
-        const o = data.owner;
-        expect(
-          typeof o === "string" && o.length > 0,
-          `${rel}: owner missing`,
-        ).toBe(true);
+        expect(detailsOf("owner-missing")).toEqual([]);
       });
     });
   }

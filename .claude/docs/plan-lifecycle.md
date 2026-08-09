@@ -80,7 +80,7 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 - **`status` 를 선언했다면 이동 시 함께 갱신한다.** `plan/complete/**` 에서 허용되는 값은
   종료 상태뿐이다 — `complete` · `implemented` · `applied` · `superseded`. 선언 자체가 없는
   것은 정상이다(선택 필드). build guard `plan-frontmatter.test.ts` 가 강제하며, 새 종료 어휘가
-  필요하면 그 파일의 `TERMINAL_PLAN_STATUSES` 에 등재한다.
+  필요하면 `plan-scan.ts` 의 `TERMINAL_PLAN_STATUSES` 에 등재한다.
   > 2026-08-09 신설. 이 저장소가 **두 번** 놓친 실패다(`#1108`·`#1117`) — 그때까지 이 필드는
   > 어떤 게이트도 보지 않고 사람의 규율에만 기대고 있었다(문서 가드 18파일 / 2821 tests 를
   > 뮤테이션으로 돌려 확인).

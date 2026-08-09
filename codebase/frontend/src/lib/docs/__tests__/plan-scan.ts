@@ -133,3 +133,131 @@ export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
   }
   return out;
 }
+
+/** `worktree` 가 아직 없을 때 쓰는 명시 sentinel. placeholder 와 달리 허용된다. */
+export const WORKTREE_SENTINEL = "(unstarted)";
+
+/**
+ * 레거시 placeholder — 살아있지만 죽은 worktree 처럼 보여 plan-coherence 충돌 검출을
+ * 오염시킨다. "값이 없음" 을 표현하려면 `WORKTREE_SENTINEL` 을 쓴다.
+ */
+const WORKTREE_PLACEHOLDER = /\bTBD\b|assigned at impl|미정|착수\s*시|^pending$/i;
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * frontmatter **원문**에서 스칼라 한 줄을 뽑는다(양쪽 따옴표 제거).
+ *
+ * `started` 를 파싱 결과로 보면 안 되기 때문에 필요하다 — 아래 `isIsoDate` 주석 참조.
+ */
+function rawScalar(block: string, key: string): string | null {
+  const m = new RegExp(`^[ \\t]*${key}:[ \\t]*(.*)$`, "m").exec(block);
+  if (!m) return null;
+  return m[1].trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
+}
+
+/**
+ * `started` 가 실재하는 날짜인가. **원문 문자열**을 받는다.
+ *
+ * 파싱 결과를 보면 안 된다 — js-yaml 이 잘못된 날짜를 **조용히 굴려 유효한 `Date` 로**
+ * 만들기 때문이다(실측): `2026-13-32` → `Date(2027-02-01)`, `2027-02-29` → `2027-03-01`,
+ * `2026-02-30` → `2026-03-02`. 즉 `value instanceof Date && !isNaN` 검사는 **전부 통과**시킨다.
+ *
+ * 자리수만 보는 것도 부족하다(종전 검사가 `/^\d{4}-\d{2}-\d{2}$/` 뿐이라 `2026-13-32` 통과).
+ * 그래서 원문을 형태로 거른 뒤 파싱 결과를 입력과 **라운드트립 비교**한다.
+ */
+function isIsoDate(text: string | null): boolean {
+  if (text === null) return false;
+  const m = ISO_DATE.exec(text);
+  if (!m) return false;
+  const [, y, mo, d] = m;
+  const parsed = new Date(`${y}-${mo}-${d}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return (
+    parsed.getUTCFullYear() === Number(y) &&
+    parsed.getUTCMonth() + 1 === Number(mo) &&
+    parsed.getUTCDate() === Number(d)
+  );
+}
+
+export type FrontmatterViolationKind =
+  | "missing-block"
+  | "unparseable"
+  | "worktree-missing"
+  | "worktree-placeholder"
+  | "started-invalid"
+  | "owner-missing";
+
+export interface FrontmatterViolation {
+  relPath: string;
+  kind: FrontmatterViolationKind;
+  detail: string;
+}
+
+/**
+ * 살아있는 plan 한 건의 frontmatter 필수 3필드 판정. **문자열 입력**이라 fixture 가
+ * 파일시스템 없이 각 분기를 직접 겨눌 수 있다.
+ *
+ * 필수는 `worktree`/`started`/`owner` 셋이다(`plan-lifecycle.md §4`). 파싱 자체가
+ * 실패하면 필드 판정은 의미가 없어 거기서 멈춘다.
+ */
+export function checkPlanFrontmatter(
+  raw: string,
+  relPath: string,
+): FrontmatterViolation[] {
+  const out: FrontmatterViolation[] = [];
+  const add = (kind: FrontmatterViolationKind, detail: string): void => {
+    out.push({ relPath, kind, detail });
+  };
+
+  if (!raw.startsWith("---")) {
+    add("missing-block", "frontmatter 블록이 없다");
+    return out;
+  }
+  let data: Record<string, unknown>;
+  let block: string;
+  try {
+    // **빈 옵션 객체는 의미가 있다** — gray-matter 는 옵션이 없을 때 내용을 키로 캐시하는데,
+    // 캐시 등록이 파싱 **전에** 일어나 파싱이 throw 하면 부분 초기화 객체가 남는다. 그러면
+    // 같은 내용의 두 번째 호출은 throw 없이 `data={}` 를 돌려준다(실측: 1회차 THROW →
+    // 2회차 NOTHROW). 즉 깨진 frontmatter 가 **호출 순서에 따라** 조용히 빈 값으로 보인다.
+    // 옵션을 넘기면 캐시를 통째로 우회해 순서와 무관하게 같은 결과가 된다.
+    const parsed = matter(raw, {});
+    data = parsed.data ?? {};
+    block = parsed.matter ?? "";
+  } catch {
+    add("unparseable", "frontmatter 파싱 실패");
+    return out;
+  }
+
+  const wt = data.worktree;
+  if (typeof wt !== "string" || wt.length === 0) {
+    add("worktree-missing", `worktree=${JSON.stringify(wt)}`);
+  } else if (wt !== WORKTREE_SENTINEL && WORKTREE_PLACEHOLDER.test(wt)) {
+    add(
+      "worktree-placeholder",
+      `worktree "${wt}" 는 placeholder — 실제 이름이나 "${WORKTREE_SENTINEL}" 을 쓸 것`,
+    );
+  }
+
+  const started = rawScalar(block, "started");
+  if (!isIsoDate(started)) {
+    add("started-invalid", `started=${JSON.stringify(started)}`);
+  }
+
+  const owner = data.owner;
+  if (typeof owner !== "string" || owner.length === 0) {
+    add("owner-missing", `owner=${JSON.stringify(owner)}`);
+  }
+
+  return out;
+}
+
+/** 살아있는 top-level plan 전체의 frontmatter 위반. */
+export function findFrontmatterViolations(root: string): FrontmatterViolation[] {
+  const out: FrontmatterViolation[] = [];
+  for (const f of collectLivePlanMarkdown(root)) {
+    out.push(...checkPlanFrontmatter(fs.readFileSync(f.absPath, "utf8"), f.relPath));
+  }
+  return out;
+}

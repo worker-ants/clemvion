@@ -4,8 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import {
   TERMINAL_PLAN_STATUSES,
+  checkPlanFrontmatter,
   collectCompletePlanMarkdown,
   collectLivePlanMarkdown,
+  findFrontmatterViolations,
   findNonTerminalCompletedPlans,
 } from "./plan-scan";
 
@@ -177,6 +179,124 @@ describe("plan-scan", () => {
       expect(collectLivePlanMarkdown(empty)).toEqual([]);
     } finally {
       fs.rmSync(empty, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── frontmatter 필수 3필드 ──────────────────────────────────────────────────
+//
+// 이 판정은 원래 `plan-frontmatter.test.ts` 루프 안에 인라인이었다. 실저장소 plan 들이
+// 마침 전부 정상이라 **위반 분기가 CI 에서 한 번도 실행된 적이 없었다** — 정규식을 통째로
+// 지워도 스위트가 초록인 상태(ai-review WARNING). 여기서 각 분기를 양성으로 겨눈다.
+
+const frontmatter = (fields: Record<string, string>): string =>
+  ["---", ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`), "---", "", "# Doc", ""].join("\n");
+
+const VALID = { worktree: "my-task-abc123", started: "2026-08-10", owner: "developer" };
+
+describe("checkPlanFrontmatter", () => {
+  const kindsFor = (fields: Record<string, string>): string[] =>
+    checkPlanFrontmatter(frontmatter(fields), "p.md").map((v) => v.kind);
+
+  it("accepts a well-formed block", () => {
+    expect(kindsFor(VALID)).toEqual([]);
+  });
+
+  it("accepts the `(unstarted)` sentinel but rejects legacy placeholders", () => {
+    expect(kindsFor({ ...VALID, worktree: '"(unstarted)"' })).toEqual([]);
+    for (const bad of ["TBD", "미정", "pending", "assigned at impl-start", "착수 시 지정"]) {
+      expect(
+        kindsFor({ ...VALID, worktree: `"${bad}"` }),
+        `placeholder "${bad}" must be rejected`,
+      ).toEqual(["worktree-placeholder"]);
+    }
+  });
+
+  it("rejects a missing or empty `worktree`/`owner`", () => {
+    const { worktree: _w, ...noWorktree } = VALID;
+    expect(kindsFor(noWorktree)).toEqual(["worktree-missing"]);
+    expect(kindsFor({ ...VALID, worktree: '""' })).toEqual(["worktree-missing"]);
+    const { owner: _o, ...noOwner } = VALID;
+    expect(kindsFor(noOwner)).toEqual(["owner-missing"]);
+    expect(kindsFor({ ...VALID, owner: '""' })).toEqual(["owner-missing"]);
+  });
+
+  it("rejects dates that pass the shape check but are not real days", () => {
+    // 종전 검사는 자리수만 봤다. 그리고 `new Date()` 의 NaN 여부로 갈음할 수도 없다 —
+    // `2026-02-30`·`2026-04-31` 은 **다음 달로 굴러가** 유효해 보이기 때문이다(실측).
+    for (const bad of ["2026-13-32", "2026-00-10", "2026-02-30", "2026-04-31"]) {
+      expect(
+        kindsFor({ ...VALID, started: bad }),
+        `${bad} must be rejected as a calendar date`,
+      ).toEqual(["started-invalid"]);
+    }
+  });
+
+  it("rejects malformed or non-date `started` values", () => {
+    for (const bad of ['"not-a-date"', '"2026-8-10"', '"26-08-10"', "123", "[2026-08-10]"]) {
+      expect(kindsFor({ ...VALID, started: bad }), `${bad} must be rejected`).toEqual([
+        "started-invalid",
+      ]);
+    }
+    const { started: _s, ...noStarted } = VALID;
+    expect(kindsFor(noStarted)).toEqual(["started-invalid"]);
+  });
+
+  it("accepts a leap day and a js-yaml Date (unquoted YYYY-MM-DD)", () => {
+    // js-yaml 이 따옴표 없는 날짜를 `Date` 객체로 파싱한다 — 문자열 경로만 검증하면
+    // 실저장소 plan 전부가 그 분기를 안 타므로 여기서 고정한다.
+    expect(kindsFor({ ...VALID, started: "2028-02-29" })).toEqual([]);
+    expect(kindsFor({ ...VALID, started: '"2028-02-29"' })).toEqual([]);
+    expect(kindsFor({ ...VALID, started: "2027-02-29" })).toEqual(["started-invalid"]);
+  });
+
+  it("reports every violated field at once", () => {
+    expect(kindsFor({ worktree: "TBD", started: '"nope"', owner: '""' })).toEqual([
+      "worktree-placeholder",
+      "started-invalid",
+      "owner-missing",
+    ]);
+  });
+
+  it("stops at the block level when there is no parseable frontmatter", () => {
+    // 필드 판정은 의미가 없으므로 한 건만 나와야 한다 — 세 필드 위반이 함께 쏟아지면
+    // 실패 메시지가 원인을 가린다.
+    expect(checkPlanFrontmatter("# 제목만 있는 문서\n", "p.md").map((v) => v.kind)).toEqual([
+      "missing-block",
+    ]);
+    expect(
+      checkPlanFrontmatter("---\n: : bad yaml : :\n---\n", "p.md").map((v) => v.kind),
+    ).toEqual(["unparseable"]);
+  });
+});
+
+describe("findFrontmatterViolations", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "plan-fm-fixture-"));
+    write(path.join(root, "plan/in-progress/good.md"), frontmatter(VALID));
+    write(path.join(root, "plan/in-progress/bad.md"), frontmatter({ ...VALID, worktree: "TBD" }));
+    // 스코프 면제가 frontmatter 검사에도 걸리는지 — 셋 다 위반을 심어 둔다.
+    write(path.join(root, "plan/in-progress/0-index.md"), frontmatter({ title: "i" }));
+    write(path.join(root, "plan/in-progress/_notes.md"), frontmatter({ title: "n" }));
+    write(path.join(root, "plan/in-progress/cluster/child.md"), frontmatter({ title: "c" }));
+  });
+
+  afterAll(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("finds the planted violation and exempts index/cluster files", () => {
+    const rels = findFrontmatterViolations(root).map((v) => v.relPath);
+    expect(rels).toContain("plan/in-progress/bad.md");
+    expect(rels).not.toContain("plan/in-progress/good.md");
+    for (const exempt of [
+      "plan/in-progress/0-index.md",
+      "plan/in-progress/_notes.md",
+      "plan/in-progress/cluster/child.md",
+    ]) {
+      expect(rels, `${exempt} must stay exempt`).not.toContain(exempt);
     }
   });
 });
