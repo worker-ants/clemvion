@@ -86,9 +86,16 @@ reviewer 5명(architecture·side_effect·performance·dependency·api_contract)�
 - [x] **술어를 `isValidUuid` 로 쓰지 않았다 — 실측으로 갈렸다.** 그쪽은 RFC v1–v5 + variant
       까지 보므로 **nil UUID(`00000000-…`)·v7 을 거부**한다. 그런데 Postgres 는 그 값들을
       정상 파싱하므로, 거부하면 "그 워크스페이스의 멤버가 아니다"(403)여야 할 응답이
-      "요청이 잘못됐다"(400)로 **뒤바뀐다**. 실제로 `system-status.e2e-spec.ts` 가 nil UUID 를
-      타 워크스페이스 프로브로 쓴다. → `isUuidShaped`(canonical 8-4-4-4-12 hex, 버전·variant
+      "요청이 잘못됐다"(400)로 **뒤바뀐다**. ~~실제로 `system-status.e2e-spec.ts` 가 nil UUID 를
+      타 워크스페이스 프로브로 쓴다.~~ → `isUuidShaped`(canonical 8-4-4-4-12 hex, 버전·variant
       무시)를 `uuid.ts` 에 신설하고 두 술어의 경계를 테스트로 고정.
+      > **앵커 정정 (2026-08-09, `backend-hygiene-followups`).** 취소선 문장은 아래 §체크리스트
+      > 4차 항목이 이미 반증한 것과 **같은 주장인데 그 정정이 여기까지 오지 않았다** —
+      > `#1112` 가 이 문서의 한 곳만 고쳤다. 한 문서 안에서 같은 주장이 두 번 나오면 두 곳을
+      > 함께 갱신해야 한다(이 저장소가 반복 학습한 클래스). 그 e2e 는 술어에 닿지 않는다;
+      > 진짜 캐너리는 `uuid.spec.ts`·`workspace-context.util.spec.ts` 의 단위 테스트 둘이다.
+      > 같은 문장이 `codebase/` 소스 3곳에도 있었고(`uuid.ts` docstring · `uuid.spec.ts` 주석 ·
+      > 신설 픽스처 모듈) `#1112` 는 planner 턴이라 그쪽을 못 건드렸다 — 본 PR 에서 정정했다.
 
 ## 4. 값싼 정리 (INFO)
 
@@ -245,23 +252,83 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       — 앞으로 그 파일 변경은 push 전 fresh `--impl-done` 을 요구받으며, 사슬을 잇는 목적이
       바로 그것이라 의도한 강화다.
 
+- [ ] **73건(subset) / 142건(superset) 관계를 spec Rationale 에도 미러링** — 지금은
+      `workspace-reflection-canary.ts` 주석에만 있다 (`backend-hygiene-followups`
+      `--impl-done` INFO 2, `review/consistency/2026/08/09/21_04_06`). `1-auth.md` 또는
+      `data-flow/12-workspace.md` Rationale 에 한 줄이면 된다. 이 저장소가 두 수를 실제로
+      한 번 뭉갰고(그 정정이 본 PR 이다) spec 쪽에는 아직 관계 서술이 없다.
+      > **숫자 자체는 미러링하지 말 것.** 142 는 라우트가 늘면 변하는 스냅샷이라 spec 에
+      > 박으면 조용히 stale 해진다 — 지금 고친 것과 같은 클래스의 결함을 새로 만드는 셈이다.
+      > 관계만 적는다: "캐너리가 세는 것은 `@Roles()` 유무와 **무관한** `@WorkspaceId()`
+      > 소비 라우트 전체라 73건의 상위집합이다."
+
 > 넷 다 developer 권한 밖이라 그 PR 에서 하지 않았다. 코드가 spec 을 어긴 것이 아니라
 > **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니었다.
 > 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](spec-draft-auth-invariants-sync.md).
 
 **developer 범위:**
 
-- [ ] backend `README.md` §배포 주의 에 **부팅 캐너리가 기동을 멈출 수 있다**는 사실 추가
+- [x] backend `README.md` §배포 주의 에 **부팅 캐너리가 기동을 멈출 수 있다**는 사실 추가
       (ai-review INFO 18). 이 PR 은 CHANGELOG·JSDoc·plan 세 곳에 적었으나 배포 담당자가
       먼저 보는 곳은 README 다. 그 절이 별도 구조 정리를 필요로 해 여기서 손대지 않았다.
-- [ ] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
+      > **처리 (2026-08-09, `backend-hygiene-followups`).** 예고된 "구조 정리" 가 이것이다 —
+      > 그 절은 `## 환경 변수` 안의 인용문이었는데 캐너리는 환경변수 축이 아니라 절 자체를
+      > `## 배포 주의 — 기동을 멈추는 검사` 로 승격하고 두 검사를 소절로 갈랐다.
+      > **이질성 표기**: `assertProductionConfig` 소절 제목에 `NODE_ENV=production 전용`,
+      > 캐너리 소절에 `환경 무관` 을 박고, 별도 인용문으로 "dev·CI 에서도 같은 조건으로
+      > 멈춘다" 를 적었다. 다만 "dev 에서 떴으니 production 도 뜬다" 로는 쓰지 않았다 —
+      > 파손 계기 중 하나가 빌드 minify/mangle 이라 산출물이 다르면 결과가 갈린다.
+- [x] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
       공용 fixture 모듈 승격. 지금 옮기면 이 PR diff 가 세 파일 더 는다.
+      > **처리 (2026-08-09).** `common/__test-utils__/workspace-id-fixtures.ts` 신설
+      > (`modules/integrations/__test-utils__` 관례 — build tsc 가 컴파일하므로 jest 타입 비의존).
+      > **중복은 값이 아니라 어휘였다**: 세 파일의 값 letter-scheme 은 겹치는데 같은 값에
+      > 다른 이름(`cccc` = util 의 `OTHER_WS` = roles.guard 의 `VICTIM_WS`), 같은 이름에
+      > 다른 값(`DECOY_WS`)이 섞여 있었다. 값당 이름이 하나여야 하므로 `OWN_WS`(17곳)를
+      > `TOKEN_WS` 로 통일했다 — 헤더 vs 토큰이 이 결함 클래스의 축이라 `HEADER_WS`/`TOKEN_WS`
+      > 쌍이 어휘로 일관된다. **`WS1` 은 새 이름을 만들지 않고 용법대로 해소**했다:
+      > 헤더==토큰인 4곳은 기존 `SAME_WS`, 미인증 헤더-only 1곳은 `HEADER_WS`.
+      > 픽스처가 vacuous 하지 않음을 뮤테이션으로 확인 — `OTHER_WS` 를 `TOKEN_WS` 와 같은
+      > 값으로 바꾸자 **2 suite / 3 test RED**(값의 상호 구별이 로드베어링).
 - [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
-- [ ] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
+- [ ] 공용 픽스처 모듈에 **값 유일성 단언**(`new Set([...]).size === 7`) 1줄 추가
+      (`backend-hygiene-followups` ai-review INFO 3). 지금은 3개 소비 스위트가 간접적으로만
+      유일성을 검증한다 — 뮤테이션으로 로드베어링임은 실증했지만(값 충돌 시 3 RED) 모듈
+      자체에는 가드가 없다. **이번에 넣지 않은 이유**: 그 라운드가 Critical 0·Warning 0 으로
+      수렴했는데 `codebase/**` 를 한 줄이라도 더 만지면 리뷰가 stale 해져 9분짜리 리뷰 +
+      TEST WORKFLOW 를 다시 돈다. INFO 등급 개선에 비례하지 않는다 — 이 파일을 다음에
+      만질 때 함께 넣는다.
+- [ ] **nil-UUID 캐너리 정정 문단을 SoT 한 곳으로 모으기** (`backend-hygiene-followups`
+      2차 타겟 리뷰 INFO 1·2). 같은 정정이 `uuid.ts` docstring · `uuid.spec.ts` 주석 ·
+      `__test-utils__/workspace-id-fixtures.ts` · 본 plan 까지 **4곳에 산문으로 복제**돼 있고,
+      표기 스타일도 갈린다(`uuid.ts` 만 인용-각주로 이력 보존, 나머지는 조용히 재작성).
+      근거는 프로덕션 호출부에 가장 가까운 `uuid.ts` 한 곳에 두고 나머지는 1줄 포인터로
+      축약하는 것이 맞다 — 지금 형태면 `system-status.controller.ts` 가 나중에 워크스페이스
+      스코핑을 갖게 될 때 3곳이 **다시 조용히** 어긋난다(이번이 그 클래스의 두 번째다).
+      **이번에 하지 않은 이유**: `codebase/**` 편집이라 방금 Critical 0 로 수렴한 리뷰가
+      다시 stale 해진다. 이 파일들을 다음에 만질 때 함께 처리한다.
+- [ ] `__test-utils__` 류 디렉터리가 **3곳째** 생기면 `tsconfig.build.json` 의 `exclude` 에
+      `**/__test-utils__/**` 추가 검토 (동 ai-review INFO 4). 현재 2곳
+      (`modules/integrations/__test-utils__` · 신설 `common/__test-utils__`)이고 둘 다
+      런타임 import 가 없어 `dist/` 에 실려도 실질 위험은 없다. **트리거를 개수로 못박는
+      이유**: 지금 exclude 를 넣으면 그 디렉터리들이 타입체크 대상에서 빠져 `__test-utils__`
+      의 타입 오류를 아무도 못 보게 된다(이 저장소가 이미 겪은 "테스트 코드는 어떤 게이트도
+      타입체크하지 않는다" 와 같은 클래스).
+- [x] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
       서브셋**인데 캐너리가 세는 것은 `@WorkspaceId()` 소비 라우트 **전체**라 상위집합이다 —
       전체 수치를 실측해 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**:
       주석 한 줄이어도 `codebase/**` 변경이라 리뷰·`--impl-done` 두 게이트가 다시
       stale 해진다. INFO 등급 정확도 개선에 25분 사이클을 다시 도는 것은 비례하지 않는다.
+      > **처리 (2026-08-09) — 추정치가 아니라 캐너리 자신이 센 값을 넣었다: 142건.**
+      > `make e2e-up` 으로 backend 를 실제 기동해 부팅 로그를 읽었다:
+      > `[WorkspaceIdReflection] @WorkspaceId() 소비 라우트 142건 인식`. 정적 grep
+      > (`*.controller.ts` 의 `@WorkspaceId()` 145회)은 한 핸들러의 다중 사용·미등록
+      > 컨트롤러를 구분하지 못해 교차검증용으로만 썼다 — 캐너리가 세는 것은 `DiscoveryService`
+      > 에 등록된 라우트라 그 로그가 정본이다. 주석에 **두 수의 포함관계**도 못박았다
+      > (222 라우트 ⊇ 142 소비 ⊇ 73 `@Roles()` 미부착).
+      > **나머지 3곳의 "73건" 은 건드리지 않았다** — `roles.guard.ts:48`("222건 중 73건") ·
+      > `roles.guard.spec.ts:66` · `repo-guards/__tests__/workspace-roles-attachment.spec.ts:18`
+      > 은 전부 서브셋 의미로 정확하다(전수 grep 후 판정). 오염은 캐너리 주석 한 곳뿐이었다.
 
 ## Rationale
 

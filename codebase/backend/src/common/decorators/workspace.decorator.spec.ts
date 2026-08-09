@@ -1,6 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { WorkspaceId, handlerConsumesWorkspaceId } from './workspace.decorator';
+import {
+  DECOY_WS,
+  HEADER_WS,
+  TOKEN_WS,
+} from '../__test-utils__/workspace-id-fixtures';
 
 // NestJS param decorators store their factory in metadata and cannot be
 // called directly in tests. We extract the factory via Reflect to unit-test it.
@@ -19,15 +24,6 @@ function getParamDecoratorFactory() {
 
   return metadata[key].factory;
 }
-
-/**
- * 픽스처는 **실제 형태의 UUID** 다. `X-Workspace-Id` 는 Postgres `uuid` 컬럼으로
- * 흘러가므로 `'header-id'` 같은 임의 문자열은 프로덕션에서 존재할 수 없는 값이고,
- * 헤더 형식 검증이 붙은 지금은 400 을 받는다(`workspace-context.util.ts`).
- */
-const HEADER_WS = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
-const TOKEN_WS = 'bbbbbbbb-2222-4222-9222-bbbbbbbbbbbb';
-const DECOY_WS = 'dddddddd-4444-4444-b444-dddddddddddd';
 
 describe('WorkspaceId decorator', () => {
   const factory = getParamDecoratorFactory();

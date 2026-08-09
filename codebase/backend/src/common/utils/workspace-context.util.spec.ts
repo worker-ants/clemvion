@@ -3,15 +3,12 @@ import {
   normalizeWorkspaceHeader,
   resolveRequestWorkspaceContext,
 } from './workspace-context.util';
-
-/**
- * 픽스처는 **실제 형태의 UUID** 다. 종전에는 `'ws1'`·`'header-ws'` 같은 임의 문자열이었는데,
- * `X-Workspace-Id` 는 Postgres `uuid` 컬럼으로 흘러가므로 그 문자열들은 프로덕션에서
- * 존재할 수 없는 값이었다 — 헤더 형식 검증이 붙은 지금은 400 을 받는다.
- */
-const HEADER_WS = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
-const TOKEN_WS = 'bbbbbbbb-2222-4222-9222-bbbbbbbbbbbb';
-const OTHER_WS = 'cccccccc-3333-4333-a333-cccccccccccc';
+import {
+  HEADER_WS,
+  NIL_WS,
+  OTHER_WS,
+  TOKEN_WS,
+} from '../__test-utils__/workspace-id-fixtures';
 
 describe('normalizeWorkspaceHeader', () => {
   it('returns undefined when header is absent', () => {
@@ -132,12 +129,11 @@ describe('resolveRequestWorkspaceContext', () => {
     });
 
     it('Postgres 가 파싱할 수 있는 값은 통과시킨다 (nil UUID — 403 이 400 으로 뒤바뀌지 않도록)', () => {
-      const nil = '00000000-0000-0000-0000-000000000000';
       const ctx = resolveRequestWorkspaceContext(
-        { 'x-workspace-id': nil },
+        { 'x-workspace-id': NIL_WS },
         TOKEN_WS,
       );
-      expect(ctx.workspaceId).toBe(nil);
+      expect(ctx.workspaceId).toBe(NIL_WS);
       expect(ctx.membershipUnverified).toBe(true);
     });
 
