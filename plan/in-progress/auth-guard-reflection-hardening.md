@@ -154,6 +154,15 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       살아있음을 확인. INFO 18(옮긴 plan 의 `status:` 미갱신)도 1줄이라 함께 정정.
 - [x] TEST WORKFLOW 3차 재수행 — lint PASS(53s) · unit PASS(73s) · build PASS(144s) ·
       **e2e PASS(305s, jest 261 + playwright 51)**
+- [x] `/ai-review` 4차 (타겟 `requirement,maintainability,testing`,
+      `review/code/2026/08/09/15_46_17`) — **Critical 0 · WARNING 1 → 수정**.
+      **수렴 확정**: 이 라운드 changeset 에 **애플리케이션 코드가 없다**(3차 fix 가 이미
+      검토된 코드라 diff 가 consistency 산출물만 담았다 — reviewer 자신이 그렇게 적었다).
+      발견이 코드를 완전히 떠나 **생성 산출물의 형식**으로 옮겨 갔다.
+      W1 은 checker 리포트 1건에 sub-agent 반환 스캐폴딩(`STATUS=…` 헤더)이 남은 것 —
+      정정. INFO 3 은 `cross_spec` 이 스스로 단 "미검증" 캐버트라 **직접 열어 확인**했다:
+      `system-status.e2e-spec.ts:147` 이 실제로 nil UUID 를 프로브로 쓴다 → `isValidUuid`
+      를 썼다면 그 e2e 가 깨졌을 것이라는 근거가 실측으로 선다.
 - [ ] push + PR
 
 ## 부수 — plan 위생 1건 (`--impl-prep` plan_coherence INFO #6)

@@ -1,7 +1,3 @@
-STATUS=success naming_collision review complete — 0 critical, 0 warning, 2 info
-
-===REPORT_MARKDOWN_BELOW===
-
 # 신규 식별자 충돌 검토 — naming_collision
 
 ## 검토 범위 확인
@@ -36,4 +32,5 @@ STATUS=success naming_collision review complete — 0 critical, 0 warning, 2 inf
 diff 가 새로 도입한 코드 식별자(`WorkspaceIdReflectionBrokenError`·`countWorkspaceIdConsumingRoutes`·`assertWorkspaceIdReflectionWorks`·`isUuidShaped`·`UUID_SHAPE_PATTERN`·신규 파일 `workspace-reflection-canary.ts`)는 `codebase/`·`spec/`·`plan/` 전역에서 grep 기준 유일하며, 기존 정의와의 이름 충돌은 없다. 에러 코드는 새 코드를 만들지 않고 기존 `VALIDATION_ERROR`(`spec/5-system/3-error-handling.md`)를 정확한 의미로 재사용했고, plan 문서에도 `WORKSPACE_ID_REQUIRED`(헤더·클레임 둘 다 부재)와의 의미 차이를 명시적으로 검토한 흔적이 있어 준수 상태다. 새 API endpoint·env var·webhook/큐 이벤트명·spec 파일도 이번 diff 에는 없다. 발견된 두 건은 모두 INFO 수준의 명명 정합성 참고사항으로, 충돌이 아니라 향후 확장 시 참고할 만한 관찰이다.
 
 ## 위험도
+
 NONE
