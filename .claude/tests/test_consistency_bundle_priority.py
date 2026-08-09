@@ -351,6 +351,11 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
 
     def _assert_sentinel_order(self, mode, key):
         order = self._order(mode, key)
+        # `--impl-done` splices the code diff between the on-topic files and the
+        # rest of the folder dump, so it is deliberately NOT in the ranker's
+        # alphabetical order. Its placement is pinned by `TheDiffOutranksTheFolderDumpTest`;
+        # here it is dropped so the spec files' ordering stays testable.
+        order = [e for e in order if not e.startswith("<git diff")]
         self.assertGreater(len(order), 1, f"{key} bundle did not render")
         self.assertEqual(order, sorted(order, reverse=True),
                          f"collect_context ignored the ranker's ordering for {key}")
@@ -381,6 +386,171 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
         was the one bundle left unranked, with nothing documenting a reason.
         """
         self._assert_sentinel_order("impl_done", "plan_in_progress")
+
+
+class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
+    """"어느 in-progress plan 이든 언급하면 tier 1" 은 신호이길 그만뒀다.
+
+    실측 2026-08-09: in-progress plan 63개를 이어 붙이면 755,385자가 되고, 그 텍스트는
+    `spec/5-system/` 18개 중 **14개**를 tier 1로 태그한다 — 이 함수가 애초에 구하려던
+    바로 그 스코프다. 이 브랜치가 건드린 plan 으로 좁히면 같은 스코프가 5개가 되고,
+    그 5개가 실제 작업 대상이다. 디렉터리의 77% 에서 켜지는 건 신호가 아니다.
+
+    `spec_impact:` frontmatter 가 이 tier 로 들어오는 경로다 — plan 전문을 넘기므로
+    별도 파서가 필요 없다.
+    """
+
+    def test_a_branch_plan_mention_outranks_any_other_plan_mention(self):
+        order = run_in_orchestrator(
+            """
+            import os
+            files = [ROOT + "/spec/5-system/a.md", ROOT + "/spec/5-system/b.md"]
+            out = orch.prioritize_bundle_files(
+                files, ROOT,
+                changed_rels=(),
+                plan_text="a.md 와 b.md 를 모두 언급하는 다른 plan",
+                branch_plan_text="이 브랜치의 plan 은 b.md 만 언급한다",
+            )
+            emit([os.path.basename(p) for p in out])
+            """
+        )
+        # 자연순서는 a, b 다 — b 가 앞서면 브랜치-plan tier 가 실제로 작동한 것이다.
+        self.assertEqual(order, ["b.md", "a.md"])
+
+    def test_a_branch_plan_mention_still_loses_to_the_catalog_demotion(self):
+        """언급 하나가 자동생성 덤프 ~230개를 앞으로 끌고 오면 안 된다 — 그 성질은
+        tier 를 하나 더 끼워 넣어도 유지돼야 한다(브랜치가 **직접 고친** 경우만 예외).
+
+        경로가 **중첩**인 것이 중요하다: R-7 은 `<name>-api-catalog/<resource>.md`
+        최상위 인덱스를 정식 spec 으로 남기므로 강등 대상이 아니다(실측 222 강등 /
+        27 유지). 처음 쓴 픽스처가 최상위였고, 그래서 틀린 건 코드가 아니라 픽스처였다.
+        """
+        order = run_in_orchestrator(
+            """
+            import os
+            cat = ROOT + "/spec/conventions/cafe24-api-catalog/order/x.md"
+            plain = ROOT + "/spec/conventions/zzz.md"
+            out = orch.prioritize_bundle_files(
+                [cat, plain], ROOT,
+                changed_rels=(),
+                plan_text="",
+                branch_plan_text="이 브랜치 plan 이 x.md 를 언급한다",
+            )
+            emit([os.path.basename(p) for p in out])
+            """
+        )
+        self.assertEqual(order, ["zzz.md", "x.md"])
+
+    def test_collect_context_ranks_with_this_branchs_plans_only(self):
+        """호출부 계약. 헬퍼가 두 텍스트를 구분해도 호출부가 같은 값을 두 번 넘기면
+        결함은 그대로다 — 그 뮤턴트가 실제로 살아남았다."""
+        sizes = run_in_orchestrator(
+            """
+            seen = {}
+            real = orch.prioritize_bundle_files
+            def spy(file_paths, root, **kw):
+                seen.setdefault("plan", kw.get("plan_text", ""))
+                seen.setdefault("branch", kw.get("branch_plan_text", ""))
+                return real(file_paths, root, **kw)
+            orch.prioritize_bundle_files = spy
+
+            class Args:
+                spec = plan = impl_prep = diff_base = None
+                impl_done = None
+            args = Args()
+            args.impl_done = ROOT + "/spec/5-system"
+            orch.collect_context(args, ROOT)
+            emit({"plan": len(seen["plan"]), "branch": len(seen["branch"])})
+            """
+        )
+        self.assertGreater(sizes["plan"], 0, "plan 코퍼스가 비었다 — 단언이 vacuous")
+        self.assertLess(
+            sizes["branch"], sizes["plan"],
+            "branch_plan_text 가 전체 plan 과 같다 — 좁히는 효과가 없다",
+        )
+
+
+class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
+    """`--impl-done` 의 코드 diff 가 folder dump 뒤에 붙으면 **가장 먼저** 잘린다.
+
+    실측(2026-08-09, `spec/5-system/` dump 1,215,279 B): 기본 예산 262,144 에서도
+    상향한 650,000 에서도 diff 는 매번 통째로 생략됐고, checker 5명이 구현을 한 줄도
+    못 본 채 "spec vs 구현" 을 판정했다. 마지막 청크라는 위치 자체가 원인이다.
+    """
+
+    def test_the_diff_is_not_the_last_chunk(self):
+        """호출부 계약. 헬퍼가 옳아도 호출부가 안 쓰면 결함은 그대로다."""
+        order = CollectContextUsesPriorityTest._order("impl_done", "target_doc")
+        diffs = [i for i, e in enumerate(order) if e.startswith("<git diff")]
+        self.assertEqual(len(diffs), 1, f"diff 청크가 1개가 아니다: {order}")
+        self.assertLess(
+            diffs[0], len(order) - 1,
+            "diff 가 여전히 마지막 청크다 — 예산 절단이 가장 먼저 가져간다",
+        )
+
+    def test_the_diff_sits_right_after_the_on_topic_files(self):
+        """맨 뒤가 아니면 그만인 게 아니다 — 맨 앞도 틀렸다.
+
+        이 브랜치가 실제로 고치는 spec 은 diff 보다 앞서야 한다. 그 파일들이야말로
+        "구현이 spec 을 따랐나" 를 diff 와 **대조할 대상**이라, 둘 중 하나만 남으면
+        판정이 성립하지 않는다.
+
+        변경 집합을 실제 브랜치에서 읽으면 main 에 머지된 뒤 0건이 되어 단언이 조용히
+        무의미해지므로, 여기서는 고정한다.
+        """
+        order = run_in_orchestrator(
+            """
+            import re
+            orch._branch_changed_rels = lambda base, root: {
+                "spec/5-system/9-rag-search.md"}
+
+            class Args:
+                spec = plan = impl_prep = diff_base = None
+                impl_done = None
+            args = Args()
+            args.impl_done = ROOT + "/spec/5-system"
+            ctx = orch.collect_context(args, ROOT)
+            text = re.sub(r"```.*?```", "", ctx["target_doc"], flags=re.S)
+            emit(re.findall(r"^#### `([^`]+)`", text, re.M))
+            """
+        )
+        self.assertEqual(
+            order[0], "spec/5-system/9-rag-search.md",
+            "이 브랜치가 고친 파일이 맨 앞이 아니다",
+        )
+        self.assertTrue(
+            order[1].startswith("<git diff"),
+            f"diff 가 대상 파일 바로 뒤가 아니다: {order[:3]}",
+        )
+
+    def test_splice_lands_on_a_chunk_boundary(self):
+        """헬퍼 계약. 경계를 벗어나면 한 파일의 본문이 둘로 갈린다."""
+        placed = run_in_orchestrator(
+            """
+            S = orch._BUNDLE_FILE_SENTINEL
+            bundle = "### 라벨\\n" + "".join(
+                f"{S}#### `f{i}.md`\\n```\\nbody{i}\\n```\\n" for i in range(4))
+            chunk = f"{S}#### `<diff>`\\n\\n```diff\\n+x\\n```\\n"
+            import re
+            out = []
+            for n in ARG:
+                spliced = orch._splice_chunk(bundle, chunk, n)
+                out.append(re.findall(r"^#### `([^`]+)`", spliced, re.M))
+            emit(out)
+            """,
+            [0, 2, 4],
+        )
+        self.assertEqual(placed[0], ["<diff>", "f0.md", "f1.md", "f2.md", "f3.md"])
+        self.assertEqual(placed[1], ["f0.md", "f1.md", "<diff>", "f2.md", "f3.md"])
+        self.assertEqual(placed[2], ["f0.md", "f1.md", "f2.md", "f3.md", "<diff>"])
+
+    def test_an_empty_bundle_still_carries_the_diff(self):
+        """빈 스코프(`(없음)`)에는 sentinel 이 없다. 거기서 diff 를 잃으면
+        "구현을 못 봤다" 가 조용히 재현된다."""
+        out = run_in_orchestrator(
+            "emit(orch._splice_chunk('### 라벨\\n(없음)\\n', 'DIFF', 3))"
+        )
+        self.assertIn("DIFF", out)
 
 
 if __name__ == "__main__":
