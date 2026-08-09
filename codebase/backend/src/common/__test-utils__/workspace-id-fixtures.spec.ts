@@ -1,17 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import {
-  ALL_WS,
-  assertAllUnique,
-  DECOY_WS,
-  HEADER_WS,
-  NIL_WS,
-  OTHER_WS,
-  SAME_WS,
-  TOKEN_WS,
-  VICTIM_WS,
-} from './workspace-id-fixtures';
+import * as fixtures from './workspace-id-fixtures';
+
+const { ALL_WS, assertAllUnique } = fixtures;
 
 /**
  * 픽스처 모듈의 **계약 자체**를 고정한다.
@@ -55,19 +47,27 @@ describe('workspace-id-fixtures', () => {
     expect(callSites).toHaveLength(1);
   });
 
-  it('ALL_WS 가 export 상수 전부를 담는다 — 새 상수가 가드를 조용히 비껴가지 않도록', () => {
-    // 상수를 추가하고 `ALL_WS` 에 넣는 것을 잊으면 그 값은 유일성 검사를 받지 않는다.
-    // 여기서 명시적으로 대조해 그 누락을 잡는다.
-    expect([...ALL_WS].sort()).toEqual(
-      [
-        HEADER_WS,
-        TOKEN_WS,
-        VICTIM_WS,
-        OTHER_WS,
-        DECOY_WS,
-        SAME_WS,
-        NIL_WS,
-      ].sort(),
+  it('ALL_WS 가 export 된 UUID 상수 전부를 담는다 — 새 상수가 가드를 조용히 비껴가지 않도록', () => {
+    // **하드코딩 목록으로 대조하면 안 된다.** 초판이 그렇게 짰다가 리뷰에 잡혔고 실측으로
+    // 확인했다 — 새 상수를 추가하며 `ALL_WS` 와 이 spec 둘 다 안 건드리면 양쪽이 여전히
+    // 7개로 일치해 **GREEN 이 난다**. 막겠다고 선언한 실패 모드를 정확히 못 잡는 형태다
+    // (심은 값이 `HEADER_WS` 와 같은 중복이어도 통과했다).
+    //
+    // 모듈 네임스페이스에서 **자동 추출**하면 spec 을 갱신하지 않아도 새 export 가 대상에
+    // 들어온다. 판정 기준은 "UUID 형태의 string export" 다.
+    const UUID_SHAPED =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    // `Object.values` 에는 함수(`assertAllUnique`)와 배열(`ALL_WS`)도 섞여 있어
+    // `v is string` 술어는 성립하지 않는다(TS2677). `flatMap` 으로 좁힌다.
+    const exportedUuids = Object.values<unknown>(fixtures).flatMap((v) =>
+      typeof v === 'string' && UUID_SHAPED.test(v) ? [v] : [],
     );
+
+    // 캐너리: 추출이 조용히 빈 배열이 되면 이 테스트가 무의미해진다.
+    expect(exportedUuids.length).toBeGreaterThan(1);
+    // **중복 제거하면 안 된다.** 초판이 `new Set(exportedUuids)` 로 비교했는데, 그러면
+    // 누락된 새 상수가 기존 값과 **같은 값**일 때 그 중복이 지워져 통과한다 —
+    // 유일성 가드가 봤어야 할 바로 그 케이스를 검사가 스스로 지운 셈이었다(실측 GREEN).
+    expect([...ALL_WS].sort()).toEqual([...exportedUuids].sort());
   });
 });
