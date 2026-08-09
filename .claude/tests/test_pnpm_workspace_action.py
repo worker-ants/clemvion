@@ -1,4 +1,4 @@
-"""`.github/actions/pnpm-workspace/action.yml` — 8개 잡이 공유하는 셋업 액션.
+"""`.github/actions/pnpm-workspace/action.yml` — 9개 잡(5개 워크플로)이 공유하는 셋업 액션.
 
 ## 왜 이 파일이 있는가
 
@@ -6,12 +6,12 @@
 직접** 적혀 있었다. 지금은 저장소 전체에서 **그 한 줄이 여기 하나뿐**이다. 파급이 뒤집혔다:
 
 - 종전: 한 워크플로의 install 줄이 망가지면 그 워크플로만 잘못된다.
-- 지금: 이 줄이 망가지면 **8개 잡이 한꺼번에** 잘못된다 — 그리고 required check 후보가
+- 지금: 이 줄이 망가지면 **9개 잡이 한꺼번에** 잘못된다 — 그리고 required check 후보가
   전부 그 안에 있다.
 
 특히 `--frozen-lockfile` 은 `deps-guard-hardening` 이 required check 로 요구한 보장 그
-자체다. 여기서 빠지면 매니페스트와 어긋난 lockfile 이 pnpm 에 의해 조용히 재생성되고, 8개
-워크플로가 전부 초록으로 통과한다 — 이 저장소가 반복해 데인 "게이트가 조용히 안 도는"
+자체다. 여기서 빠지면 매니페스트와 어긋난 lockfile 이 pnpm 에 의해 조용히 재생성되고, 9개
+잡이 전부 초록으로 통과한다 — 이 저장소가 반복해 데인 "게이트가 조용히 안 도는"
 실패다. 그래서 문자열 존재가 아니라 **실제 인자**로 고정한다.
 
 ## 실행 검증인 이유
@@ -112,7 +112,7 @@ class InstallCommandTest(unittest.TestCase):
             argv(proc),
             ["install", "--frozen-lockfile", "--filter", "frontend..."],
             "pnpm 이 받은 인자가 기대와 다르다 — `--frozen-lockfile` 이 빠지면 매니페스트와 "
-            "어긋난 lockfile 이 8개 워크플로에서 전부 조용히 통과한다",
+            "어긋난 lockfile 이 9개 잡에서 전부 조용히 통과한다",
         )
 
     def test_the_filter_arrives_as_one_argument(self):
@@ -169,9 +169,19 @@ class WiringTest(unittest.TestCase):
 
     def test_toolchain_pins_did_not_drift_in_the_extraction(self):
         """추출이 툴체인을 조용히 바꾸지 않았는지 — `uses:` 스텝은 여기서 실행할 수 없으므로
-        핀 값만 정적으로 고정한다(모듈 docstring §알려진 한계)."""
+        핀 값만 정적으로 고정한다(모듈 docstring §알려진 한계).
+
+        `startswith` 로 액션 이름만 확인하면 `@v7` → `@v6` 같은 버전 드리프트가 조용히
+        통과한다 — docstring·README 가 약속한 "액션 버전 핀 고정"은 정확 문자열 비교여야
+        지켜진다.
+        """
         steps = composite_steps()
         node = next(s for s in steps if str(s.get("uses", "")).startswith("actions/setup-node"))
+        self.assertEqual(
+            node.get("uses"),
+            "actions/setup-node@v7",
+            "actions/setup-node 의 핀 버전이 드리프트했다",
+        )
         self.assertEqual(node["with"]["node-version"], "24")
         self.assertEqual(node["with"]["cache"], "pnpm")
         self.assertEqual(
@@ -179,9 +189,18 @@ class WiringTest(unittest.TestCase):
             "pnpm-lock.yaml",
             "캐시 키가 lockfile 이 아니면 install 결과가 stale 캐시로 갈릴 수 있다",
         )
-        self.assertTrue(
-            any(str(s.get("uses", "")).startswith("pnpm/action-setup@") for s in steps),
+        pnpm_setup = next(
+            (s for s in steps if str(s.get("uses", "")).startswith("pnpm/action-setup@")),
+            None,
+        )
+        self.assertIsNotNone(
+            pnpm_setup,
             "pnpm 셋업 스텝이 사라졌다 — install 이 러너 기본 pnpm(또는 부재)으로 돈다",
+        )
+        self.assertEqual(
+            pnpm_setup.get("uses"),
+            "pnpm/action-setup@v6.0.9",
+            "pnpm/action-setup 의 핀 버전이 드리프트했다",
         )
 
     def test_every_composite_run_step_declares_a_shell(self):
@@ -215,12 +234,12 @@ class ConsumerBindingTest(unittest.TestCase):
         return found
 
     def test_there_are_consumers(self):
-        """vacuity 방지 — 소비처가 0이면 아래 단언이 전부 헛통과한다. 8개 잡을 위해 만든
+        """vacuity 방지 — 소비처가 0이면 아래 단언이 전부 헛통과한다. 9개 잡을 위해 만든
         액션이라 그 수가 줄면 추출의 전제부터 다시 봐야 한다."""
         self.assertGreaterEqual(
-            len(self.consumers()), 8,
-            "이 액션을 부르는 잡이 8개 미만이다 — 추출 근거(바이트 동일 8잡)가 바뀌었다면 "
-            "액션 자체의 존치 여부부터 재판정할 것",
+            len(self.consumers()), 9,
+            "이 액션을 부르는 잡이 9개 미만이다 — 추출 근거(바이트 동일 8잡 + backend "
+            "typecheck-ratchet 1잡)가 바뀌었다면 액션 자체의 존치 여부부터 재판정할 것",
         )
 
     def test_every_call_is_gated(self):
