@@ -59,12 +59,17 @@ jobs:
           # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           PUSH_AFTER_SHA: ${{ github.event.after }}
+        # `codebase/**/package.json` 은 중간 디렉터리가 **1개 이상**일 때만 맞는다 —
+        # `codebase/package.json`(깊이 0)은 안 맞는다(실측). 지금 그런 파일이 없어 잠복이지만,
+        # 생기는 순간 조용히 `relevant=false` 가 되어 이 워크플로가 막으려는 "초록인데 검사가
+        # 안 도는" 상태가 된다. 그래서 깊이 0 을 따로 명시한다(`test_ci_paths_changed.py` 고정).
         run: |
           scripts/ci-paths-changed.sh \
             'pnpm-workspace.yaml' \
             'pnpm-lock.yaml' \
             'package.json' \
             'codebase/**/package.json' \
+            'codebase/package.json' \
             'scripts/check-pnpm-security-config.py' \
             'scripts/check-override-floors.py' \
             'scripts/ci-paths-changed.sh' \

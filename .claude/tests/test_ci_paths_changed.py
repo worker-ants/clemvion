@@ -116,6 +116,51 @@ class VerdictTest(_RepoFixture):
         )
         self.assertEqual(verdict(out), "true", out)
 
+    def test_the_real_manifest_pathspecs_match_every_depth(self):
+        """실사용 pathspec 을 **문자열 그대로** 놓고 깊이 0/1/2 를 각각 단언한다.
+
+        위 테스트들은 끝이 `**` 인 형태(`codebase/frontend/**`)만 봤는데, 워크플로가 실제로
+        넘기는 것은 **중간**이 `**` 인 `codebase/**/package.json` 이다. 이 형태는 중간
+        디렉터리가 1개 이상일 때만 맞아서 `codebase/package.json`(깊이 0)을 놓친다(실측) —
+        그래서 워크플로가 깊이 0 을 별도 pathspec 으로 함께 넘긴다. 그 짝을 여기서 고정한다.
+
+        놓치면 나타나는 증상이 `relevant=false`, 즉 **초록인데 검사가 안 도는** 상태다 —
+        이 스위트가 존재하는 이유인 바로 그 클래스라 형태별로 단언한다(ai-review W3).
+        """
+        MANIFEST_SPECS = ("codebase/**/package.json", "codebase/package.json")
+        for rel in (
+            "codebase/package.json",            # 깊이 0 — `**` 형태가 못 잡는 것
+            "codebase/frontend/package.json",   # 깊이 1
+            "codebase/packages/sdk/package.json",  # 깊이 2
+        ):
+            with self.subTest(path=rel):
+                head = self.commit(rel)
+                rc, out = run_script(
+                    self.repo, *MANIFEST_SPECS,
+                    PR_BASE_SHA=self.base, PR_HEAD_SHA=head,
+                )
+                self.assertEqual(rc, 0, out)
+                self.assertEqual(verdict(out), "true", out)
+
+    def test_middle_double_star_alone_misses_depth_zero(self):
+        """위 짝이 **왜 두 개인지** 를 고정한다 — 하나를 지우면 이 테스트가 RED.
+
+        `codebase/**/package.json` 단독으로도 통과한다면 워크플로의 깊이 0 pathspec 은
+        "있어도 그만" 인 장식이 되고, 다음 사람이 중복으로 보고 지운다. 이 단언이 그
+        삭제를 막는다.
+        """
+        head = self.commit("codebase/package.json")
+        rc, out = run_script(
+            self.repo, "codebase/**/package.json",
+            PR_BASE_SHA=self.base, PR_HEAD_SHA=head,
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(
+            verdict(out), "false",
+            "중간 `**` 가 깊이 0 을 잡게 됐다면 워크플로의 깊이 0 pathspec 은 불필요해진 "
+            "것이므로 여기와 워크플로를 함께 정리할 것:\n" + out,
+        )
+
     def test_any_one_of_several_pathspecs_is_enough(self):
         head = self.commit("pnpm-lock.yaml")
         rc, out = run_script(

@@ -213,6 +213,27 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
                     f"{name}: detect 대상 글롭에 스크립트 자신이 없다",
                 )
 
+    def test_manifest_globs_cover_depth_zero(self):
+        """`codebase/**/package.json` 은 **혼자서는** `codebase/package.json` 을 못 잡는다.
+
+        git pathspec 에서 중간 `**` 는 디렉터리가 1개 이상일 때만 맞는다(실측 —
+        `test_ci_paths_changed.py::test_middle_double_star_alone_misses_depth_zero`).
+        그래서 워크플로는 깊이 0 을 별도 pathspec 으로 함께 넘긴다. 짝 중 하나만 지우면
+        그 매니페스트 변경이 조용히 `relevant=false` 로 판정된다 — "초록인데 검사가 안
+        도는" 상태로, 이 파일이 막으려는 바로 그 클래스다(ai-review W3).
+        """
+        for name in CONVERTED:
+            text = (WORKFLOWS / name).read_text(encoding="utf-8")
+            if "'codebase/**/package.json'" not in text:
+                continue  # 그 워크플로는 매니페스트를 대상으로 하지 않는다
+            with self.subTest(workflow=name):
+                self.assertIn(
+                    "'codebase/package.json'",
+                    text,
+                    f"{name}: 중간 `**` pathspec 만 있고 깊이 0(`codebase/package.json`)이 "
+                    "빠졌다 — 그 파일이 생기는 순간 조용히 검사에서 빠진다",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

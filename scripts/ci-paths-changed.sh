@@ -44,6 +44,17 @@ emit() {
   echo "relevant=$1"
 }
 
+# 판정 불가 → 사유를 남기고 검사를 **수행**시키며 끝낸다.
+#
+# 이 세 줄(사유 출력 · `emit true` · `exit 0`)은 5개 분기에서 똑같이 반복된다. 손으로
+# 복제해 두면 한 곳만 고치고 나머지를 놓치기 쉬운데, 그 실수의 방향이 하필 `emit false`
+# (조용한 통과)라 이 스크립트가 존재하는 이유인 실패를 그대로 만든다.
+fail_safe() {
+  echo "!! $1 — 검사를 수행한다(fail-safe)."
+  emit true
+  exit 0
+}
+
 # 이벤트별 비교 기준.
 #
 # - pull_request : base…head (merge-base 로 정규화)
@@ -63,35 +74,25 @@ case "${GITHUB_EVENT_NAME:-}" in
     HEAD_SHA="${PUSH_AFTER_SHA:-}"
     # all-zero 는 "부모 없음"(브랜치 신규 생성) 신호다.
     if [[ "$BASE_SHA" =~ ^0+$ ]]; then
-      echo "!! push before=0…0 (신규 브랜치) — 검사를 수행한다(fail-safe)."
-      emit true
-      exit 0
+      fail_safe "push before=0…0 (신규 브랜치)"
     fi
     ;;
   *)
-    echo "!! event=${GITHUB_EVENT_NAME:-unknown} — diff 비교 대상이 없어 검사를 수행한다(fail-safe)."
-    emit true
-    exit 0
+    fail_safe "event=${GITHUB_EVENT_NAME:-unknown} — diff 비교 대상이 없다"
     ;;
 esac
 
 if [[ -z "$BASE_SHA" || -z "$HEAD_SHA" ]]; then
-  echo "!! base/head SHA 를 받지 못했다 — 검사를 수행한다(fail-safe)."
-  emit true
-  exit 0
+  fail_safe "base/head SHA 를 받지 못했다"
 fi
 
 # base 가 조상이 아닐 수 있다(force-push·재작성). merge-base 로 정규화하고, 실패하면 돌린다.
 if ! MERGE_BASE=$(git merge-base "$BASE_SHA" "$HEAD_SHA" 2>/dev/null); then
-  echo "!! merge-base 계산 실패(얕은 클론?) — 검사를 수행한다(fail-safe)."
-  emit true
-  exit 0
+  fail_safe "merge-base 계산 실패(얕은 클론?)"
 fi
 
 if ! CHANGED=$(git diff --name-only "$MERGE_BASE" "$HEAD_SHA" -- "$@" 2>/dev/null); then
-  echo "!! git diff 실패 — 검사를 수행한다(fail-safe)."
-  emit true
-  exit 0
+  fail_safe "git diff 실패"
 fi
 
 if [[ -n "$CHANGED" ]]; then
