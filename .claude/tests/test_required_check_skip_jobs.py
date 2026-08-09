@@ -61,11 +61,22 @@ CONVERTED = [
     "web-chat-checks.yml",
 ]
 
-# 세 워크플로가 공유하는 `changes` 잡의 reusable workflow. 판정 wiring 이 여기 한 곳에
+# 전환된 워크플로들이 공유하는 `changes` 잡의 reusable workflow. 판정 wiring 이 여기 한 곳에
 # 산다 — 아래 계약들은 **호출부의 `uses:` 를 따라가** 이 파일에서 확인해야 한다.
 # 지름길로 "reusable 을 쓰면 통과" 로 두면, 그 파일이 출력을 안 내거나 step id 가
 # 어긋나도 전 워크플로가 조용히 게이팅을 잃는다 — 한 곳이라 파급이 오히려 크다.
 CHANGES_REUSABLE = "_changed-paths.yml"
+
+# `test_no_pathspec_is_a_dead_filter` 의 예외 — (워크플로, pathspec) 이 여기 없으면
+# tracked 파일과 최소 하나는 매치해야 통과한다. 등재하려면 "왜 지금 0건이 정상인가" 를
+# 근거로 남긴다 — 근거 없는 등재는 죽은 필터를 조용히 감추는 것과 같다.
+DEAD_FILTER_EXCEPTIONS = {
+    # `codebase/**/package.json` 은 git pathspec 의 중간 `**` 가 깊이 0 을 못 잡아서
+    # (test_manifest_globs_cover_depth_zero) 짝으로 넘긴 깊이-0 pathspec 이다. 그 파일이
+    # 아직 존재하지 않아 오늘은 tracked 매치가 0 건인 게 정상이다 — 죽은 필터가 아니라
+    # "생기는 순간 잡으려는" 선제 등재다.
+    ("deps-security-checks.yml", "codebase/package.json"),
+}
 
 
 def load(name):
@@ -137,6 +148,43 @@ class PathspecParsingTest(unittest.TestCase):
                 )
 
 
+class DeadFilterTest(unittest.TestCase):
+    """`test_no_filter_is_dead`(harness-checks.yml 전용)를 `CONVERTED` 전체로 일반화한다.
+
+    오탈자·개명 잔존 pathspec 은 아무 tracked 파일과도 안 맞아 조용히 무의미해진다 —
+    `harness-checks.yml` 은 이미 이 클래스의 보호를 받지만(`test_harness_checks_paths_coverage`
+    의 `_MIN_FILTERS`/`KNOWN_COVERAGE_DEPENDENCIES`), 나머지 4개 신규 전환 워크플로는
+    같은 보호가 없었다(ai-review WARNING #2).
+
+    매칭 헬퍼는 `test_harness_checks_paths_coverage.filter_covers_file` 을 재사용한다 —
+    독립 4번째 구현을 만들지 않는다. 그 헬퍼는 **GitHub paths 규칙**(`*` 가 `/` 를 안 넘음)
+    이라 git pathspec 보다 엄격하다: strict 매치는 git 매치를 함의하므로(strict-covered
+    ⊂ git-covered), 이 방향으로 "매치를 요구" 하는 것은 항상 안전한 쪽으로만 더 엄격해진다
+    — strict 로 0건인데 git 으로는 매치되는 항목을 오탐할 위험이 있다는 뜻이다. 그 위험은
+    실측(현재 8개 워크플로 전체 대조)으로 닫았다: `codebase/package.json` 단 하나만
+    strict/git 양쪽 다 0건이었고, 그건 죽은 필터가 아니라 아직 생기지 않은 파일을 노리는
+    선제 depth-0 pathspec 이라 `DEAD_FILTER_EXCEPTIONS` 에 근거와 함께 등재했다. 등재 없이
+    통과시키려 이 단언을 약화하지 않는다.
+    """
+
+    def test_no_pathspec_is_a_dead_filter(self):
+        import test_harness_checks_paths_coverage as coverage
+
+        tracked = coverage._tracked_files()
+        for name in CONVERTED:
+            specs = pathspecs_of(name)
+            for spec in specs:
+                if (name, spec) in DEAD_FILTER_EXCEPTIONS:
+                    continue
+                with self.subTest(workflow=name, pathspec=spec):
+                    self.assertTrue(
+                        any(coverage.filter_covers_file(spec, t) for t in tracked),
+                        f"{name}: pathspec {spec!r} 이 tracked 파일과 하나도 매치하지 "
+                        "않는다 — 죽은 필터일 수 있다(예외라면 DEAD_FILTER_EXCEPTIONS 에 "
+                        "근거와 함께 등재)",
+                    )
+
+
 class RequiredCheckSkipJobContractTest(unittest.TestCase):
     def test_the_converted_list_is_not_empty(self):
         """vacuity 방지 — 목록이 비면 아래 테스트가 전부 헛통과한다."""
@@ -184,7 +232,7 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
                 )
 
         # 지름길 방지 — 실제 출력을 내는 쪽은 reusable workflow 다. 여기까지 따라가
-        # 확인하지 않으면 세 워크플로가 한꺼번에 게이팅을 잃어도 이 스위트는 초록이다.
+        # 확인하지 않으면 전환된 워크플로 전체가 한꺼번에 게이팅을 잃어도 이 스위트는 초록이다.
         shared = load(CHANGES_REUSABLE)
         outputs = (shared.get("jobs", {}).get("detect") or {}).get("outputs") or {}
         self.assertEqual(
@@ -299,6 +347,8 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
         판정 로직이 바뀌었는데 검사가 안 도는 것은 `harness-checks.yml` 이 여섯 번 겪은
         paths 커버리지 갭과 같은 클래스다.
         """
+        import test_harness_checks_paths_coverage as coverage
+
         for name in CONVERTED:
             with self.subTest(workflow=name):
                 specs = pathspecs_of(name)
@@ -314,6 +364,44 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
                     f".github/workflows/{CHANGES_REUSABLE}",
                     specs,
                     f"{name}: detect 대상 글롭에 공유 판정 워크플로가 없다",
+                )
+
+    def test_each_workflow_registers_its_own_path(self):
+        """워크플로 자신의 파일(`.github/workflows/<name>`)이 자기 pathspecs 안에서
+        커버돼야 한다 — 손으로 추가한 자기참조 한 줄이 지워지는 것을 막는 회귀 가드다
+        (ai-review WARNING #3).
+
+        커버는 두 갈래 중 하나다 — 단순 `assertIn` 만 쓰면 `harness-checks.yml` 이
+        (실제로는 문제없는데도) 매번 RED 다:
+
+        1. **명시 등재** — `.github/workflows/<name>` 이 `specs` 안에 문자열 그대로 있다.
+           7개 워크플로가 이 갈래다.
+        2. **상위 글롭 커버** — `harness-checks.yml` 은 자신을 개별 등재하지 않고
+           `.github/workflows/**` 광역 글롭으로 덮는다(harness 스위트가 워크플로 파일
+           전체를 감시하기 때문 — `test_workflow_yaml_structure.py`). `filter_covers_file`
+           (`test_harness_checks_paths_coverage`, GitHub paths 규칙 — `*` 가 `/` 를 안 넘음)
+           로 그 글롭이 실제로 자기 경로를 덮는지 재사용해 확인한다.
+
+        두 갈래 다 뮤테이션으로 RED 확인: (1) 아무 워크플로에서 자기 등재 줄을 지우면
+        이 테스트가 그 워크플로에서 실패해야 한다. (2) `harness-checks.yml` 에서
+        `.github/workflows/**` 를 지우면(자기 개별 등재가 없으므로) 실패해야 한다.
+        """
+        import test_harness_checks_paths_coverage as coverage
+
+        for name in CONVERTED:
+            with self.subTest(workflow=name):
+                specs = pathspecs_of(name)
+                self_path = f".github/workflows/{name}"
+                explicit = self_path in specs
+                glob_covered = any(
+                    coverage.filter_covers_file(s, self_path)
+                    for s in specs
+                    if s != self_path
+                )
+                self.assertTrue(
+                    explicit or glob_covered,
+                    f"{name}: 자기 자신({self_path})이 pathspecs 에 명시 등재되지도, "
+                    "상위 글롭으로 커버되지도 않는다",
                 )
 
     def test_manifest_globs_cover_depth_zero(self):
