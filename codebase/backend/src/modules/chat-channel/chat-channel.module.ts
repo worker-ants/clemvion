@@ -93,9 +93,7 @@ export class ChatChannelModule implements OnApplicationBootstrap {
     const entries: Array<{ triggerId: string; provider: string }> = [];
     for (const trigger of activeTriggers) {
       const cfg = trigger.config as
-        | { chatChannel?: { provider?: string } }
-        | null
-        | undefined;
+        { chatChannel?: { provider?: string } } | null | undefined;
       const provider = cfg?.chatChannel?.provider;
       if (typeof provider !== 'string' || provider.length === 0) continue;
       entries.push({ triggerId: trigger.id, provider });

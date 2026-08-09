@@ -223,7 +223,7 @@ export class ConversationThreadService {
       ...(args.presentations !== undefined
         ? { presentations: args.presentations }
         : {}),
-    }) as ConversationTurn;
+    });
     thread.turns.push(turn);
     thread.nextSeq = seq + 1;
     thread.totalChars += args.text.length;

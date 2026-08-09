@@ -168,9 +168,12 @@ export class ExecutionContextService {
     nodeId: string,
     resolvedConfig: Record<string, unknown>,
   ): void {
+    // 이 assertion 은 `Readonly<…>` 를 벗겨 **쓰기 가능한 view** 를 얻는다 — 제거하면
+    // 아래 대입이 TS2542("Index signature … only permits reading")로 깨진다.
+    // no-unnecessary-type-assertion 이 불필요하다고 지목하지만 `nest build` 로 반증됐다.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const context = this.contexts.get(key) as
-      | MutableExecutionContext
-      | undefined;
+      MutableExecutionContext | undefined;
     if (!context) {
       this.warnContextMissing('setEngineResolvedConfig', key, nodeId);
       return;

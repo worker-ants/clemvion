@@ -790,8 +790,7 @@ describe('WebsocketGateway', () => {
     it('class-level @UseGuards 에 WsRateLimitGuard 바인딩 (실배선 회귀 가드)', () => {
       // e2e(socket.io-client) 부재를 보완 — 데코레이터 위치·providers 누락 시 실패.
       const guards = Reflect.getMetadata('__guards__', WebsocketGateway) as
-        | unknown[]
-        | undefined;
+        unknown[] | undefined;
       expect(guards).toBeDefined();
       expect(guards!.some((g) => g === WsRateLimitGuard)).toBe(true);
     });

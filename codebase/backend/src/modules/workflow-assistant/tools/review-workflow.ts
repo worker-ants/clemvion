@@ -765,8 +765,7 @@ function collectNodeConfigWarnings(
     if (tc.kind !== 'edit') continue;
     if (tc.name !== 'add_node' && tc.name !== 'update_node') continue;
     const result = tc.result as
-      | { ok?: boolean; id?: string; configWarnings?: unknown }
-      | undefined;
+      { ok?: boolean; id?: string; configWarnings?: unknown } | undefined;
     if (result?.ok !== true) continue;
     const nodeId =
       tc.name === 'add_node'

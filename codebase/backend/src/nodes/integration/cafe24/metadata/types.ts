@@ -8,12 +8,7 @@
  */
 
 export type Cafe24FieldType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'array'
-  | 'object'
-  | 'enum';
+  'string' | 'number' | 'boolean' | 'array' | 'object' | 'enum';
 
 export type Cafe24FieldLocation = 'path' | 'query' | 'body';
 

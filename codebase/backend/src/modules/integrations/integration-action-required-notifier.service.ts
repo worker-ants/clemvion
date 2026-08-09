@@ -78,10 +78,9 @@ export class IntegrationActionRequiredNotifier {
           message,
           resourceType: 'integration' as const,
           resourceId: integration.id,
-          channel: (wantsEmail ? 'both' : 'in_app') as
-            | 'both'
-            | 'in_app'
-            | 'email',
+          // 형제 필드(`type`·`resourceType`)와 같은 `as const` 관용 — 삼항의 문자열
+          // 리터럴이 `string` 으로 넓어져 `createMany` 의 channel union 과 어긋나는 것을 막는다.
+          channel: wantsEmail ? ('both' as const) : ('in_app' as const),
         };
       });
 

@@ -57,25 +57,14 @@ type TransformOperation =
       type: 'string_op';
       field: string;
       operation:
-        | 'trim'
-        | 'uppercase'
-        | 'lowercase'
-        | 'replace'
-        | 'split'
-        | 'join';
+        'trim' | 'uppercase' | 'lowercase' | 'replace' | 'split' | 'join';
       args?: unknown;
     }
   | {
       type: 'math_op';
       field: string;
       operation:
-        | 'add'
-        | 'subtract'
-        | 'multiply'
-        | 'divide'
-        | 'round'
-        | 'ceil'
-        | 'floor';
+        'add' | 'subtract' | 'multiply' | 'divide' | 'round' | 'ceil' | 'floor';
       operand?: number;
     }
   | {
@@ -422,8 +411,7 @@ export class TransformHandler implements NodeHandler {
       case 'add':
       case 'subtract': {
         const args = op.args as
-          | { amount?: number; unit?: DateUnit }
-          | undefined;
+          { amount?: number; unit?: DateUnit } | undefined;
         if (
           !args ||
           typeof args.amount !== 'number' ||
@@ -440,8 +428,7 @@ export class TransformHandler implements NodeHandler {
       }
       case 'diff': {
         const args = op.args as
-          | { compareField?: string; unit?: DateUnit }
-          | undefined;
+          { compareField?: string; unit?: DateUnit } | undefined;
         if (
           !args?.compareField ||
           !args.unit ||

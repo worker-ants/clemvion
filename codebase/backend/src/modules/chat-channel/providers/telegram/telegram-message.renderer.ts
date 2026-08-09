@@ -12,7 +12,6 @@ import {
   resolveLanguageHint,
   resolveSessionExpiredMessage,
   applyPlaceholders,
-  type LanguageLocale,
 } from '../../shared/language-hint-defaults';
 
 const logger = new Logger('ChatChannelTelegram');
@@ -65,7 +64,7 @@ export function renderTelegramMessages(
         return renderText(
           resolveSessionExpiredMessage(
             config.languageHints,
-            config.languageLocale as LanguageLocale | undefined,
+            config.languageLocale,
           ),
         );
       }
@@ -314,7 +313,7 @@ function renderFailureMessage(
   const template = resolveLanguageHint(
     key,
     config.languageHints,
-    config.languageLocale as LanguageLocale | undefined,
+    config.languageLocale,
   );
   return applyPlaceholders(template, placeholders);
 }
@@ -413,9 +412,7 @@ function renderButtons(
   //   - 'text'     → 시각형 미발송 (carousel imageUrl 도 무시. legacy 'text_only' 는 DTO 단에서 normalize)
   //   - 'photo'    → v1 단계는 SSR 인프라 미도입 → fallback to text + warning 로그 (chat_channel_health 변경 없음)
   //   - 'auto'/미설정 → 노드별 휴리스틱 (chart/table → text, carousel → 카드별 imageUrl 분기)
-  const nodeOutput = buttonConfig?.nodeOutput as
-    | { nodeType?: string; payload?: unknown; title?: string }
-    | undefined;
+  const nodeOutput = buttonConfig?.nodeOutput;
   const visualKind = nodeOutput?.nodeType;
   // legacy 'text_only' 가 DB 에 남아있는 경우 read-time normalize (DTO normalize 와 중복 안전망).
   const rawVisualNode = config.uiMapping?.visualNode;

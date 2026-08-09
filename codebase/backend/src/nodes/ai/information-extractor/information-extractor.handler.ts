@@ -309,9 +309,7 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
       return { systemPrompt: args.systemPrompt, recalledCount: 0 };
     }
     const evaluatedMemoryKey = args.config.memoryKey as
-      | string
-      | undefined
-      | null;
+      string | undefined | null;
     const scopeKey = this.agentMemoryService.resolveScopeKey(
       evaluatedMemoryKey,
       args.executionId,
@@ -340,8 +338,7 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
         {
           // 회수/추출 동일 embedding config — query/저장 임베딩 차원 일치 (§3).
           embeddingModelConfigId: args.config.embeddingModelConfigId as
-            | string
-            | undefined,
+            string | undefined,
         },
         { topK, threshold },
       );
@@ -1888,8 +1885,7 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
         (raw.turnDebugHistory as TurnDebugEntry[] | undefined) ?? [],
       rawConfig: raw.rawConfig as Record<string, unknown> | undefined,
       contextInjection: raw.contextInjection as
-        | ContextInjectionMeta
-        | undefined,
+        ContextInjectionMeta | undefined,
       memoryStrategy: raw.memoryStrategy as 'manual' | 'persistent' | undefined,
       conversationThreadRef: raw.conversationThreadRef as
         | import('../../../shared/conversation-thread/conversation-thread.types').ConversationThread

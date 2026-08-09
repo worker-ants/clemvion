@@ -59,8 +59,7 @@ export interface InternalInteractionRequestContext {
 }
 
 export type InteractionRequestContext =
-  | ExternalInteractionRequestContext
-  | InternalInteractionRequestContext;
+  ExternalInteractionRequestContext | InternalInteractionRequestContext;
 
 /** Union narrowing helper. */
 export function isInternalCtx(

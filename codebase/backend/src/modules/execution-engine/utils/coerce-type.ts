@@ -1,9 +1,5 @@
 export type CoercibleType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'object'
-  | 'array';
+  'string' | 'number' | 'boolean' | 'object' | 'array';
 
 export function coerceToType(value: unknown, type: string): unknown {
   if (value === null || value === undefined) return null;

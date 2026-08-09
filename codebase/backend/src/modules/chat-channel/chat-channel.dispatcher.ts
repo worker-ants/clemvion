@@ -522,11 +522,7 @@ export function toChatChannelEvent(
       return {
         ...base,
         type: 'execution.completed',
-        result: ((event.payload as { result?: unknown }).result ?? {}) as {
-          outputs?: unknown;
-          finalNodeId?: string;
-          finalPort?: string;
-        },
+        result: (event.payload as { result?: unknown }).result ?? {},
         durationMs: (event.payload as { durationMs?: number }).durationMs,
       };
     }
@@ -576,9 +572,7 @@ export function toChatChannelEvent(
       return {
         ...base,
         type: 'execution.cancelled',
-        result: ((event.payload as { result?: unknown }).result ?? {}) as {
-          cancelledBy?: 'user' | 'system' | 'timeout';
-        },
+        result: (event.payload as { result?: unknown }).result ?? {},
         ...(error ? { error } : {}),
         durationMs: (event.payload as { durationMs?: number }).durationMs,
       };

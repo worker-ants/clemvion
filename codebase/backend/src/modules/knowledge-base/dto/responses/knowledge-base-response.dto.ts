@@ -145,12 +145,7 @@ export class DocumentDto {
       "graph 모드 KB 의 그래프 추출 진행 상태. vector 모드 문서는 NULL. 'error'·'failed' 의미는 embeddingStatus 와 동일.",
   })
   graphExtractionStatus?:
-    | 'pending'
-    | 'processing'
-    | 'completed'
-    | 'error'
-    | 'failed'
-    | null;
+    'pending' | 'processing' | 'completed' | 'error' | 'failed' | null;
 
   @ApiProperty({ example: 0, description: '그래프 추출 재시도 누적 횟수' })
   graphRetryCount: number;

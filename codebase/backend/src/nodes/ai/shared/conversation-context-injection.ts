@@ -70,25 +70,25 @@ export function mapTurnsToChatMessages(
           return {
             role: 'user',
             content: `[from ${t.nodeLabel}] ${t.text}`,
-          } as ChatMessage;
+          };
         case 'ai_user':
-          return { role: 'user', content: t.text } as ChatMessage;
+          return { role: 'user', content: t.text };
         case 'ai_assistant':
           return {
             role: 'assistant',
             content: t.text,
             ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
-          } as ChatMessage;
+          };
         case 'ai_tool':
           return {
             role: 'tool',
             content: t.text,
             ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
-          } as ChatMessage;
+          };
         case 'system':
-          return { role: 'system', content: t.text } as ChatMessage;
+          return { role: 'system', content: t.text };
         default:
-          return { role: 'user', content: t.text } as ChatMessage;
+          return { role: 'user', content: t.text };
       }
     })
     .map((m) => ({ ...m, source: 'injected' as const }));
@@ -126,8 +126,7 @@ export function injectConversationContext<Target>(args: {
   };
 
   const scope = args.config.contextScope as
-    | ConversationContextScope
-    | undefined;
+    ConversationContextScope | undefined;
   if (!args.reader || !args.target || !scope || scope === 'none') {
     return {
       messages: args.messages,

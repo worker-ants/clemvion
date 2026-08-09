@@ -39,10 +39,7 @@ import {
   isNativeFormAdapter,
 } from '../chat-channel/types';
 import { validateFormSubmission } from '../chat-channel/shared/form-mode';
-import {
-  resolveSurfaceMismatchMessage,
-  type LanguageLocale,
-} from '../chat-channel/shared/language-hint-defaults';
+import { resolveSurfaceMismatchMessage } from '../chat-channel/shared/language-hint-defaults';
 import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { extractClientIpFromHeaders } from '../auth/utils/client-ip';
@@ -1036,7 +1033,7 @@ export class HooksService {
   ): Promise<void> {
     const text = resolveSurfaceMismatchMessage(
       config.languageHints,
-      config.languageLocale as LanguageLocale | undefined,
+      config.languageLocale,
     );
     await this.sendBestEffortNotice(
       update.conversationKey,

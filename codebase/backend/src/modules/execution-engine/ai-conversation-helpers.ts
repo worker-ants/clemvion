@@ -90,11 +90,11 @@ export function buildConversationMetaFromResumeState(
     inputTokens,
     outputTokens,
     totalTokens: inputTokens + outputTokens,
-    thinkingTokens: (state.totalThinkingTokens as number) ?? 0,
-    toolCalls: (state.toolCalls as number) ?? 0,
-    ragSources: (state.ragSources as unknown[]) ?? [],
+    thinkingTokens: state.totalThinkingTokens ?? 0,
+    toolCalls: state.toolCalls ?? 0,
+    ragSources: state.ragSources ?? [],
     ragDiagnostics: state.ragLastDiagnostics,
-    turnDebug: (state.turnDebugHistory as unknown[]) ?? [],
+    turnDebug: state.turnDebugHistory ?? [],
   };
 }
 

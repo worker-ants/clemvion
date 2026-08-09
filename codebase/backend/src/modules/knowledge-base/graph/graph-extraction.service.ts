@@ -285,10 +285,7 @@ export class GraphExtractionService {
           { role: 'user', content },
         ],
         responseFormat: 'json',
-        jsonSchema: GRAPH_EXTRACTION_JSON_SCHEMA as unknown as Record<
-          string,
-          unknown
-        >,
+        jsonSchema: GRAPH_EXTRACTION_JSON_SCHEMA,
         temperature: 0,
       },
       undefined,
@@ -347,9 +344,7 @@ export class GraphExtractionService {
           continue;
         }
         // ENTITY_TYPES 에 없는 타입은 'other' 로 fallback (DB CHECK 보호 + LLM 환각 방지)
-        const safeType = ENTITY_TYPES.includes(e.type as never)
-          ? e.type
-          : 'other';
+        const safeType = ENTITY_TYPES.includes(e.type) ? e.type : 'other';
         const safeDisplayName =
           safeSlice(e.displayName, MAX_DISPLAY_NAME_LEN) || rawName;
         const safeDescription = e.description
@@ -389,9 +384,7 @@ export class GraphExtractionService {
       // 2) chunk_entity 매핑 (PK 충돌 시 무시 — 같은 chunk 가 같은 entity 를 두 번 언급해도 1회만)
       for (const e of result.entities) {
         const normalizedName = safeSlice(e.name?.toLowerCase(), MAX_NAME_LEN);
-        const safeType = ENTITY_TYPES.includes(e.type as never)
-          ? e.type
-          : 'other';
+        const safeType = ENTITY_TYPES.includes(e.type) ? e.type : 'other';
         const entityId = nameToEntityId.get(`${normalizedName}::${safeType}`);
         if (!entityId) continue;
         await manager.query(
@@ -429,10 +422,10 @@ export class GraphExtractionService {
           );
           continue;
         }
-        const headType = ENTITY_TYPES.includes(headEntry.type as never)
+        const headType = ENTITY_TYPES.includes(headEntry.type)
           ? headEntry.type
           : 'other';
-        const tailType = ENTITY_TYPES.includes(tailEntry.type as never)
+        const tailType = ENTITY_TYPES.includes(tailEntry.type)
           ? tailEntry.type
           : 'other';
         const headId = nameToEntityId.get(`${headName}::${headType}`);

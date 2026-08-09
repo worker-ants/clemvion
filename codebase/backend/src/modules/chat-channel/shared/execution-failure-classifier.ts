@@ -91,7 +91,7 @@ function extractStatusCode(details: unknown): number | undefined {
     details !== null &&
     'statusCode' in details
   ) {
-    const v = (details as { statusCode: unknown }).statusCode;
+    const v = details.statusCode;
     if (typeof v === 'number' && Number.isInteger(v)) {
       return v;
     }

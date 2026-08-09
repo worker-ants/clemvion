@@ -1620,8 +1620,7 @@ export class IntegrationsService {
   ): McpConnectParams {
     const url = credentials.url as string;
     const defaultHeaders = credentials.default_headers as
-      | Record<string, string>
-      | undefined;
+      Record<string, string> | undefined;
     if (authType === 'bearer_token') {
       return {
         authType: 'bearer_token',

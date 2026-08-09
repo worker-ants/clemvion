@@ -1851,8 +1851,7 @@ export class ExecutionEngineService
         // Blocking nodes (form / button / AI multi-turn — downstream 에 존재할 수
         // 있음, 정상 흐름과 동일하게 처리).
         const downstreamOutput = context.nodeOutputCache[node.id] as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         if (downstreamOutput?.status === 'waiting_for_input') {
           // M-4 — park 진입 분기(form/buttons/ai)를 parkEntryRegistry 로 일원화
           // (resume 측 dispatchResumeTurn 과 대칭). Phase B (PR-B1·B2) — resume/retry
@@ -1931,8 +1930,7 @@ export class ExecutionEngineService
     // `readPersistedInteractionType`(= `coalesceInteractionType`) 한 곳 — publisher
     // 표면 가드와 동일 규칙(meta 우선·string-guard)을 재개 경로도 공유한다.
     const cachedOutput = context.nodeOutputCache[opts.node.id] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const persistedInteractionType = readPersistedInteractionType(cachedOutput);
 
     // Multi-turn AI 재개 (§7.5) — `_resumeCheckpoint` (credential-strip 부분집합)
@@ -1945,8 +1943,7 @@ export class ExecutionEngineService
       persistedInteractionType === 'ai_conversation' ||
       persistedInteractionType === 'ai_form_render';
     const resumeCheckpoint = cachedOutput?._resumeCheckpoint as
-      | ResumeCheckpoint
-      | undefined;
+      ResumeCheckpoint | undefined;
     if (isAiConversation && !resumeCheckpoint) {
       throw new RehydrationError(
         'RESUME_INCOMPATIBLE_STATE',
@@ -2358,8 +2355,7 @@ export class ExecutionEngineService
       if (lastNodeId) {
         savedExecution.outputData =
           (context.nodeOutputCache[lastNodeId] as
-            | Record<string, unknown>
-            | undefined) ?? {};
+            Record<string, unknown> | undefined) ?? {};
         savedExecution.finishedAt = new Date();
         savedExecution.durationMs =
           savedExecution.finishedAt.getTime() -
@@ -3438,8 +3434,7 @@ export class ExecutionEngineService
       if (lastNodeId) {
         savedExecution.outputData =
           (context.nodeOutputCache[lastNodeId] as
-            | Record<string, unknown>
-            | undefined) ?? {};
+            Record<string, unknown> | undefined) ?? {};
         savedExecution.finishedAt = new Date();
         savedExecution.durationMs =
           savedExecution.finishedAt.getTime() -
@@ -3974,8 +3969,7 @@ export class ExecutionEngineService
         // Blocking nodes: pause execution until user interaction
         // (same logic as runExecution — Form, Button, AI Conversation)
         const nodeOutput = context.nodeOutputCache[node.id] as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const statusForLog =
           typeof nodeOutput?.status === 'string' ? nodeOutput.status : 'none';
         this.logger.log(
@@ -4545,8 +4539,7 @@ export class ExecutionEngineService
 
         // Blocking nodes: pause execution until user interaction
         const nodeOutput = context.nodeOutputCache[node.id] as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         if (nodeOutput?.status === 'waiting_for_input') {
           // M-4 — park 진입 분기를 parkEntryRegistry 로 일원화. Phase B (PR-B1·B2)
           // — fresh top-level park → 코루틴 해제. PARK_RELEASED 수신 시 세그먼트를
@@ -4928,8 +4921,7 @@ export class ExecutionEngineService
     const structuredType = structuredMeta?.interactionType;
     if (typeof structuredType === 'string') return structuredType;
     const flat = context.nodeOutputCache[nodeId] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const flatType = flat?.interactionType;
     return typeof flatType === 'string' ? flatType : undefined;
   }
@@ -5376,8 +5368,7 @@ export class ExecutionEngineService
     if (!resumeState || typeof resumeState !== 'object') return undefined;
     const s = resumeState;
     const pendingFormToolCall = s.pendingFormToolCall as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     // allow-list invariant — 아래 필드는 credential 을 담지 않는다: `ragSources`/
     // `mcpServers` 는 secret-ref 기반(평문 secret 미포함), `pendingFormToolCall`
     // 은 form schema, `messages` 는 이미 `output.result.messages` 로 평문 영속 중.
@@ -6138,8 +6129,7 @@ export class ExecutionEngineService
     outgoingEdgeMap: Map<string, GraphEdge[]>,
   ): Promise<string | null> {
     const errorEnvelope = (finalOutput as Record<string, unknown>).error as
-      | { code?: unknown; message?: unknown }
-      | undefined;
+      { code?: unknown; message?: unknown } | undefined;
     const errorCode =
       typeof errorEnvelope?.code === 'string' ? errorEnvelope.code : undefined;
     // 외부 서버가 반환한 메시지가 DB(JSONB) 비대화·WS payload 비대화를 일으키지
@@ -6358,8 +6348,7 @@ export class ExecutionEngineService
   private getErrorPolicyConfig(node: Node): ErrorPolicyConfig {
     const config = node.config ?? {};
     const errorHandling = config['errorHandling'] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     if (!errorHandling) {
       return { policy: 'stop_workflow' };
@@ -6371,8 +6360,7 @@ export class ExecutionEngineService
         'stop_workflow',
       defaultOutput: errorHandling['defaultOutput'],
       retryConfig: errorHandling['retryConfig'] as
-        | ErrorPolicyConfig['retryConfig']
-        | undefined,
+        ErrorPolicyConfig['retryConfig'] | undefined,
     };
   }
 
@@ -6782,8 +6770,7 @@ export class ExecutionEngineService
       );
 
       const nodeOutput = context.nodeOutputCache[node.id] as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (nodeOutput?.status === 'waiting_for_input') {
         throw new Error(
           `Blocking node "${node.label ?? node.type}" inside container "${containerNode.label ?? containerNode.type}" is not supported.`,
@@ -7440,8 +7427,7 @@ export class ExecutionEngineService
       }
 
       const nodeOutput = context.nodeOutputCache[node.id] as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (nodeOutput?.status === 'waiting_for_input') {
         throw new Error(
           `PARALLEL_INVALID_CHILD: Blocking node "${node.label ?? node.type}" inside Parallel node "${parallelNode.label ?? parallelNode.type}" is not supported.`,

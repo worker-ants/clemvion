@@ -292,7 +292,7 @@ function presentationButtonPorts(
   return fallbackOutputs.map((p) => ({
     id: p.id,
     label: p.label,
-    type: p.type as ResolvedPortType,
+    type: p.type,
     isUserConfigured: false,
   }));
 }
@@ -329,7 +329,7 @@ export function resolveEffectiveOutputPorts(
     return staticOutputs.map((p) => ({
       id: p.id,
       label: p.label,
-      type: p.type as ResolvedPortType,
+      type: p.type,
       isUserConfigured: false,
     }));
   })();
