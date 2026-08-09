@@ -181,8 +181,9 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
 - [x] `harness-checks.yml`
 - [x] `spec-link-checks.yml`
 - [x] `migration-check.yml`
-- [ ] `review-gate.yml` — **주의**: 전환하면 문서-only PR 에서도 돌게 되므로, 그 경로에서
-      게이트 로직이 정상 통과하는지 먼저 확인할 것
+- [ ] `review-gate.yml` — **선행 조사 완료(2026-08-09), 전환 여부는 사용자 결정 대기.**
+      아래 §review-gate 선행 조사 참조 — 명시된 전제는 통과했으나 **plan 이 예상하지 못한
+      다른 장애물**이 드러났다.
 - [ ] `e2e.yml` — `paths-ignore` 형태라 다른 축. 비용이 가장 크니 마지막
 - [x] **`changes` 잡을 reusable workflow(`workflow_call`)로 추출 — 완료 (2026-08-09)**
       (ai-review W7·W8). `.github/workflows/_changed-paths.yml` 신설, 세 워크플로가
@@ -372,6 +373,57 @@ PROJECT.md §e2e 면제 화이트리스트가 `.claude/**` (skills, hooks, agent
   통일하거나 두 파일이 같은 glob 상수 공유.
 
 - [x] push + PR — [#1114](https://github.com/worker-ants/clemvion/pull/1114)
+
+## review-gate 선행 조사 (2026-08-09)
+
+### 명시된 전제는 **통과**했다
+
+plan 이 요구한 것은 "문서-only PR 경로에서 게이트 로직이 정상 통과하는지" 였다. 임시 저장소
+프로브로 `--enforce` 를 켠 채 실측:
+
+| 브랜치 성격 | exit | 게이트 판정 |
+|---|---|---|
+| 문서-only (`README.md`) | **0** | `no codebase/ changes on this branch — allowed` |
+| plan-only | **0** | 동일 |
+| CI-only (`.github/`) | **0** | 동일 |
+| `codebase/**` 변경 + 리뷰 없음 | **1** | 미커버 → 차단 |
+
+즉 게이트는 `codebase/**` 변경이 없으면 **자기 로직으로** 통과한다 — `paths:` 필터가 막아
+주는 것이 아니다. 전환해도 문서-only PR 이 빨개지지 않고, `codebase/**` PR 에 대한 차단력도
+그대로다.
+
+### 그런데 전환은 **12라운드에 걸쳐 닫은 구멍 두 개를 다시 여는 일**이다
+
+`test_review_gate_ci.py::test_the_expectation_still_describes_a_gate_that_runs` 가 기대값에
+대해 단언하는 것 중 둘이 skip-job 패턴과 **정면으로 충돌**한다:
+
+| 그 단언 | 왜 있는가 (그 파일 기록) | skip-job 패턴이 요구하는 것 |
+|---|---|---|
+| 어떤 step 에도 `if:` 가 없어야 한다 | **3R 우회**: `if: … && false` 로 백스톱이 모든 PR 에서 영구히 꺼졌다 | **모든** step 에 `if:` |
+| `pull_request` 키 집합 == `{paths}` | **4R 우회**: `branches: ['없는-브랜치']`·`types: [closed]` 로 영원히 트리거되지 않았다 | bare `pull_request:` (키 0개) |
+
+셋째로, dependabot 면제가 지금 **job 레벨 `if:`** 다. skip-job 으로 가면 dependabot PR 에서
+그 잡이 `skipped` 가 되는데, **`skipped` 가 required check 를 만족하는가** 라는 모호함이
+이 패턴이 존재하는 이유 그 자체다. 그래서 면제를 step 레벨 **복합 조건**으로 옮겨야 하고,
+그 형태가 하필 **2R 우회**(`(actor == 'dependabot[bot]') != false`)가 살던 자리다.
+
+### 그리고 이 워크플로를 required check 로 요구한 plan 은 **없다**
+
+`§사용자 액션` 등록 표에 review-gate 는 없다(실측: 의존성 보안 · `--frozen-lockfile` ·
+backend · 내부 패키지 · 웹채팅 · 하네스 · spec 링크 · 마이그레이션). 이 층은 **로컬 훅의
+백스톱**이지 머지 게이트로 등록하려던 대상이 아니었다. required 로 안 걸면 데드락도 없고,
+`paths:` 필터를 걷을 이유 자체가 사라진다.
+
+**→ 전환은 이득이 불분명하고 비용이 명확하다. 사용자 결정 항목으로 올린다.**
+
+### 부수 — 이 조사가 찾은 진짜 결함 (수정함)
+
+`review-gate.yml` 헤더 주석이 **"현재 관측 모드다(`--enforce` 없음) … 켤 때는 아래 `run:` 에
+`--enforce` 를 붙인다"** 라고 적혀 있었는데, `#1097`(`cdf3b6832`, 2026-08-07)이 이미
+`--enforce` 로 전환했다. **코드는 켜져 있는데 문서는 꺼져 있다고 말하는 상태**가 남아 있었다.
+읽는 사람이 이 층을 조언으로 믿게 되는데 실제로는 머지를 막으므로 방향이 정확히 반대다.
+주석을 정정하고, 되돌릴 때 마주칠 단언(`assertIn("--enforce", ...)`)까지 함께 적었다.
+(YAML 주석은 파싱에 안 남아 `WorkflowWiringTest` 기대값은 영향 없음 — 19 tests OK.)
 
 ## 사용자 액션 (이 PR 머지 후)
 
