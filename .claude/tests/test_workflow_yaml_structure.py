@@ -200,6 +200,13 @@ class WorkflowStructureTest(unittest.TestCase):
         ("backend-checks.yml", "lint"): "${{ !cancelled() }}",
         ("backend-checks.yml", "unit"): "${{ !cancelled() }}",
         ("backend-checks.yml", "typecheck-ratchet"): "${{ !cancelled() }}",
+        ("harness-checks.yml", "unittest"): "${{ !cancelled() }}",
+        ("migration-check.yml", "guard"): "${{ !cancelled() }}",
+        ("packages-checks.yml", "packages"): "${{ !cancelled() }}",
+        ("spec-link-checks.yml", "spec-link-integrity"): "${{ !cancelled() }}",
+        ("web-chat-checks.yml", "sdk"): "${{ !cancelled() }}",
+        ("web-chat-checks.yml", "sdk-client"): "${{ !cancelled() }}",
+        ("web-chat-checks.yml", "widget"): "${{ !cancelled() }}",
     }
 
     # step 레벨 `if:` 도 같은 자리다. job 은 등재제로 막고 step 은 안 막은 것이 6R CRITICAL
@@ -226,6 +233,11 @@ class WorkflowStructureTest(unittest.TestCase):
         "backend-checks.yml",
         "deps-security-checks.yml",
         "frontend-checks.yml",
+        "harness-checks.yml",
+        "migration-check.yml",
+        "packages-checks.yml",
+        "spec-link-checks.yml",
+        "web-chat-checks.yml",
     }
 
     def test_job_conditions_are_registered(self):
@@ -291,12 +303,12 @@ class WorkflowStructureTest(unittest.TestCase):
         "deps-security-checks.yml": set(),
         "e2e.yml": {"paths-ignore"},
         "frontend-checks.yml": set(),
-        "harness-checks.yml": {"paths"},
-        "migration-check.yml": {"paths"},
-        "packages-checks.yml": {"paths"},
+        "harness-checks.yml": set(),
+        "migration-check.yml": set(),
+        "packages-checks.yml": set(),
         "review-gate.yml": {"paths"},
-        "spec-link-checks.yml": {"paths"},
-        "web-chat-checks.yml": {"paths"},
+        "spec-link-checks.yml": set(),
+        "web-chat-checks.yml": set(),
     }
 
     def test_pull_request_trigger_shape_is_registered(self):

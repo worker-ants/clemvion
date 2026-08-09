@@ -264,10 +264,32 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
       시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
       라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정했다(실측: `CONVERTED` 3건).
-- [ ] **셋업 보일러플레이트(checkout·pnpm·setup-node·install 5단계) 추출은 별도** —
+- [ ] **셋업 보일러플레이트(checkout·pnpm·setup-node·install) 추출은 별도** —
       위 추출은 `changes` 잡만 가져갔다. 셋업은 잡마다 필요한 도구가 달라(python 유무,
       캐시 키) composite action 쪽이 맞는데, 그 판단은 4번째 워크플로가 어떤 셋업을
       요구하는지 보고 하는 편이 낫다. **범위를 쪼개 남긴다** (ai-review WARNING #1).
+
+      > **트리거 도달 + 실측 (2026-08-09,
+      > [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 나머지 5개 전환).**
+      > 전환 완료 시점 8워크플로 / 실잡 14개(`changes` 제외)를 셋업 형태로 분류한 결과:
+      >
+      > | 셋업 형태 | 잡 수 |
+      > |---|---|
+      > | `checkout` + `pnpm` + `setup-node(cache)` + `pnpm install --filter` | **8** |
+      > | 위 + `setup-python` (backend `typecheck-ratchet`) | 1 |
+      > | 나머지(python-only · pip · 캐시 없는 node · `fetch-depth: 0`) | 5 |
+      >
+      > **위에 적어 둔 "잡마다 도구가 달라" 는 절반이 반증됐다** — 8개는 `--filter` 인자
+      > 하나만 다른 바이트 동일 형태다(frontend · backend lint · backend unit · packages ·
+      > web-chat 3잡 · spec-link). 발산하는 것은 나머지 5개뿐이다. 즉 **추출은 정당하다.**
+      >
+      > 그럼에도 그 전환 PR 에 넣지 않은 이유는 난이도가 아니라 **축**이다 — 그 PR 이
+      > 건드리지 않는 워크플로 3개(frontend · backend · deps)를 함께 고쳐야 하고, 깨지면
+      > required check 후보 8개가 한꺼번에 죽는다. `#1111` 이 `changes` 추출을 트리거 직후
+      > **별 PR** 로 집행한 것과 같은 형태로 남긴다. 남은 것은 착수뿐이고 실측은 끝났다.
+      >
+      > 유의점 하나: 로컬 composite action 은 `uses: ./.github/actions/<name>` 이라
+      > **checkout 이 먼저 돌아야 한다** — 접히는 것은 4단계가 아니라 뒤 3단계다.
 - [x] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
       각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
       **완료 (2026-08-09, planner 턴)** — "Trigger 삭제" 행에 prefix 불변식 2건(`secret://`

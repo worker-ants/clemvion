@@ -54,6 +54,11 @@ CONVERTED = [
     "backend-checks.yml",
     "deps-security-checks.yml",
     "frontend-checks.yml",
+    "harness-checks.yml",
+    "migration-check.yml",
+    "packages-checks.yml",
+    "spec-link-checks.yml",
+    "web-chat-checks.yml",
 ]
 
 # 세 워크플로가 공유하는 `changes` 잡의 reusable workflow. 판정 wiring 이 여기 한 곳에
@@ -72,6 +77,23 @@ def triggers(doc):
     return doc.get(True) if True in doc else doc.get("on")
 
 
+def parse_pathspecs(block):
+    """블록 스칼라 본문 → pathspec 목록. **런타임(`_changed-paths.yml`)과 같은 규칙.**
+
+    빈 줄과 `#` 로 시작하는 줄을 버리고 앞뒤 공백을 뗀다. 이 셋이 어긋나면 가드와 런타임의
+    판정이 갈려서, 목록은 통과하는데 실제로는 그 pathspec 이 조용히 무력화된다 — 이 파일이
+    통째로 막으려는 클래스다. `#` 를 버리는 쪽은 블록 스칼라에 YAML 주석이 없기 때문이고
+    (전부 본문이다), 그래서 항목별 근거를 pathspec 옆에 둘 수 있다.
+    """
+    out = []
+    for line in block.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        out.append(line)
+    return out
+
+
 def pathspecs_of(name):
     """호출부가 공유 판정 워크플로에 넘기는 pathspec **목록**.
 
@@ -80,7 +102,39 @@ def pathspecs_of(name):
     무엇보다 substring 은 **주석에 적힌 경로도 통과시킨다.** 파싱해서 실제 원소로 본다.
     """
     with_ = (load(name).get("jobs", {}).get("changes") or {}).get("with") or {}
-    return [line.strip() for line in (with_.get("pathspecs") or "").splitlines() if line.strip()]
+    return parse_pathspecs(with_.get("pathspecs") or "")
+
+
+class PathspecParsingTest(unittest.TestCase):
+    """블록 스칼라 → 인자 배열 정규화를 **런타임과 같은 규칙**으로 고정한다.
+
+    `_changed-paths.yml` 의 `read` 루프가 하는 일과 한 글자라도 갈리면, 이 파일의 등재
+    단언은 통과하는데 러너에서는 그 pathspec 이 빠진다(조용한 게이팅 상실). 실행 층은
+    `test_changed_paths_reusable.py` 가 실제 bash 로 확인하고, 여기서는 파서 쪽을 못 박는다.
+    """
+
+    def test_drops_blank_and_comment_lines_and_strips(self):
+        self.assertEqual(
+            parse_pathspecs("a/**\n\n  # 왜 등재했는가\n  b.yaml  \n"),
+            ["a/**", "b.yaml"],
+        )
+
+    def test_a_hash_that_is_not_line_initial_stays(self):
+        """줄 **시작**의 `#` 만 주석이다 — 런타임의 `case "$spec" in '#'*)` 와 동일."""
+        self.assertEqual(parse_pathspecs("dir/a#b.txt\n"), ["dir/a#b.txt"])
+
+    def test_no_converted_workflow_leaks_a_comment_as_a_pathspec(self):
+        """주석이 pathspec 으로 새면 git 이 아무것도 못 맞히는 인자가 하나 늘 뿐이지만,
+        `test_no_filter_is_dead` 류 대조에서 목록이 실제보다 넓어 보이게 만든다."""
+        for name in CONVERTED:
+            with self.subTest(workflow=name):
+                specs = pathspecs_of(name)
+                self.assertTrue(specs, f"{name}: pathspec 이 0개다")
+                self.assertEqual(
+                    [s for s in specs if s.startswith("#")],
+                    [],
+                    f"{name}: 주석 줄이 pathspec 으로 새어 나왔다",
+                )
 
 
 class RequiredCheckSkipJobContractTest(unittest.TestCase):

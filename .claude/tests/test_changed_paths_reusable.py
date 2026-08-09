@@ -104,6 +104,31 @@ class ArgumentSplittingTest(unittest.TestCase):
         proc = run_with("a.yaml\n   \nb.yaml\n")
         self.assertEqual(argv(proc), ["a.yaml", "b.yaml"])
 
+    def test_comment_lines_are_dropped(self):
+        """**블록 스칼라 안에는 YAML 주석이 없다** — `#` 줄도 전부 본문으로 건너온다.
+
+        떼지 않으면 근거 주석이 pathspec 인자가 되어 목록이 실제보다 넓어 보이고, 가드
+        (`pathspecs_of`)와 런타임이 서로 다른 목록을 보게 된다. 항목별 "왜 등재했는가" 를
+        pathspec 바로 옆에 두려면 이 층이 떼는 수밖에 없다 — `harness-checks.yml` 의
+        목록은 그 인접성이 여섯 번의 커버리지 갭에 대한 유일한 대응책이다.
+        """
+        proc = run_with("a.yaml\n# 왜 등재했는가\n  # 들여쓴 주석도 마찬가지\nb.yaml\n")
+        self.assertIn("ARGC=2", proc.stdout, proc.stdout)
+        self.assertEqual(argv(proc), ["a.yaml", "b.yaml"])
+
+    def test_a_hash_that_is_not_line_initial_survives(self):
+        """줄 **시작**의 `#` 만 주석이다. 경로 안의 `#` 를 떼면 그 pathspec 이 조용히
+        다른 것이 되어, 주석 제거가 게이팅을 깎는 쪽으로 작동한다."""
+        proc = run_with("dir/a#b.txt\n")
+        self.assertEqual(argv(proc), ["dir/a#b.txt"])
+
+    def test_a_list_of_only_comments_fails_closed(self):
+        """주석만 남으면 판정 대상이 0개다 — 빈 입력과 같은 자리로 떨어져야 한다.
+        조용히 통과하면 그 워크플로의 모든 검사가 영구히 no-op 된다."""
+        proc = run_with("# 전부 주석\n#\n")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("비었다", proc.stdout + proc.stderr)
+
     def test_empty_input_fails_closed(self):
         """pathspec 이 하나도 없으면 판정 대상이 0개다 — 조용히 통과시키면 그 워크플로의
         모든 검사가 영구히 no-op 된다. 사유를 남기고 비-0 으로 끝나야 한다."""
