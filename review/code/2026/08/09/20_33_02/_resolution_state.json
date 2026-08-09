@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "started_at": "2026-08-09T20:33:02Z",
+  "summary_items_total": 4,
+  "items_resolved_ids": [1, 2, 3, 4],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "5b7ada443", "summary_id": 1, "scope": "ci-docs"},
+    {"sha": "5b7ada443", "summary_id": 2, "scope": "ci-tests"},
+    {"sha": "5b7ada443", "summary_id": 3, "scope": "ci-tests"},
+    {"sha": "8ed9a43c2", "summary_id": 4, "scope": "plan"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260809-210129.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
