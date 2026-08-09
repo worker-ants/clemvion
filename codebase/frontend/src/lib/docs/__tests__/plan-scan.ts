@@ -173,11 +173,12 @@ function isIsoDate(text: string | null): boolean {
   const [, y, mo, d] = m;
   const parsed = new Date(`${y}-${mo}-${d}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return false;
-  return (
-    parsed.getUTCFullYear() === Number(y) &&
-    parsed.getUTCMonth() + 1 === Number(mo) &&
-    parsed.getUTCDate() === Number(d)
-  );
+  // 라운드트립 비교는 **"일" 하나면 충분하다**(실측). 월이 범위를 벗어나면
+  // (`2026-13-01`·`2026-00-01`) ISO 파싱이 NaN 을 주고, 일이 넘치면(`2026-02-30` → 3/2)
+  // 월과 일이 **항상 함께** 틀어진다. 연은 4자리 정규식을 통과한 이상 어긋날 수 없다.
+  // 연·월 비교를 함께 두면 그 둘은 어떤 입력으로도 관측되지 않는 죽은 분기가 된다
+  // (뮤테이션으로 발각: 각각을 지워도 나머지가 막아 스위트가 초록이었다).
+  return parsed.getUTCDate() === Number(d);
 }
 
 export type FrontmatterViolationKind =
