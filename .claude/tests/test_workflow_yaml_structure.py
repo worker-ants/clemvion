@@ -188,6 +188,15 @@ class WorkflowStructureTest(unittest.TestCase):
     # 아무 가드도 없던 것이 5R CRITICAL 이었다.
     _JOB_CONDITIONS = {
         ("review-gate.yml", "gate"): "github.actor != 'dependabot[bot]'",
+        # skip-job 패턴: `changes` 잡이 실패/오류여도 하위 잡은 돈다. `needs` 실패로
+        # 하위 잡이 `skipped` 되면 "skipped 가 required check 를 만족하는가" 라는 —
+        # 이 패턴이 정확히 피하려는 — 모호함이 다른 경로로 재발하기 때문이다.
+        # `always()` 가 아니라 `!cancelled()` 인 이유: 워크플로가 취소됐을 때까지
+        # 러너를 잡아둘 이유는 없다.
+        ("deps-security-checks.yml", "config-guard"): "${{ !cancelled() }}",
+        ("deps-security-checks.yml", "audit"): "${{ !cancelled() }}",
+        ("deps-security-checks.yml", "override-floors"): "${{ !cancelled() }}",
+        ("frontend-checks.yml", "test-and-build"): "${{ !cancelled() }}",
     }
 
     # step 레벨 `if:` 도 같은 자리다. job 은 등재제로 막고 step 은 안 막은 것이 6R CRITICAL
@@ -198,8 +207,8 @@ class WorkflowStructureTest(unittest.TestCase):
     # **잡은 항상 돌려** success 를 보고하게 하는 것이 핵심이라, 조건 문자열이 이 두 형태에서
     # 벗어나면 등재가 깨지도록 고정한다. 계약 전문·왜 잡을 skip 하지 않는지는
     # `.claude/tests/test_required_check_skip_jobs.py` 와 `scripts/ci-paths-changed.sh`.
-    _SKIP_JOB_RUN = "needs.changes.outputs.relevant == 'true'"
-    _SKIP_JOB_NOOP = "needs.changes.outputs.relevant != 'true'"
+    _SKIP_JOB_RUN = "needs.changes.outputs.relevant != 'false'"
+    _SKIP_JOB_NOOP = "needs.changes.outputs.relevant == 'false'"
 
     _STEP_CONDITIONS = {
         ("e2e.yml", "Collect docker logs on failure"): "failure()",

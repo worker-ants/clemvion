@@ -55,6 +55,10 @@ jobs:
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # push 에도 실제 diff 를 넘긴다 — 안 넘기면 main 으로의 모든 push 가
+          # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.event.after }}
         run: |
           scripts/ci-paths-changed.sh \
             'pnpm-workspace.yaml' \
@@ -69,78 +73,87 @@ jobs:
   config-guard:
     name: pnpm 보안 설정 스냅샷 가드
     needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
-        if: needs.changes.outputs.relevant != 'true'
+        if: needs.changes.outputs.relevant == 'false'
         run: echo "의존성 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
       - uses: actions/setup-python@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         with:
           python-version: '3.x'
       - name: Install PyYAML
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         # 재현성 위해 major 고정 (deps 재현성 원칙과 정렬). scripts/ 중 유일한 non-stdlib 의존.
         run: pip install "pyyaml>=6,<7"
       - name: Check pnpm security config
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         run: python3 scripts/check-pnpm-security-config.py
 
   audit:
     name: pnpm audit (moderate+)
     needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
-        if: needs.changes.outputs.relevant != 'true'
+        if: needs.changes.outputs.relevant == 'false'
         run: echo "의존성 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
       - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
       - uses: actions/setup-node@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         with:
           node-version: '24'
       # audit 은 pnpm-lock.yaml + auditConfig(pnpm-workspace.yaml) 를 읽어 레지스트리에
       # 질의한다(node_modules 설치 불요). 수용 CVE 는 auditConfig.ignoreCves 로 제외되어
       # 신규 moderate+ 취약점만 실패시킨다.
       - name: pnpm audit
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm audit --audit-level=moderate
 
   override-floors:
     name: override 바닥 침식 검출
     needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
-        if: needs.changes.outputs.relevant != 'true'
+        if: needs.changes.outputs.relevant == 'false'
         run: echo "의존성 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
       - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
       - uses: actions/setup-node@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         with:
           node-version: '24'
       - uses: actions/setup-python@v7
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         with:
           python-version: '3.x'
       - name: Install PyYAML
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         run: pip install "pyyaml>=6,<7"
       # audit 잡과 **별개 잡**이다. audit 은 "새로 발견된 취약점" 전체를 보고, 본 잡은 그중
       # **override 로 이미 관리하겠다고 선언한 패키지**만 좁혀 본다 — 전자는 상향 가능한지·
       # 수용할지 판단이 필요하고, 후자는 값만 올리면 되는 것이라 조치 가능성이 다르다.
       # 한 목록에 섞이면 후자가 묻힌다(#1038 이 17건 중 4건으로 정확히 그 상태였다).
       - name: Check override floors
-        if: needs.changes.outputs.relevant == 'true'
+        if: needs.changes.outputs.relevant != 'false'
         run: python3 scripts/check-override-floors.py

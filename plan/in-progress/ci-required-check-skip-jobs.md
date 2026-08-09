@@ -54,11 +54,15 @@ schedule / base SHA 부재 / merge-base 실패 3경로 전부 → `true`.
 
 ## 가장 위험한 회귀 — `needs: changes` 누락
 
-`needs` 가 빠지면 `needs.changes.outputs.relevant` 가 **빈 문자열**이 되고 `!= 'true'` 가
-참이 되어 **모든 스텝이 no-op** 으로 건너뛰어진다. 체크는 초록인데 아무것도 검사하지 않는다.
-
-`.claude/tests/test_required_check_skip_jobs.py` 가 이것을 별도 테스트로 잡는다
+`needs` 가 빠지면 `needs.changes.outputs.relevant` 가 **빈 문자열**이 되어 의도한 게이팅이
+사라진다. `.claude/tests/test_required_check_skip_jobs.py` 가 이것을 별도 테스트로 잡는다
 (뮤테이션 3/3 RED: 게이팅 제거 · `needs` 제거 · `paths` 되살림).
+
+> **조건 방향 (ai-review W3 반영)**: 게이팅은 `== 'true'` 가 아니라 **`!= 'false'`** 다.
+> `changes` 가 실패하면 출력이 빈 문자열인데 그때 실제 검사가 **돌아야** 하기 때문이다.
+> `== 'true'` 였다면 빈 값에서 전부 no-op 이 되어 "초록인데 아무것도 검사하지 않는" 상태가
+> 된다. 하위 잡에 `if: ${{ !cancelled() }}` 를 단 것도 같은 이유 — `needs` 실패로 잡이
+> `skipped` 되면 이 패턴이 피하려던 모호함이 다른 경로로 되돌아온다.
 
 ## 기존 가드와의 결속
 
@@ -78,7 +82,14 @@ schedule / base SHA 부재 / merge-base 실패 3경로 전부 → `true`.
       > **e2e 를 돌린 이유**: 변경 set 에 `scripts/ci-paths-changed.sh` 가 있는데
       > `scripts/**` 는 `PROJECT.md §e2e 면제 화이트리스트` **밖**이다. "CI 스크립트라
       > e2e 와 무관" 은 자가 영향 추정이고, 화이트리스트는 부분집합 판정이지 판단이 아니다.
-- [ ] `/ai-review` + Critical·Warning 해소
+- [x] `/ai-review` — **Critical 0 · WARNING 10 → 8건 수정 · 2건 후속**
+      (`review/code/2026/08/09/11_40_34`, reviewer 14/14). 특히 W1·W2 는 **이 PR 이
+      막으려는 것과 같은 클래스를 초판이 재현한 것**이었다:
+      W1 판정 스크립트의 fail-safe 를 실행 검증하는 테스트 부재(→ `test_ci_paths_changed.py`
+      16건 신설, 뮤테이션 2 RED) · W2 그 스크립트가 `harness-checks.yml` paths 에 미등재
+      (→ 등재). W3 은 `changes` 실패 시 하위 잡이 skipped 가 되어 모호함이 재발하는
+      구멍이라 `!cancelled()` + 조건 반전(`!= 'false'`)으로 닫았다(뮤테이션 6 RED).
+      W4 push 광역화, W5 레지스트리 3중 비바인딩, W6 step id 오타 미검출도 수정.
 - [ ] push + PR
 
 ## 후속 — 나머지 8개 워크플로 (별 항목)
@@ -95,6 +106,10 @@ schedule / base SHA 부재 / merge-base 실패 3경로 전부 → `true`.
 - [ ] `review-gate.yml` — **주의**: 전환하면 문서-only PR 에서도 돌게 되므로, 그 경로에서
       게이트 로직이 정상 통과하는지 먼저 확인할 것
 - [ ] `e2e.yml` — `paths-ignore` 형태라 다른 축. 비용이 가장 크니 마지막
+- [ ] **3번째 전환 시점에 `changes` 잡을 reusable workflow(`workflow_call`)로 추출**
+      (ai-review W7·W8). 지금은 wiring 이 두 파일에 복제돼 있고 `fetch-depth: 0` 전체
+      clone 을 워크플로마다 지불한다. reviewer 자신이 "3번째 시점에 검토" 를 권고했고,
+      2개 시점에 추상화하면 아직 안 드러난 변형을 추측으로 설계하게 된다.
 - [ ] `migration-recheck-on-main.yml` — **대상 아님**(push 전용, PR 체크가 아니다)
 
 ## 사용자 액션 (이 PR 머지 후)

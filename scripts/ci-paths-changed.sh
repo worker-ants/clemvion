@@ -44,15 +44,36 @@ emit() {
   echo "relevant=$1"
 }
 
-# PR 이 아니면(schedule·workflow_dispatch·push) 비교 기준이 불분명하다 → 돌린다.
-if [[ "${GITHUB_EVENT_NAME:-}" != "pull_request" ]]; then
-  echo "!! event=${GITHUB_EVENT_NAME:-unknown} — diff 비교 대상이 없어 검사를 수행한다(fail-safe)."
-  emit true
-  exit 0
-fi
-
-BASE_SHA="${PR_BASE_SHA:-}"
-HEAD_SHA="${PR_HEAD_SHA:-}"
+# 이벤트별 비교 기준.
+#
+# - pull_request : base…head (merge-base 로 정규화)
+# - push         : before…after. 종전 `on.push.paths` 필터가 하던 일을 대신한다 —
+#                  넘겨주지 않으면 main 으로의 **모든** push(문서·plan 머지 포함)가
+#                  전체 잡을 돌려 목적 범위를 넘는 광역화가 된다(ai-review W4).
+#                  first push·force-push 는 before 가 0으로 채워져 오는데, 그때는
+#                  비교 기준이 없으므로 fail-safe 로 떨어진다.
+# - 그 외        : schedule·workflow_dispatch 등 — 비교 대상 자체가 없다 → 돌린다.
+case "${GITHUB_EVENT_NAME:-}" in
+  pull_request)
+    BASE_SHA="${PR_BASE_SHA:-}"
+    HEAD_SHA="${PR_HEAD_SHA:-}"
+    ;;
+  push)
+    BASE_SHA="${PUSH_BEFORE_SHA:-}"
+    HEAD_SHA="${PUSH_AFTER_SHA:-}"
+    # all-zero 는 "부모 없음"(브랜치 신규 생성) 신호다.
+    if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+      echo "!! push before=0…0 (신규 브랜치) — 검사를 수행한다(fail-safe)."
+      emit true
+      exit 0
+    fi
+    ;;
+  *)
+    echo "!! event=${GITHUB_EVENT_NAME:-unknown} — diff 비교 대상이 없어 검사를 수행한다(fail-safe)."
+    emit true
+    exit 0
+    ;;
+esac
 
 if [[ -z "$BASE_SHA" || -z "$HEAD_SHA" ]]; then
   echo "!! base/head SHA 를 받지 못했다 — 검사를 수행한다(fail-safe)."

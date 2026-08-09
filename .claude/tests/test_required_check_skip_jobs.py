@@ -15,16 +15,29 @@ success 로 보고되어 required check 가 통과한다.
 skip 된 잡의 conclusion 은 `skipped` 이고 그것이 required check 를 만족하는지는 문서상
 모호하다. 그 모호함에 기대면 이 패턴이 없애려는 데드락이 그대로 재발한다.
 
+같은 이유로 하위 잡은 `if: ${{ !cancelled() }}` 를 달아 **`changes` 가 실패해도 돈다** —
+`needs` 실패로 skip 되면 그 모호함이 다른 경로로 되돌아온다(ai-review W3).
+
+## 조건 문자열의 방향 (`!= 'false'`, `== 'false'`)
+
+`== 'true'` 가 아니라 **`!= 'false'`** 로 게이팅한다. `changes` 가 실패하면 출력이 빈
+문자열이 되는데, 그때 실제 검사가 **돌아야** 하기 때문이다(fail-safe). `== 'true'` 였다면
+빈 값에서 전부 no-op 이 되어 "초록인데 아무것도 검사하지 않는" 상태가 된다.
+
 ## 이 가드가 잡는 회귀
 
 1. 누군가 `paths:` 를 되살린다 → 데드락 복귀
 2. 스텝을 추가하면서 `if:` 게이팅을 빠뜨린다 → **무관한 PR 에서 그 스텝이 실제로 실행**된다
    (조용한 오작동이라 로그를 안 보면 모른다)
 3. `needs: changes` 를 빠뜨린다 → `needs.changes.outputs` 가 비어 게이팅이 무력화된다
+4. `changes.outputs.relevant` 가 엉뚱한 스텝을 가리킨다(step id 오타) → 같은 결과
+5. 두 파일의 전환 목록이 어긋난다 → 한쪽 가드가 그 워크플로를 안 본다
 
-3번이 특히 위험하다: `needs` 가 없으면 `needs.changes.outputs.relevant` 는 빈 문자열이라
-`!= 'true'` 가 참이 되어 **모든 스텝이 no-op 으로 건너뛰어진다** — 체크는 초록인데 아무것도
-검사하지 않는 상태다. 정확히 이 저장소가 반복해 데인 "게이트가 조용히 안 도는" 실패다.
+3·4번은 **fail-safe 방향 덕에 "전부 실행"** 으로 떨어지지만(안전), 의도한 게이팅이
+사라진 상태라 여전히 회귀다 — 비용은 CI 시간이고 조용하다.
+
+판정 스크립트 자체의 실행 검증은 `test_ci_paths_changed.py` 가 담당한다(임시 git 저장소 +
+subprocess). 이 파일은 **워크플로 배선**만 본다.
 """
 
 import pathlib
@@ -52,7 +65,7 @@ def triggers(doc):
     return doc.get(True) if True in doc else doc.get("on")
 
 
-class RequiredCheckSkipJobContract(unittest.TestCase):
+class RequiredCheckSkipJobContractTest(unittest.TestCase):
     def test_the_converted_list_is_not_empty(self):
         """vacuity 방지 — 목록이 비면 아래 테스트가 전부 헛통과한다."""
         self.assertTrue(CONVERTED, "CONVERTED 가 비었다")
@@ -75,14 +88,51 @@ class RequiredCheckSkipJobContract(unittest.TestCase):
                     )
 
     def test_changes_job_publishes_relevant(self):
+        """키 존재만이 아니라 **값이 실제 스텝을 가리키는지**까지 본다.
+
+        초판은 존재만 봤다 — step id 오타(`steps.detekt.outputs.relevant`)가 있어도
+        통과했고, 그 경우 출력이 빈 문자열이라 게이팅이 통째로 무력화된다
+        (ai-review W6). 참조 문자열과 `id:` 를 함께 단언한다.
+        """
         for name in CONVERTED:
             with self.subTest(workflow=name):
                 jobs = load(name).get("jobs", {})
                 self.assertIn("changes", jobs, f"{name}: changes 잡이 없다")
                 outputs = jobs["changes"].get("outputs") or {}
-                self.assertIn(
-                    "relevant", outputs, f"{name}: changes.outputs.relevant 가 없다"
+                self.assertEqual(
+                    outputs.get("relevant"),
+                    "${{ steps.detect.outputs.relevant }}",
+                    f"{name}: changes.outputs.relevant 가 detect 스텝을 가리키지 않는다",
                 )
+                step_ids = {s.get("id") for s in jobs["changes"].get("steps", [])}
+                self.assertIn(
+                    "detect",
+                    step_ids,
+                    f"{name}: changes 잡에 `id: detect` 스텝이 없다 — "
+                    "출력이 빈 문자열이 되어 게이팅이 무력화된다",
+                )
+
+    def test_the_two_registries_agree(self):
+        """전환 목록이 두(사실상 3) 곳에 독립 존재해 한쪽만 갱신해도 조용히 통과했다.
+
+        `test_workflow_yaml_structure.py` 의 `_SKIP_JOB_WORKFLOWS`·`_PULL_REQUEST_KEYS`
+        (빈 집합 항목)와 이 파일의 `CONVERTED` 가 같은 집합을 가리켜야 한다 —
+        어긋나면 어느 한쪽 가드가 그 워크플로를 안 본다 (ai-review W5).
+        """
+        import test_workflow_yaml_structure as wys
+
+        cls = wys.WorkflowStructureTest
+        self.assertEqual(
+            set(CONVERTED),
+            set(cls._SKIP_JOB_WORKFLOWS),
+            "CONVERTED 와 _SKIP_JOB_WORKFLOWS 가 어긋난다",
+        )
+        bare = {k for k, v in cls._PULL_REQUEST_KEYS.items() if v == set()}
+        self.assertEqual(
+            set(CONVERTED),
+            bare,
+            "CONVERTED 와 `_PULL_REQUEST_KEYS` 의 빈-집합(bare pull_request) 항목이 어긋난다",
+        )
 
     def test_every_other_job_needs_changes(self):
         """needs 가 빠지면 게이팅이 무력화돼 **모든 스텝이 조용히 건너뛰어진다**."""
@@ -132,13 +182,13 @@ class RequiredCheckSkipJobContract(unittest.TestCase):
                 if jid == "changes":
                     continue
                 has_announce = any(
-                    "!= 'true'" in str(s.get("if", "")) for s in job.get("steps", [])
+                    "== 'false'" in str(s.get("if", "")) for s in job.get("steps", [])
                 )
                 with self.subTest(workflow=name, job=jid):
                     self.assertTrue(
                         has_announce,
                         f"{name}:{jid} 에 no-op 안내 스텝이 없다 "
-                        "(`if: needs.changes.outputs.relevant != 'true'`)",
+                        "(`if: needs.changes.outputs.relevant == 'false'`)",
                     )
 
     def test_detect_script_exists_and_is_executable(self):
