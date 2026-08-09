@@ -48,4 +48,5 @@ plan 트리 스캔 + 라이프사이클 불변식을 **테스트 밖에서 부�
 
 - 문서 가드 **19파일 / 2839 tests PASS** (2828 → 2839, fixture 11건 증가)
 - 뮤테이션 6/6 RED
-- e2e — 아래 줄
+- **e2e 통과** (293s, tests=264). 면제 아님 — 변경 set 에 codebase/frontend 4파일.
+- harness **995 tests OK**
