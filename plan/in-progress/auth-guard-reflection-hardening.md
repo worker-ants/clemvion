@@ -135,7 +135,15 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       `git worktree list` 로 확인해 정정**했다.
 - [x] TEST WORKFLOW 재수행 (fix 후) — lint PASS(51s) · unit PASS(77s) · build PASS(144s) ·
       **e2e PASS(283s, jest 261 + playwright 51)** · common/ 345 tests OK
-- [ ] `--impl-done` (spec-linked 코드 변경 있음)
+- [x] `/consistency-check --impl-done spec/5-system/` — **BLOCK: NO** (5/5 checker,
+      `review/consistency/2026/08/09/15_09_04`). WARNING 2건은 **spec 쓰기 항목**이라
+      §후속 planner 턴으로 넘겼다(코드가 spec 을 어긴 게 아니라 spec 이 새 케이스를
+      아직 안 적은 incompleteness).
+      > **첫 세션은 폐기했다** — `spec/5-system/` 번들이 1.2MB 라 기본 예산(262144)에서
+      > **diff 가 통째로 잘려 나갔다**(프롬프트에서 신규 코드 grep **0건**, 실측). 그대로
+      > 돌렸으면 "코드를 안 본 채 BLOCK:NO" 라는 거짓 통과였다. `CONSISTENCY_MAX_CONTEXT_SIZE=2600000`
+      > 으로 재생성해 diff 23회·`1-auth.md` 54회 등장을 확인하고 실행했다. 빈 세션
+      > 디렉토리가 게이트를 거짓 통과시키는 것도 알려진 함정이라 폐기 세션은 지웠다.
 - [ ] push + PR
 
 ## 부수 — plan 위생 1건 (`--impl-prep` plan_coherence INFO #6)
@@ -157,6 +165,23 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 > 별 PR 은 `plan-lifecycle.md §3` 이 금지하므로 인접 PR 에 싣는 것이 정본 경로다.
 
 ## 후속 (이 PR 밖)
+
+**planner 턴 필요 — `spec/` 쓰기** (`--impl-done` WARNING 2건, BLOCK:NO 지만 반영 대상):
+
+- [ ] `spec/5-system/3-error-handling.md §1.3` 에 행 추가 — "`X-Workspace-Id` 헤더가
+      **있으나 UUID 형태가 아님** → `VALIDATION_ERROR`(400)". 기존
+      `WORKSPACE_ID_REQUIRED`(둘 다 **부재**)와 구분되는 제3의 케이스인데 카탈로그가
+      비어 있다. `15-chat-channel.md §5.4` 가 §1.3 을 canonical 로 인용하므로 파급 확인.
+- [ ] `spec/5-system/1-auth.md` frontmatter `code:` 글로브에 이번에 경화한 표면 추가 —
+      `common/decorators/*.ts`(데코레이터 + 신설 캐너리) · `common/utils/workspace-context.util.ts` ·
+      `common/utils/uuid.ts`. 현재 `common/guards/*.ts` 만 있어 **evidence 사슬이 비어
+      있다**(`spec-code-paths.test.ts` 는 guards 글로브로 이미 충족돼 통과하므로 CI 가
+      못 잡는다).
+
+> 둘 다 developer 권한 밖이라 이 PR 에서 하지 않는다. 코드가 spec 을 어긴 것이 아니라
+> **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니다.
+
+**developer 범위:**
 
 - [ ] backend `README.md` §배포 주의 에 **부팅 캐너리가 기동을 멈출 수 있다**는 사실 추가
       (ai-review INFO 18). 이 PR 은 CHANGELOG·JSDoc·plan 세 곳에 적었으나 배포 담당자가
