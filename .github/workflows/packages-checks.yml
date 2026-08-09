@@ -25,6 +25,16 @@ concurrency:
   group: packages-checks-${{ github.ref }}
   cancel-in-progress: true
 
+# 이 워크플로는 읽기만 한다 — checkout 과 검사 실행뿐이다. 명시하지 않으면 저장소 기본
+# 토큰 권한을 상속하는데, 그 기본값은 저장소 설정에 달려 있어 이 파일만 봐서는 알 수 없다.
+#
+# **일괄로 바르면 안 된다**: `migration-recheck-on-main.yml` 은 `gh pr comment` 때문에
+# `pull-requests: write` 가 필요하다. 그래서 "모두 contents: read" 가 아니라
+# **워크플로마다 필요한 값을 선언**하는 것이 규칙이고, `test_workflow_yaml_structure.py`
+# 의 `_PERMISSIONS` 등록부가 그것을 강제한다.
+permissions:
+  contents: read
+
 jobs:
   # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다. wiring 은 `_changed-paths.yml` 공유.
   #

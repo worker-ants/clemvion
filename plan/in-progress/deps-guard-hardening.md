@@ -404,6 +404,23 @@ glibc 변종이 함께 설치될 수 있다(낭비 — 오선택은 sharp 로더
       먼저 실증할 것** — 여기서는 "dependabot 쪽이 더 새 버전일 것" 이라고 추정만 했고
       확인하지 않았다.
 
+### 후속 — GitHub Actions 서드파티 핀이 태그다 (2026-08-09 이관, P3)
+
+`.github/actions/pnpm-workspace/action.yml` 의 `pnpm/action-setup@v6.0.9` ·
+`actions/setup-node@v7` 을 비롯해 저장소의 서드파티 액션이 **커밋 SHA 가 아니라 이동 가능한
+버전 태그**로 핀돼 있다. 태그는 재지정될 수 있어 공급망 관점에선 SHA 가 정본이다.
+
+이 저장소 **전역 관례**라 특정 PR 의 회귀가 아니다. 다만 `#1120` 의 composite action 추출로
+그 신뢰 지점이 **9개 잡(대부분 required-check 후보)이 의존하는 단일 파일**로 집중됐다는
+점이 새로 생긴 사실이다.
+
+- 출처: `#1120` ai-review INFO 1 (`review/code/2026/08/09/21_53_16`).
+- **여기로 이관한 이유**: 원래 등재처였던 `ci-required-check-skip-jobs.md` 는 완료됐고,
+  이 항목은 skip-job 전환이 아니라 **의존성 신뢰 체인**의 문제라 본 plan 이 제자리다.
+- [ ] SHA 고정 + 버전 주석 병기를 도입할지 판정 — 도입하면 dependabot 의
+      `github-actions` ecosystem 이 SHA 를 갱신해 주는지부터 실측할 것(수동 갱신이면
+      비용이 크고 stale 핀으로 더 나빠질 수 있다).
+
 ### 남은 수동 조치 (repo Settings — 파일로 불가)
 
 **파일로 처리 불가한 잔여는 이 절뿐이다.** 사용자만 할 수 있어 `complete/` 이동을 막고 있다

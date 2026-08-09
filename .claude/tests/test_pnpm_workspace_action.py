@@ -223,7 +223,13 @@ class ConsumerBindingTest(unittest.TestCase):
     def consumers(self):
         """`uses: ./.github/actions/pnpm-workspace` 를 부르는 (워크플로, 잡, 스텝) 목록."""
         found = []
-        for path in sorted(WORKFLOWS.glob("*.yml")):
+        # `*.y*ml` + suffix 필터 — `test_workflow_yaml_structure.py::_workflow_files()`
+        # 와 같은 규약이다. `*.yml` 만 보면 `.yaml` 로 쓴 워크플로의 소비처를 이 클래스만
+        # 조용히 놓쳐, 게이팅·등재 단언이 그 워크플로에 대해 헛통과한다 (ai-review INFO 5).
+        candidates = sorted(
+            p for p in WORKFLOWS.glob("*.y*ml") if p.suffix in (".yml", ".yaml")
+        )
+        for path in candidates:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             for job_name, job in (doc.get("jobs") or {}).items():
                 if not isinstance(job, dict):

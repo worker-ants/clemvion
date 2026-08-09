@@ -391,6 +391,50 @@ class WorkflowStructureTest(unittest.TestCase):
         self.assertEqual(self._PULL_REQUEST_KEYS.keys() - seen, set(),
                          "`_PULL_REQUEST_KEYS` 에 더 이상 존재하지 않는 항목이 남아 있다")
 
+    # 워크플로마다 필요한 `permissions:` 를 **등재제**로 고정한다.
+    #
+    # 미선언이면 저장소 기본 토큰 권한을 상속하는데, 그 기본값은 저장소 설정에 있어 파일만
+    # 봐서는 알 수 없다 — 넓어져도 워크플로 쪽에는 아무 흔적이 없다. 2026-08-09 실측: 12개 중
+    # 9개가 미선언이었고 3개만 선언해 비대칭이었다(ai-review INFO).
+    #
+    # **"전부 contents: read" 로 두지 않는 이유**: `migration-recheck-on-main.yml` 은
+    # `gh pr comment` 로 PR 에 코멘트를 달아 `pull-requests: write` 가 필요하다. 일괄 규칙을
+    # 세웠다면 그 워크플로를 조용히 깨뜨렸을 것이다 — 그래서 **값까지 등재**한다. 새 워크플로가
+    # 넓은 권한을 요구하면 여기 등재하는 순간이 "정말 필요한가" 를 사람이 판단할 자리다.
+    _PERMISSIONS = {
+        "_changed-paths.yml": {"contents": "read"},
+        "backend-checks.yml": {"contents": "read"},
+        "deps-security-checks.yml": {"contents": "read"},
+        "e2e.yml": {"contents": "read"},
+        "frontend-checks.yml": {"contents": "read"},
+        "harness-checks.yml": {"contents": "read"},
+        "migration-check.yml": {"contents": "read"},
+        # 유일한 쓰기 권한. `gh pr comment` 로 열린 PR 에 rebase 안내를 단다.
+        "migration-recheck-on-main.yml": {"contents": "read", "pull-requests": "write"},
+        "packages-checks.yml": {"contents": "read"},
+        "review-gate.yml": {"contents": "read"},
+        "spec-link-checks.yml": {"contents": "read"},
+        "web-chat-checks.yml": {"contents": "read"},
+    }
+
+    def test_every_workflow_declares_its_permissions(self):
+        seen = set()
+        for path in self.files:
+            doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            seen.add(path.name)
+            with self.subTest(workflow=path.name):
+                self.assertIn(
+                    path.name, self._PERMISSIONS,
+                    f"{path.name} 의 permissions 가 등재돼 있지 않다 — 미선언이면 저장소 "
+                    "기본 토큰 권한을 상속하고, 그 값은 이 파일만 봐서는 알 수 없다",
+                )
+                self.assertEqual(
+                    doc.get("permissions"), self._PERMISSIONS[path.name],
+                    f"{path.name} 의 permissions 가 등재값과 다르다",
+                )
+        self.assertEqual(self._PERMISSIONS.keys() - seen, set(),
+                         "`_PERMISSIONS` 에 더 이상 존재하지 않는 워크플로가 남아 있다")
+
     def test_workflow_and_job_identities_are_unique(self):
         """같은 `name:` 과 job id 를 참칭하는 "always green" 워크플로를 새로 추가하는 우회.
 

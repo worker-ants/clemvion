@@ -207,6 +207,28 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
                         "required check 가 영원히 대기 상태가 된다",
                     )
 
+    def test_push_has_no_paths_filter_either(self):
+        """`on.push.paths` 도 함께 막는다 — 종전엔 `pull_request` 쪽만 봤다.
+
+        데드락 자체는 PR 전용이라 심각도가 낮지만, push 쪽 `paths` 가 되살아나면 **판정의
+        단일 소재지**라는 이 패턴의 전제가 깨진다: 목록이 `pathspecs` 와 `on.push.paths`
+        두 곳으로 갈리고, 그게 이 저장소가 여섯 번 겪은 "paths 커버리지 갭" 의 온상이었다
+        (`#1106` 이 두 곳 복제를 없애려고 시작한 작업이다).
+
+        `push` 트리거가 없는 워크플로(harness·migration)는 대상이 아니다 — 전환이 트리거를
+        **추가하지 않았다**는 사실도 여기서 함께 드러난다 (ai-review INFO 8).
+        """
+        for name in CONVERTED:
+            with self.subTest(workflow=name):
+                push = (triggers(load(name)) or {}).get("push")
+                if isinstance(push, dict):
+                    self.assertNotIn(
+                        "paths",
+                        push,
+                        f"{name}: on.push.paths 가 되살아났다 — 판정 목록이 "
+                        "`pathspecs` 와 두 곳으로 갈린다",
+                    )
+
     def test_changes_job_publishes_relevant(self):
         """키 존재만이 아니라 **값이 실제 스텝을 가리키는지**까지 본다.
 
