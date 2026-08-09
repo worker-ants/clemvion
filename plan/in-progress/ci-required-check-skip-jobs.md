@@ -349,6 +349,26 @@ PROJECT.md §e2e 면제 화이트리스트가 `.claude/**` (skills, hooks, agent
   것은 아무 가드도 못 잡는다. required check 데드락은 PR 전용이라 심각도는 낮다.
   후속: 같은 테스트에서 `on.push.paths` 부재도 함께 단언.
 
+### 후속 — ai-review INFO 항목 (2026-08-09, composite action 추출 리뷰 `review/code/2026/08/09/21_53_16`)
+
+셋업 보일러플레이트를 `.github/actions/pnpm-workspace/action.yml` 로 추출한 PR 의 WARNING
+3건(액션 버전 핀 정확 비교·소비처 수 오기 정정·`_MAY_SWALLOW` 키 basename→상대경로)은
+즉시 조치했다. 아래 INFO 3건은 이번 PR 스코프는 아니지만 후속으로 등재한다(번호는 이
+리뷰의 SUMMARY.md 기준이며 위 2026-08-09 20:33 리뷰의 INFO 1/8 과는 별개 번호 체계다):
+
+- **INFO 1 — 서드파티 액션 태그 핀 집중**: `pnpm/action-setup`·`actions/setup-node` 가
+  커밋 SHA 가 아닌 버전 태그로 핀 — 저장소 전역 기존 관례라 이 diff 의 신규 결함은 아니지만,
+  추출로 그 신뢰 지점이 9개 잡(대부분 required-check 후보)이 의존하는 단일 파일로 집중됐다.
+  후속(선택): 커밋 SHA 고정 + 버전 주석 병기.
+- **INFO 2 — `STUB`/`argv()` 헬퍼가 `test_changed_paths_reusable.py` 와 완전 중복**:
+  스텁 프로토콜(`ARGC=`/`ARG=`) 변경 시 두 파일을 수동 동기화해야 한다. 후속: **세 번째
+  사례가 생기면** 공유 헬퍼 모듈로 추출(`_changed-paths.yml` 추출에 쓴 것과 같은 트리거
+  방식).
+- **INFO 5 — `ConsumerBindingTest.consumers()` 의 glob 비대칭**: `*.yml` 만 스캔해
+  `test_workflow_yaml_structure.py::_workflow_files()`(`*.y*ml`)와 규약이 다르다. 현재
+  전부 `.yml` 이라 실질 위험 낮음. 후속(선택): `WORKFLOWS.glob("*.y*ml")` + suffix 필터로
+  통일하거나 두 파일이 같은 glob 상수 공유.
+
 - [x] push + PR — [#1114](https://github.com/worker-ants/clemvion/pull/1114)
 
 ## 사용자 액션 (이 PR 머지 후)
