@@ -45,17 +45,34 @@ export const DECOY_WS = 'eeeeeeee-5555-4555-8555-eeeeeeeeeeee';
 export const SAME_WS = 'ffffffff-6666-4666-9666-ffffffffffff';
 
 /**
- * nil UUID. **형식은 유효하다** — Postgres 가 정상 파싱하므로 헤더 검증을 통과해야 하고,
- * 여기서 400 을 내면 "그 워크스페이스의 멤버가 아니다"(403)여야 할 응답이 "요청이
- * 잘못됐다"(400)로 뒤바뀐다. 술어를 `isValidUuid`(RFC 버전·variant 검사)가 아니라
- * `isUuidShaped` 로 고른 이유가 이것이다.
+ * nil UUID. **형식은 유효하다** — 헤더 검증(`isUuidShaped`)을 통과해야 하는 값이다.
  *
- * **회귀 캐너리는 `uuid.spec.ts` 의 두 술어 경계 테스트와 `workspace-context.util.spec.ts`
- * 의 nil UUID 통과 테스트다** — `system-status.e2e-spec.ts` 가 아니다. `#1112` 가 그 앵커를
- * 실측으로 정정했고 여기서도 확인했다: `system-status.controller.ts` 에는 `@Roles()` 도
- * `@WorkspaceId()` 도 없어 `RolesGuard` 가 `resolveRequestWorkspaceContext` **호출 이전에**
- * 통과시키므로, 그 e2e 의 nil UUID 는 이 술어에 닿지 않는다(같은 단축 순서를
- * `roles.guard.spec.ts` 의 "단축이 헤더 파싱보다 먼저다" 테스트가 고정한다).
- * 결정(느슨한 술어)과 근거(403→400 뒤바뀜)는 그대로고 앵커만 바뀐다.
+ * 근거와 회귀 캐너리 앵커는 `common/utils/uuid.ts` 의 `isUuidShaped` docstring 이 SoT 다.
  */
 export const NIL_WS = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * 값 유일성 가드 — 이 모듈의 계약은 "**이름은 역할이고 값은 불투명하되 서로 다르다**" 이고,
+ * 소비 스위트들은 그 차이에만 의존한다. 값이 겹치면 cross-tenant 테스트가 "다른 워크스페이스"
+ * 를 비교하는 척하면서 같은 값을 비교하게 되어 **조용히 무의미해진다**.
+ *
+ * 세 소비 스위트가 간접적으로만 유일성을 검증하고 있었다(뮤테이션으로 로드베어링임은
+ * 실증됐다 — 값 충돌 시 3 RED). 모듈 자신이 계약을 들고 있게 한다. jest 타입 비의존이라
+ * 테스트가 아니라 **로드 시점 런타임 검사**다.
+ */
+const ALL_WS = [
+  HEADER_WS,
+  TOKEN_WS,
+  VICTIM_WS,
+  OTHER_WS,
+  DECOY_WS,
+  SAME_WS,
+  NIL_WS,
+] as const;
+
+if (new Set<string>(ALL_WS).size !== ALL_WS.length) {
+  throw new Error(
+    `workspace-id-fixtures: 값이 중복됐다 — 고유 ${new Set<string>(ALL_WS).size} / 전체 ${ALL_WS.length}. ` +
+      '이 모듈의 계약은 값이 서로 다르다는 것이고, 겹치면 cross-tenant 테스트가 조용히 무의미해진다.',
+  );
+}
