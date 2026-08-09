@@ -111,10 +111,14 @@ export function danglingSpecImpact(
  */
 export function makeSpecExists(root: string): (p: string) => boolean {
   return (p) => {
+    // **`spec/` 하위여야 한다.** 존재 여부만 보면 `spec_impact: ["CLAUDE.md"]` 나
+    // `["codebase/frontend/package.json"]` 이 통과한다(실측) — 이 게이트의 존재 이유가
+    // "**어느 spec 을** 건드렸는지 기록하게 한다" 인데 그걸 그대로 비껴간다.
+    if (!p.startsWith("spec/")) return false;
     try {
-      // `isFile()` 하나면 충분하다 — 빈 문자열은 `path.join` 이 `root` 로 정규화하는데
-      // 루트는 디렉터리라 여기서 걸린다(별도 빈-문자열 검사를 뒀더니 뮤테이션에서
-      // 생존했다 = 도달 불가 분기였다). 없는 경로는 `statSync` 가 throw 한다.
+      // `isFile()` 하나면 나머지가 다 걸린다 — 빈 문자열은 `path.join` 이 `root` 로
+      // 정규화하는데 루트는 디렉터리이고, 없는 경로는 `statSync` 가 throw 한다
+      // (별도 빈-문자열 검사를 뒀더니 뮤테이션에서 생존했다 = 도달 불가 분기였다).
       return fs.statSync(path.join(root, p)).isFile();
     } catch {
       return false;
@@ -308,5 +312,10 @@ describe("Gate C enforcement logic", () => {
     expect(real("spec"), "디렉터리는 spec 파일이 아니다").toBe(false);
     expect(real("spec/conventions")).toBe(false);
     expect(real("spec/does-not-exist.md")).toBe(false);
+    // **실재하지만 spec 이 아닌 파일** — 존재 여부만 보던 시절 이것들이 통과했다.
+    // 이 게이트는 "어느 spec 을 건드렸나" 를 기록하게 하는 것이라 곧 무력화였다.
+    expect(real("CLAUDE.md"), "spec 밖 파일은 spec_impact 가 될 수 없다").toBe(false);
+    expect(real("codebase/frontend/package.json")).toBe(false);
+    expect(real("PROJECT.md")).toBe(false);
   });
 });

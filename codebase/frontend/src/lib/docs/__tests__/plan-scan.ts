@@ -212,7 +212,11 @@ const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
  * `started` 를 파싱 결과로 보면 안 되기 때문에 필요하다 — 아래 `isIsoDate` 주석 참조.
  */
 export function rawScalar(block: string, key: string): string | null {
-  const m = new RegExp(`^[ \\t]*${key}:[ \\t]*(.*)$`, "m").exec(block);
+  // **들여쓰기 0 만 매치한다.** 종전에는 `^[ \t]*` 를 허용해, 앞선 필드의 multi-line
+  // block scalar(`|`/`>`) 안에 `started:` 로 시작하는 줄이 있으면 그것을 먼저 잡았다 —
+  // 그 값이 `isIsoDate`/`isGateCEnforced` 로 그대로 흘러가 Gate C 판정을 오염시킨다.
+  // frontmatter 최상위 키는 항상 0열이므로 좁혀도 잃는 것이 없다(ai-review WARNING).
+  const m = new RegExp(`^${key}:[ \\t]*(.*)$`, "m").exec(block);
   if (!m) return null;
   return m[1].trim().replace(/^(["'])([\s\S]*)\1$/, "$2");
 }

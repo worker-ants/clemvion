@@ -79,6 +79,15 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 - [ ] (테스트 갭) `hasValidSpecImpact` 의 `NONE_VALUES` 대소문자/trim/`n-a` 분기가 fixture
       로 검증되지 않는다 — `.trim()`/`.toLowerCase()` 를 지워도 초록일 수 있다.
       `collectCompletePlans` 의 `archive/`·인덱스 제외도 negative-path fixture 가 없다
+- [ ] **Gate C 판정 함수들이 `*.test.ts` 안에 산다** — `isGateCEnforced`·
+      `hasMalformedStarted`·`hasValidSpecImpact`·`danglingSpecImpact`·`makeSpecExists`
+      (+`GATE_C_CUTOFF`·`NONE_VALUES`)가 `spec-plan-completion.test.ts` 에 있어, 다른
+      스크립트(예: pre-commit hook)가 재사용하려면 **테스트 파일을 import** 해야 한다.
+      `plan-scan.ts` 로 옮기는 것이 자연스럽다
+      > **선재 배치다.** 이 PR 은 그 파일의 판정을 *고쳤을* 뿐 위치를 만들지 않았고,
+      > 파일 전체 이동은 Gate C 의 소비처·`code:` 등재·미러 문서를 함께 건드린다.
+      > 다만 이 PR 이 `plan-scan.ts` 로 추출하는 원칙을 세웠으므로 그 원칙의 미적용
+      > 지점으로 남는다(ai-review WARNING, 3회 관측)
 
 ## `SpecMdFile` 타입명 (별 축, 같은 착수 시점이 자연스러움)
 

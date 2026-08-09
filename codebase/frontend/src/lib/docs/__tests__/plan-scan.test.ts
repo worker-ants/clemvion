@@ -11,6 +11,7 @@ import {
   findNonTerminalCompletedPlans,
   findUnparseablePlans,
   parseFrontmatterSafe,
+  rawScalar,
 } from "./plan-scan";
 
 // Negative-path fixture tests for the plan-tree scanners.
@@ -245,6 +246,22 @@ describe("parseFrontmatterSafe", () => {
     const parsed = parseFrontmatterSafe("# 제목만 있는 문서\n");
     expect(parsed).not.toBeNull();
     expect(parsed?.data).toEqual({});
+  });
+});
+
+describe("rawScalar", () => {
+  it("reads a top-level scalar and strips surrounding quotes", () => {
+    expect(rawScalar("\nstarted: 2026-08-10\nowner: dev", "started")).toBe("2026-08-10");
+    expect(rawScalar('\nstarted: "2026-08-10"\n', "started")).toBe("2026-08-10");
+    expect(rawScalar("\nowner: dev\n", "started")).toBeNull();
+  });
+
+  it("ignores a same-named line nested inside an earlier block scalar", () => {
+    // 이것이 이 함수의 유일한 함정이다 — 종전 정규식은 들여쓴 줄도 매치해서, 앞선 필드의
+    // multi-line 값 안에 있는 `started:` 를 **진짜 필드보다 먼저** 잡았다. 그 값이
+    // `isIsoDate`/`isGateCEnforced` 로 흘러가면 Gate C 판정이 통째로 오염된다.
+    const block = ["", "note: |", "  started: 이건 본문이지 필드가 아니다", "started: 2026-08-10", ""].join("\n");
+    expect(rawScalar(block, "started")).toBe("2026-08-10");
   });
 });
 
