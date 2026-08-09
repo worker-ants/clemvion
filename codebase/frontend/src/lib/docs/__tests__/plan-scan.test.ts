@@ -44,6 +44,9 @@ describe("plan-scan", () => {
     write(path.join(root, "plan/complete/archive/old.md"), fm("in-progress")); // archive → 제외
     write(path.join(root, "plan/complete/0-index.md"), fm("in-progress")); // 인덱스 → 제외
     write(path.join(root, "plan/complete/_scratch.md"), fm("in-progress")); // 인덱스 → 제외
+    // 면제는 **파일명 단위**다 — 디렉터리 이름의 같은 접두는 걸러지지 않는다.
+    write(path.join(root, "plan/complete/0-batch/child.md"), fm("in-progress")); // 위반(수집됨)
+    write(path.join(root, "plan/complete/_wip/child.md"), fm("in-progress")); // 위반(수집됨)
     write(path.join(root, "plan/complete/broken.md"), "---\n: : bad yaml : :\n---\n"); // 파싱실패 → skip
     // `status` 가 문자열이 아닌 형태들. 이 분기(`typeof status !== "string"`)가
     // 어떤 fixture 로도 실행되지 않으면, 이 PR 이 다섯 곳에서 없앤 것과 **같은**
@@ -90,6 +93,15 @@ describe("plan-scan", () => {
     const found = findNonTerminalCompletedPlans(root).map((v) => v.relPath);
     expect(found).not.toContain("plan/complete/0-index.md");
     expect(found).not.toContain("plan/complete/_scratch.md");
+  });
+
+  it("applies the index exemption to file names only, not directory names", () => {
+    // 면제 근거가 "인덱스 문서는 작업 plan 이 아니다" 라 파일 단위로만 성립한다.
+    // 디렉터리까지 넓히면 그 안의 진짜 plan 들이 통째로 가드 밖으로 빠진다.
+    // 실 저장소에 그런 디렉터리가 없어 데이터로는 의도/사고가 안 갈리므로 여기서 고정한다.
+    const found = findNonTerminalCompletedPlans(root).map((v) => v.relPath);
+    expect(found).toContain("plan/complete/0-batch/child.md");
+    expect(found).toContain("plan/complete/_wip/child.md");
   });
 
   it("accepts every terminal vocabulary and a missing status", () => {
@@ -142,6 +154,8 @@ describe("plan-scan", () => {
 
   it("reports exactly the planted violations (no over-reach)", () => {
     expect(findNonTerminalCompletedPlans(root).map((v) => v.relPath).sort()).toEqual([
+      "plan/complete/0-batch/child.md",
+      "plan/complete/_wip/child.md",
       "plan/complete/nested/deep.md",
       "plan/complete/odd.md",
       "plan/complete/stale.md",
@@ -219,6 +233,21 @@ describe("checkPlanFrontmatter", () => {
     const { owner: _o, ...noOwner } = VALID;
     expect(kindsFor(noOwner)).toEqual(["owner-missing"]);
     expect(kindsFor({ ...VALID, owner: '""' })).toEqual(["owner-missing"]);
+  });
+
+  it("rejects whitespace-only `worktree`/`owner`", () => {
+    // 길이가 0 이 아니라서 `length === 0` 검사를 통과하던 값이다 — 이 가드가 막으려는
+    // 것이 정확히 "살아있어 보이지만 죽은 값" 이라 그냥 두면 존재 이유를 침해한다.
+    for (const blank of ['"   "', '"\t"', '"\\n"']) {
+      expect(
+        kindsFor({ ...VALID, worktree: blank }),
+        `worktree=${blank} must be rejected`,
+      ).toEqual(["worktree-missing"]);
+      expect(
+        kindsFor({ ...VALID, owner: blank }),
+        `owner=${blank} must be rejected`,
+      ).toEqual(["owner-missing"]);
+    }
   });
 
   it("rejects dates that pass the shape check but are not real days", () => {

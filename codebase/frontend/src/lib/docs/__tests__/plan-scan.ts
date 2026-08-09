@@ -34,7 +34,13 @@ export interface PlanMdFile {
 }
 
 /**
- * `0-`/`_` 접두는 인덱스 파일이라 라이프사이클 plan 이 아니다.
+ * `0-`/`_` 접두는 인덱스 **파일**이라 라이프사이클 plan 이 아니다.
+ *
+ * **디렉터리 이름에는 적용하지 않는다** — `plan/complete/0-batch/child.md` 는 수집된다
+ * (fixture 로 고정). 면제 근거가 "인덱스 문서는 작업 plan 이 아니다" 라서 파일 단위로만
+ * 성립하고, 디렉터리까지 넓히면 그 안의 진짜 plan 들이 통째로 가드 밖으로 빠진다.
+ * 현재 저장소에 그런 디렉터리는 없어 동작 차이는 없다(실측) — 그래서 데이터로는 의도와
+ * 사고가 안 갈리고, fixture 가 그 선택을 대신 고정한다.
  *
  * Gate C(`collectCompletePlans`)와 `plan-frontmatter.test.ts` 의 frontmatter 검사가 이미
  * 쓰던 규칙을 여기로 모았다. **다만 완료-plan status 검사는 이번에 처음 이 면제를 갖는다**
@@ -121,7 +127,16 @@ export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
   for (const f of collectCompletePlanMarkdown(root)) {
     let data: Record<string, unknown> = {};
     try {
-      data = matter(fs.readFileSync(f.absPath, "utf8")).data ?? {};
+      // `{}` 는 gray-matter 의 프로세스-전역 캐시 우회다 — 이유는 `checkPlanFrontmatter`
+      // 의 같은 자리 주석 참조.
+      //
+      // **이 자리에서는 방어이지 버그 수정이 아니다**: 파싱 실패는 아래 `catch` 로
+      // skip 되고 캐시 오염(`data={}`)은 `status` 부재로 skip 되어 **결과가 같은 곳으로
+      // 수렴한다**. 그래서 이 한 줄은 어떤 테스트로도 관측되지 않는다(뮤테이션으로 확인 —
+      // 지워도 스위트가 초록). 남겨 두는 이유는 한 파일 안에서 같은 hazard 를 한쪽만
+      // 막아 두면 다음 사람이 "여긴 안 막아도 되는 자리" 로 읽기 때문이고, 이 함수가
+      // 나중에 파싱 실패와 빈 frontmatter 를 **구분**하게 되는 순간 곧바로 갈리기 때문이다.
+      data = matter(fs.readFileSync(f.absPath, "utf8"), {}).data ?? {};
     } catch {
       continue;
     }
@@ -138,8 +153,16 @@ export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
 export const WORKTREE_SENTINEL = "(unstarted)";
 
 /**
- * 레거시 placeholder — 살아있지만 죽은 worktree 처럼 보여 plan-coherence 충돌 검출을
- * 오염시킨다. "값이 없음" 을 표현하려면 `WORKTREE_SENTINEL` 을 쓴다.
+ * 레거시 placeholder — "값이 없음" 을 표현하려면 `WORKTREE_SENTINEL` 을 쓴다.
+ *
+ * 거부하는 이유는 이 필드의 **현재** 소비처 둘이다(`plan-lifecycle.md §4`):
+ * `plan-stale-audit.sh` 가 이 값으로 worktree 실재 여부를 확인하고, plan 게이트의 연결
+ * 판정이 이 값을 현재 worktree/branch 와 매칭한다. placeholder 는 앞에서는 죽은 worktree
+ * 로 보이고 뒤에서는 **어떤 worktree 와도 매칭되지 않아** plan 이 게이트에서 사라진다.
+ *
+ * (종전 주석은 `plan_coherence` 의 cross-worktree 충돌 검출을 근거로 들었는데 그 기능은
+ * `3da85dc3b`(#576)에서 제거됐다 — 병렬 작업이 다른 머신·세션이면 로컬에 안 보여
+ * 신뢰할 수 없었기 때문이다. SoT 본문에도 같은 낡은 근거가 남아 있어 함께 정정했다.)
  */
 const WORKTREE_PLACEHOLDER = /\bTBD\b|assigned at impl|미정|착수\s*시|^pending$/i;
 
@@ -231,8 +254,10 @@ export function checkPlanFrontmatter(
     return out;
   }
 
+  // `.trim()` 은 필수다 — 공백만 있는 값(`worktree: "   "`)은 길이가 0 이 아니라서
+  // 종전 검사를 통과했다. 이 가드가 막으려는 것이 정확히 "살아있어 보이지만 죽은 값" 이다.
   const wt = data.worktree;
-  if (typeof wt !== "string" || wt.length === 0) {
+  if (typeof wt !== "string" || wt.trim().length === 0) {
     add("worktree-missing", `worktree=${JSON.stringify(wt)}`);
   } else if (wt !== WORKTREE_SENTINEL && WORKTREE_PLACEHOLDER.test(wt)) {
     add(
@@ -247,7 +272,7 @@ export function checkPlanFrontmatter(
   }
 
   const owner = data.owner;
-  if (typeof owner !== "string" || owner.length === 0) {
+  if (typeof owner !== "string" || owner.trim().length === 0) {
     add("owner-missing", `owner=${JSON.stringify(owner)}`);
   }
 

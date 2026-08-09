@@ -274,29 +274,13 @@ export { collectLivePlanMarkdown };
  * Validate relative links in the *living* plans (top-level `plan/in-progress/*.md`).
  *
  * Moving a plan to `plan/complete/` leaves sibling links pointing at the old
- * directory, and nothing saw that axis: this file's `spec/**` guard is scoped by
- * its name, and `plan/**` is nobody's subject.
+ * directory. Fenced regions are skipped by `extractLinks` — a plan's example
+ * snippet must be free to name paths that do not exist.
  *
- * Measured 2026-08-09/10 — and the number depends on **who is measuring**:
- *
- * - **This guard sees 8**: seven of the move case (a plan that had gone to
- *   `complete/`) plus one **stale `#anchor`** (the spec had been restructured).
- *   The anchor case only surfaced when this shared scanner replaced an earlier
- *   hand-rolled regex that stripped fragments before checking, so "every one a
- *   move" would have been the wrong lesson to write down.
- * - **A 9th was fixed by hand and this guard cannot see it**: a bad `../` depth
- *   sitting inside a ```markdown fence. `extractLinks` skips fenced regions by
- *   design (a plan's example snippet must be free to name paths that do not
- *   exist), so it is outside the scan by contract, not by accident.
- *
- * The distinction is written down because the first draft of this comment said
- * "9 measured", conflating what the guard proved with what a throwaway regex
- * turned up (ai-review plan-coherence WARNING).
- *
- * Scope is deliberately narrow. `plan/complete/**` carries 135 broken links and
- * that is **correct** — `plan-lifecycle.md §3` keeps point-in-time records on
- * their old paths. Widening here would turn a documented-normal state into a
- * mass failure. Grouped subfolders follow the same exemption
+ * Scope is deliberately narrow: `plan/complete/**` is **excluded**, because
+ * `plan-lifecycle.md §3` keeps point-in-time records on their old paths, so the
+ * broken links there are the documented-normal state and widening would turn it
+ * into a mass failure. Grouped subfolders follow the same exemption
  * `plan-frontmatter.test.ts` already applies to its frontmatter checks.
  *
  * `checkSelfAnchors: false` — plans self-link by heading far less than specs do,

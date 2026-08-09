@@ -90,7 +90,11 @@ describe("Gate C — plan-completion spec-consistency", () => {
   const enforced = plans.filter((abs) => {
     let data: Record<string, unknown> = {};
     try {
-      data = matter(fs.readFileSync(abs, "utf8")).data ?? {};
+      // `{}` = gray-matter 프로세스-전역 캐시 우회. 옵션 없이 부르면 캐시 등록이 파싱
+      // **전에** 일어나, 파싱이 throw 한 내용은 부분 초기화 객체로 남아 같은 내용의
+      // 2회차 호출이 조용히 `data={}` 를 받는다. 이 가드와 `plan-scan.ts` 는 같은
+      // `plan/complete/**` 를 각각 파싱하므로 실제로 서로의 캐시를 밟는다.
+      data = matter(fs.readFileSync(abs, "utf8"), {}).data ?? {};
     } catch {
       return false;
     }
@@ -111,7 +115,7 @@ describe("Gate C — plan-completion spec-consistency", () => {
   for (const abs of enforced) {
     const rel = path.relative(root, abs).split(path.sep).join("/");
     describe(rel, () => {
-      const data = matter(fs.readFileSync(abs, "utf8")).data ?? {};
+      const data = matter(fs.readFileSync(abs, "utf8"), {}).data ?? {};
       const impact = (data as Record<string, unknown>).spec_impact;
 
       it("declares `spec_impact`", () => {
