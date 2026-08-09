@@ -166,7 +166,7 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 - [x] `--impl-done` 재수행 (3차 fix 가 spec-linked 파일을 건드려 게이트가 재요구) —
       **BLOCK: NO** (`review/consistency/2026/08/09/15_56_48`, 5/5). WARNING 2건은 전부
       **spec 쓰기**라 §후속 planner 턴 등재. INFO 2(캐너리 주석 "73건" 수치)도 §후속.
-- [ ] push + PR
+- [x] push + PR — [#1108](https://github.com/worker-ants/clemvion/pull/1108)
 
 ## 부수 — plan 위생 1건 (`--impl-prep` plan_coherence INFO #6)
 
