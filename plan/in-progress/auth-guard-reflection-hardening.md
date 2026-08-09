@@ -111,10 +111,28 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       (`review/consistency/2026/08/09/14_01_15`, 5/5 checker). WARNING #1·#2 를 위 두
       결정에 반영. 번들에 `1-auth.md` 가 실제로 실렸는지 확인하고 진행(26회 등장).
 - [x] TDD — 새 계약 먼저 RED(6건) 확인 후 구현
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
+- [x] TEST WORKFLOW — lint PASS(49s) · unit PASS(79s) · build PASS(140s) ·
+      **e2e PASS(276s)**. 커버리지는 로그 전수 확인: backend jest 46 suites/**261** ·
+      **playwright 51** (`tests=261` 은 jest 만 세는 wrapper 요약이다).
+      > **캐너리가 실제 앱에서 돌았다는 증거는 e2e 통과 자체다.** `main.ts` 는
+      > `void bootstrap()` 이라 throw 를 삼키지 않으므로, 캐너리가 던졌다면 `app.listen`
+      > 에 도달하지 못해 261건이 **전부** 연결 실패했을 것이다. 통과했다는 것은 그 단계가
+      > 실행됐고 인식 라우트가 0이 아니라는 뜻이다. 인식 **개수 자체**는 컨테이너가
+      > 정리돼 사후 확인하지 못했다 — 부팅 로그에만 남는다(의도한 관측 지점).
+- [x] 링크·Gate C 회귀 — `spec-link-integrity` 13건 · `spec-plan-completion` 776건 통과
+      (아래 plan 이동 때문에 별도 확인)
 - [ ] `/ai-review` + Critical/Warning 처분
 - [ ] `--impl-done` (spec-linked 코드 변경 있음)
 - [ ] push + PR
+
+## 부수 — plan 위생 1건 (`--impl-prep` plan_coherence INFO #6)
+
+[`spec-draft-workspace-header-membership-invariant.md`](../complete/spec-draft-workspace-header-membership-invariant.md)
+를 `complete/` 로 옮겼다. 변경안 5곳이 전부 `#1103` 에 반영돼 있는데 그 PR 이 이동을
+빠뜨렸다(실측으로 확인 후 이동). 부수 효과로 **깨져 있던 링크 하나가 고쳐진다** —
+`auth-workspace-membership-guard.md` 가 이 문서를 `complete/` 기준 상대경로로 링크하고
+있었다. 같은 checker 가 지목한 `spec-fix-swagger-forbidden-response.md` 는 **옮기지
+않았다** — 미완 체크박스 2건이 남아 있다(실측).
 
 ## Rationale
 

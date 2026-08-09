@@ -11,9 +11,16 @@ spec_impact:
   - spec/2-navigation/9-user-profile.md
 ---
 
+> **완료 (2026-08-09 위생 정리).** 아래 변경안 5곳이 전부 `#1103` 에 반영돼 `origin/main`
+> 에 있다(실측: `12-workspace.md` 3곳 · `11-error-empty-states.md` · `9-user-profile.md`
+> + 신설 §Rationale "멤버십 검증은 가드 1곳에서"). 그 PR 이 `complete/` 이동을 빠뜨려
+> `in-progress/` 에 남아 있었다 — [`auth-workspace-membership-guard.md`](auth-workspace-membership-guard.md)
+> 가 이 문서를 **`complete/` 기준 상대경로**로 링크하고 있어 그동안 깨진 링크였고,
+> 이 이동이 그것도 함께 고친다. 발견: 2026-08-09 `--impl-prep` plan_coherence INFO #6.
+
 ## Overview
 
-[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) 의 `--impl-prep`
+[`auth-workspace-membership-guard`](auth-workspace-membership-guard.md) 의 `--impl-prep`
 (`review/consistency/2026/08/08/18_47_21`) **BLOCK: YES** 를 해소하기 위한 spec 정정 draft.
 developer 는 `spec/` read-only 이므로 planner 턴으로 분리했다.
 

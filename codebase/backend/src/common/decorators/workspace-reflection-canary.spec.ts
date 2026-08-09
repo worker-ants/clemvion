@@ -81,8 +81,9 @@ describe('assertWorkspaceIdReflectionWorks', () => {
    * 오판해 멤버십 검증을 건너뛴다(cross-tenant 재발).
    */
   it('하나도 인식하지 못하면 throw 해 부팅을 멈춘다 (fail-closed)', () => {
-    expect(() => assertWorkspaceIdReflectionWorks(appWith([GlobalController])))
-      .toThrow(WorkspaceIdReflectionBrokenError);
+    expect(() =>
+      assertWorkspaceIdReflectionWorks(appWith([GlobalController])),
+    ).toThrow(WorkspaceIdReflectionBrokenError);
   });
 
   it('컨트롤러가 아예 없어도 throw 한다 — 빈 목록을 정상으로 보면 안 된다', () => {

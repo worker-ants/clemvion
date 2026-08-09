@@ -101,8 +101,9 @@ export function assertWorkspaceIdReflectionWorks(
     .getControllers()
     .map((wrapper) => wrapper.metatype);
 
-  const count = countWorkspaceIdConsumingRoutes(controllerClasses, (prototype) =>
-    scanner.getAllMethodNames(prototype),
+  const count = countWorkspaceIdConsumingRoutes(
+    controllerClasses,
+    (prototype) => scanner.getAllMethodNames(prototype),
   );
 
   if (count === 0) throw new WorkspaceIdReflectionBrokenError();
