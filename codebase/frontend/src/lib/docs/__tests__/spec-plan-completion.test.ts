@@ -90,10 +90,17 @@ describe("Gate C — plan-completion spec-consistency", () => {
   const enforced = plans.filter((abs) => {
     let data: Record<string, unknown> = {};
     try {
-      // `{}` = gray-matter 프로세스-전역 캐시 우회. 옵션 없이 부르면 캐시 등록이 파싱
-      // **전에** 일어나, 파싱이 throw 한 내용은 부분 초기화 객체로 남아 같은 내용의
-      // 2회차 호출이 조용히 `data={}` 를 받는다. 이 가드와 `plan-scan.ts` 는 같은
-      // `plan/complete/**` 를 각각 파싱하므로 실제로 서로의 캐시를 밟는다.
+      // `{}` = gray-matter 캐시 우회. 옵션 없이 부르면 캐시 등록이 파싱 **전에** 일어나,
+      // 파싱이 throw 한 내용은 부분 초기화 객체로 남아 같은 내용의 2회차 호출이 조용히
+      // `data={}` 를 받는다.
+      //
+      // 범위는 **같은 테스트 파일 안**이다 — 이 가드가 plan 하나를 두 번 파싱하기 때문
+      // (여기 필터 단계 + 아래 per-plan describe). 파일을 넘는 공유는 **없다**: vitest 는
+      // 기본 `isolate: true` 라 파일마다 모듈 레지스트리가 따로다(실측 — A 파일에서 같은
+      // 깨진 YAML 을 먼저 파싱해도 B 파일에서 독립적으로 throw 했다).
+      //
+      // 현재 이 자리는 방어다. 파싱 실패한 plan 은 여기서 `false` 로 걸러져 아래 단계에
+      // 도달하지 않으므로 결과가 달라지지 않는다 — 두 단계가 갈리게 되는 순간을 대비한다.
       data = matter(fs.readFileSync(abs, "utf8"), {}).data ?? {};
     } catch {
       return false;
@@ -115,6 +122,7 @@ describe("Gate C — plan-completion spec-consistency", () => {
   for (const abs of enforced) {
     const rel = path.relative(root, abs).split(path.sep).join("/");
     describe(rel, () => {
+      // `{}` 의 이유는 위 enforced 필터 단계 주석 참조 (같은 plan 을 두 번 파싱한다).
       const data = matter(fs.readFileSync(abs, "utf8"), {}).data ?? {};
       const impact = (data as Record<string, unknown>).spec_impact;
 

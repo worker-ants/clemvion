@@ -246,6 +246,10 @@ export function checkPlanFrontmatter(
     // 같은 내용의 두 번째 호출은 throw 없이 `data={}` 를 돌려준다(실측: 1회차 THROW →
     // 2회차 NOTHROW). 즉 깨진 frontmatter 가 **호출 순서에 따라** 조용히 빈 값으로 보인다.
     // 옵션을 넘기면 캐시를 통째로 우회해 순서와 무관하게 같은 결과가 된다.
+    //
+    // 범위는 **한 테스트 파일 안**이다 — vitest 기본 `isolate: true` 라 파일마다 모듈
+    // 레지스트리가 따로여서 파일을 넘는 오염은 없다(실측). 여기서 문제가 되는 이유는
+    // 같은 파일의 `findNonTerminalCompletedPlans` 가 같은 fixture 를 먼저 파싱하기 때문.
     const parsed = matter(raw, {});
     data = parsed.data ?? {};
     block = parsed.matter ?? "";

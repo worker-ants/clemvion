@@ -28,8 +28,13 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 | `collectSpecMarkdown` | `spec-links.ts` | 생성형 `*-api-catalog/` 제외 |
 | `collectCodebaseSources` | `spec-links.ts` | 확장자 집합(`.ts`/`.tsx`) · build 산출물 제외 |
 
-`plan-lifecycle-gates` 가 **plan walker 를 네 벌 → 한 벌**로 줄였다(live/complete 수집기를
-`walkPlanMarkdown` 에서 파생). 나머지 둘은 그대로다.
+`plan-lifecycle-gates` 가 합친 것은 **plan 계열 둘**이다 — live/complete 수집기를
+`walkPlanMarkdown` 하나에서 파생시켰다. 위 표의 나머지 둘(`spec-links.ts` 쪽)과 Gate C 의
+네 번째(`collectCompletePlans`)는 **그대로 남아 있다**.
+
+> 이 문단은 처음에 "네 벌 → 한 벌" 이라고 썼는데 `plan-scan.ts` 헤더 주석은 "그중 둘"
+> 이라고 정확히 적고 있었다 — 코드가 맞고 이 요약이 틀렸다(ai-review INFO). 통합 범위를
+> 넓게 쓰면 남은 셋을 아무도 안 찾는다.
 
 ## 착수 전 필수 — 필터 차이를 표로 실측할 것
 
@@ -51,6 +56,27 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 
 - [ ] `collectCompletePlanMarkdown` 재사용으로 전환할지 판정 — 하면 "네 벌 → 한 구현" 이
       완결된다. 전환 시 한쪽 이름이 사라지므로 개명 문제도 함께 해소된다
+
+## 2026-08-10 추가 — `plan-lifecycle-gates` 최종 라운드가 더 얹은 것
+
+- [ ] **gray-matter 캐시 우회 관용구(`matter(raw, {})`)가 4곳에 손 복제** —
+      `plan-scan.ts` 2곳 + `spec-plan-completion.test.ts` 2곳. 5번째 파서 호출이 추가될 때
+      `{}` 를 빠뜨리면 조용히 되살아난다(그 PR 이 실제로 1곳만 고쳤다가 리뷰에 잡혔다).
+      `parseFrontmatterSafe(raw)` 단일 헬퍼로 통합 판정
+      > 같은 hazard 가 `spec-frontmatter-parse.ts:113` 에도 남아 있다(옵션 없는 `matter(raw)`).
+      > 오늘은 `spec/**` 만 읽어 plan 스캐너와 내용이 안 겹쳐 무해하지만 **그 전제가 코드로
+      > 강제되지 않는다.** 헬퍼로 통합하면 이 클래스가 저장소에서 소거된다
+- [ ] **Gate C 의 `collectCompletePlans` 와 `collectCompletePlanMarkdown` 의 반환 집합
+      동등성이 자동 검증되지 않는다** — "현재 일치" 는 수동 실측일 뿐이다. 통합하거나,
+      통합 전까지는 **동등성 계약 테스트 1개**를 두는 편이 낫다(위 §"함께 볼 것" 과 같은 대상)
+- [ ] `spec-links.ts` 내부 `collectSpecMarkdown`/`collectCodebaseSources` DFS 중복 —
+      위 walker 표의 2·3번이 바로 이것이다. **이 둘은 파일 하나 안의 중복**이라 통합이
+      제일 싸다
+- [ ] (성능, 별 축) `extractLinks` 가 마크다운 링크가 없는 파일도 전수 라인 스캔한다 —
+      실측 2072파일 중 `](` 포함은 35개(1.7%). `text.includes("](")` 사전 필터로 스킵
+- [ ] (테스트 갭) `hasValidSpecImpact` 의 `NONE_VALUES` 대소문자/trim/`n-a` 분기가 fixture
+      로 검증되지 않는다 — `.trim()`/`.toLowerCase()` 를 지워도 초록일 수 있다.
+      `collectCompletePlans` 의 `archive/`·인덱스 제외도 negative-path fixture 가 없다
 
 ## `SpecMdFile` 타입명 (별 축, 같은 착수 시점이 자연스러움)
 
