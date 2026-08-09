@@ -53,4 +53,7 @@ completed frontmatter 파싱 실패 침묵 · 비-문자열 status · 거울상 
 
 - 문서 가드 **18파일 / 2828 tests PASS** (2823 → 2828, 픽스처 5건 증가)
 - 뮤테이션 3/3 RED
-- e2e — 아래 줄
+- **e2e 통과** (260s, backend jest tests=264). 면제 아님 — 변경 set 에
+  `codebase/frontend/src/lib/docs/__tests__/**` 3파일이 있어 PROJECT.md §e2e 면제
+  화이트리스트의 부분집합이 아니다. 마지막 코드 commit(`882f15d6f`) 다음에 돌렸다.
+- harness **995 tests OK**
