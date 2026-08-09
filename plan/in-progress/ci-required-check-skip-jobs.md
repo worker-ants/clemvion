@@ -184,10 +184,16 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
 - [ ] `review-gate.yml` — **주의**: 전환하면 문서-only PR 에서도 돌게 되므로, 그 경로에서
       게이트 로직이 정상 통과하는지 먼저 확인할 것
 - [ ] `e2e.yml` — `paths-ignore` 형태라 다른 축. 비용이 가장 크니 마지막
-- [ ] **3번째 전환 시점에 `changes` 잡을 reusable workflow(`workflow_call`)로 추출**
+- [ ] **`changes` 잡을 reusable workflow(`workflow_call`)로 추출 — 트리거 도달, 다음 PR**
       (ai-review W7·W8). 지금은 wiring 이 두 파일에 복제돼 있고 `fetch-depth: 0` 전체
       clone 을 워크플로마다 지불한다. reviewer 자신이 "3번째 시점에 검토" 를 권고했고,
       2개 시점에 추상화하면 아직 안 드러난 변형을 추측으로 설계하게 된다.
+      > **트리거 도달 (2026-08-09)**: `backend-checks.yml` 이 세 번째 전환이다
+      > ([`backend-lint-gate-broken-on-main.md`](backend-lint-gate-broken-on-main.md) §후속).
+      > 그 PR 에서 함께 하지 않은 이유는 **추출이 이미 머지돼 초록인 두 워크플로를 같이
+      > 건드리기 때문** — backend CI 를 처음 세우는 PR 에 기존 CI 리팩터를 섞으면, 다른
+      > 안전망이 없는 층에서 실수했을 때 되돌릴 게이트가 없다. 4번째를 기다리지 말고
+      > **다음 PR** 로 집행한다.
 - [ ] `migration-recheck-on-main.yml` — **대상 아님**(push 전용, PR 체크가 아니다)
 
 ## 사용자 액션 (이 PR 머지 후)

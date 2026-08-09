@@ -206,10 +206,16 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 주석으로만 서 있다. 재현하려면
       mock 에 LIKE 해석기를 넣거나(테스트가 DB 를 흉내 내다 틀릴 위험을 새로 만든다) e2e 를
       추가해야 해서 그 PR 범위를 넘겼다.
-- [ ] 4번째 워크플로가 skip-job 패턴을 따를 때 `changes` 잡 + 5단계 셋업 보일러플레이트를
-      composite action / reusable workflow 로 추출 (ai-review INFO 4) —
-      [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 의 W7 과 같은 항목.
-      `backend-checks.yml` 이 세 번째다.
+- [ ] **`changes` 잡 + 셋업 보일러플레이트를 reusable workflow 로 추출 — 트리거 이미 도달**
+      (ai-review INFO 4 · `--impl-done` WARNING).
+      [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
+      시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
+      라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정한다(실측: `CONVERTED` 3건).
+      > **그래도 이 PR 에서 하지 않는 이유** — 추출은 이미 머지돼 초록인 `deps-security-checks`·
+      > `frontend-checks` **두 워크플로를 함께 건드린다.** 이 PR 의 목적은 backend CI 를
+      > **처음** 세우는 것이고, backend 는 아직 다른 안전망이 하나도 없다. 그 층에서 실수하면
+      > 되돌릴 게이트가 없으므로, 신설과 기존 2개 리팩터를 한 PR 에 섞지 않는다.
+      > **다음 PR 로 즉시** — 4번째 전환을 기다리지 않는다.
 - [ ] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
       각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
 - [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning
