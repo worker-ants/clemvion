@@ -251,17 +251,44 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 
 **developer 범위:**
 
-- [ ] backend `README.md` §배포 주의 에 **부팅 캐너리가 기동을 멈출 수 있다**는 사실 추가
+- [x] backend `README.md` §배포 주의 에 **부팅 캐너리가 기동을 멈출 수 있다**는 사실 추가
       (ai-review INFO 18). 이 PR 은 CHANGELOG·JSDoc·plan 세 곳에 적었으나 배포 담당자가
       먼저 보는 곳은 README 다. 그 절이 별도 구조 정리를 필요로 해 여기서 손대지 않았다.
-- [ ] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
+      > **처리 (2026-08-09, `backend-hygiene-followups`).** 예고된 "구조 정리" 가 이것이다 —
+      > 그 절은 `## 환경 변수` 안의 인용문이었는데 캐너리는 환경변수 축이 아니라 절 자체를
+      > `## 배포 주의 — 기동을 멈추는 검사` 로 승격하고 두 검사를 소절로 갈랐다.
+      > **이질성 표기**: `assertProductionConfig` 소절 제목에 `NODE_ENV=production 전용`,
+      > 캐너리 소절에 `환경 무관` 을 박고, 별도 인용문으로 "dev·CI 에서도 같은 조건으로
+      > 멈춘다" 를 적었다. 다만 "dev 에서 떴으니 production 도 뜬다" 로는 쓰지 않았다 —
+      > 파손 계기 중 하나가 빌드 minify/mangle 이라 산출물이 다르면 결과가 갈린다.
+- [x] 워크스페이스 UUID 픽스처가 3개 spec 파일에 다른 이름으로 중복 선언 (INFO 13·14) —
       공용 fixture 모듈 승격. 지금 옮기면 이 PR diff 가 세 파일 더 는다.
+      > **처리 (2026-08-09).** `common/__test-utils__/workspace-id-fixtures.ts` 신설
+      > (`modules/integrations/__test-utils__` 관례 — build tsc 가 컴파일하므로 jest 타입 비의존).
+      > **중복은 값이 아니라 어휘였다**: 세 파일의 값 letter-scheme 은 겹치는데 같은 값에
+      > 다른 이름(`cccc` = util 의 `OTHER_WS` = roles.guard 의 `VICTIM_WS`), 같은 이름에
+      > 다른 값(`DECOY_WS`)이 섞여 있었다. 값당 이름이 하나여야 하므로 `OWN_WS`(17곳)를
+      > `TOKEN_WS` 로 통일했다 — 헤더 vs 토큰이 이 결함 클래스의 축이라 `HEADER_WS`/`TOKEN_WS`
+      > 쌍이 어휘로 일관된다. **`WS1` 은 새 이름을 만들지 않고 용법대로 해소**했다:
+      > 헤더==토큰인 4곳은 기존 `SAME_WS`, 미인증 헤더-only 1곳은 `HEADER_WS`.
+      > 픽스처가 vacuous 하지 않음을 뮤테이션으로 확인 — `OTHER_WS` 를 `TOKEN_WS` 와 같은
+      > 값으로 바꾸자 **2 suite / 3 test RED**(값의 상호 구별이 로드베어링).
 - [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
-- [ ] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
+- [x] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
       서브셋**인데 캐너리가 세는 것은 `@WorkspaceId()` 소비 라우트 **전체**라 상위집합이다 —
       전체 수치를 실측해 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**:
       주석 한 줄이어도 `codebase/**` 변경이라 리뷰·`--impl-done` 두 게이트가 다시
       stale 해진다. INFO 등급 정확도 개선에 25분 사이클을 다시 도는 것은 비례하지 않는다.
+      > **처리 (2026-08-09) — 추정치가 아니라 캐너리 자신이 센 값을 넣었다: 142건.**
+      > `make e2e-up` 으로 backend 를 실제 기동해 부팅 로그를 읽었다:
+      > `[WorkspaceIdReflection] @WorkspaceId() 소비 라우트 142건 인식`. 정적 grep
+      > (`*.controller.ts` 의 `@WorkspaceId()` 145회)은 한 핸들러의 다중 사용·미등록
+      > 컨트롤러를 구분하지 못해 교차검증용으로만 썼다 — 캐너리가 세는 것은 `DiscoveryService`
+      > 에 등록된 라우트라 그 로그가 정본이다. 주석에 **두 수의 포함관계**도 못박았다
+      > (222 라우트 ⊇ 142 소비 ⊇ 73 `@Roles()` 미부착).
+      > **나머지 3곳의 "73건" 은 건드리지 않았다** — `roles.guard.ts:48`("222건 중 73건") ·
+      > `roles.guard.spec.ts:66` · `repo-guards/__tests__/workspace-roles-attachment.spec.ts:18`
+      > 은 전부 서브셋 의미로 정확하다(전수 grep 후 판정). 오염은 캐너리 주석 한 곳뿐이었다.
 
 ## Rationale
 

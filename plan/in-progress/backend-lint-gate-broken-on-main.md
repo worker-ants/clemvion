@@ -248,16 +248,44 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       수정 후 같은 프로브로 재확인: **통과**(타이밍 무관해짐).
 - [x] `backend unit` required check 등록 보류 사유 — **해소됨**. 위 1건이 유일한
       실패였고 원인이 확정·수정됐다.
+- [x] **잔재 제거 (2026-08-09, `backend-hygiene-followups`)** — 위 fix 가 mock 을 고치면서
+      옛 스캐폴딩을 남겼다. `fetchPromise` 는 선언 후 `_reject?.()` **한 줄에서만** 참조되는데
+      `Promise` 에 `_reject` 속성이 없어 optional-call 이 매번 no-op 이고, mock 이 실제로
+      반환하는 것은 별개의 새 Promise 다 — 즉 그 블록(`new Promise(() => {})` + `abort`
+      리스너)은 아무것도 하지 않는다. 전수 grep 으로 참조 2곳뿐임을 확인하고 삭제했다.
+      죽은 채로 두면 "abort 처리가 저기서 일어난다" 는 오독을 남긴다.
 
 ## 후속 (타입체크 갭 PR 밖)
 
 > 타입체크 갭 PR: [#1109](https://github.com/worker-ants/clemvion/pull/1109)
 
-- [ ] `deleteByPrefix` 가드의 **존재 근거를 실행 가능한 테스트로** 고정 (ai-review INFO 7).
+- [x] `deleteByPrefix` 가드의 **존재 근거를 실행 가능한 테스트로** 고정 (ai-review INFO 7).
       지금 in-memory mock 은 `startsWith` 라 LIKE 와일드카드 의미론을 재현하지 않는다 —
       "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 주석으로만 서 있다. 재현하려면
       mock 에 LIKE 해석기를 넣거나(테스트가 DB 를 흉내 내다 틀릴 위험을 새로 만든다) e2e 를
       추가해야 해서 그 PR 범위를 넘겼다.
+      > **처리 (2026-08-09, `backend-hygiene-followups`) — e2e 를 골랐다.** LIKE 해석기는
+      > "내가 구현한 LIKE" 에 대한 확신만 주므로, 흉내 내지 않고 **실 Postgres 에 같은 형태의
+      > 쿼리를 던진다**(`test/secret-store-like-prefix.e2e-spec.ts`, 3건).
+      > `_` 를 섞은 패턴이 이웃 리소스까지 지우는 것을 **의도 0건 vs 실제 2건**으로 고정했고,
+      > 메타문자 없는 prefix 는 순수 접두사 일치(1건)라는 대조군을 함께 뒀다. 다른 스펙의
+      > row 를 건드리지 않도록 전 ref 를 unique 네임스페이스에 가뒀다.
+      > **위험이 실재하는 이유도 적었다** — `V063__secret_store.sql` 의 CHECK 는 resourceId 를
+      > `[^/]+` 로만 제한해 `_`·`%` 를 허용한다. 즉 "prefix 에 메타문자가 없다" 는 성질은
+      > DB 가 아니라 애플리케이션 가드만이 세운다.
+      >
+      > **e2e 만으로는 부족해 단위에 연결점을 뒀다.** 서비스는 러너 프로세스 밖이라 e2e 가
+      > 직접 호출할 수 없어, 쿼리가 `LIKE` 이고 바인딩이 `<prefix>%` 이며 `ESCAPE` 절이
+      > 없다는 사실을 단위에서 단언한다. 뮤테이션 실측: `LIKE`→`ILIKE` **1 RED** ·
+      > 트레일링 `%` 제거 **1 RED**(둘 다 신규 단언만 — **기존 테스트는 전부 GREEN** 이라
+      > 커버리지가 실제로 늘었다는 증거).
+      >
+      > **여기서 한 번 틀렸다 — 기록해 둔다.** mock 에 "가드가 사라지면 조용히 적게 지우지
+      > 않고 throw" 하는 자기-전제 단언을 넣었는데, 에러 문구에 `메타문자` 를 써서 기존
+      > `rejects.toThrow(/메타문자/)` 4건이 **그 throw 로 그대로 충족**됐다 → 가드 제거
+      > 뮤턴트가 **47/47 GREEN**. 닫으려던 침묵을 같은 자리에 다시 만든 셈이다. 문구를
+      > `LIKE 와일드카드` 로 갈라 재실측 **4 RED**. mock 이 프로덕션 가드와 같은 어휘를 쓰면
+      > 단언이 어느 쪽을 검증하는지 구별할 수 없다는 것이 교훈이라 주석에도 남겼다.
 - [x] **`changes` 잡 추출 — 완료 (2026-08-09, 다음 PR 로 즉시 집행)**
       (ai-review INFO 4 · `--impl-done` WARNING). `_changed-paths.yml` 신설, 세 워크플로가
       `uses:` 로 호출.

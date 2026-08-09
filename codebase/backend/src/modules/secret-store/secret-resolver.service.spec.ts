@@ -13,8 +13,20 @@ import { SecretResolverService } from './secret-resolver.service';
 
 type Row = SecretStore;
 
-function createInMemoryRepository(): Repository<SecretStore> {
+/** 마지막으로 실행된 delete 쿼리의 조건문·바인딩 값 — 쿼리 **형태**를 단언하기 위한 관측점. */
+interface LastDeleteQuery {
+  condition?: string;
+  pattern?: string;
+}
+
+type InMemoryRepository = Repository<SecretStore> & {
+  _dump: () => unknown;
+  _lastDeleteQuery: LastDeleteQuery;
+};
+
+function createInMemoryRepository(): InMemoryRepository {
   const store = new Map<string, Row>();
+  const lastDeleteQuery: LastDeleteQuery = {};
   const repo = {
     async findOne({ where }: { where: { ref: string } }): Promise<Row | null> {
       return store.get(where.ref) ?? null;
@@ -46,9 +58,35 @@ function createInMemoryRepository(): Repository<SecretStore> {
         delete() {
           return this;
         },
-        where(_condition: string, params: { prefix: string }) {
+        where(condition: string, params: { prefix: string }) {
+          lastDeleteQuery.condition = condition;
+          lastDeleteQuery.pattern = params.prefix;
           // `prefix` 파라미터는 'secret://...%' 형식 — 끝의 '%' 를 제거해 startsWith 로 비교.
-          this._lastPrefix = params.prefix.replace(/%$/, '');
+          //
+          // **이 치환이 SQL `LIKE` 와 동치인 것은 나머지에 메타문자가 없을 때뿐이다.**
+          // Postgres 는 `_` 를 임의 1글자, `%` 를 임의 문자열로 해석하므로, 메타문자가
+          // 섞인 패턴에서 `startsWith` 는 실제보다 **적게** 지운다 — 즉 mock 이
+          // 과다삭제를 조용히 감춘다. 그 전제는 `deleteByPrefix` 의 입력 거부 가드가
+          // 세워 주므로, **여기서 전제를 직접 단언**한다. 가드가 사라지면 이 스위트가
+          // 조용히 GREEN 으로 남는 대신 아래 throw 로 그 사실이 드러난다.
+          //
+          // LIKE 해석기를 여기 구현하지 않는 이유: 테스트가 DB 를 흉내 내다 틀릴 새 위험을
+          // 만든다. 실제 와일드카드 의미론은 실 Postgres 가 고정한다
+          // (`test/secret-store-like-prefix.e2e-spec.ts`).
+          const literalPart = params.prefix.replace(/%$/, '');
+          if (/[%_\\]/.test(literalPart)) {
+            // **문구는 서비스 가드의 에러와 겹치지 않아야 한다.** 가드 쪽 메시지에도 있는
+            // 단어(`메타문자`)를 여기 쓰면, 가드를 지우는 회귀가 와도 위 `toThrow(/메타문자/)`
+            // 단언들이 이 mock 의 throw 로 **그대로 충족돼** 스위트가 GREEN 으로 남는다
+            // (실측: 그 문구로 처음 작성했다가 가드 제거 뮤턴트가 47/47 통과했다).
+            throw new Error(
+              'in-memory repository mock: LIKE 와일드카드가 섞인 패턴은 startsWith 로 ' +
+                `모사할 수 없습니다 (받음: "${params.prefix}"). deleteByPrefix 의 입력 ` +
+                '거부 가드가 사라졌는지 확인하세요 — 실 Postgres 는 이 패턴에서 의도보다 ' +
+                '넓게 삭제합니다.',
+            );
+          }
+          this._lastPrefix = literalPart;
           return this;
         },
         async execute() {
@@ -66,7 +104,8 @@ function createInMemoryRepository(): Repository<SecretStore> {
     },
     // helper for tests
     _dump: () => Array.from(store.entries()),
-  } as unknown as Repository<SecretStore> & { _dump: () => unknown };
+    _lastDeleteQuery: lastDeleteQuery,
+  } as unknown as InMemoryRepository;
   return repo;
 }
 
@@ -250,6 +289,49 @@ describe('SecretResolverService', () => {
       );
       svc.onModuleInit();
       await expect(svc.deleteByPrefix(prefix)).rejects.toThrow(/메타문자/);
+    });
+
+    /**
+     * 가드의 **존재 근거**("메타문자가 섞이면 실 DB 가 과다삭제한다")를 실행 가능하게
+     * 만드는 두 축 중 이쪽 — "prefix 가 정말 `LIKE` 패턴으로 쓰이는가".
+     *
+     * 나머지 축(그래서 `_`·`%` 가 와일드카드로 해석된다)은 in-memory mock 이 `startsWith`
+     * 라 재현할 수 없어 실 Postgres 가 맡는다
+     * (`test/secret-store-like-prefix.e2e-spec.ts`). mock 에 LIKE 해석기를 넣는 대신
+     * 축을 가른 이유는 그쪽이 **테스트가 DB 를 흉내 내다 틀릴** 새 위험을 만들기 때문이다.
+     *
+     * 이 단언이 두 축의 연결점이다 — e2e 가 증명한 사실이 이 코드에 적용되려면 쿼리가
+     * `LIKE` 여야 하고 패턴이 `<prefix>%` 여야 한다. 쿼리가 `LIKE` 를 떠나거나 `ESCAPE`
+     * 절이 붙으면 여기서 RED 가 나고, 그때는 e2e 의 전제도 다시 봐야 한다.
+     */
+    it('prefix 는 `ref LIKE :prefix` 로 바인딩된다 — e2e 가 고정한 과다삭제 전제의 연결점', async () => {
+      const repo = createInMemoryRepository();
+      const svc = new SecretResolverService(
+        repo,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+
+      await svc.deleteByPrefix('secret://triggers/t1/');
+
+      expect(repo._lastDeleteQuery.condition).toBe('ref LIKE :prefix');
+      expect(repo._lastDeleteQuery.pattern).toBe('secret://triggers/t1/%');
+      // `ESCAPE` 절이 **없다**는 것도 계약의 일부다. 붙는 순간 메타문자가 리터럴로
+      // 바뀌어 가드의 전제(메타문자는 와일드카드로 해석된다)가 무효가 된다.
+      expect(repo._lastDeleteQuery.condition).not.toMatch(/escape/i);
+    });
+
+    it('mock 이 자기 전제를 단언한다 — 메타문자 패턴에서 조용히 적게 지우지 않고 throw', () => {
+      // 가드를 제거하는 회귀가 오면 메타문자 패턴이 이 mock 까지 내려온다. 그때
+      // `startsWith` 는 아무 일 없다는 듯 **적게** 지워 스위트를 GREEN 으로 통과시킨다 —
+      // 실 DB 의 동작과 정반대 방향이라 가장 나쁜 침묵이다. 그 침묵을 여기서 닫는다.
+      const repo = createInMemoryRepository();
+      expect(() =>
+        repo
+          .createQueryBuilder()
+          .delete()
+          .where('ref LIKE :prefix', { prefix: 'secret://triggers/t_/%' }),
+      ).toThrow(/startsWith 로/);
     });
 
     it('통과 — 실제 호출부 형태(내부 생성 UUID 경로)는 그대로 동작한다', async () => {

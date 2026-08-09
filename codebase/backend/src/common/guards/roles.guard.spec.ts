@@ -3,19 +3,15 @@ import { Reflector } from '@nestjs/core';
 import { Roles, RolesGuard, ROLES_KEY } from './roles.guard';
 import { WorkspaceId } from '../decorators/workspace.decorator';
 import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
-
-/**
- * 워크스페이스 픽스처는 **실제 형태의 UUID** 다. 이름은 종전 문자열의 역할을 그대로
- * 옮겼다(`OWN`=토큰이 확정한 내 워크스페이스, `VICTIM`=헤더로 노리는 남의 워크스페이스).
- * 임의 문자열이던 종전 값들은 `X-Workspace-Id` 형식 검증이 붙으면서 400 을 받는다 —
- * 프로덕션에서 존재할 수 없는 값이었으므로 픽스처 쪽이 틀렸던 것이다.
- */
-const WS1 = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
-const OWN_WS = 'bbbbbbbb-2222-4222-9222-bbbbbbbbbbbb';
-const VICTIM_WS = 'cccccccc-3333-4333-a333-cccccccccccc';
-const OTHER_WS = 'dddddddd-4444-4444-b444-dddddddddddd';
-const DECOY_WS = 'eeeeeeee-5555-4555-8555-eeeeeeeeeeee';
-const SAME_WS = 'ffffffff-6666-4666-9666-ffffffffffff';
+import {
+  DECOY_WS,
+  HEADER_WS,
+  NIL_WS,
+  OTHER_WS,
+  SAME_WS,
+  TOKEN_WS,
+  VICTIM_WS,
+} from '../__test-utils__/workspace-id-fixtures';
 
 /**
  * `tokenWorkspaceId` 는 `jwt.strategy` 가 **멤버십 검증 후** 채운
@@ -105,8 +101,8 @@ describe('RolesGuard', () => {
       const { guard } = buildGuard(role);
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: WS1,
-        tokenWorkspaceId: WS1,
+        headerWorkspaceId: SAME_WS,
+        tokenWorkspaceId: SAME_WS,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(expected);
@@ -123,8 +119,8 @@ describe('RolesGuard', () => {
       const { guard } = buildGuard(role);
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: WS1,
-        tokenWorkspaceId: WS1,
+        headerWorkspaceId: SAME_WS,
+        tokenWorkspaceId: SAME_WS,
         handler: RolesTarget.prototype.adminOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(expected);
@@ -142,7 +138,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'attacker',
         headerWorkspaceId: VICTIM_WS,
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
@@ -156,7 +152,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'u1',
         headerWorkspaceId: OTHER_WS,
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
@@ -169,7 +165,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'attacker',
         headerWorkspaceId: VICTIM_WS,
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
@@ -181,7 +177,7 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard('viewer');
       const ctx = makeContext({
         userId: 'u1',
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
@@ -207,11 +203,11 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard('editor');
       const ctx = makeContext({
         userId: 'u1',
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(getMemberRole).toHaveBeenCalledWith(OWN_WS, 'u1');
+      expect(getMemberRole).toHaveBeenCalledWith(TOKEN_WS, 'u1');
     });
   });
 
@@ -235,7 +231,7 @@ describe('RolesGuard', () => {
     it('미인증 + @Roles() → 거부', async () => {
       const { guard } = buildGuard('owner');
       const ctx = makeContext({
-        headerWorkspaceId: WS1,
+        headerWorkspaceId: HEADER_WS,
         handler: RolesTarget.prototype.editorOnly,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(false);
@@ -268,7 +264,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'attacker',
         headerWorkspaceId: [VICTIM_WS, DECOY_WS],
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });
@@ -291,8 +287,8 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard(null); // 비멤버
       const ctx = makeContext({
         userId: 'u1',
-        headerWorkspaceId: '00000000-0000-0000-0000-000000000000',
-        tokenWorkspaceId: OWN_WS,
+        headerWorkspaceId: NIL_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: GlobalRouteTarget.prototype.globalRoute,
         controllerClass: GlobalRouteTarget,
       });
@@ -305,7 +301,7 @@ describe('RolesGuard', () => {
       const { guard, getMemberRole } = buildGuard(null);
       const ctx = makeContext({
         userId: 'u1',
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: GlobalRouteTarget.prototype.globalRoute,
         controllerClass: GlobalRouteTarget,
       });
@@ -318,7 +314,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'u1',
         headerWorkspaceId: VICTIM_WS,
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: undecorated,
       });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
@@ -339,7 +335,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'u1',
         headerWorkspaceId: 'not-a-uuid',
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: GlobalRouteTarget.prototype.globalRoute,
         controllerClass: GlobalRouteTarget,
       });
@@ -382,7 +378,7 @@ describe('RolesGuard', () => {
         makeContext({
           userId: 'u1',
           headerWorkspaceId: 'not-a-uuid',
-          tokenWorkspaceId: OWN_WS,
+          tokenWorkspaceId: TOKEN_WS,
           handler: WorkspaceScopedTarget.prototype.workspaceScoped,
           controllerClass: WorkspaceScopedTarget,
         }),
@@ -394,7 +390,7 @@ describe('RolesGuard', () => {
         makeContext({
           userId: 'u1',
           headerWorkspaceId: 'not-a-uuid',
-          tokenWorkspaceId: OWN_WS,
+          tokenWorkspaceId: TOKEN_WS,
           handler: RolesTarget.prototype.editorOnly,
         }),
       );
@@ -407,7 +403,7 @@ describe('RolesGuard', () => {
       const ctx = makeContext({
         userId: 'u1',
         headerWorkspaceId: 'not-a-uuid',
-        tokenWorkspaceId: OWN_WS,
+        tokenWorkspaceId: TOKEN_WS,
         handler: WorkspaceScopedTarget.prototype.workspaceScoped,
         controllerClass: WorkspaceScopedTarget,
       });

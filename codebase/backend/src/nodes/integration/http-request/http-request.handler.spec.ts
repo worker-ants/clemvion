@@ -1673,17 +1673,10 @@ describe('HttpRequestHandler', () => {
 
       it('upstream abort fired during fetch cascades to the fetch controller', async () => {
         let observedSignal: AbortSignal | undefined;
-        const fetchPromise = new Promise<Response>(() => {
-          /* never resolves; controller abort surfaces it */
-        });
         global.fetch = jest
           .fn()
           .mockImplementation((_url, init: RequestInit) => {
             observedSignal = init.signal as AbortSignal | undefined;
-            observedSignal!.addEventListener('abort', () => {
-              // simulate fetch rejecting on abort
-              (fetchPromise as unknown as { _reject?: () => void })._reject?.();
-            });
             return new Promise((_, reject) => {
               const failAsAborted = () =>
                 reject(
