@@ -5047,10 +5047,17 @@ describe('ExecutionEngineService', () => {
         // 실제 시그니처는 `linkedNodeExec` 를 받고 **boolean 을 반환**한다(전이가 실제로
         // 영속됐는지). 옛 `Promise<void>` 선언은 `expect(applied).toBe(...)` 단언을
         // `void` 대상으로 만들어 사실상 무의미하게 했다 — 실제 타입으로 교정한다.
+        //
+        // **같은 drift 가 두 번째다.** 프로덕션이 4번째 인자 `opts`(`allowRetryReentry`)를
+        // 받게 됐는데 이 손-미러 타입은 3개에 멈춰 있었고, 아래 호출 두 곳이 4개를 넘겨
+        // TS2554 를 냈다 — 그런데 `*.spec.ts` 는 `nest build` 에서 exclude 되고 jest 는
+        // 타입을 strip 하므로 **어떤 게이트도 이걸 보지 못했다**. 이 PR 의 ratchet 이
+        // 막으려는 구멍이 정확히 이것이다.
         updateExecutionStatus: (
           e: Partial<Execution>,
           s: ExecutionStatus,
           linkedNodeExec?: NodeExecution,
+          opts?: { allowRetryReentry?: boolean },
         ) => Promise<boolean>;
       };
 

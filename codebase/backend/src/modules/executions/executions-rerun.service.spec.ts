@@ -419,6 +419,11 @@ describe('ExecutionsService — reRun (decision F2)', () => {
       engine as never,
       registry as never,
       realAudit as never,
+      // 8번째 인자 `workspacesService` 가 빠져 있었다(TS2554). 타입이 strip 되는 jest
+      // 에서는 `undefined` 로 들어가 이 테스트가 밟는 경로가 그것을 안 써서 통과했지만,
+      // `reRun` 이 그 의존을 쓰기 시작하는 순간 타입 오류 대신 런타임
+      // `Cannot read properties of undefined` 로 터진다.
+      {} as never,
     );
     jest
       .spyOn(serviceWithRealAudit, 'findById')
