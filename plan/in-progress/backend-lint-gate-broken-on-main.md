@@ -201,6 +201,8 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 ## 후속 (타입체크 갭 PR 밖)
 
+> 타입체크 갭 PR: [#1109](https://github.com/worker-ants/clemvion/pull/1109)
+
 - [ ] `deleteByPrefix` 가드의 **존재 근거를 실행 가능한 테스트로** 고정 (ai-review INFO 7).
       지금 in-memory mock 은 `startsWith` 라 LIKE 와일드카드 의미론을 재현하지 않는다 —
       "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 주석으로만 서 있다. 재현하려면
