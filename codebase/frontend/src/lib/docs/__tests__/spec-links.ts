@@ -264,6 +264,47 @@ export function findBrokenLinks(root: string): LinkViolation[] {
   });
 }
 
+/** Top-level `plan/in-progress/*.md` — the *living* plans. */
+export function collectLivePlanMarkdown(root: string): SpecMdFile[] {
+  const dir = path.join(root, "plan", "in-progress");
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith(".md"))
+    .map((e) => {
+      const full = path.join(dir, e.name);
+      return {
+        absPath: full,
+        relPath: path.relative(root, full).split(path.sep).join("/"),
+      };
+    })
+    .sort((a, b) => a.relPath.localeCompare(b.relPath));
+}
+
+/**
+ * Validate relative links in the *living* plans (top-level `plan/in-progress/*.md`).
+ *
+ * Moving a plan to `plan/complete/` leaves sibling links pointing at the old
+ * directory, and nothing saw that axis: this file's `spec/**` guard is scoped by
+ * its name, and `plan/**` is nobody's subject. Measured 2026-08-09: 8 broken
+ * links in the live plans, every one a plan that had moved to `complete/`.
+ *
+ * Scope is deliberately narrow. `plan/complete/**` carries 135 broken links and
+ * that is **correct** — `plan-lifecycle.md §3` keeps point-in-time records on
+ * their old paths. Widening here would turn a documented-normal state into a
+ * mass failure. Grouped subfolders follow the same exemption
+ * `plan-frontmatter.test.ts` already applies to its frontmatter checks.
+ *
+ * `checkSelfAnchors: false` — plans self-link by heading far less than specs do,
+ * and their headings are edited constantly; anchor churn would produce noise
+ * without protecting the failure this exists for (a moved file).
+ */
+export function findBrokenPlanLinks(root: string): LinkViolation[] {
+  return findBrokenLinksInFiles(collectLivePlanMarkdown(root), {
+    checkSelfAnchors: false,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Codebase-source spec links.
 //

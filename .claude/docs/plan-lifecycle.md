@@ -31,6 +31,7 @@
 
 - **frontmatter**: `worktree`/`started`/`owner` 3필드 스키마는 동일하게 쓴다(§4). 다만 build guard `plan-frontmatter.test.ts` 의 강제 범위는 `plan/in-progress/*.md` 이므로 `research/` 는 **가드 대상 아님** — 규약상 권장이되 빌드가 막지 않는다. 미착수 리서치는 `worktree: (unstarted)`.
 - **Gate C(`spec_impact`)**: 대상 아님 — `spec-plan-completion.test.ts` 는 `plan/complete/` 만 본다.
+- **`plan-frontmatter.test.ts`**: 3-필드 스키마 검사는 top-level `plan/in-progress/*.md` 한정이나, §4 가 추가한 두 검사는 스코프가 다르다 — `status` 종료값은 `plan/complete/**`, 상대링크는 top-level `in-progress`.
 - **stale audit**: `plan-stale-audit.sh` 의 30일 신호 대상이 아니다(완료를 향해 가는 문서가 아니므로).
 - **`research/` → `complete/` 이동은 하지 않는다**. 리서치가 낡으면 문서 안에 갱신 노트를 달거나(권장), 완전히 무효가 되면 삭제한다.
 
@@ -102,7 +103,15 @@ commit 전 확인:
 - [ ] 미해결 follow-up·"TODO"·"결정 필요" 항목이 0건인가
 - [ ] PROJECT.md 지정 방식(미명시 시 `git mv`)으로 옮겼는가 (단순 복사·삭제 아님)
 - [ ] frontmatter 에 `spec_impact` 가 선언됐는가 (**Gate C** — 아래)
+- [ ] `status` 를 **선언했다면** 종료 상태로 갱신했는가 (§4 — `complete`/`implemented`/
+      `applied`/`superseded`). 선언 자체가 없으면 해당 없음
+- [ ] 형제 plan 을 가리키던 상대링크를 `../complete/<name>` 으로 정정했는가 (§4).
+      **인입 링크**(다른 살아있는 plan → 이 plan)도 함께 본다
 - [ ] commit 메시지가 `chore(plan): mark <name> complete` 형식인가
+
+> 위 두 항목(§4 신설분)은 `plan-frontmatter.test.ts` 가 사후에도 잡는다. 그래도 여기 적는
+> 이유는 **체크리스트만 보고 이동하는 사람**이 실패를 겪고 나서야 아는 것을 피하기
+> 위해서다 — 두 항목 다 이 저장소가 실제로 놓쳤던 것이다(ai-review WARNING).
 
 한 항목이라도 `[ ]` 이면 이동 skip — 이번 PR 은 plan 의 일부만 처리한 것이고 plan 은 `in-progress/` 에 남는다.
 

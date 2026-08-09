@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
 import { repoRoot } from "./spec-frontmatter-parse";
+import { collectLivePlanMarkdown, findBrokenPlanLinks } from "./spec-links";
 
 // Guard: every top-level in-progress plan carries the lifecycle frontmatter
 // (worktree / started / owner) so plan-coherence collision-detection and the
@@ -85,19 +86,6 @@ function collectCompletedPlans(root: string): string[] {
 // 필요하면 여기 추가하는 순간이 "이게 정말 종료 상태인가" 를 판단할 자리다.
 const TERMINAL_STATUSES = new Set(["complete", "implemented", "applied", "superseded"]);
 
-/** 마크다운 인라인 링크의 상대 타깃만. 외부 URL·앵커 전용은 제외. */
-function relativeLinkTargets(text: string): string[] {
-  const out: string[] = [];
-  const re = /\[[^\]]*\]\(([^)#]+?)(?:#[^)]*)?\)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    const t = m[1].trim();
-    if (/^(https?:|mailto:|<)/.test(t)) continue;
-    out.push(t);
-  }
-  return out;
-}
-
 describe("plan-frontmatter guard", () => {
   const root = repoRoot();
   const plans = collectTopLevelPlans(root);
@@ -177,27 +165,27 @@ describe("plan-frontmatter guard", () => {
   }
 
   // ── (b) 살아있는 plan 의 상대링크 무결성 ────────────────────────────────
+  //
+  // 스캐너는 `spec-links.ts` 의 공유 구현(`findBrokenPlanLinks`)을 쓴다. 초판은 여기에
+  // 정규식을 새로 짰는데 그것은 **코드펜스 안의 링크도 실제 링크로 취급**했다 — plan 문서가
+  // 예시 스니펫에 없는 경로를 적는 순간 거짓 양성으로 push 가 막힌다(ai-review WARNING #1).
+  // 같은 저장소에 펜스 제외·링크 타이틀 처리가 이미 된 스캐너가 있는데 더 약한 사본을 만든
+  // 셈이라, 그쪽에 세 번째 진입점을 추가하고 여기서는 부른다.
   it("top-level in-progress plans have no broken relative links", () => {
-    const broken: string[] = [];
-    let checked = 0;
-    for (const abs of plans) {
-      const rel = path.relative(root, abs).split(path.sep).join("/");
-      for (const target of relativeLinkTargets(fs.readFileSync(abs, "utf8"))) {
-        checked += 1;
-        if (!fs.existsSync(path.resolve(path.dirname(abs), target))) {
-          broken.push(`${rel} → ${target}`);
-        }
-      }
-    }
-    // vacuity 방지 — 링크를 하나도 못 찾았으면 정규식이 죽은 것이고, 그러면 이 단언은
-    // 아무것도 안 지키면서 영원히 초록이다.
-    expect(checked, "no relative links parsed — the extractor stopped matching").toBeGreaterThan(50);
+    const violations = findBrokenPlanLinks(root);
+    const rendered = violations.map((v) => `${v.source}:${v.line} → ${v.target}`);
     expect(
-      broken,
-      `깨진 상대링크 ${broken.length}건:\n  ${broken.join("\n  ")}\n` +
+      rendered,
+      `깨진 상대링크 ${rendered.length}건:\n  ${rendered.join("\n  ")}\n` +
         "plan 을 complete/ 로 옮기면 형제 plan 을 가리키던 상대경로가 그대로 남는다 — " +
         "`../complete/<name>` 로 정정할 것.",
     ).toEqual([]);
+  });
+
+  it("the plan link scanner actually sees links (non-vacuity)", () => {
+    // 스캐너가 조용히 빈 집합을 돌려주면 위 단언은 아무것도 안 지키면서 영원히 초록이다.
+    // 위반 0건이 정상 상태이므로 "위반 수" 로는 살아있음을 알 수 없다 — 파일 수집 쪽을 본다.
+    expect(collectLivePlanMarkdown(root).length).toBeGreaterThan(5);
   });
 });
 
