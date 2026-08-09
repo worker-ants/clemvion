@@ -1,6 +1,6 @@
 ---
 title: RolesGuard reflection 경화 — fail-open 위험 · 메모이제이션 · 비-UUID 헤더 400
-worktree: auth-guard-reflection-hardening-9c31f2
+worktree: harness-changeset-exclusion
 started: 2026-08-08
 owner: developer
 status: in-progress

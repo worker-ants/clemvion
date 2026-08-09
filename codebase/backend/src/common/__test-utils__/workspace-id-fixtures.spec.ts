@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { isUuidShaped } from '../utils/uuid';
+
 import * as fixtures from './workspace-id-fixtures';
 
 const { ALL_WS, assertAllUnique } = fixtures;
@@ -39,9 +41,10 @@ describe('workspace-id-fixtures', () => {
       join(__dirname, 'workspace-id-fixtures.ts'),
       'utf8',
     );
-    const callSites = src
-      .split('\n')
-      .filter((l) => /^\s*assertAllUnique\(ALL_WS\);/.test(l));
+    // 공백·개행에 관대하게 — 포맷 변경만으로 허위 RED 가 나면 이 검사가 짐이 된다.
+    // 주석/문자열 안의 언급까지 세지 않도록 줄 시작 호출만 본다.
+    const callSites =
+      src.match(/^[ \t]*assertAllUnique\s*\(\s*ALL_WS\s*\)\s*;/gm) ?? [];
     // 실패하면: 모듈 최상위에서 `assertAllUnique(ALL_WS)` 를 부르지 않는다는 뜻이고,
     // 그러면 가드가 아무것도 막지 않는다.
     expect(callSites).toHaveLength(1);
@@ -55,12 +58,14 @@ describe('workspace-id-fixtures', () => {
     //
     // 모듈 네임스페이스에서 **자동 추출**하면 spec 을 갱신하지 않아도 새 export 가 대상에
     // 들어온다. 판정 기준은 "UUID 형태의 string export" 다.
-    const UUID_SHAPED =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    // 판정은 프로덕션 `isUuidShaped` 를 그대로 쓴다 — 여기 정규식을 손으로 복제하면
+    // 그 술어가 바뀔 때 이 검사만 조용히 낡는다. 이 PR 이 없애고 있는 결함 클래스를
+    // 새로 만드는 셈이라 재사용이 맞다(ai-review INFO).
+    //
     // `Object.values` 에는 함수(`assertAllUnique`)와 배열(`ALL_WS`)도 섞여 있어
     // `v is string` 술어는 성립하지 않는다(TS2677). `flatMap` 으로 좁힌다.
     const exportedUuids = Object.values<unknown>(fixtures).flatMap((v) =>
-      typeof v === 'string' && UUID_SHAPED.test(v) ? [v] : [],
+      typeof v === 'string' && isUuidShaped(v) ? [v] : [],
     );
 
     // 캐너리: 추출이 조용히 빈 배열이 되면 이 테스트가 무의미해진다.
