@@ -44,6 +44,10 @@ jobs:
         pnpm-workspace.yaml
         scripts/ci-paths-changed.sh
         .github/workflows/_changed-paths.yml
+        # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
+        # 이 액션이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다. 추출로 새로
+        # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
+        .github/actions/pnpm-workspace/action.yml
         .github/workflows/packages-checks.yml
 
   # 패키지별 독립 job(matrix) — web-chat-checks.yml 패턴과 통일. fail-fast:false 로 한 패키지가
@@ -75,17 +79,10 @@ jobs:
         run: echo "내부 공유 패키지 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
-      - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant != 'false'
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/pnpm-workspace
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Install deps
-        if: needs.changes.outputs.relevant != 'false'
-        run: pnpm install --frozen-lockfile --filter "${{ matrix.pkg }}..."
+          filter: '${{ matrix.pkg }}...'
       - name: Lint
         if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter "${{ matrix.pkg }}" lint

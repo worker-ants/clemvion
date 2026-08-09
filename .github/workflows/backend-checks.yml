@@ -56,6 +56,10 @@ jobs:
         scripts/backend-typecheck-baseline.json
         scripts/ci-paths-changed.sh
         .github/workflows/_changed-paths.yml
+        # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
+        # 이 액션이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다. 추출로 새로
+        # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
+        .github/actions/pnpm-workspace/action.yml
         .github/workflows/backend-checks.yml
 
   lint:
@@ -72,17 +76,10 @@ jobs:
         run: echo "backend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
-      - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant != 'false'
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/pnpm-workspace
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Install backend workspace
-        if: needs.changes.outputs.relevant != 'false'
-        run: pnpm install --frozen-lockfile --filter "backend..."
+          filter: 'backend...'
       - name: ESLint
         if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter backend lint
@@ -99,17 +96,10 @@ jobs:
         run: echo "backend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
-      - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant != 'false'
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/pnpm-workspace
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-      - name: Install backend workspace
-        if: needs.changes.outputs.relevant != 'false'
-        run: pnpm install --frozen-lockfile --filter "backend..."
+          filter: 'backend...'
       # e2e(`*.e2e-spec.ts`)는 docker 인프라가 필요해 `e2e.yml` 소관이다 — 여기서는
       # 인프라 없이 도는 유닛만 돌린다(jest 기본 `testRegex` = `.spec.ts`).
       - name: Jest (unit)
@@ -128,21 +118,17 @@ jobs:
         run: echo "backend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
-      - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant != 'false'
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/pnpm-workspace
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+          filter: 'backend...'
+      # 이 잡만 python 이 더 필요하다(ratchet 스크립트). 공유 액션 **뒤**에 두는 것은
+      # 무관하다 — `pnpm install` 은 python 을 쓰지 않고, 아래 ratchet 스텝 전에만
+      # 준비되면 된다.
       - uses: actions/setup-python@v7
         if: needs.changes.outputs.relevant != 'false'
         with:
           python-version: '3.x'
-      - name: Install backend workspace
-        if: needs.changes.outputs.relevant != 'false'
-        run: pnpm install --frozen-lockfile --filter "backend..."
       # `nest build` 가 exclude 하는 `*.spec.ts` 까지 포함한 **전체 프로그램** 체크.
       # baseline 대비 증가·감소 둘 다 실패다(감소를 방치하면 그 차이만큼 새 오류가
       # 조용히 들어온다). 스크립트 헤더에 전체 근거.

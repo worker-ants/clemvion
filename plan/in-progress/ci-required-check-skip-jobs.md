@@ -250,7 +250,9 @@ spec-link)은 `paths` 만 걷고 유지, 없던 둘(harness·migration)은 추�
 > `.github/**`+`.claude/**` 였다면 PROJECT.md §e2e 면제 화이트리스트의 부분집합이지만,
 > `codebase/` 가 한 줄이라도 들어가면 면제 불가다.
 
-### 셋업 보일러플레이트 composite action — 트리거 도달, 실측 후 별 PR 로 분리
+### 셋업 보일러플레이트 composite action — 트리거 도달, 실측 후 별 PR 로 집행 (완료)
+
+> **PR**: [#1120](https://github.com/worker-ants/clemvion/pull/1120)
 
 `backend-lint-gate-broken-on-main.md §후속` 이 "4번째 워크플로가 어떤 셋업을 요구하는지 보고
 판단" 을 트리거로 걸어 뒀다. 이번에 5개를 전환해 그 시점을 지났으므로 실측했다
@@ -274,6 +276,37 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
 > 로컬 composite action 은 `uses: ./.github/actions/<name>` 이라 **checkout 이 먼저 돌아야
 > 한다** — 그래서 접히는 것은 4단계가 아니라 뒤 3단계다. 호출부가 그 한 스텝에 `if:` 를
 > 달면 스텝 게이팅 계약(`test_every_step_is_gated`)은 그대로 성립한다.
+
+**집행 완료 (2026-08-09, 다음 PR).** `.github/actions/pnpm-workspace/action.yml` 신설,
+9개 잡이 호출한다. 워크플로 순 **-41줄**, 게이팅 조건 반복 **57 → 39곳**. checkout 이 접히지
+않는다는 예측은 그대로 맞았다.
+
+> **줄 수보다 큰 것은 가드 시야였다.** 스텝 3개가 `.github/workflows/*.yml` 밖으로 나가면서
+> `test_workflow_yaml_structure.py` 의 구조 검사가 그것들을 못 보게 됐다 — 2026-08-01 의
+> 중복 `run:` 사고(설치 명령이 통째로 소실됐는데 YAML 은 에러를 안 냄)가 액션 안에서
+> 재발하면 아무도 못 볼 뻔했다. 검사 범위를 `.github/actions/**/action.yml` 까지 넓혔고,
+> 그 확장 자체가 vacuous 해지지 않도록 액션 파일 수에도 바닥을 걸었다.
+>
+> 또 하나: `pnpm install --frozen-lockfile` 이 이제 저장소에서 **한 줄뿐**이다. 파급이
+> 뒤집혀서, 그 줄이 망가지면 8개 잡이 한꺼번에 잘못된다(required check 후보가 전부 그 안에
+> 있다). 그래서 문자열 grep 이 아니라 **실제 argv**로 고정했다 — `run:` 블록을 꺼내 bash 로
+> 돌리고 `pnpm` 스텁이 받은 인자를 센다(`_changed-paths.yml` 이 세운 규칙과 같다).
+
+**검증** — 뮤테이션 **13/13 RED**: `--frozen-lockfile` 제거 · 필터 인용 제거 · env 대신 직접
+보간 · `required` 해제 · 캐시 키 드리프트 · `shell:` 제거 · 호출부 게이팅 누락 · 소비처
+pathspec 등재 누락 · **액션 안** 중복 `run:` 키 · **액션 안** `run`+`uses` 동시 · **액션 안**
+`continue-on-error` · 액션 수집 글롭 파손 · harness pathspec 등재 제거.
+가운데 셋(액션 안 3건)이 이 PR 의 핵심 주장 — 구조 검사가 실제로 액션 내부까지 본다 — 을
+직접 겨눈 뮤턴트다.
+
+TEST WORKFLOW — lint PASS(56s) · unit PASS(88s) · build PASS(117s) · harness **995 tests OK**
+(983 → 995). **e2e 면제**: 변경 set 이 `.claude/**` + `.github/**` + `plan/**` 뿐이고,
+PROJECT.md §e2e 면제 화이트리스트가 `.claude/**` (skills, hooks, agents 정의) ·
+`.github/**` (CI 정의는 e2e 가 검증 대상 아님) · `plan/**` 을 모두 포함하므로 부분집합이다.
+`codebase/**` 는 0건.
+
+> 다만 unit 단계는 형식이 아니라 **실질**이었다 — `packages-checks.yml` 을 고쳤고 그 파일을
+> 파싱하는 가드가 `codebase/frontend/**` 의 vitest 다. 51건 통과를 따로 확인했다.
 
 ### 검증 (2026-08-09)
 
@@ -317,6 +350,26 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
   (`packages-checks`·`web-chat-checks`·`spec-link-checks`)의 `on.push.paths` 가 되살아나는
   것은 아무 가드도 못 잡는다. required check 데드락은 PR 전용이라 심각도는 낮다.
   후속: 같은 테스트에서 `on.push.paths` 부재도 함께 단언.
+
+### 후속 — ai-review INFO 항목 (2026-08-09, composite action 추출 리뷰 `review/code/2026/08/09/21_53_16`)
+
+셋업 보일러플레이트를 `.github/actions/pnpm-workspace/action.yml` 로 추출한 PR 의 WARNING
+3건(액션 버전 핀 정확 비교·소비처 수 오기 정정·`_MAY_SWALLOW` 키 basename→상대경로)은
+즉시 조치했다. 아래 INFO 3건은 이번 PR 스코프는 아니지만 후속으로 등재한다(번호는 이
+리뷰의 SUMMARY.md 기준이며 위 2026-08-09 20:33 리뷰의 INFO 1/8 과는 별개 번호 체계다):
+
+- **INFO 1 — 서드파티 액션 태그 핀 집중**: `pnpm/action-setup`·`actions/setup-node` 가
+  커밋 SHA 가 아닌 버전 태그로 핀 — 저장소 전역 기존 관례라 이 diff 의 신규 결함은 아니지만,
+  추출로 그 신뢰 지점이 9개 잡(대부분 required-check 후보)이 의존하는 단일 파일로 집중됐다.
+  후속(선택): 커밋 SHA 고정 + 버전 주석 병기.
+- **INFO 2 — `STUB`/`argv()` 헬퍼가 `test_changed_paths_reusable.py` 와 완전 중복**:
+  스텁 프로토콜(`ARGC=`/`ARG=`) 변경 시 두 파일을 수동 동기화해야 한다. 후속: **세 번째
+  사례가 생기면** 공유 헬퍼 모듈로 추출(`_changed-paths.yml` 추출에 쓴 것과 같은 트리거
+  방식).
+- **INFO 5 — `ConsumerBindingTest.consumers()` 의 glob 비대칭**: `*.yml` 만 스캔해
+  `test_workflow_yaml_structure.py::_workflow_files()`(`*.y*ml`)와 규약이 다르다. 현재
+  전부 `.yml` 이라 실질 위험 낮음. 후속(선택): `WORKFLOWS.glob("*.y*ml")` + suffix 필터로
+  통일하거나 두 파일이 같은 glob 상수 공유.
 
 - [x] push + PR — [#1114](https://github.com/worker-ants/clemvion/pull/1114)
 
