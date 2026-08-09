@@ -21,10 +21,18 @@
 
 ## 왜 전면 승격이 아니라 ratchet 인가
 
-착수 시점 잔여가 **199건 / 39파일**이고 대부분은 mock 캐스팅·부분 mock 의 **의도적**
+착수 시점 실측이 **209건 / 40파일**이었고 그중 진짜 stale 10건을 이 PR 이 고쳐 커밋된
+baseline 은 **199건 / 38파일**이다. 나머지는 대부분 mock 캐스팅·부분 mock 의 **의도적**
 느슨함이다. 전면 승격하려면 그 199건을 먼저 처분해야 해서 diff 가 통째로 커지고, 그
 사이에도 **새 오류는 계속 들어온다**. ratchet 은 그 순서를 뒤집는다 — 바닥을 먼저 막고,
 정리는 각자 자기 파일을 만질 때 점진적으로.
+
+## 로컬에서 돌리는 법
+
+`.claude/tools/run-test.sh` 의 4단계에는 **없다**(그 wrapper 는 lint/unit/build/e2e 고정).
+
+    python3 scripts/check-backend-typecheck-ratchet.py            # 검사
+    python3 scripts/check-backend-typecheck-ratchet.py --update   # 줄었을 때 baseline 낮추기
 
 ## 판정
 

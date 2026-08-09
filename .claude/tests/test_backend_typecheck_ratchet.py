@@ -135,6 +135,89 @@ class FailClosedTest(unittest.TestCase):
         )
 
 
+class RunTscFailClosedTest(unittest.TestCase):
+    """`run_tsc()` 자체의 fail-closed 분기.
+
+    `VerdictTest` 는 `run_tsc` 를 통째로 주입으로 대체하므로 이 세 분기를 **한 번도
+    실행하지 않는다** — 모듈 docstring 이 보장하는 불변식의 절반이 무증거로 남는다
+    (ai-review WARNING #2). 여기서 `subprocess.run` 만 바꿔 실제 함수를 태운다.
+    """
+
+    def expect_exit_2(self, **run_kwargs) -> int:
+        with mock.patch.object(MOD.subprocess, "run", **run_kwargs):
+            with self.assertRaises(SystemExit) as ctx:
+                MOD.run_tsc()
+        return ctx.exception.code
+
+    def test_timeout_is_undecidable(self):
+        self.assertEqual(
+            self.expect_exit_2(
+                side_effect=MOD.subprocess.TimeoutExpired(cmd="tsc", timeout=1)
+            ),
+            2,
+        )
+
+    def test_missing_executable_is_undecidable(self):
+        # `npx` 가 없거나 실행할 수 없는 경우. 잡지 않으면 traceback + exit 1 이 되는데
+        # 이 스크립트 어휘에서 1 은 "baseline 위반" 이라 실행 실패가 정상 발견과 같은 코드가 된다.
+        self.assertEqual(self.expect_exit_2(side_effect=OSError("no npx")), 2)
+
+    def test_nonzero_exit_with_empty_stdout_is_undecidable(self):
+        """tsc 가 비-0 인데 stdout 이 비었으면 진단이 아니라 설정/실행 오류다 —
+        빈 출력을 "진단 0건" 으로 읽으면 baseline 전체가 감소로 보여 판정이 뒤집힌다."""
+        proc = mock.Mock(returncode=2, stdout="", stderr="error TS5023: Unknown option")
+        self.assertEqual(self.expect_exit_2(return_value=proc), 2)
+
+    def test_clean_run_returns_empty_output(self):
+        # 진단이 없으면 tsc 는 exit 0 + 빈 stdout 이다. 이건 정상이라 throw 하면 안 된다 —
+        # 위 분기와 **같은 입력(빈 stdout)** 이라 returncode 로만 갈린다.
+        proc = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(MOD.subprocess, "run", return_value=proc):
+            self.assertEqual(MOD.run_tsc(), "")
+
+
+class UpdateBaselineTest(unittest.TestCase):
+    """`--update` 정상 경로 (ai-review WARNING #3).
+
+    baseline 을 낮추는 유일한 수단이라, 이 경로가 깨지면 "줄었는데 못 낮춘다" 로 게이트가
+    영구 red 가 되고, 결국 사람이 baseline 을 손으로 편집하게 된다 — 그러면 `total` 과
+    파일별 합이 어긋나는 등 형태가 조용히 깨진다.
+    """
+
+    def test_update_writes_current_counts_and_round_trips(self):
+        tmp = Path(tempfile.mkdtemp()) / "baseline.json"
+        output = "a.spec.ts(1,1): error TS1: x\na.spec.ts(2,1): error TS1: x\nb.spec.ts(1,1): error TS1: x\n"
+        with mock.patch.object(MOD, "BASELINE", tmp), mock.patch.object(
+            MOD, "run_tsc", lambda: output
+        ), mock.patch("sys.argv", ["ratchet", "--update"]):
+            self.assertEqual(MOD.main(), 0)
+
+        data = json.loads(tmp.read_text(encoding="utf-8"))
+        self.assertEqual(data["files"], {"a.spec.ts": 2, "b.spec.ts": 1})
+        self.assertEqual(data["total"], 3, "`total` 이 파일별 합과 일치해야 한다")
+        self.assertEqual(
+            list(data["files"]), sorted(data["files"]), "정렬돼야 diff 가 안정적이다"
+        )
+
+        # 방금 쓴 baseline 으로 곧바로 검사하면 통과해야 한다 — 그렇지 않으면
+        # `--update` 후에도 CI 가 빨간불이라 낮추는 경로가 사실상 없는 것이다.
+        with mock.patch.object(MOD, "BASELINE", tmp), mock.patch.object(
+            MOD, "run_tsc", lambda: output
+        ), mock.patch("sys.argv", ["ratchet"]):
+            self.assertEqual(MOD.main(), 0)
+
+    def test_update_on_a_clean_tree_writes_an_empty_map(self):
+        # 언젠가 잔여가 0 이 되는 경우. 빈 `files` 로도 round-trip 이 되어야 한다.
+        tmp = Path(tempfile.mkdtemp()) / "baseline.json"
+        with mock.patch.object(MOD, "BASELINE", tmp), mock.patch.object(
+            MOD, "run_tsc", lambda: ""
+        ), mock.patch("sys.argv", ["ratchet", "--update"]):
+            self.assertEqual(MOD.main(), 0)
+        data = json.loads(tmp.read_text(encoding="utf-8"))
+        self.assertEqual(data["files"], {})
+        self.assertEqual(data["total"], 0)
+
+
 class ShapeTest(unittest.TestCase):
     def test_script_exists_and_is_executable(self):
         self.assertTrue(SCRIPT.is_file(), f"{SCRIPT} 부재")

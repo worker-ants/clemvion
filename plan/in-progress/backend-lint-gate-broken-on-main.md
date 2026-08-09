@@ -135,7 +135,12 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 이로써 오늘 하루에 드러난 main 잠재 결함이 셋이다: audit 13건(`#1095` 해소) · backend lint
 79파일(본 plan) · frontend Gate C(해소). 셋 다 **Actions 꺼진 기간의 무검증 머지**가 뿌리다.
 
-## 부수 발견 — spec 파일이 타입체크되지 않는다 (별 항목, 이 PR 밖)
+## 부수 발견 — spec 파일이 타입체크되지 않는다 (**후속 PR 에서 처분 완료**)
+
+> **문구 정정 (2026-08-09).** 아래 "이 PR 밖" 은 lint 복구 PR(`#1104`) 기준의 서술이었다.
+> 그 뒤 후속 PR 이 이 절을 **핵심 작업으로 승격**해 전부 처분했다 — 진짜 결함 10건 수정 +
+> ratchet 게이트 + `backend-checks.yml` 신설. 지금 읽는 사람이 "아직 안 한 일" 로
+> 오해하지 않도록 제목을 바꾼다(ai-review INFO 12).
 
 `tsc --noEmit -p tsconfig.json` 으로 **전체 프로그램**을 타입체크하면 `*.spec.ts` /
 `*.e2e-spec.ts` 에 **선재 타입 에러 319줄**이 나온다(2026-08-09 실측, ai-review INFO 4 가
@@ -171,7 +176,12 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       게이트가 3개월간 방치될 수 있었던 진짜 이유가 이것**이다. → `backend-checks.yml`
       신설(`#1106` skip-job 패턴, `lint`·`unit`·`typecheck-ratchet` 3잡).
 
-### `deleteByPrefix()` LIKE 메타문자 미이스케이프 (ai-review INFO, 이 PR 밖)
+### `deleteByPrefix()` LIKE 메타문자 미이스케이프 (**타입체크 갭 PR 에 포함**)
+
+> **문구 정정 (2026-08-09, ai-review WARNING #1).** "이 PR 밖" 은 lint 복구 PR 기준이었다.
+> 타입체크 갭 PR 에 **함께 실었다** — 조사(호출부 전수 확인)와 조치(4줄 + 테스트)가 둘 다
+> 작고, 같은 plan 의 마지막 잔여 두 항목이라 하나로 닫는 편이 추적 비용이 낮다고 봤다.
+> 다만 프로덕션 동작 변경(신규 throw)이므로 그 판단을 여기 남긴다.
 
 `secret-store/secret-resolver.service.ts` 의 `deleteByPrefix()` 가 `` `${prefix}%` `` 를
 바인딩하는데 `%`·`_` 를 이스케이프하지 않는다. TypeORM 파라미터 바인딩이라 **SQLi 는
@@ -188,6 +198,22 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 없는 유스케이스를 위해 표면을 넓히는 쪽이다.
       > 가드가 정상 경로를 막지 않는 것도 테스트로 고정했다 — 막으면 trigger 삭제가
       > 조용히 실패한다.
+
+## 후속 (타입체크 갭 PR 밖)
+
+- [ ] `deleteByPrefix` 가드의 **존재 근거를 실행 가능한 테스트로** 고정 (ai-review INFO 7).
+      지금 in-memory mock 은 `startsWith` 라 LIKE 와일드카드 의미론을 재현하지 않는다 —
+      "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 주석으로만 서 있다. 재현하려면
+      mock 에 LIKE 해석기를 넣거나(테스트가 DB 를 흉내 내다 틀릴 위험을 새로 만든다) e2e 를
+      추가해야 해서 그 PR 범위를 넘겼다.
+- [ ] 4번째 워크플로가 skip-job 패턴을 따를 때 `changes` 잡 + 5단계 셋업 보일러플레이트를
+      composite action / reusable workflow 로 추출 (ai-review INFO 4) —
+      [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 의 W7 과 같은 항목.
+      `backend-checks.yml` 이 세 번째다.
+- [ ] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
+      각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
+- [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning
+      바닥을 걸지, 아니면 처분할지 별도 판정.
 
 ## Rationale
 
