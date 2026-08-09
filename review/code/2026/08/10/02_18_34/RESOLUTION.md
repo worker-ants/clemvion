@@ -39,4 +39,5 @@ SUMMARY: Critical 0 · **WARNING 1** · risk LOW (reviewer 7/7, forced 전원).
 
 - 문서 가드 **19파일 / 2845 tests PASS**
 - 뮤테이션 — `extractLinks` → `[]` 로 RED 확인
-- e2e — 아래 줄
+- **e2e 통과** (261s, tests=264) — 마지막 코드 commit(`6101a04b2`) 다음
+- harness **995 tests OK**
