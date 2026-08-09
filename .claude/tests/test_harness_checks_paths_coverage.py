@@ -1,13 +1,32 @@
-"""Guard: `harness-checks.yml`'s `paths:` must cover every non-test file the
-harness suite guards.
+"""Guard: `harness-checks.yml`'s relevance pathspecs must cover every non-test
+file the harness suite guards.
 
 `.github/workflows/harness-checks.yml` runs this whole suite, but only when a
-changed file matches one of its `paths:` filters. Every test file lives under
+changed file matches one of its filters. Every test file lives under
 `.claude/tests/**`, which is listed, so editing a test always triggers. The gap
 is the other direction: a test guards some NON-test file — a hook, a tool, a
 workflow script, a CI file — and that file is edited ALONE. If no filter matches
 it, the suite that protects it never runs. A guard that is present but does not
 fire is worse than none, because everyone believes it is watching.
+
+WHERE THE LIST LIVES — it moved, and the guard followed it (2026-08-09).
+
+The workflow used to carry the list as `on.pull_request.paths`. It was converted
+to the required-check skip-job pattern (`test_required_check_skip_jobs.py`), so
+`paths:` is gone — the workflow now runs on every PR and a `changes` job decides
+whether the steps do any work. The same list therefore lives in that job's
+`pathspecs:` block scalar, and that is what this file reads. Had this guard kept
+reading `paths:`, it would have parsed an empty list and every coverage
+assertion below would have passed vacuously — the exact silent-disable it
+exists to prevent. The non-vacuity floors (`_MIN_FILTERS`) are what turn that
+into a loud failure instead.
+
+The entries are now **git pathspecs**, not GitHub path filters, and git's
+default wildcard rules are LOOSER (a bare `*` crosses `/`). This file keeps
+matching them with the stricter GitHub rules on purpose: strict-covered implies
+git-covered, so demanding coverage under the stricter reading can only ask for
+MORE explicit entries, never fewer. Being conservative in the direction of "list
+it explicitly" is the whole point of the list.
 
 This exact class has leaked **six** times, each patched by hand afterward:
 
@@ -15,9 +34,9 @@ This exact class has leaked **six** times, each patched by hand afterward:
     .github/dependabot.yml  .github/workflows/e2e.yml  .claude/config/**
 
 The sixth (`.claude/config/**`, guarding `doc-sync-matrix.json`) was found by
-this file on its first run. The same sentence — "absent from paths, so the file
+this file on its first run. The same sentence — "absent from the list, so the file
 that guards it never triggered" — is written verbatim next to four of the
-`paths:` entries, and it recurred anyway. A hand-maintained list does not hold;
+entries, and it recurred anyway. A hand-maintained list does not hold;
 a test does.
 
 WHAT COUNTS AS A GUARDED FILE — the boundary, which is most of the work.
@@ -32,7 +51,7 @@ would otherwise disable the guard:
      (`root / "codebase" / …` while scanning the product, a tempdir under
      construction) are runtime operations, not guard targets, and are skipped.
 
-  2. **Tracked files, not directories or phantoms.** A CI `paths:` filter can
+  2. **Tracked files, not directories or phantoms.** A relevance filter can
      only ever match a tracked, changed FILE. So an intermediate directory root
      (`.claude`, `.github`, `scripts`) is NOT itself a target — requiring it to
      be "covered" would force an over-broad `.github/**` or `scripts/**` filter
@@ -56,7 +75,7 @@ directory reference maps legitimately to specific-file filters (only
 no sound way to demand subtree coverage from a directory reference alone. The six
 recurrences were all file-level, which is the case this catches.
 
-Parsing is stdlib-only (`.claude/tests/README.md`). Both the `paths:` parser and
+Parsing is stdlib-only (`.claude/tests/README.md`). Both the `pathspecs:` parser and
 the path extractor take TEXT, so `BoundaryTest` pins their edges on injected
 source before any real file is read, and both assert they found something so a
 silently-empty parse fails loudly instead of passing vacuously — the sibling
@@ -114,59 +133,40 @@ KNOWN_COVERAGE_DEPENDENCIES = {
 
 
 # ---------------------------------------------------------------------------
-# Parsing `paths:` out of the workflow (text in, list out — see module docstring)
+# Parsing `pathspecs:` out of the workflow (text in, list out — see docstring)
 # ---------------------------------------------------------------------------
 
 
-def _yaml_scalar(raw: str) -> str:
-    """One `- value` item: strip a surrounding quote and any trailing comment.
+def parse_pathspecs_block(text: str) -> list[str]:
+    """The `changes` job's `pathspecs:` block scalar, one entry per line.
 
-    Path filters never contain escaped quotes, so an unterminated quote is a
-    malformed file, not something to guess at — it raises. A `#` inside quotes
-    is literal; a bare value ends at ` #`, matching YAML's rule that a comment
-    needs preceding whitespace.
-    """
-    raw = raw.strip()
-    if raw[:1] in ("'", '"'):
-        quote = raw[0]
-        end = raw.find(quote, 1)
-        if end == -1:
-            raise ValueError(f"unterminated quote in list item: {raw!r}")
-        return raw[1:end]
-    cut = raw.find(" #")
-    if cut != -1:
-        raw = raw[:cut]
-    return raw.strip()
+    Recognises exactly one shape — `pathspecs: |` followed by more-indented
+    lines — and ends at the first non-blank line indented no deeper than the key.
 
-
-def parse_paths_block(text: str) -> list[str]:
-    """The `paths:` list (not `paths-ignore:`) as written, in file order.
-
-    Recognises exactly one shape — a `paths:` key followed by more-indented
-    `- item` lines — and stops at the first line that is not that. `paths-ignore:`
-    does not match the header (the `:` falls after `-ignore`), so the two are
-    never confused.
+    Blank lines and lines starting with `#` are dropped, which is not a YAML
+    rule: inside a block scalar there ARE no comments, every line is content.
+    The runtime (`_changed-paths.yml`) drops both before handing the list to
+    git, precisely so each entry can carry its reason on the line above it, and
+    this parser has to make the same two cuts. If it did not, a rationale
+    comment would read as a pathspec here, the list would look wider than it is,
+    and `test_no_filter_is_dead` would start flagging prose.
     """
     lines = text.split("\n")
     for i, line in enumerate(lines):
-        header = re.match(r"^(\s*)paths:\s*(#.*)?$", line)
+        header = re.match(r"^(\s*)pathspecs:\s*\|\s*$", line)
         if header is None:
             continue
         indent = len(header.group(1))
         items: list[str] = []
-        j = i + 1
-        while j < len(lines):
-            cur = lines[j]
-            if not cur.strip() or cur.lstrip().startswith("#"):
-                j += 1
+        for cur in lines[i + 1:]:
+            if not cur.strip():
                 continue
             if len(cur) - len(cur.lstrip()) <= indent:
                 break
-            item = re.match(r"^\s*-\s+(.*)$", cur)
-            if item is None:
-                break
-            items.append(_yaml_scalar(item.group(1)))
-            j += 1
+            entry = cur.strip()
+            if entry.startswith("#"):
+                continue
+            items.append(entry)
         return items
     return []
 
@@ -194,7 +194,7 @@ def _filter_to_regex(filt: str) -> re.Pattern:
 
 
 def filter_covers_file(filt: str, path: str) -> bool:
-    """Does one `paths:` filter match this repo-relative file?
+    """Does one entry match this repo-relative file?
 
     Not `fnmatch`: its `*` crosses `/`, which would make a root `*.md` filter
     appear to cover `.claude/x.md`. GitHub's `*` stops at a segment boundary and
@@ -296,53 +296,59 @@ def _guarded_files(all_targets: set[str], tracked: set[str]) -> set[str]:
 # ---------------------------------------------------------------------------
 
 
-class PathsParserBoundaryTest(unittest.TestCase):
+class PathspecsParserBoundaryTest(unittest.TestCase):
     def test_reads_a_simple_block(self):
-        text = "on:\n  pull_request:\n    paths:\n      - 'a/**'\n      - 'b/**'\n"
-        self.assertEqual(parse_paths_block(text), ["a/**", "b/**"])
-
-    def test_three_quote_styles(self):
         text = (
-            "    paths:\n"
-            "      - 'single/**'\n"
-            '      - "double/**"\n'
-            "      - unquoted/**\n"
+            "jobs:\n"
+            "  changes:\n"
+            "    with:\n"
+            "      pathspecs: |\n"
+            "        a/**\n"
+            "        b/**\n"
         )
-        self.assertEqual(
-            parse_paths_block(text), ["single/**", "double/**", "unquoted/**"])
+        self.assertEqual(parse_pathspecs_block(text), ["a/**", "b/**"])
 
-    def test_strips_inline_comments_but_not_hashes_in_quotes(self):
+    def test_drops_blank_lines_and_rationale_comments(self):
+        """The reason each entry exists sits on the line above it — see the
+        module docstring. Those lines are block-scalar CONTENT, so both this
+        parser and the runtime have to drop them, and identically."""
         text = (
-            "    paths:\n"
-            "      - 'a/**'   # why\n"
-            "      - b/**  # why\n"
-            "      - 'lit#eral'\n"
+            "      pathspecs: |\n"
+            "        a/**\n"
+            "\n"
+            "        # this one leaked six times\n"
+            "        b/**\n"
         )
-        self.assertEqual(parse_paths_block(text), ["a/**", "b/**", "lit#eral"])
+        self.assertEqual(parse_pathspecs_block(text), ["a/**", "b/**"])
 
-    def test_skips_blank_lines_and_comment_lines(self):
-        text = "    paths:\n      - 'a/**'\n\n      # note\n      - 'b/**'\n"
-        self.assertEqual(parse_paths_block(text), ["a/**", "b/**"])
+    def test_a_hash_that_is_not_line_initial_is_kept(self):
+        text = "      pathspecs: |\n        dir/a#b.txt\n"
+        self.assertEqual(parse_pathspecs_block(text), ["dir/a#b.txt"])
+
+    def test_entries_are_unquoted_literals(self):
+        """Unlike a `paths:` list item, a block-scalar line is taken verbatim —
+        a quote here would become part of the pathspec and match nothing."""
+        text = "      pathspecs: |\n        'a/**'\n"
+        self.assertEqual(parse_pathspecs_block(text), ["'a/**'"])
 
     def test_stops_at_the_next_key_at_or_below_indent(self):
         text = (
-            "  pull_request:\n"
-            "    paths:\n"
-            "      - 'a/**'\n"
-            "    branches: [main]\n"
+            "      pathspecs: |\n"
+            "        a/**\n"
+            "\n"
+            "  unittest:\n"
+            "    runs-on: ubuntu-latest\n"
         )
-        self.assertEqual(parse_paths_block(text), ["a/**"])
+        self.assertEqual(parse_pathspecs_block(text), ["a/**"])
 
-    def test_does_not_confuse_paths_ignore_for_paths(self):
-        text = "    paths-ignore:\n      - 'a/**'\n"
-        self.assertEqual(parse_paths_block(text), [])
-
-    def test_unterminated_quote_raises(self):
-        with self.assertRaises(ValueError):
-            parse_paths_block("    paths:\n      - 'a/**\n")
+    def test_a_plain_scalar_is_not_a_block(self):
+        """Only `pathspecs: |` is recognised. A one-line `pathspecs: a/**` would
+        need different splitting, so it must fall through to empty and trip the
+        non-vacuity floor rather than half-parse."""
+        self.assertEqual(parse_pathspecs_block("      pathspecs: a/**\n"), [])
 
     def test_absent_key_yields_empty(self):
-        self.assertEqual(parse_paths_block("on:\n  push:\n"), [])
+        self.assertEqual(parse_pathspecs_block("on:\n  pull_request:\n"), [])
 
 
 class FilterMatchBoundaryTest(unittest.TestCase):
@@ -430,7 +436,7 @@ class ExtractorBoundaryTest(unittest.TestCase):
 class PathsCoverageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.filters = parse_paths_block(
+        cls.filters = parse_pathspecs_block(
             HARNESS_CHECKS.read_text(encoding="utf-8"))
         cls.tracked = _tracked_files()
         raw: set[str] = set()
@@ -446,8 +452,9 @@ class PathsCoverageTest(unittest.TestCase):
     def test_parsers_found_something(self):
         self.assertGreaterEqual(
             len(self.filters), _MIN_FILTERS,
-            "suspiciously few paths filters parsed — the parser probably stopped "
-            "matching harness-checks.yml rather than the file shrinking")
+            "suspiciously few pathspecs parsed — the parser probably stopped "
+            "matching harness-checks.yml (did the list move again?) rather than "
+            "the file shrinking")
         self.assertGreaterEqual(
             len(self.guarded), _MIN_TARGETS,
             "suspiciously few guarded files extracted — the extractor probably "
@@ -462,18 +469,19 @@ class PathsCoverageTest(unittest.TestCase):
             uncovered, [],
             "harness-checks.yml does not run for these files, but a test guards "
             f"each of them:\n  " + "\n  ".join(uncovered) + "\n"
-            "Add a covering entry to the workflow's `paths:` (this is the sixth "
+            "Add a covering entry to the `changes` job's `pathspecs:` (this is "
+            "the sixth "
             "time this class has leaked — see the module docstring).")
 
     def test_no_filter_is_dead(self):
-        """Every `paths:` entry must match at least one tracked file. A filter
+        """Every `pathspecs:` entry must match at least one tracked file. A filter
         matching nothing is either a typo or a leftover, and it silently weakens
         the reader's trust that the list means what it says."""
         dead = [f for f in self.filters
                 if not any(filter_covers_file(f, t) for t in self.tracked)]
         self.assertEqual(
             dead, [],
-            f"paths filters match no tracked file: {dead} — typo or stale entry")
+            f"pathspecs match no tracked file: {dead} — typo or stale entry")
 
     def test_each_historical_leak_is_load_bearing(self):
         """For every recurrence: the example file is a real guarded target,

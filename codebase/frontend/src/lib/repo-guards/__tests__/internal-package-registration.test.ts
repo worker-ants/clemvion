@@ -11,6 +11,7 @@ import {
   fnBody,
   explicitFilterCalls,
   listAtPath,
+  blockScalarAtPath,
   packageDirsInPaths,
   missingFromStage,
   expectedBackendSharedDirs,
@@ -18,12 +19,16 @@ import {
 } from "./internal-package-registration-guard";
 
 // Guard: 신규 내부 공유 패키지(`codebase/packages/*`) 추가 시 손으로 갱신해야 하는
-// 등록 목록 4곳이 실제 패키지 집합과 어긋나면 red.
+// 등록 목록 3곳이 실제 패키지 집합과 어긋나면 red.
 //
 //   1. `.claude/test-stages.sh` 의 `INTERNAL_PACKAGES` (+ 특수 스텝)
-//   2. `.github/workflows/packages-checks.yml` `on.pull_request.paths`
-//   3. 같은 파일 `on.push.paths`
-//   4. 같은 파일 `strategy.matrix.pkg`
+//   2. `.github/workflows/packages-checks.yml` `jobs.changes.with.pathspecs`
+//   3. 같은 파일 `strategy.matrix.pkg`
+//
+// 종전엔 4곳이었다 — 2·3 이 `on.pull_request.paths` 와 `on.push.paths` 로 **복제**돼 있었다.
+// required-check skip-job 패턴 전환(#1106 계열)으로 둘이 `changes` 잡의 `pathspecs` 한 곳으로
+// 합쳐지며 손 유지 사본이 하나 줄었다. 이 가드가 읽는 위치도 그에 맞춰 옮겼다 — 옛 위치를
+// 계속 읽었다면 `listAtPath` 가 null 을 돌려 아래 vacuity 단언에서 red 다(조용한 통과 아님).
 //
 // 배경: PR #968(`@workflow/ai-end-reason` 신설)에서 1·3 이 누락된 채 진행됐다.
 // 특히 1 이 빠지면 로컬 `run-test.sh` 의 lint/unit/build 3단계에서 그 패키지가
@@ -84,16 +89,14 @@ describe("내부 공유 패키지 등록 목록 drift 가드", () => {
       }
     });
 
-    it("packages-checks.yml 의 3개 목록을 모두 찾는다", () => {
-      for (const keys of [
-        ["on", "pull_request", "paths"],
-        ["on", "push", "paths"],
-        ["jobs", "packages", "strategy", "matrix", "pkg"],
-      ]) {
-        const list = listAtPath(yml, keys);
-        expect(list, `${keys.join(".")} 추출 실패`).not.toBeNull();
-        expect(list!.length, `${keys.join(".")} 가 비어 있음`).toBeGreaterThan(0);
-      }
+    it("packages-checks.yml 의 2개 목록을 모두 찾는다", () => {
+      const pathspecs = blockScalarAtPath(yml, ["jobs", "changes", "with", "pathspecs"]);
+      expect(pathspecs, "jobs.changes.with.pathspecs 추출 실패").not.toBeNull();
+      expect(pathspecs!.length, "jobs.changes.with.pathspecs 가 비어 있음").toBeGreaterThan(0);
+
+      const matrix = listAtPath(yml, ["jobs", "packages", "strategy", "matrix", "pkg"]);
+      expect(matrix, "jobs.packages.strategy.matrix.pkg 추출 실패").not.toBeNull();
+      expect(matrix!.length, "jobs.packages.strategy.matrix.pkg 가 비어 있음").toBeGreaterThan(0);
     });
   });
 
@@ -135,14 +138,13 @@ describe("내부 공유 패키지 등록 목록 drift 가드", () => {
   describe(".github/workflows/packages-checks.yml (현재 inert — Actions off)", () => {
     const expectedDirs = () => expectedBackendSharedDirs(packages, backendShared);
 
-    it.each([
-      { label: "on.pull_request.paths", keys: ["on", "pull_request", "paths"] },
-      { label: "on.push.paths", keys: ["on", "push", "paths"] },
-    ])("$label 가 backend-공유 패키지 집합과 일치한다", ({ label, keys }) => {
-      const actual = packageDirsInPaths(listAtPath(yml, keys)!);
+    it("jobs.changes.with.pathspecs 가 backend-공유 패키지 집합과 일치한다", () => {
+      const actual = packageDirsInPaths(
+        blockScalarAtPath(yml, ["jobs", "changes", "with", "pathspecs"])!,
+      );
       expect(
         actual,
-        `${label} 가 backend 의 @workflow 의존과 불일치.\n` +
+        `jobs.changes.with.pathspecs 가 backend 의 @workflow 의존과 불일치.\n` +
           `  기대(=codebase/backend/package.json 파생): ${expectedDirs().join(", ")}\n` +
           `  실제: ${actual.join(", ")}`,
       ).toEqual(expectedDirs());
@@ -337,6 +339,12 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
       const paths = listAtPath(yml, ["on", "pull_request", "paths"])!;
       expect(packageDirsInPaths(paths)).toEqual(["a", "b"]);
     });
+    it("packageDirsInPaths 는 따옴표 없는 블록 스칼라 항목도 그대로 처리한다", () => {
+      // `paths:` 리스트는 `'…'` 로 감싸여 있었지만 블록 스칼라 본문은 리터럴이다.
+      // 따옴표 제거에 의존하는 구현이었다면 여기서 드러난다.
+      expect(packageDirsInPaths(["codebase/packages/a/**", "pnpm-lock.yaml"])).toEqual(["a"]);
+    });
+
     it("5단계 중첩 경로(jobs.packages.strategy.matrix.pkg)도 추출한다 (실 yml 형태)", () => {
       const deep = [
         `jobs:`,
@@ -353,6 +361,59 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
         "@workflow/a",
         "@workflow/b",
       ]);
+    });
+  });
+
+  describe("blockScalarAtPath — pathspecs 블록 스칼라", () => {
+    const yml = [
+      `jobs:`,
+      `  changes:`,
+      `    with:`,
+      `      pathspecs: |`,
+      `        codebase/packages/a/**`,
+      ``,
+      `        # 이 줄은 근거 주석이다 — 블록 스칼라엔 YAML 주석이 없어 런타임이 뗀다`,
+      `        codebase/packages/b/**`,
+      `        pnpm-lock.yaml`,
+      `  packages:`,
+      `    name: x`,
+    ]
+      .join("\n")
+      .split("\n");
+
+    it("한 줄 = 한 항목으로 추출한다", () => {
+      expect(blockScalarAtPath(yml, ["jobs", "changes", "with", "pathspecs"])).toEqual([
+        "codebase/packages/a/**",
+        "codebase/packages/b/**",
+        "pnpm-lock.yaml",
+      ]);
+    });
+
+    it("형제 잡(packages)으로 새지 않는다", () => {
+      const items = blockScalarAtPath(yml, ["jobs", "changes", "with", "pathspecs"])!;
+      expect(items.some((i) => i.startsWith("name:"))).toBe(false);
+    });
+
+    it("빈 줄과 `#` 주석 줄을 버린다 (런타임과 같은 규칙)", () => {
+      // 안 버리면 근거 주석이 pathspec 으로 세어 packageDirsInPaths 대조가 어긋난다.
+      const items = blockScalarAtPath(yml, ["jobs", "changes", "with", "pathspecs"])!;
+      expect(items.filter((i) => i.startsWith("#") || i === "")).toEqual([]);
+    });
+
+    it("줄 시작이 아닌 `#` 는 경로 문자로 남는다", () => {
+      const withHash = [`    with:`, `      pathspecs: |`, `        dir/a#b.txt`]
+        .join("\n")
+        .split("\n");
+      expect(blockScalarAtPath(withHash, ["with", "pathspecs"])).toEqual(["dir/a#b.txt"]);
+    });
+
+    it("plain scalar(`pathspecs: x`)는 null — 반쯤 파싱하지 않는다 (→ vacuity 단언이 잡는다)", () => {
+      const plain = [`    with:`, `      pathspecs: codebase/packages/a/**`].join("\n").split("\n");
+      expect(blockScalarAtPath(plain, ["with", "pathspecs"])).toBeNull();
+    });
+
+    it("없는 경로는 null (→ vacuity 단언이 잡는다)", () => {
+      expect(blockScalarAtPath(yml, ["jobs", "nope", "with", "pathspecs"])).toBeNull();
     });
   });
 

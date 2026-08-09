@@ -245,7 +245,46 @@ function findKeyLine(lines: string[], key: string, from: number, to: number): nu
   return -1;
 }
 
-/** 예: listAtPath(lines, ["on", "pull_request", "paths"]). 미발견 시 null. */
+/**
+ * 예: blockScalarAtPath(lines, ["jobs", "changes", "with", "pathspecs"]). 미발견 시 null.
+ *
+ * `key: |` 블록 스칼라의 본문을 **한 줄 = 한 항목**으로 반환한다. `listAtPath` 와 달리
+ * `- ` 접두가 없고 따옴표도 붙지 않는다(리터럴이다).
+ *
+ * 빈 줄과 `#` 로 시작하는 줄은 버린다 — YAML 규칙이 아니라 **런타임 규칙**이다. 블록
+ * 스칼라 안에는 주석이 없어(전부 본문이다) `.github/workflows/_changed-paths.yml` 이
+ * 넘기기 전에 둘 다 떼어 낸다. 그래야 항목마다 "왜 등재했는가" 를 바로 위에 둘 수 있다.
+ * 여기서 같은 두 가지를 떼지 않으면 근거 주석이 pathspec 으로 세어 대조가 어긋난다.
+ *
+ * `paths:` 대신 이 형태를 읽는 이유: `packages-checks.yml` 이 required-check skip-job
+ * 패턴으로 전환되면서 `on.*.paths` 두 목록이 `changes` 잡의 `pathspecs` 한 곳으로 합쳐졌다.
+ * 손 목록이 3개에서 2개로 줄었다.
+ */
+export function blockScalarAtPath(lines: string[], keys: string[]): string[] | null {
+  const head = keys.slice(0, -1);
+  const leaf = keys[keys.length - 1];
+  let [from, to] = [0, lines.length];
+  for (const key of head) {
+    const i = findKeyLine(lines, key, from, to);
+    if (i === -1) return null;
+    [from, to] = blockRange(lines, i);
+  }
+  const keyIdx = findKeyLine(lines, leaf, from, to);
+  if (keyIdx === -1) return null;
+  // `pathspecs: |` 형태만 인정한다. plain scalar 면 분해 규칙이 달라 반쯤 파싱하느니
+  // null 로 떨어져 vacuity 단언에서 red 가 되는 편이 낫다.
+  if (!/^\s*[\w-]+:\s*\|\s*$/.test(lines[keyIdx])) return null;
+  const [bodyFrom, bodyTo] = blockRange(lines, keyIdx);
+  const items: string[] = [];
+  for (let i = bodyFrom; i < bodyTo; i++) {
+    const entry = lines[i].trim();
+    if (!entry || entry.startsWith("#")) continue;
+    items.push(entry);
+  }
+  return items;
+}
+
+/** 예: listAtPath(lines, ["jobs", "packages", "strategy", "matrix", "pkg"]). 미발견 시 null. */
 export function listAtPath(lines: string[], keys: string[]): string[] | null {
   let [from, to] = [0, lines.length];
   for (const key of keys) {

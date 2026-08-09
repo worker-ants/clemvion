@@ -14,38 +14,56 @@
 
 name: spec-link-checks
 
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
 on:
   pull_request:
-    paths:
-      - 'codebase/backend/**'
-      - 'codebase/frontend/**'
-      - 'codebase/channel-web-chat/**'
-      - 'codebase/packages/**'
-      - 'spec/**'
-      - '.github/workflows/spec-link-checks.yml'
   push:
     branches: [main]
-    paths:
-      - 'codebase/backend/**'
-      - 'codebase/frontend/**'
-      - 'codebase/channel-web-chat/**'
-      - 'codebase/packages/**'
-      - 'spec/**'
 
 concurrency:
   group: spec-link-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다. wiring 은 `_changed-paths.yml` 공유.
+  #
+  # `scripts/ci-paths-changed.sh` 와 `_changed-paths.yml` 자신도 목록에 있다 — 판정 로직·wiring
+  # 이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다(이 저장소가 여섯 번 겪은 paths 커버리지 갭).
+  changes:
+    name: 변경 경로 판정
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        codebase/backend/**
+        codebase/frontend/**
+        codebase/channel-web-chat/**
+        codebase/packages/**
+        spec/**
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        .github/workflows/spec-link-checks.yml
+
   spec-link-integrity:
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "codebase 소스·spec 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
 
       - uses: pnpm/action-setup@v6.0.9
+        if: needs.changes.outputs.relevant != 'false'
 
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           node-version: '24'
           cache: 'pnpm'
@@ -54,7 +72,9 @@ jobs:
       # 가드는 frontend 패키지의 vitest 로 돈다. 스캔 대상(backend 등) 소스는
       # checkout 으로 전체 트리가 존재하므로 fs 스캔에 문제 없다.
       - name: Install frontend workspace
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm install --frozen-lockfile --filter "frontend..."
 
       - name: spec-link-integrity guard
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter frontend test src/lib/docs/__tests__/spec-link-integrity.test.ts

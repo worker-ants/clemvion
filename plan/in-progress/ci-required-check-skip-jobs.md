@@ -1,6 +1,6 @@
 ---
 title: required status check 데드락 해소 — paths 필터를 skip-job 패턴으로 전환
-worktree: ci-required-check-skip-jobs-42f5d8
+worktree: ci-skip-jobs-remaining-8aa9f8
 started: 2026-08-09
 owner: developer
 status: in-progress
@@ -176,11 +176,11 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
 `CONVERTED` 목록과 `test_workflow_yaml_structure.py` 의 `_PULL_REQUEST_KEYS`·
 `_SKIP_JOB_WORKFLOWS` 를 함께 갱신**하는 것이 계약이다.
 
-- [ ] `packages-checks.yml` (matrix — 체크가 패키지마다 생기므로 required 목록도 함께 관리)
-- [ ] `web-chat-checks.yml` (3잡)
-- [ ] `harness-checks.yml`
-- [ ] `spec-link-checks.yml`
-- [ ] `migration-check.yml`
+- [x] `packages-checks.yml` (matrix — 체크가 패키지마다 생기므로 required 목록도 함께 관리)
+- [x] `web-chat-checks.yml` (3잡)
+- [x] `harness-checks.yml`
+- [x] `spec-link-checks.yml`
+- [x] `migration-check.yml`
 - [ ] `review-gate.yml` — **주의**: 전환하면 문서-only PR 에서도 돌게 되므로, 그 경로에서
       게이트 로직이 정상 통과하는지 먼저 확인할 것
 - [ ] `e2e.yml` — `paths-ignore` 형태라 다른 축. 비용이 가장 크니 마지막
@@ -199,7 +199,126 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
       > 정적 검사 대신 YAML 의 `run:` 블록을 실제 bash 로 돌려 스텁이 받은 인자를 세는
       > 테스트(`test_changed_paths_reusable.py`)로 고정했고, 그 테스트가 **초판의
       > `mapfile`(bash 4+ 전용)을 CI 도달 전에 잡았다**.
-- [ ] `migration-recheck-on-main.yml` — **대상 아님**(push 전용, PR 체크가 아니다)
+- N/A `migration-recheck-on-main.yml` — **대상 아님**(push 전용이라 PR 체크가 아니고,
+      required status check 로 등록될 수 없다). 전환할 것이 없으므로 체크박스가 아니라
+      묘비로 남긴다 — 열린 채 두면 "아직 안 한 일" 로 읽힌다.
+
+## 나머지 5개 전환 (2026-08-09) — `#1106` 패턴 기계적 반복
+
+`#1111` 이 `changes` 잡을 reusable workflow 로 뽑아 둔 덕에 호출부는 `uses:` + `pathspecs`
+목록뿐이다. 전환마다 **등록부 4곳**을 함께 갱신했다(`CONVERTED` · `_SKIP_JOB_WORKFLOWS` ·
+`_PULL_REQUEST_KEYS` 빈 집합 · `_JOB_CONDITIONS` 잡별 `${{ !cancelled() }}`).
+`test_the_two_registries_agree` 가 한쪽만 고치는 것을 막는다.
+
+`push` 트리거는 **종전 형태를 그대로 둔다** — 종전에 `push` 가 있던 셋(packages·web-chat·
+spec-link)은 `paths` 만 걷고 유지, 없던 둘(harness·migration)은 추가하지 않았다. skip-job
+전환이 푸는 문제는 PR 의 required check 데드락 하나이고 main push 커버리지는 별 축이다.
+
+### 기계적이지 않았던 자리 셋
+
+**1. 블록 스칼라 안에는 YAML 주석이 없다.** `harness-checks.yml` 의 `paths:` 목록은 항목
+15개에 **각각 "왜 등재했는가" 주석**이 붙어 있었다 — 여섯 번의 커버리지 갭이 하나씩
+기록된 목록이고, 그 인접성이 일곱 번째를 막는 유일한 장치다. 그런데 `pathspecs: |` 로
+옮기면 `#` 줄이 **본문**이 되어 pathspec 인자로 들어간다. 형태 때문에 근거를 버릴 수 없어
+`_changed-paths.yml` 이 `#` 로 시작하는 줄을 빈 줄과 **같은 자리에서** 떼도록 했다
+(`case "$spec" in '#'*) continue`). 줄 시작이 아닌 `#` 는 경로 문자로 남는다.
+
+> 이 규칙은 **세 곳이 동시에** 지켜야 한다 — 런타임(`_changed-paths.yml`)·harness 가드
+> (`pathspecs_of`)·frontend 가드(`blockScalarAtPath`). 하나만 어긋나면 "가드는 통과하는데
+> 런타임에서는 그 pathspec 이 무력화" 되는데, 그게 이 plan 이 통째로 막으려는 클래스다.
+> 셋 다 같은 3단 정규화(strip · 빈 줄 버림 · `#` 시작 버림)로 고정하고 각각 테스트를 달았다.
+
+**2. `harness-checks.yml` 의 목록을 읽던 가드가 그 자리를 잃었다.**
+`test_harness_checks_paths_coverage.py` 는 `on.pull_request.paths` 를 파싱한다. 전환하면
+그 키가 사라져 **빈 목록을 파싱하고 모든 커버리지 단언이 헛통과**한다 — 이 파일이 존재하는
+이유 그 자체다. 파서를 `changes` 잡의 `pathspecs:` 블록 스칼라로 옮겼다. `_MIN_FILTERS`
+바닥이 그 실패를 조용한 통과가 아니라 RED 로 만드는 장치다(그 바닥이 없었다면 이 이동
+자체가 사고였다).
+
+> 항목이 이제 **GitHub paths 필터가 아니라 git pathspec** 이다. git 의 기본 와일드카드가
+> 더 느슨한데(맨 `*` 가 `/` 를 넘는다) 매칭은 **엄격한 GitHub 규칙 그대로 둔다** —
+> 엄격-커버는 git-커버를 함의하므로, 엄격하게 읽으면 등재를 **더** 요구할 뿐 덜 요구하지
+> 않는다. "애매하면 명시로 적어라" 가 이 목록의 존재 이유다.
+
+**3. `packages-checks.yml` 의 손 목록이 4개에서 3개로 줄었다.**
+`internal-package-registration.test.ts` 는 `pull_request.paths`·`push.paths`·`matrix.pkg`
+셋을 backend 의 `@workflow/*` 의존과 대조한다. 앞의 둘이 `pathspecs` 한 곳으로 합쳐졌으므로
+가드가 읽는 위치를 옮기고 대조를 2개 목록으로 줄였다(`blockScalarAtPath` 신설 + 합성 fixture
+6건). 복제가 하나 줄어든 것은 전환의 **부수 이득**이다.
+
+> 이 파일이 `codebase/frontend/**` 라서 **e2e 면제가 성립하지 않는다** — 변경 set 이
+> `.github/**`+`.claude/**` 였다면 PROJECT.md §e2e 면제 화이트리스트의 부분집합이지만,
+> `codebase/` 가 한 줄이라도 들어가면 면제 불가다.
+
+### 셋업 보일러플레이트 composite action — 트리거 도달, 실측 후 별 PR 로 분리
+
+`backend-lint-gate-broken-on-main.md §후속` 이 "4번째 워크플로가 어떤 셋업을 요구하는지 보고
+판단" 을 트리거로 걸어 뒀다. 이번에 5개를 전환해 그 시점을 지났으므로 실측했다
+(전환 완료 시점 8워크플로 / 실잡 14개, `changes` 제외):
+
+| 셋업 형태 | 잡 수 |
+|---|---|
+| `checkout` + `pnpm` + `setup-node(cache)` + `pnpm install --filter` | **8** |
+| 위 + `setup-python` (backend typecheck-ratchet) | 1 |
+| 나머지 (python-only · pip · 캐시 없는 node · `fetch-depth: 0`) | 5 |
+
+**"잡마다 도구가 달라 공유가 어렵다" 는 전제는 절반이 반증됐다.** 8개는 `--filter` 인자
+하나만 다른 **바이트 동일** 형태다(frontend·backend lint·backend unit·packages·web-chat 3잡·
+spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
+
+그런데도 이 PR 에 넣지 않은 이유는 "어려워서" 가 아니다 — **축이 다르고, 이 PR 이 건드리지
+않는 워크플로 3개(frontend·backend·deps)를 함께 고쳐야 하기 때문**이다. `#1111` 이 `changes`
+추출을 트리거 직후 **별 PR** 로 집행한 것과 같은 형태다. 실측을 여기 남겨 후속 PR 이 다시
+재기 않도록 한다. 남은 판단은 `backend-lint-gate-broken-on-main.md §후속`.
+
+> 로컬 composite action 은 `uses: ./.github/actions/<name>` 이라 **checkout 이 먼저 돌아야
+> 한다** — 그래서 접히는 것은 4단계가 아니라 뒤 3단계다. 호출부가 그 한 스텝에 `if:` 를
+> 달면 스텝 게이팅 계약(`test_every_step_is_gated`)은 그대로 성립한다.
+
+### 검증 (2026-08-09)
+
+- [x] 뮤테이션 **16/16 RED** — 새로 만든 가드가 실제로 잡는지 한 건씩 확인했다
+      (초판 13 + ai-review 반영분 3).
+      런타임 주석 제거 삭제 · 커버리지 가드가 옛 `paths:` 를 계속 읽음(→ vacuity) ·
+      pathspec 에서 `_changed-paths.yml` 누락 · 등록부 한쪽만 되돌림 · `needs: changes`
+      제거 · 스텝 하나 게이팅 누락 · 조건을 `== 'true'` 로 반전 · 여섯 번째 갭 항목
+      (`.claude/config/**`) 제거 · 커버리지 파서가 주석을 pathspec 으로 오인 ·
+      no-op 안내 스텝 제거 · `blockScalarAtPath` 주석 미제거 · plain scalar 반쯤 파싱 ·
+      matrix 대상 패키지 pathspec 누락.
+      반영분 3건은 신설 가드 두 개를 **직접** 겨눴다 — 죽은 pathspec 주입 ·
+      자기 등재 줄 삭제 · `harness-checks.yml` 의 광역 글롭(`.github/workflows/**`)
+      삭제. 마지막 것은 그 워크플로만 **명시 등재 대신 상위 글롭으로 덮는** 갈래라
+      단순 `assertIn` 이면 통과했을 자리다.
+      > **M2 가 이 PR 에서 가장 값진 뮤턴트다** — 커버리지 가드가 이동을 안 따라갔을 때
+      > "조용한 초록" 이 아니라 RED 가 되는지를 확인한 것이고, 그 방어는 `_MIN_FILTERS`
+      > 바닥 하나에 달려 있다.
+- [x] TEST WORKFLOW — lint PASS(60s) · unit PASS(91s) · build PASS(177s) ·
+      **e2e PASS(309s)** · harness **981 tests OK**(942 → 981)
+      > **e2e 를 돌린 이유**: 변경 set 에 `codebase/frontend/src/lib/repo-guards/**` 2개
+      > 파일이 있다. `.github/**`+`.claude/**` 만이었다면 PROJECT.md §e2e 면제 화이트리스트
+      > 의 부분집합이라 면제지만, `codebase/` 가 한 줄이라도 들어가면 면제 불가다.
+      > 커버리지는 wrapper 요약(`tests=14`/`tests=261`)이 아니라 로그 전수로 확인했다 —
+      > frontend 282파일/5848 · channel-web-chat 23파일/409 · backend jest 417 suites/8493 ·
+      > e2e backend jest 261 + **playwright 51**.
+
+### 후속 — ai-review INFO 항목 (2026-08-09, 나머지 5개 전환 리뷰 `review/code/2026/08/09/20_33_02`)
+
+이번 리뷰의 WARNING 4건은 즉시 조치했다. 아래 INFO 2건은 이번 PR 스코프는 아니지만
+후속으로 등재한다(review/ 는 SoT 가 아니므로 여기 적어 둔다):
+
+- **INFO 1 — `permissions:` 미선언 비대칭**: 신규 편입 4개 워크플로
+  (`packages-checks`·`spec-link-checks`·`web-chat-checks`·`migration-check`)와
+  `_changed-paths.yml` 에 `permissions:` 블록이 없어 기본(잠재적으로 더 넓은)
+  `GITHUB_TOKEN` 권한을 상속한다. `harness-checks.yml` 만 `contents: read` 를 명시해
+  비대칭이다. `git log -p` 확인 결과 이번 PR 이전부터의 상태라 회귀는 아니다.
+  후속: least-privilege 관점에서 `contents: read` 를 나머지에도 명시해 일관시킬 것.
+- **INFO 8 — `on.push.paths` 부활 방지 대칭 가드 부재**: 현재 `test_pull_request_has_no_paths_filter`
+  는 `on.pull_request.paths` 부활만 막는다. push 트리거를 유지하는 3곳
+  (`packages-checks`·`web-chat-checks`·`spec-link-checks`)의 `on.push.paths` 가 되살아나는
+  것은 아무 가드도 못 잡는다. required check 데드락은 PR 전용이라 심각도는 낮다.
+  후속: 같은 테스트에서 `on.push.paths` 부재도 함께 단언.
+
+- [x] push + PR — [#1114](https://github.com/worker-ants/clemvion/pull/1114)
 
 ## 사용자 액션 (이 PR 머지 후)
 
@@ -210,6 +329,21 @@ Settings → Rules/Branches → `main` → **Require status checks to pass befor
 |---|---|
 | 의존성 보안 | `pnpm 보안 설정 스냅샷 가드` · `pnpm audit (moderate+)` · `override 바닥 침식 검출` |
 | `--frozen-lockfile` | `test-and-build` |
+| backend (`#1109`) | `backend lint` · `backend unit` · `backend 타입체크 ratchet` |
+| 내부 공유 패키지 | `@workflow/ai-end-reason (lint/test/build)` · `@workflow/expression-engine (lint/test/build)` · `@workflow/graph-warning-rules (lint/test/build)` · `@workflow/node-summary (lint/test/build)` · `@workflow/chat-channel-validation (lint/test/build)` |
+| 웹채팅 | `web-chat-sdk (lint/test/build)` · `channel-web-chat (lint/test/build)` · `@workflow/sdk (test/build)` |
+| 하네스 | `unittest` |
+| spec 링크 | `spec-link-integrity` |
+| 마이그레이션 | `guard` |
+
+> **matrix 는 등록도 손 유지다.** `packages-checks.yml` 은 패키지마다 체크가 하나씩 생기므로
+> 위 5개를 **전부** 등록해야 하고, 패키지를 추가하면 등록 목록도 함께 늘려야 한다.
+> `internal-package-registration.test.ts` 가 `matrix.pkg` 와 `pathspecs` 는 대조하지만
+> **branch protection 설정은 저장소 밖이라 어떤 가드도 볼 수 없다.**
+>
+> **`unittest`·`guard`·`spec-link-integrity` 는 job id 가 그대로 체크 이름이다**(`name:` 이
+> 없다). 이름이 일반적이라 다른 워크플로와 헷갈리기 쉽지만,
+> `test_workflow_and_job_identities_are_unique` 가 저장소 안 유일성은 보장한다.
 
 > **추가 확인 (2026-08-09, `changes` 잡 추출 후)**: 인라인 잡이 reusable workflow
 > 호출로 바뀌면서 **체크 표시 이름이 달라질 수 있다.** required check 는 이름으로

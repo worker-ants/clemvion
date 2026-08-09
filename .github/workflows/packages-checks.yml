@@ -3,43 +3,61 @@
 # (backend 전용 워크플로 부재) 회귀가 PR 에서 안 잡혔다. eia-context-followups #3 — eslint config
 # 신설(각 패키지 eslint.config.mjs)로 lint 가 실효화되면서 CI 배선.
 #
-# 모집단 = `codebase/backend/package.json` 의 `@workflow/*` 의존(= backend-공유). 아래 3개 손 목록
-# (pull_request.paths · push.paths · matrix.pkg)이 그 집합과 어긋나면 red:
+# 모집단 = `codebase/backend/package.json` 의 `@workflow/*` 의존(= backend-공유). 아래 2개 손 목록
+# (`changes` 잡의 `pathspecs` · `matrix.pkg`)이 그 집합과 어긋나면 red:
 #   codebase/frontend/src/lib/repo-guards/__tests__/internal-package-registration.test.ts
 # 그 가드는 로컬 `run-test.sh unit` 에서 돈다 — 본 워크플로 자신은 repo 레벨에서 Actions 가 꺼져
 # 있어 현재 실행되지 않으므로(런 수 0), 여기에 CI job 으로 넣으면 가드가 안 도는 자기모순이 된다.
+#
+# > 종전에는 손 목록이 **3개**였다(`pull_request.paths` · `push.paths` · `matrix.pkg`).
+# > skip-job 패턴 전환으로 앞의 둘이 `changes` 잡의 `pathspecs` **한 곳**으로 합쳐졌다 —
+# > 복제가 하나 줄었으니 가드도 2개 목록만 대조한다.
 name: packages-checks
 
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
 on:
   pull_request:
-    paths:
-      - 'codebase/packages/ai-end-reason/**'
-      - 'codebase/packages/expression-engine/**'
-      - 'codebase/packages/graph-warning-rules/**'
-      - 'codebase/packages/node-summary/**'
-      - 'codebase/packages/chat-channel-validation/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/packages-checks.yml'
   push:
     branches: [main]
-    paths:
-      - 'codebase/packages/ai-end-reason/**'
-      - 'codebase/packages/expression-engine/**'
-      - 'codebase/packages/graph-warning-rules/**'
-      - 'codebase/packages/node-summary/**'
-      - 'codebase/packages/chat-channel-validation/**'
-      - 'pnpm-lock.yaml'
 
 concurrency:
   group: packages-checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다. wiring 은 `_changed-paths.yml` 공유.
+  #
+  # `scripts/ci-paths-changed.sh` 와 `_changed-paths.yml` 자신도 목록에 있다 — 판정 로직·wiring
+  # 이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다(이 저장소가 여섯 번 겪은 paths 커버리지 갭).
+  changes:
+    name: 변경 경로 판정
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        codebase/packages/ai-end-reason/**
+        codebase/packages/expression-engine/**
+        codebase/packages/graph-warning-rules/**
+        codebase/packages/node-summary/**
+        codebase/packages/chat-channel-validation/**
+        pnpm-lock.yaml
+        pnpm-workspace.yaml
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        .github/workflows/packages-checks.yml
+
   # 패키지별 독립 job(matrix) — web-chat-checks.yml 패턴과 통일. fail-fast:false 로 한 패키지가
   # 깨져도 나머지의 실패 신호가 은폐되지 않는다(단일 job 순차 run 의 set -e 문제 회피).
+  #
+  # matrix 라 **체크가 패키지마다 하나씩** 생긴다(`@workflow/<pkg> (lint/test/build)`).
+  # required check 로 등록할 때 5개를 전부 등록해야 하며, 패키지가 늘면 등록도 함께 늘려야 한다 —
+  # 위 헤더의 손 목록 2개와 같은 성격의 손 유지 지점이다.
   packages:
     name: ${{ matrix.pkg }} (lint/test/build)
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -52,18 +70,28 @@ jobs:
           - '@workflow/node-summary'
           - '@workflow/chat-channel-validation'
     steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "내부 공유 패키지 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
       - uses: pnpm/action-setup@v6.0.9
+        if: needs.changes.outputs.relevant != 'false'
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           node-version: '24'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
       - name: Install deps
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm install --frozen-lockfile --filter "${{ matrix.pkg }}..."
       - name: Lint
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter "${{ matrix.pkg }}" lint
       - name: Test (jest)
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter "${{ matrix.pkg }}" test
       - name: Build (tsc)
+        if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter "${{ matrix.pkg }}" build

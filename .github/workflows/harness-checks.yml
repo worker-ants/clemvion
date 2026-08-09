@@ -6,76 +6,14 @@
 
 name: harness-checks
 
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 종전 목록은 아래 `changes` 잡의 `pathspecs` 로 그대로 옮겨졌다(항목별 근거 주석 포함).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
+#
+# `push` 트리거는 **추가하지 않는다** — 종전에도 없었다. skip-job 전환이 푸는 문제는
+# PR 의 required check 데드락 하나이고, main push 커버리지는 별 축이다.
 on:
   pull_request:
-    paths:
-      - '.claude/agents/**'
-      # slash-command 정의도 sub-agent 계약 문구를 담아 test_summary_agent_contract.py 의
-      # 검증 대상이다 — paths 에 없으면 이 파일들만 고친 PR 에서 스위트가 아예 안 돌았다.
-      - '.claude/commands/**'
-      # doc-sync-matrix.json 은 test_doc_sync_matrix.py 가 PROJECT.md 매트릭스와
-      # 대조하는데, paths 에 없어 그 JSON 만 고친 PR 에서 가드가 안 돌았다 — 위 항목들과
-      # 동일한 실패 클래스의 6번째. test_harness_checks_paths_coverage.py 가 이제 등재를 강제한다.
-      - '.claude/config/**'
-      - '.claude/hooks/**'
-      # .githooks/pre-commit 은 ConsumerBindingTest(test_mermaid_lint_ready.py)로
-      # 결속되는데 paths 에 없으면 그 파일 단독 수정 시 정작 자신을 지키는 테스트가
-      # 트리거되지 않았다 — 아래 .claude/_shared 항목과 동일한 실패 클래스(00_59_56 W3).
-      - '.githooks/**'
-      # 게이트(review_guard)·오케스트레이터 CLI 가 공유하는 report-path SoT. 단독 수정이
-      # CI 를 안 태우면 이 PR 이 없애려던 "drift 가 조용히 재발" 클래스 그 자체가 된다.
-      - '.claude/_shared/**'
-      - '.claude/skills/**'
-      - '.claude/tests/**'
-      - '.claude/tools/**'
-      # Workflow 스크립트는 BLOCK/RISK 판정 로직을 담는데 종전 paths 에 없어, 단독 수정 시
-      # 가드(test_workflow_scripts.py: 문법 + shared-block drift)가 트리거되지 않았다.
-      - '.claude/workflows/**'
-      - '.claude.project.json'
-      - 'PROJECT.md'
-      # test_dependabot_npm_coverage.py 가 이 둘을 대조해 "pnpm 워크스페이스 밖 npm 트리는
-      # 반드시 dependabot 에 등록" 불변식을 지킨다. paths 에 없으면 등록을 지우거나 워크스페이스
-      # 범위를 바꾼 PR 에서 정작 그걸 지키는 가드가 안 돈다 — 위 .githooks/** · .claude/_shared/**
-      # 와 동일한 실패 클래스.
-      - '.github/dependabot.yml'
-      # 워크플로 디렉토리 전체 — 세 가드가 여기에 걸린다.
-      #   (a) test_e2e_exemption_paths_sync.py — e2e.yml 의 paths-ignore 를 PROJECT.md
-      #       §e2e 면제 화이트리스트와 대조한다. 등재가 없으면 **paths-ignore 를 넓히는
-      #       PR**(정확히 그 가드가 막으려는 위험 방향)이 e2e.yml 만 건드릴 때 안 돈다 —
-      #       위 .githooks/** · .claude/_shared/** · dependabot.yml 과 동일한 실패 클래스.
-      #   (b) test_workflow_yaml_structure.py — **모든** 워크플로의 구조(중복 키·스텝의
-      #       run/uses). 2026-08-01 사고: PyYAML 설치 스텝을 기존 스텝의 name/run 사이에
-      #       끼워 넣어 `run:` 이 중복됐고, 뒤 값이 앞을 덮어써 설치 명령이 통째로
-      #       소실됐다 — 로컬 테스트로는 드러나지 않는 클래스다.
-      #   (c) test_review_gate_ci.py::WorkflowWiringTest — review-gate.yml 문서 **전체**를
-      #       기대 리터럴과 정확 일치로 비교한다. 이 glob 폭에 의존하므로, 좁히면
-      #       review-gate.yml 단독 수정이 그 가드를 트리거하지 못한다.
-      # (b) 가 파일 무관이라 개별 등재(e2e.yml · harness-checks.yml)를 여기로 접었다.
-      # 파일별로 두면 새 워크플로마다 등재를 잊는 쪽으로 실패한다.
-      - '.github/workflows/**'
-      - 'pnpm-workspace.yaml'
-      # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
-      # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
-      - 'scripts/report_playwright_flaky.py'
-      - 'scripts/check-e2e-playwright-config.py'
-      # 리뷰 게이트의 CI 백스톱. 이 파일만 고친 PR 에서 harness-checks 가 안 돌면
-      # `test_review_gate_ci.py` 가 트리거되지 않는다 — 위 항목들과 동일한 실패 클래스.
-      - 'scripts/check-review-gate.py'
-      - 'scripts/check-override-floors.py'
-      # required check skip-job 패턴의 판정자. 이 스크립트가 바뀌면
-      # test_required_check_skip_jobs.py 가 돌아야 하는데, 초판이 이 등재를 빠뜨려
-      # 이 저장소가 여섯 번 겪은 paths 커버리지 갭을 그 PR 이 그대로 재현했다.
-      - 'scripts/ci-paths-changed.sh'
-      # backend 타입체크 ratchet(test_backend_typecheck_ratchet.py). 판정 스크립트와
-      # **baseline 데이터 둘 다** 등재해야 한다 — baseline 만 손대는 PR 이 훨씬 흔하고,
-      # 그 파일이 곧 게이트의 임계값이라 형태가 깨지면 잡이 exit 2 로 죽는다.
-      - 'scripts/check-backend-typecheck-ratchet.py'
-      - 'scripts/backend-typecheck-baseline.json'
-      # 내부 패키지의 `prepare` 계약(test_packages_prepare_contract.py). 매니페스트만 고친
-      # PR 에서 이 가드가 안 돌면, stale dist 를 되살리는 한 줄이 조용히 들어온다 — 위
-      # 항목들과 동일한 실패 클래스다. 소스가 아니라 매니페스트만 등재해 스위트가 모든
-      # 패키지 코드 변경마다 도는 것은 피한다.
-      - 'codebase/packages/*/package.json'
 
 concurrency:
   group: harness-checks-${{ github.ref }}
@@ -87,7 +25,98 @@ permissions:
   contents: read
 
 jobs:
+  # 종전 `on.pull_request.paths` 목록이 여기 한 곳에만 산다. wiring 은 `_changed-paths.yml` 공유.
+  #
+  # 블록 스칼라 안에서는 YAML 주석이 성립하지 않지만(`#` 도 본문이다), `_changed-paths.yml`
+  # 이 `#` 로 시작하는 줄을 떼어 준다 — 그래서 항목별 "왜 등재했는가" 를 pathspec **바로
+  # 옆에** 유지할 수 있다. 이 목록에서 그 인접성은 장식이 아니다: 아래 주석이 여섯 번의
+  # 커버리지 갭을 하나씩 기록하고 있고, 그게 일곱 번째를 막는 유일한 장치다.
+  #
+  # `test_harness_checks_paths_coverage.py` 가 이 목록을 읽어 "harness 테스트가 지키는
+  # 파일 중 여기 안 걸리는 것" 을 전수로 잡는다 — 손 목록만으로는 여섯 번 새어 나갔다.
+  changes:
+    name: 변경 경로 판정
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        .claude/agents/**
+        # slash-command 정의도 sub-agent 계약 문구를 담아 test_summary_agent_contract.py 의
+        # 검증 대상이다 — 목록에 없으면 이 파일들만 고친 PR 에서 스위트가 아예 안 돌았다.
+        .claude/commands/**
+        # doc-sync-matrix.json 은 test_doc_sync_matrix.py 가 PROJECT.md 매트릭스와
+        # 대조하는데, 목록에 없어 그 JSON 만 고친 PR 에서 가드가 안 돌았다 — 위 항목들과
+        # 동일한 실패 클래스의 6번째. test_harness_checks_paths_coverage.py 가 이제 등재를 강제한다.
+        .claude/config/**
+        .claude/hooks/**
+        # .githooks/pre-commit 은 ConsumerBindingTest(test_mermaid_lint_ready.py)로
+        # 결속되는데 목록에 없으면 그 파일 단독 수정 시 정작 자신을 지키는 테스트가
+        # 트리거되지 않았다 — 아래 .claude/_shared 항목과 동일한 실패 클래스(00_59_56 W3).
+        .githooks/**
+        # 게이트(review_guard)·오케스트레이터 CLI 가 공유하는 report-path SoT. 단독 수정이
+        # CI 를 안 태우면 이 PR 이 없애려던 "drift 가 조용히 재발" 클래스 그 자체가 된다.
+        .claude/_shared/**
+        .claude/skills/**
+        .claude/tests/**
+        .claude/tools/**
+        # Workflow 스크립트는 BLOCK/RISK 판정 로직을 담는데 종전 목록에 없어, 단독 수정 시
+        # 가드(test_workflow_scripts.py: 문법 + shared-block drift)가 트리거되지 않았다.
+        .claude/workflows/**
+        .claude.project.json
+        PROJECT.md
+        # test_dependabot_npm_coverage.py 가 이 둘을 대조해 "pnpm 워크스페이스 밖 npm 트리는
+        # 반드시 dependabot 에 등록" 불변식을 지킨다. 목록에 없으면 등록을 지우거나 워크스페이스
+        # 범위를 바꾼 PR 에서 정작 그걸 지키는 가드가 안 돈다 — 위 .githooks/** · .claude/_shared/**
+        # 와 동일한 실패 클래스.
+        .github/dependabot.yml
+        # 워크플로 디렉토리 전체 — 세 가드가 여기에 걸린다.
+        #   (a) test_e2e_exemption_paths_sync.py — e2e.yml 의 paths-ignore 를 PROJECT.md
+        #       §e2e 면제 화이트리스트와 대조한다. 등재가 없으면 **paths-ignore 를 넓히는
+        #       PR**(정확히 그 가드가 막으려는 위험 방향)이 e2e.yml 만 건드릴 때 안 돈다 —
+        #       위 .githooks/** · .claude/_shared/** · dependabot.yml 과 동일한 실패 클래스.
+        #   (b) test_workflow_yaml_structure.py — **모든** 워크플로의 구조(중복 키·스텝의
+        #       run/uses). 2026-08-01 사고: PyYAML 설치 스텝을 기존 스텝의 name/run 사이에
+        #       끼워 넣어 `run:` 이 중복됐고, 뒤 값이 앞을 덮어써 설치 명령이 통째로
+        #       소실됐다 — 로컬 테스트로는 드러나지 않는 클래스다.
+        #   (c) test_review_gate_ci.py::WorkflowWiringTest — review-gate.yml 문서 **전체**를
+        #       기대 리터럴과 정확 일치로 비교한다. 이 glob 폭에 의존하므로, 좁히면
+        #       review-gate.yml 단독 수정이 그 가드를 트리거하지 못한다.
+        # (b) 가 파일 무관이라 개별 등재(e2e.yml · harness-checks.yml)를 여기로 접었다.
+        # 파일별로 두면 새 워크플로마다 등재를 잊는 쪽으로 실패한다.
+        .github/workflows/**
+        pnpm-workspace.yaml
+        # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
+        # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
+        scripts/report_playwright_flaky.py
+        scripts/check-e2e-playwright-config.py
+        # 리뷰 게이트의 CI 백스톱. 이 파일만 고친 PR 에서 harness-checks 가 안 돌면
+        # `test_review_gate_ci.py` 가 트리거되지 않는다 — 위 항목들과 동일한 실패 클래스.
+        scripts/check-review-gate.py
+        scripts/check-override-floors.py
+        # required check skip-job 패턴의 판정자. 이 스크립트가 바뀌면
+        # test_required_check_skip_jobs.py 가 돌아야 하는데, 초판이 이 등재를 빠뜨려
+        # 이 저장소가 여섯 번 겪은 paths 커버리지 갭을 그 PR 이 그대로 재현했다.
+        scripts/ci-paths-changed.sh
+        # 위 `.github/workflows/**` 가 이미 덮지만 **명시로도 등재한다.** 전환 계약
+        # (`test_required_check_skip_jobs.py::test_converted_workflows_pass_the_script_its_own_path`)
+        # 이 판정 wiring 을 이름으로 요구한다 — 광역 글롭이 나중에 좁아져도 이 의존이 조용히
+        # 빠지지 않도록 하는 것이 그 계약의 목적이다.
+        .github/workflows/_changed-paths.yml
+        # backend 타입체크 ratchet(test_backend_typecheck_ratchet.py). 판정 스크립트와
+        # **baseline 데이터 둘 다** 등재해야 한다 — baseline 만 손대는 PR 이 훨씬 흔하고,
+        # 그 파일이 곧 게이트의 임계값이라 형태가 깨지면 잡이 exit 2 로 죽는다.
+        scripts/check-backend-typecheck-ratchet.py
+        scripts/backend-typecheck-baseline.json
+        # 내부 패키지의 `prepare` 계약(test_packages_prepare_contract.py). 매니페스트만 고친
+        # PR 에서 이 가드가 안 돌면, stale dist 를 되살리는 한 줄이 조용히 들어온다 — 위
+        # 항목들과 동일한 실패 클래스다. 소스가 아니라 매니페스트만 등재해 스위트가 모든
+        # 패키지 코드 변경마다 도는 것은 피한다.
+        codebase/packages/*/package.json
+
   unittest:
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     # 이 값은 2026-05-30(#357)에 쓰였는데, 그때 이미 저장소의 Actions 가 꺼져 있었다
     # (2026-05-16 ~ 2026-08-06). 즉 **한 번도 실행되지 않은 채로 정해진 숫자**였고,
@@ -109,11 +138,17 @@ jobs:
     # 하고 그 숫자로 정할 것 — 이 값이 처음 5분이 된 경위가 "한 번도 안 돌려보고 정함" 이다.
     timeout-minutes: 15
     steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "harness 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
 
       # ubuntu-latest ships python3, but pin via setup-python to keep the
       # actions major policy consistent with the other workflows (v5/v6 line).
       - uses: actions/setup-python@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           python-version: '3.x'
 
@@ -122,9 +157,11 @@ jobs:
       # `import yaml` 하므로 PyYAML 이 필요해졌다. `deps-security-checks.yml` 의 config-guard
       # 잡과 동일한 pin 을 재사용한다(신규 외부 의존 아님).
       - name: Install PyYAML
+        if: needs.changes.outputs.relevant != 'false'
         run: pip install "pyyaml>=6,<7"
 
       - name: Run harness unit tests
+        if: needs.changes.outputs.relevant != 'false'
         run: python3 -m unittest discover -s .claude/tests -p 'test_*.py'
 
       # The workflow scripts' report-return parsing decides BLOCK/RISK, so it gets real
@@ -135,8 +172,10 @@ jobs:
       # (harness-guard-followups §A W8). Nothing here needs the older line:
       # `node --test` and the ESM the workflow scripts use predate both.
       - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           node-version: '24'
 
       - name: Run workflow contract unit tests
+        if: needs.changes.outputs.relevant != 'false'
         run: node --test .claude/tests/test_agent_return.mjs

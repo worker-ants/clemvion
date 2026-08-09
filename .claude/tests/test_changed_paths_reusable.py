@@ -8,7 +8,7 @@
 - 따옴표 없이 `$PATHSPECS` 를 그대로 넘기면 셸에 따라 **전부가 한 덩어리 인자 1개**가 되거나
   글로브가 조기 확장된다.
 - 그러면 `ci-paths-changed.sh` 는 "그런 경로 변경 없음" → `relevant=false` 로 판정하고,
-  세 워크플로의 **모든 검사가 조용히 no-op** 된다. required check 는 초록이다.
+  전환된 워크플로 전체의 **모든 검사가 조용히 no-op** 된다. required check 는 초록이다.
 
 이 저장소는 같은 클래스를 이미 겪었다 — 인자 목록이 한 덩어리로 전달돼 "명시 파일" 절차가
 전 라운드 무효였던 사고. 그때 얻은 규칙이 **"받는 쪽 산출물로 검증하라"** 이고, 여기서는
@@ -103,6 +103,31 @@ class ArgumentSplittingTest(unittest.TestCase):
     def test_whitespace_only_lines_are_dropped(self):
         proc = run_with("a.yaml\n   \nb.yaml\n")
         self.assertEqual(argv(proc), ["a.yaml", "b.yaml"])
+
+    def test_comment_lines_are_dropped(self):
+        """**블록 스칼라 안에는 YAML 주석이 없다** — `#` 줄도 전부 본문으로 건너온다.
+
+        떼지 않으면 근거 주석이 pathspec 인자가 되어 목록이 실제보다 넓어 보이고, 가드
+        (`pathspecs_of`)와 런타임이 서로 다른 목록을 보게 된다. 항목별 "왜 등재했는가" 를
+        pathspec 바로 옆에 두려면 이 층이 떼는 수밖에 없다 — `harness-checks.yml` 의
+        목록은 그 인접성이 여섯 번의 커버리지 갭에 대한 유일한 대응책이다.
+        """
+        proc = run_with("a.yaml\n# 왜 등재했는가\n  # 들여쓴 주석도 마찬가지\nb.yaml\n")
+        self.assertIn("ARGC=2", proc.stdout, proc.stdout)
+        self.assertEqual(argv(proc), ["a.yaml", "b.yaml"])
+
+    def test_a_hash_that_is_not_line_initial_survives(self):
+        """줄 **시작**의 `#` 만 주석이다. 경로 안의 `#` 를 떼면 그 pathspec 이 조용히
+        다른 것이 되어, 주석 제거가 게이팅을 깎는 쪽으로 작동한다."""
+        proc = run_with("dir/a#b.txt\n")
+        self.assertEqual(argv(proc), ["dir/a#b.txt"])
+
+    def test_a_list_of_only_comments_fails_closed(self):
+        """주석만 남으면 판정 대상이 0개다 — 빈 입력과 같은 자리로 떨어져야 한다.
+        조용히 통과하면 그 워크플로의 모든 검사가 영구히 no-op 된다."""
+        proc = run_with("# 전부 주석\n#\n")
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("비었다", proc.stdout + proc.stderr)
 
     def test_empty_input_fails_closed(self):
         """pathspec 이 하나도 없으면 판정 대상이 0개다 — 조용히 통과시키면 그 워크플로의

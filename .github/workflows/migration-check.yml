@@ -13,30 +13,56 @@
 
 name: migration-check
 
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
+#
+# `push` 트리거는 **추가하지 않는다** — 종전에도 없었다. main push 사후 재검은
+# `migration-recheck-on-main.yml` 이 이미 담당하며 그쪽은 PR 체크가 아니다(§6.3).
 on:
   pull_request:
-    paths:
-      - 'codebase/backend/migrations/**'
-      - 'scripts/check-migration-versions.py'
-      - '.github/workflows/migration-check.yml'
 
 concurrency:
   group: migration-check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # 종전 `on.pull_request.paths` 목록이 여기 한 곳에만 산다. wiring 은 `_changed-paths.yml` 공유.
+  #
+  # `scripts/ci-paths-changed.sh` 와 `_changed-paths.yml` 자신도 목록에 있다 — 판정 로직·wiring
+  # 이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다(이 저장소가 여섯 번 겪은 paths 커버리지 갭).
+  changes:
+    name: 변경 경로 판정
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        codebase/backend/migrations/**
+        scripts/check-migration-versions.py
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        .github/workflows/migration-check.yml
+
   guard:
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "마이그레이션 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+
       # base ref (보통 main) 와의 merge-base 를 계산하려면 전체 히스토리가 필요.
       - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           fetch-depth: 0
 
       # ubuntu-latest 에 이미 python3 가 있지만, 명시적 setup 으로 다른
       # workflow 와 actions 메이저 정책을 일관 유지한다 (v5/v6 라인).
       - uses: actions/setup-python@v7
+        if: needs.changes.outputs.relevant != 'false'
         with:
           python-version: '3.x'
 
@@ -44,6 +70,7 @@ jobs:
       # 을 자동 설정하지만, base 브랜치 ref 를 fetch 해야 origin/<base> 로
       # 비교할 수 있다.
       - name: Fetch base ref
+        if: needs.changes.outputs.relevant != 'false'
         # actions/checkout@v7 의 fetch-depth: 0 이 전체 history 를 가져오지만,
         # PR 컨텍스트에서 base 브랜치의 origin/<base> ref 가 항상 set 되어 있지
         # 않을 수 있어 명시적으로 fetch. --depth 는 양의 정수만 허용하므로
@@ -51,4 +78,5 @@ jobs:
         run: git fetch --no-tags origin "${{ github.base_ref }}"
 
       - name: Check migration versions
+        if: needs.changes.outputs.relevant != 'false'
         run: python3 scripts/check-migration-versions.py --base "origin/${{ github.base_ref }}"
