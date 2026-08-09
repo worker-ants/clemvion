@@ -35,6 +35,6 @@ SUMMARY: Critical 0 · **WARNING 1** · risk LOW (reviewer 7/7, forced 전원).
 ## 검증
 
 - 문서 가드 **19파일 / 2845 tests PASS**
-- e2e — 아래 줄
+- **e2e 통과** (268s, tests=264) — 마지막 코드 commit(`f5f454844`) 다음
 - **후속 게이트 재실행**: 이 fix 가 spec-linked 파일을 건드리므로 코드 리뷰·정합 검토 둘 다
   신선도가 깨진다. 둘을 **동시에** 재실행한다(서로 파일을 건드리지 않으므로 직렬화 불요).
