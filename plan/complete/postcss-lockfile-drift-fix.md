@@ -3,7 +3,7 @@ title: main 의 postcss package.json↔lockfile 드리프트 수정 — frozen-l
 worktree: postcss-lockfile-drift
 started: 2026-07-31
 owner: developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact: none
 ---

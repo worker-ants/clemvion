@@ -175,7 +175,7 @@ P6(UX) ── 독립 백로그
 - [ ] 평가셋 규모·합성 비율(수동 50 + 합성 확장) 확정.
 - [ ] (선택) 형태소 분석기 Kiwi vs Okt(앱 레이어) — 한국어 BM25 벤치 Kiwi/Okt 상위.
 
-> 리랭킹 상세 설계는 [`spec-draft-rag-reranking.md`](./spec-draft-rag-reranking.md)(P1 구체화, consistency-check `00_02_05` BLOCK:NO 통과 + 2026-06-04 결정 확정·spec 반영) 로 분기.
+> 리랭킹 상세 설계는 [`spec-draft-rag-reranking.md`](../complete/spec-draft-rag-reranking.md)(P1 구체화, consistency-check `00_02_05` BLOCK:NO 통과 + 2026-06-04 결정 확정·spec 반영) 로 분기.
 
 > 심화 리서치 5스트림(2026-06-03) 통합 완료. 다음 단계: 특정 Phase 의 spec 본문화(project-planner+consistency-check) 또는 P1 PoC 구현(developer).
 

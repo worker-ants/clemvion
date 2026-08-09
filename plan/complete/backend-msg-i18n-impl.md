@@ -1,6 +1,6 @@
 ---
 worktree: parallel-p2-w1w2
-status: in-progress
+status: complete
 spec:
   - spec/conventions/i18n-userguide.md
   - spec/conventions/cross-node-warning-rules.md

@@ -78,7 +78,7 @@ plan 의 2026-08-08 전수 triage(데코레이터 기준 파싱)가 실측한 �
 ```markdown
 - [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` 를 소비하는 엔드포인트는
       `@ApiForbiddenResponse` 도 추가 — `RolesGuard` 는 `@Roles()` 유무와 무관하게
-      워크스페이스 멤버십을 항상 검증하므로([`1-auth.md` §3.3](../5-system/1-auth.md),
+      워크스페이스 멤버십을 항상 검증하므로([`1-auth.md` §3.3](../../spec/5-system/1-auth.md),
       [`roles.guard.ts`](../../codebase/backend/src/common/guards/roles.guard.ts)
       docstring), `@WorkspaceId()` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다.
       `@Roles()` 가 있으면 설명에 "editor 이상 권한 필요"처럼 요구 역할을 명시하고,

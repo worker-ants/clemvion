@@ -3,7 +3,7 @@ title: pnpm audit 잔여 17건 정리 — 오버라이드 하한 상향·신규 
 worktree: audit-residual
 started: 2026-07-31
 owner: developer
-status: in-progress
+status: complete
 priority: P2
 spec_impact: none
 ---

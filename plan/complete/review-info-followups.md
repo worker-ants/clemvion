@@ -3,7 +3,7 @@ title: duplicate 리뷰의 보류 INFO 10건 처분 — 4건 조치, 6건 근거
 worktree: review-info-followups
 started: 2026-07-31
 owner: developer
-status: in-progress
+status: complete
 priority: P3
 spec_impact: none
 ---

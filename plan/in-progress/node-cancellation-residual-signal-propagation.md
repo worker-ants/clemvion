@@ -45,7 +45,7 @@ priority: P3
       spec §6 표의 해당 행 처분은 `spec/` 권한 밖이라 위임했고, **2026-07-26 planner 턴에서
       이행 완료**했다 — §1 나열에서 chat-channel 제거 + §6 행을 `N/A`(범주 오류로 철회) 로
       재기재 + `10-parallel.md:244` 의 같은 오분류 정정.
-      초안·근거: [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
+      초안·근거: [`spec-draft-node-cancellation-chat-channel-correction.md`](../complete/spec-draft-node-cancellation-chat-channel-correction.md).
 - [x] **MakeShop 노드 signal 전파** (2026-07-25, handler 재throw 가드까지 포함) — `MakeshopCallOptions.signal` 신설,
       handler 가 `context.abortSignal` 을 전달, `executeWithRetry` 가 자기 timeout controller 로
       cascade(§4). 이미 aborted 면 즉시 abort(§2.2). `http-request.handler.ts` 와 동일 패턴.
@@ -346,4 +346,4 @@ handler 가 어떻게 반응하는지**는 안 봤기 때문이다. handler 의 
   MakeShop·Cafe24 행을 `✓` 로 갱신(근거를 client §4 cascade + handler §5.1 재throw 양쪽으로 명시,
   위임 문서가 요구한 "handler propagate 실증" 조건을 테스트 4건으로 충족). 같은 턴에서
   chat-channel 행도 `N/A` 로 처분했다 —
-  [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
+  [`spec-draft-node-cancellation-chat-channel-correction.md`](../complete/spec-draft-node-cancellation-chat-channel-correction.md).

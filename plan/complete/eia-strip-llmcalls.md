@@ -1,7 +1,7 @@
 ---
 worktree: eia-strip-llmcalls
 branch: worktree-eia-strip-llmcalls
-status: in-progress
+status: complete
 ---
 
 # L1: 외부 execution-event 수신자에서 debug payload(llmCalls) strip

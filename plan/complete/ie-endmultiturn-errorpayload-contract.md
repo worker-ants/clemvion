@@ -1,7 +1,7 @@
 ---
 name: ie-endmultiturn-errorpayload-contract
 worktree: nice-archimedes-d9af7e
-status: in-progress
+status: complete
 started: 2026-07-18
 owner: developer
 spec_impact: none

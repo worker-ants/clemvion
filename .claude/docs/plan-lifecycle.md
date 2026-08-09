@@ -76,6 +76,19 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 
 `complete/` 로 옮긴 후에도 frontmatter 유지 (history 보존).
 
+- **`status` 를 선언했다면 이동 시 함께 갱신한다.** `plan/complete/**` 에서 허용되는 값은
+  종료 상태뿐이다 — `complete` · `implemented` · `applied` · `superseded`. 선언 자체가 없는
+  것은 정상이다(선택 필드). build guard `plan-frontmatter.test.ts` 가 강제하며, 새 종료 어휘가
+  필요하면 그 파일의 `TERMINAL_STATUSES` 에 등재한다.
+  > 2026-08-09 신설. 이 저장소가 **두 번** 놓친 실패다(`#1108`·`#1117`) — 그때까지 이 필드는
+  > 어떤 게이트도 보지 않고 사람의 규율에만 기대고 있었다(문서 가드 18파일 / 2821 tests 를
+  > 뮤테이션으로 돌려 확인).
+- **살아있는 plan 의 상대링크는 깨지면 안 된다.** top-level `plan/in-progress/*.md` 의
+  마크다운 상대링크가 실재 파일을 가리키는지 같은 guard 가 검사한다. 이동 시 형제 plan 을
+  가리키던 링크는 `../complete/<name>` 으로 정정한다.
+  > `plan/complete/**` 는 **대상이 아니다** — §3 "인입 참조" 가 시점 기록 문서의 옛 경로
+  > 유지를 규정하고, 실측상 그쪽 깨진 링크 135건이 대부분 그 성격이다.
+
 용도:
 - 동시 작업 추적 (plan ↔ worktree 귀속. `plan-stale-audit.sh` 가 plan 의 worktree 존재 여부 확인에 사용)
 

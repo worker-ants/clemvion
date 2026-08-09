@@ -1,7 +1,7 @@
 ---
 name: fix-resume-turn-usage-log-attribution
 worktree: .claude/worktrees/spec-sync-review-08a15a
-status: in-progress
+status: complete
 started: 2026-07-09
 owner: developer
 spec_impact: none

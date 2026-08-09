@@ -3,7 +3,7 @@ title: 워크플로우 복제가 빈 워크플로우를 만든다 — duplicate 
 worktree: resumable-handler-generic-typing-3918dd
 started: 2026-07-30
 owner: planner → developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
   - spec/data-flow/11-workflow.md

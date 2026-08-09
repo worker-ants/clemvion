@@ -3,7 +3,7 @@ title: spec 정정 — secret-store §2.1 각주의 "알려진 검증 공백" �
 worktree: spec-secret-store-footnote-retract-f91d93
 started: 2026-08-09
 owner: planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/conventions/secret-store.md
@@ -117,23 +117,33 @@ latest 만 남김 (history 가 아님)" 을 규정한다. "공백이었으나 �
 
 ## 후속 (이 PR 밖)
 
-- [ ] **`complete/` 이동 시 `status:` 미갱신을 잡는 게이트 부재** (2026-08-09 실측).
-      본 turn 이 옮긴 plan 의 `status: in-progress` 를 그대로 뒀고 `#1117` 이 뒤늦게 정정했다 —
-      이 저장소가 **두 번째** 겪는 실패형(`#1108` 3차 ai-review INFO 18 이 첫 번째).
-      **뮤테이션으로 확인했다**: `plan/complete/**` 파일의 `status:` 를 `in-progress` 로 되돌린
-      채 spec/plan 문서 가드를 전수(18파일 / 2821 tests) 돌렸는데 **전부 GREEN**. 즉 이 필드는
-      게이트가 아니라 **사람의 규율에만** 기대고 있고, 사람이 두 번 놓쳤다.
-      검사 자체는 사소하다 — "`plan/complete/*.md` 는 `status: complete`". 아래 링크 게이트
-      항목과 **같은 곳(`spec-plan-completion` 계열)에 얹는 편이 자연스럽다**.
-      > **선행 실측 완료 — 기존 위반 21건이다** (2026-08-09, `plan/complete/**` 전수).
-      > `auth-workspace-membership-guard.md`·`refactor-cron-to-bullmq.md` 등 전부
-      > `status: in-progress` 인 채 `complete/` 에 있다. **그냥 켜면 무관한 문서 21개가
-      > 한꺼번에 RED 가 되므로** ratchet(baseline 21 에서 시작해 증가만 차단)이나 일괄 정정
-      > 중 하나를 먼저 골라야 한다. 세는 일은 끝났으니 다음 사람은 그 결정만 하면 된다.
-- [ ] **`plan/**` 내부 상대링크 무결성 게이트 부재** (본 턴 실측). 위 뮤테이션이 드러낸 갭이다 —
-      plan 이동은 `plan-lifecycle.md §3` 이 **인접 PR 에 싣도록** 규정해 상대적으로 자주
-      일어나는데, 그때 깨지는 형제 링크를 잡는 자동 검사가 없다. `spec-link-integrity` 의
-      대상 집합을 `plan/**` 까지 넓히는 것이 자연스러운 형태로 보이나, **먼저 실측할 것**:
-      기존 `plan/**` 에 이미 깨진 링크가 몇 건인지 세지 않고 게이트를 켜면 무관한 문서 수십
-      건이 한꺼번에 RED 가 된다(이 저장소의 ratchet 패턴이 그 상황을 위해 있다).
-      harness 범위라 본 planner 턴에서 하지 않는다.
+- [x] **`complete/` 이동 시 `status:` 미갱신을 잡는 게이트 부재** — **해소 (2026-08-09)**.
+      `plan-frontmatter.test.ts` 에 `completed plans declare a terminal status` 신설.
+      > **여기 적어 둔 "기존 위반 21건" 은 옳았다** — 다음 사람(나)이 처음에 262건으로 세고
+      > 이 숫자가 틀렸다고 판단했는데, 262 는 `status:` **부재**까지 위반으로 센 값이었다.
+      > `plan-lifecycle.md §4` 는 `status` 를 **선택 필드**로 규정한다(필수는 worktree ·
+      > started · owner 셋뿐). 부재는 위반이 아니고, 실제 위반은 22건이었다.
+      > **더 좁은 질문에 대한 정답을 틀렸다고 오판할 뻔했다.**
+      >
+      > 그리고 22 도 정확하지 않았다 — 게이트를 켜니 **23번째**가 나왔다.
+      > `c1-pr2-aiturn-blueprint.md` 의 `status: complete (PR #625 머지)` 는 내 정규식
+      > `^status:\s*(\S+)` 이 첫 토큰만 잡아 통과시켰지만 YAML 파서는 전체 문자열을 본다.
+      > **정규식으로 센 숫자를 파서가 정정했다** — 자유서술을 `merged_pr:` 로 분리했다.
+      >
+      > **일괄 정정을 골랐다**(ratchet 아님). `in-progress` 15건은 사실 오류라 고치면
+      > 끝이고, ratchet 은 옳은 값이 뭔지 아는데도 baseline 을 영구히 들고 가는 형태다.
+      > 다만 `implemented`(3) · `applied`(3) · `superseded`(1) 는 **눕히지 않고 등재**했다 —
+      > 특히 `superseded` 는 "대체됨" 이라 완료가 아니고, 일괄 `complete` 로 바꿨다면
+      > 그 의미가 사라졌다.
+- [x] **`plan/**` 내부 상대링크 무결성 게이트 부재** — **해소 (2026-08-09)**.
+      같은 파일에 `top-level in-progress plans have no broken relative links` 신설.
+      > **실측 후 스코프를 좁혔다**: 전체 `plan/**` 은 670건 중 148건이 깨져 있는데,
+      > 그중 135건이 `plan/complete/**` 다. `plan-lifecycle.md §3` 이 "시점 기록 문서는 옛
+      > 경로 유지" 를 규정하므로 완료 문서의 옛 링크는 **정상**이고, 게이트를 거기까지
+      > 넓히면 정상 상태를 대량 RED 로 만든다. 살아있는 문서(top-level `in-progress`)만
+      > 본다 — `plan-frontmatter.test.ts` 가 이미 쓰는 스코프 선례 그대로다.
+      > 그 스코프의 깨진 링크 **8건을 전부 정정**했고(전부 `complete/` 로 옮겨간 plan 을
+      > 가리키던 것 — 바로 이 실패 클래스다), 남은 3건은 하위 그룹 폴더
+      > (`node-output-redesign/`)라 기존 면제 규칙에 걸린다.
+- [x] 뮤테이션 **4/4 RED** — 링크를 이동 전으로 되돌림 · spec 링크 깊이 오류 ·
+      `complete/` 에 `in-progress` 복귀 · 새 어휘(`done`) 무단 도입.
