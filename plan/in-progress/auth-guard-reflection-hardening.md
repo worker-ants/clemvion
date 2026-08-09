@@ -252,7 +252,7 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       — 앞으로 그 파일 변경은 push 전 fresh `--impl-done` 을 요구받으며, 사슬을 잇는 목적이
       바로 그것이라 의도한 강화다.
 
-- [ ] **73건(subset) / 142건(superset) 관계를 spec Rationale 에도 미러링** — 지금은
+- [x] **73건(subset) / 142건(superset) 관계를 spec Rationale 에도 미러링** — 지금은
       `workspace-reflection-canary.ts` 주석에만 있다 (`backend-hygiene-followups`
       `--impl-done` INFO 2, `review/consistency/2026/08/09/21_04_06`). `1-auth.md` 또는
       `data-flow/12-workspace.md` Rationale 에 한 줄이면 된다. 이 저장소가 두 수를 실제로
@@ -261,6 +261,14 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > 박으면 조용히 stale 해진다 — 지금 고친 것과 같은 클래스의 결함을 새로 만드는 셈이다.
       > 관계만 적는다: "캐너리가 세는 것은 `@Roles()` 유무와 **무관한** `@WorkspaceId()`
       > 소비 라우트 전체라 73건의 상위집합이다."
+      > **완료 (2026-08-09, planner 턴 `spec-canary-count-relation`).** 위 지시대로 관계만
+      > 적었고, **숫자를 적지 않는 이유까지 spec 본문에 남겼다** — 그래야 다음 사람이
+      > "친절하게" 142 를 다시 박아 넣지 않는다. 현재 수치의 SoT 는 부팅 로그라고 명시했다.
+      > **`1-auth.md` 단독 채택 — `data-flow/12-workspace.md` 에는 중복 기재하지 않았다**
+      > (`--spec` plan_coherence INFO 권고). 오독이 실제로 발생하는 지점은 "캐너리가 무엇을
+      > 세는가" 를 읽는 자리이고, 양쪽에 적으면 다음 변경 때 한쪽만 갱신되는 복제-drift 가
+      > 난다 — `#1113`(앵커가 소스 3곳+plan 1곳에 복제) · `#1112`(한 문서 두 곳 중 한 곳만
+      > 정정)로 최근에만 두 번 겪은 클래스다.
 
 > 넷 다 developer 권한 밖이라 그 PR 에서 하지 않았다. 코드가 spec 을 어긴 것이 아니라
 > **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니었다.
