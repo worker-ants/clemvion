@@ -58,4 +58,5 @@ fixture 3종(`status:` → null · `123` → number · `[complete]` → array)�
 
 - 문서 가드 **19파일 / 2841 tests PASS**
 - 뮤테이션 — non-string skip 분기 제거 시 RED 확인
-- e2e — 아래 줄
+- **e2e 통과** (260s, tests=264) — 마지막 코드 commit(`d1b622084`) 다음
+- harness **995 tests OK**
