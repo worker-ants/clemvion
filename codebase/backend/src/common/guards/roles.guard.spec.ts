@@ -355,16 +355,23 @@ describe('RolesGuard', () => {
    * 바꿔버리면 클라이언트가 받는 응답이 달라진다 (ai-review 2차 WARNING #5).
    */
   describe('형식이 깨진 X-Workspace-Id 는 가드에서 400 으로 전파된다', () => {
+    // 캡처-재던지기 **1회 호출**. 이웃 두 스펙이 같은 이유로 이 형태를 쓴다 —
+    // `rejects.toThrow` 용 1회 + `getResponse()` 용 1회로 나누면 첫 단언이 실패했을 때
+    // 두 번째가 조용히 건너뛰어져 code 단언이 vacuous 해진다 (ai-review 3차 WARNING #1:
+    // 같은 커밋이 다른 파일에서 기각한 패턴을 여기서만 되살렸다는 자기모순 지적).
     async function expectValidationError(ctx: ExecutionContext) {
       const { guard } = buildGuard('owner');
-      await expect(guard.canActivate(ctx)).rejects.toThrow(BadRequestException);
-
       let caught: unknown;
-      try {
-        await buildGuard('owner').guard.canActivate(ctx);
-      } catch (err) {
-        caught = err;
-      }
+      await expect(
+        (async () => {
+          try {
+            return await guard.canActivate(ctx);
+          } catch (err) {
+            caught = err;
+            throw err;
+          }
+        })(),
+      ).rejects.toThrow(BadRequestException);
       expect((caught as BadRequestException).getResponse()).toEqual(
         expect.objectContaining({ code: 'VALIDATION_ERROR' }),
       );

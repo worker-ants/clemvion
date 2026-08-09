@@ -144,6 +144,16 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > 돌렸으면 "코드를 안 본 채 BLOCK:NO" 라는 거짓 통과였다. `CONSISTENCY_MAX_CONTEXT_SIZE=2600000`
       > 으로 재생성해 diff 23회·`1-auth.md` 54회 등장을 확인하고 실행했다. 빈 세션
       > 디렉토리가 게이트를 거짓 통과시키는 것도 알려진 함정이라 폐기 세션은 지웠다.
+- [x] `/ai-review` 3차 (fix 후 fresh, `review/code/2026/08/09/15_20_33`) —
+      **Critical 0 · WARNING 1 → 수정 · INFO 18**. 2차 fix 로 원 리뷰가 stale 해져
+      push 게이트가 정확히 그것을 지적해 돌린 라운드다. **수렴 신호가 뚜렷하다** —
+      발견 성격이 동작 → 테스트 공백 → **테스트 패턴 자기모순 1건**으로 좁혀졌고
+      INFO 다수가 "이미 추적 중" 재확인이다.
+      W1 은 내가 2차에서 두 파일에 세운 표준(캡처-재던지기)을 **세 번째 파일에서 되살린
+      이중 호출**이었다. 수정 후 뮤테이션(`code` 값 변경) **2 RED** 로 code 단언이 여전히
+      살아있음을 확인. INFO 18(옮긴 plan 의 `status:` 미갱신)도 1줄이라 함께 정정.
+- [x] TEST WORKFLOW 3차 재수행 — lint PASS(53s) · unit PASS(73s) · build PASS(144s) ·
+      **e2e PASS(305s, jest 261 + playwright 51)**
 - [ ] push + PR
 
 ## 부수 — plan 위생 1건 (`--impl-prep` plan_coherence INFO #6)

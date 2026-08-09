@@ -3,7 +3,7 @@ title: spec draft — header-first 멤버십 보장을 "분산된 전제" 에서
 worktree: auth-workspace-membership-guard-2b94db
 started: 2026-08-08
 owner: project-planner
-status: in-progress
+status: complete
 priority: P0
 spec_impact:
   - spec/data-flow/12-workspace.md
