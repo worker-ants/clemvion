@@ -1,6 +1,6 @@
 ---
 title: RolesGuard reflection 경화 — fail-open 위험 · 메모이제이션 · 비-UUID 헤더 400
-worktree: harness-changeset-exclusion
+worktree: harness-changeset-exclusion  # 잔여 항목을 이 worktree 에서 처리 — §3 연결 판정은 "현재 디렉토리와 매칭" 이라 실제 위치로 맞춘다
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -304,7 +304,7 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       테스트가 아니라 **로드 시점 런타임 검사**로 넣었다 — `ALL_WS` 7개의 `Set` 크기가
       다르면 즉시 throw 하고, 소비 스위트 3곳이 전부 그 시점에 실패한다.
       뮤테이션으로 관측 확인: `OTHER_WS` 를 `VICTIM_WS` 값으로 바꾸자 **RED**
-      ("고유 6 / 전체 7"). 메시지가 개수를 말하므로 어느 쌍이 겹쳤는지 바로 좁혀진다.
+      ("고유 6 / 전체 7"). 메시지는 **개수까지만** 말한다 — 어느 쌍이 겹쳤는지는 안 알려준다.
 - [x] **nil-UUID 캐너리 정정 문단을 SoT 한 곳으로** (2026-08-10). 근거(403→400 뒤바뀜)와
       앵커 정정 이력(`#1112`)은 프로덕션 호출부에 가장 가까운 `uuid.ts` 의 `isUuidShaped`
       docstring 한 곳에 두고, `workspace-id-fixtures.ts` 와 `uuid.spec.ts` 는 포인터로 축약.
