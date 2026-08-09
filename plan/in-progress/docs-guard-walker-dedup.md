@@ -79,6 +79,18 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 - [ ] (테스트 갭) `hasValidSpecImpact` 의 `NONE_VALUES` 대소문자/trim/`n-a` 분기가 fixture
       로 검증되지 않는다 — `.trim()`/`.toLowerCase()` 를 지워도 초록일 수 있다.
       `collectCompletePlans` 의 `archive/`·인덱스 제외도 negative-path fixture 가 없다
+- [ ] **`NONE_VALUES` 정규화가 관측되지 않는다** — `hasValidSpecImpact` 의
+      `.trim()`/`.toLowerCase()` 와 `"n/a"`/`"na"` 어휘를 겨냥한 fixture 가 없어,
+      **그 값들을 빼거나 정규화를 지워도 스위트가 초록**이다(리뷰어 직접 뮤테이션 확인).
+      `hasValidSpecImpact("n/a")`·`("NA")`·`("NONE")`·`("  none  ")` 4줄이면 닫힌다
+      > 같은 파일의 다른 판정은 전부 fixture 로 관측되는데 여기만 예외다. 크기가 작아
+      > 다음에 이 파일을 손댈 때 함께 처리하는 것이 자연스럽다
+- [ ] `danglingSpecImpact` → `findDanglingSpecImpact` 개명 — 모듈 컨벤션이
+      `find*` = "위반 배열 반환"(`findUnparseablePlans`·`findNonTerminalCompletedPlans`·
+      `findFrontmatterViolations`·`findBrokenPlanLinks`)인데 이것만 boolean predicate 처럼
+      읽힌다
+- [ ] `plan-scan.test.ts` 의 fixture 빌더 `fm`/`frontmatter` 두 벌 통합 — 그 파일 서두가
+      "walker 넉 벌 중복" 을 경계하면서 자기 fixture 빌더가 두 벌이다
 - [ ] **Gate C 판정 함수들이 `*.test.ts` 안에 산다** — `isGateCEnforced`·
       `hasMalformedStarted`·`hasValidSpecImpact`·`danglingSpecImpact`·`makeSpecExists`
       (+`GATE_C_CUTOFF`·`NONE_VALUES`)가 `spec-plan-completion.test.ts` 에 있어, 다른
