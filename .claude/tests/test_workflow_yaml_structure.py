@@ -174,14 +174,18 @@ class WorkflowStructureTest(unittest.TestCase):
     # 어느 job/step 에도 있어서는 안 된다.
     _SWALLOWS_FAILURE = "continue-on-error"
 
-    # 예외는 **(워크플로, step 이름) 단위**로만. 파일 단위 예외를 두면 그 파일의 게이트 step
-    # 까지 함께 열린다. job 레벨은 예외가 없다 — job 하나가 실패를 삼키면 그 안의 모든 step 이
-    # 무해해지고, 그것이 정당한 경우는 없다.
+    # 예외는 **(저장소 상대경로, step 이름) 단위**로만. 파일 단위 예외를 두면 그 파일의 게이트
+    # step 까지 함께 열린다. job 레벨은 예외가 없다 — job 하나가 실패를 삼키면 그 안의 모든
+    # step 이 무해해지고, 그것이 정당한 경우는 없다.
+    #
+    # basename(`path.name`)이 아니라 저장소 상대경로로 키를 잡는다 — composite action 파일명은
+    # 규약상 항상 `action.yml` 이라, basename 키는 두 번째 액션이 생기는 순간 어느 액션의
+    # 예외인지 구분하지 못하고 서로 다른 액션의 동명 step 에 잘못 적용될 수 있다.
     #
     # 등재된 것은 **리포팅** step 이다: flaky 를 표면화하는 것 자체가 빌드를 깨서는 안 되고,
     # 그 step 이 실패해도 e2e 판정은 앞선 step 들이 이미 냈다.
     _MAY_SWALLOW = {
-        ("e2e.yml", "Surface flaky (retry-passed) tests"),
+        (".github/workflows/e2e.yml", "Surface flaky (retry-passed) tests"),
     }
 
     def test_no_guard_workflow_swallows_its_own_failure(self):
@@ -212,7 +216,7 @@ class WorkflowStructureTest(unittest.TestCase):
             for job_name, i, step in _steps(doc):
                 if not isinstance(step, dict):
                     continue
-                key = (path.name, step.get("name"))
+                key = (path.relative_to(REPO_ROOT).as_posix(), step.get("name"))
                 if key in self._MAY_SWALLOW:
                     seen_exceptions.add(key)
                     continue
