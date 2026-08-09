@@ -382,13 +382,25 @@ minor/patch 로도 온다) (2) 핸들러를 감싸는 데코레이터 도입으�
 
 **developer 범위** (`codebase/**` 는 planner 권한 밖):
 
-- [ ] `common/utils/uuid.ts` docstring 의 캐너리 지목 정정 — "실제로 이 저장소의 e2e 하나가
+- [x] `common/utils/uuid.ts` docstring 의 캐너리 지목 정정 — "실제로 이 저장소의 e2e 하나가
       nil UUID 를 타 워크스페이스 프로브로 쓴다(`system-status.e2e-spec.ts`)" 는 **그 e2e 가
       이 술어에 닿지 않으므로** 오해를 부른다(위 §⚠️ 실측). 같은 파일의 단위 테스트
       (`uuid.spec.ts` 경계 테스트 · `workspace-context.util.spec.ts`)를 지목하도록 고칠 것.
       **spec 쪽은 이미 정정돼 있다** — `12-workspace.md` 신설 subsection 의 "캐너리 지목 정정"
       각주가 SoT 라, 이 항목이 미해소여도 잘못된 근거가 spec 을 통해 퍼지지는 않는다.
-- [ ] 캐너리 주석의 "73건" 수치 정정 (원 plan 에 이미 등재 — 중복 등재 아님, 여기서는 포인터).
+      > **완료 (2026-08-09, `backend-hygiene-followups`).** 소스 사본이 지목한 것보다 하나 더
+      > 많았다 — `uuid.ts` docstring 외에 `uuid.spec.ts` 주석에도 같은 문장이 있었고, 그 PR 이
+      > 신설한 `common/__test-utils__/workspace-id-fixtures.ts` 가 **세 번째 사본을 새로
+      > 만들 뻔했다**(작성 시점엔 이 반증을 몰랐다). 셋 다 정정했다.
+      > 그쪽 실측을 그대로 받지 않고 재확인했고(컨트롤러에 두 데코레이터 부재 → `RolesGuard`
+      > 단축) 결론은 같았다. 추가로 **"이 둘이 유일한 방어선" 을 쓰기 전에 실측**했다:
+      > `isUuidShaped` 프로덕션 호출부는 `workspace-context.util.ts:74` 한 곳뿐이고,
+      > `roles.guard.spec.ts` 의 nil UUID 사용은 전역 라우트 케이스라 같은 단축에 걸려
+      > 이 경계를 지키지 않는다 — 방어선으로 세면 안 된다고 `uuid.spec.ts` 에 명시했다.
+- [x] 캐너리 주석의 "73건" 수치 정정 (원 plan 에 이미 등재 — 중복 등재 아님, 여기서는 포인터).
+      > **완료 (2026-08-09, 동 PR)** — 추정치 대신 캐너리 자신의 부팅 로그 실측값 **142건**.
+      > 두 수의 포함관계(HTTP 라우트 222 ⊇ `@WorkspaceId()` 소비 142 ⊇ `@Roles()` 미부착 73)를
+      > 주석에 못박았다. 상세는 원 plan(`auth-guard-reflection-hardening.md §후속`).
 
 > **`plan/**` 은 여기 없다.** 자매 plan(`auth-guard-reflection-hardening.md`)의 틀린 단정문은
 > planner 쓰기 범위라 **이 PR 에서 직접 정정했다** — 초안은 그것까지 developer 로 넘겼는데

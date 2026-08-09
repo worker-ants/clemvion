@@ -288,6 +288,15 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       수렴했는데 `codebase/**` 를 한 줄이라도 더 만지면 리뷰가 stale 해져 9분짜리 리뷰 +
       TEST WORKFLOW 를 다시 돈다. INFO 등급 개선에 비례하지 않는다 — 이 파일을 다음에
       만질 때 함께 넣는다.
+- [ ] **nil-UUID 캐너리 정정 문단을 SoT 한 곳으로 모으기** (`backend-hygiene-followups`
+      2차 타겟 리뷰 INFO 1·2). 같은 정정이 `uuid.ts` docstring · `uuid.spec.ts` 주석 ·
+      `__test-utils__/workspace-id-fixtures.ts` · 본 plan 까지 **4곳에 산문으로 복제**돼 있고,
+      표기 스타일도 갈린다(`uuid.ts` 만 인용-각주로 이력 보존, 나머지는 조용히 재작성).
+      근거는 프로덕션 호출부에 가장 가까운 `uuid.ts` 한 곳에 두고 나머지는 1줄 포인터로
+      축약하는 것이 맞다 — 지금 형태면 `system-status.controller.ts` 가 나중에 워크스페이스
+      스코핑을 갖게 될 때 3곳이 **다시 조용히** 어긋난다(이번이 그 클래스의 두 번째다).
+      **이번에 하지 않은 이유**: `codebase/**` 편집이라 방금 Critical 0 로 수렴한 리뷰가
+      다시 stale 해진다. 이 파일들을 다음에 만질 때 함께 처리한다.
 - [ ] `__test-utils__` 류 디렉터리가 **3곳째** 생기면 `tsconfig.build.json` 의 `exclude` 에
       `**/__test-utils__/**` 추가 검토 (동 ai-review INFO 4). 현재 2곳
       (`modules/integrations/__test-utils__` · 신설 `common/__test-utils__`)이고 둘 다
