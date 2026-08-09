@@ -147,7 +147,19 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
       > jest 만 센다): backend jest 46 suites/261 · **playwright 51** · unit 단계는
       > frontend 282 파일/5845 + channel-web-chat 23 파일/409 + backend 416 suites.
       > dompurify 를 쓰는 두 패키지가 모두 실제로 돌았다.
-- [ ] `/ai-review` 2차 (audit 조치분)
+- [x] `/ai-review` 2차 (audit 조치분, `review/code/2026/08/09/12_41_58`) —
+      **Critical 0 · WARNING 3 → 3건 전부 수정 · INFO 8**. router 가 8명 선별(= forced
+      전원), 8/8 리포트 디스크 실측. 이번 라운드는 **동작 결함이 아니라 1차 fix 의 잔여**
+      (문서 방향 · 중복 · 미검증 입력 형태)라 수렴으로 읽는다.
+      W1 README 카탈로그 행이 1차 조건 반전을 반영 못해 **현재 코드와 반대 방향**을 서술
+      (미러 4곳 중 1곳 누락 — 이 저장소의 반복 패턴) · W2 fail-safe 3줄이 5분기 복제 →
+      `fail_safe()` 헬퍼(뮤테이션 6 RED) · W3 실사용 pathspec `codebase/**/package.json`
+      미검증 → 실측하니 **중간 `**` 는 깊이 0 을 놓친다** → 워크플로에 깊이 0 명시 +
+      테스트 3종(뮤테이션 RED).
+- [x] TEST WORKFLOW 재수행 (fix 후) — lint PASS(53s) · unit PASS(73s) · build PASS(116s) ·
+      **e2e PASS(270s, jest 261 + playwright 51)** · harness **942 tests OK**
+      > fix 변경 set 에 `scripts/ci-paths-changed.sh` 가 있고 `scripts/**` 는 화이트리스트
+      > **밖**이다. "CI 헬퍼라 성격상 `.github/**` 와 같다" 는 임의 확대라 하지 않는다.
 
 ## 후속 — 나머지 8개 워크플로 (별 항목)
 
