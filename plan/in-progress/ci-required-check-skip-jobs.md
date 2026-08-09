@@ -252,6 +252,8 @@ spec-link)은 `paths` 만 걷고 유지, 없던 둘(harness·migration)은 추�
 
 ### 셋업 보일러플레이트 composite action — 트리거 도달, 실측 후 별 PR 로 집행 (완료)
 
+> **PR**: [#1120](https://github.com/worker-ants/clemvion/pull/1120)
+
 `backend-lint-gate-broken-on-main.md §후속` 이 "4번째 워크플로가 어떤 셋업을 요구하는지 보고
 판단" 을 트리거로 걸어 뒀다. 이번에 5개를 전환해 그 시점을 지났으므로 실측했다
 (전환 완료 시점 8워크플로 / 실잡 14개, `changes` 제외):

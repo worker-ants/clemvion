@@ -292,7 +292,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
       시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
       라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정했다(실측: `CONVERTED` 3건).
-- [x] **셋업 보일러플레이트(checkout·pnpm·setup-node·install) 추출은 별도** — **완료 (2026-08-09)**
+- [x] **셋업 보일러플레이트(checkout·pnpm·setup-node·install) 추출은 별도** — **완료 (2026-08-09, [#1120](https://github.com/worker-ants/clemvion/pull/1120))**
       위 추출은 `changes` 잡만 가져갔다. 셋업은 잡마다 필요한 도구가 달라(python 유무,
       캐시 키) composite action 쪽이 맞는데, 그 판단은 4번째 워크플로가 어떤 셋업을
       요구하는지 보고 하는 편이 낫다. **범위를 쪼개 남긴다** (ai-review WARNING #1).
