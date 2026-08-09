@@ -270,7 +270,7 @@ POST /api/triggers
 
 ## 5. API 명세 — Inbound
 
-> **전송 봉투 (전 REST 엔드포인트 공통)**: 아래 §5.1~§5.5 의 성공 응답 JSON 블록은 **논리 payload** (= `data` 객체의 내용물) 다. 실제 wire format 은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑한다 ([Webhook §3.1](./12-webhook.md#31-webhook-수신-엔드포인트) / [API 규약 §5](./2-api-convention.md#5-응답-형식)). 예: §5.3 단발 상태 조회의 실제 응답은 `{ "data": { "id", "status", ... } }`, §5.5 토큰 갱신은 `{ "data": { "token", "expiresAt" } }`. 클라이언트는 `res.data` 를 언랩해 읽어야 한다. **예외**: §5.2 SSE 스트림 프레임(`data: <payload>`)은 인터셉터를 거치지 않아 봉투가 없다. (§5.1 `interact`·§5.4 `cancel` 는 비동기라 `202 Accepted` 로 응답하지만 **no-content 가 아니다** — 각 §5.x 블록에 명시된 ack body(§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`)를 반환하며 다른 엔드포인트와 동일하게 `{ "data": { ... } }` 로 래핑된다.)
+> **전송 봉투 (전 REST 엔드포인트 공통)**: 아래 §5.1~§5.5 의 성공 응답 JSON 블록은 **논리 payload** (= `data` 객체의 내용물) 다. 실제 wire format 은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑한다 ([Webhook §3.1](./12-webhook.md#31-webhook-수신-엔드포인트) / [API 규약 §5](./2-api-convention.md#5-응답-형식)). 예: §5.3 단발 상태 조회의 실제 응답은 `{ "data": { "id", "status", ... } }`, §5.5 토큰 갱신은 `{ "data": { "token", "expiresAt" } }`. 클라이언트는 `res.data` 를 언랩해 읽어야 한다. **예외**: §5.2 SSE 스트림 프레임(`data: <payload>`)은 인터셉터를 거치지 않아 봉투가 없다. (§5.1 `interact`·§5.4 `cancel` 는 비동기라 `202 Accepted` 로 응답하지만 **no-content 가 아니다** — 각 §5.x 블록에 명시된 ack body(둘 다 `InteractAckDto` `{ executionId, accepted, currentStatus }` — §5.4 는 §5.1 의 alias 라 같은 DTO 다)를 반환하며 다른 엔드포인트와 동일하게 `{ "data": { ... } }` 로 래핑된다.)
 
 ### 5.1 인터랙션 명령 제출 — `POST /api/external/executions/:executionId/interact`
 
@@ -492,12 +492,15 @@ Authorization: Bearer <iext_jwt | itk_token>
 
 202 Accepted
 {
-  "executionId": "uuid",
-  "status":      "cancelled" | "running"   // 동기 처리 시 cancelled, 비동기 처리 중일 때 running (SSE 로 cancelled 이벤트 후속)
+  "executionId":   "uuid",
+  "accepted":      true,                  // 명령이 큐에 적재됨
+  "currentStatus": "running"              // optional — 명령 수신 **직후 관측된** status. 즉시 전이될 수 있어 확정값이 아니다
 }
 ```
 
 > `interact` 의 `command: "cancel"` 과 의미적으로 동치. 편의 alias. 응답이 `202 Accepted` 인 이유는 §5.1 의 다른 action 명령들과 동일 — 실제 cancel 처리는 비동기일 수 있다.
+>
+> **ack shape 은 §5.1 과 동일한 `InteractAckDto` 다** (구현: `@ApiAcceptedWrappedResponse(InteractAckDto)` + `Promise<InteractAckDto>`). 종전 이 블록은 `{ executionId, status }` 2필드로 적었으나 그런 응답은 **존재한 적이 없다** — alias 라는 성격상 같은 DTO 를 쓰는 것이 자연스럽고, 클라이언트가 `interact` 와 `cancel` 의 언랩 로직을 분기하지 않아도 된다(R16 이 no-content 예외를 없앤 것과 같은 이유). 확정 상태는 SSE `execution.cancelled` 로 받는다.
 
 ### 5.5 토큰 갱신 — `POST /api/external/executions/:executionId/refresh-token`
 
@@ -1123,7 +1126,9 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 
 ### R16. `interact`/`cancel` 의 `202 Accepted` + ack body (no-content 아님)
 
-**채택**: §5.1 `interact`·§5.4 `cancel` 는 비동기 처리라 `202 Accepted` 로 응답하되 **빈 body(no-content)가 아니라 ack body** 를 반환한다 (§5.1 `InteractAckDto` `{ executionId, accepted, currentStatus }`, §5.4 `{ executionId, status }`). 구현(`@HttpCode(ACCEPTED)` + DTO 반환)과 전역 `TransformInterceptor`(`{ data: ... }` 래핑)의 실제 동작을 반영한 것이다.
+**채택**: §5.1 `interact`·§5.4 `cancel` 는 비동기 처리라 `202 Accepted` 로 응답하되 **빈 body(no-content)가 아니라 ack body** 를 반환한다 — **둘 다 `InteractAckDto` `{ executionId, accepted, currentStatus }`** 다.
+
+> **2026-08-10 정정.** 종전 이 문장은 §5.4 를 `{ executionId, status }` 2필드로 적었으나 구현은 `@ApiAcceptedWrappedResponse(InteractAckDto)` + `Promise<InteractAckDto>` 로 **§5.1 과 같은 DTO** 를 쓴다(`interaction.controller.ts` `cancel`). `interaction.service.ts` 의 `cancel()` 은 **파일 생성 커밋(`35ff9c19b`, #230)부터 지금까지 한 번도 바뀌지 않았다** — 즉 2필드 응답을 반환한 배포 코드는 존재한 적이 없다. 그 2필드 문구는 구현 **이전** spec 초안(#228)에서 유래해 R16(#604)이 그대로 옮겨 적은 것이고, 그 뒤로 아무도 동기화하지 않았다. `/cancel` 이 `interact` 의 편의 alias 라는 성격상 같은 ack 를 쓰는 것이 자연스럽고, 클라이언트가 두 엔드포인트의 언랩 로직을 분기하지 않아도 된다 — 이 Rationale 이 no-content 예외를 없앤 것과 같은 근거다. 즉 **코드가 SoT 이고 spec 서술이 낡았던 것**이라 spec 을 맞췄다. 구현(`@HttpCode(ACCEPTED)` + DTO 반환)과 전역 `TransformInterceptor`(`{ data: ... }` 래핑)의 실제 동작을 반영한 것이다.
 
 과거 spec 은 §5 서두에서 "예외 2: §5.1(`interact`)는 성공 시 `202 Accepted` + body 없음(no-content path)" 으로 기술했으나 이는 구현과 어긋난 표기였다. ack body 를 반환하는 쪽을 채택한 이유: (1) 클라이언트가 명령 수신 직후 관측된 `currentStatus`(즉시 또 `waiting_for_input` 진입 가능)를 SSE 구독 전에 1회성으로 확인할 수 있어 UX 가 매끄럽다. (2) `accepted: true` 가 큐 적재 성공의 명시 신호다. (3) 다른 §5.x 엔드포인트와 동일하게 `{ data: ... }` 봉투로 일관 처리된다 — `interact` 만 no-content 예외로 두면 클라이언트 언랩 로직이 분기된다. body 가 비동기 진행의 **확정** 상태가 아님(202)은 유지되며, 확정 상태는 SSE/단발 조회로 받는다.
 

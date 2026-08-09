@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-10T07:29:09.041482",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/eia-context-schema-followups.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
