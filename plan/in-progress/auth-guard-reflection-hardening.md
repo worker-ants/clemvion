@@ -274,6 +274,20 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > 픽스처가 vacuous 하지 않음을 뮤테이션으로 확인 — `OTHER_WS` 를 `TOKEN_WS` 와 같은
       > 값으로 바꾸자 **2 suite / 3 test RED**(값의 상호 구별이 로드베어링).
 - [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
+- [ ] 공용 픽스처 모듈에 **값 유일성 단언**(`new Set([...]).size === 7`) 1줄 추가
+      (`backend-hygiene-followups` ai-review INFO 3). 지금은 3개 소비 스위트가 간접적으로만
+      유일성을 검증한다 — 뮤테이션으로 로드베어링임은 실증했지만(값 충돌 시 3 RED) 모듈
+      자체에는 가드가 없다. **이번에 넣지 않은 이유**: 그 라운드가 Critical 0·Warning 0 으로
+      수렴했는데 `codebase/**` 를 한 줄이라도 더 만지면 리뷰가 stale 해져 9분짜리 리뷰 +
+      TEST WORKFLOW 를 다시 돈다. INFO 등급 개선에 비례하지 않는다 — 이 파일을 다음에
+      만질 때 함께 넣는다.
+- [ ] `__test-utils__` 류 디렉터리가 **3곳째** 생기면 `tsconfig.build.json` 의 `exclude` 에
+      `**/__test-utils__/**` 추가 검토 (동 ai-review INFO 4). 현재 2곳
+      (`modules/integrations/__test-utils__` · 신설 `common/__test-utils__`)이고 둘 다
+      런타임 import 가 없어 `dist/` 에 실려도 실질 위험은 없다. **트리거를 개수로 못박는
+      이유**: 지금 exclude 를 넣으면 그 디렉터리들이 타입체크 대상에서 빠져 `__test-utils__`
+      의 타입 오류를 아무도 못 보게 된다(이 저장소가 이미 겪은 "테스트 코드는 어떤 게이트도
+      타입체크하지 않는다" 와 같은 클래스).
 - [x] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
       서브셋**인데 캐너리가 세는 것은 `@WorkspaceId()` 소비 라우트 **전체**라 상위집합이다 —
       전체 수치를 실측해 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**:
