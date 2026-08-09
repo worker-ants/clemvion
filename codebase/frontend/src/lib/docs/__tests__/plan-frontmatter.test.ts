@@ -3,7 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
 import { repoRoot } from "./spec-frontmatter-parse";
-import { collectLivePlanMarkdown, findBrokenPlanLinks } from "./spec-links";
+import { findBrokenPlanLinks } from "./spec-links";
+import {
+  collectCompletePlanMarkdown,
+  collectLivePlanMarkdown,
+  findNonTerminalCompletedPlans,
+} from "./plan-scan";
 
 // Guard: every top-level in-progress plan carries the lifecycle frontmatter
 // (worktree / started / owner) so plan-coherence collision-detection and the
@@ -50,34 +55,6 @@ const WORKTREE_SENTINEL = "(unstarted)";
 function collectTopLevelPlans(root: string): string[] {
   return collectLivePlanMarkdown(root).map((f) => f.absPath);
 }
-
-/** `plan/complete/**` 의 `.md` 전수 (archive 제외 — 옛 memory/user_memo 보관소다). */
-function collectCompletedPlans(root: string): string[] {
-  const dir = path.join(root, "plan", "complete");
-  if (!fs.existsSync(dir)) return [];
-  const out: string[] = [];
-  const walk = (d: string) => {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      const full = path.join(d, e.name);
-      if (e.isDirectory()) {
-        if (e.name !== "archive") walk(full);
-      } else if (e.name.endsWith(".md")) {
-        out.push(full);
-      }
-    }
-  };
-  walk(dir);
-  return out.sort();
-}
-
-// `complete/` 에서 정당한 종료 상태. `in-progress` 는 **디렉터리와 정면으로 모순**이라
-// 여기 없다 — 그것이 두 번 발생한 실패 그 자체다.
-//
-// `complete` 외의 셋은 실측으로 발견된 기존 어휘다(2026-08-09, 각 1~3건). spec draft 계열이
-// "적용됨/구현됨", 대체된 plan 이 "superseded" 를 쓰고 있었다. 일괄 `complete` 로 눕히면
-// **`superseded`(대체됨 — 완료가 아니다)의 의미가 사라지므로** 등재로 보존한다. 새 값이
-// 필요하면 여기 추가하는 순간이 "이게 정말 종료 상태인가" 를 판단할 자리다.
-const TERMINAL_STATUSES = new Set(["complete", "implemented", "applied", "superseded"]);
 
 describe("plan-frontmatter guard", () => {
   const root = repoRoot();
@@ -185,35 +162,26 @@ describe("plan-frontmatter guard", () => {
 // ── (a) 완료 plan 의 status 가 디렉터리와 모순되지 않는가 ────────────────────
 describe("completed plans declare a terminal status", () => {
   const root = repoRoot();
-  const completed = collectCompletedPlans(root);
 
   it("finds completed plans to validate", () => {
-    // discovery 가 죽으면 아래 단언이 통째로 vacuous 해진다.
-    expect(completed.length, `no plans found under plan/complete/`).toBeGreaterThan(20);
+    // discovery 가 죽으면 아래 단언이 통째로 vacuous 해진다. 하한은 낮게 잡는다 —
+    // 실제 개수에 가깝게 잡으면 grooming 으로 정상적으로 줄어들 때마다 깨진다
+    // (in-progress 쪽이 정확히 그렇게 발화한 전례가 있다).
+    expect(collectCompletePlanMarkdown(root).length).toBeGreaterThan(5);
   });
 
-  it("no completed plan still declares `status: in-progress`", () => {
-    const wrong: string[] = [];
-    for (const abs of completed) {
-      const rel = path.relative(root, abs).split(path.sep).join("/");
-      let data: Record<string, unknown> = {};
-      try {
-        data = matter(fs.readFileSync(abs, "utf8")).data ?? {};
-      } catch {
-        continue; // frontmatter 파싱 실패는 이 검사의 관심사가 아니다
-      }
-      const status = data.status;
-      // `status` 는 **선택 필드**다 (plan-lifecycle.md §4 — 필수는 worktree/started/owner
-      // 셋뿐). 선언하지 않은 문서는 위반이 아니다. 선언했는데 디렉터리와 모순되는 것만 잡는다.
-      if (typeof status !== "string") continue;
-      if (!TERMINAL_STATUSES.has(status)) {
-        wrong.push(`${rel}: status: ${status}`);
-      }
-    }
+  it("no completed plan declares a non-terminal status", () => {
+    // 판정 로직은 `plan-scan.ts` 에 있고 `plan-scan.test.ts` 가 합성 fixture 로 **실제
+    // 탐지**를 증명한다. 여기(실저장소)는 positive-only 라 그것만으로는 검사가 작동한다는
+    // 증거가 되지 못한다 — 자매 검사(링크)와 같은 구조로 맞췄다(ai-review WARNING).
+    const wrong = findNonTerminalCompletedPlans(root).map(
+      (v) => `${v.relPath}: status: ${v.status}`,
+    );
     expect(
       wrong,
       `complete/ 에 있으면서 종료 상태가 아닌 plan ${wrong.length}건:\n  ${wrong.join("\n  ")}\n` +
-        "이동 시 `status:` 를 함께 갱신하거나, 새 종료 어휘라면 TERMINAL_STATUSES 에 등재할 것.",
+        "이동 시 `status:` 를 함께 갱신하거나, 새 종료 어휘라면 plan-scan.ts 의 " +
+        "TERMINAL_STATUSES 에 등재할 것.",
     ).toEqual([]);
   });
 });

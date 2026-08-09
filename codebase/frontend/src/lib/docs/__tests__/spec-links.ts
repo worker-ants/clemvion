@@ -13,6 +13,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+
+import { collectLivePlanMarkdown } from "./plan-scan";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdToString } from "mdast-util-to-string";
 import GithubSlugger from "github-slugger";
@@ -265,37 +267,6 @@ export function findBrokenLinks(root: string): LinkViolation[] {
 }
 
 /**
- * Top-level `plan/in-progress/*.md` — the *living* plans.
- *
- * `0-`/`_`-prefixed index files are excluded, matching what
- * `plan-frontmatter.test.ts` has always exempted from its frontmatter checks.
- * That file derives its own plan list from this function so the two cannot
- * drift — an earlier revision reimplemented the scan by hand and the copies
- * disagreed on exactly this filter (ai-review WARNING #1).
- */
-export function collectLivePlanMarkdown(root: string): SpecMdFile[] {
-  const dir = path.join(root, "plan", "in-progress");
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter(
-      (e) =>
-        e.isFile() &&
-        e.name.endsWith(".md") &&
-        !e.name.startsWith("0-") &&
-        !e.name.startsWith("_"),
-    )
-    .map((e) => {
-      const full = path.join(dir, e.name);
-      return {
-        absPath: full,
-        relPath: path.relative(root, full).split(path.sep).join("/"),
-      };
-    })
-    .sort((a, b) => a.relPath.localeCompare(b.relPath));
-}
-
-/**
  * Validate relative links in the *living* plans (top-level `plan/in-progress/*.md`).
  *
  * Moving a plan to `plan/complete/` leaves sibling links pointing at the old
@@ -313,6 +284,10 @@ export function collectLivePlanMarkdown(root: string): SpecMdFile[] {
  * and their headings are edited constantly; anchor churn would produce noise
  * without protecting the failure this exists for (a moved file).
  */
+// plan 수집은 `plan-scan.ts` 소관이다 — 링크 모듈이 plan 트리 규칙까지 갖고 있으면
+// 그 규칙이 두 곳으로 갈린다(이 PR 이 고치고 있는 바로 그 형태).
+export { collectLivePlanMarkdown };
+
 export function findBrokenPlanLinks(root: string): LinkViolation[] {
   return findBrokenLinksInFiles(collectLivePlanMarkdown(root), {
     checkSelfAnchors: false,
