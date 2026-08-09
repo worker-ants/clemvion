@@ -86,9 +86,16 @@ reviewer 5명(architecture·side_effect·performance·dependency·api_contract)�
 - [x] **술어를 `isValidUuid` 로 쓰지 않았다 — 실측으로 갈렸다.** 그쪽은 RFC v1–v5 + variant
       까지 보므로 **nil UUID(`00000000-…`)·v7 을 거부**한다. 그런데 Postgres 는 그 값들을
       정상 파싱하므로, 거부하면 "그 워크스페이스의 멤버가 아니다"(403)여야 할 응답이
-      "요청이 잘못됐다"(400)로 **뒤바뀐다**. 실제로 `system-status.e2e-spec.ts` 가 nil UUID 를
-      타 워크스페이스 프로브로 쓴다. → `isUuidShaped`(canonical 8-4-4-4-12 hex, 버전·variant
+      "요청이 잘못됐다"(400)로 **뒤바뀐다**. ~~실제로 `system-status.e2e-spec.ts` 가 nil UUID 를
+      타 워크스페이스 프로브로 쓴다.~~ → `isUuidShaped`(canonical 8-4-4-4-12 hex, 버전·variant
       무시)를 `uuid.ts` 에 신설하고 두 술어의 경계를 테스트로 고정.
+      > **앵커 정정 (2026-08-09, `backend-hygiene-followups`).** 취소선 문장은 아래 §체크리스트
+      > 4차 항목이 이미 반증한 것과 **같은 주장인데 그 정정이 여기까지 오지 않았다** —
+      > `#1112` 가 이 문서의 한 곳만 고쳤다. 한 문서 안에서 같은 주장이 두 번 나오면 두 곳을
+      > 함께 갱신해야 한다(이 저장소가 반복 학습한 클래스). 그 e2e 는 술어에 닿지 않는다;
+      > 진짜 캐너리는 `uuid.spec.ts`·`workspace-context.util.spec.ts` 의 단위 테스트 둘이다.
+      > 같은 문장이 `codebase/` 소스 3곳에도 있었고(`uuid.ts` docstring · `uuid.spec.ts` 주석 ·
+      > 신설 픽스처 모듈) `#1112` 는 planner 턴이라 그쪽을 못 건드렸다 — 본 PR 에서 정정했다.
 
 ## 4. 값싼 정리 (INFO)
 

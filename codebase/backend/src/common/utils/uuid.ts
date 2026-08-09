@@ -22,8 +22,15 @@ export function isValidUuid(value: string): boolean {
  *
  * 이 구분이 실제로 중요한 이유: 클라이언트가 보낸 식별자를 술어로 거를 때 `isValidUuid` 를
  * 쓰면 **DB 가 정상 조회할 수 있는 값**까지 400 으로 거부하게 되고, 그러면 "그 워크스페이스의
- * 멤버가 아니다"(403) 여야 할 응답이 "요청이 잘못됐다"(400) 로 뒤바뀐다. 실제로 이 저장소의
- * e2e 하나가 nil UUID 를 타 워크스페이스 프로브로 쓴다(`system-status.e2e-spec.ts`).
+ * 멤버가 아니다"(403) 여야 할 응답이 "요청이 잘못됐다"(400) 로 뒤바뀐다.
+ *
+ * > **앵커 정정 (2026-08-09, `#1112` 실측).** 이 문단은 원래 회귀 캐너리로
+ * > `system-status.e2e-spec.ts` 의 nil-UUID 프로브를 지목했으나 **그 e2e 는 이 술어에 닿지
+ * > 않는다** — `system-status.controller.ts` 에는 `@Roles()` 도 `@WorkspaceId()` 도 없어
+ * > `RolesGuard` 가 `resolveRequestWorkspaceContext` 호출 이전에 통과시킨다. 진짜 캐너리는
+ * > `uuid.spec.ts` 의 두 술어 경계 테스트와 `workspace-context.util.spec.ts` 의 nil UUID
+ * > 통과 테스트다. 결정·근거는 영향 없고 앵커만 바뀐다.
+ *
  * 반대로 Postgres 가 파싱조차 못 하는 값은 `QueryFailedError`(SQLSTATE 22P02)가 되어
  * `GlobalExceptionFilter` 의 어떤 분기에도 안 걸리고 **500 INTERNAL_ERROR 로 마스킹**된다 —
  * 클라이언트 입력 오류가 서버 오류로 보이는 것이 이 술어가 막는 것이다.

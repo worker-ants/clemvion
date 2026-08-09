@@ -48,7 +48,14 @@ export const SAME_WS = 'ffffffff-6666-4666-9666-ffffffffffff';
  * nil UUID. **형식은 유효하다** — Postgres 가 정상 파싱하므로 헤더 검증을 통과해야 하고,
  * 여기서 400 을 내면 "그 워크스페이스의 멤버가 아니다"(403)여야 할 응답이 "요청이
  * 잘못됐다"(400)로 뒤바뀐다. 술어를 `isValidUuid`(RFC 버전·variant 검사)가 아니라
- * `isUuidShaped` 로 고른 이유가 이것이며, `test/system-status.e2e-spec.ts` 가 실제로
- * 이 값을 타 워크스페이스 프로브로 쓴다.
+ * `isUuidShaped` 로 고른 이유가 이것이다.
+ *
+ * **회귀 캐너리는 `uuid.spec.ts` 의 두 술어 경계 테스트와 `workspace-context.util.spec.ts`
+ * 의 nil UUID 통과 테스트다** — `system-status.e2e-spec.ts` 가 아니다. `#1112` 가 그 앵커를
+ * 실측으로 정정했고 여기서도 확인했다: `system-status.controller.ts` 에는 `@Roles()` 도
+ * `@WorkspaceId()` 도 없어 `RolesGuard` 가 `resolveRequestWorkspaceContext` **호출 이전에**
+ * 통과시키므로, 그 e2e 의 nil UUID 는 이 술어에 닿지 않는다(같은 단축 순서를
+ * `roles.guard.spec.ts` 의 "단축이 헤더 파싱보다 먼저다" 테스트가 고정한다).
+ * 결정(느슨한 술어)과 근거(403→400 뒤바뀜)는 그대로고 앵커만 바뀐다.
  */
 export const NIL_WS = '00000000-0000-0000-0000-000000000000';
