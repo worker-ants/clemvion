@@ -161,8 +161,18 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       발견이 코드를 완전히 떠나 **생성 산출물의 형식**으로 옮겨 갔다.
       W1 은 checker 리포트 1건에 sub-agent 반환 스캐폴딩(`STATUS=…` 헤더)이 남은 것 —
       정정. INFO 3 은 `cross_spec` 이 스스로 단 "미검증" 캐버트라 **직접 열어 확인**했다:
-      `system-status.e2e-spec.ts:147` 이 실제로 nil UUID 를 프로브로 쓴다 → `isValidUuid`
-      를 썼다면 그 e2e 가 깨졌을 것이라는 근거가 실측으로 선다.
+      `system-status.e2e-spec.ts:147` 이 실제로 nil UUID 를 프로브로 쓴다 → ~~`isValidUuid`
+      를 썼다면 그 e2e 가 깨졌을 것이라는 근거가 실측으로 선다.~~
+      > **정정 (2026-08-09, `spec-sync-auth-invariants` planner 턴 실측).** 뒷문장이 틀렸다.
+      > 확인한 것은 "그 e2e 가 nil UUID 를 쓴다" 까지이고, **"그래서 깨진다" 는 확인하지
+      > 않은 채 이어 붙였다.** `system-status.controller.ts` 에는 `@Roles()` 도
+      > `@WorkspaceId()` 도 없어 `RolesGuard` 가 `resolveRequestWorkspaceContext` 호출
+      > **이전에** `return true` 한다(`handlerConsumesWorkspaceId` 단축) — 술어를
+      > `isValidUuid` 로 조여도 그 e2e 는 그대로 200 이다. 그 테스트가 고정하는 것은
+      > **"워크스페이스-무관 전역 라우트는 헤더를 무시한다"** 는 별개 불변식이다.
+      > **진짜 캐너리는 두 단위 테스트다** — `common/utils/uuid.spec.ts` 의 두 술어 경계
+      > 테스트, `common/utils/workspace-context.util.spec.ts` 의 nil UUID 통과 테스트.
+      > 결정(비대칭은 의도)·근거(403→400 뒤바뀜)는 영향 없다.
 - [x] `--impl-done` 재수행 (3차 fix 가 spec-linked 파일을 건드려 게이트가 재요구) —
       **BLOCK: NO** (`review/consistency/2026/08/09/15_56_48`, 5/5). WARNING 2건은 전부
       **spec 쓰기**라 §후속 planner 턴 등재. INFO 2(캐너리 주석 "73건" 수치)도 §후속.
@@ -190,29 +200,54 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 
 **planner 턴 필요 — `spec/` 쓰기** (`--impl-done` 2회 WARNING, BLOCK:NO 지만 반영 대상):
 
-- [ ] **헤더 vs 경로 파라미터의 UUID 검증 강도 비대칭을 명문화** (2차 impl-done W1 —
-      가장 값 있는 항목). `X-Workspace-Id` 헤더는 느슨한 `isUuidShaped`, 워크스페이스
-      `:id` 경로 파라미터는 엄격한 `ParseUUIDPipe` 다. **의도된 비대칭인데 어느 spec 에도
-      없다** — "일관성" 명목으로 헤더를 `ParseUUIDPipe` 급으로 조이는 회귀가 오면
-      nil-UUID e2e 프로브(`system-status.e2e-spec.ts:147`)가 깨지고 403 이 400 으로
-      뒤바뀐다. `1-auth.md §3.3` 또는 `data-flow/12-workspace.md §1.5` Rationale 에 한 줄.
-- [ ] **부트 캐너리 설계 근거를 spec Rationale 에** (2차 impl-done W2). 지금은 코드
-      주석에만 있는데, 이 저장소는 유사 부트 가드마다 spec Rationale 동반 기록을 지켜 왔다.
+- [x] **헤더 vs 경로 파라미터의 UUID 검증 강도 비대칭을 명문화** (2차 impl-done W1 —
+      가장 값 있는 항목). **완료 (2026-08-09, planner 턴)** —
+      [`data-flow/12-workspace.md`](../../spec/data-flow/12-workspace.md) `## Rationale` 에
+      신설 subsection "`X-Workspace-Id` 헤더 vs `:id` 경로 파라미터 — UUID 검증 강도 비대칭",
+      [`1-auth.md §3.3`](../../spec/5-system/1-auth.md) 에 포인터 1줄.
+      `X-Workspace-Id` 헤더는 느슨한 `isUuidShaped`, 워크스페이스 `:id` 경로 파라미터는 엄격한
+      `ParseUUIDPipe`(같은 컨트롤러 `@Param('id')` 14곳, `memberId`·`invitationId` 포함 총
+      18곳 — 실측) 다.
+      > **캐너리 지목을 정정해 기록했다.** 이 항목이 원래 적었던
+      > "~~회귀가 오면 nil-UUID e2e 프로브(`system-status.e2e-spec.ts:147`)가 깨진다~~" 는
+      > **틀렸다** — 위 4차 ai-review 항목의 정정 각주 참조. 진짜 캐너리인 두 단위 테스트
+      > (`uuid.spec.ts` 경계 · `workspace-context.util.spec.ts` nil UUID)를 spec 에 적었다.
+- [x] **부트 캐너리 설계 근거를 spec Rationale 에** (2차 impl-done W2). **완료 (2026-08-09,
+      planner 턴)** — [`1-auth.md ## Rationale`](../../spec/5-system/1-auth.md) 에 신설
+      subsection "부트 캐너리 — `@WorkspaceId()` reflection 자가검증 (fail-closed)".
       (a) reflection 자가검증 이유 (b) opt-in 마커 대안 **재**기각 이유 (c)
-      `assertProductionConfig` 와 별도 단계로 둔 이유.
-
-- [ ] `spec/5-system/3-error-handling.md §1.3` 에 행 추가 — "`X-Workspace-Id` 헤더가
-      **있으나 UUID 형태가 아님** → `VALIDATION_ERROR`(400)". 기존
-      `WORKSPACE_ID_REQUIRED`(둘 다 **부재**)와 구분되는 제3의 케이스인데 카탈로그가
-      비어 있다. `15-chat-channel.md §5.4` 가 §1.3 을 canonical 로 인용하므로 파급 확인.
-- [ ] `spec/5-system/1-auth.md` frontmatter `code:` 글로브에 이번에 경화한 표면 추가 —
+      `assertProductionConfig` 와 별도 단계로 둔 이유 셋 다 기록.
+      [`12-workspace.md`](../../spec/data-flow/12-workspace.md) §"멤버십 검증은 가드
+      1곳에서" 에 역참조 1건.
+      > **위치 근거를 좁혔다** (consistency INFO): "이 저장소는 유사 부트 가드마다
+      > `1-auth.md` 에 기록해 왔다" 는 과잉 일반화였다 — EIA terminal-revoke 스케줄러 등록
+      > fail-fast 는 `14-external-interaction-api.md`(자기 도메인)에 있다. spec 에는
+      > "auth 크로스커팅 부트 가드는 `1-auth.md`, 도메인 고유는 각 도메인 spec" 으로 적었다.
+- [x] `spec/5-system/3-error-handling.md §1.3` 에 행 추가 — "`X-Workspace-Id` 헤더가
+      **있으나 UUID 형태가 아님** → `VALIDATION_ERROR`(400)". **완료 (2026-08-09, planner 턴)**.
+      기존 `WORKSPACE_ID_REQUIRED`(둘 다 **부재**)와 구분되는 제3의 케이스이고, 표 아래에
+      3분기 노트(부재 400 / 형식 파손 400 / 비멤버 403)와 적용 범위(전역 라우트는 헤더 무시)를
+      함께 적었다. `15-chat-channel.md §5.4` 파급도 처리 — 그 라우트는 `@Roles('editor')` +
+      `@WorkspaceId()` 둘 다 있어(실측) 대상이므로 형제 행 추가.
+      > **코드 컬럼은 순수 코드값으로 뒀다** (consistency WARNING): 처음엔 `` `VALIDATION_ERROR`
+      > (`X-Workspace-Id` 형식) `` 처럼 한정자를 코드 셀에 박았는데,
+      > [`error-codes.md`](../../spec/conventions/error-codes.md) 의 "클라이언트는 코드의
+      > 의미로 분기하며 이름 토큰을 파싱하지 않는다" 와 어긋나고 §5.4 표기와도 갈렸다.
+      > 한정자는 설명 셀 prose 로 옮겼다(`RESERVED_VARIABLE_NAME` 행도 한정자를 코드 셀이
+      > 아닌 HTTP 셀에 둔다).
+- [x] `spec/5-system/1-auth.md` frontmatter `code:` 글로브에 이번에 경화한 표면 추가 —
       `common/decorators/*.ts`(데코레이터 + 신설 캐너리) · `common/utils/workspace-context.util.ts` ·
-      `common/utils/uuid.ts`. 현재 `common/guards/*.ts` 만 있어 **evidence 사슬이 비어
-      있다**(`spec-code-paths.test.ts` 는 guards 글로브로 이미 충족돼 통과하므로 CI 가
-      못 잡는다).
+      `common/utils/uuid.ts`. **완료 (2026-08-09, planner 턴)**. 현재 `common/guards/*.ts` 만
+      있어 **evidence 사슬이 비어 있었다** — CI 가 못 잡는 이유를 실측으로 확정: `spec-code-paths.test.ts`
+      의 단언이 `codes.some((c) => globMatchesAny(c, root))` 라 **글로브 하나만 매치하면 통과**한다
+      (`spec-impl-evidence.md §3` 이 정한 "≥1 매치 의무" 이며 전수 매치 의무가 아니다).
+      부수 효과로 세 경로가 `review_guard` 의 **spec-linked** 판정에 들어간다(`_spec_linked_changes`)
+      — 앞으로 그 파일 변경은 push 전 fresh `--impl-done` 을 요구받으며, 사슬을 잇는 목적이
+      바로 그것이라 의도한 강화다.
 
-> 둘 다 developer 권한 밖이라 이 PR 에서 하지 않는다. 코드가 spec 을 어긴 것이 아니라
-> **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니다.
+> 넷 다 developer 권한 밖이라 그 PR 에서 하지 않았다. 코드가 spec 을 어긴 것이 아니라
+> **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니었다.
+> 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](spec-draft-auth-invariants-sync.md).
 
 **developer 범위:**
 

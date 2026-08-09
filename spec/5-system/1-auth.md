@@ -7,6 +7,9 @@ code:
   - codebase/backend/src/modules/audit-logs/**/*.ts
   - codebase/backend/src/modules/mail/**/*.ts
   - codebase/backend/src/common/guards/*.ts
+  - codebase/backend/src/common/decorators/*.ts
+  - codebase/backend/src/common/utils/workspace-context.util.ts
+  - codebase/backend/src/common/utils/uuid.ts
   - codebase/backend/src/common/config/webauthn.config.ts
   - codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**
   - codebase/frontend/src/components/auth/register-form.tsx
@@ -399,6 +402,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 5. 권한 없음 → 403 Forbidden
 ```
 
+> **`X-Workspace-Id` 형식 검증은 느슨하다 (의도)**: 2단계의 헤더는 canonical UUID **형태**만 본다(`isUuidShaped`) — 워크스페이스 `:id` 경로 파라미터의 `ParseUUIDPipe`(RFC v1–v5) 보다 느슨하며, 이 비대칭은 의도다. 조이면 비멤버 403 이어야 할 응답이 400 으로 뒤바뀐다. 근거·회귀 캐너리: [data-flow §Rationale "UUID 검증 강도 비대칭"](../data-flow/12-workspace.md#x-workspace-id-헤더-vs-id-경로-파라미터--uuid-검증-강도-비대칭-2026-08-09). 형식 파손 시 코드는 `VALIDATION_ERROR`(400), 헤더·클레임 둘 다 부재는 `WORKSPACE_ID_REQUIRED`(400) — [§1.3](./3-error-handling.md#13-유효성-검증-에러).
+>
 > **Model Config Editor CRUD 근거**: Model Config(`/api/model-configs`)는 AI 모델 설정(provider/모델/파라미터)이라 워크플로우 구축의 일부로 Editor 가 직접 관리한다 (코드 `@Roles('editor')` 와 일치). 반면 Auth Config 는 외부 인증 자격증명이라 Editor=R 로 좁힌다 — 두 리소스의 민감도 차이를 반영한 의도적 권한 분리다.
 >
 > **Auth Config Reveal 권한 분리 근거**: Auth Config 의 `R` (Editor/Viewer) 은 **마스킹된 응답 조회** (`***<last4>`, [Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)) 를 포함한다. 자격증명의 존재·식별에는 마스킹으로 충분하며 평문 유출 위험이 없다. 평문을 보는 **Reveal** (`POST /api/auth-configs/:id/reveal`) 은 별도 액션으로 분리해 Admin+ 로 제한한다 — 평문 reveal 은 현재 로그인 비밀번호 재확인 + audit 기록이 필요한 민감 동작이므로 권한을 좁힌다.
@@ -764,6 +769,47 @@ bootstrap 첫 단계에서 호출). 대상:
 생성자 throw) 정당 용도가 있는 항목(예: `ALLOW_PRIVATE_HOST_TARGETS` 는 throw 가 아닌 warn)은
 의도적으로 분리한다. 운영 영향(미설정 시 기동 거부)은 insecure 부팅보다 안전한 fail-closed 의도다.
 dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
+
+### 부트 캐너리 — `@WorkspaceId()` reflection 자가검증 (fail-closed, 2026-08-09)
+
+`main.ts` bootstrap 은 `assertProductionConfig` 와 **별도 단계**로
+`assertWorkspaceIdReflectionWorks(app)`(`common/decorators/workspace-reflection-canary.ts`)를
+호출한다. `DiscoveryService` 로 등록된 전 컨트롤러를 훑어 `@WorkspaceId()` 를 소비하는 라우트
+수를 세고, **0 이면 throw 해 기동을 멈춘다.**
+
+**(a) 왜 reflection 을 자가검증하는가 — 실패 방향이 fail-open 이다.**
+`RolesGuard` 는 "이 라우트가 워크스페이스 컨텍스트를 쓰는가" 를 `handlerConsumesWorkspaceId` 로
+판별해 멤버십 검증 대상을 좁힌다([data-flow §Rationale "멤버십 검증은 가드
+1곳에서"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) 의
+단축 통과). 그 판별은 `@nestjs/common` 의 **비공개 export `ROUTE_ARGS_METADATA`** 와 **함수
+identity 비교**에 기댄다. 이 가정은 (1) Nest 내부 메타데이터 포맷 변경(`@nestjs/*` 는 caret
+`^11.0.1` 이라 minor/patch 업그레이드로도 온다) (2) 핸들러를 감싸는 데코레이터 도입으로
+`Function.name` 소실 (3) 빌드 minify/mangle 로 깨질 수 있고, 깨지면 판별이 **모든 라우트에 대해
+false** 가 되어 멤버십 검증이 **조용히** 건너뛰어진다 — cross-tenant 결함 클래스가 그대로
+되살아난다. **런타임에 조용히 새는 것보다 배포가 멈추는 편이 낫다.**
+
+단언 대상은 **라우트 목록이 아니라 "0건이 아님"** 이다. 특정 라우트를 하드코딩하면 그것이
+정당하게 사라질 때 오탐으로 깨지고, 결국 목록을 지우는 압력이 된다. 판별에는
+`handlerConsumesWorkspaceId` 를 **그대로 호출**한다 — 캐너리가 reflection 을 다시 구현하면 자기
+복제본을 검사하게 되어 정작 막으려던 파손을 통과시킨다.
+**알려진 한계**: 부분 파손(일부 라우트만 인식 실패)은 잡지 못한다 → 인식 개수를 부팅 로그에
+남겨 급락이 눈에 띄게 했다.
+
+**(b) 왜 `SetMetadata` + `Reflector` opt-in 마커로 가지 않았는가 — 재기각이다.**
+그쪽이 Nest 공식 확장점이지만 `@WorkspaceId()` 사용처마다 마커를 달아야 한다. 그것은 위
+data-flow §Rationale 이 **이미 기각한 "라우트별 opt-in 마커"** 패턴이고(기각 사유: 다음 라우트에서
+같은 누락이 재발한다 — 이 저장소가 이미 최소 2회 겪었다), 그 기각을 되돌리지 않는다. 캐너리는
+호출부에 아무것도 요구하지 않으면서 같은 위험을 닫는다.
+
+**(c) 왜 `assertProductionConfig` 와 합치지 않았는가.** 축이 다르다. 저쪽은 **환경변수**
+축이라 `NODE_ENV=production` 에서만 발화하고 dev/test 는 no-op 인데, 이쪽은 **환경과 무관한 구조
+불변식**이라 모든 환경에서 발화해야 의미가 있다. 합치면 이름이 약속하는 범위("production
+config")를 넘고, production 게이팅이 이 단언까지 끌고 갈 위험이 생긴다.
+
+> **위치 근거**: 본 문서는 auth 크로스커팅 부트 가드의 기록 지점이다(위 §"Production fail-closed
+> 가드"). 도메인 고유 부트 가드는 각 도메인 spec 에 남긴다 — 예: EIA 의 terminal-revoke
+> 스케줄러 등록 fail-fast 는 [`14-external-interaction-api.md`](./14-external-interaction-api.md)
+> 에 있다.
 
 ### 4.1.A — Planned 감사 액션의 `user.*` dot-prefix 통일
 

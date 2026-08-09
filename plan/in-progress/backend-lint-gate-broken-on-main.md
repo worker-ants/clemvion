@@ -268,8 +268,17 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       위 추출은 `changes` 잡만 가져갔다. 셋업은 잡마다 필요한 도구가 달라(python 유무,
       캐시 키) composite action 쪽이 맞는데, 그 판단은 4번째 워크플로가 어떤 셋업을
       요구하는지 보고 하는 편이 낫다. **범위를 쪼개 남긴다** (ai-review WARNING #1).
-- [ ] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
+- [x] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
       각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
+      **완료 (2026-08-09, planner 턴)** — "Trigger 삭제" 행에 prefix 불변식 2건(`secret://`
+      접두사 · LIKE 메타문자 `%`·`_`·`\` throw)을 명시하고, 표 아래 각주 †에 근거를 적었다:
+      과다삭제 위험 · **이스케이프가 아니라 거부인 이유**(§1 URI Scheme 구조상 메타문자가
+      정당하게 필요한 경우가 없다) · "지금은 안전하다" 를 주석으로만 두지 않은 이유(안전이
+      호출부 목록에 의존한다).
+      각주에 바로 위 항목(**LIKE 의미론 미재현 mock**)을 **알려진 검증 공백**으로 함께 적었다 —
+      그 항목이 미해소인 동안 이 각주가 유일한 기록이다. 링크가 아니라 서술로 적었다:
+      `spec/**` → `plan/in-progress/**` 링크는 그 plan 이 `complete/` 로 이동할 때
+      `spec-link-integrity` 를 깨뜨린다.
 - [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning
       바닥을 걸지, 아니면 처분할지 별도 판정.
 
