@@ -277,13 +277,18 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
 
 ### 검증 (2026-08-09)
 
-- [x] 뮤테이션 **13/13 RED** — 새로 만든 가드가 실제로 잡는지 한 건씩 확인했다.
+- [x] 뮤테이션 **16/16 RED** — 새로 만든 가드가 실제로 잡는지 한 건씩 확인했다
+      (초판 13 + ai-review 반영분 3).
       런타임 주석 제거 삭제 · 커버리지 가드가 옛 `paths:` 를 계속 읽음(→ vacuity) ·
       pathspec 에서 `_changed-paths.yml` 누락 · 등록부 한쪽만 되돌림 · `needs: changes`
       제거 · 스텝 하나 게이팅 누락 · 조건을 `== 'true'` 로 반전 · 여섯 번째 갭 항목
       (`.claude/config/**`) 제거 · 커버리지 파서가 주석을 pathspec 으로 오인 ·
       no-op 안내 스텝 제거 · `blockScalarAtPath` 주석 미제거 · plain scalar 반쯤 파싱 ·
       matrix 대상 패키지 pathspec 누락.
+      반영분 3건은 신설 가드 두 개를 **직접** 겨눴다 — 죽은 pathspec 주입 ·
+      자기 등재 줄 삭제 · `harness-checks.yml` 의 광역 글롭(`.github/workflows/**`)
+      삭제. 마지막 것은 그 워크플로만 **명시 등재 대신 상위 글롭으로 덮는** 갈래라
+      단순 `assertIn` 이면 통과했을 자리다.
       > **M2 가 이 PR 에서 가장 값진 뮤턴트다** — 커버리지 가드가 이동을 안 따라갔을 때
       > "조용한 초록" 이 아니라 RED 가 되는지를 확인한 것이고, 그 방어는 `_MIN_FILTERS`
       > 바닥 하나에 달려 있다.
@@ -312,6 +317,8 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
   (`packages-checks`·`web-chat-checks`·`spec-link-checks`)의 `on.push.paths` 가 되살아나는
   것은 아무 가드도 못 잡는다. required check 데드락은 PR 전용이라 심각도는 낮다.
   후속: 같은 테스트에서 `on.push.paths` 부재도 함께 단언.
+
+- [x] push + PR — [#1114](https://github.com/worker-ants/clemvion/pull/1114)
 
 ## 사용자 액션 (이 PR 머지 후)
 
