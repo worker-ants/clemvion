@@ -110,6 +110,7 @@ chat.shutdown();
 - **`wc:boot` 재전송(멱등 재설정)**: host 는 iframe 을 재생성하지 않고 `wc:boot` 을 다시 보내 boot config
   (외형·콘텐츠)를 갱신할 수 있다. 위젯은 **마지막 wc:boot 의 config 를 적용**하며, 동일
   `triggerEndpointPath` 로의 재부팅은 진행 중 execution 을 중복 시작하지 않는다(eager-start 가드 [1-widget-app §R6](./1-widget-app.md)·세션 복원).
+  **예외 — `apiBase` 가 바뀐 재부팅**: 저장 세션은 발급 origin 에 바인딩돼 있어 복원되지 않고 **폐기 후 새로 시작**한다([3-auth-session §R8](./3-auth-session.md)). 같은 `triggerEndpointPath` 라도 origin 이 다르면 "중복 시작 아님" 보장의 대상이 아니다 — 옛 origin 토큰을 새 origin 으로 보내지 않는 것이 우선한다.
   **단 `locale` 은 boot 시 1회 해석되므로(§4·R6) 재전송만으로는 UI 언어가 바뀌지 않는다 — locale 변경은 iframe 재마운트가 필요하다.**
   운영 콘솔 라이브 미리보기가 외형 폼 변경 시 이 경로로 재전송한다(인스턴스/locale 변경 시에만 iframe 재마운트).
   첫 `wc:boot` 의 origin 만 host 로 핀되므로(이후 동일 origin 만 수용) 재전송도 같은 origin 이어야 한다.
