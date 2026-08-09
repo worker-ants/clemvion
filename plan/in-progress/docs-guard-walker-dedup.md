@@ -68,29 +68,41 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 > (`parseFrontmatterSafe` 단일 진입점 + `collectCompletePlans` 를 공유 구현 위임으로 축소).
 > 아래 남은 둘만 실제 선재다(`git diff origin/main` 에서 해당 함수 **0줄** 변경 — 실측).
 
-- [ ] `spec-links.ts` 내부 `collectSpecMarkdown`/`collectCodebaseSources` DFS 중복 —
-      위 walker 표의 2·3번이 바로 이것이다. **이 둘은 파일 하나 안의 중복**이라 통합이
-      제일 싸다
-      > 같은 계열 잔여: `spec-frontmatter-parse.ts:113` 이 옵션 없는 `matter(raw)` 를 쓴다.
-      > 오늘은 `spec/**` 만 읽어 plan 스캐너와 내용이 안 겹쳐 무해하지만 **그 전제가 코드로
-      > 강제되지 않는다.** `parseFrontmatterSafe` 로 태우면 이 클래스가 저장소에서 소거된다
+### 판정 없이 바로 착수 가능
+
+- [ ] **`spec-frontmatter-parse.ts:113` 이 옵션 없는 `matter(raw)` 를 쓴다** —
+      `parseFrontmatterSafe` 로 태우면 gray-matter 캐시 오염 클래스가 저장소에서 소거된다.
+      오늘은 `spec/**` 만 읽어 plan 스캐너와 내용이 안 겹쳐 무해하지만 **그 전제가 코드로
+      강제되지 않는다**
+      > 종전에 아래 DFS 항목의 각주로 묻혀 있어 착수 시 빠뜨리기 쉬웠다(plan-coherence INFO).
 - [ ] (성능, 별 축) `extractLinks` 가 마크다운 링크가 없는 파일도 전수 라인 스캔한다 —
       실측 2072파일 중 `](` 포함은 35개(1.7%). `text.includes("](")` 사전 필터로 스킵
-- [ ] (테스트 갭) `hasValidSpecImpact` 의 `NONE_VALUES` 대소문자/trim/`n-a` 분기가 fixture
-      로 검증되지 않는다 — `.trim()`/`.toLowerCase()` 를 지워도 초록일 수 있다.
-      `collectCompletePlans` 의 `archive/`·인덱스 제외도 negative-path fixture 가 없다
+- [ ] (테스트 갭) `collectCompletePlans` 의 `archive/`·인덱스 제외에 negative-path fixture
+      가 없다 — 자매 `collectCompletePlanMarkdown` 은 `plan-scan.test.ts` 가 고정하는데
+      이쪽만 실저장소 데이터가 마침 정상이라 통과할 뿐이다
 - [ ] **`NONE_VALUES` 정규화가 관측되지 않는다** — `hasValidSpecImpact` 의
       `.trim()`/`.toLowerCase()` 와 `"n/a"`/`"na"` 어휘를 겨냥한 fixture 가 없어,
       **그 값들을 빼거나 정규화를 지워도 스위트가 초록**이다(리뷰어 직접 뮤테이션 확인).
       `hasValidSpecImpact("n/a")`·`("NA")`·`("NONE")`·`("  none  ")` 4줄이면 닫힌다
       > 같은 파일의 다른 판정은 전부 fixture 로 관측되는데 여기만 예외다. 크기가 작아
       > 다음에 이 파일을 손댈 때 함께 처리하는 것이 자연스럽다
-- [ ] `danglingSpecImpact` → `findDanglingSpecImpact` 개명 — 모듈 컨벤션이
-      `find*` = "위반 배열 반환"(`findUnparseablePlans`·`findNonTerminalCompletedPlans`·
-      `findFrontmatterViolations`·`findBrokenPlanLinks`)인데 이것만 boolean predicate 처럼
-      읽힌다
+- [ ] `danglingSpecImpact` → `findDanglingSpecImpact` 개명 — **이 docs-guard 클러스터의**
+      de-facto 패턴이 `find*` = "위반 배열 반환"인데(`findUnparseablePlans`·
+      `findNonTerminalCompletedPlans`·`findFrontmatterViolations`·`findBrokenPlanLinks`·
+      `findBrokenSpecLinksInSources`·`findRawHrefOffenders` 6개가 예외 없이 따른다)
+      이것만 boolean predicate 처럼 읽힌다. 반환 타입이 `unknown[]` 이라 컴파일 타임에
+      오용이 막히므로 실위험은 낮고, 신규 호출부가 생길 때가 위험 시점이다
+      > **범위 조건 주의** — 이건 **저장소 전역 규약이 아니다**. 같은 폴더의
+      > `findGuiFlowSections` 는 위반이 아니라 콘텐츠를 반환하고, backend 의
+      > `findService`·`findFirstTriggerNode` 등은 단건 검색이다(naming checker 전수 확인).
+      > 개명 근거는 "클러스터 내부 일관성" 이지 "전역 컨벤션 위반" 이 아니다
 - [ ] `plan-scan.test.ts` 의 fixture 빌더 `fm`/`frontmatter` 두 벌 통합 — 그 파일 서두가
       "walker 넉 벌 중복" 을 경계하면서 자기 fixture 빌더가 두 벌이다
+### 판정이 선행돼야 하는 것 (§"착수 전 필수" 실측 뒤)
+
+- [ ] `spec-links.ts` 내부 `collectSpecMarkdown`/`collectCodebaseSources` DFS 중복 —
+      위 walker 표의 2·3번이 바로 이것이다. **이 둘은 파일 하나 안의 중복**이라 통합이
+      제일 싸지만, 필터 차이 실측이 선행 조건인 것은 다른 walker 와 같다
 - [ ] **Gate C 판정 함수들이 `*.test.ts` 안에 산다** — `isGateCEnforced`·
       `hasMalformedStarted`·`hasValidSpecImpact`·`danglingSpecImpact`·`makeSpecExists`
       (+`GATE_C_CUTOFF`·`NONE_VALUES`)가 `spec-plan-completion.test.ts` 에 있어, 다른
