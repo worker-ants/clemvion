@@ -51,6 +51,7 @@ WORKFLOWS = REPO / ".github" / "workflows"
 # skip-job 패턴을 적용한(= required check 후보) 워크플로.
 # 새로 전환할 때마다 여기 추가한다 — 목록이 곧 계약이다.
 CONVERTED = [
+    "backend-checks.yml",
     "deps-security-checks.yml",
     "frontend-checks.yml",
 ]

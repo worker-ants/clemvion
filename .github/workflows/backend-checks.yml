@@ -1,0 +1,161 @@
+# Backend lint + unit + 전체 프로그램 타입체크 ratchet.
+#
+# ## 도입 배경 — backend 는 CI 가 **없었다**
+#
+# 2026-08-09 실측: 워크플로 10개의 `run:` 을 전수로 뽑아 보니 frontend·channel-web-chat·
+# `@workflow/web-chat`·`@workflow/sdk`·내부 packages 는 전부 lint/test/build 가 CI 에서
+# 도는데, **backend 만 셋 다 없었다.** 유일한 커버리지는 `e2e.yml` 의 docker 이미지 빌드
+# (`nest build`)와 e2e 스위트뿐이다.
+#
+# 그래서 backend eslint 가 3개월간 깨진 채 방치돼도 아무도 몰랐다(`#1104` 가 복구).
+# 로컬 `run-test.sh`·pre-commit 만으로는 "각자 안 돌리면 안 도는" 게이트다.
+#
+# ## 세 잡
+#
+#   1. lint      — `eslint`. `#1104` 가 복구한 게이트를 CI 로 올린다.
+#   2. unit      — backend jest. 지금까지 CI 에서 한 번도 안 돌았다.
+#   3. typecheck — `scripts/check-backend-typecheck-ratchet.py`. `nest build` 는
+#                  `tsconfig.build.json` 이라 `*.spec.ts` 를 exclude 하고 jest 는 타입을
+#                  strip 하므로, **테스트 코드의 타입 오류를 보는 유일한 지점**이다.
+#                  기존 잔여는 baseline 으로 수용하고 **새 오류만** 막는다(ratchet).
+#
+# e2e.yml 과 분리한 이유는 `frontend-checks.yml` 과 같다 — e2e 는 docker 빌드부터 도는
+# 무거운 흐름이라 PR feedback loop 가 길다.
+
+name: backend-checks
+
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: backend-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다.
+  changes:
+    name: 변경 경로 판정
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      relevant: ${{ steps.detect.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # push 에도 실제 diff 를 넘긴다 — 안 넘기면 main 으로의 모든 push 가
+          # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.event.after }}
+        # `codebase/packages/**` 도 대상이다 — backend 가 `@workflow/*` 내부 패키지를
+        # workspace 의존으로 쓰므로 그쪽 변경이 backend 타입/테스트를 깨뜨릴 수 있다.
+        run: |
+          scripts/ci-paths-changed.sh \
+            'codebase/backend/**' \
+            'codebase/packages/**' \
+            'pnpm-lock.yaml' \
+            'pnpm-workspace.yaml' \
+            'scripts/check-backend-typecheck-ratchet.py' \
+            'scripts/backend-typecheck-baseline.json' \
+            'scripts/ci-paths-changed.sh' \
+            '.github/workflows/backend-checks.yml'
+
+  lint:
+    name: backend lint
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "backend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: pnpm/action-setup@v6.0.9
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install backend workspace
+        if: needs.changes.outputs.relevant != 'false'
+        run: pnpm install --frozen-lockfile --filter "backend..."
+      - name: ESLint
+        if: needs.changes.outputs.relevant != 'false'
+        run: pnpm --filter backend lint
+
+  unit:
+    name: backend unit
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "backend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: pnpm/action-setup@v6.0.9
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install backend workspace
+        if: needs.changes.outputs.relevant != 'false'
+        run: pnpm install --frozen-lockfile --filter "backend..."
+      # e2e(`*.e2e-spec.ts`)는 docker 인프라가 필요해 `e2e.yml` 소관이다 — 여기서는
+      # 인프라 없이 도는 유닛만 돌린다(jest 기본 `testRegex` = `.spec.ts`).
+      - name: Jest (unit)
+        if: needs.changes.outputs.relevant != 'false'
+        run: pnpm --filter backend test
+
+  typecheck-ratchet:
+    name: backend 타입체크 ratchet
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "backend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: pnpm/action-setup@v6.0.9
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-python@v7
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          python-version: '3.x'
+      - name: Install backend workspace
+        if: needs.changes.outputs.relevant != 'false'
+        run: pnpm install --frozen-lockfile --filter "backend..."
+      # `nest build` 가 exclude 하는 `*.spec.ts` 까지 포함한 **전체 프로그램** 체크.
+      # baseline 대비 증가·감소 둘 다 실패다(감소를 방치하면 그 차이만큼 새 오류가
+      # 조용히 들어온다). 스크립트 헤더에 전체 근거.
+      - name: Typecheck ratchet
+        if: needs.changes.outputs.relevant != 'false'
+        run: python3 scripts/check-backend-typecheck-ratchet.py

@@ -66,6 +66,11 @@ on:
       # test_required_check_skip_jobs.py 가 돌아야 하는데, 초판이 이 등재를 빠뜨려
       # 이 저장소가 여섯 번 겪은 paths 커버리지 갭을 그 PR 이 그대로 재현했다.
       - 'scripts/ci-paths-changed.sh'
+      # backend 타입체크 ratchet(test_backend_typecheck_ratchet.py). 판정 스크립트와
+      # **baseline 데이터 둘 다** 등재해야 한다 — baseline 만 손대는 PR 이 훨씬 흔하고,
+      # 그 파일이 곧 게이트의 임계값이라 형태가 깨지면 잡이 exit 2 로 죽는다.
+      - 'scripts/check-backend-typecheck-ratchet.py'
+      - 'scripts/backend-typecheck-baseline.json'
       # 내부 패키지의 `prepare` 계약(test_packages_prepare_contract.py). 매니페스트만 고친
       # PR 에서 이 가드가 안 돌면, stale dist 를 되살리는 한 줄이 조용히 들어온다 — 위
       # 항목들과 동일한 실패 클래스다. 소스가 아니라 매니페스트만 등재해 스위트가 모든
