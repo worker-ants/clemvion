@@ -152,12 +152,15 @@ export interface NonTerminalPlan {
  *
  * `status` 는 **선택 필드**다(`plan-lifecycle.md §4` — 필수는 worktree/started/owner 셋).
  * 선언하지 않은 문서는 위반이 아니며, 선언했는데 디렉터리와 모순되는 것만 잡는다.
- * frontmatter 파싱 실패는 이 검사의 관심사가 아니라 건너뛴다(다른 가드의 소관).
+ * frontmatter 파싱 실패는 이 검사의 관심사가 아니라 건너뛴다 —
+ * `spec-plan-completion.test.ts` 의 "every completed plan has parseable frontmatter"
+ * 가 그 자리다. **그 캐너리가 생기기 전에는 아무도 안 봤다**(파싱 실패한 완료 plan 은
+ * 이 검사도 Gate C 도 조용히 통과했다).
  */
 export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
   const out: NonTerminalPlan[] = [];
   for (const f of collectCompletePlanMarkdown(root)) {
-    // 파싱 실패는 이 검사의 관심사가 아니라 건너뛴다(다른 가드의 소관).
+    // 파싱 실패는 건너뛴다 — 위 JSDoc 참조(전담 캐너리가 따로 있다).
     const parsed = parseFrontmatterSafe(fs.readFileSync(f.absPath, "utf8"));
     if (parsed === null) continue;
     const status = parsed.data.status;
@@ -167,6 +170,21 @@ export function findNonTerminalCompletedPlans(root: string): NonTerminalPlan[] {
     }
   }
   return out;
+}
+
+/**
+ * frontmatter 파싱이 **실패하는** 완료 plan.
+ *
+ * 파싱 실패는 `findNonTerminalCompletedPlans` 도 Gate C 도 조용히 건너뛴다 — 완료 시점에
+ * `spec_impact`/`status` 를 손으로 넣다가 YAML 을 깨뜨리면 그 plan 이 **모든 게이트를
+ * 우회**한다. 실제로 이 함수를 만들자마자 실저장소에서 2건이 나왔다(`title:`/`worktree:`
+ * 값 안의 콜론+공백이 중첩 매핑으로 해석돼 파싱 실패 — 그 두 plan 의 `status: complete`
+ * 도 `spec_impact` 도 그때까지 아무도 안 보고 있었다).
+ */
+export function findUnparseablePlans(root: string): string[] {
+  return collectCompletePlanMarkdown(root)
+    .filter((f) => parseFrontmatterSafe(fs.readFileSync(f.absPath, "utf8")) === null)
+    .map((f) => f.relPath);
 }
 
 /** `worktree` 가 아직 없을 때 쓰는 명시 sentinel. placeholder 와 달리 허용된다. */

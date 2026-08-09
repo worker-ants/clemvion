@@ -1,5 +1,5 @@
 ---
-worktree: (multiple — 그룹별 분리: D #732 / B+C #737 / A #744 / B1 #746 / followups #747)
+worktree: '(multiple — 그룹별 분리: D #732 / B+C #737 / A #744 / B1 #746 / followups #747)'
 started: 2026-06-27
 completed: 2026-06-28
 owner: project-planner + developer

@@ -4,6 +4,7 @@ import path from "node:path";
 import { repoRoot } from "./spec-frontmatter-parse";
 import {
   collectCompletePlanMarkdown,
+  findUnparseablePlans,
   isIsoDate,
   parseFrontmatterSafe,
   rawScalar,
@@ -92,10 +93,33 @@ export function hasValidSpecImpact(
  * `spec_impact` 가 없다 — 인라인으로 두면 이 판정을 되돌려도 스위트가 초록이다(뮤테이션
  * 실측: 되돌린 뮤턴트가 **생존**했다). 합성 fixture 로 겨눌 수 있어야 한다.
  */
-export function danglingSpecImpact(root: string, impact: unknown[]): unknown[] {
-  return impact.filter(
-    (p) => typeof p !== "string" || !fs.existsSync(path.join(root, p)),
-  );
+export function danglingSpecImpact(
+  impact: unknown[],
+  specExists: (p: string) => boolean,
+): unknown[] {
+  return impact.filter((p) => typeof p !== "string" || !specExists(p));
+}
+
+/**
+ * `spec_impact` 원소가 **실재하는 spec 파일**을 가리키는가.
+ *
+ * `fs.existsSync(path.join(root, p))` 만으로는 부족하다(실측):
+ * `path.join(root, "")` 는 `root` 로 정규화되고 저장소 루트는 늘 존재하므로
+ * **`spec_impact: [""]` 이 유효로 판정된다.** 디렉터리 경로(`"spec"`)도 마찬가지다.
+ * 헤더 주석은 "리스트 원소는 실재 spec **파일**" 이라 못박는데 구현은 "무엇이든
+ * 존재하면 OK" 였다 — 문서한 보장이 구현보다 넓은 형태.
+ */
+export function makeSpecExists(root: string): (p: string) => boolean {
+  return (p) => {
+    try {
+      // `isFile()` 하나면 충분하다 — 빈 문자열은 `path.join` 이 `root` 로 정규화하는데
+      // 루트는 디렉터리라 여기서 걸린다(별도 빈-문자열 검사를 뒀더니 뮤테이션에서
+      // 생존했다 = 도달 불가 분기였다). 없는 경로는 `statSync` 가 throw 한다.
+      return fs.statSync(path.join(root, p)).isFile();
+    } catch {
+      return false;
+    }
+  };
 }
 
 // 수집은 `plan-scan.ts` 소관이다. 종전에는 여기 손수 DFS 사본이 있었고 필터 값이
@@ -108,6 +132,7 @@ function collectCompletePlans(root: string): string[] {
 describe("Gate C — plan-completion spec-consistency", () => {
   const root = repoRoot();
   const plans = collectCompletePlans(root);
+  const specExists = makeSpecExists(root);
 
   // 파싱은 `plan-scan.ts` 의 단일 진입점을 쓴다 — gray-matter 캐시 우회 관용구가 여기
   // 손으로 복제돼 있으면 다음 호출부에서 조용히 빠진다(이 PR 이 실제로 겪었다).
@@ -136,6 +161,22 @@ describe("Gate C — plan-completion spec-consistency", () => {
     expect(plans.length).toBeGreaterThan(10);
   });
 
+  it("every completed plan has parseable frontmatter", () => {
+    // **파싱 실패는 Gate C 를 통째로 우회한다** — `enforced` 필터도, malformed-started
+    // 검사도, status 종료값 검사도 전부 `parsed === null` 을 건너뛴다. 완료 시점에
+    // `spec_impact`/`status` 를 손으로 넣다가 YAML 을 깨뜨리면 이 PR 이 막으려던 "조용한
+    // 면제" 가 그대로 일어나는데 어떤 테스트도 빨개지지 않았다(ai-review WARNING).
+    //
+    // `plan-scan.ts` 는 파싱 실패를 "다른 가드의 소관" 이라 위임하지만 `plan/complete/**`
+    // 를 보는 그 가드는 **존재하지 않았다** — `checkPlanFrontmatter` 는 top-level
+    // in-progress 전용이다. 여기가 그 자리다.
+    const unparseable = findUnparseablePlans(root);
+    expect(
+      unparseable,
+      `frontmatter 파싱 실패 ${unparseable.length}건 — Gate C 를 조용히 우회한다`,
+    ).toEqual([]);
+  });
+
   it("no completed plan declares a `started` that is not a real calendar date", () => {
     // **이것이 없으면 Gate C 는 조용히 면제된다.** 망가진 `started` 는 컷오프 비교에서
     // `null`(판정 불가) 또는 js-yaml 의 롤오버 결과(`2026-00-10` → `2025-12-10`)로 변해
@@ -161,9 +202,7 @@ describe("Gate C — plan-completion spec-consistency", () => {
         // — 그 predicate 는 `none` 어휘만 인정하는데 단위 테스트에서만 불려서, 게이트가
         // 실제로는 더 느슨하다는 사실이 드러나지 않았다(판정 이중화의 전형).
         // 실데이터 실측: none류 72 · 리스트 233 · 그 외 0건이라 조여도 안전하다.
-        const ok = hasValidSpecImpact(impact, (p) =>
-          fs.existsSync(path.join(root, p)),
-        );
+        const ok = hasValidSpecImpact(impact, specExists);
         expect(
           ok,
           `${rel}: completed plan must declare frontmatter spec_impact (spec path list, or "none")`,
@@ -172,7 +211,7 @@ describe("Gate C — plan-completion spec-consistency", () => {
 
       it("each `spec_impact` spec path exists (if a list)", () => {
         if (!Array.isArray(impact)) return;
-        const dangling = danglingSpecImpact(root, impact);
+        const dangling = danglingSpecImpact(impact, specExists);
         expect(
           dangling,
           `${rel}: spec_impact references missing spec file(s) or non-string entries: ${dangling
@@ -245,13 +284,29 @@ describe("Gate C enforcement logic", () => {
     // 실제 강제 경로는 실저장소 데이터만 보고 거기엔 비-문자열 원소가 없다 — 그래서 이
     // 판정은 합성 fixture 로만 관측된다(뮤테이션 실측: 인라인이던 시절 되돌린 뮤턴트가
     // 생존했다). `[123]` 같은 값이 Gate C 를 그냥 지나가면 게이트가 있으나 마나다.
-    const root = repoRoot();
-    expect(danglingSpecImpact(root, ["spec/conventions/spec-impl-evidence.md"])).toEqual([]);
-    expect(danglingSpecImpact(root, [123])).toEqual([123]);
-    expect(danglingSpecImpact(root, [null])).toEqual([null]);
-    expect(danglingSpecImpact(root, [["spec/nested.md"]])).toEqual([["spec/nested.md"]]);
-    expect(danglingSpecImpact(root, ["spec/does-not-exist.md"])).toEqual([
+    //
+    // `specExists` 를 주입받으므로 **실 파일시스템에 결합되지 않는다** — 자매 함수
+    // `hasValidSpecImpact` 와 같은 패턴이다. 종전에는 `fs.existsSync` 를 인라인으로 갖고
+    // 있어 실 저장소 파일이 이동하면 로직과 무관한 이유로 깨졌다(ai-review WARNING).
+    expect(danglingSpecImpact(["spec/5-system/4-execution-engine.md"], exists)).toEqual([]);
+    expect(danglingSpecImpact([123], exists)).toEqual([123]);
+    expect(danglingSpecImpact([null], exists)).toEqual([null]);
+    expect(danglingSpecImpact([["spec/nested.md"]], exists)).toEqual([["spec/nested.md"]]);
+    expect(danglingSpecImpact(["spec/does-not-exist.md"], exists)).toEqual([
       "spec/does-not-exist.md",
     ]);
+  });
+
+  it("`makeSpecExists` requires a real file — not the repo root, not a directory", () => {
+    // `fs.existsSync(path.join(root, p))` 만으로는 **빈 문자열이 통과한다** — `path.join`
+    // 이 `root` 로 정규화하고 저장소 루트는 늘 존재하기 때문이다(실측). 디렉터리 경로도
+    // 마찬가지였다. 헤더 주석은 "실재 spec **파일**" 이라 못박는데 구현이 더 넓었다.
+    const real = makeSpecExists(repoRoot());
+    expect(real("spec/conventions/spec-impl-evidence.md")).toBe(true);
+    expect(real(""), "빈 문자열이 저장소 루트로 정규화돼 통과하면 안 된다").toBe(false);
+    expect(real("   ")).toBe(false);
+    expect(real("spec"), "디렉터리는 spec 파일이 아니다").toBe(false);
+    expect(real("spec/conventions")).toBe(false);
+    expect(real("spec/does-not-exist.md")).toBe(false);
   });
 });

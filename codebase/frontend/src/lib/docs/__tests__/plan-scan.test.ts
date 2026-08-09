@@ -9,6 +9,7 @@ import {
   collectLivePlanMarkdown,
   findFrontmatterViolations,
   findNonTerminalCompletedPlans,
+  findUnparseablePlans,
   parseFrontmatterSafe,
 } from "./plan-scan";
 
@@ -175,6 +176,14 @@ describe("plan-scan", () => {
     expect(rels).toContain("plan/complete/nested/deep.md");
     expect(rels).not.toContain("plan/complete/archive/old.md");
     expect(rels).not.toContain("plan/complete/0-index.md");
+  });
+
+  it("finds completed plans whose frontmatter does not parse", () => {
+    // 파싱 실패는 status 검사도 Gate C 도 조용히 건너뛴다 — 그 plan 은 **모든 게이트를
+    // 우회**한다. 실저장소에서 실제로 2건이 이 상태였다(`title:` 값 안의 콜론+공백이
+    // 중첩 매핑으로 해석돼 파싱 실패). 실데이터를 고친 뒤엔 실저장소 단언이 positive-only
+    // 가 되므로(뮤테이션에서 생존했다) 합성 fixture 로 탐지를 고정한다.
+    expect(findUnparseablePlans(root)).toEqual(["plan/complete/broken.md"]);
   });
 
   it("TERMINAL_PLAN_STATUSES pins the four accepted values", () => {
