@@ -46,7 +46,14 @@ spec_impact:
 
 둘 다 `@Roles()` 가 있는 라우트에서만 참이다.
 
-### spec 은 이미 이 동작을 요구한다 (⇒ spec 변경 불요, `spec_impact: none`)
+### spec 은 이미 이 동작을 요구한다 (⇒ **신규 요구** 정의는 불요)
+
+> **⚠️ 이 절의 결론은 유효하지만 `spec_impact: none` 은 더 이상 아니다.** 착수 시엔
+> "구현이 문서화된 계약을 어긴 것이라 spec 을 건드릴 필요가 없다" 는 판단이었고 그 판단
+> 자체는 끝까지 옳았다 — **신규 요구를 정의하지 않았다.** 그러나 `--impl-prep` 이 spec
+> 6곳의 **거짓 서술**을 Critical 로 잡았고(planner 턴), `--impl-done` W1 이 `swagger.md`
+> 규약 확장까지 끌어왔다. 결과적으로 이 PR 은 spec **4파일**을 바꾼다 —
+> frontmatter `spec_impact` 가 그 목록이다.
 
 [`spec/5-system/1-auth.md` §3.3](../../spec/5-system/1-auth.md) API 인가 흐름:
 
@@ -285,7 +292,18 @@ HTTP 라우트 **222건** 중 `@WorkspaceId()` 를 소비하면서 `@Roles()` �
       `review/code/2026/08/08/20_53_48` SUMMARY: Critical 0, WARNING 10. `resolution-applier`
       가 코드 항목 9건 fix + spec 항목 1건(WARNING #10 (b) 규약 문구 확장) draft 위임.
       `review/code/2026/08/08/20_53_48/RESOLUTION.md` 참조.
-- [ ] `/consistency-check --impl-done spec/5-system/1-auth.md`
+- [x] `/consistency-check --impl-done` — **BLOCK: NO** (Critical 0 · WARNING 2 → 처리,
+      `review/consistency/2026/08/08/22_43_48`). push 게이트도 이 산출물로 통과했다
+      (`evaluate_review()`: "fresh `--impl-done` consistency report (8 spec-linked)").
+      > **스코프가 이 항목의 원문(`spec/5-system/1-auth.md`)과 다르다 — 의도적이다.**
+      > 두 가지 이유: (1) `--impl-done` 은 **파일이 아니라 디렉터리**를 받는다(파일 경로로
+      > 첫 호출이 거부됐다). (2) `spec/5-system/` 은 번들이 **1,215,279 B** 라 62KB 구현
+      > diff 와 공존하려면 ≈2.1MB 예산이 필요해 **어떤 실용 예산에서도 불가능**하다 —
+      > 기본 예산에서는 diff 가 통째로 생략되고 checker 가 구현을 못 본 채 판정한다
+      > (실측·수치는 [`harness-consistency-summary-downgrade-rule.md`](harness-consistency-summary-downgrade-rule.md)).
+      > 그래서 `spec/data-flow/`(394KB) + 예산 800,000 조합으로 돌렸고, **이 변경이 건드린
+      > 불변식의 정본이 `data-flow/12-workspace.md §Rationale` 이라 관련성도 가장 높다.**
+      > diff 가 프롬프트에 실린 것을 청크 헤더 위치로 확인한 뒤 실행했다.
 
 ## Rationale
 

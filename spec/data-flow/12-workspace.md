@@ -338,7 +338,7 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 값의 **검증 시점이 라우트별 opt-in 에서 가드 무조건으로** 옮겨진 것이며, 위 end-state 목표
 ("멤버십 검증이 인증 진입점 1곳으로 수렴")를 헤더 제거를 기다리지 않고 앞당겨 달성한 것이다.
 
-구현·전수 목록: [`plan/in-progress/auth-workspace-membership-guard.md`](../../plan/in-progress/auth-workspace-membership-guard.md).
+구현·전수 목록: [`plan/complete/auth-workspace-membership-guard.md`](../../plan/complete/auth-workspace-membership-guard.md).
 
 ### URL slug = FE 라우팅 SoT (≠ backend 인가 SoT)
 

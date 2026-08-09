@@ -10,7 +10,7 @@ spec_impact: none
 
 ## Overview
 
-[`auth-workspace-membership-guard`](auth-workspace-membership-guard.md) (P0 cross-tenant
+[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) (P0 cross-tenant
 fix)의 타겟 재리뷰(`review/code/2026/08/08/22_29_33`)에서 나온 WARNING 4건 중 3건 +
 INFO 3건을 분리 등재한다. **그 PR 에서 미룬 이유는 각 항목에 적었고**, RESOLUTION 에도
 같은 근거가 있다.

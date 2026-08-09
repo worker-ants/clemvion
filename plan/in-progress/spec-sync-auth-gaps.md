@@ -68,7 +68,7 @@ owner: planner
       그 자체가 리뷰 대상이다. 정정 턴에 설계를 얹으면 두 성격이 한 커밋에서 섞인다.
 - [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
 - [~] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** —
-      **2026-08-08 전용 plan 으로 이관**: [`auth-workspace-membership-guard.md`](auth-workspace-membership-guard.md).
+      **2026-08-08 전용 plan 으로 이관**: [`auth-workspace-membership-guard.md`](../complete/auth-workspace-membership-guard.md).
       완료 판정은 그 plan 이 소유한다(중복 소유 방지). 이관 사유 = 본 plan 은 `owner: planner`
       의 감사 로깅 계열인데 본 건은 developer 트랙 P0 이라, 한 plan 에 묶으면 push 게이트가
       보는 `worktree:` 가 충돌한다. 이관 시점 전수 실측: HTTP 라우트 222건 중 `@WorkspaceId()`
