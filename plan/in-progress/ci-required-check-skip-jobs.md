@@ -72,6 +72,53 @@ schedule / base SHA 부재 / merge-base 실패 3경로 전부 → `true`.
 둘을 서로 물리게 했다. 조건 문자열은 두 표준형과 **정확히 일치**할 때만 규칙 예외를 받는다
 (오탈자 뮤턴트 RED 확인).
 
+## 부수 — 새로 도는 audit 이 main 취약점 2건을 드러냈다 (2026-08-09)
+
+PR `#1106` 이 올라가자 `pnpm audit (moderate+)` 잡이 **실패**했다. 이 PR 이
+`deps-security-checks.yml` 자체를 고치므로 `changes` 가 `relevant=true` 로 판정했고,
+그래서 이 저장소에서 **처음으로** 그 잡이 실제 PR 에서 돌았다.
+
+```
+high      nanoid <3.3.17     GHSA-2v37-7h3g-55p8   codebase/frontend > postcss > nanoid
+moderate  dompurify <=3.4.12 GHSA-55q2-fjhq-7xh7   codebase/channel-web-chat > dompurify
+```
+
+**본 PR 이 만든 회귀가 아니다** — main 에 이미 있던 것이 게이트가 켜지면서 드러났다. 이
+PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" 이므로 체크가 빨간 채로 둘 수
+없어 같은 PR 에서 해소한다.
+
+### 조치 — 전이는 override, 직접 의존은 선언 자체를 올린다
+
+`pnpm-workspace.yaml` 이 명문화한 구분을 그대로 따랐다("직접 의존을 override 로 덮으면
+매니페스트가 거짓말을 하게 된다").
+
+| 패키지 | 성격 | 조치 |
+|---|---|---|
+| `nanoid` | 전이 (postcss 경유) | `overrides` 에 `^3.3.17` + `EXPECTED_OVERRIDES` 동시 갱신 (2-place 규약) |
+| `dompurify` | **직접** 의존 2곳 | `channel-web-chat` `3.4.12`→`3.4.13`(exact 핀 유지) · `frontend` `^3.4.12`→`^3.4.13` |
+
+`nanoid` 를 postcss 상향이 아니라 nanoid 자체에 건 이유: frontend 가 postcss 를 **직접**
+의존하는데 그 경로만 lockfile 에서 `postcss@8.5.25 > nanoid@3.3.16` 으로 고정돼 있었다.
+같은 트리의 `next>postcss` 경로는 이미 `8.5.26 > 3.3.17` 이라 안전했다 — postcss 값을
+올리는 방식은 두 경로 중 하나만 덮는다.
+
+`dompurify` 는 audit 이 `channel-web-chat` 경로만 표시했지만 **frontend 도 같은 3.4.12 로
+해소돼 있었다**(lockfile 실측). audit 표의 `paths` 는 잘려 나온다 — `auditConfig` 주석이
+`#1038` 사고로 이미 경고하고 있는 함정이라 lockfile 을 직접 봤다.
+
+### lockfile 의 `libc:` 57줄이 함께 사라진다 — 본 변경과 무관
+
+재생성하면 `@img/sharp-libvips-linux-*`·`@css-inline/*` 의 `libc: [glibc|musl]` 57줄이
+지워진다. **저장소가 이미 겪고 있는 진동**이다: dependabot 커밋 `ba3b1017d` 이 57줄을
+넣고, 로컬 커밋 `9e73595a4`(`#1033`) 가 같은 57줄을 지웠다.
+
+원인은 실측으로 특정했다 — 레지스트리의 **축약(abbreviated) packument** 에는 `libc` 가
+없고 full packument 에만 있다. 저장소가 핀한 `pnpm@10.23.0` 은 축약본을 쓰므로 이 필드를
+못 쓴다(`full-metadata=true` + 메타데이터 캐시 삭제로도 재현되지 않음 — 즉 설정 문제가
+아니라 그 pnpm 이 안 쓰는 것). CI 도 `packageManager` 로 같은 10.23.0 을 쓰므로 **핀한
+툴체인의 정본 출력은 `libc` 없는 쪽**이다. 후속은
+[`deps-guard-hardening.md`](deps-guard-hardening.md) §후속 에 등재.
+
 ## 체크리스트
 
 - [x] `scripts/ci-paths-changed.sh` — 판정 로직 단일화 + fail-safe 3경로 실증
@@ -91,6 +138,16 @@ schedule / base SHA 부재 / merge-base 실패 3경로 전부 → `true`.
       구멍이라 `!cancelled()` + 조건 반전(`!= 'false'`)으로 닫았다(뮤테이션 6 RED).
       W4 push 광역화, W5 레지스트리 3중 비바인딩, W6 step id 오타 미검출도 수정.
 - [x] push + PR — [#1106](https://github.com/worker-ants/clemvion/pull/1106)
+- [x] **부수** audit 2건 해소 (§위) — 로컬 실측: `pnpm audit --audit-level=moderate`
+      **No known vulnerabilities** · `check-pnpm-security-config.py` OK(overrides 31) ·
+      `check-override-floors.py` OK(대상 28) · `pnpm install --frozen-lockfile` OK
+- [x] TEST WORKFLOW 재수행 (의존성 변경 — 면제 화이트리스트 밖) — lint PASS(55s) ·
+      unit PASS(79s) · build PASS(160s) · **e2e PASS(307s)**
+      > 커버리지는 wrapper 요약 숫자가 아니라 로그 전수로 확인했다(`tests=261` 은 backend
+      > jest 만 센다): backend jest 46 suites/261 · **playwright 51** · unit 단계는
+      > frontend 282 파일/5845 + channel-web-chat 23 파일/409 + backend 416 suites.
+      > dompurify 를 쓰는 두 패키지가 모두 실제로 돌았다.
+- [ ] `/ai-review` 2차 (audit 조치분)
 
 ## 후속 — 나머지 8개 워크플로 (별 항목)
 

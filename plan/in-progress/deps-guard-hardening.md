@@ -381,9 +381,33 @@ repo Settings(Branch protection) 소관이라 이 저장소 파일로 표현할 
 §2 는 수용 근거가 부실해지는 것, §3 은 이미 올린 bump 가 되돌려지는 것 — 셋 다 사후에 audit 이
 빨간불로 알려주지만 그때는 이미 취약 상태다. 한 PR 에서 다루면 "왜 이 셋인가" 가 서로를 설명한다.
 
+### 후속 — lockfile `libc:` 필드가 커밋마다 진동한다 (2026-08-09 발견, P3)
+
+`@img/sharp-libvips-linux-*`·`@css-inline/*` 의 `libc: [glibc|musl]` **57줄**이 들어왔다
+나갔다 한다. dependabot 커밋 `ba3b1017d` 이 넣고, 로컬 커밋 `9e73595a4`(`#1033`) 가 지웠고,
+`#1106` 이 또 지운다.
+
+원인은 실측으로 특정했다 — npm 레지스트리의 **축약(abbreviated) packument**
+(`application/vnd.npm.install-v1+json`)에는 `libc` 가 없고 full packument 에만 있다.
+저장소가 핀한 `pnpm@10.23.0` 은 축약본으로 해소하므로 이 필드를 못 쓴다. `full-metadata=true`
++ `pnpm cache delete '@img/*'` 로도 재현되지 않았다 — 설정 문제가 아니라 그 버전이 안 쓰는
+것이다. dependabot 은 `packageManager` 를 안 따르는 경로로 도는 것으로 보인다.
+
+**지금 당장의 위험은 낮다**: CI 도 `packageManager` 로 같은 10.23.0 을 쓰므로 `libc` 없는
+lockfile 이 **핀한 툴체인의 정본 출력**이고, `--frozen-lockfile` 검증에 `libc` 는 참여하지
+않는다. 다만 그 필드는 optional native 의존을 libc 별로 거르는 정보라, 없으면 musl 이미지에
+glibc 변종이 함께 설치될 수 있다(낭비 — 오선택은 sharp 로더가 런타임에 다시 판별).
+
+- [ ] 진동을 한쪽으로 고정 — (a) dependabot 이 `packageManager` 를 따르게 하거나,
+      (b) 저장소 pnpm 핀을 `libc` 를 쓰는 버전으로 올리거나, (c) 진동을 명시 수용하고
+      lockfile 검토 시 무시할 노이즈로 문서화. **(b) 를 고르려면 그 버전이 실제로 쓰는지
+      먼저 실증할 것** — 여기서는 "dependabot 쪽이 더 새 버전일 것" 이라고 추정만 했고
+      확인하지 않았다.
+
 ### 남은 수동 조치 (repo Settings — 파일로 불가)
 
-**이 절이 본 plan 의 유일한 잔여다.** 사용자만 할 수 있어 `complete/` 이동을 막고 있다.
+**파일로 처리 불가한 잔여는 이 절뿐이다.** 사용자만 할 수 있어 `complete/` 이동을 막고 있다
+(위 §후속 은 파일로 처리 가능하지만 별 PR 감이라 미착수).
 
 - [ ] **`--frozen-lockfile` 검증을 required check 로 승격** — Branch protection 설정. 이번 사고
       (`#1030` 이 `#1029` 의 보안 bump 를 되돌려 main CI failure)의 발현 지점이 정확히 그것이라
