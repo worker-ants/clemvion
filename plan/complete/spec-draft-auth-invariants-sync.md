@@ -20,9 +20,9 @@ spec_impact:
 
 출처는 두 plan 의 `## 후속` 절이다:
 
-- [`auth-guard-reflection-hardening.md`](auth-guard-reflection-hardening.md) §후속 — 4건
+- [`auth-guard-reflection-hardening.md`](../in-progress/auth-guard-reflection-hardening.md) §후속 — 4건
   (`--impl-done` consistency WARNING 2회분, BLOCK:NO 지만 반영 대상)
-- [`backend-lint-gate-broken-on-main.md`](backend-lint-gate-broken-on-main.md) §후속 — 1건
+- [`backend-lint-gate-broken-on-main.md`](../in-progress/backend-lint-gate-broken-on-main.md) §후속 — 1건
   (ai-review INFO 11)
 
 두 plan 모두 "코드가 spec 을 어긴 것이 아니라 **spec 이 새 케이스를 아직 안 적은 것**
@@ -375,8 +375,11 @@ minor/patch 로도 온다) (2) 핸들러를 감싸는 데코레이터 도입으�
       `backend-lint-gate-broken-on-main.md` §후속 1건) + **자매 plan 의 틀린 단정문 정정**
       (consistency WARNING #3 — `plan/**` 은 planner 쓰기 범위인데 `codebase/**` 로 오분류해
       developer 백로그로 미룰 뻔했다)
-- [ ] 링크 무결성 회귀 (`spec-link-integrity` · `spec-plan-completion`)
-- [ ] commit + PR
+- [x] 링크 무결성 회귀 (`spec-link-integrity` · `spec-plan-completion`) — 그 PR 이 실행했다:
+      "spec 문서 가드 18파일 / 2815 tests PASS (link-integrity · code-paths · plan-frontmatter ·
+      status-lifecycle 포함)" (커밋 `602f677cd` 메시지, 실측 인용)
+- [x] commit + PR — [#1112](https://github.com/worker-ants/clemvion/pull/1112) (`602f677cd`)
+      머지 완료 (2026-08-09 20:30)
 
 ## 후속 (이 PR 밖)
 

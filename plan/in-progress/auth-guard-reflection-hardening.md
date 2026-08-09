@@ -264,7 +264,8 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 
 > 넷 다 developer 권한 밖이라 그 PR 에서 하지 않았다. 코드가 spec 을 어긴 것이 아니라
 > **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니었다.
-> 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](spec-draft-auth-invariants-sync.md).
+> 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](../complete/spec-draft-auth-invariants-sync.md)
+> (`#1112` 머지 완료 — `complete/` 로 이동).
 
 **developer 범위:**
 
