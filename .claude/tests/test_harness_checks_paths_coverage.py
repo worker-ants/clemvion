@@ -129,6 +129,9 @@ KNOWN_COVERAGE_DEPENDENCIES = {
     ".github/dependabot.yml": ".github/dependabot.yml",
     ".github/workflows/**": ".github/workflows/e2e.yml",
     ".claude/config/**": ".claude/config/doc-sync-matrix.json",
+    # 2026-08-09 — 공유 셋업 composite action. `.github/workflows/**` 는 이 경로를
+    # 덮지 않으므로(형제 디렉터리다) 별도 필터가 필요하고, 그 사실을 여기서 증명한다.
+    ".github/actions/**": ".github/actions/pnpm-workspace/action.yml",
 }
 
 

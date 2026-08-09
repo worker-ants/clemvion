@@ -36,6 +36,10 @@ jobs:
         pnpm-workspace.yaml
         scripts/ci-paths-changed.sh
         .github/workflows/_changed-paths.yml
+        # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
+        # 이 액션이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다. 추출로 새로
+        # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
+        .github/actions/pnpm-workspace/action.yml
         .github/workflows/frontend-checks.yml
 
   test-and-build:
@@ -53,23 +57,12 @@ jobs:
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
 
-      # pnpm 버전은 root package.json 의 `packageManager` 필드를 따른다.
-      - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant != 'false'
-
-      - uses: actions/setup-node@v7
+      # pnpm + Node + `--frozen-lockfile` 설치. `...` 로 frontend 의 workspace 의존까지
+      # 함께 설치한다 — 내부 패키지 dist 는 각 패키지 `prepare`(tsc)가 install 중 빌드한다.
+      - uses: ./.github/actions/pnpm-workspace
         if: needs.changes.outputs.relevant != 'false'
         with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-
-      # 단일 workspace 설치 — frontend + 그 workspace 의존(`...`). 내부 패키지
-      # dist 는 각 패키지 `prepare`(tsc)가 install 중 자동 빌드한다 (이전의
-      # 패키지별 `npm ci && npm run build` 단계를 대체).
-      - name: Install frontend workspace
-        if: needs.changes.outputs.relevant != 'false'
-        run: pnpm install --frozen-lockfile --filter "frontend..."
+          filter: 'frontend...'
 
       - name: Vitest (unit)
         if: needs.changes.outputs.relevant != 'false'

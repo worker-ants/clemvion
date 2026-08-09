@@ -292,7 +292,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
       시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
       라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정했다(실측: `CONVERTED` 3건).
-- [ ] **셋업 보일러플레이트(checkout·pnpm·setup-node·install) 추출은 별도** —
+- [x] **셋업 보일러플레이트(checkout·pnpm·setup-node·install) 추출은 별도** — **완료 (2026-08-09)**
       위 추출은 `changes` 잡만 가져갔다. 셋업은 잡마다 필요한 도구가 달라(python 유무,
       캐시 키) composite action 쪽이 맞는데, 그 판단은 4번째 워크플로가 어떤 셋업을
       요구하는지 보고 하는 편이 낫다. **범위를 쪼개 남긴다** (ai-review WARNING #1).
@@ -318,6 +318,17 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 유의점 하나: 로컬 composite action 은 `uses: ./.github/actions/<name>` 이라
       > **checkout 이 먼저 돌아야 한다** — 접히는 것은 4단계가 아니라 뒤 3단계다.
+
+      > **집행 (2026-08-09)** — `.github/actions/pnpm-workspace/action.yml` 신설, 9개 잡이
+      > `uses:` 로 호출한다(바이트 동일 8 + backend `typecheck-ratchet`). 워크플로 순 **-41줄**,
+      > 게이팅 조건 반복 **57 → 39곳**. 예측대로 checkout 은 접히지 않아 호출부에
+      > `checkout` + 액션 호출 2스텝이 남는다.
+      >
+      > 진짜 위험은 줄 수가 아니라 **가드 시야**였다 — 스텝 3개가 `.github/workflows/*.yml`
+      > 밖으로 나가면서 `test_workflow_yaml_structure.py` 의 구조 검사(2026-08-01 중복 `run:`
+      > 사고를 잡는 그 검사)가 그것들을 못 보게 됐다. 검사 범위를
+      > `.github/actions/**/action.yml` 까지 넓히고, 액션 자체는
+      > `test_pnpm_workspace_action.py` 로 통째로 고정했다(실행 검증 포함).
 - [x] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
       각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
       **완료 (2026-08-09, planner 턴)** — "Trigger 삭제" 행에 prefix 불변식 2건(`secret://`

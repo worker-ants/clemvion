@@ -42,6 +42,10 @@ jobs:
         spec/**
         scripts/ci-paths-changed.sh
         .github/workflows/_changed-paths.yml
+        # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
+        # 이 액션이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다. 추출로 새로
+        # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
+        .github/actions/pnpm-workspace/action.yml
         .github/workflows/spec-link-checks.yml
 
   spec-link-integrity:
@@ -59,21 +63,12 @@ jobs:
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
 
-      - uses: pnpm/action-setup@v6.0.9
-        if: needs.changes.outputs.relevant != 'false'
-
-      - uses: actions/setup-node@v7
-        if: needs.changes.outputs.relevant != 'false'
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-
       # 가드는 frontend 패키지의 vitest 로 돈다. 스캔 대상(backend 등) 소스는
       # checkout 으로 전체 트리가 존재하므로 fs 스캔에 문제 없다.
-      - name: Install frontend workspace
+      - uses: ./.github/actions/pnpm-workspace
         if: needs.changes.outputs.relevant != 'false'
-        run: pnpm install --frozen-lockfile --filter "frontend..."
+        with:
+          filter: 'frontend...'
 
       - name: spec-link-integrity guard
         if: needs.changes.outputs.relevant != 'false'

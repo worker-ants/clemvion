@@ -250,7 +250,7 @@ spec-link)은 `paths` 만 걷고 유지, 없던 둘(harness·migration)은 추�
 > `.github/**`+`.claude/**` 였다면 PROJECT.md §e2e 면제 화이트리스트의 부분집합이지만,
 > `codebase/` 가 한 줄이라도 들어가면 면제 불가다.
 
-### 셋업 보일러플레이트 composite action — 트리거 도달, 실측 후 별 PR 로 분리
+### 셋업 보일러플레이트 composite action — 트리거 도달, 실측 후 별 PR 로 집행 (완료)
 
 `backend-lint-gate-broken-on-main.md §후속` 이 "4번째 워크플로가 어떤 셋업을 요구하는지 보고
 판단" 을 트리거로 걸어 뒀다. 이번에 5개를 전환해 그 시점을 지났으므로 실측했다
@@ -274,6 +274,21 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
 > 로컬 composite action 은 `uses: ./.github/actions/<name>` 이라 **checkout 이 먼저 돌아야
 > 한다** — 그래서 접히는 것은 4단계가 아니라 뒤 3단계다. 호출부가 그 한 스텝에 `if:` 를
 > 달면 스텝 게이팅 계약(`test_every_step_is_gated`)은 그대로 성립한다.
+
+**집행 완료 (2026-08-09, 다음 PR).** `.github/actions/pnpm-workspace/action.yml` 신설,
+9개 잡이 호출한다. 워크플로 순 **-41줄**, 게이팅 조건 반복 **57 → 39곳**. checkout 이 접히지
+않는다는 예측은 그대로 맞았다.
+
+> **줄 수보다 큰 것은 가드 시야였다.** 스텝 3개가 `.github/workflows/*.yml` 밖으로 나가면서
+> `test_workflow_yaml_structure.py` 의 구조 검사가 그것들을 못 보게 됐다 — 2026-08-01 의
+> 중복 `run:` 사고(설치 명령이 통째로 소실됐는데 YAML 은 에러를 안 냄)가 액션 안에서
+> 재발하면 아무도 못 볼 뻔했다. 검사 범위를 `.github/actions/**/action.yml` 까지 넓혔고,
+> 그 확장 자체가 vacuous 해지지 않도록 액션 파일 수에도 바닥을 걸었다.
+>
+> 또 하나: `pnpm install --frozen-lockfile` 이 이제 저장소에서 **한 줄뿐**이다. 파급이
+> 뒤집혀서, 그 줄이 망가지면 8개 잡이 한꺼번에 잘못된다(required check 후보가 전부 그 안에
+> 있다). 그래서 문자열 grep 이 아니라 **실제 argv**로 고정했다 — `run:` 블록을 꺼내 bash 로
+> 돌리고 `pnpm` 스텁이 받은 인자를 센다(`_changed-paths.yml` 이 세운 규칙과 같다).
 
 ### 검증 (2026-08-09)
 

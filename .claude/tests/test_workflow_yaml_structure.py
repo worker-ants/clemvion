@@ -25,6 +25,20 @@ The invariants below (their number grows — do not count them here), both cheap
 `DetectorTest` feeds the 2026-08-01 text itself to both checks. Without it,
 a detector that silently stopped detecting would leave every other test in this
 file passing — the exact shape of failure it is here to prevent.
+
+SCOPE — composite actions are the same layer (2026-08-09). When the shared pnpm
+setup moved into `.github/actions/pnpm-workspace/action.yml`, three steps left
+`.github/workflows/*.yml` and, with them, this file's field of view. The
+2026-08-01 incident could then have recurred inside the action with nothing
+watching — and that incident was itself an install step in a workflow, so
+"actions are different" was never a real distinction. The structural checks
+(duplicate keys, exactly one of `run`/`uses`, no swallowed failure) therefore
+run over BOTH `.github/workflows/*.yml` and `.github/actions/**/action.yml`.
+
+The registry checks stay workflow-only, deliberately: `_PULL_REQUEST_KEYS`,
+`_JOB_CONDITIONS` and the identity check are all about triggers and jobs, which
+a composite action does not have. Folding actions into those would key every one
+of them on the literal filename `action.yml` and collide by construction.
 """
 
 from __future__ import annotations
@@ -37,6 +51,7 @@ import yaml
 from _harness import REPO_ROOT
 
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
+ACTION_DIR = REPO_ROOT / ".github" / "actions"
 
 # The step as it was actually committed on 2026-08-01, before the fix.
 BROKEN_SAMPLE = """\
@@ -75,11 +90,27 @@ def _duplicate_keys(text: str) -> list[str]:
     return found
 
 
+# composite action 의 스텝을 job 스텝과 같은 자리에서 다루기 위한 가짜 job 이름.
+# 꺾쇠를 붙여 실패 메시지에서 어느 층인지 바로 읽히게 한다.
+COMPOSITE_PSEUDO_JOB = "<composite runs.steps>"
+
+
 def _steps(doc: dict):
-    """`(job_name, index, step)` for every step in the document."""
+    """`(job_name, index, step)` for every step in the document.
+
+    `jobs.*.steps` 와 composite action 의 `runs.steps` **둘 다** 낸다. 두 형태의 스텝은
+    같은 스키마 규칙(정확히 하나의 `run`/`uses`)을 따르는데 종전에는 앞의 것만 봤고,
+    공유 셋업이 액션으로 빠지면서 그 차이가 곧 사각지대가 됐다(모듈 docstring §SCOPE).
+    """
     for job_name, job in (doc.get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
         for i, step in enumerate(job.get("steps") or []):
             yield job_name, i, step
+    runs = doc.get("runs")
+    if isinstance(runs, dict):
+        for i, step in enumerate(runs.get("steps") or []):
+            yield COMPOSITE_PSEUDO_JOB, i, step
 
 
 def _workflow_files() -> list[Path]:
@@ -88,15 +119,32 @@ def _workflow_files() -> list[Path]:
     )
 
 
+def _action_files() -> list[Path]:
+    """로컬 composite action 정의 — `.github/actions/<name>/action.yml`."""
+    return sorted(
+        p for p in ACTION_DIR.glob("*/action.y*ml") if p.suffix in (".yml", ".yaml")
+    )
+
+
 class WorkflowStructureTest(unittest.TestCase):
     def setUp(self):
         self.files = _workflow_files()
+        self.action_files = _action_files()
+        # 구조 검사가 보는 집합 — 워크플로 + composite action (모듈 docstring §SCOPE).
+        self.structural_files = self.files + self.action_files
         # A glob that quietly matches nothing would make every assertion below
         # vacuous — the suite would stay green with the directory deleted.
         self.assertTrue(self.files, f"no workflow files found under {WORKFLOW_DIR}")
+        # 액션 쪽도 같은 이유로 바닥을 건다. 액션이 하나도 안 잡히면 구조 검사가
+        # **워크플로만** 보던 종전 상태로 조용히 되돌아간다 — 이 확장이 없애려는 사각지대다.
+        self.assertTrue(
+            self.action_files,
+            f"no composite action files found under {ACTION_DIR} — 액션을 전부 지웠다면 "
+            "이 바닥도 함께 재검토할 것(지금은 구조 검사가 액션을 안 보는 상태다)",
+        )
 
     def test_no_duplicate_keys(self):
-        for path in self.files:
+        for path in self.structural_files:
             with self.subTest(workflow=path.name):
                 dupes = _duplicate_keys(path.read_text(encoding="utf-8"))
                 self.assertEqual(
@@ -108,7 +156,7 @@ class WorkflowStructureTest(unittest.TestCase):
                 )
 
     def test_every_step_has_exactly_one_of_run_or_uses(self):
-        for path in self.files:
+        for path in self.structural_files:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             for job, i, step in _steps(doc):
                 with self.subTest(workflow=path.name, job=job, step=i):
@@ -148,7 +196,7 @@ class WorkflowStructureTest(unittest.TestCase):
         같은 결함을 세 번째로 만나기 전에, 파일 하나가 아니라 **모든 워크플로**에 건다.
         """
         seen_exceptions = set()
-        for path in self.files:
+        for path in self.structural_files:
             doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             for job_name, job in (doc.get("jobs") or {}).items():
                 if not isinstance(job, dict):
@@ -159,20 +207,22 @@ class WorkflowStructureTest(unittest.TestCase):
                         f"{path.name} job `{job_name}` 이 자기 실패를 삼킨다 — "
                         "체크는 초록으로 뜨고 아무것도 막지 않는다",
                     )
-                for i, step in enumerate(job.get("steps") or []):
-                    if not isinstance(step, dict):
-                        continue
-                    key = (path.name, step.get("name"))
-                    if key in self._MAY_SWALLOW:
-                        seen_exceptions.add(key)
-                        continue
-                    with self.subTest(workflow=path.name, job=job_name, step=i):
-                        self.assertNotIn(
-                            self._SWALLOWS_FAILURE, step,
-                            f"{path.name} job `{job_name}` step #{i} "
-                            f"({step.get('name', '<unnamed>')!r}) 이 실패를 삼킨다 — "
-                            "정당하면 `_MAY_SWALLOW` 에 이유와 함께 등재하라",
-                        )
+            # composite 스텝까지 함께 본다 — 액션 안의 한 줄이 실패를 삼키면 그 액션을
+            # 쓰는 워크플로 전부가 조용히 무해해진다(파급이 워크플로 하나보다 넓다).
+            for job_name, i, step in _steps(doc):
+                if not isinstance(step, dict):
+                    continue
+                key = (path.name, step.get("name"))
+                if key in self._MAY_SWALLOW:
+                    seen_exceptions.add(key)
+                    continue
+                with self.subTest(workflow=path.name, job=job_name, step=i):
+                    self.assertNotIn(
+                        self._SWALLOWS_FAILURE, step,
+                        f"{path.name} job `{job_name}` step #{i} "
+                        f"({step.get('name', '<unnamed>')!r}) 이 실패를 삼킨다 — "
+                        "정당하면 `_MAY_SWALLOW` 에 이유와 함께 등재하라",
+                    )
 
         # 죽은 예외는 지운다. 등재해 둔 step 이 사라지거나 이름이 바뀌면 그 예외는 다음 사람에게
         # "여기는 열려 있다" 는 거짓 신호가 된다.
