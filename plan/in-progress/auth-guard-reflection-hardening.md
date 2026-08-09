@@ -252,6 +252,16 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       — 앞으로 그 파일 변경은 push 전 fresh `--impl-done` 을 요구받으며, 사슬을 잇는 목적이
       바로 그것이라 의도한 강화다.
 
+- [ ] **73건(subset) / 142건(superset) 관계를 spec Rationale 에도 미러링** — 지금은
+      `workspace-reflection-canary.ts` 주석에만 있다 (`backend-hygiene-followups`
+      `--impl-done` INFO 2, `review/consistency/2026/08/09/21_04_06`). `1-auth.md` 또는
+      `data-flow/12-workspace.md` Rationale 에 한 줄이면 된다. 이 저장소가 두 수를 실제로
+      한 번 뭉갰고(그 정정이 본 PR 이다) spec 쪽에는 아직 관계 서술이 없다.
+      > **숫자 자체는 미러링하지 말 것.** 142 는 라우트가 늘면 변하는 스냅샷이라 spec 에
+      > 박으면 조용히 stale 해진다 — 지금 고친 것과 같은 클래스의 결함을 새로 만드는 셈이다.
+      > 관계만 적는다: "캐너리가 세는 것은 `@Roles()` 유무와 **무관한** `@WorkspaceId()`
+      > 소비 라우트 전체라 73건의 상위집합이다."
+
 > 넷 다 developer 권한 밖이라 그 PR 에서 하지 않았다. 코드가 spec 을 어긴 것이 아니라
 > **spec 이 새 케이스를 아직 안 적은 것**(incompleteness)이라 BLOCK 이 아니었다.
 > 후속 planner 턴 산출: [`spec-draft-auth-invariants-sync.md`](spec-draft-auth-invariants-sync.md).
