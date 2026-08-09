@@ -290,6 +290,22 @@ spec-link). 나머지 5개가 진짜로 발산할 뿐이다.
 > 있다). 그래서 문자열 grep 이 아니라 **실제 argv**로 고정했다 — `run:` 블록을 꺼내 bash 로
 > 돌리고 `pnpm` 스텁이 받은 인자를 센다(`_changed-paths.yml` 이 세운 규칙과 같다).
 
+**검증** — 뮤테이션 **13/13 RED**: `--frozen-lockfile` 제거 · 필터 인용 제거 · env 대신 직접
+보간 · `required` 해제 · 캐시 키 드리프트 · `shell:` 제거 · 호출부 게이팅 누락 · 소비처
+pathspec 등재 누락 · **액션 안** 중복 `run:` 키 · **액션 안** `run`+`uses` 동시 · **액션 안**
+`continue-on-error` · 액션 수집 글롭 파손 · harness pathspec 등재 제거.
+가운데 셋(액션 안 3건)이 이 PR 의 핵심 주장 — 구조 검사가 실제로 액션 내부까지 본다 — 을
+직접 겨눈 뮤턴트다.
+
+TEST WORKFLOW — lint PASS(56s) · unit PASS(88s) · build PASS(117s) · harness **995 tests OK**
+(983 → 995). **e2e 면제**: 변경 set 이 `.claude/**` + `.github/**` + `plan/**` 뿐이고,
+PROJECT.md §e2e 면제 화이트리스트가 `.claude/**` (skills, hooks, agents 정의) ·
+`.github/**` (CI 정의는 e2e 가 검증 대상 아님) · `plan/**` 을 모두 포함하므로 부분집합이다.
+`codebase/**` 는 0건.
+
+> 다만 unit 단계는 형식이 아니라 **실질**이었다 — `packages-checks.yml` 을 고쳤고 그 파일을
+> 파싱하는 가드가 `codebase/frontend/**` 의 vitest 다. 51건 통과를 따로 확인했다.
+
 ### 검증 (2026-08-09)
 
 - [x] 뮤테이션 **16/16 RED** — 새로 만든 가드가 실제로 잡는지 한 건씩 확인했다
