@@ -16,8 +16,14 @@ import {
 //
 // Scope = `plan/in-progress/*.md` (top level only). Grouped subfolders hold
 // working material under a cluster index and are exempt. `0-`/`_`-prefixed
-// index files are exempt. 그 규칙의 **단일 구현**은 `spec-links.ts` 의
+// index files are exempt. 그 규칙의 **단일 구현**은 `plan-scan.ts` 의
 // `collectLivePlanMarkdown` 이고, 이 파일의 두 검사(frontmatter · 링크)가 함께 그것을 쓴다.
+// (`spec-links.ts` 도 같은 이름을 export 하지만 그건 **하위호환 re-export** 다 — 링크
+//  모듈이 plan 트리 규칙까지 갖고 있으면 그 규칙이 두 곳으로 갈린다.)
+//
+// > 이 주석은 추출 직후 `spec-links.ts` 를 정본으로 적은 채 남아 있었다. 같은 PR 이
+// > `spec-impl-evidence.md §4.2` 를 "판정 로직은 `plan-scan.ts` 소관" 으로 갱신했으므로
+// > **문서끼리 정면으로 어긋난 상태**였다(ai-review documentation WARNING).
 //
 // `worktree` accepts a real `<task>-<slug>` name OR the explicit sentinel
 // `(unstarted)` for plans with no live worktree yet. Legacy placeholders
