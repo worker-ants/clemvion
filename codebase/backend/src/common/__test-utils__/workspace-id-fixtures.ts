@@ -60,7 +60,7 @@ export const NIL_WS = '00000000-0000-0000-0000-000000000000';
  * 실증됐다 — 값 충돌 시 3 RED). 모듈 자신이 계약을 들고 있게 한다. jest 타입 비의존이라
  * 테스트가 아니라 **로드 시점 런타임 검사**다.
  */
-const ALL_WS = [
+export const ALL_WS = [
   HEADER_WS,
   TOKEN_WS,
   VICTIM_WS,
@@ -70,9 +70,19 @@ const ALL_WS = [
   NIL_WS,
 ] as const;
 
-if (new Set<string>(ALL_WS).size !== ALL_WS.length) {
+/**
+ * 중복이 있으면 throw. **순수 함수로 뺀 이유**: 아래 로드 시점 호출만 두면 이 판정 자체를
+ * 겨누는 테스트를 쓸 수 없다 — 실데이터(현재 값들)가 유일하므로 `!==` 를 `===` 로 뒤집는
+ * 오타가 들어와도 아무도 모른다. `workspace-id-fixtures.spec.ts` 가 양방향을 고정한다.
+ */
+export function assertAllUnique(values: readonly string[]): void {
+  const uniqueCount = new Set<string>(values).size;
+  if (uniqueCount === values.length) return;
   throw new Error(
-    `workspace-id-fixtures: 값이 중복됐다 — 고유 ${new Set<string>(ALL_WS).size} / 전체 ${ALL_WS.length}. ` +
-      '이 모듈의 계약은 값이 서로 다르다는 것이고, 겹치면 cross-tenant 테스트가 조용히 무의미해진다.',
+    `workspace-id-fixtures: 값이 중복됐다 — 고유 ${uniqueCount} / 전체 ${values.length}. ` +
+      '이 모듈의 계약은 값이 서로 다르다는 것이고, 겹치면 cross-tenant 테스트가 조용히 무의미해진다. ' +
+      '이 모듈을 import 하는 스위트가 전부 "Test suite failed to run" 으로 동시 실패한다.',
   );
 }
+
+assertAllUnique(ALL_WS);
