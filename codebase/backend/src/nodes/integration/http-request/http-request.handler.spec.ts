@@ -1685,11 +1685,27 @@ describe('HttpRequestHandler', () => {
               (fetchPromise as unknown as { _reject?: () => void })._reject?.();
             });
             return new Promise((_, reject) => {
-              observedSignal!.addEventListener('abort', () =>
+              const failAsAborted = () =>
                 reject(
                   Object.assign(new Error('aborted'), { name: 'AbortError' }),
-                ),
-              );
+                );
+              // **이미 aborted 인 signal 도 즉시 reject 한다** — 실제 `fetch` 의 동작이다.
+              //
+              // 종전에는 `addEventListener('abort', …)` 만 달았다. 이미 abort 된 signal 에
+              // 붙은 리스너는 **다시 발화하지 않으므로** 이 promise 가 영원히 pending 이
+              // 되고, jest 기본 5000ms 타임아웃으로 죽는다.
+              //
+              // 그 조건이 CI 에서 항상 성립했다(2026-08-09, `#1111` 에서 2회 연속 실패).
+              // 핸들러는 fetch 전에 `assertSafeOutboundHostResolved` 로 **실제 DNS 조회**를
+              // await 한다. 아래 `setTimeout(…, 10)` 이 그 조회보다 먼저 끝나면 fetch 는
+              // **이미 aborted 인 signal** 을 받는다 — 러너에서는 매번 그랬다.
+              // 로컬에서 abort 를 즉시 발화시키면 같은 실패가 재현된다(실증 완료).
+              //
+              // 프로덕션 코드의 결함이 아니다 — 진짜 `fetch` 는 이 경우 곧바로
+              // `AbortError` 로 reject 한다. **mock 이 그 동작을 안 따랐던 것**이라
+              // 여기를 고친다(타임아웃 상향은 증상 덮기다).
+              if (observedSignal!.aborted) failAsAborted();
+              else observedSignal!.addEventListener('abort', failAsAborted);
             });
           });
 

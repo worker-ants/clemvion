@@ -199,6 +199,56 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 가드가 정상 경로를 막지 않는 것도 테스트로 고정했다 — 막으면 trigger 삭제가
       > 조용히 실패한다.
 
+## 신설 `backend unit` 게이트가 첫 실행에서 찾은 것 (2026-08-09)
+
+`#1109` 이 올린 `backend unit` 잡이 PR 에서 처음 돌자 **8494건 중 1건**이 실패했다.
+`#1111`(reusable workflow 추출)에서 관측 — 그 PR 은 CI 배선·하네스 테스트만 바꾸므로
+**원인이 아니다**.
+
+```
+● HttpRequestHandler › … › upstream abort fired during fetch cascades to the fetch controller
+  thrown: "Exceeded timeout of 5000 ms for a test."
+  src/nodes/integration/http-request/http-request.handler.spec.ts:1674
+```
+
+**실측 (2026-08-09)**:
+
+| 환경 | 결과 |
+|---|---|
+| CI (ubuntu-latest, node 24) — 2회 | **실패**, 매번 같은 테스트·같은 타임아웃 |
+| 로컬 node 24, 그 스펙 단독 | 통과 (74/74) |
+| 로컬 node 24, 전체 스위트 `--maxWorkers=2`(CI 와 동일) | 통과 (417 suites / 8493) |
+
+**flake 가 아니다** — CI 에서 2회 연속 결정적으로 실패한다. 그런데 node 버전·worker 수를
+맞춰도 로컬에서 재현되지 않으므로, 남은 차이는 **러너의 CPU 속도·경합**이다.
+
+그 테스트의 동기화 수단은 `setTimeout(() => upstream.abort(), 10)` 하나이고 전체가 jest
+기본 5000ms 안에 끝나야 한다. 400+ 스위트를 2코어에서 돌리는 러너에서 워커가 멈추면
+넘긴다 — 정황은 그쪽을 가리키지만 **재현으로 확정하지는 못했다.**
+
+- [x] **원인 확정 (2026-08-09) — 타이머 기아도, 프로덕션 결함도 아니다. mock 이
+      실제 `fetch` 를 안 따랐다.**
+
+      핸들러는 fetch 전에 `assertSafeOutboundHostResolved` 로 **실제 DNS 조회**를 await
+      한다(DNS rebinding 방어). 테스트는 `setTimeout(() => upstream.abort(), 10)` 로
+      abort 를 쏘는데, DNS 가 10ms 보다 오래 걸리면 **fetch 가 이미 aborted 인 signal 을
+      받는다.** 그런데 그 mock 은 `addEventListener('abort', …)` **만** 달았고, 이미
+      abort 된 signal 의 리스너는 다시 발화하지 않는다 → promise 가 영원히 pending →
+      jest 5000ms 타임아웃.
+
+      **로컬 실증**: abort 를 즉시 발화시키면(무수정 프로브) 같은 실패가 재현된다.
+      바로 옆 테스트(`already-aborted upstream signal …`)의 mock 은 **무조건 reject**
+      해서 통과하고 있었다 — 그 대비가 결정적이었다.
+
+      **프로덕션 코드는 정상이다** — 진짜 `fetch` 는 이미 aborted 인 signal 에 대해
+      곧바로 `AbortError` 로 reject 한다. 취소 경로(`node-cancellation.md` §parallel-p2
+      A+H)에 버그가 있는 것이 아니다.
+- [x] 처분 — **mock 이 실제 `fetch` 동작을 따르게** 고쳤다(`aborted` 면 즉시 reject).
+      타임아웃 상향은 하지 않았다 — 증상 덮기이고, DNS 가 더 느려지면 다시 깨진다.
+      수정 후 같은 프로브로 재확인: **통과**(타이밍 무관해짐).
+- [x] `backend unit` required check 등록 보류 사유 — **해소됨**. 위 1건이 유일한
+      실패였고 원인이 확정·수정됐다.
+
 ## 후속 (타입체크 갭 PR 밖)
 
 > 타입체크 갭 PR: [#1109](https://github.com/worker-ants/clemvion/pull/1109)
@@ -208,16 +258,16 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       "가드가 없으면 실제 Postgres 가 과다삭제한다" 는 주석으로만 서 있다. 재현하려면
       mock 에 LIKE 해석기를 넣거나(테스트가 DB 를 흉내 내다 틀릴 위험을 새로 만든다) e2e 를
       추가해야 해서 그 PR 범위를 넘겼다.
-- [ ] **`changes` 잡 + 셋업 보일러플레이트를 reusable workflow 로 추출 — 트리거 이미 도달**
-      (ai-review INFO 4 · `--impl-done` WARNING).
+- [x] **`changes` 잡 추출 — 완료 (2026-08-09, 다음 PR 로 즉시 집행)**
+      (ai-review INFO 4 · `--impl-done` WARNING). `_changed-paths.yml` 신설, 세 워크플로가
+      `uses:` 로 호출.
       [`ci-required-check-skip-jobs.md`](ci-required-check-skip-jobs.md) 이 "**3번째** 전환
       시점" 을 트리거로 확정해 뒀고 `backend-checks.yml` 이 그 세 번째다. 처음엔 여기 "4번째"
-      라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정한다(실측: `CONVERTED` 3건).
-      > **그래도 이 PR 에서 하지 않는 이유** — 추출은 이미 머지돼 초록인 `deps-security-checks`·
-      > `frontend-checks` **두 워크플로를 함께 건드린다.** 이 PR 의 목적은 backend CI 를
-      > **처음** 세우는 것이고, backend 는 아직 다른 안전망이 하나도 없다. 그 층에서 실수하면
-      > 되돌릴 게이트가 없으므로, 신설과 기존 2개 리팩터를 한 PR 에 섞지 않는다.
-      > **다음 PR 로 즉시** — 4번째 전환을 기다리지 않는다.
+      라고 적었는데 **근거 없이 트리거를 미룬 것**이라 정정했다(실측: `CONVERTED` 3건).
+- [ ] **셋업 보일러플레이트(checkout·pnpm·setup-node·install 5단계) 추출은 별도** —
+      위 추출은 `changes` 잡만 가져갔다. 셋업은 잡마다 필요한 도구가 달라(python 유무,
+      캐시 키) composite action 쪽이 맞는데, 그 판단은 4번째 워크플로가 어떤 셋업을
+      요구하는지 보고 하는 편이 낫다. **범위를 쪼개 남긴다** (ai-review WARNING #1).
 - [ ] `spec/conventions/secret-store.md §2.1` 호출 규약 표에 `deleteByPrefix` 의 새 invariant
       각주 (ai-review INFO 11) — **planner 권한**. 내부 전용 계약이라 spec 충돌은 없다.
 - [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning

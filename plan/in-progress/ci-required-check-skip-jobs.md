@@ -184,16 +184,21 @@ PR 의 목적이 "이 체크를 required 로 올릴 수 있게 만드는 것" �
 - [ ] `review-gate.yml` — **주의**: 전환하면 문서-only PR 에서도 돌게 되므로, 그 경로에서
       게이트 로직이 정상 통과하는지 먼저 확인할 것
 - [ ] `e2e.yml` — `paths-ignore` 형태라 다른 축. 비용이 가장 크니 마지막
-- [ ] **`changes` 잡을 reusable workflow(`workflow_call`)로 추출 — 트리거 도달, 다음 PR**
-      (ai-review W7·W8). 지금은 wiring 이 두 파일에 복제돼 있고 `fetch-depth: 0` 전체
-      clone 을 워크플로마다 지불한다. reviewer 자신이 "3번째 시점에 검토" 를 권고했고,
-      2개 시점에 추상화하면 아직 안 드러난 변형을 추측으로 설계하게 된다.
-      > **트리거 도달 (2026-08-09)**: `backend-checks.yml` 이 세 번째 전환이다
-      > ([`backend-lint-gate-broken-on-main.md`](backend-lint-gate-broken-on-main.md) §후속).
-      > 그 PR 에서 함께 하지 않은 이유는 **추출이 이미 머지돼 초록인 두 워크플로를 같이
-      > 건드리기 때문** — backend CI 를 처음 세우는 PR 에 기존 CI 리팩터를 섞으면, 다른
-      > 안전망이 없는 층에서 실수했을 때 되돌릴 게이트가 없다. 4번째를 기다리지 말고
-      > **다음 PR** 로 집행한다.
+- [x] **`changes` 잡을 reusable workflow(`workflow_call`)로 추출 — 완료 (2026-08-09)**
+      (ai-review W7·W8). `.github/workflows/_changed-paths.yml` 신설, 세 워크플로가
+      `uses:` 로 호출한다. `backend-checks.yml`(`#1109`)이 세 번째 전환이라 그 시점에
+      집행했다 — 4번째를 기다리지 않았다.
+      > **W8(`fetch-depth: 0` 전체 clone 을 워크플로마다 지불)은 이 추출로 해소되지
+      > 않는다.** 잡 수가 그대로라 clone 도 그대로다. 해소하려면 세 워크플로를 한
+      > 워크플로로 합치거나 판정 결과를 공유해야 하는데, 그건 required check 이름
+      > 구성을 바꾸는 별 축이다 — 아래 §후속 으로 남긴다.
+      >
+      > **가장 위험했던 자리**: `workflow_call` 의 `inputs` 는 스칼라만 받아 pathspec
+      > 목록이 여러 줄 문자열로 건너온다. 그걸 배열로 되돌리는 데 실패하면 판정이
+      > `relevant=false` 가 되어 **세 워크플로의 모든 검사가 조용히 no-op** 된다.
+      > 정적 검사 대신 YAML 의 `run:` 블록을 실제 bash 로 돌려 스텁이 받은 인자를 세는
+      > 테스트(`test_changed_paths_reusable.py`)로 고정했고, 그 테스트가 **초판의
+      > `mapfile`(bash 4+ 전용)을 CI 도달 전에 잡았다**.
 - [ ] `migration-recheck-on-main.yml` — **대상 아님**(push 전용, PR 체크가 아니다)
 
 ## 사용자 액션 (이 PR 머지 후)
@@ -205,6 +210,17 @@ Settings → Rules/Branches → `main` → **Require status checks to pass befor
 |---|---|
 | 의존성 보안 | `pnpm 보안 설정 스냅샷 가드` · `pnpm audit (moderate+)` · `override 바닥 침식 검출` |
 | `--frozen-lockfile` | `test-and-build` |
+
+> **추가 확인 (2026-08-09, `changes` 잡 추출 후)**: 인라인 잡이 reusable workflow
+> 호출로 바뀌면서 **체크 표시 이름이 달라질 수 있다.** required check 는 이름으로
+> 매칭하므로 등록 전에 Actions 실행 화면에서 실제 표시 이름을 1회 확인할 것
+> (ai-review INFO 4 — 코드로 미리 단언할 수 있는 값이 아니다).
+>
+> **실측 (2026-08-09, `#1111` CI)**: `changes` 잡은 `변경 경로 판정 / 변경 경로 판정`
+> (호출부 잡 이름 / reusable 잡 이름)으로 표시된다. **required check 후보인 리프
+> 잡들(`backend lint`·`backend unit`·`backend 타입체크 ratchet`·`pnpm audit (moderate+)`·
+> `pnpm 보안 설정 스냅샷 가드`·`override 바닥 침식 검출`·`test-and-build`)의 이름은
+> 바뀌지 않았다** — 등록에 영향 없음.
 
 > **주의**: GitHub 은 최근 약 7일 안에 **한 번이라도 보고된 체크만** 검색에 노출한다. 이
 > 저장소는 Actions 가 12주간 꺼져 있었으므로 목록에 안 뜰 수 있다 — 그 경우 이 PR 이

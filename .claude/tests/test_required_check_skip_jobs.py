@@ -56,6 +56,12 @@ CONVERTED = [
     "frontend-checks.yml",
 ]
 
+# 세 워크플로가 공유하는 `changes` 잡의 reusable workflow. 판정 wiring 이 여기 한 곳에
+# 산다 — 아래 계약들은 **호출부의 `uses:` 를 따라가** 이 파일에서 확인해야 한다.
+# 지름길로 "reusable 을 쓰면 통과" 로 두면, 그 파일이 출력을 안 내거나 step id 가
+# 어긋나도 전 워크플로가 조용히 게이팅을 잃는다 — 한 곳이라 파급이 오히려 크다.
+CHANGES_REUSABLE = "_changed-paths.yml"
+
 
 def load(name):
     return yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))
@@ -64,6 +70,17 @@ def load(name):
 def triggers(doc):
     """YAML 이 `on:` 을 boolean True 로 파싱하므로 두 키를 모두 본다."""
     return doc.get(True) if True in doc else doc.get("on")
+
+
+def pathspecs_of(name):
+    """호출부가 공유 판정 워크플로에 넘기는 pathspec **목록**.
+
+    종전에는 워크플로 텍스트에 `'scripts/ci-paths-changed.sh'`(따옴표 포함) 가 있는지
+    substring 으로 봤다 — 셸 인자였기 때문이다. 지금은 YAML 블록 스칼라라 따옴표가 없고,
+    무엇보다 substring 은 **주석에 적힌 경로도 통과시킨다.** 파싱해서 실제 원소로 본다.
+    """
+    with_ = (load(name).get("jobs", {}).get("changes") or {}).get("with") or {}
+    return [line.strip() for line in (with_.get("pathspecs") or "").splitlines() if line.strip()]
 
 
 class RequiredCheckSkipJobContractTest(unittest.TestCase):
@@ -99,19 +116,42 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
             with self.subTest(workflow=name):
                 jobs = load(name).get("jobs", {})
                 self.assertIn("changes", jobs, f"{name}: changes 잡이 없다")
-                outputs = jobs["changes"].get("outputs") or {}
+                # 호출부는 wiring 을 갖지 않고 reusable workflow 를 부른다.
                 self.assertEqual(
-                    outputs.get("relevant"),
-                    "${{ steps.detect.outputs.relevant }}",
-                    f"{name}: changes.outputs.relevant 가 detect 스텝을 가리키지 않는다",
+                    jobs["changes"].get("uses"),
+                    f"./.github/workflows/{CHANGES_REUSABLE}",
+                    f"{name}: changes 잡이 공유 판정 워크플로를 부르지 않는다",
                 )
-                step_ids = {s.get("id") for s in jobs["changes"].get("steps", [])}
-                self.assertIn(
-                    "detect",
-                    step_ids,
-                    f"{name}: changes 잡에 `id: detect` 스텝이 없다 — "
-                    "출력이 빈 문자열이 되어 게이팅이 무력화된다",
+                # pathspec 을 안 넘기면 판정 대상이 0개다.
+                pathspecs = (jobs["changes"].get("with") or {}).get("pathspecs")
+                self.assertTrue(
+                    pathspecs and pathspecs.strip(),
+                    f"{name}: changes 잡이 pathspecs 를 넘기지 않는다",
                 )
+
+        # 지름길 방지 — 실제 출력을 내는 쪽은 reusable workflow 다. 여기까지 따라가
+        # 확인하지 않으면 세 워크플로가 한꺼번에 게이팅을 잃어도 이 스위트는 초록이다.
+        shared = load(CHANGES_REUSABLE)
+        outputs = (shared.get("jobs", {}).get("detect") or {}).get("outputs") or {}
+        self.assertEqual(
+            outputs.get("relevant"),
+            "${{ steps.detect.outputs.relevant }}",
+            f"{CHANGES_REUSABLE}: detect 잡 출력이 detect 스텝을 가리키지 않는다",
+        )
+        step_ids = {s.get("id") for s in shared["jobs"]["detect"].get("steps", [])}
+        self.assertIn(
+            "detect",
+            step_ids,
+            f"{CHANGES_REUSABLE}: `id: detect` 스텝이 없다 — 출력이 빈 문자열이 된다",
+        )
+        # workflow_call 의 `outputs.relevant.value` 가 그 잡을 가리켜야 호출부의
+        # `needs.changes.outputs.relevant` 가 값을 받는다. 여기가 끊기면 전부 빈 문자열이다.
+        call_outputs = ((triggers(shared) or {}).get("workflow_call") or {}).get("outputs") or {}
+        self.assertEqual(
+            (call_outputs.get("relevant") or {}).get("value"),
+            "${{ jobs.detect.outputs.relevant }}",
+            f"{CHANGES_REUSABLE}: workflow_call 출력이 detect 잡을 가리키지 않는다",
+        )
 
     def test_the_two_registries_agree(self):
         """전환 목록이 두(사실상 3) 곳에 독립 존재해 한쪽만 갱신해도 조용히 통과했다.
@@ -207,11 +247,19 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
         """
         for name in CONVERTED:
             with self.subTest(workflow=name):
-                text = (WORKFLOWS / name).read_text(encoding="utf-8")
+                specs = pathspecs_of(name)
                 self.assertIn(
-                    "'scripts/ci-paths-changed.sh'",
-                    text,
-                    f"{name}: detect 대상 글롭에 스크립트 자신이 없다",
+                    "scripts/ci-paths-changed.sh",
+                    specs,
+                    f"{name}: detect 대상 글롭에 판정 스크립트 자신이 없다",
+                )
+                # wiring 도 같은 이유로 등재돼야 한다 — reusable workflow 가 바뀌면
+                # 그것에 기대는 이 워크플로가 돌아야 한다. 추출로 **새로 생긴** 의존이라
+                # 등재를 빠뜨리기 쉬운 자리다(이 저장소가 여섯 번 겪은 갭의 7번째 후보).
+                self.assertIn(
+                    f".github/workflows/{CHANGES_REUSABLE}",
+                    specs,
+                    f"{name}: detect 대상 글롭에 공유 판정 워크플로가 없다",
                 )
 
     def test_manifest_globs_cover_depth_zero(self):
@@ -224,13 +272,13 @@ class RequiredCheckSkipJobContractTest(unittest.TestCase):
         도는" 상태로, 이 파일이 막으려는 바로 그 클래스다(ai-review W3).
         """
         for name in CONVERTED:
-            text = (WORKFLOWS / name).read_text(encoding="utf-8")
-            if "'codebase/**/package.json'" not in text:
+            specs = pathspecs_of(name)
+            if "codebase/**/package.json" not in specs:
                 continue  # 그 워크플로는 매니페스트를 대상으로 하지 않는다
             with self.subTest(workflow=name):
                 self.assertIn(
-                    "'codebase/package.json'",
-                    text,
+                    "codebase/package.json",
+                    specs,
                     f"{name}: 중간 `**` pathspec 만 있고 깊이 0(`codebase/package.json`)이 "
                     "빠졌다 — 그 파일이 생기는 순간 조용히 검사에서 빠진다",
                 )

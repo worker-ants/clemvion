@@ -36,37 +36,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다.
+  # 종전 `on.*.paths` 목록이 여기 한 곳에만 산다. wiring 은 `_changed-paths.yml` 공유.
+  #
+  # `codebase/packages/**` 도 대상이다 — backend 가 `@workflow/*` 내부 패키지를 workspace
+  # 의존으로 쓰므로 그쪽 변경이 backend 타입/테스트를 깨뜨릴 수 있다.
+  #
+  # `_changed-paths.yml` 자신도 목록에 있다 — 판정 wiring 이 바뀌면 그것에 기대는 이
+  # 워크플로가 돌아야 한다(`scripts/ci-paths-changed.sh` 를 등재한 것과 같은 이유).
   changes:
     name: 변경 경로 판정
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    outputs:
-      relevant: ${{ steps.detect.outputs.relevant }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - id: detect
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          # push 에도 실제 diff 를 넘긴다 — 안 넘기면 main 으로의 모든 push 가
-          # fail-safe 로 전체 잡을 돌려 목적 범위를 넘는 광역화가 된다.
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-          PUSH_AFTER_SHA: ${{ github.event.after }}
-        # `codebase/packages/**` 도 대상이다 — backend 가 `@workflow/*` 내부 패키지를
-        # workspace 의존으로 쓰므로 그쪽 변경이 backend 타입/테스트를 깨뜨릴 수 있다.
-        run: |
-          scripts/ci-paths-changed.sh \
-            'codebase/backend/**' \
-            'codebase/packages/**' \
-            'pnpm-lock.yaml' \
-            'pnpm-workspace.yaml' \
-            'scripts/check-backend-typecheck-ratchet.py' \
-            'scripts/backend-typecheck-baseline.json' \
-            'scripts/ci-paths-changed.sh' \
-            '.github/workflows/backend-checks.yml'
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        codebase/backend/**
+        codebase/packages/**
+        pnpm-lock.yaml
+        pnpm-workspace.yaml
+        scripts/check-backend-typecheck-ratchet.py
+        scripts/backend-typecheck-baseline.json
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        .github/workflows/backend-checks.yml
 
   lint:
     name: backend lint
