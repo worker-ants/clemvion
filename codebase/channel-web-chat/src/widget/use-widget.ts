@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { EiaClient, EiaError, isTerminalAuthError, type EventSourceLike } from "@/lib/eia-client";
+import { EiaClient, EiaError, isTerminalAuthError, redactToken, type EventSourceLike } from "@/lib/eia-client";
 import type {
   AiMessageEvent,
   ExecutionMessageEvent,
@@ -126,6 +126,13 @@ type SeedOutcome =
  * 뮤턴트는 **생존이 정상**이다 — 현재 union 이 네 리터럴로 닫혀 있어 두 식이 동치다. 이 함수의
  * 값은 지금의 동치성이 아니라 **다섯 번째 갈래가 생겼을 때 어느 쪽으로 기우는가**에 있다
  * (ai-review `17_15_33_2` → `17_25_34_2` maintainability).
+ *
+ * **다섯 번째 갈래를 추가하려는 사람에게**: 이 헬퍼만 고치면 끝이 아니다. 호출부 두 곳
+ * (`start()`·`applyConfig`)의 **꼬리 블록**(`live` 재확인 → `deferredStreamRef` 세팅 → 조건부
+ * `openStream` → `scheduleRefresh`)이 리터럴로 복제돼 있어 함께 늘어나야 한다. 착수 전 부분
+ * 추출 검토: `plan/in-progress/webchat-auth-session-status-reconcile.md` §꼬리 블록 중복.
+ * (그 plan 제목은 "frontmatter 재판정" 이라 이 항목을 우연히 열어볼 이유가 없다 — 그래서
+ * 여기 breadcrumb 을 둔다. ai-review `18_51_07` maintainability.)
  */
 function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
   return outcome !== "continue" && outcome !== "refresh_deferred";
@@ -463,10 +470,14 @@ export function useWidget() {
           onEvent: handleEiaEvent,
           // SSE 연결 오류 가시화 — EventSource 는 자동 재연결하므로 흐름은 유지하되, CORS/네트워크 차단을
           // 조용히 삼키지 않도록 console.warn 으로 진단 신호를 남긴다(특히 /api/external/* CORS 미허용 시).
+          // **원본 이벤트를 넘기지 않는다.** `EventSource` 의 error 이벤트는 `e.target.url` 로
+          // **토큰이 실린 스트림 URL** 을 들고 있어, 객체째 찍으면 문자열 redaction 이 닿지 않는
+          // 경로로 토큰이 콘솔에 남는다(ai-review `18_51_07` security). 진단에 필요한 것은
+          // "어떤 종류의 실패인가" 뿐이라 타입만 남긴다.
           onError: (e) =>
             console.warn(
               "[widget] SSE stream error — /api/external/* CORS(WEB_CHAT_WIDGET_ORIGINS)·네트워크 확인:",
-              e,
+              e && typeof e === "object" && "type" in e ? String((e as { type: unknown }).type) : "error",
             ),
         },
         lastEventId,
@@ -1218,8 +1229,25 @@ export function useWidget() {
 
     const bridge = createIframeBridge();
     bridgeRef.current = bridge;
+    /**
+     * `applyConfig` 를 띄우고 **실패를 반드시 받는다**.
+     *
+     * 그냥 `void applyConfig(...)` 로 두면 그 안의 throw(예: `openStream` 의 동기 실패)가
+     * **unhandled rejection** 이 되고 브라우저 기본 로거가 메시지를 그대로 찍는다 — 그 메시지엔
+     * **토큰이 실린 SSE URL** 이 들어 있어 애플리케이션 레벨 redaction 이 개입할 자리가 아예
+     * 없었다(ai-review `18_51_07` security).
+     *
+     * **헬퍼로 묶은 이유**: 호출부가 둘(bridge boot · 직접 로드 폴백)이고, 한쪽에만 `catch` 를
+     * 붙이는 것이 이 파일이 반복해 낸 결함이다. 처음 고칠 때 실제로 한쪽만 고쳤다.
+     */
+    const runApplyConfig = (cfg: BootMessage) => {
+      void applyConfig(cfg).catch((e: unknown) => {
+        console.warn("[widget] boot config 적용 실패:", redactToken(e instanceof Error ? e.message : String(e)));
+      });
+    };
+
     bridge.onBoot((c) => {
-      void applyConfig({ ...configFromQuery(), ...c } as BootMessage);
+      runApplyConfig({ ...configFromQuery(), ...c } as BootMessage);
     });
     bridge.onCommand((cmd) => {
       switch (cmd.action) {
@@ -1255,7 +1283,7 @@ export function useWidget() {
     // host 없이 직접 로드(샘플/개발): query param 만으로도 부팅 시도.
     const fallback = configFromQuery();
     if (fallback.apiBase && fallback.triggerEndpointPath) {
-      void applyConfig(fallback as BootMessage);
+      runApplyConfig(fallback as BootMessage);
     }
 
     return () => {
@@ -1296,6 +1324,8 @@ const GENERIC_ERROR_MESSAGE = WIDGET_STRINGS.ko["error.generic"];
 
 function errMessage(e: unknown): string {
   // 진단 원문은 console 에만(운영 추적) — UI 비노출.
-  console.warn("[widget] conversation error:", e instanceof Error ? e.message : String(e));
+  // **redact 한다** — `start()` 의 `openStream` 이 동기 throw 하면 그 예외 메시지에
+  // **토큰이 쿼리로 실린 SSE URL** 이 들어온 채 여기로 온다(ai-review `18_51_07` security).
+  console.warn("[widget] conversation error:", redactToken(e instanceof Error ? e.message : String(e)));
   return GENERIC_ERROR_MESSAGE;
 }

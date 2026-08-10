@@ -184,11 +184,17 @@ export function isTerminalAuthError(err: unknown): boolean {
  * 로그로 내보낼 문자열에서 **쿼리의 per_execution 토큰을 지운다**.
  *
  * SSE 는 `EventSource` 가 헤더를 못 실어 토큰을 쿼리로 보낸다(위 `openStream`, EIA §8.3).
- * 그래서 그 URL 이 들어간 예외 메시지를 그대로 찍으면 **단명 토큰이 브라우저 콘솔에 남는다** —
- * 공개 사이트에 임베드되는 위젯이라 그 콘솔은 호스트 페이지의 다른 스크립트도 읽을 수 있다
+ * 그래서 그 URL 이 들어간 예외 메시지를 그대로 찍으면 **단명 토큰이 브라우저 콘솔에 남는다**
  * (ai-review `18_23_54` security).
  *
- * `token` 뿐 아니라 `lastEventId` 같은 인접 파라미터는 건드리지 않는다 — 지울 것만 지운다.
+ * **근거 정정**: 처음 이 주석은 "호스트 페이지의 다른 스크립트가 그 콘솔을 읽을 수 있다" 고
+ * 적었는데 **그건 틀렸다** — 위젯은 cross-origin iframe 이라 호스트 realm 의 스크립트가 이
+ * realm 의 `console` 을 패치하거나 읽을 수 없다. 실제 노출면은 그보다 좁다: devtools 를 여는
+ * 사람, 콘솔을 수집하는 브라우저 확장, 버그 리포트에 첨부되는 콘솔 덤프·스크린샷, 그리고
+ * 위젯을 **같은 origin 에 임베드**하는 배포. 좁아졌다고 해서 단명 자격증명을 로그에 남길
+ * 이유는 없으므로 방어는 그대로 둔다.
+ *
+ * `token` 만 지우고 `lastEventId` 같은 인접 파라미터는 건드리지 않는다 — 지울 것만 지운다.
  */
 export function redactToken(text: string): string {
   return text.replace(/([?&]token=)[^&\s"']+/gi, "$1<redacted>");

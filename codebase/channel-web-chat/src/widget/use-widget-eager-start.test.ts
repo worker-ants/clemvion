@@ -33,6 +33,16 @@ class ControllableEventSource {
   emit(type: string, data: unknown) {
     this.listeners[type]?.({ data: JSON.stringify(data) } as MessageEvent);
   }
+  /**
+   * `error` 이벤트를 **원본 형태 그대로** 주입한다 — `emit` 과 달리 JSON 직렬화하지 않는다.
+   *
+   * 실제 `EventSource` 의 error 이벤트는 `target.url`(토큰이 실린 스트림 URL)을 들고 오고,
+   * 핸들러가 그 객체를 통째로 로깅하면 문자열 redaction 이 닿지 않는다. 그 형태를 재현해야
+   * 회귀가 의미를 갖는다(ai-review `18_51_07` security).
+   */
+  emitError(event: unknown) {
+    this.listeners.error?.(event as MessageEvent);
+  }
 }
 
 class FakeEventSource {
@@ -691,6 +701,84 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(logged).not.toContain("iext_w");
     expect(logged).not.toContain("iext_r");
     vi.useRealTimers();
+  });
+
+  /**
+   * **토큰이 로그로 새는 자리는 하나가 아니었다.**
+   *
+   * `openStream` 을 부르는 진입점은 셋(`start()` · `applyConfig` 복원 · `resumeDeferredStream`)이고,
+   * 처음엔 마지막 한 곳에만 redaction 을 걸었다. 나머지 둘은 각각 `errMessage()` 경유 `console.warn`
+   * 과 **unhandled rejection**(브라우저 기본 로거)으로 토큰이 실린 URL 을 그대로 내보냈다 —
+   * security·side_effect 두 리뷰어가 독립 수렴해 잡았다(ai-review `18_51_07`).
+   *
+   * 그래서 회귀도 **진입점별로** 건다. 한 경로만 고정하면 그게 바로 다음 "한쪽만" 이다.
+   */
+  it("§보안: `start()` 경로의 스트림 오픈 실패가 토큰을 콘솔에 남기지 않는다", async () => {
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && (init?.method ?? "GET") === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({ data: { executionId: "e1", status: "pending", interaction: { token: "iext_leaky", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS } } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { status: "running" } }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    installControllableEventSource();
+    throwOnce = true; // `start()` 의 openStream 이 던진다.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    // config 확립을 기다린 뒤 연다 — 안 그러면 `start()` 가 `!cfg` 로 조기 return 해 이 테스트가
+    // **아무 경로도 안 타고** 통과할 수 있다(처음 이렇게 썼다가 빈 로그로 발각).
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+
+    await waitFor(() =>
+      expect(warn.mock.calls.flat().map(String).join(" ")).toContain("token="),
+    );
+    const logged = warn.mock.calls.flat().map(String).join(" ");
+    expect(logged).not.toContain("iext_leaky");
+    expect(logged).toContain("token=<redacted>");
+  });
+
+  it("§보안: SSE onError 는 원본 이벤트를 찍지 않는다 — `e.target.url` 로 새던 자리", async () => {
+    // 문자열 redaction 이 닿지 않는 **별개 벡터**다. `EventSource` 의 error 이벤트는
+    // `target.url` 에 토큰이 실린 스트림 URL 을 들고 있어 객체째 찍으면 그대로 노출된다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_sse", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { status: "running" } }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(getUrl()).toContain("iext_sse"); // 전제: 그 URL 엔 토큰이 실려 있다
+    // 실제 `EventSource` 의 error 이벤트를 흉내낸다 — `target.url` 을 들고 온다.
+    act(() => {
+      getEs()?.emitError({ type: "error", target: { url: getUrl() } });
+    });
+    const logged = warn.mock.calls.flat().map((c) => JSON.stringify(c)).join(" ");
+    expect(logged).not.toContain("iext_sse");
   });
 
   it("그 외 오류는 여전히 soft-fail — 500 은 종료로 오판하지 않는다", async () => {

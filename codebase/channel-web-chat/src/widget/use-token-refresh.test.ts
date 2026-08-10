@@ -65,7 +65,13 @@ describe("retryDelayMs — 일시적 갱신 실패 백오프", () => {
 
 describe("useTokenRefresh (fake timer)", () => {
   beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // **`shouldAdvanceTime` 을 쓰지 않는다.** 그 옵션은 가상 시계를 실경과시간에 얹으므로,
+    // 백오프 간격(5초)과 검증 창이 같은 자릿수인 이 파일에선 **실행 속도가 관측 값을 바꾼다** —
+    // 자매 파일에서 정확히 그 형태가 CRITICAL 이었다(콜드 4/4 FAIL, 웜 10/10 PASS).
+    // 이 파일은 `waitFor` 폴링을 쓰지 않고 전부 `advanceTimersByTimeAsync` 로 시계를 직접 몰기
+    // 때문에 그 옵션이 애초에 불필요하다 — 마진을 넓히는 대신 **결합 자체를 없앤다**
+    // (ai-review `18_51_07` testing).
+    vi.useFakeTimers();
     window.sessionStorage.clear();
   });
   afterEach(() => {
@@ -151,7 +157,7 @@ describe("useTokenRefresh (fake timer)", () => {
     window.sessionStorage.removeItem("clemvion-web-chat:session:t1");
 
     // 옛 세계의 갱신 응답이 뒤늦게 도착. 고정 횟수 microtask flush(`await Promise.resolve()` 반복)는
-    // 체인 길이를 추측하는 것이라 쓰지 않는다 — 이 파일의 fake timer 는 `shouldAdvanceTime: true` 라
+    // 체인 길이를 추측하는 것이라 쓰지 않는다 — `advanceTimersByTimeAsync` 는 await 지점이라
     // 타이머를 0ms 전진시키면 대기 중인 microtask 가 전부 배출된다(다른 테스트와 동일 관례).
     await act(async () => {
       resolveRefresh?.({ token: "iext_stale", expiresAt: new Date(Date.now() + NINETY_MIN).toISOString() });
