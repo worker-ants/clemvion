@@ -469,9 +469,54 @@ describe("useWidget — eager 시작(§R6)", () => {
     const { result } = renderHook(() => useWidget());
     boot();
 
-    // soft-fail → SSE 로 진행한다(종료 아님). storage 도 보존된다.
-    await waitFor(() => expect(getEs()).not.toBeNull());
+    // **종료도 아니고 진행도 아니다** — 세션은 보존하되 이번 왕복은 포기한다(`"stale"`).
+    // 진행하면 서버가 방금 거부한 토큰으로 **새 SSE** 를 열어 이 변경이 고치려던
+    // "streaming 고착" 을 재현한다(ai-review `16_42_07` side_effect CRITICAL).
+    // **`storage != null` 을 기다리면 안 된다** — boot 전에 이미 차 있어 t=0 에 참이고,
+    // 그러면 비동기 흐름이 끝나기 전에 단언이 돌아 뮤턴트를 놓친다(실측: 상태 필터를 지운
+    // 뮤턴트가 그 판을 통과했다). refresh 가 **실제로 불린 뒤** 판정한다.
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/refresh-token"))).toBe(true),
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.state.phase).not.toBe("ended"); // 일시 장애를 종료로 오판하지 않는다
+    expect(getEs()).toBeNull();                            // 죽은 토큰으로 스트림을 열지 않는다
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+  });
+
+  it("§R4: refresh 가 `500` 으로 실패해도 종료로 확정하지 않는다 — 상태 **필터** 축", async () => {
+    // 위 테스트는 "`EiaError` 인가" 축만 가른다(네트워크 reject 는 `EiaError` 가 아니다).
+    // `terminal = refreshErr instanceof EiaError` 로 **상태 필터만** 지운 뮤턴트는 그 테스트를
+    // 통과한다(실측, testing reviewer 16_42_07). 이 케이스가 그 축을 겨냥한다 — `500` 은
+    // `EiaError` 이지만 `401`/`410` 이 아니므로 종료 대상이 아니다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_y", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // 위와 같은 이유로 refresh 호출을 기다린다(storage 는 t=0 에 이미 참이다).
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/refresh-token"))).toBe(true),
+    );
+    await act(async () => { await Promise.resolve(); });
     expect(result.current.state.phase).not.toBe("ended");
+    expect(getEs()).toBeNull();
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
   });
 

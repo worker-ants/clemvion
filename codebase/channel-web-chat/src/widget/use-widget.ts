@@ -90,7 +90,20 @@ type SeedOutcome =
   /** await 사이 세션이 교체·초기화됨 → 응답을 폐기함(아무 상태도 안 건드림). */
   | "stale"
   /** 정상(표면 시드 완료 또는 시드할 표면 없음, soft-fail 포함) → 호출부 진행 가능. */
-  | "continue";
+  | "continue"
+  /**
+   * `401` 복구가 **일시적 이유로** 실패함(네트워크·5xx — `401`/`410` 이 아님).
+   *
+   * 호출부는 **스트림만 건너뛰고 `scheduleRefresh` 는 건다.** 두 부작용이 반대 방향이라
+   * 기존 갈래로 뭉갤 수 없다:
+   * - `"continue"` 로 두면 **거부된 토큰으로 SSE 를 연다**(`16_42_07` side_effect CRITICAL).
+   * - `"stale"` 로 두면 호출부가 `scheduleRefresh` 까지 건너뛰는데, 그건 이 세션의 **유일한**
+   *   주기 갱신 예약 지점이라 복구 사이클이 아예 없어져 스피너에 영구 고착된다
+   *   (`16_56_39` security·side_effect CRITICAL — 내가 `"stale"` 로 고치며 만든 결함).
+   *
+   * 즉 "스트림은 안 되지만 세션은 살아 있고 갱신은 기대할 수 있다" 를 뜻한다.
+   */
+  | "refresh_deferred";
 
 /**
  * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
@@ -423,7 +436,16 @@ export function useWidget() {
             "[widget] token refresh failed (non-terminal):",
             refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
           );
-          return "continue"; // 종료로 오판하지 않는다 — SSE 가 1차 복구 경로다.
+          // **`"continue"` 를 돌려주면 안 된다.** 그 값은 "호출부가 진행해도 된다" 는 뜻인데,
+          // 여기서는 토큰이 **여전히 죽어 있다**(`getStatus` 가 `401` 을 줬고 refresh 는 못
+          // 살렸다). 진행하면 거부된 토큰으로 **새 SSE 를 열어** 이 변경이 고치려던
+          // "streaming 고착" 을 그대로 재현한다(ai-review `16_42_07` side_effect CRITICAL).
+          //
+          // 그렇다고 `"ended"` 도 아니다 — 일시적 장애를 종료로 오판하면 살아있는 대화를
+          // 잃는다(`webchat-boot-single-flight` 사고). 세션은 **보존**하고 이번 왕복만
+          // 포기한다: `"stale"` 이 정확히 그 뜻이다(아무 상태도 안 건드리고 호출부는 멈춘다).
+          // 다음 복구는 `use-token-refresh` 의 주기 갱신이 맡는다.
+          return "stale";
         }
         // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
         // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나

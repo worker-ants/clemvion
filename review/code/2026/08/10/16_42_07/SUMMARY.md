@@ -15,7 +15,7 @@
 
 | # | reviewer | 발견사항 | 조치 |
 |---|---|---|---|
-| 1 | **side_effect** | **non-terminal refresh 실패가 `"continue"` 를 돌려줘 호출부가 죽은 토큰으로 새 SSE 를 연다** — 이 PR 이 고치려던 "streaming 고착" 의 재현. **내가 security INFO 로 받아 plan 에 등재만 하고 넘긴 항목**이었다 | **반영** — `"stale"` 반환(세션 보존 + 호출부 정지). 뮤테이션 RED 2건 |
+| 1 | **side_effect** | **non-terminal refresh 실패가 `"continue"` 를 돌려줘 호출부가 죽은 토큰으로 새 SSE 를 연다** — 이 PR 이 고치려던 "streaming 고착" 의 재현. **내가 security INFO 로 받아 plan 에 등재만 하고 넘긴 항목**이었다 | **⚠ 이 라운드에서는 반영되지 않았다** — 아래 정정 참조. `16_56_39` 에서 `"refresh_deferred"` 로 최종 처분 |
 
 ## 경고
 
