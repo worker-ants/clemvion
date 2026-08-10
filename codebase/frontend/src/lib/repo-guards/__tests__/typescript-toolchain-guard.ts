@@ -121,7 +121,7 @@ export function expandWorkspaceGlobs(
 export function validateWorkspacePatterns(patterns: string[] | null): string[] {
   if (patterns === null || patterns.length === 0) {
     throw new Error(
-      "discoverWorkspaceDirs: pnpm-workspace.yaml 의 packages: 목록을 읽지 못했다 — " +
+      "validateWorkspacePatterns: pnpm-workspace.yaml 의 packages: 목록을 읽지 못했다 — " +
         "추출 실패를 빈 목록으로 흘려보내면 가드가 통째로 vacuous 해진다.",
     );
   }

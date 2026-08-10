@@ -64,6 +64,12 @@ export function blockRange(lines: string[], keyIdx: number): [number, number] {
   return [keyIdx + 1, end];
 }
 
+/**
+ * `[from, to)` 범위에서 `key:` **선언 줄**의 인덱스. 미발견 시 -1.
+ *
+ * 리스트 항목(`- name: x`)은 건너뛴다 — 형태상 `key:` 를 포함하지만 선언이 아니라 값이다.
+ * 그 구분이 없으면 `jobs.*.steps[].name` 같은 흔한 매트릭스에서 엉뚱한 줄을 잡는다.
+ */
 export function findKeyLine(
   lines: string[],
   key: string,

@@ -1,9 +1,12 @@
 // 내부 패키지 등록 목록 drift 가드 — 파서·비교 순수 로직.
 //
 // 소비처(테스트/게이트)는 형제 파일 `internal-package-registration.test.ts`. 가드의 목적과
-// 배치 근거(왜 frontend vitest 인가)는 그 파일 헤더에 있다. 본 모듈은 그 가드가 쓰는 파서
-// (bash / YAML 서브셋)와 비교 로직만 담는다 — 단일 파일이 다중 책임을 지지 않도록 분리(리뷰
-// WARNING). 테스트 파일은 이 모듈을 import 해 "실측 대조" + "합성 fixture 회귀"만 담당한다.
+// 배치 근거(왜 frontend vitest 인가)는 그 파일 헤더에 있다. 본 모듈은 그 가드가 쓰는 **bash
+// 파서**와 비교 로직을 담는다 — 단일 파일이 다중 책임을 지지 않도록 분리(리뷰 WARNING).
+// 테스트 파일은 이 모듈을 import 해 "실측 대조" + "합성 fixture 회귀"만 담당한다.
+//
+// **YAML 서브셋 파서와 루트 탐색은 여기 없다** — 형제 가드(`typescript-toolchain-guard.ts`)도
+// 쓰므로 중립 모듈 `_shared.ts` 가 소유한다. 아래 import 지점의 주석이 그 경계를 설명한다.
 //
 // 이 파일도 `__tests__/` 아래라 tsconfig 의 `src/**/__tests__/**` exclude 에 걸려 tsc/next build
 // 에서 제외된다(런타임 전용 — 컴파일타임 단언은 무의미). vitest 의 test include 는
@@ -36,9 +39,13 @@ import {
 } from "./_shared";
 
 // 루트 탐색·YAML 서브셋 추출기는 형제 가드(`typescript-toolchain-guard.ts`)도 쓰므로
-// `_shared.ts` 가 소유한다. 여기서 **재export** 하는 이유는 이 모듈이 이미 그 심볼들의
-// 공개 창구였기 때문이다 — 소비처를 한 번에 갈아엎지 않고 소유권만 옮긴다.
-export { ROOT, blockRange, findKeyLine, listAtPath, repoRoot };
+// `_shared.ts` 가 소유한다.
+//
+// **이미 공개돼 있던 것만 재export 한다** — `repoRoot`/`ROOT`/`listAtPath`/`PackageManifest`
+// 넷이 그렇다. 소비처를 한 번에 갈아엎지 않고 소유권만 옮기는 게 목적이므로, 원래 이 모듈의
+// 비공개 헬퍼였던 `blockRange`/`findKeyLine` 까지 끌어올리면 없던 공개 표면을 새로 만드는
+// 셈이다(이관의 부산물로 API 가 넓어지는 건 이관이 아니다). 그 둘은 `_shared` 에서만 쓴다.
+export { ROOT, listAtPath, repoRoot };
 export type { PackageManifest };
 
 export const PACKAGES_DIR = path.join(ROOT, "codebase", "packages");
