@@ -237,7 +237,7 @@ ScheduleWakeup delay:
 
 ## 디버그 로그
 
-orchestrator 가 `/tmp/code-review-agents-log.txt` 에 prepare 단계의 이벤트(파일 수집, prompt 사이즈, batch 분할) 를 기록한다. model 호출 자체는 main session 의 transcript 에 남는다.
+orchestrator 가 `/tmp/code-review-agents-log.txt` 에 prepare 단계의 이벤트(파일 수집, prompt 사이즈, 대형 changeset 안내) 를 기록한다. model 호출 자체는 main session 의 transcript 에 남는다.
 
 ## Ctrl+C 동작
 

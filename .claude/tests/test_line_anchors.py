@@ -105,7 +105,17 @@ def pick_commit_fixture(cwd=None) -> str:
             # "-" marks a binary file; it contributes no gutter lines.
             if len(cols) >= 3 and cols[2] in files:
                 changed += sum(int(c) for c in cols[:2] if c.isdigit())
-        if changed >= MIN_FIXTURE_CHANGED_LINES:
+        if changed < MIN_FIXTURE_CHANGED_LINES:
+            continue
+        # A deletion-only commit clears the threshold with room to spare and then
+        # cross-checks nothing: the consumers resolve source via `git show
+        # <sha>:<path>`, which is empty for every path the commit removed, so
+        # every diff line is skipped and `checked` lands at 0. Measured on
+        # `e4ce8adf8` (9 files, 627 deletions) — the suite went RED for a commit
+        # that never touched the gutter, the same shape as the doc-only and merge
+        # cases above. Require at least one path that still exists at `sha`.
+        # `any()` short-circuits, so the usual cost is one `git show`.
+        if any(_git("show", f"{sha}:{f}", cwd=cwd).strip() for f in sorted(files)):
             return sha
     return ""
 

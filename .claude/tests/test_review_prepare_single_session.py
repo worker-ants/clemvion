@@ -62,13 +62,13 @@ class PrepareEmitsExactlyOneSessionTest(unittest.TestCase):
                 return "/tmp/session-%d" % len(seen)
             orch.prepare_session = fake_prepare
             sys.argv = ["orch", "--prepare"]
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+            buf, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
                 try:
                     orch.main()
                 except SystemExit:
                     pass
-            emit({"stdout": buf.getvalue(), "batch_sizes": seen})
+            emit({"stdout": buf.getvalue(), "batch_sizes": seen, "stderr": err.getvalue()})
             """,
             {
                 "infos": _infos(n_files),
@@ -112,6 +112,22 @@ class PrepareEmitsExactlyOneSessionTest(unittest.TestCase):
         out = self._stdout_lines(n_files=9, batch_size=0)
         self.assertEqual(out["batch_sizes"], [9])
 
+    def test_main_actually_calls_the_large_changeset_notice(self):
+        """Call-site test — `LargeChangesetIsAnnouncedTest` only proves the helper.
+
+        The helper being correct and `main()` calling it are different claims, and
+        this repo has been burned by conflating them three times (mutants P1, V5,
+        T6 all survived until a call-site test existed). Drive `main()` and read
+        its stderr rather than the helper's.
+        """
+        out = self._stdout_lines(n_files=137, batch_size=50)
+        self.assertIn("137", out["stderr"])
+        self.assertIn("SINGLE", out["stderr"].upper())
+
+    def test_a_small_changeset_leaves_main_quiet_about_size(self):
+        out = self._stdout_lines(n_files=3, batch_size=50)
+        self.assertNotIn("LARGE CHANGESET", out["stderr"])
+
 
 class LargeChangesetIsAnnouncedTest(unittest.TestCase):
     """Dropping the split must not make the size silent — say it on stderr."""
@@ -152,13 +168,6 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
     split (for any reason) cannot quietly re-arm the false PASS.
     """
 
-    ALL = [
-        "security", "performance", "architecture", "requirement", "scope",
-        "side_effect", "maintainability", "testing", "documentation",
-        "dependency", "database", "concurrency", "api_contract",
-        "user_guide_sync",
-    ]
-
     def _forced(self, paths):
         """Resolve the forced set in the orchestrator's own interpreter.
 
@@ -172,10 +181,12 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
         """
         out = run_in_orchestrator(
             """
-            agents, _ = orch.compute_forced_agents(ARG["paths"], ARG["all"], ARG["root"])
+            agents, _ = orch.compute_forced_agents(
+                ARG["paths"], orch.ALL_AGENTS, ARG["root"]
+            )
             emit(sorted(agents))
             """,
-            {"paths": paths, "all": self.ALL, "root": str(REPO_ROOT)},
+            {"paths": paths, "root": str(REPO_ROOT)},
         )
         return set(out)
 

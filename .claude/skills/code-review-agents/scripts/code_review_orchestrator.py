@@ -917,11 +917,9 @@ def build_router_prompt_body(
     all_paths = [ci["file_path"] for ci in change_infos]
     src_paths = router_safety.source_files(all_paths)
     if src_paths:
-        shown = "\n".join(f"  - `{p}`" for p in src_paths[:20])
-        more = f"\n  - … 외 {len(src_paths) - 20}개" if len(src_paths) > 20 else ""
         composition_block = (
             f"변경 파일 {len(all_paths)}개 중 **소스 코드 파일 {len(src_paths)}개**:\n"
-            f"{shown}{more}\n\n"
+            f"{_bulleted_path_sample(src_paths)}\n\n"
             "→ 이 변경은 **문서 전용이 아닙니다.** \"문서만 변경\" 을 사유로 "
             "reviewer 를 제외하지 마세요. 문서 파일 수가 많더라도 위 소스 파일의 "
             "실제 내용을 근거로 판단하세요.\n"
@@ -933,12 +931,10 @@ def build_router_prompt_body(
         )
         unseen = _source_files_missing_from_changeset(all_paths)
         if unseen:
-            shown = "\n".join(f"  - `{p}`" for p in unseen[:20])
-            more = f"\n  - … 외 {len(unseen) - 20}개" if len(unseen) > 20 else ""
             composition_block += (
                 "\n> ⚠ **그러나 이 브랜치는 소스 코드를 바꿨습니다 — changeset 이 그걸 놓쳤습니다.**\n"
                 f"> 브랜치 diff 에는 있으나 위 목록에 **없는** 소스 파일 {len(unseen)}개:\n"
-                f"{shown}{more}\n>\n"
+                f"{_bulleted_path_sample(unseen)}\n>\n"
                 "> 따라서 **\"문서 전용\" 을 사유로 reviewer 를 제외하지 마세요.** "
                 "changeset 산정이 불완전하므로, 보이는 파일만 근거로 좁히면 "
                 "보지 못한 코드가 리뷰 없이 통과합니다. 판단이 서지 않으면 **넓게 선택**하세요.\n"
@@ -1322,6 +1318,25 @@ def _default_branch_ref():
     except Exception as e:  # noqa: BLE001
         debug_log(f"default branch ref resolution failed: {e}")
     return None
+
+
+_ROUTER_PATH_SAMPLE_MAX = 20
+
+
+def _bulleted_path_sample(paths, limit=_ROUTER_PATH_SAMPLE_MAX):
+    """`  - \\`p\\`` lines for the first `limit` paths, then "… 외 N개".
+
+    Both router-prompt lists (the source-file composition and the fail-closed
+    "missing from the changeset" list) need the same shape, and the second one
+    was written by copying the first — magic `20` included. Sharing it keeps the
+    two from drifting apart, which matters here because a router reading two
+    differently-formatted lists in one prompt has to guess whether the difference
+    means something.
+    """
+    shown = "\n".join(f"  - `{p}`" for p in paths[:limit])
+    if len(paths) > limit:
+        shown += f"\n  - … 외 {len(paths) - limit}개"
+    return shown
 
 
 def _source_files_missing_from_changeset(all_paths):
