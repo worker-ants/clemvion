@@ -482,6 +482,11 @@ export function useWidget() {
         // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
         return "continue";
       } catch {
+        // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
+        // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나
+        // `newChat()` 으로 세대를 올린 뒤 늦은 실패를 착지시켜도 `ended` 로 갔다 — **재현 실패는
+        // 부재의 증거가 아니므로**(인터리빙 지점이 가설의 일부다) 가드는 남기고 미검증으로 기록한다.
+        // 추적: `plan/in-progress/webchat-auth-session-status-reconcile.md`.
         if (isStale(gen)) return "stale";
         // 재차 실패 → **복구 불가로 확정**한다(§R4: "재차 실패면 종료로 간주").
         finalizeEnded("execution.token_revoked");
