@@ -100,6 +100,12 @@ EIA §R4 의 "default per_execution(안전)" 원칙과 정합 — per_trigger �
 봇" 한정으로 두는데, 공개 브라우저 위젯은 그 조건이 아니므로 노출하지 않는 것이 EIA 의도와 일치한다.
 
 ### R4. 재로드 `401` — 낙관적 refresh 1회 후 종료
+
+> **결정은 내려졌으나 구현은 없다 (Planned).** 아래는 채택된 설계이지 현재 동작이 아니다 — 실제
+> 위젯은 `401` 을 다른 오류와 구분하지 않고 `catch` soft-fail 로 넘긴다(§3.1 배너). 구현 여부는
+> [`webchat-reload-rest-error-branches.md`](../../plan/in-progress/webchat-reload-rest-error-branches.md)
+> 가 소유한다.
+
 재로드 시점에 위젯은 `401` 의 원인(단순 만료 vs 종료 후 jti blacklist, EIA §8.3)을 **사전 판별할 수 없다**. 따라서
 **낙관적으로 `refresh-token` 1회** 시도해 만료면 복구하고, 재차 실패(`401`/`410`)면 종료로 확정한다 — 항상 종료로 보면
 정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다. 1회 시도는 EIA-AU-04(종료 시 invalidate)
