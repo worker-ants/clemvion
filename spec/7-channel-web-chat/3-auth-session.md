@@ -6,6 +6,9 @@ code:
   - codebase/channel-web-chat/src/lib/api-base.ts
   - codebase/channel-web-chat/src/lib/eia-client.ts
   - codebase/channel-web-chat/src/widget/use-widget.ts
+  # §3.1 재로드 복원 시퀀스가 `isAttemptStale` 에 의존한다 — 복원 중 새 부팅 시도가 들어오면
+  # 앞선 시도의 결과를 적용하지 않는다. 그 판정의 정본은 여기다(`use-widget.ts` 는 소비처).
+  - codebase/channel-web-chat/src/widget/use-session-generations.ts
   - codebase/channel-web-chat/src/widget/use-token-refresh.ts
 ---
 

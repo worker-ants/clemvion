@@ -42,20 +42,33 @@ spec_impact:
 
 ## 제안
 
-- [ ] `2-sdk.md` `code:` 에 `codebase/channel-web-chat/src/widget/use-session-generations.ts` 추가
-- [ ] 같은 위치 인라인 주석을 정정 — 정본은 `use-session-generations.ts`(세대 발급·판정),
-      `use-widget.ts` 는 그 소비처(`applyConfig`)라는 관계가 드러나게
-- [ ] `3-auth-session.md` `code:` 에도 동일 추가 — §3.1 재로드 복원 시퀀스가 `isAttemptStale` 에
-      의존한다 (checker INFO 1. 명시적 SoT 주석이 없어 WARNING 까지는 아니라고 판정됐다)
+- [x] `2-sdk.md` `code:` 에 `codebase/channel-web-chat/src/widget/use-session-generations.ts` 추가
+- [x] 같은 위치 인라인 주석을 정정 — 세 파일의 역할(전송 계층 / **정본** / 소비처)을 갈라 적었다.
+      "심볼을 옮길 때 이 목록도 함께 옮길 것" 과 **CI 가 왜 못 잡는지**를 같은 자리에 남겼다 —
+      다음 사람이 같은 drift 를 만들기 직전에 읽을 곳이 거기다.
+- [x] `3-auth-session.md` `code:` 에도 동일 추가 — §3.1 재로드 복원이 `isAttemptStale` 에
+      의존한다는 관계를 주석으로 명시했다(종전엔 명시 SoT 주석이 없어 checker 가 INFO 로만 봤다).
 
-## 결정이 필요한 지점
+## 결정 — **지금 고친다** (2026-08-10, planner 판단)
 
 **다음 slice 를 기다릴 것인가.** [`webchat-usewidget-extraction`](webchat-usewidget-extraction.md)
 의 남은 slice 가 `applyConfig`/`start`/`teardownSession` 본체까지 옮기면 `code:` 목록을 **또**
 고쳐야 한다. checker 도 "다음 slice 에서 일괄 갱신해도 무방" 으로 봤다.
 
-다만 그 사이 이 문서를 읽는 사람은 잘못된 파일을 열게 되고, 위에 적었듯 CI 는 이 상태를 통과
-시킨다. 두 번 고치는 비용 vs 그동안 틀린 포인터를 두는 비용의 판단이라 planner 에게 넘긴다.
+**그래도 지금 고친다.** 두 비용이 대칭이 아니다:
+
+- 미루는 비용은 **조용하다**. 이 문서를 읽는 사람이 잘못된 파일을 열고, 위에 적었듯 CI 가 그
+  상태를 통과시킨다. 이 저장소가 반복해 값을 치른 실패형이 정확히 "문서가 가리키는 곳과 실제가
+  어긋나 다음 사람이 조용히 잘못된 자리를 고친다" 다.
+- 지금 고치는 비용은 **한 번 더 편집**이고, 그건 시끄럽다 — 다음 slice 를 하는 사람이 어차피
+  이 목록을 열게 된다.
+
+게다가 다음 slice 의 착수 시점이 정해져 있지 않다(`webchat-usewidget-extraction` 은 열린 항목
+3건). "곧 어차피 고칠 것" 이라는 전제가 언제 참이 될지 모르는 상태에서 틀린 포인터를 유지하는
+쪽이 더 비싸다.
+
+> **다음 slice 담당자에게**: 본체를 옮기면 이 두 문서의 `code:` 와 그 인라인 주석을 함께
+> 갱신할 것. 주석에 "심볼을 옮길 때 목록도 함께" 를 못박아 뒀다.
 
 ## Rationale
 
