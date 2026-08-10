@@ -341,160 +341,36 @@ PROJECT.md §e2e 면제 화이트리스트가 `.claude/**` (skills, hooks, agent
       > frontend 282파일/5848 · channel-web-chat 23파일/409 · backend jest 417 suites/8493 ·
       > e2e backend jest 261 + **playwright 51**.
 
-### 후속 — ai-review INFO 항목 (2026-08-09, 나머지 5개 전환 리뷰 `review/code/2026/08/09/20_33_02`)
+### 후속 — ai-review INFO 항목: **전부 종결**(2026-08-09)
 
-이번 리뷰의 WARNING 4건은 즉시 조치했다. 아래 INFO 2건은 이번 PR 스코프는 아니지만
-후속으로 등재한다(review/ 는 SoT 가 아니므로 여기 적어 둔다):
+두 라운드의 리뷰가 남긴 INFO 5건이다. 처음엔 여기 산문으로만 등재해 뒀는데, **체크박스가
+아니라서 완료 판정(`- [ ]` 개수)에 안 잡혔다** — 그 상태로 `complete/` 로 옮길 뻔했다.
+lifecycle 은 "체크리스트뿐 아니라 **후속 항목까지** 끝난 plan" 을 요구하므로, 다섯 건을
+전부 처분한 뒤에야 이 문서가 `complete/` 에 있을 자격이 생긴다.
 
-- **INFO 1 — `permissions:` 미선언 비대칭**: 신규 편입 4개 워크플로
-  (`packages-checks`·`spec-link-checks`·`web-chat-checks`·`migration-check`)와
-  `_changed-paths.yml` 에 `permissions:` 블록이 없어 기본(잠재적으로 더 넓은)
-  `GITHUB_TOKEN` 권한을 상속한다. `harness-checks.yml` 만 `contents: read` 를 명시해
-  비대칭이다. `git log -p` 확인 결과 이번 PR 이전부터의 상태라 회귀는 아니다.
-  후속: least-privilege 관점에서 `contents: read` 를 나머지에도 명시해 일관시킬 것.
-- **INFO 8 — `on.push.paths` 부활 방지 대칭 가드 부재**: 현재 `test_pull_request_has_no_paths_filter`
-  는 `on.pull_request.paths` 부활만 막는다. push 트리거를 유지하는 3곳
-  (`packages-checks`·`web-chat-checks`·`spec-link-checks`)의 `on.push.paths` 가 되살아나는
-  것은 아무 가드도 못 잡는다. required check 데드락은 PR 전용이라 심각도는 낮다.
-  후속: 같은 테스트에서 `on.push.paths` 부재도 함께 단언.
+**즉시 조치 3건** (같은 PR 에서 수정, 뮤테이션 4/4 RED):
 
-### 후속 — ai-review INFO 항목 (2026-08-09, composite action 추출 리뷰 `review/code/2026/08/09/21_53_16`)
+- [x] **`permissions:` 미선언 비대칭** — 12개 워크플로 중 **9개가 미선언**이었다(실측).
+      전부 `contents: read` 를 명시하고, `test_workflow_yaml_structure.py::_PERMISSIONS`
+      **등록부**로 고정했다.
+      > 일괄 규칙(`전부 contents: read`)을 세웠다면 `migration-recheck-on-main.yml` 을
+      > 조용히 깨뜨렸을 것이다 — `gh pr comment` 때문에 `pull-requests: write` 가 필요하다.
+      > 그래서 값까지 등재하는 형태로 갔다. 뮤테이션 3종(미선언 복귀·값 확대·write 축소)
+      > 전부 RED 확인.
+- [x] **`on.push.paths` 부활 방지 대칭 가드** — `test_push_has_no_paths_filter_either` 신설.
+      데드락은 PR 전용이라 심각도가 낮지만, push 쪽 `paths` 가 살아나면 **판정 목록이
+      `pathspecs` 와 두 곳으로 갈려** `#1106` 이 없애려던 복제가 되돌아온다.
+- [x] **`ConsumerBindingTest.consumers()` glob 비대칭** — `*.yml` → `*.y*ml` + suffix 필터로
+      `_workflow_files()` 와 규약 통일.
 
-셋업 보일러플레이트를 `.github/actions/pnpm-workspace/action.yml` 로 추출한 PR 의 WARNING
-3건(액션 버전 핀 정확 비교·소비처 수 오기 정정·`_MAY_SWALLOW` 키 basename→상대경로)은
-즉시 조치했다. 아래 INFO 3건은 이번 PR 스코프는 아니지만 후속으로 등재한다(번호는 이
-리뷰의 SUMMARY.md 기준이며 위 2026-08-09 20:33 리뷰의 INFO 1/8 과는 별개 번호 체계다):
+**이관 2건** (이 plan 의 축이 아니라 다른 plan 이 제자리):
 
-- **INFO 1 — 서드파티 액션 태그 핀 집중**: `pnpm/action-setup`·`actions/setup-node` 가
-  커밋 SHA 가 아닌 버전 태그로 핀 — 저장소 전역 기존 관례라 이 diff 의 신규 결함은 아니지만,
-  추출로 그 신뢰 지점이 9개 잡(대부분 required-check 후보)이 의존하는 단일 파일로 집중됐다.
-  후속(선택): 커밋 SHA 고정 + 버전 주석 병기.
-- **INFO 2 — `STUB`/`argv()` 헬퍼가 `test_changed_paths_reusable.py` 와 완전 중복**:
-  스텁 프로토콜(`ARGC=`/`ARG=`) 변경 시 두 파일을 수동 동기화해야 한다. 후속: **세 번째
-  사례가 생기면** 공유 헬퍼 모듈로 추출(`_changed-paths.yml` 추출에 쓴 것과 같은 트리거
-  방식).
-- **INFO 5 — `ConsumerBindingTest.consumers()` 의 glob 비대칭**: `*.yml` 만 스캔해
-  `test_workflow_yaml_structure.py::_workflow_files()`(`*.y*ml`)와 규약이 다르다. 현재
-  전부 `.yml` 이라 실질 위험 낮음. 후속(선택): `WORKFLOWS.glob("*.y*ml")` + suffix 필터로
-  통일하거나 두 파일이 같은 glob 상수 공유.
-
-- [x] push + PR — [#1114](https://github.com/worker-ants/clemvion/pull/1114)
-
-## review-gate 선행 조사 (2026-08-09)
-
-### 명시된 전제는 **통과**했다
-
-plan 이 요구한 것은 "문서-only PR 경로에서 게이트 로직이 정상 통과하는지" 였다. 임시 저장소
-프로브로 `--enforce` 를 켠 채 실측:
-
-| 브랜치 성격 | exit | 게이트 판정 |
-|---|---|---|
-| 문서-only (`README.md`) | **0** | `no codebase/ changes on this branch — allowed` |
-| plan-only | **0** | 동일 |
-| CI-only (`.github/`) | **0** | 동일 |
-| `codebase/**` 변경 + 리뷰 없음 | **1** | 미커버 → 차단 |
-
-즉 게이트는 `codebase/**` 변경이 없으면 **자기 로직으로** 통과한다 — `paths:` 필터가 막아
-주는 것이 아니다. 전환해도 문서-only PR 이 빨개지지 않고, `codebase/**` PR 에 대한 차단력도
-그대로다.
-
-### 그런데 전환은 **12라운드에 걸쳐 닫은 구멍 두 개를 다시 여는 일**이다
-
-`test_review_gate_ci.py::test_the_expectation_still_describes_a_gate_that_runs` 가 기대값에
-대해 단언하는 것 중 둘이 skip-job 패턴과 **정면으로 충돌**한다:
-
-| 그 단언 | 왜 있는가 (그 파일 기록) | skip-job 패턴이 요구하는 것 |
-|---|---|---|
-| 어떤 step 에도 `if:` 가 없어야 한다 | **3R 우회**: `if: … && false` 로 백스톱이 모든 PR 에서 영구히 꺼졌다 | **모든** step 에 `if:` |
-| `pull_request` 키 집합 == `{paths}` | **4R 우회**: `branches: ['없는-브랜치']`·`types: [closed]` 로 영원히 트리거되지 않았다 | bare `pull_request:` (키 0개) |
-
-셋째로, dependabot 면제가 지금 **job 레벨 `if:`** 다. skip-job 으로 가면 dependabot PR 에서
-그 잡이 `skipped` 가 되는데, **`skipped` 가 required check 를 만족하는가** 라는 모호함이
-이 패턴이 존재하는 이유 그 자체다. 그래서 면제를 step 레벨 **복합 조건**으로 옮겨야 하고,
-그 형태가 하필 **2R 우회**(`(actor == 'dependabot[bot]') != false`)가 살던 자리다.
-
-### 그리고 이 워크플로를 required check 로 요구한 plan 은 **없다**
-
-`§사용자 액션` 등록 표에 review-gate 는 없다(실측: 의존성 보안 · `--frozen-lockfile` ·
-backend · 내부 패키지 · 웹채팅 · 하네스 · spec 링크 · 마이그레이션). 이 층은 **로컬 훅의
-백스톱**이지 머지 게이트로 등록하려던 대상이 아니었다. required 로 안 걸면 데드락도 없고,
-`paths:` 필터를 걷을 이유 자체가 사라진다.
-
-**→ 전환은 이득이 불분명하고 비용이 명확하다.**
-
-### 결정 — 전환하지 않는다 (사용자, 2026-08-09)
-
-`paths:` 필터를 유지하고 required check 로도 등록하지 않는다. 이 워크플로에 한해 데드락은
-**성립하지 않는 문제**다 — 데드락은 "required 로 등록했는데 안 도는 것" 이고, 등록 대상이
-아니면 전제가 없다.
-
-세 대안을 놓고 판단했다:
-
-| 안 | 내용 | 왜 안 골랐나 / 골랐나 |
-|---|---|---|
-| **전환하지 않음** | `paths:` 유지, required 미등록 | **채택.** 비용 0, 12라운드 방어선 보존 |
-| 전환 | 등록부 4곳 + `WorkflowWiringTest` 기대값 갱신, dependabot 면제를 step 복합 조건으로 | 3R·4R·2R 우회 형태를 다시 허용. 얻는 것은 "안 걸 required check 의 데드락 예방" |
-| 게이트 스크립트에 면제 흡수 | 워크플로에 `if:` 를 하나도 안 만들어 3R 단언을 지킴 | 구멍이 둘 → 하나로 줄 뿐이고, `TheGateItselfDoesNotBranchOnCiEnvTest` 계열과 새로 부딪친다 |
-
-**전환 8/10 → 8/9 로 읽어야 한다** — 분모에서 review-gate 가 빠진다. 남은 후보는 `e2e.yml`
-하나다.
-
-### 부수 — 이 조사가 찾은 진짜 결함 (수정함)
-
-`review-gate.yml` 헤더 주석이 **"현재 관측 모드다(`--enforce` 없음) … 켤 때는 아래 `run:` 에
-`--enforce` 를 붙인다"** 라고 적혀 있었는데, `#1097`(`cdf3b6832`, 2026-08-07)이 이미
-`--enforce` 로 전환했다. **코드는 켜져 있는데 문서는 꺼져 있다고 말하는 상태**가 남아 있었다.
-읽는 사람이 이 층을 조언으로 믿게 되는데 실제로는 머지를 막으므로 방향이 정확히 반대다.
-주석을 정정하고, 되돌릴 때 마주칠 단언(`assertIn("--enforce", ...)`)까지 함께 적었다.
-(YAML 주석은 파싱에 안 남아 `WorkflowWiringTest` 기대값은 영향 없음 — 19 tests OK.)
-
-## e2e 선행 조사 (2026-08-09)
-
-### 축이 다른 이유 — include 목록이 아니라 **ignore 목록**이다
-
-`e2e.yml` 의 `paths-ignore` 는 PROJECT.md §e2e 면제 화이트리스트의 **미러**이고
-`test_e2e_exemption_paths_sync.py` 가 그 미러를 강제한다. 공유 판정자
-(`_changed-paths.yml`)는 include 목록을 받아 "이 중 뭔가 바뀌었나" 에 답하므로 의미가 반대다.
-
-### 여집합을 git exclude pathspec 으로 표현할 수 있는가 — **된다** (실측)
-
-`scripts/ci-paths-changed.sh` 를 **고치지 않고** 임시 저장소 프로브로 7케이스 전수 확인:
-
-```
-. :(exclude).claude/** :(exclude).github/** :(exclude)spec/**
-  :(exclude)plan/** :(exclude)review/** :(exclude)*.md
-```
-
-| 변경 성격 | 기대 | 실측 |
-|---|---|---|
-| 문서-only · plan+spec+review · `.github/` only · `.claude/` only | 안 돎 | `relevant=false` ✅ |
-| `codebase/**` · **codebase+문서 혼합** · `scripts/`(화이트리스트 밖) | 돎 | `relevant=true` ✅ |
-
-혼합 케이스가 `true` 로 나오는 것이 중요하다 — 화이트리스트는 **부분집합 판정**이라
-한 줄이라도 밖이면 수행이 정답이고, exclude pathspec 이 그 의미를 정확히 낸다.
-
-### 전환 비용 — review-gate 와 달리 **되열리는 우회 구멍은 없다**
-
-| 항목 | 내용 |
-|---|---|
-| `test_e2e_exemption_paths_sync.py` | 미러 대상을 `paths-ignore` → `pathspecs` 의 `:(exclude)` 항목으로 재조준. `#1114` 가 `test_harness_checks_paths_coverage.py` 에 한 것과 **같은 형태의 이동** |
-| `test_no_pathspec_is_a_dead_filter` | `:(exclude)…`·`.` 는 tracked 파일과 직접 매치되지 않으므로 처리 필요(제외 접두 해석 또는 등재) |
-| 비용 정책 | **보존된다** — docker e2e 는 화이트리스트-only PR 에서 여전히 no-op. 추가 비용은 PR 당 `changes` 잡 하나 |
-
-> **개선으로 오해하지 말 것**: "전환하면 `e2e.yml` 자기 수정도 트리거된다" 는 **거짓**이다.
-> git pathspec 은 exclude 가 우선이라 `.github/**` 를 제외한 상태에서 `.github/workflows/e2e.yml`
-> 을 양수로 다시 넣어도 되살아나지 않는다("un-exclude" 가 없다). 그 워트는 그대로 남고
-> `workflow_dispatch` 탈출구도 그대로 필요하다.
-
-### 결정 — 전환하지 않는다 (사용자, 2026-08-09)
-
-등록 표(§사용자 액션)에 e2e 는 **없다**. required 로 안 걸면 데드락이 성립하지 않으므로
-`paths-ignore` 를 걷을 이유가 없다 — review-gate 와 같은 논리다.
-
-**다만 이 조사는 버리지 않는다.** 나중에 e2e 를 required 로 올리기로 하면, 위 exclude
-pathspec 목록과 7케이스 실측이 그대로 착수 지점이다. "가능한가" 는 이미 답이 나왔고
-남는 것은 재조준 두 곳(`test_e2e_exemption_paths_sync` · `test_no_pathspec_is_a_dead_filter`)
-뿐이다.
+- [x] **서드파티 액션 SHA 핀** → [`deps-guard-hardening.md`](../in-progress/deps-guard-hardening.md).
+      skip-job 전환이 아니라 **의존성 신뢰 체인** 문제다. 저장소 전역 관례라 특정 PR 의
+      회귀도 아니다.
+- [x] **`STUB`/`argv()` 헬퍼 중복** → [`harness-env-value-subpattern-dedup.md`](../in-progress/harness-env-value-subpattern-dedup.md).
+      **트리거 조건부** 항목이다 — 세 번째 사례가 생기는 시점에 추출한다(`#1111` 이 `changes`
+      잡 추출에 쓴 것과 같은 방식). 지금 착수할 일은 없다.
 
 ## 사용자 액션 (이 PR 머지 후)
 
