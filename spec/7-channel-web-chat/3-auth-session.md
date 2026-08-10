@@ -64,6 +64,10 @@ code:
 ### 3.1 재로드 복원 시퀀스 (per_execution)
 
 > ⚠ **v1 구현 현황(부분)**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면 + **`context.conversationThread`(durable 스냅샷) 전체 히스토리**를 시드한 뒤 SSE 를 연다. `getStatus` 가 durable `Execution.conversation_thread` 를 동봉하므로([EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) 새로고침 복원이 5분 SSE buffer·서버 재시작과 무관하게 과거 대화를 되살린다. turn `source`→말풍선 role 매핑은 [1-widget-app §2](./1-widget-app.md). 아래 2단계의 **`200`+종료 REST 분기는 구현됨** — 스냅샷 `status` 가 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행하고 SSE 재오픈·토큰 갱신 예약을 건너뛴다. **버퍼 만료(≥5분) gap 안에 종료된 경우 그 terminal SSE 이벤트도 버퍼와 함께 유실돼 다시 오지 않으므로**([EIA `R-replay-unavailable`](../5-system/14-external-interaction-api.md)) 이 REST 분기가 유일한 종료 도달 경로다 — 없으면 위젯이 `streaming` 에 무기한 멈춘다([1-widget-app §3.1](./1-widget-app.md)). **`404`·복구불가 `401` REST 분기와 `401 → 낙관적 refresh 1회` 도 구현됐다**(2026-08-10) — `404` 는 storage 정리 후 `[ended]`, `401` 은 낙관적 refresh 1회 후 성공 시 복원·재차 실패 시 종료 확정(§R4). 그 외 status·오류는 **여전히** `catch` soft-fail 후 SSE 로 진행한다 — 일시적 장애가 대화를 끝내지 않도록 하는 경계이고, 회귀 테스트가 그 경계를 고정한다.
+> **frontmatter 재판정 대기 (2026-08-10)**: 이 구현과 병행해 열려 있는 다른 PR 이 같은
+> frontmatter 를 `partial` + `pending_plans:` 로 정정 중이다(그 PR 시점엔 잔여가 실재했다).
+> 나중에 머지되는 쪽이 `status` 를 재판정해야 하며 **자동 가드는 이 상황을 못 잡는다** —
+> 절차는 [`webchat-auth-session-status-reconcile.md`](../../plan/in-progress/webchat-auth-session-status-reconcile.md).
 
 1. iframe-origin **sessionStorage**(§R6)에서 `{executionId, token, expiresAt, endpoints, apiBase}` 조회 — 없으면 신규(collapsed).
    저장 세션은 **발급된 `apiBase`(origin)에 묶인다**: 현재 `apiBase` 와 불일치하거나 `apiBase` 가 기록돼 있지 않으면

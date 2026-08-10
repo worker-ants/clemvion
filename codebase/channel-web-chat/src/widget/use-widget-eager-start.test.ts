@@ -86,17 +86,28 @@ function installFetch(overrides?: { webhookStatus?: number }) {
  */
 function installControllableEventSource(): {
   getEs: () => ControllableEventSource | null;
+  /**
+   * 마지막으로 SSE 를 연 URL — **어떤 토큰으로 열었는지**를 여기서만 관측할 수 있다.
+   *
+   * 종전엔 생성자 인자를 통째로 버렸다. 그래서 "SSE 가 열렸다" 는 단언은 가능해도
+   * "**옳은 토큰으로** 열렸다" 는 물을 수 없었고, §R4 의 401 refresh 성공 경로가 갱신 전
+   * 토큰으로 스트림을 여는 CRITICAL 을 신규 테스트가 그대로 통과시켰다
+   * (ai-review 16_09_40 — security·side_effect 가 독립 수렴, 테스트는 false confidence).
+   */
+  getUrl: () => string | null;
 } {
   let latest: ControllableEventSource | null = null;
+  let latestUrl: string | null = null;
   vi.stubGlobal("EventSource", class {
-    constructor() {
+    constructor(url: string) {
+      latestUrl = String(url);
       latest = new ControllableEventSource();
       return latest as unknown as this;
     }
     addEventListener() {}
     close() {}
   } as unknown as typeof EventSource);
-  return { getEs: () => latest };
+  return { getEs: () => latest, getUrl: () => latestUrl };
 }
 
 /**
@@ -301,7 +312,7 @@ describe("useWidget — eager 시작(§R6)", () => {
       return Promise.reject(new Error(`unexpected fetch ${u}`));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { getEs } = installControllableEventSource();
+    const { getEs, getUrl } = installControllableEventSource();
 
     const { result } = renderHook(() => useWidget());
     boot();
@@ -309,6 +320,17 @@ describe("useWidget — eager 시작(§R6)", () => {
     // 복구 성공 → 종료로 오판하지 않고 SSE 를 연다.
     await waitFor(() => expect(getEs()).not.toBeNull());
     expect(result.current.state.phase).not.toBe("ended");
+    // **갱신된 토큰으로 열어야 한다.** 호출부가 seed 이전에 캡처한 지역 변수를 쓰면 서버가
+    // 이미 거부한 토큰으로 스트림을 열고, 이 PR 이 고치려던 "streaming 고착" 을 성공 경로에서
+    // 재현한다. `getEs()` 만 보면 그 결함이 통과한다(ai-review 16_09_40 CRITICAL).
+    expect(getUrl()).toContain("iext_fresh");
+    expect(getUrl()).not.toContain("iext_stale");
+    // **덮는 범위: 복원 경로(`applyConfig`)뿐이다.** `start()` 도 같은 형태로
+    // `openStream` 을 부르므로 같은 실수를 각자 할 수 있고, 실제로 `applyConfig` 만
+    // 고친 뮤턴트가 이 테스트를 통과했다. `start()` 판을 쓰려다 SSE 가 아예 안 열려
+    // 실패했는데 — 신규 대화에서 `getStatus` 가 401 을 주는 경로가 실제로 도달
+    // 가능한지부터 확인이 필요하다. **미확인이므로 통과할 때까지 구부리지 않고**
+    // 갭으로 남긴다: `plan/in-progress/webchat-auth-session-status-reconcile.md`.
     expect(refreshCalls).toBe(1); // **1회** — 낙관적 시도는 한 번뿐이다(§R4).
     // 새 토큰이 저장 세션에 반영된다 — 안 하면 다음 재로드가 같은 401 을 되풀이한다.
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_fresh");

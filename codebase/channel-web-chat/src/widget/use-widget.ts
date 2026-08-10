@@ -608,7 +608,14 @@ export function useWidget() {
         // 미열림을 보고 통과한 뒤 각자 여기서 openStream 을 부른다(이중 EventSource 생성). 먼저 continuation
         // 이 열면 뒤 continuation 은 여기서 멈춘다 — SSE 는 하나만 소유한다(ai-review 01_44_21).
         if (sessionEstablished()) return;
-        openStream(session, "0");
+        // **`sessionRef.current` 를 쓴다 — 캡처해 둔 `session` 이 아니다.** §R4 의 401 낙관적
+        // refresh 가 성공하면 seed 안에서 토큰이 교체되는데, 지역 변수는 그 이전 값이라
+        // **서버가 이미 거부한 토큰으로 SSE 를 열게 된다**(ai-review 16_09_40 CRITICAL,
+        // security·side_effect 독립 수렴). `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지
+        // 않으므로 최신은 ref 에서 읽는 것이 유일한 정답이다.
+        const live = sessionRef.current;
+        if (!live) return;
+        openStream(live, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -958,7 +965,9 @@ export function useWidget() {
         // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 여기서 막는다
         // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
         if (sessionEstablished()) return;
-        openStream(saved, "0");
+        // `start()` 와 같은 이유로 ref 를 읽는다 — 위 주석 참조(401 refresh 가 토큰을 교체한다).
+        const live = sessionRef.current ?? saved;
+        openStream(live, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
