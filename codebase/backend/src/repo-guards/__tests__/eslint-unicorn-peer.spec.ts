@@ -197,8 +197,13 @@ describe('설치된 eslint-plugin-unicorn 의 peer eslint range 가 backend 선�
     expect(unicornFloor).not.toBeNull();
 
     // `#1049` 사고에서 실제로 깨진 지점 — `pnpm install` 이 unmet peer 를 경고로만 흘려서
-    // (`--strict-peer-dependencies` 미도입, plan §후속 검토) 사람이 로그를 직접 읽어야만
-    // 발견됐다. 설치된 eslint 버전을 직접 실측해 그 사고를 재현·차단한다.
+    // 사람이 로그를 직접 읽어야만 발견됐다. 설치된 eslint 버전을 직접 실측해 그 사고를
+    // 재현·차단한다.
+    //
+    // 2026-08-10 부터 `--strict-peer-dependencies` 가 CI install 에 들어갔다
+    // (`.github/actions/pnpm-workspace/action.yml`). 이 테스트는 그래도 남긴다 —
+    // 그쪽은 **설치 시점**의 미충족을, 이 테스트는 **매니페스트 floor 대 설치본**의
+    // 어긋남을 본다. 축이 달라서 한쪽이 다른 쪽을 대체하지 않는다.
     const installedEslintVersion = (
       req('eslint/package.json') as { version: string }
     ).version;

@@ -104,7 +104,7 @@ def argv(proc: subprocess.CompletedProcess) -> list[str]:
 
 
 class InstallCommandTest(unittest.TestCase):
-    def test_pnpm_receives_frozen_lockfile_and_the_filter(self):
+    def test_pnpm_receives_both_gate_flags_and_the_filter(self):
         """저장소에서 `--frozen-lockfile` + `--strict-peer-dependencies` 의 **유일한**
         소재지다 — 인자로 확인한다.
 
@@ -131,6 +131,10 @@ class InstallCommandTest(unittest.TestCase):
         """
         proc = run_install("scope with space...")
         self.assertEqual(argv(proc)[-1], "scope with space...")
+        # 리터럴이어야 한다. `len(argv(proc))` 로 유도하면 argv 와 같은 stdout 에서
+        # 나오므로 자기 자신과 비교하는 꼴이 되고, 인자가 갈려도 통과한다 — 이 단언의
+        # 존재 이유가 바로 "필터가 한 인자로 도착했는가" 다.
+        # install + --frozen-lockfile + --strict-peer-dependencies + --filter + <scope>
         self.assertIn("ARGC=5", proc.stdout, proc.stdout)
 
     def test_a_scoped_package_name_survives_intact(self):

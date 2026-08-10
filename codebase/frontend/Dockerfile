@@ -35,7 +35,7 @@ COPY codebase/packages ./codebase/packages
 
 # frontend + 동봉 위젯(channel-web-chat·@workflow/web-chat) 의 workspace 의존까지 설치 —
 # build:widget 이 두 패키지를 빌드하므로 그 deps(next·tsc·esbuild 등)가 필요하다.
-RUN pnpm install --frozen-lockfile \
+RUN pnpm install --frozen-lockfile --strict-peer-dependencies \
     --filter "frontend..." \
     --filter "channel-web-chat..." \
     --filter "@workflow/web-chat..."

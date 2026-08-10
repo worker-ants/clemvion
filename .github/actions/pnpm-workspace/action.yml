@@ -37,7 +37,8 @@
 name: pnpm 워크스페이스 설치
 description: >-
   pnpm + Node 24(+ pnpm 캐시)를 셋업하고 지정한 워크스페이스 스코프를
-  `--frozen-lockfile` 로 설치한다. checkout 은 호출부 책임이다(위 주석 참조).
+  `--frozen-lockfile --strict-peer-dependencies` 로 설치한다.
+  checkout 은 호출부 책임이다(위 주석 참조).
 
 inputs:
   filter:
@@ -60,7 +61,9 @@ runs:
 
     # `--frozen-lockfile` 은 장식이 아니다 — `deps-guard-hardening` 이 required check 로
     # 요구한 바로 그 보장이고, 이제 저장소에서 **이 한 줄이 유일한 소재지**다. 여기서
-    # 빠지면 매니페스트와 어긋난 lockfile 이 8개 워크플로 전부에서 조용히 통과한다.
+    # 빠지면 매니페스트와 어긋난 lockfile 이 그 소비자 전부에서 조용히 통과한다.
+    # 2026-08-10 부터 `--strict-peer-dependencies` 도 같은 자리에 산다(아래 참조) —
+    # "유일한 소재지" 는 이제 두 플래그 모두에 대한 서술이다.
     #
     # `${{ }}` 를 `run:` 문자열에 직접 끼워 넣지 않고 `env:` 로 넘긴다 — 그 자리는 값이
     # 셸 **코드로** 읽히는 지점이라 호출부가 넣은 문자열이 명령이 될 수 있다. env 를 거치면
@@ -69,8 +72,10 @@ runs:
     # `--strict-peer-dependencies` 는 미충족 peer 를 경고에서 **실패**로 올린다. 그것이
     # 없어서 `#1049` 가 `eslint-plugin-unicorn` 을 `eslint>=10.4` 요구 버전으로 올린 채
     # 9.39.4 설치본 위에 머지됐고, 발견은 사람이 `#1058` 의 테스트 로그를 읽다가였다 —
-    # **자동 신호가 없었다.** 여기 두는 이유는 위 `--frozen-lockfile` 과 같다: 8개 워크플로가
-    # 이 action 하나를 거치므로 한 줄이 전부를 덮는다.
+    # **자동 신호가 없었다.** 여기 두는 이유는 위 `--frozen-lockfile` 과 같다: **9개 잡 / 5개 워크플로 파일**이
+    # 이 action 하나를 거친다(`ConsumerBindingTest.consumers()` 실측). 다만 여기가
+    # **전부는 아니다** — `pnpm install` 은 `.claude/test-stages.sh` 와 Dockerfile 3개에도
+    # 있고 그쪽도 같은 플래그를 받는다. 다섯 곳을 다 짚어야 `#1049` 경로가 닫힌다.
     #
     # 예외 목록은 `pnpm-workspace.yaml` 의 `peerDependencyRules` 이고 **현재 비어 있다**
     # (2026-08-10 실측: 규칙 없이 exit 0, unmet peer 0건). 착수 근거였던
