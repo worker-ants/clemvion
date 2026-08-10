@@ -170,7 +170,7 @@ spec 이 **동작을 확정 서술**해 두고도 비어 있던 자리다. `getS
 1. **`404` → 종료 확정**: storage 정리 후 `[ended]`. 없는 execution 에 SSE 를 여는 것이 고착의 직접 원인이었다.
 2. **`401` → 낙관적 refresh 1회**: per_execution 토큰은 execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04) 재로드 `401` 은 단순 만료와 blacklist 를 **사전 판별할 수 없다**. §R4 의 결정대로 한 번 시도해 만료면 복구하고, 재차 `401` 이면 종료로 확정한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다.
 3. **그 외 오류는 여전히 soft-fail**: 일시적 장애가 대화를 끝내지 않게 하는 경계다. `webchat-boot-single-flight` 이 "에러도 종료다" 로 해석했다가 **살아있는 대화를 영구 유실**시킨 사고가 있었고, 그 경계를 회귀 테스트로 고정했다.
-4. **호출부는 refresh 후 `sessionRef.current` 를 읽는다**: `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지 않아, 캡처해 둔 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를 연다**(이 변경이 고치려던 증상을 성공 경로에서 재현). 리뷰 3명이 독립 수렴해 잡았고, 테스트 헬퍼가 EventSource URL 을 버리고 있어 통과시키던 것도 함께 고쳤다.
+4. **호출부는 refresh 후 `sessionRef.current` 를 읽는다**: `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지 않아, 캡처해 둔 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를 연다**(이 변경이 고치려던 증상을 성공 경로에서 재현). 리뷰 security·side_effect·requirement·testing **4명** 이 독립 수렴해 잡았고, 테스트 헬퍼가 EventSource URL 을 버리고 있어 통과시키던 것도 함께 고쳤다.
 
 ## Unreleased — 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
 

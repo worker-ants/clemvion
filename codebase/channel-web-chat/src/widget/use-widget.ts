@@ -82,7 +82,10 @@ type SessionRef = PersistedSession;
  * 호출부가 구분할 수 없었다 (ai-review 2026-07-17 02_31_18 W2).
  */
 type SeedOutcome =
-  /** 스냅샷이 terminal → `finalizeEnded` 로 종료 확정함. */
+  /**
+   * 종료 확정됨(`finalizeEnded` 수행) — 스냅샷이 terminal 이거나, REST 오류가 **복구 불가**
+   * 로 판명된 경우(`404`, 그리고 refresh 재시도까지 실패한 `401` — §3.1-2·§R4).
+   */
   | "ended"
   /** await 사이 세션이 교체·초기화됨 → 응답을 폐기함(아무 상태도 안 건드림). */
   | "stale"
@@ -366,8 +369,9 @@ export function useWidget() {
   );
 
   /**
-   * `getStatus` REST 응답으로 현재 `waiting_for_input` 표면을 시드하거나, 스냅샷이 이미 terminal 이면
-   * 세션을 정리하고 `ENDED` 로 전이한다.
+   * `getStatus` REST 응답으로 현재 `waiting_for_input` 표면을 시드하거나, 스냅샷이 이미 terminal
+   * 이면 세션을 정리하고 `ENDED` 로 전이한다. **실패도 한 갈래가 아니다** — `404`·복구불가
+   * `401` 은 종료로 확정하고 그 외만 soft-fail 이다(아래 §REST 오류 분기).
    *
    * @param client - EIA 클라이언트 (session endpoint 보유).
    * @param session - 현재 세션 (executionId, token, endpoints).
@@ -377,8 +381,9 @@ export function useWidget() {
    * 폴백이 **fire-and-forget** 으로 호출한다(구독 이후, 버퍼 만료 재동기화). 첫 노드 race(§R6) 또는 버퍼(5분) 만료 후 복원 시
    * SSE replay 만으로는 채울 수 없는 현재 표면을 1회 시드한다.
    *
-   * **실패 정책**: soft-fail — HTTP 오류·네트워크 실패 시 `console.warn` 후 진행.
-   * SSE replay 가 1차 복구 경로이므로 본 시드는 보강(best-effort).
+   * **실패 정책**: **상태코드로 갈린다**(2026-08-10 이전에는 전부 soft-fail 이었다).
+   * `404`·복구불가 `401` → 종료 확정, 그 외 HTTP 오류·네트워크 실패 → `console.warn` 후 진행.
+   * 후자에 한해 SSE replay 가 1차 복구 경로이므로 본 시드는 보강(best-effort)이다.
    *
    * **파싱 재사용**: `status.context` 는 SSE `waiting_for_input` wire payload 와 동일 형식
    * (EIA §5.3) → `parseWaitingForInput` 을 그대로 재사용.
@@ -393,15 +398,19 @@ export function useWidget() {
    *   수 없다(EIA §8.3). 성공하면 `sessionRef`·storage 를 새 토큰으로 갱신하고 `"continue"` —
    *   **호출부는 그 뒤 `sessionRef.current` 를 읽어야 한다.** `SeedOutcome` 은 "무엇이 바뀌었나"
    *   를 실어 나르지 않으므로, 캡처해 둔 지역 변수를 쓰면 거부된 토큰으로 스트림을 연다
-   *   (ai-review `16_09_40` CRITICAL — 3명 독립 수렴).
+   *   (ai-review `16_09_40` CRITICAL — security·side_effect·requirement·testing **4명** 독립 수렴).
    * - 재차 `401` → `"ended"`(복구 불가 확정, §R4).
    * - **그 외는 여전히 soft-fail** `"continue"`. 일시적 장애가 대화를 끝내지 않게 하는 경계이고,
    *   회귀 테스트가 그 경계를 고정한다.
    *
    * @returns {@link SeedOutcome} — **`"continue"` 가 아니면 호출부는 후속 `openStream`/
-   *   `scheduleRefresh` 를 반드시 건너뛴다**. `"ended"`(스냅샷이 terminal → 종료 확정)는 무효 토큰
+   *   `scheduleRefresh` 를 반드시 건너뛴다**. `"ended"`(스냅샷 terminal **또는 복구 불가 REST
+   *   오류** — `404`·재시도 실패한 `401`)는 무효 토큰
    *   SSE 재오픈·종료 세션 storage 부활을 막고, `"stale"`(await 사이 세션 교체)은 지연 응답이 새
    *   대화의 스트림을 옛 토큰으로 탈취하는 것을 막는다.
+   *   **`"continue"` 는 "아무것도 안 바뀌었다" 를 뜻하지 않는다** — `401` 복구가 성공한 경우도
+   *   여기 포함되고 그때 세션 토큰이 교체돼 있다. 그래서 호출부는 캡처해 둔 지역 변수가 아니라
+   *   `sessionRef.current` 를 읽어야 한다(위 §REST 오류 분기).
    *   이 반환 계약이 없던 시절 `applyConfig` 복원 경로가 teardown 직후 그대로 `openStream` 하는
    *   회귀가 있었다 (ai-review `02_04_13` CRITICAL#1) — 세 호출부 모두 이 값으로 게이팅한다.
    *
@@ -657,7 +666,7 @@ export function useWidget() {
         // **`sessionRef.current` 를 쓴다 — 캡처해 둔 `session` 이 아니다.** §R4 의 401 낙관적
         // refresh 가 성공하면 seed 안에서 토큰이 교체되는데, 지역 변수는 그 이전 값이라
         // **서버가 이미 거부한 토큰으로 SSE 를 열게 된다**(ai-review 16_09_40 CRITICAL,
-        // security·side_effect 독립 수렴). `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지
+        // security·side_effect·requirement·testing **4명** 독립 수렴). `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지
         // 않으므로 최신은 ref 에서 읽는 것이 유일한 정답이다.
         const live = sessionRef.current;
         if (!live) return;
