@@ -568,5 +568,92 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         )
 
 
+class DetectionSurvivesABroken_libTest(unittest.TestCase):
+    """탐지 정규식이 `_lib` 과 **함께 죽지 않는다** — 복제를 남긴 이유가 이것이다.
+
+    `_GIT_PUSH` 는 `guard_default_branch_bash._MUTATING` 과 env-value 서브패턴을
+    글자 그대로 공유하고, 그 동기화는 지금 사람 손과 `EnvValueSubpatternSharedTest`
+    의 사후 비교에 기대고 있다. "DRY 하게 `_lib` 로 빼자" 는 제안이 반복해서 나오는데,
+    그렇게 하면 **이 훅이 자기 탐지 능력을 `_lib` 의 건강에 걸게 된다**.
+
+    왜 그게 치명적인가 — 이 훅의 import 는 게이트별 best-effort 다. 실패하면 심볼을
+    `None` 으로 두고 **계속 실행**한다(다른 게이트를 침묵시키지 않으려고 일부러 그렇게
+    했다). 정규식이 같은 경로로 들어오면 `None.search(...)` 가 되어 `AttributeError` 로
+    훅이 죽고, 하네스의 "non-0/non-2 = allow" 규칙에 따라 **모든 push 가 무검증 통과**한다.
+    게이트가 조용히 사라지는 것 — 이 저장소가 §J·§L·§M·#1002·#1005 로 반복해 닫아온
+    바로 그 클래스다.
+
+    그래서 이 테스트는 `_lib` 을 통째로 부순 상태에서 훅이 **여전히 push 를 push 로 알아보고
+    차단 판정까지 도달하는지**를 본다. 주석만으로는 다음 사람이 "정리" 라는 이름으로
+    이 성질을 되돌릴 수 있다 — 실제로 "keep identical" 주석은 §J 에서 세 곳 중 한 곳이
+    누락되는 것을 막지 못했다.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.hooks_dir = os.path.join(self.tmp, "hooks")
+        os.makedirs(os.path.join(self.hooks_dir, "_lib"))
+        self.hook = os.path.join(self.hooks_dir, "guard_review_before_push.py")
+        shutil.copy(HOOK_SRC, self.hook)
+
+    def _write(self, rel, content):
+        path = os.path.join(self.hooks_dir, "_lib", rel)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+    def _run(self, command):
+        env = dict(os.environ)
+        env["CLAUDE_PROJECT_DIR"] = self.tmp
+        env.pop("BYPASS_REVIEW_GUARD", None)
+        env.pop("BYPASS_PLAN_GUARD", None)
+        return subprocess.run(
+            [sys.executable, self.hook],
+            input=json.dumps({"tool_input": {"command": command}}),
+            capture_output=True, text=True, env=env, timeout=10, cwd=self.tmp,
+        )
+
+    def _break_every_lib_module(self):
+        """`_lib` 의 세 모듈을 전부 import 불가로 만든다 — 최악의 경우."""
+        for name in ("review_guard.py", "plan_guard.py", "failopen_state.py"):
+            self._write(name, "raise RuntimeError('_lib is broken')\n")
+
+    def test_a_push_is_still_recognised_when_every_gate_import_fails(self):
+        self._break_every_lib_module()
+        r = self._run(_PUSH)
+        # 훅이 살아 있어야 한다 — 크래시(비-0/비-2)는 하네스가 allow 로 읽는다.
+        self.assertIn(
+            r.returncode, (0, 2),
+            f"훅이 죽었다 (rc={r.returncode}) — 하네스는 이걸 allow 로 읽는다.\n"
+            f"stderr:\n{r.stderr}",
+        )
+        # 그리고 이 명령을 **push 로 알아봤어야** 한다. 게이트가 전부 죽었으니 차단은
+        # 못 하지만, fail-open 을 소리 내어 보고하는 것이 그 증거다.
+        self.assertIn(
+            "fail-open", r.stdout + r.stderr,
+            "push 로 인식하지 못해 게이트 경로에 아예 들어가지 않았다 — 탐지가 "
+            "`_lib` 과 함께 죽었다는 뜻이다",
+        )
+
+    def test_a_non_push_stays_silent_under_the_same_breakage(self):
+        """반대 방향. 위 단언이 '무조건 시끄럽다' 로 통과하면 안 된다 — 탐지가
+        **구분**을 유지하는지가 요점이다."""
+        self._break_every_lib_module()
+        r = self._run("git status")
+        self.assertIn(r.returncode, (0, 2))
+        self.assertNotIn(
+            "fail-open", r.stdout,
+            "push 가 아닌 명령까지 게이트 경로로 들어갔다 — 탐지가 무너진 것이다",
+        )
+
+    def test_the_multiline_form_survives_too(self):
+        """§M 이 닫은 형태(줄바꿈 뒤의 push)가 `_lib` 붕괴 하에서도 유지되는지.
+        이 형태가 이 저장소에서 가장 흔하고, 종전에 통째로 안 보이던 것이다."""
+        self._break_every_lib_module()
+        r = self._run(_MULTILINE_PUSH)
+        self.assertIn(r.returncode, (0, 2))
+        self.assertIn("fail-open", r.stdout + r.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -249,6 +249,28 @@ except Exception as exc:  # noqa: BLE001
 # fixes broke (heredoc commits, `git \push`). Do not reopen this without
 # measuring against BOTH lists above.
 # SoR: plan/complete/harness-push-detection-split-then-match.md.
+#
+# ── 왜 이 정규식이 `_lib/` 이 아니라 훅 파일 안에 있는가 ──────────────────────
+# env-value 서브패턴이 `guard_default_branch_bash._MUTATING` 과 글자 그대로 같고,
+# 그 동기화를 사람 손 + `EnvValueSubpatternSharedTest` 의 사후 비교가 맡는다. "DRY 하게
+# 공유 상수로 빼자" 는 제안이 반복해서 나오는데(리뷰 §M, 2회차 W2), **의도적으로
+# 거절한다**:
+#
+#   위 import 블록은 게이트별 best-effort 다 — 실패하면 심볼을 `None` 으로 두고 훅은
+#   계속 돈다(한 모듈의 고장이 다른 게이트를 침묵시키지 않게). 정규식이 같은 경로로
+#   들어오면 `None.search(...)` 가 되어 `AttributeError` 로 훅이 죽고, 하네스의
+#   "non-0/non-2 = allow" 규칙에 따라 **모든 push 가 무검증 통과**한다. DRY 를 얻는 대신
+#   "공유 모듈 하나가 깨지면 차단 게이트가 통째로 사라지는" 실패 모드를 사는 셈이다.
+#   §J·§L·§M·#1002·#1005 가 반복해 닫아온 것이 정확히 "조용한 게이트 우회" 다.
+#
+# 이 성질은 주석이 아니라 **테스트로** 지킨다 — `test_guard_review_before_push_main.py`
+# 의 `DetectionSurvivesABroken_libTest` 가 `_lib` 세 모듈을 전부 부순 채로 push 가
+# 여전히 push 로 인식되는지 본다. 주석만으로는 부족하다는 근거가 있다: "keep identical"
+# 주석은 §J 에서 세 곳 중 한 곳이 누락되는 것을 막지 못했다.
+#
+# 전면 공유(훅까지 `_lib` import)는 import 실패를 **fail-CLOSED**(exit 2)로 뒤집어야
+# 안전해지는데, 그건 "가드가 깨지면 작업이 멈춘다" 는 정책 반전이라 별도 합의가 필요하다.
+# 추적: plan/in-progress/harness-env-value-subpattern-dedup.md (C).
 _GIT_PUSH = re.compile(
     r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
