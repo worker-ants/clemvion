@@ -241,6 +241,47 @@ describe("useTokenRefresh (fake timer)", () => {
     expect(refreshToken).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * `401` 의 **짝** — `410`(`EXECUTION_TERMINATED`)도 재시도 대상이 아니다.
+   *
+   * 이 파일에 401 만 두면 `isTerminalAuthError` 에서 `410` 항을 지우는 뮤턴트를 **다른 파일의
+   * 기존 테스트**가 대신 잡는다(실측: `use-widget-eager-start.test.ts` 의 재로드 410 케이스).
+   * 그건 주기 갱신 경로가 그 술어를 계속 공유한다는 전제에 기대는 것이고, 누군가 여기에
+   * `err.status === 401` 을 인라인으로 다시 박는 "빠른 수정" 을 하면 이 파일엔 잡을 것이 없다 —
+   * "한쪽만" 이 이 브랜치의 반복 결함이다 (ai-review `17_55_57` testing).
+   */
+  it("`410` 실패도 재시도하지 않는다 — 종료된 execution", async () => {
+    const { result, refreshToken } = setup({}, () => Promise.reject(new EiaError("execution terminated", 410)));
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 1); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_MAX_DELAY_MS * 3); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 소비자 콜백의 예외가 **갱신 성공 판정을 오염시키지 않는다**.
+   *
+   * 감싸지 않으면 `onRefreshed` 의 동기 throw 가 같은 프라미스 체인의 `.catch()` 로 떨어져
+   * 성공한 갱신이 "갱신 실패" 로 오분류된다 — 백오프 카운터가 오르고 정상 재예약(만료 기준)이
+   * 백오프 재시도로 바뀐다. 관측 축은 **다음 발화 시점**이다: 정상이면 다음 만료 기준(60분)
+   * 이고, 오분류되면 백오프(5초)라 짧은 전진에서 갈린다 (ai-review `17_55_57` side_effect).
+   */
+  it("onRefreshed 가 throw 해도 갱신은 성공으로 취급된다 — 백오프로 떨어지지 않는다", async () => {
+    const { result, refs, refreshToken } = setup({}, undefined, () => {
+      throw new TypeError("consumer blew up");
+    });
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+    // 갱신 자체는 성공했다 — 세션도 storage 도 새 토큰이다.
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    expect(refs.sessionRef.current?.token).toBe("iext_x2");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_x2");
+    // 백오프(5초)로 떨어졌다면 여기서 2회차가 나온다. 정상 재예약이면 아직 안 온다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_BASE_MS * 4); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
   /** 세계가 바뀐 뒤(새 대화·종료) 도착한 실패는 재시도도 하지 않는다 — 옛 세션의 백그라운드 폭주 방지. */
   it("실패 응답 도착 시 세대가 바뀌어 있으면 재시도하지 않는다", async () => {
     let rejectRefresh: ((e: unknown) => void) | null = null;

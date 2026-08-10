@@ -740,12 +740,23 @@ export function useWidget() {
    */
   useEffect(() => {
     resumeDeferredStreamRef.current = (session) => {
-      if (!deferredStreamRef.current) return; // 정상 경로의 갱신 — 열 스트림이 없다.
-      deferredStreamRef.current = false;
+      // 정상 경로의 갱신 — 열 스트림이 없다.
+      // **이 줄을 지우는 뮤턴트도 생존한다(실측).** `false` 인 시점은 항상 정상 경로가 이미
+      // 스트림을 연 뒤라 `openStream` 내부의 `"already_owned"` 게이트가 재호출을 흡수하기
+      // 때문이다 — `teardownSession` 의 플래그 해제와 **같은 뿌리의 두 번째 사례**이고, 그쪽만
+      // 적어 둔 것이 이 브랜치가 반복해 낸 "한쪽만" 패턴이라 여기에도 남긴다
+      // (ai-review `17_55_57` testing).
+      if (!deferredStreamRef.current) return;
       // 그 사이 다른 시도가 스트림을 열었으면 `openStream` **내부 게이트**가 `"already_owned"` 로
       // 막는다 — 여기서 `sessionEstablished()` 를 또 묻는 것은 그 게이트를 호출부로 되복제하는
       // 짓이고, 이 파일이 방금 없앤 결함 형태다.
+      //
+      // **의사를 지우는 것은 스트림을 실제로 연 뒤다.** 낙관적으로 먼저 지우면 `openStream` 이
+      // 동기 throw 할 때(손상된 `endpoints.stream`/`apiBase` 조합에 `new URL` 이 던진다) 그
+      // 의사가 **영구히 사라져**, 이후 갱신이 아무리 성공해도 스트림을 다시 열지 않는다 —
+      // 토큰만 최신이고 화면은 영영 스피너인 조용한 실패다(ai-review `17_55_57` side_effect).
       openStream(session, "0");
+      deferredStreamRef.current = false;
     };
   });
 

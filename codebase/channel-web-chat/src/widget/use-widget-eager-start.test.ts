@@ -101,6 +101,12 @@ function installControllableEventSource(): {
   vi.stubGlobal("EventSource", class {
     constructor(url: string) {
       latestUrl = String(url);
+      if (throwOnce) {
+        throwOnce = false;
+        // 실제로 이 자리가 던진다 — `new URL(joinUrl(apiBase, endpoints.stream))` 이
+        // 손상된 저장 세션 조합에 대해 동기 throw 한다.
+        throw new TypeError("malformed stream URL");
+      }
       latest = new ControllableEventSource();
       return latest as unknown as this;
     }
@@ -109,6 +115,13 @@ function installControllableEventSource(): {
   } as unknown as typeof EventSource);
   return { getEs: () => latest, getUrl: () => latestUrl };
 }
+
+/**
+ * 다음 `new EventSource(...)` **한 번만** 동기 throw 시킨다(테스트가 명시적으로 켠다).
+ *
+ * `beforeEach` 가 매번 끄므로 켠 테스트 밖으로 새지 않는다.
+ */
+let throwOnce = false;
 
 /**
  * ControllableEventSource + fetch(embed-config reject, webhook 202, interact 202) 설치.
@@ -199,6 +212,7 @@ function interactCalls(fetchMock: ReturnType<typeof installFetch>) {
 beforeEach(() => {
   vi.stubGlobal("EventSource", FakeEventSource);
   window.sessionStorage.clear();
+  throwOnce = false; // 켠 테스트 밖으로 새지 않게 매번 끈다.
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -594,6 +608,62 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(getEs()).not.toBeNull();
     // **되살아난 토큰으로** 열어야 한다 — 옛 토큰이면 서버가 다시 거부해 같은 고착으로 되돌아간다.
     expect(getUrl()).toContain("iext_revived");
+    expect(result.current.state.phase).not.toBe("ended");
+    vi.useRealTimers();
+  });
+
+  /**
+   * **미뤄 둔 스트림 오픈이 실패해도 그 의사는 남는다.**
+   *
+   * 낙관적으로 플래그부터 지우면, `openStream` 이 동기 throw 하는 순간 "미뤄 뒀다" 는 사실이
+   * 영구히 사라진다 — 이후 갱신이 계속 성공해도(토큰·storage 는 최신) 스트림은 다시는 열리지
+   * 않아 화면만 영영 스피너인 조용한 실패가 된다. 이 PR 이 고치려던 고착의 **새 진입 경로**다
+   * (ai-review `17_55_57` side_effect).
+   *
+   * fixture 가 분기를 가르는 지점: 첫 `new EventSource` 만 던지고 그 다음은 정상이다. 계속
+   * 던지면 "스트림이 안 열린다" 가 정상이라 의사 보존 여부를 구분할 수 없다.
+   */
+  it("§R4: 미뤄 둔 스트림 오픈이 던져도 다음 갱신이 다시 시도한다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_w", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        if (refreshCalls === 1) return Promise.reject(new TypeError("network down"));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { token: `iext_r${refreshCalls}`, expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString() } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+    throwOnce = true; // 미뤄 둔 스트림을 여는 **첫 시도**가 던진다.
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
+    // **단계를 끊어서 본다.** 갱신 주기가 6초라 한 번에 20초를 밀면 재개 성공이 같은 창 안에서
+    // 일어나 "throw 했는데도 열렸다" 와 "throw 뒤 다음 주기에 열렸다" 가 구분되지 않는다.
+    // 1단계(≈6초): 첫 갱신 성공 → 재개 시도 → throw. 여기서 의사가 사라지면 아래가 영영 안 열린다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(getEs()).toBeNull();
+    // 2단계: 다음 갱신 주기 — 의사가 남아 있으면 이번엔 열린다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(getEs()).not.toBeNull();
+    expect(getUrl()).toContain("iext_r");
     expect(result.current.state.phase).not.toBe("ended");
     vi.useRealTimers();
   });

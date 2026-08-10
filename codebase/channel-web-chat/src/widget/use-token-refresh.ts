@@ -119,11 +119,16 @@ export function useTokenRefresh({
     }
   }, []);
 
-  // 함수 표현식 이름(scheduleRefresh)으로 setTimeout 콜백에서 자기 재귀 호출(재예약). deps 는 전부 stable
-  // (ref + clearRefreshTimer) 이라 scheduleRefresh 도 stable — start()/applyConfig 가 직접 호출 가능(간접 ref 불요).
-  const scheduleRefresh = useCallback(function scheduleRefresh(retryDelay?: number): void {
+  // 함수 표현식 이름(scheduleWithDelay)으로 setTimeout 콜백에서 자기 재귀 호출(재예약). deps 는 전부 stable
+  // (ref + clearRefreshTimer) 이라 아래 공개 래퍼도 stable — start()/applyConfig 가 직접 호출 가능(간접 ref 불요).
+  // `retryDelay` 는 **재시도 재귀 전용**이다 — 아래 공개 래퍼가 인자를 막아 이 파라미터가
+  // 훅의 반환 타입에 새어 나가지 않게 한다. 새면 호출부가 임의 지연을 넣을 수 있고, 그건
+  // `failuresRef` 리셋 조건(`retryDelay === undefined`)과 결합해 백오프를 조용히 무력화한다
+  // (ai-review `17_55_57` maintainability).
+  const scheduleWithDelay = useCallback(function scheduleWithDelay(retryDelay?: number): void {
     clearRefreshTimer();
-    // 공개 진입(인자 없음) = "지금부터 새로 예약한다" → 백오프 리셋. 재시도 재귀는 유지한다.
+    // 공개 진입(`scheduleRefresh()` — 인자 없음) = "지금부터 새로 예약한다" → 백오프 리셋.
+    // 내부 백오프 재귀(인자 있음)는 카운터를 유지한다.
     if (retryDelay === undefined) failuresRef.current = 0;
     const session = sessionRef.current;
     if (!session) return;
@@ -152,8 +157,21 @@ export function useTokenRefresh({
           // 소유자 통지 — `refresh_deferred` 로 미뤄 둔 스트림이 있으면 지금 연다.
           // **`scheduleRefresh()` 보다 먼저 부른다**: 재예약이 백오프를 리셋하는 것과 무관하게,
           // 복구 통지는 이 왕복의 결과이므로 같은 tick 에 전달되어야 한다.
-          onRefreshedRef.current?.(updated);
-          scheduleRefresh(); // 다음 만료 기준 재예약(백오프 리셋).
+          //
+          // **소비자 예외를 여기서 삼킨다.** 감싸지 않으면 콜백의 동기 throw 가 같은 체인의
+          // `.catch()` 로 떨어져 **성공한 갱신이 "갱신 실패" 로 오분류**되고(경고 오출력 +
+          // 백오프 카운터 증가), 아래 재예약도 건너뛴다. refresh 는 이미 성공했고 세션도
+          // 갱신됐다 — 소비자 쪽 사고가 그 사실을 뒤집어선 안 된다
+          // (ai-review `17_55_57` side_effect).
+          try {
+            onRefreshedRef.current?.(updated);
+          } catch (notifyErr) {
+            console.warn(
+              "[widget] onRefreshed consumer threw (refresh itself succeeded):",
+              notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+            );
+          }
+          scheduleWithDelay(); // 다음 만료 기준 재예약(백오프 리셋).
         })
         .catch((err: unknown) => {
           // 세계가 바뀌었으면(새 대화·종료·언마운트) 이 실패도 옛 세계의 것 — 재시도까지 폐기한다.
@@ -168,10 +186,16 @@ export function useTokenRefresh({
           // 로 이 훅에 복구를 맡기는 경로에선 그게 곧 영구 고착이었다
           // (ai-review `17_15_33_2` requirement CRITICAL).
           failuresRef.current += 1;
-          scheduleRefresh(retryDelayMs(failuresRef.current));
+          scheduleWithDelay(retryDelayMs(failuresRef.current));
         });
     }, delay);
   }, [clearRefreshTimer, sessionRef, clientRef, configRef, worldGenRef]);
+
+  /**
+   * 공개 예약 진입점 — **인자를 받지 않는다**(`() => void`). 내부 백오프 재귀만
+   * `scheduleWithDelay` 로 지연을 넘긴다.
+   */
+  const scheduleRefresh = useCallback(() => scheduleWithDelay(), [scheduleWithDelay]);
 
   // 언마운트 시 예약 타이머 정리. **아직 떠 있는 refresh 응답**은 여기서 못 막지만, 소유자가
   // 언마운트 cleanup 에서 세대를 올리므로 위 `.then()` 의 세대 검사가 폐기한다(deps JSDoc §계약).
