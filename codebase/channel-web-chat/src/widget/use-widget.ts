@@ -12,7 +12,7 @@ import type {
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { stripTrailingSlash } from "@/lib/api-base";
-import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
+import { applyRefreshedToken, clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
@@ -386,6 +386,18 @@ export function useWidget() {
    * **종료 상태 처리**: `status` 가 terminal(`completed`/`failed`/`cancelled`)이면 표면 시드 대신
    * {@link finalizeEnded} 으로 세션 정리 + `ENDED` 전이 + host 통지를 수행한다.
    *
+   * **REST 오류 분기 (2026-08-10, [3-auth-session §3.1-2·§R4])** — 실패가 전부 soft-fail 은
+   * 아니다. 세 갈래를 상태코드로 가른다:
+   * - `404` → `"ended"`. 없는 execution 에 SSE 를 열면 아무것도 안 와 `streaming` 에 고착된다.
+   * - `401` → **낙관적 `refreshToken` 1회**. 만료인지 blacklist 인지 클라이언트는 사전 판별할
+   *   수 없다(EIA §8.3). 성공하면 `sessionRef`·storage 를 새 토큰으로 갱신하고 `"continue"` —
+   *   **호출부는 그 뒤 `sessionRef.current` 를 읽어야 한다.** `SeedOutcome` 은 "무엇이 바뀌었나"
+   *   를 실어 나르지 않으므로, 캡처해 둔 지역 변수를 쓰면 거부된 토큰으로 스트림을 연다
+   *   (ai-review `16_09_40` CRITICAL — 3명 독립 수렴).
+   * - 재차 `401` → `"ended"`(복구 불가 확정, §R4).
+   * - **그 외는 여전히 soft-fail** `"continue"`. 일시적 장애가 대화를 끝내지 않게 하는 경계이고,
+   *   회귀 테스트가 그 경계를 고정한다.
+   *
    * @returns {@link SeedOutcome} — **`"continue"` 가 아니면 호출부는 후속 `openStream`/
    *   `scheduleRefresh` 를 반드시 건너뛴다**. `"ended"`(스냅샷이 terminal → 종료 확정)는 무효 토큰
    *   SSE 재오픈·종료 세션 storage 부활을 막고, `"stale"`(await 사이 세션 교체)은 지연 응답이 새
@@ -507,9 +519,11 @@ export function useWidget() {
             if (isStale(gen)) return "stale";
             const cfg = configRef.current;
             if (!cfg) return "stale"; // 부팅 전으로 되돌아감 — 쓸 곳이 없다.
-            const updated = { ...session, token, expiresAt };
-            sessionRef.current = updated;
-            saveSession(cfg.triggerEndpointPath, updated);
+            sessionRef.current = applyRefreshedToken(
+              session,
+              { token, expiresAt },
+              cfg.triggerEndpointPath,
+            );
             // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
             // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
             return "continue";

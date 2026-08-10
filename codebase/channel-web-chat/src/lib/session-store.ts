@@ -106,3 +106,28 @@ export function clearSession(triggerEndpointPath: string, storage?: Storage): vo
     /* 무시 */
   }
 }
+
+/**
+ * 새 토큰을 세션에 반영하고 storage 에 영속화한다 — **갱신 경로가 둘이라 여기 한 곳에 둔다.**
+ *
+ * 주기 갱신(`use-token-refresh`)과 `401` 낙관적 복구(`use-widget` 의 `seedWaitingFromStatus`)가
+ * 각자 이 4줄을 복제하고 있었다. 오케스트레이션은 합치면 안 된다 — 전자는 `setTimeout` 기반
+ * fire-and-forget 이고 성공 시 재귀 재예약까지 하며, 후자는 `catch` 안에서 `await` 로 진행하고
+ * 실패하면 세션 종료를 확정한다. 실패 동작이 정반대라 옵션 파라미터로 합치면 결합도만 는다.
+ *
+ * **그러나 "무엇을 저장하는가" 는 하나여야 한다.** `PersistedSession` 에 필드가 늘거나
+ * `saveSession` 시그니처가 바뀌면 두 곳을 각각 고쳐야 했고, 한쪽만 갱신되고 다른 쪽이 stale 로
+ * 남는 것이 이 저장소가 반복해 겪은 "자매 함수 미적용" 형태다
+ * (ai-review `16_09_40` maintainability).
+ *
+ * 세대 검사는 **호출부 책임**이다 — 이 함수는 "언제 써도 되는가" 를 모른다.
+ */
+export function applyRefreshedToken(
+  session: PersistedSession,
+  refreshed: { token: string; expiresAt: string },
+  triggerEndpointPath: string,
+): PersistedSession {
+  const updated = { ...session, ...refreshed };
+  saveSession(triggerEndpointPath, updated);
+  return updated;
+}

@@ -256,8 +256,11 @@ describe("useWidget — eager 시작(§R6)", () => {
    * `3-auth-session.md` §3.1-2 · §R4 가 정한 재로드 REST 오류 분기 3종.
    *
    * 이 분기들은 spec 이 **동작을 확정 서술**해 두고도 오래 미구현이었다 — `getStatus` 실패는
-   * 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다. spec frontmatter 가
-   * `status: partial` + `pending_plans:` 로 그 사실을 가리키고 있었다.
+   * 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다. 그런데 frontmatter 는
+   * `status: implemented` 였다 — **본문이 미구현을 자인하는데 status 가 그걸 반영하지 않는**
+   * 상태였고, 그 모순 자체가 별도 PR 의 CRITICAL 대상이다(그 PR 이 `partial` +
+   * `pending_plans:` 로 정정 중). 두 PR 의 조정 절차는
+   * `plan/in-progress/webchat-auth-session-status-reconcile.md`.
    *
    * 셋을 갈라서 단언하는 이유: 한 테스트로 묶으면 어느 분기가 도는지 못 가른다. 특히
    * `401` 은 **성공 refresh** 와 **재차 실패** 가 정반대 귀결(복원 vs 종료)이라 같이 볼 수 없다.

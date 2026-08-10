@@ -163,6 +163,15 @@ Stop 버튼(`POST /executions/:id/stop`)이 Execution 행을 `cancelled` 로 UPD
 
 SoT: `spec/conventions/node-cancellation.md` §2.3/§5.1. 추적: `plan/in-progress/node-cancellation-residual-signal-propagation.md`.
 
+## Unreleased — 웹채팅 위젯: 재로드 복원의 `404`·복구불가 `401` REST 분기 ([3-auth-session §3.1-2·§R4](spec/7-channel-web-chat/3-auth-session.md))
+
+spec 이 **동작을 확정 서술**해 두고도 비어 있던 자리다. `getStatus` 실패는 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다 — `404`(execution 소멸)에도 스트림을 열었고, 그 스트림은 아무것도 주지 않아 위젯이 `streaming` 에 무기한 고착됐다.
+
+1. **`404` → 종료 확정**: storage 정리 후 `[ended]`. 없는 execution 에 SSE 를 여는 것이 고착의 직접 원인이었다.
+2. **`401` → 낙관적 refresh 1회**: per_execution 토큰은 execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04) 재로드 `401` 은 단순 만료와 blacklist 를 **사전 판별할 수 없다**. §R4 의 결정대로 한 번 시도해 만료면 복구하고, 재차 `401` 이면 종료로 확정한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다.
+3. **그 외 오류는 여전히 soft-fail**: 일시적 장애가 대화를 끝내지 않게 하는 경계다. `webchat-boot-single-flight` 이 "에러도 종료다" 로 해석했다가 **살아있는 대화를 영구 유실**시킨 사고가 있었고, 그 경계를 회귀 테스트로 고정했다.
+4. **호출부는 refresh 후 `sessionRef.current` 를 읽는다**: `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지 않아, 캡처해 둔 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를 연다**(이 변경이 고치려던 증상을 성공 경로에서 재현). 리뷰 3명이 독립 수렴해 잡았고, 테스트 헬퍼가 EventSource URL 을 버리고 있어 통과시키던 것도 함께 고쳤다.
+
 ## Unreleased — 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
 
 **선행 결함**(이번 변경이 만든 것이 아니다). `applyConfig` 재전송은 `clientRef` 를 새 `apiBase` 로 무조건 교체하는데, iframe-origin sessionStorage 의 저장 세션은 **옛 origin 에서 발급된** 단명 토큰을 들고 있었다. 세션과 엔드포인트의 축이 분리돼 있어, 재전송이 `apiBase` 를 바꾸면 옛 토큰이 새 origin 으로 전송될 수 있었다. 오늘 무해했던 이유는 유일한 재전송 경로(관리자 라이브 미리보기)가 `apiBase` 를 바꾸지 않기 때문일 뿐이다.

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 import type { EiaClient } from "@/lib/eia-client";
-import { saveSession, type PersistedSession } from "@/lib/session-store";
+import { applyRefreshedToken, type PersistedSession } from "@/lib/session-store";
 import type { BootMessage } from "./host-bridge";
 
 /** 토큰 만료 이 시간 이내로 진입하면 갱신(3-auth-session §3 step7). */
@@ -90,9 +90,11 @@ export function useTokenRefresh({ sessionRef, clientRef, configRef, worldGenRef 
           // 세계가 바뀌었으면(새 대화·종료·언마운트) 이 응답은 옛 세계의 것 — 폐기한다.
           // 이 검사가 없으면 아래 두 줄이 새 세션을 옛 세션으로 덮고 storage 를 되살린다.
           if (worldGenRef.current !== gen) return;
-          const updated = { ...currentSession, token, expiresAt };
-          sessionRef.current = updated;
-          saveSession(currentCfg.triggerEndpointPath, updated);
+          sessionRef.current = applyRefreshedToken(
+            currentSession,
+            { token, expiresAt },
+            currentCfg.triggerEndpointPath,
+          );
           scheduleRefresh(); // 다음 만료 기준 재예약.
         })
         .catch((err: unknown) => {
