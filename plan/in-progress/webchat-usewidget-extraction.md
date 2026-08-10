@@ -159,3 +159,9 @@ security/maintainability 가 같은 지점을 INFO 로 확인).
 `establishConfig`/`applyConfig`/`start`/`seedWaitingFromStatus`/`sendCommand`/`teardownSession` +
 스트림·토큰 배선. 착수 전 §선행 판단의 "토큰 타입을 훅 경계의 공개 계약으로 삼을지" 를
 다시 판정할 것 — 1차 slice 가 `BootAttempt` 를 export 했으므로 그 결정의 일부는 이미 내려졌다.
+
+> **순서 주의 — [`webchat-reload-rest-error-branches.md`](./webchat-reload-rest-error-branches.md)
+> 와 같은 함수를 건드린다.** 그쪽은 `seedWaitingFromStatus` 의 `catch` 에 `404`·`401` 분기를
+> 넣는 작업이고(현재는 상태코드 구분 없는 soft-fail), 이 slice 는 그 함수를 훅으로 **추출**한다.
+> 추출이 먼저면 분기는 새 훅 안에 들어간다. 어느 쪽을 먼저 하든 나중 것이 앞선 것의 결과 위에서
+> 재판정돼야 한다.
