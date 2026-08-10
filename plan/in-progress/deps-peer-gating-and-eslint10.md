@@ -91,6 +91,14 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 
 - [x] §1 `nunjucks → chokidar` 미충족 처분 — **전제가 반증돼 처분 대상 자체가 없었다** (2026-08-10). 규칙 없이 `--strict-peer-dependencies --frozen-lockfile` → **exit 0, unmet peer 0건**. 2026-08-01 기준 서술이었고 그 사이 상류가 정리됐다. 억제를 넣었다가 **되돌렸다** — 막을 대상이 없는 억제는 죽은 설정이고 나중에 진짜 미충족을 조용히 덮는다(fail-open). 근거는 `pnpm-workspace.yaml` 주석에 남겼다.
 - [x] §1 `--strict-peer-dependencies` 게이트 도입 — **`pnpm install` 호출부 5곳 전부**에 추가 — `.github/actions/pnpm-workspace`(9개 잡 / 5개 워크플로 파일이 거친다) + `.claude/test-stages.sh`(로컬/TEST WORKFLOW) + `codebase/backend/Dockerfile` · `codebase/frontend/Dockerfile` · `Dockerfile.playwright-e2e`(e2e 이미지 빌드). **처음엔 action 한 곳만 고치고 "한 줄이 전부를 덮는다" 고 적었는데 과장이었다** — 리뷰가 나머지 4곳을 짚었고 그중 3곳은 지금도 CI 에서 돈다. plan 자신이 "CI/**로컬** 게이트" 라고 적어 둔 범위였다. 기존 가드 `test_pnpm_workspace_action.py` 가 정확히 그 줄을 고정하고 있어 **함께 갱신** — 계약이 바뀌면 그 계약을 고정한 테스트도 바뀌어야 한다(가드가 제 일을 했다).
+- [ ] **(무관, 이 티켓 밖 — 유실 방지 등재)** CLAUDE.md skill 권한표와 실제 관례의 불일치:
+      `developer` 의 `review/**` 쓰기가 **`RESOLUTION.md` 로만** 한정돼 있는데, 실제로는 매
+      라운드 산출물 전체(`<role>.md`·`SUMMARY.md`·`meta.json`…)를 커밋하는 것이 이 저장소의
+      확립된 관례다(`git log -- review/code/` 로 확인). **어느 쪽이 옳은지가 결정 사항**이라
+      임의로 정하지 않는다 — 감사 기록을 남기는 쪽(관례)이 맞다면 권한표를 넓히고, 권한을
+      좁게 두는 쪽이 맞다면 누가 그 산출물을 커밋할지 정해야 한다.
+      > 출처: `review/code/2026/08/10/15_41_41` scope INFO.
+
 - [ ] §2 eslint 10 상향 — 10개 워크스페이스 + config 검증
 - [ ] §2 상향 후 `dependabot.yml` 의 `eslint-plugin-unicorn` ignore 해제 + `eslint.config.mjs`
       주석의 실측 표 갱신
