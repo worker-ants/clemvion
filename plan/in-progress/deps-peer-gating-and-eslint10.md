@@ -1,12 +1,18 @@
 ---
 title: 의존성 peer 게이팅 + eslint 10 상향 — 무검증 major 머지의 남은 두 구멍
-worktree: (unstarted)
+worktree: spec-small-followups
 started: 2026-08-01
 owner: developer
 status: in-progress
 priority: P2
 spec_impact: none
 ---
+
+> _(2026-08-10)_ `worktree:` 를 `(unstarted)` → `spec-small-followups` 로 갱신했다. §1 을
+> 그 워크트리에서 착수했고, 이 필드는 "이 작업이 **어느 워크트리에서** 진행되는가" 다.
+> `(unstarted)` 로 두면 plan 게이트가 이 브랜치를 **다른 plan**(같은 워크트리를 선언 중인
+> `typescript-toolchain-followups`)에 연결한다 — 실제로 그렇게 막혔다. 게이트는 한
+> 워크트리의 여러 plan 중 **하나만 처리돼도** 통과하도록 설계돼 있다.
 
 ## Overview
 
