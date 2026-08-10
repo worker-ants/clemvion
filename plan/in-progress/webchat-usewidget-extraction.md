@@ -1,9 +1,15 @@
 ---
-worktree: webchat-session-generations-ca88ae
+worktree: spec-small-followups
 started: 2026-07-18
 owner: developer
 status: in-progress
 ---
+
+> _(2026-08-10)_ `worktree:` 를 `webchat-session-generations-ca88ae` → `spec-small-followups`
+> 로 갱신했다. 앞 값은 **1차 slice 시절의 워크트리**라 stale 이었고, 그 탓에 plan 게이트가
+> 이 브랜치를 엉뚱한 plan(`typescript-toolchain-followups`, 같은 워크트리를 선언 중)에
+> 연결했다. 이 필드는 "이 작업이 **어느 워크트리에서** 진행되는가" 이므로 현재 값이 사실이다.
+> (게이트는 한 워크트리의 여러 plan 중 **하나만 처리돼도** 통과하도록 설계돼 있다.)
 
 > **1차 slice 완료 (2026-07-24)** — 사용자 결정으로 **staleness 축만 먼저** 분리했다
 > (`useSessionGenerations`). 전체 추출은 열려 있다. §1차 slice 참고.
@@ -57,11 +63,43 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
       (신규 훅 단위 8 + 구성 지점 참조 안정성 1), e2e 259 PASS. 기능 무변경.
 - [x] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test) — **가드 불필요로 결론**.
       1차 slice 의 전용 파일 분리가 위험 자체를 없앴다(§1차 slice §부수 효과 참고).
-- [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
-  `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
-  3번째 seed→openStream 호출부가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 여지. 복원/시작
-  경로를 훅으로 뽑을 때 openStream 진입을 단일 wrapper 로 감싸 게이트를 구조적으로 강제하는 것을 검토.
-  (현재는 두 호출부 모두 대칭 회귀 테스트로 고정돼 있어 비차단.)
+- [x] **seed 게이트 + openStream 게이트 짝의 구조적 강제 — 완료 (2026-08-10)**
+      (ai-review 02_25_54 maintainability). 종전엔 `sessionEstablished()` 스트림 게이트가
+      `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이었다. 3번째 seed→openStream
+      경로가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 자리였다.
+
+      **훅 추출을 기다리지 않고 지금 닫았다** — 게이트를 `openStream` **안**으로 옮기면
+      되고, 그건 나머지 slice(§토큰 타입을 공개 계약으로 삼을지)의 미결 결정과 무관하다.
+
+      **반환은 명명 union `StreamClaim`**(`"opened"`/`"already_owned"`/`"no_client"`)이고
+      호출부는 `if (claim !== "opened" && claim !== "no_client") return;` **부정 비교**로
+      게이팅한다 — 향후 "중단이어야 하는" 결과가 늘어도 기본값이 중단이다(fail-closed).
+      > 이 자리에 처음엔 긍정 비교(`=== "already_owned"`)를 적었고, 리뷰가 그것이
+      > **fail-open** 임을 지적했다(`12_48_08` maintainability). 형제 `SeedOutcome` 이
+      > `!== "continue"` 부정 비교인데 선례를 인용해 놓고 관용구는 반대로 쓴 것이다.
+      > 코드는 `bf8d71802` 에서 고쳤으나 **이 문서는 그 커밋에서 빠졌다**(`13_29_35`
+      > documentation WARNING).
+      처음엔 `boolean` 으로 썼다가 리뷰가 **이 파일이 `SeedOutcome` 으로 이미 배운 교훈**을
+      되돌린 것이라고 지적했다 — boolean 이면 "실제로 열었다" 와 "열 게 없어 통과시켰다
+      (client 미확립)" 가 같은 `true` 로 뭉개진다. `SeedOutcome` 도입 근거가 정확히 그
+      문장이다("정상 시드"와 "stale 폐기"가 같은 `false` 로 뭉개져 호출부가 구분 불가).
+      선례를 따라 union 으로 승격했고, 그 덕에 `"no_client"` 가 중단이 아닌 것이 **문서가
+      아니라 타입으로** 드러난다.
+
+      `"no_client"` 가 진행인 것은 **동작 보존**이다 — 종전 호출부는 client 가 없어도
+      `scheduleRefresh()` 를 그대로 실행했다. 첫 판(`boolean`)에서 그 경로를 `false` 로
+      썼다가 뮤테이션이 조용한 동작 변경을 드러내 고쳤다.
+
+      뮤테이션 — **소유권 게이트 제거는 RED**(이중 EventSource 회귀 2건이 양방향으로 잡는다).
+      나머지 2종(`"no_client"`→`"already_owned"`, 호출부가 결과를 무시)은 **생존하나 동등
+      뮤턴트**다: `scheduleRefresh` 가 `clearRefreshTimer()` 로 시작하는 **멱등** 함수라 두 번
+      불러도 관측 차이가 없고, no-client 상태로 openStream 에 도달하는 경로는 실 사용에서
+      나오지 않는다(실측). **관측 불가한 것에 테스트를 만들면 vacuous 해지므로 만들지 않았다** —
+      대신 union 타입이 그 구분을 컴파일 시점에 드러낸다.
+
+      기능 무변경 — 위젯 23파일 409건 통과, `tsc --noEmit` 0 errors.
+      회귀 테스트 주석도 함께 갱신했다(옛 "호출부 양쪽 게이트" 서술 → "openStream 내부 단일
+      게이트"). 이 저장소가 주석 drift 로 반복 결함을 낸 이력이 있어 미루지 않았다.
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
 </content>
 
@@ -133,3 +171,9 @@ security/maintainability 가 같은 지점을 INFO 로 확인).
 `establishConfig`/`applyConfig`/`start`/`seedWaitingFromStatus`/`sendCommand`/`teardownSession` +
 스트림·토큰 배선. 착수 전 §선행 판단의 "토큰 타입을 훅 경계의 공개 계약으로 삼을지" 를
 다시 판정할 것 — 1차 slice 가 `BootAttempt` 를 export 했으므로 그 결정의 일부는 이미 내려졌다.
+
+> **순서 주의 — [`webchat-reload-rest-error-branches.md`](../complete/webchat-reload-rest-error-branches.md)
+> 와 같은 함수를 건드린다.** 그쪽은 `seedWaitingFromStatus` 의 `catch` 에 `404`·`401` 분기를
+> 넣는 작업이고(현재는 상태코드 구분 없는 soft-fail), 이 slice 는 그 함수를 훅으로 **추출**한다.
+> 추출이 먼저면 분기는 새 훅 안에 들어간다. 어느 쪽을 먼저 하든 나중 것이 앞선 것의 결과 위에서
+> 재판정돼야 한다.

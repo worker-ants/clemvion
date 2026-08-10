@@ -19,6 +19,12 @@ spec_impact:
 > `webchat-eager-start` 모두 `plan/complete/`, spec 6문서 전부 `implemented`). 본 plan 은 그 과정에서
 > **비차단으로 이연된 품질·하드닝·spec-polish 항목**을 한 곳에 모은 backlog 다. **영역 기능 surface 는 완결**
 > (전부 비차단) — 활성 강제 TODO 아님, 우선순위 낮음. 여유/필요 시 picking 하며 큰 항목은 착수 시 별도 plan 분리 가능.
+>
+> _(2026-08-10 정정)_ 위 "spec 6문서 전부 `implemented`" 는 **더 이상 참이 아니다.**
+> `3-auth-session.md` 는 본문이 자인한 미구현(재로드 복원의 `404`·복구불가 `401` 분기)과
+> frontmatter 가 어긋나 있던 것이 발견돼 `partial` + `pending_plans:` 로 정정됐다
+> ([`webchat-reload-rest-error-branches.md`](./webchat-reload-rest-error-branches.md)).
+> 원문은 작성 시점 기록으로 남긴다.
 
 ## 출처
 - `webchat-eager-start` 종결(2026-06-27) 시 이관한 비차단 backlog (impl-done/ai-review followup).

@@ -45,13 +45,22 @@ owner: project-planner
 
 ## 처리 (나중 머지 쪽)
 
-- [ ] **#1130 이 나중이면**: 그 PR 의 frontmatter 변경(`partial` + `pending_plans:`)을
-      **철회**한다 — 잔여가 이미 없으므로 `implemented` 가 맞다. 본문 §3.1 배너도 이미
-      구현 반영된 상태인지 확인.
-- [ ] **`webchat-reload-rest-branches` 가 나중이면**: main 의 frontmatter 가 `partial` +
-      `pending_plans:` 이므로, 이 PR 안에서 `plan/in-progress/webchat-reload-rest-error-branches.md`
-      를 `complete/` 로 옮기고 frontmatter 를 `implemented` 로 승격한다(§3 승격 의무).
-- [ ] 어느 쪽이든 `plan/complete/` 로 간 뒤 이 plan 도 함께 종결.
+- [x] **판정: `webchat-reload-rest-branches` 가 나중이었다.** #1130 이 먼저 머지돼
+      `origin/main` 이 `partial` + `pending_plans:` 상태였고, 이 브랜치가 `origin/main` 을
+      머지하면서 재판정을 이행했다(2026-08-10).
+- [x] `webchat-reload-rest-error-branches.md` 를 `plan/complete/` 로 이동 + 항목 체크.
+- [x] frontmatter `partial` → `implemented`, `pending_plans:` 제거(§3 승격 의무).
+- [x] §R4 상단의 "결정은 내려졌으나 구현은 없다(Planned)" 고지 제거 — 이제 거짓이다.
+- [x] §3.1 배너 제목 `⚠ v1 구현 현황(부분)` → `v1 구현 현황`, "그 외 오류 soft-fail" 이
+      **미구현이 아니라 의도된 경계**임을 명시(안 고치면 다음 독자가 같은 CRITICAL 을 다시 연다).
+- [x] `spec/0-overview.md` 의 "6문서 중 5문서가 implemented, 3-auth-session 은 partial"
+      서술 동반 갱신 — **이 미러가 이번 재판정에서 가장 놓치기 쉬웠다**(체크리스트에 없었다).
+- [x] 이동한 plan 을 가리키던 링크 4곳 경로 정정(`in-progress/` → `complete/`).
+
+**교훈**: 이 문서가 "나중 머지 쪽이 처리" 를 3줄로 적어 뒀는데, 실제 이행 항목은 7개였다.
+frontmatter 두 줄만 보고 있었고 배너 제목·§R4 고지·overview 미러·역링크 4곳은 목록에
+없었다. **재판정 체크리스트는 "무엇을 바꾸나" 가 아니라 "그 사실을 어디어디가 복제하고
+있나" 로 써야 한다.**
 
 ## 왜 커밋 메시지로 부족했나 (scope WARNING, 2026-08-10)
 

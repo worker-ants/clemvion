@@ -3783,9 +3783,14 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   // 통과 → 각자 continuation 에서 둘 다 `openStream` 을 호출한다(esCount=2). `openStream` 이
   // closeStream→set 이라 최종 상태는 단일 스트림으로 수렴하지만, 두 번째 EventSource 가 낭비 생성된다.
   //
-  // fix: `openStream` **직전**에도 `sessionEstablished()` 재확인 — seed 게이트(표면)와 짝을 이루는
-  // 스트림 게이트가 `start()`(`use-widget.ts` openStream 직전)와 `applyConfig`(복원 분기 openStream
-  // 직전) **양쪽**에 있다. 먼저 continuation 이 열면 뒤 continuation 은 여기서 멈춘다.
+  // fix: seed 게이트(표면)와 짝을 이루는 **스트림 게이트가 `openStream()` 안**에 있다 — 진입에서
+  // 소유권을 재확인하고 이미 열려 있으면 `"already_owned"` 를 돌려준다. 먼저 continuation 이 열면
+  // 뒤 continuation 은 거기서 멈춘다.
+  //
+  // 종전엔 그 재확인이 `start()`·`applyConfig` **두 호출부에 손으로 복제된 3줄**이었고, 이 주석도
+  // 그 구조를 서술했다. 게이트를 안으로 옮기며(2026-08-10) 갱신한다 — 이 파일이 스스로 밝히듯
+  // 이 코드베이스는 주석 drift 로 반복 결함을 냈고, 다음에 이 테스트가 깨졌을 때 조사자가 있지도
+  // 않은 "호출부 게이트" 를 찾게 두면 안 된다(ai-review 12_39_25 testing).
   // (내 초기 JSDoc "openStream 이 seed 반환 직후 동기 실행이라 원천 차단" 은 microtask 경계를 간과한
   //  오판이었다 — ai-review 01_44_21.)
   //

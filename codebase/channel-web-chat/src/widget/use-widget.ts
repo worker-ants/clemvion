@@ -132,6 +132,26 @@ function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
 }
 
 /**
+ * `openStream` 의 결과 — 호출부가 `scheduleRefresh()` 같은 후속 배선을 진행할지 판정한다.
+ * **`"already_owned"` 만 중단**이고 나머지는 진행이다.
+ *
+ * `SeedOutcome` 과 **같은 이유로** union 이다. 첫 판은 `boolean` 이었는데, 그러면 "실제로 열었다"
+ * 와 "열 게 없어 그냥 통과시켰다(client 미확립)" 가 같은 `true` 로 뭉개진다 — 이 파일이
+ * `SeedOutcome` 도입 때 이미 명문화한 그 안티패턴이다(위 주석: "정상 시드"와 "stale 폐기"가
+ * 같은 `false` 로 뭉개져 호출부가 구분할 수 없었다). 시그니처만 보고 호출부를 쓰는 다음 사람이
+ * `if (!openStream(...)) return;` 를 "열기 실패 시 중단" 으로 오독하기 쉽고, 세 번째 요구
+ * (텔레메트리·테스트 단언)가 생기면 그 boolean 을 다시 쪼개야 한다 — 같은 리팩터의 반복이다.
+ * (ai-review 12_39_25 maintainability.)
+ */
+type StreamClaim =
+  /** 이 호출이 SSE 를 열었다. */
+  | "opened"
+  /** 다른 시도가 이미 소유 중 → **호출부는 중단**한다(후속 배선도 그쪽 몫). */
+  | "already_owned"
+  /** `client` 미확립(부팅 전) → 열지 못했으나 **넘겨받힌 것도 아니다**. 호출부는 진행한다. */
+  | "no_client";
+
+/**
  * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
  * 직접 로드 경로의 `?apiBase=` 는 사용자가 URL 을 통제하지 못하는 임베드 시나리오와 달리 외부 입력이므로,
  * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해 거른다.
@@ -320,12 +340,12 @@ export function useWidget() {
     clearRefreshTimer();
     // 미뤄 둔 스트림 의사도 이 세계와 함께 폐기한다.
     //
-    // **이 줄을 지우는 뮤턴트는 생존한다(실측 — 전 테스트 426 초록).** 등가에 가까운 방어선이라
+    // **이 줄을 지우는 뮤턴트는 생존한다(실측 — 전 테스트 초록).** 등가에 가까운 방어선이라
     // 그렇다: 바로 위 `clearRefreshTimer()` 가 타이머를 끊어 teardown 이후 `onRefreshed` 자체가
-    // 발화하지 않고, 새 세계가 정상 경로로 스트림을 열면 `resumeDeferredStream` 의
-    // `sessionEstablished()` 가드가 다시 막는다. 즉 **지금의 호출 순서와 자매 가드 두 개에
-    // 의존해서만** 무해하다 — 그 중 하나라도 바뀌면 옛 세계의 의사가 새 세계의 갱신으로
-    // 이행된다. 관측 가능한 회귀로 고정하지 못했으므로 근거를 여기 남긴다.
+    // 발화하지 않고, 새 세계가 정상 경로로 스트림을 열면 `openStream` 내부 게이트가 다시 막는다.
+    // 즉 **지금의 호출 순서와 자매 가드 두 개에 의존해서만** 무해하다 — 그 중 하나라도 바뀌면
+    // 옛 세계의 의사가 새 세계의 갱신으로 이행된다. 관측 가능한 회귀로 고정하지 못했으므로
+    // 근거를 여기 남긴다.
     deferredStreamRef.current = false;
     clearSession(configRef.current.triggerEndpointPath);
   }, [closeStream, clearRefreshTimer, worldGenRef]);
@@ -407,10 +427,34 @@ export function useWidget() {
     [finalizeEnded],
   );
 
+  /**
+   * SSE 를 연다. **이미 열려 있으면 아무것도 하지 않고 `"already_owned"`** 를 돌려준다.
+   *
+   * 게이트가 여기 **안**에 있는 것이 요점이다. 종전에는 두 호출부(`start()`·`applyConfig` 복원)가
+   * 각자 `if (sessionEstablished()) return;` 를 손으로 복제했고, 그건 이 파일이 반복해 낸
+   * **"가드를 한쪽에만 적용" 결함**의 다음 재발 자리였다 — 3번째 seed→openStream 경로가 생기면
+   * 아무도 그 3줄을 상기시켜 주지 않는다(ai-review `02_25_54` maintainability).
+   *
+   * 왜 게이트가 필요한가: `await seedWaitingFromStatus` 와 이 호출 사이에 microtask 경계가 있어,
+   * 겹친 두 seed 가 같은 flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림을 보고 통과**한
+   * 뒤 각자 여기로 온다. 아래 `closeStream()` 이 앞의 EventSource 를 끊고 새로 열므로, 막지 않으면
+   * 먼저 연 쪽의 스트림이 조용히 교체된다(ai-review `01_44_21`). **SSE 는 하나만 소유한다.**
+   *
+   * `"no_client"` 가 중단이 아닌 것은 의도이고 **동작 보존**이다 — 종전 호출부는
+   * `openStream(...)`(client 없으면 내부 no-op) 후 `scheduleRefresh()` 를 그대로 실행했다.
+   * 의미로도 맞다: 아무도 스트림을 안 가져갔으므로 이 호출부가 계속 진행하는 것이 옳다.
+   *
+   * @param session - 스트림을 열 대상 세션(endpoint·token 보유).
+   * @param lastEventId - SSE `Last-Event-Id`. 복원·재연결은 `"0"` 을 넘겨 버퍼 replay 를 받는다.
+   * @returns `StreamClaim` — **`"already_owned"` 만 중단**이고 나머지는 진행이다. `void` 였다면
+   *   호출부가 다시 `sessionEstablished()` 를 물어야 하고, 그게 곧 복제의 재도입이다.
+   */
   const openStream = useCallback(
-    (session: SessionRef, lastEventId?: string | number) => {
+    (session: SessionRef, lastEventId?: string | number): StreamClaim => {
       const client = clientRef.current;
-      if (!client) return;
+      if (!client) return "no_client";
+      // 이미 누군가 소유 중이면 넘겨받지 않는다. 이 한 줄이 두 호출부의 복제를 대체한다.
+      if (streamRef.current !== null) return "already_owned";
       closeStream();
       streamRef.current = client.openStream(
         session.endpoints,
@@ -427,6 +471,7 @@ export function useWidget() {
         },
         lastEventId,
       );
+      return "opened";
     },
     [closeStream, handleEiaEvent],
   );
@@ -575,14 +620,18 @@ export function useWidget() {
    * "스트림이 실제로 열렸는가" 라는 직접 신호로 사라진다 — 열렸으면(누가 열었든) SSE 가 소유하니
    * 스킵, 안 열렸으면 이 seed 가 그린다.
    *
-   * **이 seed 가드는 "표면 되감기" 만 막는다. "이중 스트림" 은 호출부의 짝 가드가 막는다.** `await
+   * **이 seed 가드는 "표면 되감기" 만 막는다. "이중 스트림" 은 `openStream` 진입 가드가 막는다.** `await
    * seedWaitingFromStatus` 와 호출부의 `openStream` 사이엔 microtask 경계가 있어, 겹친 두 seed 가 같은
    * flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고 통과한 뒤 각자 continuation 에서
    * `openStream` 을 부를 수 있다(초기 JSDoc 이 "seed 반환 직후 동기 실행" 이라 원천 차단된다고 적었으나
-   * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 `start()`·`applyConfig` 는 `openStream`
-   * **직전**에도 `if (sessionEstablished()) return;` 로 재확인한다. `openStream` 이 closeStream→set 이라
-   * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 짝 가드로 낭비성 두 번째 EventSource 생성 자체를
+   * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 **`openStream` 자신이** 진입에서
+   * 소유권을 재확인하고 이미 열려 있으면 `"already_owned"` 를 돌려준다. `openStream` 이 closeStream→set 이라
+   * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 진입 가드로 낭비성 두 번째 EventSource 생성 자체를
    * 없앤다.
+   *
+   * 종전에는 그 재확인이 두 호출부에 **손으로 복제된 3줄**이었다. 3번째 seed→openStream 경로가
+   * 생기면 아무도 상기시켜 주지 않아, 이 파일이 반복해 낸 "가드를 한쪽에만 적용" 결함의 다음
+   * 재발 자리였다 — 그래서 게이트를 `openStream` 안으로 옮겨 **구조적으로 강제**한다.
    *
    * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`replay_unavailable`
    *   폴백만** 넘긴다 — 그건 자기 스트림의 표면을 버퍼 만료 후 **재동기화**하는 정당한 경우다(스트림
@@ -692,9 +741,10 @@ export function useWidget() {
   useEffect(() => {
     resumeDeferredStreamRef.current = (session) => {
       if (!deferredStreamRef.current) return; // 정상 경로의 갱신 — 열 스트림이 없다.
-      // 그 사이 다른 시도가 스트림을 열었으면 이중 EventSource 를 만들지 않는다(다른 게이트와 동일 축).
       deferredStreamRef.current = false;
-      if (sessionEstablished()) return;
+      // 그 사이 다른 시도가 스트림을 열었으면 `openStream` **내부 게이트**가 `"already_owned"` 로
+      // 막는다 — 여기서 `sessionEstablished()` 를 또 묻는 것은 그 게이트를 호출부로 되복제하는
+      // 짓이고, 이 파일이 방금 없앤 결함 형태다.
       openStream(session, "0");
     };
   });
@@ -765,11 +815,9 @@ export function useWidget() {
         if (shouldAbortAfterSeed(outcome)) return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
-        // **seed 게이트와 짝을 이루는 스트림 게이트** — `await seedWaitingFromStatus` 와 여기 사이엔
-        // microtask 경계가 있어, 겹친 두 seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림
-        // 미열림을 보고 통과한 뒤 각자 여기서 openStream 을 부른다(이중 EventSource 생성). 먼저 continuation
-        // 이 열면 뒤 continuation 은 여기서 멈춘다 — SSE 는 하나만 소유한다(ai-review 01_44_21).
-        if (sessionEstablished()) return;
+        // **seed 게이트와 짝을 이루는 스트림 게이트**는 `openStream` **안**에 있다 — 겹친 두
+        // seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림 미열림을 보고 통과한 뒤 각자
+        // 여기로 오는데, 먼저 온 쪽만 소유한다(ai-review 01_44_21). 못 열었으면 갱신 예약도 건너뛴다.
         // **`sessionRef.current` 를 쓴다 — 캡처해 둔 `session` 이 아니다.** §R4 의 401 낙관적
         // refresh 가 성공하면 seed 안에서 토큰이 교체되는데, 지역 변수는 그 이전 값이라
         // **서버가 이미 거부한 토큰으로 SSE 를 열게 된다**(ai-review 16_09_40 CRITICAL,
@@ -781,7 +829,13 @@ export function useWidget() {
         // 그때 연다**(`resumeDeferredStreamRef`). 플래그를 안 세우면 토큰이 살아나도 스트림이
         // 영영 안 열려 스피너에 고착된다.
         deferredStreamRef.current = outcome === "refresh_deferred";
-        if (!deferredStreamRef.current) openStream(live, "0");
+        if (!deferredStreamRef.current) {
+          // **부정 비교**다 — 형제 `SeedOutcome` 의 `!== "continue"` 와 같은 방향(fail-closed).
+          // `=== "already_owned"` 로 쓰면 향후 "중단이어야 하는" variant 가 늘 때 그 값이
+          // 자동으로 "진행" 으로 취급된다(fail-open, ai-review 12_48_08 maintainability).
+          const claim = openStream(live, "0");
+          if (claim !== "opened" && claim !== "no_client") return;
+        }
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -792,7 +846,7 @@ export function useWidget() {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, sessionEstablished, worldGenRef]);
+  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, worldGenRef]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -1131,17 +1185,20 @@ export function useWidget() {
           // (ai-review 2026-07-17 08_29_33 W2 · 00_51_53)
           if (isAttemptStale(attempt)) return;
         }
-        // **seed 게이트와 짝을 이루는 스트림 게이트**(start() 와 동일) — checkpoint 2 는 boot 축이라
+        // **스트림 게이트는 `openStream` 안**이다(start() 와 같은 경로) — checkpoint 2 는 boot 축이라
         // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
-        // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 여기서 막는다
+        // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 그쪽이 막는다
         // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
-        if (sessionEstablished()) return;
         // `start()` 와 같은 이유로 ref 를 읽는다 — 위 주석 참조(401 refresh 가 토큰을 교체한다).
         const live = sessionRef.current ?? saved;
         // `start()` 와 같은 이유로 플래그를 세운다 — 갱신 성공 시 여기 못 돌아오므로
         // `resumeDeferredStreamRef` 가 대신 연다.
         deferredStreamRef.current = deferStream;
-        if (!deferStream) openStream(live, "0");
+        if (!deferStream) {
+          // 위 `start()` 와 같은 부정 비교(fail-closed) — 근거는 그쪽 주석.
+          const claim = openStream(live, "0");
+          if (claim !== "opened" && claim !== "no_client") return;
+        }
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
