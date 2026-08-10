@@ -118,6 +118,23 @@ except Exception:
 # race into a ReDoS (see the §M note there). Here it is behaviourally identical:
 # `_SEGMENT_SPLIT` strips newlines before this pattern ever runs, so a segment
 # never contains one. Kept identical so the shared-subpattern test stays green.
+#
+# ── 왜 공유 상수로 빼지 않는가, 그리고 왜 저 프리픽스가 163자 한 줄인가 ──────────
+# **공유 안 하는 이유는 이 훅이 아니라 형제 훅 때문이다.** 여기서 `_lib` import 실패는
+# 위에서 `sys.exit(0)` 으로 흡수된다 — 이 훅은 nudge 라 그게 설계된 동작이다. 반면
+# `guard_review_before_push` 는 게이트별 best-effort 라 심볼이 `None` 이 된 채 계속 돌고,
+# 정규식이 그 경로로 들어오면 `AttributeError` → 훅 사망 → "non-0/non-2 = allow" 로
+# **모든 push 가 무검증 통과**한다. 두 훅이 서브패턴을 글자 그대로 공유해야 하므로,
+# 한쪽이 자기 파일 안에 둬야 하면 **양쪽 다** 그래야 한다. 근거 전문은 그쪽 주석에 있고
+# `DetectionSurvivesABroken_libTest` 가 그 성질을 테스트로 지킨다.
+#
+# **저 프리픽스가 한 줄인 것도 의도다.** 이 패턴은 `re.VERBOSE` 지만 `_GIT_PUSH` 는
+# 아니다. `EnvValueSubpatternSharedTest` 는 두 패턴에서 서브패턴을 뽑아 **바이트 단위로**
+# 비교하는데, 여기서 가독성을 위해 줄바꿈·들여쓰기를 넣으면(VERBOSE 라 정규식 의미는
+# 그대로여도) `.pattern` 문자열이 달라져 그 비교가 깨진다. 비교를 공백 정규화로 느슨하게
+# 만드는 선택지는 문자 클래스 안의 공백(`[ \t]` 류)까지 지워 **진짜 드리프트를 숨긴다**.
+# 즉 읽기 편한 포맷과 바이트 동일 비교는 양립하지 않고, 후자를 택했다.
+# 추적: plan/in-progress/harness-env-value-subpattern-dedup.md.
 _MUTATING = re.compile(
     r"""
     ^\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|'(?![^']*')|"(?!(?:\\.|[^"\\])*")|[^\s'"])*[^\S\n]+)*|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*)(?:
