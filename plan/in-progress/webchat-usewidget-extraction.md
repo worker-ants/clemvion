@@ -66,7 +66,13 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
       되고, 그건 나머지 slice(§토큰 타입을 공개 계약으로 삼을지)의 미결 결정과 무관하다.
 
       **반환은 명명 union `StreamClaim`**(`"opened"`/`"already_owned"`/`"no_client"`)이고
-      호출부는 `if (openStream(...) === "already_owned") return;` 한 줄이 된다.
+      호출부는 `if (claim !== "opened" && claim !== "no_client") return;` **부정 비교**로
+      게이팅한다 — 향후 "중단이어야 하는" 결과가 늘어도 기본값이 중단이다(fail-closed).
+      > 이 자리에 처음엔 긍정 비교(`=== "already_owned"`)를 적었고, 리뷰가 그것이
+      > **fail-open** 임을 지적했다(`12_48_08` maintainability). 형제 `SeedOutcome` 이
+      > `!== "continue"` 부정 비교인데 선례를 인용해 놓고 관용구는 반대로 쓴 것이다.
+      > 코드는 `bf8d71802` 에서 고쳤으나 **이 문서는 그 커밋에서 빠졌다**(`13_29_35`
+      > documentation WARNING).
       처음엔 `boolean` 으로 썼다가 리뷰가 **이 파일이 `SeedOutcome` 으로 이미 배운 교훈**을
       되돌린 것이라고 지적했다 — boolean 이면 "실제로 열었다" 와 "열 게 없어 통과시켰다
       (client 미확립)" 가 같은 `true` 로 뭉개진다. `SeedOutcome` 도입 근거가 정확히 그
