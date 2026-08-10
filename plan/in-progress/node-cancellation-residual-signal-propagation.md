@@ -61,9 +61,15 @@ priority: P3
       > 사용자 cancel 이라 §5.1 `cancelled` 가 이미 정답인 경로). — 워크플로 시간 한도
       자체는 PR2a 로 구현 완료(active-running 누적 타임아웃 `assertActiveTimeWithinLimit`,
       **노드 경계 판정**). 잔여는 **진행 중 노드의 in-flight 외부 I/O 즉시 중단**뿐
-- [ ] **IE multi-turn resume 경로 signal 미전파** (§2.1 표) → **2026-07-26 착수 시 무수정 프로브로
-      아래 서술이 반증됨. 항목을 [`ie-resume-turn-boundary-cancel.md`](./ie-resume-turn-boundary-cancel.md)
-      로 분리 이관** — 본 항목의 완료 판정은 그 plan 이 소유한다(중복 소유 방지).
+- [x] **IE multi-turn resume 경로 signal 미전파 — 이관으로 종결** (§2.1 표).
+      2026-07-26 착수 시 무수정 프로브로 아래 서술이 반증됐고, 항목을
+      [`ie-resume-turn-boundary-cancel.md`](./ie-resume-turn-boundary-cancel.md) 로 분리 이관했다.
+      **본 항목의 완료 판정은 그 plan 이 소유한다**(중복 소유 방지).
+      > **여기서 `[x]` 인 것은 "작업이 끝났다" 가 아니라 "이 plan 의 책임이 끝났다" 다.**
+      > 종전엔 `[ ]` 로 남아 있어, 본문은 "저쪽이 소유한다" 고 말하는데 체크박스는
+      > "여기 미완" 이라고 말하는 모순이었다(2026-08-10 실측 정정). 그 상태로는 이 plan 이
+      > 영영 `complete/` 로 못 가고, 진행 상황 집계도 같은 항목을 두 번 센다.
+      > 실제 진행은 그 plan 의 체크박스로 읽을 것.
       - ~~`processMultiTurnMessage` 에 signal 을 전파하는 것이 방향~~ → **전파할 signal 이 애초에 없다.**
         엔진 전체에서 `new AbortController()` 는 `parallel-executor.ts:188` 한 곳뿐이고, 외부 cancel 은
         signal 이 아니라 **DB 관측**(`assertExecutionNotCancelled` → `ExecutionCancelledError`) 기전이다.
