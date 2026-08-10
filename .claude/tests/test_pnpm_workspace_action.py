@@ -3,11 +3,17 @@
 ## 왜 이 파일이 있는가
 
 추출 전에는 `pnpm install --frozen-lockfile --filter "<scope>"` 가 워크플로마다 **한 줄씩
-직접** 적혀 있었다. 지금은 저장소 전체에서 **그 한 줄이 여기 하나뿐**이다. 파급이 뒤집혔다:
+직접** 적혀 있었다. 지금은 **CI 체크 워크플로가 그 한 줄을 공유**한다. 파급이 뒤집혔다:
 
 - 종전: 한 워크플로의 install 줄이 망가지면 그 워크플로만 잘못된다.
 - 지금: 이 줄이 망가지면 **9개 잡이 한꺼번에** 잘못된다 — 그리고 required check 후보가
   전부 그 안에 있다.
+
+> **"저장소 전체에서 여기 하나뿐" 이 아니다.** 종전 문구가 그렇게 적었고, 그 프레이밍이
+> 실제로 사고를 냈다 — `--strict-peer-dependencies` 를 도입할 때 이 한 곳만 고치고
+> "전부 덮었다" 고 믿었는데, `pnpm install` 은 `.claude/test-stages.sh` 와 Dockerfile
+> 3개에도 있고 그중 셋은 CI 에서 돈다(2026-08-10 requirement CRITICAL). 다섯 곳의
+> 일치는 `test_install_gate_flags.py` 가 본다.
 
 특히 `--frozen-lockfile` 은 `deps-guard-hardening` 이 required check 로 요구한 보장 그
 자체다. 여기서 빠지면 매니페스트와 어긋난 lockfile 이 pnpm 에 의해 조용히 재생성되고, 9개

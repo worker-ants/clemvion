@@ -106,17 +106,32 @@ class TheSiteListHasNotGoneStaleTest(unittest.TestCase):
             or path.startswith("review/")
         )
 
-    def test_no_unregistered_install_site_exists(self):
+    def setUp(self):
+        """실행 지점을 한 번 찾아 둔다 — 두 테스트가 같은 탐색을 쓴다.
+
+        `setUp` 이라 테스트마다 새로 돈다(클래스 캐시가 아니다). 둘은 같은 집합에 **다른
+        질문**을 던진다: 하나는 "등재 안 된 것이 있나", 다른 하나는 "찾은 것이 등재 목록과
+        같나"(비-vacuity). 탐색만 공유하고 질문은 갈라 둔다.
+
+        `--untracked`: 기본 `git grep` 은 **추적되지 않은 파일을 아예 못 본다.** 새
+        `pnpm install` 지점을 만들고 아직 `git add` 하지 않은 상태 — 정확히 사람이 실수하는
+        시점 — 에 이 가드가 침묵한다(격리 저장소 실험으로 실측,
+        `review/code/2026/08/10/15_41_41` side_effect WARNING). `.gitignore` 대상은 여전히
+        제외되므로 `node_modules` 는 들어오지 않는다.
+        """
         proc = subprocess.run(
-            ["git", "grep", "-l", "pnpm install", "--",
+            ["git", "grep", "-l", "--untracked", "pnpm install", "--",
              ".github", ".claude", "codebase", "Makefile", "scripts"],
             capture_output=True, text=True, cwd=str(REPO_ROOT),
         )
-        found = {
+        self.found = {
             p for p in proc.stdout.split("\n")
             if p and self._is_execution_site(p)
             and install_lines((REPO_ROOT / p).read_text(encoding="utf-8", errors="replace"))
         }
+
+    def test_no_unregistered_install_site_exists(self):
+        found = self.found
         known = {rel for rel, _ in SITES}
         self.assertEqual(
             found - known, set(),
@@ -126,16 +141,7 @@ class TheSiteListHasNotGoneStaleTest(unittest.TestCase):
 
     def test_the_search_actually_finds_the_known_sites(self):
         """비-vacuity: grep 이 아무것도 못 찾으면 위 테스트는 무조건 초록이다."""
-        proc = subprocess.run(
-            ["git", "grep", "-l", "pnpm install", "--",
-             ".github", ".claude", "codebase", "Makefile", "scripts"],
-            capture_output=True, text=True, cwd=str(REPO_ROOT),
-        )
-        found = {
-            p for p in proc.stdout.split("\n")
-            if p and self._is_execution_site(p)
-            and install_lines((REPO_ROOT / p).read_text(encoding="utf-8", errors="replace"))
-        }
+        found = self.found
         self.assertEqual(
             found, {rel for rel, _ in SITES},
             "grep 이 찾은 실행 지점 집합이 등재 목록과 다르다 — 한쪽이 stale 하다",
