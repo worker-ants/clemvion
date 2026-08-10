@@ -72,6 +72,13 @@ frontmatter 뿐이었다.
 착수 시 원 서술과 어긋나는 점이 발견되면 그때는 planner 턴으로 되돌린다. 다만 **지금
 아는 범위에서는 명세가 충분하다.**
 
+> **형제 plan 과 같은 목록을 건드린다** —
+> [`webchat-command-failure-is-not-termination.md`](./webchat-command-failure-is-not-termination.md)
+> 는 §3.1-3 의 storage 정리 조건 열거에 "그 외 명령 실패" 를 **추가할지 결정**하는 제품
+> 트랙이고, 본 plan 은 그 목록에 **이미 있는** 항목(`404`·복구불가 `401`)을 구현한다.
+> 축이 다르지만 편집 대상 문단이 겹치므로, 나중 착수 쪽이 앞선 결과 위에서 재판정할 것.
+> (`13_38_47` plan_coherence INFO — 두 plan 이 상호 링크 없이 같은 목록을 다루고 있었다.)
+
 ## 착수 시 함께 볼 것
 
 - 세 분기 모두 `seedWaitingFromStatus` 한 함수의 `catch` 에 모인다 —
