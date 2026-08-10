@@ -169,8 +169,9 @@ spec 이 **동작을 확정 서술**해 두고도 비어 있던 자리다. `getS
 
 1. **`404` → 종료 확정**: storage 정리 후 `[ended]`. 없는 execution 에 SSE 를 여는 것이 고착의 직접 원인이었다.
 2. **`401` → 낙관적 refresh 1회**: per_execution 토큰은 execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04) 재로드 `401` 은 단순 만료와 blacklist 를 **사전 판별할 수 없다**. §R4 의 결정대로 한 번 시도해 만료면 복구하고, 재차 `401`·`410` 이면 종료로 확정한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다.
-3. **그 외 오류는 여전히 soft-fail**: 일시적 장애가 대화를 끝내지 않게 하는 경계다. `webchat-boot-single-flight` 이 "에러도 종료다" 로 해석했다가 **살아있는 대화를 영구 유실**시킨 사고가 있었고, 그 경계를 회귀 테스트로 고정했다.
-4. **호출부는 refresh 후 `sessionRef.current` 를 읽는다**: `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지 않아, 캡처해 둔 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를 연다**(이 변경이 고치려던 증상을 성공 경로에서 재현). 리뷰 security·side_effect·requirement·testing **4명** 이 독립 수렴해 잡았고, 테스트 헬퍼가 EventSource URL 을 버리고 있어 통과시키던 것도 함께 고쳤다.
+3. **refresh 가 `401`/`410` 이 아닌 이유로 실패하면 종료가 아니다 — 스트림만 미룬다**: 네트워크 오류·5xx 는 일시적이라 종료로 확정하면 살아있는 대화를 잃는다. 그렇다고 진행하면 서버가 방금 거부한 토큰으로 SSE 를 열어 원래 고치려던 고착을 재현한다. 그래서 **세션은 유지하고 스트림만 미뤄 둔 뒤, 주기 토큰 갱신이 성공하면 그때 연다**. 이 복구 경로는 두 군데가 비어 있어 실제로는 작동하지 않았고(갱신 성공 시 `openStream` 을 부르는 자리가 없었고, 갱신이 한 번 더 실패하면 재예약이 없어 사이클이 죽었다) 둘 다 닫았다 — 일시적 실패는 **지수 백오프로 무기한 재시도**(상한 5분)하고, `401`/`410` 은 재시도해도 못 사니 멈춘다.
+4. **그 외 status·오류는 여전히 soft-fail**: 일시적 장애가 대화를 끝내지 않게 하는 경계다. `webchat-boot-single-flight` 이 "에러도 종료다" 로 해석했다가 **살아있는 대화를 영구 유실**시킨 사고가 있었고, 그 경계를 회귀 테스트로 고정했다.
+5. **호출부는 refresh 후 `sessionRef.current` 를 읽는다**: `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지 않아, 캡처해 둔 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를 연다**(이 변경이 고치려던 증상을 성공 경로에서 재현). 리뷰 security·side_effect·requirement·testing **4명** 이 독립 수렴해 잡았고, 테스트 헬퍼가 EventSource URL 을 버리고 있어 통과시키던 것도 함께 고쳤다.
 
 ## Unreleased — 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
 
@@ -196,7 +197,7 @@ EIA 5분 이벤트 버퍼 만료 신호(`execution.replay_unavailable`)는 서�
 1. **버퍼 만료 재동기화**: 위젯이 `execution.replay_unavailable` 수신 시 `getStatus` snapshot(EIA §5.3)으로 폴백해 현재 표면을 재동기화한다. 신호 자체는 종료가 아니므로 스트림·세션은 유지.
 2. **gap 중 종료 감지 (사용자 가시 버그 수정)**: 버퍼 gap(≥5분) 안에 execution 이 종료되면 그 terminal 이벤트도 버퍼와 함께 유실돼 다시 오지 않는다(EIA `R-replay-unavailable`). 종전에는 위젯이 `streaming`("AI 응답 중" 스피너)에 **무기한 멈췄다** — 사용자 액션이 없는 구간이라 명령 410 을 통한 사후 복구도 닿지 않았다. 이제 스냅샷이 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행한다. 같은 판정이 **세션 복원 시점**에도 적용되며, 종료 확정 시 SSE 재오픈·토큰 갱신 예약을 건너뛴다(무효 토큰 스트림·종료 세션 storage 부활 방지).
 3. **종료 통지 중복 방지**: 종료 시퀀스를 `finalizeEnded(reason)` 로 일원화하고 `endedRef` 1회 가드를 도입했다. SSE terminal / REST 폴백 terminal / 명령 `410 Gone` / 사용자 종료 **네 진입점**이 이 가드를 공유해, 같은 종료에 대해 host 가 `conversationEnded` 를 2회 통지받지 않는다.
-4. **cross-session staleness 가드**: 비동기 응답(`getStatus`·명령)이 도착하기 전 "새 대화"/"대화 종료" 로 세션이 **교체**되면 그 응답을 폐기한다 — 옛 세션의 지연 응답이 살아있는 새 대화를 오종료시키지(410) 않는다. `seedWaitingFromStatus` 는 3-state(`"ended"`/`"stale"`/`"continue"`) 반환으로 호출부가 후속 `openStream`/`scheduleRefresh` 진행 여부를 판정하도록 계약을 명시화했다.
+4. **cross-session staleness 가드**: 비동기 응답(`getStatus`·명령)이 도착하기 전 "새 대화"/"대화 종료" 로 세션이 **교체**되면 그 응답을 폐기한다 — 옛 세션의 지연 응답이 살아있는 새 대화를 오종료시키지(410) 않는다. `seedWaitingFromStatus` 는 3-state(`"ended"`/`"stale"`/`"continue"`) 반환으로 호출부가 후속 `openStream`/`scheduleRefresh` 진행 여부를 판정하도록 계약을 명시화했다(이후 재로드 REST 분기 작업에서 `"refresh_deferred"` 가 더해져 **4-state** 가 됐다 — 위 §재로드 복원의 `404`·`401`/`410` 항목).
 5. **종료된 위젯 부활 버그 수정 (사용자 가시 버그 수정)**: 위 4번의 세션 **동일성** 검사는 교체는 잡았지만 **종료는 놓쳤다** — 세션 정리가 세션 참조를 null 하지 않기 때문에, 표면 시드 요청이 떠 있는 동안 SSE 종료 이벤트가 도착하면 뒤늦은 응답이 검사를 통과해 **이미 종료된 위젯을 입력 대기 표면으로 되살렸다**(재현 확인). 흩어져 있던 staleness 가드 4종(세션 동일성·start 전용 세대 카운터·부팅 지역 플래그·토큰 갱신 취소 플래그)을 **world 세대 토큰 하나로 통합**해, 종료·교체·언마운트를 구분 없이 전부 잡는다. 곁들여 드러난 동형 결함 둘도 함께 닫았다 — 시드가 네트워크 오류로 실패하는 경로가 세대 검사를 우회해 옛 세션이 스트림을 탈취하던 문제, 토큰 갱신 요청이 떠 있는 동안 새 대화가 시작되면 지연 응답이 방금 지운 세션 저장소를 되살리던 문제. 상태 리듀서에도 "종료된 대화는 입력 표면을 다시 열지 않는다" 최후 방어선을 추가했다.
 
 SoT: `spec/7-channel-web-chat/1-widget-app.md §3.1`. 서버측 emit 은 기존(PR #: `sse-adapter.service.ts` `replayOrSignalUnavailable`) — 본 변경은 **클라이언트 소비 배선**이다.

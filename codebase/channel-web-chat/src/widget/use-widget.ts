@@ -318,9 +318,14 @@ export function useWidget() {
     worldGenRef.current++;
     closeStream();
     clearRefreshTimer();
-    // 미뤄 둔 스트림 의사도 이 세계와 함께 폐기한다 — 안 지우면 다음 세계의 첫 갱신 성공이
-    // **옛 세션의 스트림을 연다**(`onRefreshed` 는 세대 검사를 통과한 응답만 전달하므로 새 세션의
-    // 갱신이 옛 의사를 이행하게 된다).
+    // 미뤄 둔 스트림 의사도 이 세계와 함께 폐기한다.
+    //
+    // **이 줄을 지우는 뮤턴트는 생존한다(실측 — 전 테스트 426 초록).** 등가에 가까운 방어선이라
+    // 그렇다: 바로 위 `clearRefreshTimer()` 가 타이머를 끊어 teardown 이후 `onRefreshed` 자체가
+    // 발화하지 않고, 새 세계가 정상 경로로 스트림을 열면 `resumeDeferredStream` 의
+    // `sessionEstablished()` 가드가 다시 막는다. 즉 **지금의 호출 순서와 자매 가드 두 개에
+    // 의존해서만** 무해하다 — 그 중 하나라도 바뀌면 옛 세계의 의사가 새 세계의 갱신으로
+    // 이행된다. 관측 가능한 회귀로 고정하지 못했으므로 근거를 여기 남긴다.
     deferredStreamRef.current = false;
     clearSession(configRef.current.triggerEndpointPath);
   }, [closeStream, clearRefreshTimer, worldGenRef]);
