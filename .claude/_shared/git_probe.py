@@ -260,6 +260,82 @@ def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
     return [line for line in out.split("\n") if line]
 
 
+def diff_text(base_ref: str, cwd: str, pathspecs: list[str] | None = None, *,
+              timeout: float = 30.0, on_error=None) -> str:
+    """`git diff <base_ref>...HEAD -- <pathspecs>` as text. `""` on failure.
+
+    The sibling of `branch_diff_files`: that one answers *which* files changed,
+    this one carries the change itself. They were NOT extracted together, and
+    the gap showed: `consistency_orchestrator._collect_code_diff` kept its own
+    `subprocess.run(..., text=True)` and its own
+    `except (OSError, TimeoutExpired)`, so the `errors="surrogateescape"`
+    hardening in `_run_git_raw` never reached it. `text=True` alone decodes
+    strict UTF-8, and `UnicodeDecodeError` is a `ValueError` — not an `OSError` —
+    so an undecodable byte in the diff body went straight through that `except`
+    and crashed `--impl-done` session preparation, breaking the function's own
+    documented "empty on failure" contract.
+
+    THREE-DOT for the same reason `branch_diff_files` documents: a base that has
+    advanced past this branch's fork point must not turn other people's landed
+    work into reverse deletions here.
+    """
+    args = ["diff", f"{base_ref}...HEAD", "--"]
+    if pathspecs:
+        args.extend(pathspecs)
+    try:
+        rc, out, err = _run_git_raw(args, cwd, timeout=timeout)
+    except Exception as exc:  # noqa: BLE001 — same "empty on any failure" contract
+        if on_error is not None:
+            on_error(f"{base_ref}...HEAD: {type(exc).__name__}: {exc}"[:240])
+        return ""
+    if rc != 0:
+        if on_error is not None:
+            reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"
+            on_error(f"{base_ref}...HEAD: {reason}")
+        return ""
+    return out
+
+
+def worktree_changed_files(cwd: str, *, timeout: float = 30.0,
+                           on_error=None) -> list[str]:
+    """Repo-relative paths changed in the WORKING TREE. `[]` on failure.
+
+    `branch_diff_files` answers "what did this branch commit"; this answers "what
+    is the author editing right now". The two are disjoint at the moment that
+    matters most: the project requires a consistency check **before** the spec
+    write lands (`CLAUDE.md`: planner runs `--spec` 직전, developer runs
+    `--impl-prep` 착수 직전), so the files under edit are uncommitted by
+    construction and a committed-only probe cannot see them.
+
+    Measured 2026-08-10 on `spec/5-system/` (18 files): an uncommitted edit does
+    not enter the branch diff at all, and the file ranks 8th in the bundle —
+    inside the drop zone for that directory. That is the reported symptom of
+    "the bundle drops the very document being reviewed".
+
+    Staged, unstaged and untracked all count, and `-uall` lists untracked files
+    individually rather than collapsing a new directory to `dir/`, which would
+    match no file path. Renames report the destination (`_porcelain_path`).
+
+    Callers use this for RANKING, where an over-broad answer is harmless: a file
+    the author touched is relevant by definition. Do not use it as a changeset.
+    """
+    try:
+        rc, out, err = _run_git_raw(
+            ["status", "--porcelain", "-uall"], cwd, timeout=timeout,
+        )
+    except Exception as exc:  # noqa: BLE001 — same "empty on any failure" contract
+        if on_error is not None:
+            on_error(f"status --porcelain: {type(exc).__name__}: {exc}"[:240])
+        return []
+    if rc != 0:
+        if on_error is not None:
+            reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"
+            on_error(f"status --porcelain: {reason}")
+        return []
+    paths = (_porcelain_path(line) for line in out.split("\n") if line)
+    return [path for path in paths if path]
+
+
 def _repo_root(cwd: str) -> str | None:
     rc, out, _ = _run_git(["rev-parse", "--show-toplevel"], cwd)
     if rc != 0 or not out:

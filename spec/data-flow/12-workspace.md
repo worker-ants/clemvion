@@ -439,7 +439,7 @@ System role)와 [`0-overview.md`](./0-overview.md) 도메인 인덱스는 이번
 아니라 **코드 식별자**다 — `ASSISTANT_NO_LLM_CONFIG`(에러 코드), `llm-config-selector`(widget 이름),
 `ED-AI-06`~`08` 같은 요구사항 ID 문맥. 이들을 문자열 치환하면 코드와 어긋난다. 따라서 `data-flow/`
 범위만 정리하고, `3-workflow-editor/`·`4-nodes/`·`5-system/` 의 서술형 잔존은
-[`plan/in-progress/spec-data-flow-structural-followups.md`](../../plan/in-progress/spec-data-flow-structural-followups.md)
+[`plan/complete/spec-data-flow-structural-followups.md`](../../plan/complete/spec-data-flow-structural-followups.md)
 §4 에서 **식별자와 서술을 구분해** 별도로 처리한다.
 
 ### personal 워크스페이스 유일성 (owner 당 1개)

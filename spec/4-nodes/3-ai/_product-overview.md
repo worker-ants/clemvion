@@ -125,7 +125,7 @@
 | KB-DC-03 | 문서 검색 및 미리보기 | 필수 |
 | KB-MD-01 | 검색 모드 (`vector` / `graph`) 선택 — 생성 시에만 결정 (불변). graph 상세: [PRD 9](../../5-system/10-graph-rag.md) | 필수 |
 | KB-VE-01 | 문서 업로드 시 자동 벡터 임베딩 생성 | 필수 |
-| KB-VE-02 | 임베딩 모델 선택 (LLM Config 연동) | 필수 |
+| KB-VE-02 | 임베딩 모델 선택 (Model Config 연동) | 필수 |
 | KB-VE-03 | 문서 수정 시 자동 재임베딩 | 필수 |
 | KB-VE-04 | 임베딩 상태 표시 (pending/processing/completed/error) | 필수 |
 | KB-VE-05 | 청크 분할 전략 설정 (크기, 오버랩) | 권장 |
@@ -143,7 +143,7 @@
 |------|------|
 | 사용자 가치 | 비개발자도 자연어 한 줄로 초기 워크플로우 초안을 얻고, 실행 후 실패·오동작을 대화로 진단·수정 |
 | 제품 차별화 | Planner-first UX (질문·계획 제안 후 실행)로 LLM의 섣부른 편집 방지 |
-| 기존 자산 재사용 | LLM Config (§3.1), [LLM Client 스트리밍](../../5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택, [실행 내역 REST API](../../2-navigation/14-execution-history.md) |
+| 기존 자산 재사용 | Model Config (§3.1), [LLM Client 스트리밍](../../5-system/7-llm-client.md#8-스트리밍-streaming), editor-store Undo 스택, [실행 내역 REST API](../../2-navigation/14-execution-history.md) |
 
 상세 요구사항은 [PRD 2 §10.1~§10.9](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) 참조.
 

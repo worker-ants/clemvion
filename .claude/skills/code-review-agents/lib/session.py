@@ -4,6 +4,12 @@ import json
 import os
 from datetime import datetime
 
+# How many `<hh>_<mm>_<ss>[_N]` names to try before giving up and reusing the
+# plain one. Bounded so a pathological directory cannot spin: a batch split
+# produces 2 names and a burst of parallel sessions a handful more, so the real
+# ceiling is far below this.
+_MAX_SESSION_NAME_ATTEMPTS = 50
+
 
 def make_debug_logger(log_file_path):
     """Return a function that appends timestamped messages to log_file_path.
@@ -28,6 +34,25 @@ def create_session_dir(output_dir, subdir=None):
     list (`ls`) as review history accumulated. Existing review/<timestamp>/
     directories are migrated separately by the operator; this function only
     governs newly created sessions.
+
+    **The name is second-resolution, so two sessions in the same second collide.**
+    That is not hypothetical: `--prepare` on a 74-file changeset splits it into
+    two batches and prepares both back to back, and with `exist_ok=True` the
+    second batch silently overwrote the first's `meta.json` and prompts.
+    Measured 2026-08-09: stdout printed the same path twice, exactly ONE new
+    directory existed, and its `meta.json` listed 24 files — batch 2's size.
+    Batch 1's 50 files left no trace on disk, which is why the symptom read as
+    "sibling files from one commit are only partly reviewed". Two parallel Claude
+    sessions collide the same way.
+
+    So the create is ATOMIC (`exist_ok=False`) and a taken name falls through to
+    `<hh>_<mm>_<ss>_2`, `_3`, …. Atomic matters for the parallel case: two
+    processes cannot both believe they won. Nothing parses this directory name —
+    the guards walk the tree looking for `SUMMARY.md` — so the suffix is free.
+
+    On exhaustion it returns the plain path with `exist_ok=True`, i.e. the old
+    behaviour. Losing a session directory is bad; refusing to run a review at all
+    is worse.
     """
     now = datetime.now()
     parts = [output_dir]
@@ -37,9 +62,22 @@ def create_session_dir(output_dir, subdir=None):
         f"{now.year:04d}",
         f"{now.month:02d}",
         f"{now.day:02d}",
-        f"{now.hour:02d}_{now.minute:02d}_{now.second:02d}",
     ])
-    session_dir = os.path.join(*parts)
+    day_dir = os.path.join(*parts)
+    stamp = f"{now.hour:02d}_{now.minute:02d}_{now.second:02d}"
+
+    for attempt in range(1, _MAX_SESSION_NAME_ATTEMPTS + 1):
+        name = stamp if attempt == 1 else f"{stamp}_{attempt}"
+        session_dir = os.path.join(day_dir, name)
+        try:
+            os.makedirs(session_dir, exist_ok=False)
+            return session_dir
+        except FileExistsError:
+            continue
+        except OSError:
+            break
+
+    session_dir = os.path.join(day_dir, stamp)
     os.makedirs(session_dir, exist_ok=True)
     return session_dir
 

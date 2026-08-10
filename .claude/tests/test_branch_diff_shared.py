@@ -385,5 +385,171 @@ class UndecodableGitOutputTest(unittest.TestCase):
                     self.assertEqual(gp._run_git(["diff"], "/tmp"), (1, "", ""))
 
 
+class TheWorktreeProbeSeesWhatIsNotCommittedYetTest(unittest.TestCase):
+    """`worktree_changed_files` — the half `branch_diff_files` structurally cannot see.
+
+    This project runs its consistency check BEFORE the write lands (planner runs
+    `--spec` 직전, developer runs `--impl-prep` 착수 직전), so the documents under
+    review are uncommitted by construction and a committed-only probe is blind at
+    exactly the moment that matters.
+    """
+
+    def _probe(self):
+        import sys
+        if str(_harness.CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import git_probe
+        return git_probe
+
+    def _repo(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        return _harness.make_temp_git_repo(os.path.join(tmp, "r"), branch="main")
+
+    def _write(self, repo, rel, body="x\n"):
+        path = os.path.join(repo, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(body)
+        return path
+
+    def test_an_unstaged_edit_to_a_tracked_file_is_reported(self):
+        gp = self._probe()
+        repo = self._repo()
+        self._write(repo, "spec/a.md")
+        _harness.git_in(repo, "add", "-A")
+        _harness.git_in(repo, "commit", "-qm", "base")
+        # 커밋된 상태에서는 아무것도 안 나와야 한다 — 안 그러면 아래 단언이 vacuous.
+        self.assertEqual(gp.worktree_changed_files(repo), [])
+        self._write(repo, "spec/a.md", "edited\n")
+        self.assertEqual(gp.worktree_changed_files(repo), ["spec/a.md"])
+
+    def test_a_staged_edit_is_reported_too(self):
+        gp = self._probe()
+        repo = self._repo()
+        self._write(repo, "spec/a.md")
+        _harness.git_in(repo, "add", "-A")
+        _harness.git_in(repo, "commit", "-qm", "base")
+        self._write(repo, "spec/a.md", "edited\n")
+        _harness.git_in(repo, "add", "-A")
+        self.assertEqual(gp.worktree_changed_files(repo), ["spec/a.md"])
+
+    def test_an_untracked_file_in_a_new_directory_is_named_individually(self):
+        """`-uall`. Without it git collapses a new directory to `dir/`, and a
+        directory path matches no file path — so the ranking tier silently
+        empties for exactly the case a planner creates: a new spec area."""
+        gp = self._probe()
+        repo = self._repo()
+        self._write(repo, "keep.md")
+        _harness.git_in(repo, "add", "-A")
+        _harness.git_in(repo, "commit", "-qm", "base")
+        self._write(repo, "spec/new-area/draft.md")
+        self.assertEqual(gp.worktree_changed_files(repo), ["spec/new-area/draft.md"])
+
+    def test_a_rename_reports_the_destination(self):
+        gp = self._probe()
+        repo = self._repo()
+        self._write(repo, "old.md")
+        _harness.git_in(repo, "add", "-A")
+        _harness.git_in(repo, "commit", "-qm", "base")
+        _harness.git_in(repo, "mv", "old.md", "new.md")
+        self.assertEqual(gp.worktree_changed_files(repo), ["new.md"])
+
+    def test_a_git_failure_is_empty_and_reported(self):
+        from unittest import mock
+        gp = self._probe()
+        seen = []
+        with mock.patch.object(gp, "_run_git_raw", side_effect=ValueError("boom")):
+            self.assertEqual(
+                gp.worktree_changed_files("/tmp", on_error=seen.append), [])
+        self.assertEqual(len(seen), 1, "실패가 조용히 삼켜졌다")
+        self.assertIn("ValueError", seen[0])
+
+
+class TheDiffTextProbeCarriesTheHardeningTest(unittest.TestCase):
+    """`diff_text` — the sibling that had been left on a private `subprocess.run`.
+
+    `consistency_orchestrator._collect_code_diff` decoded with plain
+    `text=True` and caught only `(OSError, TimeoutExpired)`. `UnicodeDecodeError`
+    is a `ValueError`, so an undecodable byte in the diff BODY escaped that
+    `except` and crashed `--impl-done` preparation — breaking the function's own
+    documented "empty on failure" contract. Routing it through the shared probe
+    is what puts `errors="surrogateescape"` on this path.
+    """
+
+    def _probe(self):
+        import sys
+        if str(_harness.CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import git_probe
+        return git_probe
+
+    def test_it_returns_the_diff_body_scoped_to_pathspecs(self):
+        gp = self._probe()
+        tmp, repo = _fixture(["src/a.ts", "docs/b.md"])
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        scoped = gp.diff_text("main", repo, ["src"])
+        self.assertIn("src/a.ts", scoped)
+        self.assertNotIn("docs/b.md", scoped, "pathspec 이 적용되지 않았다")
+        everything = gp.diff_text("main", repo)
+        self.assertIn("docs/b.md", everything)
+
+    def test_an_undecodable_byte_does_not_crash(self):
+        """The whole reason this function exists. `text=True` alone raises here."""
+        gp = self._probe()
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        repo = _harness.make_temp_git_repo(os.path.join(tmp, "r"), branch="main")
+        _harness.git_in(repo, "checkout", "-qb", "feat")
+        with open(os.path.join(repo, "bad.txt"), "wb") as f:
+            f.write(b"latin\xe4name\n")   # not valid UTF-8
+        _harness.git_in(repo, "add", "-A")
+        _harness.git_in(repo, "commit", "-qm", "feat")
+        out = gp.diff_text("main", repo)
+        self.assertIn("bad.txt", out)
+        self.assertIn("\udce4", out, "surrogateescape 로 보존되지 않았다")
+
+    def test_a_git_failure_is_empty_and_reported(self):
+        gp = self._probe()
+        seen = []
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        repo = _harness.make_temp_git_repo(os.path.join(tmp, "r"), branch="main")
+        # 존재하지 않는 base ref → git 이 0 이 아닌 코드로 끝난다.
+        self.assertEqual(
+            gp.diff_text("no-such-ref", repo, on_error=seen.append), "")
+        self.assertEqual(len(seen), 1, "실패가 조용히 삼켜졌다")
+
+    def test_the_orchestrator_call_site_gets_the_hardening_too(self):
+        """호출부 계약. 프리미티브가 옳아도 `_collect_code_diff` 가 사설
+        `subprocess.run` 을 유지하면 크래시는 그대로다 — 그 뮤턴트가 실제로
+        살아남았고, 이 저장소가 반복해 겪은 "헬퍼 테스트 ≠ 호출부 테스트" 다.
+
+        스파이가 아니라 **동작**으로 고정한다: 호출 여부만 보면 반환값을 버리는
+        pass-through 뮤턴트를 놓친다(같은 함수족에서 이미 관측된 형태).
+        """
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        repo = _harness.make_temp_git_repo(os.path.join(tmp, "r"), branch="main")
+        _harness.git_in(repo, "checkout", "-qb", "feat")
+        # 기본 `code_areas` 는 `["codebase"]` — 그 아래여야 diff 에 잡힌다.
+        os.makedirs(os.path.join(repo, "codebase"), exist_ok=True)
+        with open(os.path.join(repo, "codebase", "bad.ts"), "wb") as f:
+            f.write(b"const s = 'latin\xe4name';\n")   # not valid UTF-8
+        _harness.git_in(repo, "add", "-A")
+        _harness.git_in(repo, "commit", "-qm", "feat")
+
+        out = _harness.run_in_orchestrator(
+            _CONSISTENCY_PREAMBLE,
+            """
+            os.chdir(ARG["repo"])
+            emit(orch._collect_code_diff("main", ARG["repo"]))
+            """,
+            {"repo": str(repo)},
+        )
+        self.assertIn("codebase/bad.ts", out)
+        self.assertIn("\udce4", out, "호출부가 하드닝을 못 받았다")
+
+
 if __name__ == "__main__":
     unittest.main()

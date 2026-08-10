@@ -1,14 +1,21 @@
 ---
 title: data-flow spec 구조·표기 후속 3건 — RBAC 표 배치 · SIGTERM 상호참조 · Model Config 명칭 통일
-worktree: (unstarted)
+worktree: spec-small-followups
 started: 2026-07-31
 owner: planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
+  # §1~§3 (#1042)
   - spec/data-flow/12-workspace.md
   - spec/data-flow/3-execution.md
   - spec/data-flow/0-overview.md
+  # §4 표기 통일 (2026-08-10) — 종전엔 이 넷이 빠져 있어 frontmatter 만으로는
+  # 이 plan 이 무엇을 건드렸는지 알 수 없었다(plan_coherence WARNING).
+  - spec/3-workflow-editor/4-ai-assistant.md
+  - spec/3-workflow-editor/_product-overview.md
+  - spec/4-nodes/3-ai/_product-overview.md
+  - spec/5-system/_product-overview.md
 ---
 
 > **상태 (2026-08-08 위생 정리)** — **§1~§3 은 전부 머지됐다** (`#1042`, `0d20a9cc9`).
@@ -102,8 +109,15 @@ SIGTERM/graceful-shutdown 취소 분류가 **미결 결정**에 걸려 있는데
       `spec/data-flow/0-overview.md:180` `### 3.6 권한 요약 (선택)` ·
       `spec/data-flow/3-execution.md:300` "분류 정책 결정 대기 중".
       (머지 후에도 `[ ]` 로 남아 있던 것을 2026-08-08 위생 정리에서 정정.)
-- [ ] **§4 서술형 "LLM Config" 표기** — 아래 §4 참조. **이 plan 의 유일한 잔여**이며,
-      종전엔 산문으로만 있어 완료 판정을 오염시켰다. 2026-08-08 실측 잔존 **17건 / 4파일**:
+- [x] **§4 서술형 "LLM Config" 표기** (2026-08-10 완료). 4파일 실측 **15 occurrence** 중
+      **11건 교체 · 3건 보류**(코드가 내보내는 라이브 문자열, 각주로 사유 명시) ·
+      **1건 제외**(인용 프롬프트 원문). `data-flow/12-workspace.md` 의 2건은 5번째 파일이고
+      §3 이 남긴 범위 서술 자체라 애초에 대상 아님.
+      > **종전 기록 "17건 / 4파일" 은 자기 목록과 어긋났다** — 17은 5파일 총계이고 4파일
+      > 귀속은 15다. 바로 다음 문장이 그 2건을 배제하면서도 숫자는 반영하지 못했다
+      > (naming checker 지적). 숫자를 세 갈래로 분리해 다시 적는다.
+      >
+      > 종전 서술(참고): 2026-08-08 실측 잔존 **17건 / 4파일**:
       `3-workflow-editor/4-ai-assistant.md` · `3-workflow-editor/_product-overview.md` ·
       `4-nodes/3-ai/_product-overview.md` · `5-system/_product-overview.md`.
       (`data-flow/12-workspace.md` 의 2건은 §3 이 남긴 **범위 서술 자체**라 대상 아님.)
@@ -115,9 +129,35 @@ SIGTERM/graceful-shutdown 취소 분류가 **미결 결정**에 걸려 있는데
 
 - `ASSISTANT_NO_LLM_CONFIG` (`4-ai-assistant.md:620`) — 에러 코드, 코드와 연결
 - `llm-config-selector` (`4-ai-assistant.md:651`) — widget 이름
-- `ED-AI-06`/`07`/`08` (`_product-overview.md`) — 요구사항 ID 의 설명문이라 ID 자체는 불변
+- `ED-AI-06`/`07`/`08` (`_product-overview.md`) — 요구사항 ID 자체는 불변
 
 바꿔도 되는 것: 순수 서술("LLM Config에 등록된 모델을 활용해", "LLM Config 선택 + 새 세션" 등).
+
+> **2026-08-10 착수 시 판정 기준을 넓혔다.** 위 목록은 보호 대상을 "백틱 식별자·에러 코드"
+> 로만 그었는데, 실측하니 **코드가 지금도 그대로 내보내는 서술형 문자열**이 셋 더 있었다
+> (naming checker 지적). 그것들도 바꾸면 spec 은 `Model Config` 라 단언하는데 라이브
+> 문자열은 `LLM Config` 라 새 불일치가 생긴다:
+>
+> | spec 위치 | 대응 코드 문자열 |
+> |---|---|
+> | `4-ai-assistant.md` 모델 선택 표 셀 | `candidate-lookup.service.ts:139` fallback 라벨 `'LLM Config'` |
+> | `4-ai-assistant.md` Selector 필드 정책 라벨 | `review-workflow.ts:365` `PENDING_USER_CONFIG_UNMENTIONED` detail |
+> | `_product-overview.md` ED-AI-39 필드 목록 | 같은 detail 문자열 |
+> | `4-ai-assistant.md` 인용 프롬프트 예시 | 위 detail + `system-prompt.ts:434` 조합의 실례 |
+>
+> 넷 다 보류하고 **왜 안 바꿨는지를 그 자리에 각주**로 남겼다 — 안 남기면 다음 사람이
+> 누락으로 읽고 고친다.
+>
+> **반대로 `ED-AI-06`~`08` 설명문은 바꿨다.** cross_spec checker 가 실 UI 를 실측한 결과
+> 그 셀렉터의 라벨은 `assistant.modelLabel` = `"모델"`/`"Model"` 이라 **어느 표기와도
+> 리터럴이 겹치지 않는다** — 설명문 통일이 아무 라이브 문자열도 깨지 않는다. 요구사항 ID
+> 자체(`ED-AI-06` 등)는 그대로다.
+>
+> **스코프 경계**: 이 작업은 `"LLM Config"` 문자열만 다룬다. 같은 리소스의 세 번째 표기
+> 계열(`4-nodes/3-ai/_product-overview.md` §3.1 `LLM 프로바이더 관리` 헤딩과 `LLM-01`~`07`
+> ID, `_product-overview.md` §10.2 `LLM 모델 선택` 헤딩)은 grep 에 안 걸려 **대상이 아니다**.
+> 코드 쪽 잔존(`create-assistant-session.dto.ts` 등의 `@ApiProperty` 설명, `main.ts` 의
+> Swagger 태그)도 spec-only 변경으로는 정리되지 않는다 — 별도 backend 후속 후보다.
 
 ## Rationale
 

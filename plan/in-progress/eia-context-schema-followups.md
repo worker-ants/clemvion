@@ -61,13 +61,19 @@ owner: developer
 > 있어 **미체크 체크박스 0개** → plan 이 완료로 보였다. 아래가 이 plan 의 완료 판정 SoT 다.
 > 등재 전 각 항목을 실측 재판정했고 4건은 이미 닫혀 있었다(위 본문에 근거를 남겼다).
 
-- [ ] **swagger.md §5-1 에 `*.literal.ts` 형제 DTO enum 공유 SoT 패턴 명문화** (planner 트랙)
-      — ai-review I5 → 20_08_27 I1. `execution-status.literal.ts` 로 실제 도입한 패턴이
-      규약 문서에 없다. **2026-08-08 실측: `spec/conventions/swagger.md` 에 `literal` 언급 0건 —
-      미해소 확인.**
-- [ ] **`InteractAckDto` ↔ EIA §5.4/§5/R16 shape 정합** (planner 트랙) — ai-review 20_32_30 W1.
-      pre-existing: `/cancel` ack 이 `{executionId, accepted, currentStatus}` 6값을 공유하나
-      R16 은 `{executionId, status}` 2값으로 분리 서술한다. **어느 쪽이 SoT 인지 판정**이 선행.
+- [x] **swagger.md §5-1 에 `*.literal.ts` 형제 DTO enum 공유 SoT 패턴 명문화** (2026-08-10 완료).
+      `execution-status.literal.ts` 의 docstring 이 이미 근거를 완전히 담고 있어 그것을 규약
+      언어로 옮겼다 — 엔티티 enum 미파생 이유 둘(계층 결합 회피 · **선언 순서가 wire enum
+      배열 순서를 바꿈**), 이름 충돌 회피(도메인 접두 + `Literal` 접미), 그리고 **분리 시점**
+      ("한 DTO 에만 쓰이면 빼지 않는다 — 공유가 생기는 시점이 분리 시점").
+- [x] **`InteractAckDto` ↔ EIA §5.4/§5/R16 shape 정합** (2026-08-10 완료).
+      **판정: 코드가 SoT 이고 spec 이 낡았다.** 실측 — `interaction.controller.ts` 의
+      `cancel` 이 `@ApiAcceptedWrappedResponse(InteractAckDto)` + `Promise<InteractAckDto>` 로
+      **§5.1 과 같은 DTO** 를 반환한다. spec 이 적은 `{executionId, status}` 2필드 응답은
+      **존재한 적이 없다**. 세 곳(§5.4 본문 · §5 봉투 각주 · R16)을 코드에 맞췄다.
+      > 근거: `/cancel` 은 `interact` 의 편의 alias 라 같은 ack 를 쓰는 것이 자연스럽고,
+      > 클라이언트가 두 엔드포인트의 언랩 로직을 분기하지 않아도 된다 — R16 이 no-content
+      > 예외를 없앤 것과 같은 논거다.
 - [ ] **EIA `dto/responses` spec 의 Swagger `buildDocument` 보일러플레이트 dedup**
       — ai-review 20_32_30 W2. **트리거는 "3번째 스키마 회귀 spec 추가 시점"** 이고
       2026-08-08 실측 현재 2곳(`execution-status-response.dto.spec.ts:41` ·

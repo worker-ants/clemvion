@@ -194,6 +194,12 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
 있었다. 같은 checker 가 지목한 `spec-fix-swagger-forbidden-response.md` 는 **옮기지
 않았다** — 미완 체크박스 2건이 남아 있다(실측).
 
+> **2026-08-10 정정 — 그 "실측" 이 틀렸다.** 그 2건은 **코드펜스 안의 Before/After 예시**
+> 였다. 펜스를 구분해 재측정하니 펜스 밖 미완 **0건**이라 그 plan 은 진작 이동 대상이었다.
+> `grep '^- \[ \]'` 가 펜스를 구분하지 않는다는 것이 함정이고,
+> `plan_guard._all_checkboxes_done()` 도 같은 성질을 갖는다. 그 plan 은
+> [`complete/`](../complete/spec-fix-swagger-forbidden-response.md) 로 옮겼다.
+
 > **checker 권고를 오버라이드했다 — 근거를 남긴다** (ai-review 2차 scope WARNING #3).
 > `plan_coherence` 는 "소유 worktree(`auth-workspace-membership-guard-2b94db`) 쪽 조치
 > 필요 — 본 worktree 권한 밖" 이라고 판정했다. 그 worktree 는 디스크에 **아직 있지만**

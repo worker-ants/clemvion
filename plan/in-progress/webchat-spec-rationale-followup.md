@@ -37,17 +37,46 @@ developer 가능, **신규 요구/결정을 담는 spec 본문 편집**은 plann
 
 ## 체크리스트
 
-- [ ] `spec/7-channel-web-chat/2-sdk.md`(또는 `3-auth-session.md`) `## Rationale` 에 위 불변식 2건의
-      근거 추가 — **어느 문서가 맞는 자리인지 판정 포함**
+- [x] **불변식 1 (`sessionEstablished` 단일 진실) → `3-auth-session.md` §R7 신설** (2026-08-10).
+      **자리 판정**: `410`·명령 실패·세션 종료 서술이 `3-auth-session.md` 에 집중돼 있고 §3.1 이
+      재로드 상태 분기의 SoT 다. `2-sdk.md` 는 host↔iframe 계약이 주제라 세션 내부 불변식의
+      자리가 아니다. spec 에 `sessionEstablished` 라는 코드 식별자는 쓰지 않고 **"세션 확립"**
+      이라는 spec 언어로 옮겼다(코드 이름이 바뀌어도 근거가 안 낡는다).
+- [ ] ~~불변식 2 (비-410 명령 실패는 종료가 아니다)~~ → **착수 불가 (2026-08-10 판정).**
+      그 명제는 아직 **미결 제품 결정**이다 — [`webchat-command-failure-is-not-termination.md`](webchat-command-failure-is-not-termination.md)
+      가 (A) 일시적 실패 / (B) 종료 / (C) 오류 종류로 분기 **셋을 열어 두고** 있다.
+      결정 전에 Rationale 로 적으면 **결정을 앞질러 굳힌다**. 그 plan 이 닫힌 뒤가 자리다.
 - [ ] `§NNN` 표기 규약 명문화 (`convention_compliance` INFO) — spec 내 절 참조 표기를 규약으로 고정
-- [ ] **`4-security.md` §1 위협 표에 "재전송-origin" 축 추가** (consistency 22_35_51
+      > **2026-08-10 실측 — 관행은 이미 수렴해 있다.** `spec/` 전수:
+      >
+      > | 표기 | 건수 |
+      > |---|---|
+      > | `§N.N` (`§3.1`) | 4,518 |
+      > | `§N` (`§3`) | 1,931 |
+      > | `§텍스트` (`§Rationale`) | 224 |
+      > | `§RN` (`§R6`) | 127 |
+      > | `§N-N` (`§5-4`) | 37 |
+      > | `섹션 N` (한글) | **1** |
+      >
+      > 즉 명문화는 "새 규칙 제정" 이 아니라 **관측된 관행의 기록**이다. `§N-N` 37건은
+      > `swagger.md` 처럼 하이픈 절 번호를 쓰는 문서의 정당한 변형이고, `§RN` 은 Rationale
+      > 전용 축이라 별개다.
+      >
+      > **미착수 사유 — 자리가 없다.** `spec/conventions/` 에 spec **문서 작성** 규약을 담는
+      > 문서가 없다(`spec-impl-evidence.md` 는 frontmatter evidence 전용). 신설할지, 기존
+      > 문서에 얹을지는 **판단이 필요**해 이 티켓 범위 밖으로 둔다 — 표기 3줄을 위해 새
+      > convention 문서를 만드는 것이 비례하는지가 그 판단이다.
+- [x] **`4-security.md` §1 위협 표에 "재전송-origin" 축 추가** (2026-08-10 완료) (consistency 22_35_51
       plan_coherence W2) — 재전송이 `apiBase` 를 바꿀 때 옛 origin 발급 토큰이 새 origin 으로
       전송될 수 있던 결함은 [세션 바인딩](../complete/webchat-session-apibase-binding.md)으로
       닫혔으나, **위협 모델 표에는 그 축이 없다**. 코드는 이미 fail-closed 이므로 문서 갱신만.
-- [ ] **R7 Rationale 신설 검토** (consistency 22_35_51 INFO 2, 이 문서가 추적하는 패턴의
+- [x] **발급-origin 바인딩 Rationale 신설 → `3-auth-session.md` §R8** (2026-08-10 완료 —
+      §R7 이 위 불변식 1 로 채워져 번호가 하나 밀렸다). 레거시 fail-safe 를 두지 않은 이유와
+      정규화를 후행 슬래시로만 한정한 이유(동명 함수가 정반대 계약이라는 함정 포함)를 적었다.
+      종전 항목: (consistency 22_35_51 INFO 2, 이 문서가 추적하는 패턴의
       3번째 사례) — apiBase 발급-origin 바인딩의 근거(레거시 세션 fail-safe 폐기 / 정규화를
       후행 슬래시로만 한정한 이유)가 spec 본문·코드 주석엔 있으나 `## Rationale` 엔 없다.
-- [ ] **`2-sdk.md §3` 에 apiBase 예외 각주** (consistency 22_35_51 cross_spec INFO 1) —
+- [x] **`2-sdk.md §3` 에 apiBase 예외 각주** (2026-08-10 완료) (consistency 22_35_51 cross_spec INFO 1) —
       "재부팅은 execution 을 중복 시작하지 않는다" 서술이 §3.1 의 apiBase 불일치 시 폐기·재시작
       예외를 교차 참조하지 않는다(실질 모순은 아님).
 - [ ] `/consistency-check --spec` 통과 (Rationale 은 `rationale_continuity` 대상이라 필수)

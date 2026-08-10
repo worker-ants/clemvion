@@ -257,7 +257,44 @@ def _branch_changed_rels(diff_base, root):
     ))
 
 
-def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
+def _edited_rels(diff_base, root):
+    """Files this task touched — committed on the branch OR still uncommitted.
+
+    Ranking needs both, and the committed half alone is blind exactly when it
+    matters: this project runs the consistency check BEFORE the write lands
+    (planner `--spec` 직전, developer `--impl-prep` 착수 직전), so the documents
+    under review are uncommitted by construction. Measured 2026-08-10 on
+    `spec/5-system/`: an uncommitted edit ranked 8th of 18, inside that
+    directory's drop zone — the reported "the bundle drops the document being
+    reviewed" symptom.
+
+    The union is deliberate rather than a replacement: a branch that already
+    committed its spec edits keeps its tier-0 signal after `git commit`, which a
+    working-tree-only probe would lose.
+    """
+    return _branch_changed_rels(diff_base, root) | set(
+        _git_probe.worktree_changed_files(
+            root,
+            on_error=lambda reason: debug_log(f"worktree status failed: {reason}"),
+        )
+    )
+
+
+def _named_in(rel, plan_text):
+    """Does `plan_text` name this file — by path or by basename?
+
+    `spec_impact:` frontmatter entries are full repo paths and body references
+    are usually links, so both forms have to count; the frontmatter needs no
+    separate parser because the caller passes the plan's WHOLE text.
+    """
+    return bool(plan_text) and (
+        rel in plan_text or os.path.basename(rel) in plan_text
+    )
+
+
+def prioritize_bundle_files(
+    file_paths, root, *, changed_rels=(), plan_text="", branch_plan_text=""
+):
     """Order a bundle so the documents this task is actually about survive truncation.
 
     `truncate_file_bundle` drops whole files from the TAIL, and
@@ -271,12 +308,21 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
     Tiers (stable, natural order inside each — see `_natural_key`):
       0. changed by this branch — the strongest available "this is the subject"
          signal, and it outranks the catalog demotion below
-      1. named by an in-progress plan — covers `--impl-prep`, where the spec is
-         typically NOT yet edited and tier 0 is therefore empty
-      2. everything else
-      3. catalog bulk — explicitly not 정식 spec; last. Outranked by tier 0 only:
+      1. named by a plan THIS BRANCH touched — its `spec_impact` frontmatter and
+         its body both count, and this is the tier that carries `--impl-prep`,
+         where the spec is typically NOT yet edited so tier 0 is empty
+      2. named by any other in-progress plan
+      3. everything else
+      4. catalog bulk — explicitly not 정식 spec; last. Outranked by tier 0 only:
          a plan that merely mentions one catalog page must not pull the whole
          generated dump forward, but a branch that actually edits one is about it.
+
+    Tier 1 exists because "named by ANY in-progress plan" stopped discriminating:
+    measured 2026-08-09 with 63 in-progress plans (755,385 chars concatenated),
+    it tagged **14 of 18** files in `spec/5-system/` — the very scope this
+    function was built for. Narrowed to the plans this branch touched, the same
+    scope tags 5, and they are this branch's actual targets. A signal that fires
+    on 77% of a directory is not a signal.
 
     Reordering only. Nothing is dropped here; what does not fit is still dropped
     by `truncate_file_bundle`, which names the omissions.
@@ -288,20 +334,39 @@ def prioritize_bundle_files(file_paths, root, *, changed_rels=(), plan_text=""):
         # Branch-changed wins over the catalog demotion: a PR that edits a
         # catalog page IS about that page, and demoting it would reproduce this
         # function's own bug class for exactly those PRs. The demotion only
-        # outranks the weaker plan-mention signal, where a passing reference
+        # outranks the weaker plan-mention signals, where a passing reference
         # must not drag ~230 generated files forward.
         if rel in changed:
             return 0
         if _is_catalog_bulk(rel):
-            return 3
-        if plan_text and (rel in plan_text or os.path.basename(rel) in plan_text):
+            return 4
+        if _named_in(rel, branch_plan_text):
             return 1
-        return 2
+        if _named_in(rel, plan_text):
+            return 2
+        return 3
 
     # `sorted` is stable and the input already arrives in natural order, so the
     # secondary key is implicit — but spell it out rather than rely on the
     # caller having sorted it the same way.
     return sorted(file_paths, key=lambda p: (tier(p), _natural_key(p)))
+
+
+def _splice_chunk(bundle, chunk, after_n):
+    """Insert `chunk` after the first `after_n` file chunks of `bundle`.
+
+    Splitting on the same sentinel `truncate_file_bundle` drops on is what makes
+    the insert land on a real boundary — anything else could split a file body
+    and hand the truncator a chunk that is half of one file and half of another.
+
+    An empty bundle (`(없음)`) has no sentinel and no chunks; appending is then
+    the only placement, and it is also the right one.
+    """
+    head, sep, rest = bundle.partition(_BUNDLE_FILE_SENTINEL)
+    if not sep:
+        return bundle + chunk
+    chunks = [_BUNDLE_FILE_SENTINEL + part for part in rest.split(_BUNDLE_FILE_SENTINEL)]
+    return head + "".join(chunks[:after_n]) + chunk + "".join(chunks[after_n:])
 
 
 def format_file_bundle(file_paths, root, label):
@@ -332,23 +397,17 @@ def _collect_code_diff(diff_base, root):
     """
     cfg = project_config.load(root)
     code_areas = cfg.get("code_areas") or []
-    cmd = ["git", "diff", f"{diff_base}...HEAD", "--"]
-    if code_areas:
-        cmd.extend(code_areas)
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, cwd=root,
-        )
-    except (OSError, subprocess.TimeoutExpired) as e:
-        debug_log(f"git diff for --impl-done failed: {e}")
-        return ""
-    if proc.returncode != 0:
-        debug_log(
-            f"git diff for --impl-done returned {proc.returncode}: "
-            f"{proc.stderr.strip()[:200]}"
-        )
-        return ""
-    return proc.stdout
+    # Through `_shared/git_probe`, not a private `subprocess.run`. The private
+    # copy decoded with plain `text=True`, so an undecodable byte anywhere in
+    # the diff body raised `UnicodeDecodeError` — a `ValueError`, which the old
+    # `except (OSError, TimeoutExpired)` did not catch — and the crash escaped
+    # this function's own "empty on failure" contract. The shared probe already
+    # carried `errors="surrogateescape"` for exactly that; this call site was
+    # the sibling that never got it.
+    return _git_probe.diff_text(
+        diff_base, root, code_areas,
+        on_error=lambda reason: debug_log(f"git diff for --impl-done failed: {reason}"),
+    )
 
 
 def _head_basis_notice(root, diff_base):
@@ -439,9 +498,18 @@ def collect_context(args, root):
     # Plans are read WITHOUT `excluded` (still empty here anyway) because
     # ranking wants every in-progress plan, not just the ones that survive into
     # the plan bundle.
-    _rank_changed = _branch_changed_rels(diff_base, root)
-    _rank_plan_text = "\n".join(
-        read_text_file(p) for p in collect_markdown_files(plan_dir)
+    _rank_changed = _edited_rels(diff_base, root)
+    _rank_plan_files = collect_markdown_files(plan_dir)
+    _rank_plan_text = "\n".join(read_text_file(p) for p in _rank_plan_files)
+    # The plans THIS BRANCH touched are the task's own plans, and their
+    # `spec_impact:` frontmatter is the most direct statement of what the work
+    # targets. Concatenating all 63 in-progress plans buried that signal — see
+    # `prioritize_bundle_files`. Empty when the branch touched no plan, which
+    # just collapses tier 1 into today's behaviour.
+    _rank_branch_plan_text = "\n".join(
+        read_text_file(p)
+        for p in _rank_plan_files
+        if os.path.relpath(p, root) in _rank_changed
     )
 
     def _prioritized(files, scope_abs=None):
@@ -451,8 +519,34 @@ def collect_context(args, root):
             prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
             changed = {r for r in _rank_changed if r.startswith(prefix)}
         return prioritize_bundle_files(
-            files, root, changed_rels=changed, plan_text=_rank_plan_text
+            files,
+            root,
+            changed_rels=changed,
+            plan_text=_rank_plan_text,
+            branch_plan_text=_rank_branch_plan_text,
         )
+
+    def _n_on_topic(files, scope_abs):
+        """How many leading files are tier 0/1 — the on-topic prefix.
+
+        `--impl-done` splices the code diff in right after them, so the count has
+        to agree with `_prioritized`'s own tiering rather than re-deriving it.
+        """
+        prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
+        changed = {r for r in _rank_changed if r.startswith(prefix)}
+        # `files` arrives already ranked, so this walks a PREFIX. The catalog
+        # demotion needs no term here: a catalog page sits in tier 4 (last) and
+        # cannot reach the prefix unless the branch edited it, and that case is
+        # already `rel in changed`. Mutating the check away left every test
+        # green, which is what unreachable defence looks like.
+        n = 0
+        for path in files:
+            rel = os.path.relpath(path, root)
+            if rel in changed or _named_in(rel, _rank_branch_plan_text):
+                n += 1
+            else:
+                break
+        return n
 
     def _require_target(value, flag, want_dir):
         """Fail fast when a mode argument is not the path it must be.
@@ -547,7 +641,17 @@ def collect_context(args, root):
         # `truncate_file_bundle` drops whole chunks from the tail, and the notice
         # sits in the head section that is never a drop candidate — and the
         # checker reads the current-code SoT before anything else.
-        target_doc = _head_basis_notice(root, diff_base) + spec_bundle + diff_section
+        #
+        # The diff goes after the ON-TOPIC spec files and BEFORE the rest of the
+        # folder dump. Appended at the end it was the last chunk and therefore
+        # the FIRST one dropped: measured 2026-08-09 on `spec/5-system/`, whose
+        # dump is 1,215,279 B, the diff was omitted at every budget tried
+        # (262,144 default and 650,000), so five checkers judged "spec vs
+        # implementation" having seen no implementation. Ahead of the dump it
+        # only loses to the files the branch itself is editing.
+        target_doc = _head_basis_notice(root, diff_base) + _splice_chunk(
+            spec_bundle, diff_section, _n_on_topic(scope_files, target_abs)
+        )
         mode_label = (
             f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "
             f"diff-base={diff_base})"
@@ -695,15 +799,59 @@ def truncate_file_bundle(text, budget):
         parts = chunk.split("`")
         return parts[1] if len(parts) > 1 else "?"
 
+    def stub_of(chunk):
+        """드롭된 청크가 **있던 자리**에 남기는 표식.
+
+        말미 이름 목록만으로는 "예산에 잘렸다" 와 "조립이 실패해 placeholder 가 남았다"
+        가 구분되지 않는다 — 실제로 한 checker 가 살아남은 이름표(`<git diff ...>`)를
+        "미치환 placeholder" 로 **오진해 CRITICAL 을 냈다**(2026-08-06). 자리에 잘린
+        사실과 원래 크기가 남아 있으면 그 오진이 불가능하다.
+
+        표식이 자기가 대체하는 청크보다 **크면 빈 문자열**을 준다. 그 경우 표식을 남기는
+        게 본문을 남기는 것보다 비싸서, 드롭이 총량을 오히려 **늘린다** — 루프가 역행해
+        결국 아무것도 안 맞는 fallback 으로 떨어진다. 이름은 말미 목록이 SoT 이므로
+        표식을 생략해도 "kept-whole 아니면 named" 보장은 유지된다.
+        """
+        stub = (
+            f"{_BUNDLE_FILE_SENTINEL}#### `{rel_of(chunk)}`\n\n"
+            f"> ⚠️ **본문 생략됨 — 컨텍스트 예산 초과** (원래 {len(chunk):,} 자). "
+            "조립 실패가 아니라 **의도된 절단**이다.\n"
+        )
+        return stub if len(stub) < len(chunk) else ""
+
     kept, dropped = list(chunks), []
-    # The notice grows as more files are dropped, so the fit has to be
-    # re-checked after each one rather than reserved for up front — the naive
-    # version overshoots exactly when it drops the most.
+    dropped_rels, dropped_stubs = [], []
+    # Running totals, not re-derived sums. The fit HAS to be re-checked after
+    # every drop — the notice and the stubs both grow as more files go, so a
+    # budget reserved up front overshoots exactly when it drops the most — but
+    # the naive form recomputed `sum(len(c) for c in kept)` and re-rendered
+    # every stub on each pass, which is quadratic. Measured before this change:
+    # doubling the chunk count multiplied the time by 3.9-4.0x (64/128/256/512
+    # chunks → 1.7/6.9/26.9/105.9 ms), and the real `spec/conventions` bundle
+    # (270 chunks, 2.6 MB) took 688 ms — per corpus, per checker. After: the
+    # same bundle takes 26.7 ms.
+    #
+    # It is NOT linear even now, and saying so is cheaper than pretending: the
+    # ratio is ~3.2x per doubling because `_omitted_notice` still re-renders the
+    # whole name list every pass. Making that incremental means computing the
+    # rendered length without rendering, i.e. a second copy of the notice's
+    # format — the drift trap this repo keeps paying for. 26.7 ms on the largest
+    # real bundle does not buy that risk.
+    kept_len = sum(len(c) for c in chunks)
+    stubs_len = 0
     while kept:
-        notice = _omitted_notice([rel_of(c) for c in dropped]) if dropped else ""
-        if len(head) + sum(len(c) for c in kept) + len(notice) <= budget:
-            return head + "".join(kept) + notice
-        dropped.insert(0, kept.pop())
+        notice = _omitted_notice(dropped_rels) if dropped_rels else ""
+        if len(head) + kept_len + stubs_len + len(notice) <= budget:
+            # 드롭은 항상 꼬리에서 일어나므로 dropped 는 연속된 suffix 다 — kept 뒤에
+            # 이어 붙이는 것이 곧 "있던 자리" 다.
+            return head + "".join(kept) + "".join(dropped_stubs) + notice
+        victim = kept.pop()
+        kept_len -= len(victim)
+        stub = stub_of(victim)
+        stubs_len += len(stub)
+        dropped_stubs.insert(0, stub)
+        dropped_rels.insert(0, rel_of(victim))
+        dropped.insert(0, victim)
 
     # Nothing fits. Report the omission anyway and clip it to the budget —
     # an empty area would be the worst outcome, since it reads as "no content".

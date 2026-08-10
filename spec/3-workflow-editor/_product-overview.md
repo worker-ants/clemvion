@@ -148,7 +148,7 @@
 
 > 상세: [Spec AI Assistant](./4-ai-assistant.md) · 관련 [AI 플랫폼 §3.6](../4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant) · 사용자 가이드: [AI 어시스턴트 개요](../../codebase/frontend/src/content/docs/03-workflow-editor/ai-assistant.mdx) · [Hands-on Walkthrough](../../codebase/frontend/src/content/docs/03-workflow-editor/ai-assistant-walkthrough.mdx)
 
-워크플로우 에디터에 내장된 채팅형 AI 에이전트(**Workflow AI Assistant**)가 사용자의 자연어 요구사항을 받아 노드·엣지를 자동으로 생성·수정한다. 단순 지시("HTTP 헤더 추가")뿐 아니라 모호하고 큰 요청("주문 취소 프로세스 추가")도 대화로 구체화해 완성한다. LLM은 [LLM Config](../4-nodes/3-ai/_product-overview.md#31-llm-프로바이더-관리)에 등록된 모델을 사용한다.
+워크플로우 에디터에 내장된 채팅형 AI 에이전트(**Workflow AI Assistant**)가 사용자의 자연어 요구사항을 받아 노드·엣지를 자동으로 생성·수정한다. 단순 지시("HTTP 헤더 추가")뿐 아니라 모호하고 큰 요청("주문 취소 프로세스 추가")도 대화로 구체화해 완성한다. LLM은 [Model Config](../4-nodes/3-ai/_product-overview.md#31-llm-프로바이더-관리)에 등록된 모델을 사용한다.
 
 ### 10.1 패널/접근성
 
@@ -164,9 +164,9 @@
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| ED-AI-06 | 패널 상단에서 워크스페이스 LLM Config 선택 가능 | 필수 |
-| ED-AI-07 | 선택 없으면 워크스페이스 default LLM Config 자동 사용 | 필수 |
-| ED-AI-08 | LLM Config도 default도 없으면 안내 메시지 + 설정 화면 딥링크 | 필수 |
+| ED-AI-06 | 패널 상단에서 워크스페이스 Model Config 선택 가능 | 필수 |
+| ED-AI-07 | 선택 없으면 워크스페이스 default Model Config 자동 사용 | 필수 |
+| ED-AI-08 | Model Config도 default도 없으면 안내 메시지 + 설정 화면 딥링크 | 필수 |
 | ED-AI-09 | v1 스트리밍 지원: OpenAI, Anthropic, Google. 미지원 provider 선택 시 명시적 에러 | 필수 |
 
 ### 10.3 대화 루프 (Clarify / Plan / Execute)
@@ -189,7 +189,7 @@
 | ED-AI-18 | Assistant 편집에 대해서도 기존 Undo/Redo(Ctrl+Z/Y)가 정상 동작 | 필수 |
 | ED-AI-19 | 워크플로우 실행 중(Run 상태)에는 편집 도구가 거부되고 사용자에게 안내 | 필수 |
 | ED-AI-20 | 컨테이너/Tool Area/Manual Trigger 등 기존 제약(§11.2.2, §9.2)을 Shadow 검증에서 그대로 적용 | 필수 |
-| ED-AI-39 | 사용자 선택이 필요한 필드(Integration / LLM Config / Knowledge Base / 다른 워크플로) 는 Assistant가 직접 id를 채우지 않는다. 서버가 워크스페이스에서 후보를 조회해 `pendingUserConfig` 에 실어 주고, 프런트는 해당 편집 메시지 버블 안에 드롭다운 picker 를 렌더한다. 사용자가 **명시적으로 확인**해야 editor-store 에 반영된다. 후보가 0개이면 picker 대신 "직접 등록 후 Settings Panel 에서 선택" 안내만 노출 | 필수 |
+| ED-AI-39 | 사용자 선택이 필요한 필드(Integration / `LLM Config` / Knowledge Base / 다른 워크플로 — 이 어휘는 `review-workflow.ts` 의 가드 detail 문자열과 맞춘 것이라 `Model Config` 통일 대상 아님) 는 Assistant가 직접 id를 채우지 않는다. 서버가 워크스페이스에서 후보를 조회해 `pendingUserConfig` 에 실어 주고, 프런트는 해당 편집 메시지 버블 안에 드롭다운 picker 를 렌더한다. 사용자가 **명시적으로 확인**해야 editor-store 에 반영된다. 후보가 0개이면 picker 대신 "직접 등록 후 Settings Panel 에서 선택" 안내만 노출 | 필수 |
 | ED-AI-40 | `add_node` / `update_node` 성공 응답에는 해당 노드의 **런타임 포트 목록**(outputs / inputs)이 포함되어, Assistant가 다음 `add_edge` 에서 올바른 `source_port` / `target_port` 를 별도 조회 없이 그대로 사용할 수 있다. dynamic-ports 노드(carousel 버튼, switch 케이스 등)도 실제 config 기반으로 해석된 port id·label·type 을 싣는다. 프런트는 `PORT_NOT_FOUND` / `NODE_NOT_FOUND` 실패 배지가 같은 source/target 의 성공 배지로 곧바로 이어질 경우 **"재시도 후 성공"** 한 개 배지로 축약 렌더해 잦은 빨간 배지를 줄인다. 다른 shadow 에러(LABEL_CONFLICT 등)는 기존대로 빨간 배지 유지 | 필수 |
 
 ### 10.5 탐색 & 추천

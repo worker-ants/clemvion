@@ -1,9 +1,9 @@
 ---
 title: spec fix draft — swagger.md §5-4 "@Roles() 전제" 가 RolesGuard 재구성으로 깨짐
-worktree: auth-workspace-membership-guard-2b94db
+worktree: spec-small-followups
 started: 2026-08-08
 owner: project-planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/conventions/swagger.md
@@ -123,9 +123,19 @@ Rationale 절 (문서 끝, 신설 또는 기존 절에 추가)에 배경 한 단
 
 ## 후속 (이 draft 반영 후)
 
-- `--consistency-check --spec` 통과 후 developer 트랙 `resolution-applier` 재호출(동일
-  `review/code/2026/08/08/20_53_48` session_dir) — idempotency 로 이미 처리된 코드 항목은
-  skip, 이 spec 반영 사실만 RESOLUTION 에 追記.
-- 나머지 ~61개 라우트(이 diff 밖)에 `@ApiForbiddenResponse` 부착은 별도 plan 항목으로
-  분리 권장(코드모드 후보 — 컨트롤러 파일 전수 스캔 + `@WorkspaceId()` 소비 & `@Roles()`
-  부재 & `@ApiForbiddenResponse` 부재 라우트 자동 탐지).
+- ~~`resolution-applier` 재호출~~ → **moot (2026-08-10 실측).** 그 절차는 **아직 열려 있는
+  세션**을 전제하는데, 원 PR `#1103` 은 2026-08-08 에 머지됐고 그 plan 도 이미
+  `complete/` 에 있다. `RESOLUTION.md` 에 spec 반영 사실이 이미 2회 언급돼 있는 것도 확인했다
+  (`review/**` 는 시점 기록이라 소급 갱신 대상이 아니다).
+- ~~나머지 ~61개 라우트에 `@ApiForbiddenResponse` 부착 — 별도 plan 분리 권장~~ →
+  **이미 승격됨.** [`spec-sync-stop-editor-and-forbidden-routes.md`](../in-progress/spec-sync-stop-editor-and-forbidden-routes.md)
+  §2 가 같은 작업을 실 체크박스로 갖고 있다(전수 스캔 + 코드모드 + 설명 문자열 통일).
+  그 문서가 "종전엔 두 plan 의 **산문 권고**로만 있었다 — checker 가 유실 패턴을 지적해
+  체크리스트로 승격한다" 고 명시한다. 여기 포인터를 남겨 두지 않으면 이 문서만 읽는 사람이
+  "권고했는데 아무도 안 받았나" 로 오인한다.
+
+> **이 plan 이 `in-progress/` 에 오래 남은 이유 (2026-08-10 규명)** — 앞선 세션이
+> "미완 체크박스 2건이 남아 있다(실측)" 로 판정해 이동을 보류했는데, 그 2건은
+> **코드펜스 안의 Before/After 예시**였다. 펜스를 구분해 재측정하니 **펜스 밖 미완 0건**이다.
+> `plan_guard._all_checkboxes_done()` 도 펜스를 구분하지 않는 순수 라인 정규식이라 같은
+> 함정을 갖는다(다만 이 문서는 `[x]` 가 0건이라 그 훅은 애초에 발화하지 않았다).

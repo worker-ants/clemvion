@@ -280,6 +280,28 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 - 엔티티(`entities/*.entity.ts`) 를 그대로 노출하지 말고, API 응답 형태에 맞춰 별도 DTO 를 만듭니다. 비밀값(credentials, passwordHash 등)은 마스킹하거나 제외합니다.
 - 중복 필드는 `PickType` / `OmitType` / `PartialType` (`@nestjs/swagger`) 로 재사용할 수 있습니다.
 
+**형제 DTO 가 같은 enum 을 공유하면 `*.literal.ts` 로 뺍니다.** 두 개 이상의 응답 DTO 가
+동일한 값 집합을 노출할 때, 각 DTO 가 유니온 타입과 swagger `enum` 배열을 **각자 선언하면
+값이 바뀔 때 여러 곳을 손으로 맞춰야 하고 한쪽만 고쳐도 아무도 모릅니다.** 같은
+`dto/responses/` 아래 `<name>.literal.ts` 에 값 배열 + 파생 타입을 두고 형제들이 import 합니다.
+
+```ts
+// dto/responses/execution-status.literal.ts  — wire SoT
+export const EIA_EXECUTION_STATUS_VALUES = ['pending', 'running', /* … */] as const;
+export type ExecutionStatusLiteral = (typeof EIA_EXECUTION_STATUS_VALUES)[number];
+
+// 형제 DTO 들
+@ApiProperty({ enum: EIA_EXECUTION_STATUS_VALUES })
+status: ExecutionStatusLiteral;
+```
+
+- **엔티티 enum 에서 파생하지 않습니다.** (a) DTO 레이어가 엔티티에 결합되지 않아야 하고
+  (위 항목), (b) 엔티티 enum 의 **선언 순서가 wire enum 배열 순서를 바꿔** OpenAPI 산출물이
+  엔티티 리팩터에 흔들립니다. 로컬 리터럴이 wire SoT 입니다.
+- **이름 충돌을 피합니다.** 도메인 접두(`EIA_` 등)로 다른 모듈의 동명 상수와 grep 을 가르고,
+  `Literal` 접미로 TypeORM 엔티티 enum 과 타입명을 가릅니다.
+- 값이 **한 DTO 에만** 쓰이면 굳이 빼지 않습니다 — 공유가 생기는 시점이 분리 시점입니다.
+
 ### 5-2. 공용 래퍼 헬퍼
 `codebase/backend/src/common/swagger/` 에서 다음을 제공합니다 (import: `from '../../common/swagger'`).
 

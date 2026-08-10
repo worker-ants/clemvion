@@ -22,7 +22,7 @@ code:
 
 ## 1. 개요
 
-Workflow AI Assistant(이하 "Assistant")는 워크플로우 에디터에 내장된 채팅형 AI 에이전트다. 사용자가 자연어로 요구사항을 전달하면, Assistant는 LLM Config에 등록된 모델을 활용해 **대화 → 계획 제안 → 즉시 반영** 3단계로 노드와 엣지를 자동 생성·수정한다.
+Workflow AI Assistant(이하 "Assistant")는 워크플로우 에디터에 내장된 채팅형 AI 에이전트다. 사용자가 자연어로 요구사항을 전달하면, Assistant는 Model Config에 등록된 모델을 활용해 **대화 → 계획 제안 → 즉시 반영** 3단계로 노드와 엣지를 자동 생성·수정한다.
 
 ### 1.1 설계 목표
 
@@ -105,7 +105,7 @@ Assistant는 아래 3단계를 자유롭게 오간다. 단계는 상태 기계�
 ┌──────────────────────────────────────────┐
 │  AI Assistant                         ✕  │  ← 헤더
 │  ──────────────────────────────────────  │
-│  Model: [GPT-4o (OpenAI)     ▼]  [⟳]     │  ← LLM Config 선택 + 새 세션
+│  Model: [GPT-4o (OpenAI)     ▼]  [⟳]     │  ← Model Config 선택 + 새 세션
 │  ──────────────────────────────────────  │
 │                                          │
 │  [assistant] 주문 취소 프로세스에 대해   │
@@ -140,7 +140,7 @@ Assistant는 아래 3단계를 자유롭게 오간다. 단계는 상태 기계�
 | 요소 | 설명 |
 |------|------|
 | 헤더 | 제목 + 닫기(✕). 닫아도 세션은 서버에 보존 |
-| 모델 선택 | LLM Config selector. `기본 Provider` 선택 가능. 값이 비면 워크스페이스의 default config 사용 |
+| 모델 선택 | `LLM Config` selector. `기본 Provider` 선택 가능. 값이 비면 워크스페이스의 default config 사용<br/>※ 이 라벨은 **코드가 지금도 내보내는 문자열**이라 `Model Config` 통일 대상에서 뺐다 — `candidate-lookup.service.ts` 의 fallback 라벨과 `system-prompt.ts` 의 picker 설명이 문자 그대로 `LLM Config` 다. 코드 레벨 통일은 별도 작업 |
 | 새 세션(⟳) | 새 세션 생성 확인 다이얼로그 표시 후 현재 대화 비움. 기존 세션은 히스토리에 보존 |
 | 메시지 리스트 | 사용자/어시스턴트/툴 호출 배지/Plan 카드/에러가 시간순으로 누적. 스트리밍 중 "말풍선 회색 커서" 애니메이션. 새 이벤트(text delta, tool_call 배지, plan 카드, plan step 체크 진행) 가 들어올 때마다 리스트가 자동으로 하단으로 스크롤된다. 일부 모델이 assistant text 채널에 OpenAI harmony 제어 토큰(`<\|channel\|>...<\|message\|>{...}`) 을 leak 할 수 있는데, UI 가 렌더 직전에 `sanitizeAssistantText` 로 필터링하며 sanitize 결과가 비면 해당 bubble 자체를 숨긴다. 사용자에게는 제어 토큰·원시 JSON 이 노출되지 않는다. 어시스턴트/툴 메시지 본문은 `markdown-renderer.tsx`(react-markdown + `remark-gfm`, `rehype-raw` **미사용**으로 raw HTML escape)로 마크다운 렌더된다 — 이 XSS sanitize 정책(제어토큰 필터 `sanitizeAssistantText` 와는 별개 관심사)을 바꾸면 웹챗 위젯 렌더러(`safe-html.ts`)와의 **보안 동등성**이 깨질 수 있으므로 [7-channel-web-chat 보안 §1.1 sanitize 정책 매트릭스](../7-channel-web-chat/4-security.md#11-마크다운html-sanitize-정책-매트릭스)도 함께 검토한다 |
 | 탐색 배지 (🔍 회색) | `list_workflows`·`list_integrations` 등 Clarify 도구 호출. 요약 한 줄 + 접기/펼치기로 전체 결과 확인 |
@@ -617,7 +617,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 
 | 코드 | 상황 | 사용자 메시지 |
 |------|------|---------------|
-| `ASSISTANT_NO_LLM_CONFIG` | LLM Config 없음 & workspace default도 없음 (지정 config 가 삭제·워크스페이스 밖이어도 default 폴백 실패 시 이 코드) | "LLM 설정을 먼저 등록해 주세요." + 설정 화면 링크 |
+| `ASSISTANT_NO_LLM_CONFIG` | Model Config 없음 & workspace default도 없음 (지정 config 가 삭제·워크스페이스 밖이어도 default 폴백 실패 시 이 코드) | "LLM 설정을 먼저 등록해 주세요." + 설정 화면 링크 |
 | `ASSISTANT_TOO_MANY_TOOL_CALLS` | 한 턴의 tool-call 동적 budget(§10) 초과 | "이어서 진행해줘" 류 follow-up 안내 포함 — 다음 턴에서 남은 step 계속 실행 |
 | `ASSISTANT_STREAM_FAILED` | 스트리밍 도중 LLM/네트워크 실패 | 에러 bubble 로 사유 노출 + 재시도 안내 |
 | `LLM_RATE_LIMIT` | 429 (LLM Client §6 위임) | "잠시 후 다시 시도해 주세요." + 재시도 버튼 |
@@ -648,7 +648,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | 레이아웃 지침 | 스냅샷의 노드별 측정값(`width`/`height`, px) 이 있으면 그것을 기준으로 `x = predecessor.x + (predecessor.width ?? 250) + 32` 배치. 분기 시 y offset 은 `max(predecessor.height ?? 80, 80) + 24` 기준. 측정값이 없는 노드(초기 렌더 전 또는 동일 턴에 방금 추가된 노드)는 250×80 px 를 폴백으로 가정 — "발명 금지" |
 | 참조 표기 | `$node["label"].output.*` 사용, label은 유일, `manual_trigger`가 진입점 |
 | 실행 이슈 진단 패턴 | 사용자가 "실행이 실패했어 / 왜 이 결과가 나오지" 류의 질문을 하면, 먼저 `get_workflow_executions` 로 최근 실행 목록을 요약 받은 뒤 가장 가능성 높은 한 건만 `get_execution_details` 로 깊게 조회한다. 타임라인의 실패 노드·에러 메시지·직전 노드의 output을 읽어 원인을 가설화하고, 수정이 필요하면 `propose_plan` → 승인 → `update_node` 순으로 이어간다. 전체 목록을 한 번에 상세 조회하지 않는다 (토큰 낭비) |
-| **Selector 필드 정책 (Integration / MCP Server / LLM Config / KB / Workflow)** | `integration-selector`·`mcp-server-selector`·`llm-config-selector`·`kb-selector`·`workflow-selector` widget 이 붙은 필드의 id 는 **LLM 이 채우지 않는다**. 추측·발명 모두 금지 — 빈 값 그대로 `add_node` / `update_node` 를 호출하면 서버가 워크스페이스의 실제 후보를 조회해 `pendingUserConfig[*].candidates` (§4.3.1) 로 실어주고, 프런트는 해당 edit 버블 내부에 드롭다운 picker 를 렌더해 사용자 확인을 받는다. LLM 은 `pendingUserConfig` 에 대해 별도 action 을 하지 않는다 (tool_result 로 feedback 되지 않음). **Closing message 규칙**: `candidates` 가 0 개인 pending 항목만 한국어 마무리 메시지에 "해당 Integration/LLM/KB/워크플로 를 Settings Panel 에서 직접 등록·선택해 주세요" 로 언급한다 — 후보가 있으면 picker 가 UX 를 완결하므로 mention 은 오히려 중복이다. 이 규칙은 §10 의 review guard (`PENDING_USER_CONFIG_UNMENTIONED`) 에도 반영된다 |
+| **Selector 필드 정책 (Integration / MCP Server / `LLM Config` / KB / Workflow)** — 이 목록의 어휘는 `review-workflow.ts` 의 `PENDING_USER_CONFIG_UNMENTIONED` detail 문자열과 맞춘 것이라 `Model Config` 통일 대상이 아니다 | `integration-selector`·`mcp-server-selector`·`llm-config-selector`·`kb-selector`·`workflow-selector` widget 이 붙은 필드의 id 는 **LLM 이 채우지 않는다**. 추측·발명 모두 금지 — 빈 값 그대로 `add_node` / `update_node` 를 호출하면 서버가 워크스페이스의 실제 후보를 조회해 `pendingUserConfig[*].candidates` (§4.3.1) 로 실어주고, 프런트는 해당 edit 버블 내부에 드롭다운 picker 를 렌더해 사용자 확인을 받는다. LLM 은 `pendingUserConfig` 에 대해 별도 action 을 하지 않는다 (tool_result 로 feedback 되지 않음). **Closing message 규칙**: `candidates` 가 0 개인 pending 항목만 한국어 마무리 메시지에 "해당 Integration/LLM/KB/워크플로 를 Settings Panel 에서 직접 등록·선택해 주세요" 로 언급한다 — 후보가 있으면 picker 가 UX 를 완결하므로 mention 은 오히려 중복이다. 이 규칙은 §10 의 review guard (`PENDING_USER_CONFIG_UNMENTIONED`) 에도 반영된다 |
 | Few-shot 3개 | ① "HTTP 헤더 추가" → 즉시 `update_node`. ② "템플릿/스위치 노드 찾아봐" → 스냅샷 참조만, 도구 호출 없음. ③ "주문 취소" → 탐색 + 질문 + Plan + 실행 |
 
 시스템 프롬프트는 `spec/5-system/7-llm-client.md`의 인터페이스를 그대로 따르며 별도의 모델 정책을 두지 않는다.
@@ -711,7 +711,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 - **(계획)** 실행 중(Run Results 드로어 노출) **편집 도구**를 shadow 단계에서 `ASSISTANT_WORKFLOW_RUNNING` 에러로 거부하는 가드는 아직 미구현이다 — 현재 코드에는 해당 에러코드·차단 로직이 없어 실행 중에도 편집 도구가 호출될 수 있다. 향후 추가 예정. 반면 **실행 조회 도구**(`get_workflow_executions` · `get_execution_details`, §4.1)는 read-only 이므로 실행 중에도 호출 가능하며, 진행 중인 실행에 대해선 현재까지의 부분 타임라인을 그대로 반환한다 (§4.1.1 의 "실행 상태별 동작" 표 참조).
 - Assistant 가 실행 이슈를 진단할 때는 먼저 `get_workflow_executions` 로 요약 목록을 받아 후보를 좁힌 뒤 하나의 id 만 `get_execution_details` 로 깊게 조회하는 2-step 패턴을 따른다(§8 시스템 프롬프트가 이를 가르친다). 한 턴에 여러 건을 동시에 상세 조회하면 tool-call budget(§10 `ASSISTANT_TOO_MANY_TOOL_CALLS`) 과 페이로드 크기 양쪽에서 낭비가 발생한다.
 
-### 12.3 LLM Config
+### 12.3 Model Config
 
 - 지정 config가 삭제되었는데 세션 `llm_config_id`에 남아 있으면, 첫 메시지 전송 시 서버가 workspace default로 자동 폴백하고 사용자에게 toast로 안내한다.
 - 사용량은 기존 `llm_usage_log`에 `workflow_id`, `workspace_id`와 함께 기록된다(별도 source 구분자는 선택적으로 `source: 'assistant'` 메타 필드 추가).

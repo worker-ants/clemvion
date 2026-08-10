@@ -133,10 +133,17 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
         out = self._truncate(text, 900)
         heading = run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
         i = out.index(heading)
-        sentinel_re = re.escape(_SENTINEL) + r"#### `([^`]+)`"
-        kept = re.findall(sentinel_re, out[:i])
+        # 드롭된 파일은 이제 **자리에 표식**을 남기므로 sentinel 헤딩만 세면 그 파일이
+        # "본문이 실린 파일" 로 중복 계상된다. 표식 여부로 갈라야 계정이 맞는다.
+        chunks = out[:i].split(_SENTINEL)[1:]
+        name_of = lambda c: re.search(r"`([^`]+)`", c).group(1)
+        present = [name_of(c) for c in chunks if "본문 생략됨" not in c]
+        stubbed = [name_of(c) for c in chunks if "본문 생략됨" in c]
         listed = re.findall(r"^- `([^`]+)`", out[i:], re.M)
-        self.assertCountEqual(kept + listed, rels)
+        self.assertCountEqual(present + stubbed, rels, "파일이 중복·누락 계상됐다")
+        self.assertCountEqual(stubbed, listed, "자리 표식과 말미 목록이 어긋난다")
+        for rel in stubbed:
+            self.assertNotIn(rel, present, "드롭된 파일이 본문 있는 것처럼 계상됐다")
 
     def test_a_document_that_writes_the_sentinel_cannot_forge_a_boundary(self):
         """"Content cannot produce this marker" is a claim, not a property.
@@ -337,8 +344,11 @@ class FileBundleTruncationTest(unittest.TestCase):
     def test_files_are_dropped_whole(self):
         """The old behaviour cut mid-file, so the last file present looked
         complete while ending in the middle of a sentence."""
+        # 850: 드롭된 파일이 자리 표식을 남기게 된 뒤 실측한 값이다(하나만 살아남는
+        # 최소 예산 805). 헐거우면 아무것도 안 잘려 vacuous 해지는데, 아래 두 부정
+        # 단언이 그걸 막는다 — B·C 는 반드시 드롭돼야 한다.
         text = bundle(("a.md", "A" * 400), ("b.md", "B" * 400), ("c.md", "C" * 400))
-        out = self._truncate(text, 700)
+        out = self._truncate(text, 850)
         self.assertIn("A" * 400, out, "the first file should survive intact")
         self.assertNotIn("B" * 10, out)
         self.assertNotIn("C" * 10, out)
@@ -349,6 +359,72 @@ class FileBundleTruncationTest(unittest.TestCase):
         out = self._truncate(text, 700)
         self.assertIn("keep/b.md", out)
         self.assertIn("keep/c.md", out)
+
+    def test_a_dropped_chunk_leaves_a_stub_where_it_was(self):
+        """이름 목록만으로는 "잘렸다" 와 "조립이 실패했다" 가 구분되지 않는다.
+
+        실제로 한 checker 가 살아남은 이름표를 "미치환 placeholder" 로 오진해 CRITICAL 을
+        냈다(2026-08-06). 자리에 잘린 사실이 남아 있으면 그 오진이 불가능하다.
+        """
+        text = bundle(("a.md", "A" * 400), ("gone/b.md", "B" * 400))
+        out = self._truncate(text, 800)
+        self.assertIn("A" * 400, out, "첫 파일은 온전히 살아야 한다")
+        self.assertNotIn("B" * 10, out, "드롭된 파일의 본문은 없어야 한다")
+        # 자리 표식: 경로 + "생략" 사실 + 원래 크기
+        self.assertIn("gone/b.md", out)
+        self.assertIn("본문 생략됨", out, "잘렸다는 사실이 본문 자리에 없다")
+        self.assertIn("조립 실패가 아니라", out, "오진을 막는 문구가 없다")
+
+    def test_the_stub_reports_the_original_size(self):
+        """크기가 없으면 "얼마나 잘렸나" 를 읽는 쪽이 알 수 없다."""
+        text = bundle(("a.md", "A" * 400), ("gone/b.md", "B" * 400))
+        out = self._truncate(text, 800)
+        # 청크는 헤더 포함이라 400 보다 크다 — 자리수 구분 쉼표 표기까지 확인한다.
+        import re
+        m = re.search(r"원래 ([\d,]+) 자", out)
+        self.assertIsNotNone(m, "원래 크기가 표식에 없다")
+        self.assertGreater(int(m.group(1).replace(",", "")), 400)
+
+    def test_stubs_are_counted_against_the_budget(self):
+        """표식도 길이를 차지한다. 계상하지 않으면 이 함수가 스스로 상한을 넘긴다 —
+        이 저장소가 안내문 길이를 빠뜨려 반복해 데인 지점이다."""
+        text = bundle(*[(f"d/f{i}.md", "X" * 300) for i in range(8)])
+        for budget in (400, 700, 1200, 2000, 3000):
+            out = self._truncate(text, budget)
+            self.assertLessEqual(
+                len(out), budget, f"budget={budget} 에서 상한 초과 ({len(out)} 자)"
+            )
+
+    def test_a_stub_never_costs_more_than_the_body_it_replaces(self):
+        """표식이 청크보다 크면 드롭이 총량을 **늘린다** — 루프가 역행한다.
+
+        작은 파일이 잔뜩인 번들이 그 형태다. 표식을 무조건 남기면 하나씩 드롭할수록
+        길이가 늘어 **끝내 아무것도 안 맞고** fallback 절단으로 떨어진다.
+
+        실측(파일 30개 × 본문 1자, 예산 900): 가드가 있으면 본문 11개가 실려 883자를
+        쓰고, 가드를 빼면 본문 0개에 487자 — 예산의 절반을 남긴 채 실을 수 있던 11개를
+        버린다. 손상은 계정(30/30)이 아니라 **내용 보존**에서 난다. 계정만 세면 이
+        결함이 통과한다 — 실제로 처음 쓴 이 테스트가 그렇게 통과했다.
+
+        미살해 뮤턴트 1건을 밝혀둔다: 비용 가드의 `<` 를 `<=` 로 바꾸면 살아남는다.
+        표식과 본문 길이가 **정확히 같을 때만** 갈리는 경계라 출력 길이가 동일하고,
+        그 픽스처는 경로 길이·자리수까지 맞춰야 나온다. 값이 아니라 억지를 재게 되므로
+        테스트를 만들지 않았다.
+        """
+        tiny = bundle(*[(f"t/{i}.md", "x") for i in range(30)])
+        out = self._truncate(tiny, 900)
+        self.assertLessEqual(len(out), 900)
+
+        heading = run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
+        self.assertIn(heading, out, "이름 목록이 통째로 잘려 나갔다")
+        chunks = out.split(_SENTINEL)[1:]
+        present = [c for c in chunks if "```" in c and "본문 생략됨" not in c]
+        self.assertGreater(
+            len(present), 0,
+            "표식이 자기 본문보다 비싼데도 남아, 실을 수 있던 파일을 전부 밀어냈다",
+        )
+        # 그 작은 파일 자리에는 표식을 남기지 않는다 — 본문보다 비싸기 때문이다.
+        self.assertNotIn("본문 생략됨", out)
 
     def test_the_notice_tells_the_checker_what_to_do(self):
         """Naming the files is only half of it — the checker also has to be told
