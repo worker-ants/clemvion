@@ -1,9 +1,15 @@
 ---
-worktree: webchat-session-generations-ca88ae
+worktree: spec-small-followups
 started: 2026-07-18
 owner: developer
 status: in-progress
 ---
+
+> _(2026-08-10)_ `worktree:` 를 `webchat-session-generations-ca88ae` → `spec-small-followups`
+> 로 갱신했다. 앞 값은 **1차 slice 시절의 워크트리**라 stale 이었고, 그 탓에 plan 게이트가
+> 이 브랜치를 엉뚱한 plan(`typescript-toolchain-followups`, 같은 워크트리를 선언 중)에
+> 연결했다. 이 필드는 "이 작업이 **어느 워크트리에서** 진행되는가" 이므로 현재 값이 사실이다.
+> (게이트는 한 워크트리의 여러 plan 중 **하나만 처리돼도** 통과하도록 설계돼 있다.)
 
 > **1차 slice 완료 (2026-07-24)** — 사용자 결정으로 **staleness 축만 먼저** 분리했다
 > (`useSessionGenerations`). 전체 추출은 열려 있다. §1차 slice 참고.
