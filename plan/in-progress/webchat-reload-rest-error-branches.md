@@ -11,8 +11,16 @@ owner: project-planner
 > 출처: `review/consistency/2026/08/10/12_56_30` — `convention_compliance` **CRITICAL** +
 > `plan_coherence` **WARNING**. 두 checker 가 서로 다른 각도에서 같은 결함에 수렴했다:
 > 전자는 "frontmatter 가 규약을 위반한다", 후자는 "그 잔여를 소유한 plan 이 없다".
-> 무관한 티켓(`webchat-usewidget-extraction`)의 `--spec` 라운드에 딸려 나온 **기존 결함**이라
-> 그 PR 범위 밖이고, 유실 방지를 위해 본 문서를 만든다.
+> `webchat-usewidget-extraction` 티켓의 `--spec` 라운드에 딸려 나온 **기존 결함**(2026-07-05
+> `6b25ccc3e` 이후 존속)이다. 유실 방지를 위해 본 문서를 만든다.
+>
+> **왜 그 PR 안에서 고쳤나 — 최초 서술이 "그 PR 범위 밖" 이라고 적었다가 정정했다.**
+> 그렇게 쓰고는 정작 같은 PR 에서 고쳤으니 문서가 자기모순이었다(`13_21_24` scope WARNING).
+> 실제 이유는 셋이다: (a) CRITICAL 대상 파일이 그 PR 이 **편집 중인 바로 그 파일**
+> (`3-auth-session.md`)이라 분리하면 두 PR 이 같은 파일에서 충돌한다, (b) `--spec` 게이트는
+> Critical 을 차단하므로 남겨 두면 그 PR 이 살아 있는 CRITICAL 위에서 머지된다,
+> (c) 실제 코드 변경은 frontmatter 한 줄 + Rationale 캐비엇이고 **세 분기의 구현은 본
+> 문서로 온전히 이연**됐다. 범위를 넓힌 것이 아니라 **게이트가 요구한 최소치**였다.
 
 ## 왜 등재하는가 — 한 달 넘게 아무도 소유하지 않았다
 

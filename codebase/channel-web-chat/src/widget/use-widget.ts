@@ -454,13 +454,13 @@ export function useWidget() {
    * "스트림이 실제로 열렸는가" 라는 직접 신호로 사라진다 — 열렸으면(누가 열었든) SSE 가 소유하니
    * 스킵, 안 열렸으면 이 seed 가 그린다.
    *
-   * **이 seed 가드는 "표면 되감기" 만 막는다. "이중 스트림" 은 호출부의 짝 가드가 막는다.** `await
+   * **이 seed 가드는 "표면 되감기" 만 막는다. "이중 스트림" 은 `openStream` 진입 가드가 막는다.** `await
    * seedWaitingFromStatus` 와 호출부의 `openStream` 사이엔 microtask 경계가 있어, 겹친 두 seed 가 같은
    * flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고 통과한 뒤 각자 continuation 에서
    * `openStream` 을 부를 수 있다(초기 JSDoc 이 "seed 반환 직후 동기 실행" 이라 원천 차단된다고 적었으나
    * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 **`openStream` 자신이** 진입에서
    * 소유권을 재확인하고 이미 열려 있으면 `"already_owned"` 를 돌려준다. `openStream` 이 closeStream→set 이라
-   * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 짝 가드로 낭비성 두 번째 EventSource 생성 자체를
+   * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 진입 가드로 낭비성 두 번째 EventSource 생성 자체를
    * 없앤다.
    *
    * 종전에는 그 재확인이 두 호출부에 **손으로 복제된 3줄**이었다. 3번째 seed→openStream 경로가
