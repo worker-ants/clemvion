@@ -31,6 +31,7 @@
 
 - **frontmatter**: `worktree`/`started`/`owner` 3필드 스키마는 동일하게 쓴다(§4). 다만 build guard `plan-frontmatter.test.ts` 의 강제 범위는 `plan/in-progress/*.md` 이므로 `research/` 는 **가드 대상 아님** — 규약상 권장이되 빌드가 막지 않는다. 미착수 리서치는 `worktree: (unstarted)`.
 - **Gate C(`spec_impact`)**: 대상 아님 — `spec-plan-completion.test.ts` 는 `plan/complete/` 만 본다.
+- **`plan-frontmatter.test.ts`**: 3-필드 스키마 검사는 top-level `plan/in-progress/*.md` 한정이나, §4 가 추가한 두 검사는 스코프가 다르다 — `status` 종료값은 `plan/complete/**`, 상대링크는 top-level `in-progress`.
 - **stale audit**: `plan-stale-audit.sh` 의 30일 신호 대상이 아니다(완료를 향해 가는 문서가 아니므로).
 - **`research/` → `complete/` 이동은 하지 않는다**. 리서치가 낡으면 문서 안에 갱신 노트를 달거나(권장), 완전히 무효가 되면 삭제한다.
 
@@ -41,6 +42,8 @@
 - **이동은 마지막 작업 PR 안에서**: 모든 체크박스 `[x]` + 미해결 follow-up 0건이 되는 PR 안에 `chore(plan): mark <name> complete` 형태의 별 commit 으로. **plan 이동만 담은 별 PR 분리 금지** (PR 증식 + 이동 누락 패턴 차단).
 - **revert 패턴**: review 중 follow-up 으로 빠지면 `[ ]` 복원 + 이동(PROJECT.md 지정 방식, 미명시 시 `git mv`)도 `in-progress/` 로 revert.
 - **인입 참조**: `review/**` 같은 시점 기록 문서는 옛 경로 유지. `spec/` 등 살아있는 문서의 plan 링크는 이동과 동시에 갱신.
+- **흡수 시 삭제 (좁은 예외)**: 아직 착수되지 않은(`worktree` 가 `(unstarted)` 이거나 아예 없는) in-progress plan 이 다른 plan 이나 코드에 **완전히 흡수돼 남은 항목이 0** 이 되면, `complete/` 이동 대신 삭제할 수 있다. 조건 넷을 **모두** 만족해야 한다 — (a) 미착수 (b) 항목이 전부 다른 곳에서 실제로 해소됨(코드/문서로 지목 가능해야 한다) (c) 살아있는 문서에 인입 참조 0건 (d) **삭제 커밋 메시지에 흡수처와 사유를 남긴다**.
+  > **왜 좁게 쓰는가**: 이 예외가 넓어지면 "완료 이동 의식(`spec_impact` 선언 · Gate C)을 건너뛰려는 삭제" 가 같은 문장으로 정당화된다. 조건 (b)(d)가 그 경계다 — 흡수처를 지목하지 못하면 삭제가 아니라 이동이다. 선례: `1493b5ae9`(중복 흡수), `bc10e215e`(같은 PR 안에서 항목 전부 해소).
 
 ### PR 전 plan 갱신·이동 강제 (push gate)
 
@@ -71,10 +74,24 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 
 세 필드(`worktree`·`started`·`owner`)는 top-level `plan/in-progress/*.md` 에서 **필수** — build guard `plan-frontmatter.test.ts` 가 강제한다. 하위 그룹 폴더의 작업 material(예: `node-output-redesign/*.md`)은 클러스터 index 아래 부속 문서이므로 면제. `priority`/`status`/`title` 등 추가 필드는 허용.
 
-- **`worktree` sentinel**: 아직 worktree 가 없는 미착수 plan 은 placeholder(`TBD`·`(assigned at impl-start)` 등) 대신 명시 sentinel `(unstarted)` 를 쓴다. placeholder 는 죽은 worktree 처럼 보여 `plan_coherence` 충돌 검출을 오염시키므로 guard 가 거부한다. 착수 시 실제 `<task>-<slug>` 로 교체.
+- **`worktree` sentinel**: 아직 worktree 가 없는 미착수 plan 은 placeholder(`TBD`·`(assigned at impl-start)` 등) 대신 명시 sentinel `(unstarted)` 를 쓴다. placeholder 는 `plan-stale-audit.sh` 에는 죽은 worktree 로 보이고 §3 연결 판정에서는 **어떤 worktree 와도 매칭되지 않아** plan 이 게이트에서 사라지므로 guard 가 거부한다(공백만 있는 값도 같은 이유로 거부). 착수 시 실제 `<task>-<slug>` 로 교체.
+  > 종전 이 자리는 `plan_coherence` 충돌 검출 오염을 근거로 들었는데, 그 기능은 아래 §소비처 각주대로 제거됐다. 근거를 현재 소비처로 교체한다.
 - **`spec_impact` (완료 시점 필드, Gate C)**: 완료(`complete/` 이동) plan 은 frontmatter 에 `spec_impact` 를 선언한다 — spec path 목록 또는 `none`. 스키마·강제 규칙은 [§5 Gate C](#gate-c--완료-plan-의-spec-정합-결정-spec_impact). in-progress 단계에선 의무 아님(완료 시점에만 `spec-plan-completion.test.ts` 가 강제).
 
 `complete/` 로 옮긴 후에도 frontmatter 유지 (history 보존).
+
+- **`status` 를 선언했다면 이동 시 함께 갱신한다.** `plan/complete/**` 에서 허용되는 값은
+  종료 상태뿐이다 — `complete` · `implemented` · `applied` · `superseded`. 선언 자체가 없는
+  것은 정상이다(선택 필드). build guard `plan-frontmatter.test.ts` 가 강제하며, 새 종료 어휘가
+  필요하면 `plan-scan.ts` 의 `TERMINAL_PLAN_STATUSES` 에 등재한다.
+  > 2026-08-09 신설. 이 저장소가 **두 번** 놓친 실패다(`#1108`·`#1117`) — 그때까지 이 필드는
+  > 어떤 게이트도 보지 않고 사람의 규율에만 기대고 있었다(문서 가드 18파일 / 2821 tests 를
+  > 뮤테이션으로 돌려 확인).
+- **살아있는 plan 의 상대링크는 깨지면 안 된다.** top-level `plan/in-progress/*.md` 의
+  마크다운 상대링크가 실재 파일을 가리키는지 같은 guard 가 검사한다. 이동 시 형제 plan 을
+  가리키던 링크는 `../complete/<name>` 으로 정정한다.
+  > `plan/complete/**` 는 **대상이 아니다** — §3 "인입 참조" 가 시점 기록 문서의 옛 경로
+  > 유지를 규정하고, 실측상 그쪽 깨진 링크 135건이 대부분 그 성격이다.
 
 용도:
 - 동시 작업 추적 (plan ↔ worktree 귀속. `plan-stale-audit.sh` 가 plan 의 worktree 존재 여부 확인에 사용)
@@ -89,7 +106,15 @@ commit 전 확인:
 - [ ] 미해결 follow-up·"TODO"·"결정 필요" 항목이 0건인가
 - [ ] PROJECT.md 지정 방식(미명시 시 `git mv`)으로 옮겼는가 (단순 복사·삭제 아님)
 - [ ] frontmatter 에 `spec_impact` 가 선언됐는가 (**Gate C** — 아래)
+- [ ] `status` 를 **선언했다면** 종료 상태로 갱신했는가 (§4 — `complete`/`implemented`/
+      `applied`/`superseded`). 선언 자체가 없으면 해당 없음
+- [ ] 형제 plan 을 가리키던 상대링크를 `../complete/<name>` 으로 정정했는가 (§4).
+      **인입 링크**(다른 살아있는 plan → 이 plan)도 함께 본다
 - [ ] commit 메시지가 `chore(plan): mark <name> complete` 형식인가
+
+> 위 두 항목(§4 신설분)은 `plan-frontmatter.test.ts` 가 사후에도 잡는다. 그래도 여기 적는
+> 이유는 **체크리스트만 보고 이동하는 사람**이 실패를 겪고 나서야 아는 것을 피하기
+> 위해서다 — 두 항목 다 이 저장소가 실제로 놓쳤던 것이다(ai-review WARNING).
 
 한 항목이라도 `[ ]` 이면 이동 skip — 이번 PR 은 plan 의 일부만 처리한 것이고 plan 은 `in-progress/` 에 남는다.
 
@@ -103,7 +128,8 @@ spec_impact:                            # 또는: 본 작업이 건드린 spec �
   - spec/5-system/4-execution-engine.md
 ```
 
-**흔한 실패형 (build fail — 주의)**: 판정 로직은 `ok = (string && 비어있지 않음) || (배열 && length>0)` 이다 (`spec-plan-completion.test.ts`).
+**흔한 실패형 (build fail — 주의)**: 판정은 `hasValidSpecImpact` 이다 (`spec-plan-completion.test.ts`) — **문자열이면 `none`/`없음`/`n/a`/`na` 어휘만**, 배열이면 비어있지 않고 **모든 원소가 `spec/` 하위의 실존 파일**이어야 한다.
+  > 2026-08-10 이전 서술은 `ok = (string && 비어있지 않음) || (배열 && length>0)` 이었는데, 그건 문서가 아니라 **당시 실제 동작**이었다 — `spec_impact: maybe` 도, `[123]` 도, `["CLAUDE.md"]` 도 통과했다. 게이트를 계약에 맞춰 조이면서 이 서술도 함께 정정한다.
 - **단일 경로를 bare string 으로** (`spec_impact: spec/5-system/4-...md`) → "string spec_impact must be none/없음" 으로 fail. 단일 경로라도 **반드시 리스트(`- path`)** 로 쓴다.
 - **빈 배열 `spec_impact: []`** (behavior-preserving 리팩터에 무심코) → `length>0` 위반으로 "미선언" 처리돼 fail. spec 무변경이면 `[]` 가 아니라 **`none` 리터럴**.
 - spec-only PR 은 TEST WORKFLOW(unit)를 안 돌려 이 회귀가 그 PR 에서 안 잡히고 main 에 샌다 — `complete/` 이동 직후 최소 `pnpm --filter frontend test -- spec-plan-completion` 로 Gate C 만이라도 확인.

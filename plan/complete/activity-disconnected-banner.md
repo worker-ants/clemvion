@@ -1,7 +1,7 @@
 ---
 name: activity-disconnected-banner
 worktree: .claude/worktrees/activity-disconnected-banner-8b7a7f
-status: in-progress
+status: complete
 started: 2026-07-10
 owner: developer
 spec_impact:

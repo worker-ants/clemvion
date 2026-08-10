@@ -12,6 +12,7 @@ code:
   - codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts
   - codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/plan-scan.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-links.ts
 ---
 
@@ -83,6 +84,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 - `code:` 키 — user-guide MDX frontmatter 의 동명 `code:` 와 의미는 같으나, 대상 문서가 `.md` (spec) vs `.mdx` (가이드) 로 구별됨. 두 가드(`spec-code-paths.test.ts` vs `registry.test.ts`)는 각각 자기 도메인만 검증.
 - `status:` 키 — `spec/1-data-model.md` 의 엔티티 `status` 컬럼 (Integration / Execution 등) 과는 레이어가 다름. spec frontmatter 가드는 entity 컬럼을 건드리지 않음.
+- `status:` 키 (**plan frontmatter**, 2026-08-09 추가) — `plan/complete/**` 의 `status` 도 2026-08-09 부터 build 가드 대상이 되면서 §3 의 spec `status` enum 과 **`implemented` 값을 공유**하게 됐다. 의미는 다르다 — spec 쪽은 "그 문서가 약속한 surface 가 구현됨", plan 쪽은 "그 작업이 종료됨" 이다. 두 도메인은 문서 타입으로 완전히 갈리고(가드도 각각 `spec-frontmatter.test.ts` vs `plan-frontmatter.test.ts`), plan 쪽 허용값은 `plan-scan.ts` 의 `TERMINAL_PLAN_STATUSES` 가 SoT 다. 값 어휘를 서로 맞출 의무는 **없다**.
 - `archived` (§3) — `spec/conventions/cafe24-api-catalog/_overview.md §3` 의 `deprecated` (Cafe24 endpoint 폐기 상태) 와 의미 도메인이 다름. 본 컨벤션의 `archived` 는 spec 문서 자체의 폐기, cafe24 `deprecated` 는 외부 API endpoint 상태.
 
 ## 3. `status` 라이프사이클
@@ -127,7 +129,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 |---|---|---|
 | `spec-link-integrity.test.ts` (build 차단) | **(1)** `spec/**.md` 본문, **및 (2)** codebase `.ts`/`.tsx` 소스(`codebase/{backend,frontend,channel-web-chat,packages}`)의 JSDoc·주석 — in-repo `[..](path)` 타깃 존재 + `#anchor` heading slug 대조. slug 는 실제 렌더러(`rehype-slug`=`mdast`+`github-slugger`) 파이프라인과 동등 | 생성형 `*-api-catalog/` 트리. **소스 스캔(2)만** `spec/**.md` 를 가리키는 링크로 필터(비-spec 상대링크 제외) + build 출력(`dist`/`.next`/`build`/`node_modules`) 제외. ⚠ **spec 본문 스캔(1)에는 target 필터가 없다** — spec 문서가 쓴 `plan/**` 링크도 검사 대상이라, plan 이동(in-progress→complete) 시 갱신하지 않으면 **build 가 깨진다**. plan-coherence-checker 가 담당하는 것은 `plan/**` **문서 내부**의 링크 위생이지 spec→plan 링크가 아니다 (2026-07-16 정정 — 종전 "plan/ 링크(=plan-coherence 담당)" 서술은 구현과 반대였다) |
 | `spec-area-index.test.ts` (build 차단) | 각 영역 폴더(≥2 sibling)에 index 문서 존재 + 모든 sibling spec 이 index 에서 링크 | `spec/conventions/`(flat reference, 무-index), 카탈로그 |
-| `plan-frontmatter.test.ts` (build 차단) | top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`(ISO)/`owner` 필수 | subfolder 클러스터, `0-`/`_` index 면제. **가드 규약 SoT = [plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md)**; 본 절은 가드 파일 등재 위치만 선언 |
+| `plan-frontmatter.test.ts` (build 차단) | 셋을 본다 — **(1)** top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`(ISO)/`owner` 필수, **(2)** `plan/complete/**` 가 `status` 를 선언했다면 종료 상태여야 함(`complete`/`implemented`/`applied`/`superseded`), **(3)** top-level 살아있는 plan 의 상대링크 무결성. 판정 로직은 `plan-scan.ts`(수집·frontmatter·status)와 `spec-links.ts`(링크) 소관이고 이 파일은 호출부다 — 셋 다 `plan-scan.test.ts`/`spec-links.test.ts` 의 합성 fixture 가 negative-path 를 증명한다 | subfolder 클러스터, `0-`/`_` index 면제. `status` 는 **선택 필드**라 부재는 위반 아님. 링크 검사는 `plan/complete/**` 를 보지 않는다 — 시점 기록 문서는 옛 경로 유지가 정상(plan-lifecycle §3). **가드 규약 SoT = [plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md)**; 본 절은 가드 파일 등재 위치만 선언 |
 | `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan(`plan/complete/`)은 frontmatter `spec_impact` 선언 필수(spec path 목록 실존, 또는 no-op sentinel `none`/`없음`/`n/a`/`na`). plan↔spec 정합 결정을 완료 시점에 강제 | cutoff 이전 시작 plan 면제(grandfather). plan frontmatter 가드라 §4 frontmatter-evidence 가 아님. 근거 [R-8](#r-8-gate-c--plan-완료-시점-spec_impact-선언-의무화) |
 | **Gate D** (**advisory — build 차단 아님**) | `/spec-coverage --mode reverse` (orchestrator `--mode` 인자로 **구현 완료**) — spec 미참조 controller route·이벤트·env 탐지(impl→spec 역커버리지) | NLP 휴리스틱이라 보고형, CI 비차단 |
 

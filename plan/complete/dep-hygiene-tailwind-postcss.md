@@ -3,7 +3,7 @@ title: 의존성 위생 2건 — tailwind lockstep 스큐 + next>postcss 오버�
 worktree: dep-hygiene
 started: 2026-07-31
 owner: developer
-status: in-progress
+status: complete
 priority: P3
 spec_impact: none
 ---

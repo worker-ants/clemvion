@@ -21,7 +21,8 @@
 
 - **수명 = PR 단위**: worktree 는 PR 이 merge 되면 정리한다. **자동**: 세션 시작 시 GC reaper(§7)가 merge 된 PR 의 worktree·branch 를 제거한다. **수동**(즉시): `.claude/tools/cleanup-worktree.sh <name>`.
 - **plan 과 결속**: 새 plan frontmatter 의 `worktree` 필드에 현재 worktree 이름을 기록한다.
-- **공유 자원 직렬화**: 동일 `spec/` 파일·코드 영역을 두 worktree 가 동시 수정 중이면 plan 에 명시하고 직렬화 (`consistency-checker plan_coherence` 가 사전 검출).
+- **공유 자원 직렬화**: 동일 `spec/` 파일·코드 영역을 두 worktree 가 동시 수정 중이면 plan 에 명시하고 직렬화한다. **자동 검출은 없다** — 사용자와 통합 단계(`/merge-coordinate`)의 책임이다.
+  > 종전 이 자리는 `consistency-checker plan_coherence` 가 사전 검출한다고 적었으나 그 기능은 `3da85dc3b`(#576)에서 제거됐다(병렬 작업이 다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다). checker 정의 본문도 그것이 검토 대상이 **아님**을 명시한다.
 - **e2e 인프라 자동 격리**: `make e2e-*` 는 worktree dir basename 으로 compose project name 을 도출 — 여러 worktree 동시 실행 시 컨테이너·볼륨·network 자동 분리. 정리는 `make e2e-prune`.
 - **hotfix 예외**: 별도 branch 에서 작업. 정말 default branch 에서 직접 commit 해야 하면 `BYPASS_DEFAULT_BRANCH_GUARD=1` 로 한 commit 만 우회.
 - **통합 작업 worktree**: `merge-coordinator` 가 `.claude/worktrees/integrate-<slug>/` 신설, merge 후 정리.

@@ -13,6 +13,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
+
+import { collectLivePlanMarkdown } from "./plan-scan";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdToString } from "mdast-util-to-string";
 import GithubSlugger from "github-slugger";
@@ -261,6 +263,33 @@ function findBrokenLinksInFiles(
 export function findBrokenLinks(root: string): LinkViolation[] {
   return findBrokenLinksInFiles(collectSpecMarkdown(root), {
     checkSelfAnchors: true,
+  });
+}
+
+// plan 수집은 `plan-scan.ts` 소관이다 — 링크 모듈이 plan 트리 규칙까지 갖고 있으면
+// 그 규칙이 두 곳으로 갈린다(이 PR 이 고치고 있는 바로 그 형태).
+export { collectLivePlanMarkdown };
+
+/**
+ * Validate relative links in the *living* plans (top-level `plan/in-progress/*.md`).
+ *
+ * Moving a plan to `plan/complete/` leaves sibling links pointing at the old
+ * directory. Fenced regions are skipped by `extractLinks` — a plan's example
+ * snippet must be free to name paths that do not exist.
+ *
+ * Scope is deliberately narrow: `plan/complete/**` is **excluded**, because
+ * `plan-lifecycle.md §3` keeps point-in-time records on their old paths, so the
+ * broken links there are the documented-normal state and widening would turn it
+ * into a mass failure. Grouped subfolders follow the same exemption
+ * `plan-frontmatter.test.ts` already applies to its frontmatter checks.
+ *
+ * `checkSelfAnchors: false` — plans self-link by heading far less than specs do,
+ * and their headings are edited constantly; anchor churn would produce noise
+ * without protecting the failure this exists for (a moved file).
+ */
+export function findBrokenPlanLinks(root: string): LinkViolation[] {
+  return findBrokenLinksInFiles(collectLivePlanMarkdown(root), {
+    checkSelfAnchors: false,
   });
 }
 

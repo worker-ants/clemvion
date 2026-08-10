@@ -3,7 +3,7 @@ title: WorkflowVersion.snapshot 필드 구성 서술이 두 spec 문서에서 �
 worktree: spec-snapshot-drift
 started: 2026-07-31
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/1-data-model.md

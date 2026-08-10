@@ -1,7 +1,7 @@
 ---
 name: spec-integration-error-code-doc-fix
 worktree: .claude/worktrees/integration-error-code-doc-fix-9e3de0
-status: in-progress
+status: complete
 started: 2026-07-10
 owner: project-planner
 spec_impact:

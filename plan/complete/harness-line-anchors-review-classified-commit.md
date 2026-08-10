@@ -1,5 +1,5 @@
 ---
-title: line_anchors 가드가 머지 커밋을 fixture 로 골라 오실패 (원 제목: "Review 분류" — 반증됨)
+title: 'line_anchors 가드가 머지 커밋을 fixture 로 골라 오실패 (원 제목: "Review 분류" — 반증됨)'
 worktree: resumable-handler-generic-typing-3918dd
 started: 2026-07-24
 owner: developer

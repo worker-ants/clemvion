@@ -68,6 +68,24 @@ priority: P3
 - **여기로 이관한 이유**: 원래 등재처(`ci-required-check-skip-jobs.md`)가 완료됐고, 본 plan 이
   harness 내부 중복 판정을 다루는 자리다.
 
+## 함께 볼 것 — 같은 "DRY vs 안전성" 축의 다른 plan
+
+[`docs-guard-walker-dedup.md`](docs-guard-walker-dedup.md) — `codebase/frontend/src/lib/docs/__tests__/`
+문서 가드들의 디렉터리 순회 walker 3벌 통합 판정.
+
+> **주제 유사성뿐이라 편입하지 않았다.** 한때 그 항목들을 이 plan 안에 이관했는데,
+> 이 plan 은 `.claude/hooks/*.py` 의 **정규식 상수** 중복이고 저쪽은 TypeScript 문서 가드의
+> **디렉터리 순회 필터** 중복이다 — 코드베이스·언어·실패 모드가 전부 다르다. 그 자리에
+> 두면 walker 중복을 찾는 사람이 발견하지 못한다(consistency plan-coherence WARNING).
+> 두 plan 이 공유하는 것은 "복제를 남길 것인가, 합쳐서 표면을 만들 것인가" 라는 **판단
+> 기준**뿐이다.
+>
+> (`#970`(blind 정규식 vs 정밀 파서)을 그 기준의 출처로 적었다가 **인용 범위를 좁혔다** —
+> 그 사건이 세운 원칙은 "막는 쪽은 무지하게, 푸는 쪽만 정밀하게" 라는 **security 게이트
+> 설계** 원칙이지, 일반 코드 중복을 문서상 어떻게 나눌지의 기준이 아니다. 이 분리 결정은
+> 그 인용 없이도 성립한다 — 코드베이스·언어·실패 모드가 다르다는 독립 근거가 있다.
+> consistency rationale-continuity 관찰.)
+
 ## Rationale
 
 **왜 P3.** 활성 결함이 아니다. drift 는 매번 테스트가 잡았고(§M 에서도 `_SPLIT_MARKER` 는

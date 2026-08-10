@@ -112,7 +112,7 @@ abortSignal(및 2026-07-27 이후 DB 관측) 취소 경로 전용"** 을 전제�
 > `rethrows AbortError so the ENGINE can classify the node as cancelled` 테스트로 실증했고,
 > 지시대로 문면에서 "§2.2 사전 체크" 표현은 뺐다. `frontmatter.code:` 확장은 기존 부분 등재
 > 관행(`spec-impl-evidence.md` 는 최소 1개 매치만 요구)을 유지해 보류.
-> 초안: [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
+> 초안: [`spec-draft-node-cancellation-chat-channel-correction.md`](../complete/spec-draft-node-cancellation-chat-channel-correction.md).
 
 `review/code/2026/07/25/21_02_33` WARNING 2 (requirement·documentation 중복 지적).
 
@@ -242,7 +242,7 @@ developer 범위로 처리 가능한 부분(코드+테스트)과 spec 표 갱신
 > 지우면 재발 시 근거가 남지 않기 때문이다. §6 행을 `N/A`(범주 오류로 철회)로 재기재하고 §6
 > 범례에 `N/A` 항목을 신설했으며, §1 나열에서 `chat-channel` 을 제거했다. 같은 오분류가 있던
 > `spec/4-nodes/1-logic/10-parallel.md:244` 도 함께 정정했다.
-> 초안: [`spec-draft-node-cancellation-chat-channel-correction.md`](spec-draft-node-cancellation-chat-channel-correction.md).
+> 초안: [`spec-draft-node-cancellation-chat-channel-correction.md`](../complete/spec-draft-node-cancellation-chat-channel-correction.md).
 
 착수 전 프로브에서 전제가 반증됐다. **chat-channel 노드는 존재하지 않는다**:
 

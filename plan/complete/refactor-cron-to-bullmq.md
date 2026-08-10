@@ -1,6 +1,6 @@
 ---
 title: "@Cron 3개 작업을 BullMQ repeatable scheduler 로 이관 (멀티 인스턴스 중복 실행 제거)"
-status: in-progress
+status: complete
 worktree: .claude/worktrees/refactor-cron-to-bullmq
 created: 2026-06-02
 owner: developer

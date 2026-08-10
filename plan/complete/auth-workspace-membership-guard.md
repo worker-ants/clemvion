@@ -3,7 +3,7 @@ title: "@Roles() 미부착 라우트의 워크스페이스 멤버십 검증 누�
 worktree: auth-workspace-membership-guard-2b94db
 started: 2026-08-08
 owner: developer
-status: in-progress
+status: complete
 priority: P0
 # 착수 시엔 `none` 이었다 — "구현이 문서화된 계약을 어긴 것이라 spec 변경 불요" 라는 판단이었고
 # 그 판단 자체는 유효했다. 그러나 `--impl-prep` 이 spec 6곳의 **거짓 서술**을 Critical 로 잡아

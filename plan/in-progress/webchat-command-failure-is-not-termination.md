@@ -57,7 +57,7 @@ owner: project-planner
 
 ## 선행/참조
 
-- 되돌림 경위·실측: `plan/complete/` 로 이동할 [`webchat-boot-single-flight.md`](./webchat-boot-single-flight.md) §후속 (18_39_11 처리)
+- 되돌림 경위·실측: `plan/complete/` 로 이동한 [`webchat-boot-single-flight.md`](../complete/webchat-boot-single-flight.md) §후속 (18_39_11 처리)
 - 리뷰 근거: `review/code/2026/07/17/18_39_11/requirement.md` (CRITICAL), `SUMMARY.md`
 - 분리 요구: `review/consistency/2026/07/17/19_46_54/plan_coherence.md` (WARNING)
 
