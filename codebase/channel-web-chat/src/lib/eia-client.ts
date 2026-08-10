@@ -180,6 +180,20 @@ export function isTerminalAuthError(err: unknown): boolean {
   return err instanceof EiaError && (err.status === 401 || err.status === 410);
 }
 
+/**
+ * 로그로 내보낼 문자열에서 **쿼리의 per_execution 토큰을 지운다**.
+ *
+ * SSE 는 `EventSource` 가 헤더를 못 실어 토큰을 쿼리로 보낸다(위 `openStream`, EIA §8.3).
+ * 그래서 그 URL 이 들어간 예외 메시지를 그대로 찍으면 **단명 토큰이 브라우저 콘솔에 남는다** —
+ * 공개 사이트에 임베드되는 위젯이라 그 콘솔은 호스트 페이지의 다른 스크립트도 읽을 수 있다
+ * (ai-review `18_23_54` security).
+ *
+ * `token` 뿐 아니라 `lastEventId` 같은 인접 파라미터는 건드리지 않는다 — 지울 것만 지운다.
+ */
+export function redactToken(text: string): string {
+  return text.replace(/([?&]token=)[^&\s"']+/gi, "$1<redacted>");
+}
+
 function parseData(data: unknown): unknown {
   if (typeof data !== "string") return data;
   try {

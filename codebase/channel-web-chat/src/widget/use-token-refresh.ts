@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
-import { isTerminalAuthError, type EiaClient } from "@/lib/eia-client";
+import { isTerminalAuthError, redactToken, type EiaClient } from "@/lib/eia-client";
 import { applyRefreshedToken, type PersistedSession } from "@/lib/session-store";
 import type { BootMessage } from "./host-bridge";
 
@@ -166,9 +166,12 @@ export function useTokenRefresh({
           try {
             onRefreshedRef.current?.(updated);
           } catch (notifyErr) {
+            // **redact 한다** — 이 콜백은 `openStream` 으로 이어지고, 그 안에서 던지는 시점엔
+            // 이미 **토큰이 쿼리에 실린 URL** 이 만들어져 있다. 메시지를 그대로 찍으면 단명
+            // 토큰이 콘솔에 남는다(ai-review `18_23_54` security).
             console.warn(
               "[widget] onRefreshed consumer threw (refresh itself succeeded):",
-              notifyErr instanceof Error ? notifyErr.message : String(notifyErr),
+              redactToken(notifyErr instanceof Error ? notifyErr.message : String(notifyErr)),
             );
           }
           scheduleWithDelay(); // 다음 만료 기준 재예약(백오프 리셋).

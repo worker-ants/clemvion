@@ -103,9 +103,10 @@ function installControllableEventSource(): {
       latestUrl = String(url);
       if (throwOnce) {
         throwOnce = false;
-        // 실제로 이 자리가 던진다 — `new URL(joinUrl(apiBase, endpoints.stream))` 이
-        // 손상된 저장 세션 조합에 대해 동기 throw 한다.
-        throw new TypeError("malformed stream URL");
+        // **메시지에 URL 을 담는다** — 브라우저의 실제 `EventSource` 생성 실패가 그렇고,
+        // 그 URL 엔 토큰이 쿼리로 실려 있다. 담지 않으면 redaction 회귀 단언이 **vacuous** 해진다
+        // (처음 이렇게 썼다가 실측으로 발각).
+        throw new TypeError(`Failed to construct 'EventSource': ${latestUrl}`);
       }
       latest = new ControllableEventSource();
       return latest as unknown as this;
@@ -122,6 +123,21 @@ function installControllableEventSource(): {
  * `beforeEach` 가 매번 끄므로 켠 테스트 밖으로 새지 않는다.
  */
 let throwOnce = false;
+
+/**
+ * 다단계 타이머 테스트의 갱신 간격 — **실경과시간 드리프트가 넘볼 수 없는 크기**로 잡는다.
+ *
+ * `vi.useFakeTimers({ shouldAdvanceTime: true })` 는 가상 시계를 실제 경과 시간에 얹으므로,
+ * 스케줄 간격(6초)과 검증 창(10·20초)이 같은 자릿수면 **실행 속도가 결과를 정한다.** 실측:
+ * 콜드 transform 캐시에서 4/4 FAIL, 웜에서 10/10 PASS — 동일 바이트의 소스로. 게다가 그
+ * 실패는 의도한 뮤턴트의 실패와 **파일:라인·메시지까지 같아** "뮤테이션 RED" 관측 자체가
+ * 진짜 검출인지 노이즈인지 구분되지 않았다 (ai-review `18_23_54` testing CRITICAL).
+ *
+ * 90분 스케줄 · 91분 전진이면 드리프트(초 단위)가 단계 경계를 흔들 수 없다. 각 단계는
+ * 정확히 갱신 **1회**를 담는다.
+ */
+const PHASE_SCHEDULE_MS = 90 * 60 * 1000;
+const PHASE_ADVANCE_MS = PHASE_SCHEDULE_MS + 60 * 1000;
 
 /**
  * ControllableEventSource + fetch(embed-config reject, webhook 202, interact 202) 설치.
@@ -572,7 +588,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_z", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_z", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + PHASE_SCHEDULE_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let refreshCalls = 0;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
@@ -601,10 +617,12 @@ describe("useWidget — eager 시작(§R6)", () => {
 
     await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
     await act(async () => { await Promise.resolve(); });
+    // "아직 안 열렸다" 를 단언하므로 **위 테스트와 같은 취약 형태**다 — 스케줄이 촘촘하면
+    // 실경과시간 드리프트만으로 타이머가 먼저 발화해 이 단언이 깨진다. 같은 큰 마진을 쓴다.
     expect(getEs()).toBeNull(); // 아직은 죽은 토큰 — 열지 않는다.
 
     // 주기 갱신 타이머 발화 → 토큰 복구 → **미뤄 둔 스트림 오픈**.
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHASE_ADVANCE_MS); });
     expect(getEs()).not.toBeNull();
     // **되살아난 토큰으로** 열어야 한다 — 옛 토큰이면 서버가 다시 거부해 같은 고착으로 되돌아간다.
     expect(getUrl()).toContain("iext_revived");
@@ -627,7 +645,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_w", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_w", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + PHASE_SCHEDULE_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     let refreshCalls = 0;
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
@@ -639,7 +657,8 @@ describe("useWidget — eager 시작(§R6)", () => {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: async () => ({ data: { token: `iext_r${refreshCalls}`, expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString() } }),
+          // 다음 주기도 같은 간격 — 각 단계가 정확히 갱신 1회를 담는다.
+          json: async () => ({ data: { token: `iext_r${refreshCalls}`, expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + PHASE_SCHEDULE_MS).toISOString() } }),
         } as Response);
       }
       if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
@@ -650,21 +669,27 @@ describe("useWidget — eager 시작(§R6)", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { getEs, getUrl } = installControllableEventSource();
     throwOnce = true; // 미뤄 둔 스트림을 여는 **첫 시도**가 던진다.
+    // 그 throw 는 `console.warn` 으로 흘러가는데, 그 시점 URL 엔 **토큰이 쿼리로 실려 있다**.
+    // mock 만 두고 로그를 안 보면 토큰 노출 회귀를 못 잡는다(ai-review `18_23_54` security).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const { result } = renderHook(() => useWidget());
     boot();
 
     await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
-    // **단계를 끊어서 본다.** 갱신 주기가 6초라 한 번에 20초를 밀면 재개 성공이 같은 창 안에서
-    // 일어나 "throw 했는데도 열렸다" 와 "throw 뒤 다음 주기에 열렸다" 가 구분되지 않는다.
-    // 1단계(≈6초): 첫 갱신 성공 → 재개 시도 → throw. 여기서 의사가 사라지면 아래가 영영 안 열린다.
-    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    // 1단계: 첫 갱신 성공 → 재개 시도 → throw. 여기서 의사가 사라지면 아래가 영영 안 열린다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHASE_ADVANCE_MS); });
     expect(getEs()).toBeNull();
     // 2단계: 다음 갱신 주기 — 의사가 남아 있으면 이번엔 열린다.
-    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHASE_ADVANCE_MS); });
     expect(getEs()).not.toBeNull();
     expect(getUrl()).toContain("iext_r");
     expect(result.current.state.phase).not.toBe("ended");
+    // **토큰이 콘솔에 남지 않는다.** 이 위젯은 공개 사이트에 임베드되므로 호스트 페이지의 다른
+    // 스크립트도 그 콘솔을 읽는다. 단언 대상은 "던진 그 호출의 URL 에 실렸던 토큰" 이다.
+    const logged = warn.mock.calls.flat().map(String).join(" ");
+    expect(logged).not.toContain("iext_w");
+    expect(logged).not.toContain("iext_r");
     vi.useRealTimers();
   });
 

@@ -578,26 +578,28 @@ export function useWidget() {
    * {@link finalizeEnded} 으로 세션 정리 + `ENDED` 전이 + host 통지를 수행한다.
    *
    * **REST 오류 분기 (2026-08-10, [3-auth-session §3.1-2·§R4])** — 실패가 전부 soft-fail 은
-   * 아니다. 세 갈래를 상태코드로 가른다:
+   * 아니다. 아래와 같이 가른다:
    * - `404` → `"ended"`. 없는 execution 에 SSE 를 열면 아무것도 안 와 `streaming` 에 고착된다.
    * - `401` → **낙관적 `refreshToken` 1회**. 만료인지 blacklist 인지 클라이언트는 사전 판별할
    *   수 없다(EIA §8.3). 성공하면 `sessionRef`·storage 를 새 토큰으로 갱신하고 `"continue"` —
    *   **호출부는 그 뒤 `sessionRef.current` 를 읽어야 한다.** `SeedOutcome` 은 "무엇이 바뀌었나"
    *   를 실어 나르지 않으므로, 캡처해 둔 지역 변수를 쓰면 거부된 토큰으로 스트림을 연다
    *   (ai-review `16_09_40` CRITICAL — security·side_effect·requirement·testing **4명** 독립 수렴).
-   * - 재차 `401`·`410` → `"ended"`(복구 불가 확정, §R4). 그 **외** 실패(네트워크 등)는
-   *   `"continue"` — 일시적 장애가 대화를 끝내지 않게 하는 경계다.
+   * - 재차 `401`·`410` → `"ended"`(복구 불가 확정, §R4).
    * - **refresh 가 그 외 이유로 실패**(네트워크·5xx) → `"refresh_deferred"`. 스트림은 안 열되
    *   `scheduleRefresh` 는 건다 — 둘 다 안 하면 고착, 둘 다 하면 죽은 토큰으로 SSE 를 연다.
    * - **`getStatus` 자체가 그 외 오류** → 여전히 soft-fail `"continue"`. 일시적 장애가 대화를
    *   끝내지 않게 하는 경계이고,
    *   회귀 테스트가 그 경계를 고정한다.
    *
-   * @returns {@link SeedOutcome} — **`"continue"` 가 아니면 호출부는 후속 `openStream`/
-   *   `scheduleRefresh` 를 반드시 건너뛴다**. `"ended"`(스냅샷 terminal **또는 복구 불가 REST
-   *   오류** — `404`·재시도 실패한 `401`/`410`)는 무효 토큰
-   *   SSE 재오픈·종료 세션 storage 부활을 막고, `"stale"`(await 사이 세션 교체)은 지연 응답이 새
-   *   대화의 스트림을 옛 토큰으로 탈취하는 것을 막는다.
+   * @returns {@link SeedOutcome} — 중단 판정은 {@link shouldAbortAfterSeed} 가 소유한다.
+   *   **`"ended"`·`"stale"` 이면 호출부는 후속 `openStream`/`scheduleRefresh` 를 둘 다
+   *   건너뛴다.** `"ended"`(스냅샷 terminal **또는 복구 불가 REST 오류** — `404`·재시도 실패한
+   *   `401`/`410`)는 무효 토큰 SSE 재오픈·종료 세션 storage 부활을 막고, `"stale"`(await 사이
+   *   세션 교체)은 지연 응답이 새 대화의 스트림을 옛 토큰으로 탈취하는 것을 막는다.
+   *   **`"refresh_deferred"` 는 그 둘과 다르다** — 스트림만 건너뛰고 `scheduleRefresh` 는 건다.
+   *   "`continue` 가 아니면 전부 건너뛴다" 로 적어 두면 그 갈래가 잘못 읽힌다(실제로 이 문장이
+   *   그렇게 낡아 있었다 — ai-review `18_23_54` documentation CRITICAL).
    *   **`"continue"` 는 "아무것도 안 바뀌었다" 를 뜻하지 않는다** — `401` 복구가 성공한 경우도
    *   여기 포함되고 그때 세션 토큰이 교체돼 있다. 그래서 호출부는 캡처해 둔 지역 변수가 아니라
    *   `sessionRef.current` 를 읽어야 한다(위 §REST 오류 분기).
