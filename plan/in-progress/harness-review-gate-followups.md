@@ -35,6 +35,20 @@ spec_impact: none
 
 ## 미해결 항목
 
+- [ ] **`spec-impl-evidence.md §4.2` 가 링크 위생 책임을 없는 곳에 돌리고 있다** (2026-08-10 실측).
+      `spec-link-integrity.test.ts` 행 말미가 "plan-coherence-checker 가 담당하는 것은
+      `plan/**` **문서 내부**의 링크 위생" 이라고 적었는데, 그 checker 의 실제 체크리스트는
+      ① 미해결 결정 충돌 ② 선행 plan 미해소 ③ 후속 항목 누락 **셋뿐**이고 링크 검증은
+      없다(`code-review-agents/lib/role_instructions.py` `plan_coherence`, 직접 확인).
+      즉 그 책임은 **아무도 지고 있지 않았다.**
+      PR [#1123](https://github.com/worker-ants/clemvion/pull/1123) 이 그 자리를 메우는
+      build 가드를 신설하지만 **이 문장은 그대로 두므로**, 머지 후 "checker 담당"·"가드 담당"
+      두 서술이 공존해 다음 사람이 어느 쪽을 믿을지 알 수 없게 된다.
+      `spec/` 편집이라 planner 턴. #1123 에 얹는 것이 가장 자연스럽다.
+      > 출처: 이 브랜치가 같은 가드를 중복 구현했다가 폐기하는 과정의 `--spec`
+      > consistency 라운드(`review/consistency/2026/08/10/10_36_44`) naming_collision W1.
+      > 중복 자체는 폐기됐지만 이 발견은 그와 독립이다.
+
 **신규 후속 (defer) — 아래 11건 + 기본 브랜치 해석 중복 1건**
 
 1. ~~**`build_files_section` 의 diff-only 예산 분기가 상한을 넘는다**~~ → **처분 완료 (2026-08-07).**
