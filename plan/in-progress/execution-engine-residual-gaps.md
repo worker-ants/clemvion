@@ -53,8 +53,14 @@ owner: developer
 - [ ] `continue` 시 다음 노드 enqueue 경로 연결 + 테스트
 - 위치: `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts`
 - **차단 사유 (2026-05-30 조사)** — 3중 장애물:
-  1. **전제 미해소**: errorPolicy schema 노출 선행 plan `parallel-p2.md §1` 이 아직
-     `plan/in-progress/` (미완료). 본 plan 의 "착수 권장 조건" 미충족.
+  1. ~~**전제 미해소**: errorPolicy schema 노출 선행 plan `parallel-p2.md §1` 이 아직
+     `plan/in-progress/` (미완료). 본 plan 의 "착수 권장 조건" 미충족.~~
+     → **해소됨 (2026-08-10 실측).** 그 plan 은 `plan/complete/parallel-p2-followups.md`
+     (및 `-done.md`)로 이미 이동했다. **장애물 1은 더 이상 없다.**
+     > 이 줄은 2026-05-30 조사 시점의 사실이었고 그 뒤 참이기를 그쳤는데, plan 은
+     > 그대로였다. G2 가 `defer 확정`(사용자, 2026-07-03)이라 아무도 이 문서를 다시
+     > 열지 않은 탓이다 — **defer 는 그 안의 전제까지 얼리지 않는다.** 재개하는 사람이
+     > 이미 사라진 선행 조건을 기다리지 않도록 여기서 끊는다.
   2. **용어/구현 불일치**: spec §11 의 "`continue`" 는 추상 용어이고, 실제 node-common
      §2.4 정책 enum 은 `stop_workflow` / `skip_node` / `use_default_output` / `retry` /
      `route_to_error_port` 로 `continue` 값 자체가 없다 (engine `getErrorPolicyConfig` 가
