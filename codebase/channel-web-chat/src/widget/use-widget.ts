@@ -494,7 +494,10 @@ export function useWidget() {
    *   (ai-review `16_09_40` CRITICAL — security·side_effect·requirement·testing **4명** 독립 수렴).
    * - 재차 `401`·`410` → `"ended"`(복구 불가 확정, §R4). 그 **외** 실패(네트워크 등)는
    *   `"continue"` — 일시적 장애가 대화를 끝내지 않게 하는 경계다.
-   * - **그 외는 여전히 soft-fail** `"continue"`. 일시적 장애가 대화를 끝내지 않게 하는 경계이고,
+   * - **refresh 가 그 외 이유로 실패**(네트워크·5xx) → `"refresh_deferred"`. 스트림은 안 열되
+   *   `scheduleRefresh` 는 건다 — 둘 다 안 하면 고착, 둘 다 하면 죽은 토큰으로 SSE 를 연다.
+   * - **`getStatus` 자체가 그 외 오류** → 여전히 soft-fail `"continue"`. 일시적 장애가 대화를
+   *   끝내지 않게 하는 경계이고,
    *   회귀 테스트가 그 경계를 고정한다.
    *
    * @returns {@link SeedOutcome} — **`"continue"` 가 아니면 호출부는 후속 `openStream`/
