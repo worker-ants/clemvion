@@ -64,19 +64,30 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 
       **훅 추출을 기다리지 않고 지금 닫았다** — 게이트를 `openStream` **안**으로 옮기면
       되고, 그건 나머지 slice(§토큰 타입을 공개 계약으로 삼을지)의 미결 결정과 무관하다.
-      `openStream` 이 `boolean` 을 돌려주고 호출부는 `if (!openStream(...)) return;` 한 줄이 된다.
 
-      **반환값의 의미를 "열었나" 가 아니라 "다른 시도가 넘겨받았나(아니오)" 로 정의**했다.
-      호출부가 실제로 묻는 것이 그것이라서다. 그 정의 덕에 `client` 미확립은 `true` 가 되고,
-      그게 **동작 보존**이다 — 종전 호출부는 client 가 없어도 `scheduleRefresh()` 를 그대로
-      실행했다. 처음엔 `false` 로 썼다가 뮤테이션이 그 경로만 조용히 달라짐을 드러내 고쳤다.
+      **반환은 명명 union `StreamClaim`**(`"opened"`/`"already_owned"`/`"no_client"`)이고
+      호출부는 `if (openStream(...) === "already_owned") return;` 한 줄이 된다.
+      처음엔 `boolean` 으로 썼다가 리뷰가 **이 파일이 `SeedOutcome` 으로 이미 배운 교훈**을
+      되돌린 것이라고 지적했다 — boolean 이면 "실제로 열었다" 와 "열 게 없어 통과시켰다
+      (client 미확립)" 가 같은 `true` 로 뭉개진다. `SeedOutcome` 도입 근거가 정확히 그
+      문장이다("정상 시드"와 "stale 폐기"가 같은 `false` 로 뭉개져 호출부가 구분 불가).
+      선례를 따라 union 으로 승격했고, 그 덕에 `"no_client"` 가 중단이 아닌 것이 **문서가
+      아니라 타입으로** 드러난다.
 
-      뮤테이션 — 게이트 제거·게이트 반전 **둘 다 RED**(이중 EventSource 회귀 테스트 2건이
-      양방향으로 잡는다). 호출부가 반환값을 무시하는 뮤턴트 2종은 **생존하나 동등 뮤턴트**다:
-      `scheduleRefresh` 가 `clearRefreshTimer()` 로 시작하는 **멱등** 함수라 두 번 불러도
-      관측 차이가 없다(실측). 관측 불가한 것에 테스트를 만들면 vacuous 해지므로 만들지 않았다.
+      `"no_client"` 가 진행인 것은 **동작 보존**이다 — 종전 호출부는 client 가 없어도
+      `scheduleRefresh()` 를 그대로 실행했다. 첫 판(`boolean`)에서 그 경로를 `false` 로
+      썼다가 뮤테이션이 조용한 동작 변경을 드러내 고쳤다.
+
+      뮤테이션 — **소유권 게이트 제거는 RED**(이중 EventSource 회귀 2건이 양방향으로 잡는다).
+      나머지 2종(`"no_client"`→`"already_owned"`, 호출부가 결과를 무시)은 **생존하나 동등
+      뮤턴트**다: `scheduleRefresh` 가 `clearRefreshTimer()` 로 시작하는 **멱등** 함수라 두 번
+      불러도 관측 차이가 없고, no-client 상태로 openStream 에 도달하는 경로는 실 사용에서
+      나오지 않는다(실측). **관측 불가한 것에 테스트를 만들면 vacuous 해지므로 만들지 않았다** —
+      대신 union 타입이 그 구분을 컴파일 시점에 드러낸다.
 
       기능 무변경 — 위젯 23파일 409건 통과, `tsc --noEmit` 0 errors.
+      회귀 테스트 주석도 함께 갱신했다(옛 "호출부 양쪽 게이트" 서술 → "openStream 내부 단일
+      게이트"). 이 저장소가 주석 drift 로 반복 결함을 낸 이력이 있어 미루지 않았다.
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
 </content>
 

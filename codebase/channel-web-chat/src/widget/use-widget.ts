@@ -90,6 +90,26 @@ type SeedOutcome =
   | "continue";
 
 /**
+ * `openStream` 의 결과 — 호출부가 `scheduleRefresh()` 같은 후속 배선을 진행할지 판정한다.
+ * **`"already_owned"` 만 중단**이고 나머지는 진행이다.
+ *
+ * `SeedOutcome` 과 **같은 이유로** union 이다. 첫 판은 `boolean` 이었는데, 그러면 "실제로 열었다"
+ * 와 "열 게 없어 그냥 통과시켰다(client 미확립)" 가 같은 `true` 로 뭉개진다 — 이 파일이
+ * `SeedOutcome` 도입 때 이미 명문화한 그 안티패턴이다(위 주석: "정상 시드"와 "stale 폐기"가
+ * 같은 `false` 로 뭉개져 호출부가 구분할 수 없었다). 시그니처만 보고 호출부를 쓰는 다음 사람이
+ * `if (!openStream(...)) return;` 를 "열기 실패 시 중단" 으로 오독하기 쉽고, 세 번째 요구
+ * (텔레메트리·테스트 단언)가 생기면 그 boolean 을 다시 쪼개야 한다 — 같은 리팩터의 반복이다.
+ * (ai-review 12_39_25 maintainability.)
+ */
+type StreamClaim =
+  /** 이 호출이 SSE 를 열었다. */
+  | "opened"
+  /** 다른 시도가 이미 소유 중 → **호출부는 중단**한다(후속 배선도 그쪽 몫). */
+  | "already_owned"
+  /** `client` 미확립(부팅 전) → 열지 못했으나 **넘겨받힌 것도 아니다**. 호출부는 진행한다. */
+  | "no_client";
+
+/**
  * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
  * 직접 로드 경로의 `?apiBase=` 는 사용자가 URL 을 통제하지 못하는 임베드 시나리오와 달리 외부 입력이므로,
  * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해 거른다.
@@ -354,23 +374,21 @@ export function useWidget() {
    * 뒤 각자 여기로 온다. 아래 `closeStream()` 이 앞의 EventSource 를 끊고 새로 열므로, 막지 않으면
    * 먼저 연 쪽의 스트림이 조용히 교체된다(ai-review `01_44_21`). **SSE 는 하나만 소유한다.**
    *
-   * **반환값의 의미는 "열었나" 가 아니라 "다른 시도가 이 세션을 넘겨받았나(아니오)" 다.** 호출부가
-   * 물어야 하는 것이 그것이기 때문이다 — 넘겨받혔으면 `scheduleRefresh()` 같은 후속 배선도 그쪽
-   * 몫이라 건너뛴다. `void` 였다면 호출부가 다시 `sessionEstablished()` 를 물어야 하고, 그게 곧
-   * 복제의 재도입이다.
-   *
-   * **`client` 미확립(부팅 전)은 `true`** 다. 어색해 보이지만 의도적이고, 이 티켓이 "기능 변경
-   * 없음" 이기 때문이다 — 종전 호출부는 `openStream(...)`(client 없으면 내부 no-op) 후
-   * `scheduleRefresh()` 를 **그대로 실행**했다. 여기서 `false` 를 주면 그 경로만 조용히 달라진다.
+   * `"no_client"` 가 중단이 아닌 것은 의도이고 **동작 보존**이다 — 종전 호출부는
+   * `openStream(...)`(client 없으면 내부 no-op) 후 `scheduleRefresh()` 를 그대로 실행했다.
    * 의미로도 맞다: 아무도 스트림을 안 가져갔으므로 이 호출부가 계속 진행하는 것이 옳다.
+   *
+   * @param session - 스트림을 열 대상 세션(endpoint·token 보유).
+   * @param lastEventId - SSE `Last-Event-Id`. 복원·재연결은 `"0"` 을 넘겨 버퍼 replay 를 받는다.
+   * @returns `StreamClaim` — **`"already_owned"` 만 중단**이고 나머지는 진행이다. `void` 였다면
+   *   호출부가 다시 `sessionEstablished()` 를 물어야 하고, 그게 곧 복제의 재도입이다.
    */
   const openStream = useCallback(
-    (session: SessionRef, lastEventId?: string | number): boolean => {
+    (session: SessionRef, lastEventId?: string | number): StreamClaim => {
       const client = clientRef.current;
-      // 열지는 못하지만 **넘겨받힌 것도 아니다** — 위 JSDoc 의 반환값 의미 참조(동작 보존).
-      if (!client) return true;
+      if (!client) return "no_client";
       // 이미 누군가 소유 중이면 넘겨받지 않는다. 이 한 줄이 두 호출부의 복제를 대체한다.
-      if (streamRef.current !== null) return false;
+      if (streamRef.current !== null) return "already_owned";
       closeStream();
       streamRef.current = client.openStream(
         session.endpoints,
@@ -387,7 +405,7 @@ export function useWidget() {
         },
         lastEventId,
       );
-      return true;
+      return "opened";
     },
     [closeStream, handleEiaEvent],
   );
@@ -598,7 +616,7 @@ export function useWidget() {
         // **seed 게이트와 짝을 이루는 스트림 게이트**는 이제 `openStream` **안**에 있다 — 겹친 두
         // seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림 미열림을 보고 통과한 뒤 각자
         // 여기로 오는데, 먼저 온 쪽만 소유한다(ai-review 01_44_21). 못 열었으면 갱신 예약도 건너뛴다.
-        if (!openStream(session, "0")) return;
+        if (openStream(session, "0") === "already_owned") return;
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -609,7 +627,7 @@ export function useWidget() {
       startedRef.current = false; // 실패 → 재시도(재open/새 대화) 허용.
       dispatch({ type: "ERROR", message: errMessage(e) });
     }
-  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, sessionEstablished, worldGenRef]);
+  }, [openStream, persist, seedWaitingFromStatus, scheduleRefresh, isStale, worldGenRef]);
 
   const sendCommand = useCallback(
     async (command: InteractCommand) => {
@@ -947,7 +965,7 @@ export function useWidget() {
         // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
         // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 그쪽이 막는다
         // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
-        if (!openStream(saved, "0")) return;
+        if (openStream(saved, "0") === "already_owned") return;
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
