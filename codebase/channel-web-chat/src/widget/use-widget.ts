@@ -341,10 +341,36 @@ export function useWidget() {
     [finalizeEnded],
   );
 
+  /**
+   * SSE 를 연다. **이미 열려 있으면 아무것도 하지 않고 `false`** 를 돌려준다.
+   *
+   * 게이트가 여기 **안**에 있는 것이 요점이다. 종전에는 두 호출부(`start()`·`applyConfig` 복원)가
+   * 각자 `if (sessionEstablished()) return;` 를 손으로 복제했고, 그건 이 파일이 반복해 낸
+   * **"가드를 한쪽에만 적용" 결함**의 다음 재발 자리였다 — 3번째 seed→openStream 경로가 생기면
+   * 아무도 그 3줄을 상기시켜 주지 않는다(ai-review `02_25_54` maintainability).
+   *
+   * 왜 게이트가 필요한가: `await seedWaitingFromStatus` 와 이 호출 사이에 microtask 경계가 있어,
+   * 겹친 두 seed 가 같은 flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림을 보고 통과**한
+   * 뒤 각자 여기로 온다. 아래 `closeStream()` 이 앞의 EventSource 를 끊고 새로 열므로, 막지 않으면
+   * 먼저 연 쪽의 스트림이 조용히 교체된다(ai-review `01_44_21`). **SSE 는 하나만 소유한다.**
+   *
+   * **반환값의 의미는 "열었나" 가 아니라 "다른 시도가 이 세션을 넘겨받았나(아니오)" 다.** 호출부가
+   * 물어야 하는 것이 그것이기 때문이다 — 넘겨받혔으면 `scheduleRefresh()` 같은 후속 배선도 그쪽
+   * 몫이라 건너뛴다. `void` 였다면 호출부가 다시 `sessionEstablished()` 를 물어야 하고, 그게 곧
+   * 복제의 재도입이다.
+   *
+   * **`client` 미확립(부팅 전)은 `true`** 다. 어색해 보이지만 의도적이고, 이 티켓이 "기능 변경
+   * 없음" 이기 때문이다 — 종전 호출부는 `openStream(...)`(client 없으면 내부 no-op) 후
+   * `scheduleRefresh()` 를 **그대로 실행**했다. 여기서 `false` 를 주면 그 경로만 조용히 달라진다.
+   * 의미로도 맞다: 아무도 스트림을 안 가져갔으므로 이 호출부가 계속 진행하는 것이 옳다.
+   */
   const openStream = useCallback(
-    (session: SessionRef, lastEventId?: string | number) => {
+    (session: SessionRef, lastEventId?: string | number): boolean => {
       const client = clientRef.current;
-      if (!client) return;
+      // 열지는 못하지만 **넘겨받힌 것도 아니다** — 위 JSDoc 의 반환값 의미 참조(동작 보존).
+      if (!client) return true;
+      // 이미 누군가 소유 중이면 넘겨받지 않는다. 이 한 줄이 두 호출부의 복제를 대체한다.
+      if (streamRef.current !== null) return false;
       closeStream();
       streamRef.current = client.openStream(
         session.endpoints,
@@ -361,6 +387,7 @@ export function useWidget() {
         },
         lastEventId,
       );
+      return true;
     },
     [closeStream, handleEiaEvent],
   );
@@ -413,10 +440,14 @@ export function useWidget() {
    * seedWaitingFromStatus` 와 호출부의 `openStream` 사이엔 microtask 경계가 있어, 겹친 두 seed 가 같은
    * flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고 통과한 뒤 각자 continuation 에서
    * `openStream` 을 부를 수 있다(초기 JSDoc 이 "seed 반환 직후 동기 실행" 이라 원천 차단된다고 적었으나
-   * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 `start()`·`applyConfig` 는 `openStream`
-   * **직전**에도 `if (sessionEstablished()) return;` 로 재확인한다. `openStream` 이 closeStream→set 이라
+   * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 **`openStream` 자신이** 진입에서
+   * 소유권을 재확인하고 이미 열려 있으면 `false` 를 돌려준다. `openStream` 이 closeStream→set 이라
    * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 짝 가드로 낭비성 두 번째 EventSource 생성 자체를
    * 없앤다.
+   *
+   * 종전에는 그 재확인이 두 호출부에 **손으로 복제된 3줄**이었다. 3번째 seed→openStream 경로가
+   * 생기면 아무도 상기시켜 주지 않아, 이 파일이 반복해 낸 "가드를 한쪽에만 적용" 결함의 다음
+   * 재발 자리였다 — 그래서 게이트를 `openStream` 안으로 옮겨 **구조적으로 강제**한다.
    *
    * @param opts.allowWhileStreaming 스트림이 열려 있어도 WAITING 을 그린다. **`replay_unavailable`
    *   폴백만** 넘긴다 — 그건 자기 스트림의 표면을 버퍼 만료 후 **재동기화**하는 정당한 경우다(스트림
@@ -564,12 +595,10 @@ export function useWidget() {
         if (outcome !== "continue") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
-        // **seed 게이트와 짝을 이루는 스트림 게이트** — `await seedWaitingFromStatus` 와 여기 사이엔
-        // microtask 경계가 있어, 겹친 두 seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림
-        // 미열림을 보고 통과한 뒤 각자 여기서 openStream 을 부른다(이중 EventSource 생성). 먼저 continuation
-        // 이 열면 뒤 continuation 은 여기서 멈춘다 — SSE 는 하나만 소유한다(ai-review 01_44_21).
-        if (sessionEstablished()) return;
-        openStream(session, "0");
+        // **seed 게이트와 짝을 이루는 스트림 게이트**는 이제 `openStream` **안**에 있다 — 겹친 두
+        // seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림 미열림을 보고 통과한 뒤 각자
+        // 여기로 오는데, 먼저 온 쪽만 소유한다(ai-review 01_44_21). 못 열었으면 갱신 예약도 건너뛴다.
+        if (!openStream(session, "0")) return;
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -914,12 +943,11 @@ export function useWidget() {
           // (ai-review 2026-07-17 08_29_33 W2 · 00_51_53)
           if (isAttemptStale(attempt)) return;
         }
-        // **seed 게이트와 짝을 이루는 스트림 게이트**(start() 와 동일) — checkpoint 2 는 boot 축이라
+        // **스트림 게이트는 `openStream` 안**이다(start() 와 같은 경로) — checkpoint 2 는 boot 축이라
         // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
-        // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 여기서 막는다
+        // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 그쪽이 막는다
         // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
-        if (sessionEstablished()) return;
-        openStream(saved, "0");
+        if (!openStream(saved, "0")) return;
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };

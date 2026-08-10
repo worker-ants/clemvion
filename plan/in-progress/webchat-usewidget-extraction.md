@@ -57,11 +57,26 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
       (신규 훅 단위 8 + 구성 지점 참조 안정성 1), e2e 259 PASS. 기능 무변경.
 - [x] JSDoc 인접성 구조적 가드 검토(경고 주석 → lint/test) — **가드 불필요로 결론**.
       1차 slice 의 전용 파일 분리가 위험 자체를 없앴다(§1차 slice §부수 효과 참고).
-- [ ] **seed 게이트 + openStream 게이트 짝의 구조적 강제 검토** (ai-review 02_25_54 maintainability) — 현재
-  `sessionEstablished()` 스트림 게이트가 `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이다.
-  3번째 seed→openStream 호출부가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 여지. 복원/시작
-  경로를 훅으로 뽑을 때 openStream 진입을 단일 wrapper 로 감싸 게이트를 구조적으로 강제하는 것을 검토.
-  (현재는 두 호출부 모두 대칭 회귀 테스트로 고정돼 있어 비차단.)
+- [x] **seed 게이트 + openStream 게이트 짝의 구조적 강제 — 완료 (2026-08-10)**
+      (ai-review 02_25_54 maintainability). 종전엔 `sessionEstablished()` 스트림 게이트가
+      `start()`·`applyConfig` 두 호출부의 **손으로 복제한 3줄**이었다. 3번째 seed→openStream
+      경로가 생기면 이 파일이 반복한 "비대칭 가드 누락" 이 재발할 자리였다.
+
+      **훅 추출을 기다리지 않고 지금 닫았다** — 게이트를 `openStream` **안**으로 옮기면
+      되고, 그건 나머지 slice(§토큰 타입을 공개 계약으로 삼을지)의 미결 결정과 무관하다.
+      `openStream` 이 `boolean` 을 돌려주고 호출부는 `if (!openStream(...)) return;` 한 줄이 된다.
+
+      **반환값의 의미를 "열었나" 가 아니라 "다른 시도가 넘겨받았나(아니오)" 로 정의**했다.
+      호출부가 실제로 묻는 것이 그것이라서다. 그 정의 덕에 `client` 미확립은 `true` 가 되고,
+      그게 **동작 보존**이다 — 종전 호출부는 client 가 없어도 `scheduleRefresh()` 를 그대로
+      실행했다. 처음엔 `false` 로 썼다가 뮤테이션이 그 경로만 조용히 달라짐을 드러내 고쳤다.
+
+      뮤테이션 — 게이트 제거·게이트 반전 **둘 다 RED**(이중 EventSource 회귀 테스트 2건이
+      양방향으로 잡는다). 호출부가 반환값을 무시하는 뮤턴트 2종은 **생존하나 동등 뮤턴트**다:
+      `scheduleRefresh` 가 `clearRefreshTimer()` 로 시작하는 **멱등** 함수라 두 번 불러도
+      관측 차이가 없다(실측). 관측 불가한 것에 테스트를 만들면 vacuous 해지므로 만들지 않았다.
+
+      기능 무변경 — 위젯 23파일 409건 통과, `tsc --noEmit` 0 errors.
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
 </content>
 
