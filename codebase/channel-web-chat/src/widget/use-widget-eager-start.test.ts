@@ -446,12 +446,16 @@ describe("useWidget — eager 시작(§R6)", () => {
   });
 
   it("§R4: refresh 가 **네트워크 오류**로 실패하면 종료로 확정하지 않는다", async () => {
+    // 갱신 타이머가 실제로 걸렸는지 재려면 그 만료 시점을 넘겨야 한다 — 실시계로는 못 잰다.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     // §R4 는 "재차 실패(`401`/`410`)면 종료" 다. 그보다 넓게 잡으면 **일시적 장애가 살아있는
     // 대화를 끝낸다** — `webchat-boot-single-flight` 이 정확히 그 형태로 대화를 영구 유실시켰다.
     // (ai-review requirement 가 두 라운드 연속 지적했고 첫 번째는 내가 집계에서 흘렸다.)
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+      // 만료를 lead+6초 뒤로 → refreshDelayMs ≈ 6초. 90분이면 타이머가 영영 안 와
+      // "예약됐는가" 단언이 decorative 해진다(이 파일의 기존 선례와 같은 이유).
+      JSON.stringify({ executionId: "prev", token: "iext_x", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
@@ -482,6 +486,16 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(result.current.state.phase).not.toBe("ended"); // 일시 장애를 종료로 오판하지 않는다
     expect(getEs()).toBeNull();                            // 죽은 토큰으로 스트림을 열지 않는다
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+    // **`phase !== "ended"` 만으로는 부족하다** — 정상 `streaming` 과 **영구 고착된**
+    // `streaming` 이 구분되지 않는다. 그 둘을 가르는 것은 "복구 수단이 예약됐는가" 이고,
+    // 여기서는 `scheduleRefresh` 가 세션의 **유일한** 갱신 예약 지점이다. 예약이 없으면
+    // 스피너에서 영영 못 빠져나온다(`16_56_39` — reviewer 6명이 코드 추적으로 독립 발견).
+    // 타이머가 실제로 걸렸는지는 그 만료 시점을 넘겨 refresh 가 **다시** 나가는지로 잰다.
+    const before = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    const after = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    expect(after).toBeGreaterThan(before); // 갱신 사이클이 살아 있다 = 고착이 아니다
+    vi.useRealTimers();
   });
 
   it("§R4: refresh 가 `500` 으로 실패해도 종료로 확정하지 않는다 — 상태 **필터** 축", async () => {
