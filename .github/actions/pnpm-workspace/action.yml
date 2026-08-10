@@ -66,8 +66,17 @@ runs:
     # 셸 **코드로** 읽히는 지점이라 호출부가 넣은 문자열이 명령이 될 수 있다. env 를 거치면
     # 셸은 언제나 데이터로 본다. `_changed-paths.yml` 이 세운 것과 같은 규율이고
     # `test_pnpm_workspace_action.py` 가 두 파일 모두에 대해 고정한다.
+    # `--strict-peer-dependencies` 는 미충족 peer 를 경고에서 **실패**로 올린다. 그것이
+    # 없어서 `#1049` 가 `eslint-plugin-unicorn` 을 `eslint>=10.4` 요구 버전으로 올린 채
+    # 9.39.4 설치본 위에 머지됐고, 발견은 사람이 `#1058` 의 테스트 로그를 읽다가였다 —
+    # **자동 신호가 없었다.** 여기 두는 이유는 위 `--frozen-lockfile` 과 같다: 8개 워크플로가
+    # 이 action 하나를 거치므로 한 줄이 전부를 덮는다.
+    #
+    # 예외 목록은 `pnpm-workspace.yaml` 의 `peerDependencyRules` 이고 **현재 비어 있다**
+    # (2026-08-10 실측: 규칙 없이 exit 0, unmet peer 0건). 착수 근거였던
+    # `nunjucks → chokidar` 는 그 사이 상류에서 사라졌다.
     - name: Install workspace
       shell: bash
       env:
         FILTER: ${{ inputs.filter }}
-      run: pnpm install --frozen-lockfile --filter "$FILTER"
+      run: pnpm install --frozen-lockfile --strict-peer-dependencies --filter "$FILTER"

@@ -105,14 +105,22 @@ def argv(proc: subprocess.CompletedProcess) -> list[str]:
 
 class InstallCommandTest(unittest.TestCase):
     def test_pnpm_receives_frozen_lockfile_and_the_filter(self):
-        """저장소에서 `--frozen-lockfile` 의 **유일한** 소재지다 — 인자로 확인한다."""
+        """저장소에서 `--frozen-lockfile` + `--strict-peer-dependencies` 의 **유일한**
+        소재지다 — 인자로 확인한다.
+
+        후자는 2026-08-10 추가. 미충족 peer 를 경고에서 실패로 올린다 — 그게 없어서
+        `#1049` 가 `eslint-plugin-unicorn` 을 `eslint>=10.4` 요구 버전으로 올린 채
+        9.39.4 설치본 위에 머지됐고, 사람이 로그를 읽다 발견했다.
+        """
         proc = run_install("frontend...")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertEqual(
             argv(proc),
-            ["install", "--frozen-lockfile", "--filter", "frontend..."],
+            ["install", "--frozen-lockfile", "--strict-peer-dependencies",
+             "--filter", "frontend..."],
             "pnpm 이 받은 인자가 기대와 다르다 — `--frozen-lockfile` 이 빠지면 매니페스트와 "
-            "어긋난 lockfile 이 9개 잡에서 전부 조용히 통과한다",
+            "어긋난 lockfile 이, `--strict-peer-dependencies` 가 빠지면 미충족 peer 가 "
+            "9개 잡에서 전부 조용히 통과한다",
         )
 
     def test_the_filter_arrives_as_one_argument(self):
@@ -123,7 +131,7 @@ class InstallCommandTest(unittest.TestCase):
         """
         proc = run_install("scope with space...")
         self.assertEqual(argv(proc)[-1], "scope with space...")
-        self.assertIn("ARGC=4", proc.stdout, proc.stdout)
+        self.assertIn("ARGC=5", proc.stdout, proc.stdout)
 
     def test_a_scoped_package_name_survives_intact(self):
         """실사용 형태 — `@workflow/…` 와 `...`(workspace 의존 포함)."""

@@ -81,8 +81,8 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 
 ## 체크리스트
 
-- [ ] §1 `nunjucks → chokidar` 미충족 처분 (실측 → 억제 or 대체)
-- [ ] §1 `--strict-peer-dependencies` 게이트 도입
+- [x] §1 `nunjucks → chokidar` 미충족 처분 — **전제가 반증돼 처분 대상 자체가 없었다** (2026-08-10). 규칙 없이 `--strict-peer-dependencies --frozen-lockfile` → **exit 0, unmet peer 0건**. 2026-08-01 기준 서술이었고 그 사이 상류가 정리됐다. 억제를 넣었다가 **되돌렸다** — 막을 대상이 없는 억제는 죽은 설정이고 나중에 진짜 미충족을 조용히 덮는다(fail-open). 근거는 `pnpm-workspace.yaml` 주석에 남겼다.
+- [x] §1 `--strict-peer-dependencies` 게이트 도입 — `.github/actions/pnpm-workspace` 의 install 한 줄에 추가(8개 워크플로가 이 action 을 거치므로 한 줄이 전부를 덮는다). 기존 가드 `test_pnpm_workspace_action.py` 가 정확히 그 줄을 고정하고 있어 **함께 갱신** — 계약이 바뀌면 그 계약을 고정한 테스트도 바뀌어야 한다(가드가 제 일을 했다).
 - [ ] §2 eslint 10 상향 — 10개 워크스페이스 + config 검증
 - [ ] §2 상향 후 `dependabot.yml` 의 `eslint-plugin-unicorn` ignore 해제 + `eslint.config.mjs`
       주석의 실측 표 갱신
