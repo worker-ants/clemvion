@@ -5,7 +5,23 @@ code:
   - codebase/packages/web-chat-sdk/**
   # §3(재전송) `wc:boot` 재전송 계약("위젯은 **마지막** wc:boot 의 config 를 적용")의 **위젯 측** 구현.
   # 이 문서가 그 계약의 SoT 이므로 여기 증거를 건다 — 1-widget-app.md 는 재전송을 서술하지 않는다.
+  #
+  # 세 파일의 역할이 다르다:
+  #   host-bridge.ts             host↔iframe `wc:*` 전송 계층
+  #   use-session-generations.ts **계약의 정본** — 부팅 시도 세대 발급(`beginBootAttempt`)과
+  #                              "나중 시도가 앞선 시도를 대체" 판정(`cannotApplyConfig`/
+  #                              `isAttemptStale`)
+  #                              ⚠ 여기의 "세대" 는 **config 적용 경합**만 가른다.
+  #                              `3-auth-session.md` §R7 이 두 번 기각한 "boot 세대로 표면
+  #                              되감기를 방어" 와는 다른 축이다 — 그쪽 방어는 세대가 아니라
+  #                              "세션이 확립됐는가" 를 기준으로 삼는다.
+  #   use-widget.ts              그 판정의 **소비처**(`applyConfig`)
+  #
+  # 정본이 옮겨간 것을 이 목록이 못 따라간 적이 있다(2026-07-25 consistency W1). `spec-code-paths`
+  # 는 각 항목이 1개 이상 매치되는지만 보므로 — "존재하는가" 는 묻고 "그 계약이 아직 거기 있는가"
+  # 는 안 묻는다 — 이 종류의 drift 는 CI 를 통과한다. 심볼을 옮길 때 이 목록도 함께 옮길 것.
   - codebase/channel-web-chat/src/widget/host-bridge.ts
+  - codebase/channel-web-chat/src/widget/use-session-generations.ts
   - codebase/channel-web-chat/src/widget/use-widget.ts
 ---
 
@@ -102,8 +118,11 @@ chat.shutdown();
 | iframe → host | `wc:resize` | `{ width, height, state: 'collapsed' \| 'expanded' }`. **hidden/blocked 시**(위젯이 `visible=false` 또는 host `hide()` 명령으로 숨겨진 경우) `{ width: 0, height: 0, state: 'collapsed' }` 를 emit 해 host 의 iframe 박스 점유를 제거한다. |
 | iframe → host | `wc:event` | `{ name, data }` — `name` ∈ `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded`, `data` 는 이벤트별 페이로드. `conversationEnded.data.reason` 은 **열린 문자열**(닫힌 enum 아님) — SSE terminal 이벤트명(`execution.completed`/`failed`/`cancelled`) 또는 위젯 로컬 종료 사유(`user_ended` = 헤더 "대화 종료", `gone` = 410) 등. host 는 특정 값에 강결합하지 말고 "종료됨" 신호로만 소비한다 |
 - **origin 검증 필수**(양방향 `event.origin` 화이트리스트). 토큰·대화 내용은 iframe 내부 유지, host 로 비노출.
-- **`resetSession` 명령**: 현재 대화를 처음부터 다시 시작한다 — 위젯이 SSE 연결을 닫고 저장 세션(sessionStorage,
-  [3-auth-session §R6](./3-auth-session.md))을 비운 뒤 새 execution 을 시작(`newChat`: closeStream→clearSession→start). 운영 콘솔 **라이브 미리보기의 "새 세션"
+- **`resetSession` 명령**: 현재 대화를 처음부터 다시 시작한다 — 위젯이 **이전 execution 을 best-effort `cancel`**
+  한 뒤 SSE 연결을 닫고 저장 세션(sessionStorage, [3-auth-session §R6](./3-auth-session.md))을 비운 뒤 새 execution 을
+  시작(`newChat`: cancel→closeStream→clearSession→start). cancel 은 **확립 세션(streaming/awaiting)발일 때만**이고
+  optimistic 이다 — 실패해도 로컬 재시작을 되돌리지 않는다. 이 단계가 없으면 버려진 execution 이 서버에 남아
+  대기한다(orphan). 근거·엣지케이스는 [1-widget-app §R9-B-1](./1-widget-app.md). 운영 콘솔 **라이브 미리보기의 "새 세션"
   버튼**이 이 명령으로 반복 테스트를 가능케 한다. 위젯 내부의 대화 종료 후 "새 대화 시작"과 동일 동작을 host 가 임의
   시점에 트리거하는 경로다. **`wc:command` 전용** — npm `ChatInstance`(§5)·`ClemvionChat` 전역 메서드(§1)로는 노출하지
   않고 host 가 직접 `wc:command{ action:'resetSession' }` 를 postMessage 한다(운영 콘솔 미리보기 등).
