@@ -163,7 +163,7 @@ Stop 버튼(`POST /executions/:id/stop`)이 Execution 행을 `cancelled` 로 UPD
 
 SoT: `spec/conventions/node-cancellation.md` §2.3/§5.1. 추적: `plan/in-progress/node-cancellation-residual-signal-propagation.md`.
 
-## Unreleased — 웹채팅 위젯: 재로드 복원의 `404`·복구불가 `401` REST 분기 ([3-auth-session §3.1-2·§R4](spec/7-channel-web-chat/3-auth-session.md))
+## Unreleased — 웹채팅 위젯: 재로드 복원의 `404`·복구불가 `401`/`410` REST 분기 ([3-auth-session §3.1-2·§R4](spec/7-channel-web-chat/3-auth-session.md))
 
 spec 이 **동작을 확정 서술**해 두고도 비어 있던 자리다. `getStatus` 실패는 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다 — `404`(execution 소멸)에도 스트림을 열었고, 그 스트림은 아무것도 주지 않아 위젯이 `streaming` 에 무기한 고착됐다.
 
