@@ -94,13 +94,20 @@ catalog 지원 여부만 확인하면 되고, 지원한다면 (2)의 가드 선�
 
 ## 체크리스트
 
-- [x] **§1 공유 프리미티브 `_shared.ts` 분리** — `repoRoot`/`ROOT`/`PackageManifest` +
-      YAML 서브셋 추출기(`blockRange`/`findKeyLine`/`listAtPath`)를 중립 모듈로 이관.
+- [x] **§1 공유 프리미티브 `_shared.ts` 분리 + DI 대칭화** — `repoRoot`/`ROOT`/`PackageManifest`
+      + YAML 서브셋 추출기(`blockRange`/`findKeyLine`/`listAtPath`)를 중립 모듈로 이관.
       등록 가드는 **재export** 로 기존 소비처 계약을 유지한다(소유권만 옮김). 툴체인 가드는
       이제 형제의 전체 export 표면이 아니라 `_shared` 만 본다.
       **여기 두는 기준을 파일에 못박았다** — "두 가드가 실제로 공유하는 것만". 한쪽 전용
       (`PACKAGES_DIR`·`TEST_STAGES`·`WORKSPACE_YAML`)은 그대로 뒀다. 아니면 이 모듈이
-      두 번째 잡동사니가 된다. 양쪽 가드 74건 통과.
+      두 번째 잡동사니가 된다.
+      **제목에 "DI 대칭화" 를 더한 이유**: 원 항목은 "이관" 만 적었는데 실제 작업은
+      `repoRoot` 의 주입점 개방까지 갔다(scope 리뷰 INFO — 문구가 작업보다 좁았다).
+      확장 근거는 §2 와 같다 — 그 함수의 fail-closed 가 `__dirname` 하드코딩 탓에
+      테스트 불가능했고, 같은 PR 이 `discoverWorkspaceDirs` 에만 주입을 넣어 비대칭이
+      생겼다. 다음에 diff 와 plan 을 대조할 사람이 "이관" 이라는 좁은 단어에 걸리지
+      않도록 제목을 실제 작업에 맞춘다.
+      양쪽 가드 + `shared.test.ts` 82건 통과.
 - [x] **§2 `validateWorkspacePatterns` 순수 함수 분리 + synthetic 테스트** — `null`(키 부재)·
       `[]`(항목 부재) 두 실패를 **갈라서** 고정했다. 한쪽만 막으면 나머지로 vacuity 가 그대로
       들어온다. 통과 경로가 값을 바꾸지 않는 것도 단언.

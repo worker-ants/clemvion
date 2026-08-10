@@ -322,33 +322,11 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
       .join("\n")
       .split("\n");
 
-    it("중첩 키 경로의 리스트를 추출한다", () => {
-      expect(listAtPath(yml, ["on", "pull_request", "paths"])).toEqual([
-        "codebase/packages/a/**",
-        "codebase/packages/b/**",
-        "pnpm-lock.yaml",
-      ]);
-    });
-    it("형제 키(push)와 혼동하지 않는다", () => {
-      expect(listAtPath(yml, ["on", "push", "paths"])).toEqual(["codebase/packages/a/**"]);
-    });
-    it("없는 경로는 null (→ vacuity 단언이 잡는다)", () => {
-      expect(listAtPath(yml, ["on", "schedule", "paths"])).toBeNull();
-    });
-    it("인라인 주석을 항목에서 떼어낸다", () => {
-      // 이 저장소의 실제 목록이 항목마다 "왜 등재했는가" 를 인라인 주석으로 단다.
-      // 안 떼면 그 주석이 값의 일부가 되어 대조가 통째로 어긋난다 — 그런데 이 축만
-      // 합성 커버리지가 비어 있어서 제거를 지워도 스위트가 초록이었다(뮤테이션 실측).
-      const withComments = [
-        `paths:`,
-        `  - 'codebase/packages/a/**'   # backend 공유`,
-        `  - codebase/packages/b/**  # 따옴표 없이도`,
-      ];
-      expect(listAtPath(withComments, ["paths"])).toEqual([
-        "codebase/packages/a/**",
-        "codebase/packages/b/**",
-      ]);
-    });
+    // `listAtPath` 자체의 합성 회귀(중첩 경로·형제 키·null·인라인 주석)는 소유 모듈
+    // 스위트 `shared.test.ts` 로 옮겼다 — 그 함수는 이제 `_shared.ts` 소유이고, 소비자
+    // 파일에 테스트를 남겨 두면 이 파일의 재export 를 정리하는 순간 커버리지가 함께
+    // 사라진다. 여기 남는 것은 **이 가드의 소비 방식**(추출 결과를 packageDirsInPaths 로
+    // 거르는 것)뿐이다.
     it("packageDirsInPaths 는 packages dir 만 남긴다 (lockfile 제외)", () => {
       const paths = listAtPath(yml, ["on", "pull_request", "paths"])!;
       expect(packageDirsInPaths(paths)).toEqual(["a", "b"]);
