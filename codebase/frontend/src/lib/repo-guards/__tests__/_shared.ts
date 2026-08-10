@@ -30,7 +30,8 @@ export const MAX_ROOT_SEARCH_DEPTH = 12;
  *
  * 고정 `../../..` 카운트 대신 marker 로 탐색한다 — 파일이 이동해도 조용히 오해소되지 않는다.
  *
- * `startDir`/`exists` 주입은 같은 파일 `discoverWorkspaceDirs(readLines)` 와 **대칭**이다.
+ * `startDir`/`exists` 주입은 형제 모듈 `typescript-toolchain-guard.ts` 의
+ * `discoverWorkspaceDirs(readLines)` 와 **대칭**이다.
  * 그쪽만 주입 가능하게 만들었을 때 리뷰가 이 비대칭을 지적했고, 지적이 옳았다: 이 함수의
  * fail-closed throw 는 `__dirname` 하드코딩 때문에 합성 입력으로 겨냥할 방법이 없어
  * **테스트가 불가능**했다. 이 모듈은 두 가드의 공용 기반(`ROOT`)이라 조용히 깨지면 파급이
