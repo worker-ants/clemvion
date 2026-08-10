@@ -164,6 +164,22 @@ export class EiaError extends Error {
   }
 }
 
+/**
+ * 토큰 갱신 실패가 **재시도로 살아날 수 없는 종류인가** — `401`(만료·jti blacklist) 또는
+ * `410`(`EXECUTION_TERMINATED`) 이면 참.
+ *
+ * 그 외(네트워크 오류·5xx)는 **일시적**이므로 재시도 가치가 있다. 이 구분을 넓게 잡으면
+ * 일시적 장애가 살아있는 대화를 끝내고(`webchat-boot-single-flight` 사고), 좁게 잡으면
+ * 죽은 토큰으로 무한 재시도한다.
+ *
+ * **공유하는 이유**: 같은 판정이 재로드 복구(`use-widget` `recoverFromExpiredToken`)와 주기
+ * 갱신(`use-token-refresh` 의 실패 재예약) 두 곳에 필요하다. 한쪽만 고치는 것이 이 브랜치가
+ * 반복해 낸 결함이라(호출부 비대칭 CRITICAL 2회) 술어를 한 자리에 둔다.
+ */
+export function isTerminalAuthError(err: unknown): boolean {
+  return err instanceof EiaError && (err.status === 401 || err.status === 410);
+}
+
 function parseData(data: unknown): unknown {
   if (typeof data !== "string") return data;
   try {

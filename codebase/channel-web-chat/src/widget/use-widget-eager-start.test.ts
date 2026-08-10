@@ -543,6 +543,61 @@ describe("useWidget — eager 시작(§R6)", () => {
     vi.useRealTimers();
   });
 
+  /**
+   * **`refresh_deferred` 의 나머지 절반** — 미뤄 둔 스트림이 실제로 열리는가.
+   *
+   * 앞의 두 케이스는 "종료로 오판하지 않는다 + 갱신 예약이 살아 있다" 까지만 본다. 그런데
+   * 갱신이 성공해도 `openStream` 을 부르는 자리가 없으면 **토큰만 새것이 되고 스피너는 그대로**다
+   * — `SeedOutcome` JSDoc 이 약속한 보장이 구현보다 넓었던 지점이다
+   * (ai-review `17_15_33_2` requirement CRITICAL).
+   *
+   * fixture 가 분기를 가르는 지점: refresh 는 **첫 왕복만 실패**하고 두 번째부터 성공한다.
+   * 계속 실패하면 "스트림이 안 열린다" 가 정상이라 배선 유무를 구분할 수 없다.
+   */
+  it("§R4: 미뤄 둔 스트림은 주기 갱신이 토큰을 되살리면 열린다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_z", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        // 1회차(재로드 복구)는 네트워크 실패 → `refresh_deferred`. 2회차(주기 타이머)는 성공.
+        if (refreshCalls === 1) return Promise.reject(new TypeError("network down"));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { token: "iext_revived", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
+    await act(async () => { await Promise.resolve(); });
+    expect(getEs()).toBeNull(); // 아직은 죽은 토큰 — 열지 않는다.
+
+    // 주기 갱신 타이머 발화 → 토큰 복구 → **미뤄 둔 스트림 오픈**.
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(getEs()).not.toBeNull();
+    // **되살아난 토큰으로** 열어야 한다 — 옛 토큰이면 서버가 다시 거부해 같은 고착으로 되돌아간다.
+    expect(getUrl()).toContain("iext_revived");
+    expect(result.current.state.phase).not.toBe("ended");
+    vi.useRealTimers();
+  });
+
   it("그 외 오류는 여전히 soft-fail — 500 은 종료로 오판하지 않는다", async () => {
     // 비-vacuity 겸 경계 고정: 위 세 분기가 "모든 오류를 종료로 본다" 로 번지면 일시적
     // 장애가 대화를 끝낸다. 그건 이 저장소가 `webchat-boot-single-flight` 에서 실제로

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { EiaClient, EiaError, type EventSourceLike } from "@/lib/eia-client";
+import { EiaClient, EiaError, isTerminalAuthError, type EventSourceLike } from "@/lib/eia-client";
 import type {
   AiMessageEvent,
   ExecutionMessageEvent,
@@ -101,7 +101,12 @@ type SeedOutcome =
    *   주기 갱신 예약 지점이라 복구 사이클이 아예 없어져 스피너에 영구 고착된다
    *   (`16_56_39` security·side_effect CRITICAL — 내가 `"stale"` 로 고치며 만든 결함).
    *
-   * 즉 "스트림은 안 되지만 세션은 살아 있고 갱신은 기대할 수 있다" 를 뜻한다.
+   * 즉 "스트림은 **지금은** 안 되지만 세션은 살아 있다" 를 뜻한다. **미뤄 둔 스트림은
+   * `deferredStreamRef` 에 기록되고, `useTokenRefresh` 의 `onRefreshed` 가 토큰을 되살리면
+   * 그때 열린다** — 이 배선이 없을 때 이 문장은 "갱신은 기대할 수 있다" 로 적혀 있었고,
+   * 실제로는 (a) 갱신이 성공해도 `openStream` 을 부르는 자리가 없었고 (b) 갱신이 한 번 더
+   * 실패하면 재예약조차 없어 사이클이 죽었다 — **문서한 보장이 구현보다 넓었다**
+   * (ai-review `17_15_33_2` requirement CRITICAL. 둘 다 닫았다).
    */
   | "refresh_deferred";
 
@@ -116,6 +121,11 @@ type SeedOutcome =
  * 하는데 컴파일러가 그걸 알려주지 않는다. **"가드를 한쪽에만 적용" 은 이 파일이 반복해 낸
  * 결함이고 이번 티켓에서만 두 번 밟았다**(ai-review `16_09_40`·`16_56_39` CRITICAL 둘 다
  * 호출부 비대칭이 원인이었다). 조건을 한 곳에 두면 그 자리가 사라진다.
+ *
+ * **뮤테이션 메모**: 화이트리스트를 블랙리스트(`o === "ended" || o === "stale"`)로 바꾸는
+ * 뮤턴트는 **생존이 정상**이다 — 현재 union 이 네 리터럴로 닫혀 있어 두 식이 동치다. 이 함수의
+ * 값은 지금의 동치성이 아니라 **다섯 번째 갈래가 생겼을 때 어느 쪽으로 기우는가**에 있다
+ * (ai-review `17_15_33_2` → `17_25_34_2` maintainability).
  */
 function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
   return outcome !== "continue" && outcome !== "refresh_deferred";
@@ -222,6 +232,20 @@ export function useWidget() {
     | null
   >(null);
 
+  /**
+   * seed 가 `"refresh_deferred"` 를 줘서 **스트림 오픈을 미뤄 둔 상태인가**.
+   *
+   * 토큰이 죽어 있어 SSE 를 열 수 없었지만 세션은 살아 있다 — 주기 갱신이 토큰을 되살리면
+   * (`useTokenRefresh` 의 `onRefreshed`) 그때 열어야 한다. 이 플래그가 없으면 갱신이 성공해도
+   * 스트림은 영영 닫힌 채로 남는다(ai-review `17_15_33_2` requirement CRITICAL).
+   */
+  const deferredStreamRef = useRef(false);
+  /**
+   * 미뤄 둔 스트림을 여는 함수 — 정의가 `openStream` 보다 위라 TDZ 라서 ref 로 노출한다
+   * (같은 파일 `seedWaitingFromStatusRef` 와 동일 컨벤션). 아래 effect 가 매 렌더 채운다.
+   */
+  const resumeDeferredStreamRef = useRef<((session: SessionRef) => void) | null>(null);
+
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약은 useTokenRefresh 캡슐화(§B).
   // staleness 는 여기 worldGenRef 를 주입해 공유한다(그 훅의 4번째 독립 가드였던 cancelledRef 를 대체).
   const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({
@@ -229,6 +253,7 @@ export function useWidget() {
     clientRef,
     configRef,
     worldGenRef,
+    onRefreshed: (session) => resumeDeferredStreamRef.current?.(session),
   });
 
 
@@ -293,6 +318,10 @@ export function useWidget() {
     worldGenRef.current++;
     closeStream();
     clearRefreshTimer();
+    // 미뤄 둔 스트림 의사도 이 세계와 함께 폐기한다 — 안 지우면 다음 세계의 첫 갱신 성공이
+    // **옛 세션의 스트림을 연다**(`onRefreshed` 는 세대 검사를 통과한 응답만 전달하므로 새 세션의
+    // 갱신이 옛 의사를 이행하게 된다).
+    deferredStreamRef.current = false;
     clearSession(configRef.current.triggerEndpointPath);
   }, [closeStream, clearRefreshTimer, worldGenRef]);
 
@@ -444,10 +473,9 @@ export function useWidget() {
         // 이라 적어 둔 원칙과 충돌). `webchat-boot-single-flight` 이 정확히 그 형태로 살아있는
         // 대화를 영구 유실시킨 사고가 있다.
         // (ai-review `16_09_40`→`16_26_09` requirement — 두 라운드 연속 지적, 첫 번째는 내가 흘렸다.)
-        const terminal =
-          refreshErr instanceof EiaError &&
-          (refreshErr.status === 401 || refreshErr.status === 410);
-        if (!terminal) {
+        // 술어는 `lib/eia-client` 와 공유한다 — 같은 판정이 주기 갱신의 재시도 여부에도 쓰이고,
+        // 한쪽만 고치는 것이 이 브랜치의 반복 결함이었다.
+        if (!isTerminalAuthError(refreshErr)) {
           console.warn(
             "[widget] token refresh failed (non-terminal):",
             refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
@@ -650,6 +678,22 @@ export function useWidget() {
     seedWaitingFromStatusRef.current = seedWaitingFromStatus;
   });
 
+  /**
+   * 미뤄 둔 스트림 재개 — `useTokenRefresh` 가 토큰을 되살렸을 때 불린다.
+   *
+   * 표면 시드를 다시 하지 않는 것은 `recoverFromExpiredToken` 성공 경로와 같은 이유다:
+   * `lastEventId="0"` replay 가 `waiting_for_input` 을 다시 준다.
+   */
+  useEffect(() => {
+    resumeDeferredStreamRef.current = (session) => {
+      if (!deferredStreamRef.current) return; // 정상 경로의 갱신 — 열 스트림이 없다.
+      // 그 사이 다른 시도가 스트림을 열었으면 이중 EventSource 를 만들지 않는다(다른 게이트와 동일 축).
+      deferredStreamRef.current = false;
+      if (sessionEstablished()) return;
+      openStream(session, "0");
+    };
+  });
+
   const persist = useCallback((cfg: BootMessage, res: HookStartResponse) => {
     if (!res.interaction) return null;
     const session: SessionRef = {
@@ -728,8 +772,11 @@ export function useWidget() {
         // 않으므로 최신은 ref 에서 읽는 것이 유일한 정답이다.
         const live = sessionRef.current;
         if (!live) return;
-        // 토큰이 아직 죽어 있으면 스트림은 열지 않는다 — 갱신 예약만 건다.
-        if (outcome !== "refresh_deferred") openStream(live, "0");
+        // 토큰이 아직 죽어 있으면 스트림은 열지 않는다 — 갱신 예약만 걸고, **갱신이 성공하면
+        // 그때 연다**(`resumeDeferredStreamRef`). 플래그를 안 세우면 토큰이 살아나도 스트림이
+        // 영영 안 열려 스피너에 고착된다.
+        deferredStreamRef.current = outcome === "refresh_deferred";
+        if (!deferredStreamRef.current) openStream(live, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -1086,6 +1133,9 @@ export function useWidget() {
         if (sessionEstablished()) return;
         // `start()` 와 같은 이유로 ref 를 읽는다 — 위 주석 참조(401 refresh 가 토큰을 교체한다).
         const live = sessionRef.current ?? saved;
+        // `start()` 와 같은 이유로 플래그를 세운다 — 갱신 성공 시 여기 못 돌아오므로
+        // `resumeDeferredStreamRef` 가 대신 연다.
+        deferredStreamRef.current = deferStream;
         if (!deferStream) openStream(live, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
