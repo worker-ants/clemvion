@@ -441,11 +441,10 @@ export function useWidget() {
           // 살렸다). 진행하면 거부된 토큰으로 **새 SSE 를 열어** 이 변경이 고치려던
           // "streaming 고착" 을 그대로 재현한다(ai-review `16_42_07` side_effect CRITICAL).
           //
-          // 그렇다고 `"ended"` 도 아니다 — 일시적 장애를 종료로 오판하면 살아있는 대화를
-          // 잃는다(`webchat-boot-single-flight` 사고). 세션은 **보존**하고 이번 왕복만
-          // 포기한다: `"stale"` 이 정확히 그 뜻이다(아무 상태도 안 건드리고 호출부는 멈춘다).
-          // 다음 복구는 `use-token-refresh` 의 주기 갱신이 맡는다.
-          return "stale";
+          // `"ended"` 도 `"stale"` 도 아니다 — 두 부작용이 **반대 방향**이라 기존 갈래로
+          // 뭉갤 수 없다(`SeedOutcome` 독스트링 참조). 스트림은 안 열되 `scheduleRefresh` 는
+          // 걸어야 한다.
+          return "refresh_deferred";
         }
         // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
         // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나
@@ -696,7 +695,9 @@ export function useWidget() {
         // 재전송이 이 세션을 넘겨받아 스트림을 열었으면 `"stale"` 로 여기서 멈춰 되감기·이중 스트림을
         // 막고, 아무도 안 열었으면(no-op 재전송 포함) 정상적으로 그린다(ai-review 00_51_53 CRITICAL).
         const outcome = await seedWaitingFromStatus(client, session);
-        if (outcome !== "continue") return;
+        // `"refresh_deferred"` 는 **스트림만** 건너뛴다 — `scheduleRefresh` 는 세션의 유일한
+        // 갱신 예약 지점이라 빠뜨리면 복구 사이클이 없어 고착된다.
+        if (outcome !== "continue" && outcome !== "refresh_deferred") return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
         // **seed 게이트와 짝을 이루는 스트림 게이트** — `await seedWaitingFromStatus` 와 여기 사이엔
@@ -711,7 +712,8 @@ export function useWidget() {
         // 않으므로 최신은 ref 에서 읽는 것이 유일한 정답이다.
         const live = sessionRef.current;
         if (!live) return;
-        openStream(live, "0");
+        // 토큰이 아직 죽어 있으면 스트림은 열지 않는다 — 갱신 예약만 건다.
+        if (outcome !== "refresh_deferred") openStream(live, "0");
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -1042,13 +1044,18 @@ export function useWidget() {
         // 갱신 예약을 하면 (a) 무효화된 토큰으로 스트림을 열고 (b) refreshToken 성공 시 방금
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
+        // seed 가 `"refresh_deferred"` 를 주면 스트림만 건너뛴다 — `if` 블록 밖에서 읽어야
+        // 하므로 플래그로 올린다(`outcome` 은 블록 스코프다).
+        let deferStream = false;
         if (clientRef.current) {
           // seed 는 스트림 미열림 시에만 WAITING 을 그린다(`sessionEstablished()` 가드) → 경합하는
           // 다른 시도가 먼저 스트림을 열었으면 `"stale"` 로 되감기를 막는다.
           const outcome = await seedWaitingFromStatus(clientRef.current, saved);
           // "stale"/"ended" = 지연 응답이 새 대화의 스트림을 옛 토큰으로 덮어쓰거나 종료 세션을
           // 되살리지 않도록 중단.
-          if (outcome !== "continue") return;
+          // `start()` 와 같은 이유 — 스트림만 건너뛰고 갱신은 예약한다.
+          if (outcome !== "continue" && outcome !== "refresh_deferred") return;
+          deferStream = outcome === "refresh_deferred";
           // checkpoint 2 — `openStream` 직전 boot+world 재검증. seed 의 `sessionEstablished()` 가드는
           // "다른 시도가 **이미 스트림을 열었나**" 만 보므로, 더 최신 재전송이 세대만 올리고 **아직
           // 스트림을 안 연** 좁은 창에선 이 attempt 가 openStream 으로 진입할 수 있다. 그걸 여기서
@@ -1063,7 +1070,7 @@ export function useWidget() {
         if (sessionEstablished()) return;
         // `start()` 와 같은 이유로 ref 를 읽는다 — 위 주석 참조(401 refresh 가 토큰을 교체한다).
         const live = sessionRef.current ?? saved;
-        openStream(live, "0");
+        if (!deferStream) openStream(live, "0");
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
