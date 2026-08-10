@@ -97,6 +97,54 @@ class SameSecondSessionsGetDistinctDirectoriesTest(unittest.TestCase):
             dirs = [self.session.create_session_dir(self.tmp) for _ in range(3)]
         self.assertEqual(len(set(dirs)), 3, dirs)
 
+    def test_exhausting_the_suffixes_still_returns_a_usable_directory(self):
+        """소진 폴백. 세션 디렉터리를 잃는 건 나쁘지만 리뷰를 아예 못 도는 건 더 나쁘다.
+
+        상한까지 전부 선점된 상태를 만들고, 그때도 **존재하는 경로**가 돌아오는지 본다.
+        여기서 예외가 새면 `--prepare` 가 통째로 죽는다.
+        """
+        with self._frozen(datetime(2026, 8, 9, 14, 3, 7)):
+            made = {
+                self.session.create_session_dir(self.tmp)
+                for _ in range(self.session._MAX_SESSION_NAME_ATTEMPTS)
+            }
+            self.assertEqual(
+                len(made), self.session._MAX_SESSION_NAME_ATTEMPTS,
+                "상한 안에서 이미 이름이 겹쳤다 — 폴백 단언이 vacuous 해진다",
+            )
+            fallback = self.session.create_session_dir(self.tmp)
+        self.assertTrue(os.path.isdir(fallback))
+        # 폴백은 평이한 이름을 재사용한다 — 새 이름을 지어내지 않는다.
+        self.assertTrue(fallback.endswith(os.path.join("09", "14_03_07")), fallback)
+        self.assertIn(fallback, made, "폴백이 기존 경로가 아닌 새 경로를 만들었다")
+
+    def test_an_unexpected_oserror_does_not_escape(self):
+        """`FileExistsError` 가 아닌 OSError(권한·경로길이 등)에서도 호출자는
+        경로를 받아야 한다 — 루프를 빠져나와 폴백으로 간다."""
+        from unittest import mock
+        calls = []
+        real_makedirs = self.session.os.makedirs
+
+        def flaky(path, exist_ok=False):
+            calls.append(exist_ok)
+            if not exist_ok:
+                raise PermissionError("nope")
+            return real_makedirs(path, exist_ok=True)
+
+        with self._frozen(datetime(2026, 8, 9, 14, 3, 7)):
+            with mock.patch.object(self.session.os, "makedirs", flaky):
+                got = self.session.create_session_dir(self.tmp)
+        self.assertTrue(os.path.isdir(got))
+        # `exist_ok=False` 호출만이 루프의 시도다. `exist_ok=True` 가 여러 번
+        # 찍히는 것은 `os.makedirs` 가 부모 디렉터리를 만들며 **자기 자신을 재귀
+        # 호출**하기 때문이고(패치가 그 재귀에도 걸린다) 루프와 무관하다 —
+        # 처음 쓴 단언이 그걸 루프 반복으로 오독했다.
+        attempts = [c for c in calls if c is False]
+        self.assertEqual(
+            len(attempts), 1,
+            f"OSError 에서 즉시 폴백하지 않고 {len(attempts)}회를 돌았다",
+        )
+
     def test_the_subdir_form_collides_the_same_way(self):
         """consistency·merge orchestrator 는 `subdir` 를 넘긴다 — 그 경로도 같은 보장."""
         with self._frozen(datetime(2026, 8, 9, 14, 3, 7)):

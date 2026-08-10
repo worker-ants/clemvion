@@ -260,6 +260,42 @@ def branch_diff_files(base_ref: str, cwd: str, *, timeout: float = 30.0,
     return [line for line in out.split("\n") if line]
 
 
+def diff_text(base_ref: str, cwd: str, pathspecs: list[str] | None = None, *,
+              timeout: float = 30.0, on_error=None) -> str:
+    """`git diff <base_ref>...HEAD -- <pathspecs>` as text. `""` on failure.
+
+    The sibling of `branch_diff_files`: that one answers *which* files changed,
+    this one carries the change itself. They were NOT extracted together, and
+    the gap showed: `consistency_orchestrator._collect_code_diff` kept its own
+    `subprocess.run(..., text=True)` and its own
+    `except (OSError, TimeoutExpired)`, so the `errors="surrogateescape"`
+    hardening in `_run_git_raw` never reached it. `text=True` alone decodes
+    strict UTF-8, and `UnicodeDecodeError` is a `ValueError` — not an `OSError` —
+    so an undecodable byte in the diff body went straight through that `except`
+    and crashed `--impl-done` session preparation, breaking the function's own
+    documented "empty on failure" contract.
+
+    THREE-DOT for the same reason `branch_diff_files` documents: a base that has
+    advanced past this branch's fork point must not turn other people's landed
+    work into reverse deletions here.
+    """
+    args = ["diff", f"{base_ref}...HEAD", "--"]
+    if pathspecs:
+        args.extend(pathspecs)
+    try:
+        rc, out, err = _run_git_raw(args, cwd, timeout=timeout)
+    except Exception as exc:  # noqa: BLE001 — same "empty on any failure" contract
+        if on_error is not None:
+            on_error(f"{base_ref}...HEAD: {type(exc).__name__}: {exc}"[:240])
+        return ""
+    if rc != 0:
+        if on_error is not None:
+            reason = err.strip()[:200] or f"rc={rc} (timeout or git unavailable)"
+            on_error(f"{base_ref}...HEAD: {reason}")
+        return ""
+    return out
+
+
 def worktree_changed_files(cwd: str, *, timeout: float = 30.0,
                            on_error=None) -> list[str]:
     """Repo-relative paths changed in the WORKING TREE. `[]` on failure.

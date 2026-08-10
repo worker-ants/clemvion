@@ -638,6 +638,57 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
             f"diff 가 대상 파일 바로 뒤가 아니다: {order[:3]}",
         )
 
+    def test_a_branch_plan_named_file_also_counts_as_on_topic(self):
+        """`_n_on_topic` 은 tier 0(변경)뿐 아니라 **tier 1(브랜치-plan 언급)** 까지
+        센다. 그 분기가 없으면 `--impl-prep` 에서 diff 가 맨 앞으로 올라간다 —
+        착수 전이라 spec 이 아직 안 고쳐져 tier 0 이 비는 그 상황이 정확히 tier 1 이
+        담당하는 경우다.
+
+        변경 집합은 비우고 브랜치-plan 텍스트만 준다. 그러면 on-topic 은 오직 tier 1
+        경로로만 생길 수 있어 분기가 갈린다.
+        """
+        order = run_in_orchestrator(
+            """
+            import re
+            orch._branch_changed_rels = lambda base, root: set()
+            real_read = orch.read_text_file
+            def fake_read(path):
+                # 브랜치가 건드린 plan 인 척하는 텍스트. `_rank_branch_plan_text` 는
+                # `_rank_changed` 로 걸러지므로, 그 필터를 통과시키기 위해 plan 파일
+                # 하나를 변경 집합에 넣는다.
+                return real_read(path)
+            orch.read_text_file = fake_read
+            orch._branch_changed_rels = lambda base, root: {
+                "plan/in-progress/__probe_plan__.md"}
+
+            import os
+            plan_path = os.path.join(ROOT, "plan/in-progress/__probe_plan__.md")
+            with open(plan_path, "w", encoding="utf-8") as fh:
+                fh.write("---\\nworktree: (unstarted)\\nstarted: 2026-08-10\\n"
+                         "owner: developer\\n---\\n\\n"
+                         "대상: spec/5-system/9-rag-search.md\\n")
+            try:
+                class Args:
+                    spec = plan = impl_prep = diff_base = None
+                    impl_done = None
+                args = Args()
+                args.impl_done = os.path.join(ROOT, "spec/5-system")
+                ctx = orch.collect_context(args, ROOT)
+                text = re.sub(r"```.*?```", "", ctx["target_doc"], flags=re.S)
+                emit(re.findall(r"^#### `([^`]+)`", text, re.M))
+            finally:
+                os.remove(plan_path)
+            """
+        )
+        self.assertEqual(
+            order[0], "spec/5-system/9-rag-search.md",
+            "브랜치-plan 이 이름으로 지목한 파일이 맨 앞이 아니다",
+        )
+        self.assertTrue(
+            order[1].startswith("<git diff"),
+            f"diff 가 on-topic 파일 뒤가 아니다 — tier 1 분기가 안 세어졌다: {order[:3]}",
+        )
+
     def test_splice_lands_on_a_chunk_boundary(self):
         """헬퍼 계약. 경계를 벗어나면 한 파일의 본문이 둘로 갈린다."""
         placed = run_in_orchestrator(

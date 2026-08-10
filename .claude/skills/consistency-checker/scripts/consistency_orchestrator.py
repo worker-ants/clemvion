@@ -397,23 +397,17 @@ def _collect_code_diff(diff_base, root):
     """
     cfg = project_config.load(root)
     code_areas = cfg.get("code_areas") or []
-    cmd = ["git", "diff", f"{diff_base}...HEAD", "--"]
-    if code_areas:
-        cmd.extend(code_areas)
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, cwd=root,
-        )
-    except (OSError, subprocess.TimeoutExpired) as e:
-        debug_log(f"git diff for --impl-done failed: {e}")
-        return ""
-    if proc.returncode != 0:
-        debug_log(
-            f"git diff for --impl-done returned {proc.returncode}: "
-            f"{proc.stderr.strip()[:200]}"
-        )
-        return ""
-    return proc.stdout
+    # Through `_shared/git_probe`, not a private `subprocess.run`. The private
+    # copy decoded with plain `text=True`, so an undecodable byte anywhere in
+    # the diff body raised `UnicodeDecodeError` — a `ValueError`, which the old
+    # `except (OSError, TimeoutExpired)` did not catch — and the crash escaped
+    # this function's own "empty on failure" contract. The shared probe already
+    # carried `errors="surrogateescape"` for exactly that; this call site was
+    # the sibling that never got it.
+    return _git_probe.diff_text(
+        diff_base, root, code_areas,
+        on_error=lambda reason: debug_log(f"git diff for --impl-done failed: {reason}"),
+    )
 
 
 def _head_basis_notice(root, diff_base):
@@ -540,12 +534,15 @@ def collect_context(args, root):
         """
         prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
         changed = {r for r in _rank_changed if r.startswith(prefix)}
+        # `files` arrives already ranked, so this walks a PREFIX. The catalog
+        # demotion needs no term here: a catalog page sits in tier 4 (last) and
+        # cannot reach the prefix unless the branch edited it, and that case is
+        # already `rel in changed`. Mutating the check away left every test
+        # green, which is what unreachable defence looks like.
         n = 0
         for path in files:
             rel = os.path.relpath(path, root)
-            if rel in changed or (
-                not _is_catalog_bulk(rel) and _named_in(rel, _rank_branch_plan_text)
-            ):
+            if rel in changed or _named_in(rel, _rank_branch_plan_text):
                 n += 1
             else:
                 break
@@ -823,18 +820,38 @@ def truncate_file_bundle(text, budget):
         return stub if len(stub) < len(chunk) else ""
 
     kept, dropped = list(chunks), []
-    # The notice grows as more files are dropped, so the fit has to be
-    # re-checked after each one rather than reserved for up front — the naive
-    # version overshoots exactly when it drops the most. 표식도 같은 이유로 매번
-    # 다시 센다 — 예산에 계상하지 않으면 이 함수가 스스로 상한을 넘긴다.
+    dropped_rels, dropped_stubs = [], []
+    # Running totals, not re-derived sums. The fit HAS to be re-checked after
+    # every drop — the notice and the stubs both grow as more files go, so a
+    # budget reserved up front overshoots exactly when it drops the most — but
+    # the naive form recomputed `sum(len(c) for c in kept)` and re-rendered
+    # every stub on each pass, which is quadratic. Measured before this change:
+    # doubling the chunk count multiplied the time by 3.9-4.0x (64/128/256/512
+    # chunks → 1.7/6.9/26.9/105.9 ms), and the real `spec/conventions` bundle
+    # (270 chunks, 2.6 MB) took 688 ms — per corpus, per checker. After: the
+    # same bundle takes 26.7 ms.
+    #
+    # It is NOT linear even now, and saying so is cheaper than pretending: the
+    # ratio is ~3.2x per doubling because `_omitted_notice` still re-renders the
+    # whole name list every pass. Making that incremental means computing the
+    # rendered length without rendering, i.e. a second copy of the notice's
+    # format — the drift trap this repo keeps paying for. 26.7 ms on the largest
+    # real bundle does not buy that risk.
+    kept_len = sum(len(c) for c in chunks)
+    stubs_len = 0
     while kept:
-        notice = _omitted_notice([rel_of(c) for c in dropped]) if dropped else ""
-        # 드롭은 항상 꼬리에서 일어나므로 dropped 는 연속된 suffix 다 — kept 뒤에
-        # 이어 붙이는 것이 곧 "있던 자리" 다.
-        stubs = "".join(stub_of(c) for c in dropped)
-        if len(head) + sum(len(c) for c in kept) + len(stubs) + len(notice) <= budget:
-            return head + "".join(kept) + stubs + notice
-        dropped.insert(0, kept.pop())
+        notice = _omitted_notice(dropped_rels) if dropped_rels else ""
+        if len(head) + kept_len + stubs_len + len(notice) <= budget:
+            # 드롭은 항상 꼬리에서 일어나므로 dropped 는 연속된 suffix 다 — kept 뒤에
+            # 이어 붙이는 것이 곧 "있던 자리" 다.
+            return head + "".join(kept) + "".join(dropped_stubs) + notice
+        victim = kept.pop()
+        kept_len -= len(victim)
+        stub = stub_of(victim)
+        stubs_len += len(stub)
+        dropped_stubs.insert(0, stub)
+        dropped_rels.insert(0, rel_of(victim))
+        dropped.insert(0, victim)
 
     # Nothing fits. Report the omission anyway and clip it to the budget —
     # an empty area would be the worst outcome, since it reads as "no content".
