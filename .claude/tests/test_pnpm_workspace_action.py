@@ -105,8 +105,11 @@ def argv(proc: subprocess.CompletedProcess) -> list[str]:
 
 class InstallCommandTest(unittest.TestCase):
     def test_pnpm_receives_both_gate_flags_and_the_filter(self):
-        """저장소에서 `--frozen-lockfile` + `--strict-peer-dependencies` 의 **유일한**
-        소재지다 — 인자로 확인한다.
+        """**이 액션이 받는 인자**로 두 플래그를 확인한다 — 다섯 소재지 중 CI 잡이 공유하는 한 곳.
+
+        저장소 전체의 유일한 소재지가 아니다(`pnpm install` 은 5곳에 있다). 다섯 곳의
+        일치는 `test_install_gate_flags.py` 가 정적으로 대조한다 — 그 분업이 필요한 이유는
+        이 테스트만 있던 시절 나머지 4곳이 무가드로 남아 실제 사고가 났기 때문이다.
 
         후자는 2026-08-10 추가. 미충족 peer 를 경고에서 실패로 올린다 — 그게 없어서
         `#1049` 가 `eslint-plugin-unicorn` 을 `eslint>=10.4` 요구 버전으로 올린 채
