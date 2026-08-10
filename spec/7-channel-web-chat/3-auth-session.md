@@ -86,7 +86,7 @@ code:
    - `401` → **만료 vs blacklist 구분 불가**: per_execution 토큰은 execution 종료 시 즉시 **jti blacklist**
      ([EIA §8.3](../5-system/14-external-interaction-api.md), EIA-AU-04)되므로, 재로드 `401` 은 (a) 단순 만료(refresh
      가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다. 위젯은 **낙관적으로 `POST .../refresh-token` 1회**
-     시도 → 성공 시 SSE 재연결로 복원, 재차 `401` 이면 종료로 간주.
+     시도 → 성공 시 SSE 재연결로 복원, 재차 `401`·`410` 이면 종료로 간주(§R4 와 동일 — 종전 이 줄만 `401` 로 좁게 적혀 있었다. `410`(`EXECUTION_TERMINATED`)도 서버가 실제로 내는 분기다).
 3. **storage 정리 책임**: 종료(`completed`/`failed`/`cancelled`) 수신 시, 위 복원에서 200+terminal status·`404`·복구불가
    `401` 확인 시, 그리고 명령 응답 `410 Gone`(EIA-IN-12) 수신 시 위젯이 즉시 storage 항목을 제거한다(stale 토큰 잔존 금지).
 

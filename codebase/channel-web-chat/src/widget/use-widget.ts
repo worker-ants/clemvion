@@ -369,6 +369,77 @@ export function useWidget() {
   );
 
   /**
+   * `401` 낙관적 refresh 1회 — [3-auth-session §R4].
+   *
+   * 만료인지 blacklist 인지 클라이언트는 **사전 판별할 수 없다**: per_execution 토큰은
+   * execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04) 재로드 `401` 은
+   * (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다.
+   * §R4 의 결정: 한 번 시도한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만
+   * 믿으면 blacklist 세션을 못 끊는다.
+   *
+   * **분리한 이유**: `seedWaitingFromStatus` 의 catch 안에 두면 중첩이 3단계(catch→if→try/catch)
+   * 가 되고 그 함수가 "getStatus 실패 분류" 와 "401 복구 시퀀스" 두 책임을 진다
+   * (ai-review `16_09_40` maintainability). 처음엔 "의존 넷을 주입해야 해 시그니처가 본문보다
+   * 길어진다" 를 근거로 보류했는데 **반증됐다** — 형제 `use-token-refresh` 의 `scheduleRefresh`
+   * 처럼 `useCallback` 클로저로 refs 를 직접 캡처하면 인자는 셋뿐이다. 내가 검토한 설계 대안
+   * 하나(파라미터 주입)에만 근거한 보류였다(`16_26_09` 재판정).
+   *
+   * @param gen 호출 시점의 world 세대. **`await` 뒤 재검사에 쓴다** — 그 사이 새 대화·종료가
+   *   오면 늦게 도착한 토큰이 새 세션을 옛 것으로 덮거나 방금 지운 storage 를 되살린다.
+   */
+  const recoverFromExpiredToken = useCallback(
+    async (
+      client: EiaClient,
+      session: SessionRef,
+      gen: number,
+    ): Promise<SeedOutcome> => {
+      try {
+        const { token, expiresAt } = await client.refreshToken(
+          session.endpoints,
+          session.token,
+        );
+        if (isStale(gen)) return "stale";
+        const cfg = configRef.current;
+        if (!cfg) return "stale"; // 부팅 전으로 되돌아감 — 쓸 곳이 없다.
+        sessionRef.current = applyRefreshedToken(
+          session,
+          { token, expiresAt },
+          cfg.triggerEndpointPath,
+        );
+        // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
+        // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
+        return "continue";
+      } catch (refreshErr) {
+        // **`401`/`410` 일 때만 종료로 확정한다** — §R4 문언이 그렇고, 그보다 넓게 잡으면
+        // **일시적 네트워크 오류가 살아있는 대화를 끝낸다**(이 변경 자신이 "그 외는 soft-fail"
+        // 이라 적어 둔 원칙과 충돌). `webchat-boot-single-flight` 이 정확히 그 형태로 살아있는
+        // 대화를 영구 유실시킨 사고가 있다.
+        // (ai-review `16_09_40`→`16_26_09` requirement — 두 라운드 연속 지적, 첫 번째는 내가 흘렸다.)
+        const terminal =
+          refreshErr instanceof EiaError &&
+          (refreshErr.status === 401 || refreshErr.status === 410);
+        if (!terminal) {
+          console.warn(
+            "[widget] token refresh failed (non-terminal):",
+            refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
+          );
+          return "continue"; // 종료로 오판하지 않는다 — SSE 가 1차 복구 경로다.
+        }
+        // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
+        // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나
+        // `newChat()` 으로 세대를 올린 뒤 늦은 실패를 착지시켜도 `ended` 로 갔다 — **재현 실패는
+        // 부재의 증거가 아니므로**(인터리빙 지점이 가설의 일부다) 가드는 남기고 미검증으로 기록한다.
+        // 추적: `plan/in-progress/webchat-auth-session-status-reconcile.md`.
+        if (isStale(gen)) return "stale";
+        // 재차 실패 → **복구 불가로 확정**한다(§R4: "재차 실패면 종료로 간주").
+        finalizeEnded("execution.token_revoked");
+        return "ended";
+      }
+    },
+    [finalizeEnded, isStale],
+  );
+
+  /**
    * `getStatus` REST 응답으로 현재 `waiting_for_input` 표면을 시드하거나, 스냅샷이 이미 terminal
    * 이면 세션을 정리하고 `ENDED` 로 전이한다. **실패도 한 갈래가 아니다** — `404`·복구불가
    * `401` 은 종료로 확정하고 그 외만 soft-fail 이다(아래 §REST 오류 분기).
@@ -449,77 +520,6 @@ export function useWidget() {
    * `threadToMessages` 는 pure import — 실 의존은 `finalizeEnded`·`sessionEstablished` 뿐
    * (둘 다 stable 콜백).
    */
-  /**
-   * `401` 낙관적 refresh 1회 — [3-auth-session §R4].
-   *
-   * 만료인지 blacklist 인지 클라이언트는 **사전 판별할 수 없다**: per_execution 토큰은
-   * execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04) 재로드 `401` 은
-   * (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다.
-   * §R4 의 결정: 한 번 시도한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만
-   * 믿으면 blacklist 세션을 못 끊는다.
-   *
-   * **분리한 이유**: `seedWaitingFromStatus` 의 catch 안에 두면 중첩이 3단계(catch→if→try/catch)
-   * 가 되고 그 함수가 "getStatus 실패 분류" 와 "401 복구 시퀀스" 두 책임을 진다
-   * (ai-review `16_09_40` maintainability). 처음엔 "의존 넷을 주입해야 해 시그니처가 본문보다
-   * 길어진다" 를 근거로 보류했는데 **반증됐다** — 형제 `use-token-refresh` 의 `scheduleRefresh`
-   * 처럼 `useCallback` 클로저로 refs 를 직접 캡처하면 인자는 셋뿐이다. 내가 검토한 설계 대안
-   * 하나(파라미터 주입)에만 근거한 보류였다(`16_26_09` 재판정).
-   *
-   * @param gen 호출 시점의 world 세대. **`await` 뒤 재검사에 쓴다** — 그 사이 새 대화·종료가
-   *   오면 늦게 도착한 토큰이 새 세션을 옛 것으로 덮거나 방금 지운 storage 를 되살린다.
-   */
-  const recoverFromExpiredToken = useCallback(
-    async (
-      client: EiaClient,
-      session: SessionRef,
-      gen: number,
-    ): Promise<SeedOutcome> => {
-      try {
-        const { token, expiresAt } = await client.refreshToken(
-          session.endpoints,
-          session.token,
-        );
-        if (isStale(gen)) return "stale";
-        const cfg = configRef.current;
-        if (!cfg) return "stale"; // 부팅 전으로 되돌아감 — 쓸 곳이 없다.
-        sessionRef.current = applyRefreshedToken(
-          session,
-          { token, expiresAt },
-          cfg.triggerEndpointPath,
-        );
-        // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
-        // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
-        return "continue";
-      } catch (refreshErr) {
-        // **`401`/`410` 일 때만 종료로 확정한다** — §R4 문언이 그렇고, 그보다 넓게 잡으면
-        // **일시적 네트워크 오류가 살아있는 대화를 끝낸다**(이 변경 자신이 "그 외는 soft-fail"
-        // 이라 적어 둔 원칙과 충돌). `webchat-boot-single-flight` 이 정확히 그 형태로 살아있는
-        // 대화를 영구 유실시킨 사고가 있다.
-        // (ai-review `16_09_40`→`16_26_09` requirement — 두 라운드 연속 지적, 첫 번째는 내가 흘렸다.)
-        const terminal =
-          refreshErr instanceof EiaError &&
-          (refreshErr.status === 401 || refreshErr.status === 410);
-        if (!terminal) {
-          console.warn(
-            "[widget] token refresh failed (non-terminal):",
-            refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
-          );
-          return "continue"; // 종료로 오판하지 않는다 — SSE 가 1차 복구 경로다.
-        }
-        // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
-        // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나
-        // `newChat()` 으로 세대를 올린 뒤 늦은 실패를 착지시켜도 `ended` 로 갔다 — **재현 실패는
-        // 부재의 증거가 아니므로**(인터리빙 지점이 가설의 일부다) 가드는 남기고 미검증으로 기록한다.
-        // 추적: `plan/in-progress/webchat-auth-session-status-reconcile.md`.
-        if (isStale(gen)) return "stale";
-        // 재차 실패 → **복구 불가로 확정**한다(§R4: "재차 실패면 종료로 간주").
-        finalizeEnded("execution.token_revoked");
-        return "ended";
-      }
-    },
-    [finalizeEnded, isStale],
-  );
-
   const seedWaitingFromStatus = useCallback(
     async (
       client: EiaClient,

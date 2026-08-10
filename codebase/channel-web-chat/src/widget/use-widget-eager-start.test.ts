@@ -415,6 +415,36 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(refreshCalls).toBe(1);
   });
 
+  it("§R4: refresh 가 `410` 으로 실패해도 종료로 확정한다(401 과 같은 갈래)", async () => {
+    // §R4 는 "재차 실패(`401`/`410`)면 종료" 다. `410`(`EXECUTION_TERMINATED`)은 서버가 실제로
+    // 내는 분기임을 백엔드까지 추적해 확인했다(requirement reviewer, 16_42_07).
+    // `401` 만 겨냥하면 조건에서 `|| 410` 을 지워도 초록이다 — 그 뮤턴트를 여기서 잡는다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_gone", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        return Promise.resolve({ ok: false, status: 410, json: async () => ({}) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
   it("§R4: refresh 가 **네트워크 오류**로 실패하면 종료로 확정하지 않는다", async () => {
     // §R4 는 "재차 실패(`401`/`410`)면 종료" 다. 그보다 넓게 잡으면 **일시적 장애가 살아있는
     // 대화를 끝낸다** — `webchat-boot-single-flight` 이 정확히 그 형태로 대화를 영구 유실시켰다.
