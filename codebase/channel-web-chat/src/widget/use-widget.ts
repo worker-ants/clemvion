@@ -362,7 +362,7 @@ export function useWidget() {
   );
 
   /**
-   * SSE 를 연다. **이미 열려 있으면 아무것도 하지 않고 `false`** 를 돌려준다.
+   * SSE 를 연다. **이미 열려 있으면 아무것도 하지 않고 `"already_owned"`** 를 돌려준다.
    *
    * 게이트가 여기 **안**에 있는 것이 요점이다. 종전에는 두 호출부(`start()`·`applyConfig` 복원)가
    * 각자 `if (sessionEstablished()) return;` 를 손으로 복제했고, 그건 이 파일이 반복해 낸
@@ -459,7 +459,7 @@ export function useWidget() {
    * flush 에서 resolve 하면 **둘 다 seed 시점엔 스트림 미열림**을 보고 통과한 뒤 각자 continuation 에서
    * `openStream` 을 부를 수 있다(초기 JSDoc 이 "seed 반환 직후 동기 실행" 이라 원천 차단된다고 적었으나
    * 그 microtask 경계를 간과한 오판 — 01_44_21 3인 재현). 그래서 **`openStream` 자신이** 진입에서
-   * 소유권을 재확인하고 이미 열려 있으면 `false` 를 돌려준다. `openStream` 이 closeStream→set 이라
+   * 소유권을 재확인하고 이미 열려 있으면 `"already_owned"` 를 돌려준다. `openStream` 이 closeStream→set 이라
    * 최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 짝 가드로 낭비성 두 번째 EventSource 생성 자체를
    * 없앤다.
    *
@@ -616,7 +616,11 @@ export function useWidget() {
         // **seed 게이트와 짝을 이루는 스트림 게이트**는 이제 `openStream` **안**에 있다 — 겹친 두
         // seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림 미열림을 보고 통과한 뒤 각자
         // 여기로 오는데, 먼저 온 쪽만 소유한다(ai-review 01_44_21). 못 열었으면 갱신 예약도 건너뛴다.
-        if (openStream(session, "0") === "already_owned") return;
+        // **부정 비교**다 — 형제 `SeedOutcome` 의 `!== "continue"` 와 같은 방향(fail-closed).
+        // `=== "already_owned"` 로 쓰면 향후 "중단이어야 하는" variant 가 늘 때 그 값이
+        // 자동으로 "진행" 으로 취급된다(fail-open, ai-review 12_48_08 maintainability).
+        const claim = openStream(session, "0");
+        if (claim !== "opened" && claim !== "no_client") return;
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -965,7 +969,9 @@ export function useWidget() {
         // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
         // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 그쪽이 막는다
         // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
-        if (openStream(saved, "0") === "already_owned") return;
+        // 위 `start()` 와 같은 부정 비교(fail-closed) — 근거는 그쪽 주석.
+        const claim = openStream(saved, "0");
+        if (claim !== "opened" && claim !== "no_client") return;
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
