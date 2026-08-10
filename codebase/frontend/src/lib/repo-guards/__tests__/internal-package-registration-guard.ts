@@ -44,7 +44,9 @@ import {
 // **이미 공개돼 있던 것만 재export 한다** — `repoRoot`/`ROOT`/`listAtPath`/`PackageManifest`
 // 넷이 그렇다. 소비처를 한 번에 갈아엎지 않고 소유권만 옮기는 게 목적이므로, 원래 이 모듈의
 // 비공개 헬퍼였던 `blockRange`/`findKeyLine` 까지 끌어올리면 없던 공개 표면을 새로 만드는
-// 셈이다(이관의 부산물로 API 가 넓어지는 건 이관이 아니다). 그 둘은 `_shared` 에서만 쓴다.
+// 셈이다(이관의 부산물로 API 가 넓어지는 건 이관이 아니다). 그 둘은 `_shared` 의
+// `listAtPath` 와 **본 파일의 `blockScalarAtPath`** 가 쓴다 — 두 가드의 공개 표면에는
+// 올리지 않는다.
 export { ROOT, listAtPath, repoRoot };
 export type { PackageManifest };
 

@@ -21,20 +21,33 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** `pnpm-workspace.yaml` 를 marker 로 위로 탐색해 workspace 루트 절대경로를 찾는다. */
-export function repoRoot(): string {
-  // 고정 `../../..` 카운트 대신 marker 로 탐색 — 파일이 이동해도 조용히 오해소되지 않는다.
-  // 상한 12 = 현재 실제 깊이(worktree 루트→이 파일 7단계)의 약 1.7배 여유. 무한 루프 방지용 상수라
-  // 정확한 값이 중요치 않고, 못 찾으면 아래에서 throw 한다.
-  const MAX_DEPTH = 12;
-  let dir = __dirname;
-  for (let i = 0; i < MAX_DEPTH; i++) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
+/** 무한 루프 방지 상한. 현재 실제 깊이(worktree 루트→이 파일 7단계)의 약 1.7배 여유라
+ *  정확한 값이 중요하지 않다 — 소진되면 조용히 빈 값을 내지 않고 throw 한다. */
+export const MAX_ROOT_SEARCH_DEPTH = 12;
+
+/**
+ * `pnpm-workspace.yaml` 를 marker 로 위로 탐색해 workspace 루트 절대경로를 찾는다.
+ *
+ * 고정 `../../..` 카운트 대신 marker 로 탐색한다 — 파일이 이동해도 조용히 오해소되지 않는다.
+ *
+ * `startDir`/`exists` 주입은 같은 파일 `discoverWorkspaceDirs(readLines)` 와 **대칭**이다.
+ * 그쪽만 주입 가능하게 만들었을 때 리뷰가 이 비대칭을 지적했고, 지적이 옳았다: 이 함수의
+ * fail-closed throw 는 `__dirname` 하드코딩 때문에 합성 입력으로 겨냥할 방법이 없어
+ * **테스트가 불가능**했다. 이 모듈은 두 가드의 공용 기반(`ROOT`)이라 조용히 깨지면 파급이
+ * 가장 크다.
+ */
+export function repoRoot(
+  startDir: string = __dirname,
+  exists: (p: string) => boolean = fs.existsSync,
+): string {
+  let dir = startDir;
+  for (let i = 0; i < MAX_ROOT_SEARCH_DEPTH; i++) {
+    if (exists(path.join(dir, "pnpm-workspace.yaml"))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  throw new Error(`repoRoot: pnpm-workspace.yaml 를 찾지 못함 (from ${__dirname})`);
+  throw new Error(`repoRoot: pnpm-workspace.yaml 를 찾지 못함 (from ${startDir})`);
 }
 
 export const ROOT = repoRoot();
