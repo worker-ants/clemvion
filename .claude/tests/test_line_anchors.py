@@ -86,6 +86,18 @@ def pick_commit_fixture(cwd=None) -> str:
     which is most of them. Measured on this repository: one such merge reported
     1,390 changed lines and 0 files.
 
+    Third variant, 2026-08-10 — a **deletion-only** commit. It clears the
+    threshold with room to spare and then cross-checks nothing: the consumers
+    resolve source via `git show <sha>:<path>`, which is empty for every path the
+    commit removed, so every diff line is skipped and `checked` lands at 0.
+    Measured on `e4ce8adf8` (9 files, 627 deletions) — the suite went RED for a
+    commit that never touched the gutter. Selection therefore requires at least
+    one path that still resolves to content at `sha`.
+    `CommitFixtureSelectionTest._make_deletion_only_repo` pins it against a
+    purpose-built repository, for the same reason the merge case is: the commit
+    that exposed it drops out of the search window as history accumulates, and a
+    guard that is only green by accident of history is not a guard.
+
     On a shallow CI clone the search collapses to roughly one commit; that is
     harmless, because a shallow root has no parent and lists its whole tree,
     clearing the threshold easily.
@@ -626,6 +638,99 @@ class CommitFixtureSelectionTest(unittest.TestCase):
             repo, "show", "--no-renames", "--name-only", "--pretty=format:",
             picked).split("\n") if f]
         self.assertTrue(names, "the selected commit exposes no files to --prepare")
+
+    # -- third variant: deletion-only (2026-08-10) ------------------------------
+    #
+    # Same class as the merge case and given the same treatment. A deletion-only
+    # commit clears the changed-line threshold easily and then cross-checks
+    # nothing: the consumers resolve source via `git show <sha>:<path>`, which is
+    # empty for every path the commit removed, so `checked` lands at 0 and
+    # `test_diff_blocks_are_annotated_and_correct` goes RED for a commit that
+    # never touched the gutter.
+    #
+    # Built here rather than leaned on this repo's history for the reason the
+    # class docstring gives: the commit that exposed it (`e4ce8adf8`) drops out
+    # of the FIXTURE_SEARCH_DEPTH window as commits accumulate, and a guard that
+    # is only green by accident of history is not a guard.
+
+    def _make_deletion_only_repo(self):
+        """HEAD removes every file the previous commit added."""
+        import os
+        import shutil
+        import tempfile
+
+        repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, repo, ignore_errors=True)
+        env = ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+
+        def git(*args):
+            return self._git(repo, *env, *args)
+
+        git("init", "-q", "-b", "main", ".")
+        # A first commit that must stay selectable — it is the answer.
+        with open(os.path.join(repo, "keep.txt"), "w", encoding="utf-8") as fh:
+            fh.write("".join(f"keep{i}\n" for i in range(120)))
+        for name in ("a.txt", "b.txt"):
+            with open(os.path.join(repo, name), "w", encoding="utf-8") as fh:
+                fh.write("".join(f"{name}{i}\n" for i in range(120)))
+        git("add", "-A")
+        git("commit", "-qm", "base with content")
+        git("rm", "-q", "a.txt", "b.txt")
+        git("commit", "-qm", "delete only")
+        return repo
+
+    def test_the_repo_really_is_deletion_only(self):
+        """Non-vacuity: HEAD must clear the threshold *and* expose no content.
+
+        Without this, a fixture that quietly kept a file would make the test
+        below pass for the wrong reason — the shape it is meant to reject would
+        never have existed.
+        """
+        repo = self._make_deletion_only_repo()
+        head = self._git(repo, "rev-parse", "HEAD").strip()
+        names = [f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            head).split("\n") if f]
+        self.assertTrue(names, "HEAD lists no files — wrong fixture shape")
+        changed = 0
+        for row in self._git(repo, "show", "--numstat", "--format=", head).split("\n"):
+            cols = row.split("\t")
+            if len(cols) >= 3 and cols[2] in names:
+                changed += sum(int(c) for c in cols[:2] if c.isdigit())
+        self.assertGreaterEqual(
+            changed, MIN_FIXTURE_CHANGED_LINES,
+            "HEAD does not clear the threshold — it would be skipped for the "
+            "wrong reason and the guard under test never runs",
+        )
+        for f in names:
+            self.assertEqual(
+                self._git(repo, "show", f"{head}:{f}").strip(), "",
+                f"{f} still has content at HEAD — not a deletion-only commit",
+            )
+
+    def test_a_deletion_only_commit_is_never_selected(self):
+        repo = self._make_deletion_only_repo()
+        head = self._git(repo, "rev-parse", "HEAD").strip()
+        picked = pick_commit_fixture(cwd=repo)
+        self.assertTrue(picked, "nothing was selected at all")
+        self.assertNotEqual(
+            picked, head,
+            "the fixture search selected a deletion-only commit; every diff "
+            "line then resolves to empty source and the gutter test goes RED "
+            "for a change that never touched the gutter",
+        )
+
+    def test_the_selected_commit_still_has_resolvable_content(self):
+        """The property, stated directly — not "is not the deletion commit"."""
+        repo = self._make_deletion_only_repo()
+        picked = pick_commit_fixture(cwd=repo)
+        names = [f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            picked).split("\n") if f]
+        self.assertTrue(
+            any(self._git(repo, "show", f"{picked}:{f}").strip() for f in names),
+            "the selected commit resolves to no content at all",
+        )
 
 
 class ReviewerDefinitionContractTest(unittest.TestCase):
