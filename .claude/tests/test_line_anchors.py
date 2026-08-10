@@ -24,6 +24,7 @@ import sys
 import unittest
 from pathlib import Path
 
+import _harness
 from _harness import REPO_ROOT, load_module_by_path
 
 la = load_module_by_path(
@@ -565,6 +566,38 @@ class CommitFixtureSelectionTest(unittest.TestCase):
     def _git(repo, *args):
         return _git(*args, cwd=repo)
 
+    def _new_repo(self):
+        """An empty, initialised, self-cleaning temp repo + a bound `git`.
+
+        Shared because both fixtures below need exactly this and nothing more —
+        the commit sequences that follow are entirely different, which is why
+        only the setup is extracted.
+
+        Writes go through `_harness.git_in`, the hardened path built after the
+        2026-08-06 incident where a fixture of exactly this shape rewrote the
+        **shared** `.git/config` (five worktrees read it; other sessions' fetches
+        broke with no signal). `cwd=` alone does not stop git walking upward when
+        the target is not a repository yet — `git -C` + `GIT_CEILING_DIRECTORIES`
+        + the temp-dir assertion only work together.
+
+        Both fixtures here predated that helper and kept the unprotected `cwd=`
+        shape; extracting the setup is what made it fixable in one place rather
+        than two. Reads still use `self._git` (plain `cwd=`), which is correct —
+        `git_in` is for the mutating calls that can escape.
+        """
+        import shutil
+        import tempfile
+
+        repo = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, repo, ignore_errors=True)
+        env = ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
+
+        def git(*args):
+            return _harness.git_in(repo, *env, *args).stdout
+
+        git("init", "-q", "-b", "main", ".")
+        return repo, git
+
     def _make_repo(self):
         """A clean merge: each side touches a DIFFERENT file.
 
@@ -574,21 +607,13 @@ class CommitFixtureSelectionTest(unittest.TestCase):
         every file matches one parent exactly.
         """
         import os
-        import shutil
-        import tempfile
 
-        repo = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, repo, ignore_errors=True)
-        env = ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false"]
-
-        def git(*args):
-            return self._git(repo, *env, *args)
+        repo, git = self._new_repo()
 
         def write(name, prefix):
             with open(os.path.join(repo, name), "w", encoding="utf-8") as fh:
                 fh.write("".join(f"{prefix}{i}\n" for i in range(100)))
 
-        git("init", "-q", "-b", "main", ".")
         write("f.txt", "f")
         write("g.txt", "g")
         git("add", "-A")

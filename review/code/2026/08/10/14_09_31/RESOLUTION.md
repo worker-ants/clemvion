@@ -12,11 +12,19 @@ forced 7명 전원 리포트 확보. **Critical 1 + WARNING 4 전부 조치** (`
 
 | 세션 | 대상 | 귀속 |
 |---|---|---|
-| `08_32_48` | `git_probe.py`·`session.py`·`consistency_orchestrator.py` | #1125 (머지) ✅ |
+| `08_32_48` | `git_probe.py`·`session.py`·`consistency_orchestrator.py` | #1125 (머지) ⚠️ **부분만** — 아래 정정 |
 | `10_54_59`·`11_08_01`·`11_15_05`·`11_44_32` | `repo-guards/__tests__/**` | #1126 (머지) ✅ |
 | **`12_48_08`** | **`use-widget.ts`·`use-widget-eager-start.test.ts`** | **#1130 (열림)** ❌ |
 | `10_35_05`·`10_36_44` | `spec/conventions/spec-impl-evidence.md` | #1123 (머지) ✅ |
 | `12_06_35` | `spec/7-channel-web-chat/2-sdk.md` | #1128 (머지) ✅ |
+
+> **⚠ 이 표의 `08_32_48` 행이 틀렸다 — 다음 라운드가 반증했다** (`14_32_02` scope CRITICAL,
+> 정정 근거는 [`../14_32_02/RESOLUTION.md`](../14_32_02/RESOLUTION.md) §1).
+> 그 세션의 대상 **9개 중 6개**만 #1125 에 들어 있고, `plan-link-integrity.test.ts` 등 3개는
+> `origin/main` 에서 **도달 불가한 커밋 `62084e807`** 의 산출물이다(#1123 으로 대체되며 폐기).
+> 위 행은 6개만 보고 "#1125 것" 으로 확정했다 — **부분 확인을 전체 확인으로 적은** 것이고,
+> 바로 이 RESOLUTION 이 그 실수를 지적하면서 같은 실수를 저질렀다.
+> 원문은 그대로 둔다: 그때 무엇을 근거로 판단했는지가 사실이고, 지우면 이 교훈이 사라진다.
 
 **조치**: `12_48_08` 을 이 브랜치에서 제거(`e4ce8adf8`)하고 #1130 브랜치에 커밋·push
 (`bb2bca24e`). 그 PR 이 애초에 그 라운드만 커밋에서 빠뜨린 것이었고, 그 라운드가 낳은

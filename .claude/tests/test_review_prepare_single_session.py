@@ -287,6 +287,34 @@ class DocsOnlyFramingIsCrossCheckedTest(unittest.TestCase):
         self.assertIn("codebase/backend/src/svc.ts", out)
         self.assertIn("changeset 이 그걸 놓쳤습니다", out)
 
+    def test_a_long_missing_list_is_truncated_with_an_accurate_remainder(self):
+        """The >20 branch of `_bulleted_path_sample` on *this* call site.
+
+        The sibling call site (source-file composition) has its own coverage;
+        this one did not, and "the helper is tested" is not the same claim —
+        a wrong `limit` or a lost call here would go unseen. 25 missing files
+        means 20 shown and "외 5개".
+        """
+        out = run_in_orchestrator(
+            """
+            orch._default_branch_ref = lambda: "origin/main"
+            orch.get_git_branch_diff_files = lambda b: [
+                "codebase/backend/src/m%d.ts" % i for i in range(25)
+            ]
+            body = orch.build_router_prompt_body(
+                ARG["agents"], [], {},
+                [orch.build_cli_change_info("spec/a.md", diff_content="x", file_content="x")],
+                51200, 131072,
+            )
+            emit(body)
+            """,
+            {"agents": ["security", "documentation"]},
+        )
+        self.assertIn("소스 파일 25개", out)
+        self.assertIn("… 외 5개", out)
+        self.assertIn("codebase/backend/src/m0.ts", out)
+        self.assertNotIn("codebase/backend/src/m20.ts", out)
+
     def test_the_router_prompt_stays_quiet_when_the_changeset_is_complete(self):
         out = run_in_orchestrator(
             """
