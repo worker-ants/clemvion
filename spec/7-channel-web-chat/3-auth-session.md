@@ -1,6 +1,6 @@
 ---
 id: web-chat-auth-session
-status: implemented
+status: partial
 code:
   - codebase/channel-web-chat/src/lib/session-store.ts
   - codebase/channel-web-chat/src/lib/api-base.ts
@@ -10,6 +10,8 @@ code:
   # 앞선 시도의 결과를 적용하지 않는다. 그 판정의 정본은 여기다(`use-widget.ts` 는 소비처).
   - codebase/channel-web-chat/src/widget/use-session-generations.ts
   - codebase/channel-web-chat/src/widget/use-token-refresh.ts
+pending_plans:
+  - plan/in-progress/webchat-reload-rest-error-branches.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름
@@ -63,7 +65,7 @@ code:
 
 ### 3.1 재로드 복원 시퀀스 (per_execution)
 
-> ⚠ **v1 구현 현황(부분)**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면 + **`context.conversationThread`(durable 스냅샷) 전체 히스토리**를 시드한 뒤 SSE 를 연다. `getStatus` 가 durable `Execution.conversation_thread` 를 동봉하므로([EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) 새로고침 복원이 5분 SSE buffer·서버 재시작과 무관하게 과거 대화를 되살린다. turn `source`→말풍선 role 매핑은 [1-widget-app §2](./1-widget-app.md). 아래 2단계의 **`200`+종료 REST 분기는 구현됨** — 스냅샷 `status` 가 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행하고 SSE 재오픈·토큰 갱신 예약을 건너뛴다. **버퍼 만료(≥5분) gap 안에 종료된 경우 그 terminal SSE 이벤트도 버퍼와 함께 유실돼 다시 오지 않으므로**([EIA `R-replay-unavailable`](../5-system/14-external-interaction-api.md)) 이 REST 분기가 유일한 종료 도달 경로다 — 없으면 위젯이 `streaming` 에 무기한 멈춘다([1-widget-app §3.1](./1-widget-app.md)). **`404`·복구불가 `401` REST 분기와 `401 → 낙관적 refresh 1회` 는 여전히 미구현(Planned)** — 그 외 status·오류는 `catch` soft-fail 후 SSE 로 진행한다. 이 잔여 REST 오류 분기·낙관적 refresh 완전 구현은 후속 결정으로 남긴다.
+> ⚠ **v1 구현 현황(부분)**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면 + **`context.conversationThread`(durable 스냅샷) 전체 히스토리**를 시드한 뒤 SSE 를 연다. `getStatus` 가 durable `Execution.conversation_thread` 를 동봉하므로([EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) 새로고침 복원이 5분 SSE buffer·서버 재시작과 무관하게 과거 대화를 되살린다. turn `source`→말풍선 role 매핑은 [1-widget-app §2](./1-widget-app.md). 아래 2단계의 **`200`+종료 REST 분기는 구현됨** — 스냅샷 `status` 가 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행하고 SSE 재오픈·토큰 갱신 예약을 건너뛴다. **버퍼 만료(≥5분) gap 안에 종료된 경우 그 terminal SSE 이벤트도 버퍼와 함께 유실돼 다시 오지 않으므로**([EIA `R-replay-unavailable`](../5-system/14-external-interaction-api.md)) 이 REST 분기가 유일한 종료 도달 경로다 — 없으면 위젯이 `streaming` 에 무기한 멈춘다([1-widget-app §3.1](./1-widget-app.md)). **`404`·복구불가 `401` REST 분기와 `401 → 낙관적 refresh 1회` 는 여전히 미구현(Planned)** — 그 외 status·오류는 `catch` soft-fail 후 SSE 로 진행한다. 이 잔여 REST 오류 분기·낙관적 refresh 완전 구현은 후속 결정으로 남긴다 — 그 결정과 구현을 소유하는 plan 은 [`webchat-reload-rest-error-branches.md`](../../plan/in-progress/webchat-reload-rest-error-branches.md) 이며, 본 문서 frontmatter 의 `pending_plans:` 가 가리키는 대상이 그것이다(이 잔여 때문에 `status` 는 `implemented` 가 아니라 **`partial`**).
 
 1. iframe-origin **sessionStorage**(§R6)에서 `{executionId, token, expiresAt, endpoints, apiBase}` 조회 — 없으면 신규(collapsed).
    저장 세션은 **발급된 `apiBase`(origin)에 묶인다**: 현재 `apiBase` 와 불일치하거나 `apiBase` 가 기록돼 있지 않으면
@@ -98,6 +100,12 @@ EIA §R4 의 "default per_execution(안전)" 원칙과 정합 — per_trigger �
 봇" 한정으로 두는데, 공개 브라우저 위젯은 그 조건이 아니므로 노출하지 않는 것이 EIA 의도와 일치한다.
 
 ### R4. 재로드 `401` — 낙관적 refresh 1회 후 종료
+
+> **결정은 내려졌으나 구현은 없다 (Planned).** 아래는 채택된 설계이지 현재 동작이 아니다 — 실제
+> 위젯은 `401` 을 다른 오류와 구분하지 않고 `catch` soft-fail 로 넘긴다(§3.1 배너). 구현 여부는
+> [`webchat-reload-rest-error-branches.md`](../../plan/in-progress/webchat-reload-rest-error-branches.md)
+> 가 소유한다.
+
 재로드 시점에 위젯은 `401` 의 원인(단순 만료 vs 종료 후 jti blacklist, EIA §8.3)을 **사전 판별할 수 없다**. 따라서
 **낙관적으로 `refresh-token` 1회** 시도해 만료면 복구하고, 재차 실패(`401`/`410`)면 종료로 확정한다 — 항상 종료로 보면
 정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다. 1회 시도는 EIA-AU-04(종료 시 invalidate)
@@ -155,16 +163,21 @@ accepted, currentStatus }`)를 `{ data }` 봉투에 실어 `202` 로 반환하�
 라는 **직접 신호**로 사라진다 — 열렸으면(누가 열었든) SSE 가 소유하니 건너뛰고, 안 열렸으면
 이 시도가 그린다.
 
-**이 가드는 "표면 되감기"만 막는다. "이중 스트림"은 호출부의 짝 가드가 막는다.** seed 와
+**이 가드는 "표면 되감기"만 막는다. "이중 스트림"은 스트림 열기 자체가 막는다.** seed 와
 스트림 열기 사이엔 microtask 경계가 있어, 겹친 두 seed 가 같은 flush 에서 완료되면 **둘 다
-seed 시점엔 미열림**을 보고 통과한 뒤 각자 스트림을 열 수 있다. 그래서 호출부는 스트림을 여는
-**직전**에도 확립 여부를 재확인한다. 최종 상태는 어차피 단일 스트림으로 수렴하지만, 짝 가드가
-낭비성 두 번째 연결 생성 자체를 없앤다.
+seed 시점엔 미열림**을 보고 통과한 뒤 각자 스트림을 열려 한다. 그래서 **스트림 열기 진입에서**
+소유권을 재확인하고, 이미 열려 있으면 아무것도 하지 않은 채 "다른 시도가 소유 중" 을 돌려준다.
+최종 상태는 어차피 단일 스트림으로 수렴하지만, 그 가드가 낭비성 두 번째 연결 생성 자체를 없앤다.
+
+> **종전엔 이 재확인이 호출부 2곳에 손으로 복제돼 있었다.** 3번째 seed→스트림 경로가 생기면
+> 아무도 그것을 상기시켜 주지 않아, 이 표면이 반복해 낸 "가드를 한쪽에만 적용" 결함의 다음
+> 재발 자리였다. 열기 진입으로 옮겨 **구조적으로 강제**한다(2026-08-10). 호출부는 결과를
+> **부정 비교**로 게이팅한다 — 향후 "중단이어야 하는" 결과가 늘어도 기본값이 중단이다(fail-closed).
 
 > **예외 — 버퍼 만료 재동기화**: 자기 스트림의 표면을 재동기화하는 경우(§replay 폴백)만 스트림이
 > 열려 있어도 표면을 다시 그린다. 그건 "다른 시도가 가로챔" 이 아니라 "내가 다시 그려야 함" 이다.
 
-> **근거의 성격**: 이 불변식은 되감기 수정의 **3차 반복 끝에** 도달했고, 짝 가드의 필요성은
+> **근거의 성격**: 이 불변식은 되감기 수정의 **3차 반복 끝에** 도달했고, 스트림 열기 재확인의 필요성은
 > "seed 반환 직후 동기 실행이라 원천 차단된다" 는 초기 판단이 microtask 경계를 간과한 오판임이
 > 3인 재현으로 드러나 추가됐다. 대안(boot 세대 비교)이 두 번 실패한 이력이 여기 있으므로,
 > 되살리려면 위 두 구멍을 먼저 반증해야 한다.

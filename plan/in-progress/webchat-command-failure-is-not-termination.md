@@ -31,6 +31,13 @@ owner: project-planner
 401 / 명령 410)에 **"그 외 명령 실패" 는 없다.** 그래서 storage 는 보존되고 새로고침하면 복원된다 —
 하지만 같은 마운트에서는 `ended` 인 채 SSE 만 살아있는 **불일치 상태**가 남는다.
 
+> **형제 plan 과 같은 목록을 건드린다** —
+> [`webchat-reload-rest-error-branches.md`](./webchat-reload-rest-error-branches.md) 는 위
+> 열거에 **이미 있는** `404`·복구불가 `401` 을 구현하는 developer 트랙이고, 본 plan 은 그
+> 열거에 **항목을 추가할지** 정하는 제품 결정이다. 축이 다르지만 편집 대상 문단이 겹치므로,
+> 나중 착수 쪽이 앞선 결과 위에서 재판정할 것.
+> (`13_38_47` plan_coherence INFO — 두 plan 이 상호 링크 없이 같은 목록을 다루고 있었다.)
+
 ## 이 항목이 분리된 경위 (중요)
 
 `webchat-boot-single-flight` PR 이 한때 이 gap 을 **반대 방향으로** 해석해 "에러도 종료다" 를 전제로
