@@ -415,6 +415,36 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(refreshCalls).toBe(1);
   });
 
+  it("§R4: refresh 가 **네트워크 오류**로 실패하면 종료로 확정하지 않는다", async () => {
+    // §R4 는 "재차 실패(`401`/`410`)면 종료" 다. 그보다 넓게 잡으면 **일시적 장애가 살아있는
+    // 대화를 끝낸다** — `webchat-boot-single-flight` 이 정확히 그 형태로 대화를 영구 유실시켰다.
+    // (ai-review requirement 가 두 라운드 연속 지적했고 첫 번째는 내가 집계에서 흘렸다.)
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_x", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      // refresh 왕복이 **순수 네트워크 오류**로 reject — HTTP 상태가 아예 없다.
+      if (u.includes("/refresh-token")) return Promise.reject(new TypeError("network down"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // soft-fail → SSE 로 진행한다(종료 아님). storage 도 보존된다.
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+  });
+
   it("그 외 오류는 여전히 soft-fail — 500 은 종료로 오판하지 않는다", async () => {
     // 비-vacuity 겸 경계 고정: 위 세 분기가 "모든 오류를 종료로 본다" 로 번지면 일시적
     // 장애가 대화를 끝낸다. 그건 이 저장소가 `webchat-boot-single-flight` 에서 실제로

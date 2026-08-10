@@ -490,7 +490,22 @@ export function useWidget() {
         // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
         // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
         return "continue";
-      } catch {
+      } catch (refreshErr) {
+        // **`401`/`410` 일 때만 종료로 확정한다** — §R4 문언이 그렇고, 그보다 넓게 잡으면
+        // **일시적 네트워크 오류가 살아있는 대화를 끝낸다**(이 변경 자신이 "그 외는 soft-fail"
+        // 이라 적어 둔 원칙과 충돌). `webchat-boot-single-flight` 이 정확히 그 형태로 살아있는
+        // 대화를 영구 유실시킨 사고가 있다.
+        // (ai-review `16_09_40`→`16_26_09` requirement — 두 라운드 연속 지적, 첫 번째는 내가 흘렸다.)
+        const terminal =
+          refreshErr instanceof EiaError &&
+          (refreshErr.status === 401 || refreshErr.status === 410);
+        if (!terminal) {
+          console.warn(
+            "[widget] token refresh failed (non-terminal):",
+            refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
+          );
+          return "continue"; // 종료로 오판하지 않는다 — SSE 가 1차 복구 경로다.
+        }
         // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
         // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나
         // `newChat()` 으로 세대를 올린 뒤 늦은 실패를 착지시켜도 `ended` 로 갔다 — **재현 실패는
