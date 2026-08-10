@@ -482,11 +482,50 @@ export function useWidget() {
         // 되살린다**(재현 확인). `start()` 는 뒤에 명시적 세대 재검사가 있어 우연히 무사했다 —
         // 그 비대칭이 곧 이 버그였다 (ai-review 2026-07-17 08_29_33 W2).
         if (isStale(gen)) return "stale";
+
+        // **`404` — execution 이 사라졌다.** [3-auth-session §3.1-2] 가 정한 동작:
+        // storage 정리 후 `[ended]`. soft-fail 로 넘기면 **존재하지 않는 execution 에 SSE 를
+        // 여는** 셈이고, 그 스트림은 아무것도 주지 않으므로 위젯이 `streaming` 에 무기한 멈춘다.
+        if (err instanceof EiaError && err.status === 404) {
+          finalizeEnded("execution.not_found");
+          return "ended";
+        }
+
+        // **`401` — 만료인지 blacklist 인지 클라이언트는 사전 판별할 수 없다.**
+        // per_execution 토큰은 execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04)
+        // 재로드 `401` 은 (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist(복구 불가)
+        // 둘 다 가능하다. [§R4] 의 결정: **낙관적으로 refresh 1회** — 항상 종료로 보면 정당한
+        // 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다.
+        if (err instanceof EiaError && err.status === 401) {
+          try {
+            const { token, expiresAt } = await client.refreshToken(
+              session.endpoints,
+              session.token,
+            );
+            // refresh 왕복도 await 다 — 그 사이 세계가 바뀌었으면 새 토큰을 옛 세션에 쓰지
+            // 않는다. `use-token-refresh` 의 주기 갱신이 세우고 이 파일이 반복해 배운 규율.
+            if (isStale(gen)) return "stale";
+            const cfg = configRef.current;
+            if (!cfg) return "stale"; // 부팅 전으로 되돌아감 — 쓸 곳이 없다.
+            const updated = { ...session, token, expiresAt };
+            sessionRef.current = updated;
+            saveSession(cfg.triggerEndpointPath, updated);
+            // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
+            // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
+            return "continue";
+          } catch {
+            if (isStale(gen)) return "stale";
+            // 재차 실패 → **복구 불가로 확정**한다(§R4: "재차 실패면 종료로 간주").
+            finalizeEnded("execution.token_revoked");
+            return "ended";
+          }
+        }
+
         console.warn(
           "[widget] getStatus seed failed:",
           err instanceof Error ? err.message : String(err),
         );
-        return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
+        return "continue"; // soft-fail — 그 외 오류는 종료로 오판하지 않는다.
       }
     },
     [finalizeEnded, isStale, sessionEstablished, worldGenRef],

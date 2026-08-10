@@ -241,6 +241,139 @@ describe("useWidget — eager 시작(§R6)", () => {
    * 종료된 세션으로 되살린다. `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.
    * (ai-review 02_04_13 CRITICAL#1.)
    */
+  /**
+   * `3-auth-session.md` §3.1-2 · §R4 가 정한 재로드 REST 오류 분기 3종.
+   *
+   * 이 분기들은 spec 이 **동작을 확정 서술**해 두고도 오래 미구현이었다 — `getStatus` 실패는
+   * 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다. spec frontmatter 가
+   * `status: partial` + `pending_plans:` 로 그 사실을 가리키고 있었다.
+   *
+   * 셋을 갈라서 단언하는 이유: 한 테스트로 묶으면 어느 분기가 도는지 못 가른다. 특히
+   * `401` 은 **성공 refresh** 와 **재차 실패** 가 정반대 귀결(복원 vs 종료)이라 같이 볼 수 없다.
+   */
+  it("§3.1-2: 재로드 getStatus 가 404 → ENDED + SSE 미오픈 + storage 정리", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        // execution 이 purge 됐다.
+        return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    // 존재하지 않는 execution 에 SSE 를 열지 않는다 — 열면 아무것도 안 와 streaming 에 고착된다.
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  it("§R4: 재로드 getStatus 가 401 → 낙관적 refresh 1회 성공 시 복원(SSE 오픈)", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_stale", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        // 단순 만료 — refresh 로 살아난다.
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // 복구 성공 → 종료로 오판하지 않고 SSE 를 연다.
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(refreshCalls).toBe(1); // **1회** — 낙관적 시도는 한 번뿐이다(§R4).
+    // 새 토큰이 저장 세션에 반영된다 — 안 하면 다음 재로드가 같은 401 을 되풀이한다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_fresh");
+  });
+
+  it("§R4: 401 → refresh 도 실패하면 복구 불가로 확정(ENDED + storage 정리)", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_revoked", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        // 종료 후 jti blacklist — refresh 도 401 이다(EIA §8.3, EIA-AU-04).
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    // 무한 재시도로 번지지 않는다 — 낙관적 시도는 정확히 한 번.
+    expect(refreshCalls).toBe(1);
+  });
+
+  it("그 외 오류는 여전히 soft-fail — 500 은 종료로 오판하지 않는다", async () => {
+    // 비-vacuity 겸 경계 고정: 위 세 분기가 "모든 오류를 종료로 본다" 로 번지면 일시적
+    // 장애가 대화를 끝낸다. 그건 이 저장소가 `webchat-boot-single-flight` 에서 실제로
+    // 겪은 사고다(살아있는 대화 영구 유실).
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_ok", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // soft-fail → SSE 로 진행한다(종료 아님).
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+  });
+
   it("복원된 세션이 이미 terminal → ENDED 전이 + SSE 미오픈 + storage 부활 없음", async () => {
     // 만료를 lead(TOKEN_REFRESH_LEAD_MS) + 6초 뒤로 → refreshDelayMs ≈ 6초. fake timer 로 그 시점을 넘겨야
     // "scheduleRefresh 가 예약됐는가" 를 실제로 단언할 수 있다. 90분(=60분 뒤 발화)이면 타이머가
