@@ -505,8 +505,9 @@ describe("useWidget — eager 시작(§R6)", () => {
     // `EiaError` 이지만 `401`/`410` 이 아니므로 종료 대상이 아니다.
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
-      JSON.stringify({ executionId: "prev", token: "iext_y", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+      JSON.stringify({ executionId: "prev", token: "iext_y", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
     );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
       const u = String(url);
       if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
@@ -532,6 +533,14 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(result.current.state.phase).not.toBe("ended");
     expect(getEs()).toBeNull();
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+    // 네트워크-오류 케이스와 **같은 보강** — `phase !== "ended"` 만으로는 정상 streaming 과
+    // 고착 streaming 이 안 갈린다. 같은 코드 경로를 검증하면서 한쪽만 보강하면 그쪽 뮤턴트가
+    // 이쪽에서 생존한다(실측: `"refresh_deferred"`→`"stale"` 뮤턴트가 여기서만 GREEN 이었다).
+    const before = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    const after = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    expect(after).toBeGreaterThan(before); // 갱신 사이클이 살아 있다 = 고착이 아니다
+    vi.useRealTimers();
   });
 
   it("그 외 오류는 여전히 soft-fail — 500 은 종료로 오판하지 않는다", async () => {

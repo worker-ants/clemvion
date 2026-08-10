@@ -15,7 +15,7 @@ owner: project-planner
 > | §`start()` 경로 401 갭 | **도달 가능성 실측** 후 — 가능하면 회귀 추가, 불가면 주석 고정 |
 > | §refresh 동시 발화 경합 | 실측으로 발생 가능성 확인 후 — 필요하면 in-flight 단일화 |
 > | §catch 분기 세대 재검사 미검증 | 그 분기를 실제로 갈라내는 인터리빙을 찾은 뒤 회귀 추가 |
-> | §비-terminal refresh 실패 후 재연결 | 만료 토큰으로 SSE 가 반복 재연결하는지 실측 |
+> | §비-terminal refresh 실패 후 **스트림 부재** | **실측 완료 — 결함 확정.** 아래 §미해결 참조 |
 >
 > 둘 다 닫히면 `complete/` 로 옮긴다. 하나만 닫혔을 때 이 문서가 열려 있는 것은 정상이다.
 
@@ -177,3 +177,43 @@ CRITICAL 수정(“호출부가 갱신 전 지역 변수로 `openStream` 을 부
 
 **따라서 이 절이 다루던 "만료 토큰 재연결" 위험은 최종 판에서 구조적으로 닫혔다.** 남는
 질문은 좁다 — `refresh_deferred` 뒤 주기 갱신이 실제로 복구까지 이어지는지(백오프·횟수).
+
+## 미해결 — `refresh_deferred` 는 고착의 절반만 닫는다 (2026-08-10 실측)
+
+`"refresh_deferred"` 는 `scheduleRefresh` 소실(고착 원인 A)은 닫았지만 **스트림 부재(원인 B)는
+그대로다.** side_effect reviewer 가 찾았고 직접 확인했다:
+
+```
+openStream( 호출부 전수 (widget/*.ts, 테스트 제외)
+  use-widget.ts:732   → if (outcome !== "refresh_deferred") …
+  use-widget.ts:1089  → if (!deferStream) …
+```
+
+**두 곳뿐이고 둘 다 `refresh_deferred` 에서 건너뛴다.** `use-token-refresh` 는 `openStream` 을
+아예 부르지 않는다(grep 0건). `sessionRef` 는 `useRef` 라 갱신돼도 어떤 effect 도 재실행되지
+않는다.
+
+따라서 주기 갱신이 **몇 번을 성공하든 스트림은 영영 안 열린다.** `phase` 는 `streaming` 에
+멈춰 `panel` 이 Composer 를 비활성화하므로, "다음 입력에서 401 → `sendCommand` 가 에러 처리"
+라는 백스톱에 사용자가 **도달할 수 없다**.
+
+부수: 그 지연 갱신이 나중에 진짜 `401`/`410` 을 받아도 storage 정리가 없어
+spec §3.1-3("stale 토큰 잔존 금지") 불변식도 이 경로에서 깨진다.
+
+### 왜 이 PR 에서 안 고치는가
+
+처방이 **설계 선택**이고 셋 다 표면이 다르다:
+
+- (a) `useTokenRefresh` 성공 시 스트림이 없으면 열게 한다 → 그 훅에 `openStream` 의존을
+  주입해야 하고, 지금은 토큰만 다루는 단일 책임이다.
+- (b) `refresh_deferred` 를 phase 전이로 바꿔(예: 복구 대기 표면) 사용자가 재시도할 수 있게 한다
+  → `widget-state` 와 `panel` 까지 번진다.
+- (c) 그 경로를 아예 종료로 되돌린다 → `webchat-boot-single-flight` 사고(살아있는 대화 유실)의
+  재발이라 반대 방향으로 틀린다.
+
+**이 PR 이 닫은 것과 안 닫은 것을 정확히 적는다** — `404`·복구불가 `401`/`410` 처리(원 목적)와
+고착 원인 A 는 닫혔고, 원인 B 는 남는다. 종전 대비 **악화는 아니다**(종전에도 그 경로는
+죽은 토큰으로 SSE 를 열어 같은 스피너에 머물렀고, 지금은 최소한 죽은 토큰을 안 쓴다).
+
+- [ ] (a)/(b) 중 선택 — `useTokenRefresh` 의 단일 책임 대 상태기계 확장의 트레이드오프
+- [ ] 선택 후 회귀: refresh 성공 뒤 스트림이 열리는지 / Composer 가 풀리는지

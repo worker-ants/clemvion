@@ -106,6 +106,22 @@ type SeedOutcome =
   | "refresh_deferred";
 
 /**
+ * seed 결과를 받은 호출부가 **후속 배선을 중단해야 하는가**.
+ *
+ * 화이트리스트(허용값만 열거)라 **fail-closed** 다 — `SeedOutcome` 에 갈래가 늘어도 이 함수를
+ * 고치지 않으면 그 값은 자동으로 "중단" 이 된다. 타입 JSDoc 이 명문화한 불변식과 같은 방향이다.
+ *
+ * **헬퍼로 뽑은 이유**: 같은 조건식이 호출부 2곳(`start()`·`applyConfig`)에 리터럴로 복제돼
+ * 있었다. 5번째 갈래가 "continue 처럼 진행해야 하는" 의미로 추가되면 두 곳을 함께 고쳐야
+ * 하는데 컴파일러가 그걸 알려주지 않는다. **"가드를 한쪽에만 적용" 은 이 파일이 반복해 낸
+ * 결함이고 이번 티켓에서만 두 번 밟았다**(ai-review `16_09_40`·`16_56_39` CRITICAL 둘 다
+ * 호출부 비대칭이 원인이었다). 조건을 한 곳에 두면 그 자리가 사라진다.
+ */
+function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
+  return outcome !== "continue" && outcome !== "refresh_deferred";
+}
+
+/**
  * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
  * 직접 로드 경로의 `?apiBase=` 는 사용자가 URL 을 통제하지 못하는 임베드 시나리오와 달리 외부 입력이므로,
  * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해 거른다.
@@ -697,7 +713,7 @@ export function useWidget() {
         const outcome = await seedWaitingFromStatus(client, session);
         // `"refresh_deferred"` 는 **스트림만** 건너뛴다 — `scheduleRefresh` 는 세션의 유일한
         // 갱신 예약 지점이라 빠뜨리면 복구 사이클이 없어 고착된다.
-        if (outcome !== "continue" && outcome !== "refresh_deferred") return;
+        if (shouldAbortAfterSeed(outcome)) return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
         // **seed 게이트와 짝을 이루는 스트림 게이트** — `await seedWaitingFromStatus` 와 여기 사이엔
@@ -1054,7 +1070,7 @@ export function useWidget() {
           // "stale"/"ended" = 지연 응답이 새 대화의 스트림을 옛 토큰으로 덮어쓰거나 종료 세션을
           // 되살리지 않도록 중단.
           // `start()` 와 같은 이유 — 스트림만 건너뛰고 갱신은 예약한다.
-          if (outcome !== "continue" && outcome !== "refresh_deferred") return;
+          if (shouldAbortAfterSeed(outcome)) return;
           deferStream = outcome === "refresh_deferred";
           // checkpoint 2 — `openStream` 직전 boot+world 재검증. seed 의 `sessionEstablished()` 가드는
           // "다른 시도가 **이미 스트림을 열었나**" 만 보므로, 더 최신 재전송이 세대만 올리고 **아직
