@@ -39,6 +39,25 @@ codebase/backend
 실측(watch 기능을 우리가 쓰는지부터 확인), (b) `pnpm-workspace.yaml` 의 `peerDependencyRules`
 로 명시 억제 + 근거 주석, (c) nunjucks 대체.
 
+> **실측 (2026-08-10) — (a) 의 답이 나왔고, 그 답이 처분을 (b) 로 좁힌다.**
+>
+> | 확인 | 결과 |
+> |---|---|
+> | `codebase/backend/src` 의 nunjucks 참조 | **0건** |
+> | `codebase/backend/package.json` 의 nunjucks | **없음** (직접 의존 아님) |
+> | `codebase/**` 전체 참조 | **0건** |
+> | 유입 경로 | transitive — `bullmq`/`ejs`/`handlebars`/`liquidjs`/`mjml`/`pug` 와 함께 묶여 오는 email-template 스택 |
+> | lockfile `nunjucks@3.2.4` peer 선언 | `chokidar: ^3.3.0` + **`peerDependenciesMeta.chokidar.optional: true`** |
+>
+> 즉 **우리는 nunjucks 를 부르지 않고**, nunjucks 자신도 chokidar 를 **optional** 로 둔다
+> (템플릿 `watch` 옵션 전용). 그래서 (c) 대체는 과잉이고 — 우리 코드가 그 패키지를 쓰지
+> 않으므로 바꿀 호출부가 없다 — (a) 의 "동작하는지 실측" 도 실행 경로가 없어 무의미하다.
+> 남는 처분은 **(b) 명시 억제 + 근거 주석**이다.
+>
+> **주의 — 이 전제는 정확히 반만 맞았다.** 원 서술은 "지금 켜면 기존 미충족에 즉시 걸린다"
+> 였는데, optional peer 라는 사실이 빠져 있었다. 억제 근거를 "쓰지 않는 optional peer" 로
+> 적어야 하고, "동작 검증했다" 로 적으면 **하지 않은 검증을 주장**하는 것이 된다.
+
 **주의**: `#1043` 의 `ignoreCves` 선례처럼, 억제는 **근거를 남기고 baseline 으로 고정**해야
 새 억제가 조용히 늘어나지 않는다.
 
