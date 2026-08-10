@@ -122,11 +122,17 @@ catalog 지원 여부만 확인하면 되고, 지원한다면 (2)의 가드 선�
 - [x] **§4 타입·JSDoc 정리** — `loadTypescriptFrom` 반환 타입 `unknown | null` → `unknown`
       (전자는 TS 상 동치라 "여기도 null 을 좁혀 준다" 로 오독된다). `missingCompilerApi`
       JSDoc 의 "이 경로" 를 실제 경로(TS7 스텁은 **객체**라 filter 를 탄다)로 명시.
-- [x] **TEST WORKFLOW** — frontend 282 files / 5862 tests passed, lint 0 errors
-      (기존 warning 13, 신규 0), `tsc --noEmit` 통과. 뮤테이션 8종 전부 RED
-      (fail-closed 3축 · 통과 경로 · 호출부 · 공유 파서 인라인 주석 · repoRoot marker ·
-      readLines 기본값).
-- [ ] `/ai-review`
+- [x] **TEST WORKFLOW** — frontend **284 files / 5920 passed** (1 skipped),
+      repo-guard 3파일 **82건**, `tsc --noEmit` 0 errors, lint 0 errors.
+      뮤테이션 누적 **14종 전부 RED** (fail-closed 3축 · 통과 경로 · 호출부 · 공유 파서
+      인라인 주석 · `repoRoot` marker/상한/루트-종료/기본인자 · `readLines` 기본값).
+      > lint 경고는 저장소 전체 16건인데 **내 디렉터리는 1건(기존 `_drop`)** 이다.
+      > 13→16 증가분은 main 이 `#1123` 을 흡수하며 들어온 `plan-scan.test.ts` 쪽으로
+      > 실측 확인했다 — 이 브랜치 신규 0.
+- [x] **`/ai-review`** — 5라운드. Critical 0 유지, WARNING 은 3→3→1→1→**0** 으로 수렴.
+      지적의 성격이 동작 → 구조 → 문서 순으로 내려왔다(이 저장소의 수렴 기준).
+      최종 라운드 `review/code/2026/08/10/11_44_32` — forced 7명 전원 Critical 0 · WARNING 0.
+      각 라운드에서 고친 것은 그 세션의 `SUMMARY.md`/`RESOLUTION.md` 에 있다.
 
 ## Rationale
 
