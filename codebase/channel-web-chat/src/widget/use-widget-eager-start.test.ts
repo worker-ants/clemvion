@@ -336,6 +336,50 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_fresh");
   });
 
+  it("§R4: refresh 왕복 중 세계가 바뀌면 새 토큰을 옛 세션에 쓰지 않는다", async () => {
+    // refresh 는 `await` 다. 그 사이 새 대화·종료가 오면 응답은 **옛 세계의 것**이고,
+    // 그대로 쓰면 방금 지운 storage 를 되살리거나 새 세션을 옛 것으로 덮는다. 이 파일이
+    // 반복해 데인 형태라 `use-token-refresh` 가 같은 규율을 세워 뒀다.
+    // (testing reviewer 가 이 두 재검사를 뮤테이션 사각지대로 지목 — 16_09_40.)
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let releaseRefresh: (() => void) | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        // 응답을 붙잡아 둔다 — 그 창에서 세계를 바꾼다.
+        return new Promise<Response>((resolve) => {
+          releaseRefresh = () =>
+            resolve({ ok: true, status: 200, json: async () => ({ data: { token: "iext_late", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }) } as Response);
+        });
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(releaseRefresh).not.toBeNull());
+    // refresh in-flight 중 대화 종료 → 세계가 바뀐다.
+    act(() => { result.current.actions.endConversation?.(); });
+    await act(async () => { releaseRefresh!(); await Promise.resolve(); });
+
+    // 늦게 도착한 토큰이 storage 를 **되살리지** 않는다. 종료가 지웠으므로 `null` 이 정답이고,
+    // 늦은 쓰기가 통과했다면 여기 문자열이 들어와 있다 — `not.toContain` 은 null 에 못 쓰므로
+    // 부재를 직접 단언한다(그게 이 테스트가 묻는 것이기도 하다).
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    // 옛 세션으로 스트림을 열지도 않는다.
+    expect(getEs()).toBeNull();
+  });
+
   it("§R4: 401 → refresh 도 실패하면 복구 불가로 확정(ENDED + storage 정리)", async () => {
     window.sessionStorage.setItem(
       "clemvion-web-chat:session:t1",
