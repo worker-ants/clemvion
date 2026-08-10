@@ -123,9 +123,15 @@ auditConfig:
 
 # ── peer dependency 게이트 ──────────────────────────────────────────────────
 #
-# `pnpm install --strict-peer-dependencies` 를 CI 게이트로 둔다 — 소재지는
-# **`.github/actions/pnpm-workspace/action.yml` 의 install 한 줄**이다(9개 잡 / 5개 워크플로 파일이
-# 그 action 을 거친다 — 실측). **예외 목록(`peerDependencyRules`)은
+# `pnpm install --strict-peer-dependencies` 를 게이트로 둔다. 소재지는 **`pnpm install`
+# 호출부 5곳 전부**다 — 한 곳만 짚으면 나머지로 그대로 새 나간다(직전 리뷰가 잡은 결함):
+#
+#   - `.github/actions/pnpm-workspace/action.yml` — 9개 잡 / 5개 워크플로 파일이 거친다(실측)
+#   - `.claude/test-stages.sh` — 로컬 / TEST WORKFLOW
+#   - `codebase/backend/Dockerfile` · `codebase/frontend/Dockerfile` ·
+#     `codebase/frontend/Dockerfile.playwright-e2e` — 이미지 빌드
+#
+# **예외 목록(`peerDependencyRules`)은
 # 비어 있고, 비어 있는 것이 정상이다.**
 #
 # 착수 근거였던 `nunjucks → chokidar` 미충족은 **이미 사라졌다**(2026-08-10 실측:
