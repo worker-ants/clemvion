@@ -7,7 +7,11 @@ Collects diff/context for `/ai-review` and writes:
                                              subagent invocation contract)
   - review/<timestamp>/meta.json            (initial metadata)
 
-Prints the session directory path to stdout (one line per batch).
+Prints **exactly one** session directory path to stdout — the last line is the
+session, and there is never more than one. (Until 2026-08-10 this printed one
+line per `REVIEW_BATCH_SIZE` chunk while the SKILL contract read only the last;
+every other chunk went unreviewed *and* shrank `agents_forced`. See
+`_warn_large_changeset`.)
 
 This script **does not** call any model. The actual reviews are performed by
 the main Claude session via the `Agent` tool — see
@@ -1127,6 +1131,43 @@ def build_cli_change_info(file_path, diff_content=None, file_content=None):
 # ---------------------------------------------------------------------------
 
 
+def _warn_large_changeset(change_infos, batch_size):
+    """Advise (never split) when the changeset exceeds `REVIEW_BATCH_SIZE`.
+
+    **Why this is a notice and not a split.** `--prepare` used to slice the
+    changeset into `REVIEW_BATCH_SIZE` chunks and print one session path per
+    chunk. That loop was introduced together with the contract line "stdout
+    마지막 줄(들) = 세션 디렉토리 (batch 별로 한 줄씩)", i.e. the caller was meant
+    to fan out over *every* line. A later doc-compression commit (`73dea0864`)
+    dropped the "(들)" and the per-batch parenthetical while keeping the env var,
+    so `SKILL.md` came to say "stdout 마지막 줄" — singular. From then on every
+    batch but the last was written to disk and never reviewed.
+
+    That silence was not merely a coverage hole; it *inverted* the safety gate.
+    `compute_forced_agents` derives the forced whitelist **from the changeset it
+    is given**, so a tail batch that happens to be docs-only forces far fewer
+    reviewers — measured on a 60-file changeset (50 `.ts` + 10 `.md`):
+    forced(all)=7 vs forced(tail 10)=2, losing security · testing · scope ·
+    maintainability · side_effect. `_verify_coverage` then checks that shrunken
+    set and passes trivially. A dropped batch therefore reads as a clean review.
+
+    So the split is gone: one `--prepare`, one session, whole changeset. Size is
+    shaped where it can be shaped safely — per-reviewer prompt budget in
+    `build_files_section`, which *announces* what it drops — while `meta.json`
+    and the forced-agent computation keep seeing every file.
+    """
+    total = len(change_infos)
+    if batch_size and total > batch_size:
+        print(
+            f"!! LARGE CHANGESET — {total} files (> REVIEW_BATCH_SIZE={batch_size}).\n"
+            "   Preparing a SINGLE session for all of them; per-reviewer prompt\n"
+            "   budget will shape the body and name anything it drops.\n"
+            "   (Sessions are no longer split by batch — a split batch used to go\n"
+            "   unreviewed and shrink the forced-reviewer set.)",
+            file=sys.stderr,
+        )
+
+
 def prepare_session(change_infos, config):
     """Create the session directory and write everything the main session needs.
 
@@ -1583,18 +1624,14 @@ def main():
         print("No reviewable files found.", file=sys.stderr)
         sys.exit(0)
 
-    batch_size = config["batch_size"]
-    batches = [
-        change_infos[i:i + batch_size]
-        for i in range(0, len(change_infos), batch_size)
-    ]
-    for batch_idx, batch in enumerate(batches, 1):
-        print(f"--- Batch {batch_idx}/{len(batches)} ({len(batch)} files) ---", file=sys.stderr)
-        for ci in batch:
-            print(f"  - {ci['file_path']}", file=sys.stderr)
-        session_dir = prepare_session(batch, config)
-        # One session_dir per stdout line. Main parses these.
-        print(session_dir)
+    # ONE session per --prepare, always. See `_warn_large_changeset` for why the
+    # former batch-splitting loop was removed — it produced sessions the caller
+    # contract could not consume, and shrank `agents_forced` in the process.
+    _warn_large_changeset(change_infos, config["batch_size"])
+    for ci in change_infos:
+        print(f"  - {ci['file_path']}", file=sys.stderr)
+    session_dir = prepare_session(change_infos, config)
+    print(session_dir)
 
 
 if __name__ == "__main__":
