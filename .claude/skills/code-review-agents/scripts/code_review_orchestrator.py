@@ -931,6 +931,18 @@ def build_router_prompt_body(
             f"변경 파일 {len(all_paths)}개 중 소스 코드 파일 **0개** "
             "(문서·설정 전용 변경).\n"
         )
+        unseen = _source_files_missing_from_changeset(all_paths)
+        if unseen:
+            shown = "\n".join(f"  - `{p}`" for p in unseen[:20])
+            more = f"\n  - … 외 {len(unseen) - 20}개" if len(unseen) > 20 else ""
+            composition_block += (
+                "\n> ⚠ **그러나 이 브랜치는 소스 코드를 바꿨습니다 — changeset 이 그걸 놓쳤습니다.**\n"
+                f"> 브랜치 diff 에는 있으나 위 목록에 **없는** 소스 파일 {len(unseen)}개:\n"
+                f"{shown}{more}\n>\n"
+                "> 따라서 **\"문서 전용\" 을 사유로 reviewer 를 제외하지 마세요.** "
+                "changeset 산정이 불완전하므로, 보이는 파일만 근거로 좁히면 "
+                "보지 못한 코드가 리뷰 없이 통과합니다. 판단이 서지 않으면 **넓게 선택**하세요.\n"
+            )
 
     candidate_count = len(agents)
     header = (
@@ -1310,6 +1322,39 @@ def _default_branch_ref():
     except Exception as e:  # noqa: BLE001
         debug_log(f"default branch ref resolution failed: {e}")
     return None
+
+
+def _source_files_missing_from_changeset(all_paths):
+    """Branch-diff source files that the changeset does not contain.
+
+    A fail-closed cross-check for the router's "문서 전용" framing. The router is
+    told the source/doc split as a *fact* (see `build_router_prompt`), but that
+    fact is derived from the changeset — so when changeset computation is wrong,
+    the wrongness is laundered into a confident "소스 코드 변경 없음" and the router
+    deselects every source reviewer. One bad changeset then reads as a clean
+    review: that amplification, not any single computation bug, is the standing
+    risk (`plan/in-progress/harness-review-gate-followups.md`).
+
+    Observed once for real (session `03_12_29`): a 27-file changeset carried none
+    of the three code files the two preceding commits had changed, the router
+    ruled "문서 전용", and 12 reviewers were skipped. The cause there — batch
+    splitting — is fixed, but the changeset has other ways to be wrong (the
+    default working-tree path after a commit is the documented one), so the
+    defence is kept independent of any particular cause.
+
+    Silent on any git failure: a review must not fail because the cross-check
+    could not be computed. Advisory only — it widens what the router is told,
+    never the changeset itself.
+    """
+    base = _default_branch_ref()
+    if not base:
+        return []
+    try:
+        branch_files = get_git_branch_diff_files(base)
+    except Exception:  # noqa: BLE001 — never let the cross-check break a review
+        return []
+    seen = set(all_paths)
+    return [p for p in router_safety.source_files(branch_files) if p not in seen]
 
 
 def warn_if_committed_work_is_missing(files):

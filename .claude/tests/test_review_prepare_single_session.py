@@ -205,5 +205,93 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
         self.assertIn("testing", src_only)
 
 
+class DocsOnlyFramingIsCrossCheckedTest(unittest.TestCase):
+    """"문서 전용" is derived from the changeset — so a wrong changeset launders itself.
+
+    The router is handed the source/doc split as a *fact*. When changeset
+    computation is wrong, that wrongness becomes a confident "소스 코드 변경 없음"
+    and every source reviewer is deselected — one bad changeset reads as a clean
+    review. Removing the batch split closed one cause; this closes the
+    amplification, which is what makes any such cause catastrophic.
+    """
+
+    def _missing(self, changeset, branch_files, base="origin/main"):
+        return run_in_orchestrator(
+            """
+            orch._default_branch_ref = lambda: ARG["base"]
+            orch.get_git_branch_diff_files = lambda b: ARG["branch_files"]
+            emit(orch._source_files_missing_from_changeset(ARG["changeset"]))
+            """,
+            {"changeset": changeset, "branch_files": branch_files, "base": base},
+        )
+
+    def test_source_in_the_branch_but_absent_from_the_changeset_is_reported(self):
+        out = self._missing(
+            changeset=["spec/a.md", "spec/b.md"],
+            branch_files=["spec/a.md", "codebase/backend/src/svc.ts"],
+        )
+        self.assertEqual(out, ["codebase/backend/src/svc.ts"])
+
+    def test_a_complete_changeset_reports_nothing(self):
+        out = self._missing(
+            changeset=["spec/a.md", "codebase/backend/src/svc.ts"],
+            branch_files=["spec/a.md", "codebase/backend/src/svc.ts"],
+        )
+        self.assertEqual(out, [])
+
+    def test_docs_only_branch_reports_nothing(self):
+        out = self._missing(changeset=["spec/a.md"], branch_files=["spec/a.md", "spec/c.md"])
+        self.assertEqual(out, [])
+
+    def test_unresolvable_base_is_silent(self):
+        self.assertEqual(self._missing(["spec/a.md"], ["codebase/x.ts"], base=""), [])
+
+    def test_git_failure_is_absorbed_not_propagated(self):
+        out = run_in_orchestrator(
+            """
+            orch._default_branch_ref = lambda: "origin/main"
+            def boom(*a, **k):
+                raise RuntimeError("git exploded")
+            orch.get_git_branch_diff_files = boom
+            emit(orch._source_files_missing_from_changeset(["spec/a.md"]))
+            """
+        )
+        self.assertEqual(out, [])
+
+    def test_the_router_prompt_refuses_the_docs_only_framing(self):
+        """Call-site test — the helper being right is not the same as it being used."""
+        out = run_in_orchestrator(
+            """
+            orch._default_branch_ref = lambda: "origin/main"
+            orch.get_git_branch_diff_files = lambda b: ["codebase/backend/src/svc.ts"]
+            body = orch.build_router_prompt_body(
+                ARG["agents"], [], {},
+                [orch.build_cli_change_info("spec/a.md", diff_content="x", file_content="x")],
+                51200, 131072,
+            )
+            emit(body)
+            """,
+            {"agents": ["security", "documentation"]},
+        )
+        self.assertIn("codebase/backend/src/svc.ts", out)
+        self.assertIn("changeset 이 그걸 놓쳤습니다", out)
+
+    def test_the_router_prompt_stays_quiet_when_the_changeset_is_complete(self):
+        out = run_in_orchestrator(
+            """
+            orch._default_branch_ref = lambda: "origin/main"
+            orch.get_git_branch_diff_files = lambda b: ["spec/a.md"]
+            body = orch.build_router_prompt_body(
+                ARG["agents"], [], {},
+                [orch.build_cli_change_info("spec/a.md", diff_content="x", file_content="x")],
+                51200, 131072,
+            )
+            emit(body)
+            """,
+            {"agents": ["security", "documentation"]},
+        )
+        self.assertNotIn("changeset 이 그걸 놓쳤습니다", out)
+
+
 if __name__ == "__main__":
     unittest.main()
