@@ -1,0 +1,82 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/__test-utils__/workspace-id-fixtures.spec.ts, codebase/backend/src/common/__test-utils__/workspace-id-fixtures.ts, codebase/backend/src/common/utils/uuid.spec.ts"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/__test-utils__/workspace-id-fixtures.spec.ts, codebase/backend/src/common/__test-utils__/workspace-id-fixtures.ts, codebase/backend/src/common/utils/uuid.spec.ts"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/__test-utils__/workspace-id-fixtures.spec.ts, codebase/backend/src/common/__test-utils__/workspace-id-fixtures.ts, codebase/backend/src/common/utils/uuid.spec.ts"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/__test-utils__/workspace-id-fixtures.spec.ts, codebase/backend/src/common/__test-utils__/workspace-id-fixtures.ts, codebase/backend/src/common/utils/uuid.spec.ts"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/__test-utils__/workspace-id-fixtures.spec.ts, codebase/backend/src/common/__test-utils__/workspace-id-fixtures.ts, codebase/backend/src/common/utils/uuid.spec.ts"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/testing.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/harness-changeset-exclusion/review/code/2026/08/10/06_36_09/maintainability.md"
+    }
+  ],
+  "agents_pending": [
+    "testing",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

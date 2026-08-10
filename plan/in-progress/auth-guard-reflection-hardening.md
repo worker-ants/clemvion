@@ -1,6 +1,6 @@
 ---
 title: RolesGuard reflection 경화 — fail-open 위험 · 메모이제이션 · 비-UUID 헤더 400
-worktree: auth-guard-reflection-hardening-9c31f2
+worktree: harness-changeset-exclusion  # 잔여 항목을 이 worktree 에서 처리 — §3 연결 판정은 "현재 디렉토리와 매칭" 이라 실제 위치로 맞춘다
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -300,22 +300,18 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > 픽스처가 vacuous 하지 않음을 뮤테이션으로 확인 — `OTHER_WS` 를 `TOKEN_WS` 와 같은
       > 값으로 바꾸자 **2 suite / 3 test RED**(값의 상호 구별이 로드베어링).
 - [ ] 메모이제이션(§2)은 **실측 트리거가 생기면** 되살린다.
-- [ ] 공용 픽스처 모듈에 **값 유일성 단언**(`new Set([...]).size === 7`) 1줄 추가
-      (`backend-hygiene-followups` ai-review INFO 3). 지금은 3개 소비 스위트가 간접적으로만
-      유일성을 검증한다 — 뮤테이션으로 로드베어링임은 실증했지만(값 충돌 시 3 RED) 모듈
-      자체에는 가드가 없다. **이번에 넣지 않은 이유**: 그 라운드가 Critical 0·Warning 0 으로
-      수렴했는데 `codebase/**` 를 한 줄이라도 더 만지면 리뷰가 stale 해져 9분짜리 리뷰 +
-      TEST WORKFLOW 를 다시 돈다. INFO 등급 개선에 비례하지 않는다 — 이 파일을 다음에
-      만질 때 함께 넣는다.
-- [ ] **nil-UUID 캐너리 정정 문단을 SoT 한 곳으로 모으기** (`backend-hygiene-followups`
-      2차 타겟 리뷰 INFO 1·2). 같은 정정이 `uuid.ts` docstring · `uuid.spec.ts` 주석 ·
-      `__test-utils__/workspace-id-fixtures.ts` · 본 plan 까지 **4곳에 산문으로 복제**돼 있고,
-      표기 스타일도 갈린다(`uuid.ts` 만 인용-각주로 이력 보존, 나머지는 조용히 재작성).
-      근거는 프로덕션 호출부에 가장 가까운 `uuid.ts` 한 곳에 두고 나머지는 1줄 포인터로
-      축약하는 것이 맞다 — 지금 형태면 `system-status.controller.ts` 가 나중에 워크스페이스
-      스코핑을 갖게 될 때 3곳이 **다시 조용히** 어긋난다(이번이 그 클래스의 두 번째다).
-      **이번에 하지 않은 이유**: `codebase/**` 편집이라 방금 Critical 0 로 수렴한 리뷰가
-      다시 stale 해진다. 이 파일들을 다음에 만질 때 함께 처리한다.
+- [x] 공용 픽스처 모듈에 **값 유일성 단언** 추가 (2026-08-10). jest 타입 비의존 모듈이라
+      테스트가 아니라 **로드 시점 런타임 검사**로 넣었다 — `ALL_WS` 7개의 `Set` 크기가
+      다르면 즉시 throw 하고, 소비 스위트 3곳이 전부 그 시점에 실패한다.
+      뮤테이션으로 관측 확인: `OTHER_WS` 를 `VICTIM_WS` 값으로 바꾸자 **RED**
+      ("고유 6 / 전체 7"). 메시지는 **개수까지만** 말한다 — 어느 쌍이 겹쳤는지는 안 알려준다.
+- [x] **nil-UUID 캐너리 정정 문단을 SoT 한 곳으로** (2026-08-10). 근거(403→400 뒤바뀜)와
+      앵커 정정 이력(`#1112`)은 프로덕션 호출부에 가장 가까운 `uuid.ts` 의 `isUuidShaped`
+      docstring 한 곳에 두고, `workspace-id-fixtures.ts` 와 `uuid.spec.ts` 는 포인터로 축약.
+      > **전량 삭제가 아니라 선별이다.** `uuid.spec.ts` 블록에는 SoT 에 **없는** 사실이
+      > 둘 있었다 — "이 둘이 유일한 방어선"(실측: 프로덕션 호출부가
+      > `workspace-context.util.ts:74` 한 곳)과 "`roles.guard.spec.ts` 는 전역 라우트라
+      > 방어선으로 세면 안 된다". 그건 그 자리에 남겼다. 중복은 근거 쪽이지 이 사실이 아니다.
 - [ ] `__test-utils__` 류 디렉터리가 **3곳째** 생기면 `tsconfig.build.json` 의 `exclude` 에
       `**/__test-utils__/**` 추가 검토 (동 ai-review INFO 4). 현재 2곳
       (`modules/integrations/__test-utils__` · 신설 `common/__test-utils__`)이고 둘 다

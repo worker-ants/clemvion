@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-08-10T06:25:11.078281",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/common/__test-utils__/workspace-id-fixtures.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/common/__test-utils__/workspace-id-fixtures.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/common/utils/uuid.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/auth-guard-reflection-hardening.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "testing",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": true,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "side_effect",
+    "testing"
+  ]
+}
