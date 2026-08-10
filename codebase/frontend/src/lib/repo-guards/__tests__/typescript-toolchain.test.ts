@@ -10,6 +10,7 @@ import {
   readManifestAt,
   majorSpread,
   loadTypescriptFrom,
+  validateWorkspacePatterns,
 } from "./typescript-toolchain-guard";
 
 // Guard: 워크스페이스가 쓰는 typescript 가 **JS compiler API 계약**을 지키는지, 그리고 전
@@ -178,6 +179,43 @@ describe("expandWorkspaceGlobs (합성)", () => {
     // 조용한 누락이야말로 이 가드가 막으려는 사건 — 워크스페이스가 넓어지면 깨져야 한다.
     expect(() => expandWorkspaceGlobs(["codebase/**"], readDir)).toThrow(/지원하지 않는 글롭/);
     expect(() => expandWorkspaceGlobs(["codebase/*/pkg/*"], readDir)).toThrow(/지원하지 않는 글롭/);
+  });
+});
+
+describe("validateWorkspacePatterns (합성)", () => {
+  // 이 fail-closed 는 종전에 `discoverWorkspaceDirs` 안에서 실제
+  // `fs.readFileSync(pnpm-workspace.yaml)` 와 묶여 있었다. 저장소가 정상인 한 자연
+  // 발동하지 않고 합성 입력으로 겨냥할 수도 없어서, **fail-closed 라는 성질 자체가
+  // 미검증**이었다. 순수 함수로 뽑은 이유가 그것이다.
+  //
+  // 무엇을 지키는가: 추출 실패가 빈 목록으로 흘러가면 워크스페이스가 0개가 되고,
+  // 그러면 lockstep·compiler-API 두 축이 **전부 vacuous 하게 통과**한다. 이 가드가
+  // 막으려던 #1047 형태의 사고가 그때는 아무 소리 없이 지나간다.
+
+  it("packages: 키를 못 찾으면(null) 던진다", () => {
+    expect(() => validateWorkspacePatterns(null)).toThrow(/packages: 목록을 읽지 못했다/);
+  });
+
+  it("키는 찾았으나 항목이 없으면(빈 배열) 던진다", () => {
+    // null 과 갈라 두는 이유: `listAtPath` 는 두 실패를 다른 값으로 낸다(키 부재 vs
+    // 항목 부재). 한쪽만 막으면 나머지 한쪽으로 vacuity 가 그대로 들어온다.
+    expect(() => validateWorkspacePatterns([])).toThrow(/packages: 목록을 읽지 못했다/);
+  });
+
+  it("정상 목록은 그대로 돌려준다 — 통과 경로에서 값을 바꾸지 않는다", () => {
+    const patterns = ["codebase/backend", "codebase/packages/*"];
+    expect(validateWorkspacePatterns(patterns)).toEqual(patterns);
+  });
+
+  it("discoverWorkspaceDirs 가 실제로 그 검증을 태운다 (호출부)", () => {
+    // 헬퍼만 단언하면 호출부가 검증을 건너뛰는 변경이 조용히 통과한다 — 실제로
+    // `?? []` 로 바꾼 뮤턴트가 살아남았다. 헬퍼 테스트 ≠ 호출부 테스트.
+    expect(() => discoverWorkspaceDirs(() => ["# packages: 키가 없는 YAML", "other: 1"])).toThrow(
+      /packages: 목록을 읽지 못했다/,
+    );
+    expect(() => discoverWorkspaceDirs(() => ["packages:", "  # 항목 없음"])).toThrow(
+      /packages: 목록을 읽지 못했다/,
+    );
   });
 });
 

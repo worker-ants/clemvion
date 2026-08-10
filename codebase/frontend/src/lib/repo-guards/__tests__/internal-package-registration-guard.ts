@@ -26,32 +26,24 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** `pnpm-workspace.yaml` 를 marker 로 위로 탐색해 workspace 루트 절대경로를 찾는다. */
-export function repoRoot(): string {
-  // 고정 `../../..` 카운트 대신 marker 로 탐색 — 파일이 이동해도 조용히 오해소되지 않는다.
-  // 상한 12 = 현재 실제 깊이(worktree 루트→이 파일 7단계)의 약 1.7배 여유. 무한 루프 방지용 상수라
-  // 정확한 값이 중요치 않고, 못 찾으면 아래에서 throw 한다.
-  const MAX_DEPTH = 12;
-  let dir = __dirname;
-  for (let i = 0; i < MAX_DEPTH; i++) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new Error(`repoRoot: pnpm-workspace.yaml 를 찾지 못함 (from ${__dirname})`);
-}
+import {
+  ROOT,
+  blockRange,
+  findKeyLine,
+  listAtPath,
+  repoRoot,
+  type PackageManifest,
+} from "./_shared";
 
-export const ROOT = repoRoot();
+// 루트 탐색·YAML 서브셋 추출기는 형제 가드(`typescript-toolchain-guard.ts`)도 쓰므로
+// `_shared.ts` 가 소유한다. 여기서 **재export** 하는 이유는 이 모듈이 이미 그 심볼들의
+// 공개 창구였기 때문이다 — 소비처를 한 번에 갈아엎지 않고 소유권만 옮긴다.
+export { ROOT, blockRange, findKeyLine, listAtPath, repoRoot };
+export type { PackageManifest };
+
 export const PACKAGES_DIR = path.join(ROOT, "codebase", "packages");
 export const TEST_STAGES = path.join(ROOT, ".claude", "test-stages.sh");
 export const PACKAGES_CHECKS = path.join(ROOT, ".github", "workflows", "packages-checks.yml");
-
-export type PackageManifest = {
-  name?: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-};
 
 /**
  * 디렉터리명 목록 + name 해석기 → `{dir,name}[]` (dir 정렬).
@@ -223,28 +215,6 @@ export function explicitFilterCalls(body: string): { name: string; script: strin
 // 추출기**만 둔다 — 필요한 3개 목록이 전부 알려진 위치라 충분하다. 추출 실패는 null/빈 배열 →
 // vacuity 단언에서 red (fail-closed).
 
-const indentOf = (line: string) => line.length - line.trimStart().length;
-const isSkippable = (line: string) => !line.trim() || line.trim().startsWith("#");
-
-/** `key:` 선언 줄의 자식 블록 범위 [from, to) — key 보다 깊게 들여쓴 연속 구간. */
-function blockRange(lines: string[], keyIdx: number): [number, number] {
-  const base = indentOf(lines[keyIdx]);
-  let end = keyIdx + 1;
-  while (end < lines.length && (isSkippable(lines[end]) || indentOf(lines[end]) > base)) end++;
-  return [keyIdx + 1, end];
-}
-
-function findKeyLine(lines: string[], key: string, from: number, to: number): number {
-  for (let i = from; i < to; i++) {
-    if (isSkippable(lines[i])) continue;
-    const t = lines[i].trim();
-    // 리스트 항목(`- name: x`)은 키 선언이 아니다.
-    if (t.startsWith("- ")) continue;
-    if (t === `${key}:` || t.startsWith(`${key}:`)) return i;
-  }
-  return -1;
-}
-
 /**
  * 예: blockScalarAtPath(lines, ["jobs", "changes", "with", "pathspecs"]). 미발견 시 null.
  *
@@ -280,29 +250,6 @@ export function blockScalarAtPath(lines: string[], keys: string[]): string[] | n
     const entry = lines[i].trim();
     if (!entry || entry.startsWith("#")) continue;
     items.push(entry);
-  }
-  return items;
-}
-
-/** 예: listAtPath(lines, ["jobs", "packages", "strategy", "matrix", "pkg"]). 미발견 시 null. */
-export function listAtPath(lines: string[], keys: string[]): string[] | null {
-  let [from, to] = [0, lines.length];
-  for (const key of keys) {
-    const i = findKeyLine(lines, key, from, to);
-    if (i === -1) return null;
-    [from, to] = blockRange(lines, i);
-  }
-  const items: string[] = [];
-  for (let i = from; i < to; i++) {
-    if (isSkippable(lines[i])) continue;
-    const m = /^-\s+(.*)$/.exec(lines[i].trim());
-    if (!m) continue;
-    items.push(
-      m[1]
-        .replace(/\s+#.*$/, "") // 인라인 주석
-        .trim()
-        .replace(/^['"]|['"]$/g, ""),
-    );
   }
   return items;
 }

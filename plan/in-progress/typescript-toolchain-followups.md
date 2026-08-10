@@ -52,6 +52,39 @@ spec_impact: none
   가드의 그 축을 걷어낼지, catalog 자체를 검사하는 쪽으로 옮길지.
 - dependabot 이 catalog 항목을 인식·갱신하는지 실측 필요.
 
+### 2026-08-10 실측 — 셋 중 둘은 답이 났고, 하나가 착수를 막는다
+
+**(1) 대상 범위 — 갈렸다.** 매니페스트 11개 전수(3곳 이상 선언된 패키지 10개):
+
+| 패키지 | 선언 수 | range | 판정 |
+|---|---|---|---|
+| `eslint` | 10 | `^9` · `^9.18.0` | catalog 대상 (드리프트 중) |
+| `typescript` | 10 | `^5` · `^5.7.3` | catalog 대상 (드리프트 중, #1047 의 그 축) |
+| `ts-jest` | 8 | `^29.2.5` · `^29.4.10` | catalog 대상 (드리프트 중) |
+| `@eslint/js` · `@types/jest` · `globals` · `jest` · `typescript-eslint` | 8 | 각 1종 | catalog 대상 (순수 중복 제거) |
+| `dayjs` | 3 | 1종 | catalog 대상 |
+| `@types/node` | 4 | `^20.0.0` · `^24` | **제외** — 의도된 분기(위 §Node 지원 floor) |
+
+즉 "typescript 만" 이 아니라 **9개 묶고 `@types/node` 만 뺀다** 가 답이다. 명명 catalog
+(`catalog:node20` 등)로 `@types/node` 까지 묶는 변형은 의도를 문서가 아니라 이름에 싣게 되어
+더 낫지만, 그건 이 항목의 범위를 넘는다.
+
+**(2) lockstep 축 — 무의미해지는 게 아니라 가드가 깨진다.** 실측:
+`parseMajor("catalog:")` → `null`, `parseMajor("catalog:default")` → `null`.
+`null` 은 `majorSpread` 의 `unparsable` 로 들어가고 그건 **위반 판정**이다. 즉 마이그레이션
+직후 `typescript-toolchain.test.ts` 의 lockstep 축이 **전 워크스페이스에서 빨간불**이 된다.
+가드가 `catalog:` 를 만나면 `pnpm-workspace.yaml` 의 catalog 항목으로 해소하도록 먼저
+가르쳐야 한다 — 마이그레이션과 **같은 PR 안에서**. 이 선행 조건은 원 항목에 없었다.
+
+**(3) dependabot — 저장소 안에서 답할 수 없다.** `.github/dependabot.yml` 의 npm 등록은
+`/`(워크스페이스 루트)와 `/.claude/tools/mermaid-lint` 둘이다. catalog 항목은 `package.json`
+이 아니라 `pnpm-workspace.yaml` 에 있으므로, npm updater 가 그 파일을 갱신 대상으로 보는지는
+**외부 사실**이다. 확인 없이 옮기면 typescript 가 dependabot 시야에서 사라질 수 있고, 그건
+#1047 을 만든 것과 같은 클래스의 사각지대다(그때는 버전 드리프트, 이번엔 업데이트 부재).
+
+⇒ **미착수 유지.** (1)·(2)는 해소됐고 (3) 하나가 남았다. 다음 사람은 dependabot 의 pnpm
+catalog 지원 여부만 확인하면 되고, 지원한다면 (2)의 가드 선행 수정을 같은 PR 에 넣는다.
+
 ## 4. 값싼 정리 2건 (INFO 12 · 16)
 
 - `loadTypescriptFrom` 의 반환 타입 `unknown | null` 은 TS 상 `unknown` 과 동치라 의미 없는
@@ -61,11 +94,32 @@ spec_impact: none
 
 ## 체크리스트
 
-- [ ] §1 공유 프리미티브 `_shared.ts` 분리 (양쪽 가드 재검증)
-- [ ] §2 `validateWorkspacePatterns` 순수 함수 분리 + synthetic 테스트
-- [ ] §3 `catalog:` 마이그레이션 — 착수 전 위 3개 검토 항목 판단
-- [ ] §4 타입·JSDoc 정리
-- [ ] TEST WORKFLOW + `/ai-review`
+- [x] **§1 공유 프리미티브 `_shared.ts` 분리** — `repoRoot`/`ROOT`/`PackageManifest` +
+      YAML 서브셋 추출기(`blockRange`/`findKeyLine`/`listAtPath`)를 중립 모듈로 이관.
+      등록 가드는 **재export** 로 기존 소비처 계약을 유지한다(소유권만 옮김). 툴체인 가드는
+      이제 형제의 전체 export 표면이 아니라 `_shared` 만 본다.
+      **여기 두는 기준을 파일에 못박았다** — "두 가드가 실제로 공유하는 것만". 한쪽 전용
+      (`PACKAGES_DIR`·`TEST_STAGES`·`WORKSPACE_YAML`)은 그대로 뒀다. 아니면 이 모듈이
+      두 번째 잡동사니가 된다. 양쪽 가드 74건 통과.
+- [x] **§2 `validateWorkspacePatterns` 순수 함수 분리 + synthetic 테스트** — `null`(키 부재)·
+      `[]`(항목 부재) 두 실패를 **갈라서** 고정했다. 한쪽만 막으면 나머지로 vacuity 가 그대로
+      들어온다. 통과 경로가 값을 바꾸지 않는 것도 단언.
+      **호출부까지 갔다**: 헬퍼만 뽑아 두니 `discoverWorkspaceDirs` 가 검증을 건너뛰는 뮤턴트
+      (`?? []`)가 살아남았다 — 이 저장소가 반복해 겪는 "헬퍼 테스트 ≠ 호출부 테스트". 같은
+      파일의 `expandWorkspaceGlobs(readDir)` 규약대로 `readLines` 를 주입 가능하게 만들어
+      합성 입력으로 그 축을 겨냥한다.
+- [ ] §3 `catalog:` 마이그레이션 — **(1)·(2) 해소, (3) 미해소로 미착수**. 위 실측 절 참조.
+      남은 것은 dependabot 의 pnpm catalog 지원 여부 하나뿐이고, 그 답이 "지원" 이면
+      **가드에 `catalog:` 해소를 먼저 가르치는 선행 작업이 같은 PR 에 필요**하다(실측으로
+      드러난 신규 조건).
+- [x] **§4 타입·JSDoc 정리** — `loadTypescriptFrom` 반환 타입 `unknown | null` → `unknown`
+      (전자는 TS 상 동치라 "여기도 null 을 좁혀 준다" 로 오독된다). `missingCompilerApi`
+      JSDoc 의 "이 경로" 를 실제 경로(TS7 스텁은 **객체**라 filter 를 탄다)로 명시.
+- [x] **TEST WORKFLOW** — frontend 282 files / 5862 tests passed, lint 0 errors
+      (기존 warning 13, 신규 0), `tsc --noEmit` 통과. 뮤테이션 8종 전부 RED
+      (fail-closed 3축 · 통과 경로 · 호출부 · 공유 파서 인라인 주석 · repoRoot marker ·
+      readLines 기본값).
+- [ ] `/ai-review`
 
 ## Rationale
 

@@ -335,6 +335,20 @@ describe("파서·비교 로직 회귀 가드 (합성 fixture)", () => {
     it("없는 경로는 null (→ vacuity 단언이 잡는다)", () => {
       expect(listAtPath(yml, ["on", "schedule", "paths"])).toBeNull();
     });
+    it("인라인 주석을 항목에서 떼어낸다", () => {
+      // 이 저장소의 실제 목록이 항목마다 "왜 등재했는가" 를 인라인 주석으로 단다.
+      // 안 떼면 그 주석이 값의 일부가 되어 대조가 통째로 어긋난다 — 그런데 이 축만
+      // 합성 커버리지가 비어 있어서 제거를 지워도 스위트가 초록이었다(뮤테이션 실측).
+      const withComments = [
+        `paths:`,
+        `  - 'codebase/packages/a/**'   # backend 공유`,
+        `  - codebase/packages/b/**  # 따옴표 없이도`,
+      ];
+      expect(listAtPath(withComments, ["paths"])).toEqual([
+        "codebase/packages/a/**",
+        "codebase/packages/b/**",
+      ]);
+    });
     it("packageDirsInPaths 는 packages dir 만 남긴다 (lockfile 제외)", () => {
       const paths = listAtPath(yml, ["on", "pull_request", "paths"])!;
       expect(packageDirsInPaths(paths)).toEqual(["a", "b"]);
