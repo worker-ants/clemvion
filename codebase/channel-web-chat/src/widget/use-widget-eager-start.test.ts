@@ -4200,3 +4200,43 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   });
 
 });
+
+/**
+ * **`wc:boot` → `mergeBootConfig` 배선** — 헬퍼가 아니라 **호출부**를 지킨다.
+ *
+ * `use-widget.test.ts` 의 `mergeBootConfig` describe 6건은 그 함수를 **직접** 부른다. 그래서
+ * 호출부(`bridge.onBoot`)를 옛 인라인 spread(`{ ...configFromQuery(), ...c }`)로 되돌려
+ * 검증을 통째로 우회해도 **위젯 스위트 204건이 전부 초록이었다**(ai-review `15_16_20`
+ * testing CRITICAL — 리뷰어가 뮤테이션으로 실측). TypeScript 도 못 잡는다(`as BootMessage`
+ * 캐스트가 유효하기 때문).
+ *
+ * 이 저장소가 반복해 겪은 "헬퍼 테스트 ≠ 호출부 테스트" 그대로다 — 그 형태를 알고 있으면서
+ * 같은 자리를 비워 뒀다. 여기서 실제 `wc:boot` 메시지를 태워 배선을 고정한다.
+ */
+describe("useWidget — wc:boot 의 apiBase 스킴 검증(호출부 배선)", () => {
+  it("비-http(s) apiBase 를 실은 boot → 그 값으로 부팅하지 않는다", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = installFetch();
+    const { result } = renderHook(() => useWidget());
+
+    boot("javascript:alert(1)");
+
+    // 거절된 값은 쓰이지 않고 쿼리 폴백도 없으므로 `applyConfig` 가 진행하지 않는다.
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+    expect(result.current.config).toBeNull();
+    // **그 값으로 네트워크를 치지 않았다** — 이것이 이 테스트의 본체다.
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("javascript:"))).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("wc:boot"), "javascript:alert(1)");
+  });
+
+  it("정상 http(s) apiBase 는 그대로 부팅한다 — 검증이 정상 경로를 막지 않는다", async () => {
+    // 위 케이스만 있으면 "boot 을 통째로 막았다" 로도 통과한다. 두 축을 함께 잠근다.
+    installFetch();
+    const { result } = renderHook(() => useWidget());
+
+    boot();
+
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    expect(result.current.config?.apiBase).toBe(SESSION_API_BASE);
+  });
+});

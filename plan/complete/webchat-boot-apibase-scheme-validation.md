@@ -2,7 +2,7 @@
 title: 웹채팅 위젯 — `wc:boot` 경로의 `apiBase` 스킴 검증 (query 폴백엔 있음)
 worktree: webchat-apibase-scheme
 started: 2026-07-24
-owner: developer
+owner: developer + planner   # 아래 §역할 경계 참조 — 이 PR 은 planner 턴을 포함한다
 priority: P3
 status: complete
 spec_impact:
@@ -38,7 +38,10 @@ RESOLUTION 이 "이 PR 범위 밖" 으로 미룬 항목이 **어떤 plan 에도 
       **CDN origin** 으로 해소돼 애초에 프록시 수단이 못 된다. SDK 자신도 같은 값을 iframe
       쿼리에 실어 http(s) 검증을 통과시켜야 하므로 정상 배포는 이미 이 술어를 만족한다.
 - [x] 구현 + 회귀 테스트 — `safeApiBase(raw, source)` 로 일반화하고 `mergeBootConfig` 신설.
-      회귀 5건 + 뮤테이션(종전 동작 복원) **4건 RED**.
+      **단위 6건**(`use-widget.test.ts`) + **호출부 통합 2건**(`use-widget-eager-start.test.ts`).
+      뮤테이션: 종전 병합 동작 복원 → 4건 RED, **호출부만 옛 코드로 되돌리기 → 1건 RED**.
+      > 첫 판은 "회귀 5건" 이라 적었다 — 실제 6건이고 커밋 메시지는 6이라 적어 서로 어긋났다
+      > (ai-review requirement INFO). 호출부 2건은 그 뒤 라운드에서 추가됐다.
 - [x] ~~적용하지 않기로 하면 근거를 주석에 고정~~ — 적용했으므로 해당 없음. 대신 **적용
       근거**를 `4-security.md §R0`(기각한 대안 포함)과 `safeApiBase` JSDoc 양쪽에 남겼다.
 
@@ -71,4 +74,40 @@ plan 은 이 건을 "**비대칭 하드닝**(boot 에 검증이 없다)" 으로 
 부재를 둘 다 쿼리 폴백으로 보내도록 `mergeBootConfig` 에서 명시 계산한다.
 
 검증: channel-web-chat **448 passed**, 타입 오류 0, lint 0.
+
+## 리뷰 라운드 1 이 잡은 것 (2026-08-11, `15_16_20`)
+
+**testing CRITICAL — 내가 아는 형태를 그대로 냈다.** `mergeBootConfig` 단위 6건은 그 함수를
+**직접** 부른다. 그래서 호출부(`bridge.onBoot`)를 옛 인라인 spread 로 되돌려 검증을 통째로
+우회해도 **위젯 스위트 204건이 전부 초록**이었다(리뷰어 뮤테이션 실측). TypeScript 도 못 잡는다.
+
+리뷰어 프롬프트에 "이 저장소가 반복해 겪은 헬퍼 테스트 ≠ 호출부 테스트 형태가 아닌지 확인하라"
+고 **내가 직접 써 놓고** 그 자리를 비워 뒀다. 실제 `wc:boot` 메시지를 태우는 통합 회귀 2건을
+추가했고, 같은 뮤턴트가 이제 RED 다.
+
+**maintainability WARNING — 거짓 정당화를 또 썼다.** `safeApiBaseFromQuery` 를 `@deprecated`
+위임으로 남기며 "기존 호출부(테스트 포함) 호환" 이라 적었는데, 실측 소비처는 **내가 이 PR 에서
+이미 편집 중인 테스트 파일 1곳**뿐이었다. 직전 PR(`#1146`)의 `SpecMdFile` 별칭과 **같은 클래스**
+지적이다 — 근거가 반증된 별칭은 남길 이유가 없으므로 삭제하고 호출부 7곳을 치환했다.
+
+**side_effect INFO — 내 spec 서술이 거짓이었다.** §R0 에 "`apiBase` 가 없으면 `applyConfig` 가
+자기 자리에서 실패해 진단이 그쪽에 모인다" 고 적었는데, 그 자리는 `warn` 도 `dispatch` 도 없는
+**조용한 early return** 이다. 정정하고 선재 갭으로 등재했다(아래).
+
+## 역할 경계 — 이 PR 은 planner 턴을 포함한다 (scope CRITICAL 처분)
+
+리뷰가 정확히 짚었다: `owner: developer` 인 plan 이 `spec/7-channel-web-chat/4-security.md` 를
+**직접** 고쳤고, CLAUDE.md 는 "구현 중 spec 변경 필요 시 `developer` 는 멈추고
+`project-planner` 위임" 이라고 명시한다. **내용은 정당했지만 채널을 밝히지 않았다.**
+
+**분리하지 않은 이유**: 이 PR 은 **동작을 바꾼다**(boot 경로 하드닝). §입력검증 행은 그 동작을
+서술하는 자리라, 코드만 머지하면 main 이 **거짓 서술을 갖는 창**이 생긴다 — 그 창은 이 저장소가
+반복해 값을 치른 "문서가 가리키는 곳과 실제가 다르다" 그 형태다. 새 제품 정의가 아니라
+**바뀐 동작에 서술을 맞추는 정정**이므로 같은 PR 에서 닫는 편이 옳다고 판단했다.
+
+**그래서 절차는 planner 쪽을 따른다**: `spec_impact` 선언(Gate C) + planner 의 의무 게이트인
+`consistency-check` 통과. 그 근거를 여기 남기는 것까지가 이번 처분이다.
+
+> **다음에 같은 상황이면**: `owner` 를 처음부터 밝히거나, spec 정정이 "동작 변경의 서술 동기화"
+> 인지 "새 정의" 인지를 plan 에 미리 적는다. 리뷰어가 diff 만 보고 판단할 수 있어야 한다.
 

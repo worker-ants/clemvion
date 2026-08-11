@@ -209,14 +209,6 @@ export function safeApiBase(
   return undefined;
 }
 
-/**
- * @deprecated `safeApiBase(raw, "configFromQuery")` 를 쓴다. 기존 호출부(테스트 포함)
- * 호환을 위한 얇은 위임이다.
- */
-export function safeApiBaseFromQuery(raw: string | null): string | undefined {
-  return safeApiBase(raw, "configFromQuery");
-}
-
 /** boot config 를 query param 으로 폴백 해석(host 없이 직접 로드/샘플 대비). */
 function configFromQuery(): Partial<BootMessage> {
   if (typeof window === "undefined") return {};
@@ -1341,7 +1333,7 @@ export function useWidget() {
     };
 
     bridge.onBoot((c) => {
-      runApplyConfig(mergeBootConfig(configFromQuery(), c as Partial<BootMessage>));
+      runApplyConfig(mergeBootConfig(configFromQuery(), c));
     });
     bridge.onCommand((cmd) => {
       switch (cmd.action) {

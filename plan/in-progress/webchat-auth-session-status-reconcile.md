@@ -315,3 +315,25 @@ defer 플래그 결정만 뽑고 checkpoint·`openStream` 호출은 호출부에
 
 - [ ] `onTerminal` 통지(또는 동등) 도입 여부 결정 — 도입하면 `finalizeEnded` 로 수렴
 - [ ] 결정 전까지: 죽은 토큰이 storage 에 남는 창이 실제로 얼마나 긴지 실측
+
+## `applyConfig` 의 조용한 early return (2026-08-11, `15_16_20` side_effect INFO)
+
+`applyConfig` 최상단의
+
+```ts
+if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
+```
+
+는 `warn` 도 `dispatch` 도 없이 빠진다. **바로 아래 자매 분기**(origin allowlist 실패)가
+`dispatch({ type: "BLOCKED", ... })` 로 관측 가능한 상태를 남기는 것과 비대칭이다 — 이 파일이
+반복해 문서화해 온 "silent hang" 형태 그대로다.
+
+`wc:boot` apiBase 스킴 검증(`#PR`, `plan/complete/webchat-boot-apibase-scheme-validation.md`)이
+이 분기의 **도달 빈도를 넓혔다** — 거절된 apiBase 는 여기로 온다. 새 침묵을 만든 것은 아니고
+선재 갭이지만, 넓힌 쪽이 등재할 책임이 있다고 봤다.
+
+- [ ] 이 분기가 실제로 도달 가능한 경로를 전수로 세라 (boot 거절 · 쿼리 부재 · host 미전송 등)
+- [ ] 도달 가능하면 `console.warn` 또는 `dispatch({type:"ERROR"})` 로 관측 가능하게 —
+      자매 분기(`BLOCKED`)와 같은 등급으로 맞춘다
+- [ ] 그 신호가 실제로 나는지 회귀로 고정 (이 파일의 다른 항목들과 같은 기준)
+

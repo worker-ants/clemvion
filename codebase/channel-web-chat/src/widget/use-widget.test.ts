@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { mergeBootConfig, refreshDelayMs, safeApiBaseFromQuery, shouldAbortAfterSeed, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS, type SeedOutcome } from "./use-widget";
+import { mergeBootConfig, refreshDelayMs, safeApiBase, shouldAbortAfterSeed, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS, type SeedOutcome } from "./use-widget";
+import type { BootMessage } from "./host-bridge";
 
 // refreshDelayMs 본 검증은 use-token-refresh.test.ts 로 이관(God hook 분리, §B). 여기서는 use-widget 의
 // 하위호환 re-export 가 살아있는지만 smoke-check — 기존 import 경로 `./use-widget` 사용처 보호.
@@ -12,38 +13,38 @@ describe("use-widget — 토큰 갱신 헬퍼 re-export (하위호환 smoke)", (
 });
 
 // 쿼리 apiBase 하드닝 — http(s) 스킴만 허용(direct-load 외부 입력 방어).
-describe("safeApiBaseFromQuery", () => {
+describe("safeApiBase — 쿼리 경로", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("https URL → 그대로 허용", () => {
-    expect(safeApiBaseFromQuery("https://api.example.com/api")).toBe("https://api.example.com/api");
+    expect(safeApiBase("https://api.example.com/api", "configFromQuery")).toBe("https://api.example.com/api");
   });
   it("http URL(localhost 개발) → 허용", () => {
-    expect(safeApiBaseFromQuery("http://localhost:3000/api")).toBe("http://localhost:3000/api");
+    expect(safeApiBase("http://localhost:3000/api", "configFromQuery")).toBe("http://localhost:3000/api");
   });
   it("javascript: 스킴 → 무시(undefined) + console.warn 호출", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("javascript:alert(1)")).toBeUndefined();
+    expect(safeApiBase("javascript:alert(1)", "configFromQuery")).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("[widget]"), "javascript:alert(1)");
   });
   it("data: 스킴 → 무시(undefined) + console.warn 호출", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("data:text/html,<script>")).toBeUndefined();
+    expect(safeApiBase("data:text/html,<script>", "configFromQuery")).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("[widget]"), "data:text/html,<script>");
   });
   it("상대 경로(파싱 불가) → 무시 + console.warn 호출", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("/api")).toBeUndefined();
+    expect(safeApiBase("/api", "configFromQuery")).toBeUndefined();
     expect(warn).toHaveBeenCalled();
   });
   it("빈 문자열 → undefined(경고 없음 — !raw 선처리)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("")).toBeUndefined();
+    expect(safeApiBase("", "configFromQuery")).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
   });
   it("null → undefined(경고 없음)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery(null)).toBeUndefined();
+    expect(safeApiBase(null, "configFromQuery")).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
   });
 });
@@ -64,8 +65,10 @@ describe("safeApiBaseFromQuery", () => {
 describe("mergeBootConfig — boot 의 apiBase 도 스킴 검증을 거친다", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  const q = (apiBase?: string) => ({ apiBase, triggerEndpointPath: "/t" }) as never;
-  const b = (apiBase?: string) => ({ apiBase, triggerEndpointPath: "/t" }) as never;
+  // `as never` 는 구조적 타입 검사를 통째로 끈다 — `Partial<BootMessage>` 로 좁혀 최소한의
+  // 안전망을 살린다(ai-review `15_16_20` testing INFO).
+  const q = (apiBase?: string): Partial<BootMessage> => ({ apiBase, triggerEndpointPath: "/t" });
+  const b = (apiBase?: string): Partial<BootMessage> => ({ apiBase, triggerEndpointPath: "/t" });
 
   it("정상 배포 — boot 의 http(s) 값이 그대로 쓰인다", () => {
     // SDK 정상 경로는 양쪽에 같은 값을 싣는다. 검증은 여기서 no-op 이어야 한다.
@@ -105,8 +108,8 @@ describe("mergeBootConfig — boot 의 apiBase 도 스킴 검증을 거친다", 
 
   it("apiBase 외 필드는 boot 이 이긴다 (검증이 병합 규칙 전체를 바꾸지 않았다)", () => {
     const m = mergeBootConfig(
-      { apiBase: "https://a.example.com", triggerEndpointPath: "/from-query" } as never,
-      { apiBase: "https://b.example.com", triggerEndpointPath: "/from-boot" } as never,
+      { apiBase: "https://a.example.com", triggerEndpointPath: "/from-query" },
+      { apiBase: "https://b.example.com", triggerEndpointPath: "/from-boot" },
     );
     expect(m.triggerEndpointPath).toBe("/from-boot");
     expect(m.apiBase).toBe("https://b.example.com");
