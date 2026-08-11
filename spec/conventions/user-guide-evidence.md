@@ -7,6 +7,11 @@ code:
   - codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts
   - codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts
   - codebase/frontend/src/lib/docs/__tests__/impl-anchor-parse.ts
+  # 공유 인프라 — `impl-anchor-parse.ts` 의 `collectMdxFiles` 가 2026-08-11 부터
+  # `walkTree` 를 쓴다. 두 컨벤션(여기 · spec-impl-evidence)이 같은 헬퍼를 공유하므로
+  # 양쪽에 등재한다 — 한쪽만 보고 "이 파일을 고치면 무엇이 영향받나" 를 놓치지 않도록.
+  - codebase/frontend/src/lib/docs/__tests__/tree-walk.ts
+  - codebase/frontend/src/lib/docs/__tests__/tree-walk.test.ts
 ---
 
 # Convention: User-Guide Evidence (`<ImplAnchor>`)
