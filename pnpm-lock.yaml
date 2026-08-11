@@ -313,8 +313,8 @@ importers:
         specifier: ^56.0.1
         version: 56.0.1(eslint@9.39.4(jiti@2.7.0))
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2(@types/node@24.13.2)(ts-node@10.9.2(@types/node@24.13.2)(typescript@5.9.3))
@@ -642,8 +642,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -669,8 +669,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -700,8 +700,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -727,8 +727,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -754,8 +754,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -784,8 +784,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2(@types/node@20.19.43)
@@ -817,8 +817,8 @@ importers:
         specifier: ^9.18.0
         version: 9.39.4(jiti@2.7.0)
       globals:
-        specifier: ^16.0.0
-        version: 16.5.0
+        specifier: ^17.9.0
+        version: 17.9.0
       jest:
         specifier: ^30.0.0
         version: 30.4.2
@@ -6463,8 +6463,8 @@ packages:
     resolution: {integrity: sha512-ob/2LcVVaVGCYN+r14cnwnoDPUufjiYgSqRhiFD0Q1iI4Odora5RE8Iv1D24hAz5oMophRGkGz+yuvQmmUMnMw==}
     engines: {node: '>=18'}
 
-  globals@16.5.0:
-    resolution: {integrity: sha512-c/c15i26VrJ4IRt5Z89DnIzCGDn9EcebibhAOjw5ibqEHsE1wLUgkPn9RDmNcUKyU87GeaL633nyJ+pplFR2ZQ==}
+  globals@17.9.0:
+    resolution: {integrity: sha512-m/MvAW61QVU5VDNF1Vj8axt016h8w7L5TU1e9zlab7XIttAT2YAlCwl75K1fOqvMM9apmD7lbCIRhpfkhmxhCg==}
     engines: {node: '>=18'}
 
   globalthis@1.0.4:
@@ -16656,7 +16656,7 @@ snapshots:
 
   globals@16.4.0: {}
 
-  globals@16.5.0: {}
+  globals@17.9.0: {}
 
   globalthis@1.0.4:
     dependencies:
