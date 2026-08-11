@@ -80,6 +80,13 @@ owner: planner
       docstring 이 스스로를 4단계로 한정하고 있어 **거짓 서술은 아니고**, 닫으려면 secret
       store mock 을 한 겹 더 세워야 한다. 자매 두 메서드의 같은 축(검증 예외만 흉내 내던
       실패 테스트)은 `save()` 실패 주입으로 **닫았다** — 남은 것은 이 한 구간뿐이다.
+- [ ] **`audit-action.const.ts` 주석 비대화** (2026-08-11, ai-review `12_56_06`
+      maintainability INFO ×2). 141줄 중 60%+ 가 주석이고 회전 3종 도입으로 또 늘었다.
+      서술형 논거는 이미 `spec/conventions/audit-actions.md §3` 이 SoT 이므로, 코드에는
+      짧은 포인터만 남기는 편이 스케일한다. 함께: 주석의 **자기 이력 서술**이 비일관하다
+      (첫 사실 오류는 각주로 남겼는데 두 번째 정정은 무각주). 소스 주석은 "지금 맞는
+      사실" 만 진술하고 정정 이력은 git/CHANGELOG/plan 에 맡기는 쪽으로 정리한다.
+      **다음에 이 파일을 확장할 때** 함께 처리 — 지금 단독으로 건드릴 이유는 없다.
 - [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
 - [~] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** —
       **2026-08-08 전용 plan 으로 이관**: [`auth-workspace-membership-guard.md`](../complete/auth-workspace-membership-guard.md).

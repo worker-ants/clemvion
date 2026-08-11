@@ -2429,27 +2429,41 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
    * 그래서 실패 지점을 **`save()` 자체**로 옮겨 자매 둘을 같은 자리에서 고정한다.
    * `create`/`update` 가 이미 쓰는 패턴(아래 "저장이 실패하면 …")과 같은 형태다.
    *
+   * **자매를 각각 자기 `it()` 로 세운다.** 처음엔 둘을 한 블록에 담았는데, 그러면 앞
+   * 단언이 깨지는 순간 뒤 절반은 실행조차 안 된다 — 뮤테이션을 두 번 따로 돌려야 했던
+   * 이유가 그것이고, "자매를 한 자리에 몰아 놓아 하나가 다른 하나를 가린다" 는 이 PR 이
+   * 세 번 반복한 형태다. 진단하는 문장만 쓰고 구조는 그대로 두면 다음 사람이 이 파일을
+   * 본떠 같은 함정을 재현한다 (ai-review `12_56_06` maintainability WARNING · testing INFO).
+   *
    * 회전 3종 중 `rotateBotToken` 은 6단계 mock 이 필요해 자기 describe 에 따로 있다.
    */
-  it('저장이 실패하면 감사를 남기지 않는다 (회전 2종 — 검증이 아니라 save 가 던진다)', async () => {
+  it('rotateNotificationSecret — 저장이 실패하면 감사를 남기지 않는다', async () => {
     (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
-
     (triggerRepo.findOne as jest.Mock).mockResolvedValue({
       ...webhookTrigger,
+      // validation 을 통과해야 `save()` 까지 간다 — 여기서 걸리면 검증 예외를 보는
+      // 위 테스트와 같아져 이 테스트의 존재 이유가 사라진다.
       config: { notification: { url: 'https://x.example/hook' } },
     });
+
     await expect(
       service.rotateNotificationSecret('trg-1', 'ws-1', 'u-rot'),
     ).rejects.toThrow('db down');
-    expect(auditLogs.record).not.toHaveBeenCalled();
 
+    expect(auditLogs.record).not.toHaveBeenCalled();
+  });
+
+  it('revokePerTriggerToken — 저장이 실패하면 감사를 남기지 않는다', async () => {
+    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
     (triggerRepo.findOne as jest.Mock).mockResolvedValue({
       ...webhookTrigger,
       config: { interaction: { tokenStrategy: 'per_trigger' } },
     });
+
     await expect(
       service.revokePerTriggerToken('trg-1', 'ws-1', 'u-rev'),
     ).rejects.toThrow('db down');
+
     expect(auditLogs.record).not.toHaveBeenCalled();
   });
 
