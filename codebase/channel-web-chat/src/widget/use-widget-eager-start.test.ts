@@ -366,6 +366,9 @@ describe("useWidget — eager 시작(§R6)", () => {
     // **갱신된 토큰으로 열어야 한다.** 호출부가 seed 이전에 캡처한 지역 변수를 쓰면 서버가
     // 이미 거부한 토큰으로 스트림을 열고, 이 PR 이 고치려던 "streaming 고착" 을 성공 경로에서
     // 재현한다. `getEs()` 만 보면 그 결함이 통과한다(ai-review 16_09_40 CRITICAL).
+    // **여기 남긴 이유**: 프로덕션 쪽 같은 설명은 `seedWaitingFromStatus` 의 `@returns` 로
+    // 단일화했지만(호출부 주석은 그걸 가리킨다), 이 문단은 **이 단언이 왜 있는지** 를 적은
+    // 것이라 성격이 다르다 — 지우면 다음 사람이 `getUrl()` 단언을 장식으로 읽는다.
     expect(getUrl()).toContain("iext_fresh");
     expect(getUrl()).not.toContain("iext_stale");
     // **덮는 범위: 복원 경로(`applyConfig`)뿐이다.** `start()` 도 같은 형태로
@@ -1272,7 +1275,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(callCount).toBe(2);
   });
 
-  // W1 — start 실패 시 UI 에러 문구는 일반화되어 서버/내부 원문을 노출하지 않는다(4-security §5).
+  // W1 — start 실패 시 UI 에러 문구는 일반화되어 서버/내부 원문을 노출하지 않는다(4-security §1(표 "에러 메시지 노출")).
   it("W1: webhook 실패 → state.error 는 일반화 문구(서버/예외 원문 미노출)", async () => {
     const fetchMock = installFetch({ webhookStatus: 500 });
     const { result } = renderHook(() => useWidget());

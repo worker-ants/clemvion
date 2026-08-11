@@ -248,7 +248,7 @@ openStream( 호출부 전수 (widget/*.ts, 테스트 제외)
 `runApplyConfig` 의 catch 는 그 검사 없이 무조건 `ERROR` 를 dispatch 한다 — 구조적으로
 `applyConfig` 안에서 발급되는 `attempt` 토큰이 그 클로저에 없어 **물을 방법이 없다.**
 
-**오늘은 무해하다(실측)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로 닫혀
+**오늘은 무해하다(정적 추적으로 확인 — 재현 시도는 실패했고, 그건 부재의 증거가 아니다)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로 닫혀
 있어 catch 까지 던지지 않고, 유일한 실제 throw(`openStream` 의 EventSource 동기 실패)는
 checkpoint 2 **직후 동기 구간**에서만 일어난다. 리뷰어가 재현 경로를 찾지 못했고 나도 못 찾았다.
 

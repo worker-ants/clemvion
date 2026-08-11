@@ -81,7 +81,7 @@ type SessionRef = PersistedSession;
  * 스트림 탈취 방지). boolean 이었을 때는 "정상 시드"와 "stale 폐기"가 같은 `false` 로 뭉개져
  * 호출부가 구분할 수 없었다 (ai-review 2026-07-17 02_31_18 W2).
  */
-type SeedOutcome =
+export type SeedOutcome =
   /**
    * 종료 확정됨(`finalizeEnded` 수행) — 스냅샷이 terminal 이거나, REST 오류가 **복구 불가**
    * 로 판명된 경우(`404`, 그리고 refresh 재시도까지 실패한 `401`·`410` — §3.1-2·§R4).
@@ -127,6 +127,11 @@ type SeedOutcome =
  * 값은 지금의 동치성이 아니라 **다섯 번째 갈래가 생겼을 때 어느 쪽으로 기우는가**에 있다
  * (ai-review `17_15_33_2` → `17_25_34_2` maintainability).
  *
+ * @internal — unit-test seam only. **통합 테스트만으로는 이 함수의 오판정을 못 가른다** —
+ *   `"stale"` 을 `"continue"` 로 바꾸는 뮤턴트가 위젯 스위트 418건을 전부 통과했다(실측,
+ *   ai-review `10_41_08` testing). `start()` 호출부는 후행 `isStale(gen)` 재검사로 구조적으로
+ *   방어되지만 `applyConfig` 는 다른 축(`isAttemptStale`)이라 같은 동치가 서지 않는다.
+ *
  * **다섯 번째 갈래를 추가하려는 사람에게**: 이 헬퍼만 고치면 끝이 아니다. 호출부 두 곳
  * (`start()`·`applyConfig`)의 **꼬리 블록**(`live` 재확인 → `deferredStreamRef` 세팅 → 조건부
  * `openStream` → `scheduleRefresh`)이 리터럴로 복제돼 있어 함께 늘어나야 한다. 착수 전 부분
@@ -134,7 +139,7 @@ type SeedOutcome =
  * (그 plan 제목은 "frontmatter 재판정" 이라 이 항목을 우연히 열어볼 이유가 없다 — 그래서
  * 여기 breadcrumb 을 둔다. ai-review `18_51_07` maintainability.)
  */
-function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
+export function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
   return outcome !== "continue" && outcome !== "refresh_deferred";
 }
 
@@ -199,8 +204,10 @@ function configFromQuery(): Partial<BootMessage> {
  *
  * `readyState` 는 그 자리를 대신한다 — `0`(CONNECTING, 재연결 중) / `1`(OPEN) / `2`(CLOSED,
  * 재연결 포기)로 "일시적 끊김인가 확정 실패인가" 가 갈린다. URL 도 토큰도 담지 않는다.
+ *
+ * @internal — unit-test seam only. 회귀는 `use-widget.test.ts` 가 직접 겨냥한다(통합 회귀는
+ *   토큰 미노출만 보므로 이 추출 로직을 뭉개도 초록이었다 — ai-review `10_24_54` testing).
  */
-/** @internal — unit-test seam only. 이 헬퍼의 회귀는 `use-widget.test.ts` 가 직접 겨냥한다. */
 export function sseErrorDetail(e: unknown): string {
   const target = e && typeof e === "object" ? (e as { target?: unknown }).target : null;
   const readyState =
@@ -631,7 +638,9 @@ export function useWidget() {
    *   그렇게 낡아 있었다 — ai-review `18_23_54` documentation CRITICAL).
    *   **`"continue"` 는 "아무것도 안 바뀌었다" 를 뜻하지 않는다** — `401` 복구가 성공한 경우도
    *   여기 포함되고 그때 세션 토큰이 교체돼 있다. 그래서 호출부는 캡처해 둔 지역 변수가 아니라
-   *   `sessionRef.current` 를 읽어야 한다(위 §REST 오류 분기).
+   *   `sessionRef.current` 를 읽어야 한다 — 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를
+   *   연다**(ai-review `16_09_40` CRITICAL, security·side_effect·requirement·testing **4명**
+   *   독립 수렴). 이 문단이 그 근거의 단일 소재지다 — 호출부 주석들은 여기를 가리킨다.
    *   이 반환 계약이 없던 시절 `applyConfig` 복원 경로가 teardown 직후 그대로 `openStream` 하는
    *   회귀가 있었다 (ai-review `02_04_13` CRITICAL#1) — 세 호출부 모두 이 값으로 게이팅한다.
    *
@@ -1269,7 +1278,7 @@ export function useWidget() {
         // `isStale(gen)` 부터 묻는데, 여기서 물으려면 `applyConfig` 안에서 발급되는 `attempt` 토큰이
         // 이 클로저에 있어야 한다(없다).
         //
-        // **오늘 무해한 근거(실측)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로
+        // **오늘 무해한 근거(정적 추적 — 실행·뮤테이션이 아니다)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로
         // 닫혀 있어 여기까지 던지지 않고, 유일한 실제 throw(`openStream` 의 EventSource 동기 실패)는
         // **checkpoint 2 직후 동기 구간**에서만 일어난다 — 그 사이에 세계가 바뀔 창이 없다.
         // 즉 이 안전성은 가드가 아니라 **"checkpoint 뒤엔 동기 구간만 온다"는 규율**에 기댄다.
