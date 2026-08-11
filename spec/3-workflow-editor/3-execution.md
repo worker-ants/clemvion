@@ -175,6 +175,7 @@ AI Agent 노드가 Multi Turn 모드로 실행 중인 경우:
 | 동작 | 현재 실행 중인 노드 완료 후 중단 (Graceful) |
 | 강제 중단 | Stop 버튼 3초 이상 누르기 → 즉시 중단 (Force) |
 | 상태 | Execution.status = "cancelled" |
+| 권한 | Editor+ — viewer 는 Stop 버튼이 노출되지 않고(FE `canEdit` 가드), 서버도 `@Roles('editor')` 로 403 을 낸다. 근거는 [1-auth §3.2](../5-system/1-auth.md) 권한 매트릭스의 `Workflow 실행` 행(Owner/Admin/Editor ✅, Viewer —)이며 신규 결정이 아니다 |
 
 ---
 
@@ -332,7 +333,7 @@ Presentation 노드의 실행 결과는 **Run Results 드로어**(§10)와 설�
 | GET | /api/executions/workflow/:workflowId | 워크플로우별 실행 히스토리 목록 |
 | GET | /api/executions/:id | 실행 상세 (노드별 결과 포함) |
 | POST | /api/executions/:id/continue | 입력 대기(`waiting_for_input`) 실행 이어가기 (폼 데이터 전달). 대기 상태가 아니거나 대기 노드가 Form 표면이 아니면(`/continue` 는 form 제출 전용 진입점) 422 `INVALID_STATE` (publisher 측 사전 검증 — [실행 엔진 §7.5.1](../5-system/4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 표면 매트릭스) |
-| POST | /api/executions/:id/stop | 실행 중단 |
+| POST | /api/executions/:id/stop | 실행 중단. Editor+ |
 | GET | /api/workflows/:workflowId/test-datasets | §2.2 저장 데이터셋 목록 (내 것 + 워크스페이스 공유본, 최근 갱신순). 응답 항목에 `isOwner` 포함. Editor+ |
 | POST | /api/workflows/:workflowId/test-datasets | §2.2 데이터셋 저장. body `{ name, input, visibility? }` (`input` = Mock Input JSON; visibility 기본 `private`). 같은 이름 중복 시 409 `DUPLICATE_NAME`. Editor+ |
 | PATCH | /api/test-datasets/:id | §2.2 데이터셋 수정 (소유자만 — 아니면 403). body `{ name?, input?, visibility? }`. Editor+ |

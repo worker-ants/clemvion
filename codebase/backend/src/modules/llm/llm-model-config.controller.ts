@@ -116,8 +116,10 @@ export class LlmModelConfigController {
   }
 
   // 조회(Viewer+) — @Roles 미적용이 의도적이다(spec §3·R-7: `:id/models` 는 Viewer
-  // 이상). 역할 제한이 없어 @ApiForbiddenResponse 도 두지 않는다 — 워크스페이스
-  // 멤버십 미충족 403 은 컨트롤러 공통 인증 계층 책임이다.
+  // 이상). 다만 **@ApiForbiddenResponse 는 둔다** — `RolesGuard` 가 `@Roles()` 유무와
+  // 무관하게 워크스페이스 멤버십을 항상 검증해 403 을 낼 수 있기 때문이다
+  // (`swagger.md §5-4`, 2026-08-08 확장). 종전 주석은 "역할 제한이 없어 두지 않는다" 는
+  // opt-in 가드 모델 전제로 쓰였고 그 전제는 깨졌다.
   @Get(':id/models')
   @Throttle(PROVIDER_PROBE_THROTTLE)
   @ApiOperation({
@@ -137,6 +139,7 @@ export class LlmModelConfigController {
     description: '사용 가능한 모델 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   @ApiBadRequestResponse({
     description: '유효하지 않은 type 파라미터 (허용값: chat | embedding)',

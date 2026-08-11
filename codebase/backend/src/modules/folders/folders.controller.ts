@@ -49,6 +49,7 @@ export class FoldersController {
   })
   @ApiOkWrappedArrayResponse(FolderDto, { description: '폴더 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(@WorkspaceId() workspaceId: string) {
     return this.foldersService.findAll(workspaceId);
   }
@@ -61,6 +62,7 @@ export class FoldersController {
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(FolderDto, { description: '폴더 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,

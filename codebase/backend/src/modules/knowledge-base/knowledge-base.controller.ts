@@ -363,6 +363,7 @@ export class KnowledgeBaseController {
   @ApiBadRequestResponse({ description: '파일 누락 또는 지원하지 않는 포맷' })
   @ApiPayloadTooLargeResponse({ description: '파일 크기 초과 (50MB)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async uploadDocument(
     @Param('id', ParseUUIDPipe) id: string,

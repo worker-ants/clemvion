@@ -59,6 +59,7 @@ export class SchedulesController {
     description: '스케줄 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryScheduleDto,
@@ -75,6 +76,7 @@ export class SchedulesController {
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(ScheduleDto, { description: '스케줄 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -101,6 +103,7 @@ export class SchedulesController {
   })
   @ApiBadRequestResponse({ description: '유효하지 않은 cron 식' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async getPreview(
     @Param('id', ParseUUIDPipe) id: string,

@@ -47,6 +47,7 @@ export class AlertsController {
   })
   @ApiOkWrappedArrayResponse(AlertRuleDto, { description: '알림 규칙 배열' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async list(@WorkspaceId() workspaceId: string) {
     const rules = await this.alertsService.list(workspaceId);
     return { data: rules };
