@@ -4,8 +4,13 @@ import path from "node:path";
 import { repoRoot } from "./spec-frontmatter-parse";
 import {
   collectCompletePlanMarkdown,
+  findDanglingSpecImpact,
   findUnparseablePlans,
-  isIsoDate,
+  hasMalformedStarted,
+  hasValidSpecImpact,
+  isGateCEnforced,
+  makeSpecExists,
+  NONE_VALUES,
   parseFrontmatterSafe,
   rawScalar,
 } from "./plan-scan";
@@ -26,112 +31,6 @@ import {
 // so the existing backlog is never retro-required (same pattern as the
 // spec-only TTL in spec-status-lifecycle). SoT:
 // spec/conventions/spec-impl-evidence.md + .claude/docs/plan-lifecycle.md §5.
-
-const GATE_C_CUTOFF = new Date("2026-06-04T00:00:00Z");
-const NONE_VALUES = new Set(["none", "없음", "n/a", "na"]);
-
-/**
- * `started` 를 **원문 스칼라**에서 읽어 컷오프 비교용 날짜로 만든다. 무효면 `null`.
- *
- * 원문을 보고 `isIsoDate` 로 거르는 것이 핵심이다 — 종전에는 파싱 결과를 그대로 받아
- * **망가진 날짜가 Gate C 를 통째로 면제받았다**(실측):
- *
- * | `started` | 종전 결과 | Gate C |
- * |---|---|---|
- * | `"2026-13-32"` | `Invalid Date` → `null` | **미강제** |
- * | `2026-00-10` | js-yaml 이 `2025-12-10` 으로 굴림 | **미강제**(컷오프 이전) |
- *
- * `plan/complete/**` 는 `checkPlanFrontmatter`(in-progress 전용)의 보호를 받지 못해 이
- * 파일이 유일한 방어선이다. 무효를 **조용히 넘기지 않도록** 아래 별도 `it` 이 표면화한다.
- */
-function startedDate(block: string): Date | null {
-  const raw = rawScalar(block, "started");
-  if (!isIsoDate(raw)) return null;
-  return new Date(`${raw}T00:00:00Z`);
-}
-
-/**
- * 이 완료 plan 이 Gate C 강제 대상인가. **frontmatter 원문 블록**을 받는다 — 파싱 결과를
- * 받던 종전 시그니처로는 위 표의 두 경로를 구분할 수 없었다.
- */
-export function isGateCEnforced(block: string): boolean {
-  const d = startedDate(block);
-  return d !== null && d.getTime() >= GATE_C_CUTOFF.getTime();
-}
-
-/** `started` 를 선언했는데 그 값이 달력상 실재하지 않으면 위반이다(조용한 면제 차단). */
-export function hasMalformedStarted(block: string): boolean {
-  const raw = rawScalar(block, "started");
-  return raw !== null && !isIsoDate(raw);
-}
-
-export function hasValidSpecImpact(
-  impact: unknown,
-  specExists: (p: string) => boolean,
-): boolean {
-  if (typeof impact === "string") {
-    return NONE_VALUES.has(impact.trim().toLowerCase());
-  }
-  if (Array.isArray(impact)) {
-    return (
-      impact.length > 0 &&
-      impact.every((p) => typeof p === "string" && specExists(p))
-    );
-  }
-  return false;
-}
-
-/**
- * `spec_impact` 리스트에서 **게이트를 통과하면 안 되는** 원소들.
- *
- * 비-문자열 원소도 위반이다 — 종전 필터는 `typeof p === "string" && !exists(...)` 라
- * **문자열이 아닌 원소를 조용히 통과**시켰다(`spec_impact: [123]` 이 dangling 목록에서
- * 빠진다, fail-open). "선언은 있는데 무엇을 건드렸는지 아무도 모르는 상태" 를 막는
- * 게이트라 그 구멍이 곧 게이트의 부재다.
- *
- * **순수 함수로 뺀 이유**: 실제 강제 경로는 실저장소 데이터만 보는데 거기엔 비-문자열
- * `spec_impact` 가 없다 — 인라인으로 두면 이 판정을 되돌려도 스위트가 초록이다(뮤테이션
- * 실측: 되돌린 뮤턴트가 **생존**했다). 합성 fixture 로 겨눌 수 있어야 한다.
- */
-export function findDanglingSpecImpact(
-  impact: unknown[],
-  specExists: (p: string) => boolean,
-): unknown[] {
-  return impact.filter((p) => typeof p !== "string" || !specExists(p));
-}
-
-/**
- * `spec_impact` 원소가 **실재하는 spec 파일**을 가리키는가.
- *
- * `fs.existsSync(path.join(root, p))` 만으로는 부족하다(실측):
- * `path.join(root, "")` 는 `root` 로 정규화되고 저장소 루트는 늘 존재하므로
- * **`spec_impact: [""]` 이 유효로 판정된다.** 디렉터리 경로(`"spec"`)도 마찬가지다.
- * 헤더 주석은 "리스트 원소는 실재 spec **파일**" 이라 못박는데 구현은 "무엇이든
- * 존재하면 OK" 였다 — 문서한 보장이 구현보다 넓은 형태.
- */
-export function makeSpecExists(root: string): (p: string) => boolean {
-  return (p) => {
-    // **`spec/` 하위여야 한다.** 존재 여부만 보면 `spec_impact: ["CLAUDE.md"]` 나
-    // `["codebase/frontend/package.json"]` 이 통과한다(실측) — 이 게이트의 존재 이유가
-    // "**어느 spec 을** 건드렸는지 기록하게 한다" 인데 그걸 그대로 비껴간다.
-    //
-    // **문자열 접두 검사만으로는 부족하다** — `"spec/../CLAUDE.md"` 는
-    // `startsWith("spec/")` 를 통과하고 `path.join` 이 루트 파일로 정규화한다(실측).
-    // 경로에 대한 술어는 **정규화한 뒤에** 물어야 한다.
-    const specRoot = path.join(root, "spec");
-    const resolved = path.resolve(root, p);
-    if (resolved !== specRoot && !resolved.startsWith(specRoot + path.sep)) {
-      return false;
-    }
-    try {
-      // `isFile()` 하나면 나머지가 다 걸린다 — 디렉터리도 없는 경로도 여기서 false 다
-      // (별도 빈-문자열 검사를 뒀더니 뮤테이션에서 생존했다 = 도달 불가 분기였다).
-      return fs.statSync(resolved).isFile();
-    } catch {
-      return false;
-    }
-  };
-}
 
 // 수집은 `plan-scan.ts` 소관이다. 종전에는 여기 손수 DFS 사본이 있었고 필터 값이
 // **우연히** 같았을 뿐 그것을 강제하는 것이 아무것도 없었다 — 한쪽만 고치면 Gate C 와
