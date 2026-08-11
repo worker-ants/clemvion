@@ -242,6 +242,24 @@ openStream( 호출부 전수 (widget/*.ts, 테스트 제외)
 **여전히 참**이다. 다만 그건 `refresh_deferred` 고유가 아니라 **주기 갱신 경로 전체**의
 성질이다(종전부터 그랬고 이 PR 이 바꾸지 않았다). 별도 축으로 아래에 옮긴다.
 
+## `16_09_40` provenance 사본이 "2명" 으로 남아 있다 (2026-08-11, maintainability WARNING)
+
+`use-widget-eager-start.test.ts:105`(`getUrl` 필드 JSDoc)이 그 CRITICAL 을
+"security·side_effect 가 독립 수렴" 으로 적는데 **실제로는 4명**(requirement·testing 포함)이다.
+정본 앵커(`use-widget.ts` `seedWaitingFromStatus` 의 `@returns`)는 이번에 "4명" 으로 정정됐지만
+이 사본은 그대로다.
+
+**이 티켓에서 같은 형태가 열 번째다** — 사실을 복제한 자리 중 하나만 고치는 것. 기능 영향은
+없고(주석), 리뷰어도 "코드를 직접 고치기보다 plan 등재 후 다음 편집 시 함께" 를 권했다.
+
+**왜 지금 안 고치나**: 리뷰 게이트는 `codebase/**` 변경을 세므로 이 한 줄을 고치면 라운드가
+무효화되고 확인 라운드를 한 번 더 돌아야 한다. 이 티켓은 이미 13라운드를 돌았고 그중 넷은
+**직전 라운드 fix 가 만든 결함** 때문이었다. 주석 한 줄의 정확도를 위해 그 비용을 다시 치르는
+것은 균형이 맞지 않는다.
+
+- [ ] `use-widget-eager-start.test.ts` 를 다음에 편집할 때 — "4명 독립 수렴" 으로 정정하거나
+      앵커를 가리키는 포인터로 축약
+
 ## `runApplyConfig` catch 에 stale 가드가 없다 (2026-08-11, side_effect WARNING)
 
 `start()`/`sendCommand` 의 catch 는 `isStale(gen)` 부터 묻고 stale 이면 아무것도 안 한다.
