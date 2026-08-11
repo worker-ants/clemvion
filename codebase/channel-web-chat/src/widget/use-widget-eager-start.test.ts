@@ -4200,3 +4200,77 @@ describe("useWidget — 종료/staleness 가드 (ai-review 2026-07-17 02_31_18 W
   });
 
 });
+
+/**
+ * **`wc:boot` → `mergeBootConfig` 배선** — 헬퍼가 아니라 **호출부**를 지킨다.
+ *
+ * `use-widget.test.ts` 의 `mergeBootConfig` describe 6건은 그 함수를 **직접** 부른다. 그래서
+ * 호출부(`bridge.onBoot`)를 옛 인라인 spread(`{ ...configFromQuery(), ...c }`)로 되돌려
+ * 검증을 통째로 우회해도 **위젯 스위트 204건이 전부 초록이었다**(ai-review `15_16_20`
+ * testing CRITICAL — 리뷰어가 뮤테이션으로 실측). TypeScript 도 못 잡는다(`as BootMessage`
+ * 캐스트가 유효하기 때문).
+ *
+ * 이 저장소가 반복해 겪은 "헬퍼 테스트 ≠ 호출부 테스트" 그대로다 — 그 형태를 알고 있으면서
+ * 같은 자리를 비워 뒀다. 여기서 실제 `wc:boot` 메시지를 태워 배선을 고정한다.
+ */
+describe("useWidget — wc:boot 의 apiBase 스킴 검증(호출부 배선)", () => {
+  it("비-http(s) apiBase 를 실은 boot → 그 값으로 부팅하지 않는다", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = installFetch();
+    const { result } = renderHook(() => useWidget());
+
+    boot("javascript:alert(1)");
+
+    // 거절된 값은 쓰이지 않고 쿼리 폴백도 없으므로 `applyConfig` 가 진행하지 않는다.
+    await new Promise((r) => setTimeout(r, NO_EXTRA_CALL_WAIT_MS));
+    expect(result.current.config).toBeNull();
+    // **그 값으로 네트워크를 치지 않았다** — 이것이 이 테스트의 본체다.
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("javascript:"))).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("wc:boot"), "javascript:alert(1)");
+  });
+
+  it("정상 http(s) apiBase 는 그대로 부팅한다 — 검증이 정상 경로를 막지 않는다", async () => {
+    // 위 케이스만 있으면 "boot 을 통째로 막았다" 로도 통과한다. 두 축을 함께 잠근다.
+    installFetch();
+    const { result } = renderHook(() => useWidget());
+
+    boot();
+
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    expect(result.current.config?.apiBase).toBe(SESSION_API_BASE);
+  });
+
+  /**
+   * **원 취약점의 핵심 시나리오** — 유효한 쿼리 값이 있는데 boot 이 악성 값을 덮으려는 경우
+   * (ai-review `15_32_44` testing INFO: 단위 테스트가 직접 호출로만 커버하고 있었다).
+   *
+   * **쿼리에 `trigger` 를 일부러 안 넣는다.** 첫 판은 `?apiBase=…&trigger=t1` 로 썼는데 그
+   * 테스트는 **판별력이 없었다** — 같은 파일의 "host 없이 직접 로드" 폴백
+   * (`if (fallback.apiBase && fallback.triggerEndpointPath) runApplyConfig(fallback)`)이
+   * boot 과 **무관하게** 쿼리만으로 부팅해 버려, `mergeBootConfig` 의 `??` 폴백을 지우는
+   * 뮤턴트에도 그대로 통과했다(실측). 두 경로가 같은 결과를 내면 관측이 갈리지 않는다.
+   *
+   * `trigger` 를 빼면 그 폴백이 발동하지 않아 **`mergeBootConfig` 의 폴백만이 유일한 apiBase
+   * 공급원**이 된다 — 그래야 이 축이 관측된다.
+   */
+  it("유효 쿼리(apiBase만) + 악성 boot → 쿼리 값이 이긴다 (덮어쓰기 차단, e2e)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    installFetch();
+    // `href` 전체를 잡는다 — `search` 만 잡고 `"/"` 로 되돌리면 pathname 을 버린다
+    // (오늘은 jsdom 기본이 `/` 라 우연히 맞을 뿐, ai-review `15_50_53` side_effect INFO).
+    const originalHref = window.location.href;
+    window.history.replaceState(null, "", `?apiBase=${encodeURIComponent(SESSION_API_BASE)}`);
+    try {
+      const { result } = renderHook(() => useWidget());
+
+      boot("javascript:alert(1)"); // trigger 는 boot 이 준다
+
+      // 검증된 쿼리 값이 살아남는다 — 종전 동작이었다면 여기서 악성 값이 나온다.
+      await waitFor(() => expect(result.current.config).not.toBeNull());
+      expect(result.current.config?.apiBase).toBe(SESSION_API_BASE);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("wc:boot"), "javascript:alert(1)");
+    } finally {
+      window.history.replaceState(null, "", originalHref);
+    }
+  });
+});

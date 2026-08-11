@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { refreshDelayMs, safeApiBaseFromQuery, shouldAbortAfterSeed, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS, type SeedOutcome } from "./use-widget";
+import { mergeBootConfig, refreshDelayMs, safeApiBase, shouldAbortAfterSeed, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS, type SeedOutcome } from "./use-widget";
+import type { BootMessage } from "./host-bridge";
 
 // refreshDelayMs 본 검증은 use-token-refresh.test.ts 로 이관(God hook 분리, §B). 여기서는 use-widget 의
 // 하위호환 re-export 가 살아있는지만 smoke-check — 기존 import 경로 `./use-widget` 사용처 보호.
@@ -11,40 +12,108 @@ describe("use-widget — 토큰 갱신 헬퍼 re-export (하위호환 smoke)", (
   });
 });
 
-// 쿼리 apiBase 하드닝 — http(s) 스킴만 허용(direct-load 외부 입력 방어).
-describe("safeApiBaseFromQuery", () => {
+// 쿼리 apiBase 하드닝 — http(s) 스킴만 허용. **direct-load 전용 방어가 아니다**: 이 경로는
+// 정상 임베드에서도 발동한다(`4-security.md §1`).
+describe("safeApiBase — 쿼리 경로", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("https URL → 그대로 허용", () => {
-    expect(safeApiBaseFromQuery("https://api.example.com/api")).toBe("https://api.example.com/api");
+    expect(safeApiBase("https://api.example.com/api", "configFromQuery")).toBe("https://api.example.com/api");
   });
   it("http URL(localhost 개발) → 허용", () => {
-    expect(safeApiBaseFromQuery("http://localhost:3000/api")).toBe("http://localhost:3000/api");
+    expect(safeApiBase("http://localhost:3000/api", "configFromQuery")).toBe("http://localhost:3000/api");
   });
   it("javascript: 스킴 → 무시(undefined) + console.warn 호출", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("javascript:alert(1)")).toBeUndefined();
+    expect(safeApiBase("javascript:alert(1)", "configFromQuery")).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("[widget]"), "javascript:alert(1)");
   });
   it("data: 스킴 → 무시(undefined) + console.warn 호출", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("data:text/html,<script>")).toBeUndefined();
+    expect(safeApiBase("data:text/html,<script>", "configFromQuery")).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("[widget]"), "data:text/html,<script>");
   });
   it("상대 경로(파싱 불가) → 무시 + console.warn 호출", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("/api")).toBeUndefined();
+    expect(safeApiBase("/api", "configFromQuery")).toBeUndefined();
     expect(warn).toHaveBeenCalled();
   });
   it("빈 문자열 → undefined(경고 없음 — !raw 선처리)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery("")).toBeUndefined();
+    expect(safeApiBase("", "configFromQuery")).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
   });
   it("null → undefined(경고 없음)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(safeApiBaseFromQuery(null)).toBeUndefined();
+    expect(safeApiBase(null, "configFromQuery")).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * **`wc:boot` 경로의 `apiBase` 스킴 검증** — 이 자리가 종전에 비어 있었다.
+ *
+ * 근거가 "쿼리는 외부 통제 입력, boot 은 host SDK 계약(신뢰 경계 안)" 이었는데, **그
+ * 비대칭이 하드닝을 무력화한다**(실측):
+ *
+ * 1. SDK 는 같은 `apiBase` 를 **양쪽으로** 보낸다 — iframe src 쿼리(`resolveIframeTarget`)
+ *    와 `wc:boot` postMessage 둘 다.
+ * 2. 병합이 `{ ...query, ...boot }` 라 **boot 이 나중에 덮는다.**
+ *
+ * 그래서 쿼리 검증은 boot 이 오는 순간 사라졌다. 아래 "덮어쓰기" 케이스가 그 본체이고,
+ * 스킴 목록만 늘리는 테스트로는 잡히지 않는다 — 단위 술어는 이미 통과하고 있었기 때문이다.
+ */
+describe("mergeBootConfig — boot 의 apiBase 도 스킴 검증을 거친다", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // `as never` 는 구조적 타입 검사를 통째로 끈다 — `Partial<BootMessage>` 로 좁혀 최소한의
+  // 안전망을 살린다(ai-review `15_16_20` testing INFO).
+  const q = (apiBase?: string): Partial<BootMessage> => ({ apiBase, triggerEndpointPath: "/t" });
+  const b = (apiBase?: string): Partial<BootMessage> => ({ apiBase, triggerEndpointPath: "/t" });
+
+  it("정상 배포 — boot 의 http(s) 값이 그대로 쓰인다", () => {
+    // SDK 정상 경로는 양쪽에 같은 값을 싣는다. 검증은 여기서 no-op 이어야 한다.
+    const m = mergeBootConfig(q("https://api.example.com"), b("https://api.example.com"));
+    expect(m.apiBase).toBe("https://api.example.com");
+  });
+
+  it("**덮어쓰기 차단** — 비-http(s) boot 값이 검증된 쿼리 값을 덮지 못한다", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const m = mergeBootConfig(q("https://good.example.com"), b("javascript:alert(1)"));
+    // 종전 동작이었다면 여기서 `javascript:alert(1)` 이 나온다.
+    expect(m.apiBase).toBe("https://good.example.com");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("wc:boot"), "javascript:alert(1)");
+  });
+
+  it("쿼리도 없고 boot 도 거절되면 undefined — 부팅을 막지 않고 그 필드만 버린다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // 여기서 throw 하지 않는다 — `applyConfig` 가 조용히 반환한다(진단은 `safeApiBase` 의 warn 뿐).
+    expect(mergeBootConfig(q(undefined), b("data:text/html,<script>")).apiBase).toBeUndefined();
+  });
+
+  it("상대 경로 boot 값도 거절 — 위젯은 CDN origin 이라 host 로 해소되지 않는다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(mergeBootConfig(q("https://good.example.com"), b("/api")).apiBase).toBe(
+      "https://good.example.com",
+    );
+  });
+
+  it("boot 이 apiBase 를 아예 안 보내면 쿼리 값이 그대로 산다 (거절과 부재를 가른다)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(mergeBootConfig(q("https://good.example.com"), b(undefined)).apiBase).toBe(
+      "https://good.example.com",
+    );
+    // 부재는 경고 대상이 아니다 — 거절만 시끄러워야 한다.
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("apiBase 외 필드는 boot 이 이긴다 (검증이 병합 규칙 전체를 바꾸지 않았다)", () => {
+    const m = mergeBootConfig(
+      { apiBase: "https://a.example.com", triggerEndpointPath: "/from-query" },
+      { apiBase: "https://b.example.com", triggerEndpointPath: "/from-boot" },
+    );
+    expect(m.triggerEndpointPath).toBe("/from-boot");
+    expect(m.apiBase).toBe("https://b.example.com");
   });
 });
 

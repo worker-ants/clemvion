@@ -22,8 +22,14 @@ owner: project-planner
 > | §`start()`/`applyConfig` 꼬리 블록 중복 | **`SeedOutcome` 다섯 번째 갈래 추가 시** |
 > | §`runApplyConfig` catch stale 가드 | **checkpoint 2 뒤에 `await` 추가 시** |
 > | §`16_09_40` provenance 사본 "2명" | 그 테스트 파일을 다음에 편집할 때 |
+> | §`applyConfig` 조용한 early return | **도달 경로 전수 확인** 후 — 도달 가능하면 자매 분기(`BLOCKED`)와 같은 등급으로 관측 가능화 + 회귀 |
 >
 > **전부** 닫히면 `complete/` 로 옮긴다. 일부만 닫혔을 때 이 문서가 열려 있는 것은 정상이다.
+>
+> > **이 표를 또 안 고쳤다** (2026-08-11). 바로 위 문단이 "개수를 문장에 박으면 조용히
+> > 거짓이 된다" 고 경고하는데, 새 절(`§applyConfig` 조용한 early return)을 추가하면서 표는
+> > 갱신하지 않았다 — consistency `15_32_46` plan_coherence · ai-review documentation 이
+> > **각자 독립으로** 같은 자리를 짚었다. 경고문이 있는 것만으로는 안 걸린다.
 
 **나중에 머지되는 쪽이 반드시 처리해야 한다.** 자동 가드는 이 상황을 알아채지 못한다.
 
@@ -315,3 +321,25 @@ defer 플래그 결정만 뽑고 checkpoint·`openStream` 호출은 호출부에
 
 - [ ] `onTerminal` 통지(또는 동등) 도입 여부 결정 — 도입하면 `finalizeEnded` 로 수렴
 - [ ] 결정 전까지: 죽은 토큰이 storage 에 남는 창이 실제로 얼마나 긴지 실측
+
+## `applyConfig` 의 조용한 early return (2026-08-11, `15_16_20` side_effect INFO)
+
+`applyConfig` 최상단의
+
+```ts
+if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
+```
+
+는 `warn` 도 `dispatch` 도 없이 빠진다. **바로 아래 자매 분기**(origin allowlist 실패)가
+`dispatch({ type: "BLOCKED", ... })` 로 관측 가능한 상태를 남기는 것과 비대칭이다 — 이 파일이
+반복해 문서화해 온 "silent hang" 형태 그대로다.
+
+`wc:boot` apiBase 스킴 검증(`d8abc7003`, `plan/complete/webchat-boot-apibase-scheme-validation.md`)이
+이 분기의 **도달 빈도를 넓혔다** — 거절된 apiBase 는 여기로 온다. 새 침묵을 만든 것은 아니고
+선재 갭이지만, 넓힌 쪽이 등재할 책임이 있다고 봤다.
+
+- [ ] 이 분기가 실제로 도달 가능한 경로를 전수로 세라 (boot 거절 · 쿼리 부재 · host 미전송 등)
+- [ ] 도달 가능하면 `console.warn` 또는 `dispatch({type:"ERROR"})` 로 관측 가능하게 —
+      자매 분기(`BLOCKED`)와 같은 등급으로 맞춘다
+- [ ] 그 신호가 실제로 나는지 회귀로 고정 (이 파일의 다른 항목들과 같은 기준)
+
