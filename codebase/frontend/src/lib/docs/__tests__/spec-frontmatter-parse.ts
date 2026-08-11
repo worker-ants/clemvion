@@ -4,8 +4,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import matter from "gray-matter";
 import { walkTree } from "./tree-walk";
+import { matterNoCache } from "./plan-scan";
 
 export type SpecStatus =
   | "backlog"
@@ -97,7 +97,9 @@ function parseSpecFile(absPath: string, relPath: string): SpecRecord {
   let body = raw;
   let parseError: string | null = null;
   try {
-    const parsed = matter(raw);
+    // 캐시 우회는 `plan-scan.ts` 소관이다 — 종전에는 여기만 옵션 없는 `matter(raw)` 라,
+    // 그 파일이 다섯 곳에서 없앤 오염 클래스가 저장소에 한 자리 남아 있었다.
+    const parsed = matterNoCache(raw);
     body = parsed.content;
     if (parsed.data && Object.keys(parsed.data).length > 0) {
       fm = parsed.data as SpecFrontmatter;

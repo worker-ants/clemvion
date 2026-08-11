@@ -93,7 +93,7 @@ export function hasValidSpecImpact(
  * `spec_impact` 가 없다 — 인라인으로 두면 이 판정을 되돌려도 스위트가 초록이다(뮤테이션
  * 실측: 되돌린 뮤턴트가 **생존**했다). 합성 fixture 로 겨눌 수 있어야 한다.
  */
-export function danglingSpecImpact(
+export function findDanglingSpecImpact(
   impact: unknown[],
   specExists: (p: string) => boolean,
 ): unknown[] {
@@ -222,7 +222,7 @@ describe("Gate C — plan-completion spec-consistency", () => {
 
       it("each `spec_impact` spec path exists (if a list)", () => {
         if (!Array.isArray(impact)) return;
-        const dangling = danglingSpecImpact(impact, specExists);
+        const dangling = findDanglingSpecImpact(impact, specExists);
         expect(
           dangling,
           `${rel}: spec_impact references missing spec file(s) or non-string entries: ${dangling
@@ -291,6 +291,22 @@ describe("Gate C enforcement logic", () => {
     expect(hasValidSpecImpact("maybe", exists)).toBe(false);
   });
 
+  it("normalises the `none` vocabulary — case, surrounding space, and the n/a forms", () => {
+    // **`NONE_VALUES` 의 나머지 어휘와 `.trim()`/`.toLowerCase()` 가 관측되지 않고 있었다** —
+    // 위 케이스는 `"none"`/`"없음"` 만 겨눠서, `"n/a"`/`"na"` 를 집합에서 빼거나 정규화를
+    // 통째로 지워도 스위트가 초록이었다(리뷰어 직접 뮤테이션 확인).
+    //
+    // 실저장소 plan 들이 마침 소문자 무공백 `none` 만 쓰기 때문이다 — 이 폴더가 반복해서
+    // 데인 "실데이터가 우연히 한 형태라 분기가 안 돌아간다" 그 형태다.
+    expect(hasValidSpecImpact("n/a", exists)).toBe(true);
+    expect(hasValidSpecImpact("na", exists)).toBe(true);
+    expect(hasValidSpecImpact("NONE", exists)).toBe(true); // toLowerCase
+    expect(hasValidSpecImpact("  none  ", exists)).toBe(true); // trim
+    expect(hasValidSpecImpact("N/A", exists)).toBe(true); // 둘 다
+    // 어휘 밖은 여전히 거절한다 — 정규화가 판정을 넓히지 않는다.
+    expect(hasValidSpecImpact("nope", exists)).toBe(false);
+  });
+
   it("flags non-string `spec_impact` entries as dangling, not just missing paths", () => {
     // 실제 강제 경로는 실저장소 데이터만 보고 거기엔 비-문자열 원소가 없다 — 그래서 이
     // 판정은 합성 fixture 로만 관측된다(뮤테이션 실측: 인라인이던 시절 되돌린 뮤턴트가
@@ -299,11 +315,11 @@ describe("Gate C enforcement logic", () => {
     // `specExists` 를 주입받으므로 **실 파일시스템에 결합되지 않는다** — 자매 함수
     // `hasValidSpecImpact` 와 같은 패턴이다. 종전에는 `fs.existsSync` 를 인라인으로 갖고
     // 있어 실 저장소 파일이 이동하면 로직과 무관한 이유로 깨졌다(ai-review WARNING).
-    expect(danglingSpecImpact(["spec/5-system/4-execution-engine.md"], exists)).toEqual([]);
-    expect(danglingSpecImpact([123], exists)).toEqual([123]);
-    expect(danglingSpecImpact([null], exists)).toEqual([null]);
-    expect(danglingSpecImpact([["spec/nested.md"]], exists)).toEqual([["spec/nested.md"]]);
-    expect(danglingSpecImpact(["spec/does-not-exist.md"], exists)).toEqual([
+    expect(findDanglingSpecImpact(["spec/5-system/4-execution-engine.md"], exists)).toEqual([]);
+    expect(findDanglingSpecImpact([123], exists)).toEqual([123]);
+    expect(findDanglingSpecImpact([null], exists)).toEqual([null]);
+    expect(findDanglingSpecImpact([["spec/nested.md"]], exists)).toEqual([["spec/nested.md"]]);
+    expect(findDanglingSpecImpact(["spec/does-not-exist.md"], exists)).toEqual([
       "spec/does-not-exist.md",
     ]);
   });

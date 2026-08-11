@@ -1,7 +1,6 @@
 // Shared helpers for impl-anchor-existence / integrations-coverage /
 // triggers-coverage tests. SoT: spec/conventions/user-guide-evidence.md
 
-import fs from "node:fs";
 import path from "node:path";
 import { walkTree } from "./tree-walk";
 

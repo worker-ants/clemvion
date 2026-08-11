@@ -106,11 +106,31 @@ export interface ParsedFrontmatter {
  */
 export function parseFrontmatterSafe(raw: string): ParsedFrontmatter | null {
   try {
-    const parsed = matter(raw, {});
-    return { data: parsed.data ?? {}, block: parsed.matter ?? "" };
+    return toParsed(matterNoCache(raw));
   } catch {
     return null;
   }
+}
+
+/**
+ * gray-matter 호출의 **유일한 자리**. 캐시 우회 관용구(`{}`)가 여기에만 있다.
+ *
+ * 위 `parseFrontmatterSafe` 는 실패를 `null` 로 삼키는데, `spec-frontmatter-parse.ts` 는
+ * 실패 **메시지**를 리포트에 실어야 해서 그 정책을 쓸 수 없다. 그래서 종전에는 그쪽이
+ * 옵션 없는 `matter(raw)` 를 따로 부르고 있었다 — 오늘은 `spec/**` 만 읽어 plan 스캐너와
+ * 내용이 겹치지 않아 무해하지만, **그 전제를 코드가 강제하지 않는다**. 한쪽이 언젠가 같은
+ * 파일을 읽는 순간 조용히 되살아난다.
+ *
+ * 관용구를 여기 한 자리로 모으고 **에러 정책만 호출부가 고른다** — 삼킬 것인가(`null`),
+ * 메시지를 남길 것인가. 그래야 "다섯 번째 호출부가 `{}` 를 빠뜨린다" 는 원래 위험이
+ * 정책 선택과 무관하게 닫힌다.
+ */
+export function matterNoCache(raw: string): matter.GrayMatterFile<string> {
+  return matter(raw, {});
+}
+
+function toParsed(parsed: matter.GrayMatterFile<string>): ParsedFrontmatter {
+  return { data: parsed.data ?? {}, block: parsed.matter ?? "" };
 }
 
 /**

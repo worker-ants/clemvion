@@ -79,9 +79,30 @@ export interface MdLink {
 const LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
 const FENCE_RE = /^(\s*)(```|~~~)/;
 
+/**
+ * 마크다운 링크 표기가 **있을 수 없는** 파일인가. 참이면 라인 스캔을 통째로 건너뛴다.
+ *
+ * `LINK_RE` 는 `]` 바로 뒤에 `(` 를 요구하므로 `"]("` 가 없으면 매치도 없다 — **다만
+ * 그것만 보면 안 된다.** 아래 스캔은 인라인 코드를 먼저 지우므로, 원문 `` [a]`x`(b) `` 는
+ * `"]("` 를 갖지 않는데 제거 후 링크가 된다. `]` 를 `(` 옆으로 데려올 수 있는 유일한 경로가
+ * 인라인 코드 제거이고, 그러려면 원문에 **`]` 바로 뒤 백틱**이 있어야 한다.
+ *
+ * 그래서 필요조건은 두 개다. 순진한 `"]("` 단독이면 저 형태의 링크를 가진 파일이 가드에서
+ * **조용히 빠진다** — 성능 최적화가 가드를 침묵시키는 형태이고, 이 저장소가 반복해 데인
+ * 것이 그것이다.
+ *
+ * 실측(codebase 소스 2077개): `"]("` 35개(1.7%) · `"]\`"` 만 211개 → 통과 246개(11.8%).
+ * 정확한 조건도 88%를 걸러낸다. spec 은 134개 전부 통과한다(원래 링크 문서다).
+ */
+function cannotContainLink(text: string): boolean {
+  return !text.includes("](") && !text.includes("]`");
+}
+
 /** Extract markdown links outside fenced/inline code. */
 export function extractLinks(absPath: string): MdLink[] {
   const text = fs.readFileSync(absPath, "utf8");
+  // 링크가 있을 수 없으면 라인 루프 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
+  if (cannotContainLink(text)) return [];
   const out: MdLink[] = [];
   let inFence = false;
   const lines = text.split(/\r?\n/);
