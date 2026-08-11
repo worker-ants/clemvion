@@ -1,11 +1,12 @@
 ---
-title: 문서 가드의 디렉터리 순회 walker 3벌 통합 판정 + `SpecMdFile` 타입명 정리
+title: 문서 가드의 디렉터리 순회 walker 통합 (착수 시 3벌로 봤으나 실측 6벌) + `SpecMdFile` 타입명 정리
 worktree: docs-guard-walker
 started: 2026-08-10
 owner: developer
-status: in-progress
+status: complete
 priority: P3
-spec_impact: none
+spec_impact:
+  - spec/conventions/spec-impl-evidence.md
 ---
 
 ## Overview
@@ -54,6 +55,11 @@ walker 를 **3벌** 갖고 있다. `plan-lifecycle-gates` PR 의 ai-review 4라�
 - [x] 각 차이가 의도인지 사고인지 판정 — 의도면 파라미터로, 사고면 정정
 - [x] 통합 여부 결정 + (하기로 하면) 구현. **각 가드의 대상 파일 집합이 통합 전후로
       동일한지** 를 테스트로 고정할 것 — 집합이 바뀌면 그게 곧 조용한 스코프 변경이다
+      > **표현 정정 (ai-review requirement WARNING)**: "전후 동일" 은 원리상 테스트로 고정할
+      > 수 없다 — 옛 구현이 지워지면 비교 대상이 사라지기 때문이다. 실제로 한 것은 (a) 통합
+      > 직전/직후 7개 집합의 **일회성 dump 대조**(원소·순서까지)와 (b) 새 구현의 필터 배선을
+      > 합성 fixture 로 **forward 고정**이다. 리뷰어가 `git show <pre>:...` 로 옛 구현을
+      > 나란히 실행해 **7/7 전부 byte-identical** 임을 독립 재현했다.
 
 ## 함께 볼 것 — Gate C 의 4번째 walker
 
@@ -158,8 +164,14 @@ walker 는 건드릴 이유가 없는 파일이었다. 필터 차이를 실측�
 
 ### 조용한 스코프 변경 0 — 집합으로 증명
 
-통합 전 7개 집합을 파일로 찍고 통합 후와 **원소·순서까지** 대조했다. 유일한 차이는 새로
-만든 `tree-walk.ts` 자신이 codebase 수집에 들어온 것뿐(2075 → 2076).
+통합 전 7개 집합을 파일로 찍고 통합 후와 **원소·순서까지** 대조했다. 유일한 차이는 이 PR 이
+새로 만든 **두 파일**(`tree-walk.ts`·`tree-walk.test.ts`)이 codebase 수집에 들어온 것뿐
+(2075 → **2077**).
+
+> **처음에 "2075 → 2076" 이라고 적었다.** `tree-walk.ts` 만 만든 중간 상태에서 재고, 그 뒤
+> 테스트 파일을 추가했다 — 둘 다 `codebase/frontend/src` 하위 `.ts` 라 수집 대상이다.
+> "조용한 스코프 변경 0" 을 정확한 카운트로 증명하려던 바로 그 숫자가 틀렸던 셈이다
+> (ai-review documentation WARNING). **문서에 쓰는 그 시점의 실제 수량으로 적어야 한다.**
 
 `collectMdxFiles` 는 정렬 기준을 절대경로 `sort()` → 상대경로 `localeCompare` 로 바꿨는데
 순서가 동일함도 확인했다(대조에 순서를 포함시킨 이유가 이것이다).

@@ -75,7 +75,11 @@ export function walkTree(
     path.relative(root, full).split(path.sep).join("/");
 
   for (const base of bases) {
-    const dir = path.isAbsolute(base) ? base : path.join(root, base);
+    // `bases` 는 **항상 `root` 기준 상대**다. 절대경로도 받는 분기를 넣었다가 지웠다 —
+    // 다섯 호출부 전부 상대 세그먼트만 넘겨 어떤 테스트로도 관측되지 않았고(리뷰어 셋이
+    // 독립 지적), 무엇보다 절대경로 base 는 `relPath` 에 `../` 를 만들어 이 함수 자신의
+    // 계약("relPath 는 항상 root 기준")을 깬다. 필요해지면 호출부와 fixture 를 함께 낸다.
+    const dir = path.join(root, base);
     if (!fs.existsSync(dir)) continue;
     const stack = [dir];
     while (stack.length > 0) {

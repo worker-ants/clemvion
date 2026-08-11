@@ -105,12 +105,8 @@ export function findGuiFlowSections(mdx: string): GuiFlowSection[] {
 }
 
 /**
- * 유저 가이드 `.mdx` 수집.
- *
- * **`_` 접두를 디렉터리에 적용한다** — 같은 폴더의 `plan-scan.ts` 는 같은 접두를
- * *파일명*에 적용한다(인덱스 문서 제외). 둘 다 자기 자리에서 옳고 서로 대체되지 않는데,
- * 종전에는 두 DFS 가 각자 손으로 짜여 있어 그 차이가 어디에도 드러나지 않았다.
- * 이제 `walkTree` 호출 한 줄이 어느 쪽에 거는지를 말한다.
+ * 유저 가이드 `.mdx` 수집. **`_` 접두는 디렉터리에 건다** (자매 규칙과의 비대칭은
+ * `tree-walk.ts` 헤더가 SoT — 여기서 되풀이하면 한쪽만 갱신될 자리가 늘어난다).
  */
 export function collectMdxFiles(rootDir: string, subPath: string): string[] {
   return walkTree(rootDir, [subPath], {

@@ -110,8 +110,9 @@ priority: P3
 
 ## 함께 볼 것 — 같은 "DRY vs 안전성" 축의 다른 plan
 
-[`docs-guard-walker-dedup.md`](docs-guard-walker-dedup.md) — `codebase/frontend/src/lib/docs/__tests__/`
-문서 가드들의 디렉터리 순회 walker 3벌 통합 판정.
+[`docs-guard-walker-dedup.md`](../complete/docs-guard-walker-dedup.md) — `codebase/frontend/src/lib/docs/__tests__/`
+문서 가드들의 디렉터리 순회 walker 통합. **완료 (2026-08-11)** — 착수 때 3벌로 봤으나
+실측 6벌이었고, `tree-walk.ts` 의 `walkTree` 하나로 모였다.
 
 > **주제 유사성뿐이라 편입하지 않았다.** 한때 그 항목들을 이 plan 안에 이관했는데,
 > 이 plan 은 `.claude/hooks/*.py` 의 **정규식 상수** 중복이고 저쪽은 TypeScript 문서 가드의

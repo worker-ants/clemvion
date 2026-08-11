@@ -91,8 +91,11 @@ const FENCE_RE = /^(\s*)(```|~~~)/;
  * **조용히 빠진다** — 성능 최적화가 가드를 침묵시키는 형태이고, 이 저장소가 반복해 데인
  * 것이 그것이다.
  *
- * 실측(codebase 소스 2077개): `"]("` 35개(1.7%) · `"]\`"` 만 211개 → 통과 246개(11.8%).
- * 정확한 조건도 88%를 걸러낸다. spec 은 134개 전부 통과한다(원래 링크 문서다).
+ * 실측(codebase 소스 2077개): `"]("` 35개(1.7%) → 통과 **247개(11.9%)**. 정확한 조건도
+ * 88%를 걸러낸다. spec 은 134개 전부 통과한다(원래 링크 문서다).
+ *
+ * 절대 개수는 트리가 커지면 따라 움직인다 — **비율**이 요점이고, 첫 판이 1~2건 어긋난 것도
+ * 파일을 더 추가하기 전 중간 상태에서 쟀기 때문이다(ai-review documentation).
  */
 function cannotContainLink(text: string): boolean {
   return !text.includes("](") && !text.includes("]`");
@@ -138,15 +141,12 @@ export function isExternal(target: string): boolean {
   );
 }
 
-/**
- * @deprecated 도메인 중립 `MdFileRef` 를 쓴다.
- *
- * 이 이름이 실제 용도보다 좁았다 — `collectCodebaseSources(): SpecMdFile[]` 처럼
- * **spec 도 markdown 도 아닌** 파일에 붙어 있었다. 남겨 두는 것은 외부 호출부를 한 번에
- * 못 바꿀 때를 위한 별칭일 뿐이고, 신규 코드는 `MdFileRef` 를 쓴다.
- * (`plan-scan.ts` 는 이미 `PlanMdFile` 을 따로 두어 이 혼동에서 빠져 있었다.)
- */
-export type SpecMdFile = MdFileRef;
+// 종전 `SpecMdFile` 은 **지웠다**. 그 이름이 실제 용도보다 좁았고
+// (`collectCodebaseSources(): MdFileRef[]` — spec 도 markdown 도 아니다),
+// `@deprecated` 별칭으로 남기려던 근거("외부 호출부를 한 번에 못 바꾼다")는 **거짓이었다**
+// — 전수 grep 결과 외부 소비처 0건이고 유일한 사용처가 이 파일 안 한 곳이었다(리뷰 실측).
+// 근거가 반증된 별칭은 남길 이유가 없다.
+// (`plan-scan.ts` 는 이미 `PlanMdFile` 을 따로 두어 이 혼동에서 빠져 있었다.)
 
 // Generated API reference catalogs (cafe24-api-catalog, makeshop-api-catalog, …)
 // are not narrative specs; their cross-links are machine-generated and out of
@@ -193,7 +193,7 @@ interface LinkScanOptions {
  * points below differ only in the file set and the two `options` knobs.
  */
 function findBrokenLinksInFiles(
-  files: SpecMdFile[],
+  files: MdFileRef[],
   options: LinkScanOptions,
 ): LinkViolation[] {
   const violations: LinkViolation[] = [];

@@ -20,9 +20,12 @@
 // `collectCompletePlanMarkdown` 위임 3줄로 축소됐다. 종전에는 필터 값이 **우연히** 같았을
 // 뿐 그것을 강제하는 것이 없었다.
 //
-// (`spec-links.ts` 에도 손수 순회하는 walker 가 둘 있지만 그쪽은 spec/codebase 트리를
-// 본다 — 위 "네 벌" 에 애초에 포함되지 않는 **별 문제**이고, 통합 판정은
-// `plan/in-progress/docs-guard-walker-dedup.md` 에 등재했다.)
+// **2026-08-11 후속**: 여기서 "별 문제" 로 미뤄 뒀던 `spec-links.ts` 쪽 walker 둘까지
+// 포함해, 저장소의 손수 짠 DFS 는 **여섯 벌**이었다(당시엔 넷으로 셌다 — spec/codebase
+// 트리를 보는 것들을 세는 범위 밖에 뒀기 때문이다). 여섯이 `tree-walk.ts` 의 `walkTree`
+// 하나로 모였고 `walkPlanMarkdown` 도 그 위의 얇은 호출부가 됐다. 세는 범위를 좁게 잡으면
+// 자매 사이의 차이가 안 보인다 — 실제로 이 파일과 `impl-anchor-parse.ts` 가 `_` 접두를
+// 서로 다른 대상(파일명 vs 디렉터리명)에 걸고 있었는데 그 사실이 어디에도 없었다.
 
 import fs from "node:fs";
 import path from "node:path";

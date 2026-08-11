@@ -14,6 +14,8 @@ code:
   - codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts
   - codebase/frontend/src/lib/docs/__tests__/plan-scan.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-links.ts
+  - codebase/frontend/src/lib/docs/__tests__/tree-walk.ts
+  - codebase/frontend/src/lib/docs/__tests__/tree-walk.test.ts
 ---
 
 # Convention: Spec-Impl Evidence (frontmatter)

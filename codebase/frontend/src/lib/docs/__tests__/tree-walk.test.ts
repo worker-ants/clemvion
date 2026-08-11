@@ -178,9 +178,8 @@ describe("수집기 필터 배선 — 합성 트리", () => {
   });
 
   it("collectMdxFiles — `_` 접두는 디렉터리에만 걸린다 (파일은 수집된다)", () => {
-    // **이 비대칭이 요점이다.** 같은 폴더의 `plan-scan.ts` 는 같은 접두를 파일명에
-    // 적용한다(인덱스 제외). 두 규칙이 서로 다른 대상에 걸린다는 사실을 여기서 고정한다 —
-    // 종전에는 두 DFS 가 각자 손으로 짜여 있어 어디에도 드러나지 않았다.
+    // **이 비대칭이 요점이다** — 근거는 `tree-walk.ts` 헤더(SoT). 여기서는 그 선택을
+    // 실행 가능한 형태로 고정만 한다.
     expect(
       collectMdxFiles(root, "guide").map((p) => path.relative(root, p)),
     ).toEqual([path.join("guide", "_partial.mdx"), path.join("guide", "page.mdx")]);
