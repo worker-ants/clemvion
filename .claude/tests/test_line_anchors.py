@@ -62,6 +62,28 @@ FIXTURE_SEARCH_DEPTH = 40
 MIN_FIXTURE_CHANGED_LINES = 80
 
 
+def _is_shallow_boundary(sha, cwd=None) -> bool:
+    """Is `sha` a commit whose parents were cut away by a shallow clone?
+
+    Such a commit reports its ENTIRE TREE as changed, because git's graft makes
+    it look parentless to the diff machinery. Selecting it hands `--prepare` a
+    changeset the prompt budget cannot hold — see `pick_commit_fixture`.
+
+    Told apart from a genuine root commit by comparing the two views git offers:
+    `rev-list --parents` honours the graft (no parents), while `cat-file commit`
+    prints the raw object, whose `parent` headers survive it. Both empty means a
+    real root commit, which is fine to select and which the purpose-built
+    fixtures below depend on being selectable.
+    """
+    grafted = len(_git("rev-list", "--parents", "-n", "1", sha, cwd=cwd).split()) <= 1
+    if not grafted:
+        return False
+    return any(
+        line.startswith("parent ")
+        for line in _git("cat-file", "commit", sha, cwd=cwd).split("\n")
+    )
+
+
 def pick_commit_fixture(cwd=None) -> str:
     """Most recent commit `--prepare` can actually build a diff payload from.
 
@@ -99,12 +121,34 @@ def pick_commit_fixture(cwd=None) -> str:
     that exposed it drops out of the search window as history accumulates, and a
     guard that is only green by accident of history is not a guard.
 
-    On a shallow CI clone the search collapses to roughly one commit; that is
-    harmless, because a shallow root has no parent and lists its whole tree,
-    clearing the threshold easily.
+    Fourth variant, 2026-08-11 — the **shallow boundary** commit. The sentence
+    that stood here claimed a shallow CI clone was "harmless, because a shallow
+    root has no parent and lists its whole tree, clearing the threshold easily".
+    Clearing the threshold was never the question. Listing the WHOLE TREE is:
+    measured on this repository, `actions/checkout`'s default `fetch-depth: 1`
+    makes the boundary commit report **19,591 files**, and `build_files_section`
+    then hits the branch it documents itself ("past enough files, headers alone
+    consume the cap, nothing gets content"), collapsing to a single aggregate
+    omission note. Zero diff lines reach the prompt and `checked` lands at 0 —
+    green locally, RED in CI only, which is how `#1131` merged with this suite
+    already failing and every later PR inherited it.
+
+    The real fix is upstream — `harness-checks.yml` now checks out enough history
+    (measured: depth 1 → RED and >20 min for this module; depth 50 → 40 tests OK
+    in 10.9s), and `CheckoutDepthCoversFixtureSearchTest` pins that against
+    `FIXTURE_SEARCH_DEPTH`. This filter is the fail-safe underneath it: a shallow
+    repository can no longer produce a false RED, only an honest skip.
+
+    A shallow boundary is NOT the same shape as a true root commit, and the
+    difference is what this can key off: git's graft hides the parents from
+    `rev-list` while the commit OBJECT still carries its `parent` lines. A real
+    root commit has neither. That distinction is load-bearing — the purpose-built
+    fixtures below rely on their first commit staying selectable.
     """
     log = _git("log", "-n", str(FIXTURE_SEARCH_DEPTH), "--format=%H", cwd=cwd)
     for sha in filter(None, (line.strip() for line in log.split("\n"))):
+        if _is_shallow_boundary(sha, cwd=cwd):
+            continue
         files = {
             f for f in _git(
                 "show", "--no-renames", "--name-only", "--pretty=format:", sha, cwd=cwd
@@ -756,6 +800,164 @@ class CommitFixtureSelectionTest(unittest.TestCase):
             any(self._git(repo, "show", f"{picked}:{f}").strip() for f in names),
             "the selected commit resolves to no content at all",
         )
+
+    def _make_shallow_repo(self):
+        """A depth-1 clone — exactly what `actions/checkout` produces by default.
+
+        The source needs TWO commits, because the whole point is a commit that
+        *has* a parent which the graft then hides. One commit would produce a
+        real root commit, which is a different shape and must stay selectable
+        (`test_a_real_root_commit_is_still_selected`).
+        """
+        import os
+        import shutil
+        import tempfile
+
+        src, git = self._new_repo()
+
+        def write(name, prefix):
+            with open(os.path.join(src, name), "w", encoding="utf-8") as fh:
+                fh.write("".join(f"{prefix}{i}\n" for i in range(120)))
+
+        write("base.txt", "base")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        write("later.txt", "later")
+        git("add", "-A")
+        git("commit", "-qm", "later")
+
+        parent = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, parent, ignore_errors=True)
+        dest = os.path.join(parent, "shallow")
+        _harness.git_in(parent, "clone", "-q", "--depth", "1", f"file://{src}", dest)
+        return dest
+
+    def test_the_clone_really_is_a_shallow_boundary(self):
+        """Non-vacuity: the graft must be present AND the old filters must all
+        wave it through, or the test below passes for the wrong reason."""
+        repo = self._make_shallow_repo()
+        head = self._git(repo, "rev-parse", "HEAD").strip()
+        self.assertEqual(
+            self._git(repo, "rev-parse", "--is-shallow-repository").strip(), "true",
+            "the clone is not shallow — wrong fixture shape",
+        )
+        # The asymmetry the filter keys on: rev-list honours the graft, the raw
+        # object does not.
+        self.assertEqual(
+            len(self._git(repo, "rev-list", "--parents", "-n", "1", head).split()), 1,
+            "rev-list still reports a parent — the graft is not in effect",
+        )
+        self.assertIn(
+            "parent ", self._git(repo, "cat-file", "commit", head),
+            "the commit object carries no parent header — this is a real root "
+            "commit, not a shallow boundary",
+        )
+        # It lists its WHOLE tree — including the file it did not touch — which
+        # is what starves the prompt budget downstream.
+        names = sorted(f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            head).split("\n") if f)
+        self.assertEqual(
+            names, ["base.txt", "later.txt"],
+            "the boundary commit does not report its whole tree — the shape "
+            "this rejects would never have existed",
+        )
+        changed = 0
+        for row in self._git(repo, "show", "--numstat", "--format=", head).split("\n"):
+            cols = row.split("\t")
+            if len(cols) >= 3 and cols[2] in names:
+                changed += sum(int(c) for c in cols[:2] if c.isdigit())
+        self.assertGreaterEqual(
+            changed, MIN_FIXTURE_CHANGED_LINES,
+            "the boundary does not clear the threshold — it would be skipped "
+            "for the wrong reason and the guard under test never runs",
+        )
+        self.assertTrue(
+            any(self._git(repo, "show", f"{head}:{f}").strip() for f in names),
+            "the boundary resolves to no content — the deletion-only filter "
+            "would have caught it and this guard would be untested",
+        )
+
+    def test_a_shallow_boundary_commit_is_never_selected(self):
+        repo = self._make_shallow_repo()
+        self.assertEqual(
+            pick_commit_fixture(cwd=repo), "",
+            "the fixture search selected a shallow boundary commit; --prepare "
+            "then gets the entire tree as its changeset, the prompt budget "
+            "drops every file's content, and the gutter test goes RED in CI "
+            "only — the shape that let #1131 merge red",
+        )
+
+    def test_a_real_root_commit_is_still_selected(self):
+        """Over-rejection would be just as bad, and silent.
+
+        `_make_deletion_only_repo`'s answer IS a root commit. Keying the filter
+        on "has no parents" instead of "has parents that were grafted away"
+        would make that fixture select nothing, and
+        `test_a_deletion_only_commit_is_never_selected` would pass on
+        `assertTrue(picked)` failing instead of on the property it names.
+        """
+        import os
+
+        repo, git = self._new_repo()
+        with open(os.path.join(repo, "only.txt"), "w", encoding="utf-8") as fh:
+            fh.write("".join(f"only{i}\n" for i in range(120)))
+        git("add", "-A")
+        git("commit", "-qm", "the one and only")
+        head = self._git(repo, "rev-parse", "HEAD").strip()
+        self.assertFalse(
+            _is_shallow_boundary(head, cwd=repo),
+            "a real root commit was classified as a shallow boundary",
+        )
+        self.assertEqual(
+            pick_commit_fixture(cwd=repo), head,
+            "a real root commit is no longer selectable — the filter is keying "
+            "on parentlessness rather than on the graft",
+        )
+
+
+class CheckoutDepthCoversFixtureSearchTest(unittest.TestCase):
+    """CI must check out more history than the fixture search walks.
+
+    Without this the two halves of the 2026-08-11 fix drift apart silently, and
+    the failure mode is the worse direction: `pick_commit_fixture` now refuses a
+    shallow boundary, so a regressed `fetch-depth` does not go RED — it makes
+    `_prepare_commit` call `skipTest` and the gutter guard evaporates. Green,
+    and no evidence behind it.
+    """
+
+    WORKFLOW = REPO_ROOT / ".github/workflows/harness-checks.yml"
+
+    def _checkout_steps(self):
+        import yaml
+
+        doc = yaml.safe_load(self.WORKFLOW.read_text(encoding="utf-8"))
+        steps = [
+            step
+            for job in doc["jobs"].values()
+            for step in job.get("steps", [])
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        self.assertTrue(steps, "no actions/checkout step found — did the job move?")
+        return steps
+
+    def test_every_checkout_fetches_past_the_fixture_search_window(self):
+        for step in self._checkout_steps():
+            depth = (step.get("with") or {}).get("fetch-depth")
+            self.assertIsNotNone(
+                depth,
+                "actions/checkout has no fetch-depth, so it defaults to 1. A "
+                "depth-1 checkout grafts away every parent, the boundary commit "
+                "reports the entire tree, and the gutter suite cannot run "
+                "(measured on this repository: 19,591 files).",
+            )
+            # 0 means "everything", which trivially covers the window.
+            self.assertTrue(
+                int(depth) == 0 or int(depth) > FIXTURE_SEARCH_DEPTH,
+                f"fetch-depth {depth} does not exceed FIXTURE_SEARCH_DEPTH "
+                f"({FIXTURE_SEARCH_DEPTH}) — the search would run out of "
+                f"history and hit the shallow boundary",
+            )
 
 
 class ReviewerDefinitionContractTest(unittest.TestCase):
