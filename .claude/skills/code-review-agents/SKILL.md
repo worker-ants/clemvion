@@ -35,7 +35,9 @@ AI_REVIEW_LOOP=1 python3 .claude/skills/code-review-agents/scripts/code_review_o
 python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --resume <session_dir>
 ```
 
-stdout 마지막 줄 = 세션 디렉토리 절대경로.
+stdout 마지막 줄 = 세션 디렉토리 절대경로. **`--prepare` 는 changeset 을 통째로 담은 세션을 정확히 하나만 만든다** — 파일이 아무리 많아도 줄은 하나다.
+
+> 2026-08-10 이전에는 `REVIEW_BATCH_SIZE` 단위로 세션을 쪼개 **배치마다 한 줄씩** 찍었는데 본 문서는 "마지막 줄" 만 읽으라고 적고 있었다. 그래서 마지막 배치를 뺀 나머지가 전부 미리뷰로 남았고, 더 나쁘게는 `agents_forced` 가 **그 배치만 보고 계산**돼 실측 7명 → 2명으로 줄었다(security·testing·scope·maintainability·side_effect 소실). coverage 게이트가 그 줄어든 집합을 검사해 통과시키므로 **거짓 PASS** 였다. 지금은 분할이 없다.
 
 옵션:
 - 인자 없음 → git diff (staged + unstaged + untracked) = **아직 커밋 안 된 것만**.
@@ -194,7 +196,7 @@ Workflow 경로(§2)는 한 번에 완주하거나 `unfinished[]` 를 반환한�
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 |
 | `REVIEW_MAX_FILE_SIZE` | `55296` | 개별 파일 컨텐츠 상한 (자). 라인번호 게이트 도입 전 51200 → 게이트 오버헤드(+8%) 만큼 상향. |
 | `REVIEW_MAX_PROMPT_SIZE` | `141557` | reviewer 1명분 prompt body 상한 (자). 게이트 도입 전 131072 → +8%. 게이트는 리뷰 대상 코드가 아니라 메타데이터이므로, 상한을 그대로 두면 reviewer 가 보는 **코드량**이 조용히 줄어든다. |
-| `REVIEW_BATCH_SIZE` | `50` | 한 세션 당 파일 상한 (초과 시 batch 분할) |
+| `REVIEW_BATCH_SIZE` | `50` | 이 수를 넘으면 stderr 로 대형 changeset 안내. **세션은 분할하지 않는다** (분할된 배치가 미리뷰로 남고 `agents_forced` 를 축소시켜 거짓 PASS 를 냈다 — 2026-08-10) |
 | `AI_REVIEW_LOOP` | `0` | `1` → loop_mode=true |
 | `RETRY_WAKE_DEFAULT_SEC` | `1800` | reset-hint 없을 때 wake delay |
 | `RETRY_WAKE_CAP_SEC` | `3600` | wake delay 상한 |

@@ -7,7 +7,11 @@ Collects diff/context for `/ai-review` and writes:
                                              subagent invocation contract)
   - review/<timestamp>/meta.json            (initial metadata)
 
-Prints the session directory path to stdout (one line per batch).
+Prints **exactly one** session directory path to stdout — the last line is the
+session, and there is never more than one. (Until 2026-08-10 this printed one
+line per `REVIEW_BATCH_SIZE` chunk while the SKILL contract read only the last;
+every other chunk went unreviewed *and* shrank `agents_forced`. See
+`_warn_large_changeset`.)
 
 This script **does not** call any model. The actual reviews are performed by
 the main Claude session via the `Agent` tool — see
@@ -913,11 +917,9 @@ def build_router_prompt_body(
     all_paths = [ci["file_path"] for ci in change_infos]
     src_paths = router_safety.source_files(all_paths)
     if src_paths:
-        shown = "\n".join(f"  - `{p}`" for p in src_paths[:20])
-        more = f"\n  - … 외 {len(src_paths) - 20}개" if len(src_paths) > 20 else ""
         composition_block = (
             f"변경 파일 {len(all_paths)}개 중 **소스 코드 파일 {len(src_paths)}개**:\n"
-            f"{shown}{more}\n\n"
+            f"{_bulleted_path_sample(src_paths)}\n\n"
             "→ 이 변경은 **문서 전용이 아닙니다.** \"문서만 변경\" 을 사유로 "
             "reviewer 를 제외하지 마세요. 문서 파일 수가 많더라도 위 소스 파일의 "
             "실제 내용을 근거로 판단하세요.\n"
@@ -927,6 +929,16 @@ def build_router_prompt_body(
             f"변경 파일 {len(all_paths)}개 중 소스 코드 파일 **0개** "
             "(문서·설정 전용 변경).\n"
         )
+        unseen = _source_files_missing_from_changeset(all_paths)
+        if unseen:
+            composition_block += (
+                "\n> ⚠ **그러나 이 브랜치는 소스 코드를 바꿨습니다 — changeset 이 그걸 놓쳤습니다.**\n"
+                f"> 브랜치 diff 에는 있으나 위 목록에 **없는** 소스 파일 {len(unseen)}개:\n"
+                f"{_bulleted_path_sample(unseen)}\n>\n"
+                "> 따라서 **\"문서 전용\" 을 사유로 reviewer 를 제외하지 마세요.** "
+                "changeset 산정이 불완전하므로, 보이는 파일만 근거로 좁히면 "
+                "보지 못한 코드가 리뷰 없이 통과합니다. 판단이 서지 않으면 **넓게 선택**하세요.\n"
+            )
 
     candidate_count = len(agents)
     header = (
@@ -1127,6 +1139,43 @@ def build_cli_change_info(file_path, diff_content=None, file_content=None):
 # ---------------------------------------------------------------------------
 
 
+def _warn_large_changeset(change_infos, batch_size):
+    """Advise (never split) when the changeset exceeds `REVIEW_BATCH_SIZE`.
+
+    **Why this is a notice and not a split.** `--prepare` used to slice the
+    changeset into `REVIEW_BATCH_SIZE` chunks and print one session path per
+    chunk. That loop was introduced together with the contract line "stdout
+    마지막 줄(들) = 세션 디렉토리 (batch 별로 한 줄씩)", i.e. the caller was meant
+    to fan out over *every* line. A later doc-compression commit (`73dea0864`)
+    dropped the "(들)" and the per-batch parenthetical while keeping the env var,
+    so `SKILL.md` came to say "stdout 마지막 줄" — singular. From then on every
+    batch but the last was written to disk and never reviewed.
+
+    That silence was not merely a coverage hole; it *inverted* the safety gate.
+    `compute_forced_agents` derives the forced whitelist **from the changeset it
+    is given**, so a tail batch that happens to be docs-only forces far fewer
+    reviewers — measured on a 60-file changeset (50 `.ts` + 10 `.md`):
+    forced(all)=7 vs forced(tail 10)=2, losing security · testing · scope ·
+    maintainability · side_effect. `_verify_coverage` then checks that shrunken
+    set and passes trivially. A dropped batch therefore reads as a clean review.
+
+    So the split is gone: one `--prepare`, one session, whole changeset. Size is
+    shaped where it can be shaped safely — per-reviewer prompt budget in
+    `build_files_section`, which *announces* what it drops — while `meta.json`
+    and the forced-agent computation keep seeing every file.
+    """
+    total = len(change_infos)
+    if batch_size and total > batch_size:
+        print(
+            f"!! LARGE CHANGESET — {total} files (> REVIEW_BATCH_SIZE={batch_size}).\n"
+            "   Preparing a SINGLE session for all of them; per-reviewer prompt\n"
+            "   budget will shape the body and name anything it drops.\n"
+            "   (Sessions are no longer split by batch — a split batch used to go\n"
+            "   unreviewed and shrink the forced-reviewer set.)",
+            file=sys.stderr,
+        )
+
+
 def prepare_session(change_infos, config):
     """Create the session directory and write everything the main session needs.
 
@@ -1269,6 +1318,58 @@ def _default_branch_ref():
     except Exception as e:  # noqa: BLE001
         debug_log(f"default branch ref resolution failed: {e}")
     return None
+
+
+_ROUTER_PATH_SAMPLE_MAX = 20
+
+
+def _bulleted_path_sample(paths, limit=_ROUTER_PATH_SAMPLE_MAX):
+    """`  - \\`p\\`` lines for the first `limit` paths, then "… 외 N개".
+
+    Both router-prompt lists (the source-file composition and the fail-closed
+    "missing from the changeset" list) need the same shape, and the second one
+    was written by copying the first — magic `20` included. Sharing it keeps the
+    two from drifting apart, which matters here because a router reading two
+    differently-formatted lists in one prompt has to guess whether the difference
+    means something.
+    """
+    shown = "\n".join(f"  - `{p}`" for p in paths[:limit])
+    if len(paths) > limit:
+        shown += f"\n  - … 외 {len(paths) - limit}개"
+    return shown
+
+
+def _source_files_missing_from_changeset(all_paths):
+    """Branch-diff source files that the changeset does not contain.
+
+    A fail-closed cross-check for the router's "문서 전용" framing. The router is
+    told the source/doc split as a *fact* (see `build_router_prompt`), but that
+    fact is derived from the changeset — so when changeset computation is wrong,
+    the wrongness is laundered into a confident "소스 코드 변경 없음" and the router
+    deselects every source reviewer. One bad changeset then reads as a clean
+    review: that amplification, not any single computation bug, is the standing
+    risk (`plan/in-progress/harness-review-gate-followups.md`).
+
+    Observed once for real (session `03_12_29`): a 27-file changeset carried none
+    of the three code files the two preceding commits had changed, the router
+    ruled "문서 전용", and 12 reviewers were skipped. The cause there — batch
+    splitting — is fixed, but the changeset has other ways to be wrong (the
+    default working-tree path after a commit is the documented one), so the
+    defence is kept independent of any particular cause.
+
+    Silent on any git failure: a review must not fail because the cross-check
+    could not be computed. Advisory only — it widens what the router is told,
+    never the changeset itself.
+    """
+    base = _default_branch_ref()
+    if not base:
+        return []
+    try:
+        branch_files = get_git_branch_diff_files(base)
+    except Exception:  # noqa: BLE001 — never let the cross-check break a review
+        return []
+    seen = set(all_paths)
+    return [p for p in router_safety.source_files(branch_files) if p not in seen]
 
 
 def warn_if_committed_work_is_missing(files):
@@ -1583,18 +1684,14 @@ def main():
         print("No reviewable files found.", file=sys.stderr)
         sys.exit(0)
 
-    batch_size = config["batch_size"]
-    batches = [
-        change_infos[i:i + batch_size]
-        for i in range(0, len(change_infos), batch_size)
-    ]
-    for batch_idx, batch in enumerate(batches, 1):
-        print(f"--- Batch {batch_idx}/{len(batches)} ({len(batch)} files) ---", file=sys.stderr)
-        for ci in batch:
-            print(f"  - {ci['file_path']}", file=sys.stderr)
-        session_dir = prepare_session(batch, config)
-        # One session_dir per stdout line. Main parses these.
-        print(session_dir)
+    # ONE session per --prepare, always. See `_warn_large_changeset` for why the
+    # former batch-splitting loop was removed — it produced sessions the caller
+    # contract could not consume, and shrank `agents_forced` in the process.
+    _warn_large_changeset(change_infos, config["batch_size"])
+    for ci in change_infos:
+        print(f"  - {ci['file_path']}", file=sys.stderr)
+    session_dir = prepare_session(change_infos, config)
+    print(session_dir)
 
 
 if __name__ == "__main__":

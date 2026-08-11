@@ -17,7 +17,7 @@
 # (새 worktree 의 수동 node_modules/dist 준비 레시피도 폐기됨).
 _ensure_deps() {
   # workspace 루트 기준으로 확인 (CWD 가 어디든 stale 설치 건너뛰지 않도록).
-  [ -d "$(git rev-parse --show-toplevel)/node_modules" ] || pnpm install --frozen-lockfile
+  [ -d "$(git rev-parse --show-toplevel)/node_modules" ] || pnpm install --frozen-lockfile --strict-peer-dependencies
 }
 
 # lint/unit/build 를 균일하게 도는 내부 공유 패키지 (backend·frontend·web-chat·channel-web-chat 처럼
