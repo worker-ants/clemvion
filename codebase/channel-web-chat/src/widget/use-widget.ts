@@ -189,6 +189,27 @@ function configFromQuery(): Partial<BootMessage> {
   return { apiBase, triggerEndpointPath, locale } as Partial<BootMessage>;
 }
 
+/**
+ * SSE `error` 이벤트에서 **토큰 없이 진단 가치가 있는 부분만** 뽑는다.
+ *
+ * 첫 판은 `e.type` 만 남겼는데 그건 **죽은 필드**다 — `EventSource` 의 error 이벤트는 스펙상
+ * 항상 `"error"` 라 정보량이 0 이고, "토큰을 안 찍는다" 는 목적은 달성해도 원래 이 로그가
+ * 존재하던 이유(CORS 미허용·네트워크 차단 진단)를 없앤다
+ * (ai-review `10_02_22` side_effect·requirement).
+ *
+ * `readyState` 는 그 자리를 대신한다 — `0`(CONNECTING, 재연결 중) / `1`(OPEN) / `2`(CLOSED,
+ * 재연결 포기)로 "일시적 끊김인가 확정 실패인가" 가 갈린다. URL 도 토큰도 담지 않는다.
+ */
+/** @internal — unit-test seam only. 이 헬퍼의 회귀는 `use-widget.test.ts` 가 직접 겨냥한다. */
+export function sseErrorDetail(e: unknown): string {
+  const target = e && typeof e === "object" ? (e as { target?: unknown }).target : null;
+  const readyState =
+    target && typeof target === "object" && "readyState" in target
+      ? (target as { readyState: unknown }).readyState
+      : null;
+  return readyState === null ? "error" : `error (readyState=${String(readyState)})`;
+}
+
 export function useWidget() {
   const [state, dispatch] = useReducer(widgetReducer, initialState);
   const [config, setConfig] = useState<BootMessage | null>(null);
@@ -456,26 +477,6 @@ export function useWidget() {
    * @returns `StreamClaim` — **`"already_owned"` 만 중단**이고 나머지는 진행이다. `void` 였다면
    *   호출부가 다시 `sessionEstablished()` 를 물어야 하고, 그게 곧 복제의 재도입이다.
    */
-/**
- * SSE `error` 이벤트에서 **토큰 없이 진단 가치가 있는 부분만** 뽑는다.
- *
- * 첫 판은 `e.type` 만 남겼는데 그건 **죽은 필드**다 — `EventSource` 의 error 이벤트는 스펙상
- * 항상 `"error"` 라 정보량이 0 이고, "토큰을 안 찍는다" 는 목적은 달성해도 원래 이 로그가
- * 존재하던 이유(CORS 미허용·네트워크 차단 진단)를 없앤다
- * (ai-review `10_02_22` side_effect·requirement).
- *
- * `readyState` 는 그 자리를 대신한다 — `0`(CONNECTING, 재연결 중) / `1`(OPEN) / `2`(CLOSED,
- * 재연결 포기)로 "일시적 끊김인가 확정 실패인가" 가 갈린다. URL 도 토큰도 담지 않는다.
- */
-function sseErrorDetail(e: unknown): string {
-  const target = e && typeof e === "object" ? (e as { target?: unknown }).target : null;
-  const readyState =
-    target && typeof target === "object" && "readyState" in target
-      ? (target as { readyState: unknown }).readyState
-      : null;
-  return readyState === null ? "error" : `error (readyState=${String(readyState)})`;
-}
-
   const openStream = useCallback(
     (session: SessionRef, lastEventId?: string | number): StreamClaim => {
       const client = clientRef.current;
@@ -612,9 +613,7 @@ function sseErrorDetail(e: unknown): string {
    * - `404` → `"ended"`. 없는 execution 에 SSE 를 열면 아무것도 안 와 `streaming` 에 고착된다.
    * - `401` → **낙관적 `refreshToken` 1회**. 만료인지 blacklist 인지 클라이언트는 사전 판별할
    *   수 없다(EIA §8.3). 성공하면 `sessionRef`·storage 를 새 토큰으로 갱신하고 `"continue"` —
-   *   **호출부는 그 뒤 `sessionRef.current` 를 읽어야 한다.** `SeedOutcome` 은 "무엇이 바뀌었나"
-   *   를 실어 나르지 않으므로, 캡처해 둔 지역 변수를 쓰면 거부된 토큰으로 스트림을 연다
-   *   (ai-review `16_09_40` CRITICAL — security·side_effect·requirement·testing **4명** 독립 수렴).
+   *   **호출부는 그 뒤 `sessionRef.current` 를 읽어야 한다** — 근거는 아래 `@returns` 참조.
    * - 재차 `401`·`410` → `"ended"`(복구 불가 확정, §R4).
    * - **refresh 가 그 외 이유로 실패**(네트워크·5xx) → `"refresh_deferred"`. 스트림은 안 열되
    *   `scheduleRefresh` 는 건다 — 둘 다 안 하면 고착, 둘 다 하면 죽은 토큰으로 SSE 를 연다.
@@ -861,11 +860,8 @@ function sseErrorDetail(e: unknown): string {
         // **seed 게이트와 짝을 이루는 스트림 게이트**는 `openStream` **안**에 있다 — 겹친 두
         // seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림 미열림을 보고 통과한 뒤 각자
         // 여기로 오는데, 먼저 온 쪽만 소유한다(ai-review 01_44_21). 못 열었으면 갱신 예약도 건너뛴다.
-        // **`sessionRef.current` 를 쓴다 — 캡처해 둔 `session` 이 아니다.** §R4 의 401 낙관적
-        // refresh 가 성공하면 seed 안에서 토큰이 교체되는데, 지역 변수는 그 이전 값이라
-        // **서버가 이미 거부한 토큰으로 SSE 를 열게 된다**(ai-review 16_09_40 CRITICAL,
-        // security·side_effect·requirement·testing **4명** 독립 수렴). `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지
-        // 않으므로 최신은 ref 에서 읽는 것이 유일한 정답이다.
+        // **`sessionRef.current` 를 쓴다 — 캡처해 둔 `session` 이 아니다**(근거는
+        // `seedWaitingFromStatus` 의 `@returns`).
         const live = sessionRef.current;
         if (!live) return;
         // 토큰이 아직 죽어 있으면 스트림은 열지 않는다 — 갱신 예약만 걸고, **갱신이 성공하면
@@ -1261,7 +1257,7 @@ function sseErrorDetail(e: unknown): string {
      */
     const runApplyConfig = (cfg: BootMessage) => {
       void applyConfig(cfg).catch((e: unknown) => {
-        // **`errMessage()` 를 통과시킨다 — 직접 warn 하지 않는다.** `4-security.md §5` 가 그
+        // **`errMessage()` 를 통과시킨다 — 직접 warn 하지 않는다.** `4-security.md §1`(표 "에러 메시지 노출") 이 그
         // 함수를 "에러 문구 정책의 코드 SoT" 로 지목한다(진단 원문은 console 로만, UI 는 일반화
         // 문구). 여기서 우회하면 그 정책이 이 경로에만 적용되지 않는다.
         //
@@ -1269,6 +1265,16 @@ function sseErrorDetail(e: unknown): string {
         // dispatch한 뒤 `openStream` 을 부르므로, 여기서 삼키기만 하면 **스피너에 영구 고착**된다 —
         // 이 PR 이 고치려던 바로 그 형태다. `start()` 는 같은 자리에서 `ERROR` 를 내는데 이쪽만
         // 안 하고 있었다(ai-review `10_02_22` requirement CRITICAL · side_effect).
+        // **stale 가드가 없다 — 그리고 그건 구조적 제약이다.** `start()`/`sendCommand` 의 catch 는
+        // `isStale(gen)` 부터 묻는데, 여기서 물으려면 `applyConfig` 안에서 발급되는 `attempt` 토큰이
+        // 이 클로저에 있어야 한다(없다).
+        //
+        // **오늘 무해한 근거(실측)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로
+        // 닫혀 있어 여기까지 던지지 않고, 유일한 실제 throw(`openStream` 의 EventSource 동기 실패)는
+        // **checkpoint 2 직후 동기 구간**에서만 일어난다 — 그 사이에 세계가 바뀔 창이 없다.
+        // 즉 이 안전성은 가드가 아니라 **"checkpoint 뒤엔 동기 구간만 온다"는 규율**에 기댄다.
+        // **checkpoint 2 뒤에 `await` 를 추가하는 변경은 이 자리를 함께 재검토해야 한다**
+        // (ai-review `10_24_54` side_effect — 추적: `plan/in-progress/webchat-auth-session-status-reconcile.md`).
         dispatch({ type: "ERROR", message: errMessage(e) });
       });
     };
@@ -1345,7 +1351,7 @@ function sseErrorDetail(e: unknown): string {
 /** 에러 발생 시 `state.error` 에 저장하는 **내부 ko 기준 신호**(진단·테스트 기준값). 실제 사용자 표시 문구는 이 상수가
  * 아니라 `panel` 이 catalog `error.generic` 을 `t()` 로 **로케일 렌더**한다(§4) — 렌더되는 에러는 항상 이 generic 이다
  * (ERROR→[ended]; BLOCKED 코드는 blocked phase 라 미렌더). 임베드 위젯은 타 사이트에서 동작하므로 서버/예외 원문을 UI 에
- * 흘리지 않고(4-security §5) 진단 원문은 console 로만 남긴다. 에러 → [ended] + "새 대화 시작" 안내(1-widget-app §3.1) 동작은
+ * 흘리지 않고(4-security §1 표 "에러 메시지 노출") 진단 원문은 console 로만 남긴다. 에러 → [ended] + "새 대화 시작" 안내(1-widget-app §3.1) 동작은
  * 유지한다. 값은 catalog 를 SoT 로 삼아 문구 중복/드리프트를 막는다. */
 const GENERIC_ERROR_MESSAGE = WIDGET_STRINGS.ko["error.generic"];
 

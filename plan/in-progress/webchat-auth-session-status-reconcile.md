@@ -242,6 +242,24 @@ openStream( 호출부 전수 (widget/*.ts, 테스트 제외)
 **여전히 참**이다. 다만 그건 `refresh_deferred` 고유가 아니라 **주기 갱신 경로 전체**의
 성질이다(종전부터 그랬고 이 PR 이 바꾸지 않았다). 별도 축으로 아래에 옮긴다.
 
+## `runApplyConfig` catch 에 stale 가드가 없다 (2026-08-11, side_effect WARNING)
+
+`start()`/`sendCommand` 의 catch 는 `isStale(gen)` 부터 묻고 stale 이면 아무것도 안 한다.
+`runApplyConfig` 의 catch 는 그 검사 없이 무조건 `ERROR` 를 dispatch 한다 — 구조적으로
+`applyConfig` 안에서 발급되는 `attempt` 토큰이 그 클로저에 없어 **물을 방법이 없다.**
+
+**오늘은 무해하다(실측)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로 닫혀
+있어 catch 까지 던지지 않고, 유일한 실제 throw(`openStream` 의 EventSource 동기 실패)는
+checkpoint 2 **직후 동기 구간**에서만 일어난다. 리뷰어가 재현 경로를 찾지 못했고 나도 못 찾았다.
+
+**그래서 지금 안 고친다**: 가드를 넣으려면 `applyConfig` 가 `attempt` 를 밖으로 내보내야 하고,
+그건 이 티켓 범위 밖의 구조 변경이다. 대신 그 catch 가 기대는 불변식을 코드 주석에 명시했다.
+
+**트리거 — 이때 재검토한다**: `applyConfig` 의 checkpoint 2 **뒤에 `await` 를 추가**하는 변경.
+그 순간 "동기 구간만 온다" 는 전제가 깨지고, stale 한 실패가 새 세계의 상태를 덮을 수 있다.
+
+- [ ] checkpoint 2 뒤 `await` 추가 시 — `attempt` 토큰 노출 또는 동등한 가드 도입
+
 ## `start()`/`applyConfig` 꼬리 블록 중복 (2026-08-10, maintainability WARNING)
 
 `shouldAbortAfterSeed` 로 "중단 여부" 축은 헬퍼화됐지만, 그 **뒤**의 꼬리 4단계

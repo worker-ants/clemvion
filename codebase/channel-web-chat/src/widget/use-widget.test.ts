@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { refreshDelayMs, safeApiBaseFromQuery, TOKEN_REFRESH_MIN_DELAY_MS } from "./use-widget";
+import { refreshDelayMs, safeApiBaseFromQuery, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS } from "./use-widget";
 
 // refreshDelayMs 본 검증은 use-token-refresh.test.ts 로 이관(God hook 분리, §B). 여기서는 use-widget 의
 // 하위호환 re-export 가 살아있는지만 smoke-check — 기존 import 경로 `./use-widget` 사용처 보호.
@@ -45,5 +45,35 @@ describe("safeApiBaseFromQuery", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(safeApiBaseFromQuery(null)).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * SSE `error` 로그의 **내용**을 직접 겨냥한다.
+ *
+ * 통합 쪽 회귀(`use-widget-eager-start.test.ts`)는 "토큰이 안 나온다" 만 본다. 그래서
+ * `readyState` 추출을 통째로 `return "error"` 로 뭉개도 위젯 스위트 75건이 전부 GREEN 이었다
+ * (실측, ai-review `10_24_54` testing) — **없애려던 결함(진단 정보 0)이 그대로 돌아와도
+ * 아무도 모른다.** 두 축(토큰 미노출 / 진단 정보 보존)은 서로 다른 테스트가 잡아야 한다.
+ */
+describe("sseErrorDetail — 토큰 없이 진단 정보만", () => {
+  it("`readyState` 를 담는다 — 일시적 끊김과 확정 실패를 가르는 유일한 신호", () => {
+    expect(sseErrorDetail({ type: "error", target: { readyState: 0 } })).toContain("readyState=0");
+    expect(sseErrorDetail({ type: "error", target: { readyState: 2 } })).toContain("readyState=2");
+  });
+
+  it("URL·토큰은 담지 않는다 — `target.url` 이 있어도", () => {
+    const out = sseErrorDetail({
+      type: "error",
+      target: { readyState: 0, url: "https://api.test/stream?token=iext_secret" },
+    });
+    expect(out).not.toContain("iext_secret");
+    expect(out).not.toContain("token=");
+  });
+
+  it("`readyState` 가 없으면 담지 않는다(문자열은 여전히 반환)", () => {
+    expect(sseErrorDetail({ type: "error" })).toBe("error");
+    expect(sseErrorDetail(null)).toBe("error");
+    expect(sseErrorDetail("boom")).toBe("error");
   });
 });
