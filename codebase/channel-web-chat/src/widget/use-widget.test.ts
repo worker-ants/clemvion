@@ -12,7 +12,8 @@ describe("use-widget — 토큰 갱신 헬퍼 re-export (하위호환 smoke)", (
   });
 });
 
-// 쿼리 apiBase 하드닝 — http(s) 스킴만 허용(direct-load 외부 입력 방어).
+// 쿼리 apiBase 하드닝 — http(s) 스킴만 허용. **direct-load 전용 방어가 아니다**: 이 경로는
+// 정상 임베드에서도 발동한다(`4-security.md §1`).
 describe("safeApiBase — 쿼리 경로", () => {
   afterEach(() => vi.restoreAllMocks());
 
