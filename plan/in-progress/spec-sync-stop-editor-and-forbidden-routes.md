@@ -103,7 +103,8 @@ P0 PR 의 `nodes.controller.ts` 가 `@ApiUnauthorizedResponse`(401) → `@ApiFor
 
 **3번 3건은 조용히 넘기지 않는다** — `workflow-assistant.controller.ts` 의 세 라우트는
 `@ApiUnauthorizedResponse` 자체가 없어 403 이 마지막 데코레이터가 됐다. status 순서상 정합이나,
-**401 문서화 누락은 별개 갭**이다(§5-4 는 401 도 요구한다). 이 티켓 범위 밖이라 아래 후속에 등재.
+**401 문서화 누락은 별개 갭**이다(**§2-4** 가 401 을 요구한다 — 첫 판에 §5-4 라 적었다).
+이 티켓 범위 밖이라 아래 후속에 등재.
 
 ### drive-by 를 한 번 만들었다가 되돌렸다
 
@@ -117,17 +118,11 @@ P0 PR 의 `nodes.controller.ts` 가 `@ApiUnauthorizedResponse`(401) → `@ApiFor
 ### 검증
 
 - 재스캔 **잔여 0건**, 변경 16파일 lint **0건**, 변경 컨트롤러 타입 오류 **0건**.
-- 문서 가드 **2890 passed**. 신규 앵커는 **뮤테이션으로 검증** — 가짜 앵커 주입 시
-  `spec-link-integrity` 가 RED 가 됨을 확인하고 `cp` 로 원복했다.
+- 문서 가드 **2890 passed**. 신규 앵커는 뮤테이션으로 검증했다 — **다만 이 시점의 검증은
+  불완전했다**(두 앵커를 동시에 바꿨다). 아래 "내 뮤테이션 주장이 절반만 참이었다" 가 정본이다.
 - 참고: `origin/main` 자체의 backend tsc/lint 오류(309줄)는 **선재**이며
   [`backend-lint-gate-broken-on-main`](./backend-lint-gate-broken-on-main.md) 에서 별도 추적한다.
   변경 파일에는 0건이다.
-
-## 후속 (이 티켓 범위 밖, 등재만)
-
-- [ ] `workflow-assistant.controller.ts` 3라우트에 `@ApiUnauthorizedResponse` 부재 —
-      `swagger.md §5-4` 는 401 도 요구한다. §2 codemod 중 발견(403 배치 3번 폴백 사유).
-      이 티켓은 403 만 다루므로 분리한다.
 
 ## 리뷰 라운드가 잡은 것 (`17_21_33` 코드 6 + `17_21_43` consistency 5)
 
@@ -193,13 +188,10 @@ diff 를 눈으로 보다 발견했다. 시그니처 탐색을 **괄호 깊이 0
 
 ## 후속 (이 티켓 범위 밖, 등재만)
 
-- [ ] **`spec-link-integrity` 가 멀티라인 마크다운 링크를 못 본다** — `spec-links.ts`
-      `extractLinks()` 가 한 줄 단위로 `LINK_RE` 를 돌려, `[` 와 `](` 가 다른 줄에 있으면
-      링크·앵커 검증이 **통째로 건너뛰어진다**. 저장소 전수 실측 **6건 / 6파일**
-      (`4-nodes/4-integration/2-database-query.md` · `5-system/1-auth.md` ·
-      `7-channel-web-chat/4-security.md` · `conventions/secret-store.md` ·
-      `conventions/swagger.md`(이번에 해소) · `data-flow/12-workspace.md`).
-      가드가 조용히 통과시키는 사각지대라 **깨진 앵커가 있어도 아무도 모른다.**
+- **`spec-link-integrity` 멀티라인 링크 사각지대** — 여기서 발견했으나 **하니스 결함**이라
+      [`harness-review-gate-followups.md`](./harness-review-gate-followups.md) 로 이관했다
+      (`plan_coherence` WARNING: 이 P3 spec-doc 티켓이 `complete/` 로 가면 docs-guard
+      작업자가 못 찾는다). 이 줄은 포인터다.
 - [ ] `workflow-assistant.controller.ts` 3라우트에 `@ApiUnauthorizedResponse` 부재 —
       `swagger.md` **§2-4**(상태 코드 응답 규칙)가 401 을 요구한다. 이 티켓은 403 만 다룬다.
       (첫 판에 §5-4 라 적었으나 401 요구는 §2-4 소관 — `plan_coherence` 정정.)

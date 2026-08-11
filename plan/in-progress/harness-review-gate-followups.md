@@ -41,6 +41,26 @@ spec_impact: none
 
 ## 미해결 항목
 
+- [ ] **`spec-link-integrity` 가 멀티라인 마크다운 링크를 통째로 못 본다** (2026-08-11 실측,
+      `spec-sync-stop-editor-and-forbidden-routes` 작업 중 발견 → 오너십이 여기라 이관).
+      `codebase/frontend/src/lib/docs/__tests__/spec-links.ts` 의 `extractLinks()` 가
+      **`text.split(/\r?\n/)` 로 자른 뒤 줄마다** `LINK_RE` 를 돌린다. 그래서 `[` 와 `](` 가
+      서로 다른 줄에 있으면 **링크 존재·앵커 유효성 검증이 통째로 건너뛰어진다** — 가드가
+      실패가 아니라 **침묵으로 통과**하므로 깨진 앵커가 있어도 아무도 모른다.
+      - **실측 (CommonMark 파서 기준, testing 리뷰어 독립 재현)**: `spec/**.md` 134파일 중
+        **6건 / 6파일** — `4-nodes/4-integration/2-database-query.md` · `5-system/1-auth.md` ·
+        `7-channel-web-chat/4-security.md` · `conventions/secret-store.md` ·
+        `data-flow/12-workspace.md` (+ `conventions/swagger.md` 는 발견 PR 에서 한 줄로 펴서 해소).
+      - **뮤테이션으로 확정**: `swagger.md` 의 같은 링크를 멀티라인 상태로 두고 가짜 앵커를
+        주입하면 **GREEN 생존**, 한 줄로 편 뒤 같은 주입은 **RED**. 리뷰어가 실제
+        `spec-links.ts` 를 번들해 scratch fake-repo 에서 3/3 재현했다.
+      - **왜 여기인가**: 이건 spec 문서의 결함이 아니라 **가드 자체의 사각지대**다. 발견한
+        P3 spec-doc 티켓이 `complete/` 로 가면 docs-guard 작업자가 찾지 못한다
+        (`plan_coherence` WARNING, `review/consistency/2026/08/11/17_42_52`).
+      - **주의**: 남은 5건을 "한 줄로 펴서" 해소하는 것은 **증상 처리**다. 근본 해법은
+        `extractLinks()` 가 멀티라인 링크를 보게 하는 것이고, 그때 **지금 침묵으로 통과하던
+        기존 링크들이 새로 RED 가 될 수 있다** — 고치는 PR 은 그 전수를 감당해야 한다.
+
 - [ ] **`spec-impl-evidence.md §4.2` 가 링크 위생 책임을 없는 곳에 돌리고 있다** (2026-08-10 실측).
       `spec-link-integrity.test.ts` 행 말미가 "plan-coherence-checker 가 담당하는 것은
       `plan/**` **문서 내부**의 링크 위생" 이라고 적었는데, 그 checker 의 실제 체크리스트는
