@@ -183,8 +183,8 @@ importers:
         specifier: ^9.0.1
         version: 9.0.3
       openai:
-        specifier: ^7.1.0
-        version: 7.1.0(@aws-sdk/credential-provider-node@3.972.76)(@smithy/signature-v4@5.6.12)(ws@8.21.0)(zod@4.4.3)
+        specifier: ^7.4.0
+        version: 7.4.0(@aws-sdk/credential-provider-node@3.972.76)(@smithy/signature-v4@5.6.12)(ws@8.21.0)(zod@4.4.3)
       otplib:
         specifier: ^13.4.1
         version: 13.4.1
@@ -8110,8 +8110,8 @@ packages:
     resolution: {integrity: sha512-MVHddDVweXZF3awtlAS+6pgKLlm/JgxZ90+/NBurBoQctVOOB/zDdVjcyPzQ+0laDGbsWgrRkflI65sQeOgT9Q==}
     engines: {node: '>=8'}
 
-  openai@7.1.0:
-    resolution: {integrity: sha512-7xWJ9iO5z5u1dnIUGwoUmZHkSyrUYXX2cUxo2E/26iKFrSC8IdEak7z94d5UntU7z+S/Cid33hYymwMSab2fZQ==}
+  openai@7.4.0:
+    resolution: {integrity: sha512-+C9Muit5x8j9R8ej8ZzVgKcrVDtqFqTy9gxFdov0EItLgU68zrJtF9ZeT0cyqJQW9S3PCJkdFgADtRGquRBtew==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -19302,7 +19302,7 @@ snapshots:
       is-wsl: 2.2.0
     optional: true
 
-  openai@7.1.0(@aws-sdk/credential-provider-node@3.972.76)(@smithy/signature-v4@5.6.12)(ws@8.21.0)(zod@4.4.3):
+  openai@7.4.0(@aws-sdk/credential-provider-node@3.972.76)(@smithy/signature-v4@5.6.12)(ws@8.21.0)(zod@4.4.3):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.76
       '@smithy/signature-v4': 5.6.12
