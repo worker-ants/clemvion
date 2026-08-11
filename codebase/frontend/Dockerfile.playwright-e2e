@@ -49,7 +49,7 @@ COPY codebase/packages/graph-warning-rules ./codebase/packages/graph-warning-rul
 # frontend + 그 workspace 의존만 설치(playwright e2e 는 page.route 로 backend 를 mock 해
 # 위젯·backend 의존 없음). 런타임(source bind-mount + anonymous volume)이 이 node_modules 를
 # 그대로 쓴다.
-RUN pnpm install --frozen-lockfile --filter "frontend..."
+RUN pnpm install --frozen-lockfile --strict-peer-dependencies --filter "frontend..."
 
 # chromium 을 baking — base 태그가 @playwright/test(1.61.0) major.minor 와 정렬돼 base 내장
 # 브라우저로 충분하지만, patch drift 시에도 설치된 버전 기준 브라우저를 build time 에 고정하도록

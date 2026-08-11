@@ -3,11 +3,17 @@
 ## 왜 이 파일이 있는가
 
 추출 전에는 `pnpm install --frozen-lockfile --filter "<scope>"` 가 워크플로마다 **한 줄씩
-직접** 적혀 있었다. 지금은 저장소 전체에서 **그 한 줄이 여기 하나뿐**이다. 파급이 뒤집혔다:
+직접** 적혀 있었다. 지금은 **CI 체크 워크플로가 그 한 줄을 공유**한다. 파급이 뒤집혔다:
 
 - 종전: 한 워크플로의 install 줄이 망가지면 그 워크플로만 잘못된다.
 - 지금: 이 줄이 망가지면 **9개 잡이 한꺼번에** 잘못된다 — 그리고 required check 후보가
   전부 그 안에 있다.
+
+> **"저장소 전체에서 여기 하나뿐" 이 아니다.** 종전 문구가 그렇게 적었고, 그 프레이밍이
+> 실제로 사고를 냈다 — `--strict-peer-dependencies` 를 도입할 때 이 한 곳만 고치고
+> "전부 덮었다" 고 믿었는데, `pnpm install` 은 `.claude/test-stages.sh` 와 Dockerfile
+> 3개에도 있고 그중 셋은 CI 에서 돈다(2026-08-10 requirement CRITICAL). 다섯 곳의
+> 일치는 `test_install_gate_flags.py` 가 본다.
 
 특히 `--frozen-lockfile` 은 `deps-guard-hardening` 이 required check 로 요구한 보장 그
 자체다. 여기서 빠지면 매니페스트와 어긋난 lockfile 이 pnpm 에 의해 조용히 재생성되고, 9개
@@ -104,15 +110,26 @@ def argv(proc: subprocess.CompletedProcess) -> list[str]:
 
 
 class InstallCommandTest(unittest.TestCase):
-    def test_pnpm_receives_frozen_lockfile_and_the_filter(self):
-        """저장소에서 `--frozen-lockfile` 의 **유일한** 소재지다 — 인자로 확인한다."""
+    def test_pnpm_receives_both_gate_flags_and_the_filter(self):
+        """**이 액션이 받는 인자**로 두 플래그를 확인한다 — 다섯 소재지 중 CI 잡이 공유하는 한 곳.
+
+        저장소 전체의 유일한 소재지가 아니다(`pnpm install` 은 5곳에 있다). 다섯 곳의
+        일치는 `test_install_gate_flags.py` 가 정적으로 대조한다 — 그 분업이 필요한 이유는
+        이 테스트만 있던 시절 나머지 4곳이 무가드로 남아 실제 사고가 났기 때문이다.
+
+        후자는 2026-08-10 추가. 미충족 peer 를 경고에서 실패로 올린다 — 그게 없어서
+        `#1049` 가 `eslint-plugin-unicorn` 을 `eslint>=10.4` 요구 버전으로 올린 채
+        9.39.4 설치본 위에 머지됐고, 사람이 로그를 읽다 발견했다.
+        """
         proc = run_install("frontend...")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertEqual(
             argv(proc),
-            ["install", "--frozen-lockfile", "--filter", "frontend..."],
+            ["install", "--frozen-lockfile", "--strict-peer-dependencies",
+             "--filter", "frontend..."],
             "pnpm 이 받은 인자가 기대와 다르다 — `--frozen-lockfile` 이 빠지면 매니페스트와 "
-            "어긋난 lockfile 이 9개 잡에서 전부 조용히 통과한다",
+            "어긋난 lockfile 이, `--strict-peer-dependencies` 가 빠지면 미충족 peer 가 "
+            "9개 잡에서 전부 조용히 통과한다",
         )
 
     def test_the_filter_arrives_as_one_argument(self):
@@ -123,7 +140,11 @@ class InstallCommandTest(unittest.TestCase):
         """
         proc = run_install("scope with space...")
         self.assertEqual(argv(proc)[-1], "scope with space...")
-        self.assertIn("ARGC=4", proc.stdout, proc.stdout)
+        # 리터럴이어야 한다. `len(argv(proc))` 로 유도하면 argv 와 같은 stdout 에서
+        # 나오므로 자기 자신과 비교하는 꼴이 되고, 인자가 갈려도 통과한다 — 이 단언의
+        # 존재 이유가 바로 "필터가 한 인자로 도착했는가" 다.
+        # install + --frozen-lockfile + --strict-peer-dependencies + --filter + <scope>
+        self.assertIn("ARGC=5", proc.stdout, proc.stdout)
 
     def test_a_scoped_package_name_survives_intact(self):
         """실사용 형태 — `@workflow/…` 와 `...`(workspace 의존 포함)."""

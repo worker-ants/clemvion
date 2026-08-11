@@ -147,8 +147,24 @@ jobs:
         if: needs.changes.outputs.relevant == 'false'
         run: echo "harness 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
+      # `fetch-depth` 는 장식이 아니다 — 이 스위트의 일부는 **실제 git 히스토리를 재생**한다
+      # (`test_line_anchors.pick_commit_fixture` 가 최근 `FIXTURE_SEARCH_DEPTH` 커밋에서
+      # 게이터 fixture 를 고른다). 기본값 1 은 그 히스토리를 통째로 없앤다: shallow root 는
+      # 부모가 graft 로 잘려 **parentless 로 보이므로** `git show --name-only` 가 트리 전체를
+      # 낸다(이 저장소 실측 19,591 파일). 그러면 `build_files_section` 이 스스로 주석에 적어 둔
+      # "파일이 충분히 많으면 헤더만으로 cap 을 다 쓰고 아무 파일도 content 를 못 받는다"
+      # 분기로 붕괴해 diff 블록이 0개가 되고, 테스트는 로컬에서 초록 · CI 에서만 빨갛다.
+      #
+      # 실측(2026-08-11): depth 1 → `test_diff_blocks_are_annotated_and_correct` 가
+      # `0 not greater than 20` 로 RED 이고 그 한 모듈이 20분을 넘긴다. depth 50 → 40 tests
+      # OK / 10.9초. `#1131` 이 이 상태로 머지됐고 그 red 를 뒤 PR 들이 상속했다.
+      #
+      # 값은 `FIXTURE_SEARCH_DEPTH`(40) 보다 커야 한다. 둘이 어긋나면 가드가 조용히 skip 으로
+      # 죽으므로 `test_line_anchors.CheckoutDepthCoversFixtureSearchTest` 가 정적 대조한다.
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
+        with:
+          fetch-depth: 50
 
       # ubuntu-latest ships python3, but pin via setup-python to keep the
       # actions major policy consistent with the other workflows (v5/v6 line).

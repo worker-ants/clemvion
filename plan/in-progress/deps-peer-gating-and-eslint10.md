@@ -1,12 +1,18 @@
 ---
 title: 의존성 peer 게이팅 + eslint 10 상향 — 무검증 major 머지의 남은 두 구멍
-worktree: (unstarted)
+worktree: spec-small-followups
 started: 2026-08-01
 owner: developer
 status: in-progress
 priority: P2
 spec_impact: none
 ---
+
+> _(2026-08-10)_ `worktree:` 를 `(unstarted)` → `spec-small-followups` 로 갱신했다. §1 을
+> 그 워크트리에서 착수했고, 이 필드는 "이 작업이 **어느 워크트리에서** 진행되는가" 다.
+> `(unstarted)` 로 두면 plan 게이트가 이 브랜치를 **다른 plan**(같은 워크트리를 선언 중인
+> `typescript-toolchain-followups`)에 연결한다 — 실제로 그렇게 막혔다. 게이트는 한
+> 워크트리의 여러 plan 중 **하나만 처리돼도** 통과하도록 설계돼 있다.
 
 ## Overview
 
@@ -39,6 +45,33 @@ codebase/backend
 실측(watch 기능을 우리가 쓰는지부터 확인), (b) `pnpm-workspace.yaml` 의 `peerDependencyRules`
 로 명시 억제 + 근거 주석, (c) nunjucks 대체.
 
+> **실측 (2026-08-10) — (a) 의 답이 나왔고, 그 답이 처분을 (b) 로 좁힌다.**
+>
+> | 확인 | 결과 |
+> |---|---|
+> | `codebase/backend/src` 의 nunjucks 참조 | **0건** |
+> | `codebase/backend/package.json` 의 nunjucks | **없음** (직접 의존 아님) |
+> | `codebase/**` 전체 참조 | **0건** |
+> | 유입 경로 | transitive — `bullmq`/`ejs`/`handlebars`/`liquidjs`/`mjml`/`pug` 와 함께 묶여 오는 email-template 스택 |
+> | lockfile `nunjucks@3.2.4` peer 선언 | `chokidar: ^3.3.0` + **`peerDependenciesMeta.chokidar.optional: true`** |
+>
+> 즉 **우리는 nunjucks 를 부르지 않고**, nunjucks 자신도 chokidar 를 **optional** 로 둔다
+> (템플릿 `watch` 옵션 전용). 그래서 (c) 대체는 과잉이고 — 우리 코드가 그 패키지를 쓰지
+> 않으므로 바꿀 호출부가 없다 — (a) 의 "동작하는지 실측" 도 실행 경로가 없어 무의미하다.
+> 남는 처분은 **(b) 명시 억제 + 근거 주석**이다.
+>
+> **주의 — 이 전제는 정확히 반만 맞았다.** 원 서술은 "지금 켜면 기존 미충족에 즉시 걸린다"
+> 였는데, optional peer 라는 사실이 빠져 있었다. 억제 근거를 "쓰지 않는 optional peer" 로
+> 적어야 하고, "동작 검증했다" 로 적으면 **하지 않은 검증을 주장**하는 것이 된다.
+>
+> **정정 (같은 날, 몇 분 뒤) — 위 결론 "(b) 로 좁혀졌다" 도 틀렸다.**
+> 억제를 실제로 넣고 `--strict-peer-dependencies` 를 돌렸더니 초록이었는데, **규칙을 빼도
+> 초록이었다**(exit 0, unmet peer 0건). 즉 처분 대상 자체가 이미 없었고, (b) 조차 필요
+> 없었다. 위 표는 lockfile 의 *선언* 을 읽은 것이고 이 정정은 *실행* 을 잰 것이다 —
+> **선언을 읽는 것과 돌려 보는 것은 다른 측정**이라는 게 이 항목의 진짜 교훈이다.
+> 넣었던 억제는 되돌렸다: 막을 대상이 없는 억제는 죽은 설정이고 나중에 진짜 미충족을
+> 조용히 덮는다(fail-open).
+
 **주의**: `#1043` 의 `ignoreCves` 선례처럼, 억제는 **근거를 남기고 baseline 으로 고정**해야
 새 억제가 조용히 늘어나지 않는다.
 
@@ -62,8 +95,16 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 
 ## 체크리스트
 
-- [ ] §1 `nunjucks → chokidar` 미충족 처분 (실측 → 억제 or 대체)
-- [ ] §1 `--strict-peer-dependencies` 게이트 도입
+- [x] §1 `nunjucks → chokidar` 미충족 처분 — **전제가 반증돼 처분 대상 자체가 없었다** (2026-08-10). 규칙 없이 `--strict-peer-dependencies --frozen-lockfile` → **exit 0, unmet peer 0건**. 2026-08-01 기준 서술이었고 그 사이 상류가 정리됐다. 억제를 넣었다가 **되돌렸다** — 막을 대상이 없는 억제는 죽은 설정이고 나중에 진짜 미충족을 조용히 덮는다(fail-open). 근거는 `pnpm-workspace.yaml` 주석에 남겼다.
+- [x] §1 `--strict-peer-dependencies` 게이트 도입 — **`pnpm install` 호출부 5곳 전부**에 추가 — `.github/actions/pnpm-workspace`(9개 잡 / 5개 워크플로 파일이 거친다) + `.claude/test-stages.sh`(로컬/TEST WORKFLOW) + `codebase/backend/Dockerfile` · `codebase/frontend/Dockerfile` · `Dockerfile.playwright-e2e`(e2e 이미지 빌드). **처음엔 action 한 곳만 고치고 "한 줄이 전부를 덮는다" 고 적었는데 과장이었다** — 리뷰가 나머지 4곳을 짚었고 그중 3곳은 지금도 CI 에서 돈다. plan 자신이 "CI/**로컬** 게이트" 라고 적어 둔 범위였다. 기존 가드 `test_pnpm_workspace_action.py` 가 정확히 그 줄을 고정하고 있어 **함께 갱신** — 계약이 바뀌면 그 계약을 고정한 테스트도 바뀌어야 한다(가드가 제 일을 했다).
+- [ ] **(무관, 이 티켓 밖 — 유실 방지 등재)** CLAUDE.md skill 권한표와 실제 관례의 불일치:
+      `developer` 의 `review/**` 쓰기가 **`RESOLUTION.md` 로만** 한정돼 있는데, 실제로는 매
+      라운드 산출물 전체(`<role>.md`·`SUMMARY.md`·`meta.json`…)를 커밋하는 것이 이 저장소의
+      확립된 관례다(`git log -- review/code/` 로 확인). **어느 쪽이 옳은지가 결정 사항**이라
+      임의로 정하지 않는다 — 감사 기록을 남기는 쪽(관례)이 맞다면 권한표를 넓히고, 권한을
+      좁게 두는 쪽이 맞다면 누가 그 산출물을 커밋할지 정해야 한다.
+      > 출처: `review/code/2026/08/10/15_41_41` scope INFO.
+
 - [ ] §2 eslint 10 상향 — 10개 워크스페이스 + config 검증
 - [ ] §2 상향 후 `dependabot.yml` 의 `eslint-plugin-unicorn` ignore 해제 + `eslint.config.mjs`
       주석의 실측 표 갱신

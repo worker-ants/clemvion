@@ -38,7 +38,7 @@ COPY codebase/packages/graph-warning-rules ./codebase/packages/graph-warning-rul
 
 # backend + 그 workspace 의존(`...`)만 설치. native(bcrypt/isolated-vm)는
 # onlyBuiltDependencies 허용 목록에 따라 컴파일된다.
-RUN pnpm install --frozen-lockfile --filter "backend..."
+RUN pnpm install --frozen-lockfile --strict-peer-dependencies --filter "backend..."
 
 # ---------- builder: compile backend TypeScript ----------
 FROM deps AS builder

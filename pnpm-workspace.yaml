@@ -120,3 +120,26 @@ auditConfig:
     # 위 3종 근거로 재심사하게 된다. 되살릴 때는 `check-pnpm-security-config.py` 의
     # `EXPECTED_IGNORED_CVES` 와 **함께** 고친다(2-place 규약).
     []
+
+# ── peer dependency 게이트 ──────────────────────────────────────────────────
+#
+# `pnpm install --strict-peer-dependencies` 를 게이트로 둔다. 소재지는 **`pnpm install`
+# 호출부 5곳 전부**다 — 한 곳만 짚으면 나머지로 그대로 새 나간다(직전 리뷰가 잡은 결함):
+#
+#   - `.github/actions/pnpm-workspace/action.yml` — 9개 잡 / 5개 워크플로 파일이 거친다(실측)
+#   - `.claude/test-stages.sh` — 로컬 / TEST WORKFLOW
+#   - `codebase/backend/Dockerfile` · `codebase/frontend/Dockerfile` ·
+#     `codebase/frontend/Dockerfile.playwright-e2e` — 이미지 빌드
+#
+# **예외 목록(`peerDependencyRules`)은
+# 비어 있고, 비어 있는 것이 정상이다.**
+#
+# 착수 근거였던 `nunjucks → chokidar` 미충족은 **이미 사라졌다**(2026-08-10 실측:
+# 규칙 없이 `--strict-peer-dependencies --frozen-lockfile` → exit 0, unmet peer 0건).
+# `plan/in-progress/deps-peer-gating-and-eslint10.md` §1 이 "지금 켜면 기존 미충족에
+# 즉시 걸린다" 고 적어 둔 전제는 2026-08-01 기준이었고 그 사이 상류가 정리됐다.
+#
+# 그래서 억제 규칙을 **넣지 않았다** — 막을 대상이 없는 억제는 죽은 설정이고, 나중에
+# 진짜 미충족이 그 자리에 생기면 조용히 덮어 버린다(fail-open). 예외가 필요해지면
+# 그때 `peerDependencyRules:` 를 신설하고, 각 항목에 **"왜 안전한가" 를 실측 근거로**
+# 적을 것 — "동작할 것이다" 가 아니라 "그 코드에 도달하지 않는다" 처럼.
