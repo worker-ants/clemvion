@@ -79,10 +79,17 @@ export const AUDIT_ACTIONS = {
   TRIGGER_CREATED: 'trigger.created',
   TRIGGER_UPDATED: 'trigger.updated',
   TRIGGER_DELETED: 'trigger.deleted',
-  // 시크릿/토큰 회전·폐기 — CRUD 와 별개 축이다. Editor+ 가 부를 수 있는 특권 작업이고
-  // 응답에 새 자격증명을 1회 평문 반환하므로, 계정 탈취 후의 조용한 교체를 `audit_log`
-  // 만으로 재구성할 수 있어야 한다. 셋으로 가른 근거(폭발 반경이 서로 다르다)와 액션명이
-  // sub-channel 을 담는 이유는 `spec/conventions/audit-actions.md §3` Rationale.
+  // 시크릿/토큰 회전·폐기 — CRUD 와 별개 축이다. Editor+ 가 부를 수 있는 특권 작업이고,
+  // 실행되면 **기존 자격증명이 무효화된다**(대상은 액션마다 다르다 — 아웃바운드 수신자 /
+  // 봇 세션 / 그 트리거로 열린 외부 대화 전부). 계정 탈취 후의 조용한 교체를 `audit_log`
+  // 만으로 재구성할 수 있어야 한다.
+  //
+  // 셋으로 가른 근거(폭발 반경이 서로 다르다)와 액션명이 sub-channel 을 담는 이유는
+  // `spec/conventions/audit-actions.md §3` Rationale.
+  //
+  // *(주의 — 앞의 둘만 응답에 새 자격증명을 1회 평문 반환한다. `chat_channel_bot_token_rotated`
+  // 는 새 토큰이 **호출자 입력**이라 응답에 안 실린다. 이 주석의 첫 판은 셋 다 반환한다고 적었고
+  // 그건 사실이 아니었다 — ai-review `12_22_23` documentation.)*
   TRIGGER_NOTIFICATION_SECRET_ROTATED: 'trigger.notification_secret_rotated',
   TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED: 'trigger.chat_channel_bot_token_rotated',
   // `revoked` 인 것은 의도다 — 나머지 둘은 24h grace 로 구·신 자격증명이 공존하지만

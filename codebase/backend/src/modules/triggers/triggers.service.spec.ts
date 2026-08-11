@@ -1655,6 +1655,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
   let secrets: jest.Mocked<SecretResolverService>;
   let adapterRegistry: jest.Mocked<ChannelAdapterRegistry>;
   let mockAdapter: { setupChannel: jest.Mock };
+  let auditLogs: { record: jest.Mock };
 
   const WORKSPACE_ID = 'ws-1';
   const TRIGGER_ID = 'trig-1';
@@ -1754,6 +1755,47 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
     secrets = moduleRef.get(SecretResolverService);
     adapterRegistry = moduleRef.get(ChannelAdapterRegistry);
+    auditLogs = moduleRef.get(AuditLogsService) as unknown as {
+      record: jest.Mock;
+    };
+  });
+
+  /**
+   * **감사 기록 — 성공/실패 양쪽.**
+   *
+   * 이 자리가 셋 중 유일하게 비어 있었다: 다른 두 회전은 `TriggersService — 감사 로깅`
+   * describe 에 회귀가 있는데 `rotateBotToken` 만 없었고, 그 결과 **감사 호출을 통째로
+   * 지우는 뮤턴트가 81건 전부 GREEN** 이었다(ai-review `12_22_23` testing CRITICAL —
+   * requirement·security 도 같은 자리를 독립 지적).
+   *
+   * 여기 두는 이유는 6단계 mock 이 이미 갖춰진 describe 라서다 — 실패 경로를 실제 단계
+   * 실패로 만들 수 있는 유일한 자리다.
+   */
+  it('감사 — 성공 시 trigger.chat_channel_bot_token_rotated 를 남긴다', async () => {
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: WORKSPACE_ID,
+        userId: 'u-bot',
+        // 문자열로 박는다 — 상수를 참조하면 상수를 잘못 바꿔도 함께 따라가 통과한다.
+        action: 'trigger.chat_channel_bot_token_rotated',
+        resourceType: 'trigger',
+        resourceId: TRIGGER_ID,
+      }),
+    );
+  });
+
+  it('감사 — 오케스트레이션이 중간에 실패하면 남기지 않는다', async () => {
+    // setupChannel(4단계) 실패 → 컬럼 갱신(6단계)에 도달하지 못한다. 여기서 감사가
+    // 남으면 "회전됐다" 는 거짓 기록이 되고 사고 조사가 틀린 타임라인을 그린다.
+    mockAdapter.setupChannel.mockRejectedValueOnce(new Error('telegram down'));
+
+    await expect(
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot'),
+    ).rejects.toBeDefined();
+
+    expect(auditLogs.record).not.toHaveBeenCalled();
   });
 
   it('정상 — old token resolve → v2 백업 → primary rotate → setupChannel → webhook secret store → trigger 갱신', async () => {
@@ -2317,7 +2359,7 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
   /**
    * **회전/폐기 3종 — CRUD 와 같은 자리에서 전수로 본다.**
    *
-   * 이 셋은 Editor+ 가 부를 수 있는 특권 작업이고 응답에 새 자격증명을 1회 평문 반환하는데,
+   * 이 셋은 Editor+ 가 부를 수 있는 특권 작업이고 실행되면 기존 자격증명이 무효화되는데,
    * 2026-08-11 까지 `recordAudit` 호출이 **0건**이었다(실측). 계정 탈취 후의 조용한 시크릿
    * 교체를 `audit_log` 만으로 재구성할 수 없던 자리다.
    *
