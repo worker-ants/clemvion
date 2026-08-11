@@ -92,7 +92,8 @@ export const AUDIT_ACTIONS = {
   // 안 실린다. 이 주석의 첫 판은 셋 다 반환한다고 적었고
   // 그건 사실이 아니었다 — ai-review `12_22_23` documentation.)*
   TRIGGER_NOTIFICATION_SECRET_ROTATED: 'trigger.notification_secret_rotated',
-  TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED: 'trigger.chat_channel_bot_token_rotated',
+  TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED:
+    'trigger.chat_channel_bot_token_rotated',
   // `revoked` 인 것은 의도다 — 나머지 둘은 24h grace 로 구·신 자격증명이 공존하지만
   // per_trigger 토큰 재발급은 **이전 토큰을 즉시 무효화**한다(유예 컬럼 없음).
   TRIGGER_INTERACTION_TOKEN_REVOKED: 'trigger.interaction_token_revoked',
