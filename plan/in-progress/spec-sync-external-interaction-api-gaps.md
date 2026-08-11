@@ -60,8 +60,38 @@ owner: planner
 checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를 말한다" 를 잡았다(`11_10_16`).
 그 인용은 코드 SoT 를 가리키도록 바꿨고, EIA 본문 정정은 이 항목으로 넘긴다.
 
-- [ ] §5.5 에 `410 Gone (EXECUTION_TERMINATED)` 응답 추가 — 예시·에러 코드 표 양쪽
-- [ ] 추가 후 `3-auth-session.md §R4` 의 "EIA 본문은 아직 담지 않는다" 캐비엇 제거
+- [x] §5.5 에 `410 Gone (EXECUTION_TERMINATED)` 응답 추가 — **완료(2026-08-11)**. 다만 아래
+      "티켓보다 넓었다" 참조: 표에는 `410` 이 **이미 있었고**(이 항목의 절반은 stale), 대신
+      refresh 전용 코드 3종이 표에 통째로 없었다.
+- [x] 추가 후 `3-auth-session.md §R4` 의 "EIA 본문은 아직 담지 않는다" 캐비엇 제거 — **완료**.
+      "`410` 은 복구 불가" 근거(토큰 회전이 terminal 검사보다 먼저)를 대신 남겼다.
+
+### 실측하니 티켓보다 넓었다 (2026-08-11)
+
+착수 전 `interaction.service.ts` `refreshToken` 을 읽고 분기를 전수로 세었더니, §5.5 의 그
+`401` 한 줄이 **두 가지를 다 틀리고 있었다**:
+
+| §5.5 가 `401` 이라 적은 것 | 실제 |
+| --- | --- |
+| "execution 종료됨" | **`410` `EXECUTION_TERMINATED`** (티켓이 등재한 항목) |
+| "expiresAt 까지 30분 이상 남음" | **`400` `TOKEN_REFRESH_NOT_IN_WINDOW`** (**티켓에 없던 항목**) |
+
+그리고 refresh 전용 코드 **3종**(`TOKEN_REFRESH_FORBIDDEN` 403 · `TOKEN_REFRESH_NOT_IN_WINDOW`
+400 · `TOKEN_REFRESH_FAILED` 400)이 §5.1 에러 코드 표에 **하나도 없었다**. 티켓은 `410` 만
+보고 있었으므로 그것만 고쳤다면 나머지 절반은 그대로 남았을 것이다.
+
+**자매 자리 하나가 더 깨져 있었다.** 표 아래 "토큰 실패 status 통일 근거" note 가
+"모든 토큰류 실패는 단일 `401` 로 수렴한다" 고 단정하는데, `403 TOKEN_REFRESH_FORBIDDEN` 이
+정면으로 반례다. 새 코드를 넣으면서 그 note 를 안 고쳤다면 **문서가 자기 표와 모순**한다 —
+"검증 실패(Guard 가 핸들러 이전에 판정)" 로 범위를 좁히고 403 이 왜 예외인지 적었다.
+
+**data-flow 는 이미 맞게 적고 있었다.** [`15-external-interaction.md §1.2`](../../spec/data-flow/15-external-interaction.md)
+가 `itk_*` 403 · terminal 410 · 30분 윈도우를 전부 정확히 서술한다. 즉 이건 설계 변경이 아니라
+**§5.5 만 홀로 stale** 했던 것이고, 같은 저장소 안에 이미 정답이 있었다.
+
+> **교훈**: 등재된 티켓의 범위는 **발견 시점의 시야**일 뿐이다. 착수 전 그 자리를 코드로 다시
+> 읽으면 티켓이 못 본 형제 결함이 같이 나온다 — 이 저장소가 이미 등재한 "반증된 전제는 더 큰
+> 결함의 덮개다" 와 같은 형태다.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
@@ -69,3 +99,53 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__14-external-interaction-api.md 참조.
 - 핵심 surface (REST 명령·SSE 스트림·iext/itk 토큰·HMAC 서명·SSRF·secret rotation·idempotency·CORS) 는 구현 완료. 위 항목은 hardening/배율/분산성 갭이며 기능 데드락은 아님.
+
+### consistency 라운드가 넷을 더 잡았다 (`16_51_08`, 전원 BLOCK:NO)
+
+착수 시 실측이 티켓보다 넓었듯, 리뷰도 내 정정보다 넓었다. 5 checker 전원 BLOCK:NO 였으나
+**처분할 것이 넷** 나왔고 전부 고쳤다:
+
+| # | 잡은 checker | 내용 |
+| --- | --- | --- |
+| 1 | **convention · plan_coherence (독립 2명)** | 내가 인용한 **`§3.3`** 이 틀렸다 — 에러 코드 표는 **§5.1** 이고 §3.3 은 인증 요구사항(EIA-AU-*) 표다. spec 2곳 + 이 plan 1곳, **또 복제** |
+| 2 | **convention · cross_spec (독립 2명)** | `3-error-handling.md §1.6` 이 "정의의 SoT 는 EIA §5.1 표" 라 선언한 **미러 카탈로그**인데 새 코드 3종이 반영 안 됨. 게다가 그 표의 "모든 토큰류 실패는 단일 401" 이 `403` 과 정면 반례가 됨 |
+| 3 | **rationale_continuity · cross_spec** | **§R14 본문 자체**가 "모두 `401`(`403` 미사용)" 이라 단정. 나는 §5.1 표·콜아웃에만 예외를 적고 **정본 Rationale 은 안 고쳤다** |
+| 4 | **plan_coherence (보너스)** | §5.2 가 위젯 소비 분기를 "미배선(no-op)" 이라 적는데 **2026-07-17 에 이 plan 이 `[x]` 로 닫은 항목**이다. 형제 문서 `1-widget-app.md §3.1` 은 이미 "모두 구현" — **§5.5 와 똑같이 §5.2 만 홀로 stale** |
+
+**#3 이 가장 값지다.** rationale_continuity 가 `git log -S` 로 §R14 도입 커밋(`907616c61`, #604)을
+찾아 **당시 실제로 기각한 것**을 확인했다 — 기각 대상은 "scope/audience 를 403 으로 세분" 뿐이고
+그 둘은 지금도 401 이다. 나아가 `TOKEN_REFRESH_FORBIDDEN` 이 **구현 최초 커밋(#230)부터** 있었고
+data-flow §1.2 가 **R14 와 같은 커밋에서** "itk_* 는 403" 을 적었음을 밝혔다 — 즉 R14 저자도
+예외를 알고 범위를 Guard 로 좁혀 썼는데 **제목과 표가 그 좁힘을 안 담아** drift 로 보였던 것이다.
+그래서 처분은 "예외를 추가" 가 아니라 **R14 의 실제 범위를 제목·본문에 명문화**하는 형태가 됐다
+(R14 는 "검증" 이라는 한정어를 쓴 적이 없으므로 "복원" 이 아니라 **처음 명문화**다 — 2라운드
+`rationale_continuity` 의 정정).
+
+### 그리고 나는 리뷰어의 이력 주장을 검증 없이 spec 에 옮겨 적었다
+
+1라운드 `rationale_continuity` 가 "data-flow §1.2 는 R14 와 **같은 커밋**(`907616c61`)에서
+도입됐다" 고 보고했고, 나는 그것을 **정본 Rationale 에 그대로 옮겨 적었다.**
+
+**거짓이었다.** 2라운드가 `git blame` 으로 잡았고 나도 직접 실측했다 — 그 문장은
+`db496a3c2`(#516, **2026-06-10**), R14 는 `907616c61`(#604, **2026-06-14**). **4일 앞선 별개 PR** 이다.
+1라운드는 "그 커밋이 파일을 건드렸다"(참)와 "그 커밋이 그 줄을 도입했다"(거짓)를 혼동했다.
+
+교훈은 둘이다:
+
+1. **리뷰어의 보고도 실측 대상이다.** 특히 `git log -S` 류 이력 주장은 명령 하나로 확인
+   가능한데, 나는 확인하지 않고 **영구 문서**에 썼다. 이 저장소는 "지어낸 Rationale" 을 이미
+   경계한다 — 남이 지어낸 것을 옮기는 것도 같은 결과다.
+2. **정정된 사실이 논지를 더 강하게 만들었다.** "같은 커밋" 이면 우연일 수 있지만, **4일 먼저
+   있었다**면 R14 가 쓰일 때 그 서술은 이미 저장소에 있었다는 뜻이다. 약한 주장을 검증 없이
+   쓰느니 실측하는 편이 결과도 낫다.
+
+그리고 의도 귀속("저자도 알고 좁혀 적었다")은 커밋 이력으로 확정 불가라 뺐다 — 대신 R14
+**본문 자체**가 근거를 `interaction.guard.ts deny()` 로 한정한다는 텍스트 사실만 남겼다.
+
+**#4 는 이 티켓이 고친 결함과 같은 클래스**가 같은 파일에 하나 더 있었다는 뜻이다 — plan 이
+닫은 항목을 spec 한 곳이 못 따라간 것. 티켓 범위 밖이지만 실측으로 확인하고 같이 닫았다.
+
+> **교훈**: 새 사실을 표에 넣을 때 **그 표를 미러하는 문서**와 **그 표의 근거 Rationale** 이
+> 자매 자리다. 나는 표만 고치고 미러(#2)와 정본(#3) 을 놓쳤다. 이 저장소가 이미 등재한
+> "SoT 한쪽만 고친다" 의 재발이며, 이번엔 **미러가 자기가 미러임을 문서에 적어 두었는데도**
+> 놓쳤다.

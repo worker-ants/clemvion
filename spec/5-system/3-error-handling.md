@@ -164,8 +164,11 @@ code:
 | `MESSAGE_TOO_LONG` | 400 | `submit_message` 메시지 최대 길이 초과. WS 평면 ack `EXECUTION_MESSAGE_TOO_LONG`(§1.5)과 동일 의미를 REST layer 코드로 표기 ([EIA §R13](./14-external-interaction-api.md)) | 내부 길이 수치 미노출 |
 | `STATE_MISMATCH` | 409 | continuation 명령이 현재 노드/실행 상태와 불일치. WS `INVALID_EXECUTION_STATE`·REST core `INVALID_STATE`(422)와 동형(§1.3·§1.5) | publisher 측 사전 검증 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 409 | 같은 `Idempotency-Key` + 다른 body | |
-| `EXECUTION_TERMINATED` | 410 | execution 이 이미 completed/failed/cancelled | |
-| `TOKEN_REVOKED` / `TOKEN_SCOPE_MISMATCH` / `TOKEN_AUDIENCE_MISMATCH` | 401 | interaction token(`iext_*`/`itk_*`) 실패. 모든 토큰류 실패는 **단일 401**(§8.2 정보 노출 최소화, [EIA §R14](./14-external-interaction-api.md)). §1.2 의 워크스페이스 JWT 계층 `TOKEN_INVALID`/`TOKEN_EXPIRED` 와 같은 문자열이나 진입점(`/api/external/*`)·토큰 family 로 레이어 구분 | revoke = terminal 시 즉시 무효화(at-least-once, EIA §3.4 EIA-RL-06) |
+| `EXECUTION_TERMINATED` | 410 | execution 이 이미 completed/failed/cancelled. **`POST .../refresh-token`(EIA §5.5)에서는 미존재 execution 도 이 코드로 합류**한다 (`404` 아님) | |
+| `TOKEN_REFRESH_NOT_IN_WINDOW` | 400 | **EIA §5.5 전용**: 만료까지 30분(`IEXT_REFRESH_WINDOW_SEC`) 넘게 남아 아직 갱신 시점이 아님 | |
+| `TOKEN_REFRESH_FAILED` | 400 | **EIA §5.5 전용**: 갱신이 토큰을 돌려주지 못함 (safety net) | |
+| `TOKEN_REFRESH_FORBIDDEN` | 403 | **EIA §5.5 전용**: `itk_*`(per_trigger)는 영구 토큰이라 갱신 대상 아님. 아래 401 통일의 **예외** — 토큰 검증 실패가 아니라 검증을 통과한 토큰의 표면 오용이다 | EIA 표면에서 유일한 403 |
+| `TOKEN_REVOKED` / `TOKEN_SCOPE_MISMATCH` / `TOKEN_AUDIENCE_MISMATCH` | 401 | interaction token(`iext_*`/`itk_*`) **검증** 실패. 모든 토큰 검증 실패는 **단일 401**(§8.2 정보 노출 최소화, [EIA §R14](./14-external-interaction-api.md)) — 여기서 "검증 실패" 는 `InteractionGuard` 가 핸들러 이전에 판정하는 집합이며, 위 `403 TOKEN_REFRESH_FORBIDDEN` 은 그 뒤 서비스 계층 판정이라 대상이 아니다. §1.2 의 워크스페이스 JWT 계층 `TOKEN_INVALID`/`TOKEN_EXPIRED` 와 같은 문자열이나 진입점(`/api/external/*`)·토큰 family 로 레이어 구분 | revoke = terminal 시 즉시 무효화(at-least-once, EIA §3.4 EIA-RL-06) |
 | `TOO_MANY_CONNECTIONS` | 429 | execution 당 SSE 동시연결 상한 초과 (§8.4). API 규약 429 기본 `RATE_LIMITED` 와 별개의 EIA-SSE 전용 코드 | |
 
 > `VALIDATION_ERROR`(submit_form field 검증)·`EXECUTION_NOT_FOUND`(404)·`TOKEN_INVALID`/`TOKEN_EXPIRED`(401)는 API 규약/§1.2~§1.3 표준 코드를 그대로 재사용한다(EIA 전용 아님).
