@@ -835,7 +835,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         },
       }),
     );
-    const result = await service.rotateNotificationSecret('t1', 'ws');
+    const result = await service.rotateNotificationSecret('t1', 'ws', 'user-1');
     expect(result.secret).toMatch(/^wsk_[a-f0-9]{64}$/);
     expect(typeof result.rotatedAt).toBe('string');
     expect(triggerRepo.save).toHaveBeenCalledWith(
@@ -849,7 +849,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
   it('rotateNotificationSecret — notification 미설정 시 NOTIFICATION_NOT_CONFIGURED', async () => {
     triggerRepo.findOne.mockResolvedValue(makeTrigger({}));
     await expect(
-      service.rotateNotificationSecret('t1', 'ws'),
+      service.rotateNotificationSecret('t1', 'ws', 'user-1'),
     ).rejects.toMatchObject({
       response: { code: 'NOTIFICATION_NOT_CONFIGURED' },
     });
@@ -865,7 +865,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         },
       }),
     );
-    const result = await service.revokePerTriggerToken('t1', 'ws');
+    const result = await service.revokePerTriggerToken('t1', 'ws', 'user-1');
     expect(result.token).toMatch(/^itk_[a-f0-9]{64}$/);
     expect(triggerRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -883,7 +883,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       }),
     );
     await expect(
-      service.revokePerTriggerToken('t1', 'ws'),
+      service.revokePerTriggerToken('t1', 'ws', 'user-1'),
     ).rejects.toMatchObject({
       response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
     });
@@ -892,7 +892,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
   it('revokePerTriggerToken — interaction 미설정 시 NOT_PER_TRIGGER_STRATEGY', async () => {
     triggerRepo.findOne.mockResolvedValue(makeTrigger({}));
     await expect(
-      service.revokePerTriggerToken('t1', 'ws'),
+      service.revokePerTriggerToken('t1', 'ws', 'user-1'),
     ).rejects.toMatchObject({
       response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
     });
@@ -1761,6 +1761,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       TRIGGER_ID,
       WORKSPACE_ID,
       NEW_TOKEN,
+      'user-1',
     );
     expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1799,6 +1800,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       TRIGGER_ID,
       WORKSPACE_ID,
       NEW_TOKEN,
+      'user-1',
     );
     expect(result).toEqual(
       expect.objectContaining({
@@ -1820,13 +1822,14 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       TRIGGER_ID,
       WORKSPACE_ID,
       NEW_TOKEN,
+      'user-1',
     );
     expect(result.botIdentity).toBeNull();
   });
 
   it('첫 rotation — old token resolve 실패 시 v2 백업 skip + chatChannelTokenV2=null', async () => {
     secrets.resolve.mockRejectedValueOnce(new Error('not found'));
-    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN);
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'user-1');
     // v2 ref rotate 미호출.
     const v2Calls = secrets.rotate.mock.calls.filter(([ref]) =>
       ref.endsWith('bot-token.v2'),
@@ -1843,7 +1846,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       registeredAt: new Date().toISOString(),
       configUpdates: {},
     });
-    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN);
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'user-1');
     const webhookSecretCalls = secrets.rotate.mock.calls.filter(([ref]) =>
       ref.includes('inbound-signing'),
     );
@@ -1858,7 +1861,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       config: {},
     } as unknown as Trigger);
     await expect(
-      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN),
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'user-1'),
     ).rejects.toMatchObject({
       response: { code: 'CHAT_CHANNEL_NOT_CONFIGURED' },
     });
@@ -1867,7 +1870,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
   it('provider 미등록 시 BadRequestException', async () => {
     adapterRegistry.has.mockReturnValueOnce(false);
     await expect(
-      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN),
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'user-1'),
     ).rejects.toMatchObject({
       response: { code: 'CHAT_CHANNEL_PROVIDER_UNKNOWN' },
     });
@@ -1886,7 +1889,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       },
     } as unknown as Trigger);
     await expect(
-      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN),
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'user-1'),
     ).rejects.toMatchObject({
       response: { code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED' },
     });
@@ -2309,6 +2312,70 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
         details: { type: 'webhook' },
       }),
     );
+  });
+
+  /**
+   * **회전/폐기 3종 — CRUD 와 같은 자리에서 전수로 본다.**
+   *
+   * 이 셋은 Editor+ 가 부를 수 있는 특권 작업이고 응답에 새 자격증명을 1회 평문 반환하는데,
+   * 2026-08-11 까지 `recordAudit` 호출이 **0건**이었다(실측). 계정 탈취 후의 조용한 시크릿
+   * 교체를 `audit_log` 만으로 재구성할 수 없던 자리다.
+   *
+   * 액션명을 문자열로 **박아서** 단언한다 — `AUDIT_ACTIONS.X` 를 쓰면 상수를 잘못 바꿔도
+   * 테스트가 함께 따라가 통과한다(자기 자신과 비교하는 셈).
+   */
+  it('rotateNotificationSecret 는 trigger.notification_secret_rotated 를 남긴다', async () => {
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue({
+      ...webhookTrigger,
+      config: { notification: { url: 'https://x.test/cb', events: [] } },
+    });
+
+    await service.rotateNotificationSecret('trg-1', 'ws-1', 'u-rot');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        userId: 'u-rot',
+        action: 'trigger.notification_secret_rotated',
+        resourceType: 'trigger',
+        resourceId: 'trg-1',
+      }),
+    );
+  });
+
+  it('revokePerTriggerToken 는 trigger.interaction_token_revoked 를 남긴다', async () => {
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue({
+      ...webhookTrigger,
+      config: { interaction: { tokenStrategy: 'per_trigger' } },
+    });
+
+    await service.revokePerTriggerToken('trg-1', 'ws-1', 'u-rev');
+
+    expect(auditLogs.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u-rev',
+        // **`*_rotated` 가 아니다** — 이전 토큰이 즉시 무효화되므로 회전과 구분한다.
+        action: 'trigger.interaction_token_revoked',
+        resourceId: 'trg-1',
+      }),
+    );
+  });
+
+  /**
+   * **실패하면 남기지 않는다.** 회전이 던졌는데 감사 row 만 남으면 "회전됐다" 는 거짓
+   * 기록이 되고, 사고 조사에서 그 행을 근거로 잘못된 타임라인을 그린다.
+   */
+  it('rotateNotificationSecret 가 던지면 감사를 남기지 않는다', async () => {
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue({
+      ...webhookTrigger,
+      config: {}, // notification 미설정 → NOTIFICATION_NOT_CONFIGURED
+    });
+
+    await expect(
+      service.rotateNotificationSecret('trg-1', 'ws-1', 'u-rot'),
+    ).rejects.toBeDefined();
+
+    expect(auditLogs.record).not.toHaveBeenCalled();
   });
 
   it('create 는 secret 마이그레이션 **전에** 기록한다 (W6 순서 고정)', async () => {

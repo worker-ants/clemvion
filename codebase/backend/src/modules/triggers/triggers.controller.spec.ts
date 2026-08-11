@@ -30,6 +30,8 @@ describe('TriggersController.rotateBotToken', () => {
     botIdentity: { botId: 111, username: 'bot' },
   };
 
+  const USER_ID = 'user-rot';
+
   beforeEach(() => {
     triggersService = {
       rotateBotToken: jest.fn().mockResolvedValue(ROTATE_RESULT),
@@ -44,18 +46,20 @@ describe('TriggersController.rotateBotToken', () => {
       TRIGGER_ID,
       { newBotToken: NEW_BOT_TOKEN },
       WORKSPACE_ID,
+      USER_ID,
     );
     expect(triggersService.rotateBotToken).toHaveBeenCalledWith(
       TRIGGER_ID,
       WORKSPACE_ID,
       NEW_BOT_TOKEN,
+      USER_ID,
     );
     expect(result).toEqual(ROTATE_RESULT);
   });
 
   it('실패 — newBotToken 미전달 시 BadRequestException', async () => {
     await expect(
-      controller.rotateBotToken(TRIGGER_ID, {}, WORKSPACE_ID),
+      controller.rotateBotToken(TRIGGER_ID, {}, WORKSPACE_ID, USER_ID),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(triggersService.rotateBotToken).not.toHaveBeenCalled();
   });
@@ -66,6 +70,7 @@ describe('TriggersController.rotateBotToken', () => {
         TRIGGER_ID,
         { newBotToken: 123 as unknown as string },
         WORKSPACE_ID,
+        USER_ID,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(triggersService.rotateBotToken).not.toHaveBeenCalled();
@@ -80,6 +85,7 @@ describe('TriggersController.rotateBotToken', () => {
         TRIGGER_ID,
         { newBotToken: NEW_BOT_TOKEN },
         WORKSPACE_ID,
+        USER_ID,
       ),
     ).rejects.toThrow('Telegram API error');
   });
@@ -95,7 +101,14 @@ describe('TriggersController.rotateBotToken', () => {
  */
 describe('TriggersController — 행위자(userId) 배선', () => {
   let controller: TriggersController;
-  let service: { create: jest.Mock; update: jest.Mock; remove: jest.Mock };
+  let service: {
+    create: jest.Mock;
+    update: jest.Mock;
+    remove: jest.Mock;
+    rotateNotificationSecret?: jest.Mock;
+    revokePerTriggerToken?: jest.Mock;
+    rotateBotToken?: jest.Mock;
+  };
 
   const WS = 'ws-1';
   const USER = 'user-1';
@@ -130,5 +143,54 @@ describe('TriggersController — 행위자(userId) 배선', () => {
     await controller.remove('trig-2', WS, USER);
 
     expect(service.remove).toHaveBeenCalledWith('trig-2', WS, USER);
+  });
+
+  /**
+   * **회전/폐기 3종도 같은 배선이 필요하다** (2026-08-11).
+   *
+   * 이 세 엔드포인트는 감사 대상이 된 지금부터 `userId` 를 서비스로 넘겨야 하고, CRUD 와
+   * 똑같이 **인자 자리 스왑이 컴파일을 통과한다**(`id`·`workspaceId`·`userId` 가 전부
+   * string). 위 세 케이스가 그 이유로 존재하는데 신규 엔드포인트를 등재하지 않으면
+   * 커버리지가 조용히 새 자리를 놓친다 — **입력 집합 자체가 커버리지**다.
+   */
+  it('rotateNotificationSecret 는 id·workspaceId·userId 순서를 지킨다', async () => {
+    service.rotateNotificationSecret = jest
+      .fn()
+      .mockResolvedValue({ secret: 's', rotatedAt: 'now' });
+
+    await controller.rotateNotificationSecret('trig-3', WS, USER);
+
+    expect(service.rotateNotificationSecret).toHaveBeenCalledWith(
+      'trig-3',
+      WS,
+      USER,
+    );
+  });
+
+  it('revokePerTriggerToken 는 id·workspaceId·userId 순서를 지킨다', async () => {
+    service.revokePerTriggerToken = jest
+      .fn()
+      .mockResolvedValue({ token: 'itk_x' });
+
+    await controller.revokePerTriggerToken('trig-4', WS, USER);
+
+    expect(service.revokePerTriggerToken).toHaveBeenCalledWith(
+      'trig-4',
+      WS,
+      USER,
+    );
+  });
+
+  it('rotateBotToken 는 id·workspaceId·newBotToken·userId 순서를 지킨다', async () => {
+    service.rotateBotToken = jest.fn().mockResolvedValue({});
+
+    await controller.rotateBotToken('trig-5', { newBotToken: 'tok' }, WS, USER);
+
+    expect(service.rotateBotToken).toHaveBeenCalledWith(
+      'trig-5',
+      WS,
+      'tok',
+      USER,
+    );
   });
 });

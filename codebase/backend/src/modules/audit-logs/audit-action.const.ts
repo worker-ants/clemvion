@@ -79,6 +79,15 @@ export const AUDIT_ACTIONS = {
   TRIGGER_CREATED: 'trigger.created',
   TRIGGER_UPDATED: 'trigger.updated',
   TRIGGER_DELETED: 'trigger.deleted',
+  // 시크릿/토큰 회전·폐기 — CRUD 와 별개 축이다. Editor+ 가 부를 수 있는 특권 작업이고
+  // 응답에 새 자격증명을 1회 평문 반환하므로, 계정 탈취 후의 조용한 교체를 `audit_log`
+  // 만으로 재구성할 수 있어야 한다. 셋으로 가른 근거(폭발 반경이 서로 다르다)와 액션명이
+  // sub-channel 을 담는 이유는 `spec/conventions/audit-actions.md §3` Rationale.
+  TRIGGER_NOTIFICATION_SECRET_ROTATED: 'trigger.notification_secret_rotated',
+  TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED: 'trigger.chat_channel_bot_token_rotated',
+  // `revoked` 인 것은 의도다 — 나머지 둘은 24h grace 로 구·신 자격증명이 공존하지만
+  // per_trigger 토큰 재발급은 **이전 토큰을 즉시 무효화**한다(유예 컬럼 없음).
+  TRIGGER_INTERACTION_TOKEN_REVOKED: 'trigger.interaction_token_revoked',
   SCHEDULE_CREATED: 'schedule.created',
   SCHEDULE_UPDATED: 'schedule.updated',
   SCHEDULE_DELETED: 'schedule.deleted',
