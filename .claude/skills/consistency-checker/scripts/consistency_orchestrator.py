@@ -280,16 +280,41 @@ def _edited_rels(diff_base, root):
     )
 
 
+# A filename mention has to END and BEGIN where the filename does. Bare `in`
+# matched `store.md` inside `secret-store.md`, which promoted a 30,559-char
+# catalog page into the on-topic tier and pushed the 31,525-char code diff out
+# of the `--impl-done` budget — the checkers then judged "spec vs implementation"
+# with no implementation (measured 2026-08-11, `review/consistency/…/17_42_52`).
+#
+# `.` joins the LEADING class so `v2.store.md` does not answer for `store.md`,
+# but not the trailing one: the needle already ends in `.md`, and a trailing `.`
+# is ordinary prose (`… store.md.`).
+_NAME_START = r"(?<![A-Za-z0-9_.\-])"
+_NAME_END = r"(?![A-Za-z0-9_\-])"
+
+
 def _named_in(rel, plan_text):
     """Does `plan_text` name this file — by path or by basename?
 
     `spec_impact:` frontmatter entries are full repo paths and body references
     are usually links, so both forms have to count; the frontmatter needs no
     separate parser because the caller passes the plan's WHOLE text.
+
+    The match is **boundary-anchored**: a plan that merely mentions a
+    LONGER name must not promote the shorter one. Both forms are checked,
+    because `rel` is suffix-vulnerable the same way (`a/store.md` sits inside
+    `b/a/store.md`) even though that shape is rarer than the basename one.
     """
-    return bool(plan_text) and (
-        rel in plan_text or os.path.basename(rel) in plan_text
-    )
+    if not plan_text:
+        return False
+    for needle in (rel, os.path.basename(rel)):
+        # `in` first: it is the cheap reject for the overwhelmingly common
+        # "not mentioned at all" case, and the regex only runs on survivors.
+        if needle in plan_text and re.search(
+            _NAME_START + re.escape(needle) + _NAME_END, plan_text
+        ):
+            return True
+    return False
 
 
 def prioritize_bundle_files(
@@ -534,11 +559,16 @@ def collect_context(args, root):
         """
         prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
         changed = {r for r in _rank_changed if r.startswith(prefix)}
-        # `files` arrives already ranked, so this walks a PREFIX. The catalog
-        # demotion needs no term here: a catalog page sits in tier 4 (last) and
-        # cannot reach the prefix unless the branch edited it, and that case is
-        # already `rel in changed`. Mutating the check away left every test
-        # green, which is what unreachable defence looks like.
+        # `files` arrives already ranked, so this walks a PREFIX.
+        #
+        # This used to claim a catalog page "cannot reach the prefix unless the
+        # branch edited it". **That was false** — on 2026-08-11
+        # `cafe24-api-catalog/store.md` reached tier 1 without being edited,
+        # because `_named_in` matched its basename inside `secret-store.md` in a
+        # branch plan. The claim was untestable-by-construction, which is why
+        # "mutating the check away left every test green" read as unreachable
+        # defence rather than as a missing test. The boundary fix in `_named_in`
+        # closes that route; the tier-4 demotion is a second line, not the only one.
         n = 0
         for path in files:
             rel = os.path.relpath(path, root)
