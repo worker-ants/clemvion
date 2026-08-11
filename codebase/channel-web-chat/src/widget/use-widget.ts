@@ -194,9 +194,8 @@ type StreamClaim =
  * 실패가 `BLOCKED` 를 dispatch 하는 것과 비대칭). 선재 갭이며 이 하드닝은 그 분기의 도달
  * 빈도를 넓혔을 뿐이다 — `plan/in-progress/webchat-auth-session-status-reconcile.md` 에 등재.
  *
- * > 첫 판은 "`applyConfig` 가 자기 자리에서 실패한다" 고 적었다. **거짓이다.** spec §R0 에서
- * > 그 문장을 정정하면서 **여기(코드 SoT)는 안 고쳤다** — 한 사실을 두 곳에 복제해 놓고 한
- * > 곳만 고친 형태다(ai-review `15_32_44` documentation CRITICAL).
+ * > 첫 판은 "`applyConfig` 가 자기 자리에서 실패한다" 고 적었다 — **거짓이다.**
+ * > 정정 이력은 `4-security.md` **§R7** 참고(같은 서술을 여기 되풀이하지 않는다).
  *
  * @param raw - `apiBase` 원본(null/undefined 가능).
  * @param source - 경고 문구용 입력 경로 이름.

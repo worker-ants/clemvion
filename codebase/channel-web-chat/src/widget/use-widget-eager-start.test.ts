@@ -4256,7 +4256,9 @@ describe("useWidget — wc:boot 의 apiBase 스킴 검증(호출부 배선)", ()
   it("유효 쿼리(apiBase만) + 악성 boot → 쿼리 값이 이긴다 (덮어쓰기 차단, e2e)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     installFetch();
-    const original = window.location.search;
+    // `href` 전체를 잡는다 — `search` 만 잡고 `"/"` 로 되돌리면 pathname 을 버린다
+    // (오늘은 jsdom 기본이 `/` 라 우연히 맞을 뿐, ai-review `15_50_53` side_effect INFO).
+    const originalHref = window.location.href;
     window.history.replaceState(null, "", `?apiBase=${encodeURIComponent(SESSION_API_BASE)}`);
     try {
       const { result } = renderHook(() => useWidget());
@@ -4268,7 +4270,7 @@ describe("useWidget — wc:boot 의 apiBase 스킴 검증(호출부 배선)", ()
       expect(result.current.config?.apiBase).toBe(SESSION_API_BASE);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("wc:boot"), "javascript:alert(1)");
     } finally {
-      window.history.replaceState(null, "", original || "/");
+      window.history.replaceState(null, "", originalHref);
     }
   });
 });

@@ -86,7 +86,7 @@ describe("mergeBootConfig — boot 의 apiBase 도 스킴 검증을 거친다", 
 
   it("쿼리도 없고 boot 도 거절되면 undefined — 부팅을 막지 않고 그 필드만 버린다", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    // `applyConfig` 가 자기 자리에서 실패하도록 둔다(여기서 throw 하지 않는다).
+    // 여기서 throw 하지 않는다 — `applyConfig` 가 조용히 반환한다(진단은 `safeApiBase` 의 warn 뿐).
     expect(mergeBootConfig(q(undefined), b("data:text/html,<script>")).apiBase).toBeUndefined();
   });
 

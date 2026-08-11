@@ -146,7 +146,7 @@ chat.shutdown();
 
 ```ts
 interface BootConfig {
-  apiBase: string;                  // API **origin**. 런타임 검증: http(s) 스킴만 허용 — 위반 시 그 필드만 무시(부팅은 계속). [4-security §1 `apiBase` 입력 검증 · §R7](./4-security.md)
+  apiBase: string;                  // API origin. 런타임 검증: http(s) 스킴만 허용 — 위반 시 그 필드만 무시(부팅은 계속). 4-security.md §1·§R7 참조
   triggerEndpointPath: string;      // 공개 webhook path. 인증 토큰은 boot 에 넣지 않음 — webhook 202 가 발급(per_execution)
   locale?: 'ko' | 'en';             // 위젯 UI 렌더 언어. 명시 → 브라우저 auto-detect → ko. 아래 주·R6 참조
   appearance?: { primaryColor?: string; position?: 'bottom-right' | 'bottom-left'; zIndex?: number };  // 색·위치만(현 phase)

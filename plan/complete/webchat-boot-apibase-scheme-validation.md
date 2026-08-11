@@ -7,6 +7,7 @@ priority: P3
 status: complete
 spec_impact:
   - spec/7-channel-web-chat/4-security.md
+  - spec/7-channel-web-chat/2-sdk.md
 ---
 
 ## Overview
@@ -38,7 +39,7 @@ RESOLUTION 이 "이 PR 범위 밖" 으로 미룬 항목이 **어떤 plan 에도 
       **CDN origin** 으로 해소돼 애초에 프록시 수단이 못 된다. SDK 자신도 같은 값을 iframe
       쿼리에 실어 http(s) 검증을 통과시켜야 하므로 정상 배포는 이미 이 술어를 만족한다.
 - [x] 구현 + 회귀 테스트 — `safeApiBase(raw, source)` 로 일반화하고 `mergeBootConfig` 신설.
-      **단위 6건**(`use-widget.test.ts`) + **호출부 통합 2건**(`use-widget-eager-start.test.ts`).
+      **단위 6건**(`use-widget.test.ts`) + **호출부 통합 3건**(`use-widget-eager-start.test.ts`).
       뮤테이션: 종전 병합 동작 복원 → 4건 RED, **호출부만 옛 코드로 되돌리기 → 1건 RED**.
       > 첫 판은 "회귀 5건" 이라 적었다 — 실제 6건이고 커밋 메시지는 6이라 적어 서로 어긋났다
       > (ai-review requirement INFO). 호출부 2건은 그 뒤 라운드에서 추가됐다.
@@ -73,7 +74,7 @@ plan 은 이 건을 "**비대칭 하드닝**(boot 에 검증이 없다)" 으로 
 덮어 지웠다. 회귀 테스트를 쓰다 내 첫 구현이 그 자리를 그대로 재현해 발각됐다 — 거절과
 부재를 둘 다 쿼리 폴백으로 보내도록 `mergeBootConfig` 에서 명시 계산한다.
 
-검증(라운드1 시점): channel-web-chat **448 passed**. 최종은 **450 passed**(신규 8 = 단위 6 + 호출부 통합 2).
+검증(라운드1 시점): channel-web-chat **448 passed**. 최종은 **451 passed**(신규 9 = 단위 6 + 호출부 통합 3).
 
 ## 리뷰 라운드 1 이 잡은 것 (2026-08-11, `15_16_20`)
 
