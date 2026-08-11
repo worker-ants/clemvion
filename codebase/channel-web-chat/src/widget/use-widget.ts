@@ -164,15 +164,40 @@ type StreamClaim =
   | "no_client";
 
 /**
- * 쿼리 파라미터 `apiBase` 를 **http(s) URL 로만** 허용한다(direct-load/샘플 대비 하드닝).
- * 직접 로드 경로의 `?apiBase=` 는 사용자가 URL 을 통제하지 못하는 임베드 시나리오와 달리 외부 입력이므로,
- * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해 거른다.
- * (localhost 개발은 `http://` 허용 — 스킴만 제한). path/query 는 보존한다(`apiBase` 는 `/api` 등 경로 포함이 정상).
+ * `apiBase` 를 **http(s) URL 로만** 허용한다. **두 입력 경로 모두**에 적용한다.
  *
- * @param raw - 쿼리 `apiBase` 원본(null 가능).
- * @returns http(s) URL 이면 원본 그대로, 아니면(null·파싱불가·비-http(s) 스킴) `undefined`(null 외에는 console.warn).
+ * `javascript:`/`data:`/상대경로 등 비-http(s) 값을 fetch base 로 쓰지 않도록 스킴을 검증해
+ * 거른다. (localhost 개발은 `http://` 허용 — 스킴만 제한.) path/query 는 보존한다 —
+ * `apiBase` 는 `https://host/api` 처럼 경로를 포함하는 것이 정상이다.
+ *
+ * ## 왜 boot 경로에도 거는가 (2026-08-11)
+ *
+ * 종전에는 쿼리(`?apiBase=`)에만 걸었다. 근거는 "쿼리는 외부 통제 입력이고 `wc:boot` 은
+ * host SDK 계약이라 신뢰 경계 안" 이었다. **그 비대칭이 하드닝을 무력화한다** — 실측:
+ *
+ * 1. SDK 는 같은 `apiBase` 를 **양쪽으로** 보낸다. iframe src 쿼리
+ *    (`resolveIframeTarget`, `web-chat-sdk/src/bridge.ts`)와 `wc:boot` postMessage
+ *    (`web-chat-sdk/src/index.ts`) 둘 다에 실린다.
+ * 2. 병합은 `{ ...configFromQuery(), ...bootMessage }` 라 **boot 이 나중에 덮는다.**
+ *
+ * 즉 쿼리 쪽 검증은 boot 이 오는 순간 **덮여서 사라진다**. 부재가 아니라 무력화였다.
+ *
+ * **정당한 비-http(s) 배포는 없다**(실측): 위젯은 CDN origin 의 iframe 에서 돈다
+ * (`widgetOrigin: originOf(base)`). 상대 `apiBase` 는 host 가 아니라 **CDN origin** 으로
+ * 해소되므로 애초에 동작하지 않는다. SDK 자신도 이 값을 `URLSearchParams` 에 실어 쿼리
+ * 검증을 통과시켜야 하므로, 정상 배포는 이미 이 술어를 만족한다.
+ *
+ * 거절 시 **그 필드만 버린다**(부팅 자체를 막지 않는다) — 쿼리 경로의 기존 동작과 대칭이고,
+ * `apiBase` 가 결국 없으면 `applyConfig` 가 자기 자리에서 실패한다.
+ *
+ * @param raw - `apiBase` 원본(null/undefined 가능).
+ * @param source - 경고 문구용 입력 경로 이름.
+ * @returns http(s) URL 이면 원본 그대로, 아니면 `undefined`(빈 값 외에는 console.warn).
  */
-export function safeApiBaseFromQuery(raw: string | null): string | undefined {
+export function safeApiBase(
+  raw: string | null | undefined,
+  source: "configFromQuery" | "wc:boot",
+): string | undefined {
   if (!raw) return undefined;
   try {
     const url = new URL(raw);
@@ -180,18 +205,45 @@ export function safeApiBaseFromQuery(raw: string | null): string | undefined {
   } catch {
     /* 파싱 불가 — 아래 경고 후 무시 */
   }
-  console.warn("[widget] configFromQuery: apiBase 가 http(s) URL 이 아니어서 무시합니다:", raw);
+  console.warn(`[widget] ${source}: apiBase 가 http(s) URL 이 아니어서 무시합니다:`, raw);
   return undefined;
+}
+
+/**
+ * @deprecated `safeApiBase(raw, "configFromQuery")` 를 쓴다. 기존 호출부(테스트 포함)
+ * 호환을 위한 얇은 위임이다.
+ */
+export function safeApiBaseFromQuery(raw: string | null): string | undefined {
+  return safeApiBase(raw, "configFromQuery");
 }
 
 /** boot config 를 query param 으로 폴백 해석(host 없이 직접 로드/샘플 대비). */
 function configFromQuery(): Partial<BootMessage> {
   if (typeof window === "undefined") return {};
   const q = new URLSearchParams(window.location.search);
-  const apiBase = safeApiBaseFromQuery(q.get("apiBase"));
+  const apiBase = safeApiBase(q.get("apiBase"), "configFromQuery");
   const triggerEndpointPath = q.get("trigger") ?? undefined;
   const locale = (q.get("locale") as "ko" | "en" | null) ?? undefined;
   return { apiBase, triggerEndpointPath, locale } as Partial<BootMessage>;
+}
+
+/**
+ * `wc:boot` 메시지와 쿼리 폴백을 병합한다. **boot 의 `apiBase` 는 스킴 검증을 거친다.**
+ *
+ * 검증에서 떨어지면 그 필드를 **넘기지 않으므로** 쿼리가 준 값(있다면)이 살아남는다 —
+ * 종전에는 반대로 검증되지 않은 boot 값이 검증된 쿼리 값을 덮었다.
+ */
+export function mergeBootConfig(
+  fromQuery: Partial<BootMessage>,
+  boot: Partial<BootMessage>,
+): BootMessage {
+  const merged = { ...fromQuery, ...boot } as BootMessage;
+  // **spread 에 맡기지 않는다.** `boot.apiBase` 가 명시적 `undefined` 면 spread 가 쿼리 값을
+  // 덮어 지운다(선재 동작 — 회귀 테스트가 이 자리를 잡았다). 거절이든 부재든 결론은 같다:
+  // 쿼리가 준 검증된 값으로 되돌린다.
+  merged.apiBase = (safeApiBase(boot.apiBase, "wc:boot") ??
+    fromQuery.apiBase) as BootMessage["apiBase"];
+  return merged;
 }
 
 /**
@@ -1289,7 +1341,7 @@ export function useWidget() {
     };
 
     bridge.onBoot((c) => {
-      runApplyConfig({ ...configFromQuery(), ...c } as BootMessage);
+      runApplyConfig(mergeBootConfig(configFromQuery(), c as Partial<BootMessage>));
     });
     bridge.onCommand((cmd) => {
       switch (cmd.action) {

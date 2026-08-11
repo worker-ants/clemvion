@@ -36,7 +36,7 @@ code:
 | postMessage | 양방향 `event.origin` 화이트리스트 검증. 토큰/대화 내용 host 로 비노출 |
 | 토큰 노출 | per_execution 단일 → 클라이언트에 장기 비밀 없음. 단명 토큰은 **sessionStorage** 저장 → 탭 종료 시 자동 소거(defense-in-depth, [3-auth-session §R6](./3-auth-session.md)) |
 | 에러 메시지 노출 | 임베드 위젯은 타 사이트에서 동작하므로 **서버/예외 원문을 UI 에 비노출** — 일반화 문구(`GENERIC_ERROR_MESSAGE`)만 표시하고 진단 원문은 `console.warn` 으로만(내부 구현·인프라 정보 노출 축소). 에러 → [ended] + "새 대화 시작" 동작([1-widget-app §3.1](./1-widget-app.md))은 유지하고 표시 문구만 일반화한다. 표시 문구는 위젯 로컬 i18n catalog(`error.generic`)를 `panel` 이 `t()` 로 로케일 렌더한다([1-widget-app §4](./1-widget-app.md)). 코드 SoT: `use-widget.ts errMessage` |
-| `apiBase` 입력 검증 | 정상 임베드 경로의 `apiBase` 는 host postMessage(boot)로 주입되지만, **host 없는 직접 로드/샘플 경로**는 `?apiBase=` 쿼리(외부 통제 입력)로 폴백한다. 이 폴백 값은 **http(s) 스킴만 허용**(`safeApiBaseFromQuery`)해 `javascript:`/`data:`/상대경로를 fetch base 로 쓰지 않도록 거른다(부적합 시 무시 + `console.warn`). 코드 SoT: `use-widget.ts configFromQuery`/`safeApiBaseFromQuery` |
+| `apiBase` 입력 검증 | **두 입력 경로 모두** `apiBase` 를 **http(s) 스킴만 허용**(`safeApiBase`)해 `javascript:`/`data:`/상대경로를 fetch base 로 쓰지 않도록 거른다(부적합 시 그 필드만 무시 + `console.warn` — 부팅 자체는 막지 않는다). 경로는 둘이다: **host 없는 직접 로드/샘플**의 `?apiBase=` 쿼리 폴백, 그리고 **정상 임베드**의 host postMessage(`wc:boot`). 코드 SoT: `use-widget.ts` 의 `safeApiBase`/`configFromQuery`/`mergeBootConfig` |
 | 저장 세션의 발급-origin 바인딩 | 저장된 세션(`executionId`+토큰)은 **발급 시점 `apiBase` 에 바인딩**된다. 재전송이 `apiBase` 를 바꾸면 옛 origin 이 발급한 토큰을 **새 origin 으로 보내지 않고 폐기·재시작**한다(`loadSession(path, apiBase)` 가 불일치 시 버린다). 이 축이 없으면 host 가 `apiBase` 만 갈아끼운 재전송으로 **A origin 의 자격을 B origin 에 흘릴** 수 있다. fail-closed — 판정 불가 시 폐기. 근거 [3-auth-session §R8](./3-auth-session.md) |
 | rate-limit / abuse | EIA §8.4 + 공개 webhook 남용 방어(§4) |
 | 입력 sanitize | AI 메시지/presentation 렌더 시 XSS 방지 — 위젯 책임. **deny-by-default 화이트리스트** + 링크 `rel=noopener`. 임베드 위젯은 XSS 가 호스트 사이트로 전파되므로 블랙리스트가 아닌 deny-by-default 가 합당(refactor 04 M-1). 구현 세부(`ALLOWED_TAGS`/`ALLOWED_ATTR`/`ALLOWED_URI_REGEXP`)·렌더러별 정책 매트릭스 §1.1 |
@@ -173,6 +173,35 @@ WCAG AA 지향(키보드 내비·ARIA·스크린리더) + 모던 에버그린 �
 ## Rationale
 
 (본 절은 §1~§5 정책의 "왜"만 다룬다 — 정책 본문은 위 섹션이 SoT.)
+
+### R0. `apiBase` 스킴 검증을 **두 경로 모두**에 거는 이유 (2026-08-11)
+
+종전에는 쿼리 폴백에만 걸었다. 근거는 "쿼리는 외부 통제 입력, `wc:boot` 은 host SDK 계약이라
+신뢰 경계 안" 이었고, 그 자체로는 합리적이다. **그런데 그 비대칭이 하드닝을 무력화했다.**
+
+**기각한 대안 — 비대칭 유지.** 다음 두 실측이 이 대안을 무너뜨린다:
+
+1. **SDK 는 같은 값을 양쪽으로 보낸다.** `resolveIframeTarget`(`web-chat-sdk/src/bridge.ts`)이
+   `apiBase` 를 iframe src 쿼리에 싣고, `boot()`(`web-chat-sdk/src/index.ts`)이 같은 값을
+   `wc:boot` 으로도 보낸다.
+2. **병합에서 boot 이 나중에 덮는다.** 위젯의 병합은 `{ ...configFromQuery(), ...boot }` 였다.
+
+⇒ 쿼리 쪽 검증은 boot 이 도착하는 순간 **덮여서 사라진다.** 즉 문제는 "boot 에 검증이 없다"
+가 아니라 **"검증된 값이 검증되지 않은 값에 의해 대체된다"** 였다. 비대칭을 유지하는 선택은
+곧 쿼리 검증을 장식으로 두는 선택이다.
+
+**정당한 비-http(s) 배포는 없다**(착수 전 판정 기준이었다). 위젯은 **CDN origin 의 iframe**
+에서 돈다(`widgetOrigin: originOf(base)`). 상대 `apiBase` 는 host 가 아니라 CDN origin 으로
+해소되므로 프록시 경유 배포의 수단이 될 수 없다. SDK 자신도 이 값을 쿼리에 실어 같은 술어를
+통과시켜야 하므로, 정상 배포는 이미 http(s) 를 만족하고 있다.
+
+**거절 시 그 필드만 버린다** — 부팅을 막지 않는다. 쿼리 경로의 기존 동작과 대칭이고, `apiBase`
+가 결국 없으면 `applyConfig` 가 자기 자리에서 실패해 진단이 그쪽에 모인다. 거절과 **부재**를
+가르는 것도 의도다: 부재는 조용히 쿼리 값으로 폴백하고, 거절만 `console.warn` 을 낸다.
+
+이 축이 중요해진 계기는 [§R8 발급-origin 바인딩](./3-auth-session.md)이다 — `apiBase` 가
+"세션 토큰이 어디로 가는지" 를 정하게 된 이상, 그 값을 정하는 입력 경로가 둘인데 하나만
+검증되는 상태를 유지할 이유가 없다.
 
 ### R1. CORS 두 공개 표면 분리 (`/api/hooks/*` 무제한 vs `/api/external/*` allowlist)
 공개 위젯은 `/api/hooks/*` 에 **credential 없이** POST 하므로 `Access-Control-Allow-Origin: *` 로 충분하고(브라우저가

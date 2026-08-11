@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { refreshDelayMs, safeApiBaseFromQuery, shouldAbortAfterSeed, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS, type SeedOutcome } from "./use-widget";
+import { mergeBootConfig, refreshDelayMs, safeApiBaseFromQuery, shouldAbortAfterSeed, sseErrorDetail, TOKEN_REFRESH_MIN_DELAY_MS, type SeedOutcome } from "./use-widget";
 
 // refreshDelayMs 본 검증은 use-token-refresh.test.ts 로 이관(God hook 분리, §B). 여기서는 use-widget 의
 // 하위호환 re-export 가 살아있는지만 smoke-check — 기존 import 경로 `./use-widget` 사용처 보호.
@@ -45,6 +45,71 @@ describe("safeApiBaseFromQuery", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(safeApiBaseFromQuery(null)).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * **`wc:boot` 경로의 `apiBase` 스킴 검증** — 이 자리가 종전에 비어 있었다.
+ *
+ * 근거가 "쿼리는 외부 통제 입력, boot 은 host SDK 계약(신뢰 경계 안)" 이었는데, **그
+ * 비대칭이 하드닝을 무력화한다**(실측):
+ *
+ * 1. SDK 는 같은 `apiBase` 를 **양쪽으로** 보낸다 — iframe src 쿼리(`resolveIframeTarget`)
+ *    와 `wc:boot` postMessage 둘 다.
+ * 2. 병합이 `{ ...query, ...boot }` 라 **boot 이 나중에 덮는다.**
+ *
+ * 그래서 쿼리 검증은 boot 이 오는 순간 사라졌다. 아래 "덮어쓰기" 케이스가 그 본체이고,
+ * 스킴 목록만 늘리는 테스트로는 잡히지 않는다 — 단위 술어는 이미 통과하고 있었기 때문이다.
+ */
+describe("mergeBootConfig — boot 의 apiBase 도 스킴 검증을 거친다", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const q = (apiBase?: string) => ({ apiBase, triggerEndpointPath: "/t" }) as never;
+  const b = (apiBase?: string) => ({ apiBase, triggerEndpointPath: "/t" }) as never;
+
+  it("정상 배포 — boot 의 http(s) 값이 그대로 쓰인다", () => {
+    // SDK 정상 경로는 양쪽에 같은 값을 싣는다. 검증은 여기서 no-op 이어야 한다.
+    const m = mergeBootConfig(q("https://api.example.com"), b("https://api.example.com"));
+    expect(m.apiBase).toBe("https://api.example.com");
+  });
+
+  it("**덮어쓰기 차단** — 비-http(s) boot 값이 검증된 쿼리 값을 덮지 못한다", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const m = mergeBootConfig(q("https://good.example.com"), b("javascript:alert(1)"));
+    // 종전 동작이었다면 여기서 `javascript:alert(1)` 이 나온다.
+    expect(m.apiBase).toBe("https://good.example.com");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("wc:boot"), "javascript:alert(1)");
+  });
+
+  it("쿼리도 없고 boot 도 거절되면 undefined — 부팅을 막지 않고 그 필드만 버린다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // `applyConfig` 가 자기 자리에서 실패하도록 둔다(여기서 throw 하지 않는다).
+    expect(mergeBootConfig(q(undefined), b("data:text/html,<script>")).apiBase).toBeUndefined();
+  });
+
+  it("상대 경로 boot 값도 거절 — 위젯은 CDN origin 이라 host 로 해소되지 않는다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(mergeBootConfig(q("https://good.example.com"), b("/api")).apiBase).toBe(
+      "https://good.example.com",
+    );
+  });
+
+  it("boot 이 apiBase 를 아예 안 보내면 쿼리 값이 그대로 산다 (거절과 부재를 가른다)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(mergeBootConfig(q("https://good.example.com"), b(undefined)).apiBase).toBe(
+      "https://good.example.com",
+    );
+    // 부재는 경고 대상이 아니다 — 거절만 시끄러워야 한다.
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("apiBase 외 필드는 boot 이 이긴다 (검증이 병합 규칙 전체를 바꾸지 않았다)", () => {
+    const m = mergeBootConfig(
+      { apiBase: "https://a.example.com", triggerEndpointPath: "/from-query" } as never,
+      { apiBase: "https://b.example.com", triggerEndpointPath: "/from-boot" } as never,
+    );
+    expect(m.triggerEndpointPath).toBe("/from-boot");
+    expect(m.apiBase).toBe("https://b.example.com");
   });
 });
 
