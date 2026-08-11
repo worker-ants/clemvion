@@ -286,11 +286,15 @@ def _edited_rels(diff_base, root):
 # of the `--impl-done` budget — the checkers then judged "spec vs implementation"
 # with no implementation (measured 2026-08-11, `review/consistency/…/17_42_52`).
 #
-# `.` joins the LEADING class so `v2.store.md` does not answer for `store.md`,
-# but not the trailing one: the needle already ends in `.md`, and a trailing `.`
-# is ordinary prose (`… store.md.`).
+# `.` is asymmetric on purpose, and the asymmetry is NOT "leading only":
+#   - LEADING: a bare `.` is rejected, so `v2.store.md` does not answer for
+#     `store.md`.
+#   - TRAILING: a bare `.` is ALLOWED (`… store.md.` is ordinary prose), but
+#     `.` followed by another filename character is not — otherwise
+#     `store.md.bak` answers for `store.md`, which is the same defect this
+#     function was just fixed for (`requirement` review, 18_45_23).
 _NAME_START = r"(?<![A-Za-z0-9_.\-])"
-_NAME_END = r"(?![A-Za-z0-9_\-])"
+_NAME_END = r"(?![A-Za-z0-9_\-]|\.[A-Za-z0-9])"
 
 
 def _named_in(rel, plan_text):
