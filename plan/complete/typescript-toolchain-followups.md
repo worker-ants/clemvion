@@ -3,7 +3,7 @@ title: typescript 툴체인 가드 후속 4건 — 공유 프리미티브 분리
 worktree: spec-small-followups
 started: 2026-08-01
 owner: developer
-status: in-progress
+status: complete
 priority: P3
 spec_impact: none
 ---
@@ -82,8 +82,43 @@ spec_impact: none
 **외부 사실**이다. 확인 없이 옮기면 typescript 가 dependabot 시야에서 사라질 수 있고, 그건
 #1047 을 만든 것과 같은 클래스의 사각지대다(그때는 버전 드리프트, 이번엔 업데이트 부재).
 
-⇒ **미착수 유지.** (1)·(2)는 해소됐고 (3) 하나가 남았다. 다음 사람은 dependabot 의 pnpm
-catalog 지원 여부만 확인하면 되고, 지원한다면 (2)의 가드 선행 수정을 같은 PR 에 넣는다.
+⇒ ~~**미착수 유지.** (1)·(2)는 해소됐고 (3) 하나가 남았다. 다음 사람은 dependabot 의 pnpm
+catalog 지원 여부만 확인하면 되고, 지원한다면 (2)의 가드 선행 수정을 같은 PR 에 넣는다.~~
+
+### 결론 — **won't-do (지금은).** (3) 조사 완료 (2026-08-11)
+
+**"지원 여부" 가 틀린 질문이었다.** 지원은 한다 — [GA 2025-02-04](https://github.blog/changelog/2025-02-04-dependabot-now-supports-pnpm-workspace-catalogs-ga/).
+원래 우려했던 "catalog 를 아예 안 갱신한다"([#11953](https://github.com/dependabot/dependabot-core/issues/11953))도
+**닫혔다**. 그런데 그 위에 더 나쁜 것이 **열려 있다**:
+
+[**dependabot-core#14339**](https://github.com/dependabot/dependabot-core/issues/14339) — 열림
+(2026-03-03 기준 확인, 메인테이너 응답·담당자·마일스톤 **없음**). 실패 형태:
+
+> dependabot 이 `pnpm-workspace.yaml` 은 **올바로** 갱신하는데, 함께 커밋하는
+> `pnpm-lock.yaml` 이 **catalog 패키지 하나를 통째로 누락**한다. 리포터의 재현에서 누락된
+> 것은 **`typescript`** 이고 `eslint`·`typescript-eslint` 는 보존됐다. frozen lockfile CI 가 깨진다.
+
+**우리 저장소에 그대로 꽂힌다** (실측):
+
+| 사실 | 확인 |
+|---|---|
+| 공용 설치 액션이 `--frozen-lockfile` 을 쓴다 | `.github/actions/pnpm-workspace/action.yml:90` |
+| 그 액션을 타는 잡 | **9개 잡 / 5개 워크플로** (그 파일 주석의 실측) |
+| 누락 대상으로 리포트된 패키지 | **`typescript`** — 이 plan 이 존재하는 이유(`#1047`) 그 축 |
+
+즉 마이그레이션하면 **`#1047` 과 같은 클래스의 사고를 자초한다.** 그때는 버전 드리프트였고
+이번엔 lockfile 유실인데, 드러나는 자리는 똑같이 "CI 가 어느 날 갑자기 전부 빨간불" 이다.
+차이는 하나 — **이번엔 착수 전에 알았다.**
+
+**(2)의 가드 선행 수정도 지금 하지 않는다.** `parseMajor("catalog:")` → `null` 문제는 실재하지만,
+그 수정만 먼저 넣으면 **아무도 안 쓰는 경로**가 생긴다. 이 저장소가 바로 직전 PR(`#1146`)에서
+`walkTree` 의 미사용 `path.isAbsolute` 분기로 리뷰어 셋에게 지적받은 형태다 — 원 plan 이
+"마이그레이션과 **같은 PR 안에서**" 라고 적은 것이 맞다.
+
+**재개 조건 (트리거)**: `dependabot-core#14339` 가 닫히면. 그때 (2)의 가드 수정 + 9개
+devDep 마이그레이션(`@types/node` 제외)을 한 PR 로 한다. 그 전까지는 현행 유지 —
+드리프트는 `typescript-toolchain.test.ts` 의 lockstep 축이 이미 **탐지**하고 있고,
+중복 선언 10곳은 탐지되는 한 사고가 아니라 비용이다.
 
 ## 4. 값싼 정리 2건 (INFO 12 · 16)
 
@@ -115,10 +150,9 @@ catalog 지원 여부만 확인하면 되고, 지원한다면 (2)의 가드 선�
       (`?? []`)가 살아남았다 — 이 저장소가 반복해 겪는 "헬퍼 테스트 ≠ 호출부 테스트". 같은
       파일의 `expandWorkspaceGlobs(readDir)` 규약대로 `readLines` 를 주입 가능하게 만들어
       합성 입력으로 그 축을 겨냥한다.
-- [ ] §3 `catalog:` 마이그레이션 — **(1)·(2) 해소, (3) 미해소로 미착수**. 위 실측 절 참조.
-      남은 것은 dependabot 의 pnpm catalog 지원 여부 하나뿐이고, 그 답이 "지원" 이면
-      **가드에 `catalog:` 해소를 먼저 가르치는 선행 작업이 같은 PR 에 필요**하다(실측으로
-      드러난 신규 조건).
+- [x] §3 `catalog:` 마이그레이션 — **won't-do (지금은). 2026-08-11 조사로 (3) 해소.**
+      질문은 "dependabot 이 pnpm catalog 를 지원하는가" 였는데, **지원 여부를 물은 것이
+      틀린 질문이었다** — 지원은 하고(GA 2025-02-04) 그 상태로 **깨진다**. 아래 §결론 참조.
 - [x] **§4 타입·JSDoc 정리** — `loadTypescriptFrom` 반환 타입 `unknown | null` → `unknown`
       (전자는 TS 상 동치라 "여기도 null 을 좁혀 준다" 로 오독된다). `missingCompilerApi`
       JSDoc 의 "이 경로" 를 실제 경로(TS7 스텁은 **객체**라 filter 를 탄다)로 명시.

@@ -4,7 +4,7 @@ worktree: webchat-session-generations-ca88ae
 started: 2026-07-25
 owner: project-planner
 priority: P2
-status: in-progress
+status: complete
 spec_impact:
   - spec/7-channel-web-chat/2-sdk.md
   - spec/7-channel-web-chat/3-auth-session.md
@@ -78,3 +78,16 @@ spec_impact:
 
 **왜 P2 인가.** 동작 영향 0. 다만 이 저장소가 반복해서 값을 매긴 종류의 결함이다 — 문서가
 가리키는 곳과 실제가 어긋나면 다음 사람이 조용히 잘못된 자리를 고친다.
+
+## 완료 (2026-08-11) — 뒤늦은 `complete/` 이동
+
+제안 3건은 **2026-08-10 planner 턴에서 전부 적용됐다**(위 체크박스 `[x]`). 실측 확인:
+`spec/7-channel-web-chat/2-sdk.md` 의 `code:` 에 `use-session-generations.ts` 가 있고
+인라인 주석이 "계약의 정본" 을 명시하며, `3-auth-session.md` 에도 동일 항목이 있다.
+
+그런데 이 문서는 `plan/in-progress/` 에 남아 있었다 — **작업을 끝낸 PR 이 이동을 빠뜨렸다.**
+`plan-lifecycle.md §3` 이 "이동만 담은 별 PR" 을 금지하므로, 다음 티켓
+(`typescript-toolchain-followups` §3 처분)의 PR 에 위생으로 실어 옮긴다.
+
+> 이 형태(**완료됐는데 `in-progress/` 에 남은 고아**)는 백로그를 훑을 때 "미완 항목 0" 으로
+> 드러난다. 남은 in-progress plan 을 미완 개수로 정렬했더니 이 문서가 유일하게 0 이었다.
