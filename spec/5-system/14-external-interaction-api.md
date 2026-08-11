@@ -333,20 +333,23 @@ POST /api/external/executions/550e8400-.../interact
 |------|------|------|
 | `400 Bad Request` | `VALIDATION_ERROR` | submit_form 의 field 검증 실패. body 의 `error.details[]` (`{ field, message, code: "INVALID_FIELD" }` 배열 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답)) 참조. execution 상태 유지(재제출 가능). field-level 검증(필수·type(email/number)·`validation.minLength`/`maxLength`·`min`/`max`(숫자 범위)·`pattern`(정규식)·select/radio 선택지·`type:'file'` MIME/크기/개수)은 publisher 측 `continueExecution` chokepoint 에서 노드 config 의 field 정의로 수행 (typed `FormValidationError` → EIA 400 매핑) — EIA·WS·UI 3 경로 공통 ([Form §6.2](../4-nodes/6-presentation/4-form.md#6-에러-코드)) |
 | `400 Bad Request` | `INVALID_COMMAND` | 지원하지 않는 command, 필수 필드 누락 |
+| `400 Bad Request` | `TOKEN_REFRESH_NOT_IN_WINDOW` | **§5.5 전용**: 만료까지 30분(`IEXT_REFRESH_WINDOW_SEC`) 넘게 남아 아직 갱신 시점이 아님. `message` 에 사유(`reason`)를 동봉한다 |
+| `400 Bad Request` | `TOKEN_REFRESH_FAILED` | **§5.5 전용**: 갱신이 토큰을 돌려주지 못함 (safety net — 위 분기에서 걸러졌어야 하는 경로) |
 | `400 Bad Request` | `MESSAGE_TOO_LONG` | `submit_message` 의 `message` 가 최대 길이(10000자) 초과. publisher 측 동기 검증 (typed `MessageTooLongError`, [실행 엔진 §7.5.2](./4-execution-engine.md#752-continuation-ack-에러-표면--typed-executionerror-와-내부-메시지-누출-차단))의 EIA 진입점 매핑 — WS 의 평면 ack `EXECUTION_MESSAGE_TOO_LONG` 와 동일 의미. 내부 길이 수치는 응답에 노출하지 않고 고정 메시지만 반환 |
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 위조·형식 오류·만료 등 검증 실패 |
 | `401 Unauthorized` | `TOKEN_REVOKED` | execution 종료(terminal) 또는 refresh 로 토큰이 즉시 무효화됨 (jti blacklist, §7.3/§3.4 EIA-RL-06). execution 이 이미 종료되어 refresh 로 복구 불가 |
 | `401 Unauthorized` | `TOKEN_SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 (다른 execution 의 토큰). 인가 실패이나 §8.2 정보 노출 최소화 정신에 따라 403 이 아닌 **401 토큰 실패 계열로 통일** — [data-flow §15](../data-flow/15-external-interaction.md) 의 `scope_mismatch→TOKEN_SCOPE_MISMATCH`·`interaction.guard.ts` 와 동일 |
 | `401 Unauthorized` | `TOKEN_AUDIENCE_MISMATCH` | 토큰 `aud` 가 `interaction` 이 아님 (다른 용도 토큰). 동일 401 토큰 실패 계열 ([data-flow §15](../data-flow/15-external-interaction.md) `audience_mismatch→TOKEN_AUDIENCE_MISMATCH`) |
-| `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음 |
+| `403 Forbidden` | `TOKEN_REFRESH_FORBIDDEN` | **§5.5 전용**: `itk_*`(per_trigger)는 영구 토큰이라 갱신 대상이 아님. 토큰 검증 실패가 아니라 **표면 오용**이라 §R14 의 "토큰류 실패는 401 로 통일" 대상이 아니다 — 유효한 토큰으로 없는 기능을 부른 것이고, family 는 이미 호출자가 아는 값이라 노출 이득도 없다 |
+| `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음. **§5.5 는 예외** — 거기선 미존재도 `410 EXECUTION_TERMINATED` 로 합류한다(§5.5 주석) |
 | `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 다른 nodeId, 또는 **대기 노드의 인터랙션 표면과 명령 불일치** — `buttons` 대기에 `submit_form`, `form` 대기에 `end_conversation` 등). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기. 표면별 허용 집합: `form`=`submit_form`, `buttons`=`click_button`, `ai_conversation`/`ai_form_render`=4종 모두 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
-| `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled |
+| `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled. **§5.5 에서도 같은 코드**를 내며 거기선 미존재 execution 도 포함한다(§5.5 주석) |
 | `429 Too Many Requests` | `RATE_LIMITED` | **구현됨**: inbound per-execution rate-limit 초과 (`/interact` 분당 60 · status 조회 분당 120, §8.4) — `InteractionRateLimitGuard` 가 `Retry-After`(잔여 윈도우 초) 헤더와 함께 반환한다. 시스템 전역 429 default 코드(`RATE_LIMITED`)를 그대로 사용하며, SSE 동시연결 초과의 EIA 전용 `TOO_MANY_CONNECTIONS`(§5.2)와는 **별개 표면**이다. (WebSocket 프로토콜 §7.1 의 동명 코드와도 발행 지점이 다른 별도 구현.) |
 
 > **`X-Refresh-Token-Url` 헤더 (모든 401 토큰 실패 공통)**: 위 `401 TOKEN_*` 응답에는 `InteractionGuard.deny()` 가 `X-Refresh-Token-Url` 헤더를 무조건 동봉한다 (EIA-AU-06, §3.3). 클라이언트가 토큰 갱신 진입점(§5.5)을 일관되게 발견하도록 하기 위함이며, `TOKEN_REVOKED`(execution 종료)·`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`(범위/용도 불일치)는 헤더를 따라가도 새 유효 토큰을 받지 못할 수 있다(복구 불가 신호).
-> **토큰 실패 status 통일 근거**: 모든 토큰류 실패(`invalid`/`expired`/`revoked`/`scope`/`audience`)는 단일 `401` status 로 수렴한다 — scope/audience 불일치를 `403`(인가 실패)으로 세분하면 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해 §8.2 HMAC 실패 통일(algorithm-leak 차단) 정신과 어긋난다. EIA 토큰은 execution-scoped 이라 scope 불일치는 사실상 "이 리소스에 대한 인증 실패" 에 가깝다 (결정 근거 §Rationale R14).
-> **코드 네임스페이스 주석**: (1) `TOKEN_INVALID`/`TOKEN_EXPIRED` 는 워크스페이스 JWT 계층([3-error-handling §1.2](./3-error-handling.md#12-인증인가-에러))과 **같은 문자열**이나, 본 표는 **interaction 토큰**(`iext_*`/`itk_*`) 검증 실패를 가리킨다 — 진입점(`/api/external/*`)·토큰 family 로 레이어가 구분된다. (2) `EXECUTION_NOT_FOUND`(404)는 **순수 미존재**만 의미한다 — 워크스페이스/scope 경계 위반은 위 `TOKEN_SCOPE_MISMATCH`(401)로 먼저 처리되므로 존재 누설이 없다. (3) `VALIDATION_ERROR`·`details[]` 는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 기본값을 따르고, `INVALID_COMMAND`/`MESSAGE_TOO_LONG`/`TOO_MANY_CONNECTIONS`(SSE 동시연결 초과, §5.2·§8.4)/`STATE_MISMATCH`/`EXECUTION_TERMINATED` 는 EIA 표면 전용 코드로 규약 기본값을 의도적으로 override 한다.
+> **토큰 실패 status 통일 근거**: 모든 토큰 **검증** 실패(`invalid`/`expired`/`revoked`/`scope`/`audience`)는 단일 `401` status 로 수렴한다 — 여기서 "검증 실패" 는 `InteractionGuard` 가 핸들러 이전에 판정하는 집합을 뜻하며, `403 TOKEN_REFRESH_FORBIDDEN`(§5.5)은 **검증을 통과한** 토큰이 갱신 표면을 오용한 경우라 이 통일 대상이 아니다(위 표 참조) — scope/audience 불일치를 `403`(인가 실패)으로 세분하면 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해 §8.2 HMAC 실패 통일(algorithm-leak 차단) 정신과 어긋난다. EIA 토큰은 execution-scoped 이라 scope 불일치는 사실상 "이 리소스에 대한 인증 실패" 에 가깝다 (결정 근거 §Rationale R14).
+> **코드 네임스페이스 주석**: (1) `TOKEN_INVALID`/`TOKEN_EXPIRED` 는 워크스페이스 JWT 계층([3-error-handling §1.2](./3-error-handling.md#12-인증인가-에러))과 **같은 문자열**이나, 본 표는 **interaction 토큰**(`iext_*`/`itk_*`) 검증 실패를 가리킨다 — 진입점(`/api/external/*`)·토큰 family 로 레이어가 구분된다. (2) `EXECUTION_NOT_FOUND`(404)는 **순수 미존재**만 의미한다 — 워크스페이스/scope 경계 위반은 위 `TOKEN_SCOPE_MISMATCH`(401)로 먼저 처리되므로 존재 누설이 없다. (3) `VALIDATION_ERROR`·`details[]` 는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 기본값을 따르고, `INVALID_COMMAND`/`MESSAGE_TOO_LONG`/`TOO_MANY_CONNECTIONS`(SSE 동시연결 초과, §5.2·§8.4)/`STATE_MISMATCH`/`EXECUTION_TERMINATED`/`TOKEN_REFRESH_NOT_IN_WINDOW`/`TOKEN_REFRESH_FAILED`/`TOKEN_REFRESH_FORBIDDEN`(뒤 3종은 §5.5 전용) 는 EIA 표면 전용 코드로 규약 기본값을 의도적으로 override 한다.
 > **`STATE_MISMATCH` 강제 정합 (2026-07)**: 위 `409 STATE_MISMATCH` 의 두 사유 — **표면 불일치**(`form`/`buttons` 대기 중 이종 명령)와 **nodeId 불일치**(명령의 `nodeId` ≠ 실제 대기 노드) — 는 본 계약이 처음부터 규정했으나, 구현이 한동안 이 조합을 거부하지 않고 `202` 로 수용하던 결함이 있었다. [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) publisher 사전 검증으로 두 사유를 모두 강제해 **구현을 계약에 정합**시켰다(표면=2026-07-10, nodeId=2026-07-14). **문서화된 동작은 바뀌지 않았으므로**(계약은 항상 `409` 였다) 별도 breaking-change 외부 공지는 발행하지 않는다 — 종전 `202` 에 의존한 클라이언트는 문서화되지 않은 결함에 의존한 것이며, 계약(EIA-IN-13·본 §5.1)이 이미 `409` 를 명시한다. 진입점별 nodeId 검사 커버리지는 [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 커버리지 표 참조.
 
 ### 5.2 SSE 이벤트 스트림 — `GET /api/external/executions/:executionId/stream`
@@ -422,7 +425,8 @@ AI 가 생성한 `execution.ai_message` 와 의미적으로 구분되는 정적 
 - `Last-Event-Id` 헤더 또는 query `?lastEventId=` 로 재연결 시 누락 이벤트 재전송 (5분 버퍼)
 - 버퍼가 요청 범위를 완전히 재전송하지 못하면(만료 또는 상한 폐기로 중간 seq 유실) `execution.replay_unavailable` 이벤트를 (한 번) 발송 → 클라이언트는 `GET /api/external/executions/:id` 로 현재 상태 재조회. 이름이 내부 WS 의 `replay.unavailable` ([Spec WS §6.2](./6-websocket-protocol.md#62-놓친-이벤트-복구)) 과 다른 이유는 SSE 의 이벤트 namespace 컨벤션 (`execution.*`) 에 맞추기 위함 — 두 표면의 의미는 동일. **(구현됨)** — `sse-adapter.service.ts` 의 `replayOrSignalUnavailable` 이 재연결 시 재생 가능한 가장 이른 seq 가 `Last-Event-Id + 1` 이 아니면(그 사이 구간이 만료·폐기됨) 부분 replay 대신 본 신호를 push 한다. payload = `{ executionId, lastEventId, message }` (`lastEventId` = 클라이언트가 마지막으로 받은 seq). 버퍼 내(5분·연속) 재전송은 종전대로 손실 없이 동작한다(EIA-NF-03).
   - **`id:` 생략 (control frame)**: 본 이벤트는 실행-scope monotonic seq 를 배정받지 않는 재연결 응답 전용 control frame 이라 `seq=0` sentinel 을 쓰고 SSE `id:` 라인을 **생략**한다(`writeSseFrame` 이 seq≤0 이면 미기재). 브라우저 native `EventSource` 의 Last-Event-Id 가 `0` 으로 오염돼 다음 자동 재연결이 전체 replay(`?lastEventId=0`)를 촉발하는 것을 막는다 (§5.3 seq=0 placeholder 관례와 정합 — 근거 §Rationale [R-replay-unavailable](#r-replay-unavailable-sse-버퍼-만료-신호-구현-결정-2026-07-08)).
-  - **클라이언트 소비(현 단계)**: 서버 emit 은 구현됐다. web-chat 위젯은 이벤트 리스너를 이미 등록(`eia-client.ts`)했으나 소비 분기는 아직 미배선(no-op)이라, 위젯은 여전히 버퍼 만료를 로컬 시간 기준(>5분)으로 판단해 REST snapshot 폴백을 트리거한다. 이벤트 기반 감지로의 교체는 클라이언트 측 별도 후속이다([1-widget-app §3.1](../7-channel-web-chat/1-widget-app.md), `plan/in-progress/spec-sync-external-interaction-api-gaps.md`).
+  - **클라이언트 소비**: 서버 emit·위젯 리스너(`eia-client.ts`)·**소비 분기가 모두 구현**됐다(2026-07-17). 위젯은 이 신호를 받으면 `getStatus` 스냅샷(§5.3)으로 재동기화하며, 신호 자체는 종료가 아니라 스트림·세션을 유지한다 — **단 스냅샷이 이미 terminal 이면** gap 안에 종료돼 terminal 이벤트까지 유실된 경우이므로 종료를 확정한다([1-widget-app §3.1](../7-channel-web-chat/1-widget-app.md)).
+    > 이 항목은 2026-07-17 에 닫혔으나 본 §5.2 만 "미배선(no-op)" 서술로 남아 있었다(2026-08-11 정정). 형제 문서 [1-widget-app §3.1](../7-channel-web-chat/1-widget-app.md)은 이미 "모두 구현" 이라 적고 있었다 — §5.5 가 홀로 stale 했던 것과 **같은 형태**이며, 같은 라운드의 `plan_coherence` 가 잡았다.
 - terminal 이벤트(`execution.completed` / `execution.failed` / `execution.cancelled`) 발송 후 서버가 SSE 연결 종료
 - 연결 수 제한 초과 시 `429 Too Many Requests`
 
@@ -514,8 +518,30 @@ Authorization: Bearer <expiring_iext_jwt>
   "expiresAt": "ISO8601"
 }
 
-401 Unauthorized   // execution 종료됨, 또는 expiresAt 까지 30분 이상 남음
+400 Bad Request    // TOKEN_REFRESH_NOT_IN_WINDOW — expiresAt 까지 30분 초과로 남음
+400 Bad Request    // TOKEN_REFRESH_FAILED — 갱신 실패 (safety net)
+401 Unauthorized   // TOKEN_* — 토큰 자체가 무효/만료/blacklist (Guard 선차단, §5.1 표)
+403 Forbidden      // TOKEN_REFRESH_FORBIDDEN — itk_*(per_trigger) 는 영구 토큰이라 갱신 대상 아님
+410 Gone           // EXECUTION_TERMINATED — execution 이 terminal 이거나 존재하지 않음
 ```
+
+> **`401` 이 아니라 `410`·`400` 인 자리**: 본 블록은 종전에 "execution 종료됨, 또는 expiresAt 까지
+> 30분 이상 남음" 을 **둘 다 `401`** 로 적었으나 구현은 그렇지 않다 — 종료는 `410`
+> (`GoneException`), 윈도우 미도달은 `400` 이다. `401` 은 `InteractionGuard` 가 핸들러 **이전에**
+> 내는 토큰 검증 실패 전용이다. 코드 SoT: `interaction.service.ts` 의 `refreshToken`
+> (`TOKEN_REFRESH_FORBIDDEN` → `TOKEN_REFRESH_NOT_IN_WINDOW` → `EXECUTION_TERMINATED` 순),
+> `interaction.controller.ts` 의 `@ApiGoneResponse`.
+>
+> **`410` 은 미존재도 포함한다** — terminal 판정 쿼리가 `!execution` 을 같은 분기로 묶으므로
+> `refresh-token` 에서는 없는 execution 도 `404` 가 아니라 `410` 이다(§5.1 표의 `404
+> EXECUTION_NOT_FOUND` 는 다른 엔드포인트 기준). 클라이언트에겐 어느 쪽이든 "이 execution 은
+> 더 이을 수 없다" 로 같은 결론이라 구분 이득이 없고, 존재/미존재를 가르지 않는 편이 §8.2
+> 정보 노출 최소화와도 맞는다.
+>
+> **`410` 을 받은 시점엔 옛 토큰이 이미 무효**다 — terminal 검사가 토큰 회전(`refreshPerExecution`
+> = 옛 `jti` blacklist + 신규 발급) **뒤에** 오기 때문이다. 따라서 `410` 은 옛 토큰으로 재시도할
+> 수 있는 상태가 아니며, 실질적으로도 종료 execution 의 토큰은 EIA-AU-04 가 이미 일괄 폐기한다.
+> 클라이언트는 `410` 을 **복구 불가 종료 신호**로 다루면 된다 ([웹채팅 3-auth-session §R4](../7-channel-web-chat/3-auth-session.md)).
 
 ### 5.6 동시성 / Lock (EIA-NF-05)
 
@@ -1106,11 +1132,29 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 > **범위**: 본 매핑은 EIA REST **외부 표면**의 실행-상태/메시지 에러 코드 표기에 한정된다 — 동형 의미의 내부 REST core 코드는 [error-handling §1.3](./3-error-handling.md#13-유효성-검증-에러)의 `INVALID_STATE`(422) 어휘를 쓴다. EIA **토큰 인증** 실패 코드(`TOKEN_*` 계열)의 status·코드명 정합은 §5.1 에러 표 + 아래 R14 가 SoT 다.
 
-### R14. 토큰 실패 status 통일 — 모두 `401` (`403` 미사용)
+### R14. 토큰 **검증** 실패 status 통일 — 모두 `401` (`403` 미사용)
 
-**채택**: EIA inbound 의 모든 토큰류 실패(`TOKEN_INVALID`/`TOKEN_EXPIRED`/`TOKEN_REVOKED`/`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`)를 단일 `401 Unauthorized` 로 표기하고, 코드명은 모두 `TOKEN_*` prefix 로 통일한다 (§5.1). 구현(`interaction.guard.ts` `deny()` = `UnauthorizedException`)·e2e 가 이미 401 이므로 spec 을 구현에 맞춘 정합이다.
+**채택**: EIA inbound 의 모든 토큰류 검증 실패(`TOKEN_INVALID`/`TOKEN_EXPIRED`/`TOKEN_REVOKED`/`TOKEN_SCOPE_MISMATCH`/`TOKEN_AUDIENCE_MISMATCH`)를 단일 `401 Unauthorized` 로 표기하고, 코드명은 모두 `TOKEN_*` prefix 로 통일한다 (§5.1). 구현(`interaction.guard.ts` `deny()` = `UnauthorizedException`)·e2e 가 이미 401 이므로 spec 을 구현에 맞춘 정합이다.
 
 scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나 인가 실패) 으로 세분하는 대안은 기각한다: (1) `403` 은 "토큰은 유효하나 권한만 부족" 이라는 정보를 외부에 노출해, HMAC 실패를 누락/형식/window/검증 무관하게 동일 401 로 묶는 §8.2 algorithm-leak 차단 정신과 어긋난다. (2) EIA 토큰은 **execution-scoped** 라 "다른 execution 의 토큰" 은 사실상 해당 리소스에 대한 인증 실패에 가깝다. (3) `deny()` 가 현재 401 전용이라 403 분기 도입은 guard 리팩토링 + e2e 회귀 위험을 부르는데 보안상 이점이 없다. 과거 spec §5.1 의 `403 SCOPE_MISMATCH` 표기는 구현(`401 TOKEN_SCOPE_MISMATCH`)과 어긋난 drift 였으며 본 결정으로 해소했다.
+
+> **범위 명확화 (2026-08-11)**: 본 결정은 **`InteractionGuard.deny()` 가 핸들러 이전에 판정하는
+> 검증 실패 5종**에 한정된다. §5.5 `refresh-token` 의 `403 TOKEN_REFRESH_FORBIDDEN` 은 그 통일의
+> **예외**이며 이 결정이 기각한 대안의 재도입도 아니다 — 기각된 것은 "**scope/audience 불일치**를
+> 403 으로 세분" 이었고 그 두 코드는 지금도 401 이다.
+>
+> 예외인 이유는 두 가지다. (1) **판정 지점이 다르다** — Guard 를 **통과한** 유효 토큰이 갱신
+> 표면을 오용한 경우이고, 판정은 서비스 계층(`interaction.service.ts` `refreshToken`)이 한다.
+> (2) **노출 이득이 없다** — 위 (1)번 기각 근거는 "토큰은 유효하나 권한만 부족" 을 외부에
+> 알리지 않는 것인데, 토큰 family 는 문자열 접두사(`iext_`/`itk_`)라 **호출자가 이미 아는 값**이다.
+> 반면 scope/audience 불일치는 호출자 스스로 확정할 수 없는 관계형 정보라 성격이 다르다.
+>
+> 이 예외는 새로 만든 것이 아니다 — `TOKEN_REFRESH_FORBIDDEN` 은 구현 최초 커밋(#230)부터
+> 존재했고, [data-flow §1.2](../data-flow/15-external-interaction.md)는 본 결정보다 **4일 앞선**
+> `db496a3c2`(#516, 2026-06-10)에서 이미 "`itk_*` 는 403" 이라 적었다. 본 결정(`907616c61`,
+> #604, 2026-06-14)이 쓰일 때 그 서술은 이미 저장소에 있었고, 본 결정의 근거도 처음부터
+> `interaction.guard.ts` `deny()` 로 한정돼 있다. 즉 범위는 원래 Guard 였으나 **제목과 §5.1 표가
+> 그 좁힘을 담지 않아** 한동안 drift 로 보였다(2026-08-11 정정).
 
 ### R15. Terminal token revoke 의 at-least-once — `execution_token` reconciliation (전용 outbox 미신설)
 
