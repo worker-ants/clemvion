@@ -4,7 +4,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import matter from "gray-matter";
+import { walkTree } from "./tree-walk";
+import { matterNoCache } from "./plan-scan";
 
 export type SpecStatus =
   | "backlog"
@@ -82,26 +83,12 @@ export function isApplicable(relPath: string): boolean {
 }
 
 export function collectApplicableSpecs(root: string): SpecRecord[] {
-  const out: SpecRecord[] = [];
-  const specDir = path.join(root, "spec");
-  if (!fs.existsSync(specDir)) return out;
-
-  const stack: string[] = [specDir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && full.endsWith(".md")) {
-        const rel = path.relative(root, full);
-        if (!isApplicable(rel)) continue;
-        out.push(parseSpecFile(full, rel));
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+  // 종전에는 상대경로를 `path.relative` 원본 그대로 넘겼다 — POSIX 에서만 우연히
+  // `isApplicable`/`CATALOG_FIELD_FILE` 의 `/` 가정과 맞았다. `walkTree` 는 항상 `/` 로
+  // 정규화하므로 그 잠복 분기가 사라진다.
+  return walkTree(root, ["spec"], {
+    includeFile: (_name, relPath) => isApplicable(relPath),
+  }).map((f) => parseSpecFile(f.absPath, f.relPath));
 }
 
 function parseSpecFile(absPath: string, relPath: string): SpecRecord {
@@ -110,7 +97,9 @@ function parseSpecFile(absPath: string, relPath: string): SpecRecord {
   let body = raw;
   let parseError: string | null = null;
   try {
-    const parsed = matter(raw);
+    // 캐시 우회는 `plan-scan.ts` 소관이다 — 종전에는 여기만 옵션 없는 `matter(raw)` 라,
+    // 그 파일이 다섯 곳에서 없앤 오염 클래스가 저장소에 한 자리 남아 있었다.
+    const parsed = matterNoCache(raw);
     body = parsed.content;
     if (parsed.data && Object.keys(parsed.data).length > 0) {
       fm = parsed.data as SpecFrontmatter;

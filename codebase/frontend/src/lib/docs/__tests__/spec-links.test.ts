@@ -7,6 +7,7 @@ import {
   findBrokenLinks,
   findBrokenPlanLinks,
   findBrokenSpecLinksInSources,
+  extractLinks,
 } from "./spec-links";
 
 // Negative-path fixture tests for the shared findBrokenLinksInFiles core,
@@ -203,5 +204,53 @@ describe("findBrokenPlanLinks (living plans)", () => {
     } finally {
       fs.rmSync(clean, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * `extractLinks` 의 **사전 필터**가 링크를 놓치지 않는지.
+ *
+ * 필터의 존재 이유는 성능이다 — codebase 소스 2077개 중 링크를 가진 것은 35개(1.7%)뿐이라
+ * 나머지의 라인 스캔이 통째로 낭비였다(전수 114ms → 56ms 실측). 문제는 **성능 최적화가
+ * 가드를 조용히 멈추게 하는 것**이고, 이 폴더가 반복해 데인 형태가 정확히 그것이다.
+ *
+ * 순진한 필요조건(닫는 대괄호 + 여는 소괄호가 붙어 있을 것)은 **틀렸다**: 스캔은 인라인
+ * 코드를 먼저 지우므로 `[a]` + 백틱코드 + `(b)` 는 그 조건 없이도 링크가 된다. 아래 세
+ * 번째 케이스가 그 자리를 겨눈다 — 필터를 그 조건 단독으로 좁히면 빨개진다.
+ */
+describe("extractLinks — 사전 필터가 링크를 놓치지 않는다", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "extract-links-"));
+  });
+  afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const writeDoc = (name: string, body: string): string => {
+    const p = path.join(root, name);
+    fs.writeFileSync(p, body);
+    return p;
+  };
+
+  it("링크 표기가 아예 없으면 빈 배열", () => {
+    expect(extractLinks(writeDoc("none.md", "# T\n\n본문뿐이다.\n"))).toEqual([]);
+  });
+
+  it("보통 링크는 그대로 찾는다", () => {
+    const p = writeDoc("plain.md", `# T\n\n${mkLink("t", "./a.md")}\n`);
+    expect(extractLinks(p).map((l) => l.target)).toEqual(["./a.md"]);
+  });
+
+  it("인라인 코드 제거로 **생기는** 링크도 찾는다 (원문엔 링크 표기가 없다)", () => {
+    // 원문은 `]` 다음이 백틱이라 순진한 조건을 통과하지 못한다 — 그런데 인라인 코드가
+    // 지워지면 온전한 링크가 된다. 사전 필터가 이 파일을 떨구면 링크 무결성 가드가 이
+    // 문서를 **영영 안 본다**.
+    const bt = "`";
+    const body = `# T\n\n[a]${bt}code${bt}(./b.md)\n`;
+    // 전제 자체를 고정한다 — 이 문자열이 순진한 조건을 통과하면 테스트가 무의미해진다.
+    expect(body.includes("]" + "(")).toBe(false);
+    expect(
+      extractLinks(writeDoc("codespan.md", body)).map((l) => l.target),
+    ).toEqual(["./b.md"]);
   });
 });

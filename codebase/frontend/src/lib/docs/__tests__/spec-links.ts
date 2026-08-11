@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { collectLivePlanMarkdown } from "./plan-scan";
+import { walkTree, type MdFileRef } from "./tree-walk";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdToString } from "mdast-util-to-string";
 import GithubSlugger from "github-slugger";
@@ -78,9 +79,33 @@ export interface MdLink {
 const LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
 const FENCE_RE = /^(\s*)(```|~~~)/;
 
+/**
+ * 마크다운 링크 표기가 **있을 수 없는** 파일인가. 참이면 라인 스캔을 통째로 건너뛴다.
+ *
+ * `LINK_RE` 는 `]` 바로 뒤에 `(` 를 요구하므로 `"]("` 가 없으면 매치도 없다 — **다만
+ * 그것만 보면 안 된다.** 아래 스캔은 인라인 코드를 먼저 지우므로, 원문 `` [a]`x`(b) `` 는
+ * `"]("` 를 갖지 않는데 제거 후 링크가 된다. `]` 를 `(` 옆으로 데려올 수 있는 유일한 경로가
+ * 인라인 코드 제거이고, 그러려면 원문에 **`]` 바로 뒤 백틱**이 있어야 한다.
+ *
+ * 그래서 필요조건은 두 개다. 순진한 `"]("` 단독이면 저 형태의 링크를 가진 파일이 가드에서
+ * **조용히 빠진다** — 성능 최적화가 가드를 침묵시키는 형태이고, 이 저장소가 반복해 데인
+ * 것이 그것이다.
+ *
+ * 실측(codebase 소스 2077개): `"]("` 35개(1.7%) → 통과 **247개(11.9%)**. 정확한 조건도
+ * 88%를 걸러낸다. spec 은 134개 전부 통과한다(원래 링크 문서다).
+ *
+ * 절대 개수는 트리가 커지면 따라 움직인다 — **비율**이 요점이고, 첫 판이 1~2건 어긋난 것도
+ * 파일을 더 추가하기 전 중간 상태에서 쟀기 때문이다(ai-review documentation).
+ */
+function cannotContainLink(text: string): boolean {
+  return !text.includes("](") && !text.includes("]`");
+}
+
 /** Extract markdown links outside fenced/inline code. */
 export function extractLinks(absPath: string): MdLink[] {
   const text = fs.readFileSync(absPath, "utf8");
+  // 링크가 있을 수 없으면 라인 루프 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
+  if (cannotContainLink(text)) return [];
   const out: MdLink[] = [];
   let inFence = false;
   const lines = text.split(/\r?\n/);
@@ -116,10 +141,12 @@ export function isExternal(target: string): boolean {
   );
 }
 
-export interface SpecMdFile {
-  absPath: string;
-  relPath: string;
-}
+// 종전 `SpecMdFile` 은 **지웠다**. 그 이름이 실제 용도보다 좁았고
+// (`collectCodebaseSources(): MdFileRef[]` — spec 도 markdown 도 아니다),
+// `@deprecated` 별칭으로 남기려던 근거("외부 호출부를 한 번에 못 바꾼다")는 **거짓이었다**
+// — 전수 grep 결과 외부 소비처 0건이고 유일한 사용처가 이 파일 안 한 곳이었다(리뷰 실측).
+// 근거가 반증된 별칭은 남길 이유가 없다.
+// (`plan-scan.ts` 는 이미 `PlanMdFile` 을 따로 두어 이 혼동에서 빠져 있었다.)
 
 // Generated API reference catalogs (cafe24-api-catalog, makeshop-api-catalog, …)
 // are not narrative specs; their cross-links are machine-generated and out of
@@ -129,26 +156,11 @@ function inGeneratedCatalog(relPath: string): boolean {
 }
 
 /** All narrative markdown under `spec/` (excludes generated catalogs). */
-export function collectSpecMarkdown(root: string): SpecMdFile[] {
-  const specDir = path.join(root, "spec");
-  const out: SpecMdFile[] = [];
-  if (!fs.existsSync(specDir)) return out;
-  const stack: string[] = [specDir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && full.endsWith(".md")) {
-        const rel = path.relative(root, full).split(path.sep).join("/");
-        if (inGeneratedCatalog(rel)) continue;
-        out.push({ absPath: full, relPath: rel });
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+export function collectSpecMarkdown(root: string): MdFileRef[] {
+  return walkTree(root, ["spec"], {
+    includeFile: (name, relPath) =>
+      name.endsWith(".md") && !inGeneratedCatalog(relPath),
+  });
 }
 
 export type LinkViolationKind = "DEAD" | "ANCHOR";
@@ -181,7 +193,7 @@ interface LinkScanOptions {
  * points below differ only in the file set and the two `options` knobs.
  */
 function findBrokenLinksInFiles(
-  files: SpecMdFile[],
+  files: MdFileRef[],
   options: LinkScanOptions,
 ): LinkViolation[] {
   const violations: LinkViolation[] = [];
@@ -316,30 +328,11 @@ const CODEBASE_SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next"]);
 const SPEC_MD_TARGET_RE = /(^|\/)spec\/.+\.md$/;
 
 /** All `.ts`/`.tsx` under the codebase source roots (build output dirs excluded). */
-export function collectCodebaseSources(root: string): SpecMdFile[] {
-  const out: SpecMdFile[] = [];
-  for (const rel of CODEBASE_SOURCE_ROOTS) {
-    const base = path.join(root, rel);
-    if (!fs.existsSync(base)) continue;
-    const stack: string[] = [base];
-    while (stack.length > 0) {
-      const cur = stack.pop()!;
-      for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-        const full = path.join(cur, entry.name);
-        if (entry.isDirectory()) {
-          if (!CODEBASE_SKIP_DIRS.has(entry.name)) stack.push(full);
-        } else if (
-          entry.isFile() &&
-          (full.endsWith(".ts") || full.endsWith(".tsx"))
-        ) {
-          const relPath = path.relative(root, full).split(path.sep).join("/");
-          out.push({ absPath: full, relPath });
-        }
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+export function collectCodebaseSources(root: string): MdFileRef[] {
+  return walkTree(root, CODEBASE_SOURCE_ROOTS, {
+    skipDir: (name) => CODEBASE_SKIP_DIRS.has(name),
+    includeFile: (name) => name.endsWith(".ts") || name.endsWith(".tsx"),
+  });
 }
 
 /**

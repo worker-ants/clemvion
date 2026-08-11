@@ -110,8 +110,19 @@ priority: P3
 
 ## 함께 볼 것 — 같은 "DRY vs 안전성" 축의 다른 plan
 
-[`docs-guard-walker-dedup.md`](docs-guard-walker-dedup.md) — `codebase/frontend/src/lib/docs/__tests__/`
-문서 가드들의 디렉터리 순회 walker 3벌 통합 판정.
+[`docs-guard-walker-dedup.md`](../complete/docs-guard-walker-dedup.md) — `codebase/frontend/src/lib/docs/__tests__/`
+문서 가드들의 디렉터리 순회 walker 통합. **완료 (2026-08-11)** — 착수 때 3벌로 봤으나
+실측 6벌이었고, `tree-walk.ts` 의 `walkTree` 하나로 모였다.
+
+- [ ] **(조건부, 그 plan 이 남긴 유일한 미종결 항목) `plan-scan.ts` 가 449줄이 됐다** —
+      Gate C 판정 함수 8개가 이사 오면서 "plan 순회"·"frontmatter 3필드 검사"·"Gate C 판정"
+      세 결이 한 파일에 모였다. 하위 유틸을 실제로 공유하므로 억지 결합은 아니고 **지금
+      쪼갤 이유는 없다** — **다음에 이 파일을 확장할 때** 분리를 함께 판단한다.
+      > **여기 적는 이유**: 원래 이 조건부 항목을 `review/code/2026/08/11/13_51_44/SUMMARY.md`
+      > 의 INFO 표에만 남겼는데, 그 plan 이 `complete/` 로 닫히면 조건이 도래해도 아무도
+      > 재발견할 수 없다(consistency `14_11_28` plan_coherence WARNING). **`review/**` 는
+      > SoT 가 아니다.** 완료 plan 에 적는 것도 같은 이유로 죽은 기록이라, 같은 "DRY vs
+      > 안전성" 축의 **살아있는** plan 인 여기로 옮긴다.
 
 > **주제 유사성뿐이라 편입하지 않았다.** 한때 그 항목들을 이 plan 안에 이관했는데,
 > 이 plan 은 `.claude/hooks/*.py` 의 **정규식 상수** 중복이고 저쪽은 TypeScript 문서 가드의

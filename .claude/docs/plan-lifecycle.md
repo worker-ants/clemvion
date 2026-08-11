@@ -128,7 +128,8 @@ spec_impact:                            # 또는: 본 작업이 건드린 spec �
   - spec/5-system/4-execution-engine.md
 ```
 
-**흔한 실패형 (build fail — 주의)**: 판정은 `hasValidSpecImpact` 이다 (`spec-plan-completion.test.ts`) — **문자열이면 `none`/`없음`/`n/a`/`na` 어휘만**, 배열이면 비어있지 않고 **모든 원소가 `spec/` 하위의 실존 파일**이어야 한다.
+**흔한 실패형 (build fail — 주의)**: 판정은 `hasValidSpecImpact` 이다 (`plan-scan.ts` — 게이트 자체는 `spec-plan-completion.test.ts`) — **문자열이면 `none`/`없음`/`n/a`/`na` 어휘만**, 배열이면 비어있지 않고 **모든 원소가 `spec/` 하위의 실존 파일**이어야 한다.
+  > 2026-08-11 에 판정 함수들이 테스트 파일에서 `plan-scan.ts` 로 옮겨졌다 — 다른 스크립트가 같은 판정을 쓰려면 `.test.ts` 를 import 해야 했기 때문이다. **게이트(`describe`)와 SoT 표가 가리키는 대상은 그대로** `spec-plan-completion.test.ts` 다.
   > 2026-08-10 이전 서술은 `ok = (string && 비어있지 않음) || (배열 && length>0)` 이었는데, 그건 문서가 아니라 **당시 실제 동작**이었다 — `spec_impact: maybe` 도, `[123]` 도, `["CLAUDE.md"]` 도 통과했다. 게이트를 계약에 맞춰 조이면서 이 서술도 함께 정정한다.
 - **단일 경로를 bare string 으로** (`spec_impact: spec/5-system/4-...md`) → "string spec_impact must be none/없음" 으로 fail. 단일 경로라도 **반드시 리스트(`- path`)** 로 쓴다.
 - **빈 배열 `spec_impact: []`** (behavior-preserving 리팩터에 무심코) → `length>0` 위반으로 "미선언" 처리돼 fail. spec 무변경이면 `[]` 가 아니라 **`none` 리터럴**.

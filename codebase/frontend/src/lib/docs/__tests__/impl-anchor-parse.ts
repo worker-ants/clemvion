@@ -1,8 +1,8 @@
 // Shared helpers for impl-anchor-existence / integrations-coverage /
 // triggers-coverage tests. SoT: spec/conventions/user-guide-evidence.md
 
-import fs from "node:fs";
 import path from "node:path";
+import { walkTree } from "./tree-walk";
 
 export type ImplAnchorKind =
   | "ui-entry"
@@ -104,24 +104,15 @@ export function findGuiFlowSections(mdx: string): GuiFlowSection[] {
     .map((sec) => ({ heading: sec.heading, body: sec.bodyLines.join("\n") }));
 }
 
+/**
+ * 유저 가이드 `.mdx` 수집. **`_` 접두는 디렉터리에 건다** (자매 규칙과의 비대칭은
+ * `tree-walk.ts` 헤더가 SoT — 여기서 되풀이하면 한쪽만 갱신될 자리가 늘어난다).
+ */
 export function collectMdxFiles(rootDir: string, subPath: string): string[] {
-  const dir = path.join(rootDir, subPath);
-  if (!fs.existsSync(dir)) return [];
-  const out: string[] = [];
-  const stack = [dir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name.startsWith("_")) continue;
-        stack.push(full);
-      } else if (entry.isFile() && full.endsWith(".mdx")) {
-        out.push(full);
-      }
-    }
-  }
-  return out.sort();
+  return walkTree(rootDir, [subPath], {
+    skipDir: (name) => name.startsWith("_"),
+    includeFile: (name) => name.endsWith(".mdx"),
+  }).map((f) => f.absPath);
 }
 
 // repo root = 3 levels up from codebase/frontend/src/lib/docs/__tests__

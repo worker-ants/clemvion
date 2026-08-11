@@ -28,8 +28,27 @@ function write(p: string, body: string): void {
   fs.writeFileSync(p, body);
 }
 
+/**
+ * frontmatter fixture 빌더 — **이 파일의 유일한 것**.
+ *
+ * 종전에는 두 벌이었다: 여기 `fm(status?)` 와 아래쪽 `frontmatter(fields)`. 하필 이 파일
+ * 서두가 "walker 넉 벌 중복" 을 경계하면서 자기 fixture 빌더가 두 벌이었다. 형태도 완전히
+ * 같았다(`---` 감싸기 + `k: v` 줄 + `# Doc` 본문) — 다른 것은 필드를 고정으로 받느냐
+ * 자유롭게 받느냐뿐이라, 자유로운 쪽 하나로 충분하다.
+ */
+const frontmatter = (fields: Record<string, string>): string =>
+  [
+    "---",
+    ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`),
+    "---",
+    "",
+    "# Doc",
+    "",
+  ].join("\n");
+
+/** `title` 고정 + `status` 선택 — 아래 라이프사이클 fixture 들이 쓰는 축약형. */
 const fm = (status?: string): string =>
-  ["---", "title: t", ...(status === undefined ? [] : [`status: ${status}`]), "---", "", "# Doc", ""].join("\n");
+  frontmatter({ title: "t", ...(status === undefined ? {} : { status }) });
 
 describe("plan-scan", () => {
   let root: string;
@@ -214,8 +233,8 @@ describe("plan-scan", () => {
 // 마침 전부 정상이라 **위반 분기가 CI 에서 한 번도 실행된 적이 없었다** — 정규식을 통째로
 // 지워도 스위트가 초록인 상태(ai-review WARNING). 여기서 각 분기를 양성으로 겨눈다.
 
-const frontmatter = (fields: Record<string, string>): string =>
-  ["---", ...Object.entries(fields).map(([k, v]) => `${k}: ${v}`), "---", "", "# Doc", ""].join("\n");
+// `frontmatter` 는 파일 상단에 하나만 있다 — 여기 있던 두 번째 벌은 위 것과 바이트 단위로
+// 같았다. 이 파일이 "walker 넉 벌" 을 경계하면서 자기 fixture 빌더를 두 벌 갖고 있었다.
 
 const VALID = { worktree: "my-task-abc123", started: "2026-08-10", owner: "developer" };
 
