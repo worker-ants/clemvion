@@ -2,12 +2,24 @@
 
 델타 = 커밋 `165960a92`(잔여 13 + 주석/표기 정정) + `7977f5c81`(리뷰 산출물).
 
-## 집계 — 11/11 착지, **CRITICAL 0**, consistency 전원 BLOCK:NO
+## 집계 — 13/13 착지, **CRITICAL 0**, consistency 전원 BLOCK:NO
 
 | reviewer | 위험도 |
 |---|---|
-| api_contract · security · documentation · cross_spec · convention · naming · rationale | **NONE** |
+| api_contract · security · documentation · **requirement** · **side_effect** · cross_spec · convention · naming · rationale | **NONE** |
 | scope · testing · maintainability · plan_coherence | LOW (WARNING 2) |
+
+> **forced 목록을 어겼다가 게이트가 잡았다.** 이 세션의 `agents_forced` 는
+> `documentation·maintainability·requirement·scope·security·side_effect·testing` 인데 나는
+> `requirement`·`side_effect` 대신 `api_contract` 를 넣었다 — 대체가 아니라 **누락**이라
+> `_forced_coverage_missing` 이 세션을 resolved 로 치지 않았고 push 게이트가 막혔다.
+> 두 명을 채워 13/13 이 됐다. (`api_contract` 는 추가로 유익했으므로 그대로 둔다.)
+
+**side_effect** 는 `@nestjs/swagger` **패키지 소스를 직접 열어** `ApiForbiddenResponse` 가
+`Reflect.defineMetadata` 한 줄이고 `SwaggerModule.createDocument()` 가 부트스트랩 1회만
+소비함을 확인했다 — "런타임 영향 0" 을 주장이 아니라 **구현으로** 못박았다. 그리고 최고 위험
+지점(`uploadDocument`, `@UseInterceptors(FileInterceptor(...))` 보유)을 직접 열어 codemod 첫 판
+버그가 커밋에 없음을 확인했다.
 
 ## 리뷰어들이 이번엔 **독립 도구**로 재현했다
 
