@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { EiaClient, EiaError, type EventSourceLike } from "@/lib/eia-client";
+import { EiaClient, EiaError, isTerminalAuthError, redactToken, type EventSourceLike } from "@/lib/eia-client";
 import type {
   AiMessageEvent,
   ExecutionMessageEvent,
@@ -12,7 +12,7 @@ import type {
 import { parseAiMessage, parseMessage, parseWaitingForInput } from "@/lib/eia-events";
 import { threadToMessages } from "@/lib/conversation";
 import { stripTrailingSlash } from "@/lib/api-base";
-import { clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
+import { applyRefreshedToken, clearSession, loadSession, saveSession, type PersistedSession } from "@/lib/session-store";
 import { initialState, isTextInputSurface, widgetReducer } from "@/lib/widget-state";
 import { WIDGET_STRINGS } from "@/lib/i18n";
 import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
@@ -81,13 +81,67 @@ type SessionRef = PersistedSession;
  * 스트림 탈취 방지). boolean 이었을 때는 "정상 시드"와 "stale 폐기"가 같은 `false` 로 뭉개져
  * 호출부가 구분할 수 없었다 (ai-review 2026-07-17 02_31_18 W2).
  */
-type SeedOutcome =
-  /** 스냅샷이 terminal → `finalizeEnded` 로 종료 확정함. */
+export type SeedOutcome =
+  /**
+   * 종료 확정됨(`finalizeEnded` 수행) — 스냅샷이 terminal 이거나, REST 오류가 **복구 불가**
+   * 로 판명된 경우(`404`, 그리고 refresh 재시도까지 실패한 `401`·`410` — §3.1-2·§R4).
+   */
   | "ended"
   /** await 사이 세션이 교체·초기화됨 → 응답을 폐기함(아무 상태도 안 건드림). */
   | "stale"
   /** 정상(표면 시드 완료 또는 시드할 표면 없음, soft-fail 포함) → 호출부 진행 가능. */
-  | "continue";
+  | "continue"
+  /**
+   * `401` 복구가 **일시적 이유로** 실패함(네트워크·5xx — `401`/`410` 이 아님).
+   *
+   * 호출부는 **스트림만 건너뛰고 `scheduleRefresh` 는 건다.** 두 부작용이 반대 방향이라
+   * 기존 갈래로 뭉갤 수 없다:
+   * - `"continue"` 로 두면 **거부된 토큰으로 SSE 를 연다**(`16_42_07` side_effect CRITICAL).
+   * - `"stale"` 로 두면 호출부가 `scheduleRefresh` 까지 건너뛰는데, 그건 이 세션의 **유일한**
+   *   주기 갱신 예약 지점이라 복구 사이클이 아예 없어져 스피너에 영구 고착된다
+   *   (`16_56_39` security·side_effect CRITICAL — 내가 `"stale"` 로 고치며 만든 결함).
+   *
+   * 즉 "스트림은 **지금은** 안 되지만 세션은 살아 있다" 를 뜻한다. **미뤄 둔 스트림은
+   * `deferredStreamRef` 에 기록되고, `useTokenRefresh` 의 `onRefreshed` 가 토큰을 되살리면
+   * 그때 열린다** — 이 배선이 없을 때 이 문장은 "갱신은 기대할 수 있다" 로 적혀 있었고,
+   * 실제로는 (a) 갱신이 성공해도 `openStream` 을 부르는 자리가 없었고 (b) 갱신이 한 번 더
+   * 실패하면 재예약조차 없어 사이클이 죽었다 — **문서한 보장이 구현보다 넓었다**
+   * (ai-review `17_15_33_2` requirement CRITICAL. 둘 다 닫았다).
+   */
+  | "refresh_deferred";
+
+/**
+ * seed 결과를 받은 호출부가 **후속 배선을 중단해야 하는가**.
+ *
+ * 화이트리스트(허용값만 열거)라 **fail-closed** 다 — `SeedOutcome` 에 갈래가 늘어도 이 함수를
+ * 고치지 않으면 그 값은 자동으로 "중단" 이 된다. 타입 JSDoc 이 명문화한 불변식과 같은 방향이다.
+ *
+ * **헬퍼로 뽑은 이유**: 같은 조건식이 호출부 2곳(`start()`·`applyConfig`)에 리터럴로 복제돼
+ * 있었다. 5번째 갈래가 "continue 처럼 진행해야 하는" 의미로 추가되면 두 곳을 함께 고쳐야
+ * 하는데 컴파일러가 그걸 알려주지 않는다. **"가드를 한쪽에만 적용" 은 이 파일이 반복해 낸
+ * 결함이고 이번 티켓에서만 두 번 밟았다**(ai-review `16_09_40`·`16_56_39` CRITICAL 둘 다
+ * 호출부 비대칭이 원인이었다). 조건을 한 곳에 두면 그 자리가 사라진다.
+ *
+ * **뮤테이션 메모**: 화이트리스트를 블랙리스트(`o === "ended" || o === "stale"`)로 바꾸는
+ * 뮤턴트는 **생존이 정상**이다 — 현재 union 이 네 리터럴로 닫혀 있어 두 식이 동치다. 이 함수의
+ * 값은 지금의 동치성이 아니라 **다섯 번째 갈래가 생겼을 때 어느 쪽으로 기우는가**에 있다
+ * (ai-review `17_15_33_2` → `17_25_34_2` maintainability).
+ *
+ * @internal — unit-test seam only. **통합 테스트만으로는 이 함수의 오판정을 못 가른다** —
+ *   `"stale"` 을 `"continue"` 로 바꾸는 뮤턴트가 위젯 스위트 418건을 전부 통과했다(실측,
+ *   ai-review `10_41_08` testing). `start()` 호출부는 후행 `isStale(gen)` 재검사로 구조적으로
+ *   방어되지만 `applyConfig` 는 다른 축(`isAttemptStale`)이라 같은 동치가 서지 않는다.
+ *
+ * **다섯 번째 갈래를 추가하려는 사람에게**: 이 헬퍼만 고치면 끝이 아니다. 호출부 두 곳
+ * (`start()`·`applyConfig`)의 **꼬리 블록**(`live` 재확인 → `deferredStreamRef` 세팅 → 조건부
+ * `openStream` → `scheduleRefresh`)이 리터럴로 복제돼 있어 함께 늘어나야 한다. 착수 전 부분
+ * 추출 검토: `plan/in-progress/webchat-auth-session-status-reconcile.md` §꼬리 블록 중복.
+ * (그 plan 제목은 "frontmatter 재판정" 이라 이 항목을 우연히 열어볼 이유가 없다 — 그래서
+ * 여기 breadcrumb 을 둔다. ai-review `18_51_07` maintainability.)
+ */
+export function shouldAbortAfterSeed(outcome: SeedOutcome): boolean {
+  return outcome !== "continue" && outcome !== "refresh_deferred";
+}
 
 /**
  * `openStream` 의 결과 — 호출부가 `scheduleRefresh()` 같은 후속 배선을 진행할지 판정한다.
@@ -138,6 +192,29 @@ function configFromQuery(): Partial<BootMessage> {
   const triggerEndpointPath = q.get("trigger") ?? undefined;
   const locale = (q.get("locale") as "ko" | "en" | null) ?? undefined;
   return { apiBase, triggerEndpointPath, locale } as Partial<BootMessage>;
+}
+
+/**
+ * SSE `error` 이벤트에서 **토큰 없이 진단 가치가 있는 부분만** 뽑는다.
+ *
+ * 첫 판은 `e.type` 만 남겼는데 그건 **죽은 필드**다 — `EventSource` 의 error 이벤트는 스펙상
+ * 항상 `"error"` 라 정보량이 0 이고, "토큰을 안 찍는다" 는 목적은 달성해도 원래 이 로그가
+ * 존재하던 이유(CORS 미허용·네트워크 차단 진단)를 없앤다
+ * (ai-review `10_02_22` side_effect·requirement).
+ *
+ * `readyState` 는 그 자리를 대신한다 — `0`(CONNECTING, 재연결 중) / `1`(OPEN) / `2`(CLOSED,
+ * 재연결 포기)로 "일시적 끊김인가 확정 실패인가" 가 갈린다. URL 도 토큰도 담지 않는다.
+ *
+ * @internal — unit-test seam only. 회귀는 `use-widget.test.ts` 가 직접 겨냥한다(통합 회귀는
+ *   토큰 미노출만 보므로 이 추출 로직을 뭉개도 초록이었다 — ai-review `10_24_54` testing).
+ */
+export function sseErrorDetail(e: unknown): string {
+  const target = e && typeof e === "object" ? (e as { target?: unknown }).target : null;
+  const readyState =
+    target && typeof target === "object" && "readyState" in target
+      ? (target as { readyState: unknown }).readyState
+      : null;
+  return readyState === null ? "error" : `error (readyState=${String(readyState)})`;
 }
 
 export function useWidget() {
@@ -210,6 +287,20 @@ export function useWidget() {
     | null
   >(null);
 
+  /**
+   * seed 가 `"refresh_deferred"` 를 줘서 **스트림 오픈을 미뤄 둔 상태인가**.
+   *
+   * 토큰이 죽어 있어 SSE 를 열 수 없었지만 세션은 살아 있다 — 주기 갱신이 토큰을 되살리면
+   * (`useTokenRefresh` 의 `onRefreshed`) 그때 열어야 한다. 이 플래그가 없으면 갱신이 성공해도
+   * 스트림은 영영 닫힌 채로 남는다(ai-review `17_15_33_2` requirement CRITICAL).
+   */
+  const deferredStreamRef = useRef(false);
+  /**
+   * 미뤄 둔 스트림을 여는 함수 — 정의가 `openStream` 보다 위라 TDZ 라서 ref 로 노출한다
+   * (같은 파일 `seedWaitingFromStatusRef` 와 동일 컨벤션). 아래 effect 가 매 렌더 채운다.
+   */
+  const resumeDeferredStreamRef = useRef<((session: SessionRef) => void) | null>(null);
+
   // per_execution 토큰 자동 갱신(3-auth-session §3 step7) — 타이머·재예약은 useTokenRefresh 캡슐화(§B).
   // staleness 는 여기 worldGenRef 를 주입해 공유한다(그 훅의 4번째 독립 가드였던 cancelledRef 를 대체).
   const { scheduleRefresh, clearRefreshTimer } = useTokenRefresh({
@@ -217,6 +308,7 @@ export function useWidget() {
     clientRef,
     configRef,
     worldGenRef,
+    onRefreshed: (session) => resumeDeferredStreamRef.current?.(session),
   });
 
 
@@ -281,6 +373,15 @@ export function useWidget() {
     worldGenRef.current++;
     closeStream();
     clearRefreshTimer();
+    // 미뤄 둔 스트림 의사도 이 세계와 함께 폐기한다.
+    //
+    // **이 줄을 지우는 뮤턴트는 생존한다(실측 — 전 테스트 초록).** 등가에 가까운 방어선이라
+    // 그렇다: 바로 위 `clearRefreshTimer()` 가 타이머를 끊어 teardown 이후 `onRefreshed` 자체가
+    // 발화하지 않고, 새 세계가 정상 경로로 스트림을 열면 `openStream` 내부 게이트가 다시 막는다.
+    // 즉 **지금의 호출 순서와 자매 가드 두 개에 의존해서만** 무해하다 — 그 중 하나라도 바뀌면
+    // 옛 세계의 의사가 새 세계의 갱신으로 이행된다. 관측 가능한 회귀로 고정하지 못했으므로
+    // 근거를 여기 남긴다.
+    deferredStreamRef.current = false;
     clearSession(configRef.current.triggerEndpointPath);
   }, [closeStream, clearRefreshTimer, worldGenRef]);
 
@@ -397,10 +498,13 @@ export function useWidget() {
           onEvent: handleEiaEvent,
           // SSE 연결 오류 가시화 — EventSource 는 자동 재연결하므로 흐름은 유지하되, CORS/네트워크 차단을
           // 조용히 삼키지 않도록 console.warn 으로 진단 신호를 남긴다(특히 /api/external/* CORS 미허용 시).
+          // **원본 이벤트를 넘기지 않는다.** `EventSource` 의 error 이벤트는 `e.target.url` 로
+          // **토큰이 실린 스트림 URL** 을 들고 있어, 객체째 찍으면 문자열 redaction 이 닿지 않는
+          // 경로로 토큰이 콘솔에 남는다(ai-review `18_51_07` security).
           onError: (e) =>
             console.warn(
               "[widget] SSE stream error — /api/external/* CORS(WEB_CHAT_WIDGET_ORIGINS)·네트워크 확인:",
-              e,
+              sseErrorDetail(e),
             ),
         },
         lastEventId,
@@ -411,8 +515,87 @@ export function useWidget() {
   );
 
   /**
-   * `getStatus` REST 응답으로 현재 `waiting_for_input` 표면을 시드하거나, 스냅샷이 이미 terminal 이면
-   * 세션을 정리하고 `ENDED` 로 전이한다.
+   * `401` 낙관적 refresh 1회 — [3-auth-session §R4].
+   *
+   * 만료인지 blacklist 인지 클라이언트는 **사전 판별할 수 없다**: per_execution 토큰은
+   * execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04) 재로드 `401` 은
+   * (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다.
+   * §R4 의 결정: 한 번 시도한다 — 항상 종료로 보면 정당한 만료 세션을 잃고, 항상 refresh 만
+   * 믿으면 blacklist 세션을 못 끊는다.
+   *
+   * **분리한 이유**: `seedWaitingFromStatus` 의 catch 안에 두면 중첩이 3단계(catch→if→try/catch)
+   * 가 되고 그 함수가 "getStatus 실패 분류" 와 "401 복구 시퀀스" 두 책임을 진다
+   * (ai-review `16_09_40` maintainability). 처음엔 "의존 넷을 주입해야 해 시그니처가 본문보다
+   * 길어진다" 를 근거로 보류했는데 **반증됐다** — 형제 `use-token-refresh` 의 `scheduleRefresh`
+   * 처럼 `useCallback` 클로저로 refs 를 직접 캡처하면 인자는 셋뿐이다. 내가 검토한 설계 대안
+   * 하나(파라미터 주입)에만 근거한 보류였다(`16_26_09` 재판정).
+   *
+   * @param gen 호출 시점의 world 세대. **`await` 뒤 재검사에 쓴다** — 그 사이 새 대화·종료가
+   *   오면 늦게 도착한 토큰이 새 세션을 옛 것으로 덮거나 방금 지운 storage 를 되살린다.
+   */
+  const recoverFromExpiredToken = useCallback(
+    async (
+      client: EiaClient,
+      session: SessionRef,
+      gen: number,
+    ): Promise<SeedOutcome> => {
+      try {
+        const { token, expiresAt } = await client.refreshToken(
+          session.endpoints,
+          session.token,
+        );
+        if (isStale(gen)) return "stale";
+        const cfg = configRef.current;
+        if (!cfg) return "stale"; // 부팅 전으로 되돌아감 — 쓸 곳이 없다.
+        sessionRef.current = applyRefreshedToken(
+          session,
+          { token, expiresAt },
+          cfg.triggerEndpointPath,
+        );
+        // 복구 성공 — 호출부가 SSE 를 열어 정상 흐름을 잇는다. 표면 시드는 이번 왕복에서
+        // 못 했으므로 다시 시도하지 않는다(SSE 가 `waiting_for_input` 을 다시 준다).
+        return "continue";
+      } catch (refreshErr) {
+        // **`401`/`410` 일 때만 종료로 확정한다** — §R4 문언이 그렇고, 그보다 넓게 잡으면
+        // **일시적 네트워크 오류가 살아있는 대화를 끝낸다**(이 변경 자신이 "그 외는 soft-fail"
+        // 이라 적어 둔 원칙과 충돌). `webchat-boot-single-flight` 이 정확히 그 형태로 살아있는
+        // 대화를 영구 유실시킨 사고가 있다.
+        // (ai-review `16_09_40`→`16_26_09` requirement — 두 라운드 연속 지적, 첫 번째는 내가 흘렸다.)
+        // 술어는 `lib/eia-client` 와 공유한다 — 같은 판정이 주기 갱신의 재시도 여부에도 쓰이고,
+        // 한쪽만 고치는 것이 이 브랜치의 반복 결함이었다.
+        if (!isTerminalAuthError(refreshErr)) {
+          console.warn(
+            "[widget] token refresh failed (non-terminal):",
+            refreshErr instanceof Error ? refreshErr.message : String(refreshErr),
+          );
+          // **`"continue"` 를 돌려주면 안 된다.** 그 값은 "호출부가 진행해도 된다" 는 뜻인데,
+          // 여기서는 토큰이 **여전히 죽어 있다**(`getStatus` 가 `401` 을 줬고 refresh 는 못
+          // 살렸다). 진행하면 거부된 토큰으로 **새 SSE 를 열어** 이 변경이 고치려던
+          // "streaming 고착" 을 그대로 재현한다(ai-review `16_42_07` side_effect CRITICAL).
+          //
+          // `"ended"` 도 `"stale"` 도 아니다 — 두 부작용이 **반대 방향**이라 기존 갈래로
+          // 뭉갤 수 없다(`SeedOutcome` 독스트링 참조). 스트림은 안 열되 `scheduleRefresh` 는
+          // 걸어야 한다.
+          return "refresh_deferred";
+        }
+        // **이 재검사는 회귀로 고정돼 있지 않다.** 성공 분기(위)의 같은 검사는 뮤테이션 RED 지만
+        // 이쪽은 제거해도 초록이다(실측, ai-review `16_26_09` testing 이 반증). 재현을 시도했으나
+        // `newChat()` 으로 세대를 올린 뒤 늦은 실패를 착지시켜도 `ended` 로 갔다 — **재현 실패는
+        // 부재의 증거가 아니므로**(인터리빙 지점이 가설의 일부다) 가드는 남기고 미검증으로 기록한다.
+        // 추적: `plan/in-progress/webchat-auth-session-status-reconcile.md`.
+        if (isStale(gen)) return "stale";
+        // 재차 실패 → **복구 불가로 확정**한다(§R4: "재차 실패면 종료로 간주").
+        finalizeEnded("execution.token_revoked");
+        return "ended";
+      }
+    },
+    [finalizeEnded, isStale],
+  );
+
+  /**
+   * `getStatus` REST 응답으로 현재 `waiting_for_input` 표면을 시드하거나, 스냅샷이 이미 terminal
+   * 이면 세션을 정리하고 `ENDED` 로 전이한다. **실패도 한 갈래가 아니다** — `404`·복구불가
+   * `401`·`410` 은 종료로 확정하고 그 외만 soft-fail 이다(아래 §REST 오류 분기).
    *
    * @param client - EIA 클라이언트 (session endpoint 보유).
    * @param session - 현재 세션 (executionId, token, endpoints).
@@ -422,8 +605,9 @@ export function useWidget() {
    * 폴백이 **fire-and-forget** 으로 호출한다(구독 이후, 버퍼 만료 재동기화). 첫 노드 race(§R6) 또는 버퍼(5분) 만료 후 복원 시
    * SSE replay 만으로는 채울 수 없는 현재 표면을 1회 시드한다.
    *
-   * **실패 정책**: soft-fail — HTTP 오류·네트워크 실패 시 `console.warn` 후 진행.
-   * SSE replay 가 1차 복구 경로이므로 본 시드는 보강(best-effort).
+   * **실패 정책**: **상태코드로 갈린다**(2026-08-10 이전에는 전부 soft-fail 이었다).
+   * `404`·복구불가 `401`/`410` → 종료 확정, 그 외 HTTP 오류·네트워크 실패 → `console.warn` 후 진행.
+   * 후자에 한해 SSE replay 가 1차 복구 경로이므로 본 시드는 보강(best-effort)이다.
    *
    * **파싱 재사용**: `status.context` 는 SSE `waiting_for_input` wire payload 와 동일 형식
    * (EIA §5.3) → `parseWaitingForInput` 을 그대로 재사용.
@@ -431,10 +615,32 @@ export function useWidget() {
    * **종료 상태 처리**: `status` 가 terminal(`completed`/`failed`/`cancelled`)이면 표면 시드 대신
    * {@link finalizeEnded} 으로 세션 정리 + `ENDED` 전이 + host 통지를 수행한다.
    *
-   * @returns {@link SeedOutcome} — **`"continue"` 가 아니면 호출부는 후속 `openStream`/
-   *   `scheduleRefresh` 를 반드시 건너뛴다**. `"ended"`(스냅샷이 terminal → 종료 확정)는 무효 토큰
-   *   SSE 재오픈·종료 세션 storage 부활을 막고, `"stale"`(await 사이 세션 교체)은 지연 응답이 새
-   *   대화의 스트림을 옛 토큰으로 탈취하는 것을 막는다.
+   * **REST 오류 분기 (2026-08-10, [3-auth-session §3.1-2·§R4])** — 실패가 전부 soft-fail 은
+   * 아니다. 아래와 같이 가른다:
+   * - `404` → `"ended"`. 없는 execution 에 SSE 를 열면 아무것도 안 와 `streaming` 에 고착된다.
+   * - `401` → **낙관적 `refreshToken` 1회**. 만료인지 blacklist 인지 클라이언트는 사전 판별할
+   *   수 없다(EIA §8.3). 성공하면 `sessionRef`·storage 를 새 토큰으로 갱신하고 `"continue"` —
+   *   **호출부는 그 뒤 `sessionRef.current` 를 읽어야 한다** — 근거는 아래 `@returns` 참조.
+   * - 재차 `401`·`410` → `"ended"`(복구 불가 확정, §R4).
+   * - **refresh 가 그 외 이유로 실패**(네트워크·5xx) → `"refresh_deferred"`. 스트림은 안 열되
+   *   `scheduleRefresh` 는 건다 — 둘 다 안 하면 고착, 둘 다 하면 죽은 토큰으로 SSE 를 연다.
+   * - **`getStatus` 자체가 그 외 오류** → 여전히 soft-fail `"continue"`. 일시적 장애가 대화를
+   *   끝내지 않게 하는 경계이고,
+   *   회귀 테스트가 그 경계를 고정한다.
+   *
+   * @returns {@link SeedOutcome} — 중단 판정은 {@link shouldAbortAfterSeed} 가 소유한다.
+   *   **`"ended"`·`"stale"` 이면 호출부는 후속 `openStream`/`scheduleRefresh` 를 둘 다
+   *   건너뛴다.** `"ended"`(스냅샷 terminal **또는 복구 불가 REST 오류** — `404`·재시도 실패한
+   *   `401`/`410`)는 무효 토큰 SSE 재오픈·종료 세션 storage 부활을 막고, `"stale"`(await 사이
+   *   세션 교체)은 지연 응답이 새 대화의 스트림을 옛 토큰으로 탈취하는 것을 막는다.
+   *   **`"refresh_deferred"` 는 그 둘과 다르다** — 스트림만 건너뛰고 `scheduleRefresh` 는 건다.
+   *   "`continue` 가 아니면 전부 건너뛴다" 로 적어 두면 그 갈래가 잘못 읽힌다(실제로 이 문장이
+   *   그렇게 낡아 있었다 — ai-review `18_23_54` documentation CRITICAL).
+   *   **`"continue"` 는 "아무것도 안 바뀌었다" 를 뜻하지 않는다** — `401` 복구가 성공한 경우도
+   *   여기 포함되고 그때 세션 토큰이 교체돼 있다. 그래서 호출부는 캡처해 둔 지역 변수가 아니라
+   *   `sessionRef.current` 를 읽어야 한다 — 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를
+   *   연다**(ai-review `16_09_40` CRITICAL, security·side_effect·requirement·testing **4명**
+   *   독립 수렴). 이 문단이 그 근거의 단일 소재지다 — 호출부 주석들은 여기를 가리킨다.
    *   이 반환 계약이 없던 시절 `applyConfig` 복원 경로가 teardown 직후 그대로 `openStream` 하는
    *   회귀가 있었다 (ai-review `02_04_13` CRITICAL#1) — 세 호출부 모두 이 값으로 게이팅한다.
    *
@@ -531,14 +737,31 @@ export function useWidget() {
         // 되살린다**(재현 확인). `start()` 는 뒤에 명시적 세대 재검사가 있어 우연히 무사했다 —
         // 그 비대칭이 곧 이 버그였다 (ai-review 2026-07-17 08_29_33 W2).
         if (isStale(gen)) return "stale";
+
+        // **`404` — execution 이 사라졌다.** [3-auth-session §3.1-2] 가 정한 동작:
+        // storage 정리 후 `[ended]`. soft-fail 로 넘기면 **존재하지 않는 execution 에 SSE 를
+        // 여는** 셈이고, 그 스트림은 아무것도 주지 않으므로 위젯이 `streaming` 에 무기한 멈춘다.
+        if (err instanceof EiaError && err.status === 404) {
+          finalizeEnded("execution.not_found");
+          return "ended";
+        }
+
+        // **`401` — 만료인지 blacklist 인지 클라이언트는 사전 판별할 수 없다.**
+        // per_execution 토큰은 execution 종료 시 즉시 jti blacklist 되므로(EIA §8.3, EIA-AU-04)
+        // 재로드 `401` 은 (a) 단순 만료(refresh 가능) 또는 (b) 종료 후 blacklist(복구 불가)
+        // 둘 다 가능하다. [§R4] 의 결정: **낙관적으로 refresh 1회** — 항상 종료로 보면 정당한
+        // 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다.
+        if (err instanceof EiaError && err.status === 401)
+          return recoverFromExpiredToken(client, session, gen);
+
         console.warn(
           "[widget] getStatus seed failed:",
           err instanceof Error ? err.message : String(err),
         );
-        return "continue"; // soft-fail — 종료로 오판하지 않는다(호출부는 정상 흐름 계속).
+        return "continue"; // soft-fail — 그 외 오류는 종료로 오판하지 않는다.
       }
     },
-    [finalizeEnded, isStale, sessionEstablished, worldGenRef],
+    [finalizeEnded, isStale, recoverFromExpiredToken, sessionEstablished, worldGenRef],
   );
 
   // `handleEiaEvent`(위)가 `execution.replay_unavailable` 폴백에서 이 콜백을 쓰지만 정의는 아래라
@@ -547,6 +770,34 @@ export function useWidget() {
   // SSE 이벤트(= effect 로 연 스트림) 로만 불리므로 최초 effect 이전에 호출될 일이 없다.
   useEffect(() => {
     seedWaitingFromStatusRef.current = seedWaitingFromStatus;
+  });
+
+  /**
+   * 미뤄 둔 스트림 재개 — `useTokenRefresh` 가 토큰을 되살렸을 때 불린다.
+   *
+   * 표면 시드를 다시 하지 않는 것은 `recoverFromExpiredToken` 성공 경로와 같은 이유다:
+   * `lastEventId="0"` replay 가 `waiting_for_input` 을 다시 준다.
+   */
+  useEffect(() => {
+    resumeDeferredStreamRef.current = (session) => {
+      // 정상 경로의 갱신 — 열 스트림이 없다.
+      // **이 줄을 지우는 뮤턴트도 생존한다(실측).** `false` 인 시점은 항상 정상 경로가 이미
+      // 스트림을 연 뒤라 `openStream` 내부의 `"already_owned"` 게이트가 재호출을 흡수하기
+      // 때문이다 — `teardownSession` 의 플래그 해제와 **같은 뿌리의 두 번째 사례**이고, 그쪽만
+      // 적어 둔 것이 이 브랜치가 반복해 낸 "한쪽만" 패턴이라 여기에도 남긴다
+      // (ai-review `17_55_57` testing).
+      if (!deferredStreamRef.current) return;
+      // 그 사이 다른 시도가 스트림을 열었으면 `openStream` **내부 게이트**가 `"already_owned"` 로
+      // 막는다 — 여기서 `sessionEstablished()` 를 또 묻는 것은 그 게이트를 호출부로 되복제하는
+      // 짓이고, 이 파일이 방금 없앤 결함 형태다.
+      //
+      // **의사를 지우는 것은 스트림을 실제로 연 뒤다.** 낙관적으로 먼저 지우면 `openStream` 이
+      // 동기 throw 할 때(손상된 `endpoints.stream`/`apiBase` 조합에 `new URL` 이 던진다) 그
+      // 의사가 **영구히 사라져**, 이후 갱신이 아무리 성공해도 스트림을 다시 열지 않는다 —
+      // 토큰만 최신이고 화면은 영영 스피너인 조용한 실패다(ai-review `17_55_57` side_effect).
+      openStream(session, "0");
+      deferredStreamRef.current = false;
+    };
   });
 
   const persist = useCallback((cfg: BootMessage, res: HookStartResponse) => {
@@ -610,17 +861,29 @@ export function useWidget() {
         // 재전송이 이 세션을 넘겨받아 스트림을 열었으면 `"stale"` 로 여기서 멈춰 되감기·이중 스트림을
         // 막고, 아무도 안 열었으면(no-op 재전송 포함) 정상적으로 그린다(ai-review 00_51_53 CRITICAL).
         const outcome = await seedWaitingFromStatus(client, session);
-        if (outcome !== "continue") return;
+        // `"refresh_deferred"` 는 **스트림만** 건너뛴다 — `scheduleRefresh` 는 세션의 유일한
+        // 갱신 예약 지점이라 빠뜨리면 복구 사이클이 없어 고착된다.
+        if (shouldAbortAfterSeed(outcome)) return;
         // seed await 사이 세계가 바뀌었으면 SSE 를 열지 않는다(streaming-초기 종료 race).
         if (isStale(gen)) return;
-        // **seed 게이트와 짝을 이루는 스트림 게이트**는 이제 `openStream` **안**에 있다 — 겹친 두
+        // **seed 게이트와 짝을 이루는 스트림 게이트**는 `openStream` **안**에 있다 — 겹친 두
         // seed 가 같은 flush 에서 resolve 하면 둘 다 seed 시점엔 스트림 미열림을 보고 통과한 뒤 각자
         // 여기로 오는데, 먼저 온 쪽만 소유한다(ai-review 01_44_21). 못 열었으면 갱신 예약도 건너뛴다.
-        // **부정 비교**다 — 형제 `SeedOutcome` 의 `!== "continue"` 와 같은 방향(fail-closed).
-        // `=== "already_owned"` 로 쓰면 향후 "중단이어야 하는" variant 가 늘 때 그 값이
-        // 자동으로 "진행" 으로 취급된다(fail-open, ai-review 12_48_08 maintainability).
-        const claim = openStream(session, "0");
-        if (claim !== "opened" && claim !== "no_client") return;
+        // **`sessionRef.current` 를 쓴다 — 캡처해 둔 `session` 이 아니다**(근거는
+        // `seedWaitingFromStatus` 의 `@returns`).
+        const live = sessionRef.current;
+        if (!live) return;
+        // 토큰이 아직 죽어 있으면 스트림은 열지 않는다 — 갱신 예약만 걸고, **갱신이 성공하면
+        // 그때 연다**(`resumeDeferredStreamRef`). 플래그를 안 세우면 토큰이 살아나도 스트림이
+        // 영영 안 열려 스피너에 고착된다.
+        deferredStreamRef.current = outcome === "refresh_deferred";
+        if (!deferredStreamRef.current) {
+          // **부정 비교**다 — 형제 `SeedOutcome` 의 `!== "continue"` 와 같은 방향(fail-closed).
+          // `=== "already_owned"` 로 쓰면 향후 "중단이어야 하는" variant 가 늘 때 그 값이
+          // 자동으로 "진행" 으로 취급된다(fail-open, ai-review 12_48_08 maintainability).
+          const claim = openStream(live, "0");
+          if (claim !== "opened" && claim !== "no_client") return;
+        }
         scheduleRefresh(); // 토큰 자동 갱신 예약(§3 step7).
       }
     } catch (e) {
@@ -951,13 +1214,18 @@ export function useWidget() {
         // 갱신 예약을 하면 (a) 무효화된 토큰으로 스트림을 열고 (b) refreshToken 성공 시 방금
         // clearSession() 한 storage 를 종료된 세션으로 되살린다. 반환값으로 게이팅한다
         // (ai-review `02_04_13` CRITICAL#1 — `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.)
+        // seed 가 `"refresh_deferred"` 를 주면 스트림만 건너뛴다 — `if` 블록 밖에서 읽어야
+        // 하므로 플래그로 올린다(`outcome` 은 블록 스코프다).
+        let deferStream = false;
         if (clientRef.current) {
           // seed 는 스트림 미열림 시에만 WAITING 을 그린다(`sessionEstablished()` 가드) → 경합하는
           // 다른 시도가 먼저 스트림을 열었으면 `"stale"` 로 되감기를 막는다.
           const outcome = await seedWaitingFromStatus(clientRef.current, saved);
           // "stale"/"ended" = 지연 응답이 새 대화의 스트림을 옛 토큰으로 덮어쓰거나 종료 세션을
           // 되살리지 않도록 중단.
-          if (outcome !== "continue") return;
+          // `start()` 와 같은 이유 — 스트림만 건너뛰고 갱신은 예약한다.
+          if (shouldAbortAfterSeed(outcome)) return;
+          deferStream = outcome === "refresh_deferred";
           // checkpoint 2 — `openStream` 직전 boot+world 재검증. seed 의 `sessionEstablished()` 가드는
           // "다른 시도가 **이미 스트림을 열었나**" 만 보므로, 더 최신 재전송이 세대만 올리고 **아직
           // 스트림을 안 연** 좁은 창에선 이 attempt 가 openStream 으로 진입할 수 있다. 그걸 여기서
@@ -969,17 +1237,59 @@ export function useWidget() {
         // applyConfig-vs-applyConfig 만 잡고, boot 시도가 아닌 start() 와의 겹침은 못 잡는다. 두 seed 가
         // 같은 flush 에서 통과한 뒤 각자 openStream 을 부르는 이중 EventSource 생성을 그쪽이 막는다
         // (ai-review 01_44_21 — start-vs-재전송 동시 resolve).
-        // 위 `start()` 와 같은 부정 비교(fail-closed) — 근거는 그쪽 주석.
-        const claim = openStream(saved, "0");
-        if (claim !== "opened" && claim !== "no_client") return;
+        // `start()` 와 같은 이유로 ref 를 읽는다 — 위 주석 참조(401 refresh 가 토큰을 교체한다).
+        const live = sessionRef.current ?? saved;
+        // `start()` 와 같은 이유로 플래그를 세운다 — 갱신 성공 시 여기 못 돌아오므로
+        // `resumeDeferredStreamRef` 가 대신 연다.
+        deferredStreamRef.current = deferStream;
+        if (!deferStream) {
+          // 위 `start()` 와 같은 부정 비교(fail-closed) — 근거는 그쪽 주석.
+          const claim = openStream(live, "0");
+          if (claim !== "opened" && claim !== "no_client") return;
+        }
         scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
 
     const bridge = createIframeBridge();
     bridgeRef.current = bridge;
+    /**
+     * `applyConfig` 를 띄우고 **실패를 반드시 받는다**.
+     *
+     * 그냥 `void applyConfig(...)` 로 두면 그 안의 throw(예: `openStream` 의 동기 실패)가
+     * **unhandled rejection** 이 되고 브라우저 기본 로거가 메시지를 그대로 찍는다 — 그 메시지엔
+     * **토큰이 실린 SSE URL** 이 들어 있어 애플리케이션 레벨 redaction 이 개입할 자리가 아예
+     * 없었다(ai-review `18_51_07` security).
+     *
+     * **헬퍼로 묶은 이유**: 호출부가 둘(bridge boot · 직접 로드 폴백)이고, 한쪽에만 `catch` 를
+     * 붙이는 것이 이 파일이 반복해 낸 결함이다. 처음 고칠 때 실제로 한쪽만 고쳤다.
+     */
+    const runApplyConfig = (cfg: BootMessage) => {
+      void applyConfig(cfg).catch((e: unknown) => {
+        // **`errMessage()` 를 통과시킨다 — 직접 warn 하지 않는다.** `4-security.md §1`(표 "에러 메시지 노출") 이 그
+        // 함수를 "에러 문구 정책의 코드 SoT" 로 지목한다(진단 원문은 console 로만, UI 는 일반화
+        // 문구). 여기서 우회하면 그 정책이 이 경로에만 적용되지 않는다.
+        //
+        // **그리고 상태 전이를 반드시 한다.** 복원 분기는 `RESTORED`(phase→`streaming`)를 먼저
+        // dispatch한 뒤 `openStream` 을 부르므로, 여기서 삼키기만 하면 **스피너에 영구 고착**된다 —
+        // 이 PR 이 고치려던 바로 그 형태다. `start()` 는 같은 자리에서 `ERROR` 를 내는데 이쪽만
+        // 안 하고 있었다(ai-review `10_02_22` requirement CRITICAL · side_effect).
+        // **stale 가드가 없다 — 그리고 그건 구조적 제약이다.** `start()`/`sendCommand` 의 catch 는
+        // `isStale(gen)` 부터 묻는데, 여기서 물으려면 `applyConfig` 안에서 발급되는 `attempt` 토큰이
+        // 이 클로저에 있어야 한다(없다).
+        //
+        // **오늘 무해한 근거(정적 추적 — 실행·뮤테이션이 아니다)**: `applyConfig` 안의 모든 `await` 는 자체 try/catch·반환값으로
+        // 닫혀 있어 여기까지 던지지 않고, 유일한 실제 throw(`openStream` 의 EventSource 동기 실패)는
+        // **checkpoint 2 직후 동기 구간**에서만 일어난다 — 그 사이에 세계가 바뀔 창이 없다.
+        // 즉 이 안전성은 가드가 아니라 **"checkpoint 뒤엔 동기 구간만 온다"는 규율**에 기댄다.
+        // **checkpoint 2 뒤에 `await` 를 추가하는 변경은 이 자리를 함께 재검토해야 한다**
+        // (ai-review `10_24_54` side_effect — 추적: `plan/in-progress/webchat-auth-session-status-reconcile.md`).
+        dispatch({ type: "ERROR", message: errMessage(e) });
+      });
+    };
+
     bridge.onBoot((c) => {
-      void applyConfig({ ...configFromQuery(), ...c } as BootMessage);
+      runApplyConfig({ ...configFromQuery(), ...c } as BootMessage);
     });
     bridge.onCommand((cmd) => {
       switch (cmd.action) {
@@ -1015,7 +1325,7 @@ export function useWidget() {
     // host 없이 직접 로드(샘플/개발): query param 만으로도 부팅 시도.
     const fallback = configFromQuery();
     if (fallback.apiBase && fallback.triggerEndpointPath) {
-      void applyConfig(fallback as BootMessage);
+      runApplyConfig(fallback as BootMessage);
     }
 
     return () => {
@@ -1050,12 +1360,14 @@ export function useWidget() {
 /** 에러 발생 시 `state.error` 에 저장하는 **내부 ko 기준 신호**(진단·테스트 기준값). 실제 사용자 표시 문구는 이 상수가
  * 아니라 `panel` 이 catalog `error.generic` 을 `t()` 로 **로케일 렌더**한다(§4) — 렌더되는 에러는 항상 이 generic 이다
  * (ERROR→[ended]; BLOCKED 코드는 blocked phase 라 미렌더). 임베드 위젯은 타 사이트에서 동작하므로 서버/예외 원문을 UI 에
- * 흘리지 않고(4-security §5) 진단 원문은 console 로만 남긴다. 에러 → [ended] + "새 대화 시작" 안내(1-widget-app §3.1) 동작은
+ * 흘리지 않고(4-security §1 표 "에러 메시지 노출") 진단 원문은 console 로만 남긴다. 에러 → [ended] + "새 대화 시작" 안내(1-widget-app §3.1) 동작은
  * 유지한다. 값은 catalog 를 SoT 로 삼아 문구 중복/드리프트를 막는다. */
 const GENERIC_ERROR_MESSAGE = WIDGET_STRINGS.ko["error.generic"];
 
 function errMessage(e: unknown): string {
   // 진단 원문은 console 에만(운영 추적) — UI 비노출.
-  console.warn("[widget] conversation error:", e instanceof Error ? e.message : String(e));
+  // **redact 한다** — `start()` 의 `openStream` 이 동기 throw 하면 그 예외 메시지에
+  // **토큰이 쿼리로 실린 SSE URL** 이 들어온 채 여기로 온다(ai-review `18_51_07` security).
+  console.warn("[widget] conversation error:", redactToken(e instanceof Error ? e.message : String(e)));
   return GENERIC_ERROR_MESSAGE;
 }

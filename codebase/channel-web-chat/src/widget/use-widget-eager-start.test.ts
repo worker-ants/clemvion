@@ -33,6 +33,16 @@ class ControllableEventSource {
   emit(type: string, data: unknown) {
     this.listeners[type]?.({ data: JSON.stringify(data) } as MessageEvent);
   }
+  /**
+   * `error` 이벤트를 **원본 형태 그대로** 주입한다 — `emit` 과 달리 JSON 직렬화하지 않는다.
+   *
+   * 실제 `EventSource` 의 error 이벤트는 `target.url`(토큰이 실린 스트림 URL)을 들고 오고,
+   * 핸들러가 그 객체를 통째로 로깅하면 문자열 redaction 이 닿지 않는다. 그 형태를 재현해야
+   * 회귀가 의미를 갖는다(ai-review `18_51_07` security).
+   */
+  emitError(event: unknown) {
+    this.listeners.error?.(event as MessageEvent);
+  }
 }
 
 class FakeEventSource {
@@ -86,18 +96,58 @@ function installFetch(overrides?: { webhookStatus?: number }) {
  */
 function installControllableEventSource(): {
   getEs: () => ControllableEventSource | null;
+  /**
+   * 마지막으로 SSE 를 연 URL — **어떤 토큰으로 열었는지**를 여기서만 관측할 수 있다.
+   *
+   * 종전엔 생성자 인자를 통째로 버렸다. 그래서 "SSE 가 열렸다" 는 단언은 가능해도
+   * "**옳은 토큰으로** 열렸다" 는 물을 수 없었고, §R4 의 401 refresh 성공 경로가 갱신 전
+   * 토큰으로 스트림을 여는 CRITICAL 을 신규 테스트가 그대로 통과시켰다
+   * (ai-review 16_09_40 — security·side_effect 가 독립 수렴, 테스트는 false confidence).
+   */
+  getUrl: () => string | null;
 } {
   let latest: ControllableEventSource | null = null;
+  let latestUrl: string | null = null;
   vi.stubGlobal("EventSource", class {
-    constructor() {
+    constructor(url: string) {
+      latestUrl = String(url);
+      if (throwOnce) {
+        throwOnce = false;
+        // **메시지에 URL 을 담는다** — 브라우저의 실제 `EventSource` 생성 실패가 그렇고,
+        // 그 URL 엔 토큰이 쿼리로 실려 있다. 담지 않으면 redaction 회귀 단언이 **vacuous** 해진다
+        // (처음 이렇게 썼다가 실측으로 발각).
+        throw new TypeError(`Failed to construct 'EventSource': ${latestUrl}`);
+      }
       latest = new ControllableEventSource();
       return latest as unknown as this;
     }
     addEventListener() {}
     close() {}
   } as unknown as typeof EventSource);
-  return { getEs: () => latest };
+  return { getEs: () => latest, getUrl: () => latestUrl };
 }
+
+/**
+ * 다음 `new EventSource(...)` **한 번만** 동기 throw 시킨다(테스트가 명시적으로 켠다).
+ *
+ * `beforeEach` 가 매번 끄므로 켠 테스트 밖으로 새지 않는다.
+ */
+let throwOnce = false;
+
+/**
+ * 다단계 타이머 테스트의 갱신 간격 — **실경과시간 드리프트가 넘볼 수 없는 크기**로 잡는다.
+ *
+ * `vi.useFakeTimers({ shouldAdvanceTime: true })` 는 가상 시계를 실제 경과 시간에 얹으므로,
+ * 스케줄 간격(6초)과 검증 창(10·20초)이 같은 자릿수면 **실행 속도가 결과를 정한다.** 실측:
+ * 콜드 transform 캐시에서 4/4 FAIL, 웜에서 10/10 PASS — 동일 바이트의 소스로. 게다가 그
+ * 실패는 의도한 뮤턴트의 실패와 **파일:라인·메시지까지 같아** "뮤테이션 RED" 관측 자체가
+ * 진짜 검출인지 노이즈인지 구분되지 않았다 (ai-review `18_23_54` testing CRITICAL).
+ *
+ * 90분 스케줄 · 91분 전진이면 드리프트(초 단위)가 단계 경계를 흔들 수 없다. 각 단계는
+ * 정확히 갱신 **1회**를 담는다.
+ */
+const PHASE_SCHEDULE_MS = 90 * 60 * 1000;
+const PHASE_ADVANCE_MS = PHASE_SCHEDULE_MS + 60 * 1000;
 
 /**
  * ControllableEventSource + fetch(embed-config reject, webhook 202, interact 202) 설치.
@@ -188,6 +238,7 @@ function interactCalls(fetchMock: ReturnType<typeof installFetch>) {
 beforeEach(() => {
   vi.stubGlobal("EventSource", FakeEventSource);
   window.sessionStorage.clear();
+  throwOnce = false; // 켠 테스트 밖으로 새지 않게 매번 끈다.
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -241,6 +292,575 @@ describe("useWidget — eager 시작(§R6)", () => {
    * 종료된 세션으로 되살린다. `start()` 는 세대 가드로 우연히 보호됐으나 이 경로는 무방비였다.
    * (ai-review 02_04_13 CRITICAL#1.)
    */
+  /**
+   * `3-auth-session.md` §3.1-2 · §R4 가 정한 재로드 REST 오류 분기 3종.
+   *
+   * 이 분기들은 spec 이 **동작을 확정 서술**해 두고도 오래 미구현이었다 — `getStatus` 실패는
+   * 상태코드 구분 없이 전부 soft-fail 로 뭉개져 SSE 로 진행했다. 그런데 frontmatter 는
+   * `status: implemented` 였다 — **본문이 미구현을 자인하는데 status 가 그걸 반영하지 않는**
+   * 상태였고, 그 모순 자체가 별도 PR 의 CRITICAL 대상이다(그 PR 이 `partial` +
+   * `pending_plans:` 로 정정 중). 두 PR 의 조정 절차는
+   * `plan/in-progress/webchat-auth-session-status-reconcile.md`.
+   *
+   * 셋을 갈라서 단언하는 이유: 한 테스트로 묶으면 어느 분기가 도는지 못 가른다. 특히
+   * `401` 은 **성공 refresh** 와 **재차 실패** 가 정반대 귀결(복원 vs 종료)이라 같이 볼 수 없다.
+   */
+  it("§3.1-2: 재로드 getStatus 가 404 → ENDED + SSE 미오픈 + storage 정리", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_prev", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        // execution 이 purge 됐다.
+        return Promise.resolve({ ok: false, status: 404, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    // 존재하지 않는 execution 에 SSE 를 열지 않는다 — 열면 아무것도 안 와 streaming 에 고착된다.
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  it("§R4: 재로드 getStatus 가 401 → 낙관적 refresh 1회 성공 시 복원(SSE 오픈)", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_stale", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { token: "iext_fresh", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        // 단순 만료 — refresh 로 살아난다.
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // 복구 성공 → 종료로 오판하지 않고 SSE 를 연다.
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(result.current.state.phase).not.toBe("ended");
+    // **갱신된 토큰으로 열어야 한다.** 호출부가 seed 이전에 캡처한 지역 변수를 쓰면 서버가
+    // 이미 거부한 토큰으로 스트림을 열고, 이 PR 이 고치려던 "streaming 고착" 을 성공 경로에서
+    // 재현한다. `getEs()` 만 보면 그 결함이 통과한다(ai-review 16_09_40 CRITICAL).
+    // **여기 남긴 이유**: 프로덕션 쪽 같은 설명은 `seedWaitingFromStatus` 의 `@returns` 로
+    // 단일화했지만(호출부 주석은 그걸 가리킨다), 이 문단은 **이 단언이 왜 있는지** 를 적은
+    // 것이라 성격이 다르다 — 지우면 다음 사람이 `getUrl()` 단언을 장식으로 읽는다.
+    expect(getUrl()).toContain("iext_fresh");
+    expect(getUrl()).not.toContain("iext_stale");
+    // **덮는 범위: 복원 경로(`applyConfig`)뿐이다.** `start()` 도 같은 형태로
+    // `openStream` 을 부르므로 같은 실수를 각자 할 수 있고, 실제로 `applyConfig` 만
+    // 고친 뮤턴트가 이 테스트를 통과했다. `start()` 판을 쓰려다 SSE 가 아예 안 열려
+    // 실패했는데 — 신규 대화에서 `getStatus` 가 401 을 주는 경로가 실제로 도달
+    // 가능한지부터 확인이 필요하다. **미확인이므로 통과할 때까지 구부리지 않고**
+    // 갭으로 남긴다: `plan/in-progress/webchat-auth-session-status-reconcile.md`.
+    expect(refreshCalls).toBe(1); // **1회** — 낙관적 시도는 한 번뿐이다(§R4).
+    // 새 토큰이 저장 세션에 반영된다 — 안 하면 다음 재로드가 같은 401 을 되풀이한다.
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_fresh");
+  });
+
+  it("§R4: refresh 왕복 중 세계가 바뀌면 새 토큰을 옛 세션에 쓰지 않는다", async () => {
+    // refresh 는 `await` 다. 그 사이 새 대화·종료가 오면 응답은 **옛 세계의 것**이고,
+    // 그대로 쓰면 방금 지운 storage 를 되살리거나 새 세션을 옛 것으로 덮는다. 이 파일이
+    // 반복해 데인 형태라 `use-token-refresh` 가 같은 규율을 세워 뒀다.
+    // (testing reviewer 가 이 두 재검사를 뮤테이션 사각지대로 지목 — 16_09_40.)
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_old", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let releaseRefresh: (() => void) | null = null;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        // 응답을 붙잡아 둔다 — 그 창에서 세계를 바꾼다.
+        return new Promise<Response>((resolve) => {
+          releaseRefresh = () =>
+            resolve({ ok: true, status: 200, json: async () => ({ data: { token: "iext_late", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }) } as Response);
+        });
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(releaseRefresh).not.toBeNull());
+    // refresh in-flight 중 대화 종료 → 세계가 바뀐다.
+    act(() => { result.current.actions.endConversation?.(); });
+    await act(async () => { releaseRefresh!(); await Promise.resolve(); });
+
+    // 늦게 도착한 토큰이 storage 를 **되살리지** 않는다. 종료가 지웠으므로 `null` 이 정답이고,
+    // 늦은 쓰기가 통과했다면 여기 문자열이 들어와 있다 — `not.toContain` 은 null 에 못 쓰므로
+    // 부재를 직접 단언한다(그게 이 테스트가 묻는 것이기도 하다).
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    // 옛 세션으로 스트림을 열지도 않는다.
+    expect(getEs()).toBeNull();
+  });
+
+  it("§R4: 401 → refresh 도 실패하면 복구 불가로 확정(ENDED + storage 정리)", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_revoked", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        // 종료 후 jti blacklist — refresh 도 401 이다(EIA §8.3, EIA-AU-04).
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+    // 무한 재시도로 번지지 않는다 — 낙관적 시도는 정확히 한 번.
+    expect(refreshCalls).toBe(1);
+  });
+
+  it("§R4: refresh 가 `410` 으로 실패해도 종료로 확정한다(401 과 같은 갈래)", async () => {
+    // §R4 는 "재차 실패(`401`/`410`)면 종료" 다. `410`(`EXECUTION_TERMINATED`)은 서버가 실제로
+    // 내는 분기임을 백엔드까지 추적해 확인했다(requirement reviewer, 16_42_07).
+    // `401` 만 겨냥하면 조건에서 `|| 410` 을 지워도 초록이다 — 그 뮤턴트를 여기서 잡는다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_gone", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        return Promise.resolve({ ok: false, status: 410, json: async () => ({}) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toBeNull();
+  });
+
+  it("§R4: refresh 가 **네트워크 오류**로 실패하면 종료로 확정하지 않는다", async () => {
+    // 갱신 타이머가 실제로 걸렸는지 재려면 그 만료 시점을 넘겨야 한다 — 실시계로는 못 잰다.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // §R4 는 "재차 실패(`401`/`410`)면 종료" 다. 그보다 넓게 잡으면 **일시적 장애가 살아있는
+    // 대화를 끝낸다** — `webchat-boot-single-flight` 이 정확히 그 형태로 대화를 영구 유실시켰다.
+    // (ai-review requirement 가 두 라운드 연속 지적했고 첫 번째는 내가 집계에서 흘렸다.)
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      // 만료를 lead+6초 뒤로 → refreshDelayMs ≈ 6초. 90분이면 타이머가 영영 안 와
+      // "예약됐는가" 단언이 decorative 해진다(이 파일의 기존 선례와 같은 이유).
+      JSON.stringify({ executionId: "prev", token: "iext_x", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      // refresh 왕복이 **순수 네트워크 오류**로 reject — HTTP 상태가 아예 없다.
+      if (u.includes("/refresh-token")) return Promise.reject(new TypeError("network down"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // **종료도 아니고 진행도 아니다** — 세션은 보존하되 이번 왕복은 포기한다(`"stale"`).
+    // 진행하면 서버가 방금 거부한 토큰으로 **새 SSE** 를 열어 이 변경이 고치려던
+    // "streaming 고착" 을 재현한다(ai-review `16_42_07` side_effect CRITICAL).
+    // **`storage != null` 을 기다리면 안 된다** — boot 전에 이미 차 있어 t=0 에 참이고,
+    // 그러면 비동기 흐름이 끝나기 전에 단언이 돌아 뮤턴트를 놓친다(실측: 상태 필터를 지운
+    // 뮤턴트가 그 판을 통과했다). refresh 가 **실제로 불린 뒤** 판정한다.
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/refresh-token"))).toBe(true),
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.state.phase).not.toBe("ended"); // 일시 장애를 종료로 오판하지 않는다
+    expect(getEs()).toBeNull();                            // 죽은 토큰으로 스트림을 열지 않는다
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+    // **`phase !== "ended"` 만으로는 부족하다** — 정상 `streaming` 과 **영구 고착된**
+    // `streaming` 이 구분되지 않는다. 그 둘을 가르는 것은 "복구 수단이 예약됐는가" 이고,
+    // 여기서는 `scheduleRefresh` 가 세션의 **유일한** 갱신 예약 지점이다. 예약이 없으면
+    // 스피너에서 영영 못 빠져나온다(`16_56_39` — reviewer 6명이 코드 추적으로 독립 발견).
+    // 타이머가 실제로 걸렸는지는 그 만료 시점을 넘겨 refresh 가 **다시** 나가는지로 잰다.
+    const before = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    const after = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    expect(after).toBeGreaterThan(before); // 갱신 사이클이 살아 있다 = 고착이 아니다
+    vi.useRealTimers();
+  });
+
+  it("§R4: refresh 가 `500` 으로 실패해도 종료로 확정하지 않는다 — 상태 **필터** 축", async () => {
+    // 위 테스트는 "`EiaError` 인가" 축만 가른다(네트워크 reject 는 `EiaError` 가 아니다).
+    // `terminal = refreshErr instanceof EiaError` 로 **상태 필터만** 지운 뮤턴트는 그 테스트를
+    // 통과한다(실측, testing reviewer 16_42_07). 이 케이스가 그 축을 겨냥한다 — `500` 은
+    // `EiaError` 이지만 `401`/`410` 이 아니므로 종료 대상이 아니다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_y", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + 6_000).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // 위와 같은 이유로 refresh 호출을 기다린다(storage 는 t=0 에 이미 참이다).
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/refresh-token"))).toBe(true),
+    );
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(getEs()).toBeNull();
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+    // 네트워크-오류 케이스와 **같은 보강** — `phase !== "ended"` 만으로는 정상 streaming 과
+    // 고착 streaming 이 안 갈린다. 같은 코드 경로를 검증하면서 한쪽만 보강하면 그쪽 뮤턴트가
+    // 이쪽에서 생존한다(실측: `"refresh_deferred"`→`"stale"` 뮤턴트가 여기서만 GREEN 이었다).
+    const before = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    const after = fetchMock.mock.calls.filter(([u]) => String(u).includes("/refresh-token")).length;
+    expect(after).toBeGreaterThan(before); // 갱신 사이클이 살아 있다 = 고착이 아니다
+    vi.useRealTimers();
+  });
+
+  /**
+   * **`refresh_deferred` 의 나머지 절반** — 미뤄 둔 스트림이 실제로 열리는가.
+   *
+   * 앞의 두 케이스는 "종료로 오판하지 않는다 + 갱신 예약이 살아 있다" 까지만 본다. 그런데
+   * 갱신이 성공해도 `openStream` 을 부르는 자리가 없으면 **토큰만 새것이 되고 스피너는 그대로**다
+   * — `SeedOutcome` JSDoc 이 약속한 보장이 구현보다 넓었던 지점이다
+   * (ai-review `17_15_33_2` requirement CRITICAL).
+   *
+   * fixture 가 분기를 가르는 지점: refresh 는 **첫 왕복만 실패**하고 두 번째부터 성공한다.
+   * 계속 실패하면 "스트림이 안 열린다" 가 정상이라 배선 유무를 구분할 수 없다.
+   */
+  it("§R4: 미뤄 둔 스트림은 주기 갱신이 토큰을 되살리면 열린다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_z", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + PHASE_SCHEDULE_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        // 1회차(재로드 복구)는 네트워크 실패 → `refresh_deferred`. 2회차(주기 타이머)는 성공.
+        if (refreshCalls === 1) return Promise.reject(new TypeError("network down"));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { token: "iext_revived", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString() } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
+    await act(async () => { await Promise.resolve(); });
+    // "아직 안 열렸다" 를 단언하므로 **위 테스트와 같은 취약 형태**다 — 스케줄이 촘촘하면
+    // 실경과시간 드리프트만으로 타이머가 먼저 발화해 이 단언이 깨진다. 같은 큰 마진을 쓴다.
+    expect(getEs()).toBeNull(); // 아직은 죽은 토큰 — 열지 않는다.
+
+    // 주기 갱신 타이머 발화 → 토큰 복구 → **미뤄 둔 스트림 오픈**.
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHASE_ADVANCE_MS); });
+    expect(getEs()).not.toBeNull();
+    // **되살아난 토큰으로** 열어야 한다 — 옛 토큰이면 서버가 다시 거부해 같은 고착으로 되돌아간다.
+    expect(getUrl()).toContain("iext_revived");
+    expect(result.current.state.phase).not.toBe("ended");
+    vi.useRealTimers();
+  });
+
+  /**
+   * **미뤄 둔 스트림 오픈이 실패해도 그 의사는 남는다.**
+   *
+   * 낙관적으로 플래그부터 지우면, `openStream` 이 동기 throw 하는 순간 "미뤄 뒀다" 는 사실이
+   * 영구히 사라진다 — 이후 갱신이 계속 성공해도(토큰·storage 는 최신) 스트림은 다시는 열리지
+   * 않아 화면만 영영 스피너인 조용한 실패가 된다. 이 PR 이 고치려던 고착의 **새 진입 경로**다
+   * (ai-review `17_55_57` side_effect).
+   *
+   * fixture 가 분기를 가르는 지점: 첫 `new EventSource` 만 던지고 그 다음은 정상이다. 계속
+   * 던지면 "스트림이 안 열린다" 가 정상이라 의사 보존 여부를 구분할 수 없다.
+   */
+  it("§R4: 미뤄 둔 스트림 오픈이 던져도 다음 갱신이 다시 시도한다", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_w", expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + PHASE_SCHEDULE_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    let refreshCalls = 0;
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/refresh-token")) {
+        refreshCalls += 1;
+        if (refreshCalls === 1) return Promise.reject(new TypeError("network down"));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          // 다음 주기도 같은 간격 — 각 단계가 정확히 갱신 1회를 담는다.
+          json: async () => ({ data: { token: `iext_r${refreshCalls}`, expiresAt: new Date(Date.now() + TOKEN_REFRESH_LEAD_MS + PHASE_SCHEDULE_MS).toISOString() } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 401, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+    throwOnce = true; // 미뤄 둔 스트림을 여는 **첫 시도**가 던진다.
+    // 그 throw 는 `console.warn` 으로 흘러가는데, 그 시점 URL 엔 **토큰이 쿼리로 실려 있다**.
+    // mock 만 두고 로그를 안 보면 토큰 노출 회귀를 못 잡는다(ai-review `18_23_54` security).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
+    // 1단계: 첫 갱신 성공 → 재개 시도 → throw. 여기서 의사가 사라지면 아래가 영영 안 열린다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHASE_ADVANCE_MS); });
+    expect(getEs()).toBeNull();
+    // 2단계: 다음 갱신 주기 — 의사가 남아 있으면 이번엔 열린다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHASE_ADVANCE_MS); });
+    expect(getEs()).not.toBeNull();
+    expect(getUrl()).toContain("iext_r");
+    expect(result.current.state.phase).not.toBe("ended");
+    // **토큰이 콘솔에 남지 않는다.** 노출면은 devtools·콘솔 수집 확장·버그리포트 덤프이고,
+    // same-origin 임베드면 호스트 스크립트까지다(근거는 `redactToken` JSDoc — 처음 여기 적었던
+    // "cross-origin 이어도 호스트가 읽는다" 는 **틀렸고**, 그 정정을 `eia-client.ts` 에만 하고
+    // 이 사본을 빠뜨렸다. ai-review `10_02_22` security).
+    // 단언 대상은 "던진 그 호출의 URL 에 실렸던 토큰" 이다.
+    const logged = warn.mock.calls.flat().map(String).join(" ");
+    expect(logged).not.toContain("iext_w");
+    expect(logged).not.toContain("iext_r");
+    vi.useRealTimers();
+  });
+
+  /**
+   * **토큰이 로그로 새는 자리는 하나가 아니었다.**
+   *
+   * `openStream` 을 부르는 진입점은 셋(`start()` · `applyConfig` 복원 · `resumeDeferredStream`)이고,
+   * 처음엔 마지막 한 곳에만 redaction 을 걸었다. 나머지 둘은 각각 `errMessage()` 경유 `console.warn`
+   * 과 **unhandled rejection**(브라우저 기본 로거)으로 토큰이 실린 URL 을 그대로 내보냈다 —
+   * security·side_effect 두 리뷰어가 독립 수렴해 잡았다(ai-review `18_51_07`).
+   *
+   * 그래서 회귀도 **진입점별로** 건다. 한 경로만 고정하면 그게 바로 다음 "한쪽만" 이다.
+   */
+  it("§보안: `start()` 경로의 스트림 오픈 실패가 토큰을 콘솔에 남기지 않는다", async () => {
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.includes("/api/hooks/") && (init?.method ?? "GET") === "POST") {
+        return Promise.resolve({
+          ok: true,
+          status: 202,
+          json: async () => ({ data: { executionId: "e1", status: "pending", interaction: { token: "iext_leaky", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), endpoints: ENDPOINTS } } }),
+        } as Response);
+      }
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { status: "running" } }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    installControllableEventSource();
+    throwOnce = true; // `start()` 의 openStream 이 던진다.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+    // config 확립을 기다린 뒤 연다 — 안 그러면 `start()` 가 `!cfg` 로 조기 return 해 이 테스트가
+    // **아무 경로도 안 타고** 통과할 수 있다(처음 이렇게 썼다가 빈 로그로 발각).
+    await waitFor(() => expect(result.current.config).not.toBeNull());
+    act(() => result.current.actions.open());
+
+    await waitFor(() =>
+      expect(warn.mock.calls.flat().map(String).join(" ")).toContain("token="),
+    );
+    const logged = warn.mock.calls.flat().map(String).join(" ");
+    expect(logged).not.toContain("iext_leaky");
+    expect(logged).toContain("token=<redacted>");
+  });
+
+  /**
+   * **세 번째 진입점** — `applyConfig`(저장 세션 복원)의 스트림 오픈 실패.
+   *
+   * 이 자리는 두 가지를 한꺼번에 지킨다.
+   * 1. **토큰 미노출** — 종전엔 `void applyConfig(...)` 라 throw 가 unhandled rejection 이 되어
+   *    브라우저 기본 로거가 토큰 실린 URL 을 찍었다(애플리케이션 redaction 이 닿지 않는 자리).
+   * 2. **고착 방지** — 복원 분기는 `RESTORED`(phase→`streaming`)를 **먼저** dispatch한 뒤
+   *    `openStream` 을 부른다. 그래서 그 실패를 삼키기만 하면 스피너에 영구 고착된다 —
+   *    이 PR 이 고치려던 바로 그 형태를, 이 PR 의 fix 가 다시 만들 뻔했다.
+   *
+   * 세 진입점 중 이 한 곳만 회귀가 없었고, 리뷰어 **셋**(security·scope·testing)이 독립으로
+   * 그 공백을 지적했다(ai-review `10_02_22`).
+   */
+  it("§보안·§고착: 복원 경로의 스트림 오픈 실패 — 토큰 미노출 + ERROR 전이", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_restore", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { status: "running" } }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+    throwOnce = true; // 복원 경로의 openStream 이 던진다.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // **삼키지 않고 전이한다** — 여기가 `streaming` 에 머물면 스피너 고착이다.
+    // 리듀서는 `ERROR` 를 `phase: "ended"` + `error` 로 매핑하므로(위젯엔 별도 `error` phase 가
+    // 없다) 고착과 갈리는 축은 **`ended` 이면서 `error` 가 채워졌는가** 다. `ended` 만 보면
+    // 정상 종료와 구분되지 않는다.
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(result.current.state.error).toBeTruthy();
+    expect(getEs()).toBeNull();
+    const logged = warn.mock.calls.flat().map(String).join(" ");
+    expect(logged).not.toContain("iext_restore");
+    expect(logged).toContain("token=<redacted>");
+  });
+
+  it("§보안: SSE onError 는 원본 이벤트를 찍지 않는다 — `e.target.url` 로 새던 자리", async () => {
+    // 문자열 redaction 이 닿지 않는 **별개 벡터**다. `EventSource` 의 error 이벤트는
+    // `target.url` 에 토큰이 실린 스트림 URL 을 들고 있어 객체째 찍으면 그대로 노출된다.
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_sse", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { status: "running" } }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs, getUrl } = installControllableEventSource();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    renderHook(() => useWidget());
+    boot();
+
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(getUrl()).toContain("iext_sse"); // 전제: 그 URL 엔 토큰이 실려 있다
+    // 실제 `EventSource` 의 error 이벤트를 흉내낸다 — `target.url` 을 들고 온다.
+    act(() => {
+      getEs()?.emitError({ type: "error", target: { url: getUrl() } });
+    });
+    const logged = warn.mock.calls.flat().map((c) => JSON.stringify(c)).join(" ");
+    expect(logged).not.toContain("iext_sse");
+  });
+
+  it("그 외 오류는 여전히 soft-fail — 500 은 종료로 오판하지 않는다", async () => {
+    // 비-vacuity 겸 경계 고정: 위 세 분기가 "모든 오류를 종료로 본다" 로 번지면 일시적
+    // 장애가 대화를 끝낸다. 그건 이 저장소가 `webchat-boot-single-flight` 에서 실제로
+    // 겪은 사고다(살아있는 대화 영구 유실).
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_ok", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // soft-fail → SSE 로 진행한다(종료 아님).
+    await waitFor(() => expect(getEs()).not.toBeNull());
+    expect(result.current.state.phase).not.toBe("ended");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).not.toBeNull();
+  });
+
   it("복원된 세션이 이미 terminal → ENDED 전이 + SSE 미오픈 + storage 부활 없음", async () => {
     // 만료를 lead(TOKEN_REFRESH_LEAD_MS) + 6초 뒤로 → refreshDelayMs ≈ 6초. fake timer 로 그 시점을 넘겨야
     // "scheduleRefresh 가 예약됐는가" 를 실제로 단언할 수 있다. 90분(=60분 뒤 발화)이면 타이머가
@@ -655,7 +1275,7 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(callCount).toBe(2);
   });
 
-  // W1 — start 실패 시 UI 에러 문구는 일반화되어 서버/내부 원문을 노출하지 않는다(4-security §5).
+  // W1 — start 실패 시 UI 에러 문구는 일반화되어 서버/내부 원문을 노출하지 않는다(4-security §1(표 "에러 메시지 노출")).
   it("W1: webhook 실패 → state.error 는 일반화 문구(서버/예외 원문 미노출)", async () => {
     const fetchMock = installFetch({ webhookStatus: 500 });
     const { result } = renderHook(() => useWidget());

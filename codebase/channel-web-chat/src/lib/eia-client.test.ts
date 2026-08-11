@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { EiaClient, EiaError, unwrapEnvelope, type EventSourceLike } from "./eia-client";
+import { EiaClient, EiaError, isTerminalAuthError, redactToken, unwrapEnvelope, type EventSourceLike } from "./eia-client";
 import type { InteractionEndpoints } from "./eia-types";
 
 const endpoints: InteractionEndpoints = {
@@ -260,5 +260,41 @@ describe("EiaError", () => {
     const e = new EiaError("x", 400, { fieldErrors: [] });
     expect(e.status).toBe(400);
     expect(e.detail).toEqual({ fieldErrors: [] });
+  });
+});
+
+describe("isTerminalAuthError — 재시도해도 못 사는 실패인가", () => {
+  it("`EiaError` 의 `401`·`410` 만 참", () => {
+    expect(isTerminalAuthError(new EiaError("expired", 401))).toBe(true);
+    expect(isTerminalAuthError(new EiaError("terminated", 410))).toBe(true);
+    expect(isTerminalAuthError(new EiaError("server", 500))).toBe(false);
+    expect(isTerminalAuthError(new TypeError("network down"))).toBe(false);
+  });
+
+  /**
+   * **`instanceof` 가드 축** — 이게 없으면 `.status` 만 가진 아무 객체가 종단으로 판정된다.
+   *
+   * 기존 비-종단 케이스가 전부 `.status` 자체가 없는 `TypeError`/`Error` 라서, 가드를 지우는
+   * 뮤턴트가 전 스위트 429/429 를 통과했다(실측, ai-review `18_23_54` testing). 그 축을
+   * 가르려면 **`.status` 는 있고 `EiaError` 는 아닌** 값이 필요하다.
+   */
+  it("`.status` 를 가진 비-`EiaError` 는 종단이 아니다 — 타입 가드가 장식이 아님", () => {
+    const ducked = Object.assign(new Error("looks like one"), { status: 401 });
+    expect(isTerminalAuthError(ducked)).toBe(false);
+    expect(isTerminalAuthError({ status: 410 })).toBe(false);
+  });
+});
+
+describe("redactToken — 로그에 단명 토큰을 남기지 않는다", () => {
+  it("쿼리의 `token` 값을 지운다(다른 파라미터는 보존)", () => {
+    const msg = "Failed to construct EventSource: https://api.test/api/x/stream?token=iext_secret&lastEventId=0";
+    const out = redactToken(msg);
+    expect(out).not.toContain("iext_secret");
+    expect(out).toContain("token=<redacted>");
+    expect(out).toContain("lastEventId=0"); // 지울 것만 지운다
+  });
+
+  it("토큰이 없으면 그대로 둔다", () => {
+    expect(redactToken("plain message")).toBe("plain message");
   });
 });

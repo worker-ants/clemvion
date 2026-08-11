@@ -46,6 +46,23 @@ owner: planner
 - [x] **host `resetSession` booting 중 중복 webhook 가드** — **결정(2026-07-11) + 위젯 구현 완료**: **single-flight coalesce**(서버 멱등 아님) — booting 중 `resetSession` 은 in-flight `start()` 에 흡수되어 2번째 POST·2번째 execution 미생성. spec lock = [widget-app §R9·§3.1](../../spec/7-channel-web-chat/1-widget-app.md). 구현: `channel-web-chat/use-widget.ts newChat` (commit `e577f1b69`, branch `claude/webchat-widget-coalesce-cancel`). 서버 무변경 항목이라 본 항목 종결.
 - [x] **공개 위젯 idle-wait execution GC (EIA-RL-07)** — **결정(2026-07-11) + 구현 완료(위젯 B-1 + 백엔드 reaper)**: ①"새 대화" best-effort `cancel`(source, widget-app §R9) = 위젯 구현(commit `e577f1b69`, PR-1). ②서버측 **idle-wait timeout backstop** = `WebchatIdleReaperService`(BullMQ repeatable 분 단위) — 익명 per_execution 토큰 전 만료(`execution_token.exp_at`)+grace `waiting_for_input` 을 engine `markWebchatIdleTimeout`(조건부 UPDATE `cancelled`/`cancelledBy='timeout'`/`WEBCHAT_IDLE_TIMEOUT`)로 회수 + `revokeAllForExecution`. EIA-RL-06 형제 sweep. §7.4 무기한 보존 불변식과 정합(§1.1 예약 "타임아웃" 사유 구현, EIA token-lifecycle sweep). spec lock = EIA §3.4 EIA-RL-07·§R19. **구현 완료(PR-2)**.
 
+## §5.5 가 `410`(`EXECUTION_TERMINATED`) 분기를 담지 않는다 (2026-08-11 등재)
+
+**방향이 반대인 갭이다** — 이 문서의 다른 항목은 "spec 이 약속했는데 구현이 없다" 인데, 이건
+**구현이 하는 일을 spec 이 안 적는다**.
+
+`POST .../refresh-token` 은 종료된 execution 에 대해 `410 Gone` / `EXECUTION_TERMINATED` 를 낸다 —
+근거는 `interaction.controller.ts:149`(`@ApiGoneResponse`)와 `interaction.service.ts`(`GoneException`).
+그런데 §5.5 응답 예시는 그 자리를 **`401` 로만** 적는다.
+
+**어떻게 드러났나**: `7-channel-web-chat/3-auth-session.md §R4` 가 "재차 `401`·`410` 이면 종료" 를
+정하면서 근거로 §5.5 를 인용했는데, consistency 의 `cross_spec`·`rationale_continuity` **두
+checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를 말한다" 를 잡았다(`11_10_16`).
+그 인용은 코드 SoT 를 가리키도록 바꿨고, EIA 본문 정정은 이 항목으로 넘긴다.
+
+- [ ] §5.5 에 `410 Gone (EXECUTION_TERMINATED)` 응답 추가 — 예시·에러 코드 표 양쪽
+- [ ] 추가 후 `3-auth-session.md §R4` 의 "EIA 본문은 아직 담지 않는다" 캐비엇 제거
+
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 

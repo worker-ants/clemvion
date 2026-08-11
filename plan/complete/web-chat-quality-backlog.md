@@ -23,8 +23,12 @@ spec_impact:
 > _(2026-08-10 정정)_ 위 "spec 6문서 전부 `implemented`" 는 **더 이상 참이 아니다.**
 > `3-auth-session.md` 는 본문이 자인한 미구현(재로드 복원의 `404`·복구불가 `401` 분기)과
 > frontmatter 가 어긋나 있던 것이 발견돼 `partial` + `pending_plans:` 로 정정됐다
-> ([`webchat-reload-rest-error-branches.md`](../in-progress/webchat-reload-rest-error-branches.md)).
+> ([`webchat-reload-rest-error-branches.md`](./webchat-reload-rest-error-branches.md)).
 > 원문은 작성 시점 기록으로 남긴다.
+> _(2026-08-10, 같은 날 재정정)_ 그 `partial` 전환의 원인이던 잔여(`404`·복구불가
+> `401`/`410` REST 분기·낙관적 refresh)가 [`webchat-reload-rest-error-branches.md`](./webchat-reload-rest-error-branches.md)
+> 로 구현 완료돼 frontmatter 는 **다시 `implemented`** 로 복귀했다. 위 정정 문장도 이제는
+> 작성 시점 기록이다 — 같은 자리를 두 번 뒤집었으므로 다음 독자는 frontmatter 를 직접 볼 것.
 
 ## 출처
 - `webchat-eager-start` 종결(2026-06-27) 시 이관한 비차단 backlog (impl-done/ai-review followup).

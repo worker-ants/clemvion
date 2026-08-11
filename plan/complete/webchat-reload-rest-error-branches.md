@@ -1,12 +1,17 @@
 ---
-worktree: (unstarted)
+worktree: spec-small-followups
 started: 2026-08-10
 owner: project-planner
+spec_impact:
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/0-overview.md
 ---
 
 # 웹채팅 새로고침 복원 — 잔여 REST 오류 분기(`404`·복구불가 `401`·낙관적 refresh)
 
-**상태**: 미착수. `3-auth-session.md` 가 `status: partial` 로 가리키는 **유일한 `pending_plans`** 다.
+**상태**: **완료**(2026-08-10, `claude/webchat-reload-rest-branches`). `3-auth-session.md` 의
+`pending_plans` 에서 제거하고 `status` 를 `implemented` 로 승격했다 — 아래 §착수 시 함께 볼 것이
+"의무" 라고 적어 둔 그 승격이다.
 
 > 출처: `review/consistency/2026/08/10/12_56_30` — `convention_compliance` **CRITICAL** +
 > `plan_coherence` **WARNING**. 두 checker 가 서로 다른 각도에서 같은 결함에 수렴했다:
@@ -63,11 +68,19 @@ frontmatter 뿐이었다.
 > **귀결: 이 항목은 사용자 결정을 기다리지 않는다.** 명세대로 구현하면 되는 developer 트랙
 > 작업이다.
 
-- [ ] **`404 EXECUTION_NOT_FOUND` 분기** — §3.1 step 2: storage 정리 후 `[ended]`.
+- [x] **`404 EXECUTION_NOT_FOUND` 분기** — §3.1 step 2: storage 정리 후 `[ended]`.
       현행은 존재하지 않는 execution 에 SSE 를 여는 셈이다.
-- [ ] **`401` → 낙관적 `refresh-token` 1회** — §R4: 성공 시 SSE 재연결로 복원.
+- [x] **`401` → 낙관적 `refresh-token` 1회** — §R4: 성공 시 SSE 재연결로 복원.
       전제는 EIA-AU-04/AU-05 상 클라이언트가 "만료 vs blacklist" 를 사전 판별할 수 없다는 것.
-- [ ] **복구불가 `401`(재차 실패) → 종료 확정** — §R4·§3.1 step 3: storage 항목 즉시 제거.
+- [x] **복구불가 `401`(재차 실패) → 종료 확정** — §R4·§3.1 step 3: storage 항목 즉시 제거.
+      구현 중 `410`(`EXECUTION_TERMINATED`)도 `/refresh-token` 이 실제로 내는 분기임이
+      드러나 같은 갈래로 함께 닫았다.
+- [x] **(명세에 없던 네 번째 갈래) 재차 실패가 `401`/`410` 이 아닐 때** — 종료로 보면
+      일시적 장애가 대화를 끝내고, 진행하면 죽은 토큰으로 SSE 를 연다. 세션 유지 + 스트림
+      유예 + 주기 갱신 성공 시 재개로 닫고 §R4 에 명문화했다. 이 갈래는 **리뷰 6라운드에
+      걸쳐 세 번 형태가 바뀌었고**(`continue` → `stale` → `refresh_deferred`) 마지막엔
+      "유예" 가 약속한 복구 배선 자체가 비어 있다는 CRITICAL 까지 나왔다 — 전말은
+      `webchat-auth-session-status-reconcile.md`.
 
 착수 시 원 서술과 어긋나는 점이 발견되면 그때는 planner 턴으로 되돌린다. 다만 **지금
 아는 범위에서는 명세가 충분하다.**
@@ -85,13 +98,18 @@ frontmatter 뿐이었다.
   `webchat-usewidget-extraction.md` 의 "남은 slice" 가 바로 그 함수를 훅으로 추출하는
   작업이라 **순서가 문제된다**. 추출이 먼저면 분기는 새 훅 안에 들어간다.
 - 구현이 끝나 본 plan 이 `complete/` 로 이동하면 `3-auth-session.md` 는 `partial` →
-  `implemented` 승격이 **의무**다(`spec-impl-evidence.md §3` 가드).
+  `implemented` 승격이 **의무**다(`spec-impl-evidence.md §3` 가드). → **이행함**(2026-08-10).
+- 추출 순서 문제는 실제로는 발생하지 않았다 — 세 분기를 `seedWaitingFromStatus` 안에 그대로
+  넣되 `401` 복구만 `recoverFromExpiredToken` 헬퍼로 분리했다. `webchat-usewidget-extraction`
+  의 "남은 slice" 는 그 위에서 진행하면 된다.
 
 ## 본 PR 에서 한 것 (2026-08-10)
 
 - [x] `3-auth-session.md` frontmatter `status: implemented` → `partial` + `pending_plans:` 에
       본 문서 등재. 규약이 결정적이라(본문이 미구현을 자인 ⇒ `implemented` 불가) 이 정정
-      자체는 사용자 결정을 요하지 않는다. **위 3개 항목의 구현은 하지 않았다.**
+      자체는 사용자 결정을 요하지 않는다. **그 PR 시점에는 위 3개 항목의 구현을 하지
+      않았다** — 구현은 `claude/webchat-reload-rest-branches` 가 했고(2026-08-11 완료)
+      그 결과가 이 문서 §미구현 항목의 체크박스다. 이 절은 **그 시점의 기록**이다.
 - [x] §R4 머리에 "결정은 내려졌으나 구현은 없다(Planned)" 고지 + 본 문서 링크
       (`43423f830`) — Rationale 만 읽으면 현재 동작으로 읽히던 것.
 - [x] 본 문서 §미구현 항목의 최초 "결정 필요" 프레이밍 정정 (재판정 `plan_coherence` WARNING).

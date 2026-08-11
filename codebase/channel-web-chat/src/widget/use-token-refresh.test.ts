@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import {
   refreshDelayMs,
+  retryDelayMs,
   TOKEN_REFRESH_LEAD_MS,
   TOKEN_REFRESH_MIN_DELAY_MS,
+  TOKEN_REFRESH_RETRY_BASE_MS,
+  TOKEN_REFRESH_RETRY_MAX_DELAY_MS,
   useTokenRefresh,
 } from "./use-token-refresh";
-import type { EiaClient } from "@/lib/eia-client";
+import { EiaError, type EiaClient } from "@/lib/eia-client";
 import type { PersistedSession } from "@/lib/session-store";
 import type { BootMessage } from "./host-bridge";
 
@@ -45,16 +48,41 @@ describe("refreshDelayMs — 토큰 갱신 지연(3-auth-session §3 step7)", ()
   });
 });
 
+describe("retryDelayMs — 일시적 갱신 실패 백오프", () => {
+  it("연속 실패마다 2배로 늘어난다", () => {
+    expect(retryDelayMs(1)).toBe(TOKEN_REFRESH_RETRY_BASE_MS);
+    expect(retryDelayMs(2)).toBe(TOKEN_REFRESH_RETRY_BASE_MS * 2);
+    expect(retryDelayMs(3)).toBe(TOKEN_REFRESH_RETRY_BASE_MS * 4);
+  });
+  it("상한에서 클램프된다 — 무기한 재시도하되 폭주하지 않는다", () => {
+    expect(retryDelayMs(50)).toBe(TOKEN_REFRESH_RETRY_MAX_DELAY_MS);
+  });
+  it("0·음수도 base 로 수렴한다(호출부 계약 위반 시 5초 폭주 대신 안전한 하한)", () => {
+    expect(retryDelayMs(0)).toBe(TOKEN_REFRESH_RETRY_BASE_MS);
+    expect(retryDelayMs(-3)).toBe(TOKEN_REFRESH_RETRY_BASE_MS);
+  });
+});
+
 describe("useTokenRefresh (fake timer)", () => {
   beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // **`shouldAdvanceTime` 을 쓰지 않는다.** 그 옵션은 가상 시계를 실경과시간에 얹으므로,
+    // 백오프 간격(5초)과 검증 창이 같은 자릿수인 이 파일에선 **실행 속도가 관측 값을 바꾼다** —
+    // 자매 파일에서 정확히 그 형태가 CRITICAL 이었다(콜드 4/4 FAIL, 웜 10/10 PASS).
+    // 이 파일은 `waitFor` 폴링을 쓰지 않고 전부 `advanceTimersByTimeAsync` 로 시계를 직접 몰기
+    // 때문에 그 옵션이 애초에 불필요하다 — 마진을 넓히는 대신 **결합 자체를 없앤다**
+    // (ai-review `18_51_07` testing).
+    vi.useFakeTimers();
     window.sessionStorage.clear();
   });
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  function setup(over: Partial<PersistedSession> = {}, refreshImpl?: () => Promise<unknown>) {
+  function setup(
+    over: Partial<PersistedSession> = {},
+    refreshImpl?: () => Promise<unknown>,
+    onRefreshed?: (s: PersistedSession) => void,
+  ) {
     // 매 호출 시 fresh 한 미래 만료시각 반환(실서버 동작) — 재예약이 다음 60m 뒤로 가 61m 점프엔 1회만 발화.
     const refreshToken = vi
       .fn()
@@ -73,6 +101,7 @@ describe("useTokenRefresh (fake timer)", () => {
       configRef: { current: { triggerEndpointPath: "t1", apiBase: "http://api.test/api" } as BootMessage },
       // 실제 소유자(useWidget)가 무효화 시 증가시키는 세대 — 테스트는 직접 조작해 "세계가 바뀜"을 흉내낸다.
       worldGenRef: { current: 0 },
+      onRefreshed,
     };
     const { result, unmount } = renderHook(() => useTokenRefresh(refs));
     return { result, unmount, refs, refreshToken };
@@ -128,7 +157,7 @@ describe("useTokenRefresh (fake timer)", () => {
     window.sessionStorage.removeItem("clemvion-web-chat:session:t1");
 
     // 옛 세계의 갱신 응답이 뒤늦게 도착. 고정 횟수 microtask flush(`await Promise.resolve()` 반복)는
-    // 체인 길이를 추측하는 것이라 쓰지 않는다 — 이 파일의 fake timer 는 `shouldAdvanceTime: true` 라
+    // 체인 길이를 추측하는 것이라 쓰지 않는다 — `advanceTimersByTimeAsync` 는 await 지점이라
     // 타이머를 0ms 전진시키면 대기 중인 microtask 가 전부 배출된다(다른 테스트와 동일 관례).
     await act(async () => {
       resolveRefresh?.({ token: "iext_stale", expiresAt: new Date(Date.now() + NINETY_MIN).toISOString() });
@@ -167,7 +196,134 @@ describe("useTokenRefresh (fake timer)", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS);
     });
-    // 실패는 console.warn 만 — 토큰 유지(SSE 는 hard expiry 까지), 예외 미전파.
+    // 실패해도 토큰은 유지되고(SSE 는 hard expiry 까지) 예외가 밖으로 새지 않는다.
+    // (재시도 여부는 아래 두 테스트가 축별로 가른다.)
     expect(refs.sessionRef.current?.token).toBe(before);
+  });
+
+  /**
+   * **한 번의 일시적 실패로 갱신 사이클이 죽으면 안 된다.**
+   *
+   * 종전 `.catch()` 는 `console.warn` 만 하고 재예약을 하지 않았다. 재로드 복구가 실패해
+   * `SeedOutcome` 이 `"refresh_deferred"` 를 돌려준 경로는 **이 훅의 예약에 복구를 통째로
+   * 맡기므로**, 여기서 포기하면 위젯이 스피너에 영구 고착된다
+   * (ai-review `17_15_33_2` requirement CRITICAL).
+   *
+   * **한 번에 61분을 점프하면 이 결함을 못 가른다** — 백오프 재시도가 그 창 안에서 전부
+   * 발화해 "고쳐진 코드"와 "재예약 없는 코드"가 둘 다 `호출≥1` 로 보인다. 발화 지점을
+   * 백오프 간격대로 끊어 **횟수의 증가**를 관측한다.
+   */
+  it("일시적 실패(네트워크) → 백오프로 재예약 — 사이클이 죽지 않는다", async () => {
+    const { result, refreshToken } = setup({}, () => Promise.reject(new TypeError("network down")));
+    act(() => result.current.scheduleRefresh());
+
+    // 최초 예약(만료 90m - lead 30m = 60m) 발화.
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 1); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+
+    // 1차 백오프(base) 뒤 재발화 — 재예약이 없으면 여기서 멈춘다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_BASE_MS); });
+    expect(refreshToken).toHaveBeenCalledTimes(2);
+
+    // 2차 백오프는 **2배** — base 만큼만 밀면 아직 안 온다(백오프가 자란다는 관측).
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_BASE_MS); });
+    expect(refreshToken).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_BASE_MS); });
+    expect(refreshToken).toHaveBeenCalledTimes(3);
+  });
+
+  /**
+   * 위 테스트의 **반대 축** — `401`/`410` 은 재시도해도 살아나지 않는다(만료·jti blacklist·종료).
+   * 이 경계가 없으면 죽은 토큰으로 5분마다 영구히 두드린다. 재시도 조건을 `true` 로 넓히는
+   * 뮤턴트를 이 테스트가 잡는다.
+   */
+  it("`401` 실패는 재시도하지 않는다 — 복구 불가 축", async () => {
+    const { result, refreshToken } = setup({}, () => Promise.reject(new EiaError("revoked", 401)));
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 1); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    // 백오프 상한을 훌쩍 넘겨도 두 번째 시도가 없다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_MAX_DELAY_MS * 3); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * `401` 의 **짝** — `410`(`EXECUTION_TERMINATED`)도 재시도 대상이 아니다.
+   *
+   * 이 파일에 401 만 두면 `isTerminalAuthError` 에서 `410` 항을 지우는 뮤턴트를 **다른 파일의
+   * 기존 테스트**가 대신 잡는다(실측: `use-widget-eager-start.test.ts` 의 재로드 410 케이스).
+   * 그건 주기 갱신 경로가 그 술어를 계속 공유한다는 전제에 기대는 것이고, 누군가 여기에
+   * `err.status === 401` 을 인라인으로 다시 박는 "빠른 수정" 을 하면 이 파일엔 잡을 것이 없다 —
+   * "한쪽만" 이 이 브랜치의 반복 결함이다 (ai-review `17_55_57` testing).
+   */
+  it("`410` 실패도 재시도하지 않는다 — 종료된 execution", async () => {
+    const { result, refreshToken } = setup({}, () => Promise.reject(new EiaError("execution terminated", 410)));
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 1); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_MAX_DELAY_MS * 3); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 소비자 콜백의 예외가 **갱신 성공 판정을 오염시키지 않는다**.
+   *
+   * 감싸지 않으면 `onRefreshed` 의 동기 throw 가 같은 프라미스 체인의 `.catch()` 로 떨어져
+   * 성공한 갱신이 "갱신 실패" 로 오분류된다 — 백오프 카운터가 오르고 정상 재예약(만료 기준)이
+   * 백오프 재시도로 바뀐다. 관측 축은 **다음 발화 시점**이다: 정상이면 다음 만료 기준(60분)
+   * 이고, 오분류되면 백오프(5초)라 짧은 전진에서 갈린다 (ai-review `17_55_57` side_effect).
+   */
+  it("onRefreshed 가 throw 해도 갱신은 성공으로 취급된다 — 백오프로 떨어지지 않는다", async () => {
+    const { result, refs, refreshToken } = setup({}, undefined, () => {
+      throw new TypeError("consumer blew up");
+    });
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+    // 갱신 자체는 성공했다 — 세션도 storage 도 새 토큰이다.
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+    expect(refs.sessionRef.current?.token).toBe("iext_x2");
+    expect(window.sessionStorage.getItem("clemvion-web-chat:session:t1")).toContain("iext_x2");
+    // 백오프(5초)로 떨어졌다면 여기서 2회차가 나온다. 정상 재예약이면 아직 안 온다.
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_BASE_MS * 4); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  /** 세계가 바뀐 뒤(새 대화·종료) 도착한 실패는 재시도도 하지 않는다 — 옛 세션의 백그라운드 폭주 방지. */
+  it("실패 응답 도착 시 세대가 바뀌어 있으면 재시도하지 않는다", async () => {
+    let rejectRefresh: ((e: unknown) => void) | null = null;
+    const { result, refs, refreshToken } = setup({}, () => new Promise((_, rj) => { rejectRefresh = rj; }));
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60 * 1000 + 1); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+
+    refs.worldGenRef.current += 1; // 새 대화 — 이 세계는 폐기됐다.
+    await act(async () => {
+      rejectRefresh?.(new TypeError("network down"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_RETRY_MAX_DELAY_MS * 2); });
+    expect(refreshToken).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 갱신 성공은 소유자에게 통지된다 — `refresh_deferred` 로 **미뤄 둔 스트림**을 여는 유일한 신호다.
+   * 이 콜백이 없으면 토큰이 살아나도 스트림이 영영 안 열린다(같은 CRITICAL 의 나머지 절반).
+   */
+  it("갱신 성공 → onRefreshed 가 **갱신된** 세션으로 불린다", async () => {
+    const seen: PersistedSession[] = [];
+    const { result } = setup({}, undefined, (s) => { seen.push(s); });
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+    expect(seen).toHaveLength(1);
+    // **갱신 전 세션이 아니라 갱신 후 세션** — 옛 토큰을 받으면 호출부가 죽은 토큰으로 스트림을 연다.
+    expect(seen[0]?.token).toBe("iext_x2");
+  });
+
+  it("갱신 실패 시에는 onRefreshed 가 불리지 않는다", async () => {
+    const seen: PersistedSession[] = [];
+    const { result } = setup({}, () => Promise.reject(new EiaError("revoked", 401)), (s) => { seen.push(s); });
+    act(() => result.current.scheduleRefresh());
+    await act(async () => { await vi.advanceTimersByTimeAsync(OVER_SIXTY_MIN_MS); });
+    expect(seen).toHaveLength(0);
   });
 });

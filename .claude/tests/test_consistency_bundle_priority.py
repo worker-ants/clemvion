@@ -616,7 +616,14 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
         order = run_in_orchestrator(
             """
             import re
-            orch._branch_changed_rels = lambda base, root: {
+            # **`_edited_rels` 를 스텁한다 — `_branch_changed_rels` 가 아니다.**
+            # 랭킹(`_rank_changed`)이 부르는 것은 전자이고, 후자는 그 안에서 쓰이는
+            # 절반이다. 후자만 덮으면 스텁이 헛돌아 **실제 브랜치 변경 집합**이 쓰이고,
+            # 이 단언은 "이 워크트리가 지금 무엇을 편집 중인가" 에 좌우된다 — 대조
+            # 실험으로 확인했다(2026-08-11): 무관한 plan 하나에 더미 문단을 넣는
+            # 것만으로 이 테스트와 아래 tier 1 테스트가 함께 RED 가 됐다. 그 plan 이
+            # 지목한 spec 이 tier 1 로 올라왔기 때문이고, 재려던 성질이 아니다.
+            orch._edited_rels = lambda base, root: {
                 "spec/5-system/9-rag-search.md"}
 
             class Args:
@@ -650,7 +657,7 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
         order = run_in_orchestrator(
             """
             import re
-            orch._branch_changed_rels = lambda base, root: set()
+            orch._edited_rels = lambda base, root: set()
             real_read = orch.read_text_file
             def fake_read(path):
                 # 브랜치가 건드린 plan 인 척하는 텍스트. `_rank_branch_plan_text` 는
@@ -658,7 +665,7 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
                 # 하나를 변경 집합에 넣는다.
                 return real_read(path)
             orch.read_text_file = fake_read
-            orch._branch_changed_rels = lambda base, root: {
+            orch._edited_rels = lambda base, root: {
                 "plan/in-progress/__probe_plan__.md"}
 
             import os

@@ -1,6 +1,6 @@
 ---
 id: web-chat-auth-session
-status: partial
+status: implemented
 code:
   - codebase/channel-web-chat/src/lib/session-store.ts
   - codebase/channel-web-chat/src/lib/api-base.ts
@@ -10,8 +10,6 @@ code:
   # 앞선 시도의 결과를 적용하지 않는다. 그 판정의 정본은 여기다(`use-widget.ts` 는 소비처).
   - codebase/channel-web-chat/src/widget/use-session-generations.ts
   - codebase/channel-web-chat/src/widget/use-token-refresh.ts
-pending_plans:
-  - plan/in-progress/webchat-reload-rest-error-branches.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름
@@ -65,7 +63,7 @@ pending_plans:
 
 ### 3.1 재로드 복원 시퀀스 (per_execution)
 
-> ⚠ **v1 구현 현황(부분)**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면 + **`context.conversationThread`(durable 스냅샷) 전체 히스토리**를 시드한 뒤 SSE 를 연다. `getStatus` 가 durable `Execution.conversation_thread` 를 동봉하므로([EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) 새로고침 복원이 5분 SSE buffer·서버 재시작과 무관하게 과거 대화를 되살린다. turn `source`→말풍선 role 매핑은 [1-widget-app §2](./1-widget-app.md). 아래 2단계의 **`200`+종료 REST 분기는 구현됨** — 스냅샷 `status` 가 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행하고 SSE 재오픈·토큰 갱신 예약을 건너뛴다. **버퍼 만료(≥5분) gap 안에 종료된 경우 그 terminal SSE 이벤트도 버퍼와 함께 유실돼 다시 오지 않으므로**([EIA `R-replay-unavailable`](../5-system/14-external-interaction-api.md)) 이 REST 분기가 유일한 종료 도달 경로다 — 없으면 위젯이 `streaming` 에 무기한 멈춘다([1-widget-app §3.1](./1-widget-app.md)). **`404`·복구불가 `401` REST 분기와 `401 → 낙관적 refresh 1회` 는 여전히 미구현(Planned)** — 그 외 status·오류는 `catch` soft-fail 후 SSE 로 진행한다. 이 잔여 REST 오류 분기·낙관적 refresh 완전 구현은 후속 결정으로 남긴다 — 그 결정과 구현을 소유하는 plan 은 [`webchat-reload-rest-error-branches.md`](../../plan/in-progress/webchat-reload-rest-error-branches.md) 이며, 본 문서 frontmatter 의 `pending_plans:` 가 가리키는 대상이 그것이다(이 잔여 때문에 `status` 는 `implemented` 가 아니라 **`partial`**).
+> **v1 구현 현황**: 현재 위젯(`use-widget.ts` `seedWaitingFromStatus`)은 `getStatus` 응답이 `waiting_for_input` 이면 그 표면 + **`context.conversationThread`(durable 스냅샷) 전체 히스토리**를 시드한 뒤 SSE 를 연다. `getStatus` 가 durable `Execution.conversation_thread` 를 동봉하므로([EIA §5.3·§R17](../5-system/14-external-interaction-api.md)) 새로고침 복원이 5분 SSE buffer·서버 재시작과 무관하게 과거 대화를 되살린다. turn `source`→말풍선 role 매핑은 [1-widget-app §2](./1-widget-app.md). 아래 2단계의 **`200`+종료 REST 분기는 구현됨** — 스냅샷 `status` 가 terminal 이면 세션 정리 + `[ended]` 전이 + host `conversationEnded` 통지를 수행하고 SSE 재오픈·토큰 갱신 예약을 건너뛴다. **버퍼 만료(≥5분) gap 안에 종료된 경우 그 terminal SSE 이벤트도 버퍼와 함께 유실돼 다시 오지 않으므로**([EIA `R-replay-unavailable`](../5-system/14-external-interaction-api.md)) 이 REST 분기가 유일한 종료 도달 경로다 — 없으면 위젯이 `streaming` 에 무기한 멈춘다([1-widget-app §3.1](./1-widget-app.md)). **`404`·복구불가 `401`/`410` REST 분기와 `401 → 낙관적 refresh 1회` 도 구현됐다**(2026-08-10) — `404` 는 storage 정리 후 `[ended]`, `401` 은 낙관적 refresh 1회 후 **성공 시 복원 / 재차 `401`·`410` 이면 종료 확정 / 그 외 실패(네트워크·5xx)는 종료가 아니라 스트림만 유예**(§R4). 그 외 status·오류는 `catch` soft-fail 후 SSE 로 진행한다 — **미구현이 아니라 의도된 경계다**(일시적 장애가 대화를 끝내지 않게 한다). 회귀 테스트가 그 경계를 고정한다.
 
 1. iframe-origin **sessionStorage**(§R6)에서 `{executionId, token, expiresAt, endpoints, apiBase}` 조회 — 없으면 신규(collapsed).
    저장 세션은 **발급된 `apiBase`(origin)에 묶인다**: 현재 `apiBase` 와 불일치하거나 `apiBase` 가 기록돼 있지 않으면
@@ -84,9 +82,16 @@ pending_plans:
    - `401` → **만료 vs blacklist 구분 불가**: per_execution 토큰은 execution 종료 시 즉시 **jti blacklist**
      ([EIA §8.3](../5-system/14-external-interaction-api.md), EIA-AU-04)되므로, 재로드 `401` 은 (a) 단순 만료(refresh
      가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다. 위젯은 **낙관적으로 `POST .../refresh-token` 1회**
-     시도 → 성공 시 SSE 재연결로 복원, 재차 `401` 이면 종료로 간주.
+     시도 → 성공 시 SSE 재연결로 복원, 재차 `401`·`410` 이면 종료로 간주(§R4). `410`(`EXECUTION_TERMINATED`)도
+   `/refresh-token` 이 실제로 내는 분기다 — 코드 SoT 는 `interaction.controller.ts` 의
+   `@ApiGoneResponse({ description: 'EXECUTION_TERMINATED' })` 다. **[EIA §5.5](../5-system/14-external-interaction-api.md)
+   본문은 이 분기를 아직 담지 않는다**(그 자리를 `401` 로만 적는다) — 그 갭은 EIA 소유이며
+   [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md) 에서 다룬다.
+     - **재차 실패가 `401`/`410` 이 아니면(네트워크·5xx) 종료가 아니다** — 세션은 유지하되 **SSE 는 열지 않는다**
+       (서버가 방금 거부한 토큰으로 스트림을 열면 아무것도 오지 않아 고착된다). 대신 주기 토큰 갱신(§3 step7)에
+       복구를 맡기고, **그 갱신이 성공하면 그때 SSE 를 연다**. 갱신 실패는 지수 백오프로 재시도한다(§R4).
 3. **storage 정리 책임**: 종료(`completed`/`failed`/`cancelled`) 수신 시, 위 복원에서 200+terminal status·`404`·복구불가
-   `401` 확인 시, 그리고 명령 응답 `410 Gone`(EIA-IN-12) 수신 시 위젯이 즉시 storage 항목을 제거한다(stale 토큰 잔존 금지).
+   `401`·`410` 확인 시, 그리고 명령 응답 `410 Gone`(EIA-IN-12) 수신 시 위젯이 즉시 storage 항목을 제거한다(stale 토큰 잔존 금지).
 
 ## Rationale
 
@@ -101,15 +106,18 @@ EIA §R4 의 "default per_execution(안전)" 원칙과 정합 — per_trigger �
 
 ### R4. 재로드 `401` — 낙관적 refresh 1회 후 종료
 
-> **결정은 내려졌으나 구현은 없다 (Planned).** 아래는 채택된 설계이지 현재 동작이 아니다 — 실제
-> 위젯은 `401` 을 다른 오류와 구분하지 않고 `catch` soft-fail 로 넘긴다(§3.1 배너). 구현 여부는
-> [`webchat-reload-rest-error-branches.md`](../../plan/in-progress/webchat-reload-rest-error-branches.md)
-> 가 소유한다.
-
 재로드 시점에 위젯은 `401` 의 원인(단순 만료 vs 종료 후 jti blacklist, EIA §8.3)을 **사전 판별할 수 없다**. 따라서
 **낙관적으로 `refresh-token` 1회** 시도해 만료면 복구하고, 재차 실패(`401`/`410`)면 종료로 확정한다 — 항상 종료로 보면
 정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다. 1회 시도는 EIA-AU-04(종료 시 invalidate)
 invariant 안에서 안전하며 추가 왕복 1회로 양 케이스를 모두 올바르게 수렴시킨다.
+
+**"재차 실패" 는 `401`/`410` 만 뜻한다.** 네트워크 오류·5xx 까지 종료로 보면 *일시적 장애가 살아있는 대화를 끝낸다*
+(이 영역이 실제로 겪은 사고다 — `webchat-boot-single-flight`). 그렇다고 그대로 진행할 수도 없다: 서버가 방금 거부한
+토큰으로 SSE 를 열면 아무 이벤트도 오지 않아 **위젯이 스피너에 고착**된다. 두 실패의 부작용이 반대 방향이라 결과를
+**세 갈래**로 가른다 — 복원 / 종료 / **스트림 유예**. 유예는 "세션은 살아 있고 스트림만 나중"을 뜻하며, 그 "나중"의
+주체는 주기 토큰 갱신(§3 step7)이다: 갱신이 성공하면 그 시점에 SSE 를 열고, 실패하면 지수 백오프로 재시도한다.
+**유예가 성립하려면 갱신 사이클이 실제로 복구까지 이어져야 한다** — 갱신 성공이 스트림을 열지 않거나 갱신 실패가
+재예약 없이 끝나면 이 갈래는 "종료 안 함"이라는 이름의 영구 고착일 뿐이다.
 
 ### R5. REST 응답 `{ data }` 봉투 언랩 + 폴백
 백엔드 전 REST 성공 응답은 전역 `TransformInterceptor` 가 `{ data }` 로 래핑한다(webhook §3.1 SoT, 본 영역이 바꿀 수
