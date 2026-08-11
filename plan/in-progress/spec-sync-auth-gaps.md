@@ -98,8 +98,11 @@ owner: planner
       `security` CRITICAL. `RolesGuard.canActivate` 가 `requiredRoles` 가 비면 `return true` 로
       조기 반환해 `getMemberRole` 이 실행되지 않고, 멤버십을 보는 다른 가드가 없다. 비멤버가
       `X-Workspace-Id` 를 위조해 타 워크스페이스 데이터를 열람/조작할 수 있다. **이 PR 과 무관한
-      기존 결함**(`origin/main` 에도 동일, diff 밖 — 실측 확인). 특히 `triggers.controller.ts`
-      `rotateBotToken` 은 mutation 인데 `@Roles()` 가 없다. **전수 조사 선행 필요** — 확인된
+      기존 결함**(`origin/main` 에도 동일, diff 밖 — 실측 확인). ~~특히 `triggers.controller.ts`
+      `rotateBotToken` 은 mutation 인데 `@Roles()` 가 없다.~~ → **이 예시는 더 이상 사실이
+      아니다 (2026-08-08 `#1103` 로 해소).** `triggers.controller.ts:239` 에 `@Roles('editor')`
+      가 붙어 있다(2026-08-11 실측). 인용된 원 서술은 보존하되 **취소선으로 묘비를 남긴다** —
+      살아 있는 예시로 읽히면 이미 닫힌 구멍을 다시 조사하게 된다. **전수 조사 선행 필요** — 확인된
       11곳은 7차 배치의 4개 컨트롤러만 훑은 결과다. 근거: `review/code/2026/08/01/13_46_48/security.md`
 - [x] 컨트롤러 `userId` 배선 spec (W8) — **6차 리뷰에서 종결**. 감사 기록 대상 배선 15곳 전수
       단언 + 뮤턴트 13종 RED. 유예 근거였던 "타입이 강제한다" 가 반증됐다 (TS2554 는 인자
