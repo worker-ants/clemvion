@@ -11,7 +11,7 @@ Route → Review → Summary 는 `Workflow` tool 이 결정적으로 처리한�
    ```bash
    python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --prepare $ARGUMENTS
    ```
-   stdout 마지막 줄 = 세션 디렉토리.
+   stdout 마지막 줄 = 세션 디렉토리 (changeset 전체를 담은 **단일** 세션 — 분할 없음).
 2. **manifest 로드 + Workflow 실행**: `<session_dir>/_retry_state.json` Read (경로뿐) → `Workflow(name="ai-review", args={invocations, router, routing_status, agents_forced, summary})`. Workflow 가 router 선별(structured 반환) → 선택 reviewer 병렬(각자 prompt_file Read·output_file Write) → `code-review-summary` 가 통합 SUMMARY 를 `summary.output_file` 에 Write 시도(best-effort)하고 **항상 status 헤더 + 전문**을 반환. Workflow 는 `summary_output`(경로) + `summary_markdown`(전문, 항상) + `summary_written` + `risk`/`critical_count`/`warning_count` 를 반환. 완료 시 task-notification.
 3. **SUMMARY 디스크 기록 + 위험도 확인**: **반드시** 반환의 `summary_markdown` 을 `summary_output` 에 Write 한다 (`summary_written` 값과 **무관하게 멱등 persist** — 하네스가 `SUMMARY.md` **basename** Write 를 어떤 sub-agent 에게도 허용하지 않고(terminal 여부와 무관 — `subagent-call-contract.md §7` 실측표) workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 **유일한** 경로가 main 의 이 Write 다. 건너뛰면 SUMMARY.md 가 디스크에 없어 review-before-stop 가드 미해소). 그 다음 반환의 `risk`/`critical_count`/`warning_count` 로 위험도 확인. `unfinished[]` 있으면 해당 reviewer 재실행.
 4. **자동 후속 흐름**: 반환의 `critical_count` + `warning_count` 가 0 보다 크면 `Agent(subagent_type="resolution-applier", prompt="session_dir=<...>")` (이 단계는 코드 수정·commit·e2e 라 bespoke Agent — Workflow 부적합). ESCALATE flag 분기:

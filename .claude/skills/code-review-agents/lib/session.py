@@ -5,9 +5,11 @@ import os
 from datetime import datetime
 
 # How many `<hh>_<mm>_<ss>[_N]` names to try before giving up and reusing the
-# plain one. Bounded so a pathological directory cannot spin: a batch split
-# produces 2 names and a burst of parallel sessions a handful more, so the real
-# ceiling is far below this.
+# plain one. Bounded so a pathological directory cannot spin: a burst of
+# parallel sessions needs a handful of names, so the real ceiling is far below
+# this. (Batch splitting used to be the other producer of same-second names; it
+# was removed on 2026-08-10 — see `code_review_orchestrator._warn_large_changeset`.
+# Collisions between concurrent sessions remain, which is why this still exists.)
 _MAX_SESSION_NAME_ATTEMPTS = 50
 
 
@@ -36,9 +38,14 @@ def create_session_dir(output_dir, subdir=None):
     governs newly created sessions.
 
     **The name is second-resolution, so two sessions in the same second collide.**
-    That is not hypothetical: `--prepare` on a 74-file changeset splits it into
-    two batches and prepares both back to back, and with `exist_ok=True` the
-    second batch silently overwrote the first's `meta.json` and prompts.
+    That is not hypothetical. The shape it was first measured on no longer
+    occurs — `--prepare` on a 74-file changeset used to split it into two
+    batches and prepare both back to back, and batch splitting was removed on
+    2026-08-10 — but the collision it exposed is a property of the *name*, not
+    of batching, and two parallel Claude sessions still hit it. The historical
+    measurement is kept because it is what made the failure legible:
+    with `exist_ok=True` the second batch silently overwrote the first's
+    `meta.json` and prompts.
     Measured 2026-08-09: stdout printed the same path twice, exactly ONE new
     directory existed, and its `meta.json` listed 24 files — batch 2's size.
     Batch 1's 50 files left no trace on disk, which is why the symptom read as
