@@ -216,7 +216,13 @@ export function safeApiBase(
   return undefined;
 }
 
-/** boot config 를 query param 으로 폴백 해석(host 없이 직접 로드/샘플 대비). */
+/**
+ * boot config 를 query param 으로 해석.
+ *
+ * **"샘플/개발 전용" 이 아니다.** SDK 의 `resolveIframeTarget` 이 정상 임베드에서도 같은
+ * `apiBase` 를 iframe src 쿼리에 싣으므로 이 경로는 **모든 임베드에서 발동한다**
+ * (`wc:boot` 이 뒤이어 도착해 세대 판정으로 대체할 뿐이다). SoT: `4-security.md` §1.
+ */
 function configFromQuery(): Partial<BootMessage> {
   if (typeof window === "undefined") return {};
   const q = new URLSearchParams(window.location.search);
@@ -1373,7 +1379,9 @@ export function useWidget() {
       }
     });
 
-    // host 없이 직접 로드(샘플/개발): query param 만으로도 부팅 시도.
+    // query param 만으로 부팅 시도 — host 유무를 **검사하지 않는다**. 정상 임베드에서도
+    // SDK 가 iframe src 쿼리에 같은 값을 실으므로 여기서 먼저 뜨고, 뒤이어 도착하는
+    // `wc:boot` 이 세대 판정으로 대체한다. "샘플 전용" 으로 읽고 지우면 전부 깨진다.
     const fallback = configFromQuery();
     if (fallback.apiBase && fallback.triggerEndpointPath) {
       runApplyConfig(fallback as BootMessage);
