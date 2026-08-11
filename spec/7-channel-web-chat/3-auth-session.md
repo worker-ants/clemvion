@@ -83,7 +83,10 @@ code:
      ([EIA §8.3](../5-system/14-external-interaction-api.md), EIA-AU-04)되므로, 재로드 `401` 은 (a) 단순 만료(refresh
      가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다. 위젯은 **낙관적으로 `POST .../refresh-token` 1회**
      시도 → 성공 시 SSE 재연결로 복원, 재차 `401`·`410` 이면 종료로 간주(§R4). `410`(`EXECUTION_TERMINATED`)도
-   `/refresh-token` 이 실제로 내는 분기다([EIA §5.5](../5-system/14-external-interaction-api.md)).
+   `/refresh-token` 이 실제로 내는 분기다 — 코드 SoT 는 `interaction.controller.ts` 의
+   `@ApiGoneResponse({ description: 'EXECUTION_TERMINATED' })` 다. **[EIA §5.5](../5-system/14-external-interaction-api.md)
+   본문은 이 분기를 아직 담지 않는다**(그 자리를 `401` 로만 적는다) — 그 갭은 EIA 소유이며
+   [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md) 에서 다룬다.
      - **재차 실패가 `401`/`410` 이 아니면(네트워크·5xx) 종료가 아니다** — 세션은 유지하되 **SSE 는 열지 않는다**
        (서버가 방금 거부한 토큰으로 스트림을 열면 아무것도 오지 않아 고착된다). 대신 주기 토큰 갱신(§3 step7)에
        복구를 맡기고, **그 갱신이 성공하면 그때 SSE 를 연다**. 갱신 실패는 지수 백오프로 재시도한다(§R4).

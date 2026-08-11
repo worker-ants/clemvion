@@ -107,7 +107,9 @@ frontmatter 뿐이었다.
 
 - [x] `3-auth-session.md` frontmatter `status: implemented` → `partial` + `pending_plans:` 에
       본 문서 등재. 규약이 결정적이라(본문이 미구현을 자인 ⇒ `implemented` 불가) 이 정정
-      자체는 사용자 결정을 요하지 않는다. **위 3개 항목의 구현은 하지 않았다.**
+      자체는 사용자 결정을 요하지 않는다. **그 PR 시점에는 위 3개 항목의 구현을 하지
+      않았다** — 구현은 `claude/webchat-reload-rest-branches` 가 했고(2026-08-11 완료)
+      그 결과가 이 문서 §미구현 항목의 체크박스다. 이 절은 **그 시점의 기록**이다.
 - [x] §R4 머리에 "결정은 내려졌으나 구현은 없다(Planned)" 고지 + 본 문서 링크
       (`43423f830`) — Rationale 만 읽으면 현재 동작으로 읽히던 것.
 - [x] 본 문서 §미구현 항목의 최초 "결정 필요" 프레이밍 정정 (재판정 `plan_coherence` WARNING).

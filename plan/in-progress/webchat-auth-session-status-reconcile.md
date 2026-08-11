@@ -17,7 +17,11 @@ owner: project-planner
 > | §`start()` 경로 401 갭 | **도달 가능성 실측** 후 — 가능하면 회귀 추가, 불가면 주석 고정 |
 > | §refresh 동시 발화 경합 | 실측으로 발생 가능성 확인 후 — 필요하면 in-flight 단일화 |
 > | §catch 분기 세대 재검사 미검증 | 그 분기를 실제로 갈라내는 인터리빙을 찾은 뒤 회귀 추가 |
-> | §비-terminal refresh 실패 후 **스트림 부재** | **닫힘** — 결함이 실재했고 같은 PR 에서 처분했다. 아래 §해소됨 참조(잔여는 §주기 갱신이 terminal… 축으로 분리) |
+> | §비-terminal refresh 실패 후 **스트림 부재** | **닫힘** — 결함이 실재했고 같은 PR 에서 처분했다. 아래 §해소됨 참조 |
+> | §주기 갱신이 terminal 을 만나도 storage 미정리 | `onTerminal` 통지 도입 여부 결정 시 |
+> | §`start()`/`applyConfig` 꼬리 블록 중복 | **`SeedOutcome` 다섯 번째 갈래 추가 시** |
+> | §`runApplyConfig` catch stale 가드 | **checkpoint 2 뒤에 `await` 추가 시** |
+> | §`16_09_40` provenance 사본 "2명" | 그 테스트 파일을 다음에 편집할 때 |
 >
 > **전부** 닫히면 `complete/` 로 옮긴다. 일부만 닫혔을 때 이 문서가 열려 있는 것은 정상이다.
 

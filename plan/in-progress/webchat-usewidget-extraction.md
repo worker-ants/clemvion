@@ -172,8 +172,12 @@ security/maintainability 가 같은 지점을 INFO 로 확인).
 스트림·토큰 배선. 착수 전 §선행 판단의 "토큰 타입을 훅 경계의 공개 계약으로 삼을지" 를
 다시 판정할 것 — 1차 slice 가 `BootAttempt` 를 export 했으므로 그 결정의 일부는 이미 내려졌다.
 
-> **순서 주의 — [`webchat-reload-rest-error-branches.md`](../complete/webchat-reload-rest-error-branches.md)
-> 와 같은 함수를 건드린다.** 그쪽은 `seedWaitingFromStatus` 의 `catch` 에 `404`·`401` 분기를
-> 넣는 작업이고(현재는 상태코드 구분 없는 soft-fail), 이 slice 는 그 함수를 훅으로 **추출**한다.
-> 추출이 먼저면 분기는 새 훅 안에 들어간다. 어느 쪽을 먼저 하든 나중 것이 앞선 것의 결과 위에서
-> 재판정돼야 한다.
+> **순서 문제는 해소됐다 — [`webchat-reload-rest-error-branches.md`](../complete/webchat-reload-rest-error-branches.md)
+> 가 먼저 완료됐다**(2026-08-11). `seedWaitingFromStatus` 의 `catch` 는 이제 `404`·`401`·`410` 을
+> 상태코드로 가르고 `401` 복구는 `recoverFromExpiredToken` 헬퍼로 분리돼 있다 — **"현재는 상태코드
+> 구분 없는 soft-fail" 이라는 종전 서술은 더 이상 참이 아니다**(consistency `11_10_16`
+> plan_coherence 가 잡았다).
+>
+> 따라서 이 slice 는 **그 결과 위에서** 추출한다. 추출 시 함께 옮겨야 하는 것: `SeedOutcome`
+> 네 갈래, `shouldAbortAfterSeed`, `recoverFromExpiredToken`, 그리고 호출부 두 곳의 꼬리 블록
+> (그 중복은 `webchat-auth-session-status-reconcile.md` 에 별도 등재돼 있다).
