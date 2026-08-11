@@ -148,9 +148,18 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 ### spec 증거 포인터 drift — planner 위임
 
 §3(재전송) 정본이 `use-widget.ts` → `use-session-generations.ts` 로 옮겨졌는데 `2-sdk.md` 의
-`code:` 는 여전히 옛 파일만 가리킨다. `spec-code-paths` 는 "1개 이상 매치" 만 보므로 **CI 가
-통과시킨다** — consistency checker 가 유일한 그물이었다. `developer` 는 `spec/` 쓰기 권한이
-없어 제안만 남긴다: [`spec-update-webchat-evidence-pointers.md`](spec-update-webchat-evidence-pointers.md).
+`code:` 는 ~~여전히 옛 파일만 가리킨다~~ 옛 파일만 가리키고 있었다. `spec-code-paths` 는
+"1개 이상 매치" 만 보므로 **CI 가 통과시킨다** — consistency checker 가 유일한 그물이었다.
+`developer` 는 `spec/` 쓰기 권한이 없어 제안만 남겼다:
+[`spec-update-webchat-evidence-pointers.md`](../complete/spec-update-webchat-evidence-pointers.md).
+
+> **해소됨 (2026-08-10 planner 턴, 2026-08-11 확인).** 두 문서(`2-sdk.md`·`3-auth-session.md`)의
+> `code:` 에 `use-session-generations.ts` 가 등재됐고, 세 파일의 역할(전송 계층 / 정본 /
+> 소비처)을 가르는 인라인 주석도 들어갔다. 그 plan 은 `complete/` 로 옮겼다.
+>
+> **다음 slice 담당자에게**: `applyConfig`/`start`/`teardownSession` 본체를 옮기면 두 문서의
+> `code:` 와 그 인라인 주석을 **함께** 갱신할 것 — 주석에 "심볼을 옮길 때 목록도 함께" 가
+> 못박혀 있다.
 
 ### 리뷰 후속 — 쓰기 측 캡슐화는 다음 slice 로
 
