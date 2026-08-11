@@ -2420,6 +2420,39 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
     expect(auditLogs.record).not.toHaveBeenCalled();
   });
 
+  /**
+   * **위 테스트만으로는 부족하다** — 거기서 던지는 것은 `save()` 앞의 *검증* 예외라,
+   * `recordAudit` 를 검증 뒤·저장 앞으로 옮기는 뮤턴트가 그대로 GREEN 으로 산다
+   * (ai-review `12_37_14` testing 이 두 메서드 모두에서 생존을 실측). 그 뮤턴트가 곧
+   * 원래 잡으려던 결함 — "상태는 안 바뀌었는데 감사에는 회전됐다고 남는다" — 이다.
+   *
+   * 그래서 실패 지점을 **`save()` 자체**로 옮겨 자매 둘을 같은 자리에서 고정한다.
+   * `create`/`update` 가 이미 쓰는 패턴(아래 "저장이 실패하면 …")과 같은 형태다.
+   *
+   * 회전 3종 중 `rotateBotToken` 은 6단계 mock 이 필요해 자기 describe 에 따로 있다.
+   */
+  it('저장이 실패하면 감사를 남기지 않는다 (회전 2종 — 검증이 아니라 save 가 던진다)', async () => {
+    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue({
+      ...webhookTrigger,
+      config: { notification: { url: 'https://x.example/hook' } },
+    });
+    await expect(
+      service.rotateNotificationSecret('trg-1', 'ws-1', 'u-rot'),
+    ).rejects.toThrow('db down');
+    expect(auditLogs.record).not.toHaveBeenCalled();
+
+    (triggerRepo.findOne as jest.Mock).mockResolvedValue({
+      ...webhookTrigger,
+      config: { interaction: { tokenStrategy: 'per_trigger' } },
+    });
+    await expect(
+      service.revokePerTriggerToken('trg-1', 'ws-1', 'u-rev'),
+    ).rejects.toThrow('db down');
+    expect(auditLogs.record).not.toHaveBeenCalled();
+  });
+
   it('create 는 secret 마이그레이션 **전에** 기록한다 (W6 순서 고정)', async () => {
     // 이 순서가 뒤집히면 secret store 호출이 실패했을 때 트리거는 생겼는데 감사가 안 남는다.
     // 코드로만 맞춰두면 리팩터링이 조용히 되돌려도 테스트는 GREEN 이다 — 순서를 고정한다.
