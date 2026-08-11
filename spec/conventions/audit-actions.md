@@ -55,6 +55,7 @@ audit 는 "일어난 일" 의 기록이다. verb 시제는 아래 세 패턴 중
 | member | 과거분사 (§2.1) | `invited`, `role_changed`, `removed` | 구현 |
 | workflow | 과거분사 (§2.1) | `created`, `updated`, `deleted`, `executed` | 구현 (`executed` 제외 — 아래 주) |
 | trigger | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 구현 |
+| trigger | 과거분사 (§2.1) | `notification_secret_rotated`, `chat_channel_bot_token_rotated`, `interaction_token_revoked` | 구현 (2026-08-11) |
 | schedule | 과거분사 (§2.1) | `created`, `updated`, `deleted` | 구현 |
 | model_config | 현재형 (§2.2) | `create`, `update`, `delete`, `set_default` | 구현 |
 
@@ -67,6 +68,16 @@ audit 는 "일어난 일" 의 기록이다. verb 시제는 아래 세 패턴 중
 > **`workspace` 가 두 패턴에 걸치는 이유**: `transfer_ownership` 은 소유권 이전이라는 **단일 트랜잭션 행위**(§2.3)이고, `created`/`updated` 은 일반 CRUD 생애주기(§2.1)다. 같은 resource 라도 행위 성격에 따라 패턴이 다를 수 있다 — 분류 기준은 resource 이름이 아니라 **그 verb 가 어느 패턴에 속하는가**다.
 
 > **`workspace.deleted` 는 레지스트리에 없다 (구조적 제외).** 명명 규약상으론 `deleted`(과거분사, §2.1)가 자연스럽지만, `audit_log.workspace_id` 가 `ON DELETE CASCADE`(V001)라 삭제 감사 row 가 워크스페이스와 함께 소멸해 영속 불가하므로 `AUDIT_ACTIONS` 에 두지 않는다. 명명 문제가 아니라 워크스페이스-scoped audit 모델의 구조적 제약이다. 근거: [`data-flow/12-workspace §Rationale "workspace.deleted 감사 제외"`](../data-flow/12-workspace.md) · [`data-flow/1-audit §1.1`](../data-flow/1-audit.md).
+
+> **트리거 시크릿/토큰 회전을 셋으로 가른 이유 (2026-08-11).** 레지스트리에는 **양쪽 선례가 다 있다** — 한 액션 + `details` 서브필드로 흡수한 쪽(`integration.rotated`, `integration.reauthorized`+`details.mode`)과, 대상별로 세분화한 쪽(`user.password_changed`/`email_changed`/`2fa_enabled`/`2fa_disabled`). 규약은 어느 쪽도 강제하지 않으므로 선택 근거를 남긴다.
+>
+> 셋을 가른 축은 **폭발 반경(blast radius)** 이다. 세 자격증명은 무효화 대상이 서로 다르다 — notification HMAC 은 아웃바운드 수신자만, chat-channel bot token 은 그 채널의 봇 세션 전체, per_trigger interaction token 은 그 트리거로 열린 모든 외부 대화다. 감사 독자가 "무엇이 회전됐나" 를 `details` 를 열어야 알 수 있으면 그 질문이 조회 필터·알림 규칙에서 사라진다. `integration` 은 자격증명이 하나뿐이라 흡수가 자연스러웠던 반면, 여기서는 `user` 쪽 선례(변경 대상별 개별 액션)가 맞다.
+>
+> **액션명이 sub-channel 을 담는다** — `notification_*`·`chat_channel_*`·`interaction_*`. HTTP 경로(`/notification/rotate-secret`·`/chat-channel/rotate-bot-token`·`/interaction/revoke-token`)·엔티티 컬럼(`chat_channel_token_v2`)·스케줄러(`ChatChannelTokenRotatorService`)가 모두 그 접두를 쓰므로, 감사만 빼면 같은 사실이 표기 두 벌로 갈린다.
+>
+> **`interaction_token_revoked` 만 `revoked` 인 것은 의도다.** 나머지 둘은 24h grace 로 구·신 자격증명이 공존하지만(`_v2` 컬럼 dual-accept), per_trigger 토큰 재발급은 **이전 토큰을 즉시 무효화**한다(유예 컬럼 없음 — 실측). §2 의 "분류 기준은 verb 의 성격" 에 따라 회전과 폐기를 같은 동사로 적지 않는다.
+>
+> **고빈도 유예 원칙(위 `workflow.executed`)은 적용되지 않는다.** 그 원칙의 축은 특권성이 아니라 **카디널리티 × 보존 정책 미정**이고, 회전/폐기는 저빈도 특권 작업이다 — `integration.rotated`·`auth_config.regenerate` 가 같은 이유로 이미 구현돼 있다.
 
 > 구현 여부·커버리지 갭의 ground truth 는 [data-flow/1-audit.md §1.1](../data-flow/1-audit.md). 미구현 액션은 `AUDIT_ACTIONS` 에 아직 없으며, 구현 시 위 표기 그대로 추가한다.
 

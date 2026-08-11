@@ -62,7 +62,7 @@ code:
 | EIA-NX-09 | URL 은 `https://` 만 허용. 개발 환경 환경변수 `ALLOW_HTTP_HOOKS=1` 일 때만 `http://` 예외 | 필수 |
 | EIA-NX-10 | SSRF 방지: 사설 IP·메타데이터 IP·loopback 차단. 워크스페이스 단위 allowlist 설정 가능 | 필수 |
 | EIA-NX-11 | Trigger 당 분당 최대 60건 outbound rate-limit. **구현됨**: 초과분도 **폐기하지 않고 그대로 발송**하되(무손실), 발송 성공 시 분당 60 초과면 `notificationHealth=degraded` 로 표시한다 (`OutboundNotificationRateLimiterService` Redis fixed-window + `NotificationWebhookProcessor`). 즉 "throttle"이 아니라 폭주 감지 → health 플래그. degraded 는 EIA-NX-07(발송 실패)와 필드를 공유하므로 원인은 `notification_last_error`(폭주 전용 메시지)로 구분한다 (§Rationale R-outbound-flood) | 권장 |
-| EIA-NX-12 | secret rotation API (`POST /api/triggers/:id/notification/rotate-secret`) 지원 — old secret 은 grace 24h 병행 검증 | 권장 |
+| EIA-NX-12 | secret rotation API (`POST /api/triggers/:id/notification/rotate-secret`) 지원 — old secret 은 grace 24h 병행 검증. **감사 기록 필수**: `trigger.notification_secret_rotated` ([1-auth §4.1](./1-auth.md#41-기록-대상-액션)) — 응답에 새 secret 을 1회 평문 반환하는 특권 작업이라 액터·시각이 남아야 한다 | 권장 |
 
 ### 3.2 Inbound Interaction (REST + SSE)
 
@@ -92,7 +92,7 @@ code:
 | EIA-AU-04 | `per_execution` 토큰은 execution 종료(completed/failed/cancelled) 시 즉시 invalidate | 필수 |
 | EIA-AU-05 | `per_execution` 토큰은 만료 30분 이내 + execution 이 still alive 일 때 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능 | 권장 |
 | EIA-AU-06 | 토큰 무효/만료 시 `401` + 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 | 권장 |
-| EIA-AU-07 | Per-trigger 토큰은 trigger 삭제 시 자동 invalidate. `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 invalidate 가능 | 필수 |
+| EIA-AU-07 | Per-trigger 토큰은 trigger 삭제 시 자동 invalidate. `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 invalidate 가능. **감사 기록 필수**: `trigger.interaction_token_revoked` ([1-auth §4.1](./1-auth.md#41-기록-대상-액션)) — 이전 토큰이 즉시 무효화돼 그 트리거로 열린 외부 대화가 전부 끊기므로 회전(`*_rotated`)과 구분해 기록한다 | 필수 |
 | EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InternalInteractionRequestContext.scope: 'in_process_trusted'` (§3.3.1 의 `InteractionRequestContext` union 타입) 로 분기 | 필수 |
 
 #### 3.3.1 Implementation Note — in-process trusted caller 오염 방지 (EIA-AU-08)
