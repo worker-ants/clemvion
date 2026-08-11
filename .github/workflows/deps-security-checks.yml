@@ -110,7 +110,7 @@ jobs:
         run: echo "의존성 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: pnpm/action-setup@v6.0.10
         if: needs.changes.outputs.relevant != 'false'
       - uses: actions/setup-node@v7
         if: needs.changes.outputs.relevant != 'false'
@@ -137,7 +137,7 @@ jobs:
         run: echo "의존성 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: pnpm/action-setup@v6.0.10
         if: needs.changes.outputs.relevant != 'false'
       - uses: actions/setup-node@v7
         if: needs.changes.outputs.relevant != 'false'
