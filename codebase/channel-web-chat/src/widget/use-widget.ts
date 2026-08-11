@@ -456,6 +456,26 @@ export function useWidget() {
    * @returns `StreamClaim` — **`"already_owned"` 만 중단**이고 나머지는 진행이다. `void` 였다면
    *   호출부가 다시 `sessionEstablished()` 를 물어야 하고, 그게 곧 복제의 재도입이다.
    */
+/**
+ * SSE `error` 이벤트에서 **토큰 없이 진단 가치가 있는 부분만** 뽑는다.
+ *
+ * 첫 판은 `e.type` 만 남겼는데 그건 **죽은 필드**다 — `EventSource` 의 error 이벤트는 스펙상
+ * 항상 `"error"` 라 정보량이 0 이고, "토큰을 안 찍는다" 는 목적은 달성해도 원래 이 로그가
+ * 존재하던 이유(CORS 미허용·네트워크 차단 진단)를 없앤다
+ * (ai-review `10_02_22` side_effect·requirement).
+ *
+ * `readyState` 는 그 자리를 대신한다 — `0`(CONNECTING, 재연결 중) / `1`(OPEN) / `2`(CLOSED,
+ * 재연결 포기)로 "일시적 끊김인가 확정 실패인가" 가 갈린다. URL 도 토큰도 담지 않는다.
+ */
+function sseErrorDetail(e: unknown): string {
+  const target = e && typeof e === "object" ? (e as { target?: unknown }).target : null;
+  const readyState =
+    target && typeof target === "object" && "readyState" in target
+      ? (target as { readyState: unknown }).readyState
+      : null;
+  return readyState === null ? "error" : `error (readyState=${String(readyState)})`;
+}
+
   const openStream = useCallback(
     (session: SessionRef, lastEventId?: string | number): StreamClaim => {
       const client = clientRef.current;
@@ -472,12 +492,11 @@ export function useWidget() {
           // 조용히 삼키지 않도록 console.warn 으로 진단 신호를 남긴다(특히 /api/external/* CORS 미허용 시).
           // **원본 이벤트를 넘기지 않는다.** `EventSource` 의 error 이벤트는 `e.target.url` 로
           // **토큰이 실린 스트림 URL** 을 들고 있어, 객체째 찍으면 문자열 redaction 이 닿지 않는
-          // 경로로 토큰이 콘솔에 남는다(ai-review `18_51_07` security). 진단에 필요한 것은
-          // "어떤 종류의 실패인가" 뿐이라 타입만 남긴다.
+          // 경로로 토큰이 콘솔에 남는다(ai-review `18_51_07` security).
           onError: (e) =>
             console.warn(
               "[widget] SSE stream error — /api/external/* CORS(WEB_CHAT_WIDGET_ORIGINS)·네트워크 확인:",
-              e && typeof e === "object" && "type" in e ? String((e as { type: unknown }).type) : "error",
+              sseErrorDetail(e),
             ),
         },
         lastEventId,
@@ -1242,7 +1261,15 @@ export function useWidget() {
      */
     const runApplyConfig = (cfg: BootMessage) => {
       void applyConfig(cfg).catch((e: unknown) => {
-        console.warn("[widget] boot config 적용 실패:", redactToken(e instanceof Error ? e.message : String(e)));
+        // **`errMessage()` 를 통과시킨다 — 직접 warn 하지 않는다.** `4-security.md §5` 가 그
+        // 함수를 "에러 문구 정책의 코드 SoT" 로 지목한다(진단 원문은 console 로만, UI 는 일반화
+        // 문구). 여기서 우회하면 그 정책이 이 경로에만 적용되지 않는다.
+        //
+        // **그리고 상태 전이를 반드시 한다.** 복원 분기는 `RESTORED`(phase→`streaming`)를 먼저
+        // dispatch한 뒤 `openStream` 을 부르므로, 여기서 삼키기만 하면 **스피너에 영구 고착**된다 —
+        // 이 PR 이 고치려던 바로 그 형태다. `start()` 는 같은 자리에서 `ERROR` 를 내는데 이쪽만
+        // 안 하고 있었다(ai-review `10_02_22` requirement CRITICAL · side_effect).
+        dispatch({ type: "ERROR", message: errMessage(e) });
       });
     };
 

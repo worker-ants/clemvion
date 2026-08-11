@@ -173,6 +173,26 @@ spec 이 **동작을 확정 서술**해 두고도 비어 있던 자리다. `getS
 4. **그 외 status·오류는 여전히 soft-fail**: 일시적 장애가 대화를 끝내지 않게 하는 경계다. `webchat-boot-single-flight` 이 "에러도 종료다" 로 해석했다가 **살아있는 대화를 영구 유실**시킨 사고가 있었고, 그 경계를 회귀 테스트로 고정했다.
 5. **호출부는 refresh 후 `sessionRef.current` 를 읽는다**: `SeedOutcome` 은 "무엇이 바뀌었나" 를 실어 나르지 않아, 캡처해 둔 지역 변수를 쓰면 **서버가 이미 거부한 토큰으로 SSE 를 연다**(이 변경이 고치려던 증상을 성공 경로에서 재현). 리뷰 security·side_effect·requirement·testing **4명** 이 독립 수렴해 잡았고, 테스트 헬퍼가 EventSource URL 을 버리고 있어 통과시키던 것도 함께 고쳤다.
 
+## Unreleased — 웹채팅 위젯: 단명 토큰이 콘솔로 새던 자리 + 부팅 실패가 조용히 삼켜지던 자리
+
+SSE 는 `EventSource` 가 헤더를 못 실어 **토큰을 쿼리로** 보낸다(EIA §8.3). 그래서 스트림 오픈이
+던질 때의 예외 메시지·이벤트 객체에 그 토큰이 실려 있고, 그걸 그대로 로깅하던 자리가 넷이었다.
+`openStream` 진입점은 셋인데 방어는 한 곳에만 걸려 있었다 — 리뷰 두 라운드에 걸쳐 전수로 세었다.
+
+1. **로그 redaction**: `redactToken`(`token=` 쿼리 값만 치환, 인접 파라미터 보존)을 재로드 복구·
+   `start()`(`errMessage`)·복원(`applyConfig`) 세 경로에 모두 적용.
+2. **SSE `onError` 는 원본 이벤트를 안 찍는다**: `e.target.url` 에 토큰이 있어 문자열 redaction 이
+   닿지 않는다. 대신 `readyState` 만 남긴다 — 첫 판은 `e.type` 이었는데 그건 스펙상 항상
+   `"error"` 라 **진단 정보가 0** 이었다(로그가 존재하던 이유를 없앴다).
+3. **부팅 실패가 조용히 삼켜지지 않는다**: `applyConfig` 는 `void` 로 띄워져 throw 가 unhandled
+   rejection 이었다(브라우저 기본 로거가 토큰을 찍는, 애플리케이션 방어가 닿지 않는 자리).
+   catch 를 붙이면서 **`errMessage()` 를 통과시키고 `ERROR` 로 전이**한다 — 복원 분기는
+   `RESTORED`(phase→`streaming`)를 먼저 dispatch 하므로, 삼키기만 하면 스피너 영구 고착이 된다.
+
+위협 모델은 좁다 — 위젯은 cross-origin iframe 이라 **호스트 페이지 스크립트는 이 콘솔을 못 읽는다**
+(초기 서술이 그렇게 적혀 있었고 틀렸다). 실제 노출면은 devtools·콘솔 수집 확장·버그리포트 덤프,
+그리고 same-origin 임베드다. 좁아졌다고 단명 자격증명을 로그에 남길 이유는 없다.
+
 ## Unreleased — 웹채팅 위젯: 세션 ↔ 발급 `apiBase` 바인딩 (재전송 시 토큰 오전송 방지)
 
 **선행 결함**(이번 변경이 만든 것이 아니다). `applyConfig` 재전송은 `clientRef` 를 새 `apiBase` 로 무조건 교체하는데, iframe-origin sessionStorage 의 저장 세션은 **옛 origin 에서 발급된** 단명 토큰을 들고 있었다. 세션과 엔드포인트의 축이 분리돼 있어, 재전송이 `apiBase` 를 바꾸면 옛 토큰이 새 origin 으로 전송될 수 있었다. 오늘 무해했던 이유는 유일한 재전송 경로(관리자 라이브 미리보기)가 `apiBase` 를 바꾸지 않기 때문일 뿐이다.

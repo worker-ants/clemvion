@@ -1,7 +1,10 @@
 ---
-worktree: (unstarted)
+worktree: spec-small-followups
 started: 2026-08-10
 owner: project-planner
+spec_impact:
+  - spec/7-channel-web-chat/3-auth-session.md
+  - spec/0-overview.md
 ---
 
 # 웹채팅 새로고침 복원 — 잔여 REST 오류 분기(`404`·복구불가 `401`·낙관적 refresh)

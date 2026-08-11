@@ -695,8 +695,11 @@ describe("useWidget — eager 시작(§R6)", () => {
     expect(getEs()).not.toBeNull();
     expect(getUrl()).toContain("iext_r");
     expect(result.current.state.phase).not.toBe("ended");
-    // **토큰이 콘솔에 남지 않는다.** 이 위젯은 공개 사이트에 임베드되므로 호스트 페이지의 다른
-    // 스크립트도 그 콘솔을 읽는다. 단언 대상은 "던진 그 호출의 URL 에 실렸던 토큰" 이다.
+    // **토큰이 콘솔에 남지 않는다.** 노출면은 devtools·콘솔 수집 확장·버그리포트 덤프이고,
+    // same-origin 임베드면 호스트 스크립트까지다(근거는 `redactToken` JSDoc — 처음 여기 적었던
+    // "cross-origin 이어도 호스트가 읽는다" 는 **틀렸고**, 그 정정을 `eia-client.ts` 에만 하고
+    // 이 사본을 빠뜨렸다. ai-review `10_02_22` security).
+    // 단언 대상은 "던진 그 호출의 URL 에 실렸던 토큰" 이다.
     const logged = warn.mock.calls.flat().map(String).join(" ");
     expect(logged).not.toContain("iext_w");
     expect(logged).not.toContain("iext_r");
@@ -746,6 +749,52 @@ describe("useWidget — eager 시작(§R6)", () => {
     );
     const logged = warn.mock.calls.flat().map(String).join(" ");
     expect(logged).not.toContain("iext_leaky");
+    expect(logged).toContain("token=<redacted>");
+  });
+
+  /**
+   * **세 번째 진입점** — `applyConfig`(저장 세션 복원)의 스트림 오픈 실패.
+   *
+   * 이 자리는 두 가지를 한꺼번에 지킨다.
+   * 1. **토큰 미노출** — 종전엔 `void applyConfig(...)` 라 throw 가 unhandled rejection 이 되어
+   *    브라우저 기본 로거가 토큰 실린 URL 을 찍었다(애플리케이션 redaction 이 닿지 않는 자리).
+   * 2. **고착 방지** — 복원 분기는 `RESTORED`(phase→`streaming`)를 **먼저** dispatch한 뒤
+   *    `openStream` 을 부른다. 그래서 그 실패를 삼키기만 하면 스피너에 영구 고착된다 —
+   *    이 PR 이 고치려던 바로 그 형태를, 이 PR 의 fix 가 다시 만들 뻔했다.
+   *
+   * 세 진입점 중 이 한 곳만 회귀가 없었고, 리뷰어 **셋**(security·scope·testing)이 독립으로
+   * 그 공백을 지적했다(ai-review `10_02_22`).
+   */
+  it("§보안·§고착: 복원 경로의 스트림 오픈 실패 — 토큰 미노출 + ERROR 전이", async () => {
+    window.sessionStorage.setItem(
+      "clemvion-web-chat:session:t1",
+      JSON.stringify({ executionId: "prev", token: "iext_restore", expiresAt: new Date(Date.now() + NINETY_MIN_MS).toISOString(), apiBase: SESSION_API_BASE, endpoints: ENDPOINTS }),
+    );
+    const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/embed-config")) return Promise.reject(new Error("no embed-config"));
+      if (u.endsWith("/api/external/executions/e1") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { status: "running" } }) } as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch ${u}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { getEs } = installControllableEventSource();
+    throwOnce = true; // 복원 경로의 openStream 이 던진다.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useWidget());
+    boot();
+
+    // **삼키지 않고 전이한다** — 여기가 `streaming` 에 머물면 스피너 고착이다.
+    // 리듀서는 `ERROR` 를 `phase: "ended"` + `error` 로 매핑하므로(위젯엔 별도 `error` phase 가
+    // 없다) 고착과 갈리는 축은 **`ended` 이면서 `error` 가 채워졌는가** 다. `ended` 만 보면
+    // 정상 종료와 구분되지 않는다.
+    await waitFor(() => expect(result.current.state.phase).toBe("ended"));
+    expect(result.current.state.error).toBeTruthy();
+    expect(getEs()).toBeNull();
+    const logged = warn.mock.calls.flat().map(String).join(" ");
+    expect(logged).not.toContain("iext_restore");
     expect(logged).toContain("token=<redacted>");
   });
 
