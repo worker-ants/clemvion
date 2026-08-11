@@ -43,11 +43,11 @@ RESOLUTION 이 "이 PR 범위 밖" 으로 미룬 항목이 **어떤 plan 에도 
       > 첫 판은 "회귀 5건" 이라 적었다 — 실제 6건이고 커밋 메시지는 6이라 적어 서로 어긋났다
       > (ai-review requirement INFO). 호출부 2건은 그 뒤 라운드에서 추가됐다.
 - [x] ~~적용하지 않기로 하면 근거를 주석에 고정~~ — 적용했으므로 해당 없음. 대신 **적용
-      근거**를 `4-security.md §R0`(기각한 대안 포함)과 `safeApiBase` JSDoc 양쪽에 남겼다.
+      근거**를 `4-security.md §R7`(기각한 대안 포함)과 `safeApiBase` JSDoc 양쪽에 남겼다.
 
 ## 관련
 
-- `codebase/channel-web-chat/src/widget/use-widget.ts` (`safeApiBaseFromQuery`, `wc:boot` 처리)
+- `codebase/channel-web-chat/src/widget/use-widget.ts` (`safeApiBase`/`mergeBootConfig`, `wc:boot` 처리)
 - 선행: [`webchat-session-apibase-binding.md`](../complete/webchat-session-apibase-binding.md)
 - `spec/7-channel-web-chat/2-sdk.md` §boot / `4-security.md`
 
@@ -73,7 +73,7 @@ plan 은 이 건을 "**비대칭 하드닝**(boot 에 검증이 없다)" 으로 
 덮어 지웠다. 회귀 테스트를 쓰다 내 첫 구현이 그 자리를 그대로 재현해 발각됐다 — 거절과
 부재를 둘 다 쿼리 폴백으로 보내도록 `mergeBootConfig` 에서 명시 계산한다.
 
-검증: channel-web-chat **448 passed**, 타입 오류 0, lint 0.
+검증(라운드1 시점): channel-web-chat **448 passed**. 최종은 **450 passed**(신규 8 = 단위 6 + 호출부 통합 2).
 
 ## 리뷰 라운드 1 이 잡은 것 (2026-08-11, `15_16_20`)
 
@@ -90,7 +90,7 @@ plan 은 이 건을 "**비대칭 하드닝**(boot 에 검증이 없다)" 으로 
 이미 편집 중인 테스트 파일 1곳**뿐이었다. 직전 PR(`#1146`)의 `SpecMdFile` 별칭과 **같은 클래스**
 지적이다 — 근거가 반증된 별칭은 남길 이유가 없으므로 삭제하고 호출부 7곳을 치환했다.
 
-**side_effect INFO — 내 spec 서술이 거짓이었다.** §R0 에 "`apiBase` 가 없으면 `applyConfig` 가
+**side_effect INFO — 내 spec 서술이 거짓이었다.** §R7(당시 §R0) 에 "`apiBase` 가 없으면 `applyConfig` 가
 자기 자리에서 실패해 진단이 그쪽에 모인다" 고 적었는데, 그 자리는 `warn` 도 `dispatch` 도 없는
 **조용한 early return** 이다. 정정하고 선재 갭으로 등재했다(아래).
 

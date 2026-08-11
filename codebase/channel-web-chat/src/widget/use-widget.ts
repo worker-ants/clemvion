@@ -187,8 +187,16 @@ type StreamClaim =
  * 해소되므로 애초에 동작하지 않는다. SDK 자신도 이 값을 `URLSearchParams` 에 실어 쿼리
  * 검증을 통과시켜야 하므로, 정상 배포는 이미 이 술어를 만족한다.
  *
- * 거절 시 **그 필드만 버린다**(부팅 자체를 막지 않는다) — 쿼리 경로의 기존 동작과 대칭이고,
- * `apiBase` 가 결국 없으면 `applyConfig` 가 자기 자리에서 실패한다.
+ * 거절 시 **그 필드만 버린다**(부팅 자체를 막지 않는다) — 쿼리 경로의 기존 동작과 대칭이다.
+ *
+ * **진단은 여기(`console.warn`)에만 있다.** `apiBase` 가 결국 없으면 `applyConfig` 는
+ * `warn` 도 `dispatch` 도 없이 **조용히 반환**한다(바로 아래 자매 분기인 origin allowlist
+ * 실패가 `BLOCKED` 를 dispatch 하는 것과 비대칭). 선재 갭이며 이 하드닝은 그 분기의 도달
+ * 빈도를 넓혔을 뿐이다 — `plan/in-progress/webchat-auth-session-status-reconcile.md` 에 등재.
+ *
+ * > 첫 판은 "`applyConfig` 가 자기 자리에서 실패한다" 고 적었다. **거짓이다.** spec §R0 에서
+ * > 그 문장을 정정하면서 **여기(코드 SoT)는 안 고쳤다** — 한 사실을 두 곳에 복제해 놓고 한
+ * > 곳만 고친 형태다(ai-review `15_32_44` documentation CRITICAL).
  *
  * @param raw - `apiBase` 원본(null/undefined 가능).
  * @param source - 경고 문구용 입력 경로 이름.
