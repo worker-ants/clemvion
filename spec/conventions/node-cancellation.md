@@ -60,7 +60,7 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
 
 - **`ParallelExecutor`** (parallel-p2 §5, 구현됨) — `errorPolicy === 'cancel-others-on-fail'` 일 때 내부 `AbortController` 생성, 첫 branch 실패 시 `controller.abort()` 호출, 각 `branchContext.abortSignal` 에 set. 상위 `context.abortSignal` 이 있으면 그 abort 도 그룹 controller 로 cascade (`parallel-executor.ts`).
 - **Workflow 단위 시간 한도** (PR2a 구현 완료, 단 노드 abort 미통합) — 확정 설계는 wall-clock 타이머+abort 가 아니라 **active-running 누적 타임아웃**: dispatch loop 가 노드 사이마다 `assertActiveTimeWithinLimit` 를 호출해 누적 active 시간(`waiting_for_input` park 시간 제외)이 한도 초과면 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 종결한다 (SoT: [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)). **진행 중 노드의 abortSignal abort 통합** (in-flight 외부 I/O 즉시 중단) 만 잔여 Planned — 현재는 다음 노드 경계에서 판정
-- **사용자 cancel 버튼** (구현됨 2026-05-31) — REST API `POST /executions/:id/stop` 가 실행을 중단(running/pending → cancelled, waiting_for_input → continuation 취소). 에디터 툴바 Stop 버튼이 진입점. **이 경로는 `AbortController` 를 만들지 않고 Execution 행만 UPDATE 한다** — 진행 중 dispatch 의 실제 중단은 §2.4 의 DB 관측 가드가 담당한다(2026-07-26 이전에는 그 가드가 없어 하류 노드가 계속 dispatch 됐다).
+- **사용자 cancel 버튼** (구현됨 2026-05-31) — REST API `POST /executions/:id/stop` 가 실행을 중단(running/pending → cancelled, waiting_for_input → continuation 취소). 에디터 툴바 Stop 버튼이 진입점이며 **Editor+ 전용**이다 — viewer 는 버튼이 노출되지 않고(FE `canEdit` 가드) 서버도 `@Roles('editor')` 로 403 을 낸다([1-auth §3.2](../5-system/1-auth.md) "Workflow 실행"·[에디터 실행 §4](../3-workflow-editor/3-execution.md)). **이 경로는 `AbortController` 를 만들지 않고 Execution 행만 UPDATE 한다** — 진행 중 dispatch 의 실제 중단은 §2.4 의 DB 관측 가드가 담당한다(2026-07-26 이전에는 그 가드가 없어 하류 노드가 계속 dispatch 됐다).
 - **향후 graceful shutdown** — SIGTERM 수신 시 진행 중 execution 의 abort
 
 ### 2.4 DB 관측 취소 가드 (signal 이 아닌 경로)

@@ -347,7 +347,7 @@ async create(...) { ... }
 - [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` 를 소비하는 엔드포인트는
       `@ApiForbiddenResponse` 도 추가 — `RolesGuard` 는 `@Roles()` 유무와 무관하게
       워크스페이스 멤버십을 항상 검증하므로([data-flow §Rationale "멤버십 검증은 가드
-      1곳에서"](../data-flow/12-workspace.md)), `@WorkspaceId()` 만 쓰는 조회
+      1곳에서"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)), `@WorkspaceId()` 만 쓰는 조회
       엔드포인트도 403 을 낼 수 있다. `@Roles()` 가 있으면 설명에 "editor 이상 권한
       필요"처럼 요구 역할을 명시하고, `@Roles()` 없이 `@WorkspaceId()` 만 쓰면
       "워크스페이스 멤버가 아님"으로 통일한다. (`@Public()` 라우트는 대상 아님.)
@@ -395,4 +395,4 @@ fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 
 `ApiOkPaginatedResponse` 가 문서화하는 wire shape 는 **single-wrap** `{ data: <Dto>[], pagination }` 다(§5-2). 페이지네이션 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }` — top-level `data` 키 보유)를 반환하고, `TransformInterceptor` 는 이미 `data` 키가 있는 객체를 추가 래핑 없이 pass-through(`'data' in data` 분기)하므로, §2-5 의 "성공 응답을 `{ data }` 로 감싼다"는 보편 규칙의 **주요 pass-through 사례**가 된다(두 번째 사례: 비-페이징 고정 컬렉션이 `{ data: { items } }` 를 직접 반환하는 경우 — [api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답) 비-페이징 고정 컬렉션. `pagination` 필드가 없어 이 §5 페이징 pass-through 와는 형태가 다르다). 종전 헬퍼가 선언하던 double-wrap `{ data: { data, pagination } }` 은 의도된 결정이 아니라 pass-through 를 간과한 **버그**였다 — 실제 런타임(`PaginatedResponseDto`+interceptor)·e2e(`res.body.data`/`res.body.pagination` top-level)·`api-convention §5.2` 가 모두 single-wrap 이라 헬퍼·§5-2 를 그에 맞춰 정정했다. **single-wrap 을 double-wrap 으로 되돌리지 말 것** — 런타임과 어긋난다.
 
 ### §5-4 확장 배경 — `@WorkspaceId()` 소비 라우트로 확대 (2026-08-08)
-종전 §5-4 는 "`@Roles()` 가 있어야 403 이 가능하다"는 **opt-in 가드 모델**을 전제로 적혔다. `auth-workspace-membership-guard` PR (보안 CRITICAL fix)이 `RolesGuard` 를 **opt-out 불가능한** 구조로 재구성하면서 그 전제가 깨졌다 — 멤버십 검증이 `@Roles()` 유무와 무관하게 항상 수행되므로 `@WorkspaceId()` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(정본: [data-flow §Rationale "멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관"](../data-flow/12-workspace.md)). 이 정정은 동작 변경이 아니라 **문서-구현 동기화**다. **왜 규약 문구까지 고치는가**: §5-4 는 신규 엔드포인트 작성 시 판단 기준으로 쓰이는데, 문구가 실제 403 발생 조건과 어긋나면 규약을 그대로 따른 다음 작성자에게서 같은 갭이 재발한다 — "사람이 규칙을 기억해야 하는 opt-in" 구조를 규약 레벨에서 반복하지 않는다(그 PR 이 코드에서 닫은 것과 같은 결함 클래스).
+종전 §5-4 는 "`@Roles()` 가 있어야 403 이 가능하다"는 **opt-in 가드 모델**을 전제로 적혔다. `auth-workspace-membership-guard` PR (보안 CRITICAL fix)이 `RolesGuard` 를 **opt-out 불가능한** 구조로 재구성하면서 그 전제가 깨졌다 — 멤버십 검증이 `@Roles()` 유무와 무관하게 항상 수행되므로 `@WorkspaceId()` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(정본: [data-flow §Rationale "멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)). 이 정정은 동작 변경이 아니라 **문서-구현 동기화**다. **왜 규약 문구까지 고치는가**: §5-4 는 신규 엔드포인트 작성 시 판단 기준으로 쓰이는데, 문구가 실제 403 발생 조건과 어긋나면 규약을 그대로 따른 다음 작성자에게서 같은 갭이 재발한다 — "사람이 규칙을 기억해야 하는 opt-in" 구조를 규약 레벨에서 반복하지 않는다(그 PR 이 코드에서 닫은 것과 같은 결함 클래스).

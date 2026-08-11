@@ -157,6 +157,7 @@ export class ExecutionsController {
     description: '이어실행 요청 접수',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   @ApiBadRequestResponse({
     description:

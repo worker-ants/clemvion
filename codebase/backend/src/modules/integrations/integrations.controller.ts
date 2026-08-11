@@ -101,6 +101,7 @@ export class IntegrationsController {
     description: '통합 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListIntegrationsQueryDto,
@@ -186,6 +187,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiConflictResponse({
     description:
       'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 spec §9.2 가 "app_type 무관" 으로 의미를 정의한다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록. spec/2-navigation/4-integration.md §9.2 + §9.4.',
@@ -259,6 +261,7 @@ export class IntegrationsController {
   })
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async cafe24Precheck(
     @WorkspaceId() workspaceId: string,
     @Query() query: Cafe24PrecheckQueryDto,
@@ -283,6 +286,7 @@ export class IntegrationsController {
   })
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async makeshopPrecheck(
     @WorkspaceId() workspaceId: string,
     @Query() query: MakeshopPrecheckQueryDto,
@@ -301,6 +305,7 @@ export class IntegrationsController {
     description: '통합 상세 정보 (마스킹된 자격 증명 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -320,6 +325,7 @@ export class IntegrationsController {
     description: '통합이 사용 중인 워크플로우·노드 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async listUsages(
     @Param('id', ParseUUIDPipe) id: string,
@@ -339,6 +345,7 @@ export class IntegrationsController {
     description: '최근 활동 로그 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async activity(
     @Param('id', ParseUUIDPipe) id: string,
@@ -414,6 +421,7 @@ export class IntegrationsController {
     description: '연결 테스트 결과 (성공 여부, 메타 정보)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,
@@ -470,6 +478,7 @@ export class IntegrationsController {
   })
   @ApiBadRequestResponse({ description: 'OAuth 기반 통합이 아님' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
   async reauthorize(
     @Param('id', ParseUUIDPipe) id: string,

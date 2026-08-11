@@ -90,6 +90,7 @@ export class WorkflowsController {
     description: '워크플로우 목록 (페이지네이션 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @CurrentUser() user: JwtPayload,
     @WorkspaceId() workspaceId: string,
@@ -107,6 +108,7 @@ export class WorkflowsController {
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(WorkflowDto, { description: '워크플로우 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -504,6 +506,7 @@ export class WorkflowsController {
     description: '내보내기 JSON 객체',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async exportWorkflow(
     @Param('id', ParseUUIDPipe) id: string,

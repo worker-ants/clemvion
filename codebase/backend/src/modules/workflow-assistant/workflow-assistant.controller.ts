@@ -25,6 +25,7 @@ import {
   ApiProduces,
   ApiQuery,
   ApiTags,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { WorkspaceId } from '../../common/decorators';
@@ -54,6 +55,7 @@ export class WorkflowAssistantController {
       '지정한 워크플로우에 속한 내 세션을 최근 상호작용 순으로 최대 50건 반환한다.',
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async list(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -72,6 +74,7 @@ export class WorkflowAssistantController {
       '워크플로우 편집기 진입 시 기본 선택할 세션을 조회한다. 없으면 null 반환.',
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async latest(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -88,6 +91,7 @@ export class WorkflowAssistantController {
   @Get('sessions/:id')
   @ApiOperation({ summary: '세션 상세(메시지 포함) 조회' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findOne(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,

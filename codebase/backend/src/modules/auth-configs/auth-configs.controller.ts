@@ -58,6 +58,7 @@ export class AuthConfigsController {
     description: '인증 설정 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: PaginationQueryDto,
@@ -73,6 +74,7 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigDto, { description: '인증 설정 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -143,6 +145,7 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigUsageDto, { description: '사용 통계' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async getUsage(
     @Param('id', ParseUUIDPipe) id: string,

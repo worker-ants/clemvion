@@ -137,6 +137,7 @@ export class LlmModelConfigController {
     description: '사용 가능한 모델 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   @ApiBadRequestResponse({
     description: '유효하지 않은 type 파라미터 (허용값: chat | embedding)',

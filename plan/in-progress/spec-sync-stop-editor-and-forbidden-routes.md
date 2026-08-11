@@ -1,6 +1,6 @@
 ---
 title: spec 동기화 후속 — /executions/:id/stop 의 Editor+ 반영 · 잔여 61 라우트 403 문서화
-worktree: (unstarted)
+worktree: stop-editor-403-docs
 started: 2026-08-08
 owner: project-planner
 status: in-progress
@@ -29,11 +29,9 @@ P0 PR 이 `executions.controller.ts` `stop` 에 `@Roles('editor')` 를 부착하
 
 그런데 **워크플로우 에디터 쪽 문서 3곳이 이를 반영하지 않는다**:
 
-- [ ] `spec/3-workflow-editor/3-execution.md` §9 API 표 (L335) — `/stop` 행에
-      **인접 행과 달리 "Editor+" 주석이 없다**. 인접 행이 이미 그 표기를 쓰므로 형태를 맞춘다
-- [ ] `spec/3-workflow-editor/3-execution.md` §4 "실행 중단(Stop)" (L170-177) — 권한 한 줄 보강
-- [ ] `spec/conventions/node-cancellation.md` L63 — "Editor+ 전용(viewer 는 버튼 미노출,
-      FE `canEdit` 가드)" 문구 추가
+- [x] `spec/3-workflow-editor/3-execution.md` §9 API 표 — `/stop` 행에 `Editor+` 부기(인접 행 형태와 동일)
+- [x] `spec/3-workflow-editor/3-execution.md` §4 "실행 중단(Stop)" — 표에 `권한` 행 신설
+- [x] `spec/conventions/node-cancellation.md` §2.3 — "Editor+ 전용(viewer 미노출, FE `canEdit` 가드)" + 근거 링크
 
 > **신규 결정이 아니다** — §3.2 가 이미 확정한 권한을 파생 문서에 반영하는 것뿐이다.
 > 따라서 `--spec` 에서 Rationale 신설은 불요하고 표기 동기화로 족하다.
@@ -47,21 +45,19 @@ P0 PR 은 **자기가 건드린 5개 컨트롤러의 12곳**에만 부착했다.
 종전엔 이 항목이 두 plan 의 **산문 권고**로만 있었다 — checker 가 "review/ 에만 있다가
 유실되는 패턴" 을 지적해 여기 체크리스트로 승격한다.
 
-- [ ] 전수 스캔으로 대상 확정 — `@WorkspaceId()` 소비 **&&** `@Roles()` 부재 **&&**
-      `@ApiForbiddenResponse` 부재. (P0 PR 이 쓴 triage 스크립트와 같은 형태 —
-      **데코레이터 기준 파싱**이어야 한다. 문자열 매칭은 첫 판에서 0건을 냈다)
-- [ ] 코드모드로 일괄 부착 (`swagger.md §5-4` 가 이제 이 케이스를 요구한다)
-- [ ] 설명 문자열은 `@Roles()` 없는 경우 **"워크스페이스 멤버가 아님"** 으로 통일 (§5-4)
+- [x] 전수 스캔으로 대상 확정 — **51건 / 16파일**(plan 의 "~61" 은 추정치였다, 아래 실측 참조)
+- [x] 코드모드로 일괄 부착 — **+57 / -0**(데코레이터 51 + import 6). 재스캔 결과 잔여 **0건**
+- [x] 설명 문자열 `'워크스페이스 멤버가 아님'` 통일 (§5-4)
 
 ## 3. `swagger.md` 교차링크 앵커 (INFO 3)
 
-- [ ] `spec/conventions/swagger.md` 의 `12-workspace.md` 인용 2곳(§5-4 체크리스트·§Rationale)에
-      앵커 프래그먼트 `#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08` 추가 —
-      `error-codes.md` 인용 스타일과 통일
+- [x] `spec/conventions/swagger.md` 의 `12-workspace.md` 인용 **2곳** 에 앵커 프래그먼트 추가.
+      **앵커 실재는 뮤테이션으로 검증** — 가짜 앵커를 넣으면 `spec-link-integrity` 가 RED 가
+      되는 것을 확인했다(GREEN 만 보고 "검증됐다" 고 하지 않는다)
 
 ## 체크리스트
 
-- [ ] 위 §1·§2·§3 처리
+- [x] 위 §1·§2·§3 처리
 - [ ] `/consistency-check --spec` (spec 본문 편집이므로 의무)
 
 ## Rationale
@@ -72,3 +68,62 @@ P0 PR 은 **자기가 건드린 5개 컨트롤러의 12곳**에만 부착했다.
 
 **§2 의 트리거**: `swagger.md §5-4` 가 P0 PR 에서 확장됐으므로, 이제 규약을 그대로 따르는
 신규 라우트는 올바르게 부착된다. 잔여 61건은 **소급 정리**라 급하지 않다.
+
+## 실측 (2026-08-11 착수)
+
+### §2 대상은 51건이다 — "~61" 은 추정치였다
+
+plan 은 "`@WorkspaceId()` 소비 && `@Roles()` 부재가 73건이라 ~61건이 남는다" 로 적었다.
+**데코레이터 블록 파서**로 전수를 세니 수치가 다르다:
+
+| 지표 | 값 |
+| --- | --- |
+| 전체 라우트 | 222 |
+| `@WorkspaceId()` 소비 | 141 |
+| ├ `@Roles()` 있음 | 75 |
+| ├ `@ApiForbiddenResponse` 있음 | 79 |
+| ├ 둘 다 있음 | 64 |
+| └ **대상(둘 다 없음)** | **51** |
+
+내부 정합 확인: `141 = 75 + 79 − 64 + 51`. 스캐너는 `alerts.controller.ts`(4라우트 중 3건이
+`@Roles('admin')`+`@ApiForbiddenResponse`, 1건만 대상)로 육안 대조해 검증했고, 클래스 레벨
+`@ApiForbiddenResponse` 가 0건임도 확인했다(있으면 과다 계수했을 것).
+
+### 배치 규약은 선례에서 읽었다
+
+P0 PR 의 `nodes.controller.ts` 가 `@ApiUnauthorizedResponse`(401) → `@ApiForbiddenResponse`(403)
+→ `@ApiNotFoundResponse`(404) **status 오름차순**으로 배치했다. 그대로 따랐다:
+
+| 배치 | 건수 |
+| --- | --- |
+| 401 직후 | 47 |
+| (401 없음) 404 직전 | 1 |
+| (둘 다 없음) 시그니처 직전 | **3** |
+
+**3번 3건은 조용히 넘기지 않는다** — `workflow-assistant.controller.ts` 의 세 라우트는
+`@ApiUnauthorizedResponse` 자체가 없어 403 이 마지막 데코레이터가 됐다. status 순서상 정합이나,
+**401 문서화 누락은 별개 갭**이다(§5-4 는 401 도 요구한다). 이 티켓 범위 밖이라 아래 후속에 등재.
+
+### drive-by 를 한 번 만들었다가 되돌렸다
+
+첫 codemod 는 `@nestjs/swagger` import 를 보강하면서 **기존 이름들을 알파벳 재정렬**했다 —
+`background-runs.controller.ts` 한 파일에서만 `+8/-3` 이 나왔다. 티켓이 요청하지 않은 변경이고
+리뷰 diff 를 부풀려 진짜 변경을 가린다. 폐기하고 **append-only** 로 다시 짰다 → 최종 **+57/-0**.
+
+> 이 저장소는 `eslint --fix` drive-by 주입으로 이미 지적받은 이력이 있다. codemod 도 같은
+> 표면이다 — **"고치는 김에" 가 diff 에 섞이면 리뷰어가 그것부터 본다.**
+
+### 검증
+
+- 재스캔 **잔여 0건**, 변경 16파일 lint **0건**, 변경 컨트롤러 타입 오류 **0건**.
+- 문서 가드 **2890 passed**. 신규 앵커는 **뮤테이션으로 검증** — 가짜 앵커 주입 시
+  `spec-link-integrity` 가 RED 가 됨을 확인하고 `cp` 로 원복했다.
+- 참고: `origin/main` 자체의 backend tsc/lint 오류(309줄)는 **선재**이며
+  [`backend-lint-gate-broken-on-main`](./backend-lint-gate-broken-on-main.md) 에서 별도 추적한다.
+  변경 파일에는 0건이다.
+
+## 후속 (이 티켓 범위 밖, 등재만)
+
+- [ ] `workflow-assistant.controller.ts` 3라우트에 `@ApiUnauthorizedResponse` 부재 —
+      `swagger.md §5-4` 는 401 도 요구한다. §2 codemod 중 발견(403 배치 3번 폴백 사유).
+      이 티켓은 403 만 다루므로 분리한다.

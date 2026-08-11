@@ -4,6 +4,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import {
   ApiOkWrappedArrayResponse,
@@ -33,6 +34,7 @@ export class DashboardController {
     description: '대시보드 요약 지표',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async getSummary(@WorkspaceId() workspaceId: string) {
     return this.dashboardService.getSummary(workspaceId);
   }
@@ -47,6 +49,7 @@ export class DashboardController {
     description: '최근 갱신 워크플로우 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async getRecentWorkflows(@WorkspaceId() workspaceId: string) {
     return this.dashboardService.getRecentWorkflows(workspaceId);
   }
@@ -61,6 +64,7 @@ export class DashboardController {
     description: '최근 실행 이력 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async getRecentExecutions(@WorkspaceId() workspaceId: string) {
     return this.dashboardService.getRecentExecutions(workspaceId);
   }

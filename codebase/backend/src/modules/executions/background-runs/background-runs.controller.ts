@@ -7,6 +7,7 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
+  ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { ApiOkWrappedResponse } from '../../../common/swagger';
 import { WorkspaceId } from '../../../common/decorators/workspace.decorator';
@@ -43,6 +44,7 @@ export class BackgroundRunsController {
     description: 'cursor 디코딩 실패 또는 limit 범위 오류',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({
     description: '실행 또는 background run 을 찾을 수 없음 (IDOR 차단 포함)',
   })

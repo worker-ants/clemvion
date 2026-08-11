@@ -76,6 +76,7 @@ export class ModelConfigController {
   @ApiQuery({ name: 'kind', enum: MODEL_CONFIG_KINDS, required: true })
   @ApiOkPaginatedResponse(ModelConfigDto, { description: '모델 설정 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListModelConfigsQueryDto,
@@ -91,6 +92,7 @@ export class ModelConfigController {
   @ApiOperation({ summary: '모델 설정 단건 조회' })
   @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(ModelConfigDto, { description: '모델 설정 상세' })
+  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
