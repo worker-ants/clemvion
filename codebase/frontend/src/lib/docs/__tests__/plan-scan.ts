@@ -27,11 +27,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { walkTree, type MdFileRef } from "./tree-walk";
 
-export interface PlanMdFile {
-  absPath: string;
-  relPath: string;
-}
+/**
+ * plan 트리의 `.md` 한 건. 구조는 `MdFileRef` 와 같고 **이름만 도메인에 붙였다** —
+ * `spec-links.ts` 가 spec 도 codebase 도 한 타입(`SpecMdFile`)으로 받아 혼동을 낳았던
+ * 것과 달리, 이쪽은 처음부터 plan 전용으로 읽히길 원한다.
+ */
+export type PlanMdFile = MdFileRef;
 
 /**
  * `0-`/`_` 접두는 인덱스 **파일**이라 라이프사이클 plan 이 아니다.
@@ -61,28 +64,11 @@ function walkPlanMarkdown(
   bucket: string,
   options: { recurse: boolean },
 ): PlanMdFile[] {
-  const dir = path.join(root, "plan", bucket);
-  if (!fs.existsSync(dir)) return [];
-  const out: PlanMdFile[] = [];
-  const stack = [dir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, e.name);
-      if (e.isDirectory()) {
-        if (!options.recurse) continue;
-        if (e.name === "archive") continue;
-        stack.push(full);
-      } else if (e.isFile() && isLifecyclePlan(e.name)) {
-        out.push({
-          absPath: full,
-          relPath: path.relative(root, full).split(path.sep).join("/"),
-        });
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+  return walkTree(root, [path.join("plan", bucket)], {
+    skipDir: (name) => name === "archive",
+    includeFile: (name) => isLifecyclePlan(name),
+    recurse: options.recurse,
+  });
 }
 
 /** 살아있는 plan — top-level `plan/in-progress/*.md`. 하위 그룹 폴더는 부속 문서라 제외. */

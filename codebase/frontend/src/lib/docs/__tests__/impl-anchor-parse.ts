@@ -3,6 +3,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { walkTree } from "./tree-walk";
 
 export type ImplAnchorKind =
   | "ui-entry"
@@ -104,24 +105,19 @@ export function findGuiFlowSections(mdx: string): GuiFlowSection[] {
     .map((sec) => ({ heading: sec.heading, body: sec.bodyLines.join("\n") }));
 }
 
+/**
+ * 유저 가이드 `.mdx` 수집.
+ *
+ * **`_` 접두를 디렉터리에 적용한다** — 같은 폴더의 `plan-scan.ts` 는 같은 접두를
+ * *파일명*에 적용한다(인덱스 문서 제외). 둘 다 자기 자리에서 옳고 서로 대체되지 않는데,
+ * 종전에는 두 DFS 가 각자 손으로 짜여 있어 그 차이가 어디에도 드러나지 않았다.
+ * 이제 `walkTree` 호출 한 줄이 어느 쪽에 거는지를 말한다.
+ */
 export function collectMdxFiles(rootDir: string, subPath: string): string[] {
-  const dir = path.join(rootDir, subPath);
-  if (!fs.existsSync(dir)) return [];
-  const out: string[] = [];
-  const stack = [dir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name.startsWith("_")) continue;
-        stack.push(full);
-      } else if (entry.isFile() && full.endsWith(".mdx")) {
-        out.push(full);
-      }
-    }
-  }
-  return out.sort();
+  return walkTree(rootDir, [subPath], {
+    skipDir: (name) => name.startsWith("_"),
+    includeFile: (name) => name.endsWith(".mdx"),
+  }).map((f) => f.absPath);
 }
 
 // repo root = 3 levels up from codebase/frontend/src/lib/docs/__tests__

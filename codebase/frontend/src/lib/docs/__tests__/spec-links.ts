@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { collectLivePlanMarkdown } from "./plan-scan";
+import { walkTree, type MdFileRef } from "./tree-walk";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdToString } from "mdast-util-to-string";
 import GithubSlugger from "github-slugger";
@@ -116,10 +117,15 @@ export function isExternal(target: string): boolean {
   );
 }
 
-export interface SpecMdFile {
-  absPath: string;
-  relPath: string;
-}
+/**
+ * @deprecated 도메인 중립 `MdFileRef` 를 쓴다.
+ *
+ * 이 이름이 실제 용도보다 좁았다 — `collectCodebaseSources(): SpecMdFile[]` 처럼
+ * **spec 도 markdown 도 아닌** 파일에 붙어 있었다. 남겨 두는 것은 외부 호출부를 한 번에
+ * 못 바꿀 때를 위한 별칭일 뿐이고, 신규 코드는 `MdFileRef` 를 쓴다.
+ * (`plan-scan.ts` 는 이미 `PlanMdFile` 을 따로 두어 이 혼동에서 빠져 있었다.)
+ */
+export type SpecMdFile = MdFileRef;
 
 // Generated API reference catalogs (cafe24-api-catalog, makeshop-api-catalog, …)
 // are not narrative specs; their cross-links are machine-generated and out of
@@ -129,26 +135,11 @@ function inGeneratedCatalog(relPath: string): boolean {
 }
 
 /** All narrative markdown under `spec/` (excludes generated catalogs). */
-export function collectSpecMarkdown(root: string): SpecMdFile[] {
-  const specDir = path.join(root, "spec");
-  const out: SpecMdFile[] = [];
-  if (!fs.existsSync(specDir)) return out;
-  const stack: string[] = [specDir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && full.endsWith(".md")) {
-        const rel = path.relative(root, full).split(path.sep).join("/");
-        if (inGeneratedCatalog(rel)) continue;
-        out.push({ absPath: full, relPath: rel });
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+export function collectSpecMarkdown(root: string): MdFileRef[] {
+  return walkTree(root, ["spec"], {
+    includeFile: (name, relPath) =>
+      name.endsWith(".md") && !inGeneratedCatalog(relPath),
+  });
 }
 
 export type LinkViolationKind = "DEAD" | "ANCHOR";
@@ -316,30 +307,11 @@ const CODEBASE_SKIP_DIRS = new Set(["node_modules", "dist", "build", ".next"]);
 const SPEC_MD_TARGET_RE = /(^|\/)spec\/.+\.md$/;
 
 /** All `.ts`/`.tsx` under the codebase source roots (build output dirs excluded). */
-export function collectCodebaseSources(root: string): SpecMdFile[] {
-  const out: SpecMdFile[] = [];
-  for (const rel of CODEBASE_SOURCE_ROOTS) {
-    const base = path.join(root, rel);
-    if (!fs.existsSync(base)) continue;
-    const stack: string[] = [base];
-    while (stack.length > 0) {
-      const cur = stack.pop()!;
-      for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-        const full = path.join(cur, entry.name);
-        if (entry.isDirectory()) {
-          if (!CODEBASE_SKIP_DIRS.has(entry.name)) stack.push(full);
-        } else if (
-          entry.isFile() &&
-          (full.endsWith(".ts") || full.endsWith(".tsx"))
-        ) {
-          const relPath = path.relative(root, full).split(path.sep).join("/");
-          out.push({ absPath: full, relPath });
-        }
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+export function collectCodebaseSources(root: string): MdFileRef[] {
+  return walkTree(root, CODEBASE_SOURCE_ROOTS, {
+    skipDir: (name) => CODEBASE_SKIP_DIRS.has(name),
+    includeFile: (name) => name.endsWith(".ts") || name.endsWith(".tsx"),
+  });
 }
 
 /**

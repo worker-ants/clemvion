@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { walkTree } from "./tree-walk";
 
 export type SpecStatus =
   | "backlog"
@@ -82,26 +83,12 @@ export function isApplicable(relPath: string): boolean {
 }
 
 export function collectApplicableSpecs(root: string): SpecRecord[] {
-  const out: SpecRecord[] = [];
-  const specDir = path.join(root, "spec");
-  if (!fs.existsSync(specDir)) return out;
-
-  const stack: string[] = [specDir];
-  while (stack.length > 0) {
-    const cur = stack.pop()!;
-    for (const entry of fs.readdirSync(cur, { withFileTypes: true })) {
-      const full = path.join(cur, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && full.endsWith(".md")) {
-        const rel = path.relative(root, full);
-        if (!isApplicable(rel)) continue;
-        out.push(parseSpecFile(full, rel));
-      }
-    }
-  }
-  out.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return out;
+  // 종전에는 상대경로를 `path.relative` 원본 그대로 넘겼다 — POSIX 에서만 우연히
+  // `isApplicable`/`CATALOG_FIELD_FILE` 의 `/` 가정과 맞았다. `walkTree` 는 항상 `/` 로
+  // 정규화하므로 그 잠복 분기가 사라진다.
+  return walkTree(root, ["spec"], {
+    includeFile: (_name, relPath) => isApplicable(relPath),
+  }).map((f) => parseSpecFile(f.absPath, f.relPath));
 }
 
 function parseSpecFile(absPath: string, relPath: string): SpecRecord {
