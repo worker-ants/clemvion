@@ -175,7 +175,7 @@ AI Agent 노드가 Multi Turn 모드로 실행 중인 경우:
 | 동작 | 현재 실행 중인 노드 완료 후 중단 (Graceful) |
 | 강제 중단 | Stop 버튼 3초 이상 누르기 → 즉시 중단 (Force) |
 | 상태 | Execution.status = "cancelled" |
-| 권한 | **Editor+** — viewer 는 Stop 버튼이 노출되지 않고(FE `canEdit` 가드), 서버도 `@Roles('editor')` 로 403 을 낸다. 근거는 [1-auth §3.2](../5-system/1-auth.md) 의 "Workflow 실행 = Owner/Admin/Editor" 이며 신규 결정이 아니다 |
+| 권한 | Editor+ — viewer 는 Stop 버튼이 노출되지 않고(FE `canEdit` 가드), 서버도 `@Roles('editor')` 로 403 을 낸다. 근거는 [1-auth §3.2](../5-system/1-auth.md) 권한 매트릭스의 `Workflow 실행` 행(Owner/Admin/Editor ✅, Viewer —)이며 신규 결정이 아니다 |
 
 ---
 

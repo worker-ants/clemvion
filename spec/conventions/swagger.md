@@ -346,8 +346,8 @@ async create(...) { ... }
 - [ ] `ApiOkWrappedResponse` / `ApiOkPaginatedResponse` 등 적절한 래퍼 사용
 - [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` 를 소비하는 엔드포인트는
       `@ApiForbiddenResponse` 도 추가 — `RolesGuard` 는 `@Roles()` 유무와 무관하게
-      워크스페이스 멤버십을 항상 검증하므로([data-flow §Rationale "멤버십 검증은 가드
-      1곳에서"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)), `@WorkspaceId()` 만 쓰는 조회
+      워크스페이스 멤버십을 항상 검증하므로
+      ([data-flow §Rationale 멤버십 검증은 가드 1곳에서](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)), `@WorkspaceId()` 만 쓰는 조회
       엔드포인트도 403 을 낼 수 있다. `@Roles()` 가 있으면 설명에 "editor 이상 권한
       필요"처럼 요구 역할을 명시하고, `@Roles()` 없이 `@WorkspaceId()` 만 쓰면
       "워크스페이스 멤버가 아님"으로 통일한다. (`@Public()` 라우트는 대상 아님.)

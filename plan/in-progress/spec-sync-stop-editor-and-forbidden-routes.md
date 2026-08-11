@@ -45,15 +45,16 @@ P0 PR 은 **자기가 건드린 5개 컨트롤러의 12곳**에만 부착했다.
 종전엔 이 항목이 두 plan 의 **산문 권고**로만 있었다 — checker 가 "review/ 에만 있다가
 유실되는 패턴" 을 지적해 여기 체크리스트로 승격한다.
 
-- [x] 전수 스캔으로 대상 확정 — **51건 / 16파일**(plan 의 "~61" 은 추정치였다, 아래 실측 참조)
-- [x] 코드모드로 일괄 부착 — **+57 / -0**(데코레이터 51 + import 6). 재스캔 결과 잔여 **0건**
+- [x] 전수 스캔으로 대상 확정 — 티켓 술어(`@Roles()` 부재)로 **51건**, **규약 §5-4 술어**
+      (`@Roles()` 있거나 `@WorkspaceId()` 소비)로는 **64건**. 아래 "술어가 규약보다 좁았다" 참조
+- [x] 코드모드로 일괄 부착 — 1차 **+57/-0**(51 + import 6), 2차 **+13/-0**(잔여). §5-4 술어
+      기준 재스캔 **잔여 0건**
 - [x] 설명 문자열 `'워크스페이스 멤버가 아님'` 통일 (§5-4)
 
 ## 3. `swagger.md` 교차링크 앵커 (INFO 3)
 
 - [x] `spec/conventions/swagger.md` 의 `12-workspace.md` 인용 **2곳** 에 앵커 프래그먼트 추가.
-      **앵커 실재는 뮤테이션으로 검증** — 가짜 앵커를 넣으면 `spec-link-integrity` 가 RED 가
-      되는 것을 확인했다(GREEN 만 보고 "검증됐다" 고 하지 않는다)
+      **각각을 격리해 뮤테이션 검증** — 아래 "내 뮤테이션 주장이 절반만 참이었다" 참조
 
 ## 체크리스트
 
@@ -127,3 +128,78 @@ P0 PR 의 `nodes.controller.ts` 가 `@ApiUnauthorizedResponse`(401) → `@ApiFor
 - [ ] `workflow-assistant.controller.ts` 3라우트에 `@ApiUnauthorizedResponse` 부재 —
       `swagger.md §5-4` 는 401 도 요구한다. §2 codemod 중 발견(403 배치 3번 폴백 사유).
       이 티켓은 403 만 다루므로 분리한다.
+
+## 리뷰 라운드가 잡은 것 (`17_21_33` 코드 6 + `17_21_43` consistency 5)
+
+### 술어가 규약보다 좁았다 — 잔여 13건을 함께 닫았다
+
+티켓 §2 는 대상 술어를 **"`@Roles()` 부재"** 로 적었다. 그런데 `swagger.md §5-4` 원문은
+**"`@Roles(...)` 가 붙었거나 `@WorkspaceId()` 를 소비하는 엔드포인트"** 다 — 티켓이 규약보다
+좁았고, 그래서 `@Roles()` 는 있는데 `@ApiForbiddenResponse` 가 **아예 없는** 라우트가 남았다.
+
+세 리뷰어가 각각 **6건 / 3건 / 12건**으로 다르게 셌다. 직접 세니 **13건**이다:
+
+| 파일 | 건수 | 역할 |
+| --- | --- | --- |
+| `workflow-assistant.controller.ts` | 4 | editor |
+| `workflow-test-datasets.controller.ts` | 3 | editor |
+| `agent-memory.controller.ts` | 2 | viewer |
+| `executions.controller.ts` (테스트 훅 2종) | 2 | owner |
+| `knowledge-base.controller.ts` (`uploadDocument`) | 1 | editor |
+| `workflows.controller.ts` (`graphWarnings`) | 1 | viewer |
+
+설명 문자열은 §5-4 대로 역할에서 파생했다(`'<role> 이상 권한 필요'` — 기존 관례
+`'editor 이상 권한 필요'` 46건·`'viewer 이상 권한 필요'` 1건과 동형). **§5-4 술어 기준 잔여 0건.**
+
+> **"잔여 0건" 이 술어에 의존한다.** 1차 검증 때 나는 티켓의 좁은 술어로 세고 "0건" 이라 썼다 —
+> 참이지만 **규약 기준으로는 거짓**이었다. 수치를 쓸 땐 **어떤 술어로 셌는지**를 함께 적어야 한다.
+
+### codemod 파서가 데코레이터 인자 안쪽에 삽입했다
+
+2차 codemod 첫 판이 `@UseInterceptors(\n  FileInterceptor('file', {` 의 `FileInterceptor(` 를
+**메서드 시그니처로 오인**해 데코레이터 인자 안에 데코레이터를 끼워 넣었다 — 문법이 깨진다.
+diff 를 눈으로 보다 발견했다. 시그니처 탐색을 **괄호 깊이 0에서만** 인정하도록 고쳤다.
+
+> 1차 codemod(51건)는 이 버그가 없었다 — `tsc` 가 통과했고 컨트롤러 오류 0이었다. 즉 **타입
+> 체크가 이 클래스를 잡는다.** 그럼에도 diff 를 읽은 것이 더 빨랐다.
+
+### 내 뮤테이션 주장이 절반만 참이었다
+
+나는 "가짜 앵커를 주입하니 `spec-link-integrity` 가 RED 가 됐다" 고 적었다. `testing` 리뷰어가
+반증했고 나도 재현했다 — **두 앵커를 동시에 바꿔 놓고 RED 하나를 보고 둘 다 검증됐다고 결론**했다.
+
+실제로는 `swagger.md:350` 이 **멀티라인 마크다운 링크**(`[` 와 `](` 가 다른 줄)라
+`extractLinks()` 의 **한 줄 단위 정규식**이 원천적으로 못 잡는다. 격리 실측:
+
+| 뮤테이션 | 결과 |
+| --- | --- |
+| 350 단독(멀티라인 상태) | **GREEN — 생존** |
+| 350 단독(한 줄로 편 뒤) | **RED** |
+| 398 단독 | **RED** |
+
+링크를 한 줄로 펴서 **두 앵커 모두 독립으로 RED** 임을 확인했다. 이제 주장이 참이다.
+
+> **동시 뮤테이션은 자매 중 하나만 잡혀도 통과한다.** 이 저장소가 이미 등재한 "자매를 각각
+> 뮤테이트하라" 의 재발이고, 이번엔 **내가 그 검증을 근거로 삼았다**는 점이 더 나쁘다.
+
+### 그 밖에 처분한 것
+
+- `llm-model-config.controller.ts:118` 주석이 **"역할 제한이 없어 `@ApiForbiddenResponse` 도
+  두지 않는다"** 고 적혀 있었다 — 이번 부착과 정면 모순. §5-4 확장(2026-08-08)으로 전제가
+  깨진 것을 주석만 옛 정책으로 남긴 것이라 정정했다(`api_contract` INFO).
+- §4 표의 `**Editor+**` bold → 선례(`13-replay-rerun.md`)대로 plain(`convention` INFO).
+- `1-auth §3.2` 를 따옴표로 감싼 **비-verbatim 인용** → 표 참조 서술로 정정(`cross_spec` INFO).
+  grep 으로 재검증하려는 사람이 "인용이 틀렸다" 고 오판할 소지를 없앴다.
+
+## 후속 (이 티켓 범위 밖, 등재만)
+
+- [ ] **`spec-link-integrity` 가 멀티라인 마크다운 링크를 못 본다** — `spec-links.ts`
+      `extractLinks()` 가 한 줄 단위로 `LINK_RE` 를 돌려, `[` 와 `](` 가 다른 줄에 있으면
+      링크·앵커 검증이 **통째로 건너뛰어진다**. 저장소 전수 실측 **6건 / 6파일**
+      (`4-nodes/4-integration/2-database-query.md` · `5-system/1-auth.md` ·
+      `7-channel-web-chat/4-security.md` · `conventions/secret-store.md` ·
+      `conventions/swagger.md`(이번에 해소) · `data-flow/12-workspace.md`).
+      가드가 조용히 통과시키는 사각지대라 **깨진 앵커가 있어도 아무도 모른다.**
+- [ ] `workflow-assistant.controller.ts` 3라우트에 `@ApiUnauthorizedResponse` 부재 —
+      `swagger.md` **§2-4**(상태 코드 응답 규칙)가 401 을 요구한다. 이 티켓은 403 만 다룬다.
+      (첫 판에 §5-4 라 적었으나 401 요구는 §2-4 소관 — `plan_coherence` 정정.)

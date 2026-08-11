@@ -68,6 +68,7 @@ export class AgentMemoryController {
     description: 'scope 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
   async listScopes(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListAgentMemoryScopesQueryDto,
@@ -96,6 +97,7 @@ export class AgentMemoryController {
   })
   @ApiBadRequestResponse({ description: 'scopeKey 누락 또는 입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
   async listMemories(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListAgentMemoriesQueryDto,

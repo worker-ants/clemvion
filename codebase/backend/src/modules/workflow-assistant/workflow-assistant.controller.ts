@@ -104,6 +104,7 @@ export class WorkflowAssistantController {
   @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: '세션 생성' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async create(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -116,6 +117,7 @@ export class WorkflowAssistantController {
   @Roles('editor')
   @ApiOperation({ summary: '세션 제목/모델/상태 업데이트' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async update(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -130,6 +132,7 @@ export class WorkflowAssistantController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: '세션 삭제 (cascade로 메시지 삭제)' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async remove(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -151,6 +154,7 @@ export class WorkflowAssistantController {
   @ApiOkResponse({
     description: 'SSE stream. Parse with an EventSource-style client.',
   })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async sendMessage(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,

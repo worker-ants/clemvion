@@ -218,6 +218,7 @@ export class ExecutionsController {
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('owner')
   @ApiExcludeEndpoint()
+  @ApiForbiddenResponse({ description: 'owner 이상 권한 필요' })
   async triggerStuckRecoveryForTest() {
     if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
       throw new NotFoundException();
@@ -238,6 +239,7 @@ export class ExecutionsController {
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('owner')
   @ApiExcludeEndpoint()
+  @ApiForbiddenResponse({ description: 'owner 이상 권한 필요' })
   async simulateExecutionRunRedeliveryForTest(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,

@@ -57,6 +57,7 @@ export class WorkflowTestDatasetsController {
     description: '데이터셋 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '워크플로우 없음' })
   async list(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
@@ -74,6 +75,7 @@ export class WorkflowTestDatasetsController {
   @ApiCreatedWrappedResponse(WorkflowTestDatasetDto, { description: '생성됨' })
   @ApiBadRequestResponse({ description: '유효성 오류' })
   @ApiConflictResponse({ description: '같은 이름 데이터셋 중복' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '워크플로우 없음' })
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
@@ -130,6 +132,7 @@ export class WorkflowTestDatasetsController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiCreatedWrappedResponse(WorkflowTestDatasetDto, { description: '복제됨' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '없음 또는 비공유' })
   @ApiConflictResponse({
     description: '동일 이름 복제본 이미 존재 (DUPLICATE_NAME)',
