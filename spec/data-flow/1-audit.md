@@ -75,6 +75,9 @@ sequenceDiagram
 | `triggers/triggers.service.ts` | `trigger.created` | trigger | 생성 |
 | 〃 | `trigger.updated` | trigger | 수정. **활성/비활성 전환도 이 액션**(별도 토글 동사 없음) |
 | 〃 | `trigger.deleted` | trigger | 삭제 |
+| 〃 | `trigger.notification_secret_rotated` | trigger | 아웃바운드 notification HMAC secret 회전(24h grace, `notificationSecretV2`) |
+| 〃 | `trigger.chat_channel_bot_token_rotated` | trigger | chat-channel bot token 회전(24h grace, `chatChannelTokenV2`) |
+| 〃 | `trigger.interaction_token_revoked` | trigger | per_trigger interaction token 재발급 — **이전 토큰 즉시 무효화**(grace 없음) |
 | `schedules/schedules.service.ts` | `schedule.created` | schedule | 생성 |
 | 〃 | `schedule.updated` | schedule | 수정 |
 | 〃 | `schedule.deleted` | schedule | 삭제 |
@@ -95,7 +98,8 @@ sequenceDiagram
 - **커버리지 갭**: [인증 spec §4.1](../5-system/1-auth.md) 이 기록 대상으로 약속한
   `workflow.*` / `trigger.*` / `schedule.*` /
   `model_config.*`(create/update/delete/set_default — 구 `llm_config.*`/`rerank_config.*` 통합) CRUD 는
-  **2026-08-01 구현됐다**(위 표 참조). 남은 갭은 두 가지다: (a) `workflow.executed` 는 **보존 정책과
+  **2026-08-01 구현됐다**(위 표 참조). 트리거 시크릿/토큰 회전·폐기 3종은 **2026-08-11 구현됐다**(위 표
+  참조) — 특권 작업이면서 감사 공백이던 자리다. 남은 갭은 두 가지다: (a) `workflow.executed` 는 **보존 정책과
   묶인 의도적 유예** — 고빈도 액션인데 `audit_log` 은 pruner 가 없다(§3 "현재 무제한",
   [`conventions/audit-actions.md` §3](../conventions/audit-actions.md)); (b) `alerts` 모듈에는
   여전히 `AuditLogsService` import 가 없다. 위 표가 현재 구현의 SoT 다. (`workspace.created·updated` 와 `member.*`

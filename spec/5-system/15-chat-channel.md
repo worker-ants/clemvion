@@ -375,7 +375,7 @@ Bot token 의 신규 등록·변경은 **single-path** 로 일원화된다:
 | 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | `setupChannel()` 재호출 — 기존 `botTokenRef` 그대로 사용 | token 변경 없음 |
 | 토큰 변경 (rotation) | **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 사용**. PATCH body 의 `config.chatChannel.botTokenRef` 변경은 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`) 로 차단 | 24h grace 적용 |
 
-PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 provider (텔레그램) 측에 등록된 webhook 은 그대로라 즉시 수신 단절, (b) rotate API 의 24h grace 정책 일관성이 깨짐, (c) audit log 가 `trigger.updated` 와 `chat-channel.rotate-bot-token` 으로 mixed. 따라서 single-path.
+PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 provider (텔레그램) 측에 등록된 webhook 은 그대로라 즉시 수신 단절, (b) rotate API 의 24h grace 정책 일관성이 깨짐, (c) audit log 가 `trigger.updated` 와 `trigger.chat_channel_bot_token_rotated` 로 mixed. *(2026-08-11 정정 — 이 자리에 `chat-channel.rotate-bot-token` 이라 적혀 있었다. `<resource>.<verb>` 구조(resource dot-prefix 필수)·언더스코어 구분자·과거분사 시제를 동시에 어겼고, `chat-channel` 이라는 resource 는 감사 모델에 존재하지 않는다 — 세 회전 엔드포인트 모두 `/api/triggers/:id/…` 하위라 resource 는 `trigger` 다. [`conventions/audit-actions.md`](../conventions/audit-actions.md))* 따라서 single-path.
 
 [`spec/2-navigation/2-trigger-list.md §3`](../2-navigation/2-trigger-list.md#3-api) 의 PATCH 설명에는 "`config.chatChannel.botTokenRef` 는 PATCH 로 변경 불가 — rotate API 사용" cross-link 가 추가된다.
 

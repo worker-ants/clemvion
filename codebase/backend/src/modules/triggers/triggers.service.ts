@@ -902,6 +902,7 @@ export class TriggersService {
   async rotateNotificationSecret(
     id: string,
     workspaceId: string,
+    userId: string,
   ): Promise<{ secret: string; rotatedAt: string }> {
     const trigger = await this.findById(id, workspaceId);
     const notificationCfg = (trigger.config as { notification?: unknown })
@@ -921,6 +922,13 @@ export class TriggersService {
     trigger.notificationSecretV2 = newSecret;
     trigger.notificationRotatedAt = new Date();
     await this.triggerRepository.save(trigger);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_NOTIFICATION_SECRET_ROTATED,
+      resourceId: trigger.id,
+      type: trigger.type,
+    });
     return {
       secret: newSecret,
       rotatedAt: trigger.notificationRotatedAt.toISOString(),
@@ -938,6 +946,7 @@ export class TriggersService {
   async revokePerTriggerToken(
     id: string,
     workspaceId: string,
+    userId: string,
   ): Promise<{ token: string }> {
     const trigger = await this.findById(id, workspaceId);
     const interactionCfg = (trigger.config as { interaction?: unknown })
@@ -961,6 +970,13 @@ export class TriggersService {
     };
     trigger.config = { ...trigger.config, interaction: updated };
     await this.triggerRepository.save(trigger);
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_INTERACTION_TOKEN_REVOKED,
+      resourceId: trigger.id,
+      type: trigger.type,
+    });
     return { token: newToken };
   }
 
@@ -984,6 +1000,7 @@ export class TriggersService {
     id: string,
     workspaceId: string,
     newBotToken: string,
+    userId: string,
   ): Promise<{
     rotatedAt: string;
     triggerId: string;
@@ -1091,6 +1108,15 @@ export class TriggersService {
         chatChannelLastError: null,
       },
     );
+    // **컬럼 갱신이 끝난 뒤에 기록한다.** 위 6단계 중 어디서든 던지면 회전은 일어나지
+    // 않은 것이고, 그때 감사 row 만 남으면 "회전됐다" 는 거짓 기록이 된다.
+    await this.recordAudit({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED,
+      resourceId: trigger.id,
+      type: trigger.type,
+    });
     // [Spec Chat Channel §5.4] 성공 응답 3필드 동봉 — triggerId / chatChannelHealth
     // (setupChannel 재호출 결과) / botIdentity (getMe 캐시 갱신 결과, configUpdates 경유).
     return {

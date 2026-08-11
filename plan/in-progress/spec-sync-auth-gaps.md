@@ -1,5 +1,5 @@
 ---
-worktree: (unstarted)
+worktree: trigger-rotation-audit
 started: 2026-06-03
 owner: planner
 ---
@@ -53,7 +53,7 @@ owner: planner
       `{type}` / 없음 / `{kind}` / `ipAddress`) 공통분모가 `resourceType` 바인딩 + 필드 전달뿐이다.
       추출해도 타입 있는 per-service 래퍼는 남는다. *(원래 근거였던 "6번째 리소스에서 재검토" 는
       이미 5개라 성립하지 않아 6차에서 근거를 교체했다.)*
-- [ ] **트리거 시크릿/토큰 회전 3종 감사 — planner 선행 필요** (8차 리뷰 security).
+- [x] **트리거 시크릿/토큰 회전 3종 감사** — **완료 (2026-08-11, `claude/trigger-rotation-audit`)**. planner 선행(spec 6곳)과 구현을 한 PR 에서 처리했다. 액션명은 규약(§2.1 과거분사 + §1 언더스코어)과 선례(`integration.rotated`)로 도출: `trigger.notification_secret_rotated` · `trigger.chat_channel_bot_token_rotated` · `trigger.interaction_token_revoked`. 셋으로 가른 근거(폭발 반경)는 `conventions/audit-actions.md §3` Rationale. 아래는 착수 시점 서술로 남긴다.
       `TriggersService` 의 `rotateNotificationSecret`·`revokePerTriggerToken`·`rotateBotToken`
       이 `recordAudit` 를 호출하지 않는다(실측). Editor+ 면 호출 가능한 특권 작업이고 응답에
       새 시크릿을 1회 평문 반환하므로, 계정 탈취 후 조용한 시크릿 교체를 `audit_log` 만으로
@@ -66,6 +66,27 @@ owner: planner
       코드 실측에 맞춤). 반면 이 항목은 **새 설계**다 — `trigger.rotate*` 는 spec 카탈로그
       에도 코드에도 0건이라(재확인), 액션명·시제 분류·감사 대상 범위를 새로 정해야 하고
       그 자체가 리뷰 대상이다. 정정 턴에 설계를 얹으면 두 성격이 한 커밋에서 섞인다.
+- [ ] **`audit_log` 적재 실패에 관측 수단이 없다** (2026-08-11, side_effect WARNING).
+      `AuditLogsService.record()` 는 DB 오류를 `logger.warn` 한 줄로 **삼킨다** — 알림도
+      메트릭도 없다. 그래서 "회전은 200 으로 성공, 그런데 감사 행만 조용히 비어 있음" 이
+      아무에게도 안 보인다. **이 PR 이 만든 회귀가 아니라** 17개 감사 producer 전체의
+      기존 설계이고, 세 회전 메서드가 그 관례를 따른 것 자체는 옳다.
+      다만 이번에 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로 끌어올렸으므로, 그
+      신뢰를 지탱하는 하부 메커니즘과의 갭을 등재해 둔다.
+      - [ ] 적재 실패 카운터/알림 도입 여부 결정 — 전 producer 공통이라 별도 트랙
+- [ ] **회전 감사 mutation 잔여 갭 1건** (2026-08-11, ai-review `12_37_14` testing INFO).
+      `rotateBotToken` 의 실패경로 회귀는 실패를 **4단계(`setupChannel`)** 에 주입한다.
+      그래서 감사를 **5→6 구간**으로 옮기는 뮤턴트는 아직 GREEN 으로 산다. 그 테스트의
+      docstring 이 스스로를 4단계로 한정하고 있어 **거짓 서술은 아니고**, 닫으려면 secret
+      store mock 을 한 겹 더 세워야 한다. 자매 두 메서드의 같은 축(검증 예외만 흉내 내던
+      실패 테스트)은 `save()` 실패 주입으로 **닫았다** — 남은 것은 이 한 구간뿐이다.
+- [ ] **`audit-action.const.ts` 주석 비대화** (2026-08-11, ai-review `12_56_06`
+      maintainability INFO ×2). 141줄 중 60%+ 가 주석이고 회전 3종 도입으로 또 늘었다.
+      서술형 논거는 이미 `spec/conventions/audit-actions.md §3` 이 SoT 이므로, 코드에는
+      짧은 포인터만 남기는 편이 스케일한다. 함께: 주석의 **자기 이력 서술**이 비일관하다
+      (첫 사실 오류는 각주로 남겼는데 두 번째 정정은 무각주). 소스 주석은 "지금 맞는
+      사실" 만 진술하고 정정 이력은 git/CHANGELOG/plan 에 맡기는 쪽으로 정리한다.
+      **다음에 이 파일을 확장할 때** 함께 처리 — 지금 단독으로 건드릴 이유는 없다.
 - [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
 - [~] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** —
       **2026-08-08 전용 plan 으로 이관**: [`auth-workspace-membership-guard.md`](../complete/auth-workspace-membership-guard.md).
@@ -77,8 +98,11 @@ owner: planner
       `security` CRITICAL. `RolesGuard.canActivate` 가 `requiredRoles` 가 비면 `return true` 로
       조기 반환해 `getMemberRole` 이 실행되지 않고, 멤버십을 보는 다른 가드가 없다. 비멤버가
       `X-Workspace-Id` 를 위조해 타 워크스페이스 데이터를 열람/조작할 수 있다. **이 PR 과 무관한
-      기존 결함**(`origin/main` 에도 동일, diff 밖 — 실측 확인). 특히 `triggers.controller.ts`
-      `rotateBotToken` 은 mutation 인데 `@Roles()` 가 없다. **전수 조사 선행 필요** — 확인된
+      기존 결함**(`origin/main` 에도 동일, diff 밖 — 실측 확인). ~~특히 `triggers.controller.ts`
+      `rotateBotToken` 은 mutation 인데 `@Roles()` 가 없다.~~ → **이 예시는 더 이상 사실이
+      아니다 (2026-08-08 `#1103` 로 해소).** `triggers.controller.ts:239` 에 `@Roles('editor')`
+      가 붙어 있다(2026-08-11 실측). 인용된 원 서술은 보존하되 **취소선으로 묘비를 남긴다** —
+      살아 있는 예시로 읽히면 이미 닫힌 구멍을 다시 조사하게 된다. **전수 조사 선행 필요** — 확인된
       11곳은 7차 배치의 4개 컨트롤러만 훑은 결과다. 근거: `review/code/2026/08/01/13_46_48/security.md`
 - [x] 컨트롤러 `userId` 배선 spec (W8) — **6차 리뷰에서 종결**. 감사 기록 대상 배선 15곳 전수
       단언 + 뮤턴트 13종 RED. 유예 근거였던 "타입이 강제한다" 가 반증됐다 (TS2554 는 인자

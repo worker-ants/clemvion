@@ -501,7 +501,12 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
                     files, ROOT, changed_rels=edited, plan_text="",
                     branch_plan_text="")
                 names = [os.path.relpath(f, ROOT) for f in ordered]
+                # tier 0 은 여럿일 수 있다 — 이 브랜치가 같은 디렉터리의 다른 spec 을
+                # **커밋**했으면 `_edited_rels`(커밋 ∪ 미커밋)에 함께 들어온다. 재려는
+                # 성질은 "프로브가 1위" 가 아니라 "**드롭 구간이 아니다**" 이므로
+                # tier 0 크기를 함께 내보내 그 안에 있는지로 판정한다.
                 emit({"tier0": rel in edited, "rank": names.index(rel),
+                      "tier0_size": sum(1 for n in names if n in edited),
                       "total": len(names)})
             finally:
                 # cp 로 원복한다 — `git checkout` 은 이 저장소에서 미커밋 작업을
@@ -513,9 +518,14 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
     def test_an_uncommitted_edit_reaches_the_top_tier(self):
         got = self._rank_of_an_uncommitted_edit()
         self.assertTrue(got["tier0"], "미커밋 편집이 변경 집합에 없다")
-        self.assertEqual(
-            got["rank"], 0,
-            f"편집 중인 문서가 {got['rank']}위다 — 예산이 모자라면 먼저 버려진다",
+        # **`rank == 0` 이 아니라 `rank < tier0_size`.** 전자는 "프로브가 유일한 tier 0"
+        # 일 때만 성립하는 프록시라, 같은 디렉터리의 spec 을 커밋한 브랜치에서는 **정상
+        # 코드가 RED** 가 된다(실측 2026-08-11 — `1-auth.md` 를 커밋한 브랜치에서 재현).
+        # 재려는 성질(드롭 구간에 빠지지 않는다)은 tier 0 안에 있으면 성립한다.
+        self.assertLess(
+            got["rank"], got["tier0_size"],
+            f"편집 중인 문서가 {got['rank']}위로 tier 0({got['tier0_size']}개) 밖이다 "
+            "— 예산이 모자라면 먼저 버려진다",
         )
 
     def test_collect_context_puts_the_edited_document_first(self):
@@ -539,12 +549,23 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
                 args.impl_done = os.path.join(ROOT, "spec/5-system")
                 doc = orch.collect_context(args, ROOT)["target_doc"]
                 text = re.sub(r"```.*?```", "", doc, flags=re.S)
-                emit(re.findall(r"^#### `([^`]+)`", text, re.M)[0])
+                headers = re.findall(r"^#### `([^`]+)`", text, re.M)
+                # 위 테스트와 같은 이유로 **1위 하나만 보지 않는다** — 이 브랜치가 커밋한
+                # 다른 spec 도 tier 0 이라 순서가 갈릴 수 있다. 프로브의 위치와 tier 0
+                # 크기를 함께 내보내 "드롭 구간이 아니다" 를 판정한다.
+                edited = orch._edited_rels("origin/main", ROOT)
+                emit({"rank": headers.index(rel) if rel in headers else -1,
+                      "tier0_size": sum(1 for h in headers if h in edited)})
             finally:
                 shutil.copy(backup, target)
             """
         )
-        self.assertEqual(first, "spec/5-system/7-llm-client.md")
+        self.assertGreaterEqual(first["rank"], 0, "편집 중인 문서가 번들에 아예 없다")
+        self.assertLess(
+            first["rank"], first["tier0_size"],
+            f"편집 중인 문서가 {first['rank']}위로 tier 0({first['tier0_size']}개) 밖이다 "
+            "— `collect_context` 가 옛 함수를 계속 부르면 이 값이 커진다",
+        )
 
     def test_an_untracked_file_is_named_individually(self):
         """새 영역을 만드는 planner 는 **새 디렉터리에 새 파일**을 쓴다.

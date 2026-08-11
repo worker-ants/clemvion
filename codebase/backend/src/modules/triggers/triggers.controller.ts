@@ -192,8 +192,13 @@ export class TriggersController {
   async rotateNotificationSecret(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ secret: string; rotatedAt: string }> {
-    return this.triggersService.rotateNotificationSecret(id, workspaceId);
+    return this.triggersService.rotateNotificationSecret(
+      id,
+      workspaceId,
+      userId,
+    );
   }
 
   @Post(':id/interaction/revoke-token')
@@ -215,8 +220,9 @@ export class TriggersController {
   async revokePerTriggerToken(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<{ token: string }> {
-    return this.triggersService.revokePerTriggerToken(id, workspaceId);
+    return this.triggersService.revokePerTriggerToken(id, workspaceId, userId);
   }
 
   /**
@@ -242,6 +248,7 @@ export class TriggersController {
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },
     @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
   ): Promise<Awaited<ReturnType<TriggersService['rotateBotToken']>>> {
     if (!body?.newBotToken || typeof body?.newBotToken !== 'string') {
       throw new BadRequestException({
@@ -253,6 +260,7 @@ export class TriggersController {
       triggerId,
       workspaceId,
       body.newBotToken,
+      userId,
     );
   }
 }

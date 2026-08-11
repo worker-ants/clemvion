@@ -47,6 +47,31 @@ SoT: `spec/5-system/1-auth.md` §3.2·§3.3, `spec/data-flow/12-workspace.md` §
 `plan/complete/auth-workspace-membership-guard.md`,
 `plan/in-progress/auth-guard-reflection-hardening.md`.
 
+## Unreleased — 감사 로깅: 트리거 시크릿/토큰 회전·폐기 3종
+
+CRUD 13개를 채운 뒤에도 남아 있던 감사 공백이다. `TriggersService` 의 회전/폐기 세 엔드포인트는
+Editor+ 가 부를 수 있는 **특권 작업**인데 `recordAudit` 호출이 **0건**이었다(착수 전 실측) —
+계정 탈취 후의 조용한 시크릿 교체를 `audit_log` 만으로 재구성할 수 없었다.
+
+| 엔드포인트 | 액션 | 무효화되는 것 |
+|---|---|---|
+| `POST /:id/notification/rotate-secret` | `trigger.notification_secret_rotated` | 아웃바운드 HMAC 수신자 (24h grace) |
+| `POST /:id/chat-channel/rotate-bot-token` | `trigger.chat_channel_bot_token_rotated` | 그 채널의 봇 세션 (24h grace) |
+| `POST /:id/interaction/revoke-token` | `trigger.interaction_token_revoked` | 그 트리거로 열린 외부 대화 **전부** (grace 없음 — 즉시) |
+
+1. **셋으로 갈랐다.** `integration.rotated` 처럼 한 액션 + `details.kind` 로 묶는 선례도 있지만,
+   세 자격증명은 **폭발 반경이 서로 다르다** — 무엇이 회전됐는지를 `details` 를 열어야 알 수 있으면
+   그 질문이 조회 필터·알림 규칙에서 사라진다. 근거는 `conventions/audit-actions.md §3` Rationale.
+2. **액션명이 sub-channel 을 담는다.** HTTP 경로·엔티티 컬럼·스케줄러가 모두 그 접두를 쓰므로
+   감사만 빼면 같은 사실이 표기 두 벌로 갈린다.
+3. **`revoked` 는 `rotated` 와 다른 동사다.** 앞의 둘은 24h grace 로 구·신이 공존하지만 per_trigger
+   토큰 재발급은 이전 토큰을 즉시 무효화한다.
+4. **액터 배선이 없었다.** 세 컨트롤러 핸들러가 `userId` 를 받지 않고 있었다 — 그 변경이 기존
+   테스트 17건을 깼고, 그 자체가 배선이 실제로 없었다는 증거다.
+
+곁들여 `15-chat-channel.md` 에 박혀 있던 규약 위반 액션명(`chat-channel.rotate-bot-token` —
+resource dot-prefix·언더스코어·과거분사를 동시 위반)을 정정했다.
+
 ## Unreleased — 감사 로깅 커버리지 확장: workflow / trigger / schedule / model_config
 
 인증 spec §4.1 이 기록 대상으로 약속했지만 미구현이던 CRUD 감사 액션 13개를 구현했다. 착수 전
