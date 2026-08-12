@@ -645,7 +645,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 이동하고 코드 순서는 그대로여서 GREEN 이 나왔다 — 하마터면 "테스트가 순서를 못 잡는다"
       > 로 오판할 뻔했다. 인덱스 비교(`PARSE < CONFLICT`)로 **반전을 선검증**하고 나서야 의도한
       > 테스트가 죽었다. **뮤턴트의 GREEN 은 뮤턴트가 유효할 때만 정보다.**
-- [ ] **`data-flow/15` 의 "전 경로 fail-open (warn)" 이 실제보다 한 칸 넓다** (`23_48_39`
+- [x] **`data-flow/15` 의 "전 경로 fail-open (warn)" 이 실제보다 한 칸 넓다** (`23_48_39`
       rationale_continuity INFO 1). L308 이 Redis 관련 전 경로에 warn 이 붙는 것처럼 뭉뚱그리는데,
       `IdempotencyInterceptor` 의 다섯 경로 중 **기동 시 미주입(생성자 `null`)은 warn 을 남기지
       않는다** — 그건 장애가 아니라 설정 상태다.
@@ -659,7 +659,30 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >    Redis 가 **가용한데 데이터가 오염된** 별개 실패 축이다. 현재 문서는 fail-open 을
       >    "Redis 미가용" 하나로만 프레이밍해 이 축을 담을 자리가 없다.
       >
-      > 대상 자리: [`14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 Rationale ·
+      > ⚠️ **1차 draft 가 `consistency --spec` 에서 BLOCK: YES 였다 — 둘 다 같은 뿌리다:
+      > 아직 머지되지 않은 PR 의 상태를 spec 에 사실로 적었다.**
+      >
+      > - **CRITICAL**: §4 표에서 `conventions/redis-keys.md` 를 링크했는데 그 파일은 **#1160
+      >   (미머지)** 이 만든다. `spec-link-integrity` 게이트가 실제로 RED 였다(checker 가 vitest
+      >   로 재현). 지금 유효한 앵커(`4-execution-engine.md#91-키-패턴`)로 정정했고, 게이트를
+      >   직접 돌려 **13/13 통과** 확인.
+      > - **WARNING**: §R8 Rationale 에 "`statusCode` 는 유효 HTTP 범위까지 본다" 고 적었는데
+      >   그 검사는 **#1159(미머지)** 에 있다. 이 브랜치 코드는 `typeof === 'number'` 뿐이다 —
+      >   **"문서한 보장이 구현보다 넓다" 의 이 브랜치 4번째 재발**이라고 checker 가 셌다.
+      >   "현재는 타입만 검사, 값 범위는 선재 갭" 으로 정정했다.
+      >
+      > **교훈**: 병렬 PR 이 여럿 열려 있을 때 spec 을 쓰면 **"내 작업 트리의 상태" 와 "이 브랜치의
+      > 상태" 가 갈린다.** 링크·보장을 적기 전에 **이 브랜치에서** 파일 존재와 코드를 확인해야 한다.
+      >
+      > **완료 (2026-08-13, planner 턴 `eia-failopen-wording`).** 네 자리를 고쳤다 —
+      > `data-flow/15` §2.2 표(손상 축 명시) · §4 외부 의존 표 · §Rationale "Fail-open 정책의
+      > 일관 표기" · `14-external-interaction-api.md` §R8 Rationale.
+      >
+      > 두 가지를 함께 넣었다: (a) **원인이 두 축**이라는 것 — "미가용"(Redis 가 죽었다)과
+      > "손상"(살아 있는데 값이 오염됐다)은 다른 실패이고, 후자는 종전에 500 이 됐다.
+      > (b) **warn 은 다섯 경로 중 넷** — 기동 시 미주입은 장애가 아니라 설정 상태다.
+      >
+            > 대상 자리: [`14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 Rationale ·
       > [`data-flow/15`](../../spec/data-flow/15-external-interaction.md) §4 외부 의존 표 · 같은 문서 §Rationale "Fail-open 정책의 일관 표기"
 - [ ] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
       실제로 발동했다.** `23_24_08`·`23_36_13` 두 라운드가 "6번째 분기가 추가되면 재검토" 로
