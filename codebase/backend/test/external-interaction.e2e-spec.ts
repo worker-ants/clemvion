@@ -616,12 +616,14 @@ describe('External Interaction API (e2e)', () => {
       .set('Idempotency-Key', idempotencyKey)
       .send(body);
     expect(fromA.status).toBe(410);
-    expect(
-      await redis.get(idempotencyCacheKey(executionA, idempotencyKey)),
-    ).not.toBeNull();
 
     // B — 같은 키·같은 body(= 같은 bodyHash) 인데도 **자기 처리 결과**를 받아야 한다.
     // 스코프가 없으면 여기서 A 의 410 EXECUTION_TERMINATED 가 돌아온다.
+    //
+    // **이 단언이 키 레이아웃 단언보다 앞에 와야 한다.** 처음엔 A 의 캐시 키 존재를 먼저
+    // 단언했는데, 뮤테이션 실측에서 스코프를 제거한 뮤턴트가 **그 white-box 단언에서** 죽고
+    // 아래 상태코드 단언에는 도달조차 못 했다 — "실제 피해(남의 응답 수신)를 관측한다" 는
+    // 주장이 실증되지 않은 상태였다. 순서를 뒤집어 행동 단언이 먼저 죽게 한다.
     const fromB = await request(BASE_URL)
       .post(`/api/external/executions/${executionB}/interact`)
       .set('Authorization', `Bearer ${mintInteractionToken(executionB)}`)
@@ -629,7 +631,11 @@ describe('External Interaction API (e2e)', () => {
       .send(body);
     expect(fromB.status).toBe(202);
 
-    // 적재도 각자의 키로 — GET 만 스코프하고 SET 이 전역이면 다음 요청이 남의 것을 읽는다.
+    // 그 다음이 키 레이아웃 — 적재도 각자의 키로. GET 만 스코프하고 SET 이 전역이면
+    // 다음 요청이 남의 것을 읽는다.
+    expect(
+      await redis.get(idempotencyCacheKey(executionA, idempotencyKey)),
+    ).not.toBeNull();
     expect(
       await redis.get(idempotencyCacheKey(executionB, idempotencyKey)),
     ).not.toBeNull();
@@ -665,20 +671,24 @@ describe('External Interaction API (e2e)', () => {
       .set('Idempotency-Key', idempotencyKey)
       .send(body);
     expect(viaInteract.status).toBe(410);
-    expect(
-      await redis.get(
-        idempotencyCacheKey(executionId, idempotencyKey, 'interact'),
-      ),
-    ).not.toBeNull();
 
+    // **행동 단언이 먼저다** (IDEM-4 와 같은 이유 — 키 레이아웃 단언을 앞에 두면 뮤턴트가
+    // 거기서 죽어 실제 피해가 관측되지 않는다). route 세그먼트가 빠지면 이 요청이 검증에
+    // 닿기도 전에 캐시 hit 으로 interact 의 410 을 받는다.
     const viaCancel = await request(BASE_URL)
       .post(`/api/external/executions/${executionId}/cancel`)
       .set('Authorization', `Bearer ${iextToken}`)
       .set('Idempotency-Key', idempotencyKey)
       .send(body);
-    // interact 의 410 이 재생되면 이 단언이 깨진다.
     expect(viaCancel.status).toBe(400);
     expect(viaCancel.body.error.code).toBe('VALIDATION_ERROR');
+
+    // 그 다음이 키 레이아웃 — 실 파이프라인의 route 이름(`getHandler().name`)을 고정한다.
+    expect(
+      await redis.get(
+        idempotencyCacheKey(executionId, idempotencyKey, 'interact'),
+      ),
+    ).not.toBeNull();
   });
 
   it('H. /interact per-execution rate-limit 초과 → 429 RATE_LIMITED + Retry-After (§8.4)', async () => {
