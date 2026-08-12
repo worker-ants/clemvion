@@ -21,6 +21,9 @@ export const IDEMPOTENCY_HEADER = 'idempotency-key';
 const REDIS_KEY_PREFIX = 'interaction:idempotency:';
 const TTL_SEC = 24 * 60 * 60; // 24h
 const MAX_KEY_LENGTH = 200;
+/** 유효 HTTP 상태코드 범위 — 캐시 엔트리의 `statusCode` 검증용 ({@link isHttpStatusCode}). */
+const MIN_HTTP_STATUS_CODE = 100;
+const MAX_HTTP_STATUS_CODE = 599;
 
 /**
  * `context.switchToHttp().getResponse()` 의 반환 타입. Nest 시그니처가
@@ -394,8 +397,8 @@ function isIdempotencyEntry(value: unknown): value is IdempotencyEntry {
 function isHttpStatusCode(value: unknown): value is number {
   return (
     Number.isInteger(value) &&
-    (value as number) >= 100 &&
-    (value as number) <= 599
+    (value as number) >= MIN_HTTP_STATUS_CODE &&
+    (value as number) <= MAX_HTTP_STATUS_CODE
   );
 }
 
@@ -406,6 +409,17 @@ function describeShape(value: unknown): string {
   return typeof value;
 }
 
+/**
+ * `Idempotency-Key` 헤더에서 **쓸 수 있는 키**를 뽑는다. 못 뽑으면 `null` — 세 사유다:
+ * 문자열이 아님 · trim 후 비어 있음 · `MAX_KEY_LENGTH` 초과.
+ *
+ * 호출부는 `rawKey === null` 로 묻는다(truthiness 아님). 그래야 "쓸 수 있는 키인가" 판정이
+ * 전부 여기에 모이고, 여기 검사를 지우면 테스트가 즉시 죽는다.
+ *
+ * **배열 분기는 중복 헤더 경로가 아니다** — Node `http` 는 `set-cookie` 만 배열로 두고 나머지
+ * 중복 헤더는 `", "` 로 조인하므로(raw socket 프로브 실측), 실제 중복 전송은 `"a, b"` 라는
+ * 문자열로 들어와 그대로 키가 된다. 배열 검사는 타입이 허용하는 형태에 대한 방어다.
+ */
 function readKey(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();

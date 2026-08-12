@@ -18,6 +18,12 @@
  *
  * 형태 검증이 별도 축인 이유는 `JSON.parse` 가 **문법 오류에만** 던지기 때문이다 — `'null'` 은
  * 유효한 JSON 이라 `try/catch` 를 통과한 뒤 필드 접근에서 `TypeError`(→500)를 냈다.
+ *
+ * 다섯 번째 describe 는 **`readKey`/`hashBody` 경계값** — 키 길이 상한 경계 양쪽 · 공백뿐인 키 ·
+ * trim 동등성 · 배열/조인-문자열 헤더 · body nullish 동등성 · 키 순서 의존(문서화된 계약), 그리고
+ * 엔트리 `statusCode` 의 **값 범위**(`isHttpStatusCode`)를 인접 경계 페어로 고정한다.
+ * 헬퍼가 전부 module-private 라 전부 `intercept()` 를 통해 본다 — 헬퍼 직접 호출은 호출부
+ * 테스트가 아니다.
  * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
@@ -1277,10 +1283,18 @@ describe('IdempotencyInterceptor — readKey / hashBody 경계값', () => {
     );
   });
 
-  it('헤더가 배열이면(중복 전송) 캐시 미적용 — express 는 중복 헤더를 string[] 로 준다', async () => {
-    // `readKey` 의 `typeof raw !== 'string'` 분기. 실제로 도달하는 경로다: 클라이언트가
-    // `Idempotency-Key` 를 두 번 보내면 express 가 배열을 넘긴다. 지금 동작은 "멱등성을
-    // 조용히 끄고 통과" 인데, 아무도 고정해 두지 않아 바뀌어도 눈치채지 못한다.
+  it('헤더가 배열이면 캐시 미적용 — 타입이 허용하는 형태에 대한 방어', async () => {
+    // `readKey` 의 `typeof raw !== 'string'` 분기.
+    //
+    // ⚠️ **이 분기는 중복 헤더 경로가 아니다.** 처음엔 "클라이언트가 두 번 보내면 express 가
+    // 배열을 준다" 고 적었는데, raw socket 으로 실제 전송해 보니 **틀렸다**(무수정 프로브):
+    //
+    //   Idempotency-Key: a / Idempotency-Key: b  →  type=string  value="a, b"
+    //   Set-Cookie: c1 / Set-Cookie: c2          →  type=array   value=["c1","c2"]
+    //
+    // Node `http` 는 `set-cookie` 만 배열로 두고 나머지 중복 헤더는 `", "` 로 조인한다. 그러니
+    // 배열은 **타입(`string | string[] | undefined`)이 허용하는 형태**에 대한 방어이고, 실제
+    // 중복 전송은 아래 테스트가 덮는 조인 문자열 경로로 간다.
     const redis = makeRedis();
     const ctx = makeContext({ body: {} });
     // makeContext 는 문자열만 받으므로 헤더를 직접 배열로 바꿔 끼운다.
@@ -1293,6 +1307,25 @@ describe('IdempotencyInterceptor — readKey / hashBody 경계값', () => {
     );
     expect(result).toEqual({ ok: true });
     expect(redis.get).not.toHaveBeenCalled();
+  });
+
+  it('중복 헤더의 조인 문자열(`"a, b"`)은 그대로 유효한 키다 — 실제 도달 경로', async () => {
+    // 위 프로브가 밝힌 **진짜** 중복-헤더 동작. 조인 문자열은 `readKey` 를 통과해 키가 된다.
+    // 이상해 보이지만 **결정적**이라 멱등성 자체는 성립한다(같은 중복 전송 → 같은 키).
+    // 아무도 고정해 두지 않으면, 나중에 조인 문자열을 거부하도록 바꿔도 그것이 동작 변경인지
+    // 버그 수정인지 판단할 근거가 없다.
+    const redis = makeRedis();
+    const ctx = makeContext({ body: {} });
+    (
+      ctx.switchToHttp().getRequest() as { headers: Record<string, unknown> }
+    ).headers[IDEMPOTENCY_HEADER] = 'a, b';
+
+    await lastValueFrom(
+      makeInterceptor(redis).intercept(ctx, makeCallHandler({ ok: true })),
+    );
+    expect(redis.get).toHaveBeenCalledWith(
+      scopedKey(DEFAULT_EXECUTION_ID, 'a, b'),
+    );
   });
 
   it('같은 body 라도 키 순서가 다르면 다른 hash → 409 (문서화된 계약)', async () => {
@@ -1348,6 +1381,10 @@ describe('IdempotencyInterceptor — readKey / hashBody 경계값', () => {
   it.each([
     ['음수', -1],
     ['0', 0],
+    // **하한 바로 아래**. `-1`·`0` 은 100 에서 멀어 하한을 넓히는 뮤턴트(`>= 100` → `>= 50`)를
+    // 못 잡는다 — 리뷰어가 그 뮤턴트로 실측해 생존을 확인했다. 인접 페어(99 무효 / 100 유효)가
+    // 있어야 경계가 고정된다. 상한은 이미 599/600 페어가 있었다.
+    ['하한 바로 아래(99)', 99],
     ['범위 밖(600)', 600],
     ['정수 아님', 200.5],
   ])(

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — 캐시 엔트리의 `statusCode` 가 HTTP 코드가 아니면 요청이 500 이 됐다
+
+앞 항목이 엔트리의 **형태**를 검사하게 했지만 `statusCode` 는 `typeof === 'number'` 까지만
+봤다. `-1`·`0`·`600`·`200.5` 같은 값이 통과해 `res.status(-1)` 이나
+`new HttpException(payload, -1)` 로 흘러가고, express 가 전송 시점에 `RangeError` 를 내
+**500** 이 된다 — 손상 엔트리 하나가 요청을 죽이는, 앞 항목이 없애려던 형태 그대로다.
+
+**클라이언트 영향**: 그런 엔트리를 만난 요청이 이제 손상으로 판정돼 **정상 처리**된다.
+이 API 자체는 100~599 밖 코드를 만들지 않으므로 정상 운영에서는 관측되지 않는다.
+
+함께 `readKey`/`hashBody` 의 경계 동작을 테스트로 고정했다 — 키 길이 상한(200) 경계 양쪽 ·
+공백뿐인 키 · trim 동등성 · body `undefined`/`null` 동등성 · 키 순서 의존(문서화된 계약).
+
+> 부수 확인: **중복 `Idempotency-Key` 헤더는 배열이 아니라 `"a, b"` 조인 문자열로 들어온다**
+> (Node `http` 는 `set-cookie` 만 배열로 둔다 — raw socket 프로브로 실측). 조인 문자열은
+> 그대로 유효한 키가 되며 결정적이라 멱등성은 성립한다.
+
 ## Unreleased — 캐시 엔트리 안쪽이 깨지면 요청이 500 이 됐다 (멱등 캐시 fail-open 완성)
 
 `IdempotencyInterceptor` 가 캐시 엔트리 **바깥** JSON 은 `try/catch` 로 막으면서 **안쪽**
