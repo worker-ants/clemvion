@@ -717,7 +717,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 전부 생존했다. `-1`·`0` 이 100 에서 멀어 인접 경계를 못 가른 것이다. `99` 를 무효
       > 케이스에 추가해 인접 페어(99 무효 / 100 유효)를 완성했다. **경계는 "먼 무효값" 이
       > 아니라 "바로 옆 무효값" 으로 고정된다.**
-- [ ] **`CCH-SE-02` 의 update dedup 이 미배선 — `ChannelUpdate.idempotencyKey` 는 dead field**
+- [x] **`CCH-SE-02` 의 update dedup 이 미배선 — `ChannelUpdate.idempotencyKey` 는 dead field**
       (`19_56_51` cross_spec WARNING 3). [`spec/5-system/15-chat-channel.md`](../../spec/5-system/15-chat-channel.md) L88 은
       "인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id`
       기반). 동일 `update_id` 30초 안 재도착은 무시" 라고 적지만, 그 경로는 HTTP 인터셉터를
@@ -729,6 +729,25 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 착수 시: dedup 을 구현할지, `CCH-SE-02` 를 현실에 맞게 고칠지가 **planner 결정**이다.
       > 전자면 in-process 경로 전용 dedup 이 필요하다 — HTTP 인터셉터 재사용은 층이 안 맞는다.
+
+      > **완료 (2026-08-13, `cch-se02-dedup`) — 결정: 구현.** `필수` 요구사항이고 실제 결과가
+      > 있다(provider 가 2xx 를 못 받으면 재전송하므로 사용자의 같은 입력이 두 번 dispatch 돼
+      > workflow 가 중복 재개된다 — 이 파일의 §7.5.1 주석이 이미 그 재시도를 전제한다).
+      >
+      > `ChatChannelDedupService` 신설 — `SET NX EX 30` 단일 호출이라 원자적이고, 두 인스턴스가
+      > 같은 재전송을 동시에 받아도 하나만 통과한다. 배선은 `parseUpdate` 직후(키 확정 시점)이자
+      > **rate-limit 앞** — 재도착은 새 트래픽이 아니라 같은 트래픽이라 쿼터를 소비하면 안 된다.
+      >
+      > **spec 문면도 고쳤다** — CCH-SE-02 가 "EIA `Idempotency-Key` 를 어댑터가 자동 발급" 이라
+      > 적어 HTTP 인터셉터가 막아 주는 것처럼 읽혔는데, in-process 경로는 그 인터셉터를 타지
+      > 않는다. 실제 메커니즘(전용 dedup 서비스·키·TTL·fail-open)으로 바꿨다.
+      >
+      > 뮤턴트 **6/6 사살** — NX 제거 · TTL 제거 · triggerId 세그먼트 제거 · 빈 키 가드 제거 ·
+      > warn 제거 · **호출부가 반환값을 버림**. 마지막 것이 요점이다: 서비스 단위 테스트만으로는
+      > "호출부가 그 값을 쓰는지" 를 증명하지 못해 호출부 테스트를 따로 붙였다.
+      >
+      > ⚠️ warn 제거 뮤턴트는 **첫 시도가 구문 오류라 거짓 RED** 였다(`Tests: 0 total`).
+      > 문장을 통째로 제거하는 유효 뮤턴트로 다시 돌려 확인했다.
 - [x] **EIA 계열 Redis 키가 실행 엔진 §9.1/§9.2 키 레지스트리에 없다** (`19_56_51`
       convention_compliance INFO 4). [`4-execution-engine.md` §9.1](../../spec/5-system/4-execution-engine.md) 은
       "**모든** Redis 키는 `{service}:{workspaceId}:{resource}:{id}:{sub}` 를 따른다" 고 선언하고

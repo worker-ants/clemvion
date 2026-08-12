@@ -32,6 +32,7 @@ import {
   ChatChannelRateLimiterService,
   CHAT_RATE_LIMIT_DEFAULT_PER_MIN,
 } from '../chat-channel/chat-channel-rate-limiter.service';
+import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
 import {
   ChannelUpdate,
   ChatChannelAdapter,
@@ -75,6 +76,7 @@ export class HooksService {
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
     private readonly channelConversationService: ChannelConversationService,
     private readonly chatChannelRateLimiter: ChatChannelRateLimiterService,
+    private readonly chatChannelDedup: ChatChannelDedupService,
     private readonly interactionService: InteractionService,
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
@@ -320,6 +322,25 @@ export class HooksService {
       // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
       // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
       await this.maybeNotifyIgnored(input.body, config, adapter);
+      return { executionId: 'ignored' };
+    }
+
+    // CCH-SE-02 — 동일 update 30초 재도착 억제. provider 는 2xx 를 못 받으면 같은 update 를
+    // 재전송하므로(이 파일의 §7.5.1 주석이 이미 그 재시도를 전제로 한다), 억제가 없으면
+    // 사용자의 같은 입력이 두 번 dispatch 돼 workflow 가 중복 재개된다.
+    //
+    // **rate-limit 보다 앞이다** — 재도착은 새 트래픽이 아니라 같은 트래픽이므로 쿼터를
+    // 소비하면 안 된다. parseUpdate 뒤인 이유는 여기서야 `idempotencyKey`(provider update id)가
+    // 확정되기 때문이다.
+    //
+    // 이 자리가 필요한 이유: chat-channel inbound 는 `in_process_trusted` 로 서비스를 직접
+    // 호출해 **HTTP `IdempotencyInterceptor` 를 통과하지 않는다**(EIA-AU-08).
+    if (
+      !(await this.chatChannelDedup.claim(trigger.id, parsed.idempotencyKey))
+    ) {
+      this.logger.warn(
+        `chat-channel update 재도착 무시 (CCH-SE-02, trigger=${trigger.id})`,
+      );
       return { executionId: 'ignored' };
     }
 

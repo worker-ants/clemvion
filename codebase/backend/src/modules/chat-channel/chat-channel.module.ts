@@ -8,6 +8,7 @@ import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
 import { ChatChannelRateLimiterService } from './chat-channel-rate-limiter.service';
+import { ChatChannelDedupService } from './chat-channel-dedup.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { TelegramAdapter } from './providers/telegram/telegram.adapter';
 import { TelegramClient } from './providers/telegram/telegram-client';
@@ -42,6 +43,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     ChannelListenerRegistry,
     ChannelConversationService,
     ChatChannelRateLimiterService,
+    ChatChannelDedupService,
     ChatChannelDispatcher,
     ChatChannelInboundAuthenticator,
     TelegramClient,
@@ -56,6 +58,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     ChannelListenerRegistry,
     ChannelConversationService,
     ChatChannelRateLimiterService,
+    ChatChannelDedupService,
     ChatChannelInboundAuthenticator,
   ],
 })
