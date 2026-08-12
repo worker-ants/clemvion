@@ -252,6 +252,8 @@ POST /api/triggers/:id/notification/rotate-secret 류 API (TriggersService.rotat
 
 ### 2.2 Redis / BullMQ
 
+> 키 형태 규칙과 저장소 전역 인벤토리는 [`conventions/redis-keys.md`](../conventions/redis-keys.md) 가 SoT 다. 아래 표는 **EIA 가 소유한 키의 상세**(용도·TTL·정책)를 갖는다.
+
 | Sink | key / queue | 흐름 | TTL·정책 |
 | --- | --- | --- | --- |
 | Redis | `iext:blacklist:<jti>` | terminal event / refresh 시 SET | TTL = 원 JWT exp 까지. Redis 미가용 시 fail-open (검증도 fail-open + warn) |

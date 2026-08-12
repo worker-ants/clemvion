@@ -1143,30 +1143,37 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 
 ### 9.1 키 패턴
 
-모든 Redis 키는 아래 패턴을 따른다:
+Redis 키 형태 규칙과 **저장소 전역 인벤토리**의 SoT 는
+[`conventions/redis-keys.md`](../conventions/redis-keys.md) 다. 요약: `{도메인}:{용도}[:{식별자}...]`
+— 머리 2세그먼트 고정, 꼬리 가변. **아래 §9.2 는 실행 엔진이 소유하는 키만** 다룬다.
 
-```
-{service}:{workspaceId}:{resource}:{id}:{sub}
-```
-
-| 세그먼트      | 설명              | 예시                                                    |
-| ------------- | ----------------- | ------------------------------------------------------- |
-| `service`     | 서비스 식별자     | `exec` (실행 엔진), `core` (Core API), `ws` (WebSocket) |
-| `workspaceId` | 워크스페이스 UUID | `550e8400-...`                                          |
-| `resource`    | 리소스 유형       | `execution`, `node`, `lock`, `rate`, `session`          |
-| `id`          | 리소스 ID         | UUID                                                    |
-| `sub`         | 하위 키 (선택)    | `seq`, `lock`, `session`                                |
+> **종전 서술 정정 (2026-08-13).** 이 자리는 "모든 Redis 키는
+> `{service}:{workspaceId}:{resource}:{id}:{sub}` 를 따른다" 고 선언했는데, 실측하면 그 패턴을
+> 따르는 키가 **하나도 없었다** — 실재하는 13계열 전부가 워크스페이스 비종속이다. 그 패턴은
+> 실행 상태를 워크스페이스 단위로 Redis 에 두려던 **Phase-1 설계의 생존 흔적**이고, 그 전제는
+> 아래 §Rationale "실행 컨텍스트 in-memory + DB durable — Redis context store 미채택" 이 이미
+> 폐기했다. 규칙을 코드에 맞춘 근거는 [규약 §Rationale](../conventions/redis-keys.md) 참조.
 
 ### 9.2 용도별 키 정의 및 TTL
 
 | 키 패턴                                   | 용도                                                                                                                                                                                                                                                                                                                                                                                                                               | TTL                                                                   |
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `core:{wsId}:rate:{userId}`               | API Rate Limit 카운터                                                                                                                                                                                                                                                                                                                                                                                                              | 60초                                                                  |
-| `ws:{wsId}:session:{connId}`              | WebSocket 세션 정보                                                                                                                                                                                                                                                                                                                                                                                                                | 세션 유지 시간                                                        |
 | `exec:recover:lock`                       | 부팅 시 stuck recovery 분산 lock — 워크스페이스 단위가 아닌 **전역**. 단일 인스턴스만 recovery UPDATE 를 수행하도록 보장 (§7.4 참조)                                                                                                                                                                                                                                                                                               | 60초                                                                  |
 | `exec:cont:seq:<executionId>`             | continuation publish 의 monotonic seq (Redis INCR per executionId) — BullMQ jobId (`${executionId}:${nodeExecutionId}:${seq}`) 의 idempotency key. executionId 는 UUID, 워크스페이스 단위가 아닌 **전역**. 8 bytes 미만. **sliding-window TTL** — 매 publish (`nextSeq`) 가 EXPIRE 를 갱신해 continuation 이 활성인 동안 키가 유지되고, executionId 종결 후 (publish 중단) TTL 경과 시 자연 소멸. seq 단조성은 활성 구간 내내 보존. **INCR 실패 시 random fallback 없이 `publish` 가 `null`(`queued:false`) 을 반환한다 (fail-fast)** — random seq 는 idempotency key 계약을 위반(jobId dedup 무력화). `exec:seq`(emit-event)의 in-memory degraded fallback 과 **의도적 비대칭**: continuation seq 는 jobId dedup 계약 보존이 가용성보다 우선이며, BullMQ 자체가 Redis 라 INCR 실패 장애엔 직후 `queue.add` 도 실패해 fallback 실익이 사실상 없다 (§Rationale "continuation publish 실패 동기 surface 통일") | `CONTINUATION_SEQ_TTL_SECONDS` (기본 86400 = 24시간, 매 publish 갱신) |
 | `exec:run:seq:<executionId>`              | (**PR1~PR4 미사용 — 미래 예약**) `execution-run` intake job 의 monotonic seq (Redis INCR per executionId). **jobId = executionId 직접 사용**(1:1 enqueue dedup). PR4 crash 재개는 **네이티브 BullMQ stalled 재배달(같은 jobId 재처리)** 을 쓰므로 re-enqueue 가 없어 seq 가 여전히 불필요하다(당초 "PR4 활성화" 스케치를 정정). seq 일반형(`<executionId>:run:<seq>`)은 **명시적 re-enqueue 를 도입하는 미래 변경**에서만 활성화한다. continuation seq 와 **namespace 분리**(`run` vs `cont`). executionId 는 UUID, **전역**                                 | `CONTINUATION_SEQ_TTL_SECONDS` 준용 (구현 시 결정)                    |
 | `exec:seq:<executionId>`                  | emit-event seq (`ExecutionSeqAllocator`, Redis `INCR`) — WS envelope `seq`(§[6-websocket-protocol §2.2](./6-websocket-protocol.md#22-서버--클라이언트-이벤트-래퍼)) · 외부 SSE `id:` · Outbound Notification `seq` 가 **공유하는 execution 별 monotonic counter** ([Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification) 의 "execution 별 atomic INCR" 구현체). `exec:cont:seq:` 와 namespace 분리. executionId 는 UUID, **전역**. **sliding-window TTL** — 매 발급(INCR+EXPIRE 단일 pipeline)이 EXPIRE 를 갱신, terminal event 발송 후 best-effort `DEL`. Redis 미가용 시 in-memory per-instance degraded fallback (분산 monotonic 미보장 — 수용된 trade-off, [6-websocket-protocol §Rationale](./6-websocket-protocol.md#rationale)) | `EXECUTION_SEQ_TTL_SECONDS` (기본 86400 = 24시간, 매 발급 갱신)       |
+
+> **제거된 두 항목 (2026-08-13)** — 이 표가 "실제 사용 중인 키만" 이라 선언하는데 두 항목이
+> 코드에 없어 그 선언을 어기고 있었다. 지운 사실과 이유를 남긴다:
+>
+> - `core:{wsId}:rate:{userId}` (API Rate Limit) — API rate limit 은 `@nestjs/throttler` 를
+>   **storage 설정 없이** 쓴다 = 기본 **in-memory**. Redis 키가 존재하지 않는다.
+>   > [`cafe24-backlog-residual.md`](../../plan/in-progress/cafe24-backlog-residual.md) 의
+>   > **A-3 follow-up(Layer 1 분산 throttle store)** 이 착지하면 유사 키가 재도입된다 —
+>   > "영원히 없다" 가 아니라 **"지금은 in-memory, Layer 1 착지 시 재검토"** 다.
+> - `ws:{wsId}:session:{connId}` (WebSocket 세션) — 소켓이 한 프로세스에 고정돼
+>   **프로세스-로컬 상태가 권위**다(`ws-rate-limiter.service.ts` 가 "Redis 없이" 명시).
+>   이 항목을 근거로 "WS 세션이 인스턴스 간 공유된다" 고 읽으면 **정반대** 전제가 된다.
 
 > **실행 상태는 Redis 키가 아니다 (Phase-1 설계 대체)**: 위 표는 실제 사용 중인 키만 나열한다. 옛 Phase-1 설계의 `exec:{ws}:execution:{id}:context`(실행 컨텍스트)·`:status`(실행 상태)·`node:{id}:output`(노드 출력)·`worker:{id}:heartbeat`(워커 헬스체크)·`lock:{id}`(실행 잠금)·`queue:priority`(우선순위 큐)는 **구현되지 않았고 코드에 존재하지 않는다** — 현 아키텍처가 각각 **in-memory segment-local ExecutionContext**(§6.2)·**PostgreSQL `Execution.status`**·**PostgreSQL `NodeExecution.outputData` + `execution_node_log`**·**BullMQ stalled-job 검출(별도 heartbeat 채널 없음, §7.1)**·**§7.5 DB 원자 claim(별도 실행 잠금 없음)**·**BullMQ 네이티브 job priority**(§7.4)로 대체했다. 근거·경위는 [§Rationale "실행 컨텍스트 in-memory + DB durable — Redis context store 미채택"](#rationale).
 
@@ -1176,11 +1183,11 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `integration:cache:invalidate` | integration 자격증명 회전·삭제 시 전 인스턴스의 인스턴스-로컬 자격증명 캐시(예: database-query 연결 풀)를 즉시 evict ([DB Query §4](../4-nodes/4-integration/2-database-query.md#4-실행-로직)). payload = integrationId 평문. 워크스페이스 비종속 **전역**. fail-safe — 미수신 시 핸들러의 credsHash 비교 evict 로 degrade. 구독은 전용 duplicate 연결(공유 command 연결은 SUBSCRIBE 미발행) |
 
-> 전역 키 `exec:recover:lock`, `exec:cont:seq:<executionId>` 및 `exec:seq:<executionId>` 는 §9.1 의 `{service}:{workspaceId}:{resource}` 패턴을 따르지 않는다. **워크스페이스에 종속되지 않는** 책임(부팅 단일 진입 가드 / execution 단위 seq — executionId 가 이미 전역 유일 UUID)을 가지므로 전역 키로 둔다. pub/sub 채널 `integration:cache:invalidate` 도 워크스페이스 비종속이라 전역이다. (옛 `execution:continuation` Redis pub/sub 채널은 BullMQ 큐 `execution-continuation` 로 교체되어 폐기 — §9.3 / §Rationale "Durable Continuation".)
+> 위 키들은 전부 **워크스페이스에 종속되지 않는** 책임(부팅 단일 진입 가드 / execution 단위 seq — executionId 가 이미 전역 유일 UUID)을 가지므로 워크스페이스 세그먼트 없이 둔다. pub/sub 채널 `integration:cache:invalidate` 도 워크스페이스 비종속이다. 이것이 예외가 아니라 **저장소 전체의 관례**라는 점은 [`conventions/redis-keys.md` §2](../conventions/redis-keys.md) 참조 — 실재하는 어느 키도 워크스페이스 세그먼트를 쓰지 않는다. (옛 `execution:continuation` Redis pub/sub 채널은 BullMQ 큐 `execution-continuation` 로 교체되어 폐기 — §9.3 / §Rationale "Durable Continuation".)
 
 ### 9.3 BullMQ 큐 목록
 
-애플리케이션이 사용하는 BullMQ 큐는 다음과 같다. BullMQ 가 내부적으로 사용하는 Redis 키 (`bull:<queue>:*`) 는 §9.1 의 `{service}:{workspaceId}:{resource}` 패턴 범위 밖이다 (BullMQ 라이브러리 표준).
+애플리케이션이 사용하는 BullMQ 큐는 다음과 같다. BullMQ 가 내부적으로 사용하는 Redis 키 (`bull:<queue>:*`) 는 라이브러리 표준이라 [`conventions/redis-keys.md`](../conventions/redis-keys.md) 의 명명 규칙 범위 밖이다 (같은 문서 §4 "인접 네임스페이스" 참조).
 
 | 큐 이름                  | 역할                                                                                              | attempts                                                                                         | 비고                                                                                                                                                                                                                                                                                                             |
 | ------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

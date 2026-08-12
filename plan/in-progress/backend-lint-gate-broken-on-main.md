@@ -630,7 +630,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 착수 시: dedup 을 구현할지, `CCH-SE-02` 를 현실에 맞게 고칠지가 **planner 결정**이다.
       > 전자면 in-process 경로 전용 dedup 이 필요하다 — HTTP 인터셉터 재사용은 층이 안 맞는다.
-- [ ] **EIA 계열 Redis 키가 실행 엔진 §9.1/§9.2 키 레지스트리에 없다** (`19_56_51`
+- [x] **EIA 계열 Redis 키가 실행 엔진 §9.1/§9.2 키 레지스트리에 없다** (`19_56_51`
       convention_compliance INFO 4). [`4-execution-engine.md` §9.1](../../spec/5-system/4-execution-engine.md) 은
       "**모든** Redis 키는 `{service}:{workspaceId}:{resource}:{id}:{sub}` 를 따른다" 고 선언하고
       §9.2 표 + 그 아래 예외 각주(`exec:recover:lock`·`exec:seq:<executionId>` 등)로 전역 키를
@@ -639,6 +639,40 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 키 하나만 §9.2 에 끼워 넣으면 목록이 더 이상해지므로, **EIA 계열을 묶어** 등재하거나
       > §9.1 의 "모든" 을 실제 범위로 좁히는 편이 낫다. `spec_impact` 에
       > `4-execution-engine.md` 가 추가되는 planner 작업.
+
+      > **완료 (2026-08-13, planner 턴 `eia-redis-key-registry`).
+      > 착수 전 프로브에서 형태가 이 항목의 서술보다 컸다.**
+      >
+      > 1. **§9.1 의 규칙이 실재 키 전부와 어긋났다.** "모든 Redis 키는
+      >    `{service}:{workspaceId}:…`" 인데 **13계열 중 `workspaceId` 세그먼트를 가진 키가
+      >    0개**다. 규칙이 코드보다 뒤에 쓰였고 한 번도 지켜진 적이 없다 — 폐기된 Phase-1
+      >    설계(워크스페이스 단위 Redis context store)의 생존 흔적이었다.
+      > 2. **§9.2 가 "실제 사용 중인 키만" 이라 선언해 놓고 두 항목이 코드에 없었다** —
+      >    `core:{wsId}:rate:{userId}`(API rate limit 은 `@nestjs/throttler` 기본 in-memory) ·
+      >    `ws:{wsId}:session:{connId}`(소켓이 프로세스 고정, "Redis 없이" 명시). 후자는
+      >    읽는 사람에게 **정반대 전제**(인스턴스 간 공유)를 심는다.
+      >
+      > 조치: [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 신설(형태 규칙 ·
+      > 워크스페이스 스코프 기준 · **포인터** 인벤토리 · 인접 네임스페이스 · 등재 의무),
+      > §9.1 을 규약 참조로 축소(heading 보존), §9.2 phantom 2건 제거 + 사유·재도입 조건 기록,
+      > 댕글링 인용 2곳 갱신, EIA §8.4 에 rate-limit 3키 리터럴 추가(포인터가 가리킬 곳),
+      > `data-flow/15` §2.2 역참조.
+      >
+      > ⚠️ **draft 1차가 `consistency --spec` 에서 BLOCK: YES 였다** — 내가 `background:run:<id>`
+      > (Socket.IO 채널)를 Redis 키로 등재했다. **§9.2 의 phantom 을 비판하면서 신설 문서가 첫
+      > 판부터 같은 오류를 담은 것이다.** 형태가 같으면 종류도 같다고 넘겨짚었다. 고치면서 전 행을
+      > "redis client 호출에 전달되는가" 로 재검증했는데 그 스크립트가 `wh:rl:` 을 거짓 음성으로
+      > 표시했고, 파일을 직접 연 것이 두 번째 오분류를 막았다.
+- [ ] **webhook 소유 문서에 `wh:rl:*` 리터럴이 없다 — 빈 포인터** (`02_13_17` plan_coherence
+      WARNING 5). [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 인벤토리가
+      `wh:rl:min:<ip>`·`wh:rl:hour:<ip>` 의 상세 SoT 로 [`12-webhook.md`](../../spec/5-system/12-webhook.md) 를
+      가리키는데 그 문서에 리터럴이 **0건**이다(실측). EIA rate-limit 3키에서 이미 반증된
+      **빈 포인터**와 같은 형태 — EIA 는 §8.4 에 리터럴을 추가해 해소했고 webhook 은 남았다.
+      > `chat-channel`·`cafe24` 는 소유 문서에 리터럴이 이미 있어 **역참조만** 달면 된다.
+      > webhook 만 §8.4 와 동형 처리(리터럴 먼저)가 필요하다. planner 작업.
+- [ ] **규약 역참조를 나머지 소유 문서에도** (`02_13_17` cross_spec INFO 3) — 이번 턴은
+      `data-flow/15`(EIA)에만 역참조를 달았다. `chat-channel`·`cafe24`·`webhook` 소유 문서에도
+      한 줄씩 필요하다(webhook 은 위 항목과 함께).
 - [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
