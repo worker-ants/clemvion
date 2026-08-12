@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
+import Redis from 'ioredis';
 import request from 'supertest';
 import { createHmac, randomUUID } from 'crypto';
 import { sign } from 'jsonwebtoken';
@@ -130,14 +131,22 @@ function mintInteractionToken(executionId: string): string {
 
 describe('External Interaction API (e2e)', () => {
   let db: Client;
+  // Idempotency-Key 캐시(§R8)의 관측점. 상태코드만으로는 "캐시 재현" 과 "같은 조건 재처리" 가
+  // 구분되지 않아 두 구현을 못 가른다 — 엔트리 자체를 봐야 한다(IDEM-* 주석 참조).
+  let redis: Redis;
 
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
+    redis = new Redis({
+      host: process.env.REDIS_HOST ?? 'redis',
+      port: Number(process.env.REDIS_PORT ?? '6379'),
+    });
   }, 30_000);
 
   afterAll(async () => {
     await db.end();
+    await redis.quit();
   });
 
   it('A. webhook 트리거 응답에 interaction.token + endpoints 동봉 (per_execution)', async () => {
@@ -347,6 +356,197 @@ describe('External Interaction API (e2e)', () => {
       });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('STATE_MISMATCH');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Idempotency-Key — [Spec EIA §R8] 캐시 대상은 닫힌 목록(2xx · 409 · 410).
+  //
+  // **이 블록이 존재하는 이유**: 같은 계약을 단위 테스트로만 검증하다가 네 라운드 연속으로
+  // "mock 이 만든 상태 ≠ 시스템이 실제로 만드는 상태" 결함을 냈다(`16_29_45` CRITICAL 외).
+  // 409·410 은 서비스가 **throw** 하고 컨트롤러는 `@HttpCode(202)` 라, 성공 채널에
+  // `statusCode` 를 프리셋하는 mock 은 실재하지 않는 경로를 검사한다. 예외 필터·데코레이터·
+  // 직렬화를 전부 통과하는 **실 파이프라인**에서 확인하는 것이 이 계약의 맞는 검증 층위다.
+  // ---------------------------------------------------------------------------
+
+  it('IDEM-1. 같은 Idempotency-Key 로 409 를 재요청하면 캐시에서 그대로 재현된다 (§R8)', async () => {
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const waitingNodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'form', 'presentation', 'frm', $3, 0, 0, NOW(), NOW())`,
+      [
+        waitingNodeId,
+        workflowId,
+        JSON.stringify({
+          fields: [
+            { name: 'email', type: 'email', label: 'Email', required: true },
+          ],
+        }),
+      ],
+    );
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionId, workflowId],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', NOW())`,
+      [randomUUID(), executionId, waitingNodeId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const idempotencyKey = `e2e-409-${randomUUID()}`;
+    // G-2 와 같은 형태 — 이 nodeId 는 지금 대기 노드가 아니라 409 STATE_MISMATCH 가 된다.
+    const laterValidNodeId = randomUUID();
+    const body = {
+      command: 'submit_form',
+      nodeId: laterValidNodeId,
+      data: { email: 'a@b.co' },
+    };
+
+    const first = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(first.status).toBe(409);
+    expect(first.body.error.code).toBe('STATE_MISMATCH');
+
+    // **판별력의 핵심 — 캐시 엔트리를 직접 확인한다.**
+    //
+    // 상태코드만 비교하면 이 계약은 검증되지 않는다: 캐시가 없어도 두 번째 요청은 같은
+    // 조건으로 다시 처리돼 **똑같이 409** 를 내기 때문이다. 실제로 첫 시도에서 "재요청 전에
+    // nodeId 를 유효하게 바꿔 202 가 나오게 만든다" 는 fixture 를 썼는데, 예외 경로 적재를
+    // 제거한 뮤턴트에서도 e2e 가 **그대로 통과**했다(실측) — 두 구현을 못 가르는 fixture 였다.
+    // Redis 키의 존재와 내용이 이 계약의 유일한 관측점이다.
+    const cached = await redis.get(`interaction:idempotency:${idempotencyKey}`);
+    expect(cached).not.toBeNull();
+    const entry = JSON.parse(cached as string) as {
+      statusCode: number;
+      responseJson: string;
+    };
+    expect(entry.statusCode).toBe(409);
+    expect(JSON.parse(entry.responseJson)).toMatchObject({
+      error: { code: 'STATE_MISMATCH' },
+    });
+
+    // 그리고 재요청이 그 캐시로 재현되는지 — 상태코드·에러코드가 동일해야 한다.
+    const second = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('STATE_MISMATCH');
+  });
+
+  it('IDEM-2. 400 VALIDATION_ERROR 는 캐시되지 않아 같은 키로 재제출할 수 있다 (§R8)', async () => {
+    // R8 의 근거 그대로 — 검증 실패는 waiting_for_input 이 유지되므로 **재제출이 normal
+    // flow** 다. 캐시되면 사용자가 form 을 고쳐도 stale 에러를 계속 받는다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const waitingNodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'form', 'presentation', 'frm', $3, 0, 0, NOW(), NOW())`,
+      [
+        waitingNodeId,
+        workflowId,
+        JSON.stringify({
+          fields: [
+            { name: 'email', type: 'email', label: 'Email', required: true },
+          ],
+        }),
+      ],
+    );
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionId, workflowId],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', NOW())`,
+      [randomUUID(), executionId, waitingNodeId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const idempotencyKey = `e2e-400-${randomUUID()}`;
+
+    const bad = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({
+        command: 'submit_form',
+        nodeId: waitingNodeId,
+        data: { email: 'not-an-email' },
+      });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.code).toBe('VALIDATION_ERROR');
+
+    // 적재 자체가 없어야 한다 — 아래 재제출 성공은 캐시 부재의 **결과**이지 직접 증거가
+    // 아니다(엔트리가 있어도 body 가 달라 409 로 갈 수 있어 원인이 섞인다).
+    expect(
+      await redis.get(`interaction:idempotency:${idempotencyKey}`),
+    ).toBeNull();
+
+    // 같은 키로 **고친 값**을 재제출 — 400 이 캐시됐다면 body 가 달라 409
+    // IDEMPOTENCY_KEY_CONFLICT 가 나거나 stale 400 이 재현된다. 둘 다 아니어야 한다.
+    const fixed = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send({
+        command: 'submit_form',
+        nodeId: waitingNodeId,
+        data: { email: 'a@b.co' },
+      });
+    expect(fixed.status).toBe(202);
+  });
+
+  it('IDEM-3. 410 도 실 파이프라인에서 캐시·재현된다 (§R8 닫힌 목록의 자매 자리)', async () => {
+    // `IDEM-1` 이 409 만 덮으면 **같은 분기를 공유하는 410 은 e2e 밖**에 남는다 — 이 e2e 를
+    // 들여온 이유(단위 mock 이 실제 경로를 못 반영)가 410 자리에는 적용되지 않는 셈이다.
+    // 이 세션에서 자매 자리 누락이 세 번 반복돼 대칭을 명시적으로 고정한다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const executionId = randomUUID();
+    // terminal execution → 어떤 명령이든 410 EXECUTION_TERMINATED.
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at, finished_at)
+       VALUES ($1, $2, 'completed', NOW(), NOW())`,
+      [executionId, workflowId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const idempotencyKey = `e2e-410-${randomUUID()}`;
+    const body = { command: 'cancel' };
+
+    const first = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(first.status).toBe(410);
+    expect(first.body.error.code).toBe('EXECUTION_TERMINATED');
+
+    const cached = await redis.get(`interaction:idempotency:${idempotencyKey}`);
+    expect(cached).not.toBeNull();
+    const entry = JSON.parse(cached as string) as { statusCode: number };
+    expect(entry.statusCode).toBe(410);
+
+    const second = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(second.status).toBe(410);
+    expect(second.body.error.code).toBe('EXECUTION_TERMINATED');
   });
 
   it('H. /interact per-execution rate-limit 초과 → 429 RATE_LIMITED + Retry-After (§8.4)', async () => {

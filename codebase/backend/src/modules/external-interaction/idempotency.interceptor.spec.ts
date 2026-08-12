@@ -9,20 +9,35 @@
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
  *
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
- * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA
- * §R8 과 어긋난 현재 캐시 제외 범위를 고정하는 캐너리를 담는다.
+ * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA §R8
+ * 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을 고정하는 회귀 테스트를 담는다.
+ * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
+ * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
  * 세 번째 describe 는 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
- * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그리고 그 fail-open 이
- * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리를 담는다.
+ * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그 fail-open 이
+ * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리, 그리고
+ * **직렬화 불가 payload** 가 원 예외를 500 으로 대체하지 않는지(양 채널)를 담는다.
+ * 그중 **적재·직렬화가 조용히 실패할 수 있는 4건**(GET 실패 · SET 실패 · 직렬화 실패 양
+ * 채널)은 `Logger.prototype.warn` 을 함께 단언한다 — fail-open 은 "요청을 살린다" 와 "장애를
+ * 보이게 한다" 가 한 쌍이고, 로그 한 줄이 사라지는 회귀는 응답만 봐서는 안 잡히기 때문이다.
+ * 나머지 3건은 각각 다른 것을 본다(캐시 미스 강등 후 재적재 · `catchError` 위치 · 비-`Error`
+ * reject 에서 로그 조립이 죽지 않는지)이라 warn 단언을 붙이지 않았다.
  */
 import { createHash } from 'crypto';
-import { lastValueFrom, of, type Observable } from 'rxjs';
+import { lastValueFrom, of, throwError, type Observable } from 'rxjs';
 import {
   IdempotencyInterceptor,
   IDEMPOTENCY_HEADER,
 } from './idempotency.interceptor';
-import { ConflictException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  GoneException,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 
 type RedisStub = {
@@ -78,6 +93,20 @@ function makeContext(opts: {
 function makeCallHandler(value: unknown): CallHandler {
   return {
     handle: (): Observable<unknown> => of(value),
+  };
+}
+
+/**
+ * **error 채널**로 끝나는 핸들러 — 실제 파이프라인을 재현한다.
+ *
+ * `interaction.service.ts` 는 409/410 을 `ConflictException`/`GoneException` 으로 **throw**
+ * 한다. 성공 채널에 값을 흘리면서 `res.statusCode` 만 409 로 프리셋하는 mock 은 **실제로
+ * 발생하지 않는 상태**다 — 컨트롤러가 `@HttpCode(202)` 라 성공 경로의 statusCode 는 202 로
+ * 선고정되기 때문이다. 이 헬퍼 없이 쓴 테스트는 vacuous 했다(`16_29_45` CRITICAL).
+ */
+function makeThrowingHandler(err: unknown): CallHandler {
+  return {
+    handle: (): Observable<unknown> => throwError(() => err),
   };
 }
 
@@ -219,40 +248,211 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     ).rejects.toThrow(ConflictException);
   });
 
-  it('400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+  it('throw 된 400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+    // **이 테스트도 error 채널로 행사해야 한다** — 서비스가 `BadRequestException` 을 throw
+    // 하므로 성공 채널 mock 은 실제로 발생하지 않는 상태를 검사한다. 종전에는 409·410·5xx·404
+    // 만 error 채널로 바꾸고 이 400 만 옛 형태로 남겨 뒀는데, 그 상태에서는
+    // `isErrorStatusCacheable` 에 `=== 400` 을 잘못 추가해도 **어떤 테스트도 RED 가 되지
+    // 않았다**(`16_53_26` WARNING 실측). 같은 결함 클래스를 자매 자리에 미적용한 것이다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-1', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new BadRequestException({ error: { code: 'VALIDATION_ERROR' } }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('throw 된 409 가 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
+    // `409 STATE_MISMATCH` 는 "이미 다른 명령이 상태를 바꿨다" 는 **확정된 결과**라 같은
+    // 키로 재조회하면 같은 답이 나와야 한다(EIA-RL-02).
+    //
+    // **error 채널로 행사하는 것이 핵심이다** — 서비스가 `ConflictException` 을 throw 하므로
+    // 성공 채널 mock 은 실제로 발생하지 않는 상태를 검사한다(`16_29_45` CRITICAL).
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new ConflictException({ error: { code: 'STATE_MISMATCH' } }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(ConflictException); // 캐시해도 원 예외는 그대로 나가야 한다
+
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      statusCode: number;
+      responseJson: string;
+    };
+    expect(stored.statusCode).toBe(409);
+    // 재현에 쓸 body 가 실제 예외 payload 여야 한다.
+    expect(JSON.parse(stored.responseJson)).toMatchObject({
+      error: { code: 'STATE_MISMATCH' },
+    });
+  });
+
+  it('throw 된 410 도 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-410', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new GoneException({ error: { code: 'EXECUTION_TERMINATED' } }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(GoneException);
+
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      statusCode: number;
+      responseJson: string;
+    };
+    expect(stored.statusCode).toBe(410);
+    // 409 테스트와 동형으로 payload 까지 — 재현에 쓸 body 가 실제 예외 내용이어야 한다.
+    expect(JSON.parse(stored.responseJson)).toMatchObject({
+      error: { code: 'EXECUTION_TERMINATED' },
+    });
+  });
+
+  it('캐시된 409 는 재조회 시 **예외로** 재현된다', async () => {
+    // 캐시 히트를 성공 응답으로 돌려주면 클라이언트가 202 로 받는다 — 원래 409 였던 것이
+    // 200 대로 바뀌는 셈이라 재현이 아니라 **왜곡**이다.
+    const body = { a: 1 };
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: JSON.stringify({ error: { code: 'STATE_MISMATCH' } }),
+        statusCode: 409,
+      }),
+    );
+    const interceptor = makeInterceptor(redis);
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-409', body }),
+          handler,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    // 캐시 재현이므로 downstream 은 돌지 않는다.
+    expect(handleSpy).not.toHaveBeenCalled();
+  });
+
+  it('캐시된 410 도 재조회 시 **예외로** 재현된다', async () => {
+    // 409 만 replay 를 검증하고 410 은 적재까지만 보던 자매 자리 누락을 닫는다
+    // (`17_07_45` WARNING). 지금은 둘이 같은 분기를 타지만, 한쪽만 남기는 리팩터가
+    // 들어와도 여기서 걸린다.
+    const body = { a: 1 };
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: JSON.stringify({
+          error: { code: 'EXECUTION_TERMINATED' },
+        }),
+        statusCode: 410,
+      }),
+    );
+    const interceptor = makeInterceptor(redis);
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-410', body }),
+          handler,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 410 });
+
+    expect(handleSpy).not.toHaveBeenCalled();
+  });
+
+  it('throw 된 5xx(HttpException) 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+    // 일시적 서버 오류를 24h 고정하면 재시도해도 계속 같은 실패를 돌려받아 EIA-RL-02 의
+    // 취지와 정반대가 된다.
+    //
+    // **반드시 `HttpException` 으로 던져야 한다** — 순수 `Error` 를 쓰면 구현의
+    // `instanceof HttpException` 가드에 먼저 막혀 `isErrorStatusCacheable` 이 **호출조차
+    // 되지 않는다.** 그 상태에서는 판정 함수를 `>= 500` 도 캐시하도록 오염시켜도 아무도
+    // 잡지 못했다(`17_07_45` WARNING 실측). 우회 경로로 통과하는 테스트는 검증이 아니다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-500', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new InternalServerErrorException({ error: { code: 'INTERNAL' } }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(InternalServerErrorException);
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('`HttpException` 이 아닌 예외는 캐시 판정 자체를 거치지 않는다', async () => {
+    // 위 테스트가 가드 **뒤**를 본다면 이건 가드 **앞**을 본다 — 상태코드를 알 수 없는
+    // 예외는 적재 후보가 아니다. 원 예외가 그대로 나가는지도 함께 고정한다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-raw', body: {}, statusCode: 202 }),
+          makeThrowingHandler(new Error('boom')),
+        ),
+      ),
+    ).rejects.toThrow('boom');
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('3xx 는 캐시하지 않는다 — 종전 `< 400` 에서 의도적으로 축소됐다', async () => {
+    // 종전 조건 `statusCode >= 400` 은 3xx 를 **캐시했다**. §R8 의 닫힌 목록에 3xx 가 없어
+    // 함께 빠졌고, 이 API 는 3xx 를 내지 않으므로 실질 영향은 0 이다. 다만 **조용한 축소로
+    // 두지 않으려고** 고정한다 — `< 300` 을 `<= 300` 이나 `< 400` 으로 넓히면 여기서 걸린다.
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
     await lastValueFrom(
       interceptor.intercept(
-        makeContext({ idempotencyKey: 'e-1', body: {}, statusCode: 400 }),
-        makeCallHandler({ error: 'VALIDATION_ERROR' }),
+        makeContext({ idempotencyKey: 'r-304', body: {}, statusCode: 304 }),
+        makeCallHandler({ notModified: true }),
       ),
     );
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it('409 도 캐시되지 않는다 — R8 위반 상태를 고정하는 캐너리', async () => {
-    // Spec EIA §R8 은 "4xx 중 `400 VALIDATION_ERROR` **만** 제외하고, 그 외
-    // (2xx / `409 Conflict` / `410 Gone`) 는 캐시한다" 고 명시한다. 그런데 구현의
-    // 제외 조건은 `statusCode >= 400` 이라 409·410 까지 함께 떨군다 — 그만큼
-    // EIA-RL-02(동일 키 24h 동일 응답 재현)가 지켜지지 않는다.
-    //
-    // **선재 결함이다**(2026-05-21 `35ff9c19b` 원본 구현부터). 이 PR 은 lint warning
-    // 처분(타입 전용)이라 런타임 동작을 바꾸지 않는 것이 스코프이므로 여기서 고치지
-    // 않고, 대신 **현재 동작을 캐너리로 고정**해 둔다. 조건을 R8 에 맞게 좁히면 이
-    // 테스트가 RED 가 되고, 그때 이 주석이 무엇을 바꾸는 것인지 알려 준다.
-    //
-    // 백로그: `plan/in-progress/backend-lint-gate-broken-on-main.md` §후속.
-    // 주의: 올바른 조건은 `=== 400` 이 아니다 — R8 은 400 중에서도 VALIDATION_ERROR
-    // 를 지목하고 5xx 캐싱 여부는 말하지 않는다. 좁히려면 spec 확인이 먼저다.
+  it('throw 된 404 도 캐시하지 않는다 — 목록이 닫혀 있다', async () => {
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
-    await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 409 }),
-        makeCallHandler({ error: 'STATE_MISMATCH' }),
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-404', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new NotFoundException({ error: { code: 'NOT_FOUND' } }),
+          ),
+        ),
       ),
-    );
+    ).rejects.toThrow(NotFoundException);
     expect(redis.set).not.toHaveBeenCalled();
   });
 
@@ -477,5 +677,74 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
     );
 
     expect(result).toEqual({ ok: true });
+  });
+
+  it('직렬화 불가 payload 여도 원 예외가 그대로 나간다 (500 으로 대체되지 않는다)', async () => {
+    // `storeEntry` 의 `JSON.stringify` 는 `catchError` **셀렉터 안**에서 불린다. 거기서
+    // throw 하면 그 새 에러가 원 409 를 **대체**해 클라이언트가 500 을 받고, 이 클래스가
+    // 스스로 약속한 "응답을 기록할 뿐 삼키지 않는다" 가 깨진다.
+    //
+    // 방어(try/catch)를 지난 라운드에 넣고 **테스트는 안 붙였다** — 방어를 만들고 검증을
+    // 빠뜨리는 이 세션의 반복 패턴이라 여기서 닫는다(`18_07_36` WARNING).
+    //
+    // **warn 단언은 형제 테스트(GET/SET 실패)와 같은 이유다** — 응답만 보면 catch 안의
+    // `logger.warn` 한 줄을 지워도 GREEN 이라 "적재가 조용히 실패하는" 회귀를 못 잡는다.
+    // 이 파일의 다른 fail-open 테스트는 전부 그 패턴인데 신규 2건만 빠져 있었다
+    // (`18_37_45` WARNING, 뮤테이션 생존 실측).
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const circular: Record<string, unknown> = { code: 'STATE_MISMATCH' };
+      circular.self = circular; // JSON.stringify 가 TypeError 를 던진다
+      const redis = makeRedis();
+      const interceptor = makeInterceptor(redis);
+
+      await expect(
+        lastValueFrom(
+          interceptor.intercept(
+            makeContext({
+              idempotencyKey: 'circ-1',
+              body: {},
+              statusCode: 202,
+            }),
+            makeThrowingHandler(new ConflictException(circular)),
+          ),
+        ),
+      ).rejects.toThrow(ConflictException); // 500 이 아니라 원 예외
+
+      // 적재만 포기한다 — 그리고 그 사실이 로그에 남아야 한다.
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache 직렬화 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('성공 채널에서도 직렬화 불가 응답이 요청을 죽이지 않는다', async () => {
+    // 같은 방어의 자매 자리 — 2xx 경로는 `tap({next})` 라 throw 하면 스트림이 error 로
+    // 뒤집혀 정상 응답이 사라진다. 한쪽만 고정하면 다른 쪽이 남는다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const circular: Record<string, unknown> = { ok: true };
+      circular.self = circular;
+      const redis = makeRedis();
+      const interceptor = makeInterceptor(redis);
+
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'circ-2', body: {}, statusCode: 200 }),
+          makeCallHandler(circular),
+        ),
+      );
+
+      expect(result).toBe(circular);
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache 직렬화 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

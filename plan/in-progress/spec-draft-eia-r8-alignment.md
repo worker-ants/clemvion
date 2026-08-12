@@ -112,3 +112,12 @@ blacklist 만 들고 있어, `#1153` 이 코드 주석·CHANGELOG 에 적은 **i
 - [x] 변경 4 — `spec/5-system/14-external-interaction-api.md`
 - [x] `backend-lint-gate-broken-on-main.md` 의 planner 인계 2건 체크 + 후속 구현 항목에
       "spec 이 정확해졌으므로 착수 가능" 표시
+- [x] **사후 기록 — developer 턴이 §2.2 의 갭 caveat 을 지웠다** (`18_27_29` plan_coherence
+      WARNING). 이 draft 는 §2.2 표에 "⚠️ 현행 구현은 `statusCode >= 400` 전체를 제외한다
+      (선재 갭)" 를 **넣는** 것까지였는데, 그 갭을 실제로 해소한 developer 턴
+      (`eia-r8-cache-scope`)이 **코드 수정과 같은 커밋에서 그 문장을 제거**했다.
+      > `spec/` 쓰기는 원칙적으로 planner 권한이지만, 그 문장은 "현행 구현이 이렇다" 는
+      > **서술**이라 구현이 바뀌는 커밋과 원자적으로 지워지지 않으면 그 사이에 spec 이
+      > 거짓이 된다. 제품 결정 변경이 아니라 기계적 동기화로 판단했고, checker 도
+      > "내용 자체는 §R8 SoT 와 정합 · 이번 PR 을 막을 필요 없음" 으로 확인했다.
+      > planner 사후 확인으로 여기 남긴다.
