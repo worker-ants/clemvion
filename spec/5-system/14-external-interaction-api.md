@@ -78,7 +78,7 @@ code:
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
 | EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400 VALIDATION_ERROR` + `details[]`(`{field,message,code}` 배열, §5.1) 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
-| EIA-IN-11 | `Idempotency-Key` 헤더 지원 — 동일 키 24h 캐시, 같은 키 + 다른 body 는 `409 Conflict` | 필수 |
+| EIA-IN-11 | `Idempotency-Key` 헤더 지원 — **동일 execution·동일 route 안에서** 동일 키 24h 캐시, 같은 키 + 다른 body 는 `409 Conflict`. 캐시 네임스페이스는 전역이 아니다 (§R8 Rationale "캐시 키 스코프") | 필수 |
 | EIA-IN-12 | 종료된 execution 에 대한 명령은 `410 Gone` 반환 | 필수 |
 | EIA-IN-13 | 현재 노드 상태와 명령이 맞지 않으면 (예: `completed` 상태에서 `submit_message`) `409 Conflict` 반환 | 필수 |
 
@@ -137,7 +137,7 @@ type InteractionRequestContext =
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
 | EIA-RL-01 | Outbound 는 at-least-once. 클라이언트는 `X-Clemvion-Delivery` 로 dedup, `seq` 로 정렬 | 필수 |
-| EIA-RL-02 | Inbound `submit_*` 는 멱등. `Idempotency-Key` 동일 시 동일 응답 24h 재현 | 필수 |
+| EIA-RL-02 | Inbound `submit_*` 는 멱등. **동일 execution·동일 route 안에서** `Idempotency-Key` 동일 시 동일 응답 24h 재현. 토큰이 회전(`/refresh-token`)해도 재현된다 — 스코프 단위는 토큰이 아니라 execution (§R8 Rationale "캐시 키 스코프") | 필수 |
 | EIA-RL-03 | `submit_form` 검증 실패는 waiting_for_input 유지 (재제출 가능) — [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 form 흐름과 동일 | 필수 |
 | EIA-RL-04 | Notification 발송과 SSE emit 은 [Spec 실행 엔진 §1.1](./4-execution-engine.md#11-execution-상태) 의 트랜잭션 commit 이후 시점에서만 수행 | 필수 |
 | EIA-RL-05 | SSE 와 notification 은 동일 `seq` 를 공유 → 한 클라이언트가 두 채널을 동시 구독해도 dedup 가능 | 권장 |
@@ -1057,6 +1057,17 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 **근거**: validation 실패가 캐시되면 사용자가 form 수정 후 재제출 시 같은 key 를 쓰면 stale 에러가 반환된다. 이는 [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 "검증 실패 → waiting_for_input 유지 → 재제출 가능" 컨벤션과 직접 충돌하며, 사용자 UX (form 수정 → 재제출) 가 깨진다.
 
 **캐시 대상은 닫힌 목록이다**: 위에 열거한 `2xx` · `409` · `410` 이 전부다. `400` 중 `VALIDATION_ERROR` 외의 코드와 `5xx` 는 "재시도가 의미 있는 실패" 라 캐시하면 재시도 자체를 막는다. 구현이 이 목록을 조건으로 옮길 때 **단일 비교로 축약하면 안 된다** — 예컨대 `statusCode === 400` 은 400 의 다른 에러 코드와 5xx 를 캐시 대상으로 만들고, `statusCode >= 400` 은 반대로 `409`·`410` 을 떨궈 `EIA-RL-02` 를 그 범위에서 깨뜨린다. 열거를 그대로 조건에 옮겨야 한다.
+
+**캐시 키 스코프**: 위 목록이 "무엇을 캐시하는가" 라면 이 문단은 **"어디에 캐시하는가"** 다. 캐시 키는 `Idempotency-Key` 헤더 값 **단독이 아니라** `interaction:idempotency:<executionId>:<route>:<key>` 로 스코프한다 ([data-flow §2.2](../data-flow/15-external-interaction.md)). `<executionId>` 는 `InteractionGuard` 가 토큰 검증 후 합성한 값이고, `<route>` 는 `interact` | `cancel` 이다.
+
+- **execution 축**: 키를 헤더 값에만 바인딩하면 네임스페이스를 **모든 execution·모든 토큰 보유자가 공유**한다. 요청자 B 가 자기 execution 에 정당한 토큰으로 A 와 같은 키·같은 body 를 쓰면 캐시 hit 이 되어, **B 의 명령이 서비스에 도달하지 않은 채** A 의 응답이 B 에게 반환된다 (B 는 `202 accepted` 를 받으므로 유실을 인지하지 못하고, A 의 응답 body 가 B 에게 노출된다). `InteractionGuard` 가 인터셉터보다 먼저 도므로 인증 우회는 없다 — 깨지는 것은 그 다음이다.
+- **route 축**: 같은 인터셉터가 `POST :executionId/interact` 와 `POST :executionId/cancel` 두 자리에 붙는다. `CancelDto` 는 전 필드 optional 이라 body `{}` 가 가능하고, 그때 `bodyHash` 가 `{}` 인 interact 요청과 일치해 cancel 의 ack 가 interact 에 재생된다. R16 의 "cancel 은 interact 의 편의 alias" 는 **응답 DTO 형태**가 같다는 뜻이지 캐시 네임스페이스를 공유한다는 뜻이 아니다.
+
+**스코프 단위는 토큰이 아니라 execution 이다.** jti·토큰 식별자로 스코프하면 `POST :executionId/refresh-token` 으로 토큰이 회전한 뒤의 재시도가 다른 키로 떨어져 `EIA-RL-02` 가 보장하려는 바로 그 재시도 시나리오를 깬다. 같은 execution 을 대상으로 하는 두 요청은 토큰이 회전했든 family(`iext`/`itk`)가 다르든 **같은 작업**이므로 같은 네임스페이스가 맞다. 반대로 스코프를 전역으로 되돌리는 것은 위 두 축을 다시 여는 것이다.
+
+`req.interaction` 이 없으면(Guard 미적용 등) **캐시를 건너뛴다** — 스코프 없는 전역 키로 fallback 하지 않는다. 조용한 fallback 은 이 결정이 닫은 표면을 그대로 되살리기 때문이다. 이 인터셉터의 다른 실패 경로(Redis 미주입·GET/SET 실패·직렬화 실패)가 모두 "멱등성을 포기하고 요청은 통과" 인 것과 일관된다.
+
+> 실행 단위로 스코프한 Redis 전역 키는 선례가 있다 — [실행 엔진 §9.2](./4-execution-engine.md#92-용도별-키-정의-및-ttl) 의 `exec:seq:<executionId>` · `exec:cont:seq:<executionId>` 가 "executionId 가 이미 전역 유일 UUID" 를 근거로 같은 형태를 쓴다.
 
 ### R9. spec 위치 — `5-system/` 하위 신규 파일
 

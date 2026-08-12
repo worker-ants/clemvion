@@ -90,12 +90,12 @@ sequenceDiagram
     G->>G: execution.trigger_id → trigger.config.interaction.triggerToken 과 timing-safe 비교
   end
   G-->>Ext: 실패 시 401 TOKEN_* + X-Refresh-Token-Url 헤더
-  Idem->>Q: GET interaction:idempotency:<key> — 캐시 hit 시 동일 응답 재현 / body hash 불일치 시 409
+  Idem->>Q: GET interaction:idempotency:<executionId>:<route>:<key> — 캐시 hit 시 동일 응답 재현 / body hash 불일치 시 409
   Idem->>Svc: miss 시 본 처리
   Svc->>Svc: execution 조회 — terminal 이면 410 EXECUTION_TERMINATED, waiting_for_input 아니면 409 STATE_MISMATCH
   Svc->>Eng: command 별 dispatch (아래 표)
   Eng->>Q: ContinuationBus → execution-continuation 큐 enqueue
-  Svc->>Q: 2xx·409·410 응답을 interaction:idempotency:<key> 에 24h 캐시 (400 VALIDATION_ERROR 제외)
+  Svc->>Q: 2xx·409·410 응답을 interaction:idempotency:<executionId>:<route>:<key> 에 24h 캐시 (400 VALIDATION_ERROR 제외)
   Svc-->>Ext: 202 Accepted { executionId, accepted, currentStatus }
 ```
 
@@ -255,7 +255,7 @@ POST /api/triggers/:id/notification/rotate-secret 류 API (TriggersService.rotat
 | Sink | key / queue | 흐름 | TTL·정책 |
 | --- | --- | --- | --- |
 | Redis | `iext:blacklist:<jti>` | terminal event / refresh 시 SET | TTL = 원 JWT exp 까지. Redis 미가용 시 fail-open (검증도 fail-open + warn) |
-| Redis | `interaction:idempotency:<key>` | 2xx·`409`·`410` 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. **`400 VALIDATION_ERROR` 만** 캐시 제외 — 캐시 대상은 닫힌 목록이다 ([Spec EIA §R8] 및 그 Rationale) |
+| Redis | `interaction:idempotency:<executionId>:<route>:<key>` | 2xx·`409`·`410` 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. **`400 VALIDATION_ERROR` 만** 캐시 제외 — 캐시 대상은 닫힌 목록이다 ([Spec EIA §R8] 및 그 Rationale). 키는 **Guard 가 검증한 `executionId`** 와 **route**(`interact`\|`cancel`)로 스코프 — 헤더 값만으로 키를 만들면 네임스페이스가 전 execution 공유가 된다 ([Spec EIA §R8] Rationale "캐시 키 스코프") |
 | Redis | `exec:seq:<executionId>` | `INCR` — SSE `id:`/notification `seq` 공용 카운터 | terminal event 후 해제 ([`spec/5-system/6-websocket-protocol.md`](../5-system/6-websocket-protocol.md)) |
 | BullMQ | `notification-webhook` | `NotificationDispatcher.enqueue` → `NotificationWebhookProcessor` | jobId=deliveryId dedup, attempts 5, base-4 custom backoff (1s·4s·16s·64s·256s — worker `settings.backoffStrategy`, §6.6), removeOnComplete 24h / removeOnFail 7d |
 | BullMQ | `notification-secret-rotator` | hourly repeatable (`0 * * * *`) → v2 승격 | upsertJobScheduler 멱등 — 멀티 인스턴스 전역 1회 |
