@@ -8,6 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { HooksService, WebhookInput } from './hooks.service';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
@@ -1247,7 +1248,18 @@ describe('HooksService', () => {
       };
       rateLimiter.consume.mockClear();
 
-      const result = await service.handleWebhook('abc', chatInput);
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      let result: unknown;
+      try {
+        result = await service.handleWebhook('abc', chatInput);
+        // 억제를 **조용히** 하지 않는다 — 재도착이 늘면 운영이 알아야 한다.
+        // 서비스 내부 warn 은 dedup spec 이 보고, 이 자리는 호출부 warn 이다(자매).
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('재도착 무시'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
 
       expect(result).toEqual({ executionId: 'ignored' });
       // provider update id 로 억제했는지 — 인자까지 본다.
