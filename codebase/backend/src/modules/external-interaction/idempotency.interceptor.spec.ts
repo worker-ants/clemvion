@@ -59,34 +59,64 @@ function makeRedisConn(client: unknown) {
   };
 }
 
+/** 기본 execution scope — 스코프를 명시하지 않는 테스트가 공유한다. */
+const DEFAULT_EXECUTION_ID = 'exec-aaa';
+/** 기본 route — 컨트롤러의 `interact` 핸들러명. */
+const DEFAULT_ROUTE = 'interact';
+
+/** 인터셉터가 조립할 것으로 기대하는 스코프 키. 테스트가 손으로 문자열을 짜지 않게 한다. */
+function scopedKey(
+  rawKey: string,
+  executionId: string = DEFAULT_EXECUTION_ID,
+  route: string = DEFAULT_ROUTE,
+): string {
+  return `interaction:idempotency:${executionId}:${route}:${rawKey}`;
+}
+
 /**
- * ExecutionContext mock — header / body / response status 를 노출.
+ * ExecutionContext mock — header / body / response status / **interaction ctx · route** 를 노출.
  *
  * `responseOverride` 는 `getResponse()` 가 돌려줄 객체를 통째로 갈아끼운다. 두 용도:
  * 호출 인자를 단언하려고 `res` 를 테스트가 직접 쥐어야 할 때, 그리고 `status`/
  * `statusCode` 가 **없는** 응답에서 인터셉터의 `typeof` 방어가 살아 있는지 고정할 때.
+ *
+ * `executionId: null` 은 **Guard 가 ctx 를 세팅하지 않은 상태**다 (`undefined` 는 "명시 안 함"
+ * 이라 기본값이 들어간다 — 두 경우를 갈라야 캐시 skip 경로를 테스트할 수 있다).
+ *
+ * `getHandler()` 는 **이름이 붙은 진짜 함수**를 돌려준다. `{ name }` 리터럴로 흉내내면
+ * `getHandler().name` 이 아닌 다른 경로로 route 를 얻는 회귀를 이 mock 이 덮어 준다.
  */
 function makeContext(opts: {
   idempotencyKey?: string;
   body?: unknown;
   statusCode?: number;
   responseOverride?: unknown;
+  executionId?: string | null;
+  route?: string;
 }): ExecutionContext {
   const res = opts.responseOverride ?? {
     statusCode: opts.statusCode ?? 200,
     status: jest.fn(),
   };
+  const executionId =
+    opts.executionId === undefined ? DEFAULT_EXECUTION_ID : opts.executionId;
   const req = {
     headers: opts.idempotencyKey
       ? { [IDEMPOTENCY_HEADER]: opts.idempotencyKey }
       : {},
     body: opts.body ?? {},
+    ...(executionId === null
+      ? {}
+      : { interaction: { executionId, tokenFamily: 'iext' as const } }),
   };
+  const routeName = opts.route ?? DEFAULT_ROUTE;
+  const handler = { [routeName]: () => undefined }[routeName];
   return {
     switchToHttp: () => ({
       getRequest: () => req,
       getResponse: () => res,
     }),
+    getHandler: () => handler,
   } as unknown as ExecutionContext;
 }
 
@@ -138,10 +168,9 @@ describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
       interceptor.intercept(ctx, makeCallHandler({ ok: true })),
     );
     expect(result).toEqual({ ok: true });
-    // 공유 client 로 캐시 lookup 이 발생.
-    expect(sharedRedis.get).toHaveBeenCalledWith(
-      expect.stringContaining('interaction:idempotency:key-1'),
-    );
+    // 공유 client 로 캐시 lookup 이 발생. 키는 **정확히** 스코프 형태여야 한다 —
+    // `stringContaining` 으로 두면 스코프 세그먼트가 빠져도 통과한다.
+    expect(sharedRedis.get).toHaveBeenCalledWith(scopedKey('key-1'));
     // 2xx 응답이므로 캐시 적재(SET) 도 공유 client 로.
     expect(sharedRedis.set).toHaveBeenCalled();
   });
@@ -742,6 +771,168 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
       expect(redis.set).not.toHaveBeenCalled();
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('cache 직렬화 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+/**
+ * [Spec EIA §R8 "캐시 키 스코프"] — 캐시 키가 **execution + route** 로 스코프되는지.
+ *
+ * 종전 키는 `Idempotency-Key` 헤더 값 단독이라 네임스페이스를 **모든 execution 이 공유**했다.
+ * 요청자 B 가 자기 execution 에 정당한 토큰으로 A 와 같은 키·같은 body 를 쓰면 캐시 hit 이
+ * 되어 B 의 명령이 서비스에 닿지도 않은 채 A 의 응답이 반환된다 — 게다가 B 는 `202 accepted`
+ * 를 받으므로 유실을 인지하지 못한다.
+ *
+ * **두 축을 따로 고정한다.** 한 축만 두면 다른 축이 조용히 열린 채 남는다:
+ * - execution 축 — 서로 다른 execution 이 같은 키를 써도 분리되는가
+ * - route 축 — 같은 인터셉터가 붙은 `interact`·`cancel` 이 분리되는가
+ *   (`CancelDto` 는 전 필드 optional 이라 body `{}` 가 interact 의 `{}` 와 hash 가 같다)
+ *
+ * 조회(GET)와 적재(SET)를 **둘 다** 단언한다 — 한쪽만 스코프하는 회귀가 실제 가능한 형태다.
+ */
+describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () => {
+  it('execution 축 — 다른 executionId 는 같은 키를 써도 다른 엔트리를 본다', async () => {
+    const redisA = makeRedis();
+    const redisB = makeRedis();
+
+    await lastValueFrom(
+      makeInterceptor(redisA).intercept(
+        makeContext({
+          idempotencyKey: 'shared-key',
+          body: { same: true },
+          executionId: 'exec-A',
+        }),
+        makeCallHandler({ from: 'A' }),
+      ),
+    );
+    await lastValueFrom(
+      makeInterceptor(redisB).intercept(
+        makeContext({
+          idempotencyKey: 'shared-key',
+          body: { same: true },
+          executionId: 'exec-B',
+        }),
+        makeCallHandler({ from: 'B' }),
+      ),
+    );
+
+    expect(redisA.get).toHaveBeenCalledWith(scopedKey('shared-key', 'exec-A'));
+    expect(redisB.get).toHaveBeenCalledWith(scopedKey('shared-key', 'exec-B'));
+    // 적재도 스코프돼야 한다 — GET 만 스코프하고 SET 이 전역이면 다음 요청이 남의 것을 읽는다.
+    expect(redisA.set).toHaveBeenCalledWith(
+      scopedKey('shared-key', 'exec-A'),
+      expect.any(String),
+      'EX',
+      expect.any(Number),
+    );
+    expect(redisB.set).toHaveBeenCalledWith(
+      scopedKey('shared-key', 'exec-B'),
+      expect.any(String),
+      'EX',
+      expect.any(Number),
+    );
+  });
+
+  it('route 축 — 같은 execution 이라도 interact 와 cancel 은 분리된다', async () => {
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    // body 를 동일하게 둔다 — bodyHash 가 같아지므로 route 가 유일한 구분자다.
+    const body = {};
+
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'k', body, route: 'interact' }),
+        makeCallHandler({ ok: 'interact' }),
+      ),
+    );
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'k', body, route: 'cancel' }),
+        makeCallHandler({ ok: 'cancel' }),
+      ),
+    );
+
+    const keys = redis.get.mock.calls.map((c) => c[0] as string);
+    expect(keys).toEqual([
+      scopedKey('k', DEFAULT_EXECUTION_ID, 'interact'),
+      scopedKey('k', DEFAULT_EXECUTION_ID, 'cancel'),
+    ]);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it('캐시 hit 재현도 스코프 키로 조회한 엔트리에서만 일어난다', async () => {
+    const redis = makeRedis();
+    const cachedBody = { replayed: true };
+    const body = { a: 1 };
+    redis.get.mockImplementation((key: string) =>
+      key === scopedKey('hit-key', 'exec-owner')
+        ? Promise.resolve(
+            JSON.stringify({
+              bodyHash: bodyHashOf(body),
+              responseJson: JSON.stringify(cachedBody),
+              statusCode: 200,
+            }),
+          )
+        : Promise.resolve(null),
+    );
+    const interceptor = makeInterceptor(redis);
+
+    // 소유 execution — 캐시가 재현된다.
+    const owner = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({
+          idempotencyKey: 'hit-key',
+          body,
+          executionId: 'exec-owner',
+        }),
+        makeCallHandler({ fresh: true }),
+      ),
+    );
+    expect(owner).toEqual(cachedBody);
+
+    // 다른 execution — 같은 키·같은 body 인데도 캐시를 보지 못하고 핸들러가 돈다.
+    const other = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({
+          idempotencyKey: 'hit-key',
+          body,
+          executionId: 'exec-other',
+        }),
+        makeCallHandler({ fresh: true }),
+      ),
+    );
+    expect(other).toEqual({ fresh: true });
+  });
+
+  it('interaction ctx 부재 → 전역 키 fallback 없이 캐시 자체를 건너뛴다', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      const interceptor = makeInterceptor(redis);
+
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({
+            idempotencyKey: 'no-ctx',
+            body: { a: 1 },
+            executionId: null, // Guard 가 ctx 를 세팅하지 않은 상태
+          }),
+          makeCallHandler({ ok: true }),
+        ),
+      );
+
+      // 요청은 통과한다 (fail-open).
+      expect(result).toEqual({ ok: true });
+      // 스코프를 못 만들면 **아무 키로도** 캐시하지 않는다 — 전역 키 fallback 은 §R8 이 닫은
+      // 표면을 되살리므로, 여기서 `get`/`set` 이 한 번이라도 불리면 회귀다.
+      expect(redis.get).not.toHaveBeenCalled();
+      expect(redis.set).not.toHaveBeenCalled();
+      // 멱등성을 조용히 포기하지 않는다.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('interaction ctx 부재'),
       );
     } finally {
       warnSpy.mockRestore();
