@@ -2906,7 +2906,9 @@ export class ExecutionEngineService
     const admitted = await this.executionRepository.manager.transaction(
       async (m) => {
         await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
-        const rows = await m.query(
+        // `EntityManager.query` 는 `Promise<any>` 라 반환을 그대로 쓰면 `.length` 접근이
+        // 전부 `any` 가 된다. `RETURNING id` 이므로 실제 shape 은 행 배열이다.
+        const rows = await m.query<{ id: string }[]>(
           `UPDATE execution SET status = 'running', started_at = NOW()
            WHERE id = $1 AND status = 'pending'
              AND (SELECT COUNT(*) FROM execution wfe

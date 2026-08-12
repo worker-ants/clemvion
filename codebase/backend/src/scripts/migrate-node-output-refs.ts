@@ -244,7 +244,12 @@ export function rewriteExpression(
   //   keep the inner `.output.` so the fix surfaces in the audit log.
   let current = str.replace(
     /\$node\[(?:"([^"]+)"|'([^']+)')\]\.output\.output\.([A-Za-z_][A-Za-z0-9_]*)/g,
-    (match, dbl, sgl, field) => {
+    (
+      match: string,
+      dbl: string | undefined,
+      sgl: string | undefined,
+      field: string,
+    ) => {
       const label = (dbl ?? sgl) as string;
       const type = nodeTypeByLabel.get(label);
       if (!type) return match;
@@ -284,7 +289,12 @@ export function rewriteExpression(
   // Pass 2: `$node["X"].output.meta.<field>` → `$node["X"].meta.<field>`.
   current = current.replace(
     /\$node\[(?:"([^"]+)"|'([^']+)')\]\.output\.meta\.([A-Za-z_][A-Za-z0-9_]*)/g,
-    (match, _dbl, _sgl, field) => {
+    (
+      match: string,
+      _dbl: string | undefined,
+      _sgl: string | undefined,
+      field: string,
+    ) => {
       const replacement = match.replace('.output.meta.', '.meta.');
       hits.push({
         field,
@@ -299,7 +309,12 @@ export function rewriteExpression(
   // Pass 3: `$node["X"].output.config.<field>` → `$node["X"].config.<field>`.
   current = current.replace(
     /\$node\[(?:"([^"]+)"|'([^']+)')\]\.output\.config\.([A-Za-z_][A-Za-z0-9_]*)/g,
-    (match, _dbl, _sgl, field) => {
+    (
+      match: string,
+      _dbl: string | undefined,
+      _sgl: string | undefined,
+      field: string,
+    ) => {
       const replacement = match.replace('.output.config.', '.config.');
       hits.push({
         field,
@@ -314,7 +329,12 @@ export function rewriteExpression(
   // Pass 4: single-level `$node["X"].output.<field>`.
   current = current.replace(
     /\$node\[(?:"([^"]+)"|'([^']+)')\]\.output\.([A-Za-z_][A-Za-z0-9_]*)/g,
-    (match, dbl, sgl, field) => {
+    (
+      match: string,
+      dbl: string | undefined,
+      sgl: string | undefined,
+      field: string,
+    ) => {
       // Skip if it's actually `.output.output.<f>` / `.output.meta.<f>` /
       // `.output.config.<f>` / `.output.result.<f>` — those are structural
       // sub-paths the handler now emits and must not be rewritten again.
@@ -414,7 +434,12 @@ export function rewriteExpression(
   // legacy key.
   current = current.replace(
     /\$node\[(?:"([^"]+)"|'([^']+)')\]\.meta\.([A-Za-z_][A-Za-z0-9_]*)/g,
-    (match, dbl, sgl, field) => {
+    (
+      match: string,
+      dbl: string | undefined,
+      sgl: string | undefined,
+      field: string,
+    ) => {
       const label = (dbl ?? sgl) as string;
       const type = nodeTypeByLabel.get(label);
       if (!type) return match;
@@ -439,7 +464,7 @@ export function rewriteExpression(
   // semantics preserved via `output.interaction.type`.
   current = current.replace(
     /\.status\s*(===|==)\s*['"](submitted|button_click|button_continue)['"]/g,
-    (match, op, status) => {
+    (match: string, op: string, status: string) => {
       const replacement = match.replace(
         /['"](submitted|button_click|button_continue)['"]/,
         "'resumed'",
@@ -459,7 +484,12 @@ export function rewriteExpression(
   // must review and migrate manually.
   current.replace(
     /\$node\[(?:"([^"]+)"|'([^']+)')\]\.output\.error\.(nodeId|nodeType|timestamp|originalInput)\b/g,
-    (match, _dbl, _sgl, field) => {
+    (
+      match: string,
+      _dbl: string | undefined,
+      _sgl: string | undefined,
+      field: string,
+    ) => {
       hits.push({
         field,
         reason: `legacy output.error.${field} removed — move to output.error.details.${field === 'originalInput' ? 'originalInput' : field} or inspect NodeExecution row`,
