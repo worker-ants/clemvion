@@ -532,6 +532,126 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
   });
 
+  it('엔트리 손상은 조용히 넘어가지 않는다 — warn 을 남긴다', async () => {
+    // 위 테스트는 "요청이 산다" 만 본다. fail-open 은 **요청을 살린다 + 장애를 보이게 한다**
+    // 가 한 쌍이라, 로그가 사라지는 회귀는 응답만 봐서는 잡히지 않는다. 이 클래스의 다른 세
+    // 실패 경로(GET·SET·직렬화)는 이미 warn 을 단언하는데 이 자리만 빠져 있었다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.get.mockResolvedValue('not-valid-json{');
+
+      await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'broken-warn', body: {} }),
+          makeCallHandler({ fresh: true }),
+        ),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache 엔트리 손상'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('엔트리는 멀쩡한데 안쪽 `responseJson` 이 깨진 경우 → 500 이 아니라 신규 처리', async () => {
+    // **선재 갭**: 바깥 JSON 은 `try/catch` 로 막으면서 안쪽 `responseJson` 은 재현 분기
+    // 두 자리에서 맨몸으로 파싱했다. 깨져 있으면 그 `SyntaxError` 가 그대로 올라가
+    // `GlobalExceptionFilter` 가 **500 으로 마스킹**한다 — 캐시 손상이 요청 실패가 되는 것은
+    // 이 인터셉터의 fail-open 원칙과 정반대다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const body = { a: 1 };
+      const redis = makeRedis();
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          bodyHash: bodyHashOf(body),
+          responseJson: 'not-valid-json{', // 안쪽만 깨졌다
+          statusCode: 200,
+        }),
+      );
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
+
+      const result = await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'inner-broken', body }),
+          handler,
+        ),
+      );
+
+      expect(result).toEqual({ fresh: true });
+      expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 온전한 것으로 덮는다
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache payload 손상'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('안쪽이 깨졌어도 body 가 다르면 여전히 409 — 판정 순서를 고정한다', async () => {
+    // **이 테스트가 파싱 순서를 지탱한다.** payload 파싱을 `bodyHash` 판정보다 앞에 두면
+    // 손상된 엔트리에서 409 가 조용히 사라지고, 두 번째 body 가 새 응답을 받는다 —
+    // `Idempotency-Key` 재사용 검출이 캐시 손상에 의해 무력화되는 셈이다.
+    // payload 가 깨졌든 아니든 "이 키가 이미 다른 body 로 쓰였다" 는 사실은 그대로다.
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf({ original: true }),
+        responseJson: 'not-valid-json{',
+        statusCode: 200,
+      }),
+    );
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    await expect(
+      lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({
+            idempotencyKey: 'inner-broken-conflict',
+            body: { different: true },
+          }),
+          handler,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    // 409 로 끝났으므로 downstream 은 돌지 않고 캐시도 덮이지 않는다.
+    expect(handleSpy).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('안쪽이 깨진 409 엔트리도 500 이 아니라 신규 처리 — 에러 재현 분기도 같은 방어를 받는다', async () => {
+    // 재현 분기가 **둘**이다(에러 채널 `HttpException` 재throw · 성공 채널 `of()`). 위 테스트는
+    // 성공 분기만 덮으므로 자매 자리를 함께 고정한다 — 이 세션에서 자매 누락이 반복됐다.
+    const body = { a: 1 };
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: 'not-valid-json{',
+        statusCode: 409, // 에러 재현 분기로 들어가는 상태코드
+      }),
+    );
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    const result = await lastValueFrom(
+      makeInterceptor(redis).intercept(
+        makeContext({ idempotencyKey: 'inner-broken-409', body }),
+        handler,
+      ),
+    );
+
+    expect(result).toEqual({ fresh: true });
+    expect(handleSpy).toHaveBeenCalled();
+  });
+
   it('`status`/`statusCode` 가 없는 응답에서도 죽지 않고 200 으로 적재한다', async () => {
     // **이 테스트가 `HttpResponseLike` 의 optional 을 지탱한다.** 인터셉터에 express
     // `Response` 를 통째로 박으면 `typeof res.status === 'function'` /

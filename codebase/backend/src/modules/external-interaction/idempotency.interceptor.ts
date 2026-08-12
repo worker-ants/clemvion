@@ -135,44 +135,79 @@ export class IdempotencyInterceptor implements NestInterceptor {
         return of(null);
       }),
       switchMap((cachedJson) => {
-        if (cachedJson) {
-          let cached: IdempotencyEntry;
-          try {
-            cached = JSON.parse(cachedJson) as IdempotencyEntry;
-          } catch {
-            // 손상된 캐시 → 무시하고 신규 처리.
-            return next
-              .handle()
-              .pipe(this.cacheTapped(redisKey, bodyHash, context));
-          }
-          if (cached.bodyHash !== bodyHash) {
-            throw new ConflictException({
-              error: {
-                code: 'IDEMPOTENCY_KEY_CONFLICT',
-                message: 'Idempotency-Key 가 이미 다른 body 와 사용되었습니다.',
-              },
-            });
-          }
-          // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
-          //
-          // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
-          // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
-          // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
-          if (isErrorStatusCacheable(cached.statusCode)) {
-            throw new HttpException(
-              JSON.parse(cached.responseJson) as Record<string, unknown>,
-              cached.statusCode,
-            );
-          }
-          const res = context.switchToHttp().getResponse<HttpResponseLike>();
-          if (typeof res.status === 'function') res.status(cached.statusCode);
-          return of(JSON.parse(cached.responseJson) as unknown);
+        // 캐시를 못 쓰는 모든 경우의 공통 처리 — 신규 처리 후 적재. 캐시 미스 · 엔트리 손상 ·
+        // payload 손상 세 자리가 같은 동작이라 한 곳에 둔다.
+        const processFresh = () =>
+          next.handle().pipe(this.cacheTapped(redisKey, bodyHash, context));
+
+        if (!cachedJson) return processFresh();
+
+        let cached: IdempotencyEntry;
+        try {
+          cached = JSON.parse(cachedJson) as IdempotencyEntry;
+        } catch (err) {
+          return this.discardCorruptEntry('엔트리', err, processFresh);
         }
-        return next
-          .handle()
-          .pipe(this.cacheTapped(redisKey, bodyHash, context));
+
+        // **bodyHash 판정은 payload 파싱보다 먼저다.** payload 가 깨졌든 아니든 "이 키가 이미
+        // 다른 body 로 쓰였다" 는 사실은 그대로다 — 순서를 바꾸면 손상된 엔트리에서 409 가
+        // 조용히 사라지고 두 번째 body 가 새 응답을 받는다.
+        if (cached.bodyHash !== bodyHash) {
+          throw new ConflictException({
+            error: {
+              code: 'IDEMPOTENCY_KEY_CONFLICT',
+              message: 'Idempotency-Key 가 이미 다른 body 와 사용되었습니다.',
+            },
+          });
+        }
+
+        // **엔트리 안쪽 `responseJson` 도 깨질 수 있다.** 종전에는 바깥 JSON 만 `try/catch` 로
+        // 막고 이 파싱은 재현 분기 두 자리에서 맨몸으로 했다 — 깨져 있으면 그 `SyntaxError` 가
+        // 그대로 올라가 `GlobalExceptionFilter` 가 **500 으로 마스킹**했다. 캐시 손상이 요청
+        // 실패가 되는 것은 이 인터셉터의 fail-open 원칙과 반대다. 한 번만 파싱해 그 자리에
+        // 방어를 둔다(재현 분기의 `JSON.parse` 중복도 함께 사라진다).
+        let cachedPayload: unknown;
+        try {
+          cachedPayload = JSON.parse(cached.responseJson);
+        } catch (err) {
+          return this.discardCorruptEntry('payload', err, processFresh);
+        }
+
+        // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
+        //
+        // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
+        // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
+        // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
+        if (isErrorStatusCacheable(cached.statusCode)) {
+          throw new HttpException(
+            cachedPayload as Record<string, unknown>,
+            cached.statusCode,
+          );
+        }
+        const res = context.switchToHttp().getResponse<HttpResponseLike>();
+        if (typeof res.status === 'function') res.status(cached.statusCode);
+        return of(cachedPayload);
       }),
     );
+  }
+
+  /**
+   * 손상된 캐시 엔트리를 버리고 신규 처리로 강등한다 — warn 을 남기는 것이 요점이다.
+   *
+   * 종전에는 엔트리 손상을 **조용히** 무시했다. fail-open 은 "요청을 살린다" 와 "장애를 보이게
+   * 한다" 가 한 쌍인데(이 클래스의 다른 세 실패 경로는 이미 warn 한다), 이 자리만 빠져 있어
+   * 캐시가 계속 깨지는 상황을 운영이 인지할 수단이 없었다. 조용한 강등은 멱등성이 사실상
+   * 꺼진 상태와 구분되지 않는다.
+   */
+  private discardCorruptEntry<T>(
+    what: '엔트리' | 'payload',
+    err: unknown,
+    processFresh: () => T,
+  ): T {
+    this.logger.warn(
+      `IdempotencyInterceptor cache ${what} 손상 — 무시하고 신규 처리: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return processFresh();
   }
 
   /**
