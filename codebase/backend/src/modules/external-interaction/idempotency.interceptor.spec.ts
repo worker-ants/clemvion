@@ -672,4 +672,48 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
 
     expect(result).toEqual({ ok: true });
   });
+
+  it('직렬화 불가 payload 여도 원 예외가 그대로 나간다 (500 으로 대체되지 않는다)', async () => {
+    // `storeEntry` 의 `JSON.stringify` 는 `catchError` **셀렉터 안**에서 불린다. 거기서
+    // throw 하면 그 새 에러가 원 409 를 **대체**해 클라이언트가 500 을 받고, 이 클래스가
+    // 스스로 약속한 "응답을 기록할 뿐 삼키지 않는다" 가 깨진다.
+    //
+    // 방어(try/catch)를 지난 라운드에 넣고 **테스트는 안 붙였다** — 방어를 만들고 검증을
+    // 빠뜨리는 이 세션의 반복 패턴이라 여기서 닫는다(`18_07_36` WARNING).
+    const circular: Record<string, unknown> = { code: 'STATE_MISMATCH' };
+    circular.self = circular; // JSON.stringify 가 TypeError 를 던진다
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'circ-1', body: {}, statusCode: 202 }),
+          makeThrowingHandler(new ConflictException(circular)),
+        ),
+      ),
+    ).rejects.toThrow(ConflictException); // 500 이 아니라 원 예외
+
+    // 적재만 포기한다.
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('성공 채널에서도 직렬화 불가 응답이 요청을 죽이지 않는다', async () => {
+    // 같은 방어의 자매 자리 — 2xx 경로는 `tap({next})` 라 throw 하면 스트림이 error 로
+    // 뒤집혀 정상 응답이 사라진다. 한쪽만 고정하면 다른 쪽이 남는다.
+    const circular: Record<string, unknown> = { ok: true };
+    circular.self = circular;
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'circ-2', body: {}, statusCode: 200 }),
+        makeCallHandler(circular),
+      ),
+    );
+
+    expect(result).toBe(circular);
+    expect(redis.set).not.toHaveBeenCalled();
+  });
 });

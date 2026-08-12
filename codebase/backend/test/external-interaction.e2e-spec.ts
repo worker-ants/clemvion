@@ -132,7 +132,7 @@ function mintInteractionToken(executionId: string): string {
 describe('External Interaction API (e2e)', () => {
   let db: Client;
   // Idempotency-Key 캐시(§R8)의 관측점. 상태코드만으로는 "캐시 재현" 과 "같은 조건 재처리" 가
-  // 구분되지 않아 두 구현을 못 가른다 — 엔트리 자체를 봐야 한다(I-1·I-2 주석 참조).
+  // 구분되지 않아 두 구현을 못 가른다 — 엔트리 자체를 봐야 한다(IDEM-* 주석 참조).
   let redis: Redis;
 
   beforeAll(async () => {
@@ -368,7 +368,7 @@ describe('External Interaction API (e2e)', () => {
   // 직렬화를 전부 통과하는 **실 파이프라인**에서 확인하는 것이 이 계약의 맞는 검증 층위다.
   // ---------------------------------------------------------------------------
 
-  it('I-1. 같은 Idempotency-Key 로 409 를 재요청하면 캐시에서 그대로 재현된다 (§R8)', async () => {
+  it('IDEM-1. 같은 Idempotency-Key 로 409 를 재요청하면 캐시에서 그대로 재현된다 (§R8)', async () => {
     const { workflowId } = await createTriggerWithInteraction(db, {
       interactionEnabled: true,
     });
@@ -443,7 +443,7 @@ describe('External Interaction API (e2e)', () => {
     expect(second.body.error.code).toBe('STATE_MISMATCH');
   });
 
-  it('I-2. 400 VALIDATION_ERROR 는 캐시되지 않아 같은 키로 재제출할 수 있다 (§R8)', async () => {
+  it('IDEM-2. 400 VALIDATION_ERROR 는 캐시되지 않아 같은 키로 재제출할 수 있다 (§R8)', async () => {
     // R8 의 근거 그대로 — 검증 실패는 waiting_for_input 이 유지되므로 **재제출이 normal
     // flow** 다. 캐시되면 사용자가 form 을 고쳐도 stale 에러를 계속 받는다.
     const { workflowId } = await createTriggerWithInteraction(db, {
@@ -507,6 +507,46 @@ describe('External Interaction API (e2e)', () => {
         data: { email: 'a@b.co' },
       });
     expect(fixed.status).toBe(202);
+  });
+
+  it('IDEM-3. 410 도 실 파이프라인에서 캐시·재현된다 (§R8 닫힌 목록의 자매 자리)', async () => {
+    // `IDEM-1` 이 409 만 덮으면 **같은 분기를 공유하는 410 은 e2e 밖**에 남는다 — 이 e2e 를
+    // 들여온 이유(단위 mock 이 실제 경로를 못 반영)가 410 자리에는 적용되지 않는 셈이다.
+    // 이 세션에서 자매 자리 누락이 세 번 반복돼 대칭을 명시적으로 고정한다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const executionId = randomUUID();
+    // terminal execution → 어떤 명령이든 410 EXECUTION_TERMINATED.
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at, finished_at)
+       VALUES ($1, $2, 'completed', NOW(), NOW())`,
+      [executionId, workflowId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const idempotencyKey = `e2e-410-${randomUUID()}`;
+    const body = { command: 'cancel' };
+
+    const first = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(first.status).toBe(410);
+    expect(first.body.error.code).toBe('EXECUTION_TERMINATED');
+
+    const cached = await redis.get(`interaction:idempotency:${idempotencyKey}`);
+    expect(cached).not.toBeNull();
+    const entry = JSON.parse(cached as string) as { statusCode: number };
+    expect(entry.statusCode).toBe(410);
+
+    const second = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(second.status).toBe(410);
+    expect(second.body.error.code).toBe('EXECUTION_TERMINATED');
   });
 
   it('H. /interact per-execution rate-limit 초과 → 429 RATE_LIMITED + Retry-After (§8.4)', async () => {
