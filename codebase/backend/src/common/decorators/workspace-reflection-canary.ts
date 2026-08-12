@@ -84,7 +84,9 @@ export function countWorkspaceIdConsumingRoutes(
         methodName
       ];
       if (typeof handler !== 'function') continue;
-      if (handlerConsumesWorkspaceId(cls as object, handler)) count++;
+      // `cls` 는 위 `typeof cls !== 'function'` 로 이미 `Function` 이고, 그건
+      // `handlerConsumesWorkspaceId(controllerClass: object, ...)` 에 그대로 배정된다.
+      if (handlerConsumesWorkspaceId(cls, handler)) count++;
     }
   }
   return count;

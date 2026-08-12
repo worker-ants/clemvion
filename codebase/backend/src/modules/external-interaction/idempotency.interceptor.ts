@@ -21,6 +21,21 @@ const REDIS_KEY_PREFIX = 'interaction:idempotency:';
 const TTL_SEC = 24 * 60 * 60; // 24h
 const MAX_KEY_LENGTH = 200;
 
+/**
+ * `context.switchToHttp().getResponse()` 의 반환 타입. Nest 시그니처가
+ * `getResponse<T = any>()` 라 인자를 안 주면 `any` 가 그대로 흘러나온다.
+ *
+ * 여기에 express `Response` 를 박지 않는 이유: 그러면 아래의 `typeof res.status === 'function'`
+ * 과 `typeof res.statusCode === 'number'` 가 정적으로 항상 참이 되어 **방어가 죽은 코드**가
+ * 된다. 이 인터셉터는 어댑터(express/fastify)와 테스트 mock 을 가리지 않고 도는 자리라
+ * 그 방어는 살아 있어야 한다. 그래서 "있으면 이런 모양" 까지만 선언한다 —
+ * 두 `typeof` 가 곧 이 타입의 optional 을 좁히는 유일한 수단이다.
+ */
+interface HttpResponseLike {
+  status?: (code: number) => unknown;
+  statusCode?: unknown;
+}
+
 interface IdempotencyEntry {
   /** SHA-256 hex of request body. 같은 키 + 다른 body → 409. */
   bodyHash: string;
@@ -87,7 +102,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
             });
           }
           // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
-          const res = context.switchToHttp().getResponse();
+          const res = context.switchToHttp().getResponse<HttpResponseLike>();
           if (typeof res.status === 'function') res.status(cached.statusCode);
           return of(JSON.parse(cached.responseJson) as unknown);
         }
@@ -110,7 +125,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return tap({
       next: (value: unknown) => {
         if (!this.redis) return;
-        const res = context.switchToHttp().getResponse();
+        const res = context.switchToHttp().getResponse<HttpResponseLike>();
         const statusCode: number =
           typeof res.statusCode === 'number' ? res.statusCode : 200;
         if (statusCode >= 400) return;
