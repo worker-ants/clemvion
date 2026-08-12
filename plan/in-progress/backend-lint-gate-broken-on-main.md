@@ -486,7 +486,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
       > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
       > 덮은 갈래를 먼저 세어야 한다.**
-- [ ] **planner 인계 — `spec/data-flow/15-external-interaction.md` 의 R8 요약이 SoT 보다 넓다**
+- [x] **planner 인계 — `spec/data-flow/15-external-interaction.md` 의 R8 요약이 SoT 보다 넓다**
       (`--impl-done` `13_07_33` cross_spec·rationale_continuity WARNING, **BLOCK: NO**).
       data-flow 문서가 §1.2 시퀀스와 §2.1/§2.2 표에서 "4xx 캐시 제외" 로 요약하는데, SoT 인
       [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 "`400 VALIDATION_ERROR` 만 제외, 2xx·409·410 은
@@ -521,7 +521,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 두면 캐시 충돌 시 던지는 `ConflictException`(정상 동작)까지 삼켜 **멱등성 검출이 조용히
       > 죽는다.** 뮤테이션 실측: 뒤로 옮기면 **4건 RED** — 신규 3건 + **기존 409 테스트**.
       > 기존 테스트가 함께 터지는 것이 이 위험이 실재한다는 증거다.
-- [ ] **planner 인계 — spec 의 fail-open 잔여 위험 카탈로그에 idempotency 예시 추가**
+- [x] **planner 인계 — spec 의 fail-open 잔여 위험 카탈로그에 idempotency 예시 추가**
       (`--impl-done` `15_24_11` rationale_continuity INFO 1, **BLOCK: NO**). 코드 주석은
       "Redis 장애 지속 시 중복 억제가 사실상 무력화 → 다운스트림 중복 실행 가능" 까지 적었는데,
       [`spec/data-flow/15-external-interaction.md`](../../spec/data-flow/15-external-interaction.md) `## Rationale` 의 "Fail-open 정책의 일관 표기" 절은
@@ -557,6 +557,15 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > `VALIDATION_ERROR` 를 지목하고, 5xx 캐싱 여부는 아무 말도 하지 않는다. 리뷰어가 제안한
       > `statusCode === 400` 을 그대로 쓰면 400 의 다른 에러 코드를 캐시하게 되고 5xx 도
       > 캐시된다. **spec 확인이 코드보다 먼저**이고, 경우에 따라 planner 턴이 필요하다.
+
+      > **선행 조건 해소 (2026-08-12, planner 턴 `eia-spec-r8-alignment`) — 이제 착수 가능하다.**
+      > 위 "5xx 를 아무 말도 하지 않는다" 가 **더 이상 참이 아니다.** §R8 에 `5xx` 미캐시를
+      > 명시하고, **캐시 대상이 닫힌 목록(`2xx`·`409`·`410`)** 이라는 것과 `=== 400`·`>= 400`
+      > 두 축약이 각각 무엇을 깨뜨리는지를 Rationale 에 적었다. `data-flow/15` 의 "4xx 캐시
+      > 제외" 요약 두 자리도 SoT 에 맞췄다(§1.2 시퀀스 · §2.2 표).
+      >
+      > 즉 **문서만 보고 착수해도 구현이 맞다고 오판하지 않는 상태**가 됐다. 남은 것은 열거를
+      > 그대로 조건으로 옮기는 구현과, 409 캐너리를 R8 정합 동작으로 뒤집는 일뿐이다.
 - [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
       `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
       그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그

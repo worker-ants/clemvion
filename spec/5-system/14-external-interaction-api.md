@@ -1052,9 +1052,11 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 
 ### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계
 
-**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
+**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다. `5xx` 는 캐시하지 않는다 — 일시적 서버 오류를 24h 고정하면 클라이언트가 같은 키로 재시도해도 계속 같은 실패를 돌려받아 `EIA-RL-02` 의 취지(정상 응답의 재현)와 정반대가 된다.
 
 **근거**: validation 실패가 캐시되면 사용자가 form 수정 후 재제출 시 같은 key 를 쓰면 stale 에러가 반환된다. 이는 [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 "검증 실패 → waiting_for_input 유지 → 재제출 가능" 컨벤션과 직접 충돌하며, 사용자 UX (form 수정 → 재제출) 가 깨진다.
+
+**캐시 대상은 닫힌 목록이다**: 위에 열거한 `2xx` · `409` · `410` 이 전부다. `400` 중 `VALIDATION_ERROR` 외의 코드와 `5xx` 는 "재시도가 의미 있는 실패" 라 캐시하면 재시도 자체를 막는다. 구현이 이 목록을 조건으로 옮길 때 **단일 비교로 축약하면 안 된다** — 예컨대 `statusCode === 400` 은 400 의 다른 에러 코드와 5xx 를 캐시 대상으로 만들고, `statusCode >= 400` 은 반대로 `409`·`410` 을 떨궈 `EIA-RL-02` 를 그 범위에서 깨뜨린다. 열거를 그대로 조건에 옮겨야 한다.
 
 ### R9. spec 위치 — `5-system/` 하위 신규 파일
 
