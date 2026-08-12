@@ -2,7 +2,7 @@
 
 ## Unreleased — chat-channel 이 `필수` 로 약속한 update dedup 이 통째로 미구현이었다 (CCH-SE-02)
 
-`ChannelUpdate.idempotencyKey` 는 provider 파서 4종이 채우기만 하고 **읽는 곳이 0곳인 dead
+`ChannelUpdate.idempotencyKey` 는 provider 파서 3종(telegram·slack·discord)이 채우기만 하고 **읽는 곳이 0곳인 dead
 field** 였다. 즉 "동일 `update_id` 30초 안 재도착은 무시" 라는 `필수` 요구사항에 구현이 없었다.
 
 **사용자 영향**: provider 는 webhook 이 2xx 를 못 받으면 같은 update 를 재전송한다. 종전에는

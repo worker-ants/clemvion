@@ -61,7 +61,7 @@ CLAUDE.md 는 명시한다: `developer` 는 `spec/` **read-only**, "구현 중 s
 | 6 | `claim()` JSDoc 이 빈 키 케이스 미언급 | **유예** — 본문 주석에는 이유가 적혀 있다 |
 | 13 | `RedisConnectionProvider` 폴백 분기 미검증 | **유예** — sibling 서비스도 동일. 3중 복제 구조를 손볼 때 함께 |
 | 3 | Redis fail-open 클래스 3중 복제 | **유예** — 리뷰어 제안대로 **4번째**가 생기면 공통 베이스 추출 |
-| 4 | dedup 키가 §9.1 패턴 미준수 | **조치 불요** — [#1160](https://github.com/worker-ants/clemvion/pull/1160) 이 그 규칙 자체를 사실에 맞게 고쳤다. `cc:` 접두는 이제 규약에 등재된 정상 형태다 |
+| 4 | dedup 키가 §9.1 패턴 미준수 | **정정 — 내 처분이 거짓이었다.** 처음에 "[#1160](https://github.com/worker-ants/clemvion/pull/1160) 이 고쳤으니 조치 불요" 라 썼는데, `02_50_39` cross_spec 이 `gh pr view 1160` 으로 **아직 OPEN(미병합)** 임을 실측해 반증했다(내가 다시 확인: `state=OPEN`, `mergedAt=null`). 정확히는 **"#1160 병합 전까지 §9.1 위반 상태가 유지된다"** — 머지 순서 의존이 있다. 이 세션에서 "이미 해소됨" 을 근거 없이 쓴 것이 이걸로 두 번째다 |
 | 7·14 | e2e 부재 | **유예** — 후속 후보(동일 raw body 2회 POST) |
 | 15·16·17 | docstring 동기화 갭 | **유예** — 그중 17번은 선재 |
 | 2·8·9·10·11·12 | 확인 기록 | 조치 불요 |

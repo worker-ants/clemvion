@@ -110,7 +110,7 @@ pending_plans:
 |----|---------|---------|
 | CCH-NF-01 | 어댑터의 inbound 변환 latency: `parseUpdate` ↔ 워크플로우 input 평균 50ms 이내. [WH-NF-01](./12-webhook.md#비기능-요구사항) 의 200ms 안에 인증·trigger 조회와 합산해 들어가야 함 | 필수 |
 | CCH-NF-02 | 어댑터의 outbound 변환 latency: 단일 sink (`executionEvents$`) 이벤트 수신 ↔ 채널 sendMessage 호출 평균 200ms 이내 | 필수 |
-| CCH-NF-03 | 채널(chat)당 분당 inbound 한도를 **per-chat fixed-window 카운터**로 enforcement (기본 60건/분 — 텔레그램 Bot API group rate limit 과 정합; `config.chatChannel.rateLimitPerMinute` 1–600 override). 한도 초과분은 **버퍼링/재발사 없이 처리 생략** (`202 Accepted` + `{ executionId: 'ignored' }`, telegram-safe 2xx) + `chat_channel_health=degraded` 갱신 (CCH-SE-01 과 동일 DB 동작: `chat_channel_health=degraded` / `chat_channel_last_error` 기록, 자동 비활성화 금지). 카운터는 Redis (`PublicWebhookQuotaService` 와 동일 `INCR`+`EXPIRE` pipeline 을 **별도 per-chat 키**로 구현 — 멀티 인스턴스 전역 정확). Redis 미가용 시 **fail-open** (rate-limit 미적용, 정상 처리). `INCR`+`EXPIRE` 1회는 WH-NF-01 200ms 예산 안 (fail-open 이라 Redis 장애 시 추가 latency 없음). (구 "chat 단위 큐 적재 → 재발사" 정책에서 skip 으로 변경 — 근거 [R-CC-19](#r-cc-19-cch-nf-03-rate-limit--replay-큐-대신-skip--degraded)) <br>구현: `ChatChannelRateLimiterService.consume` ([`chat-channel/chat-channel-rate-limiter.service.ts`](../../codebase/backend/src/modules/chat-channel/chat-channel-rate-limiter.service.ts)) 가 Redis fixed-window 카운트를 수행하고, `HooksService.handleChatChannelWebhook` 이 parseUpdate 직후 한도 초과 시 `markChatChannelRateLimited`(degraded, 이미 degraded 면 skip)로 단락 + `{ executionId: 'ignored' }` 반환 ([`hooks.service.ts`](../../codebase/backend/src/modules/hooks/hooks.service.ts)). | 필수 |
+| CCH-NF-03 | 채널(chat)당 분당 inbound 한도를 **per-chat fixed-window 카운터**로 enforcement (기본 60건/분 — 텔레그램 Bot API group rate limit 과 정합; `config.chatChannel.rateLimitPerMinute` 1–600 override). 한도 초과분은 **버퍼링/재발사 없이 처리 생략** (`202 Accepted` + `{ executionId: 'ignored' }`, telegram-safe 2xx) + `chat_channel_health=degraded` 갱신 (CCH-SE-01 과 동일 DB 동작: `chat_channel_health=degraded` / `chat_channel_last_error` 기록, 자동 비활성화 금지). 카운터는 Redis (`PublicWebhookQuotaService` 와 동일 `INCR`+`EXPIRE` pipeline 을 **별도 per-chat 키**로 구현 — 멀티 인스턴스 전역 정확). Redis 미가용 시 **fail-open** (rate-limit 미적용, 정상 처리). `INCR`+`EXPIRE` 1회는 WH-NF-01 200ms 예산 안 (fail-open 이라 Redis 장애 시 추가 latency 없음). (구 "chat 단위 큐 적재 → 재발사" 정책에서 skip 으로 변경 — 근거 [R-CC-19](#r-cc-19-cch-nf-03-rate-limit--replay-큐-대신-skip--degraded)) <br>구현: `ChatChannelRateLimiterService.consume` ([`chat-channel/chat-channel-rate-limiter.service.ts`](../../codebase/backend/src/modules/chat-channel/chat-channel-rate-limiter.service.ts)) 가 Redis fixed-window 카운트를 수행하고, `HooksService.handleChatChannelWebhook` 이 parseUpdate 직후(**CCH-SE-02 dedup 게이트를 통과한 뒤** — 재도착은 같은 트래픽이라 쿼터를 소비하지 않는다) 한도 초과 시 `markChatChannelRateLimited`(degraded, 이미 degraded 면 skip)로 단락 + `{ executionId: 'ignored' }` 반환 ([`hooks.service.ts`](../../codebase/backend/src/modules/hooks/hooks.service.ts)). | 필수 |
 
 ---
 
@@ -706,6 +706,16 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 ### R-CC-18. `rotate-bot-token` workspace 검증 — 공용 `@WorkspaceId()` 데코레이터 통일
 
 `§5.4` rotate-bot-token endpoint 의 workspace 컨텍스트 부재 응답을 **`400 WORKSPACE_ID_REQUIRED`** (공용 `@WorkspaceId()` 데코레이터, [`3-error-handling.md §1.3`](./3-error-handling.md#13-유효성-검증-에러) canonical) 로 둔다. 옛 구현은 controller 인라인으로 `X-Workspace-Id` 헤더만 수동 검사해 **`401 WORKSPACE_REQUIRED`** 를 던졌으나 — (i) workspace 컨텍스트 부재는 인증 실패(401)가 아니라 요청 컨텍스트 부재(400)이고, (ii) 헤더만 보고 JWT `workspaceId` fallback 을 놓쳐 다른 모든 endpoint 와 동작이 어긋났으며, (iii) 코드명도 canonical `WORKSPACE_ID_REQUIRED` 와 달라 클라이언트가 같은 조건을 이중 분기해야 했다. 공용 데코레이터로 이관해 세 불일치를 동시에 해소했다 (코드 변경 PR #566). 옛 `WORKSPACE_REQUIRED` 는 [`error-codes.md §5 Rename 이력`](../conventions/error-codes.md#5-rename-이력-retired-codes) 에 등재 — user-docs 목록에만 노출됐고 client 하드코딩 분기가 없어 breaking 영향은 0 이다.
+
+### R-CC-20. CCH-SE-02 dedup — EIA `Idempotency-Key` 재사용이 아니라 전용 서비스
+
+**배경**: CCH-SE-02 원문은 "인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급" 이라 적어, **EIA 의 HTTP `IdempotencyInterceptor` 가 재도착을 막아 준다**는 뜻으로 읽혔다. 그 전제로는 구현이 불가능하다.
+
+- **구조적 이유**: chat-channel inbound 는 `scope: 'in_process_trusted'` ctx 를 합성해 `InteractionService` 를 **직접** 호출한다([EIA-AU-08](./14-external-interaction-api.md)). HTTP 를 거치지 않으므로 그 인터셉터를 **통과하지 않는다**. 즉 원문대로면 어느 코드도 dedup 을 수행하지 않는다 — 실제로 `ChannelUpdate.idempotencyKey` 는 파서 3종이 채우기만 하고 **읽는 곳이 0곳인 dead field** 였다.
+- **채택**: 전용 `ChatChannelDedupService`(Redis `SET NX EX 30`, 키 `cc:dedup:{triggerId}:{updateId}`). `SET NX` 단일 호출이라 원자적이고, 두 인스턴스가 같은 재전송을 동시에 받아도 하나만 통과한다.
+- **게이트 위치**: `parseUpdate` 직후(키 확정 시점)이자 **CCH-NF-03 rate-limit 앞**. 재도착은 새 트래픽이 아니라 같은 트래픽이므로 쿼터를 소비하면 안 된다.
+- **fail-open**: Redis 미가용/에러 시 통과(+warn). 같은 모듈 rate-limiter·`PublicWebhookQuotaService` 와 동일 정책이며, 그 구간에는 중복 처리가 가능하다는 뜻이라 조용히 넘어가지 않는다.
+- **왜 필요한가**: provider 는 webhook 이 2xx 를 못 받으면 같은 update 를 재전송한다([R-CC-12 (b)](#r-cc-12-telegram-safe-2xx)). 억제가 없으면 사용자의 같은 입력이 두 번 dispatch 돼 workflow 가 중복 재개된다.
 
 ### R-CC-19. CCH-NF-03 rate-limit — replay 큐 대신 skip + degraded
 
