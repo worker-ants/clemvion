@@ -107,6 +107,11 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 > `--max-warnings 0` 을 걸었다 — 결론과 근거는 §후속 의 마지막 항목에 있다.
 > 아래 표의 성격 분류는 **일부 틀렸다**(같은 항목 참조). 지금 읽는 사람이 미해결로
 > 오해하지 않도록 여기 먼저 적는다.
+>
+> **제목의 "47건" 도 정정 대상이다 — 착수 시점 실측은 46.** 47 은 `#1104` 직후
+> (2026-08-09) 값이고, 그 사이 다른 PR 들이 일부를 자연 소거했다. 제목·아래 본문의 47 은
+> **그 날짜의 역사값**으로 남겨 두고(당시 판단의 근거였으므로), 실측 46 과 그 차이의
+> 출처는 §후속 마지막 항목에 적었다.
 
 `no-unsafe-*` 45 + 기타 2. **비차단이므로 이 PR 의 목적(게이트 복구) 밖이다.** 45곳에
 억제/타입보강을 넣으면 판단이 들어간 변경이 45개 늘고 diff 만 커지는데 게이트에는 영향이 없다.
@@ -390,9 +395,18 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > **왜 ratchet 이 아닌가 — 전수 조사가 전제를 뒤집었다.** ratchet 이 사는 이유는
       > "지금 처분할 수 없는 잔여를 수용하면서 바닥은 닫는다" 인데, 46건을 전부 열어 보니
       > **처분할 수 없는 자리가 하나도 없었다.** 전부 라이브러리 경계에서 `any` 가 새는
-      > 자리였고 수정이 타입 주석·제네릭 인자뿐이라 **런타임을 건드리지 않는다.** 타입을
+      > 자리였고 수정이 타입 주석·제네릭 인자·단언뿐이라 **런타임을 건드리지 않는다.** 타입을
       > 지어내야 하는 자리도, 억제(`eslint-disable`)가 필요한 자리도 없었다. 그러면
       > baseline 파일도 매직 넘버도 필요 없어지고, ratchet 은 유지비만 남는다.
+
+      > **"런타임 미접촉" 을 마지막 21건에서도 실측했다 — 그리고 한 칸 좁혀 적는다.**
+      > 전체 `ts.Program`(실 tsconfig, `emitDecoratorMetadata` 포함)으로 before/after 를
+      > emit 해 md5 를 비교한 결과 **7파일 중 5개 동일**, 나머지 둘은 **괄호 한 쌍**만
+      > 다르다(dispatcher 의 `const logFn = (cond ? a : b)`, dto 의 화살표 concise body).
+      > 의미는 같지만 **"emit 이 바이트 동일" 은 이 둘에서 거짓**이므로 그대로 쓰지 않는다.
+      > 정확한 진술은 **"타입 소거만 일어났고 남은 차이는 괄호로 의미 동등"** 이다.
+      > `emitDecoratorMetadata` 가 켜져 있어 DTO 가 유일한 실질 위험이었는데
+      > `__metadata("design:type", String)` 은 불변이었다 — 데코레이터 메타데이터는 안 움직였다.
       >
       > **위 §잔여 표의 성격 분류는 두 자리가 틀렸다.** `render-tool-provider.ts` 6건을
       > "정당한 unsafe → 억제 + 근거" 로 미리 분류해 뒀지만 실제 원인은
@@ -401,14 +415,22 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > `src/scripts/migrate-node-output-refs.ts` 17건도 "일회성 스크립트" 라 적혀 있었지만
       > 콜백 인자 타입만으로 닫혔다. **열어보지 않고 적은 분류가 착수 판단을 왜곡한다.**
 
+      > **인계 노트가 제시한 수정 방향도 두 자리에서 틀렸다 — 실측으로 갈렸다.**
+      > `logFn`(dispatcher)·`oldest`(executions) 는 "변수에 타입을 주면 된다" 로 인계됐고
+      > 그대로 해 봤지만 두 건이 **그대로 남았다.** `no-unsafe-assignment` 는 LHS 선언 타입이
+      > 아니라 **RHS 가 `any` 인 것**을 보기 때문이다(대신 downstream `no-unsafe-call`·
+      > `no-unsafe-argument` 는 그 시점에 사라졌다 — 부분 효과가 있어 더 헷갈린다).
+      > 단언으로 바꿔 처분했다. 규칙이 무엇을 보는지 확인하지 않고 "주석을 붙이면 된다" 로
+      > 넘기면 warning 이 남은 채 게이트만 거는 결과가 된다.
+
       마지막 21건(7파일)의 원인과 조치:
 
       | 위치 | 건수 | 원인 | 조치 |
       |---|---|---|---|
       | `idempotency.interceptor.ts` | 8 | `getResponse<T = any>()` 제네릭 미지정 | 구조적 타입 `HttpResponseLike` 주입 |
       | `render-tool-provider.ts` | 6 | `Array.isArray` → `any[]` 좁힘 | 콜백 원소 `unknown` 명시 |
-      | `chat-channel.dispatcher.ts` | 2 | `strictBindCallApply: false` + 오버로드 → `.bind` 가 `any` | 화살표 래핑 |
-      | `executions.service.ts` | 2 | `IteratorResult` return 분기 → `.value` 가 `any` | `done` 으로 좁힘 |
+      | `chat-channel.dispatcher.ts` | 2 | `strictBindCallApply: false` + 오버로드 → `.bind` 가 `any` | 단언으로 형태 복원 |
+      | `executions.service.ts` | 2 | `BuiltinIteratorReturn`(=`any`) → `.value` 가 `any` | 단언 `string \| undefined` |
       | `ai-agent.schema.ts` | 1 | `Array.isArray` → `any[]` 좁힘 | 원소 `unknown` 명시 |
       | `chat-channel-config.dto.ts` | 1 | `TransformFnParams.value` 가 `any` | 구조분해 파라미터에 타입 |
       | `workspace-reflection-canary.ts` | 1 | `no-unnecessary-type-assertion` | `as object` 삭제 |
@@ -422,6 +444,13 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > `workspace-reflection-canary.spec.ts` 의 fail-closed 단언(인식 0건이면 throw) 포함
       > 전량 통과. `cls` 는 바로 위 `typeof cls !== 'function'` 로 이미 `Function` 이고
       > 그건 `handlerConsumesWorkspaceId(controllerClass: object, …)` 에 그대로 배정된다.
+      >
+      > **통과만으로는 부족해 두 갈래로 확인했다** — 가드 캐너리라 "테스트가 초록" 은 증거로
+      > 약하다. (1) 이 파일의 emit md5 가 **before/after 동일**이라 런타임이 바뀔 수 없고,
+      > (2) 양성 검출 테스트가 **실제 `@WorkspaceId()` 데코레이터를 mock 없이** 돌려
+      > `toBe(2)` 를 단언한다 — 즉 "0건이면 throw" 라는 음성 방향뿐 아니라 **소비 라우트를
+      > 실제로 세는 능력**이 살아 있음을 직접 고정한다. 캐너리가 자기 대상을 못 잡게 되는
+      > 파손은 이 단언에서 먼저 드러난다.
 
       **`--max-warnings 0` 을 CI 워크플로가 아니라 `package.json` 에 넣은 이유**: CI
       (`backend-checks.yml:95`)가 `pnpm --filter backend lint` 를 그대로 호출하므로 로컬과 CI 가
@@ -429,20 +458,30 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       사고를 이미 겪었다.
 
       > **게이트를 양방향으로 실측했다** — 걸어 놓고 안 걸리는 것이 이 저장소의 반복 실패다.
-      > 일부러 warning 하나(`any` → `string` 반환)를 심고 `pnpm --filter backend lint`
-      > → **exit 1** (`ESLint found too many warnings (maximum: 0)`), 제거 후 → **exit 0**.
-      > **첫 프로브는 무효였다** — `any` → `unknown` 반환은 `no-unsafe-return` 이 애초에
-      > 허용해서 아무 warning 도 안 났다(`--max-warnings` 없이 exit 0 인 것으로 선검증해
-      > 걸러냈다). 프로브가 진짜 warning 을 내는지 먼저 확인하지 않으면 게이트 검증 자체가
-      > vacuous 해진다.
+      > `ai-agent.schema.ts` 의 `const tool: unknown` 에서 `: unknown` 만 떼어 warning 하나를
+      > 되살리고 `pnpm --filter backend lint` → **exit 1**
+      > (`✖ 1 problem (0 errors, 1 warning)` + `ESLint found too many warnings (maximum: 0)`).
+      > 되돌린 뒤 → **exit 0**. **0 errors / 1 warning 에서 exit 1** 이라는 점이 핵심이다 —
+      > `--max-warnings 0` 이전이라면 정확히 같은 상태가 exit 0 이었다.
+      > 뮤테이션은 커밋 뒤에 넣고 커밋에서 되돌렸다(미커밋 작업을 지우지 않기 위해).
+      >
+      > **프로브 유효성 선검증은 생략하지 말 것** — 직전 세션은 첫 프로브로 `any` → `unknown`
+      > 반환을 심었는데 `no-unsafe-return` 이 그것을 애초에 허용해 **아무 warning 도 안 났다.**
+      > 프로브가 진짜 warning 을 내는지 먼저 확인하지 않으면 게이트 검증 자체가 vacuous 해진다.
 
       검증: eslint **errors 0 / warnings 0** · 타입체크 ratchet **199건 / 38파일 baseline 일치**
       (증감 0 — 타입을 깬 자리 없음) · backend unit **418 suites / 8512 passed**.
-- [ ] `migrate-node-output-refs.ts` admission 자리의 `Array.isArray(rows)` 런타임 가드
-      (`11_06_12` security INFO, 직전 세션이 유예). 그 커밋의 값이 "emit JS 가 md5 까지
-      before/after 동일" 이라 런타임 가드를 넣으면 그 성질이 깨진다는 이유였고, 실패 방향이
-      **fail-closed** 라(shape 이 어긋나면 `undefined === 1` → false → admission 거부이지 cap
-      우회가 아니다) 급하지 않다. `review/**` 는 SoT 가 아니므로 여기 옮겨 적는다.
+- [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
+      `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
+      그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그
+      성질이 깨진다는 이유였고, 실패 방향이 **fail-closed** 라(shape 이 어긋나면
+      `undefined === 1` → false → admission 거부이지 cap 우회가 아니다) 급하지 않다.
+      `review/**` 는 SoT 가 아니므로 여기 옮겨 적는다.
+      > **파일명 정정 (2026-08-12).** 이 항목은 처음에 `migrate-node-output-refs.ts` 로
+      > 적혀 있었지만 **틀렸다** — security 리뷰어가 지목한 자리는
+      > `execution-engine.service.ts` 의 admission-control 이다(`security.md` 본문이
+      > 파일명과 행 번호를 명시한다). 백로그 항목의 파일명이 틀리면 항목 자체가 실행
+      > 불가능해지므로 착수 전에 원 리포트로 대조했다.
 
 ## Rationale
 
