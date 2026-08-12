@@ -18,12 +18,6 @@
  *
  * 형태 검증이 별도 축인 이유는 `JSON.parse` 가 **문법 오류에만** 던지기 때문이다 — `'null'` 은
  * 유효한 JSON 이라 `try/catch` 를 통과한 뒤 필드 접근에서 `TypeError`(→500)를 냈다.
- *
- * 다섯 번째 describe 는 **`readKey`/`hashBody` 경계값** — 키 길이 상한 경계 양쪽 · 공백뿐인 키 ·
- * trim 동등성 · 배열/조인-문자열 헤더 · body nullish 동등성 · 키 순서 의존(문서화된 계약), 그리고
- * 엔트리 `statusCode` 의 **값 범위**(`isHttpStatusCode`)를 인접 경계 페어로 고정한다.
- * 헬퍼가 전부 module-private 라 전부 `intercept()` 를 통해 본다 — 헬퍼 직접 호출은 호출부
- * 테스트가 아니다.
  * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
@@ -43,6 +37,12 @@
  * 않고 캐시 자체를 건너뛰는 것도 여기서 고정한다.
  * 다만 이 블록의 `getHandler()` 는 mock 이 만들어 낸 것이라 **실 파이프라인의 route 이름**은
  * 검증할 수 없다 — 그 자리는 e2e `IDEM-5` 다.
+ *
+ * 다섯 번째 describe 는 **`readKey`/`hashBody` 경계값** — 키 길이 상한 경계 양쪽 · 공백뿐인 키 ·
+ * trim 동등성 · 배열/조인-문자열 헤더 · body nullish 동등성 · 키 순서 의존(문서화된 계약), 그리고
+ * 엔트리 `statusCode` 의 **값 범위**(`isHttpStatusCode`)를 인접 경계 페어로 고정한다.
+ * 헬퍼가 전부 module-private 라 전부 `intercept()` 를 통해 본다 — 헬퍼 직접 호출은 호출부
+ * 테스트가 아니다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, throwError, type Observable } from 'rxjs';
