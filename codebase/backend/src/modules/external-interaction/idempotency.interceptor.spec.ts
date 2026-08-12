@@ -1055,6 +1055,137 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
  *
  * 조회(GET)와 적재(SET)를 **둘 다** 단언한다 — 한쪽만 스코프하는 회귀가 실제 가능한 형태다.
  */
+/**
+ * fail-open **관측** — 다섯 경로가 각자 다른 `reason` 라벨을 낸다.
+ *
+ * fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데, 종전에는 뒤쪽이 warn
+ * 로그뿐이었다. 로그는 사후 조회는 되지만 **비율·추세로 알람을 걸 수 없다**.
+ *
+ * **경로별로 라벨이 갈리는지가 요점이다** — 다섯을 한 라벨로 뭉치면 카운터는 올라가도
+ * "무엇이 고장났는지" 를 알람이 못 가린다(Redis 가 죽은 것과 캐시가 오염된 것은 대응이 다르다).
+ */
+describe('IdempotencyInterceptor — fail-open 관측 (metrics)', () => {
+  function makeMetrics() {
+    return { recordRedisFailOpen: jest.fn() };
+  }
+  function withMetrics(
+    redis: RedisStub,
+    m: { recordRedisFailOpen: jest.Mock },
+  ) {
+    return new IdempotencyInterceptor(
+      undefined,
+      redis as never,
+      undefined,
+      m as never,
+    );
+  }
+
+  it.each([
+    [
+      'GET 실패',
+      'get_failed',
+      (r: RedisStub) => r.get.mockRejectedValue(new Error('ECONNRESET')),
+    ],
+    [
+      'SET 실패',
+      'set_failed',
+      (r: RedisStub) => r.set.mockRejectedValue(new Error('ECONNRESET')),
+    ],
+    [
+      '엔트리 손상',
+      'entry_corrupt',
+      (r: RedisStub) => r.get.mockResolvedValue('not-valid-json{'),
+    ],
+    [
+      'payload 손상',
+      'payload_corrupt',
+      (r: RedisStub) =>
+        r.get.mockResolvedValue(
+          JSON.stringify({
+            bodyHash: bodyHashOf({ a: 1 }),
+            responseJson: 'not-valid-json{',
+            statusCode: 200,
+          }),
+        ),
+    ],
+  ])('%s → reason=%s', async (_label, reason, setup) => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      setup(redis);
+      const m = makeMetrics();
+
+      await lastValueFrom(
+        withMetrics(redis, m).intercept(
+          makeContext({ idempotencyKey: 'obs', body: { a: 1 } }),
+          makeCallHandler({ ok: true }),
+        ),
+      );
+      // SET 은 fire-and-forget 이라 microtask 몇 틱 뒤에 catch 가 돈다.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(m.recordRedisFailOpen).toHaveBeenCalledWith('idempotency', reason);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('직렬화 실패 → reason=serialize_failed', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const circular: Record<string, unknown> = { ok: true };
+      circular.self = circular;
+      const redis = makeRedis();
+      const m = makeMetrics();
+
+      await lastValueFrom(
+        withMetrics(redis, m).intercept(
+          makeContext({ idempotencyKey: 'obs-ser', body: {} }),
+          makeCallHandler(circular),
+        ),
+      );
+
+      expect(m.recordRedisFailOpen).toHaveBeenCalledWith(
+        'idempotency',
+        'serialize_failed',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('정상 경로에서는 카운터가 오르지 않는다 — 항상 올리는 회귀 방지', async () => {
+    const redis = makeRedis();
+    const m = makeMetrics();
+    await lastValueFrom(
+      withMetrics(redis, m).intercept(
+        makeContext({ idempotencyKey: 'obs-ok', body: {} }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+    expect(m.recordRedisFailOpen).not.toHaveBeenCalled();
+  });
+
+  it('metrics 미주입이어도 fail-open 경로가 죽지 않는다 (optional DI)', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.get.mockRejectedValue(new Error('ECONNRESET'));
+      // metrics 인자 없이 생성 — MetricsModule 이 없는 구성에서도 죽으면 안 된다.
+      const result = await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'obs-no-metrics', body: {} }),
+          makeCallHandler({ ok: true }),
+        ),
+      );
+      expect(result).toEqual({ ok: true });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
 describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () => {
   it('execution 축 — 다른 executionId 는 같은 키를 써도 다른 엔트리를 본다', async () => {
     const redisA = makeRedis();

@@ -533,7 +533,23 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       Redis 장애가 지속되는 동안 같은 `Idempotency-Key` 재요청이 전부 캐시 미스로 판정돼
       다운스트림이 중복 실행될 수 있다 — spec 이 택한 "가용성 우선" 트레이드오프라 되돌리지
       않았고 대가는 docstring·CHANGELOG 에 명시했지만, **운영이 그 구간을 인지할 수단이 없다.**
-      - Redis GET 실패율 지표/알람 추가 검토
+      - [x] **Redis 실패율 지표 — 완료 (2026-08-13, `eia-redis-failure-metric`).**
+        `clemvion.redis.fail_open` 카운터를 `BusinessMetricsService` 에 추가하고 인터셉터의
+        **다섯 fail-open 경로 전부**에 배선했다(`get_failed`·`set_failed`·`serialize_failed`·
+        `entry_corrupt`·`payload_corrupt`).
+        > **왜 로그로 부족했나**: fail-open 은 "요청을 살린다 + 장애를 보이게 한다" 가 한 쌍인데
+        > 뒤쪽이 warn 로그뿐이었다. 로그는 사후 조회는 되지만 **비율·추세로 알람을 걸 수 없다**.
+        >
+        > **경로별 `reason` 라벨이 요점**이다 — 다섯을 하나로 뭉치면 카운터는 올라가도 "무엇이
+        > 고장났는지" 를 알람이 못 가린다(Redis 가 죽은 것과 캐시가 오염된 것은 대응이 다르다).
+        > 라벨은 코드가 정하는 **닫힌 집합**이라 cardinality 가 늘지 않는다.
+        >
+        > 뮤턴트 **5/5 사살** — 세 경로 기록 제거 · **손상 두 갈래를 하나로 뭉갬** ·
+        > **정상 경로에서도 항상 기록**(거짓 알람). 뒤 둘이 특히 중요하다: 카운터는 "오르는지"
+        > 만이 아니라 **"안 올라야 할 때 안 오르는지"** 와 **"원인을 가르는지"** 가 계약이다.
+        >
+        > `metrics` 는 `@Optional()` — `OTEL_ENABLED` 미설정 시 `getMeter` 가 no-op 을 주므로
+        > 호출부는 활성 여부를 신경 쓰지 않는다(기존 `BusinessMetricsService` 관례).
       - GET→SET 비원자 구조(선재)를 `SET NX EX` 선점 또는 in-flight dedup 으로 좁힐지 검토
         (`14_27_02` concurrency INFO 7) — 정상 시에도 좁은 창이 있다
 - [x] **`Idempotency-Key` e2e 부재** (`16_29_45` testing CRITICAL 의 후속 권고).
