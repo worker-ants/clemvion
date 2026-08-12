@@ -352,22 +352,34 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
  * spec 이 요구한 가용성 우선과 정반대다.
  */
 describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
-  it('`get()` 이 reject 해도 요청은 통과한다 (fail-open)', async () => {
-    const redis = makeRedis();
-    redis.get.mockRejectedValue(new Error('ECONNRESET'));
-    const interceptor = makeInterceptor(redis);
-    const handler = makeCallHandler({ ok: true });
-    const handleSpy = jest.spyOn(handler, 'handle');
+  it('`get()` 이 reject 해도 요청은 통과하고 warn 을 남긴다 (fail-open)', async () => {
+    // warn 단언은 SET 경로와의 **대칭**을 위한 것이다 — 응답만 보면 `catchError` 안의
+    // `logger.warn` 한 줄을 지워도 그대로 GREEN 이라, 장애가 조용해지는 변경을 못 잡는다.
+    // fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍이고, 관측이 빠지면
+    // Redis 가 죽은 채로 중복 실행이 도는 구간을 아무도 모른다(plan §후속 의 관측 지표 항목).
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.get.mockRejectedValue(new Error('ECONNRESET'));
+      const interceptor = makeInterceptor(redis);
+      const handler = makeCallHandler({ ok: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
 
-    const result = await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'down-1', body: { a: 1 } }),
-        handler,
-      ),
-    );
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'down-1', body: { a: 1 } }),
+          handler,
+        ),
+      );
 
-    expect(result).toEqual({ ok: true });
-    expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(result).toEqual({ ok: true });
+      expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache GET 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('`get()` 이 reject 하면 캐시 미스로 취급해 새 응답을 적재한다', async () => {
