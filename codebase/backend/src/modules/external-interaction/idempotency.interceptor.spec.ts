@@ -18,9 +18,11 @@
  * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그 fail-open 이
  * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리, 그리고
  * **직렬화 불가 payload** 가 원 예외를 500 으로 대체하지 않는지(양 채널)를 담는다.
- * 이 블록의 테스트는 전부 `Logger.prototype.warn` 을 함께 단언한다 — fail-open 은 "요청을
- * 살린다" 와 "장애를 보이게 한다" 가 한 쌍이고, 로그 한 줄이 사라지는 회귀는 응답만 봐서는
- * 잡히지 않기 때문이다.
+ * 그중 **적재·직렬화가 조용히 실패할 수 있는 4건**(GET 실패 · SET 실패 · 직렬화 실패 양
+ * 채널)은 `Logger.prototype.warn` 을 함께 단언한다 — fail-open 은 "요청을 살린다" 와 "장애를
+ * 보이게 한다" 가 한 쌍이고, 로그 한 줄이 사라지는 회귀는 응답만 봐서는 안 잡히기 때문이다.
+ * 나머지 3건은 각각 다른 것을 본다(캐시 미스 강등 후 재적재 · `catchError` 위치 · 비-`Error`
+ * reject 에서 로그 조립이 죽지 않는지)이라 warn 단언을 붙이지 않았다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, throwError, type Observable } from 'rxjs';
