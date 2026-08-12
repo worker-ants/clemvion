@@ -568,8 +568,23 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 인증 우회는 없고 현재 payload 는 고정 코드/enum 뿐이라 즉시 위험은 낮지만,
       > **표면 자체가 넓어졌다.**
       >
-      > 조치 방향: `redisKey` 에 `executionId`(가드 검증 후 신뢰 가능한 값) 또는 인증 scope
-      > 식별자를 포함 — `interaction:idempotency:${executionId}:${rawKey}`.
+      > 조치 방향: `redisKey` 에 `executionId`(가드 검증 후 신뢰 가능한 값) 를 포함 —
+      > `interaction:idempotency:${executionId}:${route}:${rawKey}` (**3 세그먼트**).
+      >
+      > **"인증 scope 식별자" 로 읽으면 안 된다** — jti·토큰 식별자로 스코프하면
+      > `/refresh-token` 으로 토큰이 회전한 뒤의 재시도가 다른 키로 떨어져 `EIA-RL-02` 가
+      > 보장하려는 바로 그 시나리오를 깬다. 스코프 단위는 토큰이 아니라 execution 이다.
+      >
+      > **축이 하나 더 있다 (`<route>`)** — 같은 인터셉터가 `interact` 와 `cancel` 두 자리에
+      > 붙어 있는데 `CancelDto` 는 전 필드 optional 이라 body `{}` 가 가능하고, 그때
+      > `bodyHash` 가 `{}` 인 interact 요청과 일치해 cancel 의 ack 가 interact 에 재생된다.
+      > 원 지적(execution 축) 밖이지만 같은 결함 클래스라 함께 닫는다.
+      >
+      > **선행 spec 해소 (2026-08-12, planner 턴 `eia-idempotency-key-scope`)** — 키 형식은
+      > `spec/data-flow/15` 3자리에 박혀 있고 `EIA-IN-11`·`EIA-RL-02` 두 행이 "동일 키" 라고만
+      > 적어 **전역 유일성을 암시**했다. §R8 Rationale 에 "캐시 키 스코프" 문단(두 축 · 토큰이
+      > 아닌 이유 · ctx 부재 시 캐시 skip)을 추가하고 세 자리를 3-세그먼트로 고쳤다. 이제
+      > 구현만 남았다. draft: [`spec-draft-eia-idempotency-key-scope.md`](spec-draft-eia-idempotency-key-scope.md)
       >
       > ⚠️ **이 항목은 `16_29_45`·`16_53_26`·`17_07_45`·`18_07_36`·`18_52_47` 다섯 라운드의
       > RESOLUTION 이 "plan 에 이미 등재됨" 이라고 반복 주장했지만 실제로는 한 번도 적히지
@@ -587,6 +602,27 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
+- [ ] **`CCH-SE-02` 의 update dedup 이 미배선 — `ChannelUpdate.idempotencyKey` 는 dead field**
+      (`19_56_51` cross_spec WARNING 3). [`spec/5-system/15-chat-channel.md`](../../spec/5-system/15-chat-channel.md) L88 은
+      "인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id`
+      기반). 동일 `update_id` 30초 안 재도착은 무시" 라고 적지만, 그 경로는 HTTP 인터셉터를
+      타지 않는다 — chat-channel 은 `in_process_trusted` ctx 로 서비스를 직접 호출한다.
+      > **실측**: `ChannelUpdate.idempotencyKey`(`chat-channel/types.ts:129`)는 provider 파서가
+      > 채우기만 하고 **읽는 곳이 0곳**이다(타입 선언 1건 + 파서/테스트뿐). 30초 dedup 도
+      > 코드에 없다(`channel-listener.registry.ts` 의 것은 listener dedup 으로 다른 층).
+      > 즉 spec 이 약속한 동작이 통째로 미구현이다.
+      >
+      > 착수 시: dedup 을 구현할지, `CCH-SE-02` 를 현실에 맞게 고칠지가 **planner 결정**이다.
+      > 전자면 in-process 경로 전용 dedup 이 필요하다 — HTTP 인터셉터 재사용은 층이 안 맞는다.
+- [ ] **EIA 계열 Redis 키가 실행 엔진 §9.1/§9.2 키 레지스트리에 없다** (`19_56_51`
+      convention_compliance INFO 4). [`4-execution-engine.md` §9.1](../../spec/5-system/4-execution-engine.md) 은
+      "**모든** Redis 키는 `{service}:{workspaceId}:{resource}:{id}:{sub}` 를 따른다" 고 선언하고
+      §9.2 표 + 그 아래 예외 각주(`exec:recover:lock`·`exec:seq:<executionId>` 등)로 전역 키를
+      등재하는데, `interaction:idempotency:*` 와 `iext:blacklist:<jti>` 등 **EIA 계열이 통째로
+      빠져 있다**. EIA 는 자체 Redis 표(`data-flow/15` §2.2)를 갖고 있어 두 레지스트리가 분기했다.
+      > 키 하나만 §9.2 에 끼워 넣으면 목록이 더 이상해지므로, **EIA 계열을 묶어** 등재하거나
+      > §9.1 의 "모든" 을 실제 범위로 좁히는 편이 낫다. `spec_impact` 에
+      > `4-execution-engine.md` 가 추가되는 planner 작업.
 - [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
