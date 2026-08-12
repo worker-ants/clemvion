@@ -92,6 +92,147 @@ class PrioritizeBundleFilesTest(unittest.TestCase):
                           plan_text="`4-execution-engine.md` 를 고친다")
         self.assertEqual(out[0], "spec/5-system/4-execution-engine.md")
 
+    # ---- mention matching is BOUNDARY-anchored -------------------------------
+    #
+    # Observed 2026-08-11 (`review/consistency/2026/08/11/17_42_52`): a branch
+    # plan listed `conventions/secret-store.md` as an EXAMPLE, and bare `in`
+    # matched the basename `store.md` inside it. That promoted the unrelated
+    # 30,559-char `cafe24-api-catalog/store.md` into tier 1, and together with
+    # the legitimately-named file it pushed the 31,525-char code diff out of the
+    # `--impl-done` budget — five checkers judged "spec vs implementation" with
+    # no implementation in front of them.
+
+    _SUBSTRING_TRAP = [
+        "spec/conventions/cafe24-api-catalog/store.md",
+        "spec/conventions/secret-store.md",
+        "spec/conventions/error-codes.md",
+    ]
+
+    def test_longer_name_does_not_promote_the_shorter_one(self):
+        """`secret-store.md` must not drag `store.md` up with it.
+
+        `out[0]` is the whole assertion: with bare `in` BOTH files land in the
+        named tier, and inside a tier the order is natural — `cafe24-…` sorts
+        before `secret-…`, so the catalog page LEADS. Anchored, only the named
+        file is promoted and the catalog page falls back to the default tier.
+
+        It still sits at index 1 there, because `cafe24-api-catalog/store.md` is
+        a top-level index page (`_CATALOG_BULK_RE` demotes `…-api-catalog/<res>/**`,
+        not the index) and `c` < `e`. Position is not the property under test —
+        **tier** is, and index 0 is where the two tiers are distinguishable.
+        """
+        out = _prioritize(
+            self._SUBSTRING_TRAP,
+            plan_text="`conventions/secret-store.md` 의 LIKE 메타문자 정규식",
+        )
+        self.assertEqual(
+            out,
+            [
+                "spec/conventions/secret-store.md",
+                "spec/conventions/cafe24-api-catalog/store.md",
+                "spec/conventions/error-codes.md",
+            ],
+        )
+
+    def test_the_named_file_is_still_promoted(self):
+        """The boundary must not cost the real signal — same corpus, and the
+        catalog page IS the one named this time."""
+        out = _prioritize(
+            self._SUBSTRING_TRAP,
+            plan_text="`cafe24-api-catalog/store.md` 를 고친다",
+        )
+        self.assertEqual(out[0], "spec/conventions/cafe24-api-catalog/store.md")
+
+    def test_mention_forms_that_must_still_count(self):
+        """Every shape a plan actually uses to name a file.
+
+        Each is checked on its own so one surviving form cannot mask the rest —
+        a single combined `plan_text` would pass while three of four regressed.
+        """
+        rels = ["spec/5-system/4-execution-engine.md", "spec/5-system/1-auth.md"]
+        for label, text in (
+            ("frontmatter", "spec_impact:\n  - spec/5-system/4-execution-engine.md\n"),
+            ("markdown link", "근거는 [엔진](../5-system/4-execution-engine.md) 참조"),
+            ("backticked basename", "`4-execution-engine.md` 를 고친다"),
+            ("bare, sentence-final", "대상은 4-execution-engine.md."),
+        ):
+            with self.subTest(label):
+                out = _prioritize(rels, plan_text=text)
+                self.assertEqual(out[0], "spec/5-system/4-execution-engine.md")
+
+    def test_extension_suffix_does_not_count(self):
+        """`x.md` must not match `x.mdx` — the trailing boundary."""
+        out = _prioritize(
+            ["spec/conventions/node-output.md", "spec/conventions/error-codes.md"],
+            plan_text="가이드는 node-output.mdx 로 옮겼다",
+        )
+        self.assertNotEqual(out[0], "spec/conventions/node-output.md")
+
+    # Each boundary CHARACTER gets its own case. Reviewed 2026-08-11: deleting
+    # `.` or `_` from `_NAME_START` left all twelve tests green, i.e. only `-`
+    # was pinned — and only because the bug that prompted the fix happened to
+    # use `secret-store.md`. A character class nobody tests is a class nobody
+    # can safely edit.
+    _PREFIXED = ["spec/conventions/store.md", "spec/conventions/error-codes.md"]
+
+    def test_dot_before_the_name_does_not_count(self):
+        """`v2.store.md` must not answer for `store.md` (leading `.`)."""
+        out = _prioritize(self._PREFIXED, plan_text="`v2.store.md` 를 고친다")
+        self.assertNotEqual(out[0], "spec/conventions/store.md")
+
+    def test_underscore_before_the_name_does_not_count(self):
+        """`my_store.md` must not answer for `store.md` (leading `_`)."""
+        out = _prioritize(self._PREFIXED, plan_text="`my_store.md` 를 고친다")
+        self.assertNotEqual(out[0], "spec/conventions/store.md")
+
+    def test_hyphen_before_the_name_does_not_count(self):
+        """The reported bug's own shape, pinned on purpose rather than left to
+        ride along inside the larger `_SUBSTRING_TRAP` case."""
+        out = _prioritize(self._PREFIXED, plan_text="`secret-store.md` 를 고친다")
+        self.assertNotEqual(out[0], "spec/conventions/store.md")
+
+    def test_second_extension_does_not_count(self):
+        """`store.md.bak` must not answer for `store.md`.
+
+        The trailing class allows a bare `.` so sentence-final prose still
+        counts (`… store.md.`), so the rule has to reject `.` only when a
+        filename character follows it.
+        """
+        out = _prioritize(self._PREFIXED, plan_text="백업은 store.md.bak 에 있다")
+        self.assertNotEqual(out[0], "spec/conventions/store.md")
+
+    def test_sentence_final_dot_still_counts(self):
+        """The canary for the case above — tightening must not eat this."""
+        out = _prioritize(self._PREFIXED, plan_text="대상은 store.md.")
+        self.assertEqual(out[0], "spec/conventions/store.md")
+
+    def test_digit_before_the_name_does_not_count(self):
+        """`11-auth.md` must not answer for `1-auth.md`.
+
+        The most repo-realistic shape of all of them: `spec/5-system/` names
+        files `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md`, so a
+        numeric prefix IS a substring of its longer sibling. Per-character
+        mutation found this one — deleting `0-9` from `_NAME_START` left every
+        other test green.
+
+        The corpus puts a naturally-first sibling ahead of the victim on
+        purpose: `1-auth.md` leads its own directory by natural order, so
+        `out[0] != 1-auth.md` would be vacuous without one. (Caught by
+        re-running the mutation matrix — the BASELINE failed, which is what a
+        test that asserts sort order instead of tier looks like.)
+        """
+        corpus = ["spec/5-system/0-overview.md", "spec/5-system/1-auth.md"]
+        self.assertEqual(
+            _prioritize(corpus, plan_text="`11-auth.md` 로 옮겼다")[0],
+            "spec/5-system/0-overview.md",
+            "a longer numeric sibling promoted the shorter name",
+        )
+        # …and the same corpus DOES promote it when the name is really there.
+        self.assertEqual(
+            _prioritize(corpus, plan_text="`1-auth.md` 로 옮겼다")[0],
+            "spec/5-system/1-auth.md",
+        )
+
     def test_catalog_bulk_sinks_below_everything(self):
         """~230 auto-generated catalog files used to lead the conventions bundle
         and push out every convention the target actually cites."""
