@@ -679,9 +679,11 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > (`NaN`·`Infinity` 는 JSON 리터럴이 아니므로 `JSON.parse` 로는 도달 불가 — 실제 표면은
       > 음수·비정상 정수뿐이다.)
 
-      > **완료 (2026-08-13, `eia-idem-key-boundary`).** 경계 테스트 13건 + `isHttpStatusCode()`
-      > 범위 검사. 뮤턴트 **10개 전부 사살**(길이 상한 off-by-one · 길이 검사 · trim ·
-      > non-string · 빈 문자열 · `body ?? null` · statusCode 하한/상한/정수 · 범위 좁힘).
+      > **완료 (2026-08-13, `eia-idem-key-boundary`).** 경계 테스트 **15건**(`it.each` 전개
+      > 기준 — `jest -t` 실행으로 실측. 선언은 9개다) + `isHttpStatusCode()` 범위 검사.
+      > 초안은 13건이었고 리뷰 라운드에서 2건이 늘었다(중복 헤더 조인 문자열 · `99` 인접 경계).
+      > 뮤턴트 **10개 사살**(길이 상한 off-by-one · 길이 검사 · trim · non-string · 빈 문자열 ·
+      > `body ?? null` · statusCode 하한/상한/정수 · 범위 좁힘) — 단, 아래 정정 참고.
       >
       > **처음엔 두 개가 생존했고 둘 다 내 쪽 결함이었다:**
       >

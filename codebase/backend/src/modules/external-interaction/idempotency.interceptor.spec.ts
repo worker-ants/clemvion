@@ -1372,6 +1372,10 @@ describe('IdempotencyInterceptor — readKey / hashBody 경계값', () => {
       ),
     );
 
+    // 적재가 실제로 일어났는지 **먼저** 단언한다 — 바로 `calls[0]` 을 인덱싱하면 회귀 시
+    // `TypeError` 스택트레이스만 남아 원인이 "적재 안 됨" 인지 "hash 불일치" 인지 안 보인다.
+    expect(first.set).toHaveBeenCalledTimes(1);
+    expect(second.set).toHaveBeenCalledTimes(1);
     const hashOf = (r: RedisStub) =>
       (JSON.parse(r.set.mock.calls[0][1] as string) as { bodyHash: string })
         .bodyHash;
