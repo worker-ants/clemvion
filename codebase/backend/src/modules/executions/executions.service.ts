@@ -191,10 +191,8 @@ export class ExecutionsService {
       this.snapshotCache.delete(id);
     } else if (this.snapshotCache.size >= SNAPSHOT_CACHE_MAX_ENTRIES) {
       // 가장 오래된 키 evict.
-      // `.next().value` 는 `IteratorResult` 의 return 분기 탓에 `any` 다 — `done` 으로
-      // 좁히면 yield 분기의 `string` 으로 확정된다(빈 Map 이면 삭제 안 함, 종전과 동일).
-      const oldest = this.snapshotCache.keys().next();
-      if (!oldest.done) this.snapshotCache.delete(oldest.value);
+      const oldest = this.snapshotCache.keys().next().value;
+      if (oldest !== undefined) this.snapshotCache.delete(oldest);
     }
     this.snapshotCache.set(id, snapshot);
   }

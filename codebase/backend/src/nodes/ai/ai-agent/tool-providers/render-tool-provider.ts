@@ -373,9 +373,7 @@ export function backfillButtonUuids(
 
   const fillButtons = (arr: unknown): unknown => {
     if (!Array.isArray(arr)) return arr;
-    // `Array.isArray` 는 `unknown` 을 `unknown[]` 이 아니라 `any[]` 로 좁힌다(TS 특성).
-    // 원소를 `unknown` 으로 받아 그 `any` 가 아래로 새지 않게 한다.
-    return arr.map((b: unknown) => {
+    return arr.map((b) => {
       if (
         b !== null &&
         typeof b === 'object' &&
@@ -455,15 +453,14 @@ export function backfillFormOptionValues(
   if (!Array.isArray(fields)) return payload;
 
   let anyChanged = false;
-  // 원소 타입 `unknown` 은 명시 — `Array.isArray` 가 좁혀 준 `any[]` 의 `any` 차단.
-  const newFields = fields.map((field: unknown, fieldIdx) => {
+  const newFields = fields.map((field, fieldIdx) => {
     if (field === null || typeof field !== 'object') return field;
     const f = field as Record<string, unknown>;
     const options = f.options;
     if (!Array.isArray(options)) return field;
 
     let optsChanged = false;
-    const newOptions = options.map((opt: unknown, optIdx) => {
+    const newOptions = options.map((opt, optIdx) => {
       if (opt === null || typeof opt !== 'object') return opt;
       const o = opt as Record<string, unknown>;
       const v = o.value;
