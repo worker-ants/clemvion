@@ -95,7 +95,7 @@ sequenceDiagram
   Svc->>Svc: execution 조회 — terminal 이면 410 EXECUTION_TERMINATED, waiting_for_input 아니면 409 STATE_MISMATCH
   Svc->>Eng: command 별 dispatch (아래 표)
   Eng->>Q: ContinuationBus → execution-continuation 큐 enqueue
-  Svc->>Q: 2xx 응답을 interaction:idempotency:<key> 에 24h 캐시 (4xx 캐시 제외)
+  Svc->>Q: 2xx·409·410 응답을 interaction:idempotency:<key> 에 24h 캐시 (400 VALIDATION_ERROR 제외)
   Svc-->>Ext: 202 Accepted { executionId, accepted, currentStatus }
 ```
 
@@ -255,7 +255,7 @@ POST /api/triggers/:id/notification/rotate-secret 류 API (TriggersService.rotat
 | Sink | key / queue | 흐름 | TTL·정책 |
 | --- | --- | --- | --- |
 | Redis | `iext:blacklist:<jti>` | terminal event / refresh 시 SET | TTL = 원 JWT exp 까지. Redis 미가용 시 fail-open (검증도 fail-open + warn) |
-| Redis | `interaction:idempotency:<key>` | 2xx 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. 4xx (`VALIDATION_ERROR` 등) 캐시 제외 ([Spec EIA §R8]) |
+| Redis | `interaction:idempotency:<key>` | 2xx·`409`·`410` 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. **`400 VALIDATION_ERROR` 만** 캐시 제외 — 캐시 대상은 닫힌 목록이다 ([Spec EIA §R8] 및 그 Rationale). ⚠️ 현행 구현은 `statusCode >= 400` 전체를 제외해 409·410 이 재현되지 않는다 (선재 갭) |
 | Redis | `exec:seq:<executionId>` | `INCR` — SSE `id:`/notification `seq` 공용 카운터 | terminal event 후 해제 ([`spec/5-system/6-websocket-protocol.md`](../5-system/6-websocket-protocol.md)) |
 | BullMQ | `notification-webhook` | `NotificationDispatcher.enqueue` → `NotificationWebhookProcessor` | jobId=deliveryId dedup, attempts 5, base-4 custom backoff (1s·4s·16s·64s·256s — worker `settings.backoffStrategy`, §6.6), removeOnComplete 24h / removeOnFail 7d |
 | BullMQ | `notification-secret-rotator` | hourly repeatable (`0 * * * *`) → v2 승격 | upsertJobScheduler 멱등 — 멀티 인스턴스 전역 1회 |
@@ -334,7 +334,14 @@ data-flow 관점에서 이 구조는 "이벤트의 원천이 하나" 임을 보�
 (기능 저하 + warn 로그) 이다. 이는 "interaction/notification 은 워크플로우 실행의 부수 채널이며,
 인프라 장애가 실행 자체를 멈추면 안 된다" 는 모듈 전반의 결정 (`interaction-token.service.ts` ·
 `notification-dispatcher.service.ts` 주석) 으로, 본 문서는 각 표에 해당 정책을 명시해 운영자가
-저하 모드의 잔여 위험 (blacklist 미적용 = exp 까지 토큰 유효 등) 을 추적할 수 있게 했다.
+저하 모드의 잔여 위험 (blacklist 미적용 = exp 까지 토큰 유효, **idempotency 저하 = 같은
+`Idempotency-Key` 재요청이 전부 캐시 미스로 판정돼 다운스트림 중복 실행 가능**) 을 추적할 수
+있게 했다.
+
+idempotency 쪽 잔여 위험은 창의 크기가 다르다 — 정상 시에도 GET→SET 이 원자적이지 않아 좁은
+창은 있지만, Redis 장애가 **지속되는 동안**에는 그 창이 장애 구간 전체로 넓어진다. 따라서
+`EIA-RL-02` 의 "동일 응답 24h 재현" 은 **정상 경로의 계약**이고 저하 구간에서 멱등성은
+best-effort 다. 운영자는 이 구간을 인지할 수단(Redis 실패율 관측)이 필요하다.
 
 ### §1.5 구현 갭 — 해소 이력 (C3 fix)
 
