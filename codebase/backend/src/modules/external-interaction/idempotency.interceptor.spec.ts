@@ -11,6 +11,10 @@
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
  * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA
  * §R8 과 어긋난 현재 캐시 제외 범위를 고정하는 캐너리를 담는다.
+ *
+ * 세 번째 describe 는 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
+ * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그리고 그 fail-open 이
+ * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리를 담는다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, type Observable } from 'rxjs';
@@ -18,7 +22,7 @@ import {
   IdempotencyInterceptor,
   IDEMPOTENCY_HEADER,
 } from './idempotency.interceptor';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 
 type RedisStub = {
@@ -85,6 +89,12 @@ function makeCallHandler(value: unknown): CallHandler {
 function makeInterceptor(redis: RedisStub): IdempotencyInterceptor {
   return new IdempotencyInterceptor(undefined, redis as never, undefined);
 }
+
+/** 인터셉터의 `hashBody` 와 같은 규칙 — 캐시 엔트리를 손으로 만들 때 쓴다. */
+const bodyHashOf = (body: unknown) =>
+  createHash('sha256')
+    .update(typeof body === 'string' ? body : JSON.stringify(body ?? null))
+    .digest('hex');
 
 describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
   it('injectedRedis 없이 redisConn 주입 → 공유 client 로 캐시 GET 수행', async () => {
@@ -159,11 +169,6 @@ describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
  * 인터셉터가 `HttpResponseLike` 로 좁힌 지점이라 여기서 함께 고정한다.
  */
 describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () => {
-  const bodyHashOf = (body: unknown) =>
-    createHash('sha256')
-      .update(typeof body === 'string' ? body : JSON.stringify(body ?? null))
-      .digest('hex');
-
   it('같은 key + 같은 body → 캐시된 응답·상태코드를 그대로 재생한다', async () => {
     const body = { a: 1 };
     const redis = makeRedis();
@@ -332,5 +337,145 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
       ),
     );
     expect(result).toEqual({ cached: true });
+  });
+});
+
+/**
+ * Redis 가 **런타임에** 죽었을 때의 fail-open.
+ *
+ * `spec/data-flow/15-external-interaction.md` 는 "Redis … blacklist · idempotency · seq ·
+ * BullMQ. **전 경로 fail-open (warn) — 가용성 우선**" 이라고 명시하고, 이 클래스 docstring
+ * 도 "Redis 미가용 시 fail-open" 이라 적는다. 그런데 그 보장은 **생성자 시점 null 체크**
+ * (`getClientOrNull()` → null → passthrough)에만 걸려 있었고, 연결이 살아 있다가
+ * `get()` 이 reject 하는 경로는 열려 있어 요청이 그대로 500 이 됐다(무수정 프로브로
+ * `FAIL-CLOSED — ECONNRESET` 확인). 멱등성은 부가 기능인데 그것 때문에 API 가 죽는 셈이라
+ * spec 이 요구한 가용성 우선과 정반대다.
+ */
+describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
+  it('`get()` 이 reject 해도 요청은 통과하고 warn 을 남긴다 (fail-open)', async () => {
+    // warn 단언은 SET 경로와의 **대칭**을 위한 것이다 — 응답만 보면 `catchError` 안의
+    // `logger.warn` 한 줄을 지워도 그대로 GREEN 이라, 장애가 조용해지는 변경을 못 잡는다.
+    // fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍이고, 관측이 빠지면
+    // Redis 가 죽은 채로 중복 실행이 도는 구간을 아무도 모른다(plan §후속 의 관측 지표 항목).
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.get.mockRejectedValue(new Error('ECONNRESET'));
+      const interceptor = makeInterceptor(redis);
+      const handler = makeCallHandler({ ok: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
+
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'down-1', body: { a: 1 } }),
+          handler,
+        ),
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache GET 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('`get()` 이 reject 하면 캐시 미스로 취급해 새 응답을 적재한다', async () => {
+    const redis = makeRedis();
+    redis.get.mockRejectedValue(new Error('ECONNRESET'));
+    const interceptor = makeInterceptor(redis);
+
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'down-2', body: { a: 1 } }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+
+    // 읽기가 실패했다고 쓰기까지 포기하면 Redis 복구 후에도 그 키는 영영 미스다.
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      bodyHash: string;
+    };
+    expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
+  });
+
+  it('fail-open 이 409 충돌까지 삼키지 않는다 — catchError 위치 캐너리', async () => {
+    // **이 테스트가 fix 의 설계를 고정한다.** fail-open 을 `catchError` 로 넣을 때 그것을
+    // `switchMap` **뒤**에 두면 캐시 히트 시 던지는 `ConflictException`(정상 동작)까지
+    // 함께 삼켜 **멱등성 충돌 검출이 조용히 죽는다.** `catchError` 는 반드시 `from(get())`
+    // 직후·`switchMap` 앞이어야 한다. 위치가 뒤로 가면 이 테스트가 RED 가 된다.
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf({ a: 1 }),
+        responseJson: JSON.stringify({ cached: true }),
+        statusCode: 200,
+      }),
+    );
+    const interceptor = makeInterceptor(redis);
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'down-3', body: { a: 2 } }), // body 불일치
+          makeCallHandler({ fresh: true }),
+        ),
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('`set()` 이 reject 해도 응답 정상 + warn 로그 (적재 경로 fail-open)', async () => {
+    // 클래스 docstring 이 "세 경로 모두 fail-open" 이라 주장하는데 적재 경로만 검증이
+    // 없었다 — 주장한 보장은 전부 테스트로 받쳐야 한다.
+    //
+    // **응답만 단언하면 이 자리를 반만 지킨다** (뮤테이션 2형태 실측):
+    //   - `.catch()` **통째 제거** → unhandled rejection 이 jest 를 exit 1 로 만들긴 하지만
+    //     요약도 없이 워커가 죽어 무엇이 깨졌는지 안 보인다.
+    //   - `.catch(() => {})` 로 **조용히 삼키기** → 응답 단언만으로는 **안 잡힌다.**
+    // 그래서 `.catch()` 가 실제로 warn 을 남겼다는 증거를 함께 단언한다 — 후자를 잡고,
+    // 전자도 깔끔한 1건 RED 로 바꾼다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.set.mockRejectedValue(new Error('OOM command not allowed'));
+      const interceptor = makeInterceptor(redis);
+
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'set-fail-1', body: { a: 1 } }),
+          makeCallHandler({ ok: true }),
+        ),
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(redis.set).toHaveBeenCalledTimes(1);
+      // `.catch()` 안의 warn 은 마이크로태스크라 한 틱 양보해야 관측된다.
+      await Promise.resolve();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache SET 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('비-Error 값으로 reject 해도 로그 조립이 죽지 않는다', async () => {
+    // `catchError` 의 `err instanceof Error ? … : String(err)` 중 else 분기. ioredis 가
+    // 항상 Error 를 던진다는 보장이 없고, 여기서 죽으면 fail-open 자체가 무너진다.
+    const redis = makeRedis();
+    redis.get.mockRejectedValue('connection lost');
+    const interceptor = makeInterceptor(redis);
+
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'nonerr-1', body: { a: 1 } }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+
+    expect(result).toEqual({ ok: true });
   });
 });

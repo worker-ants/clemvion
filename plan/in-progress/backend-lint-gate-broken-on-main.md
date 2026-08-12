@@ -495,7 +495,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > checker 도 "planner 턴 권장, 이번 lint-only PR 스코프 밖" 으로 판정했다.
       > 정정 시 바로 아래 두 항목(구현의 `>= 400` 선재 결함)과 **함께** 보는 편이 낫다 —
       > 문서를 SoT 에 맞추면 구현과의 갭이 드러나므로 둘이 같은 결정의 양면이다.
-- [ ] **`IdempotencyInterceptor` 의 "fail-open" 주장이 런타임 reject 를 안 덮는다** (`12_55_52`
+- [x] **`IdempotencyInterceptor` 의 "fail-open" 주장이 런타임 reject 를 안 덮는다** (`12_55_52`
       requirement/security INFO 3). 클래스 docstring 은 "Redis 미가용 시 fail-open + warn 로그"
       라고 적었는데, 그 보장은 **생성자 시점 null 체크**(`getClientOrNull()` → null → passthrough)
       에만 해당한다. `intercept()` 의 `from(this.redis.get(redisKey))` 가 **런타임에 reject**
@@ -505,6 +505,37 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 조치는 둘 중 하나: `catchError` 로 실제 fail-open 을 만들거나, docstring 을 "생성자
       > 시점 미가용에 한정" 으로 좁히거나. **어느 쪽이 맞는지는 EIA spec 의 가용성 요구에
       > 달렸으므로 확인이 먼저다.** 이 PR(타입 전용)에서는 런타임을 건드리지 않는다.
+
+      > **처리 완료 (2026-08-12, `eia-idempotency-fixes`) — 확인해 보니 "둘 중 하나" 가
+      > 아니었다.** `spec/data-flow/15-external-interaction.md` 가 이미 **fail-open 을 명시적으로
+      > 요구**한다: "Redis | 내부 | blacklist · idempotency · seq · BullMQ. **전 경로 fail-open
+      > (warn) — 가용성 우선**" (§외부 의존), "토큰 blacklist·**idempotency**·jti 추적·notification
+      > enqueue 모두 Redis/DB 미가용 시 **fail-open**". 즉 docstring 을 좁히는 선택지는 애초에
+      > 없었고 **문서 갭이 아니라 구현 결함**이었다. `catchError` 를 넣어 닫았다.
+      >
+      > **무수정 프로브로 먼저 실증**했다 — `get()` 을 reject 시키니
+      > `FAIL-CLOSED — 요청 실패: ECONNRESET`. Redis 가 런타임에 죽으면 external interaction
+      > API 가 500 을 뱉는 상태였다(멱등성은 부가 기능인데 그것 때문에 API 가 죽는다).
+      >
+      > **`catchError` 위치가 이 fix 의 진짜 위험**이라 캐너리로 고정했다. `switchMap` **뒤**에
+      > 두면 캐시 충돌 시 던지는 `ConflictException`(정상 동작)까지 삼켜 **멱등성 검출이 조용히
+      > 죽는다.** 뮤테이션 실측: 뒤로 옮기면 **4건 RED** — 신규 3건 + **기존 409 테스트**.
+      > 기존 테스트가 함께 터지는 것이 이 위험이 실재한다는 증거다.
+- [ ] **planner 인계 — spec 의 fail-open 잔여 위험 카탈로그에 idempotency 예시 추가**
+      (`--impl-done` `15_24_11` rationale_continuity INFO 1, **BLOCK: NO**). 코드 주석은
+      "Redis 장애 지속 시 중복 억제가 사실상 무력화 → 다운스트림 중복 실행 가능" 까지 적었는데,
+      [`spec/data-flow/15-external-interaction.md`](../../spec/data-flow/15-external-interaction.md) `## Rationale` 의 "Fail-open 정책의 일관 표기" 절은
+      **blacklist 미적용 예시만** 들고 있어 두 위험 목록의 정밀도가 벌어졌다.
+      > 그 절에 idempotency 저하 예시를 blacklist 예시와 나란히 두거나,
+      > `spec/5-system/14-external-interaction-api.md` §3.4 의 `EIA-RL-02` 행에 각주를 단다.
+      > **`spec/` 쓰기는 developer 권한 밖**이라 인계로 남긴다. checker 도 "선택, 필수 아님".
+- [ ] **idempotency fail-open 구간의 관측·중복 억제** (`14_27_02` concurrency WARNING).
+      Redis 장애가 지속되는 동안 같은 `Idempotency-Key` 재요청이 전부 캐시 미스로 판정돼
+      다운스트림이 중복 실행될 수 있다 — spec 이 택한 "가용성 우선" 트레이드오프라 되돌리지
+      않았고 대가는 docstring·CHANGELOG 에 명시했지만, **운영이 그 구간을 인지할 수단이 없다.**
+      - Redis GET 실패율 지표/알람 추가 검토
+      - GET→SET 비원자 구조(선재)를 `SET NX EX` 선점 또는 in-flight dedup 으로 좁힐지 검토
+        (`14_27_02` concurrency INFO 7) — 정상 시에도 좁은 창이 있다
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).

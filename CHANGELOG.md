@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — Redis 런타임 장애가 External Interaction API 를 500 으로 무너뜨리던 결함 수정
+
+`Idempotency-Key` 캐시 조회(`GET`)가 런타임에 실패하면 그 예외가 그대로 응답 스트림으로
+흘러 요청이 **500** 이 됐다. 멱등성은 부가 기능인데 Redis 연결이 끊기는 순간 External
+Interaction API 전체가 함께 죽는 구조였다.
+
+`spec/data-flow/15-external-interaction.md` 는 "Redis … blacklist · idempotency · seq ·
+BullMQ. 전 경로 fail-open (warn) — 가용성 우선" 을 요구한다. 그런데 그 보장이 실제로 걸려
+있던 곳은 **기동 시 미주입**(클라이언트가 아예 없을 때) 하나뿐이었고, 연결이 살아 있다가
+끊기는 경로는 열려 있었다. 조회 실패를 **캐시 미스로 강등**해 세 경로(미주입 · 조회 실패 ·
+적재 실패) 모두 규약대로 열리게 했다.
+
+**운영상 유의점**: fail-open 이 도는 동안에는 같은 `Idempotency-Key` 의 재요청이 전부 캐시
+미스로 판정되므로 **중복 억제가 무력화**되고 다운스트림이 중복 실행될 수 있다. Redis 장애
+구간에서 멱등성은 보장이 아니라 best-effort 다 — `EIA-RL-02`(동일 키 24h 동일 응답 재현)는
+정상 경로의 계약이다.
+
 ## Unreleased — 워크스페이스 멤버십 검증 누락(cross-tenant) 보안 수정 + intra-tenant 권한 정합
 
 `@Roles()` 가 없는 라우트(HTTP 222건 중 73건)는 워크스페이스 멤버십을 전혀 검증하지 않고 있었다

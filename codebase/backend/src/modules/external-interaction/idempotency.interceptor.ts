@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Observable, of, from } from 'rxjs';
-import { switchMap, tap } from 'rxjs/operators';
+import { catchError, switchMap, tap } from 'rxjs/operators';
 import { createHash } from 'crypto';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
@@ -59,6 +59,17 @@ interface IdempotencyEntry {
  * - 키 미설정 시 캐시 적용 안 함 (옵션).
  *
  * Redis 미가용 시 fail-open + warn 로그 — 멱등성은 클라이언트 측 retry 정책으로 보강해야 함.
+ * 이 fail-open 은 **세 경로 모두**에 걸린다: 기동 시 미주입(생성자 null) · 조회 실패
+ * (`get()` reject → 캐시 미스로 강등) · 적재 실패(`set()` reject → warn 후 통과).
+ * `spec/data-flow/15-external-interaction.md` 의 "Redis … 전 경로 fail-open (warn) —
+ * 가용성 우선" 이 그 요구다. 조회 경로는 종전에 빠져 있어 Redis 장애가 곧 요청 실패였다.
+ *
+ * **fail-open 의 대가를 분명히 해 둔다** — Redis 장애가 지속되는 동안에는 같은
+ * `Idempotency-Key` 로 온 재요청이 전부 캐시 미스로 판정되므로 **중복 억제가 사실상
+ * 무력화**되고 다운스트림(execution 생성 등)이 중복 실행될 수 있다. 정상 시에도 GET→SET
+ * 이 원자적이지 않아 좁은 창은 있지만, 장애 구간에서는 그 창이 구간 전체로 넓어진다.
+ * spec 이 "가용성 우선" 으로 택한 트레이드오프라 여기서 되돌리지 않되, 멱등성이 **보장이
+ * 아니라 best-effort** 라는 점은 호출자가 알아야 한다(§EIA-RL-02 는 정상 경로 계약이다).
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -85,6 +96,20 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const bodyHash = hashBody(req.body);
     const redisKey = `${REDIS_KEY_PREFIX}${rawKey}`;
     return from(this.redis.get(redisKey)).pipe(
+      // 캐시 조회 실패는 **캐시 미스로 강등**한다 — 멱등성은 부가 기능인데 Redis 가 죽었다고
+      // 요청까지 죽이면 `spec/data-flow/15-external-interaction.md` 의 "Redis … 전 경로
+      // fail-open (warn) — 가용성 우선" 과 정반대가 된다. 종전에는 생성자 시점 null 만
+      // 막고 런타임 reject 는 그대로 흘려 요청이 500 이 됐다.
+      //
+      // **위치 주의 — `switchMap` 앞이어야 한다.** 뒤에 두면 아래에서 캐시 충돌 시 던지는
+      // `ConflictException`(정상 동작)까지 삼켜 멱등성 검출이 조용히 죽는다. spec 에
+      // 그 자리를 고정하는 캐너리 테스트를 뒀다.
+      catchError((err: unknown) => {
+        this.logger.warn(
+          `IdempotencyInterceptor cache GET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return of(null);
+      }),
       switchMap((cachedJson) => {
         if (cachedJson) {
           let cached: IdempotencyEntry;

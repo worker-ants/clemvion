@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-12T15:24:11.913385",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/data-flow/, diff-base=origin/main)",
+  "target_path": "spec/data-flow/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
