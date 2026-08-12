@@ -25,6 +25,7 @@ import {
   IDEMPOTENCY_HEADER,
 } from './idempotency.interceptor';
 import {
+  BadRequestException,
   ConflictException,
   GoneException,
   Logger,
@@ -240,15 +241,24 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     ).rejects.toThrow(ConflictException);
   });
 
-  it('400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+  it('throw 된 400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+    // **이 테스트도 error 채널로 행사해야 한다** — 서비스가 `BadRequestException` 을 throw
+    // 하므로 성공 채널 mock 은 실제로 발생하지 않는 상태를 검사한다. 종전에는 409·410·5xx·404
+    // 만 error 채널로 바꾸고 이 400 만 옛 형태로 남겨 뒀는데, 그 상태에서는
+    // `isErrorStatusCacheable` 에 `=== 400` 을 잘못 추가해도 **어떤 테스트도 RED 가 되지
+    // 않았다**(`16_53_26` WARNING 실측). 같은 결함 클래스를 자매 자리에 미적용한 것이다.
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
-    await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'e-1', body: {}, statusCode: 400 }),
-        makeCallHandler({ error: 'VALIDATION_ERROR' }),
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-1', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new BadRequestException({ error: { code: 'VALIDATION_ERROR' } }),
+          ),
+        ),
       ),
-    );
+    ).rejects.toThrow(BadRequestException);
     expect(redis.set).not.toHaveBeenCalled();
   });
 
@@ -300,8 +310,13 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(redis.set).toHaveBeenCalledTimes(1);
     const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
       statusCode: number;
+      responseJson: string;
     };
     expect(stored.statusCode).toBe(410);
+    // 409 테스트와 동형으로 payload 까지 — 재현에 쓸 body 가 실제 예외 내용이어야 한다.
+    expect(JSON.parse(stored.responseJson)).toMatchObject({
+      error: { code: 'EXECUTION_TERMINATED' },
+    });
   });
 
   it('캐시된 409 는 재조회 시 **예외로** 재현된다', async () => {

@@ -25,6 +25,8 @@ form 수정 후 재제출이 정상 흐름이라 캐시하면 stale 에러를 �
 
 **클라이언트 영향**: 같은 `Idempotency-Key` 로 `409`/`410` 을 받은 뒤 재요청하면 이제 24h
 동안 동일 응답이 재현된다. 종전에는 매번 새로 처리돼 응답이 달라질 수 있었다.
+단, `requestId` 는 예외 필터가 매 응답마다 새로 발급하므로 재현 대상이 아니다 —
+`statusCode`·`code`·`message` 가 동일하게 재현된다.
 
 ## Unreleased — Redis 런타임 장애가 External Interaction API 를 500 으로 무너뜨리던 결함 수정
 
