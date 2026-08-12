@@ -154,12 +154,27 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
         if (!cachedJson) return processFresh();
 
-        let cached: IdempotencyEntry;
+        let parsed: unknown;
         try {
-          cached = JSON.parse(cachedJson) as IdempotencyEntry;
+          parsed = JSON.parse(cachedJson);
         } catch (err) {
           return this.discardCorruptEntry('엔트리', err, processFresh);
         }
+        // **`try/catch` 만으로는 부족하다 — `JSON.parse` 는 문법 오류에만 던진다.**
+        // `'null'`·`'42'`·`'[]'` 는 전부 **유효한 JSON** 이라 통과한 뒤 아래에서 필드를 읽는다.
+        // 그중 `'null'` 은 `cached.bodyHash` 에서 `TypeError` 를 내고, 그 예외가
+        // `GlobalExceptionFilter` 까지 올라가 **500** 이 된다 — 이 클래스가 없애려는 바로 그
+        // 실패 형태다(무수정 프로브 실측: `'null'`→TypeError / `'42'`·`'[]'`·`'"str"'`→409).
+        // 형태를 명시로 검사한다. truthiness 나 `typeof === 'object'` 만으로는 배열·필드 누락이
+        // 그대로 통과한다.
+        if (!isIdempotencyEntry(parsed)) {
+          return this.discardCorruptEntry(
+            '엔트리',
+            `형태 불일치 (${describeShape(parsed)})`,
+            processFresh,
+          );
+        }
+        const cached: IdempotencyEntry = parsed;
 
         // **bodyHash 판정은 payload 파싱보다 먼저다.** payload 가 깨졌든 아니든 "이 키가 이미
         // 다른 body 로 쓰였다" 는 사실은 그대로다 — 순서를 바꾸면 손상된 엔트리에서 409 가
@@ -218,11 +233,11 @@ export class IdempotencyInterceptor implements NestInterceptor {
    */
   private discardCorruptEntry<T>(
     what: '엔트리' | 'payload',
-    err: unknown,
+    detail: unknown,
     processFresh: () => T,
   ): T {
     this.logger.warn(
-      `IdempotencyInterceptor cache ${what} 손상 — 무시하고 신규 처리: ${err instanceof Error ? err.message : String(err)}`,
+      `IdempotencyInterceptor cache ${what} 손상 — 무시하고 신규 처리: ${detail instanceof Error ? detail.message : String(detail)}`,
     );
     return processFresh();
   }
@@ -332,6 +347,41 @@ export class IdempotencyInterceptor implements NestInterceptor {
  */
 function isErrorStatusCacheable(statusCode: number): boolean {
   return statusCode === 409 || statusCode === 410;
+}
+
+/**
+ * 캐시에서 읽은 값이 우리가 적재한 엔트리 형태인지 — **문법이 아니라 형태**를 본다.
+ *
+ * `JSON.parse` 는 문법 오류에만 던지므로 `'null'`·`'42'`·`'[]'` 같은 유효 JSON 은 그대로
+ * 통과한다. 그 상태로 필드를 읽으면 `'null'` 은 `TypeError`(→ 500), 나머지는 `undefined` 비교로
+ * 엉뚱한 409 가 된다. 셋 다 "손상된 엔트리는 버리고 신규 처리" 가 맞는 답이다.
+ *
+ * truthiness 만으로는 필드 누락이 통과한다 — 우리가 실제로 **읽는 세 필드**를 각각 확인한다.
+ *
+ * **`null` 만 별도로 막고 나머지는 필드 검사에 맡긴다.** 처음엔 `typeof !== 'object'` 와
+ * `Array.isArray` 절도 넣었는데, 뮤테이션에서 **그 둘만 제거해도 죽는 테스트가 없었다** —
+ * 원시값은 오토박싱돼도 이 필드들이 없고 JSON 배열은 문자열 키를 가질 수 없어, 아래 세 검사가
+ * 이미 전부 배제하기 때문이다. 반면 `null` 은 프로퍼티 접근 자체가 `TypeError` 라 **여기서
+ * 걸러야만** 한다(그 절만 제거하면 테스트가 죽는다).
+ *
+ * 관측 가능한 동작이 없는 절은 두지 않는다 — 방어처럼 보이지만 실행되지 않는 조건은 다음
+ * 사람에게 "여기는 검사된다" 는 **거짓 신호**를 준다.
+ */
+function isIdempotencyEntry(value: unknown): value is IdempotencyEntry {
+  if (value === null) return false;
+  const e = value as Record<string, unknown>;
+  return (
+    typeof e.bodyHash === 'string' &&
+    typeof e.responseJson === 'string' &&
+    typeof e.statusCode === 'number'
+  );
+}
+
+/** 손상 로그용 — 값 자체를 찍지 않는다(캐시 payload 가 로그로 새지 않도록). */
+function describeShape(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
 }
 
 function readKey(raw: unknown): string | null {

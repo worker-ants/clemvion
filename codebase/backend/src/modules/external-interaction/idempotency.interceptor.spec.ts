@@ -509,35 +509,100 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     //
     // warn 은 아래 전용 테스트가 단언한다. 여기서 `Logger.warn` 을 mock 하는 것은 그 경로가
     // 이제 warn 을 남기기 때문 — 안 하면 테스트 실행 중 실제 로그가 콘솔로 샌다.
+    // **`try/finally` 로 감싼다** — 단언이 실패하면 `mockRestore()` 가 안 돌아 mock 이 뒤
+    // 테스트로 샌다. `jest.config.ts` 에 `restoreMocks` 안전망이 없어 이 파일이 스스로 지켜야
+    // 하고, 형제 테스트 3건은 이미 이 패턴이다.
     const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
-    const redis = makeRedis();
-    redis.get.mockResolvedValue('not-valid-json{');
-    const interceptor = makeInterceptor(redis);
-    const handler = makeCallHandler({ fresh: true });
-    const handleSpy = jest.spyOn(handler, 'handle');
+    try {
+      const redis = makeRedis();
+      redis.get.mockResolvedValue('not-valid-json{');
+      const interceptor = makeInterceptor(redis);
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
 
-    const result = await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'broken-1', body: { a: 1 } }),
-        handler,
-      ),
-    );
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'broken-1', body: { a: 1 } }),
+          handler,
+        ),
+      );
 
-    expect(result).toEqual({ fresh: true });
-    expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
-    expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
-    // 횟수만 보면 `bodyHash` 가 빈 문자열이 돼도 그린이라 저장된 값까지 단언한다 —
-    // 손상 항목을 덮어쓰는 자리이므로 새 항목이 온전해야 다음 요청이 히트한다.
-    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
-      bodyHash: string;
-      responseJson: string;
-      statusCode: number;
-    };
-    expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
-    expect(stored.statusCode).toBe(200);
-    expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
-    warnSpy.mockRestore();
+      expect(result).toEqual({ fresh: true });
+      expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
+      // 횟수만 보면 `bodyHash` 가 빈 문자열이 돼도 그린이라 저장된 값까지 단언한다 —
+      // 손상 항목을 덮어쓰는 자리이므로 새 항목이 온전해야 다음 요청이 히트한다.
+      const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+        bodyHash: string;
+        responseJson: string;
+        statusCode: number;
+      };
+      expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
+      expect(stored.statusCode).toBe(200);
+      expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
+
+  // **fixture 는 조건을 하나씩만 위반해야 한다.** 처음엔 전부 여러 조건을 동시에 위반해서,
+  // 세 필드 검사 중 **어느 하나를 지워도 죽는 테스트가 없었다**(뮤테이션 실측). 나머지 검사가
+  // 대신 잡아 주기 때문이다 — 매트릭스가 채워져 보여도 각 항은 별도 표면이다.
+  // 아래 뒤쪽 세 fixture 는 정확히 한 필드만 타입이 틀리다.
+  it.each([
+    ['null', 'null'],
+    ['숫자', '42'],
+    ['배열', '[]'],
+    ['문자열', '"str"'],
+    ['필드 누락 객체', '{"bodyHash":"x"}'],
+    [
+      'bodyHash 만 타입 불일치',
+      '{"bodyHash":1,"responseJson":"{}","statusCode":200}',
+    ],
+    [
+      'responseJson 만 타입 불일치',
+      '{"bodyHash":"x","responseJson":1,"statusCode":200}',
+    ],
+    [
+      'statusCode 만 타입 불일치',
+      '{"bodyHash":"x","responseJson":"{}","statusCode":"200"}',
+    ],
+  ])(
+    '문법은 유효하지만 엔트리 형태가 아닌 캐시(%s) → 500 이 아니라 신규 처리',
+    async (_label, cachedJson) => {
+      // **`try/catch` 만으로는 부족했다.** `JSON.parse` 는 **문법 오류에만** 던지므로 이 값들은
+      // 전부 통과한 뒤 필드 접근 단계에서 깨진다. 무수정 프로브 실측:
+      //
+      //   'null'  → TypeError: Cannot read properties of null (reading 'bodyHash') → **500**
+      //   '42' · '[]' · '"str"' → 오토박싱으로 `undefined` 비교 → 엉뚱한 **409**
+      //
+      // `'null'` 은 이 클래스가 없애려는 바로 그 실패 형태(캐시 손상 → 요청 실패)가 좁은 틈으로
+      // 남아 있던 것이다. 나머지도 "손상 엔트리는 버리고 신규 처리" 가 맞는 답이라 함께 고정한다.
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        const redis = makeRedis();
+        redis.get.mockResolvedValue(cachedJson);
+        const handler = makeCallHandler({ fresh: true });
+        const handleSpy = jest.spyOn(handler, 'handle');
+
+        const result = await lastValueFrom(
+          makeInterceptor(redis).intercept(
+            makeContext({ idempotencyKey: 'shape', body: { a: 1 } }),
+            handler,
+          ),
+        );
+
+        expect(result).toEqual({ fresh: true });
+        expect(handleSpy).toHaveBeenCalled();
+        expect(redis.set).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('cache 엔트리 손상'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    },
+  );
 
   it('엔트리 손상은 조용히 넘어가지 않는다 — warn 을 남긴다', async () => {
     // 위 테스트는 "요청이 산다" 만 본다. fail-open 은 **요청을 살린다 + 장애를 보이게 한다**
