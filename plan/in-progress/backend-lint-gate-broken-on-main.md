@@ -521,6 +521,13 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 두면 캐시 충돌 시 던지는 `ConflictException`(정상 동작)까지 삼켜 **멱등성 검출이 조용히
       > 죽는다.** 뮤테이션 실측: 뒤로 옮기면 **4건 RED** — 신규 3건 + **기존 409 테스트**.
       > 기존 테스트가 함께 터지는 것이 이 위험이 실재한다는 증거다.
+- [ ] **idempotency fail-open 구간의 관측·중복 억제** (`14_27_02` concurrency WARNING).
+      Redis 장애가 지속되는 동안 같은 `Idempotency-Key` 재요청이 전부 캐시 미스로 판정돼
+      다운스트림이 중복 실행될 수 있다 — spec 이 택한 "가용성 우선" 트레이드오프라 되돌리지
+      않았고 대가는 docstring·CHANGELOG 에 명시했지만, **운영이 그 구간을 인지할 수단이 없다.**
+      - Redis GET 실패율 지표/알람 추가 검토
+      - GET→SET 비원자 구조(선재)를 `SET NX EX` 선점 또는 in-flight dedup 으로 좁힐지 검토
+        (`14_27_02` concurrency INFO 7) — 정상 시에도 좁은 창이 있다
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).

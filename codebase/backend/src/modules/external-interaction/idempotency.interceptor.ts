@@ -63,6 +63,13 @@ interface IdempotencyEntry {
  * (`get()` reject → 캐시 미스로 강등) · 적재 실패(`set()` reject → warn 후 통과).
  * `spec/data-flow/15-external-interaction.md` 의 "Redis … 전 경로 fail-open (warn) —
  * 가용성 우선" 이 그 요구다. 조회 경로는 종전에 빠져 있어 Redis 장애가 곧 요청 실패였다.
+ *
+ * **fail-open 의 대가를 분명히 해 둔다** — Redis 장애가 지속되는 동안에는 같은
+ * `Idempotency-Key` 로 온 재요청이 전부 캐시 미스로 판정되므로 **중복 억제가 사실상
+ * 무력화**되고 다운스트림(execution 생성 등)이 중복 실행될 수 있다. 정상 시에도 GET→SET
+ * 이 원자적이지 않아 좁은 창은 있지만, 장애 구간에서는 그 창이 구간 전체로 넓어진다.
+ * spec 이 "가용성 우선" 으로 택한 트레이드오프라 여기서 되돌리지 않되, 멱등성이 **보장이
+ * 아니라 best-effort** 라는 점은 호출자가 알아야 한다(§EIA-RL-02 는 정상 경로 계약이다).
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
