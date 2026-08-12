@@ -558,6 +558,14 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 단위 mock 이 네 라운드 연속 놓친 결함 클래스(`mock 이 만드는 상태 ≠ 시스템이 실제로
       > 만드는 상태`)를 이제 이 e2e 가 실 파이프라인에서 잡는다.
+- [ ] **캐시 엔트리 내부 `responseJson` 손상은 무방비** (`18_07_36` testing INFO 1 — **직전
+      RESOLUTION 이 "plan 에 기록" 으로 처분해 놓고 실제로 안 적었다**, `18_37_45` WARNING 이
+      그 불이행을 잡았다). `intercept()` 의 두 자리(`JSON.parse(cached.responseJson)` — 에러
+      재현 분기와 정상 재현 분기)가 엔트리 **바깥** JSON 은 `try/catch` 로 막으면서 **안쪽**
+      `responseJson` 이 깨진 경우는 그대로 throw 한다 → `GlobalExceptionFilter` 가 500 으로
+      마스킹한다. 선재 갭이고 fail-closed 방향이라 급하지 않다.
+      > 조치하려면 두 자리를 한 번만 파싱하도록 끌어올리고 그 자리에 방어를 두는 편이 낫다
+      > (`JSON.parse` 중복은 4라운드 연속 유예된 maintainability 항목이기도 하다 — 한 번에 닫힌다).
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).

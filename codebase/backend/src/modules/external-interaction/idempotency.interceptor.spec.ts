@@ -15,8 +15,12 @@
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
  * 세 번째 describe 는 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
- * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그리고 그 fail-open 이
- * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리를 담는다.
+ * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그 fail-open 이
+ * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리, 그리고
+ * **직렬화 불가 payload** 가 원 예외를 500 으로 대체하지 않는지(양 채널)를 담는다.
+ * 이 블록의 테스트는 전부 `Logger.prototype.warn` 을 함께 단언한다 — fail-open 은 "요청을
+ * 살린다" 와 "장애를 보이게 한다" 가 한 쌍이고, 로그 한 줄이 사라지는 회귀는 응답만 봐서는
+ * 잡히지 않기 때문이다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, throwError, type Observable } from 'rxjs';
@@ -680,40 +684,65 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
     //
     // 방어(try/catch)를 지난 라운드에 넣고 **테스트는 안 붙였다** — 방어를 만들고 검증을
     // 빠뜨리는 이 세션의 반복 패턴이라 여기서 닫는다(`18_07_36` WARNING).
-    const circular: Record<string, unknown> = { code: 'STATE_MISMATCH' };
-    circular.self = circular; // JSON.stringify 가 TypeError 를 던진다
-    const redis = makeRedis();
-    const interceptor = makeInterceptor(redis);
+    //
+    // **warn 단언은 형제 테스트(GET/SET 실패)와 같은 이유다** — 응답만 보면 catch 안의
+    // `logger.warn` 한 줄을 지워도 GREEN 이라 "적재가 조용히 실패하는" 회귀를 못 잡는다.
+    // 이 파일의 다른 fail-open 테스트는 전부 그 패턴인데 신규 2건만 빠져 있었다
+    // (`18_37_45` WARNING, 뮤테이션 생존 실측).
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const circular: Record<string, unknown> = { code: 'STATE_MISMATCH' };
+      circular.self = circular; // JSON.stringify 가 TypeError 를 던진다
+      const redis = makeRedis();
+      const interceptor = makeInterceptor(redis);
 
-    await expect(
-      lastValueFrom(
-        interceptor.intercept(
-          makeContext({ idempotencyKey: 'circ-1', body: {}, statusCode: 202 }),
-          makeThrowingHandler(new ConflictException(circular)),
+      await expect(
+        lastValueFrom(
+          interceptor.intercept(
+            makeContext({
+              idempotencyKey: 'circ-1',
+              body: {},
+              statusCode: 202,
+            }),
+            makeThrowingHandler(new ConflictException(circular)),
+          ),
         ),
-      ),
-    ).rejects.toThrow(ConflictException); // 500 이 아니라 원 예외
+      ).rejects.toThrow(ConflictException); // 500 이 아니라 원 예외
 
-    // 적재만 포기한다.
-    expect(redis.set).not.toHaveBeenCalled();
+      // 적재만 포기한다 — 그리고 그 사실이 로그에 남아야 한다.
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache 직렬화 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('성공 채널에서도 직렬화 불가 응답이 요청을 죽이지 않는다', async () => {
     // 같은 방어의 자매 자리 — 2xx 경로는 `tap({next})` 라 throw 하면 스트림이 error 로
     // 뒤집혀 정상 응답이 사라진다. 한쪽만 고정하면 다른 쪽이 남는다.
-    const circular: Record<string, unknown> = { ok: true };
-    circular.self = circular;
-    const redis = makeRedis();
-    const interceptor = makeInterceptor(redis);
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const circular: Record<string, unknown> = { ok: true };
+      circular.self = circular;
+      const redis = makeRedis();
+      const interceptor = makeInterceptor(redis);
 
-    const result = await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'circ-2', body: {}, statusCode: 200 }),
-        makeCallHandler(circular),
-      ),
-    );
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'circ-2', body: {}, statusCode: 200 }),
+          makeCallHandler(circular),
+        ),
+      );
 
-    expect(result).toBe(circular);
-    expect(redis.set).not.toHaveBeenCalled();
+      expect(result).toBe(circular);
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache 직렬화 실패'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
