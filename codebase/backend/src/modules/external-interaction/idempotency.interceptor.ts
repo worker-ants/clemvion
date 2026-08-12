@@ -59,16 +59,16 @@ interface IdempotencyEntry {
  *   ([Spec EIA §R8] / 실행 엔진 §1.3 의 "waiting_for_input 유지" 컨벤션).
  * - 키 미설정 시 캐시 적용 안 함 (옵션).
  *
- * Redis 미가용·캐시 손상 시 fail-open + warn 로그 — 멱등성은 클라이언트 측 retry 정책으로
- * 보강해야 함. 이 fail-open 은 **다섯 경로 모두**에 걸린다:
+ * Redis 미가용·캐시 손상 시 fail-open — 멱등성은 클라이언트 측 retry 정책으로 보강해야 함.
+ * 이 fail-open 은 **다섯 경로 모두**에 걸리고, **경로 1 을 뺀 넷이 warn 을 남긴다**:
  *
- * | # | 경로 | 처리 |
- * |---|---|---|
- * | 1 | 기동 시 미주입 (생성자 `null`) | 캐시 미적용 passthrough |
- * | 2 | 조회 실패 (`get()` reject) | 캐시 미스로 강등 (`catchError`) |
- * | 3 | 적재 실패 (`set()` reject) | warn 후 통과 ({@link storeEntry}) |
- * | 4 | 직렬화 실패 (순환 참조 등) | 적재만 포기 ({@link storeEntry}) |
- * | 5 | 캐시 엔트리·payload 손상 | 무시하고 신규 처리 ({@link discardCorruptEntry}) |
+ * | # | 경로 | 처리 | warn |
+ * |---|---|---|---|
+ * | 1 | 기동 시 미주입 (생성자 `null`) | 캐시 미적용 passthrough | — (설정 상태이지 장애가 아니다) |
+ * | 2 | 조회 실패 (`get()` reject) | 캐시 미스로 강등 (`catchError`) | ✓ |
+ * | 3 | 적재 실패 (`set()` reject) | 통과 ({@link storeEntry}) | ✓ |
+ * | 4 | 직렬화 실패 (순환 참조 등) | 적재만 포기 ({@link storeEntry}) | ✓ |
+ * | 5 | 캐시 엔트리·payload 손상 | 무시하고 신규 처리 ({@link discardCorruptEntry}) | ✓ |
  *
  * `spec/data-flow/15-external-interaction.md` 의 "Redis … 전 경로 fail-open (warn) —
  * 가용성 우선" 이 그 요구다. 조회 경로는 종전에 빠져 있어 Redis 장애가 곧 요청 실패였다.

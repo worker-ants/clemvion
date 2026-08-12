@@ -506,6 +506,10 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     // `intercept()` 의 `try { JSON.parse } catch` 분기. 캐시 히트인데 파싱이 깨지는
     // 경우라 위 히트 테스트들과 다른 갈래이고, 실패해도 요청 자체는 살아야 한다
     // (fail-open). 이 분기가 깨지면 캐시 손상이 곧 요청 실패로 번진다.
+    //
+    // warn 은 아래 전용 테스트가 단언한다. 여기서 `Logger.warn` 을 mock 하는 것은 그 경로가
+    // 이제 warn 을 남기기 때문 — 안 하면 테스트 실행 중 실제 로그가 콘솔로 샌다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     const redis = makeRedis();
     redis.get.mockResolvedValue('not-valid-json{');
     const interceptor = makeInterceptor(redis);
@@ -532,6 +536,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
     expect(stored.statusCode).toBe(200);
     expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+    warnSpy.mockRestore();
   });
 
   it('엔트리 손상은 조용히 넘어가지 않는다 — warn 을 남긴다', async () => {
@@ -629,8 +634,10 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
   });
 
   it('안쪽이 깨진 409 엔트리도 500 이 아니라 신규 처리 — 에러 재현 분기도 같은 방어를 받는다', async () => {
-    // 재현 분기가 **둘**이다(에러 채널 `HttpException` 재throw · 성공 채널 `of()`). 위 테스트는
-    // 성공 분기만 덮으므로 자매 자리를 함께 고정한다 — 이 세션에서 자매 누락이 반복됐다.
+    // **지금은 200 케이스와 같은 코드 라인을 탄다** — payload 파싱을 한 곳으로 끌어올렸기
+    // 때문이다. 그래도 남겨 두는 이유는 재분기 회귀 대비다: 재현 경로가 다시 둘로 갈리면
+    // (에러 채널 `HttpException` 재throw · 성공 채널 `of()`) 한쪽만 방어하는 형태가 되기
+    // 쉽고, 이 세션에서 그 자매 누락이 반복됐다. 통합 이전 모델을 서술하지 않도록 적어 둔다.
     //
     // **단언은 형제 테스트와 동형이어야 한다** — "같은 방어를 받는다" 가 이 테스트의 주장인데
     // 응답만 보면 그 주장을 스스로 증명하지 못한다. 응답이 `{fresh:true}` 인 것은 "방어가
@@ -816,8 +823,10 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
   });
 
   it('`set()` 이 reject 해도 응답 정상 + warn 로그 (적재 경로 fail-open)', async () => {
-    // 클래스 docstring 이 "세 경로 모두 fail-open" 이라 주장하는데 적재 경로만 검증이
-    // 없었다 — 주장한 보장은 전부 테스트로 받쳐야 한다.
+    // 클래스 docstring 의 fail-open 경로 표(현재 다섯 경로)가 적재 실패도 포함한다고
+    // 주장하는데 그 경로만 검증이 없었다 — 주장한 보장은 전부 테스트로 받쳐야 한다.
+    // (문구를 그대로 인용하지 않는다. 종전에 "세 경로" 를 인용했다가 docstring 이 다섯으로
+    //  갱신되면서 이 주석만 옛 상태로 남았다 — 인용은 원본이 바뀌면 조용히 거짓이 된다.)
     //
     // **응답만 단언하면 이 자리를 반만 지킨다** (뮤테이션 2형태 실측):
     //   - `.catch()` **통째 제거** → unhandled rejection 이 jest 를 exit 1 로 만들긴 하지만
