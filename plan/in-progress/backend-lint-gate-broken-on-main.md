@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: backend-lint-gate-b72fdd
+worktree: lint-warning-triage
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -486,6 +486,15 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
       > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
       > 덮은 갈래를 먼저 세어야 한다.**
+- [ ] **planner 인계 — `spec/data-flow/15-external-interaction.md` 의 R8 요약이 SoT 보다 넓다**
+      (`--impl-done` `13_07_33` cross_spec·rationale_continuity WARNING, **BLOCK: NO**).
+      data-flow 문서가 §1.2 시퀀스와 §2.1/§2.2 표에서 "4xx 캐시 제외" 로 요약하는데, SoT 인
+      [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 "`400 VALIDATION_ERROR` 만 제외, 2xx·409·410 은
+      캐시" 다. **선재 불일치**이고, 이번 PR 은 같은 gap 을 코드·테스트에 캐너리로 고정만 했다.
+      > **`spec/` 쓰기는 developer 권한 밖**(CLAUDE.md §Skill 체계)이라 여기 인계로 남긴다.
+      > checker 도 "planner 턴 권장, 이번 lint-only PR 스코프 밖" 으로 판정했다.
+      > 정정 시 바로 아래 두 항목(구현의 `>= 400` 선재 결함)과 **함께** 보는 편이 낫다 —
+      > 문서를 SoT 에 맞추면 구현과의 갭이 드러나므로 둘이 같은 결정의 양면이다.
 - [ ] **`IdempotencyInterceptor` 의 "fail-open" 주장이 런타임 reject 를 안 덮는다** (`12_55_52`
       requirement/security INFO 3). 클래스 docstring 은 "Redis 미가용 시 fail-open + warn 로그"
       라고 적었는데, 그 보장은 **생성자 시점 null 체크**(`getClientOrNull()` → null → passthrough)
