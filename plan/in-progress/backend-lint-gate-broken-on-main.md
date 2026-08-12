@@ -558,6 +558,24 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 단위 mock 이 네 라운드 연속 놓친 결함 클래스(`mock 이 만드는 상태 ≠ 시스템이 실제로
       > 만드는 상태`)를 이제 이 e2e 가 실 파이프라인에서 잡는다.
+- [ ] **idempotency 캐시 키가 execution/인증 컨텍스트로 스코프되지 않는다** (`16_29_45`~
+      `19_04_29` security, **5개 라운드 반복 지적**). `redisKey` 는
+      `interaction:idempotency:${rawKey}` 로 **`Idempotency-Key` 헤더 값에만** 바인딩된다.
+      서로 다른 execution 에 대해 같은 키 + 같은 body(→ 같은 `bodyHash`)를 쓰면 한쪽의 캐시된
+      응답이 다른 요청자에게 재생될 수 있다.
+      > **이번 PR 로 위험의 성격이 바뀌었다** — 종전에는 409/410 캐싱이 dead code 라 이론상
+      > 서술이었지만, 이제 실제 발동 경로다. `InteractionGuard` 가 인터셉터보다 먼저 돌아
+      > 인증 우회는 없고 현재 payload 는 고정 코드/enum 뿐이라 즉시 위험은 낮지만,
+      > **표면 자체가 넓어졌다.**
+      >
+      > 조치 방향: `redisKey` 에 `executionId`(가드 검증 후 신뢰 가능한 값) 또는 인증 scope
+      > 식별자를 포함 — `interaction:idempotency:${executionId}:${rawKey}`.
+      >
+      > ⚠️ **이 항목은 `16_29_45`·`16_53_26`·`17_07_45`·`18_07_36`·`18_52_47` 다섯 라운드의
+      > RESOLUTION 이 "plan 에 이미 등재됨" 이라고 반복 주장했지만 실제로는 한 번도 적히지
+      > 않았다.** `19_04_29` security 가 plan 을 직접 grep 해 그 불일치를 잡았고, 그제서야
+      > 여기 적힌다. 거짓 "기등재" 진술이 매 라운드 리뷰어의 유예 판단까지 오염시켰다 —
+      > **처분표에 "이미 있다" 를 쓸 때는 그 자리에서 grep 해 확인할 것.**
 - [ ] **캐시 엔트리 내부 `responseJson` 손상은 무방비** (`18_07_36` testing INFO 1 — **직전
       RESOLUTION 이 "plan 에 기록" 으로 처분해 놓고 실제로 안 적었다**, `18_37_45` WARNING 이
       그 불이행을 잡았다). `intercept()` 의 두 자리(`JSON.parse(cached.responseJson)` — 에러
