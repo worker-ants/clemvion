@@ -110,6 +110,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
     // route 축: 같은 인터셉터가 `interact`·`cancel` 두 자리에 붙는데 `CancelDto` 는 전 필드
     // optional 이라 body `{}` 가 가능하고, 그때 `bodyHash` 가 `{}` 인 interact 요청과 일치한다
     // → cancel 의 ack 가 interact 에 재생된다. 핸들러명이 그 둘을 가르는 값이다.
+    //
+    // **전제 — 핸들러명이 빌드 후에도 보존된다.** `nest build` 는 순수 tsc 라 minifier 가
+    // 없어 성립한다. 번들러/minifier 를 도입하면 두 핸들러명이 함께 뭉개져 이 축이 붕괴할 수
+    // 있다(그때도 `executionId` 축은 남는다). e2e `IDEM-5` 가 실 파이프라인에서 이 값을
+    // 고정하므로, 그 전제가 깨지면 거기서 RED 가 난다 — 단위 mock 은 `getHandler()` 를 스스로
+    // 만들어 내므로 이 자리를 검증하지 못한다.
     const route = context.getHandler().name;
     const bodyHash = hashBody(req.body);
     const redisKey = `${REDIS_KEY_PREFIX}${executionId}:${route}:${rawKey}`;

@@ -23,6 +23,13 @@
  * 보이게 한다" 가 한 쌍이고, 로그 한 줄이 사라지는 회귀는 응답만 봐서는 안 잡히기 때문이다.
  * 나머지 3건은 각각 다른 것을 본다(캐시 미스 강등 후 재적재 · `catchError` 위치 · 비-`Error`
  * reject 에서 로그 조립이 죽지 않는지)이라 warn 단언을 붙이지 않았다.
+ *
+ * 네 번째 describe 는 **캐시 키 스코프**(Spec EIA §R8) — 키가 `<executionId>:<route>:<key>` 로
+ * 갈리는지를 **execution 축과 route 축 각각** 고정하고, 조회(GET)와 적재(SET)를 **둘 다**
+ * 단언한다(한쪽만 스코프하는 회귀가 실제 가능한 형태다). ctx 부재 시 전역 키로 fallback 하지
+ * 않고 캐시 자체를 건너뛰는 것도 여기서 고정한다.
+ * 다만 이 블록의 `getHandler()` 는 mock 이 만들어 낸 것이라 **실 파이프라인의 route 이름**은
+ * 검증할 수 없다 — 그 자리는 e2e `IDEM-5` 다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, throwError, type Observable } from 'rxjs';
@@ -64,10 +71,16 @@ const DEFAULT_EXECUTION_ID = 'exec-aaa';
 /** 기본 route — 컨트롤러의 `interact` 핸들러명. */
 const DEFAULT_ROUTE = 'interact';
 
-/** 인터셉터가 조립할 것으로 기대하는 스코프 키. 테스트가 손으로 문자열을 짜지 않게 한다. */
+/**
+ * 인터셉터가 조립할 것으로 기대하는 스코프 키. 테스트가 손으로 문자열을 짜지 않게 한다.
+ *
+ * **인자 순서는 e2e 의 `idempotencyCacheKey(executionId, rawKey, route)` 와 같다.** 세 인자가
+ * 전부 `string` 이라 순서를 뒤집어도 타입이 잡아 주지 못하는데, 두 헬퍼가 서로 반대 순서면
+ * 한쪽을 보고 다른 쪽을 쓰는 순간 **조용히 틀린 키를 단언**하게 된다 (`21_02_30` WARNING 1).
+ */
 function scopedKey(
+  executionId: string,
   rawKey: string,
-  executionId: string = DEFAULT_EXECUTION_ID,
   route: string = DEFAULT_ROUTE,
 ): string {
   return `interaction:idempotency:${executionId}:${route}:${rawKey}`;
@@ -170,7 +183,9 @@ describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
     expect(result).toEqual({ ok: true });
     // 공유 client 로 캐시 lookup 이 발생. 키는 **정확히** 스코프 형태여야 한다 —
     // `stringContaining` 으로 두면 스코프 세그먼트가 빠져도 통과한다.
-    expect(sharedRedis.get).toHaveBeenCalledWith(scopedKey('key-1'));
+    expect(sharedRedis.get).toHaveBeenCalledWith(
+      scopedKey(DEFAULT_EXECUTION_ID, 'key-1'),
+    );
     // 2xx 응답이므로 캐시 적재(SET) 도 공유 client 로.
     expect(sharedRedis.set).toHaveBeenCalled();
   });
@@ -819,17 +834,17 @@ describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () =
       ),
     );
 
-    expect(redisA.get).toHaveBeenCalledWith(scopedKey('shared-key', 'exec-A'));
-    expect(redisB.get).toHaveBeenCalledWith(scopedKey('shared-key', 'exec-B'));
+    expect(redisA.get).toHaveBeenCalledWith(scopedKey('exec-A', 'shared-key'));
+    expect(redisB.get).toHaveBeenCalledWith(scopedKey('exec-B', 'shared-key'));
     // 적재도 스코프돼야 한다 — GET 만 스코프하고 SET 이 전역이면 다음 요청이 남의 것을 읽는다.
     expect(redisA.set).toHaveBeenCalledWith(
-      scopedKey('shared-key', 'exec-A'),
+      scopedKey('exec-A', 'shared-key'),
       expect.any(String),
       'EX',
       expect.any(Number),
     );
     expect(redisB.set).toHaveBeenCalledWith(
-      scopedKey('shared-key', 'exec-B'),
+      scopedKey('exec-B', 'shared-key'),
       expect.any(String),
       'EX',
       expect.any(Number),
@@ -855,12 +870,21 @@ describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () =
       ),
     );
 
-    const keys = redis.get.mock.calls.map((c) => c[0] as string);
-    expect(keys).toEqual([
-      scopedKey('k', DEFAULT_EXECUTION_ID, 'interact'),
-      scopedKey('k', DEFAULT_EXECUTION_ID, 'cancel'),
+    const getKeys = redis.get.mock.calls.map((c) => c[0] as string);
+    expect(getKeys).toEqual([
+      scopedKey(DEFAULT_EXECUTION_ID, 'k', 'interact'),
+      scopedKey(DEFAULT_EXECUTION_ID, 'k', 'cancel'),
     ]);
-    expect(new Set(keys).size).toBe(2);
+    expect(new Set(getKeys).size).toBe(2);
+
+    // 적재 키도 route 로 갈려야 한다. 이 블록의 docstring 이 "GET·SET 을 둘 다 단언한다" 고
+    // 적어 놓고 execution 축 테스트에만 지켜지고 있었다 (`21_02_30` WARNING 2) — 문서한 보장이
+    // 실제 단언보다 넓은 상태였다.
+    const setKeys = redis.set.mock.calls.map((c) => c[0] as string);
+    expect(setKeys).toEqual([
+      scopedKey(DEFAULT_EXECUTION_ID, 'k', 'interact'),
+      scopedKey(DEFAULT_EXECUTION_ID, 'k', 'cancel'),
+    ]);
   });
 
   it('캐시 hit 재현도 스코프 키로 조회한 엔트리에서만 일어난다', async () => {
@@ -868,7 +892,7 @@ describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () =
     const cachedBody = { replayed: true };
     const body = { a: 1 };
     redis.get.mockImplementation((key: string) =>
-      key === scopedKey('hit-key', 'exec-owner')
+      key === scopedKey('exec-owner', 'hit-key')
         ? Promise.resolve(
             JSON.stringify({
               bodyHash: bodyHashOf(body),

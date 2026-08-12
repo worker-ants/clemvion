@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 멱등 캐시 키를 execution + route 로 스코프 (Spec EIA §R8 "캐시 키 스코프")
+## Unreleased — (보안) 멱등 캐시 키를 execution + route 로 스코프 — cross-execution 응답 재생 차단 (Spec EIA §R8 "캐시 키 스코프")
 
 멱등 캐시 키가 `Idempotency-Key` **헤더 값 하나에만** 바인딩돼 있어, 캐시 네임스페이스를
 **모든 execution 이 공유**했다. 서로 다른 두 요청자가 같은 키 + 같은 body 를 쓰면 한쪽의
@@ -26,6 +26,10 @@
 `req.interaction` 이 없으면(Guard 미적용 등) **전역 키로 fallback 하지 않고 캐시 자체를
 건너뛴다** — 조용한 fallback 은 위 표면을 그대로 되살린다. 이 인터셉터의 다른 실패
 경로(Redis 미주입·GET/SET 실패·직렬화 실패)와 같은 fail-open 이다.
+
+**배포 전환기**: 키 포맷이 바뀌므로 배포 시점에 남아 있던 구-포맷 엔트리는 조회되지 않고
+고아로 남아 TTL(24h)로 자연 소멸한다. 그 창 동안 같은 키의 재요청이 **한 번** 캐시 미스로
+재처리될 수 있다. 데이터 오염은 없다.
 
 ## Unreleased — `Idempotency-Key` 로 `409`·`410` 을 재조회해도 같은 응답이 나온다 (Spec EIA §R8 정합)
 
