@@ -2,6 +2,7 @@ import {
   CallHandler,
   ConflictException,
   ExecutionContext,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -9,7 +10,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Observable, of, from } from 'rxjs';
+import { Observable, of, from, throwError } from 'rxjs';
 import { catchError, switchMap, tap } from 'rxjs/operators';
 import { createHash } from 'crypto';
 import type Redis from 'ioredis';
@@ -127,6 +128,16 @@ export class IdempotencyInterceptor implements NestInterceptor {
             });
           }
           // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
+          //
+          // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
+          // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
+          // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
+          if (isErrorStatusCacheable(cached.statusCode)) {
+            throw new HttpException(
+              JSON.parse(cached.responseJson) as Record<string, unknown>,
+              cached.statusCode,
+            );
+          }
           const res = context.switchToHttp().getResponse<HttpResponseLike>();
           if (typeof res.status === 'function') res.status(cached.statusCode);
           return of(JSON.parse(cached.responseJson) as unknown);
@@ -142,52 +153,91 @@ export class IdempotencyInterceptor implements NestInterceptor {
    * RxJS operator — 응답을 캐시. 대상은 [Spec EIA §R8] 이 **열거한 닫힌 목록**이다:
    * `2xx` · `409 Conflict` · `410 Gone`.
    *
-   * `409`·`410` 을 캐시하는 이유는 그것이 **확정된 결과**이기 때문이다 — "이미 다른 명령이
-   * 상태를 바꿨다"(`STATE_MISMATCH`) 나 "execution 이 종결됐다"(`EXECUTION_TERMINATED`) 는
-   * 사실은 번복되지 않으므로 같은 키로 재조회하면 같은 답이 나와야 한다(`EIA-RL-02`).
-   * 반대로 `400 VALIDATION_ERROR` 는 waiting_for_input 이 유지돼 **재제출이 normal flow**
-   * 라 캐시하면 stale 에러를 돌려준다(§R8 근거).
-   *
-   * **단일 비교로 축약하면 안 된다** — `>= 400` 은 `409`·`410` 을 함께 떨궈 그 범위에서
-   * `EIA-RL-02` 를 깨뜨리고(2026-05-21 원본부터의 선재 결함, 본 커밋이 해소), `=== 400` 은
-   * 반대로 `401`·`404` 같은 다른 4xx 와 `5xx` 를 캐시해 **재시도 자체를 막는다**. 열거를
-   * 그대로 옮긴 아래 형태를 유지할 것 — 네 경우 모두 spec 에 회귀 테스트가 있다.
+   * **그 셋이 서로 다른 채널로 온다는 점이 이 operator 의 핵심이다.** `2xx` 는 성공(next)
+   * 채널이지만 `409`·`410` 은 `interaction.service.ts` 가 던지는 `ConflictException`/
+   * `GoneException` 이라 **error 채널**로 온다. 성공 채널의 `res.statusCode` 는 컨트롤러의
+   * `@HttpCode(202)` 로 선고정돼 있어 애초에 409 가 될 수 없다 — 그래서 `tap({ next })`
+   * 하나로 `statusCode === 409` 를 보려던 접근은 **도달 불가능한 dead code** 였다
+   * (`16_29_45` CRITICAL, 무수정 프로브로 `redis.set=0` 확인).
    */
   private cacheTapped(
     redisKey: string,
     bodyHash: string,
     context: ExecutionContext,
   ) {
-    return tap({
-      next: (value: unknown) => {
-        if (!this.redis) return;
-        const res = context.switchToHttp().getResponse<HttpResponseLike>();
-        const statusCode: number =
-          typeof res.statusCode === 'number' ? res.statusCode : 200;
-        // §R8 의 열거를 그대로 옮긴 조건. 위 docstring 의 "축약 금지" 참조.
-        const isCacheable =
-          (statusCode >= 200 && statusCode < 300) ||
-          statusCode === 409 ||
-          statusCode === 410;
-        if (!isCacheable) return;
-        const entry: IdempotencyEntry = {
-          bodyHash,
-          responseJson: JSON.stringify(value ?? null),
-          statusCode,
-        };
-        void this.redis
-          .set(redisKey, JSON.stringify(entry), 'EX', TTL_SEC)
-          .catch((err) =>
-            this.logger.warn(
-              `IdempotencyInterceptor cache SET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
-            ),
-          );
-      },
-      // error 분기는 catch 안 함 — 예외로 **던져져** 끝난 응답은 캐시하지 않는다.
-      // 409·410 이 캐시되는 것은 컨트롤러가 그 상태코드로 **정상 반환**하는 경로이고,
-      // 여기(에러 분기)로 오는 것은 그 밖의 실패라 재시도 여지를 남기는 편이 맞다.
-    });
+    return (source: Observable<unknown>): Observable<unknown> =>
+      source.pipe(
+        tap({
+          next: (value: unknown) => {
+            const res = context.switchToHttp().getResponse<HttpResponseLike>();
+            const statusCode: number =
+              typeof res.statusCode === 'number' ? res.statusCode : 200;
+            // 성공 채널에서 오는 것은 `2xx` 뿐이다(컨트롤러가 `@HttpCode(202|200)`).
+            // `3xx` 는 이 API 가 내지 않으므로 목록에 없다.
+            if (statusCode < 200 || statusCode >= 300) return;
+            this.storeEntry(redisKey, bodyHash, statusCode, value ?? null);
+          },
+        }),
+        // **§R8 의 `409`·`410` 은 여기로 온다.** `interaction.service.ts` 가 그 둘을
+        // `ConflictException`/`GoneException` 으로 **throw** 하기 때문이다 — 성공 채널의
+        // `res.statusCode` 는 `@HttpCode(202)` 로 선고정돼 있어 409 가 될 수 없다.
+        // 종전 구현은 `tap({ next })` 뿐이라 이 경로를 아예 보지 못했고, 그래서
+        // "409·410 을 캐시한다" 는 조건이 도달 불가능한 dead code 였다(`16_29_45` CRITICAL).
+        catchError((err: unknown) => {
+          if (err instanceof HttpException) {
+            const statusCode = err.getStatus();
+            if (isErrorStatusCacheable(statusCode)) {
+              this.storeEntry(
+                redisKey,
+                bodyHash,
+                statusCode,
+                err.getResponse(),
+              );
+            }
+          }
+          // 캐시 여부와 무관하게 원 예외는 그대로 흘려보낸다 — 이 인터셉터는 응답을
+          // 기록할 뿐 삼키지 않는다.
+          return throwError(() => err);
+        }),
+      );
   }
+
+  /** 캐시 엔트리 적재 — 실패는 warn 후 통과(fail-open). */
+  private storeEntry(
+    redisKey: string,
+    bodyHash: string,
+    statusCode: number,
+    payload: unknown,
+  ): void {
+    if (!this.redis) return;
+    const entry: IdempotencyEntry = {
+      bodyHash,
+      responseJson: JSON.stringify(payload ?? null),
+      statusCode,
+    };
+    void this.redis
+      .set(redisKey, JSON.stringify(entry), 'EX', TTL_SEC)
+      .catch((err) =>
+        this.logger.warn(
+          `IdempotencyInterceptor cache SET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
+  }
+}
+
+/**
+ * **에러 응답 중** idempotency 캐시 대상인 상태코드 — [Spec EIA §R8] 의 닫힌 목록에서
+ * 에러 쪽 두 개다. 성공 쪽(`2xx`)은 별도 분기가 본다.
+ *
+ * `409 STATE_MISMATCH`·`410 EXECUTION_TERMINATED` 는 **확정된 결과**라 재조회하면 같은 답이
+ * 나와야 한다(`EIA-RL-02`). 반대로 `400 VALIDATION_ERROR` 는 재제출이 normal flow 라 캐시하면
+ * stale 에러를 주고, `5xx`·그 밖의 `4xx` 는 재시도가 의미 있는 실패라 캐시하면 재시도를 막는다.
+ *
+ * **단일 비교로 축약하지 말 것** — `>= 400` 은 이 둘을 통째로 떨궈 `EIA-RL-02` 를 깨뜨리고,
+ * `=== 400` 은 반대로 `401`·`404`·`5xx` 를 캐시한다. 네 경우 모두 spec 에 회귀 테스트가 있다.
+ */
+function isErrorStatusCacheable(statusCode: number): boolean {
+  return statusCode === 409 || statusCode === 410;
 }
 
 function readKey(raw: unknown): string | null {

@@ -9,20 +9,27 @@
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
  *
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
- * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA
- * §R8 과 어긋난 현재 캐시 제외 범위를 고정하는 캐너리를 담는다.
+ * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA §R8
+ * 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을 고정하는 회귀 테스트를 담는다.
+ * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
+ * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
  * 세 번째 describe 는 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
  * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그리고 그 fail-open 이
  * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리를 담는다.
  */
 import { createHash } from 'crypto';
-import { lastValueFrom, of, type Observable } from 'rxjs';
+import { lastValueFrom, of, throwError, type Observable } from 'rxjs';
 import {
   IdempotencyInterceptor,
   IDEMPOTENCY_HEADER,
 } from './idempotency.interceptor';
-import { ConflictException, Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  GoneException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 
 type RedisStub = {
@@ -78,6 +85,20 @@ function makeContext(opts: {
 function makeCallHandler(value: unknown): CallHandler {
   return {
     handle: (): Observable<unknown> => of(value),
+  };
+}
+
+/**
+ * **error 채널**로 끝나는 핸들러 — 실제 파이프라인을 재현한다.
+ *
+ * `interaction.service.ts` 는 409/410 을 `ConflictException`/`GoneException` 으로 **throw**
+ * 한다. 성공 채널에 값을 흘리면서 `res.statusCode` 만 409 로 프리셋하는 mock 은 **실제로
+ * 발생하지 않는 상태**다 — 컨트롤러가 `@HttpCode(202)` 라 성공 경로의 statusCode 는 202 로
+ * 선고정되기 때문이다. 이 헬퍼 없이 쓴 테스트는 vacuous 했다(`16_29_45` CRITICAL).
+ */
+function makeThrowingHandler(err: unknown): CallHandler {
+  return {
+    handle: (): Observable<unknown> => throwError(() => err),
   };
 }
 
@@ -231,65 +252,131 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it('409 는 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
-    // 종전에는 이 자리가 "409 도 캐시되지 않는다" 라는 **R8 위반 상태를 고정하는 캐너리**
-    // 였다(구현 `statusCode >= 400` 이 409·410 까지 떨궜다). 조건을 R8 의 열거대로 옮기면서
-    // 캐너리를 정합 동작으로 뒤집는다 — `409 STATE_MISMATCH` 는 "이미 다른 명령이 상태를
-    // 바꿨다" 는 **확정된 결과**라 같은 키로 재조회하면 같은 답이 나와야 한다(EIA-RL-02).
+  it('throw 된 409 가 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
+    // `409 STATE_MISMATCH` 는 "이미 다른 명령이 상태를 바꿨다" 는 **확정된 결과**라 같은
+    // 키로 재조회하면 같은 답이 나와야 한다(EIA-RL-02).
+    //
+    // **error 채널로 행사하는 것이 핵심이다** — 서비스가 `ConflictException` 을 throw 하므로
+    // 성공 채널 mock 은 실제로 발생하지 않는 상태를 검사한다(`16_29_45` CRITICAL).
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
-    await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 409 }),
-        makeCallHandler({ error: 'STATE_MISMATCH' }),
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new ConflictException({ error: { code: 'STATE_MISMATCH' } }),
+          ),
+        ),
       ),
-    );
+    ).rejects.toThrow(ConflictException); // 캐시해도 원 예외는 그대로 나가야 한다
+
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      statusCode: number;
+      responseJson: string;
+    };
+    expect(stored.statusCode).toBe(409);
+    // 재현에 쓸 body 가 실제 예외 payload 여야 한다.
+    expect(JSON.parse(stored.responseJson)).toMatchObject({
+      error: { code: 'STATE_MISMATCH' },
+    });
+  });
+
+  it('throw 된 410 도 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-410', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new GoneException({ error: { code: 'EXECUTION_TERMINATED' } }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(GoneException);
+
     expect(redis.set).toHaveBeenCalledTimes(1);
     const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
       statusCode: number;
     };
-    expect(stored.statusCode).toBe(409);
+    expect(stored.statusCode).toBe(410);
   });
 
-  it('410 도 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
-    // `410 EXECUTION_TERMINATED` 도 확정 결과다 — execution 이 종결된 사실은 번복되지 않는다.
+  it('캐시된 409 는 재조회 시 **예외로** 재현된다', async () => {
+    // 캐시 히트를 성공 응답으로 돌려주면 클라이언트가 202 로 받는다 — 원래 409 였던 것이
+    // 200 대로 바뀌는 셈이라 재현이 아니라 **왜곡**이다.
+    const body = { a: 1 };
     const redis = makeRedis();
-    const interceptor = makeInterceptor(redis);
-    await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'c-410', body: {}, statusCode: 410 }),
-        makeCallHandler({ error: 'EXECUTION_TERMINATED' }),
-      ),
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: JSON.stringify({ error: { code: 'STATE_MISMATCH' } }),
+        statusCode: 409,
+      }),
     );
-    expect(redis.set).toHaveBeenCalledTimes(1);
+    const interceptor = makeInterceptor(redis);
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-409', body }),
+          handler,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    // 캐시 재현이므로 downstream 은 돌지 않는다.
+    expect(handleSpy).not.toHaveBeenCalled();
   });
 
-  it('5xx 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
-    // 일시적 서버 오류를 24h 고정하면 같은 키로 재시도해도 계속 같은 실패를 돌려받아
-    // EIA-RL-02 의 취지(정상 응답의 재현)와 정반대가 된다 — §R8 이 명시한다.
-    // **`=== 400` 으로 좁히는 오답이 바로 여기서 걸린다.**
+  it('throw 된 5xx 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+    // 일시적 서버 오류를 24h 고정하면 재시도해도 계속 같은 실패를 돌려받아 EIA-RL-02 의
+    // 취지와 정반대가 된다. **`=== 400` 으로 좁히는 오답이 여기서 걸린다.**
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-500', body: {}, statusCode: 202 }),
+          makeThrowingHandler(new Error('boom')),
+        ),
+      ),
+    ).rejects.toThrow('boom');
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('3xx 는 캐시하지 않는다 — 종전 `< 400` 에서 의도적으로 축소됐다', async () => {
+    // 종전 조건 `statusCode >= 400` 은 3xx 를 **캐시했다**. §R8 의 닫힌 목록에 3xx 가 없어
+    // 함께 빠졌고, 이 API 는 3xx 를 내지 않으므로 실질 영향은 0 이다. 다만 **조용한 축소로
+    // 두지 않으려고** 고정한다 — `< 300` 을 `<= 300` 이나 `< 400` 으로 넓히면 여기서 걸린다.
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
     await lastValueFrom(
       interceptor.intercept(
-        makeContext({ idempotencyKey: 'e-500', body: {}, statusCode: 500 }),
-        makeCallHandler({ error: 'INTERNAL' }),
+        makeContext({ idempotencyKey: 'r-304', body: {}, statusCode: 304 }),
+        makeCallHandler({ notModified: true }),
       ),
     );
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it('401·404 같은 다른 4xx 도 캐시하지 않는다 — 목록이 닫혀 있다', async () => {
-    // R8 의 캐시 대상은 `2xx`·`409`·`410` **열거**다. "4xx 중 400 만 제외" 로 읽어
-    // `=== 400` 을 쓰면 401·404 가 캐시돼 재시도가 막힌다.
+  it('throw 된 404 도 캐시하지 않는다 — 목록이 닫혀 있다', async () => {
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
-    await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'e-404', body: {}, statusCode: 404 }),
-        makeCallHandler({ error: 'NOT_FOUND' }),
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-404', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new NotFoundException({ error: { code: 'NOT_FOUND' } }),
+          ),
+        ),
       ),
-    );
+    ).rejects.toThrow(NotFoundException);
     expect(redis.set).not.toHaveBeenCalled();
   });
 
