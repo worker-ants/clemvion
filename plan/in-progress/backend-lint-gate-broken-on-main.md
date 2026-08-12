@@ -471,6 +471,16 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
       검증: eslint **errors 0 / warnings 0** · 타입체크 ratchet **199건 / 38파일 baseline 일치**
       (증감 0 — 타입을 깬 자리 없음) · backend unit **418 suites / 8512 passed**.
+- [ ] **선재 테스트 공백 2건** (`12_05_39` testing INFO 1·2, 이번 라운드 유예). 둘 다 이번
+      diff 가 *타입만* 바꾼 자리라 조치 대상이 아니었지만, 공백 자체는 실재한다:
+      - `chat-channel.dispatcher.ts:192-201` — `logFn` 의 debug/warn 삼항 분기가
+        `.handle()` 경유 스펙에서 도달 불가. standalone 함수 테스트만 존재한다.
+      - `executions.service.ts:192-199` — `snapshotCache` evict(256건 한도) 테스트 전무.
+        경계값(256회 삽입)으로 evict 1건·최오래된 키 삭제를 고정할 수 있다.
+      > 이번 라운드에 `idempotency.interceptor.ts` 의 같은 클래스 공백(캐시 히트 경로 전체)은
+      > **메웠다** — 그쪽은 diff 가 신설한 방어(`HttpResponseLike` optional)를 지탱하는
+      > 테스트가 없어서 주석이 주장만 하는 상태였기 때문이다. 위 둘은 diff 가 방어를
+      > 신설하지 않았으므로 성격이 다르다.
 - [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
       `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
       그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그
