@@ -15,7 +15,7 @@ import { catchError, switchMap, tap } from 'rxjs/operators';
 import { createHash } from 'crypto';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
-import type { Request } from 'express';
+import type { RequestWithInteraction } from './interaction.guard';
 
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
 const REDIS_KEY_PREFIX = 'interaction:idempotency:';
@@ -52,6 +52,9 @@ interface IdempotencyEntry {
  * - 클라이언트가 `Idempotency-Key` 헤더를 보내면 첫 응답을 Redis 에 24h 캐시.
  * - 같은 키로 재요청 시 같은 응답을 그대로 재현 (멱등).
  * - 같은 키 + 다른 body 는 `409 Conflict`.
+ * - **캐시 키는 `<executionId>:<route>:<key>` 로 스코프** ([Spec EIA §R8] "캐시 키 스코프").
+ *   헤더 값 단독으로 키를 만들면 네임스페이스를 모든 execution 이 공유해, 다른 execution 의
+ *   응답이 재생되고 그쪽 명령은 서비스에 닿지도 않은 채 `202` 로 유실된다.
  * - `400 VALIDATION_ERROR` 응답은 캐시 제외 — 사용자가 form 수정 후 동일 키로 재제출 가능
  *   ([Spec EIA §R8] / 실행 엔진 §1.3 의 "waiting_for_input 유지" 컨벤션).
  * - 키 미설정 시 캐시 적용 안 함 (옵션).
@@ -86,13 +89,36 @@ export class IdempotencyInterceptor implements NestInterceptor {
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const req = context.switchToHttp().getRequest<Request>();
+    const req = context.switchToHttp().getRequest<RequestWithInteraction>();
     const rawKey = readKey(req.headers[IDEMPOTENCY_HEADER]);
     if (!rawKey || !this.redis) {
       return next.handle();
     }
+    // [Spec EIA §R8 "캐시 키 스코프"] — 키는 헤더 값 단독이 아니라 execution + route 로
+    // 스코프한다. `executionId` 는 `InteractionGuard` 가 토큰 검증 후 합성한 값이라
+    // 클라이언트가 조작할 수 없다(URL 파라미터 원문을 직접 읽는 것과 다른 점).
+    const executionId = req.interaction?.executionId;
+    if (!executionId) {
+      // **전역 키로 fallback 하지 않는다.** 스코프 없는 키는 캐시 네임스페이스를 전
+      // execution 이 공유하게 만들어 §R8 이 닫은 표면을 그대로 되살린다. 멱등성을 포기하는
+      // 쪽이 맞다 — 이 인터셉터의 다른 실패 경로(Redis 미주입·GET/SET·직렬화)와 일관된다.
+      this.logger.warn(
+        'IdempotencyInterceptor — interaction ctx 부재로 캐시 skip (Guard 미적용?). 전역 키 fallback 은 하지 않는다.',
+      );
+      return next.handle();
+    }
+    // route 축: 같은 인터셉터가 `interact`·`cancel` 두 자리에 붙는데 `CancelDto` 는 전 필드
+    // optional 이라 body `{}` 가 가능하고, 그때 `bodyHash` 가 `{}` 인 interact 요청과 일치한다
+    // → cancel 의 ack 가 interact 에 재생된다. 핸들러명이 그 둘을 가르는 값이다.
+    //
+    // **전제 — 핸들러명이 빌드 후에도 보존된다.** `nest build` 는 순수 tsc 라 minifier 가
+    // 없어 성립한다. 번들러/minifier 를 도입하면 두 핸들러명이 함께 뭉개져 이 축이 붕괴할 수
+    // 있다(그때도 `executionId` 축은 남는다). e2e `IDEM-5` 가 실 파이프라인에서 이 값을
+    // 고정하므로, 그 전제가 깨지면 거기서 RED 가 난다 — 단위 mock 은 `getHandler()` 를 스스로
+    // 만들어 내므로 이 자리를 검증하지 못한다.
+    const route = context.getHandler().name;
     const bodyHash = hashBody(req.body);
-    const redisKey = `${REDIS_KEY_PREFIX}${rawKey}`;
+    const redisKey = `${REDIS_KEY_PREFIX}${executionId}:${route}:${rawKey}`;
     return from(this.redis.get(redisKey)).pipe(
       // 캐시 조회 실패는 **캐시 미스로 강등**한다 — 멱등성은 부가 기능인데 Redis 가 죽었다고
       // 요청까지 죽이면 `spec/data-flow/15-external-interaction.md` 의 "Redis … 전 경로

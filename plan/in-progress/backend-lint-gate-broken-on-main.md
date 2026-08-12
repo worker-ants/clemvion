@@ -558,7 +558,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 단위 mock 이 네 라운드 연속 놓친 결함 클래스(`mock 이 만드는 상태 ≠ 시스템이 실제로
       > 만드는 상태`)를 이제 이 e2e 가 실 파이프라인에서 잡는다.
-- [ ] **idempotency 캐시 키가 execution/인증 컨텍스트로 스코프되지 않는다** (`16_29_45`~
+- [x] **idempotency 캐시 키가 execution/인증 컨텍스트로 스코프되지 않는다** (`16_29_45`~
       `19_04_29` security, **5개 라운드 반복 지적**). `redisKey` 는
       `interaction:idempotency:${rawKey}` 로 **`Idempotency-Key` 헤더 값에만** 바인딩된다.
       서로 다른 execution 에 대해 같은 키 + 같은 body(→ 같은 `bodyHash`)를 쓰면 한쪽의 캐시된
@@ -580,11 +580,27 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > `bodyHash` 가 `{}` 인 interact 요청과 일치해 cancel 의 ack 가 interact 에 재생된다.
       > 원 지적(execution 축) 밖이지만 같은 결함 클래스라 함께 닫는다.
       >
-      > **선행 spec 해소 (2026-08-12, planner 턴 `eia-idempotency-key-scope`)** — 키 형식은
+      > **선행 spec 해소 (2026-08-12, planner 턴 `eia-idempotency-key-scope`, #1156)** — 키 형식은
       > `spec/data-flow/15` 3자리에 박혀 있고 `EIA-IN-11`·`EIA-RL-02` 두 행이 "동일 키" 라고만
       > 적어 **전역 유일성을 암시**했다. §R8 Rationale 에 "캐시 키 스코프" 문단(두 축 · 토큰이
-      > 아닌 이유 · ctx 부재 시 캐시 skip)을 추가하고 세 자리를 3-세그먼트로 고쳤다. 이제
-      > 구현만 남았다. draft: [`spec-draft-eia-idempotency-key-scope.md`](spec-draft-eia-idempotency-key-scope.md)
+      > 아닌 이유 · ctx 부재 시 캐시 skip)을 추가하고 세 자리를 3-세그먼트로 고쳤다.
+      > draft: [`spec-draft-eia-idempotency-key-scope.md`](../complete/spec-draft-eia-idempotency-key-scope.md)
+
+      > **완료 (2026-08-12, developer 턴 `eia-r8-cache-scope-4ae434`).**
+      > `interaction:idempotency:${executionId}:${route}:${rawKey}` 로 착지. `executionId` 는
+      > `req.interaction` (Guard 가 토큰 검증 후 합성 — 클라이언트 조작 불가), `route` 는
+      > `context.getHandler().name`. ctx 부재 시 **전역 키 fallback 없이 캐시 skip**(warn).
+      >
+      > **뮤테이션으로 판별력을 실측했다** — 단위 5개 뮤턴트(전역 회귀 · route 만 제거 ·
+      > execution 만 제거 · ctx skip 제거 · **GET 은 스코프인데 SET 만 전역**) 전부 사살.
+      > e2e 는 스코프 통째 제거 뮤턴트에서 `IDEM-4`(`Expected 202 / Received 410` — B 가 A 의
+      > 응답 수신)와 `IDEM-5`(`Expected 400 / Received 410` — cancel 이 interact 의 캐시 수신)가
+      > RED.
+      >
+      > ⚠️ **그 e2e 는 처음에 판별력이 없었다.** "상태코드로 갈리는 fixture" 라고 써 놓고
+      > 뮤턴트가 **캐시 키 존재 단언(white-box)에서 먼저 죽어** 상태코드 단언에 도달하지 못했다.
+      > 행동 단언을 앞으로 옮기고서야 위 값이 나왔다. **관측점을 옳게 골라도 단언 순서가
+      > 앞에서 죽게 만들면 뒤의 단언은 없는 것과 같다** — RED 만 보고 넘어가면 이 상태를 못 본다.
       >
       > ⚠️ **이 항목은 `16_29_45`·`16_53_26`·`17_07_45`·`18_07_36`·`18_52_47` 다섯 라운드의
       > RESOLUTION 이 "plan 에 이미 등재됨" 이라고 반복 주장했지만 실제로는 한 번도 적히지

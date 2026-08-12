@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased — (보안) 멱등 캐시 키를 execution + route 로 스코프 — cross-execution 응답 재생 차단 (Spec EIA §R8 "캐시 키 스코프")
+
+멱등 캐시 키가 `Idempotency-Key` **헤더 값 하나에만** 바인딩돼 있어, 캐시 네임스페이스를
+**모든 execution 이 공유**했다. 서로 다른 두 요청자가 같은 키 + 같은 body 를 쓰면 한쪽의
+캐시된 응답이 다른 쪽에게 재생된다.
+
+`interaction:idempotency:<key>` → `interaction:idempotency:<executionId>:<route>:<key>`
+
+**클라이언트 영향은 없다** — 같은 키로 같은 execution 에 재요청하는 정상 사용은 그대로
+재현된다. 달라지는 것은 *다른* execution 이 같은 키를 썼을 때뿐이다.
+
+**두 축이 닫힌다.**
+
+- **execution 축**: 요청자 B 가 자기 execution 에 정당한 토큰으로 A 와 같은 키·같은 body 를
+  쓰면 캐시 hit 이 되어 **B 의 명령이 서비스에 닿지도 않은 채** A 의 응답이 반환된다. B 는
+  `202 accepted` 를 받으므로 유실을 인지하지 못하고, A 의 응답 body 가 B 에게 노출된다.
+  `InteractionGuard` 가 인터셉터보다 먼저 도니 인증 우회는 없다 — 깨지는 건 그 다음이다.
+- **route 축**: 같은 인터셉터가 `interact`·`cancel` 두 자리에 붙는데 `CancelDto` 는 전 필드
+  optional 이라 body `{}` 가 가능하고, 그때 `bodyHash` 가 `{}` 인 interact 요청과 일치한다.
+
+**스코프 단위는 토큰이 아니라 execution 이다.** jti 로 스코프하면 `/refresh-token` 으로 토큰이
+회전한 뒤의 재시도가 다른 키로 떨어져 `EIA-RL-02` 가 보장하려는 바로 그 시나리오를 깬다.
+
+`req.interaction` 이 없으면(Guard 미적용 등) **전역 키로 fallback 하지 않고 캐시 자체를
+건너뛴다** — 조용한 fallback 은 위 표면을 그대로 되살린다. 이 인터셉터의 다른 실패
+경로(Redis 미주입·GET/SET 실패·직렬화 실패)와 같은 fail-open 이다.
+
+**배포 전환기**: 키 포맷이 바뀌므로 배포 시점에 남아 있던 구-포맷 엔트리는 조회되지 않고
+고아로 남아 TTL(24h)로 자연 소멸한다. 그 창 동안 같은 키의 재요청이 **한 번** 캐시 미스로
+재처리될 수 있다. 데이터 오염은 없다.
+
 ## Unreleased — `Idempotency-Key` 로 `409`·`410` 을 재조회해도 같은 응답이 나온다 (Spec EIA §R8 정합)
 
 `Idempotency-Key` 캐시 적재 조건이 `statusCode >= 400` 이라 **`409 Conflict` 와 `410 Gone` 이

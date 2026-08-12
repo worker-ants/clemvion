@@ -119,6 +119,21 @@ async function createTriggerWithInteraction(
 const JWT_SECRET =
   process.env.JWT_SECRET ?? 'clemvion-e2e-jwt-secret-do-not-use-in-prod-x9y8z7';
 
+/**
+ * 멱등 캐시 Redis 키 — [Spec EIA §R8 "캐시 키 스코프"].
+ *
+ * 헤더 값 단독이 아니라 `<executionId>:<route>` 로 스코프된다. `route` 는 컨트롤러
+ * 핸들러명(`interact` | `cancel`) — 같은 인터셉터가 두 자리에 붙어 있고 `CancelDto` 는 전 필드
+ * optional 이라 body `{}` 가 interact 의 `{}` 와 hash 가 같아지기 때문이다.
+ */
+function idempotencyCacheKey(
+  executionId: string,
+  rawKey: string,
+  route: 'interact' | 'cancel' = 'interact',
+): string {
+  return `interaction:idempotency:${executionId}:${route}:${rawKey}`;
+}
+
 /** InteractionTokenService.issuePerExecution 과 동형의 iext_* 토큰을 직접 mint. */
 function mintInteractionToken(executionId: string): string {
   const jwt = sign(
@@ -422,7 +437,9 @@ describe('External Interaction API (e2e)', () => {
     // nodeId 를 유효하게 바꿔 202 가 나오게 만든다" 는 fixture 를 썼는데, 예외 경로 적재를
     // 제거한 뮤턴트에서도 e2e 가 **그대로 통과**했다(실측) — 두 구현을 못 가르는 fixture 였다.
     // Redis 키의 존재와 내용이 이 계약의 유일한 관측점이다.
-    const cached = await redis.get(`interaction:idempotency:${idempotencyKey}`);
+    const cached = await redis.get(
+      idempotencyCacheKey(executionId, idempotencyKey),
+    );
     expect(cached).not.toBeNull();
     const entry = JSON.parse(cached as string) as {
       statusCode: number;
@@ -492,7 +509,7 @@ describe('External Interaction API (e2e)', () => {
     // 적재 자체가 없어야 한다 — 아래 재제출 성공은 캐시 부재의 **결과**이지 직접 증거가
     // 아니다(엔트리가 있어도 body 가 달라 409 로 갈 수 있어 원인이 섞인다).
     expect(
-      await redis.get(`interaction:idempotency:${idempotencyKey}`),
+      await redis.get(idempotencyCacheKey(executionId, idempotencyKey)),
     ).toBeNull();
 
     // 같은 키로 **고친 값**을 재제출 — 400 이 캐시됐다면 body 가 달라 409
@@ -535,7 +552,9 @@ describe('External Interaction API (e2e)', () => {
     expect(first.status).toBe(410);
     expect(first.body.error.code).toBe('EXECUTION_TERMINATED');
 
-    const cached = await redis.get(`interaction:idempotency:${idempotencyKey}`);
+    const cached = await redis.get(
+      idempotencyCacheKey(executionId, idempotencyKey),
+    );
     expect(cached).not.toBeNull();
     const entry = JSON.parse(cached as string) as { statusCode: number };
     expect(entry.statusCode).toBe(410);
@@ -547,6 +566,129 @@ describe('External Interaction API (e2e)', () => {
       .send(body);
     expect(second.status).toBe(410);
     expect(second.body.error.code).toBe('EXECUTION_TERMINATED');
+  });
+
+  it('IDEM-4. 다른 execution 이 같은 키·같은 body 를 써도 남의 응답을 받지 않는다 (§R8 캐시 키 스코프)', async () => {
+    // 종전 키는 `Idempotency-Key` 헤더 값 단독이라 네임스페이스를 **모든 execution 이 공유**
+    // 했다. B 가 자기 execution 에 정당한 토큰으로 A 와 같은 키·같은 body 를 쓰면 캐시 hit 이
+    // 되어 **B 의 명령이 서비스에 닿지도 않은 채** A 의 응답이 반환된다.
+    //
+    // **판별력** — 두 execution 의 상태를 다르게 둬서 상태코드 자체가 갈리게 만든다.
+    // A 는 terminal(410), B 는 waiting_for_input. 스코프가 없으면 B 가 A 의 410 을 받는다.
+    // 키 존재만 보면 "레이아웃" 은 잡지만 **실제 피해**(남의 응답 수신)는 못 본다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const idempotencyKey = `e2e-scope-${randomUUID()}`;
+    const body = { command: 'cancel' };
+
+    // A — terminal execution. 어떤 명령이든 410.
+    const executionA = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at, finished_at)
+       VALUES ($1, $2, 'completed', NOW(), NOW())`,
+      [executionA, workflowId],
+    );
+
+    // B — 살아 있는 waiting_for_input execution.
+    const waitingNodeId = randomUUID();
+    await db.query(
+      `INSERT INTO node (id, workflow_id, type, category, label, config, position_x, position_y, created_at, updated_at)
+       VALUES ($1, $2, 'form', 'presentation', 'frm', $3, 0, 0, NOW(), NOW())`,
+      [waitingNodeId, workflowId, JSON.stringify({ fields: [] })],
+    );
+    const executionB = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at)
+       VALUES ($1, $2, 'waiting_for_input', NOW())`,
+      [executionB, workflowId],
+    );
+    await db.query(
+      `INSERT INTO node_execution (id, execution_id, node_id, status, started_at)
+       VALUES ($1, $2, $3, 'waiting_for_input', NOW())`,
+      [randomUUID(), executionB, waitingNodeId],
+    );
+
+    // A 먼저 — 410 이 캐시에 적재된다.
+    const fromA = await request(BASE_URL)
+      .post(`/api/external/executions/${executionA}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionA)}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(fromA.status).toBe(410);
+
+    // B — 같은 키·같은 body(= 같은 bodyHash) 인데도 **자기 처리 결과**를 받아야 한다.
+    // 스코프가 없으면 여기서 A 의 410 EXECUTION_TERMINATED 가 돌아온다.
+    //
+    // **이 단언이 키 레이아웃 단언보다 앞에 와야 한다.** 처음엔 A 의 캐시 키 존재를 먼저
+    // 단언했는데, 뮤테이션 실측에서 스코프를 제거한 뮤턴트가 **그 white-box 단언에서** 죽고
+    // 아래 상태코드 단언에는 도달조차 못 했다 — "실제 피해(남의 응답 수신)를 관측한다" 는
+    // 주장이 실증되지 않은 상태였다. 순서를 뒤집어 행동 단언이 먼저 죽게 한다.
+    const fromB = await request(BASE_URL)
+      .post(`/api/external/executions/${executionB}/interact`)
+      .set('Authorization', `Bearer ${mintInteractionToken(executionB)}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(fromB.status).toBe(202);
+
+    // 그 다음이 키 레이아웃 — 적재도 각자의 키로. GET 만 스코프하고 SET 이 전역이면
+    // 다음 요청이 남의 것을 읽는다.
+    expect(
+      await redis.get(idempotencyCacheKey(executionA, idempotencyKey)),
+    ).not.toBeNull();
+    expect(
+      await redis.get(idempotencyCacheKey(executionB, idempotencyKey)),
+    ).not.toBeNull();
+  });
+
+  it('IDEM-5. 같은 execution 이라도 /interact 와 /cancel 은 캐시를 공유하지 않는다 (route 축)', async () => {
+    // 같은 인터셉터가 두 자리(`interact`·`cancel`)에 붙어 있는데 키에 route 가 없으면,
+    // `CancelDto` 가 전 필드 optional 이라 body 가 겹칠 때 한쪽 응답이 다른 쪽에 재생된다.
+    //
+    // **판별력** — 두 route 의 결과가 다르게 나오는 body 를 쓴다. `{command:'cancel'}` 은
+    // `/interact` 에서는 정상 명령(terminal 이라 410)이지만 `/cancel` 에서는 `CancelDto` 에
+    // 없는 필드라 `forbidNonWhitelisted` 로 **400 VALIDATION_ERROR** 다. route 세그먼트가
+    // 빠지면 두 번째 요청이 검증에 닿기도 전에 캐시 hit 으로 410 을 받는다.
+    //
+    // 부수 효과로 **실 파이프라인에서의 route 이름**(`context.getHandler().name`)도 고정한다 —
+    // 단위 mock 은 `getHandler()` 를 스스로 만들어 내므로 이 값을 검증할 수 없는 자리다.
+    const { workflowId } = await createTriggerWithInteraction(db, {
+      interactionEnabled: true,
+    });
+    const executionId = randomUUID();
+    await db.query(
+      `INSERT INTO execution (id, workflow_id, status, started_at, finished_at)
+       VALUES ($1, $2, 'completed', NOW(), NOW())`,
+      [executionId, workflowId],
+    );
+    const iextToken = mintInteractionToken(executionId);
+    const idempotencyKey = `e2e-route-${randomUUID()}`;
+    const body = { command: 'cancel' };
+
+    const viaInteract = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/interact`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(viaInteract.status).toBe(410);
+
+    // **행동 단언이 먼저다** (IDEM-4 와 같은 이유 — 키 레이아웃 단언을 앞에 두면 뮤턴트가
+    // 거기서 죽어 실제 피해가 관측되지 않는다). route 세그먼트가 빠지면 이 요청이 검증에
+    // 닿기도 전에 캐시 hit 으로 interact 의 410 을 받는다.
+    const viaCancel = await request(BASE_URL)
+      .post(`/api/external/executions/${executionId}/cancel`)
+      .set('Authorization', `Bearer ${iextToken}`)
+      .set('Idempotency-Key', idempotencyKey)
+      .send(body);
+    expect(viaCancel.status).toBe(400);
+    expect(viaCancel.body.error.code).toBe('VALIDATION_ERROR');
+
+    // 그 다음이 키 레이아웃 — 실 파이프라인의 route 이름(`getHandler().name`)을 고정한다.
+    expect(
+      await redis.get(
+        idempotencyCacheKey(executionId, idempotencyKey, 'interact'),
+      ),
+    ).not.toBeNull();
   });
 
   it('H. /interact per-execution rate-limit 초과 → 429 RATE_LIMITED + Retry-After (§8.4)', async () => {
