@@ -202,7 +202,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
       );
   }
 
-  /** 캐시 엔트리 적재 — 실패는 warn 후 통과(fail-open). */
+  /**
+   * 캐시 엔트리 적재 — 실패는 warn 후 통과(fail-open).
+   *
+   * **직렬화 실패도 삼켜야 한다.** 이 메서드는 `catchError` 셀렉터 안에서도 불리는데, 거기서
+   * throw 하면 그 새 에러가 **원래 409/410 예외를 대체**해 클라이언트가 500 을 받는다 —
+   * 아래 `throwError(() => err)` 조차 실행되지 못하므로 "응답을 기록할 뿐 삼키지 않는다" 는
+   * 이 클래스의 불변식이 깨진다. 순환 참조 같은 직렬화 불가 payload 가 그 방아쇠가 될 수
+   * 있어(현재 서비스의 4개 throw 는 전부 plain object 지만 계약이 아니다) 적재만 포기한다.
+   */
   private storeEntry(
     redisKey: string,
     bodyHash: string,
@@ -210,11 +218,19 @@ export class IdempotencyInterceptor implements NestInterceptor {
     payload: unknown,
   ): void {
     if (!this.redis) return;
-    const entry: IdempotencyEntry = {
-      bodyHash,
-      responseJson: JSON.stringify(payload ?? null),
-      statusCode,
-    };
+    let entry: IdempotencyEntry;
+    try {
+      entry = {
+        bodyHash,
+        responseJson: JSON.stringify(payload ?? null),
+        statusCode,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `IdempotencyInterceptor cache 직렬화 실패 — 적재 skip: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
     void this.redis
       .set(redisKey, JSON.stringify(entry), 'EX', TTL_SEC)
       .catch((err) =>

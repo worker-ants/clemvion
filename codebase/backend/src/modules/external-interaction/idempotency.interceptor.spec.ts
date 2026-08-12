@@ -28,6 +28,7 @@ import {
   BadRequestException,
   ConflictException,
   GoneException,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -348,15 +349,69 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(handleSpy).not.toHaveBeenCalled();
   });
 
-  it('throw 된 5xx 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+  it('캐시된 410 도 재조회 시 **예외로** 재현된다', async () => {
+    // 409 만 replay 를 검증하고 410 은 적재까지만 보던 자매 자리 누락을 닫는다
+    // (`17_07_45` WARNING). 지금은 둘이 같은 분기를 타지만, 한쪽만 남기는 리팩터가
+    // 들어와도 여기서 걸린다.
+    const body = { a: 1 };
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: JSON.stringify({
+          error: { code: 'EXECUTION_TERMINATED' },
+        }),
+        statusCode: 410,
+      }),
+    );
+    const interceptor = makeInterceptor(redis);
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'c-410', body }),
+          handler,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 410 });
+
+    expect(handleSpy).not.toHaveBeenCalled();
+  });
+
+  it('throw 된 5xx(HttpException) 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
     // 일시적 서버 오류를 24h 고정하면 재시도해도 계속 같은 실패를 돌려받아 EIA-RL-02 의
-    // 취지와 정반대가 된다. **`=== 400` 으로 좁히는 오답이 여기서 걸린다.**
+    // 취지와 정반대가 된다.
+    //
+    // **반드시 `HttpException` 으로 던져야 한다** — 순수 `Error` 를 쓰면 구현의
+    // `instanceof HttpException` 가드에 먼저 막혀 `isErrorStatusCacheable` 이 **호출조차
+    // 되지 않는다.** 그 상태에서는 판정 함수를 `>= 500` 도 캐시하도록 오염시켜도 아무도
+    // 잡지 못했다(`17_07_45` WARNING 실측). 우회 경로로 통과하는 테스트는 검증이 아니다.
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
     await expect(
       lastValueFrom(
         interceptor.intercept(
           makeContext({ idempotencyKey: 'e-500', body: {}, statusCode: 202 }),
+          makeThrowingHandler(
+            new InternalServerErrorException({ error: { code: 'INTERNAL' } }),
+          ),
+        ),
+      ),
+    ).rejects.toThrow(InternalServerErrorException);
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('`HttpException` 이 아닌 예외는 캐시 판정 자체를 거치지 않는다', async () => {
+    // 위 테스트가 가드 **뒤**를 본다면 이건 가드 **앞**을 본다 — 상태코드를 알 수 없는
+    // 예외는 적재 후보가 아니다. 원 예외가 그대로 나가는지도 함께 고정한다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'e-raw', body: {}, statusCode: 202 }),
           makeThrowingHandler(new Error('boom')),
         ),
       ),
