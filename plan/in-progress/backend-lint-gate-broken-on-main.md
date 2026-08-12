@@ -669,7 +669,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > **조건부 유예를 조용히 연장하지 않기 위해 항목으로 꺼낸다.** 이 PR 안에서 하지 않는
       > 이유는 순수 구조 변경이라 리뷰 라운드를 한 번 더 요구하는데, 이번 PR 의 남은 발견이
       > 전부 문서·테스트 층위라 수렴 중이기 때문이다. 다음에 이 콜백을 만질 때 착수한다.
-- [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
+- [x] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
       > 함께 닫을 것 (`00_20_20` security/testing INFO 1): `isIdempotencyEntry()` 가
@@ -678,6 +678,22 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 쓴 엔트리라 위험은 낮지만 경계값이라는 성격이 같아 한 자리에서 정리한다.
       > (`NaN`·`Infinity` 는 JSON 리터럴이 아니므로 `JSON.parse` 로는 도달 불가 — 실제 표면은
       > 음수·비정상 정수뿐이다.)
+
+      > **완료 (2026-08-13, `eia-idem-key-boundary`).** 경계 테스트 13건 + `isHttpStatusCode()`
+      > 범위 검사. 뮤턴트 **10개 전부 사살**(길이 상한 off-by-one · 길이 검사 · trim ·
+      > non-string · 빈 문자열 · `body ?? null` · statusCode 하한/상한/정수 · 범위 좁힘).
+      >
+      > **처음엔 두 개가 생존했고 둘 다 내 쪽 결함이었다:**
+      >
+      > 1. `readKey` 의 빈 문자열 검사가 호출부 `!rawKey` **truthiness 에 가려** 관측 불가였다.
+      >    호출부를 `rawKey === null` 로 바꿔 책임을 갈랐다 — `readKey` 는 "쓸 수 있는 키인가",
+      >    호출부는 "받았는가". 명시 비교가 truthiness 보다 나은 이유가 여기서 관측된다.
+      > 2. `body: undefined`/`null` 을 명시해도 **mock 이 `?? {}` 로 정규화**해 그 경로를 아예
+      >    안 탔다 — 양쪽 다 `{}` 라 동등성 테스트가 **이중으로 vacuous** 했다. mock 을
+      >    `'body' in opts` 로 고쳤다.
+      >
+      > 후자가 이 세션에서 반복된 형태다: **mock 이 만드는 상태 ≠ 시스템이 실제로 만드는 상태.**
+      > "명시 안 함" 과 "명시적 nullish" 는 다른 입력인데 `??` 가 둘을 뭉갠다.
 - [ ] **`CCH-SE-02` 의 update dedup 이 미배선 — `ChannelUpdate.idempotencyKey` 는 dead field**
       (`19_56_51` cross_spec WARNING 3). [`spec/5-system/15-chat-channel.md`](../../spec/5-system/15-chat-channel.md) L88 은
       "인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id`

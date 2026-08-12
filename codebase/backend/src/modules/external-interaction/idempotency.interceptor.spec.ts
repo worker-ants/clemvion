@@ -124,7 +124,11 @@ function makeContext(opts: {
     headers: opts.idempotencyKey
       ? { [IDEMPOTENCY_HEADER]: opts.idempotencyKey }
       : {},
-    body: opts.body ?? {},
+    // **`opts.body ?? {}` 를 쓰지 않는다.** 그러면 `body: undefined`·`body: null` 을 명시해도
+    // mock 이 `{}` 로 정규화해 인터셉터가 그 경로를 아예 못 본다 — `hashBody` 의 `body ?? null`
+    // 을 지워도 테스트가 통과하는 상태였다(뮤테이션 실측). "명시 안 함" 과 "명시적 nullish" 는
+    // 다른 입력이므로 키 존재 여부로 가른다.
+    body: 'body' in opts ? opts.body : {},
     ...(executionId === null
       ? {}
       : { interaction: { executionId, tokenFamily: 'iext' as const } }),
@@ -1199,4 +1203,224 @@ describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () =
       warnSpy.mockRestore();
     }
   });
+});
+
+/**
+ * `readKey()` · `hashBody()` **경계값** — 둘 다 module-private 라 `intercept()` 를 통해 본다.
+ *
+ * 헬퍼를 직접 부르는 테스트는 **호출부 테스트가 아니다.** 헬퍼가 옳아도 `intercept()` 가
+ * 반환값을 잘못 쓰면(예: `null` 을 truthy 로 다루면) 갭이 그대로 남는다. 여기서 보는 것은
+ * "이 경계에서 **인터셉터가** 어떻게 행동하는가" 다.
+ *
+ * `readKey` 의 경계는 전부 **fail-open 방향**(키를 못 읽으면 캐시를 아예 안 쓴다)이라
+ * 관측점은 `redis.get` 호출 여부다 — 응답만 보면 캐시 미적용과 캐시 미스가 구분되지 않는다.
+ */
+describe('IdempotencyInterceptor — readKey / hashBody 경계값', () => {
+  const key200 = 'k'.repeat(200); // MAX_KEY_LENGTH 경계 (허용)
+  const key201 = 'k'.repeat(201); // 한 칸 초과 (거부)
+
+  it('키 길이 상한 — 200자는 쓰고 201자는 캐시 자체를 안 쓴다 (경계 양쪽)', async () => {
+    // **양쪽을 한 테스트에서 본다.** 한쪽만 두면 `>=` / `>` 를 뒤집는 off-by-one 이 통과한다.
+    const accepted = makeRedis();
+    await lastValueFrom(
+      makeInterceptor(accepted).intercept(
+        makeContext({ idempotencyKey: key200, body: {} }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+    expect(accepted.get).toHaveBeenCalledWith(
+      scopedKey(DEFAULT_EXECUTION_ID, key200),
+    );
+
+    const rejected = makeRedis();
+    const handler = makeCallHandler({ ok: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+    const result = await lastValueFrom(
+      makeInterceptor(rejected).intercept(
+        makeContext({ idempotencyKey: key201, body: {} }),
+        handler,
+      ),
+    );
+    expect(result).toEqual({ ok: true }); // 요청은 통과한다 (fail-open)
+    expect(handleSpy).toHaveBeenCalled();
+    expect(rejected.get).not.toHaveBeenCalled();
+    expect(rejected.set).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['공백뿐인 키', '   '],
+    ['탭·개행뿐인 키', '\t\n '],
+  ])('%s → 캐시 미적용 (trim 후 빈 문자열)', async (_label, rawKey) => {
+    const redis = makeRedis();
+    const result = await lastValueFrom(
+      makeInterceptor(redis).intercept(
+        makeContext({ idempotencyKey: rawKey, body: {} }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+
+  it('앞뒤 공백은 trim 된다 — `" k "` 와 `"k"` 가 같은 엔트리를 본다', async () => {
+    // trim 이 사라지면 두 요청이 **다른 키**가 되어 멱등성이 조용히 깨진다.
+    // 키 문자열을 직접 단언해야 잡힌다 — 응답만 보면 둘 다 정상이다.
+    const redis = makeRedis();
+    await lastValueFrom(
+      makeInterceptor(redis).intercept(
+        makeContext({ idempotencyKey: '  spaced  ', body: {} }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+    expect(redis.get).toHaveBeenCalledWith(
+      scopedKey(DEFAULT_EXECUTION_ID, 'spaced'),
+    );
+  });
+
+  it('헤더가 배열이면(중복 전송) 캐시 미적용 — express 는 중복 헤더를 string[] 로 준다', async () => {
+    // `readKey` 의 `typeof raw !== 'string'` 분기. 실제로 도달하는 경로다: 클라이언트가
+    // `Idempotency-Key` 를 두 번 보내면 express 가 배열을 넘긴다. 지금 동작은 "멱등성을
+    // 조용히 끄고 통과" 인데, 아무도 고정해 두지 않아 바뀌어도 눈치채지 못한다.
+    const redis = makeRedis();
+    const ctx = makeContext({ body: {} });
+    // makeContext 는 문자열만 받으므로 헤더를 직접 배열로 바꿔 끼운다.
+    (
+      ctx.switchToHttp().getRequest() as { headers: Record<string, unknown> }
+    ).headers[IDEMPOTENCY_HEADER] = ['a', 'b'];
+
+    const result = await lastValueFrom(
+      makeInterceptor(redis).intercept(ctx, makeCallHandler({ ok: true })),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+
+  it('같은 body 라도 키 순서가 다르면 다른 hash → 409 (문서화된 계약)', async () => {
+    // `hashBody` 의 주석이 "키 순서가 다른 동일 의미 객체는 다른 hash 가 되어 의도치 않은
+    // 409 발생 가능 — 클라이언트 책임" 이라고 **명시**한다. 문서화된 동작은 테스트로 받쳐야
+    // 한다 — 안 그러면 나중에 정규화를 넣어도(계약 변경) 아무도 모른다.
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf({ a: 1, b: 2 }),
+        responseJson: JSON.stringify({ cached: true }),
+        statusCode: 200,
+      }),
+    );
+
+    await expect(
+      lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'order', body: { b: 2, a: 1 } }),
+          makeCallHandler({ fresh: true }),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('body 가 `undefined` 든 `null` 이든 같은 hash — 둘 다 `"null"` 로 직렬화된다', async () => {
+    // `hashBody` 의 `body ?? null`. 이 동등성이 깨지면 body 없는 재요청이 409 가 된다.
+    //
+    // 종전엔 mock 이 `opts.body ?? {}` 라 **양쪽 다 `{}`** 가 넘어갔다 — 이중으로 vacuous
+    // 했고, 뮤테이션(`body ?? null` 제거)이 생존해서야 드러났다. mock 을 `'body' in opts` 로
+    // 고쳐 명시적 `undefined`/`null` 이 그대로 전달된다.
+    const first = makeRedis();
+    await lastValueFrom(
+      makeInterceptor(first).intercept(
+        makeContext({ idempotencyKey: 'nobody', body: undefined }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+    const second = makeRedis();
+    await lastValueFrom(
+      makeInterceptor(second).intercept(
+        makeContext({ idempotencyKey: 'nobody', body: null }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+
+    const hashOf = (r: RedisStub) =>
+      (JSON.parse(r.set.mock.calls[0][1] as string) as { bodyHash: string })
+        .bodyHash;
+    expect(hashOf(first)).toBe(hashOf(second));
+  });
+
+  it.each([
+    ['음수', -1],
+    ['0', 0],
+    ['범위 밖(600)', 600],
+    ['정수 아님', 200.5],
+  ])(
+    '엔트리의 statusCode 가 HTTP 코드가 아니면(%s) 손상으로 보고 신규 처리',
+    async (_label, statusCode) => {
+      // `typeof === 'number'` 만 보면 이 값들이 통과해 `res.status(-1)` / `HttpException(_, -1)`
+      // 로 흘러가고, express 가 전송 시점에 `RangeError` 를 내 **500** 이 된다 — 손상 엔트리
+      // 하나가 요청을 죽이는, 이 클래스가 없애려는 형태 그대로다.
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        const body = { a: 1 };
+        const redis = makeRedis();
+        redis.get.mockResolvedValue(
+          JSON.stringify({
+            bodyHash: bodyHashOf(body),
+            responseJson: JSON.stringify({ cached: true }),
+            statusCode,
+          }),
+        );
+        const handler = makeCallHandler({ fresh: true });
+        const handleSpy = jest.spyOn(handler, 'handle');
+
+        const result = await lastValueFrom(
+          makeInterceptor(redis).intercept(
+            makeContext({ idempotencyKey: 'bad-status', body }),
+            handler,
+          ),
+        );
+
+        expect(result).toEqual({ fresh: true });
+        expect(handleSpy).toHaveBeenCalled();
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('cache 엔트리 손상'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    ['하한 100', 100],
+    ['상한 599', 599],
+  ])(
+    '유효 범위 경계(%s)는 손상으로 보지 않는다 — 범위 검사가 너무 좁아지는 회귀 방지',
+    async (_label, statusCode) => {
+      // 위 테스트만 두면 범위를 `=== 200` 으로 좁혀도 통과한다. 경계 양쪽을 함께 고정한다.
+      //
+      // **긍정 단언으로 본다.** "핸들러가 안 돌았다" 는 부정 단언은 다른 이유로 실패했을 때도
+      // 참이라 제3상태를 못 가른다 — 캐시된 payload 가 **실제로 재현되는지**를 본다.
+      // `100`·`599` 는 `isErrorStatusCacheable` 밖이라 둘 다 성공 채널로 재현된다(throw 없음).
+      const body = { a: 1 };
+      const cached = { cached: true };
+      const redis = makeRedis();
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          bodyHash: bodyHashOf(body),
+          responseJson: JSON.stringify(cached),
+          statusCode,
+        }),
+      );
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
+
+      const result = await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'edge-status', body }),
+          handler,
+        ),
+      );
+
+      expect(result).toEqual(cached); // 캐시가 재현됐다 = 손상 처리로 빠지지 않았다
+      expect(handleSpy).not.toHaveBeenCalled();
+    },
+  );
 });
