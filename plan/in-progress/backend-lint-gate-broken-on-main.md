@@ -521,6 +521,14 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 두면 캐시 충돌 시 던지는 `ConflictException`(정상 동작)까지 삼켜 **멱등성 검출이 조용히
       > 죽는다.** 뮤테이션 실측: 뒤로 옮기면 **4건 RED** — 신규 3건 + **기존 409 테스트**.
       > 기존 테스트가 함께 터지는 것이 이 위험이 실재한다는 증거다.
+- [ ] **planner 인계 — spec 의 fail-open 잔여 위험 카탈로그에 idempotency 예시 추가**
+      (`--impl-done` `15_24_11` rationale_continuity INFO 1, **BLOCK: NO**). 코드 주석은
+      "Redis 장애 지속 시 중복 억제가 사실상 무력화 → 다운스트림 중복 실행 가능" 까지 적었는데,
+      [`spec/data-flow/15-external-interaction.md`](../../spec/data-flow/15-external-interaction.md) `## Rationale` 의 "Fail-open 정책의 일관 표기" 절은
+      **blacklist 미적용 예시만** 들고 있어 두 위험 목록의 정밀도가 벌어졌다.
+      > 그 절에 idempotency 저하 예시를 blacklist 예시와 나란히 두거나,
+      > `spec/5-system/14-external-interaction-api.md` §3.4 의 `EIA-RL-02` 행에 각주를 단다.
+      > **`spec/` 쓰기는 developer 권한 밖**이라 인계로 남긴다. checker 도 "선택, 필수 아님".
 - [ ] **idempotency fail-open 구간의 관측·중복 억제** (`14_27_02` concurrency WARNING).
       Redis 장애가 지속되는 동안 같은 `Idempotency-Key` 재요청이 전부 캐시 미스로 판정돼
       다운스트림이 중복 실행될 수 있다 — spec 이 택한 "가용성 우선" 트레이드오프라 되돌리지
