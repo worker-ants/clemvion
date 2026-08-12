@@ -190,9 +190,15 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       // 가 string 아님) 이므로 warn 유지 — payload key dump 로 어떤 field 가
       // 빠졌는지 식별.
       const isSubFilterNull = event.eventType === 'execution.node.completed';
-      const logFn = isSubFilterNull
-        ? this.logger.debug.bind(this.logger)
-        : this.logger.warn.bind(this.logger);
+      // tsconfig 의 `strictBindCallApply: false` 탓에 오버로드된 `logger.debug`/`warn` 의
+      // `.bind` 는 `any` 를 돌려준다. 단언으로 실제 형태를 되돌린다 — 단언 자체는 소거되고
+      // emit 차이는 이 괄호 한 쌍뿐이다(실측). 화살표로 감싸는 대안은 클로저가 하나 늘어
+      // 진짜 런타임 변경이 되므로 택하지 않았다.
+      const logFn = (
+        isSubFilterNull
+          ? this.logger.debug.bind(this.logger)
+          : this.logger.warn.bind(this.logger)
+      ) as (message: string) => void;
       logFn(
         `event ${event.eventType} (trigger=${triggerId}) — toChatChannelEvent null` +
           (isSubFilterNull

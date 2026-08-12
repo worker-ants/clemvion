@@ -16,7 +16,7 @@ npm run start:dev
 | `npm run start:dev` | 개발 서버 (watch mode) |
 | `npm run build` | 프로덕션 빌드 |
 | `npm run start` | 빌드된 앱 실행 |
-| `npm run lint` | ESLint (report-only — 자동 수정 안 함) |
+| `npm run lint` | ESLint — 트리를 고치지 않음(`--fix` 없음). **warning 1건도 실패**(`--max-warnings 0`) |
 | `npm run lint:fix` | ESLint + 자동 수정 (`--fix`) |
 | `npm run test` | 단위 테스트 |
 | `npm run test:e2e` | E2E 테스트 |

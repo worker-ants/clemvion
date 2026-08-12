@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: backend-lint-gate-b72fdd
+worktree: lint-warning-triage
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -102,6 +102,17 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 ## 잔여 warning 47건 — 처분 방침 (이 PR 에서 하지 않는다)
 
+> **처분 완료 (2026-08-12).** 아래 "이 PR 에서 하지 않는다" 는 게이트 복구 PR(`#1104`)
+> 기준의 서술이다. 그 뒤 별 PR 이 이 절을 핵심 작업으로 승격해 **전량 처분**했고
+> `--max-warnings 0` 을 걸었다 — 결론과 근거는 §후속 의 마지막 항목에 있다.
+> 아래 표의 성격 분류는 **일부 틀렸다**(같은 항목 참조). 지금 읽는 사람이 미해결로
+> 오해하지 않도록 여기 먼저 적는다.
+>
+> **제목의 "47건" 도 정정 대상이다 — 착수 시점 실측은 46.** 47 은 `#1104` 직후
+> (2026-08-09) 값이고, 그 사이 다른 PR 들이 일부를 자연 소거했다. 제목·아래 본문의 47 은
+> **그 날짜의 역사값**으로 남겨 두고(당시 판단의 근거였으므로), 실측 46 과 그 차이의
+> 출처는 §후속 마지막 항목에 적었다.
+
 `no-unsafe-*` 45 + 기타 2. **비차단이므로 이 PR 의 목적(게이트 복구) 밖이다.** 45곳에
 억제/타입보강을 넣으면 판단이 들어간 변경이 45개 늘고 diff 만 커지는데 게이트에는 영향이 없다.
 
@@ -118,6 +129,8 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 **`--max-warnings 0` 도입 여부**가 선행 결정이다 — 도입하지 않으면 이 47건은 계속 비차단이라
 정리 유인이 약하고, 도입하면 47건을 다 처분해야 게이트가 열린다. 그 결정 없이 부분 정리하는
 것은 값이 낮다.
+
+> **결정 (2026-08-12): 도입한다.** 전량 처분 후 `--max-warnings 0` 을 걸었다.
 
 ## 같은 뿌리의 형제 결함 — frontend Gate C (2026-08-08 발견·해소)
 
@@ -370,8 +383,160 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 구현하면 안 되는 것(`workspace-reflection-canary.ts` §판별)과 같은 함정에 빠진다.
       > 그래서 "허용 집합을 실제로 바꿀 때" 를 트리거로 남긴다 — 그때 두 질문이 여전히
       > 같은 답인지 보고 판단한다.
-- [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning
-      바닥을 걸지, 아니면 처분할지 별도 판정.
+- [x] 남은 backend lint warning (본 plan §잔여) — **ratchet 이 아니라 전량 처분**을 골랐다
+      (사용자 결정 2026-08-12). `codebase/backend/package.json` 의 `lint` 스크립트에
+      `--max-warnings 0` 을 걸어 바닥이 아니라 **0** 을 고정했다.
+
+      **수치 정정: 47 → 실측 46.** 위 §잔여 절의 47 은 `#1104` 직후(2026-08-09) 값이고,
+      착수 시점 실측은 46 이다(직전 세션이 `pnpm install` 후 잰 값 — 낡은 `node_modules` 는
+      존재하지 않는 `prettier/prettier` 119건을 만들어 낸다. 그 세션이 21 로 줄인 뒤 내가
+      독립적으로 잰 21 과 정합한다).
+
+      > **왜 ratchet 이 아닌가 — 전수 조사가 전제를 뒤집었다.** ratchet 이 사는 이유는
+      > "지금 처분할 수 없는 잔여를 수용하면서 바닥은 닫는다" 인데, 46건을 전부 열어 보니
+      > **처분할 수 없는 자리가 하나도 없었다.** 전부 라이브러리 경계에서 `any` 가 새는
+      > 자리였고 수정이 타입 주석·제네릭 인자·단언뿐이라 **런타임을 건드리지 않는다.** 타입을
+      > 지어내야 하는 자리도, 억제(`eslint-disable`)가 필요한 자리도 없었다. 그러면
+      > baseline 파일도 매직 넘버도 필요 없어지고, ratchet 은 유지비만 남는다.
+
+      > **"런타임 미접촉" 을 마지막 21건에서도 실측했다 — 그리고 한 칸 좁혀 적는다.**
+      > 전체 `ts.Program`(실 tsconfig, `emitDecoratorMetadata` 포함)으로 before/after 를
+      > emit 해 md5 를 비교한 결과 **7파일 중 5개 동일**, 나머지 둘은 **괄호 한 쌍**만
+      > 다르다(dispatcher 의 `const logFn = (cond ? a : b)`, dto 의 화살표 concise body).
+      > 의미는 같지만 **"emit 이 바이트 동일" 은 이 둘에서 거짓**이므로 그대로 쓰지 않는다.
+      > 정확한 진술은 **"타입 소거만 일어났고 남은 차이는 괄호로 의미 동등"** 이다.
+      > `emitDecoratorMetadata` 가 켜져 있어 DTO 가 유일한 실질 위험이었는데
+      > `__metadata("design:type", String)` 은 불변이었다 — 데코레이터 메타데이터는 안 움직였다.
+      >
+      > **위 §잔여 표의 성격 분류는 두 자리가 틀렸다.** `render-tool-provider.ts` 6건을
+      > "정당한 unsafe → 억제 + 근거" 로 미리 분류해 뒀지만 실제 원인은
+      > **`Array.isArray(x)` 가 `unknown` 을 `unknown[]` 이 아니라 `any[]` 로 좁히는 TS 특성**
+      > 이라 원소를 `unknown` 으로 받으면 그냥 사라진다(`ai-agent.schema.ts` 1건도 같은 원인).
+      > `src/scripts/migrate-node-output-refs.ts` 17건도 "일회성 스크립트" 라 적혀 있었지만
+      > 콜백 인자 타입만으로 닫혔다. **열어보지 않고 적은 분류가 착수 판단을 왜곡한다.**
+
+      > **인계 노트가 제시한 수정 방향도 두 자리에서 틀렸다 — 실측으로 갈렸다.**
+      > `logFn`(dispatcher)·`oldest`(executions) 는 "변수에 타입을 주면 된다" 로 인계됐고
+      > 그대로 해 봤지만 두 건이 **그대로 남았다.** `no-unsafe-assignment` 는 LHS 선언 타입이
+      > 아니라 **RHS 가 `any` 인 것**을 보기 때문이다(대신 downstream `no-unsafe-call`·
+      > `no-unsafe-argument` 는 그 시점에 사라졌다 — 부분 효과가 있어 더 헷갈린다).
+      > 단언으로 바꿔 처분했다. 규칙이 무엇을 보는지 확인하지 않고 "주석을 붙이면 된다" 로
+      > 넘기면 warning 이 남은 채 게이트만 거는 결과가 된다.
+
+      마지막 21건(7파일)의 원인과 조치:
+
+      | 위치 | 건수 | 원인 | 조치 |
+      |---|---|---|---|
+      | `idempotency.interceptor.ts` | 8 | `getResponse<T = any>()` 제네릭 미지정 | 구조적 타입 `HttpResponseLike` 주입 |
+      | `render-tool-provider.ts` | 6 | `Array.isArray` → `any[]` 좁힘 | 콜백 원소 `unknown` 명시 |
+      | `chat-channel.dispatcher.ts` | 2 | `strictBindCallApply: false` + 오버로드 → `.bind` 가 `any` | 단언으로 형태 복원 |
+      | `executions.service.ts` | 2 | `BuiltinIteratorReturn`(=`any`) → `.value` 가 `any` | 단언 `string \| undefined` |
+      | `ai-agent.schema.ts` | 1 | `Array.isArray` → `any[]` 좁힘 | 원소 `unknown` 명시 |
+      | `chat-channel-config.dto.ts` | 1 | `TransformFnParams.value` 가 `any` | 구조분해 파라미터에 타입 |
+      | `workspace-reflection-canary.ts` | 1 | `no-unnecessary-type-assertion` | `as object` 삭제 |
+
+      > `idempotency.interceptor.ts` 에 express `Response` 를 **박지 않은** 이유를 코드 주석과
+      > 함께 남긴다 — 그러면 코드가 이미 하고 있는 `typeof res.status === 'function'` /
+      > `typeof res.statusCode === 'number'` 방어가 정적으로 항상 참이 되어 **죽은 코드**가
+      > 된다. 어댑터·테스트 mock 을 가리지 않는 자리라 방어가 살아 있어야 한다.
+      >
+      > 캐너리의 `as object` 삭제는 **가드가 여전히 자기 대상을 잡는지** 확인하고 했다 —
+      > `workspace-reflection-canary.spec.ts` 의 fail-closed 단언(인식 0건이면 throw) 포함
+      > 전량 통과. `cls` 는 바로 위 `typeof cls !== 'function'` 로 이미 `Function` 이고
+      > 그건 `handlerConsumesWorkspaceId(controllerClass: object, …)` 에 그대로 배정된다.
+      >
+      > **통과만으로는 부족해 두 갈래로 확인했다** — 가드 캐너리라 "테스트가 초록" 은 증거로
+      > 약하다. (1) 이 파일의 emit md5 가 **before/after 동일**이라 런타임이 바뀔 수 없고,
+      > (2) 양성 검출 테스트가 **실제 `@WorkspaceId()` 데코레이터를 mock 없이** 돌려
+      > `toBe(2)` 를 단언한다 — 즉 "0건이면 throw" 라는 음성 방향뿐 아니라 **소비 라우트를
+      > 실제로 세는 능력**이 살아 있음을 직접 고정한다. 캐너리가 자기 대상을 못 잡게 되는
+      > 파손은 이 단언에서 먼저 드러난다.
+
+      **`--max-warnings 0` 을 CI 워크플로가 아니라 `package.json` 에 넣은 이유**: CI
+      (`backend-checks.yml:95`)가 `pnpm --filter backend lint` 를 그대로 호출하므로 로컬과 CI 가
+      **같은 게이트 한 벌**을 쓴다. 이 저장소는 "로컬에서 backend eslint 를 안 돌려 CI 가 터진"
+      사고를 이미 겪었다.
+
+      > **게이트를 양방향으로 실측했다** — 걸어 놓고 안 걸리는 것이 이 저장소의 반복 실패다.
+      > `ai-agent.schema.ts` 의 `const tool: unknown` 에서 `: unknown` 만 떼어 warning 하나를
+      > 되살리고 `pnpm --filter backend lint` → **exit 1**
+      > (`✖ 1 problem (0 errors, 1 warning)` + `ESLint found too many warnings (maximum: 0)`).
+      > 되돌린 뒤 → **exit 0**. **0 errors / 1 warning 에서 exit 1** 이라는 점이 핵심이다 —
+      > `--max-warnings 0` 이전이라면 정확히 같은 상태가 exit 0 이었다.
+      > 뮤테이션은 커밋 뒤에 넣고 커밋에서 되돌렸다(미커밋 작업을 지우지 않기 위해).
+      >
+      > **프로브 유효성 선검증은 생략하지 말 것** — 직전 세션은 첫 프로브로 `any` → `unknown`
+      > 반환을 심었는데 `no-unsafe-return` 이 그것을 애초에 허용해 **아무 warning 도 안 났다.**
+      > 프로브가 진짜 warning 을 내는지 먼저 확인하지 않으면 게이트 검증 자체가 vacuous 해진다.
+
+      검증: eslint **errors 0 / warnings 0** · 타입체크 ratchet **199건 / 38파일 baseline 일치**
+      (증감 0 — 타입을 깬 자리 없음) · backend unit **418 suites / 8512 passed**.
+- [ ] **선재 테스트 공백 2건** (`12_05_39` testing INFO 1·2, 이번 라운드 유예). 둘 다 이번
+      diff 가 *타입만* 바꾼 자리라 조치 대상이 아니었지만, 공백 자체는 실재한다:
+      - `chat-channel.dispatcher.ts:192-201` — `logFn` 의 debug/warn 삼항 분기가
+        `.handle()` 경유 스펙에서 도달 불가. standalone 함수 테스트만 존재한다.
+      - `executions.service.ts:192-199` — `snapshotCache` evict(256건 한도) 테스트 전무.
+        경계값(256회 삽입)으로 evict 1건·최오래된 키 삭제를 고정할 수 있다.
+      > 이번 라운드에 `idempotency.interceptor.ts` 의 같은 클래스 공백은 **메웠다** — 그쪽은
+      > diff 가 신설한 방어(`HttpResponseLike` optional)를 지탱하는 테스트가 없어서 주석이
+      > 주장만 하는 상태였기 때문이다. 위 둘은 diff 가 방어를 신설하지 않았으므로 성격이 다르다.
+      >
+      > **여기 처음 "캐시 히트 경로 **전체**를 메웠다" 고 적었는데 과했다** (`12_24_14`
+      > testing WARNING). 손상된 캐시 JSON 의 `catch` 분기는 히트 경로의 갈래인데 안 덮고
+      > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
+      > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
+      > 덮은 갈래를 먼저 세어야 한다.**
+- [ ] **planner 인계 — `spec/data-flow/15-external-interaction.md` 의 R8 요약이 SoT 보다 넓다**
+      (`--impl-done` `13_07_33` cross_spec·rationale_continuity WARNING, **BLOCK: NO**).
+      data-flow 문서가 §1.2 시퀀스와 §2.1/§2.2 표에서 "4xx 캐시 제외" 로 요약하는데, SoT 인
+      [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 "`400 VALIDATION_ERROR` 만 제외, 2xx·409·410 은
+      캐시" 다. **선재 불일치**이고, 이번 PR 은 같은 gap 을 코드·테스트에 캐너리로 고정만 했다.
+      > **`spec/` 쓰기는 developer 권한 밖**(CLAUDE.md §Skill 체계)이라 여기 인계로 남긴다.
+      > checker 도 "planner 턴 권장, 이번 lint-only PR 스코프 밖" 으로 판정했다.
+      > 정정 시 바로 아래 두 항목(구현의 `>= 400` 선재 결함)과 **함께** 보는 편이 낫다 —
+      > 문서를 SoT 에 맞추면 구현과의 갭이 드러나므로 둘이 같은 결정의 양면이다.
+- [ ] **`IdempotencyInterceptor` 의 "fail-open" 주장이 런타임 reject 를 안 덮는다** (`12_55_52`
+      requirement/security INFO 3). 클래스 docstring 은 "Redis 미가용 시 fail-open + warn 로그"
+      라고 적었는데, 그 보장은 **생성자 시점 null 체크**(`getClientOrNull()` → null → passthrough)
+      에만 해당한다. `intercept()` 의 `from(this.redis.get(redisKey))` 가 **런타임에 reject**
+      하면(연결 끊김·타임아웃) Observable 이 그대로 error 를 흘려 요청 자체가 실패한다 —
+      fail-open 이 아니라 fail-closed 다.
+      > 즉 **문서한 보장이 구현보다 넓은** 또 한 사례다(이 브랜치에서만 3번째 형태).
+      > 조치는 둘 중 하나: `catchError` 로 실제 fail-open 을 만들거나, docstring 을 "생성자
+      > 시점 미가용에 한정" 으로 좁히거나. **어느 쪽이 맞는지는 EIA spec 의 가용성 요구에
+      > 달렸으므로 확인이 먼저다.** 이 PR(타입 전용)에서는 런타임을 건드리지 않는다.
+- [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
+      초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
+      함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
+- [ ] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
+      requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
+      은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
+      > 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고,
+      > 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
+
+      그만큼 `EIA-RL-02`(동일 키 24h 동일 응답 재현)가 409/410 범위에서 지켜지지 않는다.
+      2026-05-21 원본 구현(`35ff9c19b`)부터 있던 선재 결함이라 **이 PR(타입 전용 lint 처분)
+      에서는 고치지 않는다** — 런타임 미접촉이 이 PR 의 스코프이자 처분 근거 자체다.
+
+      > **현재 동작은 캐너리로 고정해 뒀다** — `idempotency.interceptor.spec.ts` 의
+      > "409 도 캐시되지 않는다 — R8 위반 상태를 고정하는 캐너리". 조건을 좁히면 그 테스트가
+      > RED 가 되면서 이 항목을 가리킨다. 미수정 결함을 침묵으로 두지 않기 위한 것이다.
+      >
+      > **착수 시 주의 — 올바른 조건은 `=== 400` 이 아니다.** R8 은 400 중에서도
+      > `VALIDATION_ERROR` 를 지목하고, 5xx 캐싱 여부는 아무 말도 하지 않는다. 리뷰어가 제안한
+      > `statusCode === 400` 을 그대로 쓰면 400 의 다른 에러 코드를 캐시하게 되고 5xx 도
+      > 캐시된다. **spec 확인이 코드보다 먼저**이고, 경우에 따라 planner 턴이 필요하다.
+- [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
+      `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
+      그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그
+      성질이 깨진다는 이유였고, 실패 방향이 **fail-closed** 라(shape 이 어긋나면
+      `undefined === 1` → false → admission 거부이지 cap 우회가 아니다) 급하지 않다.
+      `review/**` 는 SoT 가 아니므로 여기 옮겨 적는다.
+      > **파일명 정정 (2026-08-12).** 이 항목은 처음에 `migrate-node-output-refs.ts` 로
+      > 적혀 있었지만 **틀렸다** — security 리뷰어가 지목한 자리는
+      > `execution-engine.service.ts` 의 admission-control 이다(`security.md` 본문이
+      > 파일명과 행 번호를 명시한다). 백로그 항목의 파일명이 틀리면 항목 자체가 실행
+      > 불가능해지므로 착수 전에 원 리포트로 대조했다.
 
 ## Rationale
 

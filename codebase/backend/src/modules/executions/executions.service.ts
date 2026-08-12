@@ -191,7 +191,11 @@ export class ExecutionsService {
       this.snapshotCache.delete(id);
     } else if (this.snapshotCache.size >= SNAPSHOT_CACHE_MAX_ENTRIES) {
       // 가장 오래된 키 evict.
-      const oldest = this.snapshotCache.keys().next().value;
+      // `.next().value` 는 `BuiltinIteratorReturn`(= `any`; `strictBuiltinIteratorReturn`
+      // 미설정) 탓에 `any` 다. 이 Map 의 키는 `string` 이라 단언으로 되돌린다 —
+      // 단언은 소거되므로 emit 은 종전 그대로다.
+      const oldest = this.snapshotCache.keys().next().value as
+        string | undefined;
       if (oldest !== undefined) this.snapshotCache.delete(oldest);
     }
     this.snapshotCache.set(id, snapshot);

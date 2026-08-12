@@ -7,12 +7,18 @@
  *  - Redis 미가용(null) 시 fail-open passthrough
  *
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
+ *
+ * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
+ * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA
+ * §R8 과 어긋난 현재 캐시 제외 범위를 고정하는 캐너리를 담는다.
  */
+import { createHash } from 'crypto';
 import { lastValueFrom, of, type Observable } from 'rxjs';
 import {
   IdempotencyInterceptor,
   IDEMPOTENCY_HEADER,
 } from './idempotency.interceptor';
+import { ConflictException } from '@nestjs/common';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 
 type RedisStub = {
@@ -34,13 +40,20 @@ function makeRedisConn(client: unknown) {
   };
 }
 
-/** ExecutionContext mock — header / body / response status 를 노출. */
+/**
+ * ExecutionContext mock — header / body / response status 를 노출.
+ *
+ * `responseOverride` 는 `getResponse()` 가 돌려줄 객체를 통째로 갈아끼운다. 두 용도:
+ * 호출 인자를 단언하려고 `res` 를 테스트가 직접 쥐어야 할 때, 그리고 `status`/
+ * `statusCode` 가 **없는** 응답에서 인터셉터의 `typeof` 방어가 살아 있는지 고정할 때.
+ */
 function makeContext(opts: {
   idempotencyKey?: string;
   body?: unknown;
   statusCode?: number;
+  responseOverride?: unknown;
 }): ExecutionContext {
-  const res = {
+  const res = opts.responseOverride ?? {
     statusCode: opts.statusCode ?? 200,
     status: jest.fn(),
   };
@@ -62,6 +75,15 @@ function makeCallHandler(value: unknown): CallHandler {
   return {
     handle: (): Observable<unknown> => of(value),
   };
+}
+
+/**
+ * injectedRedis 경로로 인터셉터를 만든다 — 아래 캐시 히트 블록이 반복해 쓰는 형태로,
+ * 세 인자 중 redis 만 다르다. 위 W-4 블록은 `redisConn` 주입 우선순위 자체가 검증 대상이라
+ * 생성자를 그대로 노출해 둔다(여기로 묶으면 그 테스트가 무엇을 보는지 가려진다).
+ */
+function makeInterceptor(redis: RedisStub): IdempotencyInterceptor {
+  return new IdempotencyInterceptor(undefined, redis as never, undefined);
 }
 
 describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
@@ -125,5 +147,190 @@ describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
     );
     expect(result).toBe('nokey');
     expect(sharedRedis.get).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 캐시 **히트** 경로 + 응답 객체 형태 방어.
+ *
+ * 위 W-4 스펙 4건은 전부 캐시 **미스** 경로만 돈다(`get` 이 null). 그래서
+ * `getResponse()` 로 얻은 응답을 만지는 두 자리 — 히트 시 `res.status(...)` 재생과
+ * 적재 시 `res.statusCode` 판독 — 이 한 번도 실행되지 않았다. 그 두 자리가 곧
+ * 인터셉터가 `HttpResponseLike` 로 좁힌 지점이라 여기서 함께 고정한다.
+ */
+describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () => {
+  const bodyHashOf = (body: unknown) =>
+    createHash('sha256')
+      .update(typeof body === 'string' ? body : JSON.stringify(body ?? null))
+      .digest('hex');
+
+  it('같은 key + 같은 body → 캐시된 응답·상태코드를 그대로 재생한다', async () => {
+    const body = { a: 1 };
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: JSON.stringify({ cached: true }),
+        statusCode: 201,
+      }),
+    );
+    const res = { statusCode: 200, status: jest.fn() };
+    const interceptor = makeInterceptor(redis);
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'hit-1', body, responseOverride: res }),
+        handler,
+      ),
+    );
+
+    expect(result).toEqual({ cached: true });
+    // 캐시 재생이므로 downstream 핸들러는 아예 돌지 않아야 한다.
+    expect(handleSpy).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('같은 key + 다른 body → 409 IDEMPOTENCY_KEY_CONFLICT', async () => {
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf({ a: 1 }),
+        responseJson: JSON.stringify({ cached: true }),
+        statusCode: 200,
+      }),
+    );
+    const interceptor = makeInterceptor(redis);
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          // 같은 키인데 body 가 다르다.
+          makeContext({ idempotencyKey: 'hit-1', body: { a: 2 } }),
+          makeCallHandler({ fresh: true }),
+        ),
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'e-1', body: {}, statusCode: 400 }),
+        makeCallHandler({ error: 'VALIDATION_ERROR' }),
+      ),
+    );
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('409 도 캐시되지 않는다 — R8 위반 상태를 고정하는 캐너리', async () => {
+    // Spec EIA §R8 은 "4xx 중 `400 VALIDATION_ERROR` **만** 제외하고, 그 외
+    // (2xx / `409 Conflict` / `410 Gone`) 는 캐시한다" 고 명시한다. 그런데 구현의
+    // 제외 조건은 `statusCode >= 400` 이라 409·410 까지 함께 떨군다 — 그만큼
+    // EIA-RL-02(동일 키 24h 동일 응답 재현)가 지켜지지 않는다.
+    //
+    // **선재 결함이다**(2026-05-21 `35ff9c19b` 원본 구현부터). 이 PR 은 lint warning
+    // 처분(타입 전용)이라 런타임 동작을 바꾸지 않는 것이 스코프이므로 여기서 고치지
+    // 않고, 대신 **현재 동작을 캐너리로 고정**해 둔다. 조건을 R8 에 맞게 좁히면 이
+    // 테스트가 RED 가 되고, 그때 이 주석이 무엇을 바꾸는 것인지 알려 준다.
+    //
+    // 백로그: `plan/in-progress/backend-lint-gate-broken-on-main.md` §후속.
+    // 주의: 올바른 조건은 `=== 400` 이 아니다 — R8 은 400 중에서도 VALIDATION_ERROR
+    // 를 지목하고 5xx 캐싱 여부는 말하지 않는다. 좁히려면 spec 확인이 먼저다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 409 }),
+        makeCallHandler({ error: 'STATE_MISMATCH' }),
+      ),
+    );
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('손상된 캐시 JSON → 무시하고 신규 처리 + 정상 적재', async () => {
+    // `intercept()` 의 `try { JSON.parse } catch` 분기. 캐시 히트인데 파싱이 깨지는
+    // 경우라 위 히트 테스트들과 다른 갈래이고, 실패해도 요청 자체는 살아야 한다
+    // (fail-open). 이 분기가 깨지면 캐시 손상이 곧 요청 실패로 번진다.
+    const redis = makeRedis();
+    redis.get.mockResolvedValue('not-valid-json{');
+    const interceptor = makeInterceptor(redis);
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'broken-1', body: { a: 1 } }),
+        handler,
+      ),
+    );
+
+    expect(result).toEqual({ fresh: true });
+    expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+    expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
+    // 횟수만 보면 `bodyHash` 가 빈 문자열이 돼도 그린이라 저장된 값까지 단언한다 —
+    // 손상 항목을 덮어쓰는 자리이므로 새 항목이 온전해야 다음 요청이 히트한다.
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      bodyHash: string;
+      responseJson: string;
+      statusCode: number;
+    };
+    expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
+    expect(stored.statusCode).toBe(200);
+    expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+  });
+
+  it('`status`/`statusCode` 가 없는 응답에서도 죽지 않고 200 으로 적재한다', async () => {
+    // **이 테스트가 `HttpResponseLike` 의 optional 을 지탱한다.** 인터셉터에 express
+    // `Response` 를 통째로 박으면 `typeof res.status === 'function'` /
+    // `typeof res.statusCode === 'number'` 가 정적으로 항상 참이 되어 방어가 죽은
+    // 코드가 되는데, 이 자리는 어댑터(express/fastify)와 테스트 mock 을 가리지 않고
+    // 돈다. 형태 없는 응답을 실제로 흘려 그 방어가 살아 있음을 고정한다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({
+          idempotencyKey: 'bare-1',
+          body: {},
+          responseOverride: {}, // status·statusCode 둘 다 없음
+        }),
+        makeCallHandler({ ok: true }),
+      ),
+    );
+    expect(result).toEqual({ ok: true });
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    // statusCode 를 읽을 수 없으면 200 으로 간주해 적재한다(4xx 로 오판해 버리지 않음).
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      statusCode: number;
+    };
+    expect(stored.statusCode).toBe(200);
+  });
+
+  it('캐시 히트 재생 시 `status` 가 없는 응답이어도 throw 하지 않는다', async () => {
+    const body = { a: 1 };
+    const redis = makeRedis();
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf(body),
+        responseJson: JSON.stringify({ cached: true }),
+        statusCode: 201,
+      }),
+    );
+    const interceptor = makeInterceptor(redis);
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({
+          idempotencyKey: 'bare-2',
+          body,
+          responseOverride: {}, // status 없음 — 상태코드 재생은 조용히 생략
+        }),
+        makeCallHandler({ fresh: true }),
+      ),
+    );
+    expect(result).toEqual({ cached: true });
   });
 });

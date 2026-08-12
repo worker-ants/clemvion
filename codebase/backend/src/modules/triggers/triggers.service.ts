@@ -28,7 +28,7 @@ import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChatChannelConfigDto } from './dto/chat-channel-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
-import { ChatChannelConfig } from '../chat-channel/types';
+import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -543,7 +543,7 @@ export class TriggersService {
     };
     // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 config 만 교체.
     return Object.assign(
-      Object.create(Object.getPrototypeOf(trigger)),
+      Object.create(Object.getPrototypeOf(trigger) as object),
       trigger,
       {
         config: sanitizedConfig,
@@ -1074,7 +1074,7 @@ export class TriggersService {
     // 그 외 setupChannel 실패는 CHAT_CHANNEL_SETUP_FAILED 502 로 변환.
     const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
     const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
-    let result;
+    let result: SetupResult;
     try {
       result = await adapter.setupChannel(mergedConfig, callbackUrl);
     } catch (err) {

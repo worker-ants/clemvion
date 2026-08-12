@@ -53,6 +53,18 @@ describe('rewriteExpression', () => {
       expect(hits[0].reason).toMatch(/meta/);
     });
 
+    // Pass 2 (`.output.meta.<field>` → `.meta.<field>`) 는 이 spec 이 44건을 돌면서도
+    // **한 번도 실행된 적이 없었다** — 매치하는 입력이 파일 전체에 없었다(2026-08-12
+    // ai-review testing 이 실측). 다른 pass 는 전용 케이스가 있는데 이 하나만 비어 있었다.
+    it('rewrites single-nested output.meta.<field> → meta.<field> (Pass 2)', () => {
+      const { result, hits } = rewriteExpression(
+        '{{ $node["IE"].output.meta.collectionRetryCount }}',
+        labels,
+      );
+      expect(result).toBe('{{ $node["IE"].meta.collectionRetryCount }}');
+      expect(hits[0].field).toBe('collectionRetryCount');
+    });
+
     it('audits unknown double-nested fields without rewriting', () => {
       const { result, hits } = rewriteExpression(
         '{{ $node["IE"].output.output._turnDebugHistory }}',

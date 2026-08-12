@@ -21,10 +21,28 @@ const REDIS_KEY_PREFIX = 'interaction:idempotency:';
 const TTL_SEC = 24 * 60 * 60; // 24h
 const MAX_KEY_LENGTH = 200;
 
+/**
+ * `context.switchToHttp().getResponse()` 의 반환 타입. Nest 시그니처가
+ * `getResponse<T = any>()` 라 인자를 안 주면 `any` 가 그대로 흘러나온다.
+ *
+ * 여기에 express `Response` 를 박지 않는 이유: 그러면 아래 `typeof res.status === 'function'`
+ * 과 `typeof res.statusCode === 'number'` 가 정적으로 항상 참이 되어 **방어가 죽은 코드**가
+ * 된다. 이 인터셉터는 어댑터(express/fastify)와 테스트 mock 을 가리지 않고 도는 자리라
+ * 그 방어는 살아 있어야 한다. 그래서 "있으면 이런 모양" 까지만 선언한다 —
+ * 두 `typeof` 가 곧 이 타입의 optional 을 좁히는 유일한 수단이다.
+ */
+interface HttpResponseLike {
+  status?: (code: number) => unknown;
+  statusCode?: unknown;
+}
+
 interface IdempotencyEntry {
   /** SHA-256 hex of request body. 같은 키 + 다른 body → 409. */
   bodyHash: string;
-  /** 캐시된 정상 응답 JSON 문자열 (2xx). 4xx 중 VALIDATION_ERROR 는 캐시 제외 (Spec EIA §R8). */
+  /**
+   * 캐시된 응답 JSON 문자열. R8 상 캐시 대상은 2xx·`409`·`410` 이지만 현 구현이 적재하는
+   * 것은 2xx~3xx 뿐이다 (`cacheTapped()` docstring 의 선재 결함 설명 참조).
+   */
   responseJson: string;
   /** 캐시된 응답의 HTTP 상태 코드. */
   statusCode: number;
@@ -87,7 +105,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
             });
           }
           // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
-          const res = context.switchToHttp().getResponse();
+          const res = context.switchToHttp().getResponse<HttpResponseLike>();
           if (typeof res.status === 'function') res.status(cached.statusCode);
           return of(JSON.parse(cached.responseJson) as unknown);
         }
@@ -100,7 +118,16 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   /**
    * RxJS operator — 정상 응답을 캐시. status 가 200~399 일 때만 적재.
-   * 4xx 는 캐시 제외 (Spec EIA §R8) — 사용자가 재시도해야 함.
+   *
+   * **여기서 구현이 Spec EIA §R8 보다 넓다 — 선재 결함이다.** R8 은 "4xx 중
+   * `400 VALIDATION_ERROR` **만** 제외하고 그 외(2xx / `409 Conflict` / `410 Gone`)는
+   * 캐시한다" 고 명시하는데, 아래 조건은 `>= 400` 이라 409·410 까지 함께 떨군다.
+   * 그만큼 `EIA-RL-02`(동일 키 24h 동일 응답 재현)가 그 범위에서 지켜지지 않는다.
+   *
+   * 2026-05-21 원본 구현부터 있던 것이고, 이 자리를 타입 전용으로 손댄 PR 에서는 고치지
+   * 않았다. 대신 `idempotency.interceptor.spec.ts` 의 **409 캐너리**가 현재 동작을 고정한다 —
+   * 조건을 R8 쪽으로 좁히면 그 테스트가 RED 로 알린다.
+   * 백로그: `plan/in-progress/backend-lint-gate-broken-on-main.md` §후속.
    */
   private cacheTapped(
     redisKey: string,
@@ -110,7 +137,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return tap({
       next: (value: unknown) => {
         if (!this.redis) return;
-        const res = context.switchToHttp().getResponse();
+        const res = context.switchToHttp().getResponse<HttpResponseLike>();
         const statusCode: number =
           typeof res.statusCode === 'number' ? res.statusCode : 200;
         if (statusCode >= 400) return;
@@ -127,7 +154,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
             ),
           );
       },
-      // error 분기는 catch 안 함 — 4xx/5xx 모두 캐시 제외 (특히 400 VALIDATION_ERROR 는 R8 으로 명시 제외).
+      // error 분기는 catch 안 함 — 예외로 끝난 응답은 캐시하지 않는다. `400 VALIDATION_ERROR`
+      // 는 R8 이 명시 제외한 대상이라 정합하고, 409·410 이 여기서 함께 빠지는 것은 위
+      // docstring 에 적은 선재 결함 쪽이다.
     });
   }
 }
