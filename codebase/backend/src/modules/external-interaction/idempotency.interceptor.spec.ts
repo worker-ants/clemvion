@@ -77,6 +77,15 @@ function makeCallHandler(value: unknown): CallHandler {
   };
 }
 
+/**
+ * injectedRedis 경로로 인터셉터를 만든다 — 아래 캐시 히트 블록이 반복해 쓰는 형태로,
+ * 세 인자 중 redis 만 다르다. 위 W-4 블록은 `redisConn` 주입 우선순위 자체가 검증 대상이라
+ * 생성자를 그대로 노출해 둔다(여기로 묶으면 그 테스트가 무엇을 보는지 가려진다).
+ */
+function makeInterceptor(redis: RedisStub): IdempotencyInterceptor {
+  return new IdempotencyInterceptor(undefined, redis as never, undefined);
+}
+
 describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
   it('injectedRedis 없이 redisConn 주입 → 공유 client 로 캐시 GET 수행', async () => {
     const sharedRedis = makeRedis();
@@ -166,11 +175,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
       }),
     );
     const res = { statusCode: 200, status: jest.fn() };
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     const handler = makeCallHandler({ fresh: true });
     const handleSpy = jest.spyOn(handler, 'handle');
 
@@ -197,11 +202,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
         statusCode: 200,
       }),
     );
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     await expect(
       lastValueFrom(
         interceptor.intercept(
@@ -215,11 +216,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
 
   it('400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
     const redis = makeRedis();
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     await lastValueFrom(
       interceptor.intercept(
         makeContext({ idempotencyKey: 'e-1', body: {}, statusCode: 400 }),
@@ -229,7 +226,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it('409 도 캐시되지 않는다 — **R8 위반 상태를 고정하는 캐너리**', async () => {
+  it('409 도 캐시되지 않는다 — R8 위반 상태를 고정하는 캐너리', async () => {
     // Spec EIA §R8 은 "4xx 중 `400 VALIDATION_ERROR` **만** 제외하고, 그 외
     // (2xx / `409 Conflict` / `410 Gone`) 는 캐시한다" 고 명시한다. 그런데 구현의
     // 제외 조건은 `statusCode >= 400` 이라 409·410 까지 함께 떨군다 — 그만큼
@@ -244,11 +241,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     // 주의: 올바른 조건은 `=== 400` 이 아니다 — R8 은 400 중에서도 VALIDATION_ERROR
     // 를 지목하고 5xx 캐싱 여부는 말하지 않는다. 좁히려면 spec 확인이 먼저다.
     const redis = makeRedis();
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     await lastValueFrom(
       interceptor.intercept(
         makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 409 }),
@@ -264,11 +257,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     // (fail-open). 이 분기가 깨지면 캐시 손상이 곧 요청 실패로 번진다.
     const redis = makeRedis();
     redis.get.mockResolvedValue('not-valid-json{');
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     const handler = makeCallHandler({ fresh: true });
     const handleSpy = jest.spyOn(handler, 'handle');
 
@@ -282,6 +271,16 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(result).toEqual({ fresh: true });
     expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
     expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
+    // 횟수만 보면 `bodyHash` 가 빈 문자열이 돼도 그린이라 저장된 값까지 단언한다 —
+    // 손상 항목을 덮어쓰는 자리이므로 새 항목이 온전해야 다음 요청이 히트한다.
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      bodyHash: string;
+      responseJson: string;
+      statusCode: number;
+    };
+    expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
+    expect(stored.statusCode).toBe(200);
+    expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
   });
 
   it('`status`/`statusCode` 가 없는 응답에서도 죽지 않고 200 으로 적재한다', async () => {
@@ -291,11 +290,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     // 코드가 되는데, 이 자리는 어댑터(express/fastify)와 테스트 mock 을 가리지 않고
     // 돈다. 형태 없는 응답을 실제로 흘려 그 방어가 살아 있음을 고정한다.
     const redis = makeRedis();
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     const result = await lastValueFrom(
       interceptor.intercept(
         makeContext({
@@ -325,11 +320,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
         statusCode: 201,
       }),
     );
-    const interceptor = new IdempotencyInterceptor(
-      undefined,
-      redis as never,
-      undefined,
-    );
+    const interceptor = makeInterceptor(redis);
     const result = await lastValueFrom(
       interceptor.intercept(
         makeContext({
