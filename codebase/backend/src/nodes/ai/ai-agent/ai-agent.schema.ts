@@ -642,7 +642,8 @@ export function validateAiAgentConfig(config: unknown): string[] {
   if (Array.isArray(presentationTools)) {
     const seen = new Set<string>();
     for (let i = 0; i < presentationTools.length; i++) {
-      const tool = presentationTools[i];
+      // `Array.isArray` 가 `unknown` 을 `any[]` 로 좁히므로 원소 타입을 명시해 차단.
+      const tool: unknown = presentationTools[i];
       const t = (tool ?? {}) as Record<string, unknown>;
       const type = typeof t.type === 'string' ? t.type : '';
       if (!type) continue; // zod-level error path

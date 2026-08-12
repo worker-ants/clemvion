@@ -62,7 +62,10 @@ export class ChatChannelUiMappingDto {
     default: 'auto',
   })
   @IsOptional()
-  @Transform(({ value }) => (value === 'text_only' ? 'text' : value))
+  // `TransformFnParams.value` 는 `any` — 구조분해 파라미터에 타입을 줘 좁힌다.
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'text_only' ? 'text' : value,
+  )
   @IsIn(['text', 'photo', 'auto'])
   visualNode?: 'text' | 'photo' | 'auto';
 
