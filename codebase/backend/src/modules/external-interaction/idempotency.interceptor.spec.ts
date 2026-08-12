@@ -9,8 +9,15 @@
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
  *
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
- * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA §R8
- * 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을 고정하는 회귀 테스트를 담는다.
+ * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 fallback(**바깥 엔트리와 안쪽
+ * `responseJson` 두 겹** · 각각 warn 을 남기는지 · 안쪽 손상이 **에러 재현 분기에서도** 500 이
+ * 되지 않는지 · payload 파싱이 `bodyHash` 판정보다 **뒤**라는 순서 캐너리), **형태 검증**
+ * (`isIdempotencyEntry()` — 문법은 유효하지만 엔트리 형태가 아닌 값: `null`·원시값·배열·필드
+ * 누락/타입 불일치), 그리고 Spec EIA §R8 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을
+ * 고정하는 회귀 테스트를 담는다.
+ *
+ * 형태 검증이 별도 축인 이유는 `JSON.parse` 가 **문법 오류에만** 던지기 때문이다 — `'null'` 은
+ * 유효한 JSON 이라 `try/catch` 를 통과한 뒤 필드 접근에서 `TypeError`(→500)를 냈다.
  * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
@@ -240,6 +247,11 @@ describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
  * `getResponse()` 로 얻은 응답을 만지는 두 자리 — 히트 시 `res.status(...)` 재생과
  * 적재 시 `res.statusCode` 판독 — 이 한 번도 실행되지 않았다. 그 두 자리가 곧
  * 인터셉터가 `HttpResponseLike` 로 좁힌 지점이라 여기서 함께 고정한다.
+ *
+ * 손상 캐시는 **두 층**으로 본다: 문법(`JSON.parse` 가 던지는 경우)과 **형태**
+ * (`isIdempotencyEntry()` — 문법은 유효한데 엔트리가 아닌 값). 후자의 fixture 는 조건을
+ * **하나씩만** 위반하도록 짜여 있다 — 여러 개를 한꺼번에 위반하면 가드의 어느 절도 고정되지
+ * 않는다(뮤테이션 실측으로 확인한 실패 형태다).
  */
 describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () => {
   it('같은 key + 같은 body → 캐시된 응답·상태코드를 그대로 재생한다', async () => {
@@ -504,32 +516,255 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     // `intercept()` 의 `try { JSON.parse } catch` 분기. 캐시 히트인데 파싱이 깨지는
     // 경우라 위 히트 테스트들과 다른 갈래이고, 실패해도 요청 자체는 살아야 한다
     // (fail-open). 이 분기가 깨지면 캐시 손상이 곧 요청 실패로 번진다.
+    //
+    // warn 은 아래 전용 테스트가 단언한다. 여기서 `Logger.warn` 을 mock 하는 것은 그 경로가
+    // 이제 warn 을 남기기 때문 — 안 하면 테스트 실행 중 실제 로그가 콘솔로 샌다.
+    // **`try/finally` 로 감싼다** — 단언이 실패하면 `mockRestore()` 가 안 돌아 mock 이 뒤
+    // 테스트로 샌다. `jest.config.ts` 에 `restoreMocks` 안전망이 없어 이 파일이 스스로 지켜야
+    // 하고, 형제 테스트 3건은 이미 이 패턴이다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.get.mockResolvedValue('not-valid-json{');
+      const interceptor = makeInterceptor(redis);
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
+
+      const result = await lastValueFrom(
+        interceptor.intercept(
+          makeContext({ idempotencyKey: 'broken-1', body: { a: 1 } }),
+          handler,
+        ),
+      );
+
+      expect(result).toEqual({ fresh: true });
+      expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
+      // 횟수만 보면 `bodyHash` 가 빈 문자열이 돼도 그린이라 저장된 값까지 단언한다 —
+      // 손상 항목을 덮어쓰는 자리이므로 새 항목이 온전해야 다음 요청이 히트한다.
+      const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+        bodyHash: string;
+        responseJson: string;
+        statusCode: number;
+      };
+      expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
+      expect(stored.statusCode).toBe(200);
+      expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  // **fixture 는 조건을 하나씩만 위반해야 한다.** 처음엔 전부 여러 조건을 동시에 위반해서,
+  // 세 필드 검사 중 **어느 하나를 지워도 죽는 테스트가 없었다**(뮤테이션 실측). 나머지 검사가
+  // 대신 잡아 주기 때문이다 — 매트릭스가 채워져 보여도 각 항은 별도 표면이다.
+  // 아래 뒤쪽 세 fixture 는 정확히 한 필드만 타입이 틀리다.
+  it.each([
+    ['null', 'null', 'null'],
+    ['숫자', '42', 'number'],
+    ['배열', '[]', 'array'],
+    ['문자열', '"str"', 'string'],
+    ['필드 누락 객체', '{"bodyHash":"x"}', 'object'],
+    [
+      'bodyHash 만 타입 불일치',
+      '{"bodyHash":1,"responseJson":"{}","statusCode":200}',
+      'object',
+    ],
+    [
+      'responseJson 만 타입 불일치',
+      '{"bodyHash":"x","responseJson":1,"statusCode":200}',
+      'object',
+    ],
+    [
+      'statusCode 만 타입 불일치',
+      '{"bodyHash":"x","responseJson":"{}","statusCode":"200"}',
+      'object',
+    ],
+  ])(
+    '문법은 유효하지만 엔트리 형태가 아닌 캐시(%s) → 500 이 아니라 신규 처리',
+    async (_label, cachedJson, expectedShape) => {
+      // **`try/catch` 만으로는 부족했다.** `JSON.parse` 는 **문법 오류에만** 던지므로 이 값들은
+      // 전부 통과한 뒤 필드 접근 단계에서 깨진다. 무수정 프로브 실측:
+      //
+      //   'null'  → TypeError: Cannot read properties of null (reading 'bodyHash') → **500**
+      //   '42' · '[]' · '"str"' → 오토박싱으로 `undefined` 비교 → 엉뚱한 **409**
+      //
+      // `'null'` 은 이 클래스가 없애려는 바로 그 실패 형태(캐시 손상 → 요청 실패)가 좁은 틈으로
+      // 남아 있던 것이다. 나머지도 "손상 엔트리는 버리고 신규 처리" 가 맞는 답이라 함께 고정한다.
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        const redis = makeRedis();
+        redis.get.mockResolvedValue(cachedJson);
+        const handler = makeCallHandler({ fresh: true });
+        const handleSpy = jest.spyOn(handler, 'handle');
+
+        const result = await lastValueFrom(
+          makeInterceptor(redis).intercept(
+            makeContext({ idempotencyKey: 'shape', body: { a: 1 } }),
+            handler,
+          ),
+        );
+
+        expect(result).toEqual({ fresh: true });
+        expect(handleSpy).toHaveBeenCalled();
+        expect(redis.set).toHaveBeenCalledTimes(1);
+        // 로그가 **어떤 형태였는지**까지 단언한다. `cache 엔트리 손상` 만 보면
+        // `describeShape()` 를 상수로 치환해도 통과한다(리뷰어가 뮤테이션으로 실측) —
+        // 운영이 원인을 좁히는 데 쓰는 정보라 값 자체를 고정한다. 캐시 payload 는 로그에
+        // 싣지 않으므로 이 한 단어가 유일한 단서다.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `cache 엔트리 손상 — 무시하고 신규 처리: 형태 불일치 (${expectedShape})`,
+          ),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    },
+  );
+
+  it('엔트리 손상은 조용히 넘어가지 않는다 — warn 을 남긴다', async () => {
+    // 위 테스트는 "요청이 산다" 만 본다. fail-open 은 **요청을 살린다 + 장애를 보이게 한다**
+    // 가 한 쌍이라, 로그가 사라지는 회귀는 응답만 봐서는 잡히지 않는다. 이 클래스의 다른 세
+    // 실패 경로(GET·SET·직렬화)는 이미 warn 을 단언하는데 이 자리만 빠져 있었다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const redis = makeRedis();
+      redis.get.mockResolvedValue('not-valid-json{');
+
+      await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'broken-warn', body: {} }),
+          makeCallHandler({ fresh: true }),
+        ),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache 엔트리 손상'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('엔트리는 멀쩡한데 안쪽 `responseJson` 이 깨진 경우 → 500 이 아니라 신규 처리', async () => {
+    // **선재 갭**: 바깥 JSON 은 `try/catch` 로 막으면서 안쪽 `responseJson` 은 재현 분기
+    // 두 자리에서 맨몸으로 파싱했다. 깨져 있으면 그 `SyntaxError` 가 그대로 올라가
+    // `GlobalExceptionFilter` 가 **500 으로 마스킹**한다 — 캐시 손상이 요청 실패가 되는 것은
+    // 이 인터셉터의 fail-open 원칙과 정반대다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const body = { a: 1 };
+      const redis = makeRedis();
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          bodyHash: bodyHashOf(body),
+          responseJson: 'not-valid-json{', // 안쪽만 깨졌다
+          statusCode: 200,
+        }),
+      );
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
+
+      const result = await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'inner-broken', body }),
+          handler,
+        ),
+      );
+
+      expect(result).toEqual({ fresh: true });
+      expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+      expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 온전한 것으로 덮는다
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache payload 손상'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('안쪽이 깨졌어도 body 가 다르면 여전히 409 — 판정 순서를 고정한다', async () => {
+    // **이 테스트가 파싱 순서를 지탱한다.** payload 파싱을 `bodyHash` 판정보다 앞에 두면
+    // 손상된 엔트리에서 409 가 조용히 사라지고, 두 번째 body 가 새 응답을 받는다 —
+    // `Idempotency-Key` 재사용 검출이 캐시 손상에 의해 무력화되는 셈이다.
+    // payload 가 깨졌든 아니든 "이 키가 이미 다른 body 로 쓰였다" 는 사실은 그대로다.
     const redis = makeRedis();
-    redis.get.mockResolvedValue('not-valid-json{');
-    const interceptor = makeInterceptor(redis);
+    redis.get.mockResolvedValue(
+      JSON.stringify({
+        bodyHash: bodyHashOf({ original: true }),
+        responseJson: 'not-valid-json{',
+        statusCode: 200,
+      }),
+    );
     const handler = makeCallHandler({ fresh: true });
     const handleSpy = jest.spyOn(handler, 'handle');
 
-    const result = await lastValueFrom(
-      interceptor.intercept(
-        makeContext({ idempotencyKey: 'broken-1', body: { a: 1 } }),
-        handler,
+    await expect(
+      lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({
+            idempotencyKey: 'inner-broken-conflict',
+            body: { different: true },
+          }),
+          handler,
+        ),
       ),
-    );
+    ).rejects.toBeInstanceOf(ConflictException);
 
-    expect(result).toEqual({ fresh: true });
-    expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
-    expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
-    // 횟수만 보면 `bodyHash` 가 빈 문자열이 돼도 그린이라 저장된 값까지 단언한다 —
-    // 손상 항목을 덮어쓰는 자리이므로 새 항목이 온전해야 다음 요청이 히트한다.
-    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
-      bodyHash: string;
-      responseJson: string;
-      statusCode: number;
-    };
-    expect(stored.bodyHash).toBe(bodyHashOf({ a: 1 }));
-    expect(stored.statusCode).toBe(200);
-    expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+    // 409 로 끝났으므로 downstream 은 돌지 않고 캐시도 덮이지 않는다.
+    expect(handleSpy).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('안쪽이 깨진 409 엔트리도 500 이 아니라 신규 처리 — 에러 재현 분기도 같은 방어를 받는다', async () => {
+    // **지금은 200 케이스와 같은 코드 라인을 탄다** — payload 파싱을 한 곳으로 끌어올렸기
+    // 때문이다. 그래도 남겨 두는 이유는 재분기 회귀 대비다: 재현 경로가 다시 둘로 갈리면
+    // (에러 채널 `HttpException` 재throw · 성공 채널 `of()`) 한쪽만 방어하는 형태가 되기
+    // 쉽고, 이 세션에서 그 자매 누락이 반복됐다. 통합 이전 모델을 서술하지 않도록 적어 둔다.
+    //
+    // **단언은 형제 테스트와 동형이어야 한다** — "같은 방어를 받는다" 가 이 테스트의 주장인데
+    // 응답만 보면 그 주장을 스스로 증명하지 못한다. 응답이 `{fresh:true}` 인 것은 "방어가
+    // 걸렸다" 말고 다른 이유로도 성립할 수 있으므로 warn·재적재까지 함께 본다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const body = { a: 1 };
+      const redis = makeRedis();
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          bodyHash: bodyHashOf(body),
+          responseJson: 'not-valid-json{',
+          statusCode: 409, // 에러 재현 분기로 들어가는 상태코드
+        }),
+      );
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
+
+      const result = await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'inner-broken-409', body }),
+          handler,
+        ),
+      );
+
+      expect(result).toEqual({ fresh: true });
+      expect(handleSpy).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache payload 손상'),
+      );
+      // 손상 항목을 온전한 것으로 덮는다 — 값까지 봐야 다음 요청이 히트한다는 것을 안다.
+      expect(redis.set).toHaveBeenCalledTimes(1);
+      const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+        bodyHash: string;
+        responseJson: string;
+        statusCode: number;
+      };
+      expect(stored.bodyHash).toBe(bodyHashOf(body));
+      expect(stored.statusCode).toBe(200);
+      expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('`status`/`statusCode` 가 없는 응답에서도 죽지 않고 200 으로 적재한다', async () => {
@@ -672,8 +907,10 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
   });
 
   it('`set()` 이 reject 해도 응답 정상 + warn 로그 (적재 경로 fail-open)', async () => {
-    // 클래스 docstring 이 "세 경로 모두 fail-open" 이라 주장하는데 적재 경로만 검증이
-    // 없었다 — 주장한 보장은 전부 테스트로 받쳐야 한다.
+    // 클래스 docstring 의 fail-open 경로 표(현재 다섯 경로)가 적재 실패도 포함한다고
+    // 주장하는데 그 경로만 검증이 없었다 — 주장한 보장은 전부 테스트로 받쳐야 한다.
+    // (문구를 그대로 인용하지 않는다. 종전에 "세 경로" 를 인용했다가 docstring 이 다섯으로
+    //  갱신되면서 이 주석만 옛 상태로 남았다 — 인용은 원본이 바뀌면 조용히 거짓이 된다.)
     //
     // **응답만 단언하면 이 자리를 반만 지킨다** (뮤테이션 2형태 실측):
     //   - `.catch()` **통째 제거** → unhandled rejection 이 jest 를 exit 1 로 만들긴 하지만

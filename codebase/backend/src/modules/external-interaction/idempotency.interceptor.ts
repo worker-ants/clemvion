@@ -59,11 +59,23 @@ interface IdempotencyEntry {
  *   ([Spec EIA §R8] / 실행 엔진 §1.3 의 "waiting_for_input 유지" 컨벤션).
  * - 키 미설정 시 캐시 적용 안 함 (옵션).
  *
- * Redis 미가용 시 fail-open + warn 로그 — 멱등성은 클라이언트 측 retry 정책으로 보강해야 함.
- * 이 fail-open 은 **세 경로 모두**에 걸린다: 기동 시 미주입(생성자 null) · 조회 실패
- * (`get()` reject → 캐시 미스로 강등) · 적재 실패(`set()` reject → warn 후 통과).
+ * Redis 미가용·캐시 손상 시 fail-open — 멱등성은 클라이언트 측 retry 정책으로 보강해야 함.
+ * 이 fail-open 은 **다섯 경로 모두**에 걸리고, **경로 1 을 뺀 넷이 warn 을 남긴다**:
+ *
+ * | # | 경로 | 처리 | warn |
+ * |---|---|---|---|
+ * | 1 | 기동 시 미주입 (생성자 `null`) | 캐시 미적용 passthrough | — (설정 상태이지 장애가 아니다) |
+ * | 2 | 조회 실패 (`get()` reject) | 캐시 미스로 강등 (`catchError`) | ✓ |
+ * | 3 | 적재 실패 (`set()` reject) | 통과 ({@link storeEntry}) | ✓ |
+ * | 4 | 직렬화 실패 (순환 참조 등) | 적재만 포기 ({@link storeEntry}) | ✓ |
+ * | 5 | 캐시 엔트리·payload 손상 | 무시하고 신규 처리 ({@link discardCorruptEntry}) | ✓ |
+ *
  * `spec/data-flow/15-external-interaction.md` 의 "Redis … 전 경로 fail-open (warn) —
  * 가용성 우선" 이 그 요구다. 조회 경로는 종전에 빠져 있어 Redis 장애가 곧 요청 실패였다.
+ *
+ * > 이 목록은 **개수를 세어 두는 것이 요점**이다. 종전에는 "세 경로" 라고 적혀 있었는데 실제로는
+ * > 직렬화 실패가 이미 빠져 있었고, 손상 경로가 더해지며 둘이 더 어긋났다 — 경로를 늘릴 때
+ * > 이 표를 함께 갱신하지 않으면 다음 사람이 방어의 범위를 실제보다 좁게 읽는다.
  *
  * **fail-open 의 대가를 분명히 해 둔다** — Redis 장애가 지속되는 동안에는 같은
  * `Idempotency-Key` 로 온 재요청이 전부 캐시 미스로 판정되므로 **중복 억제가 사실상
@@ -135,44 +147,99 @@ export class IdempotencyInterceptor implements NestInterceptor {
         return of(null);
       }),
       switchMap((cachedJson) => {
-        if (cachedJson) {
-          let cached: IdempotencyEntry;
-          try {
-            cached = JSON.parse(cachedJson) as IdempotencyEntry;
-          } catch {
-            // 손상된 캐시 → 무시하고 신규 처리.
-            return next
-              .handle()
-              .pipe(this.cacheTapped(redisKey, bodyHash, context));
-          }
-          if (cached.bodyHash !== bodyHash) {
-            throw new ConflictException({
-              error: {
-                code: 'IDEMPOTENCY_KEY_CONFLICT',
-                message: 'Idempotency-Key 가 이미 다른 body 와 사용되었습니다.',
-              },
-            });
-          }
-          // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
-          //
-          // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
-          // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
-          // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
-          if (isErrorStatusCacheable(cached.statusCode)) {
-            throw new HttpException(
-              JSON.parse(cached.responseJson) as Record<string, unknown>,
-              cached.statusCode,
-            );
-          }
-          const res = context.switchToHttp().getResponse<HttpResponseLike>();
-          if (typeof res.status === 'function') res.status(cached.statusCode);
-          return of(JSON.parse(cached.responseJson) as unknown);
+        // 캐시를 못 쓰는 모든 경우의 공통 처리 — 신규 처리 후 적재. 캐시 미스 · 엔트리 손상 ·
+        // payload 손상 세 자리가 같은 동작이라 한 곳에 둔다.
+        const processFresh = () =>
+          next.handle().pipe(this.cacheTapped(redisKey, bodyHash, context));
+
+        if (!cachedJson) return processFresh();
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(cachedJson);
+        } catch (err) {
+          return this.discardCorruptEntry('엔트리', err, processFresh);
         }
-        return next
-          .handle()
-          .pipe(this.cacheTapped(redisKey, bodyHash, context));
+        // **`try/catch` 만으로는 부족하다 — `JSON.parse` 는 문법 오류에만 던진다.**
+        // `'null'`·`'42'`·`'[]'` 는 전부 **유효한 JSON** 이라 통과한 뒤 아래에서 필드를 읽는다.
+        // 그중 `'null'` 은 `cached.bodyHash` 에서 `TypeError` 를 내고, 그 예외가
+        // `GlobalExceptionFilter` 까지 올라가 **500** 이 된다 — 이 클래스가 없애려는 바로 그
+        // 실패 형태다(무수정 프로브 실측: `'null'`→TypeError / `'42'`·`'[]'`·`'"str"'`→409).
+        // 형태를 명시로 검사한다. truthiness 나 `typeof === 'object'` 만으로는 배열·필드 누락이
+        // 그대로 통과한다.
+        if (!isIdempotencyEntry(parsed)) {
+          return this.discardCorruptEntry(
+            '엔트리',
+            `형태 불일치 (${describeShape(parsed)})`,
+            processFresh,
+          );
+        }
+        const cached: IdempotencyEntry = parsed;
+
+        // **bodyHash 판정은 payload 파싱보다 먼저다.** payload 가 깨졌든 아니든 "이 키가 이미
+        // 다른 body 로 쓰였다" 는 사실은 그대로다 — 순서를 바꾸면 손상된 엔트리에서 409 가
+        // 조용히 사라지고 두 번째 body 가 새 응답을 받는다.
+        if (cached.bodyHash !== bodyHash) {
+          throw new ConflictException({
+            error: {
+              code: 'IDEMPOTENCY_KEY_CONFLICT',
+              message: 'Idempotency-Key 가 이미 다른 body 와 사용되었습니다.',
+            },
+          });
+        }
+
+        // **엔트리 안쪽 `responseJson` 도 깨질 수 있다.** 종전에는 바깥 JSON 만 `try/catch` 로
+        // 막고 이 파싱은 재현 분기 두 자리에서 맨몸으로 했다 — 깨져 있으면 그 `SyntaxError` 가
+        // 그대로 올라가 `GlobalExceptionFilter` 가 **500 으로 마스킹**했다. 캐시 손상이 요청
+        // 실패가 되는 것은 이 인터셉터의 fail-open 원칙과 반대다. 한 번만 파싱해 그 자리에
+        // 방어를 둔다(재현 분기의 `JSON.parse` 중복도 함께 사라진다).
+        let cachedPayload: unknown;
+        try {
+          cachedPayload = JSON.parse(cached.responseJson);
+        } catch (err) {
+          return this.discardCorruptEntry('payload', err, processFresh);
+        }
+
+        // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
+        //
+        // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
+        // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
+        // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
+        if (isErrorStatusCacheable(cached.statusCode)) {
+          throw new HttpException(
+            cachedPayload as Record<string, unknown>,
+            cached.statusCode,
+          );
+        }
+        const res = context.switchToHttp().getResponse<HttpResponseLike>();
+        if (typeof res.status === 'function') res.status(cached.statusCode);
+        return of(cachedPayload);
       }),
     );
+  }
+
+  /**
+   * 손상된 캐시 엔트리를 버리고 신규 처리로 강등한다 — warn 을 남기는 것이 요점이다.
+   *
+   * **두 호출부의 종전 동작은 서로 달랐다.**
+   *
+   * - `엔트리`(바깥 JSON): 강등 자체는 하고 있었으나 **가시성 없이** 조용히 넘어갔다.
+   * - `payload`(안쪽 `responseJson`): 방어가 아예 없어 `SyntaxError` 가 그대로 올라가
+   *   `GlobalExceptionFilter` 가 **500 으로 마스킹**했다 — 캐시 손상이 요청 실패가 됐다.
+   *
+   * 둘을 여기로 모아 동작(신규 처리)과 가시성(warn)을 같게 맞춘다. fail-open 은 "요청을
+   * 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데(이 클래스의 다른 세 경로는 이미 warn 한다),
+   * 조용한 강등은 멱등성이 사실상 꺼진 상태와 구분되지 않는다.
+   */
+  private discardCorruptEntry<T>(
+    what: '엔트리' | 'payload',
+    detail: unknown,
+    processFresh: () => T,
+  ): T {
+    this.logger.warn(
+      `IdempotencyInterceptor cache ${what} 손상 — 무시하고 신규 처리: ${detail instanceof Error ? detail.message : String(detail)}`,
+    );
+    return processFresh();
   }
 
   /**
@@ -280,6 +347,41 @@ export class IdempotencyInterceptor implements NestInterceptor {
  */
 function isErrorStatusCacheable(statusCode: number): boolean {
   return statusCode === 409 || statusCode === 410;
+}
+
+/**
+ * 캐시에서 읽은 값이 우리가 적재한 엔트리 형태인지 — **문법이 아니라 형태**를 본다.
+ *
+ * `JSON.parse` 는 문법 오류에만 던지므로 `'null'`·`'42'`·`'[]'` 같은 유효 JSON 은 그대로
+ * 통과한다. 그 상태로 필드를 읽으면 `'null'` 은 `TypeError`(→ 500), 나머지는 `undefined` 비교로
+ * 엉뚱한 409 가 된다. 셋 다 "손상된 엔트리는 버리고 신규 처리" 가 맞는 답이다.
+ *
+ * truthiness 만으로는 필드 누락이 통과한다 — 우리가 실제로 **읽는 세 필드**를 각각 확인한다.
+ *
+ * **`null` 만 별도로 막고 나머지는 필드 검사에 맡긴다.** 처음엔 `typeof !== 'object'` 와
+ * `Array.isArray` 절도 넣었는데, 뮤테이션에서 **그 둘만 제거해도 죽는 테스트가 없었다** —
+ * 원시값은 오토박싱돼도 이 필드들이 없고 JSON 배열은 문자열 키를 가질 수 없어, 아래 세 검사가
+ * 이미 전부 배제하기 때문이다. 반면 `null` 은 프로퍼티 접근 자체가 `TypeError` 라 **여기서
+ * 걸러야만** 한다(그 절만 제거하면 테스트가 죽는다).
+ *
+ * 관측 가능한 동작이 없는 절은 두지 않는다 — 방어처럼 보이지만 실행되지 않는 조건은 다음
+ * 사람에게 "여기는 검사된다" 는 **거짓 신호**를 준다.
+ */
+function isIdempotencyEntry(value: unknown): value is IdempotencyEntry {
+  if (value === null) return false;
+  const e = value as Record<string, unknown>;
+  return (
+    typeof e.bodyHash === 'string' &&
+    typeof e.responseJson === 'string' &&
+    typeof e.statusCode === 'number'
+  );
+}
+
+/** 손상 로그용 — 값 자체를 찍지 않는다(캐시 payload 가 로그로 새지 않도록). */
+function describeShape(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
 }
 
 function readKey(raw: unknown): string | null {
