@@ -3,7 +3,7 @@ title: spec draft — idempotency 캐시 키를 execution + endpoint 로 스코�
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-12
 owner: project-planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/data-flow/15-external-interaction.md
@@ -149,6 +149,15 @@ execution" 논증과 두 파손 축을 그 자리에 남긴다 — 다음 구현
       > 덮어쓰면 사실이 아니게 된다. 구현 턴이 e2e 를 3-세그먼트로 옮기는 것과 별개다.
 - [x] 후속 항목 2건 신규 등재: `CCH-SE-02` dead field · EIA Redis 키의 §9.1 미등재
       (`backend-lint-gate-broken-on-main.md` — **등재 후 grep 으로 확인함**)
+
+> **완료 (2026-08-12).** spec 은 [#1156](https://github.com/worker-ants/clemvion/pull/1156),
+> 구현은 후속 developer 턴(`eia-idem-key-scope-impl`)에서 착지했다.
+>
+> 구현 쪽에서 **이 draft 의 전제 하나가 실측으로 보강됐다** — draft 는 "상태코드로 갈리는
+> e2e" 를 요구했는데, 첫 구현의 `IDEM-4`·`IDEM-5` 는 뮤테이션에서 **캐시 키 존재 단언(white-box)
+> 에서 죽고 상태코드 단언에는 도달하지 못했다.** 단언 순서를 뒤집고서야 뮤턴트가
+> `Expected: 202 / Received: 410`(남의 응답 수신)으로 죽었다. 관측점을 옳게 골라도 **단언
+> 순서**가 앞의 단언에서 먼저 죽게 만들면 뒤의 단언은 없는 것과 같다.
 
 ## Rationale
 
