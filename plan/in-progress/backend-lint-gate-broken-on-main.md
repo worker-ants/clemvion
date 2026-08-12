@@ -102,6 +102,12 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 ## 잔여 warning 47건 — 처분 방침 (이 PR 에서 하지 않는다)
 
+> **처분 완료 (2026-08-12).** 아래 "이 PR 에서 하지 않는다" 는 게이트 복구 PR(`#1104`)
+> 기준의 서술이다. 그 뒤 별 PR 이 이 절을 핵심 작업으로 승격해 **전량 처분**했고
+> `--max-warnings 0` 을 걸었다 — 결론과 근거는 §후속 의 마지막 항목에 있다.
+> 아래 표의 성격 분류는 **일부 틀렸다**(같은 항목 참조). 지금 읽는 사람이 미해결로
+> 오해하지 않도록 여기 먼저 적는다.
+
 `no-unsafe-*` 45 + 기타 2. **비차단이므로 이 PR 의 목적(게이트 복구) 밖이다.** 45곳에
 억제/타입보강을 넣으면 판단이 들어간 변경이 45개 늘고 diff 만 커지는데 게이트에는 영향이 없다.
 
@@ -118,6 +124,8 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 **`--max-warnings 0` 도입 여부**가 선행 결정이다 — 도입하지 않으면 이 47건은 계속 비차단이라
 정리 유인이 약하고, 도입하면 47건을 다 처분해야 게이트가 열린다. 그 결정 없이 부분 정리하는
 것은 값이 낮다.
+
+> **결정 (2026-08-12): 도입한다.** 전량 처분 후 `--max-warnings 0` 을 걸었다.
 
 ## 같은 뿌리의 형제 결함 — frontend Gate C (2026-08-08 발견·해소)
 
@@ -370,8 +378,71 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 구현하면 안 되는 것(`workspace-reflection-canary.ts` §판별)과 같은 함정에 빠진다.
       > 그래서 "허용 집합을 실제로 바꿀 때" 를 트리거로 남긴다 — 그때 두 질문이 여전히
       > 같은 답인지 보고 판단한다.
-- [ ] 남은 backend lint warning 47건 (본 plan §잔여) — ratchet 과 같은 방식으로 warning
-      바닥을 걸지, 아니면 처분할지 별도 판정.
+- [x] 남은 backend lint warning (본 plan §잔여) — **ratchet 이 아니라 전량 처분**을 골랐다
+      (사용자 결정 2026-08-12). `codebase/backend/package.json` 의 `lint` 스크립트에
+      `--max-warnings 0` 을 걸어 바닥이 아니라 **0** 을 고정했다.
+
+      **수치 정정: 47 → 실측 46.** 위 §잔여 절의 47 은 `#1104` 직후(2026-08-09) 값이고,
+      착수 시점 실측은 46 이다(직전 세션이 `pnpm install` 후 잰 값 — 낡은 `node_modules` 는
+      존재하지 않는 `prettier/prettier` 119건을 만들어 낸다. 그 세션이 21 로 줄인 뒤 내가
+      독립적으로 잰 21 과 정합한다).
+
+      > **왜 ratchet 이 아닌가 — 전수 조사가 전제를 뒤집었다.** ratchet 이 사는 이유는
+      > "지금 처분할 수 없는 잔여를 수용하면서 바닥은 닫는다" 인데, 46건을 전부 열어 보니
+      > **처분할 수 없는 자리가 하나도 없었다.** 전부 라이브러리 경계에서 `any` 가 새는
+      > 자리였고 수정이 타입 주석·제네릭 인자뿐이라 **런타임을 건드리지 않는다.** 타입을
+      > 지어내야 하는 자리도, 억제(`eslint-disable`)가 필요한 자리도 없었다. 그러면
+      > baseline 파일도 매직 넘버도 필요 없어지고, ratchet 은 유지비만 남는다.
+      >
+      > **위 §잔여 표의 성격 분류는 두 자리가 틀렸다.** `render-tool-provider.ts` 6건을
+      > "정당한 unsafe → 억제 + 근거" 로 미리 분류해 뒀지만 실제 원인은
+      > **`Array.isArray(x)` 가 `unknown` 을 `unknown[]` 이 아니라 `any[]` 로 좁히는 TS 특성**
+      > 이라 원소를 `unknown` 으로 받으면 그냥 사라진다(`ai-agent.schema.ts` 1건도 같은 원인).
+      > `src/scripts/migrate-node-output-refs.ts` 17건도 "일회성 스크립트" 라 적혀 있었지만
+      > 콜백 인자 타입만으로 닫혔다. **열어보지 않고 적은 분류가 착수 판단을 왜곡한다.**
+
+      마지막 21건(7파일)의 원인과 조치:
+
+      | 위치 | 건수 | 원인 | 조치 |
+      |---|---|---|---|
+      | `idempotency.interceptor.ts` | 8 | `getResponse<T = any>()` 제네릭 미지정 | 구조적 타입 `HttpResponseLike` 주입 |
+      | `render-tool-provider.ts` | 6 | `Array.isArray` → `any[]` 좁힘 | 콜백 원소 `unknown` 명시 |
+      | `chat-channel.dispatcher.ts` | 2 | `strictBindCallApply: false` + 오버로드 → `.bind` 가 `any` | 화살표 래핑 |
+      | `executions.service.ts` | 2 | `IteratorResult` return 분기 → `.value` 가 `any` | `done` 으로 좁힘 |
+      | `ai-agent.schema.ts` | 1 | `Array.isArray` → `any[]` 좁힘 | 원소 `unknown` 명시 |
+      | `chat-channel-config.dto.ts` | 1 | `TransformFnParams.value` 가 `any` | 구조분해 파라미터에 타입 |
+      | `workspace-reflection-canary.ts` | 1 | `no-unnecessary-type-assertion` | `as object` 삭제 |
+
+      > `idempotency.interceptor.ts` 에 express `Response` 를 **박지 않은** 이유를 코드 주석과
+      > 함께 남긴다 — 그러면 코드가 이미 하고 있는 `typeof res.status === 'function'` /
+      > `typeof res.statusCode === 'number'` 방어가 정적으로 항상 참이 되어 **죽은 코드**가
+      > 된다. 어댑터·테스트 mock 을 가리지 않는 자리라 방어가 살아 있어야 한다.
+      >
+      > 캐너리의 `as object` 삭제는 **가드가 여전히 자기 대상을 잡는지** 확인하고 했다 —
+      > `workspace-reflection-canary.spec.ts` 의 fail-closed 단언(인식 0건이면 throw) 포함
+      > 전량 통과. `cls` 는 바로 위 `typeof cls !== 'function'` 로 이미 `Function` 이고
+      > 그건 `handlerConsumesWorkspaceId(controllerClass: object, …)` 에 그대로 배정된다.
+
+      **`--max-warnings 0` 을 CI 워크플로가 아니라 `package.json` 에 넣은 이유**: CI
+      (`backend-checks.yml:95`)가 `pnpm --filter backend lint` 를 그대로 호출하므로 로컬과 CI 가
+      **같은 게이트 한 벌**을 쓴다. 이 저장소는 "로컬에서 backend eslint 를 안 돌려 CI 가 터진"
+      사고를 이미 겪었다.
+
+      > **게이트를 양방향으로 실측했다** — 걸어 놓고 안 걸리는 것이 이 저장소의 반복 실패다.
+      > 일부러 warning 하나(`any` → `string` 반환)를 심고 `pnpm --filter backend lint`
+      > → **exit 1** (`ESLint found too many warnings (maximum: 0)`), 제거 후 → **exit 0**.
+      > **첫 프로브는 무효였다** — `any` → `unknown` 반환은 `no-unsafe-return` 이 애초에
+      > 허용해서 아무 warning 도 안 났다(`--max-warnings` 없이 exit 0 인 것으로 선검증해
+      > 걸러냈다). 프로브가 진짜 warning 을 내는지 먼저 확인하지 않으면 게이트 검증 자체가
+      > vacuous 해진다.
+
+      검증: eslint **errors 0 / warnings 0** · 타입체크 ratchet **199건 / 38파일 baseline 일치**
+      (증감 0 — 타입을 깬 자리 없음) · backend unit **418 suites / 8512 passed**.
+- [ ] `migrate-node-output-refs.ts` admission 자리의 `Array.isArray(rows)` 런타임 가드
+      (`11_06_12` security INFO, 직전 세션이 유예). 그 커밋의 값이 "emit JS 가 md5 까지
+      before/after 동일" 이라 런타임 가드를 넣으면 그 성질이 깨진다는 이유였고, 실패 방향이
+      **fail-closed** 라(shape 이 어긋나면 `undefined === 1` → false → admission 거부이지 cap
+      우회가 아니다) 급하지 않다. `review/**` 는 SoT 가 아니므로 여기 옮겨 적는다.
 
 ## Rationale
 
