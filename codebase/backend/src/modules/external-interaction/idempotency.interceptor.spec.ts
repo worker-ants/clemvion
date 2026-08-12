@@ -11,6 +11,10 @@
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
  * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA
  * §R8 과 어긋난 현재 캐시 제외 범위를 고정하는 캐너리를 담는다.
+ *
+ * 세 번째 describe 는 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
+ * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그리고 그 fail-open 이
+ * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리를 담는다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, type Observable } from 'rxjs';

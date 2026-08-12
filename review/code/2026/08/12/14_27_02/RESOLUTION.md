@@ -89,7 +89,7 @@ describe 블록마다 문자 단위로 복제돼 있던 것을 모듈 최상단�
 | 1 (catchError 가 모든 예외 강등) | spec 의도. 관측 지표는 백로그 |
 | 2 (GET/SET warn 이중 발생) | 운영 참고, 조치 불요 |
 | 3 (`>= 400` R8 초과) | 선재, 이미 백로그 + 409 캐너리 |
-| 6 (로그 포맷 중복, 헤더 docstring) | 헤더는 갱신함. `warnCacheFailure` 추출은 2곳뿐이라 보류 |
+| 6 (로그 포맷 중복, 헤더 docstring) | `warnCacheFailure` 추출은 2곳뿐이라 보류. **헤더 docstring 은 이 라운드에 안 고쳤다** — 아래 정정 참조 |
 | 7 (GET→SET 비원자) | 선재 구조. `SET NX EX` 검토는 백로그 |
 | 9 (캐시 미스 강등 테스트가 bodyHash 만 단언) | `bodyHash` 가 핵심 식별자라 충분하다고 봄 |
 
@@ -98,3 +98,20 @@ describe 블록마다 문자 단위로 복제돼 있던 것을 모듈 최상단�
 - eslint **0 errors / 0 warnings**
 - ratchet **199건 / 38파일 baseline 일치**
 - backend unit **418 suites / 8524 passed / 1 skipped** (8522 → 8524, 정확히 신규 2건)
+
+---
+
+## 정정 (다음 라운드 `14_50_36` documentation WARNING #2)
+
+위 INFO 6 처분에 **"헤더는 갱신함"** 이라고 적었는데 **거짓이었다.** 이 라운드에서 실제로
+갱신한 것은 `idempotency.interceptor.ts` 의 **클래스 docstring** 이고, 지적 대상이던
+`idempotency.interceptor.spec.ts` 의 **파일 최상단 헤더 docstring**(신규 3번째 describe 미언급)
+은 그대로 뒀다. 직전 PR 라운드에서 헤더에 "두 번째 describe" 를 추가했던 일을 이번 것으로
+착각해 쓴 기록이다.
+
+다음 라운드에서 헤더에 세 번째 describe(Redis 런타임 장애 fail-open) 한 줄을 실제로 추가했다.
+
+> **왜 이 줄을 지우지 않고 정정으로 남기는가** — `review/**` 는 SoT 가 아니지만 후속 세션이
+> 처분 기록을 근거로 "이미 처리됨" 을 판단한다. 거짓 완료 기록은 그 판단을 오염시키고,
+> 조용히 고쳐 두면 같은 착오가 반복돼도 흔적이 없다. 이 세션에서만 **"내가 쓴 기록이
+> 실제와 다르다"** 가 세 번째다(§R8 오인용 · "캐시 히트 전체" 과장 · 본 건).
