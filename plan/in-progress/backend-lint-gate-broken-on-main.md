@@ -629,6 +629,13 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 이동하고 코드 순서는 그대로여서 GREEN 이 나왔다 — 하마터면 "테스트가 순서를 못 잡는다"
       > 로 오판할 뻔했다. 인덱스 비교(`PARSE < CONFLICT`)로 **반전을 선검증**하고 나서야 의도한
       > 테스트가 죽었다. **뮤턴트의 GREEN 은 뮤턴트가 유효할 때만 정보다.**
+- [ ] **`data-flow/15` 의 "전 경로 fail-open (warn)" 이 실제보다 한 칸 넓다** (`23_48_39`
+      rationale_continuity INFO 1). L308 이 Redis 관련 전 경로에 warn 이 붙는 것처럼 뭉뚱그리는데,
+      `IdempotencyInterceptor` 의 다섯 경로 중 **기동 시 미주입(생성자 `null`)은 warn 을 남기지
+      않는다** — 그건 장애가 아니라 설정 상태다.
+      > 이 부정확은 **선재**다(내 변경이 만든 것이 아니라, 코드 docstring 을 다섯 경로 표로
+      > 정밀화하면서 드러났다). §2.2 표 각주나 Rationale 에 "구성 미주입은 장애가 아니므로
+      > warn 제외" 한 줄이면 닫힌다. **`spec/` 쓰기는 developer 권한 밖**이라 planner 인계.
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
