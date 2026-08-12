@@ -486,6 +486,19 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
       > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
       > 덮은 갈래를 먼저 세어야 한다.**
+- [ ] **`IdempotencyInterceptor` 의 "fail-open" 주장이 런타임 reject 를 안 덮는다** (`12_55_52`
+      requirement/security INFO 3). 클래스 docstring 은 "Redis 미가용 시 fail-open + warn 로그"
+      라고 적었는데, 그 보장은 **생성자 시점 null 체크**(`getClientOrNull()` → null → passthrough)
+      에만 해당한다. `intercept()` 의 `from(this.redis.get(redisKey))` 가 **런타임에 reject**
+      하면(연결 끊김·타임아웃) Observable 이 그대로 error 를 흘려 요청 자체가 실패한다 —
+      fail-open 이 아니라 fail-closed 다.
+      > 즉 **문서한 보장이 구현보다 넓은** 또 한 사례다(이 브랜치에서만 3번째 형태).
+      > 조치는 둘 중 하나: `catchError` 로 실제 fail-open 을 만들거나, docstring 을 "생성자
+      > 시점 미가용에 한정" 으로 좁히거나. **어느 쪽이 맞는지는 EIA spec 의 가용성 요구에
+      > 달렸으므로 확인이 먼저다.** 이 PR(타입 전용)에서는 런타임을 건드리지 않는다.
+- [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
+      초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
+      함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
 - [ ] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
