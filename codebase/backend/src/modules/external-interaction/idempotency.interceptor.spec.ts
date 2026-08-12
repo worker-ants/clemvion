@@ -7,6 +7,10 @@
  *  - Redis 미가용(null) 시 fail-open passthrough
  *
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
+ *
+ * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
+ * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA
+ * §R8 과 어긋난 현재 캐시 제외 범위를 고정하는 캐너리를 담는다.
  */
 import { createHash } from 'crypto';
 import { lastValueFrom, of, type Observable } from 'rxjs';
@@ -209,7 +213,7 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     ).rejects.toThrow(ConflictException);
   });
 
-  it('4xx 응답은 캐시하지 않는다 (Spec EIA §R8)', async () => {
+  it('400 VALIDATION_ERROR 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
     const redis = makeRedis();
     const interceptor = new IdempotencyInterceptor(
       undefined,
@@ -223,6 +227,61 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
       ),
     );
     expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('409 도 캐시되지 않는다 — **R8 위반 상태를 고정하는 캐너리**', async () => {
+    // Spec EIA §R8 은 "4xx 중 `400 VALIDATION_ERROR` **만** 제외하고, 그 외
+    // (2xx / `409 Conflict` / `410 Gone`) 는 캐시한다" 고 명시한다. 그런데 구현의
+    // 제외 조건은 `statusCode >= 400` 이라 409·410 까지 함께 떨군다 — 그만큼
+    // EIA-RL-02(동일 키 24h 동일 응답 재현)가 지켜지지 않는다.
+    //
+    // **선재 결함이다**(2026-05-21 `35ff9c19b` 원본 구현부터). 이 PR 은 lint warning
+    // 처분(타입 전용)이라 런타임 동작을 바꾸지 않는 것이 스코프이므로 여기서 고치지
+    // 않고, 대신 **현재 동작을 캐너리로 고정**해 둔다. 조건을 R8 에 맞게 좁히면 이
+    // 테스트가 RED 가 되고, 그때 이 주석이 무엇을 바꾸는 것인지 알려 준다.
+    //
+    // 백로그: `plan/in-progress/backend-lint-gate-broken-on-main.md` §후속.
+    // 주의: 올바른 조건은 `=== 400` 이 아니다 — R8 은 400 중에서도 VALIDATION_ERROR
+    // 를 지목하고 5xx 캐싱 여부는 말하지 않는다. 좁히려면 spec 확인이 먼저다.
+    const redis = makeRedis();
+    const interceptor = new IdempotencyInterceptor(
+      undefined,
+      redis as never,
+      undefined,
+    );
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 409 }),
+        makeCallHandler({ error: 'STATE_MISMATCH' }),
+      ),
+    );
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('손상된 캐시 JSON → 무시하고 신규 처리 + 정상 적재', async () => {
+    // `intercept()` 의 `try { JSON.parse } catch` 분기. 캐시 히트인데 파싱이 깨지는
+    // 경우라 위 히트 테스트들과 다른 갈래이고, 실패해도 요청 자체는 살아야 한다
+    // (fail-open). 이 분기가 깨지면 캐시 손상이 곧 요청 실패로 번진다.
+    const redis = makeRedis();
+    redis.get.mockResolvedValue('not-valid-json{');
+    const interceptor = new IdempotencyInterceptor(
+      undefined,
+      redis as never,
+      undefined,
+    );
+    const handler = makeCallHandler({ fresh: true });
+    const handleSpy = jest.spyOn(handler, 'handle');
+
+    const result = await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'broken-1', body: { a: 1 } }),
+        handler,
+      ),
+    );
+
+    expect(result).toEqual({ fresh: true });
+    expect(handleSpy).toHaveBeenCalled(); // downstream 이 실제로 돌았다
+    expect(redis.set).toHaveBeenCalledTimes(1); // 손상 항목을 새 응답으로 덮는다
   });
 
   it('`status`/`statusCode` 가 없는 응답에서도 죽지 않고 200 으로 적재한다', async () => {

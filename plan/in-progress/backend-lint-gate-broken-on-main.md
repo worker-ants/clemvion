@@ -477,10 +477,33 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
         `.handle()` 경유 스펙에서 도달 불가. standalone 함수 테스트만 존재한다.
       - `executions.service.ts:192-199` — `snapshotCache` evict(256건 한도) 테스트 전무.
         경계값(256회 삽입)으로 evict 1건·최오래된 키 삭제를 고정할 수 있다.
-      > 이번 라운드에 `idempotency.interceptor.ts` 의 같은 클래스 공백(캐시 히트 경로 전체)은
-      > **메웠다** — 그쪽은 diff 가 신설한 방어(`HttpResponseLike` optional)를 지탱하는
-      > 테스트가 없어서 주석이 주장만 하는 상태였기 때문이다. 위 둘은 diff 가 방어를
-      > 신설하지 않았으므로 성격이 다르다.
+      > 이번 라운드에 `idempotency.interceptor.ts` 의 같은 클래스 공백은 **메웠다** — 그쪽은
+      > diff 가 신설한 방어(`HttpResponseLike` optional)를 지탱하는 테스트가 없어서 주석이
+      > 주장만 하는 상태였기 때문이다. 위 둘은 diff 가 방어를 신설하지 않았으므로 성격이 다르다.
+      >
+      > **여기 처음 "캐시 히트 경로 **전체**를 메웠다" 고 적었는데 과했다** (`12_24_14`
+      > testing WARNING). 손상된 캐시 JSON 의 `catch` 분기는 히트 경로의 갈래인데 안 덮고
+      > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
+      > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
+      > 덮은 갈래를 먼저 세어야 한다.**
+- [ ] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
+      requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
+      은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
+      > 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고,
+      > 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
+
+      그만큼 `EIA-RL-02`(동일 키 24h 동일 응답 재현)가 409/410 범위에서 지켜지지 않는다.
+      2026-05-21 원본 구현(`35ff9c19b`)부터 있던 선재 결함이라 **이 PR(타입 전용 lint 처분)
+      에서는 고치지 않는다** — 런타임 미접촉이 이 PR 의 스코프이자 처분 근거 자체다.
+
+      > **현재 동작은 캐너리로 고정해 뒀다** — `idempotency.interceptor.spec.ts` 의
+      > "409 도 캐시되지 않는다 — R8 위반 상태를 고정하는 캐너리". 조건을 좁히면 그 테스트가
+      > RED 가 되면서 이 항목을 가리킨다. 미수정 결함을 침묵으로 두지 않기 위한 것이다.
+      >
+      > **착수 시 주의 — 올바른 조건은 `=== 400` 이 아니다.** R8 은 400 중에서도
+      > `VALIDATION_ERROR` 를 지목하고, 5xx 캐싱 여부는 아무 말도 하지 않는다. 리뷰어가 제안한
+      > `statusCode === 400` 을 그대로 쓰면 400 의 다른 에러 코드를 캐시하게 되고 5xx 도
+      > 캐시된다. **spec 확인이 코드보다 먼저**이고, 경우에 따라 planner 턴이 필요하다.
 - [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
       `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
       그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그
