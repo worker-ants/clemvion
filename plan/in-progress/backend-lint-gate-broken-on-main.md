@@ -662,6 +662,10 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 대상 자리: [`14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 Rationale ·
       > [`data-flow/15`](../../spec/data-flow/15-external-interaction.md) §4 외부 의존 표 · 같은 문서 §Rationale "Fail-open 정책의 일관 표기"
       >
+      > 세 번째로 함께 닫을 것 (`01_49_10` cross_spec INFO 1): §2.2 Redis 표에 **"손상 엔트리도
+      > fail-open 대상(신규 처리로 강등)"** 한 줄. 같은 문서의 세 자리(§2.2 표 · §4 표 ·
+      > §Rationale)를 한 턴에 맞추는 편이 낫다.
+      >
       > ✅ **착수 가능 — 선행 조건이 충족됐다** (`01_10_53` plan_coherence WARNING). 이 항목은
       > "손상 축이 코드에 분리되면" 이 사실상의 트리거였는데, `22e68459d`(손상 가드) ·
       > `86de12278`(형태 검증) · `c29290c71`(statusCode 범위) 로 그 분리가 끝났다. 즉 지금
