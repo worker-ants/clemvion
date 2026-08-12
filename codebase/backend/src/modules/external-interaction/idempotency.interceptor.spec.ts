@@ -9,7 +9,9 @@
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
  *
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
- * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 JSON fallback, 그리고 Spec EIA §R8
+ * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 fallback(**바깥 엔트리와 안쪽
+ * `responseJson` 두 겹** · 각각 warn 을 남기는지 · 안쪽 손상이 **에러 재현 분기에서도** 500 이
+ * 되지 않는지 · payload 파싱이 `bodyHash` 판정보다 **뒤**라는 순서 캐너리), 그리고 Spec EIA §R8
  * 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을 고정하는 회귀 테스트를 담는다.
  * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
@@ -629,27 +631,49 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
   it('안쪽이 깨진 409 엔트리도 500 이 아니라 신규 처리 — 에러 재현 분기도 같은 방어를 받는다', async () => {
     // 재현 분기가 **둘**이다(에러 채널 `HttpException` 재throw · 성공 채널 `of()`). 위 테스트는
     // 성공 분기만 덮으므로 자매 자리를 함께 고정한다 — 이 세션에서 자매 누락이 반복됐다.
-    const body = { a: 1 };
-    const redis = makeRedis();
-    redis.get.mockResolvedValue(
-      JSON.stringify({
-        bodyHash: bodyHashOf(body),
-        responseJson: 'not-valid-json{',
-        statusCode: 409, // 에러 재현 분기로 들어가는 상태코드
-      }),
-    );
-    const handler = makeCallHandler({ fresh: true });
-    const handleSpy = jest.spyOn(handler, 'handle');
+    //
+    // **단언은 형제 테스트와 동형이어야 한다** — "같은 방어를 받는다" 가 이 테스트의 주장인데
+    // 응답만 보면 그 주장을 스스로 증명하지 못한다. 응답이 `{fresh:true}` 인 것은 "방어가
+    // 걸렸다" 말고 다른 이유로도 성립할 수 있으므로 warn·재적재까지 함께 본다.
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      const body = { a: 1 };
+      const redis = makeRedis();
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          bodyHash: bodyHashOf(body),
+          responseJson: 'not-valid-json{',
+          statusCode: 409, // 에러 재현 분기로 들어가는 상태코드
+        }),
+      );
+      const handler = makeCallHandler({ fresh: true });
+      const handleSpy = jest.spyOn(handler, 'handle');
 
-    const result = await lastValueFrom(
-      makeInterceptor(redis).intercept(
-        makeContext({ idempotencyKey: 'inner-broken-409', body }),
-        handler,
-      ),
-    );
+      const result = await lastValueFrom(
+        makeInterceptor(redis).intercept(
+          makeContext({ idempotencyKey: 'inner-broken-409', body }),
+          handler,
+        ),
+      );
 
-    expect(result).toEqual({ fresh: true });
-    expect(handleSpy).toHaveBeenCalled();
+      expect(result).toEqual({ fresh: true });
+      expect(handleSpy).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cache payload 손상'),
+      );
+      // 손상 항목을 온전한 것으로 덮는다 — 값까지 봐야 다음 요청이 히트한다는 것을 안다.
+      expect(redis.set).toHaveBeenCalledTimes(1);
+      const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+        bodyHash: string;
+        responseJson: string;
+        statusCode: number;
+      };
+      expect(stored.bodyHash).toBe(bodyHashOf(body));
+      expect(stored.statusCode).toBe(200);
+      expect(JSON.parse(stored.responseJson)).toEqual({ fresh: true });
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('`status`/`statusCode` 가 없는 응답에서도 죽지 않고 200 으로 적재한다', async () => {

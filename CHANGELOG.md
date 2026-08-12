@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — 캐시 엔트리 안쪽이 깨지면 요청이 500 이 됐다 (멱등 캐시 fail-open 완성)
+
+`IdempotencyInterceptor` 가 캐시 엔트리 **바깥** JSON 은 `try/catch` 로 막으면서 **안쪽**
+`responseJson` 은 재현 분기 두 자리에서 맨몸으로 파싱했다. 엔트리가 깨져 있으면 그
+`SyntaxError` 가 그대로 올라가 `GlobalExceptionFilter` 가 **500** 으로 마스킹한다.
+
+**클라이언트 영향**: 손상된 캐시 엔트리를 만난 요청이 종전에는 `500` 으로 실패했고, 이제는
+그 엔트리를 버리고 **정상 처리**된다(응답은 캐시가 없었을 때와 같다). 캐시가 손상됐다고 요청이
+죽는 것은 이 인터셉터의 fail-open 원칙과 반대였다.
+
+**파싱 순서가 계약이 됐다** — payload 파싱은 `bodyHash` 판정 **뒤**다. 앞에 두면 손상된
+엔트리에서 `409 IDEMPOTENCY_KEY_CONFLICT` 가 조용히 사라지고 두 번째 body 가 새 응답을 받는다.
+payload 가 깨졌든 아니든 "이 키가 이미 다른 body 로 쓰였다" 는 사실은 그대로이기 때문이다.
+
+함께 **바깥 엔트리 손상도 이제 warn 을 남긴다** — 종전에는 조용히 강등돼, 캐시가 계속 깨지는
+상황이 멱등성이 꺼진 상태와 구분되지 않았다. 이로써 이 클래스의 fail-open 다섯 경로(생성자
+`null` · GET 실패 · SET 실패 · 직렬화 실패 · 엔트리/payload 손상)가 모두 warn 을 남긴다.
+
 ## Unreleased — (보안) 멱등 캐시 키를 execution + route 로 스코프 — cross-execution 응답 재생 차단 (Spec EIA §R8 "캐시 키 스코프")
 
 멱등 캐시 키가 `Idempotency-Key` **헤더 값 하나에만** 바인딩돼 있어, 캐시 네임스페이스를
