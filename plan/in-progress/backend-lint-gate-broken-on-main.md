@@ -539,7 +539,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
-- [ ] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
+- [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
       > 4xx 응답 중 `400 VALIDATION_ERROR` 만 idempotency cache 에서 제외하고,
@@ -566,6 +566,21 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 즉 **문서만 보고 착수해도 구현이 맞다고 오판하지 않는 상태**가 됐다. 남은 것은 열거를
       > 그대로 조건으로 옮기는 구현과, 409 캐너리를 R8 정합 동작으로 뒤집는 일뿐이다.
+
+      > **완료 (2026-08-12, developer 턴 `eia-r8-cache-scope`).** `statusCode >= 400` 을 §R8 의
+      > 열거 그대로 옮겼다 — `2xx || 409 || 410`. 캐너리는 "409 도 캐시되지 않는다(위반 고정)"
+      > 에서 **"409 는 캐시된다"** 로 뒤집었고, `410`·`5xx`·`404` 케이스를 함께 고정했다.
+      >
+      > **두 오답 축약이 각각 다른 테스트에 걸린다** — 뮤테이션 실측:
+      >
+      > | 뮤턴트 | RED |
+      > |---|---|
+      > | `>= 400` (원래 결함으로 회귀) | 409 · 410 |
+      > | `=== 400` (리뷰어가 제안했던 오답) | 5xx · 404 |
+      >
+      > 즉 백로그에 적어 뒀던 "`=== 400` 을 그대로 쓰면 안 된다" 는 경고가 이제 **주석이 아니라
+      > 테스트로** 지켜진다. `data-flow/15` §2.2 표의 "⚠️ 현행 구현은 …" 갭 표기도 함께 지웠다
+      > — 갭이 사라졌으므로 그 문장을 남기면 그것이 거짓이 된다.
 - [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
       `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
       그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그

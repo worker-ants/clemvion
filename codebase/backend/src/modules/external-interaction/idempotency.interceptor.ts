@@ -39,10 +39,7 @@ interface HttpResponseLike {
 interface IdempotencyEntry {
   /** SHA-256 hex of request body. 같은 키 + 다른 body → 409. */
   bodyHash: string;
-  /**
-   * 캐시된 응답 JSON 문자열. R8 상 캐시 대상은 2xx·`409`·`410` 이지만 현 구현이 적재하는
-   * 것은 2xx~3xx 뿐이다 (`cacheTapped()` docstring 의 선재 결함 설명 참조).
-   */
+  /** 캐시된 응답 JSON 문자열. 적재 대상은 `2xx`·`409`·`410` ([Spec EIA §R8] 의 닫힌 목록). */
   responseJson: string;
   /** 캐시된 응답의 HTTP 상태 코드. */
   statusCode: number;
@@ -142,17 +139,19 @@ export class IdempotencyInterceptor implements NestInterceptor {
   }
 
   /**
-   * RxJS operator — 정상 응답을 캐시. status 가 200~399 일 때만 적재.
+   * RxJS operator — 응답을 캐시. 대상은 [Spec EIA §R8] 이 **열거한 닫힌 목록**이다:
+   * `2xx` · `409 Conflict` · `410 Gone`.
    *
-   * **여기서 구현이 Spec EIA §R8 보다 넓다 — 선재 결함이다.** R8 은 "4xx 중
-   * `400 VALIDATION_ERROR` **만** 제외하고 그 외(2xx / `409 Conflict` / `410 Gone`)는
-   * 캐시한다" 고 명시하는데, 아래 조건은 `>= 400` 이라 409·410 까지 함께 떨군다.
-   * 그만큼 `EIA-RL-02`(동일 키 24h 동일 응답 재현)가 그 범위에서 지켜지지 않는다.
+   * `409`·`410` 을 캐시하는 이유는 그것이 **확정된 결과**이기 때문이다 — "이미 다른 명령이
+   * 상태를 바꿨다"(`STATE_MISMATCH`) 나 "execution 이 종결됐다"(`EXECUTION_TERMINATED`) 는
+   * 사실은 번복되지 않으므로 같은 키로 재조회하면 같은 답이 나와야 한다(`EIA-RL-02`).
+   * 반대로 `400 VALIDATION_ERROR` 는 waiting_for_input 이 유지돼 **재제출이 normal flow**
+   * 라 캐시하면 stale 에러를 돌려준다(§R8 근거).
    *
-   * 2026-05-21 원본 구현부터 있던 것이고, 이 자리를 타입 전용으로 손댄 PR 에서는 고치지
-   * 않았다. 대신 `idempotency.interceptor.spec.ts` 의 **409 캐너리**가 현재 동작을 고정한다 —
-   * 조건을 R8 쪽으로 좁히면 그 테스트가 RED 로 알린다.
-   * 백로그: `plan/in-progress/backend-lint-gate-broken-on-main.md` §후속.
+   * **단일 비교로 축약하면 안 된다** — `>= 400` 은 `409`·`410` 을 함께 떨궈 그 범위에서
+   * `EIA-RL-02` 를 깨뜨리고(2026-05-21 원본부터의 선재 결함, 본 커밋이 해소), `=== 400` 은
+   * 반대로 `401`·`404` 같은 다른 4xx 와 `5xx` 를 캐시해 **재시도 자체를 막는다**. 열거를
+   * 그대로 옮긴 아래 형태를 유지할 것 — 네 경우 모두 spec 에 회귀 테스트가 있다.
    */
   private cacheTapped(
     redisKey: string,
@@ -165,7 +164,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
         const res = context.switchToHttp().getResponse<HttpResponseLike>();
         const statusCode: number =
           typeof res.statusCode === 'number' ? res.statusCode : 200;
-        if (statusCode >= 400) return;
+        // §R8 의 열거를 그대로 옮긴 조건. 위 docstring 의 "축약 금지" 참조.
+        const isCacheable =
+          (statusCode >= 200 && statusCode < 300) ||
+          statusCode === 409 ||
+          statusCode === 410;
+        if (!isCacheable) return;
         const entry: IdempotencyEntry = {
           bodyHash,
           responseJson: JSON.stringify(value ?? null),
@@ -179,9 +183,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
             ),
           );
       },
-      // error 분기는 catch 안 함 — 예외로 끝난 응답은 캐시하지 않는다. `400 VALIDATION_ERROR`
-      // 는 R8 이 명시 제외한 대상이라 정합하고, 409·410 이 여기서 함께 빠지는 것은 위
-      // docstring 에 적은 선재 결함 쪽이다.
+      // error 분기는 catch 안 함 — 예외로 **던져져** 끝난 응답은 캐시하지 않는다.
+      // 409·410 이 캐시되는 것은 컨트롤러가 그 상태코드로 **정상 반환**하는 경로이고,
+      // 여기(에러 분기)로 오는 것은 그 밖의 실패라 재시도 여지를 남기는 편이 맞다.
     });
   }
 }

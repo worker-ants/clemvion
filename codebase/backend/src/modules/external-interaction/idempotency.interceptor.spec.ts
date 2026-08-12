@@ -231,26 +231,63 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it('409 도 캐시되지 않는다 — R8 위반 상태를 고정하는 캐너리', async () => {
-    // Spec EIA §R8 은 "4xx 중 `400 VALIDATION_ERROR` **만** 제외하고, 그 외
-    // (2xx / `409 Conflict` / `410 Gone`) 는 캐시한다" 고 명시한다. 그런데 구현의
-    // 제외 조건은 `statusCode >= 400` 이라 409·410 까지 함께 떨군다 — 그만큼
-    // EIA-RL-02(동일 키 24h 동일 응답 재현)가 지켜지지 않는다.
-    //
-    // **선재 결함이다**(2026-05-21 `35ff9c19b` 원본 구현부터). 이 PR 은 lint warning
-    // 처분(타입 전용)이라 런타임 동작을 바꾸지 않는 것이 스코프이므로 여기서 고치지
-    // 않고, 대신 **현재 동작을 캐너리로 고정**해 둔다. 조건을 R8 에 맞게 좁히면 이
-    // 테스트가 RED 가 되고, 그때 이 주석이 무엇을 바꾸는 것인지 알려 준다.
-    //
-    // 백로그: `plan/in-progress/backend-lint-gate-broken-on-main.md` §후속.
-    // 주의: 올바른 조건은 `=== 400` 이 아니다 — R8 은 400 중에서도 VALIDATION_ERROR
-    // 를 지목하고 5xx 캐싱 여부는 말하지 않는다. 좁히려면 spec 확인이 먼저다.
+  it('409 는 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
+    // 종전에는 이 자리가 "409 도 캐시되지 않는다" 라는 **R8 위반 상태를 고정하는 캐너리**
+    // 였다(구현 `statusCode >= 400` 이 409·410 까지 떨궜다). 조건을 R8 의 열거대로 옮기면서
+    // 캐너리를 정합 동작으로 뒤집는다 — `409 STATE_MISMATCH` 는 "이미 다른 명령이 상태를
+    // 바꿨다" 는 **확정된 결과**라 같은 키로 재조회하면 같은 답이 나와야 한다(EIA-RL-02).
     const redis = makeRedis();
     const interceptor = makeInterceptor(redis);
     await lastValueFrom(
       interceptor.intercept(
         makeContext({ idempotencyKey: 'c-409', body: {}, statusCode: 409 }),
         makeCallHandler({ error: 'STATE_MISMATCH' }),
+      ),
+    );
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const stored = JSON.parse(redis.set.mock.calls[0][1] as string) as {
+      statusCode: number;
+    };
+    expect(stored.statusCode).toBe(409);
+  });
+
+  it('410 도 캐시된다 (Spec EIA §R8 — 닫힌 목록)', async () => {
+    // `410 EXECUTION_TERMINATED` 도 확정 결과다 — execution 이 종결된 사실은 번복되지 않는다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'c-410', body: {}, statusCode: 410 }),
+        makeCallHandler({ error: 'EXECUTION_TERMINATED' }),
+      ),
+    );
+    expect(redis.set).toHaveBeenCalledTimes(1);
+  });
+
+  it('5xx 는 캐시하지 않는다 (Spec EIA §R8)', async () => {
+    // 일시적 서버 오류를 24h 고정하면 같은 키로 재시도해도 계속 같은 실패를 돌려받아
+    // EIA-RL-02 의 취지(정상 응답의 재현)와 정반대가 된다 — §R8 이 명시한다.
+    // **`=== 400` 으로 좁히는 오답이 바로 여기서 걸린다.**
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'e-500', body: {}, statusCode: 500 }),
+        makeCallHandler({ error: 'INTERNAL' }),
+      ),
+    );
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('401·404 같은 다른 4xx 도 캐시하지 않는다 — 목록이 닫혀 있다', async () => {
+    // R8 의 캐시 대상은 `2xx`·`409`·`410` **열거**다. "4xx 중 400 만 제외" 로 읽어
+    // `=== 400` 을 쓰면 401·404 가 캐시돼 재시도가 막힌다.
+    const redis = makeRedis();
+    const interceptor = makeInterceptor(redis);
+    await lastValueFrom(
+      interceptor.intercept(
+        makeContext({ idempotencyKey: 'e-404', body: {}, statusCode: 404 }),
+        makeCallHandler({ error: 'NOT_FOUND' }),
       ),
     );
     expect(redis.set).not.toHaveBeenCalled();
