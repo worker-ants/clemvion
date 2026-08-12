@@ -11,8 +11,13 @@
  * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
  * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 fallback(**바깥 엔트리와 안쪽
  * `responseJson` 두 겹** · 각각 warn 을 남기는지 · 안쪽 손상이 **에러 재현 분기에서도** 500 이
- * 되지 않는지 · payload 파싱이 `bodyHash` 판정보다 **뒤**라는 순서 캐너리), 그리고 Spec EIA §R8
- * 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을 고정하는 회귀 테스트를 담는다.
+ * 되지 않는지 · payload 파싱이 `bodyHash` 판정보다 **뒤**라는 순서 캐너리), **형태 검증**
+ * (`isIdempotencyEntry()` — 문법은 유효하지만 엔트리 형태가 아닌 값: `null`·원시값·배열·필드
+ * 누락/타입 불일치), 그리고 Spec EIA §R8 의 **캐시 대상 닫힌 목록**(`2xx`·`409`·`410`)을
+ * 고정하는 회귀 테스트를 담는다.
+ *
+ * 형태 검증이 별도 축인 이유는 `JSON.parse` 가 **문법 오류에만** 던지기 때문이다 — `'null'` 은
+ * 유효한 JSON 이라 `try/catch` 를 통과한 뒤 필드 접근에서 `TypeError`(→500)를 냈다.
  * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
@@ -242,6 +247,11 @@ describe('IdempotencyInterceptor (W-4 provider 경로)', () => {
  * `getResponse()` 로 얻은 응답을 만지는 두 자리 — 히트 시 `res.status(...)` 재생과
  * 적재 시 `res.statusCode` 판독 — 이 한 번도 실행되지 않았다. 그 두 자리가 곧
  * 인터셉터가 `HttpResponseLike` 로 좁힌 지점이라 여기서 함께 고정한다.
+ *
+ * 손상 캐시는 **두 층**으로 본다: 문법(`JSON.parse` 가 던지는 경우)과 **형태**
+ * (`isIdempotencyEntry()` — 문법은 유효한데 엔트리가 아닌 값). 후자의 fixture 는 조건을
+ * **하나씩만** 위반하도록 짜여 있다 — 여러 개를 한꺼번에 위반하면 가드의 어느 절도 고정되지
+ * 않는다(뮤테이션 실측으로 확인한 실패 형태다).
  */
 describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () => {
   it('같은 key + 같은 body → 캐시된 응답·상태코드를 그대로 재생한다', async () => {
@@ -550,26 +560,29 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
   // 대신 잡아 주기 때문이다 — 매트릭스가 채워져 보여도 각 항은 별도 표면이다.
   // 아래 뒤쪽 세 fixture 는 정확히 한 필드만 타입이 틀리다.
   it.each([
-    ['null', 'null'],
-    ['숫자', '42'],
-    ['배열', '[]'],
-    ['문자열', '"str"'],
-    ['필드 누락 객체', '{"bodyHash":"x"}'],
+    ['null', 'null', 'null'],
+    ['숫자', '42', 'number'],
+    ['배열', '[]', 'array'],
+    ['문자열', '"str"', 'string'],
+    ['필드 누락 객체', '{"bodyHash":"x"}', 'object'],
     [
       'bodyHash 만 타입 불일치',
       '{"bodyHash":1,"responseJson":"{}","statusCode":200}',
+      'object',
     ],
     [
       'responseJson 만 타입 불일치',
       '{"bodyHash":"x","responseJson":1,"statusCode":200}',
+      'object',
     ],
     [
       'statusCode 만 타입 불일치',
       '{"bodyHash":"x","responseJson":"{}","statusCode":"200"}',
+      'object',
     ],
   ])(
     '문법은 유효하지만 엔트리 형태가 아닌 캐시(%s) → 500 이 아니라 신규 처리',
-    async (_label, cachedJson) => {
+    async (_label, cachedJson, expectedShape) => {
       // **`try/catch` 만으로는 부족했다.** `JSON.parse` 는 **문법 오류에만** 던지므로 이 값들은
       // 전부 통과한 뒤 필드 접근 단계에서 깨진다. 무수정 프로브 실측:
       //
@@ -595,8 +608,14 @@ describe('IdempotencyInterceptor (캐시 히트 · 응답 형태 방어)', () =>
         expect(result).toEqual({ fresh: true });
         expect(handleSpy).toHaveBeenCalled();
         expect(redis.set).toHaveBeenCalledTimes(1);
+        // 로그가 **어떤 형태였는지**까지 단언한다. `cache 엔트리 손상` 만 보면
+        // `describeShape()` 를 상수로 치환해도 통과한다(리뷰어가 뮤테이션으로 실측) —
+        // 운영이 원인을 좁히는 데 쓰는 정보라 값 자체를 고정한다. 캐시 payload 는 로그에
+        // 싣지 않으므로 이 한 단어가 유일한 단서다.
         expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('cache 엔트리 손상'),
+          expect.stringContaining(
+            `cache 엔트리 손상 — 무시하고 신규 처리: 형태 불일치 (${expectedShape})`,
+          ),
         );
       } finally {
         warnSpy.mockRestore();

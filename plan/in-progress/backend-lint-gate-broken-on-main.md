@@ -624,6 +624,19 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 같은 "무시하고 신규 처리" 이고, 두 자리 모두 이제 **warn 을 남긴다**(종전에는 바깥
       > 손상도 조용히 넘어갔다 — fail-open 은 "요청을 살린다 + 장애를 보이게 한다" 가 한 쌍).
       >
+      > **후속 (2026-08-13, `23_48_38` testing WARNING) — 위 "완료" 는 절반이었다.**
+      > `try/catch` 는 `JSON.parse` 의 **문법 오류만** 잡는다. `'null'`·`'42'`·`'[]'` 는 유효한
+      > JSON 이라 통과한 뒤 필드 접근에서 깨지고, 그중 `'null'` 은 `TypeError` → **500** 이었다
+      > — 이 항목이 없애려던 바로 그 형태가 좁은 틈으로 남아 있었다(무수정 프로브 실측:
+      > `'null'`→TypeError / `'42'`·`'[]'`·`'"str"'`→409). `isIdempotencyEntry()` 타입 가드로
+      > 닫았다.
+      >
+      > 가드 자체도 뮤테이션으로 두 번 갈았다 — 처음엔 `Array.isArray`·`typeof` 절이 **하중
+      > 없이 생존**했고(필드 검사가 이미 배제), 세 필드 검사도 전부 생존했다. 후자의 원인은
+      > 가드가 아니라 **fixture** 였다: 전부 여러 조건을 동시에 위반해 하나를 지워도 나머지가
+      > 대신 잡았다. 조건을 하나씩만 위반하는 fixture 를 넣고 하중 없는 절을 걷어낸 뒤에야
+      > 남은 절 전부가 각각 1건씩 죽는다.
+      >
       > **파싱 순서가 계약이 됐다** — payload 파싱은 `bodyHash` 판정 **뒤**여야 한다. 앞에 두면
       > 손상된 엔트리에서 409 가 조용히 사라지고 두 번째 body 가 새 응답을 받는다. 순서를
       > 뒤집는 뮤턴트로 고정 확인.
@@ -637,11 +650,34 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       `IdempotencyInterceptor` 의 다섯 경로 중 **기동 시 미주입(생성자 `null`)은 warn 을 남기지
       않는다** — 그건 장애가 아니라 설정 상태다.
       > 이 부정확은 **선재**다(내 변경이 만든 것이 아니라, 코드 docstring 을 다섯 경로 표로
-      > 정밀화하면서 드러났다). §2.2 표 각주나 Rationale 에 "구성 미주입은 장애가 아니므로
-      > warn 제외" 한 줄이면 닫힌다. **`spec/` 쓰기는 developer 권한 밖**이라 planner 인계.
+      > 정밀화하면서 드러났다). **`spec/` 쓰기는 developer 권한 밖**이라 planner 인계.
+      >
+      > 착수 시 **두 가지를 같은 스코프로** 처리한다 (`00_20_21` plan_coherence 부가 관찰):
+      >
+      > 1. "구성 미주입(기동 시 `null`)은 장애가 아니라 설정 상태 → warn 제외" 정정
+      > 2. **프레이밍을 "미가용" 에서 "미가용 또는 손상" 으로 확장** — 캐시 엔트리/payload 손상은
+      >    Redis 가 **가용한데 데이터가 오염된** 별개 실패 축이다. 현재 문서는 fail-open 을
+      >    "Redis 미가용" 하나로만 프레이밍해 이 축을 담을 자리가 없다.
+      >
+      > 대상 자리: [`14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 Rationale ·
+      > [`data-flow/15`](../../spec/data-flow/15-external-interaction.md) §4 외부 의존 표 · 같은 문서 §Rationale "Fail-open 정책의 일관 표기"
+- [ ] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
+      실제로 발동했다.** `23_24_08`·`23_36_13` 두 라운드가 "6번째 분기가 추가되면 재검토" 로
+      유예했는데, `00_20_20` maintainability INFO 4 가 **분기 7개**가 됐음을 셌다(캐시 미스 ·
+      엔트리 문법 손상 · 엔트리 형태 불일치 · bodyHash 불일치 · payload 손상 · 에러 재현 ·
+      성공 재현).
+      > **조건부 유예를 조용히 연장하지 않기 위해 항목으로 꺼낸다.** 이 PR 안에서 하지 않는
+      > 이유는 순수 구조 변경이라 리뷰 라운드를 한 번 더 요구하는데, 이번 PR 의 남은 발견이
+      > 전부 문서·테스트 층위라 수렴 중이기 때문이다. 다음에 이 콜백을 만질 때 착수한다.
 - [ ] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
+      > 함께 닫을 것 (`00_20_20` security/testing INFO 1): `isIdempotencyEntry()` 가
+      > `statusCode` 를 `typeof === 'number'` 로만 보고 **값 범위를 안 본다** — 음수·0 같은
+      > 비-HTTP 코드가 `res.status()`/`HttpException` 으로 그대로 흘러간다. 출처가 자기 자신이
+      > 쓴 엔트리라 위험은 낮지만 경계값이라는 성격이 같아 한 자리에서 정리한다.
+      > (`NaN`·`Infinity` 는 JSON 리터럴이 아니므로 `JSON.parse` 로는 도달 불가 — 실제 표면은
+      > 음수·비정상 정수뿐이다.)
 - [ ] **`CCH-SE-02` 의 update dedup 이 미배선 — `ChannelUpdate.idempotencyKey` 는 dead field**
       (`19_56_51` cross_spec WARNING 3). [`spec/5-system/15-chat-channel.md`](../../spec/5-system/15-chat-channel.md) L88 은
       "인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id`
