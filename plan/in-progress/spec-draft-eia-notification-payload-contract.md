@@ -40,19 +40,36 @@ pending_plans:
 *"인벤토리는 **포인터만** 갖는다. 한 표에 상세까지 모으면 그 표가 곧 두 번째 SoT 가 된다."*
 종결 이벤트 payload 에는 그 원칙이 적용된 적이 없다.
 
-## 두 wire 는 실제로 다르다 — 이걸 먼저 못 박는다
+## wire 는 **셋**이다 — 그리고 그 사실은 §6.2 에 이미 적혀 있었다
 
-> 순진한 "WS 를 EIA 로 가리키게 한다" 는 **새 거짓을 만든다.** 착수 전 실측으로 잡았다.
+> 4차 draft 는 "두 wire(WS / webhook·SSE)" 라 적었고 `16_18_00` 이 CRITICAL 로 반려했다.
+> **맞는 반려다.** 나는 `emitExecutionEvent` 의 **생산자 분기 두 개**를 재고 "둘" 이라
+> 결론했는데, 그중 fanout 갈래를 **소비자 둘이 서로 다르게** 변형한다. 생산자를 재고
+> 소비자를 안 잰 것 — 이 세션이 반복한 "한 지점 재고 일반화" 다.
 
-`websocket.service.ts` `emitExecutionEvent`(L453-489)가 **두 갈래**를 만든다:
+생산자 (`websocket.service.ts` `emitExecutionEvent` L453-489):
 
-| 채널 | shape | 근거 |
-|---|---|---|
-| **WS** (에디터, `broadcastToChannel`) | `{ executionId, ...payload, seq, timestamp }` — payload 필드가 **flat spread** | L461-468 |
-| **fanout → webhook/SSE** | 위 flat 봉투를 `payload` 키에 **통째로 넣고** 다시 감싼다: `{ type, executionId, triggerId, workflowId, seq, timestamp, payload: {...} }` | L479-484 → `notification-fanout.service.ts` L123-137 |
+- `wireEnvelope` = `{ executionId, ...payload필드, seq, timestamp }` — flat
+- `fanoutEnvelope` = `wireEnvelope` + routing context (`triggerId`/`workflowId`, L576-582)
 
-따라서 webhook body 는 `executionId`·`seq`·`timestamp` 가 **바깥과 안쪽에 중복** 등장한다.
-이건 결함이 아니라 현재 구조의 사실이고, spec 이 지금까지 한 번도 적지 않았다.
+소비자에서 갈린다:
+
+| # | 채널 | 최종 wire | 근거 |
+|---|---|---|---|
+| 1 | **WS** (에디터) | `wireEnvelope` 그대로 — flat | `broadcastToChannel` L471 |
+| 2 | **SSE** (외부 스트림) | `fanoutEnvelope` **그대로** — flat + `triggerId`/`workflowId`. **재래핑 없음** | `writeSseFrame` 이 `JSON.stringify(event.payload)` — `interaction-stream.controller.ts:167` |
+| 3 | **webhook** (outbound notification) | `fanoutEnvelope` 를 **`payload` 키에 통째로** 넣고 다시 감쌈 → `executionId`·`seq`·`timestamp` 가 **바깥과 안쪽에 중복** | `notification-fanout.service.ts` L123-137 |
+
+**`payload` 래퍼는 webhook 전용이다.**
+
+그리고 이건 미기록 사실이 아니었다 — EIA **§6.2 의 blockquote**(L615)가
+*"SSE 스트림은 notification envelope 재구성 없이 fanout wire 를 그대로 전송"* 이라고
+이미 적고 있다. **§6.3~§6.5 에만 없다.**
+
+즉 내 오독의 원인이 이 draft 가 고치려는 결함 그 자체다 — **같은 규칙이 일부 절에만
+적혀 있으면, 나머지 절만 읽은 사람은 반드시 틀린 일반화를 한다.** 반려 5회 중 3회가
+"규칙을 일부 절에만 적용" 이었는데, 이번엔 내가 그 문서의 **피해자** 쪽에 섰다.
+(B)단일화의 근거가 하나 더 늘었다.
 
 ## 결정 — 필드 집합은 1곳, 봉투는 채널별 1곳, 나머지는 포인터
 
@@ -78,13 +95,28 @@ pending_plans:
 | `durationMs` | **미구현 (Planned)** | 데이터는 emit 직전 존재 |
 | ~~`finalNodeId`·`finalPort`·`nodeCount`·`failedNodeId`~~ | **삭제** | emit 로직 0건 — 엔진에 개념이 없다. 약속을 철회한다 (`chat-channel/types.ts:388` 의 미사용 타입 흔적은 후속에서 함께 정리) |
 
-### (2) 봉투는 채널별로 **각 한 번만** — 두 wire 가 다르다
+### (2) 봉투는 **세 갈래를 한 자리에** 적는다
 
-- **EIA §6 도입부** — webhook/SSE 봉투: `{type, executionId, triggerId, workflowId, seq, timestamp, payload:{…}}`.
-  `executionId`·`seq`·`timestamp` 가 **바깥과 안쪽에 중복** 등장한다는 사실도 여기 적는다.
-- **WS §4.1** — WS flat 봉투(`{executionId, ...필드, seq, timestamp}`). **필드 열거를 버리고**
-  "(1) 의 필드 집합이 flat 하게 펼쳐진다" + "webhook 봉투와 다르다" 두 줄로.
-- **§6.3~§6.5 본문**은 (1)·(2)를 참조로 축약한다. **헤딩은 건드리지 않는다.**
+- **EIA §6 도입부** — webhook 과 SSE 를 나란히:
+  - **webhook**: `{type, executionId, triggerId, workflowId, seq, timestamp, payload:{…}}`.
+    `executionId`·`seq`·`timestamp` 의 **안팎 중복**도 여기 적는다.
+  - **SSE**: `payload` 래퍼 **없이** flat (+`triggerId`/`workflowId`).
+    §6.2 L615 blockquote 와 **같은 사실**이므로, 그 서술을 도입부로 끌어올려
+    5종 이벤트 전체에 걸리게 한다 (§6.2 에는 waiting 고유 필드 예시만 남긴다).
+- **WS §4.1** — flat 봉투. **필드 열거를 버리고** "(1) 의 필드 집합이 flat 하게 펼쳐진다"
+  + "webhook 봉투와 다르다(§6 도입부)" 두 줄로.
+- **§6.3~§6.5 본문**은 (1)·(2) 참조로 축약. **헤딩은 건드리지 않는다.**
+
+> **표기 caveat** (`16_18_00` naming WARNING 2): WS §4.1 과 `3-execution.md` §8.1 은
+> `duration`(Ms 없음)을 쓴다. 의미는 (1) 의 `durationMs` 와 같지만 **전역 개명은 비목표**다.
+> 따라서 **기존 표기는 그대로 두고**, (1) 표에 "WS 계열 문서는 같은 값을 `duration` 으로
+> 적는다" 를 한 줄 명시한다 — 지시와 비목표가 상충하지 않게.
+
+> **행동 계약은 필드 열거와 함께 버리지 않는다** (`16_18_00` plan_coherence WARNING 1).
+> `cancelledBy` 의 **닫힌 3값 union**(`user`/`system`/`timeout`), `error.code` 의 `RESUME_*`
+> 매핑, **일반 user cancel 에는 `error` 부재** — 이건 필드 이름이 아니라 **동작 약속**이라
+> 축약의 대상이 아니다. §6.5 의 이 서술을 (1) 도입부로 **이관**하고, 축약 diff 에서
+> 소실되지 않았는지 확인한다. [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) **#2** 가 이 계약에 의존한다.
 
 ### (3) 나머지는 포인터로 — 필드 열거를 없앤다
 
@@ -94,6 +126,14 @@ pending_plans:
   (3차 draft 가 "코드 타입을 SoT 로" 라 적었던 것은 R3 및 이 draft 자신의 후속 항목과
   모순이었다 — `16_04_30` convention WARNING 4. 정정한다.)
 - `3-workflow-editor/3-execution.md` §8.1 — 화면 관점 요약표. "필드는 예시, 계약 SoT 는 (1)".
+- **`EIA §6.5 line 536` 하드코딩 줄 인용 — 전수 6곳** (`16_18_00` naming WARNING 3).
+  §6.5 의 실제 위치는 **675행**이라 이미 stale 하다. 앵커 링크는 붙어 있으므로 `line 536`
+  텍스트만 제거하면 된다.
+  - **이번 PR (spec 3곳)**: `chat-channel-adapter.md:145`·`:354`, `5-system/15-chat-channel.md:76`
+  - **후속 (코드 3곳, planner 권한 밖)**: `chat-channel.dispatcher.ts:506`,
+    `chat-channel.dispatcher.spec.ts:428`, `chat-channel/types.ts:378`
+  > 처음엔 "§1.2 한 곳" 으로 적었다가 grep 하고 6곳임을 알았다. **줄 번호 인용은 구조적으로
+  > 다시 stale 해지므로** 되살리지 않고 앵커만 남긴다.
 
 ## 왜 (A)N곳 동기화가 아니라 (B)단일화인가
 
@@ -107,6 +147,7 @@ pending_plans:
 
 - `finalNodeId`/`finalPort`/`nodeCount`/`failedNodeId` 추적 설계 (되살리지 않는다)
 - `duration` → `durationMs` 전역 개명 — 일관성 작업이고 반경이 목적을 넘는다. 후속.
+  이번엔 **기존 `duration` 표기를 건드리지 않고** (1) 표에 동의어임을 한 줄 적는다.
 - `execution.ai_message` 의 봉투 서술 — 종결 이벤트가 아니다. 후속으로 분리
   (`15_45_53` rationale WARNING 2).
 - outbound notification 재시도·서명 정책
@@ -119,6 +160,8 @@ pending_plans:
       `chat-channel.dispatcher.ts` back-compat wrap 제거
 - [ ] `chat-channel/types.ts:388` 을 (1) 최종형과 동기화
 - [ ] `duration` → `durationMs` 전역 개명
+- [ ] 코드 3곳의 `EIA §6.5 line 536` 인용에서 줄 번호 제거 (`chat-channel.dispatcher.ts:506`,
+      `chat-channel.dispatcher.spec.ts:428`, `chat-channel/types.ts:378`)
 - [ ] `execution.ai_message` 봉투 서술 정정 (별건)
 - [ ] `node-output-redesign/README.md:372` 의 EIA §6.3 cross-ref 재검증 — 절 번호는 그대로지만
       §6.3 이 참조하는 내용의 성격이 바뀐다(`16_04_30` plan_coherence INFO 4)
@@ -127,22 +170,28 @@ pending_plans:
 
 ## 체크리스트
 
-- [x] `--spec` 1~3차(`15_15_08`·`15_28_10`·`15_45_53`) **BLOCK: YES** — 셋 다 "규칙을 일부 절에만
-      적용". 반려 3회가 (A)의 비용 실측이 됐고 (B)로 전환하는 근거가 됐다
-- [x] **두 wire 가 다르다는 것을 착수 전 실측** — 순진한 단일화가 만들 뻔한 새 거짓을 차단
-- [x] `--spec` 4차(`16_04_30`) **BLOCK: YES** — 재넘버링 반경(CRITICAL). 5 checker 전원이 전략
-      자체는 지지. → **재넘버링을 없애** CRITICAL 소멸(§6 도입부는 비어 있다), PR #945 선례 인용,
-      "코드 타입을 SoT" 문구 정정
-- [x] `grep -rn "EIA §6\.\|external-interaction-api.md#6" spec/ codebase/` 전수 — ~15곳,
-      **재넘버링 안 하므로 전부 유효**
+- [x] `--spec` 1~3차 **BLOCK: YES** — 셋 다 "규칙을 일부 절에만 적용". 반려 3회가 (A)의 비용
+      실측이 됐고 (B)로 전환하는 근거가 됐다
+- [x] `--spec` 4차(`16_04_30`) — 재넘버링 반경(CRITICAL). **재넘버링을 없애** 소멸
+      (§6 도입부는 비어 있다), PR #945 선례 인용, "코드 타입을 SoT" 문구 정정
+- [x] `--spec` 5차(`16_18_00`) — **"두 wire" 전제가 틀렸다.** SSE 는 재래핑하지 않는다
+      (`interaction-stream.controller.ts:167` = `JSON.stringify(event.payload)`). 생산자 분기만
+      재고 소비자를 안 쟀다 → **세 wire** 로 정정. 그 사실이 §6.2 에만 있고 §6.3~§6.5 엔
+      없다는 것이 (B)의 추가 근거
+- [x] 행동 계약(닫힌 union·`error.code`·user-cancel `error` 부재) 이관 명시 (W1)
+- [x] `duration`/`durationMs` 표기 caveat — 비목표와 상충하지 않게 (W2)
+- [x] `line 536` 인용 **전수 grep — 6곳**(spec 3 / 코드 3). "§1.2 한 곳" 이라던 최초 판단 정정 (W3)
+- [x] `grep -rn "EIA §6\." spec/ codebase/` — ~15곳, 재넘버링 안 하므로 전부 유효
 - [ ] 재검토 BLOCK: NO 확인
-- [ ] EIA §6 도입부 신설(필드 집합 + 봉투) — **§6.1~§6.6 헤딩 불변**
-- [ ] §6.3~§6.5 본문을 도입부 참조로 축약 (헤딩 문구 유지 → 앵커 4곳 보존)
-- [ ] WS §4.1 종결 3행 → 필드 열거 제거, 참조 + flat 봉투 2줄
-- [ ] `chat-channel-adapter.md` §1.2 → 참조로 축약 (R3 인용)
+- [ ] EIA §6 도입부 신설(필드 집합 + webhook/SSE 두 갈래 봉투 + 행동 계약) — §6.1~§6.6 헤딩 불변
+- [ ] §6.2 L615 blockquote 를 도입부로 이관 (waiting 고유 예시만 §6.2 잔류)
+- [ ] §6.3~§6.5 본문 축약 (헤딩 유지 → 앵커 4곳 보존)
+- [ ] WS §4.1 종결 3행 → 참조 + flat 봉투
+- [ ] `chat-channel-adapter.md` §1.2 축약 + `line 536` 제거(§1.2·§8 표)
+- [ ] `15-chat-channel.md:76` 의 `line 536` 제거
 - [ ] `3-workflow-editor/3-execution.md` §8.1 → 비-authoritative 표기
 - [ ] Planned gap 2건을 `spec-sync-*-gaps.md` 에 등재
-- [ ] 후속 7건 등재
+- [ ] 후속 8건 등재
 
 ## Rationale
 
@@ -161,6 +210,10 @@ WS `## Rationale` 의 *"§4.4 wire 필드 caveat — 직접 재작성 대신 cav
 1. **오너십 분리로 3중 복제·재-drift 회피** — *"전체 매핑을 세 문서(WS/EIA/architecture)에
    복제하면 새 drift 표면이 열린다"*. **이번 (B)가 하려는 것이 정확히 이것이다** — 선례에
    반하는 게 아니라 그 원칙을 종결 이벤트에 처음 적용하는 것이다.
+   > §4.4 가 EIA 를 **전체** SoT 로 격상하지 않은 이유는 그 이벤트에서 WS 가 자기 소유 필드
+   > (`waitingNodeType`·`waitingNodeLabel`·`nodeExecutionId`·`startedAt`)를 갖기 때문이다.
+   > **종결 이벤트에는 WS 전용 부가 필드가 없다** — 그래서 같은 오너십 분리 원칙이 여기서는
+   > "단일 SoT + 포인터" 로 수렴한다. 두 결정은 반대가 아니라 같은 규칙의 두 경우다.
 2. **직접 재작성 대신 caveat** — 이건 `waitingNodeId` vs `nodeId` 처럼 **필드가 존재하되
    이름/중첩이 다른** 경우의 판단이다. 아래 문단 참조.
 
@@ -180,8 +233,13 @@ PR #945 의 "caveat" 판단은 **표현 차이**에 맞다 — `waitingNodeId`/`
 `failedNodeId` 는 **신규 추적 설계**를 요구한다 — 둘을 한 항목에 섞으면 3개월 전처럼 통째로
 미뤄지고 문서만 거짓으로 남는다.
 
-### 반려 3회를 기록으로 남기는 이유
+### 반려 5회를 기록으로 남기는 이유
 
-같은 실패를 세 번 반복한 뒤에야 구조를 봤다. 매번 "내가 또 절반만 잡았다" 로 읽고 그 자리를
-메웠는데, **그 진단이 얕았다** — 절반만 잡히는 이유가 계약이 4곳에 재서술돼 있다는 구조였다.
-개인의 부주의로 읽히는 실패가 세 번 반복되면 그때는 구조를 의심해야 한다.
+1~3차는 같은 실패였다. 매번 "내가 또 절반만 잡았다" 로 읽고 그 자리를 메웠는데, **그 진단이
+얕았다** — 절반만 잡히는 이유가 계약이 4곳에 재서술돼 있다는 구조였다. 개인의 부주의로
+읽히는 실패가 세 번 반복되면 그때는 구조를 의심해야 한다.
+
+4·5차는 성격이 다르다. 4차는 해법의 **부작용 반경**(재넘버링), 5차는 내 **사실 전제**(wire 수)
+였다. 특히 5차가 유익하다 — 내가 §6.3~§6.5 만 읽고 SSE 를 webhook 과 같다고 믿었는데, 그
+사실은 §6.2 에만 적혀 있었다. **이 draft 가 고치려는 결함이 이 draft 를 틀리게 만든 것**이라,
+(B)의 필요성이 추상 논증이 아니라 이 문서 자신의 이력으로 증명됐다.
