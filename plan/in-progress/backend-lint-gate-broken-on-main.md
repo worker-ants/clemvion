@@ -553,10 +553,13 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       - [ ] **다른 Redis fail-open 소비자를 이 카운터에 배선** — 현재 관측되는 것은 EIA 멱등
         캐시(`component=idempotency`) 하나뿐이라, 다른 기능이 조용히 강등돼도 이 알람은 울리지
         않는다. 실측(`grep -rln "recordRedisFailOpen" --include="*.ts" codebase/backend/src`)에서
-        호출부는 인터셉터 1곳뿐인데, `fail-open` 을 하는 서비스는 17개 파일이다
+        호출부는 인터셉터 1곳뿐인데, `fail-open` 을 하는 서비스는 **18개 파일**이다
         (`InteractionRateLimiterService`·`OutboundNotificationRateLimiterService`·
-        `ChatChannelRateLimiterService`·`PublicWebhookQuotaService`(공개 webhook quota — 앞의
-        rate limiter 들과는 별 범주)·`Cafe24InstallRateLimitService` 등).
+        `ChatChannelRateLimiterService`·`ChatChannelDedupService`·`PublicWebhookQuotaService`
+        (공개 webhook quota — 앞의 rate limiter 들과는 별 범주)·`Cafe24InstallRateLimitService` 등).
+        > 이 숫자는 push 직전 재측정한 값이다(2026-08-13). 처음 적을 땐 17개였는데 #1161 이
+        > 병합되며 `ChatChannelDedupService` 가 실재가 됐다 — **내가 틀린 게 아니라 base 가
+        > 움직였다.** 브랜치 범위 실측은 병합 직전에 다시 돌려야 한다.
         > 배선 시 `RedisFailOpenComponent` 유니온과 §NF-OB-07 카탈로그 표 라벨 값을 **동시**
         > 갱신할 것. 미리 넓혀 두지 않은 이유는 문서가 구현보다 넓어지면 0 이 "정상" 인지
         > "미계측" 인지 구분되지 않기 때문이다 —

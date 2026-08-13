@@ -71,21 +71,28 @@ Redis fail-open 을 더한다. 이 문장은 SoT 가 아니라 미러이므로 *
 
 **`component` 를 지금 `idempotency` 하나로 둘 것인가 — 그렇다.**
 
-실측: 이 저장소에서 Redis fail-open 을 하는 서비스는 많지만
-(`grep -rln "fail-open" --include="*.service.ts" codebase/backend/src` → 17개 파일),
+실측 (**PR 머지 직전 재측정, 2026-08-13**): 이 저장소에서 Redis fail-open 을 하는 서비스는
+많지만 (`grep -rln "fail-open" --include="*.service.ts" codebase/backend/src` → **18개 파일**),
 **`recordRedisFailOpen` 을 호출하는 곳은 `IdempotencyInterceptor` 하나뿐이다**
 (`grep -rln "recordRedisFailOpen" --include="*.ts" codebase/backend/src` → 인터셉터 +
 서비스 정의 2건).
 
 즉 나머지는 전부 **아직 이 카운터에 배선되지 않았다** — `InteractionRateLimiterService`,
 `OutboundNotificationRateLimiterService`, `ChatChannelRateLimiterService`,
-`PublicWebhookQuotaService`(공개 webhook quota — 앞의 rate limiter 들과는 별 범주다),
-`Cafe24InstallRateLimitService` 등.
+`ChatChannelDedupService`, `PublicWebhookQuotaService`(공개 webhook quota — 앞의 rate
+limiter 들과는 별 범주다), `Cafe24InstallRateLimitService` 등.
 
 spec 에 미리 적으면 **문서가 구현보다 넓어진다** — 알람을 거는 사람이 존재하지 않는
 시계열을 기다리게 된다. 배선하는 시점에 유니온·표에 함께 추가한다.
 
-> ⚠️ 이 draft 초안은 `ChatChannelDedupService` 를 실존 서비스처럼 인용했는데, 그 클래스는
-> **미머지 PR #1161 에만 있고 이 브랜치에는 없다**(`09_36_31` plan_coherence WARNING 2).
-> 이 세션에서 "작업 트리 기억 ≠ 브랜치 상태" 를 반복해서 틀렸다. 위 목록은 **이 브랜치에서
-> 실제로 grep 한 결과**로 다시 썼다.
+> ⚠️ **이 문단의 숫자를 두 번 고쳤고, 두 번 다 이유가 달랐다.**
+>
+> 1. draft 초안이 `ChatChannelDedupService` 를 실존 서비스처럼 인용했는데 당시 그 클래스는
+>    **미머지 PR #1161 에만 있었다**(`09_36_31` plan_coherence WARNING 2). 작업 트리 기억으로
+>    쓰고 브랜치 상태로 확인하지 않은 것 — "작업 트리 기억 ≠ 브랜치 상태".
+> 2. 그래서 그 이름을 빼고 17개로 다시 썼는데, **#1161 이 병합되면서 그 서비스가 실재가 됐다**
+>    (18개). 이번엔 내가 틀린 게 아니라 **base 가 움직였다.**
+>
+> 두 번째가 더 흔하고 잡기 어렵다 — 내 실측은 쓰는 순간 참이었고, 그 뒤에 세계가 바뀌었다.
+> **브랜치 범위 실측은 push 직전에 다시 돌린다**(위 숫자는 그렇게 갱신했다). 핵심 판단
+> (`component` 를 `idempotency` 단독으로)은 두 경우 모두 그대로다 — 오히려 근거가 늘었다.
