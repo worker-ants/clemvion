@@ -30,6 +30,7 @@ import {
 } from './queues/graph-extraction.queue';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 
 const ALLOWED_FILE_TYPES = ['txt', 'md', 'pdf', 'csv'];
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -339,7 +340,9 @@ export class KnowledgeBaseService {
          RETURNING id`,
         [id, workspaceId],
       );
-      if (acquired.length === 0) {
+      // UPDATE 는 `[rows, rowCount]` 튜플 → `acquired.length` 가 항상 2 라
+      // **CAS 락이 한 번도 거절하지 않았다**(동시 재추출 허용). 실측 근거는 헬퍼 참조.
+      if (updateReturningRows(acquired).length === 0) {
         throw new ConflictException({
           code: 'KB_REEXTRACT_IN_PROGRESS',
           message: 'A KB graph re-extraction is already in progress',
@@ -533,8 +536,11 @@ export class KnowledgeBaseService {
           RETURNING id`,
         [id],
       );
+      // 튜플을 그대로 map 하면 `[undefined, undefined]` — 가짜 job 2개가 큐잉된다
+      // (`stuck-document-recovery` 주석이 기록한 그 회귀와 동일 형태).
+      const rowsOut = updateReturningRows<{ id: string }>(rows);
       const { enqueued, failed, firstError } = await this.enqueueEmbedChunked(
-        rows.map((r) => r.id),
+        rowsOut.map((r) => r.id),
         (documentId) => ({
           documentId,
           knowledgeBaseId: id,
@@ -563,9 +569,10 @@ export class KnowledgeBaseService {
             RETURNING id`,
           [id],
         );
-        graphRequeued = rows.length;
-        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-          const slice = rows.slice(i, i + CHUNK_SIZE);
+        const rowsOut = updateReturningRows<{ id: string }>(rows);
+        graphRequeued = rowsOut.length;
+        for (let i = 0; i < rowsOut.length; i += CHUNK_SIZE) {
+          const slice = rowsOut.slice(i, i + CHUNK_SIZE);
           try {
             await this.graphQueue.addBulk(
               slice.map((r) => ({
@@ -708,7 +715,8 @@ export class KnowledgeBaseService {
        RETURNING id`,
       [id, workspaceId],
     );
-    if (acquired.length === 0) {
+    // ① 과 같은 CAS 락 — 튜플이라 거절 분기가 사문화돼 있었다.
+    if (updateReturningRows(acquired).length === 0) {
       throw new ConflictException({
         code: 'KB_REEMBED_IN_PROGRESS',
         message: 'A KB re-embedding is already in progress',
@@ -727,7 +735,10 @@ export class KnowledgeBaseService {
       [id],
     );
 
-    if (reset.length === 0) {
+    // 빈 KB 즉시 idle 복귀 분기. 튜플이라 `length` 가 항상 2 → **이 분기가 안 타서**
+    // 문서 0건 KB 가 `reembed_status='in_progress'` 로 좌초했다.
+    const resetRows = updateReturningRows<{ id: string }>(reset);
+    if (resetRows.length === 0) {
       // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
       await this.dataSource.query(
         `UPDATE knowledge_base SET reembed_status = 'idle' WHERE id = $1`,
@@ -742,7 +753,7 @@ export class KnowledgeBaseService {
     // 단일 addBulk(문서 수 비례 페이로드 폭발) → CHUNK_SIZE 분할 적재 + 실패 보상.
     // ragMode 는 이미 fetch 한 kb 에서 주입 — worker DB JOIN 회피.
     const { enqueued } = await this.enqueueEmbedChunked(
-      reset.map((r) => r.id),
+      resetRows.map((r) => r.id),
       (documentId) => ({
         documentId,
         reEmbed: true,
@@ -752,7 +763,7 @@ export class KnowledgeBaseService {
       }),
     );
 
-    if (enqueued < reset.length) {
+    if (enqueued < resetRows.length) {
       // 일부/전부 chunk 적재 실패 — 실패분은 helper 가 'failed' 로 롤백했다. 정상
       // child 의 finalize 가 이미 지나가 reembed_status 가 in_progress 로 잠긴 채
       // 남거나(부분 실패), 발사된 child 가 없어(전 chunk 실패) finalize 자체가

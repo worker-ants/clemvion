@@ -200,6 +200,7 @@ import {
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
 import { assertRowArray } from '../../common/utils/assert-row-array';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -2934,12 +2935,13 @@ export class ExecutionEngineService
         // 없다는 뜻이다. 갱신됐는데 앱이 defer 로 처리하면 DB 는 `running`, 워커는 없음 —
         // 실행이 영영 붕 뜬다. 예외는 트랜잭션을 되돌려 그 분기를 원천 차단한다.
         // 가드가 더하는 것은 **판정 변경이 아니라 진단**이다.
-        assertRowArray(
-          rows,
-          `admission UPDATE ... RETURNING, execution ${executionId}. ` +
-            `트랜잭션을 롤백한다(부분 적용 방지).`,
-        );
-        return rows.length === 1;
+        // **UPDATE 는 `[rows, rowCount]` 튜플을 돌려준다** — `rows.length === 1` 을 그대로
+        // 쓰면 항상 2 라 영원히 거짓이었다(실측). 그래도 제품이 돌아간 이유는 이 UPDATE 가
+        // **이미 커밋**돼 row 가 running 이 되고, 재큐된 job 을 `runExecutionFromQueue` 의
+        // RUNNING arm 이 "stalled 재배달" 로 오인해 §7.5 rehydration 으로 재구동했기 때문이다.
+        // 결과만 맞고 경로가 틀렸다 — 매 실행 2s 지연 + 아래 `if (admitted)` 블록
+        // (`recordRunningSegmentStart`·`EXECUTION_STARTED` emit) 이 통째로 사문화됐다.
+        return updateReturningRows<{ id: string }>(rows).length === 1;
       },
     );
     if (admitted) {
@@ -8532,13 +8534,11 @@ export class ExecutionEngineService
     // 깨지고 클라이언트는 무기한 대기). 앞의 admission 가드와 달리 이 UPDATE 는 애플리케이션
     // 트랜잭션 밖이라 throw 가 롤백을 부르지는 못하지만, **관측 불가능한 유실을 관측 가능한
     // 실패로 바꾸는 것**이 목적이다 (ai-review `17_15_21` WARNING 1).
-    assertRowArray(
-      updated,
-      `updateExecutionStatus guarded UPDATE ... RETURNING, ` +
-        `execution ${execution.id} → ${newStatus}. ` +
-        `false 로 넘기면 종결 이벤트가 조용히 유실된다.`,
-    );
-    const persisted = updated.length > 0;
+    // 같은 튜플 문제 — `updated.length > 0` 은 항상 참이라 "동시 cancel 이 이미 terminal 로
+    // 옮겼으니 종결 이벤트를 내지 말라" 는 분기가 **한 번도 타지 않았다**. DB 쓰기 자체는
+    // `WHERE status IN (...)` 가드가 지켜 왔으므로 데이터는 안전했고, 틀린 것은 **앱이
+    // 자기가 적용했는지 아는 것** 쪽이다.
+    const persisted = updateReturningRows<{ id: string }>(updated).length > 0;
     // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);

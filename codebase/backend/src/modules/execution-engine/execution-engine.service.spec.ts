@@ -4383,6 +4383,68 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    /**
+     * **드라이버가 실제로 돌려주는 shape 로 admission 을 건다.**
+     *
+     * 실측(typeorm 0.3.31 + pg, 파라미터·트랜잭션 무관):
+     *   `UPDATE … RETURNING` (1행) → `[[{id}], 1]`   ← length 2
+     *   `INSERT … RETURNING` (1행) → `[{id}]`        ← length 1
+     * `PostgresQueryRunner.query` 의 `switch (raw.command)` 가 UPDATE/DELETE 만
+     * `[rows, rowCount]` 로 감싸기 때문이다.
+     *
+     * 이 스위트의 다른 admission 테스트들은 `[{id}]`(INSERT 형태)를 mock 해 왔고,
+     * 그래서 `rows.length === 1` 이 **실제로는 영원히 거짓**이라는 사실을 4개월간
+     * 아무도 못 봤다. mock 이 틀린 현실을 인코딩하면 GREEN 은 아무것도 증명하지 않는다.
+     *
+     * e2e 가 통과한 이유는 admission 실패 후 **UPDATE 는 이미 커밋**돼 row 가 running 이 되고,
+     * 재큐된 job 을 `runExecutionFromQueue` 의 RUNNING arm 이 "stalled 재배달" 로 오인해
+     * §7.5 rehydration 으로 재구동하기 때문이다 — 결과만 맞고 경로가 틀렸다.
+     * 대가: 매 실행마다 `EXECUTION_ADMISSION_RETRY_DELAY_MS`(2s) 지연 + 이 블록의
+     * `recordRunningSegmentStart`·`EXECUTION_STARTED` 가 통째로 사문화.
+     */
+    it('실측 shape([rows,count])로도 admitted 여야 한다 — UPDATE 는 튜플을 돌려준다', async () => {
+      (
+        mockExecutionRepo.manager as unknown as { transaction: jest.Mock }
+      ).transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([[{ id: 'e1' }], 1]) }),
+      );
+      const spy = emitSpy();
+      try {
+        const exec = {
+          id: 'e1',
+          workflowId: 'wf',
+          queuedAt: new Date(),
+          status: 'pending',
+        };
+        await expect(admit(exec)).resolves.toBe('admitted');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('실측 shape 로 0행 매칭(cap 초과)이면 admitted 가 아니어야 한다', async () => {
+      (
+        mockExecutionRepo.manager as unknown as { transaction: jest.Mock }
+      ).transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([[], 0]) }),
+      );
+      const spy = emitSpy();
+      try {
+        const exec = {
+          id: 'e0',
+          workflowId: 'wf',
+          queuedAt: new Date(),
+          status: 'pending',
+        };
+        // 두 방향을 다 본다 — 튜플에서 rows 를 꺼내되 "0행이면 defer" 가 유지되는지.
+        await expect(admit(exec)).resolves.not.toBe('admitted');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it('cap 여유(affected=1) → admitted: pending→running 동기화 + STARTED emit', async () => {
       mockExecutionRepo.manager.transaction = jest.fn(
         async (cb: (m: { query: jest.Mock }) => unknown) =>
