@@ -623,7 +623,12 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 
 | 대상 | 넣을 것 |
 |---|---|
-| `spec/5-system/3-error-handling.md` §1.8 인근 (도메인 전용 코드 등재 절) | `OAUTH_STATE_MISMATCH` (400) 행 추가. 그 절의 기존 형식대로 `도메인 SoT` 열에 `data-flow/2-auth.md` 링크 |
+| `spec/5-system/3-error-handling.md` **§1.2 인증/인가 에러** | `OAUTH_STATE_MISMATCH` (400) 등재 + `data-flow/2-auth.md` 상호링크 |
+
+> **삽입 위치 정정** — 초판은 "§1.8 인근" 이라고 적었다. §1.8 은 **KB / Graph RAG 도메인 전용**
+> 절이라 인증 코드가 갈 자리가 아니다. 자매 코드가 거기 있다는 이유로 위치까지 따라간 것인데,
+> 그 자매가 KB 코드였다는 게 요점이었다. 인증 코드의 자리는 §1.2 다
+> (`00_54_07` convention_compliance INFO 3).
 
 실측(2026-08-14): `3-error-handling.md` 내 출현 `OAUTH_STATE_MISMATCH` **0** vs
 `KB_REEMBED_IN_PROGRESS` **1** · `KB_REEXTRACT_IN_PROGRESS` **1**. 자매 둘은 등재됐는데

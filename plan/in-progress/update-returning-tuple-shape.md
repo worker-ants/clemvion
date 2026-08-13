@@ -260,6 +260,15 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       수십 초간 관측했다. 스크립트가 즉시 원복해도 읽는 쪽에는 거짓 사실이 보인다.
       이 저장소는 "병렬 리뷰어가 저장소를 뮤테이션해 서로를 오염시킨다" 를 이미 겪었는데
       이번엔 **내가 뮤테이터**였다 — 리뷰 중에는 돌리지 않거나 복사본에서 돌린다.
+- **[planner 위임]** raw SQL 결과 shape 을 **규약으로 승격** (`00_54_07` rationale_continuity INFO 2).
+  이 지식이 **네 번 독립적으로 재발견**됐다 — `stuck-document-recovery` 의 구조분해,
+  `agent-memory-admin` 의 `deletedRowCount`, `integration-oauth` 의 명시 튜플 타입, 그리고
+  이 PR 의 헬퍼. 네 번 각자 알아낸 것은 개인의 부주의가 아니라 **적어 둔 자리가 없다**는 뜻이다.
+  - 승격할 불변식 두 개: (a) raw `UPDATE`/`DELETE … RETURNING` 결과는 반드시
+    `updateReturningRows` 경유, (b) raw `.query()` 결과의 **컬럼명은 snake_case** —
+    entity 타입으로 단언하지 말 것(이 PR 의 `rememberMe` 결함이 (b) 의 실례다).
+  - 위치는 `spec/conventions/` 신규 문서 또는 기존 `migrations.md` 확장. **어느 쪽이든
+    (b) 를 빼지 말 것** — 이번에 (a) 만 처방했다가 (b) 를 놓쳐 CRITICAL 이 났다.
 - **[planner 위임]** 소급 각주 — 대상이 **한 문서가 아니다** (`22_45_25` WARNING 2 · INFO 1).
   이 PR 이 고친 것들이 실제로 어겼던 spec 서술을 전부 세면 **다섯**이다:
   - `spec/5-system/4-execution-engine.md` §1.1 — admission gate·종결 이벤트

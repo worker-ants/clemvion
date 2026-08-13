@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { countCalls } from './__testing__/source-scan';
 import { updateReturningRows } from './update-returning-rows';
 
 describe('updateReturningRows', () => {
@@ -62,38 +63,11 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
     ['modules/auth/auth-oauth.service.ts', 1],
   ];
 
-  /**
-   * 블록 주석과 **주석만 있는 줄**을 지운다.
-   *
-   * 주석 속 헬퍼 언급이 카운트에 섞이면 가드가 **약해진다** — 호출을 빠뜨린 파일이
-   * 주석에서 헬퍼를 언급하기만 해도 개수가 맞아 통과해 버린다. 실제로
-   * `auth-oauth.service.ts` 의 docstring 이 처방을 설명하며 심벌을 적었다가 2로 셌다.
-   *
-   * 줄 끝 `//` 는 건드리지 않는다 — 이 파일들엔 `https://` 가 있어 URL 을 자르게 된다.
-   * 잘라도 결과는 "개수가 줄어 RED" 라 **조용히 통과하는 방향은 아니지만**, 굳이
-   * 오탐을 만들 이유가 없다.
-   */
-  const stripComments = (src: string): string =>
-    src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-
-  const countHelper = (src: string): number =>
-    (stripComments(src).match(/updateReturningRows[<(]/g) ?? []).length;
-
-  it('카운터는 주석 속 언급을 세지 않는다 (가드 자신의 전제)', () => {
-    expect(
-      countHelper(`
-        /** 처방: updateReturningRows<T>(rows, detail) 를 쓴다. */
-        // updateReturningRows(legacy) 는 더 이상 쓰지 않는다
-        const rows = updateReturningRows<{ id: string }>(raw, 'real');
-      `),
-    ).toBe(1);
-  });
-
   it.each(EXPECTED)(
     '%s 의 UPDATE/DELETE 소비 지점 %i 개가 모두 updateReturningRows 를 거친다',
     (rel, count) => {
       const src = readFileSync(join(SRC, rel), 'utf8');
-      expect(countHelper(src)).toBe(count);
+      expect(countCalls(src, 'updateReturningRows')).toBe(count);
     },
   );
 

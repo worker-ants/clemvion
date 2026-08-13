@@ -340,6 +340,17 @@ SoT: `spec/data-flow/11-workflow.md` §1.5, `spec/2-navigation/1-workflow-list.m
 잠갔다. 특히 "인자 shape 만 바뀌는 뮤턴트" 와 "표현식만 치환하는 뮤턴트" 의 차이 때문에 한 번
 잠긴 줄 알았던 seam 이 실제로는 무검증이던 사례가 있었다(10R CRITICAL).
 
+> **소급 정정 (2026-08-14)** — 위 **1번**의 `finalizeGuarded` 가 "전이 불가 또는 조건부 UPDATE
+> 0행이면 저장·이벤트 발행을 모두 skip 한다" 고 서술한 방어 중 **0행 갈래는 `8332d9a20` 이전엔
+> 발동한 적이 없다.** 그 판정이 `updateExecutionStatus` 의 반환값에 걸려 있는데, 그 함수가 raw
+> `UPDATE … RETURNING` 결과를 행 배열로 오인해 항상 `true` 를 돌려줬다. "전이 불가" 갈래
+> (`canTransition` 재조회 판정)는 정상 동작했다.
+>
+> 아래 "AI multi-turn resume turn 경계" 섹션 7번이 **같은 코드**를 다시 서술하며 동일한 정정을
+> 달고 있다. 한쪽만 읽는 독자가 "검증된 동작" 으로 오인하지 않도록 양쪽에 적는다
+> (`00_54_01` documentation WARNING 2). 근거·전수 목록:
+> `plan/in-progress/update-returning-tuple-shape.md`.
+
 ## Unreleased — AI multi-turn resume turn 경계 cancel 가드 + park 짝 전이 lost-update 차단
 
 #1021 의 노드 경계 cancel 가드(§2.3)는 **AI multi-turn 이 turn 마다 park 로 세그먼트를 끝내** 그 경계에 닿지 않는 갭을 남겼다 — turn 진행 중(LLM 호출 수 초~분) 사용자 Stop 이 조용히 무효화됐다.
@@ -353,10 +364,14 @@ SoT: `spec/data-flow/11-workflow.md` §1.5, `spec/2-navigation/1-workflow-list.m
 
 7. **`retry-turn` 종결 2경로의 무가드 terminal 쓰기 차단**: 위 항목들이 `execution-engine.service.ts` 에서 닫은 결함 클래스가 `retry-turn.service.ts` 에 남아 있었다. `failRetryExecution` 은 동시 Stop 이 이미 CANCELLED 로 마감한 실행을 **FAILED 로 덮어썼고**, 티켓에 없던 `completeRetryExecution` 은 더 나쁘게 **COMPLETED 로 덮고 완료 이벤트까지 발행**했다(전수 감사로 발견 — 티켓은 1곳만 지목했다). 두 곳을 공용 `finalizeGuarded` 로 통일했다. 이 서비스는 재진입 시작 시 로드한 `execution` 을 갱신하지 않고 `failed → running` 전이는 orchestrator 가 **다른 엔티티 인스턴스**에 적용하므로, stale 을 그대로 넘기면 상태머신이 자기 전이(`failed → failed`)를 보고 throw 한다 — 그래서 **행을 다시 읽어 정본으로 맞춘 뒤** `canTransition` 으로 판정한다(terminal 집합 인라인 열거 금지, 6번 항목과 같은 이유). 이미 목표 상태면 **상태 전이는 skip** 하되, 쓸 것이 없다고 보고 무가드로 통과시키면 이번 시도의 `error`/`finishedAt`/`durationMs` 가 조용히 버려지므로(재진입이 턴 시작 전에 즉시 재실패하면 Execution 이 `failed` 인 채로 도달한다) 그 값들은 **관측한 상태를 조건으로 건 guarded UPDATE** 로 다시 쓴다(그 사이 동시 cancel 이 상태를 바꿨으면 0행 매칭으로 무효화된다 — 2차 라운드 CRITICAL). 이 guarded UPDATE 자체도 `affected` 가 0이면(예: FAILED→RUNNING 재진입이 `allowRetryReentry` opt-in 으로 그 사이 row 를 옮긴 경우) 종결 이벤트 emit 을 skip 한다 — 그렇지 않으면 DB 는 RUNNING(새 턴 진행 중)인데 caller 가 종결 이벤트를 발행하는 사후 오시그널이 된다(3차 라운드 CRITICAL).
 
-> **소급 정정 (2026-08-14)** — 위 1·5·6·7번이 "조건부 UPDATE 0행이면 저장·이벤트 발행을
-> skip 한다" 고 서술한 방어는 **`8332d9a20` 이전엔 한 번도 발동하지 않았다.** 네 항목 모두
+> **소급 정정 (2026-08-14)** — 위 **5·6·7번**이 "조건부 UPDATE 0행이면 저장·이벤트 발행을
+> skip 한다" 고 서술한 방어는 **`8332d9a20` 이전엔 한 번도 발동하지 않았다.** 세 항목 모두
 > terminal 전이를 `updateExecutionStatus` 로 태우는데, 그 함수가 raw `UPDATE … RETURNING` 의
 > 결과를 행 배열로 오인해(`[rows, rowCount]` 튜플이 실제 shape) 반환값이 **항상 `true`** 였다.
+>
+> **1~4번은 해당하지 않는다.** 그쪽은 `linkedNodeExec` 짝 전이 계약(`FOR UPDATE` 로 행을
+> 잠그고 재확인하는 SELECT 경로)이라 이 튜플과 무관하다. 6번도 절반만 해당한다 —
+> `failFirstSegmentSetup` 은 반환값으로 분기하지만 `executeSync` timeout 은 반환값을 버린다.
 >
 > 무효화된 범위를 정확히 적는다 — **DB 쓰기 가드 자체는 정상이었다.** SQL 의
 > `status IN (non-terminal)` 조건은 늘 붙어 있었으므로 terminal 행을 덮어쓰는 lost update 는
