@@ -92,15 +92,21 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 틀렸다(`persisted` 는 종결 이벤트 emit 분기를 가른다).
 
 **두 번째 plan 도 같은 구간 위에 있었다** (`22_45_25` plan_coherence WARNING 1).
-`retry-turn-terminal-guard.md` 는 12+ 라운드에 걸쳐 "동시 cancel 방어" 를 검증했는데,
-`retry-turn.service.spec.ts:101` 이 `updateExecutionStatus: jest.fn().mockResolvedValue(true)`
-로 **boundary mock** 을 둔다. 무조건 `true` — **버그 상태의 동작과 정확히 같다.**
-mock 경계 너머의 실제 `persisted` 값은 어느 라운드도 검사한 적이 없다.
+`retry-turn-terminal-guard.md` 는 12+ 라운드에 걸쳐 "동시 cancel 방어" 를 검증했고,
+그 방어는 `updateExecutionStatus` 의 `persisted` 값에 의존한다 — **프로덕션에서 항상
+`true` 였던 그 값**이다.
 
-> "mock 이 틀린 현실을 인코딩했다" 의 또 다른 얼굴이다. 앞의 것은 shape 을 틀리게 흉내
-> 냈고, 이건 **버그가 만든 상수를 계약으로 굳혔다.** 고친 지금은 `updateExecutionStatus`
-> 가 `false` 를 돌려줄 수 있으므로, 그 분기를 타는 retry-turn 경로가 실제로 있는지
-> 재검증해야 한다.
+> **처음엔 "mock 안쪽만 검증했다" 고 적었는데 틀렸다.** consistency `23_07_12` 와
+> ai-review `23_27_48` 두 리뷰어가 그렇게 서술했고 나는 확인 없이 두 plan 에 옮겨 적었다.
+> `grep -c 'updateExecutionStatus.mockResolvedValueOnce(false)'` 한 번이면 **3건**이 나온다 —
+> complete·fail·cancel 세 경로가 대조군까지 갖춰 양방향으로 덮여 있다.
+>
+> **정확한 서술**: 단위 테스트는 온전했다. 계약(`false` 를 받으면 emit 을 건너뛴다)은
+> 검증됐는데 **그 계약을 지키는 driver 가 값을 안 만들어 줬다.** 그래서 이 방어는 코드로는
+> 옳고 프로덕션에서는 한 번도 발동하지 않았다. 무효화된 것은 라운드의 결론이 아니라
+> **"실제로 레이스를 막아 왔다" 는 주장**뿐이다.
+>
+> 리뷰어의 지적도 액면가로 받으면 안 된다 — 이번엔 **내가 남의 미검증 주장을 증폭**했다.
 
 → 두 plan 모두에 소급 정정 배너를 넣었다. `ie-resume-turn-boundary-cancel.md` 는 뮤턴트
 항목의 진단도 바로잡았고, `retry-turn-terminal-guard.md` 에는 **`persisted=false` 를 mock
@@ -197,6 +203,11 @@ mock 경계 너머의 실제 `persisted` 값은 어느 라운드도 검사한 �
   - `spec/5-system/8-embedding-pipeline.md` §7.3 — KB 재임베딩 CAS 락
   - `spec/5-system/10-graph-rag.md` 동시 호출 표 — KB 재추출 CAS 락
   - `spec/data-flow/2-auth.md` OAuth state 소비 — 소셜 로그인 상시 실패
+  - `spec/conventions/node-cancellation.md` **§2.4 (195~198행)** — "✓ mutation 13/13 검증"
+    서술에 *"driver 배선(`updateExecutionStatus` 의 실제 반환 shape)은 2026-08-13 에야
+    정상화됐고, 그 이전 검증은 mock 경계 안쪽 한정"* caveat 추가. 198행(retry-turn)뿐
+    아니라 **196·197행(AI turn 경계 가드·park↔resume 짝 전이)도 같은 반환값에 의존**한다
+    (`23_27_49` WARNING 1·2 · INFO 3)
   > **한 문서만 적으려던 것이 바로 이 PR 이 진단한 패턴("그 자리만 고친다")의 재현이었다.**
 
   `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다. 그래서

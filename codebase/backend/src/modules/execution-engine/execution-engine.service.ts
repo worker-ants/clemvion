@@ -2928,10 +2928,6 @@ export class ExecutionEngineService
            RETURNING id`,
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
         );
-        // `EntityManager.query` 의 선언 타입은 `Promise<any>` 라 위 제네릭은 **주장이지
-        // 검증이 아니다.** 드라이버가 배열이 아닌 것을 돌려주면 종전에는 `rows.length` 가
-        // `Cannot read properties of undefined` 로 터졌다 — 원인이 안 보이는 메시지다.
-        //
         // **던지는 것 자체는 유지한다.** 이 자리에서 `return false`(defer)로 삼키면 트랜잭션이
         // **커밋**되는데, shape 이 어긋났다는 것은 UPDATE 가 실제로 행을 갱신했는지 알 수
         // 없다는 뜻이다. 갱신됐는데 앱이 defer 로 처리하면 DB 는 `running`, 워커는 없음 —

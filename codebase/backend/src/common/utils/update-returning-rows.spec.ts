@@ -49,7 +49,8 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
   /** 반환값을 변수로 받는 raw 쿼리 호출. */
   const CONSUMING = /const\s+\w+[^=\n]*=\s*\n?\s*await\s+[\w.]*\.query[<(]/g;
 
-  // (파일, UPDATE/DELETE 를 소비하는 지점 수, 그중 헬퍼/구조분해로 처리된 수)
+  // (파일, 그 파일의 `updateReturningRows` 호출 수) — 2-tuple 이다.
+  // 종전 주석은 3항목을 예고했는데 타입은 2항목이었다(`23_27_48` WARNING 2).
   const EXPECTED: Array<[string, number]> = [
     ['modules/execution-engine/execution-engine.service.ts', 2],
     ['modules/knowledge-base/knowledge-base.service.ts', 5],

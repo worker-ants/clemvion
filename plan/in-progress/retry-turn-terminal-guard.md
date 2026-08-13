@@ -26,30 +26,36 @@ spec_impact:
 > ## ⚠ 소급 정정 (2026-08-13) — 12+ 라운드가 mock 경계 안쪽만 검증했다
 >
 > 이 문서가 검증한 "동시 cancel 방어" 는 `updateExecutionStatus` 의 반환값(`persisted`)에
-> 의존한다. 그런데 `retry-turn.service.spec.ts:101` 이
-> `updateExecutionStatus: jest.fn().mockResolvedValue(true)` 로 **driver 경계를 무조건 `true`
-> 로 고정**한다 — 그리고 그게 정확히 **버그 상태의 동작**이었다.
+> 의존한다. 그런데 그 값은 **프로덕션에서 항상 `true`** 였다 — `UPDATE … RETURNING` 이
+> TypeORM 에서 `[rows, rowCount]` 튜플이라 `updated.length > 0` 이 언제나 참이었기 때문이다
+> (`1657c0435` 2026-06-14 ~ `8332d9a20` 2026-08-13).
 >
-> `UPDATE … RETURNING` 은 TypeORM 에서 `[rows, rowCount]` 튜플이라 `updated.length > 0` 이
-> 항상 참이었고(`1657c0435` 2026-06-14 ~ `8332d9a20` 2026-08-13), 따라서 **`persisted=false`
-> 분기는 프로덕션에서도 mock 밖에서도 한 번도 실행된 적이 없다.**
+> **단위 테스트는 잘못이 없다.** `retry-turn.service.spec.ts` 는 `mockResolvedValueOnce(false)`
+> 로 complete·fail·cancel 세 경로의 선점 분기를 **이미 양방향으로 덮고 있다**(대조군 포함).
+> 즉 이 서비스는 `false` 를 받았을 때 무엇을 해야 하는지 정확히 검증돼 있었다.
 >
-> 즉 mock 이 버그가 만든 상수를 계약으로 굳혔고, 그 위에서 12+ 라운드가 "수렴 종료" 를
-> 판정했다. 라운드의 결론이 전부 틀렸다는 뜻은 아니지만, **`persisted=false` 를 전제로 한
-> 부분은 검증된 적이 없다.**
+> **틀린 것은 driver 쪽이다.** 계약은 테스트됐는데 **그 계약을 지키는 쪽이 값을 안 만들어
+> 줬다** — 그래서 이 방어는 코드로는 옳고 프로덕션에서는 한 번도 발동하지 않았다.
+> 라운드들의 결론이 틀렸다는 뜻이 아니라, **"실제로 레이스를 막아 왔다" 는 주장만 성립하지
+> 않았다**는 뜻이다.
+>
+> (첫 배너는 "mock 안쪽만 검증했다" 고 적었는데 **틀렸다.** consistency·ai-review 두
+> 리뷰어의 서술을 확인 없이 옮겨 적었고, `grep -c` 한 번이면 3건이 나왔다.)
 >
 > 근본 원인·실측: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
 > `spec/conventions/node-cancellation.md:198` §2.4 의 "✓ mutation 13/13 검증" 서술도 이
-> mock 경계 안쪽만 반영한다 — 각주 갱신은 planner 위임 항목에 등재돼 있다.
+> mock 경계 안쪽만 반영한다 — 각주 갱신은 `update-returning-tuple-shape.md` §후속의
+> **[planner 위임] 소급 각주 5번째 항목**으로 등재했다(196·197행도 같은 반환값에 의존).
 
 
 ## 소급 재검증 (2026-08-13 등재)
 
-- [ ] **`persisted=false` 분기를 mock 경계 밖에서 재검증** — `failRetryExecution` /
-      `completeRetryExecution` 이 실제로 그 분기를 타는지, 탄다면 무엇이 달라지는지.
-      `retry-turn.service.spec.ts:101` 의 boundary mock 을 `false` 로도 세워 양방향을 본다.
-      **`plan/complete/` 이동 전 필수** — 이 항목이 열려 있는 한 위 라운드들의 종결은
-      "mock 안쪽 한정" 이다.
+- [x] ~~`persisted=false` 분기를 mock 경계 밖에서 재검증~~ — **전제가 틀려 불요.**
+      `mockResolvedValueOnce(false)` 3건(complete·fail·cancel)이 이미 있고 대조군도 있다.
+      단위 커버리지는 처음부터 온전했다.
+- [ ] **통합 레벨 관측** — 남는 진짜 갭은 "driver 가 실제로 `false` 를 만들어 주는가" 다.
+      `8332d9a20` 이후 그 값이 실신호가 됐으므로, 배포 후 동시 cancel 시 선점 분기가
+      실제로 타는지 로그로 확인한다(`update-returning-tuple-shape.md` §후속 배포 관측과 병합).
 
 ## Overview
 
