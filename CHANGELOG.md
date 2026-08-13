@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased — `UPDATE … RETURNING` 의 결과를 8곳이 행 배열로 오인했다 (소셜 로그인 상시 실패 포함)
+
+TypeORM 0.3.31 + pg 는 `UPDATE`/`DELETE` 의 결과를 **`[rows, rowCount]` 튜플**로 돌려준다
+(`RETURNING` 유무·파라미터·트랜잭션과 무관, 실측). `SELECT`/`INSERT` 는 행 배열이다. 이 비대칭을
+모르고 8곳이 결과를 행 배열로 다뤘다. 튜플은 **길이가 항상 2** 라 다음이 조용히 참이 된다:
+
+- `rows.length === 0` → 영원히 거짓 → **"0행이면 거절" 가드가 전부 무력**
+- `rows.length === 1` → 영원히 거짓 → **동시성 cap admission 이 늘 defer**
+- `rows[0]` → 행이 아니라 **행 배열** → 필드 접근이 전부 `undefined`
+
+관측된 결과:
+
+1. **소셜 로그인이 상시 실패했다.** `handleCallback` 이 state row 대신 배열을 읽어
+   `record.provider` 가 `undefined` → 정상 콜백까지 `OAUTH_STATE_MISMATCH` 로 떨어졌다.
+2. **KB 재추출/재임베딩 CAS 락이 한 번도 거절하지 않았다** (409 가 발동 불가).
+3. **admission cap 이 항상 defer** — 커밋된 UPDATE 덕에 재큐된 job 이 크래시 복구 갈래로
+   들어가 겉으로는 동작했다. e2e 레이턴시로 확인(4191ms → 2242ms).
+4. **재큐가 `[undefined, undefined]` 를 enqueue** 했다.
+5. `updateExecutionStatus` 의 `persisted` 가 항상 `true` → 선점당한 경우에도 종결 이벤트를
+   발행했다(DB 쓰기 가드 자체는 SQL 조건으로 정상 동작 — 아래 소급 정정 참조).
+
+수정: 공용 헬퍼 `updateReturningRows(result, detail)` 로 튜플/배열을 흡수하고, 8곳을 태웠다.
+배열이 아니면 `detail` 과 함께 throw 한다 — 드라이버가 또 바뀌면 조용히 통과하는 대신 죽는다.
+
+**왜 4개월간 아무도 못 봤나 — 초록이 두 겹이었다.** 단위 테스트 mock 이 `[{...}]`(INSERT 형태)라
+코드와 **같은 오해를 공유**했고, OAuth 콜백에는 e2e 가 없었다. 그래서 `auth-oauth-callback.e2e-spec.ts`
+를 신설해 실 드라이버 위에서 성공/거절 **양방향**을 고정했다(한쪽만 보면 "전부 실패" 도 절반은 초록이다).
+
+곁들여 드러난 같은 클래스 결함 하나를 더 닫았다 — raw `.query()` 는 ORM 매핑을 타지 않아 컬럼명이
+snake_case 인데 콜백이 `record.rememberMe` 를 읽었다. 그 결과 소셜 로그인의 **"로그인 유지" 가 침묵으로
+무시**돼 refresh 토큰·쿠키가 늘 7일이었다(30일이어야 함). 이 결함은 위 튜플 버그가 콜백을 통째로
+죽여 놓은 동안 **도달 불가능한 dead code** 였다가, 그 수정으로 처음 실행 가능해진 것이다.
+
 ## Unreleased — 멱등 캐시 fail-open 을 **알람 걸 수 있게** 만든다 (`clemvion.redis.fail_open`)
 
 `IdempotencyInterceptor` 의 fail-open 다섯 경로는 warn 로그만 남겼다. 로그는 사후 조회는 되지만
@@ -319,6 +352,20 @@ SoT: `spec/data-flow/11-workflow.md` §1.5, `spec/2-navigation/1-workflow-list.m
 6. **terminal 집합 인라인 열거 통합(`82b0d1561`) + 잔여 두 지점의 guarded UPDATE 전환(7차 라운드)**: `failFirstSegmentSetup`/`executeSync` timeout catch 가 각각 "terminal 이미 여부" 를 `COMPLETED`/`FAILED` 만 인라인 열거해 판정해, **CANCELLED 를 누락**했다 — 동시 Stop 으로 이미 취소된 실행/sub-execution 을 timeout·setup-throw 경로가 FAILED 로 덮어썼다(위 5번 항목과 같은 클래스). 이름 있는 단일 출처 `TERMINAL_STATUSES` 비교로 교체해 원소 추가/변경 시 자동으로 반영되게 했다. 이어서(7차 라운드, ai-review WARNING #1) 두 지점의 **쓰기 자체**도 형제 종결 헬퍼와 동일하게 무가드 full-entity `save()` 에서 guarded `updateExecutionStatus`(`status IN (non-terminal)`) 경유로 전환해, reload 이후의 좁은 SELECT~UPDATE TOCTOU 창을 마저 닫았다. reload 가 (극히 좁은 이중 DB 장애/소-timeoutMs 레이스로) 아직 RUNNING 진입 전인 PENDING 을 관측하는 경우는 상태머신이 PENDING→FAILED 를 의도적으로 금지하므로(`state-machine.spec.ts` "disallow pending -> failed") 강제로 우회하지 않고 best-effort 로 skip 한다 — `CoreEngineDriver` JSDoc 에 choke point 예외로 명시.
 
 7. **`retry-turn` 종결 2경로의 무가드 terminal 쓰기 차단**: 위 항목들이 `execution-engine.service.ts` 에서 닫은 결함 클래스가 `retry-turn.service.ts` 에 남아 있었다. `failRetryExecution` 은 동시 Stop 이 이미 CANCELLED 로 마감한 실행을 **FAILED 로 덮어썼고**, 티켓에 없던 `completeRetryExecution` 은 더 나쁘게 **COMPLETED 로 덮고 완료 이벤트까지 발행**했다(전수 감사로 발견 — 티켓은 1곳만 지목했다). 두 곳을 공용 `finalizeGuarded` 로 통일했다. 이 서비스는 재진입 시작 시 로드한 `execution` 을 갱신하지 않고 `failed → running` 전이는 orchestrator 가 **다른 엔티티 인스턴스**에 적용하므로, stale 을 그대로 넘기면 상태머신이 자기 전이(`failed → failed`)를 보고 throw 한다 — 그래서 **행을 다시 읽어 정본으로 맞춘 뒤** `canTransition` 으로 판정한다(terminal 집합 인라인 열거 금지, 6번 항목과 같은 이유). 이미 목표 상태면 **상태 전이는 skip** 하되, 쓸 것이 없다고 보고 무가드로 통과시키면 이번 시도의 `error`/`finishedAt`/`durationMs` 가 조용히 버려지므로(재진입이 턴 시작 전에 즉시 재실패하면 Execution 이 `failed` 인 채로 도달한다) 그 값들은 **관측한 상태를 조건으로 건 guarded UPDATE** 로 다시 쓴다(그 사이 동시 cancel 이 상태를 바꿨으면 0행 매칭으로 무효화된다 — 2차 라운드 CRITICAL). 이 guarded UPDATE 자체도 `affected` 가 0이면(예: FAILED→RUNNING 재진입이 `allowRetryReentry` opt-in 으로 그 사이 row 를 옮긴 경우) 종결 이벤트 emit 을 skip 한다 — 그렇지 않으면 DB 는 RUNNING(새 턴 진행 중)인데 caller 가 종결 이벤트를 발행하는 사후 오시그널이 된다(3차 라운드 CRITICAL).
+
+> **소급 정정 (2026-08-14)** — 위 1·5·6·7번이 "조건부 UPDATE 0행이면 저장·이벤트 발행을
+> skip 한다" 고 서술한 방어는 **`8332d9a20` 이전엔 한 번도 발동하지 않았다.** 네 항목 모두
+> terminal 전이를 `updateExecutionStatus` 로 태우는데, 그 함수가 raw `UPDATE … RETURNING` 의
+> 결과를 행 배열로 오인해(`[rows, rowCount]` 튜플이 실제 shape) 반환값이 **항상 `true`** 였다.
+>
+> 무효화된 범위를 정확히 적는다 — **DB 쓰기 가드 자체는 정상이었다.** SQL 의
+> `status IN (non-terminal)` 조건은 늘 붙어 있었으므로 terminal 행을 덮어쓰는 lost update 는
+> 실제로 막혔다. 죽어 있던 것은 **호출부의 `persisted === false` 분기**(종결 이벤트 emit skip,
+> `recordRunningSegmentStart` 보류)뿐이다. 즉 "데이터는 안 깨졌지만 선점당한 경우에도
+> 이벤트를 발행했다".
+>
+> 근거·전수 목록(반환값을 소비하는 11곳 / 3파일):
+> `plan/in-progress/update-returning-tuple-shape.md`.
 
 SoT: `spec/conventions/node-cancellation.md` §2.3, `spec/5-system/4-execution-engine.md` §1.1/§1.2 (spec 갱신은 `plan/in-progress/spec-update-node-cancellation-shutdown-classification.md` #7 로 위임). 추적: `plan/in-progress/ie-resume-turn-boundary-cancel.md` · `plan/in-progress/retry-turn-terminal-guard.md`.
 

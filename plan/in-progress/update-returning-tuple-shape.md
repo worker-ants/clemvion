@@ -146,6 +146,41 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 > 구조적 가드의 사각지대는 주석으로 적어 뒀으면서, 정작 그 가드를 만든 감사 도구의
 > 사각지대는 안 적었다.
 
+## 두 번째 축 — 튜플을 고치자 그 아래 컬럼명 결함이 드러났다
+
+`00_20_21` requirement CRITICAL. **shape 을 고쳐 처음 실행 가능해진 코드에 별개 버그가 있었다.**
+
+raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snake_case** 다. entity 의
+`@Column({ name: 'remember_me' }) rememberMe` 매핑은 적용되지 않는다. 그런데 콜백은
+`record.rememberMe` 를 읽었다 → 항상 `undefined` → `rememberMe ? 30 : 7` 이 늘 7 을 골라
+**소셜 로그인의 "로그인 유지" 가 침묵으로 무시**됐다(refresh 토큰 만료·쿠키 `Max-Age` 둘 다).
+
+| | 값 |
+|---|---|
+| 정답 (`remember_me = true`) | 30일 = `Max-Age=2592000` |
+| 버그 | 7일 = `Max-Age=604800` |
+
+**타입이 막아 주지 않았다.** `updateReturningRows<AuthOAuthState>` 의 제네릭은 검증이 아니라
+**단언**이라, 실제로는 존재하지 않는 필드를 컴파일러가 있다고 믿었다. 그래서 raw 행 전용 타입
+`AuthOAuthStateRow`(snake_case)를 따로 두고 그걸로 단언하게 바꿨다 — 이제 `record.rememberMe`
+는 `tsc` 가 거부한다(`TS2551: Did you mean 'remember_me'?`).
+
+자매 `integration-oauth.service.ts` 는 `normalizeRawStateRow` 로 같은 문제를 이미 풀어 뒀는데
+**"entity shape 이면 그대로 통과" 하는 우회로**를 둔다. 여기서는 의도적으로 두지 않았다 —
+그 우회로가 바로 entity shape mock 을 초록으로 통과시켜 이 결함을 숨긴 구멍이다.
+
+> **내가 그 파일을 열어 놓고 놓쳤다.** 튜플 처방을 쓰면서 "`integration-oauth` 는 이미 튜플로
+> 다루고 있었다" 고 주석까지 달았는데, 바로 옆의 컬럼명 정규화는 못 봤다. **방어의 정의를
+> 한 칸 좁게 잡은 것** — "반환 shape" 까지만 보고 "행의 키" 는 같은 질문의 일부로 세지 않았다.
+
+**어떻게 잡혔나**: 그 자리에 `propagates rememberMe through to token issuance` 라는 테스트가
+**이미 있었다.** mock 이 `[{ …, rememberMe: true }]` — 행 배열(튜플 아님) + camelCase 라 코드와
+같은 두 오해를 공유해 4개월간 초록이었다. mock 을 실 shape 으로 바꾸니 즉시 RED.
+
+`false` 가 아니라 `true` 로 고정한 것이 요점이다 — `false` 면 정답과 버그가 같은 값(7일)을 내
+**분기가 갈리지 않는다.** e2e 대조군(`false` → 7일)이 이를 실증한다: 버그 상태로 되돌리면
+`true` 케이스만 실패하고 대조군은 통과한다.
+
 ## 처방
 
 `common/utils/update-returning-rows.ts` — `updateReturningRows<T>(result): T[]`.
@@ -190,6 +225,13 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 - [x] **OAuth 콜백 e2e 신설** — 실 Postgres 왕복으로 성공/거절 양방향 관측.
       버그 상태로 되돌리면 **2 failed(사살)**. 거절 방향만 봤으면 버그 있는 채 5/5 GREEN 이었다
 - [x] 소급 영향 **세 번째** plan(`exec-intake-followups.md`) 배너 + 위임 5건 집결 티켓 `#12` 등재
+- [x] **`rememberMe` 컬럼명 결함**(`00_20_21` requirement CRITICAL) — raw 행 전용 타입으로
+      `tsc` 가 막게 하고, 이미 있던 단위 테스트의 거짓 mock 을 실 shape 으로 정정.
+      2층 뮤테이션으로 확인: 타입층 `TS2551` 사살 / 타입 우회 시 테스트 3건 RED
+- [x] **e2e 에 `Max-Age` 단언 2건 추가** — `true`→2592000, 대조군 `false`→604800.
+      되돌리면 `true` 만 실패(대조군 통과)해 판별자가 `rememberMe` 임을 확정
+- [x] CHANGELOG — 이번 결함 Unreleased 항목 + 기존 1·5·6·7 소급 정정
+- [x] caveat 소비 경로 목록 정정 — 서술형 라벨·단일 파일 집계 오류 2회, 최종 **11곳/3파일**
 - [ ] 후속 ②(`updateExecutionStatus` 트랜잭션화)·③(EIA `durationMs`/`result.outputs` emit)
 
 ## 후속
@@ -198,10 +240,13 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
   수정이 선행이었고, 이제 그 전제가 정리됐다. ③은 독립이다.
 - `.query()` 사각지대(`let`·구조분해·체이닝)는 정규식이 아니라 AST 로 넓혀야 한다 —
   유한한 문제를 무한한 문제와 바꾸지 않도록 착수 전 비용을 먼저 본다.
-- [ ] **CHANGELOG Unreleased 항목** (`20_36_35` WARNING 3). 이 저장소는 사용자 영향 있는
-      조용한 결함 수정을 Unreleased 에 적는 관행이 있다. 이번 건은 **배포 영향 서술과 함께**
-      써야 의미가 있어 릴리스 시점 판단으로 미뤘다 — 무엇이 깨져 있었는지(소셜 로그인 상시
-      실패 · admission cap 미집행 · KB CAS 락 미작동 · 재큐 `documentId: undefined`)를 적을 것.
+- [x] **CHANGELOG Unreleased 항목** (`20_36_35` WARNING 3 → `00_20_21` documentation W5·INFO 11).
+      **"릴리스 시점에 몰아쓴다" 는 유예 근거가 틀렸다** — 리뷰어가 이 파일의 커밋 이력을 실측해
+      "즉시 작성" 이 실제 관행임을 보였다. 미측정 전제로 미룬 것이다. 두 건을 함께 썼다:
+      이번 결함의 Unreleased 항목 + **기존 항목 1·5·6·7 의 소급 정정**(그 항목들이 서술한
+      "0행이면 skip" 방어는 이 PR 이전엔 발동한 적이 없다). 정정 범위는 좁게 못박았다 —
+      SQL 의 `status IN (non-terminal)` 가드는 정상이었으므로 **DB 는 안 깨졌고**, 죽은 것은
+      호출부의 `persisted === false` 분기(이벤트 emit skip)뿐이다.
 - [ ] **배포 후 관측** (`20_36_35` WARNING 8). 4개월간 죽어 있던 분기들이 **처음으로 라이브**가
       된다. 조치가 아니라 관측 계획이라 여기 남긴다:
       - (a) admission 2s 지연 소멸 — **e2e 로 이미 실측**(4191→2242ms)
@@ -226,11 +271,33 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
     아니라 실제 소비 경로 단위로** 적을 것 (`23_46_01` WARNING 5). 행 전체에 caveat 을
     걸면 영향권 밖 메커니즘(`assertExecutionNotCancelled` 관측, `linkedNodeExec` 의
     `FOR UPDATE` 잠금)까지 "검증 안 됨" 으로 뭉뚱그려져 **반대 방향 drift** 를 만든다.
-    - **영향 있음** — `updateExecutionStatus` 의 else 분기 반환값을 소비하는 경로:
-      `finalizeFailedExecution` · `failFirstSegmentSetup` · `executeSync` timeout ·
-      retry 재진입 종결. 이들은 `8332d9a20` 이전에 `persisted` 가 항상 `true` 였다.
-    - **영향 없음** — 반환값을 안 쓰는 것: `assertExecutionNotCancelled`(DB 재조회),
-      `linkedNodeExec` 의 `FOR UPDATE` 잠금(SELECT 경로).
+    - **영향 있음 — 11곳 / 3파일.** `updateExecutionStatus` 반환값으로 분기하는 경로.
+      `8332d9a20` 이전엔 `persisted`/`completed` 가 항상 `true` 라 skip 분기가 죽어 있었다.
+
+      | 파일 | 호출부 |
+      |---|---|
+      | `execution-engine.service.ts` | `failFirstSegmentSetup`(`:645`) · `driveResumeAwaited`(`:2366`) · `driveCallStackResume`(`:2533`) · `driveStuckRedrive`(`:3470`) · `runExecution`(`:4657`) · `finalizeFailedExecution`(`:4844`) |
+      | `ai-turn-orchestrator.service.ts` | `reparkAiResumeTurn`(`:453`) · `emitAiWaitingForInput`(`:550`) · `finalizeAiNode`(`:1608`) |
+      | `retry-turn.service.ts` | `finalizeGuarded`(`:672`) · `resumeGraphAfterRetry`(`:892`) |
+
+    - **영향 없음 — 9곳.** 반환값을 버리는 호출이라 shape 과 무관하다:
+      `execution-engine.service.ts` 의 `driveResumeAwaited`(`:2268`) ·
+      `driveCallStackResume`(`:2443`) · `executeSync`(`:4209`) · `runExecution`(`:4334`) ·
+      `finalizeCancelledExecution`(`:4781`), `button-interaction.service.ts` 2곳,
+      `form-interaction.service.ts` 2곳. 그 밖에 `assertExecutionNotCancelled`(DB 재조회),
+      `linkedNodeExec` 의 `FOR UPDATE` 잠금(SELECT)은 애초에 이 함수를 거치지 않는다.
+
+    > **이 목록을 두 번 틀렸다** (`00_20_21` side_effect W2).
+    > **1차** — "`executeSync` timeout·retry 재진입 종결" 처럼 **서술형 라벨**로 적었다.
+    > `executeSync`(`:4209`)는 반환값을 버려 애초에 무관했고, 실제로 분기하는 4곳이
+    > 빠졌다. 바로 위에 "행 라벨로 뭉개지 말라" 고 써 놓고 한 칸 덜 내려갔다.
+    > **2차** — 고치면서 `execution-engine.service.ts` **한 파일만** 셌다(6곳). 이 함수는
+    > `EngineDriver` 인터페이스로 공개돼 있어 `ai-turn-orchestrator`·`retry-turn` 도
+    > `this.driver.updateExecutionStatus(...)` 로 부르고 반환값을 소비한다 — 5곳이 더 있었다.
+    > 하마터면 리뷰어의 CHANGELOG 인용(`:279`·`:321`, 둘 다 retry-turn 항목)을 "그건
+    > `QueryBuilder.affected` 라 무관" 이라며 **틀리게 반박**할 뻔했다. `.affected` 는
+    > 그 파일의 *다른* UPDATE 고, terminal 전이는 `driver.updateExecutionStatus` 를 탄다.
+    > 최종 수치는 `execution-engine/*.ts` 전수를 대입 여부로 갈라 얻었다.
     - 덧붙여 `node-cancellation.md` frontmatter `pending_plans:` 에 이 plan 을 등재해
       `spec-pending-plan-existence.test.ts` 가 추적하게 할 것 (`23_46_01` WARNING 2).
   > **한 문서만 적으려던 것이 바로 이 PR 이 진단한 패턴("그 자리만 고친다")의 재현이었다.**

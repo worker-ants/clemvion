@@ -616,7 +616,7 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 | `spec/5-system/8-embedding-pipeline.md` §7.3 | KB 재임베딩 CAS 락이 거절한 적 없다 |
 | `spec/5-system/10-graph-rag.md` 동시 호출 표 | KB 재추출 CAS 락이 거절한 적 없다 |
 | `spec/data-flow/2-auth.md` OAuth state 소비 | 소셜 로그인이 상시 실패였다 |
-| `spec/conventions/node-cancellation.md` §2.4 | **행 라벨이 아니라 소비 경로 단위로** — 영향 있음: `finalizeFailedExecution`·`failFirstSegmentSetup`·`executeSync` timeout·retry 재진입 종결 / 영향 없음: `assertExecutionNotCancelled`(DB 재조회)·`linkedNodeExec` `FOR UPDATE`(SELECT) |
+| `spec/conventions/node-cancellation.md` §2.4 | **행 라벨이 아니라 소비 경로 단위로** — 영향 있음은 반환값으로 분기하는 **11곳 / 3파일**(`execution-engine.service.ts` 6 · `ai-turn-orchestrator.service.ts` 3 · `retry-turn.service.ts` 2), 영향 없음은 반환값을 버리는 9곳 + `assertExecutionNotCancelled`·`linkedNodeExec` `FOR UPDATE`. **`executeSync` 는 영향 없음** — 초판에서 잘못 넣었다. 이 목록을 두 번 틀렸으니(서술형 라벨 → 한 파일만 집계) 각주를 쓸 때 **전수 목록을 다시 열 것**: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md) §후속 의 표가 정본 (`00_20_21` side_effect W2) |
 
 **추가 (consistency `00_20_22` cross_spec INFO 2)** — 위 5건과 성격이 다르다. caveat 이 아니라
 **신규 카탈로그 항목**이다:

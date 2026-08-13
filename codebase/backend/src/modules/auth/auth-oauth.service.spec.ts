@@ -185,12 +185,21 @@ describe('AuthOauthService', () => {
   });
 
   describe('handleCallback', () => {
+    /**
+     * **raw `.query()` 가 실제로 돌려주는 shape** — ORM 매핑을 안 타므로 컬럼명이
+     * DB 그대로 snake_case 다.
+     *
+     * 이 fixture 는 원래 `rememberMe`/`expiresAt`(entity 형태)였다. 그래서 코드가
+     * `record.rememberMe` 를 읽어도 초록이었고, **"로그인 유지" 가 통째로 무시되는
+     * 결함을 이 스위트가 4개월간 통과시켰다**. 튜플 shape 과 같은 함정이 컬럼명 축에서
+     * 한 번 더 반복된 것이다.
+     */
     const validState = {
       state: 'abc',
       provider: 'google',
       mode: 'login',
-      rememberMe: false,
-      expiresAt: new Date(Date.now() + 60000),
+      remember_me: false,
+      expires_at: new Date(Date.now() + 60000),
     };
 
     it('throws OAUTH_STATE_MISMATCH when state is missing', async () => {
@@ -244,12 +253,23 @@ describe('AuthOauthService', () => {
       });
     });
 
-    it('실측 shape 에서 0행(만료·재사용)은 여전히 거절돼야 한다', async () => {
+    /**
+     * 예외 **클래스**만 보면 이 테스트는 판별력이 없다 — 튜플을 행 배열로 오인해도
+     * (`[[],0].length === 2 ≠ 0`) `record` 가 `[]` 라 `provider` 불일치 분기가 대신
+     * 같은 `BadRequestException` 을 던져 우연히 통과한다 (`00_20_21` testing W3).
+     * 그래서 **어느 분기가 던졌는지** 를 message 로 못박는다.
+     */
+    it('실측 shape 에서 0행(만료·재사용)은 "0행" 분기가 거절해야 한다', async () => {
       dataSource.query.mockResolvedValueOnce([[], 0]);
 
       await expect(
         service.handleCallback('google', 'code', 'abc'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toMatchObject({
+        response: {
+          code: 'OAUTH_STATE_MISMATCH',
+          message: 'Invalid, expired, or already consumed OAuth state',
+        },
+      });
     });
 
     it('returns tokens for existing OAuth user (stub mode)', async () => {
@@ -320,9 +340,21 @@ describe('AuthOauthService', () => {
       expect(usersService.findByOauth).toHaveBeenCalledTimes(2);
     });
 
+    /**
+     * **이 테스트는 정확히 이 결함을 잡으라고 만들어졌는데, 4개월간 놓쳤다.**
+     *
+     * mock 이 `[{ …, rememberMe: true }]` 였다 — 행 배열(튜플 아님) + camelCase.
+     * 코드도 같은 두 오해를 갖고 있어서 **mock 과 코드가 서로를 검증해 주고** 초록이었다.
+     * 실제 raw 행은 `[[{ …, remember_me: true }], 1]` 이고, 이 형태로 바꾸면 즉시 RED 다
+     * (`00_20_21` requirement CRITICAL).
+     *
+     * `true` 인 게 중요하다 — `false` 면 정답(`false`)과 버그(`undefined`)가
+     * `rememberMe ? 30 : 7` 에서 같은 값을 내 **분기가 갈리지 않는다.**
+     */
     it('propagates rememberMe through to token issuance', async () => {
       dataSource.query.mockResolvedValueOnce([
-        { ...validState, rememberMe: true },
+        [{ ...validState, remember_me: true }],
+        1,
       ]);
       usersService.findByOauth.mockResolvedValue(baseUser as User);
 

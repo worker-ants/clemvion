@@ -30,31 +30,49 @@ import { createDbClient } from './helpers/db';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
-/** state row 직접 시드. `expiresAt` 을 파라미터화해 만료 케이스도 만든다. */
+/** state row 직접 시드. `expiresAt`·`rememberMe` 를 파라미터화한다. */
 async function seedState(
   db: Client,
   provider: string,
   expiresInMs: number,
+  rememberMe = false,
 ): Promise<string> {
   const state = crypto.randomBytes(24).toString('hex');
   await db.query(
     `INSERT INTO auth_oauth_state (state, provider, mode, remember_me, expires_at)
-       VALUES ($1, $2, 'login', false, NOW() + ($3::text || ' milliseconds')::interval)`,
-    [state, provider, String(expiresInMs)],
+       VALUES ($1, $2, 'login', $4, NOW() + ($3::text || ' milliseconds')::interval)`,
+    [state, provider, String(expiresInMs), rememberMe],
   );
   return state;
 }
 
-/** 콜백은 리다이렉트로만 결과를 알린다 — Location 쿼리로 성공/실패를 읽는다. */
+/** 콜백은 리다이렉트 + Set-Cookie 로만 결과를 알린다. */
+async function callbackRaw(provider: string, state: string) {
+  return (
+    request(BASE_URL)
+      // `setGlobalPrefix('api')` — 빠뜨리면 404 라 Location 이 비고 **모든 단언이
+      // 똑같이 실패**한다(첫 실행에서 5/5 실패로 잡혔다).
+      .get(`/api/auth/oauth/${provider}/callback`)
+      .query({ code: 'stub-code', state })
+      .redirects(0)
+  );
+}
+
 async function callback(provider: string, state: string): Promise<string> {
-  const res = await request(BASE_URL)
-    // `setGlobalPrefix('api')` — 빠뜨리면 404 라 Location 이 비고 **모든 단언이
-    // 똑같이 실패**한다(첫 실행에서 5/5 실패로 잡혔다).
-    .get(`/api/auth/oauth/${provider}/callback`)
-    .query({ code: 'stub-code', state })
-    .redirects(0);
+  const res = await callbackRaw(provider, state);
   return String(res.headers.location ?? '');
 }
+
+/** refresh 쿠키의 `Max-Age`(초). 없으면 null. */
+function refreshCookieMaxAge(setCookie: unknown): number | null {
+  const list = Array.isArray(setCookie) ? (setCookie as string[]) : [];
+  const cookie = list.find((c) => c.startsWith('refreshToken='));
+  const m = cookie?.match(/Max-Age=(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+
+const MAX_AGE_REMEMBER_ME = 30 * 24 * 60 * 60; // 2592000
+const MAX_AGE_DEFAULT = 7 * 24 * 60 * 60; //      604800
 
 describe('OAuth 콜백 state 소비 (e2e, 실 드라이버)', () => {
   let db: Client;
@@ -113,5 +131,39 @@ describe('OAuth 콜백 state 소비 (e2e, 실 드라이버)', () => {
 
     expect(location).toContain('error=');
     expect(location).not.toContain('success=true');
+  });
+
+  /**
+   * **`remember_me` 는 컬럼명 축의 같은 함정이다.**
+   *
+   * raw `.query()` 는 ORM 매핑을 안 타므로 행의 키가 `remember_me`(snake_case)다.
+   * 코드가 entity 의 `rememberMe` 를 읽으면 `undefined` → `rememberMe ? 30 : 7` 이
+   * 늘 7일을 골라 **"로그인 유지" 가 침묵으로 무시된다**.
+   *
+   * 단위 테스트가 이걸 4개월간 놓친 이유는 mock 이 코드와 같은 오해를 공유했기
+   * 때문이다 — 그래서 여기, 실 드라이버 위에서 한 번 더 못박는다.
+   *
+   * `true` 케이스가 판별자다. `false` 는 정답과 버그가 같은 값(7일)을 낸다.
+   */
+  it('remember_me=true → refresh 쿠키가 30일 (버그 상태에선 7일)', async () => {
+    const state = await seedState(db, 'google', 60_000, true);
+
+    const res = await callbackRaw('google', state);
+
+    expect(String(res.headers.location ?? '')).toContain('success=true');
+    expect(refreshCookieMaxAge(res.headers['set-cookie'])).toBe(
+      MAX_AGE_REMEMBER_ME,
+    );
+  });
+
+  it('remember_me=false → refresh 쿠키가 7일 (대조군)', async () => {
+    const state = await seedState(db, 'google', 60_000, false);
+
+    const res = await callbackRaw('google', state);
+
+    expect(String(res.headers.location ?? '')).toContain('success=true');
+    expect(refreshCookieMaxAge(res.headers['set-cookie'])).toBe(
+      MAX_AGE_DEFAULT,
+    );
   });
 });
