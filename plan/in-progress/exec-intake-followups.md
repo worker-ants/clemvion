@@ -17,6 +17,16 @@ exec-intake 큐 백로그(`exec-intake-queue-impl.md`, PR1~PR4 + PR2b)는 **완�
   - [ ] ARCH#5: `error-codes.ts` 엔진 레벨 에러코드 레이어 분리(노드 핸들러 코드와 혼재 정리; `EXECUTION_QUEUE_WAIT_TIMEOUT`/`EXECUTION_TIME_LIMIT_EXCEEDED` 등). **별도 후속** — 공용 `ErrorCode` 재편+하드코딩 문자열 enum 편입+소비처 리다이렉트로 blast radius 큼. 타 in-progress plan(http-ssrf·node-output-redesign)이 error-codes.ts 에 항목 추가 중이라 지금 재편 시 충돌 → 그 PR 들 정착 후 착수.
   - [x] ARCH#6: `execution-limits.ts` 모듈 경계 JSDoc. 완료(2026-07-04).
   - [x] MAINT#9: `system-status.constants.ts` concurrency 파싱 일원화 — continuation 을 canonical `resolveContinuationWorkerConcurrency`(strict) 재사용으로 통일(inline loose `Number()||1` 은 §11 계약과 drift 였음). 완료(2026-07-04). (getter 전환은 스코프 밖 — 두 concurrency 상수는 모듈-로드 1회 평가가 spec 의도.)
+> **⚠ 소급 정정 (2026-08-14)** — 아래 "admission 회귀 보강" 이 GREEN 이던 근거는
+> `execution-engine.service.spec.ts` 의 admission mock 이 `[{ id: 'eSQL' }]`(INSERT 형태)로
+> 세팅돼 있었기 때문이다. **실제 `UPDATE … RETURNING` 은 `[rows, rowCount]` 튜플**이라
+> `rows.length === 1` 이 프로덕션에서 영원히 거짓이었고, admission 은 우연히(재큐된 job 을
+> RUNNING arm 이 "stalled 재배달" 로 오인해 rehydration) 동작했다.
+>
+> 즉 **테스트가 검증한 파라미터 순서·cap 매핑은 유효하지만, "admission 이 실제로 승인한다"
+> 는 부분은 그 mock 위에서만 참**이었다. `8332d9a20`(2026-08-13)에서 수정.
+> 근본 원인: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
+
 - [x] **admission 회귀 보강 (ai-review testing INFO)** — 완료(2026-07-04). unit(runExecutionFromQueue): admission deferred/cancelled → `runExecution` 미호출(+deferred 만 `releaseExecutionRouting`), admitted → `runExecution(exec,input,true)`. unit(admitExecutionOrDefer): 원자 UPDATE 파라미터 순서·cap 매핑 `[executionId,workspaceId,wsCap,workflowId,wfCap]` + advisory lock 키(workspace 범위). e2e: workspace-level cap 단독 gating(다른 workflow running 이 workspace 슬롯 소비 — 헬퍼 workspace 파라미터화). production 코드 무변경. TEST WORKFLOW: lint·unit(신규 4)·build·e2e(231). ai-review 8-reviewer Critical/Warning 0.
 - [x] **orphan pending backstop** — 완료(2026-07-04). `recoverStuckExecutions`(§7.4 부팅+test-hook)에 `recoverOrphanPendingExecutions` 추가 — `status='pending' AND queued_at < now − EXECUTION_QUEUE_WAIT_TIMEOUT_MS` 인 orphan(admission 재큐 job 소실)을 기존 `markQueueWaitTimeout`(멱등)으로 §8 wait-timeout `cancelled` 마감. RUNNING re-drive/PENDING cancel(진행 흔적 유무). early-return 제거로 running 재점유 무관 항상 스캔. 신규 migration/env/에러코드 없음. spec §8/§7.1/§7.4+Rationale+data-flow 반영. TDD 유닛 3+e2e 2, e2e(234). impl-prep 5/5·ai-review 9-reviewer(doc/db WARNING 조치).
 

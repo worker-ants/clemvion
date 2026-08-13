@@ -185,7 +185,11 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 - [x] `--impl-done` `20_36_36` **BLOCK: NO** (Critical 0 / Warning 1 — 소급 영향, 조치 완료)
 - [x] 소급 영향 조사·정정 — `ie-resume-turn-boundary-cancel.md` 배너 + 뮤턴트 오진 정정
 - [x] `/ai-review` `20_36_35` — CRITICAL 2 + WARNING 6 조치 완료 (RESOLUTION 참조)
-- [ ] 재검토 라운드 clean 확인
+- [x] `/ai-review` 6라운드 — `00_00_44` **CRITICAL 0 / WARNING 1**(forced 7명 전원).
+      마지막 WARNING(OAuth 콜백 e2e 부재)까지 조치
+- [x] **OAuth 콜백 e2e 신설** — 실 Postgres 왕복으로 성공/거절 양방향 관측.
+      버그 상태로 되돌리면 **2 failed(사살)**. 거절 방향만 봤으면 버그 있는 채 5/5 GREEN 이었다
+- [x] 소급 영향 **세 번째** plan(`exec-intake-followups.md`) 배너 + 위임 5건 집결 티켓 `#12` 등재
 - [ ] 후속 ②(`updateExecutionStatus` 트랜잭션화)·③(EIA `durationMs`/`result.outputs` emit)
 
 ## 후속

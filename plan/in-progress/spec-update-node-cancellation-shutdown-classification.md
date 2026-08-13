@@ -601,3 +601,24 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 - [ ] **재발 방지 규약 검토** — "프레임워크/도메인 예약어와 겹치는 bare 타입명은 접두어로
       구분한다" 를 명명 규약으로 신설할지. 실례가 이제 둘이다(`Entity`→`Graph*`,
       `Node`/`Edge`→`GraphViz*`/`Graph3D*`).
+
+## 추가 위임 (2026-08-14 #12) — `UPDATE … RETURNING` 튜플 shape 수정의 소급 각주 5건
+
+`plan/in-progress/update-returning-tuple-shape.md` 가 고친 결함(TypeORM 이 UPDATE/DELETE 에
+`[rows, rowCount]` 튜플을 돌려주는데 8곳이 행 배열로 다룸)은 **spec 이 서술한 보장 여러 개를
+소급으로 무효화**한다. 그 각주가 `update-returning-tuple-shape.md` 자신의 후속 절에만 있어
+다음 planner 스윕에서 놓칠 위험이 있다 — 이 집결 티켓에 포인터로 등재한다
+(consistency `00_00_45` plan_coherence WARNING 2).
+
+| 대상 | 넣을 caveat |
+|---|---|
+| `spec/5-system/4-execution-engine.md` §1.1 | admission gate·종결 이벤트 가드가 `8332d9a20`(2026-08-13) 이전엔 실효되지 않았다 |
+| `spec/5-system/8-embedding-pipeline.md` §7.3 | KB 재임베딩 CAS 락이 거절한 적 없다 |
+| `spec/5-system/10-graph-rag.md` 동시 호출 표 | KB 재추출 CAS 락이 거절한 적 없다 |
+| `spec/data-flow/2-auth.md` OAuth state 소비 | 소셜 로그인이 상시 실패였다 |
+| `spec/conventions/node-cancellation.md` §2.4 | **행 라벨이 아니라 소비 경로 단위로** — 영향 있음: `finalizeFailedExecution`·`failFirstSegmentSetup`·`executeSync` timeout·retry 재진입 종결 / 영향 없음: `assertExecutionNotCancelled`(DB 재조회)·`linkedNodeExec` `FOR UPDATE`(SELECT) |
+
+**부수**: `node-cancellation.md` frontmatter `pending_plans:` 에 `update-returning-tuple-shape.md`
+등재 (`spec-pending-plan-existence.test.ts` 가 추적하도록).
+
+> 상세 근거·실측: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
