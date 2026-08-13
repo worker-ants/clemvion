@@ -31,7 +31,14 @@
  * 나머지 3건은 각각 다른 것을 본다(캐시 미스 강등 후 재적재 · `catchError` 위치 · 비-`Error`
  * reject 에서 로그 조립이 죽지 않는지)이라 warn 단언을 붙이지 않았다.
  *
- * 네 번째 describe 는 **캐시 키 스코프**(Spec EIA §R8) — 키가 `<executionId>:<route>:<key>` 로
+ * 네 번째 describe 는 **fail-open 관측**(metrics) — 위 세 번째 블록이 "warn 을 남기는가" 를
+ * 보는 자리라면 여기는 "**비율·추세로 알람을 걸 수 있는가**" 를 본다. 다섯 경로(GET 실패 ·
+ * SET 실패 · 직렬화 실패 · 엔트리 손상 · payload 손상)가 `clemvion.redis.fail_open` 카운터에
+ * **각자 다른 `reason` 라벨**로 잡히는지가 요점이다 — 뭉치면 카운터는 올라가도 Redis 가 죽은
+ * 것과 캐시가 오염된 것을 알람이 못 가린다. 반대 방향(정상 경로에서 오르지 않는지)과
+ * metrics 미주입 시 fail-open 이 죽지 않는지(optional DI)도 같이 고정한다.
+ *
+ * 다섯 번째 describe 는 **캐시 키 스코프**(Spec EIA §R8) — 키가 `<executionId>:<route>:<key>` 로
  * 갈리는지를 **execution 축과 route 축 각각** 고정하고, 조회(GET)와 적재(SET)를 **둘 다**
  * 단언한다(한쪽만 스코프하는 회귀가 실제 가능한 형태다). ctx 부재 시 전역 키로 fallback 하지
  * 않고 캐시 자체를 건너뛰는 것도 여기서 고정한다.
@@ -1041,21 +1048,6 @@ describe('IdempotencyInterceptor (Redis 런타임 장애 fail-open)', () => {
 });
 
 /**
- * [Spec EIA §R8 "캐시 키 스코프"] — 캐시 키가 **execution + route** 로 스코프되는지.
- *
- * 종전 키는 `Idempotency-Key` 헤더 값 단독이라 네임스페이스를 **모든 execution 이 공유**했다.
- * 요청자 B 가 자기 execution 에 정당한 토큰으로 A 와 같은 키·같은 body 를 쓰면 캐시 hit 이
- * 되어 B 의 명령이 서비스에 닿지도 않은 채 A 의 응답이 반환된다 — 게다가 B 는 `202 accepted`
- * 를 받으므로 유실을 인지하지 못한다.
- *
- * **두 축을 따로 고정한다.** 한 축만 두면 다른 축이 조용히 열린 채 남는다:
- * - execution 축 — 서로 다른 execution 이 같은 키를 써도 분리되는가
- * - route 축 — 같은 인터셉터가 붙은 `interact`·`cancel` 이 분리되는가
- *   (`CancelDto` 는 전 필드 optional 이라 body `{}` 가 interact 의 `{}` 와 hash 가 같다)
- *
- * 조회(GET)와 적재(SET)를 **둘 다** 단언한다 — 한쪽만 스코프하는 회귀가 실제 가능한 형태다.
- */
-/**
  * fail-open **관측** — 다섯 경로가 각자 다른 `reason` 라벨을 낸다.
  *
  * fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데, 종전에는 뒤쪽이 warn
@@ -1068,7 +1060,7 @@ describe('IdempotencyInterceptor — fail-open 관측 (metrics)', () => {
   function makeMetrics() {
     return { recordRedisFailOpen: jest.fn() };
   }
-  function withMetrics(
+  function makeInterceptorWithMetrics(
     redis: RedisStub,
     m: { recordRedisFailOpen: jest.Mock },
   ) {
@@ -1116,7 +1108,7 @@ describe('IdempotencyInterceptor — fail-open 관측 (metrics)', () => {
       const m = makeMetrics();
 
       await lastValueFrom(
-        withMetrics(redis, m).intercept(
+        makeInterceptorWithMetrics(redis, m).intercept(
           makeContext({ idempotencyKey: 'obs', body: { a: 1 } }),
           makeCallHandler({ ok: true }),
         ),
@@ -1140,7 +1132,7 @@ describe('IdempotencyInterceptor — fail-open 관측 (metrics)', () => {
       const m = makeMetrics();
 
       await lastValueFrom(
-        withMetrics(redis, m).intercept(
+        makeInterceptorWithMetrics(redis, m).intercept(
           makeContext({ idempotencyKey: 'obs-ser', body: {} }),
           makeCallHandler(circular),
         ),
@@ -1159,7 +1151,7 @@ describe('IdempotencyInterceptor — fail-open 관측 (metrics)', () => {
     const redis = makeRedis();
     const m = makeMetrics();
     await lastValueFrom(
-      withMetrics(redis, m).intercept(
+      makeInterceptorWithMetrics(redis, m).intercept(
         makeContext({ idempotencyKey: 'obs-ok', body: {} }),
         makeCallHandler({ ok: true }),
       ),
@@ -1185,6 +1177,22 @@ describe('IdempotencyInterceptor — fail-open 관측 (metrics)', () => {
     }
   });
 });
+
+/**
+ * [Spec EIA §R8 "캐시 키 스코프"] — 캐시 키가 **execution + route** 로 스코프되는지.
+ *
+ * 종전 키는 `Idempotency-Key` 헤더 값 단독이라 네임스페이스를 **모든 execution 이 공유**했다.
+ * 요청자 B 가 자기 execution 에 정당한 토큰으로 A 와 같은 키·같은 body 를 쓰면 캐시 hit 이
+ * 되어 B 의 명령이 서비스에 닿지도 않은 채 A 의 응답이 반환된다 — 게다가 B 는 `202 accepted`
+ * 를 받으므로 유실을 인지하지 못한다.
+ *
+ * **두 축을 따로 고정한다.** 한 축만 두면 다른 축이 조용히 열린 채 남는다:
+ * - execution 축 — 서로 다른 execution 이 같은 키를 써도 분리되는가
+ * - route 축 — 같은 인터셉터가 붙은 `interact`·`cancel` 이 분리되는가
+ *   (`CancelDto` 는 전 필드 optional 이라 body `{}` 가 interact 의 `{}` 와 hash 가 같다)
+ *
+ * 조회(GET)와 적재(SET)를 **둘 다** 단언한다 — 한쪽만 스코프하는 회귀가 실제 가능한 형태다.
+ */
 
 describe('IdempotencyInterceptor — 캐시 키 스코프 (Spec EIA §R8)', () => {
   it('execution 축 — 다른 executionId 는 같은 키를 써도 다른 엔트리를 본다', async () => {

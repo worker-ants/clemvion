@@ -59,6 +59,34 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
     );
   });
 
+  /**
+   * 인터셉터 쪽 테스트는 이 메서드를 `jest.fn()` 스텁으로 대체하므로, **이 구현 자체는
+   * 어느 테스트도 실행하지 않았다** — 카운터 이름 오탈자·라벨 키 뒤바뀜·`add` 누락이
+   * 전부 조용히 통과한다. 형제 `record*` 메서드가 모두 여기 테스트를 갖는 이유와 같다.
+   */
+  it('recordRedisFailOpen → redis.fail_open{component,reason} += 1', () => {
+    service.recordRedisFailOpen('idempotency', 'get_failed');
+    expect(mock.counters['clemvion.redis.fail_open'].add).toHaveBeenCalledWith(
+      1,
+      { component: 'idempotency', reason: 'get_failed' },
+    );
+  });
+
+  it('recordRedisFailOpen → reason 이 호출마다 그대로 갈린다', () => {
+    service.recordRedisFailOpen('idempotency', 'entry_corrupt');
+    service.recordRedisFailOpen('idempotency', 'payload_corrupt');
+    const add = mock.counters['clemvion.redis.fail_open'].add;
+    // 두 손상 갈래를 한 라벨로 뭉개는 회귀는 "총량" 만 보면 안 잡힌다.
+    expect(add).toHaveBeenNthCalledWith(1, 1, {
+      component: 'idempotency',
+      reason: 'entry_corrupt',
+    });
+    expect(add).toHaveBeenNthCalledWith(2, 1, {
+      component: 'idempotency',
+      reason: 'payload_corrupt',
+    });
+  });
+
   it('recordLlmTokens → type 별로 누적, 0 은 건너뜀', () => {
     service.recordLlmTokens('gpt-4o', {
       inputTokens: 100,
