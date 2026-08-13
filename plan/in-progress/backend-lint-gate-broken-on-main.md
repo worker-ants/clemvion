@@ -915,6 +915,18 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > **slack 은 "비대칭" 보다 큰 문제였다.** dedup 키가 envelope 3종별로 다르게 도출되는데
       > (`event_id` · `payload.trigger_id` · `body.trigger_id`) 문서는 `event_id` 하나만 적고
       > 있었다. dedup 이 실재가 된 뒤로는 그 서술이 **범위를 좁게 말하는** 셈이라 셋 다 적었다.
+- [ ] **`4-cafe24.md §9.8` 이 순수 기술 명세를 `## Rationale` 안에 담고 있다**
+      (`12_17_38` convention_compliance WARNING 2). CLAUDE.md 의 "정보 저장 위치" 표는
+      본문=기술 명세 / Rationale=배경·근거로 가른다. 그런데 §9.8 은 HMAC 알고리즘·Redis 키
+      포맷·상수 표 같은 명세를 Rationale 안에 두고, **이번 PR 이 그 절을 인벤토리의 상세
+      SoT 로 지정**하면서 그 어긋남이 규약 문서에서 참조되는 위치로 올라왔다.
+      > 이번 diff 가 만든 문제가 아니라 §9.1~9.9 전체의 기존 구조다. 둘 중 하나 —
+      > (a) 명세를 본문 절로 이관, (b) 이 파일의 "Rationale = 설계 결정 노트" 예외를 문서구조
+      > 규약에 명문화. planner 작업이고 파급이 §9 전체라 별건으로 둔다.
+- [ ] **`cc:dedup:*` 상세가 두 문서에 중복 서술** (`12_17_38` cross_spec INFO 1). TTL·fail-open
+      값이 `data-flow/14 §2.2`(SoT 로 지정)와 `15-chat-channel.md` CCH-SE-02 prose 양쪽에 있다.
+      **현재 값은 일치하지만** 이 저장소가 이미 겪은 이중 SoT 형태다(`exec:seq` 가 두 문서에
+      중복 등재된 것과 같다). CCH-SE-02 를 "상세는 data-flow/14 §2.2 참조" 로 축약할 것.
 - [ ] **`public-webhook-quota.service.ts` 가 fixed window 를 "슬라이딩 윈도우" 라 부른다**
       (`redis-keys-pointer-integrity` 실측). `MINUTE_WINDOW_SEC`/`HOUR_WINDOW_SEC` 의 docstring
       이 "슬라이딩 윈도우" 인데 구현은 `INCR` + `EXPIRE … NX` 라 **fixed window** 다 — 윈도우

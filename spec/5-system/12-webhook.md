@@ -347,7 +347,7 @@ codebase/backend/src/modules/hooks/
 | IP 단위 시간당 누적 신규 상한 (기본 20) | `wh:rl:hour:<ip>` | 3600초 fixed-window |
 
 > IP 를 식별하지 못한 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `UNIDENTIFIED_IP_BUCKET`)이
->들어가 **단일 공유 버킷**으로 묶인다 — 로그·메트릭에서 IP 처럼 보이지만 의도된 집계 키다.
+> 들어가 **단일 공유 버킷**으로 묶인다 — 로그·메트릭에서 IP 처럼 보이지만 의도된 집계 키다.
 > 두 키 모두 `INCR` + 첫 증가 시 `EXPIRE` 이며, Redis 미가용 시 fail-open(위 참조).
 
 ---
