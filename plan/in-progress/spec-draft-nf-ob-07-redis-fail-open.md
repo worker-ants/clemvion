@@ -40,7 +40,28 @@ L202-204 의 커스텀 메트릭 열거(실행 수·에러·큐 깊이·LLM 토�
 Redis fail-open 을 더한다. 이 문장은 SoT 가 아니라 미러이므로 **표와 동시 갱신**해야 한다
 (한쪽만 갱신하면 drift 가 반대 방향으로 생긴다).
 
-## 판단이 필요한 지점
+## 비목표
+
+- 다른 Redis fail-open 소비자를 이 카운터에 배선하는 것 (별도 작업 — 아래 후속 항목)
+- Grafana 알람 룰 정의 (운영 영역, spec 밖)
+
+## 후속
+
+- [ ] **다른 Redis fail-open 소비자 배선** — 현재 관측되는 것은 EIA 멱등 캐시뿐이라, 다른
+      기능이 조용히 강등돼도 이 알람은 울리지 않는다. 배선 시 `RedisFailOpenComponent`
+      유니온과 §NF-OB-07 표 라벨 값을 **동시** 갱신할 것.
+
+## 체크리스트
+
+- [x] `/consistency-check --spec` — 1차 `09_36_31` **BLOCK: YES** (frontmatter 필수 필드 누락)
+      → frontmatter 3필드 보강 + WARNING 3건 반영 후 재검토
+- [x] 재검토 `09_48_44` **BLOCK: NO** (WARNING 1건 = 이 절 이름, 반영)
+- [x] `_product-overview.md` §NF-OB-07 표 1행 + NF-OB-07 요약 행 갱신
+- [x] `data-flow/9-observability.md` 미러 문장 갱신
+- [x] `data-flow/9-observability.md` `## Rationale` 에 `component` 스코프 판단 기록
+      (`09_48_44` INFO 2 — plan 이 `plan/complete/` 로 옮겨간 뒤에도 근거가 추적되도록)
+
+## Rationale
 
 **`component` 를 지금 `idempotency` 하나로 둘 것인가 — 그렇다.**
 
@@ -62,22 +83,3 @@ spec 에 미리 적으면 **문서가 구현보다 넓어진다** — 알람을 
 > **미머지 PR #1161 에만 있고 이 브랜치에는 없다**(`09_36_31` plan_coherence WARNING 2).
 > 이 세션에서 "작업 트리 기억 ≠ 브랜치 상태" 를 반복해서 틀렸다. 위 목록은 **이 브랜치에서
 > 실제로 grep 한 결과**로 다시 썼다.
-
-## 비목표
-
-- 다른 Redis fail-open 소비자를 이 카운터에 배선하는 것 (별도 작업 — 아래 후속 항목)
-- Grafana 알람 룰 정의 (운영 영역, spec 밖)
-
-## 후속
-
-- [ ] **다른 Redis fail-open 소비자 배선** — 현재 관측되는 것은 EIA 멱등 캐시뿐이라, 다른
-      기능이 조용히 강등돼도 이 알람은 울리지 않는다. 배선 시 `RedisFailOpenComponent`
-      유니온과 §NF-OB-07 표 라벨 값을 **동시** 갱신할 것.
-
-## 체크리스트
-
-- [x] `/consistency-check --spec` — 1차 `09_36_31` **BLOCK: YES** (frontmatter 필수 필드 누락)
-      → frontmatter 3필드 보강 + WARNING 3건 반영 후 재검토
-- [ ] 재검토 BLOCK:NO 확인
-- [ ] `_product-overview.md` §NF-OB-07 표 1행 추가
-- [ ] `data-flow/9-observability.md` 미러 문장 갱신

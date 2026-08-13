@@ -72,7 +72,7 @@
 | NF-OB-04 | 워크플로우 실행 추적 — 각 노드별 실행 시간, 입출력 크기 기록 | 필수 | ✅ |
 | NF-OB-05 | 알림(Alert) 설정 — 실패율, 지연 임계값 초과 시 | 권장 | ✅ (룰 CRUD API + `/profile/alerts` UI + `AlertsEvaluatorService` 가 BullMQ repeatable scheduler `*/5 * * * *` (UTC) 로 5분마다 평가 + rule window 단위 cooldown 으로 노티 스팸 방지) |
 | NF-OB-06 | 시스템 상태 가시화 — 큐 적체/실패/포화도를 집계 UI 로 노출 (개별 job 미노출). 실패는 최근 윈도우 기준 주 지표 + 누적 보관 부 지표로 병기 | 권장 | ✅ (구현 완료 — `GET /api/system-status/overview` + `/system-status` 페이지. 상세 [16-system-status-api](./16-system-status-api.md), [2-navigation/15-system-status](../2-navigation/15-system-status.md)) |
-| NF-OB-07 | 도메인/비즈니스 커스텀 메트릭 (OTel) — 워크플로 실행·큐·LLM·노드 지연을 OTel MeterProvider(NF-OB-02) 위에 노출 | 권장 | ✅ (`OTEL_ENABLED=true` 시. `BusinessMetricsService` 가 `metrics.getMeter('clemvion.business')` 로 계측 — 아래 카탈로그) |
+| NF-OB-07 | 도메인/비즈니스 커스텀 메트릭 (OTel) — 워크플로 실행·큐·LLM·노드 지연·Redis fail-open 강등을 OTel MeterProvider(NF-OB-02) 위에 노출 | 권장 | ✅ (`OTEL_ENABLED=true` 시. `BusinessMetricsService` 가 `metrics.getMeter('clemvion.business')` 로 계측 — 아래 카탈로그) |
 
 ### NF-OB-07 메트릭 카탈로그
 
@@ -85,6 +85,7 @@ OTel instrument 이름은 dot 표기(`clemvion.*`), Prometheus exporter 가 `cle
 | `clemvion.queue.depth` | ObservableGauge | `queue`, `state` (waiting/active/delayed/failed) | BullMQ 큐 깊이. 주기적 observable callback 이 `getJobCounts` 로 관측 |
 | `clemvion.llm.tokens` | Counter | `model`, `type` (input/output/thinking) | LLM 토큰 사용량. 모든 `LlmService.chat`/`chatStream` 이 거치는 `LlmUsageLogService.record` 단일 지점에서 계측 |
 | `clemvion.node.duration` | Histogram (ms) | `node_type`, `status` | 노드 실행 지연. 실행 종료 시 해당 실행의 node_execution `duration_ms` 로 기록 |
+| `clemvion.redis.fail_open` | Counter | `component` (idempotency), `reason` (get_failed/set_failed/serialize_failed/entry_corrupt/payload_corrupt) | Redis 의존 기능이 fail-open 으로 강등된 횟수. fail-open 은 "요청을 살린다"와 "장애를 보이게 한다"가 한 쌍인데 종전에는 뒤쪽이 warn 로그뿐이라 비율·추세로 알람을 걸 수 없었다. 알람 예: `rate(clemvion_redis_fail_open[5m]) > 0` |
 
 **관측 대상의 이원화 정책 (vs Statistics API)**: 실행 수·LLM 사용량은 DB 집계 기반 [Statistics REST API](../2-navigation/7-statistics.md)에서도 서빙된다. 둘은 **상보적·역할 분리**다 — OTel/Prometheus 는 **실시간 운영 모니터링·알람**(Grafana·alert rule)용 rate/gauge 지표이고, Statistics API 는 **제품 분석·과거 추세**의 SoT(워크스페이스 단위 정확 집계·기간 필터·차트)다. OTel 메트릭은 운영 관측을 위한 보조 노출이며 제품 데이터의 단일 진실이 아니다.
 
