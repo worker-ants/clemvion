@@ -724,6 +724,20 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > "손상 축이 코드에 분리되면" 이 사실상의 트리거였는데, `22e68459d`(손상 가드) ·
       > `86de12278`(형태 검증) · `c29290c71`(statusCode 범위) 로 그 분리가 끝났다. 즉 지금
       > spec 을 고치면 **코드에 이미 있는 상태를 서술**하는 것이지 앞서가는 게 아니다.
+- [ ] **SoT 이관 시 앵커 전수 grep 을 절차로** (`12_48_37` 교훈). `#98-private-앱-...` 처럼
+      **옮기는 절의 앵커 문자열을 저장소 전역 grep** 하는 것을 SoT 이관의 고정 절차로 삼는다.
+      > 이 PR 하나에서 참조자 누락이 **세 번** 났다 — `2-navigation:1294`(코드 리뷰가 잡음) ·
+      > §4.4 안의 상수 값 중복(내가 잡음) · provider 3종(consistency 가 잡음). 매번 "이번엔 다
+      > 봤다" 고 생각했고, 원인은 참조자를 **기억으로** 찾은 것이다. 게이트가 세 번 다 잡아 줬지만
+      > 그건 운이지 절차가 아니다.
+      >
+      > 함께: **spec 라인 인용은 절 이름을 먼저** 적는다. §4.4 신설(+17줄)이 아래 절을 전부
+      > 밀어 `node-output-redesign/cafe24.md` 의 인용 3곳을 한 번에 stale 로 만들었다.
+- [ ] **`4-cafe24.md §4.4` 가 "§4 실행 로직"(노드 handler) 아래 있다** (`12_37_46` requirement
+      INFO 2). install endpoint 는 노드 실행이 아니라 OAuth 설치 플로우라 목차상 관심사가 섞인다.
+      > 새 최상위 절을 만들면 §5~§9 번호가 전부 밀리고 그 앵커를 인용하는 문서가 여럿이다
+      > (`§9.8` 만 `2-navigation/4-integration.md` 4곳 + `redis-keys.md`). 번호 이동은 앵커
+      > 일괄 갱신을 요구하므로 별건으로 둔다 — 이 계열에서 앵커를 세 번 깨뜨렸다.
 - [ ] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
       실제로 발동했다.** `23_24_08`·`23_36_13` 두 라운드가 "6번째 분기가 추가되면 재검토" 로
       유예했는데, `00_20_20` maintainability INFO 4 가 **분기 7개**가 됐음을 셌다(캐시 미스 ·
@@ -915,7 +929,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > **slack 은 "비대칭" 보다 큰 문제였다.** dedup 키가 envelope 3종별로 다르게 도출되는데
       > (`event_id` · `payload.trigger_id` · `body.trigger_id`) 문서는 `event_id` 하나만 적고
       > 있었다. dedup 이 실재가 된 뒤로는 그 서술이 **범위를 좁게 말하는** 셈이라 셋 다 적었다.
-- [ ] **`4-cafe24.md §9.8` 이 순수 기술 명세를 `## Rationale` 안에 담고 있다**
+- [x] **`4-cafe24.md §9.8` 이 순수 기술 명세를 `## Rationale` 안에 담고 있다**
       (`12_17_38` convention_compliance WARNING 2). CLAUDE.md 의 "정보 저장 위치" 표는
       본문=기술 명세 / Rationale=배경·근거로 가른다. 그런데 §9.8 은 HMAC 알고리즘·Redis 키
       포맷·상수 표 같은 명세를 Rationale 안에 두고, **이번 PR 이 그 절을 인벤토리의 상세
@@ -923,16 +937,49 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 이번 diff 가 만든 문제가 아니라 §9.1~9.9 전체의 기존 구조다. 둘 중 하나 —
       > (a) 명세를 본문 절로 이관, (b) 이 파일의 "Rationale = 설계 결정 노트" 예외를 문서구조
       > 규약에 명문화. planner 작업이고 파급이 §9 전체라 별건으로 둔다.
-- [ ] **`cc:dedup:*` 상세가 두 문서에 중복 서술** (`12_17_38` cross_spec INFO 1). TTL·fail-open
+
+      > **완료 (2026-08-13).** §9 전체를 재구성하지 않았다 — 알고리즘·키 구성·상수·근거가
+      > 뒤섞여 있어 통째로 옮기면 서사가 쪼개지고, 헤딩 이동은 앵커 위험이 크다(이 작업 계열에서
+      > 앵커를 세 번 깨뜨렸다).
+      >
+      > 실제 해악은 좁았다 — **규범적 포인터(인벤토리의 "상세 SoT")가 Rationale 절에 착지**하는
+      > 것. 그래서 본문에 **§4.4 "Private 앱 install endpoint 의 Redis 키 (normative)"** 를
+      > 신설해 두 키의 용도·TTL·degradation 을 표로 못박고, 인벤토리 포인터를 그쪽으로 옮겼다.
+      > §9.8 은 **왜 그렇게 설계했는지**를 계속 담되 §4.4 를 가리킨다. 기존 헤딩은 하나도
+      > 옮기지 않았다(추가만) — `spec-link-integrity` 13/13.
+- [x] **`cc:dedup:*` 상세가 두 문서에 중복 서술** (`12_17_38` cross_spec INFO 1). TTL·fail-open
       값이 `data-flow/14 §2.2`(SoT 로 지정)와 `15-chat-channel.md` CCH-SE-02 prose 양쪽에 있다.
       **현재 값은 일치하지만** 이 저장소가 이미 겪은 이중 SoT 형태다(`exec:seq` 가 두 문서에
       중복 등재된 것과 같다). CCH-SE-02 를 "상세는 data-flow/14 §2.2 참조" 로 축약할 것.
-- [ ] **`public-webhook-quota.service.ts` 가 fixed window 를 "슬라이딩 윈도우" 라 부른다**
+
+      > **완료 (2026-08-13).** CCH-SE-02 요구사항 행에서 메커니즘 상세(Redis 명령·키 포맷)를
+      > 빼고 `data-flow/14 §2.2` 참조로 바꿨다. 요구사항 행은 **무엇이 요구되는가**(동일 키
+      > 30초 재도착 무시, fail-open)를 남긴다 — 그건 요구사항이지 구현 세부가 아니다.
+      >
+      > R-CC-20(Rationale)의 키 언급은 남겼다. Rationale 은 자기가 정당화하는 대상을 인용하는
+      > 자리이고, 거기서까지 리터럴을 걷어내면 글이 읽히지 않는다. 이중 SoT 의 해악은
+      > **규범 문장 둘이 어긋날 때** 생기는데 그건 요구사항 행과 data-flow 사이였다.
+- [x] **`public-webhook-quota.service.ts` 가 fixed window 를 "슬라이딩 윈도우" 라 부른다**
       (`redis-keys-pointer-integrity` 실측). `MINUTE_WINDOW_SEC`/`HOUR_WINDOW_SEC` 의 docstring
       이 "슬라이딩 윈도우" 인데 구현은 `INCR` + `EXPIRE … NX` 라 **fixed window** 다 — 윈도우
       경계에서 두 배까지 통과하는 성질이 정반대다. spec(`12-webhook.md` §6 신설 표)은 fixed 로
       적었으니 코드 주석만 어긋난다. 형제 `ChatChannelRateLimiterService` 도 같은 패턴이니
       함께 확인할 것. developer 작업(주석 2줄).
+
+      > **완료 (2026-08-13, `window-semantics-and-spec-structure`).** 상수 docstring 2줄만
+      > 고쳤다. 실측에서 형태가 항목 서술보다 좁고 또 날카로웠다:
+      >
+      > - **자매는 멀쩡했다.** `ChatChannelRateLimiterService`·`OutboundNotificationRateLimiterService`
+      >   둘 다 "fixed-window" 로 정확히 적고 있다. 항목은 "형제도 같은 패턴이니 함께 확인" 이라
+      >   적었는데 **모방한 쪽이 맞고 원본이 틀린** 경우였다.
+      > - **파일이 자기 자신과 모순이었다.** 같은 파일 `incrWithWindow` docstring 은
+      >   *"NX 라 TTL 이 이미 있으면 no-op — window 를 연장하지 않아 fixed-window 유지"* 라고
+      >   명시한다. 상수 두 줄만 반대로 적혀 있었다.
+      > - `15-chat-channel.md` R-CC-19 도 이미 **"fixed-window(sliding 아님)"** 이라 적고 그
+      >   근거로 이 서비스를 인용한다 — spec 은 처음부터 맞았다.
+      >
+      > 저장소의 다른 "sliding window" 표기(`exec:seq`·`exec:cont:seq`)는 **정확하다** — 그쪽은
+      > 매 접근이 EXPIRE 를 갱신한다. 단어가 일률적으로 틀린 게 아니라 이 두 줄만 틀렸다.
 - [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:

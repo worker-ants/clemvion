@@ -139,9 +139,9 @@ export class PublicWebhookQuotaService {
   // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
 }
 
-/** 분 단위 슬라이딩 윈도우 초 (60 s). */
+/** 분 버킷의 fixed-window 초 (60 s). `EXPIRE ... NX` 라 window 는 연장되지 않는다. */
 export const MINUTE_WINDOW_SEC = 60;
-/** 시간 단위 슬라이딩 윈도우 초 (3600 s). */
+/** 시간 버킷의 fixed-window 초 (3600 s). 위와 동일 — 경계에서 버킷이 리셋된다. */
 export const HOUR_WINDOW_SEC = 3600;
 
 /** rate-limit 분 키 포맷 (IP 별, 또는 `UNIDENTIFIED_IP_BUCKET` sentinel). 테스트에서 import 해 직접 의존 방지(Info#10). */

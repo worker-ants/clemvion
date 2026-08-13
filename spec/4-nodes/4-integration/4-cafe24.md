@@ -160,6 +160,23 @@ Cafe24 Admin API 의 date/time 필드는 모두 **KST (Asia/Seoul, UTC+9)** 기�
 - AI Agent (Internal MCP Bridge) 노출: 모든 도구 description 끝에 KST suffix 가 자동 append 된다 (§8.1, [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix)).
 - 토큰 만료 (`expires_at`) 는 본 절의 범주 밖 — JWT `exp` (UTC absolute) 가 SoT 다. [§통합 §10.5 토큰 자동 갱신](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 참고.
 
+### 4.4 Private 앱 install endpoint 의 Redis 키 (normative)
+
+App URL install 엔드포인트가 소유하는 Redis 키 **두 계열**. 형태 규칙과 저장소 전역 인벤토리는
+[`conventions/redis-keys.md`](../../conventions/redis-keys.md) 가 SoT 이고, **용도·TTL·degradation
+은 이 절이 SoT** 다.
+
+| 키 | 용도 | TTL | Redis 미가용 시 |
+|---|---|---|---|
+| `cafe24:install:nonce:<mall_id>:<timestamp>:<hmac 앞 8자>` | HMAC 검증을 통과한 (mall_id, timestamp, hmac) 튜플을 기록해 동일 윈도우 재전송을 `CAFE24_INSTALL_REPLAY` 로 거절 | 10분 | skip — ±5분 윈도우 정책으로 fallback |
+| `cafe24:install:fail:<ip>` | install_token 조회/HMAC **실패**만 IP별로 카운트(성공 install 은 미집계). `INSTALL_FAIL_THRESHOLD` 초과 시 `429 CAFE24_INSTALL_RATE_LIMITED` | `INSTALL_FAIL_WINDOW_SEC` | skip (fail-open) |
+
+상수 **값**은 [§9.8 "관련 코드 상수" 표](#98-private-앱-app-url-hmac-검증)가 SoT 다 — 여기서는
+이름으로만 참조한다(값을 양쪽에 적으면 그 둘이 어긋날 자리가 생긴다).
+
+두 키 모두 **끄는 쪽이 안전한 순수 강화 layer** 다 — in-memory 등가물이 없어서, Redis 가 없을 때
+차단을 유지하면 정상 install 이 막힌다. 설계 근거·알고리즘 상세는 [§9.8](#98-private-앱-app-url-hmac-검증).
+
 ## 5. 출력 구조
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 외 top-level 키 금지. `output.response` (Principle 8.2 의 HTTP 관용 네이밍 재사용). `meta.durationMs` 통일 ([공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일)).
@@ -576,10 +593,11 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 | `INSTALL_FAIL_THRESHOLD` | `10` (코드 상수, 환경변수 아님) | install_token 조회/HMAC 실패의 IP별 허용 횟수 (Layer 2). window 내 초과 시 `429 CAFE24_INSTALL_RATE_LIMITED`. 정상 사용자(유효 토큰)는 실패하지 않아 무영향. |
 | `INSTALL_FAIL_WINDOW_SEC` | `600` (10분, 코드 상수) | 실패 카운터(`cafe24:install:fail:{ip}`) 의 Redis TTL. nonce TTL(10분) 과 동일 마진. |
 
-> **Redis 키 인벤토리**: 위 두 키(`cafe24:install:fail:*` · `cafe24:install:nonce:*`)는
-> [`conventions/redis-keys.md` §3](../../conventions/redis-keys.md) 인벤토리에 등재돼 있고, 그
-> 인벤토리가 **이 절을 상세 SoT 로** 가리킨다. 키 형태 규칙은 규약 문서가, 용도·TTL·degradation
-> 은 이 절이 SoT 다. 새 키를 만들면 양쪽을 함께 갱신한다(규약 §5).
+> **Redis 키 인벤토리**: 위 두 키(`cafe24:install:fail:*` · `cafe24:install:nonce:*`)의
+> **normative 정의는 본문 [§4.4](#44-private-앱-install-endpoint-의-redis-키-normative)** 에 있고,
+> [`conventions/redis-keys.md` §3](../../conventions/redis-keys.md) 인벤토리가 그 절을 가리킨다.
+> 이 절(§9.8)은 **왜 그렇게 설계했는지**를 담는다 — 규범 참조가 Rationale 로 들어오지 않도록
+> 둘을 갈랐다. 새 키를 만들면 §4.4 와 인벤토리를 함께 갱신한다(규약 §5).
 
 ### 9.9 Fields 편집 UI — 메타데이터 기반 typed 동적 폼
 

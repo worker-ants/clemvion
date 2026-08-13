@@ -153,7 +153,7 @@ sequenceDiagram
   end
 ```
 
-엔드포인트 보안 계층 요약 (상세: [Cafe24 노드 §9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증), [navigation Rationale "install endpoint rate limiting"](../2-navigation/4-integration.md#install-endpoint-rate-limiting--redis-분산-throttle--실패-페널티)):
+엔드포인트 보안 계층 요약 (상세: [Cafe24 노드 §4.4](../4-nodes/4-integration/4-cafe24.md#44-private-앱-install-endpoint-의-redis-키-normative)(키·TTL) · [§9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증)(알고리즘), [navigation Rationale "install endpoint rate limiting"](../2-navigation/4-integration.md#install-endpoint-rate-limiting--redis-분산-throttle--실패-페널티)):
 
 | 계층 | 메커니즘 |
 | --- | --- |

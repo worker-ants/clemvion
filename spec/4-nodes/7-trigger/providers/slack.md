@@ -298,7 +298,7 @@ Telegram §7 의 `/start` / `/cancel` / `/help` 와 의미 1:1 — Slack 은 단
 
 - `chat.postMessage` 5초 타임아웃 + 3회 시도 (지수 백오프). 시도 사이 대기는 1s · 2s 두 번 — 3번째(마지막) 시도 실패 후엔 더 대기하지 않으므로 4s 대기는 실제로 발생하지 않는다 (`slack-client.ts` `call`). 최종 실패 시 trigger 의 `chat_channel_health` = `degraded`.
 - Slack [Rate limits](https://api.slack.com/docs/rate-limits): `chat.postMessage` = **Tier 4** (≈ 100/min/workspace), `files.uploadV2` = **Tier 2** (≈ 20/min). 어댑터가 channel (DM) 단위 큐 + per-method bucket 으로 자체 throttle. 응답의 `Retry-After` 헤더 존중.
-- **구현됨 (2026-08-13)**: inbound dedup — 같은 키가 30초 안에 두 번 도착하면 두 번째는 무시 (Slack 의 retry 정책: 3회까지 `X-Slack-Retry-Num`). parser 가 채운 `idempotencyKey` 를 `ChatChannelDedupService` 가 소비한다 (Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<idempotencyKey>`, inbound 진입에서 rate-limit 앞). Redis 미가용 시 fail-open. SoT: [chat-channel CCH-SE-02](../../../5-system/15-chat-channel.md).
+- **구현됨 (2026-08-13)**: inbound dedup — 같은 키가 30초 안에 두 번 도착하면 두 번째는 무시 (Slack 의 retry 정책: 3회까지 `X-Slack-Retry-Num`). parser 가 채운 `idempotencyKey` 를 `ChatChannelDedupService` 가 소비한다 (Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<idempotencyKey>`, inbound 진입에서 rate-limit 앞). Redis 미가용 시 fail-open. 요구사항: [CCH-SE-02](../../../5-system/15-chat-channel.md) / 키·TTL·게이트 순서 상세 SoT: [data-flow/14 §2.2](../../../data-flow/14-chat-channel.md#22-redis).
   > **키는 envelope 별로 다르게 도출된다** (`slack-update.parser.ts`) — Events API 는 `event_id`,
   > Interactivity 는 `payload.trigger_id`, Slash Commands 는 `body.trigger_id`. 셋 다 Slack 이
   > 재전송 시 동일 값을 보내는 식별자다. 도출 실패(빈 값)면 parser 가 `null` 을 돌려 update
