@@ -47,9 +47,15 @@ Redis fail-open 을 더한다. 이 문장은 SoT 가 아니라 미러이므로 *
 
 ## 후속
 
-- [ ] **다른 Redis fail-open 소비자 배선** — 현재 관측되는 것은 EIA 멱등 캐시뿐이라, 다른
-      기능이 조용히 강등돼도 이 알람은 울리지 않는다. 배선 시 `RedisFailOpenComponent`
-      유니온과 §NF-OB-07 표 라벨 값을 **동시** 갱신할 것.
+다른 Redis fail-open 소비자 배선은 **상시 백로그로 이관**했다 —
+[`plan/in-progress/backend-lint-gate-broken-on-main.md`](../in-progress/backend-lint-gate-broken-on-main.md)
+의 "Redis 실패율 지표" 항목 아래. 배선 시 `RedisFailOpenComponent` 유니온과 §NF-OB-07 표
+라벨 값을 **동시** 갱신해야 한다는 조건도 거기 적었다.
+
+> 이 문서에 미해결 체크박스로 남겨 두지 않는 이유: `plan-lifecycle.md §1` 은 "미완 항목이 단
+> 하나라도 남으면 `complete/` 로 옮기지 않는다" 이므로, 완료 문서 안의 `- [ ]` 는 규칙과
+> 문면상 어긋나고 추적 위치도 애매해진다(`10_29_50` documentation WARNING 2). 후속은
+> **살아 있는 plan 에** 두고, 완료 문서는 설계 배경만 남긴다.
 
 ## 체크리스트
 

@@ -550,6 +550,18 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
         >
         > `metrics` 는 `@Optional()` — `OTEL_ENABLED` 미설정 시 `getMeter` 가 no-op 을 주므로
         > 호출부는 활성 여부를 신경 쓰지 않는다(기존 `BusinessMetricsService` 관례).
+      - [ ] **다른 Redis fail-open 소비자를 이 카운터에 배선** — 현재 관측되는 것은 EIA 멱등
+        캐시(`component=idempotency`) 하나뿐이라, 다른 기능이 조용히 강등돼도 이 알람은 울리지
+        않는다. 실측(`grep -rln "recordRedisFailOpen" --include="*.ts" codebase/backend/src`)에서
+        호출부는 인터셉터 1곳뿐인데, `fail-open` 을 하는 서비스는 17개 파일이다
+        (`InteractionRateLimiterService`·`OutboundNotificationRateLimiterService`·
+        `ChatChannelRateLimiterService`·`PublicWebhookQuotaService`(공개 webhook quota — 앞의
+        rate limiter 들과는 별 범주)·`Cafe24InstallRateLimitService` 등).
+        > 배선 시 `RedisFailOpenComponent` 유니온과 §NF-OB-07 카탈로그 표 라벨 값을 **동시**
+        > 갱신할 것. 미리 넓혀 두지 않은 이유는 문서가 구현보다 넓어지면 0 이 "정상" 인지
+        > "미계측" 인지 구분되지 않기 때문이다 —
+        > 근거는 [`data-flow/9-observability.md` §Rationale](../../spec/data-flow/9-observability.md).
+        > 설계 배경 전문: [`plan/complete/spec-draft-nf-ob-07-redis-fail-open.md`](../complete/spec-draft-nf-ob-07-redis-fail-open.md).
       - GET→SET 비원자 구조(선재)를 `SET NX EX` 선점 또는 in-flight dedup 으로 좁힐지 검토
         (`14_27_02` concurrency INFO 7) — 정상 시에도 좁은 창이 있다
 - [x] **`Idempotency-Key` e2e 부재** (`16_29_45` testing CRITICAL 의 후속 권고).

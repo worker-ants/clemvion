@@ -8,7 +8,12 @@
  *
  * intercept() 의 RxJS 흐름은 lastValueFrom 으로 단발 검증한다.
  *
- * 아래 두 번째 describe 는 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
+ * **아래 색인은 서수가 아니라 `describe` 이름으로 가리킨다.** 종전에는 "N번째" 로 적었는데,
+ * 블록이 하나 끼어들 때마다 그 뒤가 전부 어긋난다 — 이 파일에서만 두 번 깨졌다(한 번은 관측
+ * 블록 삽입, 한 번은 `readKey` 블록이 rebase 로 합류하면서 "다섯 번째" 가 둘이 됐다).
+ * 이름은 블록이 늘어도 어긋나지 않고, 틀리면 grep 이 못 찾아 바로 드러난다.
+ *
+ * `(캐시 히트 · 응답 형태 방어)` 블록은 **캐시 히트 경로와 응답 형태 방어** — `HttpResponseLike` 의
  * optional 이 지탱하는 `typeof` 가드 회귀 고정, 손상 캐시 fallback(**바깥 엔트리와 안쪽
  * `responseJson` 두 겹** · 각각 warn 을 남기는지 · 안쪽 손상이 **에러 재현 분기에서도** 500 이
  * 되지 않는지 · payload 파싱이 `bodyHash` 판정보다 **뒤**라는 순서 캐너리), **형태 검증**
@@ -21,7 +26,7 @@
  * `409`·`410` 은 **error 채널**로 행사한다 — 서비스가 예외로 던지므로 성공 채널 mock 은
  * 실제로 발생하지 않는 상태를 검사하게 된다(`16_29_45` CRITICAL 의 교훈).
  *
- * 세 번째 describe 는 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
+ * `(Redis 런타임 장애 fail-open)` 블록은 **Redis 런타임 장애 fail-open** — 조회 실패(`get()` reject)를 캐시
  * 미스로 강등하는 경로, 적재 실패(`set()` reject), 비-`Error` reject, 그 fail-open 이
  * 409 충돌까지 삼키지 않는지(= `catchError` 가 `switchMap` 앞인지) 고정하는 캐너리, 그리고
  * **직렬화 불가 payload** 가 원 예외를 500 으로 대체하지 않는지(양 채널)를 담는다.
@@ -31,21 +36,21 @@
  * 나머지 3건은 각각 다른 것을 본다(캐시 미스 강등 후 재적재 · `catchError` 위치 · 비-`Error`
  * reject 에서 로그 조립이 죽지 않는지)이라 warn 단언을 붙이지 않았다.
  *
- * 네 번째 describe 는 **fail-open 관측**(metrics) — 위 세 번째 블록이 "warn 을 남기는가" 를
+ * `— fail-open 관측 (metrics)` 블록은 **관측** — 위 `(Redis 런타임 장애 fail-open)` 블록이 "warn 을 남기는가" 를
  * 보는 자리라면 여기는 "**비율·추세로 알람을 걸 수 있는가**" 를 본다. 다섯 경로(GET 실패 ·
  * SET 실패 · 직렬화 실패 · 엔트리 손상 · payload 손상)가 `clemvion.redis.fail_open` 카운터에
  * **각자 다른 `reason` 라벨**로 잡히는지가 요점이다 — 뭉치면 카운터는 올라가도 Redis 가 죽은
  * 것과 캐시가 오염된 것을 알람이 못 가린다. 반대 방향(정상 경로에서 오르지 않는지)과
  * metrics 미주입 시 fail-open 이 죽지 않는지(optional DI)도 같이 고정한다.
  *
- * 다섯 번째 describe 는 **캐시 키 스코프**(Spec EIA §R8) — 키가 `<executionId>:<route>:<key>` 로
+ * `— 캐시 키 스코프 (Spec EIA §R8)` 블록은 **캐시 키 스코프** — 키가 `<executionId>:<route>:<key>` 로
  * 갈리는지를 **execution 축과 route 축 각각** 고정하고, 조회(GET)와 적재(SET)를 **둘 다**
  * 단언한다(한쪽만 스코프하는 회귀가 실제 가능한 형태다). ctx 부재 시 전역 키로 fallback 하지
  * 않고 캐시 자체를 건너뛰는 것도 여기서 고정한다.
  * 다만 이 블록의 `getHandler()` 는 mock 이 만들어 낸 것이라 **실 파이프라인의 route 이름**은
  * 검증할 수 없다 — 그 자리는 e2e `IDEM-5` 다.
  *
- * 다섯 번째 describe 는 **`readKey`/`hashBody` 경계값** — 키 길이 상한 경계 양쪽 · 공백뿐인 키 ·
+ * `— readKey / hashBody 경계값` 블록은 **경계값** — 키 길이 상한 경계 양쪽 · 공백뿐인 키 ·
  * trim 동등성 · 배열/조인-문자열 헤더 · body nullish 동등성 · 키 순서 의존(문서화된 계약), 그리고
  * 엔트리 `statusCode` 의 **값 범위**(`isHttpStatusCode`)를 인접 경계 페어로 고정한다.
  * 헬퍼가 전부 module-private 라 전부 `intercept()` 를 통해 본다 — 헬퍼 직접 호출은 호출부
