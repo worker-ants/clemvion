@@ -242,6 +242,34 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
+  /**
+   * `computeChainDepth` 의 `.query()` 는 선언 타입이 `Promise<any>` 라 코드의 타입 단언이
+   * 런타임을 검증하지 않는다. 배열이 아닌 것이 오면 `rows[0]` 가 undefined → `?? 1` 로
+   * **depth 1** 이 되고, `depth >= 32` 검사가 통과해 **RR-PL-05 체인 깊이 제한이 조용히
+   * 우회된다**. 자매 3곳 중 유일하게 방향이 열려 있어(다른 둘은 `.length > 0` 이라 false)
+   * 여기만 진단이 아니라 정확성 문제다 — ai-review `17_15_21` WARNING 1.
+   *
+   * 이 테스트가 실제로 가르는지 확인: 가드를 지우면 `reRun` 이 **성공**해 engine.execute 가
+   * 불린다(깊이 검사 통과). 즉 GREEN 이 우연이 아니다.
+   */
+  it('chain depth 쿼리가 배열이 아니면 던진다 — depth 1 로 넘겨 제한을 우회하지 않는다', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        chainId: 'root',
+      },
+    ];
+    execRepo.query = jest.fn(() => Promise.resolve(undefined));
+    await expect(service.reRun('e1', 'ws-1', user, dto)).rejects.toThrow(
+      /배열이 아님/,
+    );
+    // 제한 우회의 실제 결과는 "새 실행이 시작된다" 이므로 그것을 직접 막았는지 본다.
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
   it('uses original inputData and computes chainId from original.chainId', async () => {
     getOneQueue = [
       {

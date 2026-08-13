@@ -241,18 +241,14 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 - [x] Planned gap 2건 등재 — EIA 트래커에 본체, WS 트래커에 포인터
 - [x] `spec-link-integrity` 통과 — **앵커는 손계산 말고 `github-slugger` 실행값**으로.
       처음 쓴 2건(`#75-체크포인트-복원`, `#54-inbound-…`)이 실제로 깨져 게이트가 잡았다
-
-## Rationale` 의 "EIA §6.2 blockquote" 앵커가 여전히 맞는지 확인**하고,
-      안 맞으면 "§6 도입부 + §6.2" 로 갱신 (`16_37_24` rationale INFO 2)
-- [ ] `retry-turn-terminal-guard.md` #2 에 역포인터 한 줄 — "EIA 정본은 §6 도입부"
-      (`16_37_24` plan_coherence INFO 4). 구현자가 WS §4.1 만 보고 새 SoT 를 놓치는 것 방지
-- [ ] §6.3~§6.5 본문 축약 (헤딩 유지 → 앵커 4곳 보존)
-- [ ] WS §4.1 종결 3행 → 참조 + flat 봉투
-- [ ] `chat-channel-adapter.md` §1.2 축약 + `line 536` 제거(§1.2·§8 표)
-- [ ] `15-chat-channel.md:76` 의 `line 536` 제거
-- [ ] `3-workflow-editor/3-execution.md` §8.1 → 비-authoritative 표기
-- [ ] Planned gap 2건을 `spec-sync-*-gaps.md` 에 등재
-- [ ] 후속 9건 등재
+- [x] 후속 **9건** 등재 (`## 후속 (developer)` 절 — 실제 항목 수를 세어 확인)
+- [x] **체크리스트 잔재 제거** (`17_05_10` plan_coherence WARNING 1). 체크리스트를 통째로
+      교체하면서 섹션 끝을 `s.index("## Rationale")` 로 잡았는데, 그 문자열이 **항목 본문 안에**
+      먼저 나왔다(바로 앞 라운드에 내가 넣은 "WS `## Rationale` 의 앵커" 문구). 엉뚱한 곳에서
+      잘려 깨진 헤딩 + `[x]` 와 모순되는 `[ ]` 8줄이 남았고 그대로 #1166 에 실렸다.
+      > **경계는 줄 앵커로 찾는다.** 문서 구조를 문자열 포함으로 물으면, 그 문자열을 본문에
+      > 인용하는 순간 구조 질의가 조용히 틀린 답을 낸다 — 이 세션이 반복한 "술어를 정규화 없이
+      > 묻는다" 의 문서판이다. 게이트가 아니라 checker 가 잡았다는 것도 기록해 둔다.
 
 ## Rationale
 

@@ -199,6 +199,7 @@ import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
+import { assertRowArray } from '../../common/utils/assert-row-array';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -2857,6 +2858,11 @@ export class ExecutionEngineService
    *  - `'cancelled'`: 큐 대기 5분 초과 → cancelled 마감 → 호출자 return.
    *  - `'deferred'`: ws/wf cap 초과 → delayed 재큐 → 호출자 return.
    *
+   * **throw 도 계약의 일부다** — 조건부 UPDATE 의 `RETURNING` 이 배열이 아니면(드라이버
+   * 반환 shape 이상) 값을 반환하지 않고 던진다. 트랜잭션이 롤백돼 부분 적용을 막고,
+   * 호출자(`runExecutionFromQueue`)는 routing context 를 release 한 뒤 **그대로 재전파**해
+   * BullMQ 재배달에 맡긴다. 삼키면 execution 이 running 으로 좌초한다.
+   *
    * **TOCTOU**: **per-workspace `pg_advisory_xact_lock` 트랜잭션**으로 admission 을
    * 직렬화한 뒤 조건부 UPDATE(`WHERE status='pending' AND ws COUNT<cap AND wf COUNT<cap
    * RETURNING`)로 카운트-체크-전이한다. **조건부 UPDATE 단독은 불충분** — 서브쿼리
@@ -2918,6 +2924,20 @@ export class ExecutionEngineService
                   WHERE workflow_id = $4 AND status = 'running') < $5
            RETURNING id`,
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
+        );
+        // `EntityManager.query` 의 선언 타입은 `Promise<any>` 라 위 제네릭은 **주장이지
+        // 검증이 아니다.** 드라이버가 배열이 아닌 것을 돌려주면 종전에는 `rows.length` 가
+        // `Cannot read properties of undefined` 로 터졌다 — 원인이 안 보이는 메시지다.
+        //
+        // **던지는 것 자체는 유지한다.** 이 자리에서 `return false`(defer)로 삼키면 트랜잭션이
+        // **커밋**되는데, shape 이 어긋났다는 것은 UPDATE 가 실제로 행을 갱신했는지 알 수
+        // 없다는 뜻이다. 갱신됐는데 앱이 defer 로 처리하면 DB 는 `running`, 워커는 없음 —
+        // 실행이 영영 붕 뜬다. 예외는 트랜잭션을 되돌려 그 분기를 원천 차단한다.
+        // 가드가 더하는 것은 **판정 변경이 아니라 진단**이다.
+        assertRowArray(
+          rows,
+          `admission UPDATE ... RETURNING, execution ${executionId}. ` +
+            `트랜잭션을 롤백한다(부분 적용 방지).`,
         );
         return rows.length === 1;
       },
@@ -3651,7 +3671,30 @@ export class ExecutionEngineService
     // PR2b — §8 admission gate: 동시성 cap(workspace/workflow) 검증 + pending→running
     // 원자 전이. cap 초과 → delayed 재큐(routing 은 재-pick up 시 재등록하므로 release),
     // 큐 대기 5분 초과 → cancelled. admitted(전이 성공) 만 runExecution 으로 진행한다.
-    const admission = await this.admitExecutionOrDefer(execution, input);
+    // admission 이 **throw** 하면(가드가 드라이버 반환 shape 이상을 잡은 경우 등) 위에서
+    // 등록한 routing context 가 남는다 — `deferred` arm 은 이미 명시 release 하는데 이 경로만
+    // 비어 있었다 (ai-review `17_15_21` WARNING 2). 그래서 release 후 재전파한다.
+    //
+    // **재시도는 없다.** `execution-run` 큐는 `attempts: 1` 이라(비멱등 노드 이중 실행 방지,
+    // `execution-run.queue.ts` `EXECUTION_RUN_QUEUE_DEFAULT_OPTS`) 명시적 throw 는 재배달되지
+    // 않고 job 이 곧바로 failed 로 간다. 재배달은 **stalled**(워커 크래시) 전용의 별개
+    // 카운터다. 트랜잭션 롤백으로 execution 은 `pending` 에 남고, 회수는 앱 재기동의
+    // orphan-pending backstop 몫이다.
+    // (`17_15_21` 대응 때 여기 "BullMQ 재배달로 자가 치유" 라 적었는데 `attempts: 1` 을
+    //  안 보고 쓴 오서술이었다 — consistency `18_50_06` WARNING 1 로 정정.)
+    //
+    // 그럼에도 **삼키지 않고 재전파**하는 이유: 삼키면 job 이 성공으로 보여 `removeOnComplete`
+    // 로 사라지고, execution 이 pending 에 좌초한 사실이 아무 데도 안 남는다. 던지면
+    // `removeOnFail: false` 로 보존돼 DLQ 모니터(§9.3)가 관측한다. 아래 자매 catch
+    // (`runExecution`)가 반대로 swallow 하는 것은 **거기선 노드가 이미 실행됐을 수 있어**
+    // 재전파가 이중 실행을 부르기 때문이다 — admission 단계는 노드 미실행이라 그 위험이 없다.
+    let admission: 'admitted' | 'cancelled' | 'deferred';
+    try {
+      admission = await this.admitExecutionOrDefer(execution, input);
+    } catch (err: unknown) {
+      this.eventEmitter.releaseExecutionRouting(executionId);
+      throw err;
+    }
     if (admission !== 'admitted') {
       if (admission === 'deferred') {
         this.eventEmitter.releaseExecutionRouting(executionId);
@@ -8168,6 +8211,15 @@ export class ExecutionEngineService
         FOR UPDATE`,
       [executionId],
     );
+    // 자매 3곳 중 여기만 이미 fail-closed 다 — 배열이 아니면 `.length` 가 undefined 라
+    // `> 0` 이 false 가 되고 호출부는 "live 아님" 으로 중단한다. 그래도 가드를 두는 건
+    // **조용한 중단과 진짜 중단을 구분**하기 위해서다. 이 함수는 트랜잭션 manager 를 받으므로
+    // throw 는 admission 가드와 같은 이유로 롤백을 부른다 (ai-review `17_15_21` WARNING 1).
+    assertRowArray(
+      live,
+      `lockNonTerminalExecutionRow SELECT ... FOR UPDATE, execution ${executionId}. ` +
+        `트랜잭션을 롤백한다.`,
+    );
     return live.length > 0;
   }
 
@@ -8473,6 +8525,18 @@ export class ExecutionEngineService
           : JSON.stringify(execution.resumeCallStack),
         execution.error == null ? null : JSON.stringify(execution.error),
       ],
+    );
+    // 여기서 `false` 는 "동시 cancel 이 이미 terminal 로 옮겼으니 종결 이벤트를 내지 말라"
+    // 는 뜻이다. 배열이 아니면 그 신호가 조용히 켜져서 — **DB 는 UPDATE 됐는데
+    // `execution.completed`/`failed` 가 영영 발행되지 않는다**(EIA §6 종결 이벤트 계약이
+    // 깨지고 클라이언트는 무기한 대기). 앞의 admission 가드와 달리 이 UPDATE 는 애플리케이션
+    // 트랜잭션 밖이라 throw 가 롤백을 부르지는 못하지만, **관측 불가능한 유실을 관측 가능한
+    // 실패로 바꾸는 것**이 목적이다 (ai-review `17_15_21` WARNING 1).
+    assertRowArray(
+      updated,
+      `updateExecutionStatus guarded UPDATE ... RETURNING, ` +
+        `execution ${execution.id} → ${newStatus}. ` +
+        `false 로 넘기면 종결 이벤트가 조용히 유실된다.`,
     );
     const persisted = updated.length > 0;
     // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.

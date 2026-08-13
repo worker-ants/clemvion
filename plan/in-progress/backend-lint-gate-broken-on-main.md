@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: lint-warning-triage
+worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -471,7 +471,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
       검증: eslint **errors 0 / warnings 0** · 타입체크 ratchet **199건 / 38파일 baseline 일치**
       (증감 0 — 타입을 깬 자리 없음) · backend unit **418 suites / 8512 passed**.
-- [ ] **선재 테스트 공백 2건** (`12_05_39` testing INFO 1·2, 이번 라운드 유예). 둘 다 이번
+- [x] **선재 테스트 공백 2건** (`12_05_39` testing INFO 1·2, 이번 라운드 유예). 둘 다 이번
       diff 가 *타입만* 바꾼 자리라 조치 대상이 아니었지만, 공백 자체는 실재한다:
       - `chat-channel.dispatcher.ts:192-201` — `logFn` 의 debug/warn 삼항 분기가
         `.handle()` 경유 스펙에서 도달 불가. standalone 함수 테스트만 존재한다.
@@ -486,6 +486,22 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
       > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
       > 덮은 갈래를 먼저 세어야 한다.**
+
+      > **완료 (2026-08-13, `backlog-final-three`).** 둘 다 실측으로 전제를 확인하고 메웠다.
+      >
+      > **`snapshotCache` evict** — `grep -rn "snapshotCache" --include="*.spec.ts"` → **0건**.
+      > 상한(256)이 실제로 작동하는지, 밀려나는 것이 **가장 오래된 키**인지를 `findById` 경유
+      > 257회 삽입으로 고정했다. 방향을 안 보면 "무언가 하나 지운다" 만 고정돼 최신 키를 지우는
+      > 회귀가 통과한다. 상수를 export 해 심볼로 쓰되 **값(256) 자체도 리터럴로 따로** 박았다 —
+      > 심볼만 쓰면 상한이 조용히 바뀌어도 테스트가 따라간다.
+      > 뮤턴트 **4/4**: evict 제거 · LRU 방향 반전 · off-by-one(`>=`→`>`) · read 갱신 제거.
+      >
+      > **dispatcher logFn 분기** — `handle()` 경유로 **양방향**을 고정했다. 한쪽만 쓰면
+      > 삼항을 뒤집는 회귀가 절반 통과한다. 실제로 "항상 warn"·"항상 debug" 뮤턴트가 각각
+      > 테스트를 **하나씩만** 죽였다 — 양방향이 필요했다는 실측 증거다. 뮤턴트 **4/4**.
+      >
+      > 캐시 적재 배선(`findById`→cache)은 기존 W-27 테스트가 이미 덮으므로 새 테스트는 그 위에
+      > 상한/방향만 얹는다.
 - [x] **planner 인계 — `spec/data-flow/15-external-interaction.md` 의 R8 요약이 SoT 보다 넓다**
       (`--impl-done` `13_07_33` cross_spec·rationale_continuity WARNING, **BLOCK: NO**).
       data-flow 문서가 §1.2 시퀀스와 §2.1/§2.2 표에서 "4xx 캐시 제외" 로 요약하는데, SoT 인
@@ -724,6 +740,55 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > "손상 축이 코드에 분리되면" 이 사실상의 트리거였는데, `22e68459d`(손상 가드) ·
       > `86de12278`(형태 검증) · `c29290c71`(statusCode 범위) 로 그 분리가 끝났다. 즉 지금
       > spec 을 고치면 **코드에 이미 있는 상태를 서술**하는 것이지 앞서가는 게 아니다.
+- [x] **[CRITICAL·planner] EIA outbound notification payload 가 spec 계약과 근본적으로 다르다**
+      — **(b) 로 종결, PR #1166 (2026-08-13)**. 아래 등재 당시 서술은 그대로 둔다(결정 이력).
+      > **결정: (b) spec 을 실제에 맞춘다.** 근거 — `finalNodeId`/`finalPort`/`nodeCount`/
+      > `failedNodeId` 는 **미구현이 아니라 엔진에 개념이 없다**(emit 로직 0건). (a)는 없는
+      > 개념을 새로 설계하는 일이고, "기록된 의도" 라던 근거도 그 후속 plan 이 한 번도 존재한
+      > 적 없다는 점에서 이미 무너져 있었다. 같은 저장소가 §5.4 에서 같은 판단을 한 선례도 있다
+      > (L1198, "코드가 SoT 이고 spec 서술이 낡았던 것").
+      >
+      > **다만 (b)를 "§6.3~§6.5 재작성" 으로만 하면 부족했다** — `--spec` 이 3회 연속
+      > "규칙을 일부 절에만 적용" 으로 반려했고, 원인이 계약이 4개 문서에 재서술돼 있는 구조라는
+      > 게 드러났다. 그래서 **EIA §6 도입부를 단일 SoT 로 만들고 나머지는 포인터**로 바꿨다
+      > ([§6 도입부](../../spec/5-system/14-external-interaction-api.md#6-api-명세--outbound-notification)).
+      > `execution.cancelled` 의 flat/nested drift 도 여기서 함께 해소됐다.
+      >
+      > **잔여는 반대 방향**(구현을 문서에 맞추기 — `durationMs`·`result.outputs` emit,
+      > `error` 객체 통일)이고 `spec-sync-external-interaction-api-gaps.md` 에 등재했다.
+      > **외부 계약 축소가 아니다** — 없던 필드를 약속에서 뺀 것이지 있던 필드를 뺀 게 아니다.
+
+      <details><summary>등재 당시 서술 (2026-08-13 14:34)</summary>
+
+      (`14_18_42` cross_spec CRITICAL 1). 실측:
+      `emitExecution(id, EXECUTION_COMPLETED, { status })` → fanout 이
+      `{type, executionId, triggerId, workflowId, seq, payload, timestamp}` 로 감싸 발송한다.
+      그런데 [`14-external-interaction-api.md` §6.3](../../spec/5-system/14-external-interaction-api.md)
+      은 `result:{outputs,finalNodeId,finalPort}` · `durationMs` 를, §6.4 는
+      `error:{code,message,nodeId,details?}` 를 약속한다.
+      > **외부 계약이다.** spec 을 믿고 연동한 고객은 문서화된 필드를 전부 `undefined` 로 받는다.
+      > `6-websocket-protocol.md` §4.1 표도 같은 drift(+ `execution.cancelled` 을 flat
+      > `{cancelledBy}` 로 적지만 코드·EIA §6.5 는 nested `result.cancelledBy`).
+      >
+      > **기록된 의도는 "코드를 spec 에 맞춘다" 였다** — `chat-channel.dispatcher.ts` 주석이
+      > 후속 plan `spec-update-execution-failed-payload-shape` 를 가리킨다(PR #324,
+      > 2026-05-25). 그런데 **그 plan 은 저장소에 한 번도 존재한 적이 없다**
+      > (`git log --all -S "spec-update-execution-failed-payload-shape" -- plan/` → 0건).
+      > 3개월 방치된 붕 뜬 약속이고, 그 사이 dispatcher 에 back-compat wrap 만 쌓였다.
+      >
+      > **택일이 필요하다 — planner 결정.**
+      > (a) **코드를 spec 에 맞춘다**(기록된 의도) — emit 지점 다수에 enrich 추가. 구현 프로젝트.
+      > (b) **spec 을 실제에 맞춘다** — "얇은 signal + REST 재조회" 로 §6.3~§6.5·WS §4.1 재작성.
+      >     EIA 가 status 조회 엔드포인트를 이미 갖고 있어 일관되지만 **외부 계약 축소**다.
+      > 어느 쪽이든 이 항목 하나에 묶여 있고, 무엇보다 **지금 상태(문서가 거짓)가 최악**이다.
+
+      </details>
+- [ ] **[developer] `failRetryExecution` 이 `cancelledBy` 를 안 채운다** (`14_18_42` cross_spec
+      WARNING 1). 같은 모듈의 다른 4개 취소 경로는 `emitCancellationEvent` 로 통일된 계약을
+      구현하는데 이 경로만 빠졌다.
+      > 이미 [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) 에 P2 로 등재돼
+      > 있으나 미완료 — 이번 실측으로 재확인했다. developer 권한 내이므로 그 plan 항목을 집행하면
+      > 된다(여기엔 교차 참조만 남긴다).
 - [ ] **SoT 이관 시 앵커 전수 grep 을 절차로** (`12_48_37` 교훈). `#98-private-앱-...` 처럼
       **옮기는 절의 앵커 문자열을 저장소 전역 grep** 하는 것을 SoT 이관의 고정 절차로 삼는다.
       > 이 PR 하나에서 참조자 누락이 **세 번** 났다 — `2-navigation:1294`(코드 리뷰가 잡음) ·
@@ -1053,7 +1118,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 세 번 다 **"고친 자리 옆의 같은 자리"** 였다. 한 케이스를 고쳤으면 그 순간 형제를
       > 전수로 세는 것이 이 결함 클래스의 유일한 방어다.
-- [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
+- [x] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
       `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
       그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그
       성질이 깨진다는 이유였고, 실패 방향이 **fail-closed** 라(shape 이 어긋나면
@@ -1079,3 +1144,70 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
 기록하고 required-check 등록을 사용자 액션으로 남겨 뒀다. **이 건이 그 미등록의 3번째
 피해**다(1: `#1058` typescript 롤백, 2: `#1074` unicorn 복원, 3: 본 건). required check
 등록 없이는 4번째가 온다.
+
+
+      > **완료 (2026-08-13, `backlog-final-three`).** 가드를 넣었다. 유예 근거였던 "emit JS
+      > before/after 동일" 은 **타입 전용 PR 의 제약**이었고 이 PR 은 그 제약 아래 있지 않다.
+      >
+      > 실패 방향이 원래도 fail-closed 였다는 것과, 그 안전이 **명시적**이라는 것은 다르다 —
+      > 가드가 없으면 `rows.length` 가 TypeError 를 던져 admission 이 "거부" 가 아니라 **예외**로
+      > 끝나고, 호출부는 그 둘을 다르게 다룬다(전자는 defer, 후자는 전파). 가드는 그 경우를
+      > defer 로 떨어뜨리고 warn 을 남긴다.
+      >
+      > ⚠️ **가드를 처음엔 `return false`(defer)로 썼다가 리뷰(`14_01_46` side_effect WARNING 1)가
+      > 뒤집었다.** 그러면 콜백이 예외 없이 끝나 **트랜잭션이 커밋**된다 — shape 이 어긋났다는 건
+      > UPDATE 가 적용됐는지 모른다는 뜻이라, 적용됐는데 앱이 defer 로 처리하면 DB 는 `running`,
+      > 워커는 없음이 된다. `throw` 로 되돌렸다. **가드가 더하는 것은 판정 변경이 아니라 진단**이다.
+      >
+      > "fail-closed 를 명시한다" 는 문구에 만족해 **어느 층에서** 닫히는지를 안 물은 것이
+      > 원인이다 — 반환값은 닫혔지만 트랜잭션은 열려 있었다.
+      >
+      > 그 회귀를 캐너리로 고정했다: 뮤턴트 H2(던지지 않고 삼킴) = 내가 저지른 것 그 자체 →
+      > baseline 441 passed vs **1 failed** 로 사살. 고친 것을 고친 채로 유지하는 건 별개 문제다.
+      >
+      > 뮤테이션 중 `jest -t` 가 이 스위트에서 `SIGABRT` 를 내는 flake 를 두 번 만났다 —
+      > **baseline 쪽도 크래시**해서 뮤턴트 탓이 아니었다. 전체 스위트로 재판정했다.
+      > **크래시는 변별력의 증거가 아니다.**
+
+## `.query()` 반환 shape 하드닝 — 남은 후속 (2026-08-13, ai-review `18_19_33`)
+
+`assertRowArray` 가드를 execution-engine·executions 두 서비스 4곳에 폈고, 누락 자체를
+막는 구조적 회귀 테스트(`assert-row-array.spec.ts`)를 뒀다. 남은 것:
+
+- [ ] **backend 전역 raw-query 소비 지점 감사** — 이번 가드의 `FILES` 는 위 2파일 한정이다.
+      `integration-oauth.service.ts:593·803` 의 `consumeOAuthState` 등이 검증 없이
+      결과를 소비한다(`18_19_33` testing INFO 7 — 심볼 실존 확인함). 같은 fail-open 방향인지
+      **지점마다 실패 방향을 재고** 판단할 것 — 이번에 4곳 중 1곳만 fail-open 이었다.
+- [ ] **`CONSUMING_QUERY` 사각지대** — `let` 선언·구조분해(`const [row] = await …`)·체이닝
+      형태는 정규식에 안 잡혀 GREEN 을 유지한 채 지나간다(`18_19_33` testing INFO 8).
+      주석으로 명시해 뒀다. 넓힐 거면 **정규식이 아니라 AST** 가 맞다 — 유한한 문제를
+      무한한 문제와 바꾸지 않도록 착수 전에 비용을 먼저 볼 것.
+- [ ] **`updateExecutionStatus` else 분기 트랜잭션화** (`18_19_33` concurrency INFO 9).
+      지금은 트랜잭션 밖 단발 UPDATE 라 가드가 throw 해도 이미 커밋된 UPDATE 를 못 되돌린다.
+      가드는 "조용한 유실 → 시끄러운 실패" 까지만 하고, 롤백 보장은 이 항목이 해야 한다.
+### `chat-channel.dispatcher.spec.ts` 스타일 4건 — **의식적 무조치, 여기서 추적한다**
+
+`18_38_10` documentation WARNING 1 이 지적한 대로, 나는 이 4건을 "넘긴다" 고 판단해 놓고
+plan 에는 **캐스트 1건만** 적었다. 나머지 3건의 무조치 결정이 `review/**` 안에만 남아
+SoT 에서 추적 불가능했다. `review/**` 는 SoT 가 아니다 — 미룬 항목은 그 턴에 여기 적어야 한다.
+
+**등재 직후 전부 처리했다 (2026-08-13).** 등재 시점의 판단은 "손대면 리뷰가 stale 해지니
+다음 실질 변경 때" 였는데, 그 직후 consistency `18_50_06` WARNING 1(admission catch 주석의
+`attempts:1` 오서술)로 **어차피 `codebase/**` 를 고쳐야 했다.** 라운드를 한 번 더 치르는 것이
+확정된 이상 미룰 이유가 사라져 4건을 같은 커밋에서 닫았다 — 4라운드 연속 재부상하던 항목이다.
+
+- [x] **오배치 JSDoc** — `:703-714` 의 블록이 설명 대상 `describe`(`:769`)에서 66줄 떨어져 있어
+      바로 뒤 헬퍼(`makeDispatcherHarness`) 설명으로 오인된다. `:769` 선언 바로 위로 이동
+      (`17_15_21` INFO 5 → `18_00_11` → `18_19_33` → `18_38_10` WARNING 1, **4라운드 연속**)
+- [x] **pass-through 래퍼** — `buildDispatcherForNull()`(`:765-767`)이 인자 없이
+      `makeDispatcherHarness()` 를 그대로 호출만 한다. 제거하고 호출부 2곳에서 직접 호출
+      (`17_15_21` INFO 6 이후 연속)
+- [x] **fixture 빌더 네이밍 혼재** — `make*` 1개 vs `build*` 3개(`:723,765,770,843`).
+      `makeDispatcherHarness` → `buildDispatcherHarness` (`17_15_21` INFO 7 이후 연속)
+- [x] **인라인 타입 캐스트 4곳** — `dispatcher as unknown as { handle }`(`:795,823` 신규 +
+      `:889,907` 기존). 로컬 타입 별칭으로 통합 (`17_15_21` INFO 8 이후 연속, 2→4곳으로 증가)
+
+> **왜 4라운드나 살아남았나**: 매 라운드 "실동작 0 이니 넘긴다" 로 옳게 판단했지만, 그 판단을
+> plan 에 안 적어서 다음 라운드가 **새 발견처럼 다시 올렸다.** 무조치는 결정이고, 결정은
+> 기록돼야 반복 비용이 0 이 된다. 이 절이 그 기록이다.
+

@@ -3,6 +3,7 @@ import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import {
   ExecutionsService,
   MAX_EXECUTION_PATH_ROWS,
+  SNAPSHOT_CACHE_MAX_ENTRIES,
 } from './executions.service';
 import { ExecutionStatus } from './entities/execution.entity';
 
@@ -500,6 +501,64 @@ describe('ExecutionsService', () => {
       await service.findById('eF-running');
       await service.findById('eF-running');
       expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(2);
+    });
+
+    /**
+     * `snapshotCache` 는 256건 상한 LRU 다. 상한 자체를 검사하는 테스트가 **한 건도 없었다**
+     * (`grep -rn "snapshotCache" --include="*.spec.ts"` → 0건) — 캐시가 무한히 자라도,
+     * evict 가 최신 키를 지워도 아무도 몰랐다.
+     *
+     * **경계값으로 고정한다.** 257번째 삽입이 첫 키를 밀어내는지(= 상한이 실제로 작동),
+     * 그리고 밀려나는 것이 **가장 오래된 키**인지(= LRU 방향이 맞음)를 함께 본다.
+     * 방향을 안 보면 "무언가 하나 지운다" 만 고정돼 최신 키를 지우는 회귀가 통과한다.
+     *
+     * private 메서드를 직접 부르지 않고 `findById` 를 통해 넣는다 — 캐시 적재 배선 자체는
+     * 위 W-27 테스트가 이미 덮으므로, 여기서는 그 위에 상한/방향만 얹는다.
+     */
+    it('snapshotCache 상한 값 자체를 고정 — 심볼만 쓰면 변경이 조용히 통과한다', () => {
+      expect(SNAPSHOT_CACHE_MAX_ENTRIES).toBe(256);
+    });
+
+    it('snapshotCache 는 256건 상한 — 257번째가 가장 오래된 키를 evict', async () => {
+      executionRepo.createQueryBuilder.mockImplementation(
+        () =>
+          buildSingleQB(
+            baseFake({ status: ExecutionStatus.COMPLETED }),
+          ) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue([]);
+
+      // 상한까지 채운다 (e-0 … e-255).
+      for (let i = 0; i < SNAPSHOT_CACHE_MAX_ENTRIES; i += 1) {
+        await service.findById(`e-${i}`);
+      }
+      const afterFill = executionRepo.createQueryBuilder.mock.calls.length;
+      expect(afterFill).toBe(SNAPSHOT_CACHE_MAX_ENTRIES);
+
+      // 상한 안에서는 전부 hit — DB 재조회 0건.
+      await service.findById('e-0');
+      await service.findById('e-255');
+      expect(executionRepo.createQueryBuilder.mock.calls.length).toBe(
+        afterFill,
+      );
+
+      // 257번째 삽입 → evict 1건.
+      await service.findById('e-256');
+      expect(executionRepo.createQueryBuilder.mock.calls.length).toBe(
+        afterFill + 1,
+      );
+
+      // 밀려난 것은 **가장 오래된** 키여야 한다. 위에서 e-0 을 읽어 LRU 를 갱신했으므로
+      // 이제 가장 오래된 것은 e-1 이다 — 이 단언이 LRU 방향을 가른다.
+      await service.findById('e-1');
+      expect(executionRepo.createQueryBuilder.mock.calls.length).toBe(
+        afterFill + 2, // miss → 재조회
+      );
+      await service.findById('e-0');
+      expect(executionRepo.createQueryBuilder.mock.calls.length).toBe(
+        afterFill + 2, // 여전히 hit — 최근 사용이라 살아남았다
+      );
     });
 
     it('invalidateSnapshotCache 호출 후엔 캐시 무효화 — DB 재조회', async () => {

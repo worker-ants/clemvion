@@ -19,6 +19,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ErrorCode } from '../../nodes/core/error-codes';
+import { assertRowArray } from '../../common/utils/assert-row-array';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -60,7 +61,7 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
  * 인스턴스 수직 캐시이므로 멀티 인스턴스 hit ratio 는 sticky session WS 배포에서
  * 자연스럽게 보장된다. 멀티 인스턴스 cross-hit 이 필요하면 Redis 로 승격 가능.
  */
-const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
+export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
@@ -316,6 +317,16 @@ export class ExecutionsService {
          SELECT max(depth) AS depth FROM chain`,
         [executionId, RERUN_CHAIN_WALK_MAX],
       );
+    // `.query()` 반환은 `Promise<any>` 라 위 타입 단언이 런타임을 검증하지 않는다.
+    // 배열이 아니면 `rows[0]` 가 undefined → `?? 1` 로 **depth 1** 을 반환하고,
+    // 호출부 `depth >= RERUN_CHAIN_DEPTH_LIMIT` 가 통과해 **RR-PL-05 체인 깊이 제한이
+    // 조용히 우회된다**(fail-open). 세 자매 `.query()` 지점 중 유일하게 방향이 열려 있어
+    // 여기서는 진단이 아니라 **정확성** 문제다 — ai-review `17_15_21` WARNING 1.
+    assertRowArray(
+      rows,
+      `computeChainDepth 재귀 CTE, execution ${executionId}. ` +
+        `depth 1 로 넘기면 RR-PL-05 제한이 무력화된다.`,
+    );
     // 조상 미존재(=base 1행)면 depth 1. id 부재 시 base 0행 → max NULL → 1 로 방어.
     return Number(rows[0]?.depth ?? 1);
   }
