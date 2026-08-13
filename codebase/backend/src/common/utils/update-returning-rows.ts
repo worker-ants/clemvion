@@ -32,6 +32,25 @@
  *
  * **세 곳이 이미 알고 있었는데 네 번째(`auth-oauth` 의 소셜 로그인 콜백)는 그걸 몰라서
  * 상시 실패하고 있었다.** 지식이 지점에 갇히면 그 옆에서 같은 실수가 난다.
+ *
+ * `SELECT` 결과에는 이걸 쓰지 않는다 — 그쪽은 튜플이 아니므로 `assertRowArray`
+ * (`./assert-row-array`) 가 맡는다.
+ *
+ * ## ⚠️ 제네릭 `T` 는 검증이 아니라 **단언**이다 — 컬럼명은 snake_case 다
+ *
+ * 이 함수는 **바깥 shape**(튜플이냐 행 배열이냐)만 구조적으로 판별한다. 개별 행의 필드는
+ * `as T[]` 로 넘길 뿐 아무것도 확인하지 않는다.
+ *
+ * 그리고 raw `.query()` 는 ORM 매핑을 타지 않으므로 **행의 키가 DB 그대로 snake_case** 다.
+ * entity 타입을 제네릭으로 넘기면 `@Column({ name: 'remember_me' }) rememberMe` 같은 매핑이
+ * 적용된 것처럼 보이지만 실제로는 안 된다 — **컴파일은 통과하고 런타임에 조용히 `undefined`** 다.
+ *
+ * 이 PR 안에서 실제로 그렇게 됐다: `updateReturningRows<AuthOAuthState>` 로 단언한 뒤
+ * `record.rememberMe` 를 읽어 소셜 로그인의 "로그인 유지" 가 침묵으로 무시됐다. 나머지 7개
+ * 호출부는 `id` 처럼 **대소문자 차이가 없는 필드만 써서 우연히 피했을 뿐**이다.
+ *
+ * → raw 행 전용 타입(snake_case 필드)을 따로 선언해 넘길 것.
+ *   예: `auth-oauth.service.ts` 의 `AuthOAuthStateRow`.
  */
 export function updateReturningRows<T = unknown>(
   result: unknown,

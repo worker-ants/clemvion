@@ -232,6 +232,9 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       되돌리면 `true` 만 실패(대조군 통과)해 판별자가 `rememberMe` 임을 확정
 - [x] CHANGELOG — 이번 결함 Unreleased 항목 + 기존 1·5·6·7 소급 정정
 - [x] caveat 소비 경로 목록 정정 — 서술형 라벨·단일 파일 집계 오류 2회, 최종 **11곳/3파일**
+- [x] 8라운드 `00_54_01` **CRITICAL 0 / WARNING 2** — 둘 다 "한쪽만 고쳤다" 였다.
+      자매 가드에 주석 스트리핑 미적용(→ `__testing__/source-scan.ts` 로 공유),
+      CHANGELOG 중복 서술 두 섹션 중 한쪽만 정정(→ 양쪽에, 항목 번호 오류도 정정)
 - [ ] 후속 ②(`updateExecutionStatus` 트랜잭션화)·③(EIA `durationMs`/`result.outputs` emit)
 
 ## 후속
@@ -260,6 +263,14 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       수십 초간 관측했다. 스크립트가 즉시 원복해도 읽는 쪽에는 거짓 사실이 보인다.
       이 저장소는 "병렬 리뷰어가 저장소를 뮤테이션해 서로를 오염시킨다" 를 이미 겪었는데
       이번엔 **내가 뮤테이터**였다 — 리뷰 중에는 돌리지 않거나 복사본에서 돌린다.
+- [ ] **구조적 가드가 "이 3개 파일" 하드코딩이다** (`01_12_26` architecture W1). 새 raw
+      UPDATE/DELETE 지점이 그 밖의 파일에 생기면 **아무 가드도 RED 를 내지 않는다.**
+      현재 방식은 "이미 아는 지점이 후퇴하지 않는지" 만 지키고 "새 지점이 생겼는지" 는 못 본다.
+      - 후보: raw UPDATE/DELETE 를 감싸는 얇은 `DataSource`/`EntityManager` 확장 래퍼로
+        "호출 즉시 언랩" 을 구조적으로 강제. 그러면 파일 목록이 필요 없어진다.
+      - **착수 전 비용을 볼 것** — 이 저장소는 "유한한 문제(blind 정규식)를 무한한 문제
+        (정밀 파서)와 바꾸지 말라" 는 교훈을 이미 갖고 있다. 래퍼는 파서가 아니라 타입
+        경계라 그 함정과는 다르지만, 기존 호출부 전수 이관 비용이 실제 크기다.
 - **[planner 위임]** raw SQL 결과 shape 을 **규약으로 승격** (`00_54_07` rationale_continuity INFO 2).
   이 지식이 **네 번 독립적으로 재발견**됐다 — `stuck-document-recovery` 의 구조분해,
   `agent-memory-admin` 의 `deletedRowCount`, `integration-oauth` 의 명시 튜플 타입, 그리고

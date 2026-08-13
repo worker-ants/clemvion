@@ -724,7 +724,8 @@ export class KnowledgeBaseService {
        RETURNING id`,
       [id, workspaceId],
     );
-    // ① 과 같은 CAS 락 — 튜플이라 거절 분기가 사문화돼 있었다.
+    // 위 `1) atomic CAS lock`(reExtractAll) 과 같은 CAS 락 — 튜플이라 거절 분기가
+    // 사문화돼 있었다.
     if (
       updateReturningRows(acquired, `KB re-embed CAS 락, kb ${id}`).length === 0
     ) {

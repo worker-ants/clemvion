@@ -12,6 +12,20 @@
  * **메시지는 호출부가 준다.** 왜 이 자리가 위험한지는 지점마다 다르고(롤백이 걸리는지,
  * 종결 이벤트가 유실되는지, 어떤 제한이 우회되는지) 그 설명이 진짜 값어치다 — 헬퍼가
  * 일반 문구로 뭉개면 다음 사람이 그 차이를 못 본다.
+ *
+ * ## ⚠️ `UPDATE`/`DELETE … RETURNING` 에는 이걸 쓰지 마라 — {@link updateReturningRows}
+ *
+ * 이 헬퍼는 **SELECT 전용**이다. TypeORM 0.3.31 + pg 는 `UPDATE`/`DELETE` 에
+ * `[rows, rowCount]` **튜플**을 돌려주는데, **튜플도 배열이라 이 가드를 그대로 통과한다.**
+ * 통과한 뒤 `.length` 는 항상 2, `[0]` 은 행이 아니라 행 배열이다.
+ *
+ * 그래서 8곳이 이 함정에 빠져 4개월간 소셜 로그인 상시 실패·admission cap 미집행·
+ * KB CAS 락 미작동을 냈다. 분담은 이렇다:
+ *
+ * | 쿼리 | 헬퍼 |
+ * |---|---|
+ * | `SELECT` | `assertRowArray` (이 파일) |
+ * | `UPDATE`/`DELETE … RETURNING` | `updateReturningRows` (`./update-returning-rows`) |
  */
 export function assertRowArray(
   rows: unknown,
