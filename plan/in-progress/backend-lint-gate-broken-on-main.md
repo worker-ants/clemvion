@@ -1185,6 +1185,28 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
 - [ ] **`updateExecutionStatus` else 분기 트랜잭션화** (`18_19_33` concurrency INFO 9).
       지금은 트랜잭션 밖 단발 UPDATE 라 가드가 throw 해도 이미 커밋된 UPDATE 를 못 되돌린다.
       가드는 "조용한 유실 → 시끄러운 실패" 까지만 하고, 롤백 보장은 이 항목이 해야 한다.
-- [ ] `chat-channel.dispatcher.spec.ts` 의 `dispatcher as unknown as { handle }` 캐스트 4곳을
-      로컬 타입 별칭으로 통합 (`18_19_33` maintainability INFO 5). 3라운드 연속 지적됐고
-      diff 가 2→4곳으로 늘었다 — 다음 실질 변경 때 함께 정리.
+### `chat-channel.dispatcher.spec.ts` 스타일 4건 — **의식적 무조치, 여기서 추적한다**
+
+`18_38_10` documentation WARNING 1 이 지적한 대로, 나는 이 4건을 "넘긴다" 고 판단해 놓고
+plan 에는 **캐스트 1건만** 적었다. 나머지 3건의 무조치 결정이 `review/**` 안에만 남아
+SoT 에서 추적 불가능했다. `review/**` 는 SoT 가 아니다 — 미룬 항목은 그 턴에 여기 적어야 한다.
+
+**공통 무조치 사유**: 4건 모두 실동작 영향 0 이고, 손대면 `codebase/**` 가 바뀌어 리뷰가
+stale 해진다(가드가 "리뷰 세션 시각 > 최신 코드 변경" 을 요구). 스타일 정리 때문에 6라운드째
+리뷰를 도는 것은 비용이 편익을 넘는다. **다음에 이 파일을 실질 변경할 때 한 번에 정리한다.**
+
+- [ ] **오배치 JSDoc** — `:703-714` 의 블록이 설명 대상 `describe`(`:769`)에서 66줄 떨어져 있어
+      바로 뒤 헬퍼(`makeDispatcherHarness`) 설명으로 오인된다. `:769` 선언 바로 위로 이동
+      (`17_15_21` INFO 5 → `18_00_11` → `18_19_33` → `18_38_10` WARNING 1, **4라운드 연속**)
+- [ ] **pass-through 래퍼** — `buildDispatcherForNull()`(`:765-767`)이 인자 없이
+      `makeDispatcherHarness()` 를 그대로 호출만 한다. 제거하고 호출부 2곳에서 직접 호출
+      (`17_15_21` INFO 6 이후 연속)
+- [ ] **fixture 빌더 네이밍 혼재** — `make*` 1개 vs `build*` 3개(`:723,765,770,843`).
+      `makeDispatcherHarness` → `buildDispatcherHarness` (`17_15_21` INFO 7 이후 연속)
+- [ ] **인라인 타입 캐스트 4곳** — `dispatcher as unknown as { handle }`(`:795,823` 신규 +
+      `:889,907` 기존). 로컬 타입 별칭으로 통합 (`17_15_21` INFO 8 이후 연속, 2→4곳으로 증가)
+
+> **왜 4라운드나 살아남았나**: 매 라운드 "실동작 0 이니 넘긴다" 로 옳게 판단했지만, 그 판단을
+> plan 에 안 적어서 다음 라운드가 **새 발견처럼 다시 올렸다.** 무조치는 결정이고, 결정은
+> 기록돼야 반복 비용이 0 이 된다. 이 절이 그 기록이다.
+
