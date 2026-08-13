@@ -73,11 +73,17 @@ describe('자매 지점 전수 — 가드 누락 회귀 가드', () => {
       };
     });
     // 실측 고정 — 이 수가 바뀌면 새 지점이 생겼다는 뜻이고, 가드를 폈는지 여기서 갈린다.
+    // **2026-08-13 갱신**: `UPDATE … RETURNING` 이 `[rows, count]` 튜플이라는 사실이
+    // 드러나면서, 그 두 지점(admission·updateExecutionStatus)은 `assertRowArray` 가 아니라
+    // `updateReturningRows` 가 맡는다 — 튜플도 배열이라 `assertRowArray` 로는 못 걸렀다.
+    // 남은 `assertRowArray` 는 **SELECT 결과**를 지키는 자리뿐이다
+    // (engine 의 `lockNonTerminalExecutionRow`, executions 의 `computeChainDepth`).
+    // 두 헬퍼의 분담: SELECT → `assertRowArray`, UPDATE/DELETE → `updateReturningRows`.
     expect(counts).toEqual([
       {
         rel: 'modules/execution-engine/execution-engine.service.ts',
         queries: 3,
-        guards: 3,
+        guards: 1,
       },
       {
         rel: 'modules/executions/executions.service.ts',

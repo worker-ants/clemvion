@@ -49,6 +49,9 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
   const EXPECTED: Array<[string, number]> = [
     ['modules/execution-engine/execution-engine.service.ts', 2],
     ['modules/knowledge-base/knowledge-base.service.ts', 5],
+    // 1차 감사가 놓쳤던 지점 — 정규식이 백틱 SQL 만 봐서 작은따옴표 쿼리를 통째로
+    // 건너뛰었고, 그 사각지대에 소셜 로그인 상시 실패가 있었다 (`20_36_35` CRITICAL 1).
+    ['modules/auth/auth-oauth.service.ts', 1],
   ];
 
   it.each(EXPECTED)(
@@ -62,7 +65,10 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
 
   it('이미 올바른 두 선례는 그대로 유지된다 (구조분해 · deletedRowCount)', () => {
     const recovery = readFileSync(
-      join(SRC, 'modules/knowledge-base/queues/stuck-document-recovery.service.ts'),
+      join(
+        SRC,
+        'modules/knowledge-base/queues/stuck-document-recovery.service.ts',
+      ),
       'utf8',
     );
     // `const [rows] = await …query` 구조분해 2곳.
@@ -82,8 +88,16 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
       const src = readFileSync(join(SRC, rel), 'utf8');
       return (src.match(CONSUMING) ?? []).length;
     });
-    // execution-engine 3곳(admission·lock·update) / knowledge-base 10곳.
+    // execution-engine 3곳(admission·lock·update) / knowledge-base 10곳 / auth-oauth **0곳**.
+    // auth-oauth 이 0 인 이유: 수정하면서 `await …query(…)` 를 헬퍼 호출의 인자로 넣어
+    // `const x = await …query(` 패턴이 사라졌다. 정규식의 한계지 결함이 아니다 —
+    // 그 파일의 헬퍼 호출 수는 위 `it.each` 가 1 로 고정한다. 여기 0 을 두면
+    // **헬퍼를 안 거치는 새 지점이 생길 때** 1 이 되어 잡힌다(원하는 동작).
     // SELECT 지점도 포함한 수다 — 늘면 UPDATE 인지 SELECT 인지 사람이 본다.
-    expect(counts).toEqual([3, 10]);
+    //
+    // **이 수가 바뀌었다고 곧바로 회귀는 아니다.** 파일 분할·무관한 raw query 추가로도
+    // 달라진다. 늘었으면 (1) 새 지점이 UPDATE/DELETE 인지 보고 (2) 맞으면 헬퍼를 태우고
+    // (3) 아니면 이 기대값을 갱신한다 (`20_36_35` WARNING 7).
+    expect(counts).toEqual([3, 10, 0]);
   });
 });

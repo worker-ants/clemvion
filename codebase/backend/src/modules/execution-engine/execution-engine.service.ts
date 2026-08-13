@@ -2913,9 +2913,11 @@ export class ExecutionEngineService
     const admitted = await this.executionRepository.manager.transaction(
       async (m) => {
         await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
-        // `EntityManager.query` 는 `Promise<any>` 라 반환을 그대로 쓰면 `.length` 접근이
-        // 전부 `any` 가 된다. `RETURNING id` 이므로 실제 shape 은 행 배열이다.
-        const rows = await m.query<{ id: string }[]>(
+        // 제네릭을 **달지 않는다.** `EntityManager.query` 의 선언 타입은 `Promise<any>` 라
+        // 어떤 제네릭도 검증되지 않는 주장일 뿐이고, 여기서는 그 주장이 **틀렸었다** —
+        // `UPDATE … RETURNING` 의 실제 shape 은 행 배열이 아니라 `[rows, rowCount]` 다.
+        // 실제 shape 해석은 `updateReturningRows` 한 곳이 책임진다.
+        const rows: unknown = await m.query(
           `UPDATE execution SET status = 'running', started_at = NOW()
            WHERE id = $1 AND status = 'pending'
              AND (SELECT COUNT(*) FROM execution wfe
@@ -2941,7 +2943,12 @@ export class ExecutionEngineService
         // RUNNING arm 이 "stalled 재배달" 로 오인해 §7.5 rehydration 으로 재구동했기 때문이다.
         // 결과만 맞고 경로가 틀렸다 — 매 실행 2s 지연 + 아래 `if (admitted)` 블록
         // (`recordRunningSegmentStart`·`EXECUTION_STARTED` emit) 이 통째로 사문화됐다.
-        return updateReturningRows<{ id: string }>(rows).length === 1;
+        return (
+          updateReturningRows<{ id: string }>(
+            rows,
+            `admission UPDATE, execution ${executionId} — 트랜잭션을 롤백한다`,
+          ).length === 1
+        );
       },
     );
     if (admitted) {
@@ -8501,7 +8508,8 @@ export class ExecutionEngineService
     const elseStatusesSql = opts?.allowRetryReentry
       ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
       : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
-    const updated: Array<{ id: string }> = await this.executionRepository.query(
+    // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
+    const updated: unknown = await this.executionRepository.query(
       `UPDATE execution
           SET status = $2,
               active_running_ms = $3,
@@ -8538,7 +8546,11 @@ export class ExecutionEngineService
     // 옮겼으니 종결 이벤트를 내지 말라" 는 분기가 **한 번도 타지 않았다**. DB 쓰기 자체는
     // `WHERE status IN (...)` 가드가 지켜 왔으므로 데이터는 안전했고, 틀린 것은 **앱이
     // 자기가 적용했는지 아는 것** 쪽이다.
-    const persisted = updateReturningRows<{ id: string }>(updated).length > 0;
+    const persisted =
+      updateReturningRows<{ id: string }>(
+        updated,
+        `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
+      ).length > 0;
     // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);

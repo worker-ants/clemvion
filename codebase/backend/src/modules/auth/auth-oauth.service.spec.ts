@@ -218,6 +218,40 @@ describe('AuthOauthService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    /**
+     * **드라이버가 실제로 돌려주는 shape 로 콜백을 태운다.**
+     *
+     * `DELETE … RETURNING *` 은 typeorm 0.3.31 + pg 에서 `[rows, rowCount]` 튜플이다
+     * (실측). 그런데 이 스위트의 다른 테스트들은 `[validState]`(행 배열)를 mock 해 왔다.
+     * 그 결과:
+     *   - `consumed.length === 0` → 항상 2 → **만료·재사용 state 를 못 거절**
+     *   - `consumed[0]` → 행이 아니라 **행 배열** → `record.provider` 가 `undefined`
+     *   - `undefined !== 'google'` → **모든 정상 콜백이 OAUTH_STATE_MISMATCH 로 실패**
+     *
+     * 즉 소셜 로그인이 상시 실패한다. 같은 모듈의 `integration-oauth.service.ts` 는
+     * 튜플을 명시 타입으로 받아 `queryResult[0]` 으로 꺼내고 있어 대조가 된다.
+     */
+    it('실측 shape([rows,count])로도 정상 콜백이 성공해야 한다', async () => {
+      dataSource.query.mockResolvedValueOnce([[validState], 1]);
+      usersService.findByOauth.mockResolvedValue(baseUser as User);
+
+      await expect(
+        service.handleCallback('google', 'code', 'abc'),
+      ).resolves.toEqual({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        rememberMe: false,
+      });
+    });
+
+    it('실측 shape 에서 0행(만료·재사용)은 여전히 거절돼야 한다', async () => {
+      dataSource.query.mockResolvedValueOnce([[], 0]);
+
+      await expect(
+        service.handleCallback('google', 'code', 'abc'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('returns tokens for existing OAuth user (stub mode)', async () => {
       dataSource.query.mockResolvedValueOnce([validState]);
       usersService.findByOauth.mockResolvedValue(baseUser as User);

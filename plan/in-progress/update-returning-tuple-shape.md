@@ -39,7 +39,7 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
 
 따라서 UPDATE/DELETE 결과에 `.length` / `[0]` / `.map` 을 바로 쓰면 **항상 같은 값**이다.
 
-## 무엇이 깨져 있었나 (7곳)
+## 무엇이 깨져 있었나 (8곳)
 
 | 지점 | 소비 | 실제 |
 |---|---|---|
@@ -50,6 +50,7 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
 | `knowledge-base` embedding 재큐 | `rows.map(r => r.id)` | `[undefined, undefined]` → 가짜 job 2개 |
 | `knowledge-base` graph 재큐 | `rows.length` / `rows.slice` | 〃 |
 | `knowledge-base` reset | `reset.length === 0` | 빈 KB 가 `in_progress` 로 좌초 |
+| **`auth-oauth` 소셜 로그인 콜백** | `consumed.length === 0` / `consumed[0].provider` | **모든 정상 콜백이 `OAUTH_STATE_MISMATCH` 로 실패 — 로그인 상시 불가.** 1차 감사가 놓쳤다(ai-review `20_36_35` CRITICAL 1) |
 
 **이 저장소는 이미 이 결함을 세 번 겪었고 매번 그 자리만 고쳤다** —
 `agent-memory-admin` 의 `deletedRowCount`(NotFound 미변환 버그), `stuck-document-recovery` 의
@@ -96,6 +97,17 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 > **교훈**: 생존 뮤턴트를 "테스트가 부족하다" 로만 읽으면 안 된다. **치환해도 안 죽는다는 건
 > 그 자리가 이미 상수라는 뜻일 수 있고, 그건 테스트가 아니라 코드의 문제다.** 등가 뮤턴트와
 > 미검출 뮤턴트를 가르는 질문은 "이 값이 실제로 두 값을 가질 수 있는가" 하나다.
+
+## 1차 감사가 왜 놓쳤나 — 도구의 사각지대가 감사의 사각지대였다
+
+감사 스크립트가 SQL 첫 키워드를 **백틱 뒤에서만** 찾았다. `auth-oauth` 의 쿼리는
+작은따옴표다. 한 줄의 정규식 가정이 **프로덕션 로그인 장애를 "전역 감사 통과" 로 만들었다.**
+따옴표 무관으로 고쳐 재실행하니 미처방 신규는 이 1건이었고, `integration-oauth` 2곳은 이미
+튜플로 정확히 다루고 있었다(네 번째로 이 지식이 있던 자리).
+
+> **교훈**: "전역" 이라고 부르기 전에 **도구가 무엇을 못 보는지**를 먼저 세라. 이 세션에서
+> 구조적 가드의 사각지대는 주석으로 적어 뒀으면서, 정작 그 가드를 만든 감사 도구의
+> 사각지대는 안 적었다.
 
 ## 처방
 

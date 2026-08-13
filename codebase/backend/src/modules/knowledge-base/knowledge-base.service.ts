@@ -333,7 +333,7 @@ export class KnowledgeBaseService {
 
     const docIds = await this.dataSource.transaction(async (manager) => {
       // 1) atomic CAS lock
-      const acquired = await manager.query<{ id: string }[]>(
+      const acquired: unknown = await manager.query(
         `UPDATE knowledge_base
          SET reextract_status = 'in_progress', entity_count = 0, relation_count = 0
          WHERE id = $1 AND workspace_id = $2 AND reextract_status = 'idle'
@@ -560,7 +560,7 @@ export class KnowledgeBaseService {
       if (kb.ragMode !== 'graph') {
         // vector 모드 KB 에 graph scope 요청은 즉시 0건 반환 (에러 throw 하지 않음 — 'all' 호환).
       } else {
-        const rows = await this.dataSource.query<{ id: string }[]>(
+        const rows: unknown = await this.dataSource.query(
           `UPDATE document
               SET graph_extraction_status = 'pending',
                   graph_retry_count = 0,
@@ -708,7 +708,7 @@ export class KnowledgeBaseService {
   ): Promise<{ documentCount: number; chainedGraphExtraction: boolean }> {
     const kb = await this.findById(id, workspaceId);
 
-    const acquired = await this.dataSource.query<{ id: string }[]>(
+    const acquired: unknown = await this.dataSource.query(
       `UPDATE knowledge_base
        SET reembed_status = 'in_progress', embedding_dimension = NULL
        WHERE id = $1 AND workspace_id = $2 AND reembed_status = 'idle'
@@ -725,7 +725,7 @@ export class KnowledgeBaseService {
 
     // 모든 문서의 retry / error 메타데이터 리셋 (재시도 카운트 0 부터 다시 시작).
     // RETURNING id 로 별도 SELECT 1회 제거 — reset 대상 = 재임베딩 대상 (M-1).
-    const reset = await this.dataSource.query<{ id: string }[]>(
+    const reset: unknown = await this.dataSource.query(
       `UPDATE document
           SET embedding_status = 'pending',
               embedding_retry_count = 0,

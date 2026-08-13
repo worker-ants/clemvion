@@ -18,6 +18,7 @@ import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -137,9 +138,16 @@ export class AuthOauthService {
 
     // Atomically consume the state row — only one concurrent callback wins.
     // Filtering on expires_at guarantees expired states are not consumable.
-    const consumed = await this.dataSource.query<AuthOAuthState[]>(
-      'DELETE FROM auth_oauth_state WHERE state = $1 AND expires_at > NOW() RETURNING *',
-      [state],
+    // **`DELETE … RETURNING` 은 `[rows, rowCount]` 튜플이다** (typeorm 0.3.31 + pg, 실측).
+    // 그대로 쓰면 `consumed.length === 0` 이 영원히 거짓이라 만료·재사용 state 를 못 거절하고,
+    // `consumed[0]` 이 행이 아니라 **행 배열**이라 `record.provider` 가 `undefined` →
+    // 정상 콜백까지 전부 `OAUTH_STATE_MISMATCH` 로 실패했다(소셜 로그인 상시 실패).
+    // 같은 저장소의 `integration-oauth.service.ts` 는 이미 튜플로 다루고 있었다.
+    const consumed = updateReturningRows<AuthOAuthState>(
+      await this.dataSource.query(
+        'DELETE FROM auth_oauth_state WHERE state = $1 AND expires_at > NOW() RETURNING *',
+        [state],
+      ),
     );
     if (consumed.length === 0) {
       throw new BadRequestException({

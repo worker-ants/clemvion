@@ -779,6 +779,25 @@ describe('KnowledgeBaseService', () => {
       });
     });
 
+    /**
+     * **실측 shape 회귀 가드.** `UPDATE … RETURNING` 은 typeorm 0.3.31 + pg 에서
+     * `[rows, rowCount]` 튜플이다. 이 스위트의 다른 테스트들은 `[]`/`[{id}]`(행 배열)을
+     * mock 해 왔고, 그래서 CAS 락의 `acquired.length === 0` 이 **영원히 거짓**이라는
+     * 사실을 아무도 못 봤다 — 동시 재임베딩이 거절되지 않았다.
+     *
+     * 아래 두 테스트는 `updateReturningRows` 를 되돌리면 **각각 RED** 가 된다:
+     *   0행 튜플 `[[], 0]` → 되돌리면 length 2 → 409 를 안 던짐
+     *   1행 튜플 `[[{id}], 1]` → 되돌리면 length 2 → 통과하나 reset 도 튜플이라 후속이 깨짐
+     */
+    it('실측 shape: 0행 튜플([[],0])이면 409 를 던진다 — CAS 락이 실제로 거절해야 한다', async () => {
+      mockDataSource.query.mockResolvedValueOnce([[], 0]);
+
+      await expect(service.reEmbedAll('kb-1', 'ws-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
+    });
+
     it('should throw 409 when reembed is already in progress (atomic 0 rows)', async () => {
       // atomic compare-and-swap returns 0 rows → conflict
       mockDataSource.query.mockResolvedValueOnce([]);
