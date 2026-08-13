@@ -740,7 +740,26 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > "손상 축이 코드에 분리되면" 이 사실상의 트리거였는데, `22e68459d`(손상 가드) ·
       > `86de12278`(형태 검증) · `c29290c71`(statusCode 범위) 로 그 분리가 끝났다. 즉 지금
       > spec 을 고치면 **코드에 이미 있는 상태를 서술**하는 것이지 앞서가는 게 아니다.
-- [ ] **[CRITICAL·planner] EIA outbound notification payload 가 spec 계약과 근본적으로 다르다**
+- [x] **[CRITICAL·planner] EIA outbound notification payload 가 spec 계약과 근본적으로 다르다**
+      — **(b) 로 종결, PR #1166 (2026-08-13)**. 아래 등재 당시 서술은 그대로 둔다(결정 이력).
+      > **결정: (b) spec 을 실제에 맞춘다.** 근거 — `finalNodeId`/`finalPort`/`nodeCount`/
+      > `failedNodeId` 는 **미구현이 아니라 엔진에 개념이 없다**(emit 로직 0건). (a)는 없는
+      > 개념을 새로 설계하는 일이고, "기록된 의도" 라던 근거도 그 후속 plan 이 한 번도 존재한
+      > 적 없다는 점에서 이미 무너져 있었다. 같은 저장소가 §5.4 에서 같은 판단을 한 선례도 있다
+      > (L1198, "코드가 SoT 이고 spec 서술이 낡았던 것").
+      >
+      > **다만 (b)를 "§6.3~§6.5 재작성" 으로만 하면 부족했다** — `--spec` 이 3회 연속
+      > "규칙을 일부 절에만 적용" 으로 반려했고, 원인이 계약이 4개 문서에 재서술돼 있는 구조라는
+      > 게 드러났다. 그래서 **EIA §6 도입부를 단일 SoT 로 만들고 나머지는 포인터**로 바꿨다
+      > ([§6 도입부](../../spec/5-system/14-external-interaction-api.md#6-api-명세--outbound-notification)).
+      > `execution.cancelled` 의 flat/nested drift 도 여기서 함께 해소됐다.
+      >
+      > **잔여는 반대 방향**(구현을 문서에 맞추기 — `durationMs`·`result.outputs` emit,
+      > `error` 객체 통일)이고 `spec-sync-external-interaction-api-gaps.md` 에 등재했다.
+      > **외부 계약 축소가 아니다** — 없던 필드를 약속에서 뺀 것이지 있던 필드를 뺀 게 아니다.
+
+      <details><summary>등재 당시 서술 (2026-08-13 14:34)</summary>
+
       (`14_18_42` cross_spec CRITICAL 1). 실측:
       `emitExecution(id, EXECUTION_COMPLETED, { status })` → fanout 이
       `{type, executionId, triggerId, workflowId, seq, payload, timestamp}` 로 감싸 발송한다.
@@ -762,6 +781,8 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > (b) **spec 을 실제에 맞춘다** — "얇은 signal + REST 재조회" 로 §6.3~§6.5·WS §4.1 재작성.
       >     EIA 가 status 조회 엔드포인트를 이미 갖고 있어 일관되지만 **외부 계약 축소**다.
       > 어느 쪽이든 이 항목 하나에 묶여 있고, 무엇보다 **지금 상태(문서가 거짓)가 최악**이다.
+
+      </details>
 - [ ] **[developer] `failRetryExecution` 이 `cancelledBy` 를 안 채운다** (`14_18_42` cross_spec
       WARNING 1). 같은 모듈의 다른 4개 취소 경로는 `emitCancellationEvent` 로 통일된 계약을
       구현하는데 이 경로만 빠졌다.
