@@ -806,6 +806,19 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 - [ ] **규약 역참조를 나머지 소유 문서에도** (`02_13_17` cross_spec INFO 3) — 이번 턴은
       `data-flow/15`(EIA)에만 역참조를 달았다. `chat-channel`·`cafe24`·`webhook` 소유 문서에도
       한 줄씩 필요하다(webhook 은 위 항목과 함께).
+- [ ] **인벤토리에 chat-channel 키 2계열이 빠져 있다** (`cch-se02-dedup` 실측).
+      [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 인벤토리는 `cc:rl:` 만
+      담고 있는데, 실제 chat-channel 소유 키는 4계열이다 —
+      `chat-channel:<triggerId>` · `chat-channel-lock:<triggerId>` · `cc:rl:*` · `cc:dedup:*`
+      (`grep -rnoE "(chat-channel[a-z-]*|cc):" --include="*.ts" src/modules/{chat-channel,hooks}`).
+      > 위 "역참조 확산" 항목과 **다른 결함**이다 — 그쪽은 소유 문서가 규약을 안 가리키는 것이고,
+      > 이쪽은 인벤토리가 키를 **아예 모르는** 것이다. 표기 스타일도 verbose(`chat-channel:`)와
+      > 약어(`cc:`)가 공존하니 등재 시 함께 정리한다.
+- [ ] **CCH-SE-02 dedup 이 남긴 planner 항목 2건** (`09_20_48` INFO 1·2, 전부 `spec/` 라
+      developer 권한 밖):
+      > (a) `15-chat-channel.md` R-CC-20 의 R-CC-12 앵커가 실제 헤딩 슬러그와 달라 깨진 링크,
+      > (b) dedup 게이트는 provider 3종 공통 경로인데 `telegram.md` 만 구현 완료로 갱신돼
+      > `slack.md`·`discord.md` 와 서술이 비대칭이다.
 - [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:
