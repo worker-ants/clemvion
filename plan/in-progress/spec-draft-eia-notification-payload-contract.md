@@ -7,6 +7,10 @@ spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/6-websocket-protocol.md
   - spec/conventions/chat-channel-adapter.md
+  - spec/3-workflow-editor/3-execution.md
+pending_plans:
+  - plan/in-progress/spec-sync-external-interaction-api-gaps.md
+  - plan/in-progress/spec-sync-websocket-protocol-gaps.md
 ---
 
 # spec draft — EIA/WS 종결 이벤트 payload 계약을 실제에 맞춘다
@@ -65,42 +69,78 @@ spec_impact:
 
 ## 무엇을 쓸 것인가
 
-### 1. EIA §6.3 `execution.completed`
+### 0. 봉투 규칙 — **한 번 선언하고 세 이벤트에 똑같이 적용한다**
 
-실제 봉투로 재작성. **`finalNodeId`·`finalPort` 삭제**(되살리지 않는다).
-`result.outputs`·`durationMs` 는 **"미구현 (Planned)"** 마커 + 후속 등재.
-풍부한 데이터가 필요한 수신자는 EIA-IN-04 를 가리킨다(실제 앵커 링크).
+> 2차 draft 가 `payload` 래퍼를 §6.3 에만 적고 §6.4·§6.5 엔 안 적어 CRITICAL 로 반려됐다
+> (`15_28_10`). 이벤트별로 쓰면 또 절반만 적용된다. **규칙을 한 자리에 두고 세 절이 그것을
+> 참조하게 한다.**
 
-### 2. EIA §6.4 `execution.failed`
+outbound webhook 이 실제로 배달하는 wire 는 **항상** 이 봉투다
+(`notification-fanout.service.ts` L123-137 → `notification-webhook.processor.ts` L224
+`JSON.stringify(eventBody)`):
 
-`error` 객체를 **목표**로 유지하되 현행이 일부 경로에서 **string** 임을 명시하고
-(`execution-engine.service.ts` L656·L3291), dispatcher 의 back-compat wrap
-(`chat-channel.dispatcher.ts` L535-560)이 그 때문임을 교차 참조.
-`durationMs` 는 **§6.3 과 동일 기준**으로 "미구현 (Planned)" 표기(비대칭 해소 —
-`15_15_08` WARNING 1).
+```jsonc
+{
+  "type":        "execution.completed" | "execution.failed" | "execution.cancelled",
+  "executionId": "uuid",
+  "triggerId":   "uuid",
+  "workflowId":  "uuid",
+  "seq":         99,
+  "timestamp":   "ISO8601",
+  "payload":     { /* 이벤트별 내용물 — 아래 §1~§3 */ }
+}
+```
 
-### 3. EIA §6.5 + WS §4.1 — **종결 3행 전부**
+**사건별 내용물은 전부 `payload` 아래에 있다.** 종전 문서는 `result`/`error`/`durationMs` 를
+최상위에 그려서, spec 대로 `body.result` 를 읽는 고객은 실제로 `body.payload.result` 에 있는
+값을 못 찾았다. §6.1(헤더/서명)·§6.2 의 wire 서술도 이 봉투에 맞춘다.
 
-- `cancelled` 는 nested `result.cancelledBy` 로 통일(코드가 이미 그렇다).
-  **단 `retry-turn.service.ts` `failRetryExecution` 경로는 `cancelledBy` 를 emit 하지 않는다**
-  (선재 결함, [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) W1 에 open).
-  그 캐비엇을 §6.5 에 적는다.
-- WS §4.1 의 `completed`·`failed` 행도 **같은 기준**으로 정정 — `duration`·`nodeCount`·
-  `failedNodeId` 삭제 또는 Planned 표기. 한 표 안에서 절반만 고치면 그 자리에 같은 결함을
-  재생산한다(`15_15_08` CRITICAL 1 — 1차 draft 가 정확히 그랬다).
-- **필드명 통일**: EIA 는 `durationMs`, WS 는 `duration` 이라 같은 개념이 두 이름이다
-  (`15_15_08` INFO 1). `durationMs` 로 통일한다 — 단위가 이름에 있는 쪽이 낫고 EIA 가 외부 계약이다.
+### 1. §6.3 `execution.completed` — `payload: { status }`
 
-### 4. `conventions/chat-channel-adapter.md` §1.2
+- **`finalNodeId`·`finalPort` 삭제** (엔진에 개념 없음 — 되살리지 않는다).
+- `result.outputs`·`durationMs` 는 **"미구현 (Planned)"** + 후속 등재.
+- 풍부한 데이터가 필요하면 [EIA-IN-04 상태 조회](../../spec/5-system/14-external-interaction-api.md#53-단발-상태-조회--get-apiexternalexecutionsexecutionid).
 
-`EiaEvent` 3 variant 를 §6.3~§6.5 최종 결정과 맞춘다 — `finalNodeId`·`finalPort` 삭제,
-`result`·`durationMs` optional 화. R3 가 "EIA §6 이 SoT" 라 선언하므로 SoT 를 고치면 여기가
-따라와야 한다.
+### 2. §6.4 `execution.failed` — `payload: { status, error }`
+
+`error` 객체(`{code,message,nodeId,details?}`)를 **목표**로 유지하되 **현행이 일부 경로에서
+string** 임을 명시(`execution-engine.service.ts` L656·L3291, `retry-turn.service.ts` L956).
+dispatcher back-compat wrap(`chat-channel.dispatcher.ts` L535-560)이 그 때문임을 교차 참조.
+`durationMs` 는 §6.3 과 **동일 기준**으로 Planned 표기.
+
+### 3. §6.5 `execution.cancelled` — `payload: { status, result: { cancelledBy }, error? }`
+
+- nested `result.cancelledBy` 로 통일(코드가 이미 그렇다).
+- **캐비엇**: `retry-turn.service.ts` `failRetryExecution` L956 경로는 `cancelledBy` 를
+  **emit 하지 않는다**(선재 결함). 이 캐비엇은 §6.5 **와** `chat-channel-adapter.md` §1.2
+  **양쪽에** 적는다 — 한쪽만 적으면 그쪽이 다시 SoT 와 어긋난다(`15_28_10` WARNING 2).
+
+### 4. WS §4.1 — 종결 3행
+
+`nodeCount`·`failedNodeId`·`duration` 은 **emit 되지 않는다**(grep 0건). 삭제하거나
+Planned 표기하고, `cancelled` 는 nested 로 정정한다.
+
+### 5. `conventions/chat-channel-adapter.md` §1.2
+
+`EiaEvent` 3 variant 를 위 결정과 맞춘다 — `finalNodeId`·`finalPort` 삭제,
+`result`·`durationMs` optional 화, `cancelled` 의 `result.cancelledBy` 도 **optional**
+(§3 캐비엇과 같은 이유). R3 가 "EIA §6 이 SoT" 라 선언하므로 SoT 를 고치면 여기가 따라온다.
+
+### 6. `3-workflow-editor/3-execution.md` §8.1 — 비-authoritative 표기
+
+이 표는 에디터 화면 관점의 **요약**이라 계약 SoT 가 아니다. 필드를 일일이 동기화하는 대신
+표 상단에 "필드는 예시 — 계약 SoT 는 WS §4.1 / EIA §6" 을 명시한다. 요약표를 계약처럼
+유지하려 들면 갱신 지점이 하나 더 늘고, 그게 지금 이 문제의 원인이다.
 
 ## 비목표
 
 - `finalNodeId`/`finalPort`/`nodeCount`/`failedNodeId` 추적 설계 (되살리지 않는다)
 - outbound notification 재시도·서명 정책
+- **`duration` → `durationMs` 전역 개명** — 2차 draft 는 이걸 포함했다가 범위가 폭발했다
+  (WS 종결 3행 + `node.completed` 행 + `3-workflow-editor §8.1` + …). 개명은 **일관성 작업**이고
+  이번 CRITICAL(문서가 없는 필드를 약속함)과 성격이 다르다. **반경이 목적을 넘으면 자른다** —
+  후속으로 뺀다. 이번엔 EIA 가 이미 쓰는 `durationMs` 를 신규 표기에만 쓰고, 기존 `duration`
+  표기는 건드리지 않는다.
 
 ## 후속 (developer)
 
@@ -110,19 +150,23 @@ spec_impact:
 - [ ] **`execution.failed` 의 `error` 를 객체로 통일** — `execution-engine.service.ts` L656·L3291,
       `retry-turn.service.ts` L956. 통일하면 dispatcher back-compat wrap 이 죽은 코드가 되므로 함께 제거.
 - [ ] **`chat-channel/types.ts:388` `EiaCompletedEvent` 를 §1.2 최종형과 동기화**
+- [ ] **`duration` → `durationMs` 전역 개명** (범위 밖으로 뺀 것) — WS §4.1 `node.completed`,
+      `3-workflow-editor §8.1`, 그 외 `duration` 표기 전수. 같은 개념이 두 이름인 상태는 남는다.
 - [ ] `failRetryExecution` 의 `cancelledBy` 누락은 [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) W1 에서 집행 (교차 참조만)
 
 ## 체크리스트
 
-- [x] `/consistency-check --spec` 1차 `15_15_08` **BLOCK: YES** (CRITICAL 2 — 영향 범위 절반 누락)
-      → 필드 전역 grep 으로 범위 재확정, `spec_impact` 3파일로 확장
+- [x] `--spec` 1차 `15_15_08` **BLOCK: YES** (CRITICAL 2 — 영향 범위 절반)
+      → 필드 전역 grep 으로 재확정, `spec_impact` 3파일
+- [x] `--spec` 2차 `15_28_10` **BLOCK: YES** (CRITICAL 1 — `payload` 봉투를 §6.3 에만 적용)
+      → **봉투 규칙을 §0 으로 분리**해 세 이벤트가 참조, 개명은 범위 밖으로, 참조자 1개(+`3-execution.md`) 추가
 - [ ] 재검토 BLOCK: NO 확인
-- [ ] EIA §6.3 재작성
-- [ ] EIA §6.4 (error 현행/목표 병기 + durationMs Planned)
-- [ ] EIA §6.5 (nested + retry-turn 캐비엇)
-- [ ] WS §4.1 **종결 3행 전부** + `duration`→`durationMs`
-- [ ] `conventions/chat-channel-adapter.md` §1.2 3 variant
-- [ ] 후속 4건 등재
+- [ ] EIA §6.1·§6.2 wire 서술 + §6.3~§6.5 (봉투 §0 적용)
+- [ ] WS §4.1 종결 3행
+- [ ] `conventions/chat-channel-adapter.md` §1.2 3 variant (+ `cancelledBy` optional)
+- [ ] `3-workflow-editor/3-execution.md` §8.1 비-authoritative 표기
+- [ ] Planned gap 2건을 `spec-sync-*-gaps.md` 트래커에 등재 (`pending_plans` 연결)
+- [ ] 후속 5건 등재
 
 ## Rationale
 
