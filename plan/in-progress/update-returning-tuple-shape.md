@@ -5,8 +5,23 @@ started: 2026-08-13
 owner: developer
 status: in-progress
 priority: P1
-spec_impact: none
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/5-system/8-embedding-pipeline.md
+  - spec/5-system/10-graph-rag.md
+  - spec/data-flow/2-auth.md
+  - spec/conventions/node-cancellation.md
 ---
+
+> **`spec_impact` 주의** — 이 PR 자체는 `spec/` 을 1줄도 바꾸지 않는다(코드 전용).
+> 그럼에도 `none` 이 아닌 이유는 자매 plan `retry-turn-terminal-guard.md` 가 같은 상황에서
+> 확립한 것과 같다: 본문이 **project-planner 위임으로 spec 각주 5건을 스스로 명시**하는데
+> frontmatter 가 `none` 이면, `complete/` 이동 시 Gate C(`spec-plan-completion.test.ts`)가
+> 그 값을 그대로 신뢰해 "spec 영향 없음" 이 잘못 확정된다.
+> **아래 §후속의 [planner 위임] 항목이 반영되기 전에는 완료 처리하지 말 것.**
+>
+> (처음엔 `none` 으로 두고 "이 PR 이 바꾸는 spec 은 0건이라 리스트는 거짓" 이라 적었는데,
+>  이 필드는 **PR 이 아니라 plan 의 라이프사이클**을 가리킨다 — `23_27_49` WARNING 3.)
 
 ## Overview
 

@@ -23,7 +23,7 @@ spec_impact:
 > 완료 처리하지 말 것.
 
 
-> ## ⚠ 소급 정정 (2026-08-13) — 12+ 라운드가 mock 경계 안쪽만 검증했다
+> ## ⚠ 소급 정정 (2026-08-13) — 방어는 옳았고 driver 가 값을 안 만들어 줬다
 >
 > 이 문서가 검증한 "동시 cancel 방어" 는 `updateExecutionStatus` 의 반환값(`persisted`)에
 > 의존한다. 그런데 그 값은 **프로덕션에서 항상 `true`** 였다 — `UPDATE … RETURNING` 이
