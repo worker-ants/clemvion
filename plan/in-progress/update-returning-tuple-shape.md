@@ -1,5 +1,5 @@
 ---
-title: UPDATE/DELETE 의 RETURNING 이 `[rows, count]` 튜플인데 7곳이 행 배열로 다뤘다
+title: UPDATE/DELETE 의 RETURNING 이 `[rows, count]` 튜플인데 8곳이 행 배열로 다뤘다
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-13
 owner: developer
@@ -70,7 +70,7 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
 **이 저장소는 이미 이 결함을 세 번 겪었고 매번 그 자리만 고쳤다** —
 `agent-memory-admin` 의 `deletedRowCount`(NotFound 미변환 버그), `stuck-document-recovery` 의
 구조분해(가짜 job 2개 큐잉 회귀), 그리고 **세 번째는 고치지도 못했다**: 아래 §소급 영향 참조.
-처방이 지점에 갇혀 있어 나머지 7곳에 전파되지 않았다.
+처방이 지점에 갇혀 있어 나머지 8곳에 전파되지 않았다.
 
 ## 왜 아무도 못 봤나 — GREEN 두 겹
 
@@ -185,7 +185,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
 
 `common/utils/update-returning-rows.ts` — `updateReturningRows<T>(result): T[]`.
 튜플이면 `[0]` 을, 아니면 그대로 돌려준다(버전·드라이버 차이를 호출부가 몰라도 되게).
-7곳 전부 이 헬퍼를 거친다.
+8곳 전부 이 헬퍼를 거친다.
 
 **헬퍼만으로는 재발을 막지 못한다**(호출을 잊으면 그만) → `update-returning-rows.spec.ts`
 에 구조적 가드: 두 파일의 UPDATE/DELETE 소비 지점 수 == 헬퍼 호출 수, 그리고 이미 올바른
@@ -213,7 +213,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
 - [x] 전역 감사 — 41 소비 지점 분류, 원래 fail-open 전제는 **반증**
 - [x] TypeORM 반환 shape 실측 (소스 읽기 + 실제 DB 프로브 2회)
 - [x] e2e 가 통과하는데 코드가 틀린 이유 규명 (rehydration 우회)
-- [x] 헬퍼 + 7곳 적용
+- [x] 헬퍼 + 8곳 적용
 - [x] RED 재현 후 GREEN 확인
 - [x] 구조적 재발 가드
 - [x] e2e 재실행 — 4191ms → **2242ms** (2s 재큐 사이클 소멸), 5/5 통과 유지
@@ -263,6 +263,17 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       수십 초간 관측했다. 스크립트가 즉시 원복해도 읽는 쪽에는 거짓 사실이 보인다.
       이 저장소는 "병렬 리뷰어가 저장소를 뮤테이션해 서로를 오염시킨다" 를 이미 겪었는데
       이번엔 **내가 뮤테이터**였다 — 리뷰 중에는 돌리지 않거나 복사본에서 돌린다.
+- [ ] **자매 가드의 `CONSUMING` 정규식이 아직 복제돼 있다** (`01_57_36` maintainability W3).
+      `countCalls`/`stripComments` 는 `__test-utils__/source-scan.ts` 로 합쳤는데, "소비 지점을
+      찾는" 정규식은 `assert-row-array.spec.ts`·`update-returning-rows.spec.ts` 에 글자까지
+      동일하게 남아 있다.
+      - **유예 근거(실측)**: 이 drift 는 **조용하지 않다.** 두 가드가 기대 개수를 리터럴로
+        박아 둔다(`expect(counts).toEqual([3, 10, 0])` / `queries: 3`·`queries: 1`). 한쪽
+        정규식만 바뀌면 그 파일의 개수가 달라져 **그 가드가 RED** 가 된다. 즉 위험은
+        "가독성·DRY" 이지 "침묵 실패" 가 아니다 — 그래서 이번 PR 을 한 라운드 더 돌릴
+        만큼 급하지 않다고 판단했다.
+      - 처방: `source-scan.ts` 에 `countConsumingQueries(src)` 로 함께 이관. 세 번째 가드가
+        생기는 시점이 자연스러운 착수 지점이다.
 - [ ] **harness: stale 워크트리 이름이 consistency 검토 대상을 오염시킨다.**
       이 세션에서 `--impl-done` 4라운드 중 **2번이 같은 CRITICAL**("target 델타 0")을 냈다
       (`00_00_45`·`01_12_33` YES / `00_20_22`·`00_54_07` NO — 같은 입력, 다른 판정).

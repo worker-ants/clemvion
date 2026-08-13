@@ -648,6 +648,13 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
   `2-navigation/4-integration.md` 서술은 **연동 쪽**이다. 카탈로그 행은 양쪽을 다 덮게 쓰거나,
   덮지 않는다면 어느 쪽인지 명시할 것 — 한 표면만 보고 적으면 반대쪽이 카탈로그와 어긋난다.
 
+**추가 2 (consistency `01_57_37` convention_compliance WARNING 3)** — 이 PR 과 무관한 별건이나
+같은 planner 턴에 묶으면 싸다:
+
+| 대상 | 고칠 것 |
+|---|---|
+| `spec/data-flow/15-external-interaction.md` §4 (Redis 행, ~L310) | *"§9.1 참고, EIA 키는 아직 미등재다"* 문장이 **stale** 하다. `#1160` 이 `conventions/redis-keys.md` 를 신설하면서 `4-execution-engine.md §9.1` 은 redirect-only 가 됐고 `interaction:idempotency:*` 는 이미 `redis-keys.md §3` 에 등재됐다. → *"키 형태·전역 인벤토리는 `conventions/redis-keys.md` 참고"* 로 정정하고 **"미등재" 구절은 삭제**할 것 |
+
 **부수**: frontmatter `pending_plans:` 에 `update-returning-tuple-shape.md` 등재.
 대상은 위 표의 5개 문서 **전부**다 (checker 는 `4-execution-engine.md`·`node-cancellation.md`
 둘만 짚었으나, caveat 을 받는 문서는 다섯이고 기준이 같다).
