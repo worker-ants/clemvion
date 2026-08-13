@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: lint-warning-triage
+worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -1191,19 +1191,20 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
 plan 에는 **캐스트 1건만** 적었다. 나머지 3건의 무조치 결정이 `review/**` 안에만 남아
 SoT 에서 추적 불가능했다. `review/**` 는 SoT 가 아니다 — 미룬 항목은 그 턴에 여기 적어야 한다.
 
-**공통 무조치 사유**: 4건 모두 실동작 영향 0 이고, 손대면 `codebase/**` 가 바뀌어 리뷰가
-stale 해진다(가드가 "리뷰 세션 시각 > 최신 코드 변경" 을 요구). 스타일 정리 때문에 6라운드째
-리뷰를 도는 것은 비용이 편익을 넘는다. **다음에 이 파일을 실질 변경할 때 한 번에 정리한다.**
+**등재 직후 전부 처리했다 (2026-08-13).** 등재 시점의 판단은 "손대면 리뷰가 stale 해지니
+다음 실질 변경 때" 였는데, 그 직후 consistency `18_50_06` WARNING 1(admission catch 주석의
+`attempts:1` 오서술)로 **어차피 `codebase/**` 를 고쳐야 했다.** 라운드를 한 번 더 치르는 것이
+확정된 이상 미룰 이유가 사라져 4건을 같은 커밋에서 닫았다 — 4라운드 연속 재부상하던 항목이다.
 
-- [ ] **오배치 JSDoc** — `:703-714` 의 블록이 설명 대상 `describe`(`:769`)에서 66줄 떨어져 있어
+- [x] **오배치 JSDoc** — `:703-714` 의 블록이 설명 대상 `describe`(`:769`)에서 66줄 떨어져 있어
       바로 뒤 헬퍼(`makeDispatcherHarness`) 설명으로 오인된다. `:769` 선언 바로 위로 이동
       (`17_15_21` INFO 5 → `18_00_11` → `18_19_33` → `18_38_10` WARNING 1, **4라운드 연속**)
-- [ ] **pass-through 래퍼** — `buildDispatcherForNull()`(`:765-767`)이 인자 없이
+- [x] **pass-through 래퍼** — `buildDispatcherForNull()`(`:765-767`)이 인자 없이
       `makeDispatcherHarness()` 를 그대로 호출만 한다. 제거하고 호출부 2곳에서 직접 호출
       (`17_15_21` INFO 6 이후 연속)
-- [ ] **fixture 빌더 네이밍 혼재** — `make*` 1개 vs `build*` 3개(`:723,765,770,843`).
+- [x] **fixture 빌더 네이밍 혼재** — `make*` 1개 vs `build*` 3개(`:723,765,770,843`).
       `makeDispatcherHarness` → `buildDispatcherHarness` (`17_15_21` INFO 7 이후 연속)
-- [ ] **인라인 타입 캐스트 4곳** — `dispatcher as unknown as { handle }`(`:795,823` 신규 +
+- [x] **인라인 타입 캐스트 4곳** — `dispatcher as unknown as { handle }`(`:795,823` 신규 +
       `:889,907` 기존). 로컬 타입 별칭으로 통합 (`17_15_21` INFO 8 이후 연속, 2→4곳으로 증가)
 
 > **왜 4라운드나 살아남았나**: 매 라운드 "실동작 0 이니 넘긴다" 로 옳게 판단했지만, 그 판단을

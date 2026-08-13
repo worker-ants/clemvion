@@ -3673,9 +3673,21 @@ export class ExecutionEngineService
     // 큐 대기 5분 초과 → cancelled. admitted(전이 성공) 만 runExecution 으로 진행한다.
     // admission 이 **throw** 하면(가드가 드라이버 반환 shape 이상을 잡은 경우 등) 위에서
     // 등록한 routing context 가 남는다 — `deferred` arm 은 이미 명시 release 하는데 이 경로만
-    // 비어 있었다 (ai-review `17_15_21` WARNING 2). 트랜잭션이 롤백돼 execution 은 pending
-    // 으로 남고 BullMQ 재배달 시 재등록되므로 대개 자가 치유되지만, 재시도가 소진되면 in-memory
-    // map 에 영구 잔류한다. release 후 **그대로 재전파**한다 — 삼키면 job 이 성공으로 보인다.
+    // 비어 있었다 (ai-review `17_15_21` WARNING 2). 그래서 release 후 재전파한다.
+    //
+    // **재시도는 없다.** `execution-run` 큐는 `attempts: 1` 이라(비멱등 노드 이중 실행 방지,
+    // `execution-run.queue.ts` `EXECUTION_RUN_QUEUE_DEFAULT_OPTS`) 명시적 throw 는 재배달되지
+    // 않고 job 이 곧바로 failed 로 간다. 재배달은 **stalled**(워커 크래시) 전용의 별개
+    // 카운터다. 트랜잭션 롤백으로 execution 은 `pending` 에 남고, 회수는 앱 재기동의
+    // orphan-pending backstop 몫이다.
+    // (`17_15_21` 대응 때 여기 "BullMQ 재배달로 자가 치유" 라 적었는데 `attempts: 1` 을
+    //  안 보고 쓴 오서술이었다 — consistency `18_50_06` WARNING 1 로 정정.)
+    //
+    // 그럼에도 **삼키지 않고 재전파**하는 이유: 삼키면 job 이 성공으로 보여 `removeOnComplete`
+    // 로 사라지고, execution 이 pending 에 좌초한 사실이 아무 데도 안 남는다. 던지면
+    // `removeOnFail: false` 로 보존돼 DLQ 모니터(§9.3)가 관측한다. 아래 자매 catch
+    // (`runExecution`)가 반대로 swallow 하는 것은 **거기선 노드가 이미 실행됐을 수 있어**
+    // 재전파가 이중 실행을 부르기 때문이다 — admission 단계는 노드 미실행이라 그 위험이 없다.
     let admission: 'admitted' | 'cancelled' | 'deferred';
     try {
       admission = await this.admitExecutionOrDefer(execution, input);

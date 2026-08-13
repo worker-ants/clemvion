@@ -701,18 +701,6 @@ describe('toChatChannelEvent — execution.node.completed (chat-channel-internal
 // SoT: spec/conventions/chat-channel-adapter.md §4.1.
 // ---------------------------------------------------------------------------
 /**
- * `toChatChannelEvent` 가 null 을 돌려줄 때 dispatcher 가 **debug 로 격하할지 warn 으로
- * 남길지** 가르는 분기(`isSubFilterNull`).
- *
- * 이 분기는 standalone `toChatChannelEvent` 테스트로는 도달할 수 없다 — 그 함수는 null 만
- * 돌려주고, "그 null 을 어떤 로그 레벨로 다룰지" 는 호출부의 판단이기 때문이다.
- * 그래서 `handle()` 를 통해 본다.
- *
- * **두 방향을 다 본다.** 한쪽만 고정하면 삼항을 뒤집는 회귀(정상 skip 을 warn 으로 쏟아내거나,
- * 진짜 에러를 debug 로 묻어 버리거나)가 절반은 통과한다. 전자는 운영 로그 노이즈, 후자는
- * 회귀 신호 유실 — 둘 다 이 분기가 막으려던 것이다.
- */
-/**
  * dispatcher 테스트용 공통 배선. 생성자 인자 5개와 fixture shape 이 한 곳에만 있도록 모은다 —
  * 종전에는 두 describe 가 같은 배선을 각자 복제하고 있었다(`14_01_46` maintainability WARNING 2).
  *
@@ -720,7 +708,7 @@ describe('toChatChannelEvent — execution.node.completed (chat-channel-internal
  *  - `renderResult` — adapter.renderNode 가 돌려줄 메시지 (기본 없음)
  *  - `lookupState`  — conversationService.lookup 이 돌려줄 상태 (기본 undefined = 대화 없음)
  */
-function makeDispatcherHarness(
+function buildDispatcherHarness(
   opts: {
     renderResult?: ChannelMessage[];
     lookupState?: Record<string, unknown>;
@@ -762,10 +750,32 @@ function makeDispatcherHarness(
   return { dispatcher, adapter, state, upsert, triggerRepository };
 }
 
-function buildDispatcherForNull() {
-  return makeDispatcherHarness();
+/**
+ * `handle` 은 dispatcher 의 private 메서드다. 로그 레벨 분기·form persist 처럼 **호출부의
+ * 판단**을 보는 테스트는 이 진입점을 거쳐야만 도달한다. 캐스트가 4곳에 복제돼 있던 것을
+ * 한 자리로 모은다 (ai-review `18_38_10` maintainability INFO 9).
+ */
+function callHandle(
+  dispatcher: unknown,
+  event: ExecutionChannelEvent,
+): Promise<void> {
+  return (
+    dispatcher as { handle: (e: ExecutionChannelEvent) => Promise<void> }
+  ).handle(event);
 }
 
+/**
+ * `toChatChannelEvent` 가 null 을 돌려줄 때 dispatcher 가 **debug 로 격하할지 warn 으로
+ * 남길지** 가르는 분기(`isSubFilterNull`).
+ *
+ * 이 분기는 standalone `toChatChannelEvent` 테스트로는 도달할 수 없다 — 그 함수는 null 만
+ * 돌려주고, "그 null 을 어떤 로그 레벨로 다룰지" 는 호출부의 판단이기 때문이다.
+ * 그래서 `handle()` 를 통해 본다.
+ *
+ * **두 방향을 다 본다.** 한쪽만 고정하면 삼항을 뒤집는 회귀(정상 skip 을 warn 으로 쏟아내거나,
+ * 진짜 에러를 debug 로 묻어 버리거나)가 절반은 통과한다. 전자는 운영 로그 노이즈, 후자는
+ * 회귀 신호 유실 — 둘 다 이 분기가 막으려던 것이다.
+ */
 describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 레벨 분기', () => {
   function buildNullEvent(
     eventType: string,
@@ -786,16 +796,13 @@ describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 �
   }
 
   it('execution.node.completed 의 sub-filter null 은 debug 로 격하 (warn 아님)', async () => {
-    const { dispatcher } = buildDispatcherForNull();
+    const { dispatcher } = buildDispatcherHarness();
     const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation();
     const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     try {
       // 비-presentation 노드 타입 → toChatChannelEvent 가 정상적으로 null.
-      await (
-        dispatcher as unknown as {
-          handle: (e: ExecutionChannelEvent) => Promise<void>;
-        }
-      ).handle(
+      await callHandle(
+        dispatcher,
         buildNullEvent('execution.node.completed', {
           nodeId: 'n1',
           nodeType: 'http_request',
@@ -814,16 +821,13 @@ describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 �
   });
 
   it('그 외 eventType 의 null 은 warn 유지 (에러성 신호라 묻지 않는다)', async () => {
-    const { dispatcher } = buildDispatcherForNull();
+    const { dispatcher } = buildDispatcherHarness();
     const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation();
     const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     try {
       // message 가 string 이 아니라 toChatChannelEvent 가 null — 에러성.
-      await (
-        dispatcher as unknown as {
-          handle: (e: ExecutionChannelEvent) => Promise<void>;
-        }
-      ).handle(
+      await callHandle(
+        dispatcher,
         buildNullEvent('execution.ai_message', { message: { not: 'string' } }),
       );
       expect(warnSpy).toHaveBeenCalledWith(
@@ -848,7 +852,7 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       startedAt: '2026-05-28T00:00:00Z',
       lastUpdateAt: '2026-05-28T00:00:00Z',
     };
-    const { dispatcher, upsert } = makeDispatcherHarness({
+    const { dispatcher, upsert } = buildDispatcherHarness({
       renderResult,
       lookupState,
     });
@@ -885,11 +889,7 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       },
     };
     const { dispatcher, state } = buildDispatcher([formModalMsg]);
-    await (
-      dispatcher as unknown as {
-        handle: (e: ExecutionChannelEvent) => Promise<void>;
-      }
-    ).handle(formEvent);
+    await callHandle(dispatcher, formEvent);
     expect(state.pendingFormModal).toMatchObject({ nodeId: 'node-form' });
     expect(
       (state.pendingFormModal as { fields: unknown[] }).fields,
@@ -903,11 +903,7 @@ describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => 
       body: { kind: 'form_prompt', fieldName: 'email', label: 'Email' },
     };
     const { dispatcher, state } = buildDispatcher([formPromptMsg]);
-    await (
-      dispatcher as unknown as {
-        handle: (e: ExecutionChannelEvent) => Promise<void>;
-      }
-    ).handle(formEvent);
+    await callHandle(dispatcher, formEvent);
     expect(state.formState).toMatchObject({
       nodeId: 'node-form',
       currentFieldIdx: 0,
