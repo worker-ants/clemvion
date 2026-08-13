@@ -200,6 +200,7 @@ import {
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
 import { assertRowArray } from '../../common/utils/assert-row-array';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -2912,9 +2913,11 @@ export class ExecutionEngineService
     const admitted = await this.executionRepository.manager.transaction(
       async (m) => {
         await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
-        // `EntityManager.query` 는 `Promise<any>` 라 반환을 그대로 쓰면 `.length` 접근이
-        // 전부 `any` 가 된다. `RETURNING id` 이므로 실제 shape 은 행 배열이다.
-        const rows = await m.query<{ id: string }[]>(
+        // 제네릭을 **달지 않는다.** `EntityManager.query` 의 선언 타입은 `Promise<any>` 라
+        // 어떤 제네릭도 검증되지 않는 주장일 뿐이고, 여기서는 그 주장이 **틀렸었다** —
+        // `UPDATE … RETURNING` 의 실제 shape 은 행 배열이 아니라 `[rows, rowCount]` 다.
+        // 실제 shape 해석은 `updateReturningRows` 한 곳이 책임진다.
+        const rows: unknown = await m.query(
           `UPDATE execution SET status = 'running', started_at = NOW()
            WHERE id = $1 AND status = 'pending'
              AND (SELECT COUNT(*) FROM execution wfe
@@ -2925,21 +2928,23 @@ export class ExecutionEngineService
            RETURNING id`,
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
         );
-        // `EntityManager.query` 의 선언 타입은 `Promise<any>` 라 위 제네릭은 **주장이지
-        // 검증이 아니다.** 드라이버가 배열이 아닌 것을 돌려주면 종전에는 `rows.length` 가
-        // `Cannot read properties of undefined` 로 터졌다 — 원인이 안 보이는 메시지다.
-        //
         // **던지는 것 자체는 유지한다.** 이 자리에서 `return false`(defer)로 삼키면 트랜잭션이
         // **커밋**되는데, shape 이 어긋났다는 것은 UPDATE 가 실제로 행을 갱신했는지 알 수
         // 없다는 뜻이다. 갱신됐는데 앱이 defer 로 처리하면 DB 는 `running`, 워커는 없음 —
         // 실행이 영영 붕 뜬다. 예외는 트랜잭션을 되돌려 그 분기를 원천 차단한다.
         // 가드가 더하는 것은 **판정 변경이 아니라 진단**이다.
-        assertRowArray(
-          rows,
-          `admission UPDATE ... RETURNING, execution ${executionId}. ` +
-            `트랜잭션을 롤백한다(부분 적용 방지).`,
+        // **UPDATE 는 `[rows, rowCount]` 튜플을 돌려준다** — `rows.length === 1` 을 그대로
+        // 쓰면 항상 2 라 영원히 거짓이었다(실측). 그래도 제품이 돌아간 이유는 이 UPDATE 가
+        // **이미 커밋**돼 row 가 running 이 되고, 재큐된 job 을 `runExecutionFromQueue` 의
+        // RUNNING arm 이 "stalled 재배달" 로 오인해 §7.5 rehydration 으로 재구동했기 때문이다.
+        // 결과만 맞고 경로가 틀렸다 — 매 실행 2s 지연 + 아래 `if (admitted)` 블록
+        // (`recordRunningSegmentStart`·`EXECUTION_STARTED` emit) 이 통째로 사문화됐다.
+        return (
+          updateReturningRows<{ id: string }>(
+            rows,
+            `admission UPDATE, execution ${executionId} — 트랜잭션을 롤백한다`,
+          ).length === 1
         );
-        return rows.length === 1;
       },
     );
     if (admitted) {
@@ -8499,7 +8504,8 @@ export class ExecutionEngineService
     const elseStatusesSql = opts?.allowRetryReentry
       ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
       : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
-    const updated: Array<{ id: string }> = await this.executionRepository.query(
+    // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
+    const updated: unknown = await this.executionRepository.query(
       `UPDATE execution
           SET status = $2,
               active_running_ms = $3,
@@ -8532,13 +8538,15 @@ export class ExecutionEngineService
     // 깨지고 클라이언트는 무기한 대기). 앞의 admission 가드와 달리 이 UPDATE 는 애플리케이션
     // 트랜잭션 밖이라 throw 가 롤백을 부르지는 못하지만, **관측 불가능한 유실을 관측 가능한
     // 실패로 바꾸는 것**이 목적이다 (ai-review `17_15_21` WARNING 1).
-    assertRowArray(
-      updated,
-      `updateExecutionStatus guarded UPDATE ... RETURNING, ` +
-        `execution ${execution.id} → ${newStatus}. ` +
-        `false 로 넘기면 종결 이벤트가 조용히 유실된다.`,
-    );
-    const persisted = updated.length > 0;
+    // 같은 튜플 문제 — `updated.length > 0` 은 항상 참이라 "동시 cancel 이 이미 terminal 로
+    // 옮겼으니 종결 이벤트를 내지 말라" 는 분기가 **한 번도 타지 않았다**. DB 쓰기 자체는
+    // `WHERE status IN (...)` 가드가 지켜 왔으므로 데이터는 안전했고, 틀린 것은 **앱이
+    // 자기가 적용했는지 아는 것** 쪽이다.
+    const persisted =
+      updateReturningRows<{ id: string }>(
+        updated,
+        `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
+      ).length > 0;
     // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);

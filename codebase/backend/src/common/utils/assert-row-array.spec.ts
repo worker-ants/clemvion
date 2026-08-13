@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { countCalls } from '../__test-utils__/source-scan';
 import { assertRowArray } from './assert-row-array';
 
 describe('assertRowArray', () => {
@@ -69,15 +70,27 @@ describe('자매 지점 전수 — 가드 누락 회귀 가드', () => {
         queries: (src.match(CONSUMING_QUERY) ?? []).length,
         // import 행은 `assertRowArray }` 라 아래 패턴(여는 괄호)에 안 걸린다 —
         // 처음엔 `- 1` 로 빼뒀다가 실측하고 지웠다.
-        guards: (src.match(/assertRowArray\(/g) ?? []).length,
+        //
+        // `countCalls` 는 주석을 제외하고 센다. 자매 가드
+        // (`update-returning-rows.spec.ts`)만 이 하드닝을 받고 여기는 못 받아
+        // 비대칭이 남아 있었다 (`00_54_01` testing WARNING 1). 지금은 대상 파일에
+        // `assertRowArray(` 를 적은 주석이 없어 결과가 같지만, 주석 하나가
+        // **호출 누락을 가리는** 결함 클래스는 이 카운터에도 열려 있었다.
+        guards: countCalls(src, 'assertRowArray'),
       };
     });
     // 실측 고정 — 이 수가 바뀌면 새 지점이 생겼다는 뜻이고, 가드를 폈는지 여기서 갈린다.
+    // **2026-08-13 갱신**: `UPDATE … RETURNING` 이 `[rows, count]` 튜플이라는 사실이
+    // 드러나면서, 그 두 지점(admission·updateExecutionStatus)은 `assertRowArray` 가 아니라
+    // `updateReturningRows` 가 맡는다 — 튜플도 배열이라 `assertRowArray` 로는 못 걸렀다.
+    // 남은 `assertRowArray` 는 **SELECT 결과**를 지키는 자리뿐이다
+    // (engine 의 `lockNonTerminalExecutionRow`, executions 의 `computeChainDepth`).
+    // 두 헬퍼의 분담: SELECT → `assertRowArray`, UPDATE/DELETE → `updateReturningRows`.
     expect(counts).toEqual([
       {
         rel: 'modules/execution-engine/execution-engine.service.ts',
         queries: 3,
-        guards: 3,
+        guards: 1,
       },
       {
         rel: 'modules/executions/executions.service.ts',

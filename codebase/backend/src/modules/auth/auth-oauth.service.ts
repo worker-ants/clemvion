@@ -18,8 +18,33 @@ import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * `auth_oauth_state` 를 **raw SQL 로** 읽었을 때의 실제 행 shape.
+ *
+ * raw `.query()` 는 ORM 매핑을 타지 않으므로 컬럼명이 DB 그대로 **snake_case** 다.
+ * entity 의 `@Column({ name: 'remember_me' }) rememberMe` 매핑은 적용되지 않는다.
+ *
+ * 이 타입이 따로 있는 이유: 앞서 `updateReturningRows<AuthOAuthState>` 로 단언했더니
+ * **타입이 거짓말을 했다** — `record.rememberMe` 는 컴파일은 통과하지만 런타임에 늘
+ * `undefined` 였고, `rememberMe ? 30 : 7` 이 항상 7 을 골라 소셜 로그인의 "로그인 유지"
+ * 가 침묵으로 무시됐다. 제네릭 인자는 검증이 아니라 단언이라 아무것도 막지 못한다.
+ *
+ * 자매 `integration-oauth.service.ts` 의 `normalizeRawStateRow` 는 같은 문제를 풀되
+ * "entity shape 이 들어오면 그대로 통과" 하는 우회로를 둔다. 여기서는 **의도적으로
+ * 두지 않았다** — 그 우회로가 있으면 entity shape 으로 mock 한 테스트가 계속 초록이라,
+ * 지금 이 결함을 숨긴 바로 그 구멍이 남는다.
+ */
+interface AuthOAuthStateRow {
+  state: string;
+  provider: string;
+  mode: AuthOAuthMode;
+  remember_me: boolean;
+  expires_at: Date;
+}
 
 /** OAUTH_STUB_MODE 가드 — dev/test 만 활성 (W-74 단일 헬퍼). */
 function isOAuthStubEnabled(): boolean {
@@ -137,9 +162,17 @@ export class AuthOauthService {
 
     // Atomically consume the state row — only one concurrent callback wins.
     // Filtering on expires_at guarantees expired states are not consumable.
-    const consumed = await this.dataSource.query<AuthOAuthState[]>(
-      'DELETE FROM auth_oauth_state WHERE state = $1 AND expires_at > NOW() RETURNING *',
-      [state],
+    // **`DELETE … RETURNING` 은 `[rows, rowCount]` 튜플이다** (typeorm 0.3.31 + pg, 실측).
+    // 그대로 쓰면 `consumed.length === 0` 이 영원히 거짓이라 만료·재사용 state 를 못 거절하고,
+    // `consumed[0]` 이 행이 아니라 **행 배열**이라 `record.provider` 가 `undefined` →
+    // 정상 콜백까지 전부 `OAUTH_STATE_MISMATCH` 로 실패했다(소셜 로그인 상시 실패).
+    // 같은 저장소의 `integration-oauth.service.ts` 는 이미 튜플로 다루고 있었다.
+    const consumed = updateReturningRows<AuthOAuthStateRow>(
+      await this.dataSource.query(
+        'DELETE FROM auth_oauth_state WHERE state = $1 AND expires_at > NOW() RETURNING *',
+        [state],
+      ),
+      `OAuth state 소비, provider ${provider}`,
     );
     if (consumed.length === 0) {
       throw new BadRequestException({
@@ -154,16 +187,19 @@ export class AuthOauthService {
         message: 'Provider mismatch for OAuth state',
       });
     }
+    // snake_case → camelCase. `provider` 는 두 형태가 같아 위 검사가 우연히 통했지만
+    // `remember_me` 는 아니다 (`AuthOAuthStateRow` docstring 참조).
+    const rememberMe = record.remember_me === true;
 
     const accessToken = await this.exchangeCodeForToken(provider, code);
     const profile = await this.fetchProfile(provider, accessToken);
     const user = await this.resolveUser(provider, profile);
     const tokens = await this.authService.issueTokensForOauthUser(
       user,
-      record.rememberMe,
+      rememberMe,
       ctx,
     );
-    return { ...tokens, rememberMe: record.rememberMe };
+    return { ...tokens, rememberMe };
   }
 
   private async exchangeCodeForToken(

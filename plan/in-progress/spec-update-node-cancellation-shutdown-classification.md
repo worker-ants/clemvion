@@ -601,3 +601,66 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 - [ ] **재발 방지 규약 검토** — "프레임워크/도메인 예약어와 겹치는 bare 타입명은 접두어로
       구분한다" 를 명명 규약으로 신설할지. 실례가 이제 둘이다(`Entity`→`Graph*`,
       `Node`/`Edge`→`GraphViz*`/`Graph3D*`).
+
+## 추가 위임 (2026-08-14 #12) — `UPDATE … RETURNING` 튜플 shape 수정의 소급 각주 5건
+
+`plan/in-progress/update-returning-tuple-shape.md` 가 고친 결함(TypeORM 이 UPDATE/DELETE 에
+`[rows, rowCount]` 튜플을 돌려주는데 8곳이 행 배열로 다룸)은 **spec 이 서술한 보장 여러 개를
+소급으로 무효화**한다. 그 각주가 `update-returning-tuple-shape.md` 자신의 후속 절에만 있어
+다음 planner 스윕에서 놓칠 위험이 있다 — 이 집결 티켓에 포인터로 등재한다
+(consistency `00_00_45` plan_coherence WARNING 2).
+
+| 대상 | 넣을 caveat |
+|---|---|
+| `spec/5-system/4-execution-engine.md` §1.1 | admission gate·종결 이벤트 가드가 `8332d9a20`(2026-08-13) 이전엔 실효되지 않았다 |
+| `spec/5-system/8-embedding-pipeline.md` §7.3 | KB 재임베딩 CAS 락이 거절한 적 없다 |
+| `spec/5-system/10-graph-rag.md` 동시 호출 표 | KB 재추출 CAS 락이 거절한 적 없다 |
+| `spec/data-flow/2-auth.md` OAuth state 소비 | 소셜 로그인이 상시 실패였다 |
+| `spec/conventions/node-cancellation.md` §2.4 | **행 라벨이 아니라 소비 경로 단위로** — 영향 있음은 반환값으로 분기하는 **11곳 / 3파일**(`execution-engine.service.ts` 6 · `ai-turn-orchestrator.service.ts` 3 · `retry-turn.service.ts` 2), 영향 없음은 반환값을 버리는 9곳 + `assertExecutionNotCancelled`·`linkedNodeExec` `FOR UPDATE`. **`executeSync` 는 영향 없음** — 초판에서 잘못 넣었다. 이 목록을 두 번 틀렸으니(서술형 라벨 → 한 파일만 집계) 각주를 쓸 때 **전수 목록을 다시 열 것**: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md) §후속 의 표가 정본 (`00_20_21` side_effect W2) |
+
+**추가 (consistency `00_20_22` cross_spec INFO 2)** — 위 5건과 성격이 다르다. caveat 이 아니라
+**신규 카탈로그 항목**이다:
+
+| 대상 | 넣을 것 |
+|---|---|
+| `spec/5-system/3-error-handling.md` **§1.2 인증/인가 에러** | `OAUTH_STATE_MISMATCH` (400) 등재 + `data-flow/2-auth.md` 상호링크 |
+
+> **삽입 위치 정정** — 초판은 "§1.8 인근" 이라고 적었다. §1.8 은 **KB / Graph RAG 도메인 전용**
+> 절이라 인증 코드가 갈 자리가 아니다. 자매 코드가 거기 있다는 이유로 위치까지 따라간 것인데,
+> 그 자매가 KB 코드였다는 게 요점이었다. 인증 코드의 자리는 §1.2 다
+> (`00_54_07` convention_compliance INFO 3).
+
+실측(2026-08-14): `3-error-handling.md` 내 출현 `OAUTH_STATE_MISMATCH` **0** vs
+`KB_REEMBED_IN_PROGRESS` **1** · `KB_REEXTRACT_IN_PROGRESS` **1**. 자매 둘은 등재됐는데
+이것만 빠졌다.
+
+**이 PR 전에는 등재 가치가 낮았다** — 튜플 shape 오인으로 OAuth state 소비가 항상 실패해
+이 코드가 *상시* 발생했기 때문이다. fix 이후에야 "실제 이상 상황에서만 발생하는 코드" 라는
+원래 의미로 돌아왔고, 그래서 지금 카탈로그 완결성이 의미를 갖는다.
+
+착수 전 알아야 할 두 가지 (실측):
+
+- **미등재 ≠ 미문서화.** 이 코드는 이미 `spec/2-navigation/4-integration.md:851` 에 `(400)` 으로,
+  `spec/conventions/error-codes.md:35` 에 명명 예시로 나온다. 빠진 것은 **중앙 카탈로그** 한
+  곳뿐이다 — 새로 정의하지 말고 기존 서술과 status·의미를 맞춰 등재할 것.
+- **한 코드가 두 표면을 공유한다.** 로그인 OAuth(`auth-oauth.service.ts`, 이번 PR 이 고친 쪽)와
+  서드파티 연동 OAuth(`integration-oauth.service.ts`)가 같은 문자열을 던진다. 위의
+  `2-navigation/4-integration.md` 서술은 **연동 쪽**이다. 카탈로그 행은 양쪽을 다 덮게 쓰거나,
+  덮지 않는다면 어느 쪽인지 명시할 것 — 한 표면만 보고 적으면 반대쪽이 카탈로그와 어긋난다.
+
+**추가 2 (consistency `01_57_37` convention_compliance WARNING 3)** — 이 PR 과 무관한 별건이나
+같은 planner 턴에 묶으면 싸다:
+
+| 대상 | 고칠 것 |
+|---|---|
+| `spec/data-flow/15-external-interaction.md` §4 (Redis 행, ~L310) | *"§9.1 참고, EIA 키는 아직 미등재다"* 문장이 **stale** 하다. `#1160` 이 `conventions/redis-keys.md` 를 신설하면서 `4-execution-engine.md §9.1` 은 redirect-only 가 됐고 `interaction:idempotency:*` 는 이미 `redis-keys.md §3` 에 등재됐다. → *"키 형태·전역 인벤토리는 `conventions/redis-keys.md` 참고"* 로 정정하고 **"미등재" 구절은 삭제**할 것 |
+
+**부수**: frontmatter `pending_plans:` 에 `update-returning-tuple-shape.md` 등재.
+대상은 위 표의 5개 문서 **전부**다 (checker 는 `4-execution-engine.md`·`node-cancellation.md`
+둘만 짚었으나, caveat 을 받는 문서는 다섯이고 기준이 같다).
+
+> `spec-pending-plan-existence.test.ts` 는 **한 방향 가드**다 — 등재된 경로가 실존하는지만
+> 검사하고, 문서가 관련 plan 을 등재하도록 강제하지 않는다. 즉 이 항목은 **가드가 잡아주지
+> 않는 규율**이라 여기 적어두지 않으면 조용히 사라진다.
+
+> 상세 근거·실측: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).

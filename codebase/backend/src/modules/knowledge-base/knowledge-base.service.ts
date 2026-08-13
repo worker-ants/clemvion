@@ -30,6 +30,7 @@ import {
 } from './queues/graph-extraction.queue';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 
 const ALLOWED_FILE_TYPES = ['txt', 'md', 'pdf', 'csv'];
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -332,14 +333,19 @@ export class KnowledgeBaseService {
 
     const docIds = await this.dataSource.transaction(async (manager) => {
       // 1) atomic CAS lock
-      const acquired = await manager.query<{ id: string }[]>(
+      const acquired: unknown = await manager.query(
         `UPDATE knowledge_base
          SET reextract_status = 'in_progress', entity_count = 0, relation_count = 0
          WHERE id = $1 AND workspace_id = $2 AND reextract_status = 'idle'
          RETURNING id`,
         [id, workspaceId],
       );
-      if (acquired.length === 0) {
+      // UPDATE 는 `[rows, rowCount]` 튜플 → `acquired.length` 가 항상 2 라
+      // **CAS 락이 한 번도 거절하지 않았다**(동시 재추출 허용). 실측 근거는 헬퍼 참조.
+      if (
+        updateReturningRows(acquired, `KB re-extract CAS 락, kb ${id}`)
+          .length === 0
+      ) {
         throw new ConflictException({
           code: 'KB_REEXTRACT_IN_PROGRESS',
           message: 'A KB graph re-extraction is already in progress',
@@ -524,7 +530,7 @@ export class KnowledgeBaseService {
     let graphRequeued = 0;
 
     if (scope === 'embedding' || scope === 'all') {
-      const rows = await this.dataSource.query<{ id: string }[]>(
+      const rows: unknown = await this.dataSource.query(
         `UPDATE document
             SET embedding_status = 'pending',
                 embedding_retry_count = 0,
@@ -533,8 +539,14 @@ export class KnowledgeBaseService {
           RETURNING id`,
         [id],
       );
+      // 튜플을 그대로 map 하면 `[undefined, undefined]` — 가짜 job 2개가 큐잉된다
+      // (`stuck-document-recovery` 주석이 기록한 그 회귀와 동일 형태).
+      const rowsOut = updateReturningRows<{ id: string }>(
+        rows,
+        `KB embedding 재큐, kb ${id}`,
+      );
       const { enqueued, failed, firstError } = await this.enqueueEmbedChunked(
-        rows.map((r) => r.id),
+        rowsOut.map((r) => r.id),
         (documentId) => ({
           documentId,
           knowledgeBaseId: id,
@@ -554,7 +566,7 @@ export class KnowledgeBaseService {
       if (kb.ragMode !== 'graph') {
         // vector 모드 KB 에 graph scope 요청은 즉시 0건 반환 (에러 throw 하지 않음 — 'all' 호환).
       } else {
-        const rows = await this.dataSource.query<{ id: string }[]>(
+        const rows: unknown = await this.dataSource.query(
           `UPDATE document
               SET graph_extraction_status = 'pending',
                   graph_retry_count = 0,
@@ -563,9 +575,13 @@ export class KnowledgeBaseService {
             RETURNING id`,
           [id],
         );
-        graphRequeued = rows.length;
-        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-          const slice = rows.slice(i, i + CHUNK_SIZE);
+        const rowsOut = updateReturningRows<{ id: string }>(
+          rows,
+          `KB graph 재큐, kb ${id}`,
+        );
+        graphRequeued = rowsOut.length;
+        for (let i = 0; i < rowsOut.length; i += CHUNK_SIZE) {
+          const slice = rowsOut.slice(i, i + CHUNK_SIZE);
           try {
             await this.graphQueue.addBulk(
               slice.map((r) => ({
@@ -701,14 +717,18 @@ export class KnowledgeBaseService {
   ): Promise<{ documentCount: number; chainedGraphExtraction: boolean }> {
     const kb = await this.findById(id, workspaceId);
 
-    const acquired = await this.dataSource.query<{ id: string }[]>(
+    const acquired: unknown = await this.dataSource.query(
       `UPDATE knowledge_base
        SET reembed_status = 'in_progress', embedding_dimension = NULL
        WHERE id = $1 AND workspace_id = $2 AND reembed_status = 'idle'
        RETURNING id`,
       [id, workspaceId],
     );
-    if (acquired.length === 0) {
+    // 위 `1) atomic CAS lock`(reExtractAll) 과 같은 CAS 락 — 튜플이라 거절 분기가
+    // 사문화돼 있었다.
+    if (
+      updateReturningRows(acquired, `KB re-embed CAS 락, kb ${id}`).length === 0
+    ) {
       throw new ConflictException({
         code: 'KB_REEMBED_IN_PROGRESS',
         message: 'A KB re-embedding is already in progress',
@@ -717,7 +737,7 @@ export class KnowledgeBaseService {
 
     // 모든 문서의 retry / error 메타데이터 리셋 (재시도 카운트 0 부터 다시 시작).
     // RETURNING id 로 별도 SELECT 1회 제거 — reset 대상 = 재임베딩 대상 (M-1).
-    const reset = await this.dataSource.query<{ id: string }[]>(
+    const reset: unknown = await this.dataSource.query(
       `UPDATE document
           SET embedding_status = 'pending',
               embedding_retry_count = 0,
@@ -727,7 +747,13 @@ export class KnowledgeBaseService {
       [id],
     );
 
-    if (reset.length === 0) {
+    // 빈 KB 즉시 idle 복귀 분기. 튜플이라 `length` 가 항상 2 → **이 분기가 안 타서**
+    // 문서 0건 KB 가 `reembed_status='in_progress'` 로 좌초했다.
+    const resetRows = updateReturningRows<{ id: string }>(
+      reset,
+      `KB re-embed reset, kb ${id}`,
+    );
+    if (resetRows.length === 0) {
       // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
       await this.dataSource.query(
         `UPDATE knowledge_base SET reembed_status = 'idle' WHERE id = $1`,
@@ -742,7 +768,7 @@ export class KnowledgeBaseService {
     // 단일 addBulk(문서 수 비례 페이로드 폭발) → CHUNK_SIZE 분할 적재 + 실패 보상.
     // ragMode 는 이미 fetch 한 kb 에서 주입 — worker DB JOIN 회피.
     const { enqueued } = await this.enqueueEmbedChunked(
-      reset.map((r) => r.id),
+      resetRows.map((r) => r.id),
       (documentId) => ({
         documentId,
         reEmbed: true,
@@ -752,7 +778,7 @@ export class KnowledgeBaseService {
       }),
     );
 
-    if (enqueued < reset.length) {
+    if (enqueued < resetRows.length) {
       // 일부/전부 chunk 적재 실패 — 실패분은 helper 가 'failed' 로 롤백했다. 정상
       // child 의 finalize 가 이미 지나가 reembed_status 가 in_progress 로 잠긴 채
       // 남거나(부분 실패), 발사된 child 가 없어(전 chunk 실패) finalize 자체가

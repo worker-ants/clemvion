@@ -4383,6 +4383,71 @@ describe('ExecutionEngineService', () => {
       });
     });
 
+    /**
+     * **드라이버가 실제로 돌려주는 shape 로 admission 을 건다.**
+     *
+     * 실측(typeorm 0.3.31 + pg, 파라미터·트랜잭션 무관):
+     *   `UPDATE … RETURNING` (1행) → `[[{id}], 1]`   ← length 2
+     *   `INSERT … RETURNING` (1행) → `[{id}]`        ← length 1
+     * `PostgresQueryRunner.query` 의 `switch (raw.command)` 가 UPDATE/DELETE 만
+     * `[rows, rowCount]` 로 감싸기 때문이다.
+     *
+     * 이 스위트의 다른 admission 테스트들은 `[{id}]`(INSERT 형태)를 mock 해 왔고,
+     * 그래서 `rows.length === 1` 이 **실제로는 영원히 거짓**이라는 사실을 4개월간
+     * 아무도 못 봤다. mock 이 틀린 현실을 인코딩하면 GREEN 은 아무것도 증명하지 않는다.
+     *
+     * e2e 가 통과한 이유는 admission 실패 후 **UPDATE 는 이미 커밋**돼 row 가 running 이 되고,
+     * 재큐된 job 을 `runExecutionFromQueue` 의 RUNNING arm 이 "stalled 재배달" 로 오인해
+     * §7.5 rehydration 으로 재구동하기 때문이다 — 결과만 맞고 경로가 틀렸다.
+     * 대가: 매 실행마다 `EXECUTION_ADMISSION_RETRY_DELAY_MS`(2s) 지연 + 이 블록의
+     * `recordRunningSegmentStart`·`EXECUTION_STARTED` 가 통째로 사문화.
+     */
+    it('실측 shape([rows,count])로도 admitted 여야 한다 — UPDATE 는 튜플을 돌려준다', async () => {
+      (
+        mockExecutionRepo.manager as unknown as { transaction: jest.Mock }
+      ).transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([[{ id: 'e1' }], 1]) }),
+      );
+      const spy = emitSpy();
+      try {
+        const exec = {
+          id: 'e1',
+          workflowId: 'wf',
+          queuedAt: new Date(),
+          status: 'pending',
+        };
+        await expect(admit(exec)).resolves.toBe('admitted');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('실측 shape 로 0행 매칭(cap 초과)이면 admitted 가 아니어야 한다', async () => {
+      (
+        mockExecutionRepo.manager as unknown as { transaction: jest.Mock }
+      ).transaction = jest.fn(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([[], 0]) }),
+      );
+      const spy = emitSpy();
+      try {
+        const exec = {
+          id: 'e0',
+          workflowId: 'wf',
+          queuedAt: new Date(),
+          status: 'pending',
+        };
+        // **정확한 값으로 단언한다.** 종전엔 `not.toBe('admitted')` 였는데,
+        // 그러면 "0행인데 `cancelled` 를 돌려주는" 회귀도 통과한다 — 느슨한 단언이
+        // 버그를 4개월 숨긴 게 이 PR 의 교훈인데 새 테스트가 그걸 재도입한 셈이었다
+        // (ai-review `23_46_00` WARNING 3).
+        await expect(admit(exec)).resolves.toBe('deferred');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it('cap 여유(affected=1) → admitted: pending→running 동기화 + STARTED emit', async () => {
       mockExecutionRepo.manager.transaction = jest.fn(
         async (cb: (m: { query: jest.Mock }) => unknown) =>
@@ -4525,6 +4590,43 @@ describe('ExecutionEngineService', () => {
      * 아래 둘은 engine 쪽 두 지점을 고정한다. `computeChainDepth` 는
      * `executions-rerun.service.spec.ts` 가 담당한다.
      */
+    /**
+     * **튜플과 행 배열을 의미로 가르는 테스트.** 위 "배열이 아니면 던진다" 는 비배열만
+     * 잡을 뿐, **잘 만들어진 튜플**에서 `persisted` 를 튜플 길이(항상 2)로 계산하는
+     * 회귀는 못 잡는다 — ai-review `22_45_24` CRITICAL 1 이 그 공백을 지적했고,
+     * 나는 직전 RESOLUTION 에서 "이미 덮는다" 고 **검증 없이 썼다.**
+     *
+     * `[[], 0]`(0행) 쪽이 진짜 판별자다: 튜플 길이는 2 라 옛 코드는 `persisted=true`,
+     * 올바른 코드는 rows 가 비었으므로 `false`.
+     */
+    it('실측 shape: 1행 튜플([[{id}],1])이면 persisted=true', async () => {
+      mockExecutionRepo.query = jest
+        .fn()
+        .mockResolvedValue([[{ id: 'eUpd' }], 1]);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      await expect(
+        svcAny.updateExecutionStatus(
+          { id: 'eUpd', workflowId: 'wf', status: ExecutionStatus.RUNNING },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it('실측 shape: 0행 튜플([[],0])이면 persisted=false — 동시 cancel 선점 분기가 살아난다', async () => {
+      mockExecutionRepo.query = jest.fn().mockResolvedValue([[], 0]);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      await expect(
+        svcAny.updateExecutionStatus(
+          { id: 'eUpd0', workflowId: 'wf', status: ExecutionStatus.RUNNING },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).resolves.toBe(false);
+    });
+
     it('updateExecutionStatus: guarded UPDATE 가 배열이 아니면 던진다 — 종결 이벤트 조용한 유실 차단', async () => {
       mockExecutionRepo.query = jest.fn().mockResolvedValue(undefined);
       const svcAny = service as unknown as {
@@ -7205,7 +7307,11 @@ describe('ExecutionEngineService', () => {
           Array.isArray(params) &&
           params.includes(ExecutionStatus.CANCELLED)
         ) {
-          return Promise.resolve([]); // 0행 = 이미 terminal (stop() 이 선점)
+          // 0행 = 이미 terminal (stop() 이 선점). **실 드라이버 shape 인 `[rows, count]`
+          // 튜플로 준다** — 종전엔 bare `[]` 였고, `updateReturningRows` 를 거치면 둘 다
+          // length 0 이라 결론은 같았지만 **틀린 현실을 mock 에 인코딩**하는 것이 이
+          // 결함 클래스의 발원지다 (`01_44_04` plan_coherence INFO 6).
+          return Promise.resolve([[], 0]);
         }
         return defaultQuery(sql, params);
       });
