@@ -2920,15 +2920,19 @@ export class ExecutionEngineService
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
         );
         // `EntityManager.query` 의 선언 타입은 `Promise<any>` 라 위 제네릭은 **주장이지
-        // 검증이 아니다.** 드라이버가 배열이 아닌 것을 돌려주면 `rows.length` 가 TypeError 를
-        // 던져 admission 이 "거부" 가 아니라 **예외**로 끝난다 — 호출부는 그 둘을 다르게 다룬다.
-        // 배열이 아니면 admitted=false 로 떨어뜨려 **fail-closed 를 명시**한다(cap 우회 아님).
+        // 검증이 아니다.** 드라이버가 배열이 아닌 것을 돌려주면 종전에는 `rows.length` 가
+        // `Cannot read properties of undefined` 로 터졌다 — 원인이 안 보이는 메시지다.
+        //
+        // **던지는 것 자체는 유지한다.** 이 자리에서 `return false`(defer)로 삼키면 트랜잭션이
+        // **커밋**되는데, shape 이 어긋났다는 것은 UPDATE 가 실제로 행을 갱신했는지 알 수
+        // 없다는 뜻이다. 갱신됐는데 앱이 defer 로 처리하면 DB 는 `running`, 워커는 없음 —
+        // 실행이 영영 붕 뜬다. 예외는 트랜잭션을 되돌려 그 분기를 원천 차단한다.
+        // 가드가 더하는 것은 **판정 변경이 아니라 진단**이다.
         if (!Array.isArray(rows)) {
-          this.logger.warn(
+          throw new Error(
             `admission: UPDATE ... RETURNING 이 배열이 아님 (typeof=${typeof rows}) — ` +
-              `execution ${executionId} 를 defer 로 처리한다`,
+              `execution ${executionId}. 트랜잭션을 롤백한다(부분 적용 방지).`,
           );
-          return false;
         }
         return rows.length === 1;
       },

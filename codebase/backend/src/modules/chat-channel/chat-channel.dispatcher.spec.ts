@@ -712,37 +712,58 @@ describe('toChatChannelEvent — execution.node.completed (chat-channel-internal
  * 진짜 에러를 debug 로 묻어 버리거나)가 절반은 통과한다. 전자는 운영 로그 노이즈, 후자는
  * 회귀 신호 유실 — 둘 다 이 분기가 막으려던 것이다.
  */
-function buildDispatcherForNull() {
+/**
+ * dispatcher 테스트용 공통 배선. 생성자 인자 5개와 fixture shape 이 한 곳에만 있도록 모은다 —
+ * 종전에는 두 describe 가 같은 배선을 각자 복제하고 있었다(`14_01_46` maintainability WARNING 2).
+ *
+ * 두 축만 옵션으로 연다:
+ *  - `renderResult` — adapter.renderNode 가 돌려줄 메시지 (기본 없음)
+ *  - `lookupState`  — conversationService.lookup 이 돌려줄 상태 (기본 undefined = 대화 없음)
+ */
+function makeDispatcherHarness(
+  opts: {
+    renderResult?: ChannelMessage[];
+    lookupState?: Record<string, unknown>;
+  } = {},
+) {
+  const state = opts.lookupState;
+  const upsert = jest.fn(async () => undefined);
+  const conversationService = {
+    lookup: jest.fn(async () => state),
+    upsert,
+    updateExecutionId: jest.fn(async () => undefined),
+  };
   const adapter = {
     provider: 'slack',
     supportsNativeForm: true,
-    renderNode: jest.fn(async () => []),
+    renderNode: jest.fn(async () => opts.renderResult ?? []),
     sendMessage: jest.fn(async () => ({
       externalMsgId: 'm',
       sentAt: '2026-05-28T00:00:00Z',
     })),
   };
+  const triggerRepository = {
+    findOne: jest.fn(async () => ({
+      id: 'trig-1',
+      workspaceId: 'ws',
+      workflowId: 'wf-1',
+      config: { chatChannel: { provider: 'slack' } },
+      chatChannelHealth: 'healthy',
+    })),
+    update: jest.fn(async () => undefined),
+  };
   const dispatcher = new ChatChannelDispatcher(
     { executionEvents$: { subscribe: jest.fn() } } as never,
     { get: jest.fn(() => adapter) } as never,
     { has: jest.fn(() => true) } as never,
-    {
-      lookup: jest.fn(async () => undefined),
-      upsert: jest.fn(async () => undefined),
-      updateExecutionId: jest.fn(async () => undefined),
-    } as never,
-    {
-      findOne: jest.fn(async () => ({
-        id: 'trig-1',
-        workspaceId: 'ws',
-        workflowId: 'wf-1',
-        config: { chatChannel: { provider: 'slack' } },
-        chatChannelHealth: 'healthy',
-      })),
-      update: jest.fn(async () => undefined),
-    } as never,
+    conversationService as never,
+    triggerRepository as never,
   );
-  return { dispatcher, adapter };
+  return { dispatcher, adapter, state, upsert, triggerRepository };
+}
+
+function buildDispatcherForNull() {
+  return makeDispatcherHarness();
 }
 
 describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 레벨 분기', () => {
@@ -820,48 +841,18 @@ describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 �
 
 describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => {
   function buildDispatcher(renderResult: ChannelMessage[]) {
-    const state: Record<string, unknown> = {
+    const lookupState: Record<string, unknown> = {
       executionId: 'exec-1',
       threadId: 'default',
       channelUserKey: 'U1',
       startedAt: '2026-05-28T00:00:00Z',
       lastUpdateAt: '2026-05-28T00:00:00Z',
     };
-    const upsert = jest.fn(async () => undefined);
-    const conversationService = {
-      lookup: jest.fn(async () => state),
-      upsert,
-      updateExecutionId: jest.fn(async () => undefined),
-    };
-    const adapter = {
-      provider: 'slack',
-      supportsNativeForm: true,
-      renderNode: jest.fn(async () => renderResult),
-      sendMessage: jest.fn(async () => ({
-        externalMsgId: 'm',
-        sentAt: '2026-05-28T00:00:00Z',
-      })),
-    };
-    const registry = { get: jest.fn(() => adapter) };
-    const listenerRegistry = { has: jest.fn(() => true) };
-    const triggerRepository = {
-      findOne: jest.fn(async () => ({
-        id: 'trig-1',
-        workspaceId: 'ws',
-        workflowId: 'wf-1',
-        config: { chatChannel: { provider: 'slack' } },
-        chatChannelHealth: 'healthy',
-      })),
-      update: jest.fn(async () => undefined),
-    };
-    const dispatcher = new ChatChannelDispatcher(
-      { executionEvents$: { subscribe: jest.fn() } } as never,
-      registry as never,
-      listenerRegistry as never,
-      conversationService as never,
-      triggerRepository as never,
-    );
-    return { dispatcher, state, upsert };
+    const { dispatcher, upsert } = makeDispatcherHarness({
+      renderResult,
+      lookupState,
+    });
+    return { dispatcher, state: lookupState, upsert };
   }
 
   const formEvent: ExecutionChannelEvent = {
