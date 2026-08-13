@@ -342,6 +342,27 @@ describe('KnowledgeBaseService', () => {
       });
     });
 
+    /**
+     * `reEmbedAll` 과 대칭인 CAS 락 실측 shape 가드 (`22_45_24` WARNING 1).
+     * 튜플 `[[], 0]` 의 length 는 2 라, 헬퍼를 되돌리면 락이 거절하지 못하고
+     * **동시 재추출이 둘 다 통과**한다.
+     */
+    it('실측 shape: 0행 튜플([[],0])이면 409 — 재추출 CAS 락이 실제로 거절해야 한다', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+      });
+      mockDataSource.transaction.mockImplementation(
+        async (cb: (m: { query: jest.Mock }) => unknown) =>
+          cb({ query: jest.fn().mockResolvedValue([[], 0]) }),
+      );
+
+      await expect(service.reExtractAll('kb-1', 'ws-1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
     it('atomically acquires reextract_status, deletes entities, queues docs', async () => {
       mockKbRepo.findOne.mockResolvedValue({
         id: 'kb-1',
@@ -785,9 +806,10 @@ describe('KnowledgeBaseService', () => {
      * mock 해 왔고, 그래서 CAS 락의 `acquired.length === 0` 이 **영원히 거짓**이라는
      * 사실을 아무도 못 봤다 — 동시 재임베딩이 거절되지 않았다.
      *
-     * 아래 두 테스트는 `updateReturningRows` 를 되돌리면 **각각 RED** 가 된다:
-     *   0행 튜플 `[[], 0]` → 되돌리면 length 2 → 409 를 안 던짐
-     *   1행 튜플 `[[{id}], 1]` → 되돌리면 length 2 → 통과하나 reset 도 튜플이라 후속이 깨짐
+     * 아래 테스트는 `updateReturningRows` 를 되돌리면 RED 가 된다 —
+     * 0행 튜플 `[[], 0]` 의 length 는 2 라 옛 코드는 409 를 안 던진다.
+     * (처음엔 "아래 두 테스트" 라 적어 놓고 1건만 뒀다 — `22_45_24` WARNING 1 이 잡았다.
+     *  `reExtractAll` 쪽 대칭 테스트는 그 describe 에 따로 있다.)
      */
     it('실측 shape: 0행 튜플([[],0])이면 409 를 던진다 — CAS 락이 실제로 거절해야 한다', async () => {
       mockDataSource.query.mockResolvedValueOnce([[], 0]);

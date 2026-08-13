@@ -4587,6 +4587,43 @@ describe('ExecutionEngineService', () => {
      * 아래 둘은 engine 쪽 두 지점을 고정한다. `computeChainDepth` 는
      * `executions-rerun.service.spec.ts` 가 담당한다.
      */
+    /**
+     * **튜플과 행 배열을 의미로 가르는 테스트.** 위 "배열이 아니면 던진다" 는 비배열만
+     * 잡을 뿐, **잘 만들어진 튜플**에서 `persisted` 를 튜플 길이(항상 2)로 계산하는
+     * 회귀는 못 잡는다 — ai-review `22_45_24` CRITICAL 1 이 그 공백을 지적했고,
+     * 나는 직전 RESOLUTION 에서 "이미 덮는다" 고 **검증 없이 썼다.**
+     *
+     * `[[], 0]`(0행) 쪽이 진짜 판별자다: 튜플 길이는 2 라 옛 코드는 `persisted=true`,
+     * 올바른 코드는 rows 가 비었으므로 `false`.
+     */
+    it('실측 shape: 1행 튜플([[{id}],1])이면 persisted=true', async () => {
+      mockExecutionRepo.query = jest
+        .fn()
+        .mockResolvedValue([[{ id: 'eUpd' }], 1]);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      await expect(
+        svcAny.updateExecutionStatus(
+          { id: 'eUpd', workflowId: 'wf', status: ExecutionStatus.RUNNING },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it('실측 shape: 0행 튜플([[],0])이면 persisted=false — 동시 cancel 선점 분기가 살아난다', async () => {
+      mockExecutionRepo.query = jest.fn().mockResolvedValue([[], 0]);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      await expect(
+        svcAny.updateExecutionStatus(
+          { id: 'eUpd0', workflowId: 'wf', status: ExecutionStatus.RUNNING },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).resolves.toBe(false);
+    });
+
     it('updateExecutionStatus: guarded UPDATE 가 배열이 아니면 던진다 — 종결 이벤트 조용한 유실 차단', async () => {
       mockExecutionRepo.query = jest.fn().mockResolvedValue(undefined);
       const svcAny = service as unknown as {

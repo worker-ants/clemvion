@@ -342,7 +342,10 @@ export class KnowledgeBaseService {
       );
       // UPDATE 는 `[rows, rowCount]` 튜플 → `acquired.length` 가 항상 2 라
       // **CAS 락이 한 번도 거절하지 않았다**(동시 재추출 허용). 실측 근거는 헬퍼 참조.
-      if (updateReturningRows(acquired).length === 0) {
+      if (
+        updateReturningRows(acquired, `KB re-extract CAS 락, kb ${id}`)
+          .length === 0
+      ) {
         throw new ConflictException({
           code: 'KB_REEXTRACT_IN_PROGRESS',
           message: 'A KB graph re-extraction is already in progress',
@@ -538,7 +541,10 @@ export class KnowledgeBaseService {
       );
       // 튜플을 그대로 map 하면 `[undefined, undefined]` — 가짜 job 2개가 큐잉된다
       // (`stuck-document-recovery` 주석이 기록한 그 회귀와 동일 형태).
-      const rowsOut = updateReturningRows<{ id: string }>(rows);
+      const rowsOut = updateReturningRows<{ id: string }>(
+        rows,
+        `KB embedding 재큐, kb ${id}`,
+      );
       const { enqueued, failed, firstError } = await this.enqueueEmbedChunked(
         rowsOut.map((r) => r.id),
         (documentId) => ({
@@ -569,7 +575,10 @@ export class KnowledgeBaseService {
             RETURNING id`,
           [id],
         );
-        const rowsOut = updateReturningRows<{ id: string }>(rows);
+        const rowsOut = updateReturningRows<{ id: string }>(
+          rows,
+          `KB graph 재큐, kb ${id}`,
+        );
         graphRequeued = rowsOut.length;
         for (let i = 0; i < rowsOut.length; i += CHUNK_SIZE) {
           const slice = rowsOut.slice(i, i + CHUNK_SIZE);
@@ -716,7 +725,9 @@ export class KnowledgeBaseService {
       [id, workspaceId],
     );
     // ① 과 같은 CAS 락 — 튜플이라 거절 분기가 사문화돼 있었다.
-    if (updateReturningRows(acquired).length === 0) {
+    if (
+      updateReturningRows(acquired, `KB re-embed CAS 락, kb ${id}`).length === 0
+    ) {
       throw new ConflictException({
         code: 'KB_REEMBED_IN_PROGRESS',
         message: 'A KB re-embedding is already in progress',
@@ -737,7 +748,10 @@ export class KnowledgeBaseService {
 
     // 빈 KB 즉시 idle 복귀 분기. 튜플이라 `length` 가 항상 2 → **이 분기가 안 타서**
     // 문서 0건 KB 가 `reembed_status='in_progress'` 로 좌초했다.
-    const resetRows = updateReturningRows<{ id: string }>(reset);
+    const resetRows = updateReturningRows<{ id: string }>(
+      reset,
+      `KB re-embed reset, kb ${id}`,
+    );
     if (resetRows.length === 0) {
       // 빈 KB 는 child job 이 없어 finalize 가 트리거되지 않는다 → 즉시 idle 로 되돌림.
       await this.dataSource.query(

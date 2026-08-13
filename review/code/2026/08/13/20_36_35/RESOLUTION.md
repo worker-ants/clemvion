@@ -54,8 +54,8 @@ re.search(r"`\s*\n?\s*(WITH|SELECT|UPDATE|DELETE|INSERT)", sql, re.I)
 
 | # | 처분 |
 |---|---|
-| 1 | **조치** — kb CAS 락에 실측 튜플 shape 테스트 추가. 뮤테이션으로 판별력 확인: 헬퍼를 되돌리면 **1 failed**(사살). engine `updateExecutionStatus` 는 이미 기존 스위트가 real-shape mock 으로 덮는다 |
-| 2 | **조치** — 거짓 제네릭/애너테이션 정정. `query<{id:string}[]>` 는 `Promise<any>` 라 검증되지 않는 **주장**이었고 그 주장이 틀렸었다. 7곳을 `unknown` 으로 바꿔 실제 shape 해석을 `updateReturningRows` 한 곳에 모았다 |
+| 1 | **부분 조치 — 뒤 라운드가 반증했다.** kb CAS 락 1곳은 맞다. 그러나 *"engine `updateExecutionStatus` 는 이미 기존 스위트가 real-shape mock 으로 덮는다"* 는 **검증 없이 쓴 거짓**이다. `22_45_24` CRITICAL 1 이 잡았고, 확인해 보니 그 지점을 잡는 건 비배열 가드 테스트뿐이라 **튜플과 행 배열을 의미로 가르는 테스트는 없었다.** `22_45_24` RESOLUTION 에서 판별 테스트 2건을 추가하고 뮤테이션으로 확인했다 |
+| 2 | **부분 조치 — 7곳이 아니라 6곳이었다.** `retryFailedDocuments` 의 embedding 분기가 남았고, 33줄 아래 짝인 graph 분기는 고쳐져 있어 나란히 보면 티가 났다(`22_45_24` WARNING 2). 다음 라운드에서 마저 고쳤다 |
 | 4 | **조치** — 헬퍼에 선택적 `detail` 인자 복원. `assertRowArray` 가 주던 호출부 문맥(어느 execution·어느 상태 전이)을 잃지 않는다 |
 | 5 | **조치** — prettier 오류 정정, `lint --max-warnings 0` 통과 확인 |
 | 6 | **조치** — 헬퍼 JSDoc 에 관용구 4종 표 + "신규 지점은 이 헬퍼, 나머지 셋은 과거 호환 유지" 명시 |

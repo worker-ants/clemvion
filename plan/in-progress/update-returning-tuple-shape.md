@@ -91,7 +91,19 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 바꾸지 않았다. 생존은 **버그의 증거**였는데 테스트 위생 항목으로 접수됐고, 영향 평가도
 틀렸다(`persisted` 는 종결 이벤트 emit 분기를 가른다).
 
-→ 해당 plan 에 소급 정정 배너를 넣고 뮤턴트 항목의 진단을 바로잡았다. `plan/complete/` 이동
+**두 번째 plan 도 같은 구간 위에 있었다** (`22_45_25` plan_coherence WARNING 1).
+`retry-turn-terminal-guard.md` 는 12+ 라운드에 걸쳐 "동시 cancel 방어" 를 검증했는데,
+`retry-turn.service.spec.ts:101` 이 `updateExecutionStatus: jest.fn().mockResolvedValue(true)`
+로 **boundary mock** 을 둔다. 무조건 `true` — **버그 상태의 동작과 정확히 같다.**
+mock 경계 너머의 실제 `persisted` 값은 어느 라운드도 검사한 적이 없다.
+
+> "mock 이 틀린 현실을 인코딩했다" 의 또 다른 얼굴이다. 앞의 것은 shape 을 틀리게 흉내
+> 냈고, 이건 **버그가 만든 상수를 계약으로 굳혔다.** 고친 지금은 `updateExecutionStatus`
+> 가 `false` 를 돌려줄 수 있으므로, 그 분기를 타는 retry-turn 경로가 실제로 있는지
+> 재검증해야 한다.
+
+→ 두 plan 모두에 소급 정정 배너를 넣고, `ie-resume-turn-boundary-cancel.md` 는 뮤턴트
+항목의 진단도 바로잡았다. `plan/complete/` 이동
 전에 6~8차 결론을 코드로 재검증해야 한다.
 
 > **교훈**: 생존 뮤턴트를 "테스트가 부족하다" 로만 읽으면 안 된다. **치환해도 안 죽는다는 건
@@ -147,7 +159,8 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
 - [x] e2e 재실행 — 4191ms → **2242ms** (2s 재큐 사이클 소멸), 5/5 통과 유지
 - [x] `--impl-done` `20_36_36` **BLOCK: NO** (Critical 0 / Warning 1 — 소급 영향, 조치 완료)
 - [x] 소급 영향 조사·정정 — `ie-resume-turn-boundary-cancel.md` 배너 + 뮤턴트 오진 정정
-- [ ] `/ai-review`
+- [x] `/ai-review` `20_36_35` — CRITICAL 2 + WARNING 6 조치 완료 (RESOLUTION 참조)
+- [ ] 재검토 라운드 clean 확인
 - [ ] 후속 ②(`updateExecutionStatus` 트랜잭션화)·③(EIA `durationMs`/`result.outputs` emit)
 
 ## 후속
@@ -168,9 +181,16 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
       - (d) KB 재추출/재임베딩 동시 요청이 처음으로 409 거부
       - (e) 소셜 로그인 성공률 — 0% 에서 회복되는지
       동시성 cap 이 실제로 걸리는 워크로드가 있다면 배포 전 운영 공유.
-- **[planner 위임]** `spec/5-system/4-execution-engine.md` §1.1 인근 Rationale 에 소급 각주
-  한 줄 — 2026-07-30 의 유사 사례(retry-reentry opt-in 미전파)와 대칭 (`20_36_36` WARNING 1
-  제안 (3)). `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다. 그래서
+- **[planner 위임]** 소급 각주 — 대상이 **한 문서가 아니다** (`22_45_25` WARNING 2 · INFO 1).
+  이 PR 이 고친 것들이 실제로 어겼던 spec 서술을 전부 세면 넷이다:
+  - `spec/5-system/4-execution-engine.md` §1.1 — admission gate·종결 이벤트
+    (2026-07-30 의 유사 사례 retry-reentry opt-in 미전파와 대칭)
+  - `spec/5-system/8-embedding-pipeline.md` §7.3 — KB 재임베딩 CAS 락
+  - `spec/5-system/10-graph-rag.md` 동시 호출 표 — KB 재추출 CAS 락
+  - `spec/data-flow/2-auth.md` OAuth state 소비 — 소셜 로그인 상시 실패
+  > **한 문서만 적으려던 것이 바로 이 PR 이 진단한 패턴("그 자리만 고친다")의 재현이었다.**
+
+  `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다. 그래서
   frontmatter 는 `spec_impact: none` 을 유지한다 — 이 PR 이 실제로 바꾸는 spec 은 0건이고,
   리스트에 적으면 "이 PR 이 그 파일을 고쳤다" 는 거짓이 된다.
 - **[planner 위임]** 같은 결함이 **세 번** 개별 발생했는데 invariant 가 `spec/conventions/`
