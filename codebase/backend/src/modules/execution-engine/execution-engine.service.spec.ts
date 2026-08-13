@@ -4511,6 +4511,61 @@ describe('ExecutionEngineService', () => {
       }
     });
 
+    /**
+     * 자매 `.query()` 지점에도 같은 가드를 폈다 (ai-review `17_15_21` WARNING 1).
+     * 세 자리가 같은 위험은 **아니다** — 실패 방향을 각각 재서 확인했다:
+     *
+     * | 지점 | 가드 없을 때 |
+     * |---|---|
+     * | `admitExecutionOrDefer` | `rows.length` TypeError (이미 터짐) |
+     * | `updateExecutionStatus` | `persisted=false` → **종결 이벤트 emit 생략**. DB 는 UPDATE 됐는데 `execution.completed` 가 안 나가 클라이언트 무기한 대기 |
+     * | `lockNonTerminalExecutionRow` | `live.length>0` → false → "live 아님" 으로 중단(fail-closed, 조용함) |
+     * | `computeChainDepth` | depth 1 → **RR-PL-05 제한 우회**(fail-open, 유일한 정확성 결함) |
+     *
+     * 아래 둘은 engine 쪽 두 지점을 고정한다. `computeChainDepth` 는
+     * `executions-rerun.service.spec.ts` 가 담당한다.
+     */
+    it('updateExecutionStatus: guarded UPDATE 가 배열이 아니면 던진다 — 종결 이벤트 조용한 유실 차단', async () => {
+      mockExecutionRepo.query = jest.fn().mockResolvedValue(undefined);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      await expect(
+        svcAny.updateExecutionStatus(
+          { id: 'eUpd', workflowId: 'wf', status: ExecutionStatus.RUNNING },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).rejects.toThrow(/배열이 아님/);
+    });
+
+    it('lockNonTerminalExecutionRow: SELECT FOR UPDATE 가 배열이 아니면 던진다 — 조용한 "live 아님" 과 구분', async () => {
+      const svcAny = service as unknown as {
+        lockNonTerminalExecutionRow: (
+          m: { query: jest.Mock },
+          id: string,
+        ) => Promise<boolean>;
+      };
+      // 배열이면 정상 판정 — 가드가 정상 경로를 바꾸지 않음을 같이 고정한다.
+      await expect(
+        svcAny.lockNonTerminalExecutionRow(
+          { query: jest.fn().mockResolvedValue([{ id: 'eLock' }]) },
+          'eLock',
+        ),
+      ).resolves.toBe(true);
+      await expect(
+        svcAny.lockNonTerminalExecutionRow(
+          { query: jest.fn().mockResolvedValue([]) },
+          'eLock',
+        ),
+      ).resolves.toBe(false);
+      await expect(
+        svcAny.lockNonTerminalExecutionRow(
+          { query: jest.fn().mockResolvedValue(undefined) },
+          'eLock',
+        ),
+      ).rejects.toThrow(/배열이 아님/);
+    });
+
     it('원자 UPDATE 파라미터 순서·cap 매핑 회귀: [executionId, workspaceId, wsCap, workflowId, wfCap]', async () => {
       // ws cap(7)·wf cap(2) 를 다르게 둬서 각 파라미터가 올바른 위치에 바인딩되는지
       // 고정한다 — 순서 뒤바뀜/cap 교차 오염(ws↔wf) 회귀 차단. advisory lock 키도
@@ -4816,8 +4871,13 @@ describe('ExecutionEngineService', () => {
     // ── PR2b §8 admission gate 결과별 회귀 (deferred/cancelled 는 runExecution 미호출) ──
     // admitExecutionOrDefer 를 직접 stub 해 세 결과(admitted/deferred/cancelled)에서
     // runExecutionFromQueue 의 후속 분기(runExecution 진행 여부·routing release)를 고정한다.
+    /**
+     * `outcome` 이 `Error` 면 admission 이 **reject** 하도록 세운다 — 가드가 throw 하는
+     * 경로(드라이버 반환 shape 이상)를 재현하기 위해서다. 종전엔 resolve 3값만 지원해
+     * throw arm 이 어떤 테스트도 안 거쳤다 (ai-review `17_15_21` WARNING 2).
+     */
     const admitStub = (
-      outcome: 'admitted' | 'deferred' | 'cancelled',
+      outcome: 'admitted' | 'deferred' | 'cancelled' | Error,
     ): { admitSpy: jest.SpyInstance; runSpy: jest.SpyInstance } => {
       const svcAny = service as unknown as {
         admitExecutionOrDefer: (
@@ -4825,9 +4885,12 @@ describe('ExecutionEngineService', () => {
         ) => Promise<'admitted' | 'cancelled' | 'deferred'>;
         runExecution: (...a: unknown[]) => Promise<void>;
       };
-      const admitSpy = jest
-        .spyOn(svcAny, 'admitExecutionOrDefer')
-        .mockResolvedValue(outcome);
+      const admitSpy = jest.spyOn(svcAny, 'admitExecutionOrDefer');
+      if (outcome instanceof Error) {
+        admitSpy.mockRejectedValue(outcome);
+      } else {
+        admitSpy.mockResolvedValue(outcome);
+      }
       const runSpy = jest
         .spyOn(svcAny, 'runExecution')
         .mockResolvedValue(undefined);
@@ -4854,6 +4917,37 @@ describe('ExecutionEngineService', () => {
       expect(runSpy).not.toHaveBeenCalled();
       admitSpy.mockRestore();
       runSpy.mockRestore();
+    });
+
+    it('admission 이 throw → routing release 후 그대로 재전파 + runExecution 미호출', async () => {
+      // 가드(`Array.isArray`)가 throw 하는 경로. 종전엔 admission 이 try/catch 밖이라
+      // routing context 가 남았고, 그 사실을 고정하는 테스트도 없었다.
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        pendingRow({ triggerId: 'trg-admit-throw' }),
+      );
+      const boom = new Error('admission: RETURNING 이 배열이 아님');
+      const { admitSpy, runSpy } = admitStub(boom);
+      try {
+        await expect(
+          service.runExecutionFromQueue(executionId, { a: 1 }),
+        ).rejects.toThrow(boom);
+        await flushPromises();
+        // 등록됐던 routing 이 해제된다 — 안 하면 재시도 소진 시 map 에 영구 잔류.
+        expect(
+          mockWebsocketService.registerExecutionRouting,
+        ).toHaveBeenCalledWith(executionId, {
+          triggerId: 'trg-admit-throw',
+          workflowId,
+        });
+        expect(
+          mockWebsocketService.releaseExecutionRouting,
+        ).toHaveBeenCalledWith(executionId);
+        // 삼키면 BullMQ 가 job 을 성공으로 보고 재배달하지 않는다 — 반드시 재전파.
+        expect(runSpy).not.toHaveBeenCalled();
+      } finally {
+        admitSpy.mockRestore();
+        runSpy.mockRestore();
+      }
     });
 
     it('admission cancelled → runExecution 미호출 + runExecutionFromQueue 는 release 안 함 (markQueueWaitTimeout 이 처리)', async () => {
