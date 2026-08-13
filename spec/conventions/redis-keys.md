@@ -61,7 +61,7 @@ Redis **키 이름의 형태**와 **어느 문서가 어떤 키를 소유하는�
 | `chat-channel:<triggerId>:<conversationKey>` · `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit` | `modules/chat-channel` | [data-flow/14 §2.2](../data-flow/14-chat-channel.md#22-redis) |
 | `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` | `modules/chat-channel` | [data-flow/14 §2.2](../data-flow/14-chat-channel.md#22-redis) |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [webhook §6](../5-system/12-webhook.md#6-구현-파일-구조) |
-| `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 §9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증) |
+| `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 §4.4](../4-nodes/4-integration/4-cafe24.md#44-private-앱-install-endpoint-의-redis-키-normative) |
 | `integration:cache:invalidate` (pub/sub 채널) | `common/redis` | [엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) |
 
 > **한 모듈이 접두를 여럿 쓴다** — `external-interaction` 이 `iext:`·`interaction:`·`eia:` 를,
