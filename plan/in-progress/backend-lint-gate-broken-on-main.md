@@ -1175,8 +1175,8 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
 막는 구조적 회귀 테스트(`assert-row-array.spec.ts`)를 뒀다. 남은 것:
 
 - [ ] **backend 전역 raw-query 소비 지점 감사** — 이번 가드의 `FILES` 는 위 2파일 한정이다.
-      `integration-oauth.service.ts` `consumeOAuthState` 등이 검증 없이 `queryResult[0]` /
-      `.length` 를 소비한다(`18_19_33` testing INFO 7). 같은 fail-open 방향인지
+      `integration-oauth.service.ts:593·803` 의 `consumeOAuthState` 등이 검증 없이
+      결과를 소비한다(`18_19_33` testing INFO 7 — 심볼 실존 확인함). 같은 fail-open 방향인지
       **지점마다 실패 방향을 재고** 판단할 것 — 이번에 4곳 중 1곳만 fail-open 이었다.
 - [ ] **`CONSUMING_QUERY` 사각지대** — `let` 선언·구조분해(`const [row] = await …`)·체이닝
       형태는 정규식에 안 잡혀 GREEN 을 유지한 채 지나간다(`18_19_33` testing INFO 8).

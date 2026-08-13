@@ -8,8 +8,9 @@ describe('assertRowArray', () => {
     expect(() => assertRowArray(rows, 'ctx')).not.toThrow();
     assertRowArray(rows, 'ctx');
     // 여기서 확인하는 건 **런타임 접근**이다. `asserts rows is unknown[]` 좁히기가
-    // 실제로 컴파일에 걸리는지는 jest 가 못 본다(ts-jest 는 타입을 strip 한다) —
-    // 그건 `tsc --noEmit` / typecheck-ratchet CI job 몫이다.
+    // 실제로 컴파일에 걸리는지는 jest 가 못 본다 — ts-jest 는 타입을 strip 한다.
+    // 그 검증은 `scripts/check-backend-typecheck-ratchet.py`(`.github/workflows/
+    // backend-checks.yml` 의 typecheck 단계) 몫이다.
     expect(rows.length).toBe(1);
   });
 
