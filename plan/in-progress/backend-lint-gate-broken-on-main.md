@@ -814,11 +814,16 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 위 "역참조 확산" 항목과 **다른 결함**이다 — 그쪽은 소유 문서가 규약을 안 가리키는 것이고,
       > 이쪽은 인벤토리가 키를 **아예 모르는** 것이다. 표기 스타일도 verbose(`chat-channel:`)와
       > 약어(`cc:`)가 공존하니 등재 시 함께 정리한다.
-- [ ] **CCH-SE-02 dedup 이 남긴 planner 항목 2건** (`09_20_48` INFO 1·2, 전부 `spec/` 라
-      developer 권한 밖):
-      > (a) `15-chat-channel.md` R-CC-20 의 R-CC-12 앵커가 실제 헤딩 슬러그와 달라 깨진 링크,
-      > (b) dedup 게이트는 provider 3종 공통 경로인데 `telegram.md` 만 구현 완료로 갱신돼
-      > `slack.md`·`discord.md` 와 서술이 비대칭이다.
+- [ ] **dedup 서술이 provider 3종 중 telegram 에만 반영됐다** (`09_20_48` INFO 2). 게이트는
+      telegram/slack/discord 공통 경로인데 `telegram.md` 만 구현 완료로 갱신돼
+      `slack.md`·`discord.md` 와 서술이 비대칭이다. `spec/` 이라 planner 작업.
+      > 함께 지적됐던 (a) **R-CC-20 의 R-CC-12 앵커 깨짐은 이 PR 에서 고쳤다** — "planner 후속"
+      > 으로 미뤄 뒀다가 `spec-link-integrity` 를 돌려 보고 **이 PR 이 깨뜨린 빌드 게이트**임을
+      > 알았다. 미룰 수 있는 문서 흠결이 아니라 CI 실패였다.
+      >
+      > 고치면서 슬러그를 손으로 두 번 계산했고 두 번 다 틀렸다. 게이트가 쓰는
+      > `github-slugger` 를 직접 돌려서야 맞췄다 — em dash 자리에 하이픈이 **2개**다.
+      > **정본 구현이 있으면 재현하지 말고 실행하라.**
 - [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:

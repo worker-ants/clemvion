@@ -58,7 +58,7 @@ Redis **키 이름의 형태**와 **어느 문서가 어떤 키를 소유하는�
 | `exec:seq:<executionId>` | **`modules/websocket`** (`ExecutionSeqAllocator`) — 접두는 `exec:` 지만 소유가 다르다 | [엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) |
 | `iext:blacklist:<jti>` · `interaction:idempotency:<executionId>:<route>:<key>` | `modules/external-interaction` | [data-flow/15 §2.2](../data-flow/15-external-interaction.md) |
 | `eia:rl:interact:<executionId>` · `eia:rl:status:<executionId>` · `eia:notif:rl:<triggerId>` | `modules/external-interaction` | [EIA §8.4](../5-system/14-external-interaction-api.md) |
-| `cc:rl:<triggerId>:<conversationKey>` | `modules/chat-channel` | [chat-channel](../5-system/15-chat-channel.md) |
+| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<updateId>` | `modules/chat-channel` | [chat-channel](../5-system/15-chat-channel.md) |
 | `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [webhook](../5-system/12-webhook.md) |
 | `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac>` | `modules/integrations` | [통합 §5.8](../2-navigation/4-integration.md) |
 | `integration:cache:invalidate` (pub/sub 채널) | `common/redis` | [엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) |

@@ -715,7 +715,7 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 - **채택**: 전용 `ChatChannelDedupService`(Redis `SET NX EX 30`, 키 `cc:dedup:{triggerId}:{updateId}`). `SET NX` 단일 호출이라 원자적이고, 두 인스턴스가 같은 재전송을 동시에 받아도 하나만 통과한다.
 - **게이트 위치**: `parseUpdate` 직후(키 확정 시점)이자 **CCH-NF-03 rate-limit 앞**. 재도착은 새 트래픽이 아니라 같은 트래픽이므로 쿼터를 소비하면 안 된다.
 - **fail-open**: Redis 미가용/에러 시 통과(+warn). 같은 모듈 rate-limiter·`PublicWebhookQuotaService` 와 동일 정책이며, 그 구간에는 중복 처리가 가능하다는 뜻이라 조용히 넘어가지 않는다.
-- **왜 필요한가**: provider 는 webhook 이 2xx 를 못 받으면 같은 update 를 재전송한다([R-CC-12 (b)](#r-cc-12-telegram-safe-2xx)). 억제가 없으면 사용자의 같은 입력이 두 번 dispatch 돼 workflow 가 중복 재개된다.
+- **왜 필요한가**: provider 는 webhook 이 2xx 를 못 받으면 같은 update 를 재전송한다([R-CC-12](#r-cc-12-inbound-http-contract--202-accepted-고정--401-auth--404-endpointpath-예외)). 억제가 없으면 사용자의 같은 입력이 두 번 dispatch 돼 workflow 가 중복 재개된다.
 
 ### R-CC-19. CCH-NF-03 rate-limit — replay 큐 대신 skip + degraded
 
