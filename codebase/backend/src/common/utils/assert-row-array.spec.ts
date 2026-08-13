@@ -1,0 +1,79 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { assertRowArray } from './assert-row-array';
+
+describe('assertRowArray', () => {
+  it('배열이면 통과하고 배열로 좁힌다', () => {
+    const rows: unknown = [{ id: 'a' }];
+    expect(() => assertRowArray(rows, 'ctx')).not.toThrow();
+    assertRowArray(rows, 'ctx');
+    // assertion 이후 `.length` 접근이 타입 에러 없이 가능해야 한다(좁히기 확인).
+    expect(rows.length).toBe(1);
+  });
+
+  it('빈 배열도 통과한다 — "0행" 은 정상 결과지 이상이 아니다', () => {
+    expect(() => assertRowArray([], 'ctx')).not.toThrow();
+  });
+
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['객체', { rowCount: 1 }],
+    ['숫자', 1],
+    ['문자열', '[]'],
+  ])('%s 면 던지고 호출부 문맥을 메시지에 싣는다', (_label, value) => {
+    expect(() => assertRowArray(value, 'computeChainDepth 재귀 CTE')).toThrow(
+      /배열이 아님.*computeChainDepth 재귀 CTE/s,
+    );
+  });
+});
+
+/**
+ * 이 저장소가 반복한 결함은 "가드를 한 곳에만 적용하고 자매를 안 세는 것" 이다
+ * (ai-review `14_18_42` → `17_15_21` 연속 지적). helper 추출은 boilerplate 를 줄일 뿐
+ * **호출을 잊는 것을 막지 못한다** — 그걸 막는 건 이 테스트다.
+ *
+ * 두 서비스에서 반환값을 쓰는 raw SQL 호출을 세고, 같은 수의 `assertRowArray` 가 있는지
+ * 본다. 5번째 `.query()` 를 추가하면서 가드를 빠뜨리면 **여기가 RED 로 알려준다.**
+ *
+ * 정적 grep 이라 정밀하지 않다 — 그래서 "정확히 어느 줄" 이 아니라 **개수**만 본다.
+ * 반환값을 안 쓰는 호출(예: `pg_advisory_xact_lock`)은 `await m.query(` 로 시작하는
+ * statement 라 `const ... = await ...query` 패턴에 안 잡힌다.
+ */
+describe('자매 지점 전수 — 가드 누락 회귀 가드', () => {
+  const SRC = join(__dirname, '..', '..');
+  const FILES = [
+    'modules/execution-engine/execution-engine.service.ts',
+    'modules/executions/executions.service.ts',
+  ];
+
+  // 반환값을 변수에 받는 raw SQL 호출: `const x: T = await <something>.query(`
+  const CONSUMING_QUERY =
+    /const\s+\w+[^=\n]*=\s*\n?\s*await\s+[\w.]*\.query[<(]/g;
+
+  it('반환값을 쓰는 .query() 호출 수 == assertRowArray 호출 수', () => {
+    const counts = FILES.map((rel) => {
+      const src = readFileSync(join(SRC, rel), 'utf8');
+      return {
+        rel,
+        queries: (src.match(CONSUMING_QUERY) ?? []).length,
+        // import 행은 `assertRowArray }` 라 아래 패턴(여는 괄호)에 안 걸린다 —
+        // 처음엔 `- 1` 로 빼뒀다가 실측하고 지웠다.
+        guards: (src.match(/assertRowArray\(/g) ?? []).length,
+      };
+    });
+    // 실측 고정 — 이 수가 바뀌면 새 지점이 생겼다는 뜻이고, 가드를 폈는지 여기서 갈린다.
+    expect(counts).toEqual([
+      {
+        rel: 'modules/execution-engine/execution-engine.service.ts',
+        queries: 3,
+        guards: 3,
+      },
+      {
+        rel: 'modules/executions/executions.service.ts',
+        queries: 1,
+        guards: 1,
+      },
+    ]);
+  });
+});

@@ -199,6 +199,7 @@ import {
   CALL_STACK_SCHEMA_VERSION,
   ResumeCallStack,
 } from '../../shared/execution-resume/resume-call-stack.types';
+import { assertRowArray } from '../../common/utils/assert-row-array';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -2933,12 +2934,11 @@ export class ExecutionEngineService
         // 없다는 뜻이다. 갱신됐는데 앱이 defer 로 처리하면 DB 는 `running`, 워커는 없음 —
         // 실행이 영영 붕 뜬다. 예외는 트랜잭션을 되돌려 그 분기를 원천 차단한다.
         // 가드가 더하는 것은 **판정 변경이 아니라 진단**이다.
-        if (!Array.isArray(rows)) {
-          throw new Error(
-            `admission: UPDATE ... RETURNING 이 배열이 아님 (typeof=${typeof rows}) — ` +
-              `execution ${executionId}. 트랜잭션을 롤백한다(부분 적용 방지).`,
-          );
-        }
+        assertRowArray(
+          rows,
+          `admission UPDATE ... RETURNING, execution ${executionId}. ` +
+            `트랜잭션을 롤백한다(부분 적용 방지).`,
+        );
         return rows.length === 1;
       },
     );
@@ -8203,12 +8203,11 @@ export class ExecutionEngineService
     // `> 0` 이 false 가 되고 호출부는 "live 아님" 으로 중단한다. 그래도 가드를 두는 건
     // **조용한 중단과 진짜 중단을 구분**하기 위해서다. 이 함수는 트랜잭션 manager 를 받으므로
     // throw 는 admission 가드와 같은 이유로 롤백을 부른다 (ai-review `17_15_21` WARNING 1).
-    if (!Array.isArray(live)) {
-      throw new Error(
-        `lockNonTerminalExecutionRow: SELECT ... FOR UPDATE 결과가 배열이 아님 ` +
-          `(typeof=${typeof live}) — execution ${executionId}. 트랜잭션을 롤백한다.`,
-      );
-    }
+    assertRowArray(
+      live,
+      `lockNonTerminalExecutionRow SELECT ... FOR UPDATE, execution ${executionId}. ` +
+        `트랜잭션을 롤백한다.`,
+    );
     return live.length > 0;
   }
 
@@ -8521,13 +8520,12 @@ export class ExecutionEngineService
     // 깨지고 클라이언트는 무기한 대기). 앞의 admission 가드와 달리 이 UPDATE 는 애플리케이션
     // 트랜잭션 밖이라 throw 가 롤백을 부르지는 못하지만, **관측 불가능한 유실을 관측 가능한
     // 실패로 바꾸는 것**이 목적이다 (ai-review `17_15_21` WARNING 1).
-    if (!Array.isArray(updated)) {
-      throw new Error(
-        `updateExecutionStatus: guarded UPDATE ... RETURNING 이 배열이 아님 ` +
-          `(typeof=${typeof updated}) — execution ${execution.id} → ${newStatus}. ` +
-          `false 로 넘기면 종결 이벤트가 조용히 유실된다.`,
-      );
-    }
+    assertRowArray(
+      updated,
+      `updateExecutionStatus guarded UPDATE ... RETURNING, ` +
+        `execution ${execution.id} → ${newStatus}. ` +
+        `false 로 넘기면 종결 이벤트가 조용히 유실된다.`,
+    );
     const persisted = updated.length > 0;
     // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
     if (enteringRunning && persisted) {

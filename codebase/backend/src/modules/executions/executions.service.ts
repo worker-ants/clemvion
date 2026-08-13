@@ -19,6 +19,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ErrorCode } from '../../nodes/core/error-codes';
+import { assertRowArray } from '../../common/utils/assert-row-array';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
@@ -321,12 +322,11 @@ export class ExecutionsService {
     // 호출부 `depth >= RERUN_CHAIN_DEPTH_LIMIT` 가 통과해 **RR-PL-05 체인 깊이 제한이
     // 조용히 우회된다**(fail-open). 세 자매 `.query()` 지점 중 유일하게 방향이 열려 있어
     // 여기서는 진단이 아니라 **정확성** 문제다 — ai-review `17_15_21` WARNING 1.
-    if (!Array.isArray(rows)) {
-      throw new Error(
-        `computeChainDepth: 재귀 CTE 결과가 배열이 아님 (typeof=${typeof rows}) — ` +
-          `execution ${executionId}. depth 1 로 넘기면 RR-PL-05 제한이 무력화된다.`,
-      );
-    }
+    assertRowArray(
+      rows,
+      `computeChainDepth 재귀 CTE, execution ${executionId}. ` +
+        `depth 1 로 넘기면 RR-PL-05 제한이 무력화된다.`,
+    );
     // 조상 미존재(=base 1행)면 depth 1. id 부재 시 base 0행 → max NULL → 1 로 방어.
     return Number(rows[0]?.depth ?? 1);
   }
