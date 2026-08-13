@@ -856,17 +856,19 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 판부터 같은 오류를 담은 것이다.** 형태가 같으면 종류도 같다고 넘겨짚었다. 고치면서 전 행을
       > "redis client 호출에 전달되는가" 로 재검증했는데 그 스크립트가 `wh:rl:` 을 거짓 음성으로
       > 표시했고, 파일을 직접 연 것이 두 번째 오분류를 막았다.
-- [ ] **webhook 소유 문서에 `wh:rl:*` 리터럴이 없다 — 빈 포인터** (`02_13_17` plan_coherence
+- [x] **webhook 소유 문서에 `wh:rl:*` 리터럴이 없다 — 빈 포인터** (`02_13_17` plan_coherence
       WARNING 5). [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 인벤토리가
       `wh:rl:min:<ip>`·`wh:rl:hour:<ip>` 의 상세 SoT 로 [`12-webhook.md`](../../spec/5-system/12-webhook.md) 를
       가리키는데 그 문서에 리터럴이 **0건**이다(실측). EIA rate-limit 3키에서 이미 반증된
       **빈 포인터**와 같은 형태 — EIA 는 §8.4 에 리터럴을 추가해 해소했고 webhook 은 남았다.
       > `chat-channel`·`cafe24` 는 소유 문서에 리터럴이 이미 있어 **역참조만** 달면 된다.
       > webhook 만 §8.4 와 동형 처리(리터럴 먼저)가 필요하다. planner 작업.
-- [ ] **규약 역참조를 나머지 소유 문서에도** (`02_13_17` cross_spec INFO 3) — 이번 턴은
+      > ⚠️ 이 판단은 절반만 맞았다 — cafe24 도 **인벤토리가 가리키던 절**에는 리터럴이 없었다
+      > (아래 완료 노트 ②).
+- [x] **규약 역참조를 나머지 소유 문서에도** (`02_13_17` cross_spec INFO 3) — 이번 턴은
       `data-flow/15`(EIA)에만 역참조를 달았다. `chat-channel`·`cafe24`·`webhook` 소유 문서에도
       한 줄씩 필요하다(webhook 은 위 항목과 함께).
-- [ ] **인벤토리에 chat-channel 키 2계열이 빠져 있다** (`cch-se02-dedup` 실측).
+- [x] **인벤토리에 chat-channel 키 2계열이 빠져 있다** (`cch-se02-dedup` 실측).
       [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 인벤토리에
       **`chat-channel:<triggerId>` · `chat-channel-lock:<triggerId>` 2계열이 빠져 있다.**
       실제 chat-channel 소유 키는 4계열이고(`grep -rnoE "(chat-channel[a-z-]*|cc):"
@@ -877,7 +879,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 위 "역참조 확산" 항목과 **다른 결함**이다 — 그쪽은 소유 문서가 규약을 안 가리키는 것이고,
       > 이쪽은 인벤토리가 키를 **아예 모르는** 것이다. 표기 스타일도 verbose(`chat-channel:`)와
       > 약어(`cc:`)가 공존하니 등재 시 함께 정리한다.
-- [ ] **dedup 서술이 provider 3종 중 telegram 에만 반영됐다** (`09_20_48` INFO 2). 게이트는
+- [x] **dedup 서술이 provider 3종 중 telegram 에만 반영됐다** (`09_20_48` INFO 2). 게이트는
       telegram/slack/discord 공통 경로인데 `telegram.md` 만 구현 완료로 갱신돼
       `slack.md`·`discord.md` 와 서술이 비대칭이다. `spec/` 이라 planner 작업.
       > 함께 지적됐던 (a) **R-CC-20 의 R-CC-12 앵커 깨짐은 이 PR 에서 고쳤다** — "planner 후속"
@@ -887,6 +889,38 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 고치면서 슬러그를 손으로 두 번 계산했고 두 번 다 틀렸다. 게이트가 쓰는
       > `github-slugger` 를 직접 돌려서야 맞췄다 — em dash 자리에 하이픈이 **2개**다.
       > **정본 구현이 있으면 재현하지 말고 실행하라.**
+
+      > **완료 (2026-08-13, `redis-keys-pointer-integrity`).** 네 항목을 한 PR 로 묶었다 —
+      > 전부 "인벤토리와 소유 문서가 서로를 가리키는가" 한 축의 결함이라 따로 고치면 같은
+      > 문서를 네 번 여닫게 된다.
+      >
+      > - `12-webhook.md` §6 에 **Redis 키 표 신설**(`wh:rl:min:<ip>`·`wh:rl:hour:<ip>`) —
+      >   EIA §8.4 와 동형. 메커니즘은 코드로 확인했다: `INCR` + `EXPIRE … NX` 단일 pipeline,
+      >   윈도우 60/3600초, IP 미식별 sentinel `__no_client_ip__`.
+      > - 소유 문서 3곳에 **규약 역참조** 추가 — `data-flow/14`(chat-channel)·
+      >   `4-cafe24.md §9.8`·`12-webhook.md`(위 표 안). `data-flow/15`(EIA)는 이미 있었다.
+      > - 인벤토리에 **chat-channel verbose 2계열 등재** —
+      >   `chat-channel:<triggerId>:<conversationKey>` ·
+      >   `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit`.
+      > - `slack.md`·`discord.md` 의 dedup 서술을 telegram 과 동형으로.
+      >
+      > **실측이 내 기록을 두 번 정정했다.**
+      > ① 이 항목에 적어 둔 chat-channel 키가 `chat-channel:<triggerId>` 였는데 실제는
+      >    `:<conversationKey>` 꼬리가 더 있다 — 앞서 쓴 grep 이 접두만 잡아 뒤를 잘랐다.
+      > ② cafe24 포인터가 `2-navigation/4-integration.md §5.8` 을 가리켰는데 **그 절엔 키
+      >    리터럴이 0건**이고(문서 전체로는 Rationale 에 2건) 실제 상세 SoT 는
+      >    `4-cafe24.md §9.8` 이다. webhook 과 같은 **빈 포인터**가 하나 더 있었던 것 —
+      >    항목은 webhook 만 지목했지만 실제 표면은 둘이었다. 포인터를 §9.8 로 옮겼다.
+      >
+      > **slack 은 "비대칭" 보다 큰 문제였다.** dedup 키가 envelope 3종별로 다르게 도출되는데
+      > (`event_id` · `payload.trigger_id` · `body.trigger_id`) 문서는 `event_id` 하나만 적고
+      > 있었다. dedup 이 실재가 된 뒤로는 그 서술이 **범위를 좁게 말하는** 셈이라 셋 다 적었다.
+- [ ] **`public-webhook-quota.service.ts` 가 fixed window 를 "슬라이딩 윈도우" 라 부른다**
+      (`redis-keys-pointer-integrity` 실측). `MINUTE_WINDOW_SEC`/`HOUR_WINDOW_SEC` 의 docstring
+      이 "슬라이딩 윈도우" 인데 구현은 `INCR` + `EXPIRE … NX` 라 **fixed window** 다 — 윈도우
+      경계에서 두 배까지 통과하는 성질이 정반대다. spec(`12-webhook.md` §6 신설 표)은 fixed 로
+      적었으니 코드 주석만 어긋난다. 형제 `ChatChannelRateLimiterService` 도 같은 패턴이니
+      함께 확인할 것. developer 작업(주석 2줄).
 - [x] **idempotency 캐시 제외 조건이 Spec EIA §R8 보다 넓다 — 선재 결함** (`12_24_14`
       requirement WARNING). `idempotency.interceptor.ts` 의 `if (statusCode >= 400) return;`
       은 409·410 까지 캐시에서 떨구는데, [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §R8 은 명시적으로 반대다:

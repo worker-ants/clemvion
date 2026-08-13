@@ -321,7 +321,7 @@ DM 첫 메시지 자동 start (Telegram `/start` 의미상 동등) 는 **v1 미�
 
 - `POST /channels/{id}/messages` 5초 타임아웃 + 3회 지수 백오프 (1s / 2s / 4s). 최종 실패 시 trigger 의 `chat_channel_health` = `degraded`.
 - Discord [Rate limits](https://discord.com/developers/docs/topics/rate-limits): global 50 req/sec/bot + per-route bucket (응답 헤더 `X-RateLimit-Bucket` / `X-RateLimit-Remaining` / `X-RateLimit-Reset-After`). 어댑터가 per-bucket 큐 + 응답 헤더 기반 throttle. `429 Too Many Requests` 시 `Retry-After` 존중.
-- interaction.id 기반 dedup — 같은 interaction.id 가 30초 안에 두 번 도착하면 두 번째 무시 (Discord retry 정책: 3회까지).
+- **구현됨 (2026-08-13)**: `interaction.id` 기반 dedup — 같은 id 가 30초 안에 두 번 도착하면 두 번째는 무시 (Discord retry 정책: 3회까지). parser 가 채운 `idempotencyKey = interaction.id`(snowflake, 재전송 시 동일)를 `ChatChannelDedupService` 가 소비한다 (Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<interactionId>`, inbound 진입에서 rate-limit 앞). Redis 미가용 시 fail-open. SoT: [chat-channel CCH-SE-02](../../../5-system/15-chat-channel.md).
 
 ---
 
