@@ -174,9 +174,9 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
 | `execution.started` | `{ executionId, workflowId, mode, startedAt }` | 실행 시작 |
-| `execution.completed` | `{ executionId, status, duration, nodeCount }` | 실행 완료 |
-| `execution.failed` | `{ executionId, error, failedNodeId, duration }` | 실행 실패 |
-| `execution.cancelled` | `{ executionId, cancelledBy, duration, error? }` | 실행 취소. `cancelledBy: 'user' \| 'system' \| 'timeout'`. **시스템 취소는 `error?: { code, message? }` 동행** — `'system'` = §7.5 rehydration 실패(`RESUME_*`), `'timeout'` = §8 admission 큐 대기 5분 초과(`EXECUTION_QUEUE_WAIT_TIMEOUT`, [4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한)) **또는 공개 웹채팅 위젯 idle-wait 회수(`WEBCHAT_IDLE_TIMEOUT`, [EIA-RL-07](./14-external-interaction-api.md#34-신뢰성일관성))** — `error.code` 로 구분. 일반 user cancel 에는 `error` 부재 (EIA §6.5 / chat-channel-adapter 정합) |
+| `execution.completed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 완료 |
+| `execution.failed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 실패 |
+| `execution.cancelled` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 취소 |
 | `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조 |
 | `execution.paused` _(계획·미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 브레이크포인트 기능은 미구현 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
@@ -191,6 +191,18 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
 | `execution.message` | `{ executionId, nodeId, nodeType, presentations: [{ config, output }], seq?, timestamp? }` | 표시-전용 presentation 노드(`carousel`/`table`/`chart`/`template`)가 **버튼 없이 자동 진행(non-blocking)** 완료될 때 발행하는 표시 메시지. `presentations[i]` 는 `{config, output}` envelope(위젯 `classifyPresentation` 입력). node-level `execution.node.completed`(모든 비차단 노드 firehose)와 **구분** — EIA SSE 표면(웹채팅 위젯)은 비차단 presentation 렌더를 본 이벤트에서만 소비하고 `execution.node.completed` 는 무시한다. 외부 SSE 표면에만 additive 추가(§6.1 outbound webhook 화이트리스트 제외). SoT: [EIA §5.2](./14-external-interaction-api.md) |
 | `execution.user_message` | `{ executionId, nodeId, nodeExecutionId, message, receivedAt }` | AI Agent Multi Turn 모드에서 **사용자 발화(q)를 수신 즉시(다음 턴 LLM 호출 전) 라이브로 노출**하기 위한 진행 신호. `tool_call_started` 와 동형의 **비권위 라이브 신호** — turn 종료 `execution.ai_message.messages` 스냅샷이 권위 출처이며 동일 user 메시지를 포함한다. 클라이언트는 이 이벤트로 optimistic `ai_user` bubble 을 즉시 띄우고 후속 `ai_message` 로 reconcile (§4.4 `user_message` 상세 / §4.4.6 소비 규약 / §4.4 Reconciliation 노트). `submit_message`(일반 채팅) 및 채널 텍스트 인바운드(텔레그램 등) → `message_received` 경로에서만 발화하며, form 제출(`submit_form` → `presentation_user`)에는 발화하지 않는다 |
+
+> **종결 3종의 필드·행동 계약 SoT 는 [EIA §6 도입부](./14-external-interaction-api.md#6-api-명세--outbound-notification)** 다 —
+> [필드 집합](./14-external-interaction-api.md#종결-이벤트의-필드-집합-normative) ·
+> [행동 계약](./14-external-interaction-api.md#executioncancelled-의-행동-계약-normative)
+> (`cancelledBy` 닫힌 union, `error.code` 매핑, user cancel 의 `error` 부재).
+> **여기에 필드를 다시 나열하지 않는다** — 그렇게 두 곳에 적어 두었더니 실제로 어긋났다.
+>
+> WS 봉투는 **flat** 이다: 필드 집합이 `executionId`·`seq`·`timestamp` 와 같은 층에 펼쳐지고,
+> webhook 의 `payload` 래퍼는 **없다**([채널별 봉투](./14-external-interaction-api.md#채널별-봉투--셋이-서로-다르다-normative)).
+> 단 flat 은 **봉투 차원**이라 필드 집합 안쪽 중첩은 유지된다 — 취소 사유는
+> `result.cancelledBy` 이지 최상위 `cancelledBy` 가 아니다(종전 이 표의 표기가 틀렸다).
+> `durationMs` 를 본 문서 계열이 `duration` 으로 적어 온 표기 차이는 그대로 둔다(같은 값).
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
@@ -961,6 +973,14 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 - **직접 재작성 대신 caveat 채택**: §2.1/§2.2 가 이미 "논리 구조 표기 + 구현현실 caveat" 패턴을 쓰고, [EIA §6.2](./14-external-interaction-api.md#62-페이로드--executionwaiting_for_input) 도 동일하게 notification 추상 JSON + SSE wire caveat blockquote 로 처리했다. 논리 nested 구조가 가독성상 유리하므로 JSON 전체를 실 wire 로 교체(가독성 저하 + 두 문서 불일치)하지 않고 caveat 로 통일했다. 과거 `plan/complete/fix-webchat-sse-field-map.md` 가 "별도 backlog" 로 이월했으나 `plan/in-progress/**` 에 미등재였던 dangling 항목을 순수 spec-doc 작업으로 여기서 종결한다.
 - **오너십 분리로 3중 복제·재-drift 회피**: 전체 매핑을 세 문서(WS/EIA/architecture)에 복제하면 새 drift 표면이 열린다. 따라서 **외부 클라이언트 소비 매핑의 SoT = EIA §6.2 blockquote**(위젯 파서 `eia-events.ts` 정합), **WS 내부 부가 식별자(`waitingNodeType`/`waitingNodeLabel`/`nodeExecutionId`/`startedAt`) = 본 §4.4 소유**로 책임을 나눴다. EIA §6.2 를 "전체 SoT" 로 격상하지 않은 이유는 그 blockquote 가 외부소비 필드만 다루는 의도적 스코프이기 때문(WS 내부 관측 필드까지 외부 표면 문서에 싣지 않는다).
+
+  > **(2026-08-13 갱신)** 위 두 결정은 **`waiting_for_input` 에 한정**해 그대로 유효하다. 다만
+  > **채널별 봉투의 일반 규칙**(WS flat / SSE flat+routing / webhook `payload` 래핑)은 이후
+  > [EIA §6 도입부](./14-external-interaction-api.md#채널별-봉투--셋이-서로-다르다-normative)로
+  > 올라갔고, §6.2 blockquote 에는 `waiting_for_input` 고유의 **필드명 매핑**만 남았다.
+  > **종결 3종에서는 오너십 분리가 아니라 단일 SoT 로 수렴**했는데, 이유는 위 판단과 같다 —
+  > 그쪽에는 WS 전용 부가 필드(`waitingNodeType` 류)가 **없어서** 나눌 것이 없었다.
+  > 같은 규칙이 입력 사정에 따라 다른 결론을 낸 것이지 번복이 아니다.
 
 ### 전송 계층 정정 — raw WebSocket 프레이밍 → Socket.IO + status partial 강등 (2026-06-03 spec-vs-code audit)
 

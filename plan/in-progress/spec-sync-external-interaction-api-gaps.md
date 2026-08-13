@@ -10,6 +10,16 @@ owner: planner
 > 관련 spec: spec/5-system/14-external-interaction-api.md
 
 ## 미구현 항목
+- [ ] **종결 이벤트의 `result.outputs` · `durationMs` emit** (§6 도입부 필드 집합 표의 Planned 2행,
+      2026-08-13 등재) — 데이터는 emit **직전에 이미 존재**하는데 payload 에 넣지 않는다
+      (`execution-engine.service.ts` L2356·2520·3452·4616, `retry-turn.service.ts` L723·897).
+      spec 이 없는 필드를 약속하던 상태를 정리하며(§6 재작성) **문서 쪽을 실제에 맞췄고**,
+      이 항목은 그 반대 방향(구현을 문서에 맞추기)의 잔여분이다. 구현되면 필드 집합 표의
+      "미구현 (Planned)" 를 "구현됨" 으로 flip 한다.
+- [ ] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행, 2026-08-13 등재)
+      — 일부 경로가 아직 string 을 싣는다(`execution-engine.service.ts` L656·L3291,
+      `retry-turn.service.ts` L956). 그래서 `chat-channel.dispatcher.ts` 에 back-compat wrap 이
+      쌓였고 adapter 타입도 `| string` 을 안고 있다. 통일되면 그 wrap 과 union 을 함께 제거한다.
 - [x] **Outbound notification backoff 배율** (§3.1 EIA-NX-06 / §6.6) — base-4 (1s/4s/16s/64s/256s) custom BullMQ backoffStrategy 로 구현. worker `settings.backoffStrategy` + `NOTIFICATION_BACKOFF_TYPE`. spec §3.1/§6.6/data-flow-15 동기화. lint·unit·build·e2e 통과.
 - [ ] **분산(다중 인스턴스) SSE / notification fan-out** (§R10) — 현재 `SseAdapter`·`NotificationFanout` 모두 단일 sink `WebsocketService.executionEvents$` 를 in-process(in-memory) RxJS 구독만 하고 Redis pub/sub 발행/구독이 없음. 코드 주석상 "v1 single-instance, 분산 fan-out follow-up". 다중 인스턴스에서 외부 SSE 클라이언트가 임의 인스턴스 접속 가능하려면 Redis pub/sub 도입 필요.
 - [x] **Inbound per-execution rate-limit 및 `RATE_LIMITED` 429** (§5.1 / §8.4 rows 1·3) — `/interact` 60/분·status 120/분 (execution 당). `InteractionRateLimiterService`(Redis fixed-window, fail-open) + `InteractionRateLimitGuard` + `@RateLimit`. `429 RATE_LIMITED` + `Retry-After`. spec §5.1/§8.4/§3.1 EIA-NX-11 + §2-api-convention §7 + user-guide triggers.mdx/en.mdx 동기화. lint·unit·build·e2e 통과.

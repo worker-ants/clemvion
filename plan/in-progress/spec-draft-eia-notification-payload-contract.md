@@ -8,6 +8,7 @@ spec_impact:
   - spec/5-system/6-websocket-protocol.md
   - spec/conventions/chat-channel-adapter.md
   - spec/3-workflow-editor/3-execution.md
+  - spec/5-system/15-chat-channel.md
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
   - plan/in-progress/spec-sync-websocket-protocol-gaps.md
@@ -192,9 +193,10 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 - [ ] 코드 3곳의 `EIA §6.5 line 536` 인용에서 줄 번호 제거 (`chat-channel.dispatcher.ts:506`,
       `chat-channel.dispatcher.spec.ts:428`, `chat-channel/types.ts:378`)
 - [ ] `execution.ai_message` 봉투 서술 정정 (별건)
-- [ ] `node-output-redesign/README.md:372` 의 EIA cross-ref — **절 번호 자체가 틀렸다.**
-      `execution.failed` 는 §6.4 인데 §6.3 을 가리킨다(한 줄에 2회). 이 draft 이전부터의 결함
-      (`16_37_24` plan_coherence INFO 5). 성격 변화 재검증과 함께 §6.3→§6.4 정정
+- [x] `node-output-redesign/README.md:372` 의 EIA cross-ref — **절 번호 자체가 틀렸다.**
+      `execution.failed` 는 §6.4 인데 §6.3 을 가리켰다. 이 draft 이전부터의 결함
+      (`16_37_24` plan_coherence INFO 5). **이번 PR 에서 §6.4 로 정정 + `error` SoT 포인터 추가**
+      (plan 파일이라 planner 권한 안)
 - [ ] **`chatChannel` 이 문서 없이 외부로 나간다** — `attachRoutingContext` 가
       `{provider, conversationKey, …}` 를 fanout envelope 에 넣는데 `stripExternalOnlyFields` 는
       그 **이전에** 돌아 strip 대상이 아니다. **SSE·webhook 양쪽** payload 에 실린다
@@ -213,16 +215,33 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
       (`interaction-stream.controller.ts:167` = `JSON.stringify(event.payload)`). 생산자 분기만
       재고 소비자를 안 쟀다 → **세 wire** 로 정정. 그 사실이 §6.2 에만 있고 §6.3~§6.5 엔
       없다는 것이 (B)의 추가 근거
-- [x] 행동 계약(닫힌 union·`error.code`·user-cancel `error` 부재) 이관 명시 (W1)
-- [x] `duration`/`durationMs` 표기 caveat — 비목표와 상충하지 않게 (W2)
-- [x] `line 536` 인용 **전수 grep — 6곳**(spec 3 / 코드 3). "§1.2 한 곳" 이라던 최초 판단 정정 (W3)
-- [x] `grep -rn "EIA §6\." spec/ codebase/` — ~15곳, 재넘버링 안 하므로 전부 유효
-- [x] `--spec` 6차(`16_37_24`) **BLOCK: NO** — Critical 0 / Warning 0, INFO 7. 5건 반영
+- [x] `--spec` 6차(`16_37_24`) **BLOCK: NO** — Critical 0 / Warning 0 / INFO 7. 5건 반영
 - [x] 검토와 **별개로 내가 실측해 찾은 4건** 반영 — 중복 키 3→**5**, `chatChannel` 외부 유출,
       "flat" 의 두 의미, 행동 계약이 §6.5 **와** WS §4.1 두 곳
-- [ ] EIA §6 도입부 신설(필드 집합 + webhook/SSE 두 갈래 봉투 + 행동 계약) — §6.1~§6.6 헤딩 불변
-- [ ] §6.2 L615 blockquote 를 도입부로 이관 (waiting 고유 예시만 §6.2 잔류)
-      — **이관 후 WS `## Rationale` 의 "EIA §6.2 blockquote" 앵커가 여전히 맞는지 확인**하고,
+- [x] `line 536` 인용 **전수 grep — 6곳**(spec 3 / 코드 3). "§1.2 한 곳" 이라던 최초 판단 정정
+
+### 실행 (2026-08-13)
+
+- [x] EIA §6 도입부 3절 신설 — **번호 없는 헤딩**(필드 집합 / 채널별 봉투 / 행동 계약).
+      `### 6.1`~`### 6.6` **헤딩 문구 무변경** 확인 (grep 으로 6개 그대로)
+- [x] §6.2 blockquote — 일반 봉투 규칙은 도입부로, 남은 것은 `waiting_for_input` **고유
+      필드명 매핑**뿐임을 명시
+- [x] §6.3~§6.5 축약 — `payload` 봉투 기준 예시로 교체, `finalNodeId`/`finalPort` 삭제,
+      §6.5 의 행동 계약 서술은 도입부 포인터로
+- [x] WS §4.1 종결 3행 → 필드 열거 제거 + SoT 포인터 blockquote.
+      **flat 의 두 의미 구분**과 `result.cancelledBy` nested 정정 명시
+      (`14_18_42` WARNING #2 해소)
+- [x] WS `## Rationale` §4.4 항목에 2026-08-13 갱신 노트 — 오너십 분리 결정이 왜
+      종결 이벤트에서는 단일 SoT 로 수렴하는지 (`16_37_24` rationale INFO 2)
+- [x] `chat-channel-adapter.md` §1.2 3 variant 축약 + SoT 포인터 문단 + `line 536` 2곳 제거
+- [x] `15-chat-channel.md:76` 의 `line 536` 제거 — **spec 3곳 완료**
+- [x] `3-workflow-editor/3-execution.md` §8.1 → 비-authoritative blockquote
+- [x] `retry-turn-terminal-guard.md` #2 역포인터 (`16_37_24` plan_coherence INFO 4)
+- [x] Planned gap 2건 등재 — EIA 트래커에 본체, WS 트래커에 포인터
+- [x] `spec-link-integrity` 통과 — **앵커는 손계산 말고 `github-slugger` 실행값**으로.
+      처음 쓴 2건(`#75-체크포인트-복원`, `#54-inbound-…`)이 실제로 깨져 게이트가 잡았다
+
+## Rationale` 의 "EIA §6.2 blockquote" 앵커가 여전히 맞는지 확인**하고,
       안 맞으면 "§6 도입부 + §6.2" 로 갱신 (`16_37_24` rationale INFO 2)
 - [ ] `retry-turn-terminal-guard.md` #2 에 역포인터 한 줄 — "EIA 정본은 §6 도입부"
       (`16_37_24` plan_coherence INFO 4). 구현자가 WS §4.1 만 보고 새 SoT 를 놓치는 것 방지

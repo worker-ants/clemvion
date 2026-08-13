@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-13T15:28:10.661569",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-eia-notification-payload-contract.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

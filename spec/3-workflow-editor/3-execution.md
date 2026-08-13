@@ -289,6 +289,13 @@ Presentation 노드의 실행 결과는 **Run Results 드로어**(§10)와 설�
 
 ### 8.1 WebSocket 이벤트 (클라이언트 ← 서버)
 
+> **이 표의 "데이터" 열은 에디터 화면 관점의 예시이지 계약이 아니다.** 필드 계약의 SoT 는
+> [WS §4.1](../5-system/6-websocket-protocol.md#41-실행-이벤트-server--client) 이고,
+> 종결 3종(`completed`/`failed`/`cancelled`)은 그 위임을 받아
+> [EIA §6 도입부](../5-system/14-external-interaction-api.md#6-api-명세--outbound-notification)가
+> 소유한다. 여기 적힌 이름·유무를 근거로 구현하지 말 것 (`duration` 표기는 EIA 의
+> `durationMs` 와 같은 값이다).
+
 | 이벤트 | 데이터 | 설명 |
 |--------|--------|------|
 | `execution.started` | executionId | 실행 시작 |
