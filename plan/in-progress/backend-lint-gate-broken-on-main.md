@@ -749,11 +749,17 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 정정이지 새 결정이 아니다) **절차를 어긴 사실은 여기 남긴다** — 이 세션에서 planner 턴을
       > 세 번 분리해 놓고 여기서만 합쳤다.
       >
-      > **실측 3개 파일** (`git diff --name-only origin/main...HEAD -- spec/`):
-      > `spec/5-system/15-chat-channel.md` · `spec/4-nodes/7-trigger/providers/telegram.md` ·
-      > `spec/data-flow/14-chat-channel.md`.
-      > 종전에 여기 **2개만 적어** 이탈 범위를 실제보다 좁게 기록했다 — 위반을 스스로 적으면서
-      > 그 크기를 축소한 셈이고, 이 기록의 목적(규약 형해화 방지)과 정면으로 어긋난다.
+      > **실측 4개 파일** (`git diff --name-only origin/main...HEAD -- spec/`):
+      > `spec/4-nodes/7-trigger/providers/telegram.md` · `spec/5-system/15-chat-channel.md` ·
+      > `spec/conventions/redis-keys.md` · `spec/data-flow/14-chat-channel.md`.
+      >
+      > 이 숫자를 **두 번 틀렸다**. 처음엔 2개라 적어 이탈 범위를 실제보다 좁게 기록했고
+      > (`09_09_58`), 3개로 고친 뒤에는 **같은 PR 의 나중 커밋(`4b46be711`)이 4번째 파일을
+      > 추가해** 그 기록을 스스로 무효로 만들었다(`11_12_03` WARNING 2).
+      >
+      > 앞의 것은 축소였고 뒤의 것은 **stale** 이다. 원인은 같다 — 실측값을 적어 놓고 그 뒤에
+      > 대상을 바꿨다. 위반 기록은 PR 이 닫히는 시점의 값이어야 하는데, 나는 쓰는 시점의 값을
+      > 적고 잊었다.
       > 상세: [`RESOLUTION.md`](../../review/code/2026/08/13/02_38_41/RESOLUTION.md) WARNING #1,
       > [`09_09_58/RESOLUTION.md`](../../review/code/2026/08/13/09_09_58/RESOLUTION.md).
       >
@@ -807,10 +813,13 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       `data-flow/15`(EIA)에만 역참조를 달았다. `chat-channel`·`cafe24`·`webhook` 소유 문서에도
       한 줄씩 필요하다(webhook 은 위 항목과 함께).
 - [ ] **인벤토리에 chat-channel 키 2계열이 빠져 있다** (`cch-se02-dedup` 실측).
-      [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 인벤토리는 `cc:rl:` 만
-      담고 있는데, 실제 chat-channel 소유 키는 4계열이다 —
-      `chat-channel:<triggerId>` · `chat-channel-lock:<triggerId>` · `cc:rl:*` · `cc:dedup:*`
-      (`grep -rnoE "(chat-channel[a-z-]*|cc):" --include="*.ts" src/modules/{chat-channel,hooks}`).
+      [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md) 인벤토리에
+      **`chat-channel:<triggerId>` · `chat-channel-lock:<triggerId>` 2계열이 빠져 있다.**
+      실제 chat-channel 소유 키는 4계열이고(`grep -rnoE "(chat-channel[a-z-]*|cc):"
+      --include="*.ts" src/modules/{chat-channel,hooks}`), 그중 `cc:rl:*` 는 #1160 이,
+      `cc:dedup:*` 는 이 PR 이 등재했다 — 남은 것은 verbose 접두 2계열이다.
+      > 이 항목을 처음 적을 때는 "인벤토리는 `cc:rl:` 만 담고 있다" 였는데, 같은 PR 이
+      > `cc:dedup:` 을 등재하면서 그 전제가 절반 거짓이 됐다(`11_12_03` WARNING 2).
       > 위 "역참조 확산" 항목과 **다른 결함**이다 — 그쪽은 소유 문서가 규약을 안 가리키는 것이고,
       > 이쪽은 인벤토리가 키를 **아예 모르는** 것이다. 표기 스타일도 verbose(`chat-channel:`)와
       > 약어(`cc:`)가 공존하니 등재 시 함께 정리한다.
