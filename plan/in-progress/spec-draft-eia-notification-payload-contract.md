@@ -37,7 +37,8 @@ pending_plans:
 
 이 저장소는 같은 문제의 해법을 이미 갖고 있다 —
 [`conventions/redis-keys.md`](../../spec/conventions/redis-keys.md):
-*"인벤토리는 **포인터만** 갖는다. 한 표에 상세까지 모으면 그 표가 곧 두 번째 SoT 가 된다."*
+*"TTL·용도·fail 정책까지 한 표로 모으면 각 영역 문서와 이중 SoT 가 되고, 그 둘이 어긋나는
+순간 어느 쪽이 참인지 판정할 근거가 없어진다."* (§Rationale "왜 인벤토리가 포인터만 갖나")
 종결 이벤트 payload 에는 그 원칙이 적용된 적이 없다.
 
 ## wire 는 **셋**이다 — 그리고 그 사실은 §6.2 에 이미 적혀 있었다
@@ -58,9 +59,20 @@ pending_plans:
 |---|---|---|---|
 | 1 | **WS** (에디터) | `wireEnvelope` 그대로 — flat | `broadcastToChannel` L471 |
 | 2 | **SSE** (외부 스트림) | `fanoutEnvelope` **그대로** — flat + `triggerId`/`workflowId`. **재래핑 없음** | `writeSseFrame` 이 `JSON.stringify(event.payload)` — `interaction-stream.controller.ts:167` |
-| 3 | **webhook** (outbound notification) | `fanoutEnvelope` 를 **`payload` 키에 통째로** 넣고 다시 감쌈 → `executionId`·`seq`·`timestamp` 가 **바깥과 안쪽에 중복** | `notification-fanout.service.ts` L123-137 |
+| 3 | **webhook** (outbound notification) | `fanoutEnvelope` 를 **`payload` 키에 통째로** 넣고 다시 감쌈 → **키 5개가 안팎 중복** | `notification-fanout.service.ts` L123-137 |
 
-**`payload` 래퍼는 webhook 전용이다.**
+**`payload` 래퍼는 webhook 전용이다.** 그리고 중복 키는 **다섯**이다 — 처음엔 셋이라
+적었는데 실측하니 아니었다:
+
+```
+eventBody      = { type, executionId, triggerId, workflowId, seq, timestamp, payload: ↓ }
+fanoutEnvelope = { executionId, ...payload필드, seq, timestamp, triggerId, workflowId, chatChannel? }
+```
+
+`executionId`·`seq`·`timestamp`·`triggerId`·`workflowId` 다섯이 두 층에 있다. fanout 은
+`event.payload.triggerId` 가 없으면 **early return** 하므로(L94-97) webhook 경로엔 안쪽
+`triggerId` 가 **항상** 있고, `workflowId` 도 routing context 에서 온다. 바깥 `workflowId` 는
+DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 
 그리고 이건 미기록 사실이 아니었다 — EIA **§6.2 의 blockquote**(L615)가
 *"SSE 스트림은 notification envelope 재구성 없이 fanout wire 를 그대로 전송"* 이라고
@@ -99,12 +111,19 @@ pending_plans:
 
 - **EIA §6 도입부** — webhook 과 SSE 를 나란히:
   - **webhook**: `{type, executionId, triggerId, workflowId, seq, timestamp, payload:{…}}`.
-    `executionId`·`seq`·`timestamp` 의 **안팎 중복**도 여기 적는다.
+    **키 5개의 안팎 중복**(`executionId`·`seq`·`timestamp`·`triggerId`·`workflowId`)도 여기 적는다.
   - **SSE**: `payload` 래퍼 **없이** flat (+`triggerId`/`workflowId`).
     §6.2 L615 blockquote 와 **같은 사실**이므로, 그 서술을 도입부로 끌어올려
     5종 이벤트 전체에 걸리게 한다 (§6.2 에는 waiting 고유 필드 예시만 남긴다).
+  - **§5 REST 응답의 `data` 봉투와는 별개**임을 한 줄 명시 (`16_37_24` naming INFO 6 —
+    같은 문서 안에서 "봉투" 라는 말이 두 표면을 가리킨다).
 - **WS §4.1** — flat 봉투. **필드 열거를 버리고** "(1) 의 필드 집합이 flat 하게 펼쳐진다"
   + "webhook 봉투와 다르다(§6 도입부)" 두 줄로.
+  > **"flat" 은 봉투 차원만 가리킨다** — `executionId`·`seq`·`timestamp` 가 payload 필드와
+  > 같은 층에 온다는 뜻이지, **필드 집합 안쪽의 중첩을 펴라는 뜻이 아니다.**
+  > `result.cancelledBy` 의 `result` 는 그대로 남는다. WS §4.1 의 현행 flat `{cancelledBy}`
+  > 표기가 바로 이 오독의 산물이고(`14_18_42` WARNING #2 — EIA·코드는 nested), **정정 대상**이다.
+  > 구분을 안 적으면 축약을 실행하는 사람이 같은 오독을 다시 만든다.
 - **§6.3~§6.5 본문**은 (1)·(2) 참조로 축약. **헤딩은 건드리지 않는다.**
 
 > **표기 caveat** (`16_18_00` naming WARNING 2): WS §4.1 과 `3-execution.md` §8.1 은
@@ -114,9 +133,14 @@ pending_plans:
 
 > **행동 계약은 필드 열거와 함께 버리지 않는다** (`16_18_00` plan_coherence WARNING 1).
 > `cancelledBy` 의 **닫힌 3값 union**(`user`/`system`/`timeout`), `error.code` 의 `RESUME_*`
-> 매핑, **일반 user cancel 에는 `error` 부재** — 이건 필드 이름이 아니라 **동작 약속**이라
-> 축약의 대상이 아니다. §6.5 의 이 서술을 (1) 도입부로 **이관**하고, 축약 diff 에서
-> 소실되지 않았는지 확인한다. [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) **#2** 가 이 계약에 의존한다.
+> / `EXECUTION_QUEUE_WAIT_TIMEOUT` / `WEBCHAT_IDLE_TIMEOUT` 매핑, **일반 user cancel 에는
+> `error` 부재** — 이건 필드 이름이 아니라 **동작 약속**이라 축약의 대상이 아니다.
+>
+> 그리고 이 계약은 **한 곳이 아니라 두 곳**에 있다 — 더 완전한 판본이 **WS §4.1 L179**,
+> 축약판이 **EIA §6.5 L678** 이다. 처음엔 "§6.5 의 서술을 이관" 이라 적었는데 실측하니
+> WS 쪽이 더 자세했다. **두 판본을 도입부 하나로 합치되 WS 쪽을 기준으로 삼는다** —
+> 같은 계약이 두 곳에 서로 다른 상세로 있다는 것이 (B)의 논지 그 자체다.
+> 축약 diff 에서 소실되지 않았는지 확인한다. [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) **#2** 가 이 계약에 의존한다.
 
 ### (3) 나머지는 포인터로 — 필드 열거를 없앤다
 
@@ -152,6 +176,11 @@ pending_plans:
   (`15_45_53` rationale WARNING 2).
 - outbound notification 재시도·서명 정책
 
+> **worktree 슬러그 메모** (`16_37_24` naming INFO 7): frontmatter 의
+> `eia-r8-cache-scope-4ae434` 는 **실제로 이 작업이 도는 worktree 가 맞다**(값은 참). 다만
+> 슬러그가 가리키는 주제(§R8 idempotency 캐시)와 이 draft 의 주제가 다르다 — 백로그를 이어
+> 진행하며 생긴 잔재다. **값을 "고치면" 거짓이 되므로 그대로 둔다.**
+
 ## 후속 (developer)
 
 - [ ] emit 에 `durationMs`·`result.outputs` 채우기 (`execution-engine.service.ts` L2356·2520·
@@ -163,8 +192,14 @@ pending_plans:
 - [ ] 코드 3곳의 `EIA §6.5 line 536` 인용에서 줄 번호 제거 (`chat-channel.dispatcher.ts:506`,
       `chat-channel.dispatcher.spec.ts:428`, `chat-channel/types.ts:378`)
 - [ ] `execution.ai_message` 봉투 서술 정정 (별건)
-- [ ] `node-output-redesign/README.md:372` 의 EIA §6.3 cross-ref 재검증 — 절 번호는 그대로지만
-      §6.3 이 참조하는 내용의 성격이 바뀐다(`16_04_30` plan_coherence INFO 4)
+- [ ] `node-output-redesign/README.md:372` 의 EIA cross-ref — **절 번호 자체가 틀렸다.**
+      `execution.failed` 는 §6.4 인데 §6.3 을 가리킨다(한 줄에 2회). 이 draft 이전부터의 결함
+      (`16_37_24` plan_coherence INFO 5). 성격 변화 재검증과 함께 §6.3→§6.4 정정
+- [ ] **`chatChannel` 이 문서 없이 외부로 나간다** — `attachRoutingContext` 가
+      `{provider, conversationKey, …}` 를 fanout envelope 에 넣는데 `stripExternalOnlyFields` 는
+      그 **이전에** 돌아 strip 대상이 아니다. **SSE·webhook 양쪽** payload 에 실린다
+      (chat-channel 트리거 execution 한정, `sanitizePayloadForWs` 는 거침). spec 어디에도 없는
+      필드다. 이번 draft 범위는 넓히지 않고 별건으로 판단
 - [ ] `failRetryExecution` 의 `cancelledBy` 누락 → [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) **#2** 에서 집행
       (그 항목 완료 시 (1) 표의 "경로 1곳 누락" 도 함께 해제)
 
@@ -182,16 +217,22 @@ pending_plans:
 - [x] `duration`/`durationMs` 표기 caveat — 비목표와 상충하지 않게 (W2)
 - [x] `line 536` 인용 **전수 grep — 6곳**(spec 3 / 코드 3). "§1.2 한 곳" 이라던 최초 판단 정정 (W3)
 - [x] `grep -rn "EIA §6\." spec/ codebase/` — ~15곳, 재넘버링 안 하므로 전부 유효
-- [ ] 재검토 BLOCK: NO 확인
+- [x] `--spec` 6차(`16_37_24`) **BLOCK: NO** — Critical 0 / Warning 0, INFO 7. 5건 반영
+- [x] 검토와 **별개로 내가 실측해 찾은 4건** 반영 — 중복 키 3→**5**, `chatChannel` 외부 유출,
+      "flat" 의 두 의미, 행동 계약이 §6.5 **와** WS §4.1 두 곳
 - [ ] EIA §6 도입부 신설(필드 집합 + webhook/SSE 두 갈래 봉투 + 행동 계약) — §6.1~§6.6 헤딩 불변
 - [ ] §6.2 L615 blockquote 를 도입부로 이관 (waiting 고유 예시만 §6.2 잔류)
+      — **이관 후 WS `## Rationale` 의 "EIA §6.2 blockquote" 앵커가 여전히 맞는지 확인**하고,
+      안 맞으면 "§6 도입부 + §6.2" 로 갱신 (`16_37_24` rationale INFO 2)
+- [ ] `retry-turn-terminal-guard.md` #2 에 역포인터 한 줄 — "EIA 정본은 §6 도입부"
+      (`16_37_24` plan_coherence INFO 4). 구현자가 WS §4.1 만 보고 새 SoT 를 놓치는 것 방지
 - [ ] §6.3~§6.5 본문 축약 (헤딩 유지 → 앵커 4곳 보존)
 - [ ] WS §4.1 종결 3행 → 참조 + flat 봉투
 - [ ] `chat-channel-adapter.md` §1.2 축약 + `line 536` 제거(§1.2·§8 표)
 - [ ] `15-chat-channel.md:76` 의 `line 536` 제거
 - [ ] `3-workflow-editor/3-execution.md` §8.1 → 비-authoritative 표기
 - [ ] Planned gap 2건을 `spec-sync-*-gaps.md` 에 등재
-- [ ] 후속 8건 등재
+- [ ] 후속 9건 등재
 
 ## Rationale
 
