@@ -156,6 +156,18 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
   수정이 선행이었고, 이제 그 전제가 정리됐다. ③은 독립이다.
 - `.query()` 사각지대(`let`·구조분해·체이닝)는 정규식이 아니라 AST 로 넓혀야 한다 —
   유한한 문제를 무한한 문제와 바꾸지 않도록 착수 전 비용을 먼저 본다.
+- [ ] **CHANGELOG Unreleased 항목** (`20_36_35` WARNING 3). 이 저장소는 사용자 영향 있는
+      조용한 결함 수정을 Unreleased 에 적는 관행이 있다. 이번 건은 **배포 영향 서술과 함께**
+      써야 의미가 있어 릴리스 시점 판단으로 미뤘다 — 무엇이 깨져 있었는지(소셜 로그인 상시
+      실패 · admission cap 미집행 · KB CAS 락 미작동 · 재큐 `documentId: undefined`)를 적을 것.
+- [ ] **배포 후 관측** (`20_36_35` WARNING 8). 4개월간 죽어 있던 분기들이 **처음으로 라이브**가
+      된다. 조치가 아니라 관측 계획이라 여기 남긴다:
+      - (a) admission 2s 지연 소멸 — **e2e 로 이미 실측**(4191→2242ms)
+      - (b) 동시성 cap 초과 시 실제 `deferred`/`cancelled` 첫 관측
+      - (c) `EXECUTION_STARTED` emit 패턴 변화(그 경로에서 처음 발화)
+      - (d) KB 재추출/재임베딩 동시 요청이 처음으로 409 거부
+      - (e) 소셜 로그인 성공률 — 0% 에서 회복되는지
+      동시성 cap 이 실제로 걸리는 워크로드가 있다면 배포 전 운영 공유.
 - **[planner 위임]** `spec/5-system/4-execution-engine.md` §1.1 인근 Rationale 에 소급 각주
   한 줄 — 2026-07-30 의 유사 사례(retry-reentry opt-in 미전파)와 대칭 (`20_36_36` WARNING 1
   제안 (3)). `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다. 그래서
