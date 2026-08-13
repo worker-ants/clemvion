@@ -60,7 +60,7 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
  * 인스턴스 수직 캐시이므로 멀티 인스턴스 hit ratio 는 sticky session WS 배포에서
  * 자연스럽게 보장된다. 멀티 인스턴스 cross-hit 이 필요하면 Redis 로 승격 가능.
  */
-const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
+export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에

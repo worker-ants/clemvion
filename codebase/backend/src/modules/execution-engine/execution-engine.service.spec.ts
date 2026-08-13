@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { In } from 'typeorm';
@@ -4476,6 +4477,46 @@ describe('ExecutionEngineService', () => {
       };
       await expect(admit(exec)).resolves.toBe('admitted');
       spy.mockRestore();
+    });
+
+    /**
+     * `EntityManager.query` 의 선언 타입은 `Promise<any>` 라 코드의 제네릭
+     * (`query<{ id: string }[]>`) 은 **주장이지 검증이 아니다.** 드라이버가 배열이 아닌 것을
+     * 돌려주면 `rows.length` 가 TypeError 를 던져 admission 이 "거부" 가 아니라 **예외**로
+     * 끝난다 — 호출부는 그 둘을 다르게 다룬다(전자는 defer, 후자는 전파).
+     *
+     * 가드가 그 경우를 fail-closed(=defer)로 떨어뜨리는지 고정한다. 실패 방향이 원래도
+     * 안전했다는 것과, 그 안전이 **명시적**이라는 것은 다른 얘기다.
+     */
+    it('UPDATE ... RETURNING 이 배열이 아니면 예외가 아니라 defer (fail-closed)', async () => {
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      try {
+        // `mockExecutionRepo.manager` 는 `jest.Mock` 으로 추론돼 `.transaction` 대입이
+        // TS2339 를 낸다(이웃 테스트들이 그 오류를 안고 있다). 여기서는 캐스트로 해소해
+        // typecheck ratchet 을 늘리지 않는다.
+        (
+          mockExecutionRepo.manager as unknown as { transaction: jest.Mock }
+        ).transaction = jest.fn(
+          async (cb: (m: { query: jest.Mock }) => unknown) =>
+            // 드라이버가 배열 아닌 것을 돌려준 상황.
+            cb({ query: jest.fn().mockResolvedValue(undefined) }),
+        );
+        const spy = emitSpy();
+        const exec = {
+          id: 'eNonArray',
+          workflowId: 'wf',
+          queuedAt: new Date(),
+          status: 'pending',
+        };
+        // 던지지 않고 deferred 로 떨어져야 한다.
+        await expect(admit(exec)).resolves.toBe('deferred');
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('배열이 아님'),
+        );
+        spy.mockRestore();
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it('원자 UPDATE 파라미터 순서·cap 매핑 회귀: [executionId, workspaceId, wsCap, workflowId, wfCap]', async () => {

@@ -471,7 +471,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
       검증: eslint **errors 0 / warnings 0** · 타입체크 ratchet **199건 / 38파일 baseline 일치**
       (증감 0 — 타입을 깬 자리 없음) · backend unit **418 suites / 8512 passed**.
-- [ ] **선재 테스트 공백 2건** (`12_05_39` testing INFO 1·2, 이번 라운드 유예). 둘 다 이번
+- [x] **선재 테스트 공백 2건** (`12_05_39` testing INFO 1·2, 이번 라운드 유예). 둘 다 이번
       diff 가 *타입만* 바꾼 자리라 조치 대상이 아니었지만, 공백 자체는 실재한다:
       - `chat-channel.dispatcher.ts:192-201` — `logFn` 의 debug/warn 삼항 분기가
         `.handle()` 경유 스펙에서 도달 불가. standalone 함수 테스트만 존재한다.
@@ -486,6 +486,22 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 있었다. 다음 라운드에서 그 테스트를 추가하고 이 문구를 좁혔다. 이 저장소가 반복해
       > 데인 "문서한 보장이 구현보다 넓다" 와 같은 형태다 — **"전체"·"전부" 를 쓸 때는 안
       > 덮은 갈래를 먼저 세어야 한다.**
+
+      > **완료 (2026-08-13, `backlog-final-three`).** 둘 다 실측으로 전제를 확인하고 메웠다.
+      >
+      > **`snapshotCache` evict** — `grep -rn "snapshotCache" --include="*.spec.ts"` → **0건**.
+      > 상한(256)이 실제로 작동하는지, 밀려나는 것이 **가장 오래된 키**인지를 `findById` 경유
+      > 257회 삽입으로 고정했다. 방향을 안 보면 "무언가 하나 지운다" 만 고정돼 최신 키를 지우는
+      > 회귀가 통과한다. 상수를 export 해 심볼로 쓰되 **값(256) 자체도 리터럴로 따로** 박았다 —
+      > 심볼만 쓰면 상한이 조용히 바뀌어도 테스트가 따라간다.
+      > 뮤턴트 **4/4**: evict 제거 · LRU 방향 반전 · off-by-one(`>=`→`>`) · read 갱신 제거.
+      >
+      > **dispatcher logFn 분기** — `handle()` 경유로 **양방향**을 고정했다. 한쪽만 쓰면
+      > 삼항을 뒤집는 회귀가 절반 통과한다. 실제로 "항상 warn"·"항상 debug" 뮤턴트가 각각
+      > 테스트를 **하나씩만** 죽였다 — 양방향이 필요했다는 실측 증거다. 뮤턴트 **4/4**.
+      >
+      > 캐시 적재 배선(`findById`→cache)은 기존 W-27 테스트가 이미 덮으므로 새 테스트는 그 위에
+      > 상한/방향만 얹는다.
 - [x] **planner 인계 — `spec/data-flow/15-external-interaction.md` 의 R8 요약이 SoT 보다 넓다**
       (`--impl-done` `13_07_33` cross_spec·rationale_continuity WARNING, **BLOCK: NO**).
       data-flow 문서가 §1.2 시퀀스와 §2.1/§2.2 표에서 "4xx 캐시 제외" 로 요약하는데, SoT 인
@@ -1053,7 +1069,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >
       > 세 번 다 **"고친 자리 옆의 같은 자리"** 였다. 한 케이스를 고쳤으면 그 순간 형제를
       > 전수로 세는 것이 이 결함 클래스의 유일한 방어다.
-- [ ] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
+- [x] `execution-engine.service.ts` 의 admission 자리(`rows.length === 1`, 2922행)에
       `Array.isArray(rows)` 런타임 가드 (`11_06_12` security INFO, 직전 세션이 유예).
       그 커밋의 값이 "emit JS 가 md5 까지 before/after 동일" 이라 런타임 가드를 넣으면 그
       성질이 깨진다는 이유였고, 실패 방향이 **fail-closed** 라(shape 이 어긋나면
@@ -1079,3 +1095,17 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
 기록하고 required-check 등록을 사용자 액션으로 남겨 뒀다. **이 건이 그 미등록의 3번째
 피해**다(1: `#1058` typescript 롤백, 2: `#1074` unicorn 복원, 3: 본 건). required check
 등록 없이는 4번째가 온다.
+
+
+      > **완료 (2026-08-13, `backlog-final-three`).** 가드를 넣었다. 유예 근거였던 "emit JS
+      > before/after 동일" 은 **타입 전용 PR 의 제약**이었고 이 PR 은 그 제약 아래 있지 않다.
+      >
+      > 실패 방향이 원래도 fail-closed 였다는 것과, 그 안전이 **명시적**이라는 것은 다르다 —
+      > 가드가 없으면 `rows.length` 가 TypeError 를 던져 admission 이 "거부" 가 아니라 **예외**로
+      > 끝나고, 호출부는 그 둘을 다르게 다룬다(전자는 defer, 후자는 전파). 가드는 그 경우를
+      > defer 로 떨어뜨리고 warn 을 남긴다.
+      >
+      > 뮤턴트 4건 중 3건이 단언으로 RED. 나머지 1건(조건 반전)은 전체 스위트에서 `exit=-6`
+      > **크래시**로 나와 그대로 세지 않고 `-t` 로 격리해 다시 쟀다 — 격리 실행에서
+      > `1 failed, 440 skipped` 로 **단언 실패**임을 확인했다(그때 baseline 쪽이 오히려 크래시라,
+      > 크래시는 `-t` 실행의 flake 였다). **크래시는 변별력의 증거가 아니다.**

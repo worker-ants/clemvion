@@ -3,6 +3,7 @@ import {
   isEmptyTextBody,
   ChatChannelDispatcher,
 } from './chat-channel.dispatcher';
+import { Logger } from '@nestjs/common';
 import type { ExecutionChannelEvent } from '../websocket/websocket.service';
 import type { ChannelMessage } from './types';
 
@@ -699,6 +700,124 @@ describe('toChatChannelEvent — execution.node.completed (chat-channel-internal
 // form_modal → pendingFormModal persist, form_prompt → formState persist.
 // SoT: spec/conventions/chat-channel-adapter.md §4.1.
 // ---------------------------------------------------------------------------
+/**
+ * `toChatChannelEvent` 가 null 을 돌려줄 때 dispatcher 가 **debug 로 격하할지 warn 으로
+ * 남길지** 가르는 분기(`isSubFilterNull`).
+ *
+ * 이 분기는 standalone `toChatChannelEvent` 테스트로는 도달할 수 없다 — 그 함수는 null 만
+ * 돌려주고, "그 null 을 어떤 로그 레벨로 다룰지" 는 호출부의 판단이기 때문이다.
+ * 그래서 `handle()` 를 통해 본다.
+ *
+ * **두 방향을 다 본다.** 한쪽만 고정하면 삼항을 뒤집는 회귀(정상 skip 을 warn 으로 쏟아내거나,
+ * 진짜 에러를 debug 로 묻어 버리거나)가 절반은 통과한다. 전자는 운영 로그 노이즈, 후자는
+ * 회귀 신호 유실 — 둘 다 이 분기가 막으려던 것이다.
+ */
+function buildDispatcherForNull() {
+  const adapter = {
+    provider: 'slack',
+    supportsNativeForm: true,
+    renderNode: jest.fn(async () => []),
+    sendMessage: jest.fn(async () => ({
+      externalMsgId: 'm',
+      sentAt: '2026-05-28T00:00:00Z',
+    })),
+  };
+  const dispatcher = new ChatChannelDispatcher(
+    { executionEvents$: { subscribe: jest.fn() } } as never,
+    { get: jest.fn(() => adapter) } as never,
+    { has: jest.fn(() => true) } as never,
+    {
+      lookup: jest.fn(async () => undefined),
+      upsert: jest.fn(async () => undefined),
+      updateExecutionId: jest.fn(async () => undefined),
+    } as never,
+    {
+      findOne: jest.fn(async () => ({
+        id: 'trig-1',
+        workspaceId: 'ws',
+        workflowId: 'wf-1',
+        config: { chatChannel: { provider: 'slack' } },
+        chatChannelHealth: 'healthy',
+      })),
+      update: jest.fn(async () => undefined),
+    } as never,
+  );
+  return { dispatcher, adapter };
+}
+
+describe('ChatChannelDispatcher.handle — toChatChannelEvent null 의 로그 레벨 분기', () => {
+  function buildNullEvent(
+    eventType: string,
+    extra: Record<string, unknown>,
+  ): ExecutionChannelEvent {
+    return {
+      executionId: 'exec-1',
+      eventType,
+      seq: 1,
+      payload: {
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        timestamp: '2026-05-28T00:00:00Z',
+        chatChannel: { conversationKey: 'D1' },
+        ...extra,
+      },
+    } as ExecutionChannelEvent;
+  }
+
+  it('execution.node.completed 의 sub-filter null 은 debug 로 격하 (warn 아님)', async () => {
+    const { dispatcher } = buildDispatcherForNull();
+    const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation();
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      // 비-presentation 노드 타입 → toChatChannelEvent 가 정상적으로 null.
+      await (
+        dispatcher as unknown as {
+          handle: (e: ExecutionChannelEvent) => Promise<void>;
+        }
+      ).handle(
+        buildNullEvent('execution.node.completed', {
+          nodeId: 'n1',
+          nodeType: 'http_request',
+        }),
+      );
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('toChatChannelEvent null'),
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('toChatChannelEvent null'),
+      );
+    } finally {
+      debugSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('그 외 eventType 의 null 은 warn 유지 (에러성 신호라 묻지 않는다)', async () => {
+    const { dispatcher } = buildDispatcherForNull();
+    const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation();
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    try {
+      // message 가 string 이 아니라 toChatChannelEvent 가 null — 에러성.
+      await (
+        dispatcher as unknown as {
+          handle: (e: ExecutionChannelEvent) => Promise<void>;
+        }
+      ).handle(
+        buildNullEvent('execution.ai_message', { message: { not: 'string' } }),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('toChatChannelEvent null'),
+      );
+      expect(debugSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('toChatChannelEvent null'),
+      );
+    } finally {
+      debugSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+});
+
 describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => {
   function buildDispatcher(renderResult: ChannelMessage[]) {
     const state: Record<string, unknown> = {

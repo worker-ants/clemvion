@@ -2919,6 +2919,17 @@ export class ExecutionEngineService
            RETURNING id`,
           [executionId, workspaceId, wsCap, execution.workflowId, wfCap],
         );
+        // `EntityManager.query` 의 선언 타입은 `Promise<any>` 라 위 제네릭은 **주장이지
+        // 검증이 아니다.** 드라이버가 배열이 아닌 것을 돌려주면 `rows.length` 가 TypeError 를
+        // 던져 admission 이 "거부" 가 아니라 **예외**로 끝난다 — 호출부는 그 둘을 다르게 다룬다.
+        // 배열이 아니면 admitted=false 로 떨어뜨려 **fail-closed 를 명시**한다(cap 우회 아님).
+        if (!Array.isArray(rows)) {
+          this.logger.warn(
+            `admission: UPDATE ... RETURNING 이 배열이 아님 (typeof=${typeof rows}) — ` +
+              `execution ${executionId} 를 defer 로 처리한다`,
+          );
+          return false;
+        }
         return rows.length === 1;
       },
     );
