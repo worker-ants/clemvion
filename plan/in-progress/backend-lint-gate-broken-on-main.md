@@ -1168,3 +1168,23 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
       > 뮤테이션 중 `jest -t` 가 이 스위트에서 `SIGABRT` 를 내는 flake 를 두 번 만났다 —
       > **baseline 쪽도 크래시**해서 뮤턴트 탓이 아니었다. 전체 스위트로 재판정했다.
       > **크래시는 변별력의 증거가 아니다.**
+
+## `.query()` 반환 shape 하드닝 — 남은 후속 (2026-08-13, ai-review `18_19_33`)
+
+`assertRowArray` 가드를 execution-engine·executions 두 서비스 4곳에 폈고, 누락 자체를
+막는 구조적 회귀 테스트(`assert-row-array.spec.ts`)를 뒀다. 남은 것:
+
+- [ ] **backend 전역 raw-query 소비 지점 감사** — 이번 가드의 `FILES` 는 위 2파일 한정이다.
+      `integration-oauth.service.ts` `consumeOAuthState` 등이 검증 없이 `queryResult[0]` /
+      `.length` 를 소비한다(`18_19_33` testing INFO 7). 같은 fail-open 방향인지
+      **지점마다 실패 방향을 재고** 판단할 것 — 이번에 4곳 중 1곳만 fail-open 이었다.
+- [ ] **`CONSUMING_QUERY` 사각지대** — `let` 선언·구조분해(`const [row] = await …`)·체이닝
+      형태는 정규식에 안 잡혀 GREEN 을 유지한 채 지나간다(`18_19_33` testing INFO 8).
+      주석으로 명시해 뒀다. 넓힐 거면 **정규식이 아니라 AST** 가 맞다 — 유한한 문제를
+      무한한 문제와 바꾸지 않도록 착수 전에 비용을 먼저 볼 것.
+- [ ] **`updateExecutionStatus` else 분기 트랜잭션화** (`18_19_33` concurrency INFO 9).
+      지금은 트랜잭션 밖 단발 UPDATE 라 가드가 throw 해도 이미 커밋된 UPDATE 를 못 되돌린다.
+      가드는 "조용한 유실 → 시끄러운 실패" 까지만 하고, 롤백 보장은 이 항목이 해야 한다.
+- [ ] `chat-channel.dispatcher.spec.ts` 의 `dispatcher as unknown as { handle }` 캐스트 4곳을
+      로컬 타입 별칭으로 통합 (`18_19_33` maintainability INFO 5). 3라운드 연속 지적됐고
+      diff 가 2→4곳으로 늘었다 — 다음 실질 변경 때 함께 정리.

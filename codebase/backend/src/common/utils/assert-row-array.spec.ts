@@ -7,7 +7,9 @@ describe('assertRowArray', () => {
     const rows: unknown = [{ id: 'a' }];
     expect(() => assertRowArray(rows, 'ctx')).not.toThrow();
     assertRowArray(rows, 'ctx');
-    // assertion 이후 `.length` 접근이 타입 에러 없이 가능해야 한다(좁히기 확인).
+    // 여기서 확인하는 건 **런타임 접근**이다. `asserts rows is unknown[]` 좁히기가
+    // 실제로 컴파일에 걸리는지는 jest 가 못 본다(ts-jest 는 타입을 strip 한다) —
+    // 그건 `tsc --noEmit` / typecheck-ratchet CI job 몫이다.
     expect(rows.length).toBe(1);
   });
 
@@ -30,7 +32,7 @@ describe('assertRowArray', () => {
 
 /**
  * 이 저장소가 반복한 결함은 "가드를 한 곳에만 적용하고 자매를 안 세는 것" 이다
- * (ai-review `14_18_42` → `17_15_21` 연속 지적). helper 추출은 boilerplate 를 줄일 뿐
+ * (ai-review `17_15_21` requirement WARNING 1). helper 추출은 boilerplate 를 줄일 뿐
  * **호출을 잊는 것을 막지 못한다** — 그걸 막는 건 이 테스트다.
  *
  * 두 서비스에서 반환값을 쓰는 raw SQL 호출을 세고, 같은 수의 `assertRowArray` 가 있는지
@@ -39,6 +41,13 @@ describe('assertRowArray', () => {
  * 정적 grep 이라 정밀하지 않다 — 그래서 "정확히 어느 줄" 이 아니라 **개수**만 본다.
  * 반환값을 안 쓰는 호출(예: `pg_advisory_xact_lock`)은 `await m.query(` 로 시작하는
  * statement 라 `const ... = await ...query` 패턴에 안 잡힌다.
+ *
+ * **사각지대를 적어 둔다** (`18_19_33` testing INFO 8·7): `let` 선언·구조분해
+ * (`const [row] = await ...`)·체이닝 형태의 신규 지점은 아래 정규식에 안 잡혀 GREEN 을
+ * 유지한 채 지나간다. `FILES` 도 이 PR 이 손댄 2개로 한정돼 있어 backend 전역 감사는
+ * 아니다(`integration-oauth.service.ts` 등 유사 소비 지점은 별도 백로그). 이 가드는
+ * **완전한 증명이 아니라 가장 흔한 형태의 재발을 막는 그물**이다 — 넓히려면 정규식이
+ * 아니라 AST 가 맞다.
  */
 describe('자매 지점 전수 — 가드 누락 회귀 가드', () => {
   const SRC = join(__dirname, '..', '..');
