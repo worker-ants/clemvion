@@ -197,6 +197,10 @@ embed allowlist(①)와 SSE CORS allowlist(④)는 **같은 키** (`workspace.se
 | `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume` (`INCR`+`EXPIRE NX`) | 동일 | [CCH-NF-03] per-chat 분당 inbound 한도. **TTL 60초**(fixed-window). 초과분 skip + `chat_channel_health=degraded`. Redis 미가용 시 fail-open |
 | `chat-channel-token-rotator` (BullMQ) | repeatable job scheduler (`0 * * * *`) | `ChatChannelTokenRotatorService` | payload 없음 — 매시간 cleanup sweep (§1.3) |
 
+> **키 형태 규칙과 저장소 전역 인벤토리**는 [`conventions/redis-keys.md`](../conventions/redis-keys.md) 가
+> SoT 다. 위 4개 chat-channel 키의 **용도·TTL·fail 정책은 이 표가 SoT** 이고, 규약 문서는
+> 포인터만 갖는다. 새 키를 만들면 양쪽을 함께 갱신한다(규약 §5).
+
 ### 2.3 외부
 
 | Sink | 흐름 |

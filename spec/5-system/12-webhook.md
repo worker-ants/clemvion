@@ -339,6 +339,17 @@ codebase/backend/src/modules/hooks/
 - 본문 크기 (WH-NF-02 옵션 C): `/api/hooks/*`(`HOOKS_ROUTE_PREFIX` 상수) 라우트 스코프 body-parser(`createHooksBodyParsers`, `src/bootstrap/hooks-body-parser.ts`)가 인증 webhook 본문을 **1MB**(기본, `HOOKS_MAX_BODY_BYTES` env override, 상한 16MiB)까지 수용하고 초과 시 `413 PAYLOAD_TOO_LARGE`. `main.ts` 는 `bodyParser: false` 로 Nest 기본 파서를 끄고 hooks(1MB)·전역(`createGlobalBodyParsers`, 100KB)을 직접 등록한다. hooks 를 먼저 등록해 1MB 로 파싱하며(`req._body` 가드로 전역 재파싱 skip), rawBody 를 보존해 HMAC 검증과 호환. 전역 100KB 는 명시 등록돼 non-webhook 라우트에 적용. 공개 webhook 의 32KB 는 `PublicWebhookThrottleGuard` 가 그 위에서 추가 제한.
 - 기존 `TriggersService.findByEndpointPath()` 재사용
 
+**Redis 키** — 공개 webhook 쿼터는 두 버킷을 쓴다 ([`conventions/redis-keys.md` §3](../conventions/redis-keys.md) 인벤토리가 이 절을 상세 SoT 로 가리킨다):
+
+| 버킷 | 키 | 윈도우 |
+| --- | --- | --- |
+| IP 단위 시작 한도 (기본 분당 10) | `wh:rl:min:<ip>` | 60초 fixed-window |
+| IP 단위 시간당 누적 신규 상한 (기본 20) | `wh:rl:hour:<ip>` | 3600초 fixed-window |
+
+> IP 를 식별하지 못한 요청은 `<ip>` 자리에 sentinel(`__no_client_ip__`, `UNIDENTIFIED_IP_BUCKET`)이
+> 들어가 **단일 공유 버킷**으로 묶인다 — 로그·메트릭에서 IP 처럼 보이지만 의도된 집계 키다.
+> 두 키 모두 `INCR` + 첫 증가 시 `EXPIRE` 이며, Redis 미가용 시 fail-open(위 참조).
+
 ---
 
 ## 7. 처리 흐름

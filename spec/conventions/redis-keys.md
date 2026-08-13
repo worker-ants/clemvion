@@ -56,16 +56,24 @@ Redis **키 이름의 형태**와 **어느 문서가 어떤 키를 소유하는�
 |---|---|---|
 | `exec:recover:lock` · `exec:cont:seq:<executionId>` | `modules/execution-engine` | [엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) |
 | `exec:seq:<executionId>` | **`modules/websocket`** (`ExecutionSeqAllocator`) — 접두는 `exec:` 지만 소유가 다르다 | [엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) |
-| `iext:blacklist:<jti>` · `interaction:idempotency:<executionId>:<route>:<key>` | `modules/external-interaction` | [data-flow/15 §2.2](../data-flow/15-external-interaction.md) |
-| `eia:rl:interact:<executionId>` · `eia:rl:status:<executionId>` · `eia:notif:rl:<triggerId>` | `modules/external-interaction` | [EIA §8.4](../5-system/14-external-interaction-api.md) |
-| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` | `modules/chat-channel` | [chat-channel](../5-system/15-chat-channel.md) |
-| `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [webhook](../5-system/12-webhook.md) |
-| `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac>` | `modules/integrations` | [통합 §5.8](../2-navigation/4-integration.md) |
+| `iext:blacklist:<jti>` · `interaction:idempotency:<executionId>:<route>:<key>` | `modules/external-interaction` | [data-flow/15 §2.2](../data-flow/15-external-interaction.md#22-redis--bullmq) |
+| `eia:rl:interact:<executionId>` · `eia:rl:status:<executionId>` · `eia:notif:rl:<triggerId>` | `modules/external-interaction` | [EIA §8.4](../5-system/14-external-interaction-api.md#84-rate-limit) |
+| `chat-channel:<triggerId>:<conversationKey>` · `chat-channel-lock:<triggerId>:<conversationKey>:formsubmit` | `modules/chat-channel` | [data-flow/14 §2.2](../data-flow/14-chat-channel.md#22-redis) |
+| `cc:rl:<triggerId>:<conversationKey>` · `cc:dedup:<triggerId>:<idempotencyKey>` | `modules/chat-channel` | [data-flow/14 §2.2](../data-flow/14-chat-channel.md#22-redis) |
+| `wh:rl:min:<ip>` · `wh:rl:hour:<ip>` | `modules/hooks` | [webhook §6](../5-system/12-webhook.md#6-구현-파일-구조) |
+| `cafe24:install:fail:<ip>` · `cafe24:install:nonce:<mall_id>:<ts>:<hmac 앞 8자>` | `modules/integrations` | [Cafe24 §9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증) |
 | `integration:cache:invalidate` (pub/sub 채널) | `common/redis` | [엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) |
 
-> **한 모듈이 접두 셋을 쓴다** — `external-interaction` 이 `iext:`·`interaction:`·`eia:` 를
-> 병용한다. 통일을 강제하지 않는다(키 포맷 변경은 배포 전환기에 기존 엔트리를 고아로 만든다).
-> 다만 넷째가 생기지 않도록 사실을 남긴다.
+> **한 모듈이 접두를 여럿 쓴다** — `external-interaction` 이 `iext:`·`interaction:`·`eia:` 를,
+> `chat-channel` 이 verbose(`chat-channel:`·`chat-channel-lock:`)와 약어(`cc:`)를 병용한다.
+> 통일을 강제하지 않는다(키 포맷 변경은 배포 전환기에 기존 엔트리를 고아로 만든다).
+> 다만 각 모듈에서 접두가 더 늘지 않도록 사실을 남긴다.
+
+> **§1 형태 규칙의 예외 두 계열** — `chat-channel:<triggerId>:<conversationKey>` 는 머리
+> 2세그먼트 중 **용도가 없고**(도메인 다음이 바로 식별자), 자매
+> `chat-channel-lock:…:formsubmit` 은 반대로 **용도를 꼬리에** 둔다. 둘 다 규약보다 먼저
+> 있던 키이고, 위와 같은 이유로 개명하지 않는다. **신규 키는 §1 을 따른다** — 이 두 줄은
+> 예외를 허용하는 근거가 아니라 예외가 어디까지인지 그은 선이다.
 
 ## 4. 인접 네임스페이스 — Redis 키가 **아닌데** 형태가 비슷한 것
 

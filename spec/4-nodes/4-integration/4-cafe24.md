@@ -576,6 +576,11 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 | `INSTALL_FAIL_THRESHOLD` | `10` (코드 상수, 환경변수 아님) | install_token 조회/HMAC 실패의 IP별 허용 횟수 (Layer 2). window 내 초과 시 `429 CAFE24_INSTALL_RATE_LIMITED`. 정상 사용자(유효 토큰)는 실패하지 않아 무영향. |
 | `INSTALL_FAIL_WINDOW_SEC` | `600` (10분, 코드 상수) | 실패 카운터(`cafe24:install:fail:{ip}`) 의 Redis TTL. nonce TTL(10분) 과 동일 마진. |
 
+> **Redis 키 인벤토리**: 위 두 키(`cafe24:install:fail:*` · `cafe24:install:nonce:*`)는
+> [`conventions/redis-keys.md` §3](../../conventions/redis-keys.md) 인벤토리에 등재돼 있고, 그
+> 인벤토리가 **이 절을 상세 SoT 로** 가리킨다. 키 형태 규칙은 규약 문서가, 용도·TTL·degradation
+> 은 이 절이 SoT 다. 새 키를 만들면 양쪽을 함께 갱신한다(규약 §5).
+
 ### 9.9 Fields 편집 UI — 메타데이터 기반 typed 동적 폼
 
 **operation 메타데이터 기반 동적 폼**: `extras.operationsByResource` 페이로드로 (resource, operation) 별 `fields[]` 가 frontend 에 도달한다. UI 는 메타데이터에 명시된 키만 행으로 렌더하고 required / optional 두 그룹으로 분리. 사용자가 임의 key 를 추가하는 경로 자체가 없어 빈 key 행 / 편집 버퍼 문제는 구조적으로 소멸. 모든 값 입력칸은 `ExpressionInput` 베이스로 표현식 (`{{ }}`) 입력을 유지한다. 자유 key/value 행 입력 방식 (사용자가 키 이름을 외워서 입력) 은 어느 키가 필수/선택인지 UI 가 안내하지 못하고 빈 key 행용 내부 편집 버퍼 분리가 필요해 채택하지 않았다.
