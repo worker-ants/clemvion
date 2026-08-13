@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-12T23:36:14.734952",
+  "timestamp": "2026-08-13T08:58:28.615686",
   "mode": "구현 완료 후 검토 (--impl-done, scope=spec/data-flow/, diff-base=origin/main)",
   "target_path": "spec/data-flow/",
   "checkers": [

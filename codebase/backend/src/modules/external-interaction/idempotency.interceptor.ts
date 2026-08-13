@@ -21,6 +21,9 @@ export const IDEMPOTENCY_HEADER = 'idempotency-key';
 const REDIS_KEY_PREFIX = 'interaction:idempotency:';
 const TTL_SEC = 24 * 60 * 60; // 24h
 const MAX_KEY_LENGTH = 200;
+/** 유효 HTTP 상태코드 범위 — 캐시 엔트리의 `statusCode` 검증용 ({@link isHttpStatusCode}). */
+const MIN_HTTP_STATUS_CODE = 100;
+const MAX_HTTP_STATUS_CODE = 599;
 
 /**
  * `context.switchToHttp().getResponse()` 의 반환 타입. Nest 시그니처가
@@ -102,8 +105,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<RequestWithInteraction>();
+    // **`rawKey === null` — truthiness 로 묻지 않는다.** `!rawKey` 로 두면 `readKey` 가
+    // 빈 문자열을 돌려줘도 여기서 삼켜져, "키가 유효한가" 판정이 두 곳에 반씩 걸린다.
+    // (뮤테이션 실측: 그 상태에서는 `readKey` 의 빈 문자열 검사를 지워도 죽는 테스트가 없었다.)
+    // 이제 책임이 갈린다 — `readKey` 는 "쓸 수 있는 키인가", 여기는 "받았는가" 만 본다.
     const rawKey = readKey(req.headers[IDEMPOTENCY_HEADER]);
-    if (!rawKey || !this.redis) {
+    if (rawKey === null || !this.redis) {
       return next.handle();
     }
     // [Spec EIA §R8 "캐시 키 스코프"] — 키는 헤더 값 단독이 아니라 execution + route 로
@@ -373,7 +380,25 @@ function isIdempotencyEntry(value: unknown): value is IdempotencyEntry {
   return (
     typeof e.bodyHash === 'string' &&
     typeof e.responseJson === 'string' &&
-    typeof e.statusCode === 'number'
+    isHttpStatusCode(e.statusCode)
+  );
+}
+
+/**
+ * 캐시 엔트리의 `statusCode` 가 **쓸 수 있는 값**인지 — 타입만으로는 부족하다.
+ *
+ * `typeof === 'number'` 만 보면 `-1`·`0`·`3.5` 같은 값이 통과해 `res.status(-1)` 이나
+ * `new HttpException(payload, -1)` 로 흘러간다. express 는 전송 시점에 `RangeError` 를 내므로
+ * 손상 엔트리 하나가 **500** 을 만든다 — 이 클래스가 없애려는 형태 그대로다.
+ *
+ * `NaN`·`Infinity` 는 여기 도달하지 않는다: **JSON 리터럴이 아니라** `JSON.parse` 가 만들 수
+ * 없다(그래서 별도 분기를 두지 않는다). 실제 표면은 정수가 아니거나 범위 밖인 값뿐이다.
+ */
+function isHttpStatusCode(value: unknown): value is number {
+  return (
+    Number.isInteger(value) &&
+    (value as number) >= MIN_HTTP_STATUS_CODE &&
+    (value as number) <= MAX_HTTP_STATUS_CODE
   );
 }
 
@@ -384,6 +409,17 @@ function describeShape(value: unknown): string {
   return typeof value;
 }
 
+/**
+ * `Idempotency-Key` 헤더에서 **쓸 수 있는 키**를 뽑는다. 못 뽑으면 `null` — 세 사유다:
+ * 문자열이 아님 · trim 후 비어 있음 · `MAX_KEY_LENGTH` 초과.
+ *
+ * 호출부는 `rawKey === null` 로 묻는다(truthiness 아님). 그래야 "쓸 수 있는 키인가" 판정이
+ * 전부 여기에 모이고, 여기 검사를 지우면 테스트가 즉시 죽는다.
+ *
+ * **배열 분기는 중복 헤더 경로가 아니다** — Node `http` 는 `set-cookie` 만 배열로 두고 나머지
+ * 중복 헤더는 `", "` 로 조인하므로(raw socket 프로브 실측), 실제 중복 전송은 `"a, b"` 라는
+ * 문자열로 들어와 그대로 키가 된다. 배열 검사는 타입이 허용하는 형태에 대한 방어다.
+ */
 function readKey(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
