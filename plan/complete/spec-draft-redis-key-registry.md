@@ -3,7 +3,7 @@ title: spec draft — Redis 키 규약을 실제에 맞추고 전역 인벤토�
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-13
 owner: project-planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/conventions/redis-keys.md
@@ -168,27 +168,41 @@ EIA 표는 그대로 두고(상세 소유는 여기가 맞다) 규약 문서를 
 
 ## 체크리스트
 
-- [ ] `consistency-check --spec` **재실행** BLOCK: NO 확인 (1차 `02_01_16` 은 **BLOCK: YES**
+- [x] `consistency-check --spec` **재실행** BLOCK: NO 확인 (1차 `02_01_16` 은 **BLOCK: YES**
       — `background:run:` 오분류. 아래 조치 후 재검증)
-- [ ] `spec/conventions/redis-keys.md` 신설
-      - [ ] frontmatter (`id`/`status`/`code` 6모듈 다중 glob) — build 가드 강제 대상
-      - [ ] 명명 규칙 + `external-interaction` 3접두 각주
-      - [ ] 워크스페이스 스코프 조건
-      - [ ] **유지보수 원칙**("새 키/채널 도입 시 등재")
-      - [ ] 포인터 인벤토리 (Redis 키만)
-      - [ ] **인접 네임스페이스 각주**(WS 채널·BullMQ 큐 — 초안이 실제로 혼동한 자리)
-      - [ ] 구조는 `error-codes.md` 형식 참고(Overview + 책임 경계)
-- [ ] `4-execution-engine.md` §9.1 범위 한정 + 규약 참조 — **heading 텍스트 보존**
-- [ ] `4-execution-engine.md` §9.2 phantom 2건 제거 + 사유 각주 + A-3 follow-up 교차 참조
+- [x] `spec/conventions/redis-keys.md` 신설
+      - [x] frontmatter (`id`/`status`/`code` 6모듈 다중 glob) — build 가드 강제 대상
+      - [x] 명명 규칙 + `external-interaction` 3접두 각주
+      - [x] 워크스페이스 스코프 조건
+      - [x] **유지보수 원칙**("새 키/채널 도입 시 등재")
+      - [x] 포인터 인벤토리 (Redis 키만)
+      - [x] **인접 네임스페이스 각주**(WS 채널·BullMQ 큐 — 초안이 실제로 혼동한 자리)
+      - [x] 구조는 `error-codes.md` 형식 참고(Overview + 책임 경계)
+- [x] `4-execution-engine.md` §9.1 범위 한정 + 규약 참조 — **heading 텍스트 보존**
+- [x] `4-execution-engine.md` §9.2 phantom 2건 제거 + 사유 각주 + A-3 follow-up 교차 참조
       — **heading 텍스트 보존**
-- [ ] `14-external-interaction-api.md` §8.4 에 rate-limit 3키 리터럴 추가(포인터가 가리킬 곳)
-- [ ] `data-flow/15` §2.2 규약 역참조 한 줄
-- [ ] `backend-lint-gate-broken-on-main.md` 의 원 항목 종결 + "실측으로 형태가 커졌다" 기록
-- [ ] `4-execution-engine.md` **L1179 각주 · L1183 §9.3 도입부**의 옛 패턴 인용 동반 갱신
-- [ ] 후속 항목 등재 — **두 갈래로 갈라서** (`02_13_17` plan_coherence WARNING):
+- [x] `14-external-interaction-api.md` §8.4 에 rate-limit 3키 리터럴 추가(포인터가 가리킬 곳)
+- [x] `data-flow/15` §2.2 규약 역참조 한 줄
+- [x] `backend-lint-gate-broken-on-main.md` 의 원 항목 종결 + "실측으로 형태가 커졌다" 기록
+- [x] `4-execution-engine.md` **L1179 각주 · L1183 §9.3 도입부**의 옛 패턴 인용 동반 갱신
+- [x] 후속 항목 등재 — **두 갈래로 갈라서** (`02_13_17` plan_coherence WARNING):
       - `chat-channel`·`cafe24` → **역참조만** (소유 문서에 리터럴이 이미 있다)
       - **`webhook` → EIA §8.4 와 동형 처리 필요** — `12-webhook.md` 에 `wh:rl:*` 리터럴이
         **0건**이라(실측) 역참조만 달면 EIA 에서 이미 반증된 **빈 포인터**가 된다
+
+> **완료 확인 (2026-08-13) — [#1160](https://github.com/worker-ants/clemvion/pull/1160) 병합.**
+> 체크박스를 일괄로 채우기 전에 각 항목이 `origin/main` 에 실제로 착지했는지 대조했다:
+> `spec/conventions/redis-keys.md` 존재 · §9.1 heading 보존 + 규약 참조 · §9.2 phantom 0건 ·
+> §8.4 rate-limit 3키 리터럴(`eia:rl:interact:`·`eia:rl:status:`·`eia:notif:rl:`) ·
+> `data-flow/15` 역참조 1건 · 후속 2갈래 등재(webhook 빈 포인터는
+> `backend-lint-gate-broken-on-main.md` 에 **열린 항목**으로 살아 있다).
+>
+> ⚠️ 대조 중 내 grep 이 한 번 틀렸다 — §8.4 키 접두사를 `iext:` 로 가정해 0건이 나왔는데
+> 실제는 `eia:` 였다. **측정 명령 자체가 틀릴 수 있다**는 형태를 또 만났다.
+>
+> 미해결로 남은 것은 이 draft 의 항목이 아니라 그 draft 가 **예고한 후속**이다 —
+> 인벤토리가 `12-webhook.md` 를 상세 SoT 로 가리키는데 그 문서엔 `wh:rl:` 리터럴이 여전히
+> **0건**(실측)이라 빈 포인터다. 등재는 끝났고 해소는 별도 작업이다.
 
 ## Rationale
 
