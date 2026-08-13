@@ -51,9 +51,10 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
 | `knowledge-base` graph 재큐 | `rows.length` / `rows.slice` | 〃 |
 | `knowledge-base` reset | `reset.length === 0` | 빈 KB 가 `in_progress` 로 좌초 |
 
-**이 저장소는 이미 이 결함을 두 번 겪고 그 자리만 고쳤다** — `agent-memory-admin` 의
-`deletedRowCount`(NotFound 미변환 버그), `stuck-document-recovery` 의 구조분해(가짜 job
-2개 큐잉 회귀). 처방이 지점에 갇혀 있어 나머지 7곳에 전파되지 않았다.
+**이 저장소는 이미 이 결함을 세 번 겪었고 매번 그 자리만 고쳤다** —
+`agent-memory-admin` 의 `deletedRowCount`(NotFound 미변환 버그), `stuck-document-recovery` 의
+구조분해(가짜 job 2개 큐잉 회귀), 그리고 **세 번째는 고치지도 못했다**: 아래 §소급 영향 참조.
+처방이 지점에 갇혀 있어 나머지 7곳에 전파되지 않았다.
 
 ## 왜 아무도 못 봤나 — GREEN 두 겹
 
@@ -72,6 +73,30 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
   타임아웃 baseline)와 `EXECUTION_STARTED` emit 이 그 경로에서 실행되지 않음
 - 크래시 복구 경로가 정상 경로로 상시 사용됨
 
+## 소급 영향 — 다른 plan 이 이 버그 위에서 "닫았다" 고 종결했다
+
+consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
+
+- `git show 1657c0435` (2026-06-14, #600) 이 `const persisted = updated.length > 0;` 를 도입
+- `plan/in-progress/ie-resume-turn-boundary-cancel.md` (2026-07-26~28) 가 6~8차 라운드에 걸쳐
+  **바로 그 `persisted`** 를 근거로 "동시 cancel 레이스를 닫았다" 고 CRITICAL 을 종결
+
+즉 그 작업 전 기간 동안 `persisted` 는 **항상 참**이었고, 종결은 코드가 아니라 문서의 상태였다.
+
+**가장 아픈 부분**: 그 plan 은 생존 뮤턴트를 이미 기록해 뒀다 —
+*"`emitTerminalExecutionMetrics(..., persisted)` 를 `true` 로 되돌리는 뮤턴트가 RED 로 안
+떨어진다(단언 부재). 영향은 metrics 정확도 한정이며 취소 정합성과 무관."*
+**단언 부재가 아니라 등가 뮤턴트였다** — `persisted` 가 이미 상수 `true` 라 치환이 프로그램을
+바꾸지 않았다. 생존은 **버그의 증거**였는데 테스트 위생 항목으로 접수됐고, 영향 평가도
+틀렸다(`persisted` 는 종결 이벤트 emit 분기를 가른다).
+
+→ 해당 plan 에 소급 정정 배너를 넣고 뮤턴트 항목의 진단을 바로잡았다. `plan/complete/` 이동
+전에 6~8차 결론을 코드로 재검증해야 한다.
+
+> **교훈**: 생존 뮤턴트를 "테스트가 부족하다" 로만 읽으면 안 된다. **치환해도 안 죽는다는 건
+> 그 자리가 이미 상수라는 뜻일 수 있고, 그건 테스트가 아니라 코드의 문제다.** 등가 뮤턴트와
+> 미검출 뮤턴트를 가르는 질문은 "이 값이 실제로 두 값을 가질 수 있는가" 하나다.
+
 ## 처방
 
 `common/utils/update-returning-rows.ts` — `updateReturningRows<T>(result): T[]`.
@@ -86,10 +111,18 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
 
 - **RED → GREEN**: 실측 shape 로 admission 테스트를 걸면 `Expected "admitted",
   Received "deferred"` 로 실패 → 수정 후 통과 (engine 스위트 446 passed)
-- 관련 32 스위트 **851 passed**, `lint --max-humans 0` 통과
+- 관련 32 스위트 **851 passed**, `lint --max-warnings 0` 통과
 - typecheck ratchet **199 / 38파일 baseline 일치** (새 테스트가 만든 타입 에러 2건은
   `--update` 로 기준선을 올리지 않고 캐스트로 정정)
-- e2e `execution-concurrency-cap` 재실행 — 아래 체크리스트
+- **e2e `execution-concurrency-cap` 재실행 — 예측이 실측으로 확인됐다.**
+  코드만 읽고 "매 실행 2s 지연" 을 예측했고, 수정 전후로 쟀다:
+
+  | 테스트 | 수정 전 | 수정 후 |
+  |---|---|---|
+  | 슬롯 해제 시 admitted | 4191 ms | **2242 ms** |
+  | workspace-level cap | 4181 ms | **2221 ms** |
+
+  정확히 `EXECUTION_ADMISSION_RETRY_DELAY_MS`(2000ms) 한 사이클씩. 5개 테스트 모두 통과 유지.
 
 ## 체크리스트
 
@@ -99,8 +132,10 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
 - [x] 헬퍼 + 7곳 적용
 - [x] RED 재현 후 GREEN 확인
 - [x] 구조적 재발 가드
-- [ ] e2e 재실행으로 경로 정상화 확인
-- [ ] `/ai-review` + `--impl-done`
+- [x] e2e 재실행 — 4191ms → **2242ms** (2s 재큐 사이클 소멸), 5/5 통과 유지
+- [x] `--impl-done` `20_36_36` **BLOCK: NO** (Critical 0 / Warning 1 — 소급 영향, 조치 완료)
+- [x] 소급 영향 조사·정정 — `ie-resume-turn-boundary-cancel.md` 배너 + 뮤턴트 오진 정정
+- [ ] `/ai-review`
 - [ ] 후속 ②(`updateExecutionStatus` 트랜잭션화)·③(EIA `durationMs`/`result.outputs` emit)
 
 ## 후속
@@ -109,6 +144,15 @@ TX 안 UPDATE … RETURNING   → [[{"id":2}], 1]     length 2
   수정이 선행이었고, 이제 그 전제가 정리됐다. ③은 독립이다.
 - `.query()` 사각지대(`let`·구조분해·체이닝)는 정규식이 아니라 AST 로 넓혀야 한다 —
   유한한 문제를 무한한 문제와 바꾸지 않도록 착수 전 비용을 먼저 본다.
+- **[planner 위임]** `spec/5-system/4-execution-engine.md` §1.1 인근 Rationale 에 소급 각주
+  한 줄 — 2026-07-30 의 유사 사례(retry-reentry opt-in 미전파)와 대칭 (`20_36_36` WARNING 1
+  제안 (3)). `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다. 그래서
+  frontmatter 는 `spec_impact: none` 을 유지한다 — 이 PR 이 실제로 바꾸는 spec 은 0건이고,
+  리스트에 적으면 "이 PR 이 그 파일을 고쳤다" 는 거짓이 된다.
+- **[planner 위임]** 같은 결함이 **세 번** 개별 발생했는데 invariant 가 `spec/conventions/`
+  에 없다 (`20_36_36` INFO 2·3). "raw UPDATE/DELETE RETURNING 소비는 `updateReturningRows`
+  경유" 를 정식 규약으로 승격할지 판단 필요. 네 번째 재발을 막는 유일한 구조적 수단이다 —
+  이번 PR 의 회귀 가드는 **두 파일 범위**로 한정돼 있다.
 
 ## Rationale
 

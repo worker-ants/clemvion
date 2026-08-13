@@ -10,6 +10,21 @@ spec_impact:
   - spec/5-system/4-execution-engine.md
 ---
 
+
+> ## ⚠ 소급 정정 (2026-08-13) — 6~8차 라운드의 전제가 실효 상태였다
+>
+> 이 문서가 6~8차 라운드에 걸쳐 "동시 cancel 레이스를 닫았다" 고 종결한 근거는
+> `updateExecutionStatus` 의 **`persisted`** 값(= guarded UPDATE 가 실제로 행을 매치했는가)
+> 이었다. 그런데 그 값은 **항상 `true`** 였다 — `UPDATE … RETURNING` 은 TypeORM 에서
+> `[rows, rowCount]` 튜플로 오고, `updated.length > 0` 은 언제나 `2 > 0` 이기 때문이다.
+>
+> 버그는 `1657c0435`(2026-06-14)에 들어와 이 작업 전 기간(2026-07-26~28) 내내 살아 있었고,
+> `8332d9a20`(2026-08-13)에서야 고쳐졌다. 즉 **당시 기록한 "닫혔다" 는 코드가 아니라 문서의
+> 상태였다.** 위 "생존 뮤턴트" 항목이 그 증거였는데 위생 문제로 오진했다.
+>
+> 근본 원인·실측·처방: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
+> **`plan/complete/` 로 옮기기 전에 6~8차 결론을 수정 후 코드로 재검증할 것.**
+
 ## Overview
 
 `node-cancellation-residual-signal-propagation.md` 의 잔여 항목 **"IE multi-turn resume 경로
@@ -481,10 +496,14 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       발사되지 않던 business metrics**(`recordExecutionTerminal`/`recordExecutionError`)가
       새로 트리거된다. 실패율 대시보드가 실제 증가 없이 급변할 수 있다 —
       "과거 undercounted 가 정확해진 것" 으로 공지할 것.
-- [ ] **알려진 생존 뮤턴트 1건** — `updateExecutionStatus` 짝 전이 분기의
+- [x] ~~**알려진 생존 뮤턴트 1건** — `updateExecutionStatus` 짝 전이 분기의
       `emitTerminalExecutionMetrics(..., persisted)` 3번째 인자를 `true` 로 되돌리는 뮤턴트가
-      RED 로 떨어지지 않는다(단언 부재). 영향은 **metrics 정확도 한정**이며 취소 정합성과 무관.
-      `emitTerminalExecutionMetrics` spy 로 `persisted===false` 단언 1건 추가하면 닫힌다.
+      RED 로 떨어지지 않는다(단언 부재). 영향은 **metrics 정확도 한정**이며 취소 정합성과 무관.~~
+      **진단이 틀렸다 (2026-08-13).** 단언 부재가 아니라 **등가 뮤턴트**였다 — `persisted` 가
+      이미 **항상 `true`** 였으므로 `true` 로 치환해도 프로그램이 달라지지 않는다. 생존은
+      테스트 위생 문제의 신호가 아니라 **버그의 증거**였는데 위생 항목으로 접수됐다.
+      영향 평가("취소 정합성과 무관")도 틀렸다 — `persisted` 는 종결 이벤트 emit 분기를
+      가르는 값이다. 근본 원인은 `update-returning-tuple-shape.md` 참조.
 - [ ] **`assertLinkedTransitionApplied` 의 `markNodeCancelled` reject 경로 미검증** — 그 경우
       원본 예외가 `ExecutionCancelledError` 로 감싸이지 않고 전파돼 상위가 취소를 FAILED 로
       오분류할 수 있다(이 PR 이 반복해 닫아온 것과 같은 계열). 발생 조건이 "취소 마킹 DB 저장
