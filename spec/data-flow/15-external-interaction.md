@@ -257,7 +257,7 @@ POST /api/triggers/:id/notification/rotate-secret 류 API (TriggersService.rotat
 | Sink | key / queue | 흐름 | TTL·정책 |
 | --- | --- | --- | --- |
 | Redis | `iext:blacklist:<jti>` | terminal event / refresh 시 SET | TTL = 원 JWT exp 까지. Redis 미가용 시 fail-open (검증도 fail-open + warn) |
-| Redis | `interaction:idempotency:<executionId>:<route>:<key>` | 2xx·`409`·`410` 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. **`400 VALIDATION_ERROR` 만** 캐시 제외 — 캐시 대상은 닫힌 목록이다 ([Spec EIA §R8] 및 그 Rationale). 키는 **Guard 가 검증한 `executionId`** 와 **route**(`interact`\|`cancel`)로 스코프 — 헤더 값만으로 키를 만들면 네임스페이스가 전 execution 공유가 된다 ([Spec EIA §R8] Rationale "캐시 키 스코프") |
+| Redis | `interaction:idempotency:<executionId>:<route>:<key>` | 2xx·`409`·`410` 응답 캐시 (`{bodyHash, responseJson, statusCode}`) | 24h. 같은 키+다른 body → 409. **`400 VALIDATION_ERROR` 만** 캐시 제외 — 캐시 대상은 닫힌 목록이다 ([Spec EIA §R8] 및 그 Rationale). 엔트리가 **손상**(형태 불일치·내부 `responseJson` 파싱 실패)된 경우도 fail-open — 버리고 신규 처리(+warn), 500 아님. 키는 **Guard 가 검증한 `executionId`** 와 **route**(`interact`\|`cancel`)로 스코프 — 헤더 값만으로 키를 만들면 네임스페이스가 전 execution 공유가 된다 ([Spec EIA §R8] Rationale "캐시 키 스코프") |
 | Redis | `exec:seq:<executionId>` | `INCR` — SSE `id:`/notification `seq` 공용 카운터 | terminal event 후 해제 ([`spec/5-system/6-websocket-protocol.md`](../5-system/6-websocket-protocol.md)) |
 | BullMQ | `notification-webhook` | `NotificationDispatcher.enqueue` → `NotificationWebhookProcessor` | jobId=deliveryId dedup, attempts 5, base-4 custom backoff (1s·4s·16s·64s·256s — worker `settings.backoffStrategy`, §6.6), removeOnComplete 24h / removeOnFail 7d |
 | BullMQ | `notification-secret-rotator` | hourly repeatable (`0 * * * *`) → v2 승격 | upsertJobScheduler 멱등 — 멀티 인스턴스 전역 1회 |
@@ -307,7 +307,7 @@ timing-safe 비교 (SHA-256 후 `timingSafeEqual`, 길이 leak 차단).
 | --- | --- | --- |
 | 외부 webhook endpoint | 내부 → 외부 HTTP POST | 2xx 만 성공. 10s timeout. SSRF 이중 검증. 검증 측 헬퍼 `verifySignatureHeader` (±5분 tolerance) 는 SDK/e2e 재사용용 export |
 | 외부 클라이언트 (EventSource / fetch) | 외부 → 내부 | web-chat 위젯 (`channel-web-chat`) 이 대표 소비자 — [Chat Channel data-flow](./14-chat-channel.md) |
-| Redis | 내부 | blacklist · idempotency · seq · BullMQ. 전 경로 fail-open (warn) — 가용성 우선 |
+| Redis | 내부 | blacklist · idempotency · seq · BullMQ. **미가용 또는 캐시 손상** 시 fail-open — 가용성 우선. 경로마다 warn 을 남기되 **기동 시 미주입(설정 상태)만 예외** (fail-open 근거는 **아래 §Rationale** 이다. 키 **형태**는 [실행 엔진 §9.1](../5-system/4-execution-engine.md#91-키-패턴) 참고 — 다만 EIA 계열 키는 그 표에 아직 미등재다(별도 항목)) |
 | Telegram/Slack/Discord 등 chat provider | 간접 | in-process trusted 경로의 상류 — [Chat Channel data-flow](./14-chat-channel.md) |
 
 ---
@@ -332,8 +332,19 @@ data-flow 관점에서 이 구조는 "이벤트의 원천이 하나" 임을 보�
 
 ### Fail-open 정책의 일관 표기
 
-토큰 blacklist·idempotency·jti 추적·notification enqueue 모두 Redis/DB 미가용 시 **fail-open**
-(기능 저하 + warn 로그) 이다. 이는 "interaction/notification 은 워크플로우 실행의 부수 채널이며,
+토큰 blacklist·idempotency·jti 추적·notification enqueue 모두 Redis/DB **미가용 시** —
+그리고 idempotency 는 **적재된 캐시 엔트리 자체가 손상된 경우에도** — **fail-open**(기능 저하 +
+warn 로그) 이다.
+
+**원인이 두 축이다.** "미가용"(Redis 가 죽었다)과 "손상"(Redis 는 살아 있는데 값이 오염됐다)은
+다른 실패다. 후자는 엔트리 형태 불일치·내부 `responseJson` 파싱 실패로 나타나며, 종전에는
+그 예외가 그대로 올라가 **500** 이 됐다 — fail-open 원칙과 정반대였다. 지금은 손상 엔트리를
+버리고 신규 처리로 강등한다.
+
+**warn 은 다섯 경로 중 넷에 붙는다.** `IdempotencyInterceptor` 기준으로 (1) 기동 시 미주입
+(생성자 `null`) · (2) 조회 실패 · (3) 적재 실패 · (4) 직렬화 실패 · (5) 엔트리/payload 손상 인데,
+**(1)만 warn 대상이 아니다** — Redis 를 안 붙인 것은 장애가 아니라 **설정 상태**다. 나머지 넷은
+운영이 저하 구간을 인지해야 하므로 반드시 로그를 남긴다. 이는 "interaction/notification 은 워크플로우 실행의 부수 채널이며,
 인프라 장애가 실행 자체를 멈추면 안 된다" 는 모듈 전반의 결정 (`interaction-token.service.ts` ·
 `notification-dispatcher.service.ts` 주석) 으로, 본 문서는 각 표에 해당 정책을 명시해 운영자가
 저하 모드의 잔여 위험 (blacklist 미적용 = exp 까지 토큰 유효, **idempotency 저하 = 같은

@@ -1073,6 +1073,8 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 
 **스코프 단위는 토큰이 아니라 execution 이다.** jti·토큰 식별자로 스코프하면 `POST :executionId/refresh-token` 으로 토큰이 회전한 뒤의 재시도가 다른 키로 떨어져 `EIA-RL-02` 가 보장하려는 바로 그 재시도 시나리오를 깬다. 같은 execution 을 대상으로 하는 두 요청은 토큰이 회전했든 family(`iext`/`itk`)가 다르든 **같은 작업**이므로 같은 네임스페이스가 맞다. 반대로 스코프를 전역으로 되돌리는 것은 위 두 축을 다시 여는 것이다.
 
+**fail-open 의 원인은 두 축이다** — Redis **미가용**(죽었다)과 캐시 **손상**(살아 있는데 값이 오염됐다). 후자는 엔트리 형태 불일치·내부 `responseJson` 파싱 실패로 나타나며, 손상 엔트리는 버리고 신규 처리로 강등한다(+warn). 그 예외를 그대로 올리면 `500` 이 되어 fail-open 원칙과 정반대가 된다. `statusCode` 는 현재 **타입만** 검사한다(`typeof === 'number'`) — 값 범위는 아직 보지 않는 **선재 갭**이다. `-1`·`600` 같은 값이 통과하면 `res.status(-1)` 이 전송 시점 `RangeError` 로 같은 500 을 만든다. 범위 검사는 `readKey`/`hashBody` 경계값 항목과 함께 닫는다.
+
 `req.interaction` 이 없으면(Guard 미적용 등) **캐시를 건너뛴다** — 스코프 없는 전역 키로 fallback 하지 않는다. 조용한 fallback 은 이 결정이 닫은 표면을 그대로 되살리기 때문이다. 이 인터셉터의 다른 실패 경로(Redis 미주입·GET/SET 실패·직렬화 실패)가 모두 "멱등성을 포기하고 요청은 통과" 인 것과 일관된다.
 
 > 실행 단위로 스코프한 Redis 전역 키는 선례가 있다 — [실행 엔진 §9.2](./4-execution-engine.md#92-용도별-키-정의-및-ttl) 의 `exec:seq:<executionId>` · `exec:cont:seq:<executionId>` 가 "executionId 가 이미 전역 유일 UUID" 를 근거로 같은 형태를 쓴다.
