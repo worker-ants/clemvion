@@ -551,6 +551,71 @@ Authorization: Bearer <expiring_iext_jwt>
 
 ## 6. API 명세 — Outbound Notification
 
+이 절이 outbound 이벤트 계약의 **SoT** 다. 아래 도입부가 (a) 종결 이벤트의 **필드 집합**,
+(b) 채널별 **봉투**, (c) `cancelled` 의 **행동 계약** 을 소유하고, §6.1~§6.6 과 다른 문서
+([WS §4.1](./6-websocket-protocol.md#41-실행-이벤트-server--client) ·
+[chat-channel-adapter §1.2](../conventions/chat-channel-adapter.md) ·
+[3-execution §8.1](../3-workflow-editor/3-execution.md))는 여기를 **가리키기만** 한다.
+같은 필드를 여러 문서에 나열하면 그 각각이 두 번째 SoT 가 되고, 실제로 그렇게 됐다
+(선례: [`conventions/redis-keys.md`](../conventions/redis-keys.md) 의 포인터 원칙).
+
+### 종결 이벤트의 필드 집합 (normative)
+
+`execution.completed` / `execution.failed` / `execution.cancelled` 가 실어 나르는 필드는
+**이 표가 전부**다. 아래에 없는 필드는 발송되지 않는다.
+
+| 필드 | 이벤트 | 상태 | 비고 |
+|---|---|---|---|
+| `status` | 3종 | 구현됨 | `completed` \| `failed` \| `cancelled` |
+| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}`. **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
+| `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
+| `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
+| `durationMs` | 3종 | **미구현 (Planned)** | 위와 같음. **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
+
+> **삭제된 약속**: `finalNodeId` · `finalPort` · `nodeCount` · `failedNodeId` 는 **엔진에
+> 개념 자체가 없다**(emit 로직 0건). 미구현이 아니라 설계된 적이 없는 필드였고, 문서만
+> 약속하고 있었다. 되살리지 않는다 — 풍부한 종결 데이터가 필요하면
+> [§5.3 단발 상태 조회](#53-단발-상태-조회--get-apiexternalexecutionsexecutionid)를 쓴다.
+
+### 채널별 봉투 — 셋이 서로 다르다 (normative)
+
+엔진이 만드는 것은 하나지만 **수신 채널마다 최종 wire 가 다르다.** `payload` 래퍼는
+**webhook 전용**이다.
+
+| 채널 | 최종 wire |
+|---|---|
+| **WS** (에디터, 내부) | `{ executionId, …필드 집합, seq, timestamp }` — **flat** |
+| **SSE** (§5.2 스트림) | 위 flat 봉투 + `triggerId` / `workflowId`. **`payload` 래퍼 없음** |
+| **webhook** (본 절) | `{ type, executionId, triggerId, workflowId, seq, timestamp, payload: { …SSE 와 같은 flat 객체 } }` |
+
+> **webhook 은 키 5개가 안팎에 중복 등장한다** — `executionId` · `seq` · `timestamp` ·
+> `triggerId` · `workflowId` 가 바깥 봉투와 `payload` 안쪽 양쪽에 있다. 결함이 아니라
+> 현재 구조의 사실이다. 바깥 `workflowId` 는 trigger 레코드에서, 안쪽은 execution routing
+> context 에서 온다.
+>
+> **`payload` 봉투는 §5 REST 응답의 `data` 봉투와 별개 표면**이다 — 이름만 비슷할 뿐
+> 서로 참조하지 않는다.
+
+여기서 **flat 은 봉투 차원**을 말한다. `executionId`·`seq`·`timestamp` 가 필드 집합과 같은
+층에 온다는 뜻이지, **필드 집합 안쪽의 중첩을 펴라는 뜻이 아니다** — `result.cancelledBy` 의
+`result` 는 세 채널 모두에서 그대로 유지된다.
+
+### `execution.cancelled` 의 행동 계약 (normative)
+
+- `result.cancelledBy` 는 **닫힌 3값 union** — `"user"` \| `"system"` \| `"timeout"`.
+  **확장하지 않는다** (선례: `'system'` 은 새 값을 만드는 대신 `error.code` 로 세분화했다).
+- **시스템 취소는 `error?: { code, message? }` 를 동행**한다. `cancelledBy` 만으로는
+  구분되지 않는 사유를 `error.code` 가 나눈다:
+
+  | `cancelledBy` | `error.code` | 사유 |
+  |---|---|---|
+  | `system` | `RESUME_*` (`CHECKPOINT_MISSING` / `FAILED` / `INCOMPATIBLE_STATE`) | [§7.5 rehydration](./4-execution-engine.md#75-resume-after-restart-rehydration) 실패 |
+  | `timeout` | `EXECUTION_QUEUE_WAIT_TIMEOUT` | [§8 admission 큐](./4-execution-engine.md#8-동시-실행-제한) 대기 5분 초과 |
+  | `timeout` | `WEBCHAT_IDLE_TIMEOUT` | 공개 위젯 idle-wait 회수 ([EIA-RL-07](#34-신뢰성일관성)) |
+
+- **일반 user cancel 에는 `error` 키가 없다** — `null` 이 아니라 **부재**다
+  ([§5.4 부재 표현 규약](#54-명시적-취소--post-apiexternalexecutionsexecutionidcancel)).
+
 ### 6.1 헤더
 
 ```
@@ -612,7 +677,9 @@ header value   = "t={timestamp},v1={hex(signature)}"
 }
 ```
 
-> **SSE 스트림 wire 형태 주의**: 위 형태는 **outbound notification(webhook)** payload 다. **SSE 스트림**(`GET /api/external/executions/:id/stream`, §5.2)은 notification envelope 재구성 없이 execution-engine 의 fanout wire 를 그대로 전송하므로 필드명이 다르다 — 위젯/SDK 는 SSE 에서 아래를 읽어야 한다:
+> **`waiting_for_input` 의 SSE 필드명 매핑**: 채널별 봉투 차이의 일반 규칙은
+> [채널별 봉투](#채널별-봉투--셋이-서로-다르다-normative)가 소유한다. 본 이벤트는 그 위에
+> **필드명까지** 달라지는 유일한 경우라 아래 매핑을 따로 둔다 — 위젯/SDK 는 SSE 에서 아래를 읽어야 한다:
 > - `node.id` → **`waitingNodeId`** (최상위; `submit_message` 의 `nodeId` 로 그대로 사용)
 > - `node.interactionType` → **`interactionType`** (최상위)
 > - `context.conversationConfig` → **`nodeOutput.conversationConfig`**
@@ -633,49 +700,56 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 ### 6.3 페이로드 — `execution.completed`
 
+필드는 [종결 이벤트의 필드 집합](#종결-이벤트의-필드-집합-normative), 봉투는
+[채널별 봉투](#채널별-봉투--셋이-서로-다르다-normative)가 소유한다. 본 이벤트는 그중
+`status` 만 실제로 채워 보낸다 — `result.outputs` · `durationMs` 는 **Planned** 다.
+
 ```jsonc
+// webhook 봉투 기준. SSE 는 payload 래퍼 없이 안쪽 객체가 그대로 온다.
 {
   "type":        "execution.completed",
   "executionId": "uuid",
   "triggerId":   "uuid",
   "workflowId":  "uuid",
-  "result": {
-    "outputs":     { /* workflow 의 노출 outputs (exit/end 노드 매핑). v1 은 "마지막 노드의 output" 단순 노출 */ },
-    "finalNodeId": "uuid",
-    "finalPort":   "out" | "completed" | "<condition.id>" | "user_ended" | "max_turns" | "error"
-    // "completed" 는 Information Extractor multi-turn 의 정상 종료 포트 (Spec 4-nodes/3-ai/3-information-extractor §3.2)
-  },
-  "durationMs": 12345,
-  "timestamp":  "ISO8601",
-  "seq":        99
+  "seq":         99,
+  "timestamp":   "ISO8601",
+  "payload": {
+    "status": "completed"
+    // result.outputs / durationMs — Planned (필드 집합 표 참조)
+  }
 }
 ```
 
 ### 6.4 페이로드 — `execution.failed`
 
+필드·봉투 소유는 §6.3 과 같다. 본 이벤트는 `status` 와 `error` 를 싣는다.
+
 ```jsonc
 {
-  "type":        "execution.failed",
-  "executionId": "uuid",
-  "triggerId":   "uuid",
-  "workflowId":  "uuid",
-  "error": {
-    "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §1.4. EXECUTION_TIMEOUT=Code 노드 스크립트 타임아웃, EXECUTION_TIME_LIMIT_EXCEEDED=엔진 레벨 누적 active-running 타임아웃(§8). 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
-    //         (노드 ErrorCode 정식 목록: codebase/backend/src/nodes/core/error-codes.ts)
-    "message": "사람-가독 메시지",
-    "nodeId":  "uuid" | null,
-    "details": { ... }    // 노드 타입별 상세
-  },
-  "durationMs": 12345,
-  "timestamp":  "ISO8601",
-  "seq":        99
+  "type": "execution.failed", /* …§6.3 과 동일한 바깥 봉투… */
+  "payload": {
+    "status": "failed",
+    "error": {
+      "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §1.4. EXECUTION_TIMEOUT=Code 노드 스크립트 타임아웃, EXECUTION_TIME_LIMIT_EXCEEDED=엔진 레벨 누적 active-running 타임아웃(§8). 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
+      //         (노드 ErrorCode 정식 목록: codebase/backend/src/nodes/core/error-codes.ts)
+      "message": "사람-가독 메시지",
+      "nodeId":  "uuid" | null,
+      "details": { ... }    // 노드 타입별 상세
+    }
+    // durationMs — Planned
+  }
 }
 ```
 
+> **`error` 는 현행 일부 경로에서 string 이다** — 위 객체 형태가 목표이고, 수신자는 당분간
+> 양쪽을 방어해야 한다. 필드 집합 표의 `error` 행 참조.
+
 ### 6.5 페이로드 — `execution.cancelled` / `execution.ai_message`
 
-`execution.cancelled` 는 §6.3 의 `result` 자리에 `cancelledBy: "user" | "system" | "timeout"` 만 채운 변형.
-`'timeout'` 은 두 시스템 취소를 아우르며 `error.code` 로 구분한다 — §8 admission 큐 대기 5분 초과(`EXECUTION_QUEUE_WAIT_TIMEOUT`)와 **공개 위젯 idle-wait 회수(`WEBCHAT_IDLE_TIMEOUT`, EIA-RL-07)**. 닫힌 3값 union 은 확장하지 않는다(선례: `'system'`+`RESUME_*`, [WS §4.1](./6-websocket-protocol.md#41-실행-이벤트-server--client) 정합).
+`execution.cancelled` 는 §6.3 의 `payload` 자리에 `status` + `result.cancelledBy` 를 싣고,
+시스템 취소면 `error` 가 동행한다. **`cancelledBy` 의 닫힌 union·`error.code` 매핑·
+user cancel 의 `error` 부재는 [행동 계약](#executioncancelled-의-행동-계약-normative)이
+소유한다** — 여기 다시 적지 않는다.
 
 `execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다. WS payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)) 도 그대로 전달된다 — 외부 클라이언트 (SDK) 는 본 필드 존재 시 chat UI 에서 텍스트와 함께 inline 렌더 가능. **단, debug 전용 `llmCalls` 필드(raw LLM 요청/응답)는 [WS §4.4 `llmCalls[]` 노트의 strip-only 결정](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)에 따라 fanout seam 에서 제거되어 외부 수신자(본 SSE 스트림 포함)에는 전달되지 않는다 — 인증된 내부 WS(에디터) 채널 전용.**
 

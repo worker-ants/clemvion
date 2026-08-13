@@ -14,6 +14,10 @@ owner: planner
 spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 Socket.IO (namespace `/ws`) 기반이다. 본 spec 의 transport 서술은 Socket.IO 현실에 맞춰 정정했고, 아래 항목은 코드에 실재 부재하는 약속이라 미구현(Planned)으로 분리했다.
 
 ## 미구현 항목 (잔여 — 실 기능 backlog)
+- [ ] 종결 3종의 `durationMs`(본 문서 표기 `duration`) — **본 문서는 더 이상 SoT 가 아니다.**
+      2026-08-13 부터 필드 계약은 [EIA §6 도입부](../../spec/5-system/14-external-interaction-api.md#종결-이벤트의-필드-집합-normative)
+      가 소유하며, 이 항목의 추적도 그쪽 트래커(`spec-sync-external-interaction-api-gaps.md`)가
+      정본이다. 여기 남기는 것은 WS 쪽에서 찾는 사람을 위한 포인터다
 - [ ] 서버발신 `auth.token_expired` 시스템 이벤트 emit (§4.5)
 - [x] `notifications:{userId}` 채널의 `notification.new` emit 경로 — **완료** (`spec-sync-data-flow-8-notifications-gaps.md` PR1, `WebsocketService.emitNotificationEvent`). §4.4 spec 본문 "계획·미구현" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
 - [ ] `system.maintenance` 시스템 이벤트 emit (§4.5)
