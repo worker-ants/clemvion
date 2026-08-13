@@ -22,6 +22,35 @@ spec_impact:
 > "spec 영향 없음" 이 잘못 확정된다. 아래 §project-planner 위임 항목이 반영되기 전에는
 > 완료 처리하지 말 것.
 
+
+> ## ⚠ 소급 정정 (2026-08-13) — 12+ 라운드가 mock 경계 안쪽만 검증했다
+>
+> 이 문서가 검증한 "동시 cancel 방어" 는 `updateExecutionStatus` 의 반환값(`persisted`)에
+> 의존한다. 그런데 `retry-turn.service.spec.ts:101` 이
+> `updateExecutionStatus: jest.fn().mockResolvedValue(true)` 로 **driver 경계를 무조건 `true`
+> 로 고정**한다 — 그리고 그게 정확히 **버그 상태의 동작**이었다.
+>
+> `UPDATE … RETURNING` 은 TypeORM 에서 `[rows, rowCount]` 튜플이라 `updated.length > 0` 이
+> 항상 참이었고(`1657c0435` 2026-06-14 ~ `8332d9a20` 2026-08-13), 따라서 **`persisted=false`
+> 분기는 프로덕션에서도 mock 밖에서도 한 번도 실행된 적이 없다.**
+>
+> 즉 mock 이 버그가 만든 상수를 계약으로 굳혔고, 그 위에서 12+ 라운드가 "수렴 종료" 를
+> 판정했다. 라운드의 결론이 전부 틀렸다는 뜻은 아니지만, **`persisted=false` 를 전제로 한
+> 부분은 검증된 적이 없다.**
+>
+> 근본 원인·실측: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
+> `spec/conventions/node-cancellation.md:198` §2.4 의 "✓ mutation 13/13 검증" 서술도 이
+> mock 경계 안쪽만 반영한다 — 각주 갱신은 planner 위임 항목에 등재돼 있다.
+
+
+## 소급 재검증 (2026-08-13 등재)
+
+- [ ] **`persisted=false` 분기를 mock 경계 밖에서 재검증** — `failRetryExecution` /
+      `completeRetryExecution` 이 실제로 그 분기를 타는지, 탄다면 무엇이 달라지는지.
+      `retry-turn.service.spec.ts:101` 의 boundary mock 을 `false` 로도 세워 양방향을 본다.
+      **`plan/complete/` 이동 전 필수** — 이 항목이 열려 있는 한 위 라운드들의 종결은
+      "mock 안쪽 한정" 이다.
+
 ## Overview
 
 `#1022` 가 `execution-engine.service.ts` 에서 닫은 **무가드 terminal 쓰기** 결함 클래스가

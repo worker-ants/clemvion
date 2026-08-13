@@ -102,8 +102,12 @@ mock 경계 너머의 실제 `persisted` 값은 어느 라운드도 검사한 �
 > 가 `false` 를 돌려줄 수 있으므로, 그 분기를 타는 retry-turn 경로가 실제로 있는지
 > 재검증해야 한다.
 
-→ 두 plan 모두에 소급 정정 배너를 넣고, `ie-resume-turn-boundary-cancel.md` 는 뮤턴트
-항목의 진단도 바로잡았다. `plan/complete/` 이동
+→ 두 plan 모두에 소급 정정 배너를 넣었다. `ie-resume-turn-boundary-cancel.md` 는 뮤턴트
+항목의 진단도 바로잡았고, `retry-turn-terminal-guard.md` 에는 **`persisted=false` 를 mock
+경계 밖에서 재검증** 하는 미완료 항목을 등재했다(`complete/` 이동 전 필수).
+
+> 처음엔 "두 plan 모두" 라고 **써 놓고 한 곳만 고쳤다** — consistency `23_07_12` WARNING 1 이
+> grep 0건으로 잡았다. 이 세션에서 같은 형태(완료 선언이 사실보다 앞섬)를 네 번째 반복했다. `plan/complete/` 이동
 전에 6~8차 결론을 코드로 재검증해야 한다.
 
 > **교훈**: 생존 뮤턴트를 "테스트가 부족하다" 로만 읽으면 안 된다. **치환해도 안 죽는다는 건
