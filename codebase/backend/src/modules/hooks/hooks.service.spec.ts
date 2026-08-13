@@ -8,6 +8,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { HooksService, WebhookInput } from './hooks.service';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
@@ -18,6 +19,7 @@ import { ExecutionsService } from '../executions/executions.service';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelRateLimiterService } from '../chat-channel/chat-channel-rate-limiter.service';
+import { ChatChannelDedupService } from '../chat-channel/chat-channel-dedup.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { SURFACE_MISMATCH_DEFAULTS } from '../chat-channel/shared/language-hint-defaults';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
@@ -83,6 +85,11 @@ describe('HooksService', () => {
           provide: ChatChannelRateLimiterService,
           // default: 한도 이내(true) — rate-limit 케이스 테스트에서 override.
           useValue: { consume: jest.fn().mockResolvedValue(true) },
+        },
+        {
+          provide: ChatChannelDedupService,
+          // default: 최초 도착(true) — CCH-SE-02 재도착 케이스에서 override.
+          useValue: { claim: jest.fn().mockResolvedValue(true) },
         },
         {
           provide: InteractionService,
@@ -1215,6 +1222,52 @@ describe('HooksService', () => {
       await expect(service.handleWebhook('abc', chatInput)).rejects.toThrow(
         'redis down',
       );
+    });
+
+    it('CCH-SE-02 — 동일 update 재도착은 처리 생략(202 ignored) + rate-limit 쿼터 미소비', async () => {
+      // **호출부 테스트다.** 서비스 단위 테스트는 "억제 판정이 옳다" 까지만 보고, 호출부가 그
+      // 반환값을 실제로 쓰는지는 증명하지 못한다 — `claim()` 을 부르고 결과를 버리면 서비스
+      // 테스트는 그대로 GREEN 이다.
+      //
+      // 재도착이 rate-limit **앞**에서 끊기는지도 함께 본다: 재도착은 새 트래픽이 아니라 같은
+      // 트래픽이라 쿼터를 소비하면 안 된다.
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue({
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'retry' },
+        idempotencyKey: '3001',
+        receivedAt: new Date().toISOString(),
+      });
+      const dedup = moduleRef.get(ChatChannelDedupService) as {
+        claim: jest.Mock;
+      };
+      dedup.claim.mockResolvedValueOnce(false); // 30초 안 재도착
+      const rateLimiter = moduleRef.get(ChatChannelRateLimiterService) as {
+        consume: jest.Mock;
+      };
+      rateLimiter.consume.mockClear();
+
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      let result: unknown;
+      try {
+        result = await service.handleWebhook('abc', chatInput);
+        // 억제를 **조용히** 하지 않는다 — 재도착이 늘면 운영이 알아야 한다.
+        // 서비스 내부 warn 은 dedup spec 이 보고, 이 자리는 호출부 warn 이다(자매).
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('재도착 무시'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+
+      expect(result).toEqual({ executionId: 'ignored' });
+      // provider update id 로 억제했는지 — 인자까지 본다.
+      expect(dedup.claim).toHaveBeenCalledWith(chatChannelTrigger.id, '3001');
+      // rate-limit 앞에서 끊겼다.
+      expect(rateLimiter.consume).not.toHaveBeenCalled();
+      // 중복 dispatch 가 없었다 = 이 억제의 존재 이유.
+      expect(interactionService.interact).not.toHaveBeenCalled();
     });
 
     it('CCH-NF-03 — per-chat 분당 rate-limit 초과 시 처리 생략(202 ignored) + chat_channel_health=degraded, execution 미시작 (R-CC-19)', async () => {

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — chat-channel 이 `필수` 로 약속한 update dedup 이 통째로 미구현이었다 (CCH-SE-02)
+
+`ChannelUpdate.idempotencyKey` 는 provider 파서 3종(telegram·slack·discord)이 채우기만 하고 **읽는 곳이 0곳인 dead
+field** 였다. 즉 "동일 `update_id` 30초 안 재도착은 무시" 라는 `필수` 요구사항에 구현이 없었다.
+
+**사용자 영향**: provider 는 webhook 이 2xx 를 못 받으면 같은 update 를 재전송한다. 종전에는
+그 재전송이 그대로 처리돼 **같은 입력이 두 번 dispatch** 됐고 workflow 가 중복 재개됐다.
+이제 30초 안 재도착은 무시된다(`202 ignored`).
+
+`ChatChannelDedupService` — Redis `SET NX EX 30`(원자적), 키
+`cc:dedup:<triggerId>:<updateId>`. 배선은 `parseUpdate` 직후이자 **rate-limit 앞**이다 —
+재도착은 새 트래픽이 아니라 같은 트래픽이라 쿼터를 소비하면 안 된다.
+
+**HTTP `IdempotencyInterceptor` 로는 막을 수 없다** — chat-channel inbound 는
+`scope: 'in_process_trusted'` 로 서비스를 직접 호출해 그 인터셉터를 통과하지 않는다.
+spec 문면도 그렇게 읽히던 것을 실제 메커니즘으로 정정했다.
+
+Redis 미가용/에러 시 fail-open(+warn) — 그 구간엔 중복 처리가 가능하다는 뜻이라 조용히 넘어가지
+않는다.
+
 ## Unreleased — 캐시 엔트리의 `statusCode` 가 HTTP 코드가 아니면 요청이 500 이 됐다
 
 앞 항목이 엔트리의 **형태**를 검사하게 했지만 `statusCode` 는 `typeof === 'number'` 까지만

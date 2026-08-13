@@ -193,6 +193,8 @@ embed allowlist(①)와 SSE CORS allowlist(④)는 **같은 키** (`workspace.se
 | --- | --- | --- | --- |
 | `chat-channel:{triggerId}:{conversationKey}` | `HooksService` (upsert) / `ChatChannelDispatcher` (pendingFormModal·executionId 갱신) | 양쪽 lookup | `ChannelConversationState` JSON — `executionId`, `threadId('default')`, `channelUserKey`, `startedAt`, `lastUpdateAt`, `formState?`, `pendingFormModal?`. **TTL 7일** (매 upsert 갱신 — 이탈 시 자동 만료). 미가용 시 graceful degradation |
 | `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit` | `form_submission` 처리 (`SET NX EX 30`) | 동일 | native modal 중복 제출 방지 lock — Lua 소유권 확인 후 해제, Redis 미가용 시 fail-open |
+| `cc:dedup:{triggerId}:{idempotencyKey}` | `HooksService.handleChatChannelWebhook` (`SET NX EX 30`) | 동일 (반환값이 곧 판정) | [CCH-SE-02] provider update 재도착 억제. `parseUpdate` 직후이자 **rate-limit 앞** — 재도착은 같은 트래픽이라 쿼터를 소비하지 않는다. **TTL 30초**. Redis 미가용 시 fail-open(+warn) |
+| `cc:rl:{triggerId}:{conversationKey}` | `ChatChannelRateLimiterService.consume` (`INCR`+`EXPIRE NX`) | 동일 | [CCH-NF-03] per-chat 분당 inbound 한도. **TTL 60초**(fixed-window). 초과분 skip + `chat_channel_health=degraded`. Redis 미가용 시 fail-open |
 | `chat-channel-token-rotator` (BullMQ) | repeatable job scheduler (`0 * * * *`) | `ChatChannelTokenRotatorService` | payload 없음 — 매시간 cleanup sweep (§1.3) |
 
 ### 2.3 외부

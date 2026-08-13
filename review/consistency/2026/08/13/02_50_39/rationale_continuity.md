@@ -1,0 +1,13 @@
+### 발견사항
+
+- **[WARNING]** CCH-SE-02 메커니즘 전환("EIA `Idempotency-Key` 자동 발급" → 독자 `ChatChannelDedupService`)이 spec `## Rationale` 없이 이루어짐
+  - target 위치: `spec/5-system/15-chat-channel.md` §3.4 CCH-SE-02 행 (diff: `git diff origin/main...HEAD -- spec/5-system/15-chat-channel.md`), 연동된 `spec/4-nodes/7-trigger/providers/telegram.md` L232-236
+  - 과거 결정 출처: `spec/5-system/15-chat-channel.md` CCH-SE-02 원문(커밋 `534158722`, PR #258 이래 유지) — "인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급(텔레그램 `update_id` 기반). 동일 `update_id` 30초 안 재도착은 무시". 이 문구는 CCH 의 dedup 이 **EIA 의 공식 `Idempotency-Key`/`IdempotencyInterceptor` 메커니즘**(spec `14-external-interaction-api.md` EIA-IN-11 · EIA-RL-02 · `## Rationale` R8 "캐시 키 스코프" — `interaction:idempotency:<executionId>:<route>:<key>` 로 정교하게 스코프한 전용 캐시)을 재사용한다는 것으로 읽혔다.
+  - 상세: 이번 변경(커밋 `312d1d990`)은 CCH-SE-02 문구를 "어댑터가 provider update id 를 `ChannelUpdate.idempotencyKey` 로 파싱하고 inbound 진입에서 자체 `ChatChannelDedupService`(Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<updateId>`)로 재도착을 억제"로 전면 교체했다. 이는 EIA 의 idempotency 캐시(스코프=`executionId:route:key`, TTL=24h, R8 Rationale 로 신중히 확정된 설계)와 **네임스페이스·TTL·트리거 지점이 전혀 다른 별도 메커니즘**으로의 실질적 아키텍처 결정 번복이다. `CHANGELOG.md` 에는 "HTTP `IdempotencyInterceptor` 로는 막을 수 없다 — chat-channel inbound 는 `scope: 'in_process_trusted'` 로 서비스를 직접 호출해 그 인터셉터를 통과하지 않는다. spec 문면도 그렇게 읽히던 것을 실제 메커니즘으로 정정했다"라는 근거가 잘 적혀 있고, 코드 주석(`chat-channel-dedup.service.ts`)에도 동일 근거가 있다. 그러나 프로젝트 규약(`CLAUDE.md` "결정의 배경·근거 → 해당 spec 문서 끝의 `## Rationale`")상 canonical 근거 위치는 spec 의 `## Rationale` 이며, `15-chat-channel.md` 의 `## Rationale`(R1~R9, R-CC-10~19)에는 이 전환에 대응하는 신규 항목이 추가되지 않았다. CHANGELOG/코드 주석은 구현 이력 기록이지 spec SoT 가 아니므로, 향후 독자가 spec 만 보고는 "왜 CCH-SE-02 가 EIA 의 idempotency 메커니즘을 쓰지 않는가"를 알 수 없다.
+  - 제안: `spec/5-system/15-chat-channel.md` `## Rationale` 에 신규 `R-CC-2x` 항목을 추가해 (a) in-process trusted caller(EIA-AU-08) 경로는 HTTP `IdempotencyInterceptor` 를 통과하지 않으므로 EIA 의 `Idempotency-Key` 캐시(§R8 "캐시 키 스코프")를 재사용할 수 없다는 구조적 이유, (b) 그래서 별도 `ChatChannelDedupService`(트리거 단위 스코프 `cc:dedup:<triggerId>:<updateId>`, 30초 TTL — provider 재전송 억제 목적으로 EIA 의 24h 커맨드 재현 목적과 다름)를 신설했다는 점, (c) CCH-SE-02 원문이 애초에 EIA 재사용을 전제로 잘못 서술돼 있었다는 점을 명시. (CHANGELOG 근거를 그대로 옮기면 충분.)
+
+### 요약
+이번 diff(CCH-SE-02 dedup 구현, 커밋 `312d1d990`/`faf6a7b1e`)는 기각된 대안의 재도입이나 명시적 invariant 위반은 발견되지 않았다 — 오히려 `필수` 요구사항이던 dedup 의 dead-field 버그를 고치는 정당한 수정이며, 키 스코프를 `triggerId` 단위로 잡아 EIA §R8 이 확립한 "전역 키 금지" 교훈과도 정합적이다. 다만 CCH-SE-02 의 구현 메커니즘이 "EIA `Idempotency-Key` 자동 발급"에서 "독자 Redis dedup 서비스"로 실질적으로 바뀌었는데, 그 근거가 CHANGELOG.md·코드 주석에만 있고 spec 의 canonical `## Rationale` 절에는 반영되지 않아 결정 연속성 관점에서 한 건의 문서화 공백(WARNING)이 있다.
+
+### 위험도
+LOW
