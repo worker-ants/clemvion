@@ -12,7 +12,8 @@ owner: planner
 ## 미구현 항목
 - [ ] **종결 이벤트의 `result.outputs` · `durationMs` emit** (§6 도입부 필드 집합 표의 Planned 2행,
       2026-08-13 등재) — 데이터는 emit **직전에 이미 존재**하는데 payload 에 넣지 않는다
-      (`execution-engine.service.ts` L2356·2520·3452·4616, `retry-turn.service.ts` L723·897).
+      (`execution-engine.service.ts` 의 `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts`
+      **2곳** — 전부 `{ status }` 만 싣는다. 줄 번호는 리팩터마다 stale 해지므로 심볼로 고정한다).
       spec 이 없는 필드를 약속하던 상태를 정리하며(§6 재작성) **문서 쪽을 실제에 맞췄고**,
       이 항목은 그 반대 방향(구현을 문서에 맞추기)의 잔여분이다. 구현되면 필드 집합 표의
       "미구현 (Planned)" 를 "구현됨" 으로 flip 한다.

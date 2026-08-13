@@ -184,8 +184,9 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 
 ## 후속 (developer)
 
-- [ ] emit 에 `durationMs`·`result.outputs` 채우기 (`execution-engine.service.ts` L2356·2520·
-      3452·4616 + `retry-turn.service.ts` L723·897) → (1) 표의 Planned 해제
+- [ ] emit 에 `durationMs`·`result.outputs` 채우기 — `execution-engine.service.ts` 의
+      `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts` **2곳** → (1) 표의 Planned 해제.
+      (줄 번호로 적었다가 실측하니 4개 중 2개가 이미 어긋나 있었다 — 심볼로 고정)
 - [ ] `execution.failed` 의 `error` 를 객체로 통일 (L656·L3291, `retry-turn.service.ts` L956) →
       `chat-channel.dispatcher.ts` back-compat wrap 제거
 - [ ] `chat-channel/types.ts:388` 을 (1) 최종형과 동기화
