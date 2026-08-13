@@ -36,16 +36,16 @@
 export function updateReturningRows<T = unknown>(
   result: unknown,
   /**
-   * 호출부 문맥(어느 execution·어느 KB 인지 등). 극단 상황에서 로그만으로 지점을 특정할 수
-   * 있어야 해서 남긴다 — 종전 `assertRowArray` 가 주던 진단을 잃지 않기 위함
-   * (ai-review `20_36_35` WARNING 4).
+   * 호출부 문맥(어느 execution·어느 KB 인지 등). **필수다** — 자매 헬퍼 `assertRowArray` 와
+   * 같은 계약이고, 선택으로 두었더니 8곳 중 한 곳(`auth-oauth`, 이 PR 전체를 촉발한 바로 그
+   * 지점)이 비워 뒀다 (ai-review `23_07_11` WARNING 4). 극단 상황에서 로그만으로 지점을
+   * 특정할 수 있어야 하고, 그건 "권장" 으로는 지켜지지 않는다.
    */
-  detail?: string,
+  detail: string,
 ): T[] {
   if (!Array.isArray(result)) {
     throw new Error(
-      `UPDATE/DELETE RETURNING 결과가 배열이 아님 (typeof=${typeof result})` +
-        (detail ? ` — ${detail}` : ''),
+      `UPDATE/DELETE RETURNING 결과가 배열이 아님 (typeof=${typeof result}) — ${detail}`,
     );
   }
   // `[rows, rowCount]` 튜플 — 첫 원소가 배열이면 그것이 RETURNING 행이다.

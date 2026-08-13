@@ -678,6 +678,26 @@ describe('KnowledgeBaseService', () => {
       });
     });
 
+    /**
+     * reset 지점의 실측 shape 가드 (`23_07_11` WARNING 2). 언랩이 깨지면
+     * `resetRows.length` 가 항상 2 라 **빈 KB 즉시 idle 복귀 분기가 안 타고**,
+     * `resetRows.map(r => r.id)` 는 `[undefined, undefined]` 가 된다.
+     * 그래서 큐에 실린 documentId 까지 단언한다.
+     */
+    it('실측 shape: reset 이 튜플에서 실제 문서 ID 를 꺼낸다', async () => {
+      mockDataSource.query
+        .mockResolvedValueOnce([[{ id: 'kb-1' }], 1]) // CAS 락 획득
+        .mockResolvedValueOnce([[{ id: 'd1' }, { id: 'd2' }], 2]); // reset RETURNING
+
+      const result = await service.reEmbedAll('kb-1', 'ws-1');
+
+      expect(result.documentCount).toBe(2);
+      const queued = mockEmbeddingQueue.addBulk.mock.calls[0][0] as Array<{
+        data: { documentId: string };
+      }>;
+      expect(queued.map((j) => j.data.documentId)).toEqual(['d1', 'd2']);
+    });
+
     it('should atomically acquire reembed_status and enqueue all docs (single chunk)', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([{ id: 'kb-1' }]) // acquire
@@ -1246,6 +1266,40 @@ describe('KnowledgeBaseService', () => {
   });
 
   describe('retryFailedDocuments', () => {
+    /**
+     * **실측 shape 회귀 가드 3종** (`23_07_11` WARNING 2).
+     * 리뷰어가 헬퍼 호출을 되돌리는 뮤테이션을 심었더니 54 passed 그대로였다 —
+     * 이 세 지점(embedding 재큐·graph 재큐·reset)에 튜플 shape 테스트가 없었다.
+     *
+     * 언랩이 깨지면 `rows.map(r => r.id)` 가 `[undefined, undefined]` 가 되어
+     * **문서 ID 가 undefined 인 가짜 job 2개**가 큐잉된다 — plan 위험표가 경고한 그대로다.
+     * 그래서 개수뿐 아니라 **큐에 실린 documentId 값**까지 단언한다.
+     */
+    it('실측 shape: embedding 재큐가 튜플에서 실제 문서 ID 를 꺼낸다', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'vector',
+      });
+      mockDataSource.query.mockResolvedValueOnce([
+        [{ id: 'd1' }, { id: 'd2' }],
+        2,
+      ]);
+
+      const result = await service.retryFailedDocuments(
+        'kb-1',
+        'ws-1',
+        'embedding',
+      );
+
+      expect(result.embeddingRequeued).toBe(2);
+      // 가짜 job 방지 — 실제 ID 가 실렸는지. 언랩이 깨지면 undefined 가 온다.
+      const queued = mockEmbeddingQueue.addBulk.mock.calls[0][0] as Array<{
+        data: { documentId: string };
+      }>;
+      expect(queued.map((j) => j.data.documentId)).toEqual(['d1', 'd2']);
+    });
+
     it("scope='embedding': failed 문서만 UPDATE + addBulk", async () => {
       mockKbRepo.findOne.mockResolvedValue({
         id: 'kb-1',
@@ -1301,6 +1355,37 @@ describe('KnowledgeBaseService', () => {
       expect(result).toEqual({ embeddingRequeued: 0, graphRequeued: 0 });
       expect(mockGraphQueue.addBulk).not.toHaveBeenCalled();
       expect(mockEmbeddingQueue.addBulk).not.toHaveBeenCalled();
+    });
+
+    /**
+     * graph 재큐의 실측 shape 가드 (`23_07_11` WARNING 2). 뮤테이션으로 확인한 마지막
+     * 미커버 지점이었다 — reset·embedding 재큐는 죽는데 여기만 **생존**했다.
+     * `graphRequeued = rowsOut.length` 라 언랩이 깨지면 **항상 2** 를 보고하고,
+     * `rowsOut.slice()` 가 튜플을 잘라 가짜 job 을 만든다.
+     */
+    it('실측 shape: graph 재큐가 튜플에서 실제 문서 ID 와 개수를 꺼낸다', async () => {
+      mockKbRepo.findOne.mockResolvedValue({
+        id: 'kb-1',
+        workspaceId: 'ws-1',
+        ragMode: 'graph',
+      });
+      // graph 만 3건 — 언랩이 깨지면 length 가 2 로 보고돼 3 과 갈린다.
+      mockDataSource.query.mockResolvedValueOnce([
+        [{ id: 'g1' }, { id: 'g2' }, { id: 'g3' }],
+        3,
+      ]);
+
+      const result = await service.retryFailedDocuments(
+        'kb-1',
+        'ws-1',
+        'graph',
+      );
+
+      expect(result.graphRequeued).toBe(3);
+      const queued = mockGraphQueue.addBulk.mock.calls[0][0] as Array<{
+        data: { documentId: string };
+      }>;
+      expect(queued.map((j) => j.data.documentId)).toEqual(['g1', 'g2', 'g3']);
     });
 
     it("scope='all' on graph mode: 둘 다 처리", async () => {

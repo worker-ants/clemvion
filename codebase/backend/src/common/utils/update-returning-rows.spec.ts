@@ -4,16 +4,18 @@ import { updateReturningRows } from './update-returning-rows';
 
 describe('updateReturningRows', () => {
   it('UPDATE/DELETE 튜플에서 RETURNING 행만 꺼낸다', () => {
-    expect(updateReturningRows([[{ id: 'a' }], 1])).toEqual([{ id: 'a' }]);
+    expect(updateReturningRows([[{ id: 'a' }], 1], 'ctx')).toEqual([
+      { id: 'a' },
+    ]);
   });
 
   it('0행 튜플은 빈 배열 — "없음" 이 보존돼야 CAS 락이 거절한다', () => {
-    expect(updateReturningRows([[], 0])).toEqual([]);
+    expect(updateReturningRows([[], 0], 'ctx')).toEqual([]);
   });
 
   it('행 배열 직접(SELECT/INSERT 형태)도 그대로 받는다', () => {
-    expect(updateReturningRows([{ id: 'b' }])).toEqual([{ id: 'b' }]);
-    expect(updateReturningRows([])).toEqual([]);
+    expect(updateReturningRows([{ id: 'b' }], 'ctx')).toEqual([{ id: 'b' }]);
+    expect(updateReturningRows([], 'ctx')).toEqual([]);
   });
 
   it.each([
@@ -21,7 +23,9 @@ describe('updateReturningRows', () => {
     ['null', null],
     ['객체', { rowCount: 1 }],
   ])('%s 면 던진다', (_l, v) => {
-    expect(() => updateReturningRows(v)).toThrow(/배열이 아님/);
+    expect(() => updateReturningRows(v, 'computeChainDepth 재귀 CTE')).toThrow(
+      /배열이 아님/,
+    );
   });
 });
 

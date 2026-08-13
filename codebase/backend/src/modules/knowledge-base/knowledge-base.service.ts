@@ -530,7 +530,7 @@ export class KnowledgeBaseService {
     let graphRequeued = 0;
 
     if (scope === 'embedding' || scope === 'all') {
-      const rows = await this.dataSource.query<{ id: string }[]>(
+      const rows: unknown = await this.dataSource.query(
         `UPDATE document
             SET embedding_status = 'pending',
                 embedding_retry_count = 0,

@@ -148,6 +148,7 @@ export class AuthOauthService {
         'DELETE FROM auth_oauth_state WHERE state = $1 AND expires_at > NOW() RETURNING *',
         [state],
       ),
+      `OAuth state 소비, provider ${provider}`,
     );
     if (consumed.length === 0) {
       throw new BadRequestException({
