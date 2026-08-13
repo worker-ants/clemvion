@@ -740,6 +740,34 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > "손상 축이 코드에 분리되면" 이 사실상의 트리거였는데, `22e68459d`(손상 가드) ·
       > `86de12278`(형태 검증) · `c29290c71`(statusCode 범위) 로 그 분리가 끝났다. 즉 지금
       > spec 을 고치면 **코드에 이미 있는 상태를 서술**하는 것이지 앞서가는 게 아니다.
+- [ ] **[CRITICAL·planner] EIA outbound notification payload 가 spec 계약과 근본적으로 다르다**
+      (`14_18_42` cross_spec CRITICAL 1). 실측:
+      `emitExecution(id, EXECUTION_COMPLETED, { status })` → fanout 이
+      `{type, executionId, triggerId, workflowId, seq, payload, timestamp}` 로 감싸 발송한다.
+      그런데 [`14-external-interaction-api.md` §6.3](../../spec/5-system/14-external-interaction-api.md)
+      은 `result:{outputs,finalNodeId,finalPort}` · `durationMs` 를, §6.4 는
+      `error:{code,message,nodeId,details?}` 를 약속한다.
+      > **외부 계약이다.** spec 을 믿고 연동한 고객은 문서화된 필드를 전부 `undefined` 로 받는다.
+      > `6-websocket-protocol.md` §4.1 표도 같은 drift(+ `execution.cancelled` 을 flat
+      > `{cancelledBy}` 로 적지만 코드·EIA §6.5 는 nested `result.cancelledBy`).
+      >
+      > **기록된 의도는 "코드를 spec 에 맞춘다" 였다** — `chat-channel.dispatcher.ts` 주석이
+      > 후속 plan `spec-update-execution-failed-payload-shape` 를 가리킨다(PR #324,
+      > 2026-05-25). 그런데 **그 plan 은 저장소에 한 번도 존재한 적이 없다**
+      > (`git log --all -S "spec-update-execution-failed-payload-shape" -- plan/` → 0건).
+      > 3개월 방치된 붕 뜬 약속이고, 그 사이 dispatcher 에 back-compat wrap 만 쌓였다.
+      >
+      > **택일이 필요하다 — planner 결정.**
+      > (a) **코드를 spec 에 맞춘다**(기록된 의도) — emit 지점 다수에 enrich 추가. 구현 프로젝트.
+      > (b) **spec 을 실제에 맞춘다** — "얇은 signal + REST 재조회" 로 §6.3~§6.5·WS §4.1 재작성.
+      >     EIA 가 status 조회 엔드포인트를 이미 갖고 있어 일관되지만 **외부 계약 축소**다.
+      > 어느 쪽이든 이 항목 하나에 묶여 있고, 무엇보다 **지금 상태(문서가 거짓)가 최악**이다.
+- [ ] **[developer] `failRetryExecution` 이 `cancelledBy` 를 안 채운다** (`14_18_42` cross_spec
+      WARNING 1). 같은 모듈의 다른 4개 취소 경로는 `emitCancellationEvent` 로 통일된 계약을
+      구현하는데 이 경로만 빠졌다.
+      > 이미 [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) 에 P2 로 등재돼
+      > 있으나 미완료 — 이번 실측으로 재확인했다. developer 권한 내이므로 그 plan 항목을 집행하면
+      > 된다(여기엔 교차 참조만 남긴다).
 - [ ] **SoT 이관 시 앵커 전수 grep 을 절차로** (`12_48_37` 교훈). `#98-private-앱-...` 처럼
       **옮기는 절의 앵커 문자열을 저장소 전역 grep** 하는 것을 SoT 이관의 고정 절차로 삼는다.
       > 이 PR 하나에서 참조자 누락이 **세 번** 났다 — `2-navigation:1294`(코드 리뷰가 잡음) ·
