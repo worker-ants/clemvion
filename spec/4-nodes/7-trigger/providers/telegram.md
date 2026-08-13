@@ -232,7 +232,7 @@ Multi-turn AI 대화가 인스턴스 재시작/checkpoint 부재로 재개 불�
 
 - `sendMessage` 5초 타임아웃 + 3회 지수 백오프 (1s / 2s / 4s). 최종 실패 시 trigger 의 `chat_channel_health` = `degraded`. (`telegram-client.ts` `call` — 구현됨.)
 - **미구현 (Planned)**: 텔레그램의 group rate limit (30 msg/sec across users, 1 msg/sec per chat) 대응 chat 단위 큐 + delay. 현재 `telegram-client.ts` 는 실패 시 지수 백오프만 있고 chat 단위 큐/throttle 은 없다.
-- **구현됨 (2026-08-13)**: update_id 기반 dedup — 같은 update_id 가 30초 안에 두 번 도착하면 두 번째는 무시. parser 가 채운 `idempotencyKey = String(update_id)` 를 `ChatChannelDedupService` 가 소비한다 (Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<updateId>`, inbound 진입에서 rate-limit 앞). Redis 미가용 시 fail-open. SoT: [chat-channel CCH-SE-02](../../../5-system/15-chat-channel.md).
+- **구현됨 (2026-08-13)**: update_id 기반 dedup — 같은 update_id 가 30초 안에 두 번 도착하면 두 번째는 무시. parser 가 채운 `idempotencyKey = String(update_id)` 를 `ChatChannelDedupService` 가 소비한다 (Redis `SET NX EX 30`, 키 `cc:dedup:<triggerId>:<updateId>`, inbound 진입에서 rate-limit 앞). Redis 미가용 시 fail-open. 요구사항: [CCH-SE-02](../../../5-system/15-chat-channel.md) / 키·TTL·게이트 순서 상세 SoT: [data-flow/14 §2.2](../../../data-flow/14-chat-channel.md#22-redis).
   > 종전 이 자리는 "`ChannelUpdate.idempotencyKey` read 처 0건" 이라 적었다 — 정확한 서술이었고, 그 dead field 가 실제로 이 갭의 증거였다.
 
 ---

@@ -209,8 +209,12 @@ Cafe24 는 외부 API 호출 노드 (단계 1개). HTTP Request 와 같은 `succ
 
 ## 종합 개선안 (2026-05-16)
 
-- [x] (spec) `pagination` 설명에서 `cursor?: string` 표기 제거 — ✅ (2026-06-25) spec §1 표 (`4-cafe24.md:42`) 가 이제 `{ limit?: number, offset?: number }` + "`cursor` 는 Cafe24 Admin API 가 일관 지원하지 않아 폐기됨 (B-3-7)" 명시. §6 표 (`:348-353`) 도 cursor 미언급. schema (`cafe24.schema.ts:21-27`) 와 완전 정합. PR #440/#516 (spec-sync 전수 코드정합성 audit).
-- [ ] (test) `meta.callLimit/callRemain/callUsage` 가 4xx/5xx 응답에서도 동봉되는지 회귀 테스트 추가 — `cafe24.handler.spec.ts:456-494` (4xx 404 테스트) 가 mock `headers:{}` 라 `buildMeta` 호출 (`cafe24.handler.ts:325`) 결과의 rate-limit 메트릭 동봉을 미검증. rate-limit 메트릭이 에러 시에도 디버깅 메트릭으로 유지되는지 spec §5.3.1 표 와 회귀 보호. 근거: spec `4-cafe24.md:254` (`"callUsage": 13` 4xx 케이스 동봉).
+- [x] (spec) `pagination` 설명에서 `cursor?: string` 표기 제거 — ✅ (2026-06-25) spec §1 표 (`4-cafe24.md:42`) 가 이제 `{ limit?: number, offset?: number }` + "`cursor` 는 Cafe24 Admin API 가 일관 지원하지 않아 폐기됨 (B-3-7)" 명시. §6 "에러 코드" 표(현재 353행부터) 도 cursor 미언급. schema (`cafe24.schema.ts:21-27`) 와 완전 정합. PR #440/#516 (spec-sync 전수 코드정합성 audit).
+> ⚠️ **spec 라인 인용은 절 이름 우선.** `4-cafe24.md` §4.4 신설(+17줄)로 그 아래 절이 전부
+> 밀리면서 아래 인용 3곳이 한 번에 stale 이 됐다(`12_48_37` plan_coherence WARNING 3).
+> 라인 번호는 보조로만 적고 **절 이름을 먼저** 적는다 — 절 이름은 삽입에 밀리지 않는다.
+
+- [ ] (test) `meta.callLimit/callRemain/callUsage` 가 4xx/5xx 응답에서도 동봉되는지 회귀 테스트 추가 — `cafe24.handler.spec.ts:456-494` (4xx 404 테스트) 가 mock `headers:{}` 라 `buildMeta` 호출 (`cafe24.handler.ts:325`) 결과의 rate-limit 메트릭 동봉을 미검증. rate-limit 메트릭이 에러 시에도 디버깅 메트릭으로 유지되는지 spec §5.3.1 표 와 회귀 보호. 근거: spec `4-cafe24.md` §5 JSON 예시의 `"callUsage": 13` 4xx 케이스 동봉(현재 271행).
 - [ ] (test) `sanitizeConfigEcho` 의 `fields` 마스킹 회귀 테스트 추가 — 사용자가 `fields: { apiKey: 'secret' }` 처럼 자격증명-shape 키를 잘못 입력했을 때 `config.fields.apiKey === '***'` 가 echo 되는지 직접 검증. 현재 `_base/integration-handler-base.spec.ts:205-221` 의 sanitizeConfigEcho 단위 테스트는 있으나 Cafe24 handler 통합 테스트 부재. 근거: `cafe24.handler.ts:119-125`.
 - [ ] (impl, 선택) Rate-limit 회복 후 정상 응답 동안 `meta.callRemain` 값이 0 보다 큰 경우 spec 표 (`callRemain?: number`) 가 optional 명시 — `buildMeta` (`cafe24.handler.ts:441-455`) 는 `undefined` 만 생략, `0` 은 동봉. spec 의 §5.1 JSON 예시 (`"callRemain": 0`) 와 정합. 변경 불필요, 회귀 회피만 점검.
-- [ ] (spec, 선택) §5.3.3 (`Transport 실패`) 의 `output.error.code = 'CAFE24_TRANSPORT_FAILED'` 가 unknown error fallback 경로 (`cafe24.handler.ts:545-555`) 에서도 도달하는 사실 명시 — handler 가 모든 unknown 을 transport 로 분류한다는 implementation detail 이 spec 본문 §6 표 (`4-cafe24.md:348`, "fetch reject" 만 기술) 에 부재. 운영 측 가시성 향상. 근거: `cafe24.handler.ts:545-555`.
+- [ ] (spec, 선택) §5.3.3 (`Transport 실패`) 의 `output.error.code = 'CAFE24_TRANSPORT_FAILED'` 가 unknown error fallback 경로 (`cafe24.handler.ts:545-555`) 에서도 도달하는 사실 명시 — handler 가 모든 unknown 을 transport 로 분류한다는 implementation detail 이 spec 본문 `4-cafe24.md` §6 "에러 코드" 표(현재 353행부터, "fetch reject" 만 기술) 에 부재. 운영 측 가시성 향상. 근거: `cafe24.handler.ts:545-555`.
