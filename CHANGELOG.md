@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — 멱등 캐시 fail-open 을 **알람 걸 수 있게** 만든다 (`clemvion.redis.fail_open`)
+
+`IdempotencyInterceptor` 의 fail-open 다섯 경로는 warn 로그만 남겼다. 로그는 사후 조회는 되지만
+**비율·추세로 알람을 걸 수 없다** — 운영이 "지금 멱등성이 꺼져 있다" 를 알아채려면 사람이 로그를
+들여다봐야 했다.
+
+OTel 카운터 `clemvion.redis.fail_open{component,reason}` 을 추가하고 다섯 경로에 배선했다:
+`get_failed` · `set_failed` · `serialize_failed` · `entry_corrupt` · `payload_corrupt`.
+
+**경로별로 `reason` 이 갈리는 것이 요점**이다. 다섯을 한 라벨로 뭉치면 카운터는 올라가도 "무엇이
+고장났는지" 를 알람이 구분하지 못한다 — Redis 가 죽은 것과 캐시가 오염된 것은 대응이 다르다.
+라벨 값은 코드가 정하는 **닫힌 집합**이라 Prometheus label cardinality 가 늘지 않는다.
+
+예: `rate(clemvion_redis_fail_open{component="idempotency"}[5m]) > 0` 으로 저하 구간을 잡고,
+`reason` 으로 원인을 가른다.
+
+`OTEL_ENABLED` 미설정 시 `getMeter` 가 no-op meter 를 주므로 비활성 환경에서도 무동작이다.
+
 ## Unreleased — chat-channel 이 `필수` 로 약속한 update dedup 이 통째로 미구현이었다 (CCH-SE-02)
 
 `ChannelUpdate.idempotencyKey` 는 provider 파서 3종(telegram·slack·discord)이 채우기만 하고 **읽는 곳이 0곳인 dead

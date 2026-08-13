@@ -29,6 +29,23 @@ interface LlmTokenUsage {
 }
 
 /**
+ * `clemvion.redis.fail_open` 의 라벨 값 — **닫힌 집합**이다.
+ *
+ * Prometheus 라벨은 값마다 시계열이 하나씩 생긴다. 사용자 입력이나 에러 메시지가 여기로
+ * 흘러들면 cardinality 가 터지므로, 라벨 값은 코드가 열거한 것만 허용한다. 문자열 타입으로
+ * 두면 그 규칙이 주석에만 있고 컴파일러는 아무것도 막지 않는다.
+ */
+export type RedisFailOpenComponent = 'idempotency';
+
+/** 강등 원인. `IdempotencyInterceptor` 의 fail-open 다섯 경로에 1:1 대응한다. */
+export type RedisFailOpenReason =
+  | 'get_failed'
+  | 'set_failed'
+  | 'serialize_failed'
+  | 'entry_corrupt'
+  | 'payload_corrupt';
+
+/**
  * NF-OB-07 도메인/비즈니스 커스텀 메트릭 (spec/5-system/_product-overview.md §5).
  * OTel MeterProvider(NF-OB-02, `instrumentation.ts`) 위에 도메인 instrument 를 만든다.
  *
@@ -47,6 +64,7 @@ export class BusinessMetricsService {
   private readonly executionErrors: Counter;
   private readonly llmTokens: Counter;
   private readonly nodeDuration: Histogram;
+  private readonly redisFailOpen: Counter;
   private readonly queueDepth: ObservableGauge;
   /** 큐 깊이 provider 목록 — 각 모듈(execution-engine·continuation)이 자기 큐를 등록. */
   private readonly queueProviders: QueueDepthProvider[] = [];
@@ -64,6 +82,11 @@ export class BusinessMetricsService {
     this.llmTokens = meter.createCounter('clemvion.llm.tokens', {
       description: 'LLM 토큰 사용량 (input/output/thinking)',
       unit: '{token}',
+    });
+    this.redisFailOpen = meter.createCounter('clemvion.redis.fail_open', {
+      description:
+        'Redis 의존 기능이 fail-open 으로 강등된 횟수 (component·reason 별)',
+      unit: '{event}',
     });
     this.nodeDuration = meter.createHistogram('clemvion.node.duration', {
       description: '노드 실행 지연',
@@ -90,6 +113,29 @@ export class BusinessMetricsService {
     this.executionErrors.add(1, {
       error_code: errorCode.substring(0, 64),
     });
+  }
+
+  /**
+   * Redis 의존 기능이 **fail-open 으로 강등**된 사건을 집계.
+   *
+   * fail-open 은 "요청을 살린다" 와 "장애를 보이게 한다" 가 한 쌍인데, 종전에는 뒤쪽이
+   * **warn 로그뿐**이었다 — 로그는 사후 조회는 되지만 **비율·추세로 알람을 걸 수 없다**.
+   * 이 카운터가 그 자리를 메운다(예: `rate(clemvion_redis_fail_open[5m]) > 0`).
+   *
+   * `component` 는 어느 기능이 강등됐는지, `reason` 은 왜인지.
+   * 둘 다 **코드가 정하는 닫힌 집합**이라 라벨 cardinality 가 늘지 않는다 — 외부 문자열을
+   * 그대로 라벨에 넣으면 Prometheus 가 터진다(`recordExecutionError` 가 클램핑하는 이유와 같다).
+   *
+   * 그 "닫힌 집합" 을 **타입으로 강제한다**. 종전에는 이 문단이 닫혔다고 주장만 하고 시그니처는
+   * 평범한 `string` 이라, 호출부가 사용자 입력을 그대로 넘겨도 컴파일러가 막지 않았다
+   * (`recordExecutionError` 는 같은 위험을 클램핑으로 실제 방어하는데 이쪽만 무방비였다).
+   * 새 값이 필요하면 아래 유니온에 추가하는 것이 곧 검토 지점이 된다.
+   */
+  recordRedisFailOpen(
+    component: RedisFailOpenComponent,
+    reason: RedisFailOpenReason,
+  ): void {
+    this.redisFailOpen.add(1, { component, reason });
   }
 
   /** LLM 호출의 토큰 사용량을 type 별로 누적 (model 라벨). 0 은 건너뛴다. */

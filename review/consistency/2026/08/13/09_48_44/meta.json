@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-13T09:48:44.119148",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-nf-ob-07-redis-fail-open.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

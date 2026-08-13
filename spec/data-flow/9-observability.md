@@ -201,7 +201,8 @@ flowchart LR
 > 기본 메트릭은 auto-instrumentation 의 HTTP 서버 + `instrumentation-runtime-node`(event loop·GC·heap)
 > 자동 수집에 더해, **도메인/비즈니스 커스텀 메트릭(NF-OB-07)** — 워크플로 실행 수(`clemvion.execution.total`)·
 > 에러(`clemvion.execution.errors`)·큐 깊이(`clemvion.queue.depth`)·LLM 토큰(`clemvion.llm.tokens`)·
-> 노드 지연(`clemvion.node.duration`) — 을 `BusinessMetricsService` 가 함께 노출한다.
+> 노드 지연(`clemvion.node.duration`)·Redis fail-open 강등(`clemvion.redis.fail_open`) — 을
+> `BusinessMetricsService` 가 함께 노출한다.
 > 구현: `codebase/backend/src/instrumentation.ts`, `codebase/backend/src/modules/metrics/business-metrics.service.ts`.
 > SoT: [`spec/5-system/_product-overview.md` NF-OB-02](../5-system/_product-overview.md) / [NF-OB-07](../5-system/_product-overview.md#nf-ob-07-메트릭-카탈로그).
 
@@ -256,3 +257,15 @@ DTO 단에서 검증할지는 별도 plan 으로 다룬다.
 현재 워크스페이스 규모에서는 매 요청마다 raw 테이블 (`execution`, `llm_usage_log`) 을 집계해도 충분하다.
 크기가 커지면 시간 단위 pre-aggregated table (`statistics_hourly`) 를 추가하고 daily batch 로 채우는
 방향을 검토 (P2+).
+
+### `clemvion.redis.fail_open` 의 `component` 를 실제 배선된 값만 열거하는 이유
+
+Redis fail-open 을 하는 서비스는 여럿이지만(rate limiter·quota·conversation 등), 이 카운터에
+**실제로 배선된 것은 EIA 멱등 캐시(`idempotency`) 하나뿐**이다. 나머지를 미리 열거하고 싶어지는
+자리지만 그렇게 하면 **문서가 구현보다 넓어진다** — 알람을 거는 사람이 영원히 오르지 않는
+시계열을 감시하게 되고, "이 값이 0 이다" 가 "정상" 인지 "미계측" 인지 구분되지 않는다.
+
+따라서 라벨 값 집합은 코드의 리터럴 유니온(`RedisFailOpenComponent`/`RedisFailOpenReason`)이
+정하는 **닫힌 집합**과 1:1 로 유지한다. 새 소비자를 배선할 때 유니온과 NF-OB-07 카탈로그 표를
+**동시에** 넓히는 것이 규칙이다. 라벨을 `string` 으로 열어 두지 않는 이유이기도 하다 —
+외부 문자열이 라벨에 실리면 Prometheus 시계열 cardinality 가 터진다.

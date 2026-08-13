@@ -15,6 +15,10 @@ import { catchError, switchMap, tap } from 'rxjs/operators';
 import { createHash } from 'crypto';
 import type Redis from 'ioredis';
 import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
+import {
+  BusinessMetricsService,
+  type RedisFailOpenComponent,
+} from '../metrics/business-metrics.service';
 import type { RequestWithInteraction } from './interaction.guard';
 
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
@@ -24,6 +28,8 @@ const MAX_KEY_LENGTH = 200;
 /** 유효 HTTP 상태코드 범위 — 캐시 엔트리의 `statusCode` 검증용 ({@link isHttpStatusCode}). */
 const MIN_HTTP_STATUS_CODE = 100;
 const MAX_HTTP_STATUS_CODE = 599;
+/** `clemvion.redis.fail_open` 의 `component` 라벨 — 이 클래스의 강등을 한 이름으로 묶는다. */
+const METRICS_COMPONENT: RedisFailOpenComponent = 'idempotency';
 
 /**
  * `context.switchToHttp().getResponse()` 의 반환 타입. Nest 시그니처가
@@ -97,6 +103,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     @Optional() _configService?: ConfigService,
     @Optional() @Inject('IDEMPOTENCY_REDIS') injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,
+    @Optional() private readonly metrics?: BusinessMetricsService,
   ) {
     // Redis: 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
     // 미가용(config 누락/장애) 시 null 로 degrade — idempotency fail-open.
@@ -151,6 +158,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
         this.logger.warn(
           `IdempotencyInterceptor cache GET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
         );
+        this.metrics?.recordRedisFailOpen(METRICS_COMPONENT, 'get_failed');
         return of(null);
       }),
       switchMap((cachedJson) => {
@@ -246,6 +254,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
     this.logger.warn(
       `IdempotencyInterceptor cache ${what} 손상 — 무시하고 신규 처리: ${detail instanceof Error ? detail.message : String(detail)}`,
     );
+    this.metrics?.recordRedisFailOpen(
+      METRICS_COMPONENT,
+      what === '엔트리' ? 'entry_corrupt' : 'payload_corrupt',
+    );
     return processFresh();
   }
 
@@ -329,15 +341,17 @@ export class IdempotencyInterceptor implements NestInterceptor {
       this.logger.warn(
         `IdempotencyInterceptor cache 직렬화 실패 — 적재 skip: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.metrics?.recordRedisFailOpen(METRICS_COMPONENT, 'serialize_failed');
       return;
     }
     void this.redis
       .set(redisKey, JSON.stringify(entry), 'EX', TTL_SEC)
-      .catch((err) =>
+      .catch((err) => {
         this.logger.warn(
           `IdempotencyInterceptor cache SET 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
-        ),
-      );
+        );
+        this.metrics?.recordRedisFailOpen(METRICS_COMPONENT, 'set_failed');
+      });
   }
 }
 
