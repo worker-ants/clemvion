@@ -72,6 +72,37 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
     );
   });
 
+  /**
+   * **타입 캐너리** — `recordRedisFailOpen` 의 라벨 인자가 리터럴 유니온으로 좁혀진 채
+   * 유지되는지 고정한다.
+   *
+   * `ts-jest` 는 타입을 strip 하므로 **이 테스트를 실행하는 것만으로는 아무것도 검사되지
+   * 않는다**(아래 두 호출은 런타임엔 그냥 통과한다 — 그래서 호출 횟수를 단언해 이 블록이
+   * vacuous 하지 않음을 표시한다). 실제 감시자는
+   * `scripts/check-backend-typecheck-ratchet.py` 다 — `tsc --noEmit -p tsconfig.json`
+   * (spec 포함)의 **파일별** 진단 수를 baseline 과 대조해 양방향 변화에 실패한다.
+   *
+   * 라벨이 `string` 으로 다시 넓어지면 `@ts-expect-error` 가 **소비되지 않아** TS2578 이
+   * 되고, 이 파일의 진단 수가 baseline(0)에서 올라 CI 가 막는다. 좁힘을 한 번 확인하는 것과
+   * 좁힌 채로 유지되게 하는 것은 다른 일이다.
+   *
+   * **타입 별칭이 아니라 호출 시그니처를 겨눈다.** 처음엔 `const r: RedisFailOpenReason = s`
+   * 형태로 썼는데, 그러면 별칭은 그대로 두고 `reason: string` 으로 되돌리는 회귀가 그대로
+   * 통과한다(뮤테이션으로 실측 — 생존 2건). 보장의 주체는 별칭이 아니라 메서드다.
+   */
+  it('타입 캐너리: 임의 문자열은 라벨로 못 들어간다', () => {
+    const s = 'anything' as string;
+    // @ts-expect-error reason 이 string 으로 넓어지면 이 지시자가 안 쓰여 TS2578 이 된다
+    service.recordRedisFailOpen('idempotency', s);
+    // @ts-expect-error component 축도 같은 방식으로 고정한다
+    service.recordRedisFailOpen(s, 'get_failed');
+    // 타입만 보는 캐너리가 아니라 **호출 시그니처**를 본다 — 별칭만 검사하면
+    // `reason: string` 으로 되돌리는 회귀가 그대로 통과한다(실측 확인).
+    expect(mock.counters['clemvion.redis.fail_open'].add).toHaveBeenCalledTimes(
+      2,
+    );
+  });
+
   it('recordRedisFailOpen → reason 이 호출마다 그대로 갈린다', () => {
     service.recordRedisFailOpen('idempotency', 'entry_corrupt');
     service.recordRedisFailOpen('idempotency', 'payload_corrupt');
