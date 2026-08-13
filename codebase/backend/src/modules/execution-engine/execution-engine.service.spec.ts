@@ -4438,8 +4438,11 @@ describe('ExecutionEngineService', () => {
           queuedAt: new Date(),
           status: 'pending',
         };
-        // 두 방향을 다 본다 — 튜플에서 rows 를 꺼내되 "0행이면 defer" 가 유지되는지.
-        await expect(admit(exec)).resolves.not.toBe('admitted');
+        // **정확한 값으로 단언한다.** 종전엔 `not.toBe('admitted')` 였는데,
+        // 그러면 "0행인데 `cancelled` 를 돌려주는" 회귀도 통과한다 — 느슨한 단언이
+        // 버그를 4개월 숨긴 게 이 PR 의 교훈인데 새 테스트가 그걸 재도입한 셈이었다
+        // (ai-review `23_46_00` WARNING 3).
+        await expect(admit(exec)).resolves.toBe('deferred');
       } finally {
         spy.mockRestore();
       }

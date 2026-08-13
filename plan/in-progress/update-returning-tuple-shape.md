@@ -212,22 +212,28 @@ consistency `20_36_36` plan_coherence WARNING 1. 직접 검증했다:
       이 저장소는 "병렬 리뷰어가 저장소를 뮤테이션해 서로를 오염시킨다" 를 이미 겪었는데
       이번엔 **내가 뮤테이터**였다 — 리뷰 중에는 돌리지 않거나 복사본에서 돌린다.
 - **[planner 위임]** 소급 각주 — 대상이 **한 문서가 아니다** (`22_45_25` WARNING 2 · INFO 1).
-  이 PR 이 고친 것들이 실제로 어겼던 spec 서술을 전부 세면 넷이다:
+  이 PR 이 고친 것들이 실제로 어겼던 spec 서술을 전부 세면 **다섯**이다:
   - `spec/5-system/4-execution-engine.md` §1.1 — admission gate·종결 이벤트
     (2026-07-30 의 유사 사례 retry-reentry opt-in 미전파와 대칭)
   - `spec/5-system/8-embedding-pipeline.md` §7.3 — KB 재임베딩 CAS 락
   - `spec/5-system/10-graph-rag.md` 동시 호출 표 — KB 재추출 CAS 락
   - `spec/data-flow/2-auth.md` OAuth state 소비 — 소셜 로그인 상시 실패
-  - `spec/conventions/node-cancellation.md` **§2.4 (195~198행)** — "✓ mutation 13/13 검증"
-    서술에 *"driver 배선(`updateExecutionStatus` 의 실제 반환 shape)은 2026-08-13 에야
-    정상화됐고, 그 이전 검증은 mock 경계 안쪽 한정"* caveat 추가. 198행(retry-turn)뿐
-    아니라 **196·197행(AI turn 경계 가드·park↔resume 짝 전이)도 같은 반환값에 의존**한다
-    (`23_27_49` WARNING 1·2 · INFO 3)
+  - `spec/conventions/node-cancellation.md` **§2.4** — caveat 을 붙이되 **표의 행 라벨이
+    아니라 실제 소비 경로 단위로** 적을 것 (`23_46_01` WARNING 5). 행 전체에 caveat 을
+    걸면 영향권 밖 메커니즘(`assertExecutionNotCancelled` 관측, `linkedNodeExec` 의
+    `FOR UPDATE` 잠금)까지 "검증 안 됨" 으로 뭉뚱그려져 **반대 방향 drift** 를 만든다.
+    - **영향 있음** — `updateExecutionStatus` 의 else 분기 반환값을 소비하는 경로:
+      `finalizeFailedExecution` · `failFirstSegmentSetup` · `executeSync` timeout ·
+      retry 재진입 종결. 이들은 `8332d9a20` 이전에 `persisted` 가 항상 `true` 였다.
+    - **영향 없음** — 반환값을 안 쓰는 것: `assertExecutionNotCancelled`(DB 재조회),
+      `linkedNodeExec` 의 `FOR UPDATE` 잠금(SELECT 경로).
+    - 덧붙여 `node-cancellation.md` frontmatter `pending_plans:` 에 이 plan 을 등재해
+      `spec-pending-plan-existence.test.ts` 가 추적하게 할 것 (`23_46_01` WARNING 2).
   > **한 문서만 적으려던 것이 바로 이 PR 이 진단한 패턴("그 자리만 고친다")의 재현이었다.**
 
-  `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다. 그래서
-  frontmatter 는 `spec_impact: none` 을 유지한다 — 이 PR 이 실제로 바꾸는 spec 은 0건이고,
-  리스트에 적으면 "이 PR 이 그 파일을 고쳤다" 는 거짓이 된다.
+  `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다 — frontmatter
+  `spec_impact` 를 리스트로 둔 이유는 **문서 상단 배너** 참조(Gate C 가 `complete/` 이동 시
+  이 값을 신뢰한다).
 - **[planner 위임]** 같은 결함이 **세 번** 개별 발생했는데 invariant 가 `spec/conventions/`
   에 없다 (`20_36_36` INFO 2·3). "raw UPDATE/DELETE RETURNING 소비는 `updateReturningRows`
   경유" 를 정식 규약으로 승격할지 판단 필요. 네 번째 재발을 막는 유일한 구조적 수단이다 —

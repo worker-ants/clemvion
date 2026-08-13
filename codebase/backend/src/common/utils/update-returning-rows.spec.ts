@@ -22,10 +22,13 @@ describe('updateReturningRows', () => {
     ['undefined', undefined],
     ['null', null],
     ['객체', { rowCount: 1 }],
-  ])('%s 면 던진다', (_l, v) => {
-    expect(() => updateReturningRows(v, 'computeChainDepth 재귀 CTE')).toThrow(
-      /배열이 아님/,
-    );
+  ])('%s 면 던지고 호출부 문맥을 메시지에 싣는다', (_label, value) => {
+    // `detail` 이 실제 메시지에 실리는지까지 본다 — 그게 이 인자를 필수로 만든 이유다.
+    // 자매 헬퍼 `assertRowArray` 의 같은 테스트는 이미 이렇게 하고 있었다
+    // (ai-review `23_46_00` WARNING 4). placeholder 이름도 자매와 맞췄다.
+    expect(() =>
+      updateReturningRows(value, 'computeChainDepth 재귀 CTE'),
+    ).toThrow(/배열이 아님.*computeChainDepth 재귀 CTE/s);
   });
 });
 
