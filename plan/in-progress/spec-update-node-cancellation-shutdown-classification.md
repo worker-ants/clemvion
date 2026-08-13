@@ -618,7 +618,37 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 | `spec/data-flow/2-auth.md` OAuth state 소비 | 소셜 로그인이 상시 실패였다 |
 | `spec/conventions/node-cancellation.md` §2.4 | **행 라벨이 아니라 소비 경로 단위로** — 영향 있음: `finalizeFailedExecution`·`failFirstSegmentSetup`·`executeSync` timeout·retry 재진입 종결 / 영향 없음: `assertExecutionNotCancelled`(DB 재조회)·`linkedNodeExec` `FOR UPDATE`(SELECT) |
 
-**부수**: `node-cancellation.md` frontmatter `pending_plans:` 에 `update-returning-tuple-shape.md`
-등재 (`spec-pending-plan-existence.test.ts` 가 추적하도록).
+**추가 (consistency `00_20_22` cross_spec INFO 2)** — 위 5건과 성격이 다르다. caveat 이 아니라
+**신규 카탈로그 항목**이다:
+
+| 대상 | 넣을 것 |
+|---|---|
+| `spec/5-system/3-error-handling.md` §1.8 인근 (도메인 전용 코드 등재 절) | `OAUTH_STATE_MISMATCH` (400) 행 추가. 그 절의 기존 형식대로 `도메인 SoT` 열에 `data-flow/2-auth.md` 링크 |
+
+실측(2026-08-14): `3-error-handling.md` 내 출현 `OAUTH_STATE_MISMATCH` **0** vs
+`KB_REEMBED_IN_PROGRESS` **1** · `KB_REEXTRACT_IN_PROGRESS` **1**. 자매 둘은 등재됐는데
+이것만 빠졌다.
+
+**이 PR 전에는 등재 가치가 낮았다** — 튜플 shape 오인으로 OAuth state 소비가 항상 실패해
+이 코드가 *상시* 발생했기 때문이다. fix 이후에야 "실제 이상 상황에서만 발생하는 코드" 라는
+원래 의미로 돌아왔고, 그래서 지금 카탈로그 완결성이 의미를 갖는다.
+
+착수 전 알아야 할 두 가지 (실측):
+
+- **미등재 ≠ 미문서화.** 이 코드는 이미 `spec/2-navigation/4-integration.md:851` 에 `(400)` 으로,
+  `spec/conventions/error-codes.md:35` 에 명명 예시로 나온다. 빠진 것은 **중앙 카탈로그** 한
+  곳뿐이다 — 새로 정의하지 말고 기존 서술과 status·의미를 맞춰 등재할 것.
+- **한 코드가 두 표면을 공유한다.** 로그인 OAuth(`auth-oauth.service.ts`, 이번 PR 이 고친 쪽)와
+  서드파티 연동 OAuth(`integration-oauth.service.ts`)가 같은 문자열을 던진다. 위의
+  `2-navigation/4-integration.md` 서술은 **연동 쪽**이다. 카탈로그 행은 양쪽을 다 덮게 쓰거나,
+  덮지 않는다면 어느 쪽인지 명시할 것 — 한 표면만 보고 적으면 반대쪽이 카탈로그와 어긋난다.
+
+**부수**: frontmatter `pending_plans:` 에 `update-returning-tuple-shape.md` 등재.
+대상은 위 표의 5개 문서 **전부**다 (checker 는 `4-execution-engine.md`·`node-cancellation.md`
+둘만 짚었으나, caveat 을 받는 문서는 다섯이고 기준이 같다).
+
+> `spec-pending-plan-existence.test.ts` 는 **한 방향 가드**다 — 등재된 경로가 실존하는지만
+> 검사하고, 문서가 관련 plan 을 등재하도록 강제하지 않는다. 즉 이 항목은 **가드가 잡아주지
+> 않는 규율**이라 여기 적어두지 않으면 조용히 사라진다.
 
 > 상세 근거·실측: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
