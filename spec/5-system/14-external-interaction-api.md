@@ -788,6 +788,14 @@ ALTER TABLE trigger
 
 구현된 inbound rate-limit(`/interact`·status) 초과 응답은 `429 { error: { code: 'RATE_LIMITED' } }` + `Retry-After`(잔여 윈도우 초) 다. SSE 동시연결 초과는 EIA 전용 `TOO_MANY_CONNECTIONS` 로 별개 표면이다. Redis 미가용 시 rate-limiter 는 fail-open(허용)한다.
 
+**Redis 키** — 세 버킷이 각각 자기 키를 쓴다 ([`conventions/redis-keys.md` §3](../conventions/redis-keys.md) 인벤토리가 이 절을 상세 SoT 로 가리킨다):
+
+| 버킷 | 키 |
+| --- | --- |
+| Inbound 명령 (`/interact`, `/cancel` 합산) | `eia:rl:interact:<executionId>` |
+| 단발 status 조회 | `eia:rl:status:<executionId>` |
+| Outbound notification 발송 | `eia:notif:rl:<triggerId>` |
+
 > **버킷 매핑**: `/cancel`(§5.4)은 `interact command:cancel` 과 동치(EIA-IN-05)라 **interact 버킷(분당 60)에 합산** 카운트한다 — 별도 alias 로 rate-limit 을 우회하지 못하게 한다. `/refresh-token`(§5.5)은 명령/조회가 아닌 토큰 관리 표면이라 본 per-execution rate-limit **범위 밖**이며 전역 IP throttle(분당 100)만 적용된다.
 
 ### 8.5 CORS
