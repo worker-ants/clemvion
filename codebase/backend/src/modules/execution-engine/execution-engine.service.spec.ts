@@ -7307,7 +7307,11 @@ describe('ExecutionEngineService', () => {
           Array.isArray(params) &&
           params.includes(ExecutionStatus.CANCELLED)
         ) {
-          return Promise.resolve([]); // 0행 = 이미 terminal (stop() 이 선점)
+          // 0행 = 이미 terminal (stop() 이 선점). **실 드라이버 shape 인 `[rows, count]`
+          // 튜플로 준다** — 종전엔 bare `[]` 였고, `updateReturningRows` 를 거치면 둘 다
+          // length 0 이라 결론은 같았지만 **틀린 현실을 mock 에 인코딩**하는 것이 이
+          // 결함 클래스의 발원지다 (`01_44_04` plan_coherence INFO 6).
+          return Promise.resolve([[], 0]);
         }
         return defaultQuery(sql, params);
       });

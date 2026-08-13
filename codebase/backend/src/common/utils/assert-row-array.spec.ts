@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { countCalls } from './__testing__/source-scan';
+import { countCalls } from '../__test-utils__/source-scan';
 import { assertRowArray } from './assert-row-array';
 
 describe('assertRowArray', () => {

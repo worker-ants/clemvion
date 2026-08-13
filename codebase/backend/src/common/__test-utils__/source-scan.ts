@@ -1,6 +1,15 @@
 /**
- * 구조적 회귀 가드가 **소스를 세는** 방식의 단일 출처. 테스트 전용이다
- * (`tsconfig.build.json` 이 `__testing__` 을 제외해 dist 에 실리지 않는다).
+ * 구조적 회귀 가드가 **소스를 세는** 방식의 단일 출처. 테스트 전용이다.
+ *
+ * jest 타입 비의존 — build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 순수
+ * 함수만 둔다 (`workspace-id-fixtures.ts`·`modules/integrations/__test-utils__` 와 같은 관례).
+ *
+ * > 처음엔 `common/utils/__testing__/` 라는 **새 디렉토리**에 두고 `tsconfig.build.json`
+ * > 에서 제외했다. 저장소에 이미 `__test-utils__`(2곳)·`__tests__`·`__test__` 가 있어
+ * > **네 번째 변종**이었고, 제외도 내 디렉토리에만 걸려 비대칭이었다
+ * > (`01_44_03` maintainability W2). 여기로 합치고 제외는 되돌렸다 — 자매 두 파일이
+ * > docstring 에 "build 가 컴파일한다" 를 **전제로 적어 둔 계약**이라, 제외를 넓히는 건
+ * > 내 파일이 아니라 남의 계약을 바꾸는 일이다.
  *
  * ## 왜 공유하나
  *
