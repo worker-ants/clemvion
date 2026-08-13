@@ -1291,7 +1291,7 @@ Cafe24 Private 의 "테스트 실행" 흐름은 `pending_install` 행이 이미 
 - **Layer 2 — 실패 페널티 lockout**: install_token 조회/HMAC 검증 **실패** 요청만 IP별로 카운트(`cafe24:install:fail:{ip}`)해 임계치 초과 시 `429 CAFE24_INSTALL_RATE_LIMITED` 로 거절. **성공 install(302) 은 카운트 제외** — 핵심 비대칭: 정상 사용자는 유효 토큰으로 성공하므로 카운터가 거의 0, enumeration 은 정의상 대량 실패라 빠르게 임계치 도달. 이 "성공 제외" 가 정상 사용자 무영향과 enumeration 정조준을 동시에 달성하는 근거다. Redis 부재 시 **fail-open(skip)** — nonce-cache 와 동일하게 in-memory 등가물이 없는 순수 강화 layer 라, 끄고 ±5분 윈도우 + capability-token 으로 회귀하는 게 정상 install 차단보다 안전(가용성 우선). 이는 Layer 1(in-memory fallback) 과 **의도적으로 다른 degradation 경로** — Redis 없을 때 throttle(범용 보호)은 격하·유지, fail-penalty(보조 강화)는 끔.
 - **Layer 3 (deferred)**: 전역 endpoint cap(`cafe24:install:global`) 으로 botnet 분산 enumeration 상한을 두는 layer 는 collateral DoS(한 공격자가 전체 install 마비) 위험이 있어 본 개정 범위 밖. 필요 시 후속.
 
-상수(`INSTALL_FAIL_THRESHOLD=10`, `INSTALL_FAIL_WINDOW_SEC=600`)·키 구성·degradation 의 SoT 는 [Spec Cafe24 §9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증) Rate limiting note 와 "관련 코드 상수" 테이블.
+**키 구성·TTL·degradation** 의 SoT 는 [Spec Cafe24 §4.4](../4-nodes/4-integration/4-cafe24.md#44-private-앱-install-endpoint-의-redis-키-normative) (normative), **상수 값**(`INSTALL_FAIL_THRESHOLD`·`INSTALL_FAIL_WINDOW_SEC`)과 **설계 근거**는 [§9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증) Rate limiting note 와 "관련 코드 상수" 테이블.
 
 ### install_token TTL 24h
 

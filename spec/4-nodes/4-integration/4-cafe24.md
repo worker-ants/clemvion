@@ -169,7 +169,10 @@ App URL install 엔드포인트가 소유하는 Redis 키 **두 계열**. 형태
 | 키 | 용도 | TTL | Redis 미가용 시 |
 |---|---|---|---|
 | `cafe24:install:nonce:<mall_id>:<timestamp>:<hmac 앞 8자>` | HMAC 검증을 통과한 (mall_id, timestamp, hmac) 튜플을 기록해 동일 윈도우 재전송을 `CAFE24_INSTALL_REPLAY` 로 거절 | 10분 | skip — ±5분 윈도우 정책으로 fallback |
-| `cafe24:install:fail:<ip>` | install_token 조회/HMAC **실패**만 IP별로 카운트(성공 install 은 미집계). `INSTALL_FAIL_THRESHOLD`(10) 초과 시 `429 CAFE24_INSTALL_RATE_LIMITED` | `INSTALL_FAIL_WINDOW_SEC` (600초) | skip (fail-open) |
+| `cafe24:install:fail:<ip>` | install_token 조회/HMAC **실패**만 IP별로 카운트(성공 install 은 미집계). `INSTALL_FAIL_THRESHOLD` 초과 시 `429 CAFE24_INSTALL_RATE_LIMITED` | `INSTALL_FAIL_WINDOW_SEC` | skip (fail-open) |
+
+상수 **값**은 [§9.8 "관련 코드 상수" 표](#98-private-앱-app-url-hmac-검증)가 SoT 다 — 여기서는
+이름으로만 참조한다(값을 양쪽에 적으면 그 둘이 어긋날 자리가 생긴다).
 
 두 키 모두 **끄는 쪽이 안전한 순수 강화 layer** 다 — in-memory 등가물이 없어서, Redis 가 없을 때
 차단을 유지하면 정상 install 이 막힌다. 설계 근거·알고리즘 상세는 [§9.8](#98-private-앱-app-url-hmac-검증).
