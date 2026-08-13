@@ -742,13 +742,20 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 적어 HTTP 인터셉터가 막아 주는 것처럼 읽혔는데, in-process 경로는 그 인터셉터를 타지
       > 않는다. 실제 메커니즘(전용 dedup 서비스·키·TTL·fail-open)으로 바꿨다.
       >
-      > ⚠️ **절차 이탈 기록** (`02_38_41` scope WARNING 1 · `02_50_39` plan_coherence WARNING 4).
-      > 이 항목은 위에 **"planner 결정"** 으로 게이팅해 뒀는데, 같은 턴에서 결정과 구현을 하고
-      > **`spec/` 까지 직접 고쳤다**(`15-chat-channel.md` · `providers/telegram.md`). CLAUDE.md 는
-      > developer 를 spec read-only 로 규정한다. 내용은 되돌리지 않되(기존 `필수` 요구사항의
-      > 메커니즘 서술 정정이지 새 결정이 아니다) **절차를 어긴 사실은 여기 남긴다** —
-      > 이 세션에서 planner 턴을 세 번 분리해 놓고 여기서만 합쳤다.
-      > 상세: [`RESOLUTION.md`](../../review/code/2026/08/13/02_38_41/RESOLUTION.md) WARNING #1.
+      > ⚠️ **절차 이탈 기록** (`02_38_41` scope WARNING 1 · `02_50_39` plan_coherence WARNING 4
+      > · `09_09_58` scope WARNING 1). 이 항목은 위에 **"planner 결정"** 으로 게이팅해 뒀는데,
+      > 같은 턴에서 결정과 구현을 하고 **`spec/` 까지 직접 고쳤다**. CLAUDE.md 는 developer 를
+      > spec read-only 로 규정한다. 내용은 되돌리지 않되(기존 `필수` 요구사항의 메커니즘 서술
+      > 정정이지 새 결정이 아니다) **절차를 어긴 사실은 여기 남긴다** — 이 세션에서 planner 턴을
+      > 세 번 분리해 놓고 여기서만 합쳤다.
+      >
+      > **실측 3개 파일** (`git diff --name-only origin/main...HEAD -- spec/`):
+      > `spec/5-system/15-chat-channel.md` · `spec/4-nodes/7-trigger/providers/telegram.md` ·
+      > `spec/data-flow/14-chat-channel.md`.
+      > 종전에 여기 **2개만 적어** 이탈 범위를 실제보다 좁게 기록했다 — 위반을 스스로 적으면서
+      > 그 크기를 축소한 셈이고, 이 기록의 목적(규약 형해화 방지)과 정면으로 어긋난다.
+      > 상세: [`RESOLUTION.md`](../../review/code/2026/08/13/02_38_41/RESOLUTION.md) WARNING #1,
+      > [`09_09_58/RESOLUTION.md`](../../review/code/2026/08/13/09_09_58/RESOLUTION.md).
       >
       > 뮤턴트 **6/6 사살** — NX 제거 · TTL 제거 · triggerId 세그먼트 제거 · 빈 키 가드 제거 ·
       > warn 제거 · **호출부가 반환값을 버림**. 마지막 것이 요점이다: 서비스 단위 테스트만으로는
