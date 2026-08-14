@@ -128,7 +128,12 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
 구현돼 있었다. **두 겹으로 좁았다.**
 
 - WS §4.4 Rationale 제목·본문을 **"`llmCalls` 필드 외부 수신자 strip (위치·이벤트 무관)"**
-  으로 넓힌다
+  으로 넓힌다. §4.4 의 *"strip 대상은 본 WS 이벤트 필드뿐"* 도 **"WS fanout + EIA REST
+  `getStatus()` 양쪽"** 으로 확장 — 코드가 이미 그렇게 하고 있다
+- **§R17 정정** (`14_30_36` CRITICAL 2·WARNING 2·3). 현행은 `getStatus` 를 *"secret-shape
+  만 치환"* 으로 서술하는데 실제로는 **값 마스킹(`deepRedactSecrets`) + 필드 삭제
+  (`stripExternalOnlyFields`)** 를 병행한다. 세 출구(waiting `nodeOutput` · terminal
+  `result` · terminal `error`) 전부에 적용됨을 명시할 것 — 코드가 spec 을 앞질러 있다
 - EIA §6.2 에도 §6.5 와 동형의 strip 명시 문장 + §R17 역참조
 - 같은 턴에 수정 이력 addendum: *"2026-08-14: depth-1 구현이 중첩 경로 2곳에서 실제 누출
   중이었음을 발견 → 깊이 무관 strip + `__proto__` 오염 방지(`81f2c60d6`·`5df89cda6`)"*

@@ -613,12 +613,12 @@ describe('InteractionService.getStatus', () => {
   /**
    * **REST 스냅샷도 fanout 과 같은 수준으로 `llmCalls` 를 막아야 한다.**
    *
-   * `stripDeep`(`websocket.service.ts`)은 SSE·webhook·chat-channel fanout 에서
-   * `llmCalls` 를 깊이 무관으로 지운다. 그런데 `getStatus` 는 **같은 `iext_*`/`itk_*`
-   * 토큰으로 접근하는 같은 데이터**를 `deepRedactSecrets` 만 거쳐 돌려준다 —
-   * 그건 **값 마스킹**이지 필드 제거가 아니라 `nodeOutput.meta.turnDebug[].llmCalls[]`
-   * 의 raw `requestPayload`(시스템 프롬프트·대화 이력)가 그대로 나간다
-   * (`12_06_21` cross_spec CRITICAL 1).
+   * `stripExternalOnlyFields`(`shared/utils/strip-external-only-fields.ts`)는
+   * SSE·webhook·chat-channel fanout 에서 `llmCalls` 를 깊이 무관으로 지운다. 그런데
+   * `getStatus` 는 **같은 `iext_*`/`itk_*` 토큰으로 접근하는 같은 데이터**를
+   * `deepRedactSecrets` 만 거쳐 **돌려주고 있었다** — 그건 **값 마스킹**이지 필드 제거가
+   * 아니라 `nodeOutput.meta.turnDebug[].llmCalls[]` 의 raw `requestPayload`
+   * (시스템 프롬프트·대화 이력)가 그대로 나갔다 (`12_06_21` cross_spec CRITICAL 1).
    *
    * fanout 쪽만 고치고 이 표면을 안 물은 것이 이 PR 의 처음 실수였다 — **같은 데이터의
    * 다른 출구**를 세지 않았다.
@@ -654,6 +654,52 @@ describe('InteractionService.getStatus', () => {
     // 대조군 — 정상 필드는 그대로 나가야 한다(통째로 날려서 통과하는 것 방지).
     expect(JSON.stringify(r)).toContain('안녕하세요');
   });
+
+  /**
+   * **terminal 분기도 waiting 분기와 대칭이어야 한다** (`14_30_36` CRITICAL 1).
+   *
+   * 같은 함수 안에서 `nodeOutput`(waiting)만 strip 을 받고 `result`/`error`(terminal)는
+   * `deepRedactSecrets` 단독이었다. 체커는 "`Execution.outputData` 구조상 `.meta` 를
+   * 못 가져서 우연히 안전" 이라 했는데 그건 **문서화되지 않은 전제**다 — 전제가 참이든
+   * 아니든 방어를 비대칭으로 두면 다음 사람이 그 구조를 바꾸는 순간 조용히 열린다.
+   *
+   * AI Agent 가 마지막 노드인 워크플로가 종료되면 이 경로로 나간다.
+   */
+  it.each([
+    ['completed', ExecutionStatus.COMPLETED, 'result'],
+    ['failed', ExecutionStatus.FAILED, 'error'],
+  ])(
+    '%s — terminal outputData 의 raw llmCalls 도 REST 응답에 실리지 않는다',
+    async (_label, status, field) => {
+      const { service, repo } = makeMocks();
+      repo.findOne.mockResolvedValue(
+        makeExecution({
+          status,
+          outputData: {
+            answer: '최종 답변',
+            meta: {
+              turnDebug: [
+                {
+                  turnIndex: 0,
+                  llmCalls: [
+                    { requestPayload: { system: 'SECRET PROMPT TERMINAL' } },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+
+      const r = await service.getStatus(IEXT_CTX);
+
+      expect(JSON.stringify(r)).not.toContain('SECRET PROMPT TERMINAL');
+      // 대조군 — 정상 결과는 그대로 나가야 한다.
+      expect(JSON.stringify(r[field as 'result' | 'error'])).toContain(
+        '최종 답변',
+      );
+    },
+  );
 
   it('waiting_for_input — 대기 NodeExecution 없으면 currentNode/context null', async () => {
     const { service, repo, nodeRepo } = makeMocks();

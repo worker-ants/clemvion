@@ -1,0 +1,32 @@
+# 아키텍처(Architecture) 리뷰
+
+## 발견사항
+
+- **[WARNING]** `strip-external-only-fields.ts` 를 소유하는 자기 자신의 spec 파일이 없다 — 공유 모듈인데 회귀 방지 근거가 한 소비처의 spec 에만 존재
+  - 위치: `codebase/backend/src/shared/utils/strip-external-only-fields.ts` (전체) — 대응 spec 부재. 실제 회귀 커버리지는 `codebase/backend/src/modules/websocket/websocket.service.spec.ts` `describe('llmCalls strip — 외부 fanout 수신자 보호', ...)` 블록(`__proto__` 오염 테스트, 깊이 경계 sweep 테스트)에만 있다.
+  - 상세: 이번 diff 는 원래 `websocket.service.ts` 내부에 있던 `stripExternalOnlyFields`/`stripDeep` 을 `shared/utils/strip-external-only-fields.ts` 로 승격시키고, `interaction.service.ts` 를 두 번째 소비처로 추가했다 — 정확한 방향의 리팩터(cross-module 로직을 공유 leaf 유틸로 승격, DIP 준수)다. 그런데 그 모듈이 스스로의 계약(lazy clone-on-write, `__proto__` 안전, depth 상한 처리)을 증명하는 테스트를 자기 이름의 spec 파일로 갖지 않고, 여전히 `websocket.service.spec.ts` 안에 "WebsocketService" 스코프로 묻혀 있다. `interaction.service.spec.ts` 에 추가된 새 테스트(`waiting_for_input — nodeOutput 의 raw llmCalls 가 REST 응답에 실리지 않는다`)는 "새지 않는다"만 검증하고, `__proto__` 안전성이나 깊이 경계 판별력은 검증하지 않는다. 즉 공유 유틸의 정확성 증명이 한 소비처(WS)의 spec 파일에 독점 결속돼 있어, 누군가 `websocket.service.spec.ts` 의 그 describe 블록을 "WS 전용이니 정리 대상"으로 오판해 제거하거나 축소하면 `interaction.service.ts` 소비처는 아무 보호 없이 회귀에 노출된다.
+  - 제안: `strip-external-only-fields.spec.ts` 를 신설해 `__proto__` 안전성·lazy clone-on-write·깊이 경계·필드 제거를 유틸 자체의 계약으로 직접 검증하고, 두 소비처의 spec 은 "자기 표면에서 실제로 호출되는지"만 얇게 확인하도록 역할을 분리한다.
+
+- **[WARNING]** `stripExternalOnlyFields` 자신의 JSDoc 계약("같은 값·같은 경계 연산자")을 `interaction.service.ts` 호출부가 값만 지키고 연산자는 어긴다 — 안전은 합성 순서에 암묵적으로 의존
+  - 위치: `codebase/backend/src/modules/external-interaction/interaction.service.ts:349-355` (`stripExternalOnlyFields(deepRedactSecrets(...), MAX_REDACT_DEPTH)`), 대조: `codebase/backend/src/shared/utils/strip-external-only-fields.ts:46` (`if (depth > maxDepth) return value;`) vs `codebase/backend/src/shared/utils/sanitize-error-message.ts:134` (`if (depth >= MAX_REDACT_DEPTH) return '***';`)
+  - 상세: `strip-external-only-fields.ts` 의 `@param maxDepth` JSDoc(`:36-39`)은 "호출부의 자매 sanitizer 와 **같은 값·같은 경계 연산자**를 쓴다" 고 명시적으로 계약한다. `websocket.service.ts` 소비처는 이 계약을 정확히 지킨다 — `MAX_SANITIZE_DEPTH` 값과 `sanitizePayloadForWs` 의 `depth > MAX_SANITIZE_DEPTH` 연산자가 `stripDeep` 의 `depth > maxDepth` 와 완전히 일치한다(같은 라운드에서 `>=`→`>` 로 통일까지 됐다). 그런데 이번 diff 로 새로 추가된 `interaction.service.ts` 소비처는 `MAX_REDACT_DEPTH`(값 10)를 넘기지만, 그 값의 "자매"인 `deepRedactSecrets` 는 `depth >= MAX_REDACT_DEPTH`(depth 10부터 마스킹, 즉 depth 0~9만 실제 객체로 순회)를 쓰는 반면 `stripDeep` 은 `depth > maxDepth`(depth 0~10까지 순회)를 쓴다 — 값은 같아도 연산자가 다르다. 이번 코드의 합성 순서(`deepRedactSecrets` 를 먼저 실행한 뒤 그 결과에 `stripExternalOnlyFields` 를 적용)에서는 우연히 안전하다: `deepRedactSecrets` 가 depth 10 이상을 이미 `'***'` 문자열로 뭉개 놓았으므로 `stripDeep` 이 depth 10 자리에서 만나는 값은 이미 object 가 아니라 즉시 `typeof value !== 'object'` 로 반환된다. 그러나 이 안전성은 `stripExternalOnlyFields` 자신의 방어가 아니라 **호출 순서(redact-먼저)** 에 전적으로 의존하는 우연이며, 이 프로젝트가 반복 지적해 온 "깊이 방어가 호출 순서에 의존한다"는 패턴이 형제 함수 간 짝이 아니라 **연산자 자체의 불일치**라는 새로운 형태로 재발한 것이다. 두 함수 모두 순수 함수라 타입 시스템이 이 전제를 강제하지 않는다.
+  - 제안: `interaction.service.ts` 의 이 호출을 다루는 최소 한 줄이라도 "합성 순서(redact 먼저)가 이 depth 조합의 안전을 보장한다" 는 전제를 JSDoc/인라인 주석으로 명시하거나, `stripExternalOnlyFields` 를 `deepRedactSecrets` 이전에 두어도 안전하도록 두 함수의 경계 연산자를 통일하는 편이 더 근본적이다.
+
+- **[WARNING]** 이번 diff 가 `getStatus()` 안에서 고친 것은 `waiting_for_input` 분기(`context.nodeOutput`)뿐이고, 같은 함수의 구조적으로 동일한 다른 두 출구(`result`/`error`, terminal 실행)는 여전히 `deepRedactSecrets` 값-마스킹만 거친다 — 이 PR 이 스스로 지적한 "한 출구만 막는" 패턴이 같은 함수 안에서 반복될 위험
+  - 위치: `codebase/backend/src/modules/external-interaction/interaction.service.ts:406-421` (`result`/`error` 필드, `deepRedactSecrets(execution.outputData ?? null)` 만 적용 — `stripExternalOnlyFields` 미적용) vs 같은 함수의 `:349-355` (waiting 분기, 이번 diff 로 `stripExternalOnlyFields` 추가됨)
+  - 상세: `execution.outputData`(COMPLETED/FAILED 시 `result`/`error` 로 나가는 값)는 엔진에서 `context.nodeOutputCache[lastNodeId]` 로 채워진다(`codebase/backend/src/modules/execution-engine/execution-engine.service.ts:2358-2360`). 정상 완주 경로에서는 `nodeOutputCache` 가 `toEngineFlatShape` 로 정제된 "flat" 값이라 `meta.turnDebug` 를 포함하지 않는 것으로 보이지만(`ai-turn-orchestrator.service.ts:836-840`), **context rehydration 경로**(`execution-engine.service.ts:1564-1573`, `rehydrateContext` 계열)는 COMPLETED `NodeExecution` 행의 `outputData` **원본을 그대로** `setNodeOutput` 에 넘긴다(`toEngineFlatShape` 를 거치지 않음) — 즉 이 경로를 탄 노드가 마지막 노드라면 `execution.outputData` 에 `meta.turnDebug[].llmCalls[]` 가 그대로 실릴 가능성을 코드만으로 배제할 수 없다. 이 diff 의 JSDoc·`RESOLUTION.md`·`strip-external-only-fields.ts` 서두는 모두 "같은 데이터의 다른 출구를 세지 않는 것이 반복되는 결함 형태"라고 스스로 명시하는데, 정작 같은 함수 안의 `result`/`error` 출구는 이번 라운드의 점검 대상에 들지 않은 것으로 보인다(테스트도 `waiting_for_input` 케이스만 추가됨).
+  - 제안: `execution.outputData` 가 `nodeOutputCache` 경유로 rehydration 경로를 통해 raw envelope 을 흡수할 수 있는지 엔진 쪽에서 확정한 뒤, 확정되면 `result`/`error` 조립 지점에도 `stripExternalOnlyFields` 를 동일하게 적용한다. 불확실성이 크므로 security/side_effect 리뷰어의 실측 확인을 권장 — 코드 흐름상 가능성은 있으나 이 리뷰의 시간 범위 안에서 실행 경로로 직접 재현하지는 못했다.
+
+## 확인했으나 문제 없음 (긍정 평가)
+
+- `stripExternalOnlyFields`/`EXTERNAL_STRIPPED_FIELDS` 를 `websocket.service.ts` 내부에서 `shared/utils/strip-external-only-fields.ts` 로 승격한 것은 옳은 방향의 리팩터다. 이전에는 이 로직이 WS 모듈에 갇혀 있어 `interaction.service.ts`(REST 표면)가 재사용하려면 WS 모듈을 직접 참조해야 했을 것이다(잘못된 의존 방향 — REST 도메인 모듈이 WS 모듈에 뒤엉키는 결합). 지금은 두 모듈이 동등하게 `shared/utils` 라는 leaf 모듈에 의존하는 형태로, DIP 를 준수하고 순환 참조 위험이 없다(신규 모듈은 외부 의존이 전혀 없는 순수 함수).
+- `EXTERNAL_STRIPPED_FIELDS` 를 `as const` 로 선언해 불변으로 노출하고, 삭제 판단 기준을 "필드 이름" 하나로 단일화해 새 중첩 위치가 생겨도 자동으로 방어되게 한 설계는 "위치 나열" 방식보다 견고한 추상화 선택이다.
+- 두 소비처(`websocket.service.ts`, `interaction.service.ts`) 모두 `maxDepth` 를 호출부가 명시적으로 넘기게 강제한 시그니처(`stripExternalOnlyFields<T>(value: T, maxDepth: number)`)는, 상한을 유틸 내부에 감추지 않고 각 표면이 "자기 자매 sanitizer" 를 스스로 선택하게 해 암묵적 전역 상수 결합을 피한 설계다(다만 그 계약이 실제로 지켜지는지는 타입으로 강제되지 않는다는 점은 위 WARNING 대상).
+
+## 요약
+
+핵심 아키텍처 변화 — `websocket.service.ts` 안에 갇혀 있던 `llmCalls` strip 로직을 `shared/utils/strip-external-only-fields.ts` 공유 유틸로 승격하고 `interaction.service.ts`(REST 스냅샷)를 두 번째 소비처로 연결한 것 — 은 이전 라운드 consistency CRITICAL("REST 출구가 fanout 과 다른 방어 수준")이 지적한 근본 원인(같은 로직의 모듈-국소적 중복)을 정확히 겨냥한 옳은 구조 결정이며, 의존 방향·순환 참조·모듈 경계 면에서 문제가 없다. 다만 세 가지 결이 남는다: (1) 승격된 공유 모듈이 자기 소유의 spec 을 갖지 못해 회귀 보증이 한 소비처의 spec 파일에 결속돼 있고, (2) 그 유틸 자신이 문서화한 "같은 값·같은 경계 연산자" 계약을 새 소비처(`interaction.service.ts`)가 값만 지키고 연산자는 어겨 안전성이 합성 순서라는 암묵적 전제에 기대고 있으며, (3) 이 PR 이 스스로 되풀이해 경고한 "같은 데이터의 다른 출구를 놓친다" 패턴이 같은 함수(`getStatus`) 안의 `result`/`error` 출구에 대해서는 이번 라운드의 점검 범위에 들지 않은 것으로 보인다. 셋 다 즉시 회귀를 일으키는 확정 결함은 아니지만(특히 (3)은 엔진 경로 확정이 더 필요), 이 저장소가 이미 여러 라운드에 걸쳐 정확히 이 클래스의 실수를 반복해 왔다는 점에서 다음 라운드에서 우선 검증할 가치가 있다.
+
+## 위험도
+
+MEDIUM

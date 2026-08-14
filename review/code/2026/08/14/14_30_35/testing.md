@@ -1,0 +1,33 @@
+# 테스트(Testing) 리뷰
+
+## 발견사항
+
+- **[CRITICAL]** 이번 커밋이 REST 스냅샷의 `llmCalls` 누출을 고쳤다고 주장하지만, 같은 함수 안의 형제 경로(`COMPLETED`/`FAILED` 의 `result`/`error`)는 여전히 raw 프롬프트를 흘린다 — 실제 코드로 재현했다
+  - 위치: `codebase/backend/src/modules/external-interaction/interaction.service.ts:408-421` (`result`/`error` 필드 — `deepRedactSecrets` 만 호출, `stripExternalOnlyFields` 미적용) ↔ 대조: `:349-355` (`nodeOutput` — 이번 커밋이 `stripExternalOnlyFields` 를 추가한 자리). 근거 체인: `codebase/backend/src/nodes/ai/ai-agent/ai-turn-executor.ts:3188`(`buildMultiTurnFinalOutput` 선언) `:3327`(`turnDebug: turnDebugHistory ?? []` 를 `meta` 에 실음, multi-turn 이 **정상 종료**할 때의 node output) → `codebase/backend/src/modules/execution-engine/execution-engine.service.ts:2358-2360`(`savedExecution.outputData = context.nodeOutputCache[lastNodeId]` — 마지막 노드의 outputData 가 그대로 `execution.outputData` 가 된다).
+  - 상세: `interaction.service.ts` 의 `getStatus` 는 `WAITING_FOR_INPUT` 의 `nodeOutput` 에는 이번 커밋에서 `stripExternalOnlyFields(deepRedactSecrets(...), MAX_REDACT_DEPTH)` 를 적용했지만, `COMPLETED`/`FAILED` 의 `result`/`error` 는 여전히 `deepRedactSecrets(execution.outputData ?? null)` **만** 호출한다(`stripExternalOnlyFields` 없음). `execution.outputData` 는 엔진이 마지막 노드의 `outputData` 를 그대로 옮겨 담은 값이고(`execution-engine.service.ts:2358-2360`), AI Agent 노드가 멀티턴을 정상 종료(`user_ended`/`max_turns`/`condition`)하면 `buildMultiTurnFinalOutput` 이 `meta.turnDebug: turnDebugHistory`(raw `llmCalls[].requestPayload`/`responsePayload` 포함)를 그 outputData 에 싣는다(`ai-turn-executor.ts:3327`). 즉 **AI Agent 노드가 워크플로의 마지막 노드로 정상 종료하면, 그 raw 시스템 프롬프트/대화이력이 그대로 `execution.outputData` 에 남고, `deepRedactSecrets` 는 필드 제거가 아니라 값 패턴 마스킹이라(credential 키 패턴에 안 걸리는 자유 텍스트 system prompt 는 무영향) 그대로 REST `result` 로 나간다.**
+    이걸 코드 수정 없이 실제 함수로 재현했다 — `InteractionService.getStatus` 를 직접 호출하는 임시 프로브 테스트(리뷰 종료 후 삭제, 저장소에 남기지 않음)로 `COMPLETED` execution 의 `outputData` 에 `meta.turnDebug[0].llmCalls[0].requestPayload.system = 'PROBE SECRET SYSTEM PROMPT'` 를 넣고 호출한 결과:
+    ```
+    PROBE_COMPLETED_RESULT_CONTAINS_SECRET= true
+    PROBE_COMPLETED_RESULT_JSON= {"output":{...},"meta":{...,"turnDebug":[{"turnIndex":0,"llmCalls":[{"requestPayload":{"system":"PROBE SECRET SYSTEM PROMPT — must not leak via REST"},...}]}]}}
+    ```
+    `r.result` 에 raw 프롬프트가 **그대로** 실려 있다. 이 취약점은 이번 PR 전체가 "한 출구를 막고 나머지를 세지 않는 것이 이 결함의 반복 형태"(`strip-external-only-fields.ts:20-21` JSDoc 자신의 말)라고 명시적으로 경계했던 바로 그 패턴의 재발이다 — `waiting_for_input.nodeOutput` 출구는 이번 커밋이 막았지만, **같은 함수 안의 `result`/`error` 출구는 안 물었다.**
+    이를 검증할 회귀 테스트가 전혀 없다 — `interaction.service.spec.ts:830`(`'COMPLETED result / FAILED error 의 outputData secret 도 마스킹 (EIA §R17)'`)이 유일한 관련 테스트인데, 이 테스트는 `Bearer sk-...`/`api_key` 같은 **credential 패턴 값**만 검증할 뿐 `meta.turnDebug[].llmCalls[]` 형태의 raw 프롬프트는 fixture 에 전혀 없다. 이번 diff 가 `nodeOutput` 경로에는 `waiting_for_input — nodeOutput 의 raw llmCalls 가 REST 응답에 실리지 않는다` 테스트(:626)를 추가하면서도, 구조적으로 동일한 `result`/`error` 경로에는 짝 테스트를 추가하지 않아 이 갭이 그대로 드러나지 않았다.
+  - 제안: `result`/`error` 조립에도 `stripExternalOnlyFields(deepRedactSecrets(execution.outputData ?? null), MAX_REDACT_DEPTH)` 를 적용하고, `interaction.service.spec.ts:830` 테스트 옆에 `outputData.meta.turnDebug[].llmCalls[].requestPayload` 를 심은 `COMPLETED`/`FAILED` 케이스를 추가해 이 경로도 회귀로 고정한다(:626 테스트와 대칭).
+
+- **[WARNING]** 새 REST 테스트의 JSDoc 이 이번 커밋이 옮긴 `stripDeep` 의 위치를 옛 파일로 잘못 가리킨다 — 같은 브랜치에서 이미 3번 지적된 "같은 커밋이 고친 걸 JSDoc 이 옛 상태로 서술" 패턴의 4번째 재발
+  - 위치: `codebase/backend/src/modules/external-interaction/interaction.service.spec.ts:616` (`` * `stripDeep`(`websocket.service.ts`)은 SSE·webhook·chat-channel fanout 에서 ``)
+  - 상세: `stripDeep` 는 이번 diff 에서 `websocket.service.ts` 밖으로 빠져 `codebase/backend/src/shared/utils/strip-external-only-fields.ts` 로 이동했다(같은 라운드의 `websocket.service.ts` diff 가 `stripDeep`/`EXTERNAL_STRIPPED_FIELDS` 선언을 통째로 삭제하고 공유 유틸 import 로 대체). 그런데 **같은 커밋**에서 새로 추가된 이 테스트의 JSDoc 은 `stripDeep` 를 여전히 `websocket.service.ts` 소속으로 서술한다. `grep` 으로 확인한 결과 `stripDeep` 정의는 현재 `strip-external-only-fields.ts` 에만 있다(`websocket.service.ts` 에는 없음). 이 저장소는 이미 `10_32_27` testing W7, `12_06_20` W1 에서 정확히 같은 클래스의 결함("조사 시점의 상태를 JSDoc 에 적고 코드를 다시 고친 뒤 갱신을 안 함")을 두 번 잡았는데, 이번엔 리팩터로 파일 자체가 옮겨간 것을 반영 안 해 세 번째로 재발했다.
+  - 제안: `` `stripDeep`(`websocket.service.ts`) `` 를 `` `stripDeep`(`shared/utils/strip-external-only-fields.ts`) `` 로 정정.
+
+- **[WARNING]** 신규 공유 유틸 `strip-external-only-fields.ts` 에 전용 unit-test 파일이 없다 — 같은 디렉터리의 자매 유틸 관례와 어긋난다
+  - 위치: `codebase/backend/src/shared/utils/strip-external-only-fields.ts` (전체 파일 — 대응 `strip-external-only-fields.spec.ts` 없음). 비교 대상: `codebase/backend/src/shared/utils/sanitize-error-message.ts` ↔ `sanitize-error-message.spec.ts` (동일 디렉터리, 동일 성격의 "recursive clone-on-write + depth cap" 유틸인데 `deepRedactSecrets` 는 `it('returns the same reference when nothing is masked (copy-on-change)')`/`it('does not mutate the input')`/`it('caps recursion depth ...')`/`it('caches by object identity ...')` 등 함수 자체에 대한 직접 단위 테스트를 갖고 있다).
+  - 상세: `strip-external-only-fields.ts` 는 JSDoc 에서 "입력을 변형하지 않는다", "lazy clone-on-write", "`maxDepth` 는 호출부가 명시" 라는 명시적 계약을 선언하지만, 이를 직접 검증하는 테스트가 없다. 현재 커버리지는 전부 **두 소비자를 거친 간접 테스트**뿐이다 — `websocket.service.spec.ts` 가 `MAX_SANITIZE_DEPTH` 로, 새로 추가된 `interaction.service.spec.ts:626` 가 `MAX_REDACT_DEPTH` 로 각각 한 번씩 우회 검증한다. 이 함수가 "여러 외부 표면이 공유하는 단일 처방"(파일 자체 JSDoc, `:11-21`)이라는 목적으로 만들어졌다는 점을 생각하면, 신규 외부 표면이 추가될 때마다 소비자 테스트로만 이 함수를 검증하는 패턴이 반복될 위험이 있다 — 함수 자체가 깨지면 실패가 "소비자 A/B 모두 실패"로만 보이고 원인 함수를 바로 특정하기 어렵다. 특히 배열 분기의 부분 clone-on-write(다원소 배열에서 변경되지 않은 원소의 참조 동일성)는 두 소비자 테스트 어디에도 다원소 배열 fixture 가 없어 여전히 미검증이다(직전 라운드 `11_02_16` INFO 11 로 이미 인지·유예된 항목이라 이번엔 새 지적이 아니라 위 갭의 근거로만 첨부).
+  - 제안: `strip-external-only-fields.spec.ts` 를 신설해 함수 자체에 대해 최소限 (1) 대상 필드가 없으면 참조 동일성 보존, (2) 입력 비변형, (3) `maxDepth` 경계(정확히 `maxDepth`/`maxDepth+1`), (4) `__proto__` 오염 방지(현재 `websocket.service.spec.ts` 에만 있는 객체-분기 케이스에 배열-분기 케이스 추가), (5) 다원소 배열 부분 clone 을 직접 검증한다. 두 소비자 테스트는 "내 채널에서 이 유틸이 호출된다" 는 배선만 확인하는 얇은 테스트로 남겨도 된다.
+
+## 요약
+
+이번 라운드가 REST 스냅샷(`waiting_for_input.nodeOutput`)의 `llmCalls` 누출을 막은 것 자체는 정확하고, 새 테스트(`interaction.service.spec.ts:626`)도 통제군(정상 필드 보존)을 갖춘 좋은 형태다. 그러나 실제로 `InteractionService.getStatus` 를 실행해 검증한 결과, **같은 함수 안의 형제 경로인 `COMPLETED`/`FAILED` 의 `result`/`error` 필드는 이번 수정에서 빠졌고, 구조적으로 동일한 `meta.turnDebug[].llmCalls[].requestPayload` raw 프롬프트가 여전히 REST 로 새어 나간다** — 이 PR 자신의 표어("한 출구를 막고 나머지를 세지 않는 것이 반복 결함")가 이번에도 그대로 재현된 CRITICAL 이다. 이를 잡을 회귀 테스트가 없다는 것 자체가 테스트 리뷰의 1차 발견이며, 근본 수정은 코드(`stripExternalOnlyFields` 를 `result`/`error` 조립에도 적용)와 테스트(대칭 케이스 추가) 둘 다 필요하다. 그 외 신규 공유 유틸(`strip-external-only-fields.ts`)이 전용 단위 테스트 없이 두 소비자의 간접 테스트로만 커버되는 것과, 같은 커밋이 옮긴 함수 위치를 새 테스트 JSDoc 이 옛 파일로 잘못 가리키는 것(이 브랜치에서 반복된 패턴의 4번째 재발)을 WARNING 으로 남긴다.
+
+## 위험도
+
+CRITICAL

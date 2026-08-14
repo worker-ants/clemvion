@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — (보안) 외부 fanout 의 `llmCalls` strip 이 depth-1 이라 raw 프롬프트가 새고 있었다
+## Unreleased — (보안) `llmCalls` raw 프롬프트가 외부로 새고 있었다 — fanout(depth-1) + REST 스냅샷
 
 `execution.waiting_for_input` 이 raw LLM 요청/응답을 **두 경로로 중첩**해 실었는데, strip 은
 최상위 필드만 지웠다:
@@ -20,7 +20,18 @@ strip 을 **깊이 무관**으로 바꿨다. 필드명 자체가 문서화된 �
 열거하는 대신 이름으로 막는다 — 새 위치가 생겨도 자동 보호된다. 내부 WS(에디터) 채널은
 종전대로 full payload 를 받는다(대조군 테스트로 고정).
 
-> 영향 범위: 이 경로로 나간 데이터는 **이미 전송된 것**이다. 외부 통합자가 저장했을 수
+### 그리고 fanout 만이 아니었다 — REST 스냅샷도 같은 것을 돌려줬다
+
+`GET /api/external/executions/:id`(`InteractionService.getStatus`)가 **같은 토큰으로
+접근하는 같은 데이터**를 `deepRedactSecrets` 만 거쳐 반환했다. 그건 secret-shape **값**
+마스킹이라 `llmCalls` **필드 자체**는 남는다. 세 출구가 모두 열려 있었다 —
+waiting `nodeOutput` · terminal `result` · terminal `error`.
+
+처방을 `shared/utils/strip-external-only-fields.ts` 로 올려 fanout·REST 가 같은 것을 부르게
+했고, REST 쪽 세 출구는 다시 한 헬퍼(`redactAndStrip`)로 묶었다 — **출구를 각자 조립하면
+한 번에 하나씩만 고쳐진다**는 것이 이 결함이 세 라운드에 걸쳐 반복된 이유다.
+
+> 영향 범위: 두 경로로 나간 데이터는 **이미 전송된 것**이다. 외부 통합자가 저장했을 수
 > 있으므로, 해당 워크스페이스의 프롬프트/대화 이력 민감도에 따라 운영 판단이 필요하다.
 
 ## Unreleased — `UPDATE … RETURNING` 의 결과를 8곳이 행 배열로 오인했다 (소셜 로그인 상시 실패 포함)
