@@ -17,10 +17,13 @@ owner: planner
       spec 이 없는 필드를 약속하던 상태를 정리하며(§6 재작성) **문서 쪽을 실제에 맞췄고**,
       이 항목은 그 반대 방향(구현을 문서에 맞추기)의 잔여분이다. 구현되면 필드 집합 표의
       "미구현 (Planned)" 를 "구현됨" 으로 flip 한다.
-- [ ] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행, 2026-08-13 등재)
-      — 일부 경로가 아직 string 을 싣는다(`execution-engine.service.ts` L656·L3291,
-      `retry-turn.service.ts` L956). 그래서 `chat-channel.dispatcher.ts` 에 back-compat wrap 이
-      쌓였고 adapter 타입도 `| string` 을 안고 있다. 통일되면 그 wrap 과 union 을 함께 제거한다.
+- [x] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행,
+      2026-08-13 등재 → **2026-08-14 완료**). emit 4곳을 `toTerminalErrorPayload` 로 일원화.
+      > **"wrap 과 union 을 함께 제거한다" 는 원래 계획을 절반만 집행했다 — 의도적이다.**
+      > `chat-channel.dispatcher.ts` 의 string 분기는 **배포 경계에서 재생되는 레거시
+      > 이벤트 흡수용으로 유지**한다. 제거하면 그 창 동안 사용자가 CCH-ERR-* 안내를 못 받는
+      > silent skip 으로 되돌아간다(2026-05-25 에 고친 그 회귀다). 지어낸
+      > `'INTERNAL_ERROR'` 만 `null` 로 정리했다.
 - [x] **Outbound notification backoff 배율** (§3.1 EIA-NX-06 / §6.6) — base-4 (1s/4s/16s/64s/256s) custom BullMQ backoffStrategy 로 구현. worker `settings.backoffStrategy` + `NOTIFICATION_BACKOFF_TYPE`. spec §3.1/§6.6/data-flow-15 동기화. lint·unit·build·e2e 통과.
 - [ ] **분산(다중 인스턴스) SSE / notification fan-out** (§R10) — 현재 `SseAdapter`·`NotificationFanout` 모두 단일 sink `WebsocketService.executionEvents$` 를 in-process(in-memory) RxJS 구독만 하고 Redis pub/sub 발행/구독이 없음. 코드 주석상 "v1 single-instance, 분산 fan-out follow-up". 다중 인스턴스에서 외부 SSE 클라이언트가 임의 인스턴스 접속 가능하려면 Redis pub/sub 도입 필요.
 - [x] **Inbound per-execution rate-limit 및 `RATE_LIMITED` 429** (§5.1 / §8.4 rows 1·3) — `/interact` 60/분·status 120/분 (execution 당). `InteractionRateLimiterService`(Redis fixed-window, fail-open) + `InteractionRateLimitGuard` + `@RateLimit`. `429 RATE_LIMITED` + `Retry-After`. spec §5.1/§8.4/§3.1 EIA-NX-11 + §2-api-convention §7 + user-guide triggers.mdx/en.mdx 동기화. lint·unit·build·e2e 통과.

@@ -201,7 +201,7 @@ import {
 } from '../../shared/execution-resume/resume-call-stack.types';
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
-import { toTerminalErrorPayload } from './terminal-error-payload';
+import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;

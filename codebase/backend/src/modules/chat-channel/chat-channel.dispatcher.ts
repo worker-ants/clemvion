@@ -11,6 +11,7 @@ import {
   ExecutionChannelEvent,
   WebsocketService,
 } from '../websocket/websocket.service';
+import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
@@ -543,16 +544,18 @@ export function toChatChannelEvent(
       // 문자열의 최초 등장이 이 주석 자신이다). 인용한 라인 번호 두 개도 지금은 전혀 다른
       // 코드를 가리킨다. 없는 문서를 가리키는 포인터는 다음 사람의 조사를 낭비시킨다.
       const errorRaw = (event.payload as { error?: unknown }).error;
-      let error: EiaFailedEvent['error'];
-      if (errorRaw && typeof errorRaw === 'object') {
-        // §6.4 object shape (hot path).
-        error = errorRaw as typeof error;
-      } else if (typeof errorRaw === 'string') {
-        // 레거시 문자열 — 위 주석 참조.
-        error = { code: null, message: errorRaw, nodeId: null };
-      } else {
-        error = { code: null, message: 'unknown error', nodeId: null };
-      }
+      // **producer 와 같은 헬퍼를 쓴다.** 종전엔 여기서 세 분기로 손수 정규화했고, object
+      // 분기는 `errorRaw as typeof error` 로 **캐스팅**해 필드별 타입가드를 통째로
+      // 우회했다 — 캐스팅은 검증이 아니다(이 브랜치가 프런트엔드에서 같은 실수로
+      // 렌더 크래시를 냈다). 문자열·부재 흡수도 헬퍼가 이미 담당한다
+      // (`22_55_51`/`23_17_57` maintainability W3).
+      const error: EiaFailedEvent['error'] = toTerminalErrorPayload(
+        errorRaw,
+      ) ?? {
+        code: null,
+        message: 'unknown error',
+        nodeId: null,
+      };
       // `code: null` 은 [CCH-ERR-04] 가 `executionFailedInternal` 로 흡수한다.
       //
       // 종전엔 여기서 `'INTERNAL_ERROR'` 를 지어냈다. **그 코드는 분류기에 존재하지 않는다**

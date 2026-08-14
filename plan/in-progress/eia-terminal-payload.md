@@ -227,7 +227,9 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
       15 tests · chat-channel 동반 3건 · 프런트엔드 소비자 갱신
 - [x] `/ai-review` `22_55_51` — **CRITICAL 1**(프런트엔드 미갱신) 포함, 조치 완료
 - [ ] `/consistency-check --impl-done`
-- [ ] 위 3개 plan 체크박스 동시 갱신
+- [x] 자매 plan 갱신 — **3개가 아니라 4개였다.** `spec-sync-external-interaction-api-gaps.md` ·
+      `spec-draft-eia-notification-payload-contract.md`(체커 지목) + `node-output-redesign/README.md`
+      (전수 grep 으로 발견, 체커가 놓친 것). 셋 다 "현행 일부 경로는 string" 을 전제하고 있었다
 
 > **CRITICAL 이 잡은 것**: 이 plan 의 "동반 필수" 목록이 **백엔드 소비자만** 셌다.
 > 같은 wire 이벤트를 내부 에디터 WS 채널이 소비하는데(`use-execution-events.ts`),

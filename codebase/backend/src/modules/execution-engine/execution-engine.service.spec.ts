@@ -5169,7 +5169,16 @@ describe('ExecutionEngineService', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           executionId,
           ExecutionEventType.EXECUTION_FAILED,
-          expect.objectContaining({ status: ExecutionStatus.FAILED }),
+          // `status` 만 보면 `error` 자리를 바꿔도 GREEN 이다 — 뮤테이션으로 실측됐다
+          // (`23_17_57` testing W4). 네 emit 지점 중 여기만 값이 안 걸려 있었다.
+          expect.objectContaining({
+            status: ExecutionStatus.FAILED,
+            error: {
+              code: null,
+              message: expect.stringContaining('setup boom') as unknown,
+              nodeId: null,
+            },
+          }),
         );
       } finally {
         runSpy.mockRestore();

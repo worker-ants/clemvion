@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { toTerminalErrorPayload } from './terminal-error-payload';
+import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
 import {
   Execution,
   ExecutionStatus,

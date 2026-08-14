@@ -102,7 +102,7 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 | 필드 | 상태 | 비고 |
 |---|---|---|
 | `status` | 구현됨 | `completed` \| `failed` \| `cancelled` |
-| `error` | 구현됨(형태 불일치) | **현행 일부 경로 string** — 목표는 `{code,message,nodeId,details?}` |
+| `error` | 구현됨 | `{code, message, nodeId, details?}` — **`failed` 는 전 경로 object**(2026-08-14). `cancelled` 는 아직 `{code, message}` 만 |
 | `result.cancelledBy` | 구현됨(경로 1곳 누락) | `cancelled` 한정. `retry-turn.service.ts` `failRetryExecution` L956 은 emit 안 함 |
 | `result.outputs` | **미구현 (Planned)** | 데이터는 emit 직전 존재 |
 | `durationMs` | **미구현 (Planned)** | 데이터는 emit 직전 존재 |
@@ -187,8 +187,10 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 - [ ] emit 에 `durationMs`·`result.outputs` 채우기 — `execution-engine.service.ts` 의
       `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts` **2곳** → (1) 표의 Planned 해제.
       (줄 번호로 적었다가 실측하니 4개 중 2개가 이미 어긋나 있었다 — 심볼로 고정)
-- [ ] `execution.failed` 의 `error` 를 객체로 통일 (L656·L3291, `retry-turn.service.ts` L956) →
-      `chat-channel.dispatcher.ts` back-compat wrap 제거
+- [x] `execution.failed` 의 `error` 를 객체로 통일 — **완료 (2026-08-14)**,
+      `toTerminalErrorPayload` 로 emit 4곳 일원화.
+      **wrap 은 제거하지 않았다** — 레거시 큐 이벤트 흡수용으로 의도적 유지(자매 plan
+      `spec-sync-external-interaction-api-gaps.md` 의 같은 항목에 근거 기록)
 - [ ] `chat-channel/types.ts:388` 을 (1) 최종형과 동기화
 - [ ] `duration` → `durationMs` 전역 개명
 - [ ] 코드 3곳의 `EIA §6.5 line 536` 인용에서 줄 번호 제거 (`chat-channel.dispatcher.ts:506`,

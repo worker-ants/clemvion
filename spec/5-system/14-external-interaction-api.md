@@ -789,8 +789,12 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > [chat-channel CCH-ERR-04](./15-chat-channel.md) 가 `error.code === null` 을
 > `executionFailedInternal` 로 fallback 한다.
 
-> **`error` 는 현행 일부 경로에서 string 이다** — 위 객체 형태가 목표이고, 수신자는 당분간
-> 양쪽을 방어해야 한다. 필드 집합 표의 `error` 행 참조.
+> **`failed` 의 `error` 는 이제 전 경로 object 다** (2026-08-14, `toTerminalErrorPayload`
+> 로 emit 4곳 일원화). 종전의 *"일부 경로는 string"* 캐비엇은 해소됐다.
+>
+> 다만 **배포 경계에서 재생되는 레거시 이벤트**는 여전히 string 을 실을 수 있어,
+> chat-channel dispatcher 와 에디터 프런트엔드가 문자열을 흡수하는 분기를 **의도적으로
+> 유지**한다 — 그 분기는 제거 대상이 아니다. 필드 집합 표의 `error` 행 참조.
 
 ### 6.5 페이로드 — `execution.cancelled` / `execution.ai_message`
 
