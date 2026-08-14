@@ -173,6 +173,15 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       > 같은 지적으로 `a9574f823` 을 만들었는데, **그 커밋에서 이 항목을 `[ ]` 로 새로
       > 추가**하고 실측 후 체크하지 않았다 (`11_02_18` plan_coherence W2). 항목을 닫는
       > 커밋과 체크박스를 갱신하는 커밋이 갈리면 매번 이렇게 된다.
+- [ ] **`stripDeep` identity 캐시** (`11_02_16` performance W2). 형제는 `SANITIZE_CACHE`
+      (WeakMap)로 반복 emit 을 O(1) 로 줄이는데 `stripDeep` 엔 없다. 지금 붙이지 않는 이유:
+      두 캐시의 무효화 시점이 갈려 "sanitize 는 적중, strip 은 미적중" 조합이 생기고 그걸
+      덮는 테스트가 없다. **관측되면** 붙인다(현재 비용 +20.2 µs/emit).
+- [ ] **대용량 non-AI payload A/B** (`11_02_16` performance W3). A/B 를 AI 대화 payload 로만
+      쟀는데, 이 diff 는 `llmCalls` 를 가질 수 없는 **모든 node 이벤트**에도 strip 을 건다.
+      HTTP 응답 JSON 같은 대용량 `nodeOutput` 이 worst case 인데 측정 안 했다 —
+      **"실측했다" 는 측정한 범위 안에서만 참이다.**
+- [ ] 배열 부분 clone-on-write 다원소 fixture (`11_02_16` testing INFO 11) — 저비용
 - [ ] **이미 유출된 데이터에 대한 사후 대응 — 운영 판단 필요.**
       CHANGELOG 에 *"이 경로로 나간 데이터는 이미 전송된 것"* 이라 적었으나 **어느 plan
       에도 추적 항목이 없었다** (`11_02_18` plan_coherence W3). 결정 대기 사항이

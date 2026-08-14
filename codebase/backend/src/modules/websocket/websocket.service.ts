@@ -357,7 +357,8 @@ function stripExternalOnlyFields(
  * > 나중에 바뀌어도 접근자를 타지 않게 한다(회귀는 `__proto__` 테스트가 잡는다 —
  * > 스프레드를 `{}` 로 되돌리는 뮤턴트에서 RED 확인).
  *
- * 깊이 상한은 형제와 같은 {@link MAX_SANITIZE_DEPTH} 를 쓴다. 현재 호출부는 모두
+ * 깊이 상한은 형제와 같은 {@link MAX_SANITIZE_DEPTH} 를 **같은 경계 연산자로** 쓴다.
+ * 현재 호출부는 모두
  * `sanitizePayloadForWs` 를 먼저 거쳐 이미 유계지만, **호출 순서에 기대는 불변식**은
  * 함수 자신의 방어가 아니다 (`10_32_27` security W4). 상한을 넘으면 그 아래는 손대지
  * 않고 그대로 둔다 — strip 실패보다 조용한 데이터 손실이 더 나쁘기 때문이며, 상한 초과
@@ -384,7 +385,12 @@ function stripExternalOnlyFields(
  * 의미를 건드린다 — 20 µs 를 아끼려고 마스킹 로직을 흔들 이유가 없다.
  */
 function stripDeep(value: unknown, depth: number): unknown {
-  if (depth >= MAX_SANITIZE_DEPTH) return value;
+  // 경계 연산자를 형제와 **동일하게** 맞춘다(`>`, `>=` 아님). 종전 `>=` 는 형제보다 한
+  // 단계 얕게 멈춰, 리뷰어 넷이 "여기서 새는가" 로 갈리는 모호함을 만들었다
+  // (`11_02_16` CRITICAL 1). 실 파이프라인 깊이 sweep 으로 **누출은 없음**을 확인했지만
+  // (그 깊이의 값은 `sanitizePayloadForWs` 가 이미 `[REDACTED_DEPTH]` 로 치환한다),
+  // 어차피 무해하다면 형제와 어긋나 있을 이유가 없다.
+  if (depth > MAX_SANITIZE_DEPTH) return value;
 
   if (Array.isArray(value)) {
     let out: unknown[] | null = null;

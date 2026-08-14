@@ -792,6 +792,52 @@ describe('WebsocketService', () => {
       expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     });
 
+    /**
+     * **깊이 경계 전수 — 리뷰어 결론이 갈렸던 자리다** (`11_02_16` CRITICAL 1).
+     *
+     * `stripDeep` 은 `depth >= MAX_SANITIZE_DEPTH` 에서 멈추고 형제
+     * `sanitizePayloadForWs` 는 `depth > MAX_SANITIZE_DEPTH` 에서 `'[REDACTED_DEPTH]'`
+     * 로 치환한다 — 경계 연산자가 다르다. testing reviewer 는 이 어긋남으로 depth 10 에서
+     * 누출이 재현된다 했고, security/side_effect/requirement 셋은 "값은 이미 redact 돼
+     * 필드명만 남는다" 고 반대 결론을 냈다.
+     *
+     * **논증 대신 실제 파이프라인으로 훑었고, 결론은 "누출 없음" 이다** — 필드명이 남는
+     * 경우는 있어도 raw 내용은 어느 깊이에서도 나가지 않는다. testing 쪽 CRITICAL 은
+     * 파이프라인이 아니라 두 함수 로직을 **복제한 스크립트**의 산물이었다.
+     *
+     * **각 케이스의 판별력을 실측해 둔다** (strip 을 no-op 으로 만든 뮤턴트에서 관측):
+     *
+     * | depth | strip 없이도 통과? | 무엇을 지키나 |
+     * |---|---|---|
+     * | 0 · 5 | **아니오 (RED)** | `stripDeep` 이 실제로 지운다 |
+     * | 8 이상 | 예 | 마커가 `MAX_SANITIZE_DEPTH` 밖이라 `sanitizePayloadForWs` 가 먼저 `[REDACTED_DEPTH]` 로 치환 |
+     *
+     * 즉 8 이상은 **누출 테스트로서는 판별력이 없다**. 그래도 남겨 두는 이유는 그것이
+     * 이 설계의 방어 구조 자체이기 때문이다 — 깊은 곳은 strip 이 아니라 sanitize 의 상한이
+     * 막는다. 나중에 그 상한이 사라지면 여기가 RED 로 알려준다.
+     */
+    it.each([0, 5, 8, 9, 10, 11, 12])(
+      'depth %i 의 llmCalls raw 내용이 외부 fanout 에 남지 않는다',
+      async (depth) => {
+        const marker = `SECRET AT DEPTH ${depth}`;
+        // depth 만큼 중첩한 뒤 그 자리에 llmCalls 를 놓는다.
+        let node: Record<string, unknown> = {
+          llmCalls: [{ requestPayload: { system: marker } }],
+        };
+        for (let i = 0; i < depth; i++) node = { nest: node };
+
+        const eventP = nextFanoutEvent(service);
+        await service.emitExecutionEvent(
+          `exec-depth-${depth}`,
+          ExecutionEventType.AI_MESSAGE,
+          node,
+        );
+        const fanout = await eventP;
+
+        expect(JSON.stringify(fanout.payload)).not.toContain(marker);
+      },
+    );
+
     it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(
