@@ -1,0 +1,20 @@
+STATUS=success ISSUES=0
+===REPORT_MARKDOWN_BELOW===
+### 발견사항
+
+- **[INFO]** `run-debug-flow-change`(실행·디버깅 흐름 변경, semantic trigger) 와 표면적으로 유사해 재대조 — 갱신 불요로 재확인 (3회째 독립 재확인)
+  - 변경 파일: `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`, `execution-engine.service.spec.ts`, `retry-turn.service.ts`, `retry-turn.service.spec.ts`, `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`, `chat-channel.dispatcher.spec.ts`, `types.ts`, 신규 `codebase/backend/src/shared/utils/terminal-error-payload.ts`(+`.spec.ts`), frontend `codebase/frontend/src/lib/websocket/use-execution-events.ts`(+`.test.ts`)
+  - 매트릭스 항목: `run-debug-flow-change` — "실행·디버깅 흐름 변경 → `codebase/frontend/src/content/docs/05-run-and-debug/`" (`.claude/config/doc-sync-matrix.json` id `run-debug-flow-change`, PROJECT.md :151)
+  - 대조 결과: 이 changeset 은 `execution.failed` 이벤트(`ExecutionEventType.EXECUTION_FAILED`)의 **wire 형태**를 string → `{code, message, nodeId, details?}` 객체로 정규화하는 내부 계약 수정이다 (spec EIA §6.4 정합). 실행/재시도/취소가 "언제·왜" 일어나는지의 흐름 자체는 바뀌지 않았고, 최종 사용자에게 노출되는 에러 문구도 종전과 동일하다 — `use-execution-events.ts` 가 같은 changeset 안에서 `typeof x === 'string' ? x : x?.message` 관용구로 object 를 흡수해 스토어에는 여전히 `string` 만 들어간다(`state.nodeStatuses.get(...).error` 회귀 캐너리 테스트로 고정, 본 라운드에 신규 추가된 `use-execution-events.test.ts` 케이스 확인). `codebase/frontend/src/content/docs/05-run-and-debug/error-handling.mdx`(Route to Error Port 페이로드 예시)와 `run-results.mdx`(`NODE_EXECUTION_FAILED` 에러 메시지 표)는 둘 다 **다른 객체**(노드 단위 error-port 데이터 — `nodeType`·`timestamp`·`originalInput` 필드)를 문서화하고 있어 이번에 바뀐 top-level `execution.failed` 이벤트의 `error` 필드와 무관함을 이전 두 라운드(`23_34_12`, `23_49_41`)에서 직접 grep/Read 로 이미 확인했고, 이번 라운드에 추가된 diff(테스트 보강·`WORKER_HEARTBEAT_TIMEOUT`/`ERROR_PORT_FALLBACK` 값 고정)도 동일 결론을 바꾸지 않는다 — 두 sentinel 코드 모두 `error-codes.ts`(node-level `ErrorCode` enum)에 속하지 않는 execution-engine 로컬 문자열이며 `git log -S`로 확인한 결과 이 PR 이전부터 존재한다(#798/#795, #350) — `new-warning-code`/`new-error-code` trigger 대상 아님.
+  - 상세: 사용자에게 새로 보여지는 UI·문구가 없으므로 문서 갱신 의무는 발생하지 않는다.
+  - 제안: 조치 불요. `execution.cancelled` 계열까지 같은 객체화가 이뤄지거나(이미 `spec-sync-external-interaction-api-gaps.md` 에 별건 등재) 외부 webhook/SSE 문서에 `execution.failed` JSON 예시가 신설될 때 이 커밋을 참조점으로 재확인.
+
+- **[INFO]** SoT spec 문서(`spec/5-system/14-external-interaction-api.md`, `spec/conventions/chat-channel-adapter.md`)는 같은 changeset 안에서 이미 갱신됨 — `doc-sync-matrix.json` 의 `spec-major-change` trigger(glob `spec/5-*/**`, `spec/conventions/**`) 에 매칭되나 본 리뷰어 영역(frontend user-guide MDX·i18n dict·backend-labels)이 아니라 consistency-checker 영역과 겹친다. 프런트매터 실측: 두 파일 모두 `status: partial` 유지, `pending_plans:` 에 `spec-sync-external-interaction-api-gaps.md`(EIA) / `chat-channel-discord-gateway.md` 등(chat-channel-adapter, 기존 항목 그대로)이 이미 등재돼 있고 `code:` 글로브(`external-interaction/**`, `chat-channel/**`)가 변경 파일을 커버한다 — 갭 없음. 참고용으로만 기재.
+
+- **[INFO]** `codebase/backend/src/nodes/**`(신규 노드), `*.tsx`(신규 UI 문자열), `content/docs/<NN>-*/`(신규 섹션), `dict/**`·`backend-labels.ts`·`locale.ts`(i18n), `auth/**`(인증 흐름), `packages/expression-engine/**`(표현식 언어), `error-codes.ts`(신규 errorCode), `*.controller.ts`/`dto/**`(API), `06-integrations-and-config/`(통합) 등 나머지 매트릭스 trigger(총 21행) 어디에도 이번 changeset(`codebase/` 11파일: `git diff --stat origin/main...HEAD` 실측)이 매칭되지 않는다 — 전부 backend `execution-engine`/`chat-channel`/`shared/utils` + frontend `use-execution-events.ts` 1개(`.ts`, `.tsx` 아님) 범위이며 신규 사용자 가시 문자열·라벨·필드가 없다.
+
+### 요약
+`.claude/config/doc-sync-matrix.json`(rows 21건) + `PROJECT.md` §변경 유형 매핑 표를 적재해 `git diff --stat origin/main...HEAD`(codebase 11파일 + spec 2파일)를 매트릭스 21개 trigger 전체에 대조했다. 매칭된 trigger 는 `spec-major-change`(spec 프런트매터 정합 — 이미 충족, 갭 없음) 1건뿐이고, 가장 근접했던 semantic trigger `run-debug-flow-change` 는 3라운드째 독립적으로 재확인해 무관(내부 wire shape 정규화, 최종 사용자 가시 문구·UI 불변)함을 검증했다. 이번 라운드는 직전 두 라운드(`23_34_12`, `23_49_41`) 대비 테스트 보강(`execution-engine.service.spec.ts`/`retry-turn.service.spec.ts`/`use-execution-events.test.ts`)과 sentinel 코드 값 고정만 추가됐으며, 두 코드(`WORKER_HEARTBEAT_TIMEOUT`/`ERROR_PORT_FALLBACK`) 모두 이 PR 이전부터 존재하는 기존 값임을 `git log -S` 로 재확인해 `new-warning-code`/`new-error-code` trigger 도 해당 없다. 누락된 동반 갱신 0건.
+
+### 위험도
+NONE
