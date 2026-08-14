@@ -385,14 +385,19 @@ export interface EiaAiMessageEvent extends EiaEventBase {
 
 export interface EiaCompletedEvent extends EiaEventBase {
   type: 'execution.completed';
-  result: { outputs?: unknown; finalNodeId?: string; finalPort?: string };
+  // `finalNodeId`/`finalPort` 는 **설계된 적이 없는 필드**라 제거했다 — 미구현이 아니라
+  // 엔진에 개념 자체가 없고(emit 0건) 소비처도 없었다. EIA §6 "삭제된 약속" 이 되살리지
+  // 않기로 명시한다. 타입에만 남아 있으면 다음 사람이 "구현하면 되는 것" 으로 읽는다.
+  result: { outputs?: unknown };
   durationMs?: number;
 }
 
 export interface EiaFailedEvent extends EiaEventBase {
   type: 'execution.failed';
+  // EIA §6.4 — `code`·`nodeId` 는 **명시적 `null`** 이 올 수 있다(키 생략이 아니다).
+  // `code: string` 이던 것을 #1169 의 계약에 맞춘다.
   error: {
-    code: string;
+    code: string | null;
     message: string;
     nodeId?: string | null;
     details?: unknown;

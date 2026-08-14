@@ -308,7 +308,7 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     expect((eia.error.details as { statusCode: number }).statusCode).toBe(401);
   });
 
-  it('payload.error 가 string → wrap (back-compat, code=INTERNAL_ERROR)', () => {
+  it('payload.error 가 string → wrap (레거시 흡수, code=null)', () => {
     const event: ExecutionChannelEvent = {
       ...baseEnvelope,
       payload: {
@@ -320,11 +320,13 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
-    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
+    // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
+    expect(eia.error.code).toBeNull();
     expect(eia.error.message).toContain('quota');
   });
 
-  it('payload.error 가 undefined / 잘못된 타입 → wrap (placeholder, code=INTERNAL_ERROR)', () => {
+  it('payload.error 가 undefined / 잘못된 타입 → wrap (placeholder, code=null)', () => {
     const event: ExecutionChannelEvent = {
       ...baseEnvelope,
       payload: {
@@ -336,7 +338,9 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
-    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
+    // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
+    expect(eia.error.code).toBeNull();
     expect(eia.error.message).toBe('unknown error');
   });
 
@@ -352,7 +356,9 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
-    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
+    // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
+    expect(eia.error.code).toBeNull();
   });
 });
 

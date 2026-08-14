@@ -7034,7 +7034,12 @@ describe('ExecutionEngineService', () => {
         'execution.failed',
         expect.objectContaining({
           status: 'failed',
-          error: 'Node execution failed',
+          // 종전엔 문자열이었다. EIA §6.4 객체 형태로 바뀌었고 부재는 명시적 null 이다.
+          error: {
+            code: null,
+            message: 'Node execution failed',
+            nodeId: null,
+          },
         }),
       );
     });

@@ -201,6 +201,7 @@ import {
 } from '../../shared/execution-resume/resume-call-stack.types';
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
+import { toTerminalErrorPayload } from './terminal-error-payload';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -656,7 +657,12 @@ export class ExecutionEngineService
       await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_FAILED,
-        { status: ExecutionStatus.FAILED, error: errMessage },
+        {
+          status: ExecutionStatus.FAILED,
+          // DB 에 방금 쓴 `row.error` 를 그대로 싣는다 — 문자열을 따로 만들면 두 표현이
+          // 갈린다(stalled 경로가 실제로 그렇게 어긋나 있었다).
+          error: toTerminalErrorPayload(row.error),
+        },
       );
     } catch (markErr) {
       this.logger.error(
@@ -3257,16 +3263,18 @@ export class ExecutionEngineService
    */
   async finalizeStalledExhausted(executionId: string): Promise<void> {
     const finishedAt = new Date();
+    // DB 와 emit 이 **같은 객체**를 쓰게 한 곳에 둔다. 종전엔 emit 이 이 message 를 손으로
+    // 다시 적었고, 그 과정에서 `attempts` 가 빠져 두 표현이 이미 어긋나 있었다.
+    const stalledError = {
+      code: 'WORKER_HEARTBEAT_TIMEOUT',
+      message: 'Execution failed: worker crash (stalled 재배달 attempts 소진)',
+    };
     const result = await this.executionRepository
       .createQueryBuilder()
       .update(Execution)
       .set({
         status: ExecutionStatus.FAILED,
-        error: {
-          code: 'WORKER_HEARTBEAT_TIMEOUT',
-          message:
-            'Execution failed: worker crash (stalled 재배달 attempts 소진)',
-        },
+        error: stalledError,
         finishedAt,
       })
       .where('id = :id', { id: executionId })
@@ -3301,7 +3309,7 @@ export class ExecutionEngineService
       ExecutionEventType.EXECUTION_FAILED,
       {
         status: ExecutionStatus.FAILED,
-        error: 'Execution failed: worker crash (stalled 재배달 소진)',
+        error: toTerminalErrorPayload(stalledError),
       },
     );
   }
@@ -4859,7 +4867,7 @@ export class ExecutionEngineService
       ExecutionEventType.EXECUTION_FAILED,
       {
         status: ExecutionStatus.FAILED,
-        error: errMessage,
+        error: toTerminalErrorPayload(savedExecution.error),
       },
     );
     // 실행 실패 알림 발사 — 초기/재개 세그먼트 어느 쪽으로 종결되든 top-level 실패는

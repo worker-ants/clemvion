@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { toTerminalErrorPayload } from './terminal-error-payload';
 import {
   Execution,
   ExecutionStatus,
@@ -960,7 +961,10 @@ export class RetryTurnService {
         : ExecutionEventType.EXECUTION_FAILED,
       {
         status: finalStatus,
-        ...(!isCancelled ? { error: errMessage } : {}),
+        // 위에서 `execution.error` 에 쓴 객체를 그대로 싣는다.
+        ...(!isCancelled
+          ? { error: toTerminalErrorPayload(execution.error) }
+          : {}),
       },
     );
   }
