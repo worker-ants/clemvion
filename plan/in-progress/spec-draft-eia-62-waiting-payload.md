@@ -127,14 +127,28 @@ EIA §6.4 는 이미 `"nodeId": "uuid" | null` 을 선언하는데 data-model �
 > 처음엔 경로 1만 보고 프로브를 쓸 뻔했다. WS 표가 `meta.turnDebug` 항목 shape 에 `llmCalls?`
 > 를 적어 둔 것을 보고 자매를 세어 둘 다 넣었다 — **한쪽만 막으면 나머지가 남는다.**
 
-### 다음 (별건)
+### 처분 (실제 상태)
 
-- [ ] 실증 테스트: AI turn1 waiting 이벤트의 **외부 fanout payload** 에
-      `turnDebug.llmCalls` 가 남는지 단언. 남으면 그것이 결함의 증거이자 회귀 가드
-- [ ] 처방 후보: (a) `stripExternalOnlyFields` 를 깊이 우선으로 (b) waiting emit 이
-      `turnDebug` 를 외부용에서 빼기 (c) 최상위 필드명을 strip 목록에 추가.
-      **(a) 는 비용이 크고 (c) 는 이름 충돌을 고착**시키므로 (b) 가 유력
-- [ ] 이름 충돌(`turnDebug` top-level vs `nodeOutput.meta.turnDebug`)은 이 처방과 함께 정리
+- [x] 실증 테스트 — `websocket.service.spec.ts` 에 실 emit shape 프로브. **두 경로 모두**
+      외부 fanout 에서 관측됨(RED). 수정 후 GREEN 이고 그대로 회귀 가드가 됐다
+- [x] 처방 — **(a) 깊이 우선 strip 채택**, 커밋 `81f2c60d6`.
+      > 착수 전엔 *"(a) 는 비용이 크니 (b) 가 유력"* 이라 적었는데 **선택이 뒤집혔다.**
+      > (b)(emit 에서 빼기)는 경로 2(`nodeOutput.meta.turnDebug`)를 못 막고,
+      > (c)(최상위 이름 추가)는 이름 충돌을 고착시킨다. 필드명이 이미 **문서화된 비밀
+      > 마커**라 위치가 아니라 이름으로 막는 게 맞았다. 비용 우려는 clone-on-write 로
+      > 상쇄했고 "공통 경로 할당 0" 을 테스트로 단언했다.
+- [ ] **이름 충돌은 이 커밋에 포함되지 않았다 — 별도 잔여.**
+      `turnDebug`(top-level object `{llmCalls, metadata}`) vs `nodeOutput.meta.turnDebug`
+      (배열, WS §4.4:449 정본). 당초 "이 처방과 함께 정리" 라고 적었으나 strip 패치만
+      landed 했다 (`10_32_29` plan_coherence W3).
+      → **planner 인계**: §6.2 재작성 시 top-level 을 리네임(`turnDebugSnapshot` 등)하거나
+      disambiguation 문구를 예시 옆에 부착. 그대로 옮겨 적으면 spec 에 정식 충돌로 고착된다
+      (`10_32_29` naming_collision CRITICAL 1).
+- [ ] **planner 인계 (선택)**: `6-websocket-protocol.md` `## Rationale` 의 "strip-only 결정"
+      항목에 *"2026-08-14: depth-1 이라 실제 누출 발견 → 깊이 무관 strip 으로 강화(`81f2c60d6`)"*
+      한 줄 addendum (`10_32_29` INFO 3)
+- [ ] 성능 실측 — 재귀 순회 비용을 옛 shallow 와 A/B. 리뷰 종료 후 수행
+      (리뷰가 이 파일을 읽는 중에 뮤테이션하지 않는다)
 
 ## Rationale
 

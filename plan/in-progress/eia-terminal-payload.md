@@ -105,6 +105,14 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
   - `chat-channel/types.ts:386~390` — `EiaCompletedEvent.result` 가 §6 이 "설계된 적 없다" 고
     명시한 `finalNodeId`/`finalPort` 를 **여전히 선언**한다(유령 타입 필드)
 
+## 차단 해제 조건
+
+이 plan 의 `--impl-prep` BLOCK: YES 를 실제로 푸는 것은
+[`spec-draft-eia-62-waiting-payload.md`](./spec-draft-eia-62-waiting-payload.md) 다 —
+§6.2 봉투·`error.code` 옵셔널·data-model nullable `nodeId` 를 담은 **정본 planner draft**.
+그쪽이 spec 에 반영돼야 여기가 진행된다 (`10_32_29` plan_coherence W4 — 자신을 풀어 줄
+문서를 정작 참조하지 않고 있었다).
+
 ## 다른 plan 과의 관계 (W4·W6 — 교차 참조 없이 등재했었다)
 
 이 작업을 이미 추적 중인 plan 이 셋 있다. 구현 후 **그쪽 체크박스가 stale 로 남지 않게**
