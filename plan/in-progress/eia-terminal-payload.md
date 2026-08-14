@@ -226,7 +226,15 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 - [x] 구현 + 테스트 (`6aa0699b8` + 리뷰 fix) — `error` 객체화 4곳 · `toTerminalErrorPayload`
       15 tests · chat-channel 동반 3건 · 프런트엔드 소비자 갱신
 - [x] `/ai-review` `22_55_51` — **CRITICAL 1**(프런트엔드 미갱신) 포함, 조치 완료
-- [ ] `/consistency-check --impl-done`
+- [x] `/consistency-check --impl-done` `23_18_06` **BLOCK: NO**
+- [x] `/ai-review` 2차 `23_17_57` — CRITICAL 0 / WARNING 6, 전부 조치(헬퍼 `shared/utils/`
+      승격 · dispatcher 캐스팅 제거 · `failFirstSegmentSetup` emit 값 단언)
+- [x] `/ai-review` 3차 `23_34_12` — CRITICAL 0 / WARNING 3(문서·커버리지 계층), 조치 완료
+
+> **체크리스트가 커밋 메시지보다 늦는 것이 이 plan 에서만 세 번째다** (`22_55_51` W11 ·
+> `23_18_06` W2 · `23_34_12` W2). 커밋은 "완료" 를 선언하는데 체크박스는 그대로였다.
+> 원인은 같다 — **선언하는 시점과 표시하는 시점이 다르다.** 커밋 직전에 체크박스를 함께
+> 스테이징하는 것이 유일한 해법이었고, 이번엔 그렇게 했다.
 - [x] 자매 plan 갱신 — **3개가 아니라 4개였다.** `spec-sync-external-interaction-api-gaps.md` ·
       `spec-draft-eia-notification-payload-contract.md`(체커 지목) + `node-output-redesign/README.md`
       (전수 grep 으로 발견, 체커가 놓친 것). 셋 다 "현행 일부 경로는 string" 을 전제하고 있었다

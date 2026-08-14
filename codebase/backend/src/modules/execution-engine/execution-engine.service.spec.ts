@@ -4766,8 +4766,17 @@ describe('ExecutionEngineService', () => {
         running: ExecutionStatus.RUNNING,
       });
       // 자식 RUNNING NodeExecution cascade.
+      // `status` 만 단언하면 `error.code` 를 바꿔도 GREEN 이다 — 뮤테이션으로 실측됐다
+      // (`23_34_12` testing W1). **이 줄이야말로 "손으로 값을 반복하면 갈린다" 는 이번
+      // 변경의 교훈이 재현된 자리**(부모 상수를 참조하도록 고친 곳)라 값을 고정한다.
       expect(nodeQb.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+        expect.objectContaining({
+          status: NodeExecutionStatus.FAILED,
+          error: {
+            code: 'WORKER_HEARTBEAT_TIMEOUT',
+            message: 'Node failed: parent execution stalled (재배달 소진)',
+          },
+        }),
       );
       // 종전엔 `toHaveBeenCalled()` 로 호출 여부만 봤다 — emit 의 `error` 값을 아무도
       // 보고 있지 않아 뮤테이션에서 그 자리를 바꿔도 GREEN 이었다 (`22_55_51` testing W8).

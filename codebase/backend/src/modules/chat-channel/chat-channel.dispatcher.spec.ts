@@ -265,13 +265,16 @@ describe('isEmptyTextBody — sendMessage 호출 직전 빈 text guard', () => {
 });
 
 /**
- * toChatChannelEvent — execution.failed back-compat (string error wrap).
+ * `toChatChannelEvent` — `execution.failed` 의 **레거시 문자열 흡수 경로**.
  *
- * 회귀 보호: execution-engine 이 emit 하는 payload.error 가 EIA §6.4 의 object shape 가
- * 아닌 string (errMessage) 인 경우 (execution-engine.service.ts line 1339-1346 / 2526-2533) —
- * dispatcher 가 object 만 인정해 null 반환 → outbound skip → CCH-ERR-* 안내 미발송.
- * dispatcher 차원 back-compat: string 도 generic object 로 wrap (classifier unknown
- * fallback → executionFailedInternal 안내 발송).
+ * 엔진은 2026-08-14 부터 전 경로에서 §6.4 object 를 emit 한다(`toTerminalErrorPayload`).
+ * 이 경로는 **배포 경계에서 재생되는 이벤트** 전용이다 — 제거하면 그 창 동안 dispatcher 가
+ * null 을 반환해 outbound 가 skip 되고, 사용자가 CCH-ERR-* 안내를 못 받는다
+ * (2026-05-25 에 고친 그 회귀).
+ *
+ * 종전 JSDoc 은 형제 파일에서 방금 걷어낸 것과 **같은 죽은 참조**(존재한 적 없는 plan
+ * 이름·지금은 다른 코드를 가리키는 줄 번호)를 갖고 있었다. 소스만 고치고 스펙 파일을
+ * 놓친 것이다 (`23_34_12` requirement W3).
  */
 describe('toChatChannelEvent — execution.failed back-compat (string error wrap, 2026-05-25)', () => {
   const baseEnvelope: Pick<
