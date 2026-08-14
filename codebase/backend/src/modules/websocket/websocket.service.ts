@@ -326,9 +326,9 @@ const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
  * publishing to the external fanout.
  *
  * Never mutates the input — the WS wire envelope keeps the full payload.
- * Clone-on-write: a subtree with nothing to strip is returned by reference, so
- * the common path (no stripped field anywhere) allocates nothing and returns
- * the original envelope identity.
+ * **Lazy** clone-on-write: nothing is allocated until a strip actually happens,
+ * and any subtree with nothing to strip is returned by reference (so the common
+ * path returns the original envelope identity).
  *
  * When adding a new entry to {@link EXTERNAL_STRIPPED_FIELDS}, update
  * WS spec §4.4 and the `EiaAiMessageEvent` JSDoc accordingly.
@@ -336,41 +336,88 @@ const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
 function stripExternalOnlyFields(
   envelope: Record<string, unknown>,
 ): Record<string, unknown> {
-  return stripDeep(envelope) as Record<string, unknown>;
+  return stripDeep(envelope, 0) as Record<string, unknown>;
 }
 
 /**
- * 깊이 우선 clone-on-write. 하위에서 제거가 일어난 경우에만 새 객체를 만들고,
- * 그렇지 않으면 입력을 **그대로** 돌려준다(할당 없음).
+ * 깊이 우선 lazy clone-on-write. 제거가 실제로 일어나기 전에는 **아무것도 할당하지
+ * 않고**, 변경이 없으면 입력을 그대로 돌려준다. 형제 `sanitizeInner` 와 같은 패턴이다.
  *
- * 순환 참조는 다루지 않는다 — 이 payload 는 직후 `JSON.stringify` 로 wire 에 실리므로
- * 순환이 있으면 여기서 죽든 거기서 죽든 마찬가지고, 방문 집합을 들고 다니는 비용만 는다.
+ * > **초판은 매 레벨에서 `out = {}` 를 만들고 변경이 없으면 버렸다.** 최상위 반환값
+ * > identity 는 보존됐지만 JSDoc 의 "할당 없음" 은 사실이 아니었고, 더 나쁘게는
+ * > `out[k] = v` bracket 대입이 `k === '__proto__'` 일 때 **키를 own property 로 남기지
+ * > 않고 프로토타입을 갈아치웠다**(CWE-1321). `JSON.parse` 결과에 그 키가 있으면 값이
+ * > 조용히 사라지고, 값이 `null` 이면 `hasOwnProperty` 가 없는 객체가 되어 하류에서
+ * > `TypeError` 로 죽을 수 있었다 (`10_32_27` security W1 — 재현 확인).
+ * >
+ * > **방어는 스프레드가 한다** — `{ ...obj }` 는 `CreateDataProperty` 라 own `__proto__` 를
+ * > 그대로 옮기고, 그 own 데이터 속성이 상속 접근자를 가려 이후 대입이 안전해진다.
+ * > 실측으로 확인했다: 스프레드 후에는 bracket 대입도 오염을 일으키지 않고, 빈 `{}` 에서만
+ * > 일어난다. 아래 `Object.defineProperty` 는 그 위의 **중복 방어**로, `out` 생성 방식이
+ * > 나중에 바뀌어도 접근자를 타지 않게 한다(회귀는 `__proto__` 테스트가 잡는다 —
+ * > 스프레드를 `{}` 로 되돌리는 뮤턴트에서 RED 확인).
+ *
+ * 깊이 상한은 형제와 같은 {@link MAX_SANITIZE_DEPTH} 를 쓴다. 현재 호출부는 모두
+ * `sanitizePayloadForWs` 를 먼저 거쳐 이미 유계지만, **호출 순서에 기대는 불변식**은
+ * 함수 자신의 방어가 아니다 (`10_32_27` security W4). 상한을 넘으면 그 아래는 손대지
+ * 않고 그대로 둔다 — strip 실패보다 조용한 데이터 손실이 더 나쁘기 때문이며, 상한 초과
+ * 서브트리는 이미 `sanitizePayloadForWs` 가 `[REDACTED_DEPTH]` 로 마스킹한 뒤다.
+ *
+ * 순환 참조는 다루지 않는다 — 이 payload 는 직후 `JSON.stringify` 로 직렬화되므로 순환이
+ * 있으면 어차피 거기서 `TypeError` 로 죽는다. 실패 시점이 앞당겨질 뿐 새 실패 모드가
+ * 아니고, 방문 집합을 들고 다니는 비용만 는다.
+ *
+ * ## 비용 (실측)
+ *
+ * 이 payload 는 `sanitizePayloadForWs` 가 이미 한 번 완전 순회한다 — 즉 hot path 에서
+ * 순회가 두 번이다 (`10_32_27` performance W2). 8턴 `turnDebugHistory` 를 담은 waiting
+ * payload 로 A/B 했다(N=3000, emit 전체 시간):
+ *
+ * | | ms/emit |
+ * |---|---|
+ * | 옛 depth-1 strip | 0.0112 |
+ * | 현행 재귀 strip | 0.0314 (**2.80배**, +20.2 µs) |
+ *
+ * 두 pass 를 하나로 합치지 않은 이유: `sanitizePayloadForWs` 는 **wire/fanout 분기 이전**에
+ * 돌아 두 채널이 공유하는데, 내부 WS 채널은 `llmCalls` 를 받아야 한다. 합치려면 그 함수에
+ * 채널 개념을 넣어야 하고, 그건 credential 마스킹(+`SANITIZE_CACHE` WeakMap, depth 캡)의
+ * 의미를 건드린다 — 20 µs 를 아끼려고 마스킹 로직을 흔들 이유가 없다.
  */
-function stripDeep(value: unknown): unknown {
+function stripDeep(value: unknown, depth: number): unknown {
+  if (depth >= MAX_SANITIZE_DEPTH) return value;
+
   if (Array.isArray(value)) {
-    let changed = false;
-    const out = value.map((v) => {
-      const s = stripDeep(v);
-      if (s !== v) changed = true;
-      return s;
-    });
-    return changed ? out : value;
+    let out: unknown[] | null = null;
+    for (let i = 0; i < value.length; i++) {
+      const s = stripDeep(value[i], depth + 1);
+      if (s !== value[i] && out === null) out = value.slice();
+      if (out !== null) out[i] = s;
+    }
+    return out ?? value;
   }
   if (value === null || typeof value !== 'object') return value;
 
   const obj = value as Record<string, unknown>;
-  let changed = false;
-  const out: Record<string, unknown> = {};
+  let out: Record<string, unknown> | null = null;
   for (const [k, v] of Object.entries(obj)) {
     if ((EXTERNAL_STRIPPED_FIELDS as readonly string[]).includes(k)) {
-      changed = true;
+      out ??= { ...obj };
+      delete out[k];
       continue;
     }
-    const s = stripDeep(v);
-    if (s !== v) changed = true;
-    out[k] = s;
+    const s = stripDeep(v, depth + 1);
+    if (s !== v) {
+      out ??= { ...obj };
+      // bracket 대입 금지 — `__proto__` 면 접근자를 타 프로토타입을 갈아친다.
+      Object.defineProperty(out, k, {
+        value: s,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
   }
-  return changed ? out : value;
+  return out ?? value;
 }
 
 /**

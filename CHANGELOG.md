@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased — (보안) 외부 fanout 의 `llmCalls` strip 이 depth-1 이라 raw 프롬프트가 새고 있었다
+
+`execution.waiting_for_input` 이 raw LLM 요청/응답을 **두 경로로 중첩**해 실었는데, strip 은
+최상위 필드만 지웠다:
+
+1. `payload.turnDebug.llmCalls.llmCalls[]` — AI turn1 스냅샷
+2. `payload.nodeOutput.meta.turnDebug[].llmCalls[]` — 턴 **누적 전체**
+
+둘 다 depth-1 삭제를 통과해 **external-interaction SSE · notification webhook ·
+chat-channel 아웃바운드** 수신자에게 도달했다. `LlmCallRecord` 의 `requestPayload`/
+`responsePayload` 에는 시스템 프롬프트·대화 이력·사용자 입력이 담긴다.
+
+WS §4.4 는 이 필드가 "모든 외부 수신자에서 strip 된다" 고 선언하고 있었다 — **선언이 참이
+아니었다.** 기존 회귀 테스트가 최상위 `llmCalls` 만, 그것도 `AI_MESSAGE` 에서만 확인해
+이 표면이 열린 채로 남아 있었다.
+
+strip 을 **깊이 무관**으로 바꿨다. 필드명 자체가 문서화된 비밀 마커이므로 중첩 위치를
+열거하는 대신 이름으로 막는다 — 새 위치가 생겨도 자동 보호된다. 내부 WS(에디터) 채널은
+종전대로 full payload 를 받는다(대조군 테스트로 고정).
+
+> 영향 범위: 이 경로로 나간 데이터는 **이미 전송된 것**이다. 외부 통합자가 저장했을 수
+> 있으므로, 해당 워크스페이스의 프롬프트/대화 이력 민감도에 따라 운영 판단이 필요하다.
+
 ## Unreleased — `UPDATE … RETURNING` 의 결과를 8곳이 행 배열로 오인했다 (소셜 로그인 상시 실패 포함)
 
 TypeORM 0.3.31 + pg 는 `UPDATE`/`DELETE` 의 결과를 **`[rows, rowCount]` 튜플**로 돌려준다

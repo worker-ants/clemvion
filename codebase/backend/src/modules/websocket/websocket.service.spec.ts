@@ -633,10 +633,10 @@ describe('WebsocketService', () => {
     });
 
     /**
-     * **`waiting_for_input` 은 `llmCalls` 를 중첩해서 싣는다 — strip 은 최상위 전용이다.**
+     * **`waiting_for_input` 은 `llmCalls` 를 중첩해서 싣는다 — 종전 strip 은 최상위 전용이었다.**
      *
      * `stripExternalOnlyFields` 는 `EXTERNAL_STRIPPED_FIELDS`(=`['llmCalls']`)를
-     * **depth-1 shallow delete** 한다(그 함수 JSDoc 이 명시). 그런데 AI turn1 의
+     * **depth-1 shallow delete** 했었다. 그런데 AI turn1 의
      * waiting emit 은 raw payload 를 최상위가 아니라 한 단계 아래에 넣는다
      * (`ai-turn-orchestrator.service.ts:615`):
      *
@@ -699,9 +699,18 @@ describe('WebsocketService', () => {
 
       // 외부 수신자에게 raw LLM 요청/응답이 **어떤 경로로도** 도달해서는 안 된다.
       // 두 경로를 함께 본다 — 한쪽만 막으면 나머지가 남는다.
-      const wire = JSON.stringify(fanout.payload);
-      expect(wire).not.toContain('SECRET PROMPT A'); // top-level turnDebug
-      expect(wire).not.toContain('SECRET PROMPT B'); // nodeOutput.meta.turnDebug
+      const fanoutJson = JSON.stringify(fanout.payload);
+      expect(fanoutJson).not.toContain('SECRET PROMPT A'); // top-level turnDebug
+      expect(fanoutJson).not.toContain('SECRET PROMPT B'); // nodeOutput.meta.turnDebug
+
+      // **대조군** — 인증된 에디터 WS 채널은 둘 다 그대로 받아야 한다. 이게 없으면
+      // "payload 를 통째로 날려서" 통과하는 구현도 GREEN 이 된다 (`10_32_27` testing W6:
+      // 같은 블록의 다른 strip 테스트는 전부 이 짝을 갖는데 이것만 빠져 있었다).
+      const wireJson = JSON.stringify(
+        gateway.broadcastToChannel.mock.calls[0][2],
+      );
+      expect(wireJson).toContain('SECRET PROMPT A');
+      expect(wireJson).toContain('SECRET PROMPT B');
       // 비-debug 필드는 그대로 유지돼야 한다 (대조군 — 통째로 사라진 게 아님을 확인).
       expect(fanout.payload.waitingNodeId).toBe('n-ai');
       expect(fanout.payload.interactionType).toBe('ai_conversation');
@@ -730,8 +739,57 @@ describe('WebsocketService', () => {
         string,
         unknown
       >;
-      // attachRoutingContext 가 감싸기 전 동일성 — 중첩까지 복제되지 않았는지 본다.
+      // envelope **자체**의 동일성 — 종전엔 자식(`nodeOutput`) 하나만 봐서 최상위에서
+      // 불필요한 재구성이 일어나는 회귀를 못 잡았다 (`10_32_27` testing W5).
+      expect(fanout.payload).toBe(wire);
+      // 중첩까지 복제되지 않았는지도 함께.
       expect(fanout.payload.nodeOutput).toBe(wire.nodeOutput);
+    });
+
+    /**
+     * **strip 구현이 `__proto__` 를 만나도 안전해야 한다** (`10_32_27` security W1).
+     *
+     * 초판은 `out[k] = v` bracket 대입이라, `JSON.parse` 로 만들어진 own `__proto__`
+     * 키를 만나면 (a) 그 키를 own property 로 남기지 않아 **값이 조용히 사라지고**
+     * (b) 반환 객체의 프로토타입을 갈아쳐, 값이 `null` 이면 `hasOwnProperty` 조차 없는
+     * 객체가 되어 하류에서 `TypeError` 로 죽을 수 있었다(CWE-1321).
+     *
+     * **fixture 가 위험 지점을 통과해야 한다.** 첫 판에는 `__proto__` 값 안에 strip 대상이
+     * 없어서 `if (s !== v)` 대입 분기에 아예 들어가지 않았고, 뮤테이션(대입을 bracket 으로
+     * 되돌림)에서 **테스트가 살아남았다** — 판별력 0이었다. `__proto__` 의 **값 안에**
+     * `llmCalls` 를 넣어야 자식이 바뀌고, 그래야 `__proto__` 키로 대입이 일어난다.
+     */
+    it('payload 에 __proto__ 키가 있어도 값 손실·프로토타입 오염이 없다', async () => {
+      const eventP = nextFanoutEvent(service);
+      const hostile = JSON.parse(
+        // `__proto__` 의 값이 strip 으로 **바뀌어야** 대입 분기를 탄다.
+        '{"__proto__":{"polluted":true,"llmCalls":[{"requestPayload":{}}]},"keep":"ok"}',
+      ) as Record<string, unknown>;
+      await service.emitExecutionEvent(
+        'exec-proto',
+        ExecutionEventType.AI_MESSAGE,
+        { nested: hostile },
+      );
+      const fanout = await eventP;
+      const nested = (fanout.payload as Record<string, unknown>)
+        .nested as Record<string, unknown>;
+
+      // 비-strip 값은 살아 있다.
+      expect(nested.keep).toBe('ok');
+      // `__proto__` 는 own property 로 보존돼야 한다 — 사라지면 payload 손실이다.
+      expect(Object.prototype.hasOwnProperty.call(nested, '__proto__')).toBe(
+        true,
+      );
+      // 그 안의 strip 은 됐고, 나머지는 남았다.
+      const inner = Object.getOwnPropertyDescriptor(nested, '__proto__')
+        ?.value as Record<string, unknown>;
+      expect(inner).not.toHaveProperty('llmCalls');
+      expect(inner.polluted).toBe(true);
+      // 프로토타입이 갈리지 않았다 — 표준 메서드가 그대로 있어야 한다.
+      expect(Object.getPrototypeOf(nested)).toBe(Object.prototype);
+      expect(typeof nested.hasOwnProperty).toBe('function');
+      // 전역 오염도 없다.
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     });
 
     it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
