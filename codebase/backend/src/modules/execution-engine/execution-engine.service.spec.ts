@@ -4766,10 +4766,34 @@ describe('ExecutionEngineService', () => {
         running: ExecutionStatus.RUNNING,
       });
       // 자식 RUNNING NodeExecution cascade.
+      // `status` 만 단언하면 `error.code` 를 바꿔도 GREEN 이다 — 뮤테이션으로 실측됐다
+      // (`23_34_12` testing W1). **이 줄이야말로 "손으로 값을 반복하면 갈린다" 는 이번
+      // 변경의 교훈이 재현된 자리**(부모 상수를 참조하도록 고친 곳)라 값을 고정한다.
       expect(nodeQb.set).toHaveBeenCalledWith(
-        expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
+        expect.objectContaining({
+          status: NodeExecutionStatus.FAILED,
+          error: {
+            code: 'WORKER_HEARTBEAT_TIMEOUT',
+            message: 'Node failed: parent execution stalled (재배달 소진)',
+          },
+        }),
       );
-      expect(emitSpy).toHaveBeenCalled();
+      // 종전엔 `toHaveBeenCalled()` 로 호출 여부만 봤다 — emit 의 `error` 값을 아무도
+      // 보고 있지 않아 뮤테이션에서 그 자리를 바꿔도 GREEN 이었다 (`22_55_51` testing W8).
+      // DB 에 쓴 것과 **같은 문구**가 나가는지가 이 변경의 요점이므로 값을 고정한다.
+      expect(emitSpy).toHaveBeenCalledWith(
+        'exec-stalled',
+        ExecutionEventType.EXECUTION_FAILED,
+        {
+          status: ExecutionStatus.FAILED,
+          error: {
+            code: 'WORKER_HEARTBEAT_TIMEOUT',
+            message:
+              'Execution failed: worker crash (stalled 재배달 attempts 소진)',
+            nodeId: null,
+          },
+        },
+      );
       emitSpy.mockRestore();
     });
 
@@ -5154,7 +5178,16 @@ describe('ExecutionEngineService', () => {
         expect(emitSpy).toHaveBeenCalledWith(
           executionId,
           ExecutionEventType.EXECUTION_FAILED,
-          expect.objectContaining({ status: ExecutionStatus.FAILED }),
+          // `status` 만 보면 `error` 자리를 바꿔도 GREEN 이다 — 뮤테이션으로 실측됐다
+          // (`23_17_57` testing W4). 네 emit 지점 중 여기만 값이 안 걸려 있었다.
+          expect.objectContaining({
+            status: ExecutionStatus.FAILED,
+            error: {
+              code: null,
+              message: expect.stringContaining('setup boom') as unknown,
+              nodeId: null,
+            },
+          }),
         );
       } finally {
         runSpy.mockRestore();
@@ -6874,10 +6907,19 @@ describe('ExecutionEngineService', () => {
           expect.stringContaining('ERROR_PORT_FALLBACK'),
         ]),
       );
+      // DB write 는 위에서 `ERROR_PORT_FALLBACK` 을 단언하는데 emit 은 `status` 만 보고
+      // 있었다 — **sentinel code 가 wire 까지 보존되는지**를 아무도 안 보고 있었다
+      // (`23_49_41` testing W1). 이 PR 의 요점이 "DB 와 wire 를 같은 값으로" 이므로 고정한다.
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.failed',
-        expect.objectContaining({ status: 'failed' }),
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({
+            code: 'ERROR_PORT_FALLBACK',
+            nodeId: null,
+          }) as unknown,
+        }),
       );
       // 성공 종료 이벤트는 발사되지 않아야 한다.
       expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(
@@ -7034,7 +7076,12 @@ describe('ExecutionEngineService', () => {
         'execution.failed',
         expect.objectContaining({
           status: 'failed',
-          error: 'Node execution failed',
+          // 종전엔 문자열이었다. EIA §6.4 객체 형태로 바뀌었고 부재는 명시적 null 이다.
+          error: {
+            code: null,
+            message: 'Node execution failed',
+            nodeId: null,
+          },
         }),
       );
     });

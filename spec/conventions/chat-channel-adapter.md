@@ -147,7 +147,7 @@ type EiaEvent =
   // 않는다 — 같은 계약을 두 곳에 적어 두었더니 실제로 어긋났고, 그 drift 를 고치는 것이
   // 이 축약의 목적이다. 봉투는 flat(WS 계열) 이고 result 중첩은 유지된다.
   | { type: "execution.completed";        /* EIA §6.3 */ executionId: string; triggerId: string; workflowId: string; status: "completed"; result?: { outputs?: unknown }; durationMs?: number; timestamp: string; seq: number }
-  | { type: "execution.failed";           /* EIA §6.4 */ executionId: string; triggerId: string; workflowId: string; status: "failed"; error: { code: string; message: string; nodeId: string | null; details?: unknown } | string; durationMs?: number; timestamp: string; seq: number }
+  | { type: "execution.failed";           /* EIA §6.4 */ executionId: string; triggerId: string; workflowId: string; status: "failed"; error: { code: string | null; message: string; nodeId: string | null; details?: unknown } | string; durationMs?: number; timestamp: string; seq: number }
   | { type: "execution.cancelled";        /* EIA §6.5 (cancelled) */ executionId: string; triggerId: string; workflowId: string; status: "cancelled"; result?: { cancelledBy?: "user" | "system" | "timeout" }; error?: { code: string; message?: string }; durationMs?: number; timestamp: string; seq: number };
 ```
 
@@ -158,7 +158,9 @@ type EiaEvent =
 
 `result`·`durationMs` 가 optional 인 이유: 현행 emit 은 `status` 만(그리고 `cancelled` 는
 `cancelledBy` 까지) 채운다 — `outputs`·`durationMs` 는 Planned 다. `failed` 의 `error` 가
-`| string` 인 이유도 같다 — 일부 경로가 아직 string 을 싣는다(EIA 필드 집합 표의 `error` 행).
+`| string` 을 안고 있는 이유는 **다르다** — emit 은 2026-08-14 부터 **전 경로 object** 이고
+(`toTerminalErrorPayload`), 그 union 은 **배포 경계에서 재생되는 레거시 이벤트**를 흡수하기
+위해 의도적으로 남겨 둔 것이다. 제거하면 그 창 동안 CCH-ERR-* 안내가 silent skip 된다.
 
 ### 1.3 ChatChannelInternalEvent 입력
 

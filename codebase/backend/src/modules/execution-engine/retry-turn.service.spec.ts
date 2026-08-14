@@ -716,7 +716,12 @@ describe('RetryTurnService', () => {
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_FAILED,
-        { status: ExecutionStatus.FAILED, error: 'boom' },
+        {
+          status: ExecutionStatus.FAILED,
+          // EIA §6.4 — 부재는 키 생략이 아니라 **명시적 null**. DB 는 `{message}` 만 쓰므로
+          // emit 시점에 `toTerminalErrorPayload` 가 채운다.
+          error: { code: null, message: 'boom', nodeId: null },
+        },
       );
       // ai-review W16 (2026-07-26) — 취소가 아닌 일반 실패는 기존과 동일하게
       // execution.error 가 DB 에 저장돼야 한다(대조군 — 위 취소 케이스와 대비).

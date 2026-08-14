@@ -1134,6 +1134,30 @@ describe("useExecutionEvents", () => {
       );
     });
 
+    // 백엔드가 `error` 를 EIA §6.4 object 로 바꿨다(2026-08-14). 이 테스트가 문자열만
+    // 전제하고 있어서 계약 불일치를 못 잡았고, 그대로 두면 `{item.error}` 가 JSX child 로
+    // 렌더돼 React 가 던진다 — **스토어에 객체가 들어가지 않는 것**을 고정한다.
+    it("execution.failed — error 가 object 면 message 만 스토어에 넣는다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+
+      const handler = getEventHandler("execution.failed");
+      handler({
+        error: {
+          code: "WORKER_HEARTBEAT_TIMEOUT",
+          message: "worker crash",
+          nodeId: null,
+        },
+      });
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("failed");
+      const stored = state.nodeStatuses.get("__execution__")?.error;
+      expect(stored).toBe("worker crash");
+      // 회귀 캐너리 — 객체가 통과하면 렌더가 깨진다.
+      expect(typeof stored).not.toBe("object");
+    });
+
     it("execution.cancelled updates store", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
@@ -1877,6 +1901,37 @@ describe("useExecutionEvents", () => {
       expect(item).toBeDefined();
       expect(item?.toolStatus).toBe("success");
     });
+
+    // 폴백 우변(`?? "Execution failed before the tool completed"`)은 **dangling pending
+    // tool item 이 있을 때만 관측된다** — 초판은 그것 없이 써서 폴백을 지운 뮤턴트가
+    // 생존했다 (`00_02_43` testing W3). 아래 자매 테스트와 같은 셋업이 필요하다.
+    it.each([
+      ["message 없는 object", { error: { code: "X", nodeId: null } }],
+      ["error 필드 자체 부재", {}],
+    ])(
+      "execution.failed — %s 이면 dangling tool 에 폴백 문구가 찍힌다",
+      (_label, payload) => {
+        useExecutionStore.getState().startExecution("exec-1");
+        const { toolStarted } = bind();
+        toolStarted!({
+          nodeId: "agent-1",
+          turnIndex: 1,
+          toolCallId: "call_fallback",
+          name: "kb_search",
+          arguments: "{}",
+        });
+
+        const failed = (mockClient.on as Mock).mock.calls.find(
+          (c: unknown[]) => c[0] === "execution.failed",
+        )?.[1] as ((data: unknown) => void) | undefined;
+        failed?.(payload);
+
+        const item = useExecutionStore
+          .getState()
+          .conversationMessages.find((i) => i.toolCallId === "call_fallback");
+        expect(item?.error).toBe("Execution failed before the tool completed");
+      },
+    );
 
     it("execution.failed flips dangling pending tool items to error (Inv-6 — conversation preserved)", () => {
       useExecutionStore.getState().startExecution("exec-1");

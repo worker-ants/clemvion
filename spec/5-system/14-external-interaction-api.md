@@ -569,10 +569,10 @@ Authorization: Bearer <expiring_iext_jwt>
 | 필드 | 이벤트 | 상태 | 비고 |
 |---|---|---|---|
 | `status` | 3종 | 구현됨 | `completed` \| `failed` \| `cancelled` |
-| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
+| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 | `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). `failed` 는 **전 경로 object** 다 (2026-08-14, `toTerminalErrorPayload` 로 일원화 — 종전의 "일부 경로는 string" 캐비엇 해소). **`cancelled` 는 아직 `{code, message}` 를 손으로 만들어 `nodeId`/`details` 가 없다** |
 | `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
 | `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
-| `durationMs` | 3종 | **미구현 (Planned)** | 위와 같음. **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
+| `durationMs` | 3종 | **미구현 (Planned)** | **`completed` 는 emit 직전에 계산돼 있으나 `cancelled` 계열은 계산·영속조차 하지 않는다** — 3종을 채우려면 취소 경로의 DB write 와 emit 시그니처를 함께 넓혀야 한다(비용이 `result.outputs` 와 다르다). **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
 
 > **삭제된 약속**: `finalNodeId` · `finalPort` · `nodeCount` · `failedNodeId` 는 **엔진에
 > 개념 자체가 없다**(emit 로직 0건). 미구현이 아니라 설계된 적이 없는 필드였고, 문서만
@@ -779,17 +779,22 @@ header value   = "t={timestamp},v1={hex(signature)}"
 }
 ```
 
-> **`code` 는 `null` 일 수 있다** — 종결 `error` 를 싣는 4개 지점 중 실제로 코드를 만드는 것은
-> sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이고, 일반 `catch` 는
-> 분류 가능한 코드를 갖지 않는다. 억지 fallback 코드를 넣으면 **의미 없는 코드가 의미 있는
+> **`code` 는 `null` 일 수 있다** — 코드를 만드는 경로는 여럿이다(sentinel
+> `ErrorPortFallbackError`/`ExecutionTimeLimitError` · 무조건 붙는 `WORKER_HEARTBEAT_TIMEOUT` ·
+> 취소 계열 `RESUME_*`/`EXECUTION_QUEUE_WAIT_TIMEOUT`/`WEBCHAT_IDLE_TIMEOUT`). 그러나
+> **일반 `catch` 경로는 분류 가능한 코드를 갖지 않는다** — 그래서 "항상 존재" 를 약속할 수 없다. 억지 fallback 코드를 넣으면 **의미 없는 코드가 의미 있는
 > 코드와 같은 자리에 섞여** 수신자가 분기할 수 없으므로, "코드 없음" 을 부재로 전달한다.
 > 부재 표현은 형제 필드 `nodeId` 와 같은 **`null`**([API 규약 §5.4](./2-api-convention.md) —
 > 키 생략과 택일하되 근거를 남긴다). 수신자 측 처리는 이미 정의돼 있다 —
 > [chat-channel CCH-ERR-04](./15-chat-channel.md) 가 `error.code === null` 을
 > `executionFailedInternal` 로 fallback 한다.
 
-> **`error` 는 현행 일부 경로에서 string 이다** — 위 객체 형태가 목표이고, 수신자는 당분간
-> 양쪽을 방어해야 한다. 필드 집합 표의 `error` 행 참조.
+> **`failed` 의 `error` 는 이제 전 경로 object 다** (2026-08-14, `toTerminalErrorPayload`
+> 로 emit 4곳 일원화). 종전의 *"일부 경로는 string"* 캐비엇은 해소됐다.
+>
+> 다만 **배포 경계에서 재생되는 레거시 이벤트**는 여전히 string 을 실을 수 있어,
+> chat-channel dispatcher 와 에디터 프런트엔드가 문자열을 흡수하는 분기를 **의도적으로
+> 유지**한다 — 그 분기는 제거 대상이 아니다. 필드 집합 표의 `error` 행 참조.
 
 ### 6.5 페이로드 — `execution.cancelled` / `execution.ai_message`
 

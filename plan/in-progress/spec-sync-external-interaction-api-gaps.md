@@ -17,10 +17,13 @@ owner: planner
       spec 이 없는 필드를 약속하던 상태를 정리하며(§6 재작성) **문서 쪽을 실제에 맞췄고**,
       이 항목은 그 반대 방향(구현을 문서에 맞추기)의 잔여분이다. 구현되면 필드 집합 표의
       "미구현 (Planned)" 를 "구현됨" 으로 flip 한다.
-- [ ] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행, 2026-08-13 등재)
-      — 일부 경로가 아직 string 을 싣는다(`execution-engine.service.ts` L656·L3291,
-      `retry-turn.service.ts` L956). 그래서 `chat-channel.dispatcher.ts` 에 back-compat wrap 이
-      쌓였고 adapter 타입도 `| string` 을 안고 있다. 통일되면 그 wrap 과 union 을 함께 제거한다.
+- [x] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행,
+      2026-08-13 등재 → **2026-08-14 완료**). emit 4곳을 `toTerminalErrorPayload` 로 일원화.
+      > **"wrap 과 union 을 함께 제거한다" 는 원래 계획을 절반만 집행했다 — 의도적이다.**
+      > `chat-channel.dispatcher.ts` 의 string 분기는 **배포 경계에서 재생되는 레거시
+      > 이벤트 흡수용으로 유지**한다. 제거하면 그 창 동안 사용자가 CCH-ERR-* 안내를 못 받는
+      > silent skip 으로 되돌아간다(2026-05-25 에 고친 그 회귀다). 지어낸
+      > `'INTERNAL_ERROR'` 만 `null` 로 정리했다.
 - [x] **Outbound notification backoff 배율** (§3.1 EIA-NX-06 / §6.6) — base-4 (1s/4s/16s/64s/256s) custom BullMQ backoffStrategy 로 구현. worker `settings.backoffStrategy` + `NOTIFICATION_BACKOFF_TYPE`. spec §3.1/§6.6/data-flow-15 동기화. lint·unit·build·e2e 통과.
 - [ ] **분산(다중 인스턴스) SSE / notification fan-out** (§R10) — 현재 `SseAdapter`·`NotificationFanout` 모두 단일 sink `WebsocketService.executionEvents$` 를 in-process(in-memory) RxJS 구독만 하고 Redis pub/sub 발행/구독이 없음. 코드 주석상 "v1 single-instance, 분산 fan-out follow-up". 다중 인스턴스에서 외부 SSE 클라이언트가 임의 인스턴스 접속 가능하려면 Redis pub/sub 도입 필요.
 - [x] **Inbound per-execution rate-limit 및 `RATE_LIMITED` 429** (§5.1 / §8.4 rows 1·3) — `/interact` 60/분·status 120/분 (execution 당). `InteractionRateLimiterService`(Redis fixed-window, fail-open) + `InteractionRateLimitGuard` + `@RateLimit`. `429 RATE_LIMITED` + `Retry-After`. spec §5.1/§8.4/§3.1 EIA-NX-11 + §2-api-convention §7 + user-guide triggers.mdx/en.mdx 동기화. lint·unit·build·e2e 통과.
@@ -103,6 +106,43 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 > **교훈**: 등재된 티켓의 범위는 **발견 시점의 시야**일 뿐이다. 착수 전 그 자리를 코드로 다시
 > 읽으면 티켓이 못 본 형제 결함이 같이 나온다 — 이 저장소가 이미 등재한 "반증된 전제는 더 큰
 > 결함의 덮개다" 와 같은 형태다.
+
+## 폐지된 필드를 현재형으로 인용 (2026-08-14 등재, `22_29_16` cross_spec W1·W2)
+
+**문서가 자기모순이다.** 같은 파일 `:838` 은 inline 인증 필드가 *"폐지됐고"* 라 옳게 적는데,
+`EIA-NX-03`(`:57`)과 `R12`(`:1260`)는 `hmacAlgorithm` 을 *"trigger config 에 보관하되"* 라며
+**현재형**으로 인용한다.
+
+**실측**: `hmacAlgorithm` 은 `V066__trigger_config_strip_inline_auth.sql` 로 제거됐고
+`triggers.service.ts:634` 가 저장 시 스트립한다(`triggers.service.spec.ts:607` 이
+`not.toHaveProperty('hmacAlgorithm')` 로 고정). 현행 위치는 `AuthConfig.config.algorithm` 이며
+**소유자가 트리거가 아니라 자격증명 메타로 바뀌었다** — `12-webhook.md:167` 이 그 차이를 명시한다.
+
+- [ ] `EIA-NX-03`(`:57`)·`R12`(`:1260`)의 `hmacAlgorithm` 인용을 `AuthConfig.config.algorithm`
+      기준으로 재작성. 결론(inbound `sha256` vs outbound `hmac-sha256` prefix 분리)은 유지
+- [ ] §11 `execution.stop` 행에 WS §4.6 과 같은 `_(WS 명령 §4.2 won't-do)_` 주석 —
+      두 "권위 표" 가 어긋나 있다 (`22_29_16` cross_spec W2)
+- [ ] (선택·비차단) `2-api-convention.md §2.2` 에 `/api/external/*` 를 "별도 인증 family 를 쓰는
+      top-level 네임스페이스" 예외로 등재 (`22_29_16` convention_compliance W3)
+
+> **왜 여기 등재하고 그 자리에서 안 고쳤나**: 발견 시점이 `eia-terminal-payload` 의
+> `error` 객체화 PR 중이었다. 같은 PR 이 `durationMs` 를 "비용이 다르다" 는 이유로 떼어냈는데
+> 무관한 HMAC drift 를 끌어들이면 그 원칙과 어긋난다. **한 관심사 원칙은 내 편의로 굽히지 않는다.**
+
+## 종결 `error.message` 가 값-패턴 마스킹을 안 거친다 (2026-08-14 등재, `22_55_51` security W2)
+
+`error.message` 의 출처는 `error instanceof Error ? error.message : String(error)` — **임의
+내부 예외 메시지 원문**이다. WS fanout → SSE 외부 스트림 경로는 `sanitizePayloadForWs`
+(키-이름 기반)만 통과하므로 자유 텍스트 안의 토큰을 걸러내지 못한다. REST `getStatus` 는
+`stripAndRedact` 로 값-패턴까지 마스킹하므로 **두 표면이 비대칭**이다.
+
+- [ ] `toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
+      `deepRedactSecrets` 적용 → REST 와 대칭
+
+> **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
+> `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.
+> 즉 선존 갭이고, `durationMs` 를 "비용이 다르다" 고 떼어낸 PR 이 이걸 끌어들이면 앞뒤가
+> 안 맞는다. **단, 이건 보안 항목이라 우선순위가 위 HMAC 문서 정정보다 높다.**
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

@@ -120,6 +120,14 @@ URL 예시는 `2-api-convention.md §1`(버전은 URL 경로에 미포함) 위�
 실측: 종결 `error` 를 싣는 4개 지점 중 `code` 를 실제로 갖는 것은 `finalizeFailedExecution`
 의 sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 
+> **정정 (2026-08-14, [`eia-terminal-payload.md`](./eia-terminal-payload.md) 재판정 ③-b)**:
+> **위 실측이 틀렸다.** `WORKER_HEARTBEAT_TIMEOUT` 이 `finalizeStalledExhausted` 에서
+> **조건 없이** 붙고(`execution-engine.service.ts:3266`·`:3289`), 취소 계열도
+> `RESUME_*`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·`WEBCHAT_IDLE_TIMEOUT` 을 만든다.
+> **결론(`code` nullable)은 그대로 서지만 근거가 사실과 다르다** — 이 문장이 planner 턴을
+> 거쳐 spec §6.4 Rationale 로 전파됐고 거기서도 정정했다 (`22_29_16` plan_coherence W6).
+> 반증된 전제를 남겨 두면 다음 사람이 재인용한다.
+
 일반 `catch` 에 fallback code 를 넣으면 **의미 없는 코드가 의미 있는 코드와 같은 자리에
 섞여** 수신자가 분기할 수 없다. "코드 없음" 은 부재로 전달하는 편이 정직하다.
 
@@ -354,4 +362,7 @@ REST 엔드포인트(§5)가 실재하므로 **만들 수 있는 것을 아직 �
       > 않는다는 사실에 반증됐다 (consistency `16_44_43` CRITICAL). 해당 행은 철회됐다.
       > **이 항목의 "BLOCK: NO" 는 그 시점 기준이고, 이후 라운드가 뒤집었다** — 닫힌
       > 체크박스가 영구 보증이 아니라는 실례다.
-- [ ] `eia-terminal-payload.md` 차단 해제 후 `--impl-prep` 재실행
+- [x] `eia-terminal-payload.md` 차단 해제 후 `--impl-prep` 재실행 — **BLOCK: NO** (`22_29_16`).
+      그 뒤 구현까지 완료됐다(`6aa0699b8` 외). **자매 plan 이 서로의 완료를 못 보는 것이
+      이 두 문서에서 반복된다** — 다음 세션이 "아직 안 됨" 으로 읽고 중복 작업할 뻔했다
+      (`00_25_05` plan_coherence W1).

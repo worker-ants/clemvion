@@ -265,13 +265,16 @@ describe('isEmptyTextBody — sendMessage 호출 직전 빈 text guard', () => {
 });
 
 /**
- * toChatChannelEvent — execution.failed back-compat (string error wrap).
+ * `toChatChannelEvent` — `execution.failed` 의 **레거시 문자열 흡수 경로**.
  *
- * 회귀 보호: execution-engine 이 emit 하는 payload.error 가 EIA §6.4 의 object shape 가
- * 아닌 string (errMessage) 인 경우 (execution-engine.service.ts line 1339-1346 / 2526-2533) —
- * dispatcher 가 object 만 인정해 null 반환 → outbound skip → CCH-ERR-* 안내 미발송.
- * dispatcher 차원 back-compat: string 도 generic object 로 wrap (classifier unknown
- * fallback → executionFailedInternal 안내 발송).
+ * 엔진은 2026-08-14 부터 전 경로에서 §6.4 object 를 emit 한다(`toTerminalErrorPayload`).
+ * 이 경로는 **배포 경계에서 재생되는 이벤트** 전용이다 — 제거하면 그 창 동안 dispatcher 가
+ * null 을 반환해 outbound 가 skip 되고, 사용자가 CCH-ERR-* 안내를 못 받는다
+ * (2026-05-25 에 고친 그 회귀).
+ *
+ * 종전 JSDoc 은 형제 파일에서 방금 걷어낸 것과 **같은 죽은 참조**(존재한 적 없는 plan
+ * 이름·지금은 다른 코드를 가리키는 줄 번호)를 갖고 있었다. 소스만 고치고 스펙 파일을
+ * 놓친 것이다 (`23_34_12` requirement W3).
  */
 describe('toChatChannelEvent — execution.failed back-compat (string error wrap, 2026-05-25)', () => {
   const baseEnvelope: Pick<
@@ -308,7 +311,7 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     expect((eia.error.details as { statusCode: number }).statusCode).toBe(401);
   });
 
-  it('payload.error 가 string → wrap (back-compat, code=INTERNAL_ERROR)', () => {
+  it('payload.error 가 string → wrap (레거시 흡수, code=null)', () => {
     const event: ExecutionChannelEvent = {
       ...baseEnvelope,
       payload: {
@@ -320,11 +323,13 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
-    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
+    // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
+    expect(eia.error.code).toBeNull();
     expect(eia.error.message).toContain('quota');
   });
 
-  it('payload.error 가 undefined / 잘못된 타입 → wrap (placeholder, code=INTERNAL_ERROR)', () => {
+  it('payload.error 가 undefined / 잘못된 타입 → wrap (placeholder, code=null)', () => {
     const event: ExecutionChannelEvent = {
       ...baseEnvelope,
       payload: {
@@ -336,11 +341,13 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
-    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
+    // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
+    expect(eia.error.code).toBeNull();
     expect(eia.error.message).toBe('unknown error');
   });
 
-  it('payload.error 가 number → wrap (placeholder)', () => {
+  it('payload.error 가 number → 스칼라 문자열화 (placeholder 아님)', () => {
     const event: ExecutionChannelEvent = {
       ...baseEnvelope,
       payload: {
@@ -352,7 +359,13 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     const eia = toChatChannelEvent(event);
     expect(eia).not.toBeNull();
     if (eia?.type !== 'execution.failed') throw new Error();
-    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
+    // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
+    expect(eia.error.code).toBeNull();
+    // **placeholder 가 아니다.** 공용 헬퍼로 통일한 뒤 스칼라는 문자열화된다 —
+    // 제목·주석이 "placeholder" 라 부르는 동안 실제 동작은 달랐고, `message` 를 단언하지
+    // 않아 그 차이가 드러나지 않았다 (`00_02_43` testing W2).
+    expect(eia.error.message).toBe('42');
   });
 });
 

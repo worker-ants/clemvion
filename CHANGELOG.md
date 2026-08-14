@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — 종결 `error` 를 문자열로 보내던 4곳 (EIA §6.4 object 로 일원화)
+
+`execution.failed` 의 `error` 가 spec §6.4 는 `{code, message, nodeId, details?}` 객체인데
+emit 4곳이 **문자열**을 실었다. 네 곳 전부 같은 경로에서 그 객체를 만들어 DB 에 저장하고
+있었고 emit 만 그걸 버리고 message 를 다시 뽑아 썼다.
+
+**수신자 영향 (breaking)**: `execution.failed` webhook·SSE·chat-channel 구독자는 이제
+`error` 를 **항상 객체**로 받는다. 이 저장소는 URL 버전 세그먼트를 쓰지 않으므로 버전
+신호가 없다 — 문자열을 전제한 파서는 갱신이 필요하다.
+
+- 부재 표현은 **명시적 `null`**(`code`·`nodeId`). DB 는 키를 생략하지만 wire 는 채운다
+- `finalizeStalledExhausted` 는 emit 문구를 손으로 다시 적으면서 `attempts` 를 빠뜨려
+  **DB 와 wire 가 이미 달랐다** — 같은 객체를 싣게 해 해소
+- chat-channel dispatcher 가 문자열을 감쌀 때 지어내던 `'INTERNAL_ERROR'` → `null`.
+  그 코드는 분류기에 존재하지 않아 분류 결과는 같고, unknown warn 로그가 유령 코드를
+  보고하지 않게 된다
+- 에디터 프런트엔드(`use-execution-events`)가 같은 wire 를 소비하므로 함께 갱신 —
+  객체를 그대로 렌더하면 React 가 던진다
+
+`durationMs`·`result.outputs` 는 취소 경로 배관 비용이 달라 후속으로 분리했다.
+
 ## Unreleased — (보안) `llmCalls` raw 프롬프트가 외부로 새고 있었다 — fanout(depth-1) + REST 스냅샷
 
 `execution.waiting_for_input` 이 raw LLM 요청/응답을 **두 경로로 중첩**해 실었는데, strip 은

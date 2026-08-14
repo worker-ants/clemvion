@@ -11,6 +11,7 @@ import {
   ExecutionChannelEvent,
   WebsocketService,
 } from '../websocket/websocket.service';
+import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
@@ -21,6 +22,7 @@ import {
   ChatChannelInternalEvent,
   EiaAiMessageEvent,
   EiaEvent,
+  EiaFailedEvent,
 } from './types';
 import { extractFormFields, extractFormTitle } from './shared/form-mode';
 import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
@@ -533,33 +535,35 @@ export function toChatChannelEvent(
       };
     }
     case 'execution.failed': {
-      // execution-engine 이 emit 하는 payload.error shape 가 spec EIA §6.4 의 object
-      // (`{ code, message, nodeId, details? }`) 와 drift — 일부 throw 경로에서 string
-      // (errMessage) 으로 emit (execution-engine.service.ts line 1339-1346 / 2526-2533).
-      // dispatcher 차원 back-compat wrap: string 이면 generic object 로 변환해 classifier
-      // 의 unknown fallback (`executionFailedInternal`) 안내가 발송되도록 한다. 사용자가
-      // CCH-ERR-* 안내를 받지 못하는 silent skip 회귀 fix (2026-05-25).
+      // **엔진은 이제 전 경로에서 §6.4 object 를 emit 한다** (`toTerminalErrorPayload`,
+      // 2026-08-14). 아래 string 분기는 그 이전에 큐/버퍼에 적재된 이벤트만을 위한
+      // **레거시 흡수 경로**로 남긴다 — 배포 경계에서 재생될 수 있다.
       //
-      // 후속: execution-engine 의 emit shape 를 spec EIA §6.4 정합으로 마이그레이션하는
-      // 별 plan (`spec-update-execution-failed-payload-shape`). 그 PR merge 후 본 wrap
-      // 은 deprecated path 로 남고, object 케이스만 hot path.
+      // 종전 주석은 후속 작업으로 `spec-update-execution-failed-payload-shape` 라는 plan 을
+      // 가리켰는데 **그 이름의 plan 은 존재한 적이 없다**(`git log --diff-filter=A` 0건;
+      // 문자열의 최초 등장이 이 주석 자신이다). 인용한 라인 번호 두 개도 지금은 전혀 다른
+      // 코드를 가리킨다. 없는 문서를 가리키는 포인터는 다음 사람의 조사를 낭비시킨다.
       const errorRaw = (event.payload as { error?: unknown }).error;
-      let error: {
-        code: string;
-        message: string;
-        nodeId?: string | null;
-        details?: unknown;
+      // **producer 와 같은 헬퍼를 쓴다.** 종전엔 여기서 세 분기로 손수 정규화했고, object
+      // 분기는 `errorRaw as typeof error` 로 **캐스팅**해 필드별 타입가드를 통째로
+      // 우회했다 — 캐스팅은 검증이 아니다(이 브랜치가 프런트엔드에서 같은 실수로
+      // 렌더 크래시를 냈다). 문자열·부재 흡수도 헬퍼가 이미 담당한다
+      // (`22_55_51`/`23_17_57` maintainability W3).
+      const error: EiaFailedEvent['error'] = toTerminalErrorPayload(
+        errorRaw,
+      ) ?? {
+        code: null,
+        message: 'unknown error',
+        nodeId: null,
       };
-      if (errorRaw && typeof errorRaw === 'object') {
-        // Spec-정합 object shape (정상 path).
-        error = errorRaw as typeof error;
-      } else if (typeof errorRaw === 'string') {
-        // Legacy string emit (back-compat wrap) — classifier unknown fallback.
-        error = { code: 'INTERNAL_ERROR', message: errorRaw };
-      } else {
-        // 양쪽 미정의 — minimal placeholder. classifier unknown fallback.
-        error = { code: 'INTERNAL_ERROR', message: 'unknown error' };
-      }
+      // `code: null` 은 [CCH-ERR-04] 가 `executionFailedInternal` 로 흡수한다.
+      //
+      // 종전엔 여기서 `'INTERNAL_ERROR'` 를 지어냈다. **그 코드는 분류기에 존재하지 않는다**
+      // (`execution-failure-classifier.ts` 전수 0건). 분류 결과도, unknown warn 이 찍히는
+      // 것도 `null`(→ `code ?? ''`)과 **동일하다** — 바뀌는 것은 warn 이 뭐라고 말하느냐다.
+      // `code: "INTERNAL_ERROR"` 는 "엔진이 보낸 코드를 우리가 모른다" 로 읽혀 다음 조사자를
+      // 그 코드의 출처를 찾아 헤매게 만든다(존재하지 않으므로 찾지 못한다). `code: ""` 는
+      // "코드가 없었다" 를 정직하게 말한다. §6.4 의 `code: … | null` 계약과도 맞는다.
       return {
         ...base,
         type: 'execution.failed',
