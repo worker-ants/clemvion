@@ -1,14 +1,30 @@
 ---
-title: 재개 인계 — claude/eia-terminal-payload (push 직전 중단)
+title: 재개 인계 (종결) — claude/eia-terminal-payload 중단·재개 기록
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-14
 owner: developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/6-websocket-protocol.md
 ---
+
+> ## ✅ 재개 완료 — 이 문서의 차단은 전부 해소됐다 (`462455a52`)
+>
+> 아래 본문은 **중단 시점(HEAD `85511cafc`)의 기록**이다. 재개 후 두 차단을 모두 닫았다:
+>
+> | 차단 | 처분 |
+> |---|---|
+> | 1 `waitingNodeType` SoT 상충 | §6.2 행 철회 + WS-owned 4개 목록 복원 (`462455a52`) |
+> | 2 REST 이중 순회 미실측 | 실측 완료 — **부호가 갈렸다**(AI payload 0.08×, non-AI 1.91×) |
+>
+> 게이트: consistency `--impl-done` `21_53_54` **BLOCK: NO** · ai-review `21_54_03`
+> **CRITICAL 0**. 상세는 `review/code/2026/08/14/16_44_37/RESOLUTION.md`.
+>
+> **더 재개할 것이 없다** — 아래 "재개 절차" 는 이미 집행됐다. 남긴 이유는 중단·재개가
+> 있었다는 사실과 그때의 측정치가 기록으로서 값을 갖기 때문이다
+> (`21_53_54` plan_coherence W1 · `21_54_03` W1 이 두 게이트에서 같은 staleness 를 지적했다).
 
 ## 왜 멈췄나
 

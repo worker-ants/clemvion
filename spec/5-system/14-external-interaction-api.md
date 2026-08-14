@@ -470,7 +470,8 @@ Authorization: Bearer <iext_jwt | itk_token>
     "waitingNodeId":   "uuid",
     "conversationThread": { ... },  // 키 생략 가능 (present-when-available — 아래 참조).
                                     // [Spec WS §4.4.5] 와 동일. turns[].source 마커 누락 시
-                                    // [WS §4.4.6](./6-websocket-protocol.md) / [Conversation Thread §5.1](../conventions/conversation-thread.md) 의 폴백 ('live' 로 간주) 적용
+                                    // 폴백('live' 로 간주)의 SoT 는 [WS §4.4.6](./6-websocket-protocol.md#446-messagessource-마커).
+                                    // [Conversation Thread §5.1](../conventions/conversation-thread.md#51-messages-모드-매핑) 은 매핑 표 근거(폴백 문장 없음)
 
     // ↓ 아래 두 키 중 정확히 하나만 present (SSE waiting_for_input wire 와 동일)
     "buttonConfig": { "buttons": [ ... ], "nodeOutput": { ... } },  // interactionType=buttons + buttonConfig 복원 성공 시
@@ -679,7 +680,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
       "formConfig":         { /* form 노드일 때 — [Spec WS §4.4] formConfig 와 동일 shape */ },
       "buttonConfig":       { /* button 노드일 때 — [Spec WS §4.4] buttonConfig 와 동일 shape */ },
       "conversationConfig": { /* AI multi turn 일 때 — [Spec WS §4.4] conversationConfig 와 동일 shape */ },
-      "conversationThread": { /* [Spec WS §4.4.5] 와 동일. optional. messages[].source 마커 누락 시 [WS §4.4.6](./6-websocket-protocol.md) / [Conversation Thread §5.1](../conventions/conversation-thread.md) 폴백 ('live' 로 간주) 적용 */ }
+      "conversationThread": { /* [Spec WS §4.4.5] 와 동일. optional. messages[].source 마커 누락 시 [WS §4.4.6](./6-websocket-protocol.md#446-messagessource-마커) 의 폴백('live' 로 간주) 적용 — [Conversation Thread §5.1](../conventions/conversation-thread.md#51-messages-모드-매핑) 은 매핑 표 근거이지 폴백 근거가 아니다 */ }
     }
   }
 }

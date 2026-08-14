@@ -347,4 +347,11 @@ REST 엔드포인트(§5)가 실재하므로 **만들 수 있는 것을 아직 �
       `--impl-done` `15_36_59` 가 **BLOCK: NO** 로 확인 — 3라운드 연속 CRITICAL 이던 drift 해소.
       > 초판은 "6항목" 이라 적었다. (7)(§R17·WS §4.4 SoT 확장)을 나중에 추가하고 개수를
       > 안 고쳤다 — planner 가 개수만 보고 (7)을 누락할 수 있다 (`14_55_31` plan_coherence W3).
+      >
+      > **소급 정정 (`462455a52`)**: (3) 이 반영한 §6.2 blockquote 의
+      > `node.type → waitingNodeType` 행이 **틀렸다** — WS §4.4 가 소유한 내부 식별자를
+      > 외부 소비 필드로 선언했고, 참조 구현(`parseWaitingForInput`)이 그 필드를 읽지
+      > 않는다는 사실에 반증됐다 (consistency `16_44_43` CRITICAL). 해당 행은 철회됐다.
+      > **이 항목의 "BLOCK: NO" 는 그 시점 기준이고, 이후 라운드가 뒤집었다** — 닫힌
+      > 체크박스가 영구 보증이 아니라는 실례다.
 - [ ] `eia-terminal-payload.md` 차단 해제 후 `--impl-prep` 재실행
