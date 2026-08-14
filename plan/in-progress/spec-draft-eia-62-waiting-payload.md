@@ -89,6 +89,25 @@ EIA §6.4 는 이미 `"nodeId": "uuid" | null` 을 선언하는데 data-model �
 "Conversation Thread §4.4.6" 이 실제로는 `6-websocket-protocol.md` 소속 헤딩을 가리킨다.
 `conversation-thread.md` 에 대응 앵커가 없다 → WS 문서로 재지정 + §5.1 은 그대로 유지.
 
+### (7) `llmCalls` strip SoT 가 실제 누출 표면을 안 덮는다
+
+`11_02_18` convention_compliance WARNING 1. **코드가 고친 결함과 같은 클래스라 눈에 띈다.**
+
+strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부 수신자 strip`
+항목이고 EIA 도 §6.5(`ai_message`)에만 명시가 있다. 그런데 **실제로 새던 곳은
+`waiting_for_input`(§6.2)** 이다 — 어느 SoT 문서도 그 표면을 명시적으로 덮지 않았다.
+
+문서의 보호 선언이 실제 표면보다 좁았고, 코드는 그 좁은 선언보다도 더 좁게(depth-1)
+구현돼 있었다. **두 겹으로 좁았다.**
+
+- WS §4.4 Rationale 제목·본문을 **"`llmCalls` 필드 외부 수신자 strip (위치·이벤트 무관)"**
+  으로 넓힌다
+- EIA §6.2 에도 §6.5 와 동형의 strip 명시 문장 + §R17 역참조
+- 같은 턴에 수정 이력 addendum: *"2026-08-14: depth-1 구현이 중첩 경로 2곳에서 실제 누출
+  중이었음을 발견 → 깊이 무관 strip + `__proto__` 오염 방지(`81f2c60d6`·`5df89cda6`)"*
+  (`11_02_18` INFO 1 — WARNING 1 과 함께 해소된다)
+- 코드 JSDoc 의 SoT 목록에도 EIA §6.2 추가
+
 ## 🔴 조사 중 발견 — `turnDebug.llmCalls` 가 외부 fanout 으로 새는 것으로 보인다
 
 `--spec` `09_38_17` CRITICAL 3(`turnDebug` 이름 충돌)을 확인하다 **그보다 큰 것**이 나왔다.
@@ -147,8 +166,20 @@ EIA §6.4 는 이미 `"nodeId": "uuid" | null` 을 선언하는데 data-model �
 - [ ] **planner 인계 (선택)**: `6-websocket-protocol.md` `## Rationale` 의 "strip-only 결정"
       항목에 *"2026-08-14: depth-1 이라 실제 누출 발견 → 깊이 무관 strip 으로 강화(`81f2c60d6`)"*
       한 줄 addendum (`10_32_29` INFO 3)
-- [ ] 성능 실측 — 재귀 순회 비용을 옛 shallow 와 A/B. 리뷰 종료 후 수행
-      (리뷰가 이 파일을 읽는 중에 뮤테이션하지 않는다)
+- [x] 성능 실측 — 옛 shallow 와 A/B 완료(커밋 `5df89cda6`). 8턴 `turnDebugHistory`
+      waiting payload, N=3000: **0.0112 → 0.0314 ms/emit (2.80배, +20.2 µs)**.
+      수치와 "두 pass 를 합치지 않은 이유" 를 `stripDeep` JSDoc §비용 에 남겼다.
+      > **체크박스 drift 가 바로 다음 커밋에서 재발했다** — 직전 라운드(`10_32_29` W2)에
+      > 같은 지적으로 `a9574f823` 을 만들었는데, **그 커밋에서 이 항목을 `[ ]` 로 새로
+      > 추가**하고 실측 후 체크하지 않았다 (`11_02_18` plan_coherence W2). 항목을 닫는
+      > 커밋과 체크박스를 갱신하는 커밋이 갈리면 매번 이렇게 된다.
+- [ ] **이미 유출된 데이터에 대한 사후 대응 — 운영 판단 필요.**
+      CHANGELOG 에 *"이 경로로 나간 데이터는 이미 전송된 것"* 이라 적었으나 **어느 plan
+      에도 추적 항목이 없었다** (`11_02_18` plan_coherence W3). 결정 대기 사항이
+      CHANGELOG 에만 있으면 릴리스 노트와 함께 흘러가 버린다.
+      - 확인할 것: 이 워크스페이스들이 실제로 외부 수신자(SSE 토큰·webhook·chat-channel)를
+        붙여 썼는지, 붙였다면 기간과 대상. 프롬프트 민감도에 따라 통지 여부가 갈린다
+      - 이건 코드가 아니라 **운영·정책 판단**이라 사용자 결정 사항으로 남긴다
 
 ## Rationale
 
