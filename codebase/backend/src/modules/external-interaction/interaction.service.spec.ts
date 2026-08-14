@@ -701,6 +701,56 @@ describe('InteractionService.getStatus', () => {
     },
   );
 
+  /**
+   * `stripAndRedact` 의 **null 분기** 회귀 고정 (`15_58_26` testing W3).
+   *
+   * null 가드는 원래 호출부 3곳에 각각 있었는데 헬퍼 1곳으로 접었다. 두 컬럼 모두
+   * `nullable: true` 라 런타임에 실제로 null 이 온다. 동작 보존은 코드 추적으로만
+   * 확인됐고 이 경로를 태우는 테스트가 없었다 — 헬퍼가 `null` 대신 `{}` 를 돌려주면
+   * waiting 은 `?? {}` 가 삼켜 무증상이지만 terminal 은 `result: {}` 로 새어
+   * "결과 없음" 과 "빈 결과" 가 구분되지 않는다.
+   */
+  it.each([
+    ['completed', ExecutionStatus.COMPLETED, 'result'],
+    ['failed', ExecutionStatus.FAILED, 'error'],
+  ])(
+    '%s — outputData 가 null 이면 %s 는 {} 가 아니라 null',
+    async (_label, status, field) => {
+      const { service, repo } = makeMocks();
+      repo.findOne.mockResolvedValue(
+        makeExecution({ status, outputData: null as never }),
+      );
+
+      const r = await service.getStatus(IEXT_CTX);
+
+      expect(r[field as 'result' | 'error']).toBeNull();
+    },
+  );
+
+  it('waiting_for_input — nodeOutput 이 null 이어도 context 조립이 깨지지 않는다', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      outputData: null,
+    });
+
+    const r = await service.getStatus(IEXT_CTX);
+
+    // `?? {}` 가 받아 준다 — 대기 노드 자체는 존재하므로 currentNode 는 살아 있다.
+    // `interactionType` 은 out.meta 가 비어 null 로 떨어지고, 그 때문에 `context` 는
+    // 조립되지 않는다(아래 단언이 그 결과를 고정한다) — 크래시 없이 graceful.
+    expect(r.currentNode).toEqual({
+      id: 'n1',
+      type: 'Carousel',
+      interactionType: null,
+    });
+    expect(r.context).toBeNull();
+  });
+
   it('waiting_for_input — 대기 NodeExecution 없으면 currentNode/context null', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(

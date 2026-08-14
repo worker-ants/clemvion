@@ -6,6 +6,7 @@ pending_plans:
 code:
   - codebase/backend/src/modules/websocket/websocket.gateway.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
+  - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts
   - codebase/backend/src/modules/websocket/ws-error-codes.ts
   - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
@@ -1054,6 +1055,17 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 - **근거**: 발신자의 즉시 피드백(로컬 optimistic)과 WS echo 유실 내성을 보존하면서 중복만 제거한다. stamp 이후 `receivedAt` 은 재emit/재구독 dedup 키로 계속 동작하고, 최종 정합은 turn 종료 `ai_message` 스냅샷 REPLACE 가 보장한다(stamp 는 그 보조 선행 단계). frontend 구현 식별자는 [Conversation Thread §9.7.1](../conventions/conversation-thread.md#971-store-reset-정책-실행-lifecycle-별) 방침에 따라 본문에 노출하지 않는다.
 
 ### `llmCalls` 외부 수신자 strip — 위치·이벤트·표면 무관 (strip-only 결정)
+
+> **(2026-08-14 갱신)** 이 결정은 문서상 "모든 외부 수신자" 였으나 **구현이 그보다 좁았다.**
+> fanout 은 최상위 필드만 지웠고(depth-1) REST `getStatus` 는 값 마스킹만 걸려 있어,
+> `execution.waiting_for_input` 의 중첩 경로 두 곳
+> (`turnDebug.llmCalls` · `nodeOutput.meta.turnDebug[].llmCalls`)이 실제로 새고 있었다.
+> 필드명 기준 **깊이 무관** strip 으로 바꾸고 WS fanout·EIA REST 가 같은 공용 유틸을
+> 부르게 통일했다 (`81f2c60d6`·`5df89cda6`·`34e32e62f`·`7fa12301c`).
+>
+> 처방을 한 곳에 둔 이유: 같은 데이터에 **출구가 셋**(fanout · REST waiting · REST terminal)
+> 이었고, 출구를 각자 조립하면 한 번에 하나씩만 고쳐진다 — 실제로 세 라운드에 걸쳐
+> 하나씩 발견됐다.
 
 본 항목은 직전의 "raw payload 운반 (v1, 마스킹 없음)" open item 을 사용자 결정(채널 실사용 + strip-only)으로 확정·대체한다.
 

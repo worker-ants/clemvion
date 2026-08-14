@@ -250,7 +250,7 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       쟀는데, 이 diff 는 `llmCalls` 를 가질 수 없는 **모든 node 이벤트**에도 strip 을 건다.
       HTTP 응답 JSON 같은 대용량 `nodeOutput` 이 worst case 인데 측정 안 했다 —
       **"실측했다" 는 측정한 범위 안에서만 참이다.**
-- [ ] 배열 부분 clone-on-write 다원소 fixture (`11_02_16` testing INFO 11) — 저비용
+- [x] 배열 부분 clone-on-write 다원소 fixture (`11_02_16` testing INFO 11) — `7fa12301c`
 - [ ] **이미 유출된 데이터에 대한 사후 대응 — 운영 판단 필요.**
       CHANGELOG 에 *"이 경로로 나간 데이터는 이미 전송된 것"* 이라 적었으나 **어느 plan
       에도 추적 항목이 없었다** (`11_02_18` plan_coherence W3). 결정 대기 사항이

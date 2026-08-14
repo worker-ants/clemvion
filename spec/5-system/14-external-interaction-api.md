@@ -5,6 +5,7 @@ pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
 code:
   - codebase/backend/src/modules/external-interaction/**
+  - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/triggers/dto/interaction-config.dto.ts
@@ -683,6 +684,13 @@ header value   = "t={timestamp},v1={hex(signature)}"
   }
 }
 ```
+
+> **debug 전용 필드는 이 표면으로 나가지 않는다** — `nodeOutput.meta.turnDebug[].llmCalls`
+> 등 raw LLM 요청/응답은 **필드명 기준·깊이 무관**으로 제거된다(§6.5 와 같은 정책,
+> [§R17](#r17-getstatus-의-currentnodecontext-실값-노출-null-placeholder-부분-번복--sse-역할-분담--outputdata-표면-제약-결정-2026-06-25-conversationthread-reload-노출-재조정-2026-07-09) ·
+> [WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)).
+> **이 절이 실제로 새던 자리다** — 2026-08-14 이전에는 fanout 이 최상위만 지워 중첩된
+> `turnDebug` 가 통과했다.
 
 > **`interaction` 블록은 Planned 다** — 위 4개 URL·`token`·`expiresAt`·`expectedCommands` 는
 > 현재 어떤 emit 경로도 싣지 않는다. 설계 의도를 보존하되 "지금 오지 않는다" 를 명시한다
