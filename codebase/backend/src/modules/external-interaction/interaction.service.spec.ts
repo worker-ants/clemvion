@@ -710,12 +710,15 @@ describe('InteractionService.getStatus', () => {
    * waiting 은 `?? {}` 가 삼켜 무증상이지만 terminal 은 `result: {}` 로 새어
    * "결과 없음" 과 "빈 결과" 가 구분되지 않는다.
    */
+  // 튜플 순서가 `[label, field, status]` 인 것은 의도다 — jest 의 it.each 타이틀은
+  // 남는 인자를 버리므로(`util.format` 과 다르다) `%s` 두 개는 **앞의 두 원소**를 받는다.
+  // 타이틀에 띄우고 싶은 것이 label 과 field 라 그 둘을 앞에 둔다.
   it.each([
-    ['completed', ExecutionStatus.COMPLETED, 'result'],
-    ['failed', ExecutionStatus.FAILED, 'error'],
+    ['completed', 'result', ExecutionStatus.COMPLETED],
+    ['failed', 'error', ExecutionStatus.FAILED],
   ])(
     '%s — outputData 가 null 이면 %s 는 {} 가 아니라 null',
-    async (_label, status, field) => {
+    async (_label, field, status) => {
       const { service, repo } = makeMocks();
       repo.findOne.mockResolvedValue(
         makeExecution({ status, outputData: null as never }),
