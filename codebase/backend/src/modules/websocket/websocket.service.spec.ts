@@ -795,11 +795,14 @@ describe('WebsocketService', () => {
     /**
      * **깊이 경계 전수 — 리뷰어 결론이 갈렸던 자리다** (`11_02_16` CRITICAL 1).
      *
-     * `stripDeep` 은 `depth >= MAX_SANITIZE_DEPTH` 에서 멈추고 형제
+     * **종전에는** `stripDeep` 이 `depth >= MAX_SANITIZE_DEPTH` 에서 멈추고 형제
      * `sanitizePayloadForWs` 는 `depth > MAX_SANITIZE_DEPTH` 에서 `'[REDACTED_DEPTH]'`
-     * 로 치환한다 — 경계 연산자가 다르다. testing reviewer 는 이 어긋남으로 depth 10 에서
-     * 누출이 재현된다 했고, security/side_effect/requirement 셋은 "값은 이미 redact 돼
+     * 로 치환해 **경계 연산자가 어긋나 있었다**. testing reviewer 는 그 어긋남으로 depth 10
+     * 에서 누출이 재현된다 했고, security/side_effect/requirement 셋은 "값은 이미 redact 돼
      * 필드명만 남는다" 고 반대 결론을 냈다.
+     *
+     * 아래 sweep 이 **누출 없음**을 확정했고, 같은 커밋에서 연산자를 형제와 같은 `>` 로
+     * 통일했다 — 지금 두 함수의 경계는 동일하다. 이 문단은 그 이력의 기록이다.
      *
      * **논증 대신 실제 파이프라인으로 훑었고, 결론은 "누출 없음" 이다** — 필드명이 남는
      * 경우는 있어도 raw 내용은 어느 깊이에서도 나가지 않는다. testing 쪽 CRITICAL 은
@@ -809,14 +812,31 @@ describe('WebsocketService', () => {
      *
      * | depth | strip 없이도 통과? | 무엇을 지키나 |
      * |---|---|---|
-     * | 0 · 5 | **아니오 (RED)** | `stripDeep` 이 실제로 지운다 |
-     * | 8 이상 | 예 | 마커가 `MAX_SANITIZE_DEPTH` 밖이라 `sanitizePayloadForWs` 가 먼저 `[REDACTED_DEPTH]` 로 치환 |
+     * | `0` · `MAX-5` · `MAX-3` | **아니오 (RED)** | `stripDeep` 이 실제로 지운다 |
+     * | `MAX-2` 이상 | 예 | 마커가 `MAX_SANITIZE_DEPTH` 밖이라 `sanitizePayloadForWs` 가 먼저 `[REDACTED_DEPTH]` 로 치환 |
      *
-     * 즉 8 이상은 **누출 테스트로서는 판별력이 없다**. 그래도 남겨 두는 이유는 그것이
+     * 전환점은 **`MAX-3` ↔ `MAX-2` 사이**다(둘 다 표본에 있다). 마커가 `llmCalls` 배열 안
+     * 두 단계 더 들어가 있어, 노드 깊이 `MAX-2` 부터 마커 자체가 상한 밖으로 나간다.
+     *
+     * 즉 깊은 쪽은 **누출 테스트로서는 판별력이 없다**. 그래도 남겨 두는 이유는 그것이
      * 이 설계의 방어 구조 자체이기 때문이다 — 깊은 곳은 strip 이 아니라 sanitize 의 상한이
      * 막는다. 나중에 그 상한이 사라지면 여기가 RED 로 알려준다.
+     *
+     * **깊이는 상수 상대값으로 쓴다.** 리터럴로 박으면 `MAX_SANITIZE_DEPTH` 가 바뀌었을 때
+     * 테스트는 계속 통과하면서 **경계 판별력만 조용히 잃는다**. 같은 파일 `:203` 의 자매
+     * 경계 테스트가 이미 그 관례를 명시해 뒀는데 초판이 어겼다 (`12_06_20` maintainability W2).
+     * 판별력 전환점(`MAX-3`)도 표본에 포함한다.
      */
-    it.each([0, 5, 8, 9, 10, 11, 12])(
+    it.each([
+      0,
+      MAX_SANITIZE_DEPTH - 5,
+      MAX_SANITIZE_DEPTH - 3,
+      MAX_SANITIZE_DEPTH - 2,
+      MAX_SANITIZE_DEPTH - 1,
+      MAX_SANITIZE_DEPTH,
+      MAX_SANITIZE_DEPTH + 1,
+      MAX_SANITIZE_DEPTH + 2,
+    ])(
       'depth %i 의 llmCalls raw 내용이 외부 fanout 에 남지 않는다',
       async (depth) => {
         const marker = `SECRET AT DEPTH ${depth}`;
